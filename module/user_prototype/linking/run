@@ -1,0 +1,1 @@
+./cos_loader "t/c0.o,t/c1.o:t/c0.o-t/c1.o" ./gen_client_stub
