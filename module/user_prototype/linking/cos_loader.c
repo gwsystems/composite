@@ -37,7 +37,7 @@
 #define NUM_KERN_SYMBS 1
 const char *USER_CAP_TBL_NAME = "ST_user_caps";
 const char *ST_INV_FN_NAME = "ST_direct_invocation";
-const char *UPCALL_ENTRY_NAME = "cos_upcall";
+const char *UPCALL_ENTRY_NAME = "cos_upcall_entry";
 
 #define BASE_SERVICE_ADDRESS SERVICE_START
 #define DEFAULT_SERVICE_SIZE SERVICE_SIZE
@@ -1247,7 +1247,7 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 		printf("Could not find %s in %s.\n", UPCALL_ENTRY_NAME, s->obj);
 		return NULL;
 	}
-	printf("Found cos_upcall for component %s @ %p.\n", s->obj, upcall_addr);
+	printf("Found cos_upcall for component %s @ %p.\n", s->obj, (void*)upcall_addr);
 
 	spd = (struct spd_info *)malloc(sizeof(struct spd_info));
 	if (spd == NULL) {
@@ -1348,7 +1348,7 @@ static void setup_kernel(struct service_symbs *services)
 {
 	struct service_symbs *s = services, *c0 = NULL, *c1 = NULL, *c2 = NULL, *pc = NULL;
 	struct spd_info *spd0, *spd1, *spd2, *spdpc;
-	struct cap_info *cap1, *cap2, *cappc, *cappcvals, *cappcsched;
+	struct cap_info *cap1, *cap2, *capyield, *cappc, *cappcvals, *cappcsched;
 
 	struct cos_thread_info thd;
 	int cntl_fd, ret;
@@ -1376,18 +1376,26 @@ static void setup_kernel(struct service_symbs *services)
 	}
 
 	spd0 = create_spd(cntl_fd, c0, 1, 0, 0);
-	spd1 = create_spd(cntl_fd, c1, 3, c1->lower_addr, c1->size);
+	spd1 = create_spd(cntl_fd, c1, 4, c1->lower_addr, c1->size);
 	spd2 = create_spd(cntl_fd, c2, 1, c2->lower_addr, c2->size);
 	spdpc = create_spd(cntl_fd, pc, 0, pc->lower_addr, pc->size);
+
+	if (!spd0 || !spd1 || !spd2 || !spdpc) {
+		printf("Could not allocate all of the spds.\n");
+		exit(-1);
+	}
 
 	cap1  = create_invocation_cap(spd0, c0, spd1, c1, cntl_fd, 
 				      "SS_ipc_client_marshal", "spd1_inv", "spd1_fn", 0);
 	cap2  = create_invocation_cap(spd1, c1, spd2, c2, cntl_fd, 
 				      "SS_ipc_client_marshal_saveregs", "spd2_inv", "spd2_fn", 0/*CAP_SAVE_REGS*/); 
+	capyield  = create_invocation_cap(spd1, c1, spd2, c2, cntl_fd, 
+					  "SS_ipc_client_marshal_saveregs", "yield_inv", "yield", 0/*CAP_SAVE_REGS*/); 
+
 //	cappc = create_invocation_cap(spd1, c1, spdpc, pc, cntl_fd, 
 //				      "SS_ipc_client_marshal", "print_inv", "print", 0);
 	cappcvals = create_invocation_cap(spd1, c1, spdpc, pc, cntl_fd, 
-				      "SS_ipc_client_marshal_args", "print_vals_inv", "print_vals", 0);
+					  "SS_ipc_client_marshal_args", "print_vals_inv", "print_vals", 0);
 	cappcsched = create_invocation_cap(spd2, c2, spdpc, pc, cntl_fd, 
 					   "SS_ipc_client_marshal_args", "print_vals_inv", "print_vals", 0);
 

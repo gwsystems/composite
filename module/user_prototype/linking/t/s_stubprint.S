@@ -1,23 +1,6 @@
 #define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 
-
-.data
-/* 8 4K stacks */
-.globl nil
-nil:
-	.long 4
-.align 32
-first_stack:
-	.rep 1024
-	.long 4
-	.endr
-.globl cos_static_stack
-cos_static_stack:
-	.rep 8193
-	.long 4
-	.endr
-
 .text	
 /* delivered to the server service all calls are demuxed through here
    so that we can have a uniform infrastructure for returning (through 

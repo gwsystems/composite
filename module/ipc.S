@@ -142,7 +142,10 @@ syscall_resume_err:
 
 #define COS_SYSCALL_EDX 16 /* Don't forget space for the return address */
 #define COS_SYSCALL_ECX 20
-	
+
+/* FIXME: this is all superfluous: we save/restore all regs when in the 
+   non-preemption case, user-level saves most of them anyway because of 
+   the clobber list.  Lets just let user-level do it, and be done. */
 .globl cos_syscall_switch_thread
 .align 16
 cos_syscall_switch_thread:
@@ -150,6 +153,7 @@ cos_syscall_switch_thread:
 	movl current_thread, %eax
 	addl $THD_REGS, %eax /* offsetof(struct thread, regs) */
 
+	movl %eax, PT_EAX(%eax) /* return 0 when we return from this thread */
 	movl %ebx, PT_EBX(%eax)
 	movl %ebp, PT_ECX(%eax) /* save the return sp, so that sysenter will jump to it */
 	movl %ecx, PT_EDX(%eax) /* save the return address (so that sysexit will return to it) */
@@ -162,17 +166,20 @@ cos_syscall_switch_thread:
 	movl (%esp), PT_EFLAGS(%eax)
 	popl %eax*/
 
-	pushl %eax /* save pt_regs to compare for error later */
+	/*pushl %eax*/ /* save pt_regs to compare for error later */
 	pushl %ebx /* arg */
 	call cos_syscall_switch_thread_cont
 	addl $4, %esp
 
-	cmpl %esp, %eax /* compare vs saved pt_regs from previous thread */
+	/* compare vs saved pt_regs from previous thread */
+/*	cmpl %esp, %eax
 	je cos_switch_error
+*/
 
-	movl $0, PT_EAX(%eax)
+	/* return value was a ptr to the regs structure to restore */
+	/*movl $0, PT_EAX(%eax)*/
 1:
-	addl $4, %esp /* remove old pt_regs from stack */
+	/*addl $4, %esp*/ /* remove old pt_regs from stack */
 	movl PT_EBX(%eax), %ebx
 	movl PT_ECX(%eax), %ecx
 	movl %ecx, (COS_SYSCALL_ECX)(%esp) 
@@ -197,16 +204,30 @@ cos_syscall_kill_thd:
 	pushl %ebx
 	call cos_syscall_kill_thd_cont
 	ret
+
+.globl cos_syscall_upcall
+.align 16
+cos_syscall_upcall:
+	pushl $0
+	pushl %esp
+	pushl %ebx
+	call cos_syscall_upcall_cont
+	addl $8, %esp
+	
+	popl %ebx
+	movl %ebx, (COS_SYSCALL_EDX)(%esp)
+
+	ret
 	
 .globl composite_make_syscall
 .align 16
 composite_make_syscall:
 	pushl %ebp /* user-sp */
 	pushl %ecx /* user-ip */
-
+	
 	/* arguments -- changing layout here requires changing COS_SYSCALL_E(C|D)X */
-	pushl %esi
 	pushl %edi
+	pushl %esi
 	pushl %ebx
 	shr $16, %eax /* impossible for value to be greater than the max allowed here because of filtering in kern_entry.S */
 	call *cos_syscall_tbl(,%eax,4)

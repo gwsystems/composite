@@ -91,7 +91,7 @@ static inline void cap_set_usr_cap(struct usr_inv_cap *uptr, vaddr_t inv_fn,
 	uptr->service_entry_inst = inv_fn;
 	uptr->invocation_count = inv_cnt;
 	uptr->cap_no = cap_no;
-	//printk("cos: writing to user-level capno %x\n", cap_no);
+	//printk("cos: writing to user-level capno %x, %x (%x)\n", cap_no, cap_no>>16, inv_fn);
 
 	return;
 }

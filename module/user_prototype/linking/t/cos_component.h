@@ -1,3 +1,6 @@
+#ifndef COS_COMPONENT_H
+#define COS_COMPONENT_H
+
 #include "../../../include/consts.h"
 #include "../../../include/cos_types.h"
 
@@ -11,9 +14,9 @@
 		"1:\n\t"                             \
 		"movl %%eax, %0\n\t"                 \
 		"popl %%ebp"                         \
-		: "=r" (ret)                         
+		: "=r" (ret)
 #define cos_syscall_clobber \
-                : "%eax", "%ecx", "%edx");           \
+                : "%eax", "%ecx", "%edx", "cc");     \
                                                      \
 	return ret;                                  \
 
@@ -49,22 +52,26 @@ static inline rtype cos_##name(type0 name0, type1 name1, type2 name2) \
 {                                                    \
 	rtype ret;                                   \
 cos_syscall_asm                                      \
-		: "r" (num<<16), "b" (name0), "S" (name1), "D" (name2) \
+		: "g" (num<<16), "b" (name0), "S" (name1), "D" (name2) \
 cos_syscall_clobber                                  \
 }
 
-typedef void (*create_thd_fn_t)(void *data);
+typedef __attribute__((regparm(1))) void (*create_thd_fn_t)(void *data);
 
 cos_syscall_1(1, int, resume_return, int, thd_id);
 cos_syscall_0(2, int, get_thd_id);
-cos_syscall_0(3, int, create_thread);//, create_thd_fn_t, fn, vaddr_t, stack, void*, data);
+cos_syscall_3(3, int, create_thread, create_thd_fn_t, fn, vaddr_t, stack, void*, data);
 cos_syscall_1(4, int, switch_thread, int, thd_id);
 cos_syscall_2(5, int, kill_thd, int, kill_thdid, int, switchto_thdid);
+cos_syscall_0(6, int, brand_upcall);
+cos_syscall_0(7, int, create_brand);
+cos_syscall_1(8, int, upcall, int, spd_id);
 
 /* 
  * This is wrong and must be done in assembly to avoid stack pushes
  * before we have a stack.
  */
+/*
 __attribute__((regparm(3)))
 void cos__start_thd(create_thd_fn_t fn, vaddr_t stack, void *data)
 {
@@ -76,8 +83,9 @@ void cos__start_thd(create_thd_fn_t fn, vaddr_t stack, void *data)
 		:: "r" (stack), "r" (data), "r" (fn)
 		);
 
-	cos_kill_thd(-1, 0); /* kill ourselves */
+	cos_kill_thd(-1, 0);
 }
+*/
 
 /* from linux source in string.h */
 static inline void * cos_memcpy(void * to, const void * from, int n)
@@ -105,3 +113,4 @@ static inline void * cos_memcpy(void * to, const void * from, int n)
 
 #define COS_FIRST_ARG ((void *)SHARED_REGION_START)
 
+#endif

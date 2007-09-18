@@ -1365,6 +1365,10 @@ free_dummy:
 
 		return 0;
 	}
+	case AED_EMULATE_PREEMPT:
+	{
+		return 0;
+	}
 	default: 
 		ret = -EINVAL;
 	}

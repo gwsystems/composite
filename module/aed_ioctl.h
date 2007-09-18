@@ -110,6 +110,7 @@ struct spd_sched_info {
 #define AED_CREATE_THD      _IOR(0, 14, unsigned long)
 #define AED_CAP_CHANGE_ISOLATION _IOR(0, 15, unsigned long)
 #define AED_PROMOTE_SCHED   _IOR(0, 16, unsigned long)
+#define AED_EMULATE_PREEMPT _IOR(0, 17, unsigned long)
 
 #ifndef __KERNEL__
 

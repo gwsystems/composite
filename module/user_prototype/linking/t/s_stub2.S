@@ -1,18 +1,6 @@
 #define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 
-.data
-/* 4 4K stacks */
-.globl nil
-nil:
-	.long 4
-.align 32
-.globl cos_static_stack
-cos_static_stack:
-	.rep 4096
-	.long 4
-	.endr
-
 .text	
 /* delivered to the server service all calls are demuxed through here
    so that we can have a uniform infrastructure for returning (through 
@@ -22,11 +10,32 @@ cos_static_stack:
 .align 16
 spd2_inv:
 	movl $cos_static_stack, %esp
-	addl $4092, %esp
+	movl %eax, %ebp
+	shl $12, %ebp /* 4K stacks */
+	addl %ebp, %esp
 	
 /*	movl %ebp, %esp */
 /*	popl %ebp*/
 	call spd2_fn
+/*	pushl %ebp*/
+
+	movl %eax, %ecx
+	movl $RET_CAP, %eax /* return capability */
+
+	sysenter
+
+.globl yield_inv
+.type  yield_inv, @function
+.align 16
+yield_inv:
+	movl $cos_static_stack, %esp
+	movl %eax, %ebp
+	shl $12, %ebp /* 4K stacks */
+	addl %ebp, %esp
+	
+/*	movl %ebp, %esp */
+/*	popl %ebp*/
+	call yield
 /*	pushl %ebp*/
 
 	movl %eax, %ecx
