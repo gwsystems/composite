@@ -1,10 +1,14 @@
 #include <cos_component.h>
 
+//#define PREEMPT
+#define COOPERATIVE
+
 extern int print_vals(int a, int b, int c);
 
 void nothing(void)
 {
-	print_vals(1, 1, 1);
+	//print_vals(1, 1, 1);
+	return;
 }
 
 extern char cos_static_stack;
@@ -40,23 +44,31 @@ void thread_tramp(void *data)
 
 int spd2_fn(void)
 {
-	int i;
+	int bthd;
+	unsigned int i, cnt = 0;
 
 	thd_id = cos_get_thd_id();
 	curr_thd = thd_id;
 	
-//	print_vals(thd_id, (int)&cos_static_stack, (int)get_stack_addr(1));
-
+#ifdef COOPERATIVE
 	new_thd = cos_create_thread(thread_tramp, get_stack_addr(1), (void*)1);//MNULL, 0, 0);
 
 	if (new_thd != 1) {
 		print_vals(7, new_thd, 1);
 	}
+#endif
+	bthd = cos_brand(0, COS_BRAND_CREATE);
+	cos_brand(bthd, COS_BRAND_ADD_THD);
 
-//	print_vals(1, thd_id, new_thd);
+#ifdef PREEMPT
+	for (i = 0 ; 1 ; i++) {
+		if (i == 0) /* when we wrap-around */
+			print_vals(thd_id, cnt++, 10);
+	}
+#endif
 
-	curr_thd = new_thd;
-	cos_switch_thread(new_thd);
+//	curr_thd = new_thd;
+//	cos_switch_thread(new_thd);
 
 	/*for (i = 0 ; i < 100000 ; i++) {
 		cos_switch_thread(new_thd);
@@ -72,8 +84,21 @@ int spd2_fn(void)
 void yield(void)
 {
 	curr_thd = (curr_thd == thd_id) ? new_thd : thd_id;
-
-	cos_resume_return(curr_thd); 
-//	cos_switch_thread(curr_thd);
+//	print_vals(curr_thd, 0, 0);
+//	cos_resume_return(curr_thd); 
+	cos_switch_thread(curr_thd);
 	//print_vals(404, 0, 0);
+}
+
+
+void cos_upcall_fn(vaddr_t data_region, int id, 
+		   void *arg1, void *arg2, void *arg3)
+{
+	static int cnt = 0;
+
+//	print_vals(thd_id, cnt++, 9);
+
+	yield();
+
+	return;
 }

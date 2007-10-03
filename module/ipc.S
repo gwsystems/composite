@@ -66,12 +66,13 @@ composite_call_ipc:	/* server_inv: */
 composite_ret_ipc:	 /*ret_cap:*/
 	pushl %ecx /* user-level return value */
 
+	pushl $0
+	pushl %esp /* ptr to space we just made for return val */
 	pushl current_thread
 	call pop
-	addl $4, %esp
-
 	cmpl $0, %eax /* error? */
-	jz ipc_ret_err
+	jz ipc_ret_slowpath
+	addl $12, %esp
 
 	/* eax contains ptr to invocation_frame */
 	/* FIXME: this is brain-damaged, should allocate ret area on stack instead of messing with invocation stack frame... Saved for now by the non-preemption thing and fact that thread is only modified one one core at a time. */
@@ -85,13 +86,17 @@ composite_ret_ipc:	 /*ret_cap:*/
 
 	RET_TO_USER
 
+ipc_ret_slowpath:
+	addl $8, %esp
+	popl %eax /* regs to restore */
+
+	cmpl $0, %eax
+	ja ret_from_preemption
+		
 /* global so that can see it in error reports if we crash */
 .globl ipc_ret_err 
 .align 16
 ipc_ret_err:
-	/* should invoke fault handler, but for now, kill our thread
-	by causing error (remember that pop just returned 0 in eax) */
-	/*	sti*/
 	ERROR_OUT
 
 /* this assumes the stack layout is inherited from composite_make_syscall, and will return directly */
@@ -104,32 +109,12 @@ cos_syscall_resume_return:
 
 	/* see inv.c:cos_syscall_resume_return_cont for ret vals */
 	cmpl $1, %eax
-	ja ret_from_preemption
+	ja ret_from_preemption_getregs
 	jb syscall_resume_err
 
 	/* Thread wasn't preempted and voluntarily gave up the cpu, thus return */
 	movl $0, %ecx
 	jmp composite_ret_ipc
-
-ret_from_preemption:
-	addl $THD_REGS, %eax /* offsetof(struct thread, regs) */
-	/* restore from preemption */
-	movl PT_EBX(%eax), %ebx
-	movl PT_ECX(%eax), %ecx
-	movl PT_EDX(%eax), %edx
-	movl PT_ESI(%eax), %esi
-	movl PT_EDI(%eax), %edi
-	movl PT_EBP(%eax), %ebp
-	
-	pushl $(__USER_DS)
-	pushl PT_OLDESP(%eax)
-	pushl PT_EFLAGS(%eax)
-	pushl PT_EIP(%eax)
-	pushl $(__USER_CS)
-
-	movl PT_EAX(%eax), %eax				
-	
-	iret	
 
 /* global so that can see it in error reports if we crash */
 .globl syscall_resume_err 
@@ -162,24 +147,18 @@ cos_syscall_switch_thread:
 	movl %esi, PT_ESI(%eax)
 	movl %edi, PT_EDI(%eax)
 
-	/*pushfl
-	movl (%esp), PT_EFLAGS(%eax)
-	popl %eax*/
-
-	/*pushl %eax*/ /* save pt_regs to compare for error later */
-	pushl %ebx /* arg */
+	pushl $0   /* make room for ret val */
+	pushl %esp /* second argument to track if the thread to return to was preempted or not */
+	pushl %ebx /* arg */ 
 	call cos_syscall_switch_thread_cont
-	addl $4, %esp
+	addl $8, %esp
+	popl %ebx
 
-	/* compare vs saved pt_regs from previous thread */
-/*	cmpl %esp, %eax
-	je cos_switch_error
-*/
+	cmpl $0, %ebx
+	jne ret_from_preemption
 
-	/* return value was a ptr to the regs structure to restore */
-	/*movl $0, PT_EAX(%eax)*/
-1:
-	/*addl $4, %esp*/ /* remove old pt_regs from stack */
+1:	
+	/* restore registers from previous yield, again */
 	movl PT_EBX(%eax), %ebx
 	movl PT_ECX(%eax), %ecx
 	movl %ecx, (COS_SYSCALL_ECX)(%esp) 
@@ -190,6 +169,29 @@ cos_syscall_switch_thread:
 	movl PT_EAX(%eax), %eax
 		
 	ret
+
+.align 4
+ret_from_preemption_getregs:
+	movl current_thread, %eax
+	addl $THD_REGS, %eax /* offsetof(struct thread, regs) */
+ret_from_preemption:
+	/* restore from preemption */
+	movl PT_EBX(%eax), %ebx
+	movl PT_ECX(%eax), %ecx
+	movl PT_EDX(%eax), %edx
+	movl PT_ESI(%eax), %esi
+	movl PT_EDI(%eax), %edi
+	movl PT_EBP(%eax), %ebp
+	
+	pushl $(__USER_DS)
+	pushl PT_OLDESP(%eax)
+	pushl PT_EFLAGS(%eax)
+	pushl $(__USER_CS)
+	pushl PT_EIP(%eax)
+
+	movl PT_EAX(%eax), %eax				
+	
+	iret	
 
 .align 4
 .globl cos_switch_error
@@ -216,7 +218,8 @@ cos_syscall_upcall:
 	
 	popl %ebx
 	movl %ebx, (COS_SYSCALL_EDX)(%esp)
-
+	/* eax remains as the thread id */
+	
 	ret
 	
 .globl composite_make_syscall

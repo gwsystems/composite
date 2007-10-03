@@ -64,7 +64,7 @@ cos_syscall_3(3, int, create_thread, create_thd_fn_t, fn, vaddr_t, stack, void*,
 cos_syscall_1(4, int, switch_thread, int, thd_id);
 cos_syscall_2(5, int, kill_thd, int, kill_thdid, int, switchto_thdid);
 cos_syscall_0(6, int, brand_upcall);
-cos_syscall_0(7, int, create_brand);
+cos_syscall_2(7, int, brand, int, thd_id, int, flags);
 cos_syscall_1(8, int, upcall, int, spd_id);
 
 /* 
@@ -110,6 +110,7 @@ static inline void * cos_memcpy(void * to, const void * from, int n)
 }
 
 #define prevent_tail_call(ret) __asm__ ("" : "=r" (ret) : "m" (ret))
+#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 
 #define COS_FIRST_ARG ((void *)SHARED_REGION_START)
 

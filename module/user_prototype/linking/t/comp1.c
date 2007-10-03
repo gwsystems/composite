@@ -30,10 +30,14 @@ int call_print(const char *m)
 	return print();
 }
 
+extern void nothing(void);
+
 int blah = 0;
+volatile int turn = 0;
 int spd1_fn(void *data, int thd_id)
 {
 	static int first = 1;
+	unsigned long long now, prev;
 	int i;
 
 	if (first) {
@@ -42,25 +46,54 @@ int spd1_fn(void *data, int thd_id)
 	}
 	spd2_fn();
 
-	for (i = 0 ; i < 100000 ; i++) {
-		yield();
+	rdtscll(now);
+	for (i = 0 ; i < 2000000000 ; i++) {
+		if (turn == 0) {
+			prev = now;
+			rdtscll(now);
+			print_vals(i, turn, (unsigned int)(now-prev));
+			turn = 1;
+		}
+		//nothing();
+		//yield();
 	}
 	
 	return blah;
-}
-
-void nothing(void)
-{
-	print_vals(1, 2, 3);
 }
 
 void cos_upcall_fn(vaddr_t data_region, int thd_id, 
 		   void *arg1, void *arg2, void *arg3)
 {
 	//print_vals(3, 2, 1);
+	int cnt = 0, i;
+	unsigned long long now, prev;
+
+	if (thd_id != 1) {
+		print_vals(9, 9, 9);
+	}
+
+	rdtscll(now);
 	while (1) {
-		yield();
+		//nothing();
+		
+		if (turn == 1) {
+			prev = now;
+			rdtscll(now);
+ 			print_vals(cnt, turn, (unsigned int)(now-prev));
+			turn = 0;
+		}
+		cnt++;
+
+		//if (cnt % 10000000 == 0) print_vals(cnt, turn, 2);
+		//yield();
 	}
 
 	return;
+}
+
+void symb_dump(void)
+{
+	/* crap symbols issue, remove */
+	yield();
+	nothing();
 }

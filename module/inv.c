@@ -8,11 +8,14 @@
 #include "include/ipc.h"
 #include "include/spd.h"
 #include "include/debug.h"
+#include "include/measurement.h"
 
 //#include <stdio.h>
 //#include <malloc.h>
 
 #include <linux/kernel.h>
+
+#define COS_SYSCALL __attribute__((regparm(0)))
 
 void print(void)
 {
@@ -50,9 +53,10 @@ static inline void open_spd(struct spd_poly *spd)
 static inline void open_close_spd(struct spd_poly *o_spd,
 				  struct spd_poly *c_spd)
 {
-	native_write_cr3(o_spd->pg_tbl);
-//	printk("cos: invocation - opening pgtbl %x for spd %p.\n", (unsigned int)o_spd->pg_tbl, o_spd);
-		
+	if (o_spd->pg_tbl != c_spd->pg_tbl) {
+		native_write_cr3(o_spd->pg_tbl);
+	}
+
 	return;
 }
 
@@ -82,7 +86,7 @@ static void print_stack(struct thread *thd, struct spd *srcspd, struct spd *dest
 	}
 }
 
-static void print_regs(struct pt_regs *regs)
+/*static*/ void print_regs(struct pt_regs *regs)
 {
 	printk("cos: EAX:%x\tEBX:%x\tECX:%x\n"
 	       "cos: EDX:%x\tESI:%x\tEDI:%x\n"
@@ -105,10 +109,9 @@ extern struct invocation_cap invocation_capabilities[MAX_STATIC_CAP];
  * isolation level isolation access from caller, 2) all return 0
  * should kill thread.
  */
-__attribute__((regparm(0)))
-vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capability, 
-			    vaddr_t sp, vaddr_t ip, vaddr_t usr_def, 
-			    struct inv_ret_struct *ret)
+COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capability, 
+				    vaddr_t sp, vaddr_t ip, vaddr_t usr_def, 
+				    struct inv_ret_struct *ret)
 {
 	struct thd_invocation_frame *curr_frame;
 	struct spd *curr_spd, *dest_spd;
@@ -203,17 +206,67 @@ vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capability,
 	/* add a new stack frame for the spd we are invoking (we're committed) */
 	thd_invocation_push(thd, cap_entry->destination->composite_spd, sp, ip, usr_def);
 
+	cos_meas_event(COS_MEAS_INVOCATIONS);
+
 	return cap_entry->dest_entry_instruction;
 }
 
-__attribute__((regparm(0)))
-struct thd_invocation_frame *pop(struct thread *curr_thd)
+/*
+ * This is crap:  ret_struct can be either a struct thd_invocation_frame
+ */
+COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr_thd, struct pt_regs **regs_restore)
 {
 	struct thd_invocation_frame *inv_frame = thd_invocation_pop(curr_thd);
 	struct thd_invocation_frame *curr_frame;
 
 	if (inv_frame == MNULL) {
-		printk("Attempting to return from a component when there's no component to return to.\n");
+		struct thread *curr = thd_get_current();
+
+		if (curr->flags & THD_STATE_ACTIVE_UPCALL) {
+			struct thread *prev = curr->interrupted_thread;
+			/* FIXME: stupid cast, again */
+			struct spd *dest_spd = (struct spd *)thd_get_thd_spd(prev);
+			struct spd *orig_spd = (struct spd *)thd_get_thd_spd(curr);
+
+			assert(curr->thread_brand && curr->flags & THD_STATE_UPCALL);
+
+			if (curr->thread_brand->pending_upcall_requests > 0) {
+				
+			}
+
+			curr->flags &= ~THD_STATE_ACTIVE_UPCALL;
+			curr->flags |= THD_STATE_READY_UPCALL;
+
+			/* TODO: check if there are pending upcalls
+			 * and service them. */
+
+			/* 
+			 * FIXME: this should be more complicated.  If
+			 * a scheduling decision has been made between
+			 * when the upcall thread was scheduled, and
+			 * now.  In such a case, the "previous
+			 * preempted thread" could have already
+			 * executed to completion, or some such.  In
+			 * such a case (scheduling decision has been
+			 * made to put the upcall thread to sleep),
+			 * then the correct thing to do is to act like
+			 * this thread has been killed (or yields, or
+			 * something in between) for scheduling
+			 * purposes (assuming that we don't have
+			 * pending upcalls, which changes all of this.
+			 */
+			open_close_spd(&dest_spd->spd_info, &orig_spd->spd_info);
+
+			assert(prev->flags & THD_STATE_PREEMPTED);
+			prev->flags &= ~THD_STATE_PREEMPTED;
+
+			thd_set_current(prev);
+			*regs_restore = &prev->regs;
+		} else {
+			printk("Attempting to return from a component when there's no component to return to.\n");
+			regs_restore = 0;
+		}
+
 		return MNULL;
 	}
 	
@@ -244,8 +297,7 @@ void switch_thread_context(struct thread *curr, struct thread *next)
 	return;
 }
 
-__attribute__((regparm(0)))
-int cos_syscall_void(void)
+COS_SYSCALL int cos_syscall_void(void)
 {
 	printd("cos: error - made void system call\n");
 
@@ -262,8 +314,7 @@ extern void cos_syscall_resume_return(void);
  * Does this have to be so expensive?  400 cycles above normal
  * invocation return.
  */
-__attribute__((regparm(0)))
-int cos_syscall_resume_return_cont(int thd_id)
+COS_SYSCALL int cos_syscall_resume_return_cont(int thd_id)
 {
 	struct thread *thd = thd_get_by_id(thd_id), *curr = thd_get_current();
 	struct spd *curr_spd = (struct spd*)thd_get_current_spd();
@@ -298,8 +349,7 @@ int cos_syscall_resume_return_cont(int thd_id)
 	return 1;
 }
 
-__attribute__((regparm(0)))
-int cos_syscall_get_thd_id(void)
+COS_SYSCALL int cos_syscall_get_thd_id(void)
 {
 	//printk("cos: request for thread is %d.\n", thd_get_current()->thread_id);
 	return thd_get_current()->thread_id;
@@ -309,8 +359,7 @@ int cos_syscall_get_thd_id(void)
  * Hope the current thread saved its context...should be able to
  * resume_return to it.
  */
-__attribute__((regparm(0)))
-int cos_syscall_create_thread(vaddr_t fn, vaddr_t stack, void *data)
+COS_SYSCALL int cos_syscall_create_thread(vaddr_t fn, vaddr_t stack, void *data)
 {
 	struct thread *thd;//, *curr;
 	/* FIXME: as above, cast to spd stupid */
@@ -343,13 +392,15 @@ int cos_syscall_create_thread(vaddr_t fn, vaddr_t stack, void *data)
 	return thd->thread_id;
 }
 
+unsigned long long switch_coop, switch_preempt;
 extern int cos_syscall_switch_thread(int thd_id);
-__attribute__((regparm(0)))
-struct pt_regs *cos_syscall_switch_thread_cont(int thd_id)
+COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int thd_id, int *preempt)
 {
 	struct thread *thd = thd_get_by_id(thd_id), *curr = thd_get_current();
 	/* FIXME: cast disregards spd_poly, which will break mpd */
 	struct spd *curr_spd = (struct spd*)thd_get_current_spd();
+
+	*preempt = 0;
 
 	if (thd == NULL || curr == NULL) {
 		printk("cos: no thread associated with id %d.\n", thd_id);
@@ -382,20 +433,24 @@ struct pt_regs *cos_syscall_switch_thread_cont(int thd_id)
 
 //	print_regs(&thd->regs);
 
-	/* not yet...
 	if (thd->flags & THD_STATE_PREEMPTED) {
-		printk("cos: resume preempted -- disabled path...why are we here?\n");
+		/* FIXME: again... */
+		struct spd *dest_spd = (struct spd*)thd_get_thd_spd(thd);
+
+		open_close_spd(&dest_spd->spd_info, &curr_spd->spd_info);
+		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
+
 		thd->flags &= ~THD_STATE_PREEMPTED;
-		return 2;
-	} 
-	*/
+		*preempt = 1;
+	} else {
+		cos_meas_event(COS_MEAS_SWITCH_COOP);
+	}
 	
 	return &thd->regs;
 }
 
 extern void cos_syscall_kill_thd(int thd_id);
-__attribute__((regparm(0)))
-void cos_syscall_kill_thd_cont(int thd_id)
+COS_SYSCALL void cos_syscall_kill_thd_cont(int thd_id)
 {
 	printk("cos: killing threads not yet supported.\n");
 
@@ -419,16 +474,83 @@ void cos_syscall_kill_thd_cont(int thd_id)
  */
 
 //extern void cos_syscall_brand_upcall(int thread_id);
-__attribute__((regparm(0)))
-int cos_syscall_brand_upcall(int thread_id)
+COS_SYSCALL int cos_syscall_brand_upcall(int thread_id)
 {
 	return 0;
 }
 
-__attribute__((regparm(0)))
-int cos_syscall_create_brand(void)
+/*
+ * TODO: Creating the thread in this function is a little
+ * brain-damaged because now we are allocating threads without the
+ * scheduler knowing it (shouldn't be allowed), and because there is a
+ * limited number of threads, we could denial of service and no policy
+ * could be installed in the system to stop us.  Solution: allow the
+ * scheduler to create threads that aren't executed, but attached to
+ * other threads (that make them), and these threads can later be used
+ * to create brands and upcalls.  This allows the scheduler to control
+ * the distrubution of threads, and essentially is a resource credit
+ * to a principal where the resource here is a thread.
+ *
+ * FIXME: the way we record and do brand paths is incorrect currently.
+ * It will work now, but not when we activate MPDs.  We need to make
+ * sure that 1) all spd invocations are recorded when we are creating
+ * a brand path, and 2) pointers are added only to the spds
+ * themselves, not necessarily the spd's current protection domains as
+ * we wish, when making upcalls to upcall into the most recent version
+ * of the spd's protection domains.  This begs the question, when we
+ * upcall_brand from a composite spd, how does the system know which
+ * spd we are in, thus which to upcall into.  Solution: we must make
+ * the upcall call be another capability which we can define a
+ * user-level-cap for.  This is required anyway, as we need to have a
+ * system-provided lookup for direct invocation.  When an upcall is
+ * made, we walk the invocation stack till we find the current spd,
+ * and upcall its return spd.  To improve usability, we should check
+ * explicitely that when a brand is made, the chain of invocations
+ * follows capabilities and doesn't skip spds due to mpds.
+ */
+struct thread *cos_brand_thread;
+COS_SYSCALL int cos_syscall_brand(int thd_id, int flags)
 {
-	return 0;
+	struct thread *new_thd, *brand_thd = NULL;
+	/* FIXME: as above, cast to spd stupid */
+	struct spd *curr_spd = (struct spd*)thd_get_current_spd();
+
+	if (flags & COS_BRAND_ADD_THD) {
+		brand_thd = thd_get_by_id(thd_id);
+
+		if (brand_thd == NULL) {
+			printk("cos: cos_syscall_brand could not find thd_id %d to add thd to.\n", 
+			       (unsigned int)thd_id);
+			return -1;
+		}
+	}
+
+	new_thd = thd_alloc(curr_spd);
+	if (new_thd == NULL) {
+		return -1;
+	}
+
+	/* might be useful later for the flags to not be mutually
+	 * exclusive */
+	if (flags & COS_BRAND_CREATE) {
+		struct thread *curr_thd = thd_get_current();
+
+		//printk("cos: size of invocation stack is %d, and thread %d\n", sizeof(curr_thd->stack_base), sizeof(struct thread));
+		memcpy(&new_thd->stack_base, &curr_thd->stack_base, sizeof(curr_thd->stack_base));
+		new_thd->stack_ptr = curr_thd->stack_ptr;
+		new_thd->cpu_id = curr_thd->cpu_id;
+		new_thd->flags |= THD_STATE_BRAND;
+
+		cos_brand_thread = new_thd;
+	} else if (flags & COS_BRAND_ADD_THD) {
+		new_thd->flags |= (THD_STATE_UPCALL | THD_STATE_READY_UPCALL);
+		new_thd->thread_brand = brand_thd;
+		new_thd->brand_inv_stack_ptr = brand_thd->stack_ptr;
+
+		cos_brand_thread->upcall_threads = new_thd;
+	}
+
+	return new_thd->thread_id;
 }
 
 /* 
@@ -440,8 +562,7 @@ int cos_syscall_create_brand(void)
  * active entities (threads).
  */
 extern void cos_syscall_upcall(int thd_id);
-__attribute__((regparm(0)))
-int cos_syscall_upcall_cont(int spd_id, vaddr_t *inv_addr)
+COS_SYSCALL int cos_syscall_upcall_cont(int spd_id, vaddr_t *inv_addr)
 {
 	struct spd *dest = spd_get_by_index(spd_id);
 	/* FIXME: cast disregards spd_poly, which will break mpd */
@@ -470,6 +591,8 @@ int cos_syscall_upcall_cont(int spd_id, vaddr_t *inv_addr)
 
 	*inv_addr = dest->upcall_entry;
 
+	cos_meas_event(COS_MEAS_UPCALLS);
+
 	return thd->thread_id;
 }
 
@@ -481,7 +604,7 @@ void *cos_syscall_tbl[16] = {
 	(void*)cos_syscall_switch_thread,
 	(void*)cos_syscall_kill_thd,
 	(void*)cos_syscall_brand_upcall,
-	(void*)cos_syscall_create_brand,
+	(void*)cos_syscall_brand,
 	(void*)cos_syscall_upcall,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,

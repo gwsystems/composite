@@ -24,12 +24,17 @@
 
 #include <asm/mmu_context.h>
 
+/* for asm-generic/irq_regs.h:get_irq_regs */
+#include <linux/irq.h>
+//#include <linux/timer.h>
+
 #include "aed_ioctl.h"
 #include "asym_exec_dom.h"
 
 #include "include/spd.h"
 #include "include/ipc.h"
 #include "include/thread.h"
+#include "include/measurement.h"
 
 MODULE_LICENSE("GPL");
 #define MODULE_NAME "asymmetric_execution_domain_support"
@@ -433,7 +438,24 @@ static inline struct pt_regs* get_user_regs(void)
 	 * are saved.  This can be eliminated by assuming that all
 	 * system calls from within composite will use int 0x80 and
 	 * iret probably from dietlibc.
+	 *
+	 * A sidenote:
+	 * -----------
+	 * 
+	 * Case (1) is affected by possible nested interrupts as well,
+	 * and it is possible that we will be in a softirq that
+	 * interrupted the saving/restoring of the user registers on
+	 * the kernel stack.  This can be detected by checking if
+	 * (get_user_regs - get_irq_regs) < sizeof(struct pt_regs).
+	 * Selective rewriting of registers from both structures
+	 * depending on which pt_regs the user-level registers are in
+	 * is necessary.
 	 */
+}
+
+static inline struct pt_regs* get_user_regs_thread(struct task_struct *thd)
+{
+	return (struct pt_regs*)((int)thd->thread.esp0 - sizeof(struct pt_regs));
 }
 
 /* copy the current user-space regs to user-level */
@@ -1367,6 +1389,12 @@ free_dummy:
 	}
 	case AED_EMULATE_PREEMPT:
 	{
+		struct pt_regs *regs = get_user_regs_thread(composite_thread);
+		struct thread *cos_thd = thd_get_current();
+		//struct pt_regs *irq_regs = get_irq_regs();
+
+		memcpy(&cos_thd->regs, regs, sizeof(struct pt_regs));
+
 		return 0;
 	}
 	default: 
@@ -1375,7 +1403,6 @@ free_dummy:
 
 	return ret;
 }
-
 
 /*
  * Event system if signals have too much overhead (or if the current
@@ -1556,6 +1583,15 @@ static inline unsigned long change_page_fault_handler(void *new_handler)
  * Called from page_fault_interposition in kern_entry.S.  Interrupts
  * disabled...dont block!  Can assume current_active_guest is accessed
  * in a critical section due to this.
+ *
+ * COS - things to check:
+ * 1) are we faulting in the shared region
+ * 2) are we faulting in a component for which linux defines a mapping
+ * 3) are we faulting in a component which has no mapping 
+ *
+ * #3 is the most complicated as we must save the registers into a
+ * fault region provided by another process, and execute the fault
+ * handler.
  */
 static int legal_faults = 0, illegal_faults = 0;
 void main_page_fault_interposition(void)
@@ -1655,6 +1691,127 @@ struct mm_struct* module_page_fault(unsigned long address)
 	
 	return current->mm;
 }
+
+/***** begin timer handling *****/
+
+/* 
+ * Our composite emulated timer interrupt executed from a Linux
+ * softirq
+ */
+static struct timer_list timer;
+extern struct thread *cos_brand_thread;
+
+static void timer_interrupt(unsigned long data)
+{
+	struct pt_regs *regs = NULL;
+	
+	BUG_ON(composite_thread == NULL);
+
+	if (composite_thread == current && cos_brand_thread && cos_brand_thread->upcall_threads) {
+		cos_meas_event(COS_MEAS_INT_COS_THD);
+
+		regs = get_user_regs_thread(composite_thread);
+
+		/* 
+		 * If both esp and xss == 0, then the interrupt
+		 * occured between sti; sysexit on the cos ipc/syscall
+		 * return path.  If SEGMENT_RPL_MASK is not set to
+		 * USER_RPL, then we interrupted kernel-code.  These
+		 * are special cases, but we are interested in the
+		 * case where we interrupted user-level composite
+		 * code.
+		 *
+		 * I believe it is a BUG if we did NOT interrupt
+		 * user-level (keep in mind that we are now looking at
+		 * the register set at the top of the stack, not some
+		 * interrupt registers or some such.)
+		 */
+		if (!(regs->esp == 0 && regs->xss == 0) &&
+		    (regs->xcs & SEGMENT_RPL_MASK) == USER_RPL) {
+			struct thread *cos_current;
+			struct thread *cos_upcall_thread = cos_brand_thread->upcall_threads;
+			struct spd *dest, *curr_spd;
+			
+			cos_meas_event(COS_MEAS_INT_PREEMPT_USER);
+
+			if (!(cos_upcall_thread->flags & THD_STATE_READY_UPCALL)) {
+				cos_brand_thread->pending_upcall_requests++;
+				goto timer_finish;
+			}
+
+			cos_meas_event(COS_MEAS_INT_PREEMPT);
+			cos_meas_event(COS_MEAS_BRAND_UC);
+
+			/*
+			 * FIXME: Synchronization is needed here as we
+			 * could be making these modifications BOTH in
+			 * a timer interrupt, and in the networking
+			 * interrupt.
+			 */
+			cos_current = thd_get_current();
+			/* FIXME: same crap with the cast */
+			curr_spd = (struct spd *)thd_get_thd_spd(cos_current);
+			
+			/* preempt and save current thread */
+			memcpy(&cos_current->regs, regs, sizeof(struct pt_regs));
+			cos_current->flags |= THD_STATE_PREEMPTED;
+
+			/* Load the address space of the target spd,
+			 * and load its registers. FIXME: we will want
+			 * to go to the second from the top spd in the
+			 * real implementation when we arent calling
+			 * brand from the kernel. */
+
+			/* FIXME: same crap with the cast */
+			dest = (struct spd *)thd_get_thd_spd(cos_brand_thread);
+
+			/* FIXME: Should be open_close_spd(&dest->spd_info, &curr_spd->spd_info) */
+			if (dest->spd_info.pg_tbl != curr_spd->spd_info.pg_tbl) {
+				native_write_cr3(dest->spd_info.pg_tbl);
+			}
+
+			/* save this thread so that we can resume it
+			 * post execution */
+			cos_upcall_thread->interrupted_thread = cos_current;
+			cos_upcall_thread->flags |= THD_STATE_ACTIVE_UPCALL;
+			thd_set_current(cos_upcall_thread);
+
+			/* see inv.c:cos_syscall_upcall_cont : */
+			cos_upcall_thread->stack_ptr = 0;
+			cos_upcall_thread->stack_base[0].current_composite_spd = (struct composite_spd*)dest;
+
+			regs->eip = dest->upcall_entry;
+			regs->eax = cos_upcall_thread->thread_id;
+		} else {
+			cos_meas_event(COS_MEAS_INT_PREEMPT_KERN);
+		}
+	} else {
+		cos_meas_event(COS_MEAS_OTHER_THD);
+	}
+
+ timer_finish:
+	mod_timer(&timer, jiffies+1);
+
+	return;
+}
+
+static void register_timers(void)
+{
+	init_timer(&timer);
+	timer.function = timer_interrupt;
+	mod_timer(&timer, jiffies+2);
+	
+	return;
+}
+
+static void deregister_timers(void)
+{
+	del_timer(&timer);
+
+	return;
+}
+
+/***** end timer handling *****/
 
 unsigned long *data_pages;
 void switch_thread_data_page(int old_thd, int new_thd)
@@ -1757,6 +1914,9 @@ static int aed_open(struct inode *inode, struct file *file)
 		       (unsigned int)*region_ptr);
 	}
 
+	register_timers();
+	cos_meas_init();
+
 	return 0;
 }
 
@@ -1787,6 +1947,9 @@ static int aed_release(struct inode *inode, struct file *file)
 		remove_all_guest_mms();
 		flush_all(current->mm->pgd);
 	}
+
+	deregister_timers();
+	cos_meas_report();
 
 	/* our garbage collection mechanism: all at once when the cos
 	 * system control fd is closed */
@@ -1889,7 +2052,7 @@ static void asym_exec_dom_exit(void)
 	change_page_fault_handler(default_page_fault_handler);
 
 	deregister_measurements();
-	
+
 	printk("cos: Asymmetric execution domains module removed.\n");
 }
 

@@ -42,3 +42,22 @@ yield_inv:
 	movl $RET_CAP, %eax /* return capability */
 
 	sysenter
+
+.globl nothing_inv
+.type  nothing_inv, @function
+.align 16
+nothing_inv:
+	movl $cos_static_stack, %esp
+	movl %eax, %ebp
+	shl $12, %ebp /* 4K stacks */
+	addl %ebp, %esp
+	
+/*	movl %ebp, %esp */
+/*	popl %ebp*/
+	call nothing
+/*	pushl %ebp*/
+
+	movl %eax, %ecx
+	movl $RET_CAP, %eax /* return capability */
+
+	sysenter

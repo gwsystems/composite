@@ -1348,7 +1348,7 @@ static void setup_kernel(struct service_symbs *services)
 {
 	struct service_symbs *s = services, *c0 = NULL, *c1 = NULL, *c2 = NULL, *pc = NULL;
 	struct spd_info *spd0, *spd1, *spd2, *spdpc;
-	struct cap_info *cap1, *cap2, *capyield, *cappc, *cappcvals, *cappcsched;
+	struct cap_info *cap1, *cap2, *capyield, *capnothing, *cappc, *cappcvals, *cappcsched;
 
 	struct cos_thread_info thd;
 	int cntl_fd, ret;
@@ -1376,7 +1376,7 @@ static void setup_kernel(struct service_symbs *services)
 	}
 
 	spd0 = create_spd(cntl_fd, c0, 1, 0, 0);
-	spd1 = create_spd(cntl_fd, c1, 4, c1->lower_addr, c1->size);
+	spd1 = create_spd(cntl_fd, c1, 5, c1->lower_addr, c1->size);
 	spd2 = create_spd(cntl_fd, c2, 1, c2->lower_addr, c2->size);
 	spdpc = create_spd(cntl_fd, pc, 0, pc->lower_addr, pc->size);
 
@@ -1391,6 +1391,8 @@ static void setup_kernel(struct service_symbs *services)
 				      "SS_ipc_client_marshal_saveregs", "spd2_inv", "spd2_fn", 0/*CAP_SAVE_REGS*/); 
 	capyield  = create_invocation_cap(spd1, c1, spd2, c2, cntl_fd, 
 					  "SS_ipc_client_marshal_saveregs", "yield_inv", "yield", 0/*CAP_SAVE_REGS*/); 
+	capnothing  = create_invocation_cap(spd1, c1, spd2, c2, cntl_fd, 
+					    "SS_ipc_client_marshal_saveregs", "nothing_inv", "nothing", 0/*CAP_SAVE_REGS*/); 
 
 //	cappc = create_invocation_cap(spd1, c1, spdpc, pc, cntl_fd, 
 //				      "SS_ipc_client_marshal", "print_inv", "print", 0);

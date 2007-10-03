@@ -12,6 +12,8 @@ typedef unsigned long phys_addr_t;
 typedef unsigned long vaddr_t;
 typedef unsigned int page_index_t;
 
+#define COS_BRAND_CREATE  0x1
+#define COS_BRAND_ADD_THD 0X2
 
 #define IL_INV_UNMAP (0x1) // when invoking, should we be unmapped?
 #define IL_RET_UNMAP (0x2) // when returning, should we unmap?

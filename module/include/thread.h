@@ -91,14 +91,15 @@ struct thread {
 	struct spd *sched_suspended; /* scheduler we are suspended by */
 	struct thread_sched_info sched_info[MAX_SCHED_HIER_DEPTH] CACHE_ALIGNED; 
 
-	/* flags & THD_STATE_UPCALL != 0: */
+	/* flags & THD_STATE_UPCALL */
 	/* The thread who's execution we are branded to */
 	struct thread *thread_brand;
 	/* the point in the invocation stack of the brand thread we are at */
 	unsigned short int brand_inv_stack_ptr;
+	struct thread *interrupted_thread;
+	struct thread *upcall_threads;
 
-	/* flags & THD_STATE_BRAND != 0: */
-	struct spd *brand_owner; /* spd allowed to brand_upcall using this brand */
+	/* flags & THD_STATE_BRAND */
 	unsigned long pending_upcall_requests;
 
 	/* flags & (THD_STATE_UPCALL|THD_STATE_BRAND) != 0: */
@@ -152,8 +153,8 @@ static inline struct thd_invocation_frame *thd_invocation_pop(struct thread *cur
 	struct thd_invocation_frame *prev_frame;
 
 	if (curr_thd->stack_ptr == 0) {
-		printd("Tried to return without invocation.\n");
-		/* FIXME: kill the thread */
+		//printd("Tried to return without invocation.\n");
+		/* FIXME: kill the thread if not a branded upcall thread */
 		return MNULL; //kill the kern for now...
 	}
 
@@ -168,7 +169,7 @@ static inline struct thd_invocation_frame *thd_invocation_pop(struct thread *cur
 #define MAX_SHORT 0xFFFF
 static inline struct thd_invocation_frame *thd_invstk_top(struct thread *curr_thd)
 {
-	if (curr_thd->stack_ptr == MAX_SHORT) return MNULL;
+	if (curr_thd->stack_ptr == MAX_SHORT) return NULL;
 	
 	return &curr_thd->stack_base[curr_thd->stack_ptr];
 }
@@ -186,11 +187,17 @@ static inline void thd_set_current(struct thread *thd)
 	return;
 }
 
-static inline struct spd_poly *thd_get_current_spd(void)
+static inline struct spd_poly *thd_get_thd_spd(struct thread *thd)
 {
-	struct thd_invocation_frame *frame = thd_invstk_top(thd_get_current());
+	struct thd_invocation_frame *frame = thd_invstk_top(thd);
+
 	if (frame != NULL) return &frame->current_composite_spd->spd_info;
 	return NULL;
+}
+
+static inline struct spd_poly *thd_get_current_spd(void)
+{
+	return thd_get_thd_spd(thd_get_current());
 }
 
 extern struct thread threads[MAX_NUM_THREADS];
