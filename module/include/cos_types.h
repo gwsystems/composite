@@ -1,6 +1,28 @@
 #ifndef TYPES_H
 #define TYPES_H
 
+struct cos_sched_next_thd {
+	unsigned short int next_thd_id, next_thd_flags;
+	unsigned int next_thd_urgency;
+};
+
+#define COS_SCHED_EXCL_YIELD 0x40  /* do not modify without modifying thread.h */
+
+struct cos_sched_events {
+	struct cos_sched_events *next_thd;
+	unsigned int cpu_consumption;
+};
+
+struct cos_synchronization_atom {
+	unsigned short int owner_thread, num_queued;
+} __attribute__((packed));
+
+struct cos_sched_data_area {
+	struct cos_sched_next_thd cos_next; //[NUM_CPUS];
+	struct cos_synchronization_atom locks[32]; //[NUM_CPUS];
+	struct cos_sched_events cos_events[256]; // maximum of PAGE_SIZE/sizeof(struct cos_sched_events) - ceil(sizeof(struct cos_sched_curr_thd)/(sizeof(struct cos_sched_events)+sizeof(locks)))
+};
+
 #define MNULL ((void*)0)
 
 /* 
@@ -12,8 +34,20 @@ typedef unsigned long phys_addr_t;
 typedef unsigned long vaddr_t;
 typedef unsigned int page_index_t;
 
-#define COS_BRAND_CREATE  0x1
-#define COS_BRAND_ADD_THD 0X2
+/* operations for cos_brand */
+enum { 
+	COS_BRAND_CREATE, 
+	COS_BRAND_ADD_THD 
+};
+
+/* operations for cos_sched_cntl */
+enum { 
+	COS_SCHED_EVT_REGION, 
+	COS_SCHED_GRANT_SCHED, 
+	COS_SCHED_REVOKE_SCHED
+};
+
+#define COS_THD_SCHED_RETURN 0x20 /* do not modify without modifying thread.h */
 
 #define IL_INV_UNMAP (0x1) // when invoking, should we be unmapped?
 #define IL_RET_UNMAP (0x2) // when returning, should we unmap?

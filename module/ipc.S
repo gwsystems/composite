@@ -33,7 +33,7 @@ composite_call_ipc:	/* server_inv: */
 	subl $8, %esp
 	pushl %esp
 	/* invoke ipc_walk_static_cap */
-	pushl %edx /* usr_def */
+/*	pushl %edx*/ /* usr_def */
 	pushl %ecx /* ip */
 	pushl %ebp /* sp */
 	pushl %eax /* cap */
@@ -43,7 +43,8 @@ composite_call_ipc:	/* server_inv: */
 	cmpl $0, %eax /* error? */
 	jz composite_call_err
 	
-	addl $24, %esp
+/*	addl $24, %esp*/
+	addl $20, %esp
 
 	/* these 2 lines (and the pushl ebp at the top) are not needed: can pass data in ebp, ecx, and eax, i.e. for spd defined ptr, thdid/spdid, and data page ptr */
 	/* FIXME: pass id in ebp? */
@@ -55,7 +56,7 @@ composite_call_ipc:	/* server_inv: */
 	/*movl SS_ipc_server_unmarshal, %edx*/
 	movl %eax, %edx
 
-	/* thd and spd id */
+	/* thd and data_region */
 	popl %eax
 	popl %ecx
 
@@ -77,7 +78,7 @@ composite_ret_ipc:	 /*ret_cap:*/
 	/* eax contains ptr to invocation_frame */
 	/* FIXME: this is brain-damaged, should allocate ret area on stack instead of messing with invocation stack frame... Saved for now by the non-preemption thing and fact that thread is only modified one one core at a time. */
 	movl SFRAMESP(%eax), %ecx
-	movl SFRAMEUSR(%eax), %ebp
+/*	movl SFRAMEUSR(%eax), %ebp*/
 	movl SFRAMEIP(%eax), %edx
 	popl %eax /* user-level ret val */
 
@@ -103,9 +104,8 @@ ipc_ret_err:
 .globl cos_syscall_resume_return
 .align 16
 cos_syscall_resume_return:
-	pushl %ebx
 	call cos_syscall_resume_return_cont
-	addl $20, %esp /* 4 for arg + 4 for ret addr + 12 for args pushed in composite_make_syscall */
+	addl $20, %esp /* 4 for ret addr + 16 for args pushed in composite_make_syscall */
 
 	/* see inv.c:cos_syscall_resume_return_cont for ret vals */
 	cmpl $1, %eax
@@ -125,8 +125,8 @@ syscall_resume_err:
 	/*	sti*/
 	ERROR_OUT
 
-#define COS_SYSCALL_EDX 16 /* Don't forget space for the return address */
-#define COS_SYSCALL_ECX 20
+#define COS_SYSCALL_EDX 20 /* Don't forget space for the return address */
+#define COS_SYSCALL_ECX 24
 
 /* FIXME: this is all superfluous: we save/restore all regs when in the 
    non-preemption case, user-level saves most of them anyway because of 
@@ -148,10 +148,9 @@ cos_syscall_switch_thread:
 	movl %edi, PT_EDI(%eax)
 
 	pushl $0   /* make room for ret val */
-	pushl %esp /* second argument to track if the thread to return to was preempted or not */
-	pushl %ebx /* arg */ 
+	pushl %esp /* argument to track if the thread to return to was preempted or not */
 	call cos_syscall_switch_thread_cont
-	addl $8, %esp
+	addl $4, %esp
 	popl %ebx
 
 	cmpl $0, %ebx
@@ -229,12 +228,13 @@ composite_make_syscall:
 	pushl %ecx /* user-ip */
 	
 	/* arguments -- changing layout here requires changing COS_SYSCALL_E(C|D)X */
+	pushl %edx
 	pushl %edi
 	pushl %esi
 	pushl %ebx
 	shr $16, %eax /* impossible for value to be greater than the max allowed here because of filtering in kern_entry.S */
 	call *cos_syscall_tbl(,%eax,4)
-	addl $12, %esp /* esi, edi, and ebx not trashed because of cdecl conventions */
+	addl $16, %esp /* esi, edi, and ebx not trashed because of cdecl conventions */
 
 	popl %edx
 	popl %ecx

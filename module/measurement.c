@@ -11,6 +11,7 @@ char *cos_meas_descriptions[COS_MEAS_MAX_SIZE+1] =
 	"interrupt preemption",
 	"component invocations",
 	"bootstrapping upcalls",
+	"incriment pending brands",
 	"branded upcalls",
 	"interrupted user-level",
 	"interrupted kern-level",

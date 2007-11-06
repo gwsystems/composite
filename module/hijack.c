@@ -1291,6 +1291,7 @@ free_dummy:
 	case AED_CREATE_THD:
 	{
 		struct cos_thread_info thread_info;
+		struct thd_sched_info *tsi;
 		struct thread *thd;
 		struct spd *spd;
 
@@ -1302,13 +1303,27 @@ free_dummy:
 
 		spd = spd_get_by_index(thread_info.spd_handle);
 		if (!spd) {
-			printk("Spd %d invalid for thread creation.\n", thread_info.spd_handle);
+			printk("cos: Spd %d invalid for thread creation.\n", 
+			       thread_info.spd_handle);
 			return -EINVAL;
 		}
 
 		thd = thd_alloc(spd);
+
+		spd = spd_get_by_index(thread_info.sched_handle);
+		if (!spd) {
+			printk("cos: scheduling spd %d invalid to create thread.\n", 
+			       thread_info.sched_handle);
+			thd_free(thd);
+			return -EINVAL;
+		}
+		
+		tsi = thd_get_sched_info(thd, 0);
+		tsi->scheduler = spd;
+		tsi->urgency = 255;
+
 		if (!thd) {
-			printk("Could not allocate thread.\n");
+			printk("cos: Could not allocate thread.\n");
 			return -ENOMEM;
 		}
 
@@ -1385,6 +1400,20 @@ free_dummy:
 			sched->sched_depth = p->sched_depth + 1;
 		}
 
+		if (sched_info.sched_shared_page < sched->location.lowest_addr ||
+		    sched_info.sched_shared_page + PAGE_SIZE >= 
+		    sched->location.lowest_addr + sched->location.size) {
+			/* undo changes made so far */
+			sched->sched_depth = -1;
+			sched->parent_sched = NULL;
+
+			printk("cos: could not promote spd %d to scheduler - invalid pinned page @ %x.\n",
+			       spd_get_index(sched), (unsigned int)sched_info.sched_shared_page);
+			return -EINVAL;
+		} 
+
+		sched->sched_shared_page = (struct cos_sched_next_thd *)sched_info.sched_shared_page;
+
 		return 0;
 	}
 	case AED_EMULATE_PREEMPT:
@@ -1394,6 +1423,9 @@ free_dummy:
 		//struct pt_regs *irq_regs = get_irq_regs();
 
 		memcpy(&cos_thd->regs, regs, sizeof(struct pt_regs));
+
+		/* ... skipped this and went for the real thing with
+		 * the timer interrupt */
 
 		return 0;
 	}
@@ -1602,6 +1634,11 @@ void main_page_fault_interposition(void)
 
 	__asm__("movl %%cr2,%0":"=r" (fault_addr));
 
+	/* 
+	 * FIXME: This really doesn't do anything yet: disabled in
+	 * kern_entry.S 
+	 */
+
 	if (composite_thread == current) {
 		/* FIXME: we will really have to check for all spds in
 		 * the composite_spd, rather than just casting to a
@@ -1735,6 +1772,7 @@ static void timer_interrupt(unsigned long data)
 			cos_meas_event(COS_MEAS_INT_PREEMPT_USER);
 
 			if (!(cos_upcall_thread->flags & THD_STATE_READY_UPCALL)) {
+				cos_meas_event(COS_MEAS_BRAND_PEND);
 				cos_brand_thread->pending_upcall_requests++;
 				goto timer_finish;
 			}
@@ -1799,7 +1837,7 @@ static void register_timers(void)
 {
 	init_timer(&timer);
 	timer.function = timer_interrupt;
-	mod_timer(&timer, jiffies+2);
+//	mod_timer(&timer, jiffies+2);
 	
 	return;
 }

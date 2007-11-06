@@ -46,7 +46,8 @@ struct thd_invocation_frame {
 	 * and ip are literally the sp and ip that the kernel sets on
 	 * return to user-level.
 	 */
-	vaddr_t usr_def, sp, ip;
+	struct spd *spd;
+	vaddr_t /*usr_def, */sp, ip;
 }; //HALF_CACHE_ALIGNED;
 
 /* 
@@ -54,9 +55,10 @@ struct thd_invocation_frame {
  * thread's urgency for that scheduler (which might be an importance
  * value)
  */
-struct thread_sched_info {
+struct thd_sched_info {
 	struct spd *scheduler;
 	int urgency;
+	struct cos_sched_events *thread_notifications;
 };
 
 #define THD_STATE_PREEMPTED     0x1  /* Complete register info is saved in regs */
@@ -64,6 +66,8 @@ struct thread_sched_info {
 #define THD_STATE_ACTIVE_UPCALL 0x4  /* Thread is in upcall execution. */
 #define THD_STATE_READY_UPCALL  0x8  /* Same as previous, but we are ready to execute */ 
 #define THD_STATE_BRAND         0x10 /* This thread is used as a brand */
+#define THD_STATE_SCHED_RETURN  COS_THD_SCHED_RETURN /* When the sched switches to this thread, ret from ipc */
+#define THD_STATE_SCHED_EXCL    COS_SCHED_EXCL_YIELD /* The yielded thread should not be wakeable by other schedulers (e.g. because it is waiting for a lock) */
 
 /**
  * The thread descriptor.  Contains all information pertaining to a
@@ -71,7 +75,8 @@ struct thread_sched_info {
  * the kernel invocation stack of execution through components.  
  */
 struct thread {
-	unsigned short int stack_ptr, thread_id;
+	short int stack_ptr;
+	unsigned short int thread_id;
 	unsigned short int cpu_id, flags;
 
 	/* changes in the alignment of this struct must also be
@@ -88,8 +93,8 @@ struct thread {
 	void *data_region;
 	vaddr_t data_kern_ptr;
 
+	struct thd_sched_info sched_info[MAX_SCHED_HIER_DEPTH] CACHE_ALIGNED; 
 	struct spd *sched_suspended; /* scheduler we are suspended by */
-	struct thread_sched_info sched_info[MAX_SCHED_HIER_DEPTH] CACHE_ALIGNED; 
 
 	/* flags & THD_STATE_UPCALL */
 	/* The thread who's execution we are branded to */
@@ -116,6 +121,7 @@ struct cos_execution_info {
 };
 
 struct thread *thd_alloc(struct spd *spd);
+void thd_free(struct thread *thd);
 void thd_init(void);
 
 /*
@@ -124,8 +130,9 @@ void thd_init(void);
  * invocation stack.
  */
 static inline void thd_invocation_push(struct thread *curr_thd, 
-				       struct composite_spd *curr_composite, 
-				       vaddr_t sp, vaddr_t ip, vaddr_t usr_def)
+				       /*struct composite_spd *curr_composite, */
+				       struct spd *curr_spd,
+				       vaddr_t sp, vaddr_t ip/*, vaddr_t usr_def*/)
 {
 	struct thd_invocation_frame *inv_frame;
 /*
@@ -135,10 +142,11 @@ static inline void thd_invocation_push(struct thread *curr_thd,
 	curr_thd->stack_ptr++;
 	inv_frame = &curr_thd->stack_base[curr_thd->stack_ptr];
 
-	inv_frame->current_composite_spd = curr_composite;
+	inv_frame->current_composite_spd = curr_spd->composite_spd;
 	inv_frame->sp = sp;
 	inv_frame->ip = ip;
-	inv_frame->usr_def = usr_def;
+/*	inv_frame->usr_def = usr_def;*/
+	inv_frame->spd = curr_spd;
 
 	return;
 }
@@ -152,7 +160,7 @@ static inline struct thd_invocation_frame *thd_invocation_pop(struct thread *cur
 {
 	struct thd_invocation_frame *prev_frame;
 
-	if (curr_thd->stack_ptr == 0) {
+	if (curr_thd->stack_ptr <= 0) {
 		//printd("Tried to return without invocation.\n");
 		/* FIXME: kill the thread if not a branded upcall thread */
 		return MNULL; //kill the kern for now...
@@ -166,10 +174,10 @@ static inline struct thd_invocation_frame *thd_invocation_pop(struct thread *cur
 	return prev_frame;
 }
 
-#define MAX_SHORT 0xFFFF
 static inline struct thd_invocation_frame *thd_invstk_top(struct thread *curr_thd)
 {
-	if (curr_thd->stack_ptr == MAX_SHORT) return NULL;
+	/* pop should not allow us to escape from our home spd */
+	assert(curr_thd->stack_ptr >= 0);//if (curr_thd->stack_ptr < 0) return NULL;
 	
 	return &curr_thd->stack_base[curr_thd->stack_ptr];
 }
@@ -191,7 +199,9 @@ static inline struct spd_poly *thd_get_thd_spd(struct thread *thd)
 {
 	struct thd_invocation_frame *frame = thd_invstk_top(thd);
 
-	if (frame != NULL) return &frame->current_composite_spd->spd_info;
+	if (frame != NULL) 
+		return &frame->current_composite_spd->spd_info;
+
 	return NULL;
 }
 
@@ -203,9 +213,36 @@ static inline struct spd_poly *thd_get_current_spd(void)
 extern struct thread threads[MAX_NUM_THREADS];
 static inline struct thread *thd_get_by_id(int id)
 {
- 	if (id >= MAX_NUM_THREADS) return NULL;
+	/* Thread 0 is reserved. */
+	int adjusted = id-1;
 
-	return &threads[id];
+ 	if (adjusted >= MAX_NUM_THREADS || adjusted < 0) 
+		return NULL;
+
+	return &threads[adjusted];
+}
+
+static inline struct thd_sched_info *thd_get_sched_info(struct thread *thd, 
+							unsigned short int depth)
+{
+	assert(depth < MAX_SCHED_HIER_DEPTH);
+
+	return &thd->sched_info[depth];
+}
+
+static inline struct spd *thd_get_scheduler(struct thread *thd, unsigned short int depth)
+{
+	return thd_get_sched_info(thd, depth)->scheduler;
+}
+
+static inline unsigned short int thd_get_id(struct thread *thd)
+{
+	return thd->thread_id;
+}
+
+static inline int thd_scheduled_by(struct thread *thd, struct spd *spd) 
+{
+	return thd_get_scheduler(thd, spd->sched_depth) == spd;
 }
 
 #endif /* THREAD_H */

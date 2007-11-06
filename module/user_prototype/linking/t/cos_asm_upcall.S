@@ -3,18 +3,26 @@
 
 .data
 /* 8 4K stacks */
+.align 32
 .globl nil
 nil:
 	.rep 1024 
-	.long 4
+	.long 0
 	.endr
-.align 32
 .globl cos_static_stack
 cos_static_stack:
 	.rep 8193
-	.long 4
+	.long 0
 	.endr
 
+/* Scheduler page for event notifications and thread switching. */
+.align 4096
+.globl cos_sched_notifications
+cos_sched_notifications:
+	.rep 1024
+	.long 0
+	.endr
+	
 .text
 .globl cos_upcall_entry
 .type  cos_upcall_entry, @function

@@ -34,10 +34,11 @@
 #include <thread.h>
 #include <ipc.h>
 
-#define NUM_KERN_SYMBS 1
+#define NUM_KERN_SYMBS 2
 const char *USER_CAP_TBL_NAME = "ST_user_caps";
 const char *ST_INV_FN_NAME = "ST_direct_invocation";
 const char *UPCALL_ENTRY_NAME = "cos_upcall_entry";
+const char *SCHED_PAGE_NAME = "cos_sched_notifications";
 
 #define BASE_SERVICE_ADDRESS SERVICE_START
 #define DEFAULT_SERVICE_SIZE SERVICE_SIZE
@@ -722,15 +723,20 @@ static inline int service_processed(char *obj_name, struct service_symbs *servic
  * ignored for most purposes so they must be the actual kern_syms.
  *
  * The kernel needs to know where a few symbols are, add them:
- * user_caps
+ * user_caps, cos_sched_notifications
  */
 static void add_kernel_exports(struct service_symbs *service)
 {
 	struct symb_type *ex = &service->exported;
 	const char *usr_caps = USER_CAP_TBL_NAME;
+	const char *sched_page = SCHED_PAGE_NAME;
 
 	ex->symbs[ex->num_symbs].name = malloc(strlen(usr_caps)+1);
 	strcpy(ex->symbs[ex->num_symbs].name, usr_caps);
+	ex->num_symbs++;
+
+	ex->symbs[ex->num_symbs].name = malloc(strlen(sched_page)+1);
+	strcpy(ex->symbs[ex->num_symbs].name, sched_page);
 	ex->num_symbs++;
 
 	return;
@@ -1250,7 +1256,7 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 	printf("Found cos_upcall for component %s @ %p.\n", s->obj, (void*)upcall_addr);
 
 	spd = (struct spd_info *)malloc(sizeof(struct spd_info));
-	if (spd == NULL) {
+	if (NULL == spd) {
 		perror("Could not allocate memory for spd\n");
 		return NULL;
 	}
@@ -1272,6 +1278,23 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 	return spd;
 }
 
+void make_spd_scheduler(int cntl_fd, struct spd_info *spd, struct service_symbs *s, struct spd_info *parent)
+{
+	vaddr_t sched_page;
+
+	sched_page = (vaddr_t)get_symb_address(&s->exported, SCHED_PAGE_NAME);
+	if (0 == sched_page) {
+		printf("Could not find %s in %s.\n", SCHED_PAGE_NAME, s->obj);
+		return;
+	}
+	printf("Found spd notification page @ %x.  Promoting to scheduler.\n", 
+	       (unsigned int) sched_page);
+
+	cos_promote_to_scheduler(cntl_fd, spd->spd_handle, (NULL == parent)? -1 : parent->spd_handle, sched_page);
+
+	return;
+}
+
 /*
  * FIXME: all the exit(-1) -> return NULL, and handling in calling
  * function.
@@ -1288,8 +1311,8 @@ struct cap_info *create_invocation_cap(struct spd_info *from_spd, struct service
 	int i;
 	
 	cap = (struct cap_info *)malloc(sizeof(struct cap_info));
-	if (cap == NULL) {
-		printf("Could not allocate memory for invocation capability.\n");
+	if (NULL == cap) {	
+	printf("Could not allocate memory for invocation capability.\n");
 		exit(-1);
 	}
 
@@ -1348,11 +1371,11 @@ static void setup_kernel(struct service_symbs *services)
 {
 	struct service_symbs *s = services, *c0 = NULL, *c1 = NULL, *c2 = NULL, *pc = NULL;
 	struct spd_info *spd0, *spd1, *spd2, *spdpc;
-	struct cap_info *cap1, *cap2, *capyield, *capnothing, *cappc, *cappcvals, *cappcsched;
+	struct cap_info *cap1, *cap1_5, *cap2, *capyield, *capnothing, *cappc, *cappcvals, *cappcsched;
 
 	struct cos_thread_info thd;
 	int cntl_fd, ret;
-	int (*fn)();
+	int (*fn)(void);
 	unsigned long long start, end;
 	
 	cntl_fd = aed_open_cntl_fd();
@@ -1375,7 +1398,7 @@ static void setup_kernel(struct service_symbs *services)
 		exit(-1);
 	}
 
-	spd0 = create_spd(cntl_fd, c0, 1, 0, 0);
+	spd0 = create_spd(cntl_fd, c0, 2, 0, 0);
 	spd1 = create_spd(cntl_fd, c1, 5, c1->lower_addr, c1->size);
 	spd2 = create_spd(cntl_fd, c2, 1, c2->lower_addr, c2->size);
 	spdpc = create_spd(cntl_fd, pc, 0, pc->lower_addr, pc->size);
@@ -1385,14 +1408,16 @@ static void setup_kernel(struct service_symbs *services)
 		exit(-1);
 	}
 
-	cap1  = create_invocation_cap(spd0, c0, spd1, c1, cntl_fd, 
-				      "SS_ipc_client_marshal", "spd1_inv", "spd1_fn", 0);
+	cap1  = create_invocation_cap(spd0, c0, spd2, c2, cntl_fd, 
+				      "SS_ipc_client_marshal_args", "sched_init_inv", "sched_init", 0);
+	cap1_5 = NULL; /*create_invocation_cap(spd0, c0, spdpc, pc, cntl_fd, 
+			 "SS_ipc_client_marshal_args", "print_vals_inv", "print_vals", 0);*/
 	cap2  = create_invocation_cap(spd1, c1, spd2, c2, cntl_fd, 
-				      "SS_ipc_client_marshal_saveregs", "spd2_inv", "spd2_fn", 0/*CAP_SAVE_REGS*/); 
+				      "SS_ipc_client_marshal_args", "spd2_inv", "spd2_fn", 0/*CAP_SAVE_REGS*/); 
 	capyield  = create_invocation_cap(spd1, c1, spd2, c2, cntl_fd, 
-					  "SS_ipc_client_marshal_saveregs", "yield_inv", "yield", 0/*CAP_SAVE_REGS*/); 
+					  "SS_ipc_client_marshal_args", "yield_inv", "yield", 0/*CAP_SAVE_REGS*/); 
 	capnothing  = create_invocation_cap(spd1, c1, spd2, c2, cntl_fd, 
-					    "SS_ipc_client_marshal_saveregs", "nothing_inv", "nothing", 0/*CAP_SAVE_REGS*/); 
+					    "SS_ipc_client_marshal_args", "nothing_inv", "nothing", 0/*CAP_SAVE_REGS*/); 
 
 //	cappc = create_invocation_cap(spd1, c1, spdpc, pc, cntl_fd, 
 //				      "SS_ipc_client_marshal", "print_inv", "print", 0);
@@ -1401,18 +1426,21 @@ static void setup_kernel(struct service_symbs *services)
 	cappcsched = create_invocation_cap(spd2, c2, spdpc, pc, cntl_fd, 
 					   "SS_ipc_client_marshal_args", "print_vals_inv", "print_vals", 0);
 
-	cos_promote_to_scheduler(cntl_fd, spd2->spd_handle, -1);
 	
+	make_spd_scheduler(cntl_fd, spd2, c2, NULL);
+	make_spd_scheduler(cntl_fd, spd1, c1, spd2);
+
 	printf("Test created cap %d, %d, and %d.\n\n", 
 	       (unsigned int)cap1->cap_handle, (unsigned int)cap2->cap_handle, (unsigned int)cappcvals->cap_handle);
 
 	thd.spd_handle = spd0->spd_handle;
+	thd.sched_handle = spd2->spd_handle;
 	cos_create_thd(cntl_fd, &thd);
 
 	printf("OK, good to go, calling fn\n");
 	fflush(stdout);
 
-	fn = (int (*)())get_symb_address(&c0->exported, "spd0_main");
+	fn = (int (*)(void))get_symb_address(&c0->exported, "spd0_main");
 
 #define ITER 1
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))

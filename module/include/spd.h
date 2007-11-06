@@ -157,6 +157,9 @@ struct spd {
 	int sched_depth;
 	struct spd *parent_sched;
 
+	struct cos_sched_next_thd *sched_shared_page;
+	struct cos_sched_events *prev_notification;
+
 	mmaps_t local_mmaps; /* mm_handle (see hijack.c) for linux compat */
 	atomic_t local_ref_cnt;
 

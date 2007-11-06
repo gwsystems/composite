@@ -84,11 +84,12 @@ struct spd_info {
 };
 
 struct cos_thread_info {
-	int spd_handle;
+	int spd_handle, sched_handle;
 };
 
 struct spd_sched_info {
 	int spd_sched_handle, spd_parent_handle;
+	vaddr_t sched_shared_page;
 };
 
 #define AED_PROMOTE_TRUSTED _IO(0, 1)
@@ -183,12 +184,13 @@ static inline int cos_create_thd(int cntl_fd, struct cos_thread_info *thdi)
 }
 
 static inline int cos_promote_to_scheduler(int cntl_fd, int sched_handle, 
-					   int parent_sched_handle)
+					   int parent_sched_handle, vaddr_t notification_page)
 {
  	int ret;
 	struct spd_sched_info spd_sched = {
 		.spd_sched_handle = sched_handle, 
-		.spd_parent_handle = parent_sched_handle		
+		.spd_parent_handle = parent_sched_handle,
+		.sched_shared_page = notification_page
 	};
 
 	if ((ret = ioctl(cntl_fd, AED_PROMOTE_SCHED, &spd_sched))) {

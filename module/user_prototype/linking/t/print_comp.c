@@ -17,13 +17,17 @@ int print(void)
 }
 
 #define MAX_LEN 45
+static int nothing = 0;
 int print_vals(int thd_id, int val1, int val2, int val3)
 {
 	char str[MAX_LEN];
+	int ret;
 
 	snprintf(str, MAX_LEN, "%d:\t%d\t%d\t%d\n", thd_id, val1, val2, val3);
+	ret = write(1, str, strlen(str));
+	nothing++;
 
-	return write(1, str, strlen(str));
+	return ret; 
 }
 
 int main(void) { return 0; }

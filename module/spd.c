@@ -9,6 +9,13 @@
 #include <linux/kernel.h>
 
 struct invocation_cap invocation_capabilities[MAX_STATIC_CAP];
+/* 
+ * This is the layout in virtual memory of the spds.  Spd's virtual
+ * ranges are allocated (currently) on the granularity of a pgd, thus
+ * an array of pointers, one for every pgd captures all address->spd
+ * mappings.
+ */
+struct spd *virtual_spd_layout[PGD_PER_PTBL];
 
 int cap_is_free(int cap_num)
 {
@@ -182,6 +189,10 @@ static void spd_init_all(struct spd *spds)
 
 	spd_freelist_head = spds;
 
+	for (i = 0 ; i < PGD_PER_PTBL ; i++) {
+		virtual_spd_layout[i] = NULL;
+	}
+
 	return;
 }
 	
@@ -251,6 +262,7 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 
 	spd->user_cap_tbl = user_cap_tbl;
 	spd->upcall_entry = upcall_entry;
+	spd->sched_shared_page = NULL;
 
 	/* return capability; ignore return value as we know it will be 0 */
 	spd_add_static_cap(spd, 0, spd, 0);
@@ -259,6 +271,7 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 
 	spd->sched_depth = -1;
 	spd->parent_sched = NULL;
+
 
 	printk("cos: allocated spd %p\n", spd);
 

@@ -17,6 +17,7 @@ struct pt_regs { int dummy[16]; };
 #define PAGE_MASK (~(PAGE_SIZE-1))
 #define PGD_RANGE (1<<22)
 #define PGD_MASK  (~(PGD_RANGE-1))
+#define PGD_PER_PTBL 1024
 
 #define round_to_page(x) ((x)&PAGE_MASK)
 #define round_up_to_page(x) (((x)+PAGE_SIZE-1)&PAGE_MASK)

@@ -32,7 +32,7 @@ yield_inv:
 	movl %eax, %ebp
 	shl $12, %ebp /* 4K stacks */
 	addl %ebp, %esp
-	
+
 /*	movl %ebp, %esp */
 /*	popl %ebp*/
 	call yield
@@ -55,6 +55,26 @@ nothing_inv:
 /*	movl %ebp, %esp */
 /*	popl %ebp*/
 	call nothing
+/*	pushl %ebp*/
+
+	movl %eax, %ecx
+	movl $RET_CAP, %eax /* return capability */
+
+	sysenter
+
+	
+.globl sched_init_inv
+.type  sched_init_inv, @function
+.align 16
+sched_init_inv:
+	movl $cos_static_stack, %esp
+	movl %eax, %ebp
+	shl $12, %ebp /* 4K stacks */
+	addl %ebp, %esp
+	
+/*	movl %ebp, %esp */
+/*	popl %ebp*/
+	call sched_init
 /*	pushl %ebp*/
 
 	movl %eax, %ecx

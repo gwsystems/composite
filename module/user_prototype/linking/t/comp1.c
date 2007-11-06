@@ -37,7 +37,7 @@ volatile int turn = 0;
 int spd1_fn(void *data, int thd_id)
 {
 	static int first = 1;
-	unsigned long long now, prev;
+	unsigned long long now;
 	int i;
 
 	if (first) {
@@ -47,45 +47,44 @@ int spd1_fn(void *data, int thd_id)
 	spd2_fn();
 
 	rdtscll(now);
-	for (i = 0 ; i < 2000000000 ; i++) {
-		if (turn == 0) {
+	for (i = 0 ; i < 2 ; i++) {
+/*		if (turn == 0) {
 			prev = now;
 			rdtscll(now);
 			print_vals(i, turn, (unsigned int)(now-prev));
 			turn = 1;
 		}
+*/
 		//nothing();
-		//yield();
+		yield();
 	}
 	
 	return blah;
 }
 
+#define LOWER 2
+#define UPPER 3
+
+volatile unsigned short int curr = 0;
+
+void c1_yield()
+{
+	curr = (curr == LOWER)? UPPER : LOWER;
+	cos_switch_thread(curr, 0, 0);	
+	//print_vals(cos_get_thd_id(), curr, 1);
+}
+
 void cos_upcall_fn(vaddr_t data_region, int thd_id, 
 		   void *arg1, void *arg2, void *arg3)
 {
-	//print_vals(3, 2, 1);
-	int cnt = 0, i;
-	unsigned long long now, prev;
+	curr = thd_id;
 
-	if (thd_id != 1) {
-		print_vals(9, 9, 9);
-	}
-
-	rdtscll(now);
 	while (1) {
-		//nothing();
-		
-		if (turn == 1) {
-			prev = now;
-			rdtscll(now);
- 			print_vals(cnt, turn, (unsigned int)(now-prev));
-			turn = 0;
-		}
-		cnt++;
-
-		//if (cnt % 10000000 == 0) print_vals(cnt, turn, 2);
-		//yield();
+		yield();
+		//	c1_yield();
+/*		c1_yield();
+		c1_yield();
+		c1_yield();*/
 	}
 
 	return;
@@ -96,4 +95,5 @@ void symb_dump(void)
 	/* crap symbols issue, remove */
 	yield();
 	nothing();
+	print_vals(0,0,0);
 }
