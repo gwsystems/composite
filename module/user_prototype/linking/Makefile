@@ -7,7 +7,7 @@ LD=ld
 PRODUCTS=cos_loader gen_client_stub
 
 all: $(PRODUCTS)
-
+	make -C t
 cos.o: 
 #	make -C ..
 #	$(LD) -r -o cos.o ../*.o
@@ -23,4 +23,4 @@ cos_loader: cos_loader.o #cos.o
 
 clean :
 	rm -f *~ *.o *.a $(PRODUCTS)
-	make -C .. clean
+	make -C t clean

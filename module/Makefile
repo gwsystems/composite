@@ -8,7 +8,9 @@ MAKE=make
 default: module 
 
 module:
+	$(MAKE) -C user_prototype/linking/
 	$(MAKE) -C $(KDIR) SUBDIRS=$(PWD) modules
 
 clean:
 	rm -rf *.ko *.mod.c *.o *.mod.o .*.cmd .tmp_versions test
+	$(MAKE) -C user_prototype/linking/ clean
