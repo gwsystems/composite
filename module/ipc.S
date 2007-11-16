@@ -1,3 +1,10 @@
+/**
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ */
+
 /* push a known value onto the stack, so that we can tell, if we get
    an interrupt after the sti, that we are in a composite IPC
    call. See comment in hijack.c:get_user_regs.  Essentially, if we 

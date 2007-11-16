@@ -1,8 +1,8 @@
 /**
- * Hijack, or Asymmetric Execution Domains support for Linux
- * By Gabriel Parmer, gabep1@cs.bu.edu
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
  *
- * GPL V2 License (FIXME: copy and paste license here)
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
  */
 
 #ifndef COS_COMPONENT_H

@@ -1,7 +1,8 @@
 /**
- * Gabriel Parmer (gabep1@bu.edu)
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
  *
- * Copyright GPLv2.
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
  *
  * Linker and loader for the Composite system: takes a collection of
  * services with their trust relationships explicitly expressed,

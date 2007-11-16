@@ -1,8 +1,10 @@
 /**
  * Hijack, or Asymmetric Execution Domains support for Linux
- * By Gabriel Parmer, gabep1@cs.bu.edu
  *
- * GPL V2 License (FIXME: copy and paste license here)
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
  */
 
 #include <linux/module.h>
@@ -1729,6 +1731,33 @@ struct mm_struct* module_page_fault(unsigned long address)
 	return current->mm;
 }
 
+/*
+ * FIXME: error checking
+ */
+void *cos_alloc_page(void)
+{
+	void *page = (void*)__get_free_pages(GFP_KERNEL, 0);
+	
+	memset(page, 0, PAGE_SIZE);
+	
+	return page;
+}
+
+void cos_free_page(void *page)
+{
+	__free_pages(page, 0);
+}
+
+void *va_to_pa(void *va) 
+{
+	return (void*)__pa(va);
+}
+
+void *pa_to_va(void *pa) 
+{
+	return __va(pa);
+}
+
 /***** begin timer handling *****/
 
 /* 
@@ -1816,7 +1845,7 @@ static void timer_interrupt(unsigned long data)
 
 			/* see inv.c:cos_syscall_upcall_cont : */
 			cos_upcall_thread->stack_ptr = 0;
-			cos_upcall_thread->stack_base[0].current_composite_spd = (struct composite_spd*)dest;
+			cos_upcall_thread->stack_base[0].current_composite_spd = /*(struct composite_spd*)*/&dest->spd_info;
 
 			regs->eip = dest->upcall_entry;
 			regs->eax = cos_upcall_thread->thread_id;

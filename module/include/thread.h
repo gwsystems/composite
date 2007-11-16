@@ -1,6 +1,8 @@
-/* 
- * Author: Gabriel Parmer
- * License: GPLv2
+/**
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
  */
 
 #ifndef THREAD_H
@@ -39,7 +41,7 @@
 */
 
 struct thd_invocation_frame {
-	struct composite_spd *current_composite_spd;
+	struct /*composite_spd*/spd_poly *current_composite_spd;
 	/*
 	 * ret_addr is stored and passed up to the user-level on
 	 * return: it allows that code to know where to return to.  sp
@@ -200,7 +202,7 @@ static inline struct spd_poly *thd_get_thd_spd(struct thread *thd)
 	struct thd_invocation_frame *frame = thd_invstk_top(thd);
 
 	if (frame != NULL) 
-		return &frame->current_composite_spd->spd_info;
+		return /*&*/frame->current_composite_spd/*->spd_info*/;
 
 	return NULL;
 }

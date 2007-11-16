@@ -1,6 +1,8 @@
-/* 
- * Author: Gabriel Parmer
- * License: GPLv2
+/**
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
  */
 
 #ifndef SPD_H
@@ -103,6 +105,8 @@ struct invocation_cap {
                            // should no longer be used except for
 			   // thread returns.
 
+#define MAX_MPD_DESC 1024  // Max number of descriptors for composite spds
+
 /*
  * The spd_poly struct contains all the information that both struct
  * spds and struct composite_spds contains.  In essence, we want them
@@ -110,25 +114,19 @@ struct invocation_cap {
  */
 struct spd_poly {
 	unsigned int flags;
-	phys_addr_t pg_tbl;
 	atomic_t ref_cnt;
+	phys_addr_t pg_tbl;
 };
 
 /* 
  * A collection of Symmetrically trusted spds.
  *
- * Note the though this structure has a reference count which counts
- * the number of threads that have invoked this service but not
- * returned, the reference count is really the sum of the reference
- * counts for all spds in this composite.
- *
- * This is done to reduce the number of cache/tlb misses by one (no
- * composite_spd access on IPC fast path).
+ * Spd membership in this composite can be tested by seeing if a
+ * specific spd's address range is present in the spd_info->pg_tbl
  */
 struct composite_spd {
 	struct spd_poly spd_info;
-	unsigned int num_element_spds;
-	struct spd *spds[];
+	struct composite_spd *freelist_next;
 } CACHE_ALIGNED;
 
 /* 
@@ -147,7 +145,10 @@ struct spd {
 	/* data touched on the ipc hotpath (32 bytes)*/
 	struct spd_poly spd_info;
 	struct spd_location location;
-	struct composite_spd *composite_spd;
+	/* The "current" protection state of the spd, which might
+	 * point directly to spd->spd_info, or
+	 * composite_spd->spd_info */
+	struct spd_poly /*composite_spd*/ *composite_spd; 
 	
 	unsigned short int cap_base, cap_range;
 	struct usr_inv_cap *user_cap_tbl;
@@ -188,6 +189,10 @@ unsigned int spd_add_static_cap_extended(struct spd *spd, struct spd *trusted_sp
 					 isolation_level_t isolation_level, int flags);
 isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int flags);
 int cap_is_free(int cap_num);
+
+void spd_init_mpd_descriptors(void);
+short int spd_alloc_mpd_desc(void);
+void spd_mpd_release_desc(short int desc);
 
 #else /* ASM */
 

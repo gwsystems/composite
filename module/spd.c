@@ -1,6 +1,8 @@
-/* 
- * Author: Gabriel Parmer
- * License: GPLv2
+/**
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
  */
 
 //#include <spd.h>
@@ -15,7 +17,7 @@ struct invocation_cap invocation_capabilities[MAX_STATIC_CAP];
  * an array of pointers, one for every pgd captures all address->spd
  * mappings.
  */
-struct spd *virtual_spd_layout[PGD_PER_PTBL];
+//struct spd *virtual_spd_layout[PGD_PER_PTBL];
 
 int cap_is_free(int cap_num)
 {
@@ -189,9 +191,11 @@ static void spd_init_all(struct spd *spds)
 
 	spd_freelist_head = spds;
 
+	/*
 	for (i = 0 ; i < PGD_PER_PTBL ; i++) {
 		virtual_spd_layout[i] = NULL;
 	}
+	*/
 
 	return;
 }
@@ -200,6 +204,7 @@ void spd_init(void)
 {
 	spd_init_all(spds);
 	spd_init_capabilities(invocation_capabilities);
+	spd_init_mpd_descriptors();
 }
 
 int spd_is_free(int idx)
@@ -267,7 +272,7 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 	/* return capability; ignore return value as we know it will be 0 */
 	spd_add_static_cap(spd, 0, spd, 0);
 
-	spd->composite_spd = (struct composite_spd*)spd;
+	spd->composite_spd = /*(struct composite_spd*)*/&spd->spd_info;
 
 	spd->sched_depth = -1;
 	spd->parent_sched = NULL;
@@ -369,4 +374,123 @@ unsigned int spd_add_static_cap_extended(struct spd *owner_spd, struct spd *trus
 	}
 
 	return cap_num;
+}
+
+extern void *cos_alloc_page(void);
+extern void *va_to_pa(void *va);
+extern void *pa_to_va(void *pa);
+
+struct composite_spd mpd_descriptors[MAX_MPD_DESC];
+struct composite_spd *mpd_freelist;
+
+/* we're going to have a page-pool as well */
+struct page_list {
+	struct page_list *next;
+} page_list_head;
+unsigned int page_list_len = 0;
+
+static struct page_list *cos_get_pg_pool(void)
+{
+	struct page_list *page;
+
+	if (NULL == page_list_head.next) {
+		page = cos_alloc_page();
+	} else {
+		page = page_list_head.next;
+		page_list_head.next = page->next;
+		page_list_len--;
+	}
+
+	return page;
+}
+
+static void cos_put_pg_pool(struct page_list *page)
+{
+	page->next = page_list_head.next;
+	page_list_head.next = page;
+	page_list_len++;
+
+	/* arbitary test, but this is an error case I would like to be able to catch */
+	assert(page_list_len < 1024);
+
+	return;
+}
+
+void spd_init_mpd_descriptors(void)
+{
+	int i;
+	struct page_list *page;
+
+	mpd_freelist = mpd_descriptors;
+	for (i = 0 ; i < MAX_MPD_DESC ; i++) {
+		struct composite_spd *cspd = &mpd_descriptors[i];
+
+		cspd->spd_info.flags = SPD_COMPOSITE | SPD_FREE;
+		cspd->freelist_next = &mpd_descriptors[i+1];
+	}
+	mpd_descriptors[MAX_MPD_DESC-1].freelist_next = NULL;
+	
+	page = cos_alloc_page();
+	assert(NULL != page);
+	page->next = NULL;
+	page_list_head.next = page;
+
+	return;
+}
+
+static inline short int spd_mpd_index(struct composite_spd *cspd)
+{
+	short int idx = cspd - mpd_descriptors;
+
+	if (idx >= MAX_MPD_DESC) return -1;
+
+	return idx;
+}
+
+short int spd_alloc_mpd_desc(void)
+{
+	struct composite_spd *new;
+	struct page_list *page;
+
+	new = mpd_freelist;
+	if (NULL == new) 
+		return -1;
+
+	assert((new->spd_info.flags & (SPD_FREE | SPD_COMPOSITE)) == (SPD_FREE | SPD_COMPOSITE));
+
+	mpd_freelist = new->freelist_next;
+	new->freelist_next = NULL;
+	new->spd_info.flags &= ~SPD_FREE;
+
+	page = cos_get_pg_pool();
+	if (NULL == page)
+		return -1;
+
+	/* FIXME: make really atomic...not necessary here, but for cleanliness */
+	new->spd_info.ref_cnt.counter++;
+	new->spd_info.pg_tbl = (phys_addr_t)va_to_pa(page);
+
+	return spd_mpd_index(new);
+}
+
+void spd_mpd_release(struct composite_spd *cspd)
+{
+	/* FIXME: again, should be atomic */
+	cspd->spd_info.ref_cnt.counter--;
+
+	if (0 == cspd->spd_info.ref_cnt.counter) {
+		cspd->spd_info.flags |= SPD_FREE;
+		cspd->freelist_next = mpd_freelist;
+		mpd_freelist = cspd;
+		cos_put_pg_pool(pa_to_va((void*)cspd->spd_info.pg_tbl));
+	}
+
+	return;
+}
+
+void spd_mpd_release_desc(short int desc)
+{
+	assert(desc < MAX_MPD_DESC);
+
+	spd_mpd_release(&mpd_descriptors[desc]);
 }

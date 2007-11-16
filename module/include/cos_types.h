@@ -47,6 +47,16 @@ enum {
 	COS_SCHED_REVOKE_SCHED
 };
 
+/* operations for manipulating mpds */
+enum {
+	COS_MPD_CREATE,
+	COS_MPD_ADD_SPD,
+	COS_MPD_DEACTIVATE,
+	COS_MPD_ACTIVATE,
+	COS_MPD_INV_CNT,
+	COS_MPD_ISOLATE
+};
+
 #define COS_THD_SCHED_RETURN 0x20 /* do not modify without modifying thread.h */
 
 #define IL_INV_UNMAP (0x1) // when invoking, should we be unmapped?
@@ -55,7 +65,7 @@ enum {
 
 /*
  * Note on Symmetric Trust, Symmetric Distruct, and Asym trust: 
- * ST iff (flags & (CAP_INV_UNMAP|CAP_RET_UNMAP) == 0)
+ * ST  iff (flags & (CAP_INV_UNMAP|CAP_RET_UNMAP) == 0)
  * SDT iff (flags & CAP_INV_UNMAP && flags & CAP_RET_UNMAP)
  * AST iff (!(flags & CAP_INV_UNMAP) && flags & CAP_RET_UNMAP)
  */

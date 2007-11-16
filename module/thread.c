@@ -1,6 +1,8 @@
-/* 
- * Author: Gabriel Parmer
- * License: GPLv2
+/**
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
  */
 
 //#include <thread.h>

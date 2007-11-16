@@ -1,3 +1,10 @@
+/**
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

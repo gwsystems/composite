@@ -1,45 +1,21 @@
-/* 
- * Author: Gabriel Parmer
- * License: GPLv2
+/**
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
  */
 
-//#include <ipc.h>
-//#include <spd.h>
 #include "include/ipc.h"
 #include "include/spd.h"
 #include "include/debug.h"
 #include "include/measurement.h"
 
-//#include <stdio.h>
-//#include <malloc.h>
-
 #include <linux/kernel.h>
 
 #define COS_SYSCALL __attribute__((regparm(0)))
 
-void print(void)
-{
-	printd("cos: (*)\n");
-}
-
-void print_val(unsigned int val)
-{
-	printd("cos: (%x)\n", val);
-}
-
-
-/* typedef int (*fn_t)(void); */
-/* void *kern_stack; */
-/* void *kern_stack_addr; */
-
-/* /\* The user-level representation of an spd's caps *\/ */
-/* struct user_inv_cap *ST_user_caps; */
-
 void ipc_init(void)
 {
-//	kern_stack_addr = kmalloc(PAGE_SIZE);
-//	kern_stack = kern_stack_addr+(PAGE_SIZE-sizeof(void*))/sizeof(void*);
-
 	return;
 }
 
@@ -86,7 +62,7 @@ static void print_stack(struct thread *thd, struct spd *srcspd, struct spd *dest
 	}
 }
 
-/*static*/ void print_regs(struct pt_regs *regs)
+void print_regs(struct pt_regs *regs)
 {
 	printk("cos: EAX:%x\tEBX:%x\tECX:%x\n"
 	       "cos: EDX:%x\tESI:%x\tEDI:%x\n"
@@ -186,8 +162,8 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	cap_entry->invocation_cnt++;
 
 //	if (cap_entry->il & IL_INV_UNMAP) {
-		open_close_spd(&dest_spd->composite_spd->spd_info, 
-			       &curr_spd->composite_spd->spd_info);
+	open_close_spd(/*&*/dest_spd->composite_spd/*->spd_info*/, 
+		       /*&*/curr_spd->composite_spd/*->spd_info*/);
 //	} else {
 //		open_spd(&curr_spd->spd_info);
 //	}
@@ -278,7 +254,7 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr_thd, struct pt_
 	
 	curr_frame = thd_invstk_top(curr_thd);
 	/* for now just assume we always close the server spd */
-	open_close_spd_ret(&curr_frame->current_composite_spd->spd_info);
+	open_close_spd_ret(/*&*/curr_frame->current_composite_spd/*->spd_info*/);
 
 	return inv_frame;	
 }
@@ -736,12 +712,12 @@ COS_SYSCALL int cos_syscall_upcall_cont(int spd_id, vaddr_t *inv_addr)
 		}
 	}
 
-	open_close_spd(&dest->composite_spd->spd_info,
-		       &curr_spd->composite_spd->spd_info);
+	open_close_spd(/*&*/dest->composite_spd/*->spd_info*/,
+		       /*&*/curr_spd->composite_spd/*->spd_info*/);
 	
 	/* set the thread to have dest as a new base owner */
 	thd->stack_ptr = 0;
-	thd->stack_base[0].current_composite_spd = (struct composite_spd*)dest;
+	thd->stack_base[0].current_composite_spd = /*(struct composite_spd*)*/&dest->spd_info;
 
 	*inv_addr = dest->upcall_entry;
 
@@ -819,11 +795,50 @@ COS_SYSCALL int cos_syscall_sched_cntl(int operation, int thd_id, long option)
 	return 0;
 }
 
-COS_SYSCALL int cos_syscall_mpd_cntl(int operation, int thd_id, long option)
+
+COS_SYSCALL int cos_syscall_mpd_cntl(int operation, short int composite_spd, short int spd, void *option)
 {
+	int ret = 0; 
+
+	switch(operation) {
+	case COS_MPD_CREATE:
+	{
+		ret = spd_alloc_mpd_desc();
+
+		break;
+	}
+	case COS_MPD_ADD_SPD:
+	{
+		break;
+	}
+	case COS_MPD_DEACTIVATE:
+	{
+		spd_mpd_release_desc(composite_spd);
+
+		break;
+	}
+	case COS_MPD_ACTIVATE:
+	{
+		break;
+	}
+	case COS_MPD_INV_CNT:
+	{
+		//short int ospd = (int)option;
+ 
+		break;
+	}
+	/*
+	 * reset the spd's protection domain to include only itself.
+	 */
+	case COS_MPD_ISOLATE:
+	{
+		break;
+	}
+	default:
+		ret = -1;
+	}
 	
-	
-	return 0;
+	return ret;
 }
 
 void *cos_syscall_tbl[16] = {
