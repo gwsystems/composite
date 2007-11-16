@@ -961,6 +961,11 @@ void prevent_executive_copying_on_fork(struct mm_struct *mm,
 	return;
 }
 
+extern int virtual_namespace_alloc(struct spd *spd, unsigned long addr, unsigned int size);
+void zero_pgtbl_range(phys_addr_t pt, unsigned long lower_addr, unsigned long size);
+void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from, 
+		      unsigned long lower_addr, unsigned long size);
+void copy_pgtbl(phys_addr_t pt_to, phys_addr_t pt_from);
 extern int copy_mm(unsigned long clone_flags, struct task_struct * tsk);
 
 static int aed_ioctl(struct inode *inode, struct file *file,
@@ -1243,6 +1248,8 @@ free_dummy:
 			 * shared region.
 			 */
 			struct mm_struct *mm;
+			struct composite_spd *cspd;
+
 			spd->local_mmaps = aed_allocate_mm();
 			if (spd->local_mmaps < 0) {
 				spd_free(spd);
@@ -1253,8 +1260,28 @@ free_dummy:
 			spd->spd_info.pg_tbl = (phys_addr_t)(__pa(mm->pgd));
 			spd->location.lowest_addr = spd_info.lowest_addr;
 			spd->location.size = spd_info.size;
+			if (!virtual_namespace_alloc(spd, spd_info.lowest_addr, spd_info.size)) {
+				printk("cos: collision in virtual namespace.\n");
+				aed_free_mm(spd->local_mmaps);
+				spd_free(spd);
+				return -1;
+			}
+			assert(spd == virtual_namespace_query(spd_info.lowest_addr+PAGE_SIZE));
+
 			copy_pgd_range(mm, current->mm, spd_info.lowest_addr, spd_info.size);
 			copy_pgd_range(mm, current->mm, COS_INFO_REGION_ADDR, PGD_RANGE);
+
+/*			cspd = spd_alloc_mpd();
+			if (!cspd) {
+				printk("cos: Could not allocate composite spd for initial spd.\n");
+				aed_free_mm(spd->local_mmaps);
+				spd_free(spd);
+				return -1;
+			}
+			
+			copy_pgtbl(cspd->spd_info.pg_tbl, __pa(mm->pgd));
+			spd->composite_spd = &cspd->spd_info;
+*/
 		}
 
 		return spd_get_index(spd);
@@ -1645,7 +1672,7 @@ void main_page_fault_interposition(void)
 		/* FIXME: we will really have to check for all spds in
 		 * the composite_spd, rather than just casting to a
 		 * single spd, but for now... */
-		struct spd *curr_spd = (struct spd*)thd_get_current_spd();
+		struct spd *curr_spd = thd_get_current_spd();
 		unsigned long low = curr_spd->location.lowest_addr;
 
 		if (fault_addr < low ||
@@ -1755,8 +1782,43 @@ void *va_to_pa(void *va)
 
 void *pa_to_va(void *pa) 
 {
-	return __va(pa);
+	return (void*)__va(pa);
 }
+
+void zero_pgtbl_range(phys_addr_t pt, unsigned long lower_addr, unsigned long size)
+{
+	pgd_t *pgd = pa_to_va((void*)pt) + pgd_index(lower_addr);
+	unsigned int span = size>>HPAGE_SHIFT;
+
+	/* sizeof(pgd entry) is intended */
+	memset(pgd, 0, span*sizeof(unsigned int /*pgd_t*/));
+}
+
+void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from, 
+		      unsigned long lower_addr, unsigned long size)
+{
+	pgd_t *tpgd = pa_to_va((void*)pt_to) + pgd_index(lower_addr);
+	pgd_t *fpgd = pa_to_va((void*)pt_from) + pgd_index(lower_addr);
+	unsigned int span = size>>HPAGE_SHIFT;
+
+	if (!(pgd_val(*fpgd)) & _PAGE_PRESENT) {
+		printk("cos: BUG: nothing to copy from pgd @ %x.\n", 
+		       (unsigned int)lower_addr);
+	}
+
+	/* sizeof(pgd entry) is intended */
+	memcpy(tpgd, fpgd, span*sizeof(unsigned int));
+}
+
+void copy_pgtbl(phys_addr_t pt_to, phys_addr_t pt_from)
+{
+	pgd_t *tpgd = pa_to_va((void*)pt_to);
+	pgd_t *fpgd = pa_to_va((void*)pt_from);
+
+	/* Because this copies a constant length, it is compiler optimized */
+	memcpy(tpgd, fpgd, ((0xFFFFFFFF)>>HPAGE_SHIFT)*sizeof(unsigned int));
+}
+
 
 /***** begin timer handling *****/
 
@@ -1796,7 +1858,8 @@ static void timer_interrupt(unsigned long data)
 		    (regs->xcs & SEGMENT_RPL_MASK) == USER_RPL) {
 			struct thread *cos_current;
 			struct thread *cos_upcall_thread = cos_brand_thread->upcall_threads;
-			struct spd *dest, *curr_spd;
+			struct spd *dest;
+			struct spd_poly *curr_spd;
 			
 			cos_meas_event(COS_MEAS_INT_PREEMPT_USER);
 
@@ -1817,7 +1880,7 @@ static void timer_interrupt(unsigned long data)
 			 */
 			cos_current = thd_get_current();
 			/* FIXME: same crap with the cast */
-			curr_spd = (struct spd *)thd_get_thd_spd(cos_current);
+			curr_spd = thd_get_thd_spdpoly(cos_current);
 			
 			/* preempt and save current thread */
 			memcpy(&cos_current->regs, regs, sizeof(struct pt_regs));
@@ -1828,12 +1891,10 @@ static void timer_interrupt(unsigned long data)
 			 * to go to the second from the top spd in the
 			 * real implementation when we arent calling
 			 * brand from the kernel. */
-
-			/* FIXME: same crap with the cast */
-			dest = (struct spd *)thd_get_thd_spd(cos_brand_thread);
+			dest = thd_get_thd_spd(cos_brand_thread);
 
 			/* FIXME: Should be open_close_spd(&dest->spd_info, &curr_spd->spd_info) */
-			if (dest->spd_info.pg_tbl != curr_spd->spd_info.pg_tbl) {
+			if (dest->spd_info.pg_tbl != curr_spd->pg_tbl) {
 				native_write_cr3(dest->spd_info.pg_tbl);
 			}
 

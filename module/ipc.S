@@ -156,8 +156,9 @@ cos_syscall_switch_thread:
 
 	pushl $0   /* make room for ret val */
 	pushl %esp /* argument to track if the thread to return to was preempted or not */
+	pushl %edx /* spd_id */
 	call cos_syscall_switch_thread_cont
-	addl $4, %esp
+	addl $8, %esp
 	popl %ebx
 
 	cmpl $0, %ebx
@@ -218,9 +219,10 @@ cos_syscall_kill_thd:
 cos_syscall_upcall:
 	pushl $0
 	pushl %esp
-	pushl %ebx
+	pushl %ebx /* spd_id to upcall to */
+	pushl %edx /* this spd_id */
 	call cos_syscall_upcall_cont
-	addl $8, %esp
+	addl $12, %esp
 	
 	popl %ebx
 	movl %ebx, (COS_SYSCALL_EDX)(%esp)
@@ -235,16 +237,16 @@ composite_make_syscall:
 	pushl %ecx /* user-ip */
 	
 	/* arguments -- changing layout here requires changing COS_SYSCALL_E(C|D)X */
-	pushl %edx
 	pushl %edi
 	pushl %esi
 	pushl %ebx
+	pushl %edx
 	shr $16, %eax /* impossible for value to be greater than the max allowed here because of filtering in kern_entry.S */
 	call *cos_syscall_tbl(,%eax,4)
-	addl $16, %esp /* esi, edi, and ebx not trashed because of cdecl conventions */
+	addl $16, %esp /* esi, edi, and ebx not trashed because of cdecl conventions, and edx's value doesn't really matter here */
 
-	popl %edx
-	popl %ecx
+	popl %edx /* user-ip from above */
+	popl %ecx /* and the sp */
 
 	RET_TO_USER
 

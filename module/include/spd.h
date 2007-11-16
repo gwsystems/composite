@@ -124,8 +124,10 @@ struct spd_poly {
  * Spd membership in this composite can be tested by seeing if a
  * specific spd's address range is present in the spd_info->pg_tbl
  */
+struct spd;
 struct composite_spd {
 	struct spd_poly spd_info;
+	struct spd *members;
 	struct composite_spd *freelist_next;
 } CACHE_ALIGNED;
 
@@ -168,6 +170,7 @@ struct spd {
 
 	/* should be a union to not waste space */
 	struct spd *freelist_next;
+	struct spd *composite_member_next, *composite_member_prev;
 } CACHE_ALIGNED; //cache line size
 
 struct spd *spd_alloc(unsigned short int max_static_cap, struct usr_inv_cap *usr_cap_tbl, 
@@ -190,9 +193,40 @@ unsigned int spd_add_static_cap_extended(struct spd *spd, struct spd *trusted_sp
 isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int flags);
 int cap_is_free(int cap_num);
 
+static inline int spd_mpd_is_depricated(struct composite_spd *mpd)
+{ 
+	return ((mpd)->spd_info.flags & SPD_DEPRICATED) ? 1 : 0;
+}
+static inline void spd_mpd_depricate(struct composite_spd *mpd)
+{
+	mpd->spd_info.flags |= SPD_DEPRICATED;
+}
+
 void spd_init_mpd_descriptors(void);
 short int spd_alloc_mpd_desc(void);
 void spd_mpd_release_desc(short int desc);
+void spd_mpd_release(struct composite_spd *cspd);
+struct composite_spd *spd_mpd_by_idx(short int idx);
+short int spd_mpd_index(struct composite_spd *cspd);
+static inline struct composite_spd *spd_alloc_mpd(void)
+{
+	return spd_mpd_by_idx(spd_alloc_mpd_desc());
+}
+
+int spd_composite_add_member(struct composite_spd *cspd, struct spd *spd);
+int spd_composite_remove_member(struct composite_spd *cspd, struct spd *spd, int remove_mappings);
+
+static inline int spd_composite_move_member(struct composite_spd *cspd_old, struct composite_spd *cspd_new, struct spd *spd)
+{
+	if (spd_composite_remove_member(cspd_old, spd, 0) ||
+	    spd_composite_add_member(cspd_new, spd)) {
+		return -1;
+	}
+
+	return 0;
+}
+
+struct spd *virtual_namespace_query(unsigned long addr);
 
 #else /* ASM */
 

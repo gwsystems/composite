@@ -35,11 +35,12 @@
 #include <thread.h>
 #include <ipc.h>
 
-#define NUM_KERN_SYMBS 2
+#define NUM_KERN_SYMBS 3
 const char *USER_CAP_TBL_NAME = "ST_user_caps";
 const char *ST_INV_FN_NAME = "ST_direct_invocation";
 const char *UPCALL_ENTRY_NAME = "cos_upcall_entry";
 const char *SCHED_PAGE_NAME = "cos_sched_notifications";
+const char *SPD_ID_NAME = "cos_this_spd_id";
 
 #define BASE_SERVICE_ADDRESS SERVICE_START
 #define DEFAULT_SERVICE_SIZE SERVICE_SIZE
@@ -731,6 +732,7 @@ static void add_kernel_exports(struct service_symbs *service)
 	struct symb_type *ex = &service->exported;
 	const char *usr_caps = USER_CAP_TBL_NAME;
 	const char *sched_page = SCHED_PAGE_NAME;
+	const char *spd_id = SPD_ID_NAME;
 
 	ex->symbs[ex->num_symbs].name = malloc(strlen(usr_caps)+1);
 	strcpy(ex->symbs[ex->num_symbs].name, usr_caps);
@@ -738,6 +740,10 @@ static void add_kernel_exports(struct service_symbs *service)
 
 	ex->symbs[ex->num_symbs].name = malloc(strlen(sched_page)+1);
 	strcpy(ex->symbs[ex->num_symbs].name, sched_page);
+	ex->num_symbs++;
+
+	ex->symbs[ex->num_symbs].name = malloc(strlen(spd_id)+1);
+	strcpy(ex->symbs[ex->num_symbs].name, spd_id);
 	ex->num_symbs++;
 
 	return;
@@ -1244,6 +1250,7 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 	struct spd_info *spd;
 	struct usr_inv_cap *ucap_tbl;
 	vaddr_t upcall_addr;
+	long *spd_id_addr;
 	
 	ucap_tbl = (struct usr_inv_cap*)get_symb_address(&s->exported, 
 							 USER_CAP_TBL_NAME);
@@ -1255,6 +1262,9 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 		return NULL;
 	}
 	printf("Found cos_upcall for component %s @ %p.\n", s->obj, (void*)upcall_addr);
+
+	spd_id_addr = (long*)get_symb_address(&s->exported, SPD_ID_NAME);
+	printf("Found spd_id address for component %s @ %p.\n", s->obj, spd_id_addr);
 
 	spd = (struct spd_info *)malloc(sizeof(struct spd_info));
 	if (NULL == spd) {
@@ -1275,6 +1285,7 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 		return NULL;
 	}
 	printf("spd %s created with handle %d.\n", s->obj, (unsigned int)spd->spd_handle);
+	*spd_id_addr = spd->spd_handle;
 
 	return spd;
 }

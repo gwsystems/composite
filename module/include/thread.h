@@ -197,17 +197,25 @@ static inline void thd_set_current(struct thread *thd)
 	return;
 }
 
-static inline struct spd_poly *thd_get_thd_spd(struct thread *thd)
+/*
+ * FIXME: this is wrong.  This will give us the spd that is invoked in
+ * the current composite spd, but not necessarily the _current_ spd.
+ */
+static inline struct spd *thd_get_thd_spd(struct thread *thd)
 {
 	struct thd_invocation_frame *frame = thd_invstk_top(thd);
 
-	if (frame != NULL) 
-		return /*&*/frame->current_composite_spd/*->spd_info*/;
-
-	return NULL;
+	return frame->spd;
 }
 
-static inline struct spd_poly *thd_get_current_spd(void)
+static inline struct spd_poly *thd_get_thd_spdpoly(struct thread *thd)
+{
+	struct thd_invocation_frame *frame = thd_invstk_top(thd);
+
+	return frame->current_composite_spd;
+}
+
+static inline struct spd *thd_get_current_spd(void)
 {
 	return thd_get_thd_spd(thd_get_current());
 }

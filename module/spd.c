@@ -10,14 +10,42 @@
 #include "include/debug.h"
 #include <linux/kernel.h>
 
-struct invocation_cap invocation_capabilities[MAX_STATIC_CAP];
 /* 
  * This is the layout in virtual memory of the spds.  Spd's virtual
  * ranges are allocated (currently) on the granularity of a pgd, thus
  * an array of pointers, one for every pgd captures all address->spd
  * mappings.
  */
-//struct spd *virtual_spd_layout[PGD_PER_PTBL];
+struct spd *virtual_spd_layout[PGD_PER_PTBL];
+
+int virtual_namespace_alloc(struct spd *spd, unsigned long addr, unsigned int size)
+{
+	int i;
+	unsigned long adj_addr = addr>>HPAGE_SHIFT;
+	/* FIXME: this should be rounding up not down */
+	unsigned int adj_to = adj_addr + (size>>HPAGE_SHIFT);
+
+	for (i = adj_addr ; i < adj_to ; i++) {
+		if (virtual_spd_layout[i]) return 0;
+	}
+
+	//printk("cos: adding spd %d from %x to %x\n", spd_get_index(spd), addr, addr+size);
+	for (i = adj_addr ; i < adj_to ; i++) {
+		virtual_spd_layout[i] = spd;
+	}
+	
+	return 1;
+}
+
+struct spd *virtual_namespace_query(unsigned long addr)
+{
+	unsigned long adj = addr>>HPAGE_SHIFT;
+
+	return virtual_spd_layout[adj];
+}
+
+
+struct invocation_cap invocation_capabilities[MAX_STATIC_CAP];
 
 int cap_is_free(int cap_num)
 {
@@ -191,11 +219,9 @@ static void spd_init_all(struct spd *spds)
 
 	spd_freelist_head = spds;
 
-	/*
 	for (i = 0 ; i < PGD_PER_PTBL ; i++) {
 		virtual_spd_layout[i] = NULL;
 	}
-	*/
 
 	return;
 }
@@ -268,6 +294,9 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 	spd->user_cap_tbl = user_cap_tbl;
 	spd->upcall_entry = upcall_entry;
 	spd->sched_shared_page = NULL;
+	
+	/* This will cause the spd to never be deallocated via garbage collection */
+	spd->spd_info.ref_cnt.counter = 2; 
 
 	/* return capability; ignore return value as we know it will be 0 */
 	spd_add_static_cap(spd, 0, spd, 0);
@@ -438,11 +467,18 @@ void spd_init_mpd_descriptors(void)
 	return;
 }
 
-static inline short int spd_mpd_index(struct composite_spd *cspd)
+struct composite_spd *spd_mpd_by_idx(short int idx)
+{
+	if (idx >= MAX_MPD_DESC) return NULL;
+
+	return &mpd_descriptors[idx];
+}
+
+short int spd_mpd_index(struct composite_spd *cspd)
 {
 	short int idx = cspd - mpd_descriptors;
 
-	if (idx >= MAX_MPD_DESC) return -1;
+	if (idx >= MAX_MPD_DESC || idx < 0) return -1;
 
 	return idx;
 }
@@ -456,7 +492,8 @@ short int spd_alloc_mpd_desc(void)
 	if (NULL == new) 
 		return -1;
 
-	assert((new->spd_info.flags & (SPD_FREE | SPD_COMPOSITE)) == (SPD_FREE | SPD_COMPOSITE));
+	assert((new->spd_info.flags & (SPD_FREE | SPD_COMPOSITE)) == (SPD_FREE | SPD_COMPOSITE) && 
+		new->spd_info.ref_cnt.counter == 0);
 
 	mpd_freelist = new->freelist_next;
 	new->freelist_next = NULL;
@@ -467,7 +504,7 @@ short int spd_alloc_mpd_desc(void)
 		return -1;
 
 	/* FIXME: make really atomic...not necessary here, but for cleanliness */
-	new->spd_info.ref_cnt.counter++;
+	new->spd_info.ref_cnt.counter = 1;
 	new->spd_info.pg_tbl = (phys_addr_t)va_to_pa(page);
 
 	return spd_mpd_index(new);
@@ -493,4 +530,187 @@ void spd_mpd_release_desc(short int desc)
 	assert(desc < MAX_MPD_DESC);
 
 	spd_mpd_release(&mpd_descriptors[desc]);
+}
+
+static inline int spd_in_composite(struct spd *spd, struct composite_spd *cspd)
+{
+	struct spd *curr;
+
+	curr = cspd->members;
+
+	while (curr) {
+		if (curr == spd) {
+			return 1;
+		}
+		curr = curr->composite_member_next;
+	}
+
+	return 0;
+}
+
+/*
+ * Change the isolation level going from a specific spd to any and all
+ * spds in a given composite spd to il.
+ */
+static void spd_chg_il_spd_to_all(struct spd *spd, struct composite_spd *cspd, isolation_level_t il)
+{
+	unsigned short int cap_lower, cap_range;
+	int i;
+
+	cap_lower = spd->cap_base;
+	cap_range = spd->cap_range;
+
+	for (i = cap_lower ; i < cap_lower+cap_range ; i++) {
+		struct invocation_cap *cap = &invocation_capabilities[i];
+		struct spd *dest = cap->destination;
+
+		if (spd_in_composite(dest, cspd)) {
+			isolation_level_t old;
+
+			old = cap_change_isolation(i, il, 0);
+			assert(old != il);
+		}
+	}
+
+	return;
+}
+
+/*
+ * Change the isolation level going from all spds in a specific
+ * composite spd to a specific spd to a given isolation level.  Used
+ * to add or remove a spd from a composite.
+ */
+static void spd_chg_il_all_to_spd(struct composite_spd *cspd, struct spd *spd, isolation_level_t il)
+{
+	struct spd *curr;
+
+	curr = cspd->members;
+
+	while (curr) {
+		unsigned short int cap_lower, cap_range;
+		int i;
+		
+		cap_lower = spd->cap_base;
+		cap_range = spd->cap_range;
+
+		for (i = cap_lower ; i < cap_lower+cap_range ; i++) {
+			struct invocation_cap *cap = &invocation_capabilities[i];
+			struct spd *dest = cap->destination;
+
+			if (dest == spd) {
+				isolation_level_t old;
+				
+				old = cap_change_isolation(i, il, 0);
+				assert(old != il && old != IL_INV);
+			}
+		}
+
+		curr = curr->composite_member_next;
+	}
+	
+	return;
+}
+
+/*
+ * assume that a test for membership of new_spd in cspd has already
+ * been carried out.
+ */
+static inline void spd_add_caps(struct composite_spd *cspd, struct spd *new_spd)
+{
+	spd_chg_il_all_to_spd(cspd, new_spd, IL_ST);
+	spd_chg_il_spd_to_all(new_spd, cspd, IL_ST);
+}
+
+/*
+ * assume that a test for membership of new_spd in cspd has already
+ * been carried out.
+ */
+static inline void spd_remove_caps(struct composite_spd *cspd, struct spd *spd)
+{
+	spd_chg_il_all_to_spd(cspd, spd, IL_SDT);
+	spd_chg_il_spd_to_all(spd, cspd, IL_SDT);
+}
+
+extern void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from,
+			     unsigned long lower_addr, unsigned long size);
+extern void zero_pgtbl_range(phys_addr_t pt, unsigned long lower_addr, unsigned long size);
+
+static inline void spd_remove_mappings(struct composite_spd *cspd, struct spd *spd)
+{
+	phys_addr_t tbl = cspd->spd_info.pg_tbl;
+
+	zero_pgtbl_range(tbl, spd->location.lowest_addr, spd->location.size);
+}
+
+static inline void spd_add_mappings(struct composite_spd *cspd, struct spd *spd) 
+{
+	copy_pgtbl_range(cspd->spd_info.pg_tbl, spd->spd_info.pg_tbl, 
+			 spd->location.lowest_addr, spd->location.size);
+}
+
+/*
+ * Add the spd to the composite spd.  This includes changing the
+ * capability settings so that all intra-composite commnication uses
+ * symmetric trust, and all communication outside uses symmetric
+ * distrust.  Further, it adds the address space mappings of the spd
+ * to the composite spd, and sets the spd to currently belong to this
+ * composite.
+ *
+ * Assumes that the spd does not currently belong to another composite.
+ */
+int spd_composite_add_member(struct composite_spd *cspd, struct spd *spd)
+{
+	/*
+	 * If the spd to be added is still part of another composite
+	 * spd, then we cannot add it to the current spd.
+	 */
+	if (&spd->spd_info != spd->composite_spd) {
+		return -1;
+	}
+
+	spd_add_caps(cspd, spd);
+	spd_add_mappings(cspd, spd);
+
+	spd->composite_member_next = cspd->members;
+	spd->composite_member_prev = NULL;
+	cspd->members = spd;
+	spd->composite_spd = &cspd->spd_info;
+
+	return 0;
+}
+
+int spd_composite_remove_member(struct composite_spd *cspd, struct spd *spd, int remove_mappings)
+{
+	struct spd *prev, *next;
+
+	assert(!spd_mpd_is_depricated(cspd));
+
+	/*
+	 * A spd that is not part of a composite spd cannot be removed
+	 * from it...
+	 */
+	if (spd->composite_spd != &cspd->spd_info) {
+		return -1;
+	}
+
+	prev = spd->composite_member_prev;
+	next = spd->composite_member_next;
+
+	if (NULL == prev) {
+		cspd->members = next;
+	} else {
+		prev->composite_member_next = next;
+		if (NULL != next) next->composite_member_prev = prev;
+	}
+
+	spd->composite_member_prev = NULL;
+	spd->composite_member_next = NULL;
+	spd->composite_spd = &spd->spd_info;
+
+	spd_remove_caps(cspd, spd);
+	
+	if (remove_mappings)
+		spd_remove_mappings(cspd, spd);
+
+	return 0;
 }

@@ -47,14 +47,23 @@ enum {
 	COS_SCHED_REVOKE_SCHED
 };
 
+struct mpd_split_ret {
+	short int new, old;
+} __attribute__((packed));
+
+static inline int mpd_split_error(struct mpd_split_ret ret)
+{
+	return (ret.new < 0) ? 1 : 0;
+}
+
 /* operations for manipulating mpds */
 enum {
-	COS_MPD_CREATE,
-	COS_MPD_ADD_SPD,
-	COS_MPD_DEACTIVATE,
-	COS_MPD_ACTIVATE,
-	COS_MPD_INV_CNT,
-	COS_MPD_ISOLATE
+//	COS_MPD_START_TRANSACTION,
+//	COS_MPD_END_TRANSACTION,
+	COS_MPD_SPLIT,
+	COS_MPD_MERGE,
+	COS_MPD_SPLIT_MERGE
+//	COS_MPD_ISOLATE
 };
 
 #define COS_THD_SCHED_RETURN 0x20 /* do not modify without modifying thread.h */

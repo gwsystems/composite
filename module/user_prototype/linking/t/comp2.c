@@ -70,13 +70,13 @@ int spd2_fn(void)
 	thd_id = cos_get_thd_id();
 	curr_thd = thd_id;
 
-	new_thd1 = cos_create_thread(thread_tramp, get_stack_addr(LOWER), (void*)LOWER, 0);
+	new_thd1 = cos_create_thread(thread_tramp, get_stack_addr(LOWER), (void*)LOWER);
 
 	if (new_thd1 != LOWER) {
 		print_vals(7, new_thd1, 1);
 	}
 
-	new_thd2 = cos_create_thread(thread_tramp, get_stack_addr(UPPER), (void*)UPPER, 0);
+	new_thd2 = cos_create_thread(thread_tramp, get_stack_addr(UPPER), (void*)UPPER);
 
 	if (new_thd2 != UPPER) {
 		print_vals(7, new_thd2, 1);
