@@ -156,7 +156,7 @@ cos_syscall_switch_thread:
 
 	pushl $0   /* make room for ret val */
 	pushl %esp /* argument to track if the thread to return to was preempted or not */
-	pushl %edx /* spd_id */
+	pushl %edx /* this spd_id */
 	call cos_syscall_switch_thread_cont
 	addl $8, %esp
 	popl %ebx

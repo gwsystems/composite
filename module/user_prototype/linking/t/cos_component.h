@@ -12,7 +12,7 @@
 #include "../../../include/cos_types.h"
 
 extern struct cos_sched_data_area cos_sched_notifications;
-extern long cos_this_spd_id;
+volatile extern long cos_this_spd_id;
 
 /*
  * A note on the arguments to and for all system calls and on the
@@ -50,6 +50,7 @@ extern long cos_this_spd_id;
  * perceived system call overhead and application progress.
  */
 
+
 #define cos_syscall_asm \
 	__asm__ __volatile__(                        \
 		"pushl %%ebp\n\t"                    \
@@ -79,7 +80,7 @@ static inline rtype cos_##name(type0 name0)          \
 {                                                    \
 	rtype ret;                                   \
 cos_syscall_asm                                      \
-		: "a" (num<<16), "b" (name0), "d" (cos_this_spd_id) \
+		: "a" (num<<16), "d" (cos_this_spd_id), "b" (name0) \
 cos_syscall_clobber                                  \
 }
 
@@ -88,7 +89,7 @@ static inline rtype cos_##name(type0 name0, type1 name1) \
 {                                                    \
 	rtype ret;                                   \
 cos_syscall_asm                                      \
-		: "a" (num<<16), "b" (name0), "S" (name1), "d" (cos_this_spd_id) \
+		: "a" (num<<16), "d" (cos_this_spd_id), "b" (name0), "S" (name1) \
 cos_syscall_clobber                                  \
 }
 
@@ -97,7 +98,7 @@ static inline rtype cos_##name(type0 name0, type1 name1, type2 name2) \
 {                                                    \
 	rtype ret;                                   \
 cos_syscall_asm                                      \
-		: "a" (num<<16), "b" (name0), "S" (name1), "D" (name2), "d" (cos_this_spd_id) \
+		: "a" (num<<16), "d" (cos_this_spd_id), "b" (name0), "S" (name1), "D" (name2) \
 cos_syscall_clobber                                  \
 }
 

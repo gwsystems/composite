@@ -7,6 +7,8 @@ INC_PATH=./ -I../include/
 CFLAGS=-Wall -I$(INC_PATH) -O3
 ASFLAGS=-I$(INC_PATH) -c
 PRODUCTS=c_stub.o comp0.o s_stub1.o comp1.o s_stub2.o comp2.o s_stubprint.o print_comp.o
+COMPONENTS=c0.o c1.o c2.o print_comp.o
+TRANS_DIR=/home/grad3/gabep1/transfer/
 
 all: $(PRODUCTS) libcos_component.a cos_asm_upcall.o
 	$(LD) -r -o c0.o comp0.o c_stub.o cos_asm_upcall.o -L. -lcos_component
@@ -26,6 +28,9 @@ libcos_component.a:cos_component.o
 
 %.o:%.S
 	$(AS) $(ASFLAGS) -o $@ $^
+
+copy:
+	cp $(COMPONENTS) $(TRANS_DIR)
 
 clean:
 	rm -rf *.o *.a $(PRODUCTS) *~
