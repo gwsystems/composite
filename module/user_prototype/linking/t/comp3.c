@@ -1,6 +1,6 @@
 #include <cos_component.h>
 
-#define ITER 10
+#define ITER 500000
 extern void foo(int print, unsigned int val);
 
 void bar(unsigned int val)

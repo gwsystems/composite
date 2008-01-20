@@ -1,0 +1,15 @@
+This file defines a mapping between intended terminology and the
+terminology that exists in the code.  There is not an identity mapping
+because first, writing the code helped shape the terminology and
+second, the architecture has changed over time, but the structure
+names have not.  A refactoring sometime in the future (when the
+architecture is frozen) will create the identity mapping.
+
+------------------------+-------------------
+Intended name           | structure in code
+------------------------+-------------------
+component               | service
+component               | spd
+protection domain       | composite_spd
+(invocation) capability | static capability
+------------------------+-------------------

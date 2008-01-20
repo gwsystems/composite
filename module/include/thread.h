@@ -175,7 +175,9 @@ static inline struct thd_invocation_frame *thd_invocation_pop(struct thread *cur
 static inline struct thd_invocation_frame *thd_invstk_top(struct thread *curr_thd)
 {
 	/* pop should not allow us to escape from our home spd */
-	assert(curr_thd->stack_ptr >= 0);//if (curr_thd->stack_ptr < 0) return NULL;
+	//assert(curr_thd->stack_ptr >= 0);
+
+	if (curr_thd->stack_ptr < 0) return NULL;
 	
 	return &curr_thd->stack_base[curr_thd->stack_ptr];
 }
@@ -191,6 +193,19 @@ static inline void thd_set_current(struct thread *thd)
 	current_thread = thd;
 
 	return;
+}
+
+static inline struct spd *thd_curr_spd_noprint(void)
+{
+	struct thread *curr_thd = thd_get_current();
+	unsigned int stkptr;
+
+	if (NULL == curr_thd) return NULL;
+
+	stkptr = curr_thd->stack_ptr;
+	if (stkptr < 0) return NULL;
+	
+	return curr_thd->stack_base[stkptr].spd;
 }
 
 /*

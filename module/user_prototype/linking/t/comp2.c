@@ -101,11 +101,13 @@ extern void bar(unsigned int val);
 
 int run_demo(void)
 {
-	int i;
+	int i, j;
 
-	for (i = 0 ; i < 4 ; i++) {
-		bar(i);
-		//cos_mpd_cntl(COS_MPD_DEMO);
+	for (i = 0 ; i < 10 ; i++) {
+		for (j = 0 ; j < 10 ; j++) {
+			bar(i);
+		}
+		cos_mpd_cntl(COS_MPD_DEMO);
 	}
 	
 	return i;
@@ -132,4 +134,9 @@ int sched_init(void)
 	nothing_var++;
 
 	return ret;
+}
+
+void symb_bag(void)
+{
+	bar(0);
 }

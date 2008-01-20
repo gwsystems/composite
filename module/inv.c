@@ -113,7 +113,7 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	dest_spd = cap_entry->destination;
 	curr_spd = cap_entry->owner;
 
-	if (curr_spd == CAP_FREE || curr_spd == CAP_ALLOCATED_UNUSED) {
+	if (!dest_spd || curr_spd == CAP_FREE || curr_spd == CAP_ALLOCATED_UNUSED) {
 		printk("cos: Attempted use of unallocated capability.\n");
 		return 0;
 	}
@@ -148,6 +148,15 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	}
 
 	cap_entry->invocation_cnt++;
+
+	/***************************************************************
+	 * IMPORTANT FIXME: Not only do we want to switch the page     *
+	 * tables here, but if there is any chance that we will block, *
+	 * then we should change current->mm->pgd =                    *
+	 * pa_to_va(dest_spd->composite_spd->pg_tbl).  In practice     *
+	 * there it is almost certainly probably that we _can_ block,  *
+	 * so we probably need to do this.                             *
+	 ***************************************************************/
 
 //	if (cap_entry->il & IL_INV_UNMAP) {
 	open_close_spd(dest_spd->composite_spd, curr_spd->composite_spd);
@@ -254,6 +263,8 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr, struct pt_regs
 	 * invocation/pop even when the two spds are in the same
 	 * composite spd (but weren't at some point in the future),
 	 * then we really probably shouldn't release here.
+	 *
+	 * This REALLY should be spd_mpd_release.
 	 */
 	cos_ref_release(&inv_frame->current_composite_spd->ref_cnt);
 
@@ -845,15 +856,18 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 }
 
 /*
- * Add spd to new1, and all spds in cspd to new2.  Returns 0 if the
- * two new composites are populated, -1 if there is an error, and 1 if
- * we instead just reuse the composite passed in by removing the spd
- * from it (requires, of course that cspd ref_cnt == 1, so that its
- * mappings can change without effecting any threads.  This is common
- * because when we split and merge, we will create a composite the
- * first time for the shrinking composite, but because it won't have
- * active threads, that composite can simply be reused by removing any
- * further spds split from it.
+ * Assume spd \in cspd.  Remove spd from cspd and add it to new1. Add
+ * all remaining spds in cspd to new2.  If new2 == NULL, and cspd's
+ * refcnt == 1, then we can just remove spd from cspd, and use cspd as
+ * the new2 composite spd.  Returns 0 if the two new composites are
+ * populated, -1 if there is an error, and 1 if we instead just reuse
+ * the composite passed in by removing the spd from it (requires, of
+ * course that cspd ref_cnt == 1, so that its mappings can change
+ * without effecting any threads).  This is common because when we
+ * split and merge, we will create a composite the first time for the
+ * shrinking composite, but because it won't have active threads, that
+ * composite can simply be reused by removing any further spds split
+ * from it.
  */
 static int mpd_split_composite_populate(struct composite_spd *new1, struct composite_spd *new2, 
 					struct spd *spd, struct composite_spd *cspd)
@@ -861,8 +875,13 @@ static int mpd_split_composite_populate(struct composite_spd *new1, struct compo
 	struct spd *curr;
 	int remove_mappings;
 
+	assert(cspd && spd_is_composite(&cspd->spd_info));
+	assert(new1 && spd_is_composite(&new1->spd_info));
+	assert(spd && spd_is_member(spd, cspd));
+	assert(new1 != cspd);
+
 	remove_mappings = (NULL == new2) ? 1 : 0;
-	spd_composite_remove_member(cspd, spd, remove_mappings);
+	spd_composite_remove_member(spd, remove_mappings);
 
 	if (spd_composite_add_member(new1, spd)) {
 		printk("cos: could not add member to new spd in split.\n");
@@ -876,17 +895,20 @@ static int mpd_split_composite_populate(struct composite_spd *new1, struct compo
 		return 1;
 	}
 
+	/* aliasing will mess everything up here */
+	assert(new1 != new2 && new2 != cspd);
+
 	curr = cspd->members;
 	while (curr) {
-		if (curr != spd) {
-			spd_composite_remove_member(cspd, curr, 0);
-			if (spd_composite_add_member(new2, curr)) {
-				printk("cos: could not add spd to new composite in split.\n");
-				goto err_adding;
-			}
+		struct spd *next = curr->composite_member_next;
+//		spd_composite_remove_member(curr, 0);
+//		if (spd_composite_add_member(new2, curr)) {
+		if (spd_composite_move_member(new2, curr)) {
+			printk("cos: could not add spd to new composite in split.\n");
+			goto err_adding;
 		}
 
-		curr = curr->composite_member_next;
+		curr = next;
 	}
 
 	return 0;
@@ -907,7 +929,11 @@ static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new
 	short int d1, d2;
 	struct composite_spd *new1, *new2;
 	int ret = -1;
-	
+
+	assert(!spd_mpd_is_depricated(cspd));
+	assert(spd_is_composite(&cspd->spd_info));
+	assert(spd_is_member(spd, cspd));
+
 	d1 = spd_alloc_mpd_desc();
 	if (d1 < 0) {
 		printk("cos: could not allocate first mpd descriptor for split operation.\n");
@@ -919,30 +945,35 @@ static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new
 	 * This is complicated by the optimization whereby we wish to
 	 * reuse the cspd instead of making a new one.  See the
 	 * comment above mpd_composite_populate.  If we can reuse the
-	 * current cspd by shrinking it rather than allocate a new
-	 * composite, then do it.
+	 * current cspd by shrinking it rather than deleting it and
+	 * allocating a new composite, then do it.
 	 */
-	if (cspd->spd_info.ref_cnt.counter == 1) {
-		if (mpd_split_composite_populate(new1, NULL, spd, cspd) != 1)
+/*	if (cspd->spd_info.ref_cnt.counter == 1) {
+		if (mpd_split_composite_populate(new1, NULL, spd, cspd) != 1) {
+			ret = -1;
 			goto err_d2;
+		}
 		*new = d1;
 		*old = spd_mpd_index(cspd);
 
 		ret = 0;
 		goto end;
 	} 
-
+*/
 	/* otherwise, we must allocate the other composite spd, and
 	 * populate both of them */
 	d2 = spd_alloc_mpd_desc();
 	if (d2 < 0) {
 		printk("cos: could not allocate second mpd descriptor for split operation.\n");
+		ret = -1;
 		goto err_d2;
 	}
 	new2 = spd_mpd_by_idx(d2);
 	
-	if (mpd_split_composite_populate(new1, new2, spd, cspd))
+	if (mpd_split_composite_populate(new1, new2, spd, cspd)) {
+		ret = -1;
 		goto err_adding;
+	}
 		
 	*new = d1;
 	*old = d2;
@@ -962,21 +993,48 @@ static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new
 	return ret;
 }
 
+/*
+ * Move all of the components from other to dest, thus merging the two
+ * composite spds into one: dest.  This includes adding to the pg_tbl
+ * of dest, all components in other.  The first version of this
+ * function will have us actually releasing the other cspd to be
+ * collected when not in use anymore.  This can result in the page
+ * table of other sticking around for possibly a long time.  The
+ * second version (calling spd_mpd_make_subordinate) will deallocate
+ * other's page table and make it use dest's page table.  A lifetime
+ * constraint is added whereby the dest cspd cannot be deallocated
+ * before other.  This is done with the reference counting mechanism
+ * already present.  Other could really be deallocated now without
+ * worrying about the page-tables, except that references to it can
+ * still be held by threads making invocations.  If these threads
+ * could be pointed to dest instead of other, we could deallocate
+ * other even earlier.  Perhaps version three of this will change the
+ * ipc return path and if the cspd to return to is subordinate, return
+ * to the subordinate's master instead, decrimenting the refcnt on the
+ * subordinate.
+ */
 static int mpd_merge(struct composite_spd *dest, struct composite_spd *other)
 {
-	struct spd *curr;
+	struct spd *curr = NULL;
+
+	assert(NULL != dest && NULL != other);
+	assert(spd_is_composite(&dest->spd_info) && spd_is_composite(&other->spd_info));
+	assert(!spd_mpd_is_depricated(dest) && !spd_mpd_is_depricated(other));
+
+	/*
+	extern void print_valid_pgtbl_entries(phys_addr_t pt);
+	print_valid_pgtbl_entries(dest->spd_info.pg_tbl);
+	print_valid_pgtbl_entries(other->spd_info.pg_tbl);
+	*/
 
 	curr = other->members;
-
-	assert(NULL != curr);
-
 	while (curr) {
 		/* list will be altered when we move the spd to the
 		 * other composite_spd, so we need to save the next
 		 * spd now. */
 		struct spd *next = curr->composite_member_next;
 		
-		if (spd_composite_move_member(other, dest, curr)) {
+		if (spd_composite_move_member(dest, curr)) {
 			/* FIXME: should back out all those that were
 			 * already transferred from one to the
 			 * other...but this error is really only
@@ -990,7 +1048,12 @@ static int mpd_merge(struct composite_spd *dest, struct composite_spd *other)
 	}
 	
 	spd_mpd_depricate(other);
+	//spd_mpd_make_subordinate(dest, other); // test later...more efficient use of page-table memory
 	spd_mpd_release(other);
+	
+	//print_valid_pgtbl_entries(dest->spd_info.pg_tbl);
+
+//	assert(0);
 
 	return 0;
 }
@@ -1029,6 +1092,10 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
 
 		ret = mpd_split(prev, transitory, &sret.new, &sret.old);
 		if (!ret) {
+			/* 
+			 * Pack the two short indexes of the mpds into
+			 * a single int, and return that.
+			 */
 			ret = *((int*)&sret);
 		}
 
@@ -1054,6 +1121,25 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
 	}
 	case COS_MPD_SPLIT_MERGE:
 	{
+#ifdef NOT_YET
+		struct composite_spd *from, *to;
+		struct spd *moving;
+		unsigned short int new, old
+
+		from = spd_mpd_by_idx(composite_spd);
+		to = spd_mpd_by_idx(composite_dest);
+		moving = spd_get_by_index(spd);
+
+		if (!from || !to || !moving ||
+		    spd_mpd_is_depricated(from) || spd_mpd_is_depricated(to)) {
+			printk("cos: failed to access mpds and/or spd in move operation.\n");
+			ret = -1;
+			break;
+		}
+		
+		ret = mpd_split(from, moving, &new, &old);
+		// ...
+#endif		
 		printk("cos: split-merge not yet available\n");
 		ret = -1;
 		break;
@@ -1061,18 +1147,16 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
 	case COS_MPD_DEMO:
 	{
 		struct composite_spd *a, *b;
-		static int once = 0;
 
-		if (once) break;
-		once = 1;
+		assert(t1 && t2);
 
-		printk("cos: composite spds are %p %p.\n", t1->composite_spd, t2->composite_spd);
+		//printk("cos: composite spds are %p %p.\n", t1->composite_spd, t2->composite_spd);
 
 		a = (struct composite_spd*)t1->composite_spd;
 		b = (struct composite_spd*)t2->composite_spd;
 
 		if (mpd_state == 1) {
-			struct mpd_split_ret sret;
+			struct mpd_split_ret sret; /* trash */
 			if (mpd_split(a, t2, &sret.new, &sret.old)) {
 				printk("cos: could not split spds\n");
 				ret = -1;

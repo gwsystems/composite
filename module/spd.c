@@ -155,9 +155,11 @@ isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int fl
 	struct spd *owner;
 	struct usr_inv_cap *ucap;
 
+	/*
 	printk("cos: change to il %s for cap %d.\n", 
 	       ((il == IL_SDT) ? "SDT" : ((il == IL_AST) ? "AST" : ((il == IL_ST) ? "ST" : "INV"))), 
 	       cap_num);
+	*/
 
 	if (cap_num >= MAX_STATIC_CAP) {
 		return IL_INV;
@@ -170,7 +172,11 @@ isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int fl
 	cap->il = il;
 
 	owner = cap->owner;
-	ucap = &owner->user_cap_tbl[cap_num - owner->cap_base];
+	/* Use the kernel vaddr space table if possible, but it might
+	 * not be available on initialization */
+	ucap = (NULL != owner->user_cap_tbl) ? 
+		&owner->user_cap_tbl[cap_num - owner->cap_base]:
+		&owner->user_vaddr_cap_tbl[cap_num - owner->cap_base];
 
 	if (flags & CAP_SAVE_REGS) {
 		/* set highest order bit to designate saving of
@@ -182,17 +188,17 @@ isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int fl
 
 	switch (il) {
 	case IL_SDT:
-		printk("cos:\tSDT w/ entry %x.\n", (unsigned int)cap->usr_stub_info.SD_serv_stub);
+//		printk("cos:\tSDT w/ entry %x.\n", (unsigned int)cap->usr_stub_info.SD_serv_stub);
 		cap->dest_entry_instruction = cap->usr_stub_info.SD_serv_stub;
 		cap_set_usr_cap(ucap, cap->usr_stub_info.SD_cli_stub, 0, cap_num);
 		break;
 	case IL_AST:
-		printk("cos:\tAST w/ entry %x.\n", (unsigned int)cap->usr_stub_info.AT_serv_stub);
+//		printk("cos:\tAST w/ entry %x.\n", (unsigned int)cap->usr_stub_info.AT_serv_stub);
 		cap->dest_entry_instruction = cap->usr_stub_info.AT_serv_stub;
 		cap_set_usr_cap(ucap, cap->usr_stub_info.AT_cli_stub, 0, cap_num);
 		break;
 	case IL_ST:
-		printk("cos:\tST w/ entry %x.\n", (unsigned int)cap->usr_stub_info.ST_serv_entry);
+//		printk("cos:\tST w/ entry %x.\n", (unsigned int)cap->usr_stub_info.ST_serv_entry);
 		cap->dest_entry_instruction = cap->usr_stub_info.ST_serv_entry;
 		cap_set_usr_cap(ucap, cap->usr_stub_info.ST_serv_entry, 0, cap_num);
 		break;
@@ -300,7 +306,9 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 	spd->cap_base = (unsigned short int)ret;
 	spd->cap_range = num_caps+1;
 
-	spd->user_cap_tbl = user_cap_tbl;
+	spd->user_cap_tbl = NULL; //user_cap_tbl;
+	spd->user_vaddr_cap_tbl = user_cap_tbl;
+
 	spd->upcall_entry = upcall_entry;
 	spd->sched_shared_page = NULL;
 	
@@ -328,6 +336,69 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 int spd_get_index(struct spd *spd)
 {
 	return ((unsigned long)spd-(unsigned long)spds)/sizeof(struct spd);
+}
+
+/*
+ * Does an address range fit on a single page?
+ */
+static int user_struct_fits_on_page(unsigned long addr, unsigned int size)
+{
+	unsigned long start, end;
+
+	start = addr & PAGE_MASK;
+	end = (addr+size) & PAGE_MASK;
+
+	return (start == end);
+}
+
+int pages_identical(unsigned long *addr1, unsigned long *addr2)
+{
+	unsigned long saved_val;
+
+	saved_val = *addr1;
+	if (*addr2 != saved_val) return 0;
+	*addr1 = 0xdeadbeef;
+	if (*addr2 != 0xdeadbeef) return 0;
+	*addr1 = saved_val;
+
+	return 1;
+}
+
+/*
+ * When calling this method, the page-table must be configured to
+ * contain the appropriate ptes for the user-capability tables, so
+ * that we can get the kernel virtual address of them.  This implies
+ * that the user_vaddr_cap_tbl field in the spd must also be
+ * initialized.
+ */
+extern vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr);
+int spd_set_location(struct spd *spd, unsigned long lowest_addr, 
+		     unsigned long size, phys_addr_t pg_tbl)
+{
+	vaddr_t kaddr;
+
+	assert(spd);
+	assert(spd->user_vaddr_cap_tbl);
+	assert(NULL == spd->user_cap_tbl);
+	assert(user_struct_fits_on_page((unsigned long)spd->user_vaddr_cap_tbl, 
+					sizeof(struct usr_inv_cap) * spd->cap_range));
+
+	spd->spd_info.pg_tbl = pg_tbl;
+	spd->location.lowest_addr = lowest_addr;
+	spd->location.size = size;
+
+	kaddr = pgtbl_vaddr_to_kaddr(pg_tbl, (unsigned long)spd->user_vaddr_cap_tbl);
+	if (0 == kaddr) {
+		printk("cos: could not translate the user-cap address into a kernel vaddr.\n");
+		return -1;
+	}
+
+	spd->user_cap_tbl = (struct usr_inv_cap *)kaddr;
+
+	assert(pages_identical((unsigned long*)spd->user_vaddr_cap_tbl,
+			       (unsigned long*)spd->user_cap_tbl));
+
+	return 0;
 }
 
 struct spd *spd_get_by_index(int idx)
@@ -362,9 +433,9 @@ unsigned int spd_add_static_cap_extended(struct spd *owner_spd, struct spd *trus
 	int cap_num;
 	struct usr_cap_stubs *stubs;
 
-	if (!owner_spd || !trusted_spd || owner_spd->user_cap_tbl == NULL) {
+	if (!owner_spd || !trusted_spd || owner_spd->user_vaddr_cap_tbl == NULL) {
 		printd("cos: Invalid cap request args (%p, %p, %x).\n",
-		       owner_spd, trusted_spd, (unsigned int)owner_spd->user_cap_tbl);
+		       owner_spd, trusted_spd, (unsigned int)owner_spd->user_vaddr_cap_tbl);
 		return 0;
 	}
 
@@ -431,6 +502,9 @@ extern vaddr_t kern_pgtbl_mapping;
 extern void zero_pgtbl_range(phys_addr_t pt, unsigned long lower_addr, unsigned long size);
 extern void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from,
 			     unsigned long lower_addr, unsigned long size);
+extern void copy_pgtbl_range_nocheck(phys_addr_t pt_to, phys_addr_t pt_from,
+				     unsigned long lower_addr, unsigned long size);
+extern int pgtbl_entry_present(phys_addr_t pt, unsigned long addr);
 
 static struct page_list *cos_get_pg_pool(void)
 {
@@ -445,9 +519,9 @@ static struct page_list *cos_get_pg_pool(void)
 		page = cos_alloc_page();
 		if (NULL == page) return NULL;
 
-		copy_pgtbl_range((phys_addr_t)va_to_pa(page), 
-				 (phys_addr_t)va_to_pa((void*)kern_pgtbl_mapping),
-				 0, 0xFFFFFFFF);
+		copy_pgtbl_range_nocheck((phys_addr_t)va_to_pa(page), 
+					 (phys_addr_t)va_to_pa((void*)kern_pgtbl_mapping),
+					 0, 0xFFFFFFFF);
 	} else {
 		page = page_list_head.next;
 		page_list_head.next = page->next;
@@ -549,7 +623,39 @@ void spd_mpd_release(struct composite_spd *cspd)
 		cspd->spd_info.flags |= SPD_FREE;
 		cspd->freelist_next = mpd_freelist;
 		mpd_freelist = cspd;
-		cos_put_pg_pool(pa_to_va((void*)cspd->spd_info.pg_tbl));
+		if (spd_mpd_is_subordinate(cspd)) {
+			spd_mpd_release(cspd->master_spd);
+		} else {
+			cos_put_pg_pool(pa_to_va((void*)cspd->spd_info.pg_tbl));
+		}
+	}
+
+	return;
+}
+
+/*
+ * make the slave composite spd subordinate to the master in that it
+ * will now use the master's page tables, discarding its own.  The
+ * master will not be released until the slave has been.  This
+ * function is used when all of the slave's spds have been moved over
+ * into the master.  Both composite spd's are now essentially copies,
+ * so might as well get rid of one of the page-tables.  We have to
+ * keep the slave around as it might still be pointed to in the
+ * invocation stacks of some threads.  If not, it will be deleted
+ * properly.
+ */
+void spd_mpd_make_subordinate(struct composite_spd *master_cspd, 
+			      struct composite_spd *slave_cspd)
+{
+	assert(NULL == slave_cspd->members);
+	assert(spd_mpd_is_depricated(slave_cspd));
+
+	if (1 == slave_cspd->spd_info.ref_cnt.counter) {
+		spd_mpd_release(slave_cspd);
+	} else {
+		master_cspd->spd_info.ref_cnt.counter++;
+		cos_put_pg_pool(pa_to_va((void*)slave_cspd->spd_info.pg_tbl));
+		spd_mpd_subordinate(slave_cspd, master_cspd);
 	}
 
 	return;
@@ -581,6 +687,8 @@ void spd_mpd_free_all(void)
 
 static inline int spd_in_composite(struct spd *spd, struct composite_spd *cspd)
 {
+	return spd_is_member(spd, cspd);
+	/*
 	struct spd *curr;
 
 	curr = cspd->members;
@@ -593,6 +701,7 @@ static inline int spd_in_composite(struct spd *spd, struct composite_spd *cspd)
 	}
 
 	return 0;
+	*/
 }
 
 /*
@@ -604,15 +713,20 @@ static void spd_chg_il_spd_to_all(struct spd *spd, struct composite_spd *cspd, i
 	unsigned short int cap_lower, cap_range;
 	int i;
 
-	cap_lower = spd->cap_base;
-	cap_range = spd->cap_range;
+	/* ignore the first "return" capability */
+	cap_lower = spd->cap_base + 1;
+	cap_range = spd->cap_range - 1;
+
+	//printk("cos: changing up to %d caps for spd %d\n", cap_range, spd_get_index(spd));
 
 	for (i = cap_lower ; i < cap_lower+cap_range ; i++) {
 		struct invocation_cap *cap = &invocation_capabilities[i];
 		struct spd *dest = cap->destination;
 
-		if (spd_in_composite(dest, cspd)) {
+		if (dest && dest != spd && spd_in_composite(dest, cspd)) {
 			isolation_level_t old;
+
+			//printk("cos:\tST from %d to %d.\n", spd_get_index(spd), spd_get_index(dest));
 
 			old = cap_change_isolation(i, il, 0);
 			assert(old != il && old != IL_INV);
@@ -631,21 +745,30 @@ static void spd_chg_il_all_to_spd(struct composite_spd *cspd, struct spd *spd, i
 {
 	struct spd *curr;
 
+	assert(spd && cspd && spd_is_composite(&cspd->spd_info));/* && 
+								    !spd_mpd_is_depricated(cspd));*/
+
 	curr = cspd->members;
 
 	while (curr) {
 		unsigned short int cap_lower, cap_range;
 		int i;
 		
-		cap_lower = spd->cap_base;
-		cap_range = spd->cap_range;
+		/* ignore the first "return" capability */
+		cap_lower = curr->cap_base + 1;
+		assert(curr->cap_range > 0);
+		cap_range = curr->cap_range - 1;
 
+		//printk("cos: changing up to %d caps in spd %d to spd %d\n", curr->cap_range, spd_get_index(curr), spd_get_index(spd));
+		
 		for (i = cap_lower ; i < cap_lower+cap_range ; i++) {
 			struct invocation_cap *cap = &invocation_capabilities[i];
 			struct spd *dest = cap->destination;
 
-			if (dest == spd) {
+			if (dest && cap->owner != spd && dest == spd) {
 				isolation_level_t old;
+
+				//printk("cos:\tST from %d to %d.\n", spd_get_index(curr), spd_get_index(dest));
 				
 				old = cap_change_isolation(i, il, 0);
 				assert(old != il && old != IL_INV);
@@ -703,16 +826,19 @@ static inline void spd_add_mappings(struct composite_spd *cspd, struct spd *spd)
  */
 int spd_composite_add_member(struct composite_spd *cspd, struct spd *spd)
 {
-	/*
-	 * If the spd to be added is still part of another composite
-	 * spd, then we cannot add it to the current spd.
-	 */
-	if (&spd->spd_info != spd->composite_spd) {
-		return -1;
-	}
+	//assert(!spd_mpd_is_depricated(cspd));
+	assert(&spd->spd_info == spd->composite_spd);
 
 	spd_add_caps(cspd, spd);
 	spd_add_mappings(cspd, spd);
+
+	if (pgtbl_entry_present(cspd->spd_info.pg_tbl, spd->location.lowest_addr)) {
+		printk("cos: adding spd to cspd -> page tables for cspd not initialized properly.\n");
+		if (pgtbl_entry_present(spd->spd_info.pg_tbl, spd->location.lowest_addr)) {
+			printk("cos: adding spd to cspd -> page tables for spd not initialized properly.\n");
+		}
+		return -1;
+	}
 
 	spd->composite_member_next = cspd->members;
 	spd->composite_member_prev = NULL;
@@ -722,19 +848,15 @@ int spd_composite_add_member(struct composite_spd *cspd, struct spd *spd)
 	return 0;
 }
 
-int spd_composite_remove_member(struct composite_spd *cspd, struct spd *spd, int remove_mappings)
+int spd_composite_remove_member(struct spd *spd, int remove_mappings)
 {
 	struct spd *prev, *next;
+	struct composite_spd *cspd;
 
-	assert(!spd_mpd_is_depricated(cspd));
+	assert(spd && spd_is_composite(spd->composite_spd));
 
-	/*
-	 * A spd that is not part of a composite spd cannot be removed
-	 * from it...
-	 */
-	if (spd->composite_spd != &cspd->spd_info) {
-		return -1;
-	}
+	cspd = (struct composite_spd *)spd->composite_spd;
+	//assert(!spd_mpd_is_depricated(cspd));
 
 	prev = spd->composite_member_prev;
 	next = spd->composite_member_next;
@@ -752,8 +874,9 @@ int spd_composite_remove_member(struct composite_spd *cspd, struct spd *spd, int
 
 	spd_remove_caps(cspd, spd);
 	
-	if (remove_mappings)
+	if (remove_mappings) {
 		spd_remove_mappings(cspd, spd);
+	}
 
 	return 0;
 }

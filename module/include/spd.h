@@ -99,11 +99,16 @@ struct invocation_cap {
  */
 
 /* spd flags */
-#define SPD_COMPOSITE  0x1 // Is this spd a composite_spd?
-#define SPD_FREE       0x2 // currently unused
-#define SPD_DEPRICATED 0x4 // Must have SPD_COMPOSITE.  This spd
-                           // should no longer be used except for
-			   // thread returns.
+#define SPD_COMPOSITE   0x1 // Is this spd a composite_spd?
+#define SPD_FREE        0x2 // currently unused
+#define SPD_DEPRICATED  0x4 // Must have SPD_COMPOSITE.  This spd
+                            // should no longer be used except for
+			    // thread returns.
+#define SPD_SUBORDINATE 0x8 // must be a spd_composite.  uses the page 
+                            // table of another composite spd, so if we 
+                            // delete this, do not delete the pgtbl, 
+                            // just decriment the reference count of 
+                            // the spd that has the pg_tbl (via master_spd ptr)
 
 #define MAX_MPD_DESC 1024  // Max number of descriptors for composite spds
 
@@ -128,6 +133,7 @@ struct spd;
 struct composite_spd {
 	struct spd_poly spd_info;
 	struct spd *members;
+	struct composite_spd *master_spd; // iff flags & SPD_SUBORDINATE
 	struct composite_spd *freelist_next;
 } CACHE_ALIGNED;
 
@@ -153,7 +159,13 @@ struct spd {
 	struct spd_poly /*composite_spd*/ *composite_spd; 
 	
 	unsigned short int cap_base, cap_range;
-	struct usr_inv_cap *user_cap_tbl;
+	/*
+	 * user_cap_tbl is a pointer to the virtual address within the
+	 * kernel address space of hte user level capability table,
+	 * while user_vaddr_cap_tbl is a pointer into actual
+	 * component-space.
+	 */
+	struct usr_inv_cap *user_cap_tbl, *user_vaddr_cap_tbl;
 
 	/* if this service is a scheduler, at what depth is it, and
 	 * who's its parent? */
@@ -175,6 +187,8 @@ struct spd {
 
 struct spd *spd_alloc(unsigned short int max_static_cap, struct usr_inv_cap *usr_cap_tbl, 
 		      vaddr_t upcall_entry);
+int spd_set_location(struct spd *spd, unsigned long lowest_addr, 
+		     unsigned long size, phys_addr_t pg_tbl);
 void spd_free(struct spd *spd);
 
 int spd_is_free(int idx);
@@ -193,19 +207,38 @@ unsigned int spd_add_static_cap_extended(struct spd *spd, struct spd *trusted_sp
 isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int flags);
 int cap_is_free(int cap_num);
 
+static inline int spd_is_member(struct spd *spd, struct composite_spd *cspd)
+{ 
+	return spd->composite_spd == &cspd->spd_info;
+}
+static inline int spd_is_composite(struct spd_poly *info)
+{ 
+	return info->flags & SPD_COMPOSITE;
+}
 static inline int spd_mpd_is_depricated(struct composite_spd *mpd)
 { 
-	return ((mpd)->spd_info.flags & SPD_DEPRICATED) ? 1 : 0;
+	return (mpd)->spd_info.flags & SPD_DEPRICATED;
 }
 static inline void spd_mpd_depricate(struct composite_spd *mpd)
 {
 	mpd->spd_info.flags |= SPD_DEPRICATED;
+}
+static inline int spd_mpd_is_subordinate(struct composite_spd *mpd)
+{ 
+	return mpd->spd_info.flags & SPD_SUBORDINATE;
+}
+static inline void spd_mpd_subordinate(struct composite_spd *mpd, struct composite_spd *master)
+{
+	mpd->spd_info.flags |= SPD_SUBORDINATE;
+	mpd->master_spd = master;
+	mpd->spd_info.pg_tbl = master->spd_info.pg_tbl;
 }
 
 void spd_init_mpd_descriptors(void);
 short int spd_alloc_mpd_desc(void);
 void spd_mpd_release_desc(short int desc);
 void spd_mpd_release(struct composite_spd *cspd);
+void spd_mpd_make_subordinate(struct composite_spd *master, struct composite_spd *slave);
 struct composite_spd *spd_mpd_by_idx(short int idx);
 short int spd_mpd_index(struct composite_spd *cspd);
 static inline struct composite_spd *spd_alloc_mpd(void)
@@ -214,11 +247,15 @@ static inline struct composite_spd *spd_alloc_mpd(void)
 }
 
 int spd_composite_add_member(struct composite_spd *cspd, struct spd *spd);
-int spd_composite_remove_member(struct composite_spd *cspd, struct spd *spd, int remove_mappings);
+int spd_composite_remove_member(struct spd *spd, int remove_mappings);
 
-static inline int spd_composite_move_member(struct composite_spd *cspd_old, struct composite_spd *cspd_new, struct spd *spd)
+/*
+ * Move spd from its current composite spd to the cspd_new
+ * composite_spd.
+ */
+static inline int spd_composite_move_member(struct composite_spd *cspd_new, struct spd *spd)
 {
-	if (spd_composite_remove_member(cspd_old, spd, 0) ||
+	if (spd_composite_remove_member(spd, 0) ||
 	    spd_composite_add_member(cspd_new, spd)) {
 		return -1;
 	}

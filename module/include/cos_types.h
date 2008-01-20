@@ -1,6 +1,8 @@
 #ifndef TYPES_H
 #define TYPES_H
 
+#include "debug.h"
+
 struct cos_sched_next_thd {
 	unsigned short int next_thd_id, next_thd_flags;
 	unsigned int next_thd_urgency;
@@ -98,7 +100,7 @@ typedef struct { volatile unsigned int counter; } atomic_t;
 #endif /* __KERNEL__ */
 
 static inline void cos_ref_take(atomic_t *rc) { rc->counter++; }
-static inline void cos_ref_release(atomic_t *rc) { rc->counter--; }
 static inline unsigned int cos_ref_val(atomic_t *rc) { return rc->counter; }
+static inline void cos_ref_release(atomic_t *rc) { rc->counter--; /* assert(rc->counter != 0) */}
 
 #endif /* TYPES_H */

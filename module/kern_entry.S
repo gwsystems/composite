@@ -239,7 +239,7 @@ ENTRY(page_fault_interposition)
 	pushl %edx
 	pushl %ecx
 	pushl %ebx
-	GET_THREAD_INFO(%ebp)
+	/*	GET_THREAD_INFO(%ebp)*/
 #ifdef COMPOSITE
 	testw $(_TIF_COMPOSITE_ENV), TI_flags(%ebp)
 	jz not_composite_pf
@@ -249,8 +249,9 @@ ENTRY(page_fault_interposition)
 	iret /* work??? */
 #endif
 not_composite_pf:	
-	testw $(_TIF_HIJACK_ENV), TI_flags(%ebp)
+/*	testw $(_TIF_HIJACK_ENV), TI_flags(%ebp)
 	jz normal_pf
+*/
 	call main_page_fault_interposition
 	/* restore the saved regs before we call the linux handler */
 normal_pf:	

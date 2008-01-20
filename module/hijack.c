@@ -974,6 +974,7 @@ void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from,
 		      unsigned long lower_addr, unsigned long size);
 void copy_pgtbl(phys_addr_t pt_to, phys_addr_t pt_from);
 extern int copy_mm(unsigned long clone_flags, struct task_struct * tsk);
+void print_valid_pgtbl_entries(phys_addr_t pt);
 
 static int aed_ioctl(struct inode *inode, struct file *file,
 		     unsigned int cmd, unsigned long arg)
@@ -1265,9 +1266,6 @@ free_dummy:
 			}
 			mm = aed_get_mm(spd->local_mmaps);
 
-			spd->spd_info.pg_tbl = (phys_addr_t)(__pa(mm->pgd));
-			spd->location.lowest_addr = spd_info.lowest_addr;
-			spd->location.size = spd_info.size;
 			if (!virtual_namespace_alloc(spd, spd_info.lowest_addr, spd_info.size)) {
 				printk("cos: collision in virtual namespace.\n");
 				aed_free_mm(spd->local_mmaps);
@@ -1287,17 +1285,29 @@ free_dummy:
 				return -1;
 			}
 
+			spd_set_location(spd, spd_info.lowest_addr, spd_info.size, (phys_addr_t)(__pa(mm->pgd)));
+
 			if (spd_composite_add_member(cspd, spd)) {
 				printk("cos: could not add spd %d to composite spd %d.\n",
 				       spd_get_index(spd), spd_mpd_index(cspd));
 				return -1;
 			}
+
 /*
 			copy_pgtbl(cspd->spd_info.pg_tbl, __pa(mm->pgd));
 			cspd->spd_info.pg_tbl = __pa(mm->pgd);
 ////			spd->composite_spd = &spd->spd_info;//&cspd->spd_info;
 			spd->composite_spd = &cspd->spd_info;
-*/		}
+*/
+#ifdef NIL
+			/* To check the integrity of the created page table: */
+			void print_valid_pgtbl_entries(phys_addr_t pt);
+			print_valid_pgtbl_entries(spd->composite_spd->pg_tbl);
+#endif
+		}
+
+		int stk;
+		printk("cos: thread stack address is %p.\n", &stk);
 
 		return spd_get_index(spd);
 	}
@@ -1666,6 +1676,7 @@ static inline unsigned long change_page_fault_handler(void *new_handler)
 	 * translation from include/asm-i386/fixmap.h
 	 */
 	set_trap_gate(14, new_handler, idt_table);
+	//set_intr_gate(14, new_handler, idt_table);
 
 	return previous_fault_handler;
 }
@@ -1680,12 +1691,21 @@ static inline unsigned long change_page_fault_handler(void *new_handler)
  * 1) are we faulting in the shared region
  * 2) are we faulting in a component for which linux defines a mapping
  * 3) are we faulting in a component which has no mapping 
+ * 4) if we are legally faulting on a function call to a server that
+ *    used to be isolated via ST, but is now SDT (thus the page fault)
  *
  * #3 is the most complicated as we must save the registers into a
  * fault region provided by another process, and execute the fault
  * handler.
  */
-static int legal_faults = 0, illegal_faults = 0;
+#define BUCKET_ORDER 10
+#define BUCKET_MASK (~((~(0UL))>>BUCKET_ORDER))
+#define BUCKET_HASH(x) ((BUCKET_MASK & (x)) >> (32-BUCKET_ORDER))
+#define NUM_BUCKETS (1UL<<BUCKET_ORDER)
+#ifdef FAULT_DEBUG
+static unsigned long fault_addrs[NUM_BUCKETS];
+#endif
+
 void main_page_fault_interposition(void)
 {
 	unsigned long fault_addr;
@@ -1693,12 +1713,10 @@ void main_page_fault_interposition(void)
 //	pte_t *pte;
 
 	__asm__("movl %%cr2,%0":"=r" (fault_addr));
-
-	/* 
+		/* 
 	 * FIXME: This really doesn't do anything yet: disabled in
 	 * kern_entry.S 
 	 */
-
 	if (composite_thread == current) {
 		/*
 		 * The correct thing to do: 1) find the address that
@@ -1715,8 +1733,18 @@ void main_page_fault_interposition(void)
 		/* FIXME: we will really have to check for all spds in
 		 * the composite_spd, rather than just casting to a
 		 * single spd, but for now... */
-		struct spd *curr_spd = thd_get_current_spd();
-		unsigned long low = curr_spd->location.lowest_addr;
+		struct spd *curr_spd;
+		unsigned long low;
+
+		curr_spd = thd_curr_spd_noprint();
+		if (NULL == curr_spd) {
+			return;
+		} 
+
+#ifdef FAULT_DEBUG
+		fault_addrs[BUCKET_HASH(fault_addr)]++;
+#endif
+		low = curr_spd->location.lowest_addr;
 
 		if (fault_addr < low ||
 		    fault_addr >= low + curr_spd->location.size) {
@@ -1730,13 +1758,16 @@ void main_page_fault_interposition(void)
 
 			//pte = lookup_address_mm(current->mm, fault_addr);
 			/* send fault to fault handler */
-			illegal_faults++;
+			cos_meas_event(COS_LINUX_PG_FAULT);
 		} else {
 			/* see comment above in "if"...same error behavior */
-			legal_faults++;
+			cos_meas_event(COS_PG_FAULT);
 		}
 	}
 
+	return;
+
+	/* hijack crap to follow ----> */
 	
 	/* normal process page fault */
 	if (!test_thread_flag(TIF_HIJACK_ENV))
@@ -1826,6 +1857,11 @@ void cos_free_page(void *page)
 	__free_pages(page, 0);
 }
 
+/*
+ * FIXME: types for these are messed up.  This is due to difficulty in
+ * using them both in the composite world and in the Linux world.  We
+ * should just use them in the composite world and be done with it.
+ */
 void *va_to_pa(void *va) 
 {
 	return (void*)__pa(va);
@@ -1836,47 +1872,133 @@ void *pa_to_va(void *pa)
 	return (void*)__va(pa);
 }
 
+static inline pte_t *pgtbl_lookup_address(phys_addr_t pgtbl, unsigned long addr)
+{
+	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pgtbl)) + pgd_index(addr);
+	pud_t *pud;
+	pmd_t *pmd;
+	if (pgd_none(*pgd)) {
+		return NULL;
+	}
+	pud = pud_offset(pgd, addr);
+	if (pud_none(*pud)) {
+		return NULL;
+	}
+	pmd = pmd_offset(pud, addr);
+	if (pmd_none(*pmd)) {
+		return NULL;
+	}
+	if (pmd_large(*pmd))
+		return (pte_t *)pmd;
+        return pte_offset_kernel(pmd, addr);
+}
+
+vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr)
+{
+	pte_t *pte = pgtbl_lookup_address(pgtbl, addr);
+	unsigned long kaddr;
+
+	if (!pte) {
+		return 0;
+	}
+	
+	/*
+	 * 1) get the value in the pte
+	 * 2) map out the non-address values to get the physical address
+	 * 3) convert the physical address to the vaddr
+	 * 4) offset into that vaddr the appropriate amount from the addr arg.
+	 * 5) return value
+	 */
+
+	kaddr = (unsigned long)__va(pte_val(*pte) & PTE_MASK) + (~PAGE_MASK & addr);
+
+	return (vaddr_t)kaddr;
+}
+
+/*
+ * Verify that the given address in the page table is present.  Return
+ * 0 if present, 1 if not.
+ */
+int pgtbl_entry_present(phys_addr_t pt, unsigned long addr)
+{
+	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(addr);
+
+	return !((pgd_val(*pgd)) & _PAGE_PRESENT);
+}
+
+unsigned long get_valid_pgtbl_entry(phys_addr_t pt, int n)
+{
+	int i;
+
+	for (i = 1 ; i < PTRS_PER_PGD ; i++) {
+		if (!pgtbl_entry_present(pt, i*PGDIR_SIZE)) {
+			n--;
+			if (n == 0) {
+				return i*PGDIR_SIZE;
+			}
+		}
+	}
+	return 0;
+}
+
+void print_valid_pgtbl_entries(phys_addr_t pt) 
+{
+	int n = 1;
+	unsigned long ret;
+	printk("cos: valid pgd addresses:\ncos: ");
+	while ((ret = get_valid_pgtbl_entry(pt, n++)) != 0) {
+		printk("%lx\t", ret);
+	}
+	printk("\ncos: %d valid addresses.\n", n-1);
+
+	return;
+}
+
 void zero_pgtbl_range(phys_addr_t pt, unsigned long lower_addr, unsigned long size)
 {
-	pgd_t *pgd = pa_to_va((void*)pt) + pgd_index(lower_addr);
+	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(lower_addr);
 	unsigned int span = size>>HPAGE_SHIFT;
 
+	if (!(pgd_val(*pgd)) & _PAGE_PRESENT) {
+		printk("cos: BUG: nothing to copy from pgd @ %x.\n", 
+		       (unsigned int)lower_addr);
+	}
+
 	/* sizeof(pgd entry) is intended */
-	memset(pgd, 0, span*sizeof(unsigned int /*pgd_t*/));
+	memset(pgd, 0, span*sizeof(pgd_t));
 }
 
 void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from, 
 		      unsigned long lower_addr, unsigned long size)
 {
-	pgd_t *tpgd = pa_to_va((void*)pt_to) + pgd_index(lower_addr);
-	pgd_t *fpgd = pa_to_va((void*)pt_from) + pgd_index(lower_addr);
+	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
+	pgd_t *fpgd = ((pgd_t *)pa_to_va((void*)pt_from)) + pgd_index(lower_addr);
 	unsigned int span = size>>HPAGE_SHIFT;
 
-#ifdef NIL
 	if (!(pgd_val(*fpgd)) & _PAGE_PRESENT) {
 		printk("cos: BUG: nothing to copy from pgd @ %x.\n", 
 		       (unsigned int)lower_addr);
 	}
-#endif
 
 	/* sizeof(pgd entry) is intended */
-	memcpy(tpgd, fpgd, span*sizeof(unsigned int));
+	memcpy(tpgd, fpgd, span*sizeof(pgd_t));
+}
+
+
+void copy_pgtbl_range_nocheck(phys_addr_t pt_to, phys_addr_t pt_from, 
+			      unsigned long lower_addr, unsigned long size)
+{
+	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
+	pgd_t *fpgd = ((pgd_t *)pa_to_va((void*)pt_from)) + pgd_index(lower_addr);
+	unsigned int span = size>>HPAGE_SHIFT;
+
+	/* sizeof(pgd entry) is intended */
+	memcpy(tpgd, fpgd, span*sizeof(pgd_t));
 }
 
 void copy_pgtbl(phys_addr_t pt_to, phys_addr_t pt_from)
 {
-	pgd_t *tpgd = pa_to_va((void*)pt_to);
-	pgd_t *fpgd = pa_to_va((void*)pt_from);
-
-	/* Because this copies a constant length, it is compiler optimized */
-	memcpy(tpgd, fpgd, ((0xFFFFFFFF)>>HPAGE_SHIFT)*sizeof(unsigned int));
-}
-
-int pgtbl_entry_present(vaddr_t addr, phys_addr_t pg_tbl)
-{
-	pgd_t *entry = pa_to_va((void*)pg_tbl + pgd_index(addr));
-
-	return (pgd_val(*entry) & _PAGE_PRESENT);
+	copy_pgtbl_range_nocheck(pt_to, pt_from, 0, 0xFFFFFFFF);
 }
 
 /***** begin timer handling *****/
@@ -2118,7 +2240,9 @@ static int aed_open(struct inode *inode, struct file *file)
 static int aed_release(struct inode *inode, struct file *file)
 {
 	pgd_t *pgd;
-
+#ifdef FAULT_DEBUG
+	int i, j, k;
+#endif
 	/* 
 	 * when the aed control file descriptor is closed, lets get
 	 * rid of all resources the aed environment was using, but
@@ -2175,8 +2299,19 @@ static int aed_release(struct inode *inode, struct file *file)
 	mmput(composite_union_mm);
 	composite_union_mm = NULL;
 	
-	printk("cos: %d illegal page faults, %d legal.\n", 
-	       illegal_faults, legal_faults);
+#ifdef FAULT_DEBUG
+	printk("cos: Page fault information:\n");
+	printk("cos: Number of buckets %d, bucket mask %x.\n", 
+	       (int)NUM_BUCKETS, (unsigned int)BUCKET_MASK);
+	#define PER_ROW 8
+	for (i = 0, k = 0 ; i < NUM_BUCKETS/PER_ROW ; i++) {
+		printk("cos: %d - ", i);
+		for (j = 0 ; j < PER_ROW ; j++, k++) {
+			printk("%12u", (unsigned int)fault_addrs[k]);
+		}
+		printk("\n");
+	}
+#endif
 
 	return 0;
 }
