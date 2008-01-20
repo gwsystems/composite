@@ -41,15 +41,13 @@
 */
 
 struct thd_invocation_frame {
-	struct /*composite_spd*/spd_poly *current_composite_spd;
+	struct spd_poly *current_composite_spd;
 	/*
-	 * ret_addr is stored and passed up to the user-level on
-	 * return: it allows that code to know where to return to.  sp
-	 * and ip are literally the sp and ip that the kernel sets on
-	 * return to user-level.
+	 * sp and ip are literally the sp and ip that the kernel sets
+	 * on return to user-level.
 	 */
 	struct spd *spd;
-	vaddr_t /*usr_def, */sp, ip;
+	vaddr_t sp, ip;
 }; //HALF_CACHE_ALIGNED;
 
 /* 
@@ -131,15 +129,14 @@ void thd_init(void);
  * the maximum diameter of services is less than the size of the
  * invocation stack.
  */
-static inline void thd_invocation_push(struct thread *curr_thd, 
-				       /*struct composite_spd *curr_composite, */
-				       struct spd *curr_spd,
-				       vaddr_t sp, vaddr_t ip/*, vaddr_t usr_def*/)
+static inline void thd_invocation_push(struct thread *curr_thd, struct spd *curr_spd,
+				       vaddr_t sp, vaddr_t ip)
 {
 	struct thd_invocation_frame *inv_frame;
 /*
-	printf("Pushing onto %x, cspd %x (sp %x, ip %x, usr %x).\n", (unsigned int)curr_thd,
-	       (unsigned int)curr_composite, (unsigned int)sp, (unsigned int)ip, (unsigned int)usr_def);
+	printk("cos: Pushing onto %p, spd %p, cspd %p (sp %x, ip %x).\n", 
+	       curr_thd, curr_spd, curr_spd->composite_spd, 
+	       (unsigned int)sp, (unsigned int)ip);
 */
 	curr_thd->stack_ptr++;
 	inv_frame = &curr_thd->stack_base[curr_thd->stack_ptr];
@@ -147,7 +144,6 @@ static inline void thd_invocation_push(struct thread *curr_thd,
 	inv_frame->current_composite_spd = curr_spd->composite_spd;
 	inv_frame->sp = sp;
 	inv_frame->ip = ip;
-/*	inv_frame->usr_def = usr_def;*/
 	inv_frame->spd = curr_spd;
 
 	return;
@@ -254,5 +250,19 @@ static inline int thd_scheduled_by(struct thread *thd, struct spd *spd)
 {
 	return thd_get_scheduler(thd, spd->sched_depth) == spd;
 }
+
+int thd_spd_in_current_composite(struct thread *thd, struct spd *spd);
+
+static inline struct spd *thd_validate_get_current_spd(struct thread *thd, unsigned short int spd_id)
+{
+	struct spd *spd = spd_get_by_index(spd_id);
+
+	if (spd && thd_spd_in_current_composite(thd, spd)) {
+		return spd;
+	}
+
+	return NULL;
+}
+
 
 #endif /* THREAD_H */

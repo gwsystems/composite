@@ -428,7 +428,12 @@ static inline struct pt_regs* get_user_regs(void)
 	 * 
 	 * a) Because of the complexity of this solution (#3), I am
 	 * going to self-impose a restriction against making Linux
-	 * syscalls for experiments using Composite.
+	 * syscalls for experiments using Composite.  Linux system
+	 * calls are essentially non-preemptible sections, and should
+	 * thus not be made in a RT setting.  A composite-specific
+	 * system call can be added later to execute system calls in
+	 * the context of another Linux thread, thus allowing the main
+	 * composite thread to remain fully non-preemptive in kernel.
 	 *
 	 * b) A good approach might be to assume that all composite
 	 * threads executing syscalls (i.e. if given permission to
@@ -555,10 +560,12 @@ static inline void copy_pgd_range(struct mm_struct *to_mm, struct mm_struct *fro
 	pgd_t *fpgd = pgd_offset(from_mm, lower_addr);
 	unsigned int span = size>>HPAGE_SHIFT;
 
+#ifdef NIL
 	if (!(pgd_val(*fpgd) & _PAGE_PRESENT)) {
 		printk("cos: BUG: nothing to copy in mm %p's pgd @ %x.\n", 
 		       from_mm, (unsigned int)lower_addr);
 	}
+#endif
 
 	/* sizeof(pgd entry) is intended */
 	memcpy(tpgd, fpgd, span*sizeof(unsigned int));
@@ -1239,6 +1246,7 @@ free_dummy:
 		if (spd_info.lowest_addr == 0) {
 			spd->spd_info.pg_tbl = (phys_addr_t)(__pa(current->mm->pgd));
 			spd->location.lowest_addr = 0;
+			spd->composite_spd = &spd->spd_info;
 		} else {
 			/*
 			 * Copy relevant page table entries from the
@@ -1249,7 +1257,7 @@ free_dummy:
 			 */
 			struct mm_struct *mm;
 			struct composite_spd *cspd;
-
+			
 			spd->local_mmaps = aed_allocate_mm();
 			if (spd->local_mmaps < 0) {
 				spd_free(spd);
@@ -1271,18 +1279,25 @@ free_dummy:
 			copy_pgd_range(mm, current->mm, spd_info.lowest_addr, spd_info.size);
 			copy_pgd_range(mm, current->mm, COS_INFO_REGION_ADDR, PGD_RANGE);
 
-/*			cspd = spd_alloc_mpd();
+			cspd = spd_alloc_mpd();
 			if (!cspd) {
 				printk("cos: Could not allocate composite spd for initial spd.\n");
 				aed_free_mm(spd->local_mmaps);
 				spd_free(spd);
 				return -1;
 			}
-			
+
+			if (spd_composite_add_member(cspd, spd)) {
+				printk("cos: could not add spd %d to composite spd %d.\n",
+				       spd_get_index(spd), spd_mpd_index(cspd));
+				return -1;
+			}
+/*
 			copy_pgtbl(cspd->spd_info.pg_tbl, __pa(mm->pgd));
+			cspd->spd_info.pg_tbl = __pa(mm->pgd);
+////			spd->composite_spd = &spd->spd_info;//&cspd->spd_info;
 			spd->composite_spd = &cspd->spd_info;
-*/
-		}
+*/		}
 
 		return spd_get_index(spd);
 	}
@@ -1341,7 +1356,7 @@ free_dummy:
 
 		spd = spd_get_by_index(thread_info.sched_handle);
 		if (!spd) {
-			printk("cos: scheduling spd %d invalid to create thread.\n", 
+			printk("cos: scheduling spd %d not permitted to create thread.\n", 
 			       thread_info.sched_handle);
 			thd_free(thd);
 			return -EINVAL;
@@ -1456,6 +1471,22 @@ free_dummy:
 		/* ... skipped this and went for the real thing with
 		 * the timer interrupt */
 
+		return 0;
+	}
+	case AED_DEMO_SPDS:
+	{
+		struct spd_sched_info si;
+		extern struct spd *t1, *t2;
+
+		if (copy_from_user(&si, (void*)arg, 
+				   sizeof(struct spd_sched_info))) {
+			printk("cos: Error copying spd scheduler info from user-level.\n");
+			return -EFAULT;
+		}
+
+		t1 = spd_get_by_index(si.spd_sched_handle);
+		t2 = spd_get_by_index(si.spd_parent_handle);
+		
 		return 0;
 	}
 	default: 
@@ -1669,6 +1700,18 @@ void main_page_fault_interposition(void)
 	 */
 
 	if (composite_thread == current) {
+		/*
+		 * The correct thing to do: 1) find the address that
+		 * faulted, 2) check if that address is legal within
+		 * the current spd_poly (by seeing if its associated
+		 * pgd is present). 
+		 *
+		 * If present, then we have a fault which should be
+		 * delivered to the fault handler. If it is not
+		 * present, then we have an invalid access.  Deliver
+		 * to the corresponding handler in this case as well.
+		 */
+
 		/* FIXME: we will really have to check for all spds in
 		 * the composite_spd, rather than just casting to a
 		 * single spd, but for now... */
@@ -1759,6 +1802,14 @@ struct mm_struct* module_page_fault(unsigned long address)
 }
 
 /*
+ * A pointer to the kernel page table mappings.  This is an entire
+ * page table pgd, but only the kernel mappings should be present.
+ */
+vaddr_t kern_pgtbl_mapping;
+struct mm_struct *kern_mm;
+int kern_handle;
+
+/*
  * FIXME: error checking
  */
 void *cos_alloc_page(void)
@@ -1801,10 +1852,12 @@ void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from,
 	pgd_t *fpgd = pa_to_va((void*)pt_from) + pgd_index(lower_addr);
 	unsigned int span = size>>HPAGE_SHIFT;
 
+#ifdef NIL
 	if (!(pgd_val(*fpgd)) & _PAGE_PRESENT) {
 		printk("cos: BUG: nothing to copy from pgd @ %x.\n", 
 		       (unsigned int)lower_addr);
 	}
+#endif
 
 	/* sizeof(pgd entry) is intended */
 	memcpy(tpgd, fpgd, span*sizeof(unsigned int));
@@ -1819,6 +1872,12 @@ void copy_pgtbl(phys_addr_t pt_to, phys_addr_t pt_from)
 	memcpy(tpgd, fpgd, ((0xFFFFFFFF)>>HPAGE_SHIFT)*sizeof(unsigned int));
 }
 
+int pgtbl_entry_present(vaddr_t addr, phys_addr_t pg_tbl)
+{
+	pgd_t *entry = pa_to_va((void*)pg_tbl + pgd_index(addr));
+
+	return (pgd_val(*entry) & _PAGE_PRESENT);
+}
 
 /***** begin timer handling *****/
 
@@ -1981,6 +2040,14 @@ static int aed_open(struct inode *inode, struct file *file)
 		return -ENOMEM;
 	}
 
+	kern_handle = aed_allocate_mm();
+	kern_mm = aed_get_mm(kern_handle);
+	kern_pgtbl_mapping = (vaddr_t)kern_mm->pgd;
+
+	thd_init();
+	spd_init();
+	ipc_init();
+
 	/* 
 	 * FIXME: memory leaks when returning;
 	 */
@@ -2139,15 +2206,18 @@ static int make_proc_aed(void)
 
 static int asym_exec_dom_init(void)
 {
-	int trash;
+	int trash, se_addr;
 
 	printk("cos: Installing the asymmetric execution domains module.\n");
 
 	if (make_proc_aed())
 		return -1;
 
-	rdmsr(MSR_IA32_SYSENTER_EIP, (int)sysenter_addr, trash);
+//	rdmsr(MSR_IA32_SYSENTER_EIP, (int)sysenter_addr, trash);
+	rdmsr(MSR_IA32_SYSENTER_EIP, se_addr, trash);
+	sysenter_addr = (void*)se_addr;
 	wrmsr(MSR_IA32_SYSENTER_EIP, (int)asym_exec_dom_entry, 0);
+
 	printk("cos: Saving sysenter msr (%p) and activating %p.\n", 
 	       sysenter_addr, asym_exec_dom_entry);
 	default_page_fault_handler = (void*)change_page_fault_handler(page_fault_interposition);
@@ -2160,9 +2230,9 @@ static int asym_exec_dom_init(void)
 	init_guest_mm_vect();
 	trusted_mm = NULL;
 
-	thd_init();
-	spd_init();
-	ipc_init();
+/* 	thd_init(); */
+/* 	spd_init(); */
+/* 	ipc_init(); */
 
 	/* init measurements */
 	register_measurements();

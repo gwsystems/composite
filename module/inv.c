@@ -44,12 +44,6 @@ static inline void open_close_spd_ret(struct spd_poly *c_spd) /*, struct spd_pol
 	return;
 }
 
-static inline int stale_il_or_error(struct thd_invocation_frame *frame,
-				    struct invocation_cap *cap)
-{
-	return 1;
-}
-
 static void print_stack(struct thread *thd, struct spd *srcspd, struct spd *destspd)
 {
 	int i;
@@ -92,21 +86,12 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	struct thd_invocation_frame *curr_frame;
 	struct spd *curr_spd, *dest_spd;
 	struct invocation_cap *cap_entry;
-//	int save_regs = 0;
 
-/* FIXME: unify with asm_ipc_defs.h */
-/*
-#define SAVE_REGS_CAP_OFFSET 0x80000000
-	if (SAVE_REGS_CAP_OFFSET & capability) {
-		save_regs = 1;
-		capability &= ~SAVE_REGS_CAP_OFFSET;
-	}
-*/
 	capability >>= 20;
 
-	//printd("cos: ipc_walk_static_cap - thd %p, cap %x(%u), sp %x, ip %x, usrdef %x.\n",
-	//       thd, (unsigned int)capability, (unsigned int)capability, 
-	//       (unsigned int)sp, (unsigned int)ip, (unsigned int)usr_def);
+	/*printk("cos: ipc_walk_static_cap - thd %p, cap %x(%u), sp %x, ip %x.\n",
+	       thd, (unsigned int)capability, (unsigned int)capability, 
+	       (unsigned int)sp, (unsigned int)ip);*/
 
 	if (capability >= MAX_STATIC_CAP) {
 		printk("cos: capability %d greater than max.\n", capability);
@@ -142,34 +127,38 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	 *
 	 * i.e. is the capability owner in the same protection domain
 	 * (via ST) as the spd entry point to the protection domain.
+	 *
+	 * We are doing a repetitive calculation for the first check
+	 * here and in the thd_spd_in_current_composite, as we want to
+	 * avoid making the function call here if possible.  FIXME:
+	 * should just use a specific inlined method here to avoid
+	 * this.
 	 */
-	if (curr_spd->composite_spd != curr_frame->current_composite_spd && /* should be || */
-	    stale_il_or_error(curr_frame, cap_entry)) {
+	if (curr_spd->composite_spd != curr_frame->current_composite_spd &&
+	    !thd_spd_in_current_composite(thd, curr_spd)) {
 		printk("cos: Error, incorrect capability (Cap %d has cspd %x, stk has %x).\n",
-		       capability, (unsigned int)cap_entry->owner->composite_spd,
+		       capability, (unsigned int)curr_spd->composite_spd,
 		       (unsigned int)curr_frame->current_composite_spd);
 		print_stack(thd, curr_spd, dest_spd);
+		/* 
+		 * FIXME: do something here like throw a fault to be
+		 * handled by a user-level handler
+		 */
 		return 0;
-		/* FIXME: do something here like kill thread/spd */
 	}
-
-	/* save the proper spd that we saved registers for */
-/*	if (save_regs) {
-		thd->sched_saved_regs = curr_spd;
-	}
-*/
 
 	cap_entry->invocation_cnt++;
 
 //	if (cap_entry->il & IL_INV_UNMAP) {
-	open_close_spd(/*&*/dest_spd->composite_spd/*->spd_info*/, 
-		       /*&*/curr_spd->composite_spd/*->spd_info*/);
+	open_close_spd(dest_spd->composite_spd, curr_spd->composite_spd);
 //	} else {
 //		open_spd(&curr_spd->spd_info);
 //	}
 
 	ret->thd_id = thd->thread_id;
 	ret->data_region = thd->data_region;
+
+	cos_ref_take(&dest_spd->composite_spd->ref_cnt);
 
 	/* 
 	 * ref count the composite spds:
@@ -180,7 +169,7 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	 */
 	
 	/* add a new stack frame for the spd we are invoking (we're committed) */
-	thd_invocation_push(thd, cap_entry->destination/* ->composite_spd */, sp, ip/*, usr_def*/);
+	thd_invocation_push(thd, cap_entry->destination, sp, ip);
 
 	cos_meas_event(COS_MEAS_INVOCATIONS);
 
@@ -193,19 +182,22 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
  * This is complicated by the fact that we may return when no
  * invocation is made because a thread is terminating.
  */
-COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr_thd, struct pt_regs **regs_restore)
+COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr, struct pt_regs **regs_restore)
 {
-	struct thd_invocation_frame *inv_frame = thd_invocation_pop(curr_thd);
+	struct thd_invocation_frame *inv_frame;
 	struct thd_invocation_frame *curr_frame;
 
-	if (inv_frame == MNULL) {
-		struct thread *curr = thd_get_current();
+	inv_frame = thd_invocation_pop(curr);
 
+	if (inv_frame == MNULL) {
 		if (curr->flags & THD_STATE_ACTIVE_UPCALL) {
-			struct thread *prev = curr->interrupted_thread;
-			/* FIXME: stupid cast, again */
-			struct spd *dest_spd = thd_get_thd_spd(prev);
-			struct spd *orig_spd = thd_get_thd_spd(curr);
+			struct thread *prev;
+			struct spd *dest_spd;
+			struct spd_poly *orig_spdpoly;
+
+			prev = curr->interrupted_thread;
+			dest_spd = thd_get_thd_spd(prev);
+			orig_spdpoly = thd_get_thd_spdpoly(curr);
 
 			assert(curr->thread_brand && curr->flags & THD_STATE_UPCALL);
 
@@ -234,7 +226,7 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr_thd, struct pt_
 			 * purposes (assuming that we don't have
 			 * pending upcalls, which changes all of this.
 			 */
-			open_close_spd(&dest_spd->spd_info, &orig_spd->spd_info);
+			open_close_spd(&dest_spd->spd_info, orig_spdpoly);
 
 			assert(prev->flags & THD_STATE_PREEMPTED);
 			prev->flags &= ~THD_STATE_PREEMPTED;
@@ -242,6 +234,7 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr_thd, struct pt_
 			thd_set_current(prev);
 			*regs_restore = &prev->regs;
 		} else {
+			/* TODO: should really send a fault here */
 			printk("Attempting to return from a component when there's no component to return to.\n");
 			regs_restore = 0;
 		}
@@ -252,9 +245,17 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr_thd, struct pt_
 	//printk("cos: Popping spd %p off of thread %p.\n", 
 	//       &inv_frame->current_composite_spd->spd_info, curr_thd);
 	
-	curr_frame = thd_invstk_top(curr_thd);
+	curr_frame = thd_invstk_top(curr);
 	/* for now just assume we always close the server spd */
-	open_close_spd_ret(/*&*/curr_frame->current_composite_spd/*->spd_info*/);
+	open_close_spd_ret(curr_frame->current_composite_spd);
+
+	/*
+	 * FIXME: If an invocation causes a "needless" kernel
+	 * invocation/pop even when the two spds are in the same
+	 * composite spd (but weren't at some point in the future),
+	 * then we really probably shouldn't release here.
+	 */
+	cos_ref_release(&inv_frame->current_composite_spd->ref_cnt);
 
 	return inv_frame;	
 }
@@ -277,7 +278,6 @@ void switch_thread_context(struct thread *curr, struct thread *next)
 }
 
 COS_SYSCALL int cos_syscall_void(int spd_id)
-//COS_SYSCALL int cos_syscall_void(void)
 {
 	printd("cos: error - made void system call\n");
 
@@ -295,17 +295,26 @@ extern void cos_syscall_resume_return(void);
  * invocation return.
  */
 COS_SYSCALL int cos_syscall_resume_return_cont(int spd_id)
-//COS_SYSCALL int cos_syscall_resume_return_cont(void)
 {
-	struct thread *thd, *curr = thd_get_current();
-	struct spd *curr_spd = thd_get_current_spd();
-	struct cos_sched_next_thd *next_thd = curr_spd->sched_shared_page;
+	struct thread *thd, *curr;
+	struct spd *curr_spd;
+	struct cos_sched_next_thd *next_thd;
 
 	assert(0);
 	printk("cos: resume_return is depricated and must be subsumed by switch_thread.\n");
 	return 0;
-	
-	if (next_thd == NULL) {
+
+
+	curr = thd_get_current();
+	curr_spd = thd_validate_get_current_spd(curr, spd_id); 
+
+	if (NULL == curr_spd) {
+		printk("cos: claimed we are in spd %d, but not.\n", spd_id);
+		return 0;
+	}
+
+	next_thd = curr_spd->sched_shared_page;
+	if (NULL == next_thd) {
 		printk("cos: non-scheduler attempting to switch thread.\n");
 		return 0;
 	}
@@ -376,7 +385,6 @@ COS_SYSCALL int cos_syscall_resume_return_cont(int spd_id)
 }
 
 COS_SYSCALL int cos_syscall_get_thd_id(int spd_id)
-//COS_SYSCALL int cos_syscall_get_thd_id(void)
 {
 	//printk("cos: request for thread is %d.\n", thd_get_current()->thread_id);
 	return thd_get_current()->thread_id;
@@ -392,13 +400,10 @@ COS_SYSCALL int cos_syscall_get_thd_id(int spd_id)
  * user-level.
  */
 COS_SYSCALL int cos_syscall_create_thread(int spd_id, vaddr_t fn, vaddr_t stack, void *data)
-//COS_SYSCALL int cos_syscall_create_thread(vaddr_t fn, vaddr_t stack, void *data)
 {
 	struct thread *thd, *curr;
-	struct spd *curr_spd = thd_get_current_spd(), *sched;
+	struct spd *curr_spd, *sched;
 	int i;
-
-	printk("cos: <<create_thread: %x>>\n", spd_id);
 
 	/*
 	 * Lets make sure that the current spd is a scheduler and has
@@ -409,6 +414,12 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, vaddr_t fn, vaddr_t stack,
 	 * scheduler to create threads, i.e. when 0 == sched_depth.
 	 */
 	curr = thd_get_current();
+	curr_spd = thd_validate_get_current_spd(curr, spd_id);
+	if (NULL == curr_spd) {
+		printk("cos: component claimed in spd %d, but not\n", spd_id);
+		return -1;
+	}
+
 	if (curr_spd->sched_depth < 0 || !thd_scheduled_by(curr, curr_spd)) {
 		printk("cos: non-scheduler attempted to create thread.\n");
 		return -1;
@@ -418,6 +429,8 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, vaddr_t fn, vaddr_t stack,
 	if (thd == NULL) {
 		return -1;
 	}
+
+	cos_ref_take(&curr_spd->composite_spd->ref_cnt);
 
 //	printk("cos: stack %x, fn %x, and data %p\n", stack, fn, data);
 	thd->regs.ecx = stack;
@@ -474,18 +487,20 @@ extern int cos_syscall_switch_thread(void);
  * registers.  see ipc.S cos_syscall_switch_thread.
  */
 COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, long *preempt)
-//COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(long *preempt)
 {
-	struct thread *thd, *curr = thd_get_current();
-	/* 
-	 * FIXME: cast disregards spd_poly, which will break mpd.
-	 * Here we need to promote switch_thread syscalls to
-	 * capability invocations so that we can identify the spd via
-	 * capability.
-	 */
-	struct spd *curr_spd = thd_get_thd_spd(curr);
-	struct cos_sched_next_thd *next_thd = curr_spd->sched_shared_page;
-	unsigned short int flags = next_thd->next_thd_flags;
+	struct thread *thd, *curr;
+	struct spd *curr_spd;
+	struct cos_sched_next_thd *next_thd;
+	unsigned short int flags;
+
+	curr = thd_get_current();
+	curr_spd = thd_validate_get_current_spd(curr, spd_id);
+	if (NULL == curr_spd) {
+		printk("cos: component claimed in spd %d, but not\n", spd_id);
+		return &curr->regs;
+	}
+	next_thd = curr_spd->sched_shared_page;
+	flags = next_thd->next_thd_flags;
 
 	*preempt = 0;
 	
@@ -538,7 +553,6 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, long *pre
 	  curr->thread_id, thd->thread_id, spd_get_index(curr_spd));*/
 
 	if (thd->flags & THD_STATE_PREEMPTED) {
-		/* FIXME: again... */
 		struct spd_poly *dest_spd = thd_get_thd_spdpoly(thd);
 
 		open_close_spd(dest_spd, &curr_spd->spd_info);
@@ -555,7 +569,6 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, long *pre
 
 extern void cos_syscall_kill_thd(int thd_id);
 COS_SYSCALL void cos_syscall_kill_thd_cont(int spd_id, int thd_id)
-//COS_SYSCALL void cos_syscall_kill_thd_cont(int thd_id)
 {
 	printk("cos: killing threads not yet supported.\n");
 
@@ -580,8 +593,9 @@ COS_SYSCALL void cos_syscall_kill_thd_cont(int spd_id, int thd_id)
 
 //extern void cos_syscall_brand_upcall(int thread_id);
 COS_SYSCALL int cos_syscall_brand_upcall(int spd_id, int thread_id)
-//COS_SYSCALL int cos_syscall_brand_upcall(int thread_id)
 {
+	printk("cos: branded upcalls not yet functional\n");
+
 	return 0;
 }
 
@@ -616,10 +630,16 @@ COS_SYSCALL int cos_syscall_brand_upcall(int spd_id, int thread_id)
  */
 struct thread *cos_brand_thread;
 COS_SYSCALL int cos_syscall_brand(int spd_id, int thd_id, int flags)
-//COS_SYSCALL int cos_syscall_brand(int thd_id, int flags)
 {
-	struct thread *new_thd, *brand_thd = NULL;
-	struct spd *curr_spd = thd_get_current_spd();
+	struct thread *new_thd, *brand_thd = NULL, *curr_thd;
+	struct spd *curr_spd;
+
+	curr_thd = thd_get_current();
+	curr_spd = thd_validate_get_current_spd(curr_thd, spd_id);
+	if (NULL == curr_spd) {
+		printk("cos: component claimed in spd %d, but not\n", spd_id);
+		return -1;		
+	}
 
 	if (COS_BRAND_ADD_THD == flags) {
 		brand_thd = thd_get_by_id(thd_id);
@@ -639,8 +659,6 @@ COS_SYSCALL int cos_syscall_brand(int spd_id, int thd_id, int flags)
 	/* might be useful later for the flags to not be mutually
 	 * exclusive */
 	if (COS_BRAND_CREATE == flags) {
-		struct thread *curr_thd = thd_get_current();
-
 		/* the brand thread holds the invocation stack record: */
 		memcpy(&new_thd->stack_base, &curr_thd->stack_base, sizeof(curr_thd->stack_base));
 		new_thd->stack_ptr = curr_thd->stack_ptr;
@@ -688,13 +706,13 @@ static int verify_trust(struct spd *truster, struct spd *trustee)
  */
 extern void cos_syscall_upcall(void);
 COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, vaddr_t *inv_addr)
-//COS_SYSCALL int cos_syscall_upcall_cont(int spd_id, vaddr_t *inv_addr)
 {
-	struct spd *dest = spd_get_by_index(spd_id);
-	struct spd *curr_spd = thd_get_current_spd();
-	struct thread *thd = thd_get_current();
+	struct spd *dest, *curr_spd;
+	struct thread *thd;
 
-	printk("cos: <<upcall: %x, %d>>\n", this_spd_id, spd_id);
+	dest = spd_get_by_index(spd_id);
+	thd = thd_get_current();
+	curr_spd = thd_validate_get_current_spd(thd, this_spd_id);
 
 	if (NULL == dest || NULL == curr_spd) {
 		printk("cos: upcall attempt failed - dest_spd = %d, curr_spd = %d.\n",
@@ -735,12 +753,14 @@ COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, vaddr_t *in
 		}
 	}
 
-	open_close_spd(/*&*/dest->composite_spd/*->spd_info*/,
-		       /*&*/curr_spd->composite_spd/*->spd_info*/);
+	open_close_spd(dest->composite_spd, curr_spd->composite_spd);
 	
 	/* set the thread to have dest as a new base owner */
 	thd->stack_ptr = 0;
-	thd->stack_base[0].current_composite_spd = /*(struct composite_spd*)*/&dest->spd_info;
+	thd->stack_base[0].current_composite_spd = dest->composite_spd;
+
+	cos_ref_release(&dest->composite_spd->ref_cnt);
+	cos_ref_take(&curr_spd->composite_spd->ref_cnt);
 
 	*inv_addr = dest->upcall_entry;
 
@@ -750,11 +770,17 @@ COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, vaddr_t *in
 }
 
 COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
-//COS_SYSCALL int cos_syscall_sched_cntl(int operation, int thd_id, long option)
 {
-	struct thread *thd = thd_get_current();
-	struct spd *spd = thd_get_current_spd();
+	struct thread *thd;
+	struct spd *spd;
 	struct thd_sched_info *tsi;
+
+	thd = thd_get_current();
+	spd = thd_validate_get_current_spd(thd, spd_id);
+	if (NULL == spd) {
+		printk("cos: component claimed in spd %d, but not\n", spd_id);
+		return -1;
+	}
 
 	tsi = thd_get_sched_info(thd, spd->sched_depth);
 	if (tsi->scheduler != spd) {
@@ -772,7 +798,7 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 		 * scheduler notification page.
 		 */
 		
-	} else if (COS_SCHED_GRANT_SCHED == operation ||
+	} else if (COS_SCHED_GRANT_SCHED  == operation ||
 		   COS_SCHED_REVOKE_SCHED == operation) {
 		/*
 		 * Permit a child scheduler the capability to schedule
@@ -836,7 +862,7 @@ static int mpd_split_composite_populate(struct composite_spd *new1, struct compo
 	int remove_mappings;
 
 	remove_mappings = (NULL == new2) ? 1 : 0;
-	spd_composite_remove_member(cspd, spd, 1);
+	spd_composite_remove_member(cspd, spd, remove_mappings);
 
 	if (spd_composite_add_member(new1, spd)) {
 		printk("cos: could not add member to new spd in split.\n");
@@ -845,12 +871,15 @@ static int mpd_split_composite_populate(struct composite_spd *new1, struct compo
 
 	/* If the cspd is updated to create the second new composite,
 	 * we're done */
-	if (NULL == new2) 
-		return 0;
+	if (NULL == new2) {
+		assert(cspd->spd_info.ref_cnt.counter == 1);
+		return 1;
+	}
 
 	curr = cspd->members;
 	while (curr) {
 		if (curr != spd) {
+			spd_composite_remove_member(cspd, curr, 0);
 			if (spd_composite_add_member(new2, curr)) {
 				printk("cos: could not add spd to new composite in split.\n");
 				goto err_adding;
@@ -894,22 +923,23 @@ static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new
 	 * composite, then do it.
 	 */
 	if (cspd->spd_info.ref_cnt.counter == 1) {
-		if (mpd_split_composite_populate(new1, NULL, spd, cspd))
+		if (mpd_split_composite_populate(new1, NULL, spd, cspd) != 1)
 			goto err_d2;
 		*new = d1;
 		*old = spd_mpd_index(cspd);
 
 		ret = 0;
 		goto end;
-	} else {
-		d2 = spd_alloc_mpd_desc();
-		if (d2 < 0) {
-			printk("cos: could not allocate second mpd descriptor for split operation.\n");
-			goto err_d2;
-		}
-	
-		new2 = spd_mpd_by_idx(d2);
+	} 
+
+	/* otherwise, we must allocate the other composite spd, and
+	 * populate both of them */
+	d2 = spd_alloc_mpd_desc();
+	if (d2 < 0) {
+		printk("cos: could not allocate second mpd descriptor for split operation.\n");
+		goto err_d2;
 	}
+	new2 = spd_mpd_by_idx(d2);
 	
 	if (mpd_split_composite_populate(new1, new2, spd, cspd))
 		goto err_adding;
@@ -937,6 +967,9 @@ static int mpd_merge(struct composite_spd *dest, struct composite_spd *other)
 	struct spd *curr;
 
 	curr = other->members;
+
+	assert(NULL != curr);
+
 	while (curr) {
 		/* list will be altered when we move the spd to the
 		 * other composite_spd, so we need to save the next
@@ -957,22 +990,27 @@ static int mpd_merge(struct composite_spd *dest, struct composite_spd *other)
 	}
 	
 	spd_mpd_depricate(other);
-	spd_mpd_release_desc(spd_mpd_index(other));
+	spd_mpd_release(other);
 
 	return 0;
 }
 
+struct spd *t1 = NULL, *t2 = NULL;
+/* 0 = SD, 1 = ST */
+static int mpd_state = 0;
+
 COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int composite_spd, 
-//COS_SYSCALL int cos_syscall_mpd_cntl(int operation, short int composite_spd, 
 				     short int spd, short int composite_dest)
 {
 	int ret = 0; 
-	struct composite_spd *prev;
+	struct composite_spd *prev = NULL;
 
-	prev = spd_mpd_by_idx(composite_spd);
-	if (!prev || spd_mpd_is_depricated(prev)) {
-		printk("cos: failed to access composite spd in mpd_cntl.\n");
-		return -1;
+	if (operation != COS_MPD_DEMO) {
+		prev = spd_mpd_by_idx(composite_spd);
+		if (!prev || spd_mpd_is_depricated(prev)) {
+			printk("cos: failed to access composite spd in mpd_cntl.\n");
+			return -1;
+		}
 	}
 
 	switch(operation) {
@@ -1018,6 +1056,46 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
 	{
 		printk("cos: split-merge not yet available\n");
 		ret = -1;
+		break;
+	}
+	case COS_MPD_DEMO:
+	{
+		struct composite_spd *a, *b;
+		static int once = 0;
+
+		if (once) break;
+		once = 1;
+
+		printk("cos: composite spds are %p %p.\n", t1->composite_spd, t2->composite_spd);
+
+		a = (struct composite_spd*)t1->composite_spd;
+		b = (struct composite_spd*)t2->composite_spd;
+
+		if (mpd_state == 1) {
+			struct mpd_split_ret sret;
+			if (mpd_split(a, t2, &sret.new, &sret.old)) {
+				printk("cos: could not split spds\n");
+				ret = -1;
+				break;
+			}
+		} else {
+			if (mpd_merge(a, b)) {
+				printk("cos: could not merge spds\n");	
+				ret = -1;
+				break;
+			}
+		}
+		mpd_state = (mpd_state + 1) % 2;
+
+		//printk("cos: composite spds are %p %p.\n", t1->composite_spd, t2->composite_spd);
+		//printk("cos: demo %d, %d\n", spd_get_index(t1), spd_get_index(t2));
+		ret = 0;
+		break;
+	}
+	case COS_MPD_DEBUG:
+	{
+		printk("cos: composite spds are %p %p.\n", t1->composite_spd, t2->composite_spd);
+
 		break;
 	}
 	default:

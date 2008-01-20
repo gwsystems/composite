@@ -62,7 +62,9 @@ enum {
 //	COS_MPD_END_TRANSACTION,
 	COS_MPD_SPLIT,
 	COS_MPD_MERGE,
-	COS_MPD_SPLIT_MERGE
+	COS_MPD_SPLIT_MERGE,
+	COS_MPD_DEMO,
+	COS_MPD_DEBUG
 //	COS_MPD_ISOLATE
 };
 
@@ -94,5 +96,9 @@ typedef unsigned int isolation_level_t;
 typedef struct { volatile unsigned int counter; } atomic_t;
 
 #endif /* __KERNEL__ */
+
+static inline void cos_ref_take(atomic_t *rc) { rc->counter++; }
+static inline void cos_ref_release(atomic_t *rc) { rc->counter--; }
+static inline unsigned int cos_ref_val(atomic_t *rc) { return rc->counter; }
 
 #endif /* TYPES_H */

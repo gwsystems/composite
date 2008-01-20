@@ -14,3 +14,8 @@ int spd0_main(void)
 	//prevent_tail_call(ret);
 	return ret;
 }
+
+void bag(void)
+{
+	sched_init();
+}

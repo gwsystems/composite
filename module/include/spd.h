@@ -228,6 +228,20 @@ static inline int spd_composite_move_member(struct composite_spd *cspd_old, stru
 
 struct spd *virtual_namespace_query(unsigned long addr);
 
+/*
+ * FIXME: this should take a range of addresses, but since each
+ * component < 4MB here, that is unneeded.
+ *
+ * FIXME: TEST THIS!
+ */
+extern int pgtbl_entry_present(vaddr_t addr, phys_addr_t pg_tbl);
+static inline int spd_composite_member(struct spd *spd, struct spd_poly *poly)
+{
+	unsigned int lowest_addr = spd->location.lowest_addr;
+
+	return pgtbl_entry_present(lowest_addr, poly->pg_tbl);
+}
+
 #else /* ASM */
 
 /* WRONG */

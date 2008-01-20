@@ -30,7 +30,7 @@ SS_ipc_client_marshal:
 .align 16
 SS_ipc_client_marshal_args:
 	movl CAPNUM(%eax), %eax /* typeof(%eax) = (usr_inv_cap*) */
-
+	
 	pushl %ebx
 	pushl %esi
 	pushl %edi
@@ -40,12 +40,6 @@ SS_ipc_client_marshal_args:
 	movl 24(%esp), %edi
 	
 	pushl %ebp
-/* X: Don't need to save these as C code should do this automatically
-   kernel and server, UNLESS we don't trust the server.  Good way to pass args.
-	pushl %ebx
-	pushl %esi
-	pushl %edi
-*/
 /*	movl IPRETURN(%esp), %edx */ /* user-defined value */
 	movl %esp, %ebp /* save the stack */
 	movl $SS_ipc_client_ret_unmarshal, %ecx /* save the return ip */

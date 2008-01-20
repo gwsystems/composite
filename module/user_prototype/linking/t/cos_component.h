@@ -113,6 +113,7 @@ cos_syscall_0(6, int, brand_upcall);
 cos_syscall_2(7, int, brand, int, thd_id, int, flags);
 cos_syscall_1(8, int, upcall, int, spd_id);
 cos_syscall_3(9, int, sched_cntl, int, operation, int, thd_id, long, option);
+cos_syscall_1(10, int, mpd_cntl, int, operation);
 
 /*
  * We cannot just pass the thread id into the system call in registers

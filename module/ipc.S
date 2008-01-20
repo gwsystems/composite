@@ -31,6 +31,16 @@
 kernel_ipc_syscall:
 	cmpl $0, %eax /* do we have a return capability */
 	jz composite_ret_ipc
+
+/*
+ * Register layout:
+ *
+ * eax:	which capability, see comment in kern_entry.S:asym_exec_dom_entry
+ * ecx:	ip
+ * ebp:	sp
+ * ebx,esi,edi:	arguments
+ * should use edx as an additional argument as well.
+ */
 .globl composite_call_ipc
 .align 32
 composite_call_ipc:	/* server_inv: */
@@ -85,12 +95,8 @@ composite_ret_ipc:	 /*ret_cap:*/
 	/* eax contains ptr to invocation_frame */
 	/* FIXME: this is brain-damaged, should allocate ret area on stack instead of messing with invocation stack frame... Saved for now by the non-preemption thing and fact that thread is only modified one one core at a time. */
 	movl SFRAMESP(%eax), %ecx
-/*	movl SFRAMEUSR(%eax), %ebp*/
 	movl SFRAMEIP(%eax), %edx
 	popl %eax /* user-level ret val */
-
-	/* %ecx already holds the sp and %edx holds the ip */
-	/*	movl *%edx, %edx*/
 
 	RET_TO_USER
 
@@ -229,7 +235,17 @@ cos_syscall_upcall:
 	/* eax remains as the thread id */
 	
 	ret
-	
+
+/*
+ * Register Layout (from cos_component.h):
+ * eax:	syscall offset, see kern_entry.S: asym_exec_dom_entry
+ * edx:	current declared spd id
+ * ebx:	first arg
+ * esi:	second arg
+ * edi:	third arg
+ * ecx:	ret ip
+ * ebp:	ret esp
+ */	
 .globl composite_make_syscall
 .align 16
 composite_make_syscall:

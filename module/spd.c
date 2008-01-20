@@ -155,8 +155,9 @@ isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int fl
 	struct spd *owner;
 	struct usr_inv_cap *ucap;
 
-	printk("cos: change to il %s for cap %d.\n", ((il == IL_SDT) ? "SDT" : 
-	       ((il == IL_AST) ? "AST" : ((il == IL_ST) ? "ST" : "INV"))), cap_num);
+	printk("cos: change to il %s for cap %d.\n", 
+	       ((il == IL_SDT) ? "SDT" : ((il == IL_AST) ? "AST" : ((il == IL_ST) ? "ST" : "INV"))), 
+	       cap_num);
 
 	if (cap_num >= MAX_STATIC_CAP) {
 		return IL_INV;
@@ -164,6 +165,8 @@ isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int fl
 
 	cap = &invocation_capabilities[cap_num];
 	prev = cap->il;
+	//if (prev == il) return prev;
+
 	cap->il = il;
 
 	owner = cap->owner;
@@ -238,17 +241,22 @@ int spd_is_free(int idx)
 	return (spds[idx].spd_info.flags & SPD_FREE) ? 1 : 0;
 }
 
+void spd_mpd_release(struct composite_spd *cspd);
 void spd_free(struct spd *spd)
 {
 	//spd_free_mm(spd);
 	spd->spd_info.flags |= SPD_FREE;
 	spd->freelist_next = spd_freelist_head;
 	spd_freelist_head = spd;
+	if (spd->composite_spd != &spd->spd_info) {
+		spd_mpd_release((struct composite_spd*)spd->composite_spd);
+	}
 
 	return;
 }
 
 extern int spd_free_mm(struct spd *spd);
+void spd_mpd_free_all(void);
 void spd_free_all(void)
 {
 	int i;
@@ -260,6 +268,7 @@ void spd_free_all(void)
 		}
 	}
 
+	spd_mpd_free_all();
 	spd_init();
 }
 
@@ -301,7 +310,7 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 	/* return capability; ignore return value as we know it will be 0 */
 	spd_add_static_cap(spd, 0, spd, 0);
 
-	spd->composite_spd = /*(struct composite_spd*)*/&spd->spd_info;
+	spd->composite_spd = &spd->spd_info;
 
 	spd->sched_depth = -1;
 	spd->parent_sched = NULL;
@@ -418,16 +427,32 @@ struct page_list {
 } page_list_head;
 unsigned int page_list_len = 0;
 
+extern vaddr_t kern_pgtbl_mapping;
+extern void zero_pgtbl_range(phys_addr_t pt, unsigned long lower_addr, unsigned long size);
+extern void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from,
+			     unsigned long lower_addr, unsigned long size);
+
 static struct page_list *cos_get_pg_pool(void)
 {
 	struct page_list *page;
 
+	/*
+	 * If we ran out of pages in our cache, allocate another, and
+	 * copy the kernel page table mappings into it, otherwise,
+	 * take a page out of our cache.
+	 */
 	if (NULL == page_list_head.next) {
 		page = cos_alloc_page();
+		if (NULL == page) return NULL;
+
+		copy_pgtbl_range((phys_addr_t)va_to_pa(page), 
+				 (phys_addr_t)va_to_pa((void*)kern_pgtbl_mapping),
+				 0, 0xFFFFFFFF);
 	} else {
 		page = page_list_head.next;
 		page_list_head.next = page->next;
 		page_list_len--;
+		page->next = NULL;
 	}
 
 	return page;
@@ -455,14 +480,16 @@ void spd_init_mpd_descriptors(void)
 		struct composite_spd *cspd = &mpd_descriptors[i];
 
 		cspd->spd_info.flags = SPD_COMPOSITE | SPD_FREE;
+		cspd->spd_info.ref_cnt.counter = 0;
 		cspd->freelist_next = &mpd_descriptors[i+1];
+		cspd->members = NULL;
 	}
 	mpd_descriptors[MAX_MPD_DESC-1].freelist_next = NULL;
-	
-	page = cos_alloc_page();
+
+	/* put one page into the page pool */
+	page = cos_get_pg_pool();
 	assert(NULL != page);
-	page->next = NULL;
-	page_list_head.next = page;
+	cos_put_pg_pool(page);
 
 	return;
 }
@@ -492,11 +519,13 @@ short int spd_alloc_mpd_desc(void)
 	if (NULL == new) 
 		return -1;
 
-	assert((new->spd_info.flags & (SPD_FREE | SPD_COMPOSITE)) == (SPD_FREE | SPD_COMPOSITE) && 
-		new->spd_info.ref_cnt.counter == 0);
+	assert((new->spd_info.flags & (SPD_FREE | SPD_COMPOSITE)) == (SPD_FREE | SPD_COMPOSITE));
+	assert(0 == new->spd_info.ref_cnt.counter);
+	assert(NULL == new->members);
 
 	mpd_freelist = new->freelist_next;
 	new->freelist_next = NULL;
+	new->members = NULL;
 	new->spd_info.flags &= ~SPD_FREE;
 
 	page = cos_get_pg_pool();
@@ -514,6 +543,7 @@ void spd_mpd_release(struct composite_spd *cspd)
 {
 	/* FIXME: again, should be atomic */
 	cspd->spd_info.ref_cnt.counter--;
+	cspd->members = NULL;
 
 	if (0 == cspd->spd_info.ref_cnt.counter) {
 		cspd->spd_info.flags |= SPD_FREE;
@@ -530,6 +560,23 @@ void spd_mpd_release_desc(short int desc)
 	assert(desc < MAX_MPD_DESC);
 
 	spd_mpd_release(&mpd_descriptors[desc]);
+}
+
+void spd_mpd_free_all(void)
+{
+	int i;
+
+	for (i = 0 ; i < MAX_MPD_DESC ; i++) {
+		struct composite_spd *cspd;
+
+		cspd = spd_mpd_by_idx(i);
+		if (!(cspd->spd_info.flags & SPD_FREE)) 
+			spd_mpd_release(cspd);
+	}
+
+	spd_init_mpd_descriptors();
+
+	return;
 }
 
 static inline int spd_in_composite(struct spd *spd, struct composite_spd *cspd)
@@ -568,7 +615,7 @@ static void spd_chg_il_spd_to_all(struct spd *spd, struct composite_spd *cspd, i
 			isolation_level_t old;
 
 			old = cap_change_isolation(i, il, 0);
-			assert(old != il);
+			assert(old != il && old != IL_INV);
 		}
 	}
 
@@ -630,10 +677,6 @@ static inline void spd_remove_caps(struct composite_spd *cspd, struct spd *spd)
 	spd_chg_il_all_to_spd(cspd, spd, IL_SDT);
 	spd_chg_il_spd_to_all(spd, cspd, IL_SDT);
 }
-
-extern void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from,
-			     unsigned long lower_addr, unsigned long size);
-extern void zero_pgtbl_range(phys_addr_t pt, unsigned long lower_addr, unsigned long size);
 
 static inline void spd_remove_mappings(struct composite_spd *cspd, struct spd *spd)
 {
@@ -714,3 +757,4 @@ int spd_composite_remove_member(struct composite_spd *cspd, struct spd *spd, int
 
 	return 0;
 }
+

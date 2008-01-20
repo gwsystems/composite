@@ -112,6 +112,7 @@ struct spd_sched_info {
 #define AED_CAP_CHANGE_ISOLATION _IOR(0, 15, unsigned long)
 #define AED_PROMOTE_SCHED   _IOR(0, 16, unsigned long)
 #define AED_EMULATE_PREEMPT _IOR(0, 17, unsigned long)
+#define AED_DEMO_SPDS _IOR(0, 18, unsigned long)
 
 #ifndef __KERNEL__
 
@@ -194,6 +195,24 @@ static inline int cos_promote_to_scheduler(int cntl_fd, int sched_handle,
 	};
 
 	if ((ret = ioctl(cntl_fd, AED_PROMOTE_SCHED, &spd_sched))) {
+		perror("Could not promote scheduler\n");
+		printf("ioctl returned %d\n", ret);
+		exit(-1);
+	}
+
+	return ret;
+}
+
+
+static inline int cos_demo_spds(int cntl_fd, int sched_handle, int parent_sched_handle)
+{
+ 	int ret;
+	struct spd_sched_info spd_sched = {
+		.spd_sched_handle = sched_handle, 
+		.spd_parent_handle = parent_sched_handle
+	};
+
+	if ((ret = ioctl(cntl_fd, AED_DEMO_SPDS, &spd_sched))) {
 		perror("Could not promote scheduler\n");
 		printf("ioctl returned %d\n", ret);
 		exit(-1);

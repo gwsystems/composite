@@ -17,6 +17,9 @@ cp:
 	cp cos.ko $(TRANS_DIR)
 	make -C $(LINKER_DIR) copy
 
+loc:
+	@ wc -l *.c *.S *.h include/*.h $(LINKER_DIR)/*.c $(LINKER_DIR)/t/*.S $(LINKER_DIR)/t/*.c $(LINKER_DIR)/t/*.h | tail -n 1 | awk '{print $1}'
+
 clean:
 	rm -rf *.ko *.mod.c *.o *.mod.o .*.cmd .tmp_versions test
 	$(MAKE) -C $(LINKER_DIR) clean

@@ -34,6 +34,21 @@ char *header =
 "popl %%ebx\n\t" 
 "popl %%ebp\n\n"; 
 
+/*
+ * FIXME: This is all wrong.  Really.
+ *
+ * We should really do this:
+ *
+ * 1) Load the address of the specific capability, or of the specific
+ *    counter, or of the specific fn ptr into eax
+ * 2) perform specific operations on these memory addresses directly.
+ * 3) call function ptr directly
+ *
+ * This will include adding labels into the data in the footer, so
+ * that we can link the specific text for capability access to the
+ * data.
+ */
+
 /* would be nice to fit this into 1 cache line */
 char *fn_string = 
 ".globl %s\n"

@@ -6,14 +6,16 @@ AR=ar
 INC_PATH=./ -I../include/
 CFLAGS=-Wall -I$(INC_PATH) -O3
 ASFLAGS=-I$(INC_PATH) -c
-PRODUCTS=c_stub.o comp0.o s_stub1.o comp1.o s_stub2.o comp2.o s_stubprint.o print_comp.o
-COMPONENTS=c0.o c1.o c2.o print_comp.o
+PRODUCTS=c_stub.o comp0.o s_stub1.o comp1.o s_stub2.o comp2.o s_stub3.o comp3.o s_stub4.o comp4.o s_stubprint.o print_comp.o
+COMPONENTS=c0.o c1.o c2.o c3.o c4.o print_comp.o
 TRANS_DIR=/home/grad3/gabep1/transfer/
 
 all: $(PRODUCTS) libcos_component.a cos_asm_upcall.o
 	$(LD) -r -o c0.o comp0.o c_stub.o cos_asm_upcall.o -L. -lcos_component
 	$(LD) -r -o c1.o comp1.o s_stub1.o c_stub.o cos_asm_upcall.o -L. -lcos_component
 	$(LD) -r -o c2.o comp2.o s_stub2.o c_stub.o cos_asm_upcall.o -L. -lcos_component
+	$(LD) -r -o c3.o comp3.o s_stub3.o c_stub.o cos_asm_upcall.o -L. -lcos_component
+	$(LD) -r -o c4.o comp4.o s_stub4.o c_stub.o cos_asm_upcall.o -L. -lcos_component
 
 print_comp.o: print_comp.c s_stubprint.o libcos_component.a cos_asm_upcall.o
 	../dietlibc-0.29/bin-i386/diet $(CC) -nostdinc -nostdlib -I./ -I../include -I../dietlibc-0.29/include -Xlinker -r -o pc_int.o $< cos_asm_upcall.o s_stubprint.o

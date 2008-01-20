@@ -97,6 +97,20 @@ int spd2_fn(void)
 	return 1234;
 }
 
+extern void bar(unsigned int val);
+
+int run_demo(void)
+{
+	int i;
+
+	for (i = 0 ; i < 4 ; i++) {
+		bar(i);
+		//cos_mpd_cntl(COS_MPD_DEMO);
+	}
+	
+	return i;
+}
+
 void cos_upcall_fn(vaddr_t data_region, int id, 
 		   void *arg1, void *arg2, void *arg3)
 {
@@ -109,10 +123,13 @@ void cos_upcall_fn(vaddr_t data_region, int id,
 int sched_init(void)
 {
 	int ret;
+
 	//print_vals((int)&ret,6,6);
-	ret = spd2_fn();
+	//ret = spd2_fn();
+	ret = run_demo();
+	
 	//print_vals(6,6,6);
-	nothing_var += 1;
+	nothing_var++;
 
 	return ret;
 }

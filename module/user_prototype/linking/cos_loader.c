@@ -1381,9 +1381,9 @@ struct cap_info *create_invocation_cap(struct spd_info *from_spd, struct service
 
 static void setup_kernel(struct service_symbs *services)
 {
-	struct service_symbs *s = services, *c0 = NULL, *c1 = NULL, *c2 = NULL, *pc = NULL;
-	struct spd_info *spd0, *spd1, *spd2, *spdpc;
-	struct cap_info *cap1, *cap1_5, *cap2, *capyield, *capnothing, *cappc, *cappcvals, *cappcsched;
+	struct service_symbs *s = services, *c0 = NULL, *c1 = NULL, *c2 = NULL, *pc = NULL, *c3 = NULL, *c4 = NULL;
+	struct spd_info *spd0, *spd1, *spd2, *spd3, *spd4, *spdpc;
+	struct cap_info *cap1, *cap1_5, *cap2, *capyield, *capnothing, *cappc, *cappcvals, *cappcsched, *captodemo, *capdemo, *capdemoprint;
 
 	struct cos_thread_info thd;
 	int cntl_fd, ret;
@@ -1399,23 +1399,29 @@ static void setup_kernel(struct service_symbs *services)
 			c1 = s;
 		} else if (strstr(s->obj, "c2.o") != NULL) {
 			c2 = s;
+		} else if (strstr(s->obj, "c3.o") != NULL) {
+			c3 = s;
+		} else if (strstr(s->obj, "c4.o") != NULL) {
+			c4 = s;
 		} else if (strstr(s->obj, "print_comp.o") != NULL) {
 			pc = s;
 		}
 
 		s = s->next;
 	}
-	if (c0 == NULL || c1 == NULL || c2 == NULL || pc == NULL) {
+	if (c0 == NULL || c1 == NULL || c2 == NULL || c3 == NULL || c4 == NULL || pc == NULL) {
 		fprintf(stderr, "Could not find service object.\n");
 		exit(-1);
 	}
 
 	spd0 = create_spd(cntl_fd, c0, 2, 0, 0);
 	spd1 = create_spd(cntl_fd, c1, 5, c1->lower_addr, c1->size);
-	spd2 = create_spd(cntl_fd, c2, 1, c2->lower_addr, c2->size);
+	spd2 = create_spd(cntl_fd, c2, 2, c2->lower_addr, c2->size);
+	spd3 = create_spd(cntl_fd, c3, 1, c3->lower_addr, c3->size);
+	spd4 = create_spd(cntl_fd, c4, 1, c4->lower_addr, c4->size);
 	spdpc = create_spd(cntl_fd, pc, 0, pc->lower_addr, pc->size);
 
-	if (!spd0 || !spd1 || !spd2 || !spdpc) {
+	if (!spd0 || !spd1 || !spd2 || !spd3 || !spd4 || !spdpc) {
 		printf("Could not allocate all of the spds.\n");
 		exit(-1);
 	}
@@ -1431,6 +1437,13 @@ static void setup_kernel(struct service_symbs *services)
 	capnothing  = create_invocation_cap(spd1, c1, spd2, c2, cntl_fd, 
 					    "SS_ipc_client_marshal_args", "nothing_inv", "nothing", 0/*CAP_SAVE_REGS*/); 
 
+	captodemo  = create_invocation_cap(spd2, c2, spd3, c3, cntl_fd, 
+					  "SS_ipc_client_marshal_args", "bar_inv", "bar", 0/*CAP_SAVE_REGS*/); 
+	capdemo  = create_invocation_cap(spd3, c3, spd4, c4, cntl_fd, 
+					  "SS_ipc_client_marshal_args", "foo_inv", "foo", 0/*CAP_SAVE_REGS*/); 
+	capdemoprint  = create_invocation_cap(spd4, c4, spdpc, pc, cntl_fd, 
+					  "SS_ipc_client_marshal_args", "print_vals_inv", "print_vals", 0/*CAP_SAVE_REGS*/); 
+
 //	cappc = create_invocation_cap(spd1, c1, spdpc, pc, cntl_fd, 
 //				      "SS_ipc_client_marshal", "print_inv", "print", 0);
 	cappcvals = create_invocation_cap(spd1, c1, spdpc, pc, cntl_fd, 
@@ -1441,6 +1454,7 @@ static void setup_kernel(struct service_symbs *services)
 	
 	make_spd_scheduler(cntl_fd, spd2, c2, NULL);
 	make_spd_scheduler(cntl_fd, spd1, c1, spd2);
+	cos_demo_spds(cntl_fd, spd3->spd_handle, spd4->spd_handle);
 
 	printf("Test created cap %d, %d, and %d.\n\n", 
 	       (unsigned int)cap1->cap_handle, (unsigned int)cap2->cap_handle, (unsigned int)cappcvals->cap_handle);
@@ -1449,7 +1463,7 @@ static void setup_kernel(struct service_symbs *services)
 	thd.sched_handle = spd2->spd_handle;
 	cos_create_thd(cntl_fd, &thd);
 
-	printf("OK, good to go, calling fn\n");
+	printf("OK, good to go, calling component 0's main\n");
 	fflush(stdout);
 
 	fn = (int (*)(void))get_symb_address(&c0->exported, "spd0_main");

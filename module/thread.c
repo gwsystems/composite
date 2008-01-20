@@ -15,6 +15,26 @@ static struct thread *thread_freelist_head = MNULL;
 /* like "current" in linux */
 struct thread *current_thread;
 
+int thd_spd_in_current_composite(struct thread *thd, struct spd *spd)
+{
+	struct spd_poly *composite = thd_get_thd_spdpoly(thd);
+
+	/*
+	 * First we check the cache: spd->composite_spd which will
+	 * point to the composite spd that the spd is currently part
+	 * of.  It is very likely that we will hit in this cache
+	 * unless we are using a stale mapping.  In such a case, we
+	 * must look in the page table of the composite and see if the
+	 * spd is present.  This is significantly more expensive.
+	 */
+	if (spd->composite_spd != composite && 
+	    !spd_composite_member(spd, composite)) {
+		return 0;
+	}
+
+	return 1;
+}
+
 void thd_init_all(struct thread *thds)
 {
 	int i;
