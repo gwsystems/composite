@@ -67,7 +67,9 @@ struct thd_sched_info {
 #define THD_STATE_READY_UPCALL  0x8  /* Same as previous, but we are ready to execute */ 
 #define THD_STATE_BRAND         0x10 /* This thread is used as a brand */
 #define THD_STATE_SCHED_RETURN  COS_THD_SCHED_RETURN /* When the sched switches to this thread, ret from ipc */
-#define THD_STATE_SCHED_EXCL    COS_SCHED_EXCL_YIELD /* The yielded thread should not be wakeable by other schedulers (e.g. because it is waiting for a lock) */
+#define THD_STATE_SCHED_EXCL    COS_SCHED_EXCL_YIELD /* The yielded thread should not be wakeable 
+							by other schedulers (e.g. because it is 
+							waiting for a lock) */
 
 /**
  * The thread descriptor.  Contains all information pertaining to a

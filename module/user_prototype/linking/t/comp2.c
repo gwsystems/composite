@@ -97,15 +97,15 @@ int spd2_fn(void)
 	return 1234;
 }
 
-extern void bar(unsigned int val);
+extern void bar(unsigned int val, unsigned int val2);
 
 int run_demo(void)
 {
 	int i, j;
 
-	for (i = 0 ; i < 10 ; i++) {
+	for (i = 0 ; i < 6 ; i++) {
 		for (j = 0 ; j < 10 ; j++) {
-			bar(i);
+			bar(i, j);
 		}
 		cos_mpd_cntl(COS_MPD_DEMO);
 	}
@@ -138,5 +138,5 @@ int sched_init(void)
 
 void symb_bag(void)
 {
-	bar(0);
+	bar(0, 1);
 }

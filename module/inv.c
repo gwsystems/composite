@@ -167,7 +167,7 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	ret->thd_id = thd->thread_id;
 	ret->data_region = thd->data_region;
 
-	cos_ref_take(&dest_spd->composite_spd->ref_cnt);
+	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
 
 	/* 
 	 * ref count the composite spds:
@@ -266,7 +266,9 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr, struct pt_regs
 	 *
 	 * This REALLY should be spd_mpd_release.
 	 */
-	cos_ref_release(&inv_frame->current_composite_spd->ref_cnt);
+	//cos_ref_release(&inv_frame->current_composite_spd->ref_cnt);
+	//spd_mpd_release((struct composite_spd *)inv_frame->current_composite_spd);
+	spd_mpd_ipc_release((struct composite_spd *)inv_frame->current_composite_spd);
 
 	return inv_frame;	
 }
@@ -891,7 +893,7 @@ static int mpd_split_composite_populate(struct composite_spd *new1, struct compo
 	/* If the cspd is updated to create the second new composite,
 	 * we're done */
 	if (NULL == new2) {
-		assert(cspd->spd_info.ref_cnt.counter == 1);
+		assert(cos_ref_val(&cspd->spd_info.ref_cnt) == 1);
 		return 1;
 	}
 
@@ -901,8 +903,7 @@ static int mpd_split_composite_populate(struct composite_spd *new1, struct compo
 	curr = cspd->members;
 	while (curr) {
 		struct spd *next = curr->composite_member_next;
-//		spd_composite_remove_member(curr, 0);
-//		if (spd_composite_add_member(new2, curr)) {
+
 		if (spd_composite_move_member(new2, curr)) {
 			printk("cos: could not add spd to new composite in split.\n");
 			goto err_adding;
@@ -948,7 +949,7 @@ static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new
 	 * current cspd by shrinking it rather than deleting it and
 	 * allocating a new composite, then do it.
 	 */
-/*	if (cspd->spd_info.ref_cnt.counter == 1) {
+/*	if (cos_ref_val(&cspd->spd_info.ref_cnt) == 1) {
 		if (mpd_split_composite_populate(new1, NULL, spd, cspd) != 1) {
 			ret = -1;
 			goto err_d2;
@@ -981,7 +982,6 @@ static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new
 	/* depricate the composite spd so that it cannot be used
 	 * anymore from any user-level interfaces */
 	spd_mpd_depricate(cspd);
-	spd_mpd_release(cspd);
 	ret = 0;
 	goto end;
 	
@@ -1049,7 +1049,6 @@ static int mpd_merge(struct composite_spd *dest, struct composite_spd *other)
 	
 	spd_mpd_depricate(other);
 	//spd_mpd_make_subordinate(dest, other); // test later...more efficient use of page-table memory
-	spd_mpd_release(other);
 	
 	//print_valid_pgtbl_entries(dest->spd_info.pg_tbl);
 

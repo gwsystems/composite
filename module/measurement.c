@@ -11,9 +11,6 @@
  * - splits
  * - moves
  * - split with optimization
- * - mpd creations
- * - mpd deallocations
- * - mpd subordinations
  * - mpd deallocations due to subordination
  */
 
@@ -33,6 +30,13 @@ char *cos_meas_descriptions[COS_MEAS_MAX_SIZE+1] =
 	"interrupted other thread",
 	"composite page fault",
 	"linux page fault",
+	"mpd alloc",
+	"mpd subordinate",
+	"mpd free",
+	"mpd refcnt increase",
+	"mpd refcnt decrease",
+	"mpd ipc refcnt increase",
+	"mpd ipc refcnt decrease",
 	""
 };
 

@@ -217,10 +217,10 @@ int spd_free_mm(struct spd *spd)
 	 * we need to remove the ptes */
 
 	/* sizeof(pgd entry) is intended */
-	memset(pgd, 0, span*sizeof(int));
+	memset(pgd, 0, span*sizeof(pgd_t));
 
 	pgd = pgd_offset(mm, COS_INFO_REGION_ADDR);
-	memset(pgd, 0, sizeof(int));
+	memset(pgd, 0, sizeof(pgd_t));
 
 	aed_free_mm(spd->local_mmaps);
 
@@ -1306,9 +1306,6 @@ free_dummy:
 #endif
 		}
 
-		int stk;
-		printk("cos: thread stack address is %p.\n", &stk);
-
 		return spd_get_index(spd);
 	}
 	case AED_SPD_ADD_CAP:
@@ -2268,14 +2265,16 @@ static int aed_release(struct inode *inode, struct file *file)
 	}
 
 	deregister_timers();
-	cos_meas_report();
 
 	/* our garbage collection mechanism: all at once when the cos
 	 * system control fd is closed */
+	thd_free(thd_get_current());
 	thd_init();
 	spd_free_all();
 	ipc_init();
 	composite_thread = NULL;
+
+	cos_meas_report();
 
 	/* reset the address space to the original process */
 	composite_union_mm->pgd = union_pgd;

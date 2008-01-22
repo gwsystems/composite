@@ -222,7 +222,8 @@ static void spd_init_all(struct spd *spds)
 	int i;
 	
 	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
-		spds[i].spd_info.flags |= SPD_FREE;
+		spds[i].spd_info.flags = SPD_FREE;
+		spds[i].composite_spd = &spds[i].spd_info;
 		spds[i].freelist_next = (i == (MAX_NUM_SPDS-1)) ? NULL : &spds[i+1];
 	}
 
@@ -248,14 +249,22 @@ int spd_is_free(int idx)
 }
 
 void spd_mpd_release(struct composite_spd *cspd);
+static void spd_mpd_terminate(struct composite_spd *cspd);
 void spd_free(struct spd *spd)
 {
+	assert(spd);
+
 	//spd_free_mm(spd);
-	spd->spd_info.flags |= SPD_FREE;
+	spd->spd_info.flags = SPD_FREE;
 	spd->freelist_next = spd_freelist_head;
 	spd_freelist_head = spd;
+
 	if (spd->composite_spd != &spd->spd_info) {
-		spd_mpd_release((struct composite_spd*)spd->composite_spd);
+		struct composite_spd *cspd = (struct composite_spd *)spd->composite_spd;
+		assert(cspd && !spd_mpd_is_depricated(cspd));
+
+		//spd_mpd_release((struct composite_spd*)spd->composite_spd);
+		spd_mpd_terminate(cspd);
 	}
 
 	return;
@@ -268,7 +277,7 @@ void spd_free_all(void)
 	int i;
 	
 	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
-		if (!(spds[i].spd_info.flags |= SPD_FREE)) {
+		if (!(spds[i].spd_info.flags & SPD_FREE)) {
 			spd_free_mm(&spds[i]);
 			spd_free(&spds[i]);
 		}
@@ -293,7 +302,7 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 
 	/* remove from freelist */
 	spd_freelist_head = spd_freelist_head->freelist_next;
-	spd->spd_info.flags &= ~SPD_FREE;
+	spd->spd_info.flags = 0; /* &= ~SPD_FREE */
 
 	/* +1 for the (dummy) 0th return cap */
 	ret = spd_alloc_capability_range(num_caps+1);
@@ -312,8 +321,10 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 	spd->upcall_entry = upcall_entry;
 	spd->sched_shared_page = NULL;
 	
-	/* This will cause the spd to never be deallocated via garbage collection */
-	spd->spd_info.ref_cnt.counter = 2; 
+	/* This will cause the spd to never be deallocated via garbage collection.
+	   Update: not really doing ref counting on spds. */
+	//cos_ref_take(&spd->spd_info.ref_cnt); 
+	//cos_ref_take(&spd->spd_info.ref_cnt); 
 
 	/* return capability; ignore return value as we know it will be 0 */
 	spd_add_static_cap(spd, 0, spd, 0);
@@ -322,9 +333,6 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 
 	spd->sched_depth = -1;
 	spd->parent_sched = NULL;
-
-
-	printk("cos: allocated spd %p\n", spd);
 
 	return spd;
 
@@ -527,6 +535,22 @@ static struct page_list *cos_get_pg_pool(void)
 		page_list_head.next = page->next;
 		page_list_len--;
 		page->next = NULL;
+
+		/* 
+		 * FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+		 *
+		 * This should NOT be done.  We should clear out all
+		 * the spd entries individually when the page table is
+		 * released, instead of going through the _entire_
+		 * page and clearing it with interrupts disabled.  But
+		 * till we do this the right way, this ensures
+		 * correctness.
+		 *
+		 * FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+		 */
+		copy_pgtbl_range_nocheck((phys_addr_t)va_to_pa(page), 
+					 (phys_addr_t)va_to_pa((void*)kern_pgtbl_mapping),
+					 0, 0xFFFFFFFF);
 	}
 
 	return page;
@@ -554,7 +578,7 @@ void spd_init_mpd_descriptors(void)
 		struct composite_spd *cspd = &mpd_descriptors[i];
 
 		cspd->spd_info.flags = SPD_COMPOSITE | SPD_FREE;
-		cspd->spd_info.ref_cnt.counter = 0;
+		cos_ref_set(&cspd->spd_info.ref_cnt, 0);
 		cspd->freelist_next = &mpd_descriptors[i+1];
 		cspd->members = NULL;
 	}
@@ -590,12 +614,15 @@ short int spd_alloc_mpd_desc(void)
 	struct page_list *page;
 
 	new = mpd_freelist;
-	if (NULL == new) 
+	if (NULL == new) {
 		return -1;
+	}
 
 	assert((new->spd_info.flags & (SPD_FREE | SPD_COMPOSITE)) == (SPD_FREE | SPD_COMPOSITE));
-	assert(0 == new->spd_info.ref_cnt.counter);
+	assert(0 == cos_ref_val(&new->spd_info.ref_cnt));
 	assert(NULL == new->members);
+
+	cos_meas_event(COS_MPD_ALLOC);
 
 	mpd_freelist = new->freelist_next;
 	new->freelist_next = NULL;
@@ -603,27 +630,42 @@ short int spd_alloc_mpd_desc(void)
 	new->spd_info.flags &= ~SPD_FREE;
 
 	page = cos_get_pg_pool();
-	if (NULL == page)
+	if (NULL == page) {
+		new->freelist_next = mpd_freelist;
+		mpd_freelist = new;
 		return -1;
+	}
 
-	/* FIXME: make really atomic...not necessary here, but for cleanliness */
-	new->spd_info.ref_cnt.counter = 1;
+	cos_ref_take(&new->spd_info.ref_cnt);
 	new->spd_info.pg_tbl = (phys_addr_t)va_to_pa(page);
 
 	return spd_mpd_index(new);
 }
 
+/*
+ * Release use of the composite spd.  This may have the side-effect of
+ * deallocating the composite_spd if its refcnt falls to 0.
+ */
 void spd_mpd_release(struct composite_spd *cspd)
 {
-	/* FIXME: again, should be atomic */
-	cspd->spd_info.ref_cnt.counter--;
-	cspd->members = NULL;
+	cos_ref_release(&cspd->spd_info.ref_cnt);
+	assert(0 <= cos_ref_val(&cspd->spd_info.ref_cnt));
 
-	if (0 == cspd->spd_info.ref_cnt.counter) {
-		cspd->spd_info.flags |= SPD_FREE;
+	if (0 == cos_ref_val(&cspd->spd_info.ref_cnt)) {
+		assert(cspd->members == NULL);
+		assert(spd_mpd_is_depricated(cspd));
+
+		cos_meas_event(COS_MPD_FREE);
+		
+		cspd->spd_info.flags = SPD_FREE | SPD_COMPOSITE;
 		cspd->freelist_next = mpd_freelist;
 		mpd_freelist = cspd;
+		cspd->members = NULL;
 		if (spd_mpd_is_subordinate(cspd)) {
+			/* this recursive call should only happen once
+			 * at most because of the flattening of the
+			 * subordinate hierarchy, see
+			 * spd_mod_make_subordinate*/
 			spd_mpd_release(cspd->master_spd);
 		} else {
 			cos_put_pg_pool(pa_to_va((void*)cspd->spd_info.pg_tbl));
@@ -634,7 +676,13 @@ void spd_mpd_release(struct composite_spd *cspd)
 }
 
 /*
- * make the slave composite spd subordinate to the master in that it
+ * If one composite spd contains all entries of another, and is more
+ * current (the other is depricated), then we can just use the
+ * up-to-date superset page tables for both composite spds.  This
+ * allows us to deallocate early the page-tables for the old cspd.  We
+ * must still keep the old one around if it has any references to it.
+ *
+ * Make the slave composite spd subordinate to the master in that it
  * will now use the master's page tables, discarding its own.  The
  * master will not be released until the slave has been.  This
  * function is used when all of the slave's spds have been moved over
@@ -650,10 +698,10 @@ void spd_mpd_make_subordinate(struct composite_spd *master_cspd,
 	assert(NULL == slave_cspd->members);
 	assert(spd_mpd_is_depricated(slave_cspd));
 
-	if (1 == slave_cspd->spd_info.ref_cnt.counter) {
+	if (1 == cos_ref_val(&slave_cspd->spd_info.ref_cnt)) {
 		spd_mpd_release(slave_cspd);
 	} else {
-		master_cspd->spd_info.ref_cnt.counter++;
+		cos_meas_event(COS_MPD_SUBORDINATE);
 		cos_put_pg_pool(pa_to_va((void*)slave_cspd->spd_info.pg_tbl));
 		spd_mpd_subordinate(slave_cspd, master_cspd);
 	}
@@ -676,12 +724,44 @@ void spd_mpd_free_all(void)
 		struct composite_spd *cspd;
 
 		cspd = spd_mpd_by_idx(i);
-		if (!(cspd->spd_info.flags & SPD_FREE)) 
-			spd_mpd_release(cspd);
+		if (!(cspd->spd_info.flags & SPD_FREE)) {
+			printk("cos: warning - found unfreed composite spd, %p w/ refcnt %d\n", 
+			       cspd, cos_ref_val(&cspd->spd_info.ref_cnt));
+			cos_put_pg_pool(pa_to_va((void*)cspd->spd_info.pg_tbl));
+			//spd_mpd_release(cspd);
+		}
 	}
 
 	spd_init_mpd_descriptors();
 
+	return;
+}
+
+/*
+ * Kill the composite spd, removing its spds and setting them to use
+ * their own protection domains.
+ *
+ * Assume that the cspd is not depricated, i.e. the current cspd for
+ * its spds.
+ */
+static void spd_mpd_terminate(struct composite_spd *cspd)
+{
+	struct spd *spds;
+
+	assert(cspd && !spd_mpd_is_depricated(cspd));
+
+	spds = cspd->members;
+	while (spds) {
+		struct spd *next = spds->composite_member_next;
+		spds->composite_spd = &spds->spd_info;
+		spds->composite_member_next = NULL;
+		spds->composite_member_prev = NULL;
+		spds = next;
+	}
+
+	cspd->members = NULL;
+	spd_mpd_depricate(cspd);
+	
 	return;
 }
 
@@ -774,7 +854,6 @@ static void spd_chg_il_all_to_spd(struct composite_spd *cspd, struct spd *spd, i
 				assert(old != il && old != IL_INV);
 			}
 		}
-
 		curr = curr->composite_member_next;
 	}
 	
@@ -826,7 +905,7 @@ static inline void spd_add_mappings(struct composite_spd *cspd, struct spd *spd)
  */
 int spd_composite_add_member(struct composite_spd *cspd, struct spd *spd)
 {
-	//assert(!spd_mpd_is_depricated(cspd));
+	assert(!spd_mpd_is_depricated(cspd));
 	assert(&spd->spd_info == spd->composite_spd);
 
 	spd_add_caps(cspd, spd);

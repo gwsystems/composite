@@ -2,6 +2,7 @@
 #define TYPES_H
 
 #include "debug.h"
+#include "measurement.h"
 
 struct cos_sched_next_thd {
 	unsigned short int next_thd_id, next_thd_flags;
@@ -99,8 +100,26 @@ typedef struct { volatile unsigned int counter; } atomic_t;
 
 #endif /* __KERNEL__ */
 
-static inline void cos_ref_take(atomic_t *rc) { rc->counter++; }
-static inline unsigned int cos_ref_val(atomic_t *rc) { return rc->counter; }
-static inline void cos_ref_release(atomic_t *rc) { rc->counter--; /* assert(rc->counter != 0) */}
+static inline void cos_ref_take(atomic_t *rc) 
+{ 
+	rc->counter++; 
+	cos_meas_event(COS_MPD_REFCNT_INC); 
+}
+
+static inline void cos_ref_set(atomic_t *rc, unsigned int val) 
+{ 
+	rc->counter = val; 
+}
+
+static inline unsigned int cos_ref_val(atomic_t *rc) 
+{ 
+	return rc->counter; 
+}
+
+static inline void cos_ref_release(atomic_t *rc) 
+{ 
+	rc->counter--; /* assert(rc->counter != 0) */
+	cos_meas_event(COS_MPD_REFCNT_DEC); 
+}
 
 #endif /* TYPES_H */

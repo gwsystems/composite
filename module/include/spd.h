@@ -219,31 +219,59 @@ static inline int spd_mpd_is_depricated(struct composite_spd *mpd)
 { 
 	return (mpd)->spd_info.flags & SPD_DEPRICATED;
 }
-static inline void spd_mpd_depricate(struct composite_spd *mpd)
-{
-	mpd->spd_info.flags |= SPD_DEPRICATED;
-}
 static inline int spd_mpd_is_subordinate(struct composite_spd *mpd)
 { 
 	return mpd->spd_info.flags & SPD_SUBORDINATE;
 }
 static inline void spd_mpd_subordinate(struct composite_spd *mpd, struct composite_spd *master)
 {
+	struct composite_spd *m;
+
+	/*
+	 * We want a flattened hierarchy of subordinates.  If we have
+	 * a tree of subordinates, then the time it takes to walk that
+	 * tree when a leaf is freed (causing a recursive free of the
+	 * tree node composite spds) is unbounded, and thus not
+	 * predictable.  Therefore, if our master is subordinate to
+	 * another, then our master should be the master's master.
+	 */
+	m = (spd_mpd_is_subordinate(master)) ?
+		master->master_spd:
+		master;
+
 	mpd->spd_info.flags |= SPD_SUBORDINATE;
-	mpd->master_spd = master;
-	mpd->spd_info.pg_tbl = master->spd_info.pg_tbl;
+	mpd->master_spd = m;
+	mpd->spd_info.pg_tbl = m->spd_info.pg_tbl;
+	cos_ref_take(&m->spd_info.ref_cnt);
+
+	return;
 }
 
 void spd_init_mpd_descriptors(void);
 short int spd_alloc_mpd_desc(void);
 void spd_mpd_release_desc(short int desc);
 void spd_mpd_release(struct composite_spd *cspd);
+static inline void spd_mpd_depricate(struct composite_spd *mpd)
+{
+	mpd->spd_info.flags |= SPD_DEPRICATED;
+	spd_mpd_release(mpd);
+}
 void spd_mpd_make_subordinate(struct composite_spd *master, struct composite_spd *slave);
 struct composite_spd *spd_mpd_by_idx(short int idx);
 short int spd_mpd_index(struct composite_spd *cspd);
 static inline struct composite_spd *spd_alloc_mpd(void)
 {
 	return spd_mpd_by_idx(spd_alloc_mpd_desc());
+}
+static inline void spd_mpd_ipc_release(struct composite_spd *cspd)
+{
+	cos_meas_event(COS_MPD_IPC_REFCNT_DEC); 
+	cos_ref_release(&cspd->spd_info.ref_cnt);
+}
+static inline void spd_mpd_ipc_take(struct composite_spd *cspd)
+{
+	cos_meas_event(COS_MPD_IPC_REFCNT_INC); 
+	cos_ref_take(&cspd->spd_info.ref_cnt);
 }
 
 int spd_composite_add_member(struct composite_spd *cspd, struct spd *spd);

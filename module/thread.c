@@ -84,6 +84,20 @@ void thd_free(struct thread *thd)
 	thd->freelist_next = thread_freelist_head;
 	thread_freelist_head = thd;
 
+	while (thd->stack_ptr > 0) {
+		struct thd_invocation_frame *frame;
+
+		/*
+		 * FIXME: this should include upcalling into effected
+		 * spds, to inform them of the deallocation.
+		 */
+
+		frame = &thd->stack_base[thd->stack_ptr];
+		spd_mpd_ipc_release((struct composite_spd*)frame->current_composite_spd);
+
+		thd->stack_ptr--;
+	}
+	
 	return;
 }
 
