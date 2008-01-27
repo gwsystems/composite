@@ -261,7 +261,7 @@ void spd_free(struct spd *spd)
 
 	if (spd->composite_spd != &spd->spd_info) {
 		struct composite_spd *cspd = (struct composite_spd *)spd->composite_spd;
-		assert(cspd && !spd_mpd_is_depricated(cspd));
+		assert(cspd);// && !spd_mpd_is_depricated(cspd));
 
 		//spd_mpd_release((struct composite_spd*)spd->composite_spd);
 		spd_mpd_terminate(cspd);
@@ -512,7 +512,7 @@ extern void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from,
 			     unsigned long lower_addr, unsigned long size);
 extern void copy_pgtbl_range_nocheck(phys_addr_t pt_to, phys_addr_t pt_from,
 				     unsigned long lower_addr, unsigned long size);
-extern int pgtbl_entry_present(phys_addr_t pt, unsigned long addr);
+extern int pgtbl_entry_absent(phys_addr_t pt, unsigned long addr);
 
 static struct page_list *cos_get_pg_pool(void)
 {
@@ -553,6 +553,8 @@ static struct page_list *cos_get_pg_pool(void)
 					 0, 0xFFFFFFFF);
 	}
 
+	cos_meas_event(COS_ALLOC_PGTBL);
+
 	return page;
 }
 
@@ -564,6 +566,8 @@ static void cos_put_pg_pool(struct page_list *page)
 
 	/* arbitary test, but this is an error case I would like to be able to catch */
 	assert(page_list_len < 1024);
+
+	cos_meas_event(COS_FREE_PGTBL);
 
 	return;
 }
@@ -639,7 +643,14 @@ short int spd_alloc_mpd_desc(void)
 	cos_ref_take(&new->spd_info.ref_cnt);
 	new->spd_info.pg_tbl = (phys_addr_t)va_to_pa(page);
 
+	//printk("cos: allocating cspd %d for use.\n", spd_mpd_index(new));
+	
 	return spd_mpd_index(new);
+}
+
+static inline int spd_mpd_is_subordinate(struct composite_spd *mpd)
+{ 
+	return (mpd->spd_info.flags & SPD_SUBORDINATE);
 }
 
 /*
@@ -657,20 +668,50 @@ void spd_mpd_release(struct composite_spd *cspd)
 
 		cos_meas_event(COS_MPD_FREE);
 		
-		cspd->spd_info.flags = SPD_FREE | SPD_COMPOSITE;
 		cspd->freelist_next = mpd_freelist;
 		mpd_freelist = cspd;
-		cspd->members = NULL;
+		//cspd->members = NULL;
 		if (spd_mpd_is_subordinate(cspd)) {
+			/*printk("cos: releasing cspd %d subordinate to %d.\n",
+			  spd_mpd_index(cspd), spd_mpd_index(cspd->master_spd));*/
 			/* this recursive call should only happen once
 			 * at most because of the flattening of the
 			 * subordinate hierarchy, see
-			 * spd_mod_make_subordinate*/
+			 * spd_mpd_make_subordinate*/
 			spd_mpd_release(cspd->master_spd);
 		} else {
+			//printk("cos: releasing cspd %d.\n", spd_mpd_index(cspd));
 			cos_put_pg_pool(pa_to_va((void*)cspd->spd_info.pg_tbl));
+			cspd->spd_info.pg_tbl = 0;
 		}
-	}
+		cspd->spd_info.flags = SPD_FREE | SPD_COMPOSITE;
+
+		//printk("cos: cspd %d being released.\n", spd_mpd_index(cspd));
+	} 
+
+	return;
+}
+
+static void spd_mpd_subordinate(struct composite_spd *mpd, struct composite_spd *master)
+{
+	struct composite_spd *m;
+
+	/*
+	 * We want a flattened hierarchy of subordinates.  If we have
+	 * a tree of subordinates, then the time it takes to walk that
+	 * tree when a leaf is freed (causing a recursive free of the
+	 * tree node composite spds) is unbounded, and thus not
+	 * predictable.  Therefore, if our master is subordinate to
+	 * another, then our master should be the master's master.
+	 */
+	m = (spd_mpd_is_subordinate(master)) ?
+		master->master_spd:
+		master;
+
+	mpd->spd_info.flags |= SPD_SUBORDINATE;
+	mpd->master_spd = m;
+	mpd->spd_info.pg_tbl = m->spd_info.pg_tbl;
+	cos_ref_take(&m->spd_info.ref_cnt);
 
 	return;
 }
@@ -695,16 +736,23 @@ void spd_mpd_release(struct composite_spd *cspd)
 void spd_mpd_make_subordinate(struct composite_spd *master_cspd, 
 			      struct composite_spd *slave_cspd)
 {
-	assert(NULL == slave_cspd->members);
-	assert(spd_mpd_is_depricated(slave_cspd));
+	assert(!spd_mpd_is_subordinate(slave_cspd));
+	assert(0 == spd_composite_num_members(slave_cspd));
+	assert(!spd_mpd_is_depricated(master_cspd));
 
-	if (1 == cos_ref_val(&slave_cspd->spd_info.ref_cnt)) {
-		spd_mpd_release(slave_cspd);
-	} else {
+	//printk("cos: depricating cspd %d.\n", spd_mpd_index(slave_cspd));	
+	slave_cspd->spd_info.flags |= SPD_DEPRICATED;
+
+	if (1 < cos_ref_val(&slave_cspd->spd_info.ref_cnt)) {
 		cos_meas_event(COS_MPD_SUBORDINATE);
 		cos_put_pg_pool(pa_to_va((void*)slave_cspd->spd_info.pg_tbl));
 		spd_mpd_subordinate(slave_cspd, master_cspd);
-	}
+	} 
+	/* 
+	 * Here we will only decriment the count and not fully free
+	 * the cspd if we subordinated the cspd .
+	 */
+	spd_mpd_release(slave_cspd);
 
 	return;
 }
@@ -725,9 +773,11 @@ void spd_mpd_free_all(void)
 
 		cspd = spd_mpd_by_idx(i);
 		if (!(cspd->spd_info.flags & SPD_FREE)) {
-			printk("cos: warning - found unfreed composite spd, %p w/ refcnt %d\n", 
-			       cspd, cos_ref_val(&cspd->spd_info.ref_cnt));
-			cos_put_pg_pool(pa_to_va((void*)cspd->spd_info.pg_tbl));
+			printk("cos: warning - found unfreed composite spd, %d w/ refcnt %d\n", 
+			       spd_mpd_index(cspd), cos_ref_val(&cspd->spd_info.ref_cnt));
+			if (!spd_mpd_is_subordinate(cspd)) {
+				cos_put_pg_pool(pa_to_va((void*)cspd->spd_info.pg_tbl));
+			}
 			//spd_mpd_release(cspd);
 		}
 	}
@@ -748,7 +798,7 @@ static void spd_mpd_terminate(struct composite_spd *cspd)
 {
 	struct spd *spds;
 
-	assert(cspd && !spd_mpd_is_depricated(cspd));
+	assert(cspd);// && !spd_mpd_is_depricated(cspd));
 
 	spds = cspd->members;
 	while (spds) {
@@ -905,27 +955,51 @@ static inline void spd_add_mappings(struct composite_spd *cspd, struct spd *spd)
  */
 int spd_composite_add_member(struct composite_spd *cspd, struct spd *spd)
 {
-	assert(!spd_mpd_is_depricated(cspd));
-	assert(&spd->spd_info == spd->composite_spd);
+	struct spd *next;
 
+	assert(!spd_mpd_is_depricated(cspd));
+	/* verify spd is not resident in any other composite_spd */
+	assert(&spd->spd_info == spd->composite_spd);
+	/* make sure spd's mappings don't already exist in cspd (a bug) */
+	assert(pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location.lowest_addr));
+	
 	spd_add_caps(cspd, spd);
 	spd_add_mappings(cspd, spd);
 
-	if (pgtbl_entry_present(cspd->spd_info.pg_tbl, spd->location.lowest_addr)) {
+	if (pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location.lowest_addr)) {
 		printk("cos: adding spd to cspd -> page tables for cspd not initialized properly.\n");
-		if (pgtbl_entry_present(spd->spd_info.pg_tbl, spd->location.lowest_addr)) {
+		if (pgtbl_entry_absent(spd->spd_info.pg_tbl, spd->location.lowest_addr)) {
 			printk("cos: adding spd to cspd -> page tables for spd not initialized properly.\n");
 		}
 		return -1;
 	}
 
+	next = cspd->members;
 	spd->composite_member_next = cspd->members;
 	spd->composite_member_prev = NULL;
 	cspd->members = spd;
+	if (next) next->composite_member_prev = spd;
 	spd->composite_spd = &cspd->spd_info;
+
+	//printk("cos: spd %d added to cspd %d.\n", spd_get_index(spd), spd_mpd_index(cspd));
 
 	return 0;
 }
+
+/*
+static void print_members(struct composite_spd *cspd)
+{
+	struct spd *spd = cspd->members;
+
+	printk("cos: cspd %d contains (", spd_mpd_index(cspd));
+	while (spd) {
+		printk("%d, ", spd_get_index(spd));
+		
+		spd = spd->composite_member_next;
+	}
+	printk(")\n");
+}
+*/
 
 int spd_composite_remove_member(struct spd *spd, int remove_mappings)
 {
@@ -935,13 +1009,18 @@ int spd_composite_remove_member(struct spd *spd, int remove_mappings)
 	assert(spd && spd_is_composite(spd->composite_spd));
 
 	cspd = (struct composite_spd *)spd->composite_spd;
-	//assert(!spd_mpd_is_depricated(cspd));
 
+	//assert(!spd_mpd_is_depricated(cspd));
+	/* this spd better be present in its composite's pgtbl or bug */
+	assert(!pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location.lowest_addr));
+
+	//print_members(cspd);
 	prev = spd->composite_member_prev;
 	next = spd->composite_member_next;
 
 	if (NULL == prev) {
 		cspd->members = next;
+		if (NULL != next) next->composite_member_prev = NULL;
 	} else {
 		prev->composite_member_next = next;
 		if (NULL != next) next->composite_member_prev = prev;
@@ -955,8 +1034,13 @@ int spd_composite_remove_member(struct spd *spd, int remove_mappings)
 	
 	if (remove_mappings) {
 		spd_remove_mappings(cspd, spd);
+		assert(pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location.lowest_addr));
 	}
 
+	//print_members(cspd);
+
+	//printk("cos: spd %d removed from cspd %d.\n", spd_get_index(spd), spd_mpd_index(cspd));
+	
 	return 0;
 }
 

@@ -103,11 +103,13 @@ int run_demo(void)
 {
 	int i, j;
 
-	for (i = 0 ; i < 6 ; i++) {
-		for (j = 0 ; j < 10 ; j++) {
+	for (i = 0 ; i < 4 ; i++) {
+		for (j = 0 ; j < 4 ; j++) {
 			bar(i, j);
 		}
+		//print_vals(7337, 0, 2);
 		cos_mpd_cntl(COS_MPD_DEMO);
+		//print_vals(7337, 1, 2);
 	}
 	
 	return i;

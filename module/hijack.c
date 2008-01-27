@@ -1916,7 +1916,7 @@ vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr)
  * Verify that the given address in the page table is present.  Return
  * 0 if present, 1 if not.
  */
-int pgtbl_entry_present(phys_addr_t pt, unsigned long addr)
+int pgtbl_entry_absent(phys_addr_t pt, unsigned long addr)
 {
 	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(addr);
 
@@ -1928,7 +1928,7 @@ unsigned long get_valid_pgtbl_entry(phys_addr_t pt, int n)
 	int i;
 
 	for (i = 1 ; i < PTRS_PER_PGD ; i++) {
-		if (!pgtbl_entry_present(pt, i*PGDIR_SIZE)) {
+		if (!pgtbl_entry_absent(pt, i*PGDIR_SIZE)) {
 			n--;
 			if (n == 0) {
 				return i*PGDIR_SIZE;
@@ -2385,7 +2385,7 @@ static void asym_exec_dom_exit(void)
 
 	deregister_measurements();
 
-	printk("cos: Asymmetric execution domains module removed.\n");
+	printk("cos: Asymmetric execution domains module removed.\n\n");
 }
 
 module_init(asym_exec_dom_init);

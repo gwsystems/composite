@@ -27,12 +27,8 @@ int thd_spd_in_current_composite(struct thread *thd, struct spd *spd)
 	 * must look in the page table of the composite and see if the
 	 * spd is present.  This is significantly more expensive.
 	 */
-	if (spd->composite_spd != composite && 
-	    !spd_composite_member(spd, composite)) {
-		return 0;
-	}
-
-	return 1;
+	return !(spd->composite_spd != composite && 
+		 !spd_composite_member(spd, composite));
 }
 
 void thd_init_all(struct thread *thds)

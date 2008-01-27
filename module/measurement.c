@@ -20,7 +20,7 @@ char *cos_meas_descriptions[COS_MEAS_MAX_SIZE+1] =
 	"cooperative thread switch",
 	"preemptive thread switch",
 	"interrupt preemption",
-	"component invocations",
+	"component SDT invocations",
 	"bootstrapping upcalls",
 	"incriment pending brands",
 	"branded upcalls",
@@ -32,11 +32,14 @@ char *cos_meas_descriptions[COS_MEAS_MAX_SIZE+1] =
 	"linux page fault",
 	"mpd alloc",
 	"mpd subordinate",
+	"mpd split mpd reuse",
 	"mpd free",
 	"mpd refcnt increase",
 	"mpd refcnt decrease",
 	"mpd ipc refcnt increase",
 	"mpd ipc refcnt decrease",
+	"page table allocation",
+	"page table free",
 	""
 };
 

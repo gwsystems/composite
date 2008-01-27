@@ -890,17 +890,21 @@ static int mpd_split_composite_populate(struct composite_spd *new1, struct compo
 		goto err_adding;
 	}
 
-	/* If the cspd is updated to create the second new composite,
-	 * we're done */
+	/* If the cspd is updated by removing the spd, and that spd
+	 * has been added to the new composite spd, new1, we're
+	 * done */
 	if (NULL == new2) {
 		assert(cos_ref_val(&cspd->spd_info.ref_cnt) == 1);
 		return 1;
 	}
 
 	/* aliasing will mess everything up here */
-	assert(new1 != new2 && new2 != cspd);
+	assert(new1 != new2);
 
 	curr = cspd->members;
+	/* composite spds should never be empty */
+	assert(NULL != curr);
+
 	while (curr) {
 		struct spd *next = curr->composite_member_next;
 
@@ -934,6 +938,7 @@ static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new
 	assert(!spd_mpd_is_depricated(cspd));
 	assert(spd_is_composite(&cspd->spd_info));
 	assert(spd_is_member(spd, cspd));
+	assert(spd_composite_num_members(cspd) > 1);
 
 	d1 = spd_alloc_mpd_desc();
 	if (d1 < 0) {
@@ -943,13 +948,16 @@ static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new
 	new1 = spd_mpd_by_idx(d1);
 
 	/*
-	 * This is complicated by the optimization whereby we wish to
-	 * reuse the cspd instead of making a new one.  See the
+	 * This condition represents the optimization whereby we wish
+	 * to reuse the cspd instead of making a new one.  See the
 	 * comment above mpd_composite_populate.  If we can reuse the
 	 * current cspd by shrinking it rather than deleting it and
 	 * allocating a new composite, then do it.
+	 *
+	 * This is a common case, e.g. when continuously moving spds
+	 * from one cspd to another, but not in many other cases.
 	 */
-/*	if (cos_ref_val(&cspd->spd_info.ref_cnt) == 1) {
+	if (1 == cos_ref_val(&cspd->spd_info.ref_cnt)) {
 		if (mpd_split_composite_populate(new1, NULL, spd, cspd) != 1) {
 			ret = -1;
 			goto err_d2;
@@ -957,40 +965,60 @@ static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new
 		*new = d1;
 		*old = spd_mpd_index(cspd);
 
+		cos_meas_event(COS_MPD_SPLIT_REUSE);
+
 		ret = 0;
 		goto end;
 	} 
-*/
+
 	/* otherwise, we must allocate the other composite spd, and
 	 * populate both of them */
 	d2 = spd_alloc_mpd_desc();
 	if (d2 < 0) {
 		printk("cos: could not allocate second mpd descriptor for split operation.\n");
-		ret = -1;
 		goto err_d2;
 	}
 	new2 = spd_mpd_by_idx(d2);
+
+	assert(new1 && new2);
 	
 	if (mpd_split_composite_populate(new1, new2, spd, cspd)) {
-		ret = -1;
+		printk("cos: populating two new cspds failed while splitting.\n");
 		goto err_adding;
 	}
 		
 	*new = d1;
 	*old = d2;
-	
+
 	/* depricate the composite spd so that it cannot be used
 	 * anymore from any user-level interfaces */
 	spd_mpd_depricate(cspd);
+	assert(!spd_mpd_is_depricated(new1) && !spd_mpd_is_depricated(new2));
 	ret = 0;
 	goto end;
 	
  err_adding:
-	spd_mpd_release_desc(d2);
+	spd_mpd_depricate(new2);
  err_d2:
-	spd_mpd_release_desc(d1);
+	spd_mpd_depricate(new1);
  end:
 	return ret;
+}
+
+/*
+ * We want to subordinate one of the composite spds _only if_ we
+ * cannot immediately free both the page tables (which subordination
+ * does), but also the composite spd.  Thus, if one of the composites
+ * can be freed, send it to be subordinated as it will be freed
+ * immediately.
+ */
+static inline struct composite_spd *get_spd_to_subordinate(struct composite_spd *c1, 
+							   struct composite_spd *c2)
+{
+	if (1 == cos_ref_val(&c1->spd_info.ref_cnt)) {
+		return c1;
+	} 
+	return c2;
 }
 
 /*
@@ -1013,13 +1041,19 @@ static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new
  * to the subordinate's master instead, decrimenting the refcnt on the
  * subordinate.
  */
-static int mpd_merge(struct composite_spd *dest, struct composite_spd *other)
+static struct composite_spd *mpd_merge(struct composite_spd *c1, 
+				       struct composite_spd *c2)
 {
 	struct spd *curr = NULL;
+	struct composite_spd *dest, *other;
 
-	assert(NULL != dest && NULL != other);
-	assert(spd_is_composite(&dest->spd_info) && spd_is_composite(&other->spd_info));
-	assert(!spd_mpd_is_depricated(dest) && !spd_mpd_is_depricated(other));
+	assert(NULL != c1 && NULL != c2);
+	assert(spd_is_composite(&c1->spd_info) && spd_is_composite(&c2->spd_info));
+	/* the following implies they are not subordinate too */
+	assert(!spd_mpd_is_depricated(c1) && !spd_mpd_is_depricated(c2));
+	
+	other = get_spd_to_subordinate(c1, c2);
+	dest = (other == c1) ? c2 : c1;
 
 	/*
 	extern void print_valid_pgtbl_entries(phys_addr_t pt);
@@ -1041,20 +1075,18 @@ static int mpd_merge(struct composite_spd *dest, struct composite_spd *other)
 			 * indicatory of an error in the kernel
 			 * anyway. */
 			printk("cos: could not move spd from one composite spd to another in the merge operation.\n");
-			return -1;
+			return NULL;
 		}
 
 		curr = next;
 	}
-	
-	spd_mpd_depricate(other);
-	//spd_mpd_make_subordinate(dest, other); // test later...more efficient use of page-table memory
-	
+
+	//spd_mpd_depricate(other);
+	spd_mpd_make_subordinate(dest, other);
+	assert(!spd_mpd_is_depricated(dest));
 	//print_valid_pgtbl_entries(dest->spd_info.pg_tbl);
 
-//	assert(0);
-
-	return 0;
+	return dest;
 }
 
 struct spd *t1 = NULL, *t2 = NULL;
@@ -1066,6 +1098,8 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
 {
 	int ret = 0; 
 	struct composite_spd *prev = NULL;
+	phys_addr_t curr_pg_tbl, new_pg_tbl;
+	struct spd_poly *curr;
 
 	if (operation != COS_MPD_DEMO) {
 		prev = spd_mpd_by_idx(composite_spd);
@@ -1074,6 +1108,9 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
 			return -1;
 		}
 	}
+
+	curr = thd_get_thd_spdpoly(thd_get_current());
+	curr_pg_tbl = curr->pg_tbl;
 
 	switch(operation) {
 	case COS_MPD_SPLIT:
@@ -1085,6 +1122,16 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
 
 		if (!transitory) {
 			printk("cos: failed to access normal spd for call to split.\n");
+			ret = -1;
+			break;
+		}
+
+		/*
+		 * It is not correct to split a spd out of a composite
+		 * spd that only contains one spd.  It is pointless,
+		 * and should not be encouraged.
+		 */
+		if (spd_composite_num_members(prev) <= 1) {
 			ret = -1;
 			break;
 		}
@@ -1102,7 +1149,7 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
 	}
 	case COS_MPD_MERGE:
 	{
-		struct composite_spd *other;
+		struct composite_spd *other, *cspd_ret;
 		
 		other = spd_mpd_by_idx(composite_dest);
 		if (!other || spd_mpd_is_depricated(other)) {
@@ -1111,10 +1158,12 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
 			break;
 		}
 		
-		if (mpd_merge(prev, other)) {
+		if ((cspd_ret = mpd_merge(prev, other))) {
 			ret = -1;
 			break;
 		}
+
+		ret = spd_mpd_index(cspd_ret);
 		
 		break;
 	}
@@ -1154,15 +1203,30 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
 		a = (struct composite_spd*)t1->composite_spd;
 		b = (struct composite_spd*)t2->composite_spd;
 
+		//assert(!spd_mpd_is_depricated(a) && !spd_mpd_is_depricated(b));
+		if (spd_mpd_is_depricated(a)) {
+			printk("cos: cspd %d is depricated and not supposed to be.\n", spd_mpd_index(a));
+			assert(0);
+		}
+		if (spd_mpd_is_depricated(b)) {
+			printk("cos: cspd %d is depricated and not supposed to be.\n", spd_mpd_index(b));
+			assert(0);
+		}
+
 		if (mpd_state == 1) {
 			struct mpd_split_ret sret; /* trash */
+
+			if (spd_composite_num_members(a) <= 1) {
+				ret = -1;
+				break;
+			}
 			if (mpd_split(a, t2, &sret.new, &sret.old)) {
 				printk("cos: could not split spds\n");
 				ret = -1;
 				break;
 			}
 		} else {
-			if (mpd_merge(a, b)) {
+			if (NULL == mpd_merge(a, b)) {
 				printk("cos: could not merge spds\n");	
 				ret = -1;
 				break;
@@ -1183,6 +1247,17 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
 	}
 	default:
 		ret = -1;
+	}
+
+	new_pg_tbl = curr->pg_tbl;
+	/*
+	 * The page tables of the current spd can change if the
+	 * current spd is subordinated to another spd.  If they did,
+	 * we should do something about it:
+	 */
+	if (curr_pg_tbl != new_pg_tbl) {
+		//printk("cos: current page tables changed for mpd operation, updating.\n");
+		native_write_cr3(new_pg_tbl);
 	}
 	
 	return ret;

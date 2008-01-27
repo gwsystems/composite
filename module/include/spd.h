@@ -132,9 +132,9 @@ struct spd_poly {
 struct spd;
 struct composite_spd {
 	struct spd_poly spd_info;
-	struct spd *members;
+	struct spd *members; // iff !(flags & SPD_DEPRICATED)
 	struct composite_spd *master_spd; // iff flags & SPD_SUBORDINATE
-	struct composite_spd *freelist_next;
+	struct composite_spd *freelist_next; // iff flags & SPD_FREE
 } CACHE_ALIGNED;
 
 /* 
@@ -155,7 +155,8 @@ struct spd {
 	struct spd_location location;
 	/* The "current" protection state of the spd, which might
 	 * point directly to spd->spd_info, or
-	 * composite_spd->spd_info */
+	 * a composite_spd->spd_info 
+	 */
 	struct spd_poly /*composite_spd*/ *composite_spd; 
 	
 	unsigned short int cap_base, cap_range;
@@ -176,12 +177,12 @@ struct spd {
 	struct cos_sched_events *prev_notification;
 
 	mmaps_t local_mmaps; /* mm_handle (see hijack.c) for linux compat */
-	atomic_t local_ref_cnt;
 
 	vaddr_t upcall_entry;
 
 	/* should be a union to not waste space */
 	struct spd *freelist_next;
+	/* Linked list of the members of a non-depricated, current composite spd */
 	struct spd *composite_member_next, *composite_member_prev;
 } CACHE_ALIGNED; //cache line size
 
@@ -219,46 +220,20 @@ static inline int spd_mpd_is_depricated(struct composite_spd *mpd)
 { 
 	return (mpd)->spd_info.flags & SPD_DEPRICATED;
 }
-static inline int spd_mpd_is_subordinate(struct composite_spd *mpd)
-{ 
-	return mpd->spd_info.flags & SPD_SUBORDINATE;
-}
-static inline void spd_mpd_subordinate(struct composite_spd *mpd, struct composite_spd *master)
-{
-	struct composite_spd *m;
-
-	/*
-	 * We want a flattened hierarchy of subordinates.  If we have
-	 * a tree of subordinates, then the time it takes to walk that
-	 * tree when a leaf is freed (causing a recursive free of the
-	 * tree node composite spds) is unbounded, and thus not
-	 * predictable.  Therefore, if our master is subordinate to
-	 * another, then our master should be the master's master.
-	 */
-	m = (spd_mpd_is_subordinate(master)) ?
-		master->master_spd:
-		master;
-
-	mpd->spd_info.flags |= SPD_SUBORDINATE;
-	mpd->master_spd = m;
-	mpd->spd_info.pg_tbl = m->spd_info.pg_tbl;
-	cos_ref_take(&m->spd_info.ref_cnt);
-
-	return;
-}
 
 void spd_init_mpd_descriptors(void);
 short int spd_alloc_mpd_desc(void);
 void spd_mpd_release_desc(short int desc);
 void spd_mpd_release(struct composite_spd *cspd);
+struct composite_spd *spd_mpd_by_idx(short int idx);
+short int spd_mpd_index(struct composite_spd *cspd);
 static inline void spd_mpd_depricate(struct composite_spd *mpd)
 {
+	//printk("cos: depricating cspd %d.\n", spd_mpd_index(mpd));
 	mpd->spd_info.flags |= SPD_DEPRICATED;
 	spd_mpd_release(mpd);
 }
 void spd_mpd_make_subordinate(struct composite_spd *master, struct composite_spd *slave);
-struct composite_spd *spd_mpd_by_idx(short int idx);
-short int spd_mpd_index(struct composite_spd *cspd);
 static inline struct composite_spd *spd_alloc_mpd(void)
 {
 	return spd_mpd_by_idx(spd_alloc_mpd_desc());
@@ -266,7 +241,7 @@ static inline struct composite_spd *spd_alloc_mpd(void)
 static inline void spd_mpd_ipc_release(struct composite_spd *cspd)
 {
 	cos_meas_event(COS_MPD_IPC_REFCNT_DEC); 
-	cos_ref_release(&cspd->spd_info.ref_cnt);
+	spd_mpd_release(cspd);
 }
 static inline void spd_mpd_ipc_take(struct composite_spd *cspd)
 {
@@ -276,6 +251,21 @@ static inline void spd_mpd_ipc_take(struct composite_spd *cspd)
 
 int spd_composite_add_member(struct composite_spd *cspd, struct spd *spd);
 int spd_composite_remove_member(struct spd *spd, int remove_mappings);
+
+/* FIXME: keep a count in the cspd to avoid this iteration */
+static inline int spd_composite_num_members(struct composite_spd *cspd) 
+{
+	int num_members = 0;
+	struct spd *iter;
+
+	iter = cspd->members;
+	while (iter) {
+		num_members++;
+		iter = iter->composite_member_next;
+	}
+
+	return num_members;
+}
 
 /*
  * Move spd from its current composite spd to the cspd_new
@@ -299,12 +289,12 @@ struct spd *virtual_namespace_query(unsigned long addr);
  *
  * FIXME: TEST THIS!
  */
-extern int pgtbl_entry_present(vaddr_t addr, phys_addr_t pg_tbl);
+extern int pgtbl_entry_absent(vaddr_t addr, phys_addr_t pg_tbl);
 static inline int spd_composite_member(struct spd *spd, struct spd_poly *poly)
 {
-	unsigned int lowest_addr = spd->location.lowest_addr;
+	vaddr_t lowest_addr = spd->location.lowest_addr;
 
-	return pgtbl_entry_present(lowest_addr, poly->pg_tbl);
+	return !pgtbl_entry_absent(poly->pg_tbl, lowest_addr);
 }
 
 #else /* ASM */
