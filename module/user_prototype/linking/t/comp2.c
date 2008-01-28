@@ -103,8 +103,8 @@ int run_demo(void)
 {
 	int i, j;
 
-	for (i = 0 ; i < 4 ; i++) {
-		for (j = 0 ; j < 4 ; j++) {
+	for (i = 0 ; i < 6 ; i++) {
+		for (j = 0 ; j < 5 ; j++) {
 			bar(i, j);
 		}
 		//print_vals(7337, 0, 2);

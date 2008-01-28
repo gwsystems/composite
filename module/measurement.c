@@ -30,6 +30,7 @@ char *cos_meas_descriptions[COS_MEAS_MAX_SIZE+1] =
 	"interrupted other thread",
 	"composite page fault",
 	"linux page fault",
+	"unknown fault",
 	"mpd alloc",
 	"mpd subordinate",
 	"mpd split mpd reuse",

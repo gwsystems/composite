@@ -66,8 +66,8 @@ extern unsigned long temp_esp_storage;
 pte_t *shared_region_pte;
 pgd_t *union_pgd;
 
-struct task_struct *composite_thread;
-struct mm_struct *composite_union_mm;
+struct task_struct *composite_thread = NULL;
+struct mm_struct *composite_union_mm = NULL;
 
 /* composite: should be in separate module */
 unsigned long jmp_addr __attribute__((aligned(32))) = 0 ;
@@ -1591,6 +1591,21 @@ void mem_mapping_syscall(struct pt_regs *regs)
 	
 }
 
+/* the composite specific page fault handler */
+static void cos_handle_page_fault(struct thread *thd, struct spd_poly *spd_poly, 
+				  vaddr_t fault_addr, struct pt_regs *regs)
+{
+	struct composite_spd *cspd;
+
+	BUG_ON(!(spd_poly->flags & SPD_COMPOSITE) || spd_poly->flags & SPD_FREE);
+	cspd = (struct composite_spd *)spd_poly;
+
+	memcpy(&thd->regs, regs, sizeof(struct pt_regs));
+	
+	return;
+}
+
+
 /*
  * The Linux provided descriptor structure is crap, probably due to
  * the intel spec for descriptors being crap:
@@ -1707,60 +1722,62 @@ void main_page_fault_interposition(void)
 {
 	unsigned long fault_addr;
 	int virt_sys;
-//	pte_t *pte;
+	struct vm_area_struct *vma;
+	struct mm_struct *curr_mm;
 
-	__asm__("movl %%cr2,%0":"=r" (fault_addr));
+	struct thread *thd;
+	struct spd_poly *poly;
+	int present;
+	struct pt_regs *regs = NULL;
+	
+	fault_addr = read_cr2();
+	//__asm__("movl %%cr2,%0":"=r" (fault_addr));
+	curr_mm = get_task_mm(current);
+	if (!down_read_trylock(&curr_mm->mmap_sem)) {
 		/* 
-	 * FIXME: This really doesn't do anything yet: disabled in
-	 * kern_entry.S 
-	 */
-	if (composite_thread == current) {
-		/*
-		 * The correct thing to do: 1) find the address that
-		 * faulted, 2) check if that address is legal within
-		 * the current spd_poly (by seeing if its associated
-		 * pgd is present). 
-		 *
-		 * If present, then we have a fault which should be
-		 * delivered to the fault handler. If it is not
-		 * present, then we have an invalid access.  Deliver
-		 * to the corresponding handler in this case as well.
+		 * Screwed here if we are in the kernel, and we have
+		 * an error to be resoved by exception tables.  Let
+		 * Linux deal with it, which should be fine anyway.
 		 */
-
-		/* FIXME: we will really have to check for all spds in
-		 * the composite_spd, rather than just casting to a
-		 * single spd, but for now... */
-		struct spd *curr_spd;
-		unsigned long low;
-
-		curr_spd = thd_curr_spd_noprint();
-		if (NULL == curr_spd) {
-			return;
-		} 
-
-#ifdef FAULT_DEBUG
-		fault_addrs[BUCKET_HASH(fault_addr)]++;
-#endif
-		low = curr_spd->location.lowest_addr;
-
-		if (fault_addr < low ||
-		    fault_addr >= low + curr_spd->location.size) {
-			/* search through the vmas to find out if this
-			 * is a legal reference given linux's rules.
-			 * If so, continue. If not setup fault handler
-			 * by saving register state into fault handler
-			 * and running that thread.  return specific
-			 * value from this function not allowing the
-			 * linux pf handler to run. */
-
-			//pte = lookup_address_mm(current->mm, fault_addr);
-			/* send fault to fault handler */
-			cos_meas_event(COS_LINUX_PG_FAULT);
-		} else {
-			/* see comment above in "if"...same error behavior */
-			cos_meas_event(COS_PG_FAULT);
-		}
+		return;
 	}
+	vma = find_vma(curr_mm, fault_addr);
+
+	/*
+	 * We want to allow composite to handle the fault if we are in
+	 * the composite thread and either the fault was outside the
+	 * spd's boundaries or there is not a linux mapping for the
+	 * address.
+	 */
+	if (composite_thread != current) {
+		goto fault_exit;
+	}
+
+	thd = thd_get_current();
+	if (NULL == thd) {
+		cos_meas_event(COS_UNKNOWN_FAULT);
+		goto fault_exit;
+	}
+	poly = thd_get_thd_spdpoly(thd);
+	present = !pgtbl_entry_absent(poly->pg_tbl, fault_addr);
+	
+	if (present && vma) {
+		/* let the linux fault handler deal with it */
+		cos_meas_event(COS_LINUX_PG_FAULT);
+		goto fault_exit;
+	}
+	/* 
+	 * If we're handling a cos fault, we don't need to the
+	 * vma anymore 
+	 */
+	up_read(&curr_mm->mmap_sem);
+
+	cos_meas_event(COS_PG_FAULT);
+	regs = get_user_regs_thread(composite_thread);
+	cos_handle_page_fault(thd, thd_get_thd_spdpoly(thd), fault_addr, regs);
+
+fault_exit:
+	up_read(&curr_mm->mmap_sem);
 
 	return;
 
@@ -1914,7 +1931,7 @@ vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr)
 
 /*
  * Verify that the given address in the page table is present.  Return
- * 0 if present, 1 if not.
+ * 0 if present, 1 if not.  This will check the pgd, not for the pte.
  */
 int pgtbl_entry_absent(phys_addr_t pt, unsigned long addr)
 {
@@ -2057,7 +2074,6 @@ static void timer_interrupt(unsigned long data)
 			 * interrupt.
 			 */
 			cos_current = thd_get_current();
-			/* FIXME: same crap with the cast */
 			curr_spd = thd_get_thd_spdpoly(cos_current);
 			
 			/* preempt and save current thread */

@@ -13,7 +13,7 @@
 struct thread threads[MAX_NUM_THREADS];
 static struct thread *thread_freelist_head = MNULL;
 /* like "current" in linux */
-struct thread *current_thread;
+struct thread *current_thread = NULL;
 
 int thd_spd_in_current_composite(struct thread *thd, struct spd *spd)
 {
