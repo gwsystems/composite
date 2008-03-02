@@ -105,15 +105,23 @@ cos_syscall_clobber                                  \
 typedef __attribute__((regparm(1))) void (*create_thd_fn_t)(void *data);
 
 cos_syscall_0(1, int, resume_return);
-cos_syscall_0(2, int, get_thd_id);
+//cos_syscall_0(2, int, get_thd_id);
 cos_syscall_3(3, int, create_thread, create_thd_fn_t, fn, vaddr_t, stack, void*, data);
 cos_syscall_0(4, int, __switch_thread);
 cos_syscall_2(5, int, kill_thd, int, kill_thdid, int, switchto_thdid);
-cos_syscall_0(6, int, brand_upcall);
-cos_syscall_2(7, int, brand, int, thd_id, int, flags);
+cos_syscall_2(6, int, brand_upcall, int, thd_id, int, flags);
+cos_syscall_2(7, int, brand_cntl, int, thd_id, int, flags);
 cos_syscall_1(8, int, upcall, int, spd_id);
 cos_syscall_3(9, int, sched_cntl, int, operation, int, thd_id, long, option);
 cos_syscall_1(10, int, mpd_cntl, int, operation);
+cos_syscall_3(11, int, __mmap_cntl, long, op_flags_dspd, long, daddr, long, mem_id);
+
+static inline int cos_mmap_cntl(short int op, short int flags, 
+				short int dest_spd, long dest_addr, long mem_id) {
+	/* encode into 3 arguments */
+	return cos___mmap_cntl(((op<<24) | (flags << 16) | (dest_spd)), 
+			       dest_addr, mem_id);
+}
 
 /*
  * We cannot just pass the thread id into the system call in registers
@@ -141,6 +149,33 @@ static inline int cos_switch_thread(unsigned short int thd_id, unsigned short in
 
 	/* kernel will read next thread information from cos_next */
 	return cos___switch_thread(); 
+}
+
+static inline int cos_get_thd_id(void)
+{
+	struct shared_user_data *ud = (void *)COS_INFO_REGION_ADDR;
+
+	return ud->current_thread;
+}
+
+static inline void *cos_get_arg_region(void)
+{
+	struct shared_user_data *ud = (void *)COS_INFO_REGION_ADDR;
+
+	return ud->argument_region;
+}
+
+static inline long cos_cmpxchg(void *memory, long anticipated, long result)
+{
+	long ret;
+
+	__asm__ __volatile__(
+		"call cos_atomic_cmpxchg"
+		: "=r" (ret)
+		: "a" (anticipated), "b" (memory), "c" (result)
+		: "cc");
+
+	return ret;
 }
 
 /* from linux source in string.h */

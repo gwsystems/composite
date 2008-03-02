@@ -15,13 +15,16 @@ cos_static_stack:
 	.long 0
 	.endr
 
-/* Scheduler page for event notifications and thread switching. */
-.align 4096
-.globl cos_sched_notifications
-cos_sched_notifications:
-	.rep 1024
+.weak cos_sched_notifications
+cos_sched_notification:
 	.long 0
-	.endr
+; /* Scheduler page for event notifications and thread switching. */
+; .align 4096
+; .globl cos_sched_notifications
+; cos_sched_notifications:
+; 	.rep 1024
+; 	.long 0
+; 	.endr
 	
 .text
 .globl cos_upcall_entry
@@ -46,3 +49,25 @@ cos_upcall_entry:
 
 	sysenter
 	
+
+/*
+ * %eax = cmpval, %ebx = memaddr, %ecx = newval
+ */
+.globl cos_atomic_cmpxchg
+.type cos_atomic_cmpxchg, @function
+.align 16
+cos_atomic_cmpxchg:
+	cmpl (%ebx), %eax
+	jne cos_atomic_cmpxchg_end
+	movl %ecx, %eax
+	movl %ecx, (%ebx)
+cos_atomic_cmpxchg_end:	
+	ret
+
+cos_atomic_user1:
+cos_atomic_user1_end:
+cos_atomic_user2:
+cos_atomic_user2_end:
+cos_atomic_user3:
+cos_atomic_user3_end:
+	nop

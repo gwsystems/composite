@@ -34,10 +34,12 @@ SS_ipc_client_marshal_args:
 	pushl %ebx
 	pushl %esi
 	pushl %edi
+	pushl %edx
 	
-	movl 16(%esp), %ebx
-	movl 20(%esp), %esi
-	movl 24(%esp), %edi
+	movl 20(%esp), %ebx
+	movl 24(%esp), %esi
+	movl 28(%esp), %edi
+	movl 32(%esp), %edx
 	
 	pushl %ebp
 /*	movl IPRETURN(%esp), %edx */ /* user-defined value */
@@ -58,6 +60,7 @@ SS_ipc_client_ret_unmarshal:
 */
 	popl %ebp
 
+	popl %edx
 	popl %edi
 	popl %esi
 	popl %ebx

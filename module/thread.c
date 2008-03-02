@@ -9,9 +9,10 @@
 //#include <spd.h>
 #include "include/thread.h"
 #include "include/spd.h"
+#include "include/page_pool.h"
 
 struct thread threads[MAX_NUM_THREADS];
-static struct thread *thread_freelist_head = MNULL;
+static struct thread *thread_freelist_head = NULL;
 /* like "current" in linux */
 struct thread *current_thread = NULL;
 
@@ -27,8 +28,8 @@ int thd_spd_in_current_composite(struct thread *thd, struct spd *spd)
 	 * must look in the page table of the composite and see if the
 	 * spd is present.  This is significantly more expensive.
 	 */
-	return !(spd->composite_spd != composite && 
-		 !spd_composite_member(spd, composite));
+	return spd->composite_spd == composite || 
+		spd_composite_member(spd, composite);
 }
 
 void thd_init_all(struct thread *thds)
@@ -38,7 +39,7 @@ void thd_init_all(struct thread *thds)
 	for (i = 0 ; i < MAX_NUM_THREADS ; i++) {
 		/* adjust the thread id to avoid using thread 0 clear */
 		thds[i].thread_id = i+1;
-		thds[i].freelist_next = (i == (MAX_NUM_THREADS-1)) ? MNULL : &thds[i+1];
+		thds[i].freelist_next = (i == (MAX_NUM_THREADS-1)) ? NULL : &thds[i+1];
 	}
 
 	thread_freelist_head = thds;
@@ -46,18 +47,35 @@ void thd_init_all(struct thread *thds)
 	return;
 }
 
+extern void *va_to_pa(void *va);
+extern void thd_publish_data_page(struct thread *thd, vaddr_t page);
+
 struct thread *thd_alloc(struct spd *spd)
 {
 	struct thread *thd;
+	unsigned short int id;
+	void *page;
 
 	thd = thread_freelist_head;
-
-	if (thd == MNULL) {
-		printk("Could not create thread.\n");
-		return MNULL;
+	if (thd == NULL) {
+		printk("cos: Could not create thread.\n");
+		return NULL;
 	}
-
+	
+	page = cos_get_pg_pool();
+	if (NULL == page) {
+		printk("cos: Could not allocate the data page for new thread.\n");
+		
+	}
 	thread_freelist_head = thread_freelist_head->freelist_next;
+
+	id = thd->thread_id;
+	memset(thd, 0, sizeof(struct thread));
+	thd->thread_id = id;
+
+	thd->data_region = page;
+	thd->ul_data_page = COS_INFO_REGION_ADDR + (PAGE_SIZE * id);
+	thd_publish_data_page(thd, (vaddr_t)page);
 
 	/* Initialization */
 	thd->stack_ptr = -1;
@@ -77,8 +95,7 @@ struct thread *thd_alloc(struct spd *spd)
 
 void thd_free(struct thread *thd)
 {
-	thd->freelist_next = thread_freelist_head;
-	thread_freelist_head = thd;
+	if (NULL == thd) return;
 
 	while (thd->stack_ptr > 0) {
 		struct thd_invocation_frame *frame;
@@ -93,7 +110,14 @@ void thd_free(struct thread *thd)
 
 		thd->stack_ptr--;
 	}
-	
+
+	if (NULL != thd->data_region) {
+		cos_put_pg_pool((struct page_list*)thd->data_region);
+	}
+
+	thd->freelist_next = thread_freelist_head;
+	thread_freelist_head = thd;
+
 	return;
 }
 

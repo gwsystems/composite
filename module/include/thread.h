@@ -23,17 +23,6 @@
  * kernel stack usage.
  */
 
-#define MAX_SERVICE_DEPTH 31
-#define MAX_NUM_THREADS 7
-//#define THREAD_SIZE PAGE_SIZE//sizeof(struct thread)
-
-#define MAX_SCHED_HIER_DEPTH 4
-
-#define COS_INFO_REGION_ADDR SHARED_REGION_START
-#define COS_DATA_REGION_LOWER_ADDR (COS_INFO_REGION_ADDR+PAGE_SIZE)
-#define COS_DATA_REGION_MAX_SIZE (MAX_NUM_THREADS*PAGE_SIZE)
-/* FIXME: add define to assert that COS_DATA_REGION_MAX_SIZE+PAGE_SIZE < PGD_RANGE */
-
 /*
 #if (PAGE_SIZE % THREAD_SIZE != 0)
 #error "Page size must be multiple of thread size."
@@ -70,6 +59,7 @@ struct thd_sched_info {
 #define THD_STATE_SCHED_EXCL    COS_SCHED_EXCL_YIELD /* The yielded thread should not be wakeable 
 							by other schedulers (e.g. because it is 
 							waiting for a lock) */
+#define THD_STATE_FAULT         0x80 /* Thread has had a page fault which is being serviced */
 
 /**
  * The thread descriptor.  Contains all information pertaining to a
@@ -81,7 +71,10 @@ struct thread {
 	unsigned short int thread_id;
 	unsigned short int cpu_id, flags;
 
-	/* changes in the alignment of this struct must also be
+	/* 
+	 * Watch your alignments here!!!
+	 *
+	 * changes in the alignment of this struct must also be
 	 * reflected in the alignment of regs in struct thread in
 	 * ipc.S.  Would love to put this at the bottom of the struct.
 	 * TODO: use offsetof to produce an include file at build time
@@ -93,7 +86,7 @@ struct thread {
 	struct thd_invocation_frame stack_base[MAX_SERVICE_DEPTH] HALF_CACHE_ALIGNED;
 
 	void *data_region;
-	vaddr_t data_kern_ptr;
+	vaddr_t ul_data_page;
 
 	struct thd_sched_info sched_info[MAX_SCHED_HIER_DEPTH] CACHE_ALIGNED; 
 	struct spd *sched_suspended; /* scheduler we are suspended by */
@@ -184,6 +177,15 @@ static inline struct thd_invocation_frame *thd_invstk_top(struct thread *curr_th
 	return &curr_thd->stack_base[curr_thd->stack_ptr];
 }
 
+static inline struct thd_invocation_frame *thd_invstk_nth(struct thread *thd, int nth)
+{
+	int idx = thd->stack_ptr - nth;
+
+	if (idx < 0) return NULL;
+
+	return &thd->stack_base[idx];
+}
+
 extern struct thread *current_thread;
 static inline struct thread *thd_get_current(void) 
 {
@@ -265,19 +267,16 @@ static inline struct thd_sched_info *thd_get_sched_info(struct thread *thd,
 	return &thd->sched_info[depth];
 }
 
-static inline struct spd *thd_get_scheduler(struct thread *thd, unsigned short int depth)
+static inline int thd_scheduled_by(struct thread *thd, struct spd *spd) 
 {
-	return thd_get_sched_info(thd, depth)->scheduler;
+	return thd_get_sched_info(thd, spd->sched_depth)->scheduler == spd;
 }
 
 static inline unsigned short int thd_get_id(struct thread *thd)
 {
-	return thd->thread_id;
-}
+	assert(NULL != thd);
 
-static inline int thd_scheduled_by(struct thread *thd, struct spd *spd) 
-{
-	return thd_get_scheduler(thd, spd->sched_depth) == spd;
+	return thd->thread_id;
 }
 
 int thd_spd_in_current_composite(struct thread *thd, struct spd *spd);

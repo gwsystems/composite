@@ -35,12 +35,28 @@
 #include <thread.h>
 #include <ipc.h>
 
-#define NUM_KERN_SYMBS 3
+#define NUM_ATOMIC_SYMBS 8 
+#define NUM_KERN_SYMBS (5+NUM_ATOMIC_SYMBS)
+
 const char *USER_CAP_TBL_NAME = "ST_user_caps";
 const char *ST_INV_FN_NAME = "ST_direct_invocation";
 const char *UPCALL_ENTRY_NAME = "cos_upcall_entry";
 const char *SCHED_PAGE_NAME = "cos_sched_notifications";
 const char *SPD_ID_NAME = "cos_this_spd_id";
+
+const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] = 
+{ "cos_atomic_cmpxchg",
+  "cos_atomic_cmpxchg_end",
+  "cos_atomic_user1",
+  "cos_atomic_user1_end",
+  "cos_atomic_user2",
+  "cos_atomic_user2_end",
+  "cos_atomic_user3",
+  "cos_atomic_user3_end" };
+
+#define CAP_CLIENT_STUB_DEFAULT "SS_ipc_client_marshal_args"
+#define CAP_CLIENT_STUB_POSTPEND "_call"
+#define CAP_SERVER_STUB_POSTPEND "_inv"
 
 #define BASE_SERVICE_ADDRESS SERVICE_START
 #define DEFAULT_SERVICE_SIZE SERVICE_SIZE
@@ -74,6 +90,7 @@ struct sec_info ldobj[MAXSEC_S];
 #define EXPORTED_SYMB_TYPE 0x2
 #define MAX_SYMBOLS 64
 #define MAX_TRUSTED 16
+#define MAX_SYMB_LEN 64
 
 typedef int (*observer_t)(asymbol *, void *data);
 
@@ -103,6 +120,8 @@ struct service_symbs {
 	struct service_symbs *dependencies[MAX_TRUSTED];
 	struct service_symbs *next;
 	int depth;
+
+	void *extern_info;
 };
 
 static unsigned long getsym(bfd *obj, char* symbol)
@@ -720,6 +739,17 @@ static inline int service_processed(char *obj_name, struct service_symbs *servic
 	return 0;
 }
 
+static inline void add_kexport(struct service_symbs *ss, const char *name)
+{
+	struct symb_type *ex = &ss->exported;
+	
+	ex->symbs[ex->num_symbs].name = malloc(strlen(name)+1);
+	strcpy(ex->symbs[ex->num_symbs].name, name);
+	ex->num_symbs++;
+	
+	return;
+}
+
 /* 
  * Assume that these are added LAST.  The last NUM_KERN_SYMBS are
  * ignored for most purposes so they must be the actual kern_syms.
@@ -729,22 +759,14 @@ static inline int service_processed(char *obj_name, struct service_symbs *servic
  */
 static void add_kernel_exports(struct service_symbs *service)
 {
-	struct symb_type *ex = &service->exported;
-	const char *usr_caps = USER_CAP_TBL_NAME;
-	const char *sched_page = SCHED_PAGE_NAME;
-	const char *spd_id = SPD_ID_NAME;
+	int i;
 
-	ex->symbs[ex->num_symbs].name = malloc(strlen(usr_caps)+1);
-	strcpy(ex->symbs[ex->num_symbs].name, usr_caps);
-	ex->num_symbs++;
-
-	ex->symbs[ex->num_symbs].name = malloc(strlen(sched_page)+1);
-	strcpy(ex->symbs[ex->num_symbs].name, sched_page);
-	ex->num_symbs++;
-
-	ex->symbs[ex->num_symbs].name = malloc(strlen(spd_id)+1);
-	strcpy(ex->symbs[ex->num_symbs].name, spd_id);
-	ex->num_symbs++;
+	add_kexport(service, USER_CAP_TBL_NAME);
+	add_kexport(service, SCHED_PAGE_NAME);
+	add_kexport(service, SPD_ID_NAME);
+	for (i = 0 ; i < NUM_ATOMIC_SYMBS ; i++) {
+		add_kexport(service, ATOMIC_USER_DEF[i]);
+	}
 
 	return;
 }
@@ -769,7 +791,6 @@ static struct service_symbs *prepare_service_symbs(char *services)
 	char *tok;
 	
 	tok = strtok(services, delim);
-
 	first = str = alloc_service_symbs(tok);
 
 	do {
@@ -822,7 +843,7 @@ struct service_symbs *find_symbol_exporter(struct symb *s,
 
 /*
  * Verify that all symbols can be resolved by the present dependency
- * relations.  This is a programming language equivalent to
+ * relations.  This is an equivalent to programming language
  * "completeness".
  *
  * Assumptions: All exported and undefined symbols are defined for
@@ -1244,27 +1265,135 @@ static void print_kern_symbs(struct service_symbs *services)
 
 #include "../../aed_ioctl.h"
 
+/*
+ * FIXME: all the exit(-1) -> return NULL, and handling in calling
+ * function.
+ */
+/*struct cap_info **/
+int create_invocation_cap(struct spd_info *from_spd, struct service_symbs *from_obj, 
+			  struct spd_info *to_spd, struct service_symbs *to_obj,
+			  int cos_fd, char *client_stub, char *server_stub, 
+			  char *server_fn, int flags)
+{
+	struct cap_info cap;
+	struct symb_type *st = &from_obj->undef;
+
+	vaddr_t addr;
+	int i;
+	
+	/* find in what position the symbol was inserted into the
+	 * user-level capability table (which position was opted for
+	 * use), so that we can insert the information into the
+	 * correct user-capability. */
+	for (i = 0 ; i < st->num_symbs ; i++) {
+		if (strcmp(server_fn, st->symbs[i].name) == 0) {
+			break;
+		}
+	}
+	if (i == st->num_symbs) {
+		printf("Could not find the undefined symbol %s in %s.\n", 
+		       server_fn, from_obj->obj);
+		exit(-1);
+	}
+	
+	addr = (vaddr_t)get_symb_address(&to_obj->exported, server_stub);
+	if (addr == 0) {
+		printf("Could not find %s in %s.\n", server_stub, to_obj->obj);
+		exit(-1);
+	}
+	cap.SD_serv_stub = addr;
+	addr = (vaddr_t)get_symb_address(&from_obj->exported, client_stub);
+	if (addr == 0) {
+		printf("could not find %s in %s.\n", client_stub, from_obj->obj);
+		exit(-1);
+	}
+	cap.SD_cli_stub = addr;
+	addr = (vaddr_t)get_symb_address(&to_obj->exported, server_fn);
+	if (addr == 0) {
+		printf("could not find %s in %s.\n", server_fn, to_obj->obj);
+		exit(-1);
+	}
+	cap.ST_serv_entry = addr;
+	
+	cap.rel_offset = i+1; /* +1 for the automatically created return capability */
+	cap.owner_spd_handle = from_spd->spd_handle;
+	cap.dest_spd_handle = to_spd->spd_handle;
+	cap.il = 3;
+	cap.flags = flags;
+
+	cap.cap_handle = cos_spd_add_cap(cos_fd, &cap);
+ 	if (cap.cap_handle == 0) {
+		printf("Could not add capability # %d to %s (%d) for %s.\n", 
+		       cap.rel_offset, from_obj->obj, cap.owner_spd_handle, server_fn);
+		exit(-1);
+	}
+	
+	return 0;
+}
+
+static struct symb *spd_contains_symb(struct service_symbs *s, char *name) 
+{
+	int i;
+	struct symb_type *symbs = &s->exported; 
+
+	for (i = 0 ; i < symbs->num_symbs ; i++) {
+		if (strcmp(name, symbs->symbs[i].name) == 0) {
+			return &symbs->symbs[i];
+		}
+	}
+	return NULL;
+}
+
+static int create_spd_capabilities(struct service_symbs *service, struct spd_info *si, int cntl_fd)
+{
+	int i;
+	struct symb_type *undef_symbs = &service->undef;
+	struct spd_info *spd = (struct spd_info*)service->extern_info;
+	
+	for (i = 0 ; i < undef_symbs->num_symbs ; i++) {
+		struct symb *symb = &undef_symbs->symbs[i];
+		struct symb *exp_symb = symb->exported_symb;
+		struct service_symbs *exporter = symb->exporter;
+		struct spd_info *export_spd = (struct spd_info*)exporter->extern_info;
+		struct symb *c_stub, *s_stub;
+		char tmp[MAX_SYMB_LEN];
+
+		snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", symb->name, CAP_CLIENT_STUB_POSTPEND);
+		c_stub = spd_contains_symb(service, tmp);
+		if (NULL == c_stub) {
+			c_stub = spd_contains_symb(service, CAP_CLIENT_STUB_DEFAULT);
+			if (NULL == c_stub) {
+				printf("Could not find a client stub for function %s in service %s.\n",
+				       symb->name, service->obj);
+				return -1;
+			}
+		}
+
+		snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", symb->name, CAP_SERVER_STUB_POSTPEND);
+		s_stub = spd_contains_symb(exporter, tmp);
+		if (NULL == s_stub) {
+			printf("Could not find server stub (%s) for function %s in service %s.\n",
+			       tmp, symb->name, exporter->obj);
+			return -1;
+		}
+
+		if (create_invocation_cap(spd, service, export_spd, exporter, cntl_fd, 
+					  c_stub->name, s_stub->name, exp_symb->name, 0)) {
+			return -1;
+		}
+	}
+	
+	return 0;
+}
+
 struct spd_info *create_spd(int cos_fd, struct service_symbs *s, 
-			    int max_cap, long lowest_addr, long size) 
+			    long lowest_addr, long size) 
 {
 	struct spd_info *spd;
 	struct usr_inv_cap *ucap_tbl;
-	vaddr_t upcall_addr;
+	vaddr_t upcall_addr, atomic_addr;
 	long *spd_id_addr;
-	
-	ucap_tbl = (struct usr_inv_cap*)get_symb_address(&s->exported, 
-							 USER_CAP_TBL_NAME);
-	printf("Found ucap_tbl for component %s @ %p.\n", s->obj, ucap_tbl);
-
-	upcall_addr = (vaddr_t)get_symb_address(&s->exported, UPCALL_ENTRY_NAME);
-	if (upcall_addr == 0) {
-		printf("Could not find %s in %s.\n", UPCALL_ENTRY_NAME, s->obj);
-		return NULL;
-	}
-	printf("Found cos_upcall for component %s @ %p.\n", s->obj, (void*)upcall_addr);
-
-	spd_id_addr = (long*)get_symb_address(&s->exported, SPD_ID_NAME);
-	printf("Found spd_id address for component %s @ %p.\n", s->obj, spd_id_addr);
+	int i;
 
 	spd = (struct spd_info *)malloc(sizeof(struct spd_info));
 	if (NULL == spd) {
@@ -1272,12 +1401,33 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 		return NULL;
 	}
 	
-	spd->num_caps = max_cap;
+	ucap_tbl = (struct usr_inv_cap*)get_symb_address(&s->exported, 
+							 USER_CAP_TBL_NAME);
+	upcall_addr = (vaddr_t)get_symb_address(&s->exported, UPCALL_ENTRY_NAME);
+	if (upcall_addr == 0) {
+		printf("Could not find %s in %s.\n", UPCALL_ENTRY_NAME, s->obj);
+		return NULL;
+	}
+	spd_id_addr = (long*)get_symb_address(&s->exported, SPD_ID_NAME);
+	if (spd_id_addr == NULL) {
+		printf("Could not find %s in %s.\n", SPD_ID_NAME, s->obj);
+		return NULL;
+	}
+	for (i = 0 ; i < NUM_ATOMIC_SYMBS ; i++) {
+		atomic_addr = (vaddr_t)get_symb_address(&s->exported, ATOMIC_USER_DEF[i]);
+		if (atomic_addr != 0) {
+			spd->atomic_regions[i] = atomic_addr;
+		} else {
+			spd->atomic_regions[i] = 0;
+		}
+	}
+	
+	spd->num_caps = s->undef.num_symbs+1;
 	spd->ucap_tbl = (vaddr_t)ucap_tbl;
 	spd->lowest_addr = lowest_addr;
 	spd->size = size;
 	spd->upcall_entry = upcall_addr;
-	
+
 	spd->spd_handle = cos_create_spd(cos_fd, spd);
 	if (spd->spd_handle < 0) {
 		printf("Could not create spd %s\n", s->obj);
@@ -1286,6 +1436,16 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 	}
 	printf("spd %s created with handle %d.\n", s->obj, (unsigned int)spd->spd_handle);
 	*spd_id_addr = spd->spd_handle;
+
+	printf("\tFound ucap_tbl for component %s @ %p.\n", s->obj, ucap_tbl);
+	printf("\tFound cos_upcall for component %s @ %p.\n", s->obj, (void*)upcall_addr);
+	printf("\tFound spd_id address for component %s @ %p.\n", s->obj, spd_id_addr);
+	for (i = 0 ; i < NUM_ATOMIC_SYMBS ; i++) {
+		printf("\tFound %s address for component %s @ %p.\n", 
+		       ATOMIC_USER_DEF[i], s->obj, spd_id_addr);
+	}
+
+	s->extern_info = spd;
 
 	return spd;
 }
@@ -1307,83 +1467,10 @@ void make_spd_scheduler(int cntl_fd, struct spd_info *spd, struct service_symbs 
 	return;
 }
 
-/*
- * FIXME: all the exit(-1) -> return NULL, and handling in calling
- * function.
- */
-struct cap_info *create_invocation_cap(struct spd_info *from_spd, struct service_symbs *from_obj, 
-				       struct spd_info *to_spd, struct service_symbs *to_obj,
-				       int cos_fd, char *client_stub, char *server_stub, 
-				       char *server_fn, int flags)
-{
-	struct cap_info *cap;
-	struct symb_type *st = &from_obj->undef;
-
-	vaddr_t addr;
-	int i;
-	
-	cap = (struct cap_info *)malloc(sizeof(struct cap_info));
-	if (NULL == cap) {	
-	printf("Could not allocate memory for invocation capability.\n");
-		exit(-1);
-	}
-
-	/* find in what position the symbol was inserted into the
-	 * user-level capability table (which position was opted for
-	 * use), so that we can insert the information into the
-	 * correct user-capability. */
-	for (i = 0 ; i < st->num_symbs ; i++) {
-		if (strcmp(server_fn, st->symbs[i].name) == 0) {
-			break;
-		}
-	}
-	if (i == st->num_symbs) {
-		printf("Could not find the undefined symbol %s in %s.\n", 
-		       server_fn, from_obj->obj);
-		exit(-1);
-	}
-	
-	addr = (vaddr_t)get_symb_address(&to_obj->exported, server_stub);
-	if (addr == 0) {
-		printf("Could not find %s in %s.\n", server_stub, to_obj->obj);
-		exit(-1);
-	}
-	cap->SD_serv_stub = addr;
-	addr = (vaddr_t)get_symb_address(&from_obj->exported, client_stub);
-	if (addr == 0) {
-		printf("could not find %s in %s.\n", client_stub, from_obj->obj);
-		exit(-1);
-	}
-	cap->SD_cli_stub = addr;
-	addr = (vaddr_t)get_symb_address(&to_obj->exported, server_fn);
-	if (addr == 0) {
-		printf("could not find %s in %s.\n", server_fn, to_obj->obj);
-		exit(-1);
-	}
-	cap->ST_serv_entry = addr;
-	
-	cap->rel_offset = i+1; /* +1 for the automatically created return capability */
-	cap->owner_spd_handle = from_spd->spd_handle;
-	cap->dest_spd_handle = to_spd->spd_handle;
-//	cap->il = 0;
-	cap->il = 3;
-	cap->flags = flags;
-
-	cap->cap_handle = cos_spd_add_cap(cos_fd, cap);
- 	if (cap->cap_handle == 0) {
-		printf("Could not add capability # %d to %s (%d) for %s.\n", 
-		       cap->rel_offset, from_obj->obj, cap->owner_spd_handle, server_fn);
-		exit(-1);
-	}
-	
-	return cap;
-}
-
 static void setup_kernel(struct service_symbs *services)
 {
 	struct service_symbs *s = services, *c0 = NULL, *c1 = NULL, *c2 = NULL, *pc = NULL, *c3 = NULL, *c4 = NULL;
 	struct spd_info *spd0, *spd1, *spd2, *spd3, *spd4, *spdpc;
-	struct cap_info *cap1, *cap1_5, *cap2, *capyield, *capnothing, *cappc, *cappcvals, *cappcsched, *captodemo, *capdemo, *capdemoprint, *cap3print;
 
 	struct cos_thread_info thd;
 	int cntl_fd, ret;
@@ -1414,52 +1501,31 @@ static void setup_kernel(struct service_symbs *services)
 		exit(-1);
 	}
 
-	spd0 = create_spd(cntl_fd, c0, 2, 0, 0);
-	spd1 = create_spd(cntl_fd, c1, 5, c1->lower_addr, c1->size);
-	spd2 = create_spd(cntl_fd, c2, 2, c2->lower_addr, c2->size);
-	spd3 = create_spd(cntl_fd, c3, 2, c3->lower_addr, c3->size);
-	spd4 = create_spd(cntl_fd, c4, 1, c4->lower_addr, c4->size);
-	spdpc = create_spd(cntl_fd, pc, 0, pc->lower_addr, pc->size);
+	spd0 = create_spd(cntl_fd, c0, 0, 0);
+	spd1 = create_spd(cntl_fd, c1, c1->lower_addr, c1->size);
+	spd2 = create_spd(cntl_fd, c2, c2->lower_addr, c2->size);
+	spd3 = create_spd(cntl_fd, c3, c3->lower_addr, c3->size);
+	spd4 = create_spd(cntl_fd, c4, c4->lower_addr, c4->size);
+	spdpc = create_spd(cntl_fd, pc, pc->lower_addr, pc->size);
 
 	if (!spd0 || !spd1 || !spd2 || !spd3 || !spd4 || !spdpc) {
 		printf("Could not allocate all of the spds.\n");
 		exit(-1);
 	}
 
-	cap1  = create_invocation_cap(spd0, c0, spd2, c2, cntl_fd, 
-				      "SS_ipc_client_marshal_args", "sched_init_inv", "sched_init", 0);
-	cap1_5 = NULL; /*create_invocation_cap(spd0, c0, spdpc, pc, cntl_fd, 
-			 "SS_ipc_client_marshal_args", "print_vals_inv", "print_vals", 0);*/
-	cap2  = create_invocation_cap(spd1, c1, spd2, c2, cntl_fd, 
-				      "SS_ipc_client_marshal_args", "spd2_inv", "spd2_fn", 0/*CAP_SAVE_REGS*/); 
-	capyield  = create_invocation_cap(spd1, c1, spd2, c2, cntl_fd, 
-					  "SS_ipc_client_marshal_args", "yield_inv", "yield", 0/*CAP_SAVE_REGS*/); 
-	capnothing  = create_invocation_cap(spd1, c1, spd2, c2, cntl_fd, 
-					    "SS_ipc_client_marshal_args", "nothing_inv", "nothing", 0/*CAP_SAVE_REGS*/); 
-
-	captodemo  = create_invocation_cap(spd2, c2, spd3, c3, cntl_fd, 
-					  "SS_ipc_client_marshal_args", "bar_inv", "bar", 0/*CAP_SAVE_REGS*/); 
-	capdemo  = create_invocation_cap(spd3, c3, spd4, c4, cntl_fd, 
-					  "SS_ipc_client_marshal_args", "foo_inv", "foo", 0/*CAP_SAVE_REGS*/); 
-	cap3print  = create_invocation_cap(spd3, c3, spdpc, pc, cntl_fd, 
-					  "SS_ipc_client_marshal_args", "print_vals_inv", "print_vals", 0/*CAP_SAVE_REGS*/); 
-	capdemoprint  = create_invocation_cap(spd4, c4, spdpc, pc, cntl_fd, 
-					  "SS_ipc_client_marshal_args", "print_vals_inv", "print_vals", 0/*CAP_SAVE_REGS*/); 
-
-//	cappc = create_invocation_cap(spd1, c1, spdpc, pc, cntl_fd, 
-//				      "SS_ipc_client_marshal", "print_inv", "print", 0);
-	cappcvals = create_invocation_cap(spd1, c1, spdpc, pc, cntl_fd, 
-					  "SS_ipc_client_marshal_args", "print_vals_inv", "print_vals", 0);
-	cappcsched = create_invocation_cap(spd2, c2, spdpc, pc, cntl_fd, 
-					   "SS_ipc_client_marshal_args", "print_vals_inv", "print_vals", 0);
-
+	if (create_spd_capabilities(c0, spd0, cntl_fd) ||
+	    create_spd_capabilities(c1, spd1, cntl_fd) ||
+	    create_spd_capabilities(c2, spd2, cntl_fd) ||
+	    create_spd_capabilities(c3, spd3, cntl_fd) ||
+	    create_spd_capabilities(c4, spd4, cntl_fd) ||
+	    create_spd_capabilities(pc, spdpc, cntl_fd)) {
+		printf("Could not find all stubs.  Exiting.\n");
+		exit(-1);
+	}
 	
 	make_spd_scheduler(cntl_fd, spd2, c2, NULL);
 	make_spd_scheduler(cntl_fd, spd1, c1, spd2);
 	cos_demo_spds(cntl_fd, spd3->spd_handle, spd4->spd_handle);
-
-	printf("Test created cap %d, %d, and %d.\n\n", 
-	       (unsigned int)cap1->cap_handle, (unsigned int)cap2->cap_handle, (unsigned int)cappcvals->cap_handle);
 
 	thd.spd_handle = spd0->spd_handle;
 	thd.sched_handle = spd2->spd_handle;

@@ -38,14 +38,14 @@ kernel_ipc_syscall:
  * eax:	which capability, see comment in kern_entry.S:asym_exec_dom_entry
  * ecx:	ip
  * ebp:	sp
- * ebx,esi,edi:	arguments
- * should use edx as an additional argument as well.
+ * ebx,esi,edi,edx: arguments
  */
 .globl composite_call_ipc
 .align 32
 composite_call_ipc:	/* server_inv: */
 	/*pushl %ebp*/ /* user-sp: useful if using same stack */
 
+	pushl %edx /* cdecl makes it legal to use edx in called fn: save it */
 	/* room for the thdid and spdid */
 	subl $8, %esp
 	pushl %esp
@@ -76,6 +76,8 @@ composite_call_ipc:	/* server_inv: */
 	/* thd and data_region */
 	popl %eax
 	popl %ecx
+
+	popl %ebp /* 4th argument */
 
 	RET_TO_USER
 		
@@ -141,6 +143,43 @@ syscall_resume_err:
 #define COS_SYSCALL_EDX 20 /* Don't forget space for the return address */
 #define COS_SYSCALL_ECX 24
 
+
+.globl cos_syscall_brand_upcall
+.align 16
+cos_syscall_brand_upcall:
+	movl current_thread, %eax
+	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
+
+	movl $0, PT_EAX(%eax)   /* return 0 when we return from this thread */
+	movl %ebx, PT_EBX(%eax)
+	movl %ebp, PT_ECX(%eax) /* save the return sp, so that sysenter will jump to it */
+	movl %ecx, PT_EDX(%eax) /* save the return address (so that sysexit will return to it) */
+
+	/* save volatile registers, as defined by cdecl (including ebx above) */
+	movl %esi, PT_ESI(%eax)
+	movl %edi, PT_EDI(%eax)
+
+	pushl %esi
+	pushl %ebx
+	pushl %edx /* this spd_id */
+	call cos_syscall_brand_upcall_cont
+	addl $12, %esp
+
+	/* eax = thd to continue -- restore registers from previous yield, again */
+	movl PT_EBX(%eax), %ebx
+	movl PT_ECX(%eax), %ecx
+	movl %ecx, (COS_SYSCALL_ECX)(%esp) 
+	movl PT_EDX(%eax), %edx
+	movl %edx, (COS_SYSCALL_EDX)(%esp) 
+	movl PT_ESI(%eax), %esi
+	movl PT_EDI(%eax), %edi
+	movl PT_EAX(%eax), %eax
+		
+	ret
+
+
+	
+	
 /* FIXME: this is all superfluous: we save/restore all regs when in the 
    non-preemption case, user-level saves most of them anyway because of 
    the clobber list.  Lets just let user-level do it, and be done. */
@@ -149,9 +188,9 @@ syscall_resume_err:
 cos_syscall_switch_thread:
 	/* can use edx to pass in conditional for if we should save regs or not and term thread */
 	movl current_thread, %eax
-	addl $THD_REGS, %eax /* offsetof(struct thread, regs) */
+	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
 
-	movl %eax, PT_EAX(%eax) /* return 0 when we return from this thread */
+	movl $0, PT_EAX(%eax)   /* return 0 when we return from this thread */
 	movl %ebx, PT_EBX(%eax)
 	movl %ebp, PT_ECX(%eax) /* save the return sp, so that sysenter will jump to it */
 	movl %ecx, PT_EDX(%eax) /* save the return address (so that sysexit will return to it) */

@@ -12,81 +12,81 @@
 
 #include "../../../include/consts.h"
 #include "../../../include/cos_types.h"
+#include "cos_list.h"
 
-#define COS_THD_BLOCKED 0x1
-#define COS_THD_READY   0x2
-#define COS_THD_FREE    0x4
+#define THD_BLOCKED 0x1
+#define THD_READY   0x2
+#define THD_FREE    0x4
+#define THD_GRP     0x8  // is this thread a group of thds?
+#define THD_MEMBER  0x10 // is this thread part of a group?
 
 struct sched_accounting {
-	unsigned long quantum, res_used;
+	unsigned long C, T, C_used, T_left;
 };
 
-struct cos_thread;
-struct thread_group {
-	unsigned short int spd_id, status;
+struct sched_metric {
+	unsigned short int priority, urgency;
+};
+
+struct sched_thd {
+	unsigned short int flags;
+	unsigned short int thd_id;
 	struct sched_accounting accounting;
-	struct cos_thread *first, *last, *threads;
-	struct thread_group *next;
-	int num_thds;
+	struct sched_metric metric;
+	list_ptr_t list;
+	
+	/* If flags & THD_MEMBER */
+	struct sched_thd *group;
+
+	/* If flags & THD_GRP */
+	struct sched_thd *threads;
+	int nthds;
 };
 
-struct thd_grp_q {
-	struct thread_group *first, *last;
-};
+void sched_init_thd(struct sched_thd *thd, unsigned short int id, 
+		    unsigned short int sched_thd);
+void sched_init_thd_array(void); 
+struct sched_thd *sched_alloc_thd(void);
 
-struct cos_thread {
-	unsigned short int thd_id, priority, urgency, status;
-	struct sched_accounting accounting;
-	struct cos_thread *next;
-	struct thread_group *grp;
-};
+LIST_OPS_CREATE(sched_thd,,list)
 
-static inline void init_thd_grp(struct thread_group *grp, unsigned short int spd_id)
+#define SCHED_NUM_THREADS MAX_NUM_THREADS
+/* * 2 for thread groups */
+#define SCHED_NUM_EXECUTABLES (SCHED_NUM_THREADS * 2) 
+
+extern struct sched_thread **thd_map;
+
+/* --- Thread Mapping Utilities --- */
+
+static inline struct sched_thd *sched_get_mapping(unsigned short int thd_id)
 {
-	grp->spd_id = spd_id;
-	grp->first = grp->last = grp->threads
-}
-
-static inline void init_thread_array(struct cos_thread *thds, unsigned int num) {
-	int i;
-
-	for (i = 0 ; i < num ; i++) {
-		thds[i]->status = COS_THD_FREE;
+	if (thd_id >= SCHED_NUM_THREADS ||
+	    thd_map[thd_id] == NULL ||
+	    thd_map[thd_id].flags & THD_FREE) {
+		return NULL;
 	}
 
-	return;
+	return thd_map[thd_id];
 }
 
-static inline struct cos_thread *find_free_thd(struct cos_thread *thds, unsigned int num)
+static inline int sched_add_mapping(unsigned short int thd_id, struct sched_thd *thd)
 {
-	int i;
-
-	for (i = 0 ; i < num ; i++) {
-		struct cos_thread *thd = &thds[i];
-
-		if (thd->status & COS_THD_FREE) {
-			thd->status &= ~COS_THD_FREE;
-			return thd;
-		}
+	if (thd_id >= SCHED_NUM_THREADS ||
+	    thd_map[thd_id] != NULL) {
+		return -1;
 	}
 	
-	return NULL;
+	thd_map[thd_id] = thd;
+
+	return 0;
 }
 
-static inline void activate_thd_in_grp(struct thread_group *thd_grp, struct cos_thread *thd)
+static inline void sched_rem_mapping(unsigned short int thd_id)
 {
-	struct cos_thread *last_thd;
+	if (thd_id >= SCHED_NUM_THREADS) return;
 
-	last_thd = thd_grp->last;
-	if (!last_thd) 
-		last_thd->next = thd;
-	else
-		thd_grp->first = thd;
-
-	thd_grp->last = thd;
-	thd->next = NULL;
-	
-	return;
+	thd_map[thd_id] = NULL;
 }
 
+static inline void 
 #endif

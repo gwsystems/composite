@@ -37,6 +37,7 @@
 #include "include/ipc.h"
 #include "include/thread.h"
 #include "include/measurement.h"
+#include "include/mmap.h"
 
 MODULE_LICENSE("GPL");
 #define MODULE_NAME "asymmetric_execution_domain_support"
@@ -975,6 +976,7 @@ void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from,
 void copy_pgtbl(phys_addr_t pt_to, phys_addr_t pt_from);
 extern int copy_mm(unsigned long clone_flags, struct task_struct * tsk);
 void print_valid_pgtbl_entries(phys_addr_t pt);
+extern struct thread *ready_boot_thread(struct spd *init);
 
 static int aed_ioctl(struct inode *inode, struct file *file,
 		     unsigned int cmd, unsigned long arg)
@@ -1359,7 +1361,7 @@ free_dummy:
 			return -EINVAL;
 		}
 
-		thd = thd_alloc(spd);
+		thd = ready_boot_thread(spd);
 
 		spd = spd_get_by_index(thread_info.sched_handle);
 		if (!spd) {
@@ -1372,13 +1374,6 @@ free_dummy:
 		tsi = thd_get_sched_info(thd, 0);
 		tsi->scheduler = spd;
 		tsi->urgency = 255;
-
-		if (!thd) {
-			printk("cos: Could not allocate thread.\n");
-			return -ENOMEM;
-		}
-
-		thd_set_current(thd);
 
 		/* FIXME: need to return opaque handle, rather than
 		 * just set the current thread to be the new one. */
@@ -1693,7 +1688,7 @@ static inline unsigned long change_page_fault_handler(void *new_handler)
 	return previous_fault_handler;
 }
 
-//#define DEBUG_PAGE_FAULTS
+//#define FAULT_DEBUG
 /*
  * Called from page_fault_interposition in kern_entry.S.  Interrupts
  * disabled...dont block!  Can assume current_active_guest is accessed
@@ -1718,7 +1713,11 @@ static inline unsigned long change_page_fault_handler(void *new_handler)
 static unsigned long fault_addrs[NUM_BUCKETS];
 #endif
 
-void main_page_fault_interposition(void)
+/*
+ * This function will be called upon a hardware page fault.  Return 0
+ * if you want the linux page fault to be run, !0 otherwise.
+ */
+int main_page_fault_interposition(void)
 {
 	unsigned long fault_addr;
 	int virt_sys;
@@ -1730,19 +1729,6 @@ void main_page_fault_interposition(void)
 	int present;
 	struct pt_regs *regs = NULL;
 	
-	fault_addr = read_cr2();
-	//__asm__("movl %%cr2,%0":"=r" (fault_addr));
-	curr_mm = get_task_mm(current);
-	if (!down_read_trylock(&curr_mm->mmap_sem)) {
-		/* 
-		 * Screwed here if we are in the kernel, and we have
-		 * an error to be resoved by exception tables.  Let
-		 * Linux deal with it, which should be fine anyway.
-		 */
-		return;
-	}
-	vma = find_vma(curr_mm, fault_addr);
-
 	/*
 	 * We want to allow composite to handle the fault if we are in
 	 * the composite thread and either the fault was outside the
@@ -1750,21 +1736,46 @@ void main_page_fault_interposition(void)
 	 * address.
 	 */
 	if (composite_thread != current) {
-		goto fault_exit;
+		goto linux_handler;
 	}
 
+	fault_addr = read_cr2();
+
+	//__asm__("movl %%cr2,%0":"=r" (fault_addr));
+	curr_mm = get_task_mm(current);
+	if (!down_read_trylock(&curr_mm->mmap_sem)) {
+		/* 
+		 * The semaphore can only be taken while code is
+		 * executing in the kernel.  If a page fault occurs in
+		 * the kernel, then we shouldn't be dealing with it in
+		 * Composite as it is due to either 1) an error: let
+		 * Linux send the kill signal, or 2) a fault that will
+		 * be resolved by the exception tables.
+		 */
+		goto linux_handler_put;
+	}
+
+	/* 
+	 * The composite current thread will only be null if we have
+	 * not completely initialized composite yet, but we need to
+	 * check for this.
+	 */
 	thd = thd_get_current();
 	if (NULL == thd) {
 		cos_meas_event(COS_UNKNOWN_FAULT);
-		goto fault_exit;
+		goto linux_handler_release;
 	}
 	poly = thd_get_thd_spdpoly(thd);
 	present = !pgtbl_entry_absent(poly->pg_tbl, fault_addr);
-	
-	if (present && vma) {
+
+#ifdef FAULT_DEBUG
+	fault_addrs[BUCKET_HASH(fault_addr)]++;
+#endif
+	vma = find_vma(curr_mm, fault_addr);
+	if (present && vma && vma->vm_start <= fault_addr) {
 		/* let the linux fault handler deal with it */
 		cos_meas_event(COS_LINUX_PG_FAULT);
-		goto fault_exit;
+		goto linux_handler_release;
 	}
 	/* 
 	 * If we're handling a cos fault, we don't need to the
@@ -1776,16 +1787,23 @@ void main_page_fault_interposition(void)
 	regs = get_user_regs_thread(composite_thread);
 	cos_handle_page_fault(thd, thd_get_thd_spdpoly(thd), fault_addr, regs);
 
-fault_exit:
+	return 1;
+linux_handler_release:
 	up_read(&curr_mm->mmap_sem);
-
-	return;
+linux_handler_put:
+	mmput(curr_mm);
+linux_handler:
+	/* change this when 1) kern_entry.S is fixed, and 2)
+	 * cos_handle_page_fault places the correct thread to run and
+	 * page tables to the fault handler thread. 
+	 */
+	return /*0*/1; 
 
 	/* hijack crap to follow ----> */
 	
 	/* normal process page fault */
 	if (!test_thread_flag(TIF_HIJACK_ENV))
-		return;
+		return 0;
 
 	virt_sys = test_thread_flag(TIF_VIRTUAL_SYSCALL);
 
@@ -1801,7 +1819,7 @@ fault_exit:
 		 * need spinlock for multi.  */
 		current->mm = trusted_mm;
 		current->active_mm = trusted_mm;
-#ifdef DEBUG_PAGE_FAULTS
+#ifdef FAULT_DEBUG
 		// printk is actually freezing the machine...why!!!???
 		printk("cos: fault in executive @ %x.\n", (unsigned int)fault_addr);
 #endif
@@ -1815,7 +1833,7 @@ fault_exit:
 	else /*if (!(fault_addr >= trusted_mem_limit &&
 		   fault_addr < trusted_mem_limit+trusted_mem_size) &&
 		   current->mm == trusted_mm)*/ {
-#ifdef DEBUG_PAGE_FAULTS
+#ifdef FAULT_DEBUG
 		printk("cos: fault in guest (%x->%x) @ %x.\n", 
 		       (unsigned int)current->mm, (unsigned int)current_active_guest, 
 		       (unsigned int)fault_addr);
@@ -1827,7 +1845,7 @@ fault_exit:
 		} /* else -> fault implied */
 	}
 		
-	return;
+	return 0;
 }
 
 /*
@@ -1905,6 +1923,47 @@ static inline pte_t *pgtbl_lookup_address(phys_addr_t pgtbl, unsigned long addr)
 	if (pmd_large(*pmd))
 		return (pte_t *)pmd;
         return pte_offset_kernel(pmd, addr);
+}
+
+#ifdef NIL
+void pgtbl_print_tree(phys_addr_t pgtbl, unsigned long addr)
+{
+	pgd_t *pt = ((pgd_t *)pa_to_va((void*)pgtbl)) + pgd_index(addr);
+	pte_t *pe = pgtbl_lookup_address(pgtbl, addr);
+	
+	if (!pt || !pe) {
+		printk("cos: printing page table error, NULL found\n");
+	} else {
+		printk("cos: pgd entry -- %x, pte entry -- %x\n", 
+		       pgd_val(*pt), pte_val(*pe));
+	}
+
+	return;
+}
+#endif
+
+int pgtbl_add_entry(phys_addr_t pgtbl, unsigned long vaddr, unsigned long paddr)
+{
+	pte_t *pte = pgtbl_lookup_address(pgtbl, vaddr);
+
+	if (!pte || pte_val(*pte) & _PAGE_PRESENT) {
+		return -1;
+	}
+	/*pte_val(*pte)*/pte->pte_low = paddr | (_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
+
+	return 0;
+}
+
+int pgtbl_rem_entry(phys_addr_t pgtbl, unsigned long vaddr)
+{
+	pte_t *pte = pgtbl_lookup_address(pgtbl, vaddr);
+
+	if (!pte || !(pte_val(*pte) & _PAGE_PRESENT)) {
+		return -1;
+	}
+	/*pte_val(*pte)*/pte->pte_low &= ~_PAGE_PRESENT;
+
+	return 0;
 }
 
 vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr)
@@ -2013,6 +2072,29 @@ void copy_pgtbl_range_nocheck(phys_addr_t pt_to, phys_addr_t pt_from,
 void copy_pgtbl(phys_addr_t pt_to, phys_addr_t pt_from)
 {
 	copy_pgtbl_range_nocheck(pt_to, pt_from, 0, 0xFFFFFFFF);
+}
+
+/*
+ * If for some reason Linux preempts the composite thread, then when
+ * it starts it back up again, it needs to know what page tables to
+ * use.  Thus update the current mm_struct.
+ */
+void switch_host_pg_tbls(phys_addr_t pt)
+{
+	struct mm_struct *mm;
+
+	BUG_ON(!composite_thread);
+	/* 
+	 * We aren't doing reference counting here on the mm (via
+	 * get_task_mm) because we know that this mm will survive
+	 * until the module is unloaded (i.e. it is refcnted at a
+	 * granularity of the creation of the composite file
+	 * descriptor open/close.)
+	 */
+	mm = composite_thread->mm;
+	mm->pgd = (pgd_t *)pa_to_va((void*)pt);
+
+	return;
 }
 
 /***** begin timer handling *****/
@@ -2134,19 +2216,38 @@ static void deregister_timers(void)
 }
 
 /***** end timer handling *****/
+extern unsigned int shared_region_page[1024], shared_data_page[1024];
 
-unsigned long *data_pages;
-void switch_thread_data_page(int old_thd, int new_thd)
+void thd_publish_data_page(struct thread *thd, vaddr_t page)
 {
-	/* unmap the current thread */
-	shared_region_pte[old_thd+1].pte_low &= ~_PAGE_PRESENT;
-	/* map in the new thread */
-	shared_region_pte[new_thd+1].pte_low |= _PAGE_PRESENT;
+	unsigned int id = thd_get_id(thd);
+
+	//assert(0 != id && 0 == (page & ~PAGE_MASK));
+
+	//printk("cos: shared_region_pte is %p, page is %x.\n", shared_region_pte, page);
+	/* _PAGE_PRESENT is not set */
+	((pte_t*)shared_region_page)[id].pte_low = (vaddr_t)va_to_pa((void*)page) |
+		(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);; 
 
 	return;
 }
 
-#define DATA_PAGE_ORDER 3 /* log(MAX_NUM_THREADS+1) */
+void switch_thread_data_page(int old_thd, int new_thd)
+{
+	assert(0 != old_thd && 0 != new_thd);
+
+	/*
+	 * Use shared_region_page here to avoid a cache miss going
+	 * through a level of indirection for a pointer.
+	 *
+	 * unmap the current thread map in the new thread
+	 */
+	((pte_t*)shared_region_page)[old_thd].pte_low &= ~_PAGE_PRESENT;
+	((pte_t*)shared_region_page)[new_thd].pte_low |= _PAGE_PRESENT;
+
+	return;
+}
+
 /*
  * Opening the aed device signals the intended use of the Composite
  * operating system along side the currently executing Linux.  Thus,
@@ -2156,9 +2257,9 @@ void switch_thread_data_page(int old_thd, int new_thd)
 static int aed_open(struct inode *inode, struct file *file)
 {
 	pte_t *pte = lookup_address_mm(current->mm, COS_INFO_REGION_ADDR);
-	unsigned long pages, pte_page, *pages_ptr, *region_ptr;
+	unsigned long *region_ptr;
 	pgd_t *pgd;
-	int i;
+	void* data_page;
 
 	if (composite_thread != NULL || composite_union_mm != NULL) {
 		printk("cos: Composite subsystem already used by %d.\n", composite_thread->pid);
@@ -2179,62 +2280,72 @@ static int aed_open(struct inode *inode, struct file *file)
 	kern_mm = aed_get_mm(kern_handle);
 	kern_pgtbl_mapping = (vaddr_t)kern_mm->pgd;
 
-	thd_init();
-	spd_init();
-	ipc_init();
-
-	/* 
-	 * FIXME: memory leaks when returning;
-	 */
-
 	/*
-	 * The following breaks with linux conventions regarding
-	 * virtual address space layout, rmappings, etc...  This is
-	 * necessary to support Composite as a first-class
-	 * abstraction.  It also assumes x86 with 2 level page tables
-	 * (i.e. no pud/pmd due to pae, etc.).
+	 * This is really and truly crap, because of Linux.  Linux has
+	 * 4 address namespaces, it seems and I was only aware of 3.
+	 * 1) physical, 2) kernel virtual, 3) user-level virtual, and
+	 * 4) module code and data virtual (roundabout 0xf88...).  If
+	 * we want to use a page size region in a module's dataspace
+	 * (so that we can access the memory directly without
+	 * indirection through a variable), we need to convert using
+	 * the page tables, the module virtual address to a physical
+	 * address, then to a kernel virtual, so that we can
+	 * manipulate it and use __pa on it (without __pa throwing up)
+	 *
+	 * I'm sure Linux guys (to over-generalize) will scream that
+	 * using regions of static memory in my module for page-tables
+	 * is horrible, but they would also probably agree that they
+	 * aren't familar with the types of optimizations you need to
+	 * go through to make a microkernel fast: They'd probably
+	 * spend most of their time complaining about microkernels as
+	 * being horrible instead.
 	 */
-	pte_page = __get_free_pages(GFP_KERNEL, 0);
-	if (pte_page == 0) {
-		return -ENOMEM;
-	}
-
-	pages = __get_free_pages(GFP_KERNEL, DATA_PAGE_ORDER);
-	if (pages == 0) {
-		return -ENOMEM;
-	}
-	data_pages = pages_ptr = (unsigned long *)pages;
-
-	/* record the virtual address of the shared pte */
-	shared_region_pte = (pte_t *)pte_page;
+	shared_region_pte = (pte_t *)pgtbl_vaddr_to_kaddr((phys_addr_t)va_to_pa(current->mm->pgd), 
+							  (unsigned long)shared_region_page);
 	if (((unsigned long)shared_region_pte & ~PAGE_MASK) != 0) {
 		printk("Allocated page for shared region not page aligned.\n");
 		return -EFAULT;
 	}
 	memset(shared_region_pte, 0, PAGE_SIZE);
 
+	/* hook in the data page */
+	data_page = va_to_pa((void *)pgtbl_vaddr_to_kaddr((phys_addr_t)va_to_pa(current->mm->pgd), 
+							   (unsigned long)shared_data_page));
+	shared_region_pte[0].pte_low = (unsigned long)(data_page) |
+		(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
 	/* hook up the actual virtual memory pages to the pte
 	 * protection mapping equivalent to PAGE_SHARED */
-	for (i = 0 ; i < MAX_NUM_THREADS+1 ; i++) { /* +1 for the info page */
+/*	for (i = 0 ; i < MAX_NUM_THREADS+1 ; i++) { 
 		shared_region_pte[i].pte_low = (unsigned long)(__pa(pages_ptr+(PAGE_SIZE*i))) | 
 			(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
 	}
-
+*/
 	/* Where in the page directory should the pte go? */
 	pgd = pgd_offset(current->mm, COS_INFO_REGION_ADDR);
-
 	if (pgd_none(*pgd)) {
 		printk("Could not get pgd_offset.\n");
 		return -EFAULT;
 	}
-
 	/* hook up the pte to the pgd */
 	pgd->pgd = (unsigned long)(__pa(shared_region_pte)) | _PAGE_TABLE;
 
+	/* 
+	 * This is used to copy valid (linux) kernel mappings into a
+	 * new mpd.  Copy shared region too.
+	 */
+	pgd = pgd_offset(kern_mm, COS_INFO_REGION_ADDR);
+	if (pgd_none(*pgd)) {
+		printk("Could not get pgd_offset in the kernel map.\n");
+		return -EFAULT;
+	}
+	pgd->pgd = (unsigned long)(__pa(shared_region_pte)) | _PAGE_TABLE;
+
+	printk("cos: info region @ %d(%x)\n", 
+	       COS_INFO_REGION_ADDR, COS_INFO_REGION_ADDR);
+
 #define MAGIC_VAL_TEST 0xdeadbeef
 
-	/* test the mapping */
-	*pages_ptr = MAGIC_VAL_TEST;
+	*shared_data_page = MAGIC_VAL_TEST;
 	region_ptr = (unsigned long *)COS_INFO_REGION_ADDR;
 	if (*region_ptr != MAGIC_VAL_TEST) {
 		printk("cos: Mapping of the cos shared region didn't work.\n");
@@ -2243,6 +2354,11 @@ static int aed_open(struct inode *inode, struct file *file)
 		printk("cos: Mapping of shared region worked: %x.\n", 
 		       (unsigned int)*region_ptr);
 	}
+	
+	thd_init();
+	spd_init();
+	ipc_init();
+	cos_init_memory();
 
 	register_timers();
 	cos_meas_init();
@@ -2285,9 +2401,10 @@ static int aed_release(struct inode *inode, struct file *file)
 	/* our garbage collection mechanism: all at once when the cos
 	 * system control fd is closed */
 	thd_free(thd_get_current());
-	thd_init();
+ 	thd_init();
 	spd_free_all();
 	ipc_init();
+	cos_shutdown_memory();
 	composite_thread = NULL;
 
 	cos_meas_report();
@@ -2301,9 +2418,6 @@ static int aed_release(struct inode *inode, struct file *file)
 	 */
 	pgd = pgd_offset(composite_union_mm, COS_INFO_REGION_ADDR);
 	memset(pgd, 0, sizeof(int));
-
-	__free_pages(virt_to_page(shared_region_pte), 0);
-	__free_pages(virt_to_page(data_pages), DATA_PAGE_ORDER);
 
 	/* 
 	 * Keep the mm_struct around till we have gotten rid of our

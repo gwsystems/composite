@@ -8,6 +8,7 @@
 //#include <spd.h>
 #include "include/spd.h"
 #include "include/debug.h"
+#include "include/page_pool.h"
 #include <linux/kernel.h>
 
 /* 
@@ -276,6 +277,8 @@ void spd_free_all(void)
 {
 	int i;
 	
+	clear_pg_pool();
+
 	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
 		if (!(spds[i].spd_info.flags & SPD_FREE)) {
 			spd_free_mm(&spds[i]);
@@ -395,6 +398,11 @@ int spd_set_location(struct spd *spd, unsigned long lowest_addr,
 	spd->location.lowest_addr = lowest_addr;
 	spd->location.size = size;
 
+	/* 
+	 * We need to reference the kernel virtual address, not user
+	 * virtual as we might need to alter this while not in the
+	 * spd's page tables (i.e. when merging protection domains).
+	 */
 	kaddr = pgtbl_vaddr_to_kaddr(pg_tbl, (unsigned long)spd->user_vaddr_cap_tbl);
 	if (0 == kaddr) {
 		printk("cos: could not translate the user-cap address into a kernel vaddr.\n");
@@ -493,89 +501,21 @@ unsigned int spd_add_static_cap_extended(struct spd *owner_spd, struct spd *trus
 	return cap_num;
 }
 
-extern void *cos_alloc_page(void);
 extern void *va_to_pa(void *va);
 extern void *pa_to_va(void *pa);
+
+extern void zero_pgtbl_range(phys_addr_t pt, unsigned long lower_addr, unsigned long size);
+extern void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from,
+			     unsigned long lower_addr, unsigned long size);
+extern int pgtbl_entry_absent(phys_addr_t pt, unsigned long addr);
 
 struct composite_spd mpd_descriptors[MAX_MPD_DESC];
 struct composite_spd *mpd_freelist;
 
-/* we're going to have a page-pool as well */
-struct page_list {
-	struct page_list *next;
-} page_list_head;
-unsigned int page_list_len = 0;
-
-extern vaddr_t kern_pgtbl_mapping;
-extern void zero_pgtbl_range(phys_addr_t pt, unsigned long lower_addr, unsigned long size);
-extern void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from,
-			     unsigned long lower_addr, unsigned long size);
-extern void copy_pgtbl_range_nocheck(phys_addr_t pt_to, phys_addr_t pt_from,
-				     unsigned long lower_addr, unsigned long size);
-extern int pgtbl_entry_absent(phys_addr_t pt, unsigned long addr);
-
-static struct page_list *cos_get_pg_pool(void)
-{
-	struct page_list *page;
-
-	/*
-	 * If we ran out of pages in our cache, allocate another, and
-	 * copy the kernel page table mappings into it, otherwise,
-	 * take a page out of our cache.
-	 */
-	if (NULL == page_list_head.next) {
-		page = cos_alloc_page();
-		if (NULL == page) return NULL;
-
-		copy_pgtbl_range_nocheck((phys_addr_t)va_to_pa(page), 
-					 (phys_addr_t)va_to_pa((void*)kern_pgtbl_mapping),
-					 0, 0xFFFFFFFF);
-	} else {
-		page = page_list_head.next;
-		page_list_head.next = page->next;
-		page_list_len--;
-		page->next = NULL;
-
-		/* 
-		 * FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
-		 *
-		 * This should NOT be done.  We should clear out all
-		 * the spd entries individually when the page table is
-		 * released, instead of going through the _entire_
-		 * page and clearing it with interrupts disabled.  But
-		 * till we do this the right way, this ensures
-		 * correctness.
-		 *
-		 * FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
-		 */
-		copy_pgtbl_range_nocheck((phys_addr_t)va_to_pa(page), 
-					 (phys_addr_t)va_to_pa((void*)kern_pgtbl_mapping),
-					 0, 0xFFFFFFFF);
-	}
-
-	cos_meas_event(COS_ALLOC_PGTBL);
-
-	return page;
-}
-
-static void cos_put_pg_pool(struct page_list *page)
-{
-	page->next = page_list_head.next;
-	page_list_head.next = page;
-	page_list_len++;
-
-	/* arbitary test, but this is an error case I would like to be able to catch */
-	assert(page_list_len < 1024);
-
-	cos_meas_event(COS_FREE_PGTBL);
-
-	return;
-}
-
 void spd_init_mpd_descriptors(void)
 {
 	int i;
-	struct page_list *page;
+//	struct page_list *page;
 
 	mpd_freelist = mpd_descriptors;
 	for (i = 0 ; i < MAX_MPD_DESC ; i++) {
@@ -589,10 +529,11 @@ void spd_init_mpd_descriptors(void)
 	mpd_descriptors[MAX_MPD_DESC-1].freelist_next = NULL;
 
 	/* put one page into the page pool */
+/*
 	page = cos_get_pg_pool();
 	assert(NULL != page);
 	cos_put_pg_pool(page);
-
+*/
 	return;
 }
 
@@ -611,6 +552,10 @@ short int spd_mpd_index(struct composite_spd *cspd)
 
 	return idx;
 }
+
+extern vaddr_t kern_pgtbl_mapping;
+extern void copy_pgtbl_range_nocheck(phys_addr_t pt_to, phys_addr_t pt_from,
+				     unsigned long lower_addr, unsigned long size);
 
 short int spd_alloc_mpd_desc(void)
 {
@@ -640,10 +585,24 @@ short int spd_alloc_mpd_desc(void)
 		return -1;
 	}
 
+	/* 
+	 * FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+	 *
+	 * This should NOT be done.  We should clear out all the spd
+	 * entries individually when the page table is released,
+	 * instead of going through the _entire_ page and clearing it
+	 * with interrupts disabled.  But till we do this the right
+	 * way, this ensures correctness.
+	 *
+	 * FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+	 */
+	copy_pgtbl_range_nocheck((phys_addr_t)va_to_pa(page), 
+				 (phys_addr_t)va_to_pa((void*)kern_pgtbl_mapping),
+				 0, 0xFFFFFFFF);
+	assert(!pgtbl_entry_absent((phys_addr_t)va_to_pa(page), COS_INFO_REGION_ADDR));
+
 	cos_ref_take(&new->spd_info.ref_cnt);
 	new->spd_info.pg_tbl = (phys_addr_t)va_to_pa(page);
-
-	//printk("cos: allocating cspd %d for use.\n", spd_mpd_index(new));
 	
 	return spd_mpd_index(new);
 }

@@ -5,10 +5,10 @@
 /* delivered to the server service all calls are demuxed through here
    so that we can have a uniform infrastructure for returning (through 
    ipc_server_ret_marshal) */
-.globl spd2_inv
-.type  spd2_inv, @function
+.globl spd2_fn_inv
+.type  spd2_fn_inv, @function
 .align 16
-spd2_inv:
+spd2_fn_inv:
 	movl $cos_static_stack, %esp
 	movl %eax, %ebp
 	shl $12, %ebp /* 4K stacks */

@@ -162,14 +162,14 @@ struct spd {
 	unsigned short int cap_base, cap_range;
 	/*
 	 * user_cap_tbl is a pointer to the virtual address within the
-	 * kernel address space of hte user level capability table,
+	 * kernel address space of the user level capability table,
 	 * while user_vaddr_cap_tbl is a pointer into actual
 	 * component-space.
 	 */
 	struct usr_inv_cap *user_cap_tbl, *user_vaddr_cap_tbl;
 
 	/* if this service is a scheduler, at what depth is it, and
-	 * who's its parent? */
+	 * who's its parent? sched_depth < 0 if not schedulert */
 	int sched_depth;
 	struct spd *parent_sched;
 
@@ -207,6 +207,10 @@ unsigned int spd_add_static_cap_extended(struct spd *spd, struct spd *trusted_sp
 					 isolation_level_t isolation_level, int flags);
 isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int flags);
 int cap_is_free(int cap_num);
+static inline int spd_is_scheduler(struct spd *spd)
+{
+	return spd->sched_depth >= 0;
+}
 
 static inline int spd_is_member(struct spd *spd, struct composite_spd *cspd)
 { 

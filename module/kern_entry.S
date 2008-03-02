@@ -228,7 +228,8 @@ ENTRY(page_fault_interposition)
 	/*
 	 * we don't want our function to muck with the previously 
 	 * active registers, so save them...  Note that the stack 
-	 * already contains cs, ds, flags, sp and eip.
+	 * already contains cs, ds, flags, sp and eip.  This 
+	 * format matches SAVE_ALL and struct pt_regs.
 	 */
 	pushl %es
 	pushl %ds
@@ -253,6 +254,11 @@ not_composite_pf:
 	jz normal_pf
 */
 	call main_page_fault_interposition
+	test %eax, %eax
+	jne normal_pf
+	RESTORE_REGS
+	iret
+
 	/* restore the saved regs before we call the linux handler */
 normal_pf:	
 	RESTORE_REGS

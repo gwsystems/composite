@@ -1,6 +1,8 @@
-/* 
- * Author: Gabriel Parmer
- * License: GPLv2
+/**
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
  */
 
 #ifndef CONSTS_H
@@ -13,6 +15,9 @@
 struct pt_regs { int dummy[16]; };
 #endif
 
+#define MAX_SERVICE_DEPTH 31
+#define MAX_NUM_THREADS 7
+#define MAX_SCHED_HIER_DEPTH 4
 
 #define PAGE_MASK (~(PAGE_SIZE-1))
 #define PGD_RANGE (1<<22)
@@ -27,11 +32,15 @@ struct pt_regs { int dummy[16]; };
 #define CACHE_LINE (32)
 #define CACHE_ALIGNED __attribute__ ((aligned (CACHE_LINE)))
 #define HALF_CACHE_ALIGNED __attribute__ ((aligned (CACHE_LINE/2)))
+#define PAGE_ALIGNED __attribute__ ((aligned(PAGE_SIZE)))
 
 #define SHARED_REGION_START (1<<30)  // 1 gig
 #define SHARED_REGION_SIZE PGD_RANGE
 #define SERVICE_START (SHARED_REGION_START+SHARED_REGION_SIZE)
 /* size of virtual address spanned by one pgd entry */
 #define SERVICE_SIZE PGD_RANGE
+#define COS_INFO_REGION_ADDR SHARED_REGION_START
+#define COS_DATA_REGION_LOWER_ADDR (COS_INFO_REGION_ADDR+PAGE_SIZE)
+#define COS_DATA_REGION_MAX_SIZE (MAX_NUM_THREADS*PAGE_SIZE)
 
 #endif

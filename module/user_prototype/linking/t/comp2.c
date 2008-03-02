@@ -1,6 +1,6 @@
 #include <cos_component.h>
 
-extern int print_vals(int a, int b, int c);
+extern int print_vals(int a, int b, int c, int d);
 
 void nothing(void)
 {
@@ -48,7 +48,7 @@ void thread_tramp(void *data)
 	test_id = cos_get_thd_id();
 
 	if (test_id != c_id) {
-		print_vals(6, test_id, c_id);
+		print_vals(6, test_id, c_id, 1234);
 	}
 
 	cos_upcall(1);
@@ -62,24 +62,37 @@ void thread_tramp(void *data)
 #define LOWER 2
 #define UPPER 3
 
+static inline unsigned int strlen(char *s)
+{
+	unsigned int i;
+	for (i = 0 ; s[i] != '\0' ; i++) ;
+	return i;
+}
+
 int spd2_fn(void)
 {
 	unsigned int i;
+	char *s = cos_get_arg_region();
+	char f[] = "hello world\n";
 
+	cos_memcpy(s, f, sizeof(f));
+	print_vals(1, 2, 3, 4);
+	print_vals(cos_get_thd_id(), cos_get_arg_region(), sizeof(f), 4321);
 	//print_vals((int)&i,6,6);
 	thd_id = cos_get_thd_id();
 	curr_thd = thd_id;
 
 	new_thd1 = cos_create_thread(thread_tramp, get_stack_addr(LOWER), (void*)LOWER);
-
+	print_vals(new_thd1, new_thd1, new_thd1, new_thd1);
 	if (new_thd1 != LOWER) {
-		print_vals(7, new_thd1, 1);
+		print_vals(7, new_thd1, 1, 1);
 	}
 
 	new_thd2 = cos_create_thread(thread_tramp, get_stack_addr(UPPER), (void*)UPPER);
+	print_vals(new_thd2, new_thd2, new_thd2, new_thd2);
 
 	if (new_thd2 != UPPER) {
-		print_vals(7, new_thd2, 1);
+		print_vals(7, new_thd2, 1, 1);
 	}
 
 	other_thd = new_thd1;
@@ -90,7 +103,7 @@ int spd2_fn(void)
 //	bthd = cos_brand(0, COS_BRAND_CREATE);
 //	cos_brand(bthd, COS_BRAND_ADD_THD);
 
- 	for (i = 0 ; i < 10000 ; i++) {
+ 	for (i = 0 ; i < 100000 ; i++) {
 		yield(thd_id);
 	}
 
@@ -104,14 +117,13 @@ int run_demo(void)
 	int i, j;
 
 	for (i = 0 ; i < 6 ; i++) {
-		for (j = 0 ; j < 5 ; j++) {
+		for (j = 0 ; j < 6 ; j++) {
 			bar(i, j);
 		}
 		//print_vals(7337, 0, 2);
 		cos_mpd_cntl(COS_MPD_DEMO);
 		//print_vals(7337, 1, 2);
 	}
-	
 	return i;
 }
 
@@ -130,7 +142,8 @@ int sched_init(void)
 
 	//print_vals((int)&ret,6,6);
 	//ret = spd2_fn();
-	ret = run_demo();
+//	ret = run_demo();
+	ret = spd2_fn();
 	
 	//print_vals(6,6,6);
 	nothing_var++;

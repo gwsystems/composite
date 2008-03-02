@@ -29,14 +29,13 @@ print_inv:
 .align 16
 print_vals_inv:
 	movl $cos_static_stack, %esp
-	movl %eax, %ebp
-	shl $12, %ebp /* 4K stacks */
-	addl %ebp, %esp
+	shl $12, %eax /* 4K stacks */
+	addl %eax, %esp
 
+	pushl %ebp
 	pushl %edi
 	pushl %esi
 	pushl %ebx
-	pushl %eax
 	call print_vals
 	/* addl $16, %esp <- no need to clean up */
 	

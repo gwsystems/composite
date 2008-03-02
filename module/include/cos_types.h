@@ -1,8 +1,21 @@
+/**
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ */
+
 #ifndef TYPES_H
 #define TYPES_H
 
 #include "debug.h"
 #include "measurement.h"
+
+struct shared_user_data {
+	unsigned int current_thread;
+	void *argument_region;
+	unsigned int current_cpu;
+};
 
 struct cos_sched_next_thd {
 	unsigned short int next_thd_id, next_thd_flags;
@@ -37,10 +50,17 @@ typedef unsigned long phys_addr_t;
 typedef unsigned long vaddr_t;
 typedef unsigned int page_index_t;
 
-/* operations for cos_brand */
+/* operations for cos_brand_cntl and cos_brand_upcall */
 enum { 
+	/* cos_brand_cntl -> */
 	COS_BRAND_CREATE, 
-	COS_BRAND_ADD_THD 
+	COS_BRAND_ADD_THD,
+
+	/* cos_brand_upcall -> */
+	COS_BRAND_TAILCALL, /* tailcall brand to upstream spd
+			     * (don't maintain this flow of control) */
+	COS_BRAND_ASYNC,    /* async brand while maintaining control */
+	COS_BRAND_UPCALL    /* continue executing an already made brand */
 };
 
 /* operations for cos_sched_cntl */
@@ -49,6 +69,7 @@ enum {
 	COS_SCHED_GRANT_SCHED, 
 	COS_SCHED_REVOKE_SCHED
 };
+#define COS_THD_SCHED_RETURN 0x20 /* do not modify without modifying thread.h */
 
 struct mpd_split_ret {
 	short int new, old;
@@ -71,7 +92,10 @@ enum {
 //	COS_MPD_ISOLATE
 };
 
-#define COS_THD_SCHED_RETURN 0x20 /* do not modify without modifying thread.h */
+enum {
+	COS_MMAP_GRANT,
+	COS_MMAP_REVOKE
+};
 
 #define IL_INV_UNMAP (0x1) // when invoking, should we be unmapped?
 #define IL_RET_UNMAP (0x2) // when returning, should we unmap?

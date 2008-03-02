@@ -9,13 +9,32 @@
 #include "include/spd.h"
 #include "include/debug.h"
 #include "include/measurement.h"
+#include "include/mmap.h"
 
 #include <linux/kernel.h>
+
+/* 
+ * These are the 1) page for the pte for the shared region and 2) the
+ * page to hold general data including cpuid, thread id, identity
+ * info, etc...  These are placed here so that we don't have to go
+ * through a variable to find their address, so that lookup and
+ * manipulation are quick.
+ */
+unsigned int shared_region_page[1024] PAGE_ALIGNED;
+unsigned int shared_data_page[1024] PAGE_ALIGNED;
+
+static inline struct shared_user_data *get_shared_data(void)
+{
+	return (struct shared_user_data*)shared_data_page;
+}
 
 #define COS_SYSCALL __attribute__((regparm(0)))
 
 void ipc_init(void)
 {
+	//memset(shared_region_page, 0, PAGE_SIZE);
+	memset(shared_data_page, 0, PAGE_SIZE);
+
 	return;
 }
 
@@ -26,11 +45,13 @@ static inline void open_spd(struct spd_poly *spd)
 	return;
 }
 
+extern void switch_host_pg_tbls(phys_addr_t pt);
 static inline void open_close_spd(struct spd_poly *o_spd,
 				  struct spd_poly *c_spd)
 {
 	if (o_spd->pg_tbl != c_spd->pg_tbl) {
 		native_write_cr3(o_spd->pg_tbl);
+		switch_host_pg_tbls(o_spd->pg_tbl);
 	}
 
 	return;
@@ -39,6 +60,7 @@ static inline void open_close_spd(struct spd_poly *o_spd,
 static inline void open_close_spd_ret(struct spd_poly *c_spd) /*, struct spd_poly *s_spd)*/
 {
 	native_write_cr3(c_spd->pg_tbl);
+	switch_host_pg_tbls(c_spd->pg_tbl);
 //	printk("cos: return - opening pgtbl %x for spd %p.\n", (unsigned int)o_spd->pg_tbl, o_spd);
 	
 	return;
@@ -70,7 +92,7 @@ void print_regs(struct pt_regs *regs)
 
 struct inv_ret_struct {
 	int thd_id;
-	void *data_region;
+	vaddr_t data_region;
 };
 
 extern struct invocation_cap invocation_capabilities[MAX_STATIC_CAP];
@@ -165,7 +187,7 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 //	}
 
 	ret->thd_id = thd->thread_id;
-	ret->data_region = thd->data_region;
+	ret->data_region = thd->ul_data_page;
 
 	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
 
@@ -275,26 +297,60 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr, struct pt_regs
 
 /********** Composite system calls **********/
 
-extern int switch_thread_data_page(int old_thd, int new_thd);
-void switch_thread_context(struct thread *curr, struct thread *next)
-{
-	thd_set_current(next);
-
-	switch_thread_data_page(curr->thread_id, next->thread_id);
-
-	/* 
-	 * TODO: with preemption, check if curr_spd for next is
-	 * curr_spc for curr...if not, change page tables. 
-	 */
-
-	return;
-}
-
 COS_SYSCALL int cos_syscall_void(int spd_id)
 {
 	printd("cos: error - made void system call\n");
 
 	return 0;
+}
+
+extern int switch_thread_data_page(int old_thd, int new_thd);
+struct thread *ready_boot_thread(struct spd *init)
+{
+	struct shared_user_data *ud = get_shared_data();
+	struct thread *thd;
+	unsigned int tid;
+
+	assert(NULL != init);
+
+	thd = thd_alloc(init);
+	if (NULL == thd) {
+		printk("cos: Could not allocate boot thread.\n");
+		return NULL;
+	}
+	assert(thd_get_id(thd) == 1);
+	tid = thd_get_id(thd);
+	thd_set_current(thd);
+
+	switch_thread_data_page(2, tid);
+	/* thread ids start @ 1 */
+	ud->current_thread = tid;
+	ud->argument_region = (void*)((tid * PAGE_SIZE) + COS_INFO_REGION_ADDR);
+
+	return thd;
+}
+
+static void switch_thread_context(struct thread *curr, struct thread *next)
+{
+	struct shared_user_data *ud = get_shared_data();
+	unsigned int ctid, ntid;
+	struct spd_poly *cspd, *nspd;
+
+	ctid = thd_get_id(curr);
+	ntid = thd_get_id(next);
+	thd_set_current(next);
+
+	switch_thread_data_page(ctid, ntid);
+	/* thread ids start @ 1, thus thd pages are offset above the data page */
+	ud->current_thread = ntid;
+	ud->argument_region = (void*)((ntid * PAGE_SIZE) + COS_INFO_REGION_ADDR);
+
+	cspd = thd_get_thd_spdpoly(curr);
+	nspd = thd_get_thd_spdpoly(next);
+	
+	open_close_spd(nspd, cspd);
+
+	return;
 }
 
 extern void cos_syscall_resume_return(void);
@@ -399,8 +455,11 @@ COS_SYSCALL int cos_syscall_resume_return_cont(int spd_id)
 
 COS_SYSCALL int cos_syscall_get_thd_id(int spd_id)
 {
-	//printk("cos: request for thread is %d.\n", thd_get_current()->thread_id);
-	return thd_get_current()->thread_id;
+	struct thread *curr = thd_get_current();
+
+	assert(NULL != curr);
+
+	return thd_get_id(curr);
 }
 
 /* 
@@ -433,7 +492,7 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, vaddr_t fn, vaddr_t stack,
 		return -1;
 	}
 
-	if (curr_spd->sched_depth < 0 || !thd_scheduled_by(curr, curr_spd)) {
+	if (!spd_is_scheduler(curr_spd) || !thd_scheduled_by(curr, curr_spd)) {
 		printk("cos: non-scheduler attempted to create thread.\n");
 		return -1;
 	}
@@ -538,13 +597,14 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, long *pre
 
 	/*
 	 * If the thread was suspended by another scheduler, we really
-	 * have no business resuming it.
-	 *
-	 * See corresponding comment in resume_return for the reason
-	 * why this is not always true.
+	 * have no business resuming it IF that scheduler wants
+	 * exclusivity for scheduling and we are not the parent of
+	 * that scheduler.
 	 */
 	if (thd->flags & THD_STATE_SCHED_EXCL) {
-		if (thd->sched_suspended && curr_spd != thd->sched_suspended) {
+		struct spd *suspender = thd->sched_suspended;
+
+		if (suspender && curr_spd->sched_depth > suspender->sched_depth) {
 			printk("cos: scheduler %d resuming thread %d, but spd %d suspended it.\n",
 			       spd_get_index(curr_spd), thd_get_id(thd), spd_get_index(thd->sched_suspended));
 			
@@ -566,15 +626,31 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, long *pre
 	  curr->thread_id, thd->thread_id, spd_get_index(curr_spd));*/
 
 	if (thd->flags & THD_STATE_PREEMPTED) {
-		struct spd_poly *dest_spd = thd_get_thd_spdpoly(thd);
+/*		struct spd_poly *dest_spd = thd_get_thd_spdpoly(thd);
 
 		open_close_spd(dest_spd, &curr_spd->spd_info);
-		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
+*/		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
 
 		thd->flags &= ~THD_STATE_PREEMPTED;
 		*preempt = 1;
 	} else {
 		cos_meas_event(COS_MEAS_SWITCH_COOP);
+	}
+
+	if (thd->flags & THD_STATE_SCHED_RETURN) {
+		// not yet supported
+		printk("cos: sched return not yet supported.\n");
+		assert(0);
+
+		/*
+		 * Check that the spd from the invocation frame popped
+		 * off of the thread's stack matches curr_spd (or else
+		 * we were called via ST from another spd and should
+		 * return via normal control flow to it.
+		 *
+		 * If that's fine, then execute code similar to pop
+		 * above (to return from an invocation).
+		 */
 	}
 	
 	return &thd->regs;
@@ -601,15 +677,61 @@ COS_SYSCALL void cos_syscall_kill_thd_cont(int spd_id, int thd_id)
  * stack is kept in kernel) and 2) the kernel will not know in which
  * component an invocation is made from.
  *
- * Go back to the design proposed in the design document earlier.
+ * When a thread is going to request a brand, it must make only
+ * invocations via SDT (and will therefore not be on a fast-path).
+ * When we are making brand upcalls, we might skip some spds in the
+ * invocation stack of the brand thread due to MPD whereby multiple
+ * spds are collapsed into one composite spd.
  */
 
-//extern void cos_syscall_brand_upcall(int thread_id);
-COS_SYSCALL int cos_syscall_brand_upcall(int spd_id, int thread_id)
+extern void cos_syscall_brand_upcall(int spd_id, int thread_id, int flags);
+COS_SYSCALL struct thread *cos_syscall_brand_upcall_cont(int spd_id, int thread_id, int flags)
 {
-	printk("cos: branded upcalls not yet functional\n");
+	struct thread *curr_thd, *brand_thd;
+	struct spd *curr_spd, *dest_spd;
+	struct thd_invocation_frame *frm;
+	struct pt_regs *rs;
 
-	return 0;
+	curr_thd = thd_get_current();
+	curr_spd = thd_validate_get_current_spd(curr_thd, spd_id);
+	if (NULL == curr_spd) {
+		printk("cos: component claimed in spd %d, but not\n", spd_id);
+		goto upcall_brand_err;		
+	}
+	/*
+	 * TODO: Check that the brand thread is on the same cpu as the
+	 * current thread.
+	 */
+	brand_thd = thd_get_by_id(thread_id);
+	if (NULL == brand_thd) {
+		printk("cos: Attempting to brand thd %d - invalid thread.\n", thread_id);
+		goto upcall_brand_err;
+	}
+	if (thd_get_thd_spd(brand_thd) != curr_spd) {
+		printk("cos: attempted to make brand on thd %d, but from incorrect spd.\n", thread_id);
+		goto upcall_brand_err;
+	}
+	frm = thd_invstk_nth(brand_thd, 2);
+	if (NULL == frm) {
+		printk("cos: corrupted brand attempt on thd %d.\n", thread_id);
+		goto upcall_brand_err;
+	}
+	dest_spd = frm->spd;
+
+	rs = &brand_thd->regs;
+	/* this is paired with cos_asm_upcall.S */
+	rs->eax = thread_id;
+	rs->ecx = 0;
+	rs->ebx = 555;
+		
+	rs->edx = dest_spd->upcall_entry;
+
+	curr_thd->regs.eax = 0;
+	return brand_thd;
+
+upcall_brand_err:
+	curr_thd->regs.eax = -1;
+	return curr_thd;
 }
 
 /*
@@ -642,7 +764,7 @@ COS_SYSCALL int cos_syscall_brand_upcall(int spd_id, int thread_id)
  * follows capabilities and doesn't skip spds due to mpds.
  */
 struct thread *cos_brand_thread;
-COS_SYSCALL int cos_syscall_brand(int spd_id, int thd_id, int flags)
+COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags)
 {
 	struct thread *new_thd, *brand_thd = NULL, *curr_thd;
 	struct spd *curr_spd;
@@ -658,7 +780,7 @@ COS_SYSCALL int cos_syscall_brand(int spd_id, int thd_id, int flags)
 		brand_thd = thd_get_by_id(thd_id);
 
 		if (brand_thd == NULL) {
-			printk("cos: cos_syscall_brand could not find thd_id %d to add thd to.\n", 
+			printk("cos: cos_syscall_brand_cntl could not find thd_id %d to add thd to.\n", 
 			       (unsigned int)thd_id);
 			return -1;
 		}
@@ -772,8 +894,8 @@ COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, vaddr_t *in
 	thd->stack_ptr = 0;
 	thd->stack_base[0].current_composite_spd = dest->composite_spd;
 
-	cos_ref_release(&dest->composite_spd->ref_cnt);
-	cos_ref_take(&curr_spd->composite_spd->ref_cnt);
+	cos_ref_release(&curr_spd->composite_spd->ref_cnt);
+	cos_ref_take(&dest->composite_spd->ref_cnt);
 
 	*inv_addr = dest->upcall_entry;
 
@@ -1263,19 +1385,75 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
 	return ret;
 }
 
+/*
+ * Well look at that:  full support for mapping in 50 lines of code.
+ *
+ * FIXME: check that 1) spdid is allowed to map, and 2) check flags if
+ * the spd wishes to confirm that the dspd is in the invocation stack,
+ * or is in the current composite spd, or is a child of a fault
+ * thread.
+ */
+extern int pgtbl_add_entry(phys_addr_t pgtbl, vaddr_t vaddr, phys_addr_t paddr); 
+extern int pgtbl_rem_entry(phys_addr_t pgtbl, unsigned long vaddr);
+COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, long mem_id)
+{
+	short int op, flags, dspd_id;
+	phys_addr_t page;
+	int ret = 0;
+	struct spd *spd;
+	
+	/* decode arguments */
+	op = op_flags_dspd>>24;
+	flags = op_flags_dspd>>16 & 0x000000FF;
+	dspd_id = op_flags_dspd & 0x0000FFFF;
+
+	spd = spd_get_by_index(dspd_id);
+	if (NULL == spd || virtual_namespace_query(daddr) != spd) {
+		printk("cos: invalid mmap cntl call for spd %d for spd %d @ vaddr %x\n",
+		       spdid, dspd_id, (unsigned int)daddr);
+		return -1;
+	}
+
+	switch(op) {
+	case COS_MMAP_GRANT:
+		page = cos_access_page(mem_id);
+		if (0 == page) {
+			ret = -1;
+			break;
+		}
+		if (pgtbl_add_entry(spd->spd_info.pg_tbl, daddr, page)) {
+			ret = -1;
+			break;
+		}
+		
+		break;
+	case COS_MMAP_REVOKE:
+		if (pgtbl_rem_entry(spd->spd_info.pg_tbl, daddr)) {
+			ret = -1;
+			break;
+		}
+
+		break;
+	default:
+		return -1;
+	}
+
+	return 0;
+}
+
 void *cos_syscall_tbl[16] = {
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_resume_return,
-	(void*)cos_syscall_get_thd_id,
+	(void*)cos_syscall_void,
 	(void*)cos_syscall_create_thread,
 	(void*)cos_syscall_switch_thread,
 	(void*)cos_syscall_kill_thd,
 	(void*)cos_syscall_brand_upcall,
-	(void*)cos_syscall_brand,
+	(void*)cos_syscall_brand_cntl,
 	(void*)cos_syscall_upcall,
 	(void*)cos_syscall_sched_cntl,
 	(void*)cos_syscall_mpd_cntl,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_mmap_cntl,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
