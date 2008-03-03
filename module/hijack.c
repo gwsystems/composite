@@ -2172,6 +2172,7 @@ static void timer_interrupt(unsigned long data)
 			/* FIXME: Should be open_close_spd(&dest->spd_info, &curr_spd->spd_info) */
 			if (dest->spd_info.pg_tbl != curr_spd->pg_tbl) {
 				native_write_cr3(dest->spd_info.pg_tbl);
+				switch_host_pg_tbls(dest->spd_info.pg_tbl);
 			}
 
 			/* save this thread so that we can resume it

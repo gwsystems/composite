@@ -1522,7 +1522,8 @@ static void setup_kernel(struct service_symbs *services)
 		printf("Could not find all stubs.  Exiting.\n");
 		exit(-1);
 	}
-	
+
+	printf("\n");
 	make_spd_scheduler(cntl_fd, spd2, c2, NULL);
 	make_spd_scheduler(cntl_fd, spd1, c1, spd2);
 	cos_demo_spds(cntl_fd, spd3->spd_handle, spd4->spd_handle);
@@ -1531,7 +1532,7 @@ static void setup_kernel(struct service_symbs *services)
 	thd.sched_handle = spd2->spd_handle;
 	cos_create_thd(cntl_fd, &thd);
 
-	printf("OK, good to go, calling component 0's main\n");
+	printf("\nOK, good to go, calling component 0's main\n\n");
 	fflush(stdout);
 
 	fn = (int (*)(void))get_symb_address(&c0->exported, "spd0_main");

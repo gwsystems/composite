@@ -46,13 +46,19 @@ static inline void open_spd(struct spd_poly *spd)
 }
 
 extern void switch_host_pg_tbls(phys_addr_t pt);
-static inline void open_close_spd(struct spd_poly *o_spd,
-				  struct spd_poly *c_spd)
+static inline void switch_pg_tbls(phys_addr_t new, phys_addr_t old)
 {
-	if (o_spd->pg_tbl != c_spd->pg_tbl) {
-		native_write_cr3(o_spd->pg_tbl);
-		switch_host_pg_tbls(o_spd->pg_tbl);
+	if (old != new) {
+		native_write_cr3(new);
+		switch_host_pg_tbls(new);
 	}
+
+	return;
+}
+
+static inline void open_close_spd(struct spd_poly *o_spd, struct spd_poly *c_spd)
+{
+	switch_pg_tbls(o_spd->pg_tbl, c_spd->pg_tbl);
 
 	return;
 }
@@ -685,12 +691,16 @@ COS_SYSCALL void cos_syscall_kill_thd_cont(int spd_id, int thd_id)
  */
 
 extern void cos_syscall_brand_upcall(int spd_id, int thread_id, int flags);
-COS_SYSCALL struct thread *cos_syscall_brand_upcall_cont(int spd_id, int thread_id, int flags)
+COS_SYSCALL struct thread *cos_syscall_brand_upcall_cont(int spd_id, int thread_id_flags)
 {
 	struct thread *curr_thd, *brand_thd;
 	struct spd *curr_spd, *dest_spd;
 	struct thd_invocation_frame *frm;
 	struct pt_regs *rs;
+	short int thread_id, flags;
+
+	thread_id = thread_id_flags>>16;
+	flags = thread_id_flags & 0x0000FFFF;
 
 	curr_thd = thd_get_current();
 	curr_spd = thd_validate_get_current_spd(curr_thd, spd_id);
@@ -1377,10 +1387,7 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
 	 * current spd is subordinated to another spd.  If they did,
 	 * we should do something about it:
 	 */
-	if (curr_pg_tbl != new_pg_tbl) {
-		//printk("cos: current page tables changed for mpd operation, updating.\n");
-		native_write_cr3(new_pg_tbl);
-	}
+	switch_pg_tbls(new_pg_tbl, curr_pg_tbl);
 	
 	return ret;
 }
