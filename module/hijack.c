@@ -1954,16 +1954,22 @@ int pgtbl_add_entry(phys_addr_t pgtbl, unsigned long vaddr, unsigned long paddr)
 	return 0;
 }
 
-int pgtbl_rem_entry(phys_addr_t pgtbl, unsigned long vaddr)
+/*
+ * Remove a given virtual mapping from a page table.  Return 0 if
+ * there is no present mapping, and the physical address mapped if
+ * there is an existant mapping.
+ */
+phys_addr_t pgtbl_rem_ret(phys_addr_t pgtbl, vaddr_t va)
 {
-	pte_t *pte = pgtbl_lookup_address(pgtbl, vaddr);
+	pte_t *pte = pgtbl_lookup_address(pgtbl, va);
+	phys_addr_t val;
 
 	if (!pte || !(pte_val(*pte) & _PAGE_PRESENT)) {
-		return -1;
+		return 0;
 	}
-	/*pte_val(*pte)*/pte->pte_low &= ~_PAGE_PRESENT;
+	val = (phys_addr_t)(pte_val(*pte) & PTE_MASK);
 
-	return 0;
+	return val;
 }
 
 vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr)

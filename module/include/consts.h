@@ -43,4 +43,8 @@ struct pt_regs { int dummy[16]; };
 #define COS_DATA_REGION_LOWER_ADDR (COS_INFO_REGION_ADDR+PAGE_SIZE)
 #define COS_DATA_REGION_MAX_SIZE (MAX_NUM_THREADS*PAGE_SIZE)
 
+
+
+#define COS_MAX_MEMORY 2048
+
 #endif

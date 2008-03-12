@@ -53,7 +53,7 @@ cos_upcall_entry:
 /*
  * %eax = cmpval, %ebx = memaddr, %ecx = newval
  */
-.globl cos_atomic_cmpxchg
+.weak cos_atomic_cmpxchg
 .type cos_atomic_cmpxchg, @function
 .align 16
 cos_atomic_cmpxchg:
@@ -64,10 +64,22 @@ cos_atomic_cmpxchg:
 cos_atomic_cmpxchg_end:	
 	ret
 
+/*
+ * %eax = semaphore_addr, %ebx = thread_id, %ecx = count
+ */
+.weak cos_atomic_user1
+.type cos_atomic_user1, @function
 cos_atomic_user1:
+.weak cos_atomic_user1_end
 cos_atomic_user1_end:
+.weak cos_atomic_user2
+.type cos_atomic_user2, @function
 cos_atomic_user2:
+.weak cos_atomic_user2_end
 cos_atomic_user2_end:
+.weak cos_atomic_user3
+.type cos_atomic_user3, @function
 cos_atomic_user3:
+.weak cos_atomic_user3_end
 cos_atomic_user3_end:
 	nop

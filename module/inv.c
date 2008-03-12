@@ -98,7 +98,7 @@ void print_regs(struct pt_regs *regs)
 
 struct inv_ret_struct {
 	int thd_id;
-	vaddr_t data_region;
+	int spd_id;
 };
 
 extern struct invocation_cap invocation_capabilities[MAX_STATIC_CAP];
@@ -193,7 +193,7 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 //	}
 
 	ret->thd_id = thd->thread_id;
-	ret->data_region = thd->ul_data_page;
+	ret->spd_id = spd_get_index(curr_spd);
 
 	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
 
@@ -226,7 +226,7 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr, struct pt_regs
 
 	inv_frame = thd_invocation_pop(curr);
 
-	if (inv_frame == MNULL) {
+	if (inv_frame == NULL) {
 		if (curr->flags & THD_STATE_ACTIVE_UPCALL) {
 			struct thread *prev;
 			struct spd *dest_spd;
@@ -276,7 +276,7 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr, struct pt_regs
 			regs_restore = 0;
 		}
 
-		return MNULL;
+		return NULL;
 	}
 	
 	//printk("cos: Popping spd %p off of thread %p.\n", 
@@ -1401,7 +1401,7 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
  * thread.
  */
 extern int pgtbl_add_entry(phys_addr_t pgtbl, vaddr_t vaddr, phys_addr_t paddr); 
-extern int pgtbl_rem_entry(phys_addr_t pgtbl, unsigned long vaddr);
+extern phys_addr_t pgtbl_rem_ret(phys_addr_t pgtbl, vaddr_t va);
 COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, long mem_id)
 {
 	short int op, flags, dspd_id;
@@ -1415,7 +1415,9 @@ COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t dad
 	dspd_id = op_flags_dspd & 0x0000FFFF;
 
 	spd = spd_get_by_index(dspd_id);
-	if (NULL == spd || virtual_namespace_query(daddr) != spd) {
+	if (NULL == spd || /*virtual_namespace_query(daddr) != spd*/
+	    (daddr < spd->location.lowest_addr || 
+	     daddr >= spd->location.lowest_addr + spd->location.size)) {
 		printk("cos: invalid mmap cntl call for spd %d for spd %d @ vaddr %x\n",
 		       spdid, dspd_id, (unsigned int)daddr);
 		return -1;
@@ -1425,27 +1427,43 @@ COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t dad
 	case COS_MMAP_GRANT:
 		page = cos_access_page(mem_id);
 		if (0 == page) {
+			printk("cos: mmap grant -- could not get a physical page.\n");
 			ret = -1;
 			break;
 		}
+		/*
+		 * Demand paging could mess this up as the entry might
+		 * not be in the page table, and we map in our cos
+		 * page.  Ignore for the time being, as our loader
+		 * forces demand paging to not be used (explicitely
+		 * writing all of the pages itself).
+		 */
 		if (pgtbl_add_entry(spd->spd_info.pg_tbl, daddr, page)) {
+			printk("cos: mmap grant -- could not add entry to page table.\n");
 			ret = -1;
 			break;
 		}
-		
+		cos_meas_event(COS_MAP_GRANT);
+
 		break;
 	case COS_MMAP_REVOKE:
-		if (pgtbl_rem_entry(spd->spd_info.pg_tbl, daddr)) {
-			ret = -1;
+	{
+		phys_addr_t pa;
+
+		if (!(pa = pgtbl_rem_ret(spd->spd_info.pg_tbl, daddr))) {
+			ret = 0;
 			break;
 		}
+		ret = cos_phys_addr_to_cap(pa);
+		cos_meas_event(COS_MAP_REVOKE);
 
 		break;
+	}
 	default:
-		return -1;
+		ret = -1;
 	}
 
-	return 0;
+	return ret;
 }
 
 void *cos_syscall_tbl[16] = {

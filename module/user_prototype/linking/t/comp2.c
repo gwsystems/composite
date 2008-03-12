@@ -1,4 +1,5 @@
 #include <cos_component.h>
+#include <cos_alloc.h>
 
 extern int print_vals(int a, int b, int c, int d);
 
@@ -77,7 +78,7 @@ int spd2_fn(void)
 
 	cos_memcpy(s, f, sizeof(f));
 	print_vals(1, 2, 3, 4);
-	print_vals(cos_get_thd_id(), cos_get_arg_region(), sizeof(f), 4321);
+	print_vals(cos_get_thd_id(), (int)cos_get_arg_region(), sizeof(f), 4321);
 	//print_vals((int)&i,6,6);
 	thd_id = cos_get_thd_id();
 	curr_thd = thd_id;
@@ -100,8 +101,8 @@ int spd2_fn(void)
 
 	cos_switch_thread(new_thd2, 0, 0);
 
-//	bthd = cos_brand(0, COS_BRAND_CREATE);
-//	cos_brand(bthd, COS_BRAND_ADD_THD);
+	//bthd = cos_brand(0, COS_BRAND_CREATE);
+	//cos_brand(bthd, COS_BRAND_ADD_THD);
 
  	for (i = 0 ; i < 100000 ; i++) {
 		yield(thd_id);
@@ -127,6 +128,77 @@ int run_demo(void)
 	return i;
 }
 
+int test_locks(void)
+{
+	unsigned int new_thd1, new_thd2;
+
+	new_thd1 = cos_create_thread(thread_tramp, get_stack_addr(LOWER), (void*)LOWER);
+	new_thd2 = cos_create_thread(thread_tramp, get_stack_addr(UPPER), (void*)UPPER);
+	
+	if (new_thd1 != LOWER || new_thd2 != UPPER) {
+		print_vals(1234, 1234, 1234, 1234);
+	}
+
+	return 0;
+}
+
+#define SZ 128
+#define INC (PAGE_SIZE>>8)
+#define NP 4
+
+//extern void *mman_get_page(spdid_t spd, void *addr, int flags);
+//extern void mman_release_page(spdid_t spd, void *addr, int flags);
+int test_mmapping(void)
+{
+	unsigned long *ptrs[SZ];
+	unsigned long *pages[NP];
+	int i, j;
+
+	for (j = 0 ; j < 2 ; j++) {
+		for (i = 0 ; i < SZ/4 ; i++) {
+			int idx = i*4;
+			ptrs[idx]   = malloc(4+(INC*i)); *ptrs[idx]   = 0xdeadbeef;
+			ptrs[idx+1] = malloc(4+(INC*i)); *ptrs[idx+1] = 0xdeadbeef;
+			ptrs[idx+2] = malloc(4+(INC*i)); *ptrs[idx+2] = 0xdeadbeef;
+			ptrs[idx+3] = malloc(4+(INC*i)); *ptrs[idx+3] = 0xdeadbeef;
+		}
+		
+		for (i = 0 ; i < SZ/4 ; i++) {
+			int idx = i*4;
+			if (*ptrs[idx] != 0xdeadbeef ||
+			    *ptrs[idx+1] != 0xdeadbeef ||
+			    *ptrs[idx+2] != 0xdeadbeef ||
+			    *ptrs[idx+3] != 0xdeadbeef) {
+				print_vals(505, 505, 505, 505);
+			}
+			    
+			free(ptrs[idx]);
+			free(ptrs[idx+1]);
+			free(ptrs[idx+2]);
+			free(ptrs[idx+3]);
+		}
+	}
+
+	for (j = 0 ; j < 2 ; j++) {
+		for (i = 0 ; i < NP ; i++) {
+			pages[i] = alloc_page();
+		}
+		for (i = 0 ; i < NP ; i++) {
+			 free_page(pages[i]);
+		}
+	}
+	
+/*	print_vals(cos_get_heap_ptr(),1,1,1);
+	a = mman_get_page(cos_spd_id(), cos_get_heap_ptr(), 0);
+	*(long*)a = 56789;
+	print_vals(a,*(long*)a,2,2);
+	mman_release_page(cos_spd_id(), cos_get_heap_ptr(), 0);
+	print_vals(3,3,3,3);
+*/
+		//cos_set_heap_ptr(cos_get_heap_ptr() + PAGE_SIZE)
+	return 0;
+}
+
 void cos_upcall_fn(vaddr_t data_region, int id, 
 		   void *arg1, void *arg2, void *arg3)
 {
@@ -143,8 +215,9 @@ int sched_init(void)
 	//print_vals((int)&ret,6,6);
 	//ret = spd2_fn();
 //	ret = run_demo();
-	ret = spd2_fn();
-	
+//	ret = spd2_fn();
+	ret = test_mmapping();
+//	ret = test_locks();
 	//print_vals(6,6,6);
 	nothing_var++;
 

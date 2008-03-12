@@ -1,3 +1,10 @@
+/**
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ */
+
 #include "include/mmap.h"
 
 static struct cos_page cos_pages[COS_MAX_MEMORY];
@@ -25,12 +32,30 @@ void cos_shutdown_memory(void)
 	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
 		phys_addr_t addr = cos_pages[i].addr;
 
-		if (addr != 0) {
+		if (0 != addr) {
 			cos_free_page(pa_to_va((void*)addr));
 			addr = 0;
 		}
 	}
 }
+
+/*
+ * This would be O(1) in the real implementation as there is a 1-1
+ * correspondence between phys pages and memory capabilities, but in
+ * our Linux implementation, this is not so.
+ */
+int cos_phys_addr_to_cap(phys_addr_t pa)
+{
+	int i;
+
+	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
+		if (cos_pages[i].addr == pa) {
+			return i;
+		}
+	}
+
+	return 0;
+}   
 
 phys_addr_t cos_access_page(unsigned long cap_no)
 {
@@ -39,7 +64,7 @@ phys_addr_t cos_access_page(unsigned long cap_no)
 	if (cap_no > COS_MAX_MEMORY) return 0;
 
 	addr = cos_pages[cap_no].addr;
-	if (addr == 0) {
+	if (0 == addr) {
 		void *r = cos_alloc_page();
 
 		if (NULL == r) {

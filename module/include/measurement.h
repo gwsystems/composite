@@ -27,6 +27,8 @@ enum { COS_MEAS_SWITCH_COOP,
        COS_MPD_IPC_REFCNT_DEC,
        COS_ALLOC_PGTBL,
        COS_FREE_PGTBL,
+       COS_MAP_GRANT,
+       COS_MAP_REVOKE,
        COS_MEAS_MAX_SIZE,
 };
 

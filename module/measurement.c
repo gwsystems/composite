@@ -3,17 +3,6 @@
 
 #ifdef MEASUREMENTS
 
-/*
- * TODO list of events to measure:
- * - deallocation of cspd during ipc
- * - deallocation of cspd during mpd operation
- * - merges
- * - splits
- * - moves
- * - split with optimization
- * - mpd deallocations due to subordination
- */
-
 unsigned long long cos_measurements[COS_MEAS_MAX_SIZE];
 char *cos_meas_descriptions[COS_MEAS_MAX_SIZE+1] = 
 {
@@ -41,6 +30,8 @@ char *cos_meas_descriptions[COS_MEAS_MAX_SIZE+1] =
 	"mpd ipc refcnt decrease",
 	"page table allocation",
 	"page table free",
+	"memory page grant",
+	"memory page revoke",
 	""
 };
 

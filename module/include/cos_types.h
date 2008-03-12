@@ -39,7 +39,9 @@ struct cos_sched_data_area {
 	struct cos_sched_events cos_events[256]; // maximum of PAGE_SIZE/sizeof(struct cos_sched_events) - ceil(sizeof(struct cos_sched_curr_thd)/(sizeof(struct cos_sched_events)+sizeof(locks)))
 };
 
-#define MNULL ((void*)0)
+#ifndef NULL
+#define NULL ((void*)0)
+#endif
 
 /* 
  * These types are for addresses that are never meant to be
@@ -49,6 +51,9 @@ struct cos_sched_data_area {
 typedef unsigned long phys_addr_t;
 typedef unsigned long vaddr_t;
 typedef unsigned int page_index_t;
+
+typedef unsigned short int spdid_t;
+typedef unsigned short int thdid_t;
 
 /* operations for cos_brand_cntl and cos_brand_upcall */
 enum { 

@@ -43,6 +43,7 @@ const char *ST_INV_FN_NAME = "ST_direct_invocation";
 const char *UPCALL_ENTRY_NAME = "cos_upcall_entry";
 const char *SCHED_PAGE_NAME = "cos_sched_notifications";
 const char *SPD_ID_NAME = "cos_this_spd_id";
+const char *HEAP_PTR = "cos_heap_ptr";
 
 const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] = 
 { "cos_atomic_cmpxchg",
@@ -112,7 +113,7 @@ struct symb_type {
 
 struct service_symbs {
 	char *obj;
-	unsigned long lower_addr, size;
+	unsigned long lower_addr, size, heap_top;
 	
 	struct spd *spd;
 	struct symb_type exported, undef;
@@ -510,6 +511,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 
 	ret_data->lower_addr = lower_addr;
 	ret_data->size = size;
+	ret_data->heap_top = (int)data_start + alldata_size;
 	
 	bfd_close(obj);
 	bfd_close(objout);
@@ -764,6 +766,7 @@ static void add_kernel_exports(struct service_symbs *service)
 	add_kexport(service, USER_CAP_TBL_NAME);
 	add_kexport(service, SCHED_PAGE_NAME);
 	add_kexport(service, SPD_ID_NAME);
+	add_kexport(service, HEAP_PTR);
 	for (i = 0 ; i < NUM_ATOMIC_SYMBS ; i++) {
 		add_kexport(service, ATOMIC_USER_DEF[i]);
 	}
@@ -1392,7 +1395,7 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 	struct spd_info *spd;
 	struct usr_inv_cap *ucap_tbl;
 	vaddr_t upcall_addr, atomic_addr;
-	long *spd_id_addr;
+	long *spd_id_addr, *heap_ptr;
 	int i;
 
 	spd = (struct spd_info *)malloc(sizeof(struct spd_info));
@@ -1413,6 +1416,12 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 		printf("Could not find %s in %s.\n", SPD_ID_NAME, s->obj);
 		return NULL;
 	}
+	heap_ptr = (long*)get_symb_address(&s->exported, HEAP_PTR);
+	if (heap_ptr == NULL) {
+		printf("Could not find %s in %s.\n", HEAP_PTR, s->obj);
+		return NULL;
+	}
+
 	for (i = 0 ; i < NUM_ATOMIC_SYMBS ; i++) {
 		atomic_addr = (vaddr_t)get_symb_address(&s->exported, ATOMIC_USER_DEF[i]);
 		if (atomic_addr != 0) {
@@ -1436,6 +1445,8 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 	}
 	printf("spd %s created with handle %d.\n", s->obj, (unsigned int)spd->spd_handle);
 	*spd_id_addr = spd->spd_handle;
+	printf("\tHeap pointer directed to %x.\n", (unsigned int)heap_ptr);
+	*heap_ptr = s->heap_top;
 
 	printf("\tFound ucap_tbl for component %s @ %p.\n", s->obj, ucap_tbl);
 	printf("\tFound cos_upcall for component %s @ %p.\n", s->obj, (void*)upcall_addr);
@@ -1469,8 +1480,9 @@ void make_spd_scheduler(int cntl_fd, struct spd_info *spd, struct service_symbs 
 
 static void setup_kernel(struct service_symbs *services)
 {
-	struct service_symbs *s = services, *c0 = NULL, *c1 = NULL, *c2 = NULL, *pc = NULL, *c3 = NULL, *c4 = NULL;
-	struct spd_info *spd0, *spd1, *spd2, *spd3, *spd4, *spdpc;
+	struct service_symbs *s = services, *c0 = NULL, *c1 = NULL, *c2 = NULL, 
+		*pc = NULL, *c3 = NULL, *c4 = NULL, *mm = NULL;
+	struct spd_info *spd0, *spd1, *spd2, *spd3, *spd4, *spdpc, *spdmm;
 
 	struct cos_thread_info thd;
 	int cntl_fd, ret;
@@ -1492,11 +1504,13 @@ static void setup_kernel(struct service_symbs *services)
 			c4 = s;
 		} else if (strstr(s->obj, "print_comp.o") != NULL) {
 			pc = s;
+		} else if (strstr(s->obj, "mm.o") != NULL) {
+			mm = s;
 		}
 
 		s = s->next;
 	}
-	if (c0 == NULL || c1 == NULL || c2 == NULL || c3 == NULL || c4 == NULL || pc == NULL) {
+	if (c0 == NULL || c1 == NULL || c2 == NULL || c3 == NULL || c4 == NULL || pc == NULL || mm == NULL) {
 		fprintf(stderr, "Could not find service object.\n");
 		exit(-1);
 	}
@@ -1507,8 +1521,9 @@ static void setup_kernel(struct service_symbs *services)
 	spd3 = create_spd(cntl_fd, c3, c3->lower_addr, c3->size);
 	spd4 = create_spd(cntl_fd, c4, c4->lower_addr, c4->size);
 	spdpc = create_spd(cntl_fd, pc, pc->lower_addr, pc->size);
+	spdmm = create_spd(cntl_fd, mm, mm->lower_addr, mm->size);
 
-	if (!spd0 || !spd1 || !spd2 || !spd3 || !spd4 || !spdpc) {
+	if (!spd0 || !spd1 || !spd2 || !spd3 || !spd4 || !spdpc || !spdmm) {
 		printf("Could not allocate all of the spds.\n");
 		exit(-1);
 	}
@@ -1518,7 +1533,8 @@ static void setup_kernel(struct service_symbs *services)
 	    create_spd_capabilities(c2, spd2, cntl_fd) ||
 	    create_spd_capabilities(c3, spd3, cntl_fd) ||
 	    create_spd_capabilities(c4, spd4, cntl_fd) ||
-	    create_spd_capabilities(pc, spdpc, cntl_fd)) {
+	    create_spd_capabilities(pc, spdpc, cntl_fd) ||
+	    create_spd_capabilities(mm, spdmm, cntl_fd)) {
 		printf("Could not find all stubs.  Exiting.\n");
 		exit(-1);
 	}
@@ -1650,7 +1666,7 @@ int main(int argc, char *argv[])
 		goto dealloc_exit;
 	}
 
-	print_kern_symbs(services);
+//	print_kern_symbs(services);
 
 	setup_kernel(services);
 

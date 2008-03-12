@@ -1,1 +1,1 @@
-./cos_loader "c0.o,c1.o,c2.o,c3.o,c4.o,print_comp.o:c1.o-c2.o|print_comp.o;c2.o-print_comp.o|c3.o;c0.o-c2.o;c3.o-c4.o|print_comp.o;c4.o-print_comp.o" ./gen_client_stub
+./cos_loader "c0.o,c1.o,c2.o,c3.o,c4.o,mm.o,print_comp.o:c1.o-c2.o|print_comp.o;c2.o-print_comp.o|c3.o|mm.o;c0.o-c2.o;c3.o-c4.o|print_comp.o;c4.o-print_comp.o;mm.o-print_comp.o" ./gen_client_stub

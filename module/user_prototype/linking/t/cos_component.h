@@ -12,7 +12,8 @@
 #include "../../../include/cos_types.h"
 
 extern struct cos_sched_data_area cos_sched_notifications;
-volatile extern long cos_this_spd_id;
+extern volatile long cos_this_spd_id;
+extern void *cos_heap_ptr;
 
 /*
  * A note on the arguments to and for all system calls and on the
@@ -117,7 +118,7 @@ cos_syscall_1(10, int, mpd_cntl, int, operation);
 cos_syscall_3(11, int, __mmap_cntl, long, op_flags_dspd, long, daddr, long, mem_id);
 
 static inline int cos_mmap_cntl(short int op, short int flags, 
-				short int dest_spd, long dest_addr, long mem_id) {
+				short int dest_spd, vaddr_t dest_addr, long mem_id) {
 	/* encode into 3 arguments */
 	return cos___mmap_cntl(((op<<24) | (flags << 16) | (dest_spd)), 
 			       dest_addr, mem_id);
@@ -142,7 +143,8 @@ static inline int cos_brand_upcall(short int thd_id, short int flags, long arg1,
  * preempting threads to update the next_thread even if a thread is
  * preempted between logic and calling switch_thread.
  */
-static inline int cos_switch_thread(unsigned short int thd_id, unsigned short int flags, unsigned int urgency)
+static inline int cos_switch_thread(unsigned short int thd_id, unsigned short int flags, 
+				    unsigned int urgency)
 {
         /* This must be volatile as we must commit what we want to
 	 * write to memory immediately to be read by the kernel */
@@ -168,6 +170,21 @@ static inline void *cos_get_arg_region(void)
 	struct shared_user_data *ud = (void *)COS_INFO_REGION_ADDR;
 
 	return ud->argument_region;
+}
+
+static inline long cos_spd_id(void)
+{
+	return cos_this_spd_id;
+}
+
+static inline void *cos_get_heap_ptr(void)
+{
+	return cos_heap_ptr;
+}
+
+static inline void cos_set_heap_ptr(void *addr)
+{
+	cos_heap_ptr = addr;
 }
 
 static inline long cos_cmpxchg(void *memory, long anticipated, long result)

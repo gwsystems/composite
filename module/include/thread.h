@@ -156,7 +156,7 @@ static inline struct thd_invocation_frame *thd_invocation_pop(struct thread *cur
 	if (curr_thd->stack_ptr <= 0) {
 		//printd("Tried to return without invocation.\n");
 		/* FIXME: kill the thread if not a branded upcall thread */
-		return MNULL; //kill the kern for now...
+		return NULL; //kill the kern for now...
 	}
 
 	prev_frame = &curr_thd->stack_base[curr_thd->stack_ptr--];

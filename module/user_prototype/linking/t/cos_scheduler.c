@@ -103,20 +103,6 @@ void sched_rem_grp(struct sched_thd *grp, struct sched_thd *thd)
 	}
 }
 
-struct sched_accounting *sched_get_accounting(struct sched_thd *thd)
-{
-	assert(thd->flags & THD_FREE == 0);
-
-	return &thd->accounting;
-}
-
-struct sched_metric *sched_get_metric(struct sched_thd *thd)
-{
-	assert(thd->flags & THD_FREE == 0);
-
-	return &thd->metric;
-}
-
 int sched_is_grp(struct sched_thd *thd)
 {
 	assert(thd->flags & THD_FREE == 0);
@@ -141,9 +127,9 @@ struct sched_thd *sched_get_members(struct sched_thd *grp)
 
 struct sched_thd *sched_get_grp(struct sched_thd *thd)
 {
-	assert(thd->flags & THD_FREE == 0 && 
-	       thd->flags & THD_MEMBER);
-
+	if (sched_is_grp(thd)) {
+		return NULL;
+	}
 	return thd->group;
 }
 

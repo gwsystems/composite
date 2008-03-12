@@ -54,10 +54,23 @@ LIST_OPS_CREATE(sched_thd,,list)
 /* * 2 for thread groups */
 #define SCHED_NUM_EXECUTABLES (SCHED_NUM_THREADS * 2) 
 
-extern struct sched_thread **thd_map;
+static inline struct sched_accounting *sched_get_accounting(struct sched_thd *thd)
+{
+	assert(thd->flags & THD_FREE == 0);
+
+	return &thd->accounting;
+}
+
+static inline struct sched_metric *sched_get_metric(struct sched_thd *thd)
+{
+	assert(thd->flags & THD_FREE == 0);
+
+	return &thd->metric;
+}
 
 /* --- Thread Mapping Utilities --- */
 
+extern struct sched_thread **thd_map;
 static inline struct sched_thd *sched_get_mapping(unsigned short int thd_id)
 {
 	if (thd_id >= SCHED_NUM_THREADS ||
@@ -88,5 +101,4 @@ static inline void sched_rem_mapping(unsigned short int thd_id)
 	thd_map[thd_id] = NULL;
 }
 
-static inline void 
 #endif
