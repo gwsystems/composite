@@ -35,7 +35,7 @@
 #include <thread.h>
 #include <ipc.h>
 
-#define NUM_ATOMIC_SYMBS 8 
+#define NUM_ATOMIC_SYMBS 10 
 #define NUM_KERN_SYMBS (5+NUM_ATOMIC_SYMBS)
 
 const char *USER_CAP_TBL_NAME = "ST_user_caps";
@@ -53,7 +53,9 @@ const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] =
   "cos_atomic_user2",
   "cos_atomic_user2_end",
   "cos_atomic_user3",
-  "cos_atomic_user3_end" };
+  "cos_atomic_user3_end",
+  "cos_atomic_user4",
+  "cos_atomic_user4_end" };
 
 #define CAP_CLIENT_STUB_DEFAULT "SS_ipc_client_marshal_args"
 #define CAP_CLIENT_STUB_POSTPEND "_call"
@@ -381,7 +383,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	
 	obj = bfd_openr(tmp_exec, "elf32-i386");
 	if(!obj){
-		bfd_perror("Object open failure\n");
+		bfd_perror("object open failure");
 		return -1;
 	}
 	
@@ -396,7 +398,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	/* Determine the size of and allocate the text and Read-Only data area */
 	ro_size = calculate_mem_size(TEXT_S, DATA_S);
 
-	printf("\tRead only section: %x:%d.\n",
+	printf("\tRead only text section: %x:%x.\n",
 	       (unsigned int)ro_start, (unsigned int)ro_size);
 
 	ro_size = round_up_to_page(ro_size);
@@ -419,7 +421,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	/* Allocate the read-writable areas .data .bss */
 	alldata_size = calculate_mem_size(DATA_S, MAXSEC_S);
 
-	printf("\tData section: %x:%d\n",
+	printf("\tData section: %x:%x\n",
 	       (unsigned int)data_start, (unsigned int)alldata_size);
 
 	alldata_size = round_up_to_page(alldata_size);
@@ -489,7 +491,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 				 tmp_storage + srcobj[DATA_S].offset, 0,
 				 bfd_sect_size(obj, srcobj[DATA_S].s));
 	
-	printf("\tZeroing out from %x of size %x.\n", 
+	printf("\tZeroing out BSS from %x of size %x.\n", 
 	       (unsigned int)tmp_storage + srcobj[BSS_S].offset,
 	       (unsigned int)bfd_sect_size(obj, srcobj[BSS_S].s));
 
@@ -1406,6 +1408,10 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 	
 	ucap_tbl = (struct usr_inv_cap*)get_symb_address(&s->exported, 
 							 USER_CAP_TBL_NAME);
+	if (ucap_tbl == 0) {
+		printf("Could not find a user capability tbl for %s.\n", s->obj);
+		return NULL;
+	}
 	upcall_addr = (vaddr_t)get_symb_address(&s->exported, UPCALL_ENTRY_NAME);
 	if (upcall_addr == 0) {
 		printf("Could not find %s in %s.\n", UPCALL_ENTRY_NAME, s->obj);

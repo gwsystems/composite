@@ -55,11 +55,11 @@ struct thd_sched_info {
 #define THD_STATE_ACTIVE_UPCALL 0x4  /* Thread is in upcall execution. */
 #define THD_STATE_READY_UPCALL  0x8  /* Same as previous, but we are ready to execute */ 
 #define THD_STATE_BRAND         0x10 /* This thread is used as a brand */
-#define THD_STATE_SCHED_RETURN  COS_THD_SCHED_RETURN /* When the sched switches to this thread, ret from ipc */
-#define THD_STATE_SCHED_EXCL    COS_SCHED_EXCL_YIELD /* The yielded thread should not be wakeable 
-							by other schedulers (e.g. because it is 
-							waiting for a lock) */
-#define THD_STATE_FAULT         0x80 /* Thread has had a page fault which is being serviced */
+#define THD_STATE_SCHED_RETURN  0x20 /* When the sched switches to this thread, ret from ipc */
+#define THD_STATE_SCHED_EXCL    0x40 /* The yielded thread should not be wakeable 
+					by other schedulers (e.g. because it is 
+					waiting for a lock) */
+#define THD_STATE_FAULT         0x80 /* Thread has had a (e.g. page) fault which is being serviced */
 
 /**
  * The thread descriptor.  Contains all information pertaining to a
@@ -68,8 +68,7 @@ struct thd_sched_info {
  */
 struct thread {
 	short int stack_ptr;
-	unsigned short int thread_id;
-	unsigned short int cpu_id, flags;
+	unsigned short int thread_id, cpu_id, flags;
 
 	/* 
 	 * Watch your alignments here!!!
@@ -95,8 +94,8 @@ struct thread {
 	/* The thread who's execution we are branded to */
 	struct thread *thread_brand;
 	/* the point in the invocation stack of the brand thread we are at */
-	unsigned short int brand_inv_stack_ptr;
-	struct thread *interrupted_thread;
+	unsigned short int brand_inv_stack_ptr, brand_inv_stack_start;
+	struct thread *interrupted_thread, *preempter_thread;
 	struct thread *upcall_threads;
 
 	/* flags & THD_STATE_BRAND */
@@ -292,5 +291,16 @@ static inline struct spd *thd_validate_get_current_spd(struct thread *thd, unsig
 	return NULL;
 }
 
+int thd_check_atomic_preempt(struct thread *thd);
+void thd_print_regs(struct thread *t);
+
+static inline void thd_save_preempted_state(struct thread *thd, struct pt_regs *regs)
+{
+	/* preempt and save current thread */
+	memcpy(&thd->regs, regs, sizeof(struct pt_regs));
+	thd->flags |= THD_STATE_PREEMPTED;
+	//printk("cos: preempting thread %d with regs:\n", thd_get_id(thd));
+	//thd_print_regs(thd);
+}
 
 #endif /* THREAD_H */

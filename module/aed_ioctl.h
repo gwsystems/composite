@@ -81,7 +81,7 @@ struct spd_info {
 	unsigned long lowest_addr;
 	unsigned long size;
 	vaddr_t upcall_entry;
-	vaddr_t atomic_regions[8];
+	vaddr_t atomic_regions[10];
 };
 
 struct cos_thread_info {

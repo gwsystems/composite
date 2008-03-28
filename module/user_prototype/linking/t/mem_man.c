@@ -48,7 +48,7 @@ static inline struct mem_cell *find_cell(spdid_t spd, vaddr_t addr)
 
 extern int print_vals(int, int, int, int);
 /* 
- * Equivalent of mmap.
+ * Call to get a page of memory at a location.
  */
 vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 {
@@ -71,7 +71,7 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 }
 
 /*
- * Equivalent of munmap.
+ * Call to give up a page of memory in an spd at an address.
  */
 void mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 {

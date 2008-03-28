@@ -11,8 +11,11 @@ char *cos_meas_descriptions[COS_MEAS_MAX_SIZE+1] =
 	"interrupt preemption",
 	"component SDT invocations",
 	"bootstrapping upcalls",
-	"incriment pending brands",
 	"branded upcalls",
+	"incriment pending brands",
+	"completed brands -> upcall scheduler",
+	"completed brands -> schedule preempted thd",
+	"branded upcalls finished",
 	"interrupted user-level",
 	"interrupted kern-level",
 	"interrupted cos thread",
@@ -32,6 +35,10 @@ char *cos_meas_descriptions[COS_MEAS_MAX_SIZE+1] =
 	"page table free",
 	"memory page grant",
 	"memory page revoke",
+	"atomic operation rollback",
+	"atomic stale lock request",
+	"atomic lock request",
+	"atomic unlock request",
 	""
 };
 
@@ -52,7 +59,7 @@ void cos_meas_report(void)
 
 	printk("cos: Measurements:\n");
 	for (i = 0 ; i < COS_MEAS_MAX_SIZE ; i++) {
-		printk("cos: %30s : %lld\n", 
+		printk("cos: %50s : %lld\n", 
 		       cos_meas_descriptions[i], cos_measurements[i]);
 	}
 

@@ -12,8 +12,8 @@
 #include "../../../include/cos_types.h"
 
 extern struct cos_sched_data_area cos_sched_notifications;
-extern volatile long cos_this_spd_id;
-extern void *cos_heap_ptr;
+extern /*volatile*/ long cos_this_spd_id;
+void *cos_heap_ptr;
 
 /*
  * A note on the arguments to and for all system calls and on the
@@ -46,13 +46,18 @@ extern void *cos_heap_ptr;
  * allowing for the early demuxing in kern_entry.S.  This is an
  * important evolution because 1) it solves the problem we already
  * have with identifying which spd is making a system call in a more
- * natural (allbeit slower) manner, and 2) it allows services to be
+ * natural (albeit slower) manner, and 2) it allows services to be
  * migrated into and out of the kernel itself dynamically, given
  * perceived system call overhead and application progress.
  */
 
-
+/* 
+ * The extra asm below is rediculous as gcc doesn't let us clobber
+ * registers already in the input/output positions, but we DO clobber
+ * them in this operation.
+ */
 #define cos_syscall_asm \
+	__asm__ __volatile__("":::"eax", "ecx", "edx", "esi", "edi");	\
 	__asm__ __volatile__(                        \
 		"pushl %%ebp\n\t"                    \
 		"movl %%esp, %%ebp\n\t"              \
@@ -61,11 +66,10 @@ extern void *cos_heap_ptr;
 		"1:\n\t"                             \
 		"movl %%eax, %0\n\t"                 \
 		"popl %%ebp"                         \
-		: "=r" (ret)
-#define cos_syscall_clobber \
-                : "%ecx", "cc");     \
-                                                     \
-	return ret;                                  \
+		: "=a" (ret)
+#define cos_syscall_clobber			        \
+	: "memory", "cc");				\
+	return ret;
 
 #define cos_syscall_0(num, rtype, name)              \
 static inline rtype cos_##name(void)                 \
@@ -106,9 +110,9 @@ cos_syscall_clobber                                  \
 typedef __attribute__((regparm(1))) void (*create_thd_fn_t)(void *data);
 
 cos_syscall_0(1, int, resume_return);
-//cos_syscall_0(2, int, get_thd_id);
+//cos_syscall_0(2, int, sync_threads, int, thd_id, int, flags);
 cos_syscall_3(3, int, create_thread, create_thd_fn_t, fn, vaddr_t, stack, void*, data);
-cos_syscall_0(4, int, __switch_thread);
+cos_syscall_2(4, int, __switch_thread, int, thd_id, int, flags);
 cos_syscall_2(5, int, kill_thd, int, kill_thdid, int, switchto_thdid);
 cos_syscall_3(6, int, __brand_upcall, int, thd_id_flags, long, arg1, long, arg2);
 cos_syscall_2(7, int, brand_cntl, int, thd_id, int, flags);
@@ -155,10 +159,10 @@ static inline int cos_switch_thread(unsigned short int thd_id, unsigned short in
 	cos_next->next_thd_urgency = urgency;
 
 	/* kernel will read next thread information from cos_next */
-	return cos___switch_thread(); 
+	return cos___switch_thread(thd_id, flags); 
 }
 
-static inline int cos_get_thd_id(void)
+static inline unsigned short int cos_get_thd_id(void)
 {
 	struct shared_user_data *ud = (void *)COS_INFO_REGION_ADDR;
 
@@ -186,6 +190,8 @@ static inline void cos_set_heap_ptr(void *addr)
 {
 	cos_heap_ptr = addr;
 }
+
+#define COS_EXTERN_FN(fn) __cos_extern_##fn
 
 static inline long cos_cmpxchg(void *memory, long anticipated, long result)
 {

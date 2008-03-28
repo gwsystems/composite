@@ -1,3 +1,10 @@
+/**
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ */
+
 #define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 
@@ -15,16 +22,22 @@ cos_static_stack:
 	.long 0
 	.endr
 
-.weak cos_sched_notifications
-cos_sched_notification:
+/*.weak cos_sched_notifications
+cos_sched_notifications:
 	.long 0
-; /* Scheduler page for event notifications and thread switching. */
-; .align 4096
-; .globl cos_sched_notifications
-; cos_sched_notifications:
-; 	.rep 1024
-; 	.long 0
-; 	.endr
+	.long 0
+	.long 0
+	.long 0
+*/
+	
+/* Scheduler page for event notifications and thread switching. */
+/*.align 4096
+.globl cos_sched_notifications
+cos_sched_notifications:
+	.rep 1024
+	.long 0
+	.endr
+	*/
 	
 .text
 .globl cos_upcall_entry
@@ -39,8 +52,7 @@ cos_upcall_entry:
 	pushl %esi
 	pushl %edi
 	pushl %ebx
-	pushl %eax /* thread id */
-	pushl %ecx /* data region ptr */	
+	pushl %ecx /* option */	
 	call cos_upcall_fn
 	/* addl $8, %esp <- dont need to clean the stack */
 
@@ -49,7 +61,6 @@ cos_upcall_entry:
 
 	sysenter
 	
-
 /*
  * %eax = cmpval, %ebx = memaddr, %ecx = newval
  */
@@ -82,4 +93,9 @@ cos_atomic_user2_end:
 cos_atomic_user3:
 .weak cos_atomic_user3_end
 cos_atomic_user3_end:
+.weak cos_atomic_user4
+.type cos_atomic_user4, @function
+cos_atomic_user4:
+.weak cos_atomic_user4_end
+cos_atomic_user4_end:
 	nop

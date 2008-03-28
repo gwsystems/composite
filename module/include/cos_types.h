@@ -22,21 +22,19 @@ struct cos_sched_next_thd {
 	unsigned int next_thd_urgency;
 };
 
-#define COS_SCHED_EXCL_YIELD 0x40  /* do not modify without modifying thread.h */
-
 struct cos_sched_events {
 	struct cos_sched_events *next_thd;
 	unsigned int cpu_consumption;
 };
 
 struct cos_synchronization_atom {
-	unsigned short int owner_thread, num_queued;
+	volatile unsigned short int owner_thd, queued_thd;
 } __attribute__((packed));
 
 struct cos_sched_data_area {
 	struct cos_sched_next_thd cos_next; //[NUM_CPUS];
-	struct cos_synchronization_atom locks[32]; //[NUM_CPUS];
-	struct cos_sched_events cos_events[256]; // maximum of PAGE_SIZE/sizeof(struct cos_sched_events) - ceil(sizeof(struct cos_sched_curr_thd)/(sizeof(struct cos_sched_events)+sizeof(locks)))
+	struct cos_synchronization_atom locks; //[NUM_CPUS];
+//	struct cos_sched_events cos_events[256]; // maximum of PAGE_SIZE/sizeof(struct cos_sched_events) - ceil(sizeof(struct cos_sched_curr_thd)/(sizeof(struct cos_sched_events)+sizeof(locks)))
 };
 
 #ifndef NULL
@@ -54,6 +52,12 @@ typedef unsigned int page_index_t;
 
 typedef unsigned short int spdid_t;
 typedef unsigned short int thdid_t;
+
+typedef enum {
+	COS_UPCALL_BRAND_EXEC,
+	COS_UPCALL_BRAND_COMPLETE,
+	COS_UPCALL_BOOTSTRAP
+} upcall_type_t;
 
 /* operations for cos_brand_cntl and cos_brand_upcall */
 enum { 
@@ -74,7 +78,12 @@ enum {
 	COS_SCHED_GRANT_SCHED, 
 	COS_SCHED_REVOKE_SCHED
 };
-#define COS_THD_SCHED_RETURN 0x20 /* do not modify without modifying thread.h */
+
+/* flags for cos_switch_thread */
+#define COS_SCHED_EXCL_YIELD   0x1
+#define COS_SCHED_TAILCALL     0x2
+#define COS_SCHED_SYNC_BLOCK   0x4
+#define COS_SCHED_SYNC_UNBLOCK 0x8
 
 struct mpd_split_ret {
 	short int new, old;

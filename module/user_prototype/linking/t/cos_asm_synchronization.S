@@ -1,10 +1,17 @@
+/**
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ */
+
 .text
 /*
  * cos_semaphore_take:	
  *
  * Bitwise format of a semaphore value:
- * | thread id | generation | 
- * |    16     |     16     |
+ * | contested | thread id | generation | 
+ * |     1     |    15     |     16     |
  *
  * This is too complicated for its own good.  When the kernel gets 
  * an interrupt and detects that a thread was executing in one of these 
@@ -18,22 +25,28 @@
 .type cos_atomic_user1, @function
 .align 16
 cos_atomic_user1:
-	movl *%eax, %ecx
+	movl (%eax), %ecx
 
 	/* get the current holding thread */
 	movl %ecx, %edi
 	shr  $16,  %edi
 
 	/* get the current generation */
-	andl $0000FFFF, %ecx
+	andl $0x0000FFFF, %ecx
 
+	cmpl $0, %edi
+	jne  locked
 	/* manipulate the thread id to be in the correct bitwise position */
 	movl %ebx, %edx
-	shl  $16,  %edx         /* offset current thread id */
+	jmp  commit
+locked:
+	movl %edi, %edx
+	orl  $0x8000, %edx /* set the contended bit */
+commit:	 
+	shl  $16,  %edx         /* offset current thread id, assume that the top bit is 0 (for uncontested) */
 	orl  %ecx, %edx
-
-	/* commit the new semaphore value */
-	movl %edx, *%eax
+	/* commit the new semaphore value: same generation, new thread */
+	movl %edx, (%eax)
 .globl cos_atomic_user1_end
 cos_atomic_user1_end:
 	ret
@@ -44,32 +57,28 @@ cos_atomic_user1_end:
  * in:  %eax = semaphore addr, %ebx = curr_thd_id
  * out: %ecx = new sem value (generation), %edi = last blocked thd 
  */
-.globl cos_atomic_user2
+.globl cos_atomic_user2 
 .type cos_atomic_user2, @function
 .align 16
 cos_atomic_user2:
-	movl *%eax, %ecx
+	movl (%eax), %ecx
 
-	/* get the current holding thread */
+	/* get the contention bit */
 	movl %ecx, %edi
-	shr  $16, %edi
+	shr  $31, %edi
 
 	/* get the current generation */
 	andl $0x0000FFFF, %ecx 
 
-	/* is the last thread to try to take the lock, our thread? */
-	cmpl %edi, %ebx
+	/* is the contested flag set? */
+	cmpl $0, %edi
 	je   no_contention
 
 	/* if contention, update generation */
-	inc  %ecx
-	/* loop around with the addition */
-	cmpl $0x0000FFFF, %ecx 
-	ja   no_contention
-	movl $0, %ecx
+	inc  %cx
 no_contention:
 	/* commit the new semaphore value */
-	movl %ecx, *%eax
+	movl %ecx, (%eax) /* any path should NULL out the owning thread */
 .globl cos_atomic_user2_end
 cos_atomic_user2_end:
 	ret

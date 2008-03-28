@@ -5,7 +5,7 @@ const char comp1str[] = "Hello World from component 1!\n";
 extern int spd2_fn(void);
 
 extern int print(void);
-extern int print_vals(int a, int b, int c);
+extern int print_vals(int a, int b, int c, int d);
 extern void yield(void);
 
 static inline int find_size(const char *m)
@@ -79,9 +79,10 @@ void cos_upcall_fn(vaddr_t data_region, int thd_id,
 {
 	curr = thd_id;
 
+	//print_vals(cos_get_thd_id(), cos_spd_id(), 0, 0);
 	while (1) {
 		yield();
-		//	c1_yield();
+		c1_yield();
 /*		c1_yield();
 		c1_yield();
 		c1_yield();*/
@@ -95,5 +96,5 @@ void symb_dump(void)
 	/* crap symbols issue, remove */
 	yield();
 	nothing();
-	print_vals(0,0,0);
+	print_vals(0,0,0,0);
 }

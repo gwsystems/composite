@@ -1218,6 +1218,7 @@ free_dummy:
 	{
 		struct spd_info spd_info;
 		struct spd *spd;
+		int i;
 
 		if (copy_from_user(&spd_info, (void*)arg, 
 				   sizeof(struct spd_info))) {
@@ -1239,6 +1240,10 @@ free_dummy:
 			return -ENOMEM;
 		}
 
+		for (i = 0 ; i < COS_NUM_ATOMIC_SECTIONS ; i++) {
+			spd->atomic_sections[i] = spd_info.atomic_regions[i];
+		}
+		
 		/* This is a special case where the component should
 		 * share the address space of the configuring process,
 		 * thus have access to all component's memory.  This
@@ -1458,7 +1463,7 @@ free_dummy:
 			return -EINVAL;
 		} 
 
-		sched->sched_shared_page = (struct cos_sched_next_thd *)sched_info.sched_shared_page;
+		sched->sched_shared_page = (struct cos_sched_data_area *)sched_info.sched_shared_page;
 
 		return 0;
 	}
@@ -1586,17 +1591,40 @@ void mem_mapping_syscall(struct pt_regs *regs)
 	
 }
 
+#define NFAULTS 200
+int fault_ptr = 0;
+struct fault_info {
+	vaddr_t addr, ip, sp, a, b, c, d, D, S, bp;
+	unsigned short int spdid, thdid;
+} faults[NFAULTS];
+
 /* the composite specific page fault handler */
 static void cos_handle_page_fault(struct thread *thd, struct spd_poly *spd_poly, 
 				  vaddr_t fault_addr, struct pt_regs *regs)
 {
 	struct composite_spd *cspd;
+	struct fault_info *fi;
 
 	BUG_ON(!(spd_poly->flags & SPD_COMPOSITE) || spd_poly->flags & SPD_FREE);
 	cspd = (struct composite_spd *)spd_poly;
 
 	memcpy(&thd->regs, regs, sizeof(struct pt_regs));
-	
+
+	fi = &faults[fault_ptr];
+	fi->addr = fault_addr;
+	fi->ip = regs->eip;
+	fi->sp = regs->esp;
+	fi->a = regs->eax;
+	fi->b = regs->ebx;
+	fi->c = regs->ecx;
+	fi->d = regs->edx;
+	fi->D = regs->edi;
+	fi->S = regs->esi;
+	fi->bp = regs->ebp;
+	fi->spdid = spd_get_index(thd_get_thd_spd(thd));
+	fi->thdid = thd_get_id(thd);
+	fault_ptr = (fault_ptr + 1) % NFAULTS;
+
 	return;
 }
 
@@ -1772,7 +1800,7 @@ int main_page_fault_interposition(void)
 	fault_addrs[BUCKET_HASH(fault_addr)]++;
 #endif
 	vma = find_vma(curr_mm, fault_addr);
-	if (present && vma && vma->vm_start <= fault_addr) {
+	if (/*present &&*/ vma && vma->vm_start <= fault_addr) {
 		/* let the linux fault handler deal with it */
 		cos_meas_event(COS_LINUX_PG_FAULT);
 		goto linux_handler_release;
@@ -2105,6 +2133,8 @@ void switch_host_pg_tbls(phys_addr_t pt)
 
 /***** begin timer handling *****/
 
+extern void switch_thread_context(struct thread *curr, struct thread *next);
+
 /* 
  * Our composite emulated timer interrupt executed from a Linux
  * softirq
@@ -2115,8 +2145,9 @@ extern struct thread *cos_brand_thread;
 static void timer_interrupt(unsigned long data)
 {
 	struct pt_regs *regs = NULL;
-	
+
 	BUG_ON(composite_thread == NULL);
+	mod_timer(&timer, jiffies+1);
 
 	if (composite_thread == current && cos_brand_thread && cos_brand_thread->upcall_threads) {
 		cos_meas_event(COS_MEAS_INT_COS_THD);
@@ -2146,7 +2177,7 @@ static void timer_interrupt(unsigned long data)
 			
 			cos_meas_event(COS_MEAS_INT_PREEMPT_USER);
 
-			if (!(cos_upcall_thread->flags & THD_STATE_READY_UPCALL)) {
+			if (cos_upcall_thread->flags & THD_STATE_ACTIVE_UPCALL) {
 				cos_meas_event(COS_MEAS_BRAND_PEND);
 				cos_brand_thread->pending_upcall_requests++;
 				goto timer_finish;
@@ -2163,10 +2194,8 @@ static void timer_interrupt(unsigned long data)
 			 */
 			cos_current = thd_get_current();
 			curr_spd = thd_get_thd_spdpoly(cos_current);
-			
-			/* preempt and save current thread */
-			memcpy(&cos_current->regs, regs, sizeof(struct pt_regs));
-			cos_current->flags |= THD_STATE_PREEMPTED;
+			thd_save_preempted_state(cos_current, regs);
+			thd_check_atomic_preempt(cos_current);
 
 			/* Load the address space of the target spd,
 			 * and load its registers. FIXME: we will want
@@ -2174,25 +2203,24 @@ static void timer_interrupt(unsigned long data)
 			 * real implementation when we arent calling
 			 * brand from the kernel. */
 			dest = thd_get_thd_spd(cos_brand_thread);
-
-			/* FIXME: Should be open_close_spd(&dest->spd_info, &curr_spd->spd_info) */
-			if (dest->spd_info.pg_tbl != curr_spd->pg_tbl) {
-				native_write_cr3(dest->spd_info.pg_tbl);
-				switch_host_pg_tbls(dest->spd_info.pg_tbl);
-			}
-
 			/* save this thread so that we can resume it
 			 * post execution */
 			cos_upcall_thread->interrupted_thread = cos_current;
-			cos_upcall_thread->flags |= THD_STATE_ACTIVE_UPCALL;
-			thd_set_current(cos_upcall_thread);
-
+			cos_current->preempter_thread = cos_upcall_thread;
 			/* see inv.c:cos_syscall_upcall_cont : */
 			cos_upcall_thread->stack_ptr = 0;
-			cos_upcall_thread->stack_base[0].current_composite_spd = /*(struct composite_spd*)*/&dest->spd_info;
+			cos_upcall_thread->stack_base[0].current_composite_spd = dest->composite_spd;
+			spd_mpd_ipc_take((struct composite_spd *)dest->composite_spd);
+
+			switch_thread_context(cos_current, cos_upcall_thread);
+
+			cos_upcall_thread->flags |= THD_STATE_ACTIVE_UPCALL;
+			cos_upcall_thread->flags &= ~THD_STATE_READY_UPCALL;
 
 			regs->eip = dest->upcall_entry;
-			regs->eax = cos_upcall_thread->thread_id;
+			regs->edx = regs->ecx = regs->ebx = regs->esp = regs->edi = regs->esi = regs->ebp = 0; //thd_get_id(cos_upcall_thread);
+			regs->orig_eax = regs->eax = thd_get_id(cos_upcall_thread);
+
 		} else {
 			cos_meas_event(COS_MEAS_INT_PREEMPT_KERN);
 		}
@@ -2201,7 +2229,6 @@ static void timer_interrupt(unsigned long data)
 	}
 
  timer_finish:
-	mod_timer(&timer, jiffies+1);
 
 	return;
 }
@@ -2210,7 +2237,7 @@ static void register_timers(void)
 {
 	init_timer(&timer);
 	timer.function = timer_interrupt;
-//	mod_timer(&timer, jiffies+2);
+	mod_timer(&timer, jiffies+2);
 	
 	return;
 }
@@ -2449,6 +2476,23 @@ static int aed_release(struct inode *inode, struct file *file)
 	}
 #endif
 
+	{
+		int i;
+		printk("\ncos: Faults:\n");
+		for (i = (fault_ptr+1)%NFAULTS ; i != fault_ptr ; i = (i + 1) % NFAULTS) {
+			struct fault_info *fi = &faults[i];
+			
+			if (fi->thdid != 0) {
+				printk("cos: spd %d, thd %d @ addr %x and w/ regs: \ncos:\t\t"
+				       "eip %10x, esp %10x, eax %10x, ebx %10x, ecx %10x,\ncos:\t\t"
+				       "edx %10x, edi %10x, esi %10x, ebp %10x \n",
+				       fi->spdid, fi->thdid, (unsigned int)fi->addr, (unsigned int)fi->ip, (unsigned int)fi->sp, 
+				       (unsigned int)fi->a, (unsigned int)fi->b, (unsigned int)fi->c, (unsigned int)fi->d, 
+				       (unsigned int)fi->D, (unsigned int)fi->S, (unsigned int)fi->bp);
+			}
+		}
+	}
+
 	return 0;
 }
 
@@ -2497,6 +2541,8 @@ static int asym_exec_dom_init(void)
 
 	//switch_to_executive = module_switch_to_executive;
 	//asym_page_fault = module_page_fault;
+
+	printk("cos: regs offset in thread struct @ %d\n", offsetof(struct thread, regs));
 
 	init_guest_mm_vect();
 	trusted_mm = NULL;

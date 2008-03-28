@@ -122,7 +122,9 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	       (unsigned int)sp, (unsigned int)ip);*/
 
 	if (capability >= MAX_STATIC_CAP) {
-		printk("cos: capability %d greater than max.\n", capability);
+		struct spd *t = virtual_namespace_query(ip);
+		printk("cos: capability %d greater than max from spd %d @ %x.\n", 
+		       capability, (t) ? spd_get_index(t): 0, (unsigned int)ip);
 		return 0;
 	}
 
@@ -213,6 +215,7 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	return cap_entry->dest_entry_instruction;
 }
 
+static struct pt_regs *brand_execution_completion(struct thread *);
 /*
  * Return from an invocation by popping off of the invocation stack an
  * entry, and returning its contents (including return ip and sp).
@@ -228,51 +231,11 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr, struct pt_regs
 
 	if (inv_frame == NULL) {
 		if (curr->flags & THD_STATE_ACTIVE_UPCALL) {
-			struct thread *prev;
-			struct spd *dest_spd;
-			struct spd_poly *orig_spdpoly;
-
-			prev = curr->interrupted_thread;
-			dest_spd = thd_get_thd_spd(prev);
-			orig_spdpoly = thd_get_thd_spdpoly(curr);
-
-			assert(curr->thread_brand && curr->flags & THD_STATE_UPCALL);
-
-			if (curr->thread_brand->pending_upcall_requests > 0) {
-				
-			}
-
-			curr->flags &= ~THD_STATE_ACTIVE_UPCALL;
-			curr->flags |= THD_STATE_READY_UPCALL;
-
-			/* TODO: check if there are pending upcalls
-			 * and service them. */
-
-			/* 
-			 * FIXME: this should be more complicated.  If
-			 * a scheduling decision has been made between
-			 * when the upcall thread was scheduled, and
-			 * now.  In such a case, the "previous
-			 * preempted thread" could have already
-			 * executed to completion, or some such.  In
-			 * such a case (scheduling decision has been
-			 * made to put the upcall thread to sleep),
-			 * then the correct thing to do is to act like
-			 * this thread has been killed (or yields, or
-			 * something in between) for scheduling
-			 * purposes (assuming that we don't have
-			 * pending upcalls, which changes all of this.
-			 */
-			open_close_spd(&dest_spd->spd_info, orig_spdpoly);
-
-			assert(prev->flags & THD_STATE_PREEMPTED);
-			prev->flags &= ~THD_STATE_PREEMPTED;
-
-			thd_set_current(prev);
-			*regs_restore = &prev->regs;
+			*regs_restore = brand_execution_completion(curr);
 		} else {
 			/* TODO: should really send a fault here */
-			printk("Attempting to return from a component when there's no component to return to.\n");
+			printk("cos: Attempting to return from a component when there's no component to return to.\n");
+			assert(0);
 			regs_restore = 0;
 		}
 
@@ -336,7 +299,7 @@ struct thread *ready_boot_thread(struct spd *init)
 	return thd;
 }
 
-static void switch_thread_context(struct thread *curr, struct thread *next)
+void switch_thread_context(struct thread *curr, struct thread *next)
 {
 	struct shared_user_data *ud = get_shared_data();
 	unsigned int ctid, ntid;
@@ -388,7 +351,7 @@ COS_SYSCALL int cos_syscall_resume_return_cont(int spd_id)
 		return 0;
 	}
 
-	next_thd = curr_spd->sched_shared_page;
+	next_thd = &curr_spd->sched_shared_page->cos_next;
 	if (NULL == next_thd) {
 		printk("cos: non-scheduler attempting to switch thread.\n");
 		return 0;
@@ -424,7 +387,6 @@ COS_SYSCALL int cos_syscall_resume_return_cont(int spd_id)
 		       spd_get_index(curr_spd), next_thd->next_thd_id, spd_get_index(thd->sched_suspended));
 		return 0;
 	}
-
 
 	/* 
 	 * With MPD, we could have the situation where two spds
@@ -468,6 +430,49 @@ COS_SYSCALL int cos_syscall_get_thd_id(int spd_id)
 	return thd_get_id(curr);
 }
 
+void initialize_sched_info(struct thread *t, struct spd *curr_sched)
+{
+	struct spd *sched;
+	int i;
+
+	assert(spd_is_scheduler(curr_sched));
+	/* 
+	 * Initialize the thread's path through its hierarchy of
+	 * schedulers.  They will have to explicitly set the
+	 * thread_notification location at a later time.
+	 *
+	 * OPTION: Another option here would be to simply copy the
+	 * scheduler hierarchy of the current thread.  A good way to
+	 * initialize the urgency values for all the schedulers.
+	 */
+	sched = curr_sched;
+	for (i = curr_sched->sched_depth ; i >= 0 ; i--) {
+		struct thd_sched_info *tsi = thd_get_sched_info(t, i);
+
+		tsi->scheduler = sched;
+		tsi->urgency = 0;
+		tsi->thread_notifications = NULL;
+
+		sched = sched->parent_sched;
+	}
+
+	return;
+}
+
+void copy_sched_info(struct thread *new, struct thread *old)
+{
+	int i;
+
+	for (i = MAX_SCHED_HIER_DEPTH-1 ; i >= 0 ; i--) {
+		struct spd *s = thd_get_sched_info(old, i)->scheduler;
+
+		if (s) {
+			initialize_sched_info(new, s);
+			return;
+		}
+	}
+}
+
 /* 
  * Hope the current thread saved its context...should be able to
  * resume_return to it.
@@ -480,8 +485,7 @@ COS_SYSCALL int cos_syscall_get_thd_id(int spd_id)
 COS_SYSCALL int cos_syscall_create_thread(int spd_id, vaddr_t fn, vaddr_t stack, void *data)
 {
 	struct thread *thd, *curr;
-	struct spd *curr_spd, *sched;
-	int i;
+	struct spd *curr_spd;
 
 	/*
 	 * Lets make sure that the current spd is a scheduler and has
@@ -508,33 +512,15 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, vaddr_t fn, vaddr_t stack,
 		return -1;
 	}
 
-	cos_ref_take(&curr_spd->composite_spd->ref_cnt);
+	spd_mpd_ipc_take((struct composite_spd *)curr_spd->composite_spd);
+	//cos_ref_take(&curr_spd->composite_spd->ref_cnt);
 
 //	printk("cos: stack %x, fn %x, and data %p\n", stack, fn, data);
 	thd->regs.ecx = stack;
 	thd->regs.edx = fn;
 	thd->regs.eax = (int)data;
 
-	/* 
-	 * Initialize the thread's path through its hierarchy of
-	 * schedulers.  They will have to explicitly set the
-	 * thread_notification location at a later time.
-	 *
-	 * OPTION: Another option here would be to simply copy the
-	 * scheduler hierarchy of the current thread.  A good way to
-	 * initialize the urgency values for all the schedulers.
-	 */
-	sched = curr_spd;
-	for (i = curr_spd->sched_depth ; i >= 0 ; i--) {
-		struct thd_sched_info *tsi = thd_get_sched_info(thd, i);
-
-		tsi->scheduler = sched;
-		tsi->urgency = 0;
-		tsi->thread_notifications = NULL;
-
-		sched = sched->parent_sched;
-	}
-
+	initialize_sched_info(thd, curr_spd);
 //	printk("cos: allocated thread %d.\n", thd->thread_id);
 	/* TODO: set information in the thd such as schedulers[], etc... from the parent */
 
@@ -549,10 +535,9 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, vaddr_t fn, vaddr_t stack,
 
 	//print_regs(&curr->regs);
 
-	return thd->thread_id;
+	return thd_get_id(thd);
 }
 
-unsigned long long switch_coop, switch_preempt;
 extern int cos_syscall_switch_thread(void);
 /*
  * The arguments are horrible as we are interfacing w/ assembly and 1)
@@ -564,33 +549,62 @@ extern int cos_syscall_switch_thread(void);
  * more pleasant way to deal with this might be to pass the args in
  * registers.  see ipc.S cos_syscall_switch_thread.
  */
-COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, long *preempt)
+COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id, 
+							   unsigned short int rflags, long *preempt)
 {
 	struct thread *thd, *curr;
 	struct spd *curr_spd;
-	struct cos_sched_next_thd *next_thd;
-	unsigned short int flags;
+	unsigned short int next_thd, flags;
+	struct cos_sched_data_area *da;
 
+	*preempt = 0;
 	curr = thd_get_current();
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
 	if (NULL == curr_spd) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
+		curr->regs.eax = -1;
 		return &curr->regs;
 	}
-	next_thd = curr_spd->sched_shared_page;
-	flags = next_thd->next_thd_flags;
 
-	*preempt = 0;
-	
-	if (NULL == next_thd) {
+
+//	printk("cos: switch_thd - flags %x, spd %d\n", rflags, spd_get_index(curr_spd));
+//	thd_print_regs(curr);
+
+
+	da = curr_spd->sched_shared_page;
+	if (NULL == da) {
 		printk("cos: non-scheduler attempting to switch thread.\n");
+		curr->regs.eax = -1;
 		return &curr->regs;
 	}
 
-	thd = thd_get_by_id(next_thd->next_thd_id);
+	if (rflags & (COS_SCHED_SYNC_BLOCK | COS_SCHED_SYNC_UNBLOCK)) {
+		next_thd = rthd_id;
+		/* FIXME: mask out all flags that can't apply here  */
+	} else {
+		next_thd = da->cos_next.next_thd_id;
+		/* FIXME: mask out the locking flags as they cannot apply */
+	}
+	/* 
+	 * So far all flags should be taken in the context of the
+	 * actual invoking thread (they effect the thread switching
+	 * _from_ rather than the thread to switch _to_ in which case
+	 * we would want to use the sched_page flags.
+	 */
+	flags = rflags;
+
+	thd = thd_get_by_id(next_thd);
 	if (NULL == thd) {
-		printk("cos: no thread associated with id %d, cannot switch to it.\n", 
-		       next_thd->next_thd_id);
+		printk("cos: no thread with id %d and flags %x, cannot switch to it from %d @ %x.\n", 
+		       next_thd, flags, thd_get_id(curr), (unsigned int)curr->regs.edx);
+		thd_print_regs(curr);
+
+		curr->regs.eax = -1;
+		return &curr->regs;
+	}
+	if (thd == curr) {
+		printk("cos: thd %d switched to self (ip %x).\n", next_thd, (unsigned int)curr->regs.eip);
+		curr->regs.eax = -1;
 		return &curr->regs;
 	}
 
@@ -598,8 +612,12 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, long *pre
 	    !thd_scheduled_by(thd, curr_spd)) {
 		printk("cos: scheduler %d does not have scheduling control over %d or %d, cannot switch.\n",
 		       spd_get_index(curr_spd), thd_get_id(curr), thd_get_id(thd));
+		curr->regs.eax = -1;
 		return &curr->regs;
 	}
+
+	//printk("cos: thd %d (@ %x) wants to switch to %d (@ %x).\n", 
+	//       thd_get_id(curr), (unsigned int)curr->regs.edx, next_thd, (unsigned int)thd->regs.edx);
 
 	/*
 	 * If the thread was suspended by another scheduler, we really
@@ -613,10 +631,47 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, long *pre
 		if (suspender && curr_spd->sched_depth > suspender->sched_depth) {
 			printk("cos: scheduler %d resuming thread %d, but spd %d suspended it.\n",
 			       spd_get_index(curr_spd), thd_get_id(thd), spd_get_index(thd->sched_suspended));
-			
+			curr->regs.eax = -1;
 			return &curr->regs;
 		}
 		thd->flags &= ~THD_STATE_SCHED_EXCL;
+	}
+
+	/* do we have a synchronization event for the scheduler? */
+	if (flags & COS_SCHED_SYNC_BLOCK) {
+		struct cos_synchronization_atom *l = &da->locks;
+		
+		/* if a thread's version of which thread should be
+		 * scheduled next does not comply with the in-memory
+		 * version within the lock, then we are dealing with a
+		 * stale invocation.
+		 */
+		if (l->owner_thd != next_thd) {
+			cos_meas_event(COS_MEAS_ATOMIC_STALE_LOCK);
+			curr->regs.eax = 0;
+			return &curr->regs;
+		}
+		cos_meas_event(COS_MEAS_ATOMIC_LOCK);
+
+		/* FIXME: this should only be set if it is the most
+		 * urgent of the blocked threads waiting for owner_thd
+		 * to complete.
+		 */
+		l->queued_thd = thd_get_id(curr);
+//		printk("cos: placing thread %d as the thd to be unblocked and blocking, resuming %d\n", 
+//		       thd_get_id(curr), next_thd);
+		/* 
+		 * TODO: alter the urgency/priority of the owner
+		 * thread to inherit that of the current blocked thd.
+		 */
+	} else if (flags & COS_SCHED_SYNC_UNBLOCK) {
+		cos_meas_event(COS_MEAS_ATOMIC_UNLOCK);
+//		printk("cos: request from thread %d to unblock %d.\n",
+//		       thd_get_id(curr), next_thd);
+		/* 
+		 * TODO: reset urgency/priority of current thread back
+		 * to natural state.
+		 */
 	}
 
 	if (flags & COS_SCHED_EXCL_YIELD) {
@@ -632,15 +687,44 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, long *pre
 	  curr->thread_id, thd->thread_id, spd_get_index(curr_spd));*/
 
 	if (thd->flags & THD_STATE_PREEMPTED) {
-/*		struct spd_poly *dest_spd = thd_get_thd_spdpoly(thd);
+/*		Done already in switch_thread_context:
+                struct spd_poly *dest_spd = thd_get_thd_spdpoly(thd);
 
 		open_close_spd(dest_spd, &curr_spd->spd_info);
-*/		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
+*/
+		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
+		if (thd->preempter_thread) {
+			struct thread *p = thd->preempter_thread;
+			struct thread *i = thd->interrupted_thread;
+
+			/* is the doubly linked list sound? */
+			assert(p->interrupted_thread == thd);
+			
+			/* maintain the doubly linked list of interrupted thds */
+			p->interrupted_thread = i;
+			thd->preempter_thread = NULL;
+			if (i) {
+				i->preempter_thread = p;
+			}
+		}
 
 		thd->flags &= ~THD_STATE_PREEMPTED;
 		*preempt = 1;
+
+		//printk("cos: switching to preempted thread %d with regs:\n", thd_get_id(thd));
+		//thd_print_regs(thd);
 	} else {
 		cos_meas_event(COS_MEAS_SWITCH_COOP);
+	}
+
+	/* If we are an upcalling thread, and we are asking to return,
+	 * we're done.  If a preemption thread, deactivate.  */
+	if (flags & COS_SCHED_TAILCALL && thd->stack_ptr == 0 && (thd->flags & THD_STATE_ACTIVE_UPCALL)) {
+		assert(!thd->preempter_thread); 
+		assert(!thd->interrupted_thread);
+		
+		thd->flags &= ~THD_STATE_ACTIVE_UPCALL;
+		thd->flags |= THD_STATE_READY_UPCALL;
 	}
 
 	if (thd->flags & THD_STATE_SCHED_RETURN) {
@@ -659,6 +743,9 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, long *pre
 		 */
 	}
 	
+	/* success for this current thread */
+	curr->regs.eax = 0;
+	
 	return &thd->regs;
 }
 
@@ -671,6 +758,108 @@ COS_SYSCALL void cos_syscall_kill_thd_cont(int spd_id, int thd_id)
 
 }
 
+static struct thread *upcall_setup(struct thread *uc, struct spd *dest, upcall_type_t option,
+				   long arg1, long arg2, long arg3)
+{
+	struct pt_regs *r = &uc->regs;
+
+	r->ebx = arg1;
+	r->edi = arg2;
+	r->esi = arg3;
+	r->ecx = option;
+	r->eip = r->edx = dest->upcall_entry;
+	r->eax = thd_get_id(uc);
+
+	uc->stack_ptr = 0;
+	uc->stack_base[0].current_composite_spd = dest->composite_spd;
+
+	return uc;
+}
+
+static struct thread *upcall_execute(struct thread *uc, struct thread *prev, 
+				     struct composite_spd *old)
+{
+	struct composite_spd *cspd = (struct composite_spd*)uc->stack_base[0].current_composite_spd;
+
+	if (prev) {
+		switch_thread_context(uc, prev);
+	}
+	if (old != cspd) {
+		spd_mpd_take(cspd);
+		/* we have already released the old->composite_spd */
+		open_close_spd(&cspd->spd_info, &old->spd_info);
+	}
+
+	return uc;
+}
+
+static struct pt_regs *brand_execution_completion(struct thread *curr)
+{
+	struct thread *prev;
+	struct composite_spd *cspd = (struct composite_spd *)thd_get_thd_spdpoly(curr);
+	
+	assert(curr->thread_brand && curr->flags & THD_STATE_UPCALL);
+	assert(cspd);
+	spd_mpd_release(cspd);
+	
+	/*
+	 * This assertion can fail if we switched to the preempted
+	 * thread because of synchronizations, but we still want to
+	 * run it after the branded thread finishes.
+	 */
+	//assert(prev->flags & THD_STATE_PREEMPTED);
+	
+	/* TODO: check if there are pending upcalls
+	 * and service them. */
+	if (curr->thread_brand->pending_upcall_requests > 0) {
+		curr->thread_brand->pending_upcall_requests--;
+		assert(0);
+	}
+	curr->flags &= ~THD_STATE_ACTIVE_UPCALL;
+	curr->flags |= THD_STATE_READY_UPCALL;
+	cos_meas_event(COS_MEAS_FINISHED_BRANDS);
+
+	/*
+	 * Has the thread we preempted had scheduling activity since?
+	 * If so, upcall into the root scheduler and ask it what to
+	 * do.
+	 */
+	prev = curr->interrupted_thread;
+	if (NULL == prev) {
+		struct thd_sched_info *tsi;
+		struct spd *dest;
+
+		tsi = thd_get_sched_info(curr, 0);
+		dest = tsi->scheduler;
+
+		upcall_setup(curr, dest, COS_UPCALL_BRAND_COMPLETE, 0, 0, 0);
+		upcall_execute(curr, NULL, cspd);
+
+		cos_meas_event(COS_MEAS_BRAND_COMPLETION_UC);
+		return &curr->regs;
+	}
+	cos_meas_event(COS_MEAS_BRAND_SCHED_PREEMPTED);
+	/* 
+	 * FIXME: this should be more complicated.  If
+	 * a scheduling decision has been made between
+	 * when the upcall thread was scheduled, and
+	 * now.  In such a case, the "previous
+	 * preempted thread" could have already
+	 * executed to completion, or some such.  In
+	 * such a case (scheduling decision has been
+	 * made to put the upcall thread to sleep),
+	 * then the correct thing to do is to act like
+	 * this thread has been killed (or yields, or
+	 * something in between) for scheduling
+	 * purposes (assuming that we don't have
+	 * pending upcalls, which changes all of this.
+	 */
+	switch_thread_context(curr, prev);
+
+	prev->flags &= ~THD_STATE_PREEMPTED;
+	
+	return &prev->regs;
+}
 
 /**
  * Upcall interfaces:
@@ -728,6 +917,12 @@ COS_SYSCALL struct thread *cos_syscall_brand_upcall_cont(int spd_id, int thread_
 	}
 	dest_spd = frm->spd;
 
+	/*
+	 * - release prev cspd
+	 * - take new cspd
+	 * - switch_thread_context
+	 */
+
 	rs = &brand_thd->regs;
 	/* this is paired with cos_asm_upcall.S */
 	rs->eax = thread_id;
@@ -776,7 +971,7 @@ upcall_brand_err:
 struct thread *cos_brand_thread;
 COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags)
 {
-	struct thread *new_thd, *brand_thd = NULL, *curr_thd;
+	struct thread *new_thd, *curr_thd;
 	struct spd *curr_spd;
 
 	curr_thd = thd_get_current();
@@ -784,16 +979,6 @@ COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags)
 	if (NULL == curr_spd) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
 		return -1;		
-	}
-
-	if (COS_BRAND_ADD_THD == flags) {
-		brand_thd = thd_get_by_id(thd_id);
-
-		if (brand_thd == NULL) {
-			printk("cos: cos_syscall_brand_cntl could not find thd_id %d to add thd to.\n", 
-			       (unsigned int)thd_id);
-			return -1;
-		}
 	}
 
 	new_thd = thd_alloc(curr_spd);
@@ -806,17 +991,31 @@ COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags)
 	if (COS_BRAND_CREATE == flags) {
 		/* the brand thread holds the invocation stack record: */
 		memcpy(&new_thd->stack_base, &curr_thd->stack_base, sizeof(curr_thd->stack_base));
-		new_thd->stack_ptr = curr_thd->stack_ptr;
 		new_thd->cpu_id = curr_thd->cpu_id;
-		new_thd->flags |= THD_STATE_BRAND;
+		new_thd->flags = THD_STATE_BRAND;
+		new_thd->stack_ptr = curr_thd->stack_ptr;
 
+		copy_sched_info(new_thd, curr_thd);
 		cos_brand_thread = new_thd;
 	} else if (COS_BRAND_ADD_THD == flags) {
-		new_thd->flags |= (THD_STATE_UPCALL | THD_STATE_READY_UPCALL);
+		struct thread *brand_thd;
+
+		brand_thd = thd_get_by_id(thd_id);
+		if (brand_thd == NULL) {
+			printk("cos: cos_syscall_brand_cntl could not find thd_id %d to add thd to.\n", 
+			       (unsigned int)thd_id);
+			thd_free(new_thd);
+			return -1;
+		}
+
+		new_thd->flags = (THD_STATE_UPCALL | THD_STATE_READY_UPCALL);
 		new_thd->thread_brand = brand_thd;
 		new_thd->brand_inv_stack_ptr = brand_thd->stack_ptr;
 
-		cos_brand_thread->upcall_threads = new_thd;
+		new_thd->upcall_threads = brand_thd->upcall_threads;
+		brand_thd->upcall_threads = new_thd;
+
+		copy_sched_info(new_thd, brand_thd);
 	}
 
 	return new_thd->thread_id;
@@ -898,15 +1097,17 @@ COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, vaddr_t *in
 		}
 	}
 
-	open_close_spd(dest->composite_spd, curr_spd->composite_spd);
+	open_close_spd(dest->composite_spd, curr_spd->composite_spd); 
 	
 	/* set the thread to have dest as a new base owner */
 	thd->stack_ptr = 0;
 	thd->stack_base[0].current_composite_spd = dest->composite_spd;
 
-	cos_ref_release(&curr_spd->composite_spd->ref_cnt);
-	cos_ref_take(&dest->composite_spd->ref_cnt);
+	spd_mpd_ipc_release((struct composite_spd *)curr_spd->composite_spd);
+	spd_mpd_ipc_take((struct composite_spd *)dest->composite_spd);
 
+	thd->regs.ecx = COS_UPCALL_BOOTSTRAP;
+	thd->regs.edx = dest->upcall_entry;
 	*inv_addr = dest->upcall_entry;
 
 	cos_meas_event(COS_MEAS_UPCALLS);

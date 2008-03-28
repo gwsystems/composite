@@ -163,6 +163,7 @@ isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int fl
 	*/
 
 	if (cap_num >= MAX_STATIC_CAP) {
+		printk("Attempting to change isolation level of invalid cap %d.\n", cap_num);
 		return IL_INV;
 	}
 
@@ -405,7 +406,8 @@ int spd_set_location(struct spd *spd, unsigned long lowest_addr,
 	 */
 	kaddr = pgtbl_vaddr_to_kaddr(pg_tbl, (unsigned long)spd->user_vaddr_cap_tbl);
 	if (0 == kaddr) {
-		printk("cos: could not translate the user-cap address into a kernel vaddr.\n");
+		printk("cos: could not translate the user-cap address, %x, into a kernel vaddr for spd %d.\n",
+		       (unsigned int)spd->user_vaddr_cap_tbl, spd_get_index(spd));
 		return -1;
 	}
 
@@ -1002,4 +1004,3 @@ int spd_composite_remove_member(struct spd *spd, int remove_mappings)
 	
 	return 0;
 }
-

@@ -173,12 +173,14 @@ struct spd {
 	int sched_depth;
 	struct spd *parent_sched;
 
-	struct cos_sched_next_thd *sched_shared_page;
+	struct cos_sched_data_area *sched_shared_page;
 	struct cos_sched_events *prev_notification;
 
 	mmaps_t local_mmaps; /* mm_handle (see hijack.c) for linux compat */
 
 	vaddr_t upcall_entry;
+	
+	vaddr_t atomic_sections[COS_NUM_ATOMIC_SECTIONS];
 
 	/* should be a union to not waste space */
 	struct spd *freelist_next;
@@ -227,8 +229,14 @@ static inline int spd_mpd_is_depricated(struct composite_spd *mpd)
 
 void spd_init_mpd_descriptors(void);
 short int spd_alloc_mpd_desc(void);
+
 void spd_mpd_release_desc(short int desc);
 void spd_mpd_release(struct composite_spd *cspd);
+static inline void spd_mpd_take(struct composite_spd *cspd)
+{
+	cos_ref_take(&cspd->spd_info.ref_cnt);
+}
+
 struct composite_spd *spd_mpd_by_idx(short int idx);
 short int spd_mpd_index(struct composite_spd *cspd);
 static inline void spd_mpd_depricate(struct composite_spd *mpd)

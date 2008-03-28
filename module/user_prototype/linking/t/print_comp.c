@@ -2,21 +2,32 @@
 
 #include <stdio.h>
 #include <string.h>
+#define MAX_LEN 45
 
-int print(void)
+char foo[MAX_LEN];
+
+void print_mpd(int state) 
 {
-	int ret = 5, *len_ptr;
-	char *string;
+	char *pd = "\n\nSeparate Protection Domains:\n";
+	char *ni = "\n\nSingle Protection Domain:\n";
+	char *str = state ? pd: ni;
+	
+	write(1, str, strlen(str));
+}
 
-	len_ptr = COS_FIRST_ARG;
-	string = (char *)(len_ptr + 1); // plus 4 bytes 
+int print(int len_ptr)
+{
+	char *string = cos_get_arg_region();
+//	int *foo = cos_get_arg_region();
+	int ret;
 
-	ret = write(1, string, *len_ptr);
+//	ret = print_vals(*foo, len_ptr, 0, 0);
+	snprintf(foo, MAX_LEN, "%s", string);
+	ret = write(1, foo, len_ptr);
 	
 	return ret;
 }
 
-#define MAX_LEN 45
 static int nothing = 0;
 int print_vals(int val1, int val2, int val3, int val4)
 {

@@ -28,7 +28,7 @@ struct free_page {
 	struct free_page *next;
 	void *addr;
 };
-struct free_page page_list;
+struct free_page page_list = {.next = NULL, .addr = NULL};
 
 extern void *mman_get_page(spdid_t spd, void *addr, int flags);
 extern void mman_release_page(spdid_t spd, void *addr, int flags);

@@ -126,3 +126,43 @@ void thd_init(void)
 	thd_init_all(threads);
 	current_thread = NULL;
 }
+
+
+/*
+ * Is the thread currently in an atomic section, and if so, rollback
+ * its instruction pointer to the beginning of the section (the commit
+ * has not yet happened).
+ */
+int thd_check_atomic_preempt(struct thread *thd)
+{
+	struct spd *spd = thd_get_thd_spd(thd);
+	vaddr_t ip = thd->regs.eip;
+	int i;
+	
+	assert(thd->flags & THD_STATE_PREEMPTED);
+
+	for (i = 0 ; i < COS_NUM_ATOMIC_SECTIONS/2 ; i+=2) {
+		if (ip > spd->atomic_sections[i] && 
+		    ip < spd->atomic_sections[i+1]) {
+			thd->regs.eip = spd->atomic_sections[i];
+			cos_meas_event(COS_MEAS_ATOMIC_RBK);
+			return 1;
+		}
+	}
+	
+	return 0;
+}
+
+void thd_print_regs(struct thread *t) {
+	struct pt_regs *r = &t->regs;
+	struct spd *s = thd_get_thd_spd(t);
+
+	printk("cos: spd %d, thd %d w/ regs: \ncos:\t\t"
+	       "eip %10x, esp %10x, eax %10x, ebx %10x, ecx %10x,\ncos:\t\t"
+	       "edx %10x, edi %10x, esi %10x, ebp %10x \n",
+	       spd_get_index(s), thd_get_id(t), (unsigned int)r->eip, (unsigned int)r->esp, 
+	       (unsigned int)r->eax, (unsigned int)r->ebx, (unsigned int)r->ecx, (unsigned int)r->edx, 
+	       (unsigned int)r->edi, (unsigned int)r->esi, (unsigned int)r->ebp);
+
+	return;
+}

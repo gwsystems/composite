@@ -12,7 +12,81 @@
 
 #include "../../../include/consts.h"
 #include "../../../include/cos_types.h"
-#include "cos_list.h"
+
+#include "cos_component.h"
+
+static inline int cos_sched_lock_take(void)
+{
+	struct cos_synchronization_atom *l = &cos_sched_notifications.locks;
+	unsigned int curr_thd = cos_get_thd_id();
+	
+	while (1) {
+		int ret;
+		unsigned int lock_val;
+
+		__asm__ __volatile__("call cos_atomic_user1"
+				     : "=D" (lock_val) 
+				     : "a" (l), "b" (curr_thd)
+				     : "cc", "memory");
+//		print_vals(0, curr_thd, (lock_val & 0xFFFF0000) >> 16, (0x0000FFFF & lock_val));
+		/* no contention?  We're done! */
+		if (lock_val == 0) {
+			break;
+		}
+		/* If another thread holds the lock, notify lock component */
+		if ((ret = cos___switch_thread(lock_val & 0x0000FFFF, COS_SCHED_SYNC_BLOCK)) == -1) {
+			return -1;
+		}
+	} 
+
+	return 0;
+}
+
+static inline int cos_sched_lock_release(void)
+{
+	struct cos_synchronization_atom *l = &cos_sched_notifications.locks;
+	unsigned int lock_val;
+	/* TODO: sanity check that verify that lower 16 bits of
+	   lock_val == curr_thd unsigned int curr_thd =
+	   cos_get_thd_id(); */
+	
+	__asm__ __volatile__("call cos_atomic_user2"
+			     : "=c" (lock_val)
+			     : "a" (l)
+			     : "memory");
+	/* If a thread is attempting to access the resource, */
+	lock_val >>= 16;
+	if (lock_val) {
+		return cos___switch_thread(lock_val, COS_SCHED_SYNC_UNBLOCK);
+	}
+	
+	return 0;
+
+}
+
+/*
+ * This will call the switch_thread syscall after releasing the
+ * scheduler lock.
+ */
+static inline int cos_switch_thread_release(unsigned short int thd_id, 
+					    unsigned short int flags, 
+					    unsigned int urgency)
+{
+        /* This must be volatile as we must commit what we want to
+	 * write to memory immediately to be read by the kernel */
+	volatile struct cos_sched_next_thd *cos_next = &cos_sched_notifications.cos_next;
+
+	cos_next->next_thd_id = thd_id;
+	cos_next->next_thd_flags = flags;
+	cos_next->next_thd_urgency = urgency;
+
+	cos_sched_lock_release();
+
+	/* kernel will read next thread information from cos_next */
+	return cos___switch_thread(thd_id, flags); 
+}
+
+#ifdef WAIT
 
 #define THD_BLOCKED 0x1
 #define THD_READY   0x2
@@ -100,5 +174,6 @@ static inline void sched_rem_mapping(unsigned short int thd_id)
 
 	thd_map[thd_id] = NULL;
 }
+#endif /* WAIT */
 
 #endif

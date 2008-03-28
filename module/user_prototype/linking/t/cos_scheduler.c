@@ -2,7 +2,6 @@
 
 struct sched_thread *thd_map[SCHED_NUM_THREADS];
 struct sched_thread thds[SCHED_NUM_EXECUTABLES]; 
-unsigned char cos_sched_notification[PAGE_SIZE] PAGE_ALIGNED;
 
 /* --- Thread Management Utiliities --- */
 

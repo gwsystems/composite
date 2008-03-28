@@ -1,7 +1,9 @@
 #include <cos_component.h>
 #include <cos_alloc.h>
+#include <cos_scheduler.h>
 
 extern int print_vals(int a, int b, int c, int d);
+extern int print(int);
 
 void nothing(void)
 {
@@ -18,16 +20,15 @@ static inline vaddr_t get_stack_addr(int thd_id)
 
 static unsigned short int thd_id = 0, new_thd1 = 0, new_thd2 = 0;
 volatile static unsigned short int curr_thd, other_thd;
-static int nothing_var;
+volatile static int nothing_var = 0;
 
-__attribute__((regparm(1)))
-void yield(unsigned int thd)
+void yield(void)
 {
 	unsigned short int prev_thd; 
 
  	//prev_thd = cos_get_thd_id();
-	//print_vals(thd, prev_thd, 0);
-	prev_thd = thd;
+	prev_thd = cos_get_thd_id();
+	//print_vals(prev_thd, other_thd, 0, 0);
 	if (prev_thd == thd_id) {
 		curr_thd = other_thd;
 	} else {
@@ -36,11 +37,12 @@ void yield(unsigned int thd)
 	}
 
 	cos_switch_thread(curr_thd, 0/*COS_THD_SCHED_RETURN*/, 0);
-	//print_vals(cos_get_thd_id(), curr_thd, 2);
+	//print_vals(cos_get_thd_id(), curr_thd, 1234, 4321);
 	//print_vals(curr_thd, 11, 11);
 	return;
 }
 
+int test_locks_fn(void);
 __attribute__((regparm(1)))
 void thread_tramp(void *data)
 {
@@ -52,22 +54,26 @@ void thread_tramp(void *data)
 		print_vals(6, test_id, c_id, 1234);
 	}
 
+	test_locks_fn(); 
+	print_vals(8, 6, 4, 2);
+	while (1) cos_switch_thread(1, 0, 0);
+
 	cos_upcall(1);
 
 	/* never get here */
 	while (1) {
-		yield(test_id);
+		yield();
 	}
 }
 
 #define LOWER 2
 #define UPPER 3
 
-static inline unsigned int strlen(char *s)
+void run_thds(void)
 {
-	unsigned int i;
-	for (i = 0 ; s[i] != '\0' ; i++) ;
-	return i;
+	cos_switch_thread(new_thd1, 0, 0);
+	//print_vals(6,6,6,6);
+	cos_switch_thread(new_thd2, 0, 0);
 }
 
 int spd2_fn(void)
@@ -77,49 +83,92 @@ int spd2_fn(void)
 	char f[] = "hello world\n";
 
 	cos_memcpy(s, f, sizeof(f));
-	print_vals(1, 2, 3, 4);
-	print_vals(cos_get_thd_id(), (int)cos_get_arg_region(), sizeof(f), 4321);
+
+	//print_vals(1, 2, 3, 4);
+	//print_vals(cos_get_thd_id(), (int)cos_get_arg_region(), sizeof(f), 4321);
 	//print_vals((int)&i,6,6);
 	thd_id = cos_get_thd_id();
 	curr_thd = thd_id;
 
 	new_thd1 = cos_create_thread(thread_tramp, get_stack_addr(LOWER), (void*)LOWER);
-	print_vals(new_thd1, new_thd1, new_thd1, new_thd1);
+	//print_vals(new_thd1, new_thd1, new_thd1, new_thd1);
 	if (new_thd1 != LOWER) {
 		print_vals(7, new_thd1, 1, 1);
 	}
 
 	new_thd2 = cos_create_thread(thread_tramp, get_stack_addr(UPPER), (void*)UPPER);
-	print_vals(new_thd2, new_thd2, new_thd2, new_thd2);
+	//print_vals(new_thd2, new_thd2, new_thd2, new_thd2);
 
 	if (new_thd2 != UPPER) {
 		print_vals(7, new_thd2, 1, 1);
 	}
 
 	other_thd = new_thd1;
-	cos_switch_thread(new_thd1, 0, 0);
-
-	cos_switch_thread(new_thd2, 0, 0);
-
+	run_thds();
 	//bthd = cos_brand(0, COS_BRAND_CREATE);
 	//cos_brand(bthd, COS_BRAND_ADD_THD);
 
- 	for (i = 0 ; i < 100000 ; i++) {
-		yield(thd_id);
+ 	for (i = 0 ; i < 1000000 ; i++) {
+		//print_vals(5,6,7,8);
+		yield();
 	}
 
 	return 1234;
 }
 
 extern void bar(unsigned int val, unsigned int val2);
+extern void print_mpd(int state);
+
+int print_progress(void) {
+	char *str = cos_get_arg_region();
+	
+	*str = '.'; str[1] = '\0';
+	return print(1);
+}
+
+int print_isolation(void)
+{
+//	char *msg = "\n\nProtection Domains present:      ";
+//	char *str = cos_get_arg_region();
+//	int *foo = cos_get_arg_region();
+//	print_vals((int)str, 0, 0, 0);
+	//cos_memcpy(str, msg, 33);
+//	*foo = 1234;
+//	return print(32);
+	print_mpd(1);
+	return 0;
+}
+
+
+int print_remove(void)
+{
+//	char *msg = "\n\nProtection Domains absent:       ";
+//	int *foo = cos_get_arg_region();
+//	char *str = cos_get_arg_region();
+//	print_vals((int)str, 0, 0, 0);
+	//cos_memcpy(str, msg, 32);
+	//*foo = 1234;
+//	return print(31);
+	print_mpd(0);
+	return 0;
+}
+
+#define ITER 1000000
 
 int run_demo(void)
 {
 	int i, j;
 
-	for (i = 0 ; i < 6 ; i++) {
-		for (j = 0 ; j < 6 ; j++) {
+	for (i = 0 ; i < ITER ; i++) {
+		if (i % 2 == 0) {
+			print_isolation();
+		} else {
+			print_remove();
+		}
+
+		for (j = 0 ; j < 30 ; j++) {
 			bar(i, j);
+			print_progress();
 		}
 		//print_vals(7337, 0, 2);
 		cos_mpd_cntl(COS_MPD_DEMO);
@@ -128,18 +177,76 @@ int run_demo(void)
 	return i;
 }
 
+#define OTHER_THD(x) (((x) == 1)? 2: 1)
+volatile static int race_val;
+#define SPIN 10
+
+/* use stack space and registers */
+int fact(int x) {
+	if (x == 1 || x == 2) return 1;
+	return fact(x-1) + fact(x-2);
+}
+
+int test_locks_fn(void)
+{
+	unsigned long long cnt = 0;
+	while (1) {
+		int tmp, i = 0;
+		if (cos_sched_lock_take() == -1) {
+//			print_vals(9, 7, cos_sched_notifications.locks.owner_thd, cos_sched_notifications.locks.queued_thd);
+			print_vals(9, 7, 0, 0);
+			return -1;
+		}
+		tmp = race_val;
+
+//		print_vals(3,2,1,3); 
+		fact(40);
+		while (i++ < SPIN);
+
+		if ((cnt & ((2<<12)-1)) == 0) cos_switch_thread(OTHER_THD(cos_get_thd_id()), 0, 0);
+
+		if (race_val != tmp) print_vals(8,0,0,8);
+		if (-1 == cos_sched_lock_release()) {
+			print_vals(9, 8, 8, 8);
+			return -1;
+		}
+		//cos_switch_thread(OTHER_THD(cos_get_thd_id()), 0, 0);
+		cnt++;
+	}
+}
+
 int test_locks(void)
 {
-	unsigned int new_thd1, new_thd2;
+	unsigned int new_thd1;//, new_thd2;
 
 	new_thd1 = cos_create_thread(thread_tramp, get_stack_addr(LOWER), (void*)LOWER);
-	new_thd2 = cos_create_thread(thread_tramp, get_stack_addr(UPPER), (void*)UPPER);
-	
-	if (new_thd1 != LOWER || new_thd2 != UPPER) {
-		print_vals(1234, 1234, 1234, 1234);
+//	new_thd2 = cos_brand_cntl(0, COS_BRAND_CREATE);
+//	cos_brand_cntl(new_thd2, COS_BRAND_ADD_THD);
+
+	//new_thd2 = cos_create_thread(thread_tramp, get_stack_addr(UPPER), (void*)UPPER);
+	print_vals(8,8,8,8);
+	return test_locks_fn();
+}
+
+void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
+{
+	if (t == COS_UPCALL_BRAND_COMPLETE) {
+		cos_switch_thread(1, COS_SCHED_TAILCALL, 0);
+	}
+	//print_vals(1,4,7,5);
+	if (-1 == cos_sched_lock_take()) {
+		print_vals(6, 5, 5, 5);
+		return;
+	}
+	race_val++;
+	if (-1 == cos_sched_lock_release()) {
+		print_vals(6, 4, 4, 4);
+		return;
 	}
 
-	return 0;
+
+	nothing_var++;
+	return;
 }
 
 #define SZ 128
@@ -199,15 +306,6 @@ int test_mmapping(void)
 	return 0;
 }
 
-void cos_upcall_fn(vaddr_t data_region, int id, 
-		   void *arg1, void *arg2, void *arg3)
-{
-	yield(id);
-
-	nothing_var += 1;
-	return;
-}
-
 int sched_init(void)
 {
 	int ret;
@@ -216,8 +314,8 @@ int sched_init(void)
 	//ret = spd2_fn();
 //	ret = run_demo();
 //	ret = spd2_fn();
-	ret = test_mmapping();
-//	ret = test_locks();
+//	ret = test_mmapping();
+	ret = test_locks();
 	//print_vals(6,6,6);
 	nothing_var++;
 
@@ -227,4 +325,5 @@ int sched_init(void)
 void symb_bag(void)
 {
 	bar(0, 1);
+	print(0);
 }
