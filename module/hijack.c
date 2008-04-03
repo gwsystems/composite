@@ -2261,7 +2261,7 @@ void thd_publish_data_page(struct thread *thd, vaddr_t page)
 	//printk("cos: shared_region_pte is %p, page is %x.\n", shared_region_pte, page);
 	/* _PAGE_PRESENT is not set */
 	((pte_t*)shared_region_page)[id].pte_low = (vaddr_t)va_to_pa((void*)page) |
-		(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);; 
+		(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
 
 	return;
 }

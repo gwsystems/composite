@@ -1,9 +1,7 @@
 #include <cos_component.h>
 #include <cos_alloc.h>
 #include <cos_scheduler.h>
-
-extern int print_vals(int a, int b, int c, int d);
-extern int print(int);
+#include <print.h>
 
 void nothing(void)
 {
@@ -28,7 +26,7 @@ void yield(void)
 
  	//prev_thd = cos_get_thd_id();
 	prev_thd = cos_get_thd_id();
-	//print_vals(prev_thd, other_thd, 0, 0);
+
 	if (prev_thd == thd_id) {
 		curr_thd = other_thd;
 	} else {
@@ -37,8 +35,7 @@ void yield(void)
 	}
 
 	cos_switch_thread(curr_thd, 0/*COS_THD_SCHED_RETURN*/, 0);
-	//print_vals(cos_get_thd_id(), curr_thd, 1234, 4321);
-	//print_vals(curr_thd, 11, 11);
+
 	return;
 }
 
@@ -51,11 +48,11 @@ void thread_tramp(void *data)
 	test_id = cos_get_thd_id();
 
 	if (test_id != c_id) {
-		print_vals(6, test_id, c_id, 1234);
+		print("error in thd tramp: %d %d %d", test_id, c_id, 0);
 	}
 
 	test_locks_fn(); 
-	print_vals(8, 6, 4, 2);
+
 	while (1) cos_switch_thread(1, 0, 0);
 
 	cos_upcall(1);
@@ -79,10 +76,6 @@ void run_thds(void)
 int spd2_fn(void)
 {
 	unsigned int i;
-	char *s = cos_get_arg_region();
-	char f[] = "hello world\n";
-
-	cos_memcpy(s, f, sizeof(f));
 
 	//print_vals(1, 2, 3, 4);
 	//print_vals(cos_get_thd_id(), (int)cos_get_arg_region(), sizeof(f), 4321);
@@ -93,14 +86,14 @@ int spd2_fn(void)
 	new_thd1 = cos_create_thread(thread_tramp, get_stack_addr(LOWER), (void*)LOWER);
 	//print_vals(new_thd1, new_thd1, new_thd1, new_thd1);
 	if (new_thd1 != LOWER) {
-		print_vals(7, new_thd1, 1, 1);
+		print("error: spd2_fn w/ %d %d %d", new_thd1, 1, 1);
 	}
 
 	new_thd2 = cos_create_thread(thread_tramp, get_stack_addr(UPPER), (void*)UPPER);
 	//print_vals(new_thd2, new_thd2, new_thd2, new_thd2);
 
 	if (new_thd2 != UPPER) {
-		print_vals(7, new_thd2, 1, 1);
+		print("error: spd2_fn w/ %d %d %d", new_thd2, 1, 1);
 	}
 
 	other_thd = new_thd1;
@@ -116,60 +109,13 @@ int spd2_fn(void)
 	return 1234;
 }
 
-extern void bar(unsigned int val, unsigned int val2);
-extern void print_mpd(int state);
-
-int print_progress(void) {
-	char *str = cos_get_arg_region();
-	
-	*str = '.'; str[1] = '\0';
-	return print(1);
-}
-
-int print_isolation(void)
-{
-//	char *msg = "\n\nProtection Domains present:      ";
-//	char *str = cos_get_arg_region();
-//	int *foo = cos_get_arg_region();
-//	print_vals((int)str, 0, 0, 0);
-	//cos_memcpy(str, msg, 33);
-//	*foo = 1234;
-//	return print(32);
-	print_mpd(1);
-	return 0;
-}
-
-
-int print_remove(void)
-{
-//	char *msg = "\n\nProtection Domains absent:       ";
-//	int *foo = cos_get_arg_region();
-//	char *str = cos_get_arg_region();
-//	print_vals((int)str, 0, 0, 0);
-	//cos_memcpy(str, msg, 32);
-	//*foo = 1234;
-//	return print(31);
-	print_mpd(0);
-	return 0;
-}
-
 #define ITER 1000000
 
 int run_demo(void)
 {
-	int i, j;
+	int i;
 
 	for (i = 0 ; i < ITER ; i++) {
-		if (i % 2 == 0) {
-			print_isolation();
-		} else {
-			print_remove();
-		}
-
-		for (j = 0 ; j < 30 ; j++) {
-			bar(i, j);
-			print_progress();
-		}
 		//print_vals(7337, 0, 2);
 		cos_mpd_cntl(COS_MPD_DEMO);
 		//print_vals(7337, 1, 2);
@@ -194,7 +140,7 @@ int test_locks_fn(void)
 		int tmp, i = 0;
 		if (cos_sched_lock_take() == -1) {
 //			print_vals(9, 7, cos_sched_notifications.locks.owner_thd, cos_sched_notifications.locks.queued_thd);
-			print_vals(9, 7, 0, 0);
+			print("error: could not take lock %d%d%d",0,0,8);
 			return -1;
 		}
 		tmp = race_val;
@@ -205,9 +151,9 @@ int test_locks_fn(void)
 
 		if ((cnt & ((2<<12)-1)) == 0) cos_switch_thread(OTHER_THD(cos_get_thd_id()), 0, 0);
 
-		if (race_val != tmp) print_vals(8,0,0,8);
+		if (race_val != tmp) print("error: race condition %d%d%d",0,0,8);
 		if (-1 == cos_sched_lock_release()) {
-			print_vals(9, 8, 8, 8);
+			print("error: could not release lock %d%d%d",0,0,8);
 			return -1;
 		}
 		//cos_switch_thread(OTHER_THD(cos_get_thd_id()), 0, 0);
@@ -224,7 +170,6 @@ int test_locks(void)
 //	cos_brand_cntl(new_thd2, COS_BRAND_ADD_THD);
 
 	//new_thd2 = cos_create_thread(thread_tramp, get_stack_addr(UPPER), (void*)UPPER);
-	print_vals(8,8,8,8);
 	return test_locks_fn();
 }
 
@@ -235,15 +180,14 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	}
 	//print_vals(1,4,7,5);
 	if (-1 == cos_sched_lock_take()) {
-		print_vals(6, 5, 5, 5);
+		print("error: in interrupt cannot take lock %d%d%d", 5, 5, 5);
 		return;
 	}
 	race_val++;
 	if (-1 == cos_sched_lock_release()) {
-		print_vals(6, 4, 4, 4);
+		print("error: in interrupt cannot release lock %d%d%d", 5, 5, 5);
 		return;
 	}
-
 
 	nothing_var++;
 	return;
@@ -276,7 +220,7 @@ int test_mmapping(void)
 			    *ptrs[idx+1] != 0xdeadbeef ||
 			    *ptrs[idx+2] != 0xdeadbeef ||
 			    *ptrs[idx+3] != 0xdeadbeef) {
-				print_vals(505, 505, 505, 505);
+				print("error mapping %d%d%d", 505, 505, 505);
 			}
 			    
 			free(ptrs[idx]);
@@ -306,16 +250,24 @@ int test_mmapping(void)
 	return 0;
 }
 
+int test_print(void)
+{
+	print("foo %x %x %x", 1, 2, 3);	
+	print("foo %x %x %x", 4, 5, 6);
+	
+	return 0;
+}
+
 int sched_init(void)
 {
 	int ret;
 
 	//print_vals((int)&ret,6,6);
-	//ret = spd2_fn();
 //	ret = run_demo();
 //	ret = spd2_fn();
 //	ret = test_mmapping();
-	ret = test_locks();
+//	ret = test_locks();
+	ret = test_print();
 	//print_vals(6,6,6);
 	nothing_var++;
 
@@ -324,6 +276,5 @@ int sched_init(void)
 
 void symb_bag(void)
 {
-	bar(0, 1);
-	print(0);
+	print("%d%d%d", 0, 0, 0);
 }

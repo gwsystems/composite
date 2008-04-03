@@ -121,7 +121,7 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	       thd, (unsigned int)capability, (unsigned int)capability, 
 	       (unsigned int)sp, (unsigned int)ip);*/
 
-	if (capability >= MAX_STATIC_CAP) {
+	if (unlikely(capability >= MAX_STATIC_CAP)) {
 		struct spd *t = virtual_namespace_query(ip);
 		printk("cos: capability %d greater than max from spd %d @ %x.\n", 
 		       capability, (t) ? spd_get_index(t): 0, (unsigned int)ip);
@@ -130,7 +130,7 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 
 	cap_entry = &invocation_capabilities[capability];
 
-	if (!cap_entry->owner) {
+	if (unlikely(!cap_entry->owner)) {
 		printk("cos: No owner for cap %d.\n", capability);
 		return 0;
 	}
@@ -143,7 +143,7 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	dest_spd = cap_entry->destination;
 	curr_spd = cap_entry->owner;
 
-	if (!dest_spd || curr_spd == CAP_FREE || curr_spd == CAP_ALLOCATED_UNUSED) {
+	if (unlikely(!dest_spd || curr_spd == CAP_FREE || curr_spd == CAP_ALLOCATED_UNUSED)) {
 		printk("cos: Attempted use of unallocated capability.\n");
 		return 0;
 	}
@@ -164,8 +164,8 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	 * should just use a specific inlined method here to avoid
 	 * this.
 	 */
-	if (curr_spd->composite_spd != curr_frame->current_composite_spd &&
-	    !thd_spd_in_current_composite(thd, curr_spd)) {
+	if (unlikely(curr_spd->composite_spd != curr_frame->current_composite_spd &&
+		     !thd_spd_in_current_composite(thd, curr_spd))) {
 		printk("cos: Error, incorrect capability (Cap %d has cspd %x, stk has %x).\n",
 		       capability, (unsigned int)curr_spd->composite_spd,
 		       (unsigned int)curr_frame->current_composite_spd);
@@ -1667,10 +1667,21 @@ COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t dad
 	return ret;
 }
 
+COS_SYSCALL int cos_syscall_print(int spdid, char *str, int len)
+{
+	/*
+	 * FIXME: use linux functions to copy the string into local
+	 * storage to avoid faults.
+	 */
+	printk("cos: [%d,%d] %s\n", thd_get_id(thd_get_current()), spdid, str);
+
+	return 0;
+}
+
 void *cos_syscall_tbl[16] = {
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_resume_return,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_print,
 	(void*)cos_syscall_create_thread,
 	(void*)cos_syscall_switch_thread,
 	(void*)cos_syscall_kill_thd,

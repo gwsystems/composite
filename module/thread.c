@@ -74,6 +74,7 @@ struct thread *thd_alloc(struct spd *spd)
 	thd->thread_id = id;
 
 	thd->data_region = page;
+	*(int*)page = 4; /* HACK: sizeof(struct cos_argr_placekeeper) */
 	thd->ul_data_page = COS_INFO_REGION_ADDR + (PAGE_SIZE * id);
 	thd_publish_data_page(thd, (vaddr_t)page);
 

@@ -28,7 +28,6 @@ static inline int cos_sched_lock_take(void)
 				     : "=D" (lock_val) 
 				     : "a" (l), "b" (curr_thd)
 				     : "cc", "memory");
-//		print_vals(0, curr_thd, (lock_val & 0xFFFF0000) >> 16, (0x0000FFFF & lock_val));
 		/* no contention?  We're done! */
 		if (lock_val == 0) {
 			break;
@@ -107,7 +106,8 @@ struct sched_thd {
 	unsigned short int thd_id;
 	struct sched_accounting accounting;
 	struct sched_metric metric;
-	list_ptr_t list;
+	//list_ptr_t list;
+	struct sched_thd *next, *prev;
 	
 	/* If flags & THD_MEMBER */
 	struct sched_thd *group;
@@ -121,8 +121,6 @@ void sched_init_thd(struct sched_thd *thd, unsigned short int id,
 		    unsigned short int sched_thd);
 void sched_init_thd_array(void); 
 struct sched_thd *sched_alloc_thd(void);
-
-LIST_OPS_CREATE(sched_thd,,list)
 
 #define SCHED_NUM_THREADS MAX_NUM_THREADS
 /* * 2 for thread groups */

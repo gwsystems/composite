@@ -240,8 +240,10 @@ static int calculate_mem_size(int first, int last)
 	int i;
 	
 	for (i = first; i < last; i++){
-		if(srcobj[i].s == NULL)
+		if(srcobj[i].s == NULL) {
+			printf("Warning: could not find section for sectno %d.\n", i);
 			continue;
+		}
 		offset = calc_offset(offset, srcobj[i].s);
 		srcobj[i].offset = offset;
 		offset += bfd_get_section_size(srcobj[i].s);
@@ -257,7 +259,13 @@ static void emit_address(FILE *fp, unsigned long addr)
 
 static void emit_section(FILE *fp, char *sec)
 {
-	fprintf(fp, ".%s : { *(.%s) }\n", sec, sec);
+	/*
+	 * The kleene star after the section will collapse
+	 * .rodata.str1.x for all x into the only case we deal with
+	 * which is .rodata
+	 */
+//	fprintf(fp, ".%s : { *(.%s*) }\n", sec, sec);
+	fprintf(fp, ".%s : { *(.%s*) }\n", sec, sec);
 }
 
 /* Look at sections and determine sizes of the text and
@@ -266,9 +274,11 @@ static void emit_section(FILE *fp, char *sec)
 static int genscript(int with_addr)
 {
 	FILE *fp;
+	static unsigned int cnt = 0;
 	
 	sprintf(script, "/tmp/loader_script.%d", getpid());
-	sprintf(tmp_exec, "/tmp/loader_exec.%d.%d", with_addr, getpid());
+	sprintf(tmp_exec, "/tmp/loader_exec.%d.%d.%d", with_addr, getpid(), cnt);
+	cnt++;
 
 	fp = fopen(script, "w");
 	if(fp == NULL){
@@ -366,7 +376,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	bfd *obj, *objout;
 	void *tmp_storage;
 
-	int ro_size;
+	int text_size, ro_size;
 	int alldata_size;
 	void *ret_addr;
 	char *service_name = ret_data->obj; 
@@ -396,11 +406,14 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 
 	ro_start = lower_addr;
 	/* Determine the size of and allocate the text and Read-Only data area */
+	text_size = calculate_mem_size(TEXT_S, RODATA_S);
+	ro_size = calculate_mem_size(RODATA_S, DATA_S);
+	printf("\tRead only text (%x) and data section (%x): %x:%x.\n",
+	       (unsigned int)text_size, (unsigned int)ro_size, 
+	       (unsigned int)ro_start, (unsigned int)text_size+ro_size);
+
+	/* see calculate_mem_size for why we do this...not intelligent */
 	ro_size = calculate_mem_size(TEXT_S, DATA_S);
-
-	printf("\tRead only text section: %x:%x.\n",
-	       (unsigned int)ro_start, (unsigned int)ro_size);
-
 	ro_size = round_up_to_page(ro_size);
 
 	/**
@@ -448,7 +461,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	unlink(tmp_exec);
 	genscript(1);
 	run_linker(service_name, tmp_exec);
-	unlink(script);
+//	unlink(script);
 	
 	objout = bfd_openr(tmp_exec, "elf32-i386");
 	if(!objout){
@@ -467,12 +480,17 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	bfd_get_section_contents(objout, ldobj[TEXT_S].s,
 				 tmp_storage + srcobj[TEXT_S].offset, 0,
 				 bfd_sect_size(objout, srcobj[TEXT_S].s));
-	
+	printf("\tretreiving TEXT at offset %d of size %x.\n", 
+	       srcobj[TEXT_S].offset, (unsigned int)bfd_sect_size(objout, srcobj[TEXT_S].s));
+
 	if(ldobj[RODATA_S].s){
 		bfd_get_section_contents(objout, ldobj[RODATA_S].s,
 					 tmp_storage + srcobj[RODATA_S].offset, 0,
 					 bfd_sect_size(objout, srcobj[RODATA_S].s));
+		printf("\tretreiving RODATA at offset %d of size %x.\n", 
+		       srcobj[RODATA_S].offset, (unsigned int)bfd_sect_size(objout, srcobj[RODATA_S].s));
 	}
+
 	
 	/* 
 	 * ... and copy that buffer into the actual memory location
@@ -482,6 +500,8 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	       (unsigned int) ro_start, (unsigned int)tmp_storage, (unsigned int)ro_size);
 	memcpy((void*)ro_start, tmp_storage, ro_size);
 
+	printf("\tretreiving DATA at offset %x of size %x.\n", 
+	       srcobj[DATA_S].offset, (unsigned int)bfd_sect_size(objout, srcobj[DATA_S].s));
 	printf("\tCopying data from object to %x:%x.\n", 
 	       (unsigned int)tmp_storage + srcobj[DATA_S].offset, 
 	       (unsigned int)bfd_sect_size(obj, srcobj[DATA_S].s));
@@ -490,7 +510,9 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	bfd_get_section_contents(objout, ldobj[DATA_S].s,
 				 tmp_storage + srcobj[DATA_S].offset, 0,
 				 bfd_sect_size(obj, srcobj[DATA_S].s));
-	
+
+	printf("\tretreiving BSS at offset %x of size %x.\n", 
+	       srcobj[BSS_S].offset, (unsigned int)bfd_sect_size(objout, srcobj[BSS_S].s));
 	printf("\tZeroing out BSS from %x of size %x.\n", 
 	       (unsigned int)tmp_storage + srcobj[BSS_S].offset,
 	       (unsigned int)bfd_sect_size(obj, srcobj[BSS_S].s));
@@ -518,7 +540,9 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	bfd_close(obj);
 	bfd_close(objout);
 
-	unlink(tmp_exec);
+	printf("Object %s processed as %s with script %s.\n", 
+	       service_name, tmp_exec, script);
+//	unlink(tmp_exec);
 
 	return 0;
 
@@ -1451,7 +1475,7 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 	}
 	printf("spd %s created with handle %d.\n", s->obj, (unsigned int)spd->spd_handle);
 	*spd_id_addr = spd->spd_handle;
-	printf("\tHeap pointer directed to %x.\n", (unsigned int)heap_ptr);
+	printf("\tHeap pointer directed to %x.\n", (unsigned int)s->heap_top);
 	*heap_ptr = s->heap_top;
 
 	printf("\tFound ucap_tbl for component %s @ %p.\n", s->obj, ucap_tbl);

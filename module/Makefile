@@ -20,6 +20,8 @@ cp:
 loc:
 	@ wc -l *.c *.S *.h include/*.h $(LINKER_DIR)/*.c $(LINKER_DIR)/t/*.S $(LINKER_DIR)/t/*.c $(LINKER_DIR)/t/*.h | tail -n 1 | awk '{print $1}'
 
+reload: clean module cp
+
 clean:
 	rm -rf *.ko *.mod.c *.o *.mod.o .*.cmd .tmp_versions test
 	$(MAKE) -C $(LINKER_DIR) clean

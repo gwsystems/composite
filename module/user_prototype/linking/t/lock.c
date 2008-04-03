@@ -24,6 +24,7 @@ struct meta_lock {
 };
 
 static unsigned long lock_id = 1;
+/* Head of the linked list of locks. */
 static struct meta_lock *locks;
 
 static inline struct meta_lock *lock_find(unsigned long lock_id, spdid_t spd)
@@ -54,9 +55,11 @@ static struct meta_lock *lock_alloc(spdid_t spd)
 
 	l->lock.lock_id = id;
 	l->lock.generation = 0;
-	l->take_thd = 0;
+	l->lock.take_thd = 0;
+	l->max_gen = 0;
 	l->spd = spd;
 	l->prev = NULL;
+
 	l->next = locks;
 	if (locks) locks->prev = l;
 	locks = l;
@@ -69,6 +72,7 @@ static void lock_free(struct meta_lock *l)
 	if (!l) return;
 
 	if (l->next) l->next->prev = l->prev;
+
 	if (l->prev) l->prev->next = l->next;
 	else         locks = l->next;
 
@@ -122,7 +126,7 @@ int lock_component_take(spdid_t spd, unsigned short int thd,
 	 * more requests */
 	if (!thd) return -1;
 	
-	thd->thd_id = cos_get_thd_id();
+	thd->thd_id = (unsigned short int)cos_get_thd_id();
 	thd->next = ml->b_thds;
 	ml->b_thds = thd;
 

@@ -110,7 +110,7 @@ cos_syscall_clobber                                  \
 typedef __attribute__((regparm(1))) void (*create_thd_fn_t)(void *data);
 
 cos_syscall_0(1, int, resume_return);
-//cos_syscall_0(2, int, sync_threads, int, thd_id, int, flags);
+cos_syscall_2(2, int, print, char*, str, int, len);
 cos_syscall_3(3, int, create_thread, create_thd_fn_t, fn, vaddr_t, stack, void*, data);
 cos_syscall_2(4, int, __switch_thread, int, thd_id, int, flags);
 cos_syscall_2(5, int, kill_thd, int, kill_thdid, int, switchto_thdid);
@@ -226,6 +226,74 @@ static inline void * cos_memcpy(void * to, const void * from, int n)
 	
 	return (to);
 	
+}
+
+/* functionality for managing the argument region */
+#define COS_ARGREG_SZ PAGE_SIZE
+#define COS_MAX_ARG_SZ 2048
+#define COS_IN_ARGREG(addr) \
+	((((unsigned long)(addr)) & ~(COS_ARGREG_SZ-1)) == \
+	 (unsigned int)cos_get_arg_region())
+
+/* a should be power of 2 */
+#define ALIGN(v, a) ((v+(a-1))&~a)
+
+/*
+ * The argument region is setup like so:
+ *
+ * | ..... |
+ * +-------+
+ * | sizeA | <- sizeof this cell + dataA, typeof(this cell) = struct cos_argreg_extent
+ * +-------+
+ * | ..... |
+ * | dataA |
+ * | ..... |
+ * +-------+ 
+ * | totsz | <- base extent holding total size
+ * +-------+
+ */
+
+struct cos_argreg_extent {
+	unsigned int size;
+};
+
+static inline void cos_argreg_init(void)
+{
+	struct cos_argreg_extent *ex = cos_get_arg_region();
+	
+	ex->size = 4;
+}
+
+static inline void *cos_argreg_alloc(int sz)
+{
+	struct cos_argreg_extent *ex = cos_get_arg_region(), *nex, *ret;
+	int exsz = sizeof(struct cos_argreg_extent);
+
+	sz = ALIGN(sz, exsz) + exsz;
+
+	ret = (struct cos_argreg_extent*)(((char*)ex) + ex->size);
+	nex = (struct cos_argreg_extent*)(((char*)ret) + sz - exsz);
+	if ((ex->size + sz) > COS_ARGREG_SZ || sz > COS_MAX_ARG_SZ) {
+		return NULL;
+	}
+	nex->size = sz;
+	ex->size += sz;
+
+	return ret;
+}
+
+static inline int cos_argreg_free(void *p)
+{
+	struct cos_argreg_extent *ex = cos_get_arg_region(), *top;
+
+	top = (struct cos_argreg_extent*)(((char*)ex) + ex->size - sizeof(struct cos_argreg_extent));
+	if (top > ex+(COS_ARGREG_SZ/sizeof(struct cos_argreg_extent)) ||
+	    top < ex) {
+		return -1;
+	}
+	ex->size -= top->size;
+
+	return 0;
 }
 
 #define prevent_tail_call(ret) __asm__ ("" : "=r" (ret) : "m" (ret))

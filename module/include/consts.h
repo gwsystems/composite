@@ -16,7 +16,7 @@ struct pt_regs { int dummy[16]; };
 #endif
 
 #define MAX_SERVICE_DEPTH 31
-#define MAX_NUM_THREADS 7
+#define MAX_NUM_THREADS 15
 #define MAX_SCHED_HIER_DEPTH 4
 
 #define PAGE_MASK (~(PAGE_SIZE-1))

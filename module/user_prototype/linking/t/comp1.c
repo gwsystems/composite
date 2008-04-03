@@ -1,11 +1,10 @@
 #include <cos_component.h>
+#include <print.h>
 
 const char comp1str[] = "Hello World from component 1!\n";
 
 extern int spd2_fn(void);
 
-extern int print(void);
-extern int print_vals(int a, int b, int c, int d);
 extern void yield(void);
 
 static inline int find_size(const char *m)
@@ -15,19 +14,6 @@ static inline int find_size(const char *m)
 	for (sz = 0 ; m[sz] != '\0' ; sz++) ;
 
 	return sz;
-}
-
-int call_print(const char *m)
-{
-	int sz;
-	int *sz_ptr = COS_FIRST_ARG;
-	char *m_ptr = (char *)(sz_ptr + 1); // plus 4 bytes 
-
-	sz = find_size(comp1str);
-	*sz_ptr = sz;
-	cos_memcpy(m_ptr, comp1str, sz);
-
-	return print();
 }
 
 extern void nothing(void);
@@ -74,10 +60,9 @@ void c1_yield()
 	//print_vals(cos_get_thd_id(), curr, 1);
 }
 
-void cos_upcall_fn(vaddr_t data_region, int thd_id, 
-		   void *arg1, void *arg2, void *arg3)
+void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
-	curr = thd_id;
+	curr = cos_get_thd_id();
 
 	//print_vals(cos_get_thd_id(), cos_spd_id(), 0, 0);
 	while (1) {
@@ -96,5 +81,5 @@ void symb_dump(void)
 	/* crap symbols issue, remove */
 	yield();
 	nothing();
-	print_vals(0,0,0,0);
+	print("%d%d%d",0,0,0);
 }
