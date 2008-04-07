@@ -2140,7 +2140,12 @@ extern void switch_thread_context(struct thread *curr, struct thread *next);
  * softirq
  */
 static struct timer_list timer;
-extern struct thread *cos_brand_thread;
+
+extern struct thread *cos_timer_brand_thd;
+#define NUM_NET_BRANDS 8 /* keep consistent with inv.c */
+extern int active_net_brands;
+extern struct thread *cos_net_brand_thds[NUM_NET_BRANDS];
+extern int            cos_net_brand_data[NUM_NET_BRANDS];
 
 static void timer_interrupt(unsigned long data)
 {
@@ -2149,7 +2154,7 @@ static void timer_interrupt(unsigned long data)
 	BUG_ON(composite_thread == NULL);
 	mod_timer(&timer, jiffies+1);
 
-	if (composite_thread == current && cos_brand_thread && cos_brand_thread->upcall_threads) {
+	if (composite_thread == current && cos_timer_brand_thd && cos_timer_brand_thd->upcall_threads) {
 		cos_meas_event(COS_MEAS_INT_COS_THD);
 
 		regs = get_user_regs_thread(composite_thread);
@@ -2171,7 +2176,7 @@ static void timer_interrupt(unsigned long data)
 		if (!(regs->esp == 0 && regs->xss == 0) &&
 		    (regs->xcs & SEGMENT_RPL_MASK) == USER_RPL) {
 			struct thread *cos_current;
-			struct thread *cos_upcall_thread = cos_brand_thread->upcall_threads;
+			struct thread *cos_upcall_thread = cos_timer_brand_thd->upcall_threads;
 			struct spd *dest;
 			struct spd_poly *curr_spd;
 			
@@ -2179,7 +2184,7 @@ static void timer_interrupt(unsigned long data)
 
 			if (cos_upcall_thread->flags & THD_STATE_ACTIVE_UPCALL) {
 				cos_meas_event(COS_MEAS_BRAND_PEND);
-				cos_brand_thread->pending_upcall_requests++;
+				cos_timer_brand_thd->pending_upcall_requests++;
 				goto timer_finish;
 			}
 
@@ -2202,7 +2207,7 @@ static void timer_interrupt(unsigned long data)
 			 * to go to the second from the top spd in the
 			 * real implementation when we arent calling
 			 * brand from the kernel. */
-			dest = thd_get_thd_spd(cos_brand_thread);
+			dest = thd_get_thd_spd(cos_timer_brand_thd);
 			/* save this thread so that we can resume it
 			 * post execution */
 			cos_upcall_thread->interrupted_thread = cos_current;

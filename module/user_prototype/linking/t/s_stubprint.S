@@ -1,3 +1,5 @@
+#include <cos_asm_stacks.h>
+	
 #define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 
@@ -9,9 +11,7 @@
 .type  printstr_inv, @function
 .align 16
 printstr_inv:
-	movl $cos_static_stack, %esp
-	shl $12, %eax /* 4K stacks */
-	addl %eax, %esp
+	COS_ASM_GET_STACK
 	
 	pushl %ebp
 	pushl %edi
@@ -28,9 +28,7 @@ printstr_inv:
 .type  print_vals_inv, @function
 .align 16
 print_vals_inv:
-	movl $cos_static_stack, %esp
-	shl $12, %eax /* 4K stacks */
-	addl %eax, %esp
+	COS_ASM_GET_STACK
 
 	pushl %ebp
 	pushl %edi

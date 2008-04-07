@@ -56,20 +56,29 @@ typedef unsigned short int thdid_t;
 typedef enum {
 	COS_UPCALL_BRAND_EXEC,
 	COS_UPCALL_BRAND_COMPLETE,
-	COS_UPCALL_BOOTSTRAP
+	COS_UPCALL_BOOTSTRAP,
+	COS_UPCALL_CREATE
 } upcall_type_t;
 
 /* operations for cos_brand_cntl and cos_brand_upcall */
-enum { 
-	/* cos_brand_cntl -> */
-	COS_BRAND_CREATE, 
+enum {
+/* cos_brand_cntl -> */
+	COS_BRAND_CREATE,    
 	COS_BRAND_ADD_THD,
+	COS_BRAND_CREATE_HW,
+/* cos_brand_upcall -> */
+	COS_BRAND_TAILCALL,  /* tailcall brand to upstream spd
+			      * (don't maintain this flow of control).
+			      * Not sure if this would work with non-brand threads
+			      */
+	COS_BRAND_ASYNC,     /* async brand while maintaining control */
+	COS_BRAND_UPCALL     /* continue executing an already made
+			      * brand, redundant with tail call? */
+};
 
-	/* cos_brand_upcall -> */
-	COS_BRAND_TAILCALL, /* tailcall brand to upstream spd
-			     * (don't maintain this flow of control) */
-	COS_BRAND_ASYNC,    /* async brand while maintaining control */
-	COS_BRAND_UPCALL    /* continue executing an already made brand */
+enum {
+	COS_HW_TIMER,
+	COS_HW_NET
 };
 
 /* operations for cos_sched_cntl */

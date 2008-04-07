@@ -13,7 +13,10 @@
 #include "../../../include/consts.h"
 #include "../../../include/cos_types.h"
 
-#include "cos_component.h"
+#include <cos_component.h>
+#include <cos_debug.h>
+
+/*************** Scheduler Synchronization Fns ***************/
 
 static inline int cos_sched_lock_take(void)
 {
@@ -85,13 +88,47 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 	return cos___switch_thread(thd_id, flags); 
 }
 
-#ifdef WAIT
+
+/**************** Scheduler Util Fns *******************/
 
 #define THD_BLOCKED 0x1
 #define THD_READY   0x2
 #define THD_FREE    0x4
 #define THD_GRP     0x8  // is this thread a group of thds?
 #define THD_MEMBER  0x10 // is this thread part of a group?
+
+#define sched_thd_free(thd)    ((thd)->flags & THD_FREE)
+#define sched_thd_grp(thd)     ((thd)->flags & THD_GRP)
+#define sched_thd_member(thd)  ((thd)->flags & THD_MEMBER)
+#define sched_thd_ready(thd)   ((thd)->flags & THD_READY)
+#define sched_thd_blocked(thd) ((thd)->flags & THD_BLOCKED)
+
+#define SCHED_NUM_THREADS MAX_NUM_THREADS
+/* * 2 for thread groups */
+#define SCHED_NUM_EXECUTABLES (SCHED_NUM_THREADS * 2) 
+
+#define INIT_LIST(obj, next, prev)		  \
+	(obj)->next = (obj)->prev = (obj)
+
+#define ADD_LIST(head, new, next, prev) 	  \
+	(new)->next = (head)->next;		  \
+	(new)->prev = (head);			  \
+	(head)->next = (new);			  \
+	(new)->next->prev = (new)
+
+#define REM_LIST(obj, next, prev)                 \
+	(obj)->next->prev = (obj)->prev;	  \
+	(obj)->prev->next = (obj)->next;	  \
+	(obj)->next = (obj)->prev = (obj)
+
+#define FIRST_LIST(obj, next, prev)               \
+	((obj)->next)
+
+#define LAST_LIST(obj, next, prev)                \
+	((obj)->prev)
+
+#define EMPTY_LIST(obj, next, prev)		  \
+	((obj)->next == (obj))
 
 struct sched_accounting {
 	unsigned long C, T, C_used, T_left;
@@ -102,52 +139,54 @@ struct sched_metric {
 };
 
 struct sched_thd {
-	unsigned short int flags;
-	unsigned short int thd_id;
+	unsigned short int flags, id;
 	struct sched_accounting accounting;
 	struct sched_metric metric;
-	//list_ptr_t list;
-	struct sched_thd *next, *prev;
-	
+	struct sched_thd *prio_next, *prio_prev;
+
 	/* If flags & THD_MEMBER */
 	struct sched_thd *group;
-
 	/* If flags & THD_GRP */
-	struct sched_thd *threads;
 	int nthds;
+
+	/* linked list for all threads in a group */
+	struct sched_thd *next, *prev;
 };
 
-void sched_init_thd(struct sched_thd *thd, unsigned short int id, 
-		    unsigned short int sched_thd);
-void sched_init_thd_array(void); 
-struct sched_thd *sched_alloc_thd(void);
-
-#define SCHED_NUM_THREADS MAX_NUM_THREADS
-/* * 2 for thread groups */
-#define SCHED_NUM_EXECUTABLES (SCHED_NUM_THREADS * 2) 
+void sched_init_thd(struct sched_thd *thd, unsigned short int id);
+struct sched_thd *sched_alloc_thd(unsigned short int id);
+void sched_ds_init(void);
+void sched_free_thd(struct sched_thd *thd);
+void sched_make_grp(struct sched_thd *thd, unsigned short int sched_thd);
+void sched_add_grp(struct sched_thd *grp, struct sched_thd *thd);
+void sched_rem_grp(struct sched_thd *grp, struct sched_thd *thd);
 
 static inline struct sched_accounting *sched_get_accounting(struct sched_thd *thd)
 {
-	assert(thd->flags & THD_FREE == 0);
+	assert(!sched_thd_free(thd));
 
 	return &thd->accounting;
 }
 
 static inline struct sched_metric *sched_get_metric(struct sched_thd *thd)
 {
-	assert(thd->flags & THD_FREE == 0);
+	assert(!sched_thd_free(thd));
 
 	return &thd->metric;
 }
 
-/* --- Thread Mapping Utilities --- */
+/* --- Thread Id -> Sched Thread Mapping Utilities --- */
 
-extern struct sched_thread **thd_map;
+/* 
+ * FIXME: add locking.
+ */
+
+extern struct sched_thd *thd_map[];
 static inline struct sched_thd *sched_get_mapping(unsigned short int thd_id)
 {
 	if (thd_id >= SCHED_NUM_THREADS ||
 	    thd_map[thd_id] == NULL ||
-	    thd_map[thd_id].flags & THD_FREE) {
+	    (thd_map[thd_id]->flags & THD_FREE)) {
 		return NULL;
 	}
 
@@ -172,6 +211,35 @@ static inline void sched_rem_mapping(unsigned short int thd_id)
 
 	thd_map[thd_id] = NULL;
 }
-#endif /* WAIT */
+
+static inline int sched_is_grp(struct sched_thd *thd)
+{
+	assert(!sched_thd_free(thd));
+
+	if (thd->flags & THD_GRP) {
+		assert(!sched_thd_member(thd));
+		
+		return 1;
+	}
+	assert(!sched_thd_grp(thd));
+
+	return 0;
+}
+
+static inline struct sched_thd *sched_get_members(struct sched_thd *grp)
+{
+	assert(!sched_thd_free(grp) && sched_thd_grp(grp));
+
+	if (grp->next == grp) return NULL;
+	return grp->next;
+}
+
+static inline struct sched_thd *sched_get_grp(struct sched_thd *thd)
+{
+	if (sched_is_grp(thd)) {
+		return NULL;
+	}
+	return thd->group;
+}
 
 #endif

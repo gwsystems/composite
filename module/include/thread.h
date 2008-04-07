@@ -50,16 +50,17 @@ struct thd_sched_info {
 	struct cos_sched_events *thread_notifications;
 };
 
-#define THD_STATE_PREEMPTED     0x1  /* Complete register info is saved in regs */
-#define THD_STATE_UPCALL        0x2  /* Thread for upcalls: ->thd_brand points to the thread who we're branded to */
-#define THD_STATE_ACTIVE_UPCALL 0x4  /* Thread is in upcall execution. */
-#define THD_STATE_READY_UPCALL  0x8  /* Same as previous, but we are ready to execute */ 
-#define THD_STATE_BRAND         0x10 /* This thread is used as a brand */
-#define THD_STATE_SCHED_RETURN  0x20 /* When the sched switches to this thread, ret from ipc */
-#define THD_STATE_SCHED_EXCL    0x40 /* The yielded thread should not be wakeable 
+#define THD_STATE_PREEMPTED     0x1   /* Complete register info is saved in regs */
+#define THD_STATE_UPCALL        0x2   /* Thread for upcalls: ->thd_brand points to the thread who we're branded to */
+#define THD_STATE_ACTIVE_UPCALL 0x4   /* Thread is in upcall execution. */
+#define THD_STATE_READY_UPCALL  0x8   /* Same as previous, but we are ready to execute */ 
+#define THD_STATE_BRAND         0x10  /* This thread is used as a brand */
+#define THD_STATE_SCHED_RETURN  0x20  /* When the sched switches to this thread, ret from ipc */
+#define THD_STATE_SCHED_EXCL    0x40  /* The yielded thread should not be wakeable 
 					by other schedulers (e.g. because it is 
 					waiting for a lock) */
-#define THD_STATE_FAULT         0x80 /* Thread has had a (e.g. page) fault which is being serviced */
+#define THD_STATE_FAULT         0x80  /* Thread has had a (e.g. page) fault which is being serviced */
+#define THD_STATE_HW_BRAND      0x100 /* Actual hardware should be making this brand */
 
 /**
  * The thread descriptor.  Contains all information pertaining to a

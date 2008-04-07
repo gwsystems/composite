@@ -1,3 +1,5 @@
+#include <cos_asm_stacks.h>
+	
 #define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 
@@ -10,10 +12,7 @@
 .type  mman_get_page_inv, @function
 .align 16
 mman_get_page_inv:
-	movl $cos_static_stack, %esp
-	movl %eax, %ebp
-	shl $12, %ebp /* 4K stacks */
-	addl %ebp, %esp
+	COS_ASM_GET_STACK
 
 	pushl %edi 
 	pushl %esi
@@ -31,10 +30,7 @@ mman_get_page_inv:
 .type  mman_release_page_inv, @function
 .align 16
 mman_release_page_inv:
-	movl $cos_static_stack, %esp
-	movl %eax, %ebp
-	shl $12, %ebp /* 4K stacks */
-	addl %ebp, %esp
+	COS_ASM_GET_STACK
 
 	pushl %edi 
 	pushl %esi

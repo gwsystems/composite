@@ -5,20 +5,24 @@
  * Public License v2.
  */
 
+#include <cos_asm_stacks.h>
+	
 #define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 
 .data
-/* 8 4K stacks */
+/* 16 8K stacks */
 .align 32
 .globl nil
 nil:
-	.rep 1024 
+/*	.rep 1024 */
+	.rep 2048
 	.long 0
 	.endr
 .globl cos_static_stack
 cos_static_stack:
-	.rep 8193
+/*	.rep 8193*/
+	.rep 16385
 	.long 0
 	.endr
 
@@ -43,11 +47,8 @@ cos_sched_notifications:
 .globl cos_upcall_entry
 .type  cos_upcall_entry, @function
 .align 16
-cos_upcall_entry:	
-	movl $cos_static_stack, %esp
-	movl %eax, %ebp /* thread id */
-	shl $12, %ebp /* 4K stacks */
-	addl %ebp, %esp
+cos_upcall_entry:
+	COS_ASM_GET_STACK
 
 	pushl %esi
 	pushl %edi

@@ -1,3 +1,5 @@
+#include <cos_asm_stacks.h>
+	
 #define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 
@@ -9,10 +11,7 @@
 .type  spd2_fn_inv, @function
 .align 16
 spd2_fn_inv:
-	movl $cos_static_stack, %esp
-	movl %eax, %ebp
-	shl $12, %ebp /* 4K stacks */
-	addl %ebp, %esp
+	COS_ASM_GET_STACK
 	
 /*	movl %ebp, %esp */
 /*	popl %ebp*/
@@ -28,10 +27,7 @@ spd2_fn_inv:
 .type  yield_inv, @function
 .align 16
 yield_inv:
-	movl $cos_static_stack, %esp
-	movl %eax, %ebp
-	shl $12, %ebp /* 4K stacks */
-	addl %ebp, %esp
+	COS_ASM_GET_STACK
 
 /*	movl %ebp, %esp */
 /*	popl %ebp*/
@@ -47,10 +43,7 @@ yield_inv:
 .type  nothing_inv, @function
 .align 16
 nothing_inv:
-	movl $cos_static_stack, %esp
-	movl %eax, %ebp
-	shl $12, %ebp /* 4K stacks */
-	addl %ebp, %esp
+	COS_ASM_GET_STACK
 	
 /*	movl %ebp, %esp */
 /*	popl %ebp*/
@@ -67,10 +60,7 @@ nothing_inv:
 .type  sched_init_inv, @function
 .align 16
 sched_init_inv:
-	movl $cos_static_stack, %esp
-	movl %eax, %ebp
-	shl $12, %ebp /* 4K stacks */
-	addl %ebp, %esp
+	COS_ASM_GET_STACK
 	
 /*	movl %ebp, %esp */
 /*	popl %ebp*/

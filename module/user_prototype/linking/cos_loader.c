@@ -1373,7 +1373,7 @@ static struct symb *spd_contains_symb(struct service_symbs *s, char *name)
 	return NULL;
 }
 
-static int create_spd_capabilities(struct service_symbs *service, struct spd_info *si, int cntl_fd)
+static int create_spd_capabilities(struct service_symbs *service/*, struct spd_info *si*/, int cntl_fd)
 {
 	int i;
 	struct symb_type *undef_symbs = &service->undef;
@@ -1406,6 +1406,10 @@ static int create_spd_capabilities(struct service_symbs *service, struct spd_inf
 			return -1;
 		}
 
+		if (NULL == export_spd) {
+			printf("Trusted spd (spd_info) not attached to service symb yet.\n");
+			return -1;
+		}
 		if (create_invocation_cap(spd, service, export_spd, exporter, cntl_fd, 
 					  c_stub->name, s_stub->name, exp_symb->name, 0)) {
 			return -1;
@@ -1491,9 +1495,12 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 	return spd;
 }
 
-void make_spd_scheduler(int cntl_fd, struct spd_info *spd, struct service_symbs *s, struct spd_info *parent)
+void make_spd_scheduler(int cntl_fd, struct service_symbs *s, struct service_symbs *p)
 {
 	vaddr_t sched_page;
+	struct spd_info *spd = s->extern_info, *parent = NULL;
+
+	if (p) parent = p->extern_info;
 
 	sched_page = (vaddr_t)get_symb_address(&s->exported, SCHED_PAGE_NAME);
 	if (0 == sched_page) {
@@ -1508,11 +1515,29 @@ void make_spd_scheduler(int cntl_fd, struct spd_info *spd, struct service_symbs 
 	return;
 }
 
+static struct service_symbs *find_symb_by_name(struct service_symbs *s, char *n)
+{
+	while (s) {
+		if (strstr(s->obj, n) != NULL) {
+			return s;
+		}
+
+		s = s->next;
+	}
+
+	return NULL;
+}
+
+#define MAX_SCHEDULERS 3
+
 static void setup_kernel(struct service_symbs *services)
 {
-	struct service_symbs *s = services, *c0 = NULL, *c1 = NULL, *c2 = NULL, 
+	struct service_symbs *s;/*, *c0 = NULL, *c1 = NULL, *c2 = NULL, 
 		*pc = NULL, *c3 = NULL, *c4 = NULL, *mm = NULL;
 	struct spd_info *spd0, *spd1, *spd2, *spd3, *spd4, *spdpc, *spdmm;
+					   */
+	struct service_symbs *init = NULL;
+	struct spd_info *init_spd = NULL;
 
 	struct cos_thread_info thd;
 	int cntl_fd, ret;
@@ -1520,68 +1545,56 @@ static void setup_kernel(struct service_symbs *services)
 	unsigned long long start, end;
 	
 	cntl_fd = aed_open_cntl_fd();
-
+	
+	s = services;
 	while (s) {
+		struct service_symbs *t;
+		struct spd_info *t_spd;
+
+		t = s;
 		if (strstr(s->obj, "c0.o") != NULL) {
-			c0 = s;
-		} else if (strstr(s->obj, "c1.o") != NULL) {
-			c1 = s;
-		} else if (strstr(s->obj, "c2.o") != NULL) {
-			c2 = s;
-		} else if (strstr(s->obj, "c3.o") != NULL) {
-			c3 = s;
-		} else if (strstr(s->obj, "c4.o") != NULL) {
-			c4 = s;
-		} else if (strstr(s->obj, "print_comp.o") != NULL) {
-			pc = s;
-		} else if (strstr(s->obj, "mm.o") != NULL) {
-			mm = s;
+			init = t;
+			t_spd = init_spd = create_spd(cntl_fd, init, 0, 0);
+		} else {
+			t_spd = create_spd(cntl_fd, t, t->lower_addr, t->size);
 		}
 
+		if (!t_spd) {
+			fprintf(stderr, "\tCould not find service object.\n");
+			exit(-1);
+		}
+		
 		s = s->next;
 	}
-	if (c0 == NULL || c1 == NULL || c2 == NULL || c3 == NULL || c4 == NULL || pc == NULL || mm == NULL) {
-		fprintf(stderr, "Could not find service object.\n");
+	s = services;
+	while (s) {
+		if (create_spd_capabilities(s, cntl_fd)) {
+			fprintf(stderr, "\tCould not find all stubs.\n");
+			exit(-1);
+		}
+		
+		s = s->next;
+	}
+		printf("\n");
+
+	if ((s = find_symb_by_name(services, "fprr.o")) == NULL) {
+		fprintf(stderr, "Could not find scheduler fprr\n");
 		exit(-1);
 	}
-
-	spd0 = create_spd(cntl_fd, c0, 0, 0);
-	spd1 = create_spd(cntl_fd, c1, c1->lower_addr, c1->size);
-	spd2 = create_spd(cntl_fd, c2, c2->lower_addr, c2->size);
-	spd3 = create_spd(cntl_fd, c3, c3->lower_addr, c3->size);
-	spd4 = create_spd(cntl_fd, c4, c4->lower_addr, c4->size);
-	spdpc = create_spd(cntl_fd, pc, pc->lower_addr, pc->size);
-	spdmm = create_spd(cntl_fd, mm, mm->lower_addr, mm->size);
-
-	if (!spd0 || !spd1 || !spd2 || !spd3 || !spd4 || !spdpc || !spdmm) {
-		printf("Could not allocate all of the spds.\n");
+	make_spd_scheduler(cntl_fd, s, NULL);
+//	cos_demo_spds(cntl_fd, spd3->spd_handle, spd4->spd_handle);
+	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;//spd2->spd_handle;
+	if ((s = find_symb_by_name(services, "c0.o")) == NULL) {
+		fprintf(stderr, "Could not find initial component\n");
 		exit(-1);
 	}
-
-	if (create_spd_capabilities(c0, spd0, cntl_fd) ||
-	    create_spd_capabilities(c1, spd1, cntl_fd) ||
-	    create_spd_capabilities(c2, spd2, cntl_fd) ||
-	    create_spd_capabilities(c3, spd3, cntl_fd) ||
-	    create_spd_capabilities(c4, spd4, cntl_fd) ||
-	    create_spd_capabilities(pc, spdpc, cntl_fd) ||
-	    create_spd_capabilities(mm, spdmm, cntl_fd)) {
-		printf("Could not find all stubs.  Exiting.\n");
-		exit(-1);
-	}
-
-	printf("\n");
-	make_spd_scheduler(cntl_fd, spd2, c2, NULL);
-	make_spd_scheduler(cntl_fd, spd1, c1, spd2);
-	cos_demo_spds(cntl_fd, spd3->spd_handle, spd4->spd_handle);
-
-	thd.spd_handle = spd0->spd_handle;
-	thd.sched_handle = spd2->spd_handle;
+	thd.spd_handle = ((struct spd_info *)s->extern_info)->spd_handle;//spd0->spd_handle;
 	cos_create_thd(cntl_fd, &thd);
 
 	printf("\nOK, good to go, calling component 0's main\n\n");
 	fflush(stdout);
 
-	fn = (int (*)(void))get_symb_address(&c0->exported, "spd0_main");
+	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
 
 #define ITER 1
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))

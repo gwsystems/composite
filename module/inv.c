@@ -48,7 +48,7 @@ static inline void open_spd(struct spd_poly *spd)
 extern void switch_host_pg_tbls(phys_addr_t pt);
 static inline void switch_pg_tbls(phys_addr_t new, phys_addr_t old)
 {
-	if (old != new) {
+	if (likely(old != new)) {
 		native_write_cr3(new);
 		switch_host_pg_tbls(new);
 	}
@@ -482,7 +482,7 @@ void copy_sched_info(struct thread *new, struct thread *old)
  * to the fn and stack to be used anyway, which can be assigned at
  * user-level.
  */
-COS_SYSCALL int cos_syscall_create_thread(int spd_id, vaddr_t fn, vaddr_t stack, void *data)
+COS_SYSCALL int cos_syscall_create_thread(int spd_id, int a, int b, int c)
 {
 	struct thread *thd, *curr;
 	struct spd *curr_spd;
@@ -509,16 +509,28 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, vaddr_t fn, vaddr_t stack,
 
 	thd = thd_alloc(curr_spd);
 	if (thd == NULL) {
+		printk("cos: Could not allocate thread\n");
 		return -1;
 	}
 
+	thd->stack_ptr = 0;
+	thd->stack_base[0].current_composite_spd = curr_spd->composite_spd;
+	thd->stack_base[0].spd = curr_spd;
 	spd_mpd_ipc_take((struct composite_spd *)curr_spd->composite_spd);
+
+	thd->regs.ecx = COS_UPCALL_CREATE;
+	thd->regs.edx = curr_spd->upcall_entry;
+	thd->regs.ebx = a;
+	thd->regs.edi = b;	
+	thd->regs.esi = c;
+	thd->regs.eax = thd_get_id(thd);
+
 	//cos_ref_take(&curr_spd->composite_spd->ref_cnt);
 
 //	printk("cos: stack %x, fn %x, and data %p\n", stack, fn, data);
-	thd->regs.ecx = stack;
+/*	thd->regs.ecx = stack;
 	thd->regs.edx = fn;
-	thd->regs.eax = (int)data;
+	thd->regs.eax = (int)data;*/
 
 	initialize_sched_info(thd, curr_spd);
 //	printk("cos: allocated thread %d.\n", thd->thread_id);
@@ -572,7 +584,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 
 
 	da = curr_spd->sched_shared_page;
-	if (NULL == da) {
+	if (unlikely(NULL == da)) {
 		printk("cos: non-scheduler attempting to switch thread.\n");
 		curr->regs.eax = -1;
 		return &curr->regs;
@@ -594,7 +606,16 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	flags = rflags;
 
 	thd = thd_get_by_id(next_thd);
-	if (NULL == thd) {
+	/* uncommon, but valid case */
+	if (thd == curr) {
+		//printk("cos: thd %d switched to self (ip %x).\n", next_thd, (unsigned int)curr->regs.eip);
+		//curr->regs.eax = -1;
+		curr->regs.eax = 0;
+		return &curr->regs;
+	}
+
+	/* error cases */
+	if (unlikely(NULL == thd)) {
 		printk("cos: no thread with id %d and flags %x, cannot switch to it from %d @ %x.\n", 
 		       next_thd, flags, thd_get_id(curr), (unsigned int)curr->regs.edx);
 		thd_print_regs(curr);
@@ -602,16 +623,16 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		curr->regs.eax = -1;
 		return &curr->regs;
 	}
-	if (thd == curr) {
-		printk("cos: thd %d switched to self (ip %x).\n", next_thd, (unsigned int)curr->regs.eip);
+	if (unlikely(!thd_scheduled_by(curr, curr_spd) ||
+		     !thd_scheduled_by(thd, curr_spd))) {
+		printk("cos: scheduler %d does not have scheduling control over %d or %d, cannot switch.\n",
+		       spd_get_index(curr_spd), thd_get_id(curr), thd_get_id(thd));
 		curr->regs.eax = -1;
 		return &curr->regs;
 	}
-
-	if (!thd_scheduled_by(curr, curr_spd) ||
-	    !thd_scheduled_by(thd, curr_spd)) {
-		printk("cos: scheduler %d does not have scheduling control over %d or %d, cannot switch.\n",
-		       spd_get_index(curr_spd), thd_get_id(curr), thd_get_id(thd));
+	/* we cannot schedule to run an upcall thread that is not running */
+	if (unlikely(thd->flags & THD_STATE_READY_UPCALL)) {
+		printk("cos: upcall thd %d not ready to run.\n", thd_get_id(thd));
 		curr->regs.eax = -1;
 		return &curr->regs;
 	}
@@ -636,8 +657,11 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		}
 		thd->flags &= ~THD_STATE_SCHED_EXCL;
 	}
+	if (flags & COS_SCHED_EXCL_YIELD) {
+		curr->flags |= THD_STATE_SCHED_EXCL;
+	}
 
-	/* do we have a synchronization event for the scheduler? */
+	/*** A synchronization event for the scheduler? ***/
 	if (flags & COS_SCHED_SYNC_BLOCK) {
 		struct cos_synchronization_atom *l = &da->locks;
 		
@@ -658,24 +682,16 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		 * to complete.
 		 */
 		l->queued_thd = thd_get_id(curr);
-//		printk("cos: placing thread %d as the thd to be unblocked and blocking, resuming %d\n", 
-//		       thd_get_id(curr), next_thd);
 		/* 
 		 * TODO: alter the urgency/priority of the owner
 		 * thread to inherit that of the current blocked thd.
 		 */
 	} else if (flags & COS_SCHED_SYNC_UNBLOCK) {
 		cos_meas_event(COS_MEAS_ATOMIC_UNLOCK);
-//		printk("cos: request from thread %d to unblock %d.\n",
-//		       thd_get_id(curr), next_thd);
 		/* 
 		 * TODO: reset urgency/priority of current thread back
 		 * to natural state.
 		 */
-	}
-
-	if (flags & COS_SCHED_EXCL_YIELD) {
-		curr->flags |= THD_STATE_SCHED_EXCL;
 	}
 
 	curr->sched_suspended = curr_spd;
@@ -687,11 +703,6 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	  curr->thread_id, thd->thread_id, spd_get_index(curr_spd));*/
 
 	if (thd->flags & THD_STATE_PREEMPTED) {
-/*		Done already in switch_thread_context:
-                struct spd_poly *dest_spd = thd_get_thd_spdpoly(thd);
-
-		open_close_spd(dest_spd, &curr_spd->spd_info);
-*/
 		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
 		if (thd->preempter_thread) {
 			struct thread *p = thd->preempter_thread;
@@ -702,10 +713,11 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 			
 			/* maintain the doubly linked list of interrupted thds */
 			p->interrupted_thread = i;
-			thd->preempter_thread = NULL;
 			if (i) {
 				i->preempter_thread = p;
 			}
+			thd->preempter_thread = NULL;
+			thd->interrupted_thread = NULL;
 		}
 
 		thd->flags &= ~THD_STATE_PREEMPTED;
@@ -719,20 +731,28 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 
 	/* If we are an upcalling thread, and we are asking to return,
 	 * we're done.  If a preemption thread, deactivate.  */
-	if (flags & COS_SCHED_TAILCALL && thd->stack_ptr == 0 && (thd->flags & THD_STATE_ACTIVE_UPCALL)) {
-		assert(!thd->preempter_thread); 
-		assert(!thd->interrupted_thread);
-		
-		thd->flags &= ~THD_STATE_ACTIVE_UPCALL;
-		thd->flags |= THD_STATE_READY_UPCALL;
-	}
+	if (flags & COS_SCHED_TAILCALL && 
+	    curr->stack_ptr == 0 && 
+	    (curr->flags & THD_STATE_ACTIVE_UPCALL)) {
+//		assert(!curr->preempter_thread); 
+//		assert(!curr->interrupted_thread);
 
-	if (thd->flags & THD_STATE_SCHED_RETURN) {
-		// not yet supported
-		printk("cos: sched return not yet supported.\n");
-		assert(0);
+		if (curr->interrupted_thread) {
+			curr->interrupted_thread->preempter_thread = NULL;
+		}
+		curr->interrupted_thread = NULL;
+
+		curr->flags &= ~THD_STATE_ACTIVE_UPCALL;
+		curr->flags |= THD_STATE_READY_UPCALL;
+		curr->sched_suspended = NULL;
+		spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(curr));
+		/***********************************************
+		 * FIXME: call pt_regs *brand_execution_completion(struct thread *curr)?
+		 ***********************************************/
 
 		/*
+		 * For general support:
+		 *
 		 * Check that the spd from the invocation frame popped
 		 * off of the thread's stack matches curr_spd (or else
 		 * we were called via ST from another spd and should
@@ -741,8 +761,9 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		 * If that's fine, then execute code similar to pop
 		 * above (to return from an invocation).
 		 */
+
 	}
-	
+
 	/* success for this current thread */
 	curr->regs.eax = 0;
 	
@@ -968,7 +989,26 @@ upcall_brand_err:
  * explicitely that when a brand is made, the chain of invocations
  * follows capabilities and doesn't skip spds due to mpds.
  */
-struct thread *cos_brand_thread;
+static inline struct thread* verify_brand_thd(unsigned short int thd_id)
+{
+	struct thread *brand_thd;
+	
+	brand_thd = thd_get_by_id(thd_id);
+	if (brand_thd == NULL) {
+		printk("cos: cos_syscall_brand_cntl could not find thd_id %d to add thd to.\n", 
+		       (unsigned int)thd_id);
+		return NULL;
+	}
+	if (!(brand_thd->flags & THD_STATE_BRAND ||
+	      brand_thd->flags & THD_STATE_HW_BRAND)) {
+		printk("cos: cos_brand_cntl - adding upcall thd to thd %d that's not a brand\n",
+		       (unsigned int)thd_id);
+		return NULL;
+	}
+	
+	return brand_thd;
+}
+
 COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags)
 {
 	struct thread *new_thd, *curr_thd;
@@ -986,24 +1026,26 @@ COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags)
 		return -1;
 	}
 
-	/* might be useful later for the flags to not be mutually
-	 * exclusive */
-	if (COS_BRAND_CREATE == flags) {
+	switch (flags) {
+	case COS_BRAND_CREATE_HW:
+		new_thd->flags = THD_STATE_HW_BRAND;
+		/* fall through */
+	case COS_BRAND_CREATE: 
+	{
 		/* the brand thread holds the invocation stack record: */
 		memcpy(&new_thd->stack_base, &curr_thd->stack_base, sizeof(curr_thd->stack_base));
 		new_thd->cpu_id = curr_thd->cpu_id;
-		new_thd->flags = THD_STATE_BRAND;
+		new_thd->flags |= THD_STATE_BRAND;
 		new_thd->stack_ptr = curr_thd->stack_ptr;
 
 		copy_sched_info(new_thd, curr_thd);
-		cos_brand_thread = new_thd;
-	} else if (COS_BRAND_ADD_THD == flags) {
-		struct thread *brand_thd;
 
-		brand_thd = thd_get_by_id(thd_id);
-		if (brand_thd == NULL) {
-			printk("cos: cos_syscall_brand_cntl could not find thd_id %d to add thd to.\n", 
-			       (unsigned int)thd_id);
+		break;
+	} 
+	case COS_BRAND_ADD_THD:
+	{
+		struct thread *brand_thd = verify_brand_thd(thd_id);
+		if (NULL == brand_thd) {
 			thd_free(new_thd);
 			return -1;
 		}
@@ -1011,14 +1053,72 @@ COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags)
 		new_thd->flags = (THD_STATE_UPCALL | THD_STATE_READY_UPCALL);
 		new_thd->thread_brand = brand_thd;
 		new_thd->brand_inv_stack_ptr = brand_thd->stack_ptr;
-
 		new_thd->upcall_threads = brand_thd->upcall_threads;
 		brand_thd->upcall_threads = new_thd;
 
 		copy_sched_info(new_thd, brand_thd);
+
+		break;
+	}
+	default:
+		return -1;
 	}
 
 	return new_thd->thread_id;
+}
+
+/*
+ * This is a bandaid currently.  This syscall should really be
+ * replaced by something a little more subtle and more closely related
+ * to the APIC and timer hardware, rather than the device in general.
+ */
+
+struct thread *cos_timer_brand_thd;
+#define NUM_NET_BRANDS 8
+int active_net_brands = 0;
+struct thread *cos_net_brand_thds[NUM_NET_BRANDS];
+int            cos_net_brand_data[NUM_NET_BRANDS];
+
+COS_SYSCALL int cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
+{
+	struct thread *curr_thd, *brand_thd;
+	struct spd *curr_spd;
+
+	curr_thd = thd_get_current();
+	curr_spd = thd_validate_get_current_spd(curr_thd, spd_id);
+	if (NULL == curr_spd) {
+		printk("cos: wiring brand to hardware - component claimed in spd %d, but not\n", spd_id);
+		return -1;		
+	}
+
+	brand_thd = verify_brand_thd(thd_id);
+	if (NULL == brand_thd || !(brand_thd->flags & THD_STATE_HW_BRAND)) {
+		printk("cos: wiring brand to hardware - thread %d not brand thd\n",
+		       (unsigned int)thd_id);
+		return -1;
+	}
+
+	switch (option) {
+	case COS_HW_TIMER:
+		cos_timer_brand_thd = brand_thd;
+		
+		break;
+	case COS_HW_NET:
+		if (active_net_brands >= NUM_NET_BRANDS) {
+			printk("cos: Too many network brands.\n\n");
+			return -1;
+		}
+
+		cos_net_brand_data[active_net_brands] = data;
+		cos_net_brand_thds[active_net_brands] = brand_thd;
+		active_net_brands++;
+
+		break;
+	default:
+		return -1;
+	}
+
+	return 0;
 }
 
 /*
@@ -1098,13 +1198,14 @@ COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, vaddr_t *in
 	}
 
 	open_close_spd(dest->composite_spd, curr_spd->composite_spd); 
+
+	spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(thd));//curr_spd->composite_spd);
+	spd_mpd_ipc_take((struct composite_spd *)dest->composite_spd);
 	
 	/* set the thread to have dest as a new base owner */
 	thd->stack_ptr = 0;
 	thd->stack_base[0].current_composite_spd = dest->composite_spd;
-
-	spd_mpd_ipc_release((struct composite_spd *)curr_spd->composite_spd);
-	spd_mpd_ipc_take((struct composite_spd *)dest->composite_spd);
+	thd->stack_base[0].spd = dest;
 
 	thd->regs.ecx = COS_UPCALL_BOOTSTRAP;
 	thd->regs.edx = dest->upcall_entry;
@@ -1691,7 +1792,7 @@ void *cos_syscall_tbl[16] = {
 	(void*)cos_syscall_sched_cntl,
 	(void*)cos_syscall_mpd_cntl,
 	(void*)cos_syscall_mmap_cntl,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_brand_wire,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,

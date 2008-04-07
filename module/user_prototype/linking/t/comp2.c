@@ -39,20 +39,8 @@ void yield(void)
 	return;
 }
 
-int test_locks_fn(void);
-__attribute__((regparm(1)))
-void thread_tramp(void *data)
+void thread_tramp(void)
 {
-	int c_id = (int)data, test_id;
-
-	test_id = cos_get_thd_id();
-
-	if (test_id != c_id) {
-		print("error in thd tramp: %d %d %d", test_id, c_id, 0);
-	}
-
-	test_locks_fn(); 
-
 	while (1) cos_switch_thread(1, 0, 0);
 
 	cos_upcall(1);
@@ -83,13 +71,13 @@ int spd2_fn(void)
 	thd_id = cos_get_thd_id();
 	curr_thd = thd_id;
 
-	new_thd1 = cos_create_thread(thread_tramp, get_stack_addr(LOWER), (void*)LOWER);
+	new_thd1 = cos_create_thread(0,0,0);
 	//print_vals(new_thd1, new_thd1, new_thd1, new_thd1);
 	if (new_thd1 != LOWER) {
 		print("error: spd2_fn w/ %d %d %d", new_thd1, 1, 1);
 	}
 
-	new_thd2 = cos_create_thread(thread_tramp, get_stack_addr(UPPER), (void*)UPPER);
+	new_thd2 = cos_create_thread(0,0,0);
 	//print_vals(new_thd2, new_thd2, new_thd2, new_thd2);
 
 	if (new_thd2 != UPPER) {
@@ -165,7 +153,7 @@ int test_locks(void)
 {
 	unsigned int new_thd1;//, new_thd2;
 
-	new_thd1 = cos_create_thread(thread_tramp, get_stack_addr(LOWER), (void*)LOWER);
+	new_thd1 = cos_create_thread(0,0,0);
 //	new_thd2 = cos_brand_cntl(0, COS_BRAND_CREATE);
 //	cos_brand_cntl(new_thd2, COS_BRAND_ADD_THD);
 
@@ -175,9 +163,25 @@ int test_locks(void)
 
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
-	if (t == COS_UPCALL_BRAND_COMPLETE) {
+	static unsigned long cnt = 0;
+
+	switch(t) {
+	case COS_UPCALL_BRAND_COMPLETE:
 		cos_switch_thread(1, COS_SCHED_TAILCALL, 0);
+		break;
+	case COS_UPCALL_CREATE:
+		thread_tramp();
+		break;
+	default:
+		break;
 	}
+
+	cnt++;
+	if (cnt % 100 == 0) {
+		print("%d%d%d ", 0, 0, 0);
+	}
+	return;
+
 	//print_vals(1,4,7,5);
 	if (-1 == cos_sched_lock_take()) {
 		print("error: in interrupt cannot take lock %d%d%d", 5, 5, 5);
@@ -191,6 +195,19 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 
 	nothing_var++;
 	return;
+}
+
+int test_brands(void)
+{
+	unsigned int new_thd2;
+
+	new_thd2 = cos_brand_cntl(0, COS_BRAND_CREATE_HW);
+	cos_brand_cntl(new_thd2, COS_BRAND_ADD_THD);
+	cos_brand_wire(new_thd2, COS_HW_TIMER, 0);
+
+	while (1) ;
+
+	return 0;
 }
 
 #define SZ 128
@@ -267,7 +284,8 @@ int sched_init(void)
 //	ret = spd2_fn();
 //	ret = test_mmapping();
 //	ret = test_locks();
-	ret = test_print();
+//	ret = test_print();
+	ret = test_brands();
 	//print_vals(6,6,6);
 	nothing_var++;
 
