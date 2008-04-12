@@ -64,14 +64,16 @@ cos_upcall_entry:
 	
 /*
  * %eax = cmpval, %ebx = memaddr, %ecx = newval
+ * output %edx, either cmpval: fail, or newval:	success
  */
 .weak cos_atomic_cmpxchg
 .type cos_atomic_cmpxchg, @function
 .align 16
 cos_atomic_cmpxchg:
+	movl %eax, %edx   /* this resets edx if we rollback after XXX */
 	cmpl (%ebx), %eax
 	jne cos_atomic_cmpxchg_end
-	movl %ecx, %eax
+	movl %ecx, %edx   /* XXX */
 	movl %ecx, (%ebx)
 cos_atomic_cmpxchg_end:	
 	ret

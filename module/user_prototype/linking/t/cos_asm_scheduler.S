@@ -5,18 +5,6 @@
  * Public License v2.
  */
 
-.text
-.globl cos_atomic_cmpxchg
-.type cos_atomic_cmpxchg, @function
-.align 16
-cos_atomic_cmpxchg:
-	cmpl (%ebx), %eax
-	jne cos_atomic_cmpxchg_end
-	movl %ecx, %eax
-	movl %ecx, (%ebx)
-cos_atomic_cmpxchg_end:	
-	ret
-
 /*
  * Can't modify the in regs as we might start over (rollback)
  * in:  %eax = lockaddr, %ebx = curr_thread_id

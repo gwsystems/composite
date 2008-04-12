@@ -21,8 +21,8 @@ all: $(PRODUCTS) libcos_component.a cos_asm_upcall.o
 	$(LD) -r -o c2.o comp2.o s_stub2.o c_stub.o cos_asm_upcall.o cos_asm_scheduler.o -L. -lcos_component
 	$(LD) -r -o c3.o comp3.o s_stub3.o c_stub.o cos_asm_upcall.o -L. -lcos_component
 	$(LD) -r -o c4.o comp4.o s_stub4.o c_stub.o cos_asm_upcall.o -L. -lcos_component
-	$(LD) -r -o mm.o mem_man.o s_stubmm.o c_stub.o cos_asm_upcall.o -L. -lcos_component
 
+	$(LD) -r -o mm.o mem_man.o s_stubmm.o c_stub.o cos_asm_upcall.o -L. -lcos_component
 	$(LD) -r -o fprr.o fp_rr.o s_stubfprr.o c_stub.o cos_asm_upcall.o cos_asm_scheduler.o cos_scheduler.o -L. -lcos_component
 
 print_comp.o: print_comp.c s_stubprint.o libcos_component.a cos_asm_upcall.o

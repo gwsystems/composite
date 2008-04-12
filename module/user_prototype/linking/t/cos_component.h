@@ -201,9 +201,9 @@ static inline long cos_cmpxchg(void *memory, long anticipated, long result)
 
 	__asm__ __volatile__(
 		"call cos_atomic_cmpxchg"
-		: "=r" (ret)
+		: "=d" (ret)
 		: "a" (anticipated), "b" (memory), "c" (result)
-		: "cc");
+		: "cc", "memory");
 
 	return ret;
 }

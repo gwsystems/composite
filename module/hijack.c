@@ -977,6 +977,7 @@ void copy_pgtbl(phys_addr_t pt_to, phys_addr_t pt_from);
 extern int copy_mm(unsigned long clone_flags, struct task_struct * tsk);
 void print_valid_pgtbl_entries(phys_addr_t pt);
 extern struct thread *ready_boot_thread(struct spd *init);
+vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr);
 
 static int aed_ioctl(struct inode *inode, struct file *file,
 		     unsigned int cmd, unsigned long arg)
@@ -1464,7 +1465,13 @@ free_dummy:
 		} 
 
 		sched->sched_shared_page = (struct cos_sched_data_area *)sched_info.sched_shared_page;
-
+		/* We will need to access the shared_page for thread
+		 * events when the pagetable for this spd is not
+		 * mapped in.  */
+		sched->kern_sched_shared_page = (struct cos_sched_data_area *)
+			pgtbl_vaddr_to_kaddr(sched->spd_info.pg_tbl, (unsigned long)sched->sched_shared_page);
+		sched->prev_notification = 0;
+			
 		return 0;
 	}
 	case AED_EMULATE_PREEMPT:
@@ -2141,6 +2148,9 @@ extern void switch_thread_context(struct thread *curr, struct thread *next);
  */
 static struct timer_list timer;
 
+void update_sched_evts(struct thread *new, int new_flags, 
+		       struct thread *prev, int prev_flags);
+
 extern struct thread *cos_timer_brand_thd;
 #define NUM_NET_BRANDS 8 /* keep consistent with inv.c */
 extern int active_net_brands;
@@ -2154,8 +2164,12 @@ static void timer_interrupt(unsigned long data)
 	BUG_ON(composite_thread == NULL);
 	mod_timer(&timer, jiffies+1);
 
-	if (composite_thread == current && cos_timer_brand_thd && cos_timer_brand_thd->upcall_threads) {
-		cos_meas_event(COS_MEAS_INT_COS_THD);
+	if (composite_thread/* == current*/ && cos_timer_brand_thd && cos_timer_brand_thd->upcall_threads) {
+		if (composite_thread == current) {
+			cos_meas_event(COS_MEAS_INT_COS_THD);
+		} else {
+			cos_meas_event(COS_MEAS_OTHER_THD);
+		}
 
 		regs = get_user_regs_thread(composite_thread);
 
@@ -2182,6 +2196,7 @@ static void timer_interrupt(unsigned long data)
 			
 			cos_meas_event(COS_MEAS_INT_PREEMPT_USER);
 
+			
 			if (cos_upcall_thread->flags & THD_STATE_ACTIVE_UPCALL) {
 				cos_meas_event(COS_MEAS_BRAND_PEND);
 				cos_timer_brand_thd->pending_upcall_requests++;
@@ -2197,7 +2212,11 @@ static void timer_interrupt(unsigned long data)
 			 * a timer interrupt, and in the networking
 			 * interrupt.
 			 */
+
 			cos_current = thd_get_current();
+			update_sched_evts(cos_upcall_thread, THD_STATE_ACTIVE_UPCALL,
+					  cos_current, 0);
+
 			curr_spd = thd_get_thd_spdpoly(cos_current);
 			thd_save_preempted_state(cos_current, regs);
 			thd_check_atomic_preempt(cos_current);
@@ -2230,7 +2249,7 @@ static void timer_interrupt(unsigned long data)
 			cos_meas_event(COS_MEAS_INT_PREEMPT_KERN);
 		}
 	} else {
-		cos_meas_event(COS_MEAS_OTHER_THD);
+		//cos_meas_event(COS_MEAS_OTHER_THD);
 	}
 
  timer_finish:

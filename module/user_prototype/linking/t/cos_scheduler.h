@@ -20,7 +20,7 @@
 
 static inline int cos_sched_lock_take(void)
 {
-	struct cos_synchronization_atom *l = &cos_sched_notifications.locks;
+	struct cos_synchronization_atom *l = &cos_sched_notifications.cos_locks;
 	unsigned int curr_thd = cos_get_thd_id();
 	
 	while (1) {
@@ -46,7 +46,7 @@ static inline int cos_sched_lock_take(void)
 
 static inline int cos_sched_lock_release(void)
 {
-	struct cos_synchronization_atom *l = &cos_sched_notifications.locks;
+	struct cos_synchronization_atom *l = &cos_sched_notifications.cos_locks;
 	unsigned int lock_val;
 	/* TODO: sanity check that verify that lower 16 bits of
 	   lock_val == curr_thd unsigned int curr_thd =
@@ -104,8 +104,6 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 #define sched_thd_blocked(thd) ((thd)->flags & THD_BLOCKED)
 
 #define SCHED_NUM_THREADS MAX_NUM_THREADS
-/* * 2 for thread groups */
-#define SCHED_NUM_EXECUTABLES (SCHED_NUM_THREADS * 2) 
 
 #define INIT_LIST(obj, next, prev)		  \
 	(obj)->next = (obj)->prev = (obj)
@@ -132,6 +130,7 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 
 struct sched_accounting {
 	unsigned long C, T, C_used, T_left;
+	unsigned long cycles;
 };
 
 struct sched_metric {
@@ -139,10 +138,11 @@ struct sched_metric {
 };
 
 struct sched_thd {
-	unsigned short int flags, id;
+	unsigned short int flags, id, evt_id;
 	struct sched_accounting accounting;
 	struct sched_metric metric;
 	struct sched_thd *prio_next, *prio_prev;
+	unsigned int wake_cnt;
 
 	/* If flags & THD_MEMBER */
 	struct sched_thd *group;
@@ -153,7 +153,7 @@ struct sched_thd {
 	struct sched_thd *next, *prev;
 };
 
-void sched_init_thd(struct sched_thd *thd, unsigned short int id);
+void sched_init_thd(struct sched_thd *thd, unsigned short int id, int flags);
 struct sched_thd *sched_alloc_thd(unsigned short int id);
 void sched_ds_init(void);
 void sched_free_thd(struct sched_thd *thd);
@@ -175,32 +175,66 @@ static inline struct sched_metric *sched_get_metric(struct sched_thd *thd)
 	return &thd->metric;
 }
 
+/**************** Scheduler Event Fns *******************/
+
+typedef void (*sched_evt_visitor_t)(struct sched_thd *t, u8_t flags, u32_t cpu_consumption);
+int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt);
+void cos_sched_set_evt_urgency(u8_t id, u16_t urgency);
+short int sched_alloc_event(struct sched_thd *thd);
+extern struct sched_thd *sched_map_evt_thd[NUM_SCHED_EVTS];
+static inline struct sched_thd *sched_evt_to_thd(short int evt_id)
+{
+	assert(evt_id < NUM_SCHED_EVTS && evt_id != 0);
+
+	return sched_map_evt_thd[evt_id];
+}
+static inline void sched_set_thd_urgency(struct sched_thd *t, u16_t urgency)
+{
+	if (t->evt_id) {
+		cos_sched_set_evt_urgency(t->evt_id, urgency);
+	}
+	sched_get_metric(t)->urgency = urgency;
+}
+
+
+
 /* --- Thread Id -> Sched Thread Mapping Utilities --- */
 
 /* 
  * FIXME: add locking.
  */
 
-extern struct sched_thd *thd_map[];
+extern struct sched_thd *sched_thd_map[];
 static inline struct sched_thd *sched_get_mapping(unsigned short int thd_id)
 {
 	if (thd_id >= SCHED_NUM_THREADS ||
-	    thd_map[thd_id] == NULL ||
-	    (thd_map[thd_id]->flags & THD_FREE)) {
+	    sched_thd_map[thd_id] == NULL ||
+	    (sched_thd_map[thd_id]->flags & THD_FREE)) {
 		return NULL;
 	}
 
-	return thd_map[thd_id];
+	return sched_thd_map[thd_id];
+}
+
+static inline struct sched_thd *sched_get_current(void)
+{
+	unsigned short int thd_id;
+	struct sched_thd *thd;
+
+	thd_id = cos_get_thd_id();
+	thd = sched_get_mapping(thd_id);
+	
+	return thd;
 }
 
 static inline int sched_add_mapping(unsigned short int thd_id, struct sched_thd *thd)
 {
 	if (thd_id >= SCHED_NUM_THREADS ||
-	    thd_map[thd_id] != NULL) {
+	    sched_thd_map[thd_id] != NULL) {
 		return -1;
 	}
 	
-	thd_map[thd_id] = thd;
+	sched_thd_map[thd_id] = thd;
 
 	return 0;
 }
@@ -209,7 +243,7 @@ static inline void sched_rem_mapping(unsigned short int thd_id)
 {
 	if (thd_id >= SCHED_NUM_THREADS) return;
 
-	thd_map[thd_id] = NULL;
+	sched_thd_map[thd_id] = NULL;
 }
 
 static inline int sched_is_grp(struct sched_thd *thd)

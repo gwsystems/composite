@@ -30,10 +30,18 @@ static inline struct shared_user_data *get_shared_data(void)
 
 #define COS_SYSCALL __attribute__((regparm(0)))
 
+/* 
+ * This variable tracks the number of cycles that have elapsed since
+ * the last measurement and is typically used to measure how long
+ * brand threads execute.
+ */
+static unsigned long cycle_cnt;
+
 void ipc_init(void)
 {
 	//memset(shared_region_page, 0, PAGE_SIZE);
 	memset(shared_data_page, 0, PAGE_SIZE);
+	rdtscl(cycle_cnt);
 
 	return;
 }
@@ -421,15 +429,6 @@ COS_SYSCALL int cos_syscall_resume_return_cont(int spd_id)
 	return 1;
 }
 
-COS_SYSCALL int cos_syscall_get_thd_id(int spd_id)
-{
-	struct thread *curr = thd_get_current();
-
-	assert(NULL != curr);
-
-	return thd_get_id(curr);
-}
-
 void initialize_sched_info(struct thread *t, struct spd *curr_sched)
 {
 	struct spd *sched;
@@ -551,6 +550,8 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, int a, int b, int c)
 }
 
 extern int cos_syscall_switch_thread(void);
+extern void update_sched_evts(struct thread *new, int new_flags, 
+			      struct thread *prev, int prev_flags);
 /*
  * The arguments are horrible as we are interfacing w/ assembly and 1)
  * we need to return two values, the regs to restore, and if the next
@@ -610,7 +611,8 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	if (thd == curr) {
 		//printk("cos: thd %d switched to self (ip %x).\n", next_thd, (unsigned int)curr->regs.eip);
 		//curr->regs.eax = -1;
-		curr->regs.eax = 0;
+		cos_meas_event(COS_MEAS_SWITCH_SELF);
+		curr->regs.eax = 1;
 		return &curr->regs;
 	}
 
@@ -663,7 +665,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 
 	/*** A synchronization event for the scheduler? ***/
 	if (flags & COS_SCHED_SYNC_BLOCK) {
-		struct cos_synchronization_atom *l = &da->locks;
+		struct cos_synchronization_atom *l = &da->cos_locks;
 		
 		/* if a thread's version of which thread should be
 		 * scheduled next does not comply with the in-memory
@@ -745,11 +747,12 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		curr->flags &= ~THD_STATE_ACTIVE_UPCALL;
 		curr->flags |= THD_STATE_READY_UPCALL;
 		curr->sched_suspended = NULL;
-		spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(curr));
+		spd_mpd_release((struct composite_spd *)thd_get_thd_spdpoly(curr));
 		/***********************************************
 		 * FIXME: call pt_regs *brand_execution_completion(struct thread *curr)?
 		 ***********************************************/
 
+		cos_meas_event(COS_MEAS_FINISHED_BRANDS);
 		/*
 		 * For general support:
 		 *
@@ -764,6 +767,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 
 	}
 
+	update_sched_evts(thd, 0, curr, 0);
 	/* success for this current thread */
 	curr->regs.eax = 0;
 	
@@ -836,9 +840,6 @@ static struct pt_regs *brand_execution_completion(struct thread *curr)
 		curr->thread_brand->pending_upcall_requests--;
 		assert(0);
 	}
-	curr->flags &= ~THD_STATE_ACTIVE_UPCALL;
-	curr->flags |= THD_STATE_READY_UPCALL;
-	cos_meas_event(COS_MEAS_FINISHED_BRANDS);
 
 	/*
 	 * Has the thread we preempted had scheduling activity since?
@@ -860,6 +861,10 @@ static struct pt_regs *brand_execution_completion(struct thread *curr)
 		return &curr->regs;
 	}
 	cos_meas_event(COS_MEAS_BRAND_SCHED_PREEMPTED);
+
+	curr->flags &= ~THD_STATE_ACTIVE_UPCALL;
+	curr->flags |= THD_STATE_READY_UPCALL;
+	cos_meas_event(COS_MEAS_FINISHED_BRANDS);
 	/* 
 	 * FIXME: this should be more complicated.  If
 	 * a scheduling decision has been made between
@@ -877,8 +882,10 @@ static struct pt_regs *brand_execution_completion(struct thread *curr)
 	 */
 	switch_thread_context(curr, prev);
 
+	assert(prev->flags & THD_STATE_PREEMPTED);
 	prev->flags &= ~THD_STATE_PREEMPTED;
-	
+	update_sched_evts(prev, 0, curr, THD_STATE_READY_UPCALL);
+
 	return &prev->regs;
 }
 
@@ -1039,6 +1046,7 @@ COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags)
 		new_thd->stack_ptr = curr_thd->stack_ptr;
 
 		copy_sched_info(new_thd, curr_thd);
+		new_thd->flags |= THD_STATE_CYC_CNT;
 
 		break;
 	} 
@@ -1057,6 +1065,7 @@ COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags)
 		brand_thd->upcall_threads = new_thd;
 
 		copy_sched_info(new_thd, brand_thd);
+		new_thd->flags |= THD_STATE_CYC_CNT;
 
 		break;
 	}
@@ -1216,6 +1225,101 @@ COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, vaddr_t *in
 	return thd->thread_id;
 }
 
+static int update_evt_list(struct thd_sched_info *tsi)
+{
+	unsigned short int prev_evt, this_evt;
+	struct cos_sched_events *evts;
+	
+	assert(tsi);
+	assert(tsi->scheduler);
+	assert(tsi->scheduler->kern_sched_shared_page);
+
+	/* if tsi->scheduler, then all of this should follow */
+	evts = tsi->scheduler->kern_sched_shared_page->cos_events;
+	prev_evt = tsi->scheduler->prev_notification;
+	this_evt = tsi->notification_offset;
+	if (prev_evt >= NUM_SCHED_EVTS ||
+	    this_evt >= NUM_SCHED_EVTS ||
+	    this_evt == 0) {
+		printk("cos: events %d and %d out of range!\n", prev_evt, this_evt);
+		return -1;
+	}
+	/* so long as we haven't already processed this event, and it
+	 * is not part of the linked list of events, then add it */
+	if (prev_evt != this_evt && COS_SCHED_EVT_NEXT(&evts[prev_evt]) == 0) {
+		COS_SCHED_EVT_NEXT(&evts[prev_evt]) = this_evt;
+		tsi->notification_offset = this_evt;
+	}
+	
+	return 0;
+}
+
+static inline void update_thd_evt_state(struct thread *t, int flags)
+{
+	int i;
+	struct thd_sched_info *tsi;
+
+	for (i = 0 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
+		tsi = thd_get_sched_info(t, i);
+		if (NULL == tsi->scheduler && tsi->thread_notifications) {
+			COS_SCHED_EVT_FLAGS(tsi->thread_notifications) = flags;
+			/* handle error conditions of list manip here??? */
+			update_evt_list(tsi);
+		}
+	}
+	
+	return;
+}
+
+static inline void update_thd_evt_cycles(struct thread *t, unsigned long consumption)
+{
+	struct thd_sched_info *tsi;
+	int i;
+
+	for (i = 0 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
+		tsi = thd_get_sched_info(t, i);
+		if (NULL != tsi->scheduler && tsi->thread_notifications) {
+			struct cos_sched_events *se = tsi->thread_notifications;
+			u32_t p = se->cpu_consumption;
+					
+			se->cpu_consumption += consumption;
+			if (se->cpu_consumption < p) { /* prevent overflow */
+				se->cpu_consumption = ~0UL;
+			}
+			update_evt_list(tsi);
+		}
+	}
+}
+
+void update_sched_evts(struct thread *new, int new_flags, 
+		       struct thread *prev, int prev_flags)
+{
+	/* 
+	 * - if either thread has cyc_cnt set, do rdtsc
+	 * - if prev has cyc_cnt set, do sched evt cycle update
+	 * - if new_flags, do sched evt flags update on new
+	 * - if prev_flags, do sched evt flags update on prev
+	 */
+	if ((new->flags | prev->flags) & THD_STATE_CYC_CNT) {
+		unsigned long last;
+
+		last = cycle_cnt;
+		rdtscl(cycle_cnt);
+		if (prev->flags & THD_STATE_CYC_CNT) {
+			update_thd_evt_cycles(prev, cycle_cnt - last);
+		}
+	}
+	
+	if (new_flags) {
+		update_thd_evt_state(new, new_flags);
+	}
+	if (prev_flags) {
+		update_thd_evt_state(prev, prev_flags);
+	}
+
+	return;
+}
+
 COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 {
 	struct thread *thd;
@@ -1229,6 +1333,10 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 		return -1;
 	}
 
+	if (spd->sched_depth < 0) {
+		printk("cos: spd %d called sched_cntl, but not a scheduler.\n", spd_id);
+		return -1;
+	}
 	tsi = thd_get_sched_info(thd, spd->sched_depth);
 	if (tsi->scheduler != spd) {
 		printk("cos: spd %d attempting sched_cntl not a scheduler.\n",
@@ -1236,7 +1344,8 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 		return -1;
 	}
 
-	if (COS_SCHED_EVT_REGION == operation) {
+	switch(operation) {
+	case COS_SCHED_EVT_REGION:
 		/* 
 		 * Set the event regions for this thread in
 		 * user-space.  Make sure that the current scheduler
@@ -1244,9 +1353,31 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 		 * that the optional argument falls within the
 		 * scheduler notification page.
 		 */
+		break;
+	case COS_SCHED_THD_EVT:
+	{
+		long idx = option;
+		struct cos_sched_events *evts, *this_evt;
+
+		if (idx >= NUM_SCHED_EVTS || idx == 0) {
+			printk("cos: invalid thd evt index %d for scheduler %d\n", 
+			       (unsigned int)idx, (unsigned int)spd_id);
+			return -1;
+		}
+
+		evts = spd->kern_sched_shared_page->cos_events;
+		this_evt = &evts[idx];
+		tsi->thread_notifications = this_evt;
+		tsi->notification_offset = idx;
+		COS_SCHED_EVT_NEXT(this_evt) = 0;
+		COS_SCHED_EVT_FLAGS(this_evt) = 0;
+		this_evt->cpu_consumption = 0;
 		
-	} else if (COS_SCHED_GRANT_SCHED  == operation ||
-		   COS_SCHED_REVOKE_SCHED == operation) {
+		break;
+	}
+	case COS_SCHED_GRANT_SCHED:
+	case COS_SCHED_REVOKE_SCHED:
+	{
 		/*
 		 * Permit a child scheduler the capability to schedule
 		 * the thread, or remove that capability.  Assumes
@@ -1286,7 +1417,7 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 			child_tsi = thd_get_sched_info(target_thd, i);
 			child_tsi->scheduler = NULL;
 		}
-	}
+	}}
 
 	return 0;
 }

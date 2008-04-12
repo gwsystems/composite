@@ -6,6 +6,7 @@
 unsigned long long cos_measurements[COS_MEAS_MAX_SIZE];
 char *cos_meas_descriptions[COS_MEAS_MAX_SIZE+1] = 
 {
+	"self (effectless) thread switch",
 	"cooperative thread switch",
 	"preemptive thread switch",
 	"interrupt preemption",

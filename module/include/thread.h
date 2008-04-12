@@ -48,6 +48,7 @@ struct thd_sched_info {
 	struct spd *scheduler;
 	int urgency;
 	struct cos_sched_events *thread_notifications;
+	int notification_offset;
 };
 
 #define THD_STATE_PREEMPTED     0x1   /* Complete register info is saved in regs */
@@ -61,6 +62,7 @@ struct thd_sched_info {
 					waiting for a lock) */
 #define THD_STATE_FAULT         0x80  /* Thread has had a (e.g. page) fault which is being serviced */
 #define THD_STATE_HW_BRAND      0x100 /* Actual hardware should be making this brand */
+#define THD_STATE_CYC_CNT       0x200 /* This thread is being cycle tracked */
 
 /**
  * The thread descriptor.  Contains all information pertaining to a

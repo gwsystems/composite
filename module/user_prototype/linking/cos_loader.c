@@ -1511,11 +1511,12 @@ void make_spd_scheduler(int cntl_fd, struct service_symbs *s, struct service_sym
 	       (unsigned int) sched_page);
 
 	cos_promote_to_scheduler(cntl_fd, spd->spd_handle, (NULL == parent)? -1 : parent->spd_handle, sched_page);
+	
 
 	return;
 }
 
-static struct service_symbs *find_symb_by_name(struct service_symbs *s, char *n)
+static struct service_symbs *find_obj_by_name(struct service_symbs *s, char *n)
 {
 	while (s) {
 		if (strstr(s->obj, n) != NULL) {
@@ -1577,14 +1578,14 @@ static void setup_kernel(struct service_symbs *services)
 	}
 		printf("\n");
 
-	if ((s = find_symb_by_name(services, "fprr.o")) == NULL) {
+	if ((s = find_obj_by_name(services, "fprr.o")) == NULL) {
 		fprintf(stderr, "Could not find scheduler fprr\n");
 		exit(-1);
 	}
 	make_spd_scheduler(cntl_fd, s, NULL);
 //	cos_demo_spds(cntl_fd, spd3->spd_handle, spd4->spd_handle);
 	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;//spd2->spd_handle;
-	if ((s = find_symb_by_name(services, "c0.o")) == NULL) {
+	if ((s = find_obj_by_name(services, "c0.o")) == NULL) {
 		fprintf(stderr, "Could not find initial component\n");
 		exit(-1);
 	}

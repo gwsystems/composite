@@ -26,20 +26,22 @@ static inline int strlen(char *s)
 
 #define ARG_STRLEN 1024
 extern int printstr(short int *s, int a, int b, int c);
-static inline void print(char *str, int a, int b, int c)
+static inline int print(char *str, int a, int b, int c)
 {
 	char *d;
 	short int len, *s;
 
 	len = strlen(str) + 1; /* + 1 for '\0' */
 	s = cos_argreg_alloc(len + sizeof(short int));
+	if (!s) return -1;
+
 	*s = len;
 	d = (char*)&s[1];
 	cos_memcpy(d, str, len);
-
 	printstr(s, a, b, c);
-
 	cos_argreg_free(s);
+
+	return 0;
 }
 
 #endif

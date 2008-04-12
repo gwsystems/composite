@@ -11,9 +11,15 @@
 #include "debug.h"
 #include "measurement.h"
 
+typedef unsigned char u8_t;
+typedef unsigned short int u16_t;
+typedef unsigned int u32_t;
+typedef unsigned long long u64_t;
+
 struct shared_user_data {
 	unsigned int current_thread;
 	void *argument_region;
+	unsigned int brand_principal;
 	unsigned int current_cpu;
 };
 
@@ -22,20 +28,41 @@ struct cos_sched_next_thd {
 	unsigned int next_thd_urgency;
 };
 
-struct cos_sched_events {
-	struct cos_sched_events *next_thd;
-	unsigned int cpu_consumption;
+#define COS_SCHED_EVT_NEXT(evt)    (evt)->nfu.v.next
+#define COS_SCHED_EVT_FLAGS(evt)   (evt)->nfu.v.flags
+#define COS_SCHED_EVT_URGENCY(evt) (evt)->nfu.v.urgency
+#define COS_SCHED_EVT_VALS(evt)    (evt)->nfu.c.vals
+
+#define COS_SCHED_EVT_FREE         0x1
+#define COS_SCHED_EVT_EXCL         0x2
+#define COS_SCHED_EVT_BRAND_ACTIVE 0x4
+#define COS_SCHED_EVT_BRAND_READY  0x8
+
+struct cos_se_values {
+	u8_t next, flags;
+	u16_t urgency;
 };
+struct cos_sched_events {
+	union next_flags_urg {
+		struct cos_se_values v;
+		struct compressed {
+			u32_t vals;
+		} c;
+	} nfu;
+	u32_t cpu_consumption;
+} __attribute__((packed));
 
 struct cos_synchronization_atom {
 	volatile unsigned short int owner_thd, queued_thd;
 } __attribute__((packed));
 
+#define NUM_SCHED_EVTS 128 //256
+
 struct cos_sched_data_area {
 	struct cos_sched_next_thd cos_next; //[NUM_CPUS];
-	struct cos_synchronization_atom locks; //[NUM_CPUS];
-//	struct cos_sched_events cos_events[256]; // maximum of PAGE_SIZE/sizeof(struct cos_sched_events) - ceil(sizeof(struct cos_sched_curr_thd)/(sizeof(struct cos_sched_events)+sizeof(locks)))
-};
+	struct cos_synchronization_atom cos_locks; //[NUM_CPUS];
+	struct cos_sched_events cos_events[NUM_SCHED_EVTS]; // maximum of PAGE_SIZE/sizeof(struct cos_sched_events) - ceil(sizeof(struct cos_sched_curr_thd)/(sizeof(struct cos_sched_events)+sizeof(locks)))
+} __attribute__((packed,aligned(4096)));
 
 #ifndef NULL
 #define NULL ((void*)0)
@@ -83,7 +110,8 @@ enum {
 
 /* operations for cos_sched_cntl */
 enum { 
-	COS_SCHED_EVT_REGION, 
+	COS_SCHED_EVT_REGION,
+	COS_SCHED_THD_EVT,
 	COS_SCHED_GRANT_SCHED, 
 	COS_SCHED_REVOKE_SCHED
 };

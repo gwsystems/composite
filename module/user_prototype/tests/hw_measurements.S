@@ -242,3 +242,9 @@ recv_ret_asym_stub:
 	movl $65536, %eax /* 2^16 = ret */
 	sysenter	
 		
+
+/*
+Much more recent:
+IPC takes 1629 cycles
+Thread switch takes 529
+*/

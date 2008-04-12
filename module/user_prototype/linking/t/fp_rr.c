@@ -4,7 +4,9 @@
 
 #define NUM_PRIOS 8
 
-static struct sched_thd *current, *timer, *init;
+static volatile unsigned long ticks = 0;
+
+static struct sched_thd *timer, *init;
 struct sched_thd blocked;
 struct prio_list {
 	struct sched_thd runnable;
@@ -59,6 +61,7 @@ static inline void fp_resume_thd(struct sched_thd *t)
 
 	t->flags &= ~THD_BLOCKED;
 	t->flags |= THD_READY;
+	REM_LIST(t, prio_next, prio_prev);
 	fp_move_end_runnable(t);
 }
 
@@ -75,7 +78,7 @@ static struct sched_thd *fp_get_highest_prio(void)
 		}
 		
 		t = FIRST_LIST(head, prio_next, prio_prev);
-		REM_LIST(t, prio_next, prio_prev);
+		//REM_LIST(t, prio_next, prio_prev);
 
 		return t;
 	}
@@ -83,40 +86,46 @@ static struct sched_thd *fp_get_highest_prio(void)
 	return NULL;
 }
 
-static inline struct sched_thd *fp_requeue_get_highest(struct sched_thd *c)
+static inline void fp_requeue_highest(void)
 {
-	fp_move_end_runnable(c);
+	fp_move_end_runnable(fp_get_highest_prio());
+}
+
+/* sched lock should already be taken */
+static inline struct sched_thd *fp_schedule(void)
+{
 	return fp_get_highest_prio();
+}
+
+static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
+{
+	
+	return;
 }
 
 #define RUNTIME_SEC 5
 #define TIMER_FREQ 100
+#define CYC_PER_USEC 2400
 
-static void fp_timer_tick(void)
+void fp_timer_tick(void)
 {
-	struct sched_thd *prev;
-	static volatile int cnt = 0;
+	struct sched_thd *next;
 
-	if (cnt >= RUNTIME_SEC*TIMER_FREQ) {
+	if (ticks >= RUNTIME_SEC*TIMER_FREQ) {
 		cos_switch_thread(init->id, COS_SCHED_TAILCALL, 0);
 	}
-	cnt++;
+
+	ticks++;
 
 	cos_sched_lock_take();
-
-	prev = current;
-	current = fp_requeue_get_highest(current);
-
-	if (prev == current) {
-		cos_sched_lock_release();
-		return;
-	} else {
-		cos_switch_thread_release(current->id, COS_SCHED_TAILCALL, 0);
-	}
+	fp_requeue_highest();
+	next = fp_schedule();
+	cos_switch_thread_release(next->id, COS_SCHED_TAILCALL, 0);
 
 	return;
 }
 
+/* type of newly created thread functions */
 typedef void (*crt_thd_fn_t)(void *data);
 
 static void fp_idle_loop(void *d)
@@ -124,24 +133,115 @@ static void fp_idle_loop(void *d)
 	while(1) ;
 }
 
+static void fp_yield(void)
+{
+	struct sched_thd *prev, *next;
+	
+	cos_sched_lock_take();
+	
+	/* assumes brand thds don't call fp_yield */
+	prev = sched_get_current();
+	assert(prev);
+	next = fp_get_highest_prio();
+	if (prev != fp_get_highest_prio()) {
+		assert(0);
+	}
+
+	fp_requeue_highest();
+	next = fp_schedule();
+	if (prev != next) {
+		cos_switch_thread_release(next->id, 0, 0);
+	} else {
+		cos_sched_lock_release();
+	}
+}
+
 static void fp_fresh_thd(void *d)
 {
 	while (1) {
-		struct sched_thd *prev;
+		fp_yield();
 
+		// run thread's action
+	}
+}
+
+/* 
+ * FIXME: broken broken broken
+ *
+ * continuously increasing wake_cnt...
+ */
+int sched_wakeup(unsigned short int thd_id)
+{
+	struct sched_thd *thd, *prev, *next;
+
+	do {
 		cos_sched_lock_take();
 		
-		prev = current;
-		current = fp_requeue_get_highest(current);
-
-		if (prev != current) {
-			cos_switch_thread_release(current->id,0,0);
-		} else {
-			cos_sched_lock_release();
+		thd = sched_get_mapping(thd_id);
+		if (!thd) goto error;
+		
+		thd->wake_cnt++;
+		/* If the thd isn't blocked yet, no reason to wake it via
+		 * scheduling
+		 */
+		if (!sched_thd_blocked(thd)) {
+			goto cleanup;
 		}
-	}
+		
+		fp_resume_thd(thd);
+		prev = sched_get_current();
+		assert(prev);
+		next = fp_schedule();
+		if (prev == next) {	
+			goto cleanup;
+		} 
+	} while (cos_switch_thread_release(next->id, 0, 0));
+done:
+	return 0;
+cleanup:
+	cos_sched_lock_release();
+	goto done;
+error:
+	cos_sched_lock_release();
+	return -1;
+}
 
-	return;
+/* FIXME: same as above - BROKEN */
+int sched_block()
+{
+	struct sched_thd *thd, *next;
+
+	/* 
+	 * This needs to be a loop as it's possible that there will be
+	 * lock contention, and this thread will schedule itself while
+	 * another incriments the wake_cnt 
+	 */
+	do {
+		cos_sched_lock_take();
+		
+		thd = sched_get_current();
+		if (!thd) goto error;
+		
+		/* why are we running if blocked */
+		assert(sched_thd_ready(thd));
+		
+		thd->wake_cnt--;
+		if (thd->wake_cnt) {
+			goto cleanup;
+		}
+		
+		fp_block_thd(thd);
+		next = fp_schedule();
+		assert(next != thd);
+	} while (cos_switch_thread_release(next->id, 0, 0));
+done:
+	return 0;
+cleanup:
+	cos_sched_lock_release();
+	goto done;
+error:
+	cos_sched_lock_release();
+	return -1;
 }
 
 int sched_init(void)
@@ -155,9 +255,9 @@ int sched_init(void)
 	first = 0;
 
 	for (i = 0 ; i < NUM_PRIOS ; i++) {
-		sched_init_thd(&priorities[i].runnable, 0);
+		sched_init_thd(&priorities[i].runnable, 0, 0);
 	}
-	sched_init_thd(&blocked, 0);
+	sched_init_thd(&blocked, 0, 0);
 	sched_ds_init();
 
 	/* switch back to this thread to terminate the system. */
@@ -172,24 +272,29 @@ int sched_init(void)
 	cos_brand_cntl(thd_id, COS_BRAND_ADD_THD);
 	cos_brand_wire(thd_id, COS_HW_TIMER, 0);
 	timer = sched_alloc_thd(thd_id);
-
-
+	sched_alloc_event(timer);
 
 	/* create 3 threads to test rr and fp */
 	thd_id = cos_create_thread((int)fp_fresh_thd, 0, 0);
 	new = sched_alloc_thd(thd_id);
+	sched_alloc_event(new);
 	fp_add_thd(new, 7);
+	sched_add_mapping(thd_id, new);
 
 	thd_id = cos_create_thread((int)fp_fresh_thd, 0, 0);
 	new = sched_alloc_thd(thd_id);
+	sched_alloc_event(new);
 	fp_add_thd(new, 7);
+	sched_add_mapping(thd_id, new);
 
 	thd_id = cos_create_thread((int)fp_fresh_thd, 0, 0);
 	new = sched_alloc_thd(thd_id);
-	fp_add_thd(new, 6);
+	sched_alloc_event(new);
+	fp_add_thd(new, 7);
+	sched_add_mapping(thd_id, new);
 
-	current = fp_get_highest_prio();
-	cos_switch_thread(current->id, 0, 0);
+	new = fp_get_highest_prio();
+	cos_switch_thread(new->id, 0, 0);
 
 	return 0;
 }

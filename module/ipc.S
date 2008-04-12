@@ -220,7 +220,11 @@ cos_syscall_switch_thread:
 	movl PT_EDI(%eax), %edi
 	movl PT_EBP(%eax), %ebp
 	movl PT_EAX(%eax), %eax
-		
+
+	movl %edx, (COS_SYSCALL_EDX)(%esp)
+	movl %ecx, (COS_SYSCALL_ECX)(%esp)
+	ret
+	
 	RET_TO_USER
 
 .align 4
