@@ -2,8 +2,6 @@
 
 /**************** Scheduler Event Fns *******************/
 
-u8_t cos_curr_evt = 0;
-
 /* This should be called with the scheduler lock */
 int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 {
@@ -12,6 +10,8 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 	long ret;
 	struct cos_sched_events *evt;
 	struct cos_se_values *se;
+
+	static u8_t cos_curr_evt = 0;
 
 	if (!proc_amnt) {
 		proc_amnt = ~(0UL);
@@ -31,12 +31,11 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 		
 		evt = &cos_sched_notifications.cos_events[cos_curr_evt];
 		v_ptr = &COS_SCHED_EVT_VALS(evt);
-		
 		while (1) {
 			v_new = v = *v_ptr;
 			se = (struct cos_se_values*)&v_new;
 			id = se->next;
-			flags = se->next;
+			flags = se->flags;
 			se->next = 0;
 			se->flags = 0;
 			
@@ -53,11 +52,13 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 			}
 		}
 
-		t = sched_evt_to_thd(cos_curr_evt);
-		if (t) {
-			fn(t, flags, cpu);
+		if (cos_curr_evt) {
+			t = sched_evt_to_thd(cos_curr_evt);
+			if (t) {
+				/* Call the visitor function */
+				fn(t, flags, cpu);
+			}
 		}
-
 		if (id) {
 			cos_curr_evt = id;
 		} else {
@@ -81,6 +82,9 @@ void cos_sched_set_evt_urgency(u8_t evt_id, u16_t urgency)
 	evt = &cos_sched_notifications.cos_events[evt_id];
 	ptr = &COS_SCHED_EVT_VALS(evt);
 
+	/* Need to do this atomically with cmpxchg as next and flags
+	 * are in the same word as the urgency.
+	 */
 	while (1) {
 		old = new = *ptr;
 		se = (struct cos_se_values*)&new;
@@ -131,7 +135,10 @@ short int sched_alloc_event(struct sched_thd *thd)
 			/* add to evt thd -> thread map */
 			sched_map_evt_thd[i] = thd;
 			thd->evt_id = i;
-			cos_sched_cntl(COS_SCHED_THD_EVT, 0, i);
+			if (cos_sched_cntl(COS_SCHED_THD_EVT, thd->id, i)) {
+				print("failed to allocate event. (%d%d%d)\n",1,1,1);
+				return -1;
+			}
 
 			return i;
 		}

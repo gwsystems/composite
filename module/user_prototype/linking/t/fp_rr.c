@@ -99,11 +99,11 @@ static inline struct sched_thd *fp_schedule(void)
 
 static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 {
-	
+	print("[%d: %x, %d]",(unsigned int)t->id, (unsigned int)flags,(unsigned int)cpu_usage);
 	return;
 }
 
-#define RUNTIME_SEC 5
+#define RUNTIME_SEC 1
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
 
@@ -116,6 +116,9 @@ void fp_timer_tick(void)
 	}
 
 	ticks++;
+
+	cos_sched_process_events(evt_callback, 0);
+	print("%d%d%d",1,2,3);
 
 	cos_sched_lock_take();
 	fp_requeue_highest();
@@ -269,10 +272,10 @@ int sched_init(void)
 	fp_add_thd(new, 0);
 
 	thd_id = cos_brand_cntl(0, COS_BRAND_CREATE_HW);
-	cos_brand_cntl(thd_id, COS_BRAND_ADD_THD);
-	cos_brand_wire(thd_id, COS_HW_TIMER, 0);
 	timer = sched_alloc_thd(thd_id);
 	sched_alloc_event(timer);
+	cos_brand_cntl(thd_id, COS_BRAND_ADD_THD);
+	cos_brand_wire(thd_id, COS_HW_TIMER, 0);
 
 	/* create 3 threads to test rr and fp */
 	thd_id = cos_create_thread((int)fp_fresh_thd, 0, 0);

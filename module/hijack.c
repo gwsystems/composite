@@ -2196,7 +2196,6 @@ static void timer_interrupt(unsigned long data)
 			
 			cos_meas_event(COS_MEAS_INT_PREEMPT_USER);
 
-			
 			if (cos_upcall_thread->flags & THD_STATE_ACTIVE_UPCALL) {
 				cos_meas_event(COS_MEAS_BRAND_PEND);
 				cos_timer_brand_thd->pending_upcall_requests++;

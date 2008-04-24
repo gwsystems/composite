@@ -184,7 +184,8 @@ short int sched_alloc_event(struct sched_thd *thd);
 extern struct sched_thd *sched_map_evt_thd[NUM_SCHED_EVTS];
 static inline struct sched_thd *sched_evt_to_thd(short int evt_id)
 {
-	assert(evt_id < NUM_SCHED_EVTS && evt_id != 0);
+	assert(evt_id < NUM_SCHED_EVTS);
+	assert(evt_id != 0);
 
 	return sched_map_evt_thd[evt_id];
 }
