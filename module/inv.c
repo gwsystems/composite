@@ -785,7 +785,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 
 	}
 
-	update_sched_evts(thd, 0, curr, 0);
+	update_sched_evts(thd, COS_SCHED_EVT_NIL, curr, COS_SCHED_EVT_NIL);
 	/* success for this current thread */
 	curr->regs.eax = 0;
 	
@@ -902,7 +902,8 @@ static struct pt_regs *brand_execution_completion(struct thread *curr)
 
 	assert(prev->flags & THD_STATE_PREEMPTED);
 	prev->flags &= ~THD_STATE_PREEMPTED;
-	update_sched_evts(prev, 0, curr, THD_STATE_READY_UPCALL);
+	update_sched_evts(prev, COS_SCHED_EVT_NIL, 
+			  curr, COS_SCHED_EVT_BRAND_READY);
 
 	return &prev->regs;
 }
@@ -1113,18 +1114,77 @@ COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags)
 	return new_thd->thread_id;
 }
 
+struct thread *cos_timer_brand_thd;
+#define NUM_NET_BRANDS 2
+int active_net_brands = 0;
+struct cos_brand_info cos_net_brand[NUM_NET_BRANDS];
+struct cos_net_callbacks *cos_net_fns = NULL;
+
+int cos_net_try_brand(struct thread *t, void *data, int len)
+{
+	cos_meas_event(COS_MEAS_PACKET_RECEPTION);
+
+	return 0;
+}
+
+void cos_net_register(struct cos_net_callbacks *cn_cb)
+{
+	assert(cn_cb->get_packet && cn_cb->create_brand);
+	cos_net_fns = cn_cb;
+}
+
+void cos_net_deregister(struct cos_net_callbacks *cn_cb)
+{
+	assert(cos_net_fns == cn_cb);
+	
+	cos_net_fns = NULL;
+}
+
+static int brand_get_packet(struct thread *t, char *dest, int max_len)
+{
+	int i, ret = 0;
+	struct cos_brand_info *bi = NULL;
+	char *packet;
+	unsigned long len;
+	cos_net_data_completion_t fn;
+	void *fn_data;
+
+	assert(cos_net_fns && dest);
+
+	for (i = 0 ; i < NUM_NET_BRANDS ; i++) {
+		if (cos_net_brand[i].brand == t) {
+			bi = &cos_net_brand[i];
+			break;
+		}
+	}
+	if (!bi) {
+		ret = -2;
+		goto done;
+	}
+
+	if (cos_net_fns->get_packet(bi, &packet, &len, &fn, &fn_data)) {
+		printk("cos: could not get packet from networking subsystem\n");
+	}
+	
+	assert(packet);
+	if (max_len < len) {
+		ret = -1;
+		goto done;
+	}
+	memcpy(dest, packet, len);
+	ret = len;
+done:
+	/* call the callback to cleanup the packet*/
+	fn(fn_data);
+
+	return ret;
+}
+
 /*
  * This is a bandaid currently.  This syscall should really be
  * replaced by something a little more subtle and more closely related
  * to the APIC and timer hardware, rather than the device in general.
  */
-
-struct thread *cos_timer_brand_thd;
-#define NUM_NET_BRANDS 8
-int active_net_brands = 0;
-struct thread *cos_net_brand_thds[NUM_NET_BRANDS];
-int            cos_net_brand_data[NUM_NET_BRANDS];
-
 COS_SYSCALL int cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
 {
 	struct thread *curr_thd, *brand_thd;
@@ -1150,13 +1210,17 @@ COS_SYSCALL int cos_syscall_brand_wire(int spd_id, int thd_id, int option, int d
 		
 		break;
 	case COS_HW_NET:
-		if (active_net_brands >= NUM_NET_BRANDS) {
+		if (active_net_brands >= NUM_NET_BRANDS || !cos_net_fns) {
 			printk("cos: Too many network brands.\n\n");
 			return -1;
 		}
 
-		cos_net_brand_data[active_net_brands] = data;
-		cos_net_brand_thds[active_net_brands] = brand_thd;
+		cos_net_brand[active_net_brands].brand_port = (unsigned short int)data;
+		cos_net_brand[active_net_brands].brand = brand_thd;
+		if (cos_net_fns->create_brand(&cos_net_brand[active_net_brands])) {
+			printk("cos: could not create brand in networking subsystem\n");
+			return -1;
+		}
 		active_net_brands++;
 
 		break;
@@ -1262,6 +1326,9 @@ COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, vaddr_t *in
 	return thd->thread_id;
 }
 
+
+/****************** begin event notification functions ******************/
+
 static int update_evt_list(struct thd_sched_info *tsi)
 {
 	unsigned short int prev_evt, this_evt;
@@ -1308,6 +1375,10 @@ static inline void update_thd_evt_state(struct thread *t, int flags)
 {
 	int i;
 	struct thd_sched_info *tsi;
+
+	if (flags == COS_SCHED_EVT_NIL) {
+		return;
+	}
 
 	for (i = 0 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
 		tsi = thd_get_sched_info(t, i);
@@ -1370,6 +1441,299 @@ void update_sched_evts(struct thread *new, int new_flags,
 
 	return;
 }
+
+/****************** end event notification functions ******************/
+
+/************** functions for parsing async set urgencies ************/
+
+static inline int most_common_sched_depth(struct thread *t1, struct thread *t2)
+{
+	int i;
+
+	/* root scheduler had better be the same */
+	assert(thd_get_depth_sched(t1, 0) == thd_get_depth_sched(t2, 0));
+
+	for (i = 1 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
+		struct spd *s1, *s2;
+
+		s1 = thd_get_depth_sched(t1, i);
+		s2 = thd_get_depth_sched(t2, i);
+
+		/* If the scheduler's diverge, previous depth is most common */
+		if (!s1 || s1 != s2) {
+			return i-1;
+		}
+	}
+
+	return MAX_SCHED_HIER_DEPTH-1;
+}
+
+/* 
+ * Not happy with the complexity of this function...
+ *
+ * A thread has made a brand and wishes to execute an upcall.  Here we
+ * decide if that upcall should be made now based on the currently
+ * executing thread, or if it should be postponed for schedulers to
+ * deal with later.
+ * 
+ * There are 4 sets of schedulers, a - the most common scheduler
+ * between uc and preempted, >a - the set of schedulers of more
+ * authority than a, <a_uc - the set of schedulers that own uc of less
+ * authority than a, and <a_pre - the set of schedulers that own
+ * preempted that have less authority than a.
+ *
+ * If upcall is already active, signal that it should be not run (ret 0)
+ * otherwise notify all schedulers in (<a_uc + a + >a) that upcall has
+ * awakened and
+ * if the urgency of upcall in a is higher (lower numerically) than
+ *    prev in a
+ *    - check forall s in (<a_uc + a + >a) that upcall is not disabled.
+ *    - return 1 to signal that upcall should be executed.
+ */
+static int brand_higher_urgency(struct thread *upcall, struct thread *prev)
+{
+	struct thd_sched_info *utsi;
+	int i, d, run = 1;
+	u16_t u_urg, p_urg;
+
+	assert(upcall->thread_brand && upcall->flags & THD_STATE_UPCALL);
+
+	/* 
+	 * If the upcall is already active, the scheduler's already
+	 * know what they're doing 
+	 */
+	if (upcall->flags & THD_STATE_ACTIVE_UPCALL) {
+		return 0;
+	}
+
+	d = most_common_sched_depth(upcall, prev);
+	u_urg = thd_get_depth_urg(upcall, d);
+	p_urg = thd_get_depth_urg(prev, d);
+	/* We should not run the upcall if it doesn't have more urgency */
+	if (u_urg >= p_urg) {
+		run = 0;
+	}
+	
+	/* And we need to make sure that the upcall is active in its schedulers */
+	for (i = 0 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
+		utsi = thd_get_sched_info(upcall, i);
+		if (!utsi->scheduler) {
+			break;
+		}
+		u_urg = COS_SCHED_EVT_URGENCY(utsi->thread_notifications);
+		if (u_urg == COS_SCHED_EVT_DISABLED_VAL) {
+			run = 0;
+		}
+	}
+
+	if (run) {
+		update_sched_evts(upcall, COS_SCHED_EVT_BRAND_ACTIVE, 
+				  prev, COS_SCHED_EVT_NIL);
+	} else {
+		update_thd_evt_state(upcall, COS_SCHED_EVT_BRAND_ACTIVE);
+	}
+	
+	return run;
+}
+
+struct thread *brand_next_thread(struct thread *brand, struct thread *preempted)
+{
+	/* Assume here that we only have one upcall thread */
+	struct thread *upcall = brand->upcall_threads;
+
+	if (brand_higher_urgency(upcall, preempted)) {
+		assert((preempted->flags & THD_STATE_PREEMPTED) == 0);
+		assert(preempted->preempter_thread == NULL);
+
+		preempted->flags |= THD_STATE_PREEMPTED;
+		preempted->preempter_thread = upcall;
+		upcall->interrupted_thread = preempted;
+
+		/* actually setup the brand/upcall to happen here? */
+		return brand;
+	}
+
+	return preempted;
+}
+
+/*
+ * I'm not happy with the complexity of this function.
+ *
+ * The upcall uc has just completed, and the question we are asking is
+ * if the thread it preempted should be run, or if schedulers have
+ * been invoked during ucs tenure, and another thread of more urgency
+ * than the preempted thread has been worken up.  A simple mental
+ * example would be if a high priority upcall preempted the idle
+ * thread, and woke up another thread of middle priority.  Obviously,
+ * we should not run the thread we preempted (the idle thread) when
+ * the upcall completes.  The conditions for this follow:
+ *
+ * There are 4 sets of schedulers, a - the most common scheduler
+ * between uc and preempted, >a - the set of schedulers of more
+ * authority than a, <a_uc - the set of schedulers that own uc of less
+ * authority than a, and <a_pre - the set of schedulers that own
+ * preempted that have less authority than a.
+ *
+ * if forall s in a + <a_pre, either the "next_thread" is in <a_pre,
+ *    or preempted has a higher or same urgency in s than next_thread:
+ *    - notify all s in <a_uc that uc is not active anymore
+ *    - setup preempted to execute
+ * else 
+ *    - setup uc to upcall into a to let it make a scheduling decision
+ */
+static struct thread *brand_term_find_run_preempted(struct thread *uc, struct thread *preempted)
+{
+	int i, d;
+	struct spd *common_sched;
+	
+	assert(uc && preempted);
+
+	d = most_common_sched_depth(uc, preempted);
+	common_sched = thd_get_depth_sched(uc, d);
+	assert(common_sched);
+
+	for (i = d ; i < MAX_SCHED_HIER_DEPTH ; i++) {
+		struct spd *preempt_sched;
+		struct thread *other;
+		int thd_id;
+		u16_t int_urg, o_urg;
+
+		preempt_sched = thd_get_depth_sched(preempted, i);
+		/* If we have checked all schedulers, we're done */
+		if (!preempt_sched) {
+			break;
+		}
+
+		assert(preempt_sched->kern_sched_shared_page);
+		thd_id = preempt_sched->kern_sched_shared_page->cos_next.next_thd_id;
+		other  = thd_get_by_id(thd_id);
+		/* If the thdid is invalid, or is not owned by the
+		 * sched, ignore that scheduler. */
+		if (!other || thd_get_depth_sched(other, i) != preempt_sched) {
+			printk("cos: invalid next id %d returning from brand in sched %d\n",
+			       (unsigned int)thd_id, (unsigned int)spd_get_index(preempt_sched));
+			continue;
+		}
+
+		int_urg = thd_get_depth_urg(preempted, i);
+		o_urg   = thd_get_depth_urg(other, i);
+
+		/* If we're at leaves, compare actual thread urgencies */
+		if (i == MAX_SCHED_HIER_DEPTH-1) {
+			if (o_urg < int_urg) {
+				struct composite_spd *cspd;
+				
+				/* Ok, we're at the end, don't have a higher urgency: upcall to the scheduler */
+				cspd = (struct composite_spd *)thd_get_thd_spdpoly(uc);
+				upcall_setup(uc, common_sched, COS_UPCALL_BRAND_COMPLETE, 0, 0, 0);
+				upcall_execute(uc, NULL, cspd);
+				return uc;
+			} else {
+				/* interrupted thread has highest urgency */
+				break;
+			}
+		} else if (o_urg < int_urg) {
+			struct spd *o_sched, *s;
+			
+			/* 
+			 * ...and now see if the urgent thread's next
+			 * scheduler is the same as the interrupted
+			 * thread's next scheduler
+			 */
+			o_sched = thd_get_depth_sched(other, i+1);
+			s       = thd_get_depth_sched(preempted, i+1);
+			
+			if (o_sched && o_sched != s) {
+				struct composite_spd *cspd;
+				
+				/* Ok, we're at the end, don't have a higher urgency: upcall to the scheduler */
+				cspd = (struct composite_spd *)thd_get_thd_spdpoly(uc);
+				upcall_setup(uc, common_sched, COS_UPCALL_BRAND_COMPLETE, 0, 0, 0);
+				upcall_execute(uc, NULL, cspd);
+				return uc;
+			}
+		}
+	}
+
+	
+	/* Notify schedulers of this upcall thread completing */
+	update_thd_evt_state(uc, COS_SCHED_EVT_BRAND_ACTIVE);
+	switch_thread_context(uc, preempted);
+
+	return preempted;
+}
+
+/*
+ * When an upcall thread completes execution, 
+ */
+struct thread *brand_return_next_thd(struct thread *upcall)
+{
+	struct thread *brand = upcall->thread_brand, *ret;
+	struct thread *interrupted = upcall->interrupted_thread;
+	struct composite_spd *cspd = (struct composite_spd *)thd_get_thd_spdpoly(upcall);
+
+	assert(brand);
+	assert(brand && upcall->flags & THD_STATE_UPCALL);
+	assert(cspd);
+
+	spd_mpd_release(cspd);
+
+	if (brand->pending_upcall_requests) {
+		/* if this brand is HW, then simply get the next item
+		 * from the kernel structure, and make an upcall.
+		 * Otherwise, upcall into _brander's_ component with
+		 * new code OR somehow sort out a queue of brand
+		 * arguments.  */
+		//upcall_setup(upcall, );
+		brand->pending_upcall_requests--;
+		assert(0);
+		ret = upcall;
+	} else if (interrupted) {
+		assert(interrupted->preempter_thread == upcall);
+
+		ret = brand_term_find_run_preempted(upcall, interrupted);
+		if (ret == upcall) {
+			cos_meas_event(COS_MEAS_BRAND_COMPLETION_UC);
+		} 
+	} else {
+		struct thd_sched_info *tsi;
+		struct spd *root_sched;
+
+		tsi = thd_get_sched_info(upcall, 0);
+		root_sched = tsi->scheduler;
+		assert(root_sched);
+
+		/* upcall into root scheduler here */
+		upcall_setup(upcall, root_sched, COS_UPCALL_BRAND_COMPLETE, 0, 0, 0);
+		upcall_execute(upcall, NULL, cspd);
+		ret = upcall;
+	}
+
+	if (ret != upcall) {
+		struct thread *nest_int = interrupted->interrupted_thread;;
+
+		upcall->flags &= ~THD_STATE_ACTIVE_UPCALL;
+		upcall->flags |= THD_STATE_READY_UPCALL;
+		cos_meas_event(COS_MEAS_BRAND_SCHED_PREEMPTED);
+		cos_meas_event(COS_MEAS_FINISHED_BRANDS);
+
+		upcall->interrupted_thread = nest_int;
+		if (nest_int) {
+			nest_int->preempter_thread = upcall;
+		}
+		interrupted->preempter_thread = NULL;
+		interrupted->interrupted_thread = NULL;
+		assert(interrupted->flags & THD_STATE_PREEMPTED);
+		/* This may be a little presumptive as the caller
+		 * might need to know if it should reinstate preempted
+		 * state */
+		interrupted->flags &= ~THD_STATE_PREEMPTED;
+	} 
+
+	return ret;
+}
+
+/************** end functions for parsing async set urgencies ************/
 
 COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 {

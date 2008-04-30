@@ -164,6 +164,24 @@ static inline int cos_switch_thread(unsigned short int thd_id, unsigned short in
 	return cos___switch_thread(thd_id, flags); 
 }
 
+/*
+ * If you want to switch to a thread after an interrupt that is
+ * currently executing is finished, that thread can be set here.  This
+ * is a common case: An interrupt's execution wishes to wake up a
+ * thread, thus it calls the scheduler.  Assume the woken thread is of
+ * highest priority besides the interrupt thread.  When the interrupt
+ * completes, it should possibly consider switching to that thread
+ * instead of the one it interrupted.  This is the mechanism for
+ * telling the kernel to look at the thd_id for execution when the
+ * interrupt completes.
+ */
+static inline void cos_next_thread(unsigned short int thd_id)
+{
+	volatile struct cos_sched_next_thd *cos_next = &cos_sched_notifications.cos_next;
+
+	cos_next->next_thd_id = thd_id;
+}
+
 static inline unsigned short int cos_get_thd_id(void)
 {
 	struct shared_user_data *ud = (void *)COS_INFO_REGION_ADDR;

@@ -96,6 +96,8 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 #define THD_FREE    0x4
 #define THD_GRP     0x8  // is this thread a group of thds?
 #define THD_MEMBER  0x10 // is this thread part of a group?
+#define THD_UC_ACTIVE 0X20
+#define THD_UC_READY  0X40
 
 #define sched_thd_free(thd)    ((thd)->flags & THD_FREE)
 #define sched_thd_grp(thd)     ((thd)->flags & THD_GRP)
@@ -130,7 +132,7 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 
 struct sched_accounting {
 	unsigned long C, T, C_used, T_left;
-	unsigned long cycles;
+	unsigned long long cycles;
 };
 
 struct sched_metric {
@@ -142,7 +144,7 @@ struct sched_thd {
 	struct sched_accounting accounting;
 	struct sched_metric metric;
 	struct sched_thd *prio_next, *prio_prev;
-	unsigned int wake_cnt;
+	int wake_cnt;
 
 	/* If flags & THD_MEMBER */
 	struct sched_thd *group;
@@ -155,6 +157,7 @@ struct sched_thd {
 
 void sched_init_thd(struct sched_thd *thd, unsigned short int id, int flags);
 struct sched_thd *sched_alloc_thd(unsigned short int id);
+struct sched_thd *sched_alloc_upcall_thd(unsigned short int thd_id);
 void sched_ds_init(void);
 void sched_free_thd(struct sched_thd *thd);
 void sched_make_grp(struct sched_thd *thd, unsigned short int sched_thd);

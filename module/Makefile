@@ -5,6 +5,7 @@ KDIR=/scratch/gabep1/linux-2.6.22-current
 #/scratch/gabep1/other/linux-2.6.13
 MAKE=make
 LINKER_DIR=./user_prototype/linking/
+NET_DIR=./net/
 TRANS_DIR=/home/grad3/gabep1/transfer/
 
 default: module
@@ -12,16 +13,19 @@ default: module
 module:
 	$(MAKE) -C $(LINKER_DIR)
 	$(MAKE) -C $(KDIR) SUBDIRS=$(PWD) modules
+	$(MAKE) -C $(NET_DIR)
 
 cp:
 	cp cos.ko $(TRANS_DIR)
 	make -C $(LINKER_DIR) copy
+	make -C $(NET_DIR) copy
 
 loc:
-	@ wc -l *.c *.S *.h include/*.h $(LINKER_DIR)/*.c $(LINKER_DIR)/t/*.S $(LINKER_DIR)/t/*.c $(LINKER_DIR)/t/*.h | tail -n 1 | awk '{print $1}'
+	@ wc -l *.c *.S *.h include/*.h $(LINKER_DIR)/*.c $(LINKER_DIR)/t/*.S $(LINKER_DIR)/t/*.c $(LINKER_DIR)/t/*.h $(NET_DIR)/*.c $(NET_DIR)/util/*.c | tail -n 1 | awk '{print $1}'
 
 reload: clean module cp
 
 clean:
 	rm -rf *.ko *.mod.c *.o *.mod.o .*.cmd .tmp_versions test
 	$(MAKE) -C $(LINKER_DIR) clean
+	$(MAKE) -C $(NET_DIR) clean

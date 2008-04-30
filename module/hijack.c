@@ -2138,7 +2138,7 @@ void switch_host_pg_tbls(phys_addr_t pt)
 	return;
 }
 
-/***** begin timer handling *****/
+/***** begin timer/net handling *****/
 
 extern void switch_thread_context(struct thread *curr, struct thread *next);
 
@@ -2152,10 +2152,10 @@ void update_sched_evts(struct thread *new, int new_flags,
 		       struct thread *prev, int prev_flags);
 
 extern struct thread *cos_timer_brand_thd;
-#define NUM_NET_BRANDS 8 /* keep consistent with inv.c */
+#define NUM_NET_BRANDS 2 /* keep consistent with inv.c */
 extern int active_net_brands;
-extern struct thread *cos_net_brand_thds[NUM_NET_BRANDS];
-extern int            cos_net_brand_data[NUM_NET_BRANDS];
+extern struct cos_brand_info cos_net_brand[NUM_NET_BRANDS];
+extern struct cos_net_callbacks *cos_net_fns;
 
 static void timer_interrupt(unsigned long data)
 {

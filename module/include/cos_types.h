@@ -33,10 +33,15 @@ struct cos_sched_next_thd {
 #define COS_SCHED_EVT_URGENCY(evt) (evt)->nfu.v.urgency
 #define COS_SCHED_EVT_VALS(evt)    (evt)->nfu.c.vals
 
+/* If the urgency is set to this, the upcall is disabled */
+#define COS_SCHED_EVT_DISABLED_VAL (0xFFFF)
+
+/* FIXME: make flags 8 bits, and use 8 bits to count # of alive upcalls */
 #define COS_SCHED_EVT_FREE         0x1
 #define COS_SCHED_EVT_EXCL         0x2
 #define COS_SCHED_EVT_BRAND_ACTIVE 0x4
 #define COS_SCHED_EVT_BRAND_READY  0x8
+#define COS_SCHED_EVT_NIL          0x10
 
 struct cos_se_values {
 	u8_t next, flags;
@@ -67,6 +72,23 @@ struct cos_sched_data_area {
 #ifndef NULL
 #define NULL ((void*)0)
 #endif
+
+
+/* 
+ * For interoperability with the networking side.  This is the brand
+ * port/brand thread pair, and the callback structures for
+ * communcation.
+ */
+struct cos_brand_info {
+	unsigned short int      brand_port;
+	struct thread           *brand;
+};
+typedef void (*cos_net_data_completion_t)(void *data);
+struct cos_net_callbacks {
+	int (*get_packet)(struct cos_brand_info *bi, char **packet, 
+			  unsigned long *len, cos_net_data_completion_t *fn, void **data);
+	int (*create_brand)(struct cos_brand_info *bi);
+};
 
 /* 
  * These types are for addresses that are never meant to be

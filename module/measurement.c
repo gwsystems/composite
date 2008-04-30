@@ -40,6 +40,7 @@ char *cos_meas_descriptions[COS_MEAS_MAX_SIZE+1] =
 	"atomic stale lock request",
 	"atomic lock request",
 	"atomic unlock request",
+	"received a network packet"
 	""
 };
 

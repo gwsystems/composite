@@ -269,6 +269,24 @@ static inline struct thd_sched_info *thd_get_sched_info(struct thread *thd,
 	return &thd->sched_info[depth];
 }
 
+static inline unsigned short int thd_get_depth_urg(struct thread *t,
+						   unsigned short int depth)
+{
+	struct thd_sched_info *tsi;
+	struct spd *sched;
+
+	tsi = thd_get_sched_info(t, depth);
+	sched = tsi->scheduler;
+	assert(sched);
+
+	return COS_SCHED_EVT_URGENCY(tsi->thread_notifications);
+}
+
+static inline struct spd *thd_get_depth_sched(struct thread *t, unsigned short int d)
+{
+	return thd_get_sched_info(t, d)->scheduler;
+}
+
 static inline int thd_scheduled_by(struct thread *thd, struct spd *spd) 
 {
 	return thd_get_sched_info(thd, spd->sched_depth)->scheduler == spd;

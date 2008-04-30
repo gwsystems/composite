@@ -190,6 +190,18 @@ struct sched_thd *sched_alloc_thd(unsigned short int thd_id)
 	return thd;
 }
 
+struct sched_thd *sched_alloc_upcall_thd(unsigned short int thd_id)
+{
+	struct sched_thd *t = sched_alloc_thd(thd_id);
+
+	if (!t) {
+		return NULL;
+	}
+
+	t->flags = THD_UC_READY;
+	return t; 
+}
+
 void sched_make_grp(struct sched_thd *thd, unsigned short int sched_thd)
 {
 	assert(!sched_thd_grp(thd) && 
