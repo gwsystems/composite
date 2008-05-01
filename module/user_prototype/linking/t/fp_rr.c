@@ -114,6 +114,40 @@ static struct sched_thd *fp_get_highest_prio(void)
 	return NULL;
 }
 
+static struct sched_thd *fp_get_next_prio(struct sched_thd *t)
+{
+	int i;
+	struct sched_thd *tmp;
+	unsigned short int prio;
+
+	assert(sched_thd_ready(t));
+
+	/* If the next element isn't the list head, or t, return it */
+	tmp = FIRST_LIST(t, prio_next, prio_prev);
+	if (tmp != LAST_LIST(t, prio_next, prio_prev)) {
+		return tmp;
+	}
+	prio = sched_get_metric(t)->priority;
+	if (prio == NUM_PRIOS-1) {
+		return NULL;
+	}
+	for (i = prio+1 ; i < NUM_PRIOS ; i++) {
+		struct sched_thd *t, *head;
+
+		head = &(priorities[i].runnable);
+		if (EMPTY_LIST(head, prio_next, prio_prev)) {
+			continue;
+		}
+		
+		t = FIRST_LIST(head, prio_next, prio_prev);
+		//REM_LIST(t, prio_next, prio_prev);
+
+		return t;
+	}
+
+	return NULL;
+}
+
 static inline void fp_requeue_highest(void)
 {
 	fp_move_end_runnable(fp_get_highest_prio());
@@ -125,7 +159,7 @@ static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 	struct sched_accounting *sa;
 
 	if (flags & (COS_SCHED_EVT_BRAND_ACTIVE|COS_SCHED_EVT_BRAND_READY)) {
-		assert(t->flags & (THD_UC_ACTIVE|THD_UC_READY));
+		assert(sched_thd_event(t));
 
 		if (flags & COS_SCHED_EVT_BRAND_ACTIVE) {
 			fp_activate_upcall(t);
@@ -137,6 +171,7 @@ static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 	sa = sched_get_accounting(t);
 	sa->cycles += cpu_usage;
 
+//	print("evt for %d, w/ flags %d, current is %d", t->id, flags, sched_get_current()->id);
 	/* if quota has expired, block?? */
 
 	return;
@@ -149,7 +184,7 @@ static inline struct sched_thd *fp_schedule(void)
 	return fp_get_highest_prio();
 }
 
-#define RUNTIME_SEC 1
+#define RUNTIME_SEC 3
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
 
@@ -163,11 +198,30 @@ void fp_timer_tick(void)
 
 	ticks++;
 
-	cos_sched_lock_take();
-	/* the RR part */
-	fp_requeue_highest();
-	next = fp_schedule();
-	cos_switch_thread_release(next->id, COS_SCHED_TAILCALL, 0);
+	do {
+		cos_sched_lock_take();
+		/* the RR part */
+		fp_requeue_highest();
+		next = fp_schedule();
+		if (next == sched_get_current()) {
+			next = fp_get_next_prio(next);
+		}
+	} while (cos_switch_thread_release(next->id, COS_SCHED_TAILCALL, 0));
+
+	return;
+}
+
+static void fp_event_completion(struct sched_thd *e)
+{
+	struct sched_thd *next;
+
+	do {
+		cos_sched_lock_take();
+		next = fp_schedule();
+		if (next == sched_get_current()) {
+			next = fp_get_next_prio(next);
+		}
+	} while (cos_switch_thread_release(next->id, COS_SCHED_TAILCALL, 0));
 
 	return;
 }
@@ -190,7 +244,7 @@ static void fp_yield(void)
 	prev = sched_get_current();
 	assert(prev);
 	next = fp_get_highest_prio();
-	if (prev != fp_get_highest_prio()) {
+	if (prev != next) {
 		assert(0);
 	}
 
@@ -309,7 +363,7 @@ int sched_init(void)
 {
 	static int first = 1;
 	int i;
-	unsigned int thd_id;
+	unsigned int b_id, thd_id;
 	struct sched_thd *new;
 
 	if (!first) return -1;
@@ -330,11 +384,18 @@ int sched_init(void)
 	new = sched_alloc_thd(thd_id);
 	fp_add_thd(new, LOWEST_PRIO);
 
-	thd_id = cos_brand_cntl(0, COS_BRAND_CREATE_HW);
+	/* Create the clock tick (timer) thread */
+	b_id = cos_brand_cntl(0, COS_BRAND_CREATE_HW);
+	thd_id = cos_brand_cntl(b_id, COS_BRAND_ADD_THD);
 	timer = sched_alloc_upcall_thd(thd_id);
+	assert(timer);
+	sched_add_mapping(thd_id, timer);
 	sched_alloc_event(timer);
-	cos_brand_cntl(thd_id, COS_BRAND_ADD_THD);
-	cos_brand_wire(thd_id, COS_HW_TIMER, 0);
+	cos_brand_wire(b_id, COS_HW_TIMER, 0);
+	sched_set_thd_urgency(timer, 1);
+
+//	print("brand id %d, timer id %d, thd id %d", 
+//	      (unsigned int)b_id, (unsigned int)timer->id, (unsigned int)thd_id);
 
 	/* create 3 threads to test rr and fp */
 	thd_id = cos_create_thread((int)fp_fresh_thd, 0, 0);
@@ -342,18 +403,21 @@ int sched_init(void)
 	sched_alloc_event(new);
 	fp_add_thd(new, 0);
 	sched_add_mapping(thd_id, new);
+	sched_set_thd_urgency(new, 0);
 
 	thd_id = cos_create_thread((int)fp_fresh_thd, 0, 0);
 	new = sched_alloc_thd(thd_id);
 	sched_alloc_event(new);
 	fp_add_thd(new, 0);
 	sched_add_mapping(thd_id, new);
+	sched_set_thd_urgency(new, 0);
 
 	thd_id = cos_create_thread((int)fp_fresh_thd, 0, 0);
 	new = sched_alloc_thd(thd_id);
 	sched_alloc_event(new);
 	fp_add_thd(new, 0);
 	sched_add_mapping(thd_id, new);
+	sched_set_thd_urgency(new, 2);
 
 	new = fp_get_highest_prio();
 	cos_switch_thread(new->id, 0, 0);
@@ -365,6 +429,10 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	switch (t) {
 	case COS_UPCALL_BRAND_EXEC:
+		if (sched_get_current() != timer) {
+			print("sched_get_current %d, timer %d. %d", (unsigned int)cos_get_thd_id(), (unsigned int)timer->id, 1);
+		}
+		assert(sched_get_current() == timer);
 		fp_timer_tick();
 		break;
 	case COS_UPCALL_BOOTSTRAP:
@@ -374,7 +442,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		((crt_thd_fn_t)arg1)(arg2);
 		break;
 	case COS_UPCALL_BRAND_COMPLETE:
-		assert(0);
+		fp_event_completion(sched_get_current());
 		break;
 	default:
 		assert(0);

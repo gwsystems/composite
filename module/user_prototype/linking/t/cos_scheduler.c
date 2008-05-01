@@ -137,8 +137,10 @@ short int sched_alloc_event(struct sched_thd *thd)
 			thd->evt_id = i;
 			if (cos_sched_cntl(COS_SCHED_THD_EVT, thd->id, i)) {
 				print("failed to allocate event. (%d%d%d)\n",1,1,1);
+				COS_SCHED_EVT_FLAGS(se) |= COS_SCHED_EVT_FREE;
 				return -1;
 			}
+			thd->event = i;
 
 			return i;
 		}

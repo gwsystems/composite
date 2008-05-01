@@ -12,7 +12,7 @@ default: module
 module:
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) modules
 
-cp:
+copy:
 	cp cnet.ko $(TRANS_DIR)
 	$(MAKE) -C util cp
 

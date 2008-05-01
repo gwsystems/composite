@@ -585,7 +585,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 {
 	struct thread *thd, *curr;
 	struct spd *curr_spd;
-	unsigned short int next_thd, flags;
+	unsigned short int next_thd, flags, curr_sched_flags = COS_SCHED_EVT_NIL;
 	struct cos_sched_data_area *da;
 
 	*preempt = 0;
@@ -765,7 +765,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		curr->flags &= ~THD_STATE_ACTIVE_UPCALL;
 		curr->flags |= THD_STATE_READY_UPCALL;
 		curr->sched_suspended = NULL;
-		spd_mpd_release((struct composite_spd *)thd_get_thd_spdpoly(curr));
+		spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(curr));
 		/***********************************************
 		 * FIXME: call pt_regs *brand_execution_completion(struct thread *curr)?
 		 ***********************************************/
@@ -782,10 +782,10 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		 * If that's fine, then execute code similar to pop
 		 * above (to return from an invocation).
 		 */
-
+		curr_sched_flags = COS_SCHED_EVT_BRAND_READY;
 	}
 
-	update_sched_evts(thd, COS_SCHED_EVT_NIL, curr, COS_SCHED_EVT_NIL);
+	update_sched_evts(thd, COS_SCHED_EVT_NIL, curr, curr_sched_flags);
 	/* success for this current thread */
 	curr->regs.eax = 0;
 	
@@ -1071,7 +1071,7 @@ COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags)
 
 	switch (flags) {
 	case COS_BRAND_CREATE_HW:
-		new_thd->flags = THD_STATE_HW_BRAND;
+		new_thd->flags |= THD_STATE_HW_BRAND;
 		/* fall through */
 	case COS_BRAND_CREATE: 
 	{
@@ -1371,7 +1371,7 @@ static int update_evt_list(struct thd_sched_info *tsi)
 	return 0;
 }
 
-static inline void update_thd_evt_state(struct thread *t, int flags)
+static inline void update_thd_evt_state(struct thread *t, int flags, int update_list)
 {
 	int i;
 	struct thd_sched_info *tsi;
@@ -1385,7 +1385,9 @@ static inline void update_thd_evt_state(struct thread *t, int flags)
 		if (NULL != tsi->scheduler && tsi->thread_notifications) {
 			COS_SCHED_EVT_FLAGS(tsi->thread_notifications) = flags;
 			/* handle error conditions of list manip here??? */
-			update_evt_list(tsi);
+			if (update_list) {
+				update_evt_list(tsi);
+			}
 		}
 	}
 	
@@ -1416,6 +1418,8 @@ static inline void update_thd_evt_cycles(struct thread *t, unsigned long consump
 void update_sched_evts(struct thread *new, int new_flags, 
 		       struct thread *prev, int prev_flags)
 {
+	int update_list = 1;
+
 	/* 
 	 * - if either thread has cyc_cnt set, do rdtsc
 	 * - if prev has cyc_cnt set, do sched evt cycle update
@@ -1429,14 +1433,15 @@ void update_sched_evts(struct thread *new, int new_flags,
 		rdtscl(cycle_cnt);
 		if (prev->flags & THD_STATE_CYC_CNT) {
 			update_thd_evt_cycles(prev, cycle_cnt - last);
+			update_list = 0;
 		}
 	}
 	
 	if (new_flags) {
-		update_thd_evt_state(new, new_flags);
+		update_thd_evt_state(new, new_flags, 1);
 	}
 	if (prev_flags) {
-		update_thd_evt_state(prev, prev_flags);
+		update_thd_evt_state(prev, prev_flags, update_list);
 	}
 
 	return;
@@ -1530,7 +1535,7 @@ static int brand_higher_urgency(struct thread *upcall, struct thread *prev)
 		update_sched_evts(upcall, COS_SCHED_EVT_BRAND_ACTIVE, 
 				  prev, COS_SCHED_EVT_NIL);
 	} else {
-		update_thd_evt_state(upcall, COS_SCHED_EVT_BRAND_ACTIVE);
+		update_thd_evt_state(upcall, COS_SCHED_EVT_BRAND_ACTIVE, 1);
 	}
 	
 	return run;
@@ -1657,7 +1662,7 @@ static struct thread *brand_term_find_run_preempted(struct thread *uc, struct th
 
 	
 	/* Notify schedulers of this upcall thread completing */
-	update_thd_evt_state(uc, COS_SCHED_EVT_BRAND_ACTIVE);
+	update_thd_evt_state(uc, COS_SCHED_EVT_BRAND_ACTIVE, 1);
 	switch_thread_context(uc, preempted);
 
 	return preempted;

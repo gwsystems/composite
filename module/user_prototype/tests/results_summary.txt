@@ -1,0 +1,59 @@
+HARDWARE OVERHEADS:
+
+- 162-166 cycles of overhead for simple protection level crossing
+
+- 312 cycles of overhead for 2 protection level bounces
+
+- 860 cycles when a single write to cr3 with the address of the
+  current page tables (clear TLB and update processor state for new
+  page tables).  This jumps to 1110 cycles when 2 writes to cr3 are
+  introduced, one in each direction.
+
+LINUX MICROBENCHMARKS:
+
+- syscall for gettimeofday(NULL, NULL) is 502 cycles, or 0.209
+  microseconds on vanilla kernel 2.6.22
+
+- same syscall is 1463 cycles, or 0.61 microseconds on CentOS
+  2.6.18-53.1.14.el5, a Fedora Redhat derivative
+
+- sched_yield* between two highest priority processes in the first linux
+  system is 3089, or 1.287 microseconds.
+
+- sched_yield* between processes the redhat derivative: 4448.927 or
+  1.97 microseconds
+
+- sched_yield* between two threads using NPTL 2.5 on vanilla linux
+  takes 1903 cycles, or 0.795 microseconds.
+
+- sched_yield* between two threads using NPTL 2.5 on the fedora
+  derivative takes 3380 cycles, or 1.408 microseconds
+
+- IPC between two high priority processes on the vanilla Linux using
+  pipes takes 15367 cycles, or 6.403 microseconds.
+
+- IPC using pipes on the redhat derivative takes 30158 cycles or
+  12.566 microseconds.
+
+* experiments conducted with the two threads at highest priority on
+the system, and it is ensured that the # of context switches induced
+by sched_yield is as expected by monitoring /proc/stats (ctxt %d)
+
+COMPOSITE OS SYSTEM MICROBENCHMARKS:
+
+- IPC takes 1629 cycles or 0.679 microseconds
+
+- Thread switch WITHOUT accounting takes 529 cycles, or .22
+  microseconds without scheduler structures/eval in component.  With
+  those overheads, it takes 688 cycles, or 0.287 microseconds for a
+  thread switch.
+
+- Thread switch with actual scheduler involvement and WITH accounting
+  takes 976 cycles, or 0.407 microseconds.  The overhead is due to 1)
+  80 cycles of overhead from the rdtsc instruction, and 2) memory
+  accesses from the thd_sched_info structs (1 cache miss for all
+  accesses), 1 accessing the scheduler (spd) structure to update the
+  head of the event list, for each scheduler, and 1 cache miss to
+  point the previous event to the current, 1 cache miss to update the
+  current, for each scheduler.
+

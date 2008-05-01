@@ -2213,8 +2213,8 @@ static void timer_interrupt(unsigned long data)
 			 */
 
 			cos_current = thd_get_current();
-			update_sched_evts(cos_upcall_thread, THD_STATE_ACTIVE_UPCALL,
-					  cos_current, 0);
+			update_sched_evts(cos_upcall_thread, COS_SCHED_EVT_BRAND_ACTIVE,
+					  cos_current, COS_SCHED_EVT_NIL);
 
 			curr_spd = thd_get_thd_spdpoly(cos_current);
 			thd_save_preempted_state(cos_current, regs);

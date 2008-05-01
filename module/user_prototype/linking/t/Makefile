@@ -9,6 +9,7 @@ AS=$(CC)
 AR=ar
 INC_PATH=./ -I../include/
 CFLAGS=-Wall -I$(INC_PATH) -O3
+#-ggdb3
 # -nostdinc -nostdlib -fno-merge-constants
 ASFLAGS=-I$(INC_PATH) -c -nostdinc -nostdlib -fno-merge-constants
 PRODUCTS=c_stub.o comp0.o s_stub1.o comp1.o s_stub2.o comp2.o s_stub3.o comp3.o s_stub4.o comp4.o s_stubprint.o print_comp.o s_stubmm.o mem_man.o cos_asm_scheduler.o s_stubfprr.o fp_rr.o cos_scheduler.o
