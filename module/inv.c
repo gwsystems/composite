@@ -541,7 +541,7 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, int a, int b, int c)
 	thd->regs.esi = c;
 	thd->regs.eax = thd_get_id(thd);
 
-	thd->flags |= THD_STATE_CYC_CNT;
+//	thd->flags |= THD_STATE_CYC_CNT;
 	//cos_ref_take(&curr_spd->composite_spd->ref_cnt);
 
 //	printk("cos: stack %x, fn %x, and data %p\n", stack, fn, data);

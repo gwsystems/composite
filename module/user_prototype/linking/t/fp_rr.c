@@ -19,7 +19,10 @@ static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
 	struct sched_thd *tp;
 
 	assert(prio < NUM_PRIOS);
+	assert(sched_thd_ready(t));
 
+//	print("add_thd: adding thread %d with priority %d to runlist. %d", 
+//	      t->id, prio, 0);
 	tp = &(priorities[prio].runnable);
 	ADD_LIST(LAST_LIST(tp, prio_next, prio_prev), t, prio_next, prio_prev);
 	sched_get_metric(t)->priority = prio;
@@ -27,17 +30,21 @@ static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
 	return;
 }
 
-static inline void fp_add_evt(struct sched_thd *t, unsigned short int prio)
+static inline void fp_add_evt_thd(struct sched_thd *t, unsigned short int prio)
 {
 	assert(prio < NUM_PRIOS);
+	assert(!sched_thd_ready(t));
+	assert(sched_thd_event(t));
 
+//	print("add_evt_thd: adding thread %d with priority %d to deactive upcall list. %d", 
+//	      t->id, prio, 0);
 	ADD_LIST(&upcall_deactive, t, prio_next, prio_prev);
 	sched_get_metric(t)->priority = prio;
 
 	return;
 }
 
-static inline void fp_change_prio(struct sched_thd *t, unsigned short int prio)
+static inline void fp_change_prio_runnable(struct sched_thd *t, unsigned short int prio)
 {
 	struct sched_metric *sm = sched_get_metric(t);
 	struct sched_thd *head;
@@ -54,7 +61,9 @@ static inline void fp_change_prio(struct sched_thd *t, unsigned short int prio)
 
 static inline void fp_move_end_runnable(struct sched_thd *t)
 {
-	fp_change_prio(t, sched_get_metric(t)->priority);
+	assert(sched_thd_ready(t));
+
+	fp_change_prio_runnable(t, sched_get_metric(t)->priority);
 }
 
 static inline void fp_block_thd(struct sched_thd *t)
@@ -80,14 +89,14 @@ static inline void fp_resume_thd(struct sched_thd *t)
 static void fp_activate_upcall(struct sched_thd *uc)
 {
 	uc->flags &= ~THD_UC_READY;
-	uc->flags |= THD_UC_ACTIVE;
+	uc->flags |= (THD_UC_ACTIVE|THD_READY);
 	REM_LIST(uc, prio_next, prio_prev);
 	fp_move_end_runnable(uc);
 }
 
 static void fp_deactivate_upcall(struct sched_thd *uc)
 {
-	uc->flags &= ~THD_UC_ACTIVE;
+	uc->flags &= ~(THD_UC_ACTIVE|THD_READY);
 	uc->flags |= THD_UC_READY;
 	REM_LIST(uc, prio_next, prio_prev);
 	ADD_LIST(&upcall_deactive, uc, prio_next, prio_prev);
@@ -104,9 +113,10 @@ static struct sched_thd *fp_get_highest_prio(void)
 		if (EMPTY_LIST(head, prio_next, prio_prev)) {
 			continue;
 		}
-		
 		t = FIRST_LIST(head, prio_next, prio_prev);
-		//REM_LIST(t, prio_next, prio_prev);
+
+		assert(sched_thd_ready(t));
+		assert(sched_get_metric(t)->priority == i);
 
 		return t;
 	}
@@ -114,20 +124,23 @@ static struct sched_thd *fp_get_highest_prio(void)
 	return NULL;
 }
 
-static struct sched_thd *fp_get_next_prio(struct sched_thd *t)
+static struct sched_thd *fp_get_second_highest_prio(struct sched_thd *highest)
 {
 	int i;
-	struct sched_thd *tmp;
+	struct sched_thd *tmp, *head;
 	unsigned short int prio;
 
-	assert(sched_thd_ready(t));
+	assert(fp_get_highest_prio() == highest);
 
 	/* If the next element isn't the list head, or t, return it */
-	tmp = FIRST_LIST(t, prio_next, prio_prev);
-	if (tmp != LAST_LIST(t, prio_next, prio_prev)) {
+	prio = sched_get_metric(highest)->priority;
+	assert(prio < NUM_PRIOS);
+	head = &(priorities[prio].runnable);
+	tmp = FIRST_LIST(highest, prio_next, prio_prev);
+	assert(tmp != highest);
+	if (head != tmp) {
 		return tmp;
 	}
-	prio = sched_get_metric(t)->priority;
 	if (prio == NUM_PRIOS-1) {
 		return NULL;
 	}
@@ -138,9 +151,10 @@ static struct sched_thd *fp_get_next_prio(struct sched_thd *t)
 		if (EMPTY_LIST(head, prio_next, prio_prev)) {
 			continue;
 		}
-		
 		t = FIRST_LIST(head, prio_next, prio_prev);
-		//REM_LIST(t, prio_next, prio_prev);
+
+		assert(sched_thd_ready(t));
+		assert(sched_get_metric(t)->priority == i);
 
 		return t;
 	}
@@ -180,11 +194,16 @@ static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 /* sched lock should already be taken */
 static inline struct sched_thd *fp_schedule(void)
 {
+	struct sched_thd *t;
+
 	cos_sched_process_events(evt_callback, 0);
-	return fp_get_highest_prio();
+	t = fp_get_highest_prio();
+//	print("fp_sched: current is %d, next is %d. %d", cos_get_thd_id(), t->id, 0);
+
+	return t;
 }
 
-#define RUNTIME_SEC 3
+#define RUNTIME_SEC 100
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
 
@@ -204,7 +223,8 @@ void fp_timer_tick(void)
 		fp_requeue_highest();
 		next = fp_schedule();
 		if (next == sched_get_current()) {
-			next = fp_get_next_prio(next);
+			next = fp_get_second_highest_prio(next);
+			print("timer tick: next,next is %d, current is %d. %d", next->id, cos_get_thd_id(), 0);
 		}
 	} while (cos_switch_thread_release(next->id, COS_SCHED_TAILCALL, 0));
 
@@ -219,7 +239,8 @@ static void fp_event_completion(struct sched_thd *e)
 		cos_sched_lock_take();
 		next = fp_schedule();
 		if (next == sched_get_current()) {
-			next = fp_get_next_prio(next);
+			next = fp_get_second_highest_prio(next);
+			print("event completion: next,next is %d, current is %d. %d", next->id, cos_get_thd_id(), 0);
 		}
 	} while (cos_switch_thread_release(next->id, COS_SCHED_TAILCALL, 0));
 
@@ -359,6 +380,41 @@ error:
 	return -1;
 }
 
+static struct sched_thd *sched_setup_thread(u16_t priority, u16_t urgency)
+{
+	unsigned int thd_id;
+	struct sched_thd *new;
+
+	thd_id = cos_create_thread((int)fp_fresh_thd, 0, 0);
+	new = sched_alloc_thd(thd_id);
+	assert(new);
+	fp_add_thd(new, priority);
+	sched_alloc_event(new);
+	sched_add_mapping(thd_id, new);
+	sched_set_thd_urgency(new, urgency);
+
+	return new;
+}
+
+static struct sched_thd *sched_setup_upcall_thread(u16_t priority, u16_t urgency, 
+						   unsigned int *brand_id)
+{
+	unsigned int b_id, thd_id;
+	struct sched_thd *upcall;
+
+	b_id = cos_brand_cntl(0, COS_BRAND_CREATE_HW);
+	*brand_id = b_id;
+	thd_id = cos_brand_cntl(b_id, COS_BRAND_ADD_THD);
+	upcall = sched_alloc_upcall_thd(thd_id);
+	assert(upcall);
+	fp_add_evt_thd(upcall, priority);
+	sched_alloc_event(upcall);
+	sched_add_mapping(thd_id, upcall);
+	sched_set_thd_urgency(upcall, urgency);
+
+	return upcall;
+}
+
 int sched_init(void)
 {
 	static int first = 1;
@@ -384,40 +440,14 @@ int sched_init(void)
 	new = sched_alloc_thd(thd_id);
 	fp_add_thd(new, LOWEST_PRIO);
 
-	/* Create the clock tick (timer) thread */
-	b_id = cos_brand_cntl(0, COS_BRAND_CREATE_HW);
-	thd_id = cos_brand_cntl(b_id, COS_BRAND_ADD_THD);
-	timer = sched_alloc_upcall_thd(thd_id);
-	assert(timer);
-	sched_add_mapping(thd_id, timer);
-	sched_alloc_event(timer);
-	cos_brand_wire(b_id, COS_HW_TIMER, 0);
-	sched_set_thd_urgency(timer, 1);
-
-//	print("brand id %d, timer id %d, thd id %d", 
-//	      (unsigned int)b_id, (unsigned int)timer->id, (unsigned int)thd_id);
-
 	/* create 3 threads to test rr and fp */
-	thd_id = cos_create_thread((int)fp_fresh_thd, 0, 0);
-	new = sched_alloc_thd(thd_id);
-	sched_alloc_event(new);
-	fp_add_thd(new, 0);
-	sched_add_mapping(thd_id, new);
-	sched_set_thd_urgency(new, 0);
+	sched_setup_thread(0, 0);
+	sched_setup_thread(0, 0);
+	sched_setup_thread(0, 2);
 
-	thd_id = cos_create_thread((int)fp_fresh_thd, 0, 0);
-	new = sched_alloc_thd(thd_id);
-	sched_alloc_event(new);
-	fp_add_thd(new, 0);
-	sched_add_mapping(thd_id, new);
-	sched_set_thd_urgency(new, 0);
-
-	thd_id = cos_create_thread((int)fp_fresh_thd, 0, 0);
-	new = sched_alloc_thd(thd_id);
-	sched_alloc_event(new);
-	fp_add_thd(new, 0);
-	sched_add_mapping(thd_id, new);
-	sched_set_thd_urgency(new, 2);
+	/* Create the clock tick (timer) thread */
+	timer = sched_setup_upcall_thread(0, 1, &b_id);
+	cos_brand_wire(b_id, COS_HW_TIMER, 0);
 
 	new = fp_get_highest_prio();
 	cos_switch_thread(new->id, 0, 0);

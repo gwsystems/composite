@@ -46,7 +46,8 @@ struct cos_sched_next_thd {
 struct cos_se_values {
 	u8_t next, flags;
 	u16_t urgency;
-};
+} __attribute__((packed));
+
 struct cos_sched_events {
 	union next_flags_urg {
 		struct cos_se_values v;

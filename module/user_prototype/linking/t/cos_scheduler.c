@@ -6,7 +6,8 @@
 int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 {
 	u8_t id, flags;
-	u32_t *v_ptr, v, v_new, cpu;
+	u32_t v, v_new, cpu;
+	u32_t *v_ptr;
 	long ret;
 	struct cos_sched_events *evt;
 	struct cos_se_values *se;
@@ -32,7 +33,8 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 		evt = &cos_sched_notifications.cos_events[cos_curr_evt];
 		v_ptr = &COS_SCHED_EVT_VALS(evt);
 		while (1) {
-			v_new = v = *v_ptr;
+			v = *v_ptr;
+			v_new = v;
 			se = (struct cos_se_values*)&v_new;
 			id = se->next;
 			flags = se->flags;
@@ -43,6 +45,8 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 			if (ret == (long)v_new) {
 				break;
 			}
+			/* Lets try and avoid the compiler error in the fixme below */
+			assert(!(v_new & 0xFFFF));
 		}
 		while (1) {
 			cpu = evt->cpu_consumption;
@@ -73,9 +77,9 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 void cos_sched_set_evt_urgency(u8_t evt_id, u16_t urgency)
 {
 	struct cos_sched_events *evt;
-	u32_t old, new, *ptr;
-	long ret;
-	struct cos_se_values *se;
+	u32_t old, new;
+	u32_t *ptr;
+	//struct cos_se_values *se;
 
 	assert(evt_id < NUM_SCHED_EVTS);
 
@@ -86,12 +90,19 @@ void cos_sched_set_evt_urgency(u8_t evt_id, u16_t urgency)
 	 * are in the same word as the urgency.
 	 */
 	while (1) {
-		old = new = *ptr;
-		se = (struct cos_se_values*)&new;
-		se->urgency = urgency;
+		old = *ptr;
+		new = old;
+		/* 
+		 * FIXME: Seems as though GCC cannot handle this with
+		 * -O2; not picking up the alias for some odd reason:
+		 *
+		 * se = (struct cos_se_values*)&new;
+		 * se->urgency = urgency;
+		 */
+		new &= 0xFFFF;
+		new |= urgency<<16;
 		
-		ret = cos_cmpxchg(ptr, (long)old, (long)new);
-		if (ret == (long)new) {
+		if (cos_cmpxchg(ptr, (long)old, (long)new) == (long)new) {
 			break;
 		}
 	}

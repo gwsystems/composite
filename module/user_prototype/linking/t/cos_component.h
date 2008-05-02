@@ -213,7 +213,7 @@ static inline void cos_set_heap_ptr(void *addr)
 
 #define COS_EXTERN_FN(fn) __cos_extern_##fn
 
-static inline long cos_cmpxchg(void *memory, long anticipated, long result)
+static inline long cos_cmpxchg(volatile void *memory, long anticipated, long result)
 {
 	long ret;
 
@@ -227,7 +227,7 @@ static inline long cos_cmpxchg(void *memory, long anticipated, long result)
 }
 
 /* from linux source in string.h */
-static inline void * cos_memcpy(void * to, const void * from, int n)
+static inline void *cos_memcpy(void * to, const void * from, int n)
 {
 	int d0, d1, d2;
 	
