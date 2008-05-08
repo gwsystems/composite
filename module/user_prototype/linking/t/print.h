@@ -39,7 +39,7 @@ static inline int print(char *str, int a, int b, int c)
 	d = (char*)&s[1];
 	cos_memcpy(d, str, len);
 	printstr(s, a, b, c);
-	cos_argreg_free(s);
+	if (cos_argreg_free(s)) return -1;
 
 	return 0;
 }

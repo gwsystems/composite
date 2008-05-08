@@ -30,3 +30,56 @@ sched_init_inv:
 	movl $RET_CAP, %eax /* return capability */
 
 	sysenter
+
+.globl sched_wakeup
+.type  sched_wakeup, @function
+.align 16
+sched_wakeup_inv:
+	COS_ASM_GET_STACK
+	
+	pushl %ebp
+	pushl %edi
+	pushl %esi
+	pushl %ebx /* length */
+	call sched_wakeup
+
+	movl %eax, %ecx
+	movl $RET_CAP, %eax /* return capability */
+
+	sysenter
+
+.globl sched_block_inv
+.type  sched_block_inv, @function
+.align 16
+sched_block_inv:
+	COS_ASM_GET_STACK
+	
+	pushl %ebp
+	pushl %edi
+	pushl %esi
+	pushl %ebx /* length */
+	call sched_block
+
+	movl %eax, %ecx
+	movl $RET_CAP, %eax /* return capability */
+
+	sysenter
+
+.globl sched_create_net_upcall_inv
+.type  sched_create_net_upcall_inv, @function
+.align 16
+sched_create_net_upcall_inv:
+	COS_ASM_GET_STACK
+	
+	pushl %ebp
+	pushl %edi
+	pushl %esi
+	pushl %ebx /* length */
+	call sched_create_net_upcall
+
+	movl %eax, %ecx
+	movl $RET_CAP, %eax /* return capability */
+
+	sysenter
+
+

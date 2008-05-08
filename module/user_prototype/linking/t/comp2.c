@@ -201,8 +201,8 @@ int test_brands(void)
 {
 	unsigned int new_thd2;
 
-	new_thd2 = cos_brand_cntl(0, COS_BRAND_CREATE_HW);
-	cos_brand_cntl(new_thd2, COS_BRAND_ADD_THD);
+	new_thd2 = cos_brand_cntl(0, COS_BRAND_CREATE_HW, 0);
+	cos_brand_cntl(new_thd2, COS_BRAND_ADD_THD, 0);
 	cos_brand_wire(new_thd2, COS_HW_TIMER, 0);
 
 	while (1) ;

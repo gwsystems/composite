@@ -46,7 +46,7 @@ int print_vals(int val1, int val2, int val3, int val4)
 {
 	int ret;
 
-	snprintf(foo, MAX_LEN, "%d:\t%d\t%d\t%d\t%d\n", cos_get_thd_id(), val1, val2, val3, val4);
+	snprintf(foo, MAX_LEN, "%d:\t%d\t%d\t%d\t%d", cos_get_thd_id(), val1, val2, val3, val4);
 	cos_print(foo, MAX_LEN);
 //	ret = write(1, str, strlen(str));
 

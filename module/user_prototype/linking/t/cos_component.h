@@ -116,7 +116,7 @@ cos_syscall_3(3, int, create_thread, int, a, int, b, int, c);
 cos_syscall_2(4, int, __switch_thread, int, thd_id, int, flags);
 cos_syscall_2(5, int, kill_thd, int, kill_thdid, int, switchto_thdid);
 cos_syscall_3(6, int, __brand_upcall, int, thd_id_flags, long, arg1, long, arg2);
-cos_syscall_2(7, int, brand_cntl, int, thd_id, int, flags);
+cos_syscall_3(7, int, brand_cntl, int, thd_id, int, flags, int, depth);
 cos_syscall_1(8, int, upcall, int, spd_id);
 cos_syscall_3(9, int, sched_cntl, int, operation, int, thd_id, long, option);
 cos_syscall_1(10, int, mpd_cntl, int, operation);
@@ -268,7 +268,7 @@ static inline void *cos_memset(void * s, char c , int count)
 	 (unsigned int)cos_get_arg_region())
 
 /* a should be power of 2 */
-#define ALIGN(v, a) ((v+(a-1))&~a)
+#define ALIGN(v, a) ((v+(a-1))&~(a-1))
 
 /*
  * The argument region is setup like so:
@@ -319,7 +319,7 @@ static inline int cos_argreg_free(void *p)
 	struct cos_argreg_extent *ex = cos_get_arg_region(), *top;
 
 	top = (struct cos_argreg_extent*)(((char*)ex) + ex->size - sizeof(struct cos_argreg_extent));
-	if (top > ex+(COS_ARGREG_SZ/sizeof(struct cos_argreg_extent)) ||
+	if (top > (ex+(COS_ARGREG_SZ/sizeof(struct cos_argreg_extent))-1) ||
 	    top < ex) {
 		return -1;
 	}
@@ -327,6 +327,7 @@ static inline int cos_argreg_free(void *p)
 
 	return 0;
 }
+
 
 #define prevent_tail_call(ret) __asm__ ("" : "=r" (ret) : "m" (ret))
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))

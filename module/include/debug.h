@@ -1,7 +1,7 @@
-#define DEBUG
+#define COS_DEBUG
 
 #ifdef __KERNEL__
-#ifdef DEBUG
+#ifdef COS_DEBUG
 #define assert(node) if (!(node)) {printk("cos error: %d in %s.\n", (__LINE__), (__FILE__)); *((int *)0) = 0;}
 #define printd(str,args...) printk(str, ## args)
 /*#else

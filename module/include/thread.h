@@ -278,6 +278,7 @@ static inline unsigned short int thd_get_depth_urg(struct thread *t,
 	tsi = thd_get_sched_info(t, depth);
 	sched = tsi->scheduler;
 	assert(sched);
+	assert(tsi->thread_notifications);
 
 	return COS_SCHED_EVT_URGENCY(tsi->thread_notifications);
 }
@@ -319,7 +320,7 @@ static inline void thd_save_preempted_state(struct thread *thd, struct pt_regs *
 {
 	/* preempt and save current thread */
 	memcpy(&thd->regs, regs, sizeof(struct pt_regs));
-	thd->flags |= THD_STATE_PREEMPTED;
+	//thd->flags |= THD_STATE_PREEMPTED;
 	//printk("cos: preempting thread %d with regs:\n", thd_get_id(thd));
 	//thd_print_regs(thd);
 }

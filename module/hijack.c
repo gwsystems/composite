@@ -2148,8 +2148,9 @@ extern void switch_thread_context(struct thread *curr, struct thread *next);
  */
 static struct timer_list timer;
 
-void update_sched_evts(struct thread *new, int new_flags, 
+extern void update_sched_evts(struct thread *new, int new_flags, 
 		       struct thread *prev, int prev_flags);
+extern struct thread *brand_next_thread(struct thread *brand, struct thread *preempted);
 
 extern struct thread *cos_timer_brand_thd;
 #define NUM_NET_BRANDS 2 /* keep consistent with inv.c */
@@ -2186,67 +2187,90 @@ static void timer_interrupt(unsigned long data)
 		 * user-level (keep in mind that we are now looking at
 		 * the register set at the top of the stack, not some
 		 * interrupt registers or some such.)
+		 *
+		 * UPDATE: given that we are now accepting network and
+		 * timer interrupts, these CAN interrupt each other,
+		 * thus we might interrupt kernel-level.  FIXME: make
+		 * sure that if we have interrupted kernel-level that
+		 * the regs aren't spread across the main thread
+		 * stack, and the interrupt's saved registers as well.
 		 */
-		if (!(regs->esp == 0 && regs->xss == 0) &&
-		    (regs->xcs & SEGMENT_RPL_MASK) == USER_RPL) {
-			struct thread *cos_current;
-			struct thread *cos_upcall_thread = cos_timer_brand_thd->upcall_threads;
-			struct spd *dest;
-			struct spd_poly *curr_spd;
+		if (!(regs->esp == 0 && regs->xss == 0)
+                    /* && (regs->xcs & SEGMENT_RPL_MASK) == USER_RPL*/) {
+			struct thread *cos_current, *next;
+			unsigned long flags;
+			//struct thread *cos_upcall_thread = cos_timer_brand_thd->upcall_threads;
+			//struct spd *dest;
 			
-			cos_meas_event(COS_MEAS_INT_PREEMPT_USER);
+			if ((regs->xcs & SEGMENT_RPL_MASK) == USER_RPL) {
+				cos_meas_event(COS_MEAS_INT_PREEMPT_USER);
+			} else {
+				cos_meas_event(COS_MEAS_INT_PREEMPT_KERN);
+			}
 
-			if (cos_upcall_thread->flags & THD_STATE_ACTIVE_UPCALL) {
+/*			if (cos_upcall_thread->flags & THD_STATE_ACTIVE_UPCALL) {
 				cos_meas_event(COS_MEAS_BRAND_PEND);
 				cos_timer_brand_thd->pending_upcall_requests++;
 				goto timer_finish;
 			}
+*/
 
-			cos_meas_event(COS_MEAS_INT_PREEMPT);
-			cos_meas_event(COS_MEAS_BRAND_UC);
-
-			/*
-			 * FIXME: Synchronization is needed here as we
-			 * could be making these modifications BOTH in
-			 * a timer interrupt, and in the networking
-			 * interrupt.
-			 */
+			local_irq_save(flags);
 
 			cos_current = thd_get_current();
-			update_sched_evts(cos_upcall_thread, COS_SCHED_EVT_BRAND_ACTIVE,
-					  cos_current, COS_SCHED_EVT_NIL);
-
-			curr_spd = thd_get_thd_spdpoly(cos_current);
 			thd_save_preempted_state(cos_current, regs);
-			thd_check_atomic_preempt(cos_current);
+			//update_sched_evts(cos_upcall_thread, COS_SCHED_EVT_BRAND_ACTIVE,
+			//		  cos_current, COS_SCHED_EVT_NIL);
+			next = brand_next_thread(cos_timer_brand_thd, cos_current);
+			if (next != cos_current) {
+				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
+					printk("cos: upcall thread %d is not set to be an active upcall.\n",
+					       thd_get_id(next));
+					///*assert*/BUG_ON(!(next->flags & THD_STATE_ACTIVE_UPCALL));
+				}
+				thd_check_atomic_preempt(cos_current);
+				regs->ebx = next->regs.ebx;
+				regs->edi = next->regs.edi;
+				regs->esi = next->regs.esi;
+				regs->ecx = next->regs.ecx;
+				regs->eip = next->regs.eip;
+				regs->edx = next->regs.edx;
+				regs->eax = next->regs.eax;
+				regs->orig_eax = next->regs.eax;
+				regs->esp = regs->ebp = 0;
+				//cos_meas_event(COS_MEAS_BRAND_UC);
+			}
+			cos_meas_event(COS_MEAS_INT_PREEMPT);
+
+			local_irq_restore(flags);
 
 			/* Load the address space of the target spd,
 			 * and load its registers. FIXME: we will want
 			 * to go to the second from the top spd in the
 			 * real implementation when we arent calling
 			 * brand from the kernel. */
-			dest = thd_get_thd_spd(cos_timer_brand_thd);
+			//dest = thd_get_thd_spd(cos_timer_brand_thd);
 			/* save this thread so that we can resume it
 			 * post execution */
-			cos_upcall_thread->interrupted_thread = cos_current;
-			cos_current->preempter_thread = cos_upcall_thread;
+			//cos_upcall_thread->interrupted_thread = cos_current;
+			//cos_current->preempter_thread = cos_upcall_thread;
 			/* see inv.c:cos_syscall_upcall_cont : */
-			cos_upcall_thread->stack_ptr = 0;
-			cos_upcall_thread->stack_base[0].current_composite_spd = dest->composite_spd;
-			spd_mpd_ipc_take((struct composite_spd *)dest->composite_spd);
+			//cos_upcall_thread->stack_ptr = 0;
+			//cos_upcall_thread->stack_base[0].current_composite_spd = dest->composite_spd;
+			//spd_mpd_ipc_take((struct composite_spd *)dest->composite_spd);
 
-			switch_thread_context(cos_current, cos_upcall_thread);
+			//switch_thread_context(cos_current, cos_upcall_thread);
 
-			cos_upcall_thread->flags |= THD_STATE_ACTIVE_UPCALL;
-			cos_upcall_thread->flags &= ~THD_STATE_READY_UPCALL;
+			//cos_upcall_thread->flags |= THD_STATE_ACTIVE_UPCALL;
+			//cos_upcall_thread->flags &= ~THD_STATE_READY_UPCALL;
 
-			regs->eip = dest->upcall_entry;
-			regs->edx = regs->ecx = regs->ebx = regs->esp = regs->edi = regs->esi = regs->ebp = 0; //thd_get_id(cos_upcall_thread);
-			regs->orig_eax = regs->eax = thd_get_id(cos_upcall_thread);
+			//regs->eip = dest->upcall_entry;
+			//regs->edx = regs->ecx = regs->ebx = regs->esp = regs->edi = regs->esi = regs->ebp = 0; //thd_get_id(cos_upcall_thread);
+			//regs->orig_eax = regs->eax = thd_get_id(cos_upcall_thread);
 
-		} else {
+		} /*else {
 			cos_meas_event(COS_MEAS_INT_PREEMPT_KERN);
-		}
+			}*/
 	} else {
 		//cos_meas_event(COS_MEAS_OTHER_THD);
 	}

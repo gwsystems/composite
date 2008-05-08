@@ -41,7 +41,8 @@ struct cos_sched_next_thd {
 #define COS_SCHED_EVT_EXCL         0x2
 #define COS_SCHED_EVT_BRAND_ACTIVE 0x4
 #define COS_SCHED_EVT_BRAND_READY  0x8
-#define COS_SCHED_EVT_NIL          0x10
+#define COS_SCHED_EVT_BRAND_PEND   0x10
+#define COS_SCHED_EVT_NIL          0x20
 
 struct cos_se_values {
 	u8_t next, flags;

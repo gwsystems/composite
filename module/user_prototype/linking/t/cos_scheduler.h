@@ -105,6 +105,7 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 #define sched_thd_ready(thd)   ((thd)->flags & THD_READY)
 #define sched_thd_blocked(thd) ((thd)->flags & THD_BLOCKED)
 #define sched_thd_event(thd)   ((thd)->flags & (THD_UC_ACTIVE|THD_UC_READY))
+#define sched_thd_inactive_evt(thd) ((thd)->flags & THD_UC_READY)
 
 #define SCHED_NUM_THREADS MAX_NUM_THREADS
 

@@ -35,18 +35,19 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 		while (1) {
 			v = *v_ptr;
 			v_new = v;
+//			print("event value all together is %x. %d%d", v, 0,0);
 			se = (struct cos_se_values*)&v_new;
 			id = se->next;
 			flags = se->flags;
 			se->next = 0;
 			se->flags = 0;
 			
+			/* Lets try and avoid the compiler error in the fixme below */
+			assert(!(v_new & 0xFFFF));
 			ret = cos_cmpxchg(v_ptr, (long)v, (long)v_new);
 			if (ret == (long)v_new) {
 				break;
 			}
-			/* Lets try and avoid the compiler error in the fixme below */
-			assert(!(v_new & 0xFFFF));
 		}
 		while (1) {
 			cpu = evt->cpu_consumption;

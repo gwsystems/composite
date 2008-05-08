@@ -1625,6 +1625,8 @@ static inline void print_usage(char *prog_name)
 extern vaddr_t SS_ipc_client_marshal;
 extern vaddr_t DS_ipc_client_marshal;
 
+//#define FAULT_SIGNAL
+#ifdef FAULT_SIGNAL
 #include <sys/ucontext.h>
 void segv_handler(int signo, siginfo_t *si, void *context) {
 	ucontext_t *uc = context;
@@ -1633,6 +1635,7 @@ void segv_handler(int signo, siginfo_t *si, void *context) {
 	printf("Segfault: Faulting address %p, ip: %lx\n", si->si_addr, sc->eip);
 	exit(-1);
 }
+#endif
 
 /*
  * Format of the input string is as such:
@@ -1649,13 +1652,16 @@ int main(int argc, char *argv[])
 	struct service_symbs *services;
 	char *delim = ":";
 	char *servs, *dependencies, *stub_gen_prog;
-	struct sigaction sa;
 	int ret = -1;
+
+#ifdef FAULT_SIGNAL
+	struct sigaction sa;
 
 	sa.sa_sigaction = segv_handler;
 	sa.sa_flags = SA_SIGINFO;
 	sigaction(SIGSEGV, &sa, NULL);
-	
+#endif
+
 	if (argc != 3) {
 		print_usage(argv[0]);
 		goto exit;
