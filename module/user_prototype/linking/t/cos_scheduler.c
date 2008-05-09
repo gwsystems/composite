@@ -129,6 +129,7 @@ void sched_init_thd(struct sched_thd *thd, unsigned short int thd_id, int flags)
 	INIT_LIST(thd, prio_next, prio_prev);
 	thd->id = thd_id;
 	thd->flags = flags;
+	thd->wake_cnt = 1;
 }
 
 short int sched_alloc_event(struct sched_thd *thd)

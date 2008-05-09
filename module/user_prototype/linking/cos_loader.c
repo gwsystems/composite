@@ -1637,6 +1637,22 @@ void segv_handler(int signo, siginfo_t *si, void *context) {
 }
 #endif
 
+#include <sched.h>
+void set_prio(void)
+{
+	struct sched_param sp;
+	if (sched_getparam(0, &sp) < 0) {
+		perror("getparam: ");
+		printf("\n");
+	}
+	sp.sched_priority = 99;
+	if (sched_setscheduler(0, SCHED_RR, &sp) < 0) {
+		perror("setscheduler: "); printf("\n");
+	}
+
+	return;
+}
+
 /*
  * Format of the input string is as such:
  * 
@@ -1668,6 +1684,7 @@ int main(int argc, char *argv[])
 	}
 
 	stub_gen_prog = argv[2];
+	set_prio();
 
 	/* 
 	 * NOTE: because strtok is used in prepare_service_symbs, we

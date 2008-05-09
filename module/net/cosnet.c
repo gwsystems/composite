@@ -4,10 +4,11 @@
  *  Heavily modified tun/tap device driver.  Ripped out the character
  *  device, and custom fitting that end to composite.
  *
+ *  ethtool -A eth0 autoneg off rx off tx off
  *  mknod /dev/net/cnet c 10 201
  *  echo 1 > /proc/sys/net/ipv4/ip_forward
  *  ./cnet_user (from the util dir)
- *  ifconfig cnet0 10.0.1.9
+ *  ifconfig cnet0 10.0.2.9 (done automatically)
  *
  ***********************************************************************  
  *  TUN - Universal TUN/TAP device driver.
@@ -49,8 +50,6 @@
  *    Modifications for 2.3.99-pre5 kernel.
  */
 
-/* gabep1: keeping the same name and info to maintain compatibility
- * with configuration apps */
 #define DRV_NAME	"cnet"
 #define DRV_VERSION	"1.6"
 #define DRV_DESCRIPTION	"cos: Universal TUN/TAP device driver"
@@ -201,6 +200,23 @@ int cosnet_create_brand(struct cos_brand_info *bi)
 	return -1;
 }
 
+int cosnet_remove_brand(struct cos_brand_info *bi)
+{
+	int i;
+
+	assert(bi);
+
+	for (i = 0 ; i < COSNET_NUM_CHANNELS ; i++) {
+		if (local_ts->cosnet[i].brand_info == bi) {
+			local_ts->cosnet[i].brand_info = NULL;
+			skb_queue_purge(&local_ts->cosnet[i].packet_queue);
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
 /* 
  * Ok, these next two functions deserve an explanation: Because we
  * can't have the linker link function call points in the main cos
@@ -267,7 +283,8 @@ extern void cos_net_deregister(struct cos_net_callbacks *cn_cb);
 
 struct cos_net_callbacks cosnet_cbs = {
 	.get_packet = cosnet_get_packet,
-	.create_brand = cosnet_create_brand
+	.create_brand = cosnet_create_brand,
+	.remove_brand = cosnet_remove_brand
 };
 
 static int cosnet_cos_register(void)
@@ -303,12 +320,16 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	DBG(KERN_INFO "%s: tun_net_xmit %d\n", tun->dev->name, skb->len);
 
 	/* Drop packet if interface is not attached */
-	if (!tun->attached)
-		goto drop;
+	//if (!tun->attached)
+	//goto drop;
 
 	cosnet = cosnet_resolve_brand(tun, skb);
-	if (!cosnet) 
+	if (!cosnet) {
+		//printk("cos: NET->could not resolve brand.\n");
 		goto drop;
+	}
+
+	tun->stats.tx_fifo_errors++; 
 
 	/* Packet dropping */
 /* 	if (cosnet_queues_full(tun)) { */
@@ -316,15 +337,18 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 /* 		//tun->stats.tx_fifo_errors++; */
 /* 		goto drop; */
 /* 	} */
-	if (skb_queue_len(&cosnet->packet_queue) >= COSNET_QUEUE_LEN)
+	if (skb_queue_len(&cosnet->packet_queue) >= COSNET_QUEUE_LEN) {
+		//printk("cos: NET->overflowing packet queue.\n");
 		goto drop;
-
-	/* FIXME: start crit section here? */
-	if (cosnet_execute_brand(cosnet->brand_info, skb)) {
-		goto good;
 	}
+
 	/* Queue packet */
 	skb_queue_tail(&cosnet->packet_queue, skb);
+
+	if (cosnet_execute_brand(cosnet->brand_info, skb)) {
+		printk("cos: NET->could not execute brand!\n");
+		goto good;
+	}
 	/* end crit section here? */
 	dev->trans_start = jiffies;
 
@@ -672,8 +696,8 @@ static int tun_set_iff(struct file *file, struct ifreq *ifr)
 
 	tun = tun_get_by_name(ifr->ifr_name);
 	if (tun) {
-		if (tun->attached)
-			return -EBUSY;
+		//if (tun->attached)
+		//	return -EBUSY;
 
 		/* Check permissions */
 		if (tun->owner != -1 &&
@@ -747,7 +771,7 @@ static int tun_set_iff(struct file *file, struct ifreq *ifr)
 	file->private_data = tun;
 	/* gabep1 */
 	local_ts = tun;
-	tun->attached = 1;
+	//tun->attached = 1;
 
 	strcpy(ifr->ifr_name, tun->dev->name);
 	return 0;
@@ -938,7 +962,7 @@ static int tun_chr_open(struct inode *inode, struct file * file)
 {
 	DBG1(KERN_INFO "tunX: tun_chr_open\n");
 	file->private_data = NULL;
-	cosnet_cos_register();
+	//cosnet_cos_register();
 	return 0;
 }
 
@@ -958,13 +982,13 @@ static int tun_chr_close(struct inode *inode, struct file *file)
 	/* Detach from net device */
 	file->private_data = NULL;
 	/* gabep1 */
-	local_ts = NULL;
-	tun->attached = 0;
+	//local_ts = NULL;
+	//tun->attached = 0;
 
 	/* Drop read queue */
 	skb_queue_purge(&tun->readq);
-	cosnet_purge_queues(tun);
-	cosnet_cos_deregister();
+	//cosnet_purge_queues(tun);
+	//cosnet_cos_deregister();
 
 	if (!(tun->flags & TUN_PERSIST)) {
 		list_del(&tun->list);
@@ -1051,8 +1075,8 @@ static void tun_set_msglevel(struct net_device *dev, u32 value)
 
 static u32 tun_get_link(struct net_device *dev)
 {
-	struct tun_struct *tun = netdev_priv(dev);
-	return tun->attached;
+//	struct tun_struct *tun = netdev_priv(dev);
+	return 1;//tun->attached;
 }
 
 static u32 tun_get_rx_csum(struct net_device *dev)
@@ -1091,12 +1115,17 @@ static int __init tun_init(void)
 	ret = misc_register(&tun_miscdev);
 	if (ret)
 		printk(KERN_ERR "tun: Can't register misc device %d\n", TUN_MINOR);
+
+	cosnet_cos_register();
+	
 	return ret;
 }
 
 static void tun_cleanup(void)
 {
 	struct tun_struct *tun, *nxt;
+
+	cosnet_cos_deregister();
 
 	misc_deregister(&tun_miscdev);
 

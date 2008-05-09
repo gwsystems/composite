@@ -1,5 +1,6 @@
 #include <cos_asm_stacks.h>
-	
+
+#ifdef NIL	
 #define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 
@@ -43,3 +44,4 @@ mman_release_page_inv:
 	movl $RET_CAP, %eax /* return capability */
 
 	sysenter
+#endif

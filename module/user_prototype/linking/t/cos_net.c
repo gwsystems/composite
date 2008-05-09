@@ -73,9 +73,9 @@ static int retrieve_event(unsigned short int thd_id)
 
 	assert(tm);
 	pe = tm->pending_evts;
-	if (!pe) {
+	if (0 == pe) {
 		tm->blocked = 1;
-		sched_block();
+		assert(!sched_block());
 		tm->blocked = 0;
 		assert(tm->pending_evts);
 	}
@@ -87,7 +87,7 @@ static int retrieve_event(unsigned short int thd_id)
 static int application(void)
 {
 	while (1) {
-		print("application %d running... %d%d", cos_get_thd_id(), 0,0);
+//		print("application %d running... %d%d", cos_get_thd_id(), 0,0);
 		retrieve_event(cos_get_thd_id());
 		synthesize_app_work();
 	}
@@ -97,8 +97,8 @@ static int application(void)
 
 static int interrupt(void)
 {
-	//synthesize_interrupt_work();
-	print("Interrupt in thd %d. %d%d", cos_get_thd_id(), 0,0);
+	synthesize_interrupt_work();
+//	print("Interrupt in thd %d. %d%d", cos_get_thd_id(), 0,0);
 	deposit_event(cos_get_thd_id());
 
 	return 0;
@@ -118,6 +118,7 @@ static int new_thd(void)
 		if (tmap[i].thd == 0) {
 			tmap[i].thd = cos_get_thd_id();
 			tmap[i].upcall = b_id;
+			break;
 		}
 	}
 	assert(i != NUM_THDS);
@@ -145,6 +146,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		assert(0);
 		break;
 	default:
+		print("Unknown type of upcall %d made to net. %d%d", t, 0,0);
 		assert(0);
 		return;
 	}

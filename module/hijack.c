@@ -2152,26 +2152,35 @@ extern void update_sched_evts(struct thread *new, int new_flags,
 		       struct thread *prev, int prev_flags);
 extern struct thread *brand_next_thread(struct thread *brand, struct thread *preempted);
 
+extern void cos_net_deregister(struct cos_net_callbacks *cn_cb);
+extern void cos_net_register(struct cos_net_callbacks *cn_cb);
+extern int cos_net_try_brand(struct thread *t, void *data, int len);
+EXPORT_SYMBOL(cos_net_deregister);
+EXPORT_SYMBOL(cos_net_register);
+EXPORT_SYMBOL(cos_net_try_brand);
+extern void cos_net_init(void);
+extern void cos_net_finish(void);
+
 extern struct thread *cos_timer_brand_thd;
 #define NUM_NET_BRANDS 2 /* keep consistent with inv.c */
 extern int active_net_brands;
 extern struct cos_brand_info cos_net_brand[NUM_NET_BRANDS];
 extern struct cos_net_callbacks *cos_net_fns;
 
-static void timer_interrupt(unsigned long data)
+int host_attempt_brand(struct thread *brand)
 {
 	struct pt_regs *regs = NULL;
 
-	BUG_ON(composite_thread == NULL);
-	mod_timer(&timer, jiffies+1);
+	if (composite_thread/* == current*/) {
+		unsigned long flags;
 
-	if (composite_thread/* == current*/ && cos_timer_brand_thd && cos_timer_brand_thd->upcall_threads) {
+		local_irq_save(flags);
+
 		if (composite_thread == current) {
 			cos_meas_event(COS_MEAS_INT_COS_THD);
 		} else {
 			cos_meas_event(COS_MEAS_OTHER_THD);
 		}
-
 		regs = get_user_regs_thread(composite_thread);
 
 		/* 
@@ -2198,10 +2207,9 @@ static void timer_interrupt(unsigned long data)
 		if (!(regs->esp == 0 && regs->xss == 0)
                     /* && (regs->xcs & SEGMENT_RPL_MASK) == USER_RPL*/) {
 			struct thread *cos_current, *next;
-			unsigned long flags;
 			//struct thread *cos_upcall_thread = cos_timer_brand_thd->upcall_threads;
 			//struct spd *dest;
-			
+ 			
 			if ((regs->xcs & SEGMENT_RPL_MASK) == USER_RPL) {
 				cos_meas_event(COS_MEAS_INT_PREEMPT_USER);
 			} else {
@@ -2215,13 +2223,11 @@ static void timer_interrupt(unsigned long data)
 			}
 */
 
-			local_irq_save(flags);
-
 			cos_current = thd_get_current();
 			thd_save_preempted_state(cos_current, regs);
 			//update_sched_evts(cos_upcall_thread, COS_SCHED_EVT_BRAND_ACTIVE,
 			//		  cos_current, COS_SCHED_EVT_NIL);
-			next = brand_next_thread(cos_timer_brand_thd, cos_current);
+			next = brand_next_thread(brand, cos_current);
 			if (next != cos_current) {
 				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
 					printk("cos: upcall thread %d is not set to be an active upcall.\n",
@@ -2241,8 +2247,6 @@ static void timer_interrupt(unsigned long data)
 				//cos_meas_event(COS_MEAS_BRAND_UC);
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
-
-			local_irq_restore(flags);
 
 			/* Load the address space of the target spd,
 			 * and load its registers. FIXME: we will want
@@ -2268,15 +2272,24 @@ static void timer_interrupt(unsigned long data)
 			//regs->edx = regs->ecx = regs->ebx = regs->esp = regs->edi = regs->esi = regs->ebp = 0; //thd_get_id(cos_upcall_thread);
 			//regs->orig_eax = regs->eax = thd_get_id(cos_upcall_thread);
 
-		} /*else {
-			cos_meas_event(COS_MEAS_INT_PREEMPT_KERN);
-			}*/
-	} else {
-		//cos_meas_event(COS_MEAS_OTHER_THD);
+		}
+
+		local_irq_restore(flags);
+	} 
+
+	return 0;
+}
+
+static void timer_interrupt(unsigned long data)
+{
+	BUG_ON(composite_thread == NULL);
+	mod_timer(&timer, jiffies+1);
+
+	if (!(cos_timer_brand_thd && cos_timer_brand_thd->upcall_threads)) {
+		return;
 	}
 
- timer_finish:
-
+	host_attempt_brand(cos_timer_brand_thd);
 	return;
 }
 
@@ -2443,6 +2456,7 @@ static int aed_open(struct inode *inode, struct file *file)
 
 	register_timers();
 	cos_meas_init();
+	cos_net_init();
 
 	return 0;
 }
@@ -2487,6 +2501,7 @@ static int aed_release(struct inode *inode, struct file *file)
 	ipc_init();
 	cos_shutdown_memory();
 	composite_thread = NULL;
+	cos_net_finish();
 
 	cos_meas_report();
 

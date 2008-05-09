@@ -90,6 +90,7 @@ struct cos_net_callbacks {
 	int (*get_packet)(struct cos_brand_info *bi, char **packet, 
 			  unsigned long *len, cos_net_data_completion_t *fn, void **data);
 	int (*create_brand)(struct cos_brand_info *bi);
+	int (*remove_brand)(struct cos_brand_info *bi);
 };
 
 /* 

@@ -1,0 +1,3 @@
+0xc224d378	cos_net_register	/home/grad3/gabep1/research/code/composite/composite/module/cos	EXPORT_SYMBOL
+0x1c8eff36	cos_net_try_brand	/home/grad3/gabep1/research/code/composite/composite/module/cos	EXPORT_SYMBOL
+0xa5e0a499	cos_net_deregister	/home/grad3/gabep1/research/code/composite/composite/module/cos	EXPORT_SYMBOL

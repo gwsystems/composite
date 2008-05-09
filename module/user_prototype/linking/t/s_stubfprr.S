@@ -31,8 +31,8 @@ sched_init_inv:
 
 	sysenter
 
-.globl sched_wakeup
-.type  sched_wakeup, @function
+.globl sched_wakeup_inv
+.type  sched_wakeup_inv, @function
 .align 16
 sched_wakeup_inv:
 	COS_ASM_GET_STACK

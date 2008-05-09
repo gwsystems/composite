@@ -5,6 +5,12 @@
 #define NUM_PRIOS 8
 #define LOWEST_PRIO (NUM_PRIOS-1)
 
+#define RUNTIME_SEC 10
+#define TIMER_FREQ 100
+#define CYC_PER_USEC 2400
+
+#define MAX_REPORTS (7*RUNTIME_SEC)
+
 static volatile unsigned long ticks = 0;
 
 static struct sched_thd *timer, *init;
@@ -13,6 +19,33 @@ struct sched_thd upcall_deactive;
 struct prio_list {
 	struct sched_thd runnable;
 } priorities[NUM_PRIOS];
+
+struct measurement {
+	unsigned int a, b, c;
+} ms[MAX_REPORTS];
+int curr_meas = 0;
+
+static void record_measurement(unsigned int a, unsigned int b, unsigned int c)
+{
+	if (curr_meas >= MAX_REPORTS) {
+		return;
+	}
+
+	ms[curr_meas].a = a;
+	ms[curr_meas].b = b;
+	ms[curr_meas].c = c;
+	curr_meas++;
+}
+
+static void report_measurement(void)
+{
+	int i;
+	for (i = 0 ; i < MAX_REPORTS ; i++) {
+		if (ms[i].a || ms[i].b || ms[i].c) {
+			print("%d %d %d", ms[i].a, ms[i].b, ms[i].c);
+		}
+	}
+}
 
 static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
 {
@@ -241,16 +274,39 @@ static inline struct sched_thd *fp_schedule(void)
 	return t;
 }
 
-#define RUNTIME_SEC 5
-#define TIMER_FREQ 100
-#define CYC_PER_USEC 2400
+static void fp_print_taskqueue(struct sched_thd *h)
+{
+	struct sched_thd *iter;
+
+	iter = FIRST_LIST(h, prio_next, prio_prev);
+	while (iter != h) {
+		record_measurement(ticks, iter->id, sched_get_accounting(iter)->cycles>>10);
+		iter = FIRST_LIST(iter, prio_next, prio_prev);
+	}
+}
+
+void fp_print_stats(void)
+{
+	int i;
+
+	for (i = 0 ; i < NUM_PRIOS ; i++) {
+		struct sched_thd *head;
+
+		head = &priorities[i].runnable;
+		fp_print_taskqueue(head);
+	}
+	fp_print_taskqueue(&blocked);
+	fp_print_taskqueue(&upcall_deactive);
+
+	return;
+}
 
 void fp_timer_tick(void)
 {
 	struct sched_thd *prev, *next;
 	int loop;
 
-	if (ticks >= RUNTIME_SEC*TIMER_FREQ) {
+	if (ticks >= RUNTIME_SEC*TIMER_FREQ+1) {
 		cos_switch_thread(init->id, COS_SCHED_TAILCALL, 0);
 	}
 
@@ -258,6 +314,14 @@ void fp_timer_tick(void)
 
 	do {
 		cos_sched_lock_take();
+
+		if (ticks % 100 == 0) {
+			fp_print_stats();
+			if (ticks == RUNTIME_SEC*TIMER_FREQ) {
+				report_measurement();
+			}
+		}
+
 		prev = sched_get_current();
 		cos_sched_process_events(evt_callback, 0);
 		next = fp_get_highest_prio();
@@ -274,9 +338,7 @@ void fp_timer_tick(void)
 
 //		print("timer tick switching to %d.   %d%d", next->id,0,0);
 		loop = cos_switch_thread_release(next->id, COS_SCHED_TAILCALL, 0);
-		if (loop == 1) {
-			print("wtf, timer self switch  %d%d%d",0,0,0);
-		} else if (loop == -1) {
+		if (loop == -1) {
 			print("WTF, timer switch error  %d%d%d",0,0,0);
 		}
 	} while (loop);
@@ -288,7 +350,7 @@ static void fp_event_completion(struct sched_thd *e)
 {
 	struct sched_thd *next;
 
-	print("WTF: this should not be happening %d%d%d",0,0,0);
+	//print("WTF: this should not be happening %d%d%d",0,0,0);
 	do {
 		cos_sched_lock_take();
 		next = fp_schedule();
@@ -381,7 +443,7 @@ static void fp_fresh_thd(void *d)
 
 static void fp_net_thd(void *d)
 {
-	cos_upcall(3);
+	cos_upcall(2);
 
 	return;
 }
@@ -396,7 +458,7 @@ int sched_wakeup(unsigned short int thd_id)
 	struct sched_thd *thd, *prev, *next;
 	int cnt_done = 0;
 
-	print("thread %d waking up thread %d. %d", cos_get_thd_id(), thd_id, 0);
+	//print("thread %d waking up thread %d. %d", cos_get_thd_id(), thd_id, 0);
 
 	do {
 		cos_sched_lock_take();
@@ -448,7 +510,7 @@ int sched_block()
 	struct sched_thd *thd, *next;
 	int cnt_done = 0;
 
-	print("thread %d blocking. %d%d", cos_get_thd_id(), 0,0);
+	//print("thread %d blocking. %d%d", cos_get_thd_id(), 0,0);
 	/* 
 	 * This needs to be a loop as it's possible that there will be
 	 * lock contention, and this thread will schedule itself while
@@ -543,7 +605,7 @@ int sched_init(void)
 {
 	static int first = 1;
 	int i;
-	unsigned int b_id, thd_id;
+	unsigned int b_id;//, thd_id;
 	struct sched_thd *new;
 
 	if (!first) return -1;
@@ -560,9 +622,10 @@ int sched_init(void)
 	init = sched_alloc_thd(cos_get_thd_id());
 
 	/* create the idle thread */
-	thd_id = cos_create_thread((int)fp_idle_loop, 0, 0);
-	new = sched_alloc_thd(thd_id);
-	fp_add_thd(new, LOWEST_PRIO);
+	sched_setup_thread(LOWEST_PRIO, LOWEST_PRIO, fp_idle_loop);
+	//thd_id = cos_create_thread((int)fp_idle_loop, 0, 0);
+	//new = sched_alloc_thd(thd_id);
+	//fp_add_thd(new, LOWEST_PRIO);
 
 	/* create 3 threads to test rr and fp */
 //	sched_setup_thread(2, 2);

@@ -80,15 +80,14 @@ static inline void open_close_spd_ret(struct spd_poly *c_spd) /*, struct spd_pol
 	return;
 }
 
-static void print_stack(struct thread *thd, struct spd *srcspd, struct spd *destspd)
+static void print_stack(struct thread *thd)
 {
 	int i;
 
-	printk("cos: In thd %x, src spd %x, dest spd %x, stack:\n", (unsigned int)thd, 
-	       (unsigned int)srcspd, (unsigned int)destspd);
+	printk("cos: In thd %x, stack:\n", thd_get_id(thd));
 	for (i = 0 ; i <= thd->stack_ptr ; i++) {
 		struct thd_invocation_frame *frame = &thd->stack_base[i];
-		printk("cos: \t[cspd %x]\n", (unsigned int)frame->current_composite_spd);
+		printk("cos: \t[spd %d]\n", spd_get_index(frame->spd));
 	}
 }
 
@@ -177,7 +176,7 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 		printk("cos: Error, incorrect capability (Cap %d has cspd %x, stk has %x).\n",
 		       capability, (unsigned int)curr_spd->composite_spd,
 		       (unsigned int)curr_frame->current_composite_spd);
-		print_stack(thd, curr_spd, dest_spd);
+		print_stack(thd);
 		/* 
 		 * FIXME: do something here like throw a fault to be
 		 * handled by a user-level handler
@@ -569,6 +568,29 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, int a, int b, int c)
 	return thd_get_id(thd);
 }
 
+static inline void remove_preempted_status(struct thread *thd)
+{
+	assert(thd->flags & THD_STATE_PREEMPTED);
+
+ 	if (thd->preempter_thread) {
+		struct thread *p = thd->preempter_thread;
+		struct thread *i = thd->interrupted_thread;
+
+		/* is the doubly linked list sound? */
+		assert(p->interrupted_thread == thd);
+			
+		/* maintain the doubly linked list of interrupted thds */
+		p->interrupted_thread = NULL;//i;
+		if (i) {
+			i->preempter_thread = NULL;//p;
+		}
+		thd->preempter_thread = NULL;
+		thd->interrupted_thread = NULL;
+	}
+
+	thd->flags &= ~THD_STATE_PREEMPTED;
+}
+
 extern int cos_syscall_switch_thread(void);
 void update_sched_evts(struct thread *new, int new_flags, 
 		       struct thread *prev, int prev_flags);
@@ -739,23 +761,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 
 	if (thd->flags & THD_STATE_PREEMPTED) {
 		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
-		if (thd->preempter_thread) {
-			struct thread *p = thd->preempter_thread;
-			struct thread *i = thd->interrupted_thread;
-
-			/* is the doubly linked list sound? */
-			assert(p->interrupted_thread == thd);
-			
-			/* maintain the doubly linked list of interrupted thds */
-			p->interrupted_thread = i;
-			if (i) {
-				i->preempter_thread = p;
-			}
-			thd->preempter_thread = NULL;
-			thd->interrupted_thread = NULL;
-		}
-
-		thd->flags &= ~THD_STATE_PREEMPTED;
+		remove_preempted_status(thd);
 		*preempt = 1;
 
 		//printk("cos: switching to preempted thread %d with regs:\n", thd_get_id(thd));
@@ -776,6 +782,10 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 			curr->interrupted_thread->preempter_thread = NULL;
 		}
 		curr->interrupted_thread = NULL;
+		if (curr->preempter_thread) {
+			curr->preempter_thread->interrupted_thread = NULL;
+		}
+		curr->preempter_thread = NULL;
 
 		curr->flags &= ~THD_STATE_ACTIVE_UPCALL;
 		curr->flags |= THD_STATE_READY_UPCALL;
@@ -837,6 +847,7 @@ static struct thread *upcall_setup(struct thread *uc, struct spd *dest, upcall_t
 
 	uc->stack_ptr = 0;
 	uc->stack_base[0].current_composite_spd = dest->composite_spd;
+	uc->stack_base[0].spd = dest;
 	spd_mpd_ipc_take((struct composite_spd *)dest->composite_spd);
 
 	return uc;
@@ -858,6 +869,8 @@ static struct thread *upcall_execute(struct thread *uc, struct thread *prev,
 	return uc;
 }
 
+static int cos_net_try_packet(struct thread *brand);
+
 /* 
  * Assumes: we are called from the thread switching syscall, with the
  * TAIL_CALL flag (i.e. we are switching away from an upcall)
@@ -875,6 +888,8 @@ static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, struct c
 	assert(dest);
 	upcall_setup(uc, dest, COS_UPCALL_BRAND_EXEC, 0, 0, 0);
 	upcall_execute(uc, NULL, curr);
+	cos_net_try_packet(brand);
+
 	cos_meas_event(COS_MEAS_BRAND_PEND_EXECUTE);
 	cos_meas_event(COS_MEAS_FINISHED_BRANDS);
 
@@ -937,7 +952,7 @@ static struct pt_regs *brand_execution_completion(struct thread *curr)
 	switch_thread_context(curr, prev);
 
 	assert(prev->flags & THD_STATE_PREEMPTED);
-	prev->flags &= ~THD_STATE_PREEMPTED;
+	remove_preempted_status(prev);
 	update_sched_evts(prev, COS_SCHED_EVT_NIL, 
 			  curr, COS_SCHED_EVT_BRAND_READY);
 
@@ -1158,33 +1173,70 @@ COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags, int de
 
 struct thread *cos_timer_brand_thd;
 #define NUM_NET_BRANDS 2
-int active_net_brands = 0;
+unsigned int active_net_brands = 0;
 struct cos_brand_info cos_net_brand[NUM_NET_BRANDS];
 struct cos_net_callbacks *cos_net_fns = NULL;
 
-int cos_net_try_brand(struct thread *t, void *data, int len)
+void cos_net_init(void)
 {
-	cos_meas_event(COS_MEAS_PACKET_RECEPTION);
+	int i;
+	
+	active_net_brands = 0;
+	for (i = 0 ; i < NUM_NET_BRANDS ; i++) {
+		cos_net_brand[i].brand = NULL;
+		cos_net_brand[i].brand_port = 0;
+	}
+}
 
-	return 0;
+struct cos_brand_info *cos_net_brand_info(struct thread *t)
+{
+	int i;
+
+	for (i = 0 ; i < NUM_NET_BRANDS ; i++) {
+		if (cos_net_brand[i].brand == t) {
+			return &cos_net_brand[i];
+		}
+	}
+	return NULL;
+}
+
+void cos_net_finish(void)
+{
+	int i;
+	
+	active_net_brands = 0;
+	for (i = 0 ; i < NUM_NET_BRANDS ; i++) {
+		if (cos_net_brand[i].brand) {
+			if (!cos_net_fns || !cos_net_fns->remove_brand ||
+			    cos_net_fns->remove_brand(&cos_net_brand[i])) {
+				printk("cos: error deregistering net brand for port %d\n",
+					cos_net_brand[i].brand_port);
+			}
+		}
+		cos_net_brand[i].brand = NULL;
+		cos_net_brand[i].brand_port = 0;
+	}
 }
 
 void cos_net_register(struct cos_net_callbacks *cn_cb)
 {
 	assert(cn_cb->get_packet && cn_cb->create_brand);
+
+	printk("cos: Registering networking callbacks @ %x\n", (unsigned int)cn_cb);
 	cos_net_fns = cn_cb;
 }
 
 void cos_net_deregister(struct cos_net_callbacks *cn_cb)
 {
 	assert(cos_net_fns == cn_cb);
-	
+
+	printk("cos: Deregistering networking callbacks\n");
 	cos_net_fns = NULL;
 }
 
 static int brand_get_packet(struct thread *t, char *dest, int max_len)
 {
-	int i, ret = 0;
+	int ret = 0;
 	struct cos_brand_info *bi = NULL;
 	char *packet;
 	unsigned long len;
@@ -1193,18 +1245,13 @@ static int brand_get_packet(struct thread *t, char *dest, int max_len)
 
 	assert(cos_net_fns && dest);
 
-	for (i = 0 ; i < NUM_NET_BRANDS ; i++) {
-		if (cos_net_brand[i].brand == t) {
-			bi = &cos_net_brand[i];
-			break;
-		}
-	}
+	bi = cos_net_brand_info(t);
 	if (!bi) {
 		ret = -2;
 		goto done;
 	}
 
-	if (cos_net_fns->get_packet &&
+	if (!cos_net_fns->get_packet ||
 	    cos_net_fns->get_packet(bi, &packet, &len, &fn, &fn_data)) {
 		printk("cos: could not get packet from networking subsystem\n");
 	}
@@ -1221,6 +1268,40 @@ done:
 	fn(fn_data);
 
 	return ret;
+}
+
+static int cos_net_try_packet(struct thread *brand)
+{
+	struct cos_brand_info *bi;
+	char *packet;
+	unsigned long len;
+	cos_net_data_completion_t fn;
+	void *fn_data;
+
+	bi = cos_net_brand_info(brand);
+	if (!bi) {
+		return 1;
+	}
+
+        if (!cos_net_fns ||
+	    !cos_net_fns->get_packet ||
+	    cos_net_fns->get_packet(bi, &packet, &len, &fn, &fn_data)) {
+		return -1;
+	}
+	fn(fn_data);
+	
+	return 0;
+}
+
+extern int host_attempt_brand(struct thread *brand);
+
+int cos_net_try_brand(struct thread *t, void *data, int len)
+{
+	cos_meas_event(COS_MEAS_PACKET_RECEPTION);
+
+	host_attempt_brand(t);
+	
+	return 0;
 }
 
 /*
@@ -1260,7 +1341,8 @@ COS_SYSCALL int cos_syscall_brand_wire(int spd_id, int thd_id, int option, int d
 
 		cos_net_brand[active_net_brands].brand_port = (unsigned short int)data;
 		cos_net_brand[active_net_brands].brand = brand_thd;
-		if (cos_net_fns->create_brand && 
+		if (!cos_net_fns ||
+		    !cos_net_fns->create_brand || 
 		    cos_net_fns->create_brand(&cos_net_brand[active_net_brands])) {
 			printk("cos: could not create brand in networking subsystem\n");
 			return -1;
@@ -1303,7 +1385,7 @@ static int verify_trust(struct spd *truster, struct spd *trustee)
  * active entities (threads).
  */
 extern void cos_syscall_upcall(void);
-COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, vaddr_t *inv_addr)
+COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, struct pt_regs **regs/*vaddr_t *inv_addr*/)
 {
 	struct spd *dest, *curr_spd;
 	struct thread *thd;
@@ -1354,22 +1436,24 @@ COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, vaddr_t *in
 	open_close_spd(dest->composite_spd, curr_spd->composite_spd); 
 
 	spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(thd));//curr_spd->composite_spd);
-	spd_mpd_ipc_take((struct composite_spd *)dest->composite_spd);
+	//spd_mpd_ipc_take((struct composite_spd *)dest->composite_spd);
 
 	/* FIXME: use upcall_(setup|execute) */
-
+	upcall_setup(thd, dest, COS_UPCALL_BOOTSTRAP, 0, 0, 0);
 	/* set the thread to have dest as a new base owner */
-	thd->stack_ptr = 0;
+/*	thd->stack_ptr = 0;
 	thd->stack_base[0].current_composite_spd = dest->composite_spd;
 	thd->stack_base[0].spd = dest;
 
 	thd->regs.ecx = COS_UPCALL_BOOTSTRAP;
 	thd->regs.edx = dest->upcall_entry;
-	*inv_addr = dest->upcall_entry;
+*/
+	*regs = &thd->regs;
+	//*inv_addr = dest->upcall_entry;
 
 	cos_meas_event(COS_MEAS_UPCALLS);
 
-	return thd->thread_id;
+	return thd_get_id(thd);
 }
 
 
@@ -1638,6 +1722,16 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted)
 
 	if (brand_higher_urgency(upcall, preempted)) {
 //		printk("cos: run upcall!\n");
+		if (preempted->flags & THD_STATE_PREEMPTED) {
+			printk("cos: WTF - preempted thread %d preempted, upcall %d.\n", 
+			       thd_get_id(preempted), thd_get_id(upcall));
+			return preempted;
+		}
+		if (preempted->preempter_thread != NULL) {
+			printk("cos: WTF - preempter thread pointer of preempted thread %d not null, upcall %d.\n",
+			       thd_get_id(preempted), thd_get_id(upcall));
+			return preempted;
+		}
 		assert((preempted->flags & THD_STATE_PREEMPTED) == 0);
 		assert(preempted->preempter_thread == NULL);
 
@@ -1646,6 +1740,8 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted)
 		upcall->interrupted_thread = preempted;
 
 		upcall_execute(upcall, preempted, (struct composite_spd*)thd_get_thd_spdpoly(preempted));
+
+		cos_net_try_packet(brand);
 		/* actually setup the brand/upcall to happen here? */
 		cos_meas_event(COS_MEAS_BRAND_UC);
 		return upcall;

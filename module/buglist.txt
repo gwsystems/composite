@@ -1,0 +1,16 @@
+1) lower urgency brand + pending: A brand occurs and the system
+   decides not to run it due to lesser urgency.  In the end, that
+   thread ends up endlessly ignored unless another interrupt happens.
+   It appears what's happening is that the event for the thread to
+   become active is not being delivered or interpretted at the right
+   time, thus the scheduler is unaware the upcall is active.  The
+   current work-around is to send a BRAND_PENDING event whenever we
+   add a pending brand.  The scheduler will get this event and will
+   schedule the thread.  When there are many interrupts, this kind of
+   works.
+
+2) brand_higher_urgency, I believe, makes the assumption somewhere
+   that an event actually exists for the interrupted thread.  In any
+   case, when the interrupted thread only creates the thread, but does
+   not setup events for it, we get a page fault in
+   brand_higher_urgency+0x2c8 (8c c7 <c7> 05 00).

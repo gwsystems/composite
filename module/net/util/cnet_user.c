@@ -35,7 +35,7 @@ int main(void) {
 
 	printf("executing: \"%s\"\n", buf);
 	if (!system(buf)) {
-		pause();
+		//pause();
 		return 0;
 	} /* else error */
 
