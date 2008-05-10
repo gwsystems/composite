@@ -254,6 +254,7 @@ int cosnet_get_packet(struct cos_brand_info *bi, char **packet,
 		struct cos_brand_info *tmp_bi = local_ts->cosnet[i].brand_info;
 		if (tmp_bi && tmp_bi->brand_port == bi->brand_port) {
 			struct sk_buff *skb;
+			int queues_full = cosnet_queues_full(local_ts);
 
 			if (!(skb = skb_dequeue(&local_ts->cosnet[i].packet_queue))) {
 				/* This should NOT happen */
@@ -269,6 +270,10 @@ int cosnet_get_packet(struct cos_brand_info *bi, char **packet,
 			*packet = skb->data;
 			*fn = cosnet_skb_completion;
 			*data = (void*)skb;
+
+			if (queues_full) {
+				netif_wake_queue(local_ts->dev);
+			}
 
 			return 0;
 		}
@@ -329,14 +334,12 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 		goto drop;
 	}
 
-	tun->stats.tx_fifo_errors++; 
-
 	/* Packet dropping */
-/* 	if (cosnet_queues_full(tun)) { */
-/* 		//netif_stop_queue(dev); */
-/* 		//tun->stats.tx_fifo_errors++; */
-/* 		goto drop; */
-/* 	} */
+	if (cosnet_queues_full(tun)) {
+		netif_stop_queue(dev);
+		tun->stats.tx_fifo_errors++;
+		goto drop;
+	}
 	if (skb_queue_len(&cosnet->packet_queue) >= COSNET_QUEUE_LEN) {
 		//printk("cos: NET->overflowing packet queue.\n");
 		goto drop;

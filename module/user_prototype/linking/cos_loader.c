@@ -1641,6 +1641,7 @@ void segv_handler(int signo, siginfo_t *si, void *context) {
 void set_prio(void)
 {
 	struct sched_param sp;
+
 	if (sched_getparam(0, &sp) < 0) {
 		perror("getparam: ");
 		printf("\n");
@@ -1684,7 +1685,7 @@ int main(int argc, char *argv[])
 	}
 
 	stub_gen_prog = argv[2];
-	set_prio();
+	//set_prio();
 
 	/* 
 	 * NOTE: because strtok is used in prepare_service_symbs, we

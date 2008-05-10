@@ -919,6 +919,7 @@ static struct pt_regs *brand_execution_completion(struct thread *curr)
 		struct thd_sched_info *tsi;
 		struct spd *dest;
 
+		/* FIXME: do this to the most common scheduler */
 		tsi = thd_get_sched_info(curr, 0);
 		dest = tsi->scheduler;
 
@@ -1559,6 +1560,8 @@ void update_sched_evts(struct thread *new, int new_flags,
 {
 	int update_list = 1;
 
+	assert(new && prev);
+
 	/* 
 	 * - if either thread has cyc_cnt set, do rdtsc (this 
 	 *   is expensive, ~80 cycles, so avoid it if possible)
@@ -1643,6 +1646,16 @@ int brand_higher_urgency(struct thread *upcall, struct thread *prev)
 	assert(upcall->thread_brand && upcall->flags & THD_STATE_UPCALL);
 
 	d = most_common_sched_depth(upcall, prev);
+	/* FIXME FIXME FIXME FIXME FIXME FIXME FIXME this is a stopgap
+	 * measure.  I don't know hy these are null when we are
+	 * shutting down the system but still get a packet.  This will
+	 * shut it up for now.
+	 */
+	if (!thd_get_sched_info(upcall, d)->thread_notifications ||
+	    !thd_get_sched_info(prev, d)->thread_notifications) {
+		WARN_ON(1);
+		return 0;
+	}
 	u_urg = thd_get_depth_urg(upcall, d);
 	p_urg = thd_get_depth_urg(prev, d);
 	/* We should not run the upcall if it doesn't have more urgency */

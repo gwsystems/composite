@@ -1609,11 +1609,11 @@ struct fault_info {
 static void cos_handle_page_fault(struct thread *thd, struct spd_poly *spd_poly, 
 				  vaddr_t fault_addr, struct pt_regs *regs)
 {
-	struct composite_spd *cspd;
+//	struct composite_spd *cspd;
 	struct fault_info *fi;
 
-	BUG_ON(!(spd_poly->flags & SPD_COMPOSITE) || spd_poly->flags & SPD_FREE);
-	cspd = (struct composite_spd *)spd_poly;
+//	BUG_ON(!(spd_poly->flags & SPD_COMPOSITE) || spd_poly->flags & SPD_FREE);
+//	cspd = (struct composite_spd *)spd_poly;
 
 	memcpy(&thd->regs, regs, sizeof(struct pt_regs));
 
@@ -2492,6 +2492,7 @@ static int aed_release(struct inode *inode, struct file *file)
 	}
 
 	deregister_timers();
+	cos_net_finish();
 
 	/* our garbage collection mechanism: all at once when the cos
 	 * system control fd is closed */
@@ -2501,7 +2502,6 @@ static int aed_release(struct inode *inode, struct file *file)
 	ipc_init();
 	cos_shutdown_memory();
 	composite_thread = NULL;
-	cos_net_finish();
 
 	cos_meas_report();
 

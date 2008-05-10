@@ -9,28 +9,36 @@
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
 
-#define MAX_REPORTS (7*RUNTIME_SEC)
+#define MAX_REPORTS (8*RUNTIME_SEC)
 
 static volatile unsigned long ticks = 0;
+static volatile unsigned long idle_progress = 0;
 
-static struct sched_thd *timer, *init;
+static struct sched_thd *timer, *init, *idle;
 struct sched_thd blocked;
 struct sched_thd upcall_deactive;
 struct prio_list {
 	struct sched_thd runnable;
 } priorities[NUM_PRIOS];
 
+
+typedef enum {
+	MEAS_TYPE_CYCLE,
+	MEAS_TYPE_PROGRESS
+} meas_type_t;
 struct measurement {
+	meas_type_t t;
 	unsigned int a, b, c;
 } ms[MAX_REPORTS];
 int curr_meas = 0;
 
-static void record_measurement(unsigned int a, unsigned int b, unsigned int c)
+static void record_measurement(meas_type_t type, unsigned int a, unsigned int b, unsigned int c)
 {
 	if (curr_meas >= MAX_REPORTS) {
 		return;
 	}
 
+	ms[curr_meas].t = type;
 	ms[curr_meas].a = a;
 	ms[curr_meas].b = b;
 	ms[curr_meas].c = c;
@@ -42,7 +50,16 @@ static void report_measurement(void)
 	int i;
 	for (i = 0 ; i < MAX_REPORTS ; i++) {
 		if (ms[i].a || ms[i].b || ms[i].c) {
-			print("%d %d %d", ms[i].a, ms[i].b, ms[i].c);
+			switch (ms[i].t) {
+			case MEAS_TYPE_CYCLE:
+				print("cycle %d %d %d", ms[i].a, ms[i].b, ms[i].c);
+				break;
+			case MEAS_TYPE_PROGRESS:
+				print("progress %d %d %d", ms[i].a, ms[i].b, ms[i].c);
+				break;
+			default:
+				print("unknown measurement type %d.  %d%d", ms[i].t, 0,0);
+			}
 		}
 	}
 }
@@ -280,7 +297,7 @@ static void fp_print_taskqueue(struct sched_thd *h)
 
 	iter = FIRST_LIST(h, prio_next, prio_prev);
 	while (iter != h) {
-		record_measurement(ticks, iter->id, sched_get_accounting(iter)->cycles>>10);
+		record_measurement(MEAS_TYPE_CYCLE, ticks, iter->id, sched_get_accounting(iter)->cycles>>10);
 		iter = FIRST_LIST(iter, prio_next, prio_prev);
 	}
 }
@@ -297,6 +314,7 @@ void fp_print_stats(void)
 	}
 	fp_print_taskqueue(&blocked);
 	fp_print_taskqueue(&upcall_deactive);
+	record_measurement(MEAS_TYPE_PROGRESS, ticks, idle->id, idle_progress);
 
 	return;
 }
@@ -368,7 +386,7 @@ typedef void (*crt_thd_fn_t)(void *data);
 
 static void fp_idle_loop(void *d)
 {
-	while(1) ;
+	while(1) idle_progress++;
 }
 
 static void fp_yield(void)
@@ -595,8 +613,10 @@ int sched_create_net_upcall(unsigned short int port)
 	uc = sched_setup_upcall_thread(prio-1, prio-1, &b_id, 1);
 	assert(uc);
 	cos_brand_wire(b_id, COS_HW_NET, port);
-	print("creating brand and net upcall thread %d for port %d.  %d", 
-	      uc->id, port, 0);
+	print("Net upcall thread %d with priority %d make for port %d.", 
+	      uc->id, sched_get_metric(uc)->priority, port);
+
+	fp_change_prio_runnable(idle, 1);
 
 	return uc->id;
 }
@@ -622,7 +642,9 @@ int sched_init(void)
 	init = sched_alloc_thd(cos_get_thd_id());
 
 	/* create the idle thread */
-	sched_setup_thread(LOWEST_PRIO, LOWEST_PRIO, fp_idle_loop);
+	idle = sched_setup_thread(LOWEST_PRIO, LOWEST_PRIO, fp_idle_loop);
+	print("Idle thread has id %d with priority %d. %d", idle->id, LOWEST_PRIO, 0);
+
 	//thd_id = cos_create_thread((int)fp_idle_loop, 0, 0);
 	//new = sched_alloc_thd(thd_id);
 	//fp_add_thd(new, LOWEST_PRIO);
@@ -630,11 +652,13 @@ int sched_init(void)
 	/* create 3 threads to test rr and fp */
 //	sched_setup_thread(2, 2);
 //	sched_setup_thread(1, 1);
-	sched_setup_thread(2, 2, fp_net_thd);
+	new = sched_setup_thread(4, 4, fp_net_thd);
+	print("App1 thread has id %d with priority %d. %d", new->id, 2, 0);
 	//sched_setup_thread(4, 4, fp_net_thd);
 
 	/* Create the clock tick (timer) thread */
 	timer = sched_setup_upcall_thread(0, 0, &b_id, 0);
+	print("Timer thread has id %d with priority %d. %d", timer->id, 0, 0);
 	cos_brand_wire(b_id, COS_HW_TIMER, 0);
 
 	new = fp_get_highest_prio();
