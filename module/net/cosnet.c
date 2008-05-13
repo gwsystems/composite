@@ -10,6 +10,9 @@
  *  ./cnet_user (from the util dir)
  *  ifconfig cnet0 10.0.2.9 (done automatically)
  *
+ *  and on the sending host:
+ *  route add -net 10.0.2.0 gw masala netmask 255.255.255.0 eth0
+ *
  ***********************************************************************  
  *  TUN - Universal TUN/TAP device driver.
  *  Copyright (C) 1999-2002 Maxim Krasnyansky <maxk@qualcomm.com>
@@ -172,11 +175,11 @@ static int cosnet_queues_full(struct tun_struct *ts)
 
 	for (i = 0 ; i < COSNET_NUM_CHANNELS ; i++) {
 		if (skb_queue_len(&ts->cosnet[i].packet_queue) < COSNET_QUEUE_LEN) {
-			return 1;
+			return 0;
 		}
 	}
 	
-	return 0;
+	return 1;
 }
 
 struct tun_struct *local_ts = NULL;
@@ -192,6 +195,7 @@ int cosnet_create_brand(struct cos_brand_info *bi)
 
 	for (i = 0 ; i < COSNET_NUM_CHANNELS ; i++) {
 		if (!local_ts->cosnet[i].brand_info) {
+			printk("cos: cosnet - create brand for port %d\n", bi->brand_port);
 			local_ts->cosnet[i].brand_info = bi;
 			return 0;
 		}
@@ -209,6 +213,7 @@ int cosnet_remove_brand(struct cos_brand_info *bi)
 	for (i = 0 ; i < COSNET_NUM_CHANNELS ; i++) {
 		if (local_ts->cosnet[i].brand_info == bi) {
 			local_ts->cosnet[i].brand_info = NULL;
+			printk("cos: cosnet - remove brand for port %d\n", bi->brand_port);
 			skb_queue_purge(&local_ts->cosnet[i].packet_queue);
 			return 0;
 		}
@@ -254,7 +259,7 @@ int cosnet_get_packet(struct cos_brand_info *bi, char **packet,
 		struct cos_brand_info *tmp_bi = local_ts->cosnet[i].brand_info;
 		if (tmp_bi && tmp_bi->brand_port == bi->brand_port) {
 			struct sk_buff *skb;
-			int queues_full = cosnet_queues_full(local_ts);
+			//int queues_full = cosnet_queues_full(local_ts);
 
 			if (!(skb = skb_dequeue(&local_ts->cosnet[i].packet_queue))) {
 				/* This should NOT happen */
@@ -271,9 +276,10 @@ int cosnet_get_packet(struct cos_brand_info *bi, char **packet,
 			*fn = cosnet_skb_completion;
 			*data = (void*)skb;
 
-			if (queues_full) {
-				netif_wake_queue(local_ts->dev);
-			}
+//			if (queues_full) {
+				//netif_wake_queue(local_ts->dev);
+//			}
+			local_ts->stats.rx_packets++;
 
 			return 0;
 		}
@@ -282,9 +288,11 @@ int cosnet_get_packet(struct cos_brand_info *bi, char **packet,
 	return 1;
 } 
 
+extern void cos_net_prebrand(void);
 extern int  cos_net_try_brand(struct thread *bi, void *data, int len);
 extern void cos_net_register(struct cos_net_callbacks *cn_cb);
 extern void cos_net_deregister(struct cos_net_callbacks *cn_cb);
+extern int cos_net_notify_drop(struct thread *brand);
 
 struct cos_net_callbacks cosnet_cbs = {
 	.get_packet = cosnet_get_packet,
@@ -328,6 +336,8 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	//if (!tun->attached)
 	//goto drop;
 
+	cos_net_prebrand();
+
 	cosnet = cosnet_resolve_brand(tun, skb);
 	if (!cosnet) {
 		//printk("cos: NET->could not resolve brand.\n");
@@ -335,13 +345,15 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	}
 
 	/* Packet dropping */
-	if (cosnet_queues_full(tun)) {
+/*	if (cosnet_queues_full(tun)) {
 		netif_stop_queue(dev);
 		tun->stats.tx_fifo_errors++;
 		goto drop;
 	}
+*/
 	if (skb_queue_len(&cosnet->packet_queue) >= COSNET_QUEUE_LEN) {
 		//printk("cos: NET->overflowing packet queue.\n");
+		cos_net_notify_drop(cosnet->brand_info->brand);
 		goto drop;
 	}
 

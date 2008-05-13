@@ -35,6 +35,10 @@ LINUX MICROBENCHMARKS:
 - IPC using pipes on the redhat derivative takes 30158 cycles or
   12.566 microseconds.
 
+- Signal delivery within the same process by executing a tight loop
+  around kill sending a sigusr1 to a handler takes 4377 cycles on
+  vanilla.  6000 on fedora.
+
 * experiments conducted with the two threads at highest priority on
 the system, and it is ensured that the # of context switches induced
 by sched_yield is as expected by monitoring /proc/stats (ctxt %d)
@@ -48,12 +52,25 @@ COMPOSITE OS SYSTEM MICROBENCHMARKS:
   those overheads, it takes 688 cycles, or 0.287 microseconds for a
   thread switch.
 
-- Thread switch with actual scheduler involvement and WITH accounting
-  takes 976 cycles, or 0.407 microseconds.  The overhead is due to 1)
-  80 cycles of overhead from the rdtsc instruction, and 2) memory
-  accesses from the thd_sched_info structs (1 cache miss for all
-  accesses), 1 accessing the scheduler (spd) structure to update the
-  head of the event list, for each scheduler, and 1 cache miss to
-  point the previous event to the current, 1 cache miss to update the
-  current, for each scheduler.
+- Thread switch with actual component scheduler involvement
+  (run-queues, etc...) and WITH accounting takes 976 cycles, or 0.407
+  microseconds.  The overhead is due to 1) 80 cycles of overhead from
+  the rdtsc instruction, and 2) memory accesses from the
+  thd_sched_info structs (1 cache miss for all accesses), 1 accessing
+  the scheduler (spd) structure to update the head of the event list,
+  for each scheduler, and 1 cache miss to point the previous event to
+  the current, 1 cache miss to update the current, for each scheduler.
 
+- Making a brand that is ultimately delayed (not immediately executed
+  due to lesser urgency) using brand_upcall takes 0.163 microseconds
+  (391 cycles).
+
+- Immediate brand execution due to higher urgency and a direct return
+  to the calling thread (automatic return due to interrupted_thread)
+  takes 1.43 microseconds or 3442 cycles.  Cost of brand_next_thread
+  to determine if we should run the upcall thread alone is 1306
+  cycles, and brand_execution_completion is 940.  Take that with the
+  1110 cycles of hardware overhead and you have 3356, which is almost
+  right on the dot.
+
+- Executing a pending upcall takes 804 cycles, or 0.335 microseconds.

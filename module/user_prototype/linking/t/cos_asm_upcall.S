@@ -22,7 +22,7 @@ nil:
 .globl cos_static_stack
 cos_static_stack:
 /*	.rep 8193*/
-	.rep 16385
+	.rep 32768
 	.long 0
 	.endr
 

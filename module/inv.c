@@ -570,7 +570,7 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, int a, int b, int c)
 
 static inline void remove_preempted_status(struct thread *thd)
 {
-	assert(thd->flags & THD_STATE_PREEMPTED);
+//	assert(thd->flags & THD_STATE_PREEMPTED);
 
  	if (thd->preempter_thread) {
 		struct thread *p = thd->preempter_thread;
@@ -915,7 +915,7 @@ static struct pt_regs *brand_execution_completion(struct thread *curr)
 	 * do.
 	 */
 	prev = curr->interrupted_thread;
-	if (NULL == prev) {
+	if (/*1 || */NULL == prev) {
 		struct thd_sched_info *tsi;
 		struct spd *dest;
 
@@ -952,8 +952,12 @@ static struct pt_regs *brand_execution_completion(struct thread *curr)
 	 */
 	switch_thread_context(curr, prev);
 
-	assert(prev->flags & THD_STATE_PREEMPTED);
+	/* This might not be true if we are a brand that was just
+	 * branded by another thread.  That other thread just branded
+	 * us, and wasn't preempted. */
+//	if (prev->flags & THD_STATE_PREEMPTED) {
 	remove_preempted_status(prev);
+//	}
 	update_sched_evts(prev, COS_SCHED_EVT_NIL, 
 			  curr, COS_SCHED_EVT_BRAND_READY);
 
@@ -977,22 +981,23 @@ static struct pt_regs *brand_execution_completion(struct thread *curr)
  * invocation stack of the brand thread due to MPD whereby multiple
  * spds are collapsed into one composite spd.
  */
+struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
 
-extern void cos_syscall_brand_upcall(int spd_id, int thread_id, int flags);
-COS_SYSCALL struct thread *cos_syscall_brand_upcall_cont(int spd_id, int thread_id_flags)
+extern void cos_syscall_brand_upcall(int spd_id, int thread_id_flags);
+COS_SYSCALL struct pt_regs *cos_syscall_brand_upcall_cont(int spd_id, int thread_id_flags)
 {
-	struct thread *curr_thd, *brand_thd;
-	struct spd *curr_spd, *dest_spd;
-	struct thd_invocation_frame *frm;
-	struct pt_regs *rs;
+	struct thread *curr_thd, *brand_thd, *next_thd;
+	struct spd *curr_spd;
 	short int thread_id, flags;
+
+//	static int first = 1;
 
 	thread_id = thread_id_flags>>16;
 	flags = thread_id_flags & 0x0000FFFF;
 
 	curr_thd = thd_get_current();
 	curr_spd = thd_validate_get_current_spd(curr_thd, spd_id);
-	if (NULL == curr_spd) {
+	if (unlikely(NULL == curr_spd)) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
 		goto upcall_brand_err;		
 	}
@@ -1001,41 +1006,46 @@ COS_SYSCALL struct thread *cos_syscall_brand_upcall_cont(int spd_id, int thread_
 	 * current thread.
 	 */
 	brand_thd = thd_get_by_id(thread_id);
-	if (NULL == brand_thd) {
+	if (unlikely(NULL == brand_thd)) {
 		printk("cos: Attempting to brand thd %d - invalid thread.\n", thread_id);
 		goto upcall_brand_err;
 	}
-	if (thd_get_thd_spd(brand_thd) != curr_spd) {
+/*	if (unlikely(thd_get_thd_spd(brand_thd) != curr_spd)) {
 		printk("cos: attempted to make brand on thd %d, but from incorrect spd.\n", thread_id);
 		goto upcall_brand_err;
 	}
-	frm = thd_invstk_nth(brand_thd, 2);
-	if (NULL == frm) {
-		printk("cos: corrupted brand attempt on thd %d.\n", thread_id);
+*/
+	if (unlikely(!(brand_thd->flags & THD_STATE_BRAND) || !brand_thd->upcall_threads)) {
+		printk("cos: cos_brand_upcall, thread %d not a brand\n", thread_id);
 		goto upcall_brand_err;
 	}
-	dest_spd = frm->spd;
 
 	/*
-	 * - release prev cspd
-	 * - take new cspd
-	 * - switch_thread_context
+	 * FIXME: 1) reference counting taken care of????, 2) return 1
+	 * if pending invocation?
 	 */
+	
+	next_thd = brand_next_thread(brand_thd, curr_thd, 2);
 
-	rs = &brand_thd->regs;
-	/* this is paired with cos_asm_upcall.S */
-	rs->eax = thread_id;
-	rs->ecx = 0;
-	rs->ebx = 555;
-		
-	rs->edx = dest_spd->upcall_entry;
+	if (next_thd == curr_thd) {
+		curr_thd->regs.eax = 0;
+	} else {
+		curr_thd->regs.eax = 1;
+	}
+/* This to measure the cost of pending upcalls
+	if (unlikely(first)) {
+		brand_thd->pending_upcall_requests = 10000000;
+		first = 0;
+	}
+*/
+//	printk("cos: brand_upcall - branded %d from %d, continuing as %d\n",
+//	       thd_get_id(brand_thd), thd_get_id(curr_thd), thd_get_id(next_thd));
 
-	curr_thd->regs.eax = 0;
-	return brand_thd;
+	return &next_thd->regs;
 
 upcall_brand_err:
 	curr_thd->regs.eax = -1;
-	return curr_thd;
+	return &curr_thd->regs;
 }
 
 /*
@@ -1296,12 +1306,40 @@ static int cos_net_try_packet(struct thread *brand)
 
 extern int host_attempt_brand(struct thread *brand);
 
-int cos_net_try_brand(struct thread *t, void *data, int len)
+void cos_net_prebrand(void)
 {
 	cos_meas_event(COS_MEAS_PACKET_RECEPTION);
+}
+
+int cos_net_try_brand(struct thread *t, void *data, int len)
+{
+	cos_meas_event(COS_MEAS_PACKET_BRAND);
 
 	host_attempt_brand(t);
 	
+	return 0;
+}
+
+int cos_net_notify_drop(struct thread *brand)
+{
+	struct thread *uc;
+
+	if (!brand) return -1;
+
+	uc = brand->upcall_threads;
+	if (uc) {
+/*		if (uc->flags & THD_STATE_READY_UPCALL) {
+			cos_meas_event(COS_MEAS_PENDING_HACK)
+		}
+*/
+		if (brand->pending_upcall_requests == 0) {
+			cos_meas_event(COS_MEAS_PENDING_HACK);
+		}
+		//update_thd_evt_state(uc, COS_SCHED_EVT_BRAND_PEND, 1);
+	} else {
+		return -1;
+	}
+
 	return 0;
 }
 
@@ -1479,14 +1517,20 @@ static int update_evt_list(struct thd_sched_info *tsi)
 
 	sched = tsi->scheduler;
 	/* if tsi->scheduler, then all of this should follow */
+
+	/* 
+	 * FIXME: Shouldn't be accessing 2 additional cache lines
+	 * here.  Can get the tsi of the prev_evt from math from
+	 * tsi->evt_addr - (tsi->notification_offset-sched->prev_offset)
+	 */
 	evts = sched->kern_sched_shared_page->cos_events;
 	prev_evt = sched->prev_notification;
 	this_evt = tsi->notification_offset;
 	//printk("cos: previous event is %d, current event is %d\n",
 	//       (unsigned int)prev_evt, (unsigned int)this_evt);
-	if (prev_evt >= NUM_SCHED_EVTS ||
-	    this_evt >= NUM_SCHED_EVTS ||
-	    this_evt == 0) {
+	if (unlikely(prev_evt >= NUM_SCHED_EVTS ||
+		     this_evt >= NUM_SCHED_EVTS ||
+		     this_evt == 0)) {
 		printk("cos: events %d and %d out of range!\n", prev_evt, this_evt);
 		return -1;
 	}
@@ -1494,7 +1538,7 @@ static int update_evt_list(struct thd_sched_info *tsi)
 	 * is not part of the linked list of events, then add it */
 	if (prev_evt != this_evt && 
 	    COS_SCHED_EVT_NEXT(&evts[this_evt]) == 0) {
-		if (COS_SCHED_EVT_NEXT(&evts[prev_evt]) != 0) {
+		if (unlikely(COS_SCHED_EVT_NEXT(&evts[prev_evt]) != 0)) {
 			printk("cos: user-level scheduler %d not following evt protocol for evt %d\n",
 			       (unsigned int)spd_get_index(sched), (unsigned int)prev_evt);
 			/*
@@ -1521,6 +1565,10 @@ static inline void update_thd_evt_state(struct thread *t, int flags, int update_
 	for (i = 0 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
 		tsi = thd_get_sched_info(t, i);
 		if (NULL != tsi->scheduler && tsi->thread_notifications) {
+			/* 
+			 * FIXME: should a pending flag update
+			 * override an activate one????
+			 */
 			COS_SCHED_EVT_FLAGS(tsi->thread_notifications) = flags;
 //			printk("cos: updating event %d with flags %d.\n",
 //			       tsi->notification_offset, COS_SCHED_EVT_FLAGS(tsi->thread_notifications));
@@ -1671,7 +1719,7 @@ int brand_higher_urgency(struct thread *upcall, struct thread *prev)
 	 * upcall or not.  This will save the cache miss for accessing
 	 * the thread_sched_info, at the cost of a branch.
 	 */
-	else {
+/*	else {
 		for (i = 0 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
 			struct thd_sched_info *utsi;
 
@@ -1686,7 +1734,7 @@ int brand_higher_urgency(struct thread *upcall, struct thread *prev)
 			}
 		}
 	}
-
+*/
 	if (run) {
 		update_sched_evts(upcall, COS_SCHED_EVT_BRAND_ACTIVE, 
 				  prev, COS_SCHED_EVT_NIL);
@@ -1700,14 +1748,21 @@ int brand_higher_urgency(struct thread *upcall, struct thread *prev)
 /* 
  * This does NOT release the composite spd reference of the preempted
  * thread, as you might expect.
+ *
+ * preempt = 0 if you don't want any of the preemption lists to be
+ * updated, and if you don't want the preempted thread to be set as
+ * PREEMPTED.  Pass in 1 if you want both of those things.  2 if you
+ * only want the lists to be updated.  I know...this needs to change:
+ * hurried evolution.
  */
-struct thread *brand_next_thread(struct thread *brand, struct thread *preempted)
+struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, 
+				 int preempt)
 {
 	/* Assume here that we only have one upcall thread */
 	struct thread *upcall = brand->upcall_threads;
 
 	assert(brand->flags & (THD_STATE_BRAND|THD_STATE_HW_BRAND));
-	assert(!upcall || upcall->thread_brand == brand);
+	assert(upcall && upcall->thread_brand == brand);
 
 	/* 
 	 * If the upcall is already active, the scheduler's already
@@ -1722,6 +1777,8 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted)
 		cos_meas_event(COS_MEAS_BRAND_PEND);
 		brand->pending_upcall_requests++;
 		update_thd_evt_state(upcall, COS_SCHED_EVT_BRAND_PEND, 1);
+//		cos_meas_event(COS_MEAS_PENDING_HACK);
+
 		//printk("cos: upcall thread @ %x or %x, current is %d\n", 
 		//       upcall->regs.eip, upcall->regs.edx, thd_get_id(thd_get_current()));
 		return preempted;
@@ -1732,29 +1789,30 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted)
 		     COS_UPCALL_BRAND_EXEC, 0, 0, 0);
 	upcall->flags |= THD_STATE_ACTIVE_UPCALL;
 	upcall->flags &= ~THD_STATE_READY_UPCALL;
+	cos_net_try_packet(brand);
 
 	if (brand_higher_urgency(upcall, preempted)) {
 //		printk("cos: run upcall!\n");
-		if (preempted->flags & THD_STATE_PREEMPTED) {
+		if (unlikely(preempted->flags & THD_STATE_PREEMPTED)) {
 			printk("cos: WTF - preempted thread %d preempted, upcall %d.\n", 
 			       thd_get_id(preempted), thd_get_id(upcall));
 			return preempted;
 		}
-		if (preempted->preempter_thread != NULL) {
+		if (unlikely(preempted->preempter_thread != NULL)) {
 			printk("cos: WTF - preempter thread pointer of preempted thread %d not null, upcall %d.\n",
 			       thd_get_id(preempted), thd_get_id(upcall));
 			return preempted;
 		}
-		assert((preempted->flags & THD_STATE_PREEMPTED) == 0);
-		assert(preempted->preempter_thread == NULL);
-
-		preempted->flags |= THD_STATE_PREEMPTED;
-		preempted->preempter_thread = upcall;
-		upcall->interrupted_thread = preempted;
+		if (likely(preempt)) {
+			assert((preempted->flags & THD_STATE_PREEMPTED) == 0);
+			assert(preempted->preempter_thread == NULL);
+			
+			if (preempt == 1) preempted->flags |= THD_STATE_PREEMPTED;
+			preempted->preempter_thread = upcall;
+			upcall->interrupted_thread = preempted;
+		}
 
 		upcall_execute(upcall, preempted, (struct composite_spd*)thd_get_thd_spdpoly(preempted));
-
-		cos_net_try_packet(brand);
 		/* actually setup the brand/upcall to happen here? */
 		cos_meas_event(COS_MEAS_BRAND_UC);
 		return upcall;

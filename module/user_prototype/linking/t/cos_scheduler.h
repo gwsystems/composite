@@ -135,6 +135,7 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 struct sched_accounting {
 	unsigned long C, T, C_used, T_left;
 	unsigned long long cycles;
+	unsigned long progress;
 };
 
 struct sched_metric {

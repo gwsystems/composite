@@ -3,6 +3,10 @@
 //#include <cos_alloc.h>
 
 #define NUM_THDS 2
+#define BLOCKED 0x8000000
+#define GET_CNT(x) (x & (~BLOCKED))
+#define IS_BLOCKED(x) (x & BLOCKED)
+
 struct thd_map {
 	unsigned short int thd, upcall;
 	volatile int pending_evts, blocked;
@@ -22,8 +26,13 @@ static struct thd_map *get_thd_map(unsigned short int thd_id)
 	return NULL;
 }
 
+#define REPORT_PACKETS_WINDOW 100
+extern void sched_report_processing(unsigned int);
+
 void synthesize_work(unsigned long long amnt)
 {
+	static int packets_processed[MAX_NUM_THREADS] = {0, };
+	int id = cos_get_thd_id();
 	unsigned long long start, end;
 
 	rdtscll(start);
@@ -32,6 +41,12 @@ void synthesize_work(unsigned long long amnt)
 		if (end-start > amnt) {
 			break;
 		}
+	}
+
+	packets_processed[id]++;
+	if (packets_processed[id] % REPORT_PACKETS_WINDOW == 0) {
+		sched_report_processing(REPORT_PACKETS_WINDOW);
+		packets_processed[id] = 0;
 	}
 }
 
@@ -55,11 +70,18 @@ static int deposit_event(unsigned short int thd_id)
 {
 	struct thd_map *tm = get_thd_map(thd_id);
 	int pe;
+	
+	if (!tm) return 0;
 
-	assert(tm);
-	pe = tm->pending_evts;
-	tm->pending_evts++;
-	if (tm->blocked && pe <= 0) {
+//	sched_wakeup(tm->thd);
+
+//	return 0;
+
+	do {
+		pe = tm->pending_evts;
+	} while(cos_cmpxchg(&tm->pending_evts, pe, pe+1) != pe+1);
+
+	if (pe == BLOCKED /* implies cnt == 0 */) {
 		sched_wakeup(tm->thd);
 	}
 
@@ -71,15 +93,42 @@ static int retrieve_event(unsigned short int thd_id)
 	struct thd_map *tm = get_thd_map(thd_id);
 	int pe;
 
+//	sched_block();
+
+//	return 0;
+
 	assert(tm);
+//again:
 	pe = tm->pending_evts;
+	assert(!IS_BLOCKED(pe));
 	if (0 == pe) {
-		tm->blocked = 1;
-		assert(!sched_block());
-		tm->blocked = 0;
-		assert(tm->pending_evts);
+		int ret;
+		/* if this fails, then there's a pending evt, mission accomp */
+		ret = cos_cmpxchg(&tm->pending_evts, 0, BLOCKED);
+		if (ret == BLOCKED) {
+			//tm->blocked = 1;
+			//if (pe != 0) {
+			//tm->blocked = 0;
+			//goto again;
+			//}
+
+			assert(!sched_block());
+			//tm->blocked = 0;
+			//assert(tm->pending_evts);
+			do {
+				pe = tm->pending_evts;
+				assert(IS_BLOCKED(pe) && GET_CNT(pe) > 0);
+			} while (cos_cmpxchg(&tm->pending_evts, pe, GET_CNT(pe)-1) != GET_CNT(pe)-1);
+		} else {
+			do {
+				pe = tm->pending_evts;
+			} while(cos_cmpxchg(&tm->pending_evts, pe, pe-1) != pe-1);
+		}
+	} else {
+		do {
+			pe = tm->pending_evts;
+		} while(cos_cmpxchg(&tm->pending_evts, pe, pe-1) != pe-1);
 	}
-	tm->pending_evts--;
 
 	return 0;
 }

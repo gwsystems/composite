@@ -2150,14 +2150,19 @@ static struct timer_list timer;
 
 extern void update_sched_evts(struct thread *new, int new_flags, 
 		       struct thread *prev, int prev_flags);
-extern struct thread *brand_next_thread(struct thread *brand, struct thread *preempted);
+extern struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, 
+					int preempt);
 
 extern void cos_net_deregister(struct cos_net_callbacks *cn_cb);
 extern void cos_net_register(struct cos_net_callbacks *cn_cb);
 extern int cos_net_try_brand(struct thread *t, void *data, int len);
+extern void cos_net_prebrand(void);
+extern int cos_net_notify_drop(struct thread *brand);
 EXPORT_SYMBOL(cos_net_deregister);
 EXPORT_SYMBOL(cos_net_register);
 EXPORT_SYMBOL(cos_net_try_brand);
+EXPORT_SYMBOL(cos_net_prebrand);
+EXPORT_SYMBOL(cos_net_notify_drop);
 extern void cos_net_init(void);
 extern void cos_net_finish(void);
 
@@ -2222,12 +2227,11 @@ int host_attempt_brand(struct thread *brand)
 				goto timer_finish;
 			}
 */
-
 			cos_current = thd_get_current();
 			thd_save_preempted_state(cos_current, regs);
 			//update_sched_evts(cos_upcall_thread, COS_SCHED_EVT_BRAND_ACTIVE,
 			//		  cos_current, COS_SCHED_EVT_NIL);
-			next = brand_next_thread(brand, cos_current);
+			next = brand_next_thread(brand, cos_current, 1);
 			if (next != cos_current) {
 				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
 					printk("cos: upcall thread %d is not set to be an active upcall.\n",

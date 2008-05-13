@@ -154,10 +154,13 @@ cos_syscall_brand_upcall:
 	movl %ebx, PT_EBX(%eax)
 	movl %ebp, PT_ECX(%eax) /* save the return sp, so that sysenter will jump to it */
 	movl %ecx, PT_EDX(%eax) /* save the return address (so that sysexit will return to it) */
+	movl %ebp, PT_OLDESP(%eax)
+	movl %ecx, PT_EIP(%eax)
 
 	/* save volatile registers, as defined by cdecl (including ebx above) */
 	movl %esi, PT_ESI(%eax)
 	movl %edi, PT_EDI(%eax)
+	movl %ebp, PT_EBP(%eax)
 
 	pushl %esi
 	pushl %ebx
@@ -168,13 +171,15 @@ cos_syscall_brand_upcall:
 	/* eax = thd to continue -- restore registers from previous yield, again */
 	movl PT_EBX(%eax), %ebx
 	movl PT_ECX(%eax), %ecx
-	movl %ecx, (COS_SYSCALL_ECX)(%esp) 
 	movl PT_EDX(%eax), %edx
-	movl %edx, (COS_SYSCALL_EDX)(%esp) 
 	movl PT_ESI(%eax), %esi
 	movl PT_EDI(%eax), %edi
+	movl PT_EBP(%eax), %ebp
 	movl PT_EAX(%eax), %eax
 		
+	movl %ecx, (COS_SYSCALL_ECX)(%esp) 
+	movl %edx, (COS_SYSCALL_EDX)(%esp) 
+
 	ret
 
 

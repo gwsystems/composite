@@ -46,7 +46,7 @@ static inline void aed_ctxt_switch_ioctl(340,7506
 static inline void *aed_mmap(aed_mmap352,7755
 static inline int aed_munmap(374,8214
 
-hijack.c,5134
+hijack.c,5169
 #define MODULE_NAME 43,947
 pte_t *shared_region_pte;shared_region_pte67,1766
 pgd_t *union_pgd;union_pgd68,1792
@@ -122,56 +122,57 @@ int fault_ptr 1602,44972
 struct fault_info 1603,44991
 } faults[faults1606,45090
 static void cos_handle_page_fault(1609,45158
-struct my_desc_struct 1651,46271
-#define _set_gate(1658,46480
-static void set_trap_gate(1671,46875
-static inline unsigned long decipher_descriptor_address(1677,47038
-static inline unsigned long change_page_fault_handler(1686,47319
-	struct desc_ptr 1693,47569
-#define BUCKET_ORDER 1743,49322
-#define BUCKET_MASK 1744,49346
-#define BUCKET_HASH(1745,49394
-#define NUM_BUCKETS 1746,49460
-static unsigned long fault_addrs[fault_addrs1748,49519
-int main_page_fault_interposition(1755,49712
-struct mm_struct* module_page_fault(1889,53490
-vaddr_t kern_pgtbl_mapping;1906,54012
-struct mm_struct *kern_mm;kern_mm1907,54040
-int kern_handle;1908,54067
-void *cos_alloc_page(cos_alloc_page1913,54117
-void cos_free_page(1922,54250
-void *va_to_pa(va_to_pa1932,54526
-void *pa_to_va(pa_to_va1937,54582
-static inline pte_t *pgtbl_lookup_address(pgtbl_lookup_address1942,54638
-void pgtbl_print_tree(1964,55101
-int pgtbl_add_entry(1980,55481
-phys_addr_t pgtbl_rem_ret(1997,55964
-vaddr_t pgtbl_vaddr_to_kaddr(2010,56218
-int pgtbl_entry_absent(2036,56893
-unsigned long get_valid_pgtbl_entry(2043,57066
-void print_valid_pgtbl_entries(2058,57299
-void zero_pgtbl_range(2071,57567
-void copy_pgtbl_range(2085,57978
-void copy_pgtbl_range_nocheck(2102,58508
-void copy_pgtbl(2113,58908
-void switch_host_pg_tbls(2123,59215
-static struct timer_list timer;2149,59862
-#define NUM_NET_BRANDS 2156,60141
-static void timer_interrupt(2161,60336
-static void register_timers(2284,64642
-static void deregister_timers(2293,64779
-void thd_publish_data_page(2303,64954
-void switch_thread_data_page(2317,65368
-static int aed_open(2339,66009
-#define MAGIC_VAL_TEST 2428,69419
-static int aed_release(2451,69888
-	#define PER_ROW 2517,71695
-static struct file_operations proc_aed_fops 2547,72600
-static int make_proc_aed(2555,72820
-static int asym_exec_dom_init(2570,73109
-static void asym_exec_dom_exit(2608,74156
+struct my_desc_struct 1651,46277
+#define _set_gate(1658,46486
+static void set_trap_gate(1671,46881
+static inline unsigned long decipher_descriptor_address(1677,47044
+static inline unsigned long change_page_fault_handler(1686,47325
+	struct desc_ptr 1693,47575
+#define BUCKET_ORDER 1743,49328
+#define BUCKET_MASK 1744,49352
+#define BUCKET_HASH(1745,49400
+#define NUM_BUCKETS 1746,49466
+static unsigned long fault_addrs[fault_addrs1748,49525
+int main_page_fault_interposition(1755,49718
+struct mm_struct* module_page_fault(1889,53496
+vaddr_t kern_pgtbl_mapping;1906,54018
+struct mm_struct *kern_mm;kern_mm1907,54046
+int kern_handle;1908,54073
+void *cos_alloc_page(cos_alloc_page1913,54123
+void cos_free_page(1922,54256
+void *va_to_pa(va_to_pa1932,54532
+void *pa_to_va(pa_to_va1937,54588
+static inline pte_t *pgtbl_lookup_address(pgtbl_lookup_address1942,54644
+void pgtbl_print_tree(1964,55107
+int pgtbl_add_entry(1980,55487
+phys_addr_t pgtbl_rem_ret(1997,55970
+vaddr_t pgtbl_vaddr_to_kaddr(2010,56224
+int pgtbl_entry_absent(2036,56899
+unsigned long get_valid_pgtbl_entry(2043,57072
+void print_valid_pgtbl_entries(2058,57305
+void zero_pgtbl_range(2071,57573
+void copy_pgtbl_range(2085,57984
+void copy_pgtbl_range_nocheck(2102,58514
+void copy_pgtbl(2113,58914
+void switch_host_pg_tbls(2123,59221
+static struct timer_list timer;2149,59868
+#define NUM_NET_BRANDS 2167,60582
+int host_attempt_brand(2172,60777
+static void timer_interrupt(2285,64714
+static void register_timers(2298,64969
+static void deregister_timers(2307,65106
+void thd_publish_data_page(2317,65281
+void switch_thread_data_page(2331,65695
+static int aed_open(2353,66336
+#define MAGIC_VAL_TEST 2442,69746
+static int aed_release(2466,70232
+	#define PER_ROW 2533,72058
+static struct file_operations proc_aed_fops 2563,72963
+static int make_proc_aed(2571,73183
+static int asym_exec_dom_init(2586,73472
+static void asym_exec_dom_exit(2624,74519
 
-inv.c,3241
+inv.c,3610
 unsigned int shared_region_page[1024] PAGE_ALIGNED;23,620
 unsigned int shared_data_page[1024] PAGE_ALIGNED;24,672
 static inline struct shared_user_data *get_shared_data(get_shared_data26,723
@@ -183,59 +184,66 @@ static inline void switch_pg_tbls(57,1417
 static inline void open_close_spd(67,1583
 static inline void open_close_spd_ret(74,1727
 static void print_stack(83,2001
-void print_regs(95,2417
-struct inv_ret_struct 107,2841
-COS_SYSCALL vaddr_t ipc_walk_static_cap(118,3128
-COS_SYSCALL struct thd_invocation_frame *pop(pop233,7260
-COS_SYSCALL int cos_syscall_void(277,8675
-struct thread *ready_boot_thread(ready_boot_thread285,8848
-void switch_thread_context(310,9389
-COS_SYSCALL int cos_syscall_resume_return_cont(345,10278
-void initialize_sched_info(434,13045
-static inline void copy_sched_info_structs(466,13877
-void copy_sched_info(489,14431
-COS_SYSCALL int cos_syscall_create_thread(503,14903
-COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(cos_syscall_switch_thread_cont585,17566
-COS_SYSCALL void cos_syscall_kill_thd_cont(798,24321
-static struct thread *upcall_setup(upcall_setup806,24458
-static struct thread *upcall_execute(upcall_execute825,24923
-static struct pt_regs *brand_execution_completion(brand_execution_completion841,25397
-COS_SYSCALL struct thread *cos_syscall_brand_upcall_cont(cos_syscall_brand_upcall_cont932,28459
-static inline struct thread* verify_brand_thd(1020,31710
-static void print_thd_sched_structs(1040,32260
-COS_SYSCALL int cos_syscall_brand_cntl(1057,32785
-struct thread *cos_timer_brand_thd;cos_timer_brand_thd1119,34307
-#define NUM_NET_BRANDS 1120,34343
-int active_net_brands 1121,34368
-struct cos_brand_info cos_net_brand[cos_net_brand1122,34395
-struct cos_net_callbacks *cos_net_fns cos_net_fns1123,34448
-int cos_net_try_brand(1125,34495
-void cos_net_register(1132,34617
-void cos_net_deregister(1138,34750
-static int brand_get_packet(1145,34866
-COS_SYSCALL int cos_syscall_brand_wire(1190,35808
-static int verify_trust(1239,37059
-COS_SYSCALL int cos_syscall_upcall_cont(1264,37671
-static int update_evt_list(1334,39794
-static inline void update_thd_evt_state(1376,41158
-static inline void update_thd_evt_cycles(1399,41664
-void update_sched_evts(1420,42280
-static inline int most_common_sched_depth(1456,43174
-int brand_higher_urgency(1500,44653
-struct thread *brand_next_thread(brand_next_thread1545,45956
-static struct thread *brand_term_find_run_preempted(brand_term_find_run_preempted1620,48760
-struct thread *brand_return_next_thd(brand_return_next_thd1705,51286
-COS_SYSCALL int cos_syscall_sched_cntl(1777,53426
-static int mpd_split_composite_populate(1928,57814
-static int mpd_split(1986,59410
-static inline struct composite_spd *get_spd_to_subordinate(get_spd_to_subordinate2069,61677
-static struct composite_spd *mpd_merge(mpd_merge2098,63059
-struct spd *t1 t12146,64487
-static int mpd_state 2148,64543
-COS_SYSCALL int cos_syscall_mpd_cntl(2150,64570
-COS_SYSCALL int cos_syscall_mmap_cntl(2327,68827
-COS_SYSCALL int cos_syscall_print(2391,70388
-void *cos_syscall_tbl[cos_syscall_tbl2402,70642
+void print_regs(94,2277
+struct inv_ret_struct 106,2701
+COS_SYSCALL vaddr_t ipc_walk_static_cap(117,2988
+COS_SYSCALL struct thd_invocation_frame *pop(pop232,7100
+COS_SYSCALL int cos_syscall_void(276,8515
+struct thread *ready_boot_thread(ready_boot_thread284,8688
+void switch_thread_context(309,9229
+COS_SYSCALL int cos_syscall_resume_return_cont(344,10118
+void initialize_sched_info(433,12885
+static inline void copy_sched_info_structs(465,13717
+void copy_sched_info(488,14271
+COS_SYSCALL int cos_syscall_create_thread(502,14743
+static inline void remove_preempted_status(571,16707
+COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(cos_syscall_switch_thread_cont612,18178
+COS_SYSCALL void cos_syscall_kill_thd_cont(828,25113
+static struct thread *upcall_setup(upcall_setup836,25250
+static struct thread *upcall_execute(upcall_execute856,25746
+static struct pt_regs *sched_tailcall_pending_upcall(sched_tailcall_pending_upcall878,26414
+static struct pt_regs *brand_execution_completion(brand_execution_completion899,26994
+COS_SYSCALL struct pt_regs *cos_syscall_brand_upcall_cont(cos_syscall_brand_upcall_cont982,29846
+static inline struct thread* verify_brand_thd(1087,33622
+static void print_thd_sched_structs(1107,34172
+COS_SYSCALL int cos_syscall_brand_cntl(1124,34697
+struct thread *cos_timer_brand_thd;cos_timer_brand_thd1192,36424
+#define NUM_NET_BRANDS 1193,36460
+unsigned int active_net_brands 1194,36485
+struct cos_brand_info cos_net_brand[cos_net_brand1195,36521
+struct cos_net_callbacks *cos_net_fns cos_net_fns1196,36574
+void cos_net_init(1198,36621
+struct cos_brand_info *cos_net_brand_info(cos_net_brand_info1209,36797
+void cos_net_finish(1221,37000
+void cos_net_register(1239,37425
+void cos_net_deregister(1247,37637
+static int brand_get_packet(1255,37806
+static int cos_net_try_packet(1291,38473
+void cos_net_prebrand(1316,38926
+int cos_net_try_brand(1321,39003
+COS_SYSCALL int cos_syscall_brand_wire(1335,39358
+static int verify_trust(1386,40668
+COS_SYSCALL int cos_syscall_upcall_cont(1411,41280
+static int update_evt_list(1492,43875
+static inline void update_thd_evt_state(1534,45239
+static inline void update_thd_evt_cycles(1563,45978
+void update_sched_evts(1584,46594
+static inline int most_common_sched_depth(1623,47617
+int brand_higher_urgency(1667,49096
+struct thread *brand_next_thread(brand_next_thread1730,51011
+static struct thread *brand_term_find_run_preempted(brand_term_find_run_preempted1834,55304
+struct thread *brand_return_next_thd(brand_return_next_thd1919,57830
+COS_SYSCALL int cos_syscall_sched_cntl(1992,60028
+static int mpd_split_composite_populate(2143,64416
+static int mpd_split(2201,66012
+static inline struct composite_spd *get_spd_to_subordinate(get_spd_to_subordinate2284,68279
+static struct composite_spd *mpd_merge(mpd_merge2313,69661
+struct spd *t1 t12361,71089
+static int mpd_state 2363,71145
+COS_SYSCALL int cos_syscall_mpd_cntl(2365,71172
+COS_SYSCALL int cos_syscall_mmap_cntl(2542,75429
+COS_SYSCALL int cos_syscall_print(2606,76990
+void *cos_syscall_tbl[cos_syscall_tbl2617,77244
 
 ipc.S,1296
 kernel_ipc_syscall:kernel_ipc_syscall31,792
@@ -258,29 +266,29 @@ syscall_resume_err:syscall_resume_err137,3693
 .globl 147,3965
 .align 148,3997
 cos_syscall_brand_upcall:cos_syscall_brand_upcall149,4007
-.globl 186,5158
-.align 187,5191
-cos_syscall_switch_thread:cos_syscall_switch_thread188,5201
-.align 230,6510
-ret_from_preemption_getregs:ret_from_preemption_getregs231,6519
-ret_from_preemption:ret_from_preemption234,6633
-.align 253,6983
-.globl 254,6992
-cos_switch_error:cos_switch_error255,7016
-.globl 259,7068
-.align 260,7096
-cos_syscall_kill_thd:cos_syscall_kill_thd261,7106
-.globl 267,7190
-.align 268,7216
-cos_syscall_upcall:cos_syscall_upcall269,7226
-.globl 293,7706
-.align 294,7736
-composite_make_syscall:composite_make_syscall295,7746
-.align 313,8307
-composite_call_err:composite_call_err314,8317
-.globl 326,8614
-.align 327,8640
-composite_ret_err:composite_ret_err328,8650
+.globl 189,5209
+.align 190,5242
+cos_syscall_switch_thread:cos_syscall_switch_thread191,5252
+.align 233,6561
+ret_from_preemption_getregs:ret_from_preemption_getregs234,6570
+ret_from_preemption:ret_from_preemption237,6684
+.align 256,7034
+.globl 257,7043
+cos_switch_error:cos_switch_error258,7067
+.globl 262,7119
+.align 263,7147
+cos_syscall_kill_thd:cos_syscall_kill_thd264,7157
+.globl 270,7241
+.align 271,7267
+cos_syscall_upcall:cos_syscall_upcall272,7277
+.globl 314,8147
+.align 315,8177
+composite_make_syscall:composite_make_syscall316,8187
+.align 334,8748
+composite_call_err:composite_call_err335,8758
+.globl 347,9055
+.align 348,9081
+composite_ret_err:composite_ret_err349,9091
 
 asym_exec_dom.h,171
 #define HIJACK_SWITCH_TO_GUEST_ID 4,53
@@ -662,7 +670,7 @@ char *footer footer82,2178
 static inline void create_stanza(112,2591
 int main(128,2986
 
-user_prototype/linking/cos_loader.c,3725
+user_prototype/linking/cos_loader.c,3751
 #define NUM_ATOMIC_SYMBS 38,1218
 #define NUM_KERN_SYMBS 39,1247
 const char *USER_CAP_TBL_NAME USER_CAP_TBL_NAME41,1292
@@ -752,7 +760,8 @@ static void setup_kernel(1534,38176
 static inline void print_usage(1614,40140
 #define STUB_PROG_LEN 1624,40375
 void segv_handler(1631,40547
-int main(1650,41104
+void set_prio(1641,40815
+int main(1667,41380
 
 user_prototype/linking/c/c0.c,92
 #define ITER 9,205
@@ -792,30 +801,30 @@ void *cos_heap_ptr;cos_heap_ptr16,382
 #define cos_syscall_1(83,3448
 #define cos_syscall_2(92,3830
 #define cos_syscall_3(101,4243
-static inline int cos_mmap_cntl(126,5627
-static inline int cos_brand_upcall(133,5879
-static inline int cos_switch_thread(152,6736
-static inline void cos_next_thread(178,7859
-static inline unsigned short int cos_get_thd_id(185,8043
-static inline void *cos_get_arg_region(cos_get_arg_region192,8192
-static inline long cos_spd_id(199,8333
-static inline void *cos_get_heap_ptr(cos_get_heap_ptr204,8399
-static inline void cos_set_heap_ptr(209,8469
-#define COS_EXTERN_FN(214,8544
-static inline long cos_cmpxchg(216,8589
-static inline void *cos_memcpy(cos_memcpy230,8878
-static inline void *cos_memset(cos_memset251,9368
-#define COS_ARGREG_SZ 264,9628
-#define COS_MAX_ARG_SZ 265,9660
-#define COS_IN_ARGREG(266,9688
-#define ALIGN(271,9840
-struct cos_argreg_extent 288,10167
-static inline void cos_argreg_init(292,10218
-static inline void *cos_argreg_alloc(cos_argreg_alloc299,10335
-static inline int cos_argreg_free(317,10780
-#define prevent_tail_call(331,11119
-#define rdtscll(332,11188
-#define COS_FIRST_ARG 334,11253
+static inline int cos_mmap_cntl(126,5639
+static inline int cos_brand_upcall(133,5891
+static inline int cos_switch_thread(152,6748
+static inline void cos_next_thread(178,7871
+static inline unsigned short int cos_get_thd_id(185,8055
+static inline void *cos_get_arg_region(cos_get_arg_region192,8204
+static inline long cos_spd_id(199,8345
+static inline void *cos_get_heap_ptr(cos_get_heap_ptr204,8411
+static inline void cos_set_heap_ptr(209,8481
+#define COS_EXTERN_FN(214,8556
+static inline long cos_cmpxchg(216,8601
+static inline void *cos_memcpy(cos_memcpy230,8890
+static inline void *cos_memset(cos_memset251,9380
+#define COS_ARGREG_SZ 264,9640
+#define COS_MAX_ARG_SZ 265,9672
+#define COS_IN_ARGREG(266,9700
+#define ALIGN(271,9852
+struct cos_argreg_extent 288,10183
+static inline void cos_argreg_init(292,10234
+static inline void *cos_argreg_alloc(cos_argreg_alloc299,10351
+static inline int cos_argreg_free(317,10796
+#define prevent_tail_call(332,11140
+#define rdtscll(333,11209
+#define COS_FIRST_ARG 335,11274
 
 user_prototype/linking/t/comp1.c,292
 const char comp1str[comp1str4,47
@@ -830,7 +839,7 @@ void c1_yield(56,783
 void cos_upcall_fn(63,919
 void symb_dump(79,1173
 
-user_prototype/linking/t/cos_scheduler.h,1676
+user_prototype/linking/t/cos_scheduler.h,1717
 #define COS_SCHEDULER_H11,267
 static inline int cos_sched_lock_take(21,486
 static inline int cos_sched_lock_release(47,1101
@@ -848,28 +857,29 @@ static inline int cos_switch_thread_release(73,1758
 #define sched_thd_ready(105,2835
 #define sched_thd_blocked(106,2893
 #define sched_thd_event(107,2953
-#define SCHED_NUM_THREADS 109,3031
-#define INIT_LIST(111,3074
-#define ADD_LIST(114,3150
-#define REM_LIST(120,3315
-#define FIRST_LIST(125,3479
-#define LAST_LIST(128,3547
-#define EMPTY_LIST(131,3615
-struct sched_accounting 134,3681
-struct sched_metric 139,3776
-struct sched_thd 143,3841
-static inline struct sched_accounting *sched_get_accounting(sched_get_accounting169,4695
-static inline struct sched_metric *sched_get_metric(sched_get_metric176,4841
-typedef void (*sched_evt_visitor_t)sched_evt_visitor_t185,5035
-static inline struct sched_thd *sched_evt_to_thd(sched_evt_to_thd190,5374
-static inline void sched_set_thd_urgency(197,5537
-static inline struct sched_thd *sched_get_mapping(sched_get_mapping214,5865
-static inline struct sched_thd *sched_get_current(sched_get_current225,6121
-static inline int sched_add_mapping(236,6312
-static inline void sched_rem_mapping(248,6537
-static inline int sched_is_grp(255,6680
-static inline struct sched_thd *sched_get_members(sched_get_members269,6894
-static inline struct sched_thd *sched_get_grp(sched_get_grp277,7081
+#define sched_thd_inactive_evt(108,3030
+#define SCHED_NUM_THREADS 110,3097
+#define INIT_LIST(112,3140
+#define ADD_LIST(115,3216
+#define REM_LIST(121,3381
+#define FIRST_LIST(126,3545
+#define LAST_LIST(129,3613
+#define EMPTY_LIST(132,3681
+struct sched_accounting 135,3747
+struct sched_metric 141,3867
+struct sched_thd 145,3932
+static inline struct sched_accounting *sched_get_accounting(sched_get_accounting171,4786
+static inline struct sched_metric *sched_get_metric(sched_get_metric178,4932
+typedef void (*sched_evt_visitor_t)sched_evt_visitor_t187,5126
+static inline struct sched_thd *sched_evt_to_thd(sched_evt_to_thd192,5465
+static inline void sched_set_thd_urgency(199,5628
+static inline struct sched_thd *sched_get_mapping(sched_get_mapping216,5956
+static inline struct sched_thd *sched_get_current(sched_get_current227,6212
+static inline int sched_add_mapping(238,6403
+static inline void sched_rem_mapping(250,6628
+static inline int sched_is_grp(257,6771
+static inline struct sched_thd *sched_get_members(sched_get_members271,6985
+static inline struct sched_thd *sched_get_grp(sched_get_grp279,7172
 
 user_prototype/linking/t/comp2.c,821
 void nothing(6,97
@@ -894,13 +904,13 @@ int test_locks_fn(124,2285
 int test_locks(152,3007
 void cos_upcall_fn(164,3318
 int test_brands(200,3974
-#define SZ 213,4194
-#define INC 214,4209
-#define NP 215,4236
-int test_mmapping(219,4385
-int test_print(270,5623
-int sched_init(278,5729
-void symb_bag(295,5983
+#define SZ 213,4200
+#define INC 214,4215
+#define NP 215,4242
+int test_mmapping(219,4391
+int test_print(270,5629
+int sched_init(278,5735
+void symb_bag(295,5989
 
 user_prototype/linking/t/comp0.c,74
 int nothing 5,58
@@ -1011,7 +1021,7 @@ char foo[foo7,87
 int validate_format(10,155
 int printstr(23,379
 int print_vals(45,865
-int main(56,1104
+int main(56,1102
 
 user_prototype/linking/t/s_stubprint.S,172
 .text	6,78
@@ -1096,21 +1106,21 @@ foo_inv:foo_inv14,309
 
 user_prototype/linking/t/cos_scheduler.c,703
 int cos_sched_process_events(6,140
-void cos_sched_set_evt_urgency(77,1548
-struct sched_thd *sched_thd_map[sched_thd_map115,2342
-struct sched_thd sched_thds[sched_thds116,2394
-struct sched_thd sched_grps[sched_grps117,2443
-struct sched_thd *sched_map_evt_thd[sched_map_evt_thd118,2491
-void sched_init_thd(120,2545
-short int sched_alloc_event(133,2885
-void sched_ds_init(163,3573
-struct sched_thd *sched_alloc_thd(sched_alloc_thd189,4080
-struct sched_thd *sched_alloc_upcall_thd(sched_alloc_upcall_thd206,4362
-void sched_make_grp(218,4552
-struct sched_thd *sched_alloc_grp(sched_alloc_grp228,4775
-void sched_free_thd(250,5134
-void sched_add_grp(258,5239
-void sched_rem_grp(273,5565
+void cos_sched_set_evt_urgency(78,1608
+struct sched_thd *sched_thd_map[sched_thd_map116,2402
+struct sched_thd sched_thds[sched_thds117,2454
+struct sched_thd sched_grps[sched_grps118,2503
+struct sched_thd *sched_map_evt_thd[sched_map_evt_thd119,2551
+void sched_init_thd(121,2605
+short int sched_alloc_event(135,2965
+void sched_ds_init(165,3653
+struct sched_thd *sched_alloc_thd(sched_alloc_thd191,4160
+struct sched_thd *sched_alloc_upcall_thd(sched_alloc_upcall_thd208,4442
+void sched_make_grp(220,4632
+struct sched_thd *sched_alloc_grp(sched_alloc_grp230,4855
+void sched_free_thd(252,5214
+void sched_add_grp(260,5319
+void sched_rem_grp(275,5645
 
 user_prototype/linking/t/cos_list.h,109
 #define COS_LIST_H2,19
@@ -1229,50 +1239,66 @@ static inline int strlen(19,254
 #define ARG_STRLEN 27,347
 static inline int print(29,427
 
-user_prototype/linking/t/fp_rr.c,1612
+user_prototype/linking/t/fp_rr.c,2160
 #define NUM_PRIOS 5,80
 #define LOWEST_PRIO 6,100
-static volatile unsigned long ticks 8,135
-static struct sched_thd *timer,timer10,177
-static struct sched_thd *timer, *init;init10,177
-struct sched_thd blocked;11,216
-struct sched_thd upcall_deactive;12,242
-struct prio_list 13,276
-} priorities[priorities15,323
-static inline void fp_add_thd(17,349
-static inline void fp_add_evt_thd(33,767
-static inline void fp_change_prio_runnable(47,1156
-static inline void fp_move_end_runnable(62,1531
-static inline void fp_block_thd(69,1687
-static inline void fp_resume_thd(79,1908
-static void fp_activate_upcall(89,2112
-static void fp_deactivate_upcall(97,2304
-static struct sched_thd *fp_get_highest_prio(fp_get_highest_prio105,2526
-static struct sched_thd *fp_get_second_highest_prio(fp_get_second_highest_prio128,2945
-static inline void fp_requeue_highest(166,3799
-static void evt_callback(172,3939
-static inline struct sched_thd *fp_schedule(fp_schedule196,4545
-#define RUNTIME_SEC 207,4786
-#define TIMER_FREQ 208,4808
-#define CYC_PER_USEC 209,4831
-void fp_timer_tick(211,4858
-static void fp_event_completion(235,5379
-typedef void (*crt_thd_fn_t)crt_thd_fn_t252,5826
-static void fp_idle_loop(254,5869
-static void fp_yield(259,5920
-#define DELAY 280,6305
-volatile long bar 281,6325
-static void fp_fresh_thd(282,6348
-int sched_wakeup(298,6580
-int sched_block(343,7395
-static struct sched_thd *sched_setup_thread(sched_setup_thread387,8204
-static struct sched_thd *sched_setup_upcall_thread(sched_setup_upcall_thread403,8569
-int sched_init(422,9080
-void cos_upcall_fn(462,9997
+#define RUNTIME_SEC 8,135
+#define TIMER_FREQ 9,158
+#define CYC_PER_USEC 10,181
+#define MAX_REPORTS 12,208
+static volatile unsigned long ticks 14,245
+static volatile unsigned long idle_progress 15,286
+static struct sched_thd *timer,timer17,336
+static struct sched_thd *timer, *init,init17,336
+static struct sched_thd *timer, *init, *idle;idle17,336
+struct sched_thd blocked;18,382
+struct sched_thd upcall_deactive;19,408
+struct prio_list 20,442
+} priorities[priorities22,489
+	MEAS_TYPE_CYCLE,26,531
+	MEAS_TYPE_PROGRESS27,549
+} meas_type_t;28,569
+struct measurement 29,584
+} ms[ms32,644
+int curr_meas 33,663
+static void record_measurement(35,683
+static void report_measurement(48,937
+static inline void fp_add_thd(67,1364
+static inline void fp_add_evt_thd(83,1782
+static inline void fp_change_prio_runnable(97,2171
+static inline void fp_move_end_runnable(112,2546
+static inline void fp_block_thd(119,2702
+static inline void fp_resume_thd(129,2923
+static void fp_activate_upcall(139,3127
+static void fp_deactivate_upcall(149,3391
+static struct sched_thd *fp_get_highest_prio(fp_get_highest_prio157,3613
+static struct sched_thd *fp_get_second_highest_prio(fp_get_second_highest_prio180,4032
+static inline void fp_requeue_highest(220,4981
+static void evt_callback(226,5121
+static inline struct sched_thd *fp_schedule(fp_schedule283,6776
+static void fp_print_taskqueue(294,7006
+void fp_print_stats(306,7359
+void fp_timer_tick(324,7701
+static void fp_event_completion(369,8730
+typedef void (*crt_thd_fn_t)crt_thd_fn_t387,9239
+static void fp_idle_loop(389,9282
+static void fp_yield(394,9348
+#define DELAY 449,10761
+volatile long bar 450,10777
+static void fp_fresh_thd(451,10800
+static void fp_net_thd(464,11025
+int sched_wakeup(476,11179
+int sched_block(528,12220
+static struct sched_thd *sched_setup_thread(sched_setup_thread573,13090
+static struct sched_thd *sched_setup_upcall_thread(sched_setup_upcall_thread589,13462
+void sched_report_processing(608,13994
+int sched_create_net_upcall(615,14127
+int sched_init(633,14601
+void cos_upcall_fn(682,15996
 
 user_prototype/linking/t/cos_debug.h,134
 #define PRINT_FN 5,49
-#define DEBUG6,72
+#define DEBUG7,91
 #define assert(10,170
 #define printd(12,351
 #define assert(14,405
@@ -1302,12 +1328,57 @@ cos_atomic_user4:cos_atomic_user450,1106
 .globl 51,1124
 cos_atomic_user4_end:cos_atomic_user4_end52,1152
 
-user_prototype/linking/t/s_stubfprr.S,96
+user_prototype/linking/t/cos_net.c,504
+#define NUM_THDS 5,76
+struct thd_map 6,95
+} tmap[tmap9,182
+static struct thd_map *get_thd_map(get_thd_map11,201
+#define REPORT_PACKETS_WINDOW 25,422
+void synthesize_work(28,509
+#define INTERRUPT_WORK 49,934
+#define APP_WORK 50,963
+void synthesize_interrupt_work(52,987
+void synthesize_app_work(57,1063
+static int deposit_event(65,1210
+static int retrieve_event(80,1456
+static int application(98,1748
+static int interrupt(109,1939
+static int new_thd(120,2171
+void cos_upcall_fn(142,2502
+
+user_prototype/linking/t/s_stubnet.S,196
+.text	7,89
+.globl 12,269
+.type 13,294
+.align 14,330
+mman_get_page_inv:mman_get_page_inv15,340
+.globl 30,573
+.type 31,602
+.align 32,642
+mman_release_page_inv:mman_release_page_inv33,652
+
+user_prototype/linking/t/s_stubfprr.S,492
 .text	13,232
 .globl 18,413
 .type 19,435
 .align 20,468
 sched_init_inv:sched_init_inv21,478
+.globl 34,660
+.type 35,695
+.align 36,741
+sched_report_processing_inv:sched_report_processing_inv37,751
+.globl 51,967
+.type 52,991
+.align 53,1026
+sched_wakeup_inv:sched_wakeup_inv54,1036
+.globl 68,1230
+.type 69,1253
+.align 70,1287
+sched_block_inv:sched_block_inv71,1297
+.globl 85,1489
+.type 86,1524
+.align 87,1570
+sched_create_net_upcall_inv:sched_create_net_upcall_inv88,1580
 
 user_prototype/linking/t/cos_asm_stacks.h,64
 #define COS_ASM_STACKS_H2,25
@@ -1459,11 +1530,11 @@ static inline struct spd_poly *thd_get_current_spdpoly(thd_get_current_spdpoly
 static inline struct thread *thd_get_by_id(thd_get_by_id253,7366
 static inline struct thd_sched_info *thd_get_sched_info(thd_get_sched_info264,7570
 static inline unsigned short int thd_get_depth_urg(272,7758
-static inline struct spd *thd_get_depth_sched(thd_get_depth_sched285,8054
-static inline int thd_scheduled_by(290,8190
-static inline unsigned short int thd_get_id(295,8337
-static inline struct spd *thd_validate_get_current_spd(thd_validate_get_current_spd304,8525
-static inline void thd_save_preempted_state(318,8854
+static inline struct spd *thd_get_depth_sched(thd_get_depth_sched286,8090
+static inline int thd_scheduled_by(291,8226
+static inline unsigned short int thd_get_id(296,8373
+static inline struct spd *thd_validate_get_current_spd(thd_validate_get_current_spd305,8561
+static inline void thd_save_preempted_state(319,8890
 
 include/spd.h,1453
 #define SPD_H9,168
@@ -1508,7 +1579,7 @@ static inline int spd_composite_member(305,9525
 #define CAP_ENTRY_INST 322,9869
 #define CAP_SPD 323,9894
 
-include/cos_types.h,2674
+include/cos_types.h,2717
 #define TYPES_H9,170
 typedef unsigned char u8_t;14,232
 typedef unsigned short int u16_t;15,260
@@ -1525,67 +1596,68 @@ struct cos_sched_next_thd 26,499
 #define COS_SCHED_EVT_EXCL 41,1048
 #define COS_SCHED_EVT_BRAND_ACTIVE 42,1087
 #define COS_SCHED_EVT_BRAND_READY 43,1126
-#define COS_SCHED_EVT_NIL 44,1165
-struct cos_se_values 46,1206
-struct cos_sched_events 51,1292
-	union next_flags_urg 52,1318
-		struct compressed 54,1368
-struct cos_synchronization_atom 61,1472
-#define NUM_SCHED_EVTS 65,1586
-struct cos_sched_data_area 67,1620
-#define NULL 74,2012
-struct cos_brand_info 83,2198
-typedef void (*cos_net_data_completion_t)cos_net_data_completion_t87,2295
-struct cos_net_callbacks 88,2350
-typedef unsigned long phys_addr_t;99,2709
-typedef unsigned long vaddr_t;100,2744
-typedef unsigned int page_index_t;101,2775
-typedef unsigned short int spdid_t;103,2811
-typedef unsigned short int thdid_t;104,2847
-	COS_UPCALL_BRAND_EXEC,107,2899
-	COS_UPCALL_BRAND_COMPLETE,108,2923
-	COS_UPCALL_BOOTSTRAP,109,2951
-	COS_UPCALL_CREATE110,2974
-} upcall_type_t;111,2993
-	COS_BRAND_CREATE,116,3099
-	COS_BRAND_ADD_THD,117,3122
-	COS_BRAND_CREATE_HW,118,3142
-	COS_BRAND_TAILCALL,120,3190
-	COS_BRAND_ASYNC,124,3370
-	COS_BRAND_UPCALL 125,3436
-	COS_HW_TIMER,130,3554
-	COS_HW_NET131,3569
-	COS_SCHED_EVT_REGION,136,3629
-	COS_SCHED_THD_EVT,137,3652
-	COS_SCHED_GRANT_SCHED,138,3672
-	COS_SCHED_REVOKE_SCHED139,3697
-#define COS_SCHED_EXCL_YIELD 143,3759
-#define COS_SCHED_TAILCALL 144,3794
-#define COS_SCHED_SYNC_BLOCK 145,3829
-#define COS_SCHED_SYNC_UNBLOCK 146,3864
-struct mpd_split_ret 148,3900
-static inline int mpd_split_error(152,3972
-	COS_MPD_SPLIT,161,4172
-	COS_MPD_MERGE,162,4188
-	COS_MPD_SPLIT_MERGE,163,4204
-	COS_MPD_DEMO,164,4226
-	COS_MPD_DEBUG165,4241
-	COS_MMAP_GRANT,170,4286
-	COS_MMAP_REVOKE171,4303
-#define IL_INV_UNMAP 174,4324
-#define IL_RET_UNMAP 175,4392
-#define MAX_ISOLATION_LVL_VAL 176,4455
-#define IL_ST 184,4765
-#define IL_SDT 185,4784
-#define IL_AST 186,4827
-#define IL_INV 188,4937
-typedef unsigned int isolation_level_t;189,4958
-#define CAP_SAVE_REGS 191,4999
-typedef struct { volatile unsigned int counter; } atomic_t;197,5075
-static inline void cos_ref_take(201,5161
-static inline void cos_ref_set(207,5269
-static inline unsigned int cos_ref_val(212,5360
-static inline void cos_ref_release(217,5442
+#define COS_SCHED_EVT_BRAND_PEND 44,1165
+#define COS_SCHED_EVT_NIL 45,1205
+struct cos_se_values 47,1246
+struct cos_sched_events 52,1332
+	union next_flags_urg 53,1358
+		struct compressed 55,1408
+struct cos_synchronization_atom 62,1512
+#define NUM_SCHED_EVTS 66,1626
+struct cos_sched_data_area 68,1660
+#define NULL 75,2052
+struct cos_brand_info 84,2238
+typedef void (*cos_net_data_completion_t)cos_net_data_completion_t88,2335
+struct cos_net_callbacks 89,2390
+typedef unsigned long phys_addr_t;101,2798
+typedef unsigned long vaddr_t;102,2833
+typedef unsigned int page_index_t;103,2864
+typedef unsigned short int spdid_t;105,2900
+typedef unsigned short int thdid_t;106,2936
+	COS_UPCALL_BRAND_EXEC,109,2988
+	COS_UPCALL_BRAND_COMPLETE,110,3012
+	COS_UPCALL_BOOTSTRAP,111,3040
+	COS_UPCALL_CREATE112,3063
+} upcall_type_t;113,3082
+	COS_BRAND_CREATE,118,3188
+	COS_BRAND_ADD_THD,119,3211
+	COS_BRAND_CREATE_HW,120,3231
+	COS_BRAND_TAILCALL,122,3279
+	COS_BRAND_ASYNC,126,3459
+	COS_BRAND_UPCALL 127,3525
+	COS_HW_TIMER,132,3643
+	COS_HW_NET133,3658
+	COS_SCHED_EVT_REGION,138,3718
+	COS_SCHED_THD_EVT,139,3741
+	COS_SCHED_GRANT_SCHED,140,3761
+	COS_SCHED_REVOKE_SCHED141,3786
+#define COS_SCHED_EXCL_YIELD 145,3848
+#define COS_SCHED_TAILCALL 146,3883
+#define COS_SCHED_SYNC_BLOCK 147,3918
+#define COS_SCHED_SYNC_UNBLOCK 148,3953
+struct mpd_split_ret 150,3989
+static inline int mpd_split_error(154,4061
+	COS_MPD_SPLIT,163,4261
+	COS_MPD_MERGE,164,4277
+	COS_MPD_SPLIT_MERGE,165,4293
+	COS_MPD_DEMO,166,4315
+	COS_MPD_DEBUG167,4330
+	COS_MMAP_GRANT,172,4375
+	COS_MMAP_REVOKE173,4392
+#define IL_INV_UNMAP 176,4413
+#define IL_RET_UNMAP 177,4481
+#define MAX_ISOLATION_LVL_VAL 178,4544
+#define IL_ST 186,4854
+#define IL_SDT 187,4873
+#define IL_AST 188,4916
+#define IL_INV 190,5026
+typedef unsigned int isolation_level_t;191,5047
+#define CAP_SAVE_REGS 193,5088
+typedef struct { volatile unsigned int counter; } atomic_t;199,5164
+static inline void cos_ref_take(203,5250
+static inline void cos_ref_set(209,5358
+static inline unsigned int cos_ref_val(214,5449
+static inline void cos_ref_release(219,5531
 
 include/regs.h,27
 typedef int gp_regs_t;1,0
@@ -1622,14 +1694,14 @@ struct pt_regs 15,291
 #define COS_NUM_ATOMIC_SECTIONS 46,1373
 #define COS_MAX_MEMORY 48,1409
 
-include/debug.h,107
-#define DEBUG1,0
-#define assert(5,46
-#define printd(6,157
-#define assert(10,273
-#define printd(11,291
+include/debug.h,111
+#define COS_DEBUG1,0
+#define assert(5,54
+#define printd(6,184
+#define assert(10,300
+#define printd(11,318
 
-include/measurement.h,1300
+include/measurement.h,1368
 #define MEASUREMENT_H2,22
 #define MEASUREMENTS4,45
 	COS_MEAS_INVOCATIONS,7,83
@@ -1643,37 +1715,39 @@ include/measurement.h,1300
 	COS_MEAS_BRAND_PEND,15,265
 	COS_MEAS_BRAND_COMPLETION_UC,16,287
 	COS_MEAS_BRAND_SCHED_PREEMPTED,17,318
-	COS_MEAS_FINISHED_BRANDS,18,351
-	COS_MEAS_INT_PREEMPT_USER,19,378
-	COS_MEAS_INT_PREEMPT_KERN,20,406
-	COS_MEAS_INT_COS_THD,21,434
-	COS_MEAS_OTHER_THD,22,457
-	COS_PG_FAULT,23,478
-	COS_LINUX_PG_FAULT,24,493
-	COS_UNKNOWN_FAULT,25,514
-	COS_MPD_ALLOC,26,534
-	COS_MPD_SUBORDINATE,27,550
-	COS_MPD_SPLIT_REUSE,28,572
-	COS_MPD_FREE,29,594
-	COS_MPD_REFCNT_INC,30,609
-	COS_MPD_REFCNT_DEC,31,630
-	COS_MPD_IPC_REFCNT_INC,32,651
-	COS_MPD_IPC_REFCNT_DEC,33,676
-	COS_ALLOC_PGTBL,34,701
-	COS_FREE_PGTBL,35,719
-	COS_MAP_GRANT,36,736
-	COS_MAP_REVOKE,37,752
-	COS_MEAS_ATOMIC_RBK,38,769
-	COS_MEAS_ATOMIC_STALE_LOCK,39,791
-	COS_MEAS_ATOMIC_LOCK,40,820
-	COS_MEAS_ATOMIC_UNLOCK,41,843
-	COS_MEAS_PACKET_RECEPTION,42,868
-	COS_MEAS_MAX_SIZE43,896
-} cos_meas_t;44,915
-static inline void cos_meas_event(51,1068
-#define cos_meas_event(65,1325
-#define cos_meas_init(66,1351
-#define cos_meas_report(67,1375
+	COS_MEAS_BRAND_PEND_EXECUTE,18,351
+	COS_MEAS_FINISHED_BRANDS,19,381
+	COS_MEAS_INT_PREEMPT_USER,20,408
+	COS_MEAS_INT_PREEMPT_KERN,21,436
+	COS_MEAS_INT_COS_THD,22,464
+	COS_MEAS_OTHER_THD,23,487
+	COS_PG_FAULT,24,508
+	COS_LINUX_PG_FAULT,25,523
+	COS_UNKNOWN_FAULT,26,544
+	COS_MPD_ALLOC,27,564
+	COS_MPD_SUBORDINATE,28,580
+	COS_MPD_SPLIT_REUSE,29,602
+	COS_MPD_FREE,30,624
+	COS_MPD_REFCNT_INC,31,639
+	COS_MPD_REFCNT_DEC,32,660
+	COS_MPD_IPC_REFCNT_INC,33,681
+	COS_MPD_IPC_REFCNT_DEC,34,706
+	COS_ALLOC_PGTBL,35,731
+	COS_FREE_PGTBL,36,749
+	COS_MAP_GRANT,37,766
+	COS_MAP_REVOKE,38,782
+	COS_MEAS_ATOMIC_RBK,39,799
+	COS_MEAS_ATOMIC_STALE_LOCK,40,821
+	COS_MEAS_ATOMIC_LOCK,41,850
+	COS_MEAS_ATOMIC_UNLOCK,42,873
+	COS_MEAS_PACKET_RECEPTION,43,898
+	COS_MEAS_PACKET_BRAND,44,926
+	COS_MEAS_MAX_SIZE45,950
+} cos_meas_t;46,969
+static inline void cos_meas_event(53,1122
+#define cos_meas_event(67,1379
+#define cos_meas_init(68,1405
+#define cos_meas_report(69,1429
 
 include/mmap.h,97
 #define MMAP_H9,169
@@ -1687,8 +1761,8 @@ struct page_list 4,41
 measurement.c,174
 unsigned long long cos_measurements[cos_measurements6,81
 char *cos_meas_descriptions[cos_meas_descriptions7,137
-void cos_meas_init(48,1231
-void cos_meas_report(59,1354
+void cos_meas_init(50,1320
+void cos_meas_report(61,1443
 
 test.S,474
 .globl 2,6
@@ -1710,59 +1784,60 @@ SS_ipc_client_ret_unmarshal:SS_ipc_client_ret_unmarshal46,819
 .align 58,1169
 SS_ipc_server_unmarshal:SS_ipc_server_unmarshal59,1179
 
-net/cosnet.c,2151
-#define DRV_NAME	54,1987
-#define DRV_VERSION	55,2011
-#define DRV_DESCRIPTION	56,2037
-#define DRV_COPYRIGHT	57,2100
-static int debug;86,2807
-static const struct ethtool_ops tun_ethtool_ops;92,2906
-static int tun_net_open(95,2979
-static int tun_net_close(102,3092
-static inline struct cosnet_struct *cosnet_find_brand(cosnet_find_brand108,3181
-static struct cosnet_struct *cosnet_resolve_brand(cosnet_resolve_brand123,3486
-static void cosnet_init_queues(148,4465
-static void cosnet_purge_queues(160,4697
-static int cosnet_queues_full(170,4899
-struct tun_struct *local_ts local_ts183,5118
-int cosnet_create_brand(188,5219
-void cosnet_skb_completion(217,6127
-int cosnet_get_packet(230,6345
-struct cos_net_callbacks cosnet_cbs 268,7395
-static int cosnet_cos_register(273,7510
-static int cosnet_cos_deregister(280,7597
-static int cosnet_execute_brand(291,7816
-static int tun_net_xmit(298,8024
-add_multi(346,9201
-del_multi(354,9420
-tun_net_mclist(364,9752
-static struct net_device_stats *tun_net_stats(tun_net_stats382,10386
-static void tun_net_init(389,10555
-static unsigned int tun_chr_poll(423,11418
-static __inline__ ssize_t tun_get_user(442,11833
-static inline size_t iov_total(495,12968
-static ssize_t tun_chr_aio_write(506,13157
-static __inline__ ssize_t tun_put_user(520,13546
-static ssize_t tun_chr_aio_read(552,14186
-static void tun_setup(635,16516
-static struct tun_struct *tun_get_by_name(tun_get_by_name654,16952
-static int tun_set_iff(667,17192
-static int tun_chr_ioctl(761,19112
-static int tun_chr_fasync(913,23149
-static int tun_chr_open(937,23616
-static int tun_chr_close(945,23790
-static const struct file_operations tun_fops 979,24378
-static struct miscdevice tun_miscdev 993,24728
-static int tun_get_settings(1001,24897
-static void tun_get_drvinfo(1016,25246
-static u32 tun_get_msglevel(1034,25649
-static void tun_set_msglevel(1044,25821
-static u32 tun_get_link(1052,25979
-static u32 tun_get_rx_csum(1058,26099
-static int tun_set_rx_csum(1064,26243
-static const struct ethtool_ops tun_ethtool_ops 1074,26446
-static int __init tun_init(1084,26732
-static void tun_cleanup(1097,27028
+net/cosnet.c,2189
+#define DRV_NAME	56,2053
+#define DRV_VERSION	57,2077
+#define DRV_DESCRIPTION	58,2103
+#define DRV_COPYRIGHT	59,2166
+static int debug;88,2873
+static const struct ethtool_ops tun_ethtool_ops;94,2972
+static int tun_net_open(97,3045
+static int tun_net_close(104,3158
+static inline struct cosnet_struct *cosnet_find_brand(cosnet_find_brand110,3247
+static struct cosnet_struct *cosnet_resolve_brand(cosnet_resolve_brand125,3552
+static void cosnet_init_queues(150,4531
+static void cosnet_purge_queues(162,4763
+static int cosnet_queues_full(172,4965
+struct tun_struct *local_ts local_ts185,5184
+int cosnet_create_brand(190,5285
+int cosnet_remove_brand(206,5533
+void cosnet_skb_completion(236,6495
+int cosnet_get_packet(249,6713
+struct cos_net_callbacks cosnet_cbs 293,7915
+static int cosnet_cos_register(299,8068
+static int cosnet_cos_deregister(306,8155
+static int cosnet_execute_brand(317,8374
+static int tun_net_xmit(324,8582
+add_multi(379,9876
+del_multi(387,10095
+tun_net_mclist(397,10427
+static struct net_device_stats *tun_net_stats(tun_net_stats415,11061
+static void tun_net_init(422,11230
+static unsigned int tun_chr_poll(456,12093
+static __inline__ ssize_t tun_get_user(475,12508
+static inline size_t iov_total(528,13643
+static ssize_t tun_chr_aio_write(539,13832
+static __inline__ ssize_t tun_put_user(553,14221
+static ssize_t tun_chr_aio_read(585,14861
+static void tun_setup(668,17191
+static struct tun_struct *tun_get_by_name(tun_get_by_name687,17627
+static int tun_set_iff(700,17867
+static int tun_chr_ioctl(794,19793
+static int tun_chr_fasync(946,23830
+static int tun_chr_open(970,24297
+static int tun_chr_close(978,24473
+static const struct file_operations tun_fops 1012,25069
+static struct miscdevice tun_miscdev 1026,25419
+static int tun_get_settings(1034,25588
+static void tun_get_drvinfo(1049,25937
+static u32 tun_get_msglevel(1067,26340
+static void tun_set_msglevel(1077,26512
+static u32 tun_get_link(1085,26670
+static u32 tun_get_rx_csum(1091,26796
+static int tun_set_rx_csum(1097,26940
+static const struct ethtool_ops tun_ethtool_ops 1107,27143
+static int __init tun_init(1117,27429
+static void tun_cleanup(1133,27752
 
 net/if_cosnet.h,871
 #define __IF_COSNET_H19,702
@@ -1813,6 +1888,11 @@ void start_timers(40,737
 int foo 67,1204
 int main(69,1218
 
+net/cnet.mod.c,87
+struct module __this_module7,124
+__attribute_used__18,399
+__attribute_used__55,1590
+
 test.c,298
 #define rdtscll(5,44
 #define ITERATIONS 8,117
@@ -1825,6 +1905,11 @@ int ucap_tbl1[ucap_tbl166,1275
 int ucap_tbl2[ucap_tbl267,1294
 int ucap_tbl3[ucap_tbl368,1313
 int main(70,1333
+
+cos.mod.c,87
+struct module __this_module7,124
+__attribute_used__18,399
+__attribute_used__52,1445
 
 offset_gen.c,15
 int main(8,95

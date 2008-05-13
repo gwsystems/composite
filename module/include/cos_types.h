@@ -45,13 +45,13 @@ struct cos_sched_next_thd {
 #define COS_SCHED_EVT_NIL          0x20
 
 struct cos_se_values {
-	u8_t next, flags;
-	u16_t urgency;
+	volatile u8_t next, flags;
+	volatile u16_t urgency;
 } __attribute__((packed));
 
 struct cos_sched_events {
 	union next_flags_urg {
-		struct cos_se_values v;
+		volatile struct cos_se_values v;
 		struct compressed {
 			u32_t vals;
 		} c;
