@@ -8,9 +8,22 @@
 #define IS_BLOCKED(x) (x & BLOCKED)
 
 struct thd_map {
-	unsigned short int thd, upcall;
+	unsigned short int thd, upcall, port;
 	volatile int pending_evts, blocked;
 } tmap[NUM_THDS];
+
+static struct thd_map *get_thd_map_port(unsigned short port) 
+{
+	int i;
+	
+	for (i = 0 ; i < NUM_THDS ; i++) {
+		if (tmap[i].port == port) {
+			return &tmap[i];
+		}
+	}
+	
+	return NULL;
+}
 
 static struct thd_map *get_thd_map(unsigned short int thd_id)
 {
@@ -66,9 +79,8 @@ void synthesize_app_work(void)
 extern int sched_block(void);
 extern int sched_wakeup(unsigned short int thd_id);
 
-static int deposit_event(unsigned short int thd_id)
+static int deposit_event(struct thd_map *tm)
 {
-	struct thd_map *tm = get_thd_map(thd_id);
 	int pe;
 	
 	if (!tm) return 0;
@@ -144,16 +156,21 @@ static int application(void)
 	return 0;
 }
 
-static int interrupt(void)
+static int interrupt(int id)
 {
+	struct thd_map *tm = get_thd_map_port(id);
+//	struct thd_map *tm = get_thd_map(cos_get_thd_id());
+
+//	print("port is %d. %d%d", id, 0,0);
 	synthesize_interrupt_work();
 //	print("Interrupt in thd %d. %d%d", cos_get_thd_id(), 0,0);
-	deposit_event(cos_get_thd_id());
+	//print("port %d, thread_map %p, dest_thd %d", id, (unsigned int)tm, tm->thd);
+	deposit_event(tm);
 
 	return 0;
 }
 
-extern int sched_create_net_upcall(unsigned short int port);
+extern int sched_ds_create_net_upcall(unsigned short int port);
 
 static int new_thd(void)
 {
@@ -161,17 +178,19 @@ static int new_thd(void)
 	static int port = 200;
 	int i;
 
-	b_id = sched_create_net_upcall(port++);
+	b_id = sched_ds_create_net_upcall(port);
 	
 	for (i = 0 ; i < NUM_THDS ; i++) {
 		if (tmap[i].thd == 0) {
 			tmap[i].thd = cos_get_thd_id();
 			tmap[i].upcall = b_id;
+			tmap[i].port = port;
 			break;
 		}
 	}
 	assert(i != NUM_THDS);
 
+	port++;
 	application();
 
 	return 0;
@@ -182,7 +201,8 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	switch (t) {
 	case COS_UPCALL_BRAND_EXEC:
 	{
-		interrupt();
+		//print("port %d. %d%d", (unsigned int)arg1, 0,0);
+		interrupt((unsigned int)arg1);
 		break;
 	}
 	case COS_UPCALL_BOOTSTRAP:

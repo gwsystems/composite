@@ -1533,7 +1533,7 @@ static struct service_symbs *find_obj_by_name(struct service_symbs *s, char *n)
 
 static void setup_kernel(struct service_symbs *services)
 {
-	struct service_symbs *s;/*, *c0 = NULL, *c1 = NULL, *c2 = NULL, 
+	struct service_symbs *s, *ds;/*, *c0 = NULL, *c1 = NULL, *c2 = NULL, 
 		*pc = NULL, *c3 = NULL, *c4 = NULL, *mm = NULL;
 	struct spd_info *spd0, *spd1, *spd2, *spd3, *spd4, *spdpc, *spdmm;
 					   */
@@ -1583,6 +1583,13 @@ static void setup_kernel(struct service_symbs *services)
 		exit(-1);
 	}
 	make_spd_scheduler(cntl_fd, s, NULL);
+
+	if ((ds = find_obj_by_name(services, "d.o")) == NULL) {
+		fprintf(stderr, "Could not find scheduler fprr\n");
+		exit(-1);
+	}
+	make_spd_scheduler(cntl_fd, ds, s);
+
 //	cos_demo_spds(cntl_fd, spd3->spd_handle, spd4->spd_handle);
 	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;//spd2->spd_handle;
 	if ((s = find_obj_by_name(services, "c0.o")) == NULL) {

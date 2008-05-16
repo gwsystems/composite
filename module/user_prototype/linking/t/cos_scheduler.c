@@ -183,6 +183,8 @@ void sched_ds_init(void)
 			COS_SCHED_EVT_FLAGS(se) = COS_SCHED_EVT_FREE;
 		}
 		COS_SCHED_EVT_NEXT(se) = 0;
+
+		sched_map_evt_thd[i] = NULL;
 	}
 
 	return;

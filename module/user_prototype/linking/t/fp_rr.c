@@ -5,11 +5,11 @@
 #define NUM_PRIOS 12
 #define LOWEST_PRIO (NUM_PRIOS-1)
 
-#define RUNTIME_SEC 10
+#define RUNTIME_SEC 12
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
 
-#define MAX_REPORTS (8*RUNTIME_SEC)
+#define MAX_REPORTS (20*RUNTIME_SEC)
 
 static volatile unsigned long ticks = 0;
 static volatile unsigned long idle_progress = 0;
@@ -37,6 +37,7 @@ int curr_meas = 0;
 static void record_measurement(meas_type_t type, unsigned int a, unsigned int b, unsigned int c)
 {
 	if (curr_meas >= MAX_REPORTS) {
+		print("Recorded message overrun. %d%d%d", 0,0,0);
 		return;
 	}
 
@@ -162,6 +163,24 @@ static void fp_deactivate_upcall(struct sched_thd *uc)
 	ADD_LIST(&upcall_deactive, uc, prio_next, prio_prev);
 }
 
+static inline struct sched_thd *fp_find_non_suspended_list(struct sched_thd *head)
+{
+	struct sched_thd *t;
+
+	t = FIRST_LIST(head, prio_next, prio_prev);
+	while (t != head) {
+		if (!sched_thd_suspended(t)) {
+			break;
+		}
+		t = FIRST_LIST(t, prio_next, prio_prev);
+	}
+	if (t == head) {
+		return NULL;
+	}
+
+	return t;
+}
+
 static struct sched_thd *fp_get_highest_prio(void)
 {
 	int i;
@@ -173,7 +192,8 @@ static struct sched_thd *fp_get_highest_prio(void)
 		if (EMPTY_LIST(head, prio_next, prio_prev)) {
 			continue;
 		}
-		t = FIRST_LIST(head, prio_next, prio_prev);
+		t = fp_find_non_suspended_list(head);
+		if (!t) continue;
 
 		assert(sched_thd_ready(t));
 		assert(sched_get_metric(t));
@@ -198,7 +218,7 @@ static struct sched_thd *fp_get_second_highest_prio(struct sched_thd *highest)
 	prio = sched_get_metric(highest)->priority;
 	assert(prio < NUM_PRIOS);
 	head = &(priorities[prio].runnable);
-	tmp = FIRST_LIST(highest, prio_next, prio_prev);
+	tmp = fp_find_non_suspended_list(highest);//FIRST_LIST(highest, prio_next, prio_prev);
 	assert(tmp != highest);
 	/* Another thread at same priority */
 	if (head != tmp) {
@@ -214,7 +234,8 @@ static struct sched_thd *fp_get_second_highest_prio(struct sched_thd *highest)
 		if (EMPTY_LIST(head, prio_next, prio_prev)) {
 			continue;
 		}
-		t = FIRST_LIST(head, prio_next, prio_prev);
+		t = fp_find_non_suspended_list(head);
+		if (!t) continue;
 
 		assert(sched_thd_ready(t));
 		assert(sched_get_metric(t)->priority == i);
@@ -599,7 +620,7 @@ static void fp_net_thd(void *d)
 	return;
 }
 
-#define TEST_BRAND
+//#define TEST_BRAND
 #ifdef TEST_BRAND
 static void fp_brand_test_thd(void *d)
 {
@@ -617,6 +638,7 @@ static void fp_brand_test_thd(void *d)
 
 static void fp_ds_thd(void *d)
 {
+	//cos_sched_cntl(COS_SCHED_GRANT_SCHED, cos_get_thd_id(), 3);
 	cos_upcall(3);
 	
 	return;
@@ -794,6 +816,36 @@ void sched_child_yield_thd(void)
 	fp_yield_loop(NULL);
 }
 
+void sched_suspend_thd(int thd_id)
+{
+	struct sched_thd *t;
+	
+	t = sched_get_mapping(thd_id);
+	assert(t);
+
+	cos_sched_lock_take();
+	t->flags |= THD_SUSPENDED;
+	sched_set_thd_urgency(t, 100/*COS_SCHED_EVT_DISABLED_VAL*/);
+	cos_sched_lock_release();
+
+	return;
+}
+
+void sched_resume_thd(int thd_id)
+{
+	struct sched_thd *t;
+	
+	t = sched_get_mapping(thd_id);
+	assert(t);
+
+	cos_sched_lock_take();
+	t->flags &= ~THD_SUSPENDED;
+	sched_set_thd_urgency(t, sched_get_metric(t)->priority);
+	cos_sched_lock_release();
+
+	return;
+}
+
 /*********/
 
 void sched_report_processing(int amnt)
@@ -803,9 +855,9 @@ void sched_report_processing(int amnt)
 	sched_get_accounting(t)->progress += amnt;
 }
 
-//#define LINUX_STYLE
+#define LINUX_STYLE
 
-int sched_create_net_upcall(unsigned short int port)
+int sched_create_net_upcall(unsigned short int port, int depth)
 {
 	struct sched_thd *t = sched_get_current(), *uc;
 	u16_t prio = sched_get_metric(t)->priority;
@@ -813,27 +865,37 @@ int sched_create_net_upcall(unsigned short int port)
 
 #ifdef LINUX_STYLE
 	static struct sched_thd *first = NULL;
+	static int first_bid = -1;
 #endif
 	assert(t);
-	uc = sched_setup_upcall_thread(prio-1, prio-1, &b_id, 1);
+	uc = sched_setup_upcall_thread(prio-1, prio-1, &b_id, depth);
 	assert(uc);
+#ifdef LINUX_STYLE
+	if (first_bid == -1) {
+		first_bid = b_id;
+	}
+	cos_brand_wire(first_bid, COS_HW_NET, port);
+#else 
 	cos_brand_wire(b_id, COS_HW_NET, port);
+#endif
+
 	print("Net upcall thread %d with priority %d make for port %d.", 
 	      uc->id, sched_get_metric(uc)->priority, port);
 
+	cos_sched_cntl(COS_SCHED_GRANT_SCHED, uc->id, 3);
 #ifdef LINUX_STYLE
 	if (!first) {
 		first = uc;
 	} else {
 		if (sched_thd_ready(first)) {
-			fp_change_prio_runnable(first, 1);
+			fp_change_prio_runnable(first, 2);
 		} else {
-			sched_get_metric(first)->priority = 1;
-			sched_set_thd_urgency(first, 1);
+			sched_get_metric(first)->priority = 2;
+			sched_set_thd_urgency(first, 2);
 		}
 		assert(!sched_thd_ready(uc));
-		sched_get_metric(uc)->priority = 1;
-		sched_set_thd_urgency(uc, 1);
+		sched_get_metric(uc)->priority = 2;
+		sched_set_thd_urgency(uc, 2);
 		
 //		print("upcalls created!!!! %d%d%d",1,1,1);
 //		upcalls_created = 1;
@@ -869,7 +931,10 @@ int sched_init(void)
 	idle = sched_setup_thread(LOWEST_PRIO, LOWEST_PRIO-1, fp_idle_loop);
 	print("Idle thread has id %d with priority %d. %d", idle->id, LOWEST_PRIO-1, 0);
 
-#ifndef TEST_BRAND
+#ifdef TEST_BRAND
+	new = sched_setup_thread(2, 2, fp_brand_test_thd);
+	print("App2 thread has id %d with priority %d. %d", new->id, 6, 0);
+#else
 	new = sched_setup_thread(4, 4, fp_net_thd);
 	print("App1 thread has id %d with priority %d. %d", new->id, 4, 0);
 
@@ -882,10 +947,6 @@ int sched_init(void)
 	cos_brand_wire(b_id, COS_HW_TIMER, 0);
 #endif
 
-#ifdef TEST_BRAND
-	new = sched_setup_thread(2, 2, fp_brand_test_thd);
-	print("App2 thread has id %d with priority %d. %d", new->id, 6, 0);
-#endif
 
 	new = sched_setup_thread(1, 1, fp_ds_thd);
 

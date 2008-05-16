@@ -82,13 +82,14 @@ struct cos_sched_data_area {
  * communcation.
  */
 struct cos_brand_info {
-	unsigned short int      brand_port;
-	struct thread           *brand;
+	unsigned short int brand_port;
+	struct thread      *brand;
+	void               *private;
 };
 typedef void (*cos_net_data_completion_t)(void *data);
 struct cos_net_callbacks {
-	int (*get_packet)(struct cos_brand_info *bi, char **packet, 
-			  unsigned long *len, cos_net_data_completion_t *fn, void **data);
+	int (*get_packet)(struct cos_brand_info *bi, char **packet, unsigned long *len, 
+			  cos_net_data_completion_t *fn, void **data, unsigned short int *port);
 	int (*create_brand)(struct cos_brand_info *bi);
 	int (*remove_brand)(struct cos_brand_info *bi);
 };

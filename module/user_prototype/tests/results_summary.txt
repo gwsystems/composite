@@ -74,3 +74,7 @@ COMPOSITE OS SYSTEM MICROBENCHMARKS:
   right on the dot.
 
 - Executing a pending upcall takes 804 cycles, or 0.335 microseconds.
+
+* It can be emphasized that at very low levels where brands are known
+  to always have presidence (irq raise), brands can be much quicker,
+  always executing the branded thread.

@@ -48,6 +48,23 @@ sched_report_processing_inv:
 
 	sysenter
 
+.globl sched_child_yield_thd_inv
+.type  sched_child_yield_thd_inv, @function
+.align 16
+sched_child_yield_thd_inv:
+	COS_ASM_GET_STACK
+	
+	pushl %ebp
+	pushl %edi
+	pushl %esi
+	pushl %ebx /* length */
+	call sched_child_yield_thd
+
+	movl %eax, %ecx
+	movl $RET_CAP, %eax /* return capability */
+
+	sysenter
+
 .globl sched_create_child_brand_inv
 .type  sched_create_child_brand_inv, @function
 .align 16
@@ -65,17 +82,34 @@ sched_create_child_brand_inv:
 
 	sysenter
 
-.globl sched_child_yield_thd_inv
-.type  sched_child_yield_thd_inv, @function
+.globl sched_suspend_thd_inv
+.type  sched_suspend_thd_inv, @function
 .align 16
-sched_child_yield_thd_inv:
+sched_suspend_thd_inv:
 	COS_ASM_GET_STACK
 	
 	pushl %ebp
 	pushl %edi
 	pushl %esi
 	pushl %ebx /* length */
-	call sched_child_yield_thd
+	call sched_suspend_thd
+
+	movl %eax, %ecx
+	movl $RET_CAP, %eax /* return capability */
+
+	sysenter
+
+.globl sched_resume_thd_inv
+.type  sched_resume_thd_inv, @function
+.align 16
+sched_resume_thd_inv:
+	COS_ASM_GET_STACK
+	
+	pushl %ebp
+	pushl %edi
+	pushl %esi
+	pushl %ebx /* length */
+	call sched_resume_thd
 
 	movl %eax, %ecx
 	movl $RET_CAP, %eax /* return capability */

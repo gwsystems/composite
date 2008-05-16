@@ -39,7 +39,7 @@
 
 struct cosnet_struct {
 	struct cos_brand_info   *brand_info;
-	struct sk_buff_head	packet_queue;
+	struct sk_buff_head	*packet_queue;
 };
 
 struct tun_struct {

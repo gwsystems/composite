@@ -98,6 +98,7 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 #define THD_MEMBER  0x10 // is this thread part of a group?
 #define THD_UC_ACTIVE 0X20
 #define THD_UC_READY  0X40
+#define THD_SUSPENDED 0x80
 
 #define sched_thd_free(thd)    ((thd)->flags & THD_FREE)
 #define sched_thd_grp(thd)     ((thd)->flags & THD_GRP)
@@ -106,6 +107,7 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 #define sched_thd_blocked(thd) ((thd)->flags & THD_BLOCKED)
 #define sched_thd_event(thd)   ((thd)->flags & (THD_UC_ACTIVE|THD_UC_READY))
 #define sched_thd_inactive_evt(thd) ((thd)->flags & THD_UC_READY)
+#define sched_thd_suspended(thd) ((thd)->flags & THD_SUSPENDED)
 
 #define SCHED_NUM_THREADS MAX_NUM_THREADS
 
@@ -136,6 +138,7 @@ struct sched_accounting {
 	unsigned long C, T, C_used, T_left;
 	unsigned long long cycles;
 	unsigned long progress;
+	void *private;
 };
 
 struct sched_metric {

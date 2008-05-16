@@ -869,7 +869,7 @@ static struct thread *upcall_execute(struct thread *uc, struct thread *prev,
 	return uc;
 }
 
-static int cos_net_try_packet(struct thread *brand);
+static int cos_net_try_packet(struct thread *brand, unsigned short int *port);
 
 /* 
  * Assumes: we are called from the thread switching syscall, with the
@@ -879,6 +879,7 @@ static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, struct c
 {
 	struct thread *brand = uc->thread_brand;
 	struct spd *dest;
+	unsigned short int port;
 	//struct composite_spd *curr;
 
 	assert(brand && brand->pending_upcall_requests > 0);
@@ -886,9 +887,9 @@ static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, struct c
 	brand->pending_upcall_requests--;
 	dest = brand->stack_base[brand->stack_ptr].spd;
 	assert(dest);
-	upcall_setup(uc, dest, COS_UPCALL_BRAND_EXEC, 0, 0, 0);
+	cos_net_try_packet(brand, &port);
+	upcall_setup(uc, dest, COS_UPCALL_BRAND_EXEC, port, 0, 0);
 	upcall_execute(uc, NULL, curr);
-	cos_net_try_packet(brand);
 
 	cos_meas_event(COS_MEAS_BRAND_PEND_EXECUTE);
 	cos_meas_event(COS_MEAS_FINISHED_BRANDS);
@@ -1253,6 +1254,7 @@ static int brand_get_packet(struct thread *t, char *dest, int max_len)
 	unsigned long len;
 	cos_net_data_completion_t fn;
 	void *fn_data;
+	unsigned short int port;
 
 	assert(cos_net_fns && dest);
 
@@ -1263,7 +1265,7 @@ static int brand_get_packet(struct thread *t, char *dest, int max_len)
 	}
 
 	if (!cos_net_fns->get_packet ||
-	    cos_net_fns->get_packet(bi, &packet, &len, &fn, &fn_data)) {
+	    cos_net_fns->get_packet(bi, &packet, &len, &fn, &fn_data, &port)) {
 		printk("cos: could not get packet from networking subsystem\n");
 	}
 	
@@ -1281,14 +1283,16 @@ done:
 	return ret;
 }
 
-static int cos_net_try_packet(struct thread *brand)
+static int cos_net_try_packet(struct thread *brand, unsigned short int *port)
 {
 	struct cos_brand_info *bi;
 	char *packet;
 	unsigned long len;
 	cos_net_data_completion_t fn;
 	void *fn_data;
-
+	
+	assert(port);
+	*port = 0;
 	bi = cos_net_brand_info(brand);
 	if (!bi) {
 		return 1;
@@ -1296,11 +1300,12 @@ static int cos_net_try_packet(struct thread *brand)
 
         if (!cos_net_fns ||
 	    !cos_net_fns->get_packet ||
-	    cos_net_fns->get_packet(bi, &packet, &len, &fn, &fn_data)) {
+	    cos_net_fns->get_packet(bi, &packet, &len, &fn, &fn_data, port)) {
 		return -1;
 	}
 	fn(fn_data);
-	
+
+	//printk("cos: port %d\n", *port);
 	return 0;
 }
 
@@ -1688,7 +1693,7 @@ static inline int most_common_sched_depth(struct thread *t1, struct thread *t2)
  */
 int brand_higher_urgency(struct thread *upcall, struct thread *prev)
 {
-	int i, d, run = 1;
+	int /*i,*/ d, run = 1;
 	u16_t u_urg, p_urg;
 
 	assert(upcall->thread_brand && upcall->flags & THD_STATE_UPCALL);
@@ -1701,7 +1706,7 @@ int brand_higher_urgency(struct thread *upcall, struct thread *prev)
 	 */
 	if (!thd_get_sched_info(upcall, d)->thread_notifications ||
 	    !thd_get_sched_info(prev, d)->thread_notifications) {
-		WARN_ON(1);
+//		WARN_ON(1);
 		return 0;
 	}
 	u_urg = thd_get_depth_urg(upcall, d);
@@ -1760,6 +1765,7 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 {
 	/* Assume here that we only have one upcall thread */
 	struct thread *upcall = brand->upcall_threads;
+	unsigned short int port;
 
 	assert(brand->flags & (THD_STATE_BRAND|THD_STATE_HW_BRAND));
 	assert(upcall && upcall->thread_brand == brand);
@@ -1785,11 +1791,11 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 	}
 
 	assert(upcall->flags & THD_STATE_READY_UPCALL);
+	cos_net_try_packet(brand, &port);
 	upcall_setup(upcall, brand->stack_base[brand->stack_ptr].spd, 
-		     COS_UPCALL_BRAND_EXEC, 0, 0, 0);
+		     COS_UPCALL_BRAND_EXEC, port, 0, 0);
 	upcall->flags |= THD_STATE_ACTIVE_UPCALL;
 	upcall->flags &= ~THD_STATE_READY_UPCALL;
-	cos_net_try_packet(brand);
 
 	if (brand_higher_urgency(upcall, preempted)) {
 //		printk("cos: run upcall!\n");
@@ -2025,7 +2031,7 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 {
 	struct thread *thd;
 	struct spd *spd;
-	struct thd_sched_info *tsi;
+//	struct thd_sched_info *tsi;
 
 	thd = thd_get_current();
 	spd = thd_validate_get_current_spd(thd, spd_id);
@@ -2038,12 +2044,14 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 		printk("cos: spd %d called sched_cntl, but not a scheduler.\n", spd_id);
 		return -1;
 	}
+/* Is this necessary??
 	tsi = thd_get_sched_info(thd, spd->sched_depth);
 	if (tsi->scheduler != spd) {
-		printk("cos: spd %d attempting sched_cntl not a scheduler.\n",
-		       spd_get_index(spd));
+		printk("cos: spd %d @ depth %d attempting sched_cntl not a scheduler of thd %d (%x != %x).\n",
+		       spd_get_index(spd), spd->sched_depth, thd_get_id(thd), (unsigned int)tsi->scheduler, (unsigned int)spd);
 		return -1;
 	}
+*/
 
 	switch(operation) {
 	case COS_SCHED_EVT_REGION:
@@ -2068,14 +2076,14 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 			       (unsigned int)thd_id, (unsigned int)idx);
 			return -1;
 		}
-		if (thd->flags & THD_STATE_UPCALL) {
-			assert(thd->thread_brand);
-			/* 
-			 * Set for all upcall thread associated with a
-			 * brand, starting from the brand
-			 */
-			thd = thd->thread_brand;
-		}
+/* 		if (thd->flags & THD_STATE_UPCALL) { */
+/* 			assert(thd->thread_brand); */
+/* 			/\*  */
+/* 			 * Set for all upcall thread associated with a */
+/* 			 * brand, starting from the brand */
+/* 			 *\/ */
+/* 			thd = thd->thread_brand; */
+/* 		} */
 
 		tsi = thd_get_sched_info(thd, spd->sched_depth);
 		if (tsi->scheduler != spd) {
@@ -2131,6 +2139,8 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 		    NULL == child              || 
 		    spd != child->parent_sched ||
 		    !thd_scheduled_by(target_thd, spd)) {
+			printk("cos: Could not give privs for sched %d to thd %d from sched %d.\n",
+			       (unsigned int)option, (unsigned int)thd_id, (unsigned int)spd_id);
 			return -1;
 		}
 		
@@ -2140,19 +2150,27 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 			child_tsi->scheduler = child;
 		} else if (COS_SCHED_REVOKE_SCHED == operation) {
 			if (child_tsi->scheduler != child) {
+				printk("cos: cannot remove privs when they aren't had\n");
 				return -1;
 			}
 
 			child_tsi->scheduler = NULL;
 		}
 		/*
-		 * Blank out all schedulers that are decendents of the
+		 * revoke all schedulers that are decendents of the
 		 * child.
 		 */
 		for (i = child->sched_depth+1 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
 			child_tsi = thd_get_sched_info(target_thd, i);
 			child_tsi->scheduler = NULL;
 		}
+
+/*
+		printk("cos: scheduler %d @ depth %d granted scheduling privs by sched %d of thd %d (%x == %x)\n",
+		       (unsigned int)option, (unsigned int)child->sched_depth, (unsigned int)spd_id, (unsigned int)thd_id,
+		       (unsigned int)thd_get_sched_info(target_thd, child->sched_depth)->scheduler, 
+		       (unsigned int)child);
+*/
 	}}
 
 	return 0;

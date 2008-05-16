@@ -1452,6 +1452,9 @@ free_dummy:
 			sched->sched_depth = p->sched_depth + 1;
 		}
 
+//		printk("cos: promoting component %d to scheduler at depth %d, and parent %d\n",
+//		       sched_info.spd_sched_handle, sched->sched_depth, sched_info.spd_parent_handle);
+
 		if (sched_info.sched_shared_page < sched->location.lowest_addr ||
 		    sched_info.sched_shared_page + PAGE_SIZE >= 
 		    sched->location.lowest_addr + sched->location.size) {

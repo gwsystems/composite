@@ -122,7 +122,8 @@ static inline struct cosnet_struct *cosnet_find_brand(struct tun_struct *ts, __u
 	return NULL;
 }
 
-static struct cosnet_struct *cosnet_resolve_brand(struct tun_struct *ts, struct sk_buff *skb) {
+unsigned short int cosnet_skb_get_udp_port(struct sk_buff *skb)
+{
 	__u32 daddr;
 	__u16 dport;
 	__u8  protocol, header_len;
@@ -134,7 +135,7 @@ static struct cosnet_struct *cosnet_resolve_brand(struct tun_struct *ts, struct 
 	header_len = iph->ihl; /* size in words of ip header */
 
 	if (protocol != 0x11 || daddr != 0xa000208 || header_len != 5) {
-		return NULL;
+		return 0;
 	}
 
 	udph = (struct udphdr *)(((long*)skb->data) + header_len);
@@ -143,8 +144,11 @@ static struct cosnet_struct *cosnet_resolve_brand(struct tun_struct *ts, struct 
 /* 	printk("cos: sip-%x, dip-%x, p-%x, len-%x, hl-%x, sport-%x,dport-%x,len-%x,cs-%x\n", */
 /* 	       (unsigned int)ntohl(iph->saddr), (unsigned int)ntohl(iph->daddr),(unsigned int)iph->protocol, (unsigned int)ntohs(iph->tot_len), (unsigned int)header_len, */
 /* 	       (unsigned int)ntohs(udph->source), (unsigned int)ntohs(udph->dest), (unsigned int)ntohs(udph->len), (unsigned int)ntohs(udph->check)); */
+	return dport;
+}
 
-	return cosnet_find_brand(ts, dport);;
+static struct cosnet_struct *cosnet_resolve_brand(struct tun_struct *ts, struct sk_buff *skb) {
+	return cosnet_find_brand(ts, cosnet_skb_get_udp_port(skb));
 }
 
 static void cosnet_init_queues(struct tun_struct *ts) 
@@ -154,8 +158,9 @@ static void cosnet_init_queues(struct tun_struct *ts)
 	for (i = 0 ; i < COSNET_NUM_CHANNELS ; i++) {
 		struct cosnet_struct *cn = &ts->cosnet[i];
 
-		skb_queue_head_init(&cn->packet_queue);
+//		skb_queue_head_init(&cn->packet_queue);
 		cn->brand_info = NULL;
+		cn->packet_queue = NULL;
 	}
 }
 
@@ -164,7 +169,9 @@ static void cosnet_purge_queues(struct tun_struct *ts)
 	int i;
 
 	for (i = 0 ; i < COSNET_NUM_CHANNELS ; i++) {
-		skb_queue_purge(&ts->cosnet[i].packet_queue);
+		if (ts->cosnet[i].packet_queue) {
+			skb_queue_purge(ts->cosnet[i].packet_queue);
+		}
 	}
 }
 
@@ -174,7 +181,8 @@ static int cosnet_queues_full(struct tun_struct *ts)
 	int i;
 
 	for (i = 0 ; i < COSNET_NUM_CHANNELS ; i++) {
-		if (skb_queue_len(&ts->cosnet[i].packet_queue) < COSNET_QUEUE_LEN) {
+		if (ts->cosnet[i].packet_queue &&
+		    skb_queue_len(ts->cosnet[i].packet_queue) < COSNET_QUEUE_LEN) {
 			return 0;
 		}
 	}
@@ -194,9 +202,20 @@ int cosnet_create_brand(struct cos_brand_info *bi)
 	assert(local_ts);
 
 	for (i = 0 ; i < COSNET_NUM_CHANNELS ; i++) {
-		if (!local_ts->cosnet[i].brand_info) {
+		struct cos_brand_info *bi_tmp = local_ts->cosnet[i].brand_info;
+		if (bi_tmp && bi_tmp->brand == bi->brand) {
+			assert(bi_tmp->private);
+			bi->private = bi_tmp->private;
+		}
+		if (!bi_tmp) {
 			printk("cos: cosnet - create brand for port %d\n", bi->brand_port);
 			local_ts->cosnet[i].brand_info = bi;
+			if (!bi->private) {
+				bi->private = kmalloc(sizeof(struct sk_buff_head), GFP_ATOMIC);
+				skb_queue_head_init((struct sk_buff_head*)bi->private);
+			}
+			local_ts->cosnet[i].packet_queue = (struct sk_buff_head*)bi->private;
+
 			return 0;
 		}
 	}
@@ -204,6 +223,10 @@ int cosnet_create_brand(struct cos_brand_info *bi)
 	return -1;
 }
 
+/*
+ * FIXME BUG: When one brand is removed and it shares a packet buffer
+ * with another, that packet buffer is purged for BOTH of the brands.
+ */
 int cosnet_remove_brand(struct cos_brand_info *bi)
 {
 	int i;
@@ -212,9 +235,12 @@ int cosnet_remove_brand(struct cos_brand_info *bi)
 
 	for (i = 0 ; i < COSNET_NUM_CHANNELS ; i++) {
 		if (local_ts->cosnet[i].brand_info == bi) {
-			local_ts->cosnet[i].brand_info = NULL;
 			printk("cos: cosnet - remove brand for port %d\n", bi->brand_port);
-			skb_queue_purge(&local_ts->cosnet[i].packet_queue);
+			if (local_ts->cosnet[i].packet_queue) {
+				skb_queue_purge(local_ts->cosnet[i].packet_queue);
+				// should kfree here too, but see fixme bug above
+			}
+			local_ts->cosnet[i].brand_info = NULL;
 			return 0;
 		}
 	}
@@ -248,8 +274,8 @@ void cosnet_skb_completion(void *data)
  * Callback from composite.  This is a request to get an item from a
  * brand-specific packet queue.  
  */
-int cosnet_get_packet(struct cos_brand_info *bi, char **packet, 
-		      unsigned long *len, cos_net_data_completion_t *fn, void **data)
+int cosnet_get_packet(struct cos_brand_info *bi, char **packet, unsigned long *len, 
+		      cos_net_data_completion_t *fn, void **data, unsigned short int *port)
 {
 	int i;
 
@@ -261,7 +287,7 @@ int cosnet_get_packet(struct cos_brand_info *bi, char **packet,
 			struct sk_buff *skb;
 			//int queues_full = cosnet_queues_full(local_ts);
 
-			if (!(skb = skb_dequeue(&local_ts->cosnet[i].packet_queue))) {
+			if (!(skb = skb_dequeue(local_ts->cosnet[i].packet_queue))) {
 				/* This should NOT happen */
 				printk("cos: composite asking for packet, and none there!  "
 				       "Inconsistency between packet queue, and pending brands.\n");
@@ -270,12 +296,12 @@ int cosnet_get_packet(struct cos_brand_info *bi, char **packet,
 
 			/* TODO: restart the queue with netif_wake_queue */
 
+			*port = cosnet_skb_get_udp_port(skb);
 			/* OK, this is a little rediculous */
 			*len = skb->len;
 			*packet = skb->data;
 			*fn = cosnet_skb_completion;
 			*data = (void*)skb;
-
 //			if (queues_full) {
 				//netif_wake_queue(local_ts->dev);
 //			}
@@ -351,14 +377,18 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 		goto drop;
 	}
 */
-	if (skb_queue_len(&cosnet->packet_queue) >= COSNET_QUEUE_LEN) {
+	if (!cosnet->packet_queue) {
+		printk("cos: packet queue not set up for brand.\n");
+		goto drop;
+	}
+	if (skb_queue_len(cosnet->packet_queue) >= COSNET_QUEUE_LEN) {
 		//printk("cos: NET->overflowing packet queue.\n");
 		cos_net_notify_drop(cosnet->brand_info->brand);
 		goto drop;
 	}
 
 	/* Queue packet */
-	skb_queue_tail(&cosnet->packet_queue, skb);
+	skb_queue_tail(cosnet->packet_queue, skb);
 
 	if (cosnet_execute_brand(cosnet->brand_info, skb)) {
 		printk("cos: NET->could not execute brand!\n");
