@@ -1,4 +1,4 @@
-#define COS_DEBUG
+//#define COS_DEBUG
 
 #ifdef __KERNEL__
 #ifdef COS_DEBUG

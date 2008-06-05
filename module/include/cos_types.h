@@ -131,7 +131,8 @@ enum {
 
 enum {
 	COS_HW_TIMER,
-	COS_HW_NET
+	COS_HW_NET,
+	COS_UC_NOTIF
 };
 
 /* operations for cos_sched_cntl */

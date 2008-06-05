@@ -15,7 +15,7 @@ static volatile unsigned long ticks = 0;
 static volatile unsigned long idle_progress = 0;
 static volatile unsigned long wakeup_cnt = 0, block_cnt = 0;
 
-static struct sched_thd *timer, *init, *idle, *ds;
+static struct sched_thd *timer, *init, *idle, *ds, *uc_notif;
 static int ds_brand_id;
 struct sched_thd blocked;
 struct sched_thd upcall_deactive;
@@ -194,7 +194,7 @@ static struct sched_thd *fp_get_highest_prio(void)
 		}
 		t = fp_find_non_suspended_list(head);
 		if (!t) continue;
-
+		
 		assert(sched_thd_ready(t));
 		assert(sched_get_metric(t));
 		assert(sched_get_metric(t)->priority == i);
@@ -438,8 +438,11 @@ void fp_timer_tick(void)
 		}
 
 		prev = sched_get_current();
+		assert(prev);
 		cos_sched_process_events(evt_callback, 0);
 		next = fp_get_highest_prio();
+		assert(next);
+//		print("first is %d %d%d", next->id, 0,0);
 		/* Chances are good the highest is us */
 		if (next == prev) {
 			struct sched_thd *t, *r;
@@ -452,6 +455,7 @@ void fp_timer_tick(void)
 			assert(t == prev);
 			next = fp_get_second_highest_prio(t);
 
+//			print("rr prio %d, next prio %d, lowest is %d.", sched_get_metric(r)->priority, sched_get_metric(next)->priority, LOWEST_PRIO);
 			assert(sched_get_metric(r)->priority ==
 			       sched_get_metric(next)->priority);
 
@@ -463,7 +467,6 @@ void fp_timer_tick(void)
 //			print("third is %d %d%d", next->id, 0,0);
 		} 
 		assert(next != prev);
-		
 
 //		print("timer tick switching to %d.   %d%d", next->id,0,0);
 		loop = cos_switch_thread_release(next->id, COS_SCHED_TAILCALL, 0);
@@ -620,22 +623,6 @@ static void fp_net_thd(void *d)
 	return;
 }
 
-//#define TEST_BRAND
-#ifdef TEST_BRAND
-static void fp_brand_test_thd(void *d)
-{
-	static int cnt = 0;
-	assert(ds);
-
-//	sched_set_thd_urgency(ds, 3); to test cost of delayed brands
-	while (cnt < 10000000) {
-		cos_brand_upcall(ds_brand_id, 0, 0, 0);
-		cnt++;
-	}
-	cos_switch_thread(init->id, 0, 0);
-}
-#endif
-
 static void fp_ds_thd(void *d)
 {
 	//cos_sched_cntl(COS_SCHED_GRANT_SCHED, cos_get_thd_id(), 3);
@@ -732,7 +719,7 @@ int sched_block()
 		if (thd->wake_cnt) {
 			goto cleanup;
 		}
-		
+	
 		fp_block_thd(thd);
 		next = fp_schedule();
 		assert(next != thd);
@@ -784,7 +771,9 @@ static struct sched_thd *sched_setup_upcall_thread(u16_t priority, u16_t urgency
 
 /**** SUPPORT FOR CHILD SCHEDULERS ****/
 
-int sched_create_child_brand(void)
+//#define TEST_BRAND
+
+int sched_create_child_brand(int depth)
 {
 	int ucid, bid;
 	struct sched_thd *curr, *upcall;
@@ -792,8 +781,13 @@ int sched_create_child_brand(void)
 
 	curr = sched_get_current();
 	assert(curr);
-	prio = sched_get_metric(curr)->priority;
-	bid = cos_brand_cntl(0, COS_BRAND_CREATE, 1);
+#ifdef TEST_BRAND
+	prio = sched_get_metric(curr)->priority-1;
+	//print("current has prio %d, upcall has prio %d. %d", sched_get_metric(curr)->priority, prio, 0);
+#else
+	prio = sched_get_metric(curr)->priority-1;
+#endif
+	bid = cos_brand_cntl(0, COS_BRAND_CREATE, depth);
 	ucid = cos_brand_cntl(bid, COS_BRAND_ADD_THD, 0);
 	upcall = sched_alloc_upcall_thd(ucid);
 	assert(upcall);
@@ -855,7 +849,7 @@ void sched_report_processing(int amnt)
 	sched_get_accounting(t)->progress += amnt;
 }
 
-#define LINUX_STYLE
+//#define LINUX_STYLE
 
 int sched_create_net_upcall(unsigned short int port, int depth)
 {
@@ -907,12 +901,35 @@ int sched_create_net_upcall(unsigned short int port, int depth)
 	return uc->id;
 }
 
+void sched_exit(void)
+{
+	cos_switch_thread(init->id, 0, 0);
+}
+
 int sched_init(void)
 {
 	static int first = 1;
 	int i;
 	unsigned int b_id;//, thd_id;
 	struct sched_thd *new;
+
+//#define TEST_ATOMIC
+#ifdef TEST_ATOMIC
+	for (i = 0 ; i < 1000000000 ; i++) {
+/* 16 cycles
+		int a = 0, b;
+		do {
+			b = a;
+		} while (cos_cmpxchg(&a, b, b+1) != b+1);
+*/
+/* 26 cycles
+		cos_sched_lock_take();
+		cos_sched_lock_release();
+*/
+	}
+		
+	return 0;
+#endif
 
 	if (!first) return -1;
 	first = 0;
@@ -928,13 +945,14 @@ int sched_init(void)
 	init = sched_alloc_thd(cos_get_thd_id());
 
 	/* create the idle thread */
-	idle = sched_setup_thread(LOWEST_PRIO, LOWEST_PRIO-1, fp_idle_loop);
+	idle = sched_setup_thread(LOWEST_PRIO-1, LOWEST_PRIO-1, fp_idle_loop);
 	print("Idle thread has id %d with priority %d. %d", idle->id, LOWEST_PRIO-1, 0);
 
-#ifdef TEST_BRAND
-	new = sched_setup_thread(2, 2, fp_brand_test_thd);
-	print("App2 thread has id %d with priority %d. %d", new->id, 6, 0);
-#else
+//#ifdef TEST_BRAND
+//	uc_notif = sched_setup_upcall_thread(0, 0, &b_id, 0);
+//	print("UC notif thread has id %d with priority %d. %d", uc_notif->id, 0, 0);
+//	cos_brand_wire(b_id, COS_UC_NOTIF, 0);
+//#else
 	new = sched_setup_thread(4, 4, fp_net_thd);
 	print("App1 thread has id %d with priority %d. %d", new->id, 4, 0);
 
@@ -942,13 +960,13 @@ int sched_init(void)
 	print("App2 thread has id %d with priority %d. %d", new->id, 6, 0);
 
 	/* Create the clock tick (timer) thread */
-	timer = sched_setup_upcall_thread(0, 0, &b_id, 0);
+	timer = sched_setup_upcall_thread(1, 1, &b_id, 0);
 	print("Timer thread has id %d with priority %d. %d", timer->id, 0, 0);
 	cos_brand_wire(b_id, COS_HW_TIMER, 0);
-#endif
-
-
-	new = sched_setup_thread(1, 1, fp_ds_thd);
+//#endif
+//	new = sched_setup_thread(1, 1, fp_ds_thd);
+	new = sched_setup_thread(2, 2, fp_ds_thd);
+	print("Creating the deferrable server thread %d w/ prio %d, %d", new->id, 2, 0);
 
 	new = fp_get_highest_prio();
 	cos_switch_thread(new->id, 0, 0);
@@ -962,6 +980,13 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	case COS_UPCALL_BRAND_EXEC:
 	{
 		static int first = 1;
+
+//		print("fprr upcall %d%d%d", 0,0,0);
+		if (uc_notif && uc_notif == sched_get_current()) {
+//			print("Upcall notification.%d%d%d", 0,0,0);
+			fp_event_completion(sched_get_current());
+			return;
+		}
 
 		if (sched_get_current() != timer) {
 			print("sched_get_current %d, timer %d. %d", (unsigned int)cos_get_thd_id(), (unsigned int)timer->id, 1);

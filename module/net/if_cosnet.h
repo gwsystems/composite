@@ -36,6 +36,7 @@
 
 #define COSNET_NUM_CHANNELS 2
 #define COSNET_QUEUE_LEN 500
+//#define COSNET_QUEUE_LEN 1000
 
 struct cosnet_struct {
 	struct cos_brand_info   *brand_info;

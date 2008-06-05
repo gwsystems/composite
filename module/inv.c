@@ -984,8 +984,18 @@ static struct pt_regs *brand_execution_completion(struct thread *curr)
  */
 struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
 
+//#define BRAND_UL_LATENCY
+
+//#define BRAND_HW_LATENCY
+
+#ifdef BRAND_HW_LATENCY
+
+//#ifdef BRAND_UL_LATENCY
+unsigned int glob_hack_arg;
+#endif
+
 extern void cos_syscall_brand_upcall(int spd_id, int thread_id_flags);
-COS_SYSCALL struct pt_regs *cos_syscall_brand_upcall_cont(int spd_id, int thread_id_flags)
+COS_SYSCALL struct pt_regs *cos_syscall_brand_upcall_cont(int spd_id, int thread_id_flags, int arg1, int arg2)
 {
 	struct thread *curr_thd, *brand_thd, *next_thd;
 	struct spd *curr_spd;
@@ -1025,12 +1035,17 @@ COS_SYSCALL struct pt_regs *cos_syscall_brand_upcall_cont(int spd_id, int thread
 	 * FIXME: 1) reference counting taken care of????, 2) return 1
 	 * if pending invocation?
 	 */
-	
-	next_thd = brand_next_thread(brand_thd, curr_thd, 2);
 
+#ifdef BRAND_UL_LATENCY
+	glob_hack_arg = arg1;
+#endif
+	next_thd = brand_next_thread(brand_thd, curr_thd, 2);
+	
 	if (next_thd == curr_thd) {
 		curr_thd->regs.eax = 0;
 	} else {
+		next_thd->regs.ebx = arg1;
+		next_thd->regs.edi = arg2;
 		curr_thd->regs.eax = 1;
 	}
 /* This to measure the cost of pending upcalls
@@ -1183,7 +1198,7 @@ COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags, int de
 	return new_thd->thread_id;
 }
 
-struct thread *cos_timer_brand_thd;
+struct thread *cos_timer_brand_thd, *cos_upcall_notif_thd;
 #define NUM_NET_BRANDS 2
 unsigned int active_net_brands = 0;
 struct cos_brand_info cos_net_brand[NUM_NET_BRANDS];
@@ -1318,6 +1333,12 @@ void cos_net_prebrand(void)
 
 int cos_net_try_brand(struct thread *t, void *data, int len)
 {
+#ifdef BRAND_HW_LATENCY
+	unsigned long long start;
+
+	rdtscll(start);
+	glob_hack_arg = (unsigned long)start;
+#endif
 	cos_meas_event(COS_MEAS_PACKET_BRAND);
 
 	host_attempt_brand(t);
@@ -1394,6 +1415,10 @@ COS_SYSCALL int cos_syscall_brand_wire(int spd_id, int thd_id, int option, int d
 		active_net_brands++;
 
 		break;
+	case COS_UC_NOTIF:
+		cos_upcall_notif_thd = brand_thd;
+
+		break;
 	default:
 		return -1;
 	}
@@ -1465,6 +1490,7 @@ COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, struct pt_r
 	 * sched_cntl call, reducing orthogonality of the syscall
 	 * layer.
 	 */
+#ifdef NIL
 	if (dest->parent_sched == curr_spd) {
 		struct thd_sched_info *tsi;
 
@@ -1476,7 +1502,7 @@ COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, struct pt_r
 			tsi->scheduler = dest;
 		}
 	}
-
+#endif
 	open_close_spd(dest->composite_spd, curr_spd->composite_spd); 
 
 	spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(thd));//curr_spd->composite_spd);
@@ -1713,7 +1739,7 @@ int brand_higher_urgency(struct thread *upcall, struct thread *prev)
 	p_urg = thd_get_depth_urg(prev, d);
 	/* We should not run the upcall if it doesn't have more urgency */
 	//printk("cos: upcall urgency for %d is %d, previous thread %d is %d, common scheduler is %d.\n", 
-	//       thd_get_id(upcall), u_urg, thd_get_id(prev), p_urg, spd_get_index(thd_get_depth_sched(upcall, d)));
+	//thd_get_id(upcall), u_urg, thd_get_id(prev), p_urg, spd_get_index(thd_get_depth_sched(upcall, d)));
 	if (u_urg >= p_urg) {
 		run = 0;
 	} 
@@ -1778,6 +1804,8 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 	 * Do the same if upcall threads haven't been added to this
 	 * brand.
 	 */
+//#define MEAS_LESSER_URG
+#ifndef MEAS_LESSER_URG
 	if (upcall->flags & THD_STATE_ACTIVE_UPCALL || unlikely(!upcall)) {
 		assert(!(upcall->flags & THD_STATE_READY_UPCALL));
 		cos_meas_event(COS_MEAS_BRAND_PEND);
@@ -1789,13 +1817,47 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 		//       upcall->regs.eip, upcall->regs.edx, thd_get_id(thd_get_current()));
 		return preempted;
 	}
+#endif
 
 	assert(upcall->flags & THD_STATE_READY_UPCALL);
 	cos_net_try_packet(brand, &port);
+
+//#ifdef (BRAND_UL_LATENCY || BRAND_HW_LATENCY)
+#ifdef BRAND_HW_LATENCY
+	upcall_setup(upcall, brand->stack_base[brand->stack_ptr].spd, 
+		     COS_UPCALL_BRAND_EXEC, port, glob_hack_arg, 0);
+#else
 	upcall_setup(upcall, brand->stack_base[brand->stack_ptr].spd, 
 		     COS_UPCALL_BRAND_EXEC, port, 0, 0);
+#endif
 	upcall->flags |= THD_STATE_ACTIVE_UPCALL;
 	upcall->flags &= ~THD_STATE_READY_UPCALL;
+
+//#define BRAND_SCHED_UPCALL
+#ifdef BRAND_SCHED_UPCALL
+	printk("cos: invoking the notification upcall!\n");
+
+	if (!cos_upcall_notif_thd) {
+		printk("cos: cannot make upcalls until you make the notification thread!");
+		return preempted;
+	}
+	assert(preempted != cos_upcall_notif_thd->upcall_threads);
+
+	cos_upcall_notif_thd->upcall_threads->flags |= THD_STATE_ACTIVE_UPCALL;
+	cos_upcall_notif_thd->upcall_threads->flags &= ~THD_STATE_READY_UPCALL;
+	upcall_setup(cos_upcall_notif_thd->upcall_threads, 
+		     thd_get_sched_info(upcall, 0)->scheduler,
+		     COS_UPCALL_BRAND_EXEC, 0, 0, 0);
+	upcall_execute(cos_upcall_notif_thd->upcall_threads, preempted, 
+		       (struct composite_spd*)thd_get_thd_spdpoly(preempted));
+	update_sched_evts(cos_upcall_notif_thd->upcall_threads, COS_SCHED_EVT_BRAND_ACTIVE, 
+			  preempted, COS_SCHED_EVT_NIL);
+	update_thd_evt_state(upcall, COS_SCHED_EVT_BRAND_ACTIVE, 1);
+
+//	printk("cos: preempted %d, upcall %d, and upcall notification %d.\n", 
+//	       thd_get_id(preempted), thd_get_id(upcall), thd_get_id(cos_upcall_notif_thd->upcall_threads));
+	return cos_upcall_notif_thd->upcall_threads;
+#endif	
 
 	if (brand_higher_urgency(upcall, preempted)) {
 //		printk("cos: run upcall!\n");

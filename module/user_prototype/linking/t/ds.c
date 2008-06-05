@@ -1,8 +1,9 @@
 #include <cos_component.h>
 #include <cos_scheduler.h>
 
-extern int sched_create_child_brand(void);
+extern int sched_create_child_brand(int depth);
 extern void sched_child_yield_thd(void);
+extern void sched_exit(void);
 
 #define MAX_UPCALLS 2
 #define MAX_RESOURCES 2
@@ -16,6 +17,36 @@ static struct sched_thd *upcalls[MAX_UPCALLS];
 static struct resource {
 	unsigned long cycles_used, cycle_limit, period_elapsed, period;
 } resources[MAX_RESOURCES];
+
+//#define TEST_BRAND
+#ifdef TEST_BRAND
+void sched_create_brand(void)
+{
+	int thd_id;
+	unsigned int cnt = 0;
+	unsigned long long start;
+
+	thd_id = sched_create_child_brand(2);
+
+	assert(thd_id > 0);
+//	sched_set_thd_urgency(ds, 3); to test cost of delayed brands
+	while (cnt < 100000) {
+		rdtscll(start);
+		/* we have an upcall id, we want a brand id */
+//		print("making brand with start @ %u. %d%d", (unsigned int)start, 0,0);
+		cos_brand_upcall(thd_id-1, 0, (unsigned long)start, (unsigned long)start);
+		cnt++;
+	}
+	
+	sched_exit();
+	return;
+}
+#else
+void sched_create_brand(void)
+{
+	print("THIS SHOULD NOT BE CALLED.%d%d%d", 0,0,0);
+}
+#endif
 
 extern int sched_create_net_upcall(unsigned short int port, int depth);
 
@@ -34,10 +65,11 @@ int sched_ds_create_net_upcall(unsigned short int port)
 	sched_set_thd_urgency(t, urgency++);
 	
 	upcalls[upcalls_alloc++] = t;
-	r = &resources[0/*resources_alloc++*/];
-	resources_alloc = 1;
-//	r->cycle_limit = (resources_alloc == 1) ? CPU_FREQ_PER_TICK*/*5*/6 : CPU_FREQ_PER_TICK*2;
-	r->cycle_limit = CPU_FREQ_PER_TICK*10;
+	r = &resources[resources_alloc++];
+	r->cycle_limit = (resources_alloc == 1) ? CPU_FREQ_PER_TICK*6 : CPU_FREQ_PER_TICK*3;
+//	r = &resources[0];
+//	resources_alloc = 1;
+//	r->cycle_limit = CPU_FREQ_PER_TICK*7;
 	r->period = 20;
 	sched_get_accounting(t)->private = r;
 
@@ -122,14 +154,19 @@ static void sched_init(void)
 
 	sched_ds_init();
 
+#ifdef TEST_BRAND
+	cos_upcall(5);
+#endif
+
 	idle = sched_alloc_thd(cos_get_thd_id());
 
 	print("ds sched_init %d%d%d", 0,0,0);
-	upcall_id = sched_create_child_brand();
+	upcall_id = sched_create_child_brand(1);
 	upcall = sched_alloc_thd(upcall_id);
 
 	print("created ds upcall %d. %d%d", upcall_id, 0,0);
 	sched_child_yield_thd();
+	assert(0);
 }
 
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)

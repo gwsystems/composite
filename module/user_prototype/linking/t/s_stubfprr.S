@@ -167,4 +167,18 @@ sched_create_net_upcall_inv:
 
 	sysenter
 
+.globl sched_exit_inv
+.type  sched_exit_inv, @function
+.align 16
+sched_exit_inv:
+	COS_ASM_GET_STACK
+	
+/*	movl %ebp, %esp */
+/*	popl %ebp*/
+	call sched_exit
+/*	pushl %ebp*/
 
+	movl %eax, %ecx
+	movl $RET_CAP, %eax /* return capability */
+
+	sysenter

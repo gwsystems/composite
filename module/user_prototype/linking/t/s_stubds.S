@@ -32,4 +32,21 @@ sched_ds_create_net_upcall_inv:
 
 	sysenter
 
+.globl sched_create_brand_inv
+.type  sched_create_brand_inv, @function
+.align 16
+sched_create_brand_inv:
+	COS_ASM_GET_STACK
+	
+	pushl %ebp
+	pushl %edi
+	pushl %esi
+	pushl %ebx /* length */
+	call sched_create_brand
+
+	movl %eax, %ecx
+	movl $RET_CAP, %eax /* return capability */
+
+	sysenter
+
 

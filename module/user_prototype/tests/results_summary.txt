@@ -39,6 +39,8 @@ LINUX MICROBENCHMARKS:
   around kill sending a sigusr1 to a handler takes 4377 cycles on
   vanilla.  6000 on fedora.
 
+- uncontended lock/unlock of futex is 411 cycles
+
 * experiments conducted with the two threads at highest priority on
 the system, and it is ensured that the # of context switches induced
 by sched_yield is as expected by monitoring /proc/stats (ctxt %d)
@@ -62,8 +64,11 @@ COMPOSITE OS SYSTEM MICROBENCHMARKS:
   the current, 1 cache miss to update the current, for each scheduler.
 
 - Making a brand that is ultimately delayed (not immediately executed
-  due to lesser urgency) using brand_upcall takes 0.163 microseconds
-  (391 cycles).
+  due to lesser urgency), but not because the upcall is pending, when
+  using brand_upcall takes 0.19 microseconds (458 cycles).
+
+- Make a brand to a brand with an active upcall, resulting in an
+  incriment of the pending count: 340 cycles or 0.141 microseconds.
 
 - Immediate brand execution due to higher urgency and a direct return
   to the calling thread (automatic return due to interrupted_thread)
@@ -78,3 +83,29 @@ COMPOSITE OS SYSTEM MICROBENCHMARKS:
 * It can be emphasized that at very low levels where brands are known
   to always have presidence (irq raise), brands can be much quicker,
   always executing the branded thread.
+
+- Executing a brand where the scheduler is upcalled into to decide if
+  we should run the upcall now or later, and is then upcalled into
+  when the upcall is done takes 9410 cycles or 3.92 microseconds.
+  This is faster than the 3*3442 = 10326 for 3 branded upcalls
+  (i.e. each upcall is 305 cycles faster than if it was a brand), but
+  not faster than the comparible operation of 1 branded upcall.  This
+  overhead includes any overhead that two invocations of the fp
+  scheduler adds (seems like (976-688=288*2=) 576 cycles from
+  above). It should be pointed out that even if this implementation
+  isn't optimal, the hardware overhead here is significant: at least
+  2220.  Additionally, switching between threads twice, though
+  inexpensive, adds to the total.
+
+- When a brand is attempted and the scheduler is upcalled into (not
+  using intelligent brand mechanism) and the upcall thread has a
+  lesser priority, thus the brander is switched back to (two page
+  table switches) immediately, the overhead is 5027 cycles or 2.07
+  microseconds, which, again, includes 1 scheduler's overhead, ~288.
+  This is compared to the "making a brand that is ultimately delayed"
+  here.  Note that if we don't execute brands immediately often, then
+  it is probably that there will be pending brands when we do execute
+  it.  This significantly lowers the cost here to the cost of a brand
+  made when upcall is active (above @ 340 cycles).
+
+- Uncontended scheduler lock on Composite takes 26 cycles.

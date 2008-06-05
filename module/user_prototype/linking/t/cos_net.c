@@ -41,6 +41,7 @@ static struct thd_map *get_thd_map(unsigned short int thd_id)
 
 #define REPORT_PACKETS_WINDOW 100
 extern void sched_report_processing(unsigned int);
+volatile static int work = 0;
 
 void synthesize_work(unsigned long long amnt)
 {
@@ -88,6 +89,9 @@ static int deposit_event(struct thd_map *tm)
 //	sched_wakeup(tm->thd);
 
 //	return 0;
+//	if (GET_CNT(tm->pending_evts) > 1000) {
+//		return 0;
+//	}
 
 	do {
 		pe = tm->pending_evts;
@@ -198,11 +202,33 @@ static int new_thd(void)
 
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
+	unsigned long long end;
+	static int cnt = 0;
+	static unsigned long avg = 0;
+	unsigned long diff;
+
 	switch (t) {
 	case COS_UPCALL_BRAND_EXEC:
 	{
-		//print("port %d. %d%d", (unsigned int)arg1, 0,0);
 		interrupt((unsigned int)arg1);
+		return;
+		
+		rdtscll(end);
+		print("cos_net upcall%d%d%d", 0,0,0);
+		diff = end-(unsigned int)arg2;
+//		print("brand upcall invocation made @ %u, end @ %u, diff %u.", (unsigned int)arg2, end, diff);
+		cnt++;
+		if (avg == 0) {
+			avg = diff;
+		} else {
+			avg = (0.9 * avg) + (0.1 * diff);
+		}
+		if (cnt % 100 == 0) {
+			print("avg response time is %u. %d%d", avg, 0,0);
+		}
+		//print("port %d. %d%d", (unsigned int)arg1, 0,0);
+//		print("in network upcall with arg %u. %d%d", (unsigned int)arg2,0,0);
+
 		break;
 	}
 	case COS_UPCALL_BOOTSTRAP:
