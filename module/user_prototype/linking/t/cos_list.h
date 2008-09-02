@@ -1,6 +1,30 @@
 #ifndef COS_LIST_H
 #define COS_LIST_H
 
+#define INIT_LIST(obj, next, prev)		  \
+	(obj)->next = (obj)->prev = (obj)
+
+#define ADD_LIST(head, new, next, prev) 	  \
+	(new)->next = (head)->next;		  \
+	(new)->prev = (head);			  \
+	(head)->next = (new);			  \
+	(new)->next->prev = (new)
+
+#define REM_LIST(obj, next, prev)                 \
+	(obj)->next->prev = (obj)->prev;	  \
+	(obj)->prev->next = (obj)->next;	  \
+	(obj)->next = (obj)->prev = (obj)
+
+#define FIRST_LIST(obj, next, prev)               \
+	((obj)->next)
+
+#define LAST_LIST(obj, next, prev)                \
+	((obj)->prev)
+
+#define EMPTY_LIST(obj, next, prev)		  \
+	((obj)->next == (obj))
+
+
 /* 
  * create list_add_type and list_rem_type where type is the type of
  * structure we are accessing, qual is an optional qualification to

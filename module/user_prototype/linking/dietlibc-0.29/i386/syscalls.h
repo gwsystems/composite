@@ -332,3 +332,82 @@ __libc_##name: ; \
 #else
 #define __socketcall(name,NAME)
 #endif
+
+/**
+ * GAP: produce a distinguishable sequence of assembly and a page
+ * fault to detect any system calls made.  eax contains the system
+ * call being made.
+ */
+/* #define syscall_weak(name,wsym,sym) \ */
+/* .text; \ */
+/* .type wsym,@function; \ */
+/* .weak wsym; \ */
+/* wsym: ; \ */
+/* .type sym,@function; \ */
+/* .global sym; \ */
+/* sym: \ */
+/* 	movb $__NR_##name,%al; \ */
+/*         nop; \ */
+/* 	nop; \ */
+/* 	nop; \ */
+/* 	movl $0, (0); \ */
+/*         nop; \ */
+/* 	nop; \ */
+/* 	nop; \ */
+/* 	jmp __unified_syscall; \ */
+/* .Lend##sym: ; \ */
+/* .size sym,.Lend##sym-sym */
+
+/* #define syscall(name,sym) \ */
+/* .text; \ */
+/* .type sym,@function; \ */
+/* .global sym; \ */
+/* sym: \ */
+/* .ifle __NR_##name-255; \ */
+/* 	movb $__NR_##name,%al; \ */
+/*         nop; \ */
+/* 	nop; \ */
+/* 	nop; \ */
+/* 	movl $0, (0); \ */
+/*         nop; \ */
+/* 	nop; \ */
+/* 	nop; \ */
+/* 	jmp __unified_syscall; \ */
+/* .else; \ */
+/* 	movw $__NR_##name,%ax; \ */
+/*         nop; \ */
+/* 	nop; \ */
+/* 	nop; \ */
+/* 	movl $0, (0); \ */
+/*         nop; \ */
+/* 	nop; \ */
+/* 	nop; \ */
+/* 	jmp __unified_syscall_256; \ */
+/* .endif; \ */
+/* .Lend##sym: ; \ */
+/* .size sym,.Lend##sym-sym */
+
+/* #ifndef __PIC__ */
+/* #define __socketcall(name,NAME) \ */
+/* .text; \ */
+/* .type name,@function; \ */
+/* .weak name; \ */
+/* name: ; \ */
+/* .type __libc_##name,@function; \ */
+/* .global __libc_##name; \ */
+/* __libc_##name: ; \ */
+/* 	movb $SYS_##NAME,%al; \ */
+/*         nop; \ */
+/* 	nop; \ */
+/* 	nop; \ */
+/* 	movl $0, (0); \ */
+/*         nop; \ */
+/* 	nop; \ */
+/* 	nop; \ */
+/* 	jmp socketcall; \ */
+/* .Lend##name:; \ */
+/* .size name,.Lend##name-name */
+/* #else */
+/* #define __socketcall(name,NAME) */
+/* #endif */
+

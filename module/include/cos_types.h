@@ -110,7 +110,8 @@ typedef enum {
 	COS_UPCALL_BRAND_EXEC,
 	COS_UPCALL_BRAND_COMPLETE,
 	COS_UPCALL_BOOTSTRAP,
-	COS_UPCALL_CREATE
+	COS_UPCALL_CREATE,
+	COS_UPCALL_DESTROY
 } upcall_type_t;
 
 /* operations for cos_brand_cntl and cos_brand_upcall */

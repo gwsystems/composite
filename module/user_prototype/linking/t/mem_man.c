@@ -1,5 +1,6 @@
 /**
- * Copyright 2008 by Gabriel Parmer, gabep1@cs.bu.edu
+ * Copyright 2008 by Gabriel Parmer, gabep1@cs.bu.edu.  All rights
+ * reserved.
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
@@ -46,7 +47,6 @@ static inline struct mem_cell *find_cell(spdid_t spd, vaddr_t addr)
 	return NULL;
 }
 
-extern int print_vals(int, int, int, int);
 /* 
  * Call to get a page of memory at a location.
  */
@@ -62,7 +62,6 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 	c->owner_spd = spd;
 	c->addr = addr;
 		
-	//print_vals(spd, addr, flags, 0);
 	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, spd, addr, cell_index(c))) {
 		return 0;
 	}
@@ -84,9 +83,4 @@ void mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 	cells[idx].addr = 0;
 
 	return;
-}
-
-void dump(void)
-{
-	print_vals(0,0,0,0);
 }

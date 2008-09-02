@@ -124,10 +124,6 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 
 	capability >>= 20;
 
-	/*printk("cos: ipc_walk_static_cap - thd %p, cap %x(%u), sp %x, ip %x.\n",
-	       thd, (unsigned int)capability, (unsigned int)capability, 
-	       (unsigned int)sp, (unsigned int)ip);*/
-
 	if (unlikely(capability >= MAX_STATIC_CAP)) {
 		struct spd *t = virtual_namespace_query(ip);
 		printk("cos: capability %d greater than max from spd %d @ %x.\n", 
@@ -149,6 +145,10 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 
 	dest_spd = cap_entry->destination;
 	curr_spd = cap_entry->owner;
+
+//	printk("cos: ipc_walk_static_cap - thd %d, cap %x(%u), from spd %d to %d, sp %x, ip %x.\n",
+//	       thd->thread_id, (unsigned int)capability, (unsigned int)capability, spd_get_index(curr_spd), 
+//	       spd_get_index(dest_spd), (unsigned int)sp, (unsigned int)ip);
 
 	if (unlikely(!dest_spd || curr_spd == CAP_FREE || curr_spd == CAP_ALLOCATED_UNUSED)) {
 		printk("cos: Attempted use of unallocated capability.\n");
@@ -174,8 +174,7 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	if (unlikely(curr_spd->composite_spd != curr_frame->current_composite_spd &&
 		     !thd_spd_in_current_composite(thd, curr_spd))) {
 		printk("cos: Error, incorrect capability (Cap %d has cspd %x, stk has %x).\n",
-		       capability, (unsigned int)curr_spd->composite_spd,
-		       (unsigned int)curr_frame->current_composite_spd);
+		       capability, spd_get_index(curr_spd), spd_get_index(curr_frame->spd));
 		print_stack(thd);
 		/* 
 		 * FIXME: do something here like throw a fault to be
@@ -223,6 +222,7 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 }
 
 static struct pt_regs *brand_execution_completion(struct thread *);
+static struct pt_regs *thd_ret_term_upcall(struct thread *t);
 /*
  * Return from an invocation by popping off of the invocation stack an
  * entry, and returning its contents (including return ip and sp).
@@ -236,21 +236,18 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr, struct pt_regs
 
 	inv_frame = thd_invocation_pop(curr);
 
-	if (inv_frame == NULL) {
+	if (unlikely(inv_frame == NULL)) {
 		if (curr->flags & THD_STATE_ACTIVE_UPCALL) {
 			*regs_restore = brand_execution_completion(curr);
 		} else {
-			/* TODO: should really send a fault here */
-			printk("cos: Attempting to return from a component when there's no component to return to.\n");
-			assert(0);
-			regs_restore = 0;
+			*regs_restore = thd_ret_term_upcall(curr);
 		}
 
 		return NULL;
 	}
 	
-	//printk("cos: Popping spd %p off of thread %p.\n", 
-	//       &inv_frame->current_composite_spd->spd_info, curr_thd);
+//	printk("cos: Popping spd %d off of thread %d.\n", 
+//	       spd_get_index(inv_frame->spd), thd_get_current()->thread_id);
 	
 	curr_frame = thd_invstk_top(curr);
 	/* for now just assume we always close the server spd */
@@ -564,7 +561,7 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, int a, int b, int c)
 	//printk("cos: switching from thread %d to %d.\n", curr->thread_id, thd->thread_id);
 
 	//print_regs(&curr->regs);
-
+	
 	return thd_get_id(thd);
 }
 
@@ -691,6 +688,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	    curr->stack_ptr == 0 &&
 	    curr->thread_brand->pending_upcall_requests) {
 		//update_thd_evt_state(curr, COS_SCHED_EVT_BRAND_ACTIVE, 1);
+		spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(curr));
 		return sched_tailcall_pending_upcall(curr, (struct composite_spd*)curr_spd->composite_spd);
 	}
 
@@ -869,11 +867,30 @@ static struct thread *upcall_execute(struct thread *uc, struct thread *prev,
 	return uc;
 }
 
+/* Upcall into base scheduler! */
+static struct pt_regs *thd_ret_term_upcall(struct thread *curr)
+{
+	struct composite_spd *cspd = (struct composite_spd *)thd_get_thd_spdpoly(curr);
+	struct thd_sched_info *tsi;
+	struct spd *dest;
+	assert(cspd);
+	spd_mpd_ipc_release(cspd);
+	
+	tsi = thd_get_sched_info(curr, 0);
+	dest = tsi->scheduler;
+	
+	upcall_setup(curr, dest, COS_UPCALL_DESTROY, 0, 0, 0);
+	upcall_execute(curr, NULL, cspd);
+	
+	return &curr->regs;
+}
+
 static int cos_net_try_packet(struct thread *brand, unsigned short int *port);
 
 /* 
  * Assumes: we are called from the thread switching syscall, with the
- * TAIL_CALL flag (i.e. we are switching away from an upcall)
+ * TAIL_CALL flag (i.e. we are switching away from an upcall).  Also,
+ * that the previous component was released.
  */
 static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, struct composite_spd *curr)
 {
@@ -900,7 +917,7 @@ static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, struct c
 static struct pt_regs *brand_execution_completion(struct thread *curr)
 {
 	struct thread *prev, *brand = curr->thread_brand;
-	struct composite_spd *cspd = (struct composite_spd *)thd_get_thd_spdpoly(curr);
+    	struct composite_spd *cspd = (struct composite_spd *)thd_get_thd_spdpoly(curr);
 	
 	assert(brand && curr->flags & THD_STATE_ACTIVE_UPCALL);
 	assert(cspd);
@@ -1447,8 +1464,8 @@ static int verify_trust(struct spd *truster, struct spd *trustee)
 
 /* 
  * I HATE this call...do away with it if possible.  But we need some
- * way to jump-start processes AND let schedulers keep track of their
- * threads.
+ * way to jump-start processes, let schedulers keep track of their
+ * threads, and be notified when threads die.
  *
  * NOT performance sensitive: used to kick start spds and give them
  * active entities (threads).
@@ -1459,18 +1476,22 @@ COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, struct pt_r
 	struct spd *dest, *curr_spd;
 	struct thread *thd;
 
+	assert(regs);
+	*regs = NULL;
+
 	dest = spd_get_by_index(spd_id);
 	thd = thd_get_current();
 	curr_spd = thd_validate_get_current_spd(thd, this_spd_id);
 
 	if (NULL == dest || NULL == curr_spd) {
 		printk("cos: upcall attempt failed - dest_spd = %d, curr_spd = %d.\n",
-		       spd_get_index(dest), spd_get_index(curr_spd));
+		       dest     ? spd_get_index(dest)     : 0, 
+		       curr_spd ? spd_get_index(curr_spd) : 0);
 		return -1;
 	}
 
 	/*
-	 * Check that we are upcalling into a serice that explicitely
+	 * Check that we are upcalling into a service that explicitely
 	 * trusts us (i.e. that the current spd is allowed to upcall
 	 * into the destination.)
 	 */
@@ -2726,6 +2747,21 @@ COS_SYSCALL int cos_syscall_print(int spdid, char *str, int len)
 	return 0;
 }
 
+COS_SYSCALL int cos_syscall_cap_cntl(int spdid, spdid_t cspdid, spdid_t sspdid, int optional)
+{
+	struct spd *cspd, *sspd;
+	cspd = spd_get_by_index(cspdid);
+	sspd = spd_get_by_index(sspdid);
+
+	if (!cspd || !sspd) return 0;
+	/* TODO: access control */
+	return spd_read_reset_invocation_cnt(cspd, sspd);
+}
+
+/* 
+ * Composite's system call table that is indexed and invoked by ipc.S.
+ * The user-level stubs are created in cos_component.h.
+ */
 void *cos_syscall_tbl[16] = {
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_resume_return,
@@ -2740,7 +2776,7 @@ void *cos_syscall_tbl[16] = {
 	(void*)cos_syscall_mpd_cntl,
 	(void*)cos_syscall_mmap_cntl,
 	(void*)cos_syscall_brand_wire,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_cap_cntl,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
 };

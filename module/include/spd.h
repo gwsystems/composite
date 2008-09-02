@@ -31,9 +31,9 @@
  * protection domains.  
  */
 
-#define MAX_NUM_SPDS 20
+//#define MAX_NUM_SPDS 32
 /* ~ ((pagesize - sizeof(spd))/sizeof(static_capability)) */
-#define MAX_STATIC_CAP 1000
+//#define MAX_STATIC_CAP 1000
 
 /*
  * Static capabilities:
@@ -195,7 +195,11 @@ int spd_set_location(struct spd *spd, unsigned long lowest_addr,
 void spd_free(struct spd *spd);
 
 int spd_is_free(int idx);
-int spd_get_index(struct spd *spd);
+extern struct spd spds[MAX_NUM_SPDS];
+static inline int spd_get_index(struct spd *spd)
+{
+	return ((unsigned long)spd-(unsigned long)spds)/sizeof(struct spd);
+}
 struct spd *spd_get_by_index(int idx);
 void spd_free_all(void);
 void spd_init(void);
@@ -209,11 +213,12 @@ unsigned int spd_add_static_cap_extended(struct spd *spd, struct spd *trusted_sp
 					 isolation_level_t isolation_level, int flags);
 isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int flags);
 int cap_is_free(int cap_num);
+unsigned long spd_read_reset_invocation_cnt(struct spd *cspd, struct spd *sspd);
+
 static inline int spd_is_scheduler(struct spd *spd)
 {
 	return spd->sched_depth >= 0;
 }
-
 static inline int spd_is_member(struct spd *spd, struct composite_spd *cspd)
 { 
 	return spd->composite_spd == &cspd->spd_info;

@@ -122,6 +122,7 @@ cos_syscall_3(9, int, sched_cntl, int, operation, int, thd_id, long, option);
 cos_syscall_1(10, int, mpd_cntl, int, operation);
 cos_syscall_3(11, int, __mmap_cntl, long, op_flags_dspd, long, daddr, long, mem_id);
 cos_syscall_3(12, int, brand_wire, long, thd_id, long, option, long, data);
+cos_syscall_3(13, unsigned long, cap_cntl, spdid_t, client, spdid_t, server, long, data);
 
 static inline int cos_mmap_cntl(short int op, short int flags, 
 				short int dest_spd, vaddr_t dest_addr, long mem_id) {
@@ -331,6 +332,9 @@ static inline int cos_argreg_free(void *p)
 
 #define prevent_tail_call(ret) __asm__ ("" : "=r" (ret) : "m" (ret))
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
+
+#define likely(x)       __builtin_expect(!!(x), 1)
+#define unlikely(x)     __builtin_expect(!!(x), 0)
 
 #define COS_FIRST_ARG ((void *)SHARED_REGION_START)
 

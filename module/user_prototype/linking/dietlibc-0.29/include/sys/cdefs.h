@@ -32,7 +32,7 @@
 #define __expect(foo,bar) (foo)
 #else
 #define __expect(foo,bar) __builtin_expect((long)(foo),bar)
-#define __attribute_malloc__ __attribute__((__malloc__))
+#define __attribute_malloc__ //GAP __attribute__((__malloc__))
 #endif
 #endif
 

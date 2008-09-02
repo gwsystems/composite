@@ -969,6 +969,32 @@ void prevent_executive_copying_on_fork(struct mm_struct *mm,
 	return;
 }
 
+static void cos_print_registers(struct pt_regs *regs)
+{
+	printk("cos: EIP:    %04x:[<%08lx>]    EFLAGS: %08lx\n",
+	        0xffff & regs->xcs, regs->eip,
+		regs->eflags);
+	//printk("cos: EIP is at %s\n", regs->eip);
+	printk("cos: eax: %08lx   ebx: %08lx   ecx: %08lx   edx: %08lx\n",
+		regs->eax, regs->ebx, regs->ecx, regs->edx);
+	printk("cos: esi: %08lx   edi: %08lx   ebp: %08lx   esp: %08lx\n",
+		regs->esi, regs->edi, regs->ebp, regs->esp);
+	printk("cos: ds: %04x   es: %04x   ss: %04x\n",
+		regs->xds & 0xffff, regs->xes & 0xffff, regs->xss & 0xffff);
+	printk("cos: Process %s (pid: %d, threadinfo=%p task=%p)\n",
+		current->comm, current->pid, current_thread_info(), current);
+	return;
+}
+static int syscalls_enabled = 1;
+void syscall_interposition(struct pt_regs *regs)
+{
+	if (current == current && 0 == syscalls_enabled) {
+		printk("Received system call in composite process while syscalls disabled.\n");
+		cos_print_registers(regs);
+	}
+}
+
+
 extern int virtual_namespace_alloc(struct spd *spd, unsigned long addr, unsigned int size);
 void zero_pgtbl_range(phys_addr_t pt, unsigned long lower_addr, unsigned long size);
 void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from, 
@@ -1506,6 +1532,12 @@ free_dummy:
 		
 		return 0;
 	}
+	case AED_DISABLE_SYSCALLS:
+		syscalls_enabled = 0;
+		return 0;
+	case AED_ENABLE_SYSCALLS:
+		syscalls_enabled = 1;
+		return 0;
 	default: 
 		ret = -EINVAL;
 	}
@@ -2368,6 +2400,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	}
 
 	composite_thread = current;
+	syscalls_enabled = 1;
 	composite_union_mm = get_task_mm(current);
 	union_pgd = composite_union_mm->pgd;
 

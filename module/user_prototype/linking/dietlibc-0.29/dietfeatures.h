@@ -3,13 +3,13 @@
 
 /* feel free to comment some of these out to reduce code size */
 
-#define WANT_FLOATING_POINT_IN_PRINTF
-#define WANT_FLOATING_POINT_IN_SCANF
-#define WANT_CHARACTER_CLASSES_IN_SCANF
+//#define WANT_FLOATING_POINT_IN_PRINTF
+//#define WANT_FLOATING_POINT_IN_SCANF
+//#define WANT_CHARACTER_CLASSES_IN_SCANF
 #define WANT_NULL_PRINTF
 /* #define WANT_ERROR_PRINTF */
 #define WANT_LONGLONG_PRINTF
-#define WANT_LONGLONG_SCANF
+//#define WANT_LONGLONG_SCANF
 
 /* 128 or 2048 bytes buffer size? */
 /* #define WANT_SMALL_STDIO_BUFS */
@@ -17,22 +17,22 @@
 /* want fread to read() directly if size of data is larger than buffer?
  * This costs a few bytes but is worth it if the application is already
  * buffering. */
-#define WANT_FREAD_OPTIMIZATION
+ #define WANT_FREAD_OPTIMIZATION
 
 /* this is only for meaningful for ttyname and sysconf_cpus so far */
-#define SLASH_PROC_OK
+ #define SLASH_PROC_OK
 
 /* use errno_location instead of errno */
-#define WANT_THREAD_SAFE
+ #define WANT_THREAD_SAFE
 
 /* make the startcode, etc. dynamic aware ({con,de}structors) */
 /* #define WANT_DYNAMIC */
 
 /* GDB support in the dynamic linker */
-#define WANT_LD_SO_GDB_SUPPORT
+ #define WANT_LD_SO_GDB_SUPPORT
 
 /* do you want smaller or faster string routines? */
-/* #define WANT_FASTER_STRING_ROUTINES */
+#define WANT_FASTER_STRING_ROUTINES 
 
 /* define this to have strncpy zero-fill and not just zero-terminate the
  * string */
@@ -43,39 +43,39 @@
 /* 20040118: enabling this breaks User Mode Linux!  It's their fault. */
 //#define WANT_SYSENTER
 
-#define WANT_LINKER_WARNINGS
+// #define WANT_LINKER_WARNINGS
 
 /* you need to define this if you want to run your programs with large
  * file support on kernel 2.2 or 2.0 */
-#define WANT_LARGEFILE_BACKCOMPAT
+ #define WANT_LARGEFILE_BACKCOMPAT
 
 /* do you want localtime(3) to read /etc/localtime?
  * Needed for daylight saving time etc. */
-#define WANT_TZFILE_PARSER
+ #define WANT_TZFILE_PARSER
 
 /* do you want the DNS routines to parse and use "domain" and "search"
  * lines from /etc/resolv.conf?  Normally not used on boot floppies and
  * embedded environments. */
-#define WANT_FULL_RESOLV_CONF
+ #define WANT_FULL_RESOLV_CONF
 
 /* do you want IPv6 transport support in the DNS resolver? */
-#define WANT_IPV6_DNS
+ #define WANT_IPV6_DNS
 
 /* do you want gethostbyname and friends to consult /etc/hosts? */
-#define WANT_ETC_HOSTS
+ #define WANT_ETC_HOSTS
 
 /* do you want gethostbyname to understand dotted decimal IP numbers
  * directly and not try to resolve them? */
-#define WANT_INET_ADDR_DNS
+ #define WANT_INET_ADDR_DNS
 
 /* do you want math functions high precision rather than fast/small? */
-#define WANT_HIGH_PRECISION_MATH
+//#define WANT_HIGH_PRECISION_MATH
 
 /* do you want support for matherr? */
 #define WANT_MATHERR
 
 /* do you want crypt(3) to use MD5 if the salt starts with "$1$"? */
-#define WANT_CRYPT_MD5
+ #define WANT_CRYPT_MD5
 
 /* do you want diet to include a safeguard dependency to make linking
  * against glibc fail?  This may fail with older binutils. */
@@ -84,7 +84,7 @@
 /* This enables zeroconf DNS aka Rendezvous aka Bonjour. */
 /* This code will try zeroconf DNS if you ask for host.local or if you
  * ask for an unqualified hostname */
-#define WANT_PLUGPLAY_DNS
+ #define WANT_PLUGPLAY_DNS
 
 /* do you want that malloc(0) return a pointer to a "zero-length" object
  * that is realloc-able; means realloc(..,size) gives a NEW object (like a

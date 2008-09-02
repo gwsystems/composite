@@ -10,8 +10,7 @@ TRANS_DIR=/home/grad3/gabep1/transfer/
 
 default: module
 
-module:
-	$(MAKE) -C $(LINKER_DIR)
+module: comps
 	$(MAKE) -C $(KDIR) SUBDIRS=$(PWD) modules
 	$(MAKE) -C $(NET_DIR)
 
@@ -19,6 +18,9 @@ cp:
 	cp cos.ko $(TRANS_DIR)
 	make -C $(LINKER_DIR) copy
 	make -C $(NET_DIR) copy
+
+comps:
+	$(MAKE) -C $(LINKER_DIR)
 
 loc:
 	@ wc -l *.c *.S *.h include/*.h $(LINKER_DIR)/*.c $(LINKER_DIR)/t/*.S $(LINKER_DIR)/t/*.c $(LINKER_DIR)/t/*.h $(NET_DIR)/*.c $(NET_DIR)/util/*.c | tail -n 1 | awk '{print $1}'

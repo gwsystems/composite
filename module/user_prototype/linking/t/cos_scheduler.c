@@ -1,8 +1,15 @@
 #include <cos_scheduler.h>
 
+/* Force the cos_asm_scheduler.S file to be linked with us */
+extern int cos_force_sched_link;
+int cos_use_force_sched_link(void)
+{
+	return cos_force_sched_link;
+}
+
 /**************** Scheduler Event Fns *******************/
 
-/* This should be called with the scheduler lock */
+/* This should be called with the scheduler lock  */
 int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 {
 	u8_t id, flags;
@@ -187,6 +194,8 @@ void sched_ds_init(void)
 		sched_map_evt_thd[i] = NULL;
 	}
 
+	sched_crit_sect_init();
+
 	return;
 }
 
@@ -289,5 +298,10 @@ void sched_rem_grp(struct sched_thd *grp, struct sched_thd *thd)
 	REM_LIST(thd, next, prev);
 	grp->nthds--;
 }
+
+
+/************** critical section functions/state *************/
+
+struct sched_crit_section sched_spd_crit_sections[MAX_NUM_SPDS];
 
 

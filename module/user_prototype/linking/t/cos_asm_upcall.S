@@ -5,8 +5,10 @@
  * Public License v2.
  */
 
+#define __ASM__
 #include <cos_asm_stacks.h>
-	
+#include "../../../include/consts.h"
+
 #define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 
@@ -22,10 +24,12 @@ nil:
 .globl cos_static_stack
 cos_static_stack:
 /*	.rep 8193*/
-	.rep 32768
+	.rep ALL_STACK_SZ /*32768*/
 	.long 0
 	.endr
-
+.globl cos_static_stack_end
+cos_static_stack_end:
+	.long 0
 /*.weak cos_sched_notifications
 cos_sched_notifications:
 	.long 0
@@ -101,4 +105,7 @@ cos_atomic_user3_end:
 cos_atomic_user4:
 .weak cos_atomic_user4_end
 cos_atomic_user4_end:
-	nop
+	/* crash out as something's wrong */
+	movl $0, %eax
+	movl (%eax), %eax
+

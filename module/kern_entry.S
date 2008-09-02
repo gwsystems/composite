@@ -213,9 +213,15 @@ ENTRY(asym_exec_dom_entry)
 	testw $(_TIF_HIJACK_ENV), TI_flags(%ebp)
 	jnz hijack_checks
 	/* fall through */
+
+	SAVE_ALL
+	pushl %esp
+/*	call syscall_interposition */
+	addl $4, %esp
+	RESTORE_REGS
 	
-/* branch optimize for normal system calls */
 normal_syscall:
+		
 	popl %ebp
 	popfl
 	movl temp_esp_storage, %esp

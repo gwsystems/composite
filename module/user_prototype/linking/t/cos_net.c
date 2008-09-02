@@ -128,7 +128,7 @@ static int retrieve_event(unsigned short int thd_id)
 			//goto again;
 			//}
 
-			assert(!sched_block());
+			assert(-1 != sched_block());
 			//tm->blocked = 0;
 			//assert(tm->pending_evts);
 			do {

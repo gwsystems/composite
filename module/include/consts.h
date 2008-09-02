@@ -8,16 +8,26 @@
 #ifndef CONSTS_H
 #define CONSTS_H
 
+#ifndef __ASM__
 #ifdef __KERNEL__
 #include <linux/thread_info.h> /* for PAGE_SIZE */
 #else 
-#define PAGE_SIZE (1<<12)
 struct pt_regs { int dummy[16]; };
+#endif
+#endif
+#ifndef __KERNEL__
+#define PAGE_SIZE (1<<12)
 #endif
 
 #define MAX_SERVICE_DEPTH 31
 #define MAX_NUM_THREADS 31
+/* Stacks are 2 * page_size (expressed in words) */
+#define MAX_STACK_SZ    (PAGE_SIZE*2/4)
+#define ALL_STACK_SZ    (MAX_NUM_THREADS*MAX_STACK_SZ)
 #define MAX_SCHED_HIER_DEPTH 4
+
+#define MAX_NUM_SPDS 32
+#define MAX_STATIC_CAP 1024
 
 #define PAGE_MASK (~(PAGE_SIZE-1))
 #define PGD_RANGE (1<<22)

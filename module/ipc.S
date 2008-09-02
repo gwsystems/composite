@@ -278,18 +278,21 @@ cos_syscall_upcall:
 	pushl %edx /* this spd_id */
 	call cos_syscall_upcall_cont
 	addl $12, %esp
-	
 	popl %ebx  /* regs */
+
+	cmpl $-1, %eax
+	je   upcall_err
+
 	movl PT_EDX(%ebx), %ecx
 	movl %ecx, (COS_SYSCALL_EDX)(%esp)
 	movl PT_ECX(%ebx), %ecx
 	movl %ecx, (COS_SYSCALL_ECX)(%esp)
 	/* movl %ebx, (COS_SYSCALL_EDX)(%esp)*/
 	/* eax remains as the thread id */
-	
+upcall_err:	
 	ret
 
-; 	pushl $0
+	; 	pushl $0
 ; 	pushl %esp
 ; 	pushl %ebx /* spd_id to upcall to */
 ; 	pushl %edx /* this spd_id */

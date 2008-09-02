@@ -5,6 +5,13 @@
  * Public License v2.
  */
 
+.data
+/* This symbol exists so that this object is forced to load on link */
+.globl cos_force_sched_link
+cos_force_sched_link:	
+.long 0
+	
+.text
 /*
  * Can't modify the in regs as we might start over (rollback)
  * in:  %eax = lockaddr, %ebx = curr_thread_id
@@ -50,4 +57,5 @@ cos_atomic_user3_end:
 cos_atomic_user4:
 .globl cos_atomic_user4_end
 cos_atomic_user4_end:
-	nop
+	movl $0, %eax
+	movl (%eax), %eax

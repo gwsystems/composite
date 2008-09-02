@@ -2,17 +2,21 @@
 
 #include <cos_component.h>
 
-#define PRINT_FN print
-#include <print.h>
 #define DEBUG
+
 #ifdef DEBUG
-//extern int PRINT_FN(char *, int a, int b, int c);
-#define assert(node) if (!(node)) {PRINT_FN("assert error @ %d in %d%d.\n", (__LINE__), 0/*(__FILE__)*/, 0); *((int *)0) = 0;}
-//#define printd(str,args...) PRINT_FNS(str, ## args)
-#define printd(str,a,b,c) PRINT_FNS(str,a,b,c)
+#define PRINT_FN prints
+#include <print.h>
+/* Convoluted: We need to pass the __LINE__ through 2 macros to get it
+ * to expand to a constant string */
+#define STRX(x) #x
+#define STR(x) STRX(x)
+#define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
+#define debug_bug debug_print("BUG @ ");
+#define assert(node) if (!(node)) { debug_print("assert error @ "); *((int *)0) = 0;}
+
 #else 
 #define assert(n)
-#define printd(s,a...)
 #endif 
 
 #endif

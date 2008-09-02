@@ -15,6 +15,7 @@
 
 #include <cos_component.h>
 #include <cos_debug.h>
+#include <cos_list.h>
 
 /*************** Scheduler Synchronization Fns ***************/
 
@@ -91,48 +92,27 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 
 /**************** Scheduler Util Fns *******************/
 
-#define THD_BLOCKED 0x1
-#define THD_READY   0x2
-#define THD_FREE    0x4
-#define THD_GRP     0x8  // is this thread a group of thds?
-#define THD_MEMBER  0x10 // is this thread part of a group?
-#define THD_UC_ACTIVE 0X20
-#define THD_UC_READY  0X40
-#define THD_SUSPENDED 0x80
+#define THD_BLOCKED    0x1
+#define THD_READY      0x2
+#define THD_FREE       0x4
+#define THD_GRP        0x8  // is this thread a group of thds?
+#define THD_MEMBER     0x10 // is this thread part of a group?
+#define THD_UC_ACTIVE  0X20
+#define THD_UC_READY   0X40
+#define THD_SUSPENDED  0x80
+#define THD_DEPENDENCY 0x100
 
-#define sched_thd_free(thd)    ((thd)->flags & THD_FREE)
-#define sched_thd_grp(thd)     ((thd)->flags & THD_GRP)
-#define sched_thd_member(thd)  ((thd)->flags & THD_MEMBER)
-#define sched_thd_ready(thd)   ((thd)->flags & THD_READY)
-#define sched_thd_blocked(thd) ((thd)->flags & THD_BLOCKED)
-#define sched_thd_event(thd)   ((thd)->flags & (THD_UC_ACTIVE|THD_UC_READY))
-#define sched_thd_inactive_evt(thd) ((thd)->flags & THD_UC_READY)
-#define sched_thd_suspended(thd) ((thd)->flags & THD_SUSPENDED)
+#define sched_thd_free(thd)          ((thd)->flags & THD_FREE)
+#define sched_thd_grp(thd)           ((thd)->flags & THD_GRP)
+#define sched_thd_member(thd)        ((thd)->flags & THD_MEMBER)
+#define sched_thd_ready(thd)         ((thd)->flags & THD_READY)
+#define sched_thd_blocked(thd)       ((thd)->flags & THD_BLOCKED)
+#define sched_thd_dependent(thd)     ((thd)->flags & THD_DEPENDENCY)
+#define sched_thd_event(thd)         ((thd)->flags & (THD_UC_ACTIVE|THD_UC_READY))
+#define sched_thd_inactive_evt(thd)  ((thd)->flags & THD_UC_READY)
+#define sched_thd_suspended(thd)     ((thd)->flags & THD_SUSPENDED)
 
 #define SCHED_NUM_THREADS MAX_NUM_THREADS
-
-#define INIT_LIST(obj, next, prev)		  \
-	(obj)->next = (obj)->prev = (obj)
-
-#define ADD_LIST(head, new, next, prev) 	  \
-	(new)->next = (head)->next;		  \
-	(new)->prev = (head);			  \
-	(head)->next = (new);			  \
-	(new)->next->prev = (new)
-
-#define REM_LIST(obj, next, prev)                 \
-	(obj)->next->prev = (obj)->prev;	  \
-	(obj)->prev->next = (obj)->next;	  \
-	(obj)->next = (obj)->prev = (obj)
-
-#define FIRST_LIST(obj, next, prev)               \
-	((obj)->next)
-
-#define LAST_LIST(obj, next, prev)                \
-	((obj)->prev)
-
-#define EMPTY_LIST(obj, next, prev)		  \
-	((obj)->next == (obj))
 
 struct sched_accounting {
 	unsigned long C, T, C_used, T_left;
@@ -151,7 +131,12 @@ struct sched_thd {
 	struct sched_metric metric;
 	u16_t event;
 	struct sched_thd *prio_next, *prio_prev;
+
+	/* blocking/waking specific info */
 	int wake_cnt;
+	spdid_t blocking_component, contended_component;
+	struct sched_thd *dependency_thd;
+	unsigned long long block_time;
 
 	/* If flags & THD_MEMBER */
 	struct sched_thd *group;
@@ -160,6 +145,10 @@ struct sched_thd {
 
 	/* linked list for all threads in a group */
 	struct sched_thd *next, *prev;
+};
+
+struct sched_crit_section {
+	struct sched_thd *holding_thd;
 };
 
 void sched_init_thd(struct sched_thd *thd, unsigned short int id, int flags);
@@ -174,7 +163,7 @@ void sched_rem_grp(struct sched_thd *grp, struct sched_thd *thd);
 static inline struct sched_accounting *sched_get_accounting(struct sched_thd *thd)
 {
 	assert(!sched_thd_free(thd));
-
+        
 	return &thd->accounting;
 }
 
@@ -286,5 +275,140 @@ static inline struct sched_thd *sched_get_grp(struct sched_thd *thd)
 	}
 	return thd->group;
 }
+
+/*************** critical section functions *****************/
+
+extern struct sched_crit_section sched_spd_crit_sections[MAX_NUM_SPDS];
+
+static inline void sched_crit_sect_init(void)
+{
+	int i;
+	
+	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
+		struct sched_crit_section *cs = &sched_spd_crit_sections[i];
+
+		cs->holding_thd = NULL;
+	}
+}
+
+static inline struct sched_thd *sched_thd_dependency(struct sched_thd *curr)
+{
+	struct sched_crit_section *cs;
+	spdid_t spdid;
+	assert(curr && sched_thd_ready(curr));
+	
+	if (!sched_thd_dependent(curr)) {
+		return NULL;
+	}
+
+	spdid = curr->contended_component;
+	if (spdid) {
+		assert(spdid < MAX_NUM_SPDS);
+
+		/* We have a critical section for a spd */
+		cs = &sched_spd_crit_sections[spdid];
+		if (!cs->holding_thd) {
+			curr->flags &= ~THD_DEPENDENCY;
+			curr->contended_component = 0;
+			return NULL;
+		}
+		return cs->holding_thd;
+	} else {
+		/* We have a (possibly stale) block/wake dependency */
+		assert(curr->dependency_thd);
+		if (sched_thd_blocked(curr)) {
+			return curr->dependency_thd;
+		} 
+		curr->flags &= ~THD_DEPENDENCY;
+		curr->dependency_thd = NULL; 
+		return NULL;
+	}
+}
+
+/* 
+ * Return the thread that is holding the crit section, or NULL if it
+ * is uncontested.
+ */
+static inline struct sched_thd *sched_take_crit_sect(spdid_t spdid, struct sched_thd *curr)
+{
+	struct sched_crit_section *cs;
+	assert(spdid < MAX_NUM_SPDS);
+	assert(!sched_thd_free(curr) && sched_thd_ready(curr));
+	cs = &sched_spd_crit_sections[spdid];
+
+	if (cs->holding_thd) {
+		/* The second assumption here might be too restrictive in the future */
+		assert(!sched_thd_free(cs->holding_thd) && 
+		       sched_thd_ready(cs->holding_thd));
+		curr->contended_component = spdid;
+		curr->flags |= THD_DEPENDENCY;
+		return cs->holding_thd;
+	} 
+	cs->holding_thd = curr;
+	return NULL;
+}
+
+/* Return 1 if curr does not hold the critical section, 0 otherwise */
+static inline int sched_release_crit_sect(spdid_t spdid, struct sched_thd *curr)
+{
+	struct sched_crit_section *cs;
+	assert(spdid < MAX_NUM_SPDS);
+	cs = &sched_spd_crit_sections[spdid];
+	assert(!sched_thd_free(curr) && sched_thd_ready(curr));
+
+	/* This ostensibly should not be the case */
+	if (cs->holding_thd != curr) {
+		return -1;
+	}
+	cs->holding_thd = NULL;
+	return 0;
+}
+
+/* /\* */
+/*  * Add the current thread to the list of those that are waiting for */
+/*  * the critical section.  Assumes that the current thread is no longer */
+/*  * on the ready list, and is not on any lists (runqueues). Return the */
+/*  * thread that is holding the resource. */
+/*  *\/ */
+/* static struct sched_thd *sched_wait_for_crit_sect(spdid_t spdid, struct sched_thd *curr) */
+/* { */
+/* 	struct sched_crit_section *cs; */
+/* 	assert(spdid < MAX_NUM_SPDS); */
+/* 	assert(!sched_thd_free(curr) && !sched_thd_ready(curr)); */
+/* 	assert(EMPTY_LIST(curr, prio_next, prio_prev)); */
+/* 	cs = &sched_spd_crit_sections[spdid]; */
+/* 	assert(cs->holding_thd); */
+
+/* 	ADD_LIST(&cs->waiting_thds, curr, prio_next, prio_prev); */
+/* 	curr->flags |= THD_LOCKED; */
+
+/* 	return cs->holding_thd; */
+/* } */
+
+/* /\* This function will be called for each thread waiting for a crit section *\/ */
+/* typedef void (*wakeup_thd_fn_t)(struct sched_thd *thd); */
+
+/* static int sched_wake_waiting_crit_sect(spdid_t spdid, wakeup_thd_fn_t fn) */
+/* { */
+/* 	struct sched_thd *thd; */
+/* 	struct sched_crit_section *cs; */
+/* 	assert(fn); */
+/* 	assert(spdid < MAX_NUM_SPDS); */
+/* 	cs = &sched_spd_crit_sections[spdid]; */
+/* 	/\* You should call sched_release_crit_sect first *\/ */
+/* 	assert(cs->holding_thd == NULL); */
+
+/* 	while (!EMPTY_LIST(&cs->waiting_thds, prio_next, prio_prev)) { */
+/* 		thd = FIRST_LIST(&cs->waiting_thds, prio_next, prio_prev); */
+/* 		assert(sched_thd_locked(thd)); */
+
+/* 		REM_LIST(thd, prio_next, prio_prev); */
+/* 		thd->flags &= !THD_LOCKED; */
+
+/* 		fn(thd); */
+/* 	} */
+
+/* 	return 0; */
+/* } */
 
 #endif

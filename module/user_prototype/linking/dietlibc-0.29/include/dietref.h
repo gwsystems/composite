@@ -2,6 +2,9 @@
  * libc, so trying to link an object file compiled with diet against
  * glibc will fail. */
 
+/* GAP: */
+#define NODIETREF
+
 #ifndef NODIETREF
 #ifdef __ASSEMBLER__
 #include <endian.h>

@@ -1,53 +1,124 @@
 # Note: I have added -fno-merge-constants so that all strings will be
 # placed in the .rodata section as opposed to .rodata.str1.x | x in
 # uints
+#
+# -Xlinker -r is used to pass flags into the linker, in this case to
+# prevent dietlibc from creating an executable and linking in many of
+# its normal symbols
+
+# I never want to touch this again, but will have to
 
 CC=gcc
 AR=ar
 LD=ld
 AS=$(CC)
-AR=ar
-INC_PATH=./ -I../include/
-CFLAGS=-Wall -I$(INC_PATH) -O3
-#-ggdb3
-# -nostdinc -nostdlib -fno-merge-constants
-ASFLAGS=-I$(INC_PATH) -c -nostdinc -nostdlib -fno-merge-constants
-PRODUCTS=c_stub.o comp0.o s_stub1.o comp1.o s_stub2.o comp2.o s_stub3.o comp3.o s_stub4.o comp4.o s_stubprint.o print_comp.o s_stubmm.o mem_man.o cos_asm_scheduler.o s_stubfprr.o fp_rr.o cos_scheduler.o s_stubnet.o cos_net.o s_stubds.o ds.o uc_test.o
-COMPONENTS=c0.o c1.o c2.o c3.o c4.o print_comp.o mm.o fprr.o net.o d.o uc.o
+DIETDIR=/home/grad3/gabep1/research/code/composite/composite/module/user_prototype/linking/dietlibc-0.29
+DIETBIN=$(DIETDIR)/bin-i386/diet
+DIETCC=$(DIETBIN) $(CC)
+DIETINC=$(DIETDIR)/include
+
 TRANS_DIR=/home/grad3/gabep1/transfer/
+INC_PATH=./
+# FIXME: dietlibc is now compiled with fno merge constants which is
+# probably ballooning its size.  Fix this in cos_loader.
+SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib
+CFLAGS=-Wall -I$(INC_PATH) -I$(DIETINC) -ggdb3 $(SHARED_FLAGS)
+DIETCFLAGS=$(CFLAGS) -Xlinker -r
+#-ggdb3
+ASFLAGS=-I$(INC_PATH) $(SHARED_FLAGS)
 
-all: $(PRODUCTS) libcos_component.a cos_asm_upcall.o
-	$(LD) -r -o c0.o comp0.o c_stub.o cos_asm_upcall.o -L. -lcos_component
-	$(LD) -r -o c1.o comp1.o s_stub1.o c_stub.o cos_asm_upcall.o -L. -lcos_component
-	$(LD) -r -o c2.o comp2.o s_stub2.o c_stub.o cos_asm_upcall.o cos_asm_scheduler.o -L. -lcos_component
-	$(LD) -r -o c3.o comp3.o s_stub3.o c_stub.o cos_asm_upcall.o -L. -lcos_component
-	$(LD) -r -o c4.o comp4.o s_stub4.o c_stub.o cos_asm_upcall.o -L. -lcos_component
+LIB=libcos_component.a
+LIB_ASM_OBJS=cos_asm_scheduler.o
+LIB_C_OBJS=cos_component.o cos_alloc.o cos_synchronization.o cos_scheduler.o
+LIB_C=$(LIB_C_OBJS:%.o=%.a)#$(wildcard *.c))
+# Order here is important: cos_scheduler.o must be before
+# cos_asm_scheduler.o so that it includes cos_force_sched_link which
+# forces the assembly file to be included.  Without it, the weak
+# symbols preclude it linking.
+LIB_OBJS=$(LIB_C_OBJS) $(LIB_ASM_OBJS) 
+# These are compiled in with the components regardless of if they
+# export an undefined symbol from the component.  They are a manditory
+# link-in.
+LIB_ASM_MANDITORY=cos_asm_upcall.o c_stub.o
 
-	$(LD) -r -o mm.o mem_man.o s_stubmm.o c_stub.o cos_asm_upcall.o -L. -lcos_component
-	$(LD) -r -o fprr.o fp_rr.o s_stubfprr.o c_stub.o cos_asm_upcall.o cos_asm_scheduler.o cos_scheduler.o -L. -lcos_component
-	$(LD) -r -o net.o cos_net.o s_stubnet.o c_stub.o cos_asm_upcall.o -L. -lcos_component
-	$(LD) -r -o d.o ds.o s_stubds.o c_stub.o cos_asm_upcall.o cos_asm_scheduler.o cos_scheduler.o -L. -lcos_component
-	$(LD) -r -o uc.o uc_test.o c_stub.o cos_asm_upcall.o -L. -lcos_component
+C_COMPS=comp0.o comp1.o comp2.o comp3.o comp4.o print_comp.o mem_man.o fp_rr.o cos_net.o ds.o uc_test.o wf_test.o lock.o timed_event.o mailbox.o mpd_mgr.o
+ASM_STUBS=s_stub1.o s_stub2.o s_stub3.o s_stub4.o s_stubprint.o s_stubmm.o s_stubfprr.o s_stubnet.o s_stubds.o s_stublock.o s_stubte.o s_stubmb.o
+PRODUCTS=$(C_COMPS) $(ASM_STUBS)
+COMPONENTS=c0.o c1.o c2.o c3.o c4.o print.o mm.o fprr.o net.o d.o uc.o wftest.o l.o te.o mb.o mpd.o
+TMP_STR=tmp
 
-print_comp.o: print_comp.c s_stubprint.o libcos_component.a cos_asm_upcall.o
-	../dietlibc-0.29/bin-i386/diet $(CC) -fno-merge-constants -nostdinc -nostdlib -I./ -I../include -I../dietlibc-0.29/include -Xlinker -r -o pc_int.o $< cos_asm_upcall.o s_stubprint.o
-# has to be a separate line as dietlibc messes up loading other libraries:
-	$(LD) -r -o $@ pc_int.o -L. -lcos_component
+SOURCES=$(C_COMPS:%.o=%.c) $(LIB_C_OBJS:%.o=%.c)
+#NOTE: assembly files don't have dependencies generated for them
+DEPENDENCIES=$(SOURCES:%.c=%.d)
 
-libcos_component.a:cos_component.o cos_alloc.o cos_synchronization.o cos_asm_synchronization.o
-	$(AR) r $@ $^
+.PHONY: all
+all: $(LIB) $(LIB_ASM_MANDITORY) $(PRODUCTS)
+	$(info [LD]   Linking in the server stubs to components)
+	@$(LD) -r -o c0.o comp0.o
+	@$(LD) -r -o c1.o comp1.o s_stub1.o
+	@$(LD) -r -o c2.o comp2.o s_stub2.o
+	@$(LD) -r -o c3.o comp3.o s_stub3.o
+	@$(LD) -r -o c4.o comp4.o s_stub4.o
 
+	@$(LD) -r -o print.o print_comp.o s_stubprint.o
+	@$(LD) -r -o mm.o mem_man.o s_stubmm.o
+	@$(LD) -r -o fprr.o fp_rr.o s_stubfprr.o
+	@$(LD) -r -o wftest.o wf_test.o
+	@$(LD) -r -o te.o timed_event.o s_stubte.o
+	@$(LD) -r -o l.o lock.o s_stublock.o
+	@$(LD) -r -o net.o cos_net.o s_stubnet.o
+	@$(LD) -r -o d.o ds.o s_stubds.o
+	@$(LD) -r -o mb.o mailbox.o s_stubmb.o
+	@$(LD) -r -o uc.o uc_test.o
+	@$(LD) -r -o mpd.o mpd_mgr.o
+
+include $(DEPENDENCIES)
+
+$(LIB):$(LIB_C) $(LIB_ASM_OBJS)
+	$(info [AR]   Creating $@ from $(LIB_OBJS))
+	@$(AR) cr $@ $(LIB_OBJS)
+
+# we have to compile these without dietlibc so that there are not
+# symbol conflicts and this is why we have the %.a here and don't
+# output a .a file.
+%.a:%.c
+	$(info [CC]   Creating library file from $^)
+	@$(CC) $(CFLAGS) -o $(@:%.a=%.o) -c $<
+
+# Jumping through hoops: want to link to our libraries first so that
+# symbols there are used, thus the gcc, and the ld, but then (and only
+# then) do we want to use dietlibc's functions
 %.o:%.c
-	$(CC) $(CFLAGS) -o $@ -c $<
+	$(info [CC]   Compiling $<)
+	@$(CC) $(CFLAGS) -o $@.$(TMP_STR)1 -c $<
+	$(info [LD]   Loading cos libraries ($(LIB), ...) into $<)
+	@$(LD) -r -o $@.$(TMP_STR)2 $@.$(TMP_STR)1 $(LIB_ASM_MANDITORY) -L. -lcos_component
+	$(info [DIET] Linking with dietlibc to produce $@)
+	@$(DIETCC) $(DIETCFLAGS) -I../dietlibc-0.29/include -Xlinker -r -o $@ $@.$(TMP_STR)2
+	@rm $@.$(TMP_STR)1 $@.$(TMP_STR)2
 
 %.o:%.S
-	$(AS) $(ASFLAGS) -o $@ $^
+	$(info [AS]   Compiling assembly file $^ into $@)
+	@$(AS) $(ASFLAGS) -c -o $@ $^
 
+# see the make manual: create the .d dependencies from include
+# statements.
+%.d:%.c
+	$(info [DEP]  Creating dependency file for $<)
+	@set -e; rm -f $@; \
+	$(CC) -M $(CFLAGS) $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+
+.PHONY: copy
 copy:
-	cp $(COMPONENTS) $(TRANS_DIR)
+	$(info [CP]   Copying all components to $(TRANS_DIR))
+	@cp $(COMPONENTS) $(TRANS_DIR)
 
+.PHONY: clean
 clean:
-	rm -rf *.o *.a $(PRODUCTS) *~
+	$(info [RM]   Cleaning up directory)
+	@rm -f a.out *.o *.a *.d *~
 
 
 

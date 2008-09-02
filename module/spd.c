@@ -146,6 +146,20 @@ static inline struct usr_inv_cap *cap_get_usr_cap(int cap_num)
 	return &owner->user_cap_tbl[cap_num];
 }
 
+static inline int cap_reset_cap_inv_cnt(int cap_num, int *inv_cnt)
+{
+	struct usr_inv_cap *ucap;
+	struct invocation_cap *cap;
+
+	ucap = cap_get_usr_cap(cap_num);
+	if (!ucap) return -1;
+	cap = &invocation_capabilities[cap_num];
+	*inv_cnt = ucap->invocation_count + cap->invocation_cnt;
+	ucap->invocation_count = cap->invocation_cnt = 0;
+
+	return 0;
+}
+
 /* 
  * FIXME: access control
  */
@@ -155,12 +169,6 @@ isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int fl
 	struct invocation_cap *cap;
 	struct spd *owner;
 	struct usr_inv_cap *ucap;
-
-	/*
-	printk("cos: change to il %s for cap %d.\n", 
-	       ((il == IL_SDT) ? "SDT" : ((il == IL_AST) ? "AST" : ((il == IL_ST) ? "ST" : "INV"))), 
-	       cap_num);
-	*/
 
 	if (cap_num >= MAX_STATIC_CAP) {
 		printk("Attempting to change isolation level of invalid cap %d.\n", cap_num);
@@ -174,6 +182,11 @@ isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int fl
 	cap->il = il;
 
 	owner = cap->owner;
+
+/*  	printk("cos: change to il %s for cap %d with owner %d.\n",  */
+/* 	       ((il == IL_SDT) ? "SDT" : ((il == IL_AST) ? "AST" : ((il == IL_ST) ? "ST" : "INV"))),  */
+/* 	       cap_num, spd_get_index(owner)); */
+
 	/* Use the kernel vaddr space table if possible, but it might
 	 * not be available on initialization */
 	ucap = (NULL != owner->user_cap_tbl) ? 
@@ -211,7 +224,7 @@ isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int fl
 	return prev;
 }
 
-static struct spd spds[MAX_NUM_SPDS];
+struct spd spds[MAX_NUM_SPDS];
 
 /*
  * This should be a per-cpu data structure and should be protected
@@ -345,10 +358,10 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 	return NULL;
 }
 
-int spd_get_index(struct spd *spd)
-{
-	return ((unsigned long)spd-(unsigned long)spds)/sizeof(struct spd);
-}
+/* int spd_get_index(struct spd *spd) */
+/* { */
+/* 	return ((unsigned long)spd-(unsigned long)spds)/sizeof(struct spd); */
+/* } */
 
 /*
  * Does an address range fit on a single page?
@@ -869,6 +882,35 @@ static void spd_chg_il_all_to_spd(struct composite_spd *cspd, struct spd *spd, i
 	}
 	
 	return;
+}
+
+#define MAXV (~(0UL))
+unsigned long spd_read_reset_invocation_cnt(struct spd *cspd, struct spd *sspd)
+{
+	unsigned long tot = 0;
+	unsigned int cnt = 0;
+	int i, cap_lo, cap_hi;
+	assert(cspd && sspd);
+
+	cap_lo = cspd->cap_base+1;
+	assert(cspd->cap_range > 0);
+	cap_hi = cspd->cap_range + cap_lo - 1;
+
+	for (i = cap_lo; i <= cap_hi; i++) {
+		struct invocation_cap *cap = &invocation_capabilities[i];
+		assert(cap->owner == cspd);
+		if (cap->destination != sspd) continue;
+
+		if (cap_reset_cap_inv_cnt(i, &cnt)) {
+			printk("cos: Error reading capability %d from spd %d->%d.\n",
+			       i, spd_get_index(cspd), spd_get_index(sspd));
+			continue;
+		}
+		/* For overflow: */
+		tot = ((tot + cnt) < tot) ? MAXV : tot + cnt;
+	}
+	
+	return tot;
 }
 
 /*

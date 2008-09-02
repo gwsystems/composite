@@ -45,6 +45,10 @@ const char *SCHED_PAGE_NAME = "cos_sched_notifications";
 const char *SPD_ID_NAME = "cos_this_spd_id";
 const char *HEAP_PTR = "cos_heap_ptr";
 
+const char *INIT_COMP = "c0.o";
+const char *ROOT_SCHED = "fprr.o";
+const char *MPD_MGR = "mpd.o";
+
 const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] = 
 { "cos_atomic_cmpxchg",
   "cos_atomic_cmpxchg_end",
@@ -91,9 +95,9 @@ struct sec_info ldobj[MAXSEC_S];
 
 #define UNDEF_SYMB_TYPE 0x1
 #define EXPORTED_SYMB_TYPE 0x2
-#define MAX_SYMBOLS 64
-#define MAX_TRUSTED 16
-#define MAX_SYMB_LEN 64
+#define MAX_SYMBOLS 256
+#define MAX_TRUSTED 32
+#define MAX_SYMB_LEN 128
 
 typedef int (*observer_t)(asymbol *, void *data);
 
@@ -1136,8 +1140,8 @@ static void gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *servic
 		system(tmp_str);
 
 		/* link the stub to the service */
-		sprintf(tmp_str, LINKER_BIN " -r -o %s.o %s_stub.o %s", 
-			tmp_name, tmp_name, orig_name);
+		sprintf(tmp_str, LINKER_BIN " -r -o %s.o %s %s_stub.o", 
+			tmp_name, orig_name, tmp_name);
 		system(tmp_str);
 
 		/* Make service names reflect their new linked versions */
@@ -1486,8 +1490,8 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 	printf("\tFound cos_upcall for component %s @ %p.\n", s->obj, (void*)upcall_addr);
 	printf("\tFound spd_id address for component %s @ %p.\n", s->obj, spd_id_addr);
 	for (i = 0 ; i < NUM_ATOMIC_SYMBS ; i++) {
-		printf("\tFound %s address for component %s @ %p.\n", 
-		       ATOMIC_USER_DEF[i], s->obj, spd_id_addr);
+		printf("\tFound %s address for component %s @ %x.\n", 
+		       ATOMIC_USER_DEF[i], s->obj, (unsigned int)spd->atomic_regions[i]);
 	}
 
 	s->extern_info = spd;
@@ -1516,7 +1520,76 @@ void make_spd_scheduler(int cntl_fd, struct service_symbs *s, struct service_sym
 	return;
 }
 
-static struct service_symbs *find_obj_by_name(struct service_symbs *s, char *n)
+/* Edge description of components.  Mirrored in mpd_mgr.c */
+struct comp_graph {
+	int client, server;
+};
+
+static int serialize_spd_graph(struct comp_graph *g, int sz, struct service_symbs *ss)
+{
+	struct comp_graph *edge;
+	int g_frontier = 0;
+
+	while (ss) {
+		int i, cid, sid;
+
+		assert(ss->extern_info);		
+		cid = ((struct spd_info *)(ss->extern_info))->spd_handle;
+		for (i = 0 ; i < ss->num_dependencies && 0 != cid ; i++) {
+			struct service_symbs *dep = ss->dependencies[i];
+			assert(dep);
+
+			sid = ((struct spd_info *)(dep->extern_info))->spd_handle;
+			if (sid == 0) continue;
+			if (g_frontier >= (sz-2)) {
+				printf("More edges in component graph than can be serialized into the allocated region: fix cos_loader.c.\n");
+				exit(-1);
+			}
+
+			edge = &g[g_frontier++];
+			edge->client = cid;
+			edge->server = sid;
+			//printf("serialized edge @ %p: %d->%d.\n", edge, cid, sid);
+		}
+		
+		ss = ss->next;
+	}
+	edge = &g[g_frontier];
+	edge->client = edge->server = 0;
+
+	return 0;
+}
+
+/* 
+ * The only thing we need to do to the mpd manager is to let it know
+ * the topology of the component graph.  Progress the heap pointer a
+ * page, and serialize the component graph into that page.
+ */
+static void make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all)
+{
+	int **heap_ptr, *heap_ptr_val;
+	struct comp_graph *g;
+
+	heap_ptr = (int **)get_symb_address(&mm->exported, HEAP_PTR);
+	if (heap_ptr == NULL) {
+		printf("Could not find %s in %s.\n", HEAP_PTR, mm->obj);
+		return;
+	}
+	heap_ptr_val = *heap_ptr;
+	g = mmap((void*)heap_ptr_val, PAGE_SIZE, PROT_WRITE | PROT_READ,
+			MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+	if (MAP_FAILED == g){
+		perror("Couldn't map the graph into the address space");
+		return;
+	}
+	printf("Found mpd_mgr: remapping heap_ptr from %p to %p, serializing graph.\n",
+	       *heap_ptr, heap_ptr_val + PAGE_SIZE/sizeof(heap_ptr_val));
+	*heap_ptr = heap_ptr_val + PAGE_SIZE/sizeof(heap_ptr_val);
+
+	serialize_spd_graph(g, PAGE_SIZE/sizeof(struct comp_graph), all);
+}
+
+static struct service_symbs *find_obj_by_name(struct service_symbs *s, const char *n)
 {
 	while (s) {
 		if (strstr(s->obj, n) != NULL) {
@@ -1533,7 +1606,7 @@ static struct service_symbs *find_obj_by_name(struct service_symbs *s, char *n)
 
 static void setup_kernel(struct service_symbs *services)
 {
-	struct service_symbs *s, *ds;/*, *c0 = NULL, *c1 = NULL, *c2 = NULL, 
+	struct service_symbs *s; /*, *ds; //, *c0 = NULL, *c1 = NULL, *c2 = NULL, 
 		*pc = NULL, *c3 = NULL, *c4 = NULL, *mm = NULL;
 	struct spd_info *spd0, *spd1, *spd2, *spd3, *spd4, *spdpc, *spdmm;
 					   */
@@ -1553,7 +1626,7 @@ static void setup_kernel(struct service_symbs *services)
 		struct spd_info *t_spd;
 
 		t = s;
-		if (strstr(s->obj, "c0.o") != NULL) {
+		if (strstr(s->obj, INIT_COMP) != NULL) {
 			init = t;
 			t_spd = init_spd = create_spd(cntl_fd, init, 0, 0);
 		} else {
@@ -1578,21 +1651,28 @@ static void setup_kernel(struct service_symbs *services)
 	}
 		printf("\n");
 
-	if ((s = find_obj_by_name(services, "fprr.o")) == NULL) {
-		fprintf(stderr, "Could not find scheduler fprr\n");
+	if ((s = find_obj_by_name(services, ROOT_SCHED)) == NULL) {
+		fprintf(stderr, "Could not find root scheduler\n");
 		exit(-1);
 	}
 	make_spd_scheduler(cntl_fd, s, NULL);
 
-	if ((ds = find_obj_by_name(services, "d.o")) == NULL) {
-		fprintf(stderr, "Could not find scheduler fprr\n");
-		exit(-1);
-	}
-	make_spd_scheduler(cntl_fd, ds, s);
+/* 	if ((ds = find_obj_by_name(services, "d.o")) == NULL) { */
+/* 		fprintf(stderr, "Could not find scheduler ds\n"); */
+/* 		exit(-1); */
+/* 	} */
+/* 	make_spd_scheduler(cntl_fd, ds, s); */
 
 //	cos_demo_spds(cntl_fd, spd3->spd_handle, spd4->spd_handle);
 	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;//spd2->spd_handle;
-	if ((s = find_obj_by_name(services, "c0.o")) == NULL) {
+
+	if ((s = find_obj_by_name(services, MPD_MGR)) == NULL) {
+		fprintf(stderr, "Could not find mpd manager.\n");
+		exit(-1);
+	}
+	make_spd_mpd_mgr(s, services);
+
+	if ((s = find_obj_by_name(services, INIT_COMP)) == NULL) {
 		fprintf(stderr, "Could not find initial component\n");
 		exit(-1);
 	}
@@ -1607,9 +1687,11 @@ static void setup_kernel(struct service_symbs *services)
 #define ITER 1
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 
+	aed_disable_syscalls(cntl_fd);
 	rdtscll(start);
 	ret = fn();
 	rdtscll(end);
+	aed_enable_syscalls(cntl_fd);
 
 	printf("Invocation takes %lld, ret %d.\n", (end-start)/ITER, ret);
 	
@@ -1692,7 +1774,7 @@ int main(int argc, char *argv[])
 	}
 
 	stub_gen_prog = argv[2];
-	set_prio();
+//	set_prio();
 
 	/* 
 	 * NOTE: because strtok is used in prepare_service_symbs, we

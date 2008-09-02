@@ -135,7 +135,8 @@ ifneq ($(DEBUG),)
 CFLAGS = -g
 COMMENT = :
 endif
-CFLAGS += -Wall -W -Wchar-subscripts -Wmissing-prototypes -Wmissing-declarations -Wno-switch -Wno-unused -Wredundant-decls
+# GAP: -fno-merge-constants
+CFLAGS += -Wall -W -Wchar-subscripts -Wmissing-prototypes -Wmissing-declarations -Wno-switch -Wno-unused -Wredundant-decls -fno-merge-constants
 
 PWD=$(shell pwd)
 

@@ -133,5 +133,7 @@ void tzset(void) {
 }
 
 #else
+//GAP
+void __nop(void) {;}
 void tzset(void)	__attribute__((weak,alias("__nop")));
 #endif

@@ -114,6 +114,8 @@ struct spd_sched_info {
 #define AED_PROMOTE_SCHED   _IOR(0, 16, unsigned long)
 #define AED_EMULATE_PREEMPT _IOR(0, 17, unsigned long)
 #define AED_DEMO_SPDS _IOR(0, 18, unsigned long)
+#define AED_DISABLE_SYSCALLS _IO(0,19)
+#define AED_ENABLE_SYSCALLS  _IO(0,20)
 
 #ifndef __KERNEL__
 
@@ -378,6 +380,33 @@ static inline int aed_munmap(void *start, size_t len)
 
 	/* errno = EINVAL; */
 	return -1;
+}
+
+static inline void aed_disable_syscalls(int cntl_fd)
+{
+	int ret;
+
+	if ((ret = ioctl(cntl_fd, AED_DISABLE_SYSCALLS, 0)) == -1) {
+		perror("ioctl to disable syscalls: ");
+		printf("\nIoctl returned %d.\n", ret);
+		exit(-1);
+	}
+
+	return;
+}
+
+
+static inline void aed_enable_syscalls(int cntl_fd)
+{
+	int ret;
+
+	if ((ret = ioctl(cntl_fd, AED_ENABLE_SYSCALLS, 0)) == -1) {
+		perror("ioctl to enable syscalls: ");
+		printf("\nIoctl returned %d.\n", ret);
+		exit(-1);
+	}
+
+	return;
 }
 
 #endif /* __KERNEL__ */

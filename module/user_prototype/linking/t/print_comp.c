@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
-#define MAX_LEN 80
+#define MAX_LEN 512
 
 char foo[MAX_LEN];
 
@@ -20,7 +20,7 @@ int validate_format(char *s, int len)
 	return 0;
 }
 //int print_vals(int val1, int val2, int val3, int val4);
-int printstr(short int *s, unsigned int a, unsigned int b, unsigned int c)
+int printfmt(short int *s, unsigned int a, unsigned int b, unsigned int c)
 {
 	char *string = (char*)&s[1];
 	short int len;
@@ -42,15 +42,24 @@ int printstr(short int *s, unsigned int a, unsigned int b, unsigned int c)
 	return 0;
 }
 
-int print_vals(int val1, int val2, int val3, int val4)
+int print_str(char *s, unsigned int len)
 {
-	int ret;
+//	char *ptr;
+//	int l = len;
 
-	snprintf(foo, MAX_LEN, "%d:\t%d\t%d\t%d\t%d", cos_get_thd_id(), val1, val2, val3, val4);
-	cos_print(foo, MAX_LEN);
-//	ret = write(1, str, strlen(str));
+	if (!COS_IN_ARGREG(s) || !COS_IN_ARGREG(s + len)) {
+		snprintf(foo, MAX_LEN, "print argument out of bounds: %x", (unsigned int)s);
+		cos_print(foo, 0);
+		return -1;
+	}
+	s[len-1] = '\0';
 
-	return 0; 
+	cos_print(s, len);
+
+	return 0;
 }
 
-int main(void) { return 0; }
+int main(void)
+{
+	return 0;
+}

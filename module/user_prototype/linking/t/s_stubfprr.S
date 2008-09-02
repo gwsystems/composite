@@ -5,10 +5,7 @@
  * Public License v2.
  */
 
-#include <cos_asm_stacks.h>
-	
-#define RET_CAP ((1<<20)-1)
-#define IPRETURN 4
+#include <cos_asm_server_stub.h>
 
 .text	
 /* delivered to the server service all calls are demuxed through here
@@ -25,23 +22,6 @@ sched_init_inv:
 /*	popl %ebp*/
 	call sched_init
 /*	pushl %ebp*/
-
-	movl %eax, %ecx
-	movl $RET_CAP, %eax /* return capability */
-
-	sysenter
-
-.globl sched_report_processing_inv
-.type  sched_report_processing_inv, @function
-.align 16
-sched_report_processing_inv:
-	COS_ASM_GET_STACK
-	
-	pushl %ebp
-	pushl %edi
-	pushl %esi
-	pushl %ebx /* length */
-	call sched_report_processing
 
 	movl %eax, %ecx
 	movl $RET_CAP, %eax /* return capability */
@@ -116,6 +96,24 @@ sched_resume_thd_inv:
 
 	sysenter
 
+.globl sched_yield_exec_inv
+.type  sched_yield_exec_inv, @function
+.align 16
+sched_yield_exec_inv:
+	COS_ASM_GET_STACK
+	
+	pushl %ebp
+	pushl %edi
+	pushl %esi
+	pushl %ebx /* length */
+	pushl %ecx /* spdid */
+	call sched_yield_exec
+
+	movl %eax, %ecx
+	movl $RET_CAP, %eax /* return capability */
+
+	sysenter
+
 .globl sched_wakeup_inv
 .type  sched_wakeup_inv, @function
 .align 16
@@ -125,7 +123,8 @@ sched_wakeup_inv:
 	pushl %ebp
 	pushl %edi
 	pushl %esi
-	pushl %ebx /* length */
+//	pushl %ebx /* length */
+	pushl %ecx /* spdid */
 	call sched_wakeup
 
 	movl %eax, %ecx
@@ -143,12 +142,16 @@ sched_block_inv:
 	pushl %edi
 	pushl %esi
 	pushl %ebx /* length */
+	pushl %ecx /* spdid */
 	call sched_block
 
 	movl %eax, %ecx
 	movl $RET_CAP, %eax /* return capability */
 
 	sysenter
+
+cos_asm_server_stub_spdid(sched_timeout)
+cos_asm_server_stub_spdid(sched_timeout_thd)
 
 .globl sched_create_net_upcall_inv
 .type  sched_create_net_upcall_inv, @function
@@ -177,6 +180,46 @@ sched_exit_inv:
 /*	popl %ebp*/
 	call sched_exit
 /*	pushl %ebp*/
+
+	movl %eax, %ecx
+	movl $RET_CAP, %eax /* return capability */
+
+	sysenter
+
+cos_asm_server_stub(sched_create)
+cos_asm_server_stub(sched_tick_freq)
+
+.globl sched_component_take_inv
+.type  sched_component_take_inv, @function
+.align 16
+sched_component_take_inv:
+	COS_ASM_GET_STACK
+	
+	pushl %ebp
+	pushl %edi
+	pushl %esi
+	pushl %ebx /* length */
+	pushl %ecx /* spdid */
+	call sched_component_take
+
+	movl %eax, %ecx
+	movl $RET_CAP, %eax /* return capability */
+
+	sysenter
+
+	
+.globl sched_component_release_inv
+.type  sched_component_release_inv, @function
+.align 16
+sched_component_release_inv:
+	COS_ASM_GET_STACK
+	
+	pushl %ebp
+	pushl %edi
+	pushl %esi
+	pushl %ebx
+	pushl %ecx /* spdid */
+	call sched_component_release
 
 	movl %eax, %ecx
 	movl $RET_CAP, %eax /* return capability */

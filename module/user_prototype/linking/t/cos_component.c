@@ -25,3 +25,9 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	return;
 }
+
+__attribute__ ((weak))
+int main(void)
+{
+	return 0;
+}
