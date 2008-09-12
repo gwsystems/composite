@@ -104,6 +104,12 @@ struct thread {
 	/* flags & THD_STATE_BRAND */
 	unsigned long pending_upcall_requests;
 
+	/* HACK: recv ring buffer for network packets, both user-level
+	 * and kernel-level pointers
+	 */
+	ring_buff_t *u_rb, *k_rb;
+	int rb_next; 		/* Next address entry */
+
 	/* flags & (THD_STATE_UPCALL|THD_STATE_BRAND) != 0: */
 	/* TODO singly linked list of upcall threads for a specific brand */
 	//struct thread *upcall_thread_ready, *upcall_thread_active;

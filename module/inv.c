@@ -885,7 +885,7 @@ static struct pt_regs *thd_ret_term_upcall(struct thread *curr)
 	return &curr->regs;
 }
 
-static int cos_net_try_packet(struct thread *brand, unsigned short int *port);
+//static int cos_net_try_packet(struct thread *brand, unsigned short int *port);
 
 /* 
  * Assumes: we are called from the thread switching syscall, with the
@@ -896,7 +896,7 @@ static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, struct c
 {
 	struct thread *brand = uc->thread_brand;
 	struct spd *dest;
-	unsigned short int port;
+//	unsigned short int port;
 	//struct composite_spd *curr;
 
 	assert(brand && brand->pending_upcall_requests > 0);
@@ -904,8 +904,9 @@ static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, struct c
 	brand->pending_upcall_requests--;
 	dest = brand->stack_base[brand->stack_ptr].spd;
 	assert(dest);
-	cos_net_try_packet(brand, &port);
-	upcall_setup(uc, dest, COS_UPCALL_BRAND_EXEC, port, 0, 0);
+//	cos_net_try_packet(brand, &port);
+//	upcall_setup(uc, dest, COS_UPCALL_BRAND_EXEC, port, 0, 0);
+	upcall_setup(uc, dest, COS_UPCALL_BRAND_EXEC, 0, 0, 0);
 	upcall_execute(uc, NULL, curr);
 
 	cos_meas_event(COS_MEAS_BRAND_PEND_EXECUTE);
@@ -1348,8 +1349,15 @@ void cos_net_prebrand(void)
 	cos_meas_event(COS_MEAS_PACKET_RECEPTION);
 }
 
+extern int rb_retrieve_buff(struct thread *brand, int desired_len, 
+			    void **found_buf, int *found_len);
+extern int rb_setup(struct thread *brand, ring_buff_t *user_rb, ring_buff_t *kern_rb);
+
 int cos_net_try_brand(struct thread *t, void *data, int len)
 {
+	void *buff;
+	int l;
+
 #ifdef BRAND_HW_LATENCY
 	unsigned long long start;
 
@@ -1357,6 +1365,18 @@ int cos_net_try_brand(struct thread *t, void *data, int len)
 	glob_hack_arg = (unsigned long)start;
 #endif
 	cos_meas_event(COS_MEAS_PACKET_BRAND);
+
+	/* 
+	 * If there is no room for the network buffer, then don't
+	 * attempt the upcall.  This is analogous to not trying to
+	 * raise an interrupt when there are no buffers to write into.
+	 */
+	if (rb_retrieve_buff(t, len, &buff, &l)) {
+		cos_meas_event(COS_MEAS_PACKET_BRAND_FAIL);
+		return -1;
+	}
+	cos_meas_event(COS_MEAS_PACKET_BRAND_SUCC);
+	//memcpy(buff, data, len);
 
 	host_attempt_brand(t);
 	
@@ -1386,8 +1406,98 @@ int cos_net_notify_drop(struct thread *brand)
 	return 0;
 }
 
+/* 
+ * Partially emulate a device here: Receive ring for holding buffers
+ * to receive data into, and a synchronous call to transmit data.
+ */
+extern vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr);
+extern int user_struct_fits_on_page(unsigned long addr, unsigned int size);
+COS_SYSCALL int cos_syscall_buff_mgmt(int spd_id, void *addr, unsigned int thd_id, unsigned int len_op)
+{
+	/* 
+	 * FIXME: To do this right, we would need to either 1) pin the
+	 * buffer's pages into memory, or 2) interact closely with the
+	 * network subsystem so that any memory pages the mem_man
+	 * unmaps from the address space are removed from the network
+	 * buffer lists too.
+	 */
+	struct spd *spd;
+	vaddr_t kaddr;
+	unsigned short int option, len;
+
+	option = (len_op & 0xFFFF);
+	len = len_op >> 16;
+
+	spd = thd_validate_get_current_spd(thd_get_current(), spd_id);
+	if (!spd) {
+		printk("cos: buff mgmt -- invalid spd, %d for thd %d\n", 
+		       spd_id, thd_get_id(thd_get_current()));
+		return -1;
+	}
+
+	kaddr = pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, (unsigned long)addr);
+	if (!kaddr) {
+		printk("cos: buff mgmt -- could not find kernel address for %p in spd %d\n",
+		       addr, spd_id);
+		return -1;
+	}
+	
+	switch(option) {
+	/* Transmit the data buffer */
+	case COS_BM_XMIT:
+		if (!user_struct_fits_on_page((unsigned long)addr, len)) {
+			printk("cos: buff mgmt -- buffer address  %p does not fit onto page\n", addr);
+			return -1;
+		}
+		assert(0)
+		break;
+	/* Set the location of a user-level ring buffer */
+	case COS_BM_RECV_RING:
+	{
+		struct thread *b;
+
+		/*
+		 * Currently, the ring buffer must be aligned on a
+		 * page, and be a page long
+		 */
+		if ((unsigned long)addr & ~PAGE_MASK || len != PAGE_SIZE) {
+			printk("cos: buff mgmt -- recv ring @ %p (%d) not on page boundary.\n", addr, len);
+			return -1;
+		}
+		if (NULL == (b = thd_get_by_id(thd_id))) {
+			printk("cos: buff mgmt could not find brand thd %d.\n", 
+		       (unsigned int)thd_id);
+			return -1;
+		}
+		if (b->flags & THD_STATE_UPCALL) {
+			assert(b->thread_brand);
+			b = b->thread_brand;
+		}
+		if (!(b->flags & THD_STATE_BRAND ||
+		      b->flags & THD_STATE_HW_BRAND)) {
+			printk("cos: buff mgmt attaching ring buffer to thread not a brand: %d\n",
+			       (unsigned int)thd_id);
+			return -1;
+		}
+		if (thd_get_thd_spd(b) != spd) {
+			printk("cos: buff mgmt trying to set buffer for brand not in curr spd");
+			return -1;
+		}
+		if (rb_setup(b, (ring_buff_t*)addr, (ring_buff_t*)kaddr)) {
+			printk("cos: buff mgmt -- could not setup the ring buffer.\n");
+			return -1;
+		}
+		break;
+	}
+	default:
+		printk("cos: buff mgmt -- unknown option %d.\n", option);
+		return -1;
+	}
+	return 0;
+}
+
 /*
- * This is a bandaid currently.  This syscall should really be
+ * This is a bandaid currently.  This syscall should really be 
  * replaced by something a little more subtle and more closely related
  * to the APIC and timer hardware, rather than the device in general.
  */
@@ -1812,7 +1922,7 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 {
 	/* Assume here that we only have one upcall thread */
 	struct thread *upcall = brand->upcall_threads;
-	unsigned short int port;
+//	unsigned short int port;
 
 	assert(brand->flags & (THD_STATE_BRAND|THD_STATE_HW_BRAND));
 	assert(upcall && upcall->thread_brand == brand);
@@ -1841,7 +1951,7 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 #endif
 
 	assert(upcall->flags & THD_STATE_READY_UPCALL);
-	cos_net_try_packet(brand, &port);
+//	cos_net_try_packet(brand, &port);
 
 //#ifdef (BRAND_UL_LATENCY || BRAND_HW_LATENCY)
 #ifdef BRAND_HW_LATENCY
@@ -1849,7 +1959,8 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 		     COS_UPCALL_BRAND_EXEC, port, glob_hack_arg, 0);
 #else
 	upcall_setup(upcall, brand->stack_base[brand->stack_ptr].spd, 
-		     COS_UPCALL_BRAND_EXEC, port, 0, 0);
+//		     COS_UPCALL_BRAND_EXEC, port, 0, 0);
+		     COS_UPCALL_BRAND_EXEC, 0, 0, 0);
 #endif
 	upcall->flags |= THD_STATE_ACTIVE_UPCALL;
 	upcall->flags &= ~THD_STATE_READY_UPCALL;
@@ -2777,6 +2888,6 @@ void *cos_syscall_tbl[16] = {
 	(void*)cos_syscall_mmap_cntl,
 	(void*)cos_syscall_brand_wire,
 	(void*)cos_syscall_cap_cntl,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_buff_mgmt,
 	(void*)cos_syscall_void,
 };

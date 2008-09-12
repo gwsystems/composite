@@ -10,15 +10,21 @@
 #include <cos_scheduler.h>
 //#include <cos_alloc.h>
 #include <cos_time.h>
+#include <cos_spd_name_map.h>
 
 #define NUM_PRIOS 32
 #define IDLE_PRIO (NUM_PRIOS-3)
 #define CHILD_IDLE_PRIO (NUM_PRIOS-2)
 #define GRAVEYARD_PRIO (NUM_PRIOS-1)
 #define TIMER_TICK_PRIO (0)
-#define TIME_EVENT_PRIO (1)
+#define TIME_EVENT_PRIO (3)
+#define MPD_PRIO (1)
+#define INIT_PRIO (2)
+/* This is the start */
+#define NORMAL_PRIO_HI 4
+#define NORMAL_PRIO_LO (NUM_PRIOS-4)
 
-#define RUNTIME_SEC 60
+#define RUNTIME_SEC 6
 #define REPORT_FREQ 60
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
@@ -29,7 +35,7 @@ struct sched_thd *wakeup_thd;
 
 static volatile unsigned long wakeup_cnt = 0, block_cnt = 0;
 
-static struct sched_thd *timer, *init, *idle;//, *uc_notif;
+static struct sched_thd *timer, *init, *idle, *mpd;//, *uc_notif;
 struct sched_thd blocked;
 struct sched_thd upcall_deactive;
 struct prio_list {
@@ -361,7 +367,9 @@ void fp_timer_tick(void)
 
 	/* are we done running? */
 	if (ticks >= RUNTIME_SEC*TIMER_FREQ+1) {
-		cos_switch_thread(init->id, COS_SCHED_TAILCALL, 0);
+		fp_pre_wakeup(init);
+		fp_wakeup(init,0);
+		//cos_switch_thread(init->id, COS_SCHED_TAILCALL, 0);
 	}
 
 	do {
@@ -911,7 +919,7 @@ int sched_create_net_upcall(unsigned short int port, int depth)
 	print("Net upcall thread %d with priority %d make for port %d.", 
 	      uc->id, sched_get_metric(uc)->priority, port);
 
-	cos_sched_cntl(COS_SCHED_GRANT_SCHED, uc->id, 3);
+//	cos_sched_cntl(COS_SCHED_GRANT_SCHED, uc->id, 3);
 
 	return uc->id;
 }
@@ -944,6 +952,7 @@ int sched_init(void)
 	int i;
 	unsigned int b_id;
 	struct sched_thd *new, *new2;
+	int target_spdid;
 
 	if (!first) return -1;
 	first = 0;
@@ -957,6 +966,7 @@ int sched_init(void)
 
 	/* switch back to this thread to terminate the system. */
 	init = sched_alloc_thd(cos_get_thd_id());
+	fp_add_thd(init, INIT_PRIO);
 
 	/* create the idle thread */
 	idle = sched_setup_thread(IDLE_PRIO, IDLE_PRIO, fp_idle_loop);
@@ -967,24 +977,39 @@ int sched_init(void)
 	print("Timer thread has id %d with priority %d. %d", timer->id, TIMER_TICK_PRIO, TIMER_TICK_PRIO);
 	cos_brand_wire(b_id, COS_HW_TIMER, 0);
 
-	/* normal threads: */
-	new = sched_setup_thread_arg(TIME_EVENT_PRIO, TIME_EVENT_PRIO, fp_create_spd_thd, (void*)7);
-	print("Timeout thread has id %d and priority %d. %d", new->id, 2, 0);
+	target_spdid = spd_name_map_id("te.o");
+	assert(target_spdid != -1);
+	new = sched_setup_thread_arg(TIME_EVENT_PRIO, TIME_EVENT_PRIO, fp_create_spd_thd, (void*)target_spdid);
+	print("Timeout thread has id %d and priority %d. %d", new->id, TIME_EVENT_PRIO, 0);
 
+	/* normal threads: */
+	target_spdid = spd_name_map_id("net.o");
+	assert(target_spdid != -1);
+	new = sched_setup_thread_arg(NORMAL_PRIO_HI+1, NORMAL_PRIO_HI+1, fp_create_spd_thd, (void*)target_spdid);
+/*
 #define N_THDS 16
 	new = sched_setup_thread_arg(4, 4, fp_create_spd_thd, (void*)2);
 	for (i = 0; i < N_THDS; i++) {
 		new2 = sched_setup_thread_arg(4, 4, fp_create_spd_thd, (void*)2);
 	}
 	print("Worker threads have ids %d to %d @ priority %d.", new->id, new2->id, 4);
+*/
 
-	new = fp_get_highest_prio();
-	cos_switch_thread(new->id, 0, 0);
-
-	new = sched_setup_thread_arg(TIME_EVENT_PRIO+1, TIME_EVENT_PRIO+1, fp_create_spd_thd, (void*)3);
+	/* Block to begin execution of the normal tasks */
+	fp_pre_block(init);
+	fp_block(init, 0);
+	new = fp_schedule();
 	cos_switch_thread(new->id, 0,0);
-	//print("mpd thread has id %d. %d%d", new->id, 0,0);
+	
+	target_spdid = spd_name_map_id("mpd.o");
+	assert(target_spdid != -1);
+	mpd = sched_setup_thread_arg(MPD_PRIO, MPD_PRIO, fp_create_spd_thd, (void*)target_spdid);
+	print("MPD thread has id %d and priority %d. %d", mpd->id, MPD_PRIO, 0);
 
+ 	new = fp_schedule();
+	cos_switch_thread(new->id, 0,0);
+
+	/* Returning will exit the composite system. */
 	return 0;
 }
 

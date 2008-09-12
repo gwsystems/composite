@@ -8,21 +8,37 @@ extern int sched_block(spdid_t id);
 struct comp_graph {
 	int client, server;
 };
-struct comp_graph *graph;
+//struct comp_graph *graph;
+
+static void mpd_loop(struct comp_graph *g)
+{
+	while (1) {
+		sched_block(cos_spd_id());
+		/* do MPD manipulations here! */
+	}
+	assert(0);
+	return;
+}
 
 static void mpd_init(void)
 {
 	int i;
+	struct comp_graph *graph;
+	/* The hack to give this component the component graph is to
+	 * place it @ cos_heap_ptr-PAGE_SIZE.  See cos_loader.c.
+	 */
 	struct comp_graph *g = (struct comp_graph *)cos_heap_ptr;
-
+	
 	graph = (struct comp_graph *)((char*)g-PAGE_SIZE);
 	for (i = 0; graph[i].client && graph[i].server ; i++) {
 		unsigned long amnt;
 		amnt = cos_cap_cntl(graph[i].client, graph[i].server, 0);
-
+		
 		print("%d->%d w/ %d invocations.", graph[i].client, graph[i].server, (unsigned int)amnt);
 	}
-	while (1) sched_block(cos_spd_id());
+	mpd_loop(graph);
+	assert(0);
+	return;
 }
 
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)

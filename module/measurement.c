@@ -44,6 +44,8 @@ char *cos_meas_descriptions[COS_MEAS_MAX_SIZE+1] =
 	"atomic unlock request",
 	"received a network packet",
 	"make a brand for a network packet",
+	"network brand resulted in data being transferred",
+	"network brand failed: ring buffer full",
 	"pending notification HACK"
 	""
 };

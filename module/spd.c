@@ -366,7 +366,7 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 /*
  * Does an address range fit on a single page?
  */
-static int user_struct_fits_on_page(unsigned long addr, unsigned int size)
+int user_struct_fits_on_page(unsigned long addr, unsigned int size)
 {
 	unsigned long start, end;
 

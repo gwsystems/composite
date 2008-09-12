@@ -123,6 +123,7 @@ cos_syscall_1(10, int, mpd_cntl, int, operation);
 cos_syscall_3(11, int, __mmap_cntl, long, op_flags_dspd, long, daddr, long, mem_id);
 cos_syscall_3(12, int, brand_wire, long, thd_id, long, option, long, data);
 cos_syscall_3(13, unsigned long, cap_cntl, spdid_t, client, spdid_t, server, long, data);
+cos_syscall_3(14, int, __buff_mgmt, void *, addr, int, thd_id, int, len_option);
 
 static inline int cos_mmap_cntl(short int op, short int flags, 
 				short int dest_spd, vaddr_t dest_addr, long mem_id) {
@@ -133,7 +134,12 @@ static inline int cos_mmap_cntl(short int op, short int flags,
 
 static inline int cos_brand_upcall(short int thd_id, short int flags, long arg1, long arg2)
 {
-	return cos___brand_upcall((thd_id << 16) | flags, arg1, arg2);
+	return cos___brand_upcall(((thd_id << 16) | (flags & 0xFFFF)), arg1, arg2);
+}
+
+static inline int cos_buff_mgmt(void *addr, unsigned short int len, short int thd_id, unsigned short int op)
+{
+	return cos___buff_mgmt(addr, thd_id, ((len << 16) | (op & 0xFFFF)));
 }
 
 /*

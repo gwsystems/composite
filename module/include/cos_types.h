@@ -75,8 +75,38 @@ struct cos_sched_data_area {
 #define NULL ((void*)0)
 #endif
 
-
 /* 
+ * Ring buffer is structured as such (R is RB_READY, U is RB_USED, E is RB_EMPTY):
+ * +-> EEEEUUUUUURRRRRRREEEE-+
+ * |                         |
+ * +-------------------------+
+ * where empty cells contain no useful information, used signal
+ * buffers that have packet data placed into them, and ready cells are
+ * ready to receive data.  It is the responsibility of the component
+ * to maintain this.  The kernel will simply linearly walk along
+ * looking for ready cells and mark them as used when it places data
+ * in their buffers.
+ *
+ * This is a hack to interface with the Linux packet handling.
+ */
+enum {
+	RB_EMPTY = 0,
+	RB_READY,
+	RB_USED,
+	RB_ERR
+};
+#define RB_SIZE (4096 / 8) /* 4096 / sizeof(struct rb_buff_t), or 512 */
+/* HACK: network ring buffer */
+typedef struct {
+	struct rb_buff_t {
+		void *ptr;
+		unsigned short int len, status;
+	} __attribute__((packed)) packets[RB_SIZE];
+} __attribute__((aligned(4096))) ring_buff_t ;
+
+
+
+/*
  * For interoperability with the networking side.  This is the brand
  * port/brand thread pair, and the callback structures for
  * communcation.
@@ -88,13 +118,13 @@ struct cos_brand_info {
 };
 typedef void (*cos_net_data_completion_t)(void *data);
 struct cos_net_callbacks {
-	int (*get_packet)(struct cos_brand_info *bi, char **packet, unsigned long *len, 
+	int (*get_packet)(struct cos_brand_info *bi, char **packet, unsigned long *len,
 			  cos_net_data_completion_t *fn, void **data, unsigned short int *port);
 	int (*create_brand)(struct cos_brand_info *bi);
 	int (*remove_brand)(struct cos_brand_info *bi);
 };
 
-/* 
+/*
  * These types are for addresses that are never meant to be
  * dereferenced.  They will generally be used to set up page table
  * entries.
@@ -117,7 +147,7 @@ typedef enum {
 /* operations for cos_brand_cntl and cos_brand_upcall */
 enum {
 /* cos_brand_cntl -> */
-	COS_BRAND_CREATE,    
+	COS_BRAND_CREATE,
 	COS_BRAND_ADD_THD,
 	COS_BRAND_CREATE_HW,
 /* cos_brand_upcall -> */
@@ -136,11 +166,16 @@ enum {
 	COS_UC_NOTIF
 };
 
+enum {
+	COS_BM_XMIT,
+	COS_BM_RECV_RING
+};
+
 /* operations for cos_sched_cntl */
-enum { 
+enum {
 	COS_SCHED_EVT_REGION,
 	COS_SCHED_THD_EVT,
-	COS_SCHED_GRANT_SCHED, 
+	COS_SCHED_GRANT_SCHED,
 	COS_SCHED_REVOKE_SCHED
 };
 
@@ -181,7 +216,7 @@ enum {
 #define MAX_ISOLATION_LVL_VAL (IL_INV_UNMAP|IL_RET_UNMAP)
 
 /*
- * Note on Symmetric Trust, Symmetric Distruct, and Asym trust: 
+ * Note on Symmetric Trust, Symmetric Distruct, and Asym trust:
  * ST  iff (flags & (CAP_INV_UNMAP|CAP_RET_UNMAP) == 0)
  * SDT iff (flags & CAP_INV_UNMAP && flags & CAP_RET_UNMAP)
  * AST iff (!(flags & CAP_INV_UNMAP) && flags & CAP_RET_UNMAP)
@@ -190,7 +225,7 @@ enum {
 #define IL_SDT (IL_INV_UNMAP|IL_RET_UNMAP)
 #define IL_AST (IL_RET_UNMAP)
 /* invalid type, can NOT be used in data structures, only for return values. */
-#define IL_INV (~0) 
+#define IL_INV (~0)
 typedef unsigned int isolation_level_t;
 
 #define CAP_SAVE_REGS 0x1
@@ -203,26 +238,26 @@ typedef struct { volatile unsigned int counter; } atomic_t;
 
 #endif /* __KERNEL__ */
 
-static inline void cos_ref_take(atomic_t *rc) 
-{ 
-	rc->counter++; 
-	cos_meas_event(COS_MPD_REFCNT_INC); 
+static inline void cos_ref_take(atomic_t *rc)
+{
+	rc->counter++;
+	cos_meas_event(COS_MPD_REFCNT_INC);
 }
 
-static inline void cos_ref_set(atomic_t *rc, unsigned int val) 
-{ 
-	rc->counter = val; 
+static inline void cos_ref_set(atomic_t *rc, unsigned int val)
+{
+	rc->counter = val;
 }
 
-static inline unsigned int cos_ref_val(atomic_t *rc) 
-{ 
-	return rc->counter; 
+static inline unsigned int cos_ref_val(atomic_t *rc)
+{
+	return rc->counter;
 }
 
-static inline void cos_ref_release(atomic_t *rc) 
-{ 
+static inline void cos_ref_release(atomic_t *rc)
+{
 	rc->counter--; /* assert(rc->counter != 0) */
-	cos_meas_event(COS_MPD_REFCNT_DEC); 
+	cos_meas_event(COS_MPD_REFCNT_DEC);
 }
 
 #endif /* TYPES_H */

@@ -12,6 +12,7 @@
  *
  *  and on the sending host:
  *  route add -net 10.0.2.0 gw masala netmask 255.255.255.0 eth0
+ *  ./net/util/udp_client 10.0.2.8 200 10 1
  *
  ***********************************************************************  
  *  TUN - Universal TUN/TAP device driver.
@@ -110,13 +111,20 @@ static int tun_net_close(struct net_device *dev)
 static inline struct cosnet_struct *cosnet_find_brand(struct tun_struct *ts, __u16 dport)
 {
 	int i;
+	struct cosnet_struct *cn;
 
-	for (i = 0 ; i < COSNET_NUM_CHANNELS ; i++) {
+	for (i = 0 ; i < COSNET_NUM_CHANNELS-1 ; i++) {
 		struct cos_brand_info *bi = ts->cosnet[i].brand_info;
 
 		if (dport && bi && bi->brand_port == dport) {
 			return &ts->cosnet[i];
 		}
+	}
+	/* The last entry is the wildcard */
+	cn = &ts->cosnet[COSNET_NUM_CHANNELS-1];
+	if (cn->brand_info && cn->brand_info->brand) {
+		assert(cn->brand_info->brand_port == 0);
+		return cn;
 	}
 	
 	return NULL;
@@ -199,23 +207,33 @@ int cosnet_create_brand(struct cos_brand_info *bi)
 {
 	int i;
 	
-	assert(local_ts);
+	assert(local_ts && bi);
 
-	for (i = 0 ; i < COSNET_NUM_CHANNELS ; i++) {
+	/* Wildcard entry */
+	if (bi->brand_port == 0) {
+		struct cosnet_struct *cn = &local_ts->cosnet[COSNET_NUM_CHANNELS-1];
+
+		printk("cos: cosnet - creating wild-card brand\n");
+		cn->brand_info = bi;
+		cn->packet_queue = kmalloc(sizeof(struct sk_buff_head), GFP_ATOMIC);
+		skb_queue_head_init(cn->packet_queue);
+		return 0;
+	}
+	for (i = 0 ; i < COSNET_NUM_CHANNELS-1 ; i++) {
 		struct cos_brand_info *bi_tmp = local_ts->cosnet[i].brand_info;
-		if (bi_tmp && bi_tmp->brand == bi->brand) {
-			assert(bi_tmp->private);
-			bi->private = bi_tmp->private;
+
+		if (bi_tmp && bi_tmp->brand && bi_tmp->brand_port == bi->brand_port) {
+			printk("cos: cosnet - re-wiring for port %d\n", bi->brand_port);
+			local_ts->cosnet[i].brand_info = bi;
+			local_ts->cosnet[i].packet_queue = kmalloc(sizeof(struct sk_buff_head), GFP_ATOMIC);
+			skb_queue_head_init(local_ts->cosnet[i].packet_queue);
+			return 0;
 		}
 		if (!bi_tmp) {
 			printk("cos: cosnet - create brand for port %d\n", bi->brand_port);
 			local_ts->cosnet[i].brand_info = bi;
-			if (!bi->private) {
-				bi->private = kmalloc(sizeof(struct sk_buff_head), GFP_ATOMIC);
-				skb_queue_head_init((struct sk_buff_head*)bi->private);
-			}
-			local_ts->cosnet[i].packet_queue = (struct sk_buff_head*)bi->private;
-
+			local_ts->cosnet[i].packet_queue = kmalloc(sizeof(struct sk_buff_head), GFP_ATOMIC);
+			skb_queue_head_init(local_ts->cosnet[i].packet_queue);
 			return 0;
 		}
 	}
@@ -223,10 +241,6 @@ int cosnet_create_brand(struct cos_brand_info *bi)
 	return -1;
 }
 
-/*
- * FIXME BUG: When one brand is removed and it shares a packet buffer
- * with another, that packet buffer is purged for BOTH of the brands.
- */
 int cosnet_remove_brand(struct cos_brand_info *bi)
 {
 	int i;
@@ -238,7 +252,7 @@ int cosnet_remove_brand(struct cos_brand_info *bi)
 			printk("cos: cosnet - remove brand for port %d\n", bi->brand_port);
 			if (local_ts->cosnet[i].packet_queue) {
 				skb_queue_purge(local_ts->cosnet[i].packet_queue);
-				// should kfree here too, but see fixme bug above
+				kfree(local_ts->cosnet[i].packet_queue);
 			}
 			local_ts->cosnet[i].brand_info = NULL;
 			return 0;
@@ -363,7 +377,6 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	//goto drop;
 
 	cos_net_prebrand();
-
 	cosnet = cosnet_resolve_brand(tun, skb);
 	if (!cosnet) {
 		//printk("cos: NET->could not resolve brand.\n");
@@ -388,15 +401,22 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	}
 
 	/* Queue packet */
-	skb_queue_tail(cosnet->packet_queue, skb);
+	/* Ring buffer is going to take the part of the skb queue
+	   skb_queue_tail(cosnet->packet_queue, skb);
+	*/
 
 	if (cosnet_execute_brand(cosnet->brand_info, skb)) {
-		printk("cos: NET->could not execute brand!\n");
-		goto good;
+		goto drop;
 	}
 	/* end crit section here? */
 	dev->trans_start = jiffies;
+	tun->stats.tx_packets++;
 
+	/*
+	 * Ring buffers should be used now instead of skb queues, so
+	 * we can delete here.
+	 */
+	kfree_skb(skb);
 	/* Notify and wake up reader process */
 /* 	if (tun->flags & TUN_FASYNC) */
 /* 		kill_fasync(&tun->fasync, SIGIO, POLL_IN); */

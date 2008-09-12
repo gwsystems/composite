@@ -35,19 +35,21 @@
 #include <thread.h>
 #include <ipc.h>
 
+#include "t/cos_spd_name_map.h"
+
 #define NUM_ATOMIC_SYMBS 10 
 #define NUM_KERN_SYMBS (5+NUM_ATOMIC_SYMBS)
 
 const char *USER_CAP_TBL_NAME = "ST_user_caps";
-const char *ST_INV_FN_NAME = "ST_direct_invocation";
+const char *ST_INV_FN_NAME    = "ST_direct_invocation";
 const char *UPCALL_ENTRY_NAME = "cos_upcall_entry";
-const char *SCHED_PAGE_NAME = "cos_sched_notifications";
-const char *SPD_ID_NAME = "cos_this_spd_id";
-const char *HEAP_PTR = "cos_heap_ptr";
+const char *SCHED_PAGE_NAME   = "cos_sched_notifications";
+const char *SPD_ID_NAME       = "cos_this_spd_id";
+const char *HEAP_PTR          = "cos_heap_ptr";
 
-const char *INIT_COMP = "c0.o";
+const char *INIT_COMP  = "c0.o";
 const char *ROOT_SCHED = "fprr.o";
-const char *MPD_MGR = "mpd.o";
+const char *MPD_MGR    = "mpd.o";
 
 const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] = 
 { "cos_atomic_cmpxchg",
@@ -832,11 +834,8 @@ static struct service_symbs *prepare_service_symbs(char *services)
 			printf("Could not operate on object %s: error.\n", tok);
 			return NULL;
 		}
-		
 		add_kernel_exports(str);
-
 		tok = strtok(NULL, delim);
-		
 		if (tok) {
 			str->next = alloc_service_symbs(tok);
 			str = str->next;
@@ -1632,7 +1631,10 @@ static void setup_kernel(struct service_symbs *services)
 		} else {
 			t_spd = create_spd(cntl_fd, t, t->lower_addr, t->size);
 		}
-
+		if (!strstr(s->obj, spd_name_map_name(t_spd->spd_handle))) {
+			fprintf(stderr, "*** OBJECT ORDER MISMATCH FOUND: %s@%d and should be @ %d ***\n", 
+				s->obj, t_spd->spd_handle, spd_name_map_id(s->obj));
+		}
 		if (!t_spd) {
 			fprintf(stderr, "\tCould not find service object.\n");
 			exit(-1);

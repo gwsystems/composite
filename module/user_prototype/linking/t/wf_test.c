@@ -31,7 +31,7 @@ void begin_work(int incr)
 
 		timeout_ptr = (timeout_ptr+1) & TIMEOUT_MASK;
 		ret = lock_take_timed(&lock, timeouts[time]);
-
+		
 		assert(ret != -1);
 		if (ret != TIMER_EXPIRED) {
 			timed_event_block(cos_spd_id(), LOCK_OWNER_TIMEOUT);

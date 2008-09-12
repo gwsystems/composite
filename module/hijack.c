@@ -1831,7 +1831,12 @@ int main_page_fault_interposition(void)
 	 * check for this.
 	 */
 	thd = thd_get_current();
-	if (NULL == thd) {
+	/* This is a magical address that we are getting faults for,
+	 * but I don't know why, and it doesn't seem to interfere with
+	 * execution.  For now ffffd0b0 is being counted as an unknown
+	 * fault so that it won't get reported as a cos fault where we
+	 * can do nothing about it */
+	if (NULL == thd || fault_addr == 0xffffd0b0) {
 		cos_meas_event(COS_UNKNOWN_FAULT);
 		goto linux_handler_release;
 	}
@@ -2047,7 +2052,7 @@ vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr)
 	pte_t *pte = pgtbl_lookup_address(pgtbl, addr);
 	unsigned long kaddr;
 
-	if (!pte) {
+	if (!pte || !(pte_val(*pte) & _PAGE_PRESENT)) {
 		return 0;
 	}
 	
@@ -2066,7 +2071,7 @@ vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr)
 
 /*
  * Verify that the given address in the page table is present.  Return
- * 0 if present, 1 if not.  This will check the pgd, not for the pte.
+ * 0 if present, 1 if not.  *This will check the pgd, not for the pte.*
  */
 int pgtbl_entry_absent(phys_addr_t pt, unsigned long addr)
 {
@@ -2075,6 +2080,7 @@ int pgtbl_entry_absent(phys_addr_t pt, unsigned long addr)
 	return !((pgd_val(*pgd)) & _PAGE_PRESENT);
 }
 
+/* Find the nth valid pgd entry */
 unsigned long get_valid_pgtbl_entry(phys_addr_t pt, int n)
 {
 	int i;

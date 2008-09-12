@@ -34,7 +34,7 @@
 #include "../include/thread.h"
 #include "../include/cos_types.h"
 
-#define COSNET_NUM_CHANNELS 2
+#define COSNET_NUM_CHANNELS 5
 #define COSNET_QUEUE_LEN 500
 //#define COSNET_QUEUE_LEN 1000
 
