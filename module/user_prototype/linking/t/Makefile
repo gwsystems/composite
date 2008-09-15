@@ -12,17 +12,25 @@ CC=gcc
 AR=ar
 LD=ld
 AS=$(CC)
-DIETDIR=/home/grad3/gabep1/research/code/composite/composite/module/user_prototype/linking/dietlibc-0.29
+
+#DIETDIR=/home/grad3/gabep1/research/code/composite/composite/module/user_prototype/linking/dietlibc-0.29
+DIETDIR=../dietlibc-0.29
 DIETBIN=$(DIETDIR)/bin-i386/diet
 DIETCC=$(DIETBIN) $(CC)
 DIETINC=$(DIETDIR)/include
+
+LWIPBASE=../lwip
+LWIPDIR=$(LWIPBASE)/lwip-1.3.0
+LWIPOBJ=$(LWIPBASE)/cos/net_stack.o
+LWIPINC=$(LWIPDIR)/include
 
 TRANS_DIR=/home/grad3/gabep1/transfer/
 INC_PATH=./
 # FIXME: dietlibc is now compiled with fno merge constants which is
 # probably ballooning its size.  Fix this in cos_loader.
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib
-CFLAGS=-Wall -I$(INC_PATH) -I$(DIETINC) -ggdb3 $(SHARED_FLAGS)
+OPT=-ggdb3
+CFLAGS=-Wall -I$(INC_PATH) -I$(DIETINC) $(OPT) $(SHARED_FLAGS)
 DIETCFLAGS=$(CFLAGS) -Xlinker -r
 #-ggdb3
 ASFLAGS=-I$(INC_PATH) $(SHARED_FLAGS)
@@ -52,7 +60,10 @@ SOURCES=$(C_COMPS:%.o=%.c) $(LIB_C_OBJS:%.o=%.c)
 DEPENDENCIES=$(SOURCES:%.c=%.d)
 
 .PHONY: all
-all: $(LIB) $(LIB_ASM_MANDITORY) $(PRODUCTS)
+all: $(LIB) $(LIB_ASM_MANDITORY) $(PRODUCTS) stubs
+include $(DEPENDENCIES)
+
+stubs: $(PRODUCTS)
 	$(info [LD]   Linking in the server stubs to components)
 	@$(LD) -r -o c0.o comp0.o
 	@$(LD) -r -o c1.o comp1.o s_stub1.o
@@ -66,13 +77,25 @@ all: $(LIB) $(LIB_ASM_MANDITORY) $(PRODUCTS)
 	@$(LD) -r -o wftest.o wf_test.o
 	@$(LD) -r -o te.o timed_event.o s_stubte.o
 	@$(LD) -r -o l.o lock.o s_stublock.o
-	@$(LD) -r -o net.o cos_net.o s_stubnet.o
 	@$(LD) -r -o d.o ds.o s_stubds.o
 	@$(LD) -r -o mb.o mailbox.o s_stubmb.o
 	@$(LD) -r -o uc.o uc_test.o
 	@$(LD) -r -o mpd.o mpd_mgr.o
+	@$(LD) -r -o net.o cos_net.o s_stubnet.o
 
-include $(DEPENDENCIES)
+# This is specialized so that we can link with lwip, and it can link with dietlibc
+cos_net.o: cos_net.c net_stack.o
+	$(info [CC]   Compiling $< (w/lwip @ $(LWIPBASE)/cos))
+	@$(CC) $(CFLAGS) -o $@.$(TMP_STR)1 -c $<
+	@$(LD) -r -o $@.$(TMP_STR)2 $@.$(TMP_STR)1 $(LIB_ASM_MANDITORY) net_stack.o -L. -lcos_component
+	$(info [DIET] Linking with dietlibc to produce $@)
+	@$(DIETCC) $(DIETCFLAGS) -I../dietlibc-0.29/include -Xlinker -r -o $@ $@.$(TMP_STR)2
+	@rm $@.$(TMP_STR)1 $@.$(TMP_STR)2
+
+net_stack.o: 
+	$(info [CC] lwip in $(LWIPBASE)/cos)
+	make -C $(LWIPBASE)/cos 
+	cp $(LWIPOBJ) .
 
 $(LIB):$(LIB_C) $(LIB_ASM_OBJS)
 	$(info [AR]   Creating $@ from $(LIB_OBJS))
@@ -119,6 +142,6 @@ copy:
 clean:
 	$(info [RM]   Cleaning up directory)
 	@rm -f a.out *.o *.a *.d *~
-
+	@make -C $(LWIPBASE)/cos clean
 
 
