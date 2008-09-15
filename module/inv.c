@@ -1131,22 +1131,22 @@ static inline struct thread* verify_brand_thd(unsigned short int thd_id)
 	return brand_thd;
 }
 
-static void print_thd_sched_structs(struct thread *t)
-{
-	int i;
-	struct thd_sched_info *tsi = t->sched_info;
+/* static void print_thd_sched_structs(struct thread *t) */
+/* { */
+/* 	int i; */
+/* 	struct thd_sched_info *tsi = t->sched_info; */
 
-	printk("cos: thread %d has scheduling info structures:\n", (unsigned int)thd_get_id(t));
-	for (i = 0 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
-		struct spd *s = tsi[i].scheduler;
+/* 	printk("cos: thread %d has scheduling info structures:\n", (unsigned int)thd_get_id(t)); */
+/* 	for (i = 0 ; i < MAX_SCHED_HIER_DEPTH ; i++) { */
+/* 		struct spd *s = tsi[i].scheduler; */
 
-		if (s) {
-			printk("cos:\tdepth %d, scheduler %d, notification addr %x, offset %d\n",
-			       i, (unsigned int)spd_get_index(s), (unsigned int)tsi[i].thread_notifications, 
-			       (unsigned int)tsi[i].notification_offset);
-		}
-	}
-}
+/* 		if (s) { */
+/* 			printk("cos:\tdepth %d, scheduler %d, notification addr %x, offset %d\n", */
+/* 			       i, (unsigned int)spd_get_index(s), (unsigned int)tsi[i].thread_notifications,  */
+/* 			       (unsigned int)tsi[i].notification_offset); */
+/* 		} */
+/* 	} */
+/* } */
 
 COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags, int depth)
 {
@@ -1279,68 +1279,68 @@ void cos_net_deregister(struct cos_net_callbacks *cn_cb)
 	cos_net_fns = NULL;
 }
 
-static int brand_get_packet(struct thread *t, char *dest, int max_len)
-{
-	int ret = 0;
-	struct cos_brand_info *bi = NULL;
-	char *packet;
-	unsigned long len;
-	cos_net_data_completion_t fn;
-	void *fn_data;
-	unsigned short int port;
+/* static int brand_get_packet(struct thread *t, char *dest, int max_len) */
+/* { */
+/* 	int ret = 0; */
+/* 	struct cos_brand_info *bi = NULL; */
+/* 	char *packet; */
+/* 	unsigned long len; */
+/* 	cos_net_data_completion_t fn; */
+/* 	void *fn_data; */
+/* 	unsigned short int port; */
 
-	assert(cos_net_fns && dest);
+/* 	assert(cos_net_fns && dest); */
 
-	bi = cos_net_brand_info(t);
-	if (!bi) {
-		ret = -2;
-		goto done;
-	}
+/* 	bi = cos_net_brand_info(t); */
+/* 	if (!bi) { */
+/* 		ret = -2; */
+/* 		goto done; */
+/* 	} */
 
-	if (!cos_net_fns->get_packet ||
-	    cos_net_fns->get_packet(bi, &packet, &len, &fn, &fn_data, &port)) {
-		printk("cos: could not get packet from networking subsystem\n");
-	}
+/* 	if (!cos_net_fns->get_packet || */
+/* 	    cos_net_fns->get_packet(bi, &packet, &len, &fn, &fn_data, &port)) { */
+/* 		printk("cos: could not get packet from networking subsystem\n"); */
+/* 	} */
 	
-	assert(packet);
-	if (max_len < len) {
-		ret = -1;
-		goto done;
-	}
-	memcpy(dest, packet, len);
-	ret = len;
-done:
-	/* call the callback to cleanup the packet*/
-	fn(fn_data);
+/* 	assert(packet); */
+/* 	if (max_len < len) { */
+/* 		ret = -1; */
+/* 		goto done; */
+/* 	} */
+/* 	memcpy(dest, packet, len); */
+/* 	ret = len; */
+/* done: */
+/* 	/\* call the callback to cleanup the packet*\/ */
+/* 	fn(fn_data); */
 
-	return ret;
-}
+/* 	return ret; */
+/* } */
 
-static int cos_net_try_packet(struct thread *brand, unsigned short int *port)
-{
-	struct cos_brand_info *bi;
-	char *packet;
-	unsigned long len;
-	cos_net_data_completion_t fn;
-	void *fn_data;
+/* static int cos_net_try_packet(struct thread *brand, unsigned short int *port) */
+/* { */
+/* 	struct cos_brand_info *bi; */
+/* 	char *packet; */
+/* 	unsigned long len; */
+/* 	cos_net_data_completion_t fn; */
+/* 	void *fn_data; */
 	
-	assert(port);
-	*port = 0;
-	bi = cos_net_brand_info(brand);
-	if (!bi) {
-		return 1;
-	}
+/* 	assert(port); */
+/* 	*port = 0; */
+/* 	bi = cos_net_brand_info(brand); */
+/* 	if (!bi) { */
+/* 		return 1; */
+/* 	} */
 
-        if (!cos_net_fns ||
-	    !cos_net_fns->get_packet ||
-	    cos_net_fns->get_packet(bi, &packet, &len, &fn, &fn_data, port)) {
-		return -1;
-	}
-	fn(fn_data);
+/*         if (!cos_net_fns || */
+/* 	    !cos_net_fns->get_packet || */
+/* 	    cos_net_fns->get_packet(bi, &packet, &len, &fn, &fn_data, port)) { */
+/* 		return -1; */
+/* 	} */
+/* 	fn(fn_data); */
 
-	//printk("cos: port %d\n", *port);
-	return 0;
-}
+/* 	//printk("cos: port %d\n", *port); */
+/* 	return 0; */
+/* } */
 
 extern int host_attempt_brand(struct thread *brand);
 
@@ -1376,7 +1376,7 @@ int cos_net_try_brand(struct thread *t, void *data, int len)
 		return -1;
 	}
 	cos_meas_event(COS_MEAS_PACKET_BRAND_SUCC);
-	//memcpy(buff, data, len);
+	memcpy(buff, data, len);
 
 	host_attempt_brand(t);
 	

@@ -56,7 +56,9 @@ int rb_retrieve_buff(struct thread *brand, int desired_len,
 		return -1;
 	}
 
-	*found_buf = addr;
+	assert(kaddr);
+//	printk("kaddr to copy to is %x from ptr %x\n", kaddr, addr);
+	*found_buf = (void*)kaddr;
 	*found_len = len;
 	
 	rb->packets[position].status = RB_USED;
