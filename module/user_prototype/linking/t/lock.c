@@ -6,7 +6,7 @@
  * Public License v2.
  */
 
-#define FMT_PRINT
+#define COS_FMT_PRINT
 
 #include <cos_synchronization.h>
 #include <cos_component.h>
@@ -129,22 +129,18 @@ int lock_component_pretake(spdid_t spd, unsigned long lock_id, unsigned short in
 {
 	struct meta_lock *ml;
 	spdid_t spdid = cos_spd_id();
+	int ret = 0;
 
 	TAKE(spdid);
-
 	ml = lock_find(lock_id, spd);
 	if (!ml) {
-		//print("pretake wtf, lock_id %d. %d%d", lock_id,0,0);
-		goto error;
+		ret = -1;
+		goto done;
 	}
-
 	ml->gen_num = generation;
+done:
 	RELEASE(spdid);
-
-	return 0;
-error:
-	RELEASE(spdid);
-	return -1;
+	return ret;
 }
 
 int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int thd_id, unsigned int microsec)

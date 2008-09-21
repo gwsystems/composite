@@ -59,4 +59,37 @@
 #define LWIP_SOCKET 0
 #define LWIP_NETCONN 0
 
+#define LWIP_DEBUG
+#define LWIP_DBG_TYPES_ON  LWIP_DBG_ON
+#define LWIP_DBG_MIN_LEVEL 0
+
+#define PPP_DEBUG        LWIP_DBG_OFF
+#define MEM_DEBUG        LWIP_DBG_ON
+#define MEMP_DEBUG       LWIP_DBG_ON
+#define PBUF_DEBUG       LWIP_DBG_ON
+#define API_LIB_DEBUG    LWIP_DBG_ON
+#define API_MSG_DEBUG    LWIP_DBG_ON
+#define TCPIP_DEBUG      LWIP_DBG_ON
+#define NETIF_DEBUG      LWIP_DBG_ON
+#define SOCKETS_DEBUG    LWIP_DBG_ON
+#define DEMO_DEBUG       LWIP_DBG_ON
+#define IP_DEBUG         LWIP_DBG_ON
+#define IP_REASS_DEBUG   LWIP_DBG_ON
+#define RAW_DEBUG        LWIP_DBG_ON
+#define ICMP_DEBUG       LWIP_DBG_ON
+#define UDP_DEBUG        LWIP_DBG_ON
+#define TCP_DEBUG        LWIP_DBG_ON
+#define TCP_INPUT_DEBUG  LWIP_DBG_ON
+#define TCP_OUTPUT_DEBUG LWIP_DBG_ON
+#define TCP_RTO_DEBUG    LWIP_DBG_ON
+#define TCP_CWND_DEBUG   LWIP_DBG_ON
+#define TCP_WND_DEBUG    LWIP_DBG_ON
+#define TCP_FR_DEBUG     LWIP_DBG_ON
+#define TCP_QLEN_DEBUG   LWIP_DBG_ON
+#define TCP_RST_DEBUG    LWIP_DBG_ON
+
+/*extern unsigned char debug_flags;
+  #define LWIP_DBG_TYPES_ON debug_flags*/
+
+
 #endif	/* LWIPOPTS_H */

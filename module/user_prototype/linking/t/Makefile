@@ -17,23 +17,23 @@ AS=$(CC)
 DIETDIR=../dietlibc-0.29
 DIETBIN=$(DIETDIR)/bin-i386/diet
 DIETCC=$(DIETBIN) $(CC)
-DIETINC=$(DIETDIR)/include
+DIETINC=-I$(DIETDIR)/include
 
 LWIPBASE=../lwip
 LWIPDIR=$(LWIPBASE)/lwip-1.3.0
 LWIPOBJ=$(LWIPBASE)/cos/net_stack.o
-LWIPINC=$(LWIPDIR)/include
+LWIPINC=-I$(LWIPDIR)/src/include -I$(LWIPDIR)/src/include/ipv4/ -I$(LWIPBASE)/cos/include/ 
 
 TRANS_DIR=/home/grad3/gabep1/transfer/
-INC_PATH=./
+INC_PATH=-I./
 # FIXME: dietlibc is now compiled with fno merge constants which is
 # probably ballooning its size.  Fix this in cos_loader.
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib
 OPT=-ggdb3
-CFLAGS=-Wall -I$(INC_PATH) -I$(DIETINC) $(OPT) $(SHARED_FLAGS)
+CFLAGS=-Wall $(INC_PATH) $(DIETINC) $(LWIPINC) $(OPT) $(SHARED_FLAGS)
 DIETCFLAGS=$(CFLAGS) -Xlinker -r
 #-ggdb3
-ASFLAGS=-I$(INC_PATH) $(SHARED_FLAGS)
+ASFLAGS=$(INC_PATH) $(SHARED_FLAGS)
 
 LIB=libcos_component.a
 LIB_ASM_OBJS=cos_asm_scheduler.o
@@ -89,7 +89,7 @@ cos_net.o: cos_net.c net_stack.o
 	@$(CC) $(CFLAGS) -o $@.$(TMP_STR)1 -c $<
 	@$(LD) -r -o $@.$(TMP_STR)2 $@.$(TMP_STR)1 $(LIB_ASM_MANDITORY) net_stack.o -L. -lcos_component
 	$(info [DIET] Linking with dietlibc to produce $@)
-	@$(DIETCC) $(DIETCFLAGS) -I../dietlibc-0.29/include -Xlinker -r -o $@ $@.$(TMP_STR)2
+	@$(DIETCC) $(DIETCFLAGS) -Xlinker -r -o $@ $@.$(TMP_STR)2
 	@rm $@.$(TMP_STR)1 $@.$(TMP_STR)2
 
 net_stack.o: 
@@ -117,7 +117,7 @@ $(LIB):$(LIB_C) $(LIB_ASM_OBJS)
 	$(info [LD]   Loading cos libraries ($(LIB), ...) into $<)
 	@$(LD) -r -o $@.$(TMP_STR)2 $@.$(TMP_STR)1 $(LIB_ASM_MANDITORY) -L. -lcos_component
 	$(info [DIET] Linking with dietlibc to produce $@)
-	@$(DIETCC) $(DIETCFLAGS) -I../dietlibc-0.29/include -Xlinker -r -o $@ $@.$(TMP_STR)2
+	@$(DIETCC) $(DIETCFLAGS) -Xlinker -r -o $@ $@.$(TMP_STR)2
 	@rm $@.$(TMP_STR)1 $@.$(TMP_STR)2
 
 %.o:%.S

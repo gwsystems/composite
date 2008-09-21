@@ -21,9 +21,16 @@
 #define __FLOAT_WORD_ORDER	__BYTE_ORDER
 #endif
 
+/* GAP: prevent interference with lwip with the ifndefs for these 3 defs */
+#ifndef LITTLE_ENDIAN
 #define LITTLE_ENDIAN		__LITTLE_ENDIAN
+#endif
+#ifndef BIG_ENDIAN
 #define BIG_ENDIAN		__BIG_ENDIAN
+#endif
+#ifndef BYTE_ORDER
 #define BYTE_ORDER		__BYTE_ORDER
+#endif
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 # define __LONG_LONG_PAIR(HI, LO) LO, HI

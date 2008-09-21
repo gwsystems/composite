@@ -11,10 +11,13 @@
 #include "debug.h"
 #include "measurement.h"
 
-typedef unsigned char u8_t;
+#ifndef COS_BASE_TYPES
+#define COS_BASE_TYPES
+typedef unsigned char      u8_t;
 typedef unsigned short int u16_t;
-typedef unsigned int u32_t;
+typedef unsigned int       u32_t;
 typedef unsigned long long u64_t;
+#endif
 
 struct shared_user_data {
 	unsigned int current_thread;
@@ -112,7 +115,7 @@ typedef struct {
  * communcation.
  */
 struct cos_brand_info {
-	unsigned short int brand_port;
+	unsigned short int  brand_port;
 	struct thread      *brand;
 	void               *private;
 };

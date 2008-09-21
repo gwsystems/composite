@@ -14,3 +14,11 @@
    case, when the interrupted thread only creates the thread, but does
    not setup events for it, we get a page fault in
    brand_higher_urgency+0x2c8 (8c c7 <c7> 05 00).
+
+3) unless a "make" is done to replace modules between runs, cosnet
+   (cnet.ko) seems to fault in the interrupt handler bringing the
+   machine down hard.  There is just some initialization/finalization
+   problem with the cosnet or with its interaction with hijack. OK,
+   now it looks like it is just something that persists across page
+   faults that is the problem (only if you get page faults across 2
+   runs, the second will fail).

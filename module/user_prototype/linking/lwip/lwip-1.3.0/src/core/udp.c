@@ -273,6 +273,8 @@ udp_input(struct pbuf *p, struct netif *inp)
       snmp_inc_udpindatagrams();
       /* callback */
       if (pcb->recv != NULL) {
+///* gap */LWIP_DEBUGF(UDP_DEBUG | LWIP_DBG_TRACE, ("udp_input: calling callback @ %p.\n", pcb->recv));
+///* gap */LWIP_DEBUGF(UDP_DEBUG | LWIP_DBG_TRACE, ("udp_input: %p, %p.\n", pcb->recv_arg, &(iphdr->src)));
         /* now the recv function is responsible for freeing p */
         pcb->recv(pcb->recv_arg, pcb, p, &(iphdr->src), src);
       } else {

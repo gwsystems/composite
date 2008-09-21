@@ -7,17 +7,19 @@
 extern int printfmt(short int *s, int a, int b, int c);
 extern int print_str(char *str, int len);
 
-#ifndef FMT_PRINT
-static inline int strlen(char *s) 
+#ifndef COS_FMT_PRINT
+static inline int cos_strlen(char *s) 
 {
 	char *t = s;
 	while (*t != '\0') t++;
 
 	return t-s;
 }
+#else 
+#define cos_strlen strlen
 #endif
 
-#ifdef FMT_PRINT
+#ifdef COS_FMT_PRINT
 #include <stdio.h>
 #include <string.h>
 static inline int printc(char *fmt, ...)
@@ -27,7 +29,7 @@ static inline int printc(char *fmt, ...)
 	int ret, len;
 
 	//len = strlen(fmt)+1;
-	len = ARG_STRLEN; //(len > ARG_STRLEN) ? FMT_PRINT : len;
+	len = ARG_STRLEN; //(len > ARG_STRLEN) ? COS_FMT_PRINT : len;
 	s = cos_argreg_alloc(len);
 	if (!s) return 0;
 
@@ -48,7 +50,7 @@ static inline int print(char *str, int a, int b, int c)
 	char *d;
 	short int len, *s;
 
-	len = strlen(str) + 1; /* + 1 for '\0' */
+	len = cos_strlen(str) + 1; /* + 1 for '\0' */
 	s = cos_argreg_alloc(len + sizeof(short int));
 	if (!s) return -1;
 
@@ -66,7 +68,7 @@ static inline int prints(char *str)
 	unsigned int len;
 	char *s;
 
-	len = strlen(str)+1;
+	len = cos_strlen(str)+1;
 	s = cos_argreg_alloc(len);
 	if (!s) return -1;
 

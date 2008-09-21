@@ -50,7 +50,7 @@ restart:
 			/* Mark the lock as contested */
 			if (!l->atom.contested) {
 				result.contested = 1;
-				new_val = *result_ptr;
+ 				new_val = *result_ptr;
 				//print("blocking: %x. %d%d", new_val, 0,0);
 				if (cos_cmpxchg(&l->atom, prev_val, new_val) != new_val) {
 					/* start the whole process
@@ -118,6 +118,7 @@ int lock_release(cos_lock_t *l) {
 	result_ptr = (volatile u32_t*)&result;
 	do {
 		prev_val = *result_ptr = *(volatile u32_t *)&l->atom;
+		/* If we're here, we better own the lock... */
 		assert(result.owner == curr);
 		
 		if (result.rec_cnt == 0) {

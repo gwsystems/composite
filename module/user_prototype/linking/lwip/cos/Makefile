@@ -36,15 +36,20 @@ CC=gcc
 #To compile for openbsd: make ARCH=openbsd
 #ARCH=openbsd
 #gap: CFLAGS=-g -Wall -pedantic -D$(ARCH) -DIPv4 -Os -fpack-struct -DLWIP_DEBUG
-CFLAGS=-ggdb3 -Wall -DIPv4 -pedantic
+CFLAGS=-ggdb3 -Wall -DIPv4 -nostdinc -nostdlib
 ARFLAGS=rs
+
+COMPONENTDIR=../../t/
 
 #Set this to where you have the lwip core module checked out from CVS
 #default assumes it's a dir named lwip at the same level as the contrib module
 LWIPDIR=../lwip-1.3.0/src
+DIETINC=../../dietlibc-0.29/include/
 
-CFLAGS:=$(CFLAGS) \
-	-I$(LWIPDIR)/include -I./include -I$(LWIPDIR)/include/ipv4 -I.
+INCLUDES=-I$(LWIPDIR)/include -I./include -I$(LWIPDIR)/include/ipv4 -I. \
+	-I$(COMPONENTDIR) -I$(DIETINC)
+CFLAGS:=$(CFLAGS) $(INCLUDES)
+
 
 # COREFILES, CORE4FILES: The minimum set of files needed for lwIP.
 COREFILES=$(LWIPDIR)/core/mem.c $(LWIPDIR)/core/memp.c $(LWIPDIR)/core/netif.c \
