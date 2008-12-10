@@ -54,7 +54,8 @@ void *cos_heap_ptr;
 /* 
  * The extra asm below is rediculous as gcc doesn't let us clobber
  * registers already in the input/output positions, but we DO clobber
- * them in this operation.
+ * them in this operation.  I can't clobber ebp in the clobber list,
+ * so I do it manually.  This is right up there with hideous.
  */
 #define cos_syscall_asm \
 	__asm__ __volatile__("":::"eax", "ecx", "edx", "esi", "edi");	\
@@ -67,8 +68,8 @@ void *cos_heap_ptr;
 		"movl %%eax, %0\n\t"                 \
 		"popl %%ebp"                         \
 		: "=a" (ret)
-#define cos_syscall_clobber			        \
-	: "memory", "cc");				\
+#define cos_syscall_clobber			     \
+	: "memory", "cc");			     \
 	return ret;
 
 #define cos_syscall_0(num, rtype, name)              \
@@ -159,10 +160,10 @@ static inline int cos_buff_mgmt(void *addr, unsigned short int len, short int th
 static inline int cos_switch_thread(unsigned short int thd_id, unsigned short int flags, 
 				    unsigned int urgency)
 {
+	struct cos_sched_next_thd *cos_next = &cos_sched_notifications.cos_next;
+
         /* This must be volatile as we must commit what we want to
 	 * write to memory immediately to be read by the kernel */
-	volatile struct cos_sched_next_thd *cos_next = &cos_sched_notifications.cos_next;
-
 	cos_next->next_thd_id = thd_id;
 	cos_next->next_thd_flags = flags;
 	cos_next->next_thd_urgency = urgency;

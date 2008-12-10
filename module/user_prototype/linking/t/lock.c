@@ -13,6 +13,7 @@
 #include <cos_alloc.h>
 #include <cos_debug.h>
 #include <cos_list.h>
+#include <print.h>
 
 //#define TIMED
 
@@ -166,7 +167,10 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 		//print("take wtf%d%d%d", 0,0,0);
 		goto error;
 	}
-	assert(!lock_is_thd_blocked(ml, curr));
+	if (lock_is_thd_blocked(ml, curr)) {
+		prints("lock: lock_is_thd_blocked failed in lock_component_take");
+		goto error;
+	}
 
 	if (ml->gen_num != generation) {
 		ml->gen_num = generation;

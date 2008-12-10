@@ -1,6 +1,7 @@
 #include <cos_component.h>
 #include <cos_debug.h>
 #include <cos_synchronization.h>
+#include <print.h>
 
 /* extern int lock_component_take(spdid_t spdid); */
 /* extern int lock_component_release(spdid_t spdid); */

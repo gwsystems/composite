@@ -2,7 +2,7 @@
  ***********************************************************************  
  *  Gabriel Parmer <gabep1@bu.edu>
  *  Heavily modified tun/tap device driver.  Ripped out the character
- *  device, and custom fitting that end to composite.
+ *  device, and custom fitted that end to composite.
  *
  *  ethtool -A eth0 autoneg off rx off tx off
  *  mknod /dev/net/cnet c 10 201
@@ -328,6 +328,92 @@ int cosnet_get_packet(struct cos_brand_info *bi, char **packet, unsigned long *l
 	return 1;
 } 
 
+extern void host_start_syscall(void);
+extern void host_end_syscall(void);
+
+static int cosnet_xmit_packet(void *headers, int hlen, void *user_buffer, int len)
+{
+	struct sk_buff *skb;
+	int totlen = hlen + len;
+#ifdef NIL
+	int prev_pending = 0;
+#endif
+
+	if (!(skb = alloc_skb(totlen /* + NET_IP_ALIGN */, GFP_ATOMIC))) {
+		local_ts->stats.tx_dropped++;
+		return -1;
+	}
+	if (unlikely(totlen > local_ts->dev->mtu || 
+		     hlen > sizeof(struct cos_net_xmit_headers))) {
+		printk("cos: cannot transfer packet of size %d.\n", len + hlen);
+		return -1;
+	}
+	/* skb_reserve(skb, NET_IP_ALIGN); */
+	/* Copy the headers first */
+	memcpy(skb_put(skb, hlen), headers, hlen);
+	/* Then the data payload */
+	memcpy(skb_put(skb, len), user_buffer, len);
+	
+	skb_reset_mac_header(skb);
+	skb->protocol = __constant_htons(ETH_P_IP);
+	skb->dev = local_ts->dev;
+	skb->ip_summed = CHECKSUM_UNNECESSARY;
+
+#ifdef NIL
+	if (local_softirq_pending()) {
+		prev_pending = 1;
+		printk("cos pending softirq before xmit!\n");
+	}
+#endif
+	if (unlikely(!raw_irqs_disabled())) {
+		printk("cos: interrupts enabled before packet xmit!\n");
+		kfree_skb(skb);
+		return -1;
+	}
+
+	if (NET_RX_DROP == netif_rx/*_ni*/(skb)) {
+		local_ts->stats.tx_dropped++;
+	} else {
+		local_ts->dev->last_rx = jiffies;
+		local_ts->stats.tx_packets++;
+		local_ts->stats.tx_bytes += hlen + len;
+	}
+	if (unlikely(!raw_irqs_disabled())) {
+		printk("cos: interrupts enabled after packet xmit!\n");
+		return -1;
+	}
+
+	/**  
+	 * A lot of explanation is needed here.  Sending data onto the
+	 * network will cause the triggering of a softirq.  If
+	 * softirqs are executed immediately, then a hard halt results
+	 * as the packet receive softirq triggers which attempts to
+	 * get the user's registers from the stack and change them...
+	 * Because we are executing in a composite system call,
+	 * registers are not saved on the stack on kernel entry as
+	 * they are in Linux.  Thus, crash.  So we set a global
+	 * variable notifying the network receive handler (and timer
+	 * interrupt), that they cannot really switch.  This will
+	 * delay the reception of that event, and that is something we
+	 * will live with for now.  To that, I say FIXME.
+	 *
+	 * I could have instead called netif_rx_ni and had the
+	 * host_*_syscall around it, but this is more transparent
+	 */
+	host_start_syscall();
+	if (local_softirq_pending()) {
+		do_softirq();
+	}
+	host_end_syscall();
+#ifdef NIL
+	if (!prev_pending && local_softirq_pending()) {
+		printk("cos: softirq pending after packet xmit.\n");
+	}
+#endif
+	//kfree_skb(skb);
+	return 0;
+}
+
 extern void cos_net_prebrand(void);
 extern int  cos_net_try_brand(struct thread *bi, void *data, int len);
 extern void cos_net_register(struct cos_net_callbacks *cn_cb);
@@ -336,6 +422,7 @@ extern int cos_net_notify_drop(struct thread *brand);
 
 struct cos_net_callbacks cosnet_cbs = {
 	.get_packet = cosnet_get_packet,
+	.xmit_packet  = cosnet_xmit_packet,
 	.create_brand = cosnet_create_brand,
 	.remove_brand = cosnet_remove_brand
 };
@@ -379,8 +466,11 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	cos_net_prebrand();
 	cosnet = cosnet_resolve_brand(tun, skb);
 	if (!cosnet) {
-		//printk("cos: NET->could not resolve brand.\n");
-		goto drop;
+		/* Don't count packets that arrive before or after cos runs */
+		kfree_skb(skb);
+		return 0;
+		//printk("cos: could not resolve brand for packet.\n");
+		//goto drop;
 	}
 
 	/* Packet dropping */
@@ -396,7 +486,8 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	}
 	if (skb_queue_len(cosnet->packet_queue) >= COSNET_QUEUE_LEN) {
 		//printk("cos: NET->overflowing packet queue.\n");
-		cos_net_notify_drop(cosnet->brand_info->brand);
+		//cos_net_notify_drop(cosnet->brand_info->brand);
+		printk("cos: WTF, kernel packet queue full...inexplicable\n");
 		goto drop;
 	}
 
@@ -410,8 +501,8 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	}
 	/* end crit section here? */
 	dev->trans_start = jiffies;
-	tun->stats.tx_packets++;
-
+	tun->stats.rx_packets++;
+	tun->stats.rx_bytes += skb->len;
 	/*
 	 * Ring buffers should be used now instead of skb queues, so
 	 * we can delete here.
@@ -424,8 +515,7 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	return 0;
 
 drop:
-	tun->stats.tx_dropped++;
-good:
+	tun->stats.rx_dropped++;
 	kfree_skb(skb);
 	return 0;
 }

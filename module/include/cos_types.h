@@ -27,8 +27,8 @@ struct shared_user_data {
 };
 
 struct cos_sched_next_thd {
-	unsigned short int next_thd_id, next_thd_flags;
-	unsigned int next_thd_urgency;
+	volatile unsigned short int next_thd_id, next_thd_flags;
+	volatile unsigned int next_thd_urgency;
 };
 
 #define COS_SCHED_EVT_NEXT(evt)    (evt)->nfu.v.next
@@ -47,6 +47,7 @@ struct cos_sched_next_thd {
 #define COS_SCHED_EVT_BRAND_PEND   0x10
 #define COS_SCHED_EVT_NIL          0x20
 
+/* Must all fit into a word */
 struct cos_se_values {
 	volatile u8_t next, flags;
 	volatile u16_t urgency;
@@ -62,6 +63,7 @@ struct cos_sched_events {
 	u32_t cpu_consumption;
 } __attribute__((packed));
 
+/* Primitive for scheduler synchronization.  These must reside in the same word */
 struct cos_synchronization_atom {
 	volatile unsigned short int owner_thd, queued_thd;
 } __attribute__((packed));
@@ -121,10 +123,13 @@ struct cos_brand_info {
 };
 typedef void (*cos_net_data_completion_t)(void *data);
 struct cos_net_callbacks {
-	int (*get_packet)(struct cos_brand_info *bi, char **packet, unsigned long *len,
-			  cos_net_data_completion_t *fn, void **data, unsigned short int *port);
+	int (*xmit_packet)(void *headers, int hlen, void *user_buffer, int len);
 	int (*create_brand)(struct cos_brand_info *bi);
 	int (*remove_brand)(struct cos_brand_info *bi);
+
+	/* depricated: */
+	int (*get_packet)(struct cos_brand_info *bi, char **packet, unsigned long *len,
+			  cos_net_data_completion_t *fn, void **data, unsigned short int *port);
 };
 
 /*
@@ -169,8 +174,16 @@ enum {
 	COS_UC_NOTIF
 };
 
+struct cos_net_xmit_headers {
+	/* Length of the header */
+	int len;
+	/* Max IP header len + max TCP header len */
+	char headers[80];
+}__attribute__((aligned(4096)));
+
 enum {
 	COS_BM_XMIT,
+	COS_BM_XMIT_REGION,
 	COS_BM_RECV_RING
 };
 

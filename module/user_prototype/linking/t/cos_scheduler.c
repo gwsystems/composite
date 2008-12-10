@@ -9,7 +9,11 @@ int cos_use_force_sched_link(void)
 
 /**************** Scheduler Event Fns *******************/
 
-/* This should be called with the scheduler lock  */
+/* 
+ * Use the visitor pattern here.  Pass in a function that will be
+ * called for each entry.  This should be called with the scheduler
+ * lock.
+ */
 int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 {
 	u8_t id, flags;
@@ -49,7 +53,7 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 			se->next = 0;
 			se->flags = 0;
 			
-			/* Lets try and avoid the compiler error in the fixme below */
+			/* Lets try and avoid the compiler error due to union wierdness */
 			assert(!(v_new & 0xFFFF));
 			ret = cos_cmpxchg(v_ptr, (long)v, (long)v_new);
 			if (ret == (long)v_new) {
@@ -156,7 +160,7 @@ short int sched_alloc_event(struct sched_thd *thd)
 			sched_map_evt_thd[i] = thd;
 			thd->evt_id = i;
 			if (cos_sched_cntl(COS_SCHED_THD_EVT, thd->id, i)) {
-				print("failed to allocate event. (%d%d%d)\n",1,1,1);
+//				print("failed to allocate event. (%d%d%d)\n",1,1,1);
 				COS_SCHED_EVT_FLAGS(se) |= COS_SCHED_EVT_FREE;
 				return -1;
 			}

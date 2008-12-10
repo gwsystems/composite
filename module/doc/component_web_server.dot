@@ -1,0 +1,71 @@
+digraph web_server {
+	overlap=false;
+//	overlap=scale;
+	splines=true;
+	rankdir=BT;
+	
+	"Network";
+	"Socket API";
+	"File Descriptor API";
+	"TCP Server";
+	"HTTP Parser";
+	"CGI 0";
+	"CGI 1";
+	"CGI N";
+	"Thread Pool";
+	"Static Content";
+	"Plugin 0";
+	"Plugin 1";
+	"Plugin M";
+	"Base Scheduler";
+	"Application Scheduler";
+	"Web Event";
+	"Net Event";
+	"Timed Event";
+	"Terminal Printer";
+	"Lock";
+	"MPD Manager";
+	"Memory Mapper";
+	"Content Manager";
+
+	subgraph Kernel {
+		color=black;
+		"Net Demultiplexer";
+		"Network Driver";
+		"Timer Driver";
+	};
+
+	"TCP Server" -> "Socket API";
+	"TCP Server" -> "File Descriptor API";
+	"Socket API" -> "File Descriptor API";
+	"TCP Server" -> "HTTP Parser";
+	"HTTP Parser" -> "Content Manager";
+	"Content Manager" -> "Static Content";
+	"Content Manager" -> "Plugin 0";
+	"Content Manager" -> "Plugin 1";
+	"Content Manager" -> "Plugin M";
+	"Content Manager" -> "Thread Pool";
+	"CGI 0" -> "Thread Pool";
+	"CGI 1" -> "Thread Pool";
+	"CGI N" -> "Thread Pool";
+	"Thread Pool" -> "Application Scheduler";
+	"Application Scheduler" -> "Base Scheduler";
+	"Thread Pool" -> "Web Event";
+	"Socket API" -> "Network";
+	"File Descriptor API" -> "Network";
+	"File Descriptor API" -> "Web Event";
+	"Network" -> "Net Event";
+	"Web Event" -> "Net Event";
+	"Web Event" -> "Lock";
+	"Net Event" -> "Lock";
+	"Lock" -> "Timed Event";
+	"Lock" -> "Base Scheduler";
+	"Timed Event" -> "Base Scheduler";
+	"Network" -> "Lock";
+	"Thread Pool" -> "Lock";
+	"File Descriptor API" -> "Lock";
+//	"Network" -> "Net Demultiplexer";
+	"Network" -> "Net Demultiplexer" -> "Network Driver";
+	"Network" -> "Network Driver";
+	"Base Scheduler" -> "Timer Driver";
+}

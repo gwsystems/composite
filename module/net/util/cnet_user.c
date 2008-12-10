@@ -23,7 +23,7 @@ int main(void) {
 
 	fd = open(DEVCNET, O_RDWR);
 	memset(&ifr, 0, sizeof(ifr));
-	ifr.ifr_flags = IFF_TUN|IFF_NO_PI; /*IFF_TAP*/
+	ifr.ifr_flags = IFF_TUN; //|IFF_NO_PI; /*IFF_TAP*/
 	if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0) {
 		perror(DEVCNET" ioctl TUNSETIFF");
 		exit(1);

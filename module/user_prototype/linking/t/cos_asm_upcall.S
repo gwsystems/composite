@@ -59,7 +59,7 @@ cos_upcall_entry:
 	pushl %ebx
 	pushl %ecx /* option */	
 	call cos_upcall_fn
-	/* addl $8, %esp <- dont need to clean the stack */
+	addl $16, %esp
 
 	movl %eax, %ecx
 	movl $RET_CAP, %eax /* return capability */

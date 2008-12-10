@@ -21,11 +21,7 @@
 #include <string.h>
 
 #define NUM_THDS MAX_NUM_THREADS
-#define BLOCKED 0x8000000
-#define GET_CNT(x) (x & (~BLOCKED))
-#define IS_BLOCKED(x) (x & BLOCKED)
-
-#define NUM_WILDCARD_BUFFS 32
+#define NUM_WILDCARD_BUFFS 64 //32
 
 /* 
  * We need page-aligned data for the network ring buffers.  This
@@ -65,6 +61,9 @@ struct thd_map {
 } tmap[NUM_THDS];
 
 cos_lock_t alloc_lock;
+
+
+struct cos_net_xmit_headers xmit_headers;
 
 /******************* Manipulations for the thread map: ********************/
 
@@ -337,7 +336,10 @@ static unsigned short int cos_net_create_net_upcall(unsigned short int port, rb_
 	unsigned short int ucid;
 	
 	ucid = sched_create_net_upcall(port, 1);
-	assert(!cos_buff_mgmt(rb1.packets, sizeof(rb1.packets), ucid, COS_BM_RECV_RING));
+	if (cos_buff_mgmt(rb1.packets, sizeof(rb1.packets), ucid, COS_BM_RECV_RING)) {
+		prints("net: could not setup recv ring.");
+		return 0;
+	}
 	return ucid;
 }
 
@@ -348,64 +350,143 @@ struct ip_addr ip, mask, gw;
 struct netif   cos_if;
 cos_lock_t     net_lock;
 
-struct udp_pcb *upcb_200;
+struct udp_pcb *upcb_200, *upcb_out;
 
 void cos_net_interrupt(void)
 {
 	unsigned short int ucid = cos_get_thd_id();
-	void *buff;
-	int len;
+	void *buff, *pbuff;
+	int len, plen;
 	struct thd_map *tm;
-	struct pbuf *p;
+	struct pbuf *p, *np;
 
 	tm = get_thd_map(ucid);
 	assert(tm);
-	assert(!rb_retrieve_buff(tm->uc_rb, &buff, &len));
+	if (rb_retrieve_buff(tm->uc_rb, &buff, &len)) {
+		prints("net: could not retrieve buffer from ring.");
+		return;
+	}
 
 	p = pbuf_alloc(PBUF_IP, len, PBUF_REF);
 	if (!p) {
 		prints("OOM in interrupt: allocation of pbuf failed.\n");
 		/* Recycle the buffer (essentially dropping packet)... */
-		assert(!rb_add_buff(tm->uc_rb, buff, len /* MTU */));
+		if (rb_add_buff(tm->uc_rb, buff, MTU)) {
+			prints("net: OOM, and filed to add buffer.");
+		}
 		return;
 	}
 	p->payload = buff;
-	printc("Injecting buffer into lwip with buff @ %x", buff);
-	cos_if.input(p, &cos_if);
+	/* free packet in this call... */
+	if (ERR_OK != cos_if.input(p, &cos_if)) {
+		prints("net: failure in IP input.");
+		return;
+	}
+//	printc("Sending packet with payload @ %p, starting with %x", p->payload, *(unsigned int*)p->payload);
+
+	/* Unlock, lock */
+
+	/* The packet is processed, we are done with it */
+	plen = 16;//p->len - (UDP_HLEN + IP_HLEN);
+	np = pbuf_alloc(PBUF_TRANSPORT, plen, PBUF_REF);
+	if (np) {
+		np->payload = (char*)buff + (UDP_HLEN + IP_HLEN);
+		if (ERR_OK != udp_send(upcb_out, np)) {
+			prints("net: could not send data.");
+		}
+		pbuf_free(np);
+	} else {
+		assert(0);
+	}
+	/* OK, recycle the buffer. */
+	if (rb_add_buff(tm->uc_rb, buff /*(char *)p->payload - (UDP_HLEN + IP_HLEN)*/, MTU)) {
+		prints("net: could not add buffer to ring.");
+	}
 
 	return;
 }
 
 static err_t cos_net_stack_link_send(struct netif *ni, struct pbuf *p)
 {
-	/* We don't do arp...what is this being called for */
+	/* We don't do arp...this shouldn't be called */
 	assert(0);
 	return ERR_OK;
 }
 
 static err_t cos_net_stack_send(struct netif *ni, struct pbuf *p, struct ip_addr *ip)
 {
-	prints("send packet!!!");
-	assert(0);
+//	struct thd_map *tm;
+	struct pbuf *data;
+
+	/* We are requiring chained pbufs here, one for the header,
+	 * one for the data.  First assert checks that we have > 1
+	 * pbuf, second asserts we have 2 */
+	assert(p && p->next);
+	data = p->next;
+	assert(data->len == data->tot_len);
+//	printc("header pkt len %d, data len %d", p->len, data->len);
+	assert(p->len <= sizeof(xmit_headers.headers));
+//	printc("sending w/ headers @ %p, and data @ %p(= to %x), len %d!", 
+//	       p->payload, data->payload, *(unsigned int*)data->payload, data->len);
+
+	/* assuming the net lock is taken here */
+	memcpy(xmit_headers.headers, p->payload, p->len);
+	xmit_headers.len = p->len;
+	if (cos_buff_mgmt(data->payload, data->len, 0, COS_BM_XMIT)) {
+		prints("net: could not xmit data.");
+	}
 
 	return ERR_OK;
 }
-
-#define UDP_H_SZ 28
 
 static void cos_net_stack_udp_recv(void *arg, struct udp_pcb *upcb, struct pbuf *p,
 				   struct ip_addr *ip, u16_t port)
 {
 	struct thd_map *tm;
-	printc("woohoo: packet with buffer @ %x, len %d, totlen %d (final: %x)!", 
-	       p->payload, p->len, p->tot_len, (char *)p->payload - UDP_H_SZ);
+	struct pbuf *np;
 
-	tm = arg;
-
-	/* OK, recycle the buffer. */
-	assert(!rb_add_buff(tm->uc_rb, (char *)p->payload - UDP_H_SZ, MTU));
 	pbuf_free(p);
+//	printc("woohoo: packet with buffer @ %x, len %d, totlen %d (final: %x), first data: %x!", 
+//	       p->payload, p->len, p->tot_len, (char *)p->payload - (UDP_HLEN + IP_HLEN),
+//	       *(unsigned int*)p->payload);
 }
+
+static struct udp_pcb *cos_net_create_outbound_udp_conn(u16_t local_port, u16_t remote_port, 
+							struct ip_addr *ip, struct thd_map *tm)
+{
+	struct udp_pcb *up;
+
+	assert(tm && remote_port && ip);
+	up = udp_new();
+	if (!up) return NULL;
+	if (local_port) {
+		if (ERR_OK != udp_bind(up, IP_ADDR_ANY, local_port)) {
+			prints("net: could not create outbound udp connection (bind).");
+		}
+		udp_recv(up, cos_net_stack_udp_recv, (void*)tm);
+	}
+	if (ERR_OK != udp_connect(up, ip, remote_port)) {
+		prints("net: could not create outbound udp connection (connect).");
+	}
+	return up;
+}
+
+static struct udp_pcb *cos_net_create_inbound_udp_conn(u16_t local_port, struct thd_map *tm)
+{
+	struct udp_pcb *up;
+
+	assert(tm);
+	up = udp_new();
+	if (!up) return NULL;
+	if (ERR_OK != udp_bind(up, IP_ADDR_ANY, local_port)) {
+		prints("net: could not create inbound udp_conn.");
+		return NULL;
+	}
+	udp_recv(up, cos_net_stack_udp_recv, (void*)tm);
+	return up;
+}
+
+/*** Initialization routines: ***/
 
 static err_t cos_if_init(struct netif *ni)
 {
@@ -418,31 +499,23 @@ static err_t cos_if_init(struct netif *ni)
 	return ERR_OK;
 }
 
-static struct udp_pcb *cos_net_create_udp_conn(u16_t port, struct thd_map *tm)
-{
-	struct udp_pcb *up;
-
-	assert(tm);
-	up = udp_new();
-	if (!up) return NULL;
-	udp_bind(up, IP_ADDR_ANY, port);
-	udp_recv(up, cos_net_stack_udp_recv, (void*)tm);
-	return up;
-}
-
 static void init_lwip(void)
 {
+	struct ip_addr dest;
+
 	lwip_init();
 
 	IP4_ADDR(&ip, 10,0,2,8);
 	IP4_ADDR(&gw, 10,0,1,1); //korma
 	IP4_ADDR(&mask, 255,255,255,0);
-
+	
 	netif_add(&cos_if, &ip, &mask, &gw, NULL, cos_if_init, ip_input);
 	netif_set_default(&cos_if);
 	netif_set_up(&cos_if);
 
-	upcb_200 = cos_net_create_udp_conn(200, get_thd_map(cos_get_thd_id()));
+	upcb_200 = cos_net_create_inbound_udp_conn(200, get_thd_map(cos_get_thd_id()));
+	IP4_ADDR(&dest, 10,0,1,6);
+	upcb_out = cos_net_create_outbound_udp_conn(0, 6000, &dest, get_thd_map(cos_get_thd_id()));
 }
 
 static int init(void) 
@@ -458,19 +531,31 @@ static int init(void)
 	rb_init(&rb2_md, &rb2);
 	rb_init(&rb3_md, &rb3);
 
+	/* Setup the region from which headers will be transmitted. */
+	if (cos_buff_mgmt(&xmit_headers, sizeof(xmit_headers), 0, COS_BM_XMIT_REGION)) {
+		prints("net: error setting up xmit region.");
+	}
+
 	/* Wildcard upcall */
 	ucid = cos_net_create_net_upcall(0, &rb1_md);
+	if (ucid == 0) return 0;
 	add_thd_map(ucid, 0 /* wildcard port */, &rb1_md);
-
+	
 	init_lwip();
 
 	for (i = 0 ; i < NUM_WILDCARD_BUFFS ; i++) {
-		assert((b = alloc_rb_buff(&rb1_md)));
-		assert(!rb_add_buff(&rb1_md, b, MTU));
+		if(!(b = alloc_rb_buff(&rb1_md))) {
+			prints("net: could not allocate the ring buffer.");
+		}
+		if(rb_add_buff(&rb1_md, b, MTU)) {
+			prints("net: could not populate the ring with buffer");
+		}
 	}
 
 	sched_block();
-	
+
+	prints("net: returning from init!!!");
+	assert(0);
 	return 0;
 }
 
@@ -488,15 +573,17 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 
 		if (first) {
 			init();
+			assert(0);
 			first = 0;
+		} else {
+			prints("net: not expecting more than one bootstrap.");
 		}
 		break;
 	}
 	default:
-		print("Unknown type of upcall %d made to net. %d%d", t, 0,0);
+		print("Unknown type of upcall %d made to net (%d, %d).", t, (unsigned int)arg1,(unsigned int)arg2);
 		assert(0);
 		return;
 	}
-
 	return;
 }

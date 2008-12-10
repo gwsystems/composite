@@ -11,6 +11,7 @@
 //#include <cos_alloc.h>
 #include <cos_time.h>
 #include <cos_spd_name_map.h>
+#include <print.h>
 
 #define NUM_PRIOS 32
 #define IDLE_PRIO (NUM_PRIOS-3)
@@ -24,7 +25,7 @@
 #define NORMAL_PRIO_HI 4
 #define NORMAL_PRIO_LO (NUM_PRIOS-4)
 
-#define RUNTIME_SEC 6
+#define RUNTIME_SEC (3)
 #define REPORT_FREQ 60
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
@@ -177,6 +178,7 @@ static struct sched_thd *fp_get_highest_prio(void)
 		/* If t is dependent on another thread's help, run the
 		 * depended on thread */
 		if ((dep = sched_thd_dependency(t))) {
+			assert(sched_thd_ready(dep));
 			return dep;
 		}
 
@@ -230,7 +232,8 @@ static struct sched_thd *fp_get_second_highest_prio(struct sched_thd *highest)
 		assert(sched_get_metric(t)->priority == i);
 
 		if ((dep = sched_thd_dependency(t))) {
-			assert(!sched_thd_blocked(dep));
+			assert(!sched_thd_blocked(dep) &&
+			       sched_thd_ready(dep));
 			return dep;
 		}
 		return t;
@@ -262,7 +265,7 @@ static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 				 * The bug is this: upcall is made,
 				 * but not immediately executed.  When
 				 * it is run (via explicit scheduler
-				 * invoction), it will complete.
+				 * invocation), it will complete.
 				 * Beforehand another interrupt
 				 * happens, causing a pending
 				 * incriment.  Upcall returns, but
@@ -375,6 +378,8 @@ void fp_timer_tick(void)
 	do {
 		cos_sched_lock_take();
 
+		/* Even if we loop here, we don't want to do this more
+		 * than once for this invocation */
 		if (first) {
 			first = 0;
 			ticks++;
@@ -401,15 +406,13 @@ void fp_timer_tick(void)
 
 		/* Chances are good the highest is us */
 		if (next == prev) {
-			struct sched_thd *t, *r;
+			struct sched_thd *r;
 			/* the RR part */
 			next = fp_get_second_highest_prio(next);
 			r = next;
-
 			fp_move_end_runnable(next);
-			t = fp_get_highest_prio();
-			assert(t == prev);
-			next = fp_get_second_highest_prio(t);
+			assert(fp_get_highest_prio() == prev);
+			next = fp_get_second_highest_prio(prev);
 
 			assert(sched_get_metric(r)->priority ==
 			       sched_get_metric(next)->priority);
@@ -418,7 +421,12 @@ void fp_timer_tick(void)
 
 		loop = cos_switch_thread_release(next->id, COS_SCHED_TAILCALL, 0);
 		if (loop == -1) {
-			print("WTF, timer switch error  %d%d%d",0,0,0);
+			//static long long cnt = 0;
+			//if ((cnt & (1024-1)) == 0) {
+				print("WTF, timer switch error from %d to %d. %d",
+				      prev->id, next->id,0);
+				//}
+			//cnt++;
 		}
 	} while (loop);
 
@@ -449,7 +457,9 @@ static void fp_create_spd_thd(void *d)
 {
 	int spdid = (int)d;
 
-	assert(!cos_upcall(spdid));
+	if (cos_upcall(spdid)) {
+		prints("fprr: error making upcall into spd.");
+	}
 }
 
 static void fp_idle_loop(void *d)
@@ -761,8 +771,7 @@ int sched_component_take(spdid_t spdid)
 		/* FIXME: proper handling of recursive locking */
 		assert(curr != holder);
 		report_data(0,0,1);
-		curr = holder;
-		cos_switch_thread_release(curr->id, 0, 0);
+		cos_switch_thread_release(holder->id, 0, 0);
 	}
 	cos_sched_lock_release();
 	return 0;
@@ -776,7 +785,9 @@ int sched_component_release(spdid_t spdid)
 	curr = sched_get_current();
 	assert(curr);
 
-	assert(!sched_release_crit_sect(spdid, curr));
+	if (sched_release_crit_sect(spdid, curr)) {
+		prints("fprr: error releasing spd's critical section");
+	}
 	/* If we woke thread that was waiting for the critical section, switch to it */
 	next = fp_schedule();
 	if (next != curr) {
@@ -944,6 +955,8 @@ static void fp_kill_thd(void)
 	cos_sched_lock_release();
 	print("fp_kill_thd: killing %d. %d%d", curr->id, 0,0);
 	fp_yield();
+	prints("fprr: fp_kill_thd - should not be here!!!");
+	assert(0);
 }
 
 int sched_init(void)

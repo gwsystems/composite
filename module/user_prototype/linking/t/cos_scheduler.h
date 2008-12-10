@@ -327,15 +327,17 @@ static inline struct sched_thd *sched_thd_dependency(struct sched_thd *curr)
 
 /* 
  * Return the thread that is holding the crit section, or NULL if it
- * is uncontested.
+ * is uncontested.  Assuming here we are in a critical section.
  */
 static inline struct sched_thd *sched_take_crit_sect(spdid_t spdid, struct sched_thd *curr)
 {
 	struct sched_crit_section *cs;
 	assert(spdid < MAX_NUM_SPDS);
-	assert(!sched_thd_free(curr) && sched_thd_ready(curr));
+	assert(!sched_thd_free(curr));
+	assert(sched_thd_ready(curr));
 	cs = &sched_spd_crit_sections[spdid];
 
+//	if (!sched_thd_ready(curr)) print("current %d, holding %d, %d", curr->id, cs->holding_thd ? cs->holding_thd->id: 0, 0);
 	if (cs->holding_thd) {
 		/* The second assumption here might be too restrictive in the future */
 		assert(!sched_thd_free(cs->holding_thd) && 
@@ -354,7 +356,8 @@ static inline int sched_release_crit_sect(spdid_t spdid, struct sched_thd *curr)
 	struct sched_crit_section *cs;
 	assert(spdid < MAX_NUM_SPDS);
 	cs = &sched_spd_crit_sections[spdid];
-	assert(!sched_thd_free(curr) && sched_thd_ready(curr));
+	assert(!sched_thd_free(curr));
+	assert(sched_thd_ready(curr));
 
 	/* This ostensibly should not be the case */
 	if (cs->holding_thd != curr) {

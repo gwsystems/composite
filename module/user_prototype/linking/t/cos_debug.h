@@ -17,6 +17,8 @@
 
 #else 
 #define assert(n)
+#define debug_print(s)
+#define debug_bug
 #endif 
 
 #endif

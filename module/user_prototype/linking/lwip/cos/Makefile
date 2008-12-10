@@ -36,7 +36,8 @@ CC=gcc
 #To compile for openbsd: make ARCH=openbsd
 #ARCH=openbsd
 #gap: CFLAGS=-g -Wall -pedantic -D$(ARCH) -DIPv4 -Os -fpack-struct -DLWIP_DEBUG
-CFLAGS=-ggdb3 -Wall -DIPv4 -nostdinc -nostdlib
+OPT=-O3 #-ggdb3
+CFLAGS=-Wall -DIPv4 -nostdinc -nostdlib
 ARFLAGS=rs
 
 COMPONENTDIR=../../t/

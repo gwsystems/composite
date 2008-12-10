@@ -2191,8 +2191,7 @@ static struct timer_list timer;
 
 extern void update_sched_evts(struct thread *new, int new_flags, 
 		       struct thread *prev, int prev_flags);
-extern struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, 
-					int preempt);
+extern struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
 
 extern void cos_net_deregister(struct cos_net_callbacks *cn_cb);
 extern void cos_net_register(struct cos_net_callbacks *cn_cb);
@@ -2213,20 +2212,64 @@ extern int active_net_brands;
 extern struct cos_brand_info cos_net_brand[NUM_NET_BRANDS];
 extern struct cos_net_callbacks *cos_net_fns;
 
+/* FIXME: per cpu */
+static int in_syscall = 0;
+
+int host_in_syscall(void) 
+{
+	return in_syscall;
+}
+
+void host_start_syscall(void)
+{
+	in_syscall = 1;
+}
+EXPORT_SYMBOL(host_start_syscall);
+
+void host_end_syscall(void)
+{
+	in_syscall = 0;
+}
+EXPORT_SYMBOL(host_end_syscall);
+
 int host_attempt_brand(struct thread *brand)
 {
 	struct pt_regs *regs = NULL;
+	unsigned long flags;
 
+	local_irq_save(flags);
 	if (composite_thread/* == current*/) {
-		unsigned long flags;
-
-		local_irq_save(flags);
+		struct thread *cos_current;
 
 		if (composite_thread == current) {
 			cos_meas_event(COS_MEAS_INT_COS_THD);
 		} else {
-			cos_meas_event(COS_MEAS_OTHER_THD);
+			cos_meas_event(COS_MEAS_INT_OTHER_THD);
 		}
+
+		cos_current = thd_get_current();
+		/* See comment in cosnet.c */
+		if (host_in_syscall()) {
+			struct thread *next;
+
+			next = brand_next_thread(brand, cos_current, 2);
+			
+			{
+				int c = thd_get_id(cos_current);
+				int u = thd_get_id(brand->upcall_threads);
+				if ((c == 4 || u == 4) && thd_get_id(next) != 4) {
+					printk("<>");
+				}
+			}
+
+			if (next != cos_current) {
+				assert(thd_get_current() == next);
+				thd_check_atomic_preempt(cos_current);
+			}
+			cos_meas_event(COS_MEAS_BRAND_DELAYED_UC);
+			goto done;
+		}
+
 		regs = get_user_regs_thread(composite_thread);
 
 		/* 
@@ -2252,7 +2295,7 @@ int host_attempt_brand(struct thread *brand)
 		 */
 		if (!(regs->esp == 0 && regs->xss == 0)
                     /* && (regs->xcs & SEGMENT_RPL_MASK) == USER_RPL*/) {
-			struct thread *cos_current, *next;
+			struct thread *next;
 			//struct thread *cos_upcall_thread = cos_timer_brand_thd->upcall_threads;
 			//struct spd *dest;
  			
@@ -2268,7 +2311,6 @@ int host_attempt_brand(struct thread *brand)
 				goto timer_finish;
 			}
 */
-			cos_current = thd_get_current();
 			thd_save_preempted_state(cos_current, regs);
 			//update_sched_evts(cos_upcall_thread, COS_SCHED_EVT_BRAND_ACTIVE,
 			//		  cos_current, COS_SCHED_EVT_NIL);
@@ -2317,11 +2359,13 @@ int host_attempt_brand(struct thread *brand)
 			//regs->edx = regs->ecx = regs->ebx = regs->esp = regs->edi = regs->esi = regs->ebp = 0; //thd_get_id(cos_upcall_thread);
 			//regs->orig_eax = regs->eax = thd_get_id(cos_upcall_thread);
 
+		} else {
+			cos_meas_event(COS_MEAS_INT_STI_SYSEXIT);
 		}
-
-		local_irq_restore(flags);
 	} 
-
+done:
+	local_irq_restore(flags);
+		
 	return 0;
 }
 
@@ -2349,6 +2393,7 @@ static void register_timers(void)
 
 static void deregister_timers(void)
 {
+	cos_timer_brand_thd = NULL;    
 	del_timer(&timer);
 
 	return;

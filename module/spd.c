@@ -370,8 +370,9 @@ int user_struct_fits_on_page(unsigned long addr, unsigned int size)
 {
 	unsigned long start, end;
 
+	if (0 == size) return 1;
 	start = addr & PAGE_MASK;
-	end = (addr+size) & PAGE_MASK;
+	end = (addr+size-1) & PAGE_MASK;
 
 	return (start == end);
 }

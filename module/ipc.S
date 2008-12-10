@@ -256,10 +256,50 @@ ret_from_preemption:
 	iret	
 
 .align 4
-.globl cos_switch_error
-cos_switch_error:
-	movl $-1, PT_EAX(%eax)
-	jmp 1b	
+.globl cos_syscall_buff_mgmt
+cos_syscall_buff_mgmt:
+	movl current_thread, %eax
+	pushl %eax              /* save the current thread */
+	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
+	movl %ebp, PT_ECX(%eax) /* save the return sp, so that sysenter will jump to it */
+	movl %ecx, PT_EDX(%eax) /* save the return address (so that sysexit will return to it) */
+	
+	/* still need to pass arguments */
+	pushl %edi
+	pushl %esi
+	pushl %ebx
+	pushl %edx
+	call  cos_syscall_buff_mgmt_cont
+	addl  $16, %esp
+	popl  %ebx              /* retrieve saved thread */
+	cmpl  current_thread, %ebx
+	jne   buff_mgmt_interrupted
+	ret
+/* 
+ * This is horrible: when we are in buff_mgmt transmitting packets, 
+ * we can generate softirqs, in which case we might need to switch 
+ * threads here.
+ */
+buff_mgmt_interrupted:
+	/* store the return value into the previous thread */
+	addl  $THD_REGS, %ebx
+	movl  %eax, PT_EAX(%ebx)
+
+	/* get the regs of the new thread, load 'em up, and start 'er flying */
+	movl current_thread, %eax
+	addl $THD_REGS, %eax
+	movl PT_EBX(%eax), %ebx
+	movl PT_ECX(%eax), %ecx
+	movl PT_EDX(%eax), %edx
+	movl PT_ESI(%eax), %esi
+	movl PT_EDI(%eax), %edi
+	movl PT_EBP(%eax), %ebp
+	movl PT_EAX(%eax), %eax
+
+	movl %edx, (COS_SYSCALL_EDX)(%esp)
+	movl %ecx, (COS_SYSCALL_ECX)(%esp)
+	ret
+/* end cos_syscall_buff_mgmt */
 
 .globl cos_syscall_kill_thd
 .align 16

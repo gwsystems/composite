@@ -236,10 +236,18 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr, struct pt_regs
 
 	inv_frame = thd_invocation_pop(curr);
 
+	/* At the top of the invocation stack? */
 	if (unlikely(inv_frame == NULL)) {
+		assert(!(curr->flags & THD_STATE_READY_UPCALL));
 		if (curr->flags & THD_STATE_ACTIVE_UPCALL) {
+			/* If we are an upcall, then complete the
+			 * upcall, and either execute a pending,
+			 * switch to a preempted thread, or upcall to
+			 * the scheduler */
 			*regs_restore = brand_execution_completion(curr);
 		} else {
+			/* normal thread terminates: upcall into root
+			 * scheduler */
 			*regs_restore = thd_ret_term_upcall(curr);
 		}
 
@@ -272,7 +280,7 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr, struct pt_regs
 
 COS_SYSCALL int cos_syscall_void(int spd_id)
 {
-	printd("cos: error - made void system call\n");
+	printk("cos: error - made void system call\n");
 
 	return 0;
 }
@@ -527,6 +535,7 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, int a, int b, int c)
 		return -1;
 	}
 
+	/* FIXME: switch to using upcall_setup here */
 	thd->stack_ptr = 0;
 	thd->stack_base[0].current_composite_spd = curr_spd->composite_spd;
 	thd->stack_base[0].spd = curr_spd;
@@ -576,7 +585,7 @@ static inline void remove_preempted_status(struct thread *thd)
 		/* is the doubly linked list sound? */
 		assert(p->interrupted_thread == thd);
 			
-		/* maintain the doubly linked list of interrupted thds */
+		/* break the doubly linked list of interrupted thds */
 		p->interrupted_thread = NULL;//i;
 		if (i) {
 			i->preempter_thread = NULL;//p;
@@ -623,7 +632,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		return &curr->regs;
 	}
 
-
+	assert(!(curr->flags & THD_STATE_PREEMPTED));
 //	printk("cos: switch_thd - flags %x, spd %d\n", rflags, spd_get_index(curr_spd));
 //	thd_print_regs(curr);
 
@@ -678,18 +687,57 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	}
 	/* we cannot schedule to run an upcall thread that is not running */
 	if (unlikely(thd->flags & THD_STATE_READY_UPCALL)) {
-		printk("cos: upcall thd %d not ready to run.\n", thd_get_id(thd));
+		//static long long first = 0;
+		//if ((first & (1024-1)) == 0) {
+			printk("cos: upcall thd %d not ready to run (current %d).\n", thd_get_id(thd), thd_get_id(curr));
+			//}
+			//first++;
 		curr->regs.eax = -1;
 		return &curr->regs;
 	}
 
 	if (flags & COS_SCHED_TAILCALL &&
 	    curr->flags & THD_STATE_ACTIVE_UPCALL &&
-	    curr->stack_ptr == 0 &&
-	    curr->thread_brand->pending_upcall_requests) {
-		//update_thd_evt_state(curr, COS_SCHED_EVT_BRAND_ACTIVE, 1);
+	    curr->stack_ptr == 0) {
+		assert(!(curr->flags & THD_STATE_READY_UPCALL));
+
 		spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(curr));
-		return sched_tailcall_pending_upcall(curr, (struct composite_spd*)curr_spd->composite_spd);
+		if (curr->thread_brand->pending_upcall_requests) {
+			//update_thd_evt_state(curr, COS_SCHED_EVT_BRAND_ACTIVE, 1);
+			//spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(curr));
+			return sched_tailcall_pending_upcall(curr, (struct composite_spd*)curr_spd->composite_spd);
+		} else {
+			if (curr->interrupted_thread) {
+				curr->interrupted_thread->preempter_thread = NULL;
+				curr->interrupted_thread = NULL;
+			}
+			if (curr->preempter_thread) {
+				curr->preempter_thread->interrupted_thread = NULL;
+				curr->preempter_thread = NULL;
+			}
+			
+			curr->flags &= ~THD_STATE_ACTIVE_UPCALL;
+			curr->flags |= THD_STATE_READY_UPCALL;
+			curr->sched_suspended = NULL;
+			//spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(curr));
+			/***********************************************
+			 * FIXME: call pt_regs *brand_execution_completion(struct thread *curr)?
+			 ***********************************************/
+			
+			cos_meas_event(COS_MEAS_FINISHED_BRANDS);
+			/*
+			 * For general support:
+			 *
+			 * Check that the spd from the invocation frame popped
+			 * off of the thread's stack matches curr_spd (or else
+			 * we were called via ST from another spd and should
+			 * return via normal control flow to it.
+			 *
+			 * If that's fine, then execute code similar to pop
+			 * above (to return from an invocation).
+			 */
+			curr_sched_flags = COS_SCHED_EVT_BRAND_READY;
+		}
 	}
 
 	//printk("cos: thd %d (@ %x) wants to switch to %d (@ %x).\n", 
@@ -738,13 +786,13 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		 */
 		l->queued_thd = thd_get_id(curr);
 		/* 
-		 * TODO: alter the urgency/priority of the owner
+		 * FIXME: alter the urgency/priority of the owner
 		 * thread to inherit that of the current blocked thd.
 		 */
 	} else if (flags & COS_SCHED_SYNC_UNBLOCK) {
 		cos_meas_event(COS_MEAS_ATOMIC_UNLOCK);
 		/* 
-		 * TODO: reset urgency/priority of current thread back
+		 * FIXME: reset urgency/priority of current thread back
 		 * to natural state.
 		 */
 	}
@@ -768,6 +816,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		cos_meas_event(COS_MEAS_SWITCH_COOP);
 	}
 
+	/* tailcall code was here -----> */
 	/* If we are an upcalling thread, and we are asking to return,
 	 * we're done.  If a preemption thread, deactivate.  */
 	if (flags & COS_SCHED_TAILCALL && 
@@ -775,37 +824,6 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	    curr->flags & THD_STATE_ACTIVE_UPCALL) {
 //		assert(!curr->preempter_thread); 
 //		assert(!curr->interrupted_thread);
-
-		if (curr->interrupted_thread) {
-			curr->interrupted_thread->preempter_thread = NULL;
-		}
-		curr->interrupted_thread = NULL;
-		if (curr->preempter_thread) {
-			curr->preempter_thread->interrupted_thread = NULL;
-		}
-		curr->preempter_thread = NULL;
-
-		curr->flags &= ~THD_STATE_ACTIVE_UPCALL;
-		curr->flags |= THD_STATE_READY_UPCALL;
-		curr->sched_suspended = NULL;
-		spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(curr));
-		/***********************************************
-		 * FIXME: call pt_regs *brand_execution_completion(struct thread *curr)?
-		 ***********************************************/
-		
-		cos_meas_event(COS_MEAS_FINISHED_BRANDS);
-		/*
-		 * For general support:
-		 *
-		 * Check that the spd from the invocation frame popped
-		 * off of the thread's stack matches curr_spd (or else
-		 * we were called via ST from another spd and should
-		 * return via normal control flow to it.
-		 *
-		 * If that's fine, then execute code similar to pop
-		 * above (to return from an invocation).
-		 */
-		curr_sched_flags = COS_SCHED_EVT_BRAND_READY;
 	}
 
 	/*
@@ -900,6 +918,8 @@ static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, struct c
 	//struct composite_spd *curr;
 
 	assert(brand && brand->pending_upcall_requests > 0);
+	assert(uc->flags & THD_STATE_ACTIVE_UPCALL && 
+	       !(uc->flags & THD_STATE_READY_UPCALL));
 
 	brand->pending_upcall_requests--;
 	dest = brand->stack_base[brand->stack_ptr].spd;
@@ -920,10 +940,12 @@ static struct pt_regs *brand_execution_completion(struct thread *curr)
 	struct thread *prev, *brand = curr->thread_brand;
     	struct composite_spd *cspd = (struct composite_spd *)thd_get_thd_spdpoly(curr);
 	
-	assert(brand && curr->flags & THD_STATE_ACTIVE_UPCALL);
-	assert(cspd);
+	assert((curr->flags & THD_STATE_ACTIVE_UPCALL) &&
+	       !(curr->flags & THD_STATE_READY_UPCALL));
+	assert(brand && cspd);
 	spd_mpd_ipc_release(cspd);
 
+	/* Immediately execute a pending upcall */
 	if (brand->pending_upcall_requests) {
 		return sched_tailcall_pending_upcall(curr, cspd);
 	}
@@ -951,6 +973,10 @@ static struct pt_regs *brand_execution_completion(struct thread *curr)
 	}
 	cos_meas_event(COS_MEAS_BRAND_SCHED_PREEMPTED);
 	cos_meas_event(COS_MEAS_FINISHED_BRANDS);
+
+	prev->preempter_thread = NULL;
+	curr->interrupted_thread = NULL;
+	curr->sched_suspended = NULL;
 
 	curr->flags &= ~THD_STATE_ACTIVE_UPCALL;
 	curr->flags |= THD_STATE_READY_UPCALL;
@@ -1412,14 +1438,17 @@ int cos_net_notify_drop(struct thread *brand)
  */
 extern vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr);
 extern int user_struct_fits_on_page(unsigned long addr, unsigned int size);
-COS_SYSCALL int cos_syscall_buff_mgmt(int spd_id, void *addr, unsigned int thd_id, unsigned int len_op)
+/* assembly in ipc.S */
+extern int cos_syscall_buff_mgmt(void);
+COS_SYSCALL int cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int thd_id, unsigned int len_op)
 {
 	/* 
 	 * FIXME: To do this right, we would need to either 1) pin the
 	 * buffer's pages into memory, or 2) interact closely with the
 	 * network subsystem so that any memory pages the mem_man
 	 * unmaps from the address space are removed from the network
-	 * buffer lists too.
+	 * buffer lists too.  For 1, the pages might be pre-pinned at
+	 * map time.
 	 */
 	struct spd *spd;
 	vaddr_t kaddr;
@@ -1445,12 +1474,35 @@ COS_SYSCALL int cos_syscall_buff_mgmt(int spd_id, void *addr, unsigned int thd_i
 	switch(option) {
 	/* Transmit the data buffer */
 	case COS_BM_XMIT:
+	{
+		struct cos_net_xmit_headers *h = spd->cos_net_xmit_headers;
+
 		if (!user_struct_fits_on_page((unsigned long)addr, len)) {
 			printk("cos: buff mgmt -- buffer address  %p does not fit onto page\n", addr);
 			return -1;
 		}
-		assert(0)
+		if (likely(cos_net_fns && cos_net_fns->xmit_packet && h)) {
+			cos_meas_event(COS_MEAS_PACKET_XMIT);
+			return cos_net_fns->xmit_packet(h->headers, h->len, (void*)kaddr, len);
+		}
 		break;
+	}
+	case COS_BM_XMIT_REGION:
+	{
+		if (len != sizeof(struct cos_net_xmit_headers)) {
+			printk("cos: buff mgmt -- xmit header region of length %d, expected %d.\n",
+			       len, sizeof(struct cos_net_xmit_headers));
+			return -1;
+		}
+		if (!user_struct_fits_on_page((unsigned long)addr, len)) {
+			printk("cos: buff mgmt -- xmit headers address %p w/ len %d does not fit onto page\n", 
+			       addr, len);
+			return -1;
+		}
+		/* FIXME: pin page in memory */
+		spd->cos_net_xmit_headers = (struct cos_net_xmit_headers*)kaddr;
+		break;
+	}
 	/* Set the location of a user-level ring buffer */
 	case COS_BM_RECV_RING:
 	{
@@ -1483,6 +1535,7 @@ COS_SYSCALL int cos_syscall_buff_mgmt(int spd_id, void *addr, unsigned int thd_i
 			printk("cos: buff mgmt trying to set buffer for brand not in curr spd");
 			return -1;
 		}
+		/* FIXME: pin the page in memory. */
 		if (rb_setup(b, (ring_buff_t*)addr, (ring_buff_t*)kaddr)) {
 			printk("cos: buff mgmt -- could not setup the ring buffer.\n");
 			return -1;
@@ -1916,9 +1969,12 @@ int brand_higher_urgency(struct thread *upcall, struct thread *prev)
  * PREEMPTED.  Pass in 1 if you want both of those things.  2 if you
  * only want the lists to be updated.  I know...this needs to change:
  * hurried evolution.
+ *
+ * execution = 1 if you want this to possibly lead to the upcall being
+ * executed.  Otherwise, it won't be, even if the schedulers deem it
+ * to be most important.
  */
-struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, 
-				 int preempt)
+struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 {
 	/* Assume here that we only have one upcall thread */
 	struct thread *upcall = brand->upcall_threads;
@@ -1937,7 +1993,7 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 	 */
 //#define MEAS_LESSER_URG
 #ifndef MEAS_LESSER_URG
-	if (upcall->flags & THD_STATE_ACTIVE_UPCALL || unlikely(!upcall)) {
+	if (upcall->flags & THD_STATE_ACTIVE_UPCALL) {
 		assert(!(upcall->flags & THD_STATE_READY_UPCALL));
 		cos_meas_event(COS_MEAS_BRAND_PEND);
 		brand->pending_upcall_requests++;
@@ -1949,7 +2005,6 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 		return preempted;
 	}
 #endif
-
 	assert(upcall->flags & THD_STATE_READY_UPCALL);
 //	cos_net_try_packet(brand, &port);
 
@@ -2006,7 +2061,9 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 		if (likely(preempt)) {
 			assert((preempted->flags & THD_STATE_PREEMPTED) == 0);
 			assert(preempted->preempter_thread == NULL);
-			
+
+			/* This dictates how the registers for
+			 * preempted are restored later. */
 			if (preempt == 1) preempted->flags |= THD_STATE_PREEMPTED;
 			preempted->preempter_thread = upcall;
 			upcall->interrupted_thread = preempted;
@@ -2017,6 +2074,13 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 		cos_meas_event(COS_MEAS_BRAND_UC);
 		return upcall;
 	} else {
+		if (preempted->flags & THD_STATE_ACTIVE_UPCALL) {
+			struct thread *t = preempted->interrupted_thread;
+			if (t) {
+				t->preempter_thread = NULL;
+				preempted->interrupted_thread = NULL;
+			}
+		}
 //		printk("cos: don't run upcall, %d instead\n", thd_get_id(preempted));
 	}
 
@@ -2032,12 +2096,12 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
  * 
  * I'm not happy with the complexity and cost of this function.
  *
- * Possible simplification: provide feedback feedback from schedulers
- * as to if something has changed, i.e. if we even need to check for a
- * status update for a scheduler.  This would make us not have to go
- * to the other thread, its thread_sched_info, etc...  Problem is how
- * to signal if something has changed from the scheduler, i.e. should
- * we record the "current" thd id, for every schedule, so that we can
+ * Possible simplification: provide feedback from schedulers as to if
+ * something has changed, i.e. if we even need to check for a status
+ * update for a scheduler.  This would make us not have to go to the
+ * other thread, its thread_sched_info, etc...  Problem is how to
+ * signal if something has changed from the scheduler, i.e. should we
+ * record the "current" thd id, for every schedule, so that we can
  * compare that value when returning?  Would work, is there a better
  * way?
  *

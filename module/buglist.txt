@@ -22,3 +22,15 @@
    now it looks like it is just something that persists across page
    faults that is the problem (only if you get page faults across 2
    runs, the second will fail).
+
+4) Unknown reason for this behavior: when we xmit a packet, it can
+   (will) generate a softirq, which we should trigger immediately to
+   send the packet.  However, when we trigger this softirq, in a path
+   were interrupts are disabled, we end up executing net recv/timer
+   softirqs.  How/why?
+
+5) stupid that for upcalls that complete and must upcall into the
+   scheduler, we use iret.  To change this though, we need to change
+   the register layout both in kernel and in component, which is too
+   annoying and fickle to do in the middle of trying to get networking
+   to work.  Low prio.

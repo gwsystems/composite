@@ -29,7 +29,7 @@ INC_PATH=-I./
 # FIXME: dietlibc is now compiled with fno merge constants which is
 # probably ballooning its size.  Fix this in cos_loader.
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib
-OPT=-ggdb3
+OPT=-O3 #-ggdb3
 CFLAGS=-Wall $(INC_PATH) $(DIETINC) $(LWIPINC) $(OPT) $(SHARED_FLAGS)
 DIETCFLAGS=$(CFLAGS) -Xlinker -r
 #-ggdb3

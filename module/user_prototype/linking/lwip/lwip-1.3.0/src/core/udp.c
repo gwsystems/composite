@@ -517,6 +517,8 @@ udp_sendto_if(struct udp_pcb *pcb, struct pbuf *p,
 #endif /* CHECKSUM_CHECK_UDP */
     LWIP_DEBUGF(UDP_DEBUG, ("udp_send: UDP checksum 0x%04"X16_F"\n", udphdr->chksum));
     LWIP_DEBUGF(UDP_DEBUG, ("udp_send: ip_output_if (,,,,IP_PROTO_UDP,)\n"));
+    /* gap */ 
+    udp_debug_print(udphdr);
     /* output to IP */
 #if LWIP_NETIF_HWADDRHINT
     netif->addr_hint = &(pcb->addr_hint);

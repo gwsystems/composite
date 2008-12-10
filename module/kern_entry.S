@@ -194,7 +194,7 @@ ENTRY(asym_exec_dom_entry)
 	 *   31
 	 *
 	 * Where each character represents a bit.
-	 * S:	Register save flag on a component invocation
+	 * (DEPRICATED) S: Register save flag on a component invocation
 	 * cap_inv:	The capability to invoke
 	 * sc:	 Make a composite OS system-call
 	 */

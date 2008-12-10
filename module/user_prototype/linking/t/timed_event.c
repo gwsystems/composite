@@ -8,6 +8,7 @@
 
 #include <cos_component.h>
 #include <cos_debug.h>
+#include <print.h>
 #include <cos_time.h>
 
 #define TIMER_NO_EVENTS 0ULL
@@ -21,6 +22,7 @@ extern int sched_timeout_thd(spdid_t spdid);
 extern void sched_timeout(spdid_t spdid, unsigned long amnt);
 extern unsigned int sched_tick_freq(void);
 
+/* Lets save some typing... */
 #define TAKE(spdid) 	if (sched_component_take(spdid)) return -1;
 #define RELEASE(spdid)	if (sched_component_release(spdid)) return -1;
 
@@ -206,7 +208,9 @@ int timed_event_block(spdid_t spdinv, unsigned int amnt)
 	if (ret) {
 		sched_timeout(spdid, amnt);
 	}
-	assert(-1 != sched_block(spdid));
+	if (-1 == sched_block(spdid)) {
+		prints("fprr: sched block failed in timed_event_block.");
+	}
 
 	if (te.timed_out) {
 		return TIMER_EXPIRED;
@@ -253,7 +257,9 @@ static void start_timer_thread(void)
 	sched_block(spdid);
 	/* Wait for events, then act on expired events.  Loop. */
 	while (1) {
-		assert(!sched_component_take(spdid));
+		if (sched_component_take(spdid)) {
+			prints("fprr: scheduler lock failed!!!");
+		}
 		event_expiration(next_wakeup);
 		/* Error here: probably didn't release when you should have */
 		if (TIMER_NO_EVENTS != next_wakeup) ticks = next_wakeup;
@@ -261,7 +267,9 @@ static void start_timer_thread(void)
 
 		/* Are there any pending events??? */
 		if (TIMER_NO_EVENTS == next_wakeup) {
-			assert(!sched_component_release(spdid));
+			if (sched_component_release(spdid)) {
+				prints("fprr: scheduler lock release failed!!!");
+			}
 			//prints("Timer thread about to block.");
 			sched_block(spdid);
 			//prints("Timer thread waking up.");
@@ -270,7 +278,9 @@ static void start_timer_thread(void)
 
 			assert(next_wakeup > ticks);
 			wakeup = (unsigned int)(next_wakeup - ticks);
-			assert(!sched_component_release(spdid));
+			if (sched_component_release(spdid)) {
+				prints("fprr: scheduler lock release failed!!!");
+			}
 
 			sched_timeout(spdid, wakeup);
 		}
@@ -296,6 +306,6 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		assert(0);
 		return;
 	}
-
+	assert(0);
 	return;
 }
