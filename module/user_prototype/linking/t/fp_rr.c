@@ -798,10 +798,6 @@ int sched_component_release(spdid_t spdid)
 	return 0;
 }
 
-void sched_create(void) {
-	return;
-}
-
 static struct sched_thd *sched_setup_thread_arg(u16_t priority, u16_t urgency, crt_thd_fn_t fn, void *d)
 {
 	unsigned int thd_id;
@@ -821,6 +817,25 @@ static struct sched_thd *sched_setup_thread_arg(u16_t priority, u16_t urgency, c
 static struct sched_thd *sched_setup_thread(u16_t priority, u16_t urgency, crt_thd_fn_t fn)
 {
 	return sched_setup_thread_arg(priority, urgency, fn, 0);
+}
+
+void sched_create_thread(spdid_t spdid) {
+	struct sched_thd *curr, *new;
+	u16_t prio, urg;
+	unsigned int curr_id, id;
+
+	id = spdid;
+	cos_sched_lock_take();
+	curr = sched_get_current();
+	prio = curr->metric.priority;
+	urg = curr->metric.urgency;
+	curr_id = curr->id;
+	cos_sched_lock_release();
+	new = sched_setup_thread_arg(prio, urg, fp_create_spd_thd, (void*)id);
+	print("fprr: created thread %d in spdid %d (requested by %d)",
+	      new->id, id, curr_id);
+
+	return;
 }
 
 static struct sched_thd *sched_setup_upcall_thread(u16_t priority, u16_t urgency, 
@@ -964,7 +979,7 @@ int sched_init(void)
 	static int first = 1;
 	int i;
 	unsigned int b_id;
-	struct sched_thd *new, *new2;
+	struct sched_thd *new;//, *new2;
 	int target_spdid;
 
 	if (!first) return -1;

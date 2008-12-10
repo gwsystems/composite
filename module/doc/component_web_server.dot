@@ -68,4 +68,53 @@ digraph web_server {
 	"Network" -> "Net Demultiplexer" -> "Network Driver";
 	"Network" -> "Network Driver";
 	"Base Scheduler" -> "Timer Driver";
+
+	"MPD Manager" -> "Timed Event";	
+
+/*
+	"Network" -> "Memory Mapper";
+	"Socket API" -> "Memory Mapper";
+	"File Descriptor API" -> "Memory Mapper";
+	"TCP Server" -> "Memory Mapper";
+	"HTTP Parser" -> "Memory Mapper";
+	"CGI 0" -> "Memory Mapper";
+	"CGI 1" -> "Memory Mapper";
+	"CGI N" -> "Memory Mapper";
+	"Thread Pool" -> "Memory Mapper";
+	"Static Content" -> "Memory Mapper";
+	"Plugin 0" -> "Memory Mapper";
+	"Plugin 1" -> "Memory Mapper";
+	"Plugin M" -> "Memory Mapper";
+	"Base Scheduler" -> "Memory Mapper";
+	"Application Scheduler" -> "Memory Mapper";
+	"Web Event" -> "Memory Mapper";
+	"Net Event" -> "Memory Mapper";
+	"Timed Event" -> "Memory Mapper";
+	"Terminal Printer" -> "Memory Mapper";
+	"Lock" -> "Memory Mapper";
+	"MPD Manager" -> "Memory Mapper";
+	"Content Manager" -> "Memory Mapper";
+
+	"Network" -> "Terminal Printer";
+	"Socket API" -> "Terminal Printer";
+	"File Descriptor API" -> "Terminal Printer";
+	"TCP Server" -> "Terminal Printer";
+	"HTTP Parser" -> "Terminal Printer";
+	"CGI 0" -> "Terminal Printer";
+	"CGI 1" -> "Terminal Printer";
+	"CGI N" -> "Terminal Printer";
+	"Thread Pool" -> "Terminal Printer";
+	"Static Content" -> "Terminal Printer";
+	"Plugin 0" -> "Terminal Printer";
+	"Plugin 1" -> "Terminal Printer";
+	"Plugin M" -> "Terminal Printer";
+	"Base Scheduler" -> "Terminal Printer";
+	"Application Scheduler" -> "Terminal Printer";
+	"Web Event" -> "Terminal Printer";
+	"Net Event" -> "Terminal Printer";
+	"Timed Event" -> "Terminal Printer";
+	"Lock" -> "Terminal Printer";
+	"MPD Manager" -> "Terminal Printer";
+	"Content Manager" -> "Terminal Printer";
+*/
 }

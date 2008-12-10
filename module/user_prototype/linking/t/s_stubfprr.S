@@ -186,7 +186,7 @@ sched_exit_inv:
 
 	sysenter
 
-cos_asm_server_stub(sched_create)
+cos_asm_server_stub(sched_create_thread)
 cos_asm_server_stub(sched_tick_freq)
 
 .globl sched_component_take_inv
