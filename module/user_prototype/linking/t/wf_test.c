@@ -11,7 +11,7 @@
 #define ITER 1000000
 
 extern void sched_yield_exec(void);
-extern void sched_create(void);
+extern int sched_create_thread(spdid_t);
 extern int timed_event_block(spdid_t spdinv, unsigned int amnt);
 
 #define LOCK_OWNER_TIMEOUT 20000
@@ -88,5 +88,5 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 
 void bin(void) {
 	sched_yield_exec();
-	sched_create();
+	sched_create_thread(cos_spd_id());
 }

@@ -211,9 +211,7 @@ struct sched_thd *sched_alloc_thd(unsigned short int thd_id)
 
 	thd = &sched_thds[thd_id];
 	
-	if (!(thd->flags & THD_FREE)) {
-		return NULL;
-	}
+	if (!(thd->flags & THD_FREE)) return NULL;
 
 	thd->flags = 0;
 	sched_init_thd(thd, thd_id, THD_READY);
@@ -224,9 +222,7 @@ struct sched_thd *sched_alloc_upcall_thd(unsigned short int thd_id)
 {
 	struct sched_thd *t = sched_alloc_thd(thd_id);
 
-	if (!t) {
-		return NULL;
-	}
+	if (!t) return NULL;
 
 	t->flags = THD_UC_READY;
 	return t; 
@@ -250,9 +246,7 @@ struct sched_thd *sched_alloc_grp(unsigned short int sched_thd)
 	for (i = 0 ; i < SCHED_NUM_THREADS ; i++) {
 		thd = &sched_grps[i];
 		
-		if (!(thd->flags & THD_FREE)) {
-			continue;
-		}
+		if (!(thd->flags & THD_FREE)) continue;
 		
 		thd->flags = 0;
 		sched_init_thd(thd, sched_thd, THD_READY);

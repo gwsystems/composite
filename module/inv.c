@@ -1501,6 +1501,7 @@ COS_SYSCALL int cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int 
 		}
 		/* FIXME: pin page in memory */
 		spd->cos_net_xmit_headers = (struct cos_net_xmit_headers*)kaddr;
+
 		break;
 	}
 	/* Set the location of a user-level ring buffer */
@@ -2863,14 +2864,15 @@ COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t dad
 	if (NULL == spd || /*virtual_namespace_query(daddr) != spd*/
 	    (daddr < spd->location.lowest_addr || 
 	     daddr >= spd->location.lowest_addr + spd->location.size)) {
-		printk("cos: invalid mmap cntl call for spd %d for spd %d @ vaddr %x\n",
-		       spdid, dspd_id, (unsigned int)daddr);
+		//printk("cos: invalid mmap cntl call for spd %d for spd %d @ vaddr %x\n",
+		//       spdid, dspd_id, (unsigned int)daddr);
 		return -1;
 	}
 
 	switch(op) {
 	case COS_MMAP_GRANT:
 		page = cos_access_page(mem_id);
+		//printk("cos:  mapping -- mapping for mem_id %d in (p) page %x to address %x\n", mem_id, page, daddr);
 		if (0 == page) {
 			printk("cos: mmap grant -- could not get a physical page.\n");
 			ret = -1;

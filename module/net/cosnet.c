@@ -59,6 +59,8 @@
 #define DRV_DESCRIPTION	"cos: Universal TUN/TAP device driver"
 #define DRV_COPYRIGHT	"cos: (C) 1999-2004 Max Krasnyansky <maxk@qualcomm.com>"
 
+#define COS_IP_ADDR     0xa000208
+
 #include <linux/module.h>
 #include <linux/errno.h>
 #include <linux/kernel.h>
@@ -81,6 +83,7 @@
 #include "if_cosnet.h"//<linux/if_tun.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+#include <linux/tcp.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
@@ -108,7 +111,7 @@ static int tun_net_close(struct net_device *dev)
 	return 0;
 }
 
-static inline struct cosnet_struct *cosnet_find_brand(struct tun_struct *ts, __u16 dport)
+static inline struct cosnet_struct *cosnet_find_brand(struct tun_struct *ts, __u8 proto, __u16 dport)
 {
 	int i;
 	struct cosnet_struct *cn;
@@ -130,24 +133,35 @@ static inline struct cosnet_struct *cosnet_find_brand(struct tun_struct *ts, __u
 	return NULL;
 }
 
-unsigned short int cosnet_skb_get_udp_port(struct sk_buff *skb)
+unsigned short int cosnet_skb_get_udp_port(struct sk_buff *skb, __u8 *proto)
 {
 	__u32 daddr;
 	__u16 dport;
 	__u8  protocol, header_len;
 	struct iphdr *iph = (struct iphdr*)skb->data;
 	struct udphdr *udph;
+	struct tcphdr *tcph;
 
 	daddr = ntohl(iph->daddr);
-	protocol = iph->protocol; /* udp is 17 */
+	*proto = protocol = iph->protocol; /* udp is 17, tcp 6 */
 	header_len = iph->ihl; /* size in words of ip header */
 
-	if (protocol != 0x11 || daddr != 0xa000208 || header_len != 5) {
+	if (daddr != COS_IP_ADDR || header_len != 5) {
 		return 0;
 	}
 
-	udph = (struct udphdr *)(((long*)skb->data) + header_len);
-	dport = ntohs(udph->dest);
+	switch (protocol) {
+	case 0x11:
+		udph = (struct udphdr *)(((long*)skb->data) + header_len);
+		dport = ntohs(udph->dest);
+		break;
+	case 0x6:
+		tcph = (struct tcphdr *)(((long*)skb->data) + header_len);
+		dport = ntohs(tcph->dest);
+		break;
+	default:
+		return 0;
+	}
 
 /* 	printk("cos: sip-%x, dip-%x, p-%x, len-%x, hl-%x, sport-%x,dport-%x,len-%x,cs-%x\n", */
 /* 	       (unsigned int)ntohl(iph->saddr), (unsigned int)ntohl(iph->daddr),(unsigned int)iph->protocol, (unsigned int)ntohs(iph->tot_len), (unsigned int)header_len, */
@@ -156,7 +170,11 @@ unsigned short int cosnet_skb_get_udp_port(struct sk_buff *skb)
 }
 
 static struct cosnet_struct *cosnet_resolve_brand(struct tun_struct *ts, struct sk_buff *skb) {
-	return cosnet_find_brand(ts, cosnet_skb_get_udp_port(skb));
+	__u8 proto;
+	__u16 port;
+
+	port = cosnet_skb_get_udp_port(skb, &proto);
+	return cosnet_find_brand(ts, proto, port);
 }
 
 static void cosnet_init_queues(struct tun_struct *ts) 
@@ -299,6 +317,7 @@ int cosnet_get_packet(struct cos_brand_info *bi, char **packet, unsigned long *l
 		struct cos_brand_info *tmp_bi = local_ts->cosnet[i].brand_info;
 		if (tmp_bi && tmp_bi->brand_port == bi->brand_port) {
 			struct sk_buff *skb;
+			__u8 proto;
 			//int queues_full = cosnet_queues_full(local_ts);
 
 			if (!(skb = skb_dequeue(local_ts->cosnet[i].packet_queue))) {
@@ -310,7 +329,7 @@ int cosnet_get_packet(struct cos_brand_info *bi, char **packet, unsigned long *l
 
 			/* TODO: restart the queue with netif_wake_queue */
 
-			*port = cosnet_skb_get_udp_port(skb);
+			*port = cosnet_skb_get_udp_port(skb, &proto);
 			/* OK, this is a little rediculous */
 			*len = skb->len;
 			*packet = skb->data;
@@ -346,6 +365,7 @@ static int cosnet_xmit_packet(void *headers, int hlen, void *user_buffer, int le
 	if (unlikely(totlen > local_ts->dev->mtu || 
 		     hlen > sizeof(struct cos_net_xmit_headers))) {
 		printk("cos: cannot transfer packet of size %d.\n", len + hlen);
+		kfree_skb(skb);
 		return -1;
 	}
 	/* skb_reserve(skb, NET_IP_ALIGN); */
@@ -354,6 +374,14 @@ static int cosnet_xmit_packet(void *headers, int hlen, void *user_buffer, int le
 	/* Then the data payload */
 	memcpy(skb_put(skb, len), user_buffer, len);
 	
+/* 	{ */
+/* 		struct iphdr *ih = (struct iphdr *)skb->data; */
+/* 		int len = ih->ihl; */
+/* 		struct udphdr *uh = (struct udphdr *)((long *)skb->data + len); */
+
+/* 		printk("ih len %d, udp hdr: sp %d, dp %d, len %d\n", len, ntohs(uh->source), ntohs(uh->dest), ntohs(uh->len)); */
+/* 	} */
+
 	skb_reset_mac_header(skb);
 	skb->protocol = __constant_htons(ETH_P_IP);
 	skb->dev = local_ts->dev;
@@ -380,6 +408,7 @@ static int cosnet_xmit_packet(void *headers, int hlen, void *user_buffer, int le
 	}
 	if (unlikely(!raw_irqs_disabled())) {
 		printk("cos: interrupts enabled after packet xmit!\n");
+		kfree_skb(skb);
 		return -1;
 	}
 
@@ -411,6 +440,7 @@ static int cosnet_xmit_packet(void *headers, int hlen, void *user_buffer, int le
 	}
 #endif
 	//kfree_skb(skb);
+
 	return 0;
 }
 

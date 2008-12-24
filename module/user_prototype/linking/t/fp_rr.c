@@ -25,7 +25,7 @@
 #define NORMAL_PRIO_HI 4
 #define NORMAL_PRIO_LO (NUM_PRIOS-4)
 
-#define RUNTIME_SEC (3)
+#define RUNTIME_SEC (30)
 #define REPORT_FREQ 60
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
@@ -66,7 +66,7 @@ static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
 static inline void fp_add_evt_thd(struct sched_thd *t, unsigned short int prio)
 {
 	assert(prio < NUM_PRIOS);
-	assert(!sched_thd_ready(t));
+	assert(sched_thd_inactive_evt(t));
 	assert(sched_thd_event(t));
 
 //	print("add_evt_thd: adding thread %d with priority %d to deactive upcall list. %d", 
@@ -103,6 +103,8 @@ static inline void fp_move_end_runnable(struct sched_thd *t)
 static inline void fp_block_thd(struct sched_thd *t)
 {
 	assert(sched_thd_ready(t));
+	assert(!sched_thd_free(t));
+	assert(!sched_thd_blocked(t));
 	assert(t->wake_cnt == 0);
 
 	t->flags &= ~THD_READY;
@@ -114,10 +116,12 @@ static inline void fp_block_thd(struct sched_thd *t)
 static inline void fp_resume_thd(struct sched_thd *t)
 {
 	assert(sched_thd_blocked(t));
+	assert(!sched_thd_free(t));
+	assert(!sched_thd_ready(t));
 
 	t->flags &= ~THD_BLOCKED;
 	t->flags |= THD_READY;
-	REM_LIST(t, prio_next, prio_prev);
+	//REM_LIST(t, prio_next, prio_prev);
 	fp_move_end_runnable(t);
 }
 
@@ -139,11 +143,17 @@ static void fp_deactivate_upcall(struct sched_thd *uc)
 	ADD_LIST(&upcall_deactive, uc, prio_next, prio_prev);
 }
 
-static inline struct sched_thd *fp_find_non_suspended_list(struct sched_thd *head)
+/* 
+ * Include an argument to tell if we should start looking after head,
+ * or after the first element.
+ */
+static struct sched_thd *fp_find_non_suspended_list_head(struct sched_thd *head, int second)
 {
 	struct sched_thd *t;
 
+	assert(!EMPTY_LIST(head, prio_next, prio_prev));
 	t = FIRST_LIST(head, prio_next, prio_prev);
+	if (second) t = FIRST_LIST(t, prio_next, prio_prev);
 	while (t != head) {
 		if (!sched_thd_suspended(t)) {
 			break;
@@ -154,7 +164,18 @@ static inline struct sched_thd *fp_find_non_suspended_list(struct sched_thd *hea
 		return NULL;
 	}
 
+	/* this assert relies on lazy evaluation: only if second == 1,
+	 * do we check to make sure the returned thread is not the
+	 * first one. */
+	assert(t != head && (!second || t != FIRST_LIST(head, prio_next, prio_prev)));
+	assert(!sched_thd_free(t));
+	assert(sched_thd_ready(t));
 	return t;
+}
+
+static inline struct sched_thd *fp_find_non_suspended_list(struct sched_thd *head)
+{
+	return fp_find_non_suspended_list_head(head, 0);
 }
 
 static struct sched_thd *fp_get_highest_prio(void)
@@ -179,9 +200,12 @@ static struct sched_thd *fp_get_highest_prio(void)
 		 * depended on thread */
 		if ((dep = sched_thd_dependency(t))) {
 			assert(sched_thd_ready(dep));
+			assert(!sched_thd_free(dep));
 			return dep;
 		}
 
+		assert(!sched_thd_free(t));
+		assert(sched_thd_ready(t));
 		return t;
 	}
 
@@ -194,6 +218,8 @@ static struct sched_thd *fp_get_second_highest_prio(struct sched_thd *highest)
 	struct sched_thd *tmp, *dep, *head;
 	unsigned short int prio;
 
+	assert(!sched_thd_free(highest));
+	assert(sched_thd_ready(highest));
 	assert(fp_get_highest_prio() == highest);
 	assert(highest != init);
 
@@ -201,17 +227,21 @@ static struct sched_thd *fp_get_second_highest_prio(struct sched_thd *highest)
 	prio = sched_get_metric(highest)->priority;
 	assert(prio < NUM_PRIOS);
 	head = &(priorities[prio].runnable);
-	tmp = fp_find_non_suspended_list(highest);//FIRST_LIST(highest, prio_next, prio_prev);
+	assert(fp_find_non_suspended_list(head) == highest);
+	/* pass in 1 to tell the function to start looking after the first item on the list (highest) */
+	tmp = fp_find_non_suspended_list_head(head, 1);
 	assert(tmp != highest);
 	/* Another thread at same priority */
-	if (head != tmp) {
+	if (tmp) {
 		if ((dep = sched_thd_dependency(tmp))) {
+			assert(!sched_thd_free(dep));
+			assert(sched_thd_ready(dep));
 			if (!sched_thd_blocked(dep)) {
 				return dep;
 			}
-
-// make it so that sched_thd_dependency will detect normal dependencies too between threads, not just for spds....
 		} else {
+			assert(!sched_thd_free(tmp));
+			assert(sched_thd_ready(tmp));
 			return tmp;
 		}
 	}
@@ -228,14 +258,18 @@ static struct sched_thd *fp_get_second_highest_prio(struct sched_thd *highest)
 		t = fp_find_non_suspended_list(head);
 		if (!t) continue;
 
+		assert(!sched_thd_free(t));
 		assert(sched_thd_ready(t));
 		assert(sched_get_metric(t)->priority == i);
 
 		if ((dep = sched_thd_dependency(t))) {
 			assert(!sched_thd_blocked(dep) &&
 			       sched_thd_ready(dep));
+			assert(!sched_thd_free(dep));
 			return dep;
 		}
+		assert(!sched_thd_free(t));
+		assert(sched_thd_ready(t));
 		return t;
 	}
 
@@ -406,7 +440,7 @@ void fp_timer_tick(void)
 
 		/* Chances are good the highest is us */
 		if (next == prev) {
-			struct sched_thd *r;
+ 			struct sched_thd *r;
 			/* the RR part */
 			next = fp_get_second_highest_prio(next);
 			r = next;
@@ -700,44 +734,40 @@ static void fp_block(struct sched_thd *thd, spdid_t spdid)
 int sched_block(spdid_t spdid)
 {
 	struct sched_thd *thd, *next;
-	int cnt_done = 0, ret;
+	int ret;
 
+	thd = sched_get_current();
+	if (!thd) goto error;
 	block_cnt++;
+
+	cos_sched_lock_take();
+
+	assert(!sched_thd_free(thd));
+	assert(sched_thd_ready(thd));
+	fp_pre_block(thd);
+	assert(thd->blocking_component == 0 || 
+	       thd->blocking_component == spdid);
+	/* if we already got a wakeup call for this thread */
+	if (thd->wake_cnt) {
+		assert(thd->wake_cnt == 1);
+		cos_sched_lock_release();
+		return 0;
+	}
+	fp_block(thd, spdid);
 	/* 
 	 * This needs to be a loop as it's possible that there will be
 	 * lock contention, and this thread will schedule itself while
 	 * another incriments the wake_cnt 
 	 */
-	do {
-		cos_sched_lock_take();
-		
-		//print("thread %d blocking. %d%d", cos_get_thd_id(), 0,0);
-
-		thd = sched_get_current();
-		if (!thd) goto error;
-		
-		/* why are we running if blocked */
-		assert(sched_thd_ready(thd));
-
-		/* only decrease once, even if we loop */
-		if (!cnt_done) {
-			fp_pre_block(thd);
-			cnt_done = 1;
-		}
-
-		assert(thd->blocking_component == 0 || 
-		       thd->blocking_component == spdid);
-
-		/* if we already got a wakeup call for this thread */
-		if (thd->wake_cnt) {
-			assert(thd->wake_cnt == 1);
+	while(1) {
+		next = fp_schedule();
+		if (next == thd) {
 			cos_sched_lock_release();
 			break;
 		}
-		fp_block(thd, spdid);
-		next = fp_schedule();
-		assert(next != thd);
-	} while (cos_switch_thread_release(next->id, 0, 0));
+		if (likely(!cos_switch_thread_release(next->id, 0, 0))) break;
+		cos_sched_lock_take();
+	}
 	/* The amount of time we've blocked */
 	ret = ticks - thd->block_time - 1;
 	return ret > 0 ? ret : 0;
@@ -758,14 +788,16 @@ int sched_component_take(spdid_t spdid)
 {
 	struct sched_thd *holder, *curr;
 
+	curr = sched_get_current();
+	assert(curr);
+	assert(sched_thd_ready(curr));
+
 	/* Continue until the critical section is available */
 	while (1) {
 		cos_sched_lock_take();
-		curr = sched_get_current();
-		assert(curr);
 
 		/* If the current thread is dependent on another thread, switch to it for help! */
-		if (!(holder = sched_take_crit_sect(spdid, curr))) {
+		if (NULL == (holder = sched_take_crit_sect(spdid, curr))) {
 			break;
 		}
 		/* FIXME: proper handling of recursive locking */
@@ -986,10 +1018,10 @@ int sched_init(void)
 	first = 0;
 
 	for (i = 0 ; i < NUM_PRIOS ; i++) {
-		sched_init_thd(&priorities[i].runnable, 0, 0);
+		sched_init_thd(&priorities[i].runnable, 0, THD_FREE);
 	}
-	sched_init_thd(&blocked, 0, 0);
-	sched_init_thd(&upcall_deactive, 0, 0);
+	sched_init_thd(&blocked, 0, THD_FREE);
+	sched_init_thd(&upcall_deactive, 0, THD_FREE);
 	sched_ds_init();
 
 	/* switch back to this thread to terminate the system. */
@@ -1014,6 +1046,10 @@ int sched_init(void)
 	target_spdid = spd_name_map_id("net.o");
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(NORMAL_PRIO_HI+1, NORMAL_PRIO_HI+1, fp_create_spd_thd, (void*)target_spdid);
+	print("Network thread has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+1, 0);
+
+	new = sched_setup_thread_arg(NORMAL_PRIO_HI+1, NORMAL_PRIO_HI+1, fp_create_spd_thd, (void*)target_spdid);
+	print("Network thread (2) has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+1, 0);
 /*
 #define N_THDS 16
 	new = sched_setup_thread_arg(4, 4, fp_create_spd_thd, (void*)2);

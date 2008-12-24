@@ -3,8 +3,6 @@
  * non-contiguous, multiple-free-list worst case n/2 internal
  * fragmentation allocator (for sizes > 16 bytes).  
  *
- * TODO: Add synchronization.
- *
  * FIXME: when freeing a page, we make a small allocation to track
  * that page.  Would be much better to just use the page to store the
  * structure.  What if we need to free a page to make an allocation:
@@ -12,6 +10,9 @@
  * that i we cannot allocate the structure to describe the page, just
  * call the memory component to free it rather than add it to the free
  * page list.
+ *
+ * Ported to the Composite OS, and lock-free synchronization added by
+ * Gabriel Parmer, gabep1@cs.bu.edu.
  */
 
 /*
@@ -23,13 +24,21 @@
  *   let the kernel map all the stuff (if there is something to do)
  */
 
-//#define TEST
-#ifdef TEST
+//#define DEBUG_OUTPUT
+#ifdef DEBUG_OUTPUT
+#define COS_FMT_PRINT
+#include <print.h>
+int alloc_debug = 0;
+#endif
+
+//#define UNIX_TEST
+#ifdef UNIX_TEST
 #define PAGE_SIZE 4096
 #include <sys/mman.h>
 #else
 #include "cos_component.h"
 #include "cos_alloc.h"
+
 
 //typedef unsigned int size_t;
 struct free_page {
@@ -45,7 +54,7 @@ extern void mman_release_page(spdid_t spd, void *addr, int flags);
 /* -- HELPER CODE --------------------------------------------------------- */
 
 #ifndef MAP_FAILED
-#define MAP_FAILED ((void*)-1)
+#define MAP_FAILED ((void*)0)  //((void*)-1)
 #endif
 
 #ifndef NULL
@@ -70,22 +79,27 @@ typedef struct {
 #endif
 
 static inline REGPARM(1) void *do_mmap(size_t size) {
-#ifdef TEST
+#ifdef UNIX_TEST
   return mmap(0, size, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0);
 #else 
-  void *hp;
+  void *hp, *ret;
 
   hp = cos_get_heap_ptr();
   cos_set_heap_ptr(hp + PAGE_SIZE);
 
   /* FIXME: If this doesn't return success, we should terminate */
-  return (void*)mman_get_page(cos_spd_id(), hp, 0);
+  ret = (void*)mman_get_page(cos_spd_id(), hp, 0);
+  if (NULL == ret) cos_set_heap_ptr(hp);
+#ifdef DEBUG_OUTPUT
+  if (alloc_debug) printc("malloc: mmapped region into %x", ret);
+#endif
+  return ret;
 #endif
 }
 
 /* remove qualifiers to make debugging easier */
 /*static inline*/ REGPARM(2) int do_munmap(void *addr, size_t size) {
-#ifdef TEST
+#ifdef UNIX_TEST
   return munmap(addr, size);
 #else
   /* not supported and given that we can't allocate > PAGE_SIZE, this should never happen */
@@ -121,47 +135,75 @@ static size_t REGPARM(1) get_index(size_t _size) {
 /* small mem */
 static void __small_free(void*_ptr,size_t _size) REGPARM(2);
 
-static void REGPARM(2) __small_free(void*_ptr,size_t _size) {
-  __alloc_t* ptr=BLOCK_START(_ptr);
-  size_t size=_size;
-  size_t idx=get_index(size);
-
+static inline void REGPARM(2) __small_free(void*_ptr,size_t _size) {
+	__alloc_t* ptr=BLOCK_START(_ptr), *prev;
+	size_t size=_size;
+	size_t idx=get_index(size);
+	
 //  memset(ptr,0,size);	/* allways zero out small mem */
-
-  ptr->next=__small_mem[idx];
-  __small_mem[idx]=ptr;
+	do {
+		prev = __small_mem[idx];
+		ptr->next=prev;
+	} while (unlikely(cos_cmpxchg(&__small_mem[idx], (int)prev, (int)ptr) != (int)ptr));
 }
 
-static void* REGPARM(1) __small_malloc(size_t _size) {
-  __alloc_t *ptr;
-  size_t size=_size;
-  size_t idx;
+static inline void* REGPARM(1) __small_malloc(size_t _size) {
+	__alloc_t *ptr, *next;
+	size_t size=_size;
+	size_t idx;
 
-  idx=get_index(size);
-  ptr=__small_mem[idx];
+	idx=get_index(size);
+	do {
+		ptr=__small_mem[idx];
+#ifdef DEBUG_OUTPUT
+		if (alloc_debug) printc("malloc: head of list for size %d (idx %d) is %x", _size, idx, __small_mem[idx]);
+#endif
+		if (unlikely(ptr==0))  {	/* no free blocks ? */
+			register int i,nr;
+			__alloc_t *start, *second, *end;
+			
+			start = ptr = do_mmap(MEM_BLOCK_SIZE);
+			if (ptr==MAP_FAILED) return MAP_FAILED;
 
-  if (ptr==0)  {	/* no free blocks ? */
-    register int i,nr;
-    ptr=do_mmap(MEM_BLOCK_SIZE);
-    if (ptr==MAP_FAILED) return MAP_FAILED;
+			nr=__SMALL_NR(size)-1;
+			for (i=0;i<nr;i++) {
+				ptr->next=(((void*)ptr)+size);
+				ptr=ptr->next;
+			}
+			end = ptr;
+			end->next=0;
+			/* Make malloc thread-safe with lock-free sync: */
+			second = start->next;
+			start->next = 0;
+			do {
+				ptr = __small_mem[idx];
+				/* Hook a possibly existing list to
+				 * the end of our new list */
+				end->next = ptr;
+			} while (unlikely(cos_cmpxchg(&__small_mem[idx], (long)ptr, (long)second) != (long)second));
+#ifdef DEBUG_OUTPUT
+			if (alloc_debug) printc("malloc: returning memory region @ %x, head of list is %x", start, __small_mem[idx]);
+#endif
+			return start;
+		} 
+		next = ptr->next;
+		//__small_mem[idx]=ptr->next;
+	} while (unlikely(cos_cmpxchg(&__small_mem[idx], (long)ptr, (long)next) != (long)next));
+	ptr->next=0;
 
-    __small_mem[idx]=ptr;
+#ifdef DEBUG_OUTPUT
+	if (alloc_debug) printc("malloc: returning memory region @ %x, head of list is %x", ptr, __small_mem[idx]);
+#endif
+	/* 
+	 * FIXME: This still suffers from the ABA problem -- still a
+	 * race if ptr and next are removed from list, then ptr put
+	 * back in between ptr=__small_mem[idx] and the cmpxchg.  next
+	 * is used elsewhere, but we are still going to put it back at
+	 * the head of the list.  This can be solved with another
+	 * cos_cmpxchg loop to verify next as well.
+	 */
 
-    nr=__SMALL_NR(size)-1;
-    for (i=0;i<nr;i++) {
-      ptr->next=(((void*)ptr)+size);
-      ptr=ptr->next;
-    }
-    ptr->next=0;
-
-    ptr=__small_mem[idx];
-  }
-
-  /* get a free block */
-  __small_mem[idx]=ptr->next;
-  ptr->next=0;
-
-  return ptr;
+	return ptr;
 }
 
 /* -- PUBLIC FUNCTIONS ---------------------------------------------------- */
@@ -219,7 +261,7 @@ err_out:
 void* malloc(size_t size) __attribute__((weak,alias("_alloc_libc_malloc")));
 
 
-/* gabep1 additions */
+/* gabep1 additions for allocations of pages. */
 
 void *alloc_page(void)
 {
@@ -322,7 +364,7 @@ void* realloc(void* ptr, size_t size) __attribute__((weak,alias("__libc_realloc"
 
 /********************* testing code on unix ***********************/
 
-#ifdef TEST
+#ifdef UNIX_TEST
 
 #define ITER 100000
 #define PTRS_LIVE 100

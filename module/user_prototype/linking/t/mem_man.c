@@ -9,6 +9,12 @@
 #include <cos_component.h>
 #include <cos_debug.h>
 
+#define DEBUG_OUTPUT
+#ifdef DEBUG_OUTPUT
+#define COS_FMT_PRINT
+#include <print.h>
+#endif
+
 #define MAX_ALIASES 2
 
 struct mapping_info {
@@ -26,18 +32,20 @@ static inline long cell_index(struct mem_cell *c)
 	return c - cells;
 }
 
-static inline struct mem_cell *find_unused(int *alias)
+static inline struct mem_cell *find_unused(void)
 {
 	int i, j;
 
 	/* If we care about scaling, this should, of course use freelist */
 	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
+		int free = 1;
 		for (j = 0; j < MAX_ALIASES; j++) {
-			if (cells[i].map[j].owner_spd == 0) {
-				*alias = j;
-				return &cells[i];
+			if (cells[i].map[j].owner_spd != 0) {
+				free = 0;
+				break;
 			}
 		}
+		if (free) return &cells[i];
 	}
 	return NULL;
 }
@@ -67,15 +75,12 @@ static inline struct mem_cell *find_cell(spdid_t spd, vaddr_t addr, int *alias)
 vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 {
 	struct mem_cell *c;
-	int alias;
 
-	c = find_unused(&alias);
-	if (!c) {
-		return 0;
-	}
+	c = find_unused();
+	if (!c) return 0;
 	
-	c->map[alias].owner_spd = spd;
-	c->map[alias].addr = addr;
+	c->map[0].owner_spd = spd;
+	c->map[0].addr = addr;
 
 	/* Here we check for overwriting an already established mapping. */
 	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, spd, addr, cell_index(c))) {
@@ -107,3 +112,9 @@ void mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 
 	return;
 }
+
+/* 
+ * FIXME: add calls to obtain descriptors for the page regions, so
+ * that they can be used to produce aliases.  This will allow for
+ * shared memory, which we don't really support quite yet.
+ */

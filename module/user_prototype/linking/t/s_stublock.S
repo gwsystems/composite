@@ -6,7 +6,8 @@
  */
 
 #include <cos_asm_stacks.h>
-	
+#include <cos_asm_server_stub.h>
+		
 #define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 

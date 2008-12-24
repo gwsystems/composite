@@ -28,15 +28,15 @@ struct meta_lock {
 	u16_t owner;
 	spdid_t spd;
 	unsigned long lock_id;
-	unsigned long long gen_num;
 	struct blocked_thds b_thds;
+	unsigned long long gen_num;
 
 	struct meta_lock *next, *prev;
 };
 
-static unsigned long lock_id = 1;
+static volatile unsigned long lock_id = 1;
 /* Head of the linked list of locks. */
-static struct meta_lock *locks;
+static struct meta_lock STATIC_INIT_LIST(locks, next, prev);
 static volatile unsigned long long generation = 0;
 
 /* From the scheduler: */
@@ -47,23 +47,36 @@ extern int timed_event_wakeup(spdid_t spdid, unsigned short int thd_id);
 extern int sched_block(spdid_t spdid);
 extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
 
-#define TAKE(spdid) 	if (sched_component_take(spdid)) return -1;
+#define TAKE(spdid) 	if (sched_component_take(spdid))    return -1;
 #define RELEASE(spdid)	if (sched_component_release(spdid)) return -1;
 
 static inline struct meta_lock *lock_find(unsigned long lock_id, spdid_t spd)
 {
-	struct meta_lock *tmp = locks;
+	struct meta_lock *tmp;
 
-	//print("lock_find: lockid %d, spdid %d. %d", lock_id, spd, 0);
-	while (tmp) {
+	for (tmp = FIRST_LIST(&locks, next, prev) ; 
+	     tmp != &locks ; 
+	     tmp = FIRST_LIST(tmp, next, prev)) {
+		unsigned long id = tmp->spd;
 		if (tmp->lock_id == lock_id && tmp->spd == spd) {
 			return tmp;
 		}
-
-		tmp = tmp->next;
+		assert(tmp != FIRST_LIST(tmp, next, prev));
 	}
 	
 	return NULL;
+}
+
+static void lock_print_all(void)
+{
+	struct meta_lock *ml;
+
+	for (ml = FIRST_LIST(&locks, next, prev) ; 
+	     ml != &locks ; // && ml != FIRST_LIST(ml, next, prev) ; 
+	     ml = FIRST_LIST(ml, next, prev)) {
+		printc("lock @ %x (next %x, prev %x), id %d, spdid %d", ml, ml->next, ml->prev, ml->lock_id, ml->spd);
+	}
+	prints("");
 }
 
 static int lock_is_thd_blocked(struct meta_lock *ml, unsigned short int thd)
@@ -78,35 +91,42 @@ static int lock_is_thd_blocked(struct meta_lock *ml, unsigned short int thd)
 
 static struct meta_lock *lock_alloc(spdid_t spd)
 {
-	struct meta_lock *l = (struct meta_lock*)malloc(sizeof(struct meta_lock));
+	struct meta_lock *l;
+	struct meta_lock *snd, *lst;
  	
-	if (!l) {
-		return NULL;
-	}
-	/* FIXME: check for lock_id overload */
+	l = (struct meta_lock*)malloc(sizeof(struct meta_lock));
+	if (!l) return NULL;
 	l->b_thds.thd_id = 0;
-	INIT_LIST(&l->b_thds, next, prev);
+	INIT_LIST(&(l->b_thds), next, prev);
+	/* FIXME: check for lock_id overflow */
 	l->lock_id = lock_id++;
 	l->owner = 0;
 	l->gen_num = 0;
 	l->spd = spd;
-	l->prev = NULL;
-	l->next = locks;
-	if (locks) locks->prev = l;
-	locks = l;
+	INIT_LIST(l, next, prev);
+	assert(&locks != l);
+	snd = FIRST_LIST(&locks, next, prev);
+	lst = LAST_LIST(&locks, next, prev);
+	(l)->next = (&locks)->next;
+	(l)->prev = (&locks); 
+	(&locks)->next = (l); 
+	(l)->next->prev = (l);
+	assert(FIRST_LIST(&locks, next, prev) == l);
+	assert(LAST_LIST(l, next, prev) == &locks);
+	if (lst != &locks) {
+		assert(LAST_LIST(&locks, next, prev) == lst);
+		assert(FIRST_LIST(lst, next, prev) == &locks);
+	}
+	assert(FIRST_LIST(l, next, prev) == snd && LAST_LIST(snd, next, prev) == l);
 	
-	//print("lock_alloc: lock find %d. %d%d", lock_find(l->lock_id, spd) ? 1 : 0, 0,0);
+//	lock_print_all();
 	return l;
 }
 
 static void lock_free(struct meta_lock *l)
 {
-	if (!l) return;
-
-	if (l->next) l->next->prev = l->prev;
-	if (l->prev) l->prev->next = l->next;
-	else         locks         = l->next;
-
+	assert(l && l != &locks);
+	REM_LIST(l, next, prev);
 	free(l);
 }
 
@@ -129,12 +149,13 @@ static void lock_free(struct meta_lock *l)
 int lock_component_pretake(spdid_t spd, unsigned long lock_id, unsigned short int thd)
 {
 	struct meta_lock *ml;
-	spdid_t spdid = cos_spd_id();
+ 	spdid_t spdid = cos_spd_id();
 	int ret = 0;
 
 	TAKE(spdid);
+//	lock_print_all();
 	ml = lock_find(lock_id, spd);
-	if (!ml) {
+	if (NULL == ml) {
 		ret = -1;
 		goto done;
 	}
@@ -152,7 +173,7 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 	struct blocked_thds blocked_desc = {.thd_id = curr};
 	int ret = 0;
 	
-////	print("thread %d from spd %d locking for %d micrseconds.", curr, spdid, microsec);
+//	print("thread %d from spd %d locking for %d micrseconds.", curr, spdid, microsec);
 
 	TAKE(spdid);
 
@@ -286,14 +307,15 @@ error:
 unsigned long lock_component_alloc(spdid_t spd)
 {
 	struct meta_lock *l;
+	spdid_t spdid = cos_spd_id();
+	int i;
 
+	TAKE(spdid);
 	l = lock_alloc(spd);
-	if (!l) goto error;
-	//print("lock id %d, find lock %d. %d", l->lock_id, lock_find(l->lock_id, spd) ? 1 : 0, 0);
- 
-	return l->lock_id;
-error:
-	return 0;
+	RELEASE(spdid);
+	
+	if (!l) return 0;
+ 	return l->lock_id;
 }
 
 void lock_component_free(spdid_t spd, unsigned long lock_id)

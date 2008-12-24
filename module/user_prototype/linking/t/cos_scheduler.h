@@ -99,14 +99,20 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 #define THD_MEMBER     0x10 // is this thread part of a group?
 #define THD_UC_ACTIVE  0X20
 #define THD_UC_READY   0X40
-#define THD_SUSPENDED  0x80
+#define THD_SUSPENDED  0x80 // suspended threads are similar to those
+			    // that are blocked, but they may be run
+			    // if they are depended on, but should be
+			    // scheduled otherwise
 #define THD_DEPENDENCY 0x100
 
 #define sched_thd_free(thd)          ((thd)->flags & THD_FREE)
 #define sched_thd_grp(thd)           ((thd)->flags & THD_GRP)
 #define sched_thd_member(thd)        ((thd)->flags & THD_MEMBER)
-#define sched_thd_ready(thd)         ((thd)->flags & THD_READY)
 #define sched_thd_blocked(thd)       ((thd)->flags & THD_BLOCKED)
+/* Thread ready: because the scheduler's thread structures might not
+ * be updated to the fact that an upcall is actually active, "ready"
+ * must include this discrepency */
+#define sched_thd_ready(thd)         (!sched_thd_blocked(thd))
 #define sched_thd_dependent(thd)     ((thd)->flags & THD_DEPENDENCY)
 #define sched_thd_event(thd)         ((thd)->flags & (THD_UC_ACTIVE|THD_UC_READY))
 #define sched_thd_inactive_evt(thd)  ((thd)->flags & THD_UC_READY)
@@ -297,12 +303,12 @@ static inline struct sched_thd *sched_thd_dependency(struct sched_thd *curr)
 	spdid_t spdid;
 	assert(curr && sched_thd_ready(curr));
 	
-	if (!sched_thd_dependent(curr)) {
-		return NULL;
-	}
+	if (likely(!sched_thd_dependent(curr))) return NULL;
 
 	spdid = curr->contended_component;
-	if (spdid) {
+	/* If we have the dependency flag set, we should have an contended spd */
+	assert(spdid);
+//	if (spdid) {
 		assert(spdid < MAX_NUM_SPDS);
 
 		/* We have a critical section for a spd */
@@ -313,16 +319,18 @@ static inline struct sched_thd *sched_thd_dependency(struct sched_thd *curr)
 			return NULL;
 		}
 		return cs->holding_thd;
-	} else {
-		/* We have a (possibly stale) block/wake dependency */
-		assert(curr->dependency_thd);
-		if (sched_thd_blocked(curr)) {
-			return curr->dependency_thd;
-		} 
-		curr->flags &= ~THD_DEPENDENCY;
-		curr->dependency_thd = NULL; 
-		return NULL;
-	}
+//	} 
+	/* I don't remember/know what this case is for: */
+/* 	else { */
+/* 		/\* We have a (possibly stale) block/wake dependency *\/ */
+/* 		assert(curr->dependency_thd); */
+/* 		if (sched_thd_blocked(curr)) { */
+/* 			return curr->dependency_thd; */
+/* 		}  */
+/* 		curr->flags &= ~THD_DEPENDENCY; */
+/* 		curr->dependency_thd = NULL;  */
+/* 		return NULL; */
+/* 	} */
 }
 
 /* 
@@ -360,9 +368,10 @@ static inline int sched_release_crit_sect(spdid_t spdid, struct sched_thd *curr)
 	assert(sched_thd_ready(curr));
 
 	/* This ostensibly should not be the case */
-	if (cs->holding_thd != curr) {
-		return -1;
-	}
+	assert(cs->holding_thd == curr);
+/* 	if (cs->holding_thd != curr) { */
+/* 		return -1; */
+/* 	} */
 	cs->holding_thd = NULL;
 	return 0;
 }

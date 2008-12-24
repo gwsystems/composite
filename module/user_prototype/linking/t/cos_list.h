@@ -1,6 +1,12 @@
 #ifndef COS_LIST_H
 #define COS_LIST_H
 
+#define STATIC_INIT_LIST(obj, next, prev)         \
+	obj = {                                   \
+		.next = &obj,			  \
+		.prev = &obj			  \
+	}
+	      
 #define INIT_LIST(obj, next, prev)		  \
 	(obj)->next = (obj)->prev = (obj)
 

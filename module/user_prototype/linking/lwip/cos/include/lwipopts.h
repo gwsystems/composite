@@ -48,6 +48,8 @@
 /* Maximum number of retransmissions of SYN segments. */
 #define TCP_SYNMAXRTX           4
 
+#define TCP_LISTEN_BACKLOG      1
+
 #undef LWIP_EVENT_API
 #define LWIP_CALLBACK_API 1
 
