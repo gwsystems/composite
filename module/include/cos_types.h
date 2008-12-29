@@ -102,6 +102,14 @@ enum {
 };
 #define RB_SIZE (4096 / 8) /* 4096 / sizeof(struct rb_buff_t), or 512 */
 /* HACK: network ring buffer */
+/* 
+ * TODO: Needed in this structure: a way to just turn off the stream,
+ * a binary switch that the user-level networking stack can use to
+ * tell the lower-layers to just drop following packets, until the bit
+ * is unset.  (this should be simple as the mechanism already exists
+ * for when there are no open slots in the rb, to drop and not make an
+ * upcall, so we just need to hook into that.)
+ */
 typedef struct {
 	struct rb_buff_t {
 		void *ptr;

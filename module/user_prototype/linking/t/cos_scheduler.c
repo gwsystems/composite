@@ -75,12 +75,13 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 				fn(t, flags, cpu);
 			}
 		}
+		proc_amnt--;
+
 		if (id) {
 			cos_curr_evt = id;
 		} else {
 			break;
 		}
-		proc_amnt--;
 	}
 
 	return 0;

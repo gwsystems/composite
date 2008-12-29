@@ -1,0 +1,25 @@
+diff -ruNa ./arch/i386/mm/mmap.c ../../new/linux-2.6.13/arch/i386/mm/mmap.c
+--- ./arch/i386/mm/mmap.c	2005-08-28 19:41:01.000000000 -0400
++++ ../../new/linux-2.6.13/arch/i386/mm/mmap.c	2006-10-05 16:54:47.000000000 -0400
+@@ -74,3 +74,8 @@
+ 		mm->unmap_area = arch_unmap_area_topdown;
+ 	}
+ }
++
++
++/* gabep1@bu.edu: for asym execution domains */
++#include <linux/module.h>
++EXPORT_SYMBOL(arch_pick_mmap_layout);
+diff -ruNa ./kernel/fork.c ../../new/linux-2.6.13/kernel/fork.c
+--- ./kernel/fork.c	2006-10-05 16:57:48.000000000 -0400
++++ ../../new/linux-2.6.13/kernel/fork.c	2006-10-05 16:55:34.000000000 -0400
+@@ -351,6 +351,9 @@
+ 	return mm;
+ }
+ 
++/* gabep1@bu.edu: for asym execution domains */
++EXPORT_SYMBOL(mm_alloc);
++
+ /*
+  * Called when the last reference to the mm
+  * is dropped: either by a lazy thread or by

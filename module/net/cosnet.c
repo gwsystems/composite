@@ -426,19 +426,36 @@ static int cosnet_xmit_packet(void *headers, int hlen, void *user_buffer, int le
 	 * delay the reception of that event, and that is something we
 	 * will live with for now.  To that, I say FIXME.
 	 *
+	 * 12/08 - Another possible reason this is happening: enough
+	 * softirqs are happening that we get X (e.g. 10) in a row
+	 * which triggers Linux's delayed softirq behavior (softirqd)
+	 * where softirq execution is deferred into a thread context.
+	 * As we are running at the highest priority, that thread will
+	 * never run.  That is how local_softirq_pending() == 1 even
+	 * though we should be operating with irqs disabled in the
+	 * entire xmit path.  This would explain not why there are
+	 * softirqs pending (as there should be xmit ones after
+	 * transmission), instead it explains why there are receive
+	 * softirqs pending.
+	 *
 	 * I could have instead called netif_rx_ni and had the
-	 * host_*_syscall around it, but this is more transparent
+	 * host_*_syscall around it, but this is more transparent.
 	 */
-	host_start_syscall();
 	if (local_softirq_pending()) {
+		host_start_syscall();
 		do_softirq();
+		host_end_syscall();
 	}
-	host_end_syscall();
 #ifdef NIL
 	if (!prev_pending && local_softirq_pending()) {
 		printk("cos: softirq pending after packet xmit.\n");
 	}
 #endif
+	if (unlikely(!raw_irqs_disabled())) {
+		printk("cos: interrupts enabled after softirq in xmit!\n");
+		kfree_skb(skb);
+		return -1;
+	}
 	//kfree_skb(skb);
 
 	return 0;

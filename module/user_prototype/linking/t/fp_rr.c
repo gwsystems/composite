@@ -6,12 +6,21 @@
  * Public License v2.
  */
 
+#define COS_FMT_PRINT
+
 #include <cos_component.h>
 #include <cos_scheduler.h>
 //#include <cos_alloc.h>
 #include <cos_time.h>
 #include <cos_spd_name_map.h>
 #include <print.h>
+
+//#define SCHED_DEBUG
+#ifdef SCHED_DEBUG
+#define PRINTD(s, args...) printc(s, args);
+#else
+#define PRINTD(s, args...) 
+#endif
 
 #define NUM_PRIOS 32
 #define IDLE_PRIO (NUM_PRIOS-3)
@@ -25,7 +34,7 @@
 #define NORMAL_PRIO_HI 4
 #define NORMAL_PRIO_LO (NUM_PRIOS-4)
 
-#define RUNTIME_SEC (30)
+#define RUNTIME_SEC (6)
 #define REPORT_FREQ 60
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
@@ -330,6 +339,12 @@ static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 	return;
 }
 
+static void evt_callback_print(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
+{
+	PRINTD("evt callback (curr %d): thd %d, flags %x, usage %d", sched_get_current()->id, t->id, flags, cpu_usage);
+	evt_callback(t, flags, cpu_usage);
+}
+
 /* sched lock should already be taken */
 static inline struct sched_thd *fp_schedule(void)
 {
@@ -400,7 +415,8 @@ void fp_timer_tick(void)
 {
 	struct sched_thd *prev, *next;
 	int loop;
-	int first = 1;
+
+	cos_sched_lock_take();
 
 	/* are we done running? */
 	if (ticks >= RUNTIME_SEC*TIMER_FREQ+1) {
@@ -409,60 +425,53 @@ void fp_timer_tick(void)
 		//cos_switch_thread(init->id, COS_SCHED_TAILCALL, 0);
 	}
 
-	do {
-		cos_sched_lock_take();
-
-		/* Even if we loop here, we don't want to do this more
-		 * than once for this invocation */
-		if (first) {
-			first = 0;
-			ticks++;
-
-			if (ticks == wakeup_time && wakeup_thd) {
-////				print("wakeup time @ %d, current %d. %d", (unsigned int)wakeup_time, (unsigned int)ticks,0);
-				wakeup_time = 0;
-				fp_pre_wakeup(wakeup_thd);
-				if (sched_thd_blocked(wakeup_thd)) {
-					fp_wakeup(wakeup_thd, 0);
-				}
-			}
-
-			if (((unsigned long)ticks) % (REPORT_FREQ*TIMER_FREQ) == (REPORT_FREQ*TIMER_FREQ)-1) {
-				report_publish();
-			}
+	ticks++;
+	/* Wakeup the event thread? */
+	if (ticks == wakeup_time && wakeup_thd) {
+		wakeup_time = 0;
+		fp_pre_wakeup(wakeup_thd);
+		/* If the event thread has not blocked yet, then don't
+		 * wake it fully */
+		if (sched_thd_blocked(wakeup_thd)) {
+			fp_wakeup(wakeup_thd, 0);
 		}
+	}
+	
+	if (((unsigned long)ticks) % (REPORT_FREQ*TIMER_FREQ) == (REPORT_FREQ*TIMER_FREQ)-1) {
+		report_publish();
+	}
 
-		prev = sched_get_current();
+	prev = sched_get_current();
+	assert(prev == timer);
+	do {
 		assert(prev);
-		cos_sched_process_events(evt_callback, 0);
-		next = fp_get_highest_prio();
+		next = fp_schedule();
 		assert(next);
 
-		/* Chances are good the highest is us */
+		/* Chances are good the highest is us (the only way it
+		 * won't be true is if another event has occured in
+		 * the interim that has a higher priority), but, for
+		 * some reason, is not currently executing. */
 		if (next == prev) {
  			struct sched_thd *r;
 			/* the RR part */
-			next = fp_get_second_highest_prio(next);
-			r = next;
+			r = next = fp_get_second_highest_prio(next);
 			fp_move_end_runnable(next);
 			assert(fp_get_highest_prio() == prev);
 			next = fp_get_second_highest_prio(prev);
-
-			assert(sched_get_metric(r)->priority ==
-			       sched_get_metric(next)->priority);
+			assert(sched_get_metric(r)->priority == sched_get_metric(next)->priority);
 		} 
 		assert(next != prev);
 
 		loop = cos_switch_thread_release(next->id, COS_SCHED_TAILCALL, 0);
-		if (loop == -1) {
-			//static long long cnt = 0;
-			//if ((cnt & (1024-1)) == 0) {
-				print("WTF, timer switch error from %d to %d. %d",
-				      prev->id, next->id,0);
-				//}
-			//cnt++;
+		if (loop) {
+			assert(loop != -1);
+			PRINTD("timer scheduling error in trying to switch from %d to thd %d.", prev->id, next->id);
+			//if (sched_thd_event(next)) fp_deactivate_upcall(next); 
+			cos_sched_process_events(evt_callback_print, 5);
+			cos_sched_lock_take();
 		}
-	} while (loop);
+	} while (unlikely(loop));
 
 	return;
 }
@@ -470,6 +479,7 @@ void fp_timer_tick(void)
 static void fp_event_completion(struct sched_thd *e)
 {
 	struct sched_thd *next;
+	int loop = 1;
 
 	//print("WTF: this should not be happening %d%d%d",0,0,0);
 	do {
@@ -479,7 +489,12 @@ static void fp_event_completion(struct sched_thd *e)
 			next = fp_get_second_highest_prio(next);
 //			print("event completion: next,next is %d, current is %d. %d", next->id, cos_get_thd_id(), 0);
 		}
-	} while (cos_switch_thread_release(next->id, COS_SCHED_TAILCALL, 0));
+		loop = cos_switch_thread_release(next->id, COS_SCHED_TAILCALL, 0);
+		assert(loop != -1);
+		if (unlikely(loop)) {
+			prints("Event completion thread switch error.");
+		}
+	} while (unlikely(loop));
 
 	return;
 }
@@ -516,7 +531,7 @@ static void fp_yield(void)
 	next = fp_get_highest_prio();
 	//print("current is %d, orig_thd was %d, next is %d", prev->id, orig_next->id, next->id);
 	if (prev != next && next != init) {
-		cos_switch_thread_release(next->id, 0, 0);
+		assert(0 == cos_switch_thread_release(next->id, 0, 0));
 	} else {
 		cos_sched_lock_release();
 	}
@@ -548,7 +563,7 @@ void sched_timeout(spdid_t spdid, unsigned long amnt)
 {
 	unsigned long long abs_timeout;
 	struct sched_thd *thd, *next;
-	int first = 1;
+	int loop;
 
 	cos_sched_lock_take();
 	
@@ -576,12 +591,6 @@ void sched_timeout(spdid_t spdid, unsigned long amnt)
 	}
 
 	do {
-		/* First time we still hold the lock */
-		if (first) {
-			first = 0;
-		} else {
-			cos_sched_lock_take();
-		}
 		fp_pre_block(thd);
 		/* If we've already been woken up, so be it! */
 		if (thd->wake_cnt) {
@@ -599,7 +608,13 @@ void sched_timeout(spdid_t spdid, unsigned long amnt)
 		 * this assert */
 		assert(next != thd);
 //		prints("Timeout loop: switching threads");
-	} while (cos_switch_thread_release(next->id, 0, 0));
+		loop = cos_switch_thread_release(next->id, 0, 0);
+		assert(loop != -1);
+		if (loop) {
+			PRINTD("timeout thread switching to unactivated upcall %d from %d with error %d.", next->id, sched_get_current(), loop);
+			cos_sched_lock_take();
+		}
+	} while (unlikely(loop));
 	
 //	prints("timeout thread starting up again.");
 	
@@ -653,6 +668,7 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 {
 	struct sched_thd *thd, *prev, *next;
 	int cnt_done = 0;
+	int loop;
 	
 	wakeup_cnt++;
 
@@ -697,7 +713,12 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 		 * scheduler, don't schedule, instead make an upcall
 		 * into that scheduler 
 		 */
-	} while (cos_switch_thread_release(next->id, 0, 0));
+		loop = cos_switch_thread_release(next->id, 0, 0);
+		if (loop) {
+			assert(loop != -1);
+			PRINTD("Error switching to thread %d from %d while waking up, err: %d", next->id, prev->id, loop);
+		}
+	} while (unlikely(loop));
 done:
 	return 0;
 cleanup:
@@ -734,7 +755,7 @@ static void fp_block(struct sched_thd *thd, spdid_t spdid)
 int sched_block(spdid_t spdid)
 {
 	struct sched_thd *thd, *next;
-	int ret;
+	int ret, loop;
 
 	thd = sched_get_current();
 	if (!thd) goto error;
@@ -765,7 +786,12 @@ int sched_block(spdid_t spdid)
 			cos_sched_lock_release();
 			break;
 		}
-		if (likely(!cos_switch_thread_release(next->id, 0, 0))) break;
+		if (likely(0 == (loop = cos_switch_thread_release(next->id, 0, 0)))) break;
+		assert(-1 != loop);
+		if (-2 == loop) {
+			//fp_deactivate_upcall(next);
+			PRINTD("blocking thread: cannot switch to thread %d from %d, err: %d", next->id, thd->id, loop);
+		}
 		cos_sched_lock_take();
 	}
 	/* The amount of time we've blocked */
@@ -787,6 +813,7 @@ error:
 int sched_component_take(spdid_t spdid)
 {
 	struct sched_thd *holder, *curr;
+	int loop;
 
 	curr = sched_get_current();
 	assert(curr);
@@ -803,7 +830,11 @@ int sched_component_take(spdid_t spdid)
 		/* FIXME: proper handling of recursive locking */
 		assert(curr != holder);
 		report_data(0,0,1);
-		cos_switch_thread_release(holder->id, 0, 0);
+		loop = cos_switch_thread_release(holder->id, 0, 0);
+		if (loop) {
+			assert(-1 != loop);
+			PRINTD("component_take: cannot switch to %d from %d, err: %d", holder->id, curr->id, loop);
+		}
 	}
 	cos_sched_lock_release();
 	return 0;
@@ -812,6 +843,7 @@ int sched_component_take(spdid_t spdid)
 int sched_component_release(spdid_t spdid)
 {
 	struct sched_thd *curr, *next;
+	int ret;
 
 	cos_sched_lock_take();
 	curr = sched_get_current();
@@ -823,7 +855,10 @@ int sched_component_release(spdid_t spdid)
 	/* If we woke thread that was waiting for the critical section, switch to it */
 	next = fp_schedule();
 	if (next != curr) {
-		cos_switch_thread_release(next->id, 0, 0);
+		ret = cos_switch_thread_release(next->id, 0, 0);
+		if (ret) {
+			PRINTD("component_release: cannot switch to thd %d from %d, err: %d", next->id, curr->id, ret);
+		}
 	} else {
 		cos_sched_lock_release();
 	}

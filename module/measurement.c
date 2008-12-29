@@ -49,7 +49,8 @@ char *cos_meas_descriptions[COS_MEAS_MAX_SIZE+1] =
 	"network brand resulted in data being transferred",
 	"network brand failed: ring buffer full",
 	"networking packet transmit",
-	"pending notification HACK"
+	"pending notification HACK",
+	"attempted switching to inactive upcall"
 	""
 };
 

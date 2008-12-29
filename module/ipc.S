@@ -278,7 +278,7 @@ cos_syscall_buff_mgmt:
 /* 
  * This is horrible: when we are in buff_mgmt transmitting packets, 
  * we can generate softirqs, in which case we might need to switch 
- * threads here.
+ * threads here.  See the comment in cosnet_xmit_packet.
  */
 buff_mgmt_interrupted:
 	/* store the return value into the previous thread */

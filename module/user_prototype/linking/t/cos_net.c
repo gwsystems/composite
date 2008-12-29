@@ -727,6 +727,7 @@ int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 	struct udp_pcb *up;
 	struct intern_connection *ic;
 	u16_t tid = cos_get_thd_id();
+	int ret = sz;
 
 	if (!net_conn_valid(nc)) return -EINVAL;
 	if (sz > MAX_UDP_SEND) return -EMSGSIZE;
@@ -734,8 +735,8 @@ int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 	lock_take(&net_lock);
 	ic = net_conn_get_internal(nc);
 	if (tid != ic->tid) {
-		lock_release(&net_lock);
-		return -EPERM;
+		ret = -EPERM;
+		goto err;
 	}
 
 	if (UDP == ic->conn_type) {
@@ -745,23 +746,24 @@ int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 		up = ic->conn.up;
 		p = pbuf_alloc(PBUF_TRANSPORT, sz, PBUF_REF);
 		if (NULL == p) {
-			lock_release(&net_lock);
-			return -ENOMEM;
+			ret = -ENOMEM;
+			goto err;
 		}
 		p->payload = data;
 
 		if (ERR_OK != udp_send(up, p)) {
 			pbuf_free(p);
-			lock_release(&net_lock);
 			/* IP/port must not be set */
-			return -ENOTCONN;
+			ret = -ENOTCONN;
+			goto err;
 		}
 		pbuf_free(p);
 	} else {
 	  	assert(0);
 	}
-	
-	return sz;
+err:
+	lock_release(&net_lock);
+	return ret;
 }
 
 /************************ LWIP integration: **************************/
@@ -1086,17 +1088,22 @@ extern int timed_event_block(spdid_t spdid, unsigned int usecs);
 
 static void test_thd(void)
 {
-	net_connection_t nc;
+	net_connection_t nc, nco;
 	char data[128], len;
 	int ret;
+	struct ip_addr dest;
 
 	prints("Starting the test thread!");
 	nc = net_create_udp_connection(cos_spd_id());
 	if (nc) print("create udp connection error: %d %d%d", nc, 0,0);
 	ret = net_bind(cos_spd_id(), nc, IP_ADDR_ANY, 200);
 	if (ret) print("Bind error: %d. %d%d", ret, 0, 0);
+	nco = net_create_udp_connection(cos_spd_id());
+	IP4_ADDR(&dest, 10,0,1,5);
+	net_connect(cos_spd_id(), nco, &dest, 6000);
 	while (1) {
 		len = net_recv(cos_spd_id(), nc, data, 128);
+		net_send(cos_spd_id(), nco, data, len);
 //		print("%d %d %d", len, len, len);
 		//sched_block(cos_spd_id());
 	}

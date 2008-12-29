@@ -687,18 +687,23 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	}
 	/* we cannot schedule to run an upcall thread that is not running */
 	if (unlikely(thd->flags & THD_STATE_READY_UPCALL)) {
-		//static long long first = 0;
-		//if ((first & (1024-1)) == 0) {
-			printk("cos: upcall thd %d not ready to run (current %d).\n", thd_get_id(thd), thd_get_id(curr));
-			//}
-			//first++;
-		curr->regs.eax = -1;
+		static int first = 1;
+		if (first) {
+			printk("cos: upcall thd %d not ready to run (current %d) -- this message will not repeat.\n", thd_get_id(thd), thd_get_id(curr));
+			first = 0;
+		}
+		cos_meas_event(COS_MEAS_UPCALL_INACTIVE);
+		curr->regs.eax = -2;
 		return &curr->regs;
 	}
 
-	if (flags & COS_SCHED_TAILCALL &&
-	    curr->flags & THD_STATE_ACTIVE_UPCALL &&
-	    curr->stack_ptr == 0) {
+	if (flags & COS_SCHED_TAILCALL) {
+		if (!(curr->flags & THD_STATE_ACTIVE_UPCALL &&
+		      curr->stack_ptr == 0)) {
+			printk("cos: illegal use of tailcall.");
+			curr->regs.eax = -1;
+			return &curr->regs;
+		}
 		assert(!(curr->flags & THD_STATE_READY_UPCALL));
 
 		spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(curr));
@@ -707,6 +712,14 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 			//spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(curr));
 			return sched_tailcall_pending_upcall(curr, (struct composite_spd*)curr_spd->composite_spd);
 		} else {
+			/* Can't really be tailcalling and the other
+			 * flags at the same time */
+			if (flags & 
+			    (THD_STATE_SCHED_EXCL | COS_SCHED_SYNC_BLOCK | COS_SCHED_SYNC_UNBLOCK)) {
+				printk("cos: cannot switch using tailcall and other options %d\n", flags);
+				curr->regs.eax = -1;
+				return &curr->regs;
+			}
 			if (curr->interrupted_thread) {
 				curr->interrupted_thread->preempter_thread = NULL;
 				curr->interrupted_thread = NULL;
@@ -1918,16 +1931,17 @@ int brand_higher_urgency(struct thread *upcall, struct thread *prev)
 	if (!thd_get_sched_info(upcall, d)->thread_notifications ||
 	    !thd_get_sched_info(prev, d)->thread_notifications) {
 //		WARN_ON(1);
+		printk("cos: skimping on brand metadata maintenance, and returning.\n");
 		return 0;
 	}
 	u_urg = thd_get_depth_urg(upcall, d);
 	p_urg = thd_get_depth_urg(prev, d);
-	/* We should not run the upcall if it doesn't have more urgency */
+	/* We should not run the upcall if it doesn't have more
+	 * urgency, remember here that higher numerical values equals
+	 * less importance. */
 	//printk("cos: upcall urgency for %d is %d, previous thread %d is %d, common scheduler is %d.\n", 
 	//thd_get_id(upcall), u_urg, thd_get_id(prev), p_urg, spd_get_index(thd_get_depth_sched(upcall, d)));
-	if (u_urg >= p_urg) {
-		run = 0;
-	} 
+	if (u_urg >= p_urg) run = 0; 
 	/* 
 	 * And we need to make sure that the upcall is active in its
 	 * schedulers.  We can make this more efficient, by keeping
@@ -2068,6 +2082,8 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 			if (preempt == 1) preempted->flags |= THD_STATE_PREEMPTED;
 			preempted->preempter_thread = upcall;
 			upcall->interrupted_thread = preempted;
+		} else {
+			upcall->interrupted_thread = NULL;
 		}
 
 		upcall_execute(upcall, preempted, (struct composite_spd*)thd_get_thd_spdpoly(preempted));

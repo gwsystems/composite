@@ -43,9 +43,9 @@ MODULE_LICENSE("GPL");
 #define MODULE_NAME "asymmetric_execution_domain_support"
 
 /* exported in kernel/asym_exec_domain.c */
-extern void (*switch_to_executive)(void);
+//extern void (*switch_to_executive)(void);
 //extern long (*syscall_switch_exec_domain)(void *ptr);
-extern struct mm_struct* (*asym_page_fault)(unsigned long address);
+//extern struct mm_struct* (*asym_page_fault)(unsigned long address);
 
 extern void asym_exec_dom_entry(void);
 extern void page_fault_interposition(void);
@@ -1000,7 +1000,7 @@ void zero_pgtbl_range(phys_addr_t pt, unsigned long lower_addr, unsigned long si
 void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from, 
 		      unsigned long lower_addr, unsigned long size);
 void copy_pgtbl(phys_addr_t pt_to, phys_addr_t pt_from);
-extern int copy_mm(unsigned long clone_flags, struct task_struct * tsk);
+//extern int copy_mm(unsigned long clone_flags, struct task_struct * tsk);
 void print_valid_pgtbl_entries(phys_addr_t pt);
 extern struct thread *ready_boot_thread(struct spd *init);
 vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr);
@@ -1135,68 +1135,68 @@ static int aed_ioctl(struct inode *inode, struct file *file,
 	 * Copy the current memory contents into a mm provided by
 	 * proc_mm.  Not a fast path.
 	 */
-	case AED_COPY_MM:
-	{
-		int fd = (unsigned int)arg;
-		struct mm_struct *mm = aed_get_mm(fd);
-		/* 
-		 * dummy empty task struct because kernel interfaces
-		 * for copy_mm are a little daft.  If functions such
-		 * as dup_mmap were available (exported), then we
-		 * could avoid this hack, but they aren't.
-		 */
-		struct task_struct *dummy = NULL;
+/* 	case AED_COPY_MM: */
+/* 	{ */
+/* 		int fd = (unsigned int)arg; */
+/* 		struct mm_struct *mm = aed_get_mm(fd); */
+/* 		/\*  */
+/* 		 * dummy empty task struct because kernel interfaces */
+/* 		 * for copy_mm are a little daft.  If functions such */
+/* 		 * as dup_mmap were available (exported), then we */
+/* 		 * could avoid this hack, but they aren't. */
+/* 		 *\/ */
+/* 		struct task_struct *dummy = NULL; */
 
-		if (/*IS_ERR(mm) || */!mm) {
-			printk("cos: fd passed to copy to, %d, is not valid.\n", fd);
-			ret = -1;
-			goto free_dummy;
+/* 		if (/\*IS_ERR(mm) || *\/!mm) { */
+/* 			printk("cos: fd passed to copy to, %d, is not valid.\n", fd); */
+/* 			ret = -1; */
+/* 			goto free_dummy; */
 
-		}
+/* 		} */
 
-		/*
-		 * We only want one copy of the executive's pages
-		 * floating around: This has to be done every time we
-		 * copy a mm rather than once at executive promotion
-		 * time as the mmappings of the executive could have
-		 * changed since we first promoted it.
-		 */
-		prevent_executive_copying_on_fork(trusted_mm, trusted_mem_limit, 
-						  trusted_mem_size); 
+/* 		/\* */
+/* 		 * We only want one copy of the executive's pages */
+/* 		 * floating around: This has to be done every time we */
+/* 		 * copy a mm rather than once at executive promotion */
+/* 		 * time as the mmappings of the executive could have */
+/* 		 * changed since we first promoted it. */
+/* 		 *\/ */
+/* 		prevent_executive_copying_on_fork(trusted_mm, trusted_mem_limit,  */
+/* 						  trusted_mem_size);  */
 
-		dummy = kmalloc(sizeof(*dummy), GFP_KERNEL);
-		if (!dummy) {
-			ret = -ENOMEM;
-			break;
-		}
+/* 		dummy = kmalloc(sizeof(*dummy), GFP_KERNEL); */
+/* 		if (!dummy) { */
+/* 			ret = -ENOMEM; */
+/* 			break; */
+/* 		} */
 
-		memset(dummy, 0, sizeof(*dummy));
+/* 		memset(dummy, 0, sizeof(*dummy)); */
 
-		/* Copy the current mm into a dummy task. */
-		if ((ret = copy_mm(0, dummy)) != 0) {
-			printk("cos: Could not copy mm, error %d.\n", ret);
-			ret = -1;
-			goto free_dummy;
-		}
+/* 		/\* Copy the current mm into a dummy task. *\/ */
+/* 		if ((ret = copy_mm(0, dummy)) != 0) { */
+/* 			printk("cos: Could not copy mm, error %d.\n", ret); */
+/* 			ret = -1; */
+/* 			goto free_dummy; */
+/* 		} */
 
-		/* if the mm_handle doesn't exist */
-		if (aed_replace_mm(fd, dummy->mm)) {
-			printk("cos: Attempted to replace an mm you don't own a handle to.\n");
-			ret = -1;
-			goto free_dummy;
-		}
+/* 		/\* if the mm_handle doesn't exist *\/ */
+/* 		if (aed_replace_mm(fd, dummy->mm)) { */
+/* 			printk("cos: Attempted to replace an mm you don't own a handle to.\n"); */
+/* 			ret = -1; */
+/* 			goto free_dummy; */
+/* 		} */
 
-		dummy->mm = NULL;
-		dummy->active_mm = NULL;
+/* 		dummy->mm = NULL; */
+/* 		dummy->active_mm = NULL; */
 
-		printkd("cos: old mm %x replaced in fd %d with %x.\n",
-			(unsigned int)mm, fd, (unsigned int)aed_get_mm(fd));
+/* 		printkd("cos: old mm %x replaced in fd %d with %x.\n", */
+/* 			(unsigned int)mm, fd, (unsigned int)aed_get_mm(fd)); */
 
-free_dummy:
-		kfree(dummy);
+/* free_dummy: */
+/* 		kfree(dummy); */
 
-		break;		
-	}
+/* 		break;		 */
+/* 	} */
 	case AED_CREATE_MM:
 	{
 		int mm_handle = aed_allocate_mm();
@@ -2248,12 +2248,48 @@ int host_attempt_brand(struct thread *brand)
 		}
 
 		cos_current = thd_get_current();
-		/* See comment in cosnet.c */
+		/* See comment in cosnet.c:cosnet_xmit_packet */
 		if (host_in_syscall()) {
 			struct thread *next;
 
-			next = brand_next_thread(brand, cos_current, 2);
-			
+			//next = brand_next_thread(brand, cos_current, 2);
+			/* 
+			 * _FIXME_: Here we are kludging a problem over.
+			 * The problem is this:
+			 *
+			 * First, a thread xmits a packet through
+			 * buff_mgmt->cosnet_xmit_packet
+			 *
+			 * Second, when do_softirq is invoked, it
+			 * picks up another pending arrival (somehow)
+			 *
+			 * Third, this causes the upcall thread to be
+			 * executed, and we have the choice to either
+			 * mark the current thread as preempted (which
+			 * isn't necessarily wise as we haven't stored
+			 * e.g. segment registers), or to just save
+			 * ecx and edx, and don't mark it as preempted
+			 * so that switch_thread will return to it
+			 * gracefully.  In either case, the previous
+			 * thread is added to the preemption chain of
+			 * the upcall thread so that it can be
+			 * immediately switched back to.
+			 *
+			 * The problem occurs when we do use that
+			 * preemption chain and in pop(), we attempt
+			 * to return to the (assumed preempted)
+			 * previous thread in the preemption chain.
+			 * Now we are restoring _all_ registers for a
+			 * thread where only ecx and edx (and eax)
+			 * were saved.  Certainly behavior that will
+			 * lead to a wierd fault.
+			 *
+			 * So the fix is to just not set add the
+			 * xmitting thread to the preemption chain.
+			 * This will sacrifice performance, which may
+			 * be an issue later on.
+			 */
+			next = brand_next_thread(brand, cos_current, 0);
 			{
 				int c = thd_get_id(cos_current);
 				int u = thd_get_id(brand->upcall_threads);

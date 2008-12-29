@@ -1,3 +1,11 @@
+/**
+ * Copyright 2008 by Gabriel Parmer, gabep1@cs.bu.edu.  All rights
+ * reserved.
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ */
+
 #include <asm/asm-offsets.h>
 #include <asm/segment.h>
 #include <asm/thread_info.h>
