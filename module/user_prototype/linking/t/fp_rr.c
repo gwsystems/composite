@@ -55,6 +55,39 @@ struct prio_list {
 static void report_data(unsigned int a, unsigned int b, unsigned int c);
 static void report_thd_data(unsigned int dataid, unsigned int thdid);
 static void report_publish(void);
+static void report_thd_accouting(void)
+{
+	struct sched_thd *t;
+	int i;
+
+	printc("Running threads:");
+	for (i = 0 ; i < NUM_PRIOS ; i++) {
+		for (t = FIRST_LIST(&priorities[i].runnable, prio_next, prio_prev) ; 
+		     t != &priorities[i].runnable ;
+		     t = FIRST_LIST(t, prio_next, prio_prev)) {
+			if (sched_get_accounting(t)->cycles) {
+				printc("\tthd %d (prio %d), cycles %lld", t->id, i, sched_get_accounting(t)->cycles);
+			}
+		}
+	}
+	printc("Blocked threads:");
+	for (t = FIRST_LIST(&blocked, prio_next, prio_prev) ; 
+	     t != &blocked ;
+	     t = FIRST_LIST(t, prio_next, prio_prev)) {
+		if (sched_get_accounting(t)->cycles) {
+			printc("\tthd %d (prio %d), cycles %lld", t->id, i, sched_get_accounting(t)->cycles);
+		}
+	}
+	printc("Inactive upcalls:");
+	for (t = FIRST_LIST(&upcall_deactive, prio_next, prio_prev) ; 
+	     t != &upcall_deactive ;
+	     t = FIRST_LIST(t, prio_next, prio_prev)) {
+		if (sched_get_accounting(t)->cycles) {
+			printc("\tthd %d (prio %d), cycles %lld", t->id, i, sched_get_accounting(t)->cycles);
+		}
+	}
+
+}
 
 static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
 {
@@ -420,6 +453,7 @@ void fp_timer_tick(void)
 
 	/* are we done running? */
 	if (ticks >= RUNTIME_SEC*TIMER_FREQ+1) {
+		report_thd_accouting();
 		fp_pre_wakeup(init);
 		fp_wakeup(init,0);
 		//cos_switch_thread(init->id, COS_SCHED_TAILCALL, 0);
@@ -478,21 +512,23 @@ void fp_timer_tick(void)
 
 static void fp_event_completion(struct sched_thd *e)
 {
-	struct sched_thd *next;
+	struct sched_thd *next, *curr;
 	int loop = 1;
 
+	curr = sched_get_current();
 	//print("WTF: this should not be happening %d%d%d",0,0,0);
 	do {
 		cos_sched_lock_take();
 		next = fp_schedule();
-		if (next == sched_get_current()) {
+		if (next == curr) {
 			next = fp_get_second_highest_prio(next);
 //			print("event completion: next,next is %d, current is %d. %d", next->id, cos_get_thd_id(), 0);
 		}
+		assert(next != curr);
 		loop = cos_switch_thread_release(next->id, COS_SCHED_TAILCALL, 0);
 		assert(loop != -1);
 		if (unlikely(loop)) {
-			prints("Event completion thread switch error.");
+			printc("Event completion thread switch error (thd %d, err %d).", cos_get_thd_id(), loop);
 		}
 	} while (unlikely(loop));
 
@@ -699,6 +735,21 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 		 */
 		if (!sched_thd_blocked(thd)) {
 			goto cleanup;
+		}
+
+		/* 
+		 * We are waking up a thread, which means that if we
+		 * are an upcall, we don't want composite to
+		 * automatically switch to the preempted thread (which
+		 * might be of lower priority than the woken thread).
+		 *
+		 * TODO: This could be much more complicated: We could
+		 * only call this if indeed we did wake up a thread
+		 * that has a higher priority than the currently
+		 * executing one (upcall excluded).
+		 */
+		if (sched_thd_event(sched_get_current())) {
+			cos_sched_cntl(COS_SCHED_BREAK_PREEMPTION_CHAIN, 0, 0);
 		}
 
 		fp_wakeup(thd, cos_spd_id());

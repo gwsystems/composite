@@ -603,7 +603,23 @@ void update_sched_evts(struct thread *new, int new_flags,
 static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, 
 						     struct composite_spd *curr);
 static inline void update_thd_evt_state(struct thread *t, int flags, int update_list);
+static inline void break_preemption_chain(struct thread *t)
+{
+	struct thread *other;
 
+	other = t->interrupted_thread;
+	if (other) {
+		assert(other->preempter_thread == t);
+		t->interrupted_thread = NULL;
+		other->preempter_thread = NULL;
+	}
+	other = t->preempter_thread;
+	if (other) {
+		assert(other->interrupted_thread == t);
+		t->preempter_thread = NULL;
+		other->interrupted_thread = NULL;
+	}
+}
 
 /*
  * The arguments are horrible as we are interfacing w/ assembly and 1)
@@ -812,6 +828,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 
 	curr->sched_suspended = curr_spd;
 	thd->sched_suspended = NULL;
+	break_preemption_chain(curr);
 
 	switch_thread_context(curr, thd);
 
@@ -981,7 +998,7 @@ static struct pt_regs *brand_execution_completion(struct thread *curr)
 		upcall_execute(curr, NULL, cspd);
 
 		cos_meas_event(COS_MEAS_BRAND_COMPLETION_UC);
-		cos_meas_event(COS_MEAS_FINISHED_BRANDS);
+		//cos_meas_event(COS_MEAS_FINISHED_BRANDS);
 		return &curr->regs;
 	}
 	cos_meas_event(COS_MEAS_BRAND_SCHED_PREEMPTED);
@@ -2446,7 +2463,22 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 		       (unsigned int)thd_get_sched_info(target_thd, child->sched_depth)->scheduler, 
 		       (unsigned int)child);
 */
-	}}
+	}
+	case COS_SCHED_BREAK_PREEMPTION_CHAIN:
+	{
+		/* 
+		 * This call is simple: make it so that when the
+		 * current thread (presumably an upcall) completes,
+		 * don't automatically switch to the preempted thread,
+		 * instead make an upcall into the scheduler.
+		 */
+		break_preemption_chain(thd);
+		break;
+	}
+	default:
+		printk("cos: cos_sched_cntl illegal operation %d.\n", operation);
+		return -1;
+	}
 
 	return 0;
 }
