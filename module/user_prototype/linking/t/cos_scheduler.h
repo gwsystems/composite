@@ -24,8 +24,9 @@ static inline int cos_sched_lock_take(void)
 	struct cos_synchronization_atom *l = &cos_sched_notifications.cos_locks;
 	unsigned int curr_thd = cos_get_thd_id();
 	
+	/* Recursive taking the lock: not good */
+	assert(l->owner_thd != curr_thd);
 	while (1) {
-		int ret;
 		unsigned int lock_val;
 
 		__asm__ __volatile__("call cos_atomic_user1"
@@ -36,8 +37,8 @@ static inline int cos_sched_lock_take(void)
 		if (lock_val == 0) {
 			break;
 		}
-		/* If another thread holds the lock, notify lock component */
-		if ((ret = cos___switch_thread(lock_val & 0x0000FFFF, COS_SCHED_SYNC_BLOCK)) == -1) {
+		/* If another thread holds the lock, notify kernel to switch */
+		if (cos___switch_thread(lock_val & 0x0000FFFF, COS_SCHED_SYNC_BLOCK) == -1) {
 			return -1;
 		}
 	} 
@@ -52,7 +53,7 @@ static inline int cos_sched_lock_release(void)
 	/* TODO: sanity check that verify that lower 16 bits of
 	   lock_val == curr_thd unsigned int curr_thd =
 	   cos_get_thd_id(); */
-	
+	assert(l->owner_thd == cos_get_thd_id());
 	__asm__ __volatile__("call cos_atomic_user2"
 			     : "=c" (lock_val)
 			     : "a" (l)
@@ -183,6 +184,7 @@ static inline struct sched_metric *sched_get_metric(struct sched_thd *thd)
 /**************** Scheduler Event Fns *******************/
 
 typedef void (*sched_evt_visitor_t)(struct sched_thd *t, u8_t flags, u32_t cpu_consumption);
+int cos_sched_event_to_process(void);
 int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt);
 void cos_sched_set_evt_urgency(u8_t id, u16_t urgency);
 short int sched_alloc_event(struct sched_thd *thd);

@@ -9,6 +9,21 @@ int cos_use_force_sched_link(void)
 
 /**************** Scheduler Event Fns *******************/
 
+static volatile u8_t cos_curr_evt = 0;
+
+/* 
+ * We need some function that the idle thread can call that doesn't
+ * require it taking the scheduler's lock that will tell it if there
+ * are pending events.  False positives are fine here.
+ */
+int cos_sched_event_to_process(void)
+{
+	struct cos_sched_events *evt;
+
+	evt = &cos_sched_notifications.cos_events[cos_curr_evt];
+	return COS_SCHED_EVT_FLAGS(evt);
+}
+
 /* 
  * Use the visitor pattern here.  Pass in a function that will be
  * called for each entry.  This should be called with the scheduler
@@ -22,8 +37,6 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 	long ret;
 	struct cos_sched_events *evt;
 	struct cos_se_values *se;
-
-	static u8_t cos_curr_evt = 0;
 
 	if (!proc_amnt) {
 		proc_amnt = ~(0UL);

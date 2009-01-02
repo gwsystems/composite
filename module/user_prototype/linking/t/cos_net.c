@@ -91,8 +91,15 @@ struct thd_map {
 	rb_meta_t *uc_rb;
 } tmap[NUM_THDS];
 
+extern int sched_component_take(spdid_t spdid);
+extern int sched_component_release(spdid_t spdid);
+
 cos_lock_t alloc_lock;
-cos_lock_t     net_lock;
+cos_lock_t net_lock;
+#define NET_LOCK_TAKE()    if (lock_take(&net_lock)) prints("error taking net lock.")
+#define NET_LOCK_RELEASE() if (lock_release(&net_lock)) prints("error releasing net lock.")
+//#define NET_LOCK_TAKE()    sched_component_take(cos_spd_id())
+//#define NET_LOCK_RELEASE() sched_component_release(cos_spd_id())
 
 struct cos_net_xmit_headers xmit_headers;
 
@@ -514,6 +521,7 @@ static void cos_net_stack_udp_recv(void *arg, struct udp_pcb *upcb, struct pbuf 
 	assert (NULL != headers);
 	/* Over our allocation??? */
 	if (ic->udp_incoming_size >= UDP_RCV_MAX) {
+		assert(ic->thd_status != BLOCKED);
 		free(headers);
 		assert(p->ref > 0);
 		pbuf_free(p);
@@ -527,7 +535,6 @@ static void cos_net_stack_udp_recv(void *arg, struct udp_pcb *upcb, struct pbuf 
 	pq->len = p->len;
 	pq->next = NULL;
 	
-//TEST	printc("pbuf %x (headers:%x) added to queue (from %x:%d)", p, p->payload, ip->addr, port);
 	assert((NULL == ic->udp_incoming) == (NULL == ic->udp_incoming_last));
 	/* Is the queue empty? */
 	if (NULL == ic->udp_incoming) {
@@ -545,6 +552,7 @@ static void cos_net_stack_udp_recv(void *arg, struct udp_pcb *upcb, struct pbuf 
 	/* If the thread blocked waiting for a packet, wake it up */
 	if (BLOCKED == ic->thd_status) {
 		ic->thd_status = ACTIVE;
+		assert(ic->thd_status == ACTIVE); /* Detect races */
 		sched_wakeup(cos_spd_id(), ic->tid);
 	}
 
@@ -642,54 +650,38 @@ static int cos_net_udp_recv(struct intern_connection *ic, void *data, int sz)
 {
 	int xfer_amnt = 0;
 
-	/* here we read the minimum of the size of the first pending
-	 * packet, or the first (really, next) sz bytes of the first
-	 * packet */
-	while (1) {
-		/* If there is data available, get it */
-		if (ic->udp_incoming_size > 0) {
-			struct packet_queue *p;
-			char *data_start;
-			int data_left;
+	/* If there is data available, get it */
+	if (ic->udp_incoming_size > 0) {
+		struct packet_queue *p;
+		char *data_start;
+		int data_left;
 
-			p = ic->udp_incoming;
-			assert(p);
-			//assert(p->ref > 0);
-			/*INCORRECT KLUDGE*///	if (p->ref <= 0) pbuf_ref(p);
-//			printc("consuming packet_queue %x", p);
-			data_start = ((char*)p->data) + ic->udp_incoming_offset;
-			data_left = p->len - ic->udp_incoming_offset;
-			assert(data_left > 0 && data_left <= p->len);
-			/* Consume all of first packet? */
-			if (data_left <= sz) {
-				ic->udp_incoming = p->next;
-				if (ic->udp_incoming_last == p) {
-					assert(NULL == ic->udp_incoming);
-					ic->udp_incoming_last = NULL;
-				}
-				memcpy(data, data_start, data_left);
-				xfer_amnt = data_left;
-				ic->udp_incoming_offset = 0;
-
-				free(p);
-			} 
-			/* Consume part of first packet */
-			else {
-				memcpy(data, data_start, sz);
-				xfer_amnt = sz;
-				ic->udp_incoming_offset += sz;
+		p = ic->udp_incoming;
+		assert(p);
+//		printc("consuming packet_queue %x", p);
+		data_start = ((char*)p->data) + ic->udp_incoming_offset;
+		data_left = p->len - ic->udp_incoming_offset;
+		assert(data_left > 0 && data_left <= p->len);
+		/* Consume all of first packet? */
+		if (data_left <= sz) {
+			ic->udp_incoming = p->next;
+			if (ic->udp_incoming_last == p) {
+				assert(NULL == ic->udp_incoming);
+				ic->udp_incoming_last = NULL;
 			}
-			ic->udp_incoming_size -= xfer_amnt;
+			memcpy(data, data_start, data_left);
+			xfer_amnt = data_left;
+			ic->udp_incoming_offset = 0;
 
-			break;
+			free(p);
+		} 
+		/* Consume part of first packet */
+		else {
+			memcpy(data, data_start, sz);
+			xfer_amnt = sz;
+			ic->udp_incoming_offset += sz;
 		}
-
-		/* If there isn't data, block until woken by
-		 * an interrupt in cos_net_stack_udp_recv */
-		ic->thd_status = BLOCKED;
-		lock_release(&net_lock);
-		sched_block(cos_spd_id());
-		lock_take(&net_lock);
+		ic->udp_incoming_size -= xfer_amnt;
 	}
 
 	return xfer_amnt;
@@ -701,23 +693,37 @@ int net_recv(spdid_t spdid, net_connection_t nc, void *data, int sz)
 	struct intern_connection *ic;
 	u16_t tid = cos_get_thd_id();
 	int xfer_amnt = 0;
+	static unsigned long long cnt = 0;
 
 	if (!net_conn_valid(nc)) return -EINVAL;
 
-	lock_take(&net_lock);
+	NET_LOCK_TAKE();
 	ic = net_conn_get_internal(nc);
 	if (tid != ic->tid) {
-		lock_release(&net_lock);
+		NET_LOCK_RELEASE();
 		return -EPERM;
 	}
 
-	if (UDP == ic->conn_type) {
-		//up = ic->conn.up;
-		xfer_amnt = cos_net_udp_recv(ic, data, sz);
-	} else {
-		assert(0);
-	}
-	lock_release(&net_lock);
+	do {
+		if (UDP == ic->conn_type) {
+			//up = ic->conn.up;
+			xfer_amnt = cos_net_udp_recv(ic, data, sz);
+		} else {
+			assert(0);
+		}
+		if (0 == xfer_amnt) {
+			/* If there isn't data, block until woken by
+			 * an interrupt in cos_net_stack_udp_recv */
+			assert(ic->thd_status == ACTIVE);
+			ic->thd_status = BLOCKED;
+			assert(ic->thd_status == BLOCKED); /* detect races */
+			NET_LOCK_RELEASE();
+			sched_block(cos_spd_id());
+			NET_LOCK_TAKE();
+			assert(ic->thd_status == ACTIVE);
+		}
+	} while (0 == xfer_amnt);
+	NET_LOCK_RELEASE();
 
 	return xfer_amnt;
 }
@@ -732,7 +738,7 @@ int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 	if (!net_conn_valid(nc)) return -EINVAL;
 	if (sz > MAX_UDP_SEND) return -EMSGSIZE;
 
-	lock_take(&net_lock);
+	NET_LOCK_TAKE();
 	ic = net_conn_get_internal(nc);
 	if (tid != ic->tid) {
 		ret = -EPERM;
@@ -762,7 +768,7 @@ int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 	  	assert(0);
 	}
 err:
-	lock_release(&net_lock);
+	NET_LOCK_RELEASE();
 	return ret;
 }
 
@@ -783,13 +789,13 @@ void cos_net_interrupt(void)
 	struct pbuf *p;//, *np;
 	struct ip_hdr *ih;
 
-	lock_take(&net_lock);
+	NET_LOCK_TAKE();
 
 	tm = get_thd_map(ucid);
 	assert(tm);
 	if (rb_retrieve_buff(tm->uc_rb, &buff, &max_len)) {
 		prints("net: could not retrieve buffer from ring.");
-		lock_release(&net_lock);
+		NET_LOCK_RELEASE();
 		return;
 	}
 
@@ -821,7 +827,7 @@ void cos_net_interrupt(void)
 		/* free packet in this call... */
 		if (ERR_OK != cos_if.input(p, &cos_if)) {
 			prints("net: failure in IP input.");
-			lock_release(&net_lock);
+			NET_LOCK_RELEASE();
 			return;
 		}
 	} else {
@@ -848,7 +854,7 @@ void cos_net_interrupt(void)
 	if (rb_add_buff(tm->uc_rb, buff /*(char *)p->payload - (UDP_HLEN + IP_HLEN)*/, MTU)) {
 		prints("net: could not add buffer to ring.");
 	}
-	lock_release(&net_lock);
+	NET_LOCK_RELEASE();
 
 	return;
 err:
@@ -856,7 +862,7 @@ err:
 	if (rb_add_buff(tm->uc_rb, buff, MTU)) {
 		prints("net: OOM, and filed to add buffer.");
 	}
-	lock_release(&net_lock);
+	NET_LOCK_RELEASE();
 	return;
 }
 
@@ -1103,6 +1109,7 @@ static void test_thd(void)
 	net_connect(cos_spd_id(), nco, &dest, 6000);
 	while (1) {
 		len = net_recv(cos_spd_id(), nc, data, 128);
+		assert(len > 0);
 		net_send(cos_spd_id(), nco, data, len);
 //		print("%d %d %d", len, len, len);
 		//sched_block(cos_spd_id());
@@ -1129,11 +1136,11 @@ static int init(void)
 		prints("net: error setting up xmit region.");
 	}
 
-	lock_take(&net_lock);
+	NET_LOCK_TAKE();
 	/* Wildcard upcall */
 	ucid = cos_net_create_net_upcall(0, &rb1_md_wildcard);
 	if (ucid == 0) {
-		lock_release(&net_lock);
+		NET_LOCK_RELEASE();
 		return 0;
 	}
 	wildcard_upcall = ucid;
@@ -1150,14 +1157,14 @@ static int init(void)
 		}
 	}
 
-	lock_release(&net_lock);
+	NET_LOCK_RELEASE();
 //	sched_block();
 	while (1) {
 		/* Sleep for a quarter of seconds as prescribed by lwip */
 		timed_event_block(cos_spd_id(), 250000);
-		lock_take(&net_lock);
+		NET_LOCK_TAKE();
 		tcp_tmr();
-		lock_release(&net_lock);
+		NET_LOCK_RELEASE();
 	}
 
 	//sched_block();

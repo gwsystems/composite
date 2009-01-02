@@ -282,7 +282,7 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 		 * components. */
 		next = bt->next;
 		REM_LIST(bt, next, prev);
-		/* Wakeup the way we were put the sleep */
+		/* Wakeup the way we were put to sleep */
 		if (bt->timed) {
 			timed_event_wakeup(spdid, bt->thd_id);
 		} else {

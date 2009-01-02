@@ -50,7 +50,10 @@ char *cos_meas_descriptions[COS_MEAS_MAX_SIZE+1] =
 	"network brand failed: ring buffer full",
 	"networking packet transmit",
 	"pending notification HACK",
-	"attempted switching to inactive upcall"
+	"attempted switching to inactive upcall",
+	"update event state to PENDING",
+	"update event state to ACTIVE",
+	"update event state to READY",
 	""
 };
 

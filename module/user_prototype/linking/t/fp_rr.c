@@ -43,8 +43,6 @@ static volatile unsigned long long ticks = 0;
 static volatile unsigned long long wakeup_time;
 struct sched_thd *wakeup_thd;
 
-static volatile unsigned long wakeup_cnt = 0, block_cnt = 0;
-
 static struct sched_thd *timer, *init, *idle, *mpd;//, *uc_notif;
 struct sched_thd blocked;
 struct sched_thd upcall_deactive;
@@ -52,9 +50,65 @@ struct prio_list {
 	struct sched_thd runnable;
 } priorities[NUM_PRIOS];
 
-static void report_data(unsigned int a, unsigned int b, unsigned int c);
-static void report_thd_data(unsigned int dataid, unsigned int thdid);
-static void report_publish(void);
+enum report_evt_t {
+	BRAND_ACTIVE,
+	BRAND_READY,
+	BRAND_PENDING,
+	BRAND_CYCLE,
+	SCHED_DEPENDENCY,
+	THD_BLOCK,
+	THD_WAKE,
+	UPCALL_BLOCK,
+	COMP_TAKE,
+	COMP_TAKE_ATTEMPT,
+	COMP_TAKE_CONTENTION,
+	COMP_RELEASE,
+	REVT_LAST
+};
+static char *revt_names[] = {
+	"brand active event",
+	"brand ready event",
+	"brand pending event",
+	"event cycle update",
+	"scheduling using a dependency",
+	"thread blocking",
+	"thread waking",
+	"net upcall blocked",
+	"component lock take (call)",
+	"component lock take (actual attempt)",
+	"component lock take contention",
+	"component lock release",
+	""
+};
+static long long report_evts[REVT_LAST];
+static void report_event(int evt)
+{
+	if (evt >= REVT_LAST) return;
+
+	report_evts[evt]++;
+}
+static void report_output(void)
+{
+	int i;
+
+	prints("All counters:");
+	for (i = 0 ; i < REVT_LAST ; i++) {
+		printc("\t%s: %lld", revt_names[i], report_evts[i]);
+	}
+}
+
+static void print_thd_invframes(struct sched_thd *t)
+{
+	int tid = t->id, i, ret = 1;
+
+	for (i = 0 ; ret > 0 ; i++) {
+		int ip;
+		ret = cos_thd_cntl(COS_THD_INV_FRAME, tid, i, 0);
+		ip  = cos_thd_cntl(COS_THD_INVFRM_IP, tid, i, 0);
+		if (ret) printc("\t\t[%d (ip:%x)]", ret, ip);
+	}
+}
+
 static void report_thd_accouting(void)
 {
 	struct sched_thd *t;
@@ -66,7 +120,9 @@ static void report_thd_accouting(void)
 		     t != &priorities[i].runnable ;
 		     t = FIRST_LIST(t, prio_next, prio_prev)) {
 			if (sched_get_accounting(t)->cycles) {
-				printc("\tthd %d (prio %d), cycles %lld", t->id, i, sched_get_accounting(t)->cycles);
+				printc("\tthd %d (prio %d), cycles %lld", t->id, i, 
+				       sched_get_accounting(t)->cycles);
+				print_thd_invframes(t);
 			}
 		}
 	}
@@ -75,7 +131,9 @@ static void report_thd_accouting(void)
 	     t != &blocked ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
 		if (sched_get_accounting(t)->cycles) {
-			printc("\tthd %d (prio %d), cycles %lld", t->id, i, sched_get_accounting(t)->cycles);
+			printc("\tthd %d (prio %d), cycles %lld", t->id, 
+			       sched_get_metric(t)->priority, sched_get_accounting(t)->cycles);
+			print_thd_invframes(t);
 		}
 	}
 	printc("Inactive upcalls:");
@@ -83,10 +141,12 @@ static void report_thd_accouting(void)
 	     t != &upcall_deactive ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
 		if (sched_get_accounting(t)->cycles) {
-			printc("\tthd %d (prio %d), cycles %lld", t->id, i, sched_get_accounting(t)->cycles);
+			printc("\tthd %d (prio %d), cycles %lld", t->id, 
+			       sched_get_metric(t)->priority, sched_get_accounting(t)->cycles);
+			print_thd_invframes(t);
 		}
 	}
-
+	report_output();
 }
 
 static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
@@ -243,6 +303,7 @@ static struct sched_thd *fp_get_highest_prio(void)
 		if ((dep = sched_thd_dependency(t))) {
 			assert(sched_thd_ready(dep));
 			assert(!sched_thd_free(dep));
+			report_event(SCHED_DEPENDENCY);
 			return dep;
 		}
 
@@ -278,6 +339,7 @@ static struct sched_thd *fp_get_second_highest_prio(struct sched_thd *highest)
 		if ((dep = sched_thd_dependency(tmp))) {
 			assert(!sched_thd_free(dep));
 			assert(sched_thd_ready(dep));
+			report_event(SCHED_DEPENDENCY);
 			if (!sched_thd_blocked(dep)) {
 				return dep;
 			}
@@ -308,6 +370,7 @@ static struct sched_thd *fp_get_second_highest_prio(struct sched_thd *highest)
 			assert(!sched_thd_blocked(dep) &&
 			       sched_thd_ready(dep));
 			assert(!sched_thd_free(dep));
+			report_event(SCHED_DEPENDENCY);
 			return dep;
 		}
 		assert(!sched_thd_free(t));
@@ -332,10 +395,14 @@ static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 		assert(sched_thd_event(t));
 
 		if (flags & COS_SCHED_EVT_BRAND_ACTIVE) {
+			report_event(BRAND_ACTIVE);
 			fp_activate_upcall(t);
 		} else if (flags & COS_SCHED_EVT_BRAND_READY) {
+			assert(sched_get_current() != t);
+			report_event(BRAND_READY);
 			fp_deactivate_upcall(t);
 		} else if (flags & COS_SCHED_EVT_BRAND_PEND) {
+			report_event(BRAND_PENDING);
 			if (t->flags & THD_UC_READY) {
 				/* 
 				 * The bug is this: upcall is made,
@@ -363,7 +430,7 @@ static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 			fp_activate_upcall(t);
 		}
 	}
-
+	report_event(BRAND_CYCLE);
 	sa = sched_get_accounting(t);
 	sa->cycles += cpu_usage;
 
@@ -460,6 +527,7 @@ void fp_timer_tick(void)
 	}
 
 	ticks++;
+	//if ((ticks % 100) == 0) prints("---");
 	/* Wakeup the event thread? */
 	if (ticks == wakeup_time && wakeup_thd) {
 		wakeup_time = 0;
@@ -470,10 +538,6 @@ void fp_timer_tick(void)
 			fp_wakeup(wakeup_thd, 0);
 		}
 	}
-	
-	if (((unsigned long)ticks) % (REPORT_FREQ*TIMER_FREQ) == (REPORT_FREQ*TIMER_FREQ)-1) {
-		report_publish();
-	}
 
 	prev = sched_get_current();
 	assert(prev == timer);
@@ -483,10 +547,10 @@ void fp_timer_tick(void)
 		assert(next);
 
 		/* Chances are good the highest is us (the only way it
-		 * won't be true is if another event has occured in
+		 * won't be true is if another event has occurred in
 		 * the interim that has a higher priority), but, for
 		 * some reason, is not currently executing. */
-		if (next == prev) {
+		if (likely(next == prev)) {
  			struct sched_thd *r;
 			/* the RR part */
 			r = next = fp_get_second_highest_prio(next);
@@ -520,7 +584,7 @@ static void fp_event_completion(struct sched_thd *e)
 	do {
 		cos_sched_lock_take();
 		next = fp_schedule();
-		if (next == curr) {
+		if (likely(next == curr)) {
 			next = fp_get_second_highest_prio(next);
 //			print("event completion: next,next is %d, current is %d. %d", next->id, cos_get_thd_id(), 0);
 		}
@@ -549,7 +613,24 @@ static void fp_create_spd_thd(void *d)
 
 static void fp_idle_loop(void *d)
 {
-	while(1);
+	struct sched_thd *other, *idle = sched_get_current();
+
+	while(1) {
+		int flags;
+
+		flags = cos_sched_event_to_process();
+		if (flags) {
+retry:
+			cos_sched_lock_take();
+			other = fp_schedule();
+			if (flags != COS_SCHED_EVT_BRAND_READY) {
+				assert(other != idle);
+				if (cos_switch_thread_release(other->id, 0, 0)) goto retry;
+			} else {
+				cos_sched_lock_release();
+			}
+		}
+	}
 }
 
 static void fp_yield(void)
@@ -692,8 +773,7 @@ static void fp_wakeup(struct sched_thd *thd, spdid_t spdid)
 ////	      thd->id, sched_get_metric(thd)->priority, spdid);
 
 	fp_resume_thd(thd);
-	report_data(1,0,0);
-	report_thd_data(0, thd->id);
+	report_event(THD_WAKE);
 }
 
 /* 
@@ -703,62 +783,48 @@ static void fp_wakeup(struct sched_thd *thd, spdid_t spdid)
 int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 {
 	struct sched_thd *thd, *prev, *next;
-	int cnt_done = 0;
 	int loop;
 	
-	wakeup_cnt++;
-
-	do {
-		cos_sched_lock_take();
+	cos_sched_lock_take();
 		
-		//print("thread %d waking up thread %d. %d", cos_get_thd_id(), thd_id, 0);
+	//print("thread %d waking up thread %d. %d", cos_get_thd_id(), thd_id, 0);
 	
-		thd = sched_get_mapping(thd_id);
-		if (!thd) goto error;
-		
-		/* only increase the count once */
-		if (!cnt_done) {
-			fp_pre_wakeup(thd);
-			cnt_done = 1;
-		}
-
-//		if (!(thd->blocking_component == 0 || thd->blocking_component == spdid)) {
-//			print("blocking component %d, calling spd %d. %d", thd->blocking_component,spdid,0);
-//		}
-
-		assert(thd->blocking_component == 0 || 
-		       thd->blocking_component == spdid);
-
-		/* If the thd isn't blocked yet (as it was probably
-		 * preempted before it could complete the call to
-		 * block), no reason to wake it via scheduling
-		 */
-		if (!sched_thd_blocked(thd)) {
-			goto cleanup;
-		}
-
-		/* 
-		 * We are waking up a thread, which means that if we
-		 * are an upcall, we don't want composite to
-		 * automatically switch to the preempted thread (which
-		 * might be of lower priority than the woken thread).
-		 *
-		 * TODO: This could be much more complicated: We could
-		 * only call this if indeed we did wake up a thread
-		 * that has a higher priority than the currently
-		 * executing one (upcall excluded).
-		 */
-		if (sched_thd_event(sched_get_current())) {
-			cos_sched_cntl(COS_SCHED_BREAK_PREEMPTION_CHAIN, 0, 0);
-		}
-
-		fp_wakeup(thd, cos_spd_id());
-		prev = sched_get_current();
-		assert(prev);
+	thd = sched_get_mapping(thd_id);
+	if (!thd) goto error;
+	
+	/* only increase the count once */
+	fp_pre_wakeup(thd);
+	assert(thd->blocking_component == 0 || thd->blocking_component == spdid);
+	
+	/* If the thd isn't blocked yet (as it was probably preempted
+	 * before it could complete the call to block), no reason to
+	 * wake it via scheduling
+	 */
+	if (!sched_thd_blocked(thd)) goto cleanup;
+	
+	/* 
+	 * We are waking up a thread, which means that if we are an
+	 * upcall, we don't want composite to automatically switch to
+	 * the preempted thread (which might be of lower priority than
+	 * the woken thread).
+	 *
+	 * TODO: This could be much more complicated: We could only
+	 * call this if indeed we did wake up a thread that has a
+	 * higher priority than the currently executing one (upcall
+	 * excluded).
+	 */
+	if (sched_thd_event(sched_get_current())) {
+		cos_sched_cntl(COS_SCHED_BREAK_PREEMPTION_CHAIN, 0, 0);
+	}
+	fp_wakeup(thd, spdid);
+	prev = sched_get_current();
+	assert(prev);
+	next = fp_schedule();
+	loop = cos_switch_thread_release(next->id, 0, 0);
+	while (loop) {
+		cos_sched_lock_take();
 		next = fp_schedule();
-		if (prev == next) {	
-			goto cleanup;
-		} 
+		if (prev == next) goto cleanup;
 		/* 
 		 * FIXME: if we wake up a thread belonging to another
 		 * scheduler, don't schedule, instead make an upcall
@@ -769,7 +835,7 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 			assert(loop != -1);
 			PRINTD("Error switching to thread %d from %d while waking up, err: %d", next->id, prev->id, loop);
 		}
-	} while (unlikely(loop));
+	}
 done:
 	return 0;
 cleanup:
@@ -795,8 +861,8 @@ static void fp_block(struct sched_thd *thd, spdid_t spdid)
 	thd->blocking_component = spdid;
 
 	fp_block_thd(thd);
-	report_data(0,1,0);
-	report_thd_data(1, thd->id);
+	if (thd->id == 9) report_event(UPCALL_BLOCK);
+	report_event(THD_BLOCK);
 }
 
 /* 
@@ -810,7 +876,6 @@ int sched_block(spdid_t spdid)
 
 	thd = sched_get_current();
 	if (!thd) goto error;
-	block_cnt++;
 
 	cos_sched_lock_take();
 
@@ -826,24 +891,23 @@ int sched_block(spdid_t spdid)
 		return 0;
 	}
 	fp_block(thd, spdid);
-	/* 
-	 * This needs to be a loop as it's possible that there will be
-	 * lock contention, and this thread will schedule itself while
-	 * another incriments the wake_cnt 
-	 */
-	while(1) {
+	
+	next = fp_schedule();
+	assert(next != thd);
+	loop = cos_switch_thread_release(next->id, 0, 0);
+	assert(-1 != loop);
+	if (-2 == loop) {
+			//fp_deactivate_upcall(next);
+		PRINTD("blocking thread: cannot switch to thread %d from %d, err: %d", next->id, thd->id, loop);
+	}
+	while (loop) {
+		cos_sched_lock_take();
 		next = fp_schedule();
 		if (next == thd) {
 			cos_sched_lock_release();
 			break;
 		}
 		if (likely(0 == (loop = cos_switch_thread_release(next->id, 0, 0)))) break;
-		assert(-1 != loop);
-		if (-2 == loop) {
-			//fp_deactivate_upcall(next);
-			PRINTD("blocking thread: cannot switch to thread %d from %d, err: %d", next->id, thd->id, loop);
-		}
-		cos_sched_lock_take();
 	}
 	/* The amount of time we've blocked */
 	ret = ticks - thd->block_time - 1;
@@ -869,18 +933,20 @@ int sched_component_take(spdid_t spdid)
 	curr = sched_get_current();
 	assert(curr);
 	assert(sched_thd_ready(curr));
+	report_event(COMP_TAKE);
 
 	/* Continue until the critical section is available */
 	while (1) {
 		cos_sched_lock_take();
 
+		report_event(COMP_TAKE_ATTEMPT);
 		/* If the current thread is dependent on another thread, switch to it for help! */
 		if (NULL == (holder = sched_take_crit_sect(spdid, curr))) {
 			break;
 		}
 		/* FIXME: proper handling of recursive locking */
 		assert(curr != holder);
-		report_data(0,0,1);
+		report_event(COMP_TAKE_CONTENTION);
 		loop = cos_switch_thread_release(holder->id, 0, 0);
 		if (loop) {
 			assert(-1 != loop);
@@ -900,6 +966,7 @@ int sched_component_release(spdid_t spdid)
 	curr = sched_get_current();
 	assert(curr);
 
+	report_event(COMP_RELEASE);
 	if (sched_release_crit_sect(spdid, curr)) {
 		prints("fprr: error releasing spd's critical section");
 	}
@@ -1056,7 +1123,8 @@ int sched_create_net_upcall(unsigned short int port, int depth)
 	unsigned int b_id;
 
 	assert(t);
-	uc = sched_setup_upcall_thread(prio-1, prio-1, &b_id, depth);
+//	uc = sched_setup_upcall_thread(prio-1, prio-1, &b_id, depth);
+	uc = sched_setup_upcall_thread(prio+1, prio+1, &b_id, depth);
 	assert(uc);
 	cos_brand_wire(b_id, COS_HW_NET, port);
 
@@ -1192,39 +1260,4 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	}
 
 	return;
-}
-
-static struct data {
-	unsigned int a, b, c;
-} d;
-
-static struct thd_data {
-	unsigned int data[2];
-} t[MAX_NUM_THREADS];
-
-static void report_data(unsigned int a, unsigned int b, unsigned int c)
-{
-	d.a += a;
-	d.b += b;
-	d.c += c;
-}
-
-static void report_thd_data(unsigned int data_item, unsigned int thdid)
-{
-	assert(thdid < MAX_NUM_THREADS && data_item < 2);
-	t[thdid].data[data_item]++;
-}
-
-static void report_publish(void)
-{
-	int i;
-	print("Sched data: %d, %d, %d.", d.a, d.b, d.c);
-	d.a = d.b = d.c = 0;
-
-	for (i = 0 ; i < MAX_NUM_THREADS ; i++) {
-		if (t[i].data[0] || t[i].data[1]) {
-			print("Thread %d: (%d, %d)", i, t[i].data[0], t[i].data[1]);
-		}
-		t[i].data[0] = t[i].data[1] = 0;
-	}
 }

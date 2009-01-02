@@ -176,6 +176,11 @@ enum {
 			      * brand, redundant with tail call? */
 };
 
+/* operations for cos_thd_cntl */
+enum {
+	COS_THD_INV_FRAME, 	/* Get the ith invocation frame for the thread */
+	COS_THD_INVFRM_IP	/* get the instruction pointer in an inv frame  */
+};
 enum {
 	COS_HW_TIMER,
 	COS_HW_NET,
