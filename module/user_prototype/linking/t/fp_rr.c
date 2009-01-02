@@ -63,6 +63,14 @@ enum report_evt_t {
 	COMP_TAKE_ATTEMPT,
 	COMP_TAKE_CONTENTION,
 	COMP_RELEASE,
+	IDLE_SCHED,
+	BLOCK_LOOP,
+	WAKE_LOOP,
+	TIMER_LOOP,
+	COMP_TAKE_LOOP,
+	EVT_CMPLETE_LOOP,
+	IDLE_SCHED_LOOP,
+	TIMEOUT_LOOP,
 	REVT_LAST
 };
 static char *revt_names[] = {
@@ -78,6 +86,14 @@ static char *revt_names[] = {
 	"component lock take (actual attempt)",
 	"component lock take contention",
 	"component lock release",
+	"idle loop trying to schedule event",
+	"iterations through the block loop",
+	"iterations through the wake loop",
+	"iterations through the timer loop",
+	"iterations through the component_take loop",
+	"iterations through the event completion loop",
+	"iterations through the timeout loop",
+	"iterations through the idle loop",
 	""
 };
 static long long report_evts[REVT_LAST];
@@ -569,6 +585,7 @@ void fp_timer_tick(void)
 			cos_sched_process_events(evt_callback_print, 5);
 			cos_sched_lock_take();
 		}
+		report_event(TIMER_LOOP);
 	} while (unlikely(loop));
 
 	return;
@@ -591,9 +608,7 @@ static void fp_event_completion(struct sched_thd *e)
 		assert(next != curr);
 		loop = cos_switch_thread_release(next->id, COS_SCHED_TAILCALL, 0);
 		assert(loop != -1);
-		if (unlikely(loop)) {
-			printc("Event completion thread switch error (thd %d, err %d).", cos_get_thd_id(), loop);
-		}
+		report_event(EVT_CMPLETE_LOOP);
 	} while (unlikely(loop));
 
 	return;
@@ -620,12 +635,16 @@ static void fp_idle_loop(void *d)
 
 		flags = cos_sched_event_to_process();
 		if (flags) {
+			report_event(IDLE_SCHED);
 retry:
 			cos_sched_lock_take();
 			other = fp_schedule();
 			if (flags != COS_SCHED_EVT_BRAND_READY) {
 				assert(other != idle);
-				if (cos_switch_thread_release(other->id, 0, 0)) goto retry;
+				if (cos_switch_thread_release(other->id, 0, 0)) {
+					report_event(IDLE_SCHED_LOOP);
+					goto retry;
+				}
 			} else {
 				cos_sched_lock_release();
 			}
@@ -731,6 +750,7 @@ void sched_timeout(spdid_t spdid, unsigned long amnt)
 			PRINTD("timeout thread switching to unactivated upcall %d from %d with error %d.", next->id, sched_get_current(), loop);
 			cos_sched_lock_take();
 		}
+		report_event(TIMEOUT_LOOP);
 	} while (unlikely(loop));
 	
 //	prints("timeout thread starting up again.");
@@ -820,6 +840,7 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 	prev = sched_get_current();
 	assert(prev);
 	next = fp_schedule();
+	if (prev == next) goto cleanup;
 	loop = cos_switch_thread_release(next->id, 0, 0);
 	while (loop) {
 		cos_sched_lock_take();
@@ -830,11 +851,12 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 		 * scheduler, don't schedule, instead make an upcall
 		 * into that scheduler 
 		 */
-		loop = cos_switch_thread_release(next->id, 0, 0);
+		if (likely(0 == (loop = cos_switch_thread_release(next->id, 0, 0)))) break;
 		if (loop) {
 			assert(loop != -1);
 			PRINTD("Error switching to thread %d from %d while waking up, err: %d", next->id, prev->id, loop);
 		}
+		report_event(WAKE_LOOP);
 	}
 done:
 	return 0;
@@ -908,6 +930,7 @@ int sched_block(spdid_t spdid)
 			break;
 		}
 		if (likely(0 == (loop = cos_switch_thread_release(next->id, 0, 0)))) break;
+		report_event(BLOCK_LOOP);
 	}
 	/* The amount of time we've blocked */
 	ret = ticks - thd->block_time - 1;
@@ -929,6 +952,7 @@ int sched_component_take(spdid_t spdid)
 {
 	struct sched_thd *holder, *curr;
 	int loop;
+	int first = 1;
 
 	curr = sched_get_current();
 	assert(curr);
@@ -951,6 +975,11 @@ int sched_component_take(spdid_t spdid)
 		if (loop) {
 			assert(-1 != loop);
 			PRINTD("component_take: cannot switch to %d from %d, err: %d", holder->id, curr->id, loop);
+		}
+		if (first) {
+			first = 0;
+		} else {
+			report_event(COMP_TAKE_LOOP);
 		}
 	}
 	cos_sched_lock_release();
@@ -1123,8 +1152,8 @@ int sched_create_net_upcall(unsigned short int port, int depth)
 	unsigned int b_id;
 
 	assert(t);
-//	uc = sched_setup_upcall_thread(prio-1, prio-1, &b_id, depth);
-	uc = sched_setup_upcall_thread(prio+1, prio+1, &b_id, depth);
+	uc = sched_setup_upcall_thread(prio-1, prio-1, &b_id, depth);
+//	uc = sched_setup_upcall_thread(prio+1, prio+1, &b_id, depth);
 	assert(uc);
 	cos_brand_wire(b_id, COS_HW_NET, port);
 
