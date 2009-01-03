@@ -63,6 +63,7 @@ enum report_evt_t {
 	COMP_TAKE_ATTEMPT,
 	COMP_TAKE_CONTENTION,
 	COMP_RELEASE,
+	TIMER_TICK,
 	IDLE_SCHED,
 	BLOCK_LOOP,
 	WAKE_LOOP,
@@ -86,6 +87,7 @@ static char *revt_names[] = {
 	"component lock take (actual attempt)",
 	"component lock take contention",
 	"component lock release",
+	"timer tick",
 	"idle loop trying to schedule event",
 	"iterations through the block loop",
 	"iterations through the wake loop",
@@ -534,6 +536,7 @@ void fp_timer_tick(void)
 
 	cos_sched_lock_take();
 
+	report_event(TIMER_TICK);
 	/* are we done running? */
 	if (ticks >= RUNTIME_SEC*TIMER_FREQ+1) {
 		report_thd_accouting();
@@ -1145,14 +1148,14 @@ void sched_report_processing(int amnt)
 	sched_get_accounting(t)->progress += amnt;
 }
 
-int sched_create_net_upcall(unsigned short int port, int depth)
+int sched_create_net_upcall(unsigned short int port, int prio_delta, int depth)
 {
 	struct sched_thd *t = sched_get_current(), *uc;
 	u16_t prio = sched_get_metric(t)->priority;
 	unsigned int b_id;
 
 	assert(t);
-	uc = sched_setup_upcall_thread(prio-1, prio-1, &b_id, depth);
+	uc = sched_setup_upcall_thread(prio + prio_delta, prio + prio_delta, &b_id, depth);
 //	uc = sched_setup_upcall_thread(prio+1, prio+1, &b_id, depth);
 	assert(uc);
 	cos_brand_wire(b_id, COS_HW_NET, port);
@@ -1231,8 +1234,11 @@ int sched_init(void)
 	new = sched_setup_thread_arg(NORMAL_PRIO_HI+1, NORMAL_PRIO_HI+1, fp_create_spd_thd, (void*)target_spdid);
 	print("Network thread has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+1, 0);
 
-	new = sched_setup_thread_arg(NORMAL_PRIO_HI+1, NORMAL_PRIO_HI+1, fp_create_spd_thd, (void*)target_spdid);
-	print("Network thread (2) has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+1, 0);
+	new = sched_setup_thread_arg(NORMAL_PRIO_HI+2, NORMAL_PRIO_HI+3, fp_create_spd_thd, (void*)target_spdid);
+	print("Network thread (2) has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+3, 0);
+//	new = sched_setup_thread_arg(NORMAL_PRIO_HI+3, NORMAL_PRIO_HI+3, fp_create_spd_thd, (void*)target_spdid);
+//	print("Network thread (2) has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+3, 0);
+
 /*
 #define N_THDS 16
 	new = sched_setup_thread_arg(4, 4, fp_create_spd_thd, (void*)2);

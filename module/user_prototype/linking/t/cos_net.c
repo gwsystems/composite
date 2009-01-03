@@ -351,7 +351,7 @@ static void release_rb_buff(rb_meta_t *r, void *b)
 	assert(0);
 }
 
-extern int sched_create_net_upcall(unsigned short int port, int depth);
+extern int sched_create_net_upcall(unsigned short int port, int prio_delta, int depth);
 extern int sched_block(spdid_t spdid);
 extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
 
@@ -359,7 +359,7 @@ static unsigned short int cos_net_create_net_upcall(unsigned short int port, rb_
 {
 	unsigned short int ucid;
 	
-	ucid = sched_create_net_upcall(port, 1);
+	ucid = sched_create_net_upcall(port, 1, 1);
 	if (cos_buff_mgmt(rb1.packets, sizeof(rb1.packets), ucid, COS_BM_RECV_RING)) {
 		prints("net: could not setup recv ring.");
 		return 0;
@@ -724,7 +724,6 @@ int net_recv(spdid_t spdid, net_connection_t nc, void *data, int sz)
 		}
 	} while (0 == xfer_amnt);
 	NET_LOCK_RELEASE();
-
 	return xfer_amnt;
 }
 
@@ -790,7 +789,6 @@ void cos_net_interrupt(void)
 	struct ip_hdr *ih;
 
 	NET_LOCK_TAKE();
-
 	tm = get_thd_map(ucid);
 	assert(tm);
 	if (rb_retrieve_buff(tm->uc_rb, &buff, &max_len)) {
@@ -1159,6 +1157,7 @@ static int init(void)
 
 	NET_LOCK_RELEASE();
 //	sched_block();
+	/* Start the tcp timer */
 	while (1) {
 		/* Sleep for a quarter of seconds as prescribed by lwip */
 		timed_event_block(cos_spd_id(), 250000);

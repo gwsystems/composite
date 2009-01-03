@@ -193,9 +193,13 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 		goto error;
 	}
 
+	/* The calling component needs to retry its user-level lock,
+	 * some preemption has caused the generation count to get off,
+	 * i.e. we don't have the most up-to-date view of the
+	 * lock's state */
 	if (ml->gen_num != generation) {
 		ml->gen_num = generation;
-		ret = 1;
+		ret = 0;
 		goto error;
 	}
 	generation++;
@@ -205,7 +209,7 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 	INIT_LIST(&blocked_desc, next, prev);
 	ADD_LIST(&ml->b_thds, &blocked_desc, next, prev);
 	blocked_desc.timed = (TIMER_EVENT_INF != microsec);
-	ml->owner = thd_id;
+	//ml->owner = thd_id;
 
 	RELEASE(spdid);
 
