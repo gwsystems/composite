@@ -10,6 +10,11 @@
 #include "print.h"
 
 /* 
+ * On recursive locking: I'm disabling this right now as it has been a
+ * pain for debugging.
+ */
+
+/* 
  * Return the amount of time that have elapsed since the request was
  * made if we get the lock, _or_ TIMER_EXPIRED if we did not get the
  * lock, but at least microsec microseconds have passed.
@@ -85,6 +90,7 @@ restart:
 		/* If we are the current owner, progress increasing
 		 * the recursion count */
 		else if (owner == curr) {
+			assert(0);
 			result.rec_cnt++;
 			assert(result.rec_cnt < 255);
 		} else /* !owner */ {	
@@ -151,6 +157,7 @@ int lock_release(cos_lock_t *l) {
 				return 0;
 			}
 		} else {
+			assert(0);
 			result.rec_cnt--;
 		}
 
@@ -158,7 +165,9 @@ int lock_release(cos_lock_t *l) {
 		 * not be contested, but by the time we get here,
 		 * another thread might have tried to take it. */
 		new_val = *result_ptr;
+		assert(result.owner != curr);
 	} while (cos_cmpxchg(&l->atom, prev_val, new_val) != new_val);
+	assert(l->atom.owner != curr);
 
 	return 0;
 }

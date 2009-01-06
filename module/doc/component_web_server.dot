@@ -4,10 +4,10 @@ digraph web_server {
 	splines=true;
 	rankdir=BT;
 	
+	"TCP Server";
 	"Network";
 	"Socket API";
 	"File Descriptor API";
-	"TCP Server";
 	"HTTP Parser";
 	"CGI 0";
 	"CGI 1";

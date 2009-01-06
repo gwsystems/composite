@@ -1568,11 +1568,15 @@ COS_SYSCALL int cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int 
 		return -1;
 	}
 
-	kaddr = pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, (unsigned long)addr);
-	if (!kaddr) {
-		printk("cos: buff mgmt -- could not find kernel address for %p in spd %d\n",
-		       addr, spd_id);
-		return -1;
+	if (0 == len) {
+		kaddr = 0;
+	} else {
+		kaddr = pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, (unsigned long)addr);
+		if (!kaddr) {		    
+			printk("cos: buff mgmt -- could not find kernel address for %p in spd %d\n",
+			       addr, spd_id);
+			return -1;
+		}
 	}
 	
 	switch(option) {

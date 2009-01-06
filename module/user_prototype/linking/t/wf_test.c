@@ -10,7 +10,7 @@
 
 #define ITER 1000000
 
-extern void sched_yield_exec(void);
+extern void sched_yield(spdid_t spdid);
 extern int sched_create_thread(spdid_t);
 extern int timed_event_block(spdid_t spdinv, unsigned int amnt);
 
@@ -87,6 +87,6 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 }
 
 void bin(void) {
-	sched_yield_exec();
+	sched_yield(cos_spd_id());
 	sched_create_thread(cos_spd_id());
 }

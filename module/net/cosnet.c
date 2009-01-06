@@ -133,7 +133,7 @@ static inline struct cosnet_struct *cosnet_find_brand(struct tun_struct *ts, __u
 	return NULL;
 }
 
-unsigned short int cosnet_skb_get_udp_port(struct sk_buff *skb, __u8 *proto)
+unsigned short int cosnet_skb_get_port(struct sk_buff *skb, __u8 *proto)
 {
 	__u32 daddr;
 	__u16 dport;
@@ -173,7 +173,7 @@ static struct cosnet_struct *cosnet_resolve_brand(struct tun_struct *ts, struct 
 	__u8 proto;
 	__u16 port;
 
-	port = cosnet_skb_get_udp_port(skb, &proto);
+	port = cosnet_skb_get_port(skb, &proto);
 	return cosnet_find_brand(ts, proto, port);
 }
 
@@ -329,7 +329,7 @@ int cosnet_get_packet(struct cos_brand_info *bi, char **packet, unsigned long *l
 
 			/* TODO: restart the queue with netif_wake_queue */
 
-			*port = cosnet_skb_get_udp_port(skb, &proto);
+			*port = cosnet_skb_get_port(skb, &proto);
 			/* OK, this is a little rediculous */
 			*len = skb->len;
 			*packet = skb->data;

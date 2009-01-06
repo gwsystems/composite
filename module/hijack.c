@@ -1640,36 +1640,42 @@ struct fault_info {
 	unsigned short int spdid, thdid;
 } faults[NFAULTS];
 
+static void cos_report_fault(struct thread *t, vaddr_t fault_addr, struct pt_regs *regs)
+{
+	struct fault_info *fi;
+
+	fi = &faults[fault_ptr];
+	fi->addr = fault_addr;
+	if (NULL != regs) {
+		fi->ip = regs->eip;
+		fi->sp = regs->esp;
+		fi->a = regs->eax;
+		fi->b = regs->ebx;
+		fi->c = regs->ecx;
+		fi->d = regs->edx;
+		fi->D = regs->edi;
+		fi->S = regs->esi;
+		fi->bp = regs->ebp;
+	}
+	fi->spdid = spd_get_index(thd_get_thd_spd(t));
+	fi->thdid = thd_get_id(t);
+	fault_ptr = (fault_ptr + 1) % NFAULTS;
+}
+
 /* the composite specific page fault handler */
 static void cos_handle_page_fault(struct thread *thd, struct spd_poly *spd_poly, 
 				  vaddr_t fault_addr, struct pt_regs *regs)
 {
 //	struct composite_spd *cspd;
-	struct fault_info *fi;
-
 //	BUG_ON(!(spd_poly->flags & SPD_COMPOSITE) || spd_poly->flags & SPD_FREE);
 //	cspd = (struct composite_spd *)spd_poly;
 
 	memcpy(&thd->regs, regs, sizeof(struct pt_regs));
 
-	fi = &faults[fault_ptr];
-	fi->addr = fault_addr;
-	fi->ip = regs->eip;
-	fi->sp = regs->esp;
-	fi->a = regs->eax;
-	fi->b = regs->ebx;
-	fi->c = regs->ecx;
-	fi->d = regs->edx;
-	fi->D = regs->edi;
-	fi->S = regs->esi;
-	fi->bp = regs->ebp;
-	fi->spdid = spd_get_index(thd_get_thd_spd(thd));
-	fi->thdid = thd_get_id(thd);
-	fault_ptr = (fault_ptr + 1) % NFAULTS;
+	cos_report_fault(thd, fault_addr, regs);
 
 	return;
 }
-
 
 /*
  * The Linux provided descriptor structure is crap, probably due to
@@ -1796,7 +1802,7 @@ int main_page_fault_interposition(void)
 
 	struct thread *thd;
 	struct spd_poly *poly;
-	int present;
+//	int present;
 	struct pt_regs *regs = NULL;
 	
 	/*
@@ -1831,6 +1837,7 @@ int main_page_fault_interposition(void)
 	 * check for this.
 	 */
 	thd = thd_get_current();
+//	cos_report_fault(thd, fault_addr, NULL);
 	/* This is a magical address that we are getting faults for,
 	 * but I don't know why, and it doesn't seem to interfere with
 	 * execution.  For now ffffd0b0 is being counted as an unknown
@@ -1841,7 +1848,7 @@ int main_page_fault_interposition(void)
 		goto linux_handler_release;
 	}
 	poly = thd_get_thd_spdpoly(thd);
-	present = !pgtbl_entry_absent(poly->pg_tbl, fault_addr);
+//	present = !pgtbl_entry_absent(poly->pg_tbl, fault_addr);
 
 #ifdef FAULT_DEBUG
 	fault_addrs[BUCKET_HASH(fault_addr)]++;

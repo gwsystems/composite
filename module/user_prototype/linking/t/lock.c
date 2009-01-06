@@ -46,6 +46,7 @@ extern int timed_event_block(spdid_t spdid, unsigned int microsec);
 extern int timed_event_wakeup(spdid_t spdid, unsigned short int thd_id);
 extern int sched_block(spdid_t spdid);
 extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
+extern int sched_yield(spdid_t spdid);
 
 #define TAKE(spdid) 	if (sched_component_take(spdid))    return -1;
 #define RELEASE(spdid)	if (sched_component_release(spdid)) return -1;
@@ -271,7 +272,8 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 	if (!ml) goto error;
 	/* Apparently, lock_take calls haven't been made. */
 	if (EMPTY_LIST(&ml->b_thds, next, prev)) {
-		goto done;
+		RELEASE(spdid);
+		return 0;
 	}
 	sent = bt = FIRST_LIST(&ml->b_thds, next, prev);
 	/* Remove all threads from the lock's list */
@@ -299,8 +301,9 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 	 * the system will switch back to this thread so that we can
 	 * wake up the rest of the waiting threads (one of which might
 	 * have the highest priority) */
-done:
 	RELEASE(spdid);
+	/* FIXME: this should not be necessary, but we're getting better behavior*/
+	sched_yield(spdid);
 
 	return 0;
 error:

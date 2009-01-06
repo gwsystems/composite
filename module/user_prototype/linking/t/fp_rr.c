@@ -50,7 +50,7 @@ struct prio_list {
 	struct sched_thd runnable;
 } priorities[NUM_PRIOS];
 
-enum report_evt_t {
+typedef enum {
 	BRAND_ACTIVE,
 	BRAND_READY,
 	BRAND_PENDING,
@@ -64,6 +64,8 @@ enum report_evt_t {
 	COMP_TAKE_CONTENTION,
 	COMP_RELEASE,
 	TIMER_TICK,
+	YIELD_INV,
+	YIELD_SWITCH,
 	IDLE_SCHED,
 	BLOCK_LOOP,
 	WAKE_LOOP,
@@ -73,7 +75,7 @@ enum report_evt_t {
 	IDLE_SCHED_LOOP,
 	TIMEOUT_LOOP,
 	REVT_LAST
-};
+} report_evt_t;
 static char *revt_names[] = {
 	"brand active event",
 	"brand ready event",
@@ -88,6 +90,8 @@ static char *revt_names[] = {
 	"component lock take contention",
 	"component lock release",
 	"timer tick",
+	"yield invocation",
+	"yield switch threads",
 	"idle loop trying to schedule event",
 	"iterations through the block loop",
 	"iterations through the wake loop",
@@ -99,7 +103,7 @@ static char *revt_names[] = {
 	""
 };
 static long long report_evts[REVT_LAST];
-static void report_event(int evt)
+static void report_event(report_evt_t evt)
 {
 	if (evt >= REVT_LAST) return;
 
@@ -669,8 +673,9 @@ static void fp_yield(void)
 	}
 	next = fp_get_highest_prio();
 	//print("current is %d, orig_thd was %d, next is %d", prev->id, orig_next->id, next->id);
-	if (prev != next && next != init) {
-		assert(0 == cos_switch_thread_release(next->id, 0, 0));
+	if (prev != next) {
+		report_event(YIELD_SWITCH);
+		if (0 != cos_switch_thread_release(next->id, 0, 0)) assert(0);
 	} else {
 		cos_sched_lock_release();
 	}
@@ -685,8 +690,9 @@ static void fp_yield_loop(void *d)
 	}
 }
 
-void sched_yield_exec(void)
+void sched_yield(spdid_t spdid)
 {
+	report_event(YIELD_INV);
 	fp_yield();
 }
 
@@ -706,7 +712,7 @@ void sched_timeout(spdid_t spdid, unsigned long amnt)
 
 	cos_sched_lock_take();
 	
-//	print("in sched_timeout, amnt %d, spdid %d.  %d", (unsigned int)amnt, (unsigned int)spdid,0);
+	//printc("sched_timeout: amnt %d, spdid %d.", (unsigned int)amnt, (unsigned int)spdid);
 	if (0 == amnt) {
 		cos_sched_lock_release();
 		return;
@@ -1234,10 +1240,8 @@ int sched_init(void)
 	new = sched_setup_thread_arg(NORMAL_PRIO_HI+1, NORMAL_PRIO_HI+1, fp_create_spd_thd, (void*)target_spdid);
 	print("Network thread has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+1, 0);
 
-	new = sched_setup_thread_arg(NORMAL_PRIO_HI+2, NORMAL_PRIO_HI+3, fp_create_spd_thd, (void*)target_spdid);
+	new = sched_setup_thread_arg(NORMAL_PRIO_HI+3, NORMAL_PRIO_HI+3, fp_create_spd_thd, (void*)target_spdid);
 	print("Network thread (2) has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+3, 0);
-//	new = sched_setup_thread_arg(NORMAL_PRIO_HI+3, NORMAL_PRIO_HI+3, fp_create_spd_thd, (void*)target_spdid);
-//	print("Network thread (2) has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+3, 0);
 
 /*
 #define N_THDS 16

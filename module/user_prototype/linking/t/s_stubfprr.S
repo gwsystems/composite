@@ -96,23 +96,7 @@ sched_resume_thd_inv:
 
 	sysenter
 
-.globl sched_yield_exec_inv
-.type  sched_yield_exec_inv, @function
-.align 16
-sched_yield_exec_inv:
-	COS_ASM_GET_STACK
-	
-	pushl %ebp
-	pushl %edi
-	pushl %esi
-	pushl %ebx /* length */
-	pushl %ecx /* spdid */
-	call sched_yield_exec
-
-	movl %eax, %ecx
-	movl $RET_CAP, %eax /* return capability */
-
-	sysenter
+cos_asm_server_stub_spdid(sched_yield)
 
 .globl sched_wakeup_inv
 .type  sched_wakeup_inv, @function
