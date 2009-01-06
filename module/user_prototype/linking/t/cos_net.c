@@ -456,7 +456,7 @@ static inline int net_conn_valid(net_connection_t nc)
 	return 1;
 }
 
-static inline struct intern_connection *net_conn_alloc(conn_t conn_type)
+static inline struct intern_connection *net_conn_alloc(conn_t conn_type, u16_t tid)
 {
 	struct intern_connection *ic = free_list;
 
@@ -465,7 +465,7 @@ static inline struct intern_connection *net_conn_alloc(conn_t conn_type)
 	ic->free = NULL;
 	ic->incoming = ic->incoming_last = NULL;
 	ic->incoming_size = 0;
-	ic->tid = cos_get_thd_id();
+	ic->tid = tid;
 	ic->thd_status = ACTIVE;
 	ic->conn_type = conn_type;
 
@@ -611,7 +611,7 @@ net_connection_t net_create_udp_connection(spdid_t spdid)
 		ret = -ENOMEM;
 		goto err;
 	}
-	ic = net_conn_alloc(UDP);
+	ic = net_conn_alloc(UDP, cos_get_thd_id());
 	if (NULL == ic) {
 		prints("Could not allocate internal connection");
 		ret = -ENOMEM;
@@ -767,7 +767,7 @@ static err_t cos_net_lwip_tcp_connected(void *arg, struct tcp_pcb *tp, err_t err
 static err_t cos_net_lwip_tcp_accept(void *arg, struct tcp_pcb *new_tp, err_t err);
 
 /* FIXME: same as for the udp version of this function. */
-net_connection_t net_create_tcp_connection(spdid_t spdid, struct tcp_pcb *new_tp)
+net_connection_t net_create_tcp_connection(spdid_t spdid, u16_t tid, struct tcp_pcb *new_tp)
 {
 	struct tcp_pcb *tp;
 	struct intern_connection *ic;
@@ -784,7 +784,7 @@ net_connection_t net_create_tcp_connection(spdid_t spdid, struct tcp_pcb *new_tp
 	} else {
 		tp = new_tp;
 	}
-	ic = net_conn_alloc(TCP);
+	ic = net_conn_alloc(TCP, tid);
 	if (NULL == ic) {
 		prints("Could not allocate internal connection");
 		ret = -ENOMEM;
@@ -817,12 +817,10 @@ static err_t cos_net_lwip_tcp_accept(void *arg, struct tcp_pcb *new_tp, err_t er
 	struct intern_connection *ic = arg;
 	net_connection_t nc;
 
-	prints("*** cos accept ***");
-
 	assert(ic);
 	assert(NULL == ic->accepted_ic);
 	
-	if (0 > (nc = net_create_tcp_connection(ic->spdid, new_tp))) assert(0);
+	if (0 > (nc = net_create_tcp_connection(ic->spdid, ic->tid, new_tp))) assert(0);
 	ic->accepted_ic = net_conn_get_internal(nc);
 	if (ACCEPTING == ic->thd_status) {
 		ic->thd_status = ACTIVE;
@@ -874,7 +872,6 @@ static int cos_net_tcp_recv(struct intern_connection *ic, void *data, int sz)
 		tcp_recved(tp, xfer_amnt);
 	}
 
-	printc("*** received %d data, xferring %d ***", sz, xfer_amnt);
 	return xfer_amnt;
 }
 
@@ -920,9 +917,10 @@ net_connection_t net_accept(spdid_t spdid, net_connection_t nc)
 
 	/* No accepts are pending on this connection?: block */
 	if (NULL == ic->accepted_ic) {
+		assert(ic->tid == cos_get_thd_id());
 		ic->thd_status = ACCEPTING;
 		NET_LOCK_RELEASE();
-		if (sched_block(cos_spd_id())) assert(0);
+		if (sched_block(cos_spd_id()) < 0) assert(0);
 		NET_LOCK_TAKE();
 		assert(ACTIVE == ic->thd_status);
 	}
@@ -954,7 +952,8 @@ int net_listen(spdid_t spdid, net_connection_t nc)
 	 * accepted_ic in the intern_connection struct */
 	new_tp = tcp_listen_with_backlog(tp, 1);
 	ic->conn.tp = new_tp;
-	if (0 > net_create_tcp_connection(si, new_tp)) assert(0);
+	tcp_accept(new_tp, cos_net_lwip_tcp_accept);
+	//if (0 > net_create_tcp_connection(si, new_tp)) assert(0);
 	NET_LOCK_RELEASE();
 	return ret;
 }
@@ -1088,7 +1087,7 @@ int net_recv(spdid_t spdid, net_connection_t nc, void *data, int sz)
 		default:
 			assert(0);
 		}
-		if (0 == xfer_amnt) {
+ 		if (0 == xfer_amnt) {
 			/* If there isn't data, block until woken by
 			 * an interrupt in cos_net_stack_udp_recv */
 			assert(ic->thd_status == ACTIVE);
@@ -1099,6 +1098,7 @@ int net_recv(spdid_t spdid, net_connection_t nc, void *data, int sz)
 			assert(ic->thd_status == ACTIVE);
 		}
 	} while (0 == xfer_amnt);
+	assert(xfer_amnt <= sz);
 	NET_LOCK_RELEASE();
 	return xfer_amnt;
 }
@@ -1364,11 +1364,11 @@ extern int timed_event_block(spdid_t spdid, unsigned int usecs);
 static void test_tcp(void)
 {
 	net_connection_t nc, nc_new;
-	char data[128], len;
-	int ret;
+	char data[128];
+	int ret, len;
 //	struct ip_addr dest;
 
-	nc = net_create_tcp_connection(cos_spd_id(), NULL);
+	nc = net_create_tcp_connection(cos_spd_id(), cos_get_thd_id(), NULL);
 	if (nc) print("create udp connection error: %d %d%d", nc, 0,0);
 	printc("tcp connection created: %d.", nc);
 	ret = net_bind(cos_spd_id(), nc, IP_ADDR_ANY, 200);
@@ -1383,7 +1383,8 @@ static void test_tcp(void)
 	
 	while (1) {
 		len = net_recv(cos_spd_id(), nc_new, data, 128);
-		//assert(len > 0);
+		if (len <= 0) printc("len < 0: %d", len);
+		assert(len > 0);
 		//net_send(cos_spd_id(), nco, data, len);
 	}
 }
