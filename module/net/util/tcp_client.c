@@ -82,7 +82,8 @@ void do_recv_proc(int fd, int msg_sz)
 			unsigned long long curr, amnt;
 			unsigned int *seqno_ptr = (unsigned int *)rcv_msg, seqno;
 			unsigned long long *prev_ptr = (unsigned long long *)rcv_msg, prev;
-			
+	
+			rcv = 1;
 			rdtscll(curr);
 			seqno = seqno_ptr[0];
 			prev  = prev_ptr[1];

@@ -303,7 +303,7 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 	 * have the highest priority) */
 	RELEASE(spdid);
 	/* FIXME: this should not be necessary, but we're getting better behavior*/
-	sched_yield(spdid);
+////	sched_yield(spdid);
 
 	return 0;
 error:

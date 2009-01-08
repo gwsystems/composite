@@ -6,10 +6,10 @@
 #define MEM_SIZE 64000
 /* #define MEMP_OVERFLOW_CHECK 1 */
 /* #define MEMP_SANITY_CHECK 1 */
-#define MEMP_NUM_PBUF 2048
+#define MEMP_NUM_PBUF (2048*2)
 #define MEMP_NUM_UDP_PCB 512
 #define MEMP_NUM_TCP_PCB 512
-
+#define MEMP_NUM_TCP_PCB_LISTEN 128
 #define LWIP_ARP 0
 #define IP_REASSEMBLY 0
 #define IP_FRAG 0
@@ -25,14 +25,17 @@
 #define TCP_QUEUE_OOSEQ         1
 
 /* TCP Maximum segment size. */
-#define TCP_MSS                 1024
+#define TCP_MSS                 1400 //1024
 
 /* TCP sender buffer space (bytes). */
-#define TCP_SND_BUF             2048
+#define TCP_SND_BUF             TCP_MSS*6//2048
 
 /* TCP sender buffer space (pbufs). This must be at least = 2 *
    TCP_SND_BUF/TCP_MSS for things to work. */
-#define TCP_SND_QUEUELEN        (4 * TCP_SND_BUF/TCP_MSS)
+//#define TCP_SND_QUEUELEN        (4 * TCP_SND_BUF/TCP_MSS)
+#define TCP_SND_QUEUELEN        (64 * TCP_SND_BUF/TCP_MSS)
+
+#define MEMP_NUM_TCP_SEG (TCP_SND_QUEUELEN*16)
 
 /* TCP writable space (bytes). This must be less than or equal
    to TCP_SND_BUF. It is the amount of space which must be
@@ -40,7 +43,7 @@
 #define TCP_SNDLOWAT		(TCP_SND_BUF/2)
 
 /* TCP receive window. */
-#define TCP_WND                 8096
+#define TCP_WND                 (8096*2)
 
 /* Maximum number of retransmissions of data segments. */
 #define TCP_MAXRTX              12

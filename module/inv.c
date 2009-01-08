@@ -1555,7 +1555,7 @@ COS_SYSCALL int cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int 
 	 * map time.
 	 */
 	struct spd *spd;
-	vaddr_t kaddr;
+	vaddr_t kaddr = 0;
 	unsigned short int option, len;
 
 	option = (len_op & 0xFFFF);
@@ -1568,15 +1568,11 @@ COS_SYSCALL int cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int 
 		return -1;
 	}
 
-	if (0 == len) {
-		kaddr = 0;
-	} else {
-		kaddr = pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, (unsigned long)addr);
-		if (!kaddr) {		    
-			printk("cos: buff mgmt -- could not find kernel address for %p in spd %d\n",
-			       addr, spd_id);
-			return -1;
-		}
+	if (unlikely(COS_BM_XMIT != option &&
+		     0 == (kaddr = pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, (unsigned long)addr)))) {
+		printk("cos: buff mgmt -- could not find kernel address for %p in spd %d\n",
+		       addr, spd_id);
+		return -1;
 	}
 	
 	switch(option) {
@@ -1584,14 +1580,41 @@ COS_SYSCALL int cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int 
 	case COS_BM_XMIT:
 	{
 		struct cos_net_xmit_headers *h = spd->cos_net_xmit_headers;
+		int gather_buffs = 0, i, tot_len = 0;
+		struct gather_item gi[XMIT_HEADERS_GATHER_LEN];
 
-		if (!user_struct_fits_on_page((unsigned long)addr, len)) {
-			printk("cos: buff mgmt -- buffer address  %p does not fit onto page\n", addr);
+		if (unlikely(NULL == h)) return -1;
+		gather_buffs = h->gather_len;
+		if (unlikely(gather_buffs > XMIT_HEADERS_GATHER_LEN)) {
+			printk("cos buff mgmt -- gather list length %d too large.", gather_buffs);
 			return -1;
 		}
+//printk("cos: net -- xfering %d gathered buffers, %d header bytes.\n", gather_buffs, h->len);
+		/* Check that each of the buffers in the gather list are legal */
+		for (i = 0 ; i < gather_buffs ; i++) {
+			struct gather_item *user_gi = &h->gather_list[i];
+			tot_len += user_gi->len;
+
+			if (!user_struct_fits_on_page((unsigned long)user_gi->data, user_gi->len)) {
+				printk("cos: buff mgmt -- buffer address  %p does not fit onto page\n", user_gi->data);
+				return -1;
+			}
+			kaddr = pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, (unsigned long)user_gi->data);
+			if (!kaddr) {		    
+				printk("cos: buff mgmt -- could not find kernel address for %p in spd %d\n",
+				       user_gi->data, spd_id);
+				return -1;
+			}
+
+//printk("cos: net -- buffer @ %x (%d)\n", (unsigned int)user_gi->data, user_gi->len);
+			gi[i].data = (void*)kaddr;
+			gi[i].len  = user_gi->len;
+		}
+
+		/* Transmit! */
 		if (likely(cos_net_fns && cos_net_fns->xmit_packet && h)) {
 			cos_meas_event(COS_MEAS_PACKET_XMIT);
-			return cos_net_fns->xmit_packet(h->headers, h->len, (void*)kaddr, len);
+			return cos_net_fns->xmit_packet(h->headers, h->len, gi, gather_buffs, tot_len);
 		}
 		break;
 	}

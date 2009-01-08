@@ -380,9 +380,10 @@ typedef enum {
 
 typedef enum {
 	ACTIVE,
-	BLOCKED,
+	RECVING,
 	CONNECTING,
-	ACCEPTING
+	ACCEPTING,
+	SENDING
 } conn_thd_t;
 
 /* This structure will alias with the ip header */
@@ -552,7 +553,7 @@ static void cos_net_lwip_udp_recv(void *arg, struct udp_pcb *upcb, struct pbuf *
 	assert (NULL != headers);
 	/* Over our allocation??? */
 	if (ic->incoming_size >= UDP_RCV_MAX) {
-		assert(ic->thd_status != BLOCKED);
+		assert(ic->thd_status != RECVING);
 		free(net_packet_pq(headers));
 		assert(p->ref > 0);
 		pbuf_free(p);
@@ -581,7 +582,7 @@ static void cos_net_lwip_udp_recv(void *arg, struct udp_pcb *upcb, struct pbuf *
 	pbuf_free(p);
 
 	/* If the thread blocked waiting for a packet, wake it up */
-	if (BLOCKED == ic->thd_status) {
+	if (RECVING == ic->thd_status) {
 		ic->thd_status = ACTIVE;
 		assert(ic->thd_status == ACTIVE); /* Detect races */
 		sched_wakeup(cos_spd_id(), ic->tid);
@@ -648,7 +649,6 @@ static int cos_net_udp_recv(struct intern_connection *ic, void *data, int sz)
 
 		p = ic->incoming;
 		assert(p);
-//		printc("consuming packet_queue %x", p);
 		data_start = ((char*)p->data) + ic->incoming_offset;
 		data_left = p->len - ic->incoming_offset;
 		assert(data_left > 0 && data_left <= p->len);
@@ -732,7 +732,7 @@ static err_t cos_net_lwip_tcp_recv(void *arg, struct tcp_pcb *tp, struct pbuf *p
 	pbuf_free(p);
 
 	/* If the thread blocked waiting for a packet, wake it up */
-	if (BLOCKED == ic->thd_status) {
+	if (RECVING == ic->thd_status) {
 		ic->thd_status = ACTIVE;
 		assert(ic->thd_status == ACTIVE); /* Detect races */
 		if (sched_wakeup(cos_spd_id(), ic->tid)) assert(0);
@@ -746,7 +746,13 @@ static err_t cos_net_lwip_tcp_sent(void *arg, struct tcp_pcb *tp, u16_t len)
 	struct intern_connection *ic = arg;
 	assert(ic);
 	
-	printc("***cos sent %d***", len);
+	/* FIXME: can be smarter here not waking the thread if the
+	 * amount it wants to send is < len.  Probably not worth the
+	 * trouble. */
+	if (SENDING == ic->thd_status) {
+		ic->thd_status = ACTIVE;
+		if (sched_wakeup(cos_spd_id(), ic->tid)) assert(0);
+	}
 
 	return ERR_OK;
 }
@@ -1091,7 +1097,7 @@ int net_recv(spdid_t spdid, net_connection_t nc, void *data, int sz)
 			/* If there isn't data, block until woken by
 			 * an interrupt in cos_net_stack_udp_recv */
 			assert(ic->thd_status == ACTIVE);
-			ic->thd_status = BLOCKED;
+			ic->thd_status = RECVING;
 			NET_LOCK_RELEASE();
 			if (sched_block(cos_spd_id()) < 0) assert(0);
 			NET_LOCK_TAKE();
@@ -1105,7 +1111,6 @@ int net_recv(spdid_t spdid, net_connection_t nc, void *data, int sz)
 
 int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 {
-	struct udp_pcb *up;
 	struct intern_connection *ic;
 	u16_t tid = cos_get_thd_id();
 	int ret = sz;
@@ -1123,6 +1128,7 @@ int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 	switch (ic->conn_type) {
 	case UDP:
 	{
+		struct udp_pcb *up;
 		struct pbuf *p;
 
 		/* There's no blocking in the UDP case, so this is simple */
@@ -1145,6 +1151,26 @@ int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 	}
 	case TCP:
 	{
+		struct tcp_pcb *tp;
+		int ret;
+		
+		tp = ic->conn.tp;
+		while (tcp_sndbuf(tp) < sz) {
+			ic->thd_status = SENDING;
+//printc("blocking on send, sz %d, send buff %d", sz, tcp_sndbuf(tp));
+			NET_LOCK_RELEASE();
+			if (0 > sched_block(cos_spd_id())) assert(0);
+//printc("send wokeup, sz %d, send buff %d", sz, tcp_sndbuf(tp));
+			NET_LOCK_TAKE();
+			assert(ACTIVE == ic->thd_status);
+		}
+//printc("writing to the stack");
+		if (ERR_OK != (ret = tcp_write(tp, data, sz, 1))) {
+			printc("tcp_write returned %d (sz %d, tcp_sndbuf %d, ERR_MEM: %d)", 
+			       ret, sz, tcp_sndbuf(tp), ERR_MEM);
+			assert(0);
+		}
+
 		break;
 	}
 	default:
@@ -1259,30 +1285,59 @@ static err_t cos_net_stack_link_send(struct netif *ni, struct pbuf *p)
 
 static err_t cos_net_stack_send(struct netif *ni, struct pbuf *p, struct ip_addr *ip)
 {
-	struct pbuf *data;
+	int i;
+	/* assuming the net lock is taken here */
 
 	/* We are requiring chained pbufs here, one for the header,
 	 * one for the data.  First assert checks that we have > 1
 	 * pbuf, second asserts we have 2 */
-
 	assert(p);
-	assert(p->len <= sizeof(xmit_headers.headers));
-	/* assuming the net lock is taken here */
-	memcpy(xmit_headers.headers, p->payload, p->len);
-	xmit_headers.len = p->len;
-	data = p->next;
-	if (NULL != data) {
-		assert(data->len == data->tot_len);
-		if (cos_buff_mgmt(data->payload, data->len, 0, COS_BM_XMIT)) {
-			prints("net: could not xmit data.");
-		}
-	} else {
-		if (cos_buff_mgmt(NULL, 0, 0, COS_BM_XMIT)) {
-			prints("net: could not xmit data.");
-		}
-	}
+	xmit_headers.len = 0;
+	if (p->len <= sizeof(xmit_headers.headers)) {
+		memcpy(&xmit_headers.headers, p->payload, p->len);
+		xmit_headers.len = p->len;
+		p = p->next;
+	} 
+	
+	/* 
+	 * Here we do 2 things: create a separate gather data entry
+	 * for each pbuf, and separate the data in individual pbufs
+	 * into separate gather entries if it crosses page boundaries.
+	 */
+	for (i = 0 ; p && i < XMIT_HEADERS_GATHER_LEN ; i++) {
+		char *data = p->payload;
+		struct gather_item *gi = &xmit_headers.gather_list[i];
+		int len_on_page;
 
+		assert(data && p->len < PAGE_SIZE);
+		gi->data = data;
+		gi->len  = p->len;
+		len_on_page = (unsigned long)round_up_to_page(data) - (unsigned long)data;
+		/* Data split across pages??? */
+		if (len_on_page < p->len) {
+			int len_on_second = p->len - len_on_page;
+
+			if (XMIT_HEADERS_GATHER_LEN == i+1) goto segment_err;
+			gi->len  = len_on_page;
+			gi = gi+1;
+			gi->data = data + len_on_page;
+			gi->len  = len_on_second;
+			i++;
+		}
+		p = p->next;
+	}
+	if (unlikely(NULL != p)) goto segment_err;
+	xmit_headers.gather_len = i;
+
+	/* Send the collection of pbuf data on its way. */
+	if (cos_buff_mgmt(NULL, 0, 0, COS_BM_XMIT)) {
+		prints("net: could not xmit data.");
+	}
+done:
 	return ERR_OK;
+segment_err:
+	printc("net: attempted to xmit too many segments");
+	goto done;
 }
 
 /* UDP functions (additionally see cos_net_stack_udp_recv above) */
@@ -1385,7 +1440,7 @@ static void test_tcp(void)
 		len = net_recv(cos_spd_id(), nc_new, data, 128);
 		if (len <= 0) printc("len < 0: %d", len);
 		assert(len > 0);
-		//net_send(cos_spd_id(), nco, data, len);
+		net_send(cos_spd_id(), nc_new, data, len);
 	}
 }
 

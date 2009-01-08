@@ -34,8 +34,8 @@ struct pt_regs { int dummy[16]; };
 #define PGD_MASK  (~(PGD_RANGE-1))
 #define PGD_PER_PTBL 1024
 
-#define round_to_page(x) ((x)&PAGE_MASK)
-#define round_up_to_page(x) (((x)+PAGE_SIZE-1)&PAGE_MASK)
+#define round_to_page(x) (((unsigned long)x)&PAGE_MASK)
+#define round_up_to_page(x) (round_to_page(x)+PAGE_SIZE)
 #define round_to_pgd_page(x) ((x)&PGD_MASK)
 #define round_up_to_pgd_page(x) (((x)+PGD_RANGE-1)&PGD_MASK)
 

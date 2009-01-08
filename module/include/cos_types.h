@@ -117,12 +117,29 @@ typedef struct {
 	} __attribute__((packed)) packets[RB_SIZE];
 } __attribute__((aligned(4096))) ring_buff_t ;
 
+#define XMIT_HEADERS_GATHER_LEN 32 
+struct gather_item {
+	void *data;
+	int len;
+};
+struct cos_net_xmit_headers {
+	/* Length of the header */
+	int len, gather_len;
+	/* Max IP header len + max TCP header len */
+	char headers[80];
+	struct gather_item gather_list[XMIT_HEADERS_GATHER_LEN];
+}__attribute__((aligned(4096)));
 
+enum {
+	COS_BM_XMIT,
+	COS_BM_XMIT_REGION,
+	COS_BM_RECV_RING
+};
 
 /*
  * For interoperability with the networking side.  This is the brand
  * port/brand thread pair, and the callback structures for
- * communcation.
+ * communication.
  */
 struct cos_brand_info {
 	unsigned short int  brand_port;
@@ -131,7 +148,7 @@ struct cos_brand_info {
 };
 typedef void (*cos_net_data_completion_t)(void *data);
 struct cos_net_callbacks {
-	int (*xmit_packet)(void *headers, int hlen, void *user_buffer, int len);
+	int (*xmit_packet)(void *headers, int hlen, struct gather_item *gi, int gather_len, int tot_len);
 	int (*create_brand)(struct cos_brand_info *bi);
 	int (*remove_brand)(struct cos_brand_info *bi);
 
@@ -185,19 +202,6 @@ enum {
 	COS_HW_TIMER,
 	COS_HW_NET,
 	COS_UC_NOTIF
-};
-
-struct cos_net_xmit_headers {
-	/* Length of the header */
-	int len;
-	/* Max IP header len + max TCP header len */
-	char headers[80];
-}__attribute__((aligned(4096)));
-
-enum {
-	COS_BM_XMIT,
-	COS_BM_XMIT_REGION,
-	COS_BM_RECV_RING
 };
 
 /* operations for cos_sched_cntl */

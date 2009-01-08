@@ -350,21 +350,21 @@ int cosnet_get_packet(struct cos_brand_info *bi, char **packet, unsigned long *l
 extern void host_start_syscall(void);
 extern void host_end_syscall(void);
 
-static int cosnet_xmit_packet(void *headers, int hlen, void *user_buffer, int len)
+static int cosnet_xmit_packet(void *headers, int hlen, struct gather_item *gi, 
+			      int gi_len, int tot_gi_len)
 {
 	struct sk_buff *skb;
-	int totlen = hlen + len;
+	int totlen = hlen + tot_gi_len, i;
 #ifdef NIL
 	int prev_pending = 0;
 #endif
-
 	if (!(skb = alloc_skb(totlen /* + NET_IP_ALIGN */, GFP_ATOMIC))) {
 		local_ts->stats.tx_dropped++;
 		return -1;
 	}
 	if (unlikely(totlen > local_ts->dev->mtu || 
 		     hlen > sizeof(struct cos_net_xmit_headers))) {
-		printk("cos: cannot transfer packet of size %d.\n", len + hlen);
+		printk("cos: cannot transfer packet of size %d.\n", totlen);
 		kfree_skb(skb);
 		return -1;
 	}
@@ -372,7 +372,11 @@ static int cosnet_xmit_packet(void *headers, int hlen, void *user_buffer, int le
 	/* Copy the headers first */
 	memcpy(skb_put(skb, hlen), headers, hlen);
 	/* Then the data payload */
-	memcpy(skb_put(skb, len), user_buffer, len);
+	for (i = 0 ; i < gi_len ; i++) {
+		struct gather_item *curr_gi = &gi[i];
+		memcpy(skb_put(skb, curr_gi->len), curr_gi->data, curr_gi->len);
+	}
+	//memcpy(skb_put(skb, len), user_buffer, len);
 	
 /* 	{ */
 /* 		struct iphdr *ih = (struct iphdr *)skb->data; */
@@ -404,7 +408,7 @@ static int cosnet_xmit_packet(void *headers, int hlen, void *user_buffer, int le
 	} else {
 		local_ts->dev->last_rx = jiffies;
 		local_ts->stats.tx_packets++;
-		local_ts->stats.tx_bytes += hlen + len;
+		local_ts->stats.tx_bytes += totlen;
 	}
 	if (unlikely(!raw_irqs_disabled())) {
 		printk("cos: interrupts enabled after packet xmit!\n");
