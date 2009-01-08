@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
 	struct sockaddr_in sinput;
 	int msg_size;
 	char *msg;
-	int cnt = 0;
+	int cnt = 0, ret;
 
 	struct sockaddr sa;
 	socklen_t len;
@@ -54,11 +54,14 @@ int main(int argc, char *argv[])
 	}
 
 	while (1) {
-		if (-1 == read(fda, msg, msg_size)) {
+		if (-1 == (ret = read(fda, msg, msg_size))) {
 			perror("read error");
 			return -1;
 		}
-		if (((cnt++) % 100000) == 0) printf(".");
+		if (-1 == write(fda, msg, ret)) {
+			perror("write error");
+			return -1;
+		}
 	}
 
 	return 0;

@@ -52,6 +52,7 @@ void signal_handler(int signo)
 	} else {
 		printf("\n");
 	}
+	fflush(stdout);
 	msg_sent = 0;
 }
 
@@ -110,13 +111,11 @@ void start_timers()
 	sa.sa_flags = 0;
 	//sigemptyset(&sa.sa_mask);
 	sigfillset(&sa.sa_mask);
-
 	if (sigaction(SIGALRM, &sa, NULL)) {
 		perror("Setting up alarm handler");
 		fflush(stdout);
 		exit(-1);
 	}
-
 	memset(&itv, 0, sizeof(itv));
 	itv.it_value.tv_sec = 1;
 	itv.it_interval.tv_sec = 1;
@@ -126,7 +125,6 @@ void start_timers()
 		fflush(stdout);
 		return;
 	}
-
 	return;
 }
 
@@ -164,14 +162,13 @@ int main(int argc, char *argv[])
 		perror("connecting");
 		return -1;
 	}
+	printf("Start communication\n");
+	fflush(stdout);
 	start_timers();
-	
-	printf("Start communication.");
 	while (1) {
 		int i;
-		
+
 		construct_header(msg);
-		
 		if (write(fd, msg, msg_size) < 0 &&
 		    errno != EINTR) {
 			perror("sendto");
@@ -179,7 +176,6 @@ int main(int argc, char *argv[])
 			return -1;
 		}
 		msg_sent++;
-		
 		for (i=0 ; i < sleep_val ; i++) {
 			do_recv_proc(fd, msg_size);
 			foo++;
