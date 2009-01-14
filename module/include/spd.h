@@ -291,6 +291,10 @@ static inline int spd_composite_num_members(struct composite_spd *cspd)
  */
 static inline int spd_composite_move_member(struct composite_spd *cspd_new, struct spd *spd)
 {
+	/* 
+	 * FIXME: in a multithreaded context, these should be probably
+	 * be done in the opposite order.
+	 */
 	if (spd_composite_remove_member(spd, 0) ||
 	    spd_composite_add_member(cspd_new, spd)) {
 		return -1;

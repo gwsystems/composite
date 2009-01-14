@@ -2621,7 +2621,7 @@ static int mpd_split_composite_populate(struct composite_spd *new1, struct compo
 	assert(spd && spd_is_member(spd, cspd));
 	assert(new1 != cspd);
 
-	remove_mappings = (NULL == new2) ? 1 : 0;
+	remove_mappings = (NULL == new2);
 	spd_composite_remove_member(spd, remove_mappings);
 
 	if (spd_composite_add_member(new1, spd)) {
@@ -2659,6 +2659,11 @@ static int mpd_split_composite_populate(struct composite_spd *new1, struct compo
  err_adding:
 	return -1;
 }
+
+static unsigned long long start, end, 
+	merge1_total = 0, merge2_total = 0, merge3_total = 0,
+	split1_total = 0, split2_total = 0, split3_total = 0, split4_total = 0;
+static unsigned int mpd_merge_cnt = 0, mpd_split_cnt = 0;
 
 /*
  * Given a composite spd, c and a spd, s within it, split the spd out
@@ -2708,7 +2713,7 @@ static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new
 
 		ret = 0;
 		goto end;
-	} 
+	}
 
 	/* otherwise, we must allocate the other composite spd, and
 	 * populate both of them */
@@ -2718,22 +2723,20 @@ static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new
 		goto err_d2;
 	}
 	new2 = spd_mpd_by_idx(d2);
-
 	assert(new1 && new2);
 	
 	if (mpd_split_composite_populate(new1, new2, spd, cspd)) {
 		printk("cos: populating two new cspds failed while splitting.\n");
 		goto err_adding;
 	}
-		
 	*new = d1;
 	*old = d2;
-
 	/* depricate the composite spd so that it cannot be used
 	 * anymore from any user-level interfaces */
 	spd_mpd_depricate(cspd);
 	assert(!spd_mpd_is_depricated(new1) && !spd_mpd_is_depricated(new2));
 	ret = 0;
+
 	goto end;
 	
  err_adding:
@@ -2749,14 +2752,26 @@ static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new
  * cannot immediately free both the page tables (which subordination
  * does), but also the composite spd.  Thus, if one of the composites
  * can be freed, send it to be subordinated as it will be freed
- * immediately.
+ * immediately.  Secondarily, return the composite with fewer
+ * components in it so there are less components to iterate through
+ * when adding their mappings to the other composite.
+ *
+ * Let me make it explicit: First we are trying to save memory, then
+ * processing time.  This might not be the appropriate long-term
+ * prioritization, but only empirical studies will show.
  */
 static inline struct composite_spd *get_spd_to_subordinate(struct composite_spd *c1, 
 							   struct composite_spd *c2)
 {
-	if (1 == cos_ref_val(&c1->spd_info.ref_cnt)) {
-		return c1;
-	} 
+	int members1, members2;
+
+	if (1 == cos_ref_val(&c1->spd_info.ref_cnt) &&
+	    1 != cos_ref_val(&c2->spd_info.ref_cnt)) return c1;
+
+	members1 = spd_composite_num_members(c1);
+	members2 = spd_composite_num_members(c2);
+	assert(members1 > 0 && members2 > 0);
+	if (members1 < members2) return c1;
 	return c2;
 }
 
@@ -2793,13 +2808,11 @@ static struct composite_spd *mpd_merge(struct composite_spd *c1,
 	
 	other = get_spd_to_subordinate(c1, c2);
 	dest = (other == c1) ? c2 : c1;
-
 	/*
 	extern void print_valid_pgtbl_entries(phys_addr_t pt);
 	print_valid_pgtbl_entries(dest->spd_info.pg_tbl);
 	print_valid_pgtbl_entries(other->spd_info.pg_tbl);
 	*/
-
 	curr = other->members;
 	while (curr) {
 		/* list will be altered when we move the spd to the
@@ -2819,10 +2832,9 @@ static struct composite_spd *mpd_merge(struct composite_spd *c1,
 
 		curr = next;
 	}
-
 	//spd_mpd_depricate(other);
 	spd_mpd_make_subordinate(dest, other);
-	assert(!spd_mpd_is_depricated(dest));
+	if (spd_mpd_is_depricated(dest)) assert(0);
 	//print_valid_pgtbl_entries(dest->spd_info.pg_tbl);
 
 	return dest;
@@ -2830,24 +2842,31 @@ static struct composite_spd *mpd_merge(struct composite_spd *c1,
 
 struct spd *t1 = NULL, *t2 = NULL;
 /* 0 = SD, 1 = ST */
-static int mpd_state = 0;
+//static int mpd_state = 0;
 
-COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int composite_spd, 
-				     short int spd, short int composite_dest)
+/* 
+ * Here composite_spd and composite_dest are specified as normal spds,
+ * and the meaning here is "the composite protection domain that this
+ * spd is part of".
+ */
+COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, 
+				     spdid_t spd1, spdid_t spd2)
 {
 	int ret = 0; 
 	struct composite_spd *prev = NULL;
+	struct spd *from;
 	phys_addr_t curr_pg_tbl, new_pg_tbl;
 	struct spd_poly *curr;
 
-	if (operation != COS_MPD_DEMO) {
-		prev = spd_mpd_by_idx(composite_spd);
-		if (!prev || spd_mpd_is_depricated(prev)) {
-			printk("cos: failed to access composite spd in mpd_cntl.\n");
-			return -1;
-		}
+if (operation != COS_MPD_SPLIT_MERGE) {
+	from = spd_get_by_index(spd1);
+	if (0 == from) {
+		printk("cos: mpd_cntl -- first composite spd %d not valid\n", spd1);
+		return -1;
 	}
-
+	prev = (struct composite_spd *)from->composite_spd;
+	assert(NULL != prev && !spd_mpd_is_depricated(prev));
+}
 	curr = thd_get_thd_spdpoly(thd_get_current());
 	curr_pg_tbl = curr->pg_tbl;
 
@@ -2857,14 +2876,16 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
 		struct spd *transitory;
 		struct mpd_split_ret sret;
 
-		transitory = spd_get_by_index(spd);
-
-		if (!transitory) {
-			printk("cos: failed to access normal spd for call to split.\n");
+		transitory = spd_get_by_index(spd2);
+		if (0 == transitory) {
+			printk("cos: mpd_cntl -- failed to access normal spd (%d) for call to split.\n", spd2);
 			ret = -1;
 			break;
 		}
-
+		if ((struct composite_spd *)transitory->composite_spd != prev) {
+			printk("cos: mpd_cntl -- spd %d not in claimed composite for %d\n", spd2, spd1);
+			return -1;
+		}
 		/*
 		 * It is not correct to split a spd out of a composite
 		 * spd that only contains one spd.  It is pointless,
@@ -2874,47 +2895,53 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
 			ret = -1;
 			break;
 		}
-
 		ret = mpd_split(prev, transitory, &sret.new, &sret.old);
-		if (!ret) {
-			/* 
-			 * Pack the two short indexes of the mpds into
-			 * a single int, and return that.
-			 */
-			ret = *((int*)&sret);
-		}
+		/* simply return 0 for success */
+/* 		if (!ret) { */
+/* 			/\*  */
+/* 			 * Pack the two short indexes of the mpds into */
+/* 			 * a single int, and return that. */
+/* 			 *\/ */
+/* 			ret = *((int*)&sret); */
+/* 		} */
 
 		break;
 	}
 	case COS_MPD_MERGE:
 	{
+		struct spd *second;
 		struct composite_spd *other, *cspd_ret;
 		
-		other = spd_mpd_by_idx(composite_dest);
-		if (!other || spd_mpd_is_depricated(other)) {
-			printk("cos: failed to access composite spd in mpd_merge.\n");
+		second = spd_get_by_index(spd2);
+		if (0 == second) {
+			printk("cos; mpd_cntl -- second composite spd %d invalid\n", spd2);
 			ret = -1;
 			break;
 		}
-		
-		if ((cspd_ret = mpd_merge(prev, other))) {
+		other = (struct composite_spd *)second->composite_spd;
+		assert(NULL != other && !spd_mpd_is_depricated(other));
+		if (NULL == (cspd_ret = mpd_merge(prev, other))) {
 			ret = -1;
 			break;
 		}
-
-		ret = spd_mpd_index(cspd_ret);
-		
+		ret = 0;
+		//ret = spd_mpd_index(cspd_ret);
 		break;
 	}
 	case COS_MPD_SPLIT_MERGE:
 	{
+		printk("merge: %d calls -- %ld, %ld, %ld\n"
+		       "split: %d calls -- %ld, %ld, %ld, %ld\n",
+		       mpd_merge_cnt, (unsigned long)((unsigned long)merge1_total/mpd_merge_cnt), (unsigned long)((unsigned long)merge2_total/mpd_merge_cnt), (unsigned long)((unsigned long)merge3_total/mpd_merge_cnt),
+		       mpd_split_cnt, (unsigned long)((unsigned long)split1_total/mpd_split_cnt), (unsigned long)((unsigned long)split2_total/mpd_split_cnt), (unsigned long)((unsigned long)split3_total/mpd_split_cnt), (unsigned long)((unsigned long)split4_total/mpd_split_cnt));
+		return 0;
 #ifdef NOT_YET
 		struct composite_spd *from, *to;
 		struct spd *moving;
 		unsigned short int new, old
 
-		from = spd_mpd_by_idx(composite_spd);
-		to = spd_mpd_by_idx(composite_dest);
+		from = spd_mpd_by_idx(spd1);
+		to = spd_mpd_by_idx(spd2);
 		moving = spd_get_by_index(spd);
 
 		if (!from || !to || !moving ||
@@ -2929,59 +2956,6 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, short int compos
 #endif		
 		printk("cos: split-merge not yet available\n");
 		ret = -1;
-		break;
-	}
-	case COS_MPD_DEMO:
-	{
-		struct composite_spd *a, *b;
-
-		assert(t1 && t2);
-
-		//printk("cos: composite spds are %p %p.\n", t1->composite_spd, t2->composite_spd);
-
-		a = (struct composite_spd*)t1->composite_spd;
-		b = (struct composite_spd*)t2->composite_spd;
-
-		//assert(!spd_mpd_is_depricated(a) && !spd_mpd_is_depricated(b));
-		if (spd_mpd_is_depricated(a)) {
-			printk("cos: cspd %d is depricated and not supposed to be.\n", spd_mpd_index(a));
-			assert(0);
-		}
-		if (spd_mpd_is_depricated(b)) {
-			printk("cos: cspd %d is depricated and not supposed to be.\n", spd_mpd_index(b));
-			assert(0);
-		}
-
-		if (mpd_state == 1) {
-			struct mpd_split_ret sret; /* trash */
-
-			if (spd_composite_num_members(a) <= 1) {
-				ret = -1;
-				break;
-			}
-			if (mpd_split(a, t2, &sret.new, &sret.old)) {
-				printk("cos: could not split spds\n");
-				ret = -1;
-				break;
-			}
-		} else {
-			if (NULL == mpd_merge(a, b)) {
-				printk("cos: could not merge spds\n");	
-				ret = -1;
-				break;
-			}
-		}
-		mpd_state = (mpd_state + 1) % 2;
-
-		//printk("cos: composite spds are %p %p.\n", t1->composite_spd, t2->composite_spd);
-		//printk("cos: demo %d, %d\n", spd_get_index(t1), spd_get_index(t2));
-		ret = 0;
-		break;
-	}
-	case COS_MPD_DEBUG:
-	{
-		printk("cos: composite spds are %p %p.\n", t1->composite_spd, t2->composite_spd);
-
 		break;
 	}
 	default:
@@ -3091,7 +3065,7 @@ COS_SYSCALL int cos_syscall_cap_cntl(int spdid, spdid_t cspdid, spdid_t sspdid, 
 	cspd = spd_get_by_index(cspdid);
 	sspd = spd_get_by_index(sspdid);
 
-	if (!cspd || !sspd) return 0;
+	if (!cspd || !sspd) return -1;
 	/* TODO: access control */
 	return spd_read_reset_invocation_cnt(cspd, sspd);
 }

@@ -360,7 +360,7 @@ static unsigned short int cos_net_create_net_upcall(unsigned short int port, rb_
 	unsigned short int ucid;
 	
 	ucid = sched_create_net_upcall(port, 1, 1);
-	if (cos_buff_mgmt(rb1.packets, sizeof(rb1.packets), ucid, COS_BM_RECV_RING)) {
+	if (cos_buff_mgmt(COS_BM_RECV_RING, rb1.packets, sizeof(rb1.packets), ucid)) {
 		prints("net: could not setup recv ring.");
 		return 0;
 	}
@@ -1330,7 +1330,7 @@ static err_t cos_net_stack_send(struct netif *ni, struct pbuf *p, struct ip_addr
 	xmit_headers.gather_len = i;
 
 	/* Send the collection of pbuf data on its way. */
-	if (cos_buff_mgmt(NULL, 0, 0, COS_BM_XMIT)) {
+	if (cos_buff_mgmt(COS_BM_XMIT, NULL, 0, 0)) {
 		prints("net: could not xmit data.");
 	}
 done:
@@ -1488,7 +1488,7 @@ static int init(void)
 	net_conn_init();
 
 	/* Setup the region from which headers will be transmitted. */
-	if (cos_buff_mgmt(&xmit_headers, sizeof(xmit_headers), 0, COS_BM_XMIT_REGION)) {
+	if (cos_buff_mgmt(COS_BM_XMIT_REGION, &xmit_headers, sizeof(xmit_headers), 0)) {
 		prints("net: error setting up xmit region.");
 	}
 

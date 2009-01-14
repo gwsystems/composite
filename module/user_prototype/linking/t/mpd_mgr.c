@@ -193,6 +193,102 @@ static void mpd_loop(struct comp_graph *g)
 	return;
 }
 
+static inline int merge_w_err(spdid_t a, spdid_t b)
+{
+	if (cos_mpd_cntl(COS_MPD_MERGE, a, b)) {
+		print("merge of %d and %d failed. %d", a, b, 0);
+		return -1;
+	}
+	return 0;
+}
+
+static unsigned long long merge_total = 0;
+static int merge_cnt = 0;
+
+static unsigned long merge_avg(void)
+{
+	return (unsigned long)(merge_total/merge_cnt);
+}
+
+static int merge_all(void)
+{
+	unsigned long long pre, post;
+	/*
+	  8->4=a
+	  2->a=b
+	  b->7=c
+	  3->1=d
+	  c->d=e
+	  e->5=f
+	  f->6=g
+	*/
+	rdtscll(pre);
+	if (merge_w_err(8, 4)) return -1;
+/* 	if (merge_w_err(2, 8)) return -1; */
+/* 	if (merge_w_err(8, 7)) return -1; */
+/* 	if (merge_w_err(3, 1)) return -1; */
+/* 	if (merge_w_err(3, 8)) return -1; */
+/* 	if (merge_w_err(8, 5)) return -1; */
+/* 	if (merge_w_err(8, 6)) return -1; */
+	rdtscll(post);
+
+	merge_total += post - pre;
+//	merge_cnt+=7;
+	merge_cnt++;
+
+	return 0;
+}
+
+static inline int split_w_err(spdid_t a, spdid_t b)
+{
+	if (cos_mpd_cntl(COS_MPD_SPLIT, a, b)) {
+		print("split of %d from %d failed. %d", b, a, 0);
+		return -1;
+	}
+	return 0;
+}
+
+static unsigned long long split_total = 0;
+static int split_cnt = 0;
+
+static unsigned long split_avg(void)
+{
+	return (unsigned long)(split_total/split_cnt);
+}
+
+static int split_all(void)
+{
+	unsigned long long pre, post;
+
+	rdtscll(pre);
+/*	if (split_w_err(8, 6)) return -1; */
+/* 	if (split_w_err(8, 5)) return -1; */
+/* 	if (split_w_err(8, 1)) return -1; */
+/* 	if (split_w_err(8, 3)) return -1; */
+/* 	if (split_w_err(8, 7)) return -1; */
+/* 	if (split_w_err(8, 2)) return -1; */
+ 	if (split_w_err(8, 4)) return -1;
+	rdtscll(post);
+
+	split_total += post - pre;
+//	split_cnt+=7;
+	split_cnt++;
+
+	return 0;
+}
+
+static void mpd_bench(void)
+{
+	int i;
+	for (i = 0 ; i < 1000 ; i++) {
+		merge_all();
+		split_all();
+	}
+
+	print("merge: %d, split %d. %d", merge_avg(), split_avg(), 0);
+	cos_mpd_cntl(COS_MPD_SPLIT_MERGE, 0,0);
+}
+
 static void mpd_init(void)
 {
 	int i;
@@ -209,6 +305,7 @@ static void mpd_init(void)
 		
 		print("%d->%d w/ %d invocations.", graph[i].client, graph[i].server, (unsigned int)amnt);
 	}
+	mpd_bench();
 	mpd_loop(graph);
 	assert(0);
 	return;

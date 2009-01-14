@@ -99,17 +99,17 @@ int spd2_fn(void)
 
 #define ITER 1000000
 
-int run_demo(void)
-{
-	int i;
+/* int run_demo(void) */
+/* { */
+/* 	int i; */
 
-	for (i = 0 ; i < ITER ; i++) {
-		//print_vals(7337, 0, 2);
-		cos_mpd_cntl(COS_MPD_DEMO);
-		//print_vals(7337, 1, 2);
-	}
-	return i;
-}
+/* 	for (i = 0 ; i < ITER ; i++) { */
+/* 		//print_vals(7337, 0, 2); */
+/* 		cos_mpd_cntl(COS_MPD_DEMO); */
+/* 		//print_vals(7337, 1, 2); */
+/* 	} */
+/* 	return i; */
+/* } */
 
 #define OTHER_THD(x) (((x) == 1)? 2: 1)
 volatile static int race_val;
