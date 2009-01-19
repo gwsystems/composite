@@ -199,7 +199,8 @@ int spd_is_free(int idx);
 extern struct spd spds[MAX_NUM_SPDS];
 static inline int spd_get_index(struct spd *spd)
 {
-	return ((unsigned long)spd-(unsigned long)spds)/sizeof(struct spd);
+//	return ((unsigned long)spd-(unsigned long)spds)/sizeof(struct spd);
+	return (int)(spd-&spds[0]);
 }
 struct spd *spd_get_by_index(int idx);
 void spd_free_all(void);

@@ -138,9 +138,7 @@ static inline struct usr_inv_cap *cap_get_usr_cap(int cap_num)
 {
 	struct spd *owner;
 
-	if (cap_is_free(cap_num)) {
-		return NULL;
-	}
+	if (cap_is_free(cap_num)) return NULL;
 
 	owner = invocation_capabilities[cap_num].owner;
 	return &owner->user_cap_tbl[cap_num];
@@ -155,6 +153,9 @@ static inline int cap_reset_cap_inv_cnt(int cap_num, int *inv_cnt)
 	if (!ucap) return -1;
 	cap = &invocation_capabilities[cap_num];
 	*inv_cnt = ucap->invocation_count + cap->invocation_cnt;
+/* 	printk("cap from %d->%d: ucap inv %d, cap inv %d.\n",  */
+/* 	       spd_get_index(cap->owner), spd_get_index(cap->destination),  */
+/* 	       ucap->invocation_count, cap->invocation_cnt); */
 	ucap->invocation_count = cap->invocation_cnt = 0;
 
 	return 0;
@@ -402,12 +403,20 @@ int spd_set_location(struct spd *spd, unsigned long lowest_addr,
 		     unsigned long size, phys_addr_t pg_tbl)
 {
 	vaddr_t kaddr;
+	unsigned long uaddr = (unsigned long)spd->user_vaddr_cap_tbl;
 
 	assert(spd);
-	assert(spd->user_vaddr_cap_tbl);
+	assert(uaddr);
 	assert(NULL == spd->user_cap_tbl);
-	assert(user_struct_fits_on_page((unsigned long)spd->user_vaddr_cap_tbl, 
-					sizeof(struct usr_inv_cap) * spd->cap_range));
+	
+	if (uaddr < lowest_addr 
+	    || uaddr + sizeof(struct usr_inv_cap) * spd->cap_range > lowest_addr + size
+	    || !user_struct_fits_on_page((unsigned long)spd->user_vaddr_cap_tbl, 
+					 sizeof(struct usr_inv_cap) * spd->cap_range)) {
+		printk("cos: user capability table @ %x does not fit into spd, or onto a single page\n", 
+		       (unsigned int)spd->user_vaddr_cap_tbl);
+		return -1;
+	}
 
 	spd->spd_info.pg_tbl = pg_tbl;
 	spd->location.lowest_addr = lowest_addr;
@@ -448,7 +457,7 @@ struct spd *spd_get_by_index(int idx)
 unsigned int spd_add_static_cap(struct spd *owner_spd, vaddr_t ST_serv_entry, 
 				struct spd *trusted_spd, isolation_level_t isolation_level)
 {
-	return spd_add_static_cap_extended(owner_spd, trusted_spd, 0, ST_serv_entry, 0, 0, 0, 0, isolation_level, 0);
+	return spd_add_static_cap_extended(owner_spd, trusted_spd, -1, ST_serv_entry, 0, 0, 0, 0, isolation_level, 0);
 }
 
 /*
@@ -475,6 +484,7 @@ unsigned int spd_add_static_cap_extended(struct spd *owner_spd, struct spd *trus
 	 * static capabilities cannot be added past the hard limit set
 	 * at spd allocation time.
 	 */
+	cap_offset++; 		/* +1 for the return cap at the beginning */
 	if (cap_offset >= owner_spd->cap_range ||
 	    isolation_level > MAX_ISOLATION_LVL_VAL) {
 		printd("cos: Capability out of range (valid [%d,%d), cap # %d, il %x).\n",
@@ -897,7 +907,7 @@ unsigned long spd_read_reset_invocation_cnt(struct spd *cspd, struct spd *sspd)
 	assert(cspd->cap_range > 0);
 	cap_hi = cspd->cap_range + cap_lo - 1;
 
-	for (i = cap_lo; i <= cap_hi; i++) {
+	for (i = cap_lo ; i < cap_hi ; i++) {
 		struct invocation_cap *cap = &invocation_capabilities[i];
 		assert(cap->owner == cspd);
 		if (cap->destination != sspd) continue;

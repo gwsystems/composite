@@ -299,13 +299,13 @@ static void mpd_init(void)
 	struct comp_graph *g = (struct comp_graph *)cos_heap_ptr;
 	
 	graph = (struct comp_graph *)((char*)g-PAGE_SIZE);
-	for (i = 0; graph[i].client && graph[i].server ; i++) {
+	for (i = 0 ; graph[i].client && graph[i].server ; i++) {
 		unsigned long amnt;
 		amnt = cos_cap_cntl(graph[i].client, graph[i].server, 0);
 		
 		print("%d->%d w/ %d invocations.", graph[i].client, graph[i].server, (unsigned int)amnt);
 	}
-	mpd_bench();
+//	mpd_bench();
 	mpd_loop(graph);
 	assert(0);
 	return;

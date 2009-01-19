@@ -1369,7 +1369,6 @@ static int aed_ioctl(struct inode *inode, struct file *file,
 		cap_no = spd_add_static_cap_extended(owner, dest, cap_info.rel_offset, 
 						     cap_info.ST_serv_entry, cap_info.AT_cli_stub, cap_info.AT_serv_stub,
 						     cap_info.SD_cli_stub, cap_info.SD_serv_stub, cap_info.il, cap_info.flags);
-		
 		return cap_no;
 
 	}

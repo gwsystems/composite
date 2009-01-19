@@ -34,7 +34,7 @@
 #define NORMAL_PRIO_HI 4
 #define NORMAL_PRIO_LO (NUM_PRIOS-4)
 
-#define RUNTIME_SEC (1)
+#define RUNTIME_SEC (5)
 #define REPORT_FREQ 60
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
@@ -1233,6 +1233,12 @@ int sched_init(void)
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(TIME_EVENT_PRIO, TIME_EVENT_PRIO, fp_create_spd_thd, (void*)target_spdid);
 	print("Timeout thread has id %d and priority %d. %d", new->id, TIME_EVENT_PRIO, 0);
+
+	/* event thread */
+	target_spdid = spd_name_map_id("e.o");
+	assert(target_spdid != -1);
+	new = sched_setup_thread_arg(TIME_EVENT_PRIO, TIME_EVENT_PRIO, fp_create_spd_thd, (void*)target_spdid);
+	print("event thread has id %d and priority %d. %d", new->id, TIME_EVENT_PRIO, 0);
 
 	/* normal threads: */
 	target_spdid = spd_name_map_id("net.o");

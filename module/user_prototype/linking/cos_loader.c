@@ -1347,7 +1347,7 @@ int create_invocation_cap(struct spd_info *from_spd, struct service_symbs *from_
 	}
 	cap.ST_serv_entry = addr;
 	
-	cap.rel_offset = i+1; /* +1 for the automatically created return capability */
+	cap.rel_offset = i; /* +1 for the automatically created return capability */
 	cap.owner_spd_handle = from_spd->spd_handle;
 	cap.dest_spd_handle = to_spd->spd_handle;
 	cap.il = 3;
@@ -1468,7 +1468,7 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 		}
 	}
 	
-	spd->num_caps = s->undef.num_symbs+1;
+	spd->num_caps = s->undef.num_symbs;
 	spd->ucap_tbl = (vaddr_t)ucap_tbl;
 	spd->lowest_addr = lowest_addr;
 	spd->size = size;
