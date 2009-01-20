@@ -59,6 +59,11 @@ int print_str(char *s, unsigned int len)
 	return 0;
 }
 
+void print_null(void)
+{
+	return;
+}
+
 int main(void)
 {
 	return 0;

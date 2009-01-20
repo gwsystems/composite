@@ -5,4 +5,5 @@
 .text	
 cos_asm_server_stub(printfmt)
 cos_asm_server_stub(print_str)
+cos_asm_server_stub(print_null)
 

@@ -1347,7 +1347,7 @@ int create_invocation_cap(struct spd_info *from_spd, struct service_symbs *from_
 	}
 	cap.ST_serv_entry = addr;
 	
-	cap.rel_offset = i; /* +1 for the automatically created return capability */
+	cap.rel_offset = i;
 	cap.owner_spd_handle = from_spd->spd_handle;
 	cap.dest_spd_handle = to_spd->spd_handle;
 	cap.il = 3;
@@ -1695,7 +1695,7 @@ static void setup_kernel(struct service_symbs *services)
 	rdtscll(end);
 	aed_enable_syscalls(cntl_fd);
 
-	printf("Invocation takes %lld, ret %d.\n", (end-start)/ITER, ret);
+	printf("Invocation takes %lld, ret %x.\n", (end-start)/ITER, ret);
 	
 	close(cntl_fd);
 

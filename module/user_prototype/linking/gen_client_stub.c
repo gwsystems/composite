@@ -9,30 +9,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <malloc.h>
+#include <assert.h>
 
 #include <asm_ipc_defs.h>
 
-#define STR_SIZE 1024
-
-char *header = 
-".text\n"
-".globl c_cap_stub\n"
-".align 16\n"
-"ocap_stub:\n\t"
-"pushl %%ebp\n\t"
-"pushl %%ebx\n\t" 
-"pushl %%ecx\n\t" 
-"pushl %%edx\n\t" 
-"movl %%esp, %%ebp\n\t" 
-"movl $after_inv, %%ecx\n\t" 
-"movl %d(%%eax), %%eax\n\t" 
-"shll $0x10,%%eax /* because of hijacking, composite assumes shifted syscall #s */\n\t"
-"sysenter\n" 
-"after_inv:\n\t" 
-"popl %%edx\n\t" 
-"popl %%ecx\n\t" 
-"popl %%ebx\n\t" 
-"popl %%ebp\n\n"; 
+#define STR_SIZE 1024*4
+#define FN_NAME_SZ 256
+#define UCAP_EXT "_cos_ucap"
 
 /*
  * FIXME: This is all wrong.  Really.
@@ -49,16 +32,19 @@ char *header =
  * data.
  */
 
-/* would be nice to fit this into 1 cache line */
 char *fn_string = 
+".text\n"
 ".globl %s\n"
 ".align 16\n"
 "%s:\n\t"
 /* get the cap table */
-"movl $ST_user_caps, %%eax\n\t"
-"/* eax now holds the **usr_inv_cap */\n\t"
-"/* get the specific *usr_inv_cap we are interested in */\n\t"
-"addl $%d, %%eax\n\t"
+/* "movl $ST_user_caps, %%eax\n\t" */
+/* "/\* eax now holds the **usr_inv_cap *\/\n\t" */
+/* "/\* get the specific *usr_inv_cap we are interested in *\/\n\t" */
+/* "addl $%d, %%eax\n\t" */
+"movl $%s, %%eax\n\t"
+/*"movl (%%eax), %%eax\n\t"
+  "ret\n\t"*/
 /* are we ST, hardcoded as 0? */
 /*"cmpl $0, %d(%%eax)\n\t"*/
 /*"jne 1f\n\t"*/
@@ -69,6 +55,9 @@ char *fn_string =
 "je 1f\n\t"
 "/* Static branch prediction will go here: incriment invocation cnt */\n\t"
 "incl %d(%%eax)\n" /* why is this 4 cycles? how aren't we using the parallelism? */
+// The following approach works too and avoids the branch...but has the same cost.
+//"incl %d(%%eax)\n\t" /* why is this 4 cycles? how aren't we using the parallelism? */
+//"andl $0x7FFFFFFF, %d(%%eax)\n\t"
 /*"jmp *%d(%%eax)\n"*/
 "1: \n\t"
 /*"pushl $ST_inv_stk\n\t"*/
@@ -79,43 +68,66 @@ char *fn_string =
  * useful as that entry holds the kernel version of the capability.
  */
 
-char *footer =
-".data\n"
-".align 32\n"
-".globl ST_user_caps\n"
-"ST_user_caps:\n"
-".rep %d\n"
-".long 4\n"
-".endr\n"
-"ST_user_caps_end:\n"
+/*
 
+fn:
+  movl $fn_user_cap_addr, %eax
+  cmpl $(~0), invocation_cnt_offset(%eax)
+  je full
+  incl invocation_cnt_offset(%eax)
+full:
+  jmp *fn_ptr_offset(%eax)
 
-/* 4 4K stacks */
-/*".globl cos_static_stack\n"
-".align 32\n"
-"cos_static_stack:\n"
-".rep 4096\n"
-".long 4\n"
-".endr\n"
-
-".section .inv_stk\n"
-".globl ST_invocation_stack\n"
-"ST_invocation_stack:\n"
-".long\n"
-".globl ST_inv_stk_size\n"
-"ST_inv_stk_size:\n"
-".long\n"
 */
+
+char *footer1 =
+".data\n"
+".align 4096\n"
+".globl ST_user_caps\n"
+"ST_user_caps:\n\t"
+".long 0\n" 			/* take up a whole cap slot for cap 0 */
+;
+char *footer2 = 
+".align 16\n"
+"ST_user_caps_end:\n\t"
+".long 0\n";
+
+char *cap_data =
+".align 16\n"
+".globl %s\n"
+"%s:\n\t"
+".long 0\n"
 ;
 
+static char *string_to_token(char *output, char *str, int token, int maxlen)
+{
+	char *end;
+	int len;
 
-static inline void create_stanza(char *output, int len, char *template, 
-				 char *fn_name, int cap_num)
+	end = strchr(str, token);
+	if (NULL == end) {
+		strcpy(output, str);
+		return NULL;
+	}
+
+	len = end-str;
+	if (len >= maxlen) {
+		fprintf(stderr, "function name starting at %s too long\n", str);
+		exit(-1);
+	}
+	strncpy(output, str, len);
+	output[len] = '\0';
+	return end+1;
+}
+
+static inline void create_stanza(char *output, int len, char *fn_name, int cap_num)
 {
 	int ret;
+	char ucap_name[FN_NAME_SZ];
 
-	ret = snprintf(output, len, template, fn_name, fn_name, 
-		       cap_num*SIZEOFUSERCAP, /*INVFN,*/ INVOCATIONCNT, INVOCATIONCNT, /*ENTRYFN,*/ INVFN);
+	sprintf(ucap_name, "%s"UCAP_EXT, fn_name);
+	ret = snprintf(output, len, fn_string, fn_name, fn_name, 
+		       ucap_name/*cap_num*SIZEOFUSERCAP*/, INVOCATIONCNT, INVOCATIONCNT, /*ENTRYFN,*/ INVFN);
 
 	if (ret == len) {
 		fprintf(stderr, "Function name %s too long: string overrun.\n", fn_name);
@@ -125,43 +137,59 @@ static inline void create_stanza(char *output, int len, char *template,
 	return;
 }
 
+static inline void create_cap_data(char *output, int len, char *name)
+{
+	int ret;
+	
+	ret = snprintf(output, len, cap_data, name, name);
+	if (ret == len) {
+		fprintf(stderr, "Function name %s too long: string overrun in cap data production\n", name);
+		exit(-1);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	char *product;
-	char *delim = ",";
-	char *tok, *fns;
+	char *fns;
 	unsigned int cap_no = 1;
-	int len, ret;
-	char h[STR_SIZE];
+	int len;
 
 	if (argc != 2 && argc != 1) {
 		printf("Usage: %s <nothing OR string of comma-separated functions in trusted service's API>", argv[0]);
 		return -1;
 	}
 
-	ret = snprintf(h, STR_SIZE, header, CAPNUM);
-	if (ret == STR_SIZE) {
-		fprintf(stderr, "Did not allocate enough room for header.\n");
-		exit(-1);
-	}
-	printf("%s", h);
-
 	if (argc == 2) {
+		char fn_name[FN_NAME_SZ];
+		char *orig_fns;
+
 		/* conservative amount of space for fn names: ~500 chars */
 		len = strlen(fn_string)+STR_SIZE;
 		product = malloc(len);
-		fns = argv[1];
+		assert(product);
+		orig_fns = fns = argv[1];
 		
-		/* NOTE: strtok not thread safe... */
-		tok = strtok(fns, delim);
-		
-		do {
-			create_stanza(product, len, fn_string, tok, cap_no);
-			printf("%s\n\n", product);
-			
-			tok = strtok(NULL, delim);
+		while (NULL != fns) {
+			fns = string_to_token(fn_name, fns, ',', FN_NAME_SZ);
+			create_stanza(product, len, fn_name, cap_no);
+			printf("%s\n", product);
 			cap_no++;
-		} while (tok != '\0');
+		}
+		fns = orig_fns;
+		printf(footer1);
+		while (NULL != fns) {
+			char new_name[FN_NAME_SZ] = "\n";
+
+			fns = string_to_token(fn_name, fns, ',', FN_NAME_SZ);
+			sprintf(new_name, "%s"UCAP_EXT, fn_name);
+			create_cap_data(product, len, new_name);
+			printf("%s\n", product);
+		}
+		printf(footer2);
+	} else {
+		printf(footer1);
+		printf(footer2);
 	}
 
 	/* 
@@ -169,7 +197,7 @@ int main(int argc, char *argv[])
 	 * an entry per static capability made.  /4 because we are
 	 * repeating the occurance of 4 bytes, not one (see footer).
 	 */
-	printf(footer, ((cap_no)*SIZEOFUSERCAP)/4);
+//	printf(footer, ((cap_no)*SIZEOFUSERCAP)/4);
 
 	return 0;
 }

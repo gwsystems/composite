@@ -1206,6 +1206,20 @@ int sched_init(void)
 	struct sched_thd *new;//, *new2;
 	int target_spdid;
 
+//#define MICRO_INV
+#define MICRO_ITER 1000000
+#ifdef MICRO_INV
+	extern void print_null(void);
+	{
+		assert(!cos_mpd_cntl(COS_MPD_MERGE, 1, 6));
+		int i;
+		for (i = 0 ; i < MICRO_ITER ; i++) {
+			print_null();
+		}
+	}
+	return 0;
+#endif
+
 	if (!first) return -1;
 	first = 0;
 
