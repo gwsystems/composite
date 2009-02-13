@@ -303,6 +303,13 @@ struct cos_argreg_extent {
 	unsigned int size;
 };
 
+/* Is the buffer entirely in the argument region */
+static inline int cos_argreg_buff_intern(char *buff, int sz)
+{
+	if (COS_IN_ARGREG(buff) && COS_IN_ARGREG(buff+sz)) return 1;
+	return 0;
+}
+
 static inline void cos_argreg_init(void)
 {
 	struct cos_argreg_extent *ex = cos_get_arg_region();

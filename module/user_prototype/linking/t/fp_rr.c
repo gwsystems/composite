@@ -1207,8 +1207,8 @@ int sched_init(void)
 	int target_spdid;
 
 //#define MICRO_INV
-#define MICRO_ITER 1000000
 #ifdef MICRO_INV
+#define MICRO_ITER 1000000
 	extern void print_null(void);
 	{
 		assert(!cos_mpd_cntl(COS_MPD_MERGE, 1, 6));
@@ -1263,14 +1263,15 @@ int sched_init(void)
 	new = sched_setup_thread_arg(NORMAL_PRIO_HI+3, NORMAL_PRIO_HI+3, fp_create_spd_thd, (void*)target_spdid);
 	print("Network thread (2) has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+3, 0);
 
-/*
-#define N_THDS 16
-	new = sched_setup_thread_arg(4, 4, fp_create_spd_thd, (void*)2);
-	for (i = 0; i < N_THDS; i++) {
-		new2 = sched_setup_thread_arg(4, 4, fp_create_spd_thd, (void*)2);
-	}
-	print("Worker threads have ids %d to %d @ priority %d.", new->id, new2->id, 4);
-*/
+	target_spdid = spd_name_map_id("fd.o");
+	assert(target_spdid != -1);
+	new = sched_setup_thread_arg(NORMAL_PRIO_HI+4, NORMAL_PRIO_HI+4, fp_create_spd_thd, (void*)target_spdid);
+	print("fd thread has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+4, 0);
+
+	target_spdid = spd_name_map_id("conn.o");
+	assert(target_spdid != -1);
+	new = sched_setup_thread_arg(NORMAL_PRIO_HI+4, NORMAL_PRIO_HI+4, fp_create_spd_thd, (void*)target_spdid);
+	print("conn thread has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+4, 0);
 
 	/* Block to begin execution of the normal tasks */
 	fp_pre_block(init);

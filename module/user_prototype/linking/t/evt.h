@@ -40,7 +40,7 @@ struct evt_grp;
 
 struct evt {
 	evt_status_t status;
-	void *extern_id;
+	long extern_id;
 	struct evt_grp *grp;
 };
 
@@ -79,21 +79,17 @@ static inline void evt_grp_init(struct evt_grp *eg, spdid_t spdid, u16_t tid)
 static inline int __evt_trigger(struct evt *e)
 {
 	struct evt_grp *g;
+	evt_status_t s;
 
 	assert(NULL != e);
 	g = e->grp;
-	/* Someone waiting on this event? */
-	if (EVT_BLOCKED == e->status) {
-		e->status = EVT_INACTIVE;
-		return g->tid;
-	}
-	/* Someone waiting on this group? */
-	if (EVTG_BLOCKED == g->status) {
-		g->status = EVTG_INACTIVE;
-		return g->tid;
-	}
-	/* Otherwise mark the event as triggered. */
+	s = e->status;
+	/* mark the event as triggered. */
 	e->status = EVT_TRIGGERED;
+	/* Someone waiting on this event? */
+	if (EVT_BLOCKED == s || EVTG_BLOCKED == s) {
+		return g->tid;
+	}
 	return 0;
 }
 
@@ -104,7 +100,7 @@ static inline int __evt_trigger(struct evt *e)
  *
  * Some sort of a lock should probably be taken before calling this fn.
  */
-static int __evt_grp_read(struct evt_grp *g, struct evt* *evt)
+static int __evt_grp_read(struct evt_grp *g, struct evt **evt)
 {
 	struct evt *e;
 	int i;
@@ -118,6 +114,7 @@ static int __evt_grp_read(struct evt_grp *g, struct evt* *evt)
 		if (e->status == EVT_FREE) continue;
 		if (e->status == EVT_TRIGGERED) {
 			e->status = EVT_INACTIVE;
+			g->status = EVTG_INACTIVE;
 			*evt = e;
 			return 0;
 		}

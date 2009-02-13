@@ -16,7 +16,7 @@ module: comps
 	$(MAKE) -C $(NET_DIR)
 
 cp:
-	cp cos.ko $(TRANS_DIR)
+	cp cos.ko run.sh $(TRANS_DIR)
 	make -C $(LINKER_DIR) copy
 	make -C $(NET_DIR) copy
 

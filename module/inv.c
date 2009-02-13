@@ -2140,7 +2140,15 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 		assert(!(upcall->flags & THD_STATE_READY_UPCALL));
 		cos_meas_event(COS_MEAS_BRAND_PEND);
 		brand->pending_upcall_requests++;
-////////GAP:TEST		update_thd_evt_state(upcall, COS_SCHED_EVT_BRAND_PEND, 1);
+
+		/* 
+		 * This is an annoying hack to make sure we notify the
+		 * scheduler that the upcall is active.  Because
+		 * upcall notifications are edge triggered, if for
+		 * some reason the scheduler misses one of the
+		 * notifications, this can server as a reminder.
+		 */
+//		update_thd_evt_state(upcall, COS_SCHED_EVT_BRAND_PEND, 1);
 //		cos_meas_event(COS_MEAS_PENDING_HACK);
 
 		//printk("cos: upcall thread @ %x or %x, current is %d\n", 

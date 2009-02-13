@@ -21,8 +21,36 @@ struct cos_sched_data_area cos_sched_notifications = {
 };
 
 __attribute__ ((weak))
+void cos_init(void *arg)
+{
+	return;
+}
+
+__attribute__ ((weak))
+void cos_upcall_exec(void *arg)
+{
+	return;
+}
+
+__attribute__ ((weak))
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
+	switch (t) {
+	case COS_UPCALL_BRAND_EXEC:
+	{
+		cos_upcall_exec(arg1);
+		break;
+	}
+	case COS_UPCALL_BOOTSTRAP:
+	{
+		cos_argreg_init();
+		cos_init(arg1);
+		break;
+	}
+	default:
+		*(int*)NULL = 0;
+		return;
+	}
 	return;
 }
 

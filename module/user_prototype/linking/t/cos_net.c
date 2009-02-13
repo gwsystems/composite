@@ -94,10 +94,10 @@ struct thd_map {
 extern int sched_component_take(spdid_t spdid);
 extern int sched_component_release(spdid_t spdid);
 
-extern int evt_trigger(spdid_t spdid, void *extern_evt);
-extern int evt_wait(spdid_t spdid, void *extern_evt);
-extern void *evt_grp_wait(spdid_t spdid);
-extern int evt_create(spdid_t spdid, void *extern_evt);
+extern int evt_trigger(spdid_t spdid, long extern_evt);
+extern int evt_wait(spdid_t spdid, long extern_evt);
+extern long evt_grp_wait(spdid_t spdid);
+extern int evt_create(spdid_t spdid, long extern_evt);
 
 cos_lock_t alloc_lock;
 cos_lock_t net_lock;
@@ -380,7 +380,8 @@ static unsigned short int cos_net_create_net_upcall(unsigned short int port, rb_
 typedef enum {
 	FREE,
 	UDP,
-	TCP
+	TCP,
+	COS_CLOSED
 } conn_t;
 
 typedef enum {
@@ -403,7 +404,7 @@ struct intern_connection {
 	spdid_t spdid;
 	conn_t conn_type;
 	conn_thd_t thd_status;
-	void *data;
+	long data;
 	union {
 		struct udp_pcb *up;
 		struct tcp_pcb *tp;
@@ -435,7 +436,7 @@ static int net_conn_init(void)
 	for (i = 0; i < MAX_CONNS ; i++) {
 		struct intern_connection *ic = &connections[i];
 		ic->conn_type = FREE;
-		ic->data = NULL;
+		ic->data = -1;
 		ic->free = &connections[i+1];
 	}
 	connections[MAX_CONNS-1].free = NULL;
@@ -464,7 +465,7 @@ static inline int net_conn_valid(net_connection_t nc)
 	return 1;
 }
 
-static inline struct intern_connection *net_conn_alloc(conn_t conn_type, u16_t tid, void *data)
+static inline struct intern_connection *net_conn_alloc(conn_t conn_type, u16_t tid, long data)
 {
 	struct intern_connection *ic = free_list;
 
@@ -483,6 +484,8 @@ static inline struct intern_connection *net_conn_alloc(conn_t conn_type, u16_t t
 
 static inline void net_conn_free(struct intern_connection *ic)
 {
+	assert(ic);
+	assert(0 == ic->incoming_size);
 	ic->conn_type = FREE;
 	ic->free = free_list;
 	free_list = ic;
@@ -607,7 +610,7 @@ static void cos_net_lwip_udp_recv(void *arg, struct udp_pcb *upcb, struct pbuf *
  * FIXME: currently we associate a connection with a thread (and an
  * upcall thread), which is restrictive.
  */
-net_connection_t net_create_udp_connection(spdid_t spdid, void *evt_id)
+net_connection_t net_create_udp_connection(spdid_t spdid, long evt_id)
 {
 	struct udp_pcb *up;
 	struct intern_connection *ic;
@@ -692,9 +695,54 @@ static void cos_net_lwip_tcp_err(void *arg, err_t err)
 	struct intern_connection *ic = arg;
 	assert(ic);
 
-	prints("TCP error: don't really have docs to know what this means.");
+	switch(err) {
+	case ERR_ABRT:
+		assert(ic->conn_type == TCP);
+		ic->conn_type = COS_CLOSED;
+		ic->conn.tp = NULL;
+		break;
+	default:
+		printc("TCP error #%d: don't really have docs to know what this means.", err);
+	}
 
 	return;
+}
+
+static void __net_close(struct intern_connection *ic)
+{
+	struct packet_queue *pq, *pq_next;
+
+	switch (ic->conn_type) {
+	case UDP:
+	{
+		struct udp_pcb *up;
+
+		up = ic->conn.up;
+		udp_remove(up);
+		break;
+	}
+	case TCP:
+	{
+		struct tcp_pcb *tp;
+
+		tp = ic->conn.tp;
+		tcp_abort(tp);
+		break;
+	}
+	case COS_CLOSED:
+		break;
+	default:
+		assert(0);
+	}
+	pq = ic->incoming;
+	if (pq) {
+		while (pq) {
+			pq_next = pq->next;
+			free(pq);
+			pq = pq_next;
+		}
+	}
+	net_conn_free(ic);
 }
 
 static err_t cos_net_lwip_tcp_recv(void *arg, struct tcp_pcb *tp, struct pbuf *p, err_t err)
@@ -704,7 +752,8 @@ static err_t cos_net_lwip_tcp_recv(void *arg, struct tcp_pcb *tp, struct pbuf *p
 	void *headers;
 
 	if (NULL == p) {
-		prints("closing TCP connection!");
+		assert(NULL != arg);
+		__net_close((struct intern_connection*)arg);
 		return ERR_OK;
 	}
 	/* We should not receive a list of packets unless it is from
@@ -739,7 +788,7 @@ static err_t cos_net_lwip_tcp_recv(void *arg, struct tcp_pcb *tp, struct pbuf *p
 	assert(1 == p->ref);
 	pbuf_free(p);
 
-	if (evt_trigger(cos_spd_id(), (void*)2)) assert(0);
+	if (-1 != ic->data && evt_trigger(cos_spd_id(), ic->data)) assert(0);
 /* 	/\* If the thread blocked waiting for a packet, wake it up *\/ */
 /* 	if (RECVING == ic->thd_status) { */
 /* 		ic->thd_status = ACTIVE; */
@@ -754,14 +803,13 @@ static err_t cos_net_lwip_tcp_sent(void *arg, struct tcp_pcb *tp, u16_t len)
 {
 	struct intern_connection *ic = arg;
 	assert(ic);
-	
-	/* FIXME: can be smarter here not waking the thread if the
-	 * amount it wants to send is < len.  Probably not worth the
-	 * trouble. */
-	if (SENDING == ic->thd_status) {
-		ic->thd_status = ACTIVE;
-		if (sched_wakeup(cos_spd_id(), ic->tid)) assert(0);
-	}
+
+	/* I don't know why this is happening, but even when sending
+	 * nothing, it says that we send 1 byte on accepts.  There is
+	 * no ic->data associated with the connection yet, so we have
+	 * a problem. */
+	if (-1 == ic->data) return ERR_OK;
+	if (evt_trigger(cos_spd_id(), ic->data)) assert(0);
 
 	return ERR_OK;
 }
@@ -782,7 +830,7 @@ static err_t cos_net_lwip_tcp_connected(void *arg, struct tcp_pcb *tp, err_t err
 static err_t cos_net_lwip_tcp_accept(void *arg, struct tcp_pcb *new_tp, err_t err);
 
 /* FIXME: same as for the udp version of this function. */
-static net_connection_t __net_create_tcp_connection(spdid_t spdid, u16_t tid, struct tcp_pcb *new_tp, void *evt_id)
+static net_connection_t __net_create_tcp_connection(spdid_t spdid, u16_t tid, struct tcp_pcb *new_tp, long evt_id)
 {
 	struct tcp_pcb *tp;
 	struct intern_connection *ic;
@@ -827,7 +875,7 @@ err:
 	return ret;
 }
 
-net_connection_t net_create_tcp_connection(spdid_t spdid, u16_t tid, void *evt_id)
+net_connection_t net_create_tcp_connection(spdid_t spdid, u16_t tid, long evt_id)
 {
 	return __net_create_tcp_connection(spdid, tid, NULL, evt_id);
 }
@@ -844,12 +892,14 @@ static err_t cos_net_lwip_tcp_accept(void *arg, struct tcp_pcb *new_tp, err_t er
 	 * FIXME: until the external call to accept, we can't create
 	 * an event to associate with this connection.  
 	 */
-	if (0 > (nc = __net_create_tcp_connection(ic->spdid, ic->tid, new_tp, NULL))) assert(0);
+	if (0 > (nc = __net_create_tcp_connection(ic->spdid, ic->tid, new_tp, -1))) assert(0);
 	ic->accepted_ic = net_conn_get_internal(nc);
-	if (ACCEPTING == ic->thd_status) {
-		ic->thd_status = ACTIVE;
-		if (sched_wakeup(cos_spd_id(), ic->tid) < 0) assert(0);
-	}
+	assert(-1 != ic->data);
+	if (evt_trigger(cos_spd_id(), ic->data)) assert(0);
+/* 	if (ACCEPTING == ic->thd_status) { */
+/* 		ic->thd_status = ACTIVE; */
+/* 		if (sched_wakeup(cos_spd_id(), ic->tid) < 0) assert(0); */
+/* 	} */
 
 	return ERR_OK;
 }
@@ -933,20 +983,26 @@ done:
 net_connection_t net_accept(spdid_t spdid, net_connection_t nc)
 {
 	struct intern_connection *ic, *new_ic;
-	net_connection_t ret = 0;
+	net_connection_t ret = -1;
 
 	NET_LOCK_TAKE();
 	ic = net_verify_tcp_connection(nc, &ret);
-	if (NULL == ic) goto done;
+	if (NULL == ic) {
+		ret = -EINVAL;
+		goto done;
+	}
 
 	/* No accepts are pending on this connection?: block */
 	if (NULL == ic->accepted_ic) {
-		assert(ic->tid == cos_get_thd_id());
-		ic->thd_status = ACCEPTING;
-		NET_LOCK_RELEASE();
-		if (sched_block(cos_spd_id()) < 0) assert(0);
-		NET_LOCK_TAKE();
-		assert(ACTIVE == ic->thd_status);
+		ret = -EAGAIN;
+		goto done;
+/* 		assert(ic->tid == cos_get_thd_id()); */
+/* 		ic->thd_status = ACCEPTING; */
+/* 		NET_LOCK_RELEASE(); */
+/* 		prints("net_accept: blocking!"); */
+/* 		if (sched_block(cos_spd_id()) < 0) assert(0); */
+/* 		NET_LOCK_TAKE(); */
+/* 		assert(ACTIVE == ic->thd_status); */
 	}
 
 	assert(NULL != ic->accepted_ic);
@@ -958,6 +1014,29 @@ net_connection_t net_accept(spdid_t spdid, net_connection_t nc)
 done:
 	NET_LOCK_RELEASE();
 	return ret;
+}
+
+/* 
+ * After a connection has been accepted, we need to associate it with
+ * its "event" data, or the scalar to pass to the event component.
+ * That is what this call does.
+ */
+int net_accept_data(spdid_t spdid, net_connection_t nc, long data)
+{
+	struct intern_connection *ic;
+	int ret;
+
+	NET_LOCK_TAKE();
+	ic = net_verify_tcp_connection(nc, &ret);
+	if (NULL == ic || -1 != ic->data) goto err;
+	ic->data = data;
+	if (0 < ic->incoming_size) evt_trigger(cos_spd_id(), data);
+	NET_LOCK_RELEASE();
+
+	return 0;	
+err:
+	NET_LOCK_RELEASE();
+	return -1;
 }
 
 int net_listen(spdid_t spdid, net_connection_t nc)
@@ -1026,6 +1105,10 @@ static int __net_bind(spdid_t spdid, net_connection_t nc, struct ip_addr *ip, u1
 		NET_LOCK_RELEASE();
 		return 0;
 	}
+	case COS_CLOSED:
+		__net_close(ic);
+		ret = -EBADF;
+		break;
 	default:
 		assert(0);
 	}
@@ -1080,6 +1163,9 @@ static int __net_connect(spdid_t spdid, net_connection_t nc, struct ip_addr *ip,
 		/* When we wake up, we should be connected. */
 		return 0;
 	}
+	case COS_CLOSED:
+		__net_close(ic);
+		return -ENOTSOCK;
 	default:
 		assert(0);
 	}
@@ -1094,6 +1180,25 @@ int net_connect(spdid_t spdid, net_connection_t nc, u32_t ip, u16_t port)
 {
 	struct ip_addr ipa = *(struct ip_addr*)&ip;
 	return __net_connect(spdid, nc, &ipa, port);
+}
+
+int net_close(spdid_t spdid, net_connection_t nc)
+{
+	struct intern_connection *ic;
+	u16_t tid = cos_get_thd_id();
+
+	NET_LOCK_TAKE();
+	if (!net_conn_valid(nc)) goto perm_err;
+	ic = net_conn_get_internal(nc);
+	if (tid != ic->tid) goto perm_err;
+	assert(ACTIVE == ic->thd_status);
+
+	__net_close(ic);
+	NET_LOCK_RELEASE();
+	return 0;
+perm_err:
+	NET_LOCK_RELEASE();
+	return -EPERM;
 }
 
 int net_recv(spdid_t spdid, net_connection_t nc, void *data, int sz)
@@ -1118,6 +1223,10 @@ int net_recv(spdid_t spdid, net_connection_t nc, void *data, int sz)
 		break;
 	case TCP:
 		xfer_amnt = cos_net_tcp_recv(ic, data, sz);
+		break;
+	case COS_CLOSED:
+		__net_close(ic);
+		xfer_amnt = -EBADF;
 		break;
 	default:
 		assert(0);
@@ -1180,19 +1289,12 @@ int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 	case TCP:
 	{
 		struct tcp_pcb *tp;
-		int ret;
 		
 		tp = ic->conn.tp;
-		while (tcp_sndbuf(tp) < sz) {
-			ic->thd_status = SENDING;
-//printc("blocking on send, sz %d, send buff %d", sz, tcp_sndbuf(tp));
-			NET_LOCK_RELEASE();
-			if (0 > sched_block(cos_spd_id())) assert(0);
-//printc("send wokeup, sz %d, send buff %d", sz, tcp_sndbuf(tp));
-			NET_LOCK_TAKE();
-			assert(ACTIVE == ic->thd_status);
+		if (tcp_sndbuf(tp) < sz) { 
+			ret = 0;
+			break;
 		}
-//printc("writing to the stack");
 		if (ERR_OK != (ret = tcp_write(tp, data, sz, 1))) {
 			printc("tcp_write returned %d (sz %d, tcp_sndbuf %d, ERR_MEM: %d)", 
 			       ret, sz, tcp_sndbuf(tp), ERR_MEM);
@@ -1201,6 +1303,10 @@ int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 
 		break;
 	}
+	case COS_CLOSED:
+		__net_close(ic);
+		ret = -EBADF;
+		break;
 	default:
 		assert(0);
 	}
@@ -1397,7 +1503,7 @@ static struct udp_pcb *cos_net_create_inbound_udp_conn(u16_t local_port, struct 
 	struct udp_pcb *up;
 
 	assert(tm);
-	up = udp_new();
+ 	up = udp_new();
 	if (!up) return NULL;
 	if (ERR_OK != udp_bind(up, IP_ADDR_ANY, local_port)) {
 		prints("net: could not create inbound udp_conn.");
@@ -1451,8 +1557,10 @@ static void test_tcp(void)
 	int ret, len;
 	struct intern_connection *ic;
 
-	nc = net_create_tcp_connection(cos_spd_id(), cos_get_thd_id(), (void*)1);
-	if (evt_create(cos_spd_id(), (void*)1)) assert(0);
+	nc = net_create_tcp_connection(cos_spd_id(), cos_get_thd_id(), 1);
+	if (evt_create(cos_spd_id(), 1)) assert(0);
+	ic = net_conn_get_internal(nc);
+	ic->data = 1;
 	if (nc) print("create udp connection error: %d %d%d", nc, 0,0);
 	printc("tcp connection created: %d.", nc);
 	ret = __net_bind(cos_spd_id(), nc, IP_ADDR_ANY, 200);
@@ -1460,10 +1568,17 @@ static void test_tcp(void)
 	if (ret) print("Bind error: %d. %d%d", ret, 0, 0);
 	net_listen(cos_spd_id(), nc);
 	printc("%d set to listen", nc);
-	nc_new = net_accept(cos_spd_id(), nc);
+	nc_new = -EAGAIN;
+	while (-EAGAIN == nc) {
+		nc_new = net_accept(cos_spd_id(), nc);
+		if (-EAGAIN == nc_new) {
+			assert(0);
+		}
+	}
+	printc("%d returned from accept", nc_new);
 	ic = net_conn_get_internal(nc_new);
-	ic->data = (void*)2;
-	if (evt_create(cos_spd_id(), (void*)2)) assert(0);
+	ic->data = 2;
+	if (evt_create(cos_spd_id(), 2)) assert(0);
 
 	printc("%d accepted and returned connection %d", nc, nc_new);
 	if (nc_new < 0) assert(0);
@@ -1471,9 +1586,9 @@ static void test_tcp(void)
 	
 	while (1) {
 		len = net_recv(cos_spd_id(), nc_new, data, 128);
-		if (0 == len) if (evt_wait(cos_spd_id(), (void*)2)) assert(0);
-		if (len <= 0) printc("len < 0: %d", len);
-		assert(len > 0);
+		if (0 == len) {
+			if (2 != (int)evt_grp_wait(cos_spd_id()/*, 2*/)) assert(0);
+		}
 		//net_send(cos_spd_id(), nc_new, data, len);
 	}
 }
@@ -1485,11 +1600,11 @@ static void test_udp(void)
 	int ret;
 	struct ip_addr dest;
 
-	nc = net_create_udp_connection(cos_spd_id(), NULL);
+	nc = net_create_udp_connection(cos_spd_id(), -1);
 	if (nc) print("create udp connection error: %d %d%d", nc, 0,0);
 	ret = __net_bind(cos_spd_id(), nc, IP_ADDR_ANY, 200);
 	if (ret) print("Bind error: %d. %d%d", ret, 0, 0);
-	nco = net_create_udp_connection(cos_spd_id(), NULL);
+	nco = net_create_udp_connection(cos_spd_id(), -1);
 	IP4_ADDR(&dest, 10,0,1,5);
 	__net_connect(cos_spd_id(), nco, &dest, 6000);
 	
@@ -1502,8 +1617,9 @@ static void test_udp(void)
 
 static void test_thd(void)
 {
-	test_tcp();
+//	test_tcp();
 ////	test_udp();
+	sched_block(cos_spd_id());
 }
 
 static int init(void) 
@@ -1565,32 +1681,21 @@ static int init(void)
 	return 0;
 }
 
-void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
+void cos_init(void *arg)
 {
-	switch (t) {
-	case COS_UPCALL_BRAND_EXEC:
-	{
-		cos_net_interrupt();
-		break;
-	}
-	case COS_UPCALL_BOOTSTRAP:
-	{
-		volatile static int first = 1;
+	volatile static int first = 1;
 
-		if (first) {
-			first = 0;
-			init();
-			assert(0);
-		} else {
-			test_thd();
-			prints("net: not expecting more than one bootstrap.");
-		}
-		break;
-	}
-	default:
-		print("Unknown type of upcall %d made to net (%d, %d).", t, (unsigned int)arg1,(unsigned int)arg2);
+	if (first) {
+		first = 0;
+		init();
 		assert(0);
-		return;
+	} else {
+		test_thd();
+		prints("net: not expecting more than one bootstrap.");
 	}
-	return;
+}
+
+void cos_upcall_exec(void *arg)
+{
+	cos_net_interrupt();
 }

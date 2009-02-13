@@ -269,7 +269,7 @@ not_composite_pf:
 */
 	call main_page_fault_interposition
 	test %eax, %eax
-	jne normal_pf
+	jnz normal_pf
 	RESTORE_REGS
 	iret
 

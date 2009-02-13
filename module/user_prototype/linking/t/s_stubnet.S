@@ -1,47 +1,13 @@
-#include <cos_asm_stacks.h>
+#include <cos_asm_server_stub.h>
 
-#ifdef NIL	
-#define RET_CAP ((1<<20)-1)
-#define IPRETURN 4
+cos_asm_server_stub_spdid(net_create_tcp_connection)
+cos_asm_server_stub_spdid(net_create_udp_connection)
+cos_asm_server_stub_spdid(net_accept)
+cos_asm_server_stub_spdid(net_accept_data)
+cos_asm_server_stub_spdid(net_listen)
+cos_asm_server_stub_spdid(net_bind)
+cos_asm_server_stub_spdid(net_connect)
+cos_asm_server_stub_spdid(net_close)
 
-.text	
-/* delivered to the server service all calls are demuxed through here
-   so that we can have a uniform infrastructure for returning (through 
-   ipc_server_ret_marshal) */
-
-.globl mman_get_page_inv
-.type  mman_get_page_inv, @function
-.align 16
-mman_get_page_inv:
-	COS_ASM_GET_STACK
-
-	pushl %edi 
-	pushl %esi
-/*	pushl %ebx*/
-	pushl %ecx
-	call mman_get_page
-	/* addl $16, %esp <- no need to clean up */
-	
-	movl %eax, %ecx
-	movl $RET_CAP, %eax /* return capability */
-
-	sysenter
-
-.globl mman_release_page_inv
-.type  mman_release_page_inv, @function
-.align 16
-mman_release_page_inv:
-	COS_ASM_GET_STACK
-
-	pushl %edi 
-	pushl %esi
-/*	pushl %ebx */
-	pushl %ecx
-	call mman_release_page
-	/* addl $16, %esp <- no need to clean up */
-	
-	movl %eax, %ecx
-	movl $RET_CAP, %eax /* return capability */
-
-	sysenter
-#endif
+cos_asm_server_stub_spdid(net_send)
+cos_asm_server_stub_spdid(net_recv)

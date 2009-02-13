@@ -1868,65 +1868,17 @@ int main_page_fault_interposition(void)
 	regs = get_user_regs_thread(composite_thread);
 	cos_handle_page_fault(thd, thd_get_thd_spdpoly(thd), fault_addr, regs);
 
+	/* change this to 0 when 1) kern_entry.S is fixed, and 2)
+	 * cos_handle_page_fault places the correct thread to run and
+	 * page tables to the fault handler thread.
+	 */
 	return 1;
 linux_handler_release:
 	up_read(&curr_mm->mmap_sem);
 linux_handler_put:
 	mmput(curr_mm);
 linux_handler:
-	/* change this when 1) kern_entry.S is fixed, and 2)
-	 * cos_handle_page_fault places the correct thread to run and
-	 * page tables to the fault handler thread. 
-	 */
-	return /*0*/1; 
-
-	/* hijack crap to follow ----> */
-	
-	/* normal process page fault */
-	if (!test_thread_flag(TIF_HIJACK_ENV))
-		return 0;
-
-	virt_sys = test_thread_flag(TIF_VIRTUAL_SYSCALL);
-
-	/*
-	 * If in the executive, we page fault, and need to use
-	 * the executive's (trusted) page translations.
-	 */
-	if (!virt_sys &&
-	    fault_addr >= trusted_mem_limit &&
-	    fault_addr < trusted_mem_limit+trusted_mem_size) {
-		/* locking done in do_page_fault, not here.
-		 * Interrupts disabled so no problem on uni, but FIXME
-		 * need spinlock for multi.  */
-		current->mm = trusted_mm;
-		current->active_mm = trusted_mm;
-#ifdef FAULT_DEBUG
-		// printk is actually freezing the machine...why!!!???
-		printk("cos: fault in executive @ %x.\n", (unsigned int)fault_addr);
-#endif
-	}
-	/*
-	 * If otherwise we fault in the guest regions, or are not in
-	 * the executive, make sure we are using guest translation
-	 * tables.  (We might not be if we changed page tables due to
-	 * the previous conditional on a previous page fault.)
-	 */
-	else /*if (!(fault_addr >= trusted_mem_limit &&
-		   fault_addr < trusted_mem_limit+trusted_mem_size) &&
-		   current->mm == trusted_mm)*/ {
-#ifdef FAULT_DEBUG
-		printk("cos: fault in guest (%x->%x) @ %x.\n", 
-		       (unsigned int)current->mm, (unsigned int)current_active_guest, 
-		       (unsigned int)fault_addr);
-#endif
-
-		if (current_active_guest) {
-			current->mm = current_active_guest;
-			current->active_mm = current_active_guest;
-		} /* else -> fault implied */
-	}
-		
-	return 0;
+	return 1; 
 }
 
 /*
