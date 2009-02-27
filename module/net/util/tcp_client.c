@@ -21,6 +21,8 @@ unsigned long long max = 0, min = (unsigned long long)-1, tot = 0, cnt = 0;
 int rcv = 0;
 char *rcv_msg;
 
+int conns, *conn_fds;
+
 void construct_header(char *msg)
 {
 	static unsigned int seqno = 1;
@@ -128,18 +130,14 @@ void start_timers()
 	return;
 }
 
-int foo = 0;
-
 int main(int argc, char *argv[])
 {
-	int fd;
 	struct sockaddr_in sa;
-	int msg_size;
 	char *msg;
-	int sleep_val;
+	int sleep_val, i, msg_size;
 
-	if (argc != 5) {
-		printf("Usage: %s <ip> <port> <msg size> <sleep_val>\n", argv[0]);
+	if (argc != 6) {
+		printf("Usage: %s <ip> <port> <msg size> <sleep_val> <conns>\n", argv[0]);
 		return -1;
 	}
 	sleep_val = atoi(argv[4]);
@@ -150,35 +148,46 @@ int main(int argc, char *argv[])
 	msg      = malloc(msg_size);
 	rcv_msg  = malloc(msg_size);
 
+	conns    = atoi(argv[5]);
+	conn_fds = malloc(conns * sizeof(int));
+
+	if (!conn_fds || !msg || !rcv_msg) return -1;
+	
 	sa.sin_family      = AF_INET;
 	sa.sin_port        = htons(atoi(argv[2]));
 	sa.sin_addr.s_addr = inet_addr(argv[1]);
-	if ((fd = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
-		perror("Establishing socket");
-		fflush(stdout);
-		return -1;
-	}
-	if (connect(fd, (struct sockaddr*)&sa, sizeof(sa))) {
-		perror("connecting");
-		return -1;
+	for (i = 0 ; i < conns ; i++) {
+		if ((conn_fds[i] = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
+			perror("Establishing socket");
+			fflush(stdout);
+			return -1;
+		}
+		if (socket_nonblock(conn_fds[i])) return -1;
+		if (connect(conn_fds[i], (struct sockaddr*)&sa, sizeof(sa)) &&
+		    errno != EINPROGRESS) {
+			perror("connecting");
+			return -1;
+		}
 	}
 	printf("Start communication\n");
 	fflush(stdout);
 	start_timers();
 	while (1) {
-		int i;
+		int i, j;
 
 		construct_header(msg);
-		if (write(fd, msg, msg_size) < 0 &&
-		    errno != EINTR) {
-			perror("sendto");
-			fflush(stdout);
-			return -1;
-		}
-		msg_sent++;
-		for (i=0 ; i < sleep_val ; i++) {
-			do_recv_proc(fd, msg_size);
-			foo++;
+		
+		for (i = 0 ; i < conns ; i++) {
+			if (write(conn_fds[i], msg, msg_size) < 0 &&
+			    errno != EINTR && errno != EAGAIN) {
+				perror("sendto");
+				fflush(stdout);
+				return -1;
+			}
+			msg_sent++;
+			for (j = 0 ; j < sleep_val ; j++) {
+				do_recv_proc(conn_fds[i], msg_size);
+			}
 		}
 		//nanosleep(&ts, NULL);
 	}

@@ -789,7 +789,11 @@ static void fp_pre_wakeup(struct sched_thd *t)
 {
 	assert(t->wake_cnt >= 0 && t->wake_cnt <= 2);
 	t->wake_cnt++;
-	assert(sched_thd_blocked(t) || t->wake_cnt == 2);
+	if (!(sched_thd_blocked(t) || t->wake_cnt == 2)) {
+		printc("thread %d (from thd %d) has wake_cnt %d", 
+		       t->id, cos_get_thd_id(), t->wake_cnt);
+		assert(0);
+	}
 }
 
 static void fp_wakeup(struct sched_thd *thd, spdid_t spdid)
@@ -1143,6 +1147,11 @@ void sched_resume_thd(int thd_id)
 	cos_sched_lock_release();
 
 	return;
+}
+
+unsigned long sched_timestamp(void)
+{
+	return (unsigned long)ticks;
 }
 
 /*********/

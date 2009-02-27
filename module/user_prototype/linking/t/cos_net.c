@@ -93,6 +93,7 @@ struct thd_map {
 
 extern int sched_component_take(spdid_t spdid);
 extern int sched_component_release(spdid_t spdid);
+extern unsigned long sched_timestamp(void);
 
 extern int evt_trigger(spdid_t spdid, long extern_evt);
 extern int evt_wait(spdid_t spdid, long extern_evt);
@@ -419,10 +420,11 @@ struct intern_connection {
 	 * packet where the read pointer is. */
 	int incoming_size, incoming_offset;
 
-	/* Accept will create a connection: */
-	struct intern_connection *accepted_ic;
+	/* Accept will create a connection.  A list of connections is
+	 * stored here using the next pointer. */
+	struct intern_connection *accepted_ic, *accepted_last;
 
-	struct intern_connection *free;
+	struct intern_connection *free, *next;
 };
 
 struct intern_connection *free_list;
@@ -471,7 +473,7 @@ static inline struct intern_connection *net_conn_alloc(conn_t conn_type, u16_t t
 
 	if (NULL == ic) return NULL;
 	free_list = ic->free;
-	ic->free = NULL;
+	ic->free = ic->next = ic->accepted_last = ic->accepted_ic = NULL;
 	ic->incoming = ic->incoming_last = NULL;
 	ic->incoming_size = 0;
 	ic->tid = tid;
@@ -882,18 +884,29 @@ net_connection_t net_create_tcp_connection(spdid_t spdid, u16_t tid, long evt_id
 
 static err_t cos_net_lwip_tcp_accept(void *arg, struct tcp_pcb *new_tp, err_t err)
 {
-	struct intern_connection *ic = arg;
+	struct intern_connection *ic = arg, *ica;
 	net_connection_t nc;
 
 	assert(ic);
-	assert(NULL == ic->accepted_ic);
 	
 	/* 
 	 * FIXME: until the external call to accept, we can't create
 	 * an event to associate with this connection.  
 	 */
+	printc("lwip accept @ %ld in network stack for fd %d", sched_timestamp(), ic->data);
 	if (0 > (nc = __net_create_tcp_connection(ic->spdid, ic->tid, new_tp, -1))) assert(0);
-	ic->accepted_ic = net_conn_get_internal(nc);
+
+	ica = net_conn_get_internal(nc);
+	ic->next = NULL;
+	if (NULL == ic->accepted_ic) {
+		assert(NULL == ic->accepted_last);
+		ic->accepted_ic = ica;
+		ic->accepted_last = ica;
+	} else {
+		assert(NULL != ic->accepted_last);
+		ic->accepted_last->next = ica;
+		ic->accepted_last = ica;
+	}
 	assert(-1 != ic->data);
 	if (evt_trigger(cos_spd_id(), ic->data)) assert(0);
 /* 	if (ACCEPTING == ic->thd_status) { */
@@ -994,6 +1007,8 @@ net_connection_t net_accept(spdid_t spdid, net_connection_t nc)
 
 	/* No accepts are pending on this connection?: block */
 	if (NULL == ic->accepted_ic) {
+		printc("net_accept @ %ld for fd %d failed with EAGAIN", 
+		       sched_timestamp(), ic->data);
 		ret = -EAGAIN;
 		goto done;
 /* 		assert(ic->tid == cos_get_thd_id()); */
@@ -1005,12 +1020,16 @@ net_connection_t net_accept(spdid_t spdid, net_connection_t nc)
 /* 		assert(ACTIVE == ic->thd_status); */
 	}
 
-	assert(NULL != ic->accepted_ic);
+	assert(NULL != ic->accepted_ic && NULL != ic->accepted_last);
 	new_ic = ic->accepted_ic;
-	ic->accepted_ic = NULL;
+	ic->accepted_ic = new_ic->next;
+	if (NULL == ic->accepted_ic) ic->accepted_last = NULL;
+	new_ic->next = NULL;
 	assert(ic->conn.tp);
 	tcp_accepted(ic->conn.tp);
 	ret = net_conn_get_opaque(new_ic);
+
+	printc("net_accept @ %ld for fd %d", sched_timestamp(), ic->data);
 done:
 	NET_LOCK_RELEASE();
 	return ret;
@@ -1030,8 +1049,12 @@ int net_accept_data(spdid_t spdid, net_connection_t nc, long data)
 	ic = net_verify_tcp_connection(nc, &ret);
 	if (NULL == ic || -1 != ic->data) goto err;
 	ic->data = data;
+	/* If data has already arrived, but couldn't trigger the event
+	 * because ->data was not set, trigger the event now. */
 	if (0 < ic->incoming_size) evt_trigger(cos_spd_id(), data);
 	NET_LOCK_RELEASE();
+
+	printc("net_accept_data @ %ld for fd %d", sched_timestamp(), data);
 
 	return 0;	
 err:
@@ -1039,7 +1062,7 @@ err:
 	return -1;
 }
 
-int net_listen(spdid_t spdid, net_connection_t nc)
+int net_listen(spdid_t spdid, net_connection_t nc, int queue)
 {
 	struct tcp_pcb *tp, *new_tp;
 	struct intern_connection *ic;
@@ -1051,9 +1074,7 @@ int net_listen(spdid_t spdid, net_connection_t nc)
 	tp = ic->conn.tp;
 	si = ic->spdid;
 	assert(NULL != tp);
-	/* Currently only supporting one for convenience: single
-	 * accepted_ic in the intern_connection struct */
-	new_tp = tcp_listen_with_backlog(tp, 1);
+	new_tp = tcp_listen_with_backlog(tp, queue);
 	ic->conn.tp = new_tp;
 	tcp_accept(new_tp, cos_net_lwip_tcp_accept);
 	//if (0 > __net_create_tcp_connection(si, new_tp)) assert(0);
@@ -1566,7 +1587,7 @@ static void test_tcp(void)
 	ret = __net_bind(cos_spd_id(), nc, IP_ADDR_ANY, 200);
 	printc("%d bound to port 200", nc);
 	if (ret) print("Bind error: %d. %d%d", ret, 0, 0);
-	net_listen(cos_spd_id(), nc);
+	net_listen(cos_spd_id(), nc, 10);
 	printc("%d set to listen", nc);
 	nc_new = -EAGAIN;
 	while (-EAGAIN == nc) {

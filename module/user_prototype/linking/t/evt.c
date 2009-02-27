@@ -180,10 +180,11 @@ long evt_grp_wait(spdid_t spdid)
 
 	while (1) {
 		lock_take(&evt_lock);
-		
+
 		g = evt_grp_find(cos_get_thd_id());
 		if (NULL == g) goto err;
 		if (__evt_grp_read(g, &e)) goto err;
+
 		if (NULL != e) {
 			extern_evt = e->extern_id;
 			lock_release(&evt_lock);

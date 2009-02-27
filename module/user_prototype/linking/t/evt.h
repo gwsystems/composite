@@ -80,14 +80,17 @@ static inline int __evt_trigger(struct evt *e)
 {
 	struct evt_grp *g;
 	evt_status_t s;
+	evt_grp_status_t gs;
 
 	assert(NULL != e);
 	g = e->grp;
+	gs = g->status;
 	s = e->status;
 	/* mark the event as triggered. */
 	e->status = EVT_TRIGGERED;
+	g->status = EVTG_INACTIVE;
 	/* Someone waiting on this event? */
-	if (EVT_BLOCKED == s || EVTG_BLOCKED == s) {
+	if (EVT_BLOCKED == s || EVTG_BLOCKED == gs) {
 		return g->tid;
 	}
 	return 0;

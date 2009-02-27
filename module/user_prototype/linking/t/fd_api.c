@@ -100,7 +100,7 @@ extern net_connection_t net_create_tcp_connection(spdid_t spdid, u16_t tid, long
 extern net_connection_t net_create_udp_connection(spdid_t spdid, long data);
 extern net_connection_t net_accept(spdid_t spdid, net_connection_t nc);
 extern int net_accept_data(spdid_t spdid, net_connection_t nc, long data);
-extern int net_listen(spdid_t spdid, net_connection_t nc);
+extern int net_listen(spdid_t spdid, net_connection_t nc, int queue_len);
 extern int net_bind(spdid_t spdid, net_connection_t nc, u32_t ip, u16_t port);
 extern int net_connect(spdid_t spdid, net_connection_t nc, u32_t ip, u16_t port);
 extern int net_close(spdid_t spdid, net_connection_t nc);
@@ -111,8 +111,8 @@ int cos_socket(int domain, int type, int protocol)
 	struct descriptor *d;
 	int fd;
 
-	if (PF_INET != domain) return -1;
-	if (0 != protocol)     return -1;
+	if (PF_INET != domain) return -EINVAL;
+	if (0 != protocol)     return -EINVAL;
 
 	FD_LOCK_TAKE();
 	if (NULL == (d = fd_alloc(DESC_NET))) goto err;
@@ -142,10 +142,10 @@ err_cleanup:
 	/* fall through */
 err:
 	FD_LOCK_RELEASE();
-	return -1;
+	return -EINVAL;
 }
 
-int cos_listen(int fd)
+int cos_listen(int fd, int queue)
 {
 	struct descriptor *d;
 	net_connection_t nc;
@@ -157,11 +157,12 @@ int cos_listen(int fd)
 	if (d->type != DESC_NET) goto err;
 	nc = (net_connection_t)d->data;
 	FD_LOCK_RELEASE();
-	ret = net_listen(cos_spd_id(), nc);
+	ret = net_listen(cos_spd_id(), nc, queue);
+
 	return ret;
 err:
 	FD_LOCK_RELEASE();
-	return -1;
+	return -EBADFD;
 }
 
 int cos_bind(int fd, u32_t ip, u16_t port)
@@ -178,7 +179,7 @@ int cos_bind(int fd, u32_t ip, u16_t port)
 	return net_bind(cos_spd_id(), nc, ip, port);
 err:
 	FD_LOCK_RELEASE();
-	return -1;
+	return -EBADFD;
 }
 
 int cos_accept(int fd)
@@ -195,9 +196,10 @@ int cos_accept(int fd)
 		FD_LOCK_RELEASE();
 		nc_new = net_accept(cos_spd_id(), nc);
 		if (-EAGAIN == nc_new) {
+			return -EAGAIN;
 			if (evt_wait(cos_spd_id(), fd_get_index(d))) assert(0);
 		} else if (nc_new < 0) 
-			return -1;
+			return nc_new;
 	} while (-EAGAIN == nc_new);
 
 	FD_LOCK_TAKE();
@@ -205,7 +207,7 @@ int cos_accept(int fd)
 	if (NULL == (d_new = fd_alloc(DESC_NET))) {
 		FD_LOCK_RELEASE();
 		net_close(cos_spd_id(), nc);
-		return -1;
+		return -ENOMEM;
 	}
 	fd = fd_get_index(d_new);
 	d_new->data = (void*)nc_new;
@@ -216,7 +218,7 @@ int cos_accept(int fd)
 	return fd_get_index(d_new);
 err:
 	FD_LOCK_RELEASE();
-	return -1;
+	return -EBADFD;
 }
 
 int cos_close(int fd)
@@ -235,7 +237,7 @@ int cos_close(int fd)
 	return net_close(cos_spd_id(), nc);
 err:
 	FD_LOCK_RELEASE();
-	return -1;
+	return -EBADFD;
 }
 
 int cos_read(int fd, char *buf, int sz)
@@ -266,7 +268,7 @@ int cos_read(int fd, char *buf, int sz)
 	return ret;
 err:
 	FD_LOCK_RELEASE();
-	return -1;
+	return -EBADFD;
 }
 
 int cos_write(int fd, char *buf, int sz)
@@ -297,7 +299,7 @@ int cos_write(int fd, char *buf, int sz)
 	return ret;
 err:
 	FD_LOCK_RELEASE();
-	return -1;
+	return -EBADFD;
 }
 
 int cos_wait(int fd)

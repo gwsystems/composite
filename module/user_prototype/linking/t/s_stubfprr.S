@@ -172,7 +172,8 @@ sched_exit_inv:
 
 cos_asm_server_stub(sched_create_thread)
 cos_asm_server_stub(sched_tick_freq)
-
+cos_asm_server_stub(sched_timestamp)
+	
 .globl sched_component_take_inv
 .type  sched_component_take_inv, @function
 .align 16
