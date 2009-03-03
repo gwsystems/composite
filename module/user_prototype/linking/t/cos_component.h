@@ -276,7 +276,7 @@ static inline void *cos_memset(void * s, char c , int count)
 
 /* functionality for managing the argument region */
 #define COS_ARGREG_SZ PAGE_SIZE
-#define COS_MAX_ARG_SZ 2048
+#define COS_MAX_ARG_SZ COS_ARGREG_SZ
 #define COS_IN_ARGREG(addr) \
 	((((unsigned long)(addr)) & ~(COS_ARGREG_SZ-1)) == \
 	 (unsigned int)cos_get_arg_region())

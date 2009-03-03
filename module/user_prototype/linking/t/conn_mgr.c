@@ -27,7 +27,7 @@ extern int cos_accept(int fd);
 extern int cos_bind(int fd, u32_t ip, u16_t port);
 extern int cos_listen(int fd, int queue_len);
 extern int cos_socket(int domain, int type, int protocol);
-extern int sched_block(spdid_t);
+extern int sched_block(spdid_t spd_id);
 
 #define BUFF_SZ (COS_MAX_ARG_SZ/2)
 

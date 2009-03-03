@@ -909,10 +909,6 @@ static err_t cos_net_lwip_tcp_accept(void *arg, struct tcp_pcb *new_tp, err_t er
 	}
 	assert(-1 != ic->data);
 	if (evt_trigger(cos_spd_id(), ic->data)) assert(0);
-/* 	if (ACCEPTING == ic->thd_status) { */
-/* 		ic->thd_status = ACTIVE; */
-/* 		if (sched_wakeup(cos_spd_id(), ic->tid) < 0) assert(0); */
-/* 	} */
 
 	return ERR_OK;
 }
