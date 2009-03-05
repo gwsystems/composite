@@ -35,14 +35,25 @@ extern int net_recv(spdid_t spdid, net_connection_t nc, void *data, int sz);
 typedef enum {
 	DESC_FREE,
 	DESC_TOP,
-	DESC_NET
+	DESC_NET,
+	DESC_HTTP
 } desc_t;
+
+struct descriptor;
+struct fd_ops {
+	int (*close)(int fd, struct descriptor *d);
+	int (*read)(int fd, struct descriptor *d, char *buff, int sz);
+	int (*write)(int fd, struct descriptor *d, char *buff, int sz);
+};
 
 struct descriptor {
 	desc_t type;
 	void *data;
 	struct descriptor *free;
+
+	struct fd_ops ops;
 };
+
 
 struct descriptor fds[MAX_FDS];
 struct descriptor *freelist;
@@ -105,11 +116,70 @@ extern int net_bind(spdid_t spdid, net_connection_t nc, u32_t ip, u16_t port);
 extern int net_connect(spdid_t spdid, net_connection_t nc, u32_t ip, u16_t port);
 extern int net_close(spdid_t spdid, net_connection_t nc);
 
+static int fd_net_close(int fd, struct descriptor *d)
+{
+	net_connection_t nc;
+
+	assert(d->type == DESC_NET)
+	nc = (net_connection_t)d->data;
+	fd_free(d);
+	FD_LOCK_RELEASE();
+	evt_free(cos_spd_id(), fd);
+	return net_close(cos_spd_id(), nc);
+}
+
+static int fd_net_read(int fd, struct descriptor *d, char *buf, int sz)
+{
+	net_connection_t nc;
+	int ret = -1;
+
+	assert(d->type == DESC_NET);
+	nc = (net_connection_t)d->data;
+	FD_LOCK_RELEASE();
+	ret = net_recv(cos_spd_id(), nc, buf, sz);
+	if (unlikely(0 > ret)) {
+		FD_LOCK_TAKE();
+		d = fd_get_desc(fd);
+		if (NULL != d && (net_connection_t)d->data == nc) {
+			fd_free(d);
+			evt_free(cos_spd_id(), fd);
+			net_close(cos_spd_id(), nc);
+		}
+		ret = -EPIPE;
+		FD_LOCK_RELEASE();
+	}
+	return ret;
+}
+
+static int fd_net_write(int fd, struct descriptor *d, char *buf, int sz)
+{
+	net_connection_t nc;
+	int ret = -1;
+
+	assert(d->type == DESC_NET);
+	nc = (net_connection_t)d->data;
+	FD_LOCK_RELEASE();
+	ret = net_send(cos_spd_id(), nc, buf, sz);
+	if (unlikely(0 > ret && -EMSGSIZE != ret)) {
+		FD_LOCK_TAKE();
+		d = fd_get_desc(fd);
+		if (NULL != d && (net_connection_t)d->data == nc) {
+			fd_free(d);
+			evt_free(cos_spd_id(), fd);
+			net_close(cos_spd_id(), nc);
+		}
+		printc("write returned %d", ret);
+		ret = -EPIPE;
+		FD_LOCK_RELEASE();
+	}
+	return ret;
+}
+
 int cos_socket(int domain, int type, int protocol)
 {
 	net_connection_t nc;
 	struct descriptor *d;
-	int fd;
+	int fd, ret;
 
 	if (PF_INET != domain) return -EINVAL;
 	if (0 != protocol)     return -EINVAL;
@@ -117,7 +187,14 @@ int cos_socket(int domain, int type, int protocol)
 	FD_LOCK_TAKE();
 	if (NULL == (d = fd_alloc(DESC_NET))) goto err;
 	fd = fd_get_index(d);
-	if (evt_create(cos_spd_id(), fd)) assert(0);
+	if ((ret = evt_create(cos_spd_id(), fd))) {
+		printc("Could not create event for socket: %d", ret);
+		assert(0);
+	}
+
+	d->ops.close = fd_net_close;
+	d->ops.read  = fd_net_read;
+	d->ops.write = fd_net_write;
 
 	switch (type) {
 	case SOCK_STREAM:
@@ -209,6 +286,11 @@ int cos_accept(int fd)
 		net_close(cos_spd_id(), nc);
 		return -ENOMEM;
 	}
+
+	d_new->ops.close = fd_net_close;
+	d_new->ops.read  = fd_net_read;
+	d_new->ops.write = fd_net_write;
+
 	fd = fd_get_index(d_new);
 	d_new->data = (void*)nc_new;
 	if (evt_create(cos_spd_id(), fd)) assert(0);
@@ -221,20 +303,124 @@ err:
 	return -EBADFD;
 }
 
+
+/* 
+ * http (app specific) parsing specific services
+ */
+extern int parse_write(spdid_t spdid, long connection_id, char *reqs, int sz);
+extern int parse_read(spdid_t spdid, long connection_id, char *buff, int sz);
+extern long parse_open_connection(spdid_t spdid, long evt_id);
+extern int parse_close_connection(spdid_t spdid, long conn_id);
+
+static int fd_app_close(int fd, struct descriptor *d)
+{
+	long conn_id;
+
+	assert(d->type == DESC_HTTP);
+
+	conn_id = (long)d->data;
+	fd_free(d);
+	FD_LOCK_RELEASE();
+	evt_free(cos_spd_id(), fd);
+	parse_close_connection(cos_spd_id(), conn_id);
+
+	return 0;
+}
+
+static int fd_app_read(int fd, struct descriptor *d, char *buff, int sz)
+{
+	long conn_id;
+	int ret = -1;
+
+	assert(d->type == DESC_HTTP);
+	conn_id = (long)d->data;
+	FD_LOCK_RELEASE();
+	ret = parse_read(cos_spd_id(), conn_id, buff, sz);
+	if (unlikely(0 > ret)) {
+		if (-ENOMEM == ret) return -ENOMEM;
+		FD_LOCK_TAKE();
+		d = fd_get_desc(fd);
+		if (NULL != d && (long)d->data == conn_id) {
+			fd_free(d);
+			evt_free(cos_spd_id(), fd);
+			parse_close_connection(cos_spd_id(), conn_id);
+		}
+		ret = -EPIPE;
+		FD_LOCK_RELEASE();
+	}
+	return ret;
+}
+
+static int fd_app_write(int fd, struct descriptor *d, char *buff, int sz)
+{
+	long conn_id;
+	int ret = -1;
+
+	assert(d->type == DESC_HTTP);
+	conn_id = (long)d->data;
+	FD_LOCK_RELEASE();
+	ret = parse_write(cos_spd_id(), conn_id, buff, sz);
+	if (unlikely(0 > ret)) {
+		FD_LOCK_TAKE();
+		d = fd_get_desc(fd);
+		if (NULL != d && (long)d->data == conn_id) {
+			fd_free(d);
+			evt_free(cos_spd_id(), fd);
+			net_close(cos_spd_id(), conn_id);
+		}
+		ret = -EPIPE;
+		FD_LOCK_RELEASE();
+	}
+	return ret;
+}
+
+int cos_app_open(int type)
+{
+	struct descriptor *d;
+	int fd, ret;
+	long conn_id;
+
+	/* FIXME: ignoring type for now */
+
+	FD_LOCK_TAKE();
+	if (NULL == (d = fd_alloc(DESC_HTTP))) goto err;
+	fd = fd_get_index(d);
+	if ((ret = evt_create(cos_spd_id(), fd))) {
+		printc("Could not create event for app fd: %d", ret);
+		assert(0);
+	}
+
+	d->ops.close = fd_app_close;
+	d->ops.read  = fd_app_read;
+	d->ops.write = fd_app_write;
+
+	conn_id = parse_open_connection(cos_spd_id(), fd);
+	if (conn_id < 0) goto err_cleanup;
+	d->data = (void *)conn_id;
+	FD_LOCK_RELEASE();
+
+	return fd;
+err_cleanup:
+	fd_free(d);
+	evt_free(cos_spd_id(), fd);
+	/* fall through */
+err:
+	FD_LOCK_RELEASE();
+	return -EINVAL;
+	
+}
+
+/* 
+ * Generic functions
+ */
 int cos_close(int fd)
 {
 	struct descriptor *d;
-	net_connection_t nc;
 
 	FD_LOCK_TAKE();
 	d = fd_get_desc(fd);
 	if (NULL == d) goto err;
-	if (d->type != DESC_NET) goto err;
-	nc = (net_connection_t)d->data;
-	fd_free(d);
-	FD_LOCK_RELEASE();
-	evt_free(cos_spd_id(), fd);
-	return net_close(cos_spd_id(), nc);
+	return d->ops.close(fd, d);
 err:
 	FD_LOCK_RELEASE();
 	return -EBADFD;
@@ -243,29 +429,13 @@ err:
 int cos_read(int fd, char *buf, int sz)
 {
 	struct descriptor *d;
-	net_connection_t nc;
-	int ret = -1;
 
 	if (!cos_argreg_buff_intern(buf, sz)) return -EFAULT;
 	FD_LOCK_TAKE();
 	d = fd_get_desc(fd);
 	if (NULL == d) goto err;
-	if (d->type != DESC_NET) goto err;
-	nc = (net_connection_t)d->data;
-	FD_LOCK_RELEASE();
-	ret = net_recv(cos_spd_id(), nc, buf, sz);
-	if (unlikely(0 > ret)) {
-		FD_LOCK_TAKE();
-		d = fd_get_desc(fd);
-		if (NULL != d && (net_connection_t)d->data == nc) {
-			fd_free(d);
-			evt_free(cos_spd_id(), fd);
-			net_close(cos_spd_id(), nc);
-		}
-		ret = -EPIPE;
-		FD_LOCK_RELEASE();
-	}
-	return ret;
+
+	return d->ops.read(fd, d, buf, sz);
 err:
 	FD_LOCK_RELEASE();
 	return -EBADFD;
@@ -274,29 +444,13 @@ err:
 int cos_write(int fd, char *buf, int sz)
 {
 	struct descriptor *d;
-	net_connection_t nc;
-	int ret = -1;
 
 	if (!cos_argreg_buff_intern(buf, sz)) return -EFAULT;
 	FD_LOCK_TAKE();
 	d = fd_get_desc(fd);
 	if (NULL == d) goto err;
-	if (d->type != DESC_NET) goto err;
-	nc = (net_connection_t)d->data;
-	FD_LOCK_RELEASE();
-	ret = net_send(cos_spd_id(), nc, buf, sz);
-	if (unlikely(0 > ret)) {
-		FD_LOCK_TAKE();
-		d = fd_get_desc(fd);
-		if (NULL != d && (net_connection_t)d->data == nc) {
-			fd_free(d);
-			evt_free(cos_spd_id(), fd);
-			net_close(cos_spd_id(), nc);
-		}
-		ret = -EPIPE;
-		FD_LOCK_RELEASE();
-	}
-	return ret;
+
+	return d->ops.write(fd, d, buf, sz);
 err:
 	FD_LOCK_RELEASE();
 	return -EBADFD;

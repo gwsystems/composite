@@ -6,7 +6,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #else
+#define COS_FMT_PRINT
 #include <cos_component.h>
+#include <cos_debug.h>
+#include <cos_alloc.h>
 #endif
 
 struct cos_map_intern_struct {

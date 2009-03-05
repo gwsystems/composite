@@ -1,4 +1,4 @@
-#define COS_LINUX_ENV
+//#define COS_LINUX_ENV
 
 #include <string.h>
 
@@ -9,6 +9,8 @@
 #include <assert.h>
 #include "cos_map.h"
 
+#define printc printf
+
 #define ENOMEM 2
 #define EINVAL 3
 
@@ -16,6 +18,7 @@
 
 #include <cos_component.h>
 #include <cos_map.h>
+#include <errno.h>
 
 #endif	/* COS_LINUX_ENV */
 
@@ -120,7 +123,6 @@ typedef struct {
 	int path_len;
 } get_ret_t;
 
-#define HERE(s) //printf(s "\n")
 static int http_get_parse(char *req, int len, get_ret_t *ret)
 {
 	char *s = req, *e, *end;
@@ -129,22 +131,21 @@ static int http_get_parse(char *req, int len, get_ret_t *ret)
 
 	end = req + len;
 
-	if (memcmp_fail_loc(s, "GET ", len, 4, &e)) {HERE("a"); goto malformed_request;}
+	if (memcmp_fail_loc(s, "GET ", len, 4, &e)) goto malformed_request;
 
 	path = remove_whitespace(e, len);
 	e = find_whitespace(path, len - (path-s));
 	path_len = e-path;
 	e = remove_whitespace(e, len - (e-s));
 
-	if (get_http_version(e, len - (e-s), &e, &minor_version)) {HERE("b"); goto malformed_request;}
+	if (get_http_version(e, len - (e-s), &e, &minor_version)) goto malformed_request;
 	if (minor_version != 0 && minor_version != 1) {
 		/* This should be seen as an error: */
 		e = s;
-		HERE("c");
 		goto malformed_request;
 	}
 
-	if (http_find_header_end(e, len - (e-s), &e)) {HERE("d"); goto malformed_request;}
+	if (http_find_header_end(e, len - (e-s), &e)) goto malformed_request;
 
 	ret->end = e;
 	ret->path = path;
@@ -152,7 +153,6 @@ static int http_get_parse(char *req, int len, get_ret_t *ret)
 	return 0;
 
 malformed_request:
-//	printf("++parse error (len %d) for ++\n%s\n++ @ ++\n%s\n", len, s, e);
 	ret->path = NULL;
 	ret->path_len = -1;
 	ret->end = e;
@@ -178,7 +178,7 @@ static char *http_get_request(char *path, int path_len, int *resp_len)
 
 	len_sz = snprintf(len_str, MAX_SUPPORTED_DIGITS, "%d\r\n\r\n", resp_sz);
 	if (MAX_SUPPORTED_DIGITS == len_sz || len_sz < 1) {
-		printf("length of response body too large");
+		printc("length of response body too large");
 		*resp_len = 0;
 		return NULL;
 	}
@@ -255,7 +255,7 @@ static int http_get(struct http_request *r)
 	}
 	p = malloc(ret.path_len+1);
 	if (!p) {
-		printf("path could not be allocated\n");
+		printc("path could not be allocated\n");
 		r->req_len = 0;
 		return -1;
 	}
@@ -274,7 +274,7 @@ static int http_parse_request(struct http_request *r)
 		r->type = HTTP_TYPE_GET;
 		return http_get(r);
 	}
-	printf("unknown request type for message\n<<%s>>\n", r->req);
+	printc("unknown request type for message\n<<%s>>\n", r->req);
 	return -1;
 }
 
@@ -288,7 +288,7 @@ static int http_make_request(struct http_request *r)
 		hr->resp = http_get_request(r->path, r->path_len, &hr->resp_len);
 		break;
 	default:
-		printf("unknown request type\n");
+		printc("unknown request type\n");
 		return -1;
 	}
 
@@ -443,7 +443,7 @@ static struct http_request *connection_handle_request(struct connection *c, char
 		new_len = amnt + last->req_len;
 		new_buff = malloc(new_len + 1);
 		if (NULL == new_buff) {
-			printf("malloc fail 1\n"); fflush(stdout);
+			printc("malloc fail 1\n"); fflush(stdout);
 			http_free_request(r);
 			return NULL;
 		}
@@ -482,7 +482,7 @@ static struct http_request *connection_handle_request(struct connection *c, char
 		 */
 		save_buff = malloc(amnt + 1);
 		if (NULL == save_buff) {
-			printf("malloc fail 2\n"); fflush(stdout);
+			printc("malloc fail 2\n"); fflush(stdout);
 			/* FIXME: kill connection */
 			http_free_request(r);
 			return NULL;
@@ -516,7 +516,7 @@ static int connection_parse_requests(struct connection *c, char *req, int req_sz
 	do {
 		if (!(r->flags & (HTTP_REQ_PENDING | HTTP_REQ_PROCESSED))) {
 			if (http_make_request(r)) {
-				printf("Could not process response.\n");
+				printc("Could not process response.\n");
 				return -1;
 			}
 			if (!(r->flags & HTTP_REQ_PENDING)) r->flags |= HTTP_REQ_PROCESSED;
@@ -579,7 +579,9 @@ static int connection_process_requests(struct connection *c, char *req, int req_
 	return connection_get_reply(c, resp, resp_sz);
 }
 
-int http_write(long connection_id, char *reqs, int sz)
+extern int evt_trigger(spdid_t spdid, long extern_evt);
+
+int parse_write(spdid_t spdid, long connection_id, char *reqs, int sz)
 {
 	struct connection *c;
 	
@@ -587,10 +589,12 @@ int http_write(long connection_id, char *reqs, int sz)
 	if (NULL == c) return -EINVAL;
 	if (connection_parse_requests(c, reqs, sz)) return -EINVAL;
 
+	if (evt_trigger(cos_spd_id(), c->evt_id)) assert(0);
+	
 	return sz;
 }
 
-int http_read(long connection_id, char *buff, int sz)
+int parse_read(spdid_t spdid, long connection_id, char *buff, int sz)
 {
 	struct connection *c;
 	
@@ -600,7 +604,7 @@ int http_read(long connection_id, char *buff, int sz)
 	return connection_get_reply(c, buff, sz);
 }
 
-int http_read_write(long connection_id, char *reqs, int req_sz, char *resp, int resp_sz)
+static int http_read_write(spdid_t spdid, long connection_id, char *reqs, int req_sz, char *resp, int resp_sz)
 {
 	struct connection *c;
 	
@@ -610,7 +614,7 @@ int http_read_write(long connection_id, char *reqs, int req_sz, char *resp, int 
 	return connection_process_requests(c, reqs, req_sz, resp, resp_sz);
 }
 
-long http_open_connection(long evt_id)
+long parse_open_connection(spdid_t spdid, long evt_id)
 {
 	struct connection *c = http_new_connection(0, evt_id);
 	long c_id;
@@ -626,7 +630,7 @@ long http_open_connection(long evt_id)
 	return c_id;
 }
 
-int http_close_connection(long conn_id)
+int parse_close_connection(spdid_t spdid, long conn_id)
 {
 	struct connection *c = cos_map_lookup(&conn_map, conn_id);
 
@@ -638,15 +642,20 @@ int http_close_connection(long conn_id)
 	return 0;
 }
 
-void https_init(void)
+void cos_init(void *arg)
 {
 	cos_map_init_static(&conn_map);
 	return;
 }
 
-#ifndef COS_LINUX_ENV
+/* hack to ensure that the dependency to the scheduler is known */
+extern int sched_block(spdid_t spdid);
+void bin(void)
+{
+	sched_block(cos_spd_id());
+}
 
-#else 
+#ifdef COS_LINUX_ENV
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -875,7 +884,7 @@ int main(void)
 	main_c.evt_id = sfd;
 	event_new(epfd, &main_c);
 
-	https_init();
+	cos_init(NULL);
 
 	while (1) {
 		int nevts, i, accept_event = 0;

@@ -35,7 +35,7 @@ typedef enum {
 	EVTG_BLOCKED
 } evt_grp_status_t;
 
-#define EVT_PER_GRP 64
+#define EVT_PER_GRP 250
 struct evt_grp;
 
 struct evt {

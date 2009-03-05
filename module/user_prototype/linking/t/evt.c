@@ -15,6 +15,8 @@
 #include <cos_list.h>
 #include <print.h>
 
+#include <errno.h>
+
 #include <evt.h>
 
 extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
@@ -123,11 +125,15 @@ int evt_create(spdid_t spdid, long extern_evt)
 	struct evt_grp *g;
 	struct evt *e;
 	struct evt_map *m;
+	int ret = -ENOMEM;
 
 	lock_take(&evt_lock);
 	/* If the mapping exists, it's event better have the group
 	 * associated with this thread. */
-	if (NULL != (m = mapping_find(extern_evt))) goto err; 	/* shouldn't allow recreation of events */
+	if (NULL != (m = mapping_find(extern_evt))) {
+		ret = -EEXIST;
+		goto err; 	/* shouldn't allow recreation of events */
+	}
 	g = evt_grp_find(tid);
 	/* If the group associated with this thread hasn't been
 	 * created yet. */
@@ -152,7 +158,7 @@ int evt_create(spdid_t spdid, long extern_evt)
 	return 0;
 err:
 	lock_release(&evt_lock);
-	return -1;
+	return ret;
 }
 
 void evt_free(spdid_t spdid, long extern_evt)

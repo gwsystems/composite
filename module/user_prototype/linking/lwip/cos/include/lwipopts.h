@@ -6,7 +6,7 @@
 #define MEM_SIZE 64000
 /* #define MEMP_OVERFLOW_CHECK 1 */
 /* #define MEMP_SANITY_CHECK 1 */
-#define MEMP_NUM_PBUF (2048*2)
+#define MEMP_NUM_PBUF (4096*2)
 #define MEMP_NUM_UDP_PCB 512
 #define MEMP_NUM_TCP_PCB 512
 #define MEMP_NUM_TCP_PCB_LISTEN 128
@@ -28,7 +28,7 @@
 #define TCP_MSS                 1400 //1024
 
 /* TCP sender buffer space (bytes). */
-#define TCP_SND_BUF             TCP_MSS*6//2048
+#define TCP_SND_BUF             TCP_MSS*24//TCP_MSS*6//2048
 
 /* TCP sender buffer space (pbufs). This must be at least = 2 *
    TCP_SND_BUF/TCP_MSS for things to work. */
@@ -83,19 +83,20 @@
 /* #define RAW_DEBUG        LWIP_DBG_ON */
 /* #define ICMP_DEBUG       LWIP_DBG_ON */
 /* #define UDP_DEBUG        LWIP_DBG_ON */
-/* #define TCP_DEBUG        LWIP_DBG_ON */
+ #define TCP_DEBUG        LWIP_DBG_ON 
 /* #define TCP_INPUT_DEBUG  LWIP_DBG_ON */
-/* #define TCP_OUTPUT_DEBUG LWIP_DBG_ON */
+ #define TCP_OUTPUT_DEBUG LWIP_DBG_ON 
 /* #define TCP_RTO_DEBUG    LWIP_DBG_ON */
 /* #define TCP_CWND_DEBUG   LWIP_DBG_ON */
 /* #define TCP_WND_DEBUG    LWIP_DBG_ON */
 /* #define TCP_FR_DEBUG     LWIP_DBG_ON */
-/* #define TCP_QLEN_DEBUG   LWIP_DBG_ON */
+ #define TCP_QLEN_DEBUG   LWIP_DBG_ON 
 /* #define TCP_RST_DEBUG    LWIP_DBG_ON */
 
 #define LWIP_DEBUG 1
 /* #define LWIP_DBG_TYPES_ON  LWIP_DBG_OFF */
-#define LWIP_DBG_MIN_LEVEL 0
+//#define LWIP_DBG_MIN_LEVEL 0
+#define LWIP_DBG_MIN_LEVEL 1
 
 #define PPP_DEBUG        LWIP_DBG_OFF
 #define MEM_DEBUG        LWIP_DBG_OFF
@@ -112,14 +113,14 @@
 #define RAW_DEBUG        LWIP_DBG_OFF
 #define ICMP_DEBUG       LWIP_DBG_OFF
 #define UDP_DEBUG        LWIP_DBG_OFF
-#define TCP_DEBUG        LWIP_DBG_OFF
+//#define TCP_DEBUG        LWIP_DBG_OFF
 #define TCP_INPUT_DEBUG  LWIP_DBG_OFF
-#define TCP_OUTPUT_DEBUG LWIP_DBG_OFF
+//#define TCP_OUTPUT_DEBUG LWIP_DBG_OFF
 #define TCP_RTO_DEBUG    LWIP_DBG_OFF
 #define TCP_CWND_DEBUG   LWIP_DBG_OFF
 #define TCP_WND_DEBUG    LWIP_DBG_OFF
 #define TCP_FR_DEBUG     LWIP_DBG_OFF
-#define TCP_QLEN_DEBUG   LWIP_DBG_OFF
+//#define TCP_QLEN_DEBUG   LWIP_DBG_OFF
 #define TCP_RST_DEBUG    LWIP_DBG_OFF 
 
 /*extern unsigned char debug_flags;

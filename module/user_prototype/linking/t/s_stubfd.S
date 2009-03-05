@@ -1,6 +1,7 @@
 #include <cos_asm_server_stub.h>
 	
-.text	
+.text
+cos_asm_server_stub(cos_app_open)
 cos_asm_server_stub(cos_socket)
 cos_asm_server_stub(cos_listen)
 cos_asm_server_stub(cos_bind)

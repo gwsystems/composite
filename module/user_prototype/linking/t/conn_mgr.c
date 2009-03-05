@@ -27,20 +27,88 @@ extern int cos_accept(int fd);
 extern int cos_bind(int fd, u32_t ip, u16_t port);
 extern int cos_listen(int fd, int queue_len);
 extern int cos_socket(int domain, int type, int protocol);
-extern int sched_block(spdid_t spd_id);
+extern int cos_app_open(int type);
 
-#define BUFF_SZ (COS_MAX_ARG_SZ/2)
+extern int sched_block(spdid_t spd_id);
+#define BUFF_SZ 1401 //(COS_MAX_ARG_SZ/2)
 
 /* same as in fd_api */
-#define MAX_FDS 512
+#define MAX_FDS 4096
 struct fd_struct {
 	int fd_pair;
-} fds[MAX_FDS];
+} fds[MAX_FDS]; 
+
+static inline int get_fd_pair(int fd)
+{
+	assert(fd < MAX_FDS);
+	return fds[fd].fd_pair;
+}
+
+static inline void set_fd_pair(int fd, int pair)
+{
+	assert(fd < MAX_FDS);
+	fds[fd].fd_pair = pair;
+}
+
+int accept_fd;
+
+static void accept_new(int accept_fd)
+{
+	int fd, http_fd;
+
+	while (1) {
+		if (0 > (fd = cos_accept(accept_fd))) {
+			if (fd == -EAGAIN) break;
+			assert(0);
+		}
+		if (0 > (http_fd = cos_app_open(0))) {
+			assert(0);
+		}
+		if (fd > MAX_FDS) assert(0);
+		set_fd_pair(fd, http_fd);
+		set_fd_pair(http_fd, fd);
+	}
+}
+
+static void data_new(int fd)
+{
+	int amnt, fd_pair;
+	char *buf;
+
+	fd_pair = get_fd_pair(fd);
+	if (fd_pair < 0) return;
+	buf = cos_argreg_alloc(BUFF_SZ);
+	assert(buf);
+	while (1) {
+		int ret;
+
+		amnt = cos_read(fd, buf, BUFF_SZ-1);
+		if (0 == amnt) break;
+		else if (-EPIPE == amnt) {
+			cos_close(fd_pair);
+			cos_close(fd);
+			set_fd_pair(fd, -1);
+			set_fd_pair(fd_pair, -1);
+			break;
+		} else if (amnt < 0) {
+			printc("read from fd %d produced %d.", fd, amnt);
+			assert(0);
+		}
+		if (amnt != (ret = cos_write(fd_pair, buf, amnt))) {
+			printc("conn_mgr: write failed w/ %d on fd %d", ret, fd_pair);
+			assert(0);
+		}
+	}
+	cos_argreg_free(buf);
+}
 
 int main(void)
 {
-	int accept_fd, fd, amnt;
-	char *buf;
+	int fd, i;
+
+	for (i = 0 ; i < MAX_FDS ; i++) {
+		set_fd_pair(i, -1);
+	}
 
 	assert(0 <= (accept_fd = cos_socket(PF_INET, SOCK_STREAM, 0)));
 	printc("socket created with fd %d", accept_fd);
@@ -49,33 +117,11 @@ int main(void)
 	assert(0 <= cos_listen(accept_fd, 10));
 	printc("listen");
 	while (1) {
-//		printc("waiting");
 		fd = cos_wait_all();
 		if (fd == accept_fd) {
-			while (1) {
-				printc("accept");
-				if (0 > (fd = cos_accept(accept_fd))) {
-					if (fd == -EAGAIN) break;
-					assert(0);
-				}
-			}
+			accept_new(accept_fd);
 		} else {
-			buf = cos_argreg_alloc(BUFF_SZ);
-			assert(buf);
-			while (1) {
-//				printc("read");
-				amnt = cos_read(fd, buf, BUFF_SZ-1);
-				if (0 == amnt) break;//cos_wait(fd);
-				else if (-EPIPE == amnt) {
-					cos_close(fd);
-					break;
-				} else if (amnt < 0) {
-					assert(0);
-				}
-//				printc("write");
-				cos_write(fd, buf, amnt);
-			}
-			cos_argreg_free(buf);
+			data_new(fd);
 		}
 	}
 

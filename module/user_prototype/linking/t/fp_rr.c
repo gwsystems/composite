@@ -34,7 +34,7 @@
 #define NORMAL_PRIO_HI 4
 #define NORMAL_PRIO_LO (NUM_PRIOS-4)
 
-#define RUNTIME_SEC (5)
+#define RUNTIME_SEC (60)
 #define REPORT_FREQ 60
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
@@ -1276,6 +1276,11 @@ int sched_init(void)
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(NORMAL_PRIO_HI+4, NORMAL_PRIO_HI+4, fp_create_spd_thd, (void*)target_spdid);
 	print("fd thread has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+4, 0);
+
+	target_spdid = spd_name_map_id("http.o");
+	assert(target_spdid != -1);
+	new = sched_setup_thread_arg(NORMAL_PRIO_HI+4, NORMAL_PRIO_HI+4, fp_create_spd_thd, (void*)target_spdid);
+	print("http thread has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+4, 0);
 
 	target_spdid = spd_name_map_id("conn.o");
 	assert(target_spdid != -1);
