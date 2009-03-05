@@ -1,6 +1,8 @@
 #ifndef LWIPOPTS_H
 #define LWIPOPTS_H
 
+#define MEM_LIBC_MALLOC 1
+
 #define NO_SYS 1
 #define MEM_ALIGNMENT 4
 #define MEM_SIZE 64000

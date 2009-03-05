@@ -260,6 +260,17 @@ err_out:
 //void* __libc_malloc(size_t size) __attribute__((alias("_alloc_libc_malloc")));
 void* malloc(size_t size) __attribute__((weak,alias("_alloc_libc_malloc")));
 
+void *__libc_calloc(size_t nmemb, size_t _size)
+{
+	size_t tot = nmemb*_size;
+	char *ret = malloc(tot);
+	
+	memset(ret, 0, tot);
+	return ret;
+}
+
+void* calloc(size_t nmemb, size_t _size) __attribute__((weak,alias("__libc_calloc")));
+
 /* gabep1 additions for allocations of pages. */
 
 void *alloc_page(void)
