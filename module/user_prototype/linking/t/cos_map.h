@@ -12,51 +12,68 @@
 #include <cos_alloc.h>
 #endif
 
-struct cos_map_intern_struct {
-	long free;
-	void *val;
-};
+#define COS_MAP_DYNAMIC
+#ifdef COS_MAP_DYNAMIC
+#define COS_VECT_DYNAMIC
+#endif
+#include <cos_vect.h>
 
+/* 
+ * A map is one vector, that contains alternating slots for values and
+ * freelist.  One to keep pointers to the data, and one to track the
+ * free entries in the data vector.  Maps are optimized to add values
+ * in general into an unspecified slot (they create the
+ * index). Vectors are like arrays in that to find an arbitrary slot,
+ * you have O(n).  This is the difference between the two.  In the
+ * map, adding into a specific id is O(n).
+ */
 typedef struct cos_map_struct {
-	unsigned short int depth, base; /* If we turn into a tree,
-					 * what branching level? */
-	long freelist;
-	struct cos_map_intern_struct *map; /* This will actually be an array */
+	cos_vect_t data;
+	long free_list, id_boundary;
 } cos_map_t;
 
+#ifndef COS_MAP_BASE
+#define COS_MAP_BASE (COS_VECT_BASE/2)
+#endif
+
 /* depth = 0 indicates that we haven't initialized the structure */
-#define COS_MAP_STATIC_CREATE(name, init_sz)      			\
-	struct cos_map_intern_struct name##_map[ init_sz ];		\
-	cos_map_t name = {.depth = 0, .base = init_sz, .freelist = -1, .map = name##_map}
+#define COS_MAP_CREATE_STATIC(name)					 \
+	struct cos_vect_intern_struct __##name##_vect[ COS_VECT_BASE ];	 \
+	cos_map_t name = {.data = {.depth = 0, .vect = __##name##_vect}, \
+			  .free_list = 0}
 
 
-static inline void cos_map_init_shared(cos_map_t *m, int base)
+static inline long cos_vect_to_map_id(long vid) { return vid/2; }
+static inline long cos_map_to_vect_id(long mid) { return mid*2; }
+static inline long cos_map_to_vect_freeid(long mid) { return cos_map_to_vect_id(mid)+1; }
+static inline struct cos_vect_intern_struct *cos_val_to_free(struct cos_vect_intern_struct *val) { return val+1; }
+static inline struct cos_vect_intern_struct *cos_free_to_val(struct cos_vect_intern_struct *f) { return f-1; }
+
+static inline void __cos_map_init(cos_map_t *m)
 {
-	struct cos_map_intern_struct *ms;
 	int i;
 
-	assert(m->depth == 0);
-	m->depth = 1;
-	m->freelist = 0;
-	ms = m->map;
-	m->base = base;
-
-	for (i = 0 ; i < base ; i++) {
-		ms[i].val = NULL;
-		ms[i].free = i+1;
+	assert(m);
+	if (__cos_vect_init(&m->data)) assert(0);
+	m->free_list = 0;
+	m->id_boundary = COS_MAP_BASE;
+	/* Create the freelist */
+	for (i = 0 ; i < COS_MAP_BASE ; i++) {
+		int j = cos_map_to_vect_freeid(i);
+		if (__cos_vect_set(&m->data, j, (void*)(i+1))) assert(0);
 	}
-	ms[base-1].free = -1;
+	/* The end of the freelist */
+	if (__cos_vect_set(&m->data, cos_map_to_vect_freeid(COS_MAP_BASE-1), (void*)-1)) assert(0);
 }
 
 static inline void cos_map_init_static(cos_map_t *m)
 {
-	cos_map_init_shared(m, m->base);
+	__cos_map_init(m);
 }
 
-static inline void cos_map_init(cos_map_t *m, int init_sz)
+static inline void cos_map_init(cos_map_t *m)
 {
-	m->map = (struct cos_map_intern_struct*)&m[1];
-	cos_map_init_shared(m, init_sz);
+	__cos_map_init(m);
 }
 
 #ifdef COS_MAP_DYNAMIC
@@ -66,67 +83,140 @@ static inline void cos_map_init(cos_map_t *m, int init_sz)
 #include <cos_alloc.h>
 #endif /* COS_LINUX_ENV */
 
-static cos_map_t *cos_map_alloc_map(int init_sz)
+
+static cos_map_t *cos_map_alloc_map()
 {
 	cos_map_t *m;
+
+	m = malloc(sizeof(cos_map_t));
+	if (NULL == m) goto err;
 	
-	m = malloc(sizeof(cos_map_t) + (init_sz) * sizeof(struct cos_map_intern_struct));
-	if (NULL == m) return NULL;
-	cos_map_init(m, init_sz);
+	if (cos_vect_alloc_vect_data(&m->data)) goto err_free_map;
+	cos_map_init(m);
 
 	return m;
+
+err_free_map:
+	free(m);
+err:
+	return NULL;
 }
 
 static void cos_map_free_map(cos_map_t *m)
 {
 	assert(m);
+	COS_VECT_FREE(m->data.vect);
 	free(m);
 }
 
 #endif /* COS_MAP_DYNAMIC */
 
-static inline struct cos_map_intern_struct *cos_map_lookup_intern(cos_map_t *m, long id)
+static inline void *cos_map_lookup(cos_map_t *m, long mid)
 {
-	assert(m && m->depth != 0);
-	if (id >= m->base || id < 0) return NULL;
+	long vid = cos_map_to_vect_id(mid);
 
-	return &m->map[id];
-}
-static inline void *cos_map_lookup(cos_map_t *m, long id)
-{
-	struct cos_map_intern_struct *is = cos_map_lookup_intern(m, id);
-
-	if (NULL == is) return NULL;
-	else            return is->val;
+	return cos_vect_lookup(&m->data, vid);
 }
 
+/* return the id of the value */
 static inline long cos_map_add(cos_map_t *m, void *val)
 {
 	long free;
-	struct cos_map_intern_struct *is;
+	struct cos_vect_intern_struct *is_free, *is;
 
 	assert(m);
-	free = m->freelist;
-	if (free == -1) return -1;
-	is = cos_map_lookup_intern(m, free);
-	if (is == NULL) return -1;
-	m->freelist = is->free;
-	is->free = -1;
+	free = m->free_list;
+	/* no free slots? Create more! */
+	if (free == -1) {
+		long lower, upper;
+		if (0 > cos_vect_add_id(&m->data, val, cos_map_to_vect_id(m->id_boundary))) return -1;	
+		free = lower = m->id_boundary;
+		m->id_boundary = upper = lower + COS_MAP_BASE;
+		/* Add the new values to the free list */
+		while (lower != upper) {
+			int idx = cos_map_to_vect_freeid(lower);
+			if (__cos_vect_set(&m->data, idx, (void*)(lower+1))) assert(0);
+			lower++;
+		}
+		/* The end of the freelist */
+		if (__cos_vect_set(&m->data, cos_map_to_vect_freeid(upper-1), (void*)-1)) assert(0);
+	}
+
+	is = __cos_vect_lookup(&m->data, cos_map_to_vect_id(free));
+	assert(NULL != is);
 	is->val = val;
+
+	is_free = cos_val_to_free(is);
+	m->free_list = (long)is_free->val;
+	is_free->val = (void*)-1;
 
 	return free;
 }
 
-static inline int cos_map_del(cos_map_t *m, long id)
+/* 
+ * This function will try to find an empty slot specifically for the
+ * identifier id, or fail.
+ *
+ * This is O(n), n = MAX_EVENTS.  If we make the cos_vect_intern_struct
+ * have a doubly linked free list, this would go away, but I don't
+ * want the memory consumption.  
+ *
+ * If you don't O(n), then just use a vect, not a map.  Map is for
+ * cos_map_add.
+ */
+static inline long cos_map_add_id(cos_map_t *m, void *val, long mid)
 {
-	struct cos_map_intern_struct *is;
+	struct cos_vect_intern_struct *is;
+	long next, prev;
+
+	/* All of this to maintain the free list... */
+	assert(m);
+	prev = next = m->free_list;
+	is = __cos_vect_lookup(&m->data, cos_map_to_vect_freeid(next));
+	if (NULL == is) return -1;
+	if (next == mid) {
+		struct cos_vect_intern_struct *data_is;
+		
+		data_is = cos_free_to_val(is);
+		assert(data_is);
+		m->free_list = (long)is->val;
+		data_is->val = val;
+		is->val = (void*)-1;
+		return mid;
+	}
+	next = (long)is->val;
+	while (-1 != next) {
+		is = __cos_vect_lookup(&m->data, cos_map_to_vect_freeid(next));
+		assert(is);
+		next = (long)is->val;
+		if (next == mid) {
+			struct cos_vect_intern_struct *prev_is, *data_is;
+
+			prev_is = __cos_vect_lookup(&m->data, cos_map_to_vect_freeid(prev));
+			data_is = cos_free_to_val(is);
+			assert(prev_is && data_is);
+			/* remove from free list */
+			prev_is->val = is->val;
+			data_is->val = val;
+			is->val = (void*)-1;
+			
+			return mid;
+		}
+		prev = next;
+		next = (long)is->val;
+	}
+	return -1;
+}
+
+static inline int cos_map_del(cos_map_t *m, long mid)
+{
+	struct cos_vect_intern_struct *is;
 
 	assert(m);
-	is = cos_map_lookup_intern(m, id);
-	if (NULL == is) return 1;
-	is->val = NULL;
-	is->free = m->freelist;
-	m->freelist = id;
+	is = __cos_vect_lookup(&m->data, cos_map_to_vect_freeid(mid));
+	if (NULL == is) return -1;
+	is->val = (void*)m->free_list;
+	m->free_list = mid;
 	return 0;
 }
 

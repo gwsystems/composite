@@ -42,6 +42,7 @@ struct evt {
 	evt_status_t status;
 	long extern_id;
 	struct evt_grp *grp;
+	struct evt *triggered_next, *triggered_prev;
 };
 
 struct evt_grp {

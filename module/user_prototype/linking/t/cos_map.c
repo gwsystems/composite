@@ -3,48 +3,65 @@
  */
 
 #define COS_LINUX_ENV
-#define COS_MAP_DYNAMIC
 #include <cos_map.h>
 
-#define ID_NUM 300
-#define OFFSET 50
-#define STATIC_SZ 256
-#define DYNAMIC_SZ 500
+#define ID_NUM (515)
 
-long ids[ID_NUM];
+long ids[ID_NUM], answers[ID_NUM];
 
-COS_MAP_STATIC_CREATE(static_map, STATIC_SZ);
-cos_map_t *dynamic_map;
+COS_MAP_CREATE_STATIC(static_map);
+
+#define PRINT(args...) //printf(args)
 
 int main(void)
 {
-	int i, s_prev = 0, d_prev = 0;
+	int i;
 
-	cos_map_init(&static_map, STATIC_SZ);
-	dynamic_map = cos_map_alloc_map(DYNAMIC_SZ);
+	cos_map_init_static(&static_map);
 
+	printf("Allocated.\n");
 	for (i = 0 ; i < ID_NUM ; i++) {
-		cos_map_add(&static_map, (void*)(i+1));
-		cos_map_add(dynamic_map, (void*)(i+1));
+		ids[i] = cos_map_add(&static_map, (void*)i);
+		answers[i] = i;
+		PRINT("%d @ %ld\n", i, ids[i]);
 	}
-
+	printf("Added.\n");
 	for (i = 0 ; i < ID_NUM ; i++) {
-		long j = (i + OFFSET) % STATIC_SZ, k = (i + OFFSET) % DYNAMIC_SZ;
-		int s, d;
-
-		s = cos_map_lookup(&static_map, j);
-		d = cos_map_lookup(dynamic_map, k);
-
-		if (s-s_prev != 1) printf("Static: prev %d, curr %d for iter %d\n", s_prev, s, i);
-		if (d-d_prev != 1) printf("Dynamic: prev %d, curr %d for iter %d\n", d_prev, d, i);
-		s_prev = s;
-		d_prev = d;
+		int ret = (int)cos_map_lookup(&static_map, ids[i]);
+		if (ret != answers[i]) printf("FAIL: %d != %ld @ %ld\n", ret, answers[i], ids[i]);
+		PRINT("%d @ %ld\n", ret, ids[i]);
 	}
-	
+	printf("Completed Lookups.\n");
 	for (i = 0 ; i < ID_NUM ; i++) {
-		cos_map_del(&static_map, i);
-		cos_map_del(dynamic_map, i);
+		if (cos_map_del(&static_map, ids[i])) printf("Delete Failure @ %d\n", i);
 	}
+	printf("Deleted.\n");
+	for (i = 0 ; i < ID_NUM ; i++) {
+		ids[i] = cos_map_add(&static_map, (void*)i);
+		answers[i] = i;
+		PRINT("%d @ %ld\n", i, ids[i]);
+	}
+	printf("Added.\n");
+	for (i = 0 ; i < ID_NUM ; i++) {
+		int ret = (int)cos_map_lookup(&static_map, ids[i]);
+		if (ret != answers[i]) printf("FAIL: %d != %ld @ %ld\n", ret, answers[i], ids[i]);
+		PRINT("%d @ %ld\n", ret, ids[i]);
+	}
+	printf("Completed Lookups.\n");
+	for (i = 0 ; i < ID_NUM ; i++) {
+		ids[i] = cos_map_add(&static_map, (void*)i);
+		answers[i] = i;
+		PRINT("%d @ %ld\n", i, ids[i]);
+	}
+	printf("Added.\n");
+	for (i = 0 ; i < ID_NUM ; i++) {
+		int ret = (int)cos_map_lookup(&static_map, ids[i]);
+		if (ret != answers[i]) printf("FAIL: %d != %ld @ %ld\n", ret, answers[i], ids[i]);
+		PRINT("%d @ %ld\n", ret, ids[i]);
+	}
+	printf("Completed Lookups.\n");
+
+	printf("\ndone.\n");
 
 	return 0;
 }
