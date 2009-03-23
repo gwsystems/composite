@@ -8,5 +8,5 @@ l.o-te.o;te.o-print.o;te.o-fprr.o;mm.o-print.o;wftest.o-print.o;net.o-print.o;\
 net.o-l.o;mm.o-print.o;net.o-te.o;net.o-e.o;e.o-fprr.o;e.o-print.o;e.o-mm.o;\
 e.o-l.o;fd.o-print.o;fd.o-e.o;fd.o-net.o;fd.o-l.o;fd.o-fprr.o;conn.o-fd.o;\
 conn.o-print.o;conn.o-mm.o;conn.o-fprr.o;fd.o-http.o;http.o-mm.o;http.o-print.o;\
-http.o-fprr.o;http.o-e.o" \
+http.o-fprr.o;http.o-e.o;fd.o-mm.o" \
 ./gen_client_stub

@@ -14,6 +14,8 @@
 #include <cos_debug.h>
 #include <cos_list.h>
 #include <print.h>
+#include <cos_map.h>
+#include <cos_vect.h>
 
 #include <errno.h>
 
@@ -22,57 +24,30 @@
 extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
 extern int sched_block(spdid_t spdid);
 
-/* Mapping between external events and internal */
-struct evt_map {
-	long extern_evt;
-	struct evt *e;
-	struct evt_map *next, *prev;
-};
-
-struct evt_map evt_map;
-struct evt_grp grps;
+/* A mapping between event ids and actual events */
+COS_VECT_CREATE_STATIC(evt_map);
 cos_lock_t evt_lock;
+
+struct evt_grp grps;
 
 /* 
  * mapping_* functions are for maintaining mappings between an
  * external event and an event structure 
  */
-static struct evt_map *mapping_alloc(long extern_evt, struct evt *e)
+static int mapping_create(long extern_evt, struct evt *e)
 {
-	struct evt_map *m = malloc(sizeof(struct evt_map));
-	
-	if (!m) return NULL;
-	m->extern_evt = extern_evt;
-	m->e = e;
-	return m;
+	if (extern_evt != cos_vect_add_id(&evt_map, e, extern_evt)) return -1;
+	return 0;
 }
 
-static struct evt_map *mapping_find(long extern_evt)
+static inline struct evt *mapping_find(long extern_evt)
 {
-	struct evt_map *m;
-
-	for (m = FIRST_LIST(&evt_map, next, prev) ; m != &evt_map ; m = FIRST_LIST(m, next, prev)) {
-		if (m->extern_evt == extern_evt) return m;
-	}
-	return NULL;
+	return (struct evt*)cos_vect_lookup(&evt_map, extern_evt);
 }
 
 static void mapping_free(long extern_evt)
 {
-	struct evt_map *m;
-
-	m = mapping_find(extern_evt);
-	if (NULL != m) {
-		REM_LIST(m, next, prev);
-		free(m);
-	}
-}
-
-static inline int mapping_add(struct evt_map *m)
-{
-	if (mapping_find(m->extern_evt)) return -1;
-	ADD_LIST(&evt_map, m, next, prev);
-	return 0;
+	if (cos_vect_del(&evt_map, extern_evt)) assert(0);
 }
 
 /* 
@@ -94,6 +69,18 @@ static inline void evt_grp_free(struct evt_grp *g)
 {
 	if (!EMPTY_LIST(g, next, prev)) {
 		REM_LIST(g, next, prev);
+	}
+	while (!EMPTY_LIST(&g->events, next, prev)) {
+		struct evt *e;
+		
+		e = FIRST_LIST(&g->events, next, prev);
+		REM_LIST(e, next, prev);
+	}
+	while (!EMPTY_LIST(&g->triggered, next, prev)) {
+		struct evt *e;
+		
+		e = FIRST_LIST(&g->triggered, next, prev);
+		REM_LIST(e, next, prev);
 	}
 	free(g);
 }
@@ -124,13 +111,12 @@ int evt_create(spdid_t spdid, long extern_evt)
 	u16_t tid = cos_get_thd_id();
 	struct evt_grp *g;
 	struct evt *e;
-	struct evt_map *m;
 	int ret = -ENOMEM;
 
 	lock_take(&evt_lock);
 	/* If the mapping exists, it's event better have the group
 	 * associated with this thread. */
-	if (NULL != (m = mapping_find(extern_evt))) {
+	if (NULL != mapping_find(extern_evt)) {
 		ret = -EEXIST;
 		goto err; 	/* shouldn't allow recreation of events */
 	}
@@ -151,8 +137,7 @@ int evt_create(spdid_t spdid, long extern_evt)
 		if (NULL == e) goto err;
 	}
 	e->extern_id = extern_evt;
-	m = mapping_alloc(extern_evt, e);
-	mapping_add(m);
+	if (mapping_create(extern_evt, e)) goto err;
 
 	lock_release(&evt_lock);
 	return 0;
@@ -163,13 +148,11 @@ err:
 
 void evt_free(spdid_t spdid, long extern_evt)
 {
-	struct evt_map *m;
 	struct evt *e;
 
 	lock_take(&evt_lock);
-	m = mapping_find(extern_evt);
-	if (NULL == m) goto done;
-	e = m->e;
+	e = mapping_find(extern_evt);
+	if (NULL == e) goto done;
 	__evt_free(e);
 	mapping_free(extern_evt);
 done:
@@ -183,6 +166,8 @@ long evt_grp_wait(spdid_t spdid)
 	struct evt_grp *g;
 	struct evt *e;
 	long extern_evt;
+
+//	printc("evt_grp_wait");
 
 	while (1) {
 		lock_take(&evt_lock);
@@ -209,15 +194,13 @@ err:
 int evt_wait(spdid_t spdid, long extern_evt)
 {
 	struct evt *e;
-	struct evt_map *m;
 
 	while (1) {
 		int ret;
 
 		lock_take(&evt_lock);
-		m = mapping_find(extern_evt);
-		if (NULL == m) goto err;
-		e = m->e;
+		e = mapping_find(extern_evt);
+		if (NULL == e) goto err;
 		if (0 > (ret = __evt_read(e))) goto err;
 		lock_release(&evt_lock);
 		if (1 == ret) {
@@ -234,16 +217,16 @@ err:
 
 int evt_trigger(spdid_t spdid, long extern_evt)
 {
-	struct evt_map *m;
 	struct evt *e;
 	int ret;
+
 	
 	lock_take(&evt_lock);
-	m = mapping_find(extern_evt);
-	if (NULL == m) goto err;
-	e = m->e;
+	e = mapping_find(extern_evt);
+//	printc("evt_trigger for %ld: %p", extern_evt, e);
+	if (NULL == e) goto err;
 	/* Trigger an event being waited for? */
-	if (0 != (ret = __evt_trigger(m->e))) {
+	if (0 != (ret = __evt_trigger(e))) {
 		lock_release(&evt_lock);
 		if(sched_wakeup(cos_spd_id(), ret)) assert(0);
 		return 0;
@@ -258,7 +241,7 @@ err:
 static void init_evts(void)
 {
 	lock_static_init(&evt_lock);
-	INIT_LIST(&evt_map, next, prev);
+	cos_vect_init_static(&evt_map);
 	INIT_LIST(&grps, next, prev);
 	sched_block(cos_spd_id());
 }

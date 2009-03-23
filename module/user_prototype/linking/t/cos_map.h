@@ -169,6 +169,10 @@ static inline long cos_map_add_id(cos_map_t *m, void *val, long mid)
 	struct cos_vect_intern_struct *is;
 	long next, prev;
 
+	/* not really tested enough.  This is not the purpose of map,
+	 * use vect instead */
+	assert(0);
+
 	/* All of this to maintain the free list... */
 	assert(m);
 	prev = next = m->free_list;

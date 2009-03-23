@@ -7,12 +7,12 @@
  */
 
 #define COS_FMT_PRINT
-
-//#include <cos_synchronization.h>
 #include <cos_component.h>
 #include <cos_alloc.h>
 #include <cos_debug.h>
 #include <cos_list.h>
+#define COS_VECT_INIT_VAL -1
+#include <cos_vect.h>
 #include <print.h>
 #include <errno.h>
 
@@ -32,22 +32,20 @@ extern int cos_app_open(int type);
 extern int sched_block(spdid_t spd_id);
 #define BUFF_SZ 1401 //(COS_MAX_ARG_SZ/2)
 
-/* same as in fd_api */
-#define MAX_FDS 4096
-struct fd_struct {
-	int fd_pair;
-} fds[MAX_FDS]; 
+COS_VECT_CREATE_STATIC(fds);
 
 static inline int get_fd_pair(int fd)
 {
-	assert(fd < MAX_FDS);
-	return fds[fd].fd_pair;
+	int pair;
+
+	pair = (int)cos_vect_lookup(&fds, (long)fd);
+	assert(pair > 0);
+	return pair;
 }
 
 static inline void set_fd_pair(int fd, int pair)
 {
-	assert(fd < MAX_FDS);
-	fds[fd].fd_pair = pair;
+	if (cos_vect_add_id(&fds, (void*)pair, fd) < 0) assert(0);
 }
 
 int accept_fd;
@@ -62,9 +60,9 @@ static void accept_new(int accept_fd)
 			assert(0);
 		}
 		if (0 > (http_fd = cos_app_open(0))) {
+			printc("app_open returned %d", http_fd);
 			assert(0);
 		}
-		if (fd > MAX_FDS) assert(0);
 		set_fd_pair(fd, http_fd);
 		set_fd_pair(http_fd, fd);
 	}
@@ -104,11 +102,9 @@ static void data_new(int fd)
 
 int main(void)
 {
-	int fd, i;
+	int fd;
 
-	for (i = 0 ; i < MAX_FDS ; i++) {
-		set_fd_pair(i, -1);
-	}
+	cos_vect_init_static(&fds);
 
 	assert(0 <= (accept_fd = cos_socket(PF_INET, SOCK_STREAM, 0)));
 	printc("socket created with fd %d", accept_fd);

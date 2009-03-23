@@ -566,10 +566,10 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 
 //~/research/others_software/httperf-0.9.0/src/httperf --port=8000 --wsess=1000,1000,0 --burst-len=100 --rate=55 --max-piped-calls=32
 //~/research/others_software/httperf-0.9.0/src/httperf --port=8000 --wsess=10000,1,0 --burst-len=1 --rate=1000 --max-piped-calls=32
-
+//httperf --port=8000 --wsess=1000,1000,0 --burst-len=100 --rate=55 --max-piped-calls=32 --server=10.0.2.8
 #define CONN_MAP_SZ 4096
 
-COS_MAP_STATIC_CREATE(conn_map, CONN_MAP_SZ);
+COS_MAP_CREATE_STATIC(conn_map);
 
 static int connection_process_requests(struct connection *c, char *req, int req_sz,
 				char *resp, int resp_sz)
@@ -584,6 +584,8 @@ extern int evt_trigger(spdid_t spdid, long extern_evt);
 int parse_write(spdid_t spdid, long connection_id, char *reqs, int sz)
 {
 	struct connection *c;
+
+//	printc("HTTP write");
 	
 	c = cos_map_lookup(&conn_map, connection_id);
 	if (NULL == c) return -EINVAL;
@@ -598,6 +600,8 @@ int parse_read(spdid_t spdid, long connection_id, char *buff, int sz)
 {
 	struct connection *c;
 	
+//	printc("HTTP read");
+
 	c = cos_map_lookup(&conn_map, connection_id);
 	if (NULL == c) return -EINVAL;
 	
@@ -619,6 +623,7 @@ long parse_open_connection(spdid_t spdid, long evt_id)
 	struct connection *c = http_new_connection(0, evt_id);
 	long c_id;
 
+//	printc("HTTP open connection");
 	if (NULL == c) return -ENOMEM;
 	c_id = cos_map_add(&conn_map, c);
 	if (c_id < 0) {

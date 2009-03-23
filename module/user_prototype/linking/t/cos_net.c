@@ -706,6 +706,11 @@ static void cos_net_lwip_tcp_err(void *arg, err_t err)
 		ic->conn_type = COS_CLOSED;
 		ic->conn.tp = NULL;
 		break;
+	case ERR_RST:
+		assert(ic->conn_type == TCP);
+		ic->conn_type = COS_CLOSED;
+		ic->conn.tp = NULL;
+		break;
 	default:
 		printc("TCP error #%d: don't really have docs to know what this means.", err);
 	}
@@ -743,6 +748,7 @@ static void __net_close(struct intern_connection *ic)
 	if (pq) {
 		while (pq) {
 			pq_next = pq->next;
+			ic->incoming_size -= pq->len;
 			free(pq);
 			pq = pq_next;
 		}
@@ -756,6 +762,8 @@ static err_t cos_net_lwip_tcp_recv(void *arg, struct tcp_pcb *tp, struct pbuf *p
 	struct packet_queue *pq, *last;
 	void *headers;
 	struct pbuf *first;
+
+//	printc("lwip_tcp_recv: received %d data", p->len);
 
 	if (NULL == p) {
 		assert(NULL != arg);
@@ -916,6 +924,7 @@ static err_t cos_net_lwip_tcp_accept(void *arg, struct tcp_pcb *new_tp, err_t er
 	 * an event to associate with this connection.  
 	 */
 //	printc("lwip accept @ %ld in network stack for fd %d", sched_timestamp(), ic->data);
+
 	if (0 > (nc = __net_create_tcp_connection(ic->spdid, ic->tid, new_tp, -1))) assert(0);
 
 	ica = net_conn_get_internal(nc);

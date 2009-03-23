@@ -17,6 +17,9 @@
 
 #include <errno.h>
 
+#include <cos_alloc.h>
+#include <cos_map.h>
+
 extern int sched_block(spdid_t spdid);
 
 /* event functions */
@@ -30,10 +33,7 @@ extern int evt_trigger(spdid_t spdid, long extern_evt);
 extern int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz);
 extern int net_recv(spdid_t spdid, net_connection_t nc, void *data, int sz);
 
-#define MAX_FDS 512
-
 typedef enum {
-	DESC_FREE,
 	DESC_TOP,
 	DESC_NET,
 	DESC_HTTP
@@ -47,6 +47,7 @@ struct fd_ops {
 };
 
 struct descriptor {
+	int fd_num;
 	desc_t type;
 	void *data;
 	struct descriptor *free;
@@ -54,49 +55,48 @@ struct descriptor {
 	struct fd_ops ops;
 };
 
-
-struct descriptor fds[MAX_FDS];
-struct descriptor *freelist;
+COS_MAP_CREATE_STATIC(fds);
 cos_lock_t fd_lock;
 #define FD_LOCK_TAKE() 	lock_take(&fd_lock)
 #define FD_LOCK_RELEASE() lock_release(&fd_lock)
 
 static inline int fd_get_index(struct descriptor *d)
 {
-	return d-&fds[0];
+	return d->fd_num;
 }
 
 static inline struct descriptor *fd_get_desc(int fd)
 {
 	struct descriptor *d;
 
-	if (fd >= MAX_FDS) return NULL;
-	d = &fds[fd];
-	if (DESC_FREE == d->type) return NULL;
+	d = cos_map_lookup(&fds, fd);
+	if (NULL == d) return NULL;
+
 	return d;
 }
 
 static struct descriptor *fd_alloc(desc_t t)
 {
 	struct descriptor *d;
+	int id;
 
-	d = freelist;
-	if (NULL != d) {
-		freelist = freelist->free;
-		d->free = NULL;
-		assert(DESC_FREE == d->type);
-		d->type = t;
-		return d;
+	d = malloc(sizeof(struct descriptor));
+	if (NULL == d) return NULL;
+	d->type = t;
+	id = cos_map_add(&fds, d);
+	if (-1 == id) {
+		free(d);
+		return NULL;
 	}
-	return NULL;
+	d->fd_num = (int)id;
+
+	return d;
 }
 
 static void fd_free(struct descriptor *d)
 {
-	d->type = DESC_FREE;
-	d->data = NULL;
-	d->free = freelist;
-	freelist = d;
+	cos_map_del(&fds, (long)d->fd_num);
+	free(d);
 }
 
 /* 
@@ -377,16 +377,19 @@ static int fd_app_write(int fd, struct descriptor *d, char *buff, int sz)
 int cos_app_open(int type)
 {
 	struct descriptor *d;
-	int fd, ret;
+	int fd, crt_ret, ret = -EINVAL;
 	long conn_id;
 
 	/* FIXME: ignoring type for now */
 
 	FD_LOCK_TAKE();
-	if (NULL == (d = fd_alloc(DESC_HTTP))) goto err;
+	if (NULL == (d = fd_alloc(DESC_HTTP))) {
+		ret = -ENOMEM;
+		goto err;
+	}
 	fd = fd_get_index(d);
-	if ((ret = evt_create(cos_spd_id(), fd))) {
-		printc("Could not create event for app fd: %d", ret);
+	if ((crt_ret = evt_create(cos_spd_id(), fd))) {
+		printc("Could not create event for app fd: %d", crt_ret);
 		assert(0);
 	}
 
@@ -406,7 +409,7 @@ err_cleanup:
 	/* fall through */
 err:
 	FD_LOCK_RELEASE();
-	return -EINVAL;
+	return ret;
 	
 }
 
@@ -468,16 +471,8 @@ int cos_wait_all(void)
 
 static void init(void) 
 {
-	int i;
-
 	lock_static_init(&fd_lock);
-	freelist = &fds[0];
-	for (i = 0 ; i < MAX_FDS ; i++) {
-		fds[i].type = DESC_FREE;
-		fds[i].data = NULL;
-		fds[i].free = (i < MAX_FDS-1) ? &fds[i+1] : NULL;
-	}
-
+	cos_map_init_static(&fds);
 	sched_block(cos_spd_id());
 }
 

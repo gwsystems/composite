@@ -12,6 +12,7 @@
 #include <cos_component.h>
 #include <cos_list.h>
 #include <cos_debug.h>
+#include <cos_alloc.h>
 
 /* 
  * Structures for an edge-triggered event component.
@@ -26,8 +27,7 @@
 typedef enum {
 	EVT_TRIGGERED, 	/* has the event been triggered */
 	EVT_BLOCKED,    /* the thread is blocked only on this one event */
-	EVT_INACTIVE,	/* event has not been triggered since last read */
-	EVT_FREE
+	EVT_INACTIVE	/* event has not been triggered since last read */
 } evt_status_t;
 
 typedef enum {
@@ -42,7 +42,7 @@ struct evt {
 	evt_status_t status;
 	long extern_id;
 	struct evt_grp *grp;
-	struct evt *triggered_next, *triggered_prev;
+	struct evt *next, *prev;
 };
 
 struct evt_grp {
@@ -50,23 +50,17 @@ struct evt_grp {
 	u16_t tid;              /* thread that waits for events */
 	evt_grp_status_t status;
 	struct evt_grp *next, *prev;
-	struct evt evts[EVT_PER_GRP];
+	struct evt events, triggered;
 };
 
 static inline void evt_grp_init(struct evt_grp *eg, spdid_t spdid, u16_t tid)
 {
-	int i;
-	
 	eg->spdid = spdid;
 	eg->tid = tid;
 	eg->status = EVTG_INACTIVE;
 	INIT_LIST(eg, next, prev);
-	for (i = 0; i < EVT_PER_GRP ; i++) {
-		struct evt *e = &eg->evts[i];
-
-		e->status = EVT_FREE;
-		e->grp = eg;
-	}
+	INIT_LIST(&eg->events, next, prev);
+	INIT_LIST(&eg->triggered, next, prev);
 }
 
 /* 
@@ -85,8 +79,13 @@ static inline int __evt_trigger(struct evt *e)
 
 	assert(NULL != e);
 	g = e->grp;
+	assert(g);
 	gs = g->status;
 	s = e->status;
+	REM_LIST(e, next, prev);
+	/* Add to the triggered list */
+	ADD_LIST(&g->triggered, e, next, prev);
+
 	/* mark the event as triggered. */
 	e->status = EVT_TRIGGERED;
 	g->status = EVTG_INACTIVE;
@@ -107,23 +106,24 @@ static inline int __evt_trigger(struct evt *e)
 static int __evt_grp_read(struct evt_grp *g, struct evt **evt)
 {
 	struct evt *e;
-	int i;
 	*evt = NULL;
 
 	assert(NULL != g && NULL != (void*)evt);
 	if (cos_get_thd_id() != g->tid) return -1;
 
-	for (i = 0; i < EVT_PER_GRP ; i++) {
-		e = &g->evts[i];
-		if (e->status == EVT_FREE) continue;
-		if (e->status == EVT_TRIGGERED) {
-			e->status = EVT_INACTIVE;
-			g->status = EVTG_INACTIVE;
-			*evt = e;
-			return 0;
-		}
+	if (EMPTY_LIST(&g->triggered, next, prev)) {
+		g->status = EVTG_BLOCKED;
+		return 0;
 	}
-	g->status = EVTG_BLOCKED;
+	e = FIRST_LIST(&g->triggered, next, prev);
+	assert(e != &g->triggered);
+	REM_LIST(e, next, prev);
+	assert(e->status == EVT_TRIGGERED);
+	e->status = EVT_INACTIVE;
+	g->status = EVTG_INACTIVE;
+	*evt = e;
+	ADD_LIST(&g->events, e, next, prev);
+
 	return 0;
 }
 
@@ -132,7 +132,7 @@ static int __evt_read(struct evt *e)
 	struct evt_grp *g;
 
 	assert(NULL != e);
-	assert(e->status != EVT_FREE && e->status != EVT_BLOCKED);
+	assert(e->status != EVT_BLOCKED);
 	g = e->grp;
 	assert(NULL != g);
 	if (cos_get_thd_id() != g->tid) return -1;
@@ -146,22 +146,19 @@ static int __evt_read(struct evt *e)
 
 static inline void __evt_free(struct evt *e)
 {
-	e->status = EVT_FREE;
+	free(e);
 }
 
 static inline struct evt *__evt_new(struct evt_grp *g)
 {
-	int i;
+	struct evt *e;
 
-	for (i = 0; i < EVT_PER_GRP ; i++) {
-		struct evt *e = &g->evts[i];
-		
-		if (EVT_FREE == e->status) {
-			e->status = EVT_INACTIVE;
-			return e;
-		}
-	}
-	return NULL;
+	e = malloc(sizeof(struct evt));
+	if (NULL == e) return NULL;
+	e->status = EVT_INACTIVE;
+	e->grp = g;
+	ADD_LIST(&g->events, e, next, prev);
+	return e;
 }
 
 #endif /* EVT_H */

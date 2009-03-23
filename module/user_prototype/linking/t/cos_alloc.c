@@ -260,6 +260,7 @@ err_out:
 //void* __libc_malloc(size_t size) __attribute__((alias("_alloc_libc_malloc")));
 void* malloc(size_t size) __attribute__((weak,alias("_alloc_libc_malloc")));
 
+extern void *memset(void *s, int c, size_t n);
 void *__libc_calloc(size_t nmemb, size_t _size)
 {
 	size_t tot = nmemb*_size;

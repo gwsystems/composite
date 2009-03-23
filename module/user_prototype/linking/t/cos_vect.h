@@ -30,6 +30,8 @@ typedef struct cos_vect_struct {
 
 #ifndef PAGE_SIZE
 #define PAGE_SIZE 4096
+#endif
+#ifndef PAGE_SHIFT
 #define PAGE_SHIFT 12
 #endif
 #define COS_VECT_PAGE_BASE (PAGE_SIZE/sizeof(struct cos_vect_intern_struct))
@@ -72,7 +74,7 @@ static inline int __cos_vect_init(cos_vect_t *v)
 	vs = v->vect;
 	assert(vs);
 	for (i = 0 ; i < COS_VECT_BASE ; i++) {
-		vs[i].val = COS_VECT_INIT_VAL;
+		vs[i].val = (void*)COS_VECT_INIT_VAL;
 	}
 
 	return 0;
@@ -99,10 +101,7 @@ static inline void cos_vect_init(cos_vect_t *v, struct cos_vect_intern_struct *v
 #else  /* COS_LINUX_ENV */
 #include <cos_alloc.h>
 #ifndef COS_VECT_ALLOC
-#if COS_VECT_BASE != COS_VECT_PAGE_BASE
-#warn "using alloc_page, but vector not of page size"
-#endif
-#define COS_VECT_ALLOC alloc_page
+#define COS_VECT_ALLOC(x) alloc_page()
 #define COS_VECT_FREE  free_page
 #endif /* COS_VECT_ALLOC */
 #endif /* COS_LINUX_ENV */
@@ -205,7 +204,7 @@ static inline int __cos_vect_expand(cos_vect_t *v, long id)
 
 	is = COS_VECT_ALLOC(COS_VECT_BASE * sizeof(struct cos_vect_intern_struct));
 	if (NULL == is) return -1;
-	for (i = 0 ; i < COS_VECT_BASE ; i++) is[i].val = COS_VECT_INIT_VAL;
+	for (i = 0 ; i < COS_VECT_BASE ; i++) is[i].val = (void*)COS_VECT_INIT_VAL;
 
 	root = &v->vect[(id >> COS_VECT_SHIFT) & COS_VECT_MASK];
 	assert(NULL == root->val);
@@ -247,7 +246,7 @@ static long cos_vect_add_id(cos_vect_t *v, void *val, long id)
 static int cos_vect_del(cos_vect_t *v, long id)
 {
 	assert(v);
-	if (__cos_vect_set(v, id, COS_VECT_INIT_VAL)) return 1;
+	if (__cos_vect_set(v, id, (void*)COS_VECT_INIT_VAL)) return 1;
 	return 0;
 }
 

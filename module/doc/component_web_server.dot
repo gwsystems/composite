@@ -3,90 +3,83 @@ digraph web_server {
 //	overlap=scale;
 	splines=true;
 //	rankdir=BT;
-	
+
 	{
 		rank=same;
-		"Net Demultiplexer" [shape=box];
-		"Network Driver" [shape=box];
-		"Timer Driver" [shape=box];
-		"Terminal Printer" [shape=diamond];
-		"Memory Mapper" [shape=diamond];
-	};
+		"Net Demultiplexer" [shape=box,style=filled,fillcolor="#b3b300"];
+		"Network Driver" [shape=box,style=filled,fillcolor="#b3b300"];
+		"Timer Driver" [shape=box,style=filled,fillcolor="#b3b300"];
 
+		"Terminal Printer" [shape=octagon,style=filled,fillcolor="#b3b300"];
+		"Memory Mapper" [shape=octagon,style=filled,fillcolor="#b3b300"];
+	};
 	{
-	"Socket API" [color=red];
-	"Blocking Policy" [color=red];
-	"UDP" [color=red];
-	"TCP" [color=red];
-	"IP" [color=red];
-	"Port Manager" [color=red];
-	"Net Event" [color=red];
+		rank=same;
+		"Connection Manager" [fillcolor="#b3b300",style=filled];
+		"File Descriptor API" [fillcolor="#b3b300",style=filled];
 	};
 
-	{
-	"Connection Manager" [color=blue];
-	"HTTP Parser" [color=blue];
-	"CGI Programs" [style=dashed];
-	"Content Manager" [color=blue];
-	"Thread Pool" [color=blue];
-	"Static Content" [style=dashed];
-	"Plugins" [style=dashed,color=blue];
-	"Application Scheduler" [color=blue];
-	"CGI Event" [color=blue];
-	"File Descriptor API" [color=blue];
-	};
+	"Socket API" [fillcolor="#b3b300",style=filled];
+	"UDP" [fillcolor="#b3b300",style=filled];
+	"TCP" [fillcolor="#b3b300",style=filled];
+	"IP" [fillcolor="#b3b300",style=filled];
+	"Port Manager" [fillcolor="#b3b300",style=filled];
+	"Event Manager" [fillcolor="#b3b300",style=filled];
 
-	"Base Scheduler";
-	"Lock";
-	"Timed Event";
-	"MPD Manager";
-	
+	"HTTP Parser" [fillcolor="#b3b300",style=filled];
+	"CGI Services" [fillcolor="#cccccc",style=filled];
+	"Content Manager" [fillcolor="#b3b300",style=filled];
+	"Pipe" [style=filled,fillcolor="#b3b300"];
+	"Service Lock" [style=filled,fillcolor="#b3b300"];
+	"Static Content" [style=filled,fillcolor="#cccccc"];
+	"Plugins" [fillcolor="#cccccc",style=filled];
+	"Service Scheduler" [fillcolor="#b3b300",style=filled];
+
+	"Base Scheduler" [fillcolor="#b3b300",style=filled];
+	"Lock" [fillcolor="#b3b300",style=filled];
+	"Timed Block" [fillcolor="#b3b300",style=filled];
+	"MPD Manager" [fillcolor="#b3b300",style=filled];
+
 
 	// Edges
-	"Connection Manager" -> "Socket API";
 	"Connection Manager" -> "File Descriptor API";
 	"File Descriptor API" -> "Socket API";
-	"File Descriptor API" -> "Blocking Policy";
-	"Socket API" -> "Blocking Policy";
-	"Blocking Policy" -> "TCP";
-	"Blocking Policy" -> "UDP";
-	"Blocking Policy" -> "Lock";
-	"Blocking Policy" -> "Net Event";
-	"Connection Manager" -> "HTTP Parser";
+	"File Descriptor API" -> "TCP";
+	"File Descriptor API" -> "UDP";
+	"File Descriptor API" -> "Event Manager";
 	"HTTP Parser" -> "Content Manager";
 	"Content Manager" -> "Plugins";
 	"Content Manager" -> "Static Content";
-	"Content Manager" -> "Thread Pool";
-	"CGI Programs" -> "Thread Pool";
-	"Thread Pool" -> "Application Scheduler";
-	"Application Scheduler" -> "Base Scheduler";
-	"Thread Pool" -> "CGI Event";
+	"Content Manager" -> "Pipe";
+	"CGI Services" -> "Pipe";
+	"Pipe" -> "Service Scheduler";
+	"Pipe" -> "Service Lock";
+	"Service Lock" -> "Service Scheduler";
+	"Service Scheduler" -> "Base Scheduler";
+	"Pipe" -> "Event Manager";
 	"Socket API" -> "TCP";
 	"Socket API" -> "UDP";
 	"UDP" -> "IP";
 	"TCP" -> "IP";
-	"TCP" -> "Timed Event";
-	"UDP" -> "Net Event";
-	"TCP" -> "Net Event";
+	"TCP" -> "Timed Block";
+	"UDP" -> "Event Manager";
+	"TCP" -> "Event Manager";
 	"UDP" -> "Port Manager";
 	"TCP" -> "Port Manager";
 	"Port Manager" -> "Lock";
 	"Port Manager" -> "Net Demultiplexer";
-	"CGI Event" -> "Net Event";
-	"CGI Event" -> "Base Scheduler";
-	"Net Event" -> "Base Scheduler";
-	"CGI Event" -> "Lock";
-	"Net Event" -> "Lock";
-	"Lock" -> "Timed Event";
+	"Event Manager" -> "Base Scheduler";
+	"Event Manager" -> "Lock";
+	"Lock" -> "Timed Block";
 	"Lock" -> "Base Scheduler";
-	"Timed Event" -> "Base Scheduler";
+	"Timed Block" -> "Base Scheduler";
 	"UDP" -> "Lock";
 	"TCP" -> "Lock";
 	"IP" -> "Lock";
-	"Thread Pool" -> "Lock";
-	"File Descriptor API" -> "Lock";
+//	"File Descriptor API" -> "Lock";
 	"IP" -> "Net Demultiplexer" -> "Network Driver";
 	"Base Scheduler" -> "Timer Driver";
+	"File Descriptor API" -> "HTTP Parser";
 
-	"MPD Manager" -> "Timed Event";	
+	"MPD Manager" -> "Timed Block";	
 }
