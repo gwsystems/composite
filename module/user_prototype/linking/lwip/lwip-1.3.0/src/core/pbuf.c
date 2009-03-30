@@ -78,6 +78,10 @@
    aligned there. Therefore, PBUF_POOL_BUFSIZE_ALIGNED can be used here. */
 #define PBUF_POOL_BUFSIZE_ALIGNED LWIP_MEM_ALIGN_SIZE(PBUF_POOL_BUFSIZE)
 
+/* GAP: function to call when a pbuf is freed of type ROM/REF.  This
+ * allows the ->payload to be deallocated */
+void (*pbuf_extern_free)(struct pbuf *p) = NULL;
+
 /**
  * Allocates a pbuf of the given type (possibly a chain for PBUF_POOL type).
  *
@@ -243,9 +247,11 @@ pbuf_alloc(pbuf_layer layer, u16_t length, pbuf_type type)
   }
   /* set reference count */
   p->ref = 1;
+  /* GAP: track location packet was allocated from, relevant for ROM/REF */
+  p->alloc_track = NULL;
   /* set flags */
   p->flags = 0;
-  LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE | 3, ("pbuf_alloc(length=%"U16_F") == %p\n", length, (void *)p));
+  LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE | 3, ("pbuf_alloc(length=%"U16_F") == %p, type %s\n", length, (void *)p, p->type == PBUF_RAM ? "RAM" : p->type == PBUF_POOL ? "POOL" : "ROM/REF"));
   return p;
 }
 
@@ -411,7 +417,6 @@ pbuf_header(struct pbuf *p, s16_t header_size_increment)
   /* modify pbuf length fields */
   p->len += header_size_increment;
   p->tot_len += header_size_increment;
-
   LWIP_DEBUGF(PBUF_DEBUG, ("pbuf_header: old %p new %p (%"S16_F")\n",
     (void *)payload, (void *)p->payload, header_size_increment));
 
@@ -464,7 +469,7 @@ pbuf_free(struct pbuf *p)
     LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE | 2, ("pbuf_free(p == NULL) was called.\n"));
     return 0;
   }
-  LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE | 3, ("pbuf_free(%p)\n", (void *)p));
+  LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE | 3, ("pbuf_free(%p)\n", (void *)p, p->type == PBUF_RAM ? "RAM" : p->type == PBUF_POOL ? "POOL" : "ROM/REF"));
 
   PERF_START;
 
@@ -498,6 +503,8 @@ pbuf_free(struct pbuf *p)
         memp_free(MEMP_PBUF_POOL, p);
       /* is this a ROM or RAM referencing pbuf? */
       } else if (type == PBUF_ROM || type == PBUF_REF) {
+	      /* GAP: free ->payload memory */
+	      if (NULL != pbuf_extern_free) pbuf_extern_free(p);
         memp_free(MEMP_PBUF, p);
       /* type == PBUF_RAM */
       } else {

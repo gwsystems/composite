@@ -30,6 +30,8 @@
 #define EMPTY_LIST(obj, next, prev)		  \
 	((obj)->next == (obj))
 
+#define ADD_END_LIST(head, new, next, prev) 	  \
+	ADD_LIST(LAST_LIST(head, next, prev), new, next, prev)
 
 /* 
  * create list_add_type and list_rem_type where type is the type of

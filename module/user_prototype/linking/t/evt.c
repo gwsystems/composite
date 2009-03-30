@@ -140,6 +140,7 @@ int evt_create(spdid_t spdid, long extern_evt)
 	if (mapping_create(extern_evt, e)) goto err;
 
 	lock_release(&evt_lock);
+
 	return 0;
 err:
 	lock_release(&evt_lock);
@@ -220,7 +221,6 @@ int evt_trigger(spdid_t spdid, long extern_evt)
 	struct evt *e;
 	int ret;
 
-	
 	lock_take(&evt_lock);
 	e = mapping_find(extern_evt);
 //	printc("evt_trigger for %ld: %p", extern_evt, e);

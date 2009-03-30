@@ -83,6 +83,8 @@ lwip_standard_chksum(void *dataptr, u16_t len)
   u16_t src;
   u8_t *octetptr;
 
+  /* gap: check here for segfault I'm seeing */
+  LWIP_ASSERT("checksuming NULL pointer!", NULL != dataptr);
   acc = 0;
   /* dataptr may be at odd or even addresses */
   octetptr = (u8_t*)dataptr;
@@ -140,6 +142,9 @@ lwip_standard_chksum(void *dataptr, int len)
   u32_t sum = 0;
   int odd = ((u32_t)pb & 1);
 
+  /* gap: check here for segfault I'm seeing */
+  LWIP_ASSERT("checksuming NULL pointer!", NULL != dataptr);
+
   /* Get aligned to u16_t */
   if (odd && len > 0) {
     ((u8_t *)&t)[1] = *pb++;
@@ -194,6 +199,9 @@ lwip_standard_chksum(void *dataptr, int len)
   u32_t sum = 0, tmp;
   /* starts at odd byte address? */
   int odd = ((u32_t)pb & 1);
+
+  /* gap: check here for segfault I'm seeing */
+  LWIP_ASSERT("checksuming NULL pointer!", NULL != dataptr);
 
   if (odd && len > 0) {
     ((u8_t *)&t)[1] = *pb++;

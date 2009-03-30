@@ -106,12 +106,9 @@ int main(void)
 
 	cos_vect_init_static(&fds);
 
-	assert(0 <= (accept_fd = cos_socket(PF_INET, SOCK_STREAM, 0)));
-	printc("socket created with fd %d", accept_fd);
-	assert(0 <= cos_bind(accept_fd, 0, 200));
-	printc("bind");
-	assert(0 <= cos_listen(accept_fd, 10));
-	printc("listen");
+	if (0 > (accept_fd = cos_socket(PF_INET, SOCK_STREAM, 0))) assert(0);
+	if (0 > cos_bind(accept_fd, 0, 200)) assert(0);
+	if (0 > cos_listen(accept_fd, 10)) assert(0);
 	while (1) {
 		fd = cos_wait_all();
 		if (fd == accept_fd) {

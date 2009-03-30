@@ -3,16 +3,10 @@
  * non-contiguous, multiple-free-list worst case n/2 internal
  * fragmentation allocator (for sizes > 16 bytes).  
  *
- * FIXME: when freeing a page, we make a small allocation to track
- * that page.  Would be much better to just use the page to store the
- * structure.  What if we need to free a page to make an allocation:
- * to free to need to alloc = hosed.  The work-around for now could be
- * that i we cannot allocate the structure to describe the page, just
- * call the memory component to free it rather than add it to the free
- * page list.
- *
  * Ported to the Composite OS, and lock-free synchronization added by
  * Gabriel Parmer, gabep1@cs.bu.edu.
+ *
+ * stats reporting and debugging added by gabep1@cs.bu.edu on 3/26/09
  */
 
 /*
@@ -24,13 +18,6 @@
  *   let the kernel map all the stuff (if there is something to do)
  */
 
-//#define DEBUG_OUTPUT
-#ifdef DEBUG_OUTPUT
-#define COS_FMT_PRINT
-#include <print.h>
-int alloc_debug = 0;
-#endif
-
 //#define UNIX_TEST
 #ifdef UNIX_TEST
 #define PAGE_SIZE 4096
@@ -38,14 +25,16 @@ int alloc_debug = 0;
 #else
 #include "cos_component.h"
 #include "cos_alloc.h"
+#ifdef ALLOC_DEBUG
+#define COS_FMT_PRINT
+#include <print.h>
+int alloc_debug = 0;
+#endif
 
-
-//typedef unsigned int size_t;
 struct free_page {
 	struct free_page *next;
-	void *addr;
 };
-static struct free_page page_list = {.next = NULL, .addr = NULL};
+static struct free_page page_list = {.next = NULL};
 
 extern void *mman_get_page(spdid_t spd, void *addr, int flags);
 extern void mman_release_page(spdid_t spd, void *addr, int flags);
@@ -90,8 +79,8 @@ static inline REGPARM(1) void *do_mmap(size_t size) {
   /* FIXME: If this doesn't return success, we should terminate */
   ret = (void*)mman_get_page(cos_spd_id(), hp, 0);
   if (NULL == ret) cos_set_heap_ptr(hp);
-#ifdef DEBUG_OUTPUT
-  if (alloc_debug) printc("malloc: mmapped region into %x", ret);
+#if ALLOC_DEBUG >= ALLOC_DEBUG_ALL
+  if (alloc_debug) printc("malloc in %d: mmapped region into %x", cos_spd_id(), ret);
 #endif
   return ret;
 #endif
@@ -132,6 +121,45 @@ static size_t REGPARM(1) get_index(size_t _size) {
   return idx;
 }
 
+#if ALLOC_DEBUG >= ALLOC_DEBUG_STATS
+struct mem_stats {
+	unsigned long long alloc, free;
+};
+typedef enum { DBG_ALLOC, DBG_FREE } alloc_dbg_type_t;
+static struct mem_stats __mem_stats[8];
+
+void alloc_stats_print(void)
+{
+	int i;
+
+	for (i = 0 ; i < 8 ; i++) {
+		unsigned long long min;
+
+		printc("cos_alloc: bin %d, alloc %lld, free %lld", 
+		       i, __mem_stats[i].alloc, __mem_stats[i].free);
+		min = (__mem_stats[i].alloc < __mem_stats[i].free) ? 
+			__mem_stats[i].alloc : 
+			__mem_stats[i].free;
+		__mem_stats[i].free  -= min;
+		__mem_stats[i].alloc -= min;
+	}
+}
+
+static void alloc_stats_report(alloc_dbg_type_t type, int bin)
+{
+	switch (type) {
+	case DBG_ALLOC:
+		__mem_stats[bin].alloc++;
+		break;
+	case DBG_FREE:
+		__mem_stats[bin].free++;
+		break;
+	}
+}
+#else
+#define alloc_stats_report(t, b)
+#endif
+
 /* small mem */
 static void __small_free(void*_ptr,size_t _size) REGPARM(2);
 
@@ -141,10 +169,15 @@ static inline void REGPARM(2) __small_free(void*_ptr,size_t _size) {
 	size_t idx=get_index(size);
 	
 //  memset(ptr,0,size);	/* allways zero out small mem */
+#if ALLOC_DEBUG >= ALLOC_DEBUG_ALL
+	if (alloc_debug) printc("free (in %d): freeing %p of size %d and index %d.", 
+				cos_spd_id(), ptr, size, idx);
+#endif
 	do {
 		prev = __small_mem[idx];
 		ptr->next=prev;
 	} while (unlikely(cos_cmpxchg(&__small_mem[idx], (int)prev, (int)ptr) != (int)ptr));
+	alloc_stats_report(DBG_FREE, idx);
 }
 
 static inline void* REGPARM(1) __small_malloc(size_t _size) {
@@ -155,8 +188,9 @@ static inline void* REGPARM(1) __small_malloc(size_t _size) {
 	idx=get_index(size);
 	do {
 		ptr=__small_mem[idx];
-#ifdef DEBUG_OUTPUT
-		if (alloc_debug) printc("malloc: head of list for size %d (idx %d) is %x", _size, idx, __small_mem[idx]);
+#if ALLOC_DEBUG >= ALLOC_DEBUG_ALL
+		if (alloc_debug) printc("malloc (in %d): head of list for size %d (idx %d) is %x", 
+					cos_spd_id(), _size, idx, __small_mem[idx]);
 #endif
 		if (unlikely(ptr==0))  {	/* no free blocks ? */
 			register int i,nr;
@@ -181,8 +215,9 @@ static inline void* REGPARM(1) __small_malloc(size_t _size) {
 				 * the end of our new list */
 				end->next = ptr;
 			} while (unlikely(cos_cmpxchg(&__small_mem[idx], (long)ptr, (long)second) != (long)second));
-#ifdef DEBUG_OUTPUT
-			if (alloc_debug) printc("malloc: returning memory region @ %x, head of list is %x", start, __small_mem[idx]);
+#if ALLOC_DEBUG >= ALLOC_DEBUG_ALL
+			if (alloc_debug) printc("malloc (in %d): returning memory region @ %x, size %d, index %d, (head of list is %x)", 
+						cos_spd_id(), ptr, size, idx, __small_mem[idx]);
 #endif
 			return start;
 		} 
@@ -191,8 +226,9 @@ static inline void* REGPARM(1) __small_malloc(size_t _size) {
 	} while (unlikely(cos_cmpxchg(&__small_mem[idx], (long)ptr, (long)next) != (long)next));
 	ptr->next=0;
 
-#ifdef DEBUG_OUTPUT
-	if (alloc_debug) printc("malloc: returning memory region @ %x, head of list is %x", ptr, __small_mem[idx]);
+#if ALLOC_DEBUG >= ALLOC_DEBUG_ALL
+	if (alloc_debug) printc("malloc (in %d): returning memory region @ %x, size %d, index %d, (head of list is %x)", 
+				cos_spd_id(), ptr, size, idx, __small_mem[idx]);
 #endif
 	/* 
 	 * FIXME: This still suffers from the ABA problem -- still a
@@ -202,6 +238,7 @@ static inline void* REGPARM(1) __small_malloc(size_t _size) {
 	 * the head of the list.  This can be solved with another
 	 * cos_cmpxchg loop to verify next as well.
 	 */
+	alloc_stats_report(DBG_ALLOC, idx);
 
 	return ptr;
 }
@@ -284,8 +321,8 @@ void *alloc_page(void)
 		a = do_mmap(PAGE_SIZE);
 	} else {
 		page_list.next = fp->next;
-		a = fp->addr;
-		free(fp);
+		fp->next = NULL;
+		a = (void*)fp;
 	}
 	
 	return a;
@@ -295,8 +332,7 @@ void free_page(void *ptr)
 {
 	struct free_page *fp;
 	
-	fp = (struct free_page *)malloc(sizeof(struct free_page));
-	fp->addr = ptr;
+	fp = (struct free_page *)ptr;
 	fp->next = page_list.next;
 	page_list.next = fp;
 

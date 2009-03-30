@@ -1801,7 +1801,6 @@ int main_page_fault_interposition(void)
 
 	struct thread *thd;
 	struct spd_poly *poly;
-//	int present;
 	struct pt_regs *regs = NULL;
 	
 	/*

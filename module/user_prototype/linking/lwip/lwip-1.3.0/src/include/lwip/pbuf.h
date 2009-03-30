@@ -92,7 +92,9 @@ struct pbuf {
    * the stack itself, or pbuf->next pointers from a chain.
    */
   u16_t ref;
-  
+
+	/* GAP: add field to keep track of e.g. allocation starting address. */
+	void *alloc_track;
 };
 
 /* Initializes the pbuf module. This call is empty for now, but may not be in future. */

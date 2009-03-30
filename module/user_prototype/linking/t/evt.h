@@ -84,7 +84,7 @@ static inline int __evt_trigger(struct evt *e)
 	s = e->status;
 	REM_LIST(e, next, prev);
 	/* Add to the triggered list */
-	ADD_LIST(&g->triggered, e, next, prev);
+	ADD_END_LIST(&g->triggered, e, next, prev);
 
 	/* mark the event as triggered. */
 	e->status = EVT_TRIGGERED;
@@ -118,6 +118,7 @@ static int __evt_grp_read(struct evt_grp *g, struct evt **evt)
 	e = FIRST_LIST(&g->triggered, next, prev);
 	assert(e != &g->triggered);
 	REM_LIST(e, next, prev);
+	if (e->status != EVT_TRIGGERED) printc("event %ld, status %d", e->extern_id, e->status);
 	assert(e->status == EVT_TRIGGERED);
 	e->status = EVT_INACTIVE;
 	g->status = EVTG_INACTIVE;
@@ -146,6 +147,9 @@ static int __evt_read(struct evt *e)
 
 static inline void __evt_free(struct evt *e)
 {
+	e->grp = NULL;
+	e->status = EVT_INACTIVE;
+	REM_LIST(e, next, prev);
 	free(e);
 }
 

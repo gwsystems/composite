@@ -6,9 +6,6 @@
  * Public License v2.
  */
 
-/* 
- * NOT COMPLETE AND NOT TESTED...
- */
 #define COS_FMT_PRINT
 
 #include <cos_component.h>
@@ -119,13 +116,16 @@ extern int net_close(spdid_t spdid, net_connection_t nc);
 static int fd_net_close(int fd, struct descriptor *d)
 {
 	net_connection_t nc;
+	int ret;
 
 	assert(d->type == DESC_NET)
 	nc = (net_connection_t)d->data;
+	ret = net_close(cos_spd_id(), nc);
+	evt_free(cos_spd_id(), fd);
 	fd_free(d);
 	FD_LOCK_RELEASE();
-	evt_free(cos_spd_id(), fd);
-	return net_close(cos_spd_id(), nc);
+
+	return ret;
 }
 
 static int fd_net_read(int fd, struct descriptor *d, char *buf, int sz)
@@ -136,19 +136,7 @@ static int fd_net_read(int fd, struct descriptor *d, char *buf, int sz)
 	assert(d->type == DESC_NET);
 	nc = (net_connection_t)d->data;
 	FD_LOCK_RELEASE();
-	ret = net_recv(cos_spd_id(), nc, buf, sz);
-	if (unlikely(0 > ret)) {
-		FD_LOCK_TAKE();
-		d = fd_get_desc(fd);
-		if (NULL != d && (net_connection_t)d->data == nc) {
-			fd_free(d);
-			evt_free(cos_spd_id(), fd);
-			net_close(cos_spd_id(), nc);
-		}
-		ret = -EPIPE;
-		FD_LOCK_RELEASE();
-	}
-	return ret;
+	return net_recv(cos_spd_id(), nc, buf, sz);
 }
 
 static int fd_net_write(int fd, struct descriptor *d, char *buf, int sz)
@@ -159,20 +147,7 @@ static int fd_net_write(int fd, struct descriptor *d, char *buf, int sz)
 	assert(d->type == DESC_NET);
 	nc = (net_connection_t)d->data;
 	FD_LOCK_RELEASE();
-	ret = net_send(cos_spd_id(), nc, buf, sz);
-	if (unlikely(0 > ret && -EMSGSIZE != ret)) {
-		FD_LOCK_TAKE();
-		d = fd_get_desc(fd);
-		if (NULL != d && (net_connection_t)d->data == nc) {
-			fd_free(d);
-			evt_free(cos_spd_id(), fd);
-			net_close(cos_spd_id(), nc);
-		}
-		printc("write returned %d", ret);
-		ret = -EPIPE;
-		FD_LOCK_RELEASE();
-	}
-	return ret;
+	return net_send(cos_spd_id(), nc, buf, sz);
 }
 
 int cos_socket(int domain, int type, int protocol)
@@ -214,8 +189,8 @@ int cos_socket(int domain, int type, int protocol)
 
 	return fd;
 err_cleanup:
-	fd_free(d);
 	evt_free(cos_spd_id(), fd);
+	fd_free(d);
 	/* fall through */
 err:
 	FD_LOCK_RELEASE();
@@ -233,8 +208,8 @@ int cos_listen(int fd, int queue)
 	if (NULL == d) goto err;
 	if (d->type != DESC_NET) goto err;
 	nc = (net_connection_t)d->data;
-	FD_LOCK_RELEASE();
 	ret = net_listen(cos_spd_id(), nc, queue);
+	FD_LOCK_RELEASE();
 
 	return ret;
 err:
@@ -246,14 +221,17 @@ int cos_bind(int fd, u32_t ip, u16_t port)
 {
 	struct descriptor *d;
 	net_connection_t nc;
+	int ret;
 
 	FD_LOCK_TAKE();
 	d = fd_get_desc(fd);
 	if (NULL == d) goto err;
 	if (d->type != DESC_NET) goto err;
 	nc = (net_connection_t)d->data;
+	ret = net_bind(cos_spd_id(), nc, ip, port);
 	FD_LOCK_RELEASE();
-	return net_bind(cos_spd_id(), nc, ip, port);
+	
+	return ret;
 err:
 	FD_LOCK_RELEASE();
 	return -EBADFD;
@@ -263,6 +241,7 @@ int cos_accept(int fd)
 {
 	struct descriptor *d, *d_new;
 	net_connection_t nc_new, nc;
+	int ret;
 
 	do {
 		FD_LOCK_TAKE();
@@ -274,16 +253,20 @@ int cos_accept(int fd)
 		nc_new = net_accept(cos_spd_id(), nc);
 		if (-EAGAIN == nc_new) {
 			return -EAGAIN;
-			if (evt_wait(cos_spd_id(), fd_get_index(d))) assert(0);
-		} else if (nc_new < 0) 
+			/* 
+			 * Blocking accept: 
+			 * if (evt_wait(cos_spd_id(), fd_get_index(d))) assert(0);
+			 */
+		} else if (nc_new < 0) {
 			return nc_new;
+		}
 	} while (-EAGAIN == nc_new);
 
 	FD_LOCK_TAKE();
 	/* If this error is triggered, we should also close the nc */
 	if (NULL == (d_new = fd_alloc(DESC_NET))) {
+		net_close(cos_spd_id(), nc_new);
 		FD_LOCK_RELEASE();
-		net_close(cos_spd_id(), nc);
 		return -ENOMEM;
 	}
 
@@ -293,11 +276,15 @@ int cos_accept(int fd)
 
 	fd = fd_get_index(d_new);
 	d_new->data = (void*)nc_new;
-	if (evt_create(cos_spd_id(), fd)) assert(0);
+	if ((ret = evt_create(cos_spd_id(), fd))) {
+		printc("cos_accept: evt_create (evt %d) failed with %d", fd, ret);
+		assert(0);
+	}
+	/* Associate the net connection with the event value fd */
 	if (0 < net_accept_data(cos_spd_id(), nc_new, fd)) assert(0);
 	FD_LOCK_RELEASE();
 
-	return fd_get_index(d_new);
+	return fd;
 err:
 	FD_LOCK_RELEASE();
 	return -EBADFD;
@@ -319,10 +306,13 @@ static int fd_app_close(int fd, struct descriptor *d)
 	assert(d->type == DESC_HTTP);
 
 	conn_id = (long)d->data;
+	parse_close_connection(cos_spd_id(), conn_id);
+	evt_free(cos_spd_id(), fd);
+	FD_LOCK_RELEASE();
+	
+	FD_LOCK_TAKE();
 	fd_free(d);
 	FD_LOCK_RELEASE();
-	evt_free(cos_spd_id(), fd);
-	parse_close_connection(cos_spd_id(), conn_id);
 
 	return 0;
 }
@@ -335,20 +325,7 @@ static int fd_app_read(int fd, struct descriptor *d, char *buff, int sz)
 	assert(d->type == DESC_HTTP);
 	conn_id = (long)d->data;
 	FD_LOCK_RELEASE();
-	ret = parse_read(cos_spd_id(), conn_id, buff, sz);
-	if (unlikely(0 > ret)) {
-		if (-ENOMEM == ret) return -ENOMEM;
-		FD_LOCK_TAKE();
-		d = fd_get_desc(fd);
-		if (NULL != d && (long)d->data == conn_id) {
-			fd_free(d);
-			evt_free(cos_spd_id(), fd);
-			parse_close_connection(cos_spd_id(), conn_id);
-		}
-		ret = -EPIPE;
-		FD_LOCK_RELEASE();
-	}
-	return ret;
+	return parse_read(cos_spd_id(), conn_id, buff, sz);
 }
 
 static int fd_app_write(int fd, struct descriptor *d, char *buff, int sz)
@@ -359,19 +336,7 @@ static int fd_app_write(int fd, struct descriptor *d, char *buff, int sz)
 	assert(d->type == DESC_HTTP);
 	conn_id = (long)d->data;
 	FD_LOCK_RELEASE();
-	ret = parse_write(cos_spd_id(), conn_id, buff, sz);
-	if (unlikely(0 > ret)) {
-		FD_LOCK_TAKE();
-		d = fd_get_desc(fd);
-		if (NULL != d && (long)d->data == conn_id) {
-			fd_free(d);
-			evt_free(cos_spd_id(), fd);
-			net_close(cos_spd_id(), conn_id);
-		}
-		ret = -EPIPE;
-		FD_LOCK_RELEASE();
-	}
-	return ret;
+	return parse_write(cos_spd_id(), conn_id, buff, sz);
 }
 
 int cos_app_open(int type)
@@ -404,8 +369,8 @@ int cos_app_open(int type)
 
 	return fd;
 err_cleanup:
-	fd_free(d);
 	evt_free(cos_spd_id(), fd);
+	fd_free(d);
 	/* fall through */
 err:
 	FD_LOCK_RELEASE();

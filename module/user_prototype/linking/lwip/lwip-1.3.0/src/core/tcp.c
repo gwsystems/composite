@@ -1100,6 +1100,20 @@ tcp_err(struct tcp_pcb *pcb,
   pcb->errf = errf;
 }
 
+/* 
+ * GAP: Used to specify the function that should be called when a pbuf
+ * is freed of type RAM or ROM.  The ->payload should be freed within
+ * the callback in the appropriate manner.
+ *
+ * @param pcb tcp_pcb to set the mem_free callback
+ * @param mem_free callback function
+ */
+void tcp_mem_free(void (*mem_free)(struct pbuf *p))
+{
+	extern void (*pbuf_extern_free)(struct pbuf *p);
+	pbuf_extern_free = mem_free;
+}
+
 /**
  * Used for specifying the function that should be called when a
  * LISTENing connection has been connected to another host.

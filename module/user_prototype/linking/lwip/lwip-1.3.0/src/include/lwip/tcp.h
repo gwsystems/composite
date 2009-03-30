@@ -75,6 +75,8 @@ void             tcp_poll    (struct tcp_pcb *pcb,
                               u8_t interval);
 void             tcp_err     (struct tcp_pcb *pcb,
                               void (* err)(void *arg, err_t err));
+/* GAP */
+void tcp_mem_free(void (*mem_free)(struct pbuf *p));
 
 #define          tcp_mss(pcb)      ((pcb)->mss)
 #define          tcp_sndbuf(pcb)   ((pcb)->snd_buf)
@@ -396,6 +398,7 @@ struct tcp_pcb {
    *            ERR_RST: the connection was reset by the remote host
    */
   void (* errf)(void *arg, err_t err);
+
 #endif /* LWIP_CALLBACK_API */
 
   /* idle time before KEEPALIVE is sent */

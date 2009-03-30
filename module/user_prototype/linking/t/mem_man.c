@@ -6,16 +6,18 @@
  * Public License v2.
  */
 
+/* 
+ * FIXME: locking!
+ */
+
+#define COS_FMT_PRINT
 #include <cos_component.h>
 #include <cos_debug.h>
-
-#define DEBUG_OUTPUT
-#ifdef DEBUG_OUTPUT
-#define COS_FMT_PRINT
 #include <print.h>
-#endif
 
 #define MAX_ALIASES 2
+
+#define MEM_MARKED 1
 
 struct mapping_info {
 	unsigned short int owner_spd, flags;
@@ -40,6 +42,7 @@ static inline struct mem_cell *find_unused(void)
 	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
 		int free = 1;
 		for (j = 0; j < MAX_ALIASES; j++) {
+			cells[i].map[j].flags = 0;
 			if (cells[i].map[j].owner_spd != 0) {
 				free = 0;
 				break;
@@ -77,17 +80,25 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 	struct mem_cell *c;
 
 	c = find_unused();
-	if (!c) return 0;
+	if (!c) {
+		printc("mm: no more available pages!");
+		goto err;
+	}
 	
 	c->map[0].owner_spd = spd;
 	c->map[0].addr = addr;
 
 	/* Here we check for overwriting an already established mapping. */
 	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, spd, addr, cell_index(c))) {
-		return 0;
+		printc("mm: could not grant page @ %x to spd %d", addr, spd);
+		c->map[0].owner_spd = 0;
+		c->map[0].addr = 0;
+		goto err;
 	}
 
 	return addr;
+err:
+	return 0;
 }
 
 /*
@@ -111,6 +122,37 @@ void mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 	mc->map[alias].addr = 0;
 
 	return;
+}
+
+void mman_print_stats(void)
+{
+	int i, j, k, l;
+
+	printc("Memory allocation stats:");
+	for (k = 0 ; k < COS_MAX_MEMORY ; k++) {
+		for (l = 0 ; l < MAX_ALIASES ; l++) {
+			int spd_accum = 0, curr_spd;
+			struct mapping_info *mc;
+
+			mc = &cells[k].map[l];
+			
+			if (MEM_MARKED & mc->flags) continue;
+			mc->flags |= MEM_MARKED;
+			curr_spd = mc->owner_spd;
+			spd_accum++;
+			for (i = k ; i < COS_MAX_MEMORY ; i++) {
+				for (j = 0 ; j < MAX_ALIASES ; j++) {
+					mc = &cells[i].map[j];
+					if (mc->owner_spd == curr_spd && !(MEM_MARKED & mc->flags)) {
+						mc->flags |= MEM_MARKED;
+						spd_accum++;
+					}
+				}
+			}
+			
+			printc("\tspd %d used %d pages", curr_spd, spd_accum);
+		}
+	}
 }
 
 /* 

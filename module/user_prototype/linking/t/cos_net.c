@@ -46,6 +46,7 @@
 #include <lwip/netif.h>
 #include <lwip/udp.h>
 #include <lwip/tcp.h>
+#include <lwip/stats.h>
 
 #include <string.h>
 #include <errno.h>
@@ -382,7 +383,7 @@ typedef enum {
 	FREE,
 	UDP,
 	TCP,
-	COS_CLOSED
+	TCP_CLOSED
 } conn_t;
 
 typedef enum {
@@ -393,11 +394,84 @@ typedef enum {
 	SENDING
 } conn_thd_t;
 
+#define TEST_TIMING
+
+#ifdef TEST_TIMING
+
+typedef enum {
+	RECV,
+	APP_RECV,
+	APP_PROC,
+	SEND,
+	TIMING_MAX
+} timing_t;
+
+struct timing_struct {
+	char *name;
+	unsigned int cnt;
+	unsigned long long tot, max, min;
+};
+
+#define TIMING_STRUCT_INIT(str)					\
+	{.name = str, .cnt = 0, .tot = 0, .max = 0, .min = ~0}
+
+struct timing_struct timing_records[] = {
+	TIMING_STRUCT_INIT("tcp_recv"),
+	TIMING_STRUCT_INIT("tcp_app_recv"),
+	TIMING_STRUCT_INIT("app_proc"),
+	TIMING_STRUCT_INIT("tcp_send")
+};
+
+static unsigned long long timing_timestamp(void) {
+	unsigned long long ts;
+
+	rdtscll(ts);
+	return ts;
+}
+static unsigned long long timing_record(timing_t type, unsigned long long prev)
+{
+	unsigned long long curr, elapsed;
+	struct timing_struct *ts = &timing_records[type];
+
+	rdtscll(curr);
+	elapsed = curr - prev;
+	ts->cnt++;
+	ts->tot += elapsed;
+	if (elapsed > ts->max) ts->max = elapsed;
+	if (elapsed < ts->min) ts->min = elapsed;
+	
+	return curr;
+}
+
+static void timing_output(void)
+{
+	int i;
+
+	for (i = 0 ; i < TIMING_MAX ; i++) {
+		struct timing_struct *ts = &timing_records[i];
+
+		if (ts->cnt > 0) {
+			printc("%s: @ %ld, avg %lld, max %lld, min %lld (cnt %d)", 
+			       ts->name, sched_timestamp(), ts->tot/(unsigned long long)ts->cnt, 
+			       ts->max, ts->min, ts->cnt);
+			ts->cnt = 0;
+			ts->tot = 0;
+			ts->max = 0;
+			ts->min = ~0;
+		}
+	}
+}
+#endif
+
 /* This structure will alias with the ip header */
 struct packet_queue {
 	struct packet_queue *next;
 	void *data, *headers;
 	u32_t len;
+#ifdef TEST_TIMING
+	/* Time stamps */
+	unsigned long long ts_start; 
+#endif
 };
 
 struct intern_connection {
@@ -425,6 +499,10 @@ struct intern_connection {
 	struct intern_connection *accepted_ic, *accepted_last;
 
 	struct intern_connection *free, *next;
+#ifdef TEST_TIMING
+	/* Time stamps */
+	unsigned long long ts_start; 
+#endif
 };
 
 struct intern_connection *free_list;
@@ -515,6 +593,23 @@ static inline struct packet_queue *net_packet_pq(void *data)
 	return &(((struct packet_queue*)data)[-1]);
 }
 
+static void net_conn_free_packet_data(struct intern_connection *ic)
+{
+	struct packet_queue *pq, *pq_next;
+
+	assert(ic->conn_type == TCP_CLOSED);
+	pq = ic->incoming;
+	while (pq) {
+		pq_next = pq->next;
+		ic->incoming_size -= pq->len;
+		free(pq);
+		pq = pq_next;
+	}
+	assert(ic->incoming_size == 0);
+	/* FIXME: go through the accept queue closing those tcp
+	 * connections too */
+}
+
 /* 
  * The pbuf->payload might point to the actual data, but we might want
  * to free the data, which means we want to find the real start of the
@@ -523,22 +618,10 @@ static inline struct packet_queue *net_packet_pq(void *data)
  */
 static inline void *cos_net_header_start(struct pbuf *p, conn_t ct)
 {
-	char *data = (char *)p->payload;
-	const int ip_sz = sizeof(struct ip_hdr),
-		udp_sz = sizeof(struct udp_hdr),
-		tcp_sz = sizeof(struct tcp_hdr);
-	struct ip_hdr *possible_start;
-	
-	if (UDP == ct) {
-		possible_start = (struct ip_hdr*)(data - ip_sz - udp_sz);
-		if (IP_PROTO_UDP != IPH_PROTO(possible_start)) return NULL;
-	} else {
-		possible_start = (struct ip_hdr*)(data - ip_sz - tcp_sz);
-		if (IP_PROTO_TCP != IPH_PROTO(possible_start)) return NULL;
-	}
-	/* sanity checks: */
-	if (4 != IPH_V(possible_start)) return NULL;
-	return possible_start;
+	char *data = (char *)p->alloc_track;
+
+	assert(data);
+	return data;
 }
 
 /**** COS UDP function ****/
@@ -570,14 +653,13 @@ static void cos_net_lwip_udp_recv(void *arg, struct udp_pcb *upcb, struct pbuf *
 	/* Over our allocation??? */
 	if (ic->incoming_size >= UDP_RCV_MAX) {
 		assert(ic->thd_status != RECVING);
-		free(net_packet_pq(headers));
+		assert(p->type == PBUF_ROM);
+		//free(net_packet_pq(headers));
 		assert(p->ref > 0);
 		pbuf_free(p);
 
 		return;
 	}
-	/* We are going to use the space for the ip header to contain
-	 * the packet queue structure */
 	pq = net_packet_pq(headers);
 	pq->data = p->payload;
 	pq->len = p->len;
@@ -595,6 +677,7 @@ static void cos_net_lwip_udp_recv(void *arg, struct udp_pcb *upcb, struct pbuf *
 	}
 	ic->incoming_size += p->len;
 	assert(1 == p->ref);
+	p->payload = p->alloc_track = NULL;
 	pbuf_free(p);
 
 	/* If the thread blocked waiting for a packet, wake it up */
@@ -605,10 +688,6 @@ static void cos_net_lwip_udp_recv(void *arg, struct udp_pcb *upcb, struct pbuf *
 	}
 
 	return;
-//	pbuf_free(p);
-//	printc("woohoo: packet with buffer @ %x, len %d, totlen %d (final: %x), first headers: %x!", 
-//	       p->payload, p->len, p->tot_len, (char *)p->payload - (UDP_HLEN + IP_HLEN),
-//	       *(unsigned int*)p->payload);
 }
 
 /* 
@@ -659,19 +738,19 @@ static int cos_net_udp_recv(struct intern_connection *ic, void *data, int sz)
 
 	/* If there is data available, get it */
 	if (ic->incoming_size > 0) {
-		struct packet_queue *p;
+		struct packet_queue *pq;
 		char *data_start;
 		int data_left;
 
-		p = ic->incoming;
-		assert(p);
-		data_start = ((char*)p->data) + ic->incoming_offset;
-		data_left = p->len - ic->incoming_offset;
-		assert(data_left > 0 && data_left <= p->len);
+		pq = ic->incoming;
+		assert(pq);
+		data_start = ((char*)pq->data) + ic->incoming_offset;
+		data_left = pq->len - ic->incoming_offset;
+		assert(data_left > 0 && data_left <= pq->len);
 		/* Consume all of first packet? */
 		if (data_left <= sz) {
-			ic->incoming = p->next;
-			if (ic->incoming_last == p) {
+			ic->incoming = pq->next;
+			if (ic->incoming_last == pq) {
 				assert(NULL == ic->incoming);
 				ic->incoming_last = NULL;
 			}
@@ -679,7 +758,7 @@ static int cos_net_udp_recv(struct intern_connection *ic, void *data, int sz)
 			xfer_amnt = data_left;
 			ic->incoming_offset = 0;
 
-			free(p);
+			free(pq);
 		} 
 		/* Consume part of first packet */
 		else {
@@ -695,6 +774,9 @@ static int cos_net_udp_recv(struct intern_connection *ic, void *data, int sz)
 
 /**** COS TCP function ****/
 
+/* 
+ * This should be called every time that a tcp connection is closed.
+ */
 static void cos_net_lwip_tcp_err(void *arg, err_t err)
 {
 	struct intern_connection *ic = arg;
@@ -702,14 +784,13 @@ static void cos_net_lwip_tcp_err(void *arg, err_t err)
 
 	switch(err) {
 	case ERR_ABRT:
-		assert(ic->conn_type == TCP);
-		ic->conn_type = COS_CLOSED;
-		ic->conn.tp = NULL;
-		break;
 	case ERR_RST:
 		assert(ic->conn_type == TCP);
-		ic->conn_type = COS_CLOSED;
+		assert(ic->conn_type != TCP_CLOSED);
+		if (-1 != ic->data && evt_trigger(cos_spd_id(), ic->data)) assert(0);
+		ic->conn_type = TCP_CLOSED;
 		ic->conn.tp = NULL;
+		net_conn_free_packet_data(ic);
 		break;
 	default:
 		printc("TCP error #%d: don't really have docs to know what this means.", err);
@@ -720,8 +801,6 @@ static void cos_net_lwip_tcp_err(void *arg, err_t err)
 
 static void __net_close(struct intern_connection *ic)
 {
-	struct packet_queue *pq, *pq_next;
-
 	switch (ic->conn_type) {
 	case UDP:
 	{
@@ -729,29 +808,26 @@ static void __net_close(struct intern_connection *ic)
 
 		up = ic->conn.up;
 		udp_remove(up);
+		ic->conn.up = NULL;
 		break;
 	}
 	case TCP:
 	{
 		struct tcp_pcb *tp;
 
+//		prints("cosnet net_close: closing active TCP connection");
 		tp = ic->conn.tp;
+		assert(tp);
 		tcp_abort(tp);
+		assert(NULL == ic->conn.tp && ic->conn_type == TCP_CLOSED);
 		break;
 	}
-	case COS_CLOSED:
+	case TCP_CLOSED:
+//		prints("cosnet net_close: finishing close of inactive TCP connection");
+		assert(NULL == ic->conn.tp);
 		break;
 	default:
 		assert(0);
-	}
-	pq = ic->incoming;
-	if (pq) {
-		while (pq) {
-			pq_next = pq->next;
-			ic->incoming_size -= pq->len;
-			free(pq);
-			pq = pq_next;
-		}
 	}
 	net_conn_free(ic);
 }
@@ -762,40 +838,41 @@ static err_t cos_net_lwip_tcp_recv(void *arg, struct tcp_pcb *tp, struct pbuf *p
 	struct packet_queue *pq, *last;
 	void *headers;
 	struct pbuf *first;
-
-//	printc("lwip_tcp_recv: received %d data", p->len);
-
-	if (NULL == p) {
-		assert(NULL != arg);
-		__net_close((struct intern_connection*)arg);
-		return ERR_OK;
-	}
+	
 	ic = (struct intern_connection*)arg;
 	assert(NULL != ic);
 	assert(TCP == ic->conn_type);
+	if (NULL == p) {
+		assert(ic->conn.tp == tp);
+		/* 
+		 * This should call our registered error function
+		 * above with ERR_ABRT, which will make progress
+		 * towards closing the connection.
+		 *
+		 * Later, when the app calls some function in the API,
+		 * TCP_CLOSED will be seen and the internal connection
+		 * will be deallocated, and the application notified.
+		 */
+		tcp_abort(tp);
+		assert(ic->conn_type == TCP_CLOSED && NULL == ic->conn.tp);
+		return ERR_CLSD;
+	}
 	first = p;
 	while (p) {
 		struct pbuf *q;
-		/*
-		 * Because we could drop packets, and delay delivery of
-		 * others, (OOO delivery), we can get multiple packets
-		 * delivered at once
-		 assert(1 == p->ref);
-		 if (!(NULL == p->next && p->tot_len == p->len)) {
-		 printc("Received fragmented packet (recv buff dropping), len %d, totlen %d", p->len, p->tot_len);
-		 }
-		 assert(NULL == p->next && p->tot_len == p->len);
-		*/
+
 		if (p->ref != 1) printc("pbuf with len %d, totlen %d and refcnt %d", p->len, p->tot_len, p->ref);
 		assert(p->len > 0);
+		assert(p->type == PBUF_ROM || p->type == PBUF_REF);
 		headers = cos_net_header_start(p, TCP);
 		assert (NULL != headers);
-		/* We are going to use the space for the ip header to contain
-		 * the packet queue structure */
 		pq = net_packet_pq(headers);
 		pq->data = p->payload;
 		pq->len = p->len;
 		pq->next = NULL;
+#ifdef TEST_TIMING
+		pq->ts_start = timing_record(RECV, pq->ts_start);
+#endif
 	
 		assert((NULL == ic->incoming) == (NULL == ic->incoming_last));
 		/* Is the queue empty? */
@@ -810,12 +887,13 @@ static err_t cos_net_lwip_tcp_recv(void *arg, struct tcp_pcb *tp, struct pbuf *p
 		ic->incoming_size += p->len;
 		//assert(1 == p->ref);
 		q = p->next;
+		p->payload = p->alloc_track = NULL;
 		if (NULL == q) assert(p->len == p->tot_len);
+		assert(p->ref == 1);
 		p = q;
 	}
 	/* Just make sure lwip is doing what we think its doing */
 	assert(first->ref == 1);
-	assert(NULL == first->next || first->next->ref == 1);
 	/* This should deallocate the entire chain */
 	pbuf_free(first);
 
@@ -919,12 +997,6 @@ static err_t cos_net_lwip_tcp_accept(void *arg, struct tcp_pcb *new_tp, err_t er
 
 	assert(ic);
 	
-	/* 
-	 * FIXME: until the external call to accept, we can't create
-	 * an event to associate with this connection.  
-	 */
-//	printc("lwip accept @ %ld in network stack for fd %d", sched_timestamp(), ic->data);
-
 	if (0 > (nc = __net_create_tcp_connection(ic->spdid, ic->tid, new_tp, -1))) assert(0);
 
 	ica = net_conn_get_internal(nc);
@@ -952,29 +1024,30 @@ static int cos_net_tcp_recv(struct intern_connection *ic, void *data, int sz)
 	assert(ic->conn_type == TCP);
 	/* If there is data available, get it */
 	if (ic->incoming_size > 0) {
-		struct packet_queue *p;
+		struct packet_queue *pq;
 		struct tcp_pcb *tp;
 		char *data_start;
 		int data_left;
 
-		p = ic->incoming;
-		assert(p);
-//		printc("consuming packet_queue %x", p);
-		data_start = ((char*)p->data) + ic->incoming_offset;
-		data_left = p->len - ic->incoming_offset;
-		assert(data_left > 0 && data_left <= p->len);
+		pq = ic->incoming;
+		assert(pq);
+		data_start = ((char*)pq->data) + ic->incoming_offset;
+		data_left = pq->len - ic->incoming_offset;
+		assert(data_left > 0 && data_left <= pq->len);
 		/* Consume all of first packet? */
 		if (data_left <= sz) {
-			ic->incoming = p->next;
-			if (ic->incoming_last == p) {
+			ic->incoming = pq->next;
+			if (ic->incoming_last == pq) {
 				assert(NULL == ic->incoming);
 				ic->incoming_last = NULL;
 			}
 			memcpy(data, data_start, data_left);
 			xfer_amnt = data_left;
 			ic->incoming_offset = 0;
-
-			free(p);
+#ifdef TEST_TIMING
+			ic->ts_start = timing_record(APP_RECV, pq->ts_start);
+#endif			
+			free(pq);
 		} 
 		/* Consume part of first packet */
 		else {
@@ -1157,9 +1230,9 @@ static int __net_bind(spdid_t spdid, net_connection_t nc, struct ip_addr *ip, u1
 		NET_LOCK_RELEASE();
 		return 0;
 	}
-	case COS_CLOSED:
-		__net_close(ic);
-		ret = -EBADF;
+	case TCP_CLOSED:
+//		__net_close(ic);
+		ret = -EPIPE;
 		break;
 	default:
 		assert(0);
@@ -1216,9 +1289,9 @@ static int __net_connect(spdid_t spdid, net_connection_t nc, struct ip_addr *ip,
 		/* When we wake up, we should be connected. */
 		return 0;
 	}
-	case COS_CLOSED:
-		__net_close(ic);
-		return -ENOTSOCK;
+	case TCP_CLOSED:
+//		__net_close(ic);
+		return -EPIPE;
 	default:
 		assert(0);
 	}
@@ -1283,24 +1356,14 @@ int net_recv(spdid_t spdid, net_connection_t nc, void *data, int sz)
 	case TCP:
 		xfer_amnt = cos_net_tcp_recv(ic, data, sz);
 		break;
-	case COS_CLOSED:
-		__net_close(ic);
-		xfer_amnt = -EBADF;
+	case TCP_CLOSED:
+//		__net_close(ic);
+		xfer_amnt = -EPIPE;
 		break;
 	default:
 		printc("net_recv: invalid connection type: %d", ic->conn_type);
 		assert(0);
 	}
-/*  		if (0 == xfer_amnt) { */
-/* 			/\* If there isn't data, block until woken by */
-/* 			 * an interrupt in cos_net_stack_udp_recv *\/ */
-/* 			assert(ic->thd_status == ACTIVE); */
-/* 			ic->thd_status = RECVING; */
-/* 			NET_LOCK_RELEASE(); */
-/* 			if (sched_block(cos_spd_id()) < 0) assert(0); */
-/* 			NET_LOCK_TAKE(); */
-/* 			assert(ic->thd_status == ACTIVE); */
-/* 		} */
 	assert(xfer_amnt <= sz);
 	NET_LOCK_RELEASE();
 	return xfer_amnt;
@@ -1335,7 +1398,7 @@ int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 
 		/* There's no blocking in the UDP case, so this is simple */
 		up = ic->conn.up;
-		p = pbuf_alloc(PBUF_TRANSPORT, sz, PBUF_REF);
+		p = pbuf_alloc(PBUF_TRANSPORT, sz, PBUF_ROM);
 		if (NULL == p) {
 			ret = -ENOMEM;
 			goto err;
@@ -1354,24 +1417,49 @@ int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 	case TCP:
 	{
 		struct tcp_pcb *tp;
-
+#define TCP_SEND_COPY
+#ifdef TCP_SEND_COPY
+		void *d;
+		struct packet_queue *pq;
+#endif
 		tp = ic->conn.tp;
 		if (tcp_sndbuf(tp) < sz) { 
 			ret = 0;
 			break;
 		}
-		if (ERR_OK != (ret = tcp_write(tp, data, sz, 1))) {
+#ifdef TCP_SEND_COPY
+		pq = malloc(sizeof(struct packet_queue) + sz);
+		if (unlikely(NULL == pq)) {
+			ret = -ENOMEM;
+			goto err;
+		}
+#ifdef TEST_TIMING
+		pq->ts_start = timing_record(APP_PROC, ic->ts_start);
+#endif
+		pq->headers = NULL;
+		d = net_packet_data(pq);
+		memcpy(d, data, sz);
+		if (ERR_OK != (ret = tcp_write(tp, d, sz, 0))) {
+#else
+		if (ERR_OK != (ret = tcp_write(tp, data, sz, TCP_WRITE_FLAG_COPY))) {
+#endif
+			free(pq);
 			printc("tcp_write returned %d (sz %d, tcp_sndbuf %d, ERR_MEM: %d)", 
 			       ret, sz, tcp_sndbuf(tp), ERR_MEM);
+			assert(0);
+		}
+		/* No implementation of nagle's algorithm yet.  Send
+		 * out the packet immediately if possible. */
+		if (ERR_OK != (ret = tcp_output(tp))) {
+			printc("tcp_output returned %d, ERR_MEM: %d", ret, ERR_MEM);
 			assert(0);
 		}
 		ret = sz;
 
 		break;
 	}
-	case COS_CLOSED:
-		__net_close(ic);
-		ret = -EBADF;
+	case TCP_CLOSED:
+		ret = -EPIPE;
 		break;
 	default:
 		assert(0);
@@ -1414,7 +1502,8 @@ static void cos_net_interrupt(void)
 		printc("len %d > %d", len, MTU);
 		goto err;
 	}
-	p = pbuf_alloc(PBUF_IP, len, PBUF_REF);
+	p = pbuf_alloc(PBUF_IP, len, PBUF_ROM);
+	
 	if (unlikely(!p)) {
 		prints("OOM in interrupt: allocation of pbuf failed.\n");
 		goto err;
@@ -1427,39 +1516,26 @@ static void cos_net_interrupt(void)
 	 * to know in (1) which deallocation method (free or return to
 	 * ring buff) to use */
 	pq = malloc(len + sizeof(struct packet_queue));
-	assert(pq);
-	pq->headers = d = net_packet_data(pq);
-//TEST	printc("pushing pbuf %x w/ data %x of len %d", p, d, len);
-	if (NULL != d) {
-		memcpy(d, buff, len);
-		p->payload = d;//buff;
-		/* free packet in this call... */
-		if (ERR_OK != cos_if.input(p, &cos_if)) {
-			prints("net: failure in IP input.");
-			NET_LOCK_RELEASE();
-			return;
-		}
-	} else {
+	if (unlikely(NULL == pq)) {
+		printc("OOM in interrupt: allocation of packet data (%d bytes) failed.\n", len);
 		pbuf_free(p);
+		goto err;
 	}
-//	printc("allocated packet data @ %x", d);
-//	printc("Sending packet with payload @ %p, starting with %x", p->payload, *(unsigned int*)p->payload);
-
-	/* Unlock, lock */
-
-	/* The packet is processed, we are done with it */
-/*	plen = 16;//p->len - (UDP_HLEN + IP_HLEN);
-	np = pbuf_alloc(PBUF_TRANSPORT, plen, PBUF_REF);
-	if (np) {
-		np->payload = (char*)buff + (UDP_HLEN + IP_HLEN);
-		if (ERR_OK != udp_send(upcb_out, np)) {
-			prints("net: could not send data.");
-		}
-		pbuf_free(np);
-	} else {
-		assert(0);
+	pq->headers = d = net_packet_data(pq);
+#ifdef TCP_SEND_COPY
+#ifdef TEST_TIMING
+	pq->ts_start = timing_timestamp();
+#endif	
+#endif	
+	memcpy(d, buff, len);
+	p->payload = p->alloc_track = d;
+	/* free packet in this call... */
+	if (ERR_OK != cos_if.input(p, &cos_if)) {
+		prints("net: failure in IP input.");
+		pbuf_free(p);
+		goto err;
 	}
-*/	
+
 	/* OK, recycle the buffer. */
 	if (rb_add_buff(tm->uc_rb, buff /*(char *)p->payload - (UDP_HLEN + IP_HLEN)*/, MTU)) {
 		prints("net: could not add buffer to ring.");
@@ -1486,19 +1562,21 @@ static err_t cos_net_stack_link_send(struct netif *ni, struct pbuf *p)
 static err_t cos_net_stack_send(struct netif *ni, struct pbuf *p, struct ip_addr *ip)
 {
 	int i;
+
 	/* assuming the net lock is taken here */
 
 	/* We are requiring chained pbufs here, one for the header,
 	 * one for the data.  First assert checks that we have > 1
 	 * pbuf, second asserts we have 2 */
-	assert(p);
+	assert(p && p->ref == 1);
 	xmit_headers.len = 0;
 	if (p->len <= sizeof(xmit_headers.headers)) {
+		assert(p->type == PBUF_RAM);
 		memcpy(&xmit_headers.headers, p->payload, p->len);
 		xmit_headers.len = p->len;
 		p = p->next;
 	} 
-	
+
 	/* 
 	 * Here we do 2 things: create a separate gather data entry
 	 * for each pbuf, and separate the data in individual pbufs
@@ -1524,6 +1602,17 @@ static err_t cos_net_stack_send(struct netif *ni, struct pbuf *p, struct ip_addr
 			gi->len  = len_on_second;
 			i++;
 		}
+#ifdef TCP_SEND_COPY
+		if ((p->type == PBUF_REF || p->type == PBUF_ROM)) {
+			struct packet_queue *pq;
+			pq = net_packet_pq(p->payload);
+#ifdef TEST_TIMING
+			timing_record(SEND, pq->ts_start);
+#endif
+		}
+#endif
+		assert(p->type != PBUF_POOL);
+		assert(p->ref == 1);
 		p = p->next;
 	}
 	if (unlikely(NULL != p)) goto segment_err;
@@ -1533,11 +1622,39 @@ static err_t cos_net_stack_send(struct netif *ni, struct pbuf *p, struct ip_addr
 	if (cos_buff_mgmt(COS_BM_XMIT, NULL, 0, 0)) {
 		prints("net: could not xmit data.");
 	}
+
+	/* cannot deallocate packets here as we might need to
+	 * retransmit them. */
 done:
 	return ERR_OK;
 segment_err:
 	printc("net: attempted to xmit too many segments");
 	goto done;
+}
+
+/* 
+ * Called when pbuf_free is invoked on a pbuf that was allocated with
+ * PBUF_{ROM|REF}.  Free the ->alloc_track if it is non-NULL.
+ */
+static void lwip_free_payload(struct pbuf *p)
+{
+	struct packet_queue *pq;
+	void *headers;
+
+	assert(p);
+	if (NULL == p->payload) return;
+	if (cos_argreg_buff_intern(p->payload, p->len)) {
+		p->payload = NULL;
+		return;
+	}
+	/* assuming this will only happen with TCP data */
+	headers = cos_net_header_start(p, TCP);
+	assert (NULL != headers); /* we could just return NULL here */
+	pq = net_packet_pq(headers);
+	/* have we successfully extracted the packet_queue? */
+	assert(pq->headers == NULL || pq->headers == headers);
+	p->payload = NULL;
+	free(pq);
 }
 
 /* UDP functions (additionally see cos_net_stack_udp_recv above) */
@@ -1598,6 +1715,7 @@ static void init_lwip(void)
 //	struct ip_addr dest;
 
 	lwip_init();
+	tcp_mem_free(lwip_free_payload);
 
 	IP4_ADDR(&ip, 10,0,2,8);
 	IP4_ADDR(&gw, 10,0,1,1); //korma
@@ -1694,6 +1812,15 @@ static int init(void)
 {
 	unsigned short int ucid, i;
 	void *b;
+#ifdef TEST_TIMING
+	int cnt = 0;
+#endif
+#ifdef LWIP_STATS
+	int stats_cnt = 0;
+#endif
+
+//	extern int alloc_debug;
+//	alloc_debug = 1;
 
 	lock_static_init(&alloc_lock);
 //	lock_static_init(&tmap_lock);
@@ -1737,6 +1864,20 @@ static int init(void)
 	while (1) {
 		/* Sleep for a quarter of seconds as prescribed by lwip */
 		NET_LOCK_TAKE();
+
+		if (++cnt == 20) {
+			cnt = 0;
+			alloc_stats_print();
+#ifdef TEST_TIMING
+			timing_output();
+#endif
+		}
+#ifdef LWIP_STATS
+		if (++stats_cnt == 119) {
+			stats_cnt = 0;
+			stats_display();
+		}
+#endif
 		tcp_tmr();
 		NET_LOCK_RELEASE();
 		timed_event_block(cos_spd_id(), 250000);

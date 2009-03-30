@@ -217,6 +217,8 @@ tcp_enqueue(struct tcp_pcb *pcb, void *arg, u16_t len,
     /* options? */
     if (optdata != NULL) {
       if ((seg->p = pbuf_alloc(PBUF_TRANSPORT, optlen, PBUF_RAM)) == NULL) {
+	      /* gap */
+        LWIP_DEBUGF(TCP_OUTPUT_DEBUG | 2, ("tcp_enqueue : could not allocate memory for optional packet %"U16_F"\n", seglen));
         goto memerr;
       }
       LWIP_ASSERT("check that first pbuf can hold optlen",
@@ -252,6 +254,8 @@ tcp_enqueue(struct tcp_pcb *pcb, void *arg, u16_t len,
       ++queuelen;
       /* reference the non-volatile payload data */
       p->payload = ptr;
+      /* GAP: track this starting location in the packet */
+      p->alloc_track = ptr;
       seg->dataptr = ptr;
 
       /* Second, allocate a pbuf for the headers. */

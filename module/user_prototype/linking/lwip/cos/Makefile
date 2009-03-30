@@ -28,6 +28,7 @@
 # 
 # Author: Adam Dunkels <adam@sics.se>
 #
+COMPONENTDIR=../../t/
  
 CCDEP=gcc
 CC=gcc
@@ -39,8 +40,6 @@ CC=gcc
 OPT=-O3 #-ggdb3
 CFLAGS=-Wall -DIPv4 -nostdinc -nostdlib
 ARFLAGS=rs
-
-COMPONENTDIR=../../t/
 
 #Set this to where you have the lwip core module checked out from CVS
 #default assumes it's a dir named lwip at the same level as the contrib module

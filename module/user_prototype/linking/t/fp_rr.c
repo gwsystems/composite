@@ -109,6 +109,8 @@ static void report_event(report_evt_t evt)
 
 	report_evts[evt]++;
 }
+
+extern void mman_print_stats(void);
 static void report_output(void)
 {
 	int i;
@@ -117,6 +119,8 @@ static void report_output(void)
 	for (i = 0 ; i < REVT_LAST ; i++) {
 		printc("\t%s: %lld", revt_names[i], report_evts[i]);
 	}
+
+	mman_print_stats();
 }
 
 static void print_thd_invframes(struct sched_thd *t)

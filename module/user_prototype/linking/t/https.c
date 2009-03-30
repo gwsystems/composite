@@ -566,7 +566,7 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 
 //~/research/others_software/httperf-0.9.0/src/httperf --port=8000 --wsess=1000,1000,0 --burst-len=100 --rate=55 --max-piped-calls=32
 //~/research/others_software/httperf-0.9.0/src/httperf --port=8000 --wsess=10000,1,0 --burst-len=1 --rate=1000 --max-piped-calls=32
-//httperf --port=8000 --wsess=1000,1000,0 --burst-len=100 --rate=55 --max-piped-calls=32 --server=10.0.2.8
+//httperf --port=200 --wsess=1000,1000,0 --burst-len=100 --rate=55 --max-piped-calls=32 --server=10.0.2.8
 #define CONN_MAP_SZ 4096
 
 COS_MAP_CREATE_STATIC(conn_map);
