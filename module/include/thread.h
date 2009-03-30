@@ -40,13 +40,11 @@ struct thd_invocation_frame {
 }; //HALF_CACHE_ALIGNED;
 
 /* 
- * The scheduler at a specific hierarchical depth and the associated
- * thread's urgency for that scheduler (which might be an importance
- * value)
+ * The scheduler at a specific hierarchical depth and the shared data
+ * structure between it and this thread.
  */
 struct thd_sched_info {
 	struct spd *scheduler;
-	int urgency;
 	struct cos_sched_events *thread_notifications;
 	int notification_offset;
 };
@@ -116,12 +114,6 @@ struct thread {
 
 	struct thread *freelist_next;
 } CACHE_ALIGNED;
-
-struct cos_execution_info {
-	unsigned short int thd_id, spd_id;
-	//unsigned short int cpu_id;
-	void *data_region;
-};
 
 struct thread *thd_alloc(struct spd *spd);
 void thd_free(struct thread *thd);

@@ -34,7 +34,7 @@
 #define NORMAL_PRIO_HI 4
 #define NORMAL_PRIO_LO (NUM_PRIOS-4)
 
-#define RUNTIME_SEC (60)
+#define RUNTIME_SEC (3)
 #define REPORT_FREQ 60
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400

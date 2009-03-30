@@ -1404,7 +1404,6 @@ static int aed_ioctl(struct inode *inode, struct file *file,
 		
 		tsi = thd_get_sched_info(thd, 0);
 		tsi->scheduler = spd;
-		tsi->urgency = 255;
 
 		/* FIXME: need to return opaque handle, rather than
 		 * just set the current thread to be the new one. */
@@ -1795,7 +1794,6 @@ static unsigned long fault_addrs[NUM_BUCKETS];
 int main_page_fault_interposition(void)
 {
 	unsigned long fault_addr;
-	int virt_sys;
 	struct vm_area_struct *vma;
 	struct mm_struct *curr_mm;
 
