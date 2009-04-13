@@ -108,7 +108,7 @@ int main(void)
 
 	if (0 > (accept_fd = cos_socket(PF_INET, SOCK_STREAM, 0))) assert(0);
 	if (0 > cos_bind(accept_fd, 0, 200)) assert(0);
-	if (0 > cos_listen(accept_fd, 10)) assert(0);
+	if (0 > cos_listen(accept_fd, 255)) assert(0);
 	while (1) {
 		fd = cos_wait_all();
 		if (fd == accept_fd) {

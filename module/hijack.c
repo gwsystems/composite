@@ -1838,7 +1838,13 @@ int main_page_fault_interposition(void)
 	 * but I don't know why, and it doesn't seem to interfere with
 	 * execution.  For now ffffd0b0 is being counted as an unknown
 	 * fault so that it won't get reported as a cos fault where we
-	 * can do nothing about it */
+	 * can do nothing about it.
+	 *
+	 * OK, I think I understand now.  That is the virtual syscall
+	 * page.  It is faulted in when it is accessed after a
+	 * time-slice so that it can be updated to reflect the current
+	 * get_time_of_day, and from then on, it is accessed directly.
+	 */
 	if (NULL == thd || fault_addr == 0xffffd0b0) {
 		cos_meas_event(COS_UNKNOWN_FAULT);
 		goto linux_handler_release;
@@ -2245,21 +2251,15 @@ int host_attempt_brand(struct thread *brand)
 			 * be an issue later on.
 			 */
 			next = brand_next_thread(brand, cos_current, 0);
-			{
-				int c = thd_get_id(cos_current);
-				int u = thd_get_id(brand->upcall_threads);
-				if ((c == 4 || u == 4) && thd_get_id(next) != 4) {
-					printk("<>");
-				}
-			}
-
 			if (next != cos_current) {
 				assert(thd_get_current() == next);
 				thd_check_atomic_preempt(cos_current);
 			}
+			//printk("|>r\n");
+			cos_meas_event(COS_MEAS_INT_PREEMPT);
 			cos_meas_event(COS_MEAS_BRAND_DELAYED_UC);
 			goto done;
-		}
+ 		} //else if (thd_get_id(brand->upcall_threads) == 13) printk(">r\n");
 
 		regs = get_user_regs_thread(composite_thread);
 
@@ -2585,7 +2585,7 @@ static int aed_release(struct inode *inode, struct file *file)
 	cos_shutdown_memory();
 	composite_thread = NULL;
 
-	cos_meas_report();
+	//cos_meas_report();
 
 	/* reset the address space to the original process */
 	composite_union_mm->pgd = union_pgd;

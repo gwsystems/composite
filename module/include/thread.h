@@ -91,6 +91,8 @@ struct thread {
 	struct thd_sched_info sched_info[MAX_SCHED_HIER_DEPTH] CACHE_ALIGNED; 
 	struct spd *sched_suspended; /* scheduler we are suspended by */
 
+	/* Start Brand & Upcall fields: */
+
 	/* flags & THD_STATE_UPCALL */
 	/* The thread who's execution we are branded to */
 	struct thread *thread_brand;
@@ -107,6 +109,8 @@ struct thread {
 	 */
 	ring_buff_t *u_rb, *k_rb;
 	int rb_next; 		/* Next address entry */
+
+	/* End Brand & Upcall fields */
 
 	/* flags & (THD_STATE_UPCALL|THD_STATE_BRAND) != 0: */
 	/* TODO singly linked list of upcall threads for a specific brand */

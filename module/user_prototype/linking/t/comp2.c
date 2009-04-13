@@ -34,14 +34,14 @@ void yield(void)
 		curr_thd = thd_id;
 	}
 
-	cos_switch_thread(curr_thd, 0/*COS_THD_SCHED_RETURN*/, 0);
+	cos_switch_thread(curr_thd, 0/*COS_THD_SCHED_RETURN*/);
 
 	return;
 }
 
 void thread_tramp(void)
 {
-	while (1) cos_switch_thread(1, 0, 0);
+	while (1) cos_switch_thread(1, 0);
 
 	cos_upcall(1);
 
@@ -56,9 +56,9 @@ void thread_tramp(void)
 
 void run_thds(void)
 {
-	cos_switch_thread(new_thd1, 0, 0);
+	cos_switch_thread(new_thd1, 0);
 	//print_vals(6,6,6,6);
-	cos_switch_thread(new_thd2, 0, 0);
+	cos_switch_thread(new_thd2, 0);
 }
 
 int spd2_fn(void)
@@ -137,14 +137,14 @@ int test_locks_fn(void)
 		fact(40);
 		while (i++ < SPIN);
 
-		if ((cnt & ((2<<12)-1)) == 0) cos_switch_thread(OTHER_THD(cos_get_thd_id()), 0, 0);
+		if ((cnt & ((2<<12)-1)) == 0) cos_switch_thread(OTHER_THD(cos_get_thd_id()), 0);
 
 		if (race_val != tmp) print("error: race condition %d%d%d",0,0,8);
 		if (-1 == cos_sched_lock_release()) {
 			print("error: could not release lock %d%d%d",0,0,8);
 			return -1;
 		}
-		//cos_switch_thread(OTHER_THD(cos_get_thd_id()), 0, 0);
+		//cos_switch_thread(OTHER_THD(cos_get_thd_id()), 0);
 		cnt++;
 	}
 }
@@ -167,7 +167,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 
 	switch(t) {
 	case COS_UPCALL_BRAND_COMPLETE:
-		cos_switch_thread(1, COS_SCHED_TAILCALL, 0);
+		cos_switch_thread(1, COS_SCHED_TAILCALL);
 		break;
 	case COS_UPCALL_CREATE:
 		thread_tramp();

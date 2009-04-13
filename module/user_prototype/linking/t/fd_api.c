@@ -25,6 +25,7 @@ extern void evt_free(spdid_t spdid, long extern_evt);
 extern int evt_wait(spdid_t spdid, long extern_evt);
 extern long evt_grp_wait(spdid_t spdid);
 extern int evt_trigger(spdid_t spdid, long extern_evt);
+extern int evt_set_prio(spdid_t spdid, long extern_evt, int prio);
 
 /* network functions */
 extern int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz);
@@ -67,8 +68,6 @@ static inline struct descriptor *fd_get_desc(int fd)
 	struct descriptor *d;
 
 	d = cos_map_lookup(&fds, fd);
-	if (NULL == d) return NULL;
-
 	return d;
 }
 
@@ -131,7 +130,6 @@ static int fd_net_close(int fd, struct descriptor *d)
 static int fd_net_read(int fd, struct descriptor *d, char *buf, int sz)
 {
 	net_connection_t nc;
-	int ret = -1;
 
 	assert(d->type == DESC_NET);
 	nc = (net_connection_t)d->data;
@@ -142,7 +140,6 @@ static int fd_net_read(int fd, struct descriptor *d, char *buf, int sz)
 static int fd_net_write(int fd, struct descriptor *d, char *buf, int sz)
 {
 	net_connection_t nc;
-	int ret = -1;
 
 	assert(d->type == DESC_NET);
 	nc = (net_connection_t)d->data;
@@ -160,7 +157,10 @@ int cos_socket(int domain, int type, int protocol)
 	if (0 != protocol)     return -EINVAL;
 
 	FD_LOCK_TAKE();
-	if (NULL == (d = fd_alloc(DESC_NET))) goto err;
+	if (NULL == (d = fd_alloc(DESC_NET))) {
+		ret = -EINVAL;
+		goto err;
+	}
 	fd = fd_get_index(d);
 	if ((ret = evt_create(cos_spd_id(), fd))) {
 		printc("Could not create event for socket: %d", ret);
@@ -179,9 +179,11 @@ int cos_socket(int domain, int type, int protocol)
 		nc = net_create_udp_connection(cos_spd_id(), fd);
 		break;
 	default:
+		ret = -EINVAL;
 		goto err_cleanup;
 	}
 	if (nc < 0) {
+		ret = nc;
 		goto err_cleanup;
 	}
 	d->data = (void *)nc;
@@ -194,7 +196,7 @@ err_cleanup:
 	/* fall through */
 err:
 	FD_LOCK_RELEASE();
-	return -EINVAL;
+	return ret;
 }
 
 int cos_listen(int fd, int queue)
@@ -209,6 +211,7 @@ int cos_listen(int fd, int queue)
 	if (d->type != DESC_NET) goto err;
 	nc = (net_connection_t)d->data;
 	ret = net_listen(cos_spd_id(), nc, queue);
+//	evt_set_prio(cos_spd_id(), fd_get_index(d), 1);
 	FD_LOCK_RELEASE();
 
 	return ret;
@@ -320,7 +323,6 @@ static int fd_app_close(int fd, struct descriptor *d)
 static int fd_app_read(int fd, struct descriptor *d, char *buff, int sz)
 {
 	long conn_id;
-	int ret = -1;
 
 	assert(d->type == DESC_HTTP);
 	conn_id = (long)d->data;
@@ -331,7 +333,6 @@ static int fd_app_read(int fd, struct descriptor *d, char *buff, int sz)
 static int fd_app_write(int fd, struct descriptor *d, char *buff, int sz)
 {
 	long conn_id;
-	int ret = -1;
 
 	assert(d->type == DESC_HTTP);
 	conn_id = (long)d->data;
@@ -438,7 +439,7 @@ static void init(void)
 {
 	lock_static_init(&fd_lock);
 	cos_map_init_static(&fds);
-	sched_block(cos_spd_id());
+//	sched_block(cos_spd_id());
 }
 
 void cos_init(void *arg)
@@ -448,7 +449,6 @@ void cos_init(void *arg)
 	if (first) {
 		first = 0;
 		init();
-		assert(0);
 	} else {
 		prints("fd: not expecting more than one bootstrap.");
 	}

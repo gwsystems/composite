@@ -39,6 +39,7 @@
 #include <cos_debug.h>
 #include <cos_alloc.h>
 #include <cos_list.h>
+#include <cos_map.h>
 #include <cos_synchronization.h>
 #include <cos_net.h>
 
@@ -103,8 +104,22 @@ extern int evt_create(spdid_t spdid, long extern_evt);
 
 cos_lock_t alloc_lock;
 cos_lock_t net_lock;
-#define NET_LOCK_TAKE()    if (lock_take(&net_lock)) prints("error taking net lock.")
-#define NET_LOCK_RELEASE() if (lock_release(&net_lock)) prints("error releasing net lock.")
+
+static volatile int lock_check = 0;
+#define NET_LOCK_TAKE()    \
+	do {								\
+		if (lock_take(&net_lock)) prints("error taking net lock."); \
+		assert(lock_check == 0);				\
+		lock_check = 1;						\
+	} while(0)
+
+#define NET_LOCK_RELEASE() \
+	do {								\
+		assert(lock_check == 1);				\
+		lock_check = 0;						\
+		if (lock_release(&net_lock)) prints("error releasing net lock."); \
+	} while (0)
+
 //#define NET_LOCK_TAKE()    sched_component_take(cos_spd_id())
 //#define NET_LOCK_RELEASE() sched_component_release(cos_spd_id())
 
@@ -367,6 +382,7 @@ static unsigned short int cos_net_create_net_upcall(unsigned short int port, rb_
 	unsigned short int ucid;
 	
 	ucid = sched_create_net_upcall(port, 1, 1);
+//	ucid = sched_create_net_upcall(port, 5, 1);
 	if (cos_buff_mgmt(COS_BM_RECV_RING, rb1.packets, sizeof(rb1.packets), ucid)) {
 		prints("net: could not setup recv ring.");
 		return 0;
@@ -376,8 +392,6 @@ static unsigned short int cos_net_create_net_upcall(unsigned short int port, rb_
 
 
 /*********************** Component Interface ************************/
-
-#define MAX_CONNS 1024
 
 typedef enum {
 	FREE,
@@ -394,7 +408,7 @@ typedef enum {
 	SENDING
 } conn_thd_t;
 
-#define TEST_TIMING
+//#define TEST_TIMING
 
 #ifdef TEST_TIMING
 
@@ -403,6 +417,7 @@ typedef enum {
 	APP_RECV,
 	APP_PROC,
 	SEND,
+	UPCALL_PROC,
 	TIMING_MAX
 } timing_t;
 
@@ -419,7 +434,8 @@ struct timing_struct timing_records[] = {
 	TIMING_STRUCT_INIT("tcp_recv"),
 	TIMING_STRUCT_INIT("tcp_app_recv"),
 	TIMING_STRUCT_INIT("app_proc"),
-	TIMING_STRUCT_INIT("tcp_send")
+	TIMING_STRUCT_INIT("tcp_send"),
+	TIMING_STRUCT_INIT("upcall_proc")
 };
 
 static unsigned long long timing_timestamp(void) {
@@ -478,6 +494,7 @@ struct intern_connection {
 	u16_t tid;
 	spdid_t spdid;
 	conn_t conn_type;
+	net_connection_t connection_id;
 	conn_thd_t thd_status;
 	long data;
 	union {
@@ -498,28 +515,18 @@ struct intern_connection {
 	 * stored here using the next pointer. */
 	struct intern_connection *accepted_ic, *accepted_last;
 
-	struct intern_connection *free, *next;
+	struct intern_connection *next;
 #ifdef TEST_TIMING
 	/* Time stamps */
 	unsigned long long ts_start; 
 #endif
 };
 
-struct intern_connection *free_list;
-struct intern_connection connections[MAX_CONNS];
+COS_MAP_CREATE_STATIC(connections);
 
 static int net_conn_init(void)
 {
-	int i;
-
-	free_list = &connections[0];
-	for (i = 0; i < MAX_CONNS ; i++) {
-		struct intern_connection *ic = &connections[i];
-		ic->conn_type = FREE;
-		ic->data = -1;
-		ic->free = &connections[i+1];
-	}
-	connections[MAX_CONNS-1].free = NULL;
+	cos_map_init_static(&connections);
 
 	return 0;
 }
@@ -528,7 +535,7 @@ static int net_conn_init(void)
  * a given internal_connection */
 static inline net_connection_t net_conn_get_opaque(struct intern_connection *ic)
 {
-	return ic - connections;
+	return ic->connection_id;
 }
 
 /* Get the internal representation of a connection */
@@ -536,27 +543,30 @@ static inline struct intern_connection *net_conn_get_internal(net_connection_t n
 {
 	struct intern_connection *ic;
 
-	assert(nc < MAX_CONNS && nc >= 0);
-	ic =  &connections[nc];
-	if (ic->conn_type == FREE) return NULL;
+	ic = cos_map_lookup(&connections, nc);
 	return ic;
 }
 
 static inline int net_conn_valid(net_connection_t nc)
 {
-	if (nc < 0 || nc >= MAX_CONNS) return 0;
 	return 1;
 }
 
 static inline struct intern_connection *net_conn_alloc(conn_t conn_type, u16_t tid, long data)
 {
-	struct intern_connection *ic = free_list;
+	struct intern_connection *ic;
+	net_connection_t nc;
 
+	ic = malloc(sizeof(struct intern_connection));
 	if (NULL == ic) return NULL;
-	free_list = ic->free;
-	ic->free = ic->next = ic->accepted_last = ic->accepted_ic = NULL;
-	ic->incoming = ic->incoming_last = NULL;
-	ic->incoming_size = 0;
+	nc = cos_map_add(&connections, ic);
+	if (-1 == nc) {
+		free(ic);
+		return NULL;
+	}
+	memset(ic, 0, sizeof(struct intern_connection));
+
+	ic->connection_id = nc;
 	ic->tid = tid;
 	ic->thd_status = ACTIVE;
 	ic->conn_type = conn_type;
@@ -569,9 +579,9 @@ static inline void net_conn_free(struct intern_connection *ic)
 {
 	assert(ic);
 	assert(0 == ic->incoming_size);
-	ic->conn_type = FREE;
-	ic->free = free_list;
-	free_list = ic;
+
+	cos_map_del(&connections, net_conn_get_opaque(ic));
+	free(ic);
 
 	return;
 }
@@ -1054,6 +1064,7 @@ static int cos_net_tcp_recv(struct intern_connection *ic, void *data, int sz)
 			memcpy(data, data_start, sz);
 			xfer_amnt = sz;
 			ic->incoming_offset += sz;
+			assert(ic->incoming_offset < pq->len);
 		}
 		ic->incoming_size -= xfer_amnt;
 		tp = ic->conn.tp;
@@ -1171,13 +1182,23 @@ int net_listen(spdid_t spdid, net_connection_t nc, int queue)
 
 	NET_LOCK_TAKE();
 	ic = net_verify_tcp_connection(nc, &ret);
+	if (NULL == ic) {
+		ret = -EINVAL;
+		goto done;
+	}
 	tp = ic->conn.tp;
 	si = ic->spdid;
 	assert(NULL != tp);
 	new_tp = tcp_listen_with_backlog(tp, queue);
+	if (NULL == new_tp) {
+		ret = -ENOMEM;
+		goto done;
+	}
 	ic->conn.tp = new_tp;
+	tcp_arg(new_tp, ic);
 	tcp_accept(new_tp, cos_net_lwip_tcp_accept);
 	//if (0 > __net_create_tcp_connection(si, new_tp)) assert(0);
+done:
 	NET_LOCK_RELEASE();
 	return ret;
 }
@@ -1486,7 +1507,9 @@ static void cos_net_interrupt(void)
 	struct pbuf *p;//, *np;
 	struct ip_hdr *ih;
 	struct packet_queue *pq;
-
+#ifdef TEST_TIMING
+	unsigned long long ts;
+#endif
 	NET_LOCK_TAKE();
 	tm = get_thd_map(ucid);
 	assert(tm);
@@ -1522,9 +1545,9 @@ static void cos_net_interrupt(void)
 		goto err;
 	}
 	pq->headers = d = net_packet_data(pq);
-#ifdef TCP_SEND_COPY
 #ifdef TEST_TIMING
-	pq->ts_start = timing_timestamp();
+#ifdef TCP_SEND_COPY
+	ts = pq->ts_start = timing_timestamp();
 #endif	
 #endif	
 	memcpy(d, buff, len);
@@ -1540,6 +1563,10 @@ static void cos_net_interrupt(void)
 	if (rb_add_buff(tm->uc_rb, buff /*(char *)p->payload - (UDP_HLEN + IP_HLEN)*/, MTU)) {
 		prints("net: could not add buffer to ring.");
 	}
+
+#ifdef TEST_TIMING
+	timing_record(UPCALL_PROC, ts);
+#endif
 	NET_LOCK_RELEASE();
 
 	return;
@@ -1812,9 +1839,7 @@ static int init(void)
 {
 	unsigned short int ucid, i;
 	void *b;
-#ifdef TEST_TIMING
 	int cnt = 0;
-#endif
 #ifdef LWIP_STATS
 	int stats_cnt = 0;
 #endif
@@ -1865,15 +1890,23 @@ static int init(void)
 		/* Sleep for a quarter of seconds as prescribed by lwip */
 		NET_LOCK_TAKE();
 
-		if (++cnt == 20) {
+		if (++cnt == 4) {
+//			struct tcp_pcb *pcb;
 			cnt = 0;
-			alloc_stats_print();
+/*			extern struct tcp_pcb *tcp_active_pcbs;
+			prints("*** TCP connections ***");
+			for(pcb = tcp_active_pcbs; pcb != NULL; pcb = pcb->next) {
+				printc("%p: state %d, flags %x, rcvwnd %d, annwnd %d, retrans %d, cwnd %d, sndwnd %d, sndsqn %d, rcvsqn %u", 
+				       pcb, pcb->state, pcb->flags, pcb->rcv_wnd, pcb->rcv_ann_wnd, pcb->nrtx, pcb->cwnd, pcb->snd_wnd, pcb->snd_nxt, pcb->rcv_nxt);
+			}
+*/
+//			alloc_stats_print();
 #ifdef TEST_TIMING
 			timing_output();
 #endif
 		}
 #ifdef LWIP_STATS
-		if (++stats_cnt == 119) {
+		if (++stats_cnt == 20) {
 			stats_cnt = 0;
 			stats_display();
 		}
@@ -1881,6 +1914,7 @@ static int init(void)
 		tcp_tmr();
 		NET_LOCK_RELEASE();
 		timed_event_block(cos_spd_id(), 250000);
+//		timed_event_block(cos_spd_id(), 250000000);
 	}
 
 	//sched_block();

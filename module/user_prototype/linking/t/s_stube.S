@@ -6,4 +6,5 @@ cos_asm_server_stub_spdid(evt_free)
 cos_asm_server_stub_spdid(evt_wait)
 cos_asm_server_stub_spdid(evt_grp_wait)
 cos_asm_server_stub_spdid(evt_trigger)
+cos_asm_server_stub_spdid(evt_set_prio)
 

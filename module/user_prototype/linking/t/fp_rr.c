@@ -34,8 +34,8 @@
 #define NORMAL_PRIO_HI 4
 #define NORMAL_PRIO_LO (NUM_PRIOS-4)
 
-#define RUNTIME_SEC (3)
-#define REPORT_FREQ 60
+#define RUNTIME_SEC (10)
+#define REPORT_FREQ 10 		/* freq of reporting in seconds */
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
 
@@ -67,15 +67,18 @@ typedef enum {
 	YIELD_INV,
 	YIELD_SWITCH,
 	IDLE_SCHED,
+	IDLE_SCHED_SWITCH,
+	EVT_CMPLETE,
 	BLOCK_LOOP,
 	WAKE_LOOP,
 	TIMER_LOOP,
 	COMP_TAKE_LOOP,
 	EVT_CMPLETE_LOOP,
-	IDLE_SCHED_LOOP,
 	TIMEOUT_LOOP,
+	IDLE_SCHED_LOOP,
 	REVT_LAST
 } report_evt_t;
+
 static char *revt_names[] = {
 	"brand active event",
 	"brand ready event",
@@ -92,7 +95,9 @@ static char *revt_names[] = {
 	"timer tick",
 	"yield invocation",
 	"yield switch threads",
+	"idle loop interpreting event",
 	"idle loop trying to schedule event",
+	"event completion, uc into sched",
 	"iterations through the block loop",
 	"iterations through the wake loop",
 	"iterations through the timer loop",
@@ -118,6 +123,7 @@ static void report_output(void)
 	prints("All counters:");
 	for (i = 0 ; i < REVT_LAST ; i++) {
 		printc("\t%s: %lld", revt_names[i], report_evts[i]);
+		report_evts[i] = 0;
 	}
 
 	mman_print_stats();
@@ -149,6 +155,7 @@ static void report_thd_accouting(void)
 				printc("\tthd %d (prio %d), cycles %lld", t->id, i, 
 				       sched_get_accounting(t)->cycles);
 				print_thd_invframes(t);
+				sched_get_accounting(t)->cycles = 0;
 			}
 		}
 	}
@@ -160,6 +167,7 @@ static void report_thd_accouting(void)
 			printc("\tthd %d (prio %d), cycles %lld", t->id, 
 			       sched_get_metric(t)->priority, sched_get_accounting(t)->cycles);
 			print_thd_invframes(t);
+			sched_get_accounting(t)->cycles = 0;
 		}
 	}
 	printc("Inactive upcalls:");
@@ -170,6 +178,7 @@ static void report_thd_accouting(void)
 			printc("\tthd %d (prio %d), cycles %lld", t->id, 
 			       sched_get_metric(t)->priority, sched_get_accounting(t)->cycles);
 			print_thd_invframes(t);
+			sched_get_accounting(t)->cycles = 0;
 		}
 	}
 	report_output();
@@ -545,12 +554,17 @@ void fp_timer_tick(void)
 	cos_sched_lock_take();
 
 	report_event(TIMER_TICK);
+
+	if ((ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1)) {
+		report_thd_accouting();
+	}
+	if ((ticks % (TIMER_FREQ*2)) == ((TIMER_FREQ*2)-1)) cos_stats();
+
 	/* are we done running? */
 	if (ticks >= RUNTIME_SEC*TIMER_FREQ+1) {
-		report_thd_accouting();
 		fp_pre_wakeup(init);
 		fp_wakeup(init,0);
-		//cos_switch_thread(init->id, COS_SCHED_TAILCALL, 0);
+		//cos_switch_thread(init->id, COS_SCHED_TAILCALL);
 	}
 
 	ticks++;
@@ -588,7 +602,7 @@ void fp_timer_tick(void)
 		} 
 		assert(next != prev);
 
-		loop = cos_switch_thread_release(next->id, COS_SCHED_TAILCALL, 0);
+		loop = cos_switch_thread_release(next->id, COS_SCHED_TAILCALL);
 		if (loop) {
 			assert(loop != -1);
 			PRINTD("timer scheduling error in trying to switch from %d to thd %d.", prev->id, next->id);
@@ -607,6 +621,7 @@ static void fp_event_completion(struct sched_thd *e)
 	struct sched_thd *next, *curr;
 	int loop = 1;
 
+	report_event(EVT_CMPLETE);
 	curr = sched_get_current();
 	//print("WTF: this should not be happening %d%d%d",0,0,0);
 	do {
@@ -617,10 +632,11 @@ static void fp_event_completion(struct sched_thd *e)
 //			print("event completion: next,next is %d, current is %d. %d", next->id, cos_get_thd_id(), 0);
 		}
 		assert(next != curr);
-		loop = cos_switch_thread_release(next->id, COS_SCHED_TAILCALL, 0);
+		loop = cos_switch_thread_release(next->id, COS_SCHED_TAILCALL);
 		assert(loop != -1);
 		report_event(EVT_CMPLETE_LOOP);
-	} while (unlikely(loop));
+	} while (loop);
+	assert(0);
 
 	return;
 }
@@ -642,17 +658,14 @@ static void fp_idle_loop(void *d)
 	struct sched_thd *other, *idle = sched_get_current();
 
 	while(1) {
-		int flags;
-
-		flags = cos_sched_event_to_process();
-		if (flags) {
+		if (cos_sched_event_to_process()) {
 			report_event(IDLE_SCHED);
 retry:
 			cos_sched_lock_take();
 			other = fp_schedule();
-			if (flags != COS_SCHED_EVT_BRAND_READY) {
-				assert(other != idle);
-				if (cos_switch_thread_release(other->id, 0, 0)) {
+			if (other != idle) {
+				report_event(IDLE_SCHED_SWITCH);
+				if (cos_switch_thread_release(other->id, 0)) {
 					report_event(IDLE_SCHED_LOOP);
 					goto retry;
 				}
@@ -679,7 +692,7 @@ static void fp_yield(void)
 	//print("current is %d, orig_thd was %d, next is %d", prev->id, orig_next->id, next->id);
 	if (prev != next) {
 		report_event(YIELD_SWITCH);
-		if (0 != cos_switch_thread_release(next->id, 0, 0)) assert(0);
+		if (0 != cos_switch_thread_release(next->id, 0)) assert(0);
 	} else {
 		cos_sched_lock_release();
 	}
@@ -757,7 +770,7 @@ void sched_timeout(spdid_t spdid, unsigned long amnt)
 		 * this assert */
 		assert(next != thd);
 //		prints("Timeout loop: switching threads");
-		loop = cos_switch_thread_release(next->id, 0, 0);
+		loop = cos_switch_thread_release(next->id, 0);
 		assert(loop != -1);
 		if (loop) {
 			PRINTD("timeout thread switching to unactivated upcall %d from %d with error %d.", next->id, sched_get_current(), loop);
@@ -858,7 +871,7 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 	assert(prev);
 	next = fp_schedule();
 	if (prev == next) goto cleanup;
-	loop = cos_switch_thread_release(next->id, 0, 0);
+	loop = cos_switch_thread_release(next->id, 0);
 	while (loop) {
 		cos_sched_lock_take();
 		next = fp_schedule();
@@ -868,7 +881,7 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 		 * scheduler, don't schedule, instead make an upcall
 		 * into that scheduler 
 		 */
-		if (likely(0 == (loop = cos_switch_thread_release(next->id, 0, 0)))) break;
+		if (likely(0 == (loop = cos_switch_thread_release(next->id, 0)))) break;
 		if (loop) {
 			assert(loop != -1);
 			PRINTD("Error switching to thread %d from %d while waking up, err: %d", next->id, prev->id, loop);
@@ -900,7 +913,7 @@ static void fp_block(struct sched_thd *thd, spdid_t spdid)
 	thd->blocking_component = spdid;
 
 	fp_block_thd(thd);
-	if (thd->id == 9) report_event(UPCALL_BLOCK);
+	if (thd->id == 13) report_event(UPCALL_BLOCK);
 	report_event(THD_BLOCK);
 }
 
@@ -933,7 +946,7 @@ int sched_block(spdid_t spdid)
 	
 	next = fp_schedule();
 	assert(next != thd);
-	loop = cos_switch_thread_release(next->id, 0, 0);
+	loop = cos_switch_thread_release(next->id, 0);
 	assert(-1 != loop);
 	if (-2 == loop) {
 			//fp_deactivate_upcall(next);
@@ -946,7 +959,7 @@ int sched_block(spdid_t spdid)
 			cos_sched_lock_release();
 			break;
 		}
-		if (likely(0 == (loop = cos_switch_thread_release(next->id, 0, 0)))) break;
+		if (likely(0 == (loop = cos_switch_thread_release(next->id, 0)))) break;
 		report_event(BLOCK_LOOP);
 	}
 	/* The amount of time we've blocked */
@@ -988,7 +1001,7 @@ int sched_component_take(spdid_t spdid)
 		/* FIXME: proper handling of recursive locking */
 		assert(curr != holder);
 		report_event(COMP_TAKE_CONTENTION);
-		loop = cos_switch_thread_release(holder->id, 0, 0);
+		loop = cos_switch_thread_release(holder->id, 0);
 		if (loop) {
 			assert(-1 != loop);
 			PRINTD("component_take: cannot switch to %d from %d, err: %d", holder->id, curr->id, loop);
@@ -1019,7 +1032,7 @@ int sched_component_release(spdid_t spdid)
 	/* If we woke thread that was waiting for the critical section, switch to it */
 	next = fp_schedule();
 	if (next != curr) {
-		ret = cos_switch_thread_release(next->id, 0, 0);
+		ret = cos_switch_thread_release(next->id, 0);
 		if (ret) {
 			PRINTD("component_release: cannot switch to thd %d from %d, err: %d", next->id, curr->id, ret);
 		}
@@ -1132,7 +1145,7 @@ void sched_suspend_thd(int thd_id)
 
 	cos_sched_lock_take();
 	t->flags |= THD_SUSPENDED;
-	sched_set_thd_urgency(t, 100/*COS_SCHED_EVT_DISABLED_VAL*/);
+	sched_set_thd_urgency(t, 100);
 	cos_sched_lock_release();
 
 	return;
@@ -1189,7 +1202,7 @@ int sched_create_net_upcall(unsigned short int port, int prio_delta, int depth)
 
 void sched_exit(void)
 {
-	cos_switch_thread(init->id, 0, 0);
+	cos_switch_thread(init->id, 0);
 }
 
 /* 
@@ -1295,7 +1308,7 @@ int sched_init(void)
 	fp_pre_block(init);
 	fp_block(init, 0);
 	new = fp_schedule();
-	cos_switch_thread(new->id, 0,0);
+	cos_switch_thread(new->id, 0);
 	
 	target_spdid = spd_name_map_id("mpd.o");
 	assert(target_spdid != -1);
@@ -1303,7 +1316,7 @@ int sched_init(void)
 	print("MPD thread has id %d and priority %d. %d", mpd->id, MPD_PRIO, 0);
 
  	new = fp_schedule();
-	cos_switch_thread(new->id, 0,0);
+	cos_switch_thread(new->id, 0);
 
 	/* Returning will exit the composite system. */
 	return 0;

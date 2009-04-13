@@ -13,7 +13,8 @@
 /* #define MEMP_SANITY_CHECK 1 */
 #define MEMP_NUM_PBUF (4096*4)
 #define MEMP_NUM_UDP_PCB 512
-#define MEMP_NUM_TCP_PCB 512
+//#define MEMP_NUM_TCP_PCB 512
+#define MEMP_NUM_TCP_PCB 8192 	/* need a fair amount of these due to timed wait on close  */
 #define MEMP_NUM_TCP_PCB_LISTEN 128
 #define LWIP_ARP 0
 #define IP_REASSEMBLY 0
@@ -62,8 +63,8 @@
 #define LWIP_CALLBACK_API 1
 
 //#define LWIP_STATS 0
-/* #define LWIP_STATS	                1 */
-/* #define LWIP_STATS_DISPLAY              1 */
+//#define LWIP_STATS	                1
+//#define LWIP_STATS_DISPLAY              1
 /* #define IP_STATS                        1 */
 /* #define LINK_STATS                      0 */
 /* #define ETHARP_STATS                    0 */
@@ -71,7 +72,7 @@
 /* #define IGMP_STATS                      0 */
 /* #define IPFRAG_STATS                    0 //(IP_REASSEMBLY || IP_FRAG) */
 /* #define UDP_STATS                       0 //(LWIP_UDP) */
-/* #define TCP_STATS                       (LWIP_TCP) */
+//#define TCP_STATS                       (LWIP_TCP)
 /* #define MEM_STATS                       1 */
 /* #define MEMP_STATS                      1 */
 
@@ -81,9 +82,10 @@
 #define LWIP_SOCKET 0
 #define LWIP_NETCONN 0
 #define LWIP_ICMP   0
-//#define LWIP_DEBUG  1
-//#define LWIP_DBG_TYPES_ON  (LWIP_DBG_ON | LWIP_DBG_TRACE)
-//#define LWIP_DBG_MIN_LEVEL 0
+
+#define LWIP_DEBUG  1
+#define LWIP_DBG_TYPES_ON  LWIP_DBG_ON
+#define LWIP_DBG_MIN_LEVEL 1
 
 /* #define PPP_DEBUG        LWIP_DBG_OFF */
 //#define MEM_DEBUG        (LWIP_DBG_ON | LWIP_DBG_TRACE)
@@ -91,7 +93,7 @@
 //#define PBUF_DEBUG       (LWIP_DBG_ON | LWIP_DBG_TRACE)
 /* #define API_LIB_DEBUG    LWIP_DBG_ON */
 /* #define API_MSG_DEBUG    LWIP_DBG_ON */
-/*  #define TCPIP_DEBUG      LWIP_DBG_ON */
+//#define TCPIP_DEBUG      (LWIP_DBG_ON | LWIP_DBG_LEVEL_SEVERE)
 /* #define NETIF_DEBUG      LWIP_DBG_ON */
 /* #define SOCKETS_DEBUG    LWIP_DBG_ON */
 /* #define DEMO_DEBUG       LWIP_DBG_ON */
@@ -100,18 +102,18 @@
 /* #define RAW_DEBUG        LWIP_DBG_ON */
 /* #define ICMP_DEBUG       LWIP_DBG_ON */
 /* #define UDP_DEBUG        LWIP_DBG_ON */
-//#define TCP_DEBUG        (LWIP_DBG_ON  | LWIP_DBG_TRACE)
-//#define TCP_INPUT_DEBUG  (LWIP_DBG_ON | LWIP_DBG_TRACE)
-//#define TCP_OUTPUT_DEBUG (LWIP_DBG_ON | LWIP_DBG_TRACE)
-/* #define TCP_RTO_DEBUG    LWIP_DBG_ON */
-/* #define TCP_CWND_DEBUG   LWIP_DBG_ON */
-//#define TCP_WND_DEBUG    (LWIP_DBG_ON | LWIP_DBG_TRACE)
+//#define TCP_DEBUG        (LWIP_DBG_ON  | LWIP_DBG_LEVEL_SEVERE)
+//#define TCP_INPUT_DEBUG  (LWIP_DBG_ON | LWIP_DBG_LEVEL_SEVERE)
+//#define TCP_OUTPUT_DEBUG (LWIP_DBG_ON | LWIP_DBG_LEVEL_SEVERE)
+//#define TCP_RTO_DEBUG    (LWIP_DBG_ON | LWIP_DBG_LEVEL_SEVERE)
+//#define TCP_CWND_DEBUG   (LWIP_DBG_ON | LWIP_DBG_LEVEL_SEVERE)
+//#define TCP_WND_DEBUG    (LWIP_DBG_ON | LWIP_DBG_LEVEL_SEVERE)
 /* #define TCP_FR_DEBUG     LWIP_DBG_ON */
-//#define TCP_QLEN_DEBUG   (LWIP_DBG_ON  | LWIP_DBG_TRACE)
-//#define TCP_RST_DEBUG    (LWIP_DBG_ON | LWIP_DBG_TRACE)
+//#define TCP_QLEN_DEBUG   (LWIP_DBG_ON  | LWIP_DBG_LEVEL_SEVERE)
+//#define TCP_RST_DEBUG    (LWIP_DBG_ON | LWIP_DBG_LEVEL_SEVERE)
 
 //#define LWIP_DEBUG 1
-#define LWIP_DBG_TYPES_ON  LWIP_DBG_OFF 
+//#define LWIP_DBG_TYPES_ON  LWIP_DBG_OFF 
 //#define LWIP_DBG_MIN_LEVEL 0
 //#define LWIP_DBG_MIN_LEVEL 1
 

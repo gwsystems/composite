@@ -110,7 +110,8 @@ cos_syscall_clobber                                  \
 
 //typedef __attribute__((regparm(1))) void (*create_thd_fn_t)(void *data);
 
-cos_syscall_0(1, int, resume_return);
+//cos_syscall_0(1, int, resume_return);
+cos_syscall_0(1, int, stats);
 cos_syscall_2(2, int, print, char*, str, int, len);
 //cos_syscall_3(3, int, create_thread, create_thd_fn_t, fn, vaddr_t, stack, void*, data);
 cos_syscall_3(3, int, create_thread, int, a, int, b, int, c);
@@ -163,8 +164,7 @@ static inline int cos_thd_cntl(short int op, short int thd_id, long arg1, long a
  * preempting threads to update the next_thread even if a thread is
  * preempted between logic and calling switch_thread.
  */
-static inline int cos_switch_thread(unsigned short int thd_id, unsigned short int flags, 
-				    unsigned int urgency)
+static inline int cos_switch_thread(unsigned short int thd_id, unsigned short int flags)
 {
 	struct cos_sched_next_thd *cos_next = &cos_sched_notifications.cos_next;
 
@@ -172,7 +172,6 @@ static inline int cos_switch_thread(unsigned short int thd_id, unsigned short in
 	 * write to memory immediately to be read by the kernel */
 	cos_next->next_thd_id = thd_id;
 	cos_next->next_thd_flags = flags;
-	cos_next->next_thd_urgency = urgency;
 
 	/* kernel will read next thread information from cos_next */
 	return cos___switch_thread(thd_id, flags); 

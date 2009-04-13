@@ -1,3 +1,14 @@
+/*
+ * Scheduler library that can be used by schedulers to manage their
+ * data structures.
+ *
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ */
+
+#define COS_FMT_PRINT
 #include <cos_scheduler.h>
 
 /* Force the cos_asm_scheduler.S file to be linked with us */
@@ -21,7 +32,7 @@ int cos_sched_event_to_process(void)
 	struct cos_sched_events *evt;
 
 	evt = &cos_sched_notifications.cos_events[cos_curr_evt];
-	return COS_SCHED_EVT_FLAGS(evt);
+	return COS_SCHED_EVT_FLAGS(evt) || COS_SCHED_EVT_NEXT(evt);
 }
 
 /* 
@@ -81,20 +92,23 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 			}
 		}
 
-		if (cos_curr_evt) {
+		if ((cpu || flags) && cos_curr_evt) {
 			t = sched_evt_to_thd(cos_curr_evt);
 			if (t) {
+
+
+//				printc("t %d f %x u %ld", t->id, flags, cpu);
+
+
+
 				/* Call the visitor function */
 				fn(t, flags, cpu);
 			}
 		}
 		proc_amnt--;
 
-		if (id) {
-			cos_curr_evt = id;
-		} else {
-			break;
-		}
+		if (0 == id) break;
+		cos_curr_evt = id;
 	}
 
 	return 0;

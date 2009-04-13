@@ -35,11 +35,13 @@ typedef enum {
 	EVTG_BLOCKED
 } evt_grp_status_t;
 
+#define EVT_NUM_PRIOS 2
 #define EVT_PER_GRP 250
 struct evt_grp;
 
 struct evt {
 	evt_status_t status;
+	int prio;
 	long extern_id;
 	struct evt_grp *grp;
 	struct evt *next, *prev;
@@ -50,17 +52,21 @@ struct evt_grp {
 	u16_t tid;              /* thread that waits for events */
 	evt_grp_status_t status;
 	struct evt_grp *next, *prev;
-	struct evt events, triggered;
+	struct evt events, triggered[EVT_NUM_PRIOS];
 };
 
 static inline void evt_grp_init(struct evt_grp *eg, spdid_t spdid, u16_t tid)
 {
+	int i;
+
 	eg->spdid = spdid;
 	eg->tid = tid;
 	eg->status = EVTG_INACTIVE;
 	INIT_LIST(eg, next, prev);
 	INIT_LIST(&eg->events, next, prev);
-	INIT_LIST(&eg->triggered, next, prev);
+	for (i = 0 ; i < EVT_NUM_PRIOS ; i++) {
+		INIT_LIST(&eg->triggered[i], next, prev);
+	}
 }
 
 /* 
@@ -84,7 +90,7 @@ static inline int __evt_trigger(struct evt *e)
 	s = e->status;
 	REM_LIST(e, next, prev);
 	/* Add to the triggered list */
-	ADD_END_LIST(&g->triggered, e, next, prev);
+	ADD_END_LIST(&g->triggered[e->prio], e, next, prev);
 
 	/* mark the event as triggered. */
 	e->status = EVT_TRIGGERED;
@@ -105,26 +111,29 @@ static inline int __evt_trigger(struct evt *e)
  */
 static int __evt_grp_read(struct evt_grp *g, struct evt **evt)
 {
+	int i;
 	struct evt *e;
 	*evt = NULL;
 
 	assert(NULL != g && NULL != (void*)evt);
 	if (cos_get_thd_id() != g->tid) return -1;
 
-	if (EMPTY_LIST(&g->triggered, next, prev)) {
-		g->status = EVTG_BLOCKED;
-		return 0;
+	for (i = 0 ; i < EVT_NUM_PRIOS ; i++) {
+		if (!EMPTY_LIST(&g->triggered[i], next, prev)) {
+			e = FIRST_LIST(&g->triggered[i], next, prev);
+			assert(e != &g->triggered[i]);
+			REM_LIST(e, next, prev);
+			if (e->status != EVT_TRIGGERED) printc("event %ld, status %d", e->extern_id, e->status);
+			assert(e->status == EVT_TRIGGERED);
+			e->status = EVT_INACTIVE;
+			g->status = EVTG_INACTIVE;
+			*evt = e;
+			ADD_LIST(&g->events, e, next, prev);
+			
+			return 0;
+		}
 	}
-	e = FIRST_LIST(&g->triggered, next, prev);
-	assert(e != &g->triggered);
-	REM_LIST(e, next, prev);
-	if (e->status != EVT_TRIGGERED) printc("event %ld, status %d", e->extern_id, e->status);
-	assert(e->status == EVT_TRIGGERED);
-	e->status = EVT_INACTIVE;
-	g->status = EVTG_INACTIVE;
-	*evt = e;
-	ADD_LIST(&g->events, e, next, prev);
-
+	g->status = EVTG_BLOCKED;
 	return 0;
 }
 
@@ -160,6 +169,7 @@ static inline struct evt *__evt_new(struct evt_grp *g)
 	e = malloc(sizeof(struct evt));
 	if (NULL == e) return NULL;
 	e->status = EVT_INACTIVE;
+	e->prio = 0;
 	e->grp = g;
 	ADD_LIST(&g->events, e, next, prev);
 	return e;

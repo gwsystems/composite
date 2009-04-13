@@ -67,6 +67,8 @@ static inline struct evt_grp *evt_grp_create(spdid_t spdid, u16_t tid)
 
 static inline void evt_grp_free(struct evt_grp *g)
 {
+	int i;
+
 	if (!EMPTY_LIST(g, next, prev)) {
 		REM_LIST(g, next, prev);
 	}
@@ -76,11 +78,13 @@ static inline void evt_grp_free(struct evt_grp *g)
 		e = FIRST_LIST(&g->events, next, prev);
 		REM_LIST(e, next, prev);
 	}
-	while (!EMPTY_LIST(&g->triggered, next, prev)) {
-		struct evt *e;
-		
-		e = FIRST_LIST(&g->triggered, next, prev);
-		REM_LIST(e, next, prev);
+	for (i = 0 ; i < EVT_NUM_PRIOS ; i++) {
+		while (!EMPTY_LIST(&g->triggered[i], next, prev)) {
+			struct evt *e;
+			
+			e = FIRST_LIST(&g->triggered[i], next, prev);
+			REM_LIST(e, next, prev);
+		}
 	}
 	free(g);
 }
@@ -238,12 +242,29 @@ err:
 	return -1;
 }
 
+int evt_set_prio(spdid_t spdid, long extern_evt, int prio)
+{
+	struct evt *e;
+
+	if (prio >= EVT_NUM_PRIOS) return -1;
+
+	lock_take(&evt_lock);
+	e = mapping_find(extern_evt);
+	if (NULL == e) goto err;
+	e->prio = prio;
+	/* FIXME: place into correct list in the group if it is triggered */
+	lock_release(&evt_lock);
+	return 0;
+err:
+	lock_release(&evt_lock);
+	return -1;
+}
+
 static void init_evts(void)
 {
 	lock_static_init(&evt_lock);
 	cos_vect_init_static(&evt_map);
 	INIT_LIST(&grps, next, prev);
-	sched_block(cos_spd_id());
 }
 
 void cos_init(void *arg)
@@ -253,8 +274,12 @@ void cos_init(void *arg)
 	if (first) {
 		first = 0;
 		init_evts();
-		assert(0);
 	} else {
 		prints("net: not expecting more than one bootstrap.");
 	}
+}
+
+void bin(void)
+{
+	sched_block(cos_spd_id());
 }

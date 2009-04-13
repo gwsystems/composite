@@ -132,8 +132,9 @@ struct ip_hdr {
   /* checksum */
   PACK_STRUCT_FIELD(u16_t _chksum);
   /* source and destination IP addresses */
-  PACK_STRUCT_FIELD(struct ip_addr src);
-  PACK_STRUCT_FIELD(struct ip_addr dest); 
+	/* gap: kill warnings by taking away the "packed" */
+	/*PACK_STRUCT_FIELD(*/struct ip_addr src;//);
+	/*PACK_STRUCT_FIELD(*/struct ip_addr dest;//); 
 } PACK_STRUCT_STRUCT;
 PACK_STRUCT_END
 #ifdef PACK_STRUCT_USE_INCLUDES

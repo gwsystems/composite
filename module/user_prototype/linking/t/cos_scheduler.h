@@ -73,8 +73,7 @@ static inline int cos_sched_lock_release(void)
  * scheduler lock.
  */
 static inline int cos_switch_thread_release(unsigned short int thd_id, 
-					    unsigned short int flags, 
-					    unsigned int urgency)
+					    unsigned short int flags)
 {
         /* This must be volatile as we must commit what we want to
 	 * write to memory immediately to be read by the kernel */
@@ -82,7 +81,6 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 
 	cos_next->next_thd_id = thd_id;
 	cos_next->next_thd_flags = flags;
-	cos_next->next_thd_urgency = urgency;
 
 	cos_sched_lock_release();
 

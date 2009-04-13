@@ -99,13 +99,16 @@ static int http_find_next_line(char *s, int len, char **ret)
 	}
 }
 
-static int http_find_header_end(char *s, int len, char **curr)
+static int http_find_header_end(char *s, int len, char **curr, int flags)
 {
 	char *p, *c;
 
 	c = s;
 	do {
 		p = c;
+
+		/* parse the header and add in flags here */
+
 		if (http_find_next_line(c, len-(int)(c-s), &c)) {
 			/* Malformed: last characters not cr lf */
 			*curr = c;
@@ -121,6 +124,7 @@ typedef struct {
 	char *end;
 	char *path;
 	int path_len;
+	int head_flags;
 } get_ret_t;
 
 static int http_get_parse(char *req, int len, get_ret_t *ret)
@@ -145,7 +149,8 @@ static int http_get_parse(char *req, int len, get_ret_t *ret)
 		goto malformed_request;
 	}
 
-	if (http_find_header_end(e, len - (e-s), &e)) goto malformed_request;
+	ret->head_flags = 0;
+	if (http_find_header_end(e, len - (e-s), &e, ret->head_flags)) goto malformed_request;
 
 	ret->end = e;
 	ret->path = path;
@@ -171,7 +176,8 @@ static const char resp[] = "all your base are belong to us\r\n";
 /* Must prefix data by "content_length\r\n\r\n" */
 static char *http_get_request(char *path, int path_len, int *resp_len)
 {
-	int resp_sz = sizeof(resp)-1, head_sz = sizeof(success_head)-1;
+	int resp_sz = sizeof(resp)-1;
+	int head_sz = sizeof(success_head)-1;
 	int tot_sz, len_sz = 0;
 	char *r, *curr;
 	char len_str[MAX_SUPPORTED_DIGITS];
@@ -265,6 +271,7 @@ static int http_get(struct http_request *r)
 	r->path = p;
 	r->path_len = ret.path_len;
 	r->req_len = (int)(ret.end - s);
+	r->flags |= ret.head_flags;
 	return 0;
 }
 
@@ -567,8 +574,6 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 //~/research/others_software/httperf-0.9.0/src/httperf --port=8000 --wsess=1000,1000,0 --burst-len=100 --rate=55 --max-piped-calls=32
 //~/research/others_software/httperf-0.9.0/src/httperf --port=8000 --wsess=10000,1,0 --burst-len=1 --rate=1000 --max-piped-calls=32
 //httperf --port=200 --wsess=1000,1000,0 --burst-len=100 --rate=55 --max-piped-calls=32 --server=10.0.2.8
-#define CONN_MAP_SZ 4096
-
 COS_MAP_CREATE_STATIC(conn_map);
 
 static int connection_process_requests(struct connection *c, char *req, int req_sz,

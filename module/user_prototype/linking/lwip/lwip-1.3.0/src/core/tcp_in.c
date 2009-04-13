@@ -408,6 +408,8 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
     LWIP_DEBUGF(TCP_DEBUG, ("TCP connection request %"U16_F" -> %"U16_F".\n", tcphdr->src, tcphdr->dest));
 #if TCP_LISTEN_BACKLOG
     if (pcb->accepts_pending >= pcb->backlog) {
+	    /* gap */
+	    printc("ERROR: Listen attempt failed: backlog full");
       return ERR_ABRT;
     }
 #endif /* TCP_LISTEN_BACKLOG */

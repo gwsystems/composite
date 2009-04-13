@@ -6,6 +6,8 @@
  * Public License v2.
  */
 
+#define COS_FMT_PRINT
+
 #include <cos_component.h>
 #include <cos_debug.h>
 #include <print.h>

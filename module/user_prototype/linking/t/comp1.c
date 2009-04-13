@@ -56,7 +56,7 @@ volatile unsigned short int curr = 0;
 void c1_yield()
 {
 	curr = (curr == LOWER)? UPPER : LOWER;
-	cos_switch_thread(curr, 0, 0);	
+	cos_switch_thread(curr, 0);	
 	//print_vals(cos_get_thd_id(), curr, 1);
 }
 

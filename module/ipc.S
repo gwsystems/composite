@@ -115,34 +115,8 @@ ipc_ret_slowpath:
 ipc_ret_err:
 	ERROR_OUT
 
-/* this assumes the stack layout is inherited from composite_make_syscall, and will return directly */
-.globl cos_syscall_resume_return
-.align 16
-cos_syscall_resume_return:
-	call cos_syscall_resume_return_cont
-	addl $20, %esp /* 4 for ret addr + 16 for args pushed in composite_make_syscall */
-
-	/* see inv.c:cos_syscall_resume_return_cont for ret vals */
-	cmpl $1, %eax
-	ja ret_from_preemption_getregs
-	jb syscall_resume_err
-
-	/* Thread wasn't preempted and voluntarily gave up the cpu, thus return */
-	movl $0, %ecx
-	jmp composite_ret_ipc
-
-/* global so that can see it in error reports if we crash */
-.globl syscall_resume_err 
-.align 16
-syscall_resume_err:
-	/* should invoke fault handler, but for now, kill our thread
-	by causing error (remember that pop just returned 0 in eax) */
-	/*	sti*/
-	ERROR_OUT
-
 #define COS_SYSCALL_EDX 20 /* Don't forget space for the return address */
 #define COS_SYSCALL_ECX 24
-
 
 .globl cos_syscall_brand_upcall
 .align 16

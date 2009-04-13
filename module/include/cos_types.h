@@ -27,17 +27,13 @@ struct shared_user_data {
 };
 
 struct cos_sched_next_thd {
-	volatile unsigned short int next_thd_id, next_thd_flags;
-	volatile unsigned int next_thd_urgency;
+	volatile u16_t next_thd_id, next_thd_flags;
 };
 
 #define COS_SCHED_EVT_NEXT(evt)    (evt)->nfu.v.next
 #define COS_SCHED_EVT_FLAGS(evt)   (evt)->nfu.v.flags
 #define COS_SCHED_EVT_URGENCY(evt) (evt)->nfu.v.urgency
 #define COS_SCHED_EVT_VALS(evt)    (evt)->nfu.c.vals
-
-/* If the urgency is set to this, the upcall is disabled */
-#define COS_SCHED_EVT_DISABLED_VAL (0xFFFF)
 
 /* FIXME: make flags 8 bits, and use 8 bits to count # of alive upcalls */
 #define COS_SCHED_EVT_FREE         0x1
@@ -65,9 +61,15 @@ struct cos_sched_events {
 
 /* Primitive for scheduler synchronization.  These must reside in the same word */
 struct cos_synchronization_atom {
-	volatile unsigned short int owner_thd, queued_thd;
+	volatile u16_t owner_thd, queued_thd;
 } __attribute__((packed));
 
+/* 
+ * As the system is currently structured (struct cos_sched_data_area
+ * <= PAGE_SIZE), we can have a max of 511 sched evts, but we are also
+ * limited by the size of "next" in the cos_se_values, which in this
+ * case limits us to 256.
+ */
 #define NUM_SCHED_EVTS 128 //256
 
 struct cos_sched_data_area {

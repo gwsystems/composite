@@ -217,8 +217,11 @@ static inline int cos_map_del(cos_map_t *m, long mid)
 	struct cos_vect_intern_struct *is;
 
 	assert(m);
-	is = __cos_vect_lookup(&m->data, cos_map_to_vect_freeid(mid));
+	is = __cos_vect_lookup(&m->data, cos_map_to_vect_id(mid));
 	if (NULL == is) return -1;
+	is->val = COS_VECT_INIT_VAL;
+	is = __cos_vect_lookup(&m->data, cos_map_to_vect_freeid(mid));
+	assert(NULL != is);
 	is->val = (void*)m->free_list;
 	m->free_list = mid;
 	return 0;

@@ -15,7 +15,7 @@
 long cos_this_spd_id = 0;
 void *cos_heap_ptr = NULL;
 struct cos_sched_data_area cos_sched_notifications = {
-	.cos_next = {.next_thd_id = 0, .next_thd_flags = 0, .next_thd_urgency = 0},
+	.cos_next = {.next_thd_id = 0, .next_thd_flags = 0},
 	.cos_locks = {.owner_thd = 0, .queued_thd = 0},
 	.cos_events = {}
 };
