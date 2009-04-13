@@ -58,7 +58,7 @@ static inline void __cos_map_init(cos_map_t *m)
 	m->free_list = 0;
 	m->id_boundary = COS_MAP_BASE;
 	/* Create the freelist */
-	for (i = 0 ; i < COS_MAP_BASE ; i++) {
+	for (i = 0 ; i < (int)COS_MAP_BASE ; i++) {
 		int j = cos_map_to_vect_freeid(i);
 		if (__cos_vect_set(&m->data, j, (void*)(i+1))) assert(0);
 	}

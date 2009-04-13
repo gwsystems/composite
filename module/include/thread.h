@@ -211,7 +211,7 @@ static inline struct spd *thd_curr_spd_noprint(void)
 	if (NULL == curr_thd) return NULL;
 
 	stkptr = curr_thd->stack_ptr;
-	if (stkptr < 0) return NULL;
+	if (stkptr >= MAX_SERVICE_DEPTH) return NULL;
 	
 	return curr_thd->stack_base[stkptr].spd;
 }

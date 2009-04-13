@@ -8,7 +8,7 @@ int nothing = 0;
 
 int spd0_main(void)
 {
-	int ret, i;;
+	int ret;
 
 	//for (i = 0 ; i < ITER ; i++) {
 	ret = sched_init();

@@ -17,8 +17,8 @@ static inline vaddr_t get_stack_addr(int thd_id)
 }
 
 static unsigned short int thd_id = 0, new_thd1 = 0, new_thd2 = 0;
-volatile static unsigned short int curr_thd, other_thd;
-volatile static int nothing_var = 0;
+static volatile unsigned short int curr_thd, other_thd;
+static volatile int nothing_var = 0;
 
 void yield(void)
 {
@@ -112,7 +112,7 @@ int spd2_fn(void)
 /* } */
 
 #define OTHER_THD(x) (((x) == 1)? 2: 1)
-volatile static int race_val;
+static volatile int race_val;
 #define SPIN 10
 
 /* use stack space and registers */

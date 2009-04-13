@@ -269,7 +269,7 @@ static void init_evts(void)
 
 void cos_init(void *arg)
 {
-	volatile static int first = 1;
+	static volatile int first = 1;
 
 	if (first) {
 		first = 0;
@@ -279,7 +279,7 @@ void cos_init(void *arg)
 	}
 }
 
-void bin(void)
+static void bin(void)
 {
 	sched_block(cos_spd_id());
 }

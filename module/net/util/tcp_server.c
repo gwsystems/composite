@@ -12,11 +12,9 @@
 
 int main(int argc, char *argv[])
 {
-	int fdr, fda;
+	int fdr, fda, msg_size, ret;;
 	struct sockaddr_in sinput;
-	int msg_size;
 	char *msg;
-	int cnt = 0, ret;
 
 	struct sockaddr sa;
 	socklen_t len;

@@ -8,14 +8,14 @@ extern void sched_exit(void);
 #define MAX_UPCALLS 2
 #define MAX_RESOURCES 2
 #define CPU_FREQ 2400000000
-#define CPU_FREQ_PER_TICK ((unsigned int)(CPU_FREQ/100))
+#define CPU_FREQ_PER_TICK ((unsigned long long)((unsigned long long)CPU_FREQ/100))
 
 static volatile int ticks = 0, upcalls_alloc = 0, resources_alloc = 0;
 static struct sched_thd *idle, *upcall;
 
 static struct sched_thd *upcalls[MAX_UPCALLS];
 static struct resource {
-	unsigned long cycles_used, cycle_limit, period_elapsed, period;
+	unsigned long long cycles_used, cycle_limit, period_elapsed, period;
 } resources[MAX_RESOURCES];
 
 //#define TEST_BRAND
@@ -66,7 +66,13 @@ int sched_ds_create_net_upcall(unsigned short int port)
 	
 	upcalls[upcalls_alloc++] = t;
 	r = &resources[resources_alloc++];
-	r->cycle_limit = (resources_alloc == 1) ? CPU_FREQ_PER_TICK*6 : CPU_FREQ_PER_TICK*3;
+	r->cycle_limit = (resources_alloc == 1) ? 
+		144000000 :
+		72000000;
+//		CPU_FREQ_PER_TICK*6 : 
+//		CPU_FREQ_PER_TICK*3;
+
+
 //	r = &resources[0];
 //	resources_alloc = 1;
 //	r->cycle_limit = CPU_FREQ_PER_TICK*7;

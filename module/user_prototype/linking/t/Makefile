@@ -30,8 +30,7 @@ INC_PATH=-I./
 # probably ballooning its size.  Fix this in cos_loader.
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib
 OPT=-ggdb3 #-O3
-#CFLAGS=-Wall -Wextra -Wno-unused-function $(INC_PATH) $(DIETINC) $(LWIPINC) $(OPT) $(SHARED_FLAGS)
-CFLAGS=-Wall -Wno-unused-function $(INC_PATH) $(DIETINC) $(LWIPINC) $(OPT) $(SHARED_FLAGS)
+CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wno-unused-function $(INC_PATH) $(DIETINC) $(LWIPINC) $(OPT) $(SHARED_FLAGS)
 DIETCFLAGS=$(CFLAGS) -Xlinker -r
 #-ggdb3
 ASFLAGS=$(INC_PATH) $(SHARED_FLAGS)

@@ -73,7 +73,7 @@ static inline int __cos_vect_init(cos_vect_t *v)
 	assert(cos_vect_power_2(COS_VECT_BASE));
 	vs = v->vect;
 	assert(vs);
-	for (i = 0 ; i < COS_VECT_BASE ; i++) {
+	for (i = 0 ; i < (int)COS_VECT_BASE ; i++) {
 		vs[i].val = (void*)COS_VECT_INIT_VAL;
 	}
 
@@ -159,14 +159,14 @@ static inline struct cos_vect_intern_struct *__cos_vect_lookup(cos_vect_t *v, lo
 	{
 		long t = (id >> COS_VECT_SHIFT);
 		
-		if (t >= COS_VECT_BASE) return NULL;
+		if (t >= (long)COS_VECT_BASE) return NULL;
 		is = (struct cos_vect_intern_struct*)is[t & COS_VECT_MASK].val;
 		if (NULL == is) return NULL;
 		id &= COS_VECT_MASK;
 		/* fallthrough */
 	}
 	case 1:
-		if (id >= COS_VECT_BASE) return NULL;
+		if (id >= (long)COS_VECT_BASE) return NULL;
 	}
 	return &is[id];
 }
@@ -192,7 +192,7 @@ static inline int __cos_vect_expand(cos_vect_t *v, long id)
 		
 		is = COS_VECT_ALLOC(COS_VECT_BASE * sizeof(struct cos_vect_intern_struct));
 		if (NULL == is) return -1;
-		for (i = 0 ; i < COS_VECT_BASE ; i++) is[i].val = NULL;
+		for (i = 0 ; i < (int)COS_VECT_BASE ; i++) is[i].val = NULL;
 		is->val = v->vect;
 		v->depth++;
 		v->vect = is;
@@ -204,7 +204,7 @@ static inline int __cos_vect_expand(cos_vect_t *v, long id)
 
 	is = COS_VECT_ALLOC(COS_VECT_BASE * sizeof(struct cos_vect_intern_struct));
 	if (NULL == is) return -1;
-	for (i = 0 ; i < COS_VECT_BASE ; i++) is[i].val = (void*)COS_VECT_INIT_VAL;
+	for (i = 0 ; i < (int)COS_VECT_BASE ; i++) is[i].val = (void*)COS_VECT_INIT_VAL;
 
 	root = &v->vect[(id >> COS_VECT_SHIFT) & COS_VECT_MASK];
 	assert(NULL == root->val);

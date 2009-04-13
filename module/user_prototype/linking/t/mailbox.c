@@ -6,6 +6,8 @@
  * Public License v2.
  */
 
+/* NEARLY COMPLETELY UNTESTED! */
+
 #include <cos_component.h>
 #include <cos_synchronization.h>
 #include <cos_alloc.h>
@@ -170,7 +172,7 @@ static int mbox_remove(struct mbox *mb, void **data)
 
 #define POSITIVE(x) (x < 0 ? 0 : x)
 #define UPDATE_TIME(usec, blocked) \
-	(TIMER_EVENT_INF == usec ? TIMER_EVENT_INF : POSITIVE(usec - blocked))
+	(TIMER_EVENT_INF == (unsigned long)usec ? TIMER_EVENT_INF : POSITIVE(usec - blocked))
 
 /* 
  * This structure exists to abstract away the enqueue/dequeue specific
@@ -255,7 +257,7 @@ static int mbox_q_deq(struct q_deq_ops *ops, spdid_t spdid, mboxid_t id,
 	if (TIMER_EXPIRED == (time = lock_take_timed(&mb->lock, microsec))) {
 		return TIMER_EXPIRED;
 	}
-	microsec = UPDATE_TIME(microsec, time);
+	microsec = UPDATE_TIME((int)microsec, (int)time);
 
 	/* Try and en/de-queue from the mailbox and loop while we can't */
 	while (ops->mbox_op(mb, data)) {
@@ -276,19 +278,19 @@ static int mbox_q_deq(struct q_deq_ops *ops, spdid_t spdid, mboxid_t id,
 		if (0 == microsec ||
 		    TIMER_EXPIRED ==
 		    (elapsed = timed_event_block(cos_spd_id(), microsec))) {
-			microsec = UPDATE_TIME(microsec, elapsed);
+			microsec = UPDATE_TIME((int)microsec, (int)elapsed);
 			goto expired;
 		}
-		microsec = UPDATE_TIME(microsec, elapsed);
+		microsec = UPDATE_TIME((int)microsec, (int)elapsed);
 try_again:
 		/* OK, now take the lock again. */
 		if (0 == microsec ||
 		    TIMER_EXPIRED ==
 		    (elapsed = lock_take_timed(&mb->lock, microsec))) {
-			microsec = UPDATE_TIME(microsec, elapsed);
+			microsec = UPDATE_TIME((int)microsec, (int)elapsed);
 			goto expired;
 		}
-		microsec = UPDATE_TIME(microsec, elapsed);
+		microsec = UPDATE_TIME((int)microsec, (int)elapsed);
 	}
 	lock_release(&mb->lock);
 	return 0;

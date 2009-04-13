@@ -24,11 +24,8 @@ volatile int blah, val = 0;
 
 void begin_work(int incr)
 {
-	static int first = 1;
-	//sched_yield();
-
 	while (1) {
-		int i, tmp, id = cos_get_thd_id(), time = timeout_ptr, ret;
+		int i, time = timeout_ptr, ret;
 
 		timeout_ptr = (timeout_ptr+1) & TIMEOUT_MASK;
 		ret = lock_take_timed(&lock, timeouts[time]);
@@ -43,18 +40,7 @@ void begin_work(int incr)
 		for (i = 0 ; i < ITER ; i++) {
 			blah += incr;
 		}
-		//lock_release(&lock);
 	}
-/* 		tmp = val; */
-/* 		val = id; */
-/* 		//if (tmp != id) print("Thread %d taking CS. %d%d", id, 0,0); */
-/* 		//sched_yield(); */
-/* 		for (i = 0 ; i < ITER ; i++) { */
-/* 			blah += incr; */
-/* 		} */
-/* 		assert(val == id); */
-/* 		assert(0 == lock_release(&lock)); */
-/* 	} */
 }
 
 void begin_owner(void)

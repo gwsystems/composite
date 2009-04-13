@@ -58,7 +58,6 @@ static inline struct meta_lock *lock_find(unsigned long lock_id, spdid_t spd)
 	for (tmp = FIRST_LIST(&locks, next, prev) ; 
 	     tmp != &locks ; 
 	     tmp = FIRST_LIST(tmp, next, prev)) {
-		unsigned long id = tmp->spd;
 		if (tmp->lock_id == lock_id && tmp->spd == spd) {
 			return tmp;
 		}
@@ -315,7 +314,6 @@ unsigned long lock_component_alloc(spdid_t spd)
 {
 	struct meta_lock *l;
 	spdid_t spdid = cos_spd_id();
-	int i;
 
 	TAKE(spdid);
 	l = lock_alloc(spd);

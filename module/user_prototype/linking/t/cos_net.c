@@ -79,7 +79,7 @@ typedef struct {
 	/* pointers within the buffer, counts of buffers within the
 	 * ring, and amount of total buffers used for a given
 	 * principal both in the driver ring, and in the stack. */
-	int rb_head, rb_tail, curr_buffs, max_buffs, tot_principal, max_principal;
+	unsigned int rb_head, rb_tail, curr_buffs, max_buffs, tot_principal, max_principal;
 	ring_buff_t *rb;
 	cos_lock_t l;
 	struct buff_page used_pages, avail_pages;
@@ -756,7 +756,7 @@ static int cos_net_udp_recv(struct intern_connection *ic, void *data, int sz)
 		assert(pq);
 		data_start = ((char*)pq->data) + ic->incoming_offset;
 		data_left = pq->len - ic->incoming_offset;
-		assert(data_left > 0 && data_left <= pq->len);
+		assert(data_left > 0 && (u32_t)data_left <= pq->len);
 		/* Consume all of first packet? */
 		if (data_left <= sz) {
 			ic->incoming = pq->next;
@@ -1043,7 +1043,7 @@ static int cos_net_tcp_recv(struct intern_connection *ic, void *data, int sz)
 		assert(pq);
 		data_start = ((char*)pq->data) + ic->incoming_offset;
 		data_left = pq->len - ic->incoming_offset;
-		assert(data_left > 0 && data_left <= pq->len);
+		assert(data_left > 0 && (u32_t)data_left <= pq->len);
 		/* Consume all of first packet? */
 		if (data_left <= sz) {
 			ic->incoming = pq->next;
@@ -1064,7 +1064,7 @@ static int cos_net_tcp_recv(struct intern_connection *ic, void *data, int sz)
 			memcpy(data, data_start, sz);
 			xfer_amnt = sz;
 			ic->incoming_offset += sz;
-			assert(ic->incoming_offset < pq->len);
+			assert(ic->incoming_offset >= 0 && (u32_t)ic->incoming_offset < pq->len);
 		}
 		ic->incoming_size -= xfer_amnt;
 		tp = ic->conn.tp;
@@ -1926,7 +1926,7 @@ static int init(void)
 
 void cos_init(void *arg)
 {
-	volatile static int first = 1;
+	 static volatile int first = 1;
 
 	if (first) {
 		first = 0;

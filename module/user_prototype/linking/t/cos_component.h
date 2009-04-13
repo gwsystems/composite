@@ -340,7 +340,8 @@ static inline int cos_argreg_free(void *p)
 
 	top = (struct cos_argreg_extent*)(((char*)ex) + ex->size - sizeof(struct cos_argreg_extent));
 	if (top > (ex+(COS_ARGREG_SZ/sizeof(struct cos_argreg_extent))-1) ||
-	    top < ex) {
+	    top < ex/*  || */
+/* 	    p != ((char*)top)-top->size */) {
 		return -1;
 	}
 	ex->size -= top->size;

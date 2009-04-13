@@ -444,7 +444,7 @@ static void init(void)
 
 void cos_init(void *arg)
 {
-	volatile static int first = 1;
+	static volatile int first = 1;
 
 	if (first) {
 		first = 0;

@@ -58,7 +58,7 @@ restart:
 				result.contested = 1;
  				new_val = *result_ptr;
 				//print("blocking: %x. %d%d", new_val, 0,0);
-				if (cos_cmpxchg(&l->atom, prev_val, new_val) != new_val) {
+				if ((u32_t)cos_cmpxchg(&l->atom, prev_val, new_val) != new_val) {
 					/* start the whole process
 					 * again if the lock status
 					 * has changed */
@@ -100,7 +100,7 @@ restart:
 		new_val = *result_ptr;
 		//print("taking lock: %x. %d%d", new_val, 0,0);
 		/* Commit the new lock value, or try again */
-	} while (unlikely(cos_cmpxchg(&l->atom, prev_val, new_val) != new_val));
+	} while (unlikely((u32_t)cos_cmpxchg(&l->atom, prev_val, new_val) != new_val));
 
 	assert(l->atom.owner == curr);
 
@@ -148,7 +148,7 @@ int lock_release(cos_lock_t *l) {
 				 * and rec_cnt can only change by us
 				 * taking it, which can't happen
 				 * here. */
-				if (cos_cmpxchg(&l->atom, prev_val, new_val) != new_val) assert(0);
+				if ((u32_t)cos_cmpxchg(&l->atom, prev_val, new_val) != new_val) assert(0);
 				
 				if (lock_component_release(cos_spd_id(), l->lock_id)) {
 					/* Lock doesn't exist */
@@ -166,7 +166,7 @@ int lock_release(cos_lock_t *l) {
 		 * another thread might have tried to take it. */
 		new_val = *result_ptr;
 		assert(result.owner != curr);
-	} while (cos_cmpxchg(&l->atom, prev_val, new_val) != new_val);
+	} while ((u32_t)cos_cmpxchg(&l->atom, prev_val, new_val) != new_val);
 	assert(l->atom.owner != curr);
 
 	return 0;
