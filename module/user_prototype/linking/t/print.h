@@ -36,8 +36,7 @@ static inline int printc(char *fmt, ...)
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, len, fmt, arg_ptr);
 	va_end(arg_ptr);
-	s[len-1] = '\0';
-	print_str(s, len);
+	print_str(s, ret);
 	if (cos_argreg_free(s)) return -1;
 
 	return ret;
@@ -68,11 +67,11 @@ static inline int prints(char *str)
 	unsigned int len;
 	char *s;
 
-	len = cos_strlen(str)+1;
+	len = cos_strlen(str);
 	s = cos_argreg_alloc(len);
 	if (!s) return -1;
 
-	cos_memcpy(s, str, len);
+	cos_memcpy(s, str, len+1);
 	print_str(s, len);
 	if (cos_argreg_free(s)) return -1;
 

@@ -15,6 +15,37 @@
 #include <cos_list.h>
 #include <print.h>
 
+#define ACT_LOG
+#ifdef ACT_LOG
+#define ACT_LOG_LEN 64
+#define ACTION_TIMESTAMP 1
+
+typedef enum {
+	ACT_PRELOCK,
+	ACT_LOCK,
+	ACT_UNLOCK,
+	ACT_WAKE,
+	ACT_WAKEUP
+} action_t;
+typedef enum {
+	ACT_SPDID,
+	ACT_LOCK_ID,
+	ACT_T1,
+	ACT_T2,
+	ACT_ITEM_MAX
+} action_item_t;
+#define NUM_ACT_ITEMS ACT_ITEM_MAX
+
+#include <cos_actlog.h>
+#define ACT_RECORD(a, s, l, t1, t2)					\
+	do {								\
+		unsigned long as[] = {s, l, t1, t2};			\
+		action_record(a, as, NULL);				\
+	} while (0)
+#else
+#define ACT_RECORD(a, s, l, t1, t2)
+#endif
+
 //#define TIMED
 
 struct blocked_thds {
@@ -74,9 +105,9 @@ static void lock_print_all(void)
 	for (ml = FIRST_LIST(&locks, next, prev) ; 
 	     ml != &locks ; // && ml != FIRST_LIST(ml, next, prev) ; 
 	     ml = FIRST_LIST(ml, next, prev)) {
-		printc("lock @ %x (next %x, prev %x), id %d, spdid %d", ml, ml->next, ml->prev, ml->lock_id, ml->spd);
+		printc("lock @ %x (next %x, prev %x), id %d, spdid %d\n", ml, ml->next, ml->prev, ml->lock_id, ml->spd);
 	}
-	prints("");
+	prints("\n");
 }
 
 static int lock_is_thd_blocked(struct meta_lock *ml, unsigned short int thd)
@@ -160,6 +191,8 @@ int lock_component_pretake(spdid_t spd, unsigned long lock_id, unsigned short in
 		goto done;
 	}
 	ml->gen_num = generation;
+
+	ACT_RECORD(ACT_PRELOCK, spd, lock_id, cos_get_thd_id(), thd);
 done:
 	RELEASE(spdid);
 	return ret;
@@ -189,7 +222,7 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 		goto error;
 	}
 	if (lock_is_thd_blocked(ml, curr)) {
-		prints("lock: lock_is_thd_blocked failed in lock_component_take");
+		prints("lock: lock_is_thd_blocked failed in lock_component_take\n");
 		goto error;
 	}
 
@@ -203,6 +236,8 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 		goto error;
 	}
 	generation++;
+
+	ACT_RECORD(ACT_LOCK, spd, lock_id, cos_get_thd_id(), thd_id);
 
 	/* Note that we are creating the list of blocked threads from
 	 * memory allocated on the individual thread's stacks. */
@@ -231,6 +266,8 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 		 */
 		TAKE(spdid);
 		RELEASE(spdid);
+
+		ACT_RECORD(ACT_WAKEUP, spd, lock_id, cos_get_thd_id(), 0);
 		ret = 0;
 	} else {
 		/* ret here will fall through */
@@ -249,6 +286,8 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 		}
 		REM_LIST(&blocked_desc, next, prev);
 		RELEASE(spdid);
+
+		ACT_RECORD(ACT_WAKEUP, spd, lock_id, cos_get_thd_id(), 0); 
 		/* ret is set to the amnt of time we blocked */
 	}
 	//sched_block_dependency(cos_get_thd_id(), thd);
@@ -269,6 +308,8 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 	generation++;
 	ml = lock_find(lock_id, spd);
 	if (!ml) goto error;
+
+	ACT_RECORD(ACT_UNLOCK, spd, lock_id, cos_get_thd_id(), 0);
 	/* Apparently, lock_take calls haven't been made. */
 	if (EMPTY_LIST(&ml->b_thds, next, prev)) {
 		RELEASE(spdid);
@@ -287,6 +328,8 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 		 * components. */
 		next = bt->next;
 		REM_LIST(bt, next, prev);
+
+		ACT_RECORD(ACT_WAKE, spd, lock_id, cos_get_thd_id(), bt->thd_id);
 		/* Wakeup the way we were put to sleep */
 		if (bt->timed) {
 			timed_event_wakeup(spdid, bt->thd_id);
@@ -336,3 +379,29 @@ void lock_component_free(spdid_t spd, unsigned long lock_id)
 
 	return;
 }
+
+#ifdef ACT_LOG
+unsigned long *lock_stats(spdid_t spdid, unsigned long *stats)
+{
+	struct action *a;
+	int sz = (NUM_ACT_ITEMS + 2) * sizeof(unsigned long);
+
+	if (!cos_argreg_buff_intern((char*)stats, sz)) {
+		return NULL;
+	}
+	
+	if (NULL == (a = action_report())) return NULL;
+	memcpy(stats, a, sz);
+	return stats;
+}
+
+int lock_stats_len(spdid_t spdid)
+{
+	return NUM_ACT_ITEMS + 2;
+}
+#else 
+
+unsigned long *lock_stats(spdid_t spdid, unsigned long *stats) { return NULL; }
+int lock_stats_len(spdid_t spdid) { return 0; }
+
+#endif

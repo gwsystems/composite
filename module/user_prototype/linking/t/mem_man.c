@@ -81,7 +81,7 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 
 	c = find_unused();
 	if (!c) {
-		printc("mm: no more available pages!");
+		printc("mm: no more available pages!\n");
 		goto err;
 	}
 	
@@ -90,7 +90,7 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 
 	/* Here we check for overwriting an already established mapping. */
 	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, spd, addr, cell_index(c))) {
-		printc("mm: could not grant page @ %x to spd %d", addr, spd);
+		printc("mm: could not grant page @ %x to spd %d\n", addr, spd);
 		c->map[0].owner_spd = 0;
 		c->map[0].addr = 0;
 		goto err;
@@ -128,7 +128,7 @@ void mman_print_stats(void)
 {
 	int i, j, k, l;
 
-	printc("Memory allocation stats:");
+	printc("Memory allocation stats:\n");
 	for (k = 0 ; k < COS_MAX_MEMORY ; k++) {
 		for (l = 0 ; l < MAX_ALIASES ; l++) {
 			int spd_accum = 0, curr_spd;
@@ -150,7 +150,7 @@ void mman_print_stats(void)
 				}
 			}
 			
-			printc("\tspd %d used %d pages", curr_spd, spd_accum);
+			printc("\tspd %d used %d pages\n", curr_spd, spd_accum);
 		}
 	}
 }

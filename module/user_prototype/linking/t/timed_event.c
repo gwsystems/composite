@@ -39,8 +39,8 @@ struct thread_event {
 };
 
 static struct thread_event *events = NULL;
-#define USEC_PER_SEC 1000000
-static unsigned int usec_per_tick = 0;
+//#define USEC_PER_SEC 1000000
+//static unsigned int usec_per_tick = 0;
 
 /* 
  * Return 1 if the inserted event is closer in the future than any
@@ -176,7 +176,9 @@ static inline event_time_t next_event_time(void)
 
 static event_time_t next_wakeup = TIMER_NO_EVENTS;
 
-/* Return the amount of time we slept */
+/*
+ * FIXME: allow amnt to be specified in time units rather than ticks.
+ */
 int timed_event_block(spdid_t spdinv, unsigned int amnt)
 {
 	spdid_t spdid = cos_spd_id();
@@ -193,7 +195,9 @@ int timed_event_block(spdid_t spdinv, unsigned int amnt)
 	 * the wakeup time is.  The sleep is supposed to be for _at
 	 * least_ amnt clock ticks, thus here we are conservative.
 	 */
-	amnt = (amnt/(unsigned int)usec_per_tick) + 2;
+	//amnt = (amnt/(unsigned int)usec_per_tick) + 2;
+	/* update: seems like +1 should be enough */
+	amnt++;
 	
 	te.thread_id = cos_get_thd_id();
 	te.next = NULL;
@@ -226,7 +230,7 @@ int timed_event_block(spdid_t spdinv, unsigned int amnt)
 	 * we were when we slept, and how far the wakeup is into a
 	 * tick, we must account for this.
 	 */
-	return ((int)ticks - block_time - 1)*usec_per_tick;
+	return ((int)ticks - block_time - 1); //*usec_per_tick; /* expressed in ticks currently */
 }
 
 int timed_event_wakeup(spdid_t spdinv, unsigned short int thd_id)
@@ -252,7 +256,8 @@ static void start_timer_thread(void)
 	sched_timeout_thd(spdid);
 	tick_freq = sched_tick_freq();
 	assert(tick_freq == 100);
-	usec_per_tick = USEC_PER_SEC/tick_freq;
+	/* currently timeouts are expressed in ticks, so we don't need this */
+//	usec_per_tick = USEC_PER_SEC/tick_freq;
 
 	/* When the system boots, we have no pending waits */
 	assert(NULL == events);

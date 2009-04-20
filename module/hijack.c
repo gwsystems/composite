@@ -1514,22 +1514,6 @@ static int aed_ioctl(struct inode *inode, struct file *file,
 
 		return 0;
 	}
-	case AED_DEMO_SPDS:
-	{
-		struct spd_sched_info si;
-		extern struct spd *t1, *t2;
-
-		if (copy_from_user(&si, (void*)arg, 
-				   sizeof(struct spd_sched_info))) {
-			printk("cos: Error copying spd scheduler info from user-level.\n");
-			return -EFAULT;
-		}
-
-		t1 = spd_get_by_index(si.spd_sched_handle);
-		t2 = spd_get_by_index(si.spd_parent_handle);
-		
-		return 0;
-	}
 	case AED_DISABLE_SYSCALLS:
 		syscalls_enabled = 0;
 		return 0;
@@ -2546,6 +2530,8 @@ static int aed_open(struct inode *inode, struct file *file)
 static int aed_release(struct inode *inode, struct file *file)
 {
 	pgd_t *pgd;
+	struct thread *t;
+	struct spd *s;
 #ifdef FAULT_DEBUG
 	int i, j, k;
 #endif
@@ -2571,6 +2557,13 @@ static int aed_release(struct inode *inode, struct file *file)
 
 		remove_all_guest_mms();
 		flush_all(current->mm->pgd);
+	}
+
+	t = thd_get_current();
+	if (t) {
+		s = thd_get_thd_spd(t);
+		printk("cos: Halting Composite.  Current thread: %d in spd %d\n",
+		       thd_get_id(t), spd_get_index(s));
 	}
 
 	deregister_timers();

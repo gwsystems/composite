@@ -52,7 +52,7 @@ int print_str(char *s, unsigned int len)
 		cos_print(foo, 0);
 		return -1;
 	}
-	s[len-1] = '\0';
+	s[len+1] = '\0';
 
 	cos_print(s, len);
 

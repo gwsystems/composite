@@ -302,19 +302,36 @@ static inline unsigned short int thd_get_id(struct thread *thd)
 	return thd->thread_id;
 }
 
-int thd_spd_in_current_composite(struct thread *thd, struct spd *spd);
+static inline int thd_spd_in_composite(struct spd_poly *comp, struct spd *spd)
+{
+	/*
+	 * First we check the cache: spd->composite_spd which will
+	 * point to the composite spd that the spd is currently part
+	 * of.  It is very likely that we will hit in this cache
+	 * unless we are using a stale mapping.  In such a case, we
+	 * must look in the page table of the composite and see if the
+	 * spd is present.  This is significantly more expensive.
+	 */
+	return spd->composite_spd == comp || spd_composite_member(spd, comp);
+}
+
+static inline int thd_spd_in_current_composite(struct thread *thd, struct spd *spd)
+{
+	struct spd_poly *composite = thd_get_thd_spdpoly(thd);
+
+	return thd_spd_in_composite(composite, spd);
+}
 
 static inline struct spd *thd_validate_get_current_spd(struct thread *thd, unsigned short int spd_id)
 {
 	struct spd *spd = spd_get_by_index(spd_id);
 
-	if (spd && thd_spd_in_current_composite(thd, spd)) {
-		return spd;
-	}
+	if (spd && thd_spd_in_current_composite(thd, spd)) return spd;
 
 	return NULL;
 }
 
+int thd_validate_spd_in_callpath(struct thread *t, struct spd *s);
 int thd_check_atomic_preempt(struct thread *thd);
 void thd_print_regs(struct thread *t);
 

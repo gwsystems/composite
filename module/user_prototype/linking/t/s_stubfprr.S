@@ -45,23 +45,6 @@ sched_child_yield_thd_inv:
 
 	sysenter
 
-.globl sched_create_child_brand_inv
-.type  sched_create_child_brand_inv, @function
-.align 16
-sched_create_child_brand_inv:
-	COS_ASM_GET_STACK
-	
-	pushl %ebp
-	pushl %edi
-	pushl %esi
-	pushl %ebx /* length */
-	call sched_create_child_brand
-
-	movl %eax, %ecx
-	movl $RET_CAP, %eax /* return capability */
-
-	sysenter
-
 .globl sched_suspend_thd_inv
 .type  sched_suspend_thd_inv, @function
 .align 16
@@ -97,6 +80,7 @@ sched_resume_thd_inv:
 	sysenter
 
 cos_asm_server_stub_spdid(sched_yield)
+cos_asm_server_stub_spdid(sched_create_child_brand)
 
 .globl sched_wakeup_inv
 .type  sched_wakeup_inv, @function
@@ -136,23 +120,7 @@ sched_block_inv:
 
 cos_asm_server_stub_spdid(sched_timeout)
 cos_asm_server_stub_spdid(sched_timeout_thd)
-
-.globl sched_create_net_upcall_inv
-.type  sched_create_net_upcall_inv, @function
-.align 16
-sched_create_net_upcall_inv:
-	COS_ASM_GET_STACK
-	
-	pushl %ebp
-	pushl %edi
-	pushl %esi
-	pushl %ebx /* length */
-	call sched_create_net_upcall
-
-	movl %eax, %ecx
-	movl $RET_CAP, %eax /* return capability */
-
-	sysenter
+cos_asm_server_stub_spdid(sched_create_net_upcall)
 
 .globl sched_exit_inv
 .type  sched_exit_inv, @function

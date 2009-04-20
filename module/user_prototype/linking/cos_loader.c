@@ -1702,13 +1702,22 @@ static void setup_kernel(struct service_symbs *services)
 	return;
 }
 
-static inline void print_usage(char *prog_name)
+static inline void print_usage(int argc, char **argv)
 {
+	char *prog_name = argv[0];
+	int i;
+
 	printf("Usage: %s <comma separated string of all "
 	       "objs:truster1-trustee1|trustee2|...;truster2-...> "
 	       "<path to gen_client_stub>\n",
 	       prog_name);
 
+	printf("\nYou gave:");
+	for (i = 0 ; i < argc ; i++) {
+		printf(" %s", argv[i]);
+	}
+	printf("\n");
+	
 	return;
 }
 
@@ -1769,9 +1778,8 @@ int main(int argc, char *argv[])
 	sa.sa_flags = SA_SIGINFO;
 	sigaction(SIGSEGV, &sa, NULL);
 #endif
-
 	if (argc != 3) {
-		print_usage(argv[0]);
+		print_usage(argc, argv);
 		goto exit;
 	}
 
@@ -1787,7 +1795,7 @@ int main(int argc, char *argv[])
 	dependencies = strtok(NULL, delim);
 
 	if (!servs) {
-		print_usage(argv[0]);
+		print_usage(argc, argv);
 		goto exit;
 	}
 

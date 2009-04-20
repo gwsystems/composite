@@ -232,14 +232,15 @@ static inline int mpd_split_error(struct mpd_split_ret ret)
 
 /* operations for manipulating mpds */
 enum {
-//	COS_MPD_START_TRANSACTION,
-//	COS_MPD_END_TRANSACTION,
-	COS_MPD_SPLIT,
-	COS_MPD_MERGE,
-	COS_MPD_SPLIT_MERGE,
-//	COS_MPD_DEMO,
-//	COS_MPD_DEBUG
-//	COS_MPD_ISOLATE
+	COS_MPD_SPLIT, 		/* split an spd out of an cspd */
+	COS_MPD_MERGE,		/* merge two cspds */
+	COS_MPD_DEACTIVATE,	/* deactivate a cspd (set its page
+				 * table to 0), so that it won't be
+				 * used, causing mpd faults
+				 * instead */
+	COS_MPD_REAP		/* return the id of and free a cspd
+				 * that has no more references to
+				 * it */
 };
 
 enum {

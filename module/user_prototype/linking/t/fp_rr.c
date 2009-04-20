@@ -28,7 +28,7 @@
 #define GRAVEYARD_PRIO (NUM_PRIOS-1)
 #define TIMER_TICK_PRIO (0)
 #define TIME_EVENT_PRIO (3)
-#define MPD_PRIO (1)
+#define MPD_PRIO (4)
 #define INIT_PRIO (2)
 /* This is the start */
 #define NORMAL_PRIO_HI 4
@@ -120,9 +120,9 @@ static void report_output(void)
 {
 	int i;
 
-	prints("All counters:");
+	prints("All counters:\n");
 	for (i = 0 ; i < REVT_LAST ; i++) {
-		printc("\t%s: %lld", revt_names[i], report_evts[i]);
+		printc("\t%s: %lld\n", revt_names[i], report_evts[i]);
 		report_evts[i] = 0;
 	}
 
@@ -137,7 +137,7 @@ static void print_thd_invframes(struct sched_thd *t)
 		int ip;
 		ret = cos_thd_cntl(COS_THD_INV_FRAME, tid, i, 0);
 		ip  = cos_thd_cntl(COS_THD_INVFRM_IP, tid, i, 0);
-		if (ret) printc("\t\t[%d (ip:%x)]", ret, ip);
+		if (ret) printc("\t\t[%d (ip:%x)]\n", ret, ip);
 	}
 }
 
@@ -146,36 +146,36 @@ static void report_thd_accouting(void)
 	struct sched_thd *t;
 	int i;
 
-	printc("Running threads:");
+	printc("Running threads:\n");
 	for (i = 0 ; i < NUM_PRIOS ; i++) {
 		for (t = FIRST_LIST(&priorities[i].runnable, prio_next, prio_prev) ; 
 		     t != &priorities[i].runnable ;
 		     t = FIRST_LIST(t, prio_next, prio_prev)) {
 			if (sched_get_accounting(t)->cycles) {
-				printc("\tthd %d (prio %d), cycles %lld", t->id, i, 
+				printc("\tthd %d (prio %d), cycles %lld\n", t->id, i, 
 				       sched_get_accounting(t)->cycles);
 				print_thd_invframes(t);
 				sched_get_accounting(t)->cycles = 0;
 			}
 		}
 	}
-	printc("Blocked threads:");
+	printc("Blocked threads:\n");
 	for (t = FIRST_LIST(&blocked, prio_next, prio_prev) ; 
 	     t != &blocked ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
 		if (sched_get_accounting(t)->cycles) {
-			printc("\tthd %d (prio %d), cycles %lld", t->id, 
+			printc("\tthd %d (prio %d), cycles %lld\n", t->id, 
 			       sched_get_metric(t)->priority, sched_get_accounting(t)->cycles);
 			print_thd_invframes(t);
 			sched_get_accounting(t)->cycles = 0;
 		}
 	}
-	printc("Inactive upcalls:");
+	printc("Inactive upcalls:\n");
 	for (t = FIRST_LIST(&upcall_deactive, prio_next, prio_prev) ; 
 	     t != &upcall_deactive ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
 		if (sched_get_accounting(t)->cycles) {
-			printc("\tthd %d (prio %d), cycles %lld", t->id, 
+			printc("\tthd %d (prio %d), cycles %lld\n", t->id, 
 			       sched_get_metric(t)->priority, sched_get_accounting(t)->cycles);
 			print_thd_invframes(t);
 			sched_get_accounting(t)->cycles = 0;
@@ -476,7 +476,7 @@ static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 
 static void evt_callback_print(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 {
-	PRINTD("evt callback (curr %d): thd %d, flags %x, usage %d", sched_get_current()->id, t->id, flags, cpu_usage);
+	PRINTD("evt callback (curr %d): thd %d, flags %x, usage %d\n", sched_get_current()->id, t->id, flags, cpu_usage);
 	evt_callback(t, flags, cpu_usage);
 }
 
@@ -557,8 +557,8 @@ void fp_timer_tick(void)
 
 	if ((ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1)) {
 		report_thd_accouting();
+		cos_stats();
 	}
-	if ((ticks % (TIMER_FREQ*2)) == ((TIMER_FREQ*2)-1)) cos_stats();
 
 	/* are we done running? */
 	if (ticks >= RUNTIME_SEC*TIMER_FREQ+1) {
@@ -605,7 +605,7 @@ void fp_timer_tick(void)
 		loop = cos_switch_thread_release(next->id, COS_SCHED_TAILCALL);
 		if (loop) {
 			assert(loop != -1);
-			PRINTD("timer scheduling error in trying to switch from %d to thd %d.", prev->id, next->id);
+			PRINTD("timer scheduling error in trying to switch from %d to thd %d.\n", prev->id, next->id);
 			//if (sched_thd_event(next)) fp_deactivate_upcall(next); 
 			cos_sched_process_events(evt_callback_print, 5);
 			cos_sched_lock_take();
@@ -649,7 +649,7 @@ static void fp_create_spd_thd(void *d)
 	int spdid = (int)d;
 
 	if (cos_upcall(spdid)) {
-		prints("fprr: error making upcall into spd.");
+		prints("fprr: error making upcall into spd.\n");
 	}
 }
 
@@ -773,7 +773,7 @@ void sched_timeout(spdid_t spdid, unsigned long amnt)
 		loop = cos_switch_thread_release(next->id, 0);
 		assert(loop != -1);
 		if (loop) {
-			PRINTD("timeout thread switching to unactivated upcall %d from %d with error %d.", next->id, sched_get_current(), loop);
+			PRINTD("timeout thread switching to unactivated upcall %d from %d with error %d.\n", next->id, sched_get_current(), loop);
 			cos_sched_lock_take();
 		}
 		report_event(TIMEOUT_LOOP);
@@ -807,7 +807,7 @@ static void fp_pre_wakeup(struct sched_thd *t)
 	assert(t->wake_cnt >= 0 && t->wake_cnt <= 2);
 	t->wake_cnt++;
 	if (!(sched_thd_blocked(t) || t->wake_cnt == 2)) {
-		printc("thread %d (from thd %d) has wake_cnt %d", 
+		printc("thread %d (from thd %d) has wake_cnt %d\n", 
 		       t->id, cos_get_thd_id(), t->wake_cnt);
 		assert(0);
 	}
@@ -884,7 +884,7 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 		if (likely(0 == (loop = cos_switch_thread_release(next->id, 0)))) break;
 		if (loop) {
 			assert(loop != -1);
-			PRINTD("Error switching to thread %d from %d while waking up, err: %d", next->id, prev->id, loop);
+			PRINTD("Error switching to thread %d from %d while waking up, err: %d\n", next->id, prev->id, loop);
 		}
 		report_event(WAKE_LOOP);
 	}
@@ -1004,7 +1004,7 @@ int sched_component_take(spdid_t spdid)
 		loop = cos_switch_thread_release(holder->id, 0);
 		if (loop) {
 			assert(-1 != loop);
-			PRINTD("component_take: cannot switch to %d from %d, err: %d", holder->id, curr->id, loop);
+			PRINTD("component_take: cannot switch to %d from %d, err: %d\n", holder->id, curr->id, loop);
 		}
 		if (first) {
 			first = 0;
@@ -1027,14 +1027,14 @@ int sched_component_release(spdid_t spdid)
 
 	report_event(COMP_RELEASE);
 	if (sched_release_crit_sect(spdid, curr)) {
-		prints("fprr: error releasing spd's critical section");
+		prints("fprr: error releasing spd's critical section\n");
 	}
 	/* If we woke thread that was waiting for the critical section, switch to it */
 	next = fp_schedule();
 	if (next != curr) {
 		ret = cos_switch_thread_release(next->id, 0);
 		if (ret) {
-			PRINTD("component_release: cannot switch to thd %d from %d, err: %d", next->id, curr->id, ret);
+			PRINTD("component_release: cannot switch to thd %d from %d, err: %d\n", next->id, curr->id, ret);
 		}
 	} else {
 		cos_sched_lock_release();
@@ -1076,19 +1076,19 @@ void sched_create_thread(spdid_t spdid) {
 	curr_id = curr->id;
 	cos_sched_lock_release();
 	new = sched_setup_thread_arg(prio, urg, fp_create_spd_thd, (void*)id);
-	print("fprr: created thread %d in spdid %d (requested by %d)",
+	print("fprr: created thread %d in spdid %d (requested by %d)\n",
 	      new->id, id, curr_id);
 
 	return;
 }
 
-static struct sched_thd *sched_setup_upcall_thread(u16_t priority, u16_t urgency, 
-						   unsigned int *brand_id, int depth)
+static struct sched_thd *sched_setup_upcall_thread(spdid_t spdid, u16_t priority, 
+						   u16_t urgency, unsigned int *brand_id)
 {
 	unsigned int b_id, thd_id;
 	struct sched_thd *upcall;
 
-	b_id = cos_brand_cntl(0, COS_BRAND_CREATE_HW, depth);
+	b_id = cos_brand_cntl(0, COS_BRAND_CREATE_HW, spdid);
 	*brand_id = b_id;
 	thd_id = cos_brand_cntl(b_id, COS_BRAND_ADD_THD, 0);
 	upcall = sched_alloc_upcall_thd(thd_id);
@@ -1103,7 +1103,7 @@ static struct sched_thd *sched_setup_upcall_thread(u16_t priority, u16_t urgency
 
 /**** SUPPORT FOR CHILD SCHEDULERS ****/
 
-int sched_create_child_brand(int depth)
+int sched_create_child_brand(spdid_t spdid)
 {
 	int ucid, bid;
 	struct sched_thd *curr, *upcall;
@@ -1113,7 +1113,7 @@ int sched_create_child_brand(int depth)
 	assert(curr);
 	prio = sched_get_metric(curr)->priority-1;
 
-	bid = cos_brand_cntl(0, COS_BRAND_CREATE, depth);
+	bid = cos_brand_cntl(0, COS_BRAND_CREATE, spdid);
 	ucid = cos_brand_cntl(bid, COS_BRAND_ADD_THD, 0);
 	upcall = sched_alloc_upcall_thd(ucid);
 	assert(upcall);
@@ -1180,19 +1180,19 @@ void sched_report_processing(int amnt)
 	sched_get_accounting(t)->progress += amnt;
 }
 
-int sched_create_net_upcall(unsigned short int port, int prio_delta, int depth)
+int sched_create_net_upcall(spdid_t spdid, unsigned short int port, int prio_delta)
 {
 	struct sched_thd *t = sched_get_current(), *uc;
 	u16_t prio = sched_get_metric(t)->priority;
 	unsigned int b_id;
 
 	assert(t);
-	uc = sched_setup_upcall_thread(prio + prio_delta, prio + prio_delta, &b_id, depth);
+	uc = sched_setup_upcall_thread(spdid, prio + prio_delta, prio + prio_delta, &b_id);
 //	uc = sched_setup_upcall_thread(prio+1, prio+1, &b_id, depth);
 	assert(uc);
 	cos_brand_wire(b_id, COS_HW_NET, port);
 
-	print("Net upcall thread %d with priority %d make for port %d.", 
+	print("Net upcall thread %d with priority %d make for port %d.\n", 
 	      uc->id, sched_get_metric(uc)->priority, port);
 
 //	cos_sched_cntl(COS_SCHED_GRANT_SCHED, uc->id, 3);
@@ -1218,9 +1218,9 @@ static void fp_kill_thd(void)
 	cos_sched_lock_take();
 	fp_change_prio_runnable(curr, GRAVEYARD_PRIO);
 	cos_sched_lock_release();
-	print("fp_kill_thd: killing %d. %d%d", curr->id, 0,0);
+	print("fp_kill_thd: killing %d. %d%d\n", curr->id, 0,0);
 	fp_yield();
-	prints("fprr: fp_kill_thd - should not be here!!!");
+	prints("fprr: fp_kill_thd - should not be here!!!\n");
 	assert(0);
 }
 
@@ -1262,47 +1262,57 @@ int sched_init(void)
 
 	/* create the idle thread */
 	idle = sched_setup_thread(IDLE_PRIO, IDLE_PRIO, fp_idle_loop);
-	print("Idle thread has id %d with priority %d. %d", idle->id, IDLE_PRIO, 0);
+	print("Idle thread has id %d with priority %d. %d\n", idle->id, IDLE_PRIO, 0);
 
 	/* Create the clock tick (timer) thread */
-	timer = sched_setup_upcall_thread(TIMER_TICK_PRIO, TIMER_TICK_PRIO, &b_id, 0);
-	print("Timer thread has id %d with priority %d. %d", timer->id, TIMER_TICK_PRIO, TIMER_TICK_PRIO);
+	timer = sched_setup_upcall_thread(cos_spd_id(), TIMER_TICK_PRIO, TIMER_TICK_PRIO, &b_id);
+	print("Timer thread has id %d with priority %d. %d\n", timer->id, TIMER_TICK_PRIO, TIMER_TICK_PRIO);
 	cos_brand_wire(b_id, COS_HW_TIMER, 0);
 
 	target_spdid = spd_name_map_id("te.o");
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(TIME_EVENT_PRIO, TIME_EVENT_PRIO, fp_create_spd_thd, (void*)target_spdid);
-	print("Timeout thread has id %d and priority %d. %d", new->id, TIME_EVENT_PRIO, 0);
+	print("Timeout thread has id %d and priority %d. %d\n", new->id, TIME_EVENT_PRIO, 0);
 
 	/* event thread */
 	target_spdid = spd_name_map_id("e.o");
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(TIME_EVENT_PRIO, TIME_EVENT_PRIO, fp_create_spd_thd, (void*)target_spdid);
-	print("event thread has id %d and priority %d. %d", new->id, TIME_EVENT_PRIO, 0);
+	print("event thread has id %d and priority %d. %d\n", new->id, TIME_EVENT_PRIO, 0);
 
 	/* normal threads: */
 	target_spdid = spd_name_map_id("net.o");
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(NORMAL_PRIO_HI+1, NORMAL_PRIO_HI+1, fp_create_spd_thd, (void*)target_spdid);
-	print("Network thread has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+1, 0);
+	print("Network thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+1, 0);
 
 	new = sched_setup_thread_arg(NORMAL_PRIO_HI+3, NORMAL_PRIO_HI+3, fp_create_spd_thd, (void*)target_spdid);
-	print("Network thread (2) has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+3, 0);
+	print("Network thread (2) has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+3, 0);
 
 	target_spdid = spd_name_map_id("fd.o");
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(NORMAL_PRIO_HI+4, NORMAL_PRIO_HI+4, fp_create_spd_thd, (void*)target_spdid);
-	print("fd thread has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+4, 0);
+	print("fd thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+4, 0);
 
 	target_spdid = spd_name_map_id("http.o");
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(NORMAL_PRIO_HI+4, NORMAL_PRIO_HI+4, fp_create_spd_thd, (void*)target_spdid);
-	print("http thread has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+4, 0);
+	print("http thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+4, 0);
 
 	target_spdid = spd_name_map_id("conn.o");
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(NORMAL_PRIO_HI+4, NORMAL_PRIO_HI+4, fp_create_spd_thd, (void*)target_spdid);
-	print("conn thread has id %d and priority %d. %d", new->id, NORMAL_PRIO_HI+4, 0);
+	print("conn thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+4, 0);
+
+	target_spdid = spd_name_map_id("mpd.o");
+	assert(target_spdid != -1);
+	mpd = sched_setup_thread_arg(MPD_PRIO, MPD_PRIO, fp_create_spd_thd, (void*)target_spdid);
+	print("MPD thread has id %d and priority %d. %d\n", mpd->id, MPD_PRIO, 0);
+
+	target_spdid = spd_name_map_id("stat.o");
+	assert(target_spdid != -1);
+	new = sched_setup_thread_arg(NORMAL_PRIO_LO+1, NORMAL_PRIO_LO+1, fp_create_spd_thd, (void*)target_spdid);
+	print("Stats thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_LO+1, 0);
 
 	/* Block to begin execution of the normal tasks */
 	fp_pre_block(init);
@@ -1310,11 +1320,6 @@ int sched_init(void)
 	new = fp_schedule();
 	cos_switch_thread(new->id, 0);
 	
-	target_spdid = spd_name_map_id("mpd.o");
-	assert(target_spdid != -1);
-	mpd = sched_setup_thread_arg(MPD_PRIO, MPD_PRIO, fp_create_spd_thd, (void*)target_spdid);
-	print("MPD thread has id %d and priority %d. %d", mpd->id, MPD_PRIO, 0);
-
  	new = fp_schedule();
 	cos_switch_thread(new->id, 0);
 
@@ -1344,7 +1349,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		fp_event_completion(sched_get_current());
 		break;
 	default:
-		print("fp_rr: cos_upcall_fn error - type %x, arg1 %d, arg2 %d", 
+		print("fp_rr: cos_upcall_fn error - type %x, arg1 %d, arg2 %d\n", 
 		      (unsigned int)t, (unsigned int)arg1, (unsigned int)arg2);
 		assert(0);
 		return;

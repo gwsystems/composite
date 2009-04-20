@@ -32,6 +32,7 @@ void begin_work(int incr)
 		
 		assert(ret != -1);
 		if (ret != TIMER_EXPIRED) {
+			assert(0); /* express timeout in ticks */
 			timed_event_block(cos_spd_id(), LOCK_OWNER_TIMEOUT);
 			lock_release(&lock);
 			continue;

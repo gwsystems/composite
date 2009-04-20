@@ -1,7 +1,7 @@
 #include <cos_component.h>
 #include <cos_scheduler.h>
 
-extern int sched_create_child_brand(int depth);
+extern int sched_create_child_brand(spdid_t spdid);
 extern void sched_child_yield_thd(void);
 extern void sched_exit(void);
 
@@ -26,7 +26,7 @@ void sched_create_brand(void)
 	unsigned int cnt = 0;
 	unsigned long long start;
 
-	thd_id = sched_create_child_brand(2);
+	thd_id = sched_create_child_brand(cos_spd_id());
 
 	assert(thd_id > 0);
 //	sched_set_thd_urgency(ds, 3); to test cost of delayed brands

@@ -21,6 +21,36 @@
 
 #include <evt.h>
 
+#define ACT_LOG
+#ifdef ACT_LOG
+#define ACT_LOG_LEN 64
+#define ACTION_TIMESTAMP 1
+
+typedef enum {
+	ACT_TRIGGER,
+	ACT_WAKEUP,
+	ACT_SLEEP,
+	ACT_WAIT,
+	ACT_WAIT_GRP
+} action_t;
+typedef enum {
+	ACT_SPDID,
+	ACT_EVT_ID,
+	ACT_T1,
+	ACT_T2,
+	ACT_ITEM_MAX
+} action_item_t;
+#define NUM_ACT_ITEMS ACT_ITEM_MAX
+#include <cos_actlog.h>
+#define ACT_RECORD(a, s, e, t1, t2)					\
+	do {								\
+		unsigned long as[] = {s, e, t1, t2};			\
+		action_record(a, as, NULL);				\
+	} while (0)
+#else
+#define ACT_RECORD(a, s, e, t1, t2)
+#endif
+
 extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
 extern int sched_block(spdid_t spdid);
 
@@ -181,11 +211,13 @@ long evt_grp_wait(spdid_t spdid)
 		if (NULL == g) goto err;
 		if (__evt_grp_read(g, &e)) goto err;
 
+		ACT_RECORD(ACT_WAIT_GRP, spdid, e ? e->extern_id : 0, cos_get_thd_id(), 0);
 		if (NULL != e) {
 			extern_evt = e->extern_id;
 			lock_release(&evt_lock);
 			return extern_evt;
 		} else {
+			ACT_RECORD(ACT_SLEEP, spdid, 0, cos_get_thd_id(), 0);
 			lock_release(&evt_lock);
 			if (0 > sched_block(cos_spd_id())) assert(0);
 		}
@@ -207,11 +239,13 @@ int evt_wait(spdid_t spdid, long extern_evt)
 		e = mapping_find(extern_evt);
 		if (NULL == e) goto err;
 		if (0 > (ret = __evt_read(e))) goto err;
+		ACT_RECORD(ACT_WAIT, spdid, e->extern_id, cos_get_thd_id(), 0);
 		lock_release(&evt_lock);
 		if (1 == ret) {
 			assert(extern_evt == e->extern_id);
 			return 0;
 		} else {
+			ACT_RECORD(ACT_SLEEP, spdid, e->extern_id, cos_get_thd_id(), 0);
 			if (0 > sched_block(cos_spd_id())) assert(0);
 		}
 	}
@@ -229,9 +263,11 @@ int evt_trigger(spdid_t spdid, long extern_evt)
 	e = mapping_find(extern_evt);
 //	printc("evt_trigger for %ld: %p", extern_evt, e);
 	if (NULL == e) goto err;
+	ACT_RECORD(ACT_TRIGGER, spdid, e->extern_id, cos_get_thd_id(), ret);
 	/* Trigger an event being waited for? */
 	if (0 != (ret = __evt_trigger(e))) {
 		lock_release(&evt_lock);
+		ACT_RECORD(ACT_WAKEUP, spdid, e->extern_id, cos_get_thd_id(), ret);
 		if(sched_wakeup(cos_spd_id(), ret)) assert(0);
 		return 0;
 	}

@@ -118,7 +118,7 @@ cos_syscall_3(3, int, create_thread, int, a, int, b, int, c);
 cos_syscall_2(4, int, __switch_thread, int, thd_id, int, flags);
 cos_syscall_2(5, int, kill_thd, int, kill_thdid, int, switchto_thdid);
 cos_syscall_3(6, int, __brand_upcall, int, thd_id_flags, long, arg1, long, arg2);
-cos_syscall_3(7, int, brand_cntl, int, thd_id, int, flags, int, depth);
+cos_syscall_3(7, int, brand_cntl, int, thd_id, int, flags, spdid_t, spdid);
 cos_syscall_1(8, int, upcall, int, spd_id);
 cos_syscall_3(9, int, sched_cntl, int, operation, int, thd_id, long, option);
 cos_syscall_3(10, int, mpd_cntl, int, operation, spdid_t, composite_spd, spdid_t, composite_dest);

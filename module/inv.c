@@ -162,8 +162,7 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	 * should just use a specific inlined method here to avoid
 	 * this.
 	 */
-	if (unlikely(curr_spd->composite_spd != curr_frame->current_composite_spd &&
-		     !thd_spd_in_current_composite(thd, curr_spd))) {
+	if (unlikely(!thd_spd_in_composite(curr_frame->current_composite_spd, curr_spd))) {
 		printk("cos: Error, incorrect capability (Cap %d has cspd %x, stk has %x).\n",
 		       capability, spd_get_index(curr_spd), spd_get_index(curr_frame->spd));
 		print_stack(thd);
@@ -426,6 +425,7 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, int a, int b, int c)
 	thd->stack_ptr = 0;
 	thd->stack_base[0].current_composite_spd = curr_spd->composite_spd;
 	thd->stack_base[0].spd = curr_spd;
+	/* FIXME: do this lazily */
 	spd_mpd_ipc_take((struct composite_spd *)curr_spd->composite_spd);
 
 	thd->regs.ecx = COS_UPCALL_CREATE;
@@ -629,7 +629,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	if (2 == next_thd) {
 		struct thread *t;
 
-		t = thd_get_by_id(13);
+		t = thd_get_by_id(15);
 		if (t) {
 			if (t->flags & THD_STATE_ACTIVE_UPCALL) {
 				struct thd_sched_info *tsi;
@@ -1172,7 +1172,7 @@ static inline struct thread* verify_brand_thd(unsigned short int thd_id)
 /* 	} */
 /* } */
 
-COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags, int depth)
+COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags, spdid_t dest)
 {
 	struct thread *new_thd, *curr_thd;
 	struct spd *curr_spd;
@@ -1195,17 +1195,32 @@ COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int thd_id, int flags, int de
 		/* fall through */
 	case COS_BRAND_CREATE: 
 	{
+		int depth;
+		struct spd *s;
+		struct thd_invocation_frame *f;
+
 		/* the brand thread holds the invocation stack record: */
 		memcpy(&new_thd->stack_base, &curr_thd->stack_base, sizeof(curr_thd->stack_base));
 		new_thd->cpu_id = curr_thd->cpu_id;
 		new_thd->flags |= THD_STATE_BRAND;
-		if (depth > curr_thd->stack_ptr) {
-			printk("cos: requested depth %d for brand exceeds stack %d\n",
-			       depth, curr_thd->stack_ptr);
+		s = spd_get_by_index(dest);
+		if (NULL == s) {
+			printk("cos: brand_cntl -- spd %d not found\n", dest);
+			thd_free(new_thd);
+			return -1;
+		}
+		if (-1 == (depth = thd_validate_spd_in_callpath(curr_thd, s))) {
+//		if (depth > curr_thd->stack_ptr) {
+			printk("cos: brand_cntl -- spd %d not found in stack for thread %d\n",
+			       dest, thd_get_id(curr_thd));
 			thd_free(new_thd);
 			return -1;
 		}
 		new_thd->stack_ptr = curr_thd->stack_ptr - depth;
+		f = &new_thd->stack_base[new_thd->stack_ptr];
+		assert(thd_spd_in_composite(f->current_composite_spd, s));
+		/* HACK: brands made past the first entry spd will break. */
+		f->spd = s;
 
 		copy_sched_info(new_thd, curr_thd);
 		new_thd->flags |= THD_STATE_CYC_CNT;
@@ -2119,7 +2134,6 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 		COS_SCHED_EVT_FLAGS(this_evt) = 0;
 		this_evt->cpu_consumption = 0;
 
-		
 		if (thd->flags & THD_STATE_BRAND) {
 			struct thread *t = thd->upcall_threads;
 
@@ -2241,30 +2255,19 @@ static int mpd_split_composite_populate(struct composite_spd *new1, struct compo
 	/* aliasing will mess everything up here */
 	assert(new1 != new2);
 
-	curr = cspd->members;
-	/* composite spds should never be empty */
-	assert(NULL != curr);
-
-	while (curr) {
-		struct spd *next = curr->composite_member_next;
-
+	while (cspd->members) {
+		curr = cspd->members;
 		if (spd_composite_move_member(new2, curr)) {
 			printk("cos: could not add spd to new composite in split.\n");
 			goto err_adding;
 		}
-
-		curr = next;
+		assert(cspd->members != curr);
 	}
 
 	return 0;
  err_adding:
 	return -1;
 }
-
-static unsigned long long 
-	merge1_total = 0, merge2_total = 0, merge3_total = 0,
-	split1_total = 0, split2_total = 0, split3_total = 0, split4_total = 0;
-static unsigned int mpd_merge_cnt = 0, mpd_split_cnt = 0;
 
 /*
  * Given a composite spd, c and a spd, s within it, split the spd out
@@ -2301,6 +2304,11 @@ static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new
 	 *
 	 * This is a common case, e.g. when continuously moving spds
 	 * from one cspd to another, but not in many other cases.
+	 *
+	 * It might be very possible to do this optimization when the
+	 * reference count is > 1 because there is one subordinated
+	 * domain, but that is the only (additional reference).
+	 * Probably not worth adding in the logic for this.
 	 */
 	if (1 == cos_ref_val(&cspd->spd_info.ref_cnt)) {
 		if (mpd_split_composite_populate(new1, NULL, spd, cspd) != 1) {
@@ -2316,7 +2324,7 @@ static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new
 		goto end;
 	}
 
-	/* otherwise, we must allocate the other composite spd, and
+	/* ...otherwise, we must allocate the other composite spd, and
 	 * populate both of them */
 	d2 = spd_alloc_mpd_desc();
 	if (d2 < 0) {
@@ -2395,18 +2403,20 @@ static inline struct composite_spd *get_spd_to_subordinate(struct composite_spd 
  * ipc return path and if the cspd to return to is subordinate, return
  * to the subordinate's master instead, decrimenting the refcnt on the
  * subordinate.
+ *
+ * Assume that the composites passed in aren't the same.
  */
 static struct composite_spd *mpd_merge(struct composite_spd *c1, 
 				       struct composite_spd *c2)
 {
-	struct spd *curr = NULL;
+	struct spd *curr;
 	struct composite_spd *dest, *other;
 
 	assert(NULL != c1 && NULL != c2);
 	assert(spd_is_composite(&c1->spd_info) && spd_is_composite(&c2->spd_info));
-	/* the following implies they are not subordinate too */
 	assert(!spd_mpd_is_depricated(c1) && !spd_mpd_is_depricated(c2));
-	
+	assert(!spd_mpd_is_subordinate(c1) && !spd_mpd_is_subordinate(c2));
+	assert(c1 != c2);
 	other = get_spd_to_subordinate(c1, c2);
 	dest = (other == c1) ? c2 : c1;
 	/*
@@ -2414,13 +2424,13 @@ static struct composite_spd *mpd_merge(struct composite_spd *c1,
 	print_valid_pgtbl_entries(dest->spd_info.pg_tbl);
 	print_valid_pgtbl_entries(other->spd_info.pg_tbl);
 	*/
-	curr = other->members;
-	while (curr) {
-		/* list will be altered when we move the spd to the
-		 * other composite_spd, so we need to save the next
-		 * spd now. */
-		struct spd *next = curr->composite_member_next;
-		
+
+	/* 
+	 * While there are spds in the current composite, move them to
+	 * the new composite.
+	 */
+	while (other->members) {
+		curr = other->members;
 		if (spd_composite_move_member(dest, curr)) {
 			/* FIXME: should back out all those that were
 			 * already transferred from one to the
@@ -2430,18 +2440,15 @@ static struct composite_spd *mpd_merge(struct composite_spd *c1,
 			printk("cos: could not move spd from one composite spd to another in the merge operation.\n");
 			return NULL;
 		}
-
-		curr = next;
+		assert(other->members != curr);
 	}
 	//spd_mpd_depricate(other);
 	spd_mpd_make_subordinate(dest, other);
-	if (spd_mpd_is_depricated(dest)) assert(0);
+	assert(!spd_mpd_is_depricated(dest) && !spd_mpd_is_subordinate(dest));
 	//print_valid_pgtbl_entries(dest->spd_info.pg_tbl);
 
 	return dest;
 }
-
-struct spd *t1 = NULL, *t2 = NULL;
 
 /* 
  * Here composite_spd and composite_dest are specified as normal spds,
@@ -2457,15 +2464,14 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
 	phys_addr_t curr_pg_tbl, new_pg_tbl;
 	struct spd_poly *curr;
 
-	if (operation != COS_MPD_SPLIT_MERGE) {
-		from = spd_get_by_index(spd1);
-		if (0 == from) {
-			printk("cos: mpd_cntl -- first composite spd %d not valid\n", spd1);
-			return -1;
-		}
-		prev = (struct composite_spd *)from->composite_spd;
-		assert(NULL != prev && !spd_mpd_is_depricated(prev));
+	from = spd_get_by_index(spd1);
+	if (0 == from) {
+		printk("cos: mpd_cntl -- first composite spd %d not valid\n", spd1);
+		return -1;
 	}
+	prev = (struct composite_spd *)from->composite_spd;
+	assert(prev && spd_is_composite(&prev->spd_info));
+	assert(!spd_mpd_is_subordinate(prev) && !spd_mpd_is_depricated(prev));
 	curr = thd_get_thd_spdpoly(thd_get_current());
 	curr_pg_tbl = curr->pg_tbl;
 
@@ -2473,15 +2479,20 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
 	case COS_MPD_SPLIT:
 	{
 		struct spd *transitory;
+		struct composite_spd *trans_cspd;
 		struct mpd_split_ret sret;
 
 		transitory = spd_get_by_index(spd2);
-		if (0 == transitory) {
+		if (NULL == transitory) {
 			printk("cos: mpd_cntl -- failed to access normal spd (%d) for call to split.\n", spd2);
 			ret = -1;
 			break;
 		}
-		if ((struct composite_spd *)transitory->composite_spd != prev) {
+		trans_cspd = (struct composite_spd *)transitory->composite_spd;
+		assert(spd_is_composite(&trans_cspd->spd_info));
+		assert(!spd_mpd_is_depricated(trans_cspd) && !spd_mpd_is_subordinate(trans_cspd));
+		assert(spd_composite_num_members(prev) > 0);
+		if (trans_cspd != prev) {
 			printk("cos: mpd_cntl -- spd %d not in claimed composite for %d\n", spd2, spd1);
 			return -1;
 		}
@@ -2490,10 +2501,11 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
 		 * spd that only contains one spd.  It is pointless,
 		 * and should not be encouraged.
 		 */
-		if (spd_composite_num_members(prev) <= 1) {
+		if (spd_composite_num_members(prev) == 1) {
 			ret = -1;
 			break;
 		}
+//		printk("cos: split spd with cspd %p from %p\n", trans_cspd, prev);
 		ret = mpd_split(prev, transitory, &sret.new, &sret.old);
 		/* simply return 0 for success */
 /* 		if (!ret) { */
@@ -2518,43 +2530,20 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
 			break;
 		}
 		other = (struct composite_spd *)second->composite_spd;
-		assert(NULL != other && !spd_mpd_is_depricated(other));
+		assert(spd_is_composite(&other->spd_info));
+		assert(NULL != other && !spd_mpd_is_depricated(other) && !spd_mpd_is_subordinate(other));
+//		printk("cos: merge %p and %p\n", prev, other);
+		if (prev == other) {
+//			printk("cos: skipping merge\n");
+			ret = 0;
+			break;
+		}
 		if (NULL == (cspd_ret = mpd_merge(prev, other))) {
 			ret = -1;
 			break;
 		}
 		ret = 0;
 		//ret = spd_mpd_index(cspd_ret);
-		break;
-	}
-	case COS_MPD_SPLIT_MERGE:
-	{
-		printk("merge: %d calls -- %ld, %ld, %ld\n"
-		       "split: %d calls -- %ld, %ld, %ld, %ld\n",
-		       mpd_merge_cnt, (unsigned long)((unsigned long)merge1_total/mpd_merge_cnt), (unsigned long)((unsigned long)merge2_total/mpd_merge_cnt), (unsigned long)((unsigned long)merge3_total/mpd_merge_cnt),
-		       mpd_split_cnt, (unsigned long)((unsigned long)split1_total/mpd_split_cnt), (unsigned long)((unsigned long)split2_total/mpd_split_cnt), (unsigned long)((unsigned long)split3_total/mpd_split_cnt), (unsigned long)((unsigned long)split4_total/mpd_split_cnt));
-		return 0;
-#ifdef NOT_YET
-		struct composite_spd *from, *to;
-		struct spd *moving;
-		unsigned short int new, old
-
-		from = spd_mpd_by_idx(spd1);
-		to = spd_mpd_by_idx(spd2);
-		moving = spd_get_by_index(spd);
-
-		if (!from || !to || !moving ||
-		    spd_mpd_is_depricated(from) || spd_mpd_is_depricated(to)) {
-			printk("cos: failed to access mpds and/or spd in move operation.\n");
-			ret = -1;
-			break;
-		}
-		
-		ret = mpd_split(from, moving, &new, &old);
-		// ...
-#endif		
-		printk("cos: split-merge not yet available\n");
-		ret = -1;
 		break;
 	}
 	default:
@@ -2648,12 +2637,22 @@ COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t dad
 
 COS_SYSCALL int cos_syscall_print(int spdid, char *str, int len)
 {
+	static char last = '\n';
 	/*
 	 * FIXME: use linux functions to copy the string into local
-	 * storage to avoid faults.
+	 * storage to avoid faults.  ...This won't work with cos
+	 * allocated memory, so we really just need to do a proper
+	 * output system.  This is low prio as the string should be
+	 * passed in the arg region.  Perhaps we should just check
+	 * that.
 	 */
-	printk("cos,%d: %s\n", thd_get_id(thd_get_current()), str);
-
+	
+	str[len] = '\0';
+	if ('\n' == last)
+		printk("cos,%d: %s", thd_get_id(thd_get_current()), str);
+	else 
+		printk("%s", str);
+	last = str[len-1];
 	return 0;
 }
 
@@ -2672,6 +2671,8 @@ COS_SYSCALL int cos_syscall_stats(int spdid)
 {
 	cos_meas_report();
 	cos_meas_init();
+	printk("cos: brand w/ pending %ld\n", 
+	       thd_get_by_id(15)->thread_brand->pending_upcall_requests);
 
 	return 0;
 }

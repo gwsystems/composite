@@ -571,9 +571,10 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 }
 
 
-//~/research/others_software/httperf-0.9.0/src/httperf --port=8000 --wsess=1000,1000,0 --burst-len=100 --rate=55 --max-piped-calls=32
-//~/research/others_software/httperf-0.9.0/src/httperf --port=8000 --wsess=10000,1,0 --burst-len=1 --rate=1000 --max-piped-calls=32
-//httperf --port=200 --wsess=1000,1000,0 --burst-len=100 --rate=55 --max-piped-calls=32 --server=10.0.2.8
+//~/research/others_software/httperf-0.9.0/src/httperf --port=200 --wsess=20000,10,0 --burst-len=10 --rate=3600 --server=10.0.2.8 --max-piped-calls=32
+//~/research/others_software/httperf-0.9.0/src/httperf --port=200 --wsess=40000,1,0 --burst-len=1 --rate=7000 --server=10.0.2.8 --max-piped-calls=32
+//./ab -n 50000 -c 24 10.0.2.8:200/
+
 COS_MAP_CREATE_STATIC(conn_map);
 
 static int connection_process_requests(struct connection *c, char *req, int req_sz,

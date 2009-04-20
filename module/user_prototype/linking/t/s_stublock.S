@@ -5,7 +5,6 @@
  * Public License v2.
  */
 
-#include <cos_asm_stacks.h>
 #include <cos_asm_server_stub.h>
 		
 #define RET_CAP ((1<<20)-1)
@@ -105,3 +104,6 @@ lock_component_free_inv:
 	movl $RET_CAP, %eax /* return capability */
 
 	sysenter
+
+cos_asm_server_stub_spdid(lock_stats)
+cos_asm_server_stub_spdid(lock_stats_len)

@@ -274,6 +274,7 @@ static int mbox_q_deq(struct q_deq_ops *ops, spdid_t spdid, mboxid_t id,
 		 * have removed/added items from/to the mbox */
 		if (ops->second_try(mb)) goto try_again;
 
+		assert(0);	/* express block in ticks */
 		/* Lock is released, and we are going to wait */
 		if (0 == microsec ||
 		    TIMER_EXPIRED ==

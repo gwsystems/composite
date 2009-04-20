@@ -373,7 +373,7 @@ static void release_rb_buff(rb_meta_t *r, void *b)
 	assert(0);
 }
 
-extern int sched_create_net_upcall(unsigned short int port, int prio_delta, int depth);
+extern int sched_create_net_upcall(spdid_t spdid, unsigned short int port, int prio_delta);
 extern int sched_block(spdid_t spdid);
 extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
 
@@ -381,8 +381,7 @@ static unsigned short int cos_net_create_net_upcall(unsigned short int port, rb_
 {
 	unsigned short int ucid;
 	
-	ucid = sched_create_net_upcall(port, 1, 1);
-//	ucid = sched_create_net_upcall(port, 5, 1);
+	ucid = sched_create_net_upcall(cos_spd_id(), port, 1);
 	if (cos_buff_mgmt(COS_BM_RECV_RING, rb1.packets, sizeof(rb1.packets), ucid)) {
 		prints("net: could not setup recv ring.");
 		return 0;
@@ -1302,6 +1301,7 @@ static int __net_connect(spdid_t spdid, net_connection_t nc, struct ip_addr *ip,
 		ic->thd_status = CONNECTING;
 		if (ERR_OK != tcp_connect(tp, ip, port, cos_net_lwip_tcp_connected)) {
 			ic->thd_status = ACTIVE;
+			NET_LOCK_RELEASE();
 			return -ENOMEM;
 		}
 		NET_LOCK_RELEASE();
@@ -1312,6 +1312,7 @@ static int __net_connect(spdid_t spdid, net_connection_t nc, struct ip_addr *ip,
 	}
 	case TCP_CLOSED:
 //		__net_close(ic);
+		NET_LOCK_RELEASE();
 		return -EPIPE;
 	default:
 		assert(0);
@@ -1913,8 +1914,7 @@ static int init(void)
 #endif
 		tcp_tmr();
 		NET_LOCK_RELEASE();
-		timed_event_block(cos_spd_id(), 250000);
-//		timed_event_block(cos_spd_id(), 250000000);
+		timed_event_block(cos_spd_id(), 25); /* expressed in ticks currently */
 	}
 
 	//sched_block();

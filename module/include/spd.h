@@ -128,13 +128,16 @@ struct spd_poly {
  *
  * Spd membership in this composite can be tested by seeing if a
  * specific spd's address range is present in the spd_info->pg_tbl
+ *
+ * 
  */
 struct spd;
 struct composite_spd {
 	struct spd_poly spd_info;
-	struct spd *members; // iff !(flags & SPD_DEPRICATED)
+	struct spd *members; // iff !(flags & (SPD_DEPRICATED|SPD_SUBORDINATE))
 	struct composite_spd *master_spd; // iff flags & SPD_SUBORDINATE
-	struct composite_spd *freelist_next; // iff flags & SPD_FREE
+	struct composite_spd *next, *prev; /* flags & SPD_FREE -> next == freelist |
+					    * flags & SPD_SUBORDINATE -> list of subordinates */
 } CACHE_ALIGNED;
 
 /* 
@@ -233,6 +236,25 @@ static inline int spd_mpd_is_depricated(struct composite_spd *mpd)
 { 
 	return (mpd)->spd_info.flags & SPD_DEPRICATED;
 }
+static inline int spd_mpd_is_subordinate(struct composite_spd *mpd)
+{ 
+	return (mpd)->spd_info.flags & SPD_SUBORDINATE;
+}
+
+static inline void spd_mpd_reset_flags(struct composite_spd *mpd)
+{
+	mpd->spd_info.flags = 0;
+}
+
+static inline void spd_mpd_set_flags(struct composite_spd *mpd, int flags)
+{
+	mpd->spd_info.flags |= flags;
+}
+
+static inline void spd_mpd_remove_flags(struct composite_spd *mpd, int flags)
+{
+	mpd->spd_info.flags &= ~flags;
+}
 
 void spd_init_mpd_descriptors(void);
 short int spd_alloc_mpd_desc(void);
@@ -242,6 +264,9 @@ void spd_mpd_release(struct composite_spd *cspd);
 static inline void spd_mpd_take(struct composite_spd *cspd)
 {
 	cos_ref_take(&cspd->spd_info.ref_cnt);
+#ifdef __KERNEL__
+//	printk("cos: take %p (%d)\n", cspd, cos_ref_val(&cspd->spd_info.ref_cnt));
+#endif
 }
 
 struct composite_spd *spd_mpd_by_idx(short int idx);
@@ -249,7 +274,7 @@ short int spd_mpd_index(struct composite_spd *cspd);
 static inline void spd_mpd_depricate(struct composite_spd *mpd)
 {
 	//printk("cos: depricating cspd %d.\n", spd_mpd_index(mpd));
-	mpd->spd_info.flags |= SPD_DEPRICATED;
+	spd_mpd_set_flags(mpd, SPD_DEPRICATED);
 	spd_mpd_release(mpd);
 }
 void spd_mpd_make_subordinate(struct composite_spd *master, struct composite_spd *slave);
@@ -265,7 +290,7 @@ static inline void spd_mpd_ipc_release(struct composite_spd *cspd)
 static inline void spd_mpd_ipc_take(struct composite_spd *cspd)
 {
 	cos_meas_event(COS_MPD_IPC_REFCNT_INC); 
-	cos_ref_take(&cspd->spd_info.ref_cnt);
+	spd_mpd_take(cspd);
 }
 
 int spd_composite_add_member(struct composite_spd *cspd, struct spd *spd);
@@ -278,10 +303,11 @@ static inline int spd_composite_num_members(struct composite_spd *cspd)
 	struct spd *iter;
 
 	iter = cspd->members;
-	while (iter) {
+	if (iter) do {
 		num_members++;
 		iter = iter->composite_member_next;
-	}
+		//assert(iter);
+	} while (iter != cspd->members);
 
 	return num_members;
 }
@@ -293,8 +319,8 @@ static inline int spd_composite_num_members(struct composite_spd *cspd)
 static inline int spd_composite_move_member(struct composite_spd *cspd_new, struct spd *spd)
 {
 	/* 
-	 * FIXME: in a multithreaded context, these should be probably
-	 * be done in the opposite order.
+	 * FIXME: in a multi-processor context, these should be
+	 * probably be done in the opposite order.
 	 */
 	if (spd_composite_remove_member(spd, 0) ||
 	    spd_composite_add_member(cspd_new, spd)) {

@@ -16,20 +16,26 @@ static struct thread *thread_freelist_head = NULL;
 /* like "current" in linux */
 struct thread *current_thread = NULL;
 
-int thd_spd_in_current_composite(struct thread *thd, struct spd *spd)
+/* 
+ * Return the depth into the stack were we are present or -1 for
+ * error/not present.
+ */
+int thd_validate_spd_in_callpath(struct thread *t, struct spd *s)
 {
-	struct spd_poly *composite = thd_get_thd_spdpoly(thd);
+	int i;
 
-	/*
-	 * First we check the cache: spd->composite_spd which will
-	 * point to the composite spd that the spd is currently part
-	 * of.  It is very likely that we will hit in this cache
-	 * unless we are using a stale mapping.  In such a case, we
-	 * must look in the page table of the composite and see if the
-	 * spd is present.  This is significantly more expensive.
-	 */
-	return spd->composite_spd == composite || 
-		spd_composite_member(spd, composite);
+	assert(t->stack_ptr >= 0);
+
+	for (i = t->stack_ptr ; i >= 0 ; i--) {
+		struct thd_invocation_frame *f;
+
+		f = &t->stack_base[i];
+		assert(f && f->current_composite_spd);
+		if (thd_spd_in_composite(f->current_composite_spd, s)) {
+			return t->stack_ptr - i;
+		}
+	}
+	return -1;
 }
 
 void thd_init_all(struct thread *thds)
