@@ -17,7 +17,7 @@
 
 #define ACT_LOG
 #ifdef ACT_LOG
-#define ACT_LOG_LEN 64
+#define ACT_LOG_LEN 32
 #define ACTION_TIMESTAMP 1
 
 typedef enum {

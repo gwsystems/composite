@@ -191,7 +191,7 @@ static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
 	assert(prio < NUM_PRIOS);
 	assert(sched_thd_ready(t));
 
-//	print("add_thd: adding thread %d with priority %d to runlist. %d", 
+//	printc("add_thd: adding thread %d with priority %d to runlist. %d", 
 //	      t->id, prio, 0);
 	tp = &(priorities[prio].runnable);
 	ADD_LIST(LAST_LIST(tp, prio_next, prio_prev), t, prio_next, prio_prev);
@@ -206,7 +206,7 @@ static inline void fp_add_evt_thd(struct sched_thd *t, unsigned short int prio)
 	assert(sched_thd_inactive_evt(t));
 	assert(sched_thd_event(t));
 
-//	print("add_evt_thd: adding thread %d with priority %d to deactive upcall list. %d", 
+//	printc("add_evt_thd: adding thread %d with priority %d to deactive upcall list. %d", 
 //	      t->id, prio, 0);
 	ADD_LIST(&upcall_deactive, t, prio_next, prio_prev);
 	sched_get_metric(t)->priority = prio;
@@ -459,7 +459,7 @@ static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 				 * should have stopped executing in
 				 * the first place.
 				 */
-				//print("thread %d marked as ready, but received pending event.%d%d", 
+				//printc("thread %d marked as ready, but received pending event.%d%d", 
 				//    t->id, 0,0);
 			}
 			fp_activate_upcall(t);
@@ -623,13 +623,13 @@ static void fp_event_completion(struct sched_thd *e)
 
 	report_event(EVT_CMPLETE);
 	curr = sched_get_current();
-	//print("WTF: this should not be happening %d%d%d",0,0,0);
+	//printc("WTF: this should not be happening %d%d%d",0,0,0);
 	do {
 		cos_sched_lock_take();
 		next = fp_schedule();
 		if (likely(next == curr)) {
 			next = fp_get_second_highest_prio(next);
-//			print("event completion: next,next is %d, current is %d. %d", next->id, cos_get_thd_id(), 0);
+//			printc("event completion: next,next is %d, current is %d. %d", next->id, cos_get_thd_id(), 0);
 		}
 		assert(next != curr);
 		loop = cos_switch_thread_release(next->id, COS_SCHED_TAILCALL);
@@ -689,7 +689,7 @@ static void fp_yield(void)
 		fp_requeue_highest();
 	}
 	next = fp_get_highest_prio();
-	//print("current is %d, orig_thd was %d, next is %d", prev->id, orig_next->id, next->id);
+	//printc("current is %d, orig_thd was %d, next is %d", prev->id, orig_next->id, next->id);
 	if (prev != next) {
 		report_event(YIELD_SWITCH);
 		if (0 != cos_switch_thread_release(next->id, 0)) assert(0);
@@ -740,7 +740,7 @@ void sched_timeout(spdid_t spdid, unsigned long amnt)
 
 	abs_timeout = ticks + amnt;
 
-////	print("timeout @ %d (currently time %d w/timeout %d).", 
+////	printc("timeout @ %d (currently time %d w/timeout %d).", 
 ////	      (unsigned int)abs_timeout, (unsigned int)ticks, (unsigned int)wakeup_time);
 
 	if (0 == wakeup_time || abs_timeout < wakeup_time) {
@@ -819,7 +819,7 @@ static void fp_wakeup(struct sched_thd *thd, spdid_t spdid)
 	/* resume thread, thus no blocking component */
 	thd->blocking_component = 0;
 
-////	print("moving thread %d to priority list %d (spdid %d).", 
+////	printc("moving thread %d to priority list %d (spdid %d).", 
 ////	      thd->id, sched_get_metric(thd)->priority, spdid);
 
 	fp_resume_thd(thd);
@@ -837,7 +837,7 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 	
 	cos_sched_lock_take();
 		
-	//print("thread %d waking up thread %d. %d", cos_get_thd_id(), thd_id, 0);
+	//printc("thread %d waking up thread %d. %d", cos_get_thd_id(), thd_id, 0);
 	
 	thd = sched_get_mapping(thd_id);
 	if (!thd) goto error;
@@ -1076,7 +1076,7 @@ void sched_create_thread(spdid_t spdid) {
 	curr_id = curr->id;
 	cos_sched_lock_release();
 	new = sched_setup_thread_arg(prio, urg, fp_create_spd_thd, (void*)id);
-	print("fprr: created thread %d in spdid %d (requested by %d)\n",
+	printc("fprr: created thread %d in spdid %d (requested by %d)\n",
 	      new->id, id, curr_id);
 
 	return;
@@ -1192,7 +1192,7 @@ int sched_create_net_upcall(spdid_t spdid, unsigned short int port, int prio_del
 	assert(uc);
 	cos_brand_wire(b_id, COS_HW_NET, port);
 
-	print("Net upcall thread %d with priority %d make for port %d.\n", 
+	printc("Net upcall thread %d with priority %d make for port %d.\n", 
 	      uc->id, sched_get_metric(uc)->priority, port);
 
 //	cos_sched_cntl(COS_SCHED_GRANT_SCHED, uc->id, 3);
@@ -1218,7 +1218,7 @@ static void fp_kill_thd(void)
 	cos_sched_lock_take();
 	fp_change_prio_runnable(curr, GRAVEYARD_PRIO);
 	cos_sched_lock_release();
-	print("fp_kill_thd: killing %d. %d%d\n", curr->id, 0,0);
+	printc("fp_kill_thd: killing %d. %d%d\n", curr->id, 0,0);
 	fp_yield();
 	prints("fprr: fp_kill_thd - should not be here!!!\n");
 	assert(0);
@@ -1262,57 +1262,57 @@ int sched_init(void)
 
 	/* create the idle thread */
 	idle = sched_setup_thread(IDLE_PRIO, IDLE_PRIO, fp_idle_loop);
-	print("Idle thread has id %d with priority %d. %d\n", idle->id, IDLE_PRIO, 0);
+	printc("Idle thread has id %d with priority %d. %d\n", idle->id, IDLE_PRIO, 0);
 
 	/* Create the clock tick (timer) thread */
 	timer = sched_setup_upcall_thread(cos_spd_id(), TIMER_TICK_PRIO, TIMER_TICK_PRIO, &b_id);
-	print("Timer thread has id %d with priority %d. %d\n", timer->id, TIMER_TICK_PRIO, TIMER_TICK_PRIO);
+	printc("Timer thread has id %d with priority %d. %d\n", timer->id, TIMER_TICK_PRIO, TIMER_TICK_PRIO);
 	cos_brand_wire(b_id, COS_HW_TIMER, 0);
 
 	target_spdid = spd_name_map_id("te.o");
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(TIME_EVENT_PRIO, TIME_EVENT_PRIO, fp_create_spd_thd, (void*)target_spdid);
-	print("Timeout thread has id %d and priority %d. %d\n", new->id, TIME_EVENT_PRIO, 0);
+	printc("Timeout thread has id %d and priority %d. %d\n", new->id, TIME_EVENT_PRIO, 0);
 
 	/* event thread */
 	target_spdid = spd_name_map_id("e.o");
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(TIME_EVENT_PRIO, TIME_EVENT_PRIO, fp_create_spd_thd, (void*)target_spdid);
-	print("event thread has id %d and priority %d. %d\n", new->id, TIME_EVENT_PRIO, 0);
+	printc("event thread has id %d and priority %d. %d\n", new->id, TIME_EVENT_PRIO, 0);
 
 	/* normal threads: */
 	target_spdid = spd_name_map_id("net.o");
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(NORMAL_PRIO_HI+1, NORMAL_PRIO_HI+1, fp_create_spd_thd, (void*)target_spdid);
-	print("Network thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+1, 0);
+	printc("Network thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+1, 0);
 
 	new = sched_setup_thread_arg(NORMAL_PRIO_HI+3, NORMAL_PRIO_HI+3, fp_create_spd_thd, (void*)target_spdid);
-	print("Network thread (2) has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+3, 0);
+	printc("Network thread (2) has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+3, 0);
 
 	target_spdid = spd_name_map_id("fd.o");
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(NORMAL_PRIO_HI+4, NORMAL_PRIO_HI+4, fp_create_spd_thd, (void*)target_spdid);
-	print("fd thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+4, 0);
+	printc("fd thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+4, 0);
 
 	target_spdid = spd_name_map_id("http.o");
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(NORMAL_PRIO_HI+4, NORMAL_PRIO_HI+4, fp_create_spd_thd, (void*)target_spdid);
-	print("http thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+4, 0);
+	printc("http thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+4, 0);
 
 	target_spdid = spd_name_map_id("conn.o");
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(NORMAL_PRIO_HI+4, NORMAL_PRIO_HI+4, fp_create_spd_thd, (void*)target_spdid);
-	print("conn thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+4, 0);
+	printc("conn thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+4, 0);
 
 	target_spdid = spd_name_map_id("mpd.o");
 	assert(target_spdid != -1);
 	mpd = sched_setup_thread_arg(MPD_PRIO, MPD_PRIO, fp_create_spd_thd, (void*)target_spdid);
-	print("MPD thread has id %d and priority %d. %d\n", mpd->id, MPD_PRIO, 0);
+	printc("MPD thread has id %d and priority %d. %d\n", mpd->id, MPD_PRIO, 0);
 
 	target_spdid = spd_name_map_id("stat.o");
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(NORMAL_PRIO_LO+1, NORMAL_PRIO_LO+1, fp_create_spd_thd, (void*)target_spdid);
-	print("Stats thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_LO+1, 0);
+	printc("Stats thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_LO+1, 0);
 
 	/* Block to begin execution of the normal tasks */
 	fp_pre_block(init);
@@ -1349,7 +1349,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		fp_event_completion(sched_get_current());
 		break;
 	default:
-		print("fp_rr: cos_upcall_fn error - type %x, arg1 %d, arg2 %d\n", 
+		printc("fp_rr: cos_upcall_fn error - type %x, arg1 %d, arg2 %d\n", 
 		      (unsigned int)t, (unsigned int)arg1, (unsigned int)arg2);
 		assert(0);
 		return;

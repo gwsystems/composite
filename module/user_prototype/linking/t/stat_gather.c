@@ -18,8 +18,8 @@ extern int timed_event_block(spdid_t spdid, unsigned int microsec);
 
 extern unsigned long *lock_stats(spdid_t spdid, unsigned long *s);
 extern int lock_stats_len(spdid_t spdid);
-//extern unsigned long *evt_stats(unsigned long *s);
-//extern int evt_stats_len(void);
+extern unsigned long *evt_stats(spdid_t spdid, unsigned long *s);
+extern int evt_stats_len(spdid_t spdid);
 
 typedef unsigned long *(*stat_fn)(spdid_t, unsigned long *);
 typedef int (*stat_len_fn)(spdid_t);
@@ -40,7 +40,7 @@ void gather_stats(char *name, stat_fn f, stat_len_fn l)
 
 		assert(ret == ss);
 		for (i = 0 ; i < len ; i++) {
-			printc("\t%ld", ss[i]);
+			printc("\t%lu", ss[i]);
 		}
 		prints("\n");
 	}
@@ -52,7 +52,7 @@ void cos_init(void *arg)
 	while (1) {
 		timed_event_block(cos_spd_id(), STAT_FREQ);
 		gather_stats("Lock stats:", lock_stats, lock_stats_len);
-//		gather_stats("Evt stats:", evt_stats, evt_stats_len);
+		gather_stats("Evt stats:", evt_stats, evt_stats_len);
 	}
 	return;
 }

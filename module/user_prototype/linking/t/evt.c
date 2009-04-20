@@ -23,7 +23,7 @@
 
 #define ACT_LOG
 #ifdef ACT_LOG
-#define ACT_LOG_LEN 64
+#define ACT_LOG_LEN 32
 #define ACTION_TIMESTAMP 1
 
 typedef enum {
@@ -319,3 +319,31 @@ static void bin(void)
 {
 	sched_block(cos_spd_id());
 }
+
+#ifdef ACT_LOG
+
+unsigned long *evt_stats(spdid_t spdid, unsigned long *stats)
+{
+	struct action *a;
+	int sz = (NUM_ACT_ITEMS + 2) * sizeof(unsigned long);
+
+	if (!cos_argreg_buff_intern((char*)stats, sz)) {
+		return NULL;
+	}
+	
+	if (NULL == (a = action_report())) return NULL;
+	memcpy(stats, a, sz);
+	return stats;
+}
+
+int evt_stats_len(spdid_t spdid)
+{
+	return NUM_ACT_ITEMS + 2;
+}
+
+#else
+
+unsigned long *evt_stats(spdid_t spdid, unsigned long *stats) { return NULL; }
+int evt_stats_len(spdid_t spdid) { return 0; }
+
+#endif

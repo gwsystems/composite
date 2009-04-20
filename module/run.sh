@@ -10,5 +10,5 @@ net.o-l.o;mm.o-print.o;net.o-te.o;net.o-e.o;e.o-fprr.o;e.o-print.o;e.o-mm.o;\
 e.o-l.o;fd.o-print.o;fd.o-e.o;fd.o-net.o;fd.o-l.o;fd.o-fprr.o;conn.o-fd.o;\
 conn.o-print.o;conn.o-mm.o;conn.o-fprr.o;fd.o-http.o;http.o-mm.o;http.o-print.o;\
 http.o-fprr.o;http.o-e.o;fd.o-mm.o;fprr.o-mm.o;mpd.o-te.o;stat.o-te.o;stat.o-fprr.o;\
-stat.o-l.o;stat.o-print.o\
+stat.o-l.o;stat.o-print.o;stat.o-e.o\
 " ./gen_client_stub
