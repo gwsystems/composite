@@ -326,7 +326,7 @@ static void mpd_init(void)
 	struct comp_graph *g = (struct comp_graph *)cos_heap_ptr;
 	
 	graph = (struct comp_graph *)((char*)g-PAGE_SIZE);
-//	mpd_merge_all(graph);
+	mpd_merge_all(graph);
 	mpd_loop(graph);
 	assert(0);
 	return;

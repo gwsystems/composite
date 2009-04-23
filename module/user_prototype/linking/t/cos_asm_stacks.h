@@ -13,4 +13,6 @@
 	shl $13, %eax;			    \
 	addl %eax, %esp;
 
+#define COS_ASM_RET_STACK
+
 #endif

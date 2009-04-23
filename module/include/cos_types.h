@@ -198,7 +198,10 @@ enum {
 /* operations for cos_thd_cntl */
 enum {
 	COS_THD_INV_FRAME, 	/* Get the ith invocation frame for the thread */
-	COS_THD_INVFRM_IP	/* get the instruction pointer in an inv frame  */
+	COS_THD_INVFRM_IP,	/* get the instruction pointer in an inv frame  */
+	COS_THD_INVFRM_SP,	/* get the stack pointer in an inv frame  */
+	COS_THD_INVFRM_FP, 	/* get current frame pointer _only if thread is preempted_ */
+	COS_THD_STATUS
 };
 enum {
 	COS_HW_TIMER,

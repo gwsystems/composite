@@ -14,6 +14,11 @@
  * pain for debugging.
  */
 
+unsigned int lock_contested(cos_lock_t *l)
+{
+	return l->atom.owner;
+}
+
 /* 
  * Return the amount of time that have elapsed since the request was
  * made if we get the lock, _or_ TIMER_EXPIRED if we did not get the
@@ -64,13 +69,12 @@ restart:
 					 * has changed */
 					goto restart;
 				}
-				/* A preemption at this point makes this assert incorrect */
-				//assert(l->atom.contested);
 			}
+			/* A preemption at this point makes this assert incorrect */
+			assert(l->atom.contested);
 			/* Note if a 1 is returned, there is a
 			 * generation mismatch, and we just want to
 			 * try and take the lock again anyway */
-			//print("pretake %d%d%d", 0,0,0);
 			ret = lock_component_take(spdid, l->lock_id, owner, microsec);
 			if (ret != -1 && ret != TIMER_EXPIRED) {
 				if (microsec != TIMER_EVENT_INF) {
@@ -132,6 +136,7 @@ int lock_release(cos_lock_t *l) {
 		/* If we're here, we better own the lock... */
 		if (result.owner != curr) {
 			printc("lock_release: lock %x w/ owner %d, curr is %d, cnt = %d", l, result.owner, curr, cnt);
+			assert(0);
 		}
 		cnt++;
 		assert(result.owner == curr);
@@ -157,7 +162,7 @@ int lock_release(cos_lock_t *l) {
 				return 0;
 			}
 		} else {
-			assert(0);
+			assert(0); /* rather just not support recursive locks */
 			result.rec_cnt--;
 		}
 

@@ -15,7 +15,7 @@
 #include <cos_list.h>
 #include <print.h>
 
-#define ACT_LOG
+//#define ACT_LOG
 #ifdef ACT_LOG
 #define ACT_LOG_LEN 32
 #define ACTION_TIMESTAMP 1
@@ -183,6 +183,7 @@ int lock_component_pretake(spdid_t spd, unsigned long lock_id, unsigned short in
  	spdid_t spdid = cos_spd_id();
 	int ret = 0;
 
+	ACT_RECORD(ACT_PRELOCK, spd, lock_id, cos_get_thd_id(), thd);
 	TAKE(spdid);
 //	lock_print_all();
 	ml = lock_find(lock_id, spd);
@@ -191,8 +192,6 @@ int lock_component_pretake(spdid_t spd, unsigned long lock_id, unsigned short in
 		goto done;
 	}
 	ml->gen_num = generation;
-
-	ACT_RECORD(ACT_PRELOCK, spd, lock_id, cos_get_thd_id(), thd);
 done:
 	RELEASE(spdid);
 	return ret;
@@ -208,6 +207,7 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 	
 //	print("thread %d from spd %d locking for %d micrseconds.", curr, spdid, microsec);
 
+	ACT_RECORD(ACT_LOCK, spd, lock_id, cos_get_thd_id(), thd_id);
 	TAKE(spdid);
 
 	if (0 == microsec) {
@@ -237,8 +237,6 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 	}
 	generation++;
 
-	ACT_RECORD(ACT_LOCK, spd, lock_id, cos_get_thd_id(), thd_id);
-
 	/* Note that we are creating the list of blocked threads from
 	 * memory allocated on the individual thread's stacks. */
 	INIT_LIST(&blocked_desc, next, prev);
@@ -252,7 +250,7 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 //	assert(TIMER_EVENT_INF == microsec);
 //	assert(!blocked_desc.timed);
 	if (TIMER_EVENT_INF == microsec) {
-		if (-1 == sched_block(spdid)) return -1;
+		if (-1 == sched_block(spdid)) assert(0);
 		/* 
 		 * OK, this seems ridiculous but here is the rational: Assume
 		 * we are a middle-prio thread, and were just woken by a low
@@ -271,7 +269,7 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 		ret = 0;
 	} else {
 		/* ret here will fall through */
-		if (-1 == (ret = timed_event_block(spdid, microsec))) return -1;
+		if (-1 == (ret = timed_event_block(spdid, microsec))) return ret;
 
 		/* 
 		 * We might have woken from a timeout, which means
@@ -303,13 +301,13 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 	struct blocked_thds *sent, *bt;
 	spdid_t spdid = cos_spd_id();
 
+	ACT_RECORD(ACT_UNLOCK, spd, lock_id, cos_get_thd_id(), 0);
 	TAKE(spdid);
 
 	generation++;
 	ml = lock_find(lock_id, spd);
 	if (!ml) goto error;
 
-	ACT_RECORD(ACT_UNLOCK, spd, lock_id, cos_get_thd_id(), 0);
 	/* Apparently, lock_take calls haven't been made. */
 	if (EMPTY_LIST(&ml->b_thds, next, prev)) {
 		RELEASE(spdid);
@@ -319,14 +317,14 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 	/* Remove all threads from the lock's list */
 	REM_LIST(&ml->b_thds, next, prev);
 	/* Unblock all waiting threads */
-	do {
+	while (1) {
 		struct blocked_thds *next;
 		/* This is suboptimal: if we wake a thread with a
 		 * higher priority, it will be switched to.  Given we
 		 * are holding the component lock here, we should get
 		 * switched _back_ to so as to wake the rest of the
 		 * components. */
-		next = bt->next;
+		next = FIRST_LIST(bt, next, prev);
 		REM_LIST(bt, next, prev);
 
 		ACT_RECORD(ACT_WAKE, spd, lock_id, cos_get_thd_id(), bt->thd_id);
@@ -336,8 +334,9 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 		} else {
 			sched_wakeup(spdid, bt->thd_id);
 		}
+		if (bt == next) break;
 		bt = next;
-	} while (bt != bt->next);
+	}
 	/* This is sneaky, so to reiterate: Keep this lock till now so
 	 * that if we wake another thread, and it begins execution,
 	 * the system will switch back to this thread so that we can

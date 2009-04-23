@@ -12,6 +12,12 @@
 #define RET_CAP ((1<<20)-1)
 #include <cos_asm_stacks.h>
 
+/* 
+ * The register layout is paired with that in ipc.S, %ecx holding the
+ * spdid.  We zero out the %ebp so that is we do a stack trace later,
+ * we know that when the %ebp is 0, we are at the end of the stack.
+ */
+
 #define cos_asm_server_stub(name) \
 .globl name##_inv ;               \
 .type  name##_inv, @function ;	  \
@@ -19,6 +25,7 @@
 name##_inv:                       \
         COS_ASM_GET_STACK         \
 	pushl %ebp;		  \
+	xor %ebp, %ebp;		  \
         pushl %edi;	          \
         pushl %esi;	          \
         pushl %ebx;	          \
@@ -26,6 +33,7 @@ name##_inv:                       \
                                   \
         movl %eax, %ecx;          \
         movl $RET_CAP, %eax;	  \
+        COS_ASM_RET_STACK         \
                                   \
         sysenter;
 
@@ -36,6 +44,7 @@ name##_inv:                       \
 name##_inv:                             \
         COS_ASM_GET_STACK               \
 	pushl %ebp;		        \
+	xor %ebp, %ebp;			\
         pushl %edi;	                \
         pushl %esi;	                \
         pushl %ecx;	                \
@@ -43,6 +52,7 @@ name##_inv:                             \
                                         \
         movl %eax, %ecx;                \
         movl $RET_CAP, %eax;	        \
+        COS_ASM_RET_STACK		\
                                         \
         sysenter;
 

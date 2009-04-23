@@ -12,7 +12,26 @@
 #ifdef __KERNEL__
 #include <linux/thread_info.h> /* for PAGE_SIZE */
 #else 
-struct pt_regs { int dummy[16]; };
+struct pt_regs {
+        long ebx;
+        long ecx;
+        long edx;
+        long esi;
+        long edi;
+        long ebp;
+        long eax;
+        int  xds;
+        int  xes;
+        int  xfs;
+        /* int  gs; */
+        long orig_eax;
+        long eip;
+        int  xcs;
+        long eflags;
+        long esp;
+        int  xss;
+};
+//struct pt_regs { int dummy[16]; };
 #endif
 #endif
 #ifndef __KERNEL__

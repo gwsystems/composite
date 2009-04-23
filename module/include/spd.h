@@ -316,13 +316,13 @@ static inline int spd_composite_num_members(struct composite_spd *cspd)
  * Move spd from its current composite spd to the cspd_new
  * composite_spd.
  */
-static inline int spd_composite_move_member(struct composite_spd *cspd_new, struct spd *spd)
+static inline int spd_composite_move_member(struct composite_spd *cspd_new, struct spd *spd, int remove_mappings)
 {
 	/* 
 	 * FIXME: in a multi-processor context, these should be
 	 * probably be done in the opposite order.
 	 */
-	if (spd_composite_remove_member(spd, 0) ||
+	if (spd_composite_remove_member(spd, remove_mappings) ||
 	    spd_composite_add_member(cspd_new, spd)) {
 		return -1;
 	}

@@ -32,7 +32,7 @@
 #define INIT_PRIO (2)
 /* This is the start */
 #define NORMAL_PRIO_HI 4
-#define NORMAL_PRIO_LO (NUM_PRIOS-4)
+#define NORMAL_PRIO_LO (NUM_PRIOS-8)
 
 #define RUNTIME_SEC (10)
 #define REPORT_FREQ 10 		/* freq of reporting in seconds */
@@ -129,16 +129,12 @@ static void report_output(void)
 	mman_print_stats();
 }
 
+extern void st_trace_thd(unsigned short int tid);
 static void print_thd_invframes(struct sched_thd *t)
 {
-	int tid = t->id, i, ret = 1;
+//	unsigned short int tid = t->id;
 
-	for (i = 0 ; ret > 0 ; i++) {
-		int ip;
-		ret = cos_thd_cntl(COS_THD_INV_FRAME, tid, i, 0);
-		ip  = cos_thd_cntl(COS_THD_INVFRM_IP, tid, i, 0);
-		if (ret) printc("\t\t[%d (ip:%x)]\n", ret, ip);
-	}
+//	st_trace_thd(tid);
 }
 
 static void report_thd_accouting(void)

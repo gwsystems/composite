@@ -21,7 +21,7 @@
 
 #include <evt.h>
 
-#define ACT_LOG
+//#define ACT_LOG
 #ifdef ACT_LOG
 #define ACT_LOG_LEN 32
 #define ACTION_TIMESTAMP 1
@@ -199,7 +199,7 @@ done:
 long evt_grp_wait(spdid_t spdid)
 {
 	struct evt_grp *g;
-	struct evt *e;
+	struct evt *e = NULL;
 	long extern_evt;
 
 //	printc("evt_grp_wait");
@@ -208,17 +208,17 @@ long evt_grp_wait(spdid_t spdid)
 		lock_take(&evt_lock);
 
 		g = evt_grp_find(cos_get_thd_id());
+		ACT_RECORD(ACT_WAIT_GRP, spdid, e ? e->extern_id : 0, cos_get_thd_id(), 0);
 		if (NULL == g) goto err;
 		if (__evt_grp_read(g, &e)) goto err;
 
-		ACT_RECORD(ACT_WAIT_GRP, spdid, e ? e->extern_id : 0, cos_get_thd_id(), 0);
 		if (NULL != e) {
 			extern_evt = e->extern_id;
 			lock_release(&evt_lock);
 			return extern_evt;
 		} else {
-			ACT_RECORD(ACT_SLEEP, spdid, 0, cos_get_thd_id(), 0);
 			lock_release(&evt_lock);
+			ACT_RECORD(ACT_SLEEP, spdid, 0, cos_get_thd_id(), 0);
 			if (0 > sched_block(cos_spd_id())) assert(0);
 		}
 	}
@@ -257,18 +257,19 @@ err:
 int evt_trigger(spdid_t spdid, long extern_evt)
 {
 	struct evt *e;
-	int ret;
+	int ret = 0;
 
 	lock_take(&evt_lock);
+
 	e = mapping_find(extern_evt);
-//	printc("evt_trigger for %ld: %p", extern_evt, e);
 	if (NULL == e) goto err;
-	ACT_RECORD(ACT_TRIGGER, spdid, e->extern_id, cos_get_thd_id(), ret);
+
+	ACT_RECORD(ACT_TRIGGER, spdid, e->extern_id, cos_get_thd_id(), 0);
 	/* Trigger an event being waited for? */
 	if (0 != (ret = __evt_trigger(e))) {
 		lock_release(&evt_lock);
 		ACT_RECORD(ACT_WAKEUP, spdid, e->extern_id, cos_get_thd_id(), ret);
-		if(sched_wakeup(cos_spd_id(), ret)) assert(0);
+		if (sched_wakeup(cos_spd_id(), ret)) assert(0);
 		return 0;
 	}
 	lock_release(&evt_lock);

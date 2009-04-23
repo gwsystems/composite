@@ -136,14 +136,14 @@ void thd_init(void)
 
 extern int host_in_syscall(void);
 /*
- * Is the thread currently in an atomic section, and if so, rollback
- * its instruction pointer to the beginning of the section (the commit
- * has not yet happened).
+ * Is the thread currently in an atomic section?  If so, rollback its
+ * instruction pointer to the beginning of the section (the commit has
+ * not yet happened).
  */
 int thd_check_atomic_preempt(struct thread *thd)
 {
 	struct spd *spd = thd_get_thd_spd(thd);
-	vaddr_t ip = thd->regs.eip;
+	vaddr_t ip = thd_get_ip(thd);
 	int i;
 	
 	assert(host_in_syscall() || thd->flags & THD_STATE_PREEMPTED);

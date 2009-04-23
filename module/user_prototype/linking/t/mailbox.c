@@ -261,7 +261,7 @@ static int mbox_q_deq(struct q_deq_ops *ops, spdid_t spdid, mboxid_t id,
 
 	/* Try and en/de-queue from the mailbox and loop while we can't */
 	while (ops->mbox_op(mb, data)) {
-		int elapsed;
+		int elapsed = 0;
 
 		/* Prepare to wait for data to become available, or for the mbox to flush */
 		bt.tid = cos_get_thd_id();
@@ -318,8 +318,9 @@ expired:
 
 int mbox_enqueue(spdid_t spdid, mboxid_t id, void *data, unsigned int microsec)
 {
-	void **d;
-	*d = data;
+	void **d = (void **)0; //FAIL
+	assert(0);
+//FAIL	*d = data;
 	return mbox_q_deq(&enqueue_ops, spdid, id, d, microsec);
 }
 

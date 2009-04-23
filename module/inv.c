@@ -465,10 +465,12 @@ COS_SYSCALL int cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long a
 	}
 	
 	thd = thd_get_by_id(thdid);
-	if (!spd_is_scheduler(curr_spd) || !thd_scheduled_by(thd, curr_spd)) {
-		printk("cos: non-scheduler attempted to create thread.\n");
+	/* FIXME: finer grained access control required */
+/*	if (!spd_is_scheduler(curr_spd) || !thd_scheduled_by(thd, curr_spd)) {
+		printk("cos: non-scheduler attempted to manipulate thread.\n");
 		return -1;
 	}
+*/
 	
 	switch (op) {
 	case COS_THD_INV_FRAME:
@@ -477,9 +479,8 @@ COS_SYSCALL int cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long a
 		int frame_offset = arg1;
 		struct thd_invocation_frame *tif;
 
-		/* Offset out of bounds */
-		if (frame_offset > thd->stack_ptr) return 0;
-		tif = &thd->stack_base[frame_offset];
+		tif = thd_invstk_nth(thd, frame_offset);
+		if (NULL == tif) return 0;
 		i_spd = tif->spd;
 		return spd_get_index(i_spd);
 	}
@@ -487,20 +488,26 @@ COS_SYSCALL int cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long a
 	{
 		int frame_offset = arg1;
 
-		/* FIXME: broken for "current thread" */
-		/* Offset out of bounds */
-		if (frame_offset > thd->stack_ptr) return 0;
-		if (frame_offset == thd->stack_ptr) {
-			if (thd->flags & THD_STATE_PREEMPTED) {
-				return thd->regs.eip;
-			} else {
-				return thd->regs.edx;
-			}
-		} else {
-			struct thd_invocation_frame *tif;
-			tif = &thd->stack_base[frame_offset+1];
-			return tif->ip;
-		}
+		return thd_get_frame_ip(thd, frame_offset);
+	}
+	case COS_THD_INVFRM_SP:
+	{
+		int frame_offset = arg1;
+
+		return thd_get_frame_sp(thd, frame_offset);
+	}
+	/* This is only really valid/useful for preempted threads: */
+	case COS_THD_INVFRM_FP:
+	{
+		if (!(thd->flags & THD_STATE_PREEMPTED)) return 0;
+		return thd->regs.ebp;
+	}
+	case COS_THD_STATUS:
+	{
+		/* FIXME: all flags should NOT be part of the ABI.
+		 * Filter out relevant ones (upcall, brand,
+		 * preempted) */
+		return thd->flags;
 	}
 	default:
 		printk("cos: undefined operation %d for thread %d from scheduler %d.\n",
@@ -1505,10 +1512,12 @@ COS_SYSCALL int cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int 
 			       (unsigned int)thd_id);
 			return -1;
 		}
+/* needed?  Validate step done above...
 		if (thd_get_thd_spd(b) != spd) {
 			printk("cos: buff mgmt trying to set buffer for brand not in curr spd");
 			return -1;
 		}
+*/
 		/* FIXME: pin the page in memory. */
 		if (rb_setup(b, (ring_buff_t*)addr, (ring_buff_t*)kaddr)) {
 			printk("cos: buff mgmt -- could not setup the ring buffer.\n");
@@ -2257,7 +2266,7 @@ static int mpd_split_composite_populate(struct composite_spd *new1, struct compo
 
 	while (cspd->members) {
 		curr = cspd->members;
-		if (spd_composite_move_member(new2, curr)) {
+		if (spd_composite_move_member(new2, curr, 0)) {
 			printk("cos: could not add spd to new composite in split.\n");
 			goto err_adding;
 		}
@@ -2431,7 +2440,8 @@ static struct composite_spd *mpd_merge(struct composite_spd *c1,
 	 */
 	while (other->members) {
 		curr = other->members;
-		if (spd_composite_move_member(dest, curr)) {
+		if (spd_composite_move_member(dest, curr, 1)) {
+			assert(0);
 			/* FIXME: should back out all those that were
 			 * already transferred from one to the
 			 * other...but this error is really only

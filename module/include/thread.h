@@ -216,14 +216,76 @@ static inline struct spd *thd_curr_spd_noprint(void)
 	return curr_thd->stack_base[stkptr].spd;
 }
 
-/*
- * FIXME: this is wrong.  This will give us the spd that is invoked in
- * the current composite spd, but not necessarily the _current_ spd.
+static inline vaddr_t thd_get_frame_ip(struct thread *thd, int frame_offset)
+{
+	/* 
+	 * The only weird thing here is that we are looking at the
+	 * ip/sp stored in the frame_offset + 1.  This is because the
+	 * ip/sp is stored for the previous protection domain in the
+	 * stack frame of the current (much like the ip on a c call
+	 * stack is at the beginning of the next call's stack frame.
+	 */
+
+	if (frame_offset > thd->stack_ptr) return 0;
+	if (frame_offset == thd->stack_ptr) {
+		if (thd->flags & THD_STATE_PREEMPTED) {
+			return thd->regs.eip;
+		} else {
+			return thd->regs.edx;
+		}
+	} else {
+		struct thd_invocation_frame *tif;
+		tif = &thd->stack_base[frame_offset+1];
+		return tif->ip;
+	}
+}
+
+static inline vaddr_t thd_get_frame_sp(struct thread *thd, int frame_offset)
+{
+	/* See comment in thd_get_frame_ip */
+
+	if (frame_offset > thd->stack_ptr) return 0;
+	if (frame_offset == thd->stack_ptr) {
+		if (thd->flags & THD_STATE_PREEMPTED) {
+			return thd->regs.esp;
+		} else {
+			return thd->regs.ecx;
+		}
+	} else {
+		struct thd_invocation_frame *tif;
+		tif = &thd->stack_base[frame_offset+1];
+		return tif->sp;
+	}
+}
+
+static inline vaddr_t thd_get_ip(struct thread *t)
+{
+	return thd_get_frame_ip(t, t->stack_ptr);
+}
+
+static inline vaddr_t thd_get_sp(struct thread *t)
+{
+	return thd_get_frame_sp(t, t->stack_ptr);
+}
+
+/* 
+ * Important: this call should not be used in functions to carry out
+ * security/authorization checks.  If the 
+ *
+ * For such a simple call, this has a lot of baggage: getting the
+ * entry component of the top frame will not give an accurate
+ * "resident component" if we are using mpd merge.  Instead we'll use
+ * the instruction pointer and find out which component it lies in.
  */
 static inline struct spd *thd_get_thd_spd(struct thread *thd)
 {
-	struct thd_invocation_frame *frame = thd_invstk_top(thd);
+	struct thd_invocation_frame *frame;
+	struct spd *spd;
 
+	spd = virtual_namespace_query(thd_get_ip(thd));
+	if (spd) return spd;
+	/* thd_get_thd_spd is not used in sec */
+	frame = thd_invstk_top(thd);
 	return frame->spd;
 }
 
@@ -234,14 +296,6 @@ static inline struct spd_poly *thd_get_thd_spdpoly(struct thread *thd)
 	return frame->current_composite_spd;
 }
 
-static inline struct spd *thd_get_current_spd(void)
-{
-	struct thread *thd = thd_get_current();
-	if (NULL == thd) { 
-		return NULL;
-	}
-	return thd_get_thd_spd(thd);
-}
 static inline struct spd_poly *thd_get_current_spdpoly(void)
 {
 	struct thread *thd = thd_get_current();

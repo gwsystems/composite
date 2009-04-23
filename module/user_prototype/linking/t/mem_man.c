@@ -101,6 +101,38 @@ err:
 	return 0;
 }
 
+/* 
+ * Make an alias to a page in a source spd @ a source address to a
+ * destination spd/addr
+ */
+vaddr_t mman_alias_page(spdid_t d_spd, vaddr_t d_addr, spdid_t s_spd, vaddr_t s_addr)
+{
+	int alias = -1, i;
+	struct mem_cell *c;
+	struct mapping_info *base;
+	
+	c = find_cell(s_spd, s_addr, &alias);
+	assert(alias >= 0 && alias < MAX_ALIASES);
+	base = c->map;
+	for (i = 0 ; i < MAX_ALIASES ; i++) {
+		if (base[i].owner_spd == 0 && base[i].addr == 0) {
+			assert(i != alias);
+
+			if (cos_mmap_cntl(COS_MMAP_GRANT, 0, d_spd, d_addr, cell_index(c))) {
+				printc("mm: could not alias page @ %x to spd %d from %x(%d)\n", d_addr, d_spd, s_addr, s_spd);
+				goto err;
+			}
+			base[i].owner_spd = d_spd;
+			base[i].addr = d_addr;
+
+			return d_addr;
+		}
+	}
+	/* no available alias slots! */
+err:
+	return 0;
+}
+
 /*
  * Call to give up a page of memory in an spd at an address.
  */

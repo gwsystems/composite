@@ -57,12 +57,14 @@ cos_upcall_entry:
 	pushl %esi
 	pushl %edi
 	pushl %ebx
+	xor %ebx, %ebx
 	pushl %ecx /* option */	
 	call cos_upcall_fn
 	addl $16, %esp
 
 	movl %eax, %ecx
 	movl $RET_CAP, %eax /* return capability */
+	COS_ASM_RET_STACK
 
 	sysenter
 	
