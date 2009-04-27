@@ -95,6 +95,7 @@ struct thread *thd_alloc(struct spd *spd)
 	thd->thread_brand = NULL;
 	thd->pending_upcall_requests = 0;
 	thd->brand_inv_stack_ptr = 0;
+	thd->freelist_next = NULL;
 
 	return thd;
 }
@@ -126,6 +127,21 @@ void thd_free(struct thread *thd)
 	thread_freelist_head = thd;
 
 	return;
+}
+
+void thd_free_all(void)
+{
+	struct thread *t;
+	int i;
+
+	for (i = 0 ; i < MAX_NUM_THREADS ; i++) {
+		t = &threads[i];
+
+		/* is the thread active (not free)? */
+		if (t->freelist_next == NULL) {
+			thd_free(t);
+		}
+	}
 }
 
 void thd_init(void)

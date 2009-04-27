@@ -1,8 +1,10 @@
 /**
- * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ * Copyright 2007 by Boston University.
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
+ *
+ * Initial Author: Gabriel Parmer, gabep1@cs.bu.edu, 2007
  */
 
 //#include <spd.h>
@@ -293,8 +295,6 @@ void spd_free_all(void)
 {
 	int i;
 	
-	clear_pg_pool();
-
 	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
 		if (!(spds[i].spd_info.flags & SPD_FREE)) {
 			spd_free_mm(&spds[i]);
@@ -304,6 +304,8 @@ void spd_free_all(void)
 
 	spd_mpd_free_all();
 	spd_init();
+
+	clear_pg_pool();
 }
 
 struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_tbl,
@@ -551,6 +553,7 @@ void spd_init_mpd_descriptors(void)
 	for (i = 0 ; i < MAX_MPD_DESC ; i++) {
 		struct composite_spd *cspd = &mpd_descriptors[i];
 
+		spd_mpd_reset_flags(cspd);
 		spd_mpd_set_flags(cspd, SPD_COMPOSITE | SPD_FREE);
 		cos_ref_set(&cspd->spd_info.ref_cnt, 0);
 		cspd->next = &mpd_descriptors[i+1];
@@ -819,6 +822,7 @@ void spd_mpd_free_all(void)
 			       spd_mpd_index(cspd), cos_ref_val(&cspd->spd_info.ref_cnt));
 			if (!spd_mpd_is_subordinate(cspd)) {
 				cos_put_pg_pool(pa_to_va((void*)cspd->spd_info.pg_tbl));
+				cspd->spd_info.pg_tbl = 0;
 			}
 			//spd_mpd_release(cspd);
 		}

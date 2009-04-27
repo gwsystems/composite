@@ -2573,7 +2573,8 @@ static int aed_release(struct inode *inode, struct file *file)
 
 	/* our garbage collection mechanism: all at once when the cos
 	 * system control fd is closed */
-	thd_free(thd_get_current());
+//	thd_free(thd_get_current());
+	thd_free_all();
  	thd_init();
 	spd_free_all();
 	ipc_init();

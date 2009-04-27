@@ -121,6 +121,7 @@ struct thread {
 
 struct thread *thd_alloc(struct spd *spd);
 void thd_free(struct thread *thd);
+void thd_free_all(void);
 void thd_init(void);
 
 /*

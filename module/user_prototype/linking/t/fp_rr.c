@@ -35,7 +35,7 @@
 #define NORMAL_PRIO_HI 5
 #define NORMAL_PRIO_LO (NUM_PRIOS-8)
 
-#define RUNTIME_SEC (120)
+#define RUNTIME_SEC (2)
 #define REPORT_FREQ 10 		/* freq of reporting in seconds */
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
