@@ -2483,6 +2483,7 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
 	assert(prev && spd_is_composite(&prev->spd_info));
 	assert(!spd_mpd_is_subordinate(prev) && !spd_mpd_is_depricated(prev));
 	curr = thd_get_thd_spdpoly(thd_get_current());
+	/* keep track of this, as it might change during the course of this call */
 	curr_pg_tbl = curr->pg_tbl;
 
 	switch(operation) {
@@ -2515,6 +2516,7 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
 			ret = -1;
 			break;
 		}
+		cos_meas_event(COS_MEAS_MPD_SPLIT);
 //		printk("cos: split spd with cspd %p from %p\n", trans_cspd, prev);
 		ret = mpd_split(prev, transitory, &sret.new, &sret.old);
 		/* simply return 0 for success */
@@ -2552,6 +2554,7 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
 			ret = -1;
 			break;
 		}
+		cos_meas_event(COS_MEAS_MPD_MERGE);
 		ret = 0;
 		//ret = spd_mpd_index(cspd_ret);
 		break;

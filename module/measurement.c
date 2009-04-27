@@ -30,6 +30,8 @@ struct cos_meas_struct cos_measurements[COS_MEAS_MAX_SIZE] =
 	{.type = MEAS_CNT, .description = "composite page fault"},
 	{.type = MEAS_CNT, .description = "linux page fault"},
 	{.type = MEAS_CNT, .description = "unknown fault"},
+	{.type = MEAS_CNT, .description = "mpd merge"},
+	{.type = MEAS_CNT, .description = "mpd split"},
 	{.type = MEAS_CNT, .description = "mpd alloc"},
 	{.type = MEAS_CNT, .description = "mpd subordinate"},
 	{.type = MEAS_CNT, .description = "mpd split mpd reuse"},

@@ -57,7 +57,7 @@ cos_upcall_entry:
 	pushl %esi
 	pushl %edi
 	pushl %ebx
-	xor %ebx, %ebx
+	xor %ebp, %ebp
 	pushl %ecx /* option */	
 	call cos_upcall_fn
 	addl $16, %esp

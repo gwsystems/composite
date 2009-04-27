@@ -40,7 +40,7 @@ static void walk_stack(unsigned short int tid, unsigned long *sp)
 			       tid, sp, fp, ip);
 			return;
 		}
-		printc("\t<%d: ip:%x>\n", tid, *ip);
+		printc("\t<%d: ip:%x>\n", tid, (unsigned int)*ip);
 
 		fp = (unsigned long *)*fp;
 		ip = fp+1;

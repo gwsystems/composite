@@ -43,7 +43,8 @@
  * address of the function to invoke to make the ipc, and the address
  * of the function in the trusted service to call, a count of the
  * number of times invocations have been made with this capability,
- * and the capability number for this entry.
+ * and the capability number for this entry.  Be sure to keep this
+ * synchronized with asm_ipc_defs.h.
  */
 struct usr_inv_cap {
 	vaddr_t invocation_fn, service_entry_inst;

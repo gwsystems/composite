@@ -104,7 +104,7 @@ static short int spd_alloc_capability_range(int range)
 				int start, j;
 				start = i - range_free + 1;
 
-				for (j = start ; j <= i; j++) {
+				for (j = start ; j <= i ; j++) {
 					struct invocation_cap *init = &invocation_capabilities[j];
 					init->owner = CAP_ALLOCATED_UNUSED;
 				}
@@ -345,7 +345,8 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 	//cos_ref_take(&spd->spd_info.ref_cnt); 
 	//cos_ref_take(&spd->spd_info.ref_cnt); 
 
-	/* return capability; ignore return value as we know it will be 0 */
+	/* FIXME: This "return capability" in the cap tbl is a relic
+	 * and should be removed. */
 	spd_add_static_cap(spd, 0, spd, 0);
 
 	spd->composite_spd = &spd->spd_info;
@@ -776,8 +777,8 @@ void spd_mpd_make_subordinate(struct composite_spd *master_cspd,
 	assert(!spd_mpd_is_depricated(master_cspd) && !spd_mpd_is_depricated(slave_cspd));
 	assert(cos_ref_val(&slave_cspd->spd_info.ref_cnt) != 0);
 
-//	printk("cos:\tsubordinate(%p,%p)\n", slave_cspd, master_cspd);
 	spd_mpd_set_flags(slave_cspd, SPD_SUBORDINATE);
+//	printk("cos:\tsubordinate(%p,%p)\n", slave_cspd, master_cspd);
 	if (1 < cos_ref_val(&slave_cspd->spd_info.ref_cnt)) {
 //		printk("cos:\tsubordinate %p to %p\n", slave_cspd, master_cspd);
 		cos_meas_event(COS_MPD_SUBORDINATE);

@@ -90,7 +90,8 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 
 	/* Here we check for overwriting an already established mapping. */
 	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, spd, addr, cell_index(c))) {
-		printc("mm: could not grant page @ %x to spd %d\n", addr, spd);
+		printc("mm: could not grant page @ %x to spd %d\n", 
+		       (unsigned int)addr, (unsigned int)spd);
 		c->map[0].owner_spd = 0;
 		c->map[0].addr = 0;
 		goto err;
@@ -119,7 +120,8 @@ vaddr_t mman_alias_page(spdid_t d_spd, vaddr_t d_addr, spdid_t s_spd, vaddr_t s_
 			assert(i != alias);
 
 			if (cos_mmap_cntl(COS_MMAP_GRANT, 0, d_spd, d_addr, cell_index(c))) {
-				printc("mm: could not alias page @ %x to spd %d from %x(%d)\n", d_addr, d_spd, s_addr, s_spd);
+				printc("mm: could not alias page @ %x to spd %d from %x(%d)\n", 
+				       (unsigned int)d_addr, (unsigned int)d_spd, (unsigned int)s_addr, (unsigned int)s_spd);
 				goto err;
 			}
 			base[i].owner_spd = d_spd;
@@ -182,7 +184,8 @@ void mman_print_stats(void)
 				}
 			}
 			
-			printc("\tspd %d used %d pages\n", curr_spd, spd_accum);
+			printc("\tspd %d used %d pages\n", 
+			       (unsigned int)curr_spd, (unsigned int)spd_accum);
 		}
 	}
 }

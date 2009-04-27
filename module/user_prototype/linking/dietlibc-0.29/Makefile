@@ -127,8 +127,9 @@ include $(ARCH)/Makefile.add
 
 LIBMATHOBJ=$(patsubst %,$(OBJDIR)/%,$(LIBMATH))
 
+#gap: I want frame pointers!  change omit-frame-pointer to no-omit...
 ifeq ($(CFLAGS),-pipe -nostdinc)
-CFLAGS+=-O -fomit-frame-pointer
+CFLAGS+=-O -fno-omit-frame-pointer
 endif
 
 ifneq ($(DEBUG),)

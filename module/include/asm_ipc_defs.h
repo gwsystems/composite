@@ -11,7 +11,9 @@
 
 /* user capability structure offsets */
 /* really 16, see below for use (mult index reg by 2) */
-#define SIZEOFUSERCAP 16
+#define UCAP_SZ 4 		/* # of longs */
+#define UCAP_SZ_STR "4"
+#define SIZEOFUSERCAP (UCAP_SZ*4)
 #define INVFN 0
 #define ENTRYFN 4
 #define INVOCATIONCNT 8

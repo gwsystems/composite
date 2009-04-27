@@ -469,7 +469,7 @@ pbuf_free(struct pbuf *p)
     LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE | 2, ("pbuf_free(p == NULL) was called.\n"));
     return 0;
   }
-  LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE | 3, ("pbuf_free(%p)\n", (void *)p, p->type == PBUF_RAM ? "RAM" : p->type == PBUF_POOL ? "POOL" : "ROM/REF"));
+  LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE | 3, ("pbuf_free(%p, type %s)\n", (void *)p, p->type == PBUF_RAM ? "RAM" : p->type == PBUF_POOL ? "POOL" : "ROM/REF"));
 
   PERF_START;
 

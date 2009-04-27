@@ -99,7 +99,7 @@ struct sec_info ldobj[MAXSEC_S];
 #define EXPORTED_SYMB_TYPE 0x2
 #define MAX_SYMBOLS 256
 #define MAX_TRUSTED 32
-#define MAX_SYMB_LEN 128
+#define MAX_SYMB_LEN 256
 
 typedef int (*observer_t)(asymbol *, void *data);
 
@@ -1390,7 +1390,10 @@ static int create_spd_capabilities(struct service_symbs *service/*, struct spd_i
 		struct symb *c_stub, *s_stub;
 		char tmp[MAX_SYMB_LEN];
 
-		snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", symb->name, CAP_CLIENT_STUB_POSTPEND);
+		if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", symb->name, CAP_CLIENT_STUB_POSTPEND)) {
+			printf("symbol name %s too long to become client capability\n", symb->name);
+			return -1;
+		}
 		c_stub = spd_contains_symb(service, tmp);
 		if (NULL == c_stub) {
 			c_stub = spd_contains_symb(service, CAP_CLIENT_STUB_DEFAULT);
@@ -1401,7 +1404,11 @@ static int create_spd_capabilities(struct service_symbs *service/*, struct spd_i
 			}
 		}
 
-		snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", symb->name, CAP_SERVER_STUB_POSTPEND);
+		if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", symb->name, CAP_SERVER_STUB_POSTPEND)) {
+			printf("symbol name %s too long to become server capability\n", symb->name);
+			return -1;
+		}
+
 		s_stub = spd_contains_symb(exporter, tmp);
 		if (NULL == s_stub) {
 			printf("Could not find server stub (%s) for function %s in service %s.\n",

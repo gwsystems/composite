@@ -1,3 +1,12 @@
+/**
+ * Copyright 2008 by Boston University.  All rights reserved.
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ *
+ * Initial Author: Gabriel Parmer, gabep1@cs.bu.edu, 2008
+ */
+
 #ifdef TESTING
 
 #include <stdio.h>
@@ -197,15 +206,13 @@ static void mpd_report(const struct comp_graph *g)
 	}
 }
 
-static void mpd_loop(struct comp_graph *g)
+static inline int split_w_err(spdid_t a, spdid_t b)
 {
-	while (1) {
-		/* currently timeouts are expressed in ticks */
-		timed_event_block(cos_spd_id(), 900);
-		mpd_report(g);
+	if (cos_mpd_cntl(COS_MPD_SPLIT, a, b)) {
+		print("split of %d from %d failed. %d\n", b, a, 0);
+		return -1;
 	}
-	assert(0);
-	return;
+	return 0;
 }
 
 static inline int merge_w_err(spdid_t a, spdid_t b)
@@ -215,6 +222,35 @@ static inline int merge_w_err(spdid_t a, spdid_t b)
 		return -1;
 	}
 	return 0;
+}
+
+static void mpd_merge_all(struct comp_graph *g);
+
+static void mpd_loop(struct comp_graph *g)
+{
+	int idx = 1;
+
+/* 	timed_event_block(cos_spd_id(), 10); */
+/* 	split_w_err(1, 1); */
+/* 	split_w_err(4, 4); */
+/* 	merge_w_err(1, 4); */
+	while (1) {
+		/* currently timeouts are expressed in ticks */
+		timed_event_block(cos_spd_id(), 12);
+
+		if (idx == 14 || (idx + 1) == 14) {
+			mpd_merge_all(g);
+			idx = 1;
+		}
+		split_w_err(idx, idx);
+//		split_w_err(idx+1, idx+1);
+//		merge_w_err(idx, idx+1);
+//		idx += 2;
+		idx++;
+//		mpd_report(g);
+	}
+	assert(0);
+	return;
 }
 
 static unsigned long long merge_total = 0;
@@ -251,15 +287,6 @@ static int merge_all(void)
 //	merge_cnt+=7;
 	merge_cnt++;
 
-	return 0;
-}
-
-static inline int split_w_err(spdid_t a, spdid_t b)
-{
-	if (cos_mpd_cntl(COS_MPD_SPLIT, a, b)) {
-		print("split of %d from %d failed. %d\n", b, a, 0);
-		return -1;
-	}
 	return 0;
 }
 
@@ -326,8 +353,9 @@ static void mpd_init(void)
 	struct comp_graph *g = (struct comp_graph *)cos_heap_ptr;
 	
 	graph = (struct comp_graph *)((char*)g-PAGE_SIZE);
-	mpd_merge_all(graph);
-	mpd_loop(graph);
+//	mpd_merge_all(graph);
+//	mpd_loop(graph);
+	sched_block(cos_spd_id());
 	assert(0);
 	return;
 }

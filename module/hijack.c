@@ -1,10 +1,12 @@
 /**
  * Hijack, or Asymmetric Execution Domains support for Linux
  *
- * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ * Copyright 2007 by Boston University.
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
+ *
+ * Initial author: Gabriel Parmer, gabep1@cs.bu.edu, 2007
  */
 
 #include <linux/module.h>

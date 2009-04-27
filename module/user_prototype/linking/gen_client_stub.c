@@ -85,8 +85,10 @@ char *footer1 =
 ".align 4096\n"
 ".globl ST_user_caps\n"
 "ST_user_caps:\n\t"
-".long 0\n" 			/* take up a whole cap slot for cap 0 */
-;
+".rep " UCAP_SZ_STR "\n\t"
+".long 0\n\t"
+".endr\n"; 			/* take up a whole cap slot for cap 0 */
+
 char *footer2 = 
 ".align 16\n"
 "ST_user_caps_end:\n\t"
@@ -96,8 +98,9 @@ char *cap_data =
 ".align 16\n"
 ".globl %s\n"
 "%s:\n\t"
-".long 0\n"
-;
+".rep " UCAP_SZ_STR "\n\t"
+".long 0\n\t"
+".endr\n";
 
 static char *string_to_token(char *output, char *str, int token, int maxlen)
 {

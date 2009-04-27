@@ -19,10 +19,9 @@ static inline int cos_strlen(char *s)
 #define cos_strlen strlen
 #endif
 
-#ifdef COS_FMT_PRINT
 #include <stdio.h>
 #include <string.h>
-static inline int printc(char *fmt, ...)
+static inline int __attribute__((format(printf,1,2))) printc(char *fmt, ...)
 {
 	char *s;
 	va_list arg_ptr;
@@ -42,7 +41,6 @@ static inline int printc(char *fmt, ...)
 	return ret;
 }
 #define cos_memcpy memcpy
-#endif
 
 static inline int print(char *str, int a, int b, int c)
 {

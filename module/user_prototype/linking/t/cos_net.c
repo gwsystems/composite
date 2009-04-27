@@ -1,9 +1,10 @@
 /**
- * Copyright 2008 by Gabriel Parmer, gabep1@cs.bu.edu.  All rights
- * reserved.
+ * Copyright 2008 by Boston University.  All rights reserved.
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
+ *
+ * Initial author:  Gabriel Parmer, gabep1@cs.bu.edu, 2008
  */
 
 /* 
@@ -105,18 +106,13 @@ extern int evt_create(spdid_t spdid, long extern_evt);
 cos_lock_t alloc_lock;
 cos_lock_t net_lock;
 
-static volatile int lock_check = 0;
 #define NET_LOCK_TAKE()    \
 	do {								\
 		if (lock_take(&net_lock)) prints("error taking net lock."); \
-		assert(lock_check == 0);				\
-		lock_check = 1;						\
 	} while(0)
 
 #define NET_LOCK_RELEASE() \
 	do {								\
-		assert(lock_check == 1);				\
-		lock_check = 0;						\
 		if (lock_release(&net_lock)) prints("error releasing net lock."); \
 	} while (0)
 
@@ -1885,23 +1881,12 @@ static int init(void)
 	}
 
 	NET_LOCK_RELEASE();
-//	sched_block();
 	/* Start the tcp timer */
 	while (1) {
 		/* Sleep for a quarter of seconds as prescribed by lwip */
 		NET_LOCK_TAKE();
 
 		if (++cnt == 4) {
-//			struct tcp_pcb *pcb;
-			cnt = 0;
-/*			extern struct tcp_pcb *tcp_active_pcbs;
-			prints("*** TCP connections ***");
-			for(pcb = tcp_active_pcbs; pcb != NULL; pcb = pcb->next) {
-				printc("%p: state %d, flags %x, rcvwnd %d, annwnd %d, retrans %d, cwnd %d, sndwnd %d, sndsqn %d, rcvsqn %u", 
-				       pcb, pcb->state, pcb->flags, pcb->rcv_wnd, pcb->rcv_ann_wnd, pcb->nrtx, pcb->cwnd, pcb->snd_wnd, pcb->snd_nxt, pcb->rcv_nxt);
-			}
-*/
-//			alloc_stats_print();
 #ifdef TEST_TIMING
 			timing_output();
 #endif

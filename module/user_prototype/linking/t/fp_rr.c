@@ -1,9 +1,10 @@
 /**
- * Copyright 2008 by Gabriel Parmer, gabep1@cs.bu.edu.  All rights
- * reserved.
+ * Copyright 2008 by Boston University.  All rights reserved.
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
+ *
+ * Initial Author: Gabriel Parmer, gabep1@cs.bu.edu
  */
 
 #define COS_FMT_PRINT
@@ -31,10 +32,10 @@
 #define MPD_PRIO (4)
 #define INIT_PRIO (2)
 /* This is the start */
-#define NORMAL_PRIO_HI 4
+#define NORMAL_PRIO_HI 5
 #define NORMAL_PRIO_LO (NUM_PRIOS-8)
 
-#define RUNTIME_SEC (10)
+#define RUNTIME_SEC (120)
 #define REPORT_FREQ 10 		/* freq of reporting in seconds */
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
@@ -1184,14 +1185,11 @@ int sched_create_net_upcall(spdid_t spdid, unsigned short int port, int prio_del
 
 	assert(t);
 	uc = sched_setup_upcall_thread(spdid, prio + prio_delta, prio + prio_delta, &b_id);
-//	uc = sched_setup_upcall_thread(prio+1, prio+1, &b_id, depth);
 	assert(uc);
 	cos_brand_wire(b_id, COS_HW_NET, port);
 
 	printc("Net upcall thread %d with priority %d make for port %d.\n", 
 	      uc->id, sched_get_metric(uc)->priority, port);
-
-//	cos_sched_cntl(COS_SCHED_GRANT_SCHED, uc->id, 3);
 
 	return uc->id;
 }

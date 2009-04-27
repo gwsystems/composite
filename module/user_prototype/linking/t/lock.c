@@ -105,7 +105,8 @@ static void lock_print_all(void)
 	for (ml = FIRST_LIST(&locks, next, prev) ; 
 	     ml != &locks ; // && ml != FIRST_LIST(ml, next, prev) ; 
 	     ml = FIRST_LIST(ml, next, prev)) {
-		printc("lock @ %x (next %x, prev %x), id %d, spdid %d\n", ml, ml->next, ml->prev, ml->lock_id, ml->spd);
+		printc("lock @ %p (next %p, prev %p), id %d, spdid %d\n", 
+		       ml, ml->next, ml->prev, (unsigned int)ml->lock_id, ml->spd);
 	}
 	prints("\n");
 }

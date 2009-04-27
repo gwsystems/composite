@@ -19,6 +19,7 @@ static char *spd_name_map[MAX_NUM_SPDS+1] =
   "conn.o",
   "http.o",
   "stat.o",
+  "st.o",
   "",
   NULL};
 
