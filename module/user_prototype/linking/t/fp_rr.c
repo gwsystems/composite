@@ -35,8 +35,8 @@
 #define NORMAL_PRIO_HI 5
 #define NORMAL_PRIO_LO (NUM_PRIOS-8)
 
-#define RUNTIME_SEC (2)
-#define REPORT_FREQ 10 		/* freq of reporting in seconds */
+#define RUNTIME_SEC (8)
+#define REPORT_FREQ 8 		/* freq of reporting in seconds */
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
 
@@ -1258,11 +1258,6 @@ int sched_init(void)
 	idle = sched_setup_thread(IDLE_PRIO, IDLE_PRIO, fp_idle_loop);
 	printc("Idle thread has id %d with priority %d. %d\n", idle->id, IDLE_PRIO, 0);
 
-	/* Create the clock tick (timer) thread */
-	timer = sched_setup_upcall_thread(cos_spd_id(), TIMER_TICK_PRIO, TIMER_TICK_PRIO, &b_id);
-	printc("Timer thread has id %d with priority %d. %d\n", timer->id, TIMER_TICK_PRIO, TIMER_TICK_PRIO);
-	cos_brand_wire(b_id, COS_HW_TIMER, 0);
-
 	target_spdid = spd_name_map_id("te.o");
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(TIME_EVENT_PRIO, TIME_EVENT_PRIO, fp_create_spd_thd, (void*)target_spdid);
@@ -1275,13 +1270,11 @@ int sched_init(void)
 	printc("event thread has id %d and priority %d. %d\n", new->id, TIME_EVENT_PRIO, 0);
 
 	/* normal threads: */
-	target_spdid = spd_name_map_id("net.o");
+	/* lock thread */
+	target_spdid = spd_name_map_id("l.o");
 	assert(target_spdid != -1);
-	new = sched_setup_thread_arg(NORMAL_PRIO_HI+1, NORMAL_PRIO_HI+1, fp_create_spd_thd, (void*)target_spdid);
-	printc("Network thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+1, 0);
-
-	new = sched_setup_thread_arg(NORMAL_PRIO_HI+3, NORMAL_PRIO_HI+3, fp_create_spd_thd, (void*)target_spdid);
-	printc("Network thread (2) has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+3, 0);
+	new = sched_setup_thread_arg(TIME_EVENT_PRIO, TIME_EVENT_PRIO, fp_create_spd_thd, (void*)target_spdid);
+	printc("lock thread has id %d and priority %d. %d\n", new->id, TIME_EVENT_PRIO, 0);
 
 	target_spdid = spd_name_map_id("fd.o");
 	assert(target_spdid != -1);
@@ -1307,6 +1300,16 @@ int sched_init(void)
 	assert(target_spdid != -1);
 	new = sched_setup_thread_arg(NORMAL_PRIO_LO+1, NORMAL_PRIO_LO+1, fp_create_spd_thd, (void*)target_spdid);
 	printc("Stats thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_LO+1, 0);
+
+	target_spdid = spd_name_map_id("net.o");
+	assert(target_spdid != -1);
+	new = sched_setup_thread_arg(NORMAL_PRIO_HI+1, NORMAL_PRIO_HI+1, fp_create_spd_thd, (void*)target_spdid);
+	printc("Network thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+1, 0);
+
+	/* Create the clock tick (timer) thread */
+	timer = sched_setup_upcall_thread(cos_spd_id(), TIMER_TICK_PRIO, TIMER_TICK_PRIO, &b_id);
+	printc("Timer thread has id %d with priority %d. %d\n", timer->id, TIMER_TICK_PRIO, TIMER_TICK_PRIO);
+	cos_brand_wire(b_id, COS_HW_TIMER, 0);
 
 	/* Block to begin execution of the normal tasks */
 	fp_pre_block(init);

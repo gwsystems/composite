@@ -12,7 +12,7 @@
 #include <cos_debug.h>
 #include <print.h>
 
-#define STAT_FREQ 500
+#define STAT_FREQ 799
 
 extern int timed_event_block(spdid_t spdid, unsigned int microsec);
 

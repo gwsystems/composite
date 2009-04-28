@@ -198,18 +198,18 @@ static void mpd_report(const struct comp_graph *g)
 {
 	int i;
 
+	printc("Capability Invocations:\n");
 	for (i = 0 ; g[i].client && g[i].server ; i++) {
 		unsigned long amnt;
 		amnt = cos_cap_cntl(g[i].client, g[i].server, 0);
-		
-		print("%d->%d w/ %d invocations.\n", g[i].client, g[i].server, (unsigned int)amnt);
+		printc("\t%d->%d w/ %d invocations.\n", g[i].client, g[i].server, (unsigned int)amnt);
 	}
 }
 
 static inline int split_w_err(spdid_t a, spdid_t b)
 {
 	if (cos_mpd_cntl(COS_MPD_SPLIT, a, b)) {
-		print("split of %d from %d failed. %d\n", b, a, 0);
+		printc("split of %d from %d failed. %d\n", b, a, 0);
 		return -1;
 	}
 	return 0;
@@ -218,7 +218,7 @@ static inline int split_w_err(spdid_t a, spdid_t b)
 static inline int merge_w_err(spdid_t a, spdid_t b)
 {
 	if (cos_mpd_cntl(COS_MPD_MERGE, a, b)) {
-		print("merge of %d and %d failed. %d\n", a, b, 0);
+		printc("merge of %d and %d failed. %d\n", a, b, 0);
 		return -1;
 	}
 	return 0;
@@ -230,24 +230,17 @@ static void mpd_loop(struct comp_graph *g)
 {
 	int idx = 1;
 
-/* 	timed_event_block(cos_spd_id(), 10); */
-/* 	split_w_err(1, 1); */
-/* 	split_w_err(4, 4); */
-/* 	merge_w_err(1, 4); */
 	while (1) {
 		/* currently timeouts are expressed in ticks */
-		timed_event_block(cos_spd_id(), 12);
+		timed_event_block(cos_spd_id(), 24);
 
 		if (idx == 14 || (idx + 1) == 14) {
-			mpd_merge_all(g);
+//			mpd_merge_all(g);
 			idx = 1;
+			mpd_report(g);
 		}
-		split_w_err(idx, idx);
-//		split_w_err(idx+1, idx+1);
-//		merge_w_err(idx, idx+1);
-//		idx += 2;
+//		split_w_err(idx, idx);
 		idx++;
-//		mpd_report(g);
 	}
 	assert(0);
 	return;
@@ -327,7 +320,7 @@ static void mpd_bench(void)
 		split_all();
 	}
 
-	print("merge: %d, split %d. %d\n", merge_avg(), split_avg(), 0);
+	printc("merge: %ld, split %ld.\n", merge_avg(), split_avg());
 }
 
 static void mpd_merge_all(struct comp_graph *g)
@@ -337,7 +330,7 @@ static void mpd_merge_all(struct comp_graph *g)
 	prints("Merging all protection domains!\n");
 	for (i = 0 ; g[i].client && g[i].server ; i++) {
 		if (cos_mpd_cntl(COS_MPD_MERGE, g[i].client, g[i].server)) {
-			print("merge of %d and %d failed. %d\n", g[i].client, g[i].server, 0);
+			printc("merge of %d and %d failed. %d\n", g[i].client, g[i].server, 0);
 		}
 	}
 	
@@ -346,16 +339,19 @@ static void mpd_merge_all(struct comp_graph *g)
 
 static void mpd_init(void)
 {
+	int i;
 	struct comp_graph *graph;
 	/* The hack to give this component the component graph is to
 	 * place it @ cos_heap_ptr-PAGE_SIZE.  See cos_loader.c.
 	 */
 	struct comp_graph *g = (struct comp_graph *)cos_heap_ptr;
-	
+
 	graph = (struct comp_graph *)((char*)g-PAGE_SIZE);
+	for (i = 0 ; graph[i].client && graph[i].server ; i++) {
+		cos_cap_cntl(graph[i].client, graph[i].server, 0);	
+	}
 //	mpd_merge_all(graph);
-//	mpd_loop(graph);
-	sched_block(cos_spd_id());
+	mpd_loop(graph);
 	assert(0);
 	return;
 }
@@ -367,7 +363,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		mpd_init();
 		break;
 	default:
-		print("mpd_mgr: cos_upcall_fn error - type %x, arg1 %d, arg2 %d\n", 
+		printc("mpd_mgr: cos_upcall_fn error - type %x, arg1 %d, arg2 %d\n", 
 		      (unsigned int)t, (unsigned int)arg1, (unsigned int)arg2);
 		assert(0);
 		return;

@@ -1,8 +1,10 @@
 /**
- * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ * Copyright 2007 by Boston University.
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
+ *
+ * Initial Author: Gabriel Parmer, gabep1@cs.bu.edu, 2007
  */
 
 #include "include/ipc.h"
@@ -195,6 +197,7 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 
 	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
 
+//	printk("cos: thd %d inv %d->%d\n", thd_get_id(thd), spd_get_index(curr_spd), spd_get_index(dest_spd));
 	/* 
 	 * ref count the composite spds:
 	 * 
@@ -258,6 +261,7 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr, struct pt_regs
 	 */
 	//cos_ref_release(&inv_frame->current_composite_spd->ref_cnt);
 	//spd_mpd_release((struct composite_spd *)inv_frame->current_composite_spd);
+//	printk("cos: thd %d returning\n", thd_get_id(curr));
 	spd_mpd_ipc_release((struct composite_spd *)inv_frame->current_composite_spd);
 
 	return inv_frame;	
@@ -2684,8 +2688,7 @@ COS_SYSCALL int cos_syscall_stats(int spdid)
 {
 	cos_meas_report();
 	cos_meas_init();
-	printk("cos: brand w/ pending %ld\n", 
-	       thd_get_by_id(15)->thread_brand->pending_upcall_requests);
+//	printk("cos: brand w/ pending %ld\n", thd_get_by_id(15)->thread_brand->pending_upcall_requests);
 
 	return 0;
 }

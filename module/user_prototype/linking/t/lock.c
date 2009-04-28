@@ -1,9 +1,10 @@
 /**
- * Copyright 2008 by Gabriel Parmer, gabep1@cs.bu.edu.  All rights
- * reserved.
+ * Copyright 2008 by Boston University.  All rights reserved.
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
+ *
+ * Initial author: Gabriel Parmer, gabep1@cs.bu.edu, 2008.
  */
 
 #define COS_FMT_PRINT
@@ -14,6 +15,7 @@
 #include <cos_debug.h>
 #include <cos_list.h>
 #include <print.h>
+#include <cos_vect.h>
 
 //#define ACT_LOG
 #ifdef ACT_LOG
@@ -69,6 +71,8 @@ static volatile unsigned long lock_id = 1;
 /* Head of the linked list of locks. */
 static struct meta_lock STATIC_INIT_LIST(locks, next, prev);
 static volatile unsigned long long generation = 0;
+/* Datastructure of blocked thread structures */
+COS_VECT_CREATE_STATIC(bthds);
 
 /* From the scheduler: */
 extern int sched_component_take(spdid_t spdid);
@@ -81,6 +85,27 @@ extern int sched_yield(spdid_t spdid);
 
 #define TAKE(spdid) 	if (sched_component_take(spdid))    return -1;
 #define RELEASE(spdid)	if (sched_component_release(spdid)) return -1;
+
+/* 
+ * FIXME: to make this predictable (avoid memory allocation in the
+ * must-be-predictable case, we should really cos_vect_add_id when we
+ * first find out about the possibility of the thread making any
+ * invocations.
+ */
+static struct blocked_thds *bt_get(unsigned short int tid)
+{
+	struct blocked_thds *bt;
+
+	bt = cos_vect_lookup(&bthds, tid);
+	if (NULL == bt) {
+		bt = malloc(sizeof(struct blocked_thds));
+		if (NULL == bt) return NULL;
+		INIT_LIST(bt, next, prev);
+		bt->thd_id = tid;
+		if (tid != cos_vect_add_id(&bthds, bt, tid)) return NULL;
+	}
+	return bt;
+}
 
 static inline struct meta_lock *lock_find(unsigned long lock_id, spdid_t spd)
 {
@@ -405,3 +430,9 @@ unsigned long *lock_stats(spdid_t spdid, unsigned long *stats) { return NULL; }
 int lock_stats_len(spdid_t spdid) { return 0; }
 
 #endif
+
+
+void cos_init(void *arg)
+{
+	cos_vect_init_static(&bthds);
+}

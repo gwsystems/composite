@@ -687,7 +687,7 @@ void spd_mpd_release(struct composite_spd *cspd)
 		spd_mpd_reset_flags(cspd);
 		spd_mpd_set_flags(cspd, SPD_FREE | SPD_COMPOSITE);
 
-		//printk("cos: cspd %d being released.\n", spd_mpd_index(cspd));
+//		printk("cos: cspd %d being released.\n", spd_mpd_index(cspd));
 	} 
 
 	return;

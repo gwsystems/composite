@@ -14,6 +14,8 @@
 #include <print.h>
 #include <cos_time.h>
 #include <cos_list.h>
+#include <cos_vect.h>
+#include <cos_alloc.h>
 
 #define TIMER_NO_EVENTS 0ULL
 
@@ -42,6 +44,30 @@ struct thread_event {
 };
 
 static struct thread_event events;
+
+COS_VECT_CREATE_STATIC(thd_evts);
+
+/* 
+ * FIXME: to make this predictable (avoid memory allocation in the
+ * must-be-predictable case, we should really cos_vect_add_id when we
+ * first find out about the possibility of the thread making any
+ * invocations.
+ */
+static struct thread_event *te_get(unsigned short int tid)
+{
+	struct thread_event *te;
+
+	te = cos_vect_lookup(&thd_evts, tid);
+	if (NULL == te) {
+		te = malloc(sizeof(struct thread_event));
+		if (NULL == te) return NULL;
+		te->thread_id = tid;
+		INIT_LIST(te, next, prev);
+		if (tid != cos_vect_add_id(&thd_evts, te, tid)) return NULL;
+	}
+	return te;
+}
+
 //#define USEC_PER_SEC 1000000
 //static unsigned int usec_per_tick = 0;
 
@@ -56,17 +82,24 @@ static int insert_event(struct thread_event *te)
 	assert(NULL != te);
 	assert(te->event_expiration);
 	assert(EMPTY_LIST(te, next, prev));
+	assert(events.next && events.prev);
 	for (tmp = FIRST_LIST(&events, next, prev) ;
 	     ; 			/* condition built into body (see break;) */
 	     tmp = FIRST_LIST(tmp, next, prev)) {
+		assert(tmp);
 		struct thread_event *prev_te = LAST_LIST(tmp, next, prev);
+		assert(prev_te);
+		assert(tmp->prev && tmp->next);
 		/* We found our place in the list OR end of list.
 		 * Either way, insert before this position */
 		if (tmp->event_expiration > te->event_expiration ||
 		    &events == tmp) {
 			ADD_LIST(prev_te, te, next, prev);
+			assert(prev_te->next == te && te->prev == prev_te);
+			assert(te->next == tmp && tmp->prev == te);
 			break;
 		}
+		assert(tmp->next && tmp->prev);
 	}
 	if (EMPTY_LIST(&events, next, prev)) {
 		ADD_LIST(&events, te, next, prev);
@@ -86,6 +119,7 @@ static struct thread_event *find_remove_event(unsigned short int thdid)
 	     tmp = FIRST_LIST(tmp, next, prev)) {
 		if (tmp->thread_id == thdid) {
 			REM_LIST(tmp, next, prev);
+			assert(events.next && events.prev);
 			return tmp;
 		}
 	}
@@ -99,19 +133,20 @@ static struct thread_event *find_remove_event(unsigned short int thdid)
  */
 static void event_expiration(event_time_t time)
 {
-	struct thread_event *tmp, *next;
+	struct thread_event *tmp, *next_te;
 	spdid_t spdid = cos_spd_id();
 
 	assert(TIMER_NO_EVENTS != time);
 
 	for (tmp = FIRST_LIST(&events, next, prev) ;
 	     tmp != &events && tmp->event_expiration <= time ; 
-	     tmp = next) {
+	     tmp = next_te) {
 		assert(tmp);
-		next = FIRST_LIST(tmp, next, prev);
+		next_te = FIRST_LIST(tmp, next, prev);
+		assert(next_te && next_te->prev == tmp && tmp->next == next_te);
 		tmp->timed_out = 1;
-		sched_wakeup(spdid, tmp->thread_id);
 		REM_LIST(tmp, next, prev);
+		sched_wakeup(spdid, tmp->thread_id);
 		/* We don't have to deallocate the thread_events as
 		 * they are stack allocated on the sleeping
 		 * threads. */
@@ -137,7 +172,7 @@ static inline event_time_t next_event_time(void)
 int timed_event_block(spdid_t spdinv, unsigned int amnt)
 {
 	spdid_t spdid = cos_spd_id();
-	struct thread_event te;
+	struct thread_event *te;
 	int block_time, ret;
 
 	if (amnt == 0) return 0;
@@ -153,23 +188,29 @@ int timed_event_block(spdid_t spdinv, unsigned int amnt)
 	/* update: seems like +1 should be enough */
 	amnt++;
 	
-	INIT_LIST(&te, next, prev);
-	te.thread_id = cos_get_thd_id();
-	te.timed_out = 0;
-
 	TAKE(spdid);
+	te = te_get(cos_get_thd_id());
+	if (NULL == te) assert(0);
+	assert(EMPTY_LIST(te, next, prev));
+
+	te->thread_id = cos_get_thd_id();
+	te->timed_out = 0;
+
 	ticks = sched_timestamp();
-	te.event_expiration = ticks + amnt;
+	te->event_expiration = ticks + amnt;
 	block_time = ticks;
-	assert(te.event_expiration > ticks);
-	ret = insert_event(&te);
+	assert(te->event_expiration > ticks);
+	ret = insert_event(te);
+	assert(te->next && te->prev && !EMPTY_LIST(te, next, prev));
 	RELEASE(spdid);
 
 	if (ret) sched_timeout(spdid, amnt);
 	if (-1 == sched_block(spdid)) {
 		prints("fprr: sched block failed in timed_event_block.");
 	}
-	if (te.timed_out) {
+	/* we better have been taking off the list! */
+	assert(EMPTY_LIST(te, next, prev));
+	if (te->timed_out) {
 		return TIMER_EXPIRED;
 	}
 	/* 
@@ -207,6 +248,8 @@ static void start_timer_thread(void)
 	unsigned int tick_freq;
 
 	INIT_LIST(&events, next, prev);
+	events.thread_id = 0;
+	cos_vect_init_static(&thd_evts);
 	sched_timeout_thd(spdid);
 	tick_freq = sched_tick_freq();
 	assert(tick_freq == 100);
@@ -224,6 +267,7 @@ static void start_timer_thread(void)
 		ticks = sched_timestamp();
 		if (sched_component_take(spdid)) {
 			prints("fprr: scheduler lock failed!!!");
+			assert(0);
 		}
 		event_expiration(ticks);
 		next_wakeup = next_event_time();
@@ -232,6 +276,7 @@ static void start_timer_thread(void)
 		if (TIMER_NO_EVENTS == next_wakeup) {
 			if (sched_component_release(spdid)) {
 				prints("fprr: scheduler lock release failed!!!");
+				assert(0);
 			}
 			sched_block(spdid);
 		} else {
@@ -241,6 +286,7 @@ static void start_timer_thread(void)
 			wakeup = (unsigned int)(next_wakeup - ticks);
 			if (sched_component_release(spdid)) {
 				prints("fprr: scheduler lock release failed!!!");
+				assert(0);
 			}
 
 			sched_timeout(spdid, wakeup);
