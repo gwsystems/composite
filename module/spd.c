@@ -139,11 +139,14 @@ static inline void cap_set_usr_cap(struct usr_inv_cap *uptr, vaddr_t inv_fn,
 static inline struct usr_inv_cap *cap_get_usr_cap(int cap_num)
 {
 	struct spd *owner;
+	int ucap;
 
 	if (cap_is_free(cap_num)) return NULL;
 
 	owner = invocation_capabilities[cap_num].owner;
-	return &owner->user_cap_tbl[cap_num];
+	ucap = cap_num - owner->cap_base;
+	assert(ucap < owner->cap_range);
+	return &owner->user_cap_tbl[ucap];
 }
 
 static inline int cap_reset_cap_inv_cnt(int cap_num, int *inv_cnt)
@@ -155,9 +158,10 @@ static inline int cap_reset_cap_inv_cnt(int cap_num, int *inv_cnt)
 	if (!ucap) return -1;
 	cap = &invocation_capabilities[cap_num];
 	*inv_cnt = ucap->invocation_count + cap->invocation_cnt;
-/* 	printk("cap from %d->%d: ucap inv %d, cap inv %d.\n",  */
-/* 	       spd_get_index(cap->owner), spd_get_index(cap->destination),  */
-/* 	       ucap->invocation_count, cap->invocation_cnt); */
+/* 	printk("cap from %d->%d: ucap inv %d, cap inv %d, entry %x, capno %d.\n", */
+/* 	       spd_get_index(cap->owner), spd_get_index(cap->destination), */
+/* 	       ucap->invocation_count, cap->invocation_cnt, */
+/* 	       (unsigned int)ucap->service_entry_inst, ucap->cap_no >> 20); */
 	ucap->invocation_count = cap->invocation_cnt = 0;
 
 	return 0;

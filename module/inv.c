@@ -2675,11 +2675,16 @@ COS_SYSCALL int cos_syscall_print(int spdid, char *str, int len)
 
 COS_SYSCALL int cos_syscall_cap_cntl(int spdid, spdid_t cspdid, spdid_t sspdid, int optional)
 {
+	vaddr_t va;
 	struct spd *cspd, *sspd;
+
 	cspd = spd_get_by_index(cspdid);
 	sspd = spd_get_by_index(sspdid);
-
 	if (!cspd || !sspd) return -1;
+
+	va = pgtbl_vaddr_to_kaddr(cspd->spd_info.pg_tbl, (unsigned long)cspd->user_vaddr_cap_tbl);
+	assert((vaddr_t)cspd->user_cap_tbl == va);
+
 	/* TODO: access control */
 	return spd_read_reset_invocation_cnt(cspd, sspd);
 }

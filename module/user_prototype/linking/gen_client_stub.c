@@ -56,8 +56,8 @@ char *fn_string =
 "/* Static branch prediction will go here: incriment invocation cnt */\n\t"
 "incl %d(%%eax)\n" /* why is this 4 cycles? how aren't we using the parallelism? */
 // The following approach works too and avoids the branch...but has the same cost.
-//"incl %d(%%eax)\n\t" /* why is this 4 cycles? how aren't we using the parallelism? */
-//"andl $0x7FFFFFFF, %d(%%eax)\n\t"
+/*"incl %d(%%eax)\n\t" */ /* why is this 4 cycles? how aren't we using the parallelism? */
+/*"andl $0x7FFFFFFF, %d(%%eax)\n\t"*/
 /*"jmp *%d(%%eax)\n"*/
 "1: \n\t"
 /*"pushl $ST_inv_stk\n\t"*/
