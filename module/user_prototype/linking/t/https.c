@@ -1,3 +1,13 @@
+/**
+ * Copyright 2009 by Boston University.
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ *
+ * Author:  Gabriel Parmer, gabep1@cs.bu.edu, 2009
+ */
+
+
 //#define COS_LINUX_ENV
 
 #include <string.h>
@@ -164,51 +174,16 @@ malformed_request:
 	return -1;
 }
 
-static const char success_head[] =
-	"HTTP/1.1 200 OK\r\n"
-	"Date: Sat, 14 Feb 2008 14:59:00 GMT\r\n"
-	"Content-Type: text/html\r\n"
-	"Content-Length: ";
-static const char resp[] = "all your base are belong to us\r\n";
-
-#define MAX_SUPPORTED_DIGITS 20
-
-/* Must prefix data by "content_length\r\n\r\n" */
-static char *http_get_request(char *path, int path_len, int *resp_len)
-{
-	int resp_sz = sizeof(resp)-1;
-	int head_sz = sizeof(success_head)-1;
-	int tot_sz, len_sz = 0;
-	char *r, *curr;
-	char len_str[MAX_SUPPORTED_DIGITS];
-
-	len_sz = snprintf(len_str, MAX_SUPPORTED_DIGITS, "%d\r\n\r\n", resp_sz);
-	if (MAX_SUPPORTED_DIGITS == len_sz || len_sz < 1) {
-		printc("length of response body too large");
-		*resp_len = 0;
-		return NULL;
-	}
-
-	tot_sz = head_sz + len_sz + resp_sz;
-	/* +1 for \0 so we can print the string */
-	curr = r = malloc(tot_sz + 1);
-	memcpy(curr, success_head, head_sz);
-	curr += head_sz;
-	memcpy(curr, len_str, len_sz);
-	curr += len_sz;
-	memcpy(curr, resp, resp_sz);
-	*resp_len = tot_sz;
-	r[tot_sz] = '\0';
-
-	return r;
-}
+extern long content_request(spdid_t spdid, long evt_id, struct cos_array *data);
+extern int content_retrieve(spdid_t spdid, long cr, struct cos_array *data, int *more);
+extern int content_close(spdid_t spdid, long cr);
 
 struct http_response {
 	char *resp;
 	int resp_len;
+	int more; 		/* is there more data to retrieve? */
 };
 
-struct http_request;
 struct connection {
 	int refcnt;
 	long conn_id, evt_id;
@@ -238,7 +213,7 @@ enum {HTTP_TYPE_TOP,
       HTTP_TYPE_GET};
 
 struct http_request {
-	long id;
+	long id, content_id;
 	int flags, type;
 	struct connection *c;
 	struct http_response resp;
@@ -248,6 +223,21 @@ struct http_request {
 
 	struct http_request *next, *prev;
 };
+
+static int http_get_request(struct http_request *r)
+{
+	struct cos_array *arg;
+	assert(r && r->c);
+
+	arg = cos_argreg_alloc(r->path_len + sizeof(struct cos_array));
+	assert(arg);
+	memcpy(arg->mem, r->path, r->path_len);
+	arg->sz = r->path_len;
+	r->content_id = content_request(cos_spd_id(), r->c->evt_id, arg);
+	cos_argreg_free(arg);
+	if (r->content_id < 0) return r->content_id;
+	return 0;
+}
 
 static int http_get(struct http_request *r)
 {
@@ -287,12 +277,9 @@ static int http_parse_request(struct http_request *r)
 
 static int http_make_request(struct http_request *r)
 {
-	struct http_response *hr;
-
-	hr = &r->resp;
 	switch (r->type) {
 	case HTTP_TYPE_GET:
-		hr->resp = http_get_request(r->path, r->path_len, &hr->resp_len);
+		return http_get_request(r);
 		break;
 	default:
 		printc("unknown request type\n");
@@ -351,6 +338,7 @@ static inline void http_init_request(struct http_request *r, int buff_len, struc
 	static long id = 0;
 
 	memset(r, 0, sizeof(struct http_request));
+	r->content_id = -1;
 	r->id = id++;
 	r->type = HTTP_TYPE_TOP;
 	r->c = c;
@@ -412,7 +400,7 @@ static void http_free_request(struct http_request *r)
 	if (c->pending_reqs == r) {
 		c->pending_reqs = (r == next) ? NULL : next;
 	}
-
+	content_close(cos_spd_id(), r->content_id);
 	conn_refcnt_dec(c);
 	__http_free_request(r);
 }
@@ -512,6 +500,9 @@ static int connection_parse_requests(struct connection *c, char *req, int req_sz
 		int start_amnt;
 
 		r = connection_handle_request(c, req, req_sz, &start_amnt);
+		/* TODO: here we should check if an error occurred and
+		 * the response can be sent.  If so set
+		 * HTTP_REQ_PROCESSED. */
 		if (NULL == r) return 1;
 		req = r->req + r->req_len;
 		req_sz = start_amnt - r->req_len;
@@ -534,6 +525,46 @@ static int connection_parse_requests(struct connection *c, char *req, int req_sz
 	return 0;
 }
 
+static const char success_head[] =
+	"HTTP/1.1 200 OK\r\n"
+	"Date: Sat, 14 Feb 2008 14:59:00 GMT\r\n"
+	"Content-Type: text/html\r\n"
+	"Content-Length: ";
+static const char resp[] = "all your base are belong to us\r\n";
+
+#define MAX_SUPPORTED_DIGITS 20
+
+/* Must prefix data by "content_length\r\n\r\n" */
+static int http_get_header(char *dest, int max_len, int content_len, int *resp_len)
+{
+	int resp_sz = content_len;
+	int head_sz = sizeof(success_head)-1;
+	int tot_sz, len_sz = 0;
+	char len_str[MAX_SUPPORTED_DIGITS];
+
+	len_sz = snprintf(len_str, MAX_SUPPORTED_DIGITS, "%d\r\n\r\n", resp_sz);
+	if (MAX_SUPPORTED_DIGITS == len_sz || len_sz < 1) {
+		printc("length of response body too large\n");
+		*resp_len = 0;
+		return -1;
+	}
+
+	tot_sz = head_sz + len_sz + resp_sz;
+	/* +1 for \0 so we can print the string */
+	if (tot_sz + 1 > max_len) {
+		*resp_len = 0;
+		return 1;
+	}
+	memcpy(dest, success_head, head_sz);
+	dest += head_sz;
+	memcpy(dest, len_str, len_sz);
+	dest += len_sz;
+	*resp_len = len_sz + head_sz;
+	dest[0] = '\0';
+
+	return 0;
+}
+
 static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 {
 	struct http_request *r;
@@ -548,18 +579,70 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 	if (NULL == r) return 0;
 	while (r) {
 		struct http_request *next;
-		char *r_resp  = r->resp.resp;
-		int r_resp_sz = r->resp.resp_len;
+		struct cos_array *arr;
+		char *local_resp;
+		int *more = NULL; 
+		int local_more, consumed, ret, local_resp_sz;
 
+		assert(r->c == c);
 		if (r->flags & HTTP_REQ_PENDING) break;
 		assert(r->flags & HTTP_REQ_PROCESSED);
-		if ((r_resp_sz + used) > resp_sz) {
+		assert(r->content_id >= 0);
+
+		/* Previously saved response? */
+		if (NULL != r->resp.resp) {
+			local_resp = r->resp.resp;
+			local_resp_sz = r->resp.resp_len;
+			local_more = r->resp.more;
+		} else {
+			/* Make the request to the content
+			 * component */
+			more = cos_argreg_alloc(sizeof(int));
+			assert(more);
+			arr = cos_argreg_alloc(sizeof(struct cos_array) + resp_sz - used);
+			assert(arr);
+
+			arr->sz = resp_sz - used;
+			if ((ret = content_retrieve(cos_spd_id(), r->content_id, arr, more))) {
+				/* FIXME send an error message. */
+				cos_argreg_free(arr);
+				cos_argreg_free(more);
+				assert(0);
+				return ret;
+			}
+			local_more = *more;
+			local_resp_sz = arr->sz;
+			local_resp = arr->mem;
+		}
+		ret = http_get_header(resp+used, resp_sz-used, local_resp_sz, &consumed);
+		/* If the header and data couldn't fit into the
+		 * provided buffer, then we need to save the response,
+		 * so that we can send it out later... */
+		if (ret) {
+			if (NULL == r->resp.resp) {
+				char *save;
+			
+				save = malloc(local_resp_sz);
+				assert(save);
+				memcpy(save, arr->mem, local_resp_sz);
+				cos_argreg_free(arr);
+				r->resp.more = *more;
+				cos_argreg_free(more);
+
+				r->resp.resp = save;
+				r->resp.resp_len = local_resp_sz;
+			}
 			if (0 == used) return -ENOMEM;
 			break;
 		}
+
+		memcpy(resp+used+consumed, local_resp, local_resp_sz);
 		
-		memcpy(resp+used, r_resp, r_resp_sz);
-		used += r_resp_sz;
+		if (NULL == r->resp.resp) {
+			cos_argreg_free(arr);
+			cos_argreg_free(more);
+		}
+		used += local_resp_sz + consumed;
 
 		next = r->next;
 		http_free_request(r);
@@ -585,8 +668,6 @@ static int connection_process_requests(struct connection *c, char *req, int req_
 	return connection_get_reply(c, resp, resp_sz);
 }
 
-extern int evt_trigger(spdid_t spdid, long extern_evt);
-
 int parse_write(spdid_t spdid, long connection_id, char *reqs, int sz)
 {
 	struct connection *c;
@@ -596,8 +677,6 @@ int parse_write(spdid_t spdid, long connection_id, char *reqs, int sz)
 	c = cos_map_lookup(&conn_map, connection_id);
 	if (NULL == c) return -EINVAL;
 	if (connection_parse_requests(c, reqs, sz)) return -EINVAL;
-
-	if (evt_trigger(cos_spd_id(), c->evt_id)) assert(0);
 	
 	return sz;
 }

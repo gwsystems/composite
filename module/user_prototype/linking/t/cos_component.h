@@ -349,6 +349,22 @@ static inline int cos_argreg_free(void *p)
 	return 0;
 }
 
+/* 
+ * This is a useful argument to pass between components when data must
+ * pass boundaries.  It is a "size" of the memory region + the memory
+ * region itself.
+ */
+struct cos_array {
+	int sz;
+	char mem[0];
+};
+
+static inline int cos_argreg_arr_intern(struct cos_array *ca)
+{
+	if (!cos_argreg_buff_intern((char*)ca, sizeof(struct cos_array))) return 0;
+	if (!cos_argreg_buff_intern(ca->mem, ca->sz)) return 0;
+	return 1;
+}
 
 #define prevent_tail_call(ret) __asm__ ("" : "=r" (ret) : "m" (ret))
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))

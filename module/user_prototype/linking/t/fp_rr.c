@@ -1,10 +1,10 @@
 /**
- * Copyright 2008 by Boston University.  All rights reserved.
+ * Copyright 2008 by Boston University.
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  *
- * Initial Author: Gabriel Parmer, gabep1@cs.bu.edu
+ * Author: Gabriel Parmer, gabep1@cs.bu.edu
  */
 
 #define COS_FMT_PRINT
@@ -1218,13 +1218,25 @@ static void fp_kill_thd(void)
 	assert(0);
 }
 
+static struct sched_thd *fp_init_component(char *comp, int prio)
+{
+	int target_spdid;
+	struct sched_thd *new;
+
+	target_spdid = spd_name_map_id(comp);
+	assert(target_spdid != -1);
+	new = sched_setup_thread_arg(prio, prio, fp_create_spd_thd, (void*)target_spdid);
+	printc("%s thread has id %d and priority %d. %d\n", comp, new->id, prio, 0);
+	
+	return new;
+}
+
 int sched_init(void)
 {
 	static int first = 1;
 	int i;
 	unsigned int b_id;
 	struct sched_thd *new;//, *new2;
-	int target_spdid;
 
 //#define MICRO_INV
 #ifdef MICRO_INV
@@ -1258,54 +1270,23 @@ int sched_init(void)
 	idle = sched_setup_thread(IDLE_PRIO, IDLE_PRIO, fp_idle_loop);
 	printc("Idle thread has id %d with priority %d. %d\n", idle->id, IDLE_PRIO, 0);
 
-	target_spdid = spd_name_map_id("te.o");
-	assert(target_spdid != -1);
-	new = sched_setup_thread_arg(TIME_EVENT_PRIO, TIME_EVENT_PRIO, fp_create_spd_thd, (void*)target_spdid);
-	printc("Timeout thread has id %d and priority %d. %d\n", new->id, TIME_EVENT_PRIO, 0);
-
-	/* event thread */
-	target_spdid = spd_name_map_id("e.o");
-	assert(target_spdid != -1);
-	new = sched_setup_thread_arg(TIME_EVENT_PRIO, TIME_EVENT_PRIO, fp_create_spd_thd, (void*)target_spdid);
-	printc("event thread has id %d and priority %d. %d\n", new->id, TIME_EVENT_PRIO, 0);
+	fp_init_component("te.o", TIME_EVENT_PRIO);
+	fp_init_component("e.o", TIME_EVENT_PRIO);
 
 	/* normal threads: */
+
 	/* lock thread */
-	target_spdid = spd_name_map_id("l.o");
-	assert(target_spdid != -1);
-	new = sched_setup_thread_arg(TIME_EVENT_PRIO, TIME_EVENT_PRIO, fp_create_spd_thd, (void*)target_spdid);
-	printc("lock thread has id %d and priority %d. %d\n", new->id, TIME_EVENT_PRIO, 0);
+	fp_init_component("l.o", NORMAL_PRIO_HI+4);
+	fp_init_component("fd.o", NORMAL_PRIO_HI+4);
+	fp_init_component("http.o", NORMAL_PRIO_HI+4);
+	fp_init_component("conn.o", NORMAL_PRIO_HI+4);
+	fp_init_component("cm.o", NORMAL_PRIO_HI+4);
+	fp_init_component("sc.o", NORMAL_PRIO_HI+4);
 
-	target_spdid = spd_name_map_id("fd.o");
-	assert(target_spdid != -1);
-	new = sched_setup_thread_arg(NORMAL_PRIO_HI+4, NORMAL_PRIO_HI+4, fp_create_spd_thd, (void*)target_spdid);
-	printc("fd thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+4, 0);
+	mpd = fp_init_component("mpd.o", MPD_PRIO);
+	fp_init_component("stat.o", NORMAL_PRIO_LO+1);
 
-	target_spdid = spd_name_map_id("http.o");
-	assert(target_spdid != -1);
-	new = sched_setup_thread_arg(NORMAL_PRIO_HI+4, NORMAL_PRIO_HI+4, fp_create_spd_thd, (void*)target_spdid);
-	printc("http thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+4, 0);
-
-	target_spdid = spd_name_map_id("conn.o");
-	assert(target_spdid != -1);
-	new = sched_setup_thread_arg(NORMAL_PRIO_HI+4, NORMAL_PRIO_HI+4, fp_create_spd_thd, (void*)target_spdid);
-	printc("conn thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+4, 0);
-
-	target_spdid = spd_name_map_id("mpd.o");
-	assert(target_spdid != -1);
-	mpd = sched_setup_thread_arg(MPD_PRIO, MPD_PRIO, fp_create_spd_thd, (void*)target_spdid);
-	printc("MPD thread has id %d and priority %d. %d\n", mpd->id, MPD_PRIO, 0);
-
-	target_spdid = spd_name_map_id("stat.o");
-	assert(target_spdid != -1);
-	new = sched_setup_thread_arg(NORMAL_PRIO_LO+1, NORMAL_PRIO_LO+1, fp_create_spd_thd, (void*)target_spdid);
-	printc("Stats thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_LO+1, 0);
-
-	target_spdid = spd_name_map_id("net.o");
-	assert(target_spdid != -1);
-	new = sched_setup_thread_arg(NORMAL_PRIO_HI+1, NORMAL_PRIO_HI+1, fp_create_spd_thd, (void*)target_spdid);
-	printc("Network thread has id %d and priority %d. %d\n", new->id, NORMAL_PRIO_HI+1, 0);
-
+	fp_init_component("net.o", NORMAL_PRIO_HI+1);
 	/* Create the clock tick (timer) thread */
 	timer = sched_setup_upcall_thread(cos_spd_id(), TIMER_TICK_PRIO, TIMER_TICK_PRIO, &b_id);
 	printc("Timer thread has id %d with priority %d. %d\n", timer->id, TIMER_TICK_PRIO, TIMER_TICK_PRIO);

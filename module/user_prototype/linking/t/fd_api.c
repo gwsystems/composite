@@ -1,9 +1,10 @@
 /**
- * Copyright 2008 by Gabriel Parmer, gabep1@cs.bu.edu.  All rights
- * reserved.
+ * Copyright 2008 by Boston University.
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
+ *
+ * Author:  Gabriel Parmer, gabep1@cs.bu.edu
  */
 
 #define COS_FMT_PRINT
@@ -65,10 +66,7 @@ static inline int fd_get_index(struct descriptor *d)
 
 static inline struct descriptor *fd_get_desc(int fd)
 {
-	struct descriptor *d;
-
-	d = cos_map_lookup(&fds, fd);
-	return d;
+	return cos_map_lookup(&fds, fd);
 }
 
 static struct descriptor *fd_alloc(desc_t t)
