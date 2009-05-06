@@ -84,12 +84,12 @@ static struct provider_fns *route_lookup(char *path, int sz)
 	if (sz > MAX_PATH) return NULL;
 	for (i = 0 ; routing_tbl[i].prefix != NULL ; i++) {
 		struct route *r = &routing_tbl[i];
-		int path_len, prefix_len, min;
+		int path_len, prefix_len;
 		
 		path_len = strnlen(path, sz);
-		prefix_len = strnlen(path, sz);
-		min = path_len > prefix_len ? prefix_len : path_len;
-		if (0 == strncmp(r->prefix, path, min)) {
+		prefix_len = strlen(r->prefix);
+		if (path_len != prefix_len) continue;
+		if (0 == strncmp(r->prefix, path, path_len)) {
 			return &r->fns;
 		}
 	}
@@ -159,7 +159,8 @@ content_req_t content_request(spdid_t spdid, long evt_id, struct cos_array *data
 	fns = route_lookup(data->mem, data->sz);
 	r = request_alloc(fns, evt_id, spdid);
 	if (NULL == r) return -ENOMEM;
-	
+
+	assert(fns && fns->request);
 	r->child_id = fns->request(cos_spd_id(), evt_id, data);
 	if (r->child_id < 0) {
 		content_req_t err = r->child_id;
@@ -177,7 +178,7 @@ int content_retrieve(spdid_t spdid, content_req_t cr, struct cos_array *data, in
 	r = request_find(cr);
 	if (NULL == r) return -EINVAL;
 
-	assert(r->fns);
+	assert(r->fns && r->fns->retrieve);
 	return r->fns->retrieve(cos_spd_id(), r->child_id, data, more);
 }
 
@@ -189,7 +190,7 @@ int content_close(spdid_t spdid, content_req_t cr)
 
 	r = request_find(cr);
 	if (NULL == r) return -EINVAL;
-	assert(r->fns);
+	assert(r->fns && r->fns->close);
 	c = r->fns->close;
 	request_free(r);
 	
