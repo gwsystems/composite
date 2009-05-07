@@ -16,16 +16,44 @@
 typedef long content_req_t;
 extern int evt_trigger(spdid_t spdid, long extern_evt);
 
+struct static_content {
+	content_req_t id;
+	long evt_id;
+};
+
 COS_MAP_CREATE_STATIC(static_requests);
 
-content_req_t static_request(spdid_t spdid, long evt_id, struct cos_array *data)
+content_req_t static_open(spdid_t spdid, long evt_id, struct cos_array *data)
 {
-	content_req_t id = cos_map_add(&static_requests, (void*)evt_id);
-
-	if (id == -1) return -ENOMEM;
-	evt_trigger(cos_spd_id(), evt_id);
+	struct static_content *sc = malloc(sizeof(struct static_content));
+	content_req_t id;
+	
+	if (NULL == sc) return -ENOMEM;
+	id = cos_map_add(&static_requests, sc);
+	if (id == -1) {
+		free(sc);
+		return -ENOMEM;
+	}
+	sc->id = id;
+	sc->evt_id = evt_id;
 
 	return id;
+}
+
+int static_request(spdid_t spdid, content_req_t cr, struct cos_array *data)
+{
+	struct static_content *sc;
+	long evt_id;
+
+//	if (!cos_argreg_arr_intern(data)) return -EINVAL;
+
+	sc = cos_map_lookup(&static_requests, cr);
+	if (NULL == sc) return -EINVAL;
+	evt_id = sc->evt_id;
+	/* Data available immediately */
+	evt_trigger(cos_spd_id(), evt_id);
+
+	return 0;
 }
 
 static const char msg[] = "All your base are belong to us";
@@ -43,7 +71,13 @@ int static_retrieve(spdid_t spdid, content_req_t cr, struct cos_array *data, int
 
 int static_close(spdid_t spdid, content_req_t cr)
 {
+	struct static_content *sc;
+
+	sc = cos_map_lookup(&static_requests, cr);
+	if (NULL == sc) return -EINVAL;
 	cos_map_del(&static_requests, cr);
+	free(sc);
+
 	return 0;
 }
 

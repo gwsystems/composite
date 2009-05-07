@@ -351,7 +351,7 @@ static void mpd_init(void)
 		cos_cap_cntl(graph[i].client, graph[i].server, 0);	
 	}
 
-//	mpd_merge_all(graph);
+	mpd_merge_all(graph);
 	mpd_loop(graph);
 	assert(0);
 	return;

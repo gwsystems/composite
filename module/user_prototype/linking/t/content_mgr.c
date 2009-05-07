@@ -19,51 +19,61 @@
 
 typedef long content_req_t;
 
-typedef content_req_t (*content_request_fn_t)(spdid_t spdid, long evt_id, struct cos_array *data);
+typedef content_req_t (*content_open_fn_t)(spdid_t spdid, long evt_id, struct cos_array *data);
+typedef int (*content_request_fn_t)(spdid_t spdid, content_req_t cr, struct cos_array *data);
 typedef int (*content_retrieve_fn_t)(spdid_t spdid, content_req_t cr, struct cos_array *data, int *more);
 typedef int (*content_close_fn_t)(spdid_t spdid, content_req_t cr);
 
-extern content_req_t static_request(spdid_t spdid, long evt_id, struct cos_array *data);
+extern content_req_t static_open(spdid_t spdid, long evt_id, struct cos_array *data);
+extern int static_request(spdid_t spdid, content_req_t cr, struct cos_array *data);
 extern int static_retrieve(spdid_t spdid, content_req_t cr, struct cos_array *data, int *more);
 extern int static_close(spdid_t spdid, content_req_t cr);
 
 struct provider_fns {
+	content_open_fn_t     open;
 	content_request_fn_t  request;
 	content_retrieve_fn_t retrieve;
 	content_close_fn_t    close;
 };
 
+struct provider_fns static_content = {
+	.open = static_open,
+	.request = static_request,
+	.retrieve = static_retrieve,
+	.close = static_close
+};
+
 struct route {
 	char *prefix;
-	struct provider_fns fns;
+	struct provider_fns *fns;
 };
 
 #define MAX_PATH 128
 
+/* 
+ * More specific (longer) prefixes should go first.  This lookup is
+ * done like routing table lookups, from the top down, choosing
+ * matches as they are found.  Thus even though a more general path
+ * might exist that matches the path, it will not be chosen if a more
+ * specific path exists above it.
+ */
 struct route routing_tbl[] = {
-	{
-		.prefix = "/cgi", 
-		.fns = {
-			.request = NULL,
-			.retrieve = NULL,
-			.close = NULL
-		}
-	},
+/* 	{ */
+/* 		.prefix = "/cgi",  */
+/* 		.fns = { */
+/* 			.open = NULL, */
+/* 			.request = NULL, */
+/* 			.retrieve = NULL, */
+/* 			.close = NULL */
+/* 		} */
+/* 	}, */
 	{
 		.prefix = "/", 
-		.fns = {
-			.request = static_request,
-			.retrieve = static_retrieve,
-			.close = static_close
-		}
+		.fns = &static_content
 	},
 	{
 		.prefix = NULL, 
-		.fns = {
-			.request = NULL,
-			.retrieve = NULL,
-			.close = NULL
-		}
+		.fns = NULL
 	}
 };
 
@@ -71,6 +81,7 @@ static inline int strnlen(char *s, int max)
 {
 	int i;
 
+	assert(s);
 	for (i = 0 ; i < max ; i++) {
 		if (s[i] == '\0') return i;
 	}
@@ -81,16 +92,19 @@ static struct provider_fns *route_lookup(char *path, int sz)
 {
 	int i;
 
+	assert(path);
 	if (sz > MAX_PATH) return NULL;
 	for (i = 0 ; routing_tbl[i].prefix != NULL ; i++) {
 		struct route *r = &routing_tbl[i];
 		int path_len, prefix_len;
-		
+		if (NULL == r->prefix) return NULL;
+
 		path_len = strnlen(path, sz);
 		prefix_len = strlen(r->prefix);
-		if (path_len != prefix_len) continue;
-		if (0 == strncmp(r->prefix, path, path_len)) {
-			return &r->fns;
+		if (path_len < prefix_len) continue;
+
+		if (0 == strncmp(r->prefix, path, prefix_len)) {
+			return r->fns;
 		}
 	}
 	return NULL;
@@ -146,8 +160,7 @@ static void request_free(struct content_req *req)
 	free(req);
 }
 
-/* type = content_request_fn_t */
-content_req_t content_request(spdid_t spdid, long evt_id, struct cos_array *data)
+content_req_t content_open(spdid_t spdid, long evt_id, struct cos_array *data)
 {
 	struct provider_fns *fns;
 	struct content_req *r;
@@ -157,17 +170,30 @@ content_req_t content_request(spdid_t spdid, long evt_id, struct cos_array *data
 	if (evt_id < 0) return -EINVAL;
 
 	fns = route_lookup(data->mem, data->sz);
+	if (NULL == fns) return -EINVAL;
 	r = request_alloc(fns, evt_id, spdid);
 	if (NULL == r) return -ENOMEM;
 
-	assert(fns && fns->request);
-	r->child_id = fns->request(cos_spd_id(), evt_id, data);
+	assert(fns && fns->open);
+	r->child_id = fns->open(cos_spd_id(), evt_id, data);
 	if (r->child_id < 0) {
 		content_req_t err = r->child_id;
 		request_free(r);
 		return err;
 	}
 	return r->id;
+}
+
+/* type = content_request_fn_t */
+int content_request(spdid_t spdid, content_req_t cr, struct cos_array *data)
+{
+	struct content_req *r;
+
+	r = request_find(cr);
+	if (NULL == r) return -EINVAL;
+
+	assert(r->fns && r->fns->request);
+	return r->fns->request(cos_spd_id(), r->child_id, data);
 }
 
 /* type = content_retrieve_fn_t */

@@ -1159,7 +1159,8 @@ int net_accept_data(spdid_t spdid, net_connection_t nc, long data)
 	ic->data = data;
 	/* If data has already arrived, but couldn't trigger the event
 	 * because ->data was not set, trigger the event now. */
-	if (0 < ic->incoming_size) evt_trigger(cos_spd_id(), data);
+	if (0 < ic->incoming_size && 
+	    evt_trigger(cos_spd_id(), data)) goto err;
 	NET_LOCK_RELEASE();
 
 	return 0;	

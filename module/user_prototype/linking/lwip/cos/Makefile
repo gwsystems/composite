@@ -38,7 +38,7 @@ CC=gcc
 #ARCH=openbsd
 #gap: CFLAGS=-g -Wall -pedantic -D$(ARCH) -DIPv4 -Os -fpack-struct -DLWIP_DEBUG
 OPT=-O3 #-ggdb3
-CFLAGS=-Wall -DIPv4 -nostdinc -nostdlib
+CFLAGS=-Wall -DIPv4 -nostdinc -nostdlib $(OPT)
 ARFLAGS=rs
 
 #Set this to where you have the lwip core module checked out from CVS

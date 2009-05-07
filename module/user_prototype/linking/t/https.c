@@ -174,7 +174,8 @@ malformed_request:
 	return -1;
 }
 
-extern long content_request(spdid_t spdid, long evt_id, struct cos_array *data);
+extern long content_open(spdid_t spdid, long evt_id, struct cos_array *data);
+extern int content_request(spdid_t spdid, long cr, struct cos_array *data);
 extern int content_retrieve(spdid_t spdid, long cr, struct cos_array *data, int *more);
 extern int content_close(spdid_t spdid, long cr);
 
@@ -227,16 +228,23 @@ struct http_request {
 static int http_get_request(struct http_request *r)
 {
 	struct cos_array *arg;
+	int ret;
 	assert(r && r->c);
 
 	arg = cos_argreg_alloc(r->path_len + sizeof(struct cos_array));
 	assert(arg);
 	memcpy(arg->mem, r->path, r->path_len);
 	arg->sz = r->path_len;
-	r->content_id = content_request(cos_spd_id(), r->c->evt_id, arg);
+	if (0 > r->content_id ) {
+		r->content_id = content_open(cos_spd_id(), r->c->evt_id, arg);
+		if (r->content_id < 0) {
+			cos_argreg_free(arg);
+			return r->content_id;
+		}
+	}
+	ret = content_request(cos_spd_id(), r->content_id, arg);
 	cos_argreg_free(arg);
-	if (r->content_id < 0) return r->content_id;
-	return 0;
+	return ret;
 }
 
 static int http_get(struct http_request *r)
@@ -514,7 +522,7 @@ static int connection_parse_requests(struct connection *c, char *req, int req_sz
 	do {
 		if (!(r->flags & (HTTP_REQ_PENDING | HTTP_REQ_PROCESSED))) {
 			if (http_make_request(r)) {
-				printc("Could not process response.\n");
+				printc("https: Could not process response.\n");
 				return -1;
 			}
 			if (!(r->flags & HTTP_REQ_PENDING)) r->flags |= HTTP_REQ_PROCESSED;
@@ -530,7 +538,7 @@ static const char success_head[] =
 	"Date: Sat, 14 Feb 2008 14:59:00 GMT\r\n"
 	"Content-Type: text/html\r\n"
 	"Content-Length: ";
-static const char resp[] = "all your base are belong to us\r\n";
+//static const char resp[] = "all your base are belong to us\r\n";
 
 #define MAX_SUPPORTED_DIGITS 20
 
@@ -579,7 +587,7 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 	if (NULL == r) return 0;
 	while (r) {
 		struct http_request *next;
-		struct cos_array *arr;
+		struct cos_array *arr = NULL;
 		char *local_resp;
 		int *more = NULL; 
 		int local_more, consumed, ret, local_resp_sz;
@@ -624,6 +632,7 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 			
 				save = malloc(local_resp_sz);
 				assert(save);
+				assert(arr);
 				memcpy(save, arr->mem, local_resp_sz);
 				cos_argreg_free(arr);
 				r->resp.more = *more;

@@ -1,9 +1,10 @@
 /**
- * Copyright 2008 by Gabriel Parmer, gabep1@cs.bu.edu.  All rights
- * reserved.
+ * Copyright 2008 by Boston University.  All rights reserved.
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
+ *
+ * Author: Gabriel Parmer, gabep1@cs.bu.edu, 2008.
  */
 
 #define COS_FMT_PRINT
@@ -15,7 +16,7 @@
 #include <cos_list.h>
 #include <print.h>
 #include <cos_map.h>
-#include <cos_vect.h>
+//#include <cos_vect.h>
 
 #include <errno.h>
 
@@ -55,7 +56,7 @@ extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
 extern int sched_block(spdid_t spdid);
 
 /* A mapping between event ids and actual events */
-COS_VECT_CREATE_STATIC(evt_map);
+COS_MAP_CREATE_STATIC(evt_map);
 cos_lock_t evt_lock;
 
 struct evt_grp grps;
@@ -64,20 +65,22 @@ struct evt_grp grps;
  * mapping_* functions are for maintaining mappings between an
  * external event and an event structure 
  */
-static int mapping_create(long extern_evt, struct evt *e)
+static long mapping_create(struct evt *e)
 {
-	if (extern_evt != cos_vect_add_id(&evt_map, e, extern_evt)) return -1;
-	return 0;
+	return cos_map_add(&evt_map, e);
 }
 
 static inline struct evt *mapping_find(long extern_evt)
 {
-	return (struct evt*)cos_vect_lookup(&evt_map, extern_evt);
+	struct evt *e = cos_map_lookup(&evt_map, extern_evt);
+	if (NULL == e) return e;
+	assert(e->extern_id == extern_evt);
+	return e;
 }
 
 static void mapping_free(long extern_evt)
 {
-	if (cos_vect_del(&evt_map, extern_evt)) assert(0);
+	if (cos_map_del(&evt_map, extern_evt)) assert(0);
 }
 
 /* 
@@ -140,7 +143,7 @@ static inline int evt_grp_add(struct evt_grp *g)
  * is never good, but the code is much simpler for it.  A trade-off
  * I'm commonly making now.
  */
-int evt_create(spdid_t spdid, long extern_evt)
+long evt_create(spdid_t spdid)
 {
 	u16_t tid = cos_get_thd_id();
 	struct evt_grp *g;
@@ -148,12 +151,6 @@ int evt_create(spdid_t spdid, long extern_evt)
 	int ret = -ENOMEM;
 
 	lock_take(&evt_lock);
-	/* If the mapping exists, it's event better have the group
-	 * associated with this thread. */
-	if (NULL != mapping_find(extern_evt)) {
-		ret = -EEXIST;
-		goto err; 	/* shouldn't allow recreation of events */
-	}
 	g = evt_grp_find(tid);
 	/* If the group associated with this thread hasn't been
 	 * created yet. */
@@ -170,12 +167,14 @@ int evt_create(spdid_t spdid, long extern_evt)
 		e = __evt_new(g);
 		if (NULL == e) goto err;
 	}
-	e->extern_id = extern_evt;
-	if (mapping_create(extern_evt, e)) goto err;
+	e->extern_id = mapping_create(e);
+	if (0 > e->extern_id) goto free_evt_err;
 
 	lock_release(&evt_lock);
 
-	return 0;
+	return e->extern_id;
+free_evt_err:
+	__evt_free(e);
 err:
 	lock_release(&evt_lock);
 	return ret;
@@ -201,8 +200,6 @@ long evt_grp_wait(spdid_t spdid)
 	struct evt_grp *g;
 	struct evt *e = NULL;
 	long extern_evt;
-
-//	printc("evt_grp_wait");
 
 	while (1) {
 		lock_take(&evt_lock);
@@ -300,7 +297,7 @@ err:
 static void init_evts(void)
 {
 	lock_static_init(&evt_lock);
-	cos_vect_init_static(&evt_map);
+	cos_map_init_static(&evt_map);
 	INIT_LIST(&grps, next, prev);
 }
 

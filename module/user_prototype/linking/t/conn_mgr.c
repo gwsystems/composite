@@ -89,11 +89,13 @@ static void data_new(int fd)
 			set_fd_pair(fd_pair, -1);
 			break;
 		} else if (amnt < 0) {
-			printc("read from fd %d produced %d.", fd, amnt);
+			printc("read from fd %d produced %d.\n", fd, amnt);
 			assert(0);
 		}
 		if (amnt != (ret = cos_write(fd_pair, buf, amnt))) {
-			printc("conn_mgr: write failed w/ %d on fd %d", ret, fd_pair);
+			cos_close(fd_pair);
+			cos_close(fd);
+			printc("conn_mgr: write failed w/ %d on fd %d\n", ret, fd_pair);
 			assert(0);
 		}
 	}
