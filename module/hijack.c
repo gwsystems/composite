@@ -6,7 +6,7 @@
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  *
- * Initial author: Gabriel Parmer, gabep1@cs.bu.edu, 2007
+ * Author: Gabriel Parmer, gabep1@cs.bu.edu, 2007
  */
 
 #include <linux/module.h>

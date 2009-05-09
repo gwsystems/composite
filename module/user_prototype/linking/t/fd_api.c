@@ -322,10 +322,10 @@ err:
 /* 
  * http (app specific) parsing specific services
  */
-extern int parse_write(spdid_t spdid, long connection_id, char *reqs, int sz);
-extern int parse_read(spdid_t spdid, long connection_id, char *buff, int sz);
-extern long parse_open_connection(spdid_t spdid, long evt_id);
-extern int parse_close_connection(spdid_t spdid, long conn_id);
+extern int content_write(spdid_t spdid, long connection_id, char *reqs, int sz);
+extern int content_read(spdid_t spdid, long connection_id, char *buff, int sz);
+extern long content_create(spdid_t spdid, long evt_id, struct cos_array *d);
+extern int content_remove(spdid_t spdid, long conn_id);
 
 static int fd_app_close(int fd, struct descriptor *d)
 {
@@ -334,7 +334,7 @@ static int fd_app_close(int fd, struct descriptor *d)
 	assert(d->type == DESC_HTTP);
 
 	conn_id = (long)d->data;
-	parse_close_connection(cos_spd_id(), conn_id);
+	content_remove(cos_spd_id(), conn_id);
 	evt_free(cos_spd_id(), d->evt_id);
 	FD_LOCK_RELEASE();
 	
@@ -352,7 +352,7 @@ static int fd_app_read(int fd, struct descriptor *d, char *buff, int sz)
 	assert(d->type == DESC_HTTP);
 	conn_id = (long)d->data;
 	FD_LOCK_RELEASE();
-	return parse_read(cos_spd_id(), conn_id, buff, sz);
+	return content_read(cos_spd_id(), conn_id, buff, sz);
 }
 
 static int fd_app_write(int fd, struct descriptor *d, char *buff, int sz)
@@ -362,7 +362,7 @@ static int fd_app_write(int fd, struct descriptor *d, char *buff, int sz)
 	assert(d->type == DESC_HTTP);
 	conn_id = (long)d->data;
 	FD_LOCK_RELEASE();
-	return parse_write(cos_spd_id(), conn_id, buff, sz);
+	return content_write(cos_spd_id(), conn_id, buff, sz);
 }
 
 int cos_app_open(int type)
@@ -389,7 +389,7 @@ int cos_app_open(int type)
 	d->ops.read  = fd_app_read;
 	d->ops.write = fd_app_write;
 
-	conn_id = parse_open_connection(cos_spd_id(), evt_id);
+	conn_id = content_create(cos_spd_id(), evt_id, NULL);
 	if (conn_id < 0) goto err_cleanup;
 	d->data = (void *)conn_id;
 	FD_LOCK_RELEASE();

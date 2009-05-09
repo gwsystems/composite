@@ -202,7 +202,7 @@ static void mpd_report(const struct comp_graph *g)
 	for (i = 0 ; g[i].client && g[i].server ; i++) {
 		unsigned long amnt;
 		amnt = cos_cap_cntl(g[i].client, g[i].server, 0);
-		printc("\t%d->%d w/ %d invocations.\n", g[i].client, g[i].server, (unsigned int)amnt);
+		printc("\t%d->%d:%d\n", g[i].client, g[i].server, (unsigned int)amnt);
 	}
 }
 
@@ -232,7 +232,7 @@ static void mpd_loop(struct comp_graph *g)
 
 	while (1) {
 		/* currently timeouts are expressed in ticks */
-		timed_event_block(cos_spd_id(), 24);
+		timed_event_block(cos_spd_id(), 21);
 
 		if (idx == 14 || (idx + 1) == 14) {
 //			mpd_merge_all(g);

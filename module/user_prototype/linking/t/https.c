@@ -677,7 +677,7 @@ static int connection_process_requests(struct connection *c, char *req, int req_
 	return connection_get_reply(c, resp, resp_sz);
 }
 
-int parse_write(spdid_t spdid, long connection_id, char *reqs, int sz)
+int content_write(spdid_t spdid, long connection_id, char *reqs, int sz)
 {
 	struct connection *c;
 
@@ -690,7 +690,7 @@ int parse_write(spdid_t spdid, long connection_id, char *reqs, int sz)
 	return sz;
 }
 
-int parse_read(spdid_t spdid, long connection_id, char *buff, int sz)
+int content_read(spdid_t spdid, long connection_id, char *buff, int sz)
 {
 	struct connection *c;
 	
@@ -712,7 +712,7 @@ static int http_read_write(spdid_t spdid, long connection_id, char *reqs, int re
 	return connection_process_requests(c, reqs, req_sz, resp, resp_sz);
 }
 
-long parse_open_connection(spdid_t spdid, long evt_id)
+long content_create(spdid_t spdid, long evt_id, struct cos_array *d)
 {
 	struct connection *c = http_new_connection(0, evt_id);
 	long c_id;
@@ -729,7 +729,7 @@ long parse_open_connection(spdid_t spdid, long evt_id)
 	return c_id;
 }
 
-int parse_close_connection(spdid_t spdid, long conn_id)
+int content_remove(spdid_t spdid, long conn_id)
 {
 	struct connection *c = cos_map_lookup(&conn_map, conn_id);
 

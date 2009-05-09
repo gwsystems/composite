@@ -123,7 +123,6 @@ static int __evt_grp_read(struct evt_grp *g, struct evt **evt)
 			e = FIRST_LIST(&g->triggered[i], next, prev);
 			assert(e != &g->triggered[i]);
 			REM_LIST(e, next, prev);
-			if (e->status != EVT_TRIGGERED) printc("event %ld, status %d", e->extern_id, e->status);
 			assert(e->status == EVT_TRIGGERED);
 			e->status = EVT_INACTIVE;
 			g->status = EVTG_INACTIVE;
@@ -144,9 +143,12 @@ static int __evt_read(struct evt *e)
 	assert(NULL != e);
 	assert(e->status != EVT_BLOCKED);
 	g = e->grp;
-	assert(NULL != g);
+	assert(NULL != g && g->status != EVTG_BLOCKED);
 	if (cos_get_thd_id() != g->tid) return -1;
 	if (EVT_TRIGGERED == e->status) {
+		/* remove from the triggered list */
+		REM_LIST(e, next, prev);
+		ADD_LIST(&g->events, e, next, prev);
 		e->status = EVT_INACTIVE;
 		return 1;
 	}
