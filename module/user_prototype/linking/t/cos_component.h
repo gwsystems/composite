@@ -52,6 +52,12 @@ void *cos_heap_ptr;
  */
 
 /* 
+ * The ABI for syscalls regarding registers is that any registers you
+ * want saved, must be saved by you.  This is why the extensive
+ * clobber list is used in the inline assembly for making the syscall.
+ */
+
+/* 
  * The extra asm below is rediculous as gcc doesn't let us clobber
  * registers already in the input/output positions, but we DO clobber
  * them in this operation.  I can't clobber ebp in the clobber list,
@@ -116,7 +122,7 @@ cos_syscall_2(2, int, print, char*, str, int, len);
 //cos_syscall_3(3, int, create_thread, create_thd_fn_t, fn, vaddr_t, stack, void*, data);
 cos_syscall_3(3, int, create_thread, int, a, int, b, int, c);
 cos_syscall_2(4, int, __switch_thread, int, thd_id, int, flags);
-cos_syscall_2(5, int, kill_thd, int, kill_thdid, int, switchto_thdid);
+cos_syscall_1(5, int, __brand_wait, int, thdid);
 cos_syscall_3(6, int, __brand_upcall, int, thd_id_flags, long, arg1, long, arg2);
 cos_syscall_3(7, int, brand_cntl, int, thd_id, int, flags, spdid_t, spdid);
 cos_syscall_1(8, int, upcall, int, spd_id);

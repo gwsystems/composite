@@ -844,15 +844,6 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	return &thd->regs;
 }
 
-extern void cos_syscall_kill_thd(int thd_id);
-COS_SYSCALL void cos_syscall_kill_thd_cont(int spd_id, int thd_id)
-{
-	printk("cos: killing threads not yet supported.\n");
-
-	return;
-
-}
-
 static struct thread *upcall_setup(struct thread *uc, struct spd *dest, upcall_type_t option,
 				   long arg1, long arg2, long arg3)
 {
@@ -1049,6 +1040,35 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 //#ifdef BRAND_UL_LATENCY
 unsigned int glob_hack_arg;
 #endif
+
+
+extern void cos_syscall_brand_wait(int spd_id, int thread_id_flags);
+COS_SYSCALL struct pt_regs *cos_syscall_brand_wait_cont(int spd_id, unsigned short int bid, long *preempt)
+{
+	struct thread *curr, *brand, *preempted, *next;
+	struct spd *curr_spd;
+
+	curr = thd_get_current();
+	curr_spd = thd_validate_get_current_spd(curr, spd_id);
+	if (unlikely(NULL == curr_spd)) {
+		printk("cos: component claimed in spd %d, but not\n", spd_id);
+		goto brand_wire_err;		
+	}
+	brand = thd_get_by_id(bid);
+	if (unlikely(NULL == brand)) {
+		printk("cos: Attempting to wait for brand thd %d - invalid thread.\n", bid);
+		goto brand_wire_err;
+	}
+
+	next = preempted = brand;
+
+	return &next->regs;
+
+brand_wire_err:
+	curr->regs.eax = -1;
+	return &curr->regs;
+}
+
 
 extern void cos_syscall_brand_upcall(int spd_id, int thread_id_flags);
 COS_SYSCALL struct pt_regs *cos_syscall_brand_upcall_cont(int spd_id, int thread_id_flags, int arg1, int arg2)
@@ -2708,7 +2728,7 @@ void *cos_syscall_tbl[16] = {
 	(void*)cos_syscall_print,
 	(void*)cos_syscall_create_thread,
 	(void*)cos_syscall_switch_thread,
-	(void*)cos_syscall_kill_thd,
+	(void*)cos_syscall_void,
 	(void*)cos_syscall_brand_upcall,
 	(void*)cos_syscall_brand_cntl,
 	(void*)cos_syscall_upcall,
