@@ -104,3 +104,26 @@ void cos_meas_report(void)
 }
 
 #endif
+
+
+#ifdef COS_RECORD_EVTS
+
+struct exec_evt recorded_evts[COS_EVTS_NUM];
+int evts_head = 0;
+
+void event_print(void)
+{
+	int i, last;
+	unsigned long long ts;
+
+	last = (evts_head + (COS_EVTS_NUM-1)) & COS_EVTS_MASK;
+	cos_rdtscll(ts);
+	printk("cos: Most recent events (head %d, pre %d) @ %lld.\n", evts_head, last, ts);
+	for (i = evts_head ; 1 ; i = (i+1) & COS_EVTS_MASK) {
+		struct exec_evt *e = &recorded_evts[i];
+		printk("cos:\t%d:%s (%ld, %ld) @ %lld\n", i, e->msg, e->a, e->b, e->timestamp);
+		if (i == last) break;
+	}
+}
+
+#endif

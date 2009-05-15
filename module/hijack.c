@@ -1622,11 +1622,15 @@ int fault_ptr = 0;
 struct fault_info {
 	vaddr_t addr, ip, sp, a, b, c, d, D, S, bp;
 	unsigned short int spdid, thdid;
+	unsigned long long timestamp;
 } faults[NFAULTS];
 
 static void cos_report_fault(struct thread *t, vaddr_t fault_addr, struct pt_regs *regs)
 {
 	struct fault_info *fi;
+	unsigned long long ts;
+
+	rdtscll(ts);
 
 	fi = &faults[fault_ptr];
 	fi->addr = fault_addr;
@@ -1643,6 +1647,7 @@ static void cos_report_fault(struct thread *t, vaddr_t fault_addr, struct pt_reg
 	}
 	fi->spdid = spd_get_index(thd_get_thd_spd(t));
 	fi->thdid = thd_get_id(t);
+	fi->timestamp = ts;
 	fault_ptr = (fault_ptr + 1) % NFAULTS;
 }
 
@@ -2244,6 +2249,8 @@ int host_attempt_brand(struct thread *brand)
 			//printk("|>r\n");
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 			cos_meas_event(COS_MEAS_BRAND_DELAYED_UC);
+			event_record("xmit path lead to nested upcalls", 
+				     thd_get_id(cos_current), thd_get_id(next));
 			goto done;
  		} //else if (thd_get_id(brand->upcall_threads) == 13) printk(">r\n");
 
@@ -2307,7 +2314,8 @@ int host_attempt_brand(struct thread *brand)
 				regs->edx = next->regs.edx;
 				regs->eax = next->regs.eax;
 				regs->orig_eax = next->regs.eax;
-				regs->esp = regs->ebp = 0;
+				regs->esp = next->regs.esp;
+				regs->ebp = next->regs.ebp;
 				//cos_meas_event(COS_MEAS_BRAND_UC);
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
@@ -2529,6 +2537,8 @@ static int aed_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
+extern void event_print(void);
+
 static int aed_release(struct inode *inode, struct file *file)
 {
 	pgd_t *pgd;
@@ -2621,16 +2631,17 @@ static int aed_release(struct inode *inode, struct file *file)
 		printk("\ncos: Faults:\n");
 		for (i = (fault_ptr+1)%NFAULTS ; i != fault_ptr ; i = (i + 1) % NFAULTS) {
 			struct fault_info *fi = &faults[i];
-			
+
 			if (fi->thdid != 0) {
-				printk("cos: spd %d, thd %d @ addr %x and w/ regs: \ncos:\t\t"
+				printk("cos: spd %d, thd %d @ addr %x @ time %lld and w/ regs: \ncos:\t\t"
 				       "eip %10x, esp %10x, eax %10x, ebx %10x, ecx %10x,\ncos:\t\t"
 				       "edx %10x, edi %10x, esi %10x, ebp %10x \n",
-				       fi->spdid, fi->thdid, (unsigned int)fi->addr, (unsigned int)fi->ip, (unsigned int)fi->sp, 
+				       fi->spdid, fi->thdid, (unsigned int)fi->addr, fi->timestamp, (unsigned int)fi->ip, (unsigned int)fi->sp, 
 				       (unsigned int)fi->a, (unsigned int)fi->b, (unsigned int)fi->c, (unsigned int)fi->d, 
 				       (unsigned int)fi->D, (unsigned int)fi->S, (unsigned int)fi->bp);
 			}
 		}
+		event_print();
 	}
 
 	return 0;

@@ -369,17 +369,28 @@ static void release_rb_buff(rb_meta_t *r, void *b)
 	assert(0);
 }
 
-extern int sched_create_net_upcall(spdid_t spdid, unsigned short int port, int prio_delta);
+extern int sched_create_net_brand(spdid_t spdid, unsigned short int port);
 extern int sched_block(spdid_t spdid);
 extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
+extern int sched_create_thread(spdid_t spdid, int prio_delta);
+extern int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short int tid);
 
-static unsigned short int cos_net_create_net_upcall(unsigned short int port, rb_meta_t *rbm)
+static unsigned short int net_brand_id;
+
+static unsigned short int cos_net_create_net_brand(unsigned short int port, rb_meta_t *rbm)
 {
-	unsigned short int ucid;
-	
-	ucid = sched_create_net_upcall(cos_spd_id(), port, 1);
-	if (cos_buff_mgmt(COS_BM_RECV_RING, rb1.packets, sizeof(rb1.packets), ucid)) {
-		prints("net: could not setup recv ring.");
+	int ucid;
+
+	net_brand_id = sched_create_net_brand(cos_spd_id(), port);
+	ucid = sched_create_thread(cos_spd_id(), 1);
+	if (0 > ucid) {
+		printc("net: could not create thread for brand %d\n", net_brand_id);
+		return 0;
+	}
+	if (sched_add_thd_to_brand(cos_spd_id(), net_brand_id, ucid)) assert(0);
+	printc("created net uc %d associated with brand %d\n", ucid, net_brand_id);
+	if (cos_buff_mgmt(COS_BM_RECV_RING, rb1.packets, sizeof(rb1.packets), net_brand_id)) {
+		prints("net: could not setup recv ring.\n");
 		return 0;
 	}
 	return ucid;
@@ -1512,7 +1523,7 @@ static void cos_net_interrupt(void)
 	tm = get_thd_map(ucid);
 	assert(tm);
 	if (rb_retrieve_buff(tm->uc_rb, &buff, &max_len)) {
-		prints("net: could not retrieve buffer from ring.");
+		prints("net: could not retrieve buffer from ring.\n");
 		NET_LOCK_RELEASE();
 		return;
 	}
@@ -1575,6 +1586,16 @@ err:
 	}
 	NET_LOCK_RELEASE();
 	return;
+}
+
+static int cos_net_int_loop(void)
+{
+	assert(net_brand_id > 0);
+	printc("network uc %d starting to wait for brand %d.\n", cos_get_thd_id(), net_brand_id);
+	while (1) {
+		if (0 > cos_brand_wait(net_brand_id)) assert(0);
+		cos_net_interrupt();
+	}
 }
 
 static err_t cos_net_stack_link_send(struct netif *ni, struct pbuf *p)
@@ -1737,8 +1758,6 @@ static err_t cos_if_init(struct netif *ni)
 
 static void init_lwip(void)
 {
-//	struct ip_addr dest;
-
 	lwip_init();
 	tcp_mem_free(lwip_free_payload);
 
@@ -1749,89 +1768,9 @@ static void init_lwip(void)
 	netif_add(&cos_if, &ip, &mask, &gw, NULL, cos_if_init, ip_input);
 	netif_set_default(&cos_if);
 	netif_set_up(&cos_if);
-
-//	upcb_200 = cos_net_create_inbound_udp_conn(200, get_thd_map(cos_get_thd_id()));
-//	IP4_ADDR(&dest, 10,0,1,6);
-//	upcb_out = cos_net_create_outbound_udp_conn(0, 6000, &dest, get_thd_map(cos_get_thd_id()));
-
-//	tpcb_200 = 
 }
 
 extern int timed_event_block(spdid_t spdid, unsigned int usecs);
-
-static void test_tcp(void)
-{
-	net_connection_t nc, nc_new;
-	char data[128];
-	int ret, len;
-	struct intern_connection *ic;
-
-	nc = net_create_tcp_connection(cos_spd_id(), cos_get_thd_id(), 1);
-	if (evt_create(cos_spd_id(), 1)) assert(0);
-	ic = net_conn_get_internal(nc);
-	assert(ic);
-	ic->data = 1;
-	if (nc) print("create udp connection error: %d %d%d", nc, 0,0);
-	printc("tcp connection created: %d.", nc);
-	ret = __net_bind(cos_spd_id(), nc, IP_ADDR_ANY, 200);
-	printc("%d bound to port 200", nc);
-	if (ret) print("Bind error: %d. %d%d", ret, 0, 0);
-	net_listen(cos_spd_id(), nc, 10);
-	printc("%d set to listen", nc);
-	nc_new = -EAGAIN;
-	while (-EAGAIN == nc) {
-		nc_new = net_accept(cos_spd_id(), nc);
-		if (-EAGAIN == nc_new) {
-			assert(0);
-		}
-	}
-	printc("%d returned from accept", nc_new);
-	ic = net_conn_get_internal(nc_new);
-	assert(ic);
-	ic->data = 2;
-	if (evt_create(cos_spd_id(), 2)) assert(0);
-
-	printc("%d accepted and returned connection %d", nc, nc_new);
-	if (nc_new < 0) assert(0);
-	//IP4_ADDR(&dest, 10,0,1,5);
-	
-	while (1) {
-		len = net_recv(cos_spd_id(), nc_new, data, 128);
-		if (0 == len) {
-			if (2 != (int)evt_grp_wait(cos_spd_id()/*, 2*/)) assert(0);
-		}
-		//net_send(cos_spd_id(), nc_new, data, len);
-	}
-}
-
-static void test_udp(void)
-{
-	net_connection_t nc, nco;
-	char data[128], len;
-	int ret;
-	struct ip_addr dest;
-
-	nc = net_create_udp_connection(cos_spd_id(), -1);
-	if (nc) print("create udp connection error: %d %d%d", nc, 0,0);
-	ret = __net_bind(cos_spd_id(), nc, IP_ADDR_ANY, 200);
-	if (ret) print("Bind error: %d. %d%d", ret, 0, 0);
-	nco = net_create_udp_connection(cos_spd_id(), -1);
-	IP4_ADDR(&dest, 10,0,1,5);
-	__net_connect(cos_spd_id(), nco, &dest, 6000);
-	
-	while (1) {
-		len = net_recv(cos_spd_id(), nc, data, 128);
-		assert(len > 0);
-		net_send(cos_spd_id(), nco, data, len);
-	}
-}
-
-static void test_thd(void)
-{
-//	test_tcp();
-////	test_udp();
-	sched_block(cos_spd_id());
-}
 
 static int init(void) 
 {
@@ -1862,7 +1801,7 @@ static int init(void)
 
 	NET_LOCK_TAKE();
 	/* Wildcard upcall */
-	ucid = cos_net_create_net_upcall(0, &rb1_md_wildcard);
+	ucid = cos_net_create_net_brand(0, &rb1_md_wildcard);
 	if (ucid == 0) {
 		NET_LOCK_RELEASE();
 		return 0;
@@ -1912,19 +1851,23 @@ static int init(void)
 
 void cos_init(void *arg)
 {
-	 static volatile int first = 1;
+	static volatile int first = 1;
+	
+	if (cos_get_thd_id() == wildcard_upcall) {
+		cos_net_int_loop();
+	}
 
 	if (first) {
 		first = 0;
 		init();
 		assert(0);
 	} else {
-		test_thd();
 		prints("net: not expecting more than one bootstrap.");
 	}
 }
 
 void cos_upcall_exec(void *arg)
 {
+	assert(0);
 	cos_net_interrupt();
 }

@@ -95,12 +95,7 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 		if ((cpu || flags) && cos_curr_evt) {
 			t = sched_evt_to_thd(cos_curr_evt);
 			if (t) {
-
-
 //				printc("t %d f %x u %ld", t->id, flags, cpu);
-
-
-
 				/* Call the visitor function */
 				fn(t, flags, cpu);
 			}

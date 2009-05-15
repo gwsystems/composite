@@ -114,19 +114,15 @@ cos_syscall_asm                                      \
 cos_syscall_clobber                                  \
 }
 
-//typedef __attribute__((regparm(1))) void (*create_thd_fn_t)(void *data);
-
-//cos_syscall_0(1, int, resume_return);
-cos_syscall_0(1, int, stats);
-cos_syscall_2(2, int, print, char*, str, int, len);
-//cos_syscall_3(3, int, create_thread, create_thd_fn_t, fn, vaddr_t, stack, void*, data);
-cos_syscall_3(3, int, create_thread, int, a, int, b, int, c);
-cos_syscall_2(4, int, __switch_thread, int, thd_id, int, flags);
-cos_syscall_1(5, int, __brand_wait, int, thdid);
-cos_syscall_3(6, int, __brand_upcall, int, thd_id_flags, long, arg1, long, arg2);
-cos_syscall_3(7, int, brand_cntl, int, thd_id, int, flags, spdid_t, spdid);
-cos_syscall_1(8, int, upcall, int, spd_id);
-cos_syscall_3(9, int, sched_cntl, int, operation, int, thd_id, long, option);
+cos_syscall_0(1,  int, stats);
+cos_syscall_2(2,  int, print, char*, str, int, len);
+cos_syscall_3(3,  int, create_thread, int, a, int, b, int, c);
+cos_syscall_2(4,  int, __switch_thread, int, thd_id, int, flags);
+cos_syscall_1(5,  int, brand_wait, int, thdid);
+cos_syscall_3(6,  int, __brand_upcall, int, thd_id_flags, long, arg1, long, arg2);
+cos_syscall_3(7,  int, __brand_cntl, int, ops, u32_t, bid_tid, spdid_t, spdid);
+cos_syscall_1(8,  int, upcall, int, spd_id);
+cos_syscall_3(9,  int, sched_cntl, int, operation, int, thd_id, long, option);
 cos_syscall_3(10, int, mpd_cntl, int, operation, spdid_t, composite_spd, spdid_t, composite_dest);
 cos_syscall_3(11, int, __mmap_cntl, long, op_flags_dspd, long, daddr, long, mem_id);
 cos_syscall_3(12, int, brand_wire, long, thd_id, long, option, long, data);
@@ -149,6 +145,11 @@ static inline int cos_brand_upcall(short int thd_id, short int flags, long arg1,
 static inline int cos_buff_mgmt(unsigned short int op, void *addr, unsigned short int len, short int thd_id)
 {
 	return cos___buff_mgmt(addr, thd_id, ((len << 16) | (op & 0xFFFF)));
+}
+
+static inline int cos_brand_cntl(int ops, unsigned short int bid, unsigned short int tid, spdid_t spdid)
+{
+	return cos___brand_cntl(ops, bid << 16 | tid, spdid);
 }
 
 static inline int cos_thd_cntl(short int op, short int thd_id, long arg1, long arg2)

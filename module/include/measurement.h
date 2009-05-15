@@ -155,4 +155,47 @@ static inline void cos_meas_stats_end(cos_meas_t type, int reset)
 
 #endif
 
+#define COS_RECORD_EVTS
+
+#ifdef COS_RECORD_EVTS
+/* must be power of 2 */
+#define COS_EVTS_NUM 32
+#define COS_EVTS_MASK (COS_EVTS_NUM-1)
+
+struct exec_evt {
+	unsigned long long timestamp;
+	long a, b;
+	char *msg;
+};
+
+#ifndef cos_rdtscll
+#define cos_rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
+#endif
+
+extern struct exec_evt recorded_evts[];
+extern int evts_head;
+
+static inline void event_record(char *msg, long a, long b)
+{
+	struct exec_evt *e;
+
+	e = &recorded_evts[evts_head];
+	e->msg = msg;
+	e->a = a;
+	e->b = b;
+	cos_rdtscll(e->timestamp);
+
+	evts_head++;
+	evts_head &= COS_EVTS_MASK;
+}
+
+void event_print(void);
+
+#else
+
+#define event_record(m, a, b)
+#define event_print()
+
+#endif
+
 #endif

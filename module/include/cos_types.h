@@ -223,6 +223,7 @@ enum {
 #define COS_SCHED_TAILCALL     0x2
 #define COS_SCHED_SYNC_BLOCK   0x4
 #define COS_SCHED_SYNC_UNBLOCK 0x8
+#define COS_SCHED_BRAND_WAIT   0x10
 
 struct mpd_split_ret {
 	short int new, old;

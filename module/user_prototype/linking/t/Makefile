@@ -48,10 +48,10 @@ LIB_OBJS=$(LIB_C_OBJS) $(LIB_ASM_OBJS)
 # link-in.
 LIB_ASM_MANDITORY=cos_asm_upcall.o c_stub.o
 
-C_COMPS=comp0.o comp1.o comp2.o comp3.o comp4.o print_comp.o mem_man.o fp_rr.o cos_net.o ds.o uc_test.o wf_test.o lock.o timed_event.o mailbox.o mpd_mgr.o evt.o fd_api.o conn_mgr.o https.o stat_gather.o stack_trace.o static_content.o content_mgr.o
-ASM_STUBS=s_stub1.o s_stub2.o s_stub3.o s_stub4.o s_stubprint.o s_stubmm.o s_stubfprr.o s_stubnet.o s_stubds.o s_stublock.o s_stubte.o s_stubmb.o s_stube.o s_stubfd.o s_stubhttp.o s_stubst.o s_stubsc.o s_stubcm.o
+C_COMPS=comp0.o print_comp.o mem_man.o fp_rr.o cos_net.o ds.o uc_test.o wf_test.o lock.o timed_event.o mailbox.o mpd_mgr.o evt.o fd_api.o conn_mgr.o https.o stat_gather.o stack_trace.o static_content.o content_mgr.o
+ASM_STUBS=s_stubprint.o s_stubmm.o s_stubfprr.o s_stubnet.o s_stubds.o s_stublock.o s_stubte.o s_stubmb.o s_stube.o s_stubfd.o s_stubhttp.o s_stubst.o s_stubsc.o s_stubcm.o
 PRODUCTS=$(C_COMPS) $(ASM_STUBS)
-COMPONENTS=c0.o c1.o c2.o c3.o c4.o print.o mm.o fprr.o net.o d.o uc.o wftest.o l.o te.o mb.o mpd.o e.o fd.o conn.o http.o stat.o st.o cm.o sc.o
+COMPONENTS=c0.o print.o mm.o fprr.o net.o d.o uc.o wftest.o l.o te.o mb.o mpd.o e.o fd.o conn.o http.o stat.o st.o cm.o sc.o
 TMP_STR=tmp
 
 SOURCES=$(C_COMPS:%.o=%.c) $(LIB_C_OBJS:%.o=%.c)
@@ -65,11 +65,6 @@ include $(DEPENDENCIES)
 stubs: $(PRODUCTS)
 	$(info [LD]   Linking in the server stubs to components)
 	@$(LD) -r -o c0.o comp0.o
-	@$(LD) -r -o c1.o comp1.o s_stub1.o
-	@$(LD) -r -o c2.o comp2.o s_stub2.o
-	@$(LD) -r -o c3.o comp3.o s_stub3.o
-	@$(LD) -r -o c4.o comp4.o s_stub4.o
-
 	@$(LD) -r -o print.o print_comp.o s_stubprint.o
 	@$(LD) -r -o mm.o mem_man.o s_stubmm.o
 	@$(LD) -r -o fprr.o fp_rr.o s_stubfprr.o

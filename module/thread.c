@@ -94,7 +94,6 @@ struct thread *thd_alloc(struct spd *spd)
 
 	thd->thread_brand = NULL;
 	thd->pending_upcall_requests = 0;
-	thd->brand_inv_stack_ptr = 0;
 	thd->freelist_next = NULL;
 
 	return thd;

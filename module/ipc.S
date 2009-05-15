@@ -185,45 +185,11 @@ cos_syscall_brand_wait:
 	popl %ebx
 
 	cmpl $0, %ebx /* was the thread preempted or not? */
-	jne ret_from_preemption_brand_wait
-
+	jne ret_from_preemption
 	/* restore registers from previous yield, regs in eax */
-	movl PT_EBX(%eax), %ebx
-	movl PT_ECX(%eax), %ecx
-	movl PT_EDX(%eax), %edx
-	movl PT_ESI(%eax), %esi
-	movl PT_EDI(%eax), %edi
-	movl PT_EBP(%eax), %ebp
-	movl PT_EAX(%eax), %eax
+	jmp 1f
 
-	movl %edx, (COS_SYSCALL_EDX)(%esp)
-	movl %ecx, (COS_SYSCALL_ECX)(%esp)
-	ret
-	
-	RET_TO_USER
-
-.align 4
-ret_from_preemption_brand_wait:
-	/* restore from preemption */
-	movl PT_EBX(%eax), %ebx
-	movl PT_ECX(%eax), %ecx
-	movl PT_EDX(%eax), %edx
-	movl PT_ESI(%eax), %esi
-	movl PT_EDI(%eax), %edi
-	movl PT_EBP(%eax), %ebp
-	
-	pushl $(__USER_DS)
-	pushl PT_OLDESP(%eax)
-	pushl PT_EFLAGS(%eax)
-	pushl $(__USER_CS)
-	pushl PT_EIP(%eax)
-
-	movl PT_EAX(%eax), %eax				
-	
-	iret	
-	
-	
-	
+		
 /* FIXME: this is all superfluous: we save/restore all regs when in the 
    non-preemption case, user-level saves most of them anyway because of 
    the clobber list.  Lets just let user-level do it, and be done. */
@@ -237,7 +203,9 @@ cos_syscall_switch_thread:
 	movl $0, PT_EAX(%eax)   /* return 0 when we return from this thread */
 	movl %ebx, PT_EBX(%eax)
 	movl %ebp, PT_ECX(%eax) /* save the return sp, so that sysenter will jump to it */
+	movl %ebp, PT_OLDESP(%eax)
 	movl %ecx, PT_EDX(%eax) /* save the return address (so that sysexit will return to it) */
+	movl %ecx, PT_EIP(%eax)
 
 	/* save volatile registers, as defined by cdecl (including ebx above) */
 	movl %esi, PT_ESI(%eax)

@@ -96,8 +96,6 @@ struct thread {
 	/* flags & THD_STATE_UPCALL */
 	/* The thread who's execution we are branded to */
 	struct thread *thread_brand;
-	/* the point in the invocation stack of the brand thread we are at */
-	unsigned short int brand_inv_stack_ptr, brand_inv_stack_start;
 	struct thread *interrupted_thread, *preempter_thread;
 	struct thread *upcall_threads;
 

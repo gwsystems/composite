@@ -35,8 +35,8 @@
 #define NORMAL_PRIO_HI 5
 #define NORMAL_PRIO_LO (NUM_PRIOS-8)
 
-#define RUNTIME_SEC (10)
-#define REPORT_FREQ 8 		/* freq of reporting in seconds */
+#define RUNTIME_SEC (8)
+#define REPORT_FREQ 4		/* freq of reporting in seconds */
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
 
@@ -548,67 +548,73 @@ void fp_timer_tick(void)
 	struct sched_thd *prev, *next;
 	int loop;
 
-	cos_sched_lock_take();
-
-	report_event(TIMER_TICK);
-
-	if ((ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1)) {
-		report_thd_accouting();
-		cos_stats();
-	}
-
-	/* are we done running? */
-	if (ticks >= RUNTIME_SEC*TIMER_FREQ+1) {
-		fp_pre_wakeup(init);
-		fp_wakeup(init,0);
-		//cos_switch_thread(init->id, COS_SCHED_TAILCALL);
-	}
-
-	ticks++;
-	//if ((ticks % 100) == 0) prints("---");
-	/* Wakeup the event thread? */
-	if (ticks == wakeup_time && wakeup_thd) {
-		wakeup_time = 0;
-		fp_pre_wakeup(wakeup_thd);
-		/* If the event thread has not blocked yet, then don't
-		 * wake it fully */
-		if (sched_thd_blocked(wakeup_thd)) {
-			fp_wakeup(wakeup_thd, 0);
+	while(1) {
+		cos_sched_lock_take();
+		
+		report_event(TIMER_TICK);
+		
+		if ((ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1)) {
+			report_thd_accouting();
+			cos_stats();
 		}
-	}
 
-	prev = sched_get_current();
-	assert(prev == timer);
-	do {
-		assert(prev);
-		next = fp_schedule();
-		assert(next);
-
-		/* Chances are good the highest is us (the only way it
-		 * won't be true is if another event has occurred in
-		 * the interim that has a higher priority), but, for
-		 * some reason, is not currently executing. */
-		if (likely(next == prev)) {
- 			struct sched_thd *r;
-			/* the RR part */
-			r = next = fp_get_second_highest_prio(next);
-			fp_move_end_runnable(next);
-			assert(fp_get_highest_prio() == prev);
-			next = fp_get_second_highest_prio(prev);
-			assert(sched_get_metric(r)->priority == sched_get_metric(next)->priority);
-		} 
-		assert(next != prev);
-
-		loop = cos_switch_thread_release(next->id, COS_SCHED_TAILCALL);
-		if (loop) {
-			assert(loop != -1);
-			PRINTD("timer scheduling error in trying to switch from %d to thd %d.\n", prev->id, next->id);
-			//if (sched_thd_event(next)) fp_deactivate_upcall(next); 
-			cos_sched_process_events(evt_callback_print, 5);
-			cos_sched_lock_take();
+		/* are we done running? */
+		if (ticks >= RUNTIME_SEC*TIMER_FREQ+1) {
+			fp_pre_wakeup(init);
+			fp_wakeup(init,0);
+			//cos_switch_thread(init->id, COS_SCHED_TAILCALL);
 		}
-		report_event(TIMER_LOOP);
-	} while (unlikely(loop));
+		
+		ticks++;
+		//if ((ticks % 100) == 0) prints("---");
+		/* Wakeup the event thread? */
+		if (ticks == wakeup_time && wakeup_thd) {
+			wakeup_time = 0;
+			fp_pre_wakeup(wakeup_thd);
+			/* If the event thread has not blocked yet, then don't
+			 * wake it fully */
+			if (sched_thd_blocked(wakeup_thd)) {
+				fp_wakeup(wakeup_thd, 0);
+			}
+		}
+		
+		prev = sched_get_current();
+		assert(prev == timer);
+		do {
+			assert(prev);
+			next = fp_schedule();
+			assert(next);
+			
+			/* Chances are good the highest is us (the only way it
+			 * won't be true is if another event has occurred in
+			 * the interim that has a higher priority), but, for
+			 * some reason, is not currently executing. */
+			if (likely(next == prev)) {
+				struct sched_thd *r;
+				/* the RR part */
+				r = next = fp_get_second_highest_prio(next);
+				fp_move_end_runnable(next);
+				assert(fp_get_highest_prio() == prev);
+				next = fp_get_second_highest_prio(prev);
+				assert(sched_get_metric(r)->priority == sched_get_metric(next)->priority);
+			} 
+			assert(next != prev);
+			
+//		loop = cos_switch_thread_release(next->id, COS_SCHED_TAILCALL);
+			/* 
+			 * We will block here waiting for the next
+			 * brand activation.
+			 */
+			loop = cos_switch_thread_release(next->id, COS_SCHED_BRAND_WAIT);
+			if (0 > loop) {
+				assert(loop != -1);
+				PRINTD("timer scheduling error in trying to switch from %d to thd %d.\n", prev->id, next->id);
+				//if (sched_thd_event(next)) fp_deactivate_upcall(next); 
+				cos_sched_process_events(evt_callback_print, 5);
+				cos_sched_lock_take();
+			}
+		} while (unlikely(0 > loop));
+	}
 
 	return;
 }
@@ -640,6 +646,12 @@ static void fp_event_completion(struct sched_thd *e)
 
 /* type of newly created thread functions */
 typedef void (*crt_thd_fn_t)(void *data);
+
+static void fp_timer(void *d)
+{
+	printc("Starting timer\n");
+	fp_timer_tick();
+}
 
 static void fp_create_spd_thd(void *d)
 {
@@ -1048,7 +1060,7 @@ static struct sched_thd *sched_setup_thread_arg(u16_t priority, u16_t urgency, c
 	new = sched_alloc_thd(thd_id);
 	assert(new);
 	fp_add_thd(new, priority);
-	sched_alloc_event(new);
+	if (0 > sched_alloc_event(new)) assert(0);
 	sched_add_mapping(thd_id, new);
 	sched_set_thd_urgency(new, urgency);
 
@@ -1060,69 +1072,34 @@ static struct sched_thd *sched_setup_thread(u16_t priority, u16_t urgency, crt_t
 	return sched_setup_thread_arg(priority, urgency, fn, 0);
 }
 
-void sched_create_thread(spdid_t spdid) {
+int sched_create_thread(spdid_t spdid, int prio_delta) {
 	struct sched_thd *curr, *new;
 	u16_t prio, urg;
-	unsigned int curr_id, id;
+	void *d = (void*)(int)spdid; /* well this is just stupid...thx gcc */
 
-	id = spdid;
 	cos_sched_lock_take();
 	curr = sched_get_current();
-	prio = curr->metric.priority;
-	urg = curr->metric.urgency;
-	curr_id = curr->id;
+	prio = curr->metric.priority + prio_delta;
+	urg = curr->metric.urgency + prio_delta;
+	new = sched_setup_thread_arg(prio, urg, fp_create_spd_thd, d);
 	cos_sched_lock_release();
-	new = sched_setup_thread_arg(prio, urg, fp_create_spd_thd, (void*)id);
 	printc("fprr: created thread %d in spdid %d (requested by %d)\n",
-	      new->id, id, curr_id);
+	       new->id, spdid, curr->id);
 
-	return;
+	return new->id;
 }
 
-static struct sched_thd *sched_setup_upcall_thread(spdid_t spdid, u16_t priority, 
-						   u16_t urgency, unsigned int *brand_id)
+/* return the id of the brand created */
+static int sched_setup_brand(spdid_t spdid)
 {
-	unsigned int b_id, thd_id;
-	struct sched_thd *upcall;
+	unsigned short int b_id;
 
-	b_id = cos_brand_cntl(0, COS_BRAND_CREATE_HW, spdid);
-	*brand_id = b_id;
-	thd_id = cos_brand_cntl(b_id, COS_BRAND_ADD_THD, 0);
-	upcall = sched_alloc_upcall_thd(thd_id);
-	assert(upcall);
-	fp_add_evt_thd(upcall, priority);
-	sched_alloc_event(upcall);
-	sched_add_mapping(thd_id, upcall);
-	sched_set_thd_urgency(upcall, urgency);
+	b_id = cos_brand_cntl(COS_BRAND_CREATE_HW, 0, 0, spdid);
 
-	return upcall;
+	return b_id;
 }
 
 /**** SUPPORT FOR CHILD SCHEDULERS ****/
-
-int sched_create_child_brand(spdid_t spdid)
-{
-	int ucid, bid;
-	struct sched_thd *curr, *upcall;
-	int prio;
-
-	curr = sched_get_current();
-	assert(curr);
-	prio = sched_get_metric(curr)->priority-1;
-
-	bid = cos_brand_cntl(0, COS_BRAND_CREATE, spdid);
-	ucid = cos_brand_cntl(bid, COS_BRAND_ADD_THD, 0);
-	upcall = sched_alloc_upcall_thd(ucid);
-	assert(upcall);
-	fp_add_evt_thd(upcall, prio);
-	sched_alloc_event(upcall);
-	sched_add_mapping(ucid, upcall);
-	sched_set_thd_urgency(upcall, prio);
-//	ds_brand_id = bid;
-//	ds = upcall;
-
-	return ucid;
-}
 
 void sched_child_yield_thd(void)
 {
@@ -1177,21 +1154,27 @@ void sched_report_processing(int amnt)
 	sched_get_accounting(t)->progress += amnt;
 }
 
-int sched_create_net_upcall(spdid_t spdid, unsigned short int port, int prio_delta)
+int sched_create_net_brand(spdid_t spdid, unsigned short int port)
 {
-	struct sched_thd *t = sched_get_current(), *uc;
-	u16_t prio = sched_get_metric(t)->priority;
-	unsigned int b_id;
+	int b_id;
 
-	assert(t);
-	uc = sched_setup_upcall_thread(spdid, prio + prio_delta, prio + prio_delta, &b_id);
-	assert(uc);
+	b_id = sched_setup_brand(spdid);
 	cos_brand_wire(b_id, COS_HW_NET, port);
 
-	printc("Net upcall thread %d with priority %d make for port %d.\n", 
-	      uc->id, sched_get_metric(uc)->priority, port);
+	return b_id;
+}
 
-	return uc->id;
+int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short int tid)
+{
+	struct sched_thd *t;
+	int ret;
+
+	ret = cos_brand_cntl(COS_BRAND_ADD_THD, bid, tid, 0);
+	if (0 > ret) return -1;
+	t = sched_get_mapping(tid);
+	if (NULL == t) return -1;
+	t->flags |= THD_UC_READY;
+	return 0;
 }
 
 void sched_exit(void)
@@ -1231,11 +1214,25 @@ static struct sched_thd *fp_init_component(char *comp, int prio)
 	return new;
 }
 
+static struct sched_thd *fp_create_timer(void)
+{
+	int bid;
+
+	bid = sched_setup_brand(cos_spd_id());
+	timer = sched_setup_thread_arg(TIMER_TICK_PRIO, TIMER_TICK_PRIO, fp_timer, (void*)bid);
+	timer->flags |= THD_UC_READY;
+	if (NULL == timer) assert(0);
+	if (0 > sched_add_thd_to_brand(cos_spd_id(), bid, timer->id)) assert(0);
+	printc("Timer thread has id %d with priority %d. %d\n", timer->id, TIMER_TICK_PRIO, TIMER_TICK_PRIO);
+	cos_brand_wire(bid, COS_HW_TIMER, 0);
+
+	return timer;
+}
+
 int sched_init(void)
 {
 	static int first = 1;
 	int i;
-	unsigned int b_id;
 	struct sched_thd *new;//, *new2;
 
 //#define MICRO_INV
@@ -1270,27 +1267,22 @@ int sched_init(void)
 	idle = sched_setup_thread(IDLE_PRIO, IDLE_PRIO, fp_idle_loop);
 	printc("Idle thread has id %d with priority %d. %d\n", idle->id, IDLE_PRIO, 0);
 
+	/* normal threads: */
 	fp_init_component("te.o", TIME_EVENT_PRIO);
 	fp_init_component("e.o", TIME_EVENT_PRIO);
-
-	/* normal threads: */
-
-	/* lock thread */
 	fp_init_component("l.o", NORMAL_PRIO_HI+4);
 	fp_init_component("fd.o", NORMAL_PRIO_HI+4);
 	fp_init_component("http.o", NORMAL_PRIO_HI+4);
 	fp_init_component("conn.o", NORMAL_PRIO_HI+4);
 	fp_init_component("cm.o", NORMAL_PRIO_HI+4);
 	fp_init_component("sc.o", NORMAL_PRIO_HI+4);
+	fp_init_component("stat.o", NORMAL_PRIO_LO+1);
 
 	mpd = fp_init_component("mpd.o", MPD_PRIO);
-	fp_init_component("stat.o", NORMAL_PRIO_LO+1);
 
 	fp_init_component("net.o", NORMAL_PRIO_HI+1);
 	/* Create the clock tick (timer) thread */
-	timer = sched_setup_upcall_thread(cos_spd_id(), TIMER_TICK_PRIO, TIMER_TICK_PRIO, &b_id);
-	printc("Timer thread has id %d with priority %d. %d\n", timer->id, TIMER_TICK_PRIO, TIMER_TICK_PRIO);
-	cos_brand_wire(b_id, COS_HW_TIMER, 0);
+	fp_create_timer();
 
 	/* Block to begin execution of the normal tasks */
 	fp_pre_block(init);
