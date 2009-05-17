@@ -1422,7 +1422,7 @@ int cos_net_try_brand(struct thread *t, void *data, int len)
 {
 	void *buff;
 	int l;
-//	unsigned int *lenp;
+	unsigned int *lenp;
 
 	cos_meas_event(COS_MEAS_PACKET_BRAND);
 
@@ -1431,15 +1431,15 @@ int cos_net_try_brand(struct thread *t, void *data, int len)
 	 * attempt the upcall.  This is analogous to not trying to
 	 * raise an interrupt when there are no buffers to write into.
 	 */
-//	if (rb_retrieve_buff(t, len + sizeof(unsigned int), &buff, &l)) {
-	if (rb_retrieve_buff(t, len, &buff, &l)) {
+	if (rb_retrieve_buff(t, len + sizeof(unsigned int), &buff, &l)) {
+//	if (rb_retrieve_buff(t, len, &buff, &l)) {
 		cos_meas_event(COS_MEAS_PACKET_BRAND_FAIL);
 		return -1;
 	}
 	cos_meas_event(COS_MEAS_PACKET_BRAND_SUCC);
-//	lenp = buff;
-//	buff = &lenp[1];
-//	*lenp = len;
+	lenp = buff;
+	buff = &lenp[1];
+	*lenp = len;
 	memcpy(buff, data, len);
 	
 	host_attempt_brand(t);
@@ -1528,15 +1528,23 @@ COS_SYSCALL int cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int 
 			struct gather_item *user_gi = &h->gather_list[i];
 			tot_len += user_gi->len;
 
-			if (!user_struct_fits_on_page((unsigned long)user_gi->data, user_gi->len)) {
+			if (unlikely(!user_struct_fits_on_page((unsigned long)user_gi->data, user_gi->len))) {
 				printk("cos: buff mgmt -- buffer address  %p does not fit onto page\n", user_gi->data);
 				return -1;
 			}
-			kaddr = pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, (unsigned long)user_gi->data);
-			if (!kaddr) {		    
-				printk("cos: buff mgmt -- could not find kernel address for %p in spd %d\n",
-				       user_gi->data, spd_id);
-				return -1;
+			if ((void*)((unsigned int)(user_gi->data) & PAGE_MASK) == 
+			    get_shared_data()->argument_region) {
+				/* If the pointer is into the argument
+				 * region, we now that the memory is
+				 * pinned. */
+				kaddr = (vaddr_t)user_gi->data;
+			} else {
+				kaddr = pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, (unsigned long)user_gi->data);
+				if (unlikely(!kaddr)) {		    
+					printk("cos: buff mgmt -- could not find kernel address for %p in spd %d\n",
+					       user_gi->data, spd_id);
+					return -1;
+				}
 			}
 
 			gi[i].data = (void*)kaddr;

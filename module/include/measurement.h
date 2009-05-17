@@ -159,7 +159,7 @@ static inline void cos_meas_stats_end(cos_meas_t type, int reset)
 
 #ifdef COS_RECORD_EVTS
 /* must be power of 2 */
-#define COS_EVTS_NUM 32
+#define COS_EVTS_NUM 4
 #define COS_EVTS_MASK (COS_EVTS_NUM-1)
 
 struct exec_evt {

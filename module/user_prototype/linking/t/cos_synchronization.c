@@ -135,7 +135,7 @@ int lock_release(cos_lock_t *l) {
 		prev_val = *result_ptr = *(volatile u32_t *)&l->atom;
 		/* If we're here, we better own the lock... */
 		if (result.owner != curr) {
-			printc("lock_release: lock %p w/ owner %d, curr is %d, cnt = %d", 
+			printc("lock_release: lock %p w/ owner %d, curr is %d, cnt = %d\n", 
 			       l, (unsigned int)result.owner, curr, (unsigned int)cnt);
 			assert(0);
 		}

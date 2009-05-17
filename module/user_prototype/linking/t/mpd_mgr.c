@@ -228,19 +228,19 @@ static void mpd_merge_all(struct comp_graph *g);
 
 static void mpd_loop(struct comp_graph *g)
 {
-	int idx = 1;
+//	int idx = 1;
 
 	while (1) {
 		/* currently timeouts are expressed in ticks */
-		timed_event_block(cos_spd_id(), 21);
+		timed_event_block(cos_spd_id(), 2900);
 
-		if (idx == 14 || (idx + 1) == 14) {
+//		if (idx == 14 || (idx + 1) == 14) {
 //			mpd_merge_all(g);
-			idx = 1;
+//			idx = 1;
 			mpd_report(g);
-		}
+//		}
 //		split_w_err(idx, idx);
-		idx++;
+//		idx++;
 	}
 	assert(0);
 	return;

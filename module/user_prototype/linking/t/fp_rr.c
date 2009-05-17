@@ -35,8 +35,8 @@
 #define NORMAL_PRIO_HI 5
 #define NORMAL_PRIO_LO (NUM_PRIOS-8)
 
-#define RUNTIME_SEC (8)
-#define REPORT_FREQ 4		/* freq of reporting in seconds */
+#define RUNTIME_SEC (30)
+#define REPORT_FREQ 30		/* freq of reporting in seconds */
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
 
@@ -1270,13 +1270,14 @@ int sched_init(void)
 	/* normal threads: */
 	fp_init_component("te.o", TIME_EVENT_PRIO);
 	fp_init_component("e.o", TIME_EVENT_PRIO);
-	fp_init_component("l.o", NORMAL_PRIO_HI+4);
-	fp_init_component("fd.o", NORMAL_PRIO_HI+4);
-	fp_init_component("http.o", NORMAL_PRIO_HI+4);
+	fp_init_component("l.o", NORMAL_PRIO_HI+3);
+	fp_init_component("fd.o", NORMAL_PRIO_HI+3);
+	fp_init_component("http.o", NORMAL_PRIO_HI+3);
 	fp_init_component("conn.o", NORMAL_PRIO_HI+4);
-	fp_init_component("cm.o", NORMAL_PRIO_HI+4);
-	fp_init_component("sc.o", NORMAL_PRIO_HI+4);
+	fp_init_component("cm.o", NORMAL_PRIO_HI+2);
+	fp_init_component("sc.o", NORMAL_PRIO_HI+1);
 	fp_init_component("stat.o", NORMAL_PRIO_LO+1);
+	fp_init_component("if.o", NORMAL_PRIO_HI);
 
 	mpd = fp_init_component("mpd.o", MPD_PRIO);
 

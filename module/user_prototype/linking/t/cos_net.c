@@ -53,46 +53,9 @@
 #include <string.h>
 #include <errno.h>
 
-#define NUM_THDS MAX_NUM_THREADS
-#define NUM_WILDCARD_BUFFS 256 //64 //32
 #define UDP_RCV_MAX (1<<15)
-/* 
- * We need page-aligned data for the network ring buffers.  This
- * structure lies at the beginning of a page and describes the data in
- * it.  When amnt_buffs = 0, we can dealloc the page.
- */
-#define NP_NUM_BUFFS 2
 #define MTU 1500
-#define MAX_SEND 1400
-#define BUFF_ALIGN_VALUE 8
-#define BUFF_ALIGN(sz)  ((sz + BUFF_ALIGN_VALUE) & ~(BUFF_ALIGN_VALUE-1))
-struct buff_page {
-	int amnt_buffs;
-	struct buff_page *next, *prev;
-	void *buffs[NP_NUM_BUFFS];
-	short int buff_len[NP_NUM_BUFFS];
-	/* FIXME: should be a bit-field */
-	char buff_used[NP_NUM_BUFFS];
-};
-
-/* Meta-data for the circular queues */
-typedef struct {
-	/* pointers within the buffer, counts of buffers within the
-	 * ring, and amount of total buffers used for a given
-	 * principal both in the driver ring, and in the stack. */
-	unsigned int rb_head, rb_tail, curr_buffs, max_buffs, tot_principal, max_principal;
-	ring_buff_t *rb;
-	cos_lock_t l;
-	struct buff_page used_pages, avail_pages;
-} rb_meta_t;
-static rb_meta_t rb1_md_wildcard, rb2_md;//, rb3_md;
-static ring_buff_t rb1, rb2;//, rb3;
-unsigned short int wildcard_upcall = 0;
-
-//cos_lock_t tmap_lock;
-struct thd_map {
-	rb_meta_t *uc_rb;
-} tmap[NUM_THDS];
+#define MAX_SEND MTU
 
 extern int sched_component_take(spdid_t spdid);
 extern int sched_component_release(spdid_t spdid);
@@ -103,7 +66,6 @@ extern int evt_wait(spdid_t spdid, long extern_evt);
 extern long evt_grp_wait(spdid_t spdid);
 extern int evt_create(spdid_t spdid, long extern_evt);
 
-cos_lock_t alloc_lock;
 cos_lock_t net_lock;
 
 #define NET_LOCK_TAKE()    \
@@ -116,286 +78,9 @@ cos_lock_t net_lock;
 		if (lock_release(&net_lock)) prints("error releasing net lock."); \
 	} while (0)
 
-//#define NET_LOCK_TAKE()    sched_component_take(cos_spd_id())
-//#define NET_LOCK_RELEASE() sched_component_release(cos_spd_id())
-
-struct cos_net_xmit_headers xmit_headers;
-
-/******************* Manipulations for the thread map: ********************/
-
-/* static struct thd_map *get_thd_map_port(unsigned short port)  */
-/* { */
-/* 	int i; */
-
-/* 	lock_take(&tmap_lock); */
-/* 	for (i = 0 ; i < NUM_THDS ; i++) { */
-/* 		if (tmap[i].port == port) { */
-/* 			lock_release(&tmap_lock); */
-/* 			return &tmap[i]; */
-/* 		} */
-/* 	} */
-/* 	lock_release(&tmap_lock); */
-	
-/* 	return NULL; */
-/* } */
-
-static struct thd_map *get_thd_map(unsigned short int thd_id)
-{
-	assert(thd_id < NUM_THDS);
-
-//	lock_take(&tmap_lock);
-//		lock_release(&tmap_lock);
-	return &tmap[thd_id];
-//	lock_release(&tmap_lock);
-	
-	return NULL;
-}
-
-static int add_thd_map(unsigned short int ucid, /*unsigned short int port,*/ rb_meta_t *rbm)
-{
-	assert(ucid < NUM_THDS);
-	
-//	lock_take(&tmap_lock);
-	tmap[ucid].uc_rb = rbm;
-//	lock_release(&tmap_lock);
-
-	return 0;
-}
-
-static int rem_thd_map(unsigned short int tid)
-{
-	struct thd_map *tm;
-
-	/* Utilizing recursive locks here... */
-//	lock_take(&tmap_lock);
-	tm = get_thd_map(tid);
-	if (!tm) {
-//		lock_release(&tmap_lock);
-		return -1;
-	}
-	tm->uc_rb = NULL;
-//	lock_release(&tmap_lock);
-
-	return 0;
-}
-
-
-/*********************** Ring buffer, and memory management: ***********************/
-
-static void rb_init(rb_meta_t *rbm, ring_buff_t *rb)
-{
-	int i;
-
-	for (i = 0 ; i < RB_SIZE ; i++) {
-		rb->packets[i].status = RB_EMPTY;
-	}
-	memset(rbm, 0, sizeof(rb_meta_t));
-	rbm->rb_head       = 0;
-	rbm->rb_tail       = RB_SIZE-1;
-	rbm->rb            = rb;
-//	rbm->curr_buffs    = rbm->max_buffs     = 0; 
-//	rbm->tot_principal = rbm->max_principal = 0;
-	lock_static_init(&rbm->l);
-	INIT_LIST(&rbm->used_pages, next, prev);
-	INIT_LIST(&rbm->avail_pages, next, prev);
-}
-
-static int rb_add_buff(rb_meta_t *r, void *buf, int len)
-{
-	ring_buff_t *rb = r->rb;
-	unsigned int head;
-	struct rb_buff_t *rbb;
-
-	assert(rb);
-	lock_take(&r->l);
-	head = r->rb_head;
-	assert(head < RB_SIZE);
-	rbb = &rb->packets[head];
-
-	/* Buffer's full! */
-	if (head == r->rb_tail) {
-		goto err;
-	}
-	assert(rbb->status == RB_EMPTY);
-	rbb->ptr = buf;
-	rbb->len = len;
-
-//	print("Adding buffer %x to ring.%d%d", (unsigned int)buf, 0,0);
-	/* 
-	 * The status must be set last.  It is the manner of
-	 * communication between the kernel and this component
-	 * regarding which cells contain valid pointers. 
-	 *
-	 * FIXME: There should be a memory barrier here, but I'll
-	 * cross my fingers...
-	 */
-	rbb->status = RB_READY;
-	r->rb_head = (r->rb_head + 1) & (RB_SIZE-1);
-	lock_release(&r->l);
-
-	return 0;
-err:
-	lock_release(&r->l);
-	return -1;
-}
-
-/* 
- * -1 : there is no available buffer
- * 1  : the kernel found an error with this buffer, still set address
- *      and len.  Either the address was not mapped into this component, 
- *      or the memory region did not fit into a page.
- * 0  : successful, address contains data
- */
-static int rb_retrieve_buff(rb_meta_t *r, void **buf, int *max_len)
-{
-	ring_buff_t *rb;
-	unsigned int tail;
-	struct rb_buff_t *rbb;
-	unsigned short int status;
-
-	assert(r);
-	lock_take(&r->l);
-	rb = r->rb;
-	assert(rb);
-	assert(r->rb_tail < RB_SIZE);
-	tail = (r->rb_tail + 1) & (RB_SIZE-1);
-	assert(tail < RB_SIZE);
-	/* Nothing to retrieve */
-	if (/*r->rb_*/tail == r->rb_head) {
-		goto err;
-	}
-	rbb = &rb->packets[tail];
-	status = rbb->status;
-	if (status != RB_USED && status != RB_ERR) {
-		goto err;
-	}
-	
-	*buf = rbb->ptr;
-	*max_len = rbb->len;
-	/* Again: the status must be set last.  See comment in rb_add_buff. */
-	rbb->status = RB_EMPTY;
-	r->rb_tail = tail;
-
-	lock_release(&r->l);
-	if (status == RB_ERR) return 1;
-	return 0;
-err:
-	lock_release(&r->l);
-	return -1;
-}
-
-static struct buff_page *alloc_buff_page(void)
-{
-	struct buff_page *page;
-	int i;
-	int buff_offset = BUFF_ALIGN(sizeof(struct buff_page));
-
-	lock_take(&alloc_lock);
-
-	page = alloc_page();
-	if (!page) {
-		lock_release(&alloc_lock);
-		return NULL;
-	}
-	page->amnt_buffs = 0;
-	INIT_LIST(page, next, prev);
-	for (i = 0 ; i < NP_NUM_BUFFS ; i++) {
-		char *bs = (char *)page;
-
-		page->buffs[i] = bs + buff_offset;
-		page->buff_used[i] = 0;
-		page->buff_len[i] = MTU;
-		buff_offset += MTU;
-	}
-	lock_release(&alloc_lock);
-	return page;
-}
-
-static void *alloc_rb_buff(rb_meta_t *r)
-{
-	struct buff_page *p;
-	int i;
-	void *ret = NULL;
-
-	lock_take(&r->l);
-	if (EMPTY_LIST(&r->avail_pages, next, prev)) {
-		if (NULL == (p = alloc_buff_page())) {
-			lock_release(&r->l);
-			return NULL;
-		}
-		ADD_LIST(&r->avail_pages, p, next, prev);
-	}
-	p = FIRST_LIST(&r->avail_pages, next, prev);
-	assert(p->amnt_buffs < NP_NUM_BUFFS);
-	for (i = 0 ; i < NP_NUM_BUFFS ; i++) {
-		if (p->buff_used[i] == 0) {
-			p->buff_used[i] = 1;
-			ret = p->buffs[i];
-			p->amnt_buffs++;
-			break;
-		}
-	}
-	assert(NULL != ret);
-	if (p->amnt_buffs == NP_NUM_BUFFS) {
-		REM_LIST(p, next, prev);
-		ADD_LIST(&r->used_pages, p, next, prev);
-	}
-	lock_release(&r->l);
-	return ret;
-}
-
-static void release_rb_buff(rb_meta_t *r, void *b)
-{
-	struct buff_page *p;
-	int i;
-
-	assert(r && b);
-
-	p = (struct buff_page *)(((unsigned long)b) & ~(4096-1));
-
-	lock_take(&r->l);
-	for (i = 0 ; i < NP_NUM_BUFFS ; i++) {
-		if (p->buffs[i] == b) {
-			p->buff_used[i] = 0;
-			p->amnt_buffs--;
-			REM_LIST(p, next, prev);
-			ADD_LIST(&r->avail_pages, p, next, prev);
-			lock_release(&r->l);
-			return;
-		}
-	}
-	/* b must be malformed such that p (the page descriptor) is
-	 * not at the start of its page */
-	assert(0);
-}
-
-extern int sched_create_net_brand(spdid_t spdid, unsigned short int port);
 extern int sched_block(spdid_t spdid);
 extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
 extern int sched_create_thread(spdid_t spdid, int prio_delta);
-extern int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short int tid);
-
-static unsigned short int net_brand_id;
-
-static unsigned short int cos_net_create_net_brand(unsigned short int port, rb_meta_t *rbm)
-{
-	int ucid;
-
-	net_brand_id = sched_create_net_brand(cos_spd_id(), port);
-	ucid = sched_create_thread(cos_spd_id(), 1);
-	if (0 > ucid) {
-		printc("net: could not create thread for brand %d\n", net_brand_id);
-		return 0;
-	}
-	if (sched_add_thd_to_brand(cos_spd_id(), net_brand_id, ucid)) assert(0);
-	printc("created net uc %d associated with brand %d\n", ucid, net_brand_id);
-	if (cos_buff_mgmt(COS_BM_RECV_RING, rb1.packets, sizeof(rb1.packets), net_brand_id)) {
-		prints("net: could not setup recv ring.\n");
-		return 0;
-	}
-	return ucid;
-}
-
 
 /*********************** Component Interface ************************/
 
@@ -507,7 +192,6 @@ struct intern_connection {
 		struct udp_pcb *up;
 		struct tcp_pcb *tp;
 	} conn;
-	struct thd_map *tm;
 
 	/* FIXME: should include information for each packet
 	 * concerning the source ip and port as it can vary for
@@ -714,7 +398,6 @@ net_connection_t net_create_udp_connection(spdid_t spdid, long evt_id)
 {
 	struct udp_pcb *up;
 	struct intern_connection *ic;
-	struct thd_map *tm;
 	net_connection_t ret;
 
 	up = udp_new();	
@@ -729,19 +412,10 @@ net_connection_t net_create_udp_connection(spdid_t spdid, long evt_id)
 		ret = -ENOMEM;
 		goto udp_err;
 	}
-	tm = get_thd_map(wildcard_upcall);
-	if (NULL == tm) {
-		ret = -EPERM;
-		goto conn_err;
-	}
 	ic->spdid = spdid;
-	ic->tm = tm;
 	ic->conn.up = up;
 	udp_recv(up, cos_net_lwip_udp_recv, (void*)ic);
 	return net_conn_get_opaque(ic);
-
-conn_err:
-	net_conn_free(ic);
 udp_err:
 	udp_remove(up);
 err:
@@ -960,7 +634,6 @@ static net_connection_t __net_create_tcp_connection(spdid_t spdid, u16_t tid, st
 {
 	struct tcp_pcb *tp;
 	struct intern_connection *ic;
-	struct thd_map *tm;
 	net_connection_t ret;
 
 	if (NULL == new_tp) {
@@ -979,13 +652,7 @@ static net_connection_t __net_create_tcp_connection(spdid_t spdid, u16_t tid, st
 		ret = -ENOMEM;
 		goto tcp_err;
 	}
-	tm = get_thd_map(wildcard_upcall);
-	if (NULL == tm) {
-		ret = -EPERM;
-		goto conn_err;
-	}
 	ic->spdid = spdid;
-	ic->tm = tm;
 	ic->conn.tp = tp;
 	tcp_arg(tp, (void*)ic);
 	tcp_err(tp, cos_net_lwip_tcp_err);
@@ -993,8 +660,6 @@ static net_connection_t __net_create_tcp_connection(spdid_t spdid, u16_t tid, st
 	tcp_sent(tp, cos_net_lwip_tcp_sent);
 	tcp_accept(tp, cos_net_lwip_tcp_accept);
 	return net_conn_get_opaque(ic);
-conn_err:
-	net_conn_free(ic);
 tcp_err:
 	tcp_abort(tp);
 err:
@@ -1504,42 +1169,33 @@ err:
 struct ip_addr ip, mask, gw;
 struct netif   cos_if;
 
-struct udp_pcb *upcb_200, *upcb_out;
-struct tcp_pcb *tpcb_200, *tpcb_accept, *tpcb_out;
-
-static void cos_net_interrupt(void)
+static void cos_net_interrupt(char *packet, int sz)
 {
-	unsigned short int ucid = cos_get_thd_id();
-	void *buff, *d;
-	int max_len, len;
-	struct thd_map *tm;
-	struct pbuf *p;//, *np;
+	void *d;
+	int len;
+	struct pbuf *p;
 	struct ip_hdr *ih;
 	struct packet_queue *pq;
 #ifdef TEST_TIMING
 	unsigned long long ts;
 #endif
 	NET_LOCK_TAKE();
-	tm = get_thd_map(ucid);
-	assert(tm);
-	if (rb_retrieve_buff(tm->uc_rb, &buff, &max_len)) {
-		prints("net: could not retrieve buffer from ring.\n");
-		NET_LOCK_RELEASE();
-		return;
-	}
-	ih = (struct ip_hdr*)buff;
-	if (unlikely(4 != IPH_V(ih))) goto err;
+
+	assert(packet);
+	ih = (struct ip_hdr*)packet;
+	if (unlikely(4 != IPH_V(ih))) goto done;
 	len = ntohs(IPH_LEN(ih));
-	if (unlikely(len > MTU)) {
+	if (unlikely(len != sz || len > MTU)) {
 		printc("len %d > %d", len, MTU);
-		goto err;
+		goto done;
 	}
+
 	p = pbuf_alloc(PBUF_IP, len, PBUF_ROM);
-	
 	if (unlikely(!p)) {
 		prints("OOM in interrupt: allocation of pbuf failed.\n");
-		goto err;
+		goto done;
 	}
+
 	/* For now, we're going to do an additional copy.  Currently,
 	 * packets should be small, so this shouldn't hurt that badly.
 	 * This is done because 1) we are freeing the packet
@@ -1551,7 +1207,7 @@ static void cos_net_interrupt(void)
 	if (unlikely(NULL == pq)) {
 		printc("OOM in interrupt: allocation of packet data (%d bytes) failed.\n", len);
 		pbuf_free(p);
-		goto err;
+		goto done;
 	}
 	pq->headers = d = net_packet_data(pq);
 #ifdef TEST_TIMING
@@ -1559,43 +1215,48 @@ static void cos_net_interrupt(void)
 	ts = pq->ts_start = timing_timestamp();
 #endif	
 #endif	
-	memcpy(d, buff, len);
+	memcpy(d, packet, len);
 	p->payload = p->alloc_track = d;
-	/* free packet in this call... */
+	/* hand off packet ownership here... */
 	if (ERR_OK != cos_if.input(p, &cos_if)) {
 		prints("net: failure in IP input.");
 		pbuf_free(p);
-		goto err;
-	}
-
-	/* OK, recycle the buffer. */
-	if (rb_add_buff(tm->uc_rb, buff /*(char *)p->payload - (UDP_HLEN + IP_HLEN)*/, MTU)) {
-		prints("net: could not add buffer to ring.");
+		goto done;
 	}
 
 #ifdef TEST_TIMING
 	timing_record(UPCALL_PROC, ts);
 #endif
-	NET_LOCK_RELEASE();
-
-	return;
-err:
-	/* Recycle the buffer (essentially dropping packet)... */
-	if (rb_add_buff(tm->uc_rb, buff, MTU)) {
-		prints("net: OOM, and filed to add buffer.");
-	}
+done:
 	NET_LOCK_RELEASE();
 	return;
 }
 
-static int cos_net_int_loop(void)
+static int event_thd = 0;
+
+extern int netif_event_xmit(spdid_t spdid, struct cos_array *d);
+extern int netif_event_wait(spdid_t spdid, struct cos_array *d);
+extern int netif_event_release(spdid_t spdid);
+extern int netif_event_create(spdid_t spdid);
+
+static int cos_net_evt_loop(void)
 {
-	assert(net_brand_id > 0);
-	printc("network uc %d starting to wait for brand %d.\n", cos_get_thd_id(), net_brand_id);
+	struct cos_array *data;
+	int alloc_sz;
+
+	assert(event_thd > 0);
+	if (netif_event_create(cos_spd_id())) assert(0);
+	printc("network uc %d starting...\n", cos_get_thd_id());
+	alloc_sz = sizeof(struct cos_array) + MTU;
+	data = cos_argreg_alloc(alloc_sz);
 	while (1) {
-		if (0 > cos_brand_wait(net_brand_id)) assert(0);
-		cos_net_interrupt();
+		data->sz = alloc_sz;
+		netif_event_wait(cos_spd_id(), data);
+		cos_net_interrupt(data->mem, data->sz);
 	}
+	cos_argreg_free(data);
+
+	return 0;
 }
 
 static err_t cos_net_stack_link_send(struct netif *ni, struct pbuf *p)
@@ -1607,75 +1268,44 @@ static err_t cos_net_stack_link_send(struct netif *ni, struct pbuf *p)
 
 static err_t cos_net_stack_send(struct netif *ni, struct pbuf *p, struct ip_addr *ip)
 {
-	int i;
+	int tot_len = 0;
+	struct cos_array *b;
+	char *buff;
 
 	/* assuming the net lock is taken here */
 
-	/* We are requiring chained pbufs here, one for the header,
-	 * one for the data.  First assert checks that we have > 1
-	 * pbuf, second asserts we have 2 */
 	assert(p && p->ref == 1);
-	xmit_headers.len = 0;
-	if (p->len <= sizeof(xmit_headers.headers)) {
-		assert(p->type == PBUF_RAM);
-		memcpy(&xmit_headers.headers, p->payload, p->len);
-		xmit_headers.len = p->len;
-		p = p->next;
-	} 
+	assert(p->type == PBUF_RAM);
+	b = cos_argreg_alloc(sizeof(struct cos_array) + MTU);
+	if (NULL == b) assert(0);
+	buff = b->mem;
+	while (p) {
+		if (p->len + tot_len > MTU) assert(0);
+		memcpy(buff + tot_len, p->payload, p->len);
+		tot_len += p->len;
 
-	/* 
-	 * Here we do 2 things: create a separate gather data entry
-	 * for each pbuf, and separate the data in individual pbufs
-	 * into separate gather entries if it crosses page boundaries.
-	 */
-	for (i = 0 ; p && i < XMIT_HEADERS_GATHER_LEN ; i++) {
-		char *data = p->payload;
-		struct gather_item *gi = &xmit_headers.gather_list[i];
-		int len_on_page;
-
-		assert(data && p->len < PAGE_SIZE);
-		gi->data = data;
-		gi->len  = p->len;
-		len_on_page = (unsigned long)round_up_to_page(data) - (unsigned long)data;
-		/* Data split across pages??? */
-		if (len_on_page < p->len) {
-			int len_on_second = p->len - len_on_page;
-
-			if (XMIT_HEADERS_GATHER_LEN == i+1) goto segment_err;
-			gi->len  = len_on_page;
-			gi = gi+1;
-			gi->data = data + len_on_page;
-			gi->len  = len_on_second;
-			i++;
-		}
 #ifdef TCP_SEND_COPY
+#ifdef TEST_TIMING
 		if ((p->type == PBUF_REF || p->type == PBUF_ROM)) {
 			struct packet_queue *pq;
 			pq = net_packet_pq(p->payload);
-#ifdef TEST_TIMING
 			timing_record(SEND, pq->ts_start);
-#endif
 		}
+#endif
 #endif
 		assert(p->type != PBUF_POOL);
 		assert(p->ref == 1);
 		p = p->next;
 	}
-	if (unlikely(NULL != p)) goto segment_err;
-	xmit_headers.gather_len = i;
+	
+	b->sz = tot_len;
 
-	/* Send the collection of pbuf data on its way. */
-	if (cos_buff_mgmt(COS_BM_XMIT, NULL, 0, 0)) {
-		prints("net: could not xmit data.");
-	}
-
+	if (0 > netif_event_xmit(cos_spd_id(), b)) assert(0);
+	cos_argreg_free(b);
+	
 	/* cannot deallocate packets here as we might need to
 	 * retransmit them. */
-done:
 	return ERR_OK;
-segment_err:
-	printc("net: attempted to xmit too many segments");
-	goto done;
 }
 
 /* 
@@ -1701,46 +1331,6 @@ static void lwip_free_payload(struct pbuf *p)
 	assert(pq->headers == NULL || pq->headers == headers);
 	p->payload = NULL;
 	free(pq);
-}
-
-/* UDP functions (additionally see cos_net_stack_udp_recv above) */
-
-static struct udp_pcb *cos_net_create_outbound_udp_conn(u16_t local_port, u16_t remote_port, 
-							struct ip_addr *ip, struct thd_map *tm)
-{
-	struct udp_pcb *up;
-
-	assert(tm && remote_port && ip);
-	up = udp_new();
-	if (!up) return NULL;
-	if (local_port) {
-		if (ERR_OK != udp_bind(up, IP_ADDR_ANY, local_port)) {
-			prints("net: could not create outbound udp connection (bind).");
-			udp_remove(up);
-		}
-		udp_recv(up, cos_net_lwip_udp_recv, (void*)tm);
-	}
-	if (ERR_OK != udp_connect(up, ip, remote_port)) {
-		prints("net: could not create outbound udp connection (connect).");
-		udp_remove(up);
-	}
-	return up;
-}
-
-static struct udp_pcb *cos_net_create_inbound_udp_conn(u16_t local_port, struct thd_map *tm)
-{
-	struct udp_pcb *up;
-
-	assert(tm);
- 	up = udp_new();
-	if (!up) return NULL;
-	if (ERR_OK != udp_bind(up, IP_ADDR_ANY, local_port)) {
-		prints("net: could not create inbound udp_conn.");
-		udp_remove(up);
-		return NULL;
-	}
-	udp_recv(up, cos_net_lwip_udp_recv, (void*)tm);
-	return up;
 }
 
 /*** Initialization routines: ***/
@@ -1770,55 +1360,27 @@ static void init_lwip(void)
 	netif_set_up(&cos_if);
 }
 
+static void cos_net_create_netif_thd(void)
+{
+	if (0 > (event_thd = sched_create_thread(cos_spd_id(), 1))) assert(0);
+}
+
 extern int timed_event_block(spdid_t spdid, unsigned int usecs);
 
 static int init(void) 
 {
-	unsigned short int ucid, i;
-	void *b;
 	int cnt = 0;
 #ifdef LWIP_STATS
 	int stats_cnt = 0;
 #endif
 
-//	extern int alloc_debug;
-//	alloc_debug = 1;
-
-	lock_static_init(&alloc_lock);
-//	lock_static_init(&tmap_lock);
 	lock_static_init(&net_lock);
 
-	rb_init(&rb1_md_wildcard, &rb1);
-	rb_init(&rb2_md, &rb2);
-//	rb_init(&rb3_md, &rb3);
+	NET_LOCK_TAKE();
 
 	net_conn_init();
-
-	/* Setup the region from which headers will be transmitted. */
-	if (cos_buff_mgmt(COS_BM_XMIT_REGION, &xmit_headers, sizeof(xmit_headers), 0)) {
-		prints("net: error setting up xmit region.");
-	}
-
-	NET_LOCK_TAKE();
-	/* Wildcard upcall */
-	ucid = cos_net_create_net_brand(0, &rb1_md_wildcard);
-	if (ucid == 0) {
-		NET_LOCK_RELEASE();
-		return 0;
-	}
-	wildcard_upcall = ucid;
-	add_thd_map(ucid, /*0 wildcard port ,*/ &rb1_md_wildcard);
-	
+	cos_net_create_netif_thd();
 	init_lwip();
-
-	for (i = 0 ; i < NUM_WILDCARD_BUFFS ; i++) {
-		if(!(b = alloc_rb_buff(&rb1_md_wildcard))) {
-			prints("net: could not allocate the ring buffer.");
-		}
-		if(rb_add_buff(&rb1_md_wildcard, b, MTU)) {
-			prints("net: could not populate the ring with buffer");
-		}
-	}
 
 	NET_LOCK_RELEASE();
 	/* Start the tcp timer */
@@ -1842,8 +1404,6 @@ static int init(void)
 		timed_event_block(cos_spd_id(), 25); /* expressed in ticks currently */
 	}
 
-	//sched_block();
-
 	prints("net: Error -- returning from init!!!");
 	assert(0);
 	return 0;
@@ -1853,9 +1413,7 @@ void cos_init(void *arg)
 {
 	static volatile int first = 1;
 	
-	if (cos_get_thd_id() == wildcard_upcall) {
-		cos_net_int_loop();
-	}
+	if (cos_get_thd_id() == event_thd) cos_net_evt_loop();
 
 	if (first) {
 		first = 0;
@@ -1864,10 +1422,4 @@ void cos_init(void *arg)
 	} else {
 		prints("net: not expecting more than one bootstrap.");
 	}
-}
-
-void cos_upcall_exec(void *arg)
-{
-	assert(0);
-	cos_net_interrupt();
 }

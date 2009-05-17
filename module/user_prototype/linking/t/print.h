@@ -2,6 +2,8 @@
 #define PRINT_H
 
 #include <cos_component.h>
+#include <stdio.h>
+#include <string.h>
 
 #define ARG_STRLEN 1024
 extern int printfmt(short int *s, int a, int b, int c);
@@ -18,9 +20,25 @@ static inline int cos_strlen(char *s)
 #else 
 #define cos_strlen strlen
 #endif
+#define cos_memcpy memcpy
 
-#include <stdio.h>
-#include <string.h>
+static inline int prints(char *str)
+{
+	unsigned int len;
+	char *s;
+
+	len = cos_strlen(str);
+	s = cos_argreg_alloc(len);
+	if (!s) return -1;
+
+	cos_memcpy(s, str, len+1);
+	print_str(s, len);
+	if (cos_argreg_free(s)) return -1;
+
+	return 0;
+}
+
+#include <cos_debug.h>
 static inline int __attribute__((format(printf,1,2))) printc(char *fmt, ...)
 {
 	char *s;
@@ -30,17 +48,16 @@ static inline int __attribute__((format(printf,1,2))) printc(char *fmt, ...)
 	//len = strlen(fmt)+1;
 	len = ARG_STRLEN; //(len > ARG_STRLEN) ? COS_FMT_PRINT : len;
 	s = cos_argreg_alloc(len);
-	if (!s) return 0;
+	if (!s) assert(0);
 
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, len, fmt, arg_ptr);
 	va_end(arg_ptr);
 	print_str(s, ret);
-	if (cos_argreg_free(s)) return -1;
+	if (cos_argreg_free(s)) assert(0);
 
 	return ret;
 }
-#define cos_memcpy memcpy
 
 static inline int print(char *str, int a, int b, int c)
 {
@@ -55,22 +72,6 @@ static inline int print(char *str, int a, int b, int c)
 	d = (char*)&s[1];
 	cos_memcpy(d, str, len);
 	printfmt(s, a, b, c);
-	if (cos_argreg_free(s)) return -1;
-
-	return 0;
-}
-
-static inline int prints(char *str)
-{
-	unsigned int len;
-	char *s;
-
-	len = cos_strlen(str);
-	s = cos_argreg_alloc(len);
-	if (!s) return -1;
-
-	cos_memcpy(s, str, len+1);
-	print_str(s, len);
 	if (cos_argreg_free(s)) return -1;
 
 	return 0;

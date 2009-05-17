@@ -376,7 +376,6 @@ static int cosnet_xmit_packet(void *headers, int hlen, struct gather_item *gi,
 		struct gather_item *curr_gi = &gi[i];
 		memcpy(skb_put(skb, curr_gi->len), curr_gi->data, curr_gi->len);
 	}
-	//memcpy(skb_put(skb, len), user_buffer, len);
 	
 /* 	{ */
 /* 		struct iphdr *ih = (struct iphdr *)skb->data; */
@@ -446,22 +445,15 @@ static int cosnet_xmit_packet(void *headers, int hlen, struct gather_item *gi,
 	 * host_*_syscall around it, but this is more transparent.
 	 */
 	if (local_softirq_pending()) {
-//		printk("<x|\n");
 		host_start_syscall();
 		do_softirq();
 		host_end_syscall();
-	}// else 	printk("<x\n");
-#ifdef NIL
-	if (!prev_pending && local_softirq_pending()) {
-		printk("cos: softirq pending after packet xmit.\n");
 	}
-#endif
 	if (unlikely(!raw_irqs_disabled())) {
 		printk("cos: interrupts enabled after softirq in xmit!\n");
 		kfree_skb(skb);
 		return -1;
 	}
-	//kfree_skb(skb);
 
 	return 0;
 }

@@ -1999,6 +1999,10 @@ phys_addr_t pgtbl_rem_ret(phys_addr_t pgtbl, vaddr_t va)
 	return val;
 }
 
+/* 
+ * This won't work to find the translation for the argument region as
+ * __va doesn't work on module-mapped memory. 
+ */
 vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr)
 {
 	pte_t *pte = pgtbl_lookup_address(pgtbl, addr);
