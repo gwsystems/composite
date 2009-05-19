@@ -22,6 +22,8 @@ static char *spd_name_map[MAX_NUM_SPDS+1] =
   "st.o",
   "cm.o",
   "sc.o",
+  "if.o",
+  "ip.o",
   "",
   NULL};
 

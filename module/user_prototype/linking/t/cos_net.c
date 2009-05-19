@@ -1234,10 +1234,10 @@ done:
 
 static int event_thd = 0;
 
-extern int netif_event_xmit(spdid_t spdid, struct cos_array *d);
-extern int netif_event_wait(spdid_t spdid, struct cos_array *d);
-extern int netif_event_release(spdid_t spdid);
-extern int netif_event_create(spdid_t spdid);
+extern int ip_xmit(spdid_t spdid, struct cos_array *d);
+extern int ip_wait(spdid_t spdid, struct cos_array *d);
+extern int ip_netif_release(spdid_t spdid);
+extern int ip_netif_create(spdid_t spdid);
 
 static int cos_net_evt_loop(void)
 {
@@ -1245,13 +1245,13 @@ static int cos_net_evt_loop(void)
 	int alloc_sz;
 
 	assert(event_thd > 0);
-	if (netif_event_create(cos_spd_id())) assert(0);
+	if (ip_netif_create(cos_spd_id())) assert(0);
 	printc("network uc %d starting...\n", cos_get_thd_id());
 	alloc_sz = sizeof(struct cos_array) + MTU;
 	data = cos_argreg_alloc(alloc_sz);
 	while (1) {
 		data->sz = alloc_sz;
-		netif_event_wait(cos_spd_id(), data);
+		ip_wait(cos_spd_id(), data);
 		cos_net_interrupt(data->mem, data->sz);
 	}
 	cos_argreg_free(data);
@@ -1300,7 +1300,7 @@ static err_t cos_net_stack_send(struct netif *ni, struct pbuf *p, struct ip_addr
 	
 	b->sz = tot_len;
 
-	if (0 > netif_event_xmit(cos_spd_id(), b)) assert(0);
+	if (0 > ip_xmit(cos_spd_id(), b)) assert(0);
 	cos_argreg_free(b);
 	
 	/* cannot deallocate packets here as we might need to

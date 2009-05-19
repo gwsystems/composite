@@ -48,10 +48,10 @@ LIB_OBJS=$(LIB_C_OBJS) $(LIB_ASM_OBJS)
 # link-in.
 LIB_ASM_MANDITORY=cos_asm_upcall.o c_stub.o
 
-C_COMPS=comp0.o print_comp.o mem_man.o fp_rr.o cos_net.o ds.o uc_test.o wf_test.o lock.o timed_event.o mailbox.o mpd_mgr.o evt.o fd_api.o conn_mgr.o https.o stat_gather.o stack_trace.o static_content.o content_mgr.o netif.o
-ASM_STUBS=s_stubprint.o s_stubmm.o s_stubfprr.o s_stubnet.o s_stubds.o s_stublock.o s_stubte.o s_stubmb.o s_stube.o s_stubfd.o s_stubhttp.o s_stubst.o s_stubsc.o s_stubcm.o s_stubif.o
+C_COMPS=comp0.o print_comp.o mem_man.o fp_rr.o cos_net.o ds.o uc_test.o wf_test.o lock.o timed_event.o mailbox.o mpd_mgr.o evt.o fd_api.o conn_mgr.o https.o stat_gather.o stack_trace.o static_content.o content_mgr.o netif.o cos_ip.o
+ASM_STUBS=s_stubprint.o s_stubmm.o s_stubfprr.o s_stubnet.o s_stubds.o s_stublock.o s_stubte.o s_stubmb.o s_stube.o s_stubfd.o s_stubhttp.o s_stubst.o s_stubsc.o s_stubcm.o s_stubif.o s_stubip.o
 PRODUCTS=$(C_COMPS) $(ASM_STUBS)
-COMPONENTS=c0.o print.o mm.o fprr.o net.o d.o uc.o wftest.o l.o te.o mb.o mpd.o e.o fd.o conn.o http.o stat.o st.o cm.o sc.o if.o
+COMPONENTS=c0.o print.o mm.o fprr.o net.o d.o uc.o wftest.o l.o te.o mb.o mpd.o e.o fd.o conn.o http.o stat.o st.o cm.o sc.o if.o ip.o
 TMP_STR=tmp
 
 SOURCES=$(C_COMPS:%.o=%.c) $(LIB_C_OBJS:%.o=%.c)
@@ -85,6 +85,7 @@ stubs: $(PRODUCTS)
 	@$(LD) -r -o sc.o static_content.o s_stubsc.o
 	@$(LD) -r -o cm.o content_mgr.o s_stubcm.o
 	@$(LD) -r -o if.o netif.o s_stubif.o
+	@$(LD) -r -o ip.o cos_ip.o s_stubip.o
 
 # This is specialized so that we can link with lwip, and it can link with dietlibc
 cos_net.o: cos_net.c net_stack.o

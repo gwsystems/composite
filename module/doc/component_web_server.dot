@@ -6,7 +6,7 @@ digraph web_server {
 
 	{
 		rank=same;
-		"Net Demultiplexer" [shape=box,style=filled,fillcolor="#b3b300"];
+//		"Net Demultiplexer" [shape=box,style=filled,fillcolor="#b3b300"];
 		"Network Driver" [shape=box,style=filled,fillcolor="#b3b300"];
 		"Timer Driver" [shape=box,style=filled,fillcolor="#b3b300"];
 
@@ -19,7 +19,6 @@ digraph web_server {
 		"File Descriptor API" [fillcolor="#b3b300",style=filled];
 	};
 
-	"Socket API" [fillcolor="#b3b300",style=filled];
 	"UDP" [fillcolor="#b3b300",style=filled];
 	"TCP" [fillcolor="#b3b300",style=filled];
 	"IP" [fillcolor="#b3b300",style=filled];
@@ -28,22 +27,19 @@ digraph web_server {
 
 	"HTTP Parser" [fillcolor="#b3b300",style=filled];
 	"CGI Services" [fillcolor="#cccccc",style=filled];
+	"CGI File Descriptor API" [fillcolor="#b3b300",style=filled];	
 	"Content Manager" [fillcolor="#b3b300",style=filled];
 	"Pipe" [style=filled,fillcolor="#b3b300"];
-	"Service Lock" [style=filled,fillcolor="#b3b300"];
 	"Static Content" [style=filled,fillcolor="#cccccc"];
 	"Plugins" [fillcolor="#cccccc",style=filled];
-	"Service Scheduler" [fillcolor="#b3b300",style=filled];
-
-	"Base Scheduler" [fillcolor="#b3b300",style=filled];
+	"Network Interface" [fillcolor="#b3b300",style=filled];
+	"Scheduler" [fillcolor="#b3b300",style=filled];
 	"Lock" [fillcolor="#b3b300",style=filled];
 	"Timed Block" [fillcolor="#b3b300",style=filled];
 	"MPD Manager" [fillcolor="#b3b300",style=filled];
 
-
 	// Edges
 	"Connection Manager" -> "File Descriptor API";
-	"File Descriptor API" -> "Socket API";
 	"File Descriptor API" -> "TCP";
 	"File Descriptor API" -> "UDP";
 	"File Descriptor API" -> "Event Manager";
@@ -51,14 +47,12 @@ digraph web_server {
 	"Content Manager" -> "Plugins";
 	"Content Manager" -> "Static Content";
 	"Content Manager" -> "Pipe";
-	"CGI Services" -> "Pipe";
-	"Pipe" -> "Service Scheduler";
-	"Pipe" -> "Service Lock";
-	"Service Lock" -> "Service Scheduler";
-	"Service Scheduler" -> "Base Scheduler";
+	"CGI Services" -> "CGI File Descriptor API";
+	"CGI File Descriptor API" -> "Event Manager";
+	"CGI File Descriptor API" -> "Pipe";
 	"Pipe" -> "Event Manager";
-	"Socket API" -> "TCP";
-	"Socket API" -> "UDP";
+	"Pipe" -> "Scheduler";
+	"Pipe" -> "Lock";
 	"UDP" -> "IP";
 	"TCP" -> "IP";
 	"TCP" -> "Timed Block";
@@ -67,18 +61,21 @@ digraph web_server {
 	"UDP" -> "Port Manager";
 	"TCP" -> "Port Manager";
 	"Port Manager" -> "Lock";
-	"Port Manager" -> "Net Demultiplexer";
-	"Event Manager" -> "Base Scheduler";
+//	"Port Manager" -> "Net Demultiplexer";
+	"Event Manager" -> "Scheduler";
 	"Event Manager" -> "Lock";
 	"Lock" -> "Timed Block";
-	"Lock" -> "Base Scheduler";
-	"Timed Block" -> "Base Scheduler";
+	"Lock" -> "Scheduler";
+	"Timed Block" -> "Scheduler";
 	"UDP" -> "Lock";
 	"TCP" -> "Lock";
 	"IP" -> "Lock";
 //	"File Descriptor API" -> "Lock";
-	"IP" -> "Net Demultiplexer" -> "Network Driver";
-	"Base Scheduler" -> "Timer Driver";
+//	"IP" -> "Net Demultiplexer";
+	"IP" -> "Network Interface";
+//	"IP" -> "Network Driver";
+	"Network Interface" -> "Network Driver";
+	"Scheduler" -> "Timer Driver";
 	"File Descriptor API" -> "HTTP Parser";
 
 	"MPD Manager" -> "Timed Block";	

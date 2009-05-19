@@ -112,6 +112,7 @@ static void fd_free(struct descriptor *d)
 	free(d);
 }
 
+
 /* 
  * Network specific functions
  * FIXME: move into a socket api component
@@ -317,7 +318,6 @@ err:
 	FD_LOCK_RELEASE();
 	return -EBADFD;
 }
-
 
 /* 
  * http (app specific) parsing specific services
