@@ -29,10 +29,10 @@ extern int static_request(spdid_t spdid, content_req_t cr, struct cos_array *dat
 extern int static_retrieve(spdid_t spdid, content_req_t cr, struct cos_array *data, int *more);
 extern int static_close(spdid_t spdid, content_req_t cr);
 
-/* extern content_req_t async_open(spdid_t spdid, long evt_id, struct cos_array *data); */
-/* extern int async_request(spdid_t spdid, content_req_t cr, struct cos_array *data); */
-/* extern int async_retrieve(spdid_t spdid, content_req_t cr, struct cos_array *data, int *more); */
-/* extern int async_close(spdid_t spdid, content_req_t cr); */
+extern content_req_t async_open(spdid_t spdid, long evt_id, struct cos_array *data);
+extern int async_request(spdid_t spdid, content_req_t cr, struct cos_array *data);
+extern int async_retrieve(spdid_t spdid, content_req_t cr, struct cos_array *data, int *more);
+extern int async_close(spdid_t spdid, content_req_t cr);
 
 struct provider_fns {
 	content_open_fn_t     open;
@@ -48,12 +48,12 @@ struct provider_fns static_content = {
 	.close = static_close
 };
 
-/* struct provider_fns async_content = { */
-/* 	.open = async_open, */
-/* 	.request = async_request, */
-/* 	.retrieve = async_retrieve, */
-/* 	.close = async_close */
-/* }; */
+struct provider_fns async_content = {
+	.open = async_open,
+	.request = async_request,
+	.retrieve = async_retrieve,
+	.close = async_close
+};
 
 struct route {
 	char *prefix;
@@ -70,15 +70,10 @@ struct route {
  * specific path exists above it.
  */
 struct route routing_tbl[] = {
-/* 	{ */
-/* 		.prefix = "/cgi",  */
-/* 		.fns = { */
-/* 			.open = NULL, */
-/* 			.request = NULL, */
-/* 			.retrieve = NULL, */
-/* 			.close = NULL */
-/* 		} */
-/* 	}, */
+	{
+		.prefix = "/cgi",
+		.fns = &async_content
+	},
 	{
 		.prefix = "/", 
 		.fns = &static_content
@@ -190,6 +185,7 @@ content_req_t content_open(spdid_t spdid, long evt_id, struct cos_array *data)
 	r->child_id = fns->open(cos_spd_id(), evt_id, data);
 	if (r->child_id < 0) {
 		content_req_t err = r->child_id;
+		printc("content_mgr: cannot open content w/ %s\n", data->mem);
 		request_free(r);
 		return err;
 	}

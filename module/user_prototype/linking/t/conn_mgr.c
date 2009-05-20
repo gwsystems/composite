@@ -27,7 +27,7 @@ extern int cos_accept(int fd);
 extern int cos_bind(int fd, u32_t ip, u16_t port);
 extern int cos_listen(int fd, int queue_len);
 extern int cos_socket(int domain, int type, int protocol);
-extern int cos_app_open(int type);
+extern int cos_app_open(int type, struct cos_array *data);
 
 extern int sched_block(spdid_t spd_id);
 #define BUFF_SZ 1401 //(COS_MAX_ARG_SZ/2)
@@ -59,7 +59,7 @@ static void accept_new(int accept_fd)
 			if (fd == -EAGAIN) break;
 			assert(0);
 		}
-		if (0 > (http_fd = cos_app_open(0))) {
+		if (0 > (http_fd = cos_app_open(0, NULL))) {
 			printc("app_open returned %d", http_fd);
 			assert(0);
 		}

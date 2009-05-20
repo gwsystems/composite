@@ -641,16 +641,21 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 				r->resp.resp = save;
 				r->resp.resp_len = local_resp_sz;
 			}
-			if (0 == used) return -ENOMEM;
+			if (0 == used) {
+				if (arr) cos_argreg_free(arr);
+				if (more) cos_argreg_free(more);
+				return -ENOMEM;
+			}
 			break;
 		}
 
 		memcpy(resp+used+consumed, local_resp, local_resp_sz);
 		
-		if (NULL == r->resp.resp) {
-			cos_argreg_free(arr);
-			cos_argreg_free(more);
-		}
+		if (arr)  cos_argreg_free(arr);
+		if (more) cos_argreg_free(more);
+		more = NULL;
+		arr  = NULL;
+
 		used += local_resp_sz + consumed;
 
 		next = r->next;

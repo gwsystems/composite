@@ -365,7 +365,7 @@ static int fd_app_write(int fd, struct descriptor *d, char *buff, int sz)
 	return content_write(cos_spd_id(), conn_id, buff, sz);
 }
 
-int cos_app_open(int type)
+int cos_app_open(int type, struct cos_array *data)
 {
 	struct descriptor *d;
 	int fd, ret = -EINVAL;
@@ -389,7 +389,7 @@ int cos_app_open(int type)
 	d->ops.read  = fd_app_read;
 	d->ops.write = fd_app_write;
 
-	conn_id = content_create(cos_spd_id(), evt_id, NULL);
+	conn_id = content_create(cos_spd_id(), evt_id, data);
 	if (conn_id < 0) goto err_cleanup;
 	d->data = (void *)conn_id;
 	FD_LOCK_RELEASE();

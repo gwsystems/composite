@@ -11,6 +11,7 @@
 
 cos_asm_server_stub_spdid(net_create_tcp_connection)
 cos_asm_server_stub_spdid(net_create_udp_connection)
+
 cos_asm_server_stub_spdid(net_accept)
 cos_asm_server_stub_spdid(net_accept_data)
 cos_asm_server_stub_spdid(net_listen)

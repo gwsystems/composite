@@ -482,7 +482,7 @@ int netif_event_release(spdid_t spdid)
 
 int netif_event_wait(spdid_t spdid, struct cos_array *d)
 {
-	int ret_sz;
+	int ret_sz = 0;
 
 	if (!cos_argreg_arr_intern(d)) return -EINVAL;
 	if (d->sz < MTU) return -EINVAL;

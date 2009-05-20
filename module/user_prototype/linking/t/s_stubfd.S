@@ -18,4 +18,3 @@ cos_asm_server_stub(cos_write)
 cos_asm_server_stub(cos_read)
 cos_asm_server_stub(cos_wait)
 cos_asm_server_stub(cos_wait_all)	
-

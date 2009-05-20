@@ -5,27 +5,33 @@
 
 /* the index of the component corresponds to its id */
 static char *spd_name_map[MAX_NUM_SPDS+1] = 
-{ "c0.o",
-  "fprr.o",
-  "wftest.o",
-  "mpd.o",
-  "l.o",
-  "mm.o",
-  "print.o",
-  "te.o",
-  "net.o",
-  "e.o",
-  "fd.o",
-  "conn.o",
-  "http.o",
-  "stat.o",
-  "st.o",
-  "cm.o",
-  "sc.o",
-  "if.o",
-  "ip.o",
-  "",
-  NULL};
+{ 
+	"c0.o",
+	"fprr.o",
+	"wftest.o",
+	"mpd.o",
+	"l.o",
+	"mm.o",
+	"print.o",
+	"te.o",
+	"net.o",
+	"e.o",
+	"fd.o",
+	"conn.o",
+	"http.o",
+	"stat.o",
+	"st.o",
+	"cm.o",
+	"sc.o",
+	"if.o",
+	"ip.o",
+	"ainv.o",
+	"fn.o",
+	"fd2.o",
+	"cgi.o",
+	"",
+	NULL
+};
 
 static inline int spd_name_map_id(char *name)
 {
