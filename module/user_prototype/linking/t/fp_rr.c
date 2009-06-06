@@ -922,7 +922,6 @@ static void fp_block(struct sched_thd *thd, spdid_t spdid)
 	thd->blocking_component = spdid;
 
 	fp_block_thd(thd);
-	if (thd->id == 13) report_event(UPCALL_BLOCK);
 	report_event(THD_BLOCK);
 }
 

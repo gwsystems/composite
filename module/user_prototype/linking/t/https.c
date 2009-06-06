@@ -231,10 +231,11 @@ static int http_get_request(struct http_request *r)
 	int ret;
 	assert(r && r->c);
 
-	arg = cos_argreg_alloc(r->path_len + sizeof(struct cos_array));
+	arg = cos_argreg_alloc(r->path_len + sizeof(struct cos_array) + 1);
 	assert(arg);
 	memcpy(arg->mem, r->path, r->path_len);
 	arg->sz = r->path_len;
+	arg->mem[arg->sz] = '\0';
 	if (0 > r->content_id ) {
 		r->content_id = content_open(cos_spd_id(), r->c->evt_id, arg);
 		if (r->content_id < 0) {
@@ -612,21 +613,31 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 
 			arr->sz = resp_sz - used;
 			if ((ret = content_retrieve(cos_spd_id(), r->content_id, arr, more))) {
-				/* FIXME send an error message. */
 				cos_argreg_free(arr);
 				cos_argreg_free(more);
-				assert(0);
+				if (0 > ret) {
+					assert(0);
+					/* FIXME send an error message. */
+				}
+				printc("https get reply returning %d.\n", ret);
 				return ret;
 			}
 			local_more = *more;
 			local_resp_sz = arr->sz;
 			local_resp = arr->mem;
 		}
-		ret = http_get_header(resp+used, resp_sz-used, local_resp_sz, &consumed);
+		
+		/* still more date, but not available now... */
+		if (local_resp_sz == 0) {
+			cos_argreg_free(arr);
+			cos_argreg_free(more);
+			break;
+		}
+
 		/* If the header and data couldn't fit into the
 		 * provided buffer, then we need to save the response,
 		 * so that we can send it out later... */
-		if (ret) {
+		if (http_get_header(resp+used, resp_sz-used, local_resp_sz, &consumed)) {
 			if (NULL == r->resp.resp) {
 				char *save;
 			
@@ -642,6 +653,7 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 				r->resp.resp_len = local_resp_sz;
 			}
 			if (0 == used) {
+				printc("https: could not allocate either header or response of sz %d:%s\n", local_resp_sz, local_resp);
 				if (arr) cos_argreg_free(arr);
 				if (more) cos_argreg_free(more);
 				return -ENOMEM;
@@ -670,6 +682,7 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 
 //~/research/others_software/httperf-0.9.0/src/httperf --port=200 --wsess=20000,10,0 --burst-len=10 --rate=3600 --server=10.0.2.8 --max-piped-calls=32
 //~/research/others_software/httperf-0.9.0/src/httperf --port=200 --wsess=40000,1,0 --burst-len=1 --rate=7000 --server=10.0.2.8 --max-piped-calls=32
+//./httperf --burst-len=20 --wsess=1,20,0 --rate=150 --port=200 --server=10.0.2.8 --uri=/ --max-piped-calls=32 --hog
 //./ab -n 50000 -c 24 10.0.2.8:200/
 
 COS_MAP_CREATE_STATIC(conn_map);

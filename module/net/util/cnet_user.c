@@ -13,7 +13,9 @@
 
 #define DEVCNET "/dev/net/cnet"
 #define ETHCNET "cnet0"
-#define IPADDR  "10.0.2.9"
+/* ip address of host */
+//#define IPADDR  "10.0.2.9"
+#define IPADDR  "128.197.11.194"
 #define P2PPEER "10.0.2.8"
 
 int main(void) {

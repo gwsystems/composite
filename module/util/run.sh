@@ -20,7 +20,7 @@ stat.o-te.o;stat.o-fprr.o;stat.o-l.o;stat.o-print.o;stat.o-e.o;\
 st.o-print.o;\
 ip.o-if.o;\
 cm.o-print.o;cm.o-mm.o;cm.o-sc.o;cm.o-fprr.o;cm.o-ainv.o;\
-sc.o-print.o;sc.o-mm.o;sc.o-te.o;sc.o-e.o;sc.o-fprr.o;\
+sc.o-print.o;sc.o-mm.o;sc.o-e.o;sc.o-fprr.o;\
 if.o-print.o;if.o-mm.o;if.o-l.o;if.o-fprr.o;\
 fd2.o-fn.o;fd2.o-ainv.o;fd2.o-print.o;fd2.o-mm.o;fd2.o-fprr.o;fd2.o-e.o;fd2.o-l.o;\
 ainv.o-mm.o;ainv.o-print.o;ainv.o-fprr.o;ainv.o-l.o;ainv.o-e.o;\

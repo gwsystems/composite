@@ -4,48 +4,57 @@ digraph web_server {
 	splines=true;
 //	rankdir=BT;
 
+	"Memory Mapper" [shape=octagon,fillcolor="#dddddd",style=filled];
 	{
 		rank=same;
-//		"Net Demultiplexer" [shape=box,style=filled,fillcolor="#b3b300"];
-		"Network Driver" [shape=box,style=filled,fillcolor="#b3b300"];
-		"Timer Driver" [shape=box,style=filled,fillcolor="#b3b300"];
 
-		"Terminal Printer" [shape=octagon,style=filled,fillcolor="#b3b300"];
-		"Memory Mapper" [shape=octagon,style=filled,fillcolor="#b3b300"];
+		"Network Driver" [shape=box,fillcolor="#dddddd",style=filled];
+		"Timer Driver" [shape=box,fillcolor="#dddddd",style=filled];
 	};
+		"Terminal Printer" [shape=octagon,fillcolor="#dddddd",style=filled];
+//	{
+//		rank=same;
+		"Connection Manager" [fillcolor="#dddddd",style=filled];
+		"File Descriptor API" [fillcolor="#dddddd",style=filled];
+//	};
+
+//	"UDP" [fillcolor="#dddddd",style=filled];
+	"TCP" [fillcolor="#dddddd",style=filled];
+
+	"HTTP Parser" [fillcolor="#dddddd",style=filled];
+	"CGI Services" [fillcolor="#dddddd",style=dashed];
+	"CGI File Descriptor API" [fillcolor="#dddddd",style=filled];	
+	"Content Manager" [fillcolor="#dddddd",style=filled];
+	"Pipe" [fillcolor="#dddddd",style=filled];
+	"Static Content" [style=dashed,fillcolor="#dddddd"];
+//	"Plugins" [fillcolor="#dddddd",style=filled];
+	"Scheduler" [fillcolor="#dddddd",style=filled];
 	{
 		rank=same;
-		"Connection Manager" [fillcolor="#b3b300",style=filled];
-		"File Descriptor API" [fillcolor="#b3b300",style=filled];
-	};
-
-	"UDP" [fillcolor="#b3b300",style=filled];
-	"TCP" [fillcolor="#b3b300",style=filled];
-	"IP" [fillcolor="#b3b300",style=filled];
-	"Port Manager" [fillcolor="#b3b300",style=filled];
-	"Event Manager" [fillcolor="#b3b300",style=filled];
-
-	"HTTP Parser" [fillcolor="#b3b300",style=filled];
-	"CGI Services" [fillcolor="#cccccc",style=filled];
-	"CGI File Descriptor API" [fillcolor="#b3b300",style=filled];	
-	"Content Manager" [fillcolor="#b3b300",style=filled];
-	"Pipe" [style=filled,fillcolor="#b3b300"];
-	"Static Content" [style=filled,fillcolor="#cccccc"];
-	"Plugins" [fillcolor="#cccccc",style=filled];
-	"Network Interface" [fillcolor="#b3b300",style=filled];
-	"Scheduler" [fillcolor="#b3b300",style=filled];
-	"Lock" [fillcolor="#b3b300",style=filled];
-	"Timed Block" [fillcolor="#b3b300",style=filled];
-	"MPD Manager" [fillcolor="#b3b300",style=filled];
+		"IP" [fillcolor="#dddddd",style=filled];
+		"Port Manager" [fillcolor="#dddddd",style=filled];
+		"Event Manager" [fillcolor="#dddddd",style=filled];
+	} 
+	{
+		rank=same;
+		"MPD Manager" [fillcolor="#dddddd",style=filled];
+		"Lock" [fillcolor="#dddddd",style=filled];
+	}
+	{
+		rank=same;
+		"Timed Block" [fillcolor="#dddddd",style=filled];
+		"vNIC" [fillcolor="#dddddd",style=filled];
+	}
 
 	// Edges
 	"Connection Manager" -> "File Descriptor API";
 	"File Descriptor API" -> "TCP";
-	"File Descriptor API" -> "UDP";
+//	"File Descriptor API" -> "UDP";
 	"File Descriptor API" -> "Event Manager";
 	"HTTP Parser" -> "Content Manager";
-	"Content Manager" -> "Plugins";
+//	"Content Manager" -> "Plugins";
 	"Content Manager" -> "Static Content";
+	"Static Content" -> "Event Manager";
 	"Content Manager" -> "Pipe";
 	"CGI Services" -> "CGI File Descriptor API";
 	"CGI File Descriptor API" -> "Event Manager";
@@ -53,12 +62,12 @@ digraph web_server {
 	"Pipe" -> "Event Manager";
 	"Pipe" -> "Scheduler";
 	"Pipe" -> "Lock";
-	"UDP" -> "IP";
+//	"UDP" -> "IP";
 	"TCP" -> "IP";
 	"TCP" -> "Timed Block";
-	"UDP" -> "Event Manager";
+//	"UDP" -> "Event Manager";
 	"TCP" -> "Event Manager";
-	"UDP" -> "Port Manager";
+//	"UDP" -> "Port Manager";
 	"TCP" -> "Port Manager";
 	"Port Manager" -> "Lock";
 //	"Port Manager" -> "Net Demultiplexer";
@@ -67,14 +76,15 @@ digraph web_server {
 	"Lock" -> "Timed Block";
 	"Lock" -> "Scheduler";
 	"Timed Block" -> "Scheduler";
-	"UDP" -> "Lock";
+//	"UDP" -> "Lock";
 	"TCP" -> "Lock";
 	"IP" -> "Lock";
 //	"File Descriptor API" -> "Lock";
 //	"IP" -> "Net Demultiplexer";
-	"IP" -> "Network Interface";
+	"IP" -> "vNIC";
 //	"IP" -> "Network Driver";
-	"Network Interface" -> "Network Driver";
+	"vNIC" -> "Network Driver";
+	"vNIC" -> "Lock";
 	"Scheduler" -> "Timer Driver";
 	"File Descriptor API" -> "HTTP Parser";
 

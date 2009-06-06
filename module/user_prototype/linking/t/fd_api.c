@@ -352,6 +352,7 @@ static int fd_app_read(int fd, struct descriptor *d, char *buff, int sz)
 	assert(d->type == DESC_HTTP);
 	conn_id = (long)d->data;
 	FD_LOCK_RELEASE();
+
 	return content_read(cos_spd_id(), conn_id, buff, sz);
 }
 

@@ -206,7 +206,7 @@ err:
  *      or the memory region did not fit into a page.
  * 0  : successful, address contains data
  */
-static int rb_retrieve_buff(rb_meta_t *r, void **buf, int *max_len)
+static int rb_retrieve_buff(rb_meta_t *r, unsigned int **buf, int *max_len)
 {
 	ring_buff_t *rb;
 	unsigned int tail;
@@ -417,7 +417,7 @@ static int interrupt_process(void *d, int sz, int *recv_len)
 
 	tm = get_thd_map(ucid);
 	assert(tm);
-	if (rb_retrieve_buff(tm->uc_rb, (void**)&buff, &max_len)) {
+	if (rb_retrieve_buff(tm->uc_rb, &buff, &max_len)) {
 		prints("net: could not retrieve buffer from ring.\n");
 		goto err;
 	}

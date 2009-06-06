@@ -280,6 +280,7 @@ static int provider_enqueue_request(content_req_t cr, char *req, int len)
 
 	r = malloc(len);
 	if (NULL == r) {
+		printc("async_inv: could not allocate memory for request\n");
 		err = -ENOMEM;
 		goto err;
 	}
@@ -431,6 +432,7 @@ static int provider_reply(content_req_t cr, char *rep, int len)
 		m->reply = r;
 		m->rep_len = len;
 	} else {
+		printc("async_inv: could not allocate reply.\n");
 		m->ret_val = -ENOMEM;
 	}
 	if (evt_trigger(cos_spd_id(), m->evt_id)) assert(0);
@@ -454,19 +456,20 @@ static int provider_retrieve_reply(content_req_t cr, char *rep, int len, int *mo
 	m = cos_map_lookup(&messages, cr);
 	if (NULL == m) {
 		ret = -EINVAL;
-		goto err;
+		goto fin;
 	}
 
 	/* not processed yet = data not currently available */
 	if (m->status == MSG_PENDING) {
-		ret = -EAGAIN;
-		goto err;
+		ret = 0;//-EAGAIN;
+		*more = 1;
+		goto fin;
 	}
 
 	/* If we couldn't allocate the reply, convey that. */
 	if (m->ret_val) {
 		ret = m->ret_val;
-		goto err;
+		goto fin;
 	}
 	
 	/* some of the reply might have already been read */
@@ -476,11 +479,8 @@ static int provider_retrieve_reply(content_req_t cr, char *rep, int len, int *mo
 	m->rep_viewed += min;
 	if (m->rep_viewed == m->rep_len) *more = 0;
 	else *more = 1;
-
-	UNLOCK();
-
-	return min;
-err:
+	ret = min;
+fin:
 	UNLOCK();
 	return ret;
 }
@@ -503,10 +503,16 @@ content_req_t async_open(spdid_t spdid, long evt_id, struct cos_array *data)
 	m = provider_create_message(evt_id);
 	if (NULL == m) {
 		UNLOCK();
+		printc("async_inv: open -- could not create message.");
 		return -ENOMEM;
 	}
 	/* FIXME,BUG: stupid to trust that data->mem is bounded with \0  */
 	sp = provider_find(data->mem);
+	if (NULL == sp) {
+		provider_release_message(m);
+		UNLOCK();
+		return -EINVAL;
+	}
 	/* FIXME: Here we don't keep a direct reference in case the sp
 	 * is later deallocated.  We avoid reference counting, but if
 	 * the sp_id is later allocated to another provider, we make
@@ -547,15 +553,23 @@ int async_retrieve(spdid_t spdid, content_req_t cr, struct cos_array *data, int 
 	int ret;
 
 	async_trace("async_retrieve\n");
-	if (!cos_argreg_arr_intern(data)) return -EINVAL;
-	if (!cos_argreg_buff_intern((char*)more, sizeof(int))) return -EINVAL;
+	if (!cos_argreg_arr_intern(data)) {
+		printc("argument not in argreg!\n");
+		return -EINVAL;
+	}
+	if (!cos_argreg_buff_intern((char*)more, sizeof(int))) {
+		printc("more not in argreg\n");
+		return -EINVAL;
+	}
 
 	ret = provider_retrieve_reply(cr, data->mem, data->sz, more);
-	if (0 < ret) {
-		data->sz = ret;
-		ret = 0;
+	if (0 > ret) {
+		data->sz = 0;
+		return ret;
 	}
-	return ret;
+	data->sz = ret;
+
+	return 0;
 }
 
 

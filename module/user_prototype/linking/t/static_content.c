@@ -56,7 +56,7 @@ int static_request(spdid_t spdid, content_req_t cr, struct cos_array *data)
 	return 0;
 }
 
-static const char msg[] = "All your base are belong to us";
+static const char msg[] = "Hello World";
 
 int static_retrieve(spdid_t spdid, content_req_t cr, struct cos_array *data, int *more)
 {

@@ -210,7 +210,10 @@ int content_retrieve(spdid_t spdid, content_req_t cr, struct cos_array *data, in
 	struct content_req *r;
 
 	r = request_find(cr);
-	if (NULL == r) return -EINVAL;
+	if (NULL == r) {
+		printc("could not find request!\n");
+		return -EINVAL;
+	}
 
 	assert(r->fns && r->fns->retrieve);
 	return r->fns->retrieve(cos_spd_id(), r->child_id, data, more);
