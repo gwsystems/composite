@@ -11,6 +11,7 @@
 	
 .text
 cos_asm_server_stub_spdid(content_create)
+cos_asm_server_stub_spdid(content_split)
 cos_asm_server_stub_spdid(content_remove)
 cos_asm_server_stub_spdid(content_write)
 cos_asm_server_stub_spdid(content_read)

@@ -41,6 +41,7 @@ typedef enum {
 struct descriptor;
 struct fd_ops {
 	int (*close)(int fd, struct descriptor *d);
+	int (*split)(struct descriptor *d);
 	int (*read)(int fd, struct descriptor *d, char *buff, int sz);
 	int (*write)(int fd, struct descriptor *d, char *buff, int sz);
 };
@@ -325,6 +326,7 @@ err:
 extern int content_write(spdid_t spdid, long connection_id, char *reqs, int sz);
 extern int content_read(spdid_t spdid, long connection_id, char *buff, int sz);
 extern long content_create(spdid_t spdid, long evt_id, struct cos_array *d);
+extern long content_split(spdid_t spdid, long conn_id, long evt_id);
 extern int content_remove(spdid_t spdid, long conn_id);
 
 static int fd_app_close(int fd, struct descriptor *d)
@@ -366,6 +368,48 @@ static int fd_app_write(int fd, struct descriptor *d, char *buff, int sz)
 	return content_write(cos_spd_id(), conn_id, buff, sz);
 }
 
+int fd_app_split(struct descriptor *d)
+{
+	struct descriptor *d_new;
+	int fd, ret = -EINVAL;
+	long conn_id, evt_id;
+
+	if (NULL == (d_new = fd_alloc(DESC_HTTP))) {
+		ret = -ENOMEM;
+		goto err;
+	}
+	fd = fd_get_index(d_new);
+	d_new->ops.close = fd_app_close;
+	d_new->ops.read  = fd_app_read;
+	d_new->ops.write = fd_app_write;
+	d_new->ops.split = fd_app_split;
+
+	if (0 > (evt_id = evt_create(cos_spd_id()))) {
+		printc("Could not create event for app fd: %ld\n", evt_id);
+		assert(0);
+	}
+	d_new->evt_id = evt_id;
+	evt2fd_create(evt_id, d);
+
+	conn_id = content_split(cos_spd_id(), (long)d->data, evt_id);
+	if (conn_id < 0) {
+		ret = conn_id;
+		goto err_cleanup;
+	}
+	d_new->data = (void *)conn_id;
+
+	FD_LOCK_RELEASE();
+
+	return fd;
+err_cleanup:
+	evt_free(cos_spd_id(), d_new->evt_id);
+	fd_free(d_new);
+	/* fall through */
+err:
+	FD_LOCK_RELEASE();
+	return ret;
+}
+
 int cos_app_open(int type, struct cos_array *data)
 {
 	struct descriptor *d;
@@ -389,6 +433,7 @@ int cos_app_open(int type, struct cos_array *data)
 	d->ops.close = fd_app_close;
 	d->ops.read  = fd_app_read;
 	d->ops.write = fd_app_write;
+	d->ops.split = fd_app_split;
 
 	conn_id = content_create(cos_spd_id(), evt_id, data);
 	if (conn_id < 0) goto err_cleanup;
@@ -403,7 +448,6 @@ err_cleanup:
 err:
 	FD_LOCK_RELEASE();
 	return ret;
-	
 }
 
 /* 
@@ -417,6 +461,19 @@ int cos_close(int fd)
 	d = fd_get_desc(fd);
 	if (NULL == d) goto err;
 	return d->ops.close(fd, d);
+err:
+	FD_LOCK_RELEASE();
+	return -EBADFD;
+}
+
+int cos_split(int fd)
+{
+	struct descriptor *d;
+
+	FD_LOCK_TAKE();
+	d = fd_get_desc(fd);
+	if (NULL == d || NULL == d->ops.split) goto err;
+	return d->ops.split(d);
 err:
 	FD_LOCK_RELEASE();
 	return -EBADFD;

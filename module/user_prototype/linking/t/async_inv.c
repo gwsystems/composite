@@ -59,18 +59,33 @@ struct message {
 	struct message *next, *prev; /* linked list */
 };
 
-struct service_provider {
-	char *name;
+typedef enum {
+	PROVIDER_SPAWN_T = 1,
+	PROVIDER_MAIN_T,
+	PROVIDER_CLOSED_T
+} provider_type_t;
+
+struct service_provider;
+struct provider_poly {
+	provider_type_t type;
 	long id;
 	long evt_id;		/* evt to trigger when work becomes available */
-
+	struct service_provider *sp;
 	/* The message being currently processed by the server */
 	struct message *curr_msg;
+};
+
+struct service_provider {
+	struct provider_poly main;
+	char *name;
+
 	struct message requests;
 	int num_reqs;
 	unsigned short int blocked_producer;
 	
 	struct service_provider *next, *prev;
+
+	struct provider_poly spawned;
 };
 
 /* a map of the service providers of type: id -> struct service_provider */
@@ -105,27 +120,24 @@ static struct service_provider *provider_find(char *name)
 	return NULL;
 }
 
-static inline struct service_provider *provider_lookup(long id)
+static inline struct provider_poly *provider_lookup(long id)
 {
 	return cos_map_lookup(&providers, id);
 }
 
 static void provider_prematurely_term_msg(struct message *m, struct service_provider *sp)
 {
-	assert(m && m->sp_id == sp->id);
+	assert(m && m->sp_id == sp->main.id);
 
 	m->status = MSG_PROCESSED;
 	m->ret_val = -EIO;
 	if (evt_trigger(cos_spd_id(), m->evt_id)) assert(0);
 }
 
-static int provider_remove(long id)
+static int provider_main_remove(struct service_provider *sp)
 {
-	struct service_provider *sp;
+	long id = sp->main.id;
 
-	sp = provider_lookup(id);
-	if (NULL == sp) return -EINVAL;
-	assert(sp->id == id);
 	REM_LIST(sp, next, prev);
 	cos_map_del(&providers, id);
 	free(sp->name);
@@ -138,11 +150,44 @@ static int provider_remove(long id)
 		provider_prematurely_term_msg(m, sp);
 		REM_LIST(m, next, prev);
 	}
-	if (sp->curr_msg) {
-		provider_prematurely_term_msg(sp->curr_msg, sp);
-		sp->curr_msg = NULL;
+	if (sp->spawned.type == PROVIDER_SPAWN_T && 
+	    sp->spawned.curr_msg) {
+		provider_prematurely_term_msg(sp->spawned.curr_msg, sp);
+		sp->spawned.curr_msg = NULL;
 	}
+
+	/* 
+	 * FIXME: this is crap -- remove the spawned id out from under
+	 * it without a notification. 
+	 */
+	if (sp->spawned.type == PROVIDER_SPAWN_T) {
+		cos_map_del(&providers, sp->spawned.id);
+	}
+
 	free(sp);
+
+	return 0;
+}
+
+static int provider_remove(long id)
+{
+	struct provider_poly *poly;
+	struct service_provider *sp;
+
+	poly = provider_lookup(id);
+	if (NULL == poly) return -EINVAL;
+	switch(poly->type) {
+	case PROVIDER_MAIN_T:
+		sp = poly->sp;
+		assert(sp->main.id == id);
+		return provider_main_remove(sp);
+	case PROVIDER_SPAWN_T:
+		if (poly->id) cos_map_del(&providers, poly->id);
+		poly->type = PROVIDER_CLOSED_T;
+		break;
+	case PROVIDER_CLOSED_T:
+		break;
+	}
 	
 	return 0;
 }
@@ -162,16 +207,21 @@ static struct service_provider *provider_create(char *name, int len, long evt_id
 	if (NULL == n) goto free_sp;
 	memcpy(n, name, len);
 	n[len] = '\0';
-	
-	id = cos_map_add(&providers, sp);
+
+	id = cos_map_add(&providers, &sp->main);
 	if (0 > id) goto free_both;
 
 	memset(sp, 0, sizeof(struct service_provider));
+
 	INIT_LIST(sp, next, prev);
 	ADD_LIST(&ps, sp, next, prev);
 	INIT_LIST(&sp->requests, next, prev);
-	sp->id = id;
-	sp->evt_id = evt_id;
+	sp->main.type = PROVIDER_MAIN_T;
+	sp->main.sp = sp;
+	sp->main.id = id;
+	sp->main.evt_id = evt_id;
+	sp->spawned.type = PROVIDER_CLOSED_T;
+	sp->spawned.sp = sp;
 	sp->name = n;
 
 	return sp;
@@ -224,12 +274,16 @@ static int provider_release_message(struct message *m)
 	switch (m->status) {
 	case MSG_PENDING:
 	{
+		struct provider_poly *poly;
 		struct service_provider *sp;
 
 		assert(!EMPTY_LIST(m, next, prev));
 		REM_LIST(m, next, prev);
-		sp = provider_lookup(m->sp_id);
-		assert(sp);
+		poly = provider_lookup(m->sp_id);
+		assert(poly);
+		assert(poly->type == PROVIDER_MAIN_T);
+		sp = poly->sp;
+		
 		sp->num_reqs--;
 		break;
 	}
@@ -264,6 +318,7 @@ static int provider_release_message(struct message *m)
 static int provider_enqueue_request(content_req_t cr, char *req, int len)
 {
 	struct message *m, *m_first;
+	struct provider_poly *poly;
 	struct service_provider *sp;
 	int err = -ENOMEM;
 	char *r;
@@ -276,7 +331,6 @@ static int provider_enqueue_request(content_req_t cr, char *req, int len)
 		err = -EINVAL;
 		goto err;
 	}
-	UNLOCK();
 
 	r = malloc(len);
 	if (NULL == r) {
@@ -284,6 +338,7 @@ static int provider_enqueue_request(content_req_t cr, char *req, int len)
 		err = -ENOMEM;
 		goto err;
 	}
+	UNLOCK();
 retry:
 	LOCK();
 	m = cos_map_lookup(&messages, cr);
@@ -300,11 +355,14 @@ retry:
 		err = -EINVAL;
 		goto free;
 	}
-	sp = provider_lookup(m->sp_id);
-	if (NULL == sp) { 
+	poly = provider_lookup(m->sp_id);
+	if (NULL == poly) { 
 		err = -EINVAL; 
 		goto free; 
 	}
+	assert(poly->type == PROVIDER_MAIN_T);
+	sp = poly->sp;
+
 	/* if there are too many requests currently queued up, block */
 	if (sp->num_reqs >= ASYNC_MAX_BUFFERED) {
 		/* FIXME: only a single producer for each service_provider */
@@ -324,7 +382,7 @@ retry:
 	m->status = MSG_PENDING;
 	sp->num_reqs++;
 	/* Notify the provider that there is data pending */
-	if (evt_trigger(cos_spd_id(), sp->evt_id)) assert(0);
+	if (evt_trigger(cos_spd_id(), sp->main.evt_id)) assert(0);
 	UNLOCK();
 
 	return 0;
@@ -336,47 +394,37 @@ err:
 }
 
 /* 
- * The server should use this to read a request off of the request
- * queue.  This will return a pointer to the request and its length
- * (in arguments).  If there are no requests, return EAGAIN.  If
- * error, return -EINVAL.  Set the current request in the service
- * provider to be the new request.
- *
- * FIXME: Each message must be read only once, and to its entirety.
- * This is not desirable behavior if e.g. the buffer passed in cannot
- * accommodate all of the message.
+ * The server should use this to read a request (using the cr of a
+ * spawned handle) off of the request queue.  This will return a
+ * pointer to the request and its length (in arguments).  If there are
+ * no requests, return EAGAIN.  If error, return -EINVAL.  Set the
+ * current request in the service provider to be the new request.
  */
 static int provider_dequeue_request(content_req_t cr, char *req, int len)
 {
+	struct provider_poly *poly;
 	struct service_provider *sp;
 	struct message *m;
 	unsigned short int t;
-	int ret;
+	int ret = 0, left, amnt;
 
 	LOCK();
-	sp = provider_lookup(cr);
-	if (NULL == sp) goto err;
-	if (EMPTY_LIST(&sp->requests, next, prev)) {
-		UNLOCK();
-		return 0;
-	}
-	/* this is the proxy ensuring that data for a message must be
-	 * requested only once see fixme blow and above */
-	if (sp->curr_msg) {
-		UNLOCK();
-		return 0;
-	}
+	poly = provider_lookup(cr);
+	if (NULL == poly) goto err;
+	if (poly->type != PROVIDER_SPAWN_T) goto err;
+	sp = poly->sp;
 
-	sp->num_reqs--;
-	m = FIRST_LIST(&sp->requests, next, prev);
-	sp->curr_msg = m;
-	m->status = MSG_PROCESSING;
-	REM_LIST(m, next, prev);
-	/* FIXME: use req_viewed to allow partial viewing */
+	m = poly->curr_msg;
+	assert(m);
 	if (len < m->req_len) assert(0);
-	memcpy(req, m->request, m->req_len);
-	ret = m->req_len;
-	m->req_viewed = m->req_len;
+	/* how much is there left to be read? */
+	left = m->req_len - m->req_viewed;
+	amnt = left > len ? len : left;
+	if (0 < amnt) {
+		memcpy(req, m->request, amnt);
+		ret = amnt;
+		m->req_viewed += amnt;
+	}
 
 	/* If there is a fully request queue, the client might blocked; wake it */
 	t = sp->blocked_producer;
@@ -393,6 +441,40 @@ err:
 }
 
 /* 
+ * spawn a new request (analogous to accept in networking) that will
+ * be used to read the message.  The cr must be a handle to a given
+ * ascii string in the provider lookup namespace (not a spawn).
+ */
+static content_req_t provider_open_req_rep(content_req_t cr, long evt_id)
+{
+	struct provider_poly *poly, *spawn;
+	struct service_provider *sp;
+	struct message *m;
+	
+	poly = provider_lookup(cr);
+	if (NULL == poly || poly->type != PROVIDER_MAIN_T) return -EINVAL;
+	sp = poly->sp;
+
+	if (EMPTY_LIST(&sp->requests, next, prev)) return -EAGAIN;
+
+	spawn = &sp->spawned;
+	spawn->type = PROVIDER_SPAWN_T;
+	spawn->sp = sp;
+	spawn->id = cos_map_add(&providers, spawn);
+	if (0 > spawn->id) return -ENOMEM;
+	spawn->evt_id = evt_id;
+
+	sp->num_reqs--;
+	m = FIRST_LIST(&sp->requests, next, prev);
+	spawn->curr_msg = m;
+	m->status = MSG_PROCESSING;
+	REM_LIST(m, next, prev);
+	m->req_viewed = 0;
+
+	return spawn->id;
+}
+
+/* 
  * The reply is formulated and is to be enqueued in the
  * service_provider for later consumption.
  *
@@ -400,24 +482,38 @@ err:
  */
 static int provider_reply(content_req_t cr, char *rep, int len)
 {
+	struct provider_poly *poly;
 	struct service_provider *sp;
 	struct message *m;
 	char *r;
 	int ret = 0;
 
 	LOCK();
-	sp = provider_lookup(cr);
-	if (NULL == sp) {
+	poly = provider_lookup(cr);
+	if (NULL == poly || poly->type != PROVIDER_SPAWN_T) {
 		ret = -EINVAL;
 		goto err;
 	}
+	assert(cr == poly->id);
+	sp = poly->sp;
 
-	m = sp->curr_msg;
+	m = poly->curr_msg;
 	assert(m);
-	sp->curr_msg = NULL;
+
+	/* 
+	 * If a reply has already been made, don't allow more.
+	 * Really, we should allow the reply to be extended, but not
+	 * yet.  Thus FIXME.
+	 */
+	if (m->reply) {
+		printc("cannot reply twice to a request...\n");
+		ret = -ENOMEM;
+		goto err;
+	}
 	/* The message has been released, so delete it. */
 	if (m->status == MSG_DELETE) {
 		m->status = MSG_PROCESSED;
+		poly->curr_msg = NULL;
 		provider_release_message(m);
 		goto err;
 	}
@@ -513,12 +609,13 @@ content_req_t async_open(spdid_t spdid, long evt_id, struct cos_array *data)
 		UNLOCK();
 		return -EINVAL;
 	}
+	assert(sp->main.type == PROVIDER_MAIN_T);
 	/* FIXME: Here we don't keep a direct reference in case the sp
 	 * is later deallocated.  We avoid reference counting, but if
 	 * the sp_id is later allocated to another provider, we make
 	 * an incorrect call.  Should really do refcnting.
 	 */
-	m->sp_id = sp->id;
+	m->sp_id = sp->main.id;
 	UNLOCK();
 
 	return m->id;
@@ -592,9 +689,10 @@ long content_create(spdid_t spdid, long evt_id, struct cos_array *data)
 		UNLOCK();
 		return -EINVAL;
 	}
+	assert(sp->main.type == PROVIDER_MAIN_T);
 	UNLOCK();
 
-	return sp->id;
+	return sp->main.id;
 }
 
 int content_remove(spdid_t spdid, long conn_id)
@@ -606,6 +704,19 @@ int content_remove(spdid_t spdid, long conn_id)
 	ret = provider_remove(conn_id);
 	UNLOCK();
 	
+	return ret;
+}
+
+long content_split(spdid_t spdid, long conn_id, long evt_id)
+{
+	int ret;
+
+	async_trace("content_split\n");
+
+	LOCK();
+	ret = provider_open_req_rep(conn_id, evt_id);
+	UNLOCK();
+
 	return ret;
 }
 

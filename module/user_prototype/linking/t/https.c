@@ -695,6 +695,11 @@ static int connection_process_requests(struct connection *c, char *req, int req_
 	return connection_get_reply(c, resp, resp_sz);
 }
 
+long content_split(spdid_t spdid, long conn_id, long evt_id)
+{
+	return -ENOSYS;
+}
+
 int content_write(spdid_t spdid, long connection_id, char *reqs, int sz)
 {
 	struct connection *c;

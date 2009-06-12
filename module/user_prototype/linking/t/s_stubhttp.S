@@ -7,7 +7,8 @@
 
 #include <cos_asm_server_stub.h>
 	
-.text	
+.text
+cos_asm_server_stub(content_split)
 cos_asm_server_stub(content_write)
 cos_asm_server_stub(content_read)
 cos_asm_server_stub(content_create)
