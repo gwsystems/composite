@@ -2521,6 +2521,11 @@ static struct composite_spd *mpd_merge(struct composite_spd *c1,
 		assert(other->members != curr);
 	}
 	//spd_mpd_depricate(other);
+	/* 
+	 * Now the subordinate cspd is only referenced (if at all) by
+	 * invocation stack references and the singular "active"
+	 * reference to be removed in the next call.
+	 */
 	spd_mpd_make_subordinate(dest, other);
 	assert(!spd_mpd_is_depricated(dest) && !spd_mpd_is_subordinate(dest));
 	//print_valid_pgtbl_entries(dest->spd_info.pg_tbl);
@@ -2538,19 +2543,26 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
 {
 	int ret = 0; 
 	struct composite_spd *prev = NULL;
-	struct spd *from;
+	struct spd *from = NULL;
 	phys_addr_t curr_pg_tbl, new_pg_tbl;
 	struct spd_poly *curr;
+	struct thread *thd;
 
-	from = spd_get_by_index(spd1);
-	if (0 == from) {
-		printk("cos: mpd_cntl -- first composite spd %d not valid\n", spd1);
-		return -1;
-	}
-	prev = (struct composite_spd *)from->composite_spd;
-	assert(prev && spd_is_composite(&prev->spd_info));
-	assert(!spd_mpd_is_subordinate(prev) && !spd_mpd_is_depricated(prev));
-	curr = thd_get_thd_spdpoly(thd_get_current());
+	if (spd1) {
+		from = spd_get_by_index(spd1);
+		if (0 == from) {
+			printk("cos: mpd_cntl -- first composite spd %d not valid\n", spd1);
+			return -1;
+		}
+		prev = (struct composite_spd *)from->composite_spd;
+		assert(prev);
+		assert(spd_is_composite(&prev->spd_info));
+		assert(!spd_mpd_is_subordinate(prev) && !spd_mpd_is_depricated(prev));
+	} 
+
+	thd = thd_get_current();
+	assert(thd);
+	curr = thd_get_thd_spdpoly(thd);
 	/* keep track of this, as it might change during the course of this call */
 	curr_pg_tbl = curr->pg_tbl;
 
@@ -2561,6 +2573,11 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
 		struct composite_spd *trans_cspd;
 		struct mpd_split_ret sret;
 
+		if (NULL == prev) {
+			printk("cos: mpd_cntl -- first composite spd %d not valid\n", spd1);
+			ret = -1;
+			break;
+		}
 		transitory = spd_get_by_index(spd2);
 		if (NULL == transitory) {
 			printk("cos: mpd_cntl -- failed to access normal spd (%d) for call to split.\n", spd2);
@@ -2585,7 +2602,7 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
 			break;
 		}
 		cos_meas_event(COS_MEAS_MPD_SPLIT);
-//		printk("cos: split spd with cspd %p from %p\n", trans_cspd, prev);
+//		printk("cos: split spd with cspd %p from %p, spdid %d\n", trans_cspd, prev, spd1);
 		ret = mpd_split(prev, transitory, &sret.new, &sret.old);
 		/* simply return 0 for success */
 /* 		if (!ret) { */
@@ -2603,6 +2620,11 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
 		struct spd *second;
 		struct composite_spd *other, *cspd_ret;
 		
+		if (NULL == prev) {
+			printk("cos: mpd_cntl -- first composite spd %d not valid\n", spd1);
+			ret = -1;
+			break;
+		}
 		second = spd_get_by_index(spd2);
 		if (0 == second) {
 			printk("cos; mpd_cntl -- second composite spd %d invalid\n", spd2);
@@ -2612,7 +2634,7 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
 		other = (struct composite_spd *)second->composite_spd;
 		assert(spd_is_composite(&other->spd_info));
 		assert(NULL != other && !spd_mpd_is_depricated(other) && !spd_mpd_is_subordinate(other));
-//		printk("cos: merge %p and %p\n", prev, other);
+//		printk("cos: merge %p(%d) and %p(%d)\n", prev, spd1, other, spd2);
 		if (prev == other) {
 //			printk("cos: skipping merge\n");
 			ret = 0;
@@ -2627,10 +2649,55 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
 		//ret = spd_mpd_index(cspd_ret);
 		break;
 	}
+	case COS_MPD_UPDATE:
+	{
+		struct thd_invocation_frame *tif;
+		struct spd *spd;
+
+		struct spd_poly *poly;
+		struct composite_spd *active_cspd, *curr_cspd;
+
+		spd = thd_validate_get_current_spd(thd, spd_id);
+		if (NULL == spd) {
+			ret = -1;
+			break;
+		}
+		tif = thd_invstk_top(thd);
+		assert(tif);
+		/* Common case: We are not in the entry point to the
+		 * current protection domain -- can't update */
+		if (likely(tif->spd != spd)) break;
+
+		/* 
+		 * If the currently active cspd (to be found in the
+		 * invocation stack) is either 1) depricated, or 2)
+		 * subordinate to a depricated cspd, then we wish to
+		 * update the currently active spd to the most up to
+		 * date configuration.
+		 */
+		poly = tif->current_composite_spd;
+		active_cspd = (struct composite_spd *)poly;
+		if (!(spd_mpd_is_depricated(active_cspd) ||
+		      (spd_mpd_is_subordinate(active_cspd) && 
+		       spd_mpd_is_depricated(active_cspd->master_spd)))) break;
+
+		assert(poly->flags & SPD_COMPOSITE);
+		/* We know we are currently in a depricated composite
+		 * spd, but also that we can update to the current
+		 * cspd...do it! */
+		curr_cspd = (struct composite_spd *)spd->composite_spd;
+		spd_mpd_ipc_take(curr_cspd);
+		tif->current_composite_spd = (struct spd_poly*)curr_cspd;
+		spd_mpd_ipc_release(active_cspd);
+
+		break;
+	}
 	default:
 		ret = -1;
 	}
 
+	curr = thd_get_thd_spdpoly(thd);
+	assert(curr);
 	new_pg_tbl = curr->pg_tbl;
 	/*
 	 * The page tables of the current spd can change if the

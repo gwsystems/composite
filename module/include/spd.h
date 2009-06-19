@@ -222,6 +222,7 @@ unsigned int spd_add_static_cap_extended(struct spd *spd, struct spd *trusted_sp
 isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int flags);
 int cap_is_free(int cap_num);
 unsigned long spd_read_reset_invocation_cnt(struct spd *cspd, struct spd *sspd);
+struct invocation_cap *inv_cap_get(int c_num);
 
 static inline int spd_is_scheduler(struct spd *spd)
 {

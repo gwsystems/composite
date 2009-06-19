@@ -242,9 +242,11 @@ enum {
 				 * table to 0), so that it won't be
 				 * used, causing mpd faults
 				 * instead */
-	COS_MPD_REAP		/* return the id of and free a cspd
+	COS_MPD_REAP,		/* return the id of and free a cspd
 				 * that has no more references to
 				 * it */
+	COS_MPD_UPDATE		/* if possible, get rid of a stale pd
+				 * for the current thread. */
 };
 
 enum {

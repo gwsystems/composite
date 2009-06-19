@@ -216,6 +216,11 @@ static inline void *cos_get_arg_region(void)
 	return ud->argument_region;
 }
 
+static inline void cos_mpd_update(void)
+{
+	cos_mpd_cntl(COS_MPD_UPDATE, 0, 0);
+}
+
 static inline long cos_spd_id(void)
 {
 	return cos_this_spd_id;

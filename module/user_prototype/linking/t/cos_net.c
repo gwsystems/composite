@@ -462,7 +462,7 @@ static int cos_net_udp_recv(struct intern_connection *ic, void *data, int sz)
 	return xfer_amnt;
 }
 
-/**** COS TCP function ****/
+/**** COS TCP functions ****/
 
 /* 
  * This should be called every time that a tcp connection is closed.
@@ -1402,6 +1402,7 @@ static int init(void)
 		tcp_tmr();
 		NET_LOCK_RELEASE();
 		timed_event_block(cos_spd_id(), 25); /* expressed in ticks currently */
+		cos_mpd_update();
 	}
 
 	prints("net: Error -- returning from init!!!");

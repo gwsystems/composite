@@ -264,6 +264,7 @@ static void start_timer_thread(void)
 	while (1) {
 		event_time_t next_wakeup;
 
+		cos_mpd_update();
 		ticks = sched_timestamp();
 		if (sched_component_take(spdid)) {
 			prints("fprr: scheduler lock failed!!!");

@@ -20,7 +20,7 @@ executive, but this is not strictly necessary, so define the
 next value if you want to use sysexit instead of iret to trap
 back to the executive.*/
 #define SYSEXIT
-
+	
 /* from entry.S */	
 EBX		= 0x00
 ECX		= 0x04
@@ -31,12 +31,13 @@ EBP		= 0x14
 EAX		= 0x18
 DS		= 0x1C
 ES		= 0x20
-ORIG_EAX	= 0x24
-EIP		= 0x28
-CS		= 0x2C
-EFLAGS		= 0x30
-OLDESP		= 0x34
-OLDSS		= 0x38
+FS              = 0x24
+ORIG_EAX	= 0x28
+EIP		= 0x2C
+CS		= 0x30
+EFLAGS		= 0x34
+OLDESP		= 0x38
+OLDSS		= 0x3C
 
 CF_MASK		= 0x00000001
 TF_MASK		= 0x00000100
@@ -47,6 +48,7 @@ VM_MASK		= 0x00020000
 		
 #define SAVE_ALL \
 	cld; \
+	pushl %fs; \
 	pushl %es; \
 	pushl %ds; \
 	pushl %eax; \
@@ -73,7 +75,7 @@ VM_MASK		= 0x00020000
 	RESTORE_INT_REGS; \
 1:	popl %ds;	\
 2:	popl %es;	\
-
+	popl %fs
 
 /* 
  * This is all information that is needed within this file, and
@@ -222,6 +224,7 @@ ENTRY(asym_exec_dom_entry)
 	jnz hijack_checks
 	/* fall through */
 
+        /* FIXME: truly pointless, remove this chunk */
 	SAVE_ALL
 	pushl %esp
 /*	call syscall_interposition */
@@ -236,45 +239,38 @@ normal_syscall:
 	jmp  *(sysenter_addr) /* sti will happen in syscall path */
 
 	/* never get to here on syscall...*/
-	
+
+		
 	ALIGN
 ENTRY(page_fault_interposition)
 	/*
 	 * we don't want our function to muck with the previously 
 	 * active registers, so save them...  Note that the stack 
-	 * already contains cs, ds, flags, sp and eip.  This 
-	 * format matches SAVE_ALL and struct pt_regs.
+	 * already contains cs, ds, flags, sp, eip, and the error code.   
 	 */
-	pushl %es
-	pushl %ds
-	pushl %eax
-	pushl %ebp
-	pushl %edi
-	pushl %esi
-	pushl %edx
-	pushl %ecx
-	pushl %ebx
-	/*	GET_THREAD_INFO(%ebp)*/
-#ifdef COMPOSITE
-	testw $(_TIF_COMPOSITE_ENV), TI_flags(%ebp)
-	jz not_composite_pf
-        /* enter composite pf call */
-	RESTORE_REGS
-	addl $4, %esp
-	iret /* work??? */
-#endif
-not_composite_pf:	
-/*	testw $(_TIF_HIJACK_ENV), TI_flags(%ebp)
-	jz normal_pf
-*/
+	SAVE_ALL
+	movl ORIG_EAX(%esp), %edx
+	movl %esp, %eax /* pt_regs argument */
 	call main_page_fault_interposition
 	test %eax, %eax
 	jnz normal_pf
 	RESTORE_REGS
+	addl $4, %esp 	/* status/error code */
 	iret
 
 	/* restore the saved regs before we call the linux handler */
-normal_pf:	
+normal_pf:
+	/*
 	RESTORE_REGS
+	I have no idea why it's happening, but occasionally when we
+	try and access memory in the page fault here, we get a GPF.  I
+	believe this is because the segment registers get corrupted.
+	So instead of reloading (the faulty) previous segement regs,
+	just restore the integer registers and fs here (not ds/cs)
+	instead.
+	*/
+	RESTORE_INT_REGS
+	addl $8, %esp
+	popl %fs
 	jmp *(default_page_fault_handler)
 

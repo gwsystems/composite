@@ -49,6 +49,15 @@ struct spd *virtual_namespace_query(unsigned long addr)
 
 
 struct invocation_cap invocation_capabilities[MAX_STATIC_CAP];
+struct invocation_cap *inv_cap_get(int c_num)
+{
+	struct invocation_cap *cap;
+
+	assert(c_num < MAX_STATIC_CAP);
+	cap = &invocation_capabilities[c_num];
+	if (cap->owner == CAP_FREE) return NULL;
+	return cap;
+}
 
 int cap_is_free(int cap_num)
 {
@@ -700,6 +709,10 @@ void spd_mpd_release(struct composite_spd *cspd)
 /* 
  * s = subordinate, m = master.  Move members from s to m, and
  * generally maintain relevant lists.
+ *
+ * Note: s still has its "active" ref count which will be decremented
+ * after this function completes.  Thus we don't have to worry about
+ * it being deallocated midway through this function.
  */
 static void spd_mpd_subordinate(struct composite_spd *s, struct composite_spd *m)
 {
@@ -712,7 +725,7 @@ static void spd_mpd_subordinate(struct composite_spd *s, struct composite_spd *m
 	pt = m->spd_info.pg_tbl;
 
 	/* ? */
-	assert(s->next == s && s->prev == s && s->members == NULL);
+//	assert(s->next == s && s->prev == s && s->members == NULL);
 	/* Ensure that the ->master_spd pointer for each subordinate
 	 * points to the correct (new) master, has updated page
 	 * tables, and that the reference counts are accurate. */
@@ -730,8 +743,10 @@ static void spd_mpd_subordinate(struct composite_spd *s, struct composite_spd *m
 	do {
 		struct composite_spd *old_m;
 
+		assert(spd_mpd_is_subordinate(n));
 		old_m = n->master_spd;
-		assert(old_m != n && old_m != m);
+		assert(old_m != m);
+		assert(old_m == NULL || old_m == s);
 		n->master_spd = m;
 		/* copy the address of the page tables here to
 		 * maintain the fast-path through the IPC path

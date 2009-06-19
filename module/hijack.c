@@ -1622,6 +1622,7 @@ int fault_ptr = 0;
 struct fault_info {
 	vaddr_t addr, ip, sp, a, b, c, d, D, S, bp;
 	unsigned short int spdid, thdid;
+	int cspd_flags, cspd_master_flags;
 	unsigned long long timestamp;
 } faults[NFAULTS];
 
@@ -1629,6 +1630,7 @@ static void cos_report_fault(struct thread *t, vaddr_t fault_addr, struct pt_reg
 {
 	struct fault_info *fi;
 	unsigned long long ts;
+	struct spd_poly *spd_poly;
 
 	rdtscll(ts);
 
@@ -1648,22 +1650,105 @@ static void cos_report_fault(struct thread *t, vaddr_t fault_addr, struct pt_reg
 	fi->spdid = spd_get_index(thd_get_thd_spd(t));
 	fi->thdid = thd_get_id(t);
 	fi->timestamp = ts;
+	spd_poly = thd_invstk_top(t)->current_composite_spd;
+	fi->cspd_flags = spd_poly->flags;
+	if (spd_poly->flags & SPD_SUBORDINATE) {
+		struct composite_spd *cspd = ((struct composite_spd *)spd_poly)->master_spd;
+		fi->cspd_master_flags = cspd->spd_info.flags;
+	} else {
+		fi->cspd_master_flags = 0;
+	}
 	fault_ptr = (fault_ptr + 1) % NFAULTS;
 }
 
-/* the composite specific page fault handler */
-static void cos_handle_page_fault(struct thread *thd, struct spd_poly *spd_poly, 
-				  vaddr_t fault_addr, struct pt_regs *regs)
+/* 
+ * FIXME: this logic should be in inv.c or platform independent code
+ * 
+ * Before we look for the Linux vma, lets check if we should look at
+ * all, or if Composite can fix up the fault on its own.
+ */
+static int cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *regs, 
+					  vaddr_t fault_addr)
 {
-//	struct composite_spd *cspd;
-//	BUG_ON(!(spd_poly->flags & SPD_COMPOSITE) || spd_poly->flags & SPD_FREE);
-//	cspd = (struct composite_spd *)spd_poly;
+	struct spd_poly *active = thd_get_thd_spdpoly(thd), *curr;
+	struct composite_spd *cspd;
+	vaddr_t ucap_addr = regs->eax;
+	struct spd *origin;
+	
+	/* 
+	 * If we are in the most up-to-date version of the
+	 * page-tables, then there is no fixing up to do, and we
+	 * should just return.  Check for this case.
+	 */
+	assert(active);
+	cspd = (struct composite_spd *)active;
+	assert(cspd);
+	if (!(spd_mpd_is_depricated(cspd) ||
+	      (spd_mpd_is_subordinate(cspd) && 
+	       spd_mpd_is_depricated(cspd->master_spd)))) return 0;
+	assert(active->flags & SPD_COMPOSITE);
 
+	/* 
+	 * We are going to perform these checks in order:
+	 *
+	 * Assume: regs->eax (thus ucap_addr) contains the address of
+	 * the user-level capability structure.
+	 * 
+	 * 1) lookup the origin of the invocation (via the user-cap)
+	 *
+	 * 2) verify that the user-capability is valid (within bounds
+         * allocated to the active protection domain).
+	 *
+	 * 3) verify that the faulted pud is not in the active pd
+	 *
+	 * 4) check that it is present in the current pd config.
+	 * 
+	 * 5) map that entry into the active page tables.
+	 */
+	
+	/* 1 */
+	origin = virtual_namespace_query(ucap_addr);
+	if (unlikely(NULL == origin)) return 0;
+	/* up-to-date pd */
+	curr = origin->composite_spd;
+
+	/* 2 */
+	if (unlikely(pgtbl_entry_absent(active->pg_tbl, ucap_addr))) return 0;
+
+	/* 3: really don't know what could cause this */
+	if (unlikely(!pgtbl_entry_absent(active->pg_tbl, fault_addr))) return 0;
+
+	/* 4 */
+	if (unlikely(pgtbl_entry_absent(curr->pg_tbl, fault_addr))) return 0;
+	
+	/* 5
+	 *
+	 * Extend the current protection domain to include mappings of
+	 * a more up-to-date pd if this one is subordinate and not
+	 * consistent.
+	 */
+	copy_pgtbl_range(active->pg_tbl, curr->pg_tbl, fault_addr, HPAGE_SIZE);
+	
+	/* 
+	 * NOTE: perhaps a better way to do this would be to look up
+	 * the spds associated with both addresses (ucap, and fault),
+	 * and check to make sure that their ->composite_spd is the
+	 * same, and if so, map the entry into the active page table.
+	 * We'll still need to make sure that the ucap is active in
+	 * the current page table though, so I don't know if we save
+	 * anything.
+	 */
+
+	return 1;
+}
+
+/* the composite specific page fault handler */
+static int cos_handle_page_fault(struct thread *thd, vaddr_t fault_addr, struct pt_regs *regs)
+{
 	memcpy(&thd->regs, regs, sizeof(struct pt_regs));
-
 	cos_report_fault(thd, fault_addr, regs);
 
-	return;
+	return 1;
 }
 
 /*
@@ -1778,29 +1863,43 @@ static inline unsigned long change_page_fault_handler(void *new_handler)
 static unsigned long fault_addrs[NUM_BUCKETS];
 #endif
 
+/* checks on the error code provided for x86 page faults */
+#define PF_PERM(code) (code & 0x1)
+#define PF_ABSENT(code) (!PF_PERM(code))
+#define PF_USER(code) (code & 0x4)
+#define PF_KERN(code) (!PF_USER(code))
+#define PF_WRITE(code) (code & 0x2)
+#define PF_READ(code) (!PF_WRITE(code))
+
 /*
  * This function will be called upon a hardware page fault.  Return 0
  * if you want the linux page fault to be run, !0 otherwise.
  */
-int main_page_fault_interposition(void)
+__attribute__((regparm(3))) 
+int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 {
-	unsigned long fault_addr;
 	struct vm_area_struct *vma;
 	struct mm_struct *curr_mm;
 
+	unsigned long fault_addr;
 	struct thread *thd;
-	struct spd_poly *poly;
-	struct pt_regs *regs = NULL;
+	int ret = 1;
 	
+	static volatile int recur = 0;
+
+	if (1 == recur) printk("cos recursive fault!\n");
+	recur = 1;
+
+	/* Composite doesn't know how to handle kernel faults */
+	if (PF_KERN(error_code)) goto linux_handler;
+
 	/*
 	 * We want to allow composite to handle the fault if we are in
 	 * the composite thread and either the fault was outside the
 	 * spd's boundaries or there is not a linux mapping for the
 	 * address.
 	 */
-	if (composite_thread != current) {
-		goto linux_handler;
-	}
+	if (composite_thread != current) goto linux_handler;
 
 	fault_addr = read_cr2();
 
@@ -1840,14 +1939,18 @@ int main_page_fault_interposition(void)
 		cos_meas_event(COS_UNKNOWN_FAULT);
 		goto linux_handler_release;
 	}
-	poly = thd_get_thd_spdpoly(thd);
-//	present = !pgtbl_entry_absent(poly->pg_tbl, fault_addr);
 
 #ifdef FAULT_DEBUG
 	fault_addrs[BUCKET_HASH(fault_addr)]++;
 #endif
+	if (PF_ABSENT(error_code) && PF_READ(error_code) && 
+	    cos_prelinux_handle_page_fault(thd, rs, fault_addr)) {
+		ret = 0;
+		goto linux_handler_release;
+	}
+
 	vma = find_vma(curr_mm, fault_addr);
-	if (/*present &&*/ vma && vma->vm_start <= fault_addr) {
+	if (vma && vma->vm_start <= fault_addr) {
 		/* let the linux fault handler deal with it */
 		cos_meas_event(COS_LINUX_PG_FAULT);
 		goto linux_handler_release;
@@ -1857,22 +1960,22 @@ int main_page_fault_interposition(void)
 	 * vma anymore 
 	 */
 	up_read(&curr_mm->mmap_sem);
+	mmput(curr_mm);
 
 	cos_meas_event(COS_PG_FAULT);
-	regs = get_user_regs_thread(composite_thread);
-	cos_handle_page_fault(thd, thd_get_thd_spdpoly(thd), fault_addr, regs);
+	
+	if (get_user_regs_thread(composite_thread) != rs) printk("Nested page fault!\n");
+	ret = cos_handle_page_fault(thd, fault_addr, rs);
+	recur = 0;
 
-	/* change this to 0 when 1) kern_entry.S is fixed, and 2)
-	 * cos_handle_page_fault places the correct thread to run and
-	 * page tables to the fault handler thread.
-	 */
-	return 1;
+	return ret;
 linux_handler_release:
 	up_read(&curr_mm->mmap_sem);
 linux_handler_put:
 	mmput(curr_mm);
 linux_handler:
-	return 1; 
+	recur = 0;
+	return ret; 
 }
 
 /*
@@ -2637,10 +2740,11 @@ static int aed_release(struct inode *inode, struct file *file)
 			struct fault_info *fi = &faults[i];
 
 			if (fi->thdid != 0) {
-				printk("cos: spd %d, thd %d @ addr %x @ time %lld and w/ regs: \ncos:\t\t"
+				printk("cos: spd %d, thd %d @ addr %x @ time %lld, mpd flags %x (master %x) and w/ regs: \ncos:\t\t"
 				       "eip %10x, esp %10x, eax %10x, ebx %10x, ecx %10x,\ncos:\t\t"
 				       "edx %10x, edi %10x, esi %10x, ebp %10x \n",
-				       fi->spdid, fi->thdid, (unsigned int)fi->addr, fi->timestamp, (unsigned int)fi->ip, (unsigned int)fi->sp, 
+				       fi->spdid, fi->thdid, (unsigned int)fi->addr, fi->timestamp, fi->cspd_flags, 
+				       fi->cspd_master_flags, (unsigned int)fi->ip, (unsigned int)fi->sp, 
 				       (unsigned int)fi->a, (unsigned int)fi->b, (unsigned int)fi->c, (unsigned int)fi->d, 
 				       (unsigned int)fi->D, (unsigned int)fi->S, (unsigned int)fi->bp);
 			}
@@ -2679,6 +2783,9 @@ static int asym_exec_dom_init(void)
 	int trash, se_addr;
 
 	printk("cos: Installing the asymmetric execution domains module.\n");
+
+	/* pt_regs in this linux version has changed... */
+	BUG_ON(sizeof(struct pt_regs) != (11*sizeof(long) + 5*sizeof(int)));
 
 	if (make_proc_aed())
 		return -1;

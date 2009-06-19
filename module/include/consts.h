@@ -46,7 +46,7 @@ struct pt_regs {
 #define MAX_SCHED_HIER_DEPTH 4
 
 #define MAX_NUM_SPDS 32
-#define MAX_STATIC_CAP 1024
+#define MAX_STATIC_CAP 512
 
 #define PAGE_MASK (~(PAGE_SIZE-1))
 #define PGD_RANGE (1<<22)

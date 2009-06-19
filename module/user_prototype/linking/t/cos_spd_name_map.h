@@ -29,6 +29,8 @@ static char *spd_name_map[MAX_NUM_SPDS+1] =
 	"fn.o",
 	"fd2.o",
 	"cgi.o",
+	"fd3.o",
+	"cgi2.o",
 	"",
 	NULL
 };

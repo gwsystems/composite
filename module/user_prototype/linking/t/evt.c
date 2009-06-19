@@ -267,9 +267,10 @@ int evt_trigger(spdid_t spdid, long extern_evt)
 		lock_release(&evt_lock);
 		ACT_RECORD(ACT_WAKEUP, spdid, e->extern_id, cos_get_thd_id(), ret);
 		if (sched_wakeup(cos_spd_id(), ret)) assert(0);
-		return 0;
+	} else {
+		lock_release(&evt_lock);
 	}
-	lock_release(&evt_lock);
+
 	return 0;
 err:
 	lock_release(&evt_lock);

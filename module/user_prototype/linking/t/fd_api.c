@@ -62,6 +62,38 @@ cos_lock_t fd_lock;
 #define FD_LOCK_TAKE() 	lock_take(&fd_lock)
 #define FD_LOCK_RELEASE() lock_release(&fd_lock)
 
+#define EVT_ID_CACHE_SZ 8
+static long cached_ids[EVT_ID_CACHE_SZ];
+
+static long evt_create_cached(spdid_t spdid)
+{
+	int i;
+
+	for (i = 0 ; i < EVT_ID_CACHE_SZ ; i++) {
+		if (cached_ids[i] >= 0) {
+			long ret;
+			ret = cached_ids[i];
+			cached_ids[i] = -1;
+			return ret;
+		}
+	}
+	return evt_create(spdid);
+}
+
+
+static void evt_free_cached(spdid_t spdid, long evt_id)
+{
+	int i;
+
+	for (i = 0 ; i < EVT_ID_CACHE_SZ ; i++) {
+		if (cached_ids[i] < 0) {
+			cached_ids[i] = evt_id;
+			return;
+		}
+	}
+	evt_free(spdid, evt_id);
+}
+
 static struct descriptor *evt2fd_lookup(long evt_id)
 {
 	return cos_vect_lookup(&evt2fdesc, evt_id);
@@ -139,7 +171,7 @@ static int fd_net_close(int fd, struct descriptor *d)
 	assert(d->type == DESC_NET)
 	nc = (net_connection_t)d->data;
 	ret = net_close(cos_spd_id(), nc);
-	evt_free(cos_spd_id(), d->evt_id);
+	evt_free_cached(cos_spd_id(), d->evt_id);
 	fd_free(d);
 	FD_LOCK_RELEASE();
 
@@ -182,7 +214,7 @@ int cos_socket(int domain, int type, int protocol)
 		goto err;
 	}
 	fd = fd_get_index(d);
-	if (0 > (evt_id = evt_create(cos_spd_id()))) {
+	if (0 > (evt_id = evt_create_cached(cos_spd_id()))) {
 		printc("Could not create event for socket: %ld", evt_id);
 		assert(0);
 	}
@@ -215,7 +247,7 @@ int cos_socket(int domain, int type, int protocol)
 
 	return fd;
 err_cleanup:
-	evt_free(cos_spd_id(), d->evt_id);
+	evt_free_cached(cos_spd_id(), d->evt_id);
 	fd_free(d);
 	/* fall through */
 err:
@@ -337,7 +369,7 @@ static int fd_app_close(int fd, struct descriptor *d)
 
 	conn_id = (long)d->data;
 	content_remove(cos_spd_id(), conn_id);
-	evt_free(cos_spd_id(), d->evt_id);
+	evt_free_cached(cos_spd_id(), d->evt_id);
 	FD_LOCK_RELEASE();
 	
 	FD_LOCK_TAKE();
@@ -368,7 +400,7 @@ static int fd_app_write(int fd, struct descriptor *d, char *buff, int sz)
 	return content_write(cos_spd_id(), conn_id, buff, sz);
 }
 
-int fd_app_split(struct descriptor *d)
+static int fd_app_split(struct descriptor *d)
 {
 	struct descriptor *d_new;
 	int fd, ret = -EINVAL;
@@ -384,7 +416,7 @@ int fd_app_split(struct descriptor *d)
 	d_new->ops.write = fd_app_write;
 	d_new->ops.split = fd_app_split;
 
-	if (0 > (evt_id = evt_create(cos_spd_id()))) {
+	if (0 > (evt_id = evt_create_cached(cos_spd_id()))) {
 		printc("Could not create event for app fd: %ld\n", evt_id);
 		assert(0);
 	}
@@ -402,7 +434,7 @@ int fd_app_split(struct descriptor *d)
 
 	return fd;
 err_cleanup:
-	evt_free(cos_spd_id(), d_new->evt_id);
+	evt_free_cached(cos_spd_id(), d_new->evt_id);
 	fd_free(d_new);
 	/* fall through */
 err:
@@ -424,7 +456,7 @@ int cos_app_open(int type, struct cos_array *data)
 		goto err;
 	}
 	fd = fd_get_index(d);
-	if (0 > (evt_id = evt_create(cos_spd_id()))) {
+	if (0 > (evt_id = evt_create_cached(cos_spd_id()))) {
 		printc("Could not create event for app fd: %ld\n", evt_id);
 		assert(0);
 	}
@@ -442,7 +474,7 @@ int cos_app_open(int type, struct cos_array *data)
 
 	return fd;
 err_cleanup:
-	evt_free(cos_spd_id(), d->evt_id);
+	evt_free_cached(cos_spd_id(), d->evt_id);
 	fd_free(d);
 	/* fall through */
 err:
@@ -540,10 +572,15 @@ int cos_wait_all(void)
 
 static void init(void) 
 {
+	int i;
+
 	lock_static_init(&fd_lock);
 	cos_map_init_static(&fds);
 	cos_vect_init_static(&evt2fdesc);
-//	sched_block(cos_spd_id());
+
+	for (i = 0 ; i < EVT_ID_CACHE_SZ ; i++) {
+		cached_ids[i] = -1;
+	}
 }
 
 void cos_init(void *arg)

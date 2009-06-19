@@ -51,7 +51,7 @@ LIB_ASM_MANDITORY=cos_asm_upcall.o c_stub.o
 C_COMPS=comp0.o print_comp.o mem_man.o fp_rr.o cos_net.o ds.o uc_test.o wf_test.o lock.o timed_event.o mailbox.o mpd_mgr.o evt.o fd_api.o conn_mgr.o https.o stat_gather.o stack_trace.o static_content.o content_mgr.o netif.o cos_ip.o async_inv.o fake_net.o persist_cgi.o
 ASM_STUBS=s_stubprint.o s_stubmm.o s_stubfprr.o s_stubnet.o s_stubds.o s_stublock.o s_stubte.o s_stubmb.o s_stube.o s_stubfd.o s_stubhttp.o s_stubst.o s_stubsc.o s_stubcm.o s_stubif.o s_stubip.o s_stubainv.o s_stubfn.o
 PRODUCTS=$(C_COMPS) $(ASM_STUBS)
-COMPONENTS=c0.o print.o mm.o fprr.o net.o d.o uc.o wftest.o l.o te.o mb.o mpd.o e.o fd.o conn.o http.o stat.o st.o cm.o sc.o if.o ip.o ainv.o fn.o cgi.o fd2.o
+COMPONENTS=c0.o print.o mm.o fprr.o net.o d.o uc.o wftest.o l.o te.o mb.o mpd.o e.o fd.o conn.o http.o stat.o st.o cm.o sc.o if.o ip.o ainv.o fn.o cgi.o fd2.o fd3.o cgi2.o
 TMP_STR=tmp
 
 SOURCES=$(C_COMPS:%.o=%.c) $(LIB_C_OBJS:%.o=%.c)
@@ -59,10 +59,13 @@ SOURCES=$(C_COMPS:%.o=%.c) $(LIB_C_OBJS:%.o=%.c)
 DEPENDENCIES=$(SOURCES:%.c=%.d)
 
 .PHONY: all
-all: $(LIB) $(LIB_ASM_MANDITORY) $(PRODUCTS) stubs
+all: $(LIB) $(LIB_ASM_MANDITORY) $(MPDLIB) $(PRODUCTS) stubs
 include $(DEPENDENCIES)
 
 stubs: $(PRODUCTS)
+	$(info [CC]   Compiling heap.c)
+	@$(CC) $(CFLAGS) -c -o heap.o heap.c
+
 	$(info [LD]   Linking in the server stubs to components)
 	@$(LD) -r -o c0.o comp0.o
 	@$(LD) -r -o print.o print_comp.o s_stubprint.o
@@ -74,7 +77,6 @@ stubs: $(PRODUCTS)
 	@$(LD) -r -o d.o ds.o s_stubds.o
 	@$(LD) -r -o mb.o mailbox.o s_stubmb.o
 	@$(LD) -r -o uc.o uc_test.o
-	@$(LD) -r -o mpd.o mpd_mgr.o
 	@$(LD) -r -o net.o cos_net.o s_stubnet.o
 	@$(LD) -r -o e.o evt.o s_stube.o
 	@$(LD) -r -o fd.o fd_api.o s_stubfd.o
@@ -88,8 +90,14 @@ stubs: $(PRODUCTS)
 	@$(LD) -r -o ip.o cos_ip.o s_stubip.o
 	@$(LD) -r -o ainv.o async_inv.o s_stubainv.o
 	@$(LD) -r -o fn.o fake_net.o s_stubfn.o
+
 	@cp fd.o fd2.o
 	@$(LD) -r -o cgi.o persist_cgi.o
+
+	@cp fd.o fd3.o
+	@cp cgi.o cgi2.o
+
+	@$(LD) -r -o mpd.o mpd_mgr.o heap.o
 
 # This is specialized so that we can link with lwip, and it can link with dietlibc
 cos_net.o: cos_net.c net_stack.o
@@ -104,6 +112,10 @@ net_stack.o:
 	$(info [CC] lwip in $(LWIPBASE)/cos)
 	make -C $(LWIPBASE)/cos 
 	cp $(LWIPOBJ) .
+
+$(MPDLIB):$(MPDLIB_C)
+	$(info [AR]   Creating $@ from $(LIB_OBJS))
+	@$(AR) cr $@ $(MPDLIB_OBJS)
 
 $(LIB):$(LIB_C) $(LIB_ASM_OBJS)
 	$(info [AR]   Creating $@ from $(LIB_OBJS))

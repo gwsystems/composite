@@ -7,204 +7,16 @@
  * Author: Gabriel Parmer, gabep1@cs.bu.edu, 2008
  */
 
-#ifdef TESTING
-
-#include <stdio.h>
-#include <malloc.h>
-
-typedef unsigned short int spdid;
-struct dep_edge;
-struct protection_domain;
-struct edge;
-
-struct component {
-	struct component *next;
-	struct dep_edge *edges;
-	struct protection_domain *pd;
-	spdid_t id;
-};
-
-/* 
- * Protection domains are a network embedded on the component
- * dependency network that represent the protection domains of the
- * system (or the current configuration of the protection domains,
- * anyway).
- */
-struct protection_domain {
-	struct protection_domain *next;
-	struct ipc_edge *edges;
-	struct component *components;
-};
-
-/* base class for the protection_domain and component */
-struct pd_base {
-	struct pd_base *next;
-	struct edge *edges;
-};
-
-/* edges between components designating dependency */
-struct dep_edge {
-	unsigned long invocations;
-	struct component *from, *to;
-	struct dep_edge *next;
-};
-
-/* edges between protection domains denoting IPC */
-struct ipc_edge {
-	unsigned long invocations;
-	struct protection_domain *from, *to;
-	struct dep_edge *next;
-};
-
-/* polymorphic base class */
-struct edge {
-	unsigned long invocations;
-	struct edge *from, *to;
-	struct edge *next;
-};
-
-static struct void mpd_component_init(struct component *c, spdid_t id)
-{
-	memset(c, 0, sizeof(struct component));
-	c->id = id;
-}
-
-static struct void mpd_pd_init(struct protection_domain *pd)
-{
-	memset(pd, 0, sizeof(struct protection_domain));
-}
-
-static struct void mpd_edge_init(struct edge *e)
-{
-	memset(e, 0, sizeof(struct edge));
-}
-
-/* Adds an edge between from and to of size sizeof_edge */
-static struct edge *mpd_add_edge(int sizeof_edge, 
-				 struct base_pd *from, struct base_pd *to)
-{
-	struct edge *e = malloc(sizeof_edge);
-
-	if (NULL == e) return NULL;
-	
-	e->from = from;
-	e->to   = to;
-	e->next = from->edges;
-	from->edges = e;
-
-	return e;
-}
-
-static inline struct dep_edge *mpd_add_dependency(struct component *c_from, struct component *c_to)
-{
-	return (struct dep_edge*)mpd_add_edge(sizeof(struct dep_edge), c_from, c_to);
-}
-
-static inline struct ipc_edge *mpd_add_ipc(struct protection_domain *pd_from, struct protection_domain *pd_to)
-{
-	return (struct ipc_edge*)mpd_add_edge(sizeof(struct ipc_edge), pd_from, pd_to);
-}
-
-static void mpd_merge_pd(struct protection_domain *pd_from, struct protection_domain *pd_to)
-{
-	struct ipc_edge *ie = pd_from->edge, *prev = NULL;
-	struct component *c_to, *c_end = pd_from->components;
-
-	/* there better be components in the protection domains */
-	assert(c_end && pd_to->components);
-	
-	while (ie) {
-		assert(ie->from = pd_from);
-		
-		if (ie->to == pd_to) {
-			if (NULL == prev) {
-				pd_from->edges = ie->to;
-			} else {
-				prev = ie->to;
-			}
-			free(ie);
-			break;
-		}
-		
-		prev = ie;
-		ie = ie->next;
-	}
-	
-	/* We better have found the edge between the domains */
-	assert(ie);
-
-	c_to = pd_to->components;
-	while (c_end->next) c_end = c_end->next;
-	c_end->next = c_to;
-	pd_to->components = NULL;
-
-	free(pd_to);
-
-	return;
-}
-
-static int mpd_split_pd(struct protection_domain *pd, struct component *c)
-{
-	struct protection_domain *pd_new = malloc(sizeof(struct protection_domain));
-	struct ipc_edge *ie;
-	struct component *ipce, *prev = NULL;
-
-	assert(pd->components);
-
-	if (NULL == pd_new) {
-		return -1;
-	}
-	ie = malloc(sizeof(struct ipc_edge));
-	if (NULL == ie) {
-		free(pd_new);
-		return -1;
-	}
-	mpd_pd_init(pd_new);
-	mpd_edge_init(ie);
-
-	/* Take the component out of the protection domain */
-	ipce = pd->components;
-	if (ipce == c) {
-		pd->components = c->next;
-	} else {
-		while (ipce->next != c) ipce = ipce->next;
-		ipce->next = c->next;
-	}
-	c->next = NULL;
-	pd_new->components = c;
-	pd_new->edges = ie;
-	ie->from = pd;
-	ie->to = pd_new
-}
-
-#else 
-
 #include <cos_component.h>
 #include <cos_debug.h>
 #include <cos_alloc.h>
 #include <print.h>
-
 
 /* Mirrored in cos_loader.c */
 struct comp_graph {
 	int client, server;
 };
 //struct comp_graph *graph;
-
-extern int timed_event_block(spdid_t spdinv, unsigned int amnt);
-extern int sched_block(spdid_t id);
-
-static void mpd_report(const struct comp_graph *g)
-{
-	int i;
-
-	printc("Capability Invocations:\n");
-	for (i = 0 ; g[i].client && g[i].server ; i++) {
-		unsigned long amnt;
-		amnt = cos_cap_cntl(g[i].client, g[i].server, 0);
-		printc("\t%d->%d:%d\n", g[i].client, g[i].server, (unsigned int)amnt);
-	}
-}
 
 static inline int split_w_err(spdid_t a, spdid_t b)
 {
@@ -224,23 +36,68 @@ static inline int merge_w_err(spdid_t a, spdid_t b)
 	return 0;
 }
 
-static void mpd_merge_all(struct comp_graph *g);
+//ugly, but for the sake of expediency...
+#include <mpd_policy.h>
+
+extern int timed_event_block(spdid_t spdinv, unsigned int amnt);
+extern int sched_block(spdid_t id);
+
+static void mpd_report(void)
+{
+	struct edge *e;
+	struct protection_domain *pd;
+
+	printc("Capability Invocations:\n");
+	for (e = FIRST_LIST(&es, next, prev) ; 
+	     e != &es ;
+	     e = FIRST_LIST(e, next, prev)) {
+		printc("\t%d->%d:%ld\n", e->from->id, e->to->id, e->invocations);
+	}
+
+	printc("Protection Domains:\n");
+	for (pd = FIRST_LIST(&pds, next, prev) ; 
+	     pd != &pds ; 
+	     pd = FIRST_LIST(pd, next, prev)) {
+		struct component *c;
+		
+		printc("\t(");
+		c = pd->members;
+		assert(c);
+		do {
+			printc("%d,", c->id);
+			c = FIRST_LIST(c, pd_next, pd_prev);
+		} while (c != pd->members);
+		printc(")\n");
+	}
+	
+}
+
+static void update_edge_weights(void)
+{
+	struct edge *e;
+	
+	for (e = FIRST_LIST(&es, next, prev) ; 
+	     e != &es ;
+	     e = FIRST_LIST(e, next, prev)) {
+		unsigned long invs;
+
+		invs = cos_cap_cntl(e->from->id, e->to->id, 0);
+		if (invs != (invs & 0x7FFFFFFF)) assert(0);
+		edge_set_inv(e, (long)invs);
+	}
+}
 
 static void mpd_loop(struct comp_graph *g)
 {
-//	int idx = 1;
-
 	while (1) {
 		/* currently timeouts are expressed in ticks */
-		timed_event_block(cos_spd_id(), 2900);
+		timed_event_block(cos_spd_id(), 98);
 
-//		if (idx == 14 || (idx + 1) == 14) {
-//			mpd_merge_all(g);
-//			idx = 1;
-			mpd_report(g);
-//		}
-//		split_w_err(idx, idx);
-//		idx++;
+		update_edge_weights();
+		/* #e = %oh * 1000000 / e_oh = .1 * 1000000 / 0.7 = 142857 */
+		/* #e = %oh * 1000000 / e_oh = .2 * 1000000 / 0.7 = 285714 */
+		remove_overhead_to_limit(285714);
+		mpd_report();
 	}
 	assert(0);
 	return;
@@ -351,6 +208,9 @@ static void mpd_init(void)
 		cos_cap_cntl(graph[i].client, graph[i].server, 0);	
 	}
 
+	mpd_pol_init();
+	create_components(graph);
+
 //	mpd_merge_all(graph);
 	mpd_loop(graph);
 	assert(0);
@@ -378,4 +238,3 @@ void bin(void)
 	sched_block(cos_spd_id());
 }
 
-#endif /* TESTING */

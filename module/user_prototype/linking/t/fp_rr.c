@@ -35,8 +35,8 @@
 #define NORMAL_PRIO_HI 5
 #define NORMAL_PRIO_LO (NUM_PRIOS-8)
 
-#define RUNTIME_SEC (10)
-#define REPORT_FREQ (10)		/* freq of reporting in seconds */
+#define RUNTIME_SEC (60)
+#define REPORT_FREQ (30)		/* freq of reporting in seconds */
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
 
@@ -1280,6 +1280,8 @@ int sched_init(void)
 	fp_init_component("ainv.o", NORMAL_PRIO_HI+1);
 	fp_init_component("fd2.o", NORMAL_PRIO_HI+3);
 	fp_init_component("cgi.o", NORMAL_PRIO_HI+4);
+	fp_init_component("fd3.o", NORMAL_PRIO_HI+3);
+	fp_init_component("cgi2.o", NORMAL_PRIO_HI+4);
 
 	mpd = fp_init_component("mpd.o", MPD_PRIO);
 

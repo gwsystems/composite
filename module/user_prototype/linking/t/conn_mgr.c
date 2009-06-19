@@ -113,6 +113,7 @@ int main(void)
 	if (0 > cos_listen(accept_fd, 255)) assert(0);
 	while (1) {
 		fd = cos_wait_all();
+		cos_mpd_update();
 		assert(fd >= 0);
 		if (fd == accept_fd) {
 			accept_new(accept_fd);
