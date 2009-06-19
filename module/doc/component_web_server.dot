@@ -52,6 +52,7 @@ digraph web_server {
 //	"File Descriptor API" -> "UDP";
 	"File Descriptor API" -> "Event Manager";
 	"HTTP Parser" -> "Content Manager";
+	"HTTP Parser" -> "Timed Block";
 //	"Content Manager" -> "Plugins";
 	"Content Manager" -> "Static Content";
 	"Static Content" -> "Event Manager";

@@ -35,8 +35,8 @@
 #define NORMAL_PRIO_HI 5
 #define NORMAL_PRIO_LO (NUM_PRIOS-8)
 
-#define RUNTIME_SEC (60)
-#define REPORT_FREQ (30)		/* freq of reporting in seconds */
+#define RUNTIME_SEC (30)
+#define REPORT_FREQ (1)		/* freq of reporting in seconds */
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 2400
 
@@ -50,6 +50,10 @@ struct sched_thd upcall_deactive;
 struct prio_list {
 	struct sched_thd runnable;
 } priorities[NUM_PRIOS];
+
+//#define FPRR_REPORT_EVTS
+
+#ifdef FPRR_REPORT_EVTS
 
 typedef enum {
 	BRAND_ACTIVE,
@@ -109,6 +113,7 @@ static char *revt_names[] = {
 	""
 };
 static long long report_evts[REVT_LAST];
+
 static void report_event(report_evt_t evt)
 {
 	if (evt >= REVT_LAST) return;
@@ -129,6 +134,10 @@ static void report_output(void)
 
 	mman_print_stats();
 }
+#else
+#define report_event(e)
+#define report_output()
+#endif
 
 extern void st_trace_thd(unsigned short int tid);
 static void print_thd_invframes(struct sched_thd *t)
@@ -143,41 +152,43 @@ static void report_thd_accouting(void)
 	struct sched_thd *t;
 	int i;
 
-	printc("Running threads:\n");
+	printc("Running threads (thd, prio, cycles):\t");
 	for (i = 0 ; i < NUM_PRIOS ; i++) {
+		if (i == GRAVEYARD_PRIO) continue;
 		for (t = FIRST_LIST(&priorities[i].runnable, prio_next, prio_prev) ; 
 		     t != &priorities[i].runnable ;
 		     t = FIRST_LIST(t, prio_next, prio_prev)) {
 			if (sched_get_accounting(t)->cycles) {
-				printc("\tthd %d (prio %d), cycles %lld\n", t->id, i, 
+				printc("%d, %d, %lld; ", t->id, i, 
 				       sched_get_accounting(t)->cycles);
 				print_thd_invframes(t);
 				sched_get_accounting(t)->cycles = 0;
 			}
 		}
 	}
-	printc("Blocked threads:\n");
+	printc("\nBlocked threads (thd, prio, cycles):\t");
 	for (t = FIRST_LIST(&blocked, prio_next, prio_prev) ; 
 	     t != &blocked ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
 		if (sched_get_accounting(t)->cycles) {
-			printc("\tthd %d (prio %d), cycles %lld\n", t->id, 
+			printc("%d, %d, %lld; ", t->id, 
 			       sched_get_metric(t)->priority, sched_get_accounting(t)->cycles);
 			print_thd_invframes(t);
 			sched_get_accounting(t)->cycles = 0;
 		}
 	}
-	printc("Inactive upcalls:\n");
+	printc("\nInactive upcalls (thd, prio, cycles):\t");
 	for (t = FIRST_LIST(&upcall_deactive, prio_next, prio_prev) ; 
 	     t != &upcall_deactive ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
 		if (sched_get_accounting(t)->cycles) {
-			printc("\tthd %d (prio %d), cycles %lld\n", t->id, 
+			printc("%d, %d, %lld; ", t->id, 
 			       sched_get_metric(t)->priority, sched_get_accounting(t)->cycles);
 			print_thd_invframes(t);
 			sched_get_accounting(t)->cycles = 0;
 		}
 	}
+	printc("\n");
 	report_output();
 }
 

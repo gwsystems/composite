@@ -66,6 +66,10 @@ extern int evt_wait(spdid_t spdid, long extern_evt);
 extern long evt_grp_wait(spdid_t spdid);
 extern int evt_create(spdid_t spdid, long extern_evt);
 
+extern u16_t portmgr_new(spdid_t spdid);
+extern int portmgr_bind(spdid_t spdid, u16_t port);
+extern void portmgr_free(spdid_t spdid, u16_t port);
+
 cos_lock_t net_lock;
 
 #define NET_LOCK_TAKE()    \
@@ -675,8 +679,14 @@ static err_t cos_net_lwip_tcp_accept(void *arg, struct tcp_pcb *new_tp, err_t er
 {
 	struct intern_connection *ic = arg, *ica;
 	net_connection_t nc;
+	u16_t new_port;
 
 	assert(ic);
+
+	/* this is here to have the same properties as if we were
+	 * calling the portmgr for each accept call.  Really, this
+	 * call should be in the lwip stack. */
+	new_port = portmgr_new(cos_spd_id());
 	
 	if (0 > (nc = __net_create_tcp_connection(ic->spdid, ic->tid, new_tp, -1))) assert(0);
 
@@ -897,6 +907,11 @@ static int __net_bind(spdid_t spdid, net_connection_t nc, struct ip_addr *ip, u1
 	}
 	assert(ACTIVE == ic->thd_status);
 
+	if (portmgr_bind(cos_spd_id(), port)) {
+		ret = -EADDRINUSE;
+		goto done;
+	}
+
 	switch (ic->conn_type) {
 	case UDP:
 	{
@@ -1014,6 +1029,11 @@ int net_close(spdid_t spdid, net_connection_t nc)
 	if (NULL == ic) goto perm_err; /* should really be EINVAL */
 	if (tid != ic->tid) goto perm_err;
 	assert(ACTIVE == ic->thd_status);
+
+	/* This should be called from within lwip, not here, but this
+	 * is here to have comparable performance characteristics as
+	 * if it were in lwip */
+	portmgr_free(cos_spd_id(), /* u16_t port_num */ 0);
 
 	__net_close(ic);
 	NET_LOCK_RELEASE();

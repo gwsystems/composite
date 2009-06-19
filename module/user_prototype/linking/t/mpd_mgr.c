@@ -47,29 +47,29 @@ static void mpd_report(void)
 	struct edge *e;
 	struct protection_domain *pd;
 
-	printc("Capability Invocations:\n");
+	printc("Capability Invocations:\t");
 	for (e = FIRST_LIST(&es, next, prev) ; 
 	     e != &es ;
 	     e = FIRST_LIST(e, next, prev)) {
-		printc("\t%d->%d:%ld\n", e->from->id, e->to->id, e->invocations);
+		printc("%d->%d:%ld, ", e->from->id, e->to->id, e->invocations);
 	}
 
-	printc("Protection Domains:\n");
+	printc("\nProtection Domains:\t");
 	for (pd = FIRST_LIST(&pds, next, prev) ; 
 	     pd != &pds ; 
 	     pd = FIRST_LIST(pd, next, prev)) {
 		struct component *c;
 		
-		printc("\t(");
+		printc("(");
 		c = pd->members;
 		assert(c);
 		do {
 			printc("%d,", c->id);
 			c = FIRST_LIST(c, pd_next, pd_prev);
 		} while (c != pd->members);
-		printc(")\n");
+		printc("); ");
 	}
-	
+	printc("\n");
 }
 
 static void update_edge_weights(void)
@@ -89,15 +89,17 @@ static void update_edge_weights(void)
 
 static void mpd_loop(struct comp_graph *g)
 {
+	int cnt = 0;
 	while (1) {
 		/* currently timeouts are expressed in ticks */
-		timed_event_block(cos_spd_id(), 98);
+		timed_event_block(cos_spd_id(), /*98/4*/24);
 
 		update_edge_weights();
 		/* #e = %oh * 1000000 / e_oh = .1 * 1000000 / 0.7 = 142857 */
 		/* #e = %oh * 1000000 / e_oh = .2 * 1000000 / 0.7 = 285714 */
-		remove_overhead_to_limit(285714);
-		mpd_report();
+		remove_overhead_to_limit((unsigned int)285714/(unsigned int)4);
+		if (cnt == 3) { cnt = 0; mpd_report(); }
+		else cnt++;
 	}
 	assert(0);
 	return;

@@ -32,6 +32,9 @@
 
 #endif	/* COS_LINUX_ENV */
 
+/* Keeping some stats (unsynchronized across threads currently) */
+static volatile unsigned long http_conn_cnt = 0, http_req_cnt = 0;
+
 inline static int is_whitespace(char s)
 {
 	if (' ' == s) return 1;
@@ -178,6 +181,8 @@ extern long content_open(spdid_t spdid, long evt_id, struct cos_array *data);
 extern int content_request(spdid_t spdid, long cr, struct cos_array *data);
 extern int content_retrieve(spdid_t spdid, long cr, struct cos_array *data, int *more);
 extern int content_close(spdid_t spdid, long cr);
+
+extern int timed_event_block(spdid_t spdid, unsigned int microsec);
 
 struct http_response {
 	char *resp;
@@ -671,6 +676,10 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 		used += local_resp_sz + consumed;
 
 		next = r->next;
+
+		/* bookkeeping */
+		http_req_cnt++;
+
 		http_free_request(r);
 		r = c->pending_reqs;
 		assert(r == next || NULL == r);
@@ -761,12 +770,24 @@ int content_remove(spdid_t spdid, long conn_id)
 	c->conn_id = -1;
 	http_free_connection(c);
 
+	/* bookkeeping */
+	http_conn_cnt++;
+
 	return 0;
 }
+
+#define HTTP_REPORT_FREQ 100
 
 void cos_init(void *arg)
 {
 	cos_map_init_static(&conn_map);
+
+	while (1) {
+		timed_event_block(cos_spd_id(), HTTP_REPORT_FREQ);
+		printc("HTTP conns %ld, reqs %ld\n", http_conn_cnt, http_req_cnt);
+		http_conn_cnt = http_req_cnt = 0;
+	}
+	
 	return;
 }
 

@@ -13,39 +13,21 @@
 #define IPRETURN 4
 
 .data
-/* 16 8K stacks */
 .align 32
 .globl nil
 nil:
-/*	.rep 1024 */
 	.rep 2048
 	.long 0
 	.endr
 .globl cos_static_stack
 cos_static_stack:
-/*	.rep 8193*/
-	.rep ALL_STACK_SZ /*32768*/
+	.rep ALL_STACK_SZ
 	.long 0
 	.endr
 .globl cos_static_stack_end
 cos_static_stack_end:
 	.long 0
-/*.weak cos_sched_notifications
-cos_sched_notifications:
-	.long 0
-	.long 0
-	.long 0
-	.long 0
-*/
-	
-/* Scheduler page for event notifications and thread switching. */
-/*.align 4096
-.globl cos_sched_notifications
-cos_sched_notifications:
-	.rep 1024
-	.long 0
-	.endr
-	*/
+
 	
 .text
 .globl cos_upcall_entry

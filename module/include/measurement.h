@@ -1,8 +1,8 @@
 #ifndef MEASUREMENT_H
 #define MEASUREMENT_H
 
-#define MEASUREMENTS
-#define MEASUREMENTS_STATS
+//#define MEASUREMENTS
+//#define MEASUREMENTS_STATS
 
 typedef enum { 
 	/* counters */
@@ -155,7 +155,7 @@ static inline void cos_meas_stats_end(cos_meas_t type, int reset)
 
 #endif
 
-#define COS_RECORD_EVTS
+//#define COS_RECORD_EVTS
 
 #ifdef COS_RECORD_EVTS
 /* must be power of 2 */
@@ -194,7 +194,7 @@ void event_print(void);
 #else
 
 #define event_record(m, a, b)
-#define event_print()
+static void event_print(void) {}
 
 #endif
 

@@ -2797,7 +2797,8 @@ COS_SYSCALL int cos_syscall_print(int spdid, char *str, int len)
 	
 	str[len] = '\0';
 	if ('\n' == last)
-		printk("cos,%d: %s", thd_get_id(thd_get_current()), str);
+//		printk("cos,%d: %s", thd_get_id(thd_get_current()), str);
+		printk("%s", str);
 	else 
 		printk("%s", str);
 	last = str[len-1];
