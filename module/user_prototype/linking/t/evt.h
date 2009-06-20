@@ -103,13 +103,10 @@ static inline int __evt_trigger(struct evt *e)
 }
 
 /* 
- * return value indicates if an error has occured (-1) or not (0).
- * evt is set to an event if that event has been triggered, or is set
- * to NULL otherwise.  
- *
- * Some sort of a lock should probably be taken before calling this fn.
+ * As below but don't change the data-structure to reflect that we've
+ * blocked if there are no events. 
  */
-static int __evt_grp_read(struct evt_grp *g, struct evt **evt)
+static int __evt_grp_read_noblock(struct evt_grp *g, struct evt **evt)
 {
 	int i;
 	struct evt *e;
@@ -132,7 +129,24 @@ static int __evt_grp_read(struct evt_grp *g, struct evt **evt)
 			return 0;
 		}
 	}
-	g->status = EVTG_BLOCKED;
+	return 0;
+}
+
+/* 
+ * return value indicates if an error has occured (-1) or not (0).
+ * evt is set to an event if that event has been triggered, or is set
+ * to NULL otherwise.  
+ *
+ * Some sort of a lock should probably be taken before calling this fn.
+ */
+static int __evt_grp_read(struct evt_grp *g, struct evt **evt)
+{
+	int ret;
+
+	*evt = NULL;
+	ret = __evt_grp_read_noblock(g, evt);
+	if (ret) return ret;
+	if (NULL == *evt) g->status = EVTG_BLOCKED;
 	return 0;
 }
 

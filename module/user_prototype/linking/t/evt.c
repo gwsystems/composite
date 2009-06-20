@@ -224,6 +224,55 @@ err:
 	return -1; 
 }
 
+/* As above, but return more than one event notifications */
+int evt_grp_mult_wait(spdid_t spdid, struct cos_array *data)
+{
+	struct evt_grp *g;
+	struct evt *e = NULL;
+	int evt_gathered = 0, evt_max;
+
+	if (!cos_argreg_arr_intern(data)) return -EINVAL;
+	evt_max = data->sz / sizeof(long);
+
+	while (1) {
+		lock_take(&evt_lock);
+
+		g = evt_grp_find(cos_get_thd_id());
+		ACT_RECORD(ACT_WAIT_GRP, spdid, e ? e->extern_id : 0, cos_get_thd_id(), 0);
+		if (NULL == g) goto err;
+
+		/* gather multiple events */
+		do {
+			if (__evt_grp_read_noblock(g, &e)) goto err;
+			if (NULL != e) {
+				((long*)data->mem)[evt_gathered] = e->extern_id;
+				evt_gathered++;
+			}
+		} while (e && evt_gathered < evt_max);
+
+		/* return them if they were gathered */
+		if (evt_gathered > 0) {
+			lock_release(&evt_lock);
+			return evt_gathered;
+		}
+
+		/* 
+		 * otherwise sleep till there is an event (first we
+		 * need to call evt_grp_read to set the blocked
+		 * status)
+		 */
+		if (__evt_grp_read(g, &e)) goto err;
+		assert(NULL == e);
+		lock_release(&evt_lock);
+		ACT_RECORD(ACT_SLEEP, spdid, 0, cos_get_thd_id(), 0);
+		if (0 > sched_block(cos_spd_id())) assert(0);
+	}
+err:
+	lock_release(&evt_lock);
+	return -1; 
+	
+}
+
 /* Wait for a specific event */
 int evt_wait(spdid_t spdid, long extern_evt)
 {

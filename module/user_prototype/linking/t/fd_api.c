@@ -25,6 +25,7 @@ extern long evt_create(spdid_t spdid);
 extern void evt_free(spdid_t spdid, long extern_evt);
 extern int evt_wait(spdid_t spdid, long extern_evt);
 extern long evt_grp_wait(spdid_t spdid);
+extern int evt_grp_mult_wait(spdid_t spdid, struct cos_array *data);
 extern int evt_trigger(spdid_t spdid, long extern_evt);
 extern int evt_set_prio(spdid_t spdid, long extern_evt, int prio);
 
@@ -62,6 +63,45 @@ cos_lock_t fd_lock;
 #define FD_LOCK_TAKE() 	lock_take(&fd_lock)
 #define FD_LOCK_RELEASE() lock_release(&fd_lock)
 
+
+/* 
+ * Provide a cache of events that have happened to amortize the cost
+ * of invoking the event server.
+ */
+#define EVT_NOTIF_CACHE_SZ 32
+/* due to race conditions, we might expand much larger... */
+#define EVT_NOTIF_CACHE_MAX 128
+int evt_notif_top;
+static long evt_notif_cache[EVT_NOTIF_CACHE_MAX];
+
+/* can block...don't hold a lock */
+static int fill_evt_notif_cache(void)
+{
+	int amnt;
+	struct cos_array *data;
+	
+	data = cos_argreg_alloc((sizeof(long) * EVT_NOTIF_CACHE_SZ) + sizeof(struct cos_array));
+	assert(data);
+	data->sz = EVT_NOTIF_CACHE_SZ * sizeof(long);
+	amnt = evt_grp_mult_wait(cos_spd_id(), data);
+	if (amnt <= 0) assert(0);
+
+	assert(amnt <= EVT_NOTIF_CACHE_SZ);
+	FD_LOCK_TAKE();
+	/* too many race conditions! */
+	assert(evt_notif_top + amnt < EVT_NOTIF_CACHE_MAX);
+	memcpy(&evt_notif_cache[evt_notif_top], data->mem, amnt * sizeof(long));
+	evt_notif_top += amnt;
+	FD_LOCK_RELEASE();
+	cos_argreg_free(data);
+
+	return 0;
+}
+
+/*
+ * Provide a cache for event ids so that we don't need to ask for new
+ * ones and deallocate them all the time.  
+ */
 #define EVT_ID_CACHE_SZ 8
 static long cached_ids[EVT_ID_CACHE_SZ];
 
@@ -84,6 +124,18 @@ static long evt_create_cached(spdid_t spdid)
 static void evt_free_cached(spdid_t spdid, long evt_id)
 {
 	int i;
+
+	/* remove this event id from the notification cache */
+	for (i = 0 ; i < evt_notif_top ; i++) {
+		int j;
+		
+		while (evt_notif_cache[i] == evt_id) {
+			for (j = i ; j < evt_notif_top-1 ; j++) {
+				evt_notif_cache[j] = evt_notif_cache[j+1];
+			}
+			evt_notif_top--;
+		}
+	}
 
 	for (i = 0 ; i < EVT_ID_CACHE_SZ ; i++) {
 		if (cached_ids[i] < 0) {
@@ -562,12 +614,29 @@ int cos_wait_all(void)
 {
 	long evt;
 	struct descriptor *d;
+	int fd;
 
+	FD_LOCK_TAKE();
+#define CACHE_EVT_NOTIFICATIONS
+#ifdef  CACHE_EVT_NOTIFICATIONS
+	while (0 == evt_notif_top) {
+		FD_LOCK_RELEASE();
+		fill_evt_notif_cache();
+		FD_LOCK_TAKE();
+	}
+	assert(evt_notif_top > 0);
+
+	evt_notif_top--;
+	evt = evt_notif_cache[evt_notif_top];
+#else
 	evt = evt_grp_wait(cos_spd_id());
+#endif
 	d = evt2fd_lookup(evt);
 	assert(d);
-	
-	return d->fd_num;
+	fd = d->fd_num;
+	FD_LOCK_RELEASE();
+
+	return fd;
 }
 
 static void init(void) 
@@ -581,6 +650,10 @@ static void init(void)
 	for (i = 0 ; i < EVT_ID_CACHE_SZ ; i++) {
 		cached_ids[i] = -1;
 	}
+	for (i = 0 ; i < EVT_NOTIF_CACHE_MAX ; i++) {
+		evt_notif_cache[i] = -1;
+	}
+	evt_notif_top = 0;
 }
 
 void cos_init(void *arg)

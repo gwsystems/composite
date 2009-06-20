@@ -8,7 +8,6 @@ static char *spd_name_map[MAX_NUM_SPDS+1] =
 { 
 	"c0.o",
 	"fprr.o",
-	"wftest.o",
 	"mpd.o",
 	"l.o",
 	"mm.o",

@@ -87,19 +87,33 @@ static void update_edge_weights(void)
 	}
 }
 
+static void mpd_pol_linear(void)
+{
+	static int cnt = 0;
+	/* currently timeouts are expressed in ticks */
+	timed_event_block(cos_spd_id(), 24);
+	update_edge_weights();
+
+	/* #e = %oh * 1000000 / e_oh = .1 * 1000000 / 0.7 = 142857 */
+	/* #e = %oh * 1000000 / e_oh = .2 * 1000000 / 0.7 = 285714 */
+	remove_overhead_to_limit((unsigned int)285714/(unsigned int)4);
+	if (cnt == 3) { cnt = 0; mpd_report(); }
+	else cnt++;
+}
+
+static void mpd_pol_dec_isolation_by_one(void)
+{
+	/* currently timeouts are expressed in ticks */
+	timed_event_block(cos_spd_id(), 98);
+	update_edge_weights();
+	remove_one_isolation_boundary();
+	mpd_report();
+}
+
 static void mpd_loop(struct comp_graph *g)
 {
-	int cnt = 0;
 	while (1) {
-		/* currently timeouts are expressed in ticks */
-		timed_event_block(cos_spd_id(), /*98/4*/24);
-
-		update_edge_weights();
-		/* #e = %oh * 1000000 / e_oh = .1 * 1000000 / 0.7 = 142857 */
-		/* #e = %oh * 1000000 / e_oh = .2 * 1000000 / 0.7 = 285714 */
-		remove_overhead_to_limit((unsigned int)285714/(unsigned int)4);
-		if (cnt == 3) { cnt = 0; mpd_report(); }
-		else cnt++;
+		mpd_pol_linear();
 	}
 	assert(0);
 	return;

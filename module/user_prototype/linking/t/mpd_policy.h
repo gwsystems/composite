@@ -1179,7 +1179,7 @@ static void test_edge_weight_consistency(void)
 #define test_edge_weight_consistency()
 #endif
 
-static void remove_overhead_to_limit(int allowed_invs)
+void remove_overhead_to_limit(int allowed_invs)
 {
 /* 	printf("dec oh\n"); */
 /* 	while (!mpd_empty_dec_overhead(&hs)) { */
@@ -1223,6 +1223,13 @@ static void remove_overhead_to_limit(int allowed_invs)
 		/* got into a loop */
 		if (inc == mpd_peek_inc_isolation(&hs) && dec == mpd_peek_dec_overhead(&hs)) break;
 	}
+}
+
+int remove_one_isolation_boundary(void)
+{
+	if (mpd_empty_dec_overhead(&hs)) return 1;
+	mpd_decrease_overhead(&hs);
+	return 0;
 }
 
 #ifdef MPD_LINUX_TEST
