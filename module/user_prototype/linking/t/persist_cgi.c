@@ -25,7 +25,7 @@ extern int sched_block(spdid_t spd_id);
 static int main_fd, data_fd;
 const char *service_names[] = {
 	"/cgi/hw",
-	"/cgi/hw2",
+	"/cgi/HW",
 	NULL
 };
 const char *msg = "hello world";
@@ -37,17 +37,15 @@ void cos_init(void *arg)
 	int i;
 	data = cos_argreg_alloc(BUFF_SZ + sizeof(struct cos_array));
 
-	for (i = 0 ; 1 ; i++) {
-		if (NULL == service_names[i]) assert(0);
-
+	for (i = 0 ; NULL != service_names[i] ; i++) {
 		memcpy(data->mem, service_names[i], strlen(service_names[i]));
 		data->sz = strlen(service_names[i]);
-		if (0 <= (main_fd = cos_app_open(0, data))) break;
+		if (0 > (main_fd = cos_app_open(0, data))) assert(0);
 	}
-	
+
+	main_fd = cos_wait_all();
 	assert(data);
 	while (1) {
-		cos_wait(main_fd);
 		cos_mpd_update();
 		while (1) {
 			int amnt;
@@ -66,6 +64,7 @@ void cos_init(void *arg)
 			cos_write(data_fd, data->mem, strlen(msg));
 			cos_close(data_fd);
 		}
+		cos_wait(main_fd);
 	}
 }
 

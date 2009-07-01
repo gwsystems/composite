@@ -87,6 +87,12 @@ static void update_edge_weights(void)
 	}
 }
 
+/* #e = %oh * 1000000 / e_oh = .1 * 1000000 / 0.7 = 142857 */
+/* #e = %oh * 1000000 / e_oh = .2 * 1000000 / 0.7 = 285714 */
+/* #e = %oh * 1000000 / e_oh = .3 * 1000000 / 0.7 = 428571 */
+#define PERMITTED_EDGES (428571)
+//#define PERMITTED_EDGES (285714)
+
 static void mpd_pol_linear(void)
 {
 	static int cnt = 0;
@@ -94,9 +100,19 @@ static void mpd_pol_linear(void)
 	timed_event_block(cos_spd_id(), 24);
 	update_edge_weights();
 
-	/* #e = %oh * 1000000 / e_oh = .1 * 1000000 / 0.7 = 142857 */
-	/* #e = %oh * 1000000 / e_oh = .2 * 1000000 / 0.7 = 285714 */
-	remove_overhead_to_limit((unsigned int)285714/(unsigned int)4);
+	customize_overhead_to_limit((unsigned int)PERMITTED_EDGES/(unsigned int)4);
+	if (cnt == 3) { cnt = 0; mpd_report(); }
+	else cnt++;
+}
+
+static void mpd_pol_never_increase(void)
+{
+	static int cnt = 0;
+	/* currently timeouts are expressed in ticks */
+	timed_event_block(cos_spd_id(), 24);
+	update_edge_weights();
+
+	remove_overhead_to_limit((unsigned int)PERMITTED_EDGES/(unsigned int)4);
 	if (cnt == 3) { cnt = 0; mpd_report(); }
 	else cnt++;
 }
@@ -110,10 +126,32 @@ static void mpd_pol_dec_isolation_by_one(void)
 	mpd_report();
 }
 
+static void mpd_pol_report(void)
+{
+	timed_event_block(cos_spd_id(), 98);
+	update_edge_weights();
+	mpd_report();
+}
+
 static void mpd_loop(struct comp_graph *g)
 {
+	timed_event_block(cos_spd_id(), 198);
+	mpd_report();
+	timed_event_block(cos_spd_id(), 198);
+	mpd_report();
+	timed_event_block(cos_spd_id(), 198);
+	mpd_report();
+	timed_event_block(cos_spd_id(), 198);
+	mpd_report();
+	timed_event_block(cos_spd_id(), 198);
+	mpd_report();
+	timed_event_block(cos_spd_id(), 198);
+	mpd_report();
 	while (1) {
-		mpd_pol_linear();
+		//mpd_pol_report();
+		//mpd_pol_linear();
+		//mpd_pol_never_increase();
+		mpd_pol_dec_isolation_by_one();
 	}
 	assert(0);
 	return;
@@ -227,9 +265,8 @@ static void mpd_init(void)
 	mpd_pol_init();
 	create_components(graph);
 
-//	mpd_merge_all(graph);
+//	while (!remove_one_isolation_boundary()); /* merge all pds */
 	mpd_loop(graph);
-	assert(0);
 	return;
 }
 

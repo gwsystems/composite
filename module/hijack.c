@@ -1935,7 +1935,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	 * time-slice so that it can be updated to reflect the current
 	 * get_time_of_day, and from then on, it is accessed directly.
 	 */
-	if (NULL == thd || fault_addr == 0xffffd0b0) {
+	if (NULL == thd || fault_addr == 0xffffd0b0 || fault_addr == 0xfffffffa) {
 		cos_meas_event(COS_UNKNOWN_FAULT);
 		goto linux_handler_release;
 	}

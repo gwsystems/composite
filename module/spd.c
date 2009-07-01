@@ -166,7 +166,18 @@ static inline int cap_reset_cap_inv_cnt(int cap_num, int *inv_cnt)
 	ucap = cap_get_usr_cap(cap_num);
 	if (!ucap) return -1;
 	cap = &invocation_capabilities[cap_num];
-	*inv_cnt = ucap->invocation_count + cap->invocation_cnt;
+	switch (cap->il) {
+	case IL_SDT:
+		*inv_cnt = cap->invocation_cnt;
+		break;
+	case IL_ST:
+		*inv_cnt = ucap->invocation_count;
+		break;
+	case IL_AST:
+		printk("cap_reset_cap_inv_cnt: don't support asymmetric trust...\n");
+		ucap->invocation_count = cap->invocation_cnt = 0;
+		return -1;
+	}
 /* 	printk("cap from %d->%d: ucap inv %d, cap inv %d, entry %x, capno %d.\n", */
 /* 	       spd_get_index(cap->owner), spd_get_index(cap->destination), */
 /* 	       ucap->invocation_count, cap->invocation_cnt, */

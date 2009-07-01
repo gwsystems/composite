@@ -34,6 +34,11 @@ extern int async_request(spdid_t spdid, content_req_t cr, struct cos_array *data
 extern int async_retrieve(spdid_t spdid, content_req_t cr, struct cos_array *data, int *more);
 extern int async_close(spdid_t spdid, content_req_t cr);
 
+extern content_req_t alt_async_open(spdid_t spdid, long evt_id, struct cos_array *data);
+extern int alt_async_request(spdid_t spdid, content_req_t cr, struct cos_array *data);
+extern int alt_async_retrieve(spdid_t spdid, content_req_t cr, struct cos_array *data, int *more);
+extern int alt_async_close(spdid_t spdid, content_req_t cr);
+
 struct provider_fns {
 	content_open_fn_t     open;
 	content_request_fn_t  request;
@@ -55,6 +60,13 @@ struct provider_fns async_content = {
 	.close = async_close
 };
 
+struct provider_fns alt_async_content = {
+	.open = alt_async_open,
+	.request = alt_async_request,
+	.retrieve = alt_async_retrieve,
+	.close = alt_async_close
+};
+
 struct route {
 	char *prefix;
 	struct provider_fns *fns;
@@ -71,8 +83,12 @@ struct route {
  */
 struct route routing_tbl[] = {
 	{
-		.prefix = "/cgi",
+		.prefix = "/cgi/hw",
 		.fns = &async_content
+	},
+	{
+		.prefix = "/cgi/HW",
+		.fns = &alt_async_content
 	},
 	{
 		.prefix = "/", 

@@ -119,6 +119,12 @@ struct symb_type {
 	struct service_symbs *parent;
 };
 
+struct dependency {
+	struct service_symbs *dep;
+	char *modifier;
+	int mod_len;
+};
+
 struct service_symbs {
 	char *obj;
 	unsigned long lower_addr, size, heap_top;
@@ -126,7 +132,7 @@ struct service_symbs {
 	struct spd *spd;
 	struct symb_type exported, undef;
 	int num_dependencies;
-	struct service_symbs *dependencies[MAX_TRUSTED];
+	struct dependency dependencies[MAX_TRUSTED];
 	struct service_symbs *next;
 	int depth;
 
@@ -567,18 +573,47 @@ static struct service_symbs *get_dependency_by_index(struct service_symbs *s,
 		return NULL;
 	}
 
-	return s->dependencies[index];
+	return s->dependencies[index].dep;
 }
 */
 static int add_service_dependency(struct service_symbs *s, 
 				  struct service_symbs *dep)
 {
-	if (!s || !dep || 
-	    s->num_dependencies == MAX_TRUSTED) {
+	struct dependency *d;
+
+	if (!s || !dep || s->num_dependencies == MAX_TRUSTED) {
 		return -1;
 	}
 
-	s->dependencies[s->num_dependencies] = dep;
+	d = &s->dependencies[s->num_dependencies];
+	d->dep = dep;
+	d->modifier = NULL;
+	s->num_dependencies++;
+
+	return 0;
+}
+
+static int add_modified_service_dependency(struct service_symbs *s,
+					   struct service_symbs *dep, 
+					   char *modifier, int mod_len)
+{
+	struct dependency *d;
+	char *new_mod;
+
+	assert(modifier);
+	new_mod = malloc(mod_len+1);
+	assert(new_mod);
+	memcpy(new_mod, modifier, mod_len);
+	new_mod[mod_len] = '\0';
+
+	if (!s || !dep || s->num_dependencies == MAX_TRUSTED) {
+		return -1;
+	}
+
+	d = &s->dependencies[s->num_dependencies];
+	d->dep = dep;
+	d->modifier = new_mod;
+	d->mod_len = mod_len;
 	s->num_dependencies++;
 
 	return 0;
@@ -852,20 +887,28 @@ static struct service_symbs *prepare_service_symbs(char *services)
  */
 static inline 
 struct service_symbs *find_symbol_exporter(struct symb *s, 
-					   struct service_symbs *exporters[],
+					   struct dependency *exporters,
 					   int num_exporters, struct symb **exported)
 {
 	int i,j;
 
 	for (i = 0 ; i < num_exporters ; i++) {
+		struct dependency *exporter;
 		struct symb_type *exp_symbs;
 
-		exp_symbs = &exporters[i]->exported;
+		exporter = &exporters[i];
+		exp_symbs = &exporter->dep->exported;
 
 		for (j = 0 ; j < exp_symbs->num_symbs ; j++) {
 			if (!strcmp(s->name, exp_symbs->symbs[j].name)) {
 				*exported = &exp_symbs->symbs[j];
-				return exporters[i];
+				return exporters[i].dep;
+			}
+			if (exporter->modifier && 
+			    !strncmp(s->name, exporter->modifier, exporter->mod_len) && 
+			    !strcmp(s->name + exporter->mod_len, exp_symbs->symbs[j].name)) {
+				*exported = &exp_symbs->symbs[j];
+				return exporters[i].dep;
 			}
 		}
 	}
@@ -940,7 +983,7 @@ static int rec_verify_dag(struct service_symbs *services,
 	}
 
 	for (i = 0 ; i < services->num_dependencies ; i++) {
-		struct service_symbs *d = services->dependencies[i];
+		struct service_symbs *d = services->dependencies[i].dep;
 
 		if (rec_verify_dag(d, current_depth+1, max_depth)) {
 			return -1;
@@ -987,6 +1030,8 @@ static inline struct service_symbs *get_service_struct(char *name,
 						       struct service_symbs *list)
 {
 	while (list) {
+		assert(name);
+		assert(list && list->obj);
 		if (!strcmp(name, list->obj)) {
 			return list;
 		}
@@ -1010,6 +1055,8 @@ static int deserialize_dependencies(char *deps, struct service_symbs *services)
 	char *serial = "-";
 	char *parallel = "|";
 	char inter_dep = ';';
+	char open_modifier = '[';
+	char close_modifier = ']';
 
 	if (!deps) {
 		return -1;
@@ -1041,7 +1088,20 @@ static int deserialize_dependencies(char *deps, struct service_symbs *services)
 		/* go through the | invoked services */
 		tmp = strtok(NULL, parallel);
 		while (tmp) {
-
+			char *mod = NULL;
+			/* modifier! */
+			if (tmp[0] == open_modifier) {
+				mod = tmp+1;
+				tmp = strchr(tmp, close_modifier);
+				if (!tmp) {
+					printf("Could not find closing modifier ] in %s\n", mod);
+					return -1;
+				}
+				*tmp = '\0';
+				tmp++;
+				assert(mod);
+				assert(tmp);
+			}
 			dep = get_service_struct(tmp, services);
 			if (!dep) {
 				printf("Could not find service %s.\n", tmp);
@@ -1053,7 +1113,8 @@ static int deserialize_dependencies(char *deps, struct service_symbs *services)
 				return -1;
 			}
 
-			add_service_dependency(s, dep);
+			if (mod) add_modified_service_dependency(s, dep, mod, strlen(mod));
+			else add_service_dependency(s, dep);
 			tmp = strtok(NULL, parallel);
 		} 
 
@@ -1304,8 +1365,8 @@ static void print_kern_symbs(struct service_symbs *services)
 /*struct cap_info **/
 int create_invocation_cap(struct spd_info *from_spd, struct service_symbs *from_obj, 
 			  struct spd_info *to_spd, struct service_symbs *to_obj,
-			  int cos_fd, char *client_stub, char *server_stub, 
-			  char *server_fn, int flags)
+			  int cos_fd, char *client_fn, char *client_stub, 
+			  char *server_stub, char *server_fn, int flags)
 {
 	struct cap_info cap;
 	struct symb_type *st = &from_obj->undef;
@@ -1318,7 +1379,7 @@ int create_invocation_cap(struct spd_info *from_spd, struct service_symbs *from_
 	 * use), so that we can insert the information into the
 	 * correct user-capability. */
 	for (i = 0 ; i < st->num_symbs ; i++) {
-		if (strcmp(server_fn, st->symbs[i].name) == 0) {
+		if (strcmp(client_fn, st->symbs[i].name) == 0) {
 			break;
 		}
 	}
@@ -1354,6 +1415,7 @@ int create_invocation_cap(struct spd_info *from_spd, struct service_symbs *from_
 	cap.flags = flags;
 
 	cap.cap_handle = cos_spd_add_cap(cos_fd, &cap);
+
  	if (cap.cap_handle == 0) {
 		printf("Could not add capability # %d to %s (%d) for %s.\n", 
 		       cap.rel_offset, from_obj->obj, cap.owner_spd_handle, server_fn);
@@ -1404,15 +1466,15 @@ static int create_spd_capabilities(struct service_symbs *service/*, struct spd_i
 			}
 		}
 
-		if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", symb->name, CAP_SERVER_STUB_POSTPEND)) {
-			printf("symbol name %s too long to become server capability\n", symb->name);
+		if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", exp_symb->name, CAP_SERVER_STUB_POSTPEND)) {
+			printf("symbol name %s too long to become server capability\n", exp_symb->name);
 			return -1;
 		}
 
 		s_stub = spd_contains_symb(exporter, tmp);
 		if (NULL == s_stub) {
 			printf("Could not find server stub (%s) for function %s in service %s.\n",
-			       tmp, symb->name, exporter->obj);
+			       tmp, exp_symb->name, exporter->obj);
 			return -1;
 		}
 
@@ -1421,7 +1483,8 @@ static int create_spd_capabilities(struct service_symbs *service/*, struct spd_i
 			return -1;
 		}
 		if (create_invocation_cap(spd, service, export_spd, exporter, cntl_fd, 
-					  c_stub->name, s_stub->name, exp_symb->name, 0)) {
+					  symb->name, c_stub->name, s_stub->name, 
+					  exp_symb->name, 0)) {
 			return -1;
 		}
 	}
@@ -1542,7 +1605,7 @@ static int serialize_spd_graph(struct comp_graph *g, int sz, struct service_symb
 		assert(ss->extern_info);		
 		cid = ((struct spd_info *)(ss->extern_info))->spd_handle;
 		for (i = 0 ; i < ss->num_dependencies && 0 != cid ; i++) {
-			struct service_symbs *dep = ss->dependencies[i];
+			struct service_symbs *dep = ss->dependencies[i].dep;
 			assert(dep);
 
 			sid = ((struct spd_info *)(dep->extern_info))->spd_handle;

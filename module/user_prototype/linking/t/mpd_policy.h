@@ -64,7 +64,7 @@ struct pd_edge {
 	pd_edge_state_t state;
 	int prio_q_idx;
 
-	long weight;
+	long weight, invocations;
 	struct protection_domain *from, *to;
 	struct pd_edge *from_next, *from_prev, *to_next, *to_prev;
 
@@ -109,7 +109,7 @@ struct component {
 	 * most).
 	 */
 	int prio_q_idx;
-	long edge_weight;
+	long edge_weight, edge_invocations;
 	/******************************************************/
 
 	/* general list of all components */
@@ -709,15 +709,28 @@ static long component_grp_weight(struct component *s, struct component *grp)
 
 static long component_grp_to_grp_weight(struct component *g1, struct component *g2)
 {
+//	struct protection_domain *pd;
 	struct component *c;
 	long cnt = 0;
+//	unsigned long g1_nmembs = 0, g2_nmembs = 0;
+//	unsigned long delta_fault_exposure, ret;
 	
 	c = g1;
 	do {
 		cnt += component_grp_weight(c, g2);
 		c = FIRST_LIST(c, sg_next, sg_prev);
+//		g1_nmembs++;
 	} while (c != g1);
 	
+/* 	pd = g1->pd; */
+/* 	assert(g1->pd == g2->pd); */
+/* 	assert(pd->nmembs > 0 && amnt > 0); */
+/* 	assert(g2_nmembs <= pd->nmembs); */
+/* 	g2_nmembs = pd->nmembs - g1_nmembs; */
+
+/* 	delta_fault_exposure = 2 * g2_nmembs * g1_nmembs; */
+/* 	ret = cnt/delta_fault_exposure; */
+/* 	return (long)ret; */
 	return cnt;
 }
 
@@ -1179,7 +1192,7 @@ static void test_edge_weight_consistency(void)
 #define test_edge_weight_consistency()
 #endif
 
-void remove_overhead_to_limit(int allowed_invs)
+void customize_overhead_to_limit(int allowed_invs)
 {
 /* 	printf("dec oh\n"); */
 /* 	while (!mpd_empty_dec_overhead(&hs)) { */
@@ -1222,6 +1235,13 @@ void remove_overhead_to_limit(int allowed_invs)
 
 		/* got into a loop */
 		if (inc == mpd_peek_inc_isolation(&hs) && dec == mpd_peek_dec_overhead(&hs)) break;
+	}
+}
+
+void remove_overhead_to_limit(int limit)
+{
+	while (!mpd_empty_dec_overhead(&hs) && tot_cost > limit) {
+		mpd_decrease_overhead(&hs);
 	}
 }
 

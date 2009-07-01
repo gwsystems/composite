@@ -51,7 +51,7 @@ LIB_ASM_MANDITORY=cos_asm_upcall.o c_stub.o
 C_COMPS=comp0.o print_comp.o mem_man.o fp_rr.o cos_net.o ds.o uc_test.o wf_test.o lock.o timed_event.o mailbox.o mpd_mgr.o evt.o fd_api.o conn_mgr.o https.o stat_gather.o stack_trace.o static_content.o content_mgr.o netif.o cos_ip.o async_inv.o fake_net.o persist_cgi.o port_mgr.o
 ASM_STUBS=s_stubprint.o s_stubmm.o s_stubfprr.o s_stubnet.o s_stubds.o s_stublock.o s_stubte.o s_stubmb.o s_stube.o s_stubfd.o s_stubhttp.o s_stubst.o s_stubsc.o s_stubcm.o s_stubif.o s_stubip.o s_stubainv.o s_stubfn.o s_stubport.o
 PRODUCTS=$(C_COMPS) $(ASM_STUBS)
-COMPONENTS=c0.o print.o mm.o fprr.o net.o d.o uc.o wftest.o l.o te.o mb.o mpd.o e.o fd.o conn.o http.o stat.o st.o cm.o sc.o if.o ip.o ainv.o fn.o cgi.o fd2.o fd3.o cgi2.o port.o
+COMPONENTS=c0.o print.o mm.o fprr.o net.o d.o uc.o wftest.o l.o te.o mb.o mpd.o e.o fd.o conn.o http.o stat.o st.o cm.o sc.o if.o ip.o ainv.o fn.o cgi.o fd2.o fd3.o cgi2.o port.o ainv2.o
 TMP_STR=tmp
 
 SOURCES=$(C_COMPS:%.o=%.c) $(LIB_C_OBJS:%.o=%.c)
@@ -95,6 +95,7 @@ stubs: $(PRODUCTS)
 	@cp fd.o fd2.o
 	@$(LD) -r -o cgi.o persist_cgi.o
 
+	@cp ainv.o ainv2.o
 	@cp fd.o fd3.o
 	@cp cgi.o cgi2.o
 

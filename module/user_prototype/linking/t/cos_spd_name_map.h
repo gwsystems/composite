@@ -30,6 +30,8 @@ static char *spd_name_map[MAX_NUM_SPDS+1] =
 	"cgi.o",
 	"fd3.o",
 	"cgi2.o",
+	"port.o",
+	"ainv2.o",
 	"",
 	NULL
 };
