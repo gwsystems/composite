@@ -8,12 +8,8 @@
 
 # I never want to touch this again, but will have to
 
-CC=gcc
-AR=ar
-LD=ld
-AS=$(CC)
+include ../../../Makefile.inc
 
-#DIETDIR=/home/grad3/gabep1/research/code/composite/composite/module/user_prototype/linking/dietlibc-0.29
 DIETDIR=../dietlibc-0.29
 DIETBIN=$(DIETDIR)/bin-i386/diet
 DIETCC=$(DIETBIN) $(CC)
@@ -24,13 +20,12 @@ LWIPDIR=$(LWIPBASE)/lwip-1.3.0
 LWIPOBJ=$(LWIPBASE)/cos/net_stack.o
 LWIPINC=-I$(LWIPDIR)/src/include -I$(LWIPDIR)/src/include/ipv4/ -I$(LWIPBASE)/cos/include/ 
 
-TRANS_DIR=/home/grad3/gabep1/transfer/
 INC_PATH=-I./
 # FIXME: dietlibc is now compiled with fno merge constants which is
 # probably ballooning its size.  Fix this in cos_loader.
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib
 OPT= -O3 #-ggdb3
-CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-omit-frame-pointer $(INC_PATH) $(DIETINC) $(LWIPINC) $(OPT) $(SHARED_FLAGS)
+CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer $(INC_PATH) $(DIETINC) $(LWIPINC) $(OPT) $(SHARED_FLAGS)
 DIETCFLAGS=$(CFLAGS) -Xlinker -r
 ASFLAGS=$(INC_PATH) $(SHARED_FLAGS)
 

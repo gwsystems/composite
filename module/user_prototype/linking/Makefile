@@ -1,9 +1,7 @@
-AR=ar
-CC=gcc
+include ../../Makefile.inc
+
 INC_DIR=../../include
 CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wno-unused-function -ggdb3 -I$(INC_DIR)
-LD=ld
-TRANS_DIR=/home/grad3/gabep1/transfer/
 PRODUCTS=cos_loader gen_client_stub
 
 all: $(PRODUCTS)

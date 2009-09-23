@@ -37,6 +37,13 @@
 
 #include "t/cos_spd_name_map.h"
 
+enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_HIGH;
+
+#define printl(lvl,format, args...)				\
+	{							\
+		if (lvl <= print_lvl) printf(format, ## args);	\
+	}
+
 #define NUM_ATOMIC_SYMBS 10 
 #define NUM_KERN_SYMBS (5+NUM_ATOMIC_SYMBS)
 
@@ -149,7 +156,7 @@ static unsigned long getsym(bfd *obj, char* symbol)
 	storage_needed = bfd_get_symtab_upper_bound (obj);
 	
 	if (storage_needed <= 0){
-		printf("no symbols in object file\n");
+		printl(PRINT_DEBUG, "no symbols in object file\n");
 		exit(-1);
 	}
 	
@@ -163,7 +170,7 @@ static unsigned long getsym(bfd *obj, char* symbol)
 		} 
 	}
 
-	printf("Unable to find symbol named %s\n", symbol);
+	printl(PRINT_DEBUG, "Unable to find symbol named %s\n", symbol);
 	return 0;
 }
 
@@ -178,7 +185,7 @@ static void print_syms(bfd *obj)
 	storage_needed = bfd_get_symtab_upper_bound (obj);
 	
 	if (storage_needed <= 0){
-		printf("no symbols in object file\n");
+		printl(PRINT_DEBUG, "no symbols in object file\n");
 		exit(-1);
 	}
 	
@@ -187,7 +194,7 @@ static void print_syms(bfd *obj)
 
 	//notes: symbol_table[i]->flags & (BSF_FUNCTION | BSF_GLOBAL)
 	for (i = 0; i < number_of_symbols; i++) {
-		printf("name: %s, addr: %d, flags: %s, %s%s%s, in sect %s%s%s.\n",  
+		printl(PRINT_DEBUG, "name: %s, addr: %d, flags: %s, %s%s%s, in sect %s%s%s.\n",  
 		       symbol_table[i]->name,
 		       (unsigned int)(symbol_table[i]->section->vma + symbol_table[i]->value),
 		       (symbol_table[i]->flags & BSF_GLOBAL) ? "global" : "local", 
@@ -203,7 +210,7 @@ static void print_syms(bfd *obj)
 	}
 
 	free(symbol_table);
-	//printf("Unable to find symbol named %s\n", executive_entry_symbol);
+	//printl(PRINT_DEBUG, "Unable to find symbol named %s\n", executive_entry_symbol);
 	//return -1;
 	return;
 }
@@ -253,12 +260,13 @@ static int calculate_mem_size(int first, int last)
 	
 	for (i = first; i < last; i++){
 		if(srcobj[i].s == NULL) {
-			printf("Warning: could not find section for sectno %d.\n", i);
+			printl(PRINT_DEBUG, "Warning: could not find section for sectno %d.\n", i);
 			continue;
 		}
 		offset = calc_offset(offset, srcobj[i].s);
 		srcobj[i].offset = offset;
 		offset += bfd_get_section_size(srcobj[i].s);
+		//printl(PRINT_DEBUG, "section %d, size %d\n", i, bfd_get_section_size(srcobj[i].s));
 	}
 	
 	return offset;
@@ -340,27 +348,27 @@ int set_object_addresses(bfd *obj, struct service_symbs *obj_data)
 	char *str = "hi, this is";
 
 	if ((retaddr = (unsigned int*)getsym(obj, "ret")))
-		printf("ret %x is %d.\n", (unsigned int)retaddr, *retaddr);
+		printl(PRINT_DEBUG, "ret %x is %d.\n", (unsigned int)retaddr, *retaddr);
 	if ((retaddr = (unsigned int*)getsym(obj, "blah")))
-		printf("blah %x is %d.\n", (unsigned int)retaddr, *retaddr);
+		printl(PRINT_DEBUG, "blah %x is %d.\n", (unsigned int)retaddr, *retaddr);
 	if ((retaddr = (unsigned int*)getsym(obj, "zero")))
-		printf("zero %x is %d.\n", (unsigned int)retaddr, *retaddr);
+		printl(PRINT_DEBUG, "zero %x is %d.\n", (unsigned int)retaddr, *retaddr);
 	if ((blah = (char**)getsym(obj, "str")))
-		printf("str %x is %s.\n", (unsigned int)blah, *blah);
+		printl(PRINT_DEBUG, "str %x is %s.\n", (unsigned int)blah, *blah);
 	if ((retaddr = (unsigned int*)getsym(obj, "other")))
-		printf("other %x is %d.\n", (unsigned int)retaddr, *retaddr);
+		printl(PRINT_DEBUG, "other %x is %d.\n", (unsigned int)retaddr, *retaddr);
 	if ((fn = (fn_t)getsym(obj, "foo")))
-		printf("retval from foo: %d (%d).\n", fn(), (int)*str);
+		printl(PRINT_DEBUG, "retval from foo: %d (%d).\n", fn(), (int)*str);
 */
 	for (i = 0 ; i < st->num_symbs ; i++) {
 		char *symb = st->symbs[i].name;
 		unsigned long addr = getsym(obj, symb);
 /*
-		printf("Symbol %s at address 0x%x.\n", symb, 
+		printl(PRINT_DEBUG, "Symbol %s at address 0x%x.\n", symb, 
 		       (unsigned int)addr);
 */
 		if (addr == 0) {
-			printf("Symbol %s has invalid address.\n", symb);
+			printl(PRINT_DEBUG, "Symbol %s has invalid address.\n", symb);
 			return -1;
 		}
 
@@ -393,12 +401,14 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	void *ret_addr;
 	char *service_name = ret_data->obj; 
 
+	int i;
+
 	if (!service_name) {
-		printf("Invalid path to executive.\n");
+		printl(PRINT_DEBUG, "Invalid path to executive.\n");
 		return -1;
 	}
 
-	printf("Processing object %s:\n", service_name);
+	printl(PRINT_NORMAL, "Processing object %s:\n", service_name);
 
 	genscript(0);
 	run_linker(service_name, tmp_exec);
@@ -410,17 +420,18 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	}
 	
 	if(!bfd_check_format(obj, bfd_object)){
-		printf("Not an object file!\n");
+		printl(PRINT_DEBUG, "Not an object file!\n");
 		return -1;
 	}
 	
+	for (i = 0 ; i < MAXSEC_S ; i++) srcobj[i].s = NULL;
 	bfd_map_over_sections(obj, findsections, srcobj);
 
 	ro_start = lower_addr;
 	/* Determine the size of and allocate the text and Read-Only data area */
 	text_size = calculate_mem_size(TEXT_S, RODATA_S);
 	ro_size = calculate_mem_size(RODATA_S, DATA_S);
-	printf("\tRead only text (%x) and data section (%x): %x:%x.\n",
+	printl(PRINT_DEBUG, "\tRead only text (%x) and data section (%x): %x:%x.\n",
 	       (unsigned int)text_size, (unsigned int)ro_size, 
 	       (unsigned int)ro_start, (unsigned int)text_size+ro_size);
 
@@ -432,12 +443,18 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	 * FIXME: needing PROT_WRITE is daft, should write to file,
 	 * then map in ro
 	 */
+	assert(0 != ro_size);
 	ret_addr = mmap((void*)ro_start, ro_size,
 			PROT_EXEC | PROT_READ | PROT_WRITE,
 			MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
 			0, 0);
 
 	if (MAP_FAILED == ret_addr){
+		/* If you get outrageous sizes here, there is a
+		 * required section missing (such as rodata).  Add a
+		 * const. */
+		printl(PRINT_DEBUG, "Error mapping 0x%x(0x%x)\n", 
+		       (unsigned int)ro_start, (unsigned int)ro_size);
 		perror("Couldn't map text segment into address space");
 		return -1;
 	}
@@ -446,7 +463,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	/* Allocate the read-writable areas .data .bss */
 	alldata_size = calculate_mem_size(DATA_S, MAXSEC_S);
 
-	printf("\tData section: %x:%x\n",
+	printl(PRINT_DEBUG, "\tData section: %x:%x\n",
 	       (unsigned int)data_start, (unsigned int)alldata_size);
 
 	alldata_size = round_up_to_page(alldata_size);
@@ -482,7 +499,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	}
 	
 	if(!bfd_check_format(objout, bfd_object)){
-		printf("Not an object file!\n");
+		printl(PRINT_DEBUG, "Not an object file!\n");
 		return -1;
 	}
 	
@@ -492,14 +509,14 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	bfd_get_section_contents(objout, ldobj[TEXT_S].s,
 				 tmp_storage + srcobj[TEXT_S].offset, 0,
 				 bfd_sect_size(objout, srcobj[TEXT_S].s));
-	printf("\tretreiving TEXT at offset %d of size %x.\n", 
+	printl(PRINT_DEBUG, "\tretreiving TEXT at offset %d of size %x.\n", 
 	       srcobj[TEXT_S].offset, (unsigned int)bfd_sect_size(objout, srcobj[TEXT_S].s));
 
-	if(ldobj[RODATA_S].s){
+	if(srcobj[RODATA_S].s && ldobj[RODATA_S].s){
 		bfd_get_section_contents(objout, ldobj[RODATA_S].s,
 					 tmp_storage + srcobj[RODATA_S].offset, 0,
 					 bfd_sect_size(objout, srcobj[RODATA_S].s));
-		printf("\tretreiving RODATA at offset %d of size %x.\n", 
+		printl(PRINT_DEBUG, "\tretreiving RODATA at offset %d of size %x.\n", 
 		       srcobj[RODATA_S].offset, (unsigned int)bfd_sect_size(objout, srcobj[RODATA_S].s));
 	}
 
@@ -508,13 +525,13 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	 * ... and copy that buffer into the actual memory location
 	 * object is linked for (load it!)
 	 */
-	printf("\tCopying RO to %x from %x of size %x.\n", 
+	printl(PRINT_DEBUG, "\tCopying RO to %x from %x of size %x.\n", 
 	       (unsigned int) ro_start, (unsigned int)tmp_storage, (unsigned int)ro_size);
 	memcpy((void*)ro_start, tmp_storage, ro_size);
 
-	printf("\tretreiving DATA at offset %x of size %x.\n", 
+	printl(PRINT_DEBUG, "\tretreiving DATA at offset %x of size %x.\n", 
 	       srcobj[DATA_S].offset, (unsigned int)bfd_sect_size(objout, srcobj[DATA_S].s));
-	printf("\tCopying data from object to %x:%x.\n", 
+	printl(PRINT_DEBUG, "\tCopying data from object to %x:%x.\n", 
 	       (unsigned int)tmp_storage + srcobj[DATA_S].offset, 
 	       (unsigned int)bfd_sect_size(obj, srcobj[DATA_S].s));
 
@@ -523,9 +540,9 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 				 tmp_storage + srcobj[DATA_S].offset, 0,
 				 bfd_sect_size(obj, srcobj[DATA_S].s));
 
-	printf("\tretreiving BSS at offset %x of size %x.\n", 
+	printl(PRINT_DEBUG, "\tretreiving BSS at offset %x of size %x.\n", 
 	       srcobj[BSS_S].offset, (unsigned int)bfd_sect_size(objout, srcobj[BSS_S].s));
-	printf("\tZeroing out BSS from %x of size %x.\n", 
+	printl(PRINT_DEBUG, "\tZeroing out BSS from %x of size %x.\n", 
 	       (unsigned int)tmp_storage + srcobj[BSS_S].offset,
 	       (unsigned int)bfd_sect_size(obj, srcobj[BSS_S].s));
 
@@ -533,7 +550,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	memset(tmp_storage + srcobj[BSS_S].offset, 0,
 	       bfd_sect_size(obj, srcobj[BSS_S].s));
 
-	printf("\tCopying DATA to %x from %x of size %x.\n", 
+	printl(PRINT_DEBUG, "\tCopying DATA to %x from %x of size %x.\n", 
 	       (unsigned int) data_start, (unsigned int)tmp_storage, (unsigned int)alldata_size);
 	
 	memcpy((void*)data_start, tmp_storage, alldata_size);
@@ -541,7 +558,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	free(tmp_storage);
 
 	if (set_object_addresses(objout, ret_data)) {
-		printf("Could not find all object symbols.\n");
+		printl(PRINT_DEBUG, "Could not find all object symbols.\n");
 		return -1;
 	}
 
@@ -552,7 +569,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	bfd_close(obj);
 	bfd_close(objout);
 
-	printf("Object %s processed as %s with script %s.\n", 
+	printl(PRINT_NORMAL, "Object %s processed as %s with script %s.\n", 
 	       service_name, tmp_exec, script);
 //	unlink(tmp_exec);
 
@@ -675,7 +692,7 @@ static int obs_serialize(asymbol *symb, void *data)
          * capability table
 	 */
 	if (symbs->num_symbs >= MAX_SYMBOLS-NUM_KERN_SYMBS) {
-		printf("Have exceeded the number of allowed "
+		printl(PRINT_DEBUG, "Have exceeded the number of allowed "
 		       "symbols for object %s.\n", symbs->parent->obj);
 		return -1;
 	}
@@ -705,7 +722,7 @@ static int for_each_symb_type(bfd *obj, int symb_type, observer_t o, void *obs_d
 	storage_needed = bfd_get_symtab_upper_bound (obj);
 	
 	if (storage_needed <= 0){
-		printf("no symbols in object file\n");
+		printl(PRINT_DEBUG, "no symbols in object file\n");
 		exit(-1);
 	}
 	
@@ -751,7 +768,7 @@ static int obj_serialize_symbols(char *tmp_exec, int symb_type, struct service_s
 	}
 	
 	if(!bfd_check_format(obj, bfd_object)){
-		printf("Not an object file!\n");
+		printl(PRINT_DEBUG, "Not an object file!\n");
 		return -1;
 	}
 	
@@ -772,7 +789,7 @@ static inline void print_symbs(struct symb_type *st)
 	int i;
 
 	for (i = 0 ; i < st->num_symbs ; i++) {
-		printf("%s, ", st->symbs[i].name);
+		printl(PRINT_DEBUG, "%s, ", st->symbs[i].name);
 	}
 
 	return;
@@ -780,12 +797,13 @@ static inline void print_symbs(struct symb_type *st)
 
 static void print_objs_symbs(struct service_symbs *str)
 {
+	if (print_lvl < PRINT_DEBUG) return;
 	while (str) {
-		printf("Service %s:\n\tExports: ", str->obj);
+		printl(PRINT_DEBUG, "Service %s:\n\tExports: ", str->obj);
 		print_symbs(&str->exported);
-		printf("\n\tUndefined: ");
+		printl(PRINT_DEBUG, "\n\tUndefined: ");
 		print_symbs(&str->undef);
-		printf("\n\n");
+		printl(PRINT_DEBUG, "\n\n");
 
 		str = str->next;
 	}
@@ -866,7 +884,7 @@ static struct service_symbs *prepare_service_symbs(char *services)
 	do {
 		if (obj_serialize_symbols(tok, EXPORTED_SYMB_TYPE, str) ||
 		    obj_serialize_symbols(tok, UNDEF_SYMB_TYPE, str)) {
-			printf("Could not operate on object %s: error.\n", tok);
+			printl(PRINT_DEBUG, "Could not operate on object %s: error.\n", tok);
 			return NULL;
 		}
 		add_kernel_exports(str);
@@ -950,7 +968,7 @@ static int verify_dependency_completeness(struct service_symbs *services)
 							services->num_dependencies, &exp_symb);
 
 			if (!exporter) {
-				printf("Could not find exporter of symbol %s in service %s.\n",
+				printl(PRINT_DEBUG, "Could not find exporter of symbol %s in service %s.\n",
 				       symb->name, services->obj);
 
 				ret = -1;
@@ -1016,7 +1034,7 @@ static int verify_dependency_soundness(struct service_symbs *services)
 
 	while (services) {
 		if (rec_verify_dag(services, 0, cnt)) {
-			printf("Cycle found in dependencies.  Not linking.\n");
+			printl(PRINT_DEBUG, "Cycle found in dependencies.  Not linking.\n");
 			return -1;
 		}
 
@@ -1081,7 +1099,7 @@ static int deserialize_dependencies(char *deps, struct service_symbs *services)
 
 		s = get_service_struct(tmp, services);
 		if (!s) {
-			printf("Could not find service %s.\n", tmp);
+			printl(PRINT_HIGH, "Could not find service %s.\n", tmp);
 			return -1;
 		}
 
@@ -1094,7 +1112,7 @@ static int deserialize_dependencies(char *deps, struct service_symbs *services)
 				mod = tmp+1;
 				tmp = strchr(tmp, close_modifier);
 				if (!tmp) {
-					printf("Could not find closing modifier ] in %s\n", mod);
+					printl(PRINT_HIGH, "Could not find closing modifier ] in %s\n", mod);
 					return -1;
 				}
 				*tmp = '\0';
@@ -1104,11 +1122,11 @@ static int deserialize_dependencies(char *deps, struct service_symbs *services)
 			}
 			dep = get_service_struct(tmp, services);
 			if (!dep) {
-				printf("Could not find service %s.\n", tmp);
+				printl(PRINT_HIGH, "Could not find service %s.\n", tmp);
 				return -1;
 			} 
 			if (dep == s) {
-				printf("Reflexive relations not allowed (for %s).\n", 
+				printl(PRINT_HIGH, "Reflexive relations not allowed (for %s).\n", 
 				       s->obj);
 				return -1;
 			}
@@ -1256,7 +1274,7 @@ static int load_all_services(struct service_symbs *services)
 
 		service_addr += DEFAULT_SERVICE_SIZE;
 
-		printf("\n");
+		printl(PRINT_DEBUG, "\n");
 		services = services->next;
 	}
 
@@ -1271,7 +1289,7 @@ static void print_kern_symbs(struct service_symbs *services)
 		vaddr_t addr;
 
 		if ((addr = get_symb_address(&services->exported, u_tbl))) {
-			printf("Service %s:\n\tusr_cap_tbl: %x\n",
+			printl(PRINT_DEBUG, "Service %s:\n\tusr_cap_tbl: %x\n",
 			       services->obj, (unsigned int)addr);
 		}
 		
@@ -1294,11 +1312,11 @@ static void print_kern_symbs(struct service_symbs *services)
 /* 		if (!ucap_tbl) { */
 /* 			s->spd = spd_alloc(0, MNULL); */
 /* 		} else { */
-/* //			printf("Requesting %d caps.\n", num_undef); */
+/* //			printl(PRINT_DEBUG, "Requesting %d caps.\n", num_undef); */
 /* 			s->spd = spd_alloc(num_undef, ucap_tbl); */
 /* 		} */
 
-/* //		printf("Service %s has spd %x.\n", s->obj, (unsigned int)s->spd); */
+/* //		printl(PRINT_DEBUG, "Service %s has spd %x.\n", s->obj, (unsigned int)s->spd); */
 
 /* 		s = s->next; */
 /* 	} */
@@ -1323,7 +1341,7 @@ static void print_kern_symbs(struct service_symbs *services)
 /* 			dest_entry_fn = symb->addr; */
 
 /* 			if ((spd_add_static_cap(services->spd, dest_entry_fn, dest_spd, IL_ST) == 0)) { */
-/* 				printf("Could not add capability for %s to %s.\n",  */
+/* 				printl(PRINT_DEBUG, "Could not add capability for %s to %s.\n",  */
 /* 				       symb->name, dest_service->obj); */
 /* 			} */
 /* 		} */
@@ -1347,7 +1365,7 @@ static void print_kern_symbs(struct service_symbs *services)
 /* 	thd = thd_alloc(services->spd); */
 
 /* 	if (!thd) { */
-/* 		printf("Could not allocate thread.\n"); */
+/* 		printl(PRINT_DEBUG, "Could not allocate thread.\n"); */
 /* 		return; */
 /* 	} */
 
@@ -1384,26 +1402,26 @@ int create_invocation_cap(struct spd_info *from_spd, struct service_symbs *from_
 		}
 	}
 	if (i == st->num_symbs) {
-		printf("Could not find the undefined symbol %s in %s.\n", 
+		printl(PRINT_DEBUG, "Could not find the undefined symbol %s in %s.\n", 
 		       server_fn, from_obj->obj);
 		exit(-1);
 	}
 	
 	addr = (vaddr_t)get_symb_address(&to_obj->exported, server_stub);
 	if (addr == 0) {
-		printf("Could not find %s in %s.\n", server_stub, to_obj->obj);
+		printl(PRINT_DEBUG, "Could not find %s in %s.\n", server_stub, to_obj->obj);
 		exit(-1);
 	}
 	cap.SD_serv_stub = addr;
 	addr = (vaddr_t)get_symb_address(&from_obj->exported, client_stub);
 	if (addr == 0) {
-		printf("could not find %s in %s.\n", client_stub, from_obj->obj);
+		printl(PRINT_DEBUG, "could not find %s in %s.\n", client_stub, from_obj->obj);
 		exit(-1);
 	}
 	cap.SD_cli_stub = addr;
 	addr = (vaddr_t)get_symb_address(&to_obj->exported, server_fn);
 	if (addr == 0) {
-		printf("could not find %s in %s.\n", server_fn, to_obj->obj);
+		printl(PRINT_DEBUG, "could not find %s in %s.\n", server_fn, to_obj->obj);
 		exit(-1);
 	}
 	cap.ST_serv_entry = addr;
@@ -1417,7 +1435,7 @@ int create_invocation_cap(struct spd_info *from_spd, struct service_symbs *from_
 	cap.cap_handle = cos_spd_add_cap(cos_fd, &cap);
 
  	if (cap.cap_handle == 0) {
-		printf("Could not add capability # %d to %s (%d) for %s.\n", 
+		printl(PRINT_DEBUG, "Could not add capability # %d to %s (%d) for %s.\n", 
 		       cap.rel_offset, from_obj->obj, cap.owner_spd_handle, server_fn);
 		exit(-1);
 	}
@@ -1453,33 +1471,33 @@ static int create_spd_capabilities(struct service_symbs *service/*, struct spd_i
 		char tmp[MAX_SYMB_LEN];
 
 		if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", symb->name, CAP_CLIENT_STUB_POSTPEND)) {
-			printf("symbol name %s too long to become client capability\n", symb->name);
+			printl(PRINT_DEBUG, "symbol name %s too long to become client capability\n", symb->name);
 			return -1;
 		}
 		c_stub = spd_contains_symb(service, tmp);
 		if (NULL == c_stub) {
 			c_stub = spd_contains_symb(service, CAP_CLIENT_STUB_DEFAULT);
 			if (NULL == c_stub) {
-				printf("Could not find a client stub for function %s in service %s.\n",
+				printl(PRINT_DEBUG, "Could not find a client stub for function %s in service %s.\n",
 				       symb->name, service->obj);
 				return -1;
 			}
 		}
 
 		if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", exp_symb->name, CAP_SERVER_STUB_POSTPEND)) {
-			printf("symbol name %s too long to become server capability\n", exp_symb->name);
+			printl(PRINT_DEBUG, "symbol name %s too long to become server capability\n", exp_symb->name);
 			return -1;
 		}
 
 		s_stub = spd_contains_symb(exporter, tmp);
 		if (NULL == s_stub) {
-			printf("Could not find server stub (%s) for function %s in service %s.\n",
+			printl(PRINT_DEBUG, "Could not find server stub (%s) for function %s in service %s.\n",
 			       tmp, exp_symb->name, exporter->obj);
 			return -1;
 		}
 
 		if (NULL == export_spd) {
-			printf("Trusted spd (spd_info) not attached to service symb yet.\n");
+			printl(PRINT_DEBUG, "Trusted spd (spd_info) not attached to service symb yet.\n");
 			return -1;
 		}
 		if (create_invocation_cap(spd, service, export_spd, exporter, cntl_fd, 
@@ -1510,22 +1528,22 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 	ucap_tbl = (struct usr_inv_cap*)get_symb_address(&s->exported, 
 							 USER_CAP_TBL_NAME);
 	if (ucap_tbl == 0) {
-		printf("Could not find a user capability tbl for %s.\n", s->obj);
+		printl(PRINT_DEBUG, "Could not find a user capability tbl for %s.\n", s->obj);
 		return NULL;
 	}
 	upcall_addr = (vaddr_t)get_symb_address(&s->exported, UPCALL_ENTRY_NAME);
 	if (upcall_addr == 0) {
-		printf("Could not find %s in %s.\n", UPCALL_ENTRY_NAME, s->obj);
+		printl(PRINT_DEBUG, "Could not find %s in %s.\n", UPCALL_ENTRY_NAME, s->obj);
 		return NULL;
 	}
 	spd_id_addr = (long*)get_symb_address(&s->exported, SPD_ID_NAME);
 	if (spd_id_addr == NULL) {
-		printf("Could not find %s in %s.\n", SPD_ID_NAME, s->obj);
+		printl(PRINT_DEBUG, "Could not find %s in %s.\n", SPD_ID_NAME, s->obj);
 		return NULL;
 	}
 	heap_ptr = (long*)get_symb_address(&s->exported, HEAP_PTR);
 	if (heap_ptr == NULL) {
-		printf("Could not find %s in %s.\n", HEAP_PTR, s->obj);
+		printl(PRINT_DEBUG, "Could not find %s in %s.\n", HEAP_PTR, s->obj);
 		return NULL;
 	}
 
@@ -1546,20 +1564,20 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 
 	spd->spd_handle = cos_create_spd(cos_fd, spd);
 	if (spd->spd_handle < 0) {
-		printf("Could not create spd %s\n", s->obj);
+		printl(PRINT_DEBUG, "Could not create spd %s\n", s->obj);
 		free(spd);
 		return NULL;
 	}
-	printf("spd %s created with handle %d.\n", s->obj, (unsigned int)spd->spd_handle);
+	printl(PRINT_NORMAL, "spd %s created with handle %d.\n", s->obj, (unsigned int)spd->spd_handle);
 	*spd_id_addr = spd->spd_handle;
-	printf("\tHeap pointer directed to %x.\n", (unsigned int)s->heap_top);
+	printl(PRINT_DEBUG, "\tHeap pointer directed to %x.\n", (unsigned int)s->heap_top);
 	*heap_ptr = s->heap_top;
 
-	printf("\tFound ucap_tbl for component %s @ %p.\n", s->obj, ucap_tbl);
-	printf("\tFound cos_upcall for component %s @ %p.\n", s->obj, (void*)upcall_addr);
-	printf("\tFound spd_id address for component %s @ %p.\n", s->obj, spd_id_addr);
+	printl(PRINT_DEBUG, "\tFound ucap_tbl for component %s @ %p.\n", s->obj, ucap_tbl);
+	printl(PRINT_DEBUG, "\tFound cos_upcall for component %s @ %p.\n", s->obj, (void*)upcall_addr);
+	printl(PRINT_DEBUG, "\tFound spd_id address for component %s @ %p.\n", s->obj, spd_id_addr);
 	for (i = 0 ; i < NUM_ATOMIC_SYMBS ; i++) {
-		printf("\tFound %s address for component %s @ %x.\n", 
+		printl(PRINT_DEBUG, "\tFound %s address for component %s @ %x.\n", 
 		       ATOMIC_USER_DEF[i], s->obj, (unsigned int)spd->atomic_regions[i]);
 	}
 
@@ -1577,10 +1595,10 @@ void make_spd_scheduler(int cntl_fd, struct service_symbs *s, struct service_sym
 
 	sched_page = (vaddr_t)get_symb_address(&s->exported, SCHED_PAGE_NAME);
 	if (0 == sched_page) {
-		printf("Could not find %s in %s.\n", SCHED_PAGE_NAME, s->obj);
+		printl(PRINT_DEBUG, "Could not find %s in %s.\n", SCHED_PAGE_NAME, s->obj);
 		return;
 	}
-	printf("Found spd notification page @ %x.  Promoting to scheduler.\n", 
+	printl(PRINT_DEBUG, "Found spd notification page @ %x.  Promoting to scheduler.\n", 
 	       (unsigned int) sched_page);
 
 	cos_promote_to_scheduler(cntl_fd, spd->spd_handle, (NULL == parent)? -1 : parent->spd_handle, sched_page);
@@ -1611,14 +1629,14 @@ static int serialize_spd_graph(struct comp_graph *g, int sz, struct service_symb
 			sid = ((struct spd_info *)(dep->extern_info))->spd_handle;
 			if (sid == 0) continue;
 			if (g_frontier >= (sz-2)) {
-				printf("More edges in component graph than can be serialized into the allocated region: fix cos_loader.c.\n");
+				printl(PRINT_DEBUG, "More edges in component graph than can be serialized into the allocated region: fix cos_loader.c.\n");
 				exit(-1);
 			}
 
 			edge = &g[g_frontier++];
 			edge->client = cid;
 			edge->server = sid;
-			//printf("serialized edge @ %p: %d->%d.\n", edge, cid, sid);
+			//printl(PRINT_DEBUG, "serialized edge @ %p: %d->%d.\n", edge, cid, sid);
 		}
 		
 		ss = ss->next;
@@ -1641,7 +1659,7 @@ static void make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all
 
 	heap_ptr = (int **)get_symb_address(&mm->exported, HEAP_PTR);
 	if (heap_ptr == NULL) {
-		printf("Could not find %s in %s.\n", HEAP_PTR, mm->obj);
+		printl(PRINT_DEBUG, "Could not find %s in %s.\n", HEAP_PTR, mm->obj);
 		return;
 	}
 	heap_ptr_val = *heap_ptr;
@@ -1651,7 +1669,7 @@ static void make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all
 		perror("Couldn't map the graph into the address space");
 		return;
 	}
-	printf("Found mpd_mgr: remapping heap_ptr from %p to %p, serializing graph.\n",
+	printl(PRINT_DEBUG, "Found mpd_mgr: remapping heap_ptr from %p to %p, serializing graph.\n",
 	       *heap_ptr, heap_ptr_val + PAGE_SIZE/sizeof(heap_ptr_val));
 	*heap_ptr = heap_ptr_val + PAGE_SIZE/sizeof(heap_ptr_val);
 
@@ -1721,7 +1739,7 @@ static void setup_kernel(struct service_symbs *services)
 		
 		s = s->next;
 	}
-		printf("\n");
+		printl(PRINT_DEBUG, "\n");
 
 	if ((s = find_obj_by_name(services, ROOT_SCHED)) == NULL) {
 		fprintf(stderr, "Could not find root scheduler\n");
@@ -1751,7 +1769,7 @@ static void setup_kernel(struct service_symbs *services)
 	thd.spd_handle = ((struct spd_info *)s->extern_info)->spd_handle;//spd0->spd_handle;
 	cos_create_thd(cntl_fd, &thd);
 
-	printf("\nOK, good to go, calling component 0's main\n\n");
+	printl(PRINT_HIGH, "\nOK, good to go, calling component 0's main\n\n");
 	fflush(stdout);
 
 	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
@@ -1765,7 +1783,7 @@ static void setup_kernel(struct service_symbs *services)
 	rdtscll(end);
 	aed_enable_syscalls(cntl_fd);
 
-	printf("Invocation takes %lld, ret %x.\n", (end-start)/ITER, ret);
+	printl(PRINT_HIGH, "Invocation takes %lld, ret %x.\n", (end-start)/ITER, ret);
 	
 	close(cntl_fd);
 
@@ -1777,16 +1795,16 @@ static inline void print_usage(int argc, char **argv)
 	char *prog_name = argv[0];
 	int i;
 
-	printf("Usage: %s <comma separated string of all "
+	printl(PRINT_HIGH, "Usage: %s <comma separated string of all "
 	       "objs:truster1-trustee1|trustee2|...;truster2-...> "
 	       "<path to gen_client_stub>\n",
 	       prog_name);
 
-	printf("\nYou gave:");
+	printl(PRINT_HIGH, "\nYou gave:");
 	for (i = 0 ; i < argc ; i++) {
-		printf(" %s", argv[i]);
+		printl(PRINT_HIGH, " %s", argv[i]);
 	}
-	printf("\n");
+	printl(PRINT_HIGH, "\n");
 	
 	return;
 }
@@ -1802,7 +1820,7 @@ void segv_handler(int signo, siginfo_t *si, void *context) {
 	ucontext_t *uc = context;
 	struct sigcontext *sc = (struct sigcontext *)&uc->uc_mcontext;
 
-	printf("Segfault: Faulting address %p, ip: %lx\n", si->si_addr, sc->eip);
+	printl(PRINT_HIGH, "Segfault: Faulting address %p, ip: %lx\n", si->si_addr, sc->eip);
 	exit(-1);
 }
 #endif
@@ -1814,11 +1832,11 @@ void set_prio(void)
 
 	if (sched_getparam(0, &sp) < 0) {
 		perror("getparam: ");
-		printf("\n");
+		printl(PRINT_HIGH, "\n");
 	}
 	sp.sched_priority = 99;
 	if (sched_setscheduler(0, SCHED_RR, &sp) < 0) {
-		perror("setscheduler: "); printf("\n");
+		perror("setscheduler: "); printl(PRINT_HIGH, "\n");
 	}
 
 	return;
@@ -1875,31 +1893,31 @@ int main(int argc, char *argv[])
 
 	print_objs_symbs(services);
 
-//	printf("Loading at %x:%d.\n", BASE_SERVICE_ADDRESS, DEFAULT_SERVICE_SIZE);
+//	printl(PRINT_DEBUG, "Loading at %x:%d.\n", BASE_SERVICE_ADDRESS, DEFAULT_SERVICE_SIZE);
 
 	if (!dependencies) {
-		printf("No dependencies given, not proceeding.\n");
+		printl(PRINT_HIGH, "No dependencies given, not proceeding.\n");
 		goto dealloc_exit;
 	}
 	
 	if (deserialize_dependencies(dependencies, services)) {
-		printf("Error processing dependencies.\n");
+		printl(PRINT_HIGH, "Error processing dependencies.\n");
 		goto dealloc_exit;
 	}
 
 	if (verify_dependency_completeness(services)) {
-		printf("Unresolved symbols, not linking.\n");
+		printl(PRINT_HIGH, "Unresolved symbols, not linking.\n");
 		goto dealloc_exit;
 	}
 
 	if (verify_dependency_soundness(services)) {
-		printf("Services arranged in an invalid configuration, not linking.\n");
+		printl(PRINT_HIGH, "Services arranged in an invalid configuration, not linking.\n");
 		goto dealloc_exit;
 	}
 	
 	gen_stubs_and_link(stub_gen_prog, services);
 	if (load_all_services(services)) {
-		printf("Error loading services, aborting.\n");
+		printl(PRINT_HIGH, "Error loading services, aborting.\n");
 		goto dealloc_exit;
 	}
 
@@ -1942,17 +1960,17 @@ int main(int argc, char *argv[])
 
 /* 		entry = get_symb_address(&second->exported, entry_name); */
 /* 		if (entry == 0) { */
-/* 			printf("Could not find %s in %s.\n", entry_name, second->obj); */
+/* 			printl(PRINT_DEBUG, "Could not find %s in %s.\n", entry_name, second->obj); */
 /* 			goto dealloc_exit; */
 /* 		} */
-/* 		printf("Entry in %s for %s is @ %x.\n", second->obj, entry_name, */
+/* 		printl(PRINT_DEBUG, "Entry in %s for %s is @ %x.\n", second->obj, entry_name, */
 /* 		       (unsigned int)entry); */
 /* 		fn = (int (*)())entry; */
 
 /* 		rdtscll(start); */
 /* 		ret = fn(); */
 /* 		rdtscll(end); */
-/* 		printf("Invocation takes %lld, ret %d.\n", (end-start)/ITER, ret); */
+/* 		printl(PRINT_DEBUG, "Invocation takes %lld, ret %d.\n", (end-start)/ITER, ret); */
 /* 	} */
 
 	ret = 0;

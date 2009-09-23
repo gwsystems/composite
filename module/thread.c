@@ -150,6 +150,7 @@ void thd_init(void)
 }
 
 extern int host_in_syscall(void);
+extern int host_in_idle(void);
 /*
  * Is the thread currently in an atomic section?  If so, rollback its
  * instruction pointer to the beginning of the section (the commit has
@@ -161,7 +162,8 @@ int thd_check_atomic_preempt(struct thread *thd)
 	vaddr_t ip = thd_get_ip(thd);
 	int i;
 	
-	assert(host_in_syscall() || thd->flags & THD_STATE_PREEMPTED);
+	assert(host_in_syscall() || host_in_idle() || 
+	       thd->flags & THD_STATE_PREEMPTED);
 
 	for (i = 0 ; i < COS_NUM_ATOMIC_SECTIONS/2 ; i+=2) {
 		if (ip > spd->atomic_sections[i] && 

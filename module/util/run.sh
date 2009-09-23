@@ -23,6 +23,7 @@ port.o-l.o;\
 cm.o-print.o|mm.o|sc.o|fprr.o|ainv.o|[alt_]ainv2.o;\
 sc.o-print.o|mm.o|e.o|fprr.o;\
 if.o-print.o|mm.o|l.o|fprr.o;\
+fn.o-fprr.o;\
 fd2.o-fn.o|ainv.o|print.o|mm.o|fprr.o|e.o|l.o;\
 ainv.o-mm.o|print.o|fprr.o|l.o|e.o;\
 cgi.o-fd2.o|fprr.o|print.o;\

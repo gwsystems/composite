@@ -24,7 +24,7 @@ void *cos_heap_ptr;
  * invoking (in eax), and passing arguments in the rest of the
  * registers.  Because we are sharing a system call namespace
  * (essentially) with Linux using Hijacking techiques, we pass
- * syscall<<16 to signify our system calls.
+ * syscall<<COS_SYSCALL_OFFSET to signify our system calls.
  * 
  * The second evolution required that we are able to identify which
  * spd makes an system call which is not self-evident (as it would be
@@ -83,7 +83,7 @@ static inline rtype cos_##name(void)                 \
 {                                                    \
 	rtype ret;                                   \
 cos_syscall_asm                                      \
-		: "a" (num<<16), "d" (cos_this_spd_id) \
+		: "a" (num<<COS_SYSCALL_OFFSET), "d" (cos_this_spd_id) \
 cos_syscall_clobber                                  \
 }
 
@@ -92,7 +92,7 @@ static inline rtype cos_##name(type0 name0)          \
 {                                                    \
 	rtype ret;                                   \
 cos_syscall_asm                                      \
-		: "a" (num<<16), "d" (cos_this_spd_id), "b" (name0) \
+		: "a" (num<<COS_SYSCALL_OFFSET), "d" (cos_this_spd_id), "b" (name0) \
 cos_syscall_clobber                                  \
 }
 
@@ -101,7 +101,7 @@ static inline rtype cos_##name(type0 name0, type1 name1) \
 {                                                    \
 	rtype ret;                                   \
 cos_syscall_asm                                      \
-		: "a" (num<<16), "d" (cos_this_spd_id), "b" (name0), "S" (name1) \
+		: "a" (num<<COS_SYSCALL_OFFSET), "d" (cos_this_spd_id), "b" (name0), "S" (name1) \
 cos_syscall_clobber                                  \
 }
 
@@ -110,7 +110,7 @@ static inline rtype cos_##name(type0 name0, type1 name1, type2 name2) \
 {                                                    \
 	rtype ret;                                   \
 cos_syscall_asm                                      \
-		: "a" (num<<16), "d" (cos_this_spd_id), "b" (name0), "S" (name1), "D" (name2) \
+		: "a" (num<<COS_SYSCALL_OFFSET), "d" (cos_this_spd_id), "b" (name0), "S" (name1), "D" (name2) \
 cos_syscall_clobber                                  \
 }
 
@@ -129,6 +129,7 @@ cos_syscall_3(12, int, brand_wire, long, thd_id, long, option, long, data);
 cos_syscall_3(13, unsigned long, cap_cntl, spdid_t, client, spdid_t, server, long, data);
 cos_syscall_3(14, int, __buff_mgmt, void *, addr, int, thd_id, int, len_option);
 cos_syscall_3(15, int, __thd_cntl, int, op_thdid, long, arg1, long, arg2);
+cos_syscall_0(16, int, idle);
 
 static inline int cos_mmap_cntl(short int op, short int flags, 
 				short int dest_spd, vaddr_t dest_addr, long mem_id) {

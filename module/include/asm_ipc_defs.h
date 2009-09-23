@@ -19,8 +19,9 @@
 #define INVOCATIONCNT 8
 #define CAPNUM 12
 
+/* offsets into syscall integer */
+#define COS_CAPABILITY_OFFSET 20 /* bits 20->32 */
+#define COS_SYSCALL_OFFSET 15	 /* bits 15->20 */
 
-#define INV_CAP_OFFSET (1<<20)
-#define SAVE_REGS_CAP_OFFSET (1<<32)
-#define RET_CAP (INV_CAP_OFFSET-1)
+//#define RET_CAP (INV_CAP_OFFSET-1)
 

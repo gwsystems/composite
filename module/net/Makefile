@@ -1,11 +1,7 @@
+include /home/gparmer/research/composite/module/Makefile.inc
+
 obj-m := cnet.o
 cnet-objs := cosnet.o
-KDIR=/home/grad3/gabep1/research/code/linux/linux-2.6.22
-#/scratch/gabep1/linux-2.6.22-current
-#/scratch/gabep1/linux-2.6.13.noglobals
-#/scratch/gabep1/other/linux-2.6.13
-MAKE=make
-TRANS_DIR=/home/grad3/gabep1/transfer/
 
 default: module
 	$(MAKE) -C util

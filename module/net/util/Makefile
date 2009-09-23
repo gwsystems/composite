@@ -1,8 +1,7 @@
-MAKE=make
-CC=gcc
+include ../../Makefile.inc
+
 CFLAGS=-Wall 
 #-O3 yeah, that gets rid of the busy loop in udp_client
-TRANS_DIR=/home/grad3/gabep1/transfer/
 SRC=cnet_user.c udp_client.c udp_server.c tcp_server.c tcp_client.c
 PRODS=$(SRC:.c=)
 OBJ=$(SRC:.c=.o)

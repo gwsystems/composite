@@ -628,7 +628,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
 	if (NULL == curr_spd) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
-		curr->regs.eax = -1;
+		curr->regs.eax = COS_SCHED_RET_ERROR;
 		return &curr->regs;
 	}
 
@@ -637,7 +637,12 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	da = curr_spd->sched_shared_page;
 	if (unlikely(NULL == da)) {
 		printk("cos: non-scheduler attempting to switch thread.\n");
-		curr->regs.eax = -1;
+		curr->regs.eax = COS_SCHED_RET_ERROR;
+		return &curr->regs;
+	}
+
+	if (unlikely(da->cos_evt_notif.pending_event)) {
+		curr->regs.eax = COS_SCHED_RET_AGAIN;
 		return &curr->regs;
 	}
 
@@ -669,7 +674,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	 */
 	if (0 == next_thd) {
 		cos_meas_event(COS_MEAS_SWITCH_OUTDATED);
-		curr->regs.eax = 1;
+		curr->regs.eax = COS_SCHED_RET_AGAIN;
 		return &curr->regs;
 	}
 	thd = thd_get_by_id(next_thd);
@@ -677,7 +682,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	/* error cases */
 	if (unlikely(thd == curr)) {
 		cos_meas_event(COS_MEAS_SWITCH_SELF);
-		curr->regs.eax = 1;
+		curr->regs.eax = COS_SCHED_RET_AGAIN;
 		return &curr->regs;
 	}
 	if (unlikely(NULL == thd)) {
@@ -685,14 +690,14 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		       next_thd, flags, thd_get_id(curr), (unsigned int)curr->regs.edx);
 		thd_print_regs(curr);
 
-		curr->regs.eax = -1;
+		curr->regs.eax = COS_SCHED_RET_ERROR;
 		return &curr->regs;
 	}
 	if (unlikely(!thd_scheduled_by(curr, curr_spd) ||
 		     !thd_scheduled_by(thd, curr_spd))) {
 		printk("cos: scheduler %d does not have scheduling control over %d or %d, cannot switch.\n",
 		       spd_get_index(curr_spd), thd_get_id(curr), thd_get_id(thd));
-		curr->regs.eax = -1;
+		curr->regs.eax = COS_SCHED_RET_ERROR;
 		return &curr->regs;
 	}
 	/* we cannot schedule to run an upcall thread that is not running */
@@ -703,7 +708,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 			first = 0;
 		}
 		cos_meas_event(COS_MEAS_UPCALL_INACTIVE);
-		curr->regs.eax = -2;
+		curr->regs.eax = COS_SCHED_RET_INVAL;
 		return &curr->regs;
 	}
 
@@ -720,7 +725,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		/* First make sure this is an active upcall */
 		if (unlikely(!(curr->flags & THD_STATE_ACTIVE_UPCALL))) {
 			printk("cos: illegal use of tailcall, current not upcall.");
-			curr->regs.eax = -1;
+			curr->regs.eax = COS_SCHED_RET_ERROR;
 			return &curr->regs;
 		}
 		assert(!(curr->flags & THD_STATE_READY_UPCALL));
@@ -728,7 +733,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		 * flags at the same time */
 		if (unlikely(flags & (THD_STATE_SCHED_EXCL | COS_SCHED_SYNC_BLOCK | COS_SCHED_SYNC_UNBLOCK))) {
 			printk("cos: cannot switch using tailcall and other options %d\n", flags);
-			curr->regs.eax = -1;
+			curr->regs.eax = COS_SCHED_RET_ERROR;
 			return &curr->regs;
 		}
 
@@ -739,7 +744,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 			event_record("thread_switch tailcall (not brand_wait)", thd_get_id(curr), thd_get_id(thd));
 			if (unlikely(spd_id != sched_tailcall_adjust_invstk(curr))) {
 				printk("cos: tailcalling upcall's top frame not scheduler\n");
-				curr->regs.eax = -1;
+				curr->regs.eax = COS_SCHED_RET_ERROR;
 				return &curr->regs;
 			}
 		}
@@ -772,7 +777,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	if (unlikely(thd->flags & THD_STATE_READY_UPCALL)) {
 		thd->flags &= ~THD_STATE_READY_UPCALL;
 		thd->flags |= THD_STATE_ACTIVE_UPCALL;
-		thd->regs.eax = -1;
+		thd->regs.eax = COS_SCHED_RET_ERROR;
 		thd_sched_flags = COS_SCHED_EVT_BRAND_ACTIVE;
 	}
 
@@ -788,7 +793,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		if (suspender && curr_spd->sched_depth > suspender->sched_depth) {
 			printk("cos: scheduler %d resuming thread %d, but spd %d suspended it.\n",
 			       spd_get_index(curr_spd), thd_get_id(thd), spd_get_index(thd->sched_suspended));
-			curr->regs.eax = -1;
+			curr->regs.eax = COS_SCHED_RET_ERROR;
 			return &curr->regs;
 		}
 		thd->flags &= ~THD_STATE_SCHED_EXCL;
@@ -808,14 +813,17 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		 */
 		if (l->owner_thd != next_thd) {
 			cos_meas_event(COS_MEAS_ATOMIC_STALE_LOCK);
-			curr->regs.eax = 0;
+			curr->regs.eax = COS_SCHED_RET_SUCCESS;
 			return &curr->regs;
 		}
 		cos_meas_event(COS_MEAS_ATOMIC_LOCK);
 
-		/* FIXME: this should only be set if it is the most
-		 * urgent of the blocked threads waiting for owner_thd
-		 * to complete.
+		/* This should only be set if it is the most urgent of
+		 * the blocked threads waiting for owner_thd to
+		 * complete.  I believe, though I haven't proven, that
+		 * the most recent invocation of this syscall is this
+		 * thread, so it is valid to simply set the queued_thd
+		 * to the current one.
 		 */
 		l->queued_thd = thd_get_id(curr);
 		/* 
@@ -845,7 +853,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
 	/* success for this current thread */
-	curr->regs.eax = 0;
+	curr->regs.eax = COS_SCHED_RET_SUCCESS;
 
 	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
 
@@ -1809,7 +1817,10 @@ static int update_evt_list(struct thd_sched_info *tsi)
 	 * to 0 here, and check for that case in switch_thread.
 	 */
 	da->cos_next.next_thd_id = 0;
-
+	/* same intention as previous line, but this deprecates the
+	 * previous */
+	da->cos_evt_notif.pending_event = 1;
+			
 	evts = da->cos_events;
 	prev_evt = sched->prev_notification;
 	this_evt = tsi->notification_offset;
@@ -1846,8 +1857,11 @@ static inline void update_thd_evt_state(struct thread *t, int flags, int update_
 	assert(flags != COS_SCHED_EVT_NIL);
 
 	for (i = 0 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
+		struct spd *sched;
+
 		tsi = thd_get_sched_info(t, i);
-		if (NULL != tsi->scheduler && tsi->thread_notifications) {
+		sched = tsi->scheduler;
+		if (NULL != sched && tsi->thread_notifications) {
 			switch(flags) {
 			case COS_SCHED_EVT_BRAND_PEND:
 				cos_meas_event(COS_MEAS_EVT_PENDING);
@@ -2830,11 +2844,20 @@ COS_SYSCALL int cos_syscall_stats(int spdid)
 	return 0;
 }
 
+extern int cos_syscall_idle(void);
+extern void host_idle(void);
+COS_SYSCALL int cos_syscall_idle_cont(int spdid)
+{
+	host_idle();
+
+	return 0;
+}
+
 /* 
  * Composite's system call table that is indexed and invoked by ipc.S.
  * The user-level stubs are created in cos_component.h.
  */
-void *cos_syscall_tbl[16] = {
+void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_stats,
 	(void*)cos_syscall_print,
@@ -2850,5 +2873,21 @@ void *cos_syscall_tbl[16] = {
 	(void*)cos_syscall_brand_wire,
 	(void*)cos_syscall_cap_cntl,
 	(void*)cos_syscall_buff_mgmt,
-	(void*)cos_syscall_thd_cntl
+	(void*)cos_syscall_thd_cntl,
+	(void*)cos_syscall_idle,
+	(void*)cos_syscall_void,
+	(void*)cos_syscall_void,
+	(void*)cos_syscall_void,
+	(void*)cos_syscall_void,
+	(void*)cos_syscall_void,
+	(void*)cos_syscall_void,
+	(void*)cos_syscall_void,
+	(void*)cos_syscall_void,
+	(void*)cos_syscall_void,
+	(void*)cos_syscall_void,
+	(void*)cos_syscall_void,
+	(void*)cos_syscall_void,
+	(void*)cos_syscall_void,
+	(void*)cos_syscall_void,
+	(void*)cos_syscall_void
 };

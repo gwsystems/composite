@@ -11,7 +11,8 @@
 #include <asm/thread_info.h>
 #include <linux/linkage.h>
 #include "asym_exec_dom.h"
-
+#include "include/asm_ipc_defs.h"
+	
 /* We cannot use sysexit when switching from executive to child as
 then the executive would not be able to modify the ecx and edx
 registers of the child because they are stored on the child's
@@ -197,21 +198,20 @@ ENTRY(asym_exec_dom_entry)
 
 	/*
 	 * Composite invocations are indicated by the contents of %eax:
-	 * +-+-----------+----+--...
-	 * |S| cap_inv   | sc | normal OS (linux) syscalls
-	 * +-+-----------+----+--...
-	 * 32|           20   16
-	 *   31
-	 *
+	 * +-------------+----+--...
+	 * |   cap_inv   | sc | normal OS (linux) syscalls
+	 * +-------------+----+--...
+	 * 32            |    COS_SYSCALL_OFFSET
+	 *               COS_CAPABILITY_OFFSET
+ 	 *	
 	 * Where each character represents a bit.
-	 * (DEPRICATED) S: Register save flag on a component invocation
 	 * cap_inv:	The capability to invoke
 	 * sc:	 Make a composite OS system-call
 	 */
-	cmpl $((1<<20)-1), %eax /* 2^16-1 shift for capability invocations */
+	cmpl $((1<<COS_CAPABILITY_OFFSET)-1), %eax /* 2^20-1 shift for capability invocations */
 	ja composite_call_ipc /* component invocation */
 	je composite_ret_ipc /* component return */
-	cmpl $((1<<16)-1), %eax /* composite syscall */
+	cmpl $((1<<COS_SYSCALL_OFFSET)-1), %eax /* composite syscall */
 	ja composite_make_syscall
 
 	pushfl /* we are about to clobber the accumulator */

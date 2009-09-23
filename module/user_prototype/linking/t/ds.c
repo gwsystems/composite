@@ -82,7 +82,7 @@ int sched_ds_create_net_upcall(unsigned short int port)
 	return thd_id;
 }
 
-static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
+static void evt_callback(struct sched_ops *ops, struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 {
 	struct resource *r;
 
@@ -92,9 +92,6 @@ static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 	return;
 }
 
-extern void sched_suspend_thd(int thd_id);
-extern void sched_resume_thd(int thd_id);
-
 static void timer_tick(int amnt)
 {
 	int i;
@@ -103,7 +100,7 @@ static void timer_tick(int amnt)
 
 	cos_sched_lock_take();
 	ticks++;
-	cos_sched_process_events(evt_callback, 0);
+	cos_sched_process_events(evt_callback, NULL, 0);
 
 	/* suspend any threads that have overshot their allocations */
 	for (i = 0 ; i < upcalls_alloc ; i++) {
@@ -113,7 +110,7 @@ static void timer_tick(int amnt)
 		r = sched_get_accounting(t)->private;
 		if (!(t->flags & THD_SUSPENDED) && 
 		    r->cycles_used > r->cycle_limit) {
-			sched_suspend_thd(t->id);
+//			sched_suspend_thd(t->id);
 			t->flags = THD_SUSPENDED;
 		}
 	}
@@ -140,7 +137,7 @@ static void timer_tick(int amnt)
 		r = sched_get_accounting(t)->private;
 		if ((t->flags & THD_SUSPENDED) && 
 		    r->cycles_used <= r->cycle_limit) {
-			sched_resume_thd(t->id);
+//			sched_resume_thd(t->id);
 			t->flags = 0;
 		}
 	}
@@ -154,6 +151,9 @@ static void sched_init(void)
 {
 	static int first = 1;
 	int upcall_id;
+
+	/* At this point, this component is broken */
+	assert(0);
 
 	if (!first) return;
 	first = 0;

@@ -61,3 +61,10 @@ int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 {
 	return -ENOTSUP;
 }
+
+extern unsigned int sched_tick_freq(void);
+unsigned int freq;
+void bag(void)
+{
+	freq = sched_tick_freq();
+}

@@ -16,6 +16,9 @@
  */
 #include <cos_component.h>
 
+/* required so that we can have a rodata section */
+const char *name = "cos_ip";
+
 extern int netif_event_xmit(spdid_t spdid, struct cos_array *d);
 extern int netif_event_wait(spdid_t spdid, struct cos_array *d);
 extern int netif_event_release(spdid_t spdid);

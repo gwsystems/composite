@@ -1,13 +1,10 @@
+include /home/gparmer/research/composite/module/Makefile.inc
+
 obj-m := cos.o
 cos-objs := kern_entry.o ipc.o inv.o thread.o hijack.o spd.o measurement.o page_pool.o mmap.o ring_buff.o
-KDIR=/home/grad3/gabep1/research/code/linux/linux-2.6.22
-#/scratch/gabep1/linux-2.6.22-current
-#/scratch/gabep1/linux-2.6.13.noglobals
-#/scratch/gabep1/other/linux-2.6.13
-MAKE=make
+
 LINKER_DIR=./user_prototype/linking/
 NET_DIR=./net/
-TRANS_DIR=/home/grad3/gabep1/transfer/
 
 default: module
 

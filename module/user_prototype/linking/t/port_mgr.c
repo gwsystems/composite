@@ -16,6 +16,9 @@
 cos_lock_t port_lock;
 int lock_initialized = 0;
 
+/* need a rodata section */
+const char *name = "port_mgr";
+
 int portmgr_new(spdid_t spdid)
 {
 	if (!lock_initialized) {

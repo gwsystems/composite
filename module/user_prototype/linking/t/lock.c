@@ -81,7 +81,6 @@ extern int timed_event_block(spdid_t spdid, unsigned int microsec);
 extern int timed_event_wakeup(spdid_t spdid, unsigned short int thd_id);
 extern int sched_block(spdid_t spdid);
 extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
-extern int sched_yield(spdid_t spdid);
 
 #define TAKE(spdid) 	if (sched_component_take(spdid))    return -1;
 #define RELEASE(spdid)	if (sched_component_release(spdid)) return -1;
@@ -370,7 +369,6 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 	 * have the highest priority) */
 	RELEASE(spdid);
 	/* FIXME: this should not be necessary, but we're getting better behavior*/
-////	sched_yield(spdid);
 
 	return 0;
 error:

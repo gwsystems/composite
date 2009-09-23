@@ -13,6 +13,7 @@
 //#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/sched.h>
+#include <linux/interrupt.h> /* cli/sti */
 #include <linux/proc_fs.h>
 #include <linux/ioctl.h>
 #include <asm/uaccess.h>
@@ -2291,6 +2292,37 @@ void host_end_syscall(void)
 }
 EXPORT_SYMBOL(host_end_syscall);
 
+static volatile int in_idle = 0;
+DECLARE_WAITQUEUE(hijack_waitq, NULL);
+
+int host_in_idle(void)
+{
+	return in_idle;
+}
+
+void host_idle(void)
+{
+	struct thread *c = thd_get_current();
+
+	/* set state must be before in_idle=1 to avert race */
+//	set_current_state(TASK_UNINTERRUPTIBLE);
+	set_current_state(TASK_INTERRUPTIBLE);
+	in_idle = 1;
+	sti();
+	schedule();
+	cli();
+	assert(thd_get_current() != c);
+	in_idle = 0;
+}
+
+static void host_idle_wakeup(void)
+{
+	assert(host_in_idle());
+	if (likely(composite_thread)) {
+		wake_up_process(composite_thread);
+	}
+}
+
 int host_attempt_brand(struct thread *brand)
 {
 	struct pt_regs *regs = NULL;
@@ -2308,7 +2340,7 @@ int host_attempt_brand(struct thread *brand)
 
 		cos_current = thd_get_current();
 		/* See comment in cosnet.c:cosnet_xmit_packet */
-		if (host_in_syscall()) {
+		if (host_in_syscall() || host_in_idle()) {
 			struct thread *next;
 
 			//next = brand_next_thread(brand, cos_current, 2);
@@ -2354,10 +2386,15 @@ int host_attempt_brand(struct thread *brand)
 				thd_check_atomic_preempt(cos_current);
 			}
 			//printk("|>r\n");
-			cos_meas_event(COS_MEAS_INT_PREEMPT);
-			cos_meas_event(COS_MEAS_BRAND_DELAYED_UC);
-			event_record("xmit path lead to nested upcalls", 
-				     thd_get_id(cos_current), thd_get_id(next));
+			if (host_in_syscall()) {
+				cos_meas_event(COS_MEAS_INT_PREEMPT);
+				cos_meas_event(COS_MEAS_BRAND_DELAYED_UC);
+				event_record("xmit path lead to nested upcalls", 
+					     thd_get_id(cos_current), thd_get_id(next));
+			} else if (host_in_idle()) {
+				host_idle_wakeup();
+			}
+
 			goto done;
  		} //else if (thd_get_id(brand->upcall_threads) == 13) printk(">r\n");
 
@@ -2524,6 +2561,43 @@ void switch_thread_data_page(int old_thd, int new_thd)
 	return;
 }
 
+static int open_checks(void)
+{
+	/* 
+	 * All of the volatiles are thrown in here because gcc is
+	 * getting too get for its own good, and when testing
+	 * consistency across different regions in shared memory, we
+	 * have to be sure we are in fact accessing the memory (not a
+	 * register).
+	 */
+#define MAGIC_VAL_TEST 0xdeadbeef
+	volatile unsigned int *region_ptr;
+	phys_addr_t modval, userval;
+	volatile vaddr_t kern_data;
+
+	kern_data = pgtbl_vaddr_to_kaddr((phys_addr_t)va_to_pa(current->mm->pgd), (unsigned long)shared_data_page);
+	modval  = (phys_addr_t)va_to_pa((void *)kern_data);
+	userval = (phys_addr_t)va_to_pa((void *)pgtbl_vaddr_to_kaddr((phys_addr_t)va_to_pa(current->mm->pgd), 
+								     (unsigned long)COS_INFO_REGION_ADDR));
+	if (modval != userval) {
+		printk("shared data page error: %x != %x\n", (unsigned int)modval, (unsigned int)userval);
+		return -EFAULT;
+	}
+	region_ptr  = (unsigned int *)COS_INFO_REGION_ADDR;
+	*((volatile unsigned int*)shared_data_page) = MAGIC_VAL_TEST;
+	*((volatile unsigned int*)region_ptr) = MAGIC_VAL_TEST;
+	if (*region_ptr != *shared_data_page || *region_ptr != MAGIC_VAL_TEST) {
+		printk("cos: Mapping of the cos shared region didn't work (%x != %x !=(kern page) %x).\n",
+		       (unsigned int)*region_ptr, (unsigned int)*shared_data_page, *(unsigned int*)kern_data);
+		return -EFAULT;
+	} else {
+		printk("cos: Mapping of shared region worked: %x.\n", (unsigned int)*region_ptr);
+	}
+
+	*region_ptr = 0;
+	return 0;
+}
+
 /*
  * Opening the aed device signals the intended use of the Composite
  * operating system along side the currently executing Linux.  Thus,
@@ -2533,7 +2607,6 @@ void switch_thread_data_page(int old_thd, int new_thd)
 static int aed_open(struct inode *inode, struct file *file)
 {
 	pte_t *pte = lookup_address_mm(current->mm, COS_INFO_REGION_ADDR);
-	unsigned long *region_ptr;
 	pgd_t *pgd;
 	void* data_page;
 
@@ -2597,6 +2670,7 @@ static int aed_open(struct inode *inode, struct file *file)
 			(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
 	}
 */
+
 	/* Where in the page directory should the pte go? */
 	pgd = pgd_offset(current->mm, COS_INFO_REGION_ADDR);
 	if (pgd_none(*pgd)) {
@@ -2620,17 +2694,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	printk("cos: info region @ %d(%x)\n", 
 	       COS_INFO_REGION_ADDR, COS_INFO_REGION_ADDR);
 
-#define MAGIC_VAL_TEST 0xdeadbeef
-
-	*shared_data_page = MAGIC_VAL_TEST;
-	region_ptr = (unsigned long *)COS_INFO_REGION_ADDR;
-	if (*region_ptr != MAGIC_VAL_TEST) {
-		printk("cos: Mapping of the cos shared region didn't work.\n");
-		return -EFAULT;
-	} else {
-		printk("cos: Mapping of shared region worked: %x.\n", 
-		       (unsigned int)*region_ptr);
-	}
+	if (open_checks()) return -EFAULT;
 	
 	thd_init();
 	spd_init();

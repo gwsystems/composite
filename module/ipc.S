@@ -189,7 +189,8 @@ cos_syscall_brand_wait:
 	/* restore registers from previous yield, regs in eax */
 	jmp 1f
 
-		
+
+	
 /* FIXME: this is all superfluous: we save/restore all regs when in the 
    non-preemption case, user-level saves most of them anyway because of 
    the clobber list.  Lets just let user-level do it, and be done. */
@@ -281,14 +282,14 @@ cos_syscall_buff_mgmt:
 	addl  $16, %esp
 	popl  %ebx              /* retrieve saved thread */
 	cmpl  current_thread, %ebx
-	jne   buff_mgmt_interrupted
+	jne   cos_syscall_interrupted
 	ret
 /* 
  * This is horrible: when we are in buff_mgmt transmitting packets, 
  * we can generate softirqs, in which case we might need to switch 
  * threads here.  See the comment in cosnet_xmit_packet.
  */
-buff_mgmt_interrupted:
+cos_syscall_interrupted:
 	/* store the return value into the previous thread */
 	addl  $THD_REGS, %ebx
 	movl  %eax, PT_EAX(%ebx)
@@ -309,6 +310,23 @@ buff_mgmt_interrupted:
 	ret
 /* end cos_syscall_buff_mgmt */
 
+.globl cos_syscall_idle
+.align 16
+cos_syscall_idle:
+	movl current_thread, %eax
+	pushl %eax              /* save the current thread */
+	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
+	movl %ebp, PT_ECX(%eax) /* save the return sp, so that sysenter will jump to it */
+	movl %ecx, PT_EDX(%eax) /* save the return address (so that sysexit will return to it) */
+	
+	pushl %edx
+	call  cos_syscall_idle_cont
+	addl  $4, %esp
+	popl  %ebx              /* retrieve saved thread */
+	cmpl  current_thread, %ebx
+	jne   cos_syscall_interrupted
+	ret
+	
 .globl cos_syscall_upcall
 .align 16
 cos_syscall_upcall:
@@ -367,7 +385,7 @@ composite_make_syscall:
 	pushl %esi
 	pushl %ebx
 	pushl %edx
-	shr $16, %eax /* impossible for value to be greater than the max allowed here because of filtering in kern_entry.S */
+	shr $COS_SYSCALL_OFFSET, %eax /* impossible for value to be greater than the max allowed here because of filtering in kern_entry.S */
 	call *cos_syscall_tbl(,%eax,4)
 	addl $16, %esp /* esi, edi, and ebx not trashed because of cdecl conventions, and edx's value doesn't really matter here */
 

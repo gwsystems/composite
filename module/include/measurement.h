@@ -1,7 +1,7 @@
 #ifndef MEASUREMENT_H
 #define MEASUREMENT_H
 
-//#define MEASUREMENTS
+#define MEASUREMENTS
 //#define MEASUREMENTS_STATS
 
 typedef enum { 

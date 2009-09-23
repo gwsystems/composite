@@ -59,24 +59,43 @@ struct cos_sched_events {
 	u32_t cpu_consumption;
 } __attribute__((packed));
 
-/* Primitive for scheduler synchronization.  These must reside in the same word */
+/* Primitive for scheduler synchronization.  These must reside in the
+ * same word.  queued_thd is only accessed implicitly in the RAS
+ * sections, so a text search for it won't give much information. */
 struct cos_synchronization_atom {
 	volatile u16_t owner_thd, queued_thd;
 } __attribute__((packed));
 
 /* 
+ * If this value is set, then another scheduling event has occurred.
+ * These can include events such as asynchronous invocations, or
+ * parent events (child thread blocks, wakes up, etc...  When events
+ * are parsed, or the parent is polled for events, this value should
+ * be cleared.  When a scheduling decision is made and switch_thread
+ * is invoked, if this is set, then the switch will not happen, and an
+ * appropriate return value will be returned.
+ */
+struct cos_event_notification {
+	volatile u32_t pending_event;
+};
+
+/* 
  * As the system is currently structured (struct cos_sched_data_area
- * <= PAGE_SIZE), we can have a max of 511 sched evts, but we are also
- * limited by the size of "next" in the cos_se_values, which in this
- * case limits us to 256.
+ * <= PAGE_SIZE), we can have a max of floor((PAGE_SIZE -
+ * sizeof(struct cos_sched_next_thd) - sizeof(struct
+ * cos_synchronization_atom) - sizeof(struct
+ * cos_event_notification))/sizeof(struct cos_sched_events)) items in
+ * the cos_events array, we are also limited by the size of "next" in
+ * the cos_se_values, which in this case limits us to 256.
  */
 #define NUM_SCHED_EVTS 128 //256
 
 struct cos_sched_data_area {
-	struct cos_sched_next_thd cos_next; //[NUM_CPUS];
-	struct cos_synchronization_atom cos_locks; //[NUM_CPUS];
+	struct cos_sched_next_thd cos_next;
+	struct cos_synchronization_atom cos_locks;
+	struct cos_event_notification cos_evt_notif;
 	struct cos_sched_events cos_events[NUM_SCHED_EVTS]; // maximum of PAGE_SIZE/sizeof(struct cos_sched_events) - ceil(sizeof(struct cos_sched_curr_thd)/(sizeof(struct cos_sched_events)+sizeof(locks)))
-} __attribute__((packed,aligned(4096)));
+} __attribute__((packed,aligned(4096)));//[NUM_CPUS]
 
 #ifndef NULL
 #define NULL ((void*)0)
@@ -224,6 +243,15 @@ enum {
 #define COS_SCHED_SYNC_BLOCK   0x4
 #define COS_SCHED_SYNC_UNBLOCK 0x8
 #define COS_SCHED_BRAND_WAIT   0x10
+#define COS_SCHED_CHILD_EVT    0x20
+
+#define COS_SCHED_RET_SUCCESS  0
+#define COS_SCHED_RET_ERROR    (-1)
+/* Referenced a resource (tid) that is not valid */
+#define COS_SCHED_RET_INVAL    (-2)
+/* Either we tried to schedule ourselves, or an event occurred that we
+ * haven't processed: do scheduling computations again! */
+#define COS_SCHED_RET_AGAIN    1
 
 struct mpd_split_ret {
 	short int new, old;

@@ -224,8 +224,11 @@ struct tun_struct *local_ts = NULL;
 int cosnet_create_brand(struct cos_brand_info *bi)
 {
 	int i;
-	
-	assert(local_ts && bi);
+
+	if(!(local_ts && bi)) {
+		printk("cos: cannot create brand as no tun support created yet.\n");
+		return -1;
+	}
 
 	/* Wildcard entry */
 	if (bi->brand_port == 0) {

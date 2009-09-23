@@ -137,7 +137,7 @@ CFLAGS = -g
 COMMENT = :
 endif
 # GAP: -fno-merge-constants
-CFLAGS += -Wall -W -Wchar-subscripts -Wmissing-prototypes -Wmissing-declarations -Wno-switch -Wno-unused -Wredundant-decls -fno-merge-constants
+CFLAGS += -Wall -W -Wchar-subscripts -Wmissing-prototypes -Wmissing-declarations -Wno-switch -Wno-unused -Wredundant-decls -fno-merge-constants -fno-stack-protector
 
 PWD=$(shell pwd)
 

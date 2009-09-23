@@ -10,10 +10,6 @@
 .text	
 
 cos_asm_server_stub(sched_init)
-cos_asm_server_stub(sched_child_yield_thd)
-cos_asm_server_stub(sched_suspend_thd)
-cos_asm_server_stub(sched_resume_thd)
-cos_asm_server_stub_spdid(sched_yield)
 cos_asm_server_stub_spdid(sched_wakeup)
 cos_asm_server_stub_spdid(sched_block)
 cos_asm_server_stub_spdid(sched_timeout)

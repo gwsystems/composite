@@ -1,5 +1,4 @@
-TRANS_DIR=/home/grad3/gabep1/transfer/
-DEST_DIR=/scratch/gabep1/
+include /home/gparmer/research/composite/module/Makefile.inc
 
 reset: clean cp build
 
@@ -16,7 +15,7 @@ ready_hw:
 first: cp build
 
 cp:
-	cp $(TRANS_DIR)/* $(DEST_DIR)
+	cp $(TRANS_DIR)/* $(TEST_DIR)
 
 clean:
 	rm cos_loader

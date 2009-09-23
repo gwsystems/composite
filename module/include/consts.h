@@ -76,4 +76,6 @@ struct pt_regs {
 
 #define COS_MAX_MEMORY 2048
 
+#include "asm_ipc_defs.h"
+
 #endif
