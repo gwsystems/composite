@@ -641,15 +641,15 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		return &curr->regs;
 	}
 
-	if (unlikely(da->cos_evt_notif.pending_event)) {
-		curr->regs.eax = COS_SCHED_RET_AGAIN;
-		return &curr->regs;
-	}
-
 	if (rflags & (COS_SCHED_SYNC_BLOCK | COS_SCHED_SYNC_UNBLOCK)) {
 		next_thd = rthd_id;
 		/* FIXME: mask out all flags that can't apply here  */
 	} else {
+		if (unlikely(da->cos_evt_notif.pending_event)) {
+			curr->regs.eax = COS_SCHED_RET_AGAIN;
+			return &curr->regs;
+		}
+
 		next_thd = da->cos_next.next_thd_id;
 		da->cos_next.next_thd_id = 0;
 		/* FIXME: mask out the locking flags as they cannot apply */

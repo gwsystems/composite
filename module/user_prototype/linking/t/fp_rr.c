@@ -729,7 +729,7 @@ static void fp_idle_loop(void *d)
  			cos_sched_lock_take();
 			sched_switch_thread(&fp_ops, 0, IDLE_SCHED_LOOP);
 		}
-//		cos_idle();
+		cos_idle();
 	}
 }
 
