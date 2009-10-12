@@ -265,8 +265,9 @@ static void mpd_init(void)
 	mpd_pol_init();
 	create_components(graph);
 
+	mpd_merge_all(graph);
 //	while (!remove_one_isolation_boundary()); /* merge all pds */
-	mpd_loop(graph);
+//	mpd_loop(graph);
 	return;
 }
 

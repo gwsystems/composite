@@ -588,6 +588,7 @@ static inline void break_preemption_chain(struct thread *t)
 {
 	struct thread *other;
 
+	cos_meas_event(COS_MEAS_BREAK_PREEMPTION_CHAIN);	
 	other = t->interrupted_thread;
 	if (other) {
 		assert(other->preempter_thread == t);
@@ -1039,7 +1040,7 @@ static struct pt_regs *brand_execution_completion(struct thread *curr, int *pree
 
 	/* Immediately execute a pending upcall */
 	if (brand->pending_upcall_requests) {
-		event_record("brand complete, pending tailcall", thd_get_id(curr), 0);
+		event_record("brand complete, self pending upcall executed", thd_get_id(curr), 0);
 		return sched_tailcall_pending_upcall(curr, cspd);
 	}
 
@@ -2115,30 +2116,34 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 		upcall->regs.eax = upcall->thread_brand->pending_upcall_requests;
 
 		if (preempted->flags & THD_STATE_ACTIVE_UPCALL && upcall->interrupted_thread) {
-			event_record("upcall activated and made immediately (preempted upcall)", thd_get_id(upcall), thd_get_id(preempted));
+			event_record("upcall activated and made immediately (preempted upcall)", 
+				     thd_get_id(preempted), thd_get_id(upcall));
 		} else if (upcall->interrupted_thread) {
-			event_record("upcall activated and made immediately (w/ preempted thd)", thd_get_id(upcall), thd_get_id(preempted));
+			event_record("upcall activated and made immediately (w/ preempted thd)", 
+				     thd_get_id(preempted), thd_get_id(upcall));
 		} else {
-			event_record("upcall activated and made immediately w/o preempted thd", thd_get_id(upcall), thd_get_id(preempted));;
+			event_record("upcall activated and made immediately w/o preempted thd", 
+				     thd_get_id(preempted), thd_get_id(upcall));
 		}
 
 		cos_meas_event(COS_MEAS_BRAND_UC);
 		cos_meas_stats_end(COS_MEAS_STATS_UC_EXEC_DELAY, 1);
 		return upcall;
-	} else {
-		/* 
-		 * If another upcall is what we attempted to preempt,
-		 * we might have a higher priority than the preempted
-		 * thread of that upcall.  Thus we must break its
-		 * preemption chain.
-		 */
-		if (preempted->flags & THD_STATE_ACTIVE_UPCALL) {
-			break_preemption_chain(preempted);
-		}
-
-		event_record("upcall not immediately executed, continue previous thread", thd_get_id(upcall), thd_get_id(preempted));
-//		printk("%d w\n", thd_get_id(upcall));
+	} 
+		
+	/* 
+	 * If another upcall is what we attempted to preempt,
+	 * we might have a higher priority than the preempted
+	 * thread of that upcall.  Thus we must break its
+	 * preemption chain.
+	 */
+	if (preempted->flags & THD_STATE_ACTIVE_UPCALL) {
+		break_preemption_chain(preempted);
 	}
+	
+	event_record("upcall not immediately executed (less urgent), continue previous thread", 
+		     thd_get_id(preempted), thd_get_id(upcall));
+//		printk("%d w\n", thd_get_id(upcall));
 
 	cos_meas_event(COS_MEAS_BRAND_DELAYED);
 	return preempted;
@@ -2848,9 +2853,12 @@ extern int cos_syscall_idle(void);
 extern void host_idle(void);
 COS_SYSCALL int cos_syscall_idle_cont(int spdid)
 {
+	struct thread *c = thd_get_current();
+	
 	host_idle();
+	if (c != thd_get_current()) return COS_SCHED_RET_AGAIN;
 
-	return 0;
+	return COS_SCHED_RET_SUCCESS;
 }
 
 /* 

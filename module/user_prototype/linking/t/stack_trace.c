@@ -15,32 +15,25 @@
 /* Access control? */
 
 /* 
- * FIXME: this will not yet work with preemption and currently does
- * not do memory aliasing, so it will only work when the component to
- * be traced is in the same protection domain.  This is a huge
- * limitation.
+ * FIXME: this currently does not do memory aliasing, so it will only
+ * work when the component to be traced is in the same protection
+ * domain.  This is a huge limitation.
  */
 static void walk_stack(unsigned short int tid, unsigned long *sp)
 {
 	/* tracking the frame pointers, and printing instruction pointers */
 	unsigned long *fp, *ip;
-	unsigned int status = cos_thd_cntl(COS_THD_STATUS, tid, 0, 0);
 
-	if (status & 1/*THD_STATE_PREEMPTED*/) {
-		printc("\tstatus: PREEMPTED\n");
-		sp = (unsigned long *)cos_thd_cntl(COS_THD_INVFRM_FP, tid, 0, 0);
-	} 
 	fp = sp;
 	ip = fp+1;
 
 	while (fp != NULL) {
-
 		if (fp < sp || sp+1024 < fp) {
 			printc("\tinvalid frame pointer for thread %d (sp %p, fp %p, ip %p).\n", 
 			       tid, sp, fp, ip);
 			return;
 		}
-		printc("\t<%d: ip:%x>\n", tid, (unsigned int)*ip);
+		printc("\t\t<ip:%x>\n", (unsigned int)*ip);
 
 		fp = (unsigned long *)*fp;
 		ip = fp+1;
@@ -51,15 +44,28 @@ static void walk_stack(unsigned short int tid, unsigned long *sp)
 void st_trace_thd(unsigned short int tid)
 {
 	int i, ret = 1;
+	unsigned int status = cos_thd_cntl(COS_THD_STATUS, tid, 0, 0);
+	unsigned long *sp = NULL;
 
+	if (status & 1/*THD_STATE_PREEMPTED*/) {
+		printc("\ttid %d status PREEMPTED:\n", tid);
+		sp = (unsigned long *)cos_thd_cntl(COS_THD_INVFRM_FP, tid, 0, 0);
+	} else {
+		if (cos_get_thd_id() == tid) {
+			__asm__ __volatile__("movl %%ebp, %0" : "=m" (sp));
+		}
+		printc("\ttid %d:\n", tid);
+	}
 	for (i = 0 ; ret > 0 ; i++) {
-		unsigned int ip, sp;
+		unsigned int ip;
 		ret = cos_thd_cntl(COS_THD_INV_FRAME, tid, i, 0);
 		if (ret) {
 			ip  = cos_thd_cntl(COS_THD_INVFRM_IP, tid, i, 0);
-			sp  = cos_thd_cntl(COS_THD_INVFRM_SP, tid, i, 0);
-			printc("st -- [%d: %d (ip:%x,sp:%x)]\n", tid, ret, ip, sp);
-			walk_stack(tid, (unsigned long *)sp);
+			if (0 != i || NULL == sp) {
+				sp = (unsigned long *)cos_thd_cntl(COS_THD_INVFRM_SP, tid, i, 0);
+			}
+			printc("\t[spdid:%d, (ip:%x,sp:%p)]\n", ret, ip, sp);
+			walk_stack(tid, sp);
 		}
 	}
 

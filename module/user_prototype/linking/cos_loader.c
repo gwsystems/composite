@@ -1568,7 +1568,8 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 		free(spd);
 		return NULL;
 	}
-	printl(PRINT_NORMAL, "spd %s created with handle %d.\n", s->obj, (unsigned int)spd->spd_handle);
+	printl(PRINT_HIGH, "spd %s created with handle %d @ %x.\n", 
+	       s->obj, (unsigned int)spd->spd_handle, (unsigned int)spd->lowest_addr);
 	*spd_id_addr = spd->spd_handle;
 	printl(PRINT_DEBUG, "\tHeap pointer directed to %x.\n", (unsigned int)s->heap_top);
 	*heap_ptr = s->heap_top;

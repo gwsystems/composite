@@ -2292,34 +2292,61 @@ void host_end_syscall(void)
 }
 EXPORT_SYMBOL(host_end_syscall);
 
-static volatile int in_idle = 0;
+/* 
+ * If we are asleep in idle, or are waking, that is an indicator that
+ * the registers aren't arranged in pt_regs formation at the top of
+ * the thread's stack.
+ */
+typedef enum {
+	IDLE_AWAKE,	        /* on the Linux scheduler's runqueue */
+	IDLE_ASLEEP, 		/* blocked on the hijack_waitq */
+	IDLE_WAKING		/* on the Linux runqueue, but haven't
+				 * been executed yet (i.e. don't try
+				 * to remove us from the waitq
+				 * again!) */
+} idle_status_t;
+static volatile int idle_status = IDLE_AWAKE;
 DECLARE_WAITQUEUE(hijack_waitq, NULL);
 
+/* is the register state of the thread defined by the idle
+ * procedures? I.e. are we either asleep, or waking */
 int host_in_idle(void)
 {
-	return in_idle;
+	return IDLE_AWAKE != idle_status;
 }
 
 void host_idle(void)
 {
-	struct thread *c = thd_get_current();
-
 	/* set state must be before in_idle=1 to avert race */
-//	set_current_state(TASK_UNINTERRUPTIBLE);
 	set_current_state(TASK_INTERRUPTIBLE);
-	in_idle = 1;
+	assert(IDLE_AWAKE == idle_status);
+	idle_status = IDLE_ASLEEP;
+	event_record("going into idle", thd_get_id(thd_get_current()), 0);
+	cos_meas_event(COS_MEAS_IDLE_SLEEP);
 	sti();
+
 	schedule();
 	cli();
-	assert(thd_get_current() != c);
-	in_idle = 0;
+	assert(IDLE_WAKING == idle_status);
+	idle_status = IDLE_AWAKE;
+	cos_meas_event(COS_MEAS_IDLE_RUN);
+	event_record("coming out of idle", thd_get_id(thd_get_current()), 0);
 }
 
 static void host_idle_wakeup(void)
 {
 	assert(host_in_idle());
 	if (likely(composite_thread)) {
-		wake_up_process(composite_thread);
+		if (IDLE_ASLEEP == idle_status) {
+			cos_meas_event(COS_MEAS_IDLE_LINUX_WAKE);
+			event_record("idle wakeup", thd_get_id(thd_get_current()), 0);
+			wake_up_process(composite_thread);
+			idle_status = IDLE_WAKING;
+		} else {
+			cos_meas_event(COS_MEAS_IDLE_RECURSIVE_WAKE);
+			event_record("idle wakeup call while waking", thd_get_id(thd_get_current()), 0);
+		}
+		assert(IDLE_WAKING == idle_status);
 	}
 }
 
@@ -2329,7 +2356,7 @@ int host_attempt_brand(struct thread *brand)
 	unsigned long flags;
 
 	local_irq_save(flags);
-	if (composite_thread/* == current*/) {
+	if (likely(composite_thread)/* == current*/) {
 		struct thread *cos_current;
 
 		if (composite_thread == current) {
@@ -2383,15 +2410,19 @@ int host_attempt_brand(struct thread *brand)
 			next = brand_next_thread(brand, cos_current, 0);
 			if (next != cos_current) {
 				assert(thd_get_current() == next);
-				thd_check_atomic_preempt(cos_current);
+				/* the following call isn't
+				 * necessary: if we are in a syscall,
+				 * then we can't be in an RAS */
+				//thd_check_atomic_preempt(cos_current);
 			}
-			//printk("|>r\n");
 			if (host_in_syscall()) {
 				cos_meas_event(COS_MEAS_INT_PREEMPT);
 				cos_meas_event(COS_MEAS_BRAND_DELAYED_UC);
 				event_record("xmit path lead to nested upcalls", 
 					     thd_get_id(cos_current), thd_get_id(next));
 			} else if (host_in_idle()) {
+				event_record("upcall causing host idle wakeup", 
+					     thd_get_id(cos_current), thd_get_id(next));
 				host_idle_wakeup();
 			}
 
@@ -2424,8 +2455,6 @@ int host_attempt_brand(struct thread *brand)
 		if (!(regs->esp == 0 && regs->xss == 0)
                     /* && (regs->xcs & SEGMENT_RPL_MASK) == USER_RPL*/) {
 			struct thread *next;
-			//struct thread *cos_upcall_thread = cos_timer_brand_thd->upcall_threads;
-			//struct spd *dest;
  			
 			if ((regs->xcs & SEGMENT_RPL_MASK) == USER_RPL) {
 				cos_meas_event(COS_MEAS_INT_PREEMPT_USER);
@@ -2433,17 +2462,10 @@ int host_attempt_brand(struct thread *brand)
 				cos_meas_event(COS_MEAS_INT_PREEMPT_KERN);
 			}
 
-/*			if (cos_upcall_thread->flags & THD_STATE_ACTIVE_UPCALL) {
-				cos_meas_event(COS_MEAS_BRAND_PEND);
-				cos_timer_brand_thd->pending_upcall_requests++;
-				goto timer_finish;
-			}
-*/
-			thd_save_preempted_state(cos_current, regs);
-			//update_sched_evts(cos_upcall_thread, COS_SCHED_EVT_BRAND_ACTIVE,
-			//		  cos_current, COS_SCHED_EVT_NIL);
+			/* the major work here: */
 			next = brand_next_thread(brand, cos_current, 1);
 			if (next != cos_current) {
+				thd_save_preempted_state(cos_current, regs);
 				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
 					printk("cos: upcall thread %d is not set to be an active upcall.\n",
 					       thd_get_id(next));
@@ -2464,30 +2486,8 @@ int host_attempt_brand(struct thread *brand)
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 
-			/* Load the address space of the target spd,
-			 * and load its registers. FIXME: we will want
-			 * to go to the second from the top spd in the
-			 * real implementation when we arent calling
-			 * brand from the kernel. */
-			//dest = thd_get_thd_spd(cos_timer_brand_thd);
-			/* save this thread so that we can resume it
-			 * post execution */
-			//cos_upcall_thread->interrupted_thread = cos_current;
-			//cos_current->preempter_thread = cos_upcall_thread;
-			/* see inv.c:cos_syscall_upcall_cont : */
-			//cos_upcall_thread->stack_ptr = 0;
-			//cos_upcall_thread->stack_base[0].current_composite_spd = dest->composite_spd;
-			//spd_mpd_ipc_take((struct composite_spd *)dest->composite_spd);
-
-			//switch_thread_context(cos_current, cos_upcall_thread);
-
-			//cos_upcall_thread->flags |= THD_STATE_ACTIVE_UPCALL;
-			//cos_upcall_thread->flags &= ~THD_STATE_READY_UPCALL;
-
-			//regs->eip = dest->upcall_entry;
-			//regs->edx = regs->ecx = regs->ebx = regs->esp = regs->edi = regs->esi = regs->ebp = 0; //thd_get_id(cos_upcall_thread);
-			//regs->orig_eax = regs->eax = thd_get_id(cos_upcall_thread);
-
+			event_record("normal (non-syscall/idle interrupting) upcall processed", 
+				     thd_get_id(cos_current), thd_get_id(next));
 		} else {
 			cos_meas_event(COS_MEAS_INT_STI_SYSEXIT);
 		}
@@ -2762,7 +2762,7 @@ static int aed_release(struct inode *inode, struct file *file)
 	cos_shutdown_memory();
 	composite_thread = NULL;
 
-	//cos_meas_report();
+	cos_meas_report();
 
 	/* reset the address space to the original process */
 	composite_union_mm->pgd = union_pgd;

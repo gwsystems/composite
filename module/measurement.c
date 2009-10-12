@@ -58,6 +58,12 @@ struct cos_meas_struct cos_measurements[COS_MEAS_MAX_SIZE] =
 	{.type = MEAS_CNT, .description = "update event state to PENDING"},
 	{.type = MEAS_CNT, .description = "update event state to ACTIVE"},
 	{.type = MEAS_CNT, .description = "update event state to READY"},
+	{.type = MEAS_CNT, .description = "break preemption chain"},
+
+	{.type = MEAS_CNT, .description = "idle: linux idle sleep"},
+	{.type = MEAS_CNT, .description = "idle: linux idle wake and run"},
+	{.type = MEAS_CNT, .description = "idle: linux wakeup call"},
+	{.type = MEAS_CNT, .description = "idle: recursive wakeup call"},
 
 	{.type = MEAS_STATS, .description = "delay between a brand and when upcall is executed"},
 	{.type = MEAS_STATS, .description = "delay between a brand and when upcall is terminated"},

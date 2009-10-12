@@ -59,6 +59,12 @@ typedef enum {
 	COS_MEAS_EVT_PENDING,
 	COS_MEAS_EVT_ACTIVE,
 	COS_MEAS_EVT_READY,
+	COS_MEAS_BREAK_PREEMPTION_CHAIN,
+
+	COS_MEAS_IDLE_SLEEP,
+	COS_MEAS_IDLE_RUN,
+	COS_MEAS_IDLE_LINUX_WAKE,
+	COS_MEAS_IDLE_RECURSIVE_WAKE,
 
 	/* stats */
 	COS_MEAS_STATS_UC_EXEC_DELAY,
@@ -155,11 +161,11 @@ static inline void cos_meas_stats_end(cos_meas_t type, int reset)
 
 #endif
 
-//#define COS_RECORD_EVTS
+#define COS_RECORD_EVTS
 
 #ifdef COS_RECORD_EVTS
 /* must be power of 2 */
-#define COS_EVTS_NUM 4
+#define COS_EVTS_NUM 16
 #define COS_EVTS_MASK (COS_EVTS_NUM-1)
 
 struct exec_evt {

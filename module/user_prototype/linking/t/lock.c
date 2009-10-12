@@ -357,6 +357,7 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 		if (bt->timed) {
 			timed_event_wakeup(spdid, bt->thd_id);
 		} else {
+			assert(bt->thd_id != cos_get_thd_id());
 			sched_wakeup(spdid, bt->thd_id);
 		}
 		if (bt == next) break;
