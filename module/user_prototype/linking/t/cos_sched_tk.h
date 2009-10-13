@@ -13,10 +13,8 @@
 struct sched_ops {
 	/* add a new schedulable thread */
 	int (*thread_new)(struct sched_thd *t);
-	int (*thread_params_set)(struct sched_thd *t, char *params);
-	/* add a new upcall, which is not currently runnable */
-	int (*upcall_new)(struct sched_thd *t);
 	int (*thread_remove)(struct sched_thd *t);
+	int (*thread_params_set)(struct sched_thd *t, char *params);
 	/* Args include a thread and the amount of time it spent
 	 * processing.  If t==NULL, then time has passed without being
 	 * attributed to a thread.  This is either idle time, or if a

@@ -37,7 +37,7 @@
 #define NORMAL_PRIO_HI 5
 #define NORMAL_PRIO_LO (NUM_PRIOS-8)
 
-#define RUNTIME_SEC (6)
+#define RUNTIME_SEC (30)
 #define REPORT_FREQ (1)		/* freq of reporting in seconds */
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 1000
@@ -144,9 +144,9 @@ typedef enum { NULL_EVT = 0 } report_evt_t;
 extern void st_trace_thd(unsigned short int tid);
 static void print_thd_invframes(struct sched_thd *t)
 {
-	unsigned short int tid = t->id;
+//	unsigned short int tid = t->id;
 
-	st_trace_thd(tid);
+//	st_trace_thd(tid);
 }
 
 static void report_thd_accouting(void)
@@ -416,12 +416,6 @@ static int fp_thread_new(struct sched_thd *t)
 	return 0;
 }
 
-static int fp_upcall_new(struct sched_thd *t)
-{
-
-	return 0;
-}
-
 #include <stdlib.h>
 static int fp_thread_params(struct sched_thd *t, char *p)
 {
@@ -435,18 +429,12 @@ static int fp_thread_params(struct sched_thd *t, char *p)
 struct sched_ops fp_ops = {
 	.thread_new = fp_thread_new,
 	.thread_remove = fp_thread_remove,
-	.upcall_new = fp_upcall_new,
 
 	.schedule = fp_schedule,
 	.time_elapsed = fp_time_elapsed,
 	.thread_block = fp_thread_block,
 	.thread_wakeup = fp_thread_wakeup
 };
-
-static inline void fp_requeue_highest(void)
-{
-	fp_move_end_runnable(fp_get_highest_prio());
-}
 
 static inline void fp_resume_thd(struct sched_thd *t)
 {
@@ -539,58 +527,6 @@ static void evt_callback_print(struct sched_ops *ops, struct sched_thd *t, u8_t 
 	evt_callback(ops, t, flags, cpu_usage);
 }
 
-#ifdef NIL
-static void fp_print_taskqueue(struct sched_thd *h)
-{
-	struct sched_thd *iter;
-
-	iter = FIRST_LIST(h, prio_next, prio_prev);
-	while (iter != h) {
-		//record_measurement(MEAS_TYPE_PROGRESS, ticks, iter->id, sched_get_accounting(iter)->progress/*cycles>>10*/);
-		sched_get_accounting(iter)->progress = 0;
-		iter = FIRST_LIST(iter, prio_next, prio_prev);
-	}
-}
-
-static struct sched_thd *fp_find_thread_queue(int id, struct sched_thd *h)
-{
-	struct sched_thd *iter;
-
-	iter = FIRST_LIST(h, prio_next, prio_prev);
-	while (iter != h) {
-		if (iter->id == id) return iter;
-		iter = FIRST_LIST(iter, prio_next, prio_prev);
-	}
-	return NULL;
-}
-
-static struct sched_thd *fp_find_thread(int id, int *list)
-{
-	struct sched_thd *t;
-	int i;
-
-	for (i = 0 ; i < NUM_PRIOS ; i++) {
-		t = fp_find_thread_queue(id, &priorities[i].runnable);
-		if (t) {
-			*list = 0;
-			return t;
-		}
-	}
-	t = fp_find_thread_queue(id, &blocked);
-	if (t) {
-		*list = 1;
-		return t;
-	}
-	t = fp_find_thread_queue(id, &upcall_deactive);
-	if (t) {
-		*list = 2;
-		return t;
-	}
-	*list = 3;
-	return NULL;
-}
-#endif
-
 /* 
  * Important: assume that cos_sched_lock_take() has been called.  The
  * reason for this assumption is so that outer (calling) code can
@@ -655,8 +591,8 @@ static int sched_switch_thread(struct sched_ops *ops, int flags, report_evt_t ev
 		}
 
 		/* Take dependencies into account */
-		if ((dep = sched_thd_dependency(next)))/* && 
-							  !(flags & (COS_SCHED_BRAND_WAIT|COS_SCHED_TAILCALL)))*/ {
+		if ((dep = sched_thd_dependency(next)))
+                   /* && !(flags & (COS_SCHED_BRAND_WAIT|COS_SCHED_TAILCALL)))*/ {
 			assert(!sched_thd_blocked(dep) &&
 			       sched_thd_ready(dep));
 			assert(!sched_thd_free(dep));
@@ -703,7 +639,7 @@ static int fp_kill_thd(struct sched_thd *t)
 static void fp_pre_wakeup(struct sched_thd *t);
 static void fp_wakeup(struct sched_thd *thd, spdid_t spdid);
 
-void fp_timer_tick(void)
+static void fp_timer_tick(void)
 {
 	while(1) {
 		cos_sched_lock_take();
@@ -758,6 +694,7 @@ static void fp_timer(void *d)
 {
 	printc("Starting timer\n");
 	fp_timer_tick();
+	assert(0);
 }
 
 static void fp_create_spd_thd(void *d)
@@ -793,6 +730,7 @@ unsigned int sched_tick_freq(void)
 static void fp_pre_block(struct sched_thd *thd);
 static void fp_block(struct sched_thd *thd, spdid_t spdid);
 
+/* used to set a timeout for the timer thread */
 void sched_timeout(spdid_t spdid, unsigned long amnt)
 {
 	unsigned long long abs_timeout;
@@ -800,7 +738,6 @@ void sched_timeout(spdid_t spdid, unsigned long amnt)
 
 	cos_sched_lock_take();
 	
-	//printc("sched_timeout: amnt %d, spdid %d.", (unsigned int)amnt, (unsigned int)spdid);
 	if (0 == amnt) {
 		cos_sched_lock_release();
 		return;
@@ -810,9 +747,6 @@ void sched_timeout(spdid_t spdid, unsigned long amnt)
 	assert(thd);
 
 	abs_timeout = ticks + amnt;
-
-////	printc("timeout @ %d (currently time %d w/timeout %d).", 
-////	      (unsigned int)abs_timeout, (unsigned int)ticks, (unsigned int)wakeup_time);
 
 	if (0 == wakeup_time || abs_timeout < wakeup_time) {
 		wakeup_time = abs_timeout;
@@ -836,6 +770,8 @@ void sched_timeout(spdid_t spdid, unsigned long amnt)
 	return;
 }
 
+/* Assign a timeout thread that will be executed and woken up in
+ * accordance to the nearest timeout */
 int sched_timeout_thd(spdid_t spdid)
 {
 	struct sched_thd *thd;
@@ -854,6 +790,7 @@ int sched_timeout_thd(spdid_t spdid)
 	return 0;
 }
 
+/* increment the wake count and do sanity checking*/
 static void fp_pre_wakeup(struct sched_thd *t)
 {
 	assert(t->wake_cnt >= 0 && t->wake_cnt <= 2);
@@ -865,16 +802,18 @@ static void fp_pre_wakeup(struct sched_thd *t)
 	}
 }
 
+/* Assuming the thread is asleep, this will actually wake it (change
+ * queues, etc...) */
 static void fp_wakeup(struct sched_thd *thd, spdid_t spdid)
 {
-	if (thd->wake_cnt != 1) printc("fp_wakeup: thd %d waking %d, wake count %d\n", cos_get_thd_id(), thd->id, thd->wake_cnt);
+	if (thd->wake_cnt != 1) {
+		printc("fp_wakeup: thd %d waking %d, wake count %d\n", 
+		       cos_get_thd_id(), thd->id, thd->wake_cnt);
+	}
 	// this is triggering with wake_cnt == 2
 	assert(thd->wake_cnt == 1);
 	/* resume thread, thus no blocking component */
 	thd->blocking_component = 0;
-
-////	printc("moving thread %d to priority list %d (spdid %d).", 
-////	      thd->id, sched_get_metric(thd)->priority, spdid);
 
 	fp_resume_thd(thd);
 	report_event(THD_WAKE);
@@ -882,7 +821,7 @@ static void fp_wakeup(struct sched_thd *thd, spdid_t spdid)
 
 /* 
  * FIXME: should verify that the blocks and wakes come from the same
- * component
+ * component.  This is the external interface.
  */
 int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 {
@@ -901,7 +840,7 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 	
 	/* If the thd isn't blocked yet (as it was probably preempted
 	 * before it could complete the call to block), no reason to
-	 * wake it via scheduling
+	 * wake it via scheduling.
 	 */
 	if (!sched_thd_blocked(thd)) goto cleanup;
 	
@@ -932,6 +871,8 @@ error:
 	return -1;
 }
 
+/* decrement the wake count, do sanity checking, and record at what
+ * time the thread has been woken */
 static void fp_pre_block(struct sched_thd *thd)
 {
 	/* A blocked thread can't block... */
@@ -954,6 +895,7 @@ static inline void fp_block_thd(struct sched_thd *t)
 	ADD_LIST(&blocked, t, prio_next, prio_prev);
 }
 
+/* Really block the thread (inc. queue manipulation) */
 static void fp_block(struct sched_thd *thd, spdid_t spdid)
 {
 	assert(thd->wake_cnt == 0);
@@ -965,12 +907,12 @@ static void fp_block(struct sched_thd *thd, spdid_t spdid)
 
 /* 
  * FIXME: should verify that the blocks and wakes come from the same
- * component
+ * component.  This is the externally visible function.
  */
 int sched_block(spdid_t spdid)
 {
-	struct sched_thd *thd;//, *next;
-	int ret;//, loop;
+	struct sched_thd *thd;
+	int ret;
 
 	thd = sched_get_current();
 	if (!thd) goto error;
@@ -1011,7 +953,6 @@ error:
 int sched_component_take(spdid_t spdid)
 {
 	struct sched_thd *holder, *curr;
-	int cnt = 0;
 
 	report_event(COMP_TAKE);
 	curr = sched_get_current();
@@ -1033,7 +974,6 @@ int sched_component_take(spdid_t spdid)
 		report_event(COMP_TAKE_CONTENTION);
 		sched_switch_thread(&fp_ops, 0, NULL_EVT);
 		report_event(COMP_TAKE_LOOP);
-		cnt++; if (cnt == 10) printc("curr %d, holder %d\n", cos_get_thd_id(), holder->id);
 	}
 	return 0;
 }
@@ -1177,7 +1117,7 @@ int sched_init(void)
 {
 	static int first = 1;
 	int i;
-	struct sched_thd *new;//, *new2;
+	struct sched_thd *new;
 
 //#define MICRO_INV
 #ifdef MICRO_INV
