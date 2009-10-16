@@ -922,7 +922,9 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	cos_sched_lock_take();
 	thd = sched_get_current();
 	assert(thd);
-
+	
+	/* we shouldn't block while holding a component lock */
+	assert(0 == thd->contended_component);
 	assert(!sched_thd_free(thd));
 	assert(!sched_thd_blocked(thd));
 	fp_pre_block(thd);

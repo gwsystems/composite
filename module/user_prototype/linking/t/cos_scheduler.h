@@ -311,6 +311,7 @@ static inline struct sched_thd *sched_take_crit_sect(spdid_t spdid, struct sched
 		curr->flags |= THD_DEPENDENCY;
 		return cs->holding_thd;
 	} 
+	curr->contended_component = spdid;
 	cs->holding_thd = curr;
 	return NULL;
 }
@@ -327,10 +328,11 @@ static inline int sched_release_crit_sect(spdid_t spdid, struct sched_thd *curr)
 
 	/* This ostensibly should be the case */
 	assert(cs->holding_thd == curr);
+	assert(curr->contended_component == spdid);
+	curr->contended_component = 0;
 	cs->holding_thd = NULL;
 	return 0;
 }
-
 
 /*************** Scheduler Synchronization Fns ***************/
 
