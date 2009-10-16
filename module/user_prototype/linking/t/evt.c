@@ -53,7 +53,7 @@ typedef enum {
 #endif
 
 extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
-extern int sched_block(spdid_t spdid);
+extern int sched_block(spdid_t spdid, unsigned short int thd_dep);
 
 /* A mapping between event ids and actual events */
 COS_MAP_CREATE_STATIC(evt_map);
@@ -216,7 +216,7 @@ long evt_grp_wait(spdid_t spdid)
 		} else {
 			lock_release(&evt_lock);
 			ACT_RECORD(ACT_SLEEP, spdid, 0, cos_get_thd_id(), 0);
-			if (0 > sched_block(cos_spd_id())) assert(0);
+			if (0 > sched_block(cos_spd_id(), 0)) assert(0);
 		}
 	}
 err:
@@ -265,7 +265,7 @@ int evt_grp_mult_wait(spdid_t spdid, struct cos_array *data)
 		assert(NULL == e);
 		lock_release(&evt_lock);
 		ACT_RECORD(ACT_SLEEP, spdid, 0, cos_get_thd_id(), 0);
-		if (0 > sched_block(cos_spd_id())) assert(0);
+		if (0 > sched_block(cos_spd_id(), 0)) assert(0);
 	}
 err:
 	lock_release(&evt_lock);
@@ -292,7 +292,7 @@ int evt_wait(spdid_t spdid, long extern_evt)
 			return 0;
 		} else {
 			ACT_RECORD(ACT_SLEEP, spdid, e->extern_id, cos_get_thd_id(), 0);
-			if (0 > sched_block(cos_spd_id())) assert(0);
+			if (0 > sched_block(cos_spd_id(), 0)) assert(0);
 		}
 	}
 err:
@@ -365,7 +365,7 @@ void cos_init(void *arg)
 
 static void bin(void)
 {
-	sched_block(cos_spd_id());
+	sched_block(cos_spd_id(), 0);
 }
 
 #ifdef ACT_LOG

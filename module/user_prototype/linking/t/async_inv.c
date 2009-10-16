@@ -24,7 +24,7 @@
 
 extern int evt_trigger(spdid_t spdid, long extern_evt);
 
-extern int sched_block(spdid_t spd_id);
+extern int sched_block(spdid_t spd_id, unsigned short int thd_dep);
 extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
 
 #define ASYNC_MAX_BUFFERED 512
@@ -369,7 +369,7 @@ retry:
 		if (0 != sp->blocked_producer) assert(0);
 		sp->blocked_producer = cos_get_thd_id();
 		UNLOCK();
-		sched_block(cos_spd_id());
+		sched_block(cos_spd_id(), 0);
 		goto retry;
 	}
 	

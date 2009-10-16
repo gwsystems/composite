@@ -20,7 +20,7 @@ extern int cos_close(int fd);
 extern int cos_split(int fd);
 extern int cos_app_open(int type, struct cos_array *data);
 
-extern int sched_block(spdid_t spd_id);
+extern int sched_block(spdid_t spd_id, unsigned short int thd_dep);
 
 static int main_fd, data_fd;
 const char *service_names[] = {
@@ -70,5 +70,5 @@ void cos_init(void *arg)
 
 void symb_bin(void)
 {
-	sched_block(cos_spd_id());
+	sched_block(cos_spd_id(), 0);
 }

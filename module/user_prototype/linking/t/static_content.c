@@ -89,6 +89,6 @@ void cos_init(void *arg)
 
 void bin(void)
 {
-	extern int sched_block(spdid_t spdid);
-	sched_block(cos_spd_id());
+	extern int sched_block(spdid_t spdid, unsigned short int thd_dep);
+	sched_block(cos_spd_id(), 0);
 }

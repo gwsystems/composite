@@ -37,7 +37,7 @@
 #define NORMAL_PRIO_HI 5
 #define NORMAL_PRIO_LO (NUM_PRIOS-8)
 
-#define RUNTIME_SEC (30)
+#define RUNTIME_SEC (6)
 #define REPORT_FREQ (1)		/* freq of reporting in seconds */
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 1000
@@ -626,9 +626,10 @@ static int sched_switch_thread(struct sched_ops *ops, int flags, report_evt_t ev
 /* Should not hold scheduler lock when calling. */
 static int fp_kill_thd(struct sched_thd *t)
 {
-	struct sched_thd *c = sched_get_current();
+	struct sched_thd *c; 
 
 	cos_sched_lock_take();
+	c = sched_get_current();
 	if (fp_ops.thread_remove(t)) assert(0);
 	sched_switch_thread(&fp_ops, 0, NULL_EVT);
 	if (t == c) assert(0);
@@ -795,7 +796,8 @@ static void fp_pre_wakeup(struct sched_thd *t)
 {
 	assert(t->wake_cnt >= 0 && t->wake_cnt <= 2);
 	t->wake_cnt++;
-	if (!(sched_thd_blocked(t) || t->wake_cnt == 2)) {
+	if (!sched_thd_dependent(t) &&
+	    !(sched_thd_blocked(t) || t->wake_cnt == 2)) {
 		printc("thread %d (from thd %d) has wake_cnt %d\n", 
 		       t->id, cos_get_thd_id(), t->wake_cnt);
 		assert(0);
@@ -838,27 +840,30 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 	fp_pre_wakeup(thd);
 	assert(thd->blocking_component == 0 || thd->blocking_component == spdid);
 	
-	/* If the thd isn't blocked yet (as it was probably preempted
-	 * before it could complete the call to block), no reason to
-	 * wake it via scheduling.
-	 */
-	if (!sched_thd_blocked(thd)) goto cleanup;
-	
-	/* 
-	 * We are waking up a thread, which means that if we are an
-	 * upcall, we don't want composite to automatically switch to
-	 * the preempted thread (which might be of lower priority than
-	 * the woken thread).
-	 *
-	 * TODO: This could be much more complicated: We could only
-	 * call this if indeed we did wake up a thread that has a
-	 * higher priority than the currently executing one (upcall
-	 * excluded).
-	 */
-//	if (sched_thd_event(sched_get_current())) {
-	cos_sched_cntl(COS_SCHED_BREAK_PREEMPTION_CHAIN, 0, 0);
-//	}
-	fp_wakeup(thd, spdid);
+	if (thd->dependency_thd) {
+		assert(sched_thd_dependent(thd));
+		thd->dependency_thd = NULL;
+		thd->flags &= ~THD_DEPENDENCY;
+	} else {
+		/* If the thd isn't blocked yet (as it was probably preempted
+		 * before it could complete the call to block), no reason to
+		 * wake it via scheduling.
+		 */
+		if (!sched_thd_blocked(thd)) goto cleanup;
+		/* 
+		 * We are waking up a thread, which means that if we
+		 * are an upcall, we don't want composite to
+		 * automatically switch to the preempted thread (which
+		 * might be of lower priority than the woken thread).
+		 *
+		 * TODO: This could be much more complicated: We could
+		 * only call this if indeed we did wake up a thread
+		 * that has a higher priority than the currently
+		 * executing one (upcall excluded).
+		 */
+		cos_sched_cntl(COS_SCHED_BREAK_PREEMPTION_CHAIN, 0, 0);
+		fp_wakeup(thd, spdid);
+	}
 
 	sched_switch_thread(&fp_ops, 0, WAKE_LOOP);
 done:
@@ -909,15 +914,14 @@ static void fp_block(struct sched_thd *thd, spdid_t spdid)
  * FIXME: should verify that the blocks and wakes come from the same
  * component.  This is the externally visible function.
  */
-int sched_block(spdid_t spdid)
+int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 {
 	struct sched_thd *thd;
 	int ret;
 
-	thd = sched_get_current();
-	if (!thd) goto error;
-
 	cos_sched_lock_take();
+	thd = sched_get_current();
+	assert(thd);
 
 	assert(!sched_thd_free(thd));
 	assert(!sched_thd_blocked(thd));
@@ -930,16 +934,27 @@ int sched_block(spdid_t spdid)
 		cos_sched_lock_release();
 		return 0;
 	}
-	fp_block(thd, spdid);
+	/* dependencies keep the thread on the runqueue, so that it
+	 * can be selected to execute and its dependency list
+	 * walked. */
+	if (dependency_thd) {
+		struct sched_thd *dep = sched_get_mapping(dependency_thd);
+
+		if (!dep) {
+			cos_sched_lock_release();
+			return -1;
+		}
+		thd->dependency_thd = dep;
+		thd->flags |= THD_DEPENDENCY;
+	} else {
+		fp_block(thd, spdid);
+	}
 	
 	sched_switch_thread(&fp_ops, 0, BLOCK_LOOP);
 
 	/* The amount of time we've blocked */
 	ret = ticks - thd->block_time - 1;
 	return ret > 0 ? ret : 0;
-error:
-	cos_sched_lock_release();
-	return -1;
 }
 
 /* 
@@ -955,6 +970,7 @@ int sched_component_take(spdid_t spdid)
 	struct sched_thd *holder, *curr;
 
 	report_event(COMP_TAKE);
+	/* FIXME: locking here */
 	curr = sched_get_current();
 	assert(curr);
 	assert(!sched_thd_blocked(curr));
@@ -982,11 +998,11 @@ int sched_component_release(spdid_t spdid)
 {
 	struct sched_thd *curr;
 
+	report_event(COMP_RELEASE);
+	cos_sched_lock_take();
 	curr = sched_get_current();
 	assert(curr);
 
-	report_event(COMP_RELEASE);
-	cos_sched_lock_take();
 	if (sched_release_crit_sect(spdid, curr)) {
 		prints("fprr: error releasing spd's critical section\n");
 	}
@@ -1203,6 +1219,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		break;
 	}
 	case COS_UPCALL_BOOTSTRAP:
+		cos_argreg_init();
 		sched_init();
 		break;
 	case COS_UPCALL_CREATE:

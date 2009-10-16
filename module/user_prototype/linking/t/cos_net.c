@@ -82,7 +82,7 @@ cos_lock_t net_lock;
 		if (lock_release(&net_lock)) prints("error releasing net lock."); \
 	} while (0)
 
-extern int sched_block(spdid_t spdid);
+extern int sched_block(spdid_t spdid, unsigned short int thd_dep);
 extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
 extern int sched_create_thread(spdid_t spdid, int prio_delta);
 
@@ -810,7 +810,7 @@ net_connection_t net_accept(spdid_t spdid, net_connection_t nc)
 /* 		ic->thd_status = ACCEPTING; */
 /* 		NET_LOCK_RELEASE(); */
 /* 		prints("net_accept: blocking!"); */
-/* 		if (sched_block(cos_spd_id()) < 0) assert(0); */
+/* 		if (sched_block(cos_spd_id(), 0) < 0) assert(0); */
 /* 		NET_LOCK_TAKE(); */
 /* 		assert(ACTIVE == ic->thd_status); */
 	}
@@ -993,7 +993,7 @@ static int __net_connect(spdid_t spdid, net_connection_t nc, struct ip_addr *ip,
 			return -ENOMEM;
 		}
 		NET_LOCK_RELEASE();
-		if (sched_block(cos_spd_id()) < 0) assert(0);
+		if (sched_block(cos_spd_id(), 0) < 0) assert(0);
 		assert(ACTIVE == ic->thd_status);
 		/* When we wake up, we should be connected. */
 		return 0;
@@ -1269,6 +1269,7 @@ static int cos_net_evt_loop(void)
 	printc("network uc %d starting...\n", cos_get_thd_id());
 	alloc_sz = sizeof(struct cos_array) + MTU;
 	data = cos_argreg_alloc(alloc_sz);
+	if (NULL == data) assert(0);
 	while (1) {
 		data->sz = alloc_sz;
 		ip_wait(cos_spd_id(), data);

@@ -210,11 +210,16 @@ static inline unsigned short int cos_get_thd_id(void)
 	return ud->current_thread;
 }
 
-static inline void *cos_get_arg_region(void)
+static inline void *cos_arg_region_base(void)
 {
 	struct shared_user_data *ud = (void *)COS_INFO_REGION_ADDR;
 
 	return ud->argument_region;
+}
+
+static inline void *cos_get_arg_region(void)
+{
+	return cos_arg_region_base() + sizeof(struct pt_regs);
 }
 
 static inline void cos_mpd_update(void)
@@ -286,12 +291,18 @@ static inline void *cos_memset(void * s, char c , int count)
 	return s;
 }
 
+/* compiler branch prediction hints */
+#define likely(x)       __builtin_expect(!!(x), 1)
+#define unlikely(x)     __builtin_expect(!!(x), 0)
+
 /* functionality for managing the argument region */
-#define COS_ARGREG_SZ PAGE_SIZE
-#define COS_MAX_ARG_SZ COS_ARGREG_SZ
+#define COS_ARGREG_SZ PAGE_SIZE /* must be power of 2 */
+#define COS_ARGREG_USABLE_SZ \
+	(COS_ARGREG_SZ-sizeof(struct cos_argreg_extent)-sizeof(struct pt_regs))
+#define COS_MAX_ARG_SZ COS_ARGREG_USABLE_SZ
 #define COS_IN_ARGREG(addr) \
 	((((unsigned long)(addr)) & ~(COS_ARGREG_SZ-1)) == \
-	 (unsigned int)cos_get_arg_region())
+	 (unsigned int)cos_arg_region_base())
 
 /* a should be power of 2 */
 #define ALIGN(v, a) ((v+(a-1))&~(a-1))
@@ -309,6 +320,8 @@ static inline void *cos_memset(void * s, char c , int count)
  * +-------+ 
  * | totsz | <- base extent holding total size
  * +-------+
+ * | regs  | <- fault registers (struct pt_regs)
+ * +-------+
  */
 
 struct cos_argreg_extent {
@@ -318,27 +331,29 @@ struct cos_argreg_extent {
 /* Is the buffer entirely in the argument region */
 static inline int cos_argreg_buff_intern(char *buff, int sz)
 {
-	if (COS_IN_ARGREG(buff) && COS_IN_ARGREG(buff+sz)) return 1;
-	return 0;
+	return COS_IN_ARGREG(buff) && COS_IN_ARGREG(buff+sz);
 }
 
 static inline void cos_argreg_init(void)
 {
 	struct cos_argreg_extent *ex = cos_get_arg_region();
 	
-	ex->size = 4;
+	ex->size = sizeof(struct cos_argreg_extent) + sizeof(struct pt_regs);
 }
 
+#define FAIL() *(int*)NULL = 0
+
+/* allocate an argument buffer in the argument region */
 static inline void *cos_argreg_alloc(int sz)
 {
 	struct cos_argreg_extent *ex = cos_get_arg_region(), *nex, *ret;
 	int exsz = sizeof(struct cos_argreg_extent);
 
 	sz = ALIGN(sz, exsz) + exsz;
-
-	ret = (struct cos_argreg_extent*)(((char*)ex) + ex->size);
+	ret = (struct cos_argreg_extent*)(((char*)cos_arg_region_base()) + ex->size);
 	nex = (struct cos_argreg_extent*)(((char*)ret) + sz - exsz);
-	if ((ex->size + sz) > COS_ARGREG_SZ || sz > COS_MAX_ARG_SZ) {
+	if (unlikely((ex->size + sz) > COS_ARGREG_SZ || 
+		     (unsigned int)sz > COS_MAX_ARG_SZ)) {
 		return NULL;
 	}
 	nex->size = sz;
@@ -351,13 +366,15 @@ static inline int cos_argreg_free(void *p)
 {
 	struct cos_argreg_extent *ex = cos_get_arg_region(), *top;
 
-	top = (struct cos_argreg_extent*)(((char*)ex) + ex->size - sizeof(struct cos_argreg_extent));
-	if (top > (ex+(COS_ARGREG_SZ/sizeof(struct cos_argreg_extent))-1) ||
-	    top < ex/*  || */
-/* 	    p != ((char*)top)-top->size */) {
-		return -1;
+	top = (struct cos_argreg_extent*)(((char*)cos_arg_region_base()) + ex->size - sizeof(struct cos_argreg_extent));
+	if (unlikely(!cos_argreg_buff_intern((char*)top, sizeof(struct cos_argreg_extent)) ||
+		     top <= ex ||
+		     top->size > COS_ARGREG_USABLE_SZ /* this could be more exact given top's location */
+		     /* || p != ((char*)top)-top->size */)) {
+		FAIL();
 	}
 	ex->size -= top->size;
+	top->size = 0;
 
 	return 0;
 }
@@ -381,10 +398,5 @@ static inline int cos_argreg_arr_intern(struct cos_array *ca)
 
 #define prevent_tail_call(ret) __asm__ ("" : "=r" (ret) : "m" (ret))
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
-
-#define likely(x)       __builtin_expect(!!(x), 1)
-#define unlikely(x)     __builtin_expect(!!(x), 0)
-
-#define COS_FIRST_ARG ((void *)SHARED_REGION_START)
 
 #endif

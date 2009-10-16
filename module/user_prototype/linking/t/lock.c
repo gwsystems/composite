@@ -79,7 +79,7 @@ extern int sched_component_take(spdid_t spdid);
 extern int sched_component_release(spdid_t spdid);
 extern int timed_event_block(spdid_t spdid, unsigned int microsec);
 extern int timed_event_wakeup(spdid_t spdid, unsigned short int thd_id);
-extern int sched_block(spdid_t spdid);
+extern int sched_block(spdid_t spdid, unsigned short int thd_dep);
 extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
 
 #define TAKE(spdid) 	if (sched_component_take(spdid))    return -1;
@@ -222,6 +222,10 @@ done:
 	return ret;
 }
 
+/* 
+ * Dependencies here (thus priority inheritance) will NOT be used if
+ * you specify a timeout value.
+ */
 int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int thd_id, unsigned int microsec)
 {
 	struct meta_lock *ml;
@@ -275,7 +279,7 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 //	assert(TIMER_EVENT_INF == microsec);
 //	assert(!blocked_desc.timed);
 	if (TIMER_EVENT_INF == microsec) {
-		if (-1 == sched_block(spdid)) assert(0);
+		if (-1 == sched_block(spdid, thd_id)) assert(0);
 		/* 
 		 * OK, this seems ridiculous but here is the rational: Assume
 		 * we are a middle-prio thread, and were just woken by a low
@@ -293,7 +297,9 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 		ACT_RECORD(ACT_WAKEUP, spd, lock_id, cos_get_thd_id(), 0);
 		ret = 0;
 	} else {
-		/* ret here will fall through */
+		/* ret here will fall through.  We do NOT use the
+		 * dependency here as I can't think through the
+		 * repercussions */
 		if (-1 == (ret = timed_event_block(spdid, microsec))) return ret;
 
 		/* 
@@ -313,7 +319,6 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 		ACT_RECORD(ACT_WAKEUP, spd, lock_id, cos_get_thd_id(), 0); 
 		/* ret is set to the amnt of time we blocked */
 	}
-	//sched_block_dependency(cos_get_thd_id(), thd);
 	return ret;
 error:
 	RELEASE(spdid);

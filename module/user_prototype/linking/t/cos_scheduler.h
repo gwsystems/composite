@@ -65,7 +65,12 @@ struct sched_thd {
 
 	/* blocking/waking specific info */
 	int wake_cnt;
+	/* component thread is blocked in, and if there is critical
+	 * section contention in a component, which is the contended
+	 * component */
 	spdid_t blocking_component, contended_component;
+	/* the thread that this is dependent on (via
+	 * sched_block_dependency) */
 	struct sched_thd *dependency_thd;
 	unsigned long long block_time;
 
@@ -241,23 +246,43 @@ static inline void sched_crit_sect_init(void)
 	}
 }
 
+/* 
+ * Dependencies can be either on a critical section in a specific
+ * component, or on a specific thread that e.g. holds a lock.  FIXME:
+ * This function is recursive to walk through a list of dependencies.
+ * This should change.  Additionally, we do nothing to detect/prevent
+ * cycles, which can cause this to infinitely regress (which, in
+ * practice, will cause a fault).
+ */
 static inline struct sched_thd *sched_thd_dependency(struct sched_thd *curr)
 {
 	struct sched_crit_section *cs;
 	spdid_t spdid;
-	assert(curr && sched_thd_ready(curr));
+	struct sched_thd *dep;
+	assert(curr);
 	
 	if (likely(!sched_thd_dependent(curr))) return NULL;
 
+	if (curr->dependency_thd) {
+		dep = sched_thd_dependency(curr->dependency_thd);
+		if (dep) return dep;
+		return curr->dependency_thd;
+	} 
+	
 	spdid = curr->contended_component;
 	/* If we have the dependency flag set, we should have an contended spd */
 	assert(spdid);
 	assert(spdid < MAX_NUM_SPDS);
-
+	
 	/* We have a critical section for a spd */
 	cs = &sched_spd_crit_sections[spdid];
-	if (cs->holding_thd) return cs->holding_thd;
+	if (cs->holding_thd) {
+		dep = sched_thd_dependency(cs->holding_thd);
+		if (dep) return dep;
+		return cs->holding_thd;
+	}
 
+	/* no more dependencies! */
 	curr->flags &= ~THD_DEPENDENCY;
 	curr->contended_component = 0;
 	return NULL;

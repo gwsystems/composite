@@ -794,10 +794,10 @@ void cos_init(void *arg)
 }
 
 /* hack to ensure that the dependency to the scheduler is known */
-extern int sched_block(spdid_t spdid);
+extern int sched_block(spdid_t spdid, unsigned short int thd_dep);
 void bin(void)
 {
-	sched_block(cos_spd_id());
+	sched_block(cos_spd_id(), 0);
 }
 
 #ifdef COS_LINUX_ENV

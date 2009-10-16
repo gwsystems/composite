@@ -18,7 +18,7 @@
 #include <cos_alloc.h>
 #include <cos_map.h>
 
-extern int sched_block(spdid_t spdid);
+extern int sched_block(spdid_t spdid, unsigned short int thd_dep);
 
 /* event functions */
 extern long evt_create(spdid_t spdid);
@@ -670,5 +670,5 @@ void cos_init(void *arg)
 
 void bin(void)
 {
-	sched_block(cos_spd_id());
+	sched_block(cos_spd_id(), 0);
 }

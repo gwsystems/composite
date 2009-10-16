@@ -29,7 +29,7 @@ extern int cos_listen(int fd, int queue_len);
 extern int cos_socket(int domain, int type, int protocol);
 extern int cos_app_open(int type, struct cos_array *data);
 
-extern int sched_block(spdid_t spd_id);
+extern int sched_block(spdid_t spd_id, unsigned short int thd_dep);
 #define BUFF_SZ 1401 //(COS_MAX_ARG_SZ/2)
 
 COS_VECT_CREATE_STATIC(fds);
@@ -140,5 +140,5 @@ void cos_init(void *arg)
 
 void bin(void)
 {
-	sched_block(cos_spd_id());
+	sched_block(cos_spd_id(), 0);
 }

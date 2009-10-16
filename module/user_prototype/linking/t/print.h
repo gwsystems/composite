@@ -33,7 +33,7 @@ static inline int prints(char *str)
 
 	cos_memcpy(s, str, len+1);
 	print_str(s, len);
-	if (cos_argreg_free(s)) return -1;
+	cos_argreg_free(s);
 
 	return 0;
 }
@@ -54,7 +54,7 @@ static inline int __attribute__((format(printf,1,2))) printc(char *fmt, ...)
 	ret = vsnprintf(s, len, fmt, arg_ptr);
 	va_end(arg_ptr);
 	print_str(s, ret);
-	if (cos_argreg_free(s)) assert(0);
+	cos_argreg_free(s);
 
 	return ret;
 }
@@ -72,7 +72,7 @@ static inline int print(char *str, int a, int b, int c)
 	d = (char*)&s[1];
 	cos_memcpy(d, str, len);
 	printfmt(s, a, b, c);
-	if (cos_argreg_free(s)) return -1;
+	cos_argreg_free(s);
 
 	return 0;
 }

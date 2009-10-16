@@ -22,7 +22,7 @@
 /* Scheduler functions: */
 extern int sched_component_take(spdid_t spdid);
 extern int sched_component_release(spdid_t spdid);
-extern int sched_block(spdid_t spdid);
+extern int sched_block(spdid_t spdid, unsigned short int thd_dep);
 extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
 extern int sched_timeout_thd(spdid_t spdid);
 extern void sched_timeout(spdid_t spdid, unsigned long amnt);
@@ -205,7 +205,7 @@ int timed_event_block(spdid_t spdinv, unsigned int amnt)
 	RELEASE(spdid);
 
 	if (ret) sched_timeout(spdid, amnt);
-	if (-1 == sched_block(spdid)) {
+	if (-1 == sched_block(spdid, 0)) {
 		prints("fprr: sched block failed in timed_event_block.");
 	}
 	/* we better have been taking off the list! */
@@ -259,7 +259,7 @@ static void start_timer_thread(void)
 
 	/* When the system boots, we have no pending waits */
 	assert(EMPTY_LIST(&events, next, prev));
-	sched_block(spdid);
+	sched_block(spdid, 0);
 	/* Wait for events, then act on expired events.  Loop. */
 	while (1) {
 		event_time_t next_wakeup;
@@ -279,7 +279,7 @@ static void start_timer_thread(void)
 				prints("fprr: scheduler lock release failed!!!");
 				assert(0);
 			}
-			sched_block(spdid);
+			sched_block(spdid, 0);
 		} else {
 			unsigned int wakeup;
 

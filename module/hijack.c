@@ -1662,6 +1662,9 @@ static void cos_report_fault(struct thread *t, vaddr_t fault_addr, struct pt_reg
 	fault_ptr = (fault_ptr + 1) % NFAULTS;
 }
 
+#define SHARED_DATA_PAGE_SIZE PAGE_SIZE
+extern unsigned int shared_region_page[1024], shared_data_page[1024];
+
 /* 
  * FIXME: this logic should be in inv.c or platform independent code
  * 
@@ -1675,6 +1678,7 @@ static int cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *re
 	struct composite_spd *cspd;
 	vaddr_t ucap_addr = regs->eax;
 	struct spd *origin;
+	struct pt_regs *regs_save;
 	
 	/* 
 	 * If we are in the most up-to-date version of the
@@ -1740,6 +1744,9 @@ static int cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *re
 	 * anything.
 	 */
 
+	regs_save = &((struct pt_regs*)(((char*)shared_data_page)+SHARED_DATA_PAGE_SIZE))[-1];
+	memcpy(regs_save, regs, sizeof(struct pt_regs));
+	
 	return 1;
 }
 
@@ -2306,7 +2313,6 @@ typedef enum {
 				 * again!) */
 } idle_status_t;
 static volatile int idle_status = IDLE_AWAKE;
-DECLARE_WAITQUEUE(hijack_waitq, NULL);
 
 /* is the register state of the thread defined by the idle
  * procedures? I.e. are we either asleep, or waking */
@@ -2529,7 +2535,6 @@ static void deregister_timers(void)
 }
 
 /***** end timer handling *****/
-extern unsigned int shared_region_page[1024], shared_data_page[1024];
 
 void thd_publish_data_page(struct thread *thd, vaddr_t page)
 {
