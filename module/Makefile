@@ -3,9 +3,6 @@ include /home/gparmer/research/composite/module/Makefile.inc
 obj-m := cos.o
 cos-objs := kern_entry.o ipc.o inv.o thread.o hijack.o spd.o measurement.o page_pool.o mmap.o ring_buff.o
 
-LINKER_DIR=./user_prototype/linking/
-NET_DIR=./net/
-
 default: module
 
 module: comps

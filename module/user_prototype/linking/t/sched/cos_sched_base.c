@@ -5,6 +5,9 @@
  * Public License v2.
  *
  * Author: Gabriel Parmer, gabep1@cs.bu.edu
+ * 
+ * Copyright The George Washington University, Gabriel Parmer,
+ * gparmer@gwu.edu, 2009
  */
 
 #define COS_FMT_PRINT
@@ -26,14 +29,14 @@
 #endif
 
 #define NUM_PRIOS 32
+
 #define IDLE_PRIO (NUM_PRIOS-3)
 #define CHILD_IDLE_PRIO (NUM_PRIOS-2)
-#define GRAVEYARD_PRIO (NUM_PRIOS-1)
 #define TIMER_TICK_PRIO (0)
 #define TIME_EVENT_PRIO (3)
 #define MPD_PRIO (4)
 #define INIT_PRIO (2)
-/* This is the start */
+
 #define NORMAL_PRIO_HI 5
 #define NORMAL_PRIO_LO (NUM_PRIOS-8)
 
@@ -41,7 +44,6 @@
 #define REPORT_FREQ (1)		/* freq of reporting in seconds */
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 1000
-#define QUANTUM (1000000000UL/100UL)
 
 static volatile unsigned long long ticks = 0;
 static volatile unsigned long long wakeup_time;
@@ -50,9 +52,8 @@ static struct sched_thd *wakeup_thd;
 static struct sched_thd *timer, *init, *idle, *mpd;//, *uc_notif;
 static struct sched_thd blocked;
 static struct sched_thd upcall_deactive;
-static struct prio_list {
-	struct sched_thd runnable;
-} priorities[NUM_PRIOS];
+
+struct sched_ops *scheduler_ops;
 
 #define FPRR_REPORT_EVTS
 
@@ -142,7 +143,7 @@ typedef enum { NULL_EVT = 0 } report_evt_t;
 #endif
 
 extern void st_trace_thd(unsigned short int tid);
-static void print_thd_invframes(struct sched_thd *t)
+void print_thd_invframes(struct sched_thd *t)
 {
 //	unsigned short int tid = t->id;
 
@@ -152,22 +153,9 @@ static void print_thd_invframes(struct sched_thd *t)
 static void report_thd_accouting(void)
 {
 	struct sched_thd *t;
-	int i;
 
-	printc("Running threads (thd, prio, cycles):\n");
-	for (i = 0 ; i < NUM_PRIOS ; i++) {
-		if (i == GRAVEYARD_PRIO) continue;
-		for (t = FIRST_LIST(&priorities[i].runnable, prio_next, prio_prev) ; 
-		     t != &priorities[i].runnable ;
-		     t = FIRST_LIST(t, prio_next, prio_prev)) {
-			if (sched_get_accounting(t)->cycles) {
-				printc("\t%d, %d, %lld\n", t->id, i, 
-				       sched_get_accounting(t)->cycles);
-				print_thd_invframes(t);
-				sched_get_accounting(t)->cycles = 0;
-			}
-		}
-	}
+	scheduler_ops->runqueue_print();
+
 	printc("\nBlocked threads (thd, prio, cycles):\n");
 	for (t = FIRST_LIST(&blocked, prio_next, prio_prev) ; 
 	     t != &blocked ;
@@ -194,248 +182,6 @@ static void report_thd_accouting(void)
 	report_output();
 }
 
-static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
-{
-	struct sched_thd *tp;
-
-	assert(prio < NUM_PRIOS);
-	assert(sched_thd_ready(t));
-
-//	printc("add_thd: adding thread %d with priority %d to runlist. %d", 
-//	      t->id, prio, 0);
-	tp = &(priorities[prio].runnable);
-	ADD_LIST(LAST_LIST(tp, prio_next, prio_prev), t, prio_next, prio_prev);
-	sched_get_metric(t)->priority = prio;
-	sched_set_thd_urgency(t, prio);
-	
-	return;
-}
-
-static inline void fp_new_thd(struct sched_thd *t)
-{
-	fp_add_thd(t, sched_get_metric(t)->priority);
-}
-
-static inline void fp_change_prio_runnable(struct sched_thd *t, unsigned short int prio)
-{
-	struct sched_metric *sm = sched_get_metric(t);
-	struct sched_thd *head;
-
-	assert(prio < NUM_PRIOS);
-
-	sm->priority = prio;
-	head = &priorities[prio].runnable;
-	//REM_LIST(t, prio_next, prio_prev);
-//	assert(EMPTY_LIST(t, prio_next, prio_prev));
-	assert(!sched_thd_inactive_evt(t));
-	assert(!sched_thd_blocked(t));
-	if (!EMPTY_LIST(t, prio_next, prio_prev)) REM_LIST(t, prio_next, prio_prev);
-	ADD_LIST(LAST_LIST(head, prio_next, prio_prev), t, prio_next, prio_prev);
-	sched_set_thd_urgency(t, prio);
-
-	return;
-}
-
-static inline void fp_move_end_runnable(struct sched_thd *t)
-{
-	if (sched_thd_ready(t)) {
-		assert(!sched_thd_inactive_evt(t));
-		assert(!sched_thd_blocked(t));
-		fp_change_prio_runnable(t, sched_get_metric(t)->priority);
-	}
-}
-
-/* 
- * Include an argument to tell if we should start looking after head,
- * or after the first element.
- */
-static struct sched_thd *fp_find_non_suspended_list_head(struct sched_thd *head, int second)
-{
-	struct sched_thd *t;
-
-	assert(!EMPTY_LIST(head, prio_next, prio_prev));
-	t = FIRST_LIST(head, prio_next, prio_prev);
-	if (second) t = FIRST_LIST(t, prio_next, prio_prev);
-	while (t != head) {
-		if (!sched_thd_suspended(t)) {
-			break;
-		}
-		t = FIRST_LIST(t, prio_next, prio_prev);
-	}
-	if (t == head) {
-		return NULL;
-	}
-
-	/* this assert relies on lazy evaluation: only if second == 1,
-	 * do we check to make sure the returned thread is not the
-	 * first one. */
-	assert(t != head && (!second || t != FIRST_LIST(head, prio_next, prio_prev)));
-	assert(!sched_thd_free(t));
-	assert(sched_thd_ready(t));
-	return t;
-}
-
-static inline struct sched_thd *fp_find_non_suspended_list(struct sched_thd *head)
-{
-	return fp_find_non_suspended_list_head(head, 0);
-}
-
-static struct sched_thd *fp_get_highest_prio(void)
-{
-	int i;
-
-	for (i = 0 ; i < NUM_PRIOS ; i++) {
-		struct sched_thd *t, *head;
-
-		head = &(priorities[i].runnable);
-		if (EMPTY_LIST(head, prio_next, prio_prev)) {
-			continue;
-		}
-		t = fp_find_non_suspended_list(head);
-		if (!t) continue;
-		
-		assert(sched_thd_ready(t));
-		assert(sched_get_metric(t));
-		assert(sched_get_metric(t)->priority == i);
-		assert(!sched_thd_free(t));
-		assert(sched_thd_ready(t));
-		return t;
-	}
-
-	return NULL;
-}
-
-static struct sched_thd *fp_get_second_highest_prio(struct sched_thd *highest)
-{
-	int i;
-	struct sched_thd *tmp, *head;
-	unsigned short int prio;
-
-	assert(!sched_thd_free(highest));
-	assert(sched_thd_ready(highest));
-	assert(fp_get_highest_prio() == highest);
-	assert(highest != init);
-
-	/* If the next element isn't the list head, or t, return it */
-	prio = sched_get_metric(highest)->priority;
-	assert(prio < NUM_PRIOS);
-	head = &(priorities[prio].runnable);
-	assert(fp_find_non_suspended_list(head) == highest);
-	/* pass in 1 to tell the function to start looking after the first item on the list (highest) */
-	tmp = fp_find_non_suspended_list_head(head, 1);
-	assert(tmp != highest);
-	/* Another thread at same priority */
-	if (tmp) {
-		assert(!sched_thd_free(tmp));
-		assert(sched_thd_ready(tmp));
-		return tmp;
-	}
-	/* assumes that idle should always exist */
-	assert(prio != NUM_PRIOS-1);
-
-	for (i = prio+1 ; i < NUM_PRIOS ; i++) {
-		struct sched_thd *t, *head;
-
-		head = &(priorities[i].runnable);
-		if (EMPTY_LIST(head, prio_next, prio_prev)) {
-			continue;
-		}
-		t = fp_find_non_suspended_list(head);
-		if (!t) continue;
-
-		assert(!sched_thd_free(t));
-		assert(sched_thd_ready(t));
-		assert(sched_get_metric(t)->priority == i);
-
-		return t;
-	}
-
-	return NULL;
-}
-
-/* 
- * TODO: retrieve the threads from the graveyard when needed, and if
- * not, then make the idle thread reap these threads by killing them
- * (for which a syscall will need to be added to inv.c).
- */
-static int fp_thread_remove(struct sched_thd *t)
-{
-	assert(t);
-	sched_set_thd_urgency(t, GRAVEYARD_PRIO);
-	fp_change_prio_runnable(t, GRAVEYARD_PRIO);
-	printc("fp_kill_thd: killing %d. %d%d\n", t->id, 0,0);
-
-	return 0;
-}
-
-static struct sched_thd *fp_schedule(struct sched_thd *c)
-{
-	struct sched_thd *n;
-
-	n = fp_get_highest_prio();
-	if (n && n == c) { 	/* implies c != NULL */
-		n = fp_get_second_highest_prio(n);
-	}
-	return n;
-}
-
-static int fp_time_elapsed(struct sched_thd *t, u32_t processing)
-{
-	struct sched_accounting *sa;
-
-	if (NULL == t) return 0;
-
-	sa = sched_get_accounting(t);
-	if (sa->cycles >= QUANTUM) {
-		sa->cycles -= QUANTUM;
-		if (sched_thd_ready(t)) {
-			assert(!sched_thd_inactive_evt(t));
-			assert(!sched_thd_blocked(t));
-			fp_move_end_runnable(t);
-		}
-	}
-	return 0;
-}
-
-static int fp_thread_block(struct sched_thd *t)
-{
-	REM_LIST(t, prio_next, prio_prev);
-	return 0;
-}
-
-static int fp_thread_wakeup(struct sched_thd *t)
-{
-	fp_move_end_runnable(t);
-	return 0;
-}
-
-static int fp_thread_new(struct sched_thd *t)
-{
-	fp_new_thd(t);
-
-	return 0;
-}
-
-#include <stdlib.h>
-static int fp_thread_params(struct sched_thd *t, char *p)
-{
-	int prio = atoi(p);
-
-	sched_set_thd_urgency(t, prio);
-	sched_get_metric(t)->priority = prio;
-	return 0;
-}
-
-struct sched_ops fp_ops = {
-	.thread_new = fp_thread_new,
-	.thread_remove = fp_thread_remove,
-
-	.schedule = fp_schedule,
-	.time_elapsed = fp_time_elapsed,
-	.thread_block = fp_thread_block,
-	.thread_wakeup = fp_thread_wakeup
-};
-
 static inline void fp_resume_thd(struct sched_thd *t)
 {
 	assert(sched_thd_blocked(t));
@@ -446,7 +192,7 @@ static inline void fp_resume_thd(struct sched_thd *t)
 	t->flags |= THD_READY;
 	REM_LIST(t, prio_next, prio_prev);
 	//fp_move_end_runnable(t);
-	if (fp_ops.thread_wakeup(t)) assert(0);
+	if (scheduler_ops->thread_wakeup(t)) assert(0);
 }
 
 static void fp_activate_upcall(struct sched_thd *uc)
@@ -456,7 +202,7 @@ static void fp_activate_upcall(struct sched_thd *uc)
 		uc->flags |= THD_READY;
 		REM_LIST(uc, prio_next, prio_prev); //done in move_end_runnable
 		//fp_move_end_runnable(uc);
-		if (fp_ops.thread_wakeup(uc)) assert(0);
+		if (scheduler_ops->thread_wakeup(uc)) assert(0);
 	}
 }
 
@@ -464,7 +210,7 @@ static void fp_deactivate_upcall(struct sched_thd *uc)
 {
 	uc->flags &= ~THD_READY;
 	uc->flags |= THD_UC_READY;
-	if (fp_ops.thread_block(uc)) assert(0);
+	if (scheduler_ops->thread_block(uc)) assert(0);
 	//REM_LIST(uc, prio_next, prio_prev);
 	assert(EMPTY_LIST(uc, prio_next, prio_prev));
 	ADD_LIST(&upcall_deactive, uc, prio_next, prio_prev);
@@ -630,8 +376,9 @@ static int fp_kill_thd(struct sched_thd *t)
 
 	cos_sched_lock_take();
 	c = sched_get_current();
-	if (fp_ops.thread_remove(t)) assert(0);
-	sched_switch_thread(&fp_ops, 0, NULL_EVT);
+	if (scheduler_ops->thread_remove(t)) assert(0);
+
+	sched_switch_thread(scheduler_ops, 0, NULL_EVT);
 	if (t == c) assert(0);
 
 	return 0;
@@ -640,7 +387,7 @@ static int fp_kill_thd(struct sched_thd *t)
 static void fp_pre_wakeup(struct sched_thd *t);
 static void fp_wakeup(struct sched_thd *thd, spdid_t spdid);
 
-static void fp_timer_tick(void)
+static void sched_timer_tick(void)
 {
 	while(1) {
 		cos_sched_lock_take();
@@ -671,7 +418,7 @@ static void fp_timer_tick(void)
 			}
 		}
 
-		sched_switch_thread(&fp_ops, COS_SCHED_BRAND_WAIT, NULL_EVT);
+		sched_switch_thread(scheduler_ops, COS_SCHED_BRAND_WAIT, NULL_EVT);
 	}
 
 	return;
@@ -682,7 +429,7 @@ static void fp_event_completion(struct sched_thd *e)
 	report_event(EVT_CMPLETE);
 
 	cos_sched_lock_take();
-	sched_switch_thread(&fp_ops, COS_SCHED_TAILCALL, EVT_CMPLETE_LOOP);
+	sched_switch_thread(scheduler_ops, COS_SCHED_TAILCALL, EVT_CMPLETE_LOOP);
 	assert(0);
 
 	return;
@@ -694,7 +441,7 @@ typedef void (*crt_thd_fn_t)(void *data);
 static void fp_timer(void *d)
 {
 	printc("Starting timer\n");
-	fp_timer_tick();
+	sched_timer_tick();
 	assert(0);
 }
 
@@ -717,7 +464,7 @@ static void fp_idle_loop(void *d)
 		if (cos_sched_pending_event()) {
 			report_event(IDLE_SCHED);
  			cos_sched_lock_take();
-			sched_switch_thread(&fp_ops, 0, IDLE_SCHED_LOOP);
+			sched_switch_thread(scheduler_ops, 0, IDLE_SCHED_LOOP);
 		}
 		cos_idle();
 	}
@@ -766,7 +513,7 @@ void sched_timeout(spdid_t spdid, unsigned long amnt)
 		return;
 	}
 	fp_block(thd, cos_spd_id());
-	sched_switch_thread(&fp_ops, 0, TIMEOUT_LOOP);	
+	sched_switch_thread(scheduler_ops, 0, TIMEOUT_LOOP);	
 
 	return;
 }
@@ -785,7 +532,6 @@ int sched_timeout_thd(spdid_t spdid)
 		return -1;
 	}
 	wakeup_thd = thd;
-	fp_change_prio_runnable(thd, TIME_EVENT_PRIO);
 
 	cos_sched_lock_release();
 	return 0;
@@ -865,7 +611,7 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 		fp_wakeup(thd, spdid);
 	}
 
-	sched_switch_thread(&fp_ops, 0, WAKE_LOOP);
+	sched_switch_thread(scheduler_ops, 0, WAKE_LOOP);
 done:
 	return 0;
 cleanup:
@@ -895,7 +641,7 @@ static inline void fp_block_thd(struct sched_thd *t)
 
 	t->flags &= ~THD_READY;
 	t->flags |= THD_BLOCKED;
-	if (fp_ops.thread_block(t)) assert(0);
+	if (scheduler_ops->thread_block(t)) assert(0);
 	assert(EMPTY_LIST(t, prio_next, prio_prev));
 	ADD_LIST(&blocked, t, prio_next, prio_prev);
 }
@@ -952,7 +698,7 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 		fp_block(thd, spdid);
 	}
 	
-	sched_switch_thread(&fp_ops, 0, BLOCK_LOOP);
+	sched_switch_thread(scheduler_ops, 0, BLOCK_LOOP);
 
 	/* The amount of time we've blocked */
 	ret = ticks - thd->block_time - 1;
@@ -990,7 +736,7 @@ int sched_component_take(spdid_t spdid)
 		/* FIXME: proper handling of recursive locking */
 		assert(curr != holder);
 		report_event(COMP_TAKE_CONTENTION);
-		sched_switch_thread(&fp_ops, 0, NULL_EVT);
+		sched_switch_thread(scheduler_ops, 0, NULL_EVT);
 		report_event(COMP_TAKE_LOOP);
 	}
 	return 0;
@@ -1008,7 +754,7 @@ int sched_component_release(spdid_t spdid)
 	if (sched_release_crit_sect(spdid, curr)) {
 		prints("fprr: error releasing spd's critical section\n");
 	}
-	sched_switch_thread(&fp_ops, 0, NULL_EVT);
+	sched_switch_thread(scheduler_ops, 0, NULL_EVT);
 
 	return 0;
 }
@@ -1027,7 +773,7 @@ static struct sched_thd *sched_setup_thread_arg(u16_t priority, u16_t urgency, c
 	sched_add_mapping(thd_id, new);
 	sched_get_metric(new)->priority = priority;
 	sched_get_metric(new)->urgency = urgency;
-	fp_ops.thread_new(new);
+	scheduler_ops->thread_new(new);
 //	sched_set_thd_urgency(new, urgency);
 
 	return new;
@@ -1131,10 +877,12 @@ static struct sched_thd *fp_create_timer(void)
 	return timer;
 }
 
+/* Defined within the actual scheduler implementation: */
+extern struct sched_ops *sched_initialization(void);
+
 int sched_init(void)
 {
 	static int first = 1;
-	int i;
 	struct sched_thd *new;
 
 //#define MICRO_INV
@@ -1151,19 +899,21 @@ int sched_init(void)
 	return 0;
 #endif
 
-	if (!first) return -1;
+	assert(first);
 	first = 0;
 
-	for (i = 0 ; i < NUM_PRIOS ; i++) {
-		sched_init_thd(&priorities[i].runnable, 0, THD_FREE);
-	}
 	sched_init_thd(&blocked, 0, THD_FREE);
 	sched_init_thd(&upcall_deactive, 0, THD_FREE);
 	sched_ds_init();
 
+	scheduler_ops = sched_initialization();
+	assert(scheduler_ops);
+
 	/* switch back to this thread to terminate the system. */
 	init = sched_alloc_thd(cos_get_thd_id());
-	fp_add_thd(init, INIT_PRIO);
+	assert(init);
+	sched_get_metric(init)->priority = INIT_PRIO;
+	scheduler_ops->thread_new(init);
 
 	/* create the idle thread */
 	idle = sched_setup_thread(IDLE_PRIO, IDLE_PRIO, fp_idle_loop);
@@ -1197,15 +947,7 @@ int sched_init(void)
 	fp_pre_block(init);
 	fp_block(init, 0);
 
-/* 	cos_sched_lock_take(); */
-/* 	sched_switch_thread(&fp_ops, 0, NULL_EVT); */
-
-/* 	cos_sched_lock_take(); */
-/* 	sched_switch_thread(&fp_ops, 0, NULL_EVT); */
-	new = fp_schedule(NULL);
-	cos_switch_thread(new->id, 0);
-
-	new = fp_schedule(NULL);
+	new = scheduler_ops->schedule(NULL);
 	cos_switch_thread(new->id, 0);
 
 	/* Returning will exit the composite system. */
@@ -1217,7 +959,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	switch (t) {
 	case COS_UPCALL_BRAND_EXEC:
 	{
-		fp_timer_tick();
+		sched_timer_tick();
 		break;
 	}
 	case COS_UPCALL_BOOTSTRAP:

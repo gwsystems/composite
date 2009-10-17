@@ -10,8 +10,8 @@
 #ifndef COS_SCHEDULER_H
 #define COS_SCHEDULER_H
 
-#include "../../../include/consts.h"
-#include "../../../include/cos_types.h"
+#include "../../../../include/consts.h"
+#include "../../../../include/cos_types.h"
 
 #include <cos_component.h>
 #include <cos_debug.h>

@@ -968,7 +968,7 @@ static int verify_dependency_completeness(struct service_symbs *services)
 							services->num_dependencies, &exp_symb);
 
 			if (!exporter) {
-				printl(PRINT_DEBUG, "Could not find exporter of symbol %s in service %s.\n",
+				printl(PRINT_HIGH, "Could not find exporter of symbol %s in service %s.\n",
 				       symb->name, services->obj);
 
 				ret = -1;
@@ -1471,33 +1471,33 @@ static int create_spd_capabilities(struct service_symbs *service/*, struct spd_i
 		char tmp[MAX_SYMB_LEN];
 
 		if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", symb->name, CAP_CLIENT_STUB_POSTPEND)) {
-			printl(PRINT_DEBUG, "symbol name %s too long to become client capability\n", symb->name);
+			printl(PRINT_HIGH, "symbol name %s too long to become client capability\n", symb->name);
 			return -1;
 		}
 		c_stub = spd_contains_symb(service, tmp);
 		if (NULL == c_stub) {
 			c_stub = spd_contains_symb(service, CAP_CLIENT_STUB_DEFAULT);
 			if (NULL == c_stub) {
-				printl(PRINT_DEBUG, "Could not find a client stub for function %s in service %s.\n",
+				printl(PRINT_HIGH, "Could not find a client stub for function %s in service %s.\n",
 				       symb->name, service->obj);
 				return -1;
 			}
 		}
 
 		if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", exp_symb->name, CAP_SERVER_STUB_POSTPEND)) {
-			printl(PRINT_DEBUG, "symbol name %s too long to become server capability\n", exp_symb->name);
+			printl(PRINT_HIGH, "symbol name %s too long to become server capability\n", exp_symb->name);
 			return -1;
 		}
 
 		s_stub = spd_contains_symb(exporter, tmp);
 		if (NULL == s_stub) {
-			printl(PRINT_DEBUG, "Could not find server stub (%s) for function %s in service %s.\n",
+			printl(PRINT_HIGH, "Could not find server stub (%s) for function %s in service %s.\n",
 			       tmp, exp_symb->name, exporter->obj);
 			return -1;
 		}
 
 		if (NULL == export_spd) {
-			printl(PRINT_DEBUG, "Trusted spd (spd_info) not attached to service symb yet.\n");
+			printl(PRINT_HIGH, "Trusted spd (spd_info) not attached to service symb yet.\n");
 			return -1;
 		}
 		if (create_invocation_cap(spd, service, export_spd, exporter, cntl_fd, 

@@ -9,47 +9,43 @@
 # I never want to touch this again, but will have to
 
 include ../../../Makefile.inc
+include Makefile.inc
+# DIETDIR=../dietlibc-0.29
+# DIETBIN=$(DIETDIR)/bin-i386/diet
+# DIETCC=$(DIETBIN) $(CC)
+# DIETINC=-I$(DIETDIR)/include
 
-DIETDIR=../dietlibc-0.29
-DIETBIN=$(DIETDIR)/bin-i386/diet
-DIETCC=$(DIETBIN) $(CC)
-DIETINC=-I$(DIETDIR)/include
+# LWIPBASE=../lwip
+# LWIPDIR=$(LWIPBASE)/lwip-1.3.0
+# LWIPOBJ=$(LWIPBASE)/cos/net_stack.o
+# LWIPINC=-I$(LWIPDIR)/src/include -I$(LWIPDIR)/src/include/ipv4/ -I$(LWIPBASE)/cos/include/ 
 
-LWIPBASE=../lwip
-LWIPDIR=$(LWIPBASE)/lwip-1.3.0
-LWIPOBJ=$(LWIPBASE)/cos/net_stack.o
-LWIPINC=-I$(LWIPDIR)/src/include -I$(LWIPDIR)/src/include/ipv4/ -I$(LWIPBASE)/cos/include/ 
-
-INC_PATH=-I./
-# FIXME: dietlibc is now compiled with fno merge constants which is
-# probably ballooning its size.  Fix this in cos_loader.
-SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib
-OPT= -ggdb3 #-O3 #-ggdb3
-CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer $(INC_PATH) $(DIETINC) $(LWIPINC) $(OPT) $(SHARED_FLAGS)
-DIETCFLAGS=$(CFLAGS) -Xlinker -r
-ASFLAGS=$(INC_PATH) $(SHARED_FLAGS)
+# INC_PATH=-I./
+# # FIXME: dietlibc is now compiled with fno merge constants which is
+# # probably ballooning its size.  Fix this in cos_loader.
+# SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib
+# OPT= -ggdb3 #-O3 #-ggdb3
+# CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer $(INC_PATH) $(DIETINC) $(LWIPINC) $(OPT) $(SHARED_FLAGS)
+# DIETCFLAGS=$(CFLAGS) -Xlinker -r
+# ASFLAGS=$(INC_PATH) $(SHARED_FLAGS)
 
 LIB=libcos_component.a
-LIB_ASM_OBJS=cos_asm_scheduler.o
-LIB_C_OBJS=cos_component.o cos_alloc.o cos_synchronization.o cos_scheduler.o
+LIB_C_OBJS=cos_component.o cos_alloc.o cos_synchronization.o
 LIB_C=$(LIB_C_OBJS:%.o=%.a)#$(wildcard *.c))
-# Order here is important: cos_scheduler.o must be before
-# cos_asm_scheduler.o so that it includes cos_force_sched_link which
-# forces the assembly file to be included.  Without it, the weak
-# symbols preclude it linking.
-LIB_OBJS=$(LIB_C_OBJS) $(LIB_ASM_OBJS) 
+LIB_OBJS=$(LIB_C_OBJS)
+
 # These are compiled in with the components regardless of if they
 # export an undefined symbol from the component.  They are a manditory
 # link-in.
 LIB_ASM_MANDITORY=cos_asm_upcall.o c_stub.o
 
-C_COMPS=comp0.o print_comp.o mem_man.o fp_rr.o cos_net.o ds.o uc_test.o wf_test.o lock.o timed_event.o mailbox.o mpd_mgr.o evt.o fd_api.o conn_mgr.o https.o stat_gather.o stack_trace.o static_content.o content_mgr.o netif.o cos_ip.o async_inv.o fake_net.o persist_cgi.o port_mgr.o
-ASM_STUBS=s_stubprint.o s_stubmm.o s_stubfprr.o s_stubnet.o s_stubds.o s_stublock.o s_stubte.o s_stubmb.o s_stube.o s_stubfd.o s_stubhttp.o s_stubst.o s_stubsc.o s_stubcm.o s_stubif.o s_stubip.o s_stubainv.o s_stubfn.o s_stubport.o
+C_COMPS=comp0.o print_comp.o mem_man.o cos_net.o ds.o uc_test.o wf_test.o lock.o timed_event.o mailbox.o mpd_mgr.o evt.o fd_api.o conn_mgr.o https.o stat_gather.o stack_trace.o static_content.o content_mgr.o netif.o cos_ip.o async_inv.o fake_net.o persist_cgi.o port_mgr.o
+ASM_STUBS=s_stubprint.o s_stubmm.o s_stubnet.o s_stubds.o s_stublock.o s_stubte.o s_stubmb.o s_stube.o s_stubfd.o s_stubhttp.o s_stubst.o s_stubsc.o s_stubcm.o s_stubif.o s_stubip.o s_stubainv.o s_stubfn.o s_stubport.o
 PRODUCTS=$(C_COMPS) $(ASM_STUBS)
-COMPONENTS=c0.o print.o mm.o fprr.o net.o d.o uc.o wftest.o l.o te.o mb.o mpd.o e.o fd.o conn.o http.o stat.o st.o cm.o sc.o if.o ip.o ainv.o fn.o cgi.o fd2.o fd3.o cgi2.o port.o ainv2.o
+COMPONENTS=c0.o print.o mm.o net.o d.o uc.o wftest.o l.o te.o mb.o mpd.o e.o fd.o conn.o http.o stat.o st.o cm.o sc.o if.o ip.o ainv.o fn.o cgi.o fd2.o fd3.o cgi2.o port.o ainv2.o
 TMP_STR=tmp
 
-SOURCES=$(C_COMPS:%.o=%.c) $(LIB_C_OBJS:%.o=%.c)
+SOURCES=$(C_COMPS:%.o=%.c) $(LIB_C_OBJS:%.o=%.c) 
 #NOTE: assembly files don't have dependencies generated for them
 DEPENDENCIES=$(SOURCES:%.c=%.d)
 
@@ -65,7 +61,6 @@ stubs: $(PRODUCTS)
 	@$(LD) -r -o c0.o comp0.o
 	@$(LD) -r -o print.o print_comp.o s_stubprint.o
 	@$(LD) -r -o mm.o mem_man.o s_stubmm.o
-	@$(LD) -r -o fprr.o fp_rr.o s_stubfprr.o
 	@$(LD) -r -o wftest.o wf_test.o
 	@$(LD) -r -o te.o timed_event.o s_stubte.o
 	@$(LD) -r -o l.o lock.o s_stublock.o
@@ -95,6 +90,8 @@ stubs: $(PRODUCTS)
 	@cp cgi.o cgi2.o
 
 	@$(LD) -r -o mpd.o mpd_mgr.o heap.o
+
+	make -C sched
 
 # This is specialized so that we can link with lwip, and it can link with dietlibc
 cos_net.o: cos_net.c net_stack.o
@@ -154,11 +151,13 @@ $(LIB):$(LIB_C) $(LIB_ASM_OBJS)
 copy:
 	$(info [CP]   Copying all components to $(TRANS_DIR))
 	@cp $(COMPONENTS) $(TRANS_DIR)
+	make -C sched copy
 
 .PHONY: clean
 clean:
 	$(info [RM]   Cleaning up directory)
 	@rm -f a.out *.o *.a *.d *~
 	@make -C $(LWIPBASE)/cos clean
+	make -C sched clean
 
 
