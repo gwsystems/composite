@@ -28,18 +28,6 @@
 #define PRINTD(s, args...) 
 #endif
 
-#define NUM_PRIOS 32
-
-#define IDLE_PRIO (NUM_PRIOS-3)
-#define CHILD_IDLE_PRIO (NUM_PRIOS-2)
-#define TIMER_TICK_PRIO (0)
-#define TIME_EVENT_PRIO (3)
-#define MPD_PRIO (4)
-#define INIT_PRIO (2)
-
-#define NORMAL_PRIO_HI 5
-#define NORMAL_PRIO_LO (NUM_PRIOS-8)
-
 #define RUNTIME_SEC (6)
 #define REPORT_FREQ (1)		/* freq of reporting in seconds */
 #define TIMER_FREQ 100
@@ -49,7 +37,7 @@ static volatile unsigned long long ticks = 0;
 static volatile unsigned long long wakeup_time;
 static struct sched_thd *wakeup_thd;
 
-static struct sched_thd *timer, *init, *idle, *mpd;//, *uc_notif;
+static struct sched_thd *timer, *init, *idle;
 static struct sched_thd blocked;
 static struct sched_thd upcall_deactive;
 
@@ -389,7 +377,7 @@ static void fp_wakeup(struct sched_thd *thd, spdid_t spdid);
 
 static void sched_timer_tick(void)
 {
-	while(1) {
+	while (1) {
 		cos_sched_lock_take();
 		
 		report_event(TIMER_TICK);
@@ -398,12 +386,17 @@ static void sched_timer_tick(void)
 			report_thd_accouting();
 			cos_stats();
 		}
-
+		
 		/* are we done running? */
 		if (ticks >= RUNTIME_SEC*TIMER_FREQ+1) {
-			fp_pre_wakeup(init);
-			fp_wakeup(init,0);
-			//cos_switch_thread(init->id, COS_SCHED_TAILCALL);
+			while (COS_SCHED_RET_SUCCESS != 
+			       cos_switch_thread_release(init->id, COS_SCHED_BRAND_WAIT)) {
+				cos_sched_lock_take();
+				if (cos_sched_pending_event()) {
+					cos_sched_clear_events();
+					cos_sched_process_events(evt_callback, scheduler_ops, 0);
+				}
+			}
 		}
 		
 		ticks++;
@@ -417,11 +410,9 @@ static void sched_timer_tick(void)
 				fp_wakeup(wakeup_thd, 0);
 			}
 		}
-
+		
 		sched_switch_thread(scheduler_ops, COS_SCHED_BRAND_WAIT, NULL_EVT);
 	}
-
-	return;
 }
 
 static void fp_event_completion(struct sched_thd *e)
@@ -759,7 +750,7 @@ int sched_component_release(spdid_t spdid)
 	return 0;
 }
 
-static struct sched_thd *sched_setup_thread_arg(u16_t priority, u16_t urgency, crt_thd_fn_t fn, void *d)
+static struct sched_thd *sched_setup_thread_arg(char *metric_str, crt_thd_fn_t fn, void *d)
 {
 	unsigned int thd_id;
 	struct sched_thd *new;
@@ -771,29 +762,36 @@ static struct sched_thd *sched_setup_thread_arg(u16_t priority, u16_t urgency, c
 //	fp_new_thd(new);
 	if (0 > sched_alloc_event(new)) assert(0);
 	sched_add_mapping(thd_id, new);
-	sched_get_metric(new)->priority = priority;
-	sched_get_metric(new)->urgency = urgency;
+	scheduler_ops->thread_params_set(new, metric_str);
+//	sched_get_metric(new)->priority = priority;
+//	sched_get_metric(new)->urgency = urgency;
 	scheduler_ops->thread_new(new);
 //	sched_set_thd_urgency(new, urgency);
 
 	return new;
 }
 
-static struct sched_thd *sched_setup_thread(u16_t priority, u16_t urgency, crt_thd_fn_t fn)
+static struct sched_thd *sched_setup_thread(char *metric_str, crt_thd_fn_t fn)
 {
-	return sched_setup_thread_arg(priority, urgency, fn, 0);
+	return sched_setup_thread_arg(metric_str, fn, 0);
 }
 
-int sched_create_thread(spdid_t spdid, int prio_delta) {
+/* this should just create the thread, not set the prio...there should
+ * be a separate function for that */
+int sched_create_thread(spdid_t spdid, struct cos_array *data)
+{
 	struct sched_thd *curr, *new;
-	u16_t prio, urg;
-	void *d = (void*)(int)spdid; /* well this is just stupid...thx gcc */
+	/* well this is just stupid...thx gcc */
+	void *d = (void*)(int)spdid;
+	char *metric_str;
+
+	if (!cos_argreg_arr_intern(data)) return -1;
+	if (((char *)data->mem)[data->sz-1] != '\0') return -1;
 
 	cos_sched_lock_take();
 	curr = sched_get_current();
-	prio = curr->metric.priority + prio_delta;
-	urg = curr->metric.urgency + prio_delta;
-	new = sched_setup_thread_arg(prio, urg, fp_create_spd_thd, d);
+	metric_str = (char *)data->mem;
+	new = sched_setup_thread_arg((char *)metric_str, fp_create_spd_thd, d);
 	cos_sched_lock_release();
 	printc("fprr: created thread %d in spdid %d (requested by %d)\n",
 	       new->id, spdid, curr->id);
@@ -850,15 +848,13 @@ void sched_exit(void)
 	cos_switch_thread(init->id, 0);
 }
 
-static struct sched_thd *fp_init_component(char *comp, int prio)
+static struct sched_thd *fp_init_component(spdid_t spdid, char *metric_str)
 {
-	int target_spdid;
 	struct sched_thd *new;
 
-	target_spdid = spd_name_map_id(comp);
-	assert(target_spdid != -1);
-	new = sched_setup_thread_arg(prio, prio, fp_create_spd_thd, (void*)target_spdid);
-	printc("%s thread has id %d and priority %d. %d\n", comp, new->id, prio, 0);
+	assert(spdid > 0);
+	new = sched_setup_thread_arg(metric_str, fp_create_spd_thd, (void*)(int)spdid);
+	printc("component %d's thread has id %d and priority %s.\n", spdid, new->id, metric_str);
 	
 	return new;
 }
@@ -868,21 +864,20 @@ static struct sched_thd *fp_create_timer(void)
 	int bid;
 
 	bid = sched_setup_brand(cos_spd_id());
-	timer = sched_setup_thread_arg(TIMER_TICK_PRIO, TIMER_TICK_PRIO, fp_timer, (void*)bid);
+	timer = sched_setup_thread_arg("t", fp_timer, (void*)bid);
 	if (NULL == timer) assert(0);
 	if (0 > sched_add_thd_to_brand(cos_spd_id(), bid, timer->id)) assert(0);
-	printc("Timer thread has id %d with priority %d. %d\n", timer->id, TIMER_TICK_PRIO, TIMER_TICK_PRIO);
+	printc("Timer thread has id %d with priority %s.\n", timer->id, "t");
 	cos_brand_wire(bid, COS_HW_TIMER, 0);
 
 	return timer;
 }
 
-/* Defined within the actual scheduler implementation: */
-extern struct sched_ops *sched_initialization(void);
-
 int sched_init(void)
 {
 	static int first = 1;
+	int i = 0;
+	spdid_t ret;
 	struct sched_thd *new;
 
 //#define MICRO_INV
@@ -912,40 +907,50 @@ int sched_init(void)
 	/* switch back to this thread to terminate the system. */
 	init = sched_alloc_thd(cos_get_thd_id());
 	assert(init);
-	sched_get_metric(init)->priority = INIT_PRIO;
-	scheduler_ops->thread_new(init);
 
 	/* create the idle thread */
-	idle = sched_setup_thread(IDLE_PRIO, IDLE_PRIO, fp_idle_loop);
-	printc("Idle thread has id %d with priority %d. %d\n", idle->id, IDLE_PRIO, 0);
+	idle = sched_setup_thread("i", fp_idle_loop);
+	printc("Idle thread has id %d with priority %s.\n", idle->id, "i");
 
-	/* normal threads: */
-	fp_init_component("te.o", TIME_EVENT_PRIO);
-	fp_init_component("e.o", TIME_EVENT_PRIO);
-	fp_init_component("l.o", NORMAL_PRIO_HI+3);
-	fp_init_component("fd.o", NORMAL_PRIO_HI+3);
-	fp_init_component("http.o", NORMAL_PRIO_HI+3);
-	fp_init_component("conn.o", NORMAL_PRIO_HI+4);
-	fp_init_component("cm.o", NORMAL_PRIO_HI+2);
-	fp_init_component("sc.o", NORMAL_PRIO_HI+1);
-	fp_init_component("stat.o", NORMAL_PRIO_LO+1);
-	fp_init_component("if.o", NORMAL_PRIO_HI);
-	fp_init_component("ainv.o", NORMAL_PRIO_HI+1);
-	fp_init_component("fd2.o", NORMAL_PRIO_HI+3);
-	fp_init_component("cgi.o", NORMAL_PRIO_HI+4);
-	fp_init_component("ainv2.o", NORMAL_PRIO_HI+1);
-	fp_init_component("fd3.o", NORMAL_PRIO_HI+3);
-	fp_init_component("cgi2.o", NORMAL_PRIO_HI+4);
+/* 	/\* normal threads: *\/ */
+/* 	fp_init_component("te.o", "a3"); */
+/* 	fp_init_component("e.o", "a3"); */
+/* 	fp_init_component("l.o", "a8"); */
+/* 	fp_init_component("fd.o", "a8"); */
+/* 	fp_init_component("http.o", "a8"); */
+/* 	fp_init_component("conn.o", "a9"); */
+/* 	fp_init_component("cm.o", "a7"); */
+/* 	fp_init_component("sc.o", "a6"); */
+/* 	fp_init_component("stat.o", "a25"); */
+/* 	fp_init_component("if.o", "a5"); */
+/* 	fp_init_component("ainv.o", "a6"); */
+/* 	fp_init_component("fd2.o", "a8"); */
+/* 	fp_init_component("cgi.o", "a9"); */
+/* 	fp_init_component("ainv2.o", "a6"); */
+/* 	fp_init_component("fd3.o", "a8"); */
+/* 	fp_init_component("cgi2.o", "a9"); */
 
-	mpd = fp_init_component("mpd.o", MPD_PRIO);
+/* 	mpd = fp_init_component("mpd.o", "a4"); */
 
-	fp_init_component("net.o", NORMAL_PRIO_HI+1);
+/* 	fp_init_component("net.o", "a6"); */
+	extern spdid_t sched_comp_config(spdid_t spdid, int index, struct cos_array *data);
+	#define SCHED_STR_SZ 64
+	do {
+		struct cos_array *data;
+
+		data = cos_argreg_alloc(sizeof(struct cos_array) + SCHED_STR_SZ);
+		assert(data);
+		data->sz = SCHED_STR_SZ;
+		ret = sched_comp_config(cos_spd_id(), i++, data);
+		printc("index %d yielded spd %d\n", i-1, ret);
+		if (ret > 0 && data->sz > 0) {
+			fp_init_component(ret, data->mem);
+		}
+		cos_argreg_free(data);
+	} while (ret > 0);
+
 	/* Create the clock tick (timer) thread */
 	fp_create_timer();
-
-	/* Block to begin execution of the normal tasks */
-	fp_pre_block(init);
-	fp_block(init, 0);
 
 	new = scheduler_ops->schedule(NULL);
 	cos_switch_thread(new->id, 0);

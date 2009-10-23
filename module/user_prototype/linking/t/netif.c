@@ -326,7 +326,6 @@ static void release_rb_buff(rb_meta_t *r, void *b)
 }
 
 extern int sched_create_net_brand(spdid_t spdid, unsigned short int port);
-//extern int sched_create_thread(spdid_t spdid, int prio_delta);
 extern int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short int tid);
 
 static int cos_net_create_net_brand(unsigned short int port, rb_meta_t *rbm)

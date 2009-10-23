@@ -9,13 +9,16 @@
 #include <cos_sched_tk.h>
 #include <cos_debug.h>
 
+#define PRIO_LOW     30
+#define PRIO_LOWEST  31
+#define PRIO_HIGHEST 0
 #define NUM_PRIOS 32
 #define QUANTUM (1000000000UL/100UL)
 
+/* runqueue */
 static struct prio_list {
 	struct sched_thd runnable;
 } priorities[NUM_PRIOS];
-
 
 static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
 {
@@ -24,8 +27,6 @@ static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
 	assert(prio < NUM_PRIOS);
 	assert(sched_thd_ready(t));
 
-//	printc("add_thd: adding thread %d with priority %d to runlist. %d", 
-//	      t->id, prio, 0);
 	tp = &(priorities[prio].runnable);
 	ADD_LIST(LAST_LIST(tp, prio_next, prio_prev), t, prio_next, prio_prev);
 	sched_get_metric(t)->priority = prio;
@@ -242,13 +243,41 @@ static int fp_thread_new(struct sched_thd *t)
 	return 0;
 }
 
-//#include <stdlib.h>
+#include <stdlib.h>
 static int fp_thread_params(struct sched_thd *t, char *p)
 {
-	int prio = 4;// = atoi(p);
+	int prio, tmp;
+	char curr = p[0];
+	struct sched_thd *c;
+	
+	switch (curr) {
+	case 'r':
+		/* priority relative to current thread */
+		c = sched_get_current();
+		assert(c);
+		tmp = atoi(&p[1]);
+		prio = sched_get_metric(c)->priority + tmp;
+		break;
+	case 'a':
+		/* absolute priority */
+		prio = atoi(&p[1]);
+		break;
+	case 'i':
+		/* idle thread */
+		prio = PRIO_LOWEST;
+		break;
+	case 't':
+		/* timer thread */
+		prio = PRIO_HIGHEST;
+		break;
+	default:
+		printc("unknown priority option @ %s, setting to low\n", p);
+		prio = PRIO_LOW;
+	}
 
 	sched_set_thd_urgency(t, prio);
 	sched_get_metric(t)->priority = prio;
+
 	return 0;
 }
 
@@ -278,6 +307,7 @@ struct sched_ops fp_ops = {
 	.thread_new = fp_thread_new,
 	.thread_remove = fp_thread_remove,
 	.runqueue_print = fp_runqueue_print,
+	.thread_params_set = fp_thread_params,
 
 	.schedule = fp_schedule,
 	.time_elapsed = fp_time_elapsed,

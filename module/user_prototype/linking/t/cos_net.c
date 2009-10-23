@@ -84,7 +84,7 @@ cos_lock_t net_lock;
 
 extern int sched_block(spdid_t spdid, unsigned short int thd_dep);
 extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
-extern int sched_create_thread(spdid_t spdid, int prio_delta);
+extern int sched_create_thread(spdid_t spdid, struct cos_array *data);
 
 /*********************** Component Interface ************************/
 
@@ -1383,7 +1383,13 @@ static void init_lwip(void)
 
 static void cos_net_create_netif_thd(void)
 {
-	if (0 > (event_thd = sched_create_thread(cos_spd_id(), 1))) assert(0);
+	struct cos_array *data;
+
+	data = cos_argreg_alloc(sizeof(struct cos_array) + 3);
+	assert(data);
+	strcpy(&data->mem[0], "r-1");
+	if (0 > (event_thd = sched_create_thread(cos_spd_id(), data))) assert(0);
+	cos_argreg_free(data);
 }
 
 extern int timed_event_block(spdid_t spdid, unsigned int usecs);

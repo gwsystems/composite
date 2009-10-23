@@ -39,8 +39,7 @@ struct sched_ops {
 
 /* 
  * Every scheduler must include a function of the following form:
- *
- * struct sched_ops *sched_initialization(void) {...}
  */
+struct sched_ops *sched_initialization(void);
 
 #endif 	    /* !COS_SCHED_TK_H */

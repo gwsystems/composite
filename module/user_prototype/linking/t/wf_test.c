@@ -73,5 +73,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 }
 
 void bin(void) {
+	assert(0);
+	/* this doesn't work... */
 	sched_create_thread(cos_spd_id());
 }
