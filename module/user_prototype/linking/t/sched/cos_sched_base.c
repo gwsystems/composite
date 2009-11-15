@@ -56,7 +56,6 @@ typedef enum {
 	SCHED_DEPENDENCY,
 	THD_BLOCK,
 	THD_WAKE,
-	UPCALL_BLOCK,
 	COMP_TAKE,
 	COMP_TAKE_ATTEMPT,
 	COMP_TAKE_CONTENTION,
@@ -72,6 +71,10 @@ typedef enum {
 	EVT_CMPLETE_LOOP,
 	TIMEOUT_LOOP,
 	IDLE_SCHED_LOOP,
+	BLOCKED_DEP_RETRY,
+	RETRY_BLOCK,
+	BLOCKED_W_DEPENDENCY,
+	SCHED_TARGETTED_DEPENDENCY,
 	REVT_LAST
 } report_evt_t;
 
@@ -84,7 +87,6 @@ static char *revt_names[] = {
 	"scheduling using a dependency",
 	"thread blocking",
 	"thread waking",
-	"net upcall blocked",
 	"component lock take (call)",
 	"component lock take (actual attempt)",
 	"component lock take contention",
@@ -100,13 +102,17 @@ static char *revt_names[] = {
 	"iterations through the event completion loop",
 	"iterations through the timeout loop",
 	"iterations through the idle loop",
+	"re-asserting dependency",
+	"premature unblock, retrying block",
+	"block with dependency",
+	"schedule will explicit target (via dependency)",
 	""
 };
 static long long report_evts[REVT_LAST];
 
 static void report_event(report_evt_t evt)
 {
-	if (evt >= REVT_LAST) return;
+	if (unlikely(evt >= REVT_LAST)) return;
 
 	report_evts[evt]++;
 }
@@ -261,6 +267,27 @@ static void evt_callback_print(struct sched_ops *ops, struct sched_thd *t, u8_t 
 	evt_callback(ops, t, flags, cpu_usage);
 }
 
+static struct sched_thd *resolve_dependencies(struct sched_thd *next)
+{
+	struct sched_thd *dep;
+
+	/* Take dependencies into account */
+	if ((dep = sched_thd_dependency(next))) {
+		assert(!(next->flags & (COS_SCHED_BRAND_WAIT|COS_SCHED_TAILCALL)));
+		assert(!sched_thd_blocked(dep) && sched_thd_ready(dep));
+		assert(!sched_thd_free(dep));
+		assert(dep != next);
+		report_event(SCHED_DEPENDENCY);
+		next = dep;
+
+		/* At this point it's possible that next == current.
+		 * If we hold the component lock requested by the
+		 * highest prio thread, then we are the depended on
+		 * thread and should continue executing. */
+	}
+	return next;
+}
+
 /* 
  * Important: assume that cos_sched_lock_take() has been called.  The
  * reason for this assumption is so that outer (calling) code can
@@ -272,13 +299,13 @@ static void evt_callback_print(struct sched_ops *ops, struct sched_thd *t, u8_t 
  * each iteration of the loop, or if it is -1, no event will be
  * incremented.
  */
-static int sched_switch_thread(struct sched_ops *ops, int flags, report_evt_t evt)
+static int sched_switch_thread_target(struct sched_ops *ops, int flags, report_evt_t evt, struct sched_thd *target)
 {
 	struct sched_thd *current = sched_get_current();
 	int ret;
 
 	do {
-		struct sched_thd *next, *dep;
+		struct sched_thd *next;
 
 		assert(cos_sched_lock_own());
 		/* 
@@ -296,57 +323,39 @@ static int sched_switch_thread(struct sched_ops *ops, int flags, report_evt_t ev
 		}
 //		assert(sched_thd_ready(current));
 		assert(!sched_thd_free(current));
-		/* 
-		 * If current is an upcall that wishes to terminate
-		 * its execution upon switching to the next thread,
-		 * then it will pass in one of the following flags.
-		 * If that is the case, then we wish to ask the
-		 * scheduler to return a thread that is _not_, even if
-		 * current is the highest priority thread because
-		 * current will terminate execution with the switch.
-		 */
-		if (flags & (COS_SCHED_BRAND_WAIT|COS_SCHED_TAILCALL)) {
-			assert(ops->schedule);
-			/* we don't want next to me us! We are an
-			 * upcall completing execution */
-			next = ops->schedule(current);
-			assert(next != current);
+		if (likely(!target)) {
+			/* 
+			 * If current is an upcall that wishes to terminate
+			 * its execution upon switching to the next thread,
+			 * then it will pass in one of the following flags.
+			 * If that is the case, then we wish to ask the
+			 * scheduler to return a thread that is _not_, even if
+			 * current is the highest priority thread because
+			 * current will terminate execution with the switch.
+			 */
+			if (flags & (COS_SCHED_BRAND_WAIT|COS_SCHED_TAILCALL)) {
+				assert(ops->schedule);
+				/* we don't want next to be us! We are an
+				 * upcall completing execution */
+				next = ops->schedule(current);
+				assert(next != current);
+			} else {
+				next = ops->schedule(NULL);
+				/* if we are the next thread and no
+				 * dependencies have been introduced (i.e. we
+				 * are waiting on a component-lock for
+				 * another thread), then we're done */
+				if (next == current && !sched_thd_dependency(current)) goto done;
+			}
 		} else {
-			next = ops->schedule(NULL);
-			/* if we are the next thread and no
-			 * dependencies have been introduced (i.e. we
-			 * are waiting on a component-lock for
-			 * another thread), then we're done */
-			if (next == current && 
-			    !sched_thd_dependency(current)) {
-				cos_sched_lock_release();
-				break;
-			}
+			report_event(SCHED_TARGETTED_DEPENDENCY);
+			next = target;
 		}
-
-		/* Take dependencies into account */
-		if ((dep = sched_thd_dependency(next)))
-                   /* && !(flags & (COS_SCHED_BRAND_WAIT|COS_SCHED_TAILCALL)))*/ {
-			assert(!sched_thd_blocked(dep) &&
-			       sched_thd_ready(dep));
-			assert(!sched_thd_free(dep));
-			assert(dep != next);
-			report_event(SCHED_DEPENDENCY);
-			next = dep;
-
-			/* If we hold the component lock requested by
-			 * the highest prio thread, then we are the
-			 * depended on thread and should continue
-			 * executing. */
-			if (next == current) {
-				cos_sched_lock_release();
-				break;
-			}
-		}
-
-		assert(next != current);
+		next = resolve_dependencies(next);
+		if (next == current) goto done;
 		ret = cos_switch_thread_release(next->id, flags);
 		assert(ret != COS_SCHED_RET_ERROR);
+		/* success, exit the loop! */
 		if (likely(COS_SCHED_RET_SUCCESS == ret)) break;
 
 		cos_sched_lock_take();
@@ -355,6 +364,14 @@ static int sched_switch_thread(struct sched_ops *ops, int flags, report_evt_t ev
 	} while (unlikely(COS_SCHED_RET_SUCCESS != ret));
 
 	return 0;
+done:
+	cos_sched_lock_release();
+	return 0;
+}
+
+static inline int sched_switch_thread(struct sched_ops *ops, int flags, report_evt_t evt)
+{
+	return sched_switch_thread_target(ops, flags, evt, NULL);
 }
 
 /* Should not hold scheduler lock when calling. */
@@ -653,47 +670,65 @@ static void fp_block(struct sched_thd *thd, spdid_t spdid)
  */
 int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 {
-	struct sched_thd *thd;
+	struct sched_thd *thd, *dep;
 	int ret;
+	int first = 1;
 
 	cos_sched_lock_take();
 	thd = sched_get_current();
 	assert(thd);
 	
 	/* we shouldn't block while holding a component lock */
-	assert(0 == thd->contended_component);
+	if (unlikely(0 != thd->contended_component)) goto err;
+	if (unlikely(!(thd->blocking_component == 0 || 
+		       thd->blocking_component == spdid))) goto err;
 	assert(!sched_thd_free(thd));
 	assert(!sched_thd_blocked(thd));
 	fp_pre_block(thd);
-	assert(thd->blocking_component == 0 || 
-	       thd->blocking_component == spdid);
 	/* if we already got a wakeup call for this thread */
 	if (thd->wake_cnt) {
 		assert(thd->wake_cnt == 1);
 		cos_sched_lock_release();
 		return 0;
 	}
-	/* dependencies keep the thread on the runqueue, so that it
-	 * can be selected to execute and its dependency list
-	 * walked. */
+	/* dependencies keep the thread on the runqueue, so
+	 * that it can be selected to execute and its
+	 * dependency list walked. */
 	if (dependency_thd) {
-		struct sched_thd *dep = sched_get_mapping(dependency_thd);
-
+		dep = sched_get_mapping(dependency_thd);
 		if (!dep) {
-			cos_sched_lock_release();
-			return -1;
+			fp_pre_wakeup(thd);
+			goto err;
 		}
 		thd->dependency_thd = dep;
 		thd->flags |= THD_DEPENDENCY;
 	} else {
 		fp_block(thd, spdid);
 	}
-	
-	sched_switch_thread(scheduler_ops, 0, BLOCK_LOOP);
-
+		
+	while (0 == thd->wake_cnt) {
+		if (dependency_thd) {
+			assert(dep && dep == thd->dependency_thd);
+			sched_switch_thread_target(scheduler_ops, 0, BLOCK_LOOP, dep);
+			cos_sched_lock_take();
+			report_event(BLOCKED_W_DEPENDENCY);
+			if (!first) report_event(BLOCKED_DEP_RETRY);
+		} else {
+			sched_switch_thread(scheduler_ops, 0, BLOCK_LOOP);
+			cos_sched_lock_take();
+			if (!first) report_event(RETRY_BLOCK);
+		}
+		first = 0;
+	}
+	assert(thd->wake_cnt == 1);
 	/* The amount of time we've blocked */
 	ret = ticks - thd->block_time - 1;
+	cos_sched_lock_release();
+
 	return ret > 0 ? ret : 0;
+err:
+	cos_sched_lock_release();
+	return -1;
 }
 
 /* 
@@ -703,33 +738,31 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
  * component.  Further synchronization primitives can be built up
  * using this in those external components.
  */
-
 int sched_component_take(spdid_t spdid)
 {
 	struct sched_thd *holder, *curr;
 
+	cos_sched_lock_take();
 	report_event(COMP_TAKE);
-	/* FIXME: locking here */
 	curr = sched_get_current();
 	assert(curr);
 	assert(!sched_thd_blocked(curr));
 
 	/* Continue until the critical section is available */
 	while (1) {
-		cos_sched_lock_take();
-
 		report_event(COMP_TAKE_ATTEMPT);
 		/* If the current thread is dependent on another thread, switch to it for help! */
-		if (NULL == (holder = sched_take_crit_sect(spdid, curr))) {
-			cos_sched_lock_release();
-			break;
-		}
+		holder = sched_take_crit_sect(spdid, curr);
+		if (NULL == holder) break;
+
 		/* FIXME: proper handling of recursive locking */
 		assert(curr != holder);
 		report_event(COMP_TAKE_CONTENTION);
-		sched_switch_thread(scheduler_ops, 0, NULL_EVT);
+		sched_switch_thread_target(scheduler_ops, 0, NULL_EVT, holder);
+		cos_sched_lock_take();
 		report_event(COMP_TAKE_LOOP);
 	}
+	cos_sched_lock_release();
 	return 0;
 }
 
@@ -812,13 +845,6 @@ static int sched_setup_brand(spdid_t spdid)
 unsigned long sched_timestamp(void)
 {
 	return (unsigned long)ticks;
-}
-
-void sched_report_processing(int amnt)
-{
-	struct sched_thd *t = sched_get_current();
-
-	sched_get_accounting(t)->progress += amnt;
 }
 
 int sched_create_net_brand(spdid_t spdid, unsigned short int port)
@@ -912,27 +938,6 @@ int sched_init(void)
 	idle = sched_setup_thread("i", fp_idle_loop);
 	printc("Idle thread has id %d with priority %s.\n", idle->id, "i");
 
-/* 	/\* normal threads: *\/ */
-/* 	fp_init_component("te.o", "a3"); */
-/* 	fp_init_component("e.o", "a3"); */
-/* 	fp_init_component("l.o", "a8"); */
-/* 	fp_init_component("fd.o", "a8"); */
-/* 	fp_init_component("http.o", "a8"); */
-/* 	fp_init_component("conn.o", "a9"); */
-/* 	fp_init_component("cm.o", "a7"); */
-/* 	fp_init_component("sc.o", "a6"); */
-/* 	fp_init_component("stat.o", "a25"); */
-/* 	fp_init_component("if.o", "a5"); */
-/* 	fp_init_component("ainv.o", "a6"); */
-/* 	fp_init_component("fd2.o", "a8"); */
-/* 	fp_init_component("cgi.o", "a9"); */
-/* 	fp_init_component("ainv2.o", "a6"); */
-/* 	fp_init_component("fd3.o", "a8"); */
-/* 	fp_init_component("cgi2.o", "a9"); */
-
-/* 	mpd = fp_init_component("mpd.o", "a4"); */
-
-/* 	fp_init_component("net.o", "a6"); */
 	extern spdid_t sched_comp_config(spdid_t spdid, int index, struct cos_array *data);
 	#define SCHED_STR_SZ 64
 	do {

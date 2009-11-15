@@ -55,12 +55,9 @@ struct thd_sched_info {
 #define THD_STATE_READY_UPCALL  0x8   /* Same as previous, but we are ready to execute */ 
 #define THD_STATE_BRAND         0x10  /* This thread is used as a brand */
 #define THD_STATE_SCHED_RETURN  0x20  /* When the sched switches to this thread, ret from ipc */
-#define THD_STATE_SCHED_EXCL    0x40  /* The yielded thread should not be wakeable 
-					by other schedulers (e.g. because it is 
-					waiting for a lock) */
-#define THD_STATE_FAULT         0x80  /* Thread has had a (e.g. page) fault which is being serviced */
-#define THD_STATE_HW_BRAND      0x100 /* Actual hardware should be making this brand */
-#define THD_STATE_CYC_CNT       0x200 /* This thread is being cycle tracked */
+#define THD_STATE_FAULT         0x40  /* Thread has had a (e.g. page) fault which is being serviced */
+#define THD_STATE_HW_BRAND      0x80 /* Actual hardware should be making this brand */
+#define THD_STATE_CYC_CNT       0x100 /* This thread is being cycle tracked */
 
 /**
  * The thread descriptor.  Contains all information pertaining to a

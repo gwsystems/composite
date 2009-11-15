@@ -732,7 +732,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		assert(!(curr->flags & THD_STATE_READY_UPCALL));
 		/* Can't really be tailcalling and have the other
 		 * flags at the same time */
-		if (unlikely(flags & (THD_STATE_SCHED_EXCL | COS_SCHED_SYNC_BLOCK | COS_SCHED_SYNC_UNBLOCK))) {
+		if (unlikely(flags & (COS_SCHED_SYNC_BLOCK | COS_SCHED_SYNC_UNBLOCK))) {
 			printk("cos: cannot switch using tailcall and other options %d\n", flags);
 			curr->regs.eax = COS_SCHED_RET_ERROR;
 			return &curr->regs;
@@ -780,27 +780,6 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		thd->flags |= THD_STATE_ACTIVE_UPCALL;
 		thd->regs.eax = COS_SCHED_RET_ERROR;
 		thd_sched_flags = COS_SCHED_EVT_BRAND_ACTIVE;
-	}
-
-	/*
-	 * If the thread was suspended by another scheduler, we really
-	 * have no business resuming it IF that scheduler wants
-	 * exclusivity for scheduling and we are not the parent of
-	 * that scheduler.
-	 */
-	if (thd->flags & THD_STATE_SCHED_EXCL) {
-		struct spd *suspender = thd->sched_suspended;
-
-		if (suspender && curr_spd->sched_depth > suspender->sched_depth) {
-			printk("cos: scheduler %d resuming thread %d, but spd %d suspended it.\n",
-			       spd_get_index(curr_spd), thd_get_id(thd), spd_get_index(thd->sched_suspended));
-			curr->regs.eax = COS_SCHED_RET_ERROR;
-			return &curr->regs;
-		}
-		thd->flags &= ~THD_STATE_SCHED_EXCL;
-	}
-	if (flags & COS_SCHED_EXCL_YIELD) {
-		curr->flags |= THD_STATE_SCHED_EXCL;
 	}
 
 	/*** A synchronization event for the scheduler? ***/

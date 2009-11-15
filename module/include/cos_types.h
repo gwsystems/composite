@@ -239,12 +239,11 @@ enum {
 };
 
 /* flags for cos_switch_thread */
-#define COS_SCHED_EXCL_YIELD   0x1
-#define COS_SCHED_TAILCALL     0x2
-#define COS_SCHED_SYNC_BLOCK   0x4
-#define COS_SCHED_SYNC_UNBLOCK 0x8
-#define COS_SCHED_BRAND_WAIT   0x10
-#define COS_SCHED_CHILD_EVT    0x20
+#define COS_SCHED_TAILCALL     0x1
+#define COS_SCHED_SYNC_BLOCK   0x2
+#define COS_SCHED_SYNC_UNBLOCK 0x4
+#define COS_SCHED_BRAND_WAIT   0x80
+#define COS_SCHED_CHILD_EVT    0x10
 
 #define COS_SCHED_RET_SUCCESS  0
 #define COS_SCHED_RET_ERROR    (-1)

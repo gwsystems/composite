@@ -1873,7 +1873,7 @@ int main(int argc, char *argv[])
 	}
 
 	stub_gen_prog = argv[2];
-	set_prio();
+//	set_prio();
 
 	/* 
 	 * NOTE: because strtok is used in prepare_service_symbs, we
