@@ -5,6 +5,9 @@
  * Public License v2.
  *
  * Author: Gabriel Parmer, gabep1@cs.bu.edu, 2007
+ *
+ * Copyright The George Washington University, Gabriel Parmer,
+ * gparmer@gwu.edu, 2009
  */
 
 #include "include/ipc.h"
@@ -414,7 +417,8 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, int a, int b, int c)
 		return -1;
 	}
 
-	if (!spd_is_scheduler(curr_spd) || !thd_scheduled_by(curr, curr_spd)) {
+//	if (!spd_is_scheduler(curr_spd) || !thd_scheduled_by(curr, curr_spd)) {
+	if (!spd_is_root_sched(curr_spd)) {
 		printk("cos: non-scheduler attempted to create thread.\n");
 		return -1;
 	}
@@ -505,6 +509,22 @@ COS_SYSCALL int cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long a
 	{
 		if (!(thd->flags & THD_STATE_PREEMPTED)) return 0;
 		return thd->regs.ebp;
+	}
+	case COS_THD_GET_IP:
+	{
+		if (!(thd->flags & THD_STATE_PREEMPTED)) return 0;
+		return thd->regs.eip;
+	}
+	case COS_THD_GET_SP:
+	{
+		return thd->regs.esp;
+	}
+	case COS_THD_SET_IP:
+	{
+		/* FIXME: this should only be used on new threads */
+		if (!(thd->flags & THD_STATE_PREEMPTED)) return -1;
+		thd->regs.eip = arg1;
+		return 0;
 	}
 	case COS_THD_STATUS:
 	{
@@ -619,9 +639,8 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	struct thread *thd, *curr;
 	struct spd *curr_spd;
 	unsigned short int next_thd, flags;
-	unsigned short int 
-		curr_sched_flags = COS_SCHED_EVT_NIL,
-		thd_sched_flags  = COS_SCHED_EVT_NIL;
+	unsigned short int curr_sched_flags = COS_SCHED_EVT_NIL,
+		           thd_sched_flags  = COS_SCHED_EVT_NIL;
 	struct cos_sched_data_area *da;
 
 	*preempt = 0;
@@ -648,6 +667,10 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	} else {
 		if (unlikely(da->cos_evt_notif.pending_event)) {
 			curr->regs.eax = COS_SCHED_RET_AGAIN;
+			return &curr->regs;
+		}
+		if (unlikely(da->cos_evt_notif.pending_cevt)) {
+			curr->regs.eax = COS_SCHED_RET_CEVT;
 			return &curr->regs;
 		}
 
@@ -1696,7 +1719,7 @@ static int verify_trust(struct spd *truster, struct spd *trustee)
  * active entities (threads).
  */
 extern void cos_syscall_upcall(void);
-COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, struct pt_regs **regs/*vaddr_t *inv_addr*/)
+COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, struct pt_regs **regs)
 {
 	struct spd *dest, *curr_spd;
 	struct thread *thd;
@@ -1716,7 +1739,7 @@ COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, struct pt_r
 	}
 
 	/*
-	 * Check that we are upcalling into a service that explicitely
+	 * Check that we are upcalling into a service that explicitly
 	 * trusts us (i.e. that the current spd is allowed to upcall
 	 * into the destination.)
 	 */
@@ -1726,32 +1749,11 @@ COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, struct pt_r
 		return -1;
 	}
 
-	/* 
-	 * Is a parent scheduler granting a thread to a child
-	 * scheduler?  If so, we need to add the child scheduler to
-	 * the thread's scheduler info list, UNLESS this thread is
-	 * already owned by another child scheduler.
-	 *
-	 * FIXME: remove this later as it adds redundance with the
-	 * sched_cntl call, reducing orthogonality of the syscall
-	 * layer.
-	 */
-#ifdef NIL
-	if (dest->parent_sched == curr_spd) {
-		struct thd_sched_info *tsi;
-
-		tsi = thd_get_sched_info(thd, curr_spd->sched_depth+1);
-		if (NULL == tsi->scheduler) {
-			tsi->scheduler = dest;
-		}
-	}
-#endif
 	open_close_spd(dest->composite_spd, curr_spd->composite_spd); 
 
 	spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(thd));//curr_spd->composite_spd);
 	//spd_mpd_ipc_take((struct composite_spd *)dest->composite_spd);
 
-	/* FIXME: use upcall_(setup|execute) */
 	upcall_setup(thd, dest, COS_UPCALL_BOOTSTRAP, 0, 0, 0);
 	*regs = &thd->regs;
 
@@ -2157,36 +2159,40 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 
 	switch(operation) {
 	case COS_SCHED_EVT_REGION:
-		/* 
-		 * Set the event regions for this thread in
-		 * user-space.  Make sure that the current scheduler
-		 * has scheduling capabilities for this thread, and
-		 * that the optional argument falls within the
-		 * scheduler notification page.
-		 */
+	{
+		unsigned long region = (unsigned long)option;
+
+		if (region < spd->location.lowest_addr ||
+		    region + PAGE_SIZE >= spd->location.lowest_addr + spd->location.size) {
+			printk("cos: attempted evt region for spd %d @ %lx.\n", spd_get_index(spd), region);
+			return -1;
+		}
+		
+		spd->sched_shared_page = (struct cos_sched_data_area *)region;
+		/* We will need to access the shared_page for thread
+		 * events when the pagetable for this spd is not
+		 * mapped in.  */
+		spd->kern_sched_shared_page = (struct cos_sched_data_area *)
+			pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, region);
+		spd->prev_notification = 0;
+		/* FIXME: pin the page */
+		
 		break;
+	}
 	case COS_SCHED_THD_EVT:
 	{
 		long idx = option;
 		struct cos_sched_events *evts, *this_evt;
 		struct thd_sched_info *tsi;
 		struct thread *thd;
-
+		
 		thd = thd_get_by_id(thd_id);
 		if (!thd) {
 			printk("cos: thd id %d passed into register event %d invalid.\n",
 			       (unsigned int)thd_id, (unsigned int)idx);
 			return -1;
 		}
-/* 		if (thd->flags & THD_STATE_UPCALL) { */
-/* 			assert(thd->thread_brand); */
-/* 			/\*  */
-/* 			 * Set for all upcall thread associated with a */
-/* 			 * brand, starting from the brand */
-/* 			 *\/ */
-/* 			thd = thd->thread_brand; */
-/* 		} */
-
+		
 		tsi = thd_get_sched_info(thd, spd->sched_depth);
 		if (tsi->scheduler != spd) {
 			printk("cos: spd %d not the scheduler of %d to associate evt %d.\n",
@@ -2207,17 +2213,34 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 		COS_SCHED_EVT_NEXT(this_evt) = 0;
 		COS_SCHED_EVT_FLAGS(this_evt) = 0;
 		this_evt->cpu_consumption = 0;
-
+		
 		if (thd->flags & THD_STATE_BRAND) {
 			struct thread *t = thd->upcall_threads;
-
+			
 			while (t) {
 				copy_sched_info(t, thd);
 				t = t->upcall_threads;
 			}
 		}
-
+		
 		//print_thd_sched_structs(thd);
+		break;
+	}
+	case COS_SCHED_PROMOTE_CHLD:
+	{
+		int sched_lvl = spd->sched_depth + 1;
+		struct spd *child = spd_get_by_index((int)option);
+
+		if (sched_lvl >= MAX_SCHED_HIER_DEPTH) {
+			printk("Cannot promote child, exceeds sched hier depth.\n");
+			return -1;
+		}
+		if (child->parent_sched) {
+			printk("Child scheduler already child to another scheduler.\n");
+			return -1;
+		}
+		child->parent_sched = spd;
+		child->sched_depth = sched_lvl;
 		break;
 	}
 	case COS_SCHED_GRANT_SCHED:
@@ -2285,10 +2308,10 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 		printk("cos: cos_sched_cntl illegal operation %d.\n", operation);
 		return -1;
 	}
-
+	
 	return 0;
-}
-
+	}
+	
 /*
  * Assume spd \in cspd.  Remove spd from cspd and add it to new1. Add
  * all remaining spds in cspd to new2.  If new2 == NULL, and cspd's

@@ -1123,83 +1123,8 @@ static int aed_ioctl(struct inode *inode, struct file *file,
 
 		flush_all(new->pgd);
 
-		/*if (unlikely(old->context.ldt != new->context.ldt)) {
-			printk("cos: BUG: ldt is not the same between mms.\n");
-		}*/
-		//task_unlock(child);
-
-		//printk("cos: switching mm contexts from %p to %p.\n", old, new);
-
-		//mmput(old);
-
 		break;
 	}
-	/* 
-	 * Copy the current memory contents into a mm provided by
-	 * proc_mm.  Not a fast path.
-	 */
-/* 	case AED_COPY_MM: */
-/* 	{ */
-/* 		int fd = (unsigned int)arg; */
-/* 		struct mm_struct *mm = aed_get_mm(fd); */
-/* 		/\*  */
-/* 		 * dummy empty task struct because kernel interfaces */
-/* 		 * for copy_mm are a little daft.  If functions such */
-/* 		 * as dup_mmap were available (exported), then we */
-/* 		 * could avoid this hack, but they aren't. */
-/* 		 *\/ */
-/* 		struct task_struct *dummy = NULL; */
-
-/* 		if (/\*IS_ERR(mm) || *\/!mm) { */
-/* 			printk("cos: fd passed to copy to, %d, is not valid.\n", fd); */
-/* 			ret = -1; */
-/* 			goto free_dummy; */
-
-/* 		} */
-
-/* 		/\* */
-/* 		 * We only want one copy of the executive's pages */
-/* 		 * floating around: This has to be done every time we */
-/* 		 * copy a mm rather than once at executive promotion */
-/* 		 * time as the mmappings of the executive could have */
-/* 		 * changed since we first promoted it. */
-/* 		 *\/ */
-/* 		prevent_executive_copying_on_fork(trusted_mm, trusted_mem_limit,  */
-/* 						  trusted_mem_size);  */
-
-/* 		dummy = kmalloc(sizeof(*dummy), GFP_KERNEL); */
-/* 		if (!dummy) { */
-/* 			ret = -ENOMEM; */
-/* 			break; */
-/* 		} */
-
-/* 		memset(dummy, 0, sizeof(*dummy)); */
-
-/* 		/\* Copy the current mm into a dummy task. *\/ */
-/* 		if ((ret = copy_mm(0, dummy)) != 0) { */
-/* 			printk("cos: Could not copy mm, error %d.\n", ret); */
-/* 			ret = -1; */
-/* 			goto free_dummy; */
-/* 		} */
-
-/* 		/\* if the mm_handle doesn't exist *\/ */
-/* 		if (aed_replace_mm(fd, dummy->mm)) { */
-/* 			printk("cos: Attempted to replace an mm you don't own a handle to.\n"); */
-/* 			ret = -1; */
-/* 			goto free_dummy; */
-/* 		} */
-
-/* 		dummy->mm = NULL; */
-/* 		dummy->active_mm = NULL; */
-
-/* 		printkd("cos: old mm %x replaced in fd %d with %x.\n", */
-/* 			(unsigned int)mm, fd, (unsigned int)aed_get_mm(fd)); */
-
-/* free_dummy: */
-/* 		kfree(dummy); */
-
-/* 		break;		 */
-/* 	} */
 	case AED_CREATE_MM:
 	{
 		int mm_handle = aed_allocate_mm();

@@ -228,6 +228,10 @@ static inline int spd_is_scheduler(struct spd *spd)
 {
 	return spd->sched_depth >= 0;
 }
+static inline int spd_is_root_sched(struct spd *spd)
+{
+	return spd->sched_depth == 0;
+}
 static inline int spd_is_member(struct spd *spd, struct composite_spd *cspd)
 { 
 	return spd->composite_spd == &cspd->spd_info;

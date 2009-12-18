@@ -16,7 +16,6 @@
 #include <cos_scheduler.h>
 //#include <cos_alloc.h>
 #include <cos_time.h>
-#include <cos_spd_name_map.h>
 #include <print.h>
 
 #include <cos_sched_tk.h>
@@ -33,8 +32,8 @@
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 1000
 
-static volatile unsigned long long ticks = 0;
-static volatile unsigned long long wakeup_time;
+static volatile u64_t ticks = 0;
+static volatile u64_t wakeup_time;
 static struct sched_thd *wakeup_thd;
 
 static struct sched_thd *timer, *init, *idle;
@@ -42,6 +41,10 @@ static struct sched_thd blocked;
 static struct sched_thd upcall_deactive;
 
 struct sched_ops *scheduler_ops;
+
+static enum {SCHED_CHILD, SCHED_ROOT} sched_type = SCHED_ROOT;
+static inline int sched_is_root(void) { return sched_type == SCHED_ROOT; }
+static inline int sched_is_child(void) { return !sched_is_root(); }
 
 #define FPRR_REPORT_EVTS
 
@@ -257,7 +260,6 @@ static void evt_callback(struct sched_ops *ops, struct sched_thd *t, u8_t flags,
 	sa->cycles += cpu_usage;
 	if (ops->time_elapsed(t, cpu_usage)) assert(0);
 	/* if quota has expired, block?? */
-
 	return;
 }
 
@@ -333,8 +335,8 @@ static int sched_switch_thread_target(struct sched_ops *ops, int flags, report_e
 			 * current is the highest priority thread because
 			 * current will terminate execution with the switch.
 			 */
+			assert(ops->schedule);
 			if (flags & (COS_SCHED_BRAND_WAIT|COS_SCHED_TAILCALL)) {
-				assert(ops->schedule);
 				/* we don't want next to be us! We are an
 				 * upcall completing execution */
 				next = ops->schedule(current);
@@ -353,10 +355,16 @@ static int sched_switch_thread_target(struct sched_ops *ops, int flags, report_e
 		}
 		next = resolve_dependencies(next);
 		if (next == current) goto done;
+		if (unlikely(next == idle && sched_is_child())) {
+			/* We are in the timer/child event thread! */
+			if (current == timer) goto done;
+			next = timer;
+		}
 		ret = cos_switch_thread_release(next->id, flags);
 		assert(ret != COS_SCHED_RET_ERROR);
-		/* success, exit the loop! */
-		if (likely(COS_SCHED_RET_SUCCESS == ret)) break;
+		/* success, or we need to check for more child events:
+		 * exit the loop! */
+		if (likely(COS_SCHED_RET_SUCCESS == ret) || COS_SCHED_RET_CEVT == ret) break;
 
 		cos_sched_lock_take();
 		if (evt != NULL_EVT) report_event(evt);
@@ -460,6 +468,7 @@ static void fp_create_spd_thd(void *d)
 	if (cos_upcall(spdid)) {
 		prints("fprr: error making upcall into spd.\n");
 	}
+	assert(0);
 }
 
 static void fp_idle_loop(void *d)
@@ -766,6 +775,7 @@ int sched_component_take(spdid_t spdid)
 	return 0;
 }
 
+/* Release the component's lock */
 int sched_component_release(spdid_t spdid)
 {
 	struct sched_thd *curr;
@@ -783,29 +793,31 @@ int sched_component_release(spdid_t spdid)
 	return 0;
 }
 
+extern int parent_sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd);
+
 static struct sched_thd *sched_setup_thread_arg(char *metric_str, crt_thd_fn_t fn, void *d)
 {
 	unsigned int thd_id;
 	struct sched_thd *new;
 
-	thd_id = cos_create_thread((int)fn, (int)d, 0);
+	thd_id = (SCHED_ROOT == sched_type)           ? 
+		cos_create_thread((int)fn, (int)d, 0) :
+		parent_sched_child_thd_crt(cos_spd_id(), (spdid_t)(int)d);
+
+	assert(0 != thd_id);
 	new = sched_alloc_thd(thd_id);
 	assert(new);
-//	fp_add_thd(new, priority);
-//	fp_new_thd(new);
 	if (0 > sched_alloc_event(new)) assert(0);
 	sched_add_mapping(thd_id, new);
 	scheduler_ops->thread_params_set(new, metric_str);
-//	sched_get_metric(new)->priority = priority;
-//	sched_get_metric(new)->urgency = urgency;
 	scheduler_ops->thread_new(new);
-//	sched_set_thd_urgency(new, urgency);
 
 	return new;
 }
 
 static struct sched_thd *sched_setup_thread(char *metric_str, crt_thd_fn_t fn)
 {
+	assert(sched_type == SCHED_ROOT);
 	return sched_setup_thread_arg(metric_str, fn, 0);
 }
 
@@ -830,6 +842,157 @@ int sched_create_thread(spdid_t spdid, struct cos_array *data)
 	       new->id, spdid, curr->id);
 
 	return new->id;
+}
+
+/* 
+ * Set the calling spd to be the child scheduler of this scheduler,
+ * and set the current thread to be the child scheduler's control
+ * thread.
+ */
+int sched_child_cntl_thd(spdid_t spdid)
+{
+	struct sched_thd *c;
+
+	c = sched_get_current();
+	sched_grp_make(c, spdid);
+	if (cos_sched_cntl(COS_SCHED_PROMOTE_CHLD, 0, spdid)) assert(0);
+	if (cos_sched_cntl(COS_SCHED_GRANT_SCHED, c->id, spdid)) assert(0);
+
+	c->cid = spdid;
+	scheduler_ops->thread_child_grp(c);
+	c->tick = ticks;
+
+	return 0;
+}
+
+/* 
+ * The child scheduler spdid, wishes to create a new thread to be
+ * controlled by it in the dest_spd.
+ */
+int sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd)
+{
+	struct sched_thd *t, *st, *new;
+	unsigned int new_tid;
+
+	cos_sched_lock_take();
+	t = sched_get_current();
+	if (!(sched_thd_member(t) || sched_thd_grp(t))) goto err;
+	st = sched_thd_grp(t) ? t : t->group;
+
+	new_tid = (SCHED_ROOT == sched_type) ?
+		cos_create_thread((int)fp_create_spd_thd, (int)dest_spd, 0) :
+		parent_sched_child_thd_crt(cos_spd_id(), dest_spd);
+
+	assert(0 != new_tid);
+	new = sched_alloc_thd(new_tid);
+	assert(new);
+	//if (0 > sched_alloc_event(new)) assert(0);
+	sched_add_mapping(new_tid, new);
+
+	sched_grp_add(st, new);
+	if (cos_sched_cntl(COS_SCHED_GRANT_SCHED, new_tid, spdid)) assert(0);
+
+	scheduler_ops->thread_child_new(new, st);
+
+	cos_sched_lock_release();
+	return new_tid;
+err:
+	cos_sched_lock_release();
+	return -1;
+}
+
+int sched_get_cevt(spdid_t spdid, struct sched_child_evt *e, int idle)
+{
+	struct sched_thd *t, *et;
+	u64_t ts;
+	int c = 0;
+
+	e->t = SCHED_CEVT_OTHER;
+	e->tid = 0;
+	e->time_elapsed = 0;
+	
+	assert(e);
+	cos_sched_lock_take();
+
+	t = sched_get_current();
+	if (!sched_thd_grp(t)) goto err;
+	assert(t->cid == spdid);
+	ts = t->tick;
+	if (ticks > ts) {
+		e->time_elapsed = ticks - ts;
+		t->tick = ticks;
+	}
+
+	if (EMPTY_LIST(t, cevt_next, cevt_prev)) goto done;
+	et = FIRST_LIST(t, cevt_next, cevt_prev);
+	REM_LIST(et, cevt_next, cevt_prev);
+
+	assert(sched_thd_member(et));
+	e->tid = et->id;
+	if (sched_thd_blocked(et)) {
+		e->t = SCHED_CEVT_BLOCK;
+	} else if (sched_thd_ready(et) || sched_thd_dependent(et)) {
+		e->t = SCHED_CEVT_WAKE;
+	} else {
+		printc("child thd evt with flags %x.", et->flags);
+		assert(0);
+	}
+done:
+	cos_sched_lock_release();
+	return c;
+err:
+	c = -1;
+	goto done;
+}
+
+static void sched_process_cevt(struct sched_child_evt *e)
+{
+	struct sched_thd *t;
+
+	switch(e->t) {
+	case SCHED_CEVT_WAKE:
+		t = sched_get_mapping(e->tid);
+		assert(NULL != t);
+		assert(0 == t->wake_cnt);
+		fp_pre_wakeup(t);
+		fp_wakeup(t, 0);
+		break;
+	case SCHED_CEVT_BLOCK:
+		t = sched_get_mapping(e->tid);
+		assert(NULL != t);
+		fp_pre_block(t);
+		assert(0 == t->wake_cnt);
+		fp_block(t, 0);
+		break;
+	case SCHED_CEVT_OTHER:
+		break;
+	}
+	/* might be 0 */
+	ticks += e->time_elapsed;
+}
+
+extern int parent_sched_get_cevt(spdid_t spdid, struct sched_child_evt *e, int idle);
+
+static void sched_child_evt_thd(void)
+{
+	struct sched_child_evt *e;
+
+	e = cos_argreg_alloc(sizeof(struct sched_child_evt));
+	assert(NULL != e);
+	while (1) {
+		int cont;
+
+		cos_sched_clear_cevts();
+		cont = parent_sched_get_cevt(cos_spd_id(), e, 1);
+		cos_sched_lock_take();
+		sched_process_cevt(e);
+		while (cont) {
+			cont = parent_sched_get_cevt(cos_spd_id(), e, 0);
+			sched_process_cevt(e);
+		}
+		sched_switch_thread(scheduler_ops, 0, NULL_EVT);
+	}
+	cos_argreg_free(e);
 }
 
 /* return the id of the brand created */
@@ -890,6 +1053,7 @@ static struct sched_thd *fp_create_timer(void)
 	int bid;
 
 	bid = sched_setup_brand(cos_spd_id());
+	assert(sched_type == SCHED_ROOT);
 	timer = sched_setup_thread_arg("t", fp_timer, (void*)bid);
 	if (NULL == timer) assert(0);
 	if (0 > sched_add_thd_to_brand(cos_spd_id(), bid, timer->id)) assert(0);
@@ -899,26 +1063,12 @@ static struct sched_thd *fp_create_timer(void)
 	return timer;
 }
 
-int sched_init(void)
+static int sched_init(void)
 {
 	static int first = 1;
 	int i = 0;
 	spdid_t ret;
 	struct sched_thd *new;
-
-//#define MICRO_INV
-#ifdef MICRO_INV
-#define MICRO_ITER 1000000
-	extern void print_null(void);
-	{
-		assert(!cos_mpd_cntl(COS_MPD_MERGE, 1, 6));
-		int i;
-		for (i = 0 ; i < MICRO_ITER ; i++) {
-			print_null();
-		}
-	}
-	return 0;
-#endif
 
 	assert(first);
 	first = 0;
@@ -964,6 +1114,24 @@ int sched_init(void)
 	return 0;
 }
 
+extern int parent_sched_child_cntl_thd(spdid_t spdid);
+static void sched_child_init(void)
+{
+	if (parent_sched_child_cntl_thd(cos_spd_id())) assert(0);
+	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)&cos_sched_notifications)) assert(0);
+
+	sched_init();
+	return;
+}
+
+void sched_root_init(void)
+{
+	cos_argreg_init();
+
+	sched_init();
+	return;
+}
+
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	switch (t) {
@@ -973,9 +1141,12 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		break;
 	}
 	case COS_UPCALL_BOOTSTRAP:
-		cos_argreg_init();
-		sched_init();
+	{
+		/* Child scheduler */
+		sched_type = SCHED_CHILD;
+		sched_child_init();
 		break;
+	}
 	case COS_UPCALL_CREATE:
 		cos_argreg_init();
 		((crt_thd_fn_t)arg1)(arg2);

@@ -243,6 +243,20 @@ static int fp_thread_new(struct sched_thd *t)
 	return 0;
 }
 
+/* Add a thread to a child scheduler's thd */
+static int fp_thread_child_new(struct sched_thd *t, struct sched_thd *chld)
+{
+	fp_new_thd(t);
+	assert(0);
+	return 0;
+}
+
+static int fp_thread_child_grp(struct sched_thd *g)
+{
+	assert(0);
+	return 0;
+}
+
 #include <stdlib.h>
 static int fp_thread_params(struct sched_thd *t, char *p)
 {
@@ -305,6 +319,8 @@ static void fp_runqueue_print(void)
 
 struct sched_ops fp_ops = {
 	.thread_new = fp_thread_new,
+	.thread_child_grp = fp_thread_child_grp,
+	.thread_child_new = fp_thread_child_new,
 	.thread_remove = fp_thread_remove,
 	.runqueue_print = fp_runqueue_print,
 	.thread_params_set = fp_thread_params,

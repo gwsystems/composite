@@ -35,7 +35,7 @@
 #include <thread.h>
 #include <ipc.h>
 
-#include "t/cos_spd_name_map.h"
+#include "t/sched_config.h"
 
 enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_HIGH;
 
@@ -1707,11 +1707,12 @@ static void setup_kernel(struct service_symbs *services)
 	unsigned long long start, end;
 	
 	cntl_fd = aed_open_cntl_fd();
-	
+
 	s = services;
 	while (s) {
 		struct service_symbs *t;
 		struct spd_info *t_spd;
+		char *name;
 
 		t = s;
 		if (strstr(s->obj, INIT_COMP) != NULL) {
@@ -1720,7 +1721,13 @@ static void setup_kernel(struct service_symbs *services)
 		} else {
 			t_spd = create_spd(cntl_fd, t, t->lower_addr, t->size);
 		}
-		if (!strstr(s->obj, spd_name_map_name(t_spd->spd_handle))) {
+		name = spd_name_map_name(t_spd->spd_handle);
+		if (!name) {
+			fprintf(stderr, "\tCannot find object from handle %d, make sure it is in sched_config.h.\n", 
+				t_spd->spd_handle);
+			exit(-1);
+		}
+		if (!strstr(s->obj, name)) {
 			fprintf(stderr, "*** OBJECT ORDER MISMATCH FOUND: %s@%d and should be @ %d ***\n", 
 				s->obj, t_spd->spd_handle, spd_name_map_id(s->obj));
 		}
@@ -1728,9 +1735,9 @@ static void setup_kernel(struct service_symbs *services)
 			fprintf(stderr, "\tCould not find service object.\n");
 			exit(-1);
 		}
-		
 		s = s->next;
 	}
+
 	s = services;
 	while (s) {
 		if (create_spd_capabilities(s, cntl_fd)) {
@@ -1925,54 +1932,6 @@ int main(int argc, char *argv[])
 //	print_kern_symbs(services);
 
 	setup_kernel(services);
-
-/* 	start_composite(services); */
-
-/* 	{ */
-/* 		struct spd *spd; */
-/* 		struct usr_inv_cap *c; */
-
-/* 		spd = services->spd; */
-/* 		c = &spd->user_cap_tbl[1]; */
-/* 		c->invocation_fn = (vaddr_t)&DS_ipc_client_marshal; */
-/* 		c = &spd->user_cap_tbl[2]; */
-/* 		c->invocation_fn = (vaddr_t)&DS_ipc_client_marshal; */
-
-/* 		spd = services->next->spd; */
-/* 		c = &spd->user_cap_tbl[1]; */
-/* 		c->invocation_fn = (vaddr_t)&DS_ipc_client_marshal; */
-
-/* 		spd = services->next->next->spd; */
-/* 		c = &spd->user_cap_tbl[1]; */
-/* 		c->invocation_fn = (vaddr_t)&DS_ipc_client_marshal; */
-/* 	} */
-
-/* 	{ */
-/* 		struct service_symbs *second = services;//->next;//services;//->next; */
-/* 		unsigned long long start, end; */
-/* 		vaddr_t entry; */
-/* 		int (*fn)(); */
-/* 		int ret; */
-/* 		char *entry_name = "spd0_main"; */
-
-/* #define ITER 10000 */
-/* #define rdtscll(val) \ */
-/*       __asm__ __volatile__("rdtsc" : "=A" (val)) */
-
-/* 		entry = get_symb_address(&second->exported, entry_name); */
-/* 		if (entry == 0) { */
-/* 			printl(PRINT_DEBUG, "Could not find %s in %s.\n", entry_name, second->obj); */
-/* 			goto dealloc_exit; */
-/* 		} */
-/* 		printl(PRINT_DEBUG, "Entry in %s for %s is @ %x.\n", second->obj, entry_name, */
-/* 		       (unsigned int)entry); */
-/* 		fn = (int (*)())entry; */
-
-/* 		rdtscll(start); */
-/* 		ret = fn(); */
-/* 		rdtscll(end); */
-/* 		printl(PRINT_DEBUG, "Invocation takes %lld, ret %d.\n", (end-start)/ITER, ret); */
-/* 	} */
 
 	ret = 0;
 

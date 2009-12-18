@@ -133,7 +133,6 @@ void cos_sched_set_evt_urgency(u8_t evt_id, u16_t urgency)
 
 struct sched_thd *sched_thd_map[SCHED_NUM_THREADS];
 struct sched_thd sched_thds[SCHED_NUM_THREADS]; 
-struct sched_thd sched_grps[SCHED_NUM_THREADS];
 struct sched_thd *sched_map_evt_thd[NUM_SCHED_EVTS];
 
 void sched_init_thd(struct sched_thd *thd, unsigned short int thd_id, int flags)
@@ -145,6 +144,7 @@ void sched_init_thd(struct sched_thd *thd, unsigned short int thd_id, int flags)
 	cos_memset(thd, 0, sizeof(struct sched_thd));
 	INIT_LIST(thd, next, prev);
 	INIT_LIST(thd, prio_next, prio_prev);
+	INIT_LIST(thd, cevt_next, cevt_prev);
 	thd->id = thd_id;
 	thd->flags = flags;
 	thd->wake_cnt = 1;
@@ -186,7 +186,6 @@ void sched_ds_init(void)
 
 	for (i = 0 ; i < SCHED_NUM_THREADS ; i++) {
 		sched_thds[i].flags = THD_FREE;
-		sched_grps[i].flags = THD_FREE;
 	}
 	for (i = 0 ; i < SCHED_NUM_THREADS ; i++) {
 		sched_thd_map[i] = NULL;
@@ -235,36 +234,6 @@ struct sched_thd *sched_alloc_upcall_thd(unsigned short int thd_id)
 	return t; 
 }
 
-void sched_make_grp(struct sched_thd *thd, unsigned short int sched_thd)
-{
-	assert(!sched_thd_grp(thd) && 
-	       !sched_thd_free(thd) && 
-	       !sched_thd_member(thd));
-
-	thd->flags |= THD_GRP;
-	thd->id = sched_thd;
-}
-
-struct sched_thd *sched_alloc_grp(unsigned short int sched_thd)
-{
-	int i;
-	struct sched_thd *thd;
-
-	for (i = 0 ; i < SCHED_NUM_THREADS ; i++) {
-		thd = &sched_grps[i];
-		
-		if (!(thd->flags & THD_FREE)) continue;
-		
-		thd->flags = 0;
-		sched_init_thd(thd, sched_thd, THD_READY);
-		sched_make_grp(thd, sched_thd);
-
-		return thd;
-	}
-
-	return NULL;
-} 
-
 void sched_free_thd(struct sched_thd *thd)
 {
 	assert(!sched_thd_free(thd));
@@ -272,41 +241,40 @@ void sched_free_thd(struct sched_thd *thd)
 	thd->flags = THD_FREE;
 }
 
-
-void sched_add_grp(struct sched_thd *grp, struct sched_thd *thd)
+void sched_grp_make(struct sched_thd *thd, spdid_t csched)
 {
-	assert(sched_thd_grp(grp) &&
-	       !sched_thd_free(grp) &&
-	       !sched_thd_free(thd) && 
-	       !sched_thd_grp(thd) && 
-	       !sched_thd_member(thd));
+	assert(!sched_thd_grp(thd) && !sched_thd_free(thd) && !sched_thd_member(thd));
+
+	thd->flags |= THD_GRP;
+	thd->cid = csched;
+}
+
+void sched_grp_add(struct sched_thd *grp, struct sched_thd *thd)
+{
+	assert(sched_thd_grp(grp) && !sched_thd_free(grp) && !sched_thd_free(thd) && 
+	       !sched_thd_grp(thd) && !sched_thd_member(thd));
 
 	thd->flags |= THD_MEMBER;
 	thd->group = grp;
 
 	ADD_LIST(grp, thd, next, prev);
-	grp->nthds++;
 }
 
-void sched_rem_grp(struct sched_thd *grp, struct sched_thd *thd)
+void sched_grp_rem(struct sched_thd *thd)
 {
-	assert(sched_thd_grp(grp) &&
-	       !sched_thd_free(grp) && 
-	       !sched_thd_free(thd) && 
-	       !sched_thd_grp(thd) && 
-	       sched_thd_member(thd) &&
-	       thd->group == grp);
+	struct sched_thd *grp;
+
+	grp = thd->group;
+	assert(grp && sched_thd_grp(grp) && !sched_thd_free(grp) && !sched_thd_free(thd) && 
+	       !sched_thd_grp(thd) && sched_thd_member(thd) && thd->group == grp);
 
 	thd->group = NULL;
 	thd->flags &= ~THD_MEMBER;
 
 	REM_LIST(thd, next, prev);
-	grp->nthds--;
+	REM_LIST(thd, cevt_next, cevt_prev);
 }
-
 
 /************** critical section functions/state *************/
 
 struct sched_crit_section sched_spd_crit_sections[MAX_NUM_SPDS];
-
-

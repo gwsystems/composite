@@ -5,6 +5,9 @@
  * Public License v2.
  *
  * Initial Author: Gabriel Parmer, gabep1@cs.bu.edu, 2007
+ * 
+ * Copyright The George Washington University, Gabriel Parmer,
+ * gparmer@gwu.edu, 2009
  */
 
 //#include <spd.h>

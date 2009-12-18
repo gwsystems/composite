@@ -67,16 +67,18 @@ struct cos_synchronization_atom {
 } __attribute__((packed));
 
 /* 
- * If this value is set, then another scheduling event has occurred.
- * These can include events such as asynchronous invocations, or
- * parent events (child thread blocks, wakes up, etc...  When events
- * are parsed, or the parent is polled for events, this value should
- * be cleared.  When a scheduling decision is made and switch_thread
- * is invoked, if this is set, then the switch will not happen, and an
- * appropriate return value will be returned.
+ * If the pending_event value is set, then another scheduling event
+ * has occurred.  These can include events such as asynchronous
+ * invocations, or parent events (child thread blocks, wakes up,
+ * etc...  When events are parsed, or the parent is polled for events,
+ * this value should be cleared.  When a scheduling decision is made
+ * and switch_thread is invoked, if this is set, then the switch will
+ * not happen, and an appropriate return value will be returned.  If
+ * the pending_cevt flag is set, then the parent has triggered an
+ * event since we last checked for them.
  */
 struct cos_event_notification {
-	volatile u32_t pending_event;
+	volatile u32_t pending_event, pending_cevt;
 };
 
 /* 
@@ -220,6 +222,12 @@ enum {
 	COS_THD_INVFRM_IP,	/* get the instruction pointer in an inv frame  */
 	COS_THD_INVFRM_SP,	/* get the stack pointer in an inv frame  */
 	COS_THD_INVFRM_FP, 	/* get current frame pointer _only if thread is preempted_ */
+	COS_THD_GET_IP, 	/* get thread's instruction pointer */
+	COS_THD_SET_IP, 	/* set thread's instruction pointer
+				 * FIXME: should only work on threads
+				 * that haven't executed yet, or
+				 * whose ip is in the current component */
+	COS_THD_GET_SP, 	/* get thread's stack pointer */
 	COS_THD_STATUS
 };
 enum {
@@ -232,6 +240,7 @@ enum {
 enum {
 	COS_SCHED_EVT_REGION,
 	COS_SCHED_THD_EVT,
+	COS_SCHED_PROMOTE_CHLD,
 	COS_SCHED_GRANT_SCHED,
 	COS_SCHED_REVOKE_SCHED,
 	COS_SCHED_REMOVE_THD,
@@ -252,6 +261,7 @@ enum {
 /* Either we tried to schedule ourselves, or an event occurred that we
  * haven't processed: do scheduling computations again! */
 #define COS_SCHED_RET_AGAIN    1
+#define COS_SCHED_RET_CEVT     2
 
 struct mpd_split_ret {
 	short int new, old;

@@ -45,6 +45,11 @@
 
 #define SCHED_NUM_THREADS MAX_NUM_THREADS
 
+#define SCHED_CEVT_OTHER     0x1
+#define SCHED_CEVT_WAKE      0x2
+#define SCHED_CEVT_BLOCK     0x4
+typedef int cevt_t;
+
 struct sched_accounting {
 	unsigned long C, T, C_used, T_left;
 	unsigned long long cycles;
@@ -74,17 +79,25 @@ struct sched_thd {
 	struct sched_thd *dependency_thd;
 	unsigned long long block_time;
 
-	/* If flags & THD_MEMBER */
-	struct sched_thd *group;
-	/* If flags & THD_GRP */
-	int nthds;
-
-	/* linked list for all threads in a group */
+	/* scheduler hierarchy fields: child event flags */
+	cevt_t cevt_flags;
+	struct sched_thd *group; /* If flags & THD_MEMBER */
+	spdid_t cid; /* If flags & THD_GRP */
+	u64_t tick;
+	/* linked list for all threads in a group: */
 	struct sched_thd *next, *prev;
+	/* linked list for child threads with events */
+	struct sched_thd *cevt_next, *cevt_prev;
 };
 
 struct sched_crit_section {
 	struct sched_thd *holding_thd;
+};
+
+struct sched_child_evt {
+	cevt_t t; // type
+	unsigned short int tid;
+	u64_t time_elapsed;
 };
 
 void sched_init_thd(struct sched_thd *thd, unsigned short int id, int flags);
@@ -92,9 +105,9 @@ struct sched_thd *sched_alloc_thd(unsigned short int id);
 struct sched_thd *sched_alloc_upcall_thd(unsigned short int thd_id);
 void sched_ds_init(void);
 void sched_free_thd(struct sched_thd *thd);
-void sched_make_grp(struct sched_thd *thd, unsigned short int sched_thd);
-void sched_add_grp(struct sched_thd *grp, struct sched_thd *thd);
-void sched_rem_grp(struct sched_thd *grp, struct sched_thd *thd);
+void sched_grp_make(struct sched_thd *thd, spdid_t chld_sched);
+void sched_grp_add(struct sched_thd *grp, struct sched_thd *thd);
+void sched_grp_rem(struct sched_thd *thd);
 
 static inline struct sched_accounting *sched_get_accounting(struct sched_thd *thd)
 {
@@ -131,6 +144,12 @@ static inline void cos_sched_clear_events(void)
 {
 	cos_sched_notifications.cos_evt_notif.pending_event = 0;
 }
+
+static inline void cos_sched_clear_cevts(void)
+{
+	cos_sched_notifications.cos_evt_notif.pending_cevt = 0;
+}
+
 int cos_sched_event_to_process(void);
 int cos_sched_process_events(sched_evt_visitor_t fn, struct sched_ops *ops, unsigned int proc_amnt);
 void cos_sched_set_evt_urgency(u8_t id, u16_t urgency);
@@ -154,10 +173,6 @@ static inline void sched_set_thd_urgency(struct sched_thd *t, u16_t urgency)
 
 
 /* --- Thread Id -> Sched Thread Mapping Utilities --- */
-
-/* 
- * FIXME: add locking.
- */
 
 extern struct sched_thd *sched_thd_map[];
 static inline struct sched_thd *sched_get_mapping(unsigned short int thd_id)
@@ -204,10 +219,8 @@ static inline void sched_rem_mapping(unsigned short int thd_id)
 static inline int sched_is_grp(struct sched_thd *thd)
 {
 	assert(!sched_thd_free(thd));
-
 	if (thd->flags & THD_GRP) {
 		assert(!sched_thd_member(thd));
-		
 		return 1;
 	}
 	assert(!sched_thd_grp(thd));
