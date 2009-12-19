@@ -15,8 +15,6 @@
 struct sched_ops {
 	/* add a new schedulable thread */
 	int (*thread_new)(struct sched_thd *t);
-	int (*thread_child_new)(struct sched_thd *t, struct sched_thd *chld);
-	int (*thread_child_grp)(struct sched_thd *g);
 	int (*thread_remove)(struct sched_thd *t);
 	int (*thread_params_set)(struct sched_thd *t, char *params);
 

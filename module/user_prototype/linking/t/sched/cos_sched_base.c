@@ -179,6 +179,8 @@ static void report_thd_accouting(void)
 	report_output();
 }
 
+static void activate_child_sched(struct sched_thd *g);
+
 static inline void fp_resume_thd(struct sched_thd *t)
 {
 	assert(sched_thd_blocked(t));
@@ -189,7 +191,14 @@ static inline void fp_resume_thd(struct sched_thd *t)
 	t->flags |= THD_READY;
 	REM_LIST(t, prio_next, prio_prev);
 	//fp_move_end_runnable(t);
-	if (scheduler_ops->thread_wakeup(t)) assert(0);
+	/* child threads aren't reported to the scheduler */
+	if (!sched_thd_member(t)) {
+		if (scheduler_ops->thread_wakeup(t)) assert(0);
+	} else if (EMPTY_LIST(t, cevt_next, cevt_prev) /* && is member */) {
+		struct sched_thd *g = sched_get_grp(t);
+		ADD_LIST(g, t, cevt_next, cevt_prev);
+		activate_child_sched(g);
+	}
 }
 
 static void fp_activate_upcall(struct sched_thd *uc)
@@ -217,9 +226,12 @@ static void fp_deactivate_upcall(struct sched_thd *uc)
 static void evt_callback(struct sched_ops *ops, struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 {
 	struct sched_accounting *sa;
+	assert(!sched_thd_member(t));
 
 	if (flags & (COS_SCHED_EVT_BRAND_ACTIVE|COS_SCHED_EVT_BRAND_READY|COS_SCHED_EVT_BRAND_PEND)) {
-		if (flags & COS_SCHED_EVT_BRAND_ACTIVE) {
+		if (sched_thd_grp(t)) {
+			activate_child_sched(t);
+		} else if (flags & COS_SCHED_EVT_BRAND_ACTIVE) {
 			report_event(BRAND_ACTIVE);
 			fp_activate_upcall(t);
 		} else if (flags & COS_SCHED_EVT_BRAND_READY) {
@@ -654,12 +666,18 @@ static inline void fp_block_thd(struct sched_thd *t)
 {
 	assert(!sched_thd_free(t));
 	assert(!sched_thd_blocked(t));
+	assert(!sched_thd_grp(t));
 	assert(t->wake_cnt == 0);
 
 	t->flags &= ~THD_READY;
 	t->flags |= THD_BLOCKED;
-	if (scheduler_ops->thread_block(t)) assert(0);
-	assert(EMPTY_LIST(t, prio_next, prio_prev));
+	/* Child threads aren't reported to the scheduler */
+	if (!sched_thd_member(t)) {
+		if (scheduler_ops->thread_block(t)) assert(0);
+		assert(EMPTY_LIST(t, prio_next, prio_prev));
+	} else if (EMPTY_LIST(t, cevt_next, cevt_prev) /* && is member */) {
+		ADD_LIST(sched_get_grp(t), t, cevt_next, cevt_prev);
+	}
 	ADD_LIST(&blocked, t, prio_next, prio_prev);
 }
 
@@ -844,6 +862,28 @@ int sched_create_thread(spdid_t spdid, struct cos_array *data)
 	return new->id;
 }
 
+static void activate_child_sched(struct sched_thd *g)
+{
+	assert(sched_thd_grp(g));
+	assert(!sched_thd_free(g));
+
+	if (sched_thd_blocked(g)) {
+		fp_pre_wakeup(g);
+		fp_wakeup(g, 0);
+	}
+}
+
+/* Only really done when a child scheduler idles */
+static void deactivate_child_sched(struct sched_thd *t)
+{
+	assert(sched_thd_grp(t));
+	assert(!sched_thd_free(t));
+	assert(sched_thd_ready(t));
+
+	fp_pre_block(t);
+	fp_block(t, 0);
+}
+
 /* 
  * Set the calling spd to be the child scheduler of this scheduler,
  * and set the current thread to be the child scheduler's control
@@ -858,8 +898,6 @@ int sched_child_cntl_thd(spdid_t spdid)
 	if (cos_sched_cntl(COS_SCHED_PROMOTE_CHLD, 0, spdid)) assert(0);
 	if (cos_sched_cntl(COS_SCHED_GRANT_SCHED, c->id, spdid)) assert(0);
 
-	c->cid = spdid;
-	scheduler_ops->thread_child_grp(c);
 	c->tick = ticks;
 
 	return 0;
@@ -891,8 +929,6 @@ int sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd)
 
 	sched_grp_add(st, new);
 	if (cos_sched_cntl(COS_SCHED_GRANT_SCHED, new_tid, spdid)) assert(0);
-
-	scheduler_ops->thread_child_new(new, st);
 
 	cos_sched_lock_release();
 	return new_tid;
