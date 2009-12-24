@@ -1,0 +1,23 @@
+include ../../../Makefile.inc
+
+CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wno-unused-function -ggdb3 -I$(KINC)
+PRODUCTS=cos_loader gen_client_stub
+
+default: $(PRODUCTS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -I$(CDIR)/include/ -c -o $@ $^
+
+gen_client_stub: gen_client_stub.o
+	$(CC) $(CFLAGS) -o $@ $< 
+
+cos_loader: cos_loader.o
+	$(CC) $(CFLAGS) -o $@ $^ -L/usr/lib -lbfd -liberty
+
+cp:
+	cp cos_loader gen_client_stub $(TRANS_DIR)
+
+clean:
+	rm -f *~ *.o *.a $(PRODUCTS)
+
+fresh: clean default
