@@ -22,9 +22,9 @@ LIB_FLAGS=-L$(LIBDIR) -L$(INTERDIR) -lcos_component -lcos_synchronization -lcos_
 # link-in.
 LIB_ASM_MANDITORY=$(LIBDIR)/$(MANDITORY_LIB)
 
-C_COMPS=comp0.o print_comp.o mem_man.o cos_net.o ds.o uc_test.o wf_test.o lock.o timed_event.o mailbox.o mpd_mgr.o evt.o fd_api.o conn_mgr.o https.o stat_gather.o stack_trace.o static_content.o content_mgr.o netif.o cos_ip.o async_inv.o fake_net.o persist_cgi.o port_mgr.o sched_config.o base_case.o
+C_COMPS=comp0.o print_comp.o mem_man.o cos_net.o lock.o timed_event.o mpd_mgr.o evt.o fd_api.o conn_mgr.o https.o stat_gather.o stack_trace.o static_content.o content_mgr.o netif.o cos_ip.o async_inv.o fake_net.o persist_cgi.o port_mgr.o sched_config.o base_case.o
 PRODUCTS=$(C_COMPS)
-COMPONENTS=c0.o print.o mm.o net.o d.o uc.o wftest.o l.o te.o mb.o mpd.o e.o fd.o conn.o http.o stat.o st.o cm.o sc.o if.o ip.o ainv.o fn.o cgi.o fd2.o fd3.o cgi2.o port.o ainv2.o schedconf.o bc.o
+COMPONENTS=c0.o print.o mm.o net.o l.o te.o mpd.o e.o fd.o conn.o http.o stat.o st.o cm.o sc.o if.o ip.o ainv.o fn.o cgi.o fd2.o fd3.o cgi2.o port.o ainv2.o schedconf.o bc.o
 TMP_STR=tmp
 
 SOURCES=$(C_COMPS:%.o=%.c) $(LIB_C_OBJS:%.o=%.c) 
@@ -43,12 +43,8 @@ stubs: $(PRODUCTS)
 	@$(LD) -r -o c0.o comp0.o
 	@$(LD) -r -o print.o print_comp.o $(INTERDIR)/s_stubprint.o
 	@$(LD) -r -o mm.o mem_man.o $(INTERDIR)/s_stubmm.o
-	@$(LD) -r -o wftest.o wf_test.o
 	@$(LD) -r -o te.o timed_event.o $(INTERDIR)/s_stubte.o
 	@$(LD) -r -o l.o lock.o $(INTERDIR)/s_stublock.o
-	@$(LD) -r -o d.o ds.o $(INTERDIR)/s_stubds.o
-	@$(LD) -r -o mb.o mailbox.o $(INTERDIR)/s_stubmb.o
-	@$(LD) -r -o uc.o uc_test.o
 	@$(LD) -r -o net.o cos_net.o $(INTERDIR)/s_stubnet.o
 	@$(LD) -r -o e.o evt.o $(INTERDIR)/s_stube.o
 	@$(LD) -r -o fd.o fd_api.o $(INTERDIR)/s_stubfd.o

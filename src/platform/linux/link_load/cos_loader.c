@@ -268,7 +268,6 @@ static int calculate_mem_size(int first, int last)
 		offset = calc_offset(offset, srcobj[i].s);
 		srcobj[i].offset = offset;
 		offset += bfd_get_section_size(srcobj[i].s);
-		printl(PRINT_DEBUG, ">>> section %s(%d), size %x\n", srcobj[i].s->name, i, bfd_get_section_size(srcobj[i].s));
 	}
 	
 	return offset;
@@ -1249,7 +1248,6 @@ static void gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *servic
  */
 static int load_all_services(struct service_symbs *services)
 {
-	void *ret_addr;
 	unsigned long service_addr = BASE_SERVICE_ADDRESS;
 
 	service_addr += DEFAULT_SERVICE_SIZE;
