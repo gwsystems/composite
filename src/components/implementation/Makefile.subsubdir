@@ -1,0 +1,84 @@
+# Note: I have added -fno-merge-constants so that all strings will be
+# placed in the .rodata section as opposed to .rodata.str1.x | x in
+# uints
+#
+# -Xlinker -r is used to pass flags into the linker, in this case to
+# prevent dietlibc from creating an executable and linking in many of
+# its normal symbols
+
+# I never want to touch this again, but will have to
+
+include Makefile.src Makefile.comp
+
+COMPNAME=$(lastword $(subst /, ,$(shell pwd)))
+
+# These are compiled in with the components regardless of if they
+# export an undefined symbol from the component.  They are a manditory
+# link-in.
+LIB_ASM_MANDITORY=$(LIBDIR)/$(MANDITORY_LIB)
+
+IF_INCLUDE=$(foreach I,$(INTERFACES),-I$(INTERDIR)/$(I)/)
+IF_SERV_STUBS=$(foreach I,$(INTERFACES),$(INTERDIR)/$(I)/$(SERVER_STUB))
+#dependency components added to include listings and linker listings
+DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
+DEP_LIB=$(foreach D,$(DEPENDENCIES),-L$(INTERDIR)/$(D)/)
+
+#COMPLIB=$(if $(wildcard $(CLIB)),$(CLIB))
+COMPLIB=$(IF_LIB)
+OBJS=$(C_OBJS) $(ASM_OBJS) $(COMPLIB)
+TMP_STR=tmp
+INCLUDE=-I../ $(DEP_INC) $(IF_INCLUDE) $(CINC)
+LIB_LIBRARIES_PRE=\
+$(if $(findstring lock, $(DEPENDENCIES)), -llock) \
+$(if $(findstring mem_mgr, $(DEPENDENCIES)), -lmem_mgr)
+LIB_LIBRARIES=$(strip $(LIB_LIBRARIES_PRE))
+LIB_FLAGS=-L$(LIBDIR) $(DEP_LIB) -lcos_component $(LIB_LIBRARIES) $(ADDITIONAL_LIBS)
+
+SOURCES=$(C_OBJS:%.o=%.c)
+#NOTE: assembly files don't have dependencies generated for them
+SOURCE_DEPENDENCIES=$(SOURCES:%.c=%.d)
+
+.PHONY: all
+all: $(SOURCE_DEPENDENCIES) $(COMPONENT)
+
+# Jumping through hoops: want to link to our libraries first so that
+# symbols there are used, thus the gcc, and the ld, but then (and only
+# then) do we want to use dietlibc's functions
+$(COMPONENT): $(OBJS)
+	$(info [LD]   Loading cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
+	@$(LD) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
+	$(info [DIET] Linking with dietlibc to produce $@)
+	@$(DIETCC) $(DIETCFLAGS) -Xlinker -r -o $@ $@.$(TMP_STR)
+	@rm $@.$(TMP_STR)
+
+%.o:%.c
+	$(info [CC]   Compiling $<)
+	@$(CC) $(CFLAGS) $(INCLUDE) -o $@ -c $<
+
+%.o:%.S
+	$(info [AS]   Compiling assembly file $^ into $@)
+	@$(AS) $(ASFLAGS) $(INCLUDE)  -c -o $@ $^
+
+# see the make manual: create the .d dependencies from include
+# statements.
+%.d:%.c
+	$(info [DEP]  Creating dependency file for $<)
+	@set -e; rm -f $@; \
+	$(CC) -M $(CFLAGS) $(INCLUDE) $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+
+.PHONY: cp
+cp:
+	$(info [CP]   Copying $(COMPONENT) to $(TRANS_DIR))
+	@cp $(COMPONENT) $(TRANS_DIR)
+
+.PHONY: clean
+clean:
+	$(info [RM]   Cleaning up implementation directory for component $(COMPNAME))
+	@rm -f a.out *.o *.a *.d *~
+
+fresh: clean all
+
+-include $(SOURCE_DEPENDENCIES)
+

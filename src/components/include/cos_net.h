@@ -9,7 +9,6 @@
 #ifndef COS_NET_H
 #define COS_NET_H
 
-/* -1 is a typical error value */
 typedef int net_connection_t;
 
 #endif /* COS_NET_H */

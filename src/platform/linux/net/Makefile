@@ -1,4 +1,4 @@
-include /home/gparmer/research/composite/src/Makefile.inc
+include Makefile.src
 
 obj-m := cnet.o
 cnet-objs := cosnet.o

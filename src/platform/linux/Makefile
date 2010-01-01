@@ -1,4 +1,4 @@
-include ../../Makefile.inc
+include Makefile.src
 
 default:
 	$(MAKE) -C module
@@ -9,7 +9,11 @@ cp:
 	$(MAKE) -C module cp
 	$(MAKE) -C net cp
 	$(MAKE) -C link_load cp
-	cp ./util/run.sh ./util/Makefile $(TRANS_DIR)
+# we want to avoid having to include anything in the transfer
+# makefile, so intelligently make the makefile dynamically with the
+# includes patched in!
+	cat $(TOP_DIR)/Makefile.src ./util/Makefile.end > $(TRANS_DIR)/Makefile
+	cp ./util/run.sh $(TRANS_DIR)
 
 clean:
 	$(MAKE) -C module clean

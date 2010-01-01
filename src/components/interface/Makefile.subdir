@@ -1,0 +1,32 @@
+include Makefile.src Makefile.comp
+
+STUBS=$(ASM_STUBS)
+IFNAME=$(lastword $(subst /, ,$(shell pwd)))
+
+.PHONY: all
+all: $(LIBS) default
+
+# we have to compile these without dietlibc so that there are not
+# symbol conflicts and this is why we have the %.a here and don't
+# output a .a file.
+%.a:%.o
+	$(info [AR]   Creating library file lib$(IFNAME).a from $<)
+	@$(AR) cr lib$(IFNAME).a $<
+
+%.o:%.S
+	$(info [AS]   Compiling assembly file $^ into $@)
+	@$(AS) $(ASFLAGS) -c -o $@ $^
+
+%.o:%.c
+	$(info [CC]   Compiling c file $^ into $@)
+	@$(CC) $(CFLAGS) $(CINC) -c -o $(@) $<
+
+clean:
+	$(info [RM]   Cleaning up interface directory for $(IFNAME))
+	@rm -f a.out *.o *.a *.d *~
+
+fresh: clean all
+
+default: $(STUBS)
+	$(info [LD]   Creating server stubs from $^)
+	@$(LD) -r -o $(SERVER_STUB) $^

@@ -2,16 +2,16 @@
 
 ./cos_loader \
 "c0.o,fprr.o,mpd.o,l.o,mm.o,print.o,te.o,net.o,e.o,fd.o,conn.o,http.o,\
-stat.o,st.o,cm.o,sc.o,if.o,ip.o,ainv.o,fn.o,fd2.o,cgi.o,fd3.o,cgi2.o,\
-port.o,ainv2.o,schedconf.o,bc.o:\
+stat.o,st.o,cm.o,sc.o,if.o,ip.o,ainv.o,fn.o,cgi.o,port.o,schedconf.o,\
+bc.o,(fd2.o=fd.o),(fd3.o=fd.o),(cgi2.o=cgi.o),(ainv2.o=ainv.o):\
 \
 net.o-fprr.o|mm.o|print.o|l.o|te.o|e.o|ip.o|port.o;\
 c0.o-fprr.o;\
-fprr.o-print.o|mm.o|st.o|schedconf.o|bc.o;\
+fprr.o-print.o|mm.o|st.o|schedconf.o|[parent_]bc.o;\
 mpd.o-fprr.o|print.o|te.o|mm.o;\
 l.o-fprr.o|mm.o|print.o|te.o;\
 te.o-print.o|fprr.o|mm.o;\
-mm.o-print.o|print.o;\
+mm.o-print.o;\
 e.o-fprr.o|print.o|mm.o|l.o|st.o;\
 fd.o-print.o|e.o|net.o|l.o|fprr.o|http.o|mm.o;\
 conn.o-fd.o|print.o|mm.o|fprr.o;\

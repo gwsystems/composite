@@ -1,15 +1,29 @@
-all:
-	$(MAKE) -C platform
-	$(MAKE) -C components
+MAKEFLAGS=--no-print-directory -I$(PWD)
+
+all: kern
+comps: 
+	$(info )
+	$(info ***************************************************)
+	$(info *************** Building Components ***************)
+	$(info ***************************************************)
+	$(info )
+	$(MAKE) $(MAKEFLAGS) -C components
+kern: comps
+	$(info )
+	$(info ***********************************************)
+	$(info *************** Building Kernel ***************)
+	$(info ***********************************************)
+	$(info )
+	$(MAKE) $(MAKEFLAGS) -C platform
 
 cp:
-	$(MAKE) -C platform cp
-	$(MAKE) -C components cp
+	$(MAKE) $(MAKEFLAGS) -C platform cp
+	$(MAKE) $(MAKEFLAGS) -C components cp
 
 clean:
-	$(MAKE) -C platform clean
-	$(MAKE) -C components clean
+	$(MAKE) $(MAKEFLAGS) -C platform clean
+	$(MAKE) $(MAKEFLAGS) -C components clean
 
 fresh:  
-	$(MAKE) -C platform fresh
-	$(MAKE) -C components fresh
+	$(MAKE) $(MAKEFLAGS) -C platform fresh
+	$(MAKE) $(MAKEFLAGS) -C components fresh

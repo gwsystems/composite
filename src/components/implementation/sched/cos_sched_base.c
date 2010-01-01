@@ -20,6 +20,8 @@
 
 #include <cos_sched_tk.h>
 
+#include "../../../interface/sched/sched.h"
+
 //#define SCHED_DEBUG
 #ifdef SCHED_DEBUG
 #define PRINTD(s, args...) printc(s, args);
@@ -937,7 +939,7 @@ err:
 	return -1;
 }
 
-int sched_get_cevt(spdid_t spdid, struct sched_child_evt *e, int idle)
+int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle)
 {
 	struct sched_thd *t, *et;
 	u64_t ts;
@@ -1007,7 +1009,7 @@ static void sched_process_cevt(struct sched_child_evt *e)
 	ticks += e->time_elapsed;
 }
 
-extern int parent_sched_get_cevt(spdid_t spdid, struct sched_child_evt *e, int idle);
+extern int parent_sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle);
 
 static void sched_child_evt_thd(void)
 {
@@ -1019,11 +1021,11 @@ static void sched_child_evt_thd(void)
 		int cont;
 
 		cos_sched_clear_cevts();
-		cont = parent_sched_get_cevt(cos_spd_id(), e, 1);
+		cont = parent_sched_child_get_evt(cos_spd_id(), e, 1);
 		cos_sched_lock_take();
 		sched_process_cevt(e);
 		while (cont) {
-			cont = parent_sched_get_cevt(cos_spd_id(), e, 0);
+			cont = parent_sched_child_get_evt(cos_spd_id(), e, 0);
 			sched_process_cevt(e);
 		}
 		sched_switch_thread(scheduler_ops, 0, NULL_EVT);
@@ -1133,10 +1135,7 @@ static int sched_init(void)
 		assert(data);
 		data->sz = SCHED_STR_SZ;
 		ret = sched_comp_config(cos_spd_id(), i++, data);
-		printc("index %d yielded spd %d\n", i-1, ret);
-		if (ret > 0 && data->sz > 0) {
-			fp_init_component(ret, data->mem);
-		}
+		if (ret > 0 && data->sz > 0) fp_init_component(ret, data->mem);
 		cos_argreg_free(data);
 	} while (ret > 0);
 

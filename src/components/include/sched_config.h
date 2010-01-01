@@ -29,14 +29,14 @@ static struct comp_sched_info comp_info[MAX_COMP_IDX+2] =
 	{ .spdid = 17, .name = "ip.o", .sched_str = "" }, 
 	{ .spdid = 18, .name = "ainv.o", .sched_str = "a6" }, 
 	{ .spdid = 19, .name = "fn.o", .sched_str = "" }, 
-	{ .spdid = 20, .name = "fd2.o", .sched_str = "a8" }, 
-	{ .spdid = 21, .name = "cgi.o", .sched_str = "a9" }, 
-	{ .spdid = 22, .name = "fd3.o", .sched_str = "a8" }, 
-	{ .spdid = 23, .name = "cgi2.o", .sched_str = "a9" }, 
-	{ .spdid = 24, .name = "port.o", .sched_str = "" }, 
-	{ .spdid = 25, .name = "ainv2.o", .sched_str = "a6" }, 
-	{ .spdid = 26, .name = "schedconf.o", .sched_str = "" }, 
-	{ .spdid = 27, .name = "bc.o", .sched_str = "" }, 
+	{ .spdid = 20, .name = "cgi.o", .sched_str = "a9" }, 
+	{ .spdid = 21, .name = "port.o", .sched_str = "" }, 
+	{ .spdid = 22, .name = "schedconf.o", .sched_str = "" }, 
+	{ .spdid = 23, .name = "bc.o", .sched_str = "" }, 
+	{ .spdid = 24, .name = "fd2.o", .sched_str = "a8" }, 
+	{ .spdid = 25, .name = "fd3.o", .sched_str = "a8" }, 
+	{ .spdid = 26, .name = "cgi2.o", .sched_str = "a9" }, 
+	{ .spdid = 27, .name = "ainv2.o", .sched_str = "a6" }, 
 	{ .spdid = -1, .name = NULL, .sched_str = NULL }
 };
 

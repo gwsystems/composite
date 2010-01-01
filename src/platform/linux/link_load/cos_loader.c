@@ -649,7 +649,23 @@ static int initialize_service_symbs(struct service_symbs *str)
 static struct service_symbs *alloc_service_symbs(char *obj)
 {
 	struct service_symbs *str;
-	char *obj_name = malloc(strlen(obj)+1);
+	char *obj_name = malloc(strlen(obj)+1), *cpy, *orig, *pos;
+	const char lassign = '(', *rassign = ")", *assign = "=";
+
+	assert(obj_name);
+	/* Do we have a value assignment (a component copy)?  Syntax
+	 * is (newval=oldval),... */
+	if (obj[0] == lassign) {
+		char copy_cmd[256];
+		int ret;
+
+		cpy = strtok_r(obj+1, assign, &pos);
+		orig = strtok_r(pos, rassign, &pos);
+		sprintf(copy_cmd, "cp %s %s", orig, cpy);
+		ret = system(copy_cmd);
+		assert(-1 != ret);
+		obj = cpy;
+	} 
 
 	str = malloc(sizeof(struct service_symbs));
 	if (!str || initialize_service_symbs(str)) {
@@ -761,7 +777,8 @@ static int obj_serialize_symbols(char *tmp_exec, int symb_type, struct service_s
 
 	obj = bfd_openr(tmp_exec, "elf32-i386");
 	if(!obj){
-		bfd_perror("Object open failure\n");
+		printl(PRINT_HIGH, "Attempting to open %s\n", str->obj);
+		bfd_perror("Object open failure");
 		return -1;
 	}
 	
@@ -873,15 +890,15 @@ static void add_kernel_exports(struct service_symbs *service)
 static struct service_symbs *prepare_service_symbs(char *services)
 {
 	struct service_symbs *str, *first;
-	char *delim = ",";
+	const char *delim = ",";
 	char *tok;
 	
 	tok = strtok(services, delim);
 	first = str = alloc_service_symbs(tok);
 
 	do {
-		if (obj_serialize_symbols(tok, EXPORTED_SYMB_TYPE, str) ||
-		    obj_serialize_symbols(tok, UNDEF_SYMB_TYPE, str)) {
+		if (obj_serialize_symbols(str->obj, EXPORTED_SYMB_TYPE, str) ||
+		    obj_serialize_symbols(str->obj, UNDEF_SYMB_TYPE, str)) {
 			printl(PRINT_DEBUG, "Could not operate on object %s: error.\n", tok);
 			return NULL;
 		}
@@ -1074,12 +1091,8 @@ static int deserialize_dependencies(char *deps, struct service_symbs *services)
 	char open_modifier = '[';
 	char close_modifier = ']';
 
-	if (!deps) {
-		return -1;
-	}
-
-	current = deps;
-	next = current;
+	if (!deps) return -1;
+	next = current = deps;
 
 	/* go through each dependent-trusted|... relation */
 	while (current) {
@@ -1091,10 +1104,8 @@ static int deserialize_dependencies(char *deps, struct service_symbs *services)
 			*next = '\0';
 			next++;
 		}
-
 		/* the dependent */
 		tmp = strtok(current, serial);
-
 		s = get_service_struct(tmp, services);
 		if (!s) {
 			printl(PRINT_HIGH, "Could not find service %s.\n", tmp);
@@ -1476,8 +1487,8 @@ static int create_spd_capabilities(struct service_symbs *service/*, struct spd_i
 
 		s_stub = spd_contains_symb(exporter, tmp);
 		if (NULL == s_stub) {
-			printl(PRINT_HIGH, "Could not find server stub (%s) for function %s in service %s.\n",
-			       tmp, exp_symb->name, exporter->obj);
+			printl(PRINT_HIGH, "Could not find server stub (%s) for function %s in service %s to satisfy %s.\n",
+			       tmp, exp_symb->name, exporter->obj, service->obj);
 			return -1;
 		}
 
@@ -1679,10 +1690,7 @@ static struct service_symbs *find_obj_by_name(struct service_symbs *s, const cha
 
 static void setup_kernel(struct service_symbs *services)
 {
-	struct service_symbs *s; /*, *ds; //, *c0 = NULL, *c1 = NULL, *c2 = NULL, 
-		*pc = NULL, *c3 = NULL, *c4 = NULL, *mm = NULL;
-	struct spd_info *spd0, *spd1, *spd2, *spd3, *spd4, *spdpc, *spdmm;
-					   */
+	struct service_symbs *s;
 	struct service_symbs *init = NULL;
 	struct spd_info *init_spd = NULL;
 

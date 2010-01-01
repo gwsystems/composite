@@ -1,4 +1,4 @@
-include ../../../../Makefile.inc
+include Makefile.src
 
 CFLAGS=-Wall 
 #-O3 yeah, that gets rid of the busy loop in udp_client

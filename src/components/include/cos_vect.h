@@ -147,7 +147,10 @@ static inline struct cos_vect_intern_struct *__cos_vect_lookup(cos_vect_t *v, lo
 	long depth;
 	struct cos_vect_intern_struct *is;
 
-	assert(v && v->depth != 0 && v->depth <= 2);
+	/* make sure the data structure is configured and initialized */
+	assert(v);
+	assert(v->depth != 0);
+	assert(v->depth <= 2);
 	if (id < 0) return NULL;
 	depth = v->depth;
 #if COS_VECT_DEPTH_MAX != 2

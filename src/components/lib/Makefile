@@ -1,7 +1,6 @@
-include ../../Makefile.inc
-include ../Makefile.inc
+include Makefile.src Makefile.comp
 
-LIB_OBJS=cos_component.o
+LIB_OBJS=cos_component.o heap.o
 LIBS=$(LIB_OBJS:%.o=%.a)
 MANDITORY=c_stub.o cos_asm_upcall.o
 MAND=$(MANDITORY_LIB)

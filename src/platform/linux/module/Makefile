@@ -1,4 +1,4 @@
-include /home/gparmer/research/composite/src/Makefile.inc
+include Makefile.src
 
 obj-m := cos.o
 cos-objs := kern_entry.o ipc.o hijack.o ../../../kernel/inv.o ../../../kernel/thread.o ../../../kernel/spd.o ../../../kernel/measurement.o ../../../kernel/page_pool.o ../../../kernel/mmap.o ../../../kernel/ring_buff.o

@@ -6,7 +6,6 @@
 #include <string.h>
 
 #define ARG_STRLEN 1024
-extern int printfmt(short int *s, int a, int b, int c);
 extern int print_str(char *str, int len);
 
 #ifndef COS_FMT_PRINT
@@ -57,24 +56,6 @@ static inline int __attribute__((format(printf,1,2))) printc(char *fmt, ...)
 	cos_argreg_free(s);
 
 	return ret;
-}
-
-static inline int print(char *str, int a, int b, int c)
-{
-	char *d;
-	short int len, *s;
-
-	len = cos_strlen(str) + 1; /* + 1 for '\0' */
-	s = cos_argreg_alloc(len + sizeof(short int));
-	if (!s) return -1;
-
-	*s = len;
-	d = (char*)&s[1];
-	cos_memcpy(d, str, len);
-	printfmt(s, a, b, c);
-	cos_argreg_free(s);
-
-	return 0;
 }
 
 #endif

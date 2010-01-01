@@ -1,4 +1,4 @@
-include ../Makefile.inc
+include Makefile.src
 
 default:
 	$(MAKE) -C linux

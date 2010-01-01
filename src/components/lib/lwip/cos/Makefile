@@ -28,8 +28,8 @@
 # 
 # Author: Adam Dunkels <adam@sics.se>
 #
-include ../../../../Makefile.inc
-include ../../../Makefile.inc
+include ../../../../Makefile.src
+include ../../../Makefile.comp
 $(info $(CINC))
 
 CCDEP=gcc
