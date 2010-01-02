@@ -302,7 +302,6 @@ static inline void __switch_thread_context(struct thread *curr, struct thread *n
 {
 	struct shared_user_data *ud = get_shared_data();
 	unsigned int ctid, ntid;
-	struct spd_poly *nspd;
 
 	assert(thd_get_current() != next);
 
@@ -315,17 +314,17 @@ static inline void __switch_thread_context(struct thread *curr, struct thread *n
 	ud->current_thread = ntid;
 	ud->argument_region = (void*)((ntid * PAGE_SIZE) + COS_INFO_REGION_ADDR);
 
-	//cspd = thd_get_thd_spdpoly(curr);
-	nspd = thd_get_thd_spdpoly(next);
-	
-	open_close_spd(nspd, cspd);
-
 	return;
 }
 
-void switch_thread_context(struct thread *curr, struct thread *next)
+static inline void switch_thread_context(struct thread *curr, struct thread *next)
 {
-	return __switch_thread_context(curr, next, thd_get_thd_spdpoly(curr));
+	struct spd_poly *nspd, *cspd;
+
+	cspd = thd_get_thd_spdpoly(curr);
+	__switch_thread_context(curr, next, cspd);
+	nspd = thd_get_thd_spdpoly(next);
+	open_close_spd(nspd, cspd);
 
 	return;
 }
@@ -916,6 +915,22 @@ static inline struct thread *upcall_execute(struct thread *uc, struct composite_
 		open_close_spd(&new->spd_info, &old->spd_info);
 	}
 
+	return uc;
+}
+
+/* This version of the call is to be used when we wish to make an
+ * upcall that won't immediately switch page tables */
+static inline struct thread *upcall_execute_no_vas_switch(struct thread *uc, struct thread *prev)
+{
+	if (likely(prev && prev != uc)) {
+		struct spd_poly *nspd;
+
+		__switch_thread_context(prev, uc, NULL);
+		nspd = thd_get_thd_spdpoly(uc);
+		/* we are omitting the native_write_cr3 to switch
+		 * page tables */
+		switch_host_pg_tbls(nspd->pg_tbl);
+	}
 	return uc;
 }
 
@@ -2005,6 +2020,8 @@ int brand_higher_urgency(struct thread *upcall, struct thread *prev)
 	}
 }
 
+extern int host_can_switch_pgtbls(void);
+
 /* 
  * This does NOT release the composite spd reference of the preempted
  * thread, as you might expect.
@@ -2091,9 +2108,15 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 			upcall->interrupted_thread = NULL;
 		}
 
-		/* actually setup the brand/upcall to happen here */
-		upcall_execute(upcall, (struct composite_spd*)thd_get_thd_spdpoly(upcall),
-			       preempted, (struct composite_spd*)thd_get_thd_spdpoly(preempted));
+		/* Actually setup the brand/upcall to happen here.
+		 * If we aren't in the composite thread, be careful
+		 * what state we change (e.g. page tables) */
+		if (likely(host_can_switch_pgtbls())) {
+			upcall_execute(upcall, (struct composite_spd*)thd_get_thd_spdpoly(upcall),
+				       preempted, (struct composite_spd*)thd_get_thd_spdpoly(preempted));
+		} else {
+			upcall_execute_no_vas_switch(upcall, preempted);
+		}
 		upcall->regs.eax = upcall->thread_brand->pending_upcall_requests;
 
 		if (preempted->flags & THD_STATE_ACTIVE_UPCALL && upcall->interrupted_thread) {

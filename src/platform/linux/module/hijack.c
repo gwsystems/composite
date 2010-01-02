@@ -2173,8 +2173,6 @@ void switch_host_pg_tbls(phys_addr_t pt)
 
 /***** begin timer/net handling *****/
 
-extern void switch_thread_context(struct thread *curr, struct thread *next);
-
 /* 
  * Our composite emulated timer interrupt executed from a Linux
  * softirq
@@ -2280,6 +2278,8 @@ static void host_idle_wakeup(void)
 		assert(IDLE_WAKING == idle_status);
 	}
 }
+
+int host_can_switch_pgtbls(void) { return current == composite_thread; }
 
 int host_attempt_brand(struct thread *brand)
 {
