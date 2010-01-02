@@ -9,3 +9,4 @@ cp:
 clean:
 	$(MAKE) -C linux clean
 
+init: clean default

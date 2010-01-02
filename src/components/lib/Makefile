@@ -27,7 +27,7 @@ clean:
 	$(info [RM]   Cleaning up directory)
 	@rm -f a.out *.o *.a *.d *~
 
-fresh: clean all
+init: clean all
 	make -C dietlibc-0.29 clean
 	make -C dietlibc-0.29
 	make -C lwip/cos clean

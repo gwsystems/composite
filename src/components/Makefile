@@ -16,7 +16,7 @@ clean:
 	make $(MAKEFLAGS) -C interface clean
 	make $(MAKEFLAGS) -C implementation clean
 
-fresh:
-	make $(MAKEFLAGS) -C lib fresh
-	make $(MAKEFLAGS) -C interface fresh
-	make $(MAKEFLAGS) -C implementation fresh
+init:
+	make $(MAKEFLAGS) -C lib init
+	make $(MAKEFLAGS) -C interface init
+	make $(MAKEFLAGS) -C implementation init

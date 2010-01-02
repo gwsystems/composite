@@ -23,5 +23,5 @@ clean:
 		$(MAKE) $(MAKEFLAGS) -C $$dir clean ; \
 	done
 
-.PHONY: fresh
-fresh: clean all
+.PHONY: init
+init: clean all

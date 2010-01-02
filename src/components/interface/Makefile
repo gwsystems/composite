@@ -18,5 +18,5 @@ clean:
 .PHONY: cp
 cp:
 
-.PHONY: fresh
-fresh: clean all
+.PHONY: init
+init: clean all

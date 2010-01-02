@@ -24,6 +24,7 @@ clean:
 	$(MAKE) $(MAKEFLAGS) -C platform clean
 	$(MAKE) $(MAKEFLAGS) -C components clean
 
-fresh:  
-	$(MAKE) $(MAKEFLAGS) -C platform fresh
-	$(MAKE) $(MAKEFLAGS) -C components fresh
+init:
+	$(MAKE) $(MAKEFLAGS) -C platform init
+	$(MAKE) $(MAKEFLAGS) -C components init
+
