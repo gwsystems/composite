@@ -22,6 +22,8 @@
 #include <evt_impl.h>
 #include <evt.h>
 
+#include <sched.h>
+
 //#define ACT_LOG
 #ifdef ACT_LOG
 #define ACT_LOG_LEN 32
@@ -51,9 +53,6 @@ typedef enum {
 #else
 #define ACT_RECORD(a, s, e, t1, t2)
 #endif
-
-extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
-extern int sched_block(spdid_t spdid, unsigned short int thd_dep);
 
 /* A mapping between event ids and actual events */
 COS_MAP_CREATE_STATIC(evt_map);

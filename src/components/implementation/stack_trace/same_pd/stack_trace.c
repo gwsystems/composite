@@ -12,7 +12,7 @@
 #include <cos_debug.h>
 #include <print.h>
 
-#include "../interface/stack_trace/stack_trace.h"
+#include <stack_trace.h>
 
 /* Access control? */
 

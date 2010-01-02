@@ -15,7 +15,8 @@
 
 #include <static_content.h>
 
-extern int evt_trigger(spdid_t spdid, long extern_evt);
+#include <sched.h>
+#include <evt.h>
 
 struct static_content {
 	content_req_t id;
@@ -90,6 +91,5 @@ void cos_init(void *arg)
 
 void bin(void)
 {
-	extern int sched_block(spdid_t spdid, unsigned short int thd_dep);
 	sched_block(cos_spd_id(), 0);
 }

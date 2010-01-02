@@ -17,6 +17,8 @@
 #include <cos_debug.h>
 #include <cos_list.h>
 
+#include <sched.h>
+
 /**************** Scheduler Util Fns *******************/
 
 #define THD_BLOCKED    0x1
@@ -45,10 +47,10 @@
 
 #define SCHED_NUM_THREADS MAX_NUM_THREADS
 
+/* cevt_t: */
 #define SCHED_CEVT_OTHER     0x1
 #define SCHED_CEVT_WAKE      0x2
 #define SCHED_CEVT_BLOCK     0x4
-typedef int cevt_t;
 
 struct sched_accounting {
 	unsigned long C, T, C_used, T_left;
@@ -92,12 +94,6 @@ struct sched_thd {
 
 struct sched_crit_section {
 	struct sched_thd *holding_thd;
-};
-
-struct sched_child_evt {
-	cevt_t t; // type
-	unsigned short int tid;
-	u64_t time_elapsed;
 };
 
 void sched_init_thd(struct sched_thd *thd, unsigned short int id, int flags);

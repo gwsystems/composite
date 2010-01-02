@@ -1,7 +1,7 @@
 #ifndef   	ASYNC_INV_H
 #define   	ASYNC_INV_H
 
-typedef long content_req_t;
+#include <content_req.h>
 
 long content_create(spdid_t spdid, long evt_id, struct cos_array *data);
 long content_split(spdid_t spdid, long conn_id, long evt_id);

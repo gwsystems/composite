@@ -19,6 +19,13 @@ void sched_exit(void);
 int sched_component_take(spdid_t spdid);
 int sched_component_release(spdid_t spdid);
 
+typedef int cevt_t;
+struct sched_child_evt {
+	cevt_t t; // type
+	unsigned short int tid;
+	u64_t time_elapsed;
+};
+
 int sched_child_cntl_thd(spdid_t spdid);
 int sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd);
 int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle);

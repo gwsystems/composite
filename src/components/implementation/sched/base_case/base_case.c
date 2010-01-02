@@ -16,7 +16,7 @@ int sched_child_cntl_thd(spdid_t spdid)
 	return 0;
 }
 
-int sched_child_thd_crt(spdid_t spdid)
+int sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd)
 {
 	assert(0);
 	return 0;

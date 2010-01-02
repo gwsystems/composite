@@ -20,7 +20,10 @@
 
 #include <cos_sched_tk.h>
 
-#include "../../../interface/sched/sched.h"
+#include <sched.h>
+#include <mem_mgr.h>
+#include <stack_trace.h>
+#include <sched_conf.h>
 
 //#define SCHED_DEBUG
 #ifdef SCHED_DEBUG
@@ -122,7 +125,6 @@ static void report_event(report_evt_t evt)
 	report_evts[evt]++;
 }
 
-extern void mman_print_stats(void);
 static void report_output(void)
 {
 	int i;
@@ -141,7 +143,7 @@ static void report_output(void)
 typedef enum { NULL_EVT = 0 } report_evt_t;
 #endif
 
-extern void st_trace_thd(unsigned short int tid);
+//extern void st_trace_thd(unsigned short int tid);
 void print_thd_invframes(struct sched_thd *t)
 {
 //	unsigned short int tid = t->id;
@@ -1126,7 +1128,6 @@ static int sched_init(void)
 	idle = sched_setup_thread("i", fp_idle_loop);
 	printc("Idle thread has id %d with priority %s.\n", idle->id, "i");
 
-	extern spdid_t sched_comp_config(spdid_t spdid, int index, struct cos_array *data);
 	#define SCHED_STR_SZ 64
 	do {
 		struct cos_array *data;

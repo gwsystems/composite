@@ -19,6 +19,9 @@
 
 #include <lock.h>
 
+#include <sched.h>
+#include <timed_blk.h>
+
 //#define ACT_LOG
 #ifdef ACT_LOG
 #define ACT_LOG_LEN 32
@@ -75,14 +78,6 @@ static struct meta_lock STATIC_INIT_LIST(locks, next, prev);
 static volatile unsigned long long generation = 0;
 /* Datastructure of blocked thread structures */
 COS_VECT_CREATE_STATIC(bthds);
-
-/* From the scheduler: */
-extern int sched_component_take(spdid_t spdid);
-extern int sched_component_release(spdid_t spdid);
-extern int timed_event_block(spdid_t spdid, unsigned int microsec);
-extern int timed_event_wakeup(spdid_t spdid, unsigned short int thd_id);
-extern int sched_block(spdid_t spdid, unsigned short int thd_dep);
-extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
 
 #define TAKE(spdid) 	if (sched_component_take(spdid))    return -1;
 #define RELEASE(spdid)	if (sched_component_release(spdid)) return -1;

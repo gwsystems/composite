@@ -53,18 +53,18 @@ $(COMPONENT): $(OBJS)
 
 %.o:%.c
 	$(info [CC]   Compiling $<)
-	@$(CC) $(CFLAGS) $(INCLUDE) -o $@ -c $<
+	@$(CC) $(INCLUDE) $(CFLAGS) -o $@ -c $<
 
 %.o:%.S
 	$(info [AS]   Compiling assembly file $^ into $@)
-	@$(AS) $(ASFLAGS) $(INCLUDE)  -c -o $@ $^
+	@$(AS) $(INCLUDE) $(ASFLAGS) -c -o $@ $^
 
 # see the make manual: create the .d dependencies from include
 # statements.
 %.d:%.c
 	$(info [DEP]  Creating dependency file for $<)
 	@set -e; rm -f $@; \
-	$(CC) -M $(CFLAGS) $(INCLUDE) $< > $@.$$$$; \
+	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 
@@ -76,7 +76,7 @@ cp:
 .PHONY: clean
 clean:
 	$(info [RM]   Cleaning up implementation directory for component $(COMPNAME))
-	@rm -f a.out *.o *.a *.d *~
+	@rm -f a.out *.o *.a *.d *.d.* *~
 
 fresh: clean all
 

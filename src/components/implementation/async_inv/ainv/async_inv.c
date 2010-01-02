@@ -24,10 +24,8 @@
 #define async_trace(x) 
 #endif
 
-extern int evt_trigger(spdid_t spdid, long extern_evt);
-
-extern int sched_block(spdid_t spd_id, unsigned short int thd_dep);
-extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
+#include <evt.h>
+#include <sched.h>
 
 #define ASYNC_MAX_BUFFERED 512
 

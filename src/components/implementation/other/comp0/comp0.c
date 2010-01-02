@@ -1,14 +1,12 @@
 #include <cos_component.h>
 
-extern int sched_root_init(void);
+#include <sched.h>
 
-int nothing = 0;
+int nothing = 0, ret = 0;
 
 int spd0_main(void)
 {
-	int ret;
-
-	ret = sched_root_init();
+	sched_root_init();
 
 	nothing = ret + 1;
 	//prevent_tail_call(ret);

@@ -1,7 +1,7 @@
 #ifndef   	STATIC_CONTENT_H
 #define   	STATIC_CONTENT_H
 
-typedef long content_req_t;
+#include <content_req.h>
 
 content_req_t static_open(spdid_t spdid, long evt_id, struct cos_array *data);
 int static_request(spdid_t spdid, content_req_t cr, struct cos_array *data);

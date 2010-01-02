@@ -18,13 +18,10 @@
 
 #include <net_internet.h>
 
+#include <net_if.h>
+
 /* required so that we can have a rodata section */
 const char *name = "cos_ip";
-
-extern int netif_event_xmit(spdid_t spdid, struct cos_array *d);
-extern int netif_event_wait(spdid_t spdid, struct cos_array *d);
-extern int netif_event_release(spdid_t spdid);
-extern int netif_event_create(spdid_t spdid);
 
 int ip_xmit(spdid_t spdid, struct cos_array *d)
 {

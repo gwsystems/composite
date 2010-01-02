@@ -59,18 +59,10 @@
 #define MTU 1500
 #define MAX_SEND MTU
 
-extern int sched_component_take(spdid_t spdid);
-extern int sched_component_release(spdid_t spdid);
-extern unsigned long sched_timestamp(void);
-
-extern int evt_trigger(spdid_t spdid, long extern_evt);
-extern int evt_wait(spdid_t spdid, long extern_evt);
-extern long evt_grp_wait(spdid_t spdid);
-extern int evt_create(spdid_t spdid, long extern_evt);
-
-extern u16_t portmgr_new(spdid_t spdid);
-extern int portmgr_bind(spdid_t spdid, u16_t port);
-extern void portmgr_free(spdid_t spdid, u16_t port);
+#include <sched.h>
+#include <evt.h>
+#include <net_portns.h>
+#include <timed_blk.h>
 
 cos_lock_t net_lock;
 
@@ -84,9 +76,6 @@ cos_lock_t net_lock;
 		if (lock_release(&net_lock)) prints("error releasing net lock."); \
 	} while (0)
 
-extern int sched_block(spdid_t spdid, unsigned short int thd_dep);
-extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
-extern int sched_create_thread(spdid_t spdid, struct cos_array *data);
 
 /*********************** Component Interface ************************/
 
@@ -1393,8 +1382,6 @@ static void cos_net_create_netif_thd(void)
 	if (0 > (event_thd = sched_create_thread(cos_spd_id(), data))) assert(0);
 	cos_argreg_free(data);
 }
-
-extern int timed_event_block(spdid_t spdid, unsigned int usecs);
 
 static int init(void) 
 {

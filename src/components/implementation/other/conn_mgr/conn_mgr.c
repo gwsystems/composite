@@ -18,18 +18,9 @@
 
 #include <sys/socket.h>
 
-extern int cos_wait(int fd);
-extern int cos_wait_all(void);
-extern int cos_write(int fd, char *buf, int sz);
-extern int cos_read(int fd, char *buf, int sz);
-extern int cos_close(int fd);
-extern int cos_accept(int fd);
-extern int cos_bind(int fd, u32_t ip, u16_t port);
-extern int cos_listen(int fd, int queue_len);
-extern int cos_socket(int domain, int type, int protocol);
-extern int cos_app_open(int type, struct cos_array *data);
+#include <fd.h>
+#include <sched.h>
 
-extern int sched_block(spdid_t spd_id, unsigned short int thd_dep);
 #define BUFF_SZ 1401 //(COS_MAX_ARG_SZ/2)
 
 COS_VECT_CREATE_STATIC(fds);

@@ -15,12 +15,10 @@
 #define STAT_FREQ 100
 //#define STATS_COLLECT
 
-extern int timed_event_block(spdid_t spdid, unsigned int microsec);
-
-extern unsigned long *lock_stats(spdid_t spdid, unsigned long *s);
-extern int lock_stats_len(spdid_t spdid);
-extern unsigned long *evt_stats(spdid_t spdid, unsigned long *s);
-extern int evt_stats_len(spdid_t spdid);
+#include <timed_blk.h>
+#include <lock.h>
+#include <evt.h>
+#include <sched.h>
 
 typedef unsigned long *(*stat_fn)(spdid_t, unsigned long *);
 typedef int (*stat_len_fn)(spdid_t);
@@ -31,7 +29,7 @@ struct stat_fns {
 	stat_len_fn stat_len;
 };
 
-static struct stat_fns client_comp_fns[] = {
+static struct stat_fns *holder, client_comp_fns[] = {
 	{ .name = "Lock stats:", .stat = lock_stats, .stat_len = lock_stats_len },
 	{ .name = "Evt stats:", .stat = evt_stats, .stat_len = evt_stats_len },
 	{ .name = NULL, .stat = NULL, .stat_len = NULL }
@@ -78,6 +76,6 @@ void cos_init(void *arg)
 
 void bin (void)
 {
-	extern int sched_block(spdid_t spdid, unsigned short int thd_dep);
+	holder = client_comp_fns;
 	sched_block(cos_spd_id(), 0);
 }

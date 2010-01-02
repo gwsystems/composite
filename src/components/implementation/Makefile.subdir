@@ -5,17 +5,18 @@ SUBDIRS=$(wildcard */)
 
 CLIB=complib.o
 IF_INCLUDE=$(foreach I,$(INTERFACES),-I$(INTERDIR)/$(I)/)
+DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
 
 OBJS=$(patsubst %.c,%.o,$(wildcard *.c)) $(patsubst %.S,%.o,$(wildcard *.S))
 TMP_STR=tmp
-INCLUDE=-I../ -I./ $(IF_INCLUDE) $(CINC)
+INCLUDE=$(DEP_INC) -I../ -I./ $(IF_INCLUDE) $(CINC)
 
 SOURCES=$(wildcard *.c)
 #NOTE: assembly files don't have dependencies generated for them
-DEPENDENCIES=$(SOURCES:%.c=%.d)
+SOURCE_DEPENDENCIES=$(SOURCES:%.c=%.d)
 
 .PHONY: all
-all: $(DEPENDENCIES) $(CLIB) subdirs
+all: $(SOURCE_DEPENDENCIES) $(CLIB) subdirs
 
 subdirs:
 	@for dir in $(SUBDIRS) ; do \
@@ -30,18 +31,18 @@ endif
 
 %.o:%.c
 	$(info [CC]   Compiling $<)
-	@$(CC) $(CFLAGS) $(INCLUDE) -o $@ -c $<
+	@$(CC) $(INCLUDE) $(CFLAGS) -o $@ -c $<
 
 %.o:%.S
 	$(info [AS]   Compiling assembly file $^ into $@)
-	@$(AS) $(ASFLAGS) $(INCLUDE)  -c -o $@ $^
+	@$(AS) $(INCLUDE) $(ASFLAGS) -c -o $@ $^
 
 # see the make manual: create the .d dependencies from include
 # statements.
 %.d:%.c
 	$(info [DEP]  Creating dependency file for $<)
 	@set -e; rm -f $@; \
-	$(CC) -M $(CFLAGS) $(INCLUDE) $< > $@.$$$$; \
+	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 
@@ -54,12 +55,12 @@ cp:
 .PHONY: clean
 clean:
 	$(info [RM]   Cleaning up implementation directory for interface $(IFNAME))
-	@rm -f a.out *.o *.a *.d *~
+	@rm -f a.out *.o *.a *.d *.d.* *~
 	@for dir in $(SUBDIRS) ; do \
 		$(MAKE) -C $$dir clean ; \
 	done
 
 fresh: clean all
 
--include $(DEPENDENCIES)
+-include $(SOURCE_DEPENDENCIES)
 

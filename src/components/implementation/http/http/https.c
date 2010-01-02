@@ -30,7 +30,11 @@
 #include <cos_map.h>
 #include <errno.h>
 
-#include "../interface/http/http.h"
+#include <http.h>
+
+#include <content_mux.h>
+#include <timed_blk.h>
+#include <sched.h>
 
 #endif	/* COS_LINUX_ENV */
 

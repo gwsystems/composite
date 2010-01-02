@@ -21,15 +21,7 @@
 
 #define TIMER_NO_EVENTS 0ULL
 
-/* Scheduler functions: */
-extern int sched_component_take(spdid_t spdid);
-extern int sched_component_release(spdid_t spdid);
-extern int sched_block(spdid_t spdid, unsigned short int thd_dep);
-extern int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
-extern int sched_timeout_thd(spdid_t spdid);
-extern void sched_timeout(spdid_t spdid, unsigned long amnt);
-extern unsigned int sched_tick_freq(void);
-extern unsigned long sched_timestamp(void);
+#include <sched.h>
 
 /* Lets save some typing... */
 #define TAKE(spdid) 	if (sched_component_take(spdid)) return -1;

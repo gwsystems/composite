@@ -12,8 +12,6 @@
 
 #include <net_transport.h>
 
-//typedef long net_connection_t;
-
 net_connection_t net_create_tcp_connection(spdid_t spdid, u16_t tid, long evt_id)
 {
 	return -ENOTSUP;

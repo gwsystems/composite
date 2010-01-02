@@ -20,20 +20,10 @@
 
 #include <fd.h>
 
-extern int sched_block(spdid_t spdid, unsigned short int thd_dep);
-
-/* event functions */
-extern long evt_create(spdid_t spdid);
-extern void evt_free(spdid_t spdid, long extern_evt);
-extern int evt_wait(spdid_t spdid, long extern_evt);
-extern long evt_grp_wait(spdid_t spdid);
-extern int evt_grp_mult_wait(spdid_t spdid, struct cos_array *data);
-extern int evt_trigger(spdid_t spdid, long extern_evt);
-extern int evt_set_prio(spdid_t spdid, long extern_evt, int prio);
-
-/* network functions */
-extern int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz);
-extern int net_recv(spdid_t spdid, net_connection_t nc, void *data, int sz);
+#include <sched.h>
+#include <evt.h>
+#include <net_transport.h>
+#include <http.h>
 
 typedef enum {
 	DESC_TOP,
@@ -206,16 +196,6 @@ static void fd_free(struct descriptor *d)
  */
 #include <sys/types.h>
 #include <sys/socket.h>
-
-/* Network functions */
-extern net_connection_t net_create_tcp_connection(spdid_t spdid, u16_t tid, long data);
-extern net_connection_t net_create_udp_connection(spdid_t spdid, long data);
-extern net_connection_t net_accept(spdid_t spdid, net_connection_t nc);
-extern int net_accept_data(spdid_t spdid, net_connection_t nc, long data);
-extern int net_listen(spdid_t spdid, net_connection_t nc, int queue_len);
-extern int net_bind(spdid_t spdid, net_connection_t nc, u32_t ip, u16_t port);
-extern int net_connect(spdid_t spdid, net_connection_t nc, u32_t ip, u16_t port);
-extern int net_close(spdid_t spdid, net_connection_t nc);
 
 static int fd_net_close(int fd, struct descriptor *d)
 {
@@ -405,15 +385,6 @@ err:
 	FD_LOCK_RELEASE();
 	return -EBADFD;
 }
-
-/* 
- * http (app specific) parsing specific services
- */
-extern int content_write(spdid_t spdid, long connection_id, char *reqs, int sz);
-extern int content_read(spdid_t spdid, long connection_id, char *buff, int sz);
-extern long content_create(spdid_t spdid, long evt_id, struct cos_array *d);
-extern long content_split(spdid_t spdid, long conn_id, long evt_id);
-extern int content_remove(spdid_t spdid, long conn_id);
 
 static int fd_app_close(int fd, struct descriptor *d)
 {

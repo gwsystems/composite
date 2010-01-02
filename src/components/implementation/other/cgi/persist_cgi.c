@@ -12,15 +12,8 @@
 #include <cos_debug.h>
 #include <errno.h>
 
-extern int cos_wait(int fd);
-extern int cos_wait_all(void);
-extern int cos_write(int fd, char *buf, int sz);
-extern int cos_read(int fd, char *buf, int sz);
-extern int cos_close(int fd);
-extern int cos_split(int fd);
-extern int cos_app_open(int type, struct cos_array *data);
-
-extern int sched_block(spdid_t spd_id, unsigned short int thd_dep);
+#include <fd.h>
+#include <sched.h>
 
 static int main_fd, data_fd;
 const char *service_names[] = {

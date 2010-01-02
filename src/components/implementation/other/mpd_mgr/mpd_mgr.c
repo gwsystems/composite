@@ -39,8 +39,8 @@ static inline int merge_w_err(spdid_t a, spdid_t b)
 //ugly, but for the sake of expediency...
 #include <mpd_policy.h>
 
-extern int timed_event_block(spdid_t spdinv, unsigned int amnt);
-extern int sched_block(spdid_t id, unsigned short int thd_dep);
+#include <timed_blk.h>
+#include <sched.h>
 
 static void mpd_report(void)
 {
