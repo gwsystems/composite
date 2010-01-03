@@ -1,0 +1,59 @@
+Interface Creation in Composite
+-------------------------------
+
+Interfaces reside in src/components/interface.  Each subdirectory
+represents a single interface.  Interfaces consist of a number of
+files that 1) ensure that the client and server components see a
+consistent type signature for each function that can be invoked in the
+server, 2) the client stubs that are executed to serialize any
+arguments, 3) the server stubs that are invoked to deserialize
+arguments, and 4) possible libraries that encapsulate the client stubs
+and provide an easier programming interface.  Default implementations
+on many the stubs exist and if they are not provided by an interface,
+the defaults will be used.
+
+Here we'll look at two sample interfaces: sched, and lock.
+
+src/components/interface/sched includes sched.h which contains the
+prototypes for the functions exported by components implementing the
+sched interface.  s_stubsched.S implements the server stubs that are
+invoked by an inter-protection domain invocation.  This file uses a
+macro (cos_asm_server_stub_spdid) that creates default stubs that
+assume that up to four arguments are passed in registers.  This file
+will be compiled into s_stub.o which is linked into the server
+component.  If more complicated stubs are required, they can also be
+compiled into s_stub.o.  No client stubs are provided for this
+interface.  When no stubs are provided, the default
+src/components/lib/c_stub.S is used which passed up to four arguments
+in registers.  Last, Makefile includes:
+
+LIB_OBJS=
+LIBS=$(LIB_OBJS:%.o=%.a)
+ASM_STUBS=s_stubsched.o
+
+include ../Makefile.subdir
+
+When an interface doesn't provide a client library, and only provides
+server stubs (the majority of current components), this is the general
+form of the Makefile.  ASM_STUBS refers to all files that implement
+the server stubs.
+
+src/components/interface/lock is a more complicated interface.
+Included in the interface directory are the s_stublock.S and lock.h
+which are comparable to the sched equivalents.  Additionally, it
+includes cos_synchronization.c which implements the library functions
+that are linked into the client library.  The actual lock component
+interface is very difficult to use, so the library abstracts that
+interface with one that is easier to use.  Correspondingly, the
+Makefile looks like:
+
+LIB_OBJS=cos_synchronization.o
+LIBS=$(LIB_OBJS:%.o=%.a)
+ASM_STUBS=s_stublock.o
+
+include ../Makefile.subdir
+
+Which notably includes the cos_synchronization file that will be
+compiled into liblock.a.  Currently, the header files for these
+libraries are in src/components/include which is a somewhat short-term
+solution (they would be better folded into the interface directory).

@@ -1,0 +1,67 @@
+Component Creation in Composite
+-------------------------------
+
+Component implementations are in the src/component/implementation/
+directory.  There is a subdirectory for each interface in which that
+is a subdirectory for each component implementation.  When you wish to
+create a component for a specific interface the interface directory
+should exist, and you should make a subdirectory named specific to
+your component.
+
+First, I'll assume you wish to implement a component that has an
+interface directory.  We'll look at the lock interface, and the
+two_phase lock component (in
+src/components/implementation/lock/two_phase/).  The implementation of
+the component can be in assembly and C files that reside in this
+directory.  In the two_phase lock case, there is only lock.c.  The
+Makefile for two_phase is:
+
+C_OBJS=lock.o
+ASM_OBJS=
+COMPONENT=l.o
+INTERFACES=lock
+DEPENDENCIES=sched mem_mgr printc timed_blk
+IF_LIB=
+
+include ../../Makefile.subsubdir
+
+All C files are listed in C_OBJS, and all assembly objects are listed
+in ASM_OBJS.  The final name of the component's object is l.o in
+COMPONENT.  A specific component might implement multiple interfaces.
+Certainly, it must implement the interface for the directory it is in
+(in this case, lock), but it might implement other interfaces as
+well.  All implemented interfaces must be listed in INTERFACES.
+Importantly, the build system must know which component interfaces
+this component is dependent on.  These are listed in DEPENDENCIES.
+This two_phase lock component uses the scheduler, memory allocation,
+terminal printing, and timed blocking interfaces.  We'll see in the
+next example where the IF_LIB variable is used.
+
+Looking at the fixed priority round robin (fprr) component that
+implements the sched interface (i.e. it is in
+src/components/implementation/sched/fprr), we see that the Makefile
+includes IF_LIB=../complib.o.  This states that to create the final
+component, it must be linked with the object specified in IF_LIB.  If
+all components for a given interface type use shared code, that code
+can be placed in the interface directory
+(e.g. src/components/implementation/sched/), and in this way it is
+linked with all of the components of that interface.
+
+The shared code for a given component interface is found in the
+interface directory, e.g. src/components/implementation/sched/.  All C
+and assembly (.S) in that directory are compiled into an object:
+complib.o.  All component implementations in subdirectories can
+include this library as stated in the previous paragraph.  The make
+file in src/components/implementation/sched/ is:
+
+INTERFACES=sched
+DEPENDENCIES=printc mem_mgr stack_trace sched_conf
+
+include ../Makefile.subdir
+
+If you need to create an interface this is the general format of the
+Makefile.  Importantly INTERFACES is set to the name of the
+interface.  If there is shared code for all components implementing
+this interface, DEPENDENCIES must include a list of the interfaces
+this shared code depends on.  Components that do not require shared
+code, should leave DEPENDENCIES empty.
