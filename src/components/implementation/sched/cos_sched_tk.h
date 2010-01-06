@@ -26,6 +26,7 @@ struct sched_ops {
 	 * child scheduler because the parent removed you from the
 	 * CPU. */
 	int (*time_elapsed)(struct sched_thd *t, u32_t processing_time);
+	/* passage of real-time in quantum measures */
 	int (*timer_tick)(int num_ticks);
 	
 	/* Which thread should we schedule next?  Return NULL if

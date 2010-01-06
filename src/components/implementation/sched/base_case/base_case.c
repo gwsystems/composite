@@ -23,7 +23,7 @@ int sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd)
 }
 
 
-void sched_root_init(void) { assert(0); return; }
+int sched_root_init(void) { assert(0); return 0; }
 
 int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 {

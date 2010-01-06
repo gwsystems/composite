@@ -70,7 +70,8 @@ struct sched_thd {
 	u16_t event;
 	struct sched_thd *prio_next, *prio_prev;
 
-	/* blocking/waking specific info */
+	/* blocking/waking specific info: 0 = blocked, 1 = running, 2
+	 * = received a wake for a block that hasn't happened yet */
 	int wake_cnt;
 	/* component thread is blocked in, and if there is critical
 	 * section contention in a component, which is the contended

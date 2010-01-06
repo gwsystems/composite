@@ -1,7 +1,7 @@
 #ifndef   	SCHED_H
 #define   	SCHED_H
 
-void sched_root_init(void);
+int sched_root_init(void);
 
 int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
 int sched_block(spdid_t spdid, unsigned short int dependency_thd);

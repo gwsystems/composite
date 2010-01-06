@@ -37,8 +37,6 @@
 #include <thread.h>
 #include <ipc.h>
 
-#include <sched_config.h>
-
 enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_HIGH;
 
 #define printl(lvl,format, args...)				\
@@ -59,6 +57,7 @@ const char *HEAP_PTR          = "cos_heap_ptr";
 const char *INIT_COMP  = "c0.o";
 const char *ROOT_SCHED = "fprr.o";
 const char *MPD_MGR    = "mpd.o";
+const char *CONFIG_COMP = "schedconf.o";
 
 const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] = 
 { "cos_atomic_cmpxchg",
@@ -135,8 +134,11 @@ struct dependency {
 };
 
 struct service_symbs {
-	char *obj;
+	char *obj, *init_str;
 	unsigned long lower_addr, size, heap_top;
+
+	int is_scheduler;
+	struct service_symbs *scheduler;
 	
 	struct spd *spd;
 	struct symb_type exported, undef;
@@ -636,6 +638,7 @@ static int add_modified_service_dependency(struct service_symbs *s,
 
 static int initialize_service_symbs(struct service_symbs *str)
 {
+	memset(str, 0, sizeof(struct service_symbs));
 	str->exported.parent = str;
 	str->undef.parent = str;
 	str->next = NULL;
@@ -651,21 +654,29 @@ static struct service_symbs *alloc_service_symbs(char *obj)
 	struct service_symbs *str;
 	char *obj_name = malloc(strlen(obj)+1), *cpy, *orig, *pos;
 	const char lassign = '(', *rassign = ")", *assign = "=";
+	int sched = 0;
 
 	assert(obj_name);
 	/* Do we have a value assignment (a component copy)?  Syntax
 	 * is (newval=oldval),... */
 	if (obj[0] == lassign) {
 		char copy_cmd[256];
-		int ret;
+		int ret, off = 1;
 
-		cpy = strtok_r(obj+1, assign, &pos);
+		if (obj[1] == '*') {
+			sched = 1;
+			off = 2;
+		}
+		cpy = strtok_r(obj+off, assign, &pos);
 		orig = strtok_r(pos, rassign, &pos);
 		sprintf(copy_cmd, "cp %s %s", orig, cpy);
 		ret = system(copy_cmd);
 		assert(-1 != ret);
 		obj = cpy;
-	} 
+	} else if (obj[0] == '*') {
+		sched = 1;
+		obj = obj+1;
+	}
 
 	str = malloc(sizeof(struct service_symbs));
 	if (!str || initialize_service_symbs(str)) {
@@ -674,6 +685,9 @@ static struct service_symbs *alloc_service_symbs(char *obj)
 
 	strcpy(obj_name, obj);
 	str->obj = obj_name;
+
+	str->is_scheduler = sched;
+	str->scheduler = NULL;
 
 	return str;
 }
@@ -890,11 +904,17 @@ static void add_kernel_exports(struct service_symbs *service)
 static struct service_symbs *prepare_service_symbs(char *services)
 {
 	struct service_symbs *str, *first;
-	const char *delim = ",";
-	char *tok;
+	const char *init_delim = ",", *serv_delim = ";";
+	char *tok, *init_str;
+	int len;
 	
-	tok = strtok(services, delim);
+	tok = strtok(services, init_delim);
 	first = str = alloc_service_symbs(tok);
+	init_str = strtok(NULL, serv_delim);
+	len = strlen(init_str)+1;
+	str->init_str = malloc(len);
+	assert(str->init_str);
+	memcpy(str->init_str, init_str, len);
 
 	do {
 		if (obj_serialize_symbols(str->obj, EXPORTED_SYMB_TYPE, str) ||
@@ -903,10 +923,16 @@ static struct service_symbs *prepare_service_symbs(char *services)
 			return NULL;
 		}
 		add_kernel_exports(str);
-		tok = strtok(NULL, delim);
+		tok = strtok(NULL, init_delim);
 		if (tok) {
 			str->next = alloc_service_symbs(tok);
 			str = str->next;
+
+			init_str = strtok(NULL, serv_delim);
+			len = strlen(init_str)+1;
+			str->init_str = malloc(len);
+			assert(str->init_str);
+			memcpy(str->init_str, init_str, len);
 		}
 	} while (tok);
 		
@@ -991,6 +1017,17 @@ static int verify_dependency_completeness(struct service_symbs *services)
 			} else {
 				symb->exporter = exporter;
 				symb->exported_symb = exp_symb;
+			}
+
+			if (exporter->is_scheduler) {
+				if (NULL == services->scheduler) {
+					services->scheduler = exporter;
+					//printl(PRINT_HIGH, "%s has scheduler %s.\n", services->obj, exporter->obj);
+				} else if (exporter != services->scheduler) {
+					printl(PRINT_HIGH, "Service %s is dependent on more than one scheduler (at least %s and %s).  Error.\n", services->obj, exporter->obj, services->scheduler->obj);
+					ret = -1;
+					goto exit;
+				}
 			}
 		}
 		
@@ -1564,8 +1601,8 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 		free(spd);
 		return NULL;
 	}
-	printl(PRINT_HIGH, "spd %s created with handle %d @ %x.\n", 
-	       s->obj, (unsigned int)spd->spd_handle, (unsigned int)spd->lowest_addr);
+	printl(PRINT_HIGH, "spd %s, id %d with initialization string \"%s\" @ %x.\n", 
+	       s->obj, (unsigned int)spd->spd_handle, s->init_str, (unsigned int)spd->lowest_addr);
 	*spd_id_addr = spd->spd_handle;
 	printl(PRINT_DEBUG, "\tHeap pointer directed to %x.\n", (unsigned int)s->heap_top);
 	*heap_ptr = s->heap_top;
@@ -1673,6 +1710,64 @@ static void make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all
 	serialize_spd_graph(g, PAGE_SIZE/sizeof(struct comp_graph), all);
 }
 
+#define INIT_STR_SZ 56
+
+/* struct is 64 bytes, so we can have 64 entries in a page. */
+struct component_init_str {
+	unsigned int spdid, schedid;
+	char init_str[INIT_STR_SZ];
+};
+
+static void format_config_info(struct service_symbs *ss, struct component_init_str *data)
+{
+	int i; 
+
+	for (i = 0 ; ss ; i++, ss = ss->next) {
+		char *info;
+		int id;
+
+		info = ss->init_str;
+		if (strlen(info) >= INIT_STR_SZ) {
+			printl(PRINT_HIGH, "Initialization string %s for component %s is too long (longer than %d)",
+			       info, ss->obj, strlen(info));
+			exit(-1);
+		}
+		id = ((struct spd_info *)(ss->extern_info))->spd_handle;
+		
+		data[i].spdid = id;
+		data[i].schedid = ss->scheduler ? 
+			((struct spd_info *)(ss->scheduler->extern_info))->spd_handle : 
+			0;
+		if (0 == strcmp(" ", info)) info = "";
+		strcpy(data[i].init_str, info);
+	}
+	data[i].spdid = 0;
+}
+
+static void make_spd_config_comp(struct service_symbs *c, struct service_symbs *all)
+{
+	int **heap_ptr, *heap_ptr_val;
+	struct component_init_str *info;
+
+	heap_ptr = (int **)get_symb_address(&c->exported, HEAP_PTR);
+	if (heap_ptr == NULL) {
+		printl(PRINT_DEBUG, "Could not find %s in %s.\n", HEAP_PTR, c->obj);
+		return;
+	}
+	heap_ptr_val = *heap_ptr;
+	info = mmap((void*)heap_ptr_val, PAGE_SIZE, PROT_WRITE | PROT_READ,
+			MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+	if (MAP_FAILED == info){
+		perror("Couldn't map the configuration info into the address space");
+		return;
+	}
+	printl(PRINT_DEBUG, "Found %s: remapping heap_ptr from %p to %p, writing config info.\n",
+	       CONFIG_COMP, *heap_ptr, heap_ptr_val + PAGE_SIZE/sizeof(heap_ptr_val));
+	*heap_ptr = heap_ptr_val + PAGE_SIZE/sizeof(heap_ptr_val);
+
+	format_config_info(all, info);
+}
+
 static struct service_symbs *find_obj_by_name(struct service_symbs *s, const char *n)
 {
 	while (s) {
@@ -1705,7 +1800,6 @@ static void setup_kernel(struct service_symbs *services)
 	while (s) {
 		struct service_symbs *t;
 		struct spd_info *t_spd;
-		char *name;
 
 		t = s;
 		if (strstr(s->obj, INIT_COMP) != NULL) {
@@ -1713,16 +1807,6 @@ static void setup_kernel(struct service_symbs *services)
 			t_spd = init_spd = create_spd(cntl_fd, init, 0, 0);
 		} else {
 			t_spd = create_spd(cntl_fd, t, t->lower_addr, t->size);
-		}
-		name = spd_name_map_name(t_spd->spd_handle);
-		if (!name) {
-			fprintf(stderr, "\tCannot find object from handle %d, make sure it is in sched_config.h.\n", 
-				t_spd->spd_handle);
-			exit(-1);
-		}
-		if (!strstr(s->obj, name)) {
-			fprintf(stderr, "*** OBJECT ORDER MISMATCH FOUND: %s@%d and should be @ %d ***\n", 
-				s->obj, t_spd->spd_handle, spd_name_map_id(s->obj));
 		}
 		if (!t_spd) {
 			fprintf(stderr, "\tCould not find service object.\n");
@@ -1762,6 +1846,12 @@ static void setup_kernel(struct service_symbs *services)
 		exit(-1);
 	}
 	make_spd_mpd_mgr(s, services);
+
+	if ((s = find_obj_by_name(services, CONFIG_COMP)) == NULL) {
+		fprintf(stderr, "Could not find the configuration component.\n");
+		exit(-1);
+	}
+	make_spd_config_comp(s, services);
 
 	if ((s = find_obj_by_name(services, INIT_COMP)) == NULL) {
 		fprintf(stderr, "Could not find initial component\n");
