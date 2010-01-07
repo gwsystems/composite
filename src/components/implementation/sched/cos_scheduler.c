@@ -121,9 +121,7 @@ void cos_sched_set_evt_urgency(u8_t evt_id, u16_t urgency)
 		new &= 0xFFFF;
 		new |= urgency<<16;
 		
-		if (cos_cmpxchg(ptr, (long)old, (long)new) == (long)new) {
-			break;
-		}
+		if (cos_cmpxchg(ptr, (long)old, (long)new) == (long)new) break;
 	}
 
 	return;
@@ -148,6 +146,18 @@ void sched_init_thd(struct sched_thd *thd, unsigned short int thd_id, int flags)
 	thd->id = thd_id;
 	thd->flags = flags;
 	thd->wake_cnt = 1;
+}
+
+int sched_share_event(struct sched_thd *n, struct sched_thd *old)
+{
+	int i;
+
+	i = old->evt_id;
+	assert(!(COS_SCHED_EVT_FLAGS(&cos_sched_notifications.cos_events[i]) & COS_SCHED_EVT_FREE));
+	n->evt_id = i;
+	if (cos_sched_cntl(COS_SCHED_THD_EVT, n->id, i)) return -1;
+
+	return 0;
 }
 
 short int sched_alloc_event(struct sched_thd *thd)

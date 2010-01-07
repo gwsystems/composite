@@ -8,6 +8,7 @@
 #define ARG_STRLEN 1024
 extern int print_str(char *str, int len);
 
+#define COS_FMT_PRINT
 #ifndef COS_FMT_PRINT
 static inline int cos_strlen(char *s) 
 {

@@ -151,6 +151,7 @@ int cos_sched_event_to_process(void);
 int cos_sched_process_events(sched_evt_visitor_t fn, struct sched_ops *ops, unsigned int proc_amnt);
 void cos_sched_set_evt_urgency(u8_t id, u16_t urgency);
 short int sched_alloc_event(struct sched_thd *thd);
+int sched_share_event(struct sched_thd *n, struct sched_thd *old);
 extern struct sched_thd *sched_map_evt_thd[NUM_SCHED_EVTS];
 static inline struct sched_thd *sched_evt_to_thd(short int evt_id)
 {

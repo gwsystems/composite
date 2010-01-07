@@ -3,15 +3,15 @@ MAKEFLAGS=--no-print-directory -I$(PWD)
 all: kern
 comps: 
 	$(info )
-	$(info ***************************************************)
-	$(info *************** Building Components ***************)
-	$(info ***************************************************)
+	$(info ***********************************************)
+	$(info ************* Building Components *************)
+	$(info ***********************************************)
 	$(info )
 	$(MAKE) $(MAKEFLAGS) -C components
 kern: comps
 	$(info )
 	$(info ***********************************************)
-	$(info *************** Building Kernel ***************)
+	$(info ******** Building Platform and Kernel *********)
 	$(info ***********************************************)
 	$(info )
 	$(MAKE) $(MAKEFLAGS) -C platform

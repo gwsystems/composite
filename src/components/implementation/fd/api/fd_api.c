@@ -616,7 +616,6 @@ static void init(void)
 {
 	int i;
 
-	printc("Initializing data structures in fd spd %d.\n", (unsigned int)cos_spd_id());
 	lock_static_init(&fd_lock);
 	cos_map_init_static(&fds);
 	cos_vect_init_static(&evt2fdesc);

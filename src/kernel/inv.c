@@ -1758,7 +1758,7 @@ COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, struct pt_r
 	 * trusts us (i.e. that the current spd is allowed to upcall
 	 * into the destination.)
 	 */
-	if (verify_trust(dest, curr_spd)) {
+	if (verify_trust(dest, curr_spd) && curr_spd->sched_depth != 0) {
 		printk("cos: upcall attempted from %d to %d without trust relation.\n",
 		       spd_get_index(curr_spd), spd_get_index(dest));
 		return -1;
@@ -2000,10 +2000,14 @@ int brand_higher_urgency(struct thread *upcall, struct thread *prev)
 	 * shutting down the system but still get a packet.  This will
 	 * shut it up for now.
 	 */
-	if (!thd_get_sched_info(upcall, d)->thread_notifications ||
-	    !thd_get_sched_info(prev, d)->thread_notifications) {
-		printk("cos: skimping on brand metadata maintenance, and returning.\n");
-		return 0;
+	if (!thd_get_sched_info(prev, d)->thread_notifications) {
+		if (!thd_get_sched_info(upcall, d)->thread_notifications) {
+			printk("cos: skimping on brand metadata maintenance, and returning.\n");
+			return 0;
+		} else {
+			/* upcall has the proper structure, prev doesn't! */
+			return 1;
+		}
 	}
 	u_urg = thd_get_depth_urg(upcall, d);
 	p_urg = thd_get_depth_urg(prev, d);

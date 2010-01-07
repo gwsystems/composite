@@ -39,7 +39,9 @@ struct component_init_str *nth_for_sched(spdid_t sched, int n)
 		while (init_strs[idx].schedid != sched && init_strs[idx].spdid != 0) {
 			idx++;
 		}
+		if (i == n) return &init_strs[idx];
 	}
+	assert(0);
 	return &init_strs[idx-1];
 }
 
@@ -63,6 +65,7 @@ spdid_t sched_comp_config(spdid_t spdid, int i, struct cos_array *data)
 
 	cis = nth_for_sched(spdid, i);
 	if (0 == cis->spdid) return 0; /* no dice */
+	assert(cis->schedid == spdid);
 
 	str_len = strlen(cis->init_str);
 	if (str_len+1 > max_len) {
