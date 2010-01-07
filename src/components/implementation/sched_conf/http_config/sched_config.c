@@ -54,7 +54,6 @@ spdid_t sched_comp_config(spdid_t spdid, int i, struct cos_array *data)
 	if (first) {
 		first = 0;
 		parse_initialization_strings();
-		printc("init...\n");
 	}
 
 	if (!cos_argreg_arr_intern(data)) {

@@ -1,0 +1,162 @@
+Executing Composite
+-------------------
+
+Typical usage involves first setting up the system the first time you
+are going to use it.  All the following assumes two open terminals, A
+and B.
+
+On A, enter into src/ and type "make init" which should build all of
+the source including external libraries such as dietlibc and lwip
+which are not typically recompiled on a "make".
+
+Whenever you make changes to the source tree, typing "make" should
+recompile all necessary files.  Be sure to look out for errors that
+need to be fixed.
+
+When you wish to execute the code, on A type "make cp" which will
+transfer all executable and object files into your transfer directory
+(see build_system.txt).
+
+In terminal B, sign in as root (you need to install the Composite
+module).  If the system just booted and you haven't run Composite yet,
+be sure to type "make init".  From that point on, you simply need to
+type "make" to transfer the files into a root-accessible directory,
+and insert the Composite module.
+
+Presumably, you have access to a run script, i.e. run.sh that was just
+transferred over.  Executing this file should link and load the
+components and execute them.
+
+Each time you wish to execute Composite, you should run "make" before
+the run script again.
+
+Format of the runscript:
+------------------------
+
+Example runscript:
+
+#!/bin/sh
+
+# Basic configuration to startup a limited web-server running on port 200 serving /hw, /cgi/hw, and /cgi/HW.
+# Can be tested with: httperf --server=10.0.2.8 --port=200 --uri=/cgi/hw --num-conns=7000
+
+./cos_loader \
+"c0.o, ;*fprr.o, ;mpd.o,a4;l.o,a8;mm.o, ;print.o, ;te.o,a3;net.o,a6;e.o,a3;fd.o,a8;conn.o,a9;http.o,a8;\
+stat.o,a25;st.o, ;cm.o,a7;sc.o,a6;if.o,a5;ip.o, ;ainv.o,a6;fn.o, ;cgi.o,a9;port.o, ;schedconf.o, ;\
+bc.o, ;(fd2.o=fd.o),a8;(fd3.o=fd.o),a8;(cgi2.o=cgi.o),a9;(ainv2.o=ainv.o),a6:\
+\
+net.o-fprr.o|mm.o|print.o|l.o|te.o|e.o|ip.o|port.o;\
+c0.o-fprr.o;\
+fprr.o-print.o|mm.o|st.o|schedconf.o|[parent_]bc.o;\
+mpd.o-fprr.o|print.o|te.o|mm.o;\
+l.o-fprr.o|mm.o|print.o|te.o;\
+te.o-print.o|fprr.o|mm.o;\
+mm.o-print.o;\
+e.o-fprr.o|print.o|mm.o|l.o|st.o;\
+fd.o-print.o|e.o|net.o|l.o|fprr.o|http.o|mm.o;\
+conn.o-fd.o|print.o|mm.o|fprr.o;\
+http.o-mm.o|print.o|fprr.o|cm.o|te.o;\
+stat.o-te.o|fprr.o|l.o|print.o|e.o;\
+st.o-print.o;\
+ip.o-if.o;\
+port.o-l.o;\
+cm.o-print.o|mm.o|sc.o|fprr.o|ainv.o|[alt_]ainv2.o;\
+sc.o-print.o|mm.o|e.o|fprr.o;\
+if.o-print.o|mm.o|l.o|fprr.o;\
+fn.o-fprr.o;\
+fd2.o-fn.o|ainv.o|print.o|mm.o|fprr.o|e.o|l.o;\
+ainv.o-mm.o|print.o|fprr.o|l.o|e.o;\
+cgi.o-fd2.o|fprr.o|print.o;\
+fd3.o-fn.o|ainv2.o|print.o|mm.o|fprr.o|e.o|l.o;\
+ainv2.o-mm.o|print.o|fprr.o|l.o|e.o;\
+cgi2.o-fd3.o|fprr.o|print.o;\
+schedconf.o-print.o;\
+bc.o-print.o\
+" ./gen_client_stub
+
+The runscript essentially just executes a single command, cos_loader,
+and passed two arguments to it.  The first argument adheres to a very
+specific syntax that specifies which components are going to be
+loaded, and what their dependencies are (which other components can
+they invoke).
+
+The first section:
+
+"c0.o, ;*fprr.o, ;mpd.o,a4;l.o,a8;mm.o, ;print.o, ;te.o,a3;net.o,a6;e.o,a3;fd.o,a8;conn.o,a9;http.o,a8;\
+stat.o,a25;st.o, ;cm.o,a7;sc.o,a6;if.o,a5;ip.o, ;ainv.o,a6;fn.o, ;cgi.o,a9;port.o, ;schedconf.o, ;\
+bc.o, ;(fd2.o=fd.o),a8;(fd3.o=fd.o),a8;(cgi2.o=cgi.o),a9;(ainv2.o=ainv.o),a6:...
+
+This section specifies which components are to be loaded to create a
+functional system.  Each component's description is separated by a
+semicolon.  Each component's description includes the component's
+object name (e.g. c0.o), a comma, and the string of characters to be
+passed to its scheduler when it starts up.  This string specifies the
+priority of the initial thread for that component, and typically
+starts with an "a" to designate the priority is "absolute", and then
+has a number, or the priority.  Lower decimal values designate higher
+priorities.  If the string after the comma is only a space " ", then
+that component does not need a thread when it starts up.  Schedulers
+(fprr.o in this case) are designated with a "*" before their name,
+thus "*fprr.o, ;" which specifies that the system is using a fixed
+priority round robin scheduler which doesn't have any initial threads.
+
+Occasionally, you wish to use the same component implementation at
+different places or locations in the component graph.  This is
+designated by using "(a=b)" for the component name.  This means that a
+new component, "a" which is the same implementation as "b", will be
+used in the component graph.  For example, "(fd2.o=fd.o),a8;" means
+that fd2.o is a new file descriptor component that is a copy of
+"fd.o", but will be used in a different location in the component
+graph.  "fd2.o" will be initialized by a thread with a priority of 8.
+
+The second section:
+
+net.o-fprr.o|mm.o|print.o|l.o|te.o|e.o|ip.o|port.o;\
+c0.o-fprr.o;\
+fprr.o-print.o|mm.o|st.o|schedconf.o|[parent_]bc.o;\
+mpd.o-fprr.o|print.o|te.o|mm.o;\
+l.o-fprr.o|mm.o|print.o|te.o;\
+te.o-print.o|fprr.o|mm.o;\
+mm.o-print.o;\
+e.o-fprr.o|print.o|mm.o|l.o|st.o;\
+fd.o-print.o|e.o|net.o|l.o|fprr.o|http.o|mm.o;\
+conn.o-fd.o|print.o|mm.o|fprr.o;\
+http.o-mm.o|print.o|fprr.o|cm.o|te.o;\
+stat.o-te.o|fprr.o|l.o|print.o|e.o;\
+st.o-print.o;\
+ip.o-if.o;\
+port.o-l.o;\
+cm.o-print.o|mm.o|sc.o|fprr.o|ainv.o|[alt_]ainv2.o;\
+sc.o-print.o|mm.o|e.o|fprr.o;\
+if.o-print.o|mm.o|l.o|fprr.o;\
+fn.o-fprr.o;\
+fd2.o-fn.o|ainv.o|print.o|mm.o|fprr.o|e.o|l.o;\
+ainv.o-mm.o|print.o|fprr.o|l.o|e.o;\
+cgi.o-fd2.o|fprr.o|print.o;\
+fd3.o-fn.o|ainv2.o|print.o|mm.o|fprr.o|e.o|l.o;\
+ainv2.o-mm.o|print.o|fprr.o|l.o|e.o;\
+cgi2.o-fd3.o|fprr.o|print.o;\
+schedconf.o-print.o;\
+bc.o-print.o
+
+This section includes a semicolon-separated list of each component,
+and which components it is dependent on.  All undefined symbols
+(functions that are called in the component, but are not provided
+within that component) will need to be satisfied by a function
+implemented in one of the components that is depended on.  The "-"
+operator means that the component on the left depends on the
+component(s) on the right.  The "|" operator is equivalent to
+english's "and".  So, the line,
+
+l.o-fprr.o|mm.o|print.o|te.o;
+
+means that the lock component l.o has unimplemented functions that
+will be provided by the fixed priority round robin scheduler (fprr.o),
+the memory manager (mm.o), the terminal printer (print.o), and the
+timed event provider (te.o).  
+
+This section, therefore, specifies the shape of the component graph!
+
+When you add your own component, you will need to add it into the
+first section of all components used in the system, and specify which
+components it depends on, and which components depend on it.
