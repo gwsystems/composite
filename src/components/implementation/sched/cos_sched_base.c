@@ -32,9 +32,9 @@
 #define PRINTD(s, args...) 
 #endif
 
-#define RUNTIME_SEC (6)
-#define REPORT_FREQ (3)		/* freq of reporting in seconds */
-#define CHLD_REPORT_FREQ (300)	/* freq of reporting in seconds of the child */
+#define RUNTIME_SEC (5)
+#define REPORT_FREQ (2)		/* freq of reporting in seconds */
+#define CHLD_REPORT_FREQ (2)	/* freq of reporting in seconds of the child */
 #define TIMER_FREQ 100
 #define CYC_PER_USEC 1000
 
@@ -98,8 +98,13 @@ typedef enum {
 	PARENT_CHILD_EVT_OTHER,
 	PARENT_CHILD_EVT_THD,
 	PARENT_CHILD_DEACTIVATE,
+	PARENT_CHILD_RESUME,
+	PARENT_CHILD_REDUNDANT_RESUME,
 	CHILD_PROCESS_EVT_IDLE,
 	CHILD_PROCESS_EVT_PEND,
+	CHILD_EVT_BLOCK,
+	CHILD_EVT_WAKE,
+	CHILD_EVT_OTHER,
 	REVT_LAST
 } report_evt_t;
 
@@ -136,8 +141,13 @@ static char *revt_names[] = {
 	"parent scheduler sending non-thread block/wake event",
 	"parent scheduler sending thread block/wake event",
 	"parent scheduler deactivating child sched thread",
+	"parent scheduler resuming thread for child sched",
+	"parent scheduler has redundant resume for child sched",
 	"child scheduler processing event with possible idle",
 	"child scheduler processing event with pending work",
+	"child scheduler processing event: block thread",
+	"child scheduler processing event: wake thread",
+	"child scheduler processing event: other (e.g. evt thd)",
 	""
 };
 static long long report_evts[REVT_LAST];
@@ -228,6 +238,9 @@ static inline void fp_resume_thd(struct sched_thd *t)
 		struct sched_thd *g = sched_get_grp(t);
 		ADD_LIST(g, t, cevt_next, cevt_prev);
 		activate_child_sched(g);
+		report_event(PARENT_CHILD_RESUME);
+	} else {
+		report_event(PARENT_CHILD_REDUNDANT_RESUME);
 	}
 }
 
@@ -383,8 +396,10 @@ static int sched_switch_thread_target(struct sched_ops *ops, int flags, report_e
 				 * upcall completing execution */
 				next = ops->schedule(current);
 				assert(next != current);
+				assert(!sched_thd_member(next));
 			} else {
 				next = ops->schedule(NULL);
+				assert(!sched_thd_member(next));
 				/* if we are the next thread and no
 				 * dependencies have been introduced (i.e. we
 				 * are waiting on a component-lock for
@@ -1049,6 +1064,7 @@ int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle)
 		if (t->cevt_flags & SCHED_CEVT_OTHER || 
 		    child_ticks_stale(t) || 
 		    !idle) {
+			t->cevt_flags &= ~SCHED_CEVT_OTHER;
 			child_ticks_update(t, e);
 			report_event(PARENT_CHILD_EVT_OTHER);
 			goto done;
@@ -1102,6 +1118,7 @@ static void sched_process_cevt(struct sched_child_evt *e)
 			fp_pre_wakeup(t);
 			fp_wakeup(t, 0);
 		}
+		report_event(CHILD_EVT_WAKE);
 		break;
 	case SCHED_CEVT_BLOCK:
 		t = sched_get_mapping(e->tid);
@@ -1109,8 +1126,10 @@ static void sched_process_cevt(struct sched_child_evt *e)
 		fp_pre_block(t);
 		assert(0 == t->wake_cnt);
 		fp_block(t, 0);
+		report_event(CHILD_EVT_BLOCK);
 		break;
 	case SCHED_CEVT_OTHER:
+		report_event(CHILD_EVT_OTHER);
 		break;
 	}
 
@@ -1151,15 +1170,21 @@ static void sched_child_evt_thd(void)
 
 		cos_sched_lock_take();
 		do {
+			/* If there isn't a thread to schedule, and
+			 * there are no events, this child scheduler
+			 * should idle */
 			should_idle = (scheduler_ops->schedule(NULL) == idle);
 			cos_sched_clear_cevts();
 			cos_sched_lock_release();
+			/* Get events from the parent scheduler */
 			cont = parent_sched_child_get_evt(cos_spd_id(), e, should_idle);
 			cos_sched_lock_take();
 			assert(0 <= cont);
+			/* Process those events */
 			sched_process_cevt(e);
 			report_event(should_idle ? CHILD_PROCESS_EVT_IDLE : CHILD_PROCESS_EVT_PEND);
 		} while (cont);
+		/* When there are no more events, schedule */
 		sched_switch_thread(scheduler_ops, 0, NULL_EVT);
 	}
 	cos_argreg_free(e);
