@@ -417,6 +417,7 @@ static int sched_switch_thread_target(struct sched_ops *ops, int flags, report_e
 			if (current == timer) goto done;
 			next = timer;
 		}
+		assert(!sched_thd_blocked(next));
 		ret = cos_switch_thread_release(next->id, flags);
 		assert(ret != COS_SCHED_RET_ERROR);
 		/* success, or we need to check for more child events:
@@ -448,6 +449,7 @@ static int fp_kill_thd(struct sched_thd *t)
 	c = sched_get_current();
 	if (scheduler_ops->thread_remove(t)) assert(0);
 
+	t->flags |= THD_BLOCKED;
 	sched_switch_thread(scheduler_ops, 0, NULL_EVT);
 	if (t == c) assert(0);
 

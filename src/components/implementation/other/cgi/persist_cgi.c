@@ -33,7 +33,10 @@ void cos_init(void *arg)
 	for (i = 0 ; NULL != service_names[i] ; i++) {
 		memcpy(data->mem, service_names[i], strlen(service_names[i]));
 		data->sz = strlen(service_names[i]);
-		if (0 > (main_fd = cos_app_open(0, data))) assert(0);
+		if (0 > (main_fd = cos_app_open(0, data))) {
+			printc("cgi: cannot open service, ret=%d\n", main_fd);
+			assert(0);
+		}
 	}
 
 	main_fd = cos_wait_all();
