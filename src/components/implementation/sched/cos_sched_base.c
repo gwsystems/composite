@@ -32,7 +32,7 @@
 #define PRINTD(s, args...) 
 #endif
 
-#define RUNTIME_SEC (5)
+#define RUNTIME_SEC (60)
 #define REPORT_FREQ (2)		/* freq of reporting in seconds */
 #define CHLD_REPORT_FREQ (2)	/* freq of reporting in seconds of the child */
 #define TIMER_FREQ 100
@@ -105,6 +105,7 @@ typedef enum {
 	CHILD_EVT_BLOCK,
 	CHILD_EVT_WAKE,
 	CHILD_EVT_OTHER,
+	CHILD_SWITCH_THD,
 	REVT_LAST
 } report_evt_t;
 
@@ -148,6 +149,7 @@ static char *revt_names[] = {
 	"child scheduler processing event: block thread",
 	"child scheduler processing event: wake thread",
 	"child scheduler processing event: other (e.g. evt thd)",
+	"child scheduler calls switch_thread",
 	""
 };
 static long long report_evts[REVT_LAST];
@@ -169,7 +171,7 @@ static void report_output(void)
 		report_evts[i] = 0;
 	}
 
-	mman_print_stats();
+//	mman_print_stats();
 }
 #else
 #define report_event(e)
@@ -417,6 +419,7 @@ static int sched_switch_thread_target(struct sched_ops *ops, int flags, report_e
 			if (current == timer) goto done;
 			next = timer;
 		}
+
 		assert(!sched_thd_blocked(next));
 		ret = cos_switch_thread_release(next->id, flags);
 		assert(ret != COS_SCHED_RET_ERROR);
@@ -462,7 +465,9 @@ static void fp_wakeup(struct sched_thd *thd, spdid_t spdid);
 static void sched_process_wakeup_thd(void)
 {
 	/* Wakeup the event thread? */
-	if (ticks == wakeup_time && wakeup_thd) {
+	if (ticks >= wakeup_time && wakeup_thd && 
+	    /* don't double wake it! */
+	    wakeup_thd->wake_cnt < 2) {
 		wakeup_time = 0;
 		fp_pre_wakeup(wakeup_thd);
 		/* If the event thread has not blocked yet, then don't
@@ -538,6 +543,7 @@ static void fp_create_spd_thd(void *d)
 
 static void fp_idle_loop(void *d)
 {
+	assert(sched_is_root());
 	while(1) {
 		/* Unfortunately, we can't make this strong an
 		 * assertion.  Instead, we really can only assert that
@@ -1068,11 +1074,12 @@ int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle)
 		    !idle) {
 			t->cevt_flags &= ~SCHED_CEVT_OTHER;
 			child_ticks_update(t, e);
-			report_event(PARENT_CHILD_EVT_OTHER);
+			if (!idle) report_event(PARENT_CHILD_EVT_OTHER);
 			goto done;
 		}
 
 		report_event(PARENT_BLOCK_CHILD);
+
 		/* No event, and child wants to idle: block! This
 		 * releases the scheduler lock, so non-local
 		 * data-structures need to be reacquired. */
@@ -1147,7 +1154,6 @@ static void sched_process_cevt(struct sched_child_evt *e)
 		report_event(TIMER_TICK);
 		if ((ticks - prev_print) >= (CHLD_REPORT_FREQ*TIMER_FREQ)) {
 			report_thd_accouting();
-			cos_stats();
 			prev_print += CHLD_REPORT_FREQ*TIMER_FREQ;
 		}
 		sched_process_wakeup_thd();
@@ -1176,6 +1182,7 @@ static void sched_child_evt_thd(void)
 			 * there are no events, this child scheduler
 			 * should idle */
 			should_idle = (scheduler_ops->schedule(NULL) == idle);
+			assert(scheduler_ops->schedule(NULL) != timer);
 			cos_sched_clear_cevts();
 			cos_sched_lock_release();
 			/* Get events from the parent scheduler */
@@ -1186,6 +1193,8 @@ static void sched_child_evt_thd(void)
 			sched_process_cevt(e);
 			report_event(should_idle ? CHILD_PROCESS_EVT_IDLE : CHILD_PROCESS_EVT_PEND);
 		} while (cont);
+		
+		report_event(CHILD_SWITCH_THD);
 		/* When there are no more events, schedule */
 		sched_switch_thread(scheduler_ops, 0, NULL_EVT);
 	}
@@ -1312,11 +1321,12 @@ static void sched_child_init(void)
 	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)&cos_sched_notifications)) assert(0);
 	sched_init();
 
-	sched_init_create_threads();
 	/* Don't involve the scheduler policy... */
 	timer = __sched_setup_thread_no_policy(cos_get_thd_id());
 	assert(timer);
 	sched_set_thd_urgency(timer, 0); /* highest urgency */
+
+	sched_init_create_threads();
 
 	sched_child_evt_thd();	/* doesn't return */
 

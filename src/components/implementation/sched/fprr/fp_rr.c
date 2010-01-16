@@ -262,6 +262,7 @@ static int fp_thread_params(struct sched_thd *t, char *p)
 		assert(c);
 		tmp = atoi(&p[1]);
 		prio = sched_get_metric(c)->priority + tmp;
+		if (prio > PRIO_LOWEST) prio = PRIO_LOWEST;
 		break;
 	case 'a':
 		/* absolute priority */
