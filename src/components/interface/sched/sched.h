@@ -28,6 +28,6 @@ struct sched_child_evt {
 
 int sched_child_cntl_thd(spdid_t spdid);
 int sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd);
-int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle);
+int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff);
 
 #endif 	    /* !SCHED_H */

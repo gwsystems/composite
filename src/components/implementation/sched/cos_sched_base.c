@@ -1,3 +1,4 @@
+
 /**
  * Copyright 2008 by Boston University.
  *
@@ -6,8 +7,9 @@
  *
  * Author: Gabriel Parmer, gabep1@cs.bu.edu
  * 
- * Copyright The George Washington University, Gabriel Parmer,
- * gparmer@gwu.edu, 2009
+ * Copyright 2009, The George Washington University
+ *
+ * Author: Gabriel Parmer, gparmer@gwu.edu
  */
 
 #define COS_FMT_PRINT
@@ -32,16 +34,13 @@
 #define PRINTD(s, args...) 
 #endif
 
-#define RUNTIME_SEC (60)
-#define REPORT_FREQ (2)		/* freq of reporting in seconds */
-#define CHLD_REPORT_FREQ (2)	/* freq of reporting in seconds of the child */
-#define TIMER_FREQ 100
-#define CYC_PER_USEC 1000
+#include <sched_timing.h>
 
 static volatile u64_t ticks = 0;
 
 /* When the wakeup thread (in charge of higher-level timing) should be woken */
-static volatile u64_t wakeup_time;
+static volatile u64_t wakeup_time = 0;
+static volatile u64_t child_wakeup_time = 0;
 static struct sched_thd *wakeup_thd;
 
 /* 
@@ -59,14 +58,13 @@ struct sched_ops *scheduler_ops;
 
 static enum {SCHED_CHILD, SCHED_ROOT} sched_type = SCHED_ROOT;
 static inline int sched_is_root(void) { return sched_type == SCHED_ROOT; }
-static inline int sched_is_child(void) { return !sched_is_root(); }
+static inline int sched_is_child(void) { return !sched_is_root(); } 
 
 #define FPRR_REPORT_EVTS
 
-#ifdef FPRR_REPORT_EVTS
-
 typedef enum {
 	NULL_EVT = 0,
+	SWITCH_THD,
 	BRAND_ACTIVE,
 	BRAND_READY,
 	BRAND_PENDING,
@@ -109,8 +107,11 @@ typedef enum {
 	REVT_LAST
 } report_evt_t;
 
+#ifdef FPRR_REPORT_EVTS
+
 static char *revt_names[] = {
 	"null event",
+	"switch threads",
 	"brand active event",
 	"brand ready event",
 	"brand pending event",
@@ -176,7 +177,6 @@ static void report_output(void)
 #else
 #define report_event(e)
 #define report_output()
-typedef enum { NULL_EVT = 0 } report_evt_t;
 #endif
 
 //extern void st_trace_thd(unsigned short int tid);
@@ -193,26 +193,39 @@ static void report_thd_accouting(void)
 
 	scheduler_ops->runqueue_print();
 
-	printc("\nBlocked threads (thd, prio, cycles):\n");
+	if (sched_is_child()) {
+		struct sched_accounting *sa = sched_get_accounting(timer);
+
+		printc("\nChild timer thread (thd, ticks):\n");		
+		printc("\t%d, %ld\n", timer->id, sa->ticks - sa->prev_ticks);
+		print_thd_invframes(timer);
+		sa->prev_ticks = sa->ticks;
+	}
+
+	printc("\nBlocked threads (thd, prio, ticks):\n");
 	for (t = FIRST_LIST(&blocked, prio_next, prio_prev) ; 
 	     t != &blocked ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
-		if (sched_get_accounting(t)->cycles) {
-			printc("\t%d, %d, %lld\n", t->id, 
-			       sched_get_metric(t)->priority, sched_get_accounting(t)->cycles);
+		struct sched_accounting *sa = sched_get_accounting(t);
+		unsigned long diff = sa->ticks - sa->prev_ticks;
+		
+		if (diff) {
+			printc("\t%d, %d, %ld\n", t->id, sched_get_metric(t)->priority, diff);
 			print_thd_invframes(t);
-			sched_get_accounting(t)->cycles = 0;
+			sa->prev_ticks = sa->ticks;
 		}
 	}
-	printc("\nInactive upcalls (thd, prio, cycles):\n");
+	printc("\nInactive upcalls (thd, prio, ticks):\n");
 	for (t = FIRST_LIST(&upcall_deactive, prio_next, prio_prev) ; 
 	     t != &upcall_deactive ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
-		if (sched_get_accounting(t)->cycles) {
-			printc("\t%d, %d, %lld\n", t->id, 
-			       sched_get_metric(t)->priority, sched_get_accounting(t)->cycles);
+		struct sched_accounting *sa = sched_get_accounting(t);
+		unsigned long diff = sa->ticks - sa->prev_ticks;
+		
+		if (diff) {
+			printc("\t%d, %d, %ld\n", t->id, sched_get_metric(t)->priority, diff);
 			print_thd_invframes(t);
-			sched_get_accounting(t)->cycles = 0;
+			sa->prev_ticks = sa->ticks;
 		}
 	}
 	printc("\n");
@@ -233,6 +246,7 @@ static inline void fp_resume_thd(struct sched_thd *t)
 	//fp_move_end_runnable(t);
 	/* child threads aren't reported to the scheduler */
 	if (!sched_thd_member(t)) {
+		assert(sched_is_root() || t != timer);
 		if (scheduler_ops->thread_wakeup(t)) assert(0);
 	} 
 	/* Is the member _not_ already on the list for the group? */
@@ -253,6 +267,7 @@ static void fp_activate_upcall(struct sched_thd *uc)
 		uc->flags |= THD_READY;
 		REM_LIST(uc, prio_next, prio_prev); //done in move_end_runnable
 		//fp_move_end_runnable(uc);
+		assert(sched_is_root() || uc != timer);
 		if (scheduler_ops->thread_wakeup(uc)) assert(0);
 	}
 }
@@ -272,6 +287,8 @@ static void evt_callback(struct sched_ops *ops, struct sched_thd *t, u8_t flags,
 {
 	struct sched_accounting *sa;
 	assert(!sched_thd_member(t));
+
+	if (sched_thd_free(t) || sched_thd_dying(t)) return;
 
 	if (flags & (COS_SCHED_EVT_BRAND_ACTIVE|COS_SCHED_EVT_BRAND_READY|COS_SCHED_EVT_BRAND_PEND)) {
 		if (sched_thd_grp(t)) {
@@ -316,8 +333,18 @@ static void evt_callback(struct sched_ops *ops, struct sched_thd *t, u8_t flags,
 	report_event(BRAND_CYCLE);
 	sa = sched_get_accounting(t);
 	sa->cycles += cpu_usage;
-	if (ops->time_elapsed(t, cpu_usage)) assert(0);
-	/* if quota has expired, block?? */
+	if (sched_is_root() || t != timer) { 
+		if (ops->time_elapsed(t, cpu_usage)) assert(0);
+	} else {
+		/* child scheduler, timer thread */
+		struct sched_accounting *sa = sched_get_accounting(t);
+		assert(timer == t && sched_is_child());
+
+		if (sa->cycles >= CYC_PER_TICK) {
+			sa->cycles -= CYC_PER_TICK;
+			sa->ticks++;
+		}
+	}
 	return;
 }
 
@@ -361,6 +388,7 @@ static struct sched_thd *resolve_dependencies(struct sched_thd *next)
  */
 static int sched_switch_thread_target(struct sched_ops *ops, int flags, report_evt_t evt, struct sched_thd *target)
 {
+	/* Current can be NULL if the current thread is being killed */
 	struct sched_thd *current = sched_get_current();
 	int ret;
 
@@ -381,7 +409,7 @@ static int sched_switch_thread_target(struct sched_ops *ops, int flags, report_e
 			cos_sched_process_events(evt_callback, ops, 0);
 		}
 //		assert(sched_thd_ready(current));
-		assert(!sched_thd_free(current));
+//		assert(!sched_thd_free(current));
 		if (likely(!target)) {
 			/* 
 			 * If current is an upcall that wishes to terminate
@@ -397,10 +425,12 @@ static int sched_switch_thread_target(struct sched_ops *ops, int flags, report_e
 				/* we don't want next to be us! We are an
 				 * upcall completing execution */
 				next = ops->schedule(current);
+				assert(sched_is_root() || timer != next);
 				assert(next != current);
 				assert(!sched_thd_member(next));
 			} else {
 				next = ops->schedule(NULL);
+				assert(sched_is_root() || timer != next);
 				assert(!sched_thd_member(next));
 				/* if we are the next thread and no
 				 * dependencies have been introduced (i.e. we
@@ -414,6 +444,10 @@ static int sched_switch_thread_target(struct sched_ops *ops, int flags, report_e
 		}
 		next = resolve_dependencies(next);
 		if (next == current) goto done;
+
+		/* This is a kludge:  child schedulers don't have
+		 * idle threads...instead they just use the
+		 * event/timer thread */
 		if (unlikely(next == idle && sched_is_child())) {
 			/* We are in the timer/child event thread! */
 			if (current == timer) goto done;
@@ -421,6 +455,7 @@ static int sched_switch_thread_target(struct sched_ops *ops, int flags, report_e
 		}
 
 		assert(!sched_thd_blocked(next));
+		report_event(SWITCH_THD);
 		ret = cos_switch_thread_release(next->id, flags);
 		assert(ret != COS_SCHED_RET_ERROR);
 		/* success, or we need to check for more child events:
@@ -443,39 +478,54 @@ static inline int sched_switch_thread(struct sched_ops *ops, int flags, report_e
 	return sched_switch_thread_target(ops, flags, evt, NULL);
 }
 
-/* Should not hold scheduler lock when calling. */
-static int fp_kill_thd(struct sched_thd *t)
-{
-	struct sched_thd *c; 
-
-	cos_sched_lock_take();
-	c = sched_get_current();
-	if (scheduler_ops->thread_remove(t)) assert(0);
-
-	t->flags |= THD_BLOCKED;
-	sched_switch_thread(scheduler_ops, 0, NULL_EVT);
-	if (t == c) assert(0);
-
-	return 0;
-}
-
 static void fp_pre_wakeup(struct sched_thd *t);
 static void fp_wakeup(struct sched_thd *thd, spdid_t spdid);
 
-static void sched_process_wakeup_thd(void)
+static void sched_process_wakeups(void)
 {
+	struct sched_thd *t, *next;
+	u64_t lowest_child = 0;
+
 	/* Wakeup the event thread? */
-	if (ticks >= wakeup_time && wakeup_thd && 
-	    /* don't double wake it! */
-	    wakeup_thd->wake_cnt < 2) {
-		wakeup_time = 0;
-		fp_pre_wakeup(wakeup_thd);
-		/* If the event thread has not blocked yet, then don't
-		 * wake it fully */
-		if (sched_thd_blocked(wakeup_thd)) {
-			fp_wakeup(wakeup_thd, 0);
+	if (wakeup_time && ticks >= wakeup_time && likely(wakeup_thd)) {
+		if (wakeup_thd->wake_cnt < 2) {
+			wakeup_time = 0;
+			fp_pre_wakeup(wakeup_thd);
+			/* If the event thread has not blocked yet, then don't
+			 * wake it fully */
+			if (sched_thd_blocked(wakeup_thd)) fp_wakeup(wakeup_thd, 0);
+		} else {
+			assert(!sched_thd_blocked(wakeup_thd));
 		}
 	}
+
+	/* 
+	 * Find child scheduler threads and monitor for timeouts
+	 * FIXME: should organize child schedulers into sorted wakeup
+	 * list instead of using a linear walk through all blocked
+	 * threads here.
+	 */
+	for (t = FIRST_LIST(&blocked, prio_next, prio_prev) ;
+	     t != &blocked ;
+	     t = next) {
+		next = FIRST_LIST(t, prio_next, prio_prev);
+		/* child scheduler requested wakeup */
+		if (sched_thd_grp(t) && t->wakeup_tick) {
+			if (t->wakeup_tick <= ticks) {
+				/* if the child thread has not been executed
+				 * since the wakeup expired */
+				if (t->wakeup_tick > t->tick) {
+					activate_child_sched(t);
+					t->cevt_flags |= SCHED_CEVT_OTHER;
+				}
+				t->wakeup_tick = 0;
+			}
+			if (t->wakeup_tick && (0 == lowest_child || t->wakeup_tick < lowest_child)) {
+				lowest_child = t->wakeup_tick;
+			}
+		}
+	}
+	child_wakeup_time = lowest_child;
 }
 
 static void sched_timer_tick(void)
@@ -503,10 +553,11 @@ static void sched_timer_tick(void)
 		}
 		
 		ticks++;
-		sched_process_wakeup_thd();
+		sched_process_wakeups();
 
 		scheduler_ops->timer_tick(1);
 		sched_switch_thread(scheduler_ops, COS_SCHED_BRAND_WAIT, TIMER_SWITCH_LOOP);
+		/* Tailcall out of the loop */
 	}
 }
 
@@ -552,9 +603,10 @@ static void fp_idle_loop(void *d)
 		if (cos_sched_pending_event()) {
 			report_event(IDLE_SCHED);
  			cos_sched_lock_take();
-			sched_switch_thread(scheduler_ops, 0, IDLE_SCHED_LOOP);
+			sched_switch_thread(scheduler_ops, 0, IDLE_SCHED_SWITCH);
 		}
-		cos_idle();
+		report_event(IDLE_SCHED_LOOP);
+		//cos_idle();
 	}
 }
 
@@ -629,6 +681,7 @@ int sched_timeout_thd(spdid_t spdid)
 static void fp_pre_wakeup(struct sched_thd *t)
 {
 	assert(t->wake_cnt >= 0 && t->wake_cnt <= 2);
+	if (2 == t->wake_cnt) return;
 	t->wake_cnt++;
 	if (!sched_thd_dependent(t) &&
 	    !(sched_thd_blocked(t) || t->wake_cnt == 2)) {
@@ -676,8 +729,9 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 	
 	if (thd->dependency_thd) {
 		assert(sched_thd_dependent(thd));
-		thd->dependency_thd = NULL;
+		assert(!thd->contended_component);
 		thd->flags &= ~THD_DEPENDENCY;
+		thd->dependency_thd = NULL;
 	} else {
 		/* If the thd isn't blocked yet (as it was probably preempted
 		 * before it could complete the call to block), no reason to
@@ -695,6 +749,8 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 		 * that has a higher priority than the currently
 		 * executing one (upcall excluded).
 		 */
+		/* FIXME: instead of this explicit call, instead do a
+		 * flag to switch_thread */
 		cos_sched_cntl(COS_SCHED_BREAK_PREEMPTION_CHAIN, 0, 0);
 		fp_wakeup(thd, spdid);
 	}
@@ -757,13 +813,14 @@ static void fp_block(struct sched_thd *thd, spdid_t spdid)
  */
 int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 {
-	struct sched_thd *thd, *dep;
+	struct sched_thd *thd, *dep = NULL;
 	int ret;
 	int first = 1;
 
 	cos_sched_lock_take();
 	thd = sched_get_current();
 	assert(thd);
+	assert(spdid);
 
 	/* we shouldn't block while holding a component lock */
 	if (unlikely(0 != thd->contended_component)) goto warn;
@@ -784,14 +841,17 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	if (dependency_thd) {
 		dep = sched_get_mapping(dependency_thd);
 		if (!dep) {
+			printc("Dependency on non-existent thread %d.\n", dependency_thd);
 			fp_pre_wakeup(thd);
 			goto err;
 		}
 		thd->dependency_thd = dep;
 		thd->flags |= THD_DEPENDENCY;
+		assert(!thd->contended_component);
 	} else {
 		fp_block(thd, spdid);
 	}
+	assert(thd->wake_cnt < 2);
 	while (0 == thd->wake_cnt) {
 		if (dependency_thd) {
 			assert(dep && dep == thd->dependency_thd);
@@ -809,9 +869,10 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	assert(thd->wake_cnt == 1);
 	/* The amount of time we've blocked */
 	ret = ticks - thd->block_time - 1;
+	ret = ret > 0 ? ret : 0;
 	cos_sched_lock_release();
 
-	return ret > 0 ? ret : 0;
+	return ret; 
 err:
 	cos_sched_lock_release();
 	return -1;
@@ -830,14 +891,16 @@ warn:
 int sched_component_take(spdid_t spdid)
 {
 	struct sched_thd *holder, *curr;
+	int first = 1;
 
 	cos_sched_lock_take();
 	report_event(COMP_TAKE);
 	curr = sched_get_current();
 	assert(curr);
 	assert(!sched_thd_blocked(curr));
+	assert(spdid);
 
-	/* Continue until the critical section is available */
+	/* Continue until the critical section is unavailable */
 	while (1) {
 		report_event(COMP_TAKE_ATTEMPT);
 		/* If the current thread is dependent on another thread, switch to it for help! */
@@ -849,7 +912,11 @@ int sched_component_take(spdid_t spdid)
 		report_event(COMP_TAKE_CONTENTION);
 		sched_switch_thread_target(scheduler_ops, 0, NULL_EVT, holder);
 		cos_sched_lock_take();
-		report_event(COMP_TAKE_LOOP);
+		if (first) {
+			first = 0;
+		} else {
+			report_event(COMP_TAKE_LOOP);
+		}
 	}
 	cos_sched_lock_release();
 	return 0;
@@ -873,6 +940,33 @@ int sched_component_release(spdid_t spdid)
 	return 0;
 }
 
+/* Should not hold scheduler lock when calling. */
+static int fp_kill_thd(struct sched_thd *t)
+{
+	struct sched_thd *c; 
+
+	cos_sched_lock_take();
+	c = sched_get_current();
+
+	assert(!sched_thd_grp(t));
+//	if (sched_rem_event(t)) assert(0);
+//	sched_rem_mapping(t->id);
+	t->flags = THD_DYING;
+
+	if (scheduler_ops->thread_remove(t)) assert(0);
+
+	REM_LIST(t, cevt_next, cevt_prev);
+	REM_LIST(t, prio_next, prio_prev);
+	REM_LIST(t, next, prev);
+//	sched_free_thd(t);
+
+	sched_switch_thread(scheduler_ops, 0, NULL_EVT);
+	if (t == c) assert(0);
+
+	return 0;
+}
+
+/* Create a thread without invoking the scheduler policy */
 static struct sched_thd *__sched_setup_thread_no_policy(unsigned int tid)
 {
 	struct sched_thd *new;
@@ -885,6 +979,7 @@ static struct sched_thd *__sched_setup_thread_no_policy(unsigned int tid)
 	return new;
 }
 
+/* Create the thread and invoke the scheduling policy */
 static struct sched_thd *__sched_setup_thread_nocrt(unsigned int tid, char *metric_str)
 {
 	struct sched_thd *new;
@@ -947,8 +1042,10 @@ static void activate_child_sched(struct sched_thd *g)
 	assert(!sched_thd_free(g));
 	assert(g->wake_cnt >= 0 && g->wake_cnt <= 2);
 
+//	printc("Activating child scheduler (wake cnt = %d)\n", g->wake_cnt);
 	/* if the scheduler's thread is blocked, wake it! */
 	if (g->wake_cnt == 0/*sched_thd_blocked(g)*/) {
+		assert(sched_thd_blocked(g));
 		fp_pre_wakeup(g);
 		fp_wakeup(g, 0);
 	}
@@ -967,6 +1064,7 @@ static void deactivate_child_sched(struct sched_thd *t)
 	if (0 == t->wake_cnt) {
 		fp_block(t, 0);
 		while (0 == t->wake_cnt) {
+			assert(sched_thd_blocked(t));
 			sched_switch_thread(scheduler_ops, 0, PARENT_CHILD_DEACTIVATE);
 			cos_sched_lock_take();
 		}
@@ -1023,6 +1121,8 @@ int sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd)
 	assert(sched_thd_grp(st) && sched_thd_member(new));
 	if (cos_sched_cntl(COS_SCHED_GRANT_SCHED, tid, spdid)) assert(0);
 
+//	printc("parent scheduler %d created thread %d for scheduler %d\n", 
+//	       (unsigned int)cos_spd_id(), tid, spdid);
 	cos_sched_lock_release();
 	return tid;
 err:
@@ -1049,7 +1149,7 @@ static void child_ticks_update(struct sched_thd *t, struct sched_child_evt *e)
 	}
 }
 
-int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle)
+int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff)
 {
 	struct sched_thd *t, *et;
 	int c = 0;
@@ -1062,6 +1162,7 @@ int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle)
 	cos_sched_lock_take();
 	t = sched_get_current();
 	if (!sched_thd_grp(t) || t->cid != spdid) goto err;
+	t->wakeup_tick = t->tick + wake_diff;
 
 	/* While there are no thread events? */
 	while (EMPTY_LIST(t, cevt_next, cevt_prev)) {
@@ -1070,14 +1171,13 @@ int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle)
 		 * processed timer interrupts.  Regardless, we need to
 		 * return to the child. */
 		if (t->cevt_flags & SCHED_CEVT_OTHER || 
-		    child_ticks_stale(t) || 
+		    child_ticks_stale(t)             || 
 		    !idle) {
 			t->cevt_flags &= ~SCHED_CEVT_OTHER;
 			child_ticks_update(t, e);
 			if (!idle) report_event(PARENT_CHILD_EVT_OTHER);
 			goto done;
 		}
-
 		report_event(PARENT_BLOCK_CHILD);
 
 		/* No event, and child wants to idle: block! This
@@ -1156,11 +1256,11 @@ static void sched_process_cevt(struct sched_child_evt *e)
 			report_thd_accouting();
 			prev_print += CHLD_REPORT_FREQ*TIMER_FREQ;
 		}
-		sched_process_wakeup_thd();
+		sched_process_wakeups();
 	}
 }
 
-extern int parent_sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle);
+extern int parent_sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff);
 /* 
  * The thread executing in this function (the timer thread in a child
  * scheduler) is invoked in two situations: 1) when the child is idle,
@@ -1178,15 +1278,34 @@ static void sched_child_evt_thd(void)
 
 		cos_sched_lock_take();
 		do {
+			struct sched_thd *n = scheduler_ops->schedule(NULL);
+			unsigned long wake_diff = 0;
+
+			assert(n != timer);
 			/* If there isn't a thread to schedule, and
 			 * there are no events, this child scheduler
 			 * should idle */
-			should_idle = (scheduler_ops->schedule(NULL) == idle);
-			assert(scheduler_ops->schedule(NULL) != timer);
+			should_idle = (n == idle);
+			if (should_idle) {
+				/* locally cache the volatile value */
+				u64_t wake_tm, wt, cwt;
+
+				/* check for new timeouts */
+				sched_process_wakeups();
+
+				wt = wakeup_time;
+				cwt = child_wakeup_time;
+				if (cwt == 0) wake_tm = wt;
+				else if (wt == 0) wake_tm = cwt;
+				else wake_tm = (wt < cwt) ? wt : cwt;
+
+				assert(!wake_tm || wake_tm >= ticks);
+				wake_diff = wake_tm ? (unsigned long)(wake_tm - ticks) : 0;
+			}
 			cos_sched_clear_cevts();
 			cos_sched_lock_release();
 			/* Get events from the parent scheduler */
-			cont = parent_sched_child_get_evt(cos_spd_id(), e, should_idle);
+			cont = parent_sched_child_get_evt(cos_spd_id(), e, should_idle, wake_diff);
 			cos_sched_lock_take();
 			assert(0 <= cont);
 			/* Process those events */
@@ -1197,6 +1316,7 @@ static void sched_child_evt_thd(void)
 		report_event(CHILD_SWITCH_THD);
 		/* When there are no more events, schedule */
 		sched_switch_thread(scheduler_ops, 0, NULL_EVT);
+		assert(EMPTY_LIST(timer, prio_next, prio_prev));
 	}
 	cos_argreg_free(e);
 }
@@ -1232,10 +1352,11 @@ int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short
 	struct sched_thd *t;
 	int ret;
 
-	ret = cos_brand_cntl(COS_BRAND_ADD_THD, bid, tid, 0);
-	if (0 > ret) return -1;
 	t = sched_get_mapping(tid);
 	if (NULL == t) return -1;
+	ret = cos_brand_cntl(COS_BRAND_ADD_THD, bid, tid, 0);
+	if (0 > ret) return -1;
+
 	return 0;
 }
 
@@ -1313,6 +1434,8 @@ static void sched_init(void)
 }
 
 extern int parent_sched_child_cntl_thd(spdid_t spdid);
+
+/* Initialize the child scheduler. */
 static void sched_child_init(void)
 {
 	/* Child scheduler */
@@ -1333,6 +1456,7 @@ static void sched_child_init(void)
 	return;
 }
 
+/* Initialize the root scheduler */
 int sched_root_init(void)
 {
 	struct sched_thd *new;

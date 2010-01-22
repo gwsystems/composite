@@ -332,6 +332,7 @@ static void release_rb_buff(rb_meta_t *r, void *b)
 static int cos_net_create_net_brand(unsigned short int port, rb_meta_t *rbm)
 {
 	wildcard_brand_id = sched_create_net_brand(cos_spd_id(), port);
+	assert(wildcard_brand_id > 0);
 	if (cos_buff_mgmt(COS_BM_RECV_RING, rb1.packets, sizeof(rb1.packets), wildcard_brand_id)) {
 		prints("net: could not setup recv ring.\n");
 		return -1;

@@ -212,7 +212,7 @@ void *heap_peek(struct heap *h)
 void heap_adjust(struct heap *h, int c)
 {
 	assert(c < h->e);
-	assert(c >= 1);
+	assert(c > 0);
 	debug("heap_adjust(%p,%d) %p@%d\n", h, h->e, h->data[c], c);
 	heapify(h, c);
 	assert(!heap_verify(h));

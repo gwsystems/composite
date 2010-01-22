@@ -32,6 +32,7 @@
 			    // if they are depended on, but should be
 			    // scheduled otherwise
 #define THD_DEPENDENCY 0x100
+#define THD_DYING      0x200
 
 #define sched_thd_free(thd)          ((thd)->flags & THD_FREE)
 #define sched_thd_grp(thd)           ((thd)->flags & THD_GRP)
@@ -40,8 +41,9 @@
 #define sched_thd_inactive_evt(thd)  ((thd)->flags & THD_UC_READY)
 /* Thread ready: because the scheduler's thread structures might not
  * be updated to the fact that an upcall is actually active, "ready"
- * must include this discrepency */
-#define sched_thd_ready(thd)         (!sched_thd_blocked(thd)&&!sched_thd_inactive_evt(thd))
+ * must include this discrepancy */
+#define sched_thd_dying(thd)         ((thd)->flags & THD_DYING)
+#define sched_thd_ready(thd)         (!sched_thd_blocked(thd) && !sched_thd_inactive_evt(thd) && !sched_thd_dying(thd))
 #define sched_thd_dependent(thd)     ((thd)->flags & THD_DEPENDENCY)
 #define sched_thd_suspended(thd)     ((thd)->flags & THD_SUSPENDED)
 
@@ -53,9 +55,9 @@
 #define SCHED_CEVT_BLOCK     0x4
 
 struct sched_accounting {
-	unsigned long C, T, C_used, T_left;
+	unsigned long C, T, C_used, T_exp;
+	unsigned long ticks, prev_ticks;
 	unsigned long long cycles;
-	unsigned long progress;
 	void *private;
 };
 
@@ -86,7 +88,9 @@ struct sched_thd {
 	cevt_t cevt_flags;
 	struct sched_thd *group; /* If flags & THD_MEMBER */
 	spdid_t cid; /* If flags & THD_GRP */
-	u64_t tick;
+	/* The tick value when the child was last executed, and the
+	 * time when the child scheduler wishes to be woken up. */
+	u64_t tick, wakeup_tick;
 	/* linked list for all threads in a group: */
 	struct sched_thd *next, *prev;
 	/* linked list for child threads with events */
@@ -151,6 +155,7 @@ int cos_sched_event_to_process(void);
 int cos_sched_process_events(sched_evt_visitor_t fn, struct sched_ops *ops, unsigned int proc_amnt);
 void cos_sched_set_evt_urgency(u8_t id, u16_t urgency);
 short int sched_alloc_event(struct sched_thd *thd);
+int sched_rem_event(struct sched_thd *thd);
 int sched_share_event(struct sched_thd *n, struct sched_thd *old);
 extern struct sched_thd *sched_map_evt_thd[NUM_SCHED_EVTS];
 static inline struct sched_thd *sched_evt_to_thd(short int evt_id)
@@ -273,7 +278,8 @@ static inline struct sched_thd *sched_thd_dependency(struct sched_thd *curr)
 	assert(curr);
 	
 	if (likely(!sched_thd_dependent(curr))) return NULL;
-
+	
+	/* FIXME: recursive algorithm used, should be iterative */
 	if (curr->dependency_thd) {
 		dep = sched_thd_dependency(curr->dependency_thd);
 		if (dep) return dep;
@@ -281,6 +287,11 @@ static inline struct sched_thd *sched_thd_dependency(struct sched_thd *curr)
 	} 
 	
 	spdid = curr->contended_component;
+	/* Horrible hack: */
+	if (!spdid) {
+		curr->flags &= ~THD_DEPENDENCY;
+		return NULL;
+	}
 	/* If we have the dependency flag set, we should have an contended spd */
 	assert(spdid);
 	assert(spdid < MAX_NUM_SPDS);
@@ -311,7 +322,6 @@ static inline struct sched_thd *sched_take_crit_sect(spdid_t spdid, struct sched
 	assert(!sched_thd_blocked(curr));
 	cs = &sched_spd_crit_sections[spdid];
 
-//	if (!sched_thd_ready(curr)) print("current %d, holding %d, %d", curr->id, cs->holding_thd ? cs->holding_thd->id: 0, 0);
 	if (cs->holding_thd) {
 		/* The second assumption here might be too restrictive in the future */
 		assert(!sched_thd_free(cs->holding_thd));
@@ -320,6 +330,7 @@ static inline struct sched_thd *sched_take_crit_sect(spdid_t spdid, struct sched
 		assert(curr != cs->holding_thd);
 		curr->contended_component = spdid;
 		curr->flags |= THD_DEPENDENCY;
+		assert(!curr->dependency_thd);
 		return cs->holding_thd;
 	} 
 	curr->contended_component = spdid;

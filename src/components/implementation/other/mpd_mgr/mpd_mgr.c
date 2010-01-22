@@ -234,6 +234,19 @@ static void mpd_bench(void)
 	printc("merge: %ld, split %ld.\n", merge_avg(), split_avg());
 }
 
+static void mpd_merge_selective(void)
+{
+	int ms[] = {1, 15, 16, 3, 6, 7, 0};
+	int i;
+
+	if (ms[0] == 0) return;
+	for (i = 1; ms[i] != 0 ; i++) {
+		if (cos_mpd_cntl(COS_MPD_MERGE, ms[0], ms[i])) {
+			printc("merge of %d and %d failed. %d\n", ms[i], ms[i], 0);
+		}
+	}
+}
+
 static void mpd_merge_all(struct comp_graph *g)
 {
 	int i;
@@ -266,7 +279,8 @@ static void mpd_init(void)
 	create_components(graph);
 
 	/* merge all components into one protection domain */
-//	mpd_merge_all(graph);
+	mpd_merge_all(graph);
+//	mpd_merge_selective();
 	/* remove protection domains on a time-trigger */
 //	while (!remove_one_isolation_boundary()); /* merge all pds */
 	/* Intelligently manage pds */

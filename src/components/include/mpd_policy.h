@@ -18,7 +18,7 @@
 #include <cos_component.h>
 #include <cos_debug.h>
 #include <cos_alloc.h>
-#define MAX_COMPONENTS MAX_STATIC_CAP
+#define MAX_COMPONENTS 512 //MAX_NUM_SPDS
 #endif
 
 

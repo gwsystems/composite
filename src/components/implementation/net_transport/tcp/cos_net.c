@@ -1243,7 +1243,7 @@ done:
 	return;
 }
 
-static int event_thd = 0;
+static volatile int event_thd = 0;
 
 extern int ip_xmit(spdid_t spdid, struct cos_array *d);
 extern int ip_wait(spdid_t spdid, struct cos_array *d);
@@ -1376,9 +1376,10 @@ static void cos_net_create_netif_thd(void)
 {
 	struct cos_array *data;
 
-	data = cos_argreg_alloc(sizeof(struct cos_array) + 3);
+	data = cos_argreg_alloc(sizeof(struct cos_array) + 4);
 	assert(data);
 	strcpy(&data->mem[0], "r-1");
+	data->sz = 4;
 	if (0 > (event_thd = sched_create_thread(cos_spd_id(), data))) assert(0);
 	cos_argreg_free(data);
 }
@@ -1429,7 +1430,8 @@ static int init(void)
 void cos_init(void *arg)
 {
 	static volatile int first = 1;
-	
+	int var;
+
 	if (cos_get_thd_id() == event_thd) cos_net_evt_loop();
 
 	if (first) {

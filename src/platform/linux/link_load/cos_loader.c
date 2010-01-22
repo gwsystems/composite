@@ -20,7 +20,7 @@
  * strtok so much.  Suffice to say, don't multithread this program.
  */
 
-//#define HIGHEST_PRIO 1
+#define HIGHEST_PRIO 1
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -1841,11 +1841,9 @@ static void setup_kernel(struct service_symbs *services)
 //	cos_demo_spds(cntl_fd, spd3->spd_handle, spd4->spd_handle);
 	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;//spd2->spd_handle;
 
-	if ((s = find_obj_by_name(services, MPD_MGR)) == NULL) {
-		fprintf(stderr, "Could not find mpd manager.\n");
-		exit(-1);
+	if ((s = find_obj_by_name(services, MPD_MGR))) {
+		make_spd_mpd_mgr(s, services);
 	}
-	make_spd_mpd_mgr(s, services);
 
 	if ((s = find_obj_by_name(services, CONFIG_COMP)) == NULL) {
 		fprintf(stderr, "Could not find the configuration component.\n");

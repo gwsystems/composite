@@ -57,7 +57,6 @@ int cos_sched_process_events(sched_evt_visitor_t fn, struct sched_ops *ops, unsi
 			struct cos_se_values se;
 
 			v_new = v = *v_ptr;
-//			print("event value all together is %x. %d%d", v, 0,0);
 			memcpy(&se, &v_new, sizeof(u32_t));
 			id = se.next;
 			flags = se.flags;
@@ -79,7 +78,6 @@ int cos_sched_process_events(sched_evt_visitor_t fn, struct sched_ops *ops, unsi
 		if ((cpu || flags) && cos_curr_evt) {
 			t = sched_evt_to_thd(cos_curr_evt);
 			if (t) {
-//				printc("t %d f %x u %ld", t->id, flags, cpu);
 				/* Call the visitor function */
 				fn(ops, t, flags, cpu);
 			}
@@ -154,7 +152,7 @@ int sched_share_event(struct sched_thd *n, struct sched_thd *old)
 
 	i = old->evt_id;
 	assert(!(COS_SCHED_EVT_FLAGS(&cos_sched_notifications.cos_events[i]) & COS_SCHED_EVT_FREE));
-	n->evt_id = i;
+	n->event = n->evt_id = i;
 	if (cos_sched_cntl(COS_SCHED_THD_EVT, n->id, i)) return -1;
 
 	return 0;
@@ -188,6 +186,25 @@ short int sched_alloc_event(struct sched_thd *thd)
 	}
 	
 	return -1;
+}
+
+int sched_rem_event(struct sched_thd *thd)
+{
+	int idx = thd->evt_id;
+	struct cos_sched_events *se;
+	assert(idx);
+
+	se = &cos_sched_notifications.cos_events[idx];
+	assert(!(COS_SCHED_EVT_FLAGS(se) & COS_SCHED_EVT_FREE));
+	if (cos_sched_cntl(COS_SCHED_THD_EVT, thd->id, 0)) {
+		return -1;
+	}
+	COS_SCHED_EVT_FLAGS(se) = COS_SCHED_EVT_FREE;
+	sched_map_evt_thd[idx] = NULL;
+	thd->event = 0;
+	thd->evt_id = 0;
+
+	return 0;
 }
 
 void sched_ds_init(void) 

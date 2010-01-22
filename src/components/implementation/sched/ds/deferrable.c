@@ -9,18 +9,21 @@
 #include <cos_sched_tk.h>
 #include <cos_debug.h>
 
+#include <sched_timing.h>
+
 #define PRIO_LOW     30
 #define PRIO_LOWEST  31
 #define PRIO_HIGHEST 0
 #define NUM_PRIOS 32
-#define QUANTUM (1000000000UL/100UL)
+
+#define QUANTUM CYC_PER_TICK
 
 /* runqueue */
 static struct prio_list {
 	struct sched_thd runnable;
 } priorities[NUM_PRIOS];
 
-static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
+static inline void ds_add_thd(struct sched_thd *t, unsigned short int prio)
 {
 	struct sched_thd *tp;
 
@@ -35,12 +38,12 @@ static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
 	return;
 }
 
-static inline void fp_new_thd(struct sched_thd *t)
+static inline void ds_new_thd(struct sched_thd *t)
 {
-	fp_add_thd(t, sched_get_metric(t)->priority);
+	ds_add_thd(t, sched_get_metric(t)->priority);
 }
 
-static inline void fp_change_prio_runnable(struct sched_thd *t, unsigned short int prio)
+static inline void ds_change_prio_runnable(struct sched_thd *t, unsigned short int prio)
 {
 	struct sched_metric *sm = sched_get_metric(t);
 	struct sched_thd *head;
@@ -60,12 +63,12 @@ static inline void fp_change_prio_runnable(struct sched_thd *t, unsigned short i
 	return;
 }
 
-static inline void fp_move_end_runnable(struct sched_thd *t)
+static inline void ds_move_end_runnable(struct sched_thd *t)
 {
 	if (sched_thd_ready(t)) {
 		assert(!sched_thd_inactive_evt(t));
 		assert(!sched_thd_blocked(t));
-		fp_change_prio_runnable(t, sched_get_metric(t)->priority);
+		ds_change_prio_runnable(t, sched_get_metric(t)->priority);
 	}
 }
 
@@ -73,7 +76,7 @@ static inline void fp_move_end_runnable(struct sched_thd *t)
  * Include an argument to tell if we should start looking after head,
  * or after the first element.
  */
-static struct sched_thd *fp_find_non_suspended_list_head(struct sched_thd *head, int second)
+static struct sched_thd *ds_find_non_suspended_list_head(struct sched_thd *head, int second)
 {
 	struct sched_thd *t;
 
@@ -99,12 +102,12 @@ static struct sched_thd *fp_find_non_suspended_list_head(struct sched_thd *head,
 	return t;
 }
 
-static inline struct sched_thd *fp_find_non_suspended_list(struct sched_thd *head)
+static inline struct sched_thd *ds_find_non_suspended_list(struct sched_thd *head)
 {
-	return fp_find_non_suspended_list_head(head, 0);
+	return ds_find_non_suspended_list_head(head, 0);
 }
 
-static struct sched_thd *fp_get_highest_prio(void)
+static struct sched_thd *ds_get_highest_prio(void)
 {
 	int i;
 
@@ -115,7 +118,7 @@ static struct sched_thd *fp_get_highest_prio(void)
 		if (EMPTY_LIST(head, prio_next, prio_prev)) {
 			continue;
 		}
-		t = fp_find_non_suspended_list(head);
+		t = ds_find_non_suspended_list(head);
 		if (!t) continue;
 		
 		assert(sched_thd_ready(t));
@@ -130,7 +133,7 @@ static struct sched_thd *fp_get_highest_prio(void)
 	return NULL;
 }
 
-static struct sched_thd *fp_get_second_highest_prio(struct sched_thd *highest)
+static struct sched_thd *ds_get_second_highest_prio(struct sched_thd *highest)
 {
 	int i;
 	struct sched_thd *tmp, *head;
@@ -138,15 +141,15 @@ static struct sched_thd *fp_get_second_highest_prio(struct sched_thd *highest)
 
 	assert(!sched_thd_free(highest));
 	assert(sched_thd_ready(highest));
-	assert(fp_get_highest_prio() == highest);
+	assert(ds_get_highest_prio() == highest);
 
 	/* If the next element isn't the list head, or t, return it */
 	prio = sched_get_metric(highest)->priority;
 	assert(prio < NUM_PRIOS);
 	head = &(priorities[prio].runnable);
-	assert(fp_find_non_suspended_list(head) == highest);
+	assert(ds_find_non_suspended_list(head) == highest);
 	/* pass in 1 to tell the function to start looking after the first item on the list (highest) */
-	tmp = fp_find_non_suspended_list_head(head, 1);
+	tmp = ds_find_non_suspended_list_head(head, 1);
 	assert(tmp != highest);
 	/* Another thread at same priority */
 	if (tmp) {
@@ -164,7 +167,7 @@ static struct sched_thd *fp_get_second_highest_prio(struct sched_thd *highest)
 		if (EMPTY_LIST(head, prio_next, prio_prev)) {
 			continue;
 		}
-		t = fp_find_non_suspended_list(head);
+		t = ds_find_non_suspended_list(head);
 		if (!t) continue;
 
 		assert(!sched_thd_free(t));
@@ -182,35 +185,63 @@ static struct sched_thd *fp_get_second_highest_prio(struct sched_thd *highest)
  * not, then make the idle thread reap these threads by killing them
  * (for which a syscall will need to be added to inv.c).
  */
-static int fp_thread_remove(struct sched_thd *t)
+static int ds_thread_remove(struct sched_thd *t)
 {
 	assert(t);
 	REM_LIST(t, prio_next, prio_prev);
-	printc("fp_kill_thd: killing %d.\n", t->id);
+	printc("ds_kill_thd: killing %d\n", t->id);
 
 	return 0;
 }
 
-static struct sched_thd *fp_schedule(struct sched_thd *c)
+static struct sched_thd *ds_schedule(struct sched_thd *c)
 {
 	struct sched_thd *n;
 
 	assert(!c || !sched_thd_member(c));
-	n = fp_get_highest_prio();
+	n = ds_get_highest_prio();
 	if (n && n == c) { 	/* implies c != NULL */
-		n = fp_get_second_highest_prio(n);
+		n = ds_get_second_highest_prio(n);
 	}
 	assert(!sched_thd_member(n));
 
 	return n;
 }
 
-static int fp_timer_tick(int ticks)
+static unsigned long long ticks = 0;
+
+static void ds_periodicity_recompute(struct sched_thd *t)
 {
+	struct sched_accounting *sa = sched_get_accounting(t);
+	unsigned long long exp = sa->T_exp;
+	
+	if (sa->T && exp <= ticks) {
+		if (t->flags & THD_SUSPENDED) t->flags &= ~THD_SUSPENDED;
+		sa->C_used = 0;
+		while (sa->T_exp <= ticks) sa->T_exp += sa->T;
+	}
+}
+
+static int ds_timer_tick(int nticks)
+{
+	struct sched_thd *t;
+	int i;
+
+	ticks += nticks;
+
+	/* Reset the quota for each thread */
+	for (i = 0 ; i < NUM_PRIOS ; i++) {
+		for (t = FIRST_LIST(&priorities[i].runnable, prio_next, prio_prev) ; 
+		     t != &priorities[i].runnable ;
+		     t = FIRST_LIST(t, prio_next, prio_prev)) {
+			ds_periodicity_recompute(t);
+		}
+	}
+
 	return 0;
 }
 
-static int fp_time_elapsed(struct sched_thd *t, u32_t processing)
+static int ds_time_elapsed(struct sched_thd *t, u32_t processing)
 {
 	struct sched_accounting *sa;
 
@@ -219,71 +250,93 @@ static int fp_time_elapsed(struct sched_thd *t, u32_t processing)
 	sa = sched_get_accounting(t);
 	if (sa->cycles >= QUANTUM) {
 		sa->cycles -= QUANTUM;
-		/* round robin */
 		if (sched_thd_ready(t)) {
 			assert(!sched_thd_inactive_evt(t));
 			assert(!sched_thd_blocked(t));
 
-			fp_move_end_runnable(t);
+			ds_move_end_runnable(t);
 		}
 		sa->ticks++;
+		if (sa->C) {
+			sa->C_used++;
+			if (sa->C_used >= sa->C) t->flags |= THD_SUSPENDED;
+		}
 	}
+	ds_periodicity_recompute(t);
+
 	return 0;
 }
 
-static int fp_thread_block(struct sched_thd *t)
+static int ds_thread_block(struct sched_thd *t)
 {
 	assert(!sched_thd_member(t));
 	REM_LIST(t, prio_next, prio_prev);
 	return 0;
 }
 
-static int fp_thread_wakeup(struct sched_thd *t)
+static int ds_thread_wakeup(struct sched_thd *t)
 {
 	assert(!sched_thd_member(t));
 
-	fp_move_end_runnable(t);
+	ds_move_end_runnable(t);
 	return 0;
 }
 
-static int fp_thread_new(struct sched_thd *t)
+static int ds_thread_new(struct sched_thd *t)
 {
-	fp_new_thd(t);
+	ds_new_thd(t);
 
 	return 0;
 }
 
 #include <stdlib.h>
-static int fp_thread_params(struct sched_thd *t, char *p)
+static int ds_thread_params(struct sched_thd *t, char *p)
 {
 	int prio, tmp;
 	char curr = p[0];
 	struct sched_thd *c;
-	
-	switch (curr) {
-	case 'r':
-		/* priority relative to current thread */
-		c = sched_get_current();
-		assert(c);
-		tmp = atoi(&p[1]);
-		prio = sched_get_metric(c)->priority + tmp;
-		if (prio > PRIO_LOWEST) prio = PRIO_LOWEST;
-		break;
-	case 'a':
-		/* absolute priority */
-		prio = atoi(&p[1]);
-		break;
-	case 'i':
-		/* idle thread */
-		prio = PRIO_LOWEST;
-		break;
-	case 't':
-		/* timer thread */
-		prio = PRIO_HIGHEST;
-		break;
-	default:
-		printc("unknown priority option @ %s, setting to low\n", p);
-		prio = PRIO_LOW;
+
+	while (p != '\0') {
+		char *end;
+		
+		while (*p == ' ') p++;
+		switch (curr) {
+		case 'r':
+			/* priority relative to current thread */
+			c = sched_get_current();
+			assert(c);
+			tmp = strtol(&p[1], &end, 10);
+			prio = sched_get_metric(c)->priority + tmp;
+			if (prio > PRIO_LOWEST) prio = PRIO_LOWEST;
+			break;
+		case 'a':
+			/* absolute priority */
+			prio = strtol(&p[1], &end, 10);
+			break;
+		case 'i':
+			/* idle thread */
+			prio = PRIO_LOWEST;
+			break;
+		case 't':
+			/* timer thread */
+			prio = PRIO_HIGHEST;
+			break;
+		case 'C':	/* processor utilization */
+			sched_get_accounting(c)->C = strtol(&p[1], &end, 10);
+			break;
+		case 'T':	/* period */
+		{
+			struct sched_accounting *sa = sched_get_accounting(c);
+			sa->T = strtol(&p[1], &end, 10);
+			sa->T_exp = sa->T;
+			
+			break;
+		}
+		default:
+			printc("unknown priority option @ %s, setting to low\n", p);
+			prio = PRIO_LOW;
+		}
+		p = end;
 	}
 
 	sched_set_thd_urgency(t, prio);
@@ -294,12 +347,12 @@ static int fp_thread_params(struct sched_thd *t, char *p)
 
 extern void print_thd_invframes(struct sched_thd *t);
 
-static void fp_runqueue_print(void)
+static void ds_runqueue_print(void)
 {
 	struct sched_thd *t;
 	int i;
 
-	printc("Running threads (thd, prio, ticks):\n");
+	printc("Running threads (thd, prio, cycles):\n");
 	for (i = 0 ; i < NUM_PRIOS ; i++) {
 		for (t = FIRST_LIST(&priorities[i].runnable, prio_next, prio_prev) ; 
 		     t != &priorities[i].runnable ;
@@ -316,17 +369,17 @@ static void fp_runqueue_print(void)
 	}
 }
 
-struct sched_ops fp_ops = {
-	.thread_new = fp_thread_new,
-	.thread_remove = fp_thread_remove,
-	.runqueue_print = fp_runqueue_print,
-	.thread_params_set = fp_thread_params,
+struct sched_ops ds_ops = {
+	.thread_new = ds_thread_new,
+	.thread_remove = ds_thread_remove,
+	.runqueue_print = ds_runqueue_print,
+	.thread_params_set = ds_thread_params,
 
-	.schedule = fp_schedule,
-	.time_elapsed = fp_time_elapsed,
-	.timer_tick = fp_timer_tick,
-	.thread_block = fp_thread_block,
-	.thread_wakeup = fp_thread_wakeup
+	.schedule = ds_schedule,
+	.time_elapsed = ds_time_elapsed,
+	.timer_tick = ds_timer_tick,
+	.thread_block = ds_thread_block,
+	.thread_wakeup = ds_thread_wakeup
 };
 
 struct sched_ops *sched_initialization(void)
@@ -337,5 +390,5 @@ struct sched_ops *sched_initialization(void)
 		sched_init_thd(&priorities[i].runnable, 0, THD_FREE);
 	}
 
-	return &fp_ops;
+	return &ds_ops;
 }

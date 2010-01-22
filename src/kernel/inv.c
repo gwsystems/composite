@@ -941,6 +941,22 @@ static inline struct thread *upcall_execute_compat(struct thread *uc, struct thr
 	return upcall_execute(uc, cspd, prev, old);
 }
 
+static struct thd_sched_info *scheduler_find_leaf(struct thread *t)
+{
+	struct thd_sched_info *tsi = NULL, *prev_tsi;
+	int i = 0;
+
+	/* find the child scheduler */
+	do {
+		prev_tsi = tsi;
+		if (i == MAX_SCHED_HIER_DEPTH) break;
+		tsi = thd_get_sched_info(t, i);
+		i++;
+	} while (tsi->scheduler);
+
+	return prev_tsi;
+}
+
 /* Upcall into base scheduler! */
 static struct pt_regs *thd_ret_term_upcall(struct thread *curr)
 {
@@ -950,7 +966,7 @@ static struct pt_regs *thd_ret_term_upcall(struct thread *curr)
 	assert(cspd);
 	spd_mpd_ipc_release(cspd);
 	
-	tsi = thd_get_sched_info(curr, 0);
+	tsi = scheduler_find_leaf(curr);
 	dest = tsi->scheduler;
 	
 	upcall_setup(curr, dest, COS_UPCALL_DESTROY, 0, 0, 0);
@@ -1071,7 +1087,8 @@ static struct pt_regs *brand_execution_completion(struct thread *curr, int *pree
 		struct thd_sched_info *tsi;
 		struct spd *dest;
 
-		tsi = thd_get_sched_info(curr, 0);
+		tsi = scheduler_find_leaf(curr);
+		assert(tsi);
 		dest = tsi->scheduler;
 
 		upcall_inv_setup(curr, dest, COS_UPCALL_BRAND_COMPLETE, 0, 0, 0);
@@ -1347,7 +1364,7 @@ COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int op, u32_t bid_tid, spdid_
 		struct thread *brand_thd = verify_brand_thd(bid);
 		struct thread *t = thd_get_by_id(tid);
 
-		if (NULL == brand_thd) return -1;
+		if (NULL == t || NULL == brand_thd) return -1;
 		if (NULL != t->thread_brand) return -1;
 		if (NULL != brand_thd->upcall_threads) return -1;
 		assert(!(t->flags & THD_STATE_UPCALL));
@@ -1827,6 +1844,7 @@ static int update_evt_list(struct thd_sched_info *tsi)
 		printk("cos: events %d and %d out of range!\n", prev_evt, this_evt);
 		return -1;
 	}
+//	printk(">> s %d p %d t %d\n", spd_get_index(sched), prev_evt, this_evt);
 	/* so long as we haven't already processed this event, and it
 	 * is not part of the linked list of events, then add it */
 	if (prev_evt != this_evt && 
@@ -1841,6 +1859,7 @@ static int update_evt_list(struct thd_sched_info *tsi)
 		}
 		COS_SCHED_EVT_NEXT(&evts[prev_evt]) = this_evt;
 		sched->prev_notification = this_evt;
+//		printk(">>\tp = t\n");
 	}
 	
 	return 0;
@@ -1858,7 +1877,7 @@ static inline void update_thd_evt_state(struct thread *t, int flags, int update_
 
 		tsi = thd_get_sched_info(t, i);
 		sched = tsi->scheduler;
-		if (NULL != sched && tsi->thread_notifications) {
+		if (sched && tsi->thread_notifications) {
 			switch(flags) {
 			case COS_SCHED_EVT_BRAND_PEND:
 				cos_meas_event(COS_MEAS_EVT_PENDING);
@@ -2227,26 +2246,38 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 			return -1;
 		}
 
-		if (idx >= NUM_SCHED_EVTS || idx == 0) {
+		if (idx >= NUM_SCHED_EVTS) {
 			printk("cos: invalid thd evt index %d for scheduler %d\n", 
 			       (unsigned int)idx, (unsigned int)spd_id);
 			return -1;
 		}
 
-		evts = spd->kern_sched_shared_page->cos_events;
-		this_evt = &evts[idx];
-		tsi->thread_notifications = this_evt;
-		tsi->notification_offset = idx;
-		COS_SCHED_EVT_NEXT(this_evt) = 0;
-		COS_SCHED_EVT_FLAGS(this_evt) = 0;
-		this_evt->cpu_consumption = 0;
-		
-		if (thd->flags & THD_STATE_BRAND) {
-			struct thread *t = thd->upcall_threads;
-			
-			while (t) {
-				copy_sched_info(t, thd);
-				t = t->upcall_threads;
+		if (0 == idx) {
+			/* reset thread */
+			evts = spd->kern_sched_shared_page->cos_events;
+			this_evt = &evts[idx];
+			COS_SCHED_EVT_NEXT(this_evt) = 0;
+			COS_SCHED_EVT_FLAGS(this_evt) = 0;
+			this_evt->cpu_consumption = 0;
+
+			tsi->thread_notifications = NULL;
+			tsi->notification_offset = 0;
+		} else {
+			evts = spd->kern_sched_shared_page->cos_events;
+			this_evt = &evts[idx];
+			tsi->thread_notifications = this_evt;
+			tsi->notification_offset = idx;
+			//COS_SCHED_EVT_NEXT(this_evt) = 0;
+			//COS_SCHED_EVT_FLAGS(this_evt) = 0;
+			//this_evt->cpu_consumption = 0;
+
+			if (thd->flags & THD_STATE_BRAND) {
+				struct thread *t = thd->upcall_threads;
+				
+				while (t) {
+					copy_sched_info(t, thd);
+					t = t->upcall_threads;
+				}
 			}
 		}
 		

@@ -44,14 +44,14 @@ struct pt_regs {
 #endif
 
 #define MAX_SERVICE_DEPTH 31
-#define MAX_NUM_THREADS 31
+#define MAX_NUM_THREADS 64
 /* Stacks are 2 * page_size (expressed in words) */
 #define MAX_STACK_SZ    (PAGE_SIZE*2/4)
 #define ALL_STACK_SZ    (MAX_NUM_THREADS*MAX_STACK_SZ)
 #define MAX_SCHED_HIER_DEPTH 4
 
-#define MAX_NUM_SPDS 32
-#define MAX_STATIC_CAP 512
+#define MAX_NUM_SPDS 64
+#define MAX_STATIC_CAP 1024
 
 #define PAGE_MASK (~(PAGE_SIZE-1))
 #define PGD_RANGE (1<<22)

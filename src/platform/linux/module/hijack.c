@@ -2254,9 +2254,12 @@ void host_idle(void)
 	cos_meas_event(COS_MEAS_IDLE_SLEEP);
 	sti();
 
+	/* forfeit execution to Linux */
 	schedule();
 	cli();
-	assert(IDLE_WAKING == idle_status); /* FIXME: BUG here, not sure what... */
+	/* FIXME: If we cntl-c, this will trip...would like to keep
+	 * the assert, but clean up signal termination */
+	//assert(IDLE_WAKING == idle_status);
 	idle_status = IDLE_AWAKE;
 	cos_meas_event(COS_MEAS_IDLE_RUN);
 	event_record("coming out of idle", thd_get_id(thd_get_current()), 0);

@@ -4,7 +4,7 @@
 #include <print.h>
 #include <errno.h>
 
-int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle)
+int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff)
 {
 	assert(0);
 	return 0;
