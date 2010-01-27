@@ -1,4 +1,3 @@
-
 /**
  * Copyright 2008 by Boston University.
  *
@@ -606,7 +605,7 @@ static void fp_idle_loop(void *d)
 			sched_switch_thread(scheduler_ops, 0, IDLE_SCHED_SWITCH);
 		}
 		report_event(IDLE_SCHED_LOOP);
-		//cos_idle();
+		cos_idle();
 	}
 }
 

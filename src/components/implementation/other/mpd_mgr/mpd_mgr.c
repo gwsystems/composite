@@ -279,7 +279,7 @@ static void mpd_init(void)
 	create_components(graph);
 
 	/* merge all components into one protection domain */
-	mpd_merge_all(graph);
+//	mpd_merge_all(graph);
 //	mpd_merge_selective();
 	/* remove protection domains on a time-trigger */
 //	while (!remove_one_isolation_boundary()); /* merge all pds */

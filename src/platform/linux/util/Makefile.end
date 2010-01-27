@@ -4,7 +4,7 @@ reset: clean cp build
 init: ready_hw first
 
 ready_hw:
-	ethtool -A eth0 autoneg off rx off tx off
+#	ethtool -A eth0 autoneg off rx off tx off
 	mknod /dev/net/cnet c 10 201
 	echo 1 > /proc/sys/net/ipv4/ip_forward
 

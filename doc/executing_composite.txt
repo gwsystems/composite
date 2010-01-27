@@ -160,3 +160,20 @@ This section, therefore, specifies the shape of the component graph!
 When you add your own component, you will need to add it into the
 first section of all components used in the system, and specify which
 components it depends on, and which components depend on it.
+
+Assigning Priorities to Component Initialization:
+-------------------------------------------------
+
+The first section of the run-script allows you to specify priorities
+for each of the component's threads.  If not priority is assigned
+("a4", for an absolute priority of 4, _lower_ numerical values being
+_higher_ priority), then that component will not have a thread execute
+through it at system boot up.  If you get errors on system boot up
+(segmentation faults), then your error is most likely because of
+incorrect priority assignment.  Components that can be invoked by
+other components (we'll call these "servers") must have higher
+priority initial threads than the the components making the invocation
+("clients).  The servers must be initialized before the clients.  If
+this is not the case, the clients could make in invocation into the
+server before the server has initialized its data structures.  This
+will, most likely, cause faults.

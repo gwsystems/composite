@@ -36,6 +36,10 @@ source is under.  The Makefiles are important here and will be
 discussed in the documentation files explaining how to create a
 component or interface.
 
+With src/components/implementation/other/* is a set of components that
+do not have an interface.  They are never invoked by other components,
+and instead just invoke components themselves.
+
 3) include/ and lib/ have a number of include files and libraries that
 implement generic functionality that is not specific to any one
 component, but might be required by many (think libc).  Notably, both

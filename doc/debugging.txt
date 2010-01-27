@@ -1,0 +1,161 @@
+Debugging in Composite:
+-----------------------
+
+In this file I'll go over the 3 main techniques for debugging in
+Composite: 1) print statements -- classical and still just as useful,
+2) assert statements -- for defensive programming, 3) how to track
+down the cause of faults.
+
+Print Statements in Composite:
+------------------------------
+
+In any component, you can
+
+#include <print.h>
+
+and make sure that the "print" interface is included in the
+dependencies list in the Makefile for your component, and that the run
+script includes the dependency as well (yourcomponent.o-print.o).
+
+You can, at any point in your code, use 
+
+printc(...);
+
+which has a format exactly like printf(...); (see "man 3 printf").
+
+Do not use printf in Composite.
+
+You can see the output from your print statements by typing "dmesg",
+or, more usefully because a lot of information is printed out, "dmesg
+| less".  Your print statements will show up in the kernel logs.
+
+In addition to you print statements, many measurements will print out.
+These might or might not be useful to you.
+
+Assert Statements in Composite:
+-------------------------------
+
+Assert statements are a way for you to check pre- and post-conditions
+within your code.  You can, for instance, say:
+
+assert(array_len < MAX_LEN);
+
+if you know that the length of your array should always be less than
+MAX_LEN.  This can be used to catch errors defensively in your code.
+You should use many assert statements.
+
+You must satisfy the same dependencies, and 
+
+#include <cos_debug.h>
+
+as for using printc above.  Asserts don't slow down code much, so
+don't let performance be a concern.  The implementation of asserts
+optimizes branch prediction so that there is little slowdown when the
+assert isn't triggered.
+
+If an assert statement is triggered, it will cause the system to
+segmentation fault after printing the file and line number of the
+assert that triggered to the kernel log.
+
+When the system segmentation faults, you should look through the last
+hundred or so lines of it to see if there is a line saying
+
+assert error in @ file:#
+
+The error was triggered in "file" at line number "#".
+
+Assessing Segmentation Faults:
+-----------------------------
+
+Sometimes you will write code that faults.  This will be reported as a
+segmentation fault, and you can observe the kernel logs with dmesg to
+find the following lines:
+
+cos: Faults:
+cos: spd 28, thd 21 @ addr 0 @ time 160968716636, mpd flags 1 (master 0) and w/ regs:
+cos:            eip   47800037, esp   4782cfd0, eax          0, ebx d879d768, ecx   4782cf88,
+cos:            edx         44, edi         1c, esi          0, ebp 4782cfd8
+
+This says that the fault happened while executing in component (see
+the terminology.txt file, components are denoted as "spds" or service
+protection domains in the code) number 28, as thread number 21.  The
+registers of that thread when the fault occurred are printed as eip
+through ebp.  eip is the instruction pointer.
+
+Next, we wish to figure out which component has the error (which
+component is component number 28?).  When you initially executed the
+system (typed "sh run.sh"), the system printed out a number of lines
+like so:
+
+...
+spd /tmp/ainv2.o.3620.o, id 27 with initialization string "a6" @ 47400000.
+spd /tmp/cpu.o.3620.o, id 28 with initialization string "a20" @ 47800000.
+...
+
+What this says is that the component with id 28 is the cpu.o
+component.  Next, we might want to check which component created the
+thread that was executing in the cpu.o component when it faulted.
+When the system began execution, it printed to the kernel log a number
+of lines like so:
+
+...
+sched 1: component 27's thread has id 20 and priority a6.
+sched 1: component 28's thread has id 21 and priority a20.
+Timer thread has id 23 with priority t.
+...
+
+This is saying that component 28 (which we now know is cpu.o) had
+thread 21 created in it.  So we know now that the thread that caused
+the fault was the same one that we created in cpu.o.
+
+Next, we wish to figure out which line of code in the cpu.o component
+caused the fault.  For this we use "objdump", a program that allows
+you to decompile a component, and look at its assembly source.  If the
+C code was compiled with debugging symbols (which we do by default for
+Composite), then it will also show C lines.  In the root directory,
+execute the following:
+
+objdump -Srhtl cpu.o
+
+You'll see the contents of the object file.  We know that the fault
+happened at instruction address 0x47800037 from the fault report.
+Here we ignore the top bits of the address, and do a search through
+the object file for the instruction addressed "37".  We find the
+code:
+
+void cos_init(void *arg)
+{
+  20:   55                      push   %ebp
+  21:   89 e5                   mov    %esp,%ebp
+  23:   83 ec 08                sub    $0x8,%esp
+/home/gparmer/research/composite/src/components/implementation/other/cpu/spin.c:18
+        assert(0);
+  26:   c7 04 24 00 00 00 00    movl   $0x0,(%esp)
+                        29: R_386_32    .rodata
+  2d:   e8 20 00 00 00          call   52 <prints>
+  32:   b8 00 00 00 00          mov    $0x0,%eax
+  37:   c7 00 00 00 00 00       movl   $0x0,(%eax)
+/home/gparmer/research/composite/src/components/implementation/other/cpu/spin.c:20
+//      spin_var = *(int*)NULL;
+        while (1) if (spin_var) other = 1;
+  3d:   a1 00 00 00 00          mov    0x0,%eax
+ 
+We can see that instruction 37 dereferenced a null pointer.  More
+importantly, if you look up in the code, we see that that code
+corresponds to line 18 in
+src/components/implementation/other/cpu/spin.c and that corresponds to
+
+assert(0);
+
+That line is within the cos_init function.  Because we compiled our
+components with debugging symbols, we can see the C code.  So we can
+see that the assert function caused this error.  Now you see the
+usefulness of assertion statements.  Instead of going through this
+whole process with objdump, you could have simply looked up in the log
+and found the following line:
+
+assert error in @ spin.c:18.
+
+Much easier than disassembling objects.  However, when a fault is
+caused by an error that didn't trigger an assert, you must use the
+above techniques to track down the error.

@@ -161,7 +161,7 @@ static inline void cos_meas_stats_end(cos_meas_t type, int reset)
 
 #endif
 
-//#define COS_RECORD_EVTS
+#define COS_RECORD_EVTS
 
 #ifdef COS_RECORD_EVTS
 /* must be power of 2 */

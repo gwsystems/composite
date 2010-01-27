@@ -65,3 +65,52 @@ interface.  If there is shared code for all components implementing
 this interface, DEPENDENCIES must include a list of the interfaces
 this shared code depends on.  Components that do not require shared
 code, should leave DEPENDENCIES empty.
+
+Important Includes:
+-------------------
+
+#include <cos_component.h>: required in pretty much every component.
+
+#include <print.h>: required if you wish to use printc.  You must
+                    satisfy the "print" interface dependency.
+
+#include <cos_debug.h>: required if you want to use assert.You must
+                        satisfy the "print" interface dependency.
+
+#include <cos_alloc.h>: required to malloc, free, alloc_page,
+                        free_page.  Current implementation doesn't
+                        support allocations larger than a page
+                        (4096).  You must satsify the "mem_mgr"
+                        interface requirement.
+
+#include <cos_synchronization.h>: required to use lock_alloc,
+                                  lock_free, lock_take, lock_release.
+                                  You must satisfy the "lock"
+                                  interface dependency.
+
+cos_list.h, cos_map.h, and cos_vect.h: data structures for linked
+lists, for mapping an integer (assigned by the data-structure) to an
+object, and mapping between a component-chosen integer and an object.
+Examples of these functions can be seen throughout current components.
+Additionally, I've added sg_lib for more data-structures in the
+src/components/lib/ directory.
+
+Important Functions:
+--------------------
+
+cos_get_thd_id() returns the current thread id.
+
+cos_spd_id() returns the current component id.  Many interfaces
+require that you pass as the first argument the component id.  This
+can be used for that.
+
+When you need to pass more than 4 arguments to a component across an
+interface, or need to pass arguments larger than a register (32 bits),
+then you must pass them in memory.  There are functions for doing so:
+
+buff_ptr = cos_argreg_alloc(int size);
+
+and 
+
+cos_argreg_free(buff_ptr);
+

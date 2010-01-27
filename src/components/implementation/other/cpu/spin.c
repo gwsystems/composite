@@ -15,6 +15,8 @@ int spin_var = 0, other;
 
 void cos_init(void *arg)
 {
+//	assert(0);
+//	spin_var = *(int*)NULL;
 	while (1) if (spin_var) other = 1;
 	return;
 }
