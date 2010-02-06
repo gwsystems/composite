@@ -12,7 +12,7 @@
 #define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 
-.data
+.bss
 .align 32
 .globl nil
 nil:
