@@ -112,7 +112,9 @@ struct invocation_cap {
                             // delete this, do not delete the pgtbl, 
                             // just decriment the reference count of 
                             // the spd that has the pg_tbl (via master_spd ptr)
-
+#define SPD_ACTIVE      0x10 // spd is active, can have capabilities
+			     // assigned to it, and threads executed
+			     // within it...
 #define MAX_MPD_DESC 1024  // Max number of descriptors for composite spds
 
 /*
@@ -195,6 +197,8 @@ struct spd {
 	struct spd *composite_member_next, *composite_member_prev;
 } CACHE_ALIGNED; //cache line size
 
+phys_addr_t spd_alloc_pgtbl(void);
+void spd_free_pgtbl(phys_addr_t pa);
 struct spd *spd_alloc(unsigned short int max_static_cap, struct usr_inv_cap *usr_cap_tbl, 
 		      vaddr_t upcall_entry);
 int spd_set_location(struct spd *spd, unsigned long lowest_addr, 
@@ -211,6 +215,15 @@ static inline int spd_get_index(struct spd *spd)
 struct spd *spd_get_by_index(int idx);
 void spd_free_all(void);
 void spd_init(void);
+
+int spd_reserve_cap_range(struct spd *spd, int amnt);
+int spd_release_cap_range(struct spd *spd);
+
+int spd_cap_activate(struct spd *spd, int cap);
+int spd_cap_set_dest(struct spd *spd, int cap, struct spd* dspd);
+int spd_cap_set_cstub(struct spd *spd, int cap, vaddr_t fn);
+int spd_cap_set_sstub(struct spd *spd, int cap, vaddr_t fn);
+int spd_cap_set_sfn(struct spd *spd, int cap, vaddr_t fn);
 
 unsigned int spd_add_static_cap(struct spd *spd, vaddr_t service_entry_inst, struct spd *trusted_spd, 
 				isolation_level_t isolation_level);
@@ -239,6 +252,14 @@ static inline int spd_is_member(struct spd *spd, struct composite_spd *cspd)
 static inline int spd_is_composite(struct spd_poly *info)
 { 
 	return info->flags & SPD_COMPOSITE;
+}
+static inline int spd_is_active(struct spd *s)
+{
+	return s->spd_info.flags | SPD_ACTIVE;
+}
+static inline void spd_make_active(struct spd *s)
+{
+	s->spd_info.flags |= SPD_ACTIVE;
 }
 static inline int spd_mpd_is_depricated(struct composite_spd *mpd)
 { 
@@ -339,6 +360,7 @@ static inline int spd_composite_move_member(struct composite_spd *cspd_new, stru
 }
 
 struct spd *virtual_namespace_query(unsigned long addr);
+int virtual_namespace_alloc(struct spd *spd, unsigned long addr, unsigned int size);
 
 /*
  * FIXME: this should take a range of addresses, but since each

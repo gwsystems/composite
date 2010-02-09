@@ -81,7 +81,7 @@ static void update_edge_weights(void)
 	     e = FIRST_LIST(e, next, prev)) {
 		unsigned long invs;
 
-		invs = cos_cap_cntl(e->from->id, e->to->id, 0);
+		invs = cos_cap_cntl_spds(e->from->id, e->to->id, 0);
 		if (invs != (invs & 0x7FFFFFFF)) assert(0);
 		edge_set_inv(e, (long)invs);
 	}
@@ -272,7 +272,7 @@ static void mpd_init(void)
 
 	graph = (struct comp_graph *)((char*)g-PAGE_SIZE);
 	for (i = 0 ; graph[i].client && graph[i].server ; i++) {
-		cos_cap_cntl(graph[i].client, graph[i].server, 0);	
+		cos_cap_cntl_spds(graph[i].client, graph[i].server, 0);	
 	}
 
 	mpd_pol_init();

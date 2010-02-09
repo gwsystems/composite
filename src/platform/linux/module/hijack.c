@@ -2017,6 +2017,19 @@ int pgtbl_add_entry(phys_addr_t pgtbl, unsigned long vaddr, unsigned long paddr)
 	return 0;
 }
 
+/* allocate and link in a page middle directory */
+int pgtbl_add_middledir(phys_addr_t pt, unsigned long vaddr)
+{
+	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(vaddr);
+	unsigned long *page;
+
+	page = cos_alloc_page(); /* zeroed */
+	if (!page) return -1;
+
+	pgd->pgd = (unsigned long)va_to_pa(page) | _PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED;
+	return 0;
+}
+
 /*
  * Remove a given virtual mapping from a page table.  Return 0 if
  * there is no present mapping, and the physical address mapped if

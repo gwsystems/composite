@@ -126,10 +126,11 @@ cos_syscall_3(9,  int, sched_cntl, int, operation, int, thd_id, long, option);
 cos_syscall_3(10, int, mpd_cntl, int, operation, spdid_t, composite_spd, spdid_t, composite_dest);
 cos_syscall_3(11, int, __mmap_cntl, long, op_flags_dspd, long, daddr, long, mem_id);
 cos_syscall_3(12, int, brand_wire, long, thd_id, long, option, long, data);
-cos_syscall_3(13, unsigned long, cap_cntl, spdid_t, client, spdid_t, server, long, data);
+cos_syscall_3(13, long, __cap_cntl, int, option, u32_t, arg1, long, arg2);
 cos_syscall_3(14, int, __buff_mgmt, void *, addr, int, thd_id, int, len_option);
 cos_syscall_3(15, int, __thd_cntl, int, op_thdid, long, arg1, long, arg2);
 cos_syscall_0(16, int, idle);
+cos_syscall_3(17, int, __spd_cntl, int, op_spdid, long, arg1, long, arg2);
 
 static inline int cos_mmap_cntl(short int op, short int flags, 
 				short int dest_spd, vaddr_t dest_addr, long mem_id) {
@@ -156,6 +157,21 @@ static inline int cos_brand_cntl(int ops, unsigned short int bid, unsigned short
 static inline int cos_thd_cntl(short int op, short int thd_id, long arg1, long arg2)
 {
 	return cos___thd_cntl(((op << 16) | (thd_id & 0xFFFF)), arg1, arg2);
+}
+
+static inline int cos_spd_cntl(short int op, short int spd_id, long arg1, long arg2)
+{
+	return cos___spd_cntl(((op << 16) | (spd_id & 0xFFFF)), arg1, arg2);
+}
+
+static inline long cos_cap_cntl_spds(spdid_t cspd, spdid_t sspd, long arg)
+{
+	return cos___cap_cntl(COS_CAP_GET_INVCNT, ((cspd << 16) | (sspd & 0xFFFF)), arg);
+}
+
+static inline long cos_cap_cntl(short int op, u16_t capid, long arg)
+{
+	return cos___cap_cntl(op, capid, arg);
 }
 
 /*

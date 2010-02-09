@@ -133,9 +133,6 @@ static short int spd_alloc_capability_range(int range)
 	return -1;
 }
 
-/*
- * FIXME: use copy_to_user
- */
 static inline void cap_set_usr_cap(struct usr_inv_cap *uptr, vaddr_t inv_fn, 
 				   unsigned int inv_cnt, unsigned int cap_no)
 {
@@ -335,11 +332,35 @@ void spd_free_all(void)
 	clear_pg_pool();
 }
 
+int spd_release_cap_range(struct spd *spd)
+{
+	int i;
+
+	for (i = spd->cap_base ; i < (spd->cap_base + spd->cap_range) ; i++) {
+		cap_set_free(i);
+	}
+	return 0;
+}
+
+int spd_reserve_cap_range(struct spd *spd, int amnt)
+{
+	int ret = 0;
+
+	if (spd->cap_range != 0) return -1;
+	/* +1 for the (dummy) 0th return cap */
+	ret = spd_alloc_capability_range(amnt+1);
+	if (ret == -1) return -1;
+	
+	spd->cap_base = (unsigned short int)ret;
+	spd->cap_range = amnt+1;
+
+	return ret;
+}
+
 struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_tbl,
 		      vaddr_t upcall_entry)
 {
 	struct spd *spd;
-	int ret;
 
 	spd = spd_freelist_head;
 
@@ -352,17 +373,16 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 	spd_freelist_head = spd_freelist_head->freelist_next;
 	spd->spd_info.flags = 0; /* notably, not SPD_COMPOSITE */
 
-	/* +1 for the (dummy) 0th return cap */
-	ret = spd_alloc_capability_range(num_caps+1);
-
-	if (ret == -1) {
-		printd("cos: could not allocate a capability range.\n");
-		goto free_spd;
+	if (num_caps) {
+		if (spd_reserve_cap_range(spd, num_caps) == -1) {
+			printd("cos: could not allocate a capability range.\n");
+			goto free_spd;
+		}
+	} else {
+		/* no caps allocated yet */
+		spd->cap_base = spd->cap_range = 0;
 	}
 	
-	spd->cap_base = (unsigned short int)ret;
-	spd->cap_range = num_caps+1;
-
 	spd->user_cap_tbl = NULL; //user_cap_tbl;
 	spd->user_vaddr_cap_tbl = user_cap_tbl;
 
@@ -373,10 +393,12 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 	   Update: not really doing ref counting on spds. */
 	//cos_ref_take(&spd->spd_info.ref_cnt); 
 	//cos_ref_take(&spd->spd_info.ref_cnt); 
-
-	/* FIXME: This "return capability" in the cap tbl is a relic
-	 * and should be removed. */
-	spd_add_static_cap(spd, 0, spd, 0);
+	
+	if (num_caps && user_cap_tbl) {
+		/* FIXME: This "return capability" in the cap tbl is a
+		 * relic and should be removed. */
+		spd_add_static_cap(spd, 0, spd, 0);
+	}
 
 	spd->composite_spd = &spd->spd_info;
 
@@ -491,6 +513,69 @@ unsigned int spd_add_static_cap(struct spd *owner_spd, vaddr_t ST_serv_entry,
 				struct spd *trusted_spd, isolation_level_t isolation_level)
 {
 	return spd_add_static_cap_extended(owner_spd, trusted_spd, -1, ST_serv_entry, 0, 0, 0, 0, isolation_level, 0);
+}
+
+struct invocation_cap *spd_get_cap(struct spd *spd, int cap)
+{
+	assert(spd);
+
+	/* return cap */
+	cap++;
+	if (cap >= spd->cap_range) {
+		printd("cos: Capability out of range (valid [%d,%d), cap # %d).\n",
+		       spd->cap_base, spd->cap_range+spd->cap_base, spd->cap_base + cap);
+		return NULL;
+	}
+
+	return &invocation_capabilities[spd->cap_base + cap];
+}
+
+int spd_cap_set_dest(struct spd *spd, int cap, struct spd* dspd)
+{
+	struct invocation_cap *c = spd_get_cap(spd, cap);
+	
+	if (!c) return -1;
+	c->destination = dspd;
+	return 0;
+}
+int spd_cap_set_cstub(struct spd *spd, int cap, vaddr_t fn)
+{
+	struct invocation_cap *c = spd_get_cap(spd, cap);
+	
+	if (!c) return -1;
+	c->usr_stub_info.SD_cli_stub = fn;
+	return 0;
+}
+int spd_cap_set_sstub(struct spd *spd, int cap, vaddr_t fn)
+{
+	struct invocation_cap *c = spd_get_cap(spd, cap);
+	
+	if (!c) return -1;
+	c->usr_stub_info.SD_serv_stub = fn;
+	return 0;
+}
+int spd_cap_set_sfn(struct spd *spd, int cap, vaddr_t fn)
+{
+	struct invocation_cap *c = spd_get_cap(spd, cap);
+	
+	if (!c) return -1;
+	c->usr_stub_info.ST_serv_entry = fn;
+	return 0;
+}
+
+
+int spd_cap_activate(struct spd *spd, int cap)
+{
+	struct invocation_cap *c = spd_get_cap(spd, cap);
+	
+	if (!c) return -1;
+	c->owner = spd;
+	c->invocation_cnt = 0;
+
+	/* +1 for return cap */
+	if (cap_change_isolation(spd->cap_base + cap + 1, IL_SDT, 0) == IL_INV) assert(0);
+
+	return 0;
 }
 
 /*
@@ -618,10 +703,41 @@ extern vaddr_t kern_pgtbl_mapping;
 extern void copy_pgtbl_range_nocheck(phys_addr_t pt_to, phys_addr_t pt_from,
 				     unsigned long lower_addr, unsigned long size);
 
+phys_addr_t spd_alloc_pgtbl(void)
+{
+	struct page_list *page;
+	phys_addr_t pp;
+
+	page = cos_get_pg_pool();
+	if (NULL == page) return 0;
+	pp = (phys_addr_t)va_to_pa(page);
+
+	/* 
+	 * FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+	 *
+	 * This should NOT be done.  We should clear out all the spd
+	 * entries individually when the page table is released,
+	 * instead of going through the _entire_ page and clearing it
+	 * with interrupts disabled.  But till we do this the right
+	 * way, this ensures correctness.
+	 *
+	 * FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+	 */
+	copy_pgtbl_range_nocheck(pp, (phys_addr_t)va_to_pa((void*)kern_pgtbl_mapping), 0, 0xFFFFFFFF);
+	assert(!pgtbl_entry_absent(pp, COS_INFO_REGION_ADDR));
+
+	return pp;
+}
+
+void spd_free_pgtbl(phys_addr_t pa)
+{
+	cos_put_pg_pool(pa_to_va((void*)pa));
+}
+
 short int spd_alloc_mpd_desc(void)
 {
 	struct composite_spd *new;
-	struct page_list *page;
+	phys_addr_t pgtbl;
 
 	new = mpd_freelist;
 	if (NULL == new) {
@@ -640,8 +756,8 @@ short int spd_alloc_mpd_desc(void)
 	new->members = NULL;
 	spd_mpd_remove_flags(new, SPD_FREE);
 
-	page = cos_get_pg_pool();
-	if (NULL == page) {
+	pgtbl = spd_alloc_pgtbl();
+	if (0 == pgtbl) {
 		spd_mpd_set_flags(new, SPD_FREE);
 		new->next = mpd_freelist;
 		new->prev = NULL;
@@ -649,25 +765,9 @@ short int spd_alloc_mpd_desc(void)
 		return -1;
 	}
 
-	/* 
-	 * FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
-	 *
-	 * This should NOT be done.  We should clear out all the spd
-	 * entries individually when the page table is released,
-	 * instead of going through the _entire_ page and clearing it
-	 * with interrupts disabled.  But till we do this the right
-	 * way, this ensures correctness.
-	 *
-	 * FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
-	 */
-	copy_pgtbl_range_nocheck((phys_addr_t)va_to_pa(page), 
-				 (phys_addr_t)va_to_pa((void*)kern_pgtbl_mapping),
-				 0, 0xFFFFFFFF);
-	assert(!pgtbl_entry_absent((phys_addr_t)va_to_pa(page), COS_INFO_REGION_ADDR));
-
 	spd_mpd_take(new);
 //	printk("cos: mpd alloc %p (%d)\n", new, cos_ref_val(&new->spd_info.ref_cnt));
-	new->spd_info.pg_tbl = (phys_addr_t)va_to_pa(page);
+	new->spd_info.pg_tbl = pgtbl;
 
 	return spd_mpd_index(new);
 }
@@ -911,6 +1011,8 @@ static void spd_chg_il_spd_to_all(struct spd *spd, struct composite_spd *cspd, i
 {
 	unsigned short int cap_lower, cap_range;
 	int i;
+
+	if (spd->cap_range == 0) return;
 
 	/* ignore the first "return" capability */
 	cap_lower = spd->cap_base + 1;

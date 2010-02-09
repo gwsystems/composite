@@ -2887,20 +2887,58 @@ COS_SYSCALL int cos_syscall_print(int spdid, char *str, int len)
 	return 0;
 }
 
-COS_SYSCALL int cos_syscall_cap_cntl(int spdid, spdid_t cspdid, spdid_t sspdid, int optional)
+COS_SYSCALL long cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
 {
 	vaddr_t va;
-	struct spd *cspd, *sspd;
-
-	cspd = spd_get_by_index(cspdid);
-	sspd = spd_get_by_index(sspdid);
-	if (!cspd || !sspd) return -1;
-
-	va = pgtbl_vaddr_to_kaddr(cspd->spd_info.pg_tbl, (unsigned long)cspd->user_vaddr_cap_tbl);
-	assert((vaddr_t)cspd->user_cap_tbl == va);
+	u16_t capid;
+	int ret = 0;
+	struct spd *cspd, *sspd = NULL;
+	spdid_t cspdid, sspdid;
 
 	/* TODO: access control */
-	return spd_read_reset_invocation_cnt(cspd, sspd);
+
+	cspdid = arg1 >> 16;
+	cspd = spd_get_by_index(cspdid);
+	if (!cspd) return -1;
+	if (option == COS_CAP_GET_INVCNT) {
+		sspdid = 0xFFFF & arg1;
+		sspd = spd_get_by_index(sspdid);
+		if (!sspd) return -1;
+	} else {
+		capid =  0xFFFF & arg1;
+	}
+
+	switch (option) {
+	case COS_CAP_GET_INVCNT:
+		va = pgtbl_vaddr_to_kaddr(cspd->spd_info.pg_tbl, (unsigned long)cspd->user_vaddr_cap_tbl);
+		assert((vaddr_t)cspd->user_cap_tbl == va);
+		
+		ret = spd_read_reset_invocation_cnt(cspd, sspd);
+		break;
+	case COS_CAP_SET_CSTUB:
+		if (spd_cap_set_cstub(cspd, capid, arg2)) ret = -1;
+		break;
+	case COS_CAP_SET_SSTUB:
+		if (spd_cap_set_sstub(cspd, capid, arg2)) ret = -1;
+		break;
+	case COS_CAP_SET_SERV_FN:
+		if (spd_cap_set_sfn(cspd, capid, arg2)) ret = -1;
+		break;
+	case COS_CAP_ACTIVATE:
+		/* arg2 == dest spd id */
+		sspd = spd_get_by_index((spdid_t)arg2);
+		if (!sspd || spd_cap_set_dest(cspd, capid, sspd)) {
+			ret = -1;
+			break;
+		}
+		if (spd_cap_activate(cspd, capid)) ret = -1;
+		break;
+	default:
+		ret = -1;
+		break;
+	};
+
+	return ret;
 }
 
 COS_SYSCALL int cos_syscall_stats(int spdid)
@@ -2922,6 +2960,166 @@ COS_SYSCALL int cos_syscall_idle_cont(int spdid)
 	if (c != thd_get_current()) return COS_SCHED_RET_AGAIN;
 
 	return COS_SCHED_RET_SUCCESS;
+}
+
+extern int pgtbl_add_middledir(phys_addr_t pt, unsigned long vaddr);
+
+COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
+{
+	struct spd *spd;
+	short int op;
+	spdid_t spd_id;
+	int ret = 0;
+
+	op = op_spdid >> 16;
+	spd_id = op_spdid & 0xFFFF;
+	
+	if (COS_SPD_CREATE != op) {
+		spd = spd_get_by_index(spd_id);
+		if (!spd) return  -1;
+	}
+
+	switch (op) {
+	case COS_SPD_CREATE:
+	{
+		phys_addr_t pa;
+
+		pa = spd_alloc_pgtbl();
+		if (0 == pa) {
+			ret = -1;
+			break;
+		}
+		spd = spd_alloc(0, NULL, 0);
+		if (!spd) {
+			spd_free_pgtbl(pa);
+			ret = -1;
+			break;
+		}
+
+		spd->spd_info.pg_tbl = pa;
+		ret = (int)spd_get_index(spd);
+
+		break;
+	}
+	case COS_SPD_DELETE:
+		spd_free_pgtbl(spd->spd_info.pg_tbl);
+		spd->spd_info.pg_tbl = 0;
+		if (spd->composite_spd != &spd->spd_info) {
+			printk("FIXME: proper deletion of mpds not implemented.\n");
+		}
+		/* FIXME: check that capabilities have been
+		 * dealloced, that refcnt is 0, etc... */
+		spd_free(spd);
+		break;
+	case COS_SPD_RESERVE_CAPS:
+		/* arg1 == number of caps */
+		if (spd_reserve_cap_range(spd, (int)arg1) == -1) {
+			ret = -1;
+			break;
+		}
+		spd_add_static_cap(spd, 0, spd, 0);
+		break;
+	case COS_SPD_RELEASE_CAPS:
+		if (spd_release_cap_range(spd) == -1) ret = -1;
+		break;
+	case COS_SPD_LOCATION:
+		/* size already set */
+		if (spd->location.size || !spd->spd_info.pg_tbl) {
+			ret = -1;
+			break;
+		}
+		/* arg1 = base, arg2 = size */
+		/* the beginning address must be on a 4M boundary,
+		 * and 4M in size (for now) */
+		if (((arg1 & (SERVICE_SIZE-1)) != 0) || arg2 != SERVICE_SIZE) {
+			ret = -1;
+			break;
+		}
+		/* virtual address already reserved? */
+		if (!virtual_namespace_alloc(spd, arg1, arg2)) {
+			ret = -1;
+			break;
+		}
+		spd->location.lowest_addr = arg1;
+		spd->location.size = arg2;
+
+		if (pgtbl_add_middledir(spd->spd_info.pg_tbl, arg1)) {
+			ret = -1;
+			spd->location.size = 0;
+			break;
+		}
+		
+		break;
+	case COS_SPD_UCAP_TBL:
+	{
+		if (spd->user_vaddr_cap_tbl) {
+			ret = -1;
+			break;
+		}
+		/* arg1 = vaddr of ucap tbl */
+		spd->user_vaddr_cap_tbl = (struct usr_inv_cap*)arg1;
+		break;
+	}
+	case COS_SPD_ATOMIC_SECT:
+		/* arg1 == atomic section index, arg2 == section address */
+		if (arg1 >= COS_NUM_ATOMIC_SECTIONS || arg1 < 0) ret = -1;
+		else spd->atomic_sections[arg1] = (vaddr_t)arg2;
+		break;
+	case COS_SPD_UPCALL_ADDR:
+		/* arg1 = upcall_entry address */
+		spd->upcall_entry = (vaddr_t)arg1;
+		break;
+	case COS_SPD_ACTIVATE:
+	{
+		struct composite_spd *cspd;
+		vaddr_t kaddr;
+
+		/* Have we set the virtual address space, caps, cap tbl*/
+		if (!spd->user_vaddr_cap_tbl ||
+		    !spd->spd_info.pg_tbl || !spd->location.lowest_addr ||
+		    !spd->cap_base || !spd->cap_range) {
+			ret = -1;
+			break;
+		}
+		if ((unsigned int)spd->user_vaddr_cap_tbl < spd->location.lowest_addr || 
+		    (unsigned int)spd->user_vaddr_cap_tbl + sizeof(struct usr_inv_cap) * spd->cap_range > 
+		    spd->location.lowest_addr + spd->location.size || 
+		    !user_struct_fits_on_page((unsigned int)spd->user_vaddr_cap_tbl, sizeof(struct usr_inv_cap) * spd->cap_range)) {
+			printk("cos: user capability table @ %x does not fit into spd, or onto a single page\n", 
+			       (unsigned int)spd->user_vaddr_cap_tbl);
+			ret = -1;
+			break;
+		}
+		/* Is the ucap tbl mapped in? */
+		kaddr = pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, (vaddr_t)spd->user_vaddr_cap_tbl);
+		if (0 == kaddr) {
+			ret = -1;
+			break;
+		}
+		spd->user_cap_tbl = (struct usr_inv_cap*)kaddr;
+
+		cspd = spd_alloc_mpd();
+		if (!cspd) {
+			spd->user_cap_tbl = 0;
+			ret = -1;
+			break;
+		}
+		if (spd_composite_add_member(cspd, spd)) {
+			spd_mpd_release(cspd);
+			spd->user_cap_tbl = 0;
+			printk("cos: could not add spd %d to composite spd %d.\n",
+			       spd_get_index(spd), spd_mpd_index(cspd));
+			ret = -1;
+			break;
+		}
+		spd_make_active(spd);
+		break;
+	}
+	default:
+		ret = -1;
+	}
+	
+	return ret;
 }
 
 /* 
@@ -2946,7 +3144,7 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_buff_mgmt,
 	(void*)cos_syscall_thd_cntl,
 	(void*)cos_syscall_idle,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_spd_cntl,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
