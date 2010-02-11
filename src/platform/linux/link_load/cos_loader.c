@@ -37,6 +37,8 @@
 #include <thread.h>
 #include <ipc.h>
 
+#include <cobj_format.h>
+
 enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_HIGH;
 
 #define printl(lvl,format, args...)				\
@@ -58,6 +60,8 @@ const char *INIT_COMP  = "c0.o";
 const char *ROOT_SCHED = "fprr.o";
 const char *MPD_MGR    = "mpd.o";
 const char *CONFIG_COMP = "schedconf.o";
+const char *BOOT_COMP = "boot.o";
+const char *TEST_COMP = "test.o";
 
 const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] = 
 { "cos_atomic_cmpxchg",
@@ -133,9 +137,26 @@ struct dependency {
 	int mod_len;
 };
 
+typedef enum {
+	SERV_SECT_RO = 0,
+	SERV_SECT_DATA,
+	SERV_SECT_BSS,
+	SERV_SECT_NUM
+} serv_sect_type;
+
+struct service_section {
+	unsigned long offset;
+	int size;
+};
+
 struct service_symbs {
 	char *obj, *init_str;
-	unsigned long lower_addr, size, heap_top;
+	unsigned long lower_addr, size, allocated, heap_top;
+	
+	struct service_section sections[SERV_SECT_NUM];
+
+	int is_composite_loaded;
+	struct cobj_header *cobj;
 
 	int is_scheduler;
 	struct service_symbs *scheduler;
@@ -395,6 +416,9 @@ vaddr_t get_symb_address(struct symb_type *st, const char *symb)
 	return 0;
 }
 
+static int make_cobj_symbols(struct service_symbs *s, struct cobj_header *h);
+static int make_cobj_caps(struct service_symbs *s, struct cobj_header *h);
+
 static int load_service(struct service_symbs *ret_data, unsigned long lower_addr, 
 			unsigned long size)
 {
@@ -405,7 +429,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	int alldata_size;
 	void *ret_addr;
 	char *service_name = ret_data->obj; 
-
+	struct cobj_header *h;
 	int i;
 
 	if (!service_name) {
@@ -443,23 +467,25 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	ro_size = calculate_mem_size(TEXT_S, DATA_S);
 	ro_size = round_up_to_page(ro_size);
 
-	/**
-	 * FIXME: needing PROT_WRITE is daft, should write to file,
-	 * then map in ro
-	 */
-	assert(0 != ro_size);
-	ret_addr = mmap((void*)ro_start, ro_size,
-			PROT_EXEC | PROT_READ | PROT_WRITE,
-			MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
-			0, 0);
-	if (MAP_FAILED == ret_addr){
-		/* If you get outrageous sizes here, there is a
-		 * required section missing (such as rodata).  Add a
-		 * const. */
-		printl(PRINT_DEBUG, "Error mapping 0x%x(0x%x)\n", 
-		       (unsigned int)ro_start, (unsigned int)ro_size);
-		perror("Couldn't map text segment into address space");
-		return -1;
+	if (!ret_data->is_composite_loaded) {
+		/**
+		 * FIXME: needing PROT_WRITE is daft, should write to
+		 * file, then map in ro
+		 */
+		assert(0 != ro_size);
+		ret_addr = mmap((void*)ro_start, ro_size,
+				PROT_EXEC | PROT_READ | PROT_WRITE,
+				MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
+				0, 0);
+		if (MAP_FAILED == ret_addr){
+			/* If you get outrageous sizes here, there is
+			 * a required section missing (such as
+			 * rodata).  Add a const. */
+			printl(PRINT_DEBUG, "Error mapping 0x%x(0x%x)\n", 
+			       (unsigned int)ro_start, (unsigned int)ro_size);
+			perror("Couldn't map text segment into address space");
+			return -1;
+		}
 	}
 	
 	data_start = ro_start + ro_size;
@@ -470,7 +496,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	       (unsigned int)data_start, (unsigned int)alldata_size);
 
 	alldata_size = round_up_to_page(alldata_size);
-	if (alldata_size != 0) {
+	if (alldata_size != 0 && !ret_data->is_composite_loaded) {
 		ret_addr = mmap((void*)data_start, alldata_size,
 				PROT_WRITE | PROT_READ,
 				MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
@@ -487,6 +513,30 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	{
 		perror("Memory allocation failed\n");
 		return -1;
+	}
+
+	if (ret_data->is_composite_loaded) {
+		u32_t size, obj_size;
+		u32_t nsymbs, ncaps;
+		char *mem;
+
+		size = alldata_size + ro_size;
+		nsymbs = ret_data->exported.num_symbs;
+		ncaps = ret_data->undef.num_symbs;
+
+		obj_size = cobj_size_req(3, size, nsymbs, ncaps);
+		mem = malloc(obj_size);
+		if (!mem) {
+			printl(PRINT_HIGH, "could not allocate memory for composite-loaded %s.\n", service_name);
+			return -1;
+		}
+
+		h = cobj_create(0, 3, size, nsymbs, ncaps, mem, obj_size);
+		if (!h) {
+			printl(PRINT_HIGH, "boot component: couldn't create cobj.\n");
+			return -1;
+		}
+		ret_data->cobj = h;
 	}
 	
 	unlink(tmp_exec);
@@ -520,14 +570,33 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 		       srcobj[RODATA_S].offset, (unsigned int)bfd_sect_size(objout, srcobj[RODATA_S].s));
 	}
 
-	
-	/* 
-	 * ... and copy that buffer into the actual memory location
-	 * object is linked for (load it!)
-	 */
-	printl(PRINT_DEBUG, "\tCopying RO to %x from %x of size %x.\n", 
-	       (unsigned int) ro_start, (unsigned int)tmp_storage, (unsigned int)ro_size);
-	memcpy((void*)ro_start, tmp_storage, ro_size);
+	ret_data->sections[SERV_SECT_RO].offset = srcobj[TEXT_S].offset;
+	ret_data->sections[SERV_SECT_RO].size = bfd_sect_size(objout, srcobj[TEXT_S].s);
+	if (srcobj[RODATA_S].s && ldobj[RODATA_S].s) {
+		ret_data->sections[SERV_SECT_RO].size += bfd_sect_size(objout, srcobj[RODATA_S].s);
+	}
+	assert((int)round_up_to_page(ret_data->sections[SERV_SECT_RO].size) == ro_size);
+	assert(0 == ret_data->sections[SERV_SECT_RO].offset);
+
+	if (!ret_data->is_composite_loaded) {
+		/* 
+		 * ... and copy that buffer into the actual memory location
+		 * object is linked for (load it!)
+		 */
+		printl(PRINT_DEBUG, "\tCopying RO to %x from %x of size %x.\n", 
+		       (unsigned int) ro_start, (unsigned int)tmp_storage, (unsigned int)ro_size);
+		memcpy((void*)ro_start, tmp_storage, ro_size);
+	} else {
+		char *sect_loc;
+
+		if (cobj_sect_init(h, 0, COBJ_SECT_READ, ro_start, ret_data->sections[SERV_SECT_RO].size)) {
+			printl(PRINT_HIGH, "Could not create read-only section in cobj for %s\n", service_name);
+			return -1;
+		}
+		sect_loc = cobj_sect_contents(h, 0);
+		assert(sect_loc);
+		memcpy(sect_loc, tmp_storage, ret_data->sections[SERV_SECT_RO].size);
+	}
 
 	printl(PRINT_DEBUG, "\tretreiving DATA at offset %x of size %x.\n", 
 	       srcobj[DATA_S].offset, (unsigned int)bfd_sect_size(objout, srcobj[DATA_S].s));
@@ -550,10 +619,43 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	memset(tmp_storage + srcobj[BSS_S].offset, 0,
 	       bfd_sect_size(obj, srcobj[BSS_S].s));
 
-	printl(PRINT_DEBUG, "\tCopying DATA to %x from %x of size %x.\n", 
-	       (unsigned int) data_start, (unsigned int)tmp_storage, (unsigned int)alldata_size);
-	
-	memcpy((void*)data_start, tmp_storage, alldata_size);
+	ret_data->sections[SERV_SECT_DATA].offset = srcobj[DATA_S].offset;
+	ret_data->sections[SERV_SECT_DATA].size = bfd_sect_size(objout, srcobj[DATA_S].s);
+	ret_data->sections[SERV_SECT_BSS].offset = srcobj[BSS_S].offset;
+	ret_data->sections[SERV_SECT_BSS].size = bfd_sect_size(objout, srcobj[BSS_S].s);
+
+	assert((ret_data->sections[SERV_SECT_BSS].offset - ret_data->sections[SERV_SECT_DATA].offset +
+		round_up_to_page(ret_data->sections[SERV_SECT_BSS].size)) == (unsigned int)alldata_size);
+
+	if (!ret_data->is_composite_loaded) {
+		printl(PRINT_DEBUG, "\tCopying DATA to %x from %x of size %x.\n", 
+		       (unsigned int) data_start, (unsigned int)tmp_storage, (unsigned int)alldata_size);
+		
+		memcpy((void*)data_start, tmp_storage, alldata_size);
+	} else {
+		char *sect_loc;
+
+		if (cobj_sect_init(h, 1, COBJ_SECT_READ | COBJ_SECT_WRITE, 
+				   ret_data->lower_addr + ret_data->sections[SERV_SECT_DATA].offset, 
+				   ret_data->sections[SERV_SECT_DATA].size)) {
+			printl(PRINT_HIGH, "Could not create data section in cobj for %s\n", service_name);
+			return -1;
+		}
+		sect_loc = cobj_sect_contents(h, 1);
+		assert(sect_loc);
+		memcpy(sect_loc, tmp_storage, ret_data->sections[SERV_SECT_DATA].size);
+
+
+		if (cobj_sect_init(h, 2, COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_ZEROS, 
+				   ret_data->lower_addr + ret_data->sections[SERV_SECT_BSS].offset, 
+				   ret_data->sections[SERV_SECT_BSS].size)) {
+			printl(PRINT_HIGH, "Could not create bss section in cobj for %s\n", service_name);
+			return -1;
+		}
+		sect_loc = cobj_sect_contents(h, 2);
+		assert(sect_loc);
+		memcpy(sect_loc, tmp_storage, ret_data->sections[SERV_SECT_BSS].size);
+	}
 	
 	free(tmp_storage);
 
@@ -564,8 +666,21 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 
 	ret_data->lower_addr = lower_addr;
 	ret_data->size = size;
+	ret_data->allocated = alldata_size + ro_size;
 	ret_data->heap_top = (int)data_start + alldata_size;
 	
+	if (ret_data->is_composite_loaded) {
+		if (make_cobj_symbols(ret_data, h)) {
+			printl(PRINT_HIGH, "Could not create symbols in cobj for %s\n", service_name);
+			return -1;
+		}
+		if (make_cobj_caps(ret_data, h)) {
+			printl(PRINT_HIGH, "Could not create capabilities in cobj for %s\n", service_name);
+			return -1;
+		}
+	}
+
+
 	bfd_close(obj);
 	bfd_close(objout);
 
@@ -688,6 +803,9 @@ static struct service_symbs *alloc_service_symbs(char *obj)
 
 	str->is_scheduler = sched;
 	str->scheduler = NULL;
+
+	if (strstr(obj, TEST_COMP) != NULL) str->is_composite_loaded = 1;
+	else                                str->is_composite_loaded = 0;
 
 	return str;
 }
@@ -1489,6 +1607,63 @@ static struct symb *spd_contains_symb(struct service_symbs *s, char *name)
 	return NULL;
 }
 
+struct cap_ret_info {
+	struct symb *csymb, *ssymbfn, *cstub, *sstub;
+	struct service_symbs *serv;
+	struct spd_info *export_spd;
+};
+
+static int cap_get_info(struct service_symbs *service, struct cap_ret_info *cri, struct symb *symb)
+{
+	struct symb *exp_symb = symb->exported_symb;
+	struct service_symbs *exporter = symb->exporter;
+	struct spd_info *export_spd = (struct spd_info*)exporter->extern_info;
+	struct symb *c_stub, *s_stub;
+	char tmp[MAX_SYMB_LEN];
+
+	memset(cri, 0, sizeof(struct cap_ret_info));
+
+	if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", symb->name, CAP_CLIENT_STUB_POSTPEND)) {
+		printl(PRINT_HIGH, "symbol name %s too long to become client capability\n", symb->name);
+		return -1;
+	}
+	c_stub = spd_contains_symb(service, tmp);
+	if (NULL == c_stub) {
+		c_stub = spd_contains_symb(service, CAP_CLIENT_STUB_DEFAULT);
+		if (NULL == c_stub) {
+			printl(PRINT_HIGH, "Could not find a client stub for function %s in service %s.\n",
+			       symb->name, service->obj);
+			return -1;
+		}
+	}
+
+	if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", exp_symb->name, CAP_SERVER_STUB_POSTPEND)) {
+		printl(PRINT_HIGH, "symbol name %s too long to become server capability\n", exp_symb->name);
+		return -1;
+	}
+
+	s_stub = spd_contains_symb(exporter, tmp);
+	if (NULL == s_stub) {
+		printl(PRINT_HIGH, "Could not find server stub (%s) for function %s in service %s to satisfy %s.\n",
+		       tmp, exp_symb->name, exporter->obj, service->obj);
+		return -1;
+	}
+
+	if (NULL == export_spd) {
+		printl(PRINT_HIGH, "Trusted spd (spd_info) not attached to service symb yet.\n");
+		return -1;
+	}
+
+	cri->csymb = symb;
+	cri->ssymbfn = exp_symb;
+	cri->cstub = c_stub;
+	cri->sstub = s_stub;
+	cri->serv = exporter;
+	cri->export_spd = export_spd;
+
+	return 0;
+}
+
 static int create_spd_capabilities(struct service_symbs *service/*, struct spd_info *si*/, int cntl_fd)
 {
 	int i;
@@ -1497,45 +1672,12 @@ static int create_spd_capabilities(struct service_symbs *service/*, struct spd_i
 	
 	for (i = 0 ; i < undef_symbs->num_symbs ; i++) {
 		struct symb *symb = &undef_symbs->symbs[i];
-		struct symb *exp_symb = symb->exported_symb;
-		struct service_symbs *exporter = symb->exporter;
-		struct spd_info *export_spd = (struct spd_info*)exporter->extern_info;
-		struct symb *c_stub, *s_stub;
-		char tmp[MAX_SYMB_LEN];
+		struct cap_ret_info cri;
 
-		if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", symb->name, CAP_CLIENT_STUB_POSTPEND)) {
-			printl(PRINT_HIGH, "symbol name %s too long to become client capability\n", symb->name);
-			return -1;
-		}
-		c_stub = spd_contains_symb(service, tmp);
-		if (NULL == c_stub) {
-			c_stub = spd_contains_symb(service, CAP_CLIENT_STUB_DEFAULT);
-			if (NULL == c_stub) {
-				printl(PRINT_HIGH, "Could not find a client stub for function %s in service %s.\n",
-				       symb->name, service->obj);
-				return -1;
-			}
-		}
-
-		if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", exp_symb->name, CAP_SERVER_STUB_POSTPEND)) {
-			printl(PRINT_HIGH, "symbol name %s too long to become server capability\n", exp_symb->name);
-			return -1;
-		}
-
-		s_stub = spd_contains_symb(exporter, tmp);
-		if (NULL == s_stub) {
-			printl(PRINT_HIGH, "Could not find server stub (%s) for function %s in service %s to satisfy %s.\n",
-			       tmp, exp_symb->name, exporter->obj, service->obj);
-			return -1;
-		}
-
-		if (NULL == export_spd) {
-			printl(PRINT_HIGH, "Trusted spd (spd_info) not attached to service symb yet.\n");
-			return -1;
-		}
-		if (create_invocation_cap(spd, service, export_spd, exporter, cntl_fd, 
-					  symb->name, c_stub->name, s_stub->name, 
-					  exp_symb->name, 0)) {
+		if (cap_get_info(service, &cri, symb)) return -1;
+		if (create_invocation_cap(spd, service, cri.export_spd, cri.serv, cntl_fd, 
+					  cri.csymb->name, cri.cstub->name, cri.sstub->name, 
+					  cri.ssymbfn->name, 0)) {
 			return -1;
 		}
 	}
@@ -1710,6 +1852,113 @@ static void make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all
 	serialize_spd_graph(g, PAGE_SIZE/sizeof(struct comp_graph), all);
 }
 
+static int make_cobj_symbols(struct service_symbs *s, struct cobj_header *h)
+{
+	u32_t addr;
+	u32_t symb_offset = 0;
+	int i;
+
+	struct name_type_map { 
+		const char *name; 
+		u32_t type;
+	};
+	struct name_type_map map[] = {
+		{.name = USER_CAP_TBL_NAME, .type = COBJ_SYMB_UCAP_TBL}, 
+		{.name = UPCALL_ENTRY_NAME, .type = COBJ_SYMB_UPCALL}, 
+		{.name = SPD_ID_NAME,       .type = COBJ_SYMB_SPDID}, 
+		{.name = HEAP_PTR,          .type = COBJ_SYMB_HEAPPTR}, 
+
+		{.name = NULL, .type = COBJ_SYMB_RAS_START},
+		{.name = NULL, .type = COBJ_SYMB_RAS_END},
+		{.name = NULL, .type = COBJ_SYMB_RAS_START},
+		{.name = NULL, .type = COBJ_SYMB_RAS_END},
+		{.name = NULL, .type = COBJ_SYMB_RAS_START},
+		{.name = NULL, .type = COBJ_SYMB_RAS_END},
+		{.name = NULL, .type = COBJ_SYMB_RAS_START},
+		{.name = NULL, .type = COBJ_SYMB_RAS_END},
+		{.name = NULL, .type = COBJ_SYMB_RAS_START},
+		{.name = NULL, .type = COBJ_SYMB_RAS_END},
+
+		{.name = NULL, .type = 0} 
+	};
+
+	/* Checking assumptions when making the above chart */
+	assert(NUM_ATOMIC_SYMBS == 10 && map[3].name != NULL && map[4].name == NULL);
+
+	/* Fill in the above chart */
+	for (i = 0 ; i < NUM_ATOMIC_SYMBS ; i++) map[i+4].name = ATOMIC_USER_DEF[i];
+
+	/* Create the sumbols */
+	for (i = 0 ; map[i].name != NULL ; i++) {
+		addr = (u32_t)get_symb_address(&s->exported, map[i].name);
+		if (addr && cobj_symb_init(h, symb_offset++, map[i].type, addr)) {
+			printl(PRINT_HIGH, "boot component: couldn't create cobj symb for %s.\n", map[i].name);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int make_cobj_caps(struct service_symbs *s, struct cobj_header *h)
+{
+	int i;
+	struct symb_type *undef_symbs = &s->undef;
+	
+	for (i = 0 ; i < undef_symbs->num_symbs ; i++) {
+		u32_t cap_off, dest_id, sfn, cstub, sstub;
+		struct symb *symb = &undef_symbs->symbs[i];
+		struct cap_ret_info cri;
+
+		if (cap_get_info(s, &cri, symb)) return -1;
+		
+		cap_off = i;
+		dest_id = cri.export_spd->spd_handle;
+		sfn     = cri.ssymbfn->addr;
+		cstub   = cri.cstub->addr;
+		sstub   = cri.sstub->addr;
+
+		if (cobj_cap_init(h, cap_off, cap_off, dest_id, sfn, cstub, sstub)) return -1;
+	}
+
+	return 0;
+}
+
+static struct service_symbs *find_obj_by_name(struct service_symbs *s, const char *n);
+
+static void make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
+{
+	int **heap_ptr, *heap_ptr_val;
+	struct service_symbs *s;
+	struct cobj_header *h;
+	char *mem;
+	u32_t obj_size;
+
+	heap_ptr = (int **)get_symb_address(&boot->exported, HEAP_PTR);
+	if (heap_ptr == NULL) {
+		printl(PRINT_DEBUG, "Could not find %s in %s.\n", HEAP_PTR, boot->obj);
+		return;
+	}
+	heap_ptr_val = *heap_ptr;
+	s = find_obj_by_name(all, TEST_COMP);
+	if (!s) {
+		printl(PRINT_HIGH, "boot component: couldn't find test component.\n");
+		return;
+	}
+	assert(s->is_composite_loaded);
+	h = s->cobj;
+	assert(h);
+
+	obj_size = h->size;
+	mem = mmap((void*)heap_ptr_val, obj_size, PROT_WRITE | PROT_READ,
+			MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+	if (MAP_FAILED == mem){
+		perror("Couldn't map test component into the boot component");
+		return;
+	}
+	memcpy(mem, h, obj_size);
+}
+
 #define INIT_STR_SZ 56
 
 /* struct is 64 bytes, so we can have 64 entries in a page. */
@@ -1802,22 +2051,24 @@ static void setup_kernel(struct service_symbs *services)
 		struct spd_info *t_spd;
 
 		t = s;
-		if (strstr(s->obj, INIT_COMP) != NULL) {
-			init = t;
-			t_spd = init_spd = create_spd(cntl_fd, init, 0, 0);
-		} else {
-			t_spd = create_spd(cntl_fd, t, t->lower_addr, t->size);
-		}
-		if (!t_spd) {
-			fprintf(stderr, "\tCould not find service object.\n");
-			exit(-1);
+		if (strstr(s->obj, TEST_COMP) == NULL) {
+			if (strstr(s->obj, INIT_COMP) != NULL) {
+				init = t;
+				t_spd = init_spd = create_spd(cntl_fd, init, 0, 0);
+			} else {
+				t_spd = create_spd(cntl_fd, t, t->lower_addr, t->size);
+			}
+			if (!t_spd) {
+				fprintf(stderr, "\tCould not find service object.\n");
+				exit(-1);
+			}
 		}
 		s = s->next;
 	}
 
 	s = services;
 	while (s) {
-		if (create_spd_capabilities(s, cntl_fd)) {
+		if (strstr(s->obj, TEST_COMP) == NULL && create_spd_capabilities(s, cntl_fd)) {
 			fprintf(stderr, "\tCould not find all stubs.\n");
 			exit(-1);
 		}
@@ -1843,6 +2094,10 @@ static void setup_kernel(struct service_symbs *services)
 
 	if ((s = find_obj_by_name(services, MPD_MGR))) {
 		make_spd_mpd_mgr(s, services);
+	}
+
+	if ((s = find_obj_by_name(services, BOOT_COMP))) {
+		make_spd_boot(s, services);
 	}
 
 	if ((s = find_obj_by_name(services, CONFIG_COMP)) == NULL) {
