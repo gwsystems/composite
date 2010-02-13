@@ -210,8 +210,8 @@ isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int fl
 
 	owner = cap->owner;
 
-/*  	printk("cos: change to il %s for cap %d with owner %d.\n",  */
-/* 	       ((il == IL_SDT) ? "SDT" : ((il == IL_AST) ? "AST" : ((il == IL_ST) ? "ST" : "INV"))),  */
+/*  	printk("cos: change to il %s for cap %d with owner %d.\n", */
+/* 	       ((il == IL_SDT) ? "SDT" : ((il == IL_AST) ? "AST" : ((il == IL_ST) ? "ST" : "INV"))), */
 /* 	       cap_num, spd_get_index(owner)); */
 
 	/* Use the kernel vaddr space table if possible, but it might

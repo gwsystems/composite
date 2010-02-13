@@ -2,6 +2,8 @@
  * Copyright 2008 by Gabriel Parmer, gabep1@cs.bu.edu.  All rights
  * reserved.
  *
+ * The George Washington University, Gabriel Parmer, gparmer@gwu.edu.
+ *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  */
@@ -17,7 +19,7 @@
 
 #include <mem_mgr.h>
 
-#define MAX_ALIASES 2
+#define MAX_ALIASES 4
 
 #define MEM_MARKED 1
 
@@ -108,7 +110,7 @@ err:
  * Make an alias to a page in a source spd @ a source address to a
  * destination spd/addr
  */
-vaddr_t mman_alias_page(spdid_t d_spd, vaddr_t d_addr, spdid_t s_spd, vaddr_t s_addr)
+vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr)
 {
 	int alias = -1, i;
 	struct mem_cell *c;

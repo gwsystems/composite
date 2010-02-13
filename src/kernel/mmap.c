@@ -42,7 +42,8 @@ void cos_shutdown_memory(void)
 /*
  * This would be O(1) in the real implementation as there is a 1-1
  * correspondence between phys pages and memory capabilities, but in
- * our Linux implementation, this is not so.
+ * our Linux implementation, this is not so.  The least we could do is
+ * keep the page sorted by physaddr and do a binary search here.
  */
 int cos_phys_addr_to_cap(phys_addr_t pa)
 {

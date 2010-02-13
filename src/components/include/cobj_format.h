@@ -38,7 +38,7 @@
 
 struct cobj_header {
 	u32_t id, nsect, nsymb, ncap, size;
-};
+} __attribute__((packed));
 
 #define COBJ_SECT_UNINIT 0
 #define COBJ_SECT_READ   0x1
@@ -49,7 +49,7 @@ struct cobj_sect {
 	u32_t flags;
 	u32_t offset;
 	u32_t vaddr, bytes;
-};
+} __attribute__((packed));
 
 enum {
 	COBJ_SYMB_UNDEF = 0,
@@ -65,12 +65,12 @@ enum {
 struct cobj_symb {
 	u32_t type;
 	u32_t vaddr;
-};
+} __attribute__((packed));
 
 struct cobj_cap { 
 	u32_t cap_off, dest_id;
 	u32_t sfn, cstub, sstub;
-};
+} __attribute__((packed));
 
 u32_t cobj_size_req(u32_t nsect, u32_t sect_sz, u32_t nsymb, u32_t ncap);
 struct cobj_header *cobj_create(u32_t id, u32_t nsect, u32_t sect_sz, u32_t nsymb, u32_t ncap, 
@@ -84,7 +84,16 @@ int cobj_cap_init(struct cobj_header *h, unsigned int cap_idx, u32_t cap_off,
 struct cobj_sect *cobj_sect_get(struct cobj_header *h, unsigned int sect_id);
 struct cobj_symb *cobj_symb_get(struct cobj_header *h, unsigned int symb_id);
 struct cobj_cap *cobj_cap_get(struct cobj_header *h, unsigned int cap_id);
+
+int cobj_sect_empty(struct cobj_header *h, unsigned int sect_id);
+u32_t cobj_sect_content_offset(struct cobj_header *h);
 char *cobj_sect_contents(struct cobj_header *h, unsigned int sect_id);
 u32_t cobj_sect_size(struct cobj_header *h, unsigned int sect_id);
+u32_t cobj_sect_addr(struct cobj_header *h, unsigned int sect_id);
+
+static inline int cobj_cap_undef(struct cobj_cap *c) 
+{
+	return 0 == c->sfn;
+}
 
 #endif 	    /* !COBJ_FORMAT_H */

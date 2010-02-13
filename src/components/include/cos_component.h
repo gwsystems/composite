@@ -169,9 +169,9 @@ static inline long cos_cap_cntl_spds(spdid_t cspd, spdid_t sspd, long arg)
 	return cos___cap_cntl(COS_CAP_GET_INVCNT, ((cspd << 16) | (sspd & 0xFFFF)), arg);
 }
 
-static inline long cos_cap_cntl(short int op, u16_t capid, long arg)
+static inline long cos_cap_cntl(short int op, spdid_t cspd, u16_t capid, long arg)
 {
-	return cos___cap_cntl(op, capid, arg);
+	return cos___cap_cntl(op, (cspd << 16) | (capid & 0xFFFF), arg);
 }
 
 /*

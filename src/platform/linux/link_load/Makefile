@@ -6,7 +6,7 @@ PRODUCTS=cos_loader gen_client_stub
 default: $(PRODUCTS)
 
 %.o: %.c
-	$(CC) $(CFLAGS) -I$(CDIR)/include/ -c -o $@ $^ -L$(CDIR)/lib/ -lcobj_format -I$(SHAREDINC)
+	$(CC) $(CFLAGS) -I$(CDIR)/include/ -c -o $@ $^ -I$(SHAREDINC)
 
 gen_client_stub: gen_client_stub.o
 	$(CC) $(CFLAGS) -o $@ $< 

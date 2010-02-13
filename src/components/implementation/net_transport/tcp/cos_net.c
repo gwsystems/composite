@@ -1430,7 +1430,6 @@ static int init(void)
 void cos_init(void *arg)
 {
 	static volatile int first = 1;
-	int var;
 
 	if (cos_get_thd_id() == event_thd) cos_net_evt_loop();
 

@@ -2834,7 +2834,7 @@ COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t dad
 		 * Demand paging could mess this up as the entry might
 		 * not be in the page table, and we map in our cos
 		 * page.  Ignore for the time being, as our loader
-		 * forces demand paging to not be used (explicitely
+		 * forces demand paging to not be used (explicitly
 		 * writing all of the pages itself).
 		 */
 		if (pgtbl_add_entry(spd->spd_info.pg_tbl, daddr, page)) {
@@ -2926,6 +2926,10 @@ COS_SYSCALL long cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long ar
 		break;
 	case COS_CAP_ACTIVATE:
 		/* arg2 == dest spd id */
+		if (!spd_is_active(cspd)) {
+			ret = -1;
+			break;
+		}
 		sspd = spd_get_by_index((spdid_t)arg2);
 		if (!sspd || spd_cap_set_dest(cspd, capid, sspd)) {
 			ret = -1;
@@ -3002,6 +3006,8 @@ COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		break;
 	}
 	case COS_SPD_DELETE:
+		/* FIXME: check reference counts, mpds, etc... */
+
 		spd_free_pgtbl(spd->spd_info.pg_tbl);
 		spd->spd_info.pg_tbl = 0;
 		if (spd->composite_spd != &spd->spd_info) {
@@ -3017,7 +3023,6 @@ COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 			ret = -1;
 			break;
 		}
-		spd_add_static_cap(spd, 0, spd, 0);
 		break;
 	case COS_SPD_RELEASE_CAPS:
 		if (spd_release_cap_range(spd) == -1) ret = -1;
@@ -3061,9 +3066,9 @@ COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		break;
 	}
 	case COS_SPD_ATOMIC_SECT:
-		/* arg1 == atomic section index, arg2 == section address */
-		if (arg1 >= COS_NUM_ATOMIC_SECTIONS || arg1 < 0) ret = -1;
-		else spd->atomic_sections[arg1] = (vaddr_t)arg2;
+		/* arg2 == atomic section index, arg1 == section address */
+		if (arg2 >= COS_NUM_ATOMIC_SECTIONS || arg2 < 0) ret = -1;
+		else spd->atomic_sections[arg2] = (vaddr_t)arg1;
 		break;
 	case COS_SPD_UPCALL_ADDR:
 		/* arg1 = upcall_entry address */
@@ -3078,6 +3083,7 @@ COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		if (!spd->user_vaddr_cap_tbl ||
 		    !spd->spd_info.pg_tbl || !spd->location.lowest_addr ||
 		    !spd->cap_base || !spd->cap_range) {
+			printk("cos: spd_cntl -- cap tbl, location, or capability range not set.\n");
 			ret = -1;
 			break;
 		}
@@ -3097,6 +3103,7 @@ COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 			break;
 		}
 		spd->user_cap_tbl = (struct usr_inv_cap*)kaddr;
+		spd_add_static_cap(spd, 0, spd, 0);
 
 		cspd = spd_alloc_mpd();
 		if (!cspd) {
@@ -3113,6 +3120,10 @@ COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 			break;
 		}
 		spd_make_active(spd);
+
+		assert(spd->composite_spd);
+		assert(pgtbl_vaddr_to_kaddr(spd->composite_spd->pg_tbl, (vaddr_t)0x43c00000));
+
 		break;
 	}
 	default:
