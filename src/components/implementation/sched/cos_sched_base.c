@@ -26,7 +26,7 @@
 #include <stack_trace.h>
 #include <sched_conf.h>
 
-#define TIMER_ACTIVATE
+//#define TIMER_ACTIVATE
 #include <timer.h>
 
 //#define SCHED_DEBUG
@@ -162,7 +162,7 @@ enum {
 	TIMER_SWTCH,
 	TIMER_MAX
 };
-static STATIC_TIMER_RECORDS(recs, TIMER_MAX);
+STATIC_TIMER_RECORDS(recs, TIMER_MAX);
 
 static void report_event(report_evt_t evt)
 {
@@ -199,7 +199,6 @@ void print_thd_invframes(struct sched_thd *t)
 static void report_thd_accouting(void)
 {
 	struct sched_thd *t;
-	int i;
 
 	runqueue_print();
 
@@ -241,11 +240,17 @@ static void report_thd_accouting(void)
 	printc("\n");
 	report_output();
 
-	for (i = 0 ; i < TIMER_MAX ; i++) {
-		unsigned long avg = 0, max = 0, min = 0;
-		timer_report(recs, i, &avg, &max, &min);
-		printc("avg: %ld, min: %ld, max: %ld\n", avg, min, max);
+#ifdef TIMER_ACTIVATE
+	{
+		int i;
+		
+		for (i = 0 ; i < TIMER_MAX ; i++) {
+			unsigned long avg = 0, max = 0, min = 0;
+			timer_report(recs, i, &avg, &max, &min);
+			printc("avg: %ld, min: %ld, max: %ld\n", avg, min, max);
+		}
 	}
+#endif
 }
 
 static void activate_child_sched(struct sched_thd *g);
@@ -479,7 +484,6 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 
 		assert(!sched_thd_blocked(next));
 		report_event(SWITCH_THD);
-
 		timer_end(&t);
 
 		timer_start(&tswtch);

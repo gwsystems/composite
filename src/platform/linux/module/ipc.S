@@ -188,8 +188,6 @@ cos_syscall_brand_wait:
 	jne ret_from_preemption
 	/* restore registers from previous yield, regs in eax */
 	jmp 1f
-
-
 	
 /* FIXME: this is all superfluous: we save/restore all regs when in the 
    non-preemption case, user-level saves most of them anyway because of 

@@ -703,6 +703,12 @@ static struct thread *switch_thread_slowpath(struct thread *curr, unsigned short
 					     int *ret_code, unsigned short int *curr_flags, 
 					     unsigned short int *thd_flags);
 
+static inline void switch_thread_update_flags(struct cos_sched_data_area *da, unsigned short int *flags)
+{
+	if (likely(!(da->cos_next.next_thd_flags & COS_SCHED_CHILD_EVT))) return;
+	*flags &= COS_SCHED_CHILD_EVT;
+}
+
 /*
  * The arguments are horrible as we are interfacing w/ assembly and 1)
  * we need to return two values, the regs to restore, and if the next
@@ -741,7 +747,8 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	 * we would want to use the sched_page flags.
 	 */
 	flags = rflags;
-	
+	switch_thread_update_flags(da, &flags);
+
 	if (unlikely(flags)) {
 		thd = switch_thread_slowpath(curr, flags, curr_spd, rthd_id, da, &ret_code, 
 					     &curr_sched_flags, &thd_sched_flags);
@@ -873,6 +880,22 @@ static struct thread *switch_thread_slowpath(struct thread *curr, unsigned short
 		 * FIXME: reset urgency/priority of current thread back
 		 * to natural state.
 		 */
+	}
+
+	if (flags & COS_SCHED_CHILD_EVT) {
+		struct thd_sched_info *tsi;
+		struct spd *child;
+		struct cos_sched_data_area *cda;
+
+		tsi = thd_get_sched_info(thd, curr_spd->sched_depth+1);
+		if (unlikely(!tsi)) goto ret_err;
+		/* If the scheduler exists, all of the following
+		 * pointers should be non-NULL */
+		child = tsi->scheduler;
+		assert(child);
+		cda = child->sched_shared_page;
+		assert(cda);
+		cda->cos_evt_notif.pending_cevt = 1;
 	}
 
 	return thd;
