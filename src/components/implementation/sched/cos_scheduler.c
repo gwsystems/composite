@@ -27,7 +27,7 @@ static volatile u8_t cos_curr_evt = 0;
  * called for each entry.  This should be called with the scheduler
  * lock.
  */
-int cos_sched_process_events(sched_evt_visitor_t fn, struct sched_ops *ops, unsigned int proc_amnt)
+int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 {
 	u8_t id, flags;
 	u32_t cpu;
@@ -79,7 +79,7 @@ int cos_sched_process_events(sched_evt_visitor_t fn, struct sched_ops *ops, unsi
 			t = sched_evt_to_thd(cos_curr_evt);
 			if (t) {
 				/* Call the visitor function */
-				fn(ops, t, flags, cpu);
+				fn(t, flags, cpu);
 			}
 		}
 		proc_amnt--;

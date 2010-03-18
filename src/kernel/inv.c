@@ -602,6 +602,8 @@ void update_sched_evts(struct thread *new, int new_flags,
 		       struct thread *prev, int prev_flags);
 static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, 
 						     struct composite_spd *curr);
+static struct thread *sched_tailcall_pending_upcall_thd(struct thread *uc, 
+							 struct composite_spd *curr);
 static inline void update_thd_evt_state(struct thread *t, int flags, int update_list);
 static inline void break_preemption_chain(struct thread *t)
 {
@@ -622,6 +624,85 @@ static inline void break_preemption_chain(struct thread *t)
 	}
 }
 
+static inline unsigned short int switch_thread_parse_data_area(struct cos_sched_data_area *da, int *ret_code)
+{
+	unsigned short int next_thd;
+
+	if (unlikely(da->cos_evt_notif.pending_event)) {
+		*ret_code = COS_SCHED_RET_AGAIN;
+		goto ret_err;
+	}
+	if (unlikely(da->cos_evt_notif.pending_cevt)) {
+		*ret_code = COS_SCHED_RET_CEVT;
+		goto ret_err;
+	}
+
+	next_thd = da->cos_next.next_thd_id;
+	da->cos_next.next_thd_id = 0;
+	/* FIXME: mask out the locking flags as they cannot apply */
+	
+	return next_thd;
+ret_err:
+	return 0;
+}
+
+static inline struct thread *switch_thread_get_target(unsigned short int tid, struct thread *curr, 
+						      struct spd *curr_spd, int *ret_code)
+{
+	struct thread *thd;
+
+	thd = thd_get_by_id(tid);
+	/* error cases */
+	if (unlikely(thd == curr)) {
+		cos_meas_event(COS_MEAS_SWITCH_SELF);
+		*ret_code = COS_SCHED_RET_AGAIN;
+		goto ret_err;
+	}
+	if (unlikely(NULL == thd)) {
+		/* 
+		 * Uncommon, but valid case: between when the current thread
+		 * executed through the scheduler and when the switch_thread
+		 * system call was made, that thread was preempted, or an
+		 * event occurred (which zeros out tid).  This simply
+		 * means that the current system call doesn't have all the
+		 * information (which upcalls are active, if threads have been
+		 * woken up, etc...), so we should make it go through the
+		 * scheduling process again.
+		 */
+		if (unlikely(0 == tid)) {
+			cos_meas_event(COS_MEAS_SWITCH_OUTDATED);
+			*ret_code = COS_SCHED_RET_AGAIN;
+		} else {
+			*ret_code = COS_SCHED_RET_INVAL;
+		}
+		/* error otherwise */
+		goto ret_err;
+	}
+
+	/* We have valid threads, lets make sure we can schedule them! */
+	if (unlikely(!thd_scheduled_by(curr, curr_spd) ||
+		     !thd_scheduled_by(thd, curr_spd))) {
+		*ret_code = COS_SCHED_RET_ERROR;
+		goto ret_err;
+	}
+
+	/* we cannot schedule to run an upcall thread that is not running */
+	if (unlikely(thd->flags & THD_STATE_READY_UPCALL)) {
+		cos_meas_event(COS_MEAS_UPCALL_INACTIVE);
+		*ret_code = COS_SCHED_RET_INVAL;
+		goto ret_err;
+	}
+	
+	return thd;
+ret_err:
+	return NULL;
+}
+
+static struct thread *switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd *curr_spd, 
+					     unsigned short int rthd_id, struct cos_sched_data_area *da,
+					     int *ret_code, unsigned short int *curr_flags, 
+					     unsigned short int *thd_flags);
+
 /*
  * The arguments are horrible as we are interfacing w/ assembly and 1)
  * we need to return two values, the regs to restore, and if the next
@@ -641,98 +722,39 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	unsigned short int curr_sched_flags = COS_SCHED_EVT_NIL,
 		           thd_sched_flags  = COS_SCHED_EVT_NIL;
 	struct cos_sched_data_area *da;
+	int ret_code = COS_SCHED_RET_ERROR;
 
 	*preempt = 0;
 	curr = thd_get_current();
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
-	if (NULL == curr_spd) {
-		printk("cos: component claimed in spd %d, but not\n", spd_id);
-		curr->regs.eax = COS_SCHED_RET_ERROR;
-		return &curr->regs;
-	}
+	if (unlikely(NULL == curr_spd)) goto ret_err;
 
 	assert(!(curr->flags & THD_STATE_PREEMPTED));
 
 	da = curr_spd->sched_shared_page;
-	if (unlikely(NULL == da)) {
-		printk("cos: non-scheduler attempting to switch thread.\n");
-		curr->regs.eax = COS_SCHED_RET_ERROR;
-		return &curr->regs;
-	}
+	if (unlikely(NULL == da)) goto ret_err;
 
-	if (rflags & (COS_SCHED_SYNC_BLOCK | COS_SCHED_SYNC_UNBLOCK)) {
-		next_thd = rthd_id;
-		/* FIXME: mask out all flags that can't apply here  */
-	} else {
-		if (unlikely(da->cos_evt_notif.pending_event)) {
-			curr->regs.eax = COS_SCHED_RET_AGAIN;
-			return &curr->regs;
-		}
-		if (unlikely(da->cos_evt_notif.pending_cevt)) {
-			curr->regs.eax = COS_SCHED_RET_CEVT;
-			return &curr->regs;
-		}
-
-		next_thd = da->cos_next.next_thd_id;
-		da->cos_next.next_thd_id = 0;
-		/* FIXME: mask out the locking flags as they cannot apply */
-	}
 	/* 
 	 * So far all flags should be taken in the context of the
 	 * actual invoking thread (they effect the thread switching
-	 * _from_ rather than the thread to switch _to_ in which case
+	 * _from_ rather than the thread to switch _to_) in which case
 	 * we would want to use the sched_page flags.
 	 */
 	flags = rflags;
-
-	/* 
-	 * Uncommon, but valid case: between when the current thread
-	 * executed through the scheduler and when the switch_thread
-	 * system call was made, that thread was preempted, or an
-	 * event occurred (which zeros out next_thd).  This simply
-	 * means that the current system call doesn't have all the
-	 * information (which upcalls are active, if threads have been
-	 * woken up, etc...), so we should make it go through the
-	 * scheduling process again.
-	 */
-	if (0 == next_thd) {
-		cos_meas_event(COS_MEAS_SWITCH_OUTDATED);
-		curr->regs.eax = COS_SCHED_RET_AGAIN;
-		return &curr->regs;
-	}
-	thd = thd_get_by_id(next_thd);
-
-	/* error cases */
-	if (unlikely(thd == curr)) {
-		cos_meas_event(COS_MEAS_SWITCH_SELF);
-		curr->regs.eax = COS_SCHED_RET_AGAIN;
-		return &curr->regs;
-	}
-	if (unlikely(NULL == thd)) {
-		printk("cos: no thread with id %d and flags %x, cannot switch to it from %d @ %x.\n", 
-		       next_thd, flags, thd_get_id(curr), (unsigned int)curr->regs.edx);
-		thd_print_regs(curr);
-
-		curr->regs.eax = COS_SCHED_RET_ERROR;
-		return &curr->regs;
-	}
-	if (unlikely(!thd_scheduled_by(curr, curr_spd) ||
-		     !thd_scheduled_by(thd, curr_spd))) {
-		printk("cos: scheduler %d does not have scheduling control over %d or %d, cannot switch.\n",
-		       spd_get_index(curr_spd), thd_get_id(curr), thd_get_id(thd));
-		curr->regs.eax = COS_SCHED_RET_ERROR;
-		return &curr->regs;
-	}
-	/* we cannot schedule to run an upcall thread that is not running */
-	if (unlikely(thd->flags & THD_STATE_READY_UPCALL)) {
-		static int first = 1;
-		if (first) {
-			printk("cos: upcall thd %d not ready to run (current %d) -- this message will not repeat.\n", thd_get_id(thd), thd_get_id(curr));
-			first = 0;
-		}
-		cos_meas_event(COS_MEAS_UPCALL_INACTIVE);
-		curr->regs.eax = COS_SCHED_RET_INVAL;
-		return &curr->regs;
+	
+	if (unlikely(flags)) {
+		thd = switch_thread_slowpath(curr, flags, curr_spd, rthd_id, da, &ret_code, 
+					     &curr_sched_flags, &thd_sched_flags);
+		/* If we should return immediately back to this
+		 * thread, and its registers have been changed,
+		 * return without setting the return value */
+		if (ret_code == COS_SCHED_RET_SUCCESS && thd == curr) goto ret;
+		if (thd == curr) goto ret_err;
+	} else {
+		next_thd = switch_thread_parse_data_area(da, &ret_code);
+		if (unlikely(0 == next_thd)) goto ret_err;
+		thd = switch_thread_get_target(next_thd, curr, curr_spd, &ret_code);
+		if (unlikely(NULL == thd)) goto ret_err;
 	}
 
 	/* If a thread is involved in a scheduling decision, we should
@@ -740,37 +762,61 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 	 * anymore. */
 	break_preemption_chain(curr);
 
-	if (thd->flags & THD_STATE_ACTIVE_UPCALL) {
-		cos_meas_stats_end(COS_MEAS_STATS_UC_EXEC_DELAY, 1);
+	switch_thread_context(curr, thd);
+	if (thd->flags & THD_STATE_PREEMPTED) {
+		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
+		remove_preempted_status(thd);
+		*preempt = 1;
+	} else {
+		cos_meas_event(COS_MEAS_SWITCH_COOP);
 	}
+
+	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
+	/* success for this current thread */
+	curr->regs.eax = COS_SCHED_RET_SUCCESS;
+
+	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
+
+	return &thd->regs;
+ret_err:
+	curr->regs.eax = ret_code;
+ret:
+	return &curr->regs;
+}
+
+static struct thread *switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd *curr_spd, 
+					     unsigned short int rthd_id, struct cos_sched_data_area *da,
+					     int *ret_code, unsigned short int *curr_flags, 
+					     unsigned short int *thd_flags)
+{
+	struct thread *thd;
+	unsigned short int next_thd;
+
+	if (flags & (COS_SCHED_SYNC_BLOCK | COS_SCHED_SYNC_UNBLOCK)) {
+		next_thd = rthd_id;
+		/* FIXME: mask out all flags that can't apply here  */
+	} else {
+		next_thd = switch_thread_parse_data_area(da, ret_code);
+		if (unlikely(!next_thd)) goto ret_err;
+	}
+
+	thd = switch_thread_get_target(next_thd, curr, curr_spd, ret_code);
+	if (unlikely(NULL == thd)) goto ret_err;
 
 	if (flags & (COS_SCHED_TAILCALL | COS_SCHED_BRAND_WAIT)) {
 		/* First make sure this is an active upcall */
-		if (unlikely(!(curr->flags & THD_STATE_ACTIVE_UPCALL))) {
-			printk("cos: illegal use of tailcall, current not upcall.");
-			curr->regs.eax = COS_SCHED_RET_ERROR;
-			return &curr->regs;
-		}
+		if (unlikely(!(curr->flags & THD_STATE_ACTIVE_UPCALL))) goto ret_err;
+
 		assert(!(curr->flags & THD_STATE_READY_UPCALL));
 		/* Can't really be tailcalling and have the other
 		 * flags at the same time */
-		if (unlikely(flags & (COS_SCHED_SYNC_BLOCK | COS_SCHED_SYNC_UNBLOCK))) {
-			printk("cos: cannot switch using tailcall and other options %d\n", flags);
-			curr->regs.eax = COS_SCHED_RET_ERROR;
-			return &curr->regs;
-		}
+		if (unlikely(flags & (COS_SCHED_SYNC_BLOCK | COS_SCHED_SYNC_UNBLOCK))) goto ret_err;
 
 		cos_meas_stats_end(COS_MEAS_STATS_UC_TERM_DELAY, 1);
 		cos_meas_stats_end(COS_MEAS_STATS_UC_PEND_DELAY, 0);
 
-		if (flags & COS_SCHED_TAILCALL) {
-			event_record("thread_switch tailcall (not brand_wait)", thd_get_id(curr), thd_get_id(thd));
-			if (unlikely(spd_id != sched_tailcall_adjust_invstk(curr))) {
-				printk("cos: tailcalling upcall's top frame not scheduler\n");
-				curr->regs.eax = COS_SCHED_RET_ERROR;
-				return &curr->regs;
-			}
-		}
+		if (flags & COS_SCHED_TAILCALL && unlikely(spd_get_index(curr_spd) != sched_tailcall_adjust_invstk(curr)))
+			goto ret_err;
 		
 		assert(curr->thread_brand);
 		if (curr->thread_brand->pending_upcall_requests) {
@@ -778,30 +824,19 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 			//spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(curr));
 			cos_meas_event(COS_MEAS_BRAND_COMPLETION_PENDING);
 			event_record("switch_thread tailcall pending", thd_get_id(curr), 0);
-			return sched_tailcall_pending_upcall(curr, (struct composite_spd*)curr_spd->composite_spd);
+			*ret_code = COS_SCHED_RET_SUCCESS;
+			return sched_tailcall_pending_upcall_thd(curr, (struct composite_spd*)curr_spd->composite_spd);
 		} 
 
 		curr->flags &= ~THD_STATE_ACTIVE_UPCALL;
 		curr->flags |= THD_STATE_READY_UPCALL;
-		curr->sched_suspended = NULL;
 		
 		cos_meas_event(COS_MEAS_FINISHED_BRANDS);
 		cos_meas_event(COS_MEAS_BRAND_COMPLETION_TAILCALL);
 
-		curr_sched_flags = COS_SCHED_EVT_BRAND_READY;
+		*curr_flags = COS_SCHED_EVT_BRAND_READY;
 
 		event_record("tailcall inv and switch to specified thread", thd_get_id(curr), thd_get_id(thd));
-	}
-
-	/* 
-	 * If we are trying to schedule an upcall that is waiting for
-	 * an event, set it up appropriately.
-	 */
-	if (unlikely(thd->flags & THD_STATE_READY_UPCALL)) {
-		thd->flags &= ~THD_STATE_READY_UPCALL;
-		thd->flags |= THD_STATE_ACTIVE_UPCALL;
-		thd->regs.eax = COS_SCHED_RET_ERROR;
-		thd_sched_flags = COS_SCHED_EVT_BRAND_ACTIVE;
 	}
 
 	/*** A synchronization event for the scheduler? ***/
@@ -815,8 +850,8 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		 */
 		if (l->owner_thd != next_thd) {
 			cos_meas_event(COS_MEAS_ATOMIC_STALE_LOCK);
-			curr->regs.eax = COS_SCHED_RET_SUCCESS;
-			return &curr->regs;
+			*ret_code = COS_SCHED_RET_SUCCESS;
+			goto ret_err;
 		}
 		cos_meas_event(COS_MEAS_ATOMIC_LOCK);
 
@@ -840,26 +875,9 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		 */
 	}
 
-	curr->sched_suspended = curr_spd;
-	thd->sched_suspended = NULL;
-
-	switch_thread_context(curr, thd);
-
-	if (thd->flags & THD_STATE_PREEMPTED) {
-		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
-		remove_preempted_status(thd);
-		*preempt = 1;
-	} else {
-		cos_meas_event(COS_MEAS_SWITCH_COOP);
-	}
-
-	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
-	/* success for this current thread */
-	curr->regs.eax = COS_SCHED_RET_SUCCESS;
-
-	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
-
-	return &thd->regs;
+	return thd;
+ret_err:
+	return curr;
 }
 
 static inline void upcall_setup_regs(struct thread *uc, struct spd *dest,
@@ -977,12 +995,7 @@ static struct pt_regs *thd_ret_term_upcall(struct thread *curr)
 
 //static int cos_net_try_packet(struct thread *brand, unsigned short int *port);
 
-/* 
- * Assumes: we are called from the thread switching syscall, with the
- * TAIL_CALL flag (i.e. we are switching away from an upcall).  Also,
- * that the previous component was released.
- */
-static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, struct composite_spd *curr)
+static struct thread *sched_tailcall_pending_upcall_thd(struct thread *uc, struct composite_spd *curr)
 {
 	struct thread *brand = uc->thread_brand;
 	struct composite_spd *cspd;
@@ -1004,7 +1017,17 @@ static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, struct c
 
 	event_record("pending upcall", thd_get_id(uc), 0);
 
-	return &uc->regs;
+	return uc;
+}
+
+/* 
+ * Assumes: we are called from the thread switching syscall, with the
+ * TAIL_CALL flag (i.e. we are switching away from an upcall).  Also,
+ * that the previous component was released.
+ */
+static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, struct composite_spd *curr)
+{
+	return &sched_tailcall_pending_upcall_thd(uc, curr)->regs;
 }
 
 /* 
@@ -1023,7 +1046,6 @@ static void brand_completion_switch_to(struct thread *curr, struct thread *prev)
 	cos_meas_event(COS_MEAS_FINISHED_BRANDS);
 
 	break_preemption_chain(curr);
-	curr->sched_suspended = NULL;
 
 	curr->flags &= ~THD_STATE_ACTIVE_UPCALL;
 	curr->flags |= THD_STATE_READY_UPCALL;

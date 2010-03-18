@@ -126,8 +126,7 @@ static inline struct sched_metric *sched_get_metric(struct sched_thd *thd)
 
 /**************** Scheduler Event Fns *******************/
 
-struct sched_ops;
-typedef void (*sched_evt_visitor_t)(struct sched_ops *ops, struct sched_thd *t, u8_t flags, u32_t cpu_consumption);
+typedef void (*sched_evt_visitor_t)(struct sched_thd *t, u8_t flags, u32_t cpu_consumption);
 static inline int cos_sched_pending_event(void)
 {
 /*	struct cos_sched_events *evt;*/
@@ -152,7 +151,7 @@ static inline void cos_sched_clear_cevts(void)
 }
 
 int cos_sched_event_to_process(void);
-int cos_sched_process_events(sched_evt_visitor_t fn, struct sched_ops *ops, unsigned int proc_amnt);
+int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt);
 void cos_sched_set_evt_urgency(u8_t id, u16_t urgency);
 short int sched_alloc_event(struct sched_thd *thd);
 int sched_rem_event(struct sched_thd *thd);

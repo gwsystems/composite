@@ -316,20 +316,52 @@ static void fp_runqueue_print(void)
 	}
 }
 
-struct sched_ops fp_ops = {
-	.thread_new = fp_thread_new,
-	.thread_remove = fp_thread_remove,
-	.runqueue_print = fp_runqueue_print,
-	.thread_params_set = fp_thread_params,
+int thread_new(struct sched_thd *t)
+{
+	return fp_thread_new(t);
+}
 
-	.schedule = fp_schedule,
-	.time_elapsed = fp_time_elapsed,
-	.timer_tick = fp_timer_tick,
-	.thread_block = fp_thread_block,
-	.thread_wakeup = fp_thread_wakeup
-};
+int thread_remove(struct sched_thd *t)
+{
+	return fp_thread_remove(t);
+}
 
-struct sched_ops *sched_initialization(void)
+int thread_params_set(struct sched_thd *t, char *params)
+{
+	return fp_thread_params(t, params);
+}
+
+void runqueue_print(void)
+{
+	fp_runqueue_print();
+}
+
+int time_elapsed(struct sched_thd *t, u32_t processing_time)
+{
+	return fp_time_elapsed(t, processing_time);
+}
+
+int timer_tick(int num_ticks)
+{
+	return fp_timer_tick(num_ticks);
+}
+
+struct sched_thd *schedule(struct sched_thd *t)
+{
+	return fp_schedule(t);
+}
+
+int thread_block(struct sched_thd *t)
+{
+	return fp_thread_block(t);
+}
+
+int thread_wakeup(struct sched_thd *t)
+{
+	return fp_thread_wakeup(t);
+}
+
+int sched_initialization(void)
 {
 	int i;
 
@@ -337,5 +369,5 @@ struct sched_ops *sched_initialization(void)
 		sched_init_thd(&priorities[i].runnable, 0, THD_FREE);
 	}
 
-	return &fp_ops;
+	return 0;
 }

@@ -292,9 +292,9 @@ static int ds_thread_new(struct sched_thd *t)
 #include <stdlib.h>
 static int ds_thread_params(struct sched_thd *t, char *p)
 {
-	int prio, tmp;
+	int prio = 0, tmp;
 	char curr = p[0];
-	struct sched_thd *c;
+	struct sched_thd *c = NULL;
 
 	while (p != '\0') {
 		char *end;
@@ -368,21 +368,26 @@ static void ds_runqueue_print(void)
 		}
 	}
 }
+int thread_new(struct sched_thd *t) { return ds_thread_new(t); }
+int thread_remove(struct sched_thd *t) { return ds_thread_remove(t); }
+int thread_params_set(struct sched_thd *t, char *params) 
+{
+	return ds_thread_params(t, params);
+}
+void runqueue_print(void) { ds_runqueue_print(); }
+int time_elapsed(struct sched_thd *t, u32_t processing_time)
+{
+	return ds_time_elapsed(t, processing_time);
+}
+int timer_tick(int num_ticks) { return ds_timer_tick(num_ticks); }
+struct sched_thd *schedule(struct sched_thd *t)
+{
+	return ds_schedule(t);
+}
+int thread_block(struct sched_thd *t) { return ds_thread_block(t); }
+int thread_wakeup(struct sched_thd *t) { return ds_thread_wakeup(t); }
 
-struct sched_ops ds_ops = {
-	.thread_new = ds_thread_new,
-	.thread_remove = ds_thread_remove,
-	.runqueue_print = ds_runqueue_print,
-	.thread_params_set = ds_thread_params,
-
-	.schedule = ds_schedule,
-	.time_elapsed = ds_time_elapsed,
-	.timer_tick = ds_timer_tick,
-	.thread_block = ds_thread_block,
-	.thread_wakeup = ds_thread_wakeup
-};
-
-struct sched_ops *sched_initialization(void)
+int sched_initialization(void)
 {
 	int i;
 
@@ -390,5 +395,5 @@ struct sched_ops *sched_initialization(void)
 		sched_init_thd(&priorities[i].runnable, 0, THD_FREE);
 	}
 
-	return &ds_ops;
+	return 0;
 }

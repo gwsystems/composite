@@ -86,7 +86,6 @@ struct thread {
 	vaddr_t ul_data_page;
 
 	struct thd_sched_info sched_info[MAX_SCHED_HIER_DEPTH] CACHE_ALIGNED; 
-	struct spd *sched_suspended; /* scheduler we are suspended by */
 
 	/* Start Brand & Upcall fields: */
 

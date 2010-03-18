@@ -89,7 +89,6 @@ struct thread *thd_alloc(struct spd *spd)
 	/* establish this thread's base spd */
 	thd_invocation_push(thd, spd, 0, 0);
 
-	thd->sched_suspended = NULL;
 	thd->flags = 0;
 
 	thd->thread_brand = NULL;
