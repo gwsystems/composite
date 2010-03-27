@@ -35,7 +35,7 @@ void cos_init(void *arg)
 		data->sz = strlen(service_names[i]);
 		if (0 > (main_fd = cos_app_open(0, data))) {
 			printc("cgi: cannot open service, ret=%d\n", main_fd);
-			assert(0);
+			BUG();
 		}
 	}
 
@@ -48,11 +48,11 @@ void cos_init(void *arg)
 
 			data_fd = cos_split(main_fd);
 			if (-EAGAIN == data_fd) break;
-			else if (0 > data_fd) assert(0);
+			else if (0 > data_fd) BUG();
 
 			do {
 				amnt = cos_read(data_fd, data->mem, BUFF_SZ);
-				if (0 > amnt) assert(0);
+				if (0 > amnt) BUG();
 				if (0 == amnt) break;
 			} while (0 != amnt);
 

@@ -472,7 +472,7 @@ static void cos_net_lwip_tcp_err(void *arg, err_t err)
 	case ERR_RST:
 		assert(ic->conn_type == TCP);
 		assert(ic->conn_type != TCP_CLOSED);
-		if (-1 != ic->data && evt_trigger(cos_spd_id(), ic->data)) assert(0);
+		if (-1 != ic->data && evt_trigger(cos_spd_id(), ic->data)) BUG();
 		ic->conn_type = TCP_CLOSED;
 		ic->conn.tp = NULL;
 		net_conn_free_packet_data(ic);
@@ -512,7 +512,7 @@ static void __net_close(struct intern_connection *ic)
 		assert(NULL == ic->conn.tp);
 		break;
 	default:
-		assert(0);
+		BUG();
 	}
 	net_conn_free(ic);
 }
@@ -573,7 +573,7 @@ static err_t cos_net_lwip_tcp_recv(void *arg, struct tcp_pcb *tp, struct pbuf *p
 		//assert(1 == p->ref);
 		q = p->next;
 		p->payload = p->alloc_track = NULL;
-		if (NULL == q) assert(p->len == p->tot_len);
+		assert(NULL != q || p->len == p->tot_len);
 		assert(p->ref == 1);
 		p = q;
 	}
@@ -582,12 +582,12 @@ static err_t cos_net_lwip_tcp_recv(void *arg, struct tcp_pcb *tp, struct pbuf *p
 	/* This should deallocate the entire chain */
 	pbuf_free(first);
 
-	if (-1 != ic->data && evt_trigger(cos_spd_id(), ic->data)) assert(0);
+	if (-1 != ic->data && evt_trigger(cos_spd_id(), ic->data)) BUG();
 /* 	/\* If the thread blocked waiting for a packet, wake it up *\/ */
 /* 	if (RECVING == ic->thd_status) { */
 /* 		ic->thd_status = ACTIVE; */
 /* 		assert(ic->thd_status == ACTIVE); /\* Detect races *\/ */
-/* 		if (sched_wakeup(cos_spd_id(), ic->tid)) assert(0); */
+/* 		if (sched_wakeup(cos_spd_id(), ic->tid)) BUG(); */
 /* 	} */
 
 	return ERR_OK;
@@ -604,7 +604,7 @@ static err_t cos_net_lwip_tcp_sent(void *arg, struct tcp_pcb *tp, u16_t len)
 	 * a problem. */
 	if (-1 == ic->data) return ERR_OK;
 	/* FIXME: fix sending so that we can block and everything will work. */
-	//if (evt_trigger(cos_spd_id(), ic->data)) assert(0);
+	//if (evt_trigger(cos_spd_id(), ic->data)) BUG();
 
 	return ERR_OK;
 }
@@ -615,7 +615,7 @@ static err_t cos_net_lwip_tcp_connected(void *arg, struct tcp_pcb *tp, err_t err
 	assert(ic);
 	
 	assert(CONNECTING == ic->thd_status);
-	if (sched_wakeup(cos_spd_id(), ic->tid)) assert(0);
+	if (sched_wakeup(cos_spd_id(), ic->tid)) BUG();
 	ic->thd_status = ACTIVE;
 	prints("cos connected!");
 
@@ -679,10 +679,10 @@ static err_t cos_net_lwip_tcp_accept(void *arg, struct tcp_pcb *new_tp, err_t er
 	 * call should be in the lwip stack. */
 	new_port = portmgr_new(cos_spd_id());
 	
-	if (0 > (nc = __net_create_tcp_connection(ic->spdid, ic->tid, new_tp, -1))) assert(0);
+	if (0 > (nc = __net_create_tcp_connection(ic->spdid, ic->tid, new_tp, -1))) BUG();
 
 	ica = net_conn_get_internal(nc);
-	if (NULL == ica) assert(0);
+	if (NULL == ica) BUG();
 	ic->next = NULL;
 	if (NULL == ic->accepted_ic) {
 		assert(NULL == ic->accepted_last);
@@ -694,7 +694,7 @@ static err_t cos_net_lwip_tcp_accept(void *arg, struct tcp_pcb *new_tp, err_t er
 		ic->accepted_last = ica;
 	}
 	assert(-1 != ic->data);
-	if (evt_trigger(cos_spd_id(), ic->data)) assert(0);
+	if (evt_trigger(cos_spd_id(), ic->data)) BUG();
 
 	return ERR_OK;
 }
@@ -801,7 +801,7 @@ net_connection_t net_accept(spdid_t spdid, net_connection_t nc)
 /* 		ic->thd_status = ACCEPTING; */
 /* 		NET_LOCK_RELEASE(); */
 /* 		prints("net_accept: blocking!"); */
-/* 		if (sched_block(cos_spd_id(), 0) < 0) assert(0); */
+/* 		if (sched_block(cos_spd_id(), 0) < 0) BUG(); */
 /* 		NET_LOCK_TAKE(); */
 /* 		assert(ACTIVE == ic->thd_status); */
 	}
@@ -870,7 +870,7 @@ int net_listen(spdid_t spdid, net_connection_t nc, int queue)
 	ic->conn.tp = new_tp;
 	tcp_arg(new_tp, ic);
 	tcp_accept(new_tp, cos_net_lwip_tcp_accept);
-	//if (0 > __net_create_tcp_connection(si, new_tp)) assert(0);
+	//if (0 > __net_create_tcp_connection(si, new_tp)) BUG();
 done:
 	NET_LOCK_RELEASE();
 	return ret;
@@ -934,7 +934,7 @@ static int __net_bind(spdid_t spdid, net_connection_t nc, struct ip_addr *ip, u1
 		ret = -EPIPE;
 		break;
 	default:
-		assert(0);
+		BUG();
 	}
 
 done:
@@ -984,7 +984,7 @@ static int __net_connect(spdid_t spdid, net_connection_t nc, struct ip_addr *ip,
 			return -ENOMEM;
 		}
 		NET_LOCK_RELEASE();
-		if (sched_block(cos_spd_id(), 0) < 0) assert(0);
+		if (sched_block(cos_spd_id(), 0) < 0) BUG();
 		assert(ACTIVE == ic->thd_status);
 		/* When we wake up, we should be connected. */
 		return 0;
@@ -994,7 +994,7 @@ static int __net_connect(spdid_t spdid, net_connection_t nc, struct ip_addr *ip,
 		NET_LOCK_RELEASE();
 		return -EPIPE;
 	default:
-		assert(0);
+		BUG();
 	}
 	NET_LOCK_RELEASE();
 	return 0;
@@ -1068,7 +1068,7 @@ int net_recv(spdid_t spdid, net_connection_t nc, void *data, int sz)
 		break;
 	default:
 		printc("net_recv: invalid connection type: %d", ic->conn_type);
-		assert(0);
+		BUG();
 	}
 	assert(xfer_amnt <= sz);
 	NET_LOCK_RELEASE();
@@ -1152,13 +1152,13 @@ int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 			free(pq);
 			printc("tcp_write returned %d (sz %d, tcp_sndbuf %d, ERR_MEM: %d)", 
 			       ret, sz, tcp_sndbuf(tp), ERR_MEM);
-			assert(0);
+			BUG();
 		}
 		/* No implementation of nagle's algorithm yet.  Send
 		 * out the packet immediately if possible. */
 		if (ERR_OK != (ret = tcp_output(tp))) {
 			printc("tcp_output returned %d, ERR_MEM: %d", ret, ERR_MEM);
-			assert(0);
+			BUG();
 		}
 		ret = sz;
 
@@ -1168,7 +1168,7 @@ int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 		ret = -EPIPE;
 		break;
 	default:
-		assert(0);
+		BUG();
 	}
 err:
 	NET_LOCK_RELEASE();
@@ -1256,11 +1256,11 @@ static int cos_net_evt_loop(void)
 	int alloc_sz;
 
 	assert(event_thd > 0);
-	if (ip_netif_create(cos_spd_id())) assert(0);
+	if (ip_netif_create(cos_spd_id())) BUG();
 	printc("network uc %d starting...\n", cos_get_thd_id());
 	alloc_sz = sizeof(struct cos_array) + MTU;
 	data = cos_argreg_alloc(alloc_sz);
-	if (NULL == data) assert(0);
+	if (NULL == data) BUG();
 	while (1) {
 		data->sz = alloc_sz;
 		ip_wait(cos_spd_id(), data);
@@ -1274,7 +1274,7 @@ static int cos_net_evt_loop(void)
 static err_t cos_net_stack_link_send(struct netif *ni, struct pbuf *p)
 {
 	/* We don't do arp...this shouldn't be called */
-	assert(0);
+	BUG();
 	return ERR_OK;
 }
 
@@ -1289,10 +1289,10 @@ static err_t cos_net_stack_send(struct netif *ni, struct pbuf *p, struct ip_addr
 	assert(p && p->ref == 1);
 	assert(p->type == PBUF_RAM);
 	b = cos_argreg_alloc(sizeof(struct cos_array) + MTU);
-	if (NULL == b) assert(0);
+	if (NULL == b) BUG();
 	buff = b->mem;
 	while (p) {
-		if (p->len + tot_len > MTU) assert(0);
+		if (p->len + tot_len > MTU) BUG();
 		memcpy(buff + tot_len, p->payload, p->len);
 		tot_len += p->len;
 
@@ -1312,7 +1312,7 @@ static err_t cos_net_stack_send(struct netif *ni, struct pbuf *p, struct ip_addr
 	
 	b->sz = tot_len;
 
-	if (0 > ip_xmit(cos_spd_id(), b)) assert(0);
+	if (0 > ip_xmit(cos_spd_id(), b)) BUG();
 	cos_argreg_free(b);
 	
 	/* cannot deallocate packets here as we might need to
@@ -1380,7 +1380,7 @@ static void cos_net_create_netif_thd(void)
 	assert(data);
 	strcpy(&data->mem[0], "r-1");
 	data->sz = 4;
-	if (0 > (event_thd = sched_create_thread(cos_spd_id(), data))) assert(0);
+	if (0 > (event_thd = sched_create_thread(cos_spd_id(), data))) BUG();
 	cos_argreg_free(data);
 }
 
@@ -1423,7 +1423,7 @@ static int init(void)
 	}
 
 	prints("net: Error -- returning from init!!!");
-	assert(0);
+	BUG();
 	return 0;
 }
 
@@ -1436,7 +1436,7 @@ void cos_init(void *arg)
 	if (first) {
 		first = 0;
 		init();
-		assert(0);
+		BUG();
 	} else {
 		prints("net: not expecting more than one bootstrap.");
 	}

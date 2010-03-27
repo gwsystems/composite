@@ -21,7 +21,7 @@
  * strtok so much.  Suffice to say, don't multithread this program.
  */
 
-//#define HIGHEST_PRIO 1
+#define HIGHEST_PRIO 1
 
 #include <stdlib.h>
 #include <stdio.h>

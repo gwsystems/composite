@@ -36,7 +36,7 @@ static inline int get_fd_pair(int fd)
 
 static inline void set_fd_pair(int fd, int pair)
 {
-	if (cos_vect_add_id(&fds, (void*)pair, fd) < 0) assert(0);
+	if (cos_vect_add_id(&fds, (void*)pair, fd) < 0) BUG();
 }
 
 int accept_fd;
@@ -48,11 +48,11 @@ static void accept_new(int accept_fd)
 	while (1) {
 		if (0 > (fd = cos_accept(accept_fd))) {
 			if (fd == -EAGAIN) break;
-			assert(0);
+			BUG();
 		}
 		if (0 > (http_fd = cos_app_open(0, NULL))) {
 			printc("app_open returned %d", http_fd);
-			assert(0);
+			BUG();
 		}
 		set_fd_pair(fd, http_fd);
 		set_fd_pair(http_fd, fd);
@@ -81,13 +81,13 @@ static void data_new(int fd)
 			break;
 		} else if (amnt < 0) {
 			printc("read from fd %d produced %d.\n", fd, amnt);
-			assert(0);
+			BUG();
 		}
 		if (amnt != (ret = cos_write(fd_pair, buf, amnt))) {
 			cos_close(fd_pair);
 			cos_close(fd);
 			printc("conn_mgr: write failed w/ %d on fd %d\n", ret, fd_pair);
-			assert(0);
+			BUG();
 		}
 	}
 	cos_argreg_free(buf);
@@ -99,9 +99,9 @@ int main(void)
 
 	cos_vect_init_static(&fds);
 
-	if (0 > (accept_fd = cos_socket(PF_INET, SOCK_STREAM, 0))) assert(0);
-	if (0 > cos_bind(accept_fd, 0, 200)) assert(0);
-	if (0 > cos_listen(accept_fd, 255)) assert(0);
+	if (0 > (accept_fd = cos_socket(PF_INET, SOCK_STREAM, 0))) BUG();
+	if (0 > cos_bind(accept_fd, 0, 200)) BUG();
+	if (0 > cos_listen(accept_fd, 255)) BUG();
 	while (1) {
 		fd = cos_wait_all();
 		cos_mpd_update();
@@ -123,7 +123,7 @@ void cos_init(void *arg)
 	if (first) {
 		first = 0;
 		main();
-		assert(0);
+		BUG();
 	} else {
 		prints("conn: not expecting more than one bootstrap.");
 	}

@@ -79,7 +79,7 @@ static inline struct evt *mapping_find(long extern_evt)
 
 static void mapping_free(long extern_evt)
 {
-	if (cos_map_del(&evt_map, extern_evt)) assert(0);
+	if (cos_map_del(&evt_map, extern_evt)) BUG();
 }
 
 /* 
@@ -215,7 +215,7 @@ long evt_grp_wait(spdid_t spdid)
 		} else {
 			lock_release(&evt_lock);
 			ACT_RECORD(ACT_SLEEP, spdid, 0, cos_get_thd_id(), 0);
-			if (0 > sched_block(cos_spd_id(), 0)) assert(0);
+			if (0 > sched_block(cos_spd_id(), 0)) BUG();
 		}
 	}
 err:
@@ -264,7 +264,7 @@ int evt_grp_mult_wait(spdid_t spdid, struct cos_array *data)
 		assert(NULL == e);
 		lock_release(&evt_lock);
 		ACT_RECORD(ACT_SLEEP, spdid, 0, cos_get_thd_id(), 0);
-		if (0 > sched_block(cos_spd_id(), 0)) assert(0);
+		if (0 > sched_block(cos_spd_id(), 0)) BUG();
 	}
 err:
 	lock_release(&evt_lock);
@@ -291,7 +291,7 @@ int evt_wait(spdid_t spdid, long extern_evt)
 			return 0;
 		} else {
 			ACT_RECORD(ACT_SLEEP, spdid, e->extern_id, cos_get_thd_id(), 0);
-			if (0 > sched_block(cos_spd_id(), 0)) assert(0);
+			if (0 > sched_block(cos_spd_id(), 0)) BUG();
 		}
 	}
 err:
@@ -314,7 +314,7 @@ int evt_trigger(spdid_t spdid, long extern_evt)
 	if (0 != (ret = __evt_trigger(e))) {
 		lock_release(&evt_lock);
 		ACT_RECORD(ACT_WAKEUP, spdid, e->extern_id, cos_get_thd_id(), ret);
-		if (sched_wakeup(cos_spd_id(), ret)) assert(0);
+		if (sched_wakeup(cos_spd_id(), ret)) BUG();
 	} else {
 		lock_release(&evt_lock);
 	}

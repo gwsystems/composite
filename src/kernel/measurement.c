@@ -65,6 +65,9 @@ struct cos_meas_struct cos_measurements[COS_MEAS_MAX_SIZE] =
 	{.type = MEAS_CNT, .description = "idle: linux wakeup call"},
 	{.type = MEAS_CNT, .description = "idle: recursive wakeup call"},
 
+	{.type = MEAS_CNT, .description = "child scheduler: attempted schedule with pending cevts"},
+	{.type = MEAS_CNT, .description = "scheduler: attempted schedule with pending event"},
+
 	{.type = MEAS_STATS, .description = "delay between a brand and when upcall is executed"},
 	{.type = MEAS_STATS, .description = "delay between a brand and when upcall is terminated"},
 	{.type = MEAS_STATS, .description = "delay between uc term/pend and pending upcall completion"}

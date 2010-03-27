@@ -184,7 +184,7 @@ int timed_event_block(spdid_t spdinv, unsigned int amnt)
 	
 	TAKE(spdid);
 	te = te_get(cos_get_thd_id());
-	if (NULL == te) assert(0);
+	if (NULL == te) BUG();
 	assert(EMPTY_LIST(te, next, prev));
 
 	te->thread_id = cos_get_thd_id();
@@ -262,7 +262,7 @@ static void start_timer_thread(void)
 		ticks = sched_timestamp();
 		if (sched_component_take(spdid)) {
 			prints("fprr: scheduler lock failed!!!");
-			assert(0);
+			BUG();
 		}
 		event_expiration(ticks);
 		next_wakeup = next_event_time();
@@ -271,7 +271,7 @@ static void start_timer_thread(void)
 		if (TIMER_NO_EVENTS == next_wakeup) {
 			if (sched_component_release(spdid)) {
 				prints("fprr: scheduler lock release failed!!!");
-				assert(0);
+				BUG();
 			}
 			sched_block(spdid, 0);
 		} else {
@@ -281,7 +281,7 @@ static void start_timer_thread(void)
 			wakeup = (unsigned int)(next_wakeup - ticks);
 			if (sched_component_release(spdid)) {
 				prints("fprr: scheduler lock release failed!!!");
-				assert(0);
+				BUG();
 			}
 
 			sched_timeout(spdid, wakeup);
@@ -305,9 +305,9 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	default:
 		printc("wf_text: cos_upcall_fn error - type %x, arg1 %d, arg2 %d", 
 		      (unsigned int)t, (unsigned int)arg1, (unsigned int)arg2);
-		assert(0);
+		BUG();
 		return;
 	}
-	assert(0);
+	BUG();
 	return;
 }

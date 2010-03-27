@@ -82,7 +82,7 @@ static void update_edge_weights(void)
 		unsigned long invs;
 
 		invs = cos_cap_cntl_spds(e->from->id, e->to->id, 0);
-		if (invs != (invs & 0x7FFFFFFF)) assert(0);
+		if (invs != (invs & 0x7FFFFFFF)) BUG();
 		edge_set_inv(e, (long)invs);
 	}
 }
@@ -153,7 +153,7 @@ static void mpd_loop(struct comp_graph *g)
 		//mpd_pol_never_increase();
 		mpd_pol_dec_isolation_by_one();
 	}
-	assert(0);
+	BUG();
 	return;
 }
 
@@ -236,7 +236,8 @@ static void mpd_bench(void)
 
 static void mpd_merge_selective(void)
 {
-	int ms[] = {1, 15, 16, 3, 6, 7, 0};
+//	int ms[] = {1, 15, 16, 3, 6, 7, 0};
+	int ms[] = {12, 13, 0};
 	int i;
 
 	if (ms[0] == 0) return;
@@ -280,7 +281,7 @@ static void mpd_init(void)
 
 	/* merge all components into one protection domain */
 //	mpd_merge_all(graph);
-//	mpd_merge_selective();
+	mpd_merge_selective();
 	/* remove protection domains on a time-trigger */
 //	while (!remove_one_isolation_boundary()); /* merge all pds */
 	/* Intelligently manage pds */
@@ -297,7 +298,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	default:
 		printc("mpd_mgr: cos_upcall_fn error - type %x, arg1 %d, arg2 %d\n", 
 		      (unsigned int)t, (unsigned int)arg1, (unsigned int)arg2);
-		assert(0);
+		BUG();
 		return;
 	}
 

@@ -55,7 +55,6 @@ cos_lock_t fd_lock;
 #define FD_LOCK_TAKE() 	lock_take(&fd_lock)
 #define FD_LOCK_RELEASE() lock_release(&fd_lock)
 
-
 /* 
  * Provide a cache of events that have happened to amortize the cost
  * of invoking the event server.
@@ -76,7 +75,7 @@ static int fill_evt_notif_cache(void)
 	assert(data);
 	data->sz = EVT_NOTIF_CACHE_SZ * sizeof(long);
 	amnt = evt_grp_mult_wait(cos_spd_id(), data);
-	if (amnt <= 0) assert(0);
+	if (amnt <= 0) BUG();
 
 	assert(amnt <= EVT_NOTIF_CACHE_SZ);
 	FD_LOCK_TAKE();
@@ -146,7 +145,7 @@ static struct descriptor *evt2fd_lookup(long evt_id)
 static void evt2fd_create(long evt_id, struct descriptor *d)
 {
 	assert(NULL == evt2fd_lookup(evt_id));
-	if (0 > cos_vect_add_id(&evt2fdesc, d, evt_id)) assert(0);
+	if (0 > cos_vect_add_id(&evt2fdesc, d, evt_id)) BUG();
 }
 
 static void evt2fd_remove(long evt_id)
@@ -250,7 +249,7 @@ int cos_socket(int domain, int type, int protocol)
 	fd = fd_get_index(d);
 	if (0 > (evt_id = evt_create_cached(cos_spd_id()))) {
 		printc("Could not create event for socket: %ld", evt_id);
-		assert(0);
+		BUG();
 	}
 	d->evt_id = evt_id;
 	evt2fd_create(evt_id, d);
@@ -265,7 +264,7 @@ int cos_socket(int domain, int type, int protocol)
 		break;
 	case SOCK_DGRAM:
 		/* WARNING: its been an awfully long time since I tested udp...beware */
-		assert(0);
+		BUG();
 		nc = net_create_udp_connection(cos_spd_id(), evt_id);
 		break;
 	default:
@@ -348,7 +347,7 @@ int cos_accept(int fd)
 			return -EAGAIN;
 			/* 
 			 * Blocking accept: 
-			 * if (evt_wait(cos_spd_id(), d->evt_id)) assert(0);
+			 * if (evt_wait(cos_spd_id(), d->evt_id)) BUG();
 			 */
 		} else if (nc_new < 0) {
 			return nc_new;
@@ -372,12 +371,12 @@ int cos_accept(int fd)
 	evt_id = evt_create(cos_spd_id());
 	if (0 > evt_id) {
 		printc("cos_accept: evt_create (evt %d) failed with %ld", fd, evt_id);
-		assert(0);
+		BUG();
 	}
 	d_new->evt_id = evt_id;
 	evt2fd_create(evt_id, d_new);
 	/* Associate the net connection with the event value fd */
-	if (0 < net_accept_data(cos_spd_id(), nc_new, evt_id)) assert(0);
+	if (0 < net_accept_data(cos_spd_id(), nc_new, evt_id)) BUG();
 	FD_LOCK_RELEASE();
 
 	return fd;
@@ -443,7 +442,7 @@ static int fd_app_split(struct descriptor *d)
 
 	if (0 > (evt_id = evt_create_cached(cos_spd_id()))) {
 		printc("Could not create event for app fd: %ld\n", evt_id);
-		assert(0);
+		BUG();
 	}
 	d_new->evt_id = evt_id;
 	evt2fd_create(evt_id, d);
@@ -483,7 +482,7 @@ int cos_app_open(int type, struct cos_array *data)
 	fd = fd_get_index(d);
 	if (0 > (evt_id = evt_create_cached(cos_spd_id()))) {
 		printc("Could not create event for app fd: %ld\n", evt_id);
-		assert(0);
+		BUG();
 	}
 	d->evt_id = evt_id;
 	evt2fd_create(evt_id, d);

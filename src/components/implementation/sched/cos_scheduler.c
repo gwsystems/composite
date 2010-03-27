@@ -244,7 +244,7 @@ struct sched_thd *sched_alloc_thd(unsigned short int thd_id)
 
 	thd = &sched_thds[thd_id];
 	
-	if (!(thd->flags & THD_FREE)) assert(0);//return NULL;
+	if (!(thd->flags & THD_FREE)) BUG();//return NULL;
 
 	thd->flags = 0;
 	sched_init_thd(thd, thd_id, THD_READY);

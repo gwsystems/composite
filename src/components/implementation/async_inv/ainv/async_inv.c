@@ -129,7 +129,7 @@ static void provider_prematurely_term_msg(struct message *m, struct service_prov
 
 	m->status = MSG_PROCESSED;
 	m->ret_val = -EIO;
-	if (evt_trigger(cos_spd_id(), m->evt_id)) assert(0);
+	if (evt_trigger(cos_spd_id(), m->evt_id)) BUG();
 }
 
 static int provider_main_remove(struct service_provider *sp)
@@ -364,7 +364,7 @@ retry:
 	/* if there are too many requests currently queued up, block */
 	if (sp->num_reqs >= ASYNC_MAX_BUFFERED) {
 		/* FIXME: only a single producer for each service_provider */
-		if (0 != sp->blocked_producer) assert(0);
+		if (0 != sp->blocked_producer) BUG();
 		sp->blocked_producer = cos_get_thd_id();
 		UNLOCK();
 		sched_block(cos_spd_id(), 0);
@@ -380,7 +380,7 @@ retry:
 	m->status = MSG_PENDING;
 	sp->num_reqs++;
 	/* Notify the provider that there is data pending */
-	if (evt_trigger(cos_spd_id(), sp->main.evt_id)) assert(0);
+	if (evt_trigger(cos_spd_id(), sp->main.evt_id)) BUG();
 	UNLOCK();
 
 	return 0;
@@ -414,7 +414,7 @@ static int provider_dequeue_request(content_req_t cr, char *req, int len)
 
 	m = poly->curr_msg;
 	assert(m);
-	if (len < m->req_len) assert(0);
+	if (len < m->req_len) BUG();
 	/* how much is there left to be read? */
 	left = m->req_len - m->req_viewed;
 	amnt = left > len ? len : left;
@@ -529,7 +529,7 @@ static int provider_reply(content_req_t cr, char *rep, int len)
 		printc("async_inv: could not allocate reply.\n");
 		m->ret_val = -ENOMEM;
 	}
-	if (evt_trigger(cos_spd_id(), m->evt_id)) assert(0);
+	if (evt_trigger(cos_spd_id(), m->evt_id)) BUG();
 err:
 	UNLOCK();
 	return ret;

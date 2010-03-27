@@ -9,11 +9,6 @@
 #include <cos_synchronization.h>
 #include <print.h>
 
-/* 
- * On recursive locking: I'm disabling this right now as it has been a
- * pain for debugging.
- */
-
 unsigned int lock_contested(cos_lock_t *l)
 {
 	return l->atom.owner;
@@ -42,12 +37,16 @@ restart:
 		prev_val = *result_ptr = *(volatile u32_t *)&l->atom;
 		owner = result.owner;
 
+		if (likely(!owner)) {
+			assert(result.contested == 0);
+			result.owner = curr;
+		}
 		/* If there is an owner, whom is not us, go through
 		 * the motions of blocking on the lock.  This is
 		 * hopefully the uncommon case. If not, some
 		 * structural reconfiguration is probably going to be
 		 * needed.  */
-		if (unlikely(owner && owner != curr)) {
+		else if (owner && owner != curr) {
 			if (0 == microsec) return TIMER_EXPIRED;
 
 			if (lock_component_pretake(spdid, l->lock_id, owner)) {
@@ -91,16 +90,9 @@ restart:
 			/* try to take the lock again */
 			goto restart;
 		}
-		/* If we are the current owner, progress increasing
-		 * the recursion count */
-		else if (owner == curr) {
-			assert(0);
-			result.rec_cnt++;
-			assert(result.rec_cnt < 255);
-		} else /* !owner */ {	
-			assert(result.contested == 0 && result.rec_cnt == 0);
-			result.owner = curr;
-		}
+		/* recursive take! */
+		else if (unlikely(owner == curr)) BUG();
+ 
 		new_val = *result_ptr;
 		//print("taking lock: %x. %d%d", new_val, 0,0);
 		/* Commit the new lock value, or try again */
@@ -128,43 +120,29 @@ int lock_release(cos_lock_t *l) {
 	struct cos_lock_atomic_struct result;
 	volatile u32_t *result_ptr;
 	u32_t new_val, prev_val;
-	int cnt = 0;
 
 	result_ptr = (volatile u32_t*)&result;
 	do {
 		prev_val = *result_ptr = *(volatile u32_t *)&l->atom;
 		/* If we're here, we better own the lock... */
-		if (result.owner != curr) {
-			printc("lock_release: lock %p w/ owner %d, curr is %d, cnt = %d\n", 
-			       l, (unsigned int)result.owner, curr, (unsigned int)cnt);
-			assert(0);
-		}
-		cnt++;
-		assert(result.owner == curr);
-		
-		if (result.rec_cnt == 0) {
-			result.owner = 0;
-			if (result.contested) {
-				result.contested = 0;
-				new_val = *result_ptr;
-				//print("releasing contested lock: %x. %d%d", new_val, 0,0);
-				/* This must be true, as contested is
-				 * already set, we are the owner (thus
-				 * no other thread should set that),
-				 * and rec_cnt can only change by us
-				 * taking it, which can't happen
-				 * here. */
-				if ((u32_t)cos_cmpxchg(&l->atom, prev_val, new_val) != new_val) assert(0);
-				
-				if (lock_component_release(cos_spd_id(), l->lock_id)) {
-					/* Lock doesn't exist */
-					return -1;
-				}
-				return 0;
+		if (unlikely(result.owner != curr)) BUG();
+
+		result.owner = 0;
+		if (unlikely(result.contested)) {
+			result.contested = 0;
+			new_val = *result_ptr;
+			/* 
+			 * This must be true, as contested is already
+			 * set, we are the owner (thus no other thread
+			 * should set that),
+			 */
+			if ((u32_t)cos_cmpxchg(&l->atom, prev_val, new_val) != new_val) BUG();
+			
+			if (lock_component_release(cos_spd_id(), l->lock_id)) {
+				/* Lock doesn't exist */
+				return -1;
 			}
-		} else {
-			assert(0); /* rather just not support recursive locks */
-			result.rec_cnt--;
+			return 0;
 		}
 
 		/* The loop is necessary as when read, the lock might

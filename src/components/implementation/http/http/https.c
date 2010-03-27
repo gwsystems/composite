@@ -627,7 +627,7 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 				cos_argreg_free(arr);
 				cos_argreg_free(more);
 				if (0 > ret) {
-					assert(0);
+					BUG();
 					/* FIXME send an error message. */
 				}
 				printc("https get reply returning %d.\n", ret);

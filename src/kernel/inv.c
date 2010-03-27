@@ -629,10 +629,12 @@ static inline unsigned short int switch_thread_parse_data_area(struct cos_sched_
 	unsigned short int next_thd;
 
 	if (unlikely(da->cos_evt_notif.pending_event)) {
+		cos_meas_event(COS_MEAS_RESCHEDULE_PEND);
 		*ret_code = COS_SCHED_RET_AGAIN;
 		goto ret_err;
 	}
 	if (unlikely(da->cos_evt_notif.pending_cevt)) {
+		cos_meas_event(COS_MEAS_RESCHEDULE_CEVT);
 		*ret_code = COS_SCHED_RET_CEVT;
 		goto ret_err;
 	}
@@ -705,8 +707,10 @@ static struct thread *switch_thread_slowpath(struct thread *curr, unsigned short
 
 static inline void switch_thread_update_flags(struct cos_sched_data_area *da, unsigned short int *flags)
 {
-	if (likely(!(da->cos_next.next_thd_flags & COS_SCHED_CHILD_EVT))) return;
-	*flags &= COS_SCHED_CHILD_EVT;
+	if (likely(!(da->cos_next.next_thd_flags & COS_SCHED_CHILD_EVT))) 
+		*flags &= ~COS_SCHED_CHILD_EVT;
+	else 
+		*flags |= COS_SCHED_CHILD_EVT;
 }
 
 /*
@@ -888,7 +892,7 @@ static struct thread *switch_thread_slowpath(struct thread *curr, unsigned short
 		struct cos_sched_data_area *cda;
 
 		tsi = thd_get_sched_info(thd, curr_spd->sched_depth+1);
-		if (unlikely(!tsi)) goto ret_err;
+		if (unlikely(!tsi || !tsi->scheduler)) goto ret_err;
 		/* If the scheduler exists, all of the following
 		 * pointers should be non-NULL */
 		child = tsi->scheduler;
@@ -1129,10 +1133,19 @@ static struct pt_regs *brand_execution_completion(struct thread *curr, int *pree
 	 */
 	prev = curr->interrupted_thread;
 	if (NULL == prev) {
-		struct thd_sched_info *tsi;
+		struct thd_sched_info *tsi, *prev_tsi;
 		struct spd *dest;
+		int i;
 
-		tsi = scheduler_find_leaf(curr);
+		prev_tsi = thd_get_sched_info(brand, 0);
+		assert(prev_tsi->scheduler);
+		for (i = 1 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
+			//tsi = scheduler_find_leaf(curr);
+			tsi = thd_get_sched_info(brand, i);
+			if (!tsi->scheduler) break;
+			prev_tsi = tsi;
+		}
+		tsi = prev_tsi;
 		assert(tsi);
 		dest = tsi->scheduler;
 
@@ -1328,23 +1341,6 @@ static inline struct thread* verify_brand_thd(unsigned short int thd_id)
 	return brand_thd;
 }
 
-/* static void print_thd_sched_structs(struct thread *t) */
-/* { */
-/* 	int i; */
-/* 	struct thd_sched_info *tsi = t->sched_info; */
-
-/* 	printk("cos: thread %d has scheduling info structures:\n", (unsigned int)thd_get_id(t)); */
-/* 	for (i = 0 ; i < MAX_SCHED_HIER_DEPTH ; i++) { */
-/* 		struct spd *s = tsi[i].scheduler; */
-
-/* 		if (s) { */
-/* 			printk("cos:\tdepth %d, scheduler %d, notification addr %x, offset %d\n", */
-/* 			       i, (unsigned int)spd_get_index(s), (unsigned int)tsi[i].thread_notifications,  */
-/* 			       (unsigned int)tsi[i].notification_offset); */
-/* 		} */
-/* 	} */
-/* } */
-
 COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int op, u32_t bid_tid, spdid_t dest)
 {
 	u16_t bid, tid, retid;
@@ -1371,6 +1367,7 @@ COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int op, u32_t bid_tid, spdid_
 		int depth;
 		struct spd *s;
 		struct thd_invocation_frame *f;
+		int clear = 0, i;
 
 		new_thd = thd_alloc(curr_spd);
 		if (NULL == new_thd) return -1;
@@ -1399,6 +1396,18 @@ COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int op, u32_t bid_tid, spdid_
 		f->spd = s;
 
 		copy_sched_info(new_thd, curr_thd);
+		for (i = 0 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
+			struct thd_sched_info *tsi;
+
+			tsi = thd_get_sched_info(new_thd, i);
+			if (clear == 1) {
+				tsi->scheduler = NULL;
+				tsi->thread_notifications = NULL;
+				continue;
+			}
+			if (tsi->scheduler == curr_spd) clear = 1;
+			assert(tsi->scheduler);
+		}
 		new_thd->flags |= THD_STATE_CYC_CNT;
 		
 		retid = new_thd->thread_id;
@@ -1982,16 +1991,16 @@ void update_sched_evts(struct thread *new, int new_flags,
 	 * - if new_flags, do sched evt flags update on new
 	 * - if prev_flags, do sched evt flags update on prev
 	 */
-	if ((new->flags | prev->flags) & THD_STATE_CYC_CNT) {
-		unsigned long last;
+/* 	if ((new->flags | prev->flags) & THD_STATE_CYC_CNT) { */
+/* 		unsigned long last; */
 
-		last = cycle_cnt;
-		rdtscl(cycle_cnt);
-		if (prev->flags & THD_STATE_CYC_CNT) {
-			update_thd_evt_cycles(prev, cycle_cnt - last);
-			update_list = 0;
-		}
-	}
+/* 		last = cycle_cnt; */
+/* 		rdtscl(cycle_cnt); */
+/* 		if (prev->flags & THD_STATE_CYC_CNT) { */
+/* 			update_thd_evt_cycles(prev, cycle_cnt - last); */
+/* 			update_list = 0; */
+/* 		} */
+/* 	} */
 	
 	if (new_flags != COS_SCHED_EVT_NIL) {
 		update_thd_evt_state(new, new_flags, 1);

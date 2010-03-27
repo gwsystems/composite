@@ -54,16 +54,16 @@ static inline void __cos_map_init(cos_map_t *m)
 	int i;
 
 	assert(m);
-	if (__cos_vect_init(&m->data)) assert(0);
+	if (__cos_vect_init(&m->data)) BUG();
 	m->free_list = 0;
 	m->id_boundary = COS_MAP_BASE;
 	/* Create the freelist */
 	for (i = 0 ; i < (int)COS_MAP_BASE ; i++) {
 		int j = cos_map_to_vect_freeid(i);
-		if (__cos_vect_set(&m->data, j, (void*)(i+1))) assert(0);
+		if (__cos_vect_set(&m->data, j, (void*)(i+1))) BUG();
 	}
 	/* The end of the freelist */
-	if (__cos_vect_set(&m->data, cos_map_to_vect_freeid(COS_MAP_BASE-1), (void*)-1)) assert(0);
+	if (__cos_vect_set(&m->data, cos_map_to_vect_freeid(COS_MAP_BASE-1), (void*)-1)) BUG();
 }
 
 static inline void cos_map_init_static(cos_map_t *m)
@@ -135,11 +135,11 @@ static inline long cos_map_add(cos_map_t *m, void *val)
 		/* Add the new values to the free list */
 		while (lower != upper) {
 			int idx = cos_map_to_vect_freeid(lower);
-			if (__cos_vect_set(&m->data, idx, (void*)(lower+1))) assert(0);
+			if (__cos_vect_set(&m->data, idx, (void*)(lower+1))) BUG();
 			lower++;
 		}
 		/* The end of the freelist */
-		if (__cos_vect_set(&m->data, cos_map_to_vect_freeid(upper-1), (void*)-1)) assert(0);
+		if (__cos_vect_set(&m->data, cos_map_to_vect_freeid(upper-1), (void*)-1)) BUG();
 	}
 
 	is = __cos_vect_lookup(&m->data, cos_map_to_vect_id(free));
@@ -171,7 +171,7 @@ static inline long cos_map_add_id(cos_map_t *m, void *val, long mid)
 
 	/* not really tested enough.  This is not the purpose of map,
 	 * use vect instead */
-	assert(0);
+	BUG();
 
 	/* All of this to maintain the free list... */
 	assert(m);

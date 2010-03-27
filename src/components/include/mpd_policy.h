@@ -414,7 +414,7 @@ static struct pd_edge *__pd_find_edge(struct protection_domain *pd1,
 	}
 	if (!create) return NULL;
 	pd_new = pd_edge_create(pd1, pd2);
-	if (NULL == pd_new) assert(0);
+	if (NULL == pd_new) BUG();
 
 	return pd_new;
 }
@@ -638,7 +638,7 @@ static struct protection_domain *pd_split(struct protection_domain *pd, struct h
 	debug("min-cut value %ld\n", pd->mc_amnt);
 
 	pd_new = pd_create();
-	if (NULL == pd_new) assert(0);//return NULL;
+	if (NULL == pd_new) BUG();//return NULL;
 
 	/* move components from the min-cut group to the new pd */
 	c_rep = c = FIRST_LIST(pd->mc_members, cop_next, cop_prev);
@@ -648,7 +648,7 @@ static struct protection_domain *pd_split(struct protection_domain *pd, struct h
 		n = FIRST_LIST(c, cop_next, cop_prev);
 
 		/* The min-cut cannot be the whole component! */
-		if (pd_rem_component(hs, pd, c)) assert(0);
+		if (pd_rem_component(hs, pd, c)) BUG();
 		pd_add_component(pd_new, c);
 
 		split_w_err(c->id, c->id);
@@ -1033,7 +1033,7 @@ static void create_components(struct comp_graph *ies)
 		to = cos_vect_lookup(&c_map, ies[i].server);
 		assert(to);
 
-		if (mpd_component_add_edge(from, to, 0)) assert(0);
+		if (mpd_component_add_edge(from, to, 0)) BUG();
 	}
 }
 
@@ -1118,7 +1118,7 @@ static void mpd_increase_isolation(struct heaps *hs)
 	pd = heap_highest(hs->pd_h);
 	pd->state = PD_OFF_HEAP;
 	pd->prio_q_idx = 0;
-	if (!pd_split(pd, hs)) assert(0);
+	if (!pd_split(pd, hs)) BUG();
 }
 
 static void mpd_decrease_overhead(struct heaps *hs)

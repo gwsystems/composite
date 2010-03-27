@@ -324,7 +324,7 @@ static void release_rb_buff(rb_meta_t *r, void *b)
 	}
 	/* b must be malformed such that p (the page descriptor) is
 	 * not at the start of its page */
-	assert(0);
+	BUG();
 }
 
 #include <sched.h>
@@ -449,7 +449,7 @@ err:
 static int interrupt_wait(void)
 {
 	assert(wildcard_brand_id > 0);
-	if (0 > cos_brand_wait(wildcard_brand_id)) assert(0);
+	if (0 > cos_brand_wait(wildcard_brand_id)) BUG();
 	return 0;
 }
 
@@ -462,7 +462,7 @@ int netif_event_create(spdid_t spdid)
 
 	assert(wildcard_brand_id > 0);
 	NET_LOCK_TAKE();
-	if (sched_add_thd_to_brand(cos_spd_id(), wildcard_brand_id, ucid)) assert(0);
+	if (sched_add_thd_to_brand(cos_spd_id(), wildcard_brand_id, ucid)) BUG();
 	add_thd_map(ucid, /*0 wildcard port ,*/ &rb1_md_wildcard);
 	NET_LOCK_RELEASE();
 	printc("created net uc %d associated with brand %d\n", ucid, wildcard_brand_id);
@@ -490,7 +490,7 @@ int netif_event_wait(spdid_t spdid, struct cos_array *d)
 
 	interrupt_wait();
 	NET_LOCK_TAKE();
-	if (interrupt_process(d->mem, d->sz, &ret_sz)) assert(0);
+	if (interrupt_process(d->mem, d->sz, &ret_sz)) BUG();
 	NET_LOCK_RELEASE();
 	d->sz = ret_sz;
 
@@ -533,7 +533,7 @@ static int init(void)
 	}
 
 	/* Wildcard upcall */
-	if (cos_net_create_net_brand(0, &rb1_md_wildcard)) assert(0)
+	if (cos_net_create_net_brand(0, &rb1_md_wildcard)) BUG();
 	
 	for (i = 0 ; i < NUM_WILDCARD_BUFFS ; i++) {
 		if(!(b = alloc_rb_buff(&rb1_md_wildcard))) {

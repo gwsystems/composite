@@ -20,9 +20,9 @@
 
 
 struct cos_lock_atomic_struct {
-	volatile u16_t owner /* thread id || 0 */;
-	volatile u8_t rec_cnt, contested; 
-} __attribute__((packed));
+	volatile u16_t owner; /* thread id || 0 */
+	volatile u16_t contested; /* 0 || 1 */
+} __attribute__((packed,aligned(4)));
 
 typedef struct __attribute__((packed)) {
 	volatile struct cos_lock_atomic_struct atom;
@@ -50,7 +50,7 @@ static inline int lock_init(cos_lock_t *l)
 {
 	l->lock_id = 0;
 	l->atom.owner = 0;
-	l->atom.rec_cnt = l->atom.contested = 0;
+	l->atom.contested = 0;
 
 	return 0;
 }

@@ -41,7 +41,7 @@ struct component_init_str *nth_for_sched(spdid_t sched, int n)
 		}
 		if (i == n) return &init_strs[idx];
 	}
-	assert(0);
+	BUG();
 	return &init_strs[idx-1];
 }
 
@@ -57,7 +57,7 @@ spdid_t sched_comp_config(spdid_t spdid, int i, struct cos_array *data)
 	}
 
 	if (!cos_argreg_arr_intern(data)) {
-		assert(0); 
+		BUG(); 
 		return 0;
 	}
 	max_len = data->sz;
@@ -68,7 +68,7 @@ spdid_t sched_comp_config(spdid_t spdid, int i, struct cos_array *data)
 
 	str_len = strlen(cis->init_str);
 	if (str_len+1 > max_len) {
-		assert(0); 
+		BUG(); 
 		return 0;
 	}
 

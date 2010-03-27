@@ -48,7 +48,7 @@ static inline int __attribute__((format(printf,1,2))) printc(char *fmt, ...)
 	//len = strlen(fmt)+1;
 	len = ARG_STRLEN; //(len > ARG_STRLEN) ? COS_FMT_PRINT : len;
 	s = cos_argreg_alloc(len);
-	if (!s) assert(0);
+	if (!s) BUG();
 
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, len, fmt, arg_ptr);

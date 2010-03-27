@@ -276,7 +276,7 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 //	assert(TIMER_EVENT_INF == microsec);
 //	assert(!blocked_desc.timed);
 	if (TIMER_EVENT_INF == microsec) {
-		if (-1 == sched_block(spdid, thd_id)) assert(0);
+		if (-1 == sched_block(spdid, thd_id)) BUG();
 		/* 
 		 * OK, this seems ridiculous but here is the rational: Assume
 		 * we are a middle-prio thread, and were just woken by a low

@@ -27,7 +27,7 @@ void cos_init(void)
 	 */
 
 	printc("Starting wakeup latency tester.\n");
-	if (sched_timeout_thd(cos_spd_id())) assert(0);
+	if (sched_timeout_thd(cos_spd_id())) BUG();
 
 	while (1) {
 		sched_timeout(cos_spd_id(), 1);
