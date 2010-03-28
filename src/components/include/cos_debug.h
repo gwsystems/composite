@@ -2,7 +2,7 @@
 
 #include <cos_component.h>
 
-//#define DEBUG
+#define DEBUG
 
 #define PRINT_FN prints
 #include <print.h>
