@@ -502,6 +502,7 @@ struct spd *spd_get_by_index(int idx)
 	if (idx >= MAX_NUM_SPDS) {
 		return NULL;
 	}
+	if (spd_is_free(idx)) return NULL;
 
 	return &spds[idx];
 }

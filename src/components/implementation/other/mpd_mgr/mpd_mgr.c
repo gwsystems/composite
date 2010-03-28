@@ -236,8 +236,7 @@ static void mpd_bench(void)
 
 static void mpd_merge_selective(void)
 {
-//	int ms[] = {1, 15, 16, 3, 6, 7, 0};
-	int ms[] = {1, 7, 3, 0};
+	int ms[] = {1, 0};
 	int i;
 
 	if (ms[0] == 0) return;

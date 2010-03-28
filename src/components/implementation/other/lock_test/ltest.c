@@ -2,17 +2,27 @@
 #include <print.h>
 
 #include <mem_mgr.h>
-#include <cos_synchronization.h>
 #include <sched.h>
 #include <cos_alloc.h>
 #include <timed_blk.h>
 
 #define ITER (1024)
 #define CONTENDED 1
+//#define PESSIMISTIC_LOCK
 
+#ifdef PESSIMISTIC_LOCK
+#include <lock.h>
+unsigned long lock;
+#define LOCK_TAKE()    lock_component_take(cos_spd_id(), lock, 0, TIMER_EVENT_INF)
+#define LOCK_RELEASE() lock_component_release(cos_spd_id(), lock)
+#define LOCK_INIT() do { lock = lock_component_alloc(cos_spd_id()); } while(0)
+#else
+#include <cos_synchronization.h>
 cos_lock_t lock;
 #define LOCK_TAKE()    lock_take(&lock)
 #define LOCK_RELEASE() lock_release(&lock)
+#define LOCK_INIT()    lock_static_init(&lock);
+#endif
 
 static void test_uncontended_lock(void)
 {
@@ -73,7 +83,7 @@ void cos_init(void)
 		short int hp_thd;
 		first = 0;
 
-		lock_static_init(&lock);
+		LOCK_INIT();
 
 		data = cos_argreg_alloc(sizeof(struct cos_array) + 4);
 		assert(data);
