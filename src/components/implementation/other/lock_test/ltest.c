@@ -42,7 +42,7 @@ static void test_contended_lock_hp(void)
 		spin = 0;
 	
 		rdtscll(start);
-		LOCK_TAKE();
+		LOCK_TAKE();	/* <- this will be contended */
 		rdtscll(end);
 		LOCK_RELEASE();
 		tot += end-start;
@@ -56,7 +56,8 @@ static void test_contended_lock_lp(void)
 {
 	while (1) {
 		LOCK_TAKE();
-		while (spin);
+		while (spin);	/* <- this will stop spinning when
+				 * the high prio thread wakes up */
 		spin = 1;
 		LOCK_RELEASE();
 	}

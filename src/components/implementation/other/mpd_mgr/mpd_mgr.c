@@ -237,7 +237,7 @@ static void mpd_bench(void)
 static void mpd_merge_selective(void)
 {
 //	int ms[] = {1, 15, 16, 3, 6, 7, 0};
-	int ms[] = {12, 13, 0};
+	int ms[] = {1, 7, 3, 0};
 	int i;
 
 	if (ms[0] == 0) return;
@@ -246,6 +246,25 @@ static void mpd_merge_selective(void)
 			printc("merge of %d and %d failed. %d\n", ms[i], ms[i], 0);
 		}
 	}
+
+	update_edge_weights();
+	mpd_report();
+	timed_event_block(cos_spd_id(), 498);
+	update_edge_weights();
+	mpd_report();
+	timed_event_block(cos_spd_id(), 498);
+	update_edge_weights();
+	mpd_report();
+	timed_event_block(cos_spd_id(), 498);
+	update_edge_weights();
+	mpd_report();
+	timed_event_block(cos_spd_id(), 498);
+	update_edge_weights();
+	mpd_report();
+	timed_event_block(cos_spd_id(), 498);
+	update_edge_weights();
+	mpd_report();
+	timed_event_block(cos_spd_id(), 498);
 }
 
 static void mpd_merge_all(struct comp_graph *g)

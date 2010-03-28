@@ -277,6 +277,7 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 //	assert(!blocked_desc.timed);
 	if (TIMER_EVENT_INF == microsec) {
 		if (-1 == sched_block(spdid, thd_id)) BUG();
+		if (!EMPTY_LIST(&blocked_desc, next, prev)) BUG();
 		/* 
 		 * OK, this seems ridiculous but here is the rational: Assume
 		 * we are a middle-prio thread, and were just woken by a low
@@ -288,8 +289,8 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 		 * still holds the component lock.  See the comments in
 		 * lock_component_release. 
 		 */
-		TAKE(spdid);
-		RELEASE(spdid);
+		//TAKE(spdid);
+		//RELEASE(spdid);
 
 		ACT_RECORD(ACT_WAKEUP, spd, lock_id, cos_get_thd_id(), 0);
 		ret = 0;
@@ -346,6 +347,9 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 	/* Unblock all waiting threads */
 	while (1) {
 		struct blocked_thds *next;
+		u16_t tid;
+		int timed;
+
 		/* This is suboptimal: if we wake a thread with a
 		 * higher priority, it will be switched to.  Given we
 		 * are holding the component lock here, we should get
@@ -355,23 +359,36 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 		REM_LIST(bt, next, prev);
 
 		ACT_RECORD(ACT_WAKE, spd, lock_id, cos_get_thd_id(), bt->thd_id);
+
+		/* cache locally */
+		tid = bt->thd_id;
+		timed = bt->timed;
+
+		/* Last node in the list? */
+		if (bt == next) {
+			/* This is sneaky, so to reiterate: Keep this
+			 * lock till now so that if we wake another
+			 * thread, and it begins execution, the system
+			 * will switch back to this thread so that we
+			 * can wake up the rest of the waiting threads
+			 * (one of which might have the highest
+			 * priority).  We release before we wake the
+			 * last as we don't really need the lock
+			 * anymore, an it will avoid quite a few
+			 * invocations.*/
+			RELEASE(spdid);
+		}
+
 		/* Wakeup the way we were put to sleep */
-		if (bt->timed) {
-			timed_event_wakeup(spdid, bt->thd_id);
+		if (timed) {
+			timed_event_wakeup(spdid, tid);
 		} else {
-			assert(bt->thd_id != cos_get_thd_id());
-			sched_wakeup(spdid, bt->thd_id);
+			assert(tid != cos_get_thd_id());
+			sched_wakeup(spdid, tid);
 		}
 		if (bt == next) break;
 		bt = next;
 	}
-	/* This is sneaky, so to reiterate: Keep this lock till now so
-	 * that if we wake another thread, and it begins execution,
-	 * the system will switch back to this thread so that we can
-	 * wake up the rest of the waiting threads (one of which might
-	 * have the highest priority) */
-	RELEASE(spdid);
-	/* FIXME: this should not be necessary, but we're getting better behavior*/
 
 	return 0;
 error:
