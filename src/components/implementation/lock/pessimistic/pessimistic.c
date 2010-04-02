@@ -273,6 +273,7 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 	/* cache locally */
 	tid = bt->thd_id;
 	timed = bt->timed;
+	ml->owner = tid;
 	RELEASE(spdid);
 	
 	/* Wakeup the way we were put to sleep */
