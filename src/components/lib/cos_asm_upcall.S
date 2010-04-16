@@ -63,6 +63,7 @@ cos_atomic_cmpxchg:
 	jne cos_atomic_cmpxchg_end
 	movl %ecx, %edx   /* XXX */
 	movl %ecx, (%ebx)
+.weak cos_atomic_cmpxchg_end
 cos_atomic_cmpxchg_end:	
 	ret
 

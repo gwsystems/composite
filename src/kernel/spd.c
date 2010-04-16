@@ -1055,7 +1055,7 @@ static void spd_chg_il_all_to_spd(struct composite_spd *cspd, struct spd *spd, i
 		
 		/* ignore the first "return" capability */
 		cap_lower = curr->cap_base + 1;
-		assert(curr->cap_range > 0);
+		if (curr->cap_range <= 0) goto next; //assert(curr->cap_range > 0);
 		cap_range = curr->cap_range - 1;
 
 		//printk("cos: changing up to %d caps in spd %d to spd %d\n", curr->cap_range, spd_get_index(curr), spd_get_index(spd));
@@ -1063,16 +1063,17 @@ static void spd_chg_il_all_to_spd(struct composite_spd *cspd, struct spd *spd, i
 		for (i = cap_lower ; i < cap_lower+cap_range ; i++) {
 			struct invocation_cap *cap = &invocation_capabilities[i];
 			struct spd *dest = cap->destination;
-
+			
 			if (dest && cap->owner != spd && dest == spd) {
 				isolation_level_t old;
-
+				
 				//printk("cos:\tST from %d to %d.\n", spd_get_index(curr), spd_get_index(dest));
 				
 				old = cap_change_isolation(i, il, 0);
 				assert(old != il && old != IL_INV);
 			}
 		}
+next:
 		curr = curr->composite_member_next;
 		assert(curr);
 	} while (curr != cspd->members);

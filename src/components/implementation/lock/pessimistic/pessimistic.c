@@ -158,6 +158,7 @@ static void lock_free(struct meta_lock *l)
 int lock_component_pretake(spdid_t spd, unsigned long lock_id, unsigned short int thd)
 {
 	BUG();
+	return 0;
 }
 
 /* 

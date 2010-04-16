@@ -21,7 +21,7 @@
  * strtok so much.  Suffice to say, don't multithread this program.
  */
 
-#define HIGHEST_PRIO 1
+//#define HIGHEST_PRIO 1
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -48,19 +48,15 @@ enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_H
 	}
 
 #define NUM_ATOMIC_SYMBS 10 
-#define NUM_KERN_SYMBS (5+NUM_ATOMIC_SYMBS)
+#define NUM_KERN_SYMBS 1
 
-const char *USER_CAP_TBL_NAME = "ST_user_caps";
-const char *ST_INV_FN_NAME    = "ST_direct_invocation";
-const char *UPCALL_ENTRY_NAME = "cos_upcall_entry";
-const char *SCHED_PAGE_NAME   = "cos_sched_notifications";
-const char *SPD_ID_NAME       = "cos_this_spd_id";
-const char *HEAP_PTR          = "cos_heap_ptr";
+const char *COMP_INFO = "cos_comp_info";
 
 const char *INIT_COMP  = "c0.o";
 const char *ROOT_SCHED = "fprr.o";
 const char *MPD_MGR    = "mpd.o";
 const char *CONFIG_COMP = "schedconf.o";
+
 const char *BOOT_COMP = "boot.o";
 const char *TEST_COMP = "test.o";
 
@@ -105,12 +101,14 @@ unsigned long data_start;
 char script[64];
 char tmp_exec[128];
 
+int spdid_inc = -1;
+
 struct sec_info srcobj[MAXSEC_S];
 struct sec_info ldobj[MAXSEC_S];
 
 #define UNDEF_SYMB_TYPE 0x1
 #define EXPORTED_SYMB_TYPE 0x2
-#define MAX_SYMBOLS 256
+#define MAX_SYMBOLS 1024
 #define MAX_TRUSTED 32
 #define MAX_SYMB_LEN 256
 
@@ -874,7 +872,7 @@ static int for_each_symb_type(bfd *obj, int symb_type, observer_t o, void *obs_d
 	long number_of_symbols;
 	int i;
 	
-	storage_needed = bfd_get_symtab_upper_bound (obj);
+	storage_needed = bfd_get_symtab_upper_bound(obj);
 	
 	if (storage_needed <= 0){
 		printl(PRINT_DEBUG, "no symbols in object file\n");
@@ -932,6 +930,9 @@ static int obj_serialize_symbols(char *tmp_exec, int symb_type, struct service_s
 		st = &str->undef;
 	} else if (symb_type == EXPORTED_SYMB_TYPE) {
 		st = &str->exported;
+	} else {
+		printl(PRINT_HIGH, "attempt to view unknown symbol type\n");
+		exit(-1);
 	}
 	for_each_symb_type(obj, symb_type, obs_serialize, st);
 
@@ -955,7 +956,7 @@ static void print_objs_symbs(struct service_symbs *str)
 {
 	if (print_lvl < PRINT_DEBUG) return;
 	while (str) {
-		printl(PRINT_DEBUG, "Service %s:\n\tExports: ", str->obj);
+		printl(PRINT_DEBUG, "Service %s:\n\tExported functions: ", str->obj);
 		print_symbs(&str->exported);
 		printl(PRINT_DEBUG, "\n\tUndefined: ");
 		print_symbs(&str->undef);
@@ -1002,15 +1003,7 @@ static inline void add_kexport(struct service_symbs *ss, const char *name)
  */
 static void add_kernel_exports(struct service_symbs *service)
 {
-	int i;
-
-	add_kexport(service, USER_CAP_TBL_NAME);
-	add_kexport(service, SCHED_PAGE_NAME);
-	add_kexport(service, SPD_ID_NAME);
-	add_kexport(service, HEAP_PTR);
-	for (i = 0 ; i < NUM_ATOMIC_SYMBS ; i++) {
-		add_kexport(service, ATOMIC_USER_DEF[i]);
-	}
+	add_kexport(service, COMP_INFO);
 
 	return;
 }
@@ -1443,7 +1436,7 @@ static int load_all_services(struct service_symbs *services)
 
 static void print_kern_symbs(struct service_symbs *services)
 {
-	const char *u_tbl = USER_CAP_TBL_NAME;
+	const char *u_tbl = COMP_INFO;
 
 	while (services) {
 		vaddr_t addr;
@@ -1619,17 +1612,16 @@ static struct symb *spd_contains_symb(struct service_symbs *s, char *name)
 struct cap_ret_info {
 	struct symb *csymb, *ssymbfn, *cstub, *sstub;
 	struct service_symbs *serv;
-	struct spd_info *export_spd;
 };
 
 static int cap_get_info(struct service_symbs *service, struct cap_ret_info *cri, struct symb *symb)
 {
 	struct symb *exp_symb = symb->exported_symb;
 	struct service_symbs *exporter = symb->exporter;
-	struct spd_info *export_spd = (struct spd_info*)exporter->extern_info;
 	struct symb *c_stub, *s_stub;
 	char tmp[MAX_SYMB_LEN];
 
+	assert(exporter);
 	memset(cri, 0, sizeof(struct cap_ret_info));
 
 	if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", symb->name, CAP_CLIENT_STUB_POSTPEND)) {
@@ -1658,17 +1650,11 @@ static int cap_get_info(struct service_symbs *service, struct cap_ret_info *cri,
 		return -1;
 	}
 
-	if (NULL == export_spd) {
-		printl(PRINT_HIGH, "Trusted spd (spd_info) not attached to service symb yet.\n");
-		return -1;
-	}
-
 	cri->csymb = symb;
 	cri->ssymbfn = exp_symb;
 	cri->cstub = c_stub;
 	cri->sstub = s_stub;
 	cri->serv = exporter;
-	cri->export_spd = export_spd;
 
 	return 0;
 }
@@ -1685,7 +1671,8 @@ static int create_spd_capabilities(struct service_symbs *service/*, struct spd_i
 		struct cap_ret_info cri;
 
 		if (cap_get_info(service, &cri, symb)) return -1;
-		if (create_invocation_cap(spd, service, cri.export_spd, cri.serv, cntl_fd, 
+		assert(!cri.serv->is_composite_loaded);
+		if (create_invocation_cap(spd, service, cri.serv->extern_info, cri.serv, cntl_fd, 
 					  cri.csymb->name, cri.cstub->name, cri.sstub->name, 
 					  cri.ssymbfn->name, 0)) {
 			return -1;
@@ -1700,8 +1687,9 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 {
 	struct spd_info *spd;
 	struct usr_inv_cap *ucap_tbl;
-	vaddr_t upcall_addr, atomic_addr;
+	vaddr_t upcall_addr;
 	long *spd_id_addr, *heap_ptr;
+	struct cos_component_information *ci;
 	int i;
 
 	assert(!s->is_composite_loaded);
@@ -1711,35 +1699,22 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 		perror("Could not allocate memory for spd\n");
 		return NULL;
 	}
-	
-	ucap_tbl = (struct usr_inv_cap*)get_symb_address(&s->exported, 
-							 USER_CAP_TBL_NAME);
-	if (ucap_tbl == 0) {
-		printl(PRINT_DEBUG, "Could not find a user capability tbl for %s.\n", s->obj);
-		return NULL;
-	}
-	upcall_addr = (vaddr_t)get_symb_address(&s->exported, UPCALL_ENTRY_NAME);
-	if (upcall_addr == 0) {
-		printl(PRINT_DEBUG, "Could not find %s in %s.\n", UPCALL_ENTRY_NAME, s->obj);
-		return NULL;
-	}
-	spd_id_addr = (long*)get_symb_address(&s->exported, SPD_ID_NAME);
-	if (spd_id_addr == NULL) {
-		printl(PRINT_DEBUG, "Could not find %s in %s.\n", SPD_ID_NAME, s->obj);
-		return NULL;
-	}
-	heap_ptr = (long*)get_symb_address(&s->exported, HEAP_PTR);
-	if (heap_ptr == NULL) {
-		printl(PRINT_DEBUG, "Could not find %s in %s.\n", HEAP_PTR, s->obj);
-		return NULL;
-	}
 
+	ci = (void*)get_symb_address(&s->exported, COMP_INFO);
+	if (ci == NULL) {
+		printl(PRINT_DEBUG, "Could not find %s in %s.\n", COMP_INFO, s->obj);
+		return NULL;
+	}
+	upcall_addr = ci->cos_upcall_entry;
+	spd_id_addr = (long*)&ci->cos_this_spd_id;
+	heap_ptr    = (long*)&ci->cos_heap_ptr;
+	ucap_tbl    = (struct usr_inv_cap*)ci->cos_user_caps;
+	
 	for (i = 0 ; i < NUM_ATOMIC_SYMBS ; i++) {
-		atomic_addr = (vaddr_t)get_symb_address(&s->exported, ATOMIC_USER_DEF[i]);
-		if (atomic_addr != 0) {
-			spd->atomic_regions[i] = atomic_addr;
+		if (i % 2 == 0) {
+			spd->atomic_regions[i] = ci->cos_ras[i/2].start;
 		} else {
-			spd->atomic_regions[i] = 0;
+			spd->atomic_regions[i] = ci->cos_ras[i/2].end;
 		}
 	}
 	
@@ -1749,7 +1724,9 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 	spd->size = size;
 	spd->upcall_entry = upcall_addr;
 
+	spdid_inc++;
 	spd->spd_handle = cos_create_spd(cos_fd, spd);
+	assert(spdid_inc == spd->spd_handle);
 	if (spd->spd_handle < 0) {
 		printl(PRINT_DEBUG, "Could not create spd %s\n", s->obj);
 		free(spd);
@@ -1778,14 +1755,19 @@ void make_spd_scheduler(int cntl_fd, struct service_symbs *s, struct service_sym
 {
 	vaddr_t sched_page;
 	struct spd_info *spd = s->extern_info, *parent = NULL;
+	struct cos_component_information *ci;
 
 	if (p) parent = p->extern_info;
 
-	sched_page = (vaddr_t)get_symb_address(&s->exported, SCHED_PAGE_NAME);
+/*	sched_page = (vaddr_t)get_symb_address(&s->exported, SCHED_PAGE_NAME);
 	if (0 == sched_page) {
 		printl(PRINT_DEBUG, "Could not find %s in %s.\n", SCHED_PAGE_NAME, s->obj);
 		return;
 	}
+*/
+	ci = (struct cos_component_information*)get_symb_address(&s->exported, COMP_INFO);
+	sched_page = (vaddr_t)ci->cos_sched_data_area;
+
 	printl(PRINT_DEBUG, "Found spd notification page @ %x.  Promoting to scheduler.\n", 
 	       (unsigned int) sched_page);
 
@@ -1839,6 +1821,18 @@ static int serialize_spd_graph(struct comp_graph *g, int sz, struct service_symb
 	return 0;
 }
 
+int **get_heap_ptr(struct service_symbs *ss)
+{
+	struct cos_component_information *ci;
+
+	ci = (struct cos_component_information *)get_symb_address(&ss->exported, COMP_INFO);
+	if (ci == NULL) {
+		printl(PRINT_DEBUG, "Could not find component information struct in %s.\n", ss->obj);
+		exit(-1);
+	}
+	return (int**)&(ci->cos_heap_ptr);
+}
+
 /* 
  * The only thing we need to do to the mpd manager is to let it know
  * the topology of the component graph.  Progress the heap pointer a
@@ -1849,9 +1843,9 @@ static void make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all
 	int **heap_ptr, *heap_ptr_val;
 	struct comp_graph *g;
 
-	heap_ptr = (int **)get_symb_address(&mm->exported, HEAP_PTR);
+	heap_ptr = get_heap_ptr(mm);
 	if (heap_ptr == NULL) {
-		printl(PRINT_DEBUG, "Could not find %s in %s.\n", HEAP_PTR, mm->obj);
+		printl(PRINT_DEBUG, "Could not find heap pointer in %s.\n", mm->obj);
 		return;
 	}
 	heap_ptr_val = *heap_ptr;
@@ -1879,30 +1873,9 @@ static int make_cobj_symbols(struct service_symbs *s, struct cobj_header *h)
 		u32_t type;
 	};
 	struct name_type_map map[] = {
-		{.name = USER_CAP_TBL_NAME, .type = COBJ_SYMB_UCAP_TBL}, 
-		{.name = UPCALL_ENTRY_NAME, .type = COBJ_SYMB_UPCALL}, 
-		{.name = SPD_ID_NAME,       .type = COBJ_SYMB_SPDID}, 
-		{.name = HEAP_PTR,          .type = COBJ_SYMB_HEAPPTR}, 
-
-		{.name = NULL, .type = COBJ_SYMB_RAS_START},
-		{.name = NULL, .type = COBJ_SYMB_RAS_END},
-		{.name = NULL, .type = COBJ_SYMB_RAS_START},
-		{.name = NULL, .type = COBJ_SYMB_RAS_END},
-		{.name = NULL, .type = COBJ_SYMB_RAS_START},
-		{.name = NULL, .type = COBJ_SYMB_RAS_END},
-		{.name = NULL, .type = COBJ_SYMB_RAS_START},
-		{.name = NULL, .type = COBJ_SYMB_RAS_END},
-		{.name = NULL, .type = COBJ_SYMB_RAS_START},
-		{.name = NULL, .type = COBJ_SYMB_RAS_END},
-
+		{.name = COMP_INFO, .type = COBJ_SYMB_COMP_INFO},
 		{.name = NULL, .type = 0} 
 	};
-
-	/* Checking assumptions when making the above chart */
-	assert(NUM_ATOMIC_SYMBS == 10 && map[3].name != NULL && map[4].name == NULL);
-
-	/* Fill in the above chart */
-	for (i = 0 ; i < NUM_ATOMIC_SYMBS ; i++) map[i+4].name = ATOMIC_USER_DEF[i];
 
 	/* Create the sumbols */
 	printl(PRINT_DEBUG, "%s loaded by Composite -- Symbols:\n", s->obj);
@@ -1932,7 +1905,11 @@ static int make_cobj_caps(struct service_symbs *s, struct cobj_header *h)
 		if (cap_get_info(s, &cri, symb)) return -1;
 		
 		cap_off = i;
-		dest_id = cri.export_spd->spd_handle;
+		if (cri.serv->is_composite_loaded) {
+			dest_id = cri.serv->cobj->id;
+		} else {
+			dest_id = ((struct spd_info*)cri.serv->extern_info)->spd_handle;
+		}
 		sfn     = cri.ssymbfn->addr;
 		cstub   = cri.cstub->addr;
 		sstub   = cri.sstub->addr;
@@ -1950,45 +1927,58 @@ static struct service_symbs *find_obj_by_name(struct service_symbs *s, const cha
 
 static void make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 {
-	int **heap_ptr, *heap_ptr_val;
-	struct service_symbs *s;
+	int **heap_ptr, *heap_ptr_val, n = 0;
 	struct cobj_header *h;
 	char *mem;
 	u32_t obj_size;
+	struct cos_component_information *ci;
 
-	heap_ptr = (int **)get_symb_address(&boot->exported, HEAP_PTR);
-	if (heap_ptr == NULL) {
-		printl(PRINT_HIGH, "Could not find %s in %s.\n", HEAP_PTR, boot->obj);
-		return;
-	}
-	heap_ptr_val = *heap_ptr;
-	s = find_obj_by_name(all, TEST_COMP);
-	if (!s) { 
-		printl(PRINT_HIGH, "boot component: couldn't find test component.\n");
-		return;
-	}
-	assert(s->is_composite_loaded);
-	h = s->cobj;
-	assert(h);
+	heap_ptr = get_heap_ptr(boot);
+	ci = (void *)get_symb_address(&boot->exported, COMP_INFO);
 
-	obj_size = h->size;
-	mem = mmap((void*)heap_ptr_val, obj_size, PROT_WRITE | PROT_READ,
-			MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
-	if (MAP_FAILED == mem){
-		perror("Couldn't map test component into the boot component");
+	if (NULL == heap_ptr || NULL == ci) {
+		printl(PRINT_HIGH, "Could not find cos_heap_ptr, or %s in %s.\n", 
+		       COMP_INFO, boot->obj);
 		return;
 	}
-	printl(PRINT_DEBUG, "boot component: placing image @ %p from %p:%d\n", mem, h, obj_size);
-	memcpy(mem, h, obj_size);
+	ci->cos_poly[0] = (vaddr_t)*heap_ptr;
+	for (; NULL != all ; all = all->next) {
+		if (!all->is_composite_loaded) continue;
+		n++;
+
+		heap_ptr_val = *heap_ptr;
+		assert(all->is_composite_loaded);
+		h = all->cobj;
+		assert(h);
+		obj_size = h->size;
+		
+		spdid_inc++;
+		h->id = spdid_inc;
+
+		mem = mmap((void*)heap_ptr_val, obj_size, PROT_WRITE | PROT_READ,
+			   MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+		if (MAP_FAILED == mem) {
+			perror("Couldn't map test component into the boot component");
+			exit(-1);
+		}
+		printl(PRINT_HIGH, "boot component: placing %s image @ %p from %p:%d\n", 
+		       all->obj, mem, h, obj_size);
+		memcpy(mem, h, obj_size);
+		*heap_ptr = (void*)(((int)heap_ptr_val) + obj_size);
+	}
+#define ROUND_UP_TO_PAGE(a) (((a)+PAGE_SIZE) & ~(PAGE_SIZE-1))
+	*heap_ptr = (int*)(ROUND_UP_TO_PAGE((int)*heap_ptr));
+	ci->cos_poly[1] = (vaddr_t)n;
 }
 
-#define INIT_STR_SZ 56
+#define INIT_STR_SZ 52
 
 /* struct is 64 bytes, so we can have 64 entries in a page. */
 struct component_init_str {
 	unsigned int spdid, schedid;
+	int startup;
 	char init_str[INIT_STR_SZ];
-};
+}__attribute__((packed));
 
 static void format_config_info(struct service_symbs *ss, struct component_init_str *data)
 {
@@ -1996,9 +1986,6 @@ static void format_config_info(struct service_symbs *ss, struct component_init_s
 
 	for (i = 0 ; ss ; i++, ss = ss->next) {
 		char *info;
-		int id;
-
-		if (ss->is_composite_loaded) continue;
 
 		info = ss->init_str;
 		if (strlen(info) >= INIT_STR_SZ) {
@@ -2006,12 +1993,18 @@ static void format_config_info(struct service_symbs *ss, struct component_init_s
 			       info, ss->obj, strlen(info));
 			exit(-1);
 		}
-		id = ((struct spd_info *)(ss->extern_info))->spd_handle;
-		
-		data[i].spdid = id;
+
+		if (ss->is_composite_loaded) {
+			data[i].startup = 0;
+			data[i].spdid = ss->cobj->id;
+		} else {
+			data[i].startup = 1;
+			data[i].spdid = ((struct spd_info *)(ss->extern_info))->spd_handle;
+		}
 		data[i].schedid = ss->scheduler ? 
 			((struct spd_info *)(ss->scheduler->extern_info))->spd_handle : 
 			0;
+		
 		if (0 == strcmp(" ", info)) info = "";
 		strcpy(data[i].init_str, info);
 	}
@@ -2023,9 +2016,9 @@ static void make_spd_config_comp(struct service_symbs *c, struct service_symbs *
 	int **heap_ptr, *heap_ptr_val;
 	struct component_init_str *info;
 
-	heap_ptr = (int **)get_symb_address(&c->exported, HEAP_PTR);
+	heap_ptr = get_heap_ptr(c);
 	if (heap_ptr == NULL) {
-		printl(PRINT_DEBUG, "Could not find %s in %s.\n", HEAP_PTR, c->obj);
+		printl(PRINT_DEBUG, "Could not find cos_heap_ptr in %s.\n", c->obj);
 		return;
 	}
 	heap_ptr_val = *heap_ptr;
@@ -2123,6 +2116,10 @@ static void setup_kernel(struct service_symbs *services)
 
 	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;//spd2->spd_handle;
 
+	if ((s = find_obj_by_name(services, BOOT_COMP))) {
+		make_spd_boot(s, services);
+	}
+
 	if ((s = find_obj_by_name(services, MPD_MGR))) {
 		make_spd_mpd_mgr(s, services);
 	}
@@ -2132,10 +2129,6 @@ static void setup_kernel(struct service_symbs *services)
 		exit(-1);
 	}
 	make_spd_config_comp(s, services);
-
-	if ((s = find_obj_by_name(services, BOOT_COMP))) {
-		make_spd_boot(s, services);
-	}
 
 	if ((s = find_obj_by_name(services, INIT_COMP)) == NULL) {
 		fprintf(stderr, "Could not find initial component\n");

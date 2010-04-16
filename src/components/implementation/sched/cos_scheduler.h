@@ -287,10 +287,8 @@ static inline struct sched_thd *sched_thd_dependency(struct sched_thd *curr)
 	
 	spdid = curr->contended_component;
 	/* Horrible hack: */
-	if (!spdid) {
-		curr->flags &= ~THD_DEPENDENCY;
-		return NULL;
-	}
+	if (!spdid) goto done;
+
 	/* If we have the dependency flag set, we should have an contended spd */
 	assert(spdid);
 	assert(spdid < MAX_NUM_SPDS);
@@ -303,6 +301,7 @@ static inline struct sched_thd *sched_thd_dependency(struct sched_thd *curr)
 		return cs->holding_thd;
 	}
 
+done:
 	/* no more dependencies! */
 	curr->flags &= ~THD_DEPENDENCY;
 	curr->contended_component = 0;

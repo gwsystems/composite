@@ -12,8 +12,7 @@
 #include <cos_types.h>
 
 extern struct cos_sched_data_area cos_sched_notifications;
-extern /*volatile*/ long cos_this_spd_id;
-void *cos_heap_ptr;
+extern struct cos_component_information cos_comp_info;
 
 /*
  * A note on the arguments to and for all system calls and on the
@@ -83,7 +82,7 @@ static inline rtype cos_##name(void)                 \
 {                                                    \
 	rtype ret;                                   \
 cos_syscall_asm                                      \
-		: "a" (num<<COS_SYSCALL_OFFSET), "d" (cos_this_spd_id) \
+		: "a" (num<<COS_SYSCALL_OFFSET), "d" (cos_comp_info.cos_this_spd_id) \
 cos_syscall_clobber                                  \
 }
 
@@ -92,7 +91,7 @@ static inline rtype cos_##name(type0 name0)          \
 {                                                    \
 	rtype ret;                                   \
 cos_syscall_asm                                      \
-		: "a" (num<<COS_SYSCALL_OFFSET), "d" (cos_this_spd_id), "b" (name0) \
+		: "a" (num<<COS_SYSCALL_OFFSET), "d" (cos_comp_info.cos_this_spd_id), "b" (name0) \
 cos_syscall_clobber                                  \
 }
 
@@ -101,7 +100,7 @@ static inline rtype cos_##name(type0 name0, type1 name1) \
 {                                                    \
 	rtype ret;                                   \
 cos_syscall_asm                                      \
-		: "a" (num<<COS_SYSCALL_OFFSET), "d" (cos_this_spd_id), "b" (name0), "S" (name1) \
+		: "a" (num<<COS_SYSCALL_OFFSET), "d" (cos_comp_info.cos_this_spd_id), "b" (name0), "S" (name1) \
 cos_syscall_clobber                                  \
 }
 
@@ -110,7 +109,7 @@ static inline rtype cos_##name(type0 name0, type1 name1, type2 name2) \
 {                                                    \
 	rtype ret;                                   \
 cos_syscall_asm                                      \
-		: "a" (num<<COS_SYSCALL_OFFSET), "d" (cos_this_spd_id), "b" (name0), "S" (name1), "D" (name2) \
+		: "a" (num<<COS_SYSCALL_OFFSET), "d" (cos_comp_info.cos_this_spd_id), "b" (name0), "S" (name1), "D" (name2) \
 cos_syscall_clobber                                  \
 }
 
@@ -245,17 +244,17 @@ static inline void cos_mpd_update(void)
 
 static inline long cos_spd_id(void)
 {
-	return cos_this_spd_id;
+	return cos_comp_info.cos_this_spd_id;
 }
 
 static inline void *cos_get_heap_ptr(void)
 {
-	return cos_heap_ptr;
+	return (void*)cos_comp_info.cos_heap_ptr;
 }
 
 static inline void cos_set_heap_ptr(void *addr)
 {
-	cos_heap_ptr = addr;
+	cos_comp_info.cos_heap_ptr = (vaddr_t)addr;
 }
 
 #define COS_EXTERN_FN(fn) __cos_extern_##fn

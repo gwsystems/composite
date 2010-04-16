@@ -7,13 +7,6 @@
 
 #include <cos_component.h>
 
-/* 
- * This is initialized at load time with the spd id of the current
- * spd, and is passed into all system calls to identify the calling
- * service.
- */
-long cos_this_spd_id = 0;
-void *cos_heap_ptr = NULL;
 struct cos_sched_data_area cos_sched_notifications = {
 	.cos_next = {.next_thd_id = 0, .next_thd_flags = 0},
 	.cos_locks = {.owner_thd = 0, .queued_thd = 0},
@@ -59,3 +52,31 @@ int main(void)
 {
 	return 0;
 }
+
+__attribute__((weak)) vaddr_t ST_user_caps;
+
+extern const vaddr_t cos_atomic_cmpxchg, cos_atomic_cmpxchg_end, 
+	cos_atomic_user1, cos_atomic_user1_end, 
+	cos_atomic_user2, cos_atomic_user2_end, 
+	cos_atomic_user3, cos_atomic_user3_end, 
+	cos_atomic_user4, cos_atomic_user4_end;
+extern const vaddr_t cos_upcall_entry;
+
+/* 
+ * Much of this is either initialized at load time, or passed to the
+ * loader though this structure.
+ */
+struct cos_component_information cos_comp_info = {
+	.cos_this_spd_id = 0,
+	.cos_heap_ptr = 0,
+	.cos_stack_freelist = 0,
+	.cos_upcall_entry = (vaddr_t)&cos_upcall_entry,
+	.cos_sched_data_area = &cos_sched_notifications,
+	.cos_user_caps = (vaddr_t)&ST_user_caps,
+	.cos_ras = {{.start = (vaddr_t)&cos_atomic_cmpxchg, .end = (vaddr_t)&cos_atomic_cmpxchg_end}, 
+		    {.start = (vaddr_t)&cos_atomic_user1, .end = (vaddr_t)&cos_atomic_user1_end},
+		    {.start = (vaddr_t)&cos_atomic_user2, .end = (vaddr_t)&cos_atomic_user2_end},
+		    {.start = (vaddr_t)&cos_atomic_user3, .end = (vaddr_t)&cos_atomic_user3_end},
+		    {.start = (vaddr_t)&cos_atomic_user4, .end = (vaddr_t)&cos_atomic_user4_end}},
+	.cos_poly = {0, }
+};

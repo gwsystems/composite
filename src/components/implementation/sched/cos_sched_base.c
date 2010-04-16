@@ -45,6 +45,20 @@ static volatile u64_t wakeup_time = 0;
 static volatile u64_t child_wakeup_time = 0;
 static struct sched_thd *wakeup_thd;
 
+/* static u64_t upcall_cycles, cycle_cnt; */
+
+/* static inline void update_thd_accounting(struct sched_thd *t) */
+/* { */
+/* 	struct sched_accounting *sa = sched_get_accounting(t); */
+/* 	u64_t c, diff; */
+
+/* 	rdtscll(c); */
+/* 	diff = c - cycle_cnt; */
+
+/* 	sa->cycles += diff - upcall_cycles; */
+/* 	upcall_cycles = 0; */
+/* }  */
+
 /* 
  * timer is the timer tick thread for a root scheduler, or the child
  * event thread for a child scheduler.  init is the initial bootup
@@ -325,35 +339,11 @@ static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 			report_event(BRAND_READY);
 			fp_deactivate_upcall(t);
 		} else if (flags & COS_SCHED_EVT_BRAND_PEND) {
-			report_event(BRAND_PENDING);
-			if (sched_thd_inactive_evt(t)) {
-				/* 
-				 * The bug is this: upcall is made,
-				 * but not immediately executed.  When
-				 * it is run (via explicit scheduler
-				 * invocation), it will complete.
-				 * Beforehand another interrupt
-				 * happens, causing a pending
-				 * incriment.  Upcall returns, but
-				 * does not execute pending.  There is
-				 * no notification that the brand
-				 * becomes active again, and the
-				 * pending flag that's set when the
-				 * upcall completes doesn't register.
-				 * Another brand occurs, setting the
-				 * pending flag in the shared
-				 * structure.  Then the upcall is
-				 * awakened.  Problem is that it never
-				 * should have stopped executing in
-				 * the first place.
-				 */
-				//printc("thread %d marked as ready, but received pending event.%d%d", 
-				//    t->id, 0,0);
-			}
-			fp_activate_upcall(t);
+			BUG();
 		}
+	} else {
+		report_event(BRAND_CYCLE);
 	}
-	report_event(BRAND_CYCLE);
 	sa = sched_get_accounting(t);
 	sa->cycles += cpu_usage;
 	if (sched_is_root() || t != timer) { 
@@ -431,12 +421,25 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 		 * invoke switch_thread, the kernel will return
 		 * COS_SCHED_RET_AGAIN, and this will be run again.
 		 * In this way, we never miss an event for a
-		 * scheduling decision.
+		 * scheduling decision.  Also, we are trying to keep
+		 * accurate counts of the number of cycles executed
+		 * for the previous thread.  Doing so means knowing
+		 * how many cycles were consumed by interrupt/upcall
+		 * execution.  We have the loop here so that if there
+		 * is an event that happens between when events are
+		 * processed (getting a count of cycles spent for
+		 * upcalls), and when the time stamp is taken (to find
+		 * the amount of cycles since we last explicitly
+		 * scheduled.
 		 */
-		if (cos_sched_pending_event()) {
-			cos_sched_clear_events();
-			cos_sched_process_events(evt_callback, 0);
-		}
+		//do {
+			if (cos_sched_pending_event()) {
+				cos_sched_clear_events();
+				cos_sched_process_events(evt_callback, 0);
+			}
+			//update_thd_accounting(current);
+			//} while (unlikely(cos_sched_pending_event()));
+
 		if (likely(!target)) {
 			/* 
 			 * If current is an upcall that wishes to terminate
@@ -475,7 +478,7 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 		next = resolve_dependencies(next);
 		if (next == current) goto done;
 
-		if (unlikely(sched_is_child() && next == idle)) {
+		if (sched_is_child() && unlikely(next == idle)) {
 			/* This is a kludge: child schedulers don't
 			 * have idle threads...instead they just use
 			 * the event/timer thread */
@@ -1073,6 +1076,33 @@ int sched_create_thread(spdid_t spdid, struct cos_array *data)
 	return new->id;
 }
 
+#define SCHED_STR_SZ 64
+
+/* Create a thread in target with the default parameters */
+int sched_create_thread_default(spdid_t spdid, spdid_t target)
+{
+	struct cos_array *data;
+	struct sched_thd *new;
+	vaddr_t t = target;
+
+	data = cos_argreg_alloc(sizeof(struct cos_array) + SCHED_STR_SZ);
+	assert(data);
+	data->sz = SCHED_STR_SZ;
+	cos_sched_lock_take();
+
+	if (sched_comp_config_default(cos_spd_id(), target, data)) goto err;
+	new = sched_setup_thread_arg((char *)data->mem, fp_create_spd_thd, (void*)t);
+	cos_sched_lock_release();
+	printc("sched %d: created default thread %d in spdid %d (requested by %d from %d)\n",
+	       (unsigned int)cos_spd_id(), new->id, target, sched_get_current()->id, spdid);
+
+	return 0;
+err:
+	cos_argreg_free(data);
+	cos_sched_lock_release();
+	return -1;
+}
+
 static void activate_child_sched(struct sched_thd *g)
 {
 	assert(sched_thd_grp(g));
@@ -1440,7 +1470,6 @@ static void sched_init_create_threads(void)
 	idle = sched_setup_thread("i", fp_idle_loop);
 	printc("Idle thread has id %d with priority %s.\n", idle->id, "i");
 
-	#define SCHED_STR_SZ 64
 	do {
 		struct cos_array *data;
 
@@ -1461,6 +1490,7 @@ static void sched_init(void)
 	assert(first);
 	first = 0;
 
+//	rdtscl(cycle_cnt);
 	sched_init_thd(&blocked, 0, THD_FREE);
 	sched_init_thd(&upcall_deactive, 0, THD_FREE);
 	sched_ds_init();

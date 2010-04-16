@@ -14,6 +14,8 @@
 #ifndef TYPES_H
 #define TYPES_H
 
+#include "./consts.h"
+
 #include "../debug.h"
 #include "../measurement.h"
 
@@ -197,6 +199,24 @@ typedef unsigned int page_index_t;
 
 typedef unsigned short int spdid_t;
 typedef unsigned short int thdid_t;
+
+
+struct restartable_atomic_sequence {
+	vaddr_t start, end;
+};
+
+#define COMP_INFO_POLY_NUM 10
+
+struct cos_component_information {
+	long cos_this_spd_id;
+	vaddr_t cos_heap_ptr;
+	vaddr_t cos_stack_freelist;
+	vaddr_t cos_upcall_entry;
+	struct cos_sched_data_area *cos_sched_data_area;
+	vaddr_t cos_user_caps;
+	struct restartable_atomic_sequence cos_ras[COS_NUM_ATOMIC_SECTIONS/2];
+	vaddr_t cos_poly[COMP_INFO_POLY_NUM];
+}__attribute__((aligned(PAGE_SIZE)));
 
 typedef enum {
 	COS_UPCALL_BRAND_EXEC,

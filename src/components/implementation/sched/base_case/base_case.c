@@ -64,6 +64,12 @@ int sched_create_thread(spdid_t spdid, struct cos_array *data){
 	return -ENOTSUP;
 }
 
+int sched_create_thread_default(spdid_t spdid, spdid_t target)
+{
+	BUG();
+	return -ENOTSUP;
+}
+
 int sched_create_net_brand(spdid_t spdid, unsigned short int port)
 {
 	BUG();

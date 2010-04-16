@@ -604,20 +604,20 @@ static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc,
 						     struct composite_spd *curr);
 static struct thread *sched_tailcall_pending_upcall_thd(struct thread *uc, 
 							 struct composite_spd *curr);
-static inline void update_thd_evt_state(struct thread *t, int flags, int update_list);
+static inline void update_thd_evt_state(struct thread *t, int flags, unsigned long elapsed_cycles);
 static inline void break_preemption_chain(struct thread *t)
 {
 	struct thread *other;
 
 	cos_meas_event(COS_MEAS_BREAK_PREEMPTION_CHAIN);	
 	other = t->interrupted_thread;
-	if (other) {
+	if (unlikely(other)) {
 		assert(other->preempter_thread == t);
 		t->interrupted_thread = NULL;
 		other->preempter_thread = NULL;
 	}
 	other = t->preempter_thread;
-	if (other) {
+	if (unlikely(other)) {
 		assert(other->interrupted_thread == t);
 		t->preempter_thread = NULL;
 		other->interrupted_thread = NULL;
@@ -641,8 +641,11 @@ static inline unsigned short int switch_thread_parse_data_area(struct cos_sched_
 
 	next_thd = da->cos_next.next_thd_id;
 	da->cos_next.next_thd_id = 0;
+	if (unlikely(0 == next_thd)) {
+		*ret_code = COS_SCHED_RET_AGAIN;
+		goto ret_err;
+	}
 	/* FIXME: mask out the locking flags as they cannot apply */
-	
 	return next_thd;
 ret_err:
 	return 0;
@@ -713,6 +716,17 @@ static inline void switch_thread_update_flags(struct cos_sched_data_area *da, un
 		*flags |= COS_SCHED_CHILD_EVT;
 }
 
+ // print out on switch_thread errors???
+#ifdef NIL
+#define goto_err(label, format, args...)			\
+	do {							\
+		printk(format, ## args);			\
+		goto label ;					\
+	} while (0)
+#else
+#define goto_err(label, format, args...) goto label
+#endif
+
 /*
  * The arguments are horrible as we are interfacing w/ assembly and 1)
  * we need to return two values, the regs to restore, and if the next
@@ -760,12 +774,13 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 		 * thread, and its registers have been changed,
 		 * return without setting the return value */
 		if (ret_code == COS_SCHED_RET_SUCCESS && thd == curr) goto ret;
-		if (thd == curr) goto ret_err;
+		if (thd == curr) goto_err(ret_err, "sloooow\n");
 	} else {
 		next_thd = switch_thread_parse_data_area(da, &ret_code);
-		if (unlikely(0 == next_thd)) goto ret_err;
+		if (unlikely(0 == next_thd)) goto_err(ret_err, "data_area\n");
+
 		thd = switch_thread_get_target(next_thd, curr, curr_spd, &ret_code);
-		if (unlikely(NULL == thd)) goto ret_err;
+		if (unlikely(NULL == thd)) goto_err(ret_err, "get target");
 	}
 
 	/* If a thread is involved in a scheduling decision, we should
@@ -808,11 +823,11 @@ static struct thread *switch_thread_slowpath(struct thread *curr, unsigned short
 		/* FIXME: mask out all flags that can't apply here  */
 	} else {
 		next_thd = switch_thread_parse_data_area(da, ret_code);
-		if (unlikely(!next_thd)) goto ret_err;
+		if (unlikely(!next_thd)) goto_err(ret_err, "data area\n");
 	}
 
 	thd = switch_thread_get_target(next_thd, curr, curr_spd, ret_code);
-	if (unlikely(NULL == thd)) goto ret_err;
+	if (unlikely(NULL == thd)) goto_err(ret_err, "get_target");
 
 	if (flags & (COS_SCHED_TAILCALL | COS_SCHED_BRAND_WAIT)) {
 		/* First make sure this is an active upcall */
@@ -821,13 +836,14 @@ static struct thread *switch_thread_slowpath(struct thread *curr, unsigned short
 		assert(!(curr->flags & THD_STATE_READY_UPCALL));
 		/* Can't really be tailcalling and have the other
 		 * flags at the same time */
-		if (unlikely(flags & (COS_SCHED_SYNC_BLOCK | COS_SCHED_SYNC_UNBLOCK))) goto ret_err;
+		if (unlikely(flags & (COS_SCHED_SYNC_BLOCK | COS_SCHED_SYNC_UNBLOCK))) 
+			goto_err(ret_err, "tailcall and block???\n");
 
 		cos_meas_stats_end(COS_MEAS_STATS_UC_TERM_DELAY, 1);
 		cos_meas_stats_end(COS_MEAS_STATS_UC_PEND_DELAY, 0);
 
-		if (flags & COS_SCHED_TAILCALL && unlikely(spd_get_index(curr_spd) != sched_tailcall_adjust_invstk(curr)))
-			goto ret_err;
+		if (flags & COS_SCHED_TAILCALL && unlikely(spd_get_index(curr_spd) != sched_tailcall_adjust_invstk(curr))) 
+			goto_err(ret_err, "tailcall from incorrect spd!\n");
 		
 		assert(curr->thread_brand);
 		if (curr->thread_brand->pending_upcall_requests) {
@@ -892,7 +908,8 @@ static struct thread *switch_thread_slowpath(struct thread *curr, unsigned short
 		struct cos_sched_data_area *cda;
 
 		tsi = thd_get_sched_info(thd, curr_spd->sched_depth+1);
-		if (unlikely(!tsi || !tsi->scheduler)) goto ret_err;
+		if (unlikely(!tsi || !tsi->scheduler)) goto_err(ret_err, "tsi fail, tid %d\n", thd_get_id(thd)); 
+
 		/* If the scheduler exists, all of the following
 		 * pointers should be non-NULL */
 		child = tsi->scheduler;
@@ -1064,7 +1081,6 @@ static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, struct c
  */
 static void brand_completion_switch_to(struct thread *curr, struct thread *prev)
 {
-
 	/* 
 	 * From here on, we know that we have an interrupted thread
 	 * that we are returning to.
@@ -1919,7 +1935,7 @@ static int update_evt_list(struct thd_sched_info *tsi)
 	return 0;
 }
 
-static inline void update_thd_evt_state(struct thread *t, int flags, int update_list)
+static inline void update_thd_evt_state(struct thread *t, int flags, unsigned long elapsed)
 {
 	int i;
 	struct thd_sched_info *tsi;
@@ -1932,6 +1948,9 @@ static inline void update_thd_evt_state(struct thread *t, int flags, int update_
 		tsi = thd_get_sched_info(t, i);
 		sched = tsi->scheduler;
 		if (sched && tsi->thread_notifications) {
+			struct cos_sched_events *se = tsi->thread_notifications;
+			u32_t p, n;
+
 			switch(flags) {
 			case COS_SCHED_EVT_BRAND_PEND:
 				cos_meas_event(COS_MEAS_EVT_PENDING);
@@ -1944,69 +1963,53 @@ static inline void update_thd_evt_state(struct thread *t, int flags, int update_
 				break;
 			}
 
+			if (elapsed) {
+				n = p = se->cpu_consumption;
+				n += elapsed;
+				if (n < p) se->cpu_consumption = ~0UL; /* prevent overflow */
+				else       se->cpu_consumption = n;
+			}
+
 			/* 
 			 * FIXME: should a pending flag update
 			 * override an activate one????
 			 */
 			COS_SCHED_EVT_FLAGS(tsi->thread_notifications) = flags;
 			/* handle error conditions of list manip here??? */
-			if (update_list) update_evt_list(tsi);
+			update_evt_list(tsi);
 		}
 	}
 	
 	return;
 }
 
-static inline void update_thd_evt_cycles(struct thread *t, unsigned long consumption)
-{
-	struct thd_sched_info *tsi;
-	int i;
-
-	for (i = 0 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
-		tsi = thd_get_sched_info(t, i);
-		if (NULL != tsi->scheduler && tsi->thread_notifications) {
-			struct cos_sched_events *se = tsi->thread_notifications;
-			u32_t p, n;
-
-			n = p = se->cpu_consumption;
-			n += consumption;
-			if (n < p) se->cpu_consumption = ~0UL; /* prevent overflow */
-			else       se->cpu_consumption = n;
-			update_evt_list(tsi);
-		}
-	}
-}
-
 void update_sched_evts(struct thread *new, int new_flags, 
 		       struct thread *prev, int prev_flags)
 {
-	int update_list = 1;
+	unsigned elapsed = 0;
 
 	assert(new && prev);
 
 	/* 
-	 * - if either thread has cyc_cnt set, do rdtsc (this 
-	 *   is expensive, ~80 cycles, so avoid it if possible)
+	 * - if either thread has cyc_cnt set, do rdtsc (this is
+	 *   expensive, ~80 on P4 cycles, so avoid it if possible)
 	 * - if prev has cyc_cnt set, do sched evt cycle update
 	 * - if new_flags, do sched evt flags update on new
 	 * - if prev_flags, do sched evt flags update on prev
 	 */
-/* 	if ((new->flags | prev->flags) & THD_STATE_CYC_CNT) { */
-/* 		unsigned long last; */
+	if ((new->flags | prev->flags) & THD_STATE_CYC_CNT) {
+		unsigned long last;
 
-/* 		last = cycle_cnt; */
-/* 		rdtscl(cycle_cnt); */
-/* 		if (prev->flags & THD_STATE_CYC_CNT) { */
-/* 			update_thd_evt_cycles(prev, cycle_cnt - last); */
-/* 			update_list = 0; */
-/* 		} */
-/* 	} */
+		last = cycle_cnt;
+		rdtscl(cycle_cnt);
+		elapsed = cycle_cnt - last;
+	}
 	
 	if (new_flags != COS_SCHED_EVT_NIL) {
-		update_thd_evt_state(new, new_flags, 1);
+		update_thd_evt_state(new, new_flags, 0);
 	}
 	if (prev_flags != COS_SCHED_EVT_NIL) {
-		update_thd_evt_state(prev, prev_flags, update_list);
+		update_thd_evt_state(prev, prev_flags, elapsed);
 	}
 
 	return;
@@ -2073,7 +2076,7 @@ int brand_higher_urgency(struct thread *upcall, struct thread *prev)
 	 * shutting down the system but still get a packet.  This will
 	 * shut it up for now.
 	 */
-	if (!thd_get_sched_info(prev, d)->thread_notifications) {
+	if (unlikely(!thd_get_sched_info(prev, d)->thread_notifications)) {
 		if (!thd_get_sched_info(upcall, d)->thread_notifications) {
 			printk("cos: skimping on brand metadata maintenance, and returning.\n");
 			return 0;
@@ -2213,10 +2216,9 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 	} 
 		
 	/* 
-	 * If another upcall is what we attempted to preempt,
-	 * we might have a higher priority than the preempted
-	 * thread of that upcall.  Thus we must break its
-	 * preemption chain.
+	 * If another upcall is what we attempted to preempt, we might
+	 * have a higher priority than the thread that upcall had
+	 * preempted.  Thus we must break its preemption chain.
 	 */
 	if (preempted->flags & THD_STATE_ACTIVE_UPCALL) {
 		break_preemption_chain(preempted);

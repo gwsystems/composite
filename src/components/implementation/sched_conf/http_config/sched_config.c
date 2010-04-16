@@ -15,8 +15,9 @@
 
 struct component_init_str {
 	unsigned int spdid, schedid;
-	char init_str[56];
-};
+	int startup;
+	char init_str[52];
+}__attribute__((packed));
 
 struct component_init_str *init_strs;
 
@@ -24,30 +25,79 @@ static void parse_initialization_strings(void)
 {
 	int i;
 
-	init_strs = (struct component_init_str*)((char*)cos_heap_ptr-PAGE_SIZE);
+	init_strs = (struct component_init_str*)((char*)cos_get_heap_ptr()-PAGE_SIZE);
 	for (i = 1 ; init_strs[i].spdid ; i++) ;
 }
 
 /* Get the nth component for this specific scheduler */
-struct component_init_str *nth_for_sched(spdid_t sched, int n)
+static struct component_init_str *nth_for_sched(spdid_t sched, int n)
 {
 	int i, idx;
 
 	for (i = 0, idx = 1 ; i <= n ; i++, idx++) {
 		if (0 == init_strs[idx].spdid) return &init_strs[idx];
-		/* bypass other scheduler's components */
-		while (init_strs[idx].schedid != sched && init_strs[idx].spdid != 0) {
+		/* bypass other scheduler's components, and those not
+		 * started on bootup */
+		while (init_strs[idx].schedid != sched ||
+		       !init_strs[idx].startup) {
+			if (0 == init_strs[idx].spdid) return &init_strs[idx];
 			idx++;
 		}
+
 		if (i == n) return &init_strs[idx];
 	}
 	BUG();
 	return &init_strs[idx-1];
 }
 
+struct component_init_str *spd_for_sched(spdid_t sched, spdid_t target)
+{
+	int i;
+
+	for (i = 1 ; init_strs[i].spdid != 0 ; i++) {
+		if (init_strs[i].schedid == sched &&
+		    init_strs[i].spdid   == target) {
+			return &init_strs[i];
+		}
+	}
+	return &init_strs[i];
+}
+
+int first = 1;
+
+int sched_comp_config_default(spdid_t spdid, spdid_t target, struct cos_array *data)
+{
+	int max_len, str_len;
+	struct component_init_str *cis;
+
+	if (first) {
+		first = 0;
+		parse_initialization_strings();
+	}
+	if (!cos_argreg_arr_intern(data)) {
+		BUG(); 
+		return -1;
+	}
+	max_len = data->sz;
+
+	cis = spd_for_sched(spdid, target);
+	if (0 == cis->spdid) return -1; /* no dice */
+	assert(cis->schedid == spdid);
+
+	str_len = strlen(cis->init_str);
+	if (str_len+1 > max_len) {
+		BUG(); 
+		return -1;
+	}
+
+	strcpy(data->mem, cis->init_str);
+	data->sz = str_len;
+
+	return 0;
+}
+
 spdid_t sched_comp_config(spdid_t spdid, int i, struct cos_array *data)
 {
-	static int first = 1;
 	int max_len, str_len;
 	struct component_init_str *cis;
 

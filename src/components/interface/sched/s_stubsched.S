@@ -18,6 +18,7 @@ cos_asm_server_stub_spdid(sched_create_net_brand)
 cos_asm_server_stub_spdid(sched_add_thd_to_brand)
 cos_asm_server_stub(sched_exit)
 cos_asm_server_stub(sched_create_thread)
+cos_asm_server_stub_spdid(sched_create_thread_default)
 cos_asm_server_stub(sched_tick_freq)
 cos_asm_server_stub(sched_timestamp)
 

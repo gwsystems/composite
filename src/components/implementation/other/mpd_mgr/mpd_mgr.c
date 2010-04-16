@@ -287,7 +287,7 @@ static void mpd_init(void)
 	/* The hack to give this component the component graph is to
 	 * place it @ cos_heap_ptr-PAGE_SIZE.  See cos_loader.c.
 	 */
-	struct comp_graph *g = (struct comp_graph *)cos_heap_ptr;
+	struct comp_graph *g = (struct comp_graph *)cos_get_heap_ptr();
 
 	graph = (struct comp_graph *)((char*)g-PAGE_SIZE);
 	for (i = 0 ; graph[i].client && graph[i].server ; i++) {
@@ -299,7 +299,7 @@ static void mpd_init(void)
 
 	/* merge all components into one protection domain */
 //	mpd_merge_all(graph);
-	mpd_merge_selective();
+//	mpd_merge_selective();
 	/* remove protection domains on a time-trigger */
 //	while (!remove_one_isolation_boundary()); /* merge all pds */
 	/* Intelligently manage pds */

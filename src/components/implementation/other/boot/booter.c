@@ -6,11 +6,26 @@
 #include <cos_alloc.h>
 #include <cobj_format.h>
 
-vaddr_t uc;
+extern struct cos_component_information cos_comp_info;
+struct cobj_header *hs[MAX_NUM_SPDS+1];
 
-static int boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *spdid_addr, vaddr_t *heap_ptr_addr)
+static int boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci)
 {
-	unsigned int i, ras_index = 0;
+	int i;
+
+	if (cos_spd_cntl(COS_SPD_UCAP_TBL, spdid, ci->cos_user_caps, 0)) BUG();
+	if (cos_spd_cntl(COS_SPD_UPCALL_ADDR, spdid, ci->cos_upcall_entry, 0)) BUG();
+	for (i = 0 ; i < COS_NUM_ATOMIC_SECTIONS/2 ; i++) {
+		if (cos_spd_cntl(COS_SPD_ATOMIC_SECT, spdid, ci->cos_ras[i].start, i*2)) BUG();
+		if (cos_spd_cntl(COS_SPD_ATOMIC_SECT, spdid, ci->cos_ras[i].end,   (i*2)+1)) BUG();
+	}
+
+	return 0;
+}
+
+static int boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info)
+{
+	unsigned int i;
 
 	for (i = 0 ; i < h->nsymb ; i++) {
 		struct cobj_symb *symb;
@@ -20,22 +35,28 @@ static int boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *spdid_a
 		if (COBJ_SYMB_UNDEF == symb->type) break;
 
 		switch (symb->type) {
-		case COBJ_SYMB_UCAP_TBL:
-			if (cos_spd_cntl(COS_SPD_UCAP_TBL, spdid, symb->vaddr, 0)) BUG();
+		case COBJ_SYMB_COMP_INFO:
+			*comp_info = symb->vaddr;
 			break;
-		case COBJ_SYMB_UPCALL:
-			if (cos_spd_cntl(COS_SPD_UPCALL_ADDR, spdid, symb->vaddr, 0)) BUG();
-			uc = symb->vaddr;
-			break;
-		case COBJ_SYMB_RAS_START:
-		case COBJ_SYMB_RAS_END:
-			if (cos_spd_cntl(COS_SPD_ATOMIC_SECT, spdid, symb->vaddr, ras_index++)) BUG();
-			break;
-		case COBJ_SYMB_SPDID:
-			*spdid_addr = symb->vaddr;
-			break;
-		case COBJ_SYMB_HEAPPTR:
-			*heap_ptr_addr = symb->vaddr;
+/* 		case COBJ_SYMB_UCAP_TBL: */
+/* 			if (cos_spd_cntl(COS_SPD_UCAP_TBL, spdid, symb->vaddr, 0)) BUG(); */
+/* 			break; */
+/* 		case COBJ_SYMB_UPCALL: */
+/* 			if (cos_spd_cntl(COS_SPD_UPCALL_ADDR, spdid, symb->vaddr, 0)) BUG(); */
+/* 			uc = symb->vaddr; */
+/* 			break; */
+/* 		case COBJ_SYMB_RAS_START: */
+/* 		case COBJ_SYMB_RAS_END: */
+/* 			if (cos_spd_cntl(COS_SPD_ATOMIC_SECT, spdid, symb->vaddr, ras_index++)) BUG(); */
+/* 			break; */
+/* 		case COBJ_SYMB_SPDID: */
+/* 			*spdid_addr = symb->vaddr; */
+/* 			break; */
+/* 		case COBJ_SYMB_HEAPPTR: */
+/* 			*heap_ptr_addr = symb->vaddr; */
+/* 			break; */
+		default:
+			printc("boot: Unknown symbol type %d\n", symb->type);
 			break;
 		}
 	}
@@ -62,6 +83,19 @@ static void boot_symb_reify_16(char *mem, vaddr_t d_addr, vaddr_t symb_addr, u16
 	}
 }
 
+static void boot_symb_process(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val, char *mem, 
+			      vaddr_t d_addr, vaddr_t symb_addr)
+{
+	if (round_to_page(symb_addr) == d_addr) {
+		struct cos_component_information *ci;
+		
+		ci = (struct cos_component_information*)(mem + ((PAGE_SIZE-1) & symb_addr));
+		boot_spd_set_symbs(h, spdid, ci);
+		ci->cos_heap_ptr = heap_val;
+		ci->cos_this_spd_id = spdid;
+	}
+}
+
 static vaddr_t boot_spd_end(struct cobj_header *h)
 {
 	struct cobj_sect *sect;
@@ -73,7 +107,7 @@ static vaddr_t boot_spd_end(struct cobj_header *h)
 	return sect->vaddr + round_up_to_page(sect->bytes);
 }
 
-static int boot_spd_map(struct cobj_header *h, spdid_t spdid, vaddr_t spdid_addr, vaddr_t heap_ptr_addr)
+static int boot_spd_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
 	unsigned int i;
 
@@ -92,8 +126,8 @@ static int boot_spd_map(struct cobj_header *h, spdid_t spdid, vaddr_t spdid_addr
 		while (left) {
 			/* data left on a page to copy over */
 			page_left = (left > PAGE_SIZE) ? PAGE_SIZE : left;
-			dsrc = cos_heap_ptr;
-			cos_heap_ptr += PAGE_SIZE;
+			dsrc = cos_get_heap_ptr();
+			cos_set_heap_ptr(cos_get_heap_ptr() + PAGE_SIZE);
 			if ((vaddr_t)dsrc != mman_get_page(cos_spd_id(), (vaddr_t)dsrc, 0)) BUG();
 
 			if (sect->flags & COBJ_SECT_ZEROS) {
@@ -105,8 +139,9 @@ static int boot_spd_map(struct cobj_header *h, spdid_t spdid, vaddr_t spdid_addr
 
 			/* Check if special symbols that need
 			 * modification are in this page */
-			boot_symb_reify(dsrc, dest_daddr, heap_ptr_addr, boot_spd_end(h));
-			boot_symb_reify_16(dsrc, dest_daddr, spdid_addr, (u16_t)spdid);
+//			boot_symb_reify(dsrc, dest_daddr, heap_ptr_addr, boot_spd_end(h));
+//			boot_symb_reify_16(dsrc, dest_daddr, spdid_addr, (u16_t)spdid);
+			boot_symb_process(h, spdid, boot_spd_end(h), dsrc, dest_daddr, comp_info);
 			
 			if (dest_daddr != (mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr))) BUG();
 
@@ -147,45 +182,82 @@ static int boot_spd_caps(struct cobj_header *h, spdid_t spdid)
 	return 0;
 }
 
-int boot_spd_thd(spdid_t spdid)
+static int boot_spd_thd(spdid_t spdid)
 {
-	struct cos_array *data;
 	int new_thd;
 
-	data = cos_argreg_alloc(sizeof(struct cos_array) + 3);
-	assert(data);
-	strcpy(&data->mem[0], "r1");
-	data->sz = 3;
-	if (0 > (new_thd = sched_create_thread(spdid, data))) BUG();
-	cos_argreg_free(data);
+	if ((new_thd = sched_create_thread_default(cos_spd_id(), spdid)) < 0) BUG();
 	
 	return new_thd;
+}
+
+static void boot_find_cobjs(struct cobj_header *h, int n)
+{
+	int i;
+	vaddr_t start, end;
+
+	start = (vaddr_t)h;
+	hs[0] = h;
+	for (i = 1 ; i < n ; i++) {
+		end = start + h[i-1].size;
+		hs[i] = (struct cobj_header*)end;
+		start = end;
+	}
+	hs[n] = NULL;
+}
+
+static void boot_create_system(void)
+{
+	int i;
+	
+	for (i = 0 ; hs[i] != NULL ; i++) {
+		struct cobj_header *h;
+		spdid_t spdid;
+		struct cobj_sect *sect;
+		vaddr_t comp_info = 0;
+		
+		h = hs[i];
+		if ((spdid = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG();
+		assert(spdid == h->id);
+		sect = cobj_sect_get(h, 0);
+		if (cos_spd_cntl(COS_SPD_LOCATION, spdid, sect->vaddr, SERVICE_SIZE)) BUG();
+		
+		if (boot_spd_symbs(h, spdid, &comp_info)) BUG();
+		if (boot_spd_map(h, spdid, comp_info)) BUG();
+		if (boot_spd_reserve_caps(h, spdid)) BUG();
+		if (cos_spd_cntl(COS_SPD_ACTIVATE, spdid, 0, 0)) BUG();
+	}
+	for (i = 0 ; hs[i] != NULL ; i++) {
+		struct cobj_header *h;
+		h = hs[i];
+
+		if (boot_spd_caps(h, h->id)) BUG();
+		printc("loaded spdid %d \n", h->id);
+	}
+	for (i = 0 ; hs[i] != NULL ; i++) {
+		struct cobj_header *h;
+		h = hs[i];
+		
+		if (-1 == boot_spd_thd(h->id)) BUG();
+		printc("bootstrapped spdid %d \n", h->id);
+	}
 }
 
 void cos_init(void *arg)
 {
 	struct cobj_header *h;
-	spdid_t spdid;
-	struct cobj_sect *sect;
-	vaddr_t spdid_addr, heap_ptr_addr;
+	int num_cobj;
 
-	h = (struct cobj_header*)cos_heap_ptr;
-	cos_heap_ptr = (void*)round_up_to_page(cos_heap_ptr + h->size);
-	printc("header %p, size %d, new heap %p\n", h, h->size, cos_heap_ptr);
+	h = (struct cobj_header *)cos_comp_info.cos_poly[0];
+	num_cobj = (int)cos_comp_info.cos_poly[1];
+	boot_find_cobjs(h, num_cobj);
 
-	if ((spdid = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG();
-	sect = cobj_sect_get(h, 0);
-	if (cos_spd_cntl(COS_SPD_LOCATION, spdid, sect->vaddr, SERVICE_SIZE)) BUG();
+	printc("h @ %p, heap ptr @ %p\n", h, cos_get_heap_ptr());
+	printc("header %p, size %d, num comps %d, new heap %p\n", 
+	       h, h->size, num_cobj, cos_get_heap_ptr());
 
-	if (boot_spd_symbs(h, spdid, &spdid_addr, &heap_ptr_addr)) BUG();
-	if (boot_spd_map(h, spdid, spdid_addr, heap_ptr_addr)) BUG();
-	if (boot_spd_reserve_caps(h, spdid)) BUG();
-	if (cos_spd_cntl(COS_SPD_ACTIVATE, spdid, 0, 0)) BUG();
-	if (boot_spd_caps(h, spdid)) BUG();
-	
-	printc("booted spdid %d\n", spdid);
-
-	if (-1 == boot_spd_thd(spdid)) BUG();
+	/* Assumes that hs have been setup with boot_find_cobjs */
+	boot_create_system();
 
 	return;
 }
