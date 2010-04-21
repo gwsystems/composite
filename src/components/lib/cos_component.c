@@ -69,7 +69,7 @@ extern const vaddr_t cos_upcall_entry;
 struct cos_component_information cos_comp_info = {
 	.cos_this_spd_id = 0,
 	.cos_heap_ptr = 0,
-	.cos_stack_freelist = 0,
+	.cos_stacks.freelists[0] = {.freelist = 0, .thd_id = 0},
 	.cos_upcall_entry = (vaddr_t)&cos_upcall_entry,
 	.cos_sched_data_area = &cos_sched_notifications,
 	.cos_user_caps = (vaddr_t)&ST_user_caps,

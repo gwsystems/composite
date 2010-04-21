@@ -58,7 +58,6 @@ const char *MPD_MGR    = "mpd.o";
 const char *CONFIG_COMP = "schedconf.o";
 
 const char *BOOT_COMP = "boot.o";
-const char *TEST_COMP = "test.o";
 
 const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] = 
 { "cos_atomic_cmpxchg",
@@ -577,7 +576,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	if (srcobj[RODATA_S].s && ldobj[RODATA_S].s) {
 		ret_data->sections[SERV_SECT_RO].size += bfd_sect_size(objout, srcobj[RODATA_S].s);
 	}
-	assert((int)round_up_to_page(ret_data->sections[SERV_SECT_RO].size) == ro_size);
+//	assert((int)round_up_to_page(ret_data->sections[SERV_SECT_RO].size) == ro_size);
 	assert(0 == ret_data->sections[SERV_SECT_RO].offset);
 
 	if (!ret_data->is_composite_loaded) {
@@ -628,8 +627,8 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	ret_data->sections[SERV_SECT_BSS].offset = srcobj[BSS_S].offset;
 	ret_data->sections[SERV_SECT_BSS].size = bfd_sect_size(objout, srcobj[BSS_S].s);
 
-	assert((ret_data->sections[SERV_SECT_BSS].offset - ret_data->sections[SERV_SECT_DATA].offset +
-		round_up_to_page(ret_data->sections[SERV_SECT_BSS].size)) == (unsigned int)alldata_size);
+//	assert((ret_data->sections[SERV_SECT_BSS].offset - ret_data->sections[SERV_SECT_DATA].offset +
+//		round_up_to_page(ret_data->sections[SERV_SECT_BSS].size)) == (unsigned int)alldata_size);
 
 	if (!ret_data->is_composite_loaded) {
 		printl(PRINT_DEBUG, "\tCopying DATA to %x from %x of size %x.\n", 
@@ -715,28 +714,38 @@ static struct service_symbs *get_dependency_by_index(struct service_symbs *s,
 	return s->dependencies[index].dep;
 }
 */
-static int add_service_dependency(struct service_symbs *s, 
-				  struct service_symbs *dep)
+static int __add_service_dependency(struct service_symbs *s, struct service_symbs *dep, 
+				    char *modifier, int mod_len)
 {
 	struct dependency *d;
 
 	if (!s || !dep || s->num_dependencies == MAX_TRUSTED) {
 		return -1;
 	}
+	if (!s->is_composite_loaded && dep->is_composite_loaded) {
+		printl(PRINT_HIGH, "Error: Non-Composite-loaded component dependent on composite loaded component.\n");
+		return -1;
+	}
 
 	d = &s->dependencies[s->num_dependencies];
 	d->dep = dep;
-	d->modifier = NULL;
+	d->modifier = modifier;
+	d->mod_len = mod_len;
 	s->num_dependencies++;
 
 	return 0;
+}
+
+static int add_service_dependency(struct service_symbs *s, 
+				  struct service_symbs *dep)
+{
+	return __add_service_dependency(s, dep, NULL, 0);
 }
 
 static int add_modified_service_dependency(struct service_symbs *s,
 					   struct service_symbs *dep, 
 					   char *modifier, int mod_len)
 {
-	struct dependency *d;
 	char *new_mod;
 
 	assert(modifier);
@@ -745,17 +754,7 @@ static int add_modified_service_dependency(struct service_symbs *s,
 	memcpy(new_mod, modifier, mod_len);
 	new_mod[mod_len] = '\0';
 
-	if (!s || !dep || s->num_dependencies == MAX_TRUSTED) {
-		return -1;
-	}
-
-	d = &s->dependencies[s->num_dependencies];
-	d->dep = dep;
-	d->modifier = new_mod;
-	d->mod_len = mod_len;
-	s->num_dependencies++;
-
-	return 0;
+	return __add_service_dependency(s, dep, new_mod, mod_len);
 }
 
 static int initialize_service_symbs(struct service_symbs *str)
@@ -771,33 +770,48 @@ static int initialize_service_symbs(struct service_symbs *str)
 	return 0;
 }
 
+struct component_traits {
+	int sched, composite_loaded;
+};
+
+static void parse_component_traits(char *name, struct component_traits *t, int *off)
+{
+	switch(name[*off]) {
+	case '*': t->sched = 1;            break;
+	case '!': t->composite_loaded = 1; break;
+	default:  /* base case */          return;
+	}
+	(*off)++;
+	parse_component_traits(name, t, off);
+	return;
+}
+
 static struct service_symbs *alloc_service_symbs(char *obj)
 {
 	struct service_symbs *str;
 	char *obj_name = malloc(strlen(obj)+1), *cpy, *orig, *pos;
 	const char lassign = '(', *rassign = ")", *assign = "=";
-	int sched = 0;
+	struct component_traits t = {.sched = 0, .composite_loaded = 0};
+	int off = 0;
 
+	parse_component_traits(obj, &t, &off);
 	assert(obj_name);
 	/* Do we have a value assignment (a component copy)?  Syntax
 	 * is (newval=oldval),... */
-	if (obj[0] == lassign) {
+	if (obj[off] == lassign) {
 		char copy_cmd[256];
-		int ret, off = 1;
+		int ret;
+		
+		off++;
+		parse_component_traits(obj, &t, &off);
 
-		if (obj[1] == '*') {
-			sched = 1;
-			off = 2;
-		}
 		cpy = strtok_r(obj+off, assign, &pos);
 		orig = strtok_r(pos, rassign, &pos);
 		sprintf(copy_cmd, "cp %s %s", orig, cpy);
 		ret = system(copy_cmd);
 		assert(-1 != ret);
 		obj = cpy;
-	} else if (obj[0] == '*') {
-		sched = 1;
-		obj = obj+1;
+		off = 0;
 	}
 
 	str = malloc(sizeof(struct service_symbs));
@@ -805,14 +819,12 @@ static struct service_symbs *alloc_service_symbs(char *obj)
 		return NULL;
 	}
 
-	strcpy(obj_name, obj);
+	strcpy(obj_name, &obj[off]);
 	str->obj = obj_name;
 
-	str->is_scheduler = sched;
+	str->is_scheduler = t.sched;
 	str->scheduler = NULL;
-
-	if (strstr(obj, TEST_COMP) != NULL) str->is_composite_loaded = 1;
-	else                                str->is_composite_loaded = 0;
+	str->is_composite_loaded = t.composite_loaded;
 
 	return str;
 }
@@ -1297,6 +1309,12 @@ static int deserialize_dependencies(char *deps, struct service_symbs *services)
 				return -1;
 			}
 
+			if (!s->is_composite_loaded && dep->is_composite_loaded) {
+				printl(PRINT_HIGH, "Error: Non-Composite-loaded component %s dependent "
+				       "on composite loaded component %s.\n", s->obj, dep->obj);
+				return -1;
+			}
+
 			if (mod) add_modified_service_dependency(s, dep, mod, strlen(mod));
 			else add_service_dependency(s, dep);
 			tmp = strtok(NULL, parallel);
@@ -1759,12 +1777,6 @@ void make_spd_scheduler(int cntl_fd, struct service_symbs *s, struct service_sym
 
 	if (p) parent = p->extern_info;
 
-/*	sched_page = (vaddr_t)get_symb_address(&s->exported, SCHED_PAGE_NAME);
-	if (0 == sched_page) {
-		printl(PRINT_DEBUG, "Could not find %s in %s.\n", SCHED_PAGE_NAME, s->obj);
-		return;
-	}
-*/
 	ci = (struct cos_component_information*)get_symb_address(&s->exported, COMP_INFO);
 	sched_page = (vaddr_t)ci->cos_sched_data_area;
 
@@ -1781,6 +1793,13 @@ struct comp_graph {
 	int client, server;
 };
 
+static int service_get_spdid(struct service_symbs *ss)
+{
+	return (ss->is_composite_loaded) ? 
+		(int)ss->cobj->id :
+		((struct spd_info*)ss->extern_info)->spd_handle;
+}
+
 static int serialize_spd_graph(struct comp_graph *g, int sz, struct service_symbs *ss)
 {
 	struct comp_graph *edge;
@@ -1795,12 +1814,12 @@ static int serialize_spd_graph(struct comp_graph *g, int sz, struct service_symb
 		}
 
 		assert(ss->extern_info);		
-		cid = ((struct spd_info *)(ss->extern_info))->spd_handle;
+		cid = service_get_spdid(ss);
 		for (i = 0 ; i < ss->num_dependencies && 0 != cid ; i++) {
 			struct service_symbs *dep = ss->dependencies[i].dep;
 			assert(dep);
 			
-			sid = ((struct spd_info *)(dep->extern_info))->spd_handle;
+			sid = service_get_spdid(dep);
 			if (sid == 0) continue;
 			if (g_frontier >= (sz-2)) {
 				printl(PRINT_DEBUG, "More edges in component graph than can be serialized into the allocated region: fix cos_loader.c.\n");
@@ -1905,11 +1924,7 @@ static int make_cobj_caps(struct service_symbs *s, struct cobj_header *h)
 		if (cap_get_info(s, &cri, symb)) return -1;
 		
 		cap_off = i;
-		if (cri.serv->is_composite_loaded) {
-			dest_id = cri.serv->cobj->id;
-		} else {
-			dest_id = ((struct spd_info*)cri.serv->extern_info)->spd_handle;
-		}
+		dest_id = service_get_spdid(cri.serv);
 		sfn     = cri.ssymbfn->addr;
 		cstub   = cri.cstub->addr;
 		sstub   = cri.sstub->addr;
@@ -1918,12 +1933,17 @@ static int make_cobj_caps(struct service_symbs *s, struct cobj_header *h)
 		       i, cap_off, sfn, cstub, sstub);
 
 		if (cobj_cap_init(h, cap_off, cap_off, dest_id, sfn, cstub, sstub)) return -1;
-	}
 
+		printl(PRINT_DEBUG, "capability from %s:%d to %s:%d\n", s->obj, s->cobj->id, cri.serv->obj, dest_id);
+	}
+	
 	return 0;
 }
 
 static struct service_symbs *find_obj_by_name(struct service_symbs *s, const char *n);
+
+//#define ROUND_UP_TO_PAGE(a) (((vaddr_t)(a)+PAGE_SIZE-1) & ~(PAGE_SIZE-1))
+//#deinfe ROUND_UP_TO_CACHELINE(a) (((vaddr_t)(a)+CACHE_LINE-1) & ~(CACHE_LINE-1))
 
 static void make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 {
@@ -1932,17 +1952,37 @@ static void make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 	char *mem;
 	u32_t obj_size;
 	struct cos_component_information *ci;
+	struct service_symbs *first = all;
+
+	/* Assign ids to the booter-loaded components. */
+	for (all = first ; NULL != all ; all = all->next) {
+		if (!all->is_composite_loaded) continue;
+
+		h = all->cobj;
+		assert(h);
+		spdid_inc++;
+		h->id = spdid_inc;
+	}
+
+	/* Setup the capabilities for each of the booter-loaded
+	 * components */
+	all = first;
+	for (all = first ; NULL != all ; all = all->next) {
+		if (!all->is_composite_loaded) continue;
+
+		if (make_cobj_caps(all, all->cobj)) {
+			printl(PRINT_HIGH, "Could not create capabilities in cobj for %s\n", all->obj);
+			exit(-1);
+		}
+	}
 
 	heap_ptr = get_heap_ptr(boot);
 	ci = (void *)get_symb_address(&boot->exported, COMP_INFO);
-
-	if (NULL == heap_ptr || NULL == ci) {
-		printl(PRINT_HIGH, "Could not find cos_heap_ptr, or %s in %s.\n", 
-		       COMP_INFO, boot->obj);
-		return;
-	}
 	ci->cos_poly[0] = (vaddr_t)*heap_ptr;
-	for (; NULL != all ; all = all->next) {
+	for (all = first ; NULL != all ; all = all->next) {
+		vaddr_t map_addr;
+		int map_sz;
+
 		if (!all->is_composite_loaded) continue;
 		n++;
 
@@ -1950,24 +1990,24 @@ static void make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 		assert(all->is_composite_loaded);
 		h = all->cobj;
 		assert(h);
-		obj_size = h->size;
-		
-		spdid_inc++;
-		h->id = spdid_inc;
 
-		mem = mmap((void*)heap_ptr_val, obj_size, PROT_WRITE | PROT_READ,
-			   MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
-		if (MAP_FAILED == mem) {
-			perror("Couldn't map test component into the boot component");
-			exit(-1);
+		obj_size = round_up_to_cacheline(h->size);
+		map_addr = round_up_to_page(heap_ptr_val);
+		map_sz = (int)obj_size - (int)(map_addr-(vaddr_t)heap_ptr_val);
+		if (map_sz > 0) {
+			mem = mmap((void*)map_addr, map_sz, PROT_WRITE | PROT_READ,
+				   MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+			if (MAP_FAILED == mem) {
+				perror("Couldn't map test component into the boot component");
+				exit(-1);
+			}
 		}
-		printl(PRINT_HIGH, "boot component: placing %s image @ %p from %p:%d\n", 
-		       all->obj, mem, h, obj_size);
-		memcpy(mem, h, obj_size);
+		printl(PRINT_HIGH, "boot component: placing %s:%d @ %p, copied from %p:%d\n", 
+		       all->obj, service_get_spdid(all), heap_ptr_val, h, obj_size);
+		memcpy(heap_ptr_val, h, h->size);
 		*heap_ptr = (void*)(((int)heap_ptr_val) + obj_size);
 	}
-#define ROUND_UP_TO_PAGE(a) (((a)+PAGE_SIZE) & ~(PAGE_SIZE-1))
-	*heap_ptr = (int*)(ROUND_UP_TO_PAGE((int)*heap_ptr));
+	*heap_ptr = (int*)(round_up_to_page((int)*heap_ptr));
 	ci->cos_poly[1] = (vaddr_t)n;
 }
 
@@ -2097,32 +2137,24 @@ static void setup_kernel(struct service_symbs *services)
 	}
 	printl(PRINT_DEBUG, "\n");
 
-	s = services;
-	while (s) {
-		if (s->is_composite_loaded) {
-			if (make_cobj_caps(s, s->cobj)) {
-				printl(PRINT_HIGH, "Could not create capabilities in cobj for %s\n", s->obj);
-				exit(-1);
-			}
-		}
-		s = s->next;
-	}
-
 	if ((s = find_obj_by_name(services, ROOT_SCHED)) == NULL) {
 		fprintf(stderr, "Could not find root scheduler\n");
 		exit(-1);
 	}
 	make_spd_scheduler(cntl_fd, s, NULL);
-
-	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;//spd2->spd_handle;
+	assert(!s->is_composite_loaded);
+	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;
 
 	if ((s = find_obj_by_name(services, BOOT_COMP))) {
 		make_spd_boot(s, services);
 	}
 
+	fflush(stdout);
 	if ((s = find_obj_by_name(services, MPD_MGR))) {
 		make_spd_mpd_mgr(s, services);
 	}
+
+	fflush(stdout);
 
 	if ((s = find_obj_by_name(services, CONFIG_COMP)) == NULL) {
 		fprintf(stderr, "Could not find the configuration component.\n");

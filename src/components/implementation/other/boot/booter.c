@@ -1,13 +1,38 @@
 #include <cos_component.h>
-#include <print.h>
 
+#include <print.h>
 #include <mem_mgr.h>
 #include <sched.h>
 #include <cos_alloc.h>
-#include <cobj_format.h>
 
+#include <cobj_format.h>
+#include <cos_vect.h>
+
+COS_VECT_CREATE_STATIC(spd_info_addresses);
 extern struct cos_component_information cos_comp_info;
 struct cobj_header *hs[MAX_NUM_SPDS+1];
+
+int cinfo_map(spdid_t spdid, vaddr_t map_addr, spdid_t target)
+{
+	vaddr_t cinfo_addr;
+
+	cinfo_addr = (vaddr_t)cos_vect_lookup(&spd_info_addresses, target);
+	if (0 == cinfo_addr) return -1;
+	if (map_addr != 
+	    (mman_alias_page(cos_spd_id(), cinfo_addr, spdid, map_addr))) {
+		return -1;
+	}
+
+	return 0;
+}
+
+spdid_t cinfo_get_spdid(int iter)
+{
+	if (iter > MAX_NUM_SPDS) return 0;
+	if (hs[iter] == NULL) return 0;
+
+	return hs[iter]->id;
+}
 
 static int boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci)
 {
@@ -38,23 +63,6 @@ static int boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_in
 		case COBJ_SYMB_COMP_INFO:
 			*comp_info = symb->vaddr;
 			break;
-/* 		case COBJ_SYMB_UCAP_TBL: */
-/* 			if (cos_spd_cntl(COS_SPD_UCAP_TBL, spdid, symb->vaddr, 0)) BUG(); */
-/* 			break; */
-/* 		case COBJ_SYMB_UPCALL: */
-/* 			if (cos_spd_cntl(COS_SPD_UPCALL_ADDR, spdid, symb->vaddr, 0)) BUG(); */
-/* 			uc = symb->vaddr; */
-/* 			break; */
-/* 		case COBJ_SYMB_RAS_START: */
-/* 		case COBJ_SYMB_RAS_END: */
-/* 			if (cos_spd_cntl(COS_SPD_ATOMIC_SECT, spdid, symb->vaddr, ras_index++)) BUG(); */
-/* 			break; */
-/* 		case COBJ_SYMB_SPDID: */
-/* 			*spdid_addr = symb->vaddr; */
-/* 			break; */
-/* 		case COBJ_SYMB_HEAPPTR: */
-/* 			*heap_ptr_addr = symb->vaddr; */
-/* 			break; */
 		default:
 			printc("boot: Unknown symbol type %d\n", symb->type);
 			break;
@@ -93,6 +101,10 @@ static void boot_symb_process(struct cobj_header *h, spdid_t spdid, vaddr_t heap
 		boot_spd_set_symbs(h, spdid, ci);
 		ci->cos_heap_ptr = heap_val;
 		ci->cos_this_spd_id = spdid;
+
+		/* save the address of this page for later retrieval
+		 * (e.g. to manipulate the stack pointer) */
+		cos_vect_add_id(&spd_info_addresses, (void*)round_to_page(ci), spdid);
 	}
 }
 
@@ -127,7 +139,7 @@ static int boot_spd_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 			/* data left on a page to copy over */
 			page_left = (left > PAGE_SIZE) ? PAGE_SIZE : left;
 			dsrc = cos_get_heap_ptr();
-			cos_set_heap_ptr(cos_get_heap_ptr() + PAGE_SIZE);
+			cos_set_heap_ptr((void*)(((unsigned long)cos_get_heap_ptr()) + PAGE_SIZE));
 			if ((vaddr_t)dsrc != mman_get_page(cos_spd_id(), (vaddr_t)dsrc, 0)) BUG();
 
 			if (sect->flags & COBJ_SECT_ZEROS) {
@@ -139,8 +151,6 @@ static int boot_spd_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 
 			/* Check if special symbols that need
 			 * modification are in this page */
-//			boot_symb_reify(dsrc, dest_daddr, heap_ptr_addr, boot_spd_end(h));
-//			boot_symb_reify_16(dsrc, dest_daddr, spdid_addr, (u16_t)spdid);
 			boot_symb_process(h, spdid, boot_spd_end(h), dsrc, dest_daddr, comp_info);
 			
 			if (dest_daddr != (mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr))) BUG();
@@ -186,7 +196,10 @@ static int boot_spd_thd(spdid_t spdid)
 {
 	int new_thd;
 
-	if ((new_thd = sched_create_thread_default(cos_spd_id(), spdid)) < 0) BUG();
+	/* Create a thread IF the component requested one */
+	if ((new_thd = sched_create_thread_default(cos_spd_id(), spdid)) < 0) {
+		return -1;
+	}
 	
 	return new_thd;
 }
@@ -194,13 +207,21 @@ static int boot_spd_thd(spdid_t spdid)
 static void boot_find_cobjs(struct cobj_header *h, int n)
 {
 	int i;
-	vaddr_t start, end;
+	vaddr_t start, end, size;
 
 	start = (vaddr_t)h;
 	hs[0] = h;
 	for (i = 1 ; i < n ; i++) {
-		end = start + h[i-1].size;
-		hs[i] = (struct cobj_header*)end;
+		int j = 0, size = 0, tot = 0;
+
+		size = h->size;
+		for (j = 0 ; j < (int)h->nsect ; j++) {
+			tot += cobj_sect_size(h, j);
+		}
+		printc("cobj found at %x:%d, size %d\n", hs[i-1], size, tot);
+
+		end = start + round_up_to_cacheline(size);
+		hs[i] = h = (struct cobj_header*)end;
 		start = end;
 	}
 	hs[n] = NULL;
@@ -218,6 +239,7 @@ static void boot_create_system(void)
 		
 		h = hs[i];
 		if ((spdid = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG();
+		//printc("spdid %d, h->id %d\n", spdid, h->id);
 		assert(spdid == h->id);
 		sect = cobj_sect_get(h, 0);
 		if (cos_spd_cntl(COS_SPD_LOCATION, spdid, sect->vaddr, SERVICE_SIZE)) BUG();
@@ -232,14 +254,15 @@ static void boot_create_system(void)
 		h = hs[i];
 
 		if (boot_spd_caps(h, h->id)) BUG();
-		printc("loaded spdid %d \n", h->id);
+		//printc("loaded spdid %d \n", h->id);
 	}
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;
 		h = hs[i];
 		
-		if (-1 == boot_spd_thd(h->id)) BUG();
-		printc("bootstrapped spdid %d \n", h->id);
+		if (-1 != boot_spd_thd(h->id)) {
+			printc("bootstrapped spdid %d \n", h->id);
+		}
 	}
 }
 
@@ -248,6 +271,7 @@ void cos_init(void *arg)
 	struct cobj_header *h;
 	int num_cobj;
 
+	cos_vect_init_static(&spd_info_addresses);
 	h = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj = (int)cos_comp_info.cos_poly[1];
 	boot_find_cobjs(h, num_cobj);

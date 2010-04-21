@@ -321,7 +321,7 @@ void spd_free_all(void)
 	
 	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
 		if (!(spds[i].spd_info.flags & SPD_FREE)) {
-			spd_free_mm(&spds[i]);
+//			spd_free_mm(&spds[i]);
 			spd_free(&spds[i]);
 		}
 	}

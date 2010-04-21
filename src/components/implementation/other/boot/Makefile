@@ -1,7 +1,7 @@
 C_OBJS=booter.o
 ASM_OBJS=
 COMPONENT=boot.o
-INTERFACES=
+INTERFACES=cinfo
 DEPENDENCIES=sched print mem_mgr
 IF_LIB=
 ADDITIONAL_LIBS=-lcobj_format

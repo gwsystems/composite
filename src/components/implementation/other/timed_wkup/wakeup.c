@@ -6,7 +6,7 @@
 
 void cos_init(void)
 {
-	u64_t t;
+	u64_t t = 0;
 	int odd = 1;
 
 	/* 

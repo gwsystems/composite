@@ -44,9 +44,10 @@ struct pt_regs {
 #endif
 
 #define MAX_SERVICE_DEPTH 31
-#define MAX_NUM_THREADS 64
+#define MAX_NUM_THREADS 32
 /* Stacks are 2 * page_size (expressed in words) */
-#define MAX_STACK_SZ    (PAGE_SIZE*2/4)
+//#define MAX_STACK_SZ    (PAGE_SIZE*2/4)
+#define MAX_STACK_SZ    (PAGE_SIZE/(2*4))
 #define ALL_STACK_SZ    (MAX_NUM_THREADS*MAX_STACK_SZ)
 #define MAX_SCHED_HIER_DEPTH 4
 
@@ -59,14 +60,17 @@ struct pt_regs {
 #define PGD_PER_PTBL 1024
 
 #define round_to_page(x) (((unsigned long)x)&PAGE_MASK)
-#define round_up_to_page(x) (round_to_page(x)+PAGE_SIZE)
+#define round_up_to_page(x) (round_to_page((x)+PAGE_SIZE-1))
 #define round_to_pgd_page(x) ((x)&PGD_MASK)
-#define round_up_to_pgd_page(x) (((x)+PGD_RANGE-1)&PGD_MASK)
+#define round_up_to_pgd_page(x) (round_to_pgd_page((x)+PGD_RANGE-1))
 
 #define CACHE_LINE (32)
 #define CACHE_ALIGNED __attribute__ ((aligned (CACHE_LINE)))
 #define HALF_CACHE_ALIGNED __attribute__ ((aligned (CACHE_LINE/2)))
 #define PAGE_ALIGNED __attribute__ ((aligned(PAGE_SIZE)))
+
+#define round_to_cacheline(x) (((unsigned long)x)&~(CACHE_LINE-1))
+#define round_up_to_cacheline(x) (round_to_cacheline(x+CACHE_LINE-1))
 
 #define SHARED_REGION_START (1<<30)  // 1 gig
 #define SHARED_REGION_SIZE PGD_RANGE

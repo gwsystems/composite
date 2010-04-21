@@ -200,22 +200,34 @@ typedef unsigned int page_index_t;
 typedef unsigned short int spdid_t;
 typedef unsigned short int thdid_t;
 
-
 struct restartable_atomic_sequence {
 	vaddr_t start, end;
 };
 
 #define COMP_INFO_POLY_NUM 10
+#define COMP_INFO_INIT_STR_LEN 128
+#define COMP_INFO_STACK_FREELISTS 1
+
+/* Each stack freelist is associated with a thread id that can be used
+ * by the assembly entry routines into a component to decide which
+ * freelist to use. */
+struct cos_stack_freelists {
+	struct stack_fl {
+		vaddr_t freelist;
+		unsigned long thd_id;
+	} freelists[COMP_INFO_STACK_FREELISTS];
+};
 
 struct cos_component_information {
+	struct cos_stack_freelists cos_stacks;
 	long cos_this_spd_id;
 	vaddr_t cos_heap_ptr;
-	vaddr_t cos_stack_freelist;
 	vaddr_t cos_upcall_entry;
 	struct cos_sched_data_area *cos_sched_data_area;
 	vaddr_t cos_user_caps;
 	struct restartable_atomic_sequence cos_ras[COS_NUM_ATOMIC_SECTIONS/2];
 	vaddr_t cos_poly[COMP_INFO_POLY_NUM];
+	char init_string[COMP_INFO_INIT_STR_LEN];
 }__attribute__((aligned(PAGE_SIZE)));
 
 typedef enum {

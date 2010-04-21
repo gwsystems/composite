@@ -19,7 +19,7 @@
 
 #include <mem_mgr.h>
 
-#define MAX_ALIASES 4
+#define MAX_ALIASES 8
 
 #define MEM_MARKED 1
 
@@ -117,6 +117,7 @@ vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_
 	struct mapping_info *base;
 	
 	c = find_cell(s_spd, s_addr, &alias);
+	if (-1 == alias) goto err;
 	assert(alias >= 0 && alias < MAX_ALIASES);
 	base = c->map;
 	for (i = 0 ; i < MAX_ALIASES ; i++) {

@@ -189,11 +189,7 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	 * so we probably need to do this.                             *
 	 ***************************************************************/
 
-//	if (cap_entry->il & IL_INV_UNMAP) {
 	open_close_spd(dest_spd->composite_spd, curr_spd->composite_spd);
-//	} else {
-//		open_spd(&curr_spd->spd_info);
-//	}
 
 	ret->thd_id = thd->thread_id;
 	ret->spd_id = spd_get_index(curr_spd);
@@ -2982,7 +2978,7 @@ COS_SYSCALL long cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long ar
 		break;
 	case COS_CAP_ACTIVATE:
 		/* arg2 == dest spd id */
-		if (!spd_is_active(cspd)) {
+		if (!spd_is_active(cspd) || 0 == arg2) {
 			ret = -1;
 			break;
 		}
@@ -3178,7 +3174,6 @@ COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		spd_make_active(spd);
 
 		assert(spd->composite_spd);
-		assert(pgtbl_vaddr_to_kaddr(spd->composite_spd->pg_tbl, (vaddr_t)0x43c00000));
 
 		break;
 	}
