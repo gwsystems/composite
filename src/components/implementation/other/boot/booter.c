@@ -266,7 +266,6 @@ static void boot_create_system(void)
 	}
 }
 
-#include <sched_conf.h>
 void cos_init(void *arg)
 {
 	struct cobj_header *h;
@@ -283,21 +282,6 @@ void cos_init(void *arg)
 
 	/* Assumes that hs have been setup with boot_find_cobjs */
 	boot_create_system();
-
-	{
-		struct cos_array *data;
-		
-		data = cos_argreg_alloc(sizeof(struct cos_array) + 52);
-		assert(data);
-		data->sz = 52;
-		
-		if (sched_comp_config_initstr(cos_spd_id(), data)) {
-			printc("No initstr found.\n");
-			return;
-		}
-		printc("%s\n", data->mem);
-		cos_argreg_free(data);
-	}
 
 	return;
 }
