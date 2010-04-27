@@ -50,7 +50,17 @@ static struct component_init_str *nth_for_sched(spdid_t sched, int n)
 	return &init_strs[idx-1];
 }
 
-struct component_init_str *spd_for_sched(spdid_t sched, spdid_t target)
+static struct component_init_str *init_str_for_spdid(spdid_t spdid)
+{
+	int i;
+
+	for (i = 1 ; init_strs[i].spdid ; i++) {
+		if (spdid == init_strs[i].spdid) return &init_strs[i];
+	}
+	return NULL;
+}
+
+static struct component_init_str *spd_for_sched(spdid_t sched, spdid_t target)
 {
 	int i;
 
@@ -65,10 +75,75 @@ struct component_init_str *spd_for_sched(spdid_t sched, spdid_t target)
 
 int first = 1;
 
+static int params_initstr(char *s, char **start, int *sz)
+{
+	char *b = strchr(s, (int)'\''), *e;
+	
+	if (NULL == b) {
+		*start = NULL;
+	} else {
+		b++;
+		e = strchr(b, (int)'\'');
+		*start = b;
+		*sz = e-b;
+	}
+	return 0;
+}
+
+int sched_comp_config_initstr(spdid_t spdid, struct cos_array *data)
+{
+	int max_len, str_len = 0;
+	struct component_init_str *cis;
+	char *s;
+
+	if (first) {
+		first = 0;
+		parse_initialization_strings();
+	}
+	if (!cos_argreg_arr_intern(data)) {
+		BUG(); 
+		return -1;
+	}
+	max_len = data->sz;
+
+	cis = init_str_for_spdid(spdid);
+	if (NULL == cis) return -1; /* no dice */
+
+	params_initstr(cis->init_str, &s, &str_len);
+	if (str_len+1 > max_len) {
+		BUG(); 
+		return -1;
+	}
+
+	memcpy(data->mem, s, str_len);
+	data->mem[str_len] = '\0';
+
+
+	data->sz = str_len;
+
+	return 0;
+}
+
+static int params_sched(char *s, char **start, int *sz)
+{
+	char *c = strchr(s, (int)'\'');
+
+	if (!c) {
+		*start = s;
+		*sz = strlen(s);
+	} else {
+		*start = s;
+		*sz = c-s;
+	}
+
+	return 0;
+}
+
 int sched_comp_config_default(spdid_t spdid, spdid_t target, struct cos_array *data)
 {
 	int max_len, str_len;
 	struct component_init_str *cis;
+	char *s;
 
 	if (first) {
 		first = 0;
@@ -84,13 +159,16 @@ int sched_comp_config_default(spdid_t spdid, spdid_t target, struct cos_array *d
 	if (0 == cis->spdid) return -1; /* no dice */
 	assert(cis->schedid == spdid);
 
-	str_len = strlen(cis->init_str);
+	params_sched(cis->init_str, &s, &str_len);
+	//str_len = strlen(cis->init_str);
 	if (str_len+1 > max_len) {
 		BUG(); 
 		return -1;
 	}
 
-	strcpy(data->mem, cis->init_str);
+	memcpy(data->mem, s, str_len);
+	data->mem[str_len] = '\0';
+	//strcpy(data->mem, cis->init_str);
 	data->sz = str_len;
 
 	return 0;
@@ -100,6 +178,7 @@ spdid_t sched_comp_config(spdid_t spdid, int i, struct cos_array *data)
 {
 	int max_len, str_len;
 	struct component_init_str *cis;
+	char *s;
 
 	if (first) {
 		first = 0;
@@ -116,13 +195,16 @@ spdid_t sched_comp_config(spdid_t spdid, int i, struct cos_array *data)
 	if (0 == cis->spdid) return 0; /* no dice */
 	assert(cis->schedid == spdid);
 
-	str_len = strlen(cis->init_str);
+	params_sched(cis->init_str, &s, &str_len);
+	//str_len = strlen(cis->init_str);
 	if (str_len+1 > max_len) {
 		BUG(); 
-		return 0;
+		return -1;
 	}
 
-	strcpy(data->mem, cis->init_str);
+	memcpy(data->mem, s, str_len);
+	data->mem[str_len] = '\0';
+	//strcpy(data->mem, cis->init_str);
 	data->sz = str_len;
 
 	return cis->spdid;

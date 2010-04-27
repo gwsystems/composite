@@ -1092,6 +1092,7 @@ int sched_create_thread_default(spdid_t spdid, spdid_t target)
 
 	if (sched_comp_config_default(cos_spd_id(), target, data)) goto err;
 	new = sched_setup_thread_arg((char *)data->mem, fp_create_spd_thd, (void*)t);
+	cos_argreg_free(data);
 	cos_sched_lock_release();
 	printc("sched %d: created default thread %d in spdid %d (requested by %d from %d)\n",
 	       (unsigned int)cos_spd_id(), new->id, target, sched_get_current()->id, spdid);

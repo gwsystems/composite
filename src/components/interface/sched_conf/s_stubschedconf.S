@@ -11,3 +11,4 @@
 	
 cos_asm_server_stub_spdid(sched_comp_config_default)
 cos_asm_server_stub_spdid(sched_comp_config)
+cos_asm_server_stub_spdid(sched_comp_config_initstr)

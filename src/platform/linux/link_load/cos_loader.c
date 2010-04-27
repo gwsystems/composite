@@ -2044,7 +2044,7 @@ static void format_config_info(struct service_symbs *ss, struct component_init_s
 		data[i].schedid = ss->scheduler ? 
 			((struct spd_info *)(ss->scheduler->extern_info))->spd_handle : 
 			0;
-		
+
 		if (0 == strcmp(" ", info)) info = "";
 		strcpy(data[i].init_str, info);
 	}
