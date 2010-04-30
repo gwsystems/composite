@@ -6,11 +6,12 @@
  */
 
 #define __ASM__
-#include <cos_asm_stacks.h>
+#include <cos_asm_simple_stacks.h>
 #include <consts.h>
 
 #define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
+
 
 .bss
 .align 32
@@ -19,7 +20,7 @@ nil:
 	.rep 2048
 	.long 0
 	.endr
-/*
+
 .globl cos_static_stack
 cos_static_stack:
 	.rep ALL_STACK_SZ
@@ -28,8 +29,6 @@ cos_static_stack:
 .globl cos_static_stack_end
 cos_static_stack_end:
 	.long 0
-
-*/
 	
 .text
 .globl cos_upcall_entry

@@ -6,4 +6,4 @@ DEPENDENCIES=printc mem_mgr stack_trace sched_conf
 IF_LIB=../complib.o
 
 include Makefile.subsubdir
-
+MANDITORY_LIB=simple_stklib.o

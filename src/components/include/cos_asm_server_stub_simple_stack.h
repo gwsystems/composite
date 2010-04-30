@@ -6,11 +6,14 @@
  * Public License v2.
  */
 
-#ifndef COS_ASM_SERVER_STUB_H
-#define COS_ASM_SERVER_STUB_H
+#ifndef COS_ASM_SERVER_STUB_SIMPLE_STACK_H
+#define COS_ASM_SERVER_STUB_SIMPLE_STACK_H
 
 #define RET_CAP ((1<<20)-1)
-#include <cos_asm_stacks.h>
+#include <cos_asm_simple_stacks.h>
+
+
+
 
 /* 
  * The register layout is paired with that in ipc.S, %ecx holding the
@@ -30,7 +33,6 @@ name##_inv:                       \
         pushl %esi;	          \
         pushl %ebx;	          \
         call name ; 		  \
-        addl $16, %esp;           \
                                   \
         movl %eax, %ecx;          \
         movl $RET_CAP, %eax;	  \
@@ -50,7 +52,6 @@ name##_inv:                             \
         pushl %esi;	                \
         pushl %ecx;	                \
         call name ; 		        \
-        addl $16, %esp;                 \
                                         \
         movl %eax, %ecx;                \
         movl $RET_CAP, %eax;	        \

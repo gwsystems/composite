@@ -7,4 +7,4 @@ IF_LIB=
 ADDITIONAL_LIBS=-lcobj_format
 
 include ../../Makefile.subsubdir
-
+MANDITORY_LIB=simple_stklib.o

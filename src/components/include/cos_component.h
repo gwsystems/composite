@@ -11,6 +11,20 @@
 #include <consts.h>
 #include <cos_types.h>
 
+/**
+ * FIXME: Please remove this since it is no longer needed
+ */
+struct cos_stack {
+    struct cos_stack *next;
+    u32_t stack[MAX_STACK_SZ];
+};
+
+
+extern struct cos_stack cos_stack_space[MAX_NUM_THREADS];
+//extern struct cos_stack *cos_stack_free_list;
+extern int stkmgr_stack_space[ALL_STACK_SZ];
+void *cos_stack_free_list;
+
 extern struct cos_sched_data_area cos_sched_notifications;
 extern struct cos_component_information cos_comp_info;
 
