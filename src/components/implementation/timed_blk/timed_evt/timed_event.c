@@ -39,9 +39,15 @@ const event_time_t TIMER_NO_EVENTS = ~0;
 
 struct thread_event {
 	event_time_t event_expiration;
-	unsigned int period, dl_missed; /* missed deadlines */
 	unsigned short int thread_id, flags;
 	struct thread_event *next, *prev;
+
+	/* if flags & TE_PERIODIC */
+	unsigned int period;
+	unsigned short int dl_missed; /* missed deadlines */
+	unsigned int samples, miss_samples;
+	long long lateness_tot, miss_lateness_tot;
+	long long completion;
 };
 
 static struct thread_event events, periodic;
@@ -173,7 +179,21 @@ static void __event_expiration(event_time_t time, struct thread_event *events)
 		tid = tmp->thread_id;
 		if (tmp->flags & TE_PERIODIC) {
 			/* thread hasn't blocked? deadline miss! */
-			if (!b) tmp->dl_missed++;
+			if (!b) {
+				tmp->dl_missed++;
+				/* save time of deadline */
+				if (!tmp->completion) rdtscll(tmp->completion);
+			} else {
+				if (tmp->completion) { /* on time, compute lateness */
+					long long t;
+
+					rdtscll(t);
+					tmp->lateness_tot += (long)(tmp->completion - t);
+					tmp->samples++;
+					tmp->completion = 0;
+				}
+			}
+
 			/* Next periodic deadline! */
 			tmp->event_expiration += tmp->period;
 			insert_pevent(tmp);
@@ -297,6 +317,104 @@ int timed_event_wakeup(spdid_t spdinv, unsigned short int thd_id)
 }
 
 
+static long te_get_reset_lateness(struct thread_event *te)
+{
+	long avg;
+
+	avg = te->lateness_tot/te->samples;
+	te->lateness_tot = 0;
+	te->samples = 0;
+
+	return avg;
+}
+static long te_get_reset_miss_lateness(struct thread_event *te)
+{
+	long avg;
+
+	avg = te->miss_lateness_tot/te->miss_samples;
+	te->miss_lateness_tot = 0;
+	te->miss_samples = 0;
+
+	return avg;
+}
+
+long periodic_wake_get_lateness(unsigned short int tid)
+{
+	struct thread_event *te;
+	spdid_t spdid = cos_spd_id();
+	long ret;
+
+	TAKE(spdid);
+	te = te_pget(tid);
+	if (NULL == te) BUG();
+	if (!(te->flags & TE_PERIODIC)) {
+		RELEASE(spdid);
+		return 0;
+	}
+	ret = te_get_reset_lateness(te);
+	RELEASE(spdid);
+	
+	return ret;
+}
+
+long periodic_wake_get_miss_lateness(unsigned short int tid)
+{
+	struct thread_event *te;
+	spdid_t spdid = cos_spd_id();
+	long ret;
+
+	TAKE(spdid);
+	te = te_pget(tid);
+	if (NULL == te) BUG();
+	if (!(te->flags & TE_PERIODIC)) {
+		RELEASE(spdid);
+		return 0;
+	}
+	ret = te_get_reset_miss_lateness(te);
+	RELEASE(spdid);
+	
+	return ret;
+}
+
+int periodic_wake_get_misses(unsigned short int tid)
+{
+	struct thread_event *te;
+	spdid_t spdid = cos_spd_id();
+	int m;
+
+	TAKE(spdid);
+	te = te_pget(tid);
+	if (NULL == te) BUG();
+	if (!(te->flags & TE_PERIODIC)) {
+		RELEASE(spdid);
+		return -1;
+	}
+	m = te->dl_missed;
+	te->dl_missed = 0;
+	RELEASE(spdid);
+
+	return m;
+}
+
+int periodic_wake_get_period(unsigned short int tid)
+{
+	struct thread_event *te;
+	spdid_t spdid = cos_spd_id();
+	int p;
+
+	TAKE(spdid);
+	te = te_pget(tid);
+	if (NULL == te) BUG();
+	if (!(te->flags & TE_PERIODIC)) {
+		RELEASE(spdid);
+		return -1;
+	}
+	p = (int)te->period;
+	RELEASE(spdid);
+
+	return p;
+}
+
 int periodic_wake_create(spdid_t spdinv, unsigned int period)
 {
 	struct thread_event *te;
@@ -357,6 +475,7 @@ int periodic_wake_wait(spdid_t spdinv)
 	spdid_t spdid = cos_spd_id();
 	struct thread_event *te;
 	u16_t tid = cos_get_thd_id();
+	long long t;
 
 	TAKE(spdid);
 	te = te_pget(tid);
@@ -365,6 +484,20 @@ int periodic_wake_wait(spdid_t spdinv)
 		
 	assert(!EMPTY_LIST(te, next, prev));
 	te->flags |= TE_BLOCKED;
+
+	rdtscll(t);
+	if (te->completion) {	/* we're late */
+		long diff;
+
+		diff = (long)(t - te->completion);
+		te->lateness_tot += diff;
+		te->samples++;
+		te->miss_lateness_tot += diff;
+		te->miss_samples++;
+		te->completion = 0;
+	} else {		/* on time! */
+		te->completion = t;
+	}
 	RELEASE(spdid);
 
 	if (-1 == sched_block(spdid, 0)) {

@@ -3,6 +3,7 @@
 #define COS_FMT_PRINT
 #include <print.h>
 #include <errno.h>
+#include <sched.h>
 
 int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff)
 {
@@ -39,6 +40,7 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 
 void sched_timeout(spdid_t spdid, unsigned long amnt) { BUG(); return; }
 
+int sched_priority(unsigned short int tid) { BUG(); return 0; }
 
 int sched_timeout_thd(spdid_t spdid)
 {

@@ -2044,6 +2044,7 @@ phys_addr_t pgtbl_rem_ret(phys_addr_t pgtbl, vaddr_t va)
 		return 0;
 	}
 	val = (phys_addr_t)(pte_val(*pte) & PTE_MASK);
+	pte->pte_low = 0;
 
 	return val;
 }

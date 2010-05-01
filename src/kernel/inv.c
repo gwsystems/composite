@@ -1936,7 +1936,7 @@ static inline void update_thd_evt_state(struct thread *t, int flags, unsigned lo
 	int i;
 	struct thd_sched_info *tsi;
 
-	assert(flags != COS_SCHED_EVT_NIL);
+	//assert(flags != COS_SCHED_EVT_NIL);
 
 	for (i = 0 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
 		struct spd *sched;
@@ -1970,7 +1970,9 @@ static inline void update_thd_evt_state(struct thread *t, int flags, unsigned lo
 			 * FIXME: should a pending flag update
 			 * override an activate one????
 			 */
-			COS_SCHED_EVT_FLAGS(tsi->thread_notifications) = flags;
+			if (flags != COS_SCHED_EVT_NIL) {
+				COS_SCHED_EVT_FLAGS(tsi->thread_notifications) = flags;
+			}
 			/* handle error conditions of list manip here??? */
 			update_evt_list(tsi);
 		}
@@ -2004,7 +2006,7 @@ void update_sched_evts(struct thread *new, int new_flags,
 	if (new_flags != COS_SCHED_EVT_NIL) {
 		update_thd_evt_state(new, new_flags, 0);
 	}
-	if (prev_flags != COS_SCHED_EVT_NIL) {
+	if (elapsed || prev_flags != COS_SCHED_EVT_NIL) {
 		update_thd_evt_state(prev, prev_flags, elapsed);
 	}
 

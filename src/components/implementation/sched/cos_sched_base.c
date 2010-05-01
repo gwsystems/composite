@@ -868,6 +868,16 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 		       thd->blocking_component == spdid))) goto warn;
 	assert(!sched_thd_free(thd));
 	assert(!sched_thd_blocked(thd));
+	/* dependency thread blocked??? */
+	if (dependency_thd) {
+		dep = sched_get_mapping(dependency_thd);
+		if (!dep) {
+			printc("Dependency on non-existent thread %d.\n", dependency_thd);
+			goto err;
+		}
+		if (sched_thd_blocked(dep)) goto err;
+	}
+
 	fp_pre_block(thd);
 	/* if we already got a wakeup call for this thread */
 	if (thd->wake_cnt) {
@@ -879,12 +889,6 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	 * that it can be selected to execute and its
 	 * dependency list walked. */
 	if (dependency_thd) {
-		dep = sched_get_mapping(dependency_thd);
-		if (!dep) {
-			printc("Dependency on non-existent thread %d.\n", dependency_thd);
-			fp_pre_wakeup(thd);
-			goto err;
-		}
 		thd->dependency_thd = dep;
 		thd->flags |= THD_DEPENDENCY;
 		assert(!thd->contended_component);
@@ -1397,6 +1401,23 @@ static int sched_setup_brand(spdid_t spdid)
 	b_id = cos_brand_cntl(COS_BRAND_CREATE_HW, 0, 0, spdid);
 
 	return b_id;
+}
+
+int sched_priority(unsigned short int tid)
+{
+	struct sched_thd *t;
+	int p;
+
+	cos_sched_lock_take();
+	t = sched_get_mapping(tid);
+	if (!t) {
+		cos_sched_lock_release();
+		return -1;
+	}
+	p = t->metric.priority;
+	cos_sched_lock_release();
+
+	return p;
 }
 
 unsigned long sched_timestamp(void)

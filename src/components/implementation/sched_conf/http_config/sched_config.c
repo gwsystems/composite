@@ -165,6 +165,7 @@ int sched_comp_config_default(spdid_t spdid, spdid_t target, struct cos_array *d
 		BUG(); 
 		return -1;
 	}
+	if (str_len == 0) return 1;
 
 	memcpy(data->mem, s, str_len);
 	data->mem[str_len] = '\0';
