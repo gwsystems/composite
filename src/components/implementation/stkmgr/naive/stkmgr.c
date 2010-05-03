@@ -22,7 +22,7 @@
 
 #define STK_PER_PAGE (PAGE_SIZE/MAX_STACK_SZ)
 #define NUM_PAGES (ALL_STACK_SZ/STK_PER_PAGE)
-#define MAX_NUM_STACKS 8 // MAX_NUM_THREADS
+#define MAX_NUM_STACKS 6 // MAX_NUM_THREADS
 
 
 enum stk_flags {
@@ -45,6 +45,7 @@ struct cos_stk {
  */
 struct cos_stk_item {
     struct cos_stk_item *next;
+    struct cos_stk_item *prev;
     vaddr_t d_addr;
     void *hptr;
     struct cos_stk *stk;
@@ -61,7 +62,11 @@ struct spd_stk_info {
     unsigned int num_grants;
     unsigned int num_returns;
     unsigned int thd_count[MAX_NUM_THREADS];
-    struct cos_stk_item *stk_list;      
+    //struct cos_stk_list {
+    //    struct stk_list *next, *prev;
+    //    struct cos_stk_item *stk_item;
+    //}stk_list;
+    struct cos_stk_item stk_list;      
 };
 
 struct blocked_thd {
@@ -100,6 +105,8 @@ cos_init(void *arg){
     memset(spd_stk_info_list, 0, sizeof(struct spd_stk_info) * MAX_NUM_SPDS);
     for(i = 0; i < MAX_NUM_SPDS; i++){
         spd_stk_info_list[i].spdid = i;
+        
+        INIT_LIST(&spd_stk_info_list[i].stk_list, next, prev);
     }
 
     // Initalize our free stack list
@@ -107,7 +114,6 @@ cos_init(void *arg){
         
         // put stk list is some known state
         stk_item = &(all_stk_list[i]);
-        stk_item->next = NULL;
         stk_item->stk  = NULL;
         
         // allocate a page
@@ -181,68 +187,93 @@ stkmgr_got_from_list(void){
 }
 
 void
-stkmgr_return_stack(spdid_t s_spdid, unsigned int addr){
+stkmgr_return_stack(spdid_t s_spdid, void *addr){
     spdid_t spdid;
     struct cos_stk_item *stk_item;
-    struct blocked_thd *bthd;
+    struct blocked_thd *bthd, *bthd_next;
     short int found = 0;
-    int a;
-    DOUT("$$$$$: %X\n", addr); 
+    int i;
+    DOUT("$$$$$: %X\n", (unsigned int)addr); 
     DOUT("Return of s_spdid is: %d from thd: %d\n", s_spdid,
     cos_get_thd_id());
    
+    
+    i = 0;
     // Find which component has this stack so we can unmap it
+    // FIXME:  Doing a search of larger space than needed for test;
     for(spdid = 0; spdid < MAX_NUM_SPDS; spdid++){
-        stk_item = spd_stk_info_list[spdid].stk_list;
-        for(; stk_item != NULL; stk_item = stk_item->next){
-                a = (unsigned int)(stk_item->hptr);
-                a -= 4096;
-                DOUT("Comparing spdid: %d, addr: %X, passed addr: %X, d_addr: %X, hptr: %X\n", 
+        stk_item = FIRST_LIST(&spd_stk_info_list[spdid].stk_list, next, prev);
+        for(; stk_item != &spd_stk_info_list[spdid].stk_list; stk_item = stk_item->next){
+                DOUT("Comparing spdid: %d,  passed addr: %X, d_addr: %X, hptr: %X\n", 
                      (int)spdid,
-                     (unsigned int)a,
-                     addr,
-                     (unsigned int)stk_item->d_addr-4096,
+                     (unsigned int)addr,
+                     (unsigned int)stk_item->d_addr+4096,
                      (unsigned int)stk_item->hptr);
                     
-            if((unsigned int)stk_item->d_addr-4096 == addr){
+            if((unsigned int)stk_item->d_addr+4096 == addr){
                 printc("Found stack item in spdid %d\n", spdid);
                 found = 1;
                 goto found_stk;
+                //break;
             }
+            i++;
+            DOUT("i: %d\n", i);
+            if(i > MAX_NUM_STACKS){
+                assert(0);
+            }
+
         }
     }
 
 found_stk:
     if(found != 1){
-        DOUT("Unable to locate stack at address: %X\n", addr);
+        DOUT("Unable to locate stack at address: %X\n", (unsigned int)addr);
         assert(0);
     }
-    if(spdid != s_spdid){
-        DOUT("OH SHIT! Mis matched comps\n");
-        assert(0);
-    }
+    //if(spdid != s_spdid){
+    //    DOUT("OH SHIT! Mis matched comps\n");
+    //    assert(0);
+    //}
     DOUT("Releasing Stack\n");
     //stkmgr_release_stack(spdid, (vaddr_t)stk_item->hptr);
-    mman_release_page(spdid, (vaddr_t)(stk_item->d_addr), 0); 
+    mman_release_page(s_spdid, (vaddr_t)(stk_item->d_addr), 0); 
     DOUT("Putting stack back on free list\n");
-    // add item back onto our free list 
     
     // Free our memory to prevent leakage
-    // This sucks.
     memset(stk_item->hptr, 0, PAGE_SIZE);
-    
+   
+    DOUT("Removing from local list\n");
+    // remove from s_spdid's stk_list;
+    REM_LIST(stk_item, next, prev);
+
+    // add item back onto our free list 
     stk_item->next = free_stack_list;   
     free_stack_list = stk_item; 
 
     // Wake up 
-    printc("waking up threads\n");
-    bthd = FIRST_LIST(&blocked_thd_list, next, prev);
-    for(; bthd != &blocked_thd_list; bthd = bthd->next){
-        printc("\tWakeUP: %d\n", bthd->thd_id);
-
-        sched_wakeup(cos_spd_id(), bthd->thd_id);        
+    DOUT("waking up threads\n");
+    spdid = cos_spd_id();
+    if(sched_component_take(spdid)){
+        assert(0);
     }
 
+
+
+    bthd = FIRST_LIST(&blocked_thd_list, next, prev);
+    for(; bthd != &blocked_thd_list; bthd = bthd_next){
+        bthd_next = FIRST_LIST(bthd, next, prev);
+        DOUT("\tWakeing UP thd: %d", bthd->thd_id);
+        REM_LIST(bthd, next, prev);
+        free(bthd);
+        sched_wakeup(cos_spd_id(), bthd->thd_id);        
+        printc(" ......UP\n");
+    }
+    
+    DOUT("All thds now awake\n");
+    if(sched_component_release(spdid)){
+        assert(0);
+    }
+    
     return;
 }
 
@@ -255,7 +286,7 @@ stkmgr_full_revoke(spdid_t *id){
     int i;
     // Pick a stack to revoke
     for(i = 0; i < MAX_NUM_SPDS; i++){
-        stk_item = spd_stk_info_list[i].stk_list;
+        stk_item = &spd_stk_info_list[i].stk_list;
         DOUT("<stkmgr>: trying to revoke from: %d\n", i); 
         if(stk_item == NULL){ 
             DOUT("<stkmgr>: stk_item is NULL\n");
@@ -302,7 +333,7 @@ stkmgr_revoke_stack(void){
     DOUT("<stkmgr>: Attempting to revoke a stack\n");
   
     for(i = 0; i < MAX_NUM_SPDS; i++){
-        item_list_head = spd_stk_info_list[i].stk_list;
+        item_list_head = &spd_stk_info_list[i].stk_list;
         DOUT("<stkmgr>: trying to revoke from: %d\n", i); 
         if(item_list_head == NULL){ 
             DOUT("<stkmgr>: item_list_head is NULL\n");
@@ -420,72 +451,12 @@ ret_stack:
 
 
 /**
- * get stack
- */
-#if 0
-vaddr_t
-stkmgr_get_stack(spdid_t d_spdid, vaddr_t d_addr){
-        struct cos_stk_item *stk_item;
-        struct cos_stk_item *spd_stk_list;
-        vaddr_t stk_addr;
-        int size;
-
-        DOUT("<stkmgr>: stkmgr_get_stack for, spdid: %d, dest: %X\n",
-               d_spdid,
-               (unsigned int)d_addr);
-
-        if(free_stack_list == NULL){
-            DOUT("<stmgr>: Stack list is null, we need to revoke a stack\n");
-            stk_item = stkmgr_revoke_stack();
-        }else{
-            stk_item = free_stack_list;
-        }
-
-        stk_item->stk->flags = 0xDEADBEEF;
-        stk_item->stk->next = (void *)0xDEADBEEF;
-        stk_addr = (vaddr_t)(stk_item->hptr);
-        if(d_addr != mman_alias_page(cos_spd_id(), stk_addr, d_spdid, d_addr)){
-            DOUT("<stkmgr>: Unable to map stack into component");
-            assert(0);
-        }
-
-        // Remove stack from the free list
-        free_stack_list = free_stack_list->next;
-
-        spd_stk_list = cos_vect_lookup(&spd_stk_vect, d_spdid);
-        if(spd_stk_list == NULL){
-            stk_item->next = NULL;
-            DOUT("<stkmgr>: Adding First Stack To Comp: %d stk list\n", d_spdid);
-            cos_vect_add_id(&spd_stk_vect, stk_item, d_spdid);
-        }else{
-            size = 0;
-            // add new stk item to the front of the stack list
-            while(spd_stk_list->next != NULL){
-                spd_stk_list = spd_stk_list->next;
-                size++;
-            }
-            spd_stk_list->next = stk_item;
-            DOUT("<stkmgr>: Adding stack to end of Comp %d, current size: %d\n", d_spdid, size);
-           /* 
-            stk_item->next = spd_stk_list;
-            spd_stk_list = stk_item;
-           */
-        }
-
-        return d_addr;
-}
-#endif
-
-
-/**
  * Moves a stack from 1 spdid to another
  */
 int
 stkmgr_move_stack(spdid_t s_spdid, vaddr_t s_addr, spdid_t d_spdid, vaddr_t d_addr){
     return 0;
 }
-
-
 
 /**
  * gets the number of stacks associated with a given
@@ -501,7 +472,7 @@ stkmgr_num_alloc_stks(spdid_t s_spdid){
     }
     
     count = 0;
-    stk_item = spd_stk_info_list[s_spdid].stk_list; 
+    stk_item = &spd_stk_info_list[s_spdid].stk_list; 
     while(stk_item != NULL){
         count++;
         stk_item = stk_item->next;
@@ -517,7 +488,7 @@ stkmgr_num_alloc_stks(spdid_t s_spdid){
 struct cos_stk_item *
 stkmgr_request_stack(void){
     struct cos_stk_item *stk_item; 
-    struct blocked_thd bthd;
+    struct blocked_thd *bthd;
     int i;
     
     DOUT("stkmgr_request_stack\n");
@@ -529,28 +500,38 @@ stkmgr_request_stack(void){
     num_blocked_thds++;
     DOUT("Thd %d is waiting for stack\n", cos_get_thd_id());
     
-    /*
+    
     bthd = malloc(sizeof(struct blocked_thd));
-    if(bthd){
+    if(bthd == NULL){
         printc("Malloc failed\n");
         assert(0);
     }
-    */
-    bthd.thd_id = cos_get_thd_id(); 
-    ADD_LIST(&blocked_thd_list, &bthd, next, prev);
-    while(free_stack_list == NULL){
-        // Sleep
-        sched_block(cos_spd_id(), 0);
-    }
-    REM_LIST(&bthd, next, prev);
     
 
-    stk_item = free_stack_list;
-    free_stack_list = free_stack_list->next;
+    spdid_t spdid = cos_spd_id();
+    while(sched_component_take(spdid)){
+        ;
+       assert(0);
+    }
+
+    bthd->thd_id = cos_get_thd_id();
+    DOUT("Adding thd to the blocked list: %d\n", bthd->thd_id);
+    ADD_LIST(&blocked_thd_list, bthd, next, prev);
+    
+    if(sched_component_release(spdid)){
+        assert(0);
+    } 
+
+    DOUT("Blocking thread: %d\n", bthd->thd_id);
+    sched_block(cos_spd_id(), 0);
+    DOUT("Thd %d wokeup and is obtaining a stack\n", cos_get_thd_id());
+    
 
     num_blocked_thds--;
     
-    assert(num_blocked_thds < 0);
+    if(num_blocked_thds < 0){
+        assert(0);
+    }
 
     if(num_blocked_thds == 0){
         for(i = 0; i < MAX_NUM_STACKS; i++){
@@ -574,22 +555,38 @@ stkmgr_request_stack(void){
 static inline void
 get_cos_info_page(spdid_t spdid){
     spdid_t s;
+    int i;
+    int found = 0;
 
     if(spdid > MAX_NUM_SPDS){
        BUG(); 
     }
+    for(i = 0; i < MAX_NUM_SPDS; i++){
+        s = cinfo_get_spdid(spdid);
+        if(!s){
+            printc("Unable to map compoents cinfo page!\n");
+            BUG();
+        }
+            
+        if(s == spdid){
+            found = 1;
+            break;
+        }
+    } 
     
-    s = cinfo_get_spdid(spdid);
-    if(!s){
-        printc("Unable to map compoents cinfo page!\n");
-        BUG();
+    if(!found){
+        DOUT("Could not find cinfo for spdid: %d\n", spdid);
+        assert(0);
     }
     
-    spd_stk_info_list[spdid].ci = malloc(sizeof(struct cos_component_information));
-    if(cinfo_map(cos_spd_id(), (vaddr_t)spd_stk_info_list[spdid].ci, spdid)){
+    void *hp = cos_get_heap_ptr();
+    cos_set_heap_ptr((void*)(((unsigned long)hp)+PAGE_SIZE));
+
+    if(cinfo_map(cos_spd_id(), (vaddr_t)hp, s)){
         DOUT("Could not map cinfo page for %d\n", spdid);
         BUG();
     }
+    spd_stk_info_list[spdid].ci = hp;
     DOUT("mapped -- id: %ld, hp:%x, sp:%x\n",
          spd_stk_info_list[spdid].ci->cos_this_spd_id, 
          (unsigned int)spd_stk_info_list[spdid].ci->cos_heap_ptr,
@@ -622,14 +619,20 @@ stkmgr_grant_stack(spdid_t d_spdid){
             get_cos_info_page(d_spdid);
         }
 
-        // Aquire a stack
-        if(free_stack_list == NULL){
-            printc("<stmgr>: Stack list is null, we need to revoke a stack\n");
-            stk_item = stkmgr_request_stack();
-        }else{
-            DOUT("Getting stack from free list\n");
-            stk_item = free_stack_list;
+        // Get a Stack.
+        while(free_stack_list == NULL){
+            DOUT("Stack list is null, we need to revoke a stack: spdid: %d thdid: %d\n",
+                 d_spdid,
+                 cos_get_thd_id());
+            stkmgr_request_stack();
         }
+
+        stk_item = free_stack_list;
+        free_stack_list = free_stack_list->next;
+        
+        DOUT("Spdid: %d, Thd: %d Obtained a stack\n",
+            d_spdid,
+            cos_get_thd_id());
 
     
         // FIXME:  Race condition
@@ -648,19 +651,13 @@ stkmgr_grant_stack(spdid_t d_spdid){
         DOUT("Mapped page\n");
         stk_item->d_addr = d_addr;
 
-        // Remove stack from the free list
-        free_stack_list = free_stack_list->next;
-       
         // Add stack to allocated stack array
-        stk_item->next = info->stk_list;
-        info->stk_list = stk_item;
-
-        DOUT("Removed from free list\n");
-
+        DOUT("Adding to local spdid stk list\n");
+        ADD_LIST(&spd_stk_info_list[d_spdid].stk_list, stk_item, next, prev); 
+         
         info->thd_count[cos_get_thd_id()]++;
         
-        DOUT("RETURNING stack\n");
-        DOUT("Returning address: %X\n",(unsigned int)d_addr);
+        DOUT("Returning Stack address: %X\n",(unsigned int)d_addr);
 
         return (void *)ret;
 }
@@ -676,7 +673,7 @@ stkmgr_print_stats(void){
     printc("Stack Manager Statistics\n");
     for(i = 0; i < MAX_NUM_STACKS; i++){
         
-        stk_item = spd_stk_info_list[i].stk_list;
+        stk_item = &spd_stk_info_list[i].stk_list;
  
         printc("SPD :%d\n", i);
         for(j = 0; j < MAX_NUM_THREADS; j++){
@@ -686,15 +683,6 @@ stkmgr_print_stats(void){
 }
 
 
-
-/**
- *  stkmgr_exit
- */
-void
-stkmgr_exit(void){
-    //DEBUG("<stkmgr_init> exit\n");
-    return;
-}
 
 void
 bin(void){

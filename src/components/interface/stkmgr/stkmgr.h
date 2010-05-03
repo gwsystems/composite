@@ -16,7 +16,7 @@
 //spdid_t spdid
 vaddr_t stkmgr_get_stack(spdid_t d_spdid, vaddr_t d_addr);
 void * stkmgr_grant_stack(spdid_t d_spdid);
-void stkmgr_return_stack(spdid_t s_spdid, unsigned int addr);
+void stkmgr_return_stack(spdid_t s_spdid, void *addr);
 #endif
 
 

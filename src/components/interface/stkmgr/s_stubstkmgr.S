@@ -10,8 +10,8 @@
 
 .text
 
-/*cos_asm_server_stub_spdid(stkmgr_get_stack)*/
 cos_asm_server_stub_spdid(stkmgr_grant_stack)
 cos_asm_server_stub_spdid(stkmgr_return_stack)
 cos_asm_server_stub(stkmgr_hello_world)
 cos_asm_server_stub(stkmgr_got_from_list)
+

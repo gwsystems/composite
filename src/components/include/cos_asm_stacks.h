@@ -2,7 +2,7 @@
 #define COS_ASM_STACKS_H
 //#include <consts.>
 // FIXME: From consts.h
-//#define SHARED_REGION_START (1<<30)  // 1 gig
+#define THD_ID_SHARED_PAGE (1<<30)  // 1 gig
 
 /* sweeney */
 //#define ARGREG_ADDRESS (SHARED_REGION_START)
@@ -200,6 +200,15 @@
         addl $4, %esp;                          \
         movl %esp, %edx;                        \
         push $0x00;  /* free flags */           \
+                                                \
+        /* Since we are done with this stack    \
+           We should not depend on it anymore */\
+                                                \
+        movl $THD_ID_SHARED_PAGE, %ecx;          \
+        movl (%ecx), %ecx;                      \
+    	movl $stkmgr_stack_space, %esp;	        \
+        shl $11, %ecx;	                        \
+        addl %ecx, %esp;                        \
         /* save our registers */                \
         pushl %ebp;                             \
         pushl %esi;                             \
@@ -210,8 +219,8 @@
                                                 \
         pushl %edx; /* address of stack */      \
         movl cos_comp_info, %ecx;               \
-        subl $4, %ecx;                          \
-        movl (%ecx), %ecx;                      \
+        subl $8, %ecx;                          \
+        /*movl (%ecx), %edx;*/                  \
         pushl %ecx;                             \
         call stkmgr_return_stack;               \
         addl $8, %esp;                          \
@@ -223,7 +232,8 @@
         popl %edi;                              \
         popl %esi;                              \
         popl %ebp;                              \
-        /*SAFE_PUSH_ALL;                        \
+        /*                                      \
+        SAFE_PUSH_ALL;                          \
         pushl %edx;                             \
         call stkmgr_return_stack;               \
         addl $4, %esp;                          \
