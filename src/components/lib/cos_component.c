@@ -7,6 +7,21 @@
 
 #include <cos_component.h>
 
+/* FIXME:  I Should now be able to remove this */
+int stkmgr_stack_space[ALL_STACK_SZ];
+//struct cos_stack cos_stack_space[MAX_NUM_THREADS];
+//struct cos_stack *cos_stack_free_list = NULL;
+void * cos_stack_free_list = NULL;
+
+
+/* 
+ * This is initialized at load time with the spd id of the current
+ * spd, and is passed into all system calls to identify the calling
+ * service.
+ */
+long cos_this_spd_id = 0;
+void *cos_heap_ptr = NULL;
+
 struct cos_sched_data_area cos_sched_notifications = {
 	.cos_next = {.next_thd_id = 0, .next_thd_flags = 0},
 	.cos_locks = {.owner_thd = 0, .queued_thd = 0},

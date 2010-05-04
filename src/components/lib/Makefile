@@ -4,9 +4,11 @@ LIB_OBJS=cos_component.o heap.o cobj_format.o
 LIBS=$(LIB_OBJS:%.o=%.a)
 MANDITORY=c_stub.o cos_asm_upcall.o
 MAND=$(MANDITORY_LIB)
+SIMPLE_STACKS=c_stub.o cos_asm_upcall_simple_stacks.o
+SIMPLE_STKLIB=simple_stklib.o
 
 .PHONY: all
-all: $(LIBS) $(MAND)
+all: $(LIBS) $(MAND) $(SIMPLE_STKLIB)
 
 # we have to compile these without dietlibc so that there are not
 # symbol conflicts and this is why we have the %.a here and don't
@@ -17,6 +19,10 @@ all: $(LIBS) $(MAND)
 	@$(AR) cr lib$@ $(@:%.a=%.o)
 
 $(MAND): $(MANDITORY)
+	@$(LD) -r -o $@ $^
+
+
+$(SIMPLE_STKLIB): $(SIMPLE_STACKS)
 	@$(LD) -r -o $@ $^
 
 %.o:%.S

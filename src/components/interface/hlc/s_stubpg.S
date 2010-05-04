@@ -5,8 +5,9 @@
  * Public License v2.
  */
 
-#include <cos_asm_server_stub_simple_stack.h>
+#include <cos_asm_server_stub.h>
 
 .text	
 
-cos_asm_server_stub(st_trace_thd)
+cos_asm_server_stub(call_low)
+cos_asm_server_stub(call_high)

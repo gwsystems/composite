@@ -1,0 +1,12 @@
+*.o
+*.d
+*.swp
+*.ko
+*.cmd
+*.a
+*~
+*.sw*
+*#
+.#*
+composite_new
+tags

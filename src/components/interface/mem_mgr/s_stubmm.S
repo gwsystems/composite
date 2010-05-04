@@ -5,11 +5,11 @@
  * Public License v2.
  */
 
-#include <cos_asm_server_stub.h>
+#include <cos_asm_server_stub_simple_stack.h>
 
 .text	
 
 cos_asm_server_stub_spdid(mman_get_page)
-cos_asm_server_stub_spdid(mman_release_page)
+cos_asm_server_stub(mman_release_page) /* Changed so that the stkmger can unmap stacks */
 cos_asm_server_stub_spdid(mman_alias_page)
 cos_asm_server_stub(mman_print_stats)
