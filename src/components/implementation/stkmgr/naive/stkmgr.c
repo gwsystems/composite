@@ -22,9 +22,9 @@
 
 #define STK_PER_PAGE (PAGE_SIZE/MAX_STACK_SZ)
 #define NUM_PAGES (ALL_STACK_SZ/STK_PER_PAGE)
-#define MAX_NUM_STACKS 6 // MAX_NUM_THREADS
+#define MAX_NUM_STACKS 6    // MAX_NUM_THREADS
 
-#define POW_2_CNT  // Should be log_2(MAX_NUM_STACKS)
+#define POW_2_CNT  5        // Should be log_2(MAX_NUM_STACKS)
 
 /** 
  * Flags to control stack
@@ -52,6 +52,7 @@ struct cos_stk {
 struct cos_stk_item {
     struct cos_stk_item *next;
     struct cos_stk_item *prev;
+    spdid_t parent_spdid;       // Not needed but saves on lookup
     vaddr_t d_addr;
     void *hptr;
     struct cos_stk *stk;
@@ -69,7 +70,7 @@ struct spd_stk_info {
     unsigned int num_returns;
     unsigned int thd_count[MAX_NUM_THREADS];
     unsigned int num_blocked_thds;
-    unsigned int stat_thd_blk[POW_2_THD];
+    unsigned int stat_thd_blk[POW_2_CNT];
     struct cos_stk_item stk_list;      
 };
 
@@ -168,30 +169,42 @@ cos_init(void *arg){
     return;
 }
 
+static inline struct spd_stk_info *
+stkmgr_get_spd_stk_info(struct cos_stk_item *stk_item){
+
+    if(stk_item == NULL){
+        BUG();
+    }
+
+    if(stk_item->parent_spdid > MAX_NUM_SPDS){
+        BUG();
+    }
+    return &spd_stk_info_list[stk_item->parent_spdid];
+
+}
+
 /**
- * release a stack from from a given spdid
- * FIXME: I dont really know how I want to do this
- *        i.e. what should be passed, the hptr or the vaddr
+ * Assuming that the top of the stack is passed
  */
-static inline int
-stkmgr_release_stack(spdid_t s_spdid, vaddr_t s_addr){
-    struct cos_stk_item *stk_item;
-    mman_release_page(s_spdid, (vaddr_t)(stk_item->hptr), 0);
-    return 0;
+static inline struct cos_stk_item *
+stkmgr_get_cos_stk_item(vaddr_t addr){
+    int i;
+    for(i = 0; i < MAX_NUM_STACKS; i++){
+        if(addr == (vaddr_t)(all_stk_list[i].hptr + PAGE_SIZE)){
+            return &all_stk_list[i];
+        }
+    }
+
+    return NULL;
 }
 
-void
-stkmgr_hello_world(void){
-        printc("<stkmgr>: Hello World\n");
-}
 
-void
-stkmgr_got_from_list(void){
-    printc("!!!! <stkmgr> Got from local list !!!!\n");
-}
 
+/**
+ * Give a stack back to the stk_mgr
+ */
 void
-stkmgr_return_stack(spdid_t s_spdid, void *addr){
+stkmgr_return_stack(spdid_t s_spdid, vaddr_t addr){
     spdid_t spdid;
     struct cos_stk_item *stk_item;
     struct blocked_thd *bthd, *bthd_next;
@@ -199,26 +212,24 @@ stkmgr_return_stack(spdid_t s_spdid, void *addr){
     DOUT("$$$$$: %X\n", (unsigned int)addr); 
     DOUT("Return of s_spdid is: %d from thd: %d\n", s_spdid,
     cos_get_thd_id());
-   
+    int i; 
     
-    i = 0;
     // Find which component has this stack so we can unmap it
     // FIXME:  Doing a search of larger space than needed for test;
-    stk_item = FIRST_LIST(&spd_stk_info_list[spdid].stk_list, next, prev);
-    for(; stk_item != &spd_stk_info_list[spdid].stk_list; stk_item = stk_item->next){
+    stk_item = FIRST_LIST(&spd_stk_info_list[s_spdid].stk_list, next, prev);
+    for(; stk_item != &spd_stk_info_list[s_spdid].stk_list; stk_item = stk_item->next){
         DOUT("Comparing spdid: %d,  passed addr: %X, d_addr: %X, hptr: %X\n", 
              (int)spdid,
              (unsigned int)addr,
-             (unsigned int)stk_item->d_addr+4096,
+             (unsigned int)stk_item->d_addr+PAGE_SIZE,
              (unsigned int)stk_item->hptr);
                     
-        if((unsigned int)stk_item->d_addr+4096 == addr){
-            printc("Found stack item in spdid %d\n", spdid);
+        if(stk_item->d_addr+PAGE_SIZE == addr){
+            printc("Found stack item in spdid %d\n", i);
             found = 1;
             break;
         }
     }
-
     if(found != 1){
         DOUT("Unable to locate stack at address: %X\n", (unsigned int)addr);
         assert(0);
@@ -469,10 +480,11 @@ stkmgr_num_alloc_stks(spdid_t s_spdid){
 
 static inline void
 stkmgr_request_stk_from_spdid(spdid_t spdid){
-        
+    struct cos_stk_item *stk_item;
+
     DOUT("stkmgr_request_stk_from spdid: %d\n", spdid);
-    stk_item = FIRST_LIST(&spd_stk_info_list[i].stk_list, next, prev);
-    for(; stk_item != &spd_stk_info_list[i].stk_list; stk_item = stk_item->next){
+    stk_item = FIRST_LIST(&spd_stk_info_list[spdid].stk_list, next, prev);
+    for(; stk_item != &spd_stk_info_list[spdid].stk_list; stk_item = stk_item->next){
         stk_item->stk->flags |= RELINQUISH;
     }
 }
@@ -644,7 +656,7 @@ stkmgr_grant_stack(spdid_t d_spdid){
         }
         DOUT("Mapped page\n");
         stk_item->d_addr = d_addr;
-
+        stk_item->parent_spdid = d_spdid;
         // Add stack to allocated stack array
         DOUT("Adding to local spdid stk list\n");
         ADD_LIST(&spd_stk_info_list[d_spdid].stk_list, stk_item, next, prev); 
@@ -660,13 +672,13 @@ void
 stkmgr_print_stats(void){
     struct cos_stk_item *stk_item;
     int num_invocations;
-    int thd_count[MAX_NUM_THREADS];
     int i,j;
     struct spd_stk_info *info;
-    int spd_most_active_thd;
-    int spd_most_active_cnt; 
-    int most_active_cnt;
-    int most_active_thd;
+    unsigned int thd_count[MAX_NUM_THREADS];
+    unsigned int spd_most_active_thd;
+    unsigned int spd_most_active_cnt; 
+    unsigned int most_active_cnt;
+    unsigned int most_active_thd;
     
     most_active_thd = 0;
     memset(thd_count, 0, MAX_NUM_THREADS);
@@ -684,8 +696,8 @@ stkmgr_print_stats(void){
         for(j = 0; j < MAX_NUM_THREADS; j++){
             thd_count[j] += info->thd_count[j]; 
             
-            if(info->thd_count > spd_most_active_cnt){
-                spd_most_active_cnt = info->thd_count;
+            if(info->thd_count[j] > spd_most_active_cnt){
+                spd_most_active_cnt = info->thd_count[j];
                 spd_most_active_thd = j;
             }
 
