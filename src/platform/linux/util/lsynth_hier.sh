@@ -2,19 +2,23 @@
 
 ./cos_loader \
 "c0.o, ;*fprr.o, ;mpd.o,a4;!l.o,a8;mm.o, ;print.o, ;te.o,a3;!e.o,a3;schedconf.o, ;!stat.o,a25;st.o, ;bc.o, ;\
-boot.o,a4;\
-(!sh0.o=sh.o),'s10000 n10';(!sh1.o=sh.o),'s10000 n10';(!sh2.o=sh.o),'s10000 n10';\
-(!sh3.o=sh.o),'s10000 n10';(!sh4.o=sh.o),'s10000 n10';(!sh5.o=sh.o),'s10000 n10';\
-(!sh6.o=sh.o),'s10000 n10';(!sh7.o=sh.o),'s10000 n10';(!sh8.o=sh.o),'s10000 n10';\
+boot.o,a4;sp.o,a5;\
+\
+(!p0.o=pt.o),a7'5';(!p1.o=pt.o),a8'10';(!p2.o=pt.o),a9'12';\
+(!p3.o=pt.o),a10'18';(!p4.o=pt.o),a11'20';(!p5.o=pt.o),a12'25';\
+\
+(!sh0.o=sh.o),'s10000 n5';(!sh1.o=sh.o),'s10000 n5';(!sh2.o=sh.o),'s10000 n5';\
+(!sh3.o=sh.o),'s10000 n5';(!sh4.o=sh.o),'s10000 n5';(!sh5.o=sh.o),'s10000 n5';\
+(!sh6.o=sh.o),'s10000 n5';(!sh7.o=sh.o),'s10000 n5';(!sh8.o=sh.o),'s10000 n5';\
 (!sbc0.o=sbc.o), ;(!sbc1.o=sbc.o), ;(!sbc2.o=sbc.o), ;\
 (!sbc3.o=sbc.o), ;(!sbc4.o=sbc.o), ;(!sbc5.o=sbc.o), ;\
 \
-(!sh12.o=sh.o),a10's10000 n10';(!sh13.o=sh.o),'s10000 n10';(!sh14.o=sh.o),'s10000 n10';\
-(!sh9.o=sh.o),'s10000 n10';(!sh10.o=sh.o),'s10000 n10';(!sh11.o=sh.o),'s10000 n10';\
+(!sh12.o=sh.o),'s10000 n5';(!sh13.o=sh.o),'s10000 n5';(!sh14.o=sh.o),'s10000 n5';\
+(!sh9.o=sh.o),'s10000 n5';(!sh10.o=sh.o),'s10000 n5';(!sh11.o=sh.o),'s10000 n5';\
 (!sbc6.o=sbc.o), ;(!sbc7.o=sbc.o), ;\
 \
-(!sh18.o=sh.o),a10's10000 n10';(!sh19.o=sh.o),'s10000 n10';(!sh20.o=sh.o),'s10000 n10';\
-(!sh15.o=sh.o),'s10000 n10';(!sh16.o=sh.o),'s10000 n10';(!sh17.o=sh.o),'s10000 n10';\
+(!sh18.o=sh.o),'s10000 n5';(!sh19.o=sh.o),'s10000 n5';(!sh20.o=sh.o),'s10000 n5';\
+(!sh15.o=sh.o),'s10000 n5';(!sh16.o=sh.o),'s10000 n5';(!sh17.o=sh.o),'s10000 n5';\
 (!sbc8.o=sbc.o), ;(!sbc9.o=sbc.o), :\
 \
 c0.o-fprr.o;\
@@ -29,6 +33,14 @@ st.o-print.o;\
 schedconf.o-print.o;\
 bc.o-print.o;\
 boot.o-print.o|fprr.o|mm.o|schedconf.o;\
+sp.o-te.o|fprr.o|schedconf.o|print.o|mm.o;\
+\
+p0.o-te.o|fprr.o|schedconf.o|print.o|sh12.o;\
+p1.o-te.o|fprr.o|schedconf.o|print.o|sh12.o;\
+p2.o-te.o|fprr.o|schedconf.o|print.o|sh12.o;\
+p3.o-te.o|fprr.o|schedconf.o|print.o|sh18.o;\
+p4.o-te.o|fprr.o|schedconf.o|print.o|sh18.o;\
+p5.o-te.o|fprr.o|schedconf.o|print.o|sh18.o;\
 \
 sh12.o-fprr.o|schedconf.o|print.o|[calll_]sh13.o|[callr_]sh9.o;\
 sh13.o-fprr.o|schedconf.o|print.o|[calll_]sh14.o|[callr_]sh10.o;\

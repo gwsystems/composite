@@ -43,7 +43,7 @@ struct thread_event {
 	struct thread_event *next, *prev;
 
 	/* if flags & TE_PERIODIC */
-	unsigned int period;
+	unsigned int period, executed;
 	unsigned short int dl_missed; /* missed deadlines */
 	unsigned int samples, miss_samples;
 	long long lateness_tot, miss_lateness_tot;
@@ -321,6 +321,7 @@ static long te_get_reset_lateness(struct thread_event *te)
 {
 	long avg;
 
+	if (0 == te->samples) return 0;
 	avg = te->lateness_tot/te->samples;
 	te->lateness_tot = 0;
 	te->samples = 0;
@@ -331,6 +332,7 @@ static long te_get_reset_miss_lateness(struct thread_event *te)
 {
 	long avg;
 
+	if (0 == te->miss_samples) return 0;
 	avg = te->miss_lateness_tot/te->miss_samples;
 	te->miss_lateness_tot = 0;
 	te->miss_samples = 0;
@@ -486,6 +488,7 @@ int periodic_wake_wait(spdid_t spdinv)
 	te->flags |= TE_BLOCKED;
 
 	rdtscll(t);
+	te->executed = 1;
 	if (te->completion) {	/* we're late */
 		long diff;
 

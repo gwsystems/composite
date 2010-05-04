@@ -1862,6 +1862,10 @@ static void make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all
 	int **heap_ptr, *heap_ptr_val;
 	struct comp_graph *g;
 
+	if (mm->is_composite_loaded) {
+		printl(PRINT_HIGH, "Cannot load %s via composite (%s).\n", MPD_MGR, BOOT_COMP);
+		return;
+	}
 	heap_ptr = get_heap_ptr(mm);
 	if (heap_ptr == NULL) {
 		printl(PRINT_DEBUG, "Could not find heap pointer in %s.\n", mm->obj);

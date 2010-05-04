@@ -11,10 +11,16 @@
 
 #include <periodic_wake.h>
 #include <sched.h>
+#include <timed_blk.h>
 #include <sched_conf.h>
 #include <cos_alloc.h>
 
 #include <cos_list.h>
+#include <heap.h>
+
+#define POLICY_PERIODICITY 50
+
+/* data-structures */
 
 struct thd_sched {
 	int period, misses, priority;
@@ -33,6 +39,7 @@ struct thd_comp {
 };
 
 struct thd {
+	unsigned short int tid;
 	struct thd_sched sched_info;
 	struct thd_comp comp_info[MAX_NUM_SPDS];
 
@@ -42,6 +49,37 @@ struct thd {
 struct thd threads;
 struct component components;
 struct heap *h;
+
+static void gather_information(void)
+{
+	struct thd *iter;
+
+	for (iter = FIRST_LIST(&threads, next, prev) ; 
+	     iter != &threads ; 
+	     iter = FIRST_LIST(iter, next, prev)) {
+		unsigned short int tid = iter->tid;
+
+		iter->sched_info.misses = periodic_wake_get_misses(tid);
+		iter->sched_info.lateness = periodic_wake_get_lateness(tid);
+		iter->sched_info.miss_lateness = periodic_wake_get_miss_lateness(tid);
+	}
+}
+
+static void policy(void)
+{
+	struct thd *iter;
+
+	gather_information();
+
+	for (iter = FIRST_LIST(&threads, next, prev) ; 
+	     iter != &threads ; 
+	     iter = FIRST_LIST(iter, next, prev)) {
+		struct thd_sched *si = &iter->sched_info;
+
+		printc("Thread %d, per %d, prio %d: %d misses, %ld lateness, %ld miss lateness.\n", 
+		       iter->tid, si->period, si->priority, si->misses, si->lateness, si->miss_lateness);
+	}
+}
 
 static struct thd *create_thread(void)
 {
@@ -56,13 +94,13 @@ static struct thd *create_thread(void)
 /* insertion sort...only do once */
 static int insert_thread(struct thd *t)
 {
-	struct thd *i;
+	struct thd *iter;
 
-	for (i = FIRST_LIST(&threads, next, prev) ; 
-	     i->sched_info.priority < t->sched_info.priority && i != &threads ; 
-	     i = FIRST_LIST(i, next, prev));
+	for (iter = FIRST_LIST(&threads, next, prev) ; 
+	     iter->sched_info.priority < t->sched_info.priority && iter != &threads ; 
+	     iter = FIRST_LIST(iter, next, prev));
 
-	ADD_LIST(LAST_LIST(i, next, prev), t, next, prev);
+	ADD_LIST(LAST_LIST(iter, next, prev), t, next, prev);
 
 	return 0;
 }
@@ -79,6 +117,7 @@ static void init_thds(void)
 		if (0 >= p) continue;
 
 		t = create_thread();
+		t->tid = i;
 		t->sched_info.period = p;
 		p = sched_priority(i);
 		t->sched_info.priority = p;
@@ -86,15 +125,14 @@ static void init_thds(void)
 	}
 }
 
-static void policy(void)
-{
-	init_thds();
-}
-
 void cos_init(void *arg)
 {
 	INIT_LIST(&threads, next, prev);
-	periodic_wake_create(cos_spd_id(), 25);
+	/* Wait for all other threads to initialize */
+	timed_event_block(cos_spd_id(), 97);
+
+	init_thds();
+	periodic_wake_create(cos_spd_id(), POLICY_PERIODICITY);
 	while (1) {
 		policy();
 		periodic_wake_wait(cos_spd_id());
