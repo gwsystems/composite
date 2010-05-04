@@ -29,12 +29,17 @@ void cos_init(void)
 {
     
 	u64_t start, end;
-	int i;
+	int i, j;
    	static int first = 0;
     static int hthd;
+    static int lthd;
     if(first == 0){
         printc("Starting Invocations.\n");
         hthd = create_thd("r-1");
+        lthd = cos_get_thd_id();
+        for(j = 0; j < 10; j++){
+            create_thd("r+1");
+        }
         first = 1;
     }
 
@@ -45,7 +50,8 @@ void cos_init(void)
             timed_event_block(cos_spd_id(), 10);
         }
         rdtscll(end);
-    }else{
+    }
+    else if(cos_get_thd_id() == lthd){
         rdtscll(start);
         for (i = 0 ; i < ITER ; i++) {
             call_low();

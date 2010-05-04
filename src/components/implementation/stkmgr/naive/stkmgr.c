@@ -22,9 +22,12 @@
 
 #define STK_PER_PAGE (PAGE_SIZE/MAX_STACK_SZ)
 #define NUM_PAGES (ALL_STACK_SZ/STK_PER_PAGE)
-#define MAX_NUM_STACKS 6    // MAX_NUM_THREADS
+#define MAX_NUM_STACKS 100 //6    // MAX_NUM_THREADS
 
 #define POW_2_CNT  5        // Should be log_2(MAX_NUM_STACKS)
+
+#define TAKE(spdid) if(sched_component_take(spdid)) BUG();
+#define RELEASE(spdid) if(sched_component_release(spdid)) BUG();
 
 /** 
  * Flags to control stack
@@ -93,12 +96,15 @@ struct cos_stk_item *free_stack_list = NULL;
 // Holds info about stack usage
 struct spd_stk_info spd_stk_info_list[MAX_NUM_SPDS];
 
-
+// Global number of blocked thds
 static int num_blocked_thds = 0;
 
 // List of blocked threads
 struct blocked_thd blocked_thd_list;
 
+
+void stkmgr_print_ci_freelist(void);
+ 
 
 /**
  * cos_init
@@ -139,7 +145,6 @@ cos_init(void *arg){
             free_stack_list = stk_item;
         }
     }
-   
 
     // Map all of the spds we can into this component
     void *hp = cos_get_heap_ptr();
@@ -189,15 +194,24 @@ stkmgr_get_spd_stk_info(struct cos_stk_item *stk_item){
 static inline struct cos_stk_item *
 stkmgr_get_cos_stk_item(vaddr_t addr){
     int i;
+    
+    DOUT(" stkmgr_get_cos_stk_item\n");
+
     for(i = 0; i < MAX_NUM_STACKS; i++){
-        if(addr == (vaddr_t)(all_stk_list[i].hptr + PAGE_SIZE)){
+        /* 
+        DOUT("Comparing passed addr: %X, d_addr: %X, hptr: %X, stk: %X\n", 
+             (unsigned int)addr,
+             (unsigned int)all_stk_list[i].d_addr+PAGE_SIZE,
+             (unsigned int)all_stk_list[i].hptr,
+             (unsigned int)all_stk_list[i].stk);
+        */
+        if(addr == (vaddr_t)(all_stk_list[i].d_addr + PAGE_SIZE - sizeof(struct cos_stk))){
             return &all_stk_list[i];
         }
     }
 
     return NULL;
 }
-
 
 
 /**
@@ -215,7 +229,6 @@ stkmgr_return_stack(spdid_t s_spdid, vaddr_t addr){
     int i; 
     
     // Find which component has this stack so we can unmap it
-    // FIXME:  Doing a search of larger space than needed for test;
     stk_item = FIRST_LIST(&spd_stk_info_list[s_spdid].stk_list, next, prev);
     for(; stk_item != &spd_stk_info_list[s_spdid].stk_list; stk_item = stk_item->next){
         DOUT("Comparing spdid: %d,  passed addr: %X, d_addr: %X, hptr: %X\n", 
@@ -232,13 +245,16 @@ stkmgr_return_stack(spdid_t s_spdid, vaddr_t addr){
     }
     if(found != 1){
         DOUT("Unable to locate stack at address: %X\n", (unsigned int)addr);
-        assert(0);
+        BUG();
     }
     
     DOUT("Releasing Stack\n");
     mman_release_page(s_spdid, (vaddr_t)(stk_item->d_addr), 0); 
     DOUT("Putting stack back on free list\n");
     
+    // cause underflow for MAX Int
+    stk_item->parent_spdid = -1;
+
     // Free our memory to prevent leakage
     memset(stk_item->hptr, 0, PAGE_SIZE);
    
@@ -253,10 +269,9 @@ stkmgr_return_stack(spdid_t s_spdid, vaddr_t addr){
     // Wake up 
     DOUT("waking up threads\n");
     spdid = cos_spd_id();
-    if(sched_component_take(spdid)){
-        assert(0);
-    }
-
+    
+    TAKE(spdid);
+    
     bthd = FIRST_LIST(&blocked_thd_list, next, prev);
     for(; bthd != &blocked_thd_list; bthd = bthd_next){
         bthd_next = FIRST_LIST(bthd, next, prev);
@@ -268,181 +283,59 @@ stkmgr_return_stack(spdid_t s_spdid, vaddr_t addr){
     }
     
     DOUT("All thds now awake\n");
-    if(sched_component_release(spdid)){
-        assert(0);
-    }
+    
+    RELEASE(spdid);
 }
 
-
-
-struct cos_stk_item *
-stkmgr_full_revoke(spdid_t *id){
+/** 
+ * Not this may crash the running spd, this is not
+ * a nice function and should be used wisely
+ */
+int
+stkmgr_force_revoke(spdid_t spdid){
     struct cos_stk_item *stk_item;
-    short int found = 0;
-    int i;
-    // Pick a stack to revoke
-    for(i = 0; i < MAX_NUM_SPDS; i++){
-        stk_item = &spd_stk_info_list[i].stk_list;
-        DOUT("<stkmgr>: trying to revoke from: %d\n", i); 
-        if(stk_item == NULL){ 
-            DOUT("<stkmgr>: stk_item is NULL\n");
-            continue;
-        }
-        // we cant ever use the first maped in component since we
-        // do not have access to the head of the list on the component
-        // because that is currently being declared on the stack and is not
-        // mapped between components.
-        if(stk_item->next != NULL){
-            found = 1;
-            *id = i;
-            break;
-        }
+
+    if(spdid > MAX_NUM_SPDS){
+        BUG();
     }
-    if(!found){
-        printc("<stkmgr>: Not enough stack available on the system for it to "\
-               "run correctly\n");
-        assert(0);
+
+    stk_item = FIRST_LIST(&spd_stk_info_list[spdid].stk_list, next, prev);
+    if(stk_item == &spd_stk_info_list[spdid].stk_list){
+        return -1;
     }
-    //stk = (struct stk_t *)(((char *)stk_item->stk) + 4096 - 8);
- 
-    //stk_item->stk->flags |= RELINQUISH;
-    while((stk_item->stk->flags & ~IN_USE) != 0x00){
-        // sleep
-        // spin wait...
-        ;
-    }
-    stk_item->stk->flags = 0;
-    printc("Stack is no longer in USE!");
-    //stk_item->stk->flags = 0;
-    return stk_item;
+
+    stkmgr_return_stack(spdid, stk_item->d_addr);
+
+    return 0;
 }
 
+/**
+ * returns 0 on success
+ */
+int
+stkmgr_revoke_stk_from(spdid_t spdid){
+    struct cos_stk_item *stk_item;
+    struct cos_stk *stk;
+    if(spdid > MAX_NUM_SPDS){
+        BUG();
+    }
 
-struct cos_stk_item *
-stkmgr_revoke_stack(void){
-    struct cos_stk_item *stk_item, *curr, *prev, *next, *item_list_head;
-    struct cos_stk_item *our_prev;
-    unsigned short int stk_found;
-    int i;
-    int size;
-    spdid_t d_spdid;
-    DOUT("<stkmgr>: Attempting to revoke a stack\n");
-  
-    for(i = 0; i < MAX_NUM_SPDS; i++){
-        item_list_head = &spd_stk_info_list[i].stk_list;
-        DOUT("<stkmgr>: trying to revoke from: %d\n", i); 
-        if(item_list_head == NULL){ 
-            DOUT("<stkmgr>: item_list_head is NULL\n");
-            continue;
-        }
-        // we cant ever use the first maped in component since we
-        // do not have access to the head of the list on the component
-        // because that is currently being declared on the stack and is not
-        // mapped between components.
-        if(item_list_head->next == NULL){
-            DOUT("<stkmgr>: Next is NULL so list is size 1\n");
-            continue;
-        }
-        
-        DOUT("Found component with more than 1 stack available\n");
-        // Here we are going to loop through all the stacks we have and see
-        // if there is a stack that is not in use for us to take, there are a few
-        // steps required to do this and its somewhat messy to do.  
-        // Steps:
-        // 1) Find a stack that is not in use
-        // 2) Find the stack that points this stack by the components internal
-        //    linked list (it would be nice if we had access to that, it would
-        //    speed up this process but we cant).
-        // 2.b) If the stack is the first in the respected components internal list
-        //      we will not have access to what points to it.
-        // 3) Remove the stack from the components interal linked list 
-        // 4) Remove the stack from our own linked list
-        // 5) Return the stack to the the component that requested it.
-        // phew!!!
-        stk_found = 0;
-        our_prev = item_list_head;
-        size = 0;
-        for(stk_item = item_list_head; stk_item != NULL; stk_item = stk_item->next){
-            size++;
-           
-            DOUT("\tspdid: stk-flags: %X stk->next: %X\n",
-                   stk_item->stk->flags,
-                   (unsigned int)stk_item->stk->next);
-            
-            /*
-            printc("\tFlags: %X\tFirst Item: %X\n", 
-                    stk_item->stk->flags,
-                    (unsigned int)stk_item->stk->next);
-            */
-            if((stk_item->stk->flags & IN_USE) != 0x00){
-                DOUT("\tStack In Use\n");
-                continue;
-            }
-            
-            //stk_item->stk->flags |= RELINQUISH;
-            DOUT("<stmgr>: Found component %d with an avilable stack, seeing if we "\
-                   "can take it back\n",
-                   i);
+    stk = (struct cos_stk *)spd_stk_info_list[spdid].ci->cos_stacks.freelists[0].freelist;
+    if(stk == NULL){
+        // No Stacks available to revoke
+        return -1;
+    }
+   
+    stk_item = stkmgr_get_cos_stk_item(spd_stk_info_list[spdid].ci->cos_stacks.freelists[0].freelist);
+    if(stk_item == NULL){
+        DOUT("Could not find stk_item\n");
+        BUG();
+        return -1;
+    }
 
-            // We have a stack we can revoke!
-            // Now we need to find what stk points to this one! 
-            prev = NULL;
-            next = NULL;
-            for(curr = item_list_head; curr != NULL; curr = curr->next){
-                //curr_stk = curr->stk; 
-                //printc("\tcurr->stk->next = %p, stk_item->stk = %p\n",
-                //       (void *)curr_stk->flags,
-                //       (void *)stk);
-
-                if(curr->stk->next == stk_item->stk){
-                    prev = curr;
-                }
-                
-                /*
-                if(curr->stk == stk_item->stk->next){
-                    next = curr;
-                }
-                */
-                if(prev != NULL){
-                    stk_found = 1;
-                    DOUT("<stkmgr>: We got the info we need, relinquishing the stack!\n");
-                    d_spdid = i;
-                    goto stk_found;
-                }
-            }
-            
-            //stk_item->stk->flats &= ~RELINQUISH;
-            our_prev = stk_item;
-        }
-        DOUT("Comonent: %d, size: %d\n", i, size);
-   }
-
-    // No stack found!
-    //
-     // do full stack take back!!!!
-    DOUT("<stkmgr>: No free stacks in any component!!!!!\n" \
-         "<stkmgr>: Attempting to steal from the rich and give to the poor!\n");
-    stk_item = stkmgr_full_revoke(&d_spdid);
-    //assert(0);
-    goto ret_stack;
-
-stk_found: 
-    // At this point we should have prev set.
-    // we are going to remove the stack from this components free list
-    DOUT("<stkmgr>: Removing stack from components list\n");
-    prev->stk->next = stk_item->stk->next; 
-    
-    // Now remove it from our stack list
-    DOUT("<stkmgr>: Removing stack from stkmgr list\n");
-    our_prev = stk_item->next;
-    DOUT("<stkmgr>: Successfully revoked stack\n");
-
-ret_stack:
-    DOUT("<stkmgr>: Doing a full revoke on spdid: %d\n", d_spdid);
-    
-    mman_release_page(d_spdid, (vaddr_t)(stk_item->hptr), 0);
-    DOUT("mman_release_page worked!\n");
-    return stk_item;
+    stkmgr_return_stack(spdid, stk_item->d_addr);
+   
+    return 0;
 }
 
 
@@ -516,17 +409,13 @@ stkmgr_request_stack(void){
     }
 
     spdid_t spdid = cos_spd_id();
-    if(sched_component_take(spdid)){
-       assert(0);
-    }
+    TAKE(spdid); 
 
     bthd->thd_id = cos_get_thd_id();
     DOUT("Adding thd to the blocked list: %d\n", bthd->thd_id);
     ADD_LIST(&blocked_thd_list, bthd, next, prev);
-    
-    if(sched_component_release(spdid)){
-        assert(0);
-    } 
+   
+    RELEASE(spdid);
 
     DOUT("Blocking thread: %d\n", bthd->thd_id);
     sched_block(cos_spd_id(), 0);
@@ -608,70 +497,123 @@ get_cos_info_page(spdid_t spdid){
  */
 void *
 stkmgr_grant_stack(spdid_t d_spdid){
-        struct cos_stk_item *stk_item;
-        struct spd_stk_info *info;
-        vaddr_t stk_addr,d_addr;
-        vaddr_t ret;
-        if(d_spdid > MAX_NUM_SPDS){
-            assert(0);
-        }
+    struct cos_stk_item *stk_item;
+    struct spd_stk_info *info;
+    vaddr_t stk_addr,d_addr;
+    vaddr_t ret;
+    if(d_spdid > MAX_NUM_SPDS){
+        assert(0);
+    }
 
-        printc("<stkmgr>: stkmgr_grant_stack for, spdid: %d\n",
-               d_spdid);
+    printc("<stkmgr>: stkmgr_grant_stack for, spdid: %d\n",
+           d_spdid);
         
-        // Make sure we have access to the info page
-        info = &spd_stk_info_list[d_spdid];
-        if(info->ci == NULL){
-            get_cos_info_page(d_spdid);
-        }
+    // Make sure we have access to the info page
+    info = &spd_stk_info_list[d_spdid];
+    if(info->ci == NULL){
+        get_cos_info_page(d_spdid);
+    }
 
-        // Get a Stack.
-        while(free_stack_list == NULL){
-            DOUT("Stack list is null, we need to revoke a stack: spdid: %d thdid: %d\n",
-                 d_spdid,
-                 cos_get_thd_id());
-            stkmgr_request_stack();
-        }
+    // Get a Stack.
+    while(free_stack_list == NULL){
+        DOUT("Stack list is null, we need to revoke a stack: spdid: %d thdid: %d\n",
+             d_spdid,
+             cos_get_thd_id());
+        stkmgr_request_stack();
+    }
 
-        stk_item = free_stack_list;
-        free_stack_list = free_stack_list->next;
+    stk_item = free_stack_list;
+    free_stack_list = free_stack_list->next;
         
-        DOUT("Spdid: %d, Thd: %d Obtained a stack\n",
-            d_spdid,
-            cos_get_thd_id());
+    DOUT("Spdid: %d, Thd: %d Obtained a stack\n",
+         d_spdid,
+         cos_get_thd_id());
+   
+    // FIXME:  Race condition
+    d_addr = info->ci->cos_heap_ptr; 
+    info->ci->cos_heap_ptr += PAGE_SIZE;
+    ret = info->ci->cos_heap_ptr;
 
+    DOUT("Setting flags and assigning flags\n");
+    stk_item->stk->flags = 0xDEADBEEF;
+    stk_item->stk->next = (void *)0xDEADBEEF;
+    stk_addr = (vaddr_t)(stk_item->hptr);
+    if(d_addr != mman_alias_page(cos_spd_id(), stk_addr, d_spdid, d_addr)){
+        printc("<stkmgr>: Unable to map stack into component");
+        BUG();
+    }
+    DOUT("Mapped page\n");
+    stk_item->d_addr = d_addr;
+    stk_item->parent_spdid = d_spdid;
     
-        // FIXME:  Race condition
-        d_addr = info->ci->cos_heap_ptr; 
-        info->ci->cos_heap_ptr += PAGE_SIZE;
-        ret = info->ci->cos_heap_ptr;
-
-        DOUT("Setting flags and assigning flags\n");
-        stk_item->stk->flags = 0xDEADBEEF;
-        stk_item->stk->next = (void *)0xDEADBEEF;
-        stk_addr = (vaddr_t)(stk_item->hptr);
-        if(d_addr != mman_alias_page(cos_spd_id(), stk_addr, d_spdid, d_addr)){
-            printc("<stkmgr>: Unable to map stack into component");
-            assert(0);
-        }
-        DOUT("Mapped page\n");
-        stk_item->d_addr = d_addr;
-        stk_item->parent_spdid = d_spdid;
-        // Add stack to allocated stack array
-        DOUT("Adding to local spdid stk list\n");
-        ADD_LIST(&spd_stk_info_list[d_spdid].stk_list, stk_item, next, prev); 
+    // Add stack to allocated stack array
+    DOUT("Adding to local spdid stk list\n");
+    ADD_LIST(&spd_stk_info_list[d_spdid].stk_list, stk_item, next, prev); 
          
-        info->thd_count[cos_get_thd_id()]++;
+    info->thd_count[cos_get_thd_id()]++;
         
-        DOUT("Returning Stack address: %X\n",(unsigned int)d_addr);
+    DOUT("Returning Stack address: %X\n",(unsigned int)d_addr);
 
-        return (void *)ret;
+    stkmgr_print_ci_freelist();
+ 
+    return (void *)ret;
+}
+
+void
+print_flags(struct cos_stk *stk){
+   
+    printc("flags:");
+    if(stk->flags & IN_USE){
+        printc(" In Use");
+    }
+    if(stk->flags & RELINQUISH){
+        printc(" Relinquish");
+    }
+    if(stk->flags & PERMANATE){
+        printc(" Permanate");
+    }
+    if(stk->flags & MONITOR){
+        printc(" Monitor");
+    }
+    printc("\n");
+}
+
+void
+stkmgr_print_ci_freelist(void){
+    int i;
+    struct spd_stk_info *info;
+    void *curr;
+    struct cos_stk_item *stk_item;
+
+    for(i = 0; i < MAX_NUM_SPDS; i++){
+        info = &spd_stk_info_list[i];
+        if(info->ci == NULL){
+            continue;
+        }
+        printc("SPDID: %d\n", i);
+        curr = (void *)info->ci->cos_stacks.freelists[0].freelist;
+        if(curr == NULL){
+            continue;
+        }
+        printc("Found curr: %X\n", curr);
+        stk_item = stkmgr_get_cos_stk_item((vaddr_t)curr);
+        while(stk_item){
+            printc("curr: %X\n"\
+                   "flags: %X\n"\
+                   "next: %X\n",
+                   (unsigned int)stk_item->stk,
+                   (unsigned int)stk_item->stk->flags,
+                   (unsigned int)stk_item->stk->next);
+            print_flags(stk_item->stk);
+            curr = stk_item->stk->next;
+            stk_item = stkmgr_get_cos_stk_item((vaddr_t)curr);    
+        }
+    }
+
 }
 
 void
 stkmgr_print_stats(void){
-    struct cos_stk_item *stk_item;
-    int num_invocations;
     int i,j;
     struct spd_stk_info *info;
     unsigned int thd_count[MAX_NUM_THREADS];
