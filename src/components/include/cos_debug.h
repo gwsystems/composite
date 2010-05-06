@@ -11,7 +11,7 @@
 #define STRX(x) #x
 #define STR(x) STRX(x)
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
-#define BUG() debug_print("BUG @ ");
+#define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
 
 #ifdef DEBUG
 #define assert(node) if (!(node)) { debug_print("assert error in @ "); *((int *)0) = 0;}
