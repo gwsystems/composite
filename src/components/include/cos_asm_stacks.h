@@ -17,44 +17,123 @@
 #define USE_NEW_STACKS 1
 #ifdef  USE_NEW_STACKS
 
-/*
+
 #define COS_ASM_GET_STACK                       \
-        movl $cos_stack_free_list, %eax;         \
-        movl 4(%eax), %esp;                     \
-        movl (%eax), %eax;                      \
-        movl %eax, cos_stack_free_list;
-       
+        /* Check to see if we have a stk */     \
+        movl  cos_comp_info, %edx;              \
+        testl %edx, %edx;                       \
+        je    2f;                               \
+                                                \
+        /* We have a stack */                   \
+        movl cos_comp_info, %eax;               \
+        movl (%eax), %edx;                      \
+        movl %edx, cos_comp_info;               \
+        addl $4, %eax;                          \
+1:                                              \
+        /* Return Stack */                      \
+        movl  %eax, %esp;                       \
+        addl  $4, %esp;                         \
+        pushl $0x01;    /* flags */             \
+        pushl $0xFACE;  /* next */              
+
+
+#define COS_ASM_REQUEST_STACK                   \
+2:                                              \
+        /* get stk space */                     \
+        movl $stkmgr_stack_space, %esp;         \
+        shl  $11, %eax;                         \
+        addl %eax, %esp;                        \
+                                                \
+        /* save our registers */                \
+        pushl %ebp;                             \
+        pushl %esi;                             \
+        pushl %edi;                             \
+        pushl %ebx;                             \
+        pushl %ecx;                             \
+                                                \
+        /* Call Stkmgr */                       \
+        pushl %ecx;                             \
+        call stkmgr_grant_stack;                \
+        addl $4, %esp;                          \
+                                                \
+        subl $0x4, %eax;                        \
+                                                \
+        /*restore stack */                      \
+        popl %ecx;                              \
+        popl %ebx;                              \
+        popl %edi;                              \
+        popl %esi;                              \
+        popl %ebp;                              \
+        /*movl %esp, %eax;*/                    \
+        jmp  1b;                                
+
+
 #define COS_ASM_RET_STACK                       \
-        movl cos_stack_free_list, %eax;         \
-        movl (%eax), %eax;                      \
-        movl %eax, -4(%esp);                    \
-        movl %esp, cos_stack_free_list;
+                                                \
+        addl $4, %esp;                          \
+        movl (%esp),%edx;                       \
+        andl $0x02, %edx;                       \
+        test %edx, %edx;                        \
+        jne  3f;                                \
+                                                \
+        /* Put back on free list */             \
+        addl $4, %esp;                          \
+        pushl $0x00;  /* Flag Mark Not in Use */\
+        pushl $0xFACE;  /* next */              \
+        movl cos_comp_info, %edx;               \
+        movl %edx, (%esp);                      \
+        movl %esp, cos_comp_info;               \
+        jmp  4f;                                \
+3:                                              \
+        /* stkmgr wants stack back */           \
+        addl $4, %esp;                          \
+        movl %esp, %edx;                        \
+        push $0x00;  /* free flags */           \
+                                                \
+        /* Since we are done with this stack    \
+           We should not depend on it anymore */\
+                                                \
+        movl $THD_ID_SHARED_PAGE, %ecx;         \
+        movl (%ecx), %ecx;                      \
+    	movl $stkmgr_stack_space, %esp;	        \
+        shl $11, %ecx;	                        \
+        addl %ecx, %esp;                        \
+        /* save our registers */                \
+        pushl %ebp;                             \
+        pushl %esi;                             \
+        pushl %edi;                             \
+        pushl %ebx;                             \
+        pushl %ecx;                             \
+        pushl %eax;                             \
+                                                \
+        pushl %edx; /* address of stack */      \
+        movl cos_comp_info, %ecx;               \
+        subl $8, %ecx;                          \
+        /*movl (%ecx), %edx;*/                  \
+        pushl %ecx;                             \
+        call stkmgr_return_stack;               \
+        addl $8, %esp;                          \
+                                                \
+        /*restore stack */                      \
+        popl %eax;                              \
+        popl %ecx;                              \
+        popl %ebx;                              \
+        popl %edi;                              \
+        popl %esi;                              \
+        popl %ebp;                              \
+4:                                              \
+        ;
+ 
 
-*/
 
-#define SAFE_PUSH_ALL    \
-    pushl %ebp;     \
-    pushl %eax;     \
-    pushl %ebx;     \
-    pushl %ecx;     \
-    pushl %edx;     \
-    pushl %esi;     \
-    pushl %edi;     \
 
-#define SAFE_POP_ALL    \
-    popl %edi;          \
-    popl %esi;          \
-    popl %edx;          \
-    popl %ecx;          \
-    popl %ebx;          \
-    popl %eax;          \
-    popl %ebp;          \
+
 
 
 /**
  * Assign a thread a stack to execute on.
  */
-#define COS_ASM_GET_STACK                       \
+#define COS_ASM_GET_STACK_OLD                   \
                                                 \
         /* Remove me */                         \
         movl %eax, %edx;                        \
@@ -160,7 +239,7 @@
         SAFE_POP_ALL;*/
 
 
-#define COS_ASM_RET_STACK                       \
+#define COS_ASM_RET_STACK_OLD                   \
         /*pushl %eax;                           \
         call stkmgr_return_stack;*/             \
         /*addl  $4, %esp;*/                     \

@@ -1,5 +1,4 @@
 include Makefile.src Makefile.comp
-
 SUBDIRS=$(wildcard */)
 MAKEFLAGS=-I$(shell pwd)
 

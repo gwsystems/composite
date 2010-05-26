@@ -1,6 +1,6 @@
 # Order matters here.  Interface files rely on library files, and
 # component implementations rely on both the interfaces and the libs
-
+$(info components makeflag $(MAKEFLAGS))
 MAKEFLAGS=-I$(shell pwd)
 
 all:
@@ -15,6 +15,9 @@ clean:
 	make $(MAKEFLAGS) -C lib clean
 	make $(MAKEFLAGS) -C interface clean
 	make $(MAKEFLAGS) -C implementation clean
+
+distclean:
+	make $(MAKEFLAGS) -C lib distclean
 
 init:
 	make $(MAKEFLAGS) -C lib init

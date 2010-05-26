@@ -46,7 +46,7 @@ all: $(SOURCE_DEPENDENCIES) $(COMPONENT)
 # then) do we want to use dietlibc's functions
 $(COMPONENT): $(OBJS)
 	$(info [LD]   Loading cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
-	@$(LD) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
+	$(LD) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
 	$(info [DIET] Linking with dietlibc to produce $@)
 	@$(DIETCC) $(DIETCFLAGS) -Xlinker -r -o $@ $@.$(TMP_STR)
 	@rm $@.$(TMP_STR)
