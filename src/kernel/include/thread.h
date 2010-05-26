@@ -224,9 +224,11 @@ static inline vaddr_t thd_get_frame_ip(struct thread *thd, int frame_offset)
 	if (frame_offset > thd->stack_ptr) return 0;
 	if (frame_offset == thd->stack_ptr) {
 		if (thd->flags & THD_STATE_PREEMPTED) {
-			return thd->regs.eip;
+//			return thd->regs.eip;
+			return thd->regs.ip;
 		} else {
-			return thd->regs.edx;
+//			return thd->regs.edx;
+			return thd->regs.dx;
 		}
 	} else {
 		struct thd_invocation_frame *tif;
@@ -242,9 +244,11 @@ static inline vaddr_t thd_get_frame_sp(struct thread *thd, int frame_offset)
 	if (frame_offset > thd->stack_ptr) return 0;
 	if (frame_offset == thd->stack_ptr) {
 		if (thd->flags & THD_STATE_PREEMPTED) {
-			return thd->regs.esp;
+//			return thd->regs.esp;
+			return thd->regs.sp;
 		} else {
-			return thd->regs.ecx;
+//			return thd->regs.ecx;
+			return thd->regs.cx;
 		}
 	} else {
 		struct thd_invocation_frame *tif;

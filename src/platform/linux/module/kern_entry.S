@@ -33,12 +33,13 @@ EAX		= 0x18
 DS		= 0x1C
 ES		= 0x20
 FS              = 0x24
-ORIG_EAX	= 0x28
-EIP		= 0x2C
-CS		= 0x30
-EFLAGS		= 0x34
-OLDESP		= 0x38
-OLDSS		= 0x3C
+GS              = 0x28
+ORIG_EAX	= 0x2C
+EIP		= 0x30
+CS		= 0x34
+EFLAGS		= 0x38
+OLDESP		= 0x3C
+OLDSS		= 0x40
 
 CF_MASK		= 0x00000001
 TF_MASK		= 0x00000100
@@ -49,6 +50,7 @@ VM_MASK		= 0x00020000
 		
 #define SAVE_ALL \
 	cld; \
+	pushl %gs; \
 	pushl %fs; \
 	pushl %es; \
 	pushl %ds; \
@@ -76,8 +78,8 @@ VM_MASK		= 0x00020000
 	RESTORE_INT_REGS; \
 1:	popl %ds;	\
 2:	popl %es;	\
-	popl %fs
-
+	popl %fs;       \
+	popl %gs
 /* 
  * This is all information that is needed within this file, and
  * external to this file.  It is here, so that it is easier to
@@ -194,7 +196,7 @@ hijack_checks:
 ENTRY(asym_exec_dom_entry)
 	movl %esp, temp_esp_storage /* This is so we can restore it to continue normal linux syscall paths if necessary */
 	/* FIXME: not smp safe */
-	movl TSS_sysenter_esp0(%esp),%esp
+	movl TSS_sysenter_sp0(%esp),%esp
 
 	/*
 	 * Composite invocations are indicated by the contents of %eax:
@@ -243,6 +245,7 @@ normal_syscall:
 		
 	ALIGN
 ENTRY(page_fault_interposition)
+	jmp *(default_page_fault_handler)
 	/*
 	 * we don't want our function to muck with the previously 
 	 * active registers, so save them...  Note that the stack 
@@ -272,5 +275,6 @@ normal_pf:
 	RESTORE_INT_REGS
 	addl $8, %esp
 	popl %fs
+	popl %gs
 	jmp *(default_page_fault_handler)
 

@@ -16,7 +16,7 @@ void * stkmgr_grant_stack(spdid_t d_spdid);
 void stkmgr_return_stack(spdid_t s_spdid, vaddr_t addr);
 
 void stkmgr_stack_report(void);
-int stkmgr_set_concurrency(spdid_t spdid, int concur_lvl);
+int stkmgr_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare);
 int stkmgr_spd_concurrency_estimate(spdid_t spdid);
 unsigned long stkmgr_thd_blk_time(unsigned short int tid, spdid_t spdid, int reset);
 int stkmgr_thd_blk_cnt(unsigned short int tid, spdid_t spdid, int reset);

@@ -30,7 +30,7 @@ void cos_shutdown_memory(void)
 	int i;
 
 	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
-		phys_addr_t addr = cos_pages[i].addr;
+		paddr_t addr = cos_pages[i].addr;
 
 		if (0 != addr) {
 			cos_free_page(pa_to_va((void*)addr));
@@ -45,7 +45,7 @@ void cos_shutdown_memory(void)
  * our Linux implementation, this is not so.  The least we could do is
  * keep the page sorted by physaddr and do a binary search here.
  */
-int cos_phys_addr_to_cap(phys_addr_t pa)
+int cos_paddr_to_cap(paddr_t pa)
 {
 	int i;
 
@@ -58,9 +58,9 @@ int cos_phys_addr_to_cap(phys_addr_t pa)
 	return 0;
 }   
 
-phys_addr_t cos_access_page(unsigned long cap_no)
+paddr_t cos_access_page(unsigned long cap_no)
 {
-	phys_addr_t addr;
+	paddr_t addr;
 
 	if (cap_no > COS_MAX_MEMORY) return 0;
 
@@ -72,7 +72,7 @@ phys_addr_t cos_access_page(unsigned long cap_no)
 			printk("cos: could not allocate page for cos memory\n");
 			return 0;
 		}
-		addr = cos_pages[cap_no].addr = (phys_addr_t)va_to_pa(r);
+		addr = cos_pages[cap_no].addr = (paddr_t)va_to_pa(r);
 	}
 
 	return addr;

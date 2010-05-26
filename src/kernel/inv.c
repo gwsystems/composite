@@ -58,8 +58,8 @@ static inline void open_spd(struct spd_poly *spd)
 	return;
 }
 
-extern void switch_host_pg_tbls(phys_addr_t pt);
-static inline void switch_pg_tbls(phys_addr_t new, phys_addr_t old)
+extern void switch_host_pg_tbls(paddr_t pt);
+static inline void switch_pg_tbls(paddr_t new, paddr_t old)
 {
 	if (likely(old != new)) {
 		native_write_cr3(new);
@@ -100,9 +100,9 @@ void print_regs(struct pt_regs *regs)
 	printk("cos: EAX:%x\tEBX:%x\tECX:%x\n"
 	       "cos: EDX:%x\tESI:%x\tEDI:%x\n"
 	       "cos: EIP:%x\tESP:%x\tEBP:%x\n",
-	       (unsigned int)regs->eax, (unsigned int)regs->ebx, (unsigned int)regs->ecx,
-	       (unsigned int)regs->edx, (unsigned int)regs->esi, (unsigned int)regs->edi,
-	       (unsigned int)regs->eip, (unsigned int)regs->esp, (unsigned int)regs->ebp);
+	       (unsigned int)regs->ax, (unsigned int)regs->bx, (unsigned int)regs->cx,
+	       (unsigned int)regs->dx, (unsigned int)regs->si, (unsigned int)regs->di,
+	       (unsigned int)regs->ip, (unsigned int)regs->sp, (unsigned int)regs->bp);
 
 	return;
 }
@@ -431,12 +431,12 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, int a, int b, int c)
 	/* FIXME: do this lazily */
 	spd_mpd_ipc_take((struct composite_spd *)curr_spd->composite_spd);
 
-	thd->regs.ecx = COS_UPCALL_CREATE;
-	thd->regs.edx = curr_spd->upcall_entry;
-	thd->regs.ebx = a;
-	thd->regs.edi = b;	
-	thd->regs.esi = c;
-	thd->regs.eax = thd_get_id(thd);
+	thd->regs.cx = COS_UPCALL_CREATE;
+	thd->regs.dx = curr_spd->upcall_entry;
+	thd->regs.bx = a;
+	thd->regs.di = b;	
+	thd->regs.si = c;
+	thd->regs.ax = thd_get_id(thd);
 
 	thd->flags |= THD_STATE_CYC_CNT;
 	initialize_sched_info(thd, curr_spd);
@@ -503,22 +503,22 @@ COS_SYSCALL int cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long a
 	case COS_THD_INVFRM_FP:
 	{
 		if (!(thd->flags & THD_STATE_PREEMPTED)) return 0;
-		return thd->regs.ebp;
+		return thd->regs.bp;
 	}
 	case COS_THD_GET_IP:
 	{
 		if (!(thd->flags & THD_STATE_PREEMPTED)) return 0;
-		return thd->regs.eip;
+		return thd->regs.ip;
 	}
 	case COS_THD_GET_SP:
 	{
-		return thd->regs.esp;
+		return thd->regs.sp;
 	}
 	case COS_THD_SET_IP:
 	{
 		/* FIXME: this should only be used on new threads */
 		if (!(thd->flags & THD_STATE_PREEMPTED)) return -1;
-		thd->regs.eip = arg1;
+		thd->regs.ip = arg1;
 		return 0;
 	}
 	case COS_THD_STATUS:
@@ -560,8 +560,8 @@ static inline int sched_tailcall_adjust_invstk(struct thread *t)
 	/* saving to both ip and edx allows this to correctly return
 	 * to the thread's execution regardless of if it is invoked
 	 * via loading registers, or via sysexit. */
-	t->regs.eip = t->regs.edx = tif->ip;
-	t->regs.esp = t->regs.ecx = tif->sp;
+	t->regs.ip = t->regs.dx = tif->ip;
+	t->regs.sp = t->regs.cx = tif->sp;
 	s = tif->spd;
 	cspd = tif->current_composite_spd;
 	ntif = thd_invstk_top(t);
@@ -795,13 +795,13 @@ COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned 
 
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
 	/* success for this current thread */
-	curr->regs.eax = COS_SCHED_RET_SUCCESS;
+	curr->regs.ax = COS_SCHED_RET_SUCCESS;
 
 	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
 
 	return &thd->regs;
 ret_err:
-	curr->regs.eax = ret_code;
+	curr->regs.ax = ret_code;
 ret:
 	return &curr->regs;
 }
@@ -925,12 +925,12 @@ static inline void upcall_setup_regs(struct thread *uc, struct spd *dest,
 {
 	struct pt_regs *r = &uc->regs;
 
-	r->ebx = arg1;
-	r->edi = arg2;
-	r->esi = arg3;
-	r->ecx = option;
-	r->eip = r->edx = dest->upcall_entry;
-	r->eax = thd_get_id(uc);
+	r->bx = arg1;
+	r->di = arg2;
+	r->si = arg3;
+	r->cx = option;
+	r->ip = r->dx = dest->upcall_entry;
+	r->ax = thd_get_id(uc);
 }
 
 /* 
@@ -942,7 +942,7 @@ static struct thread *upcall_inv_setup(struct thread *uc, struct spd *dest, upca
 {
 	/* Call this first so that esp and eip are intact...clobbered
 	 * in the next line */
-	thd_invocation_push(uc, dest, uc->regs.esp, uc->regs.eip);
+	thd_invocation_push(uc, dest, uc->regs.sp, uc->regs.ip);
 	upcall_setup_regs(uc, dest, option, arg1, arg2, arg3);
 	spd_mpd_ipc_take((struct composite_spd *)dest->composite_spd);
 	
@@ -1053,7 +1053,7 @@ static struct thread *sched_tailcall_pending_upcall_thd(struct thread *uc, struc
 	cos_meas_event(COS_MEAS_FINISHED_BRANDS);
 
 	/* return value is the number of pending upcalls */
-	uc->regs.eax = brand->pending_upcall_requests;
+	uc->regs.ax = brand->pending_upcall_requests;
 
 	event_record("pending upcall", thd_get_id(uc), 0);
 
@@ -1232,7 +1232,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_brand_wait_cont(int spd_id, unsigned sho
 
 	return brand_execution_completion(curr, preempt);
 brand_wait_err:
-	curr->regs.eax = -1;
+	curr->regs.ax = -1;
 	return &curr->regs;
 }
 
@@ -1285,11 +1285,11 @@ COS_SYSCALL struct pt_regs *cos_syscall_brand_upcall_cont(int spd_id, int thread
 	next_thd = brand_next_thread(brand_thd, curr_thd, 2);
 	
 	if (next_thd == curr_thd) {
-		curr_thd->regs.eax = 0;
+		curr_thd->regs.ax = 0;
 	} else {
-		next_thd->regs.ebx = arg1;
-		next_thd->regs.edi = arg2;
-		curr_thd->regs.eax = 1;
+		next_thd->regs.bx = arg1;
+		next_thd->regs.di = arg2;
+		curr_thd->regs.ax = 1;
 	}
 /* This to measure the cost of pending upcalls
 	if (unlikely(first)) {
@@ -1300,7 +1300,7 @@ COS_SYSCALL struct pt_regs *cos_syscall_brand_upcall_cont(int spd_id, int thread
 	return &next_thd->regs;
 
 upcall_brand_err:
-	curr_thd->regs.eax = -1;
+	curr_thd->regs.ax = -1;
 	return &curr_thd->regs;
 }
 
@@ -1583,7 +1583,7 @@ int cos_net_notify_drop(struct thread *brand)
  * Partially emulate a device here: Receive ring for holding buffers
  * to receive data into, and a synchronous call to transmit data.
  */
-extern vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr);
+extern vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr);
 extern int user_struct_fits_on_page(unsigned long addr, unsigned int size);
 /* assembly in ipc.S */
 extern int cos_syscall_buff_mgmt(void);
@@ -2195,7 +2195,7 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 		} else {
 			upcall_execute_no_vas_switch(upcall, preempted);
 		}
-		upcall->regs.eax = upcall->thread_brand->pending_upcall_requests;
+		upcall->regs.ax = upcall->thread_brand->pending_upcall_requests;
 
 		if (preempted->flags & THD_STATE_ACTIVE_UPCALL && upcall->interrupted_thread) {
 			event_record("upcall activated and made immediately (preempted upcall)", 
@@ -2633,7 +2633,7 @@ static struct composite_spd *mpd_merge(struct composite_spd *c1,
 	other = get_spd_to_subordinate(c1, c2);
 	dest = (other == c1) ? c2 : c1;
 	/*
-	extern void print_valid_pgtbl_entries(phys_addr_t pt);
+	extern void print_valid_pgtbl_entries(paddr_t pt);
 	print_valid_pgtbl_entries(dest->spd_info.pg_tbl);
 	print_valid_pgtbl_entries(other->spd_info.pg_tbl);
 	*/
@@ -2680,7 +2680,7 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
 	int ret = 0; 
 	struct composite_spd *prev = NULL;
 	struct spd *from = NULL;
-	phys_addr_t curr_pg_tbl, new_pg_tbl;
+	paddr_t curr_pg_tbl, new_pg_tbl;
 	struct spd_poly *curr;
 	struct thread *thd;
 
@@ -2853,12 +2853,12 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
  * or is in the current composite spd, or is a child of a fault
  * thread.
  */
-extern int pgtbl_add_entry(phys_addr_t pgtbl, vaddr_t vaddr, phys_addr_t paddr); 
-extern phys_addr_t pgtbl_rem_ret(phys_addr_t pgtbl, vaddr_t va);
+extern int pgtbl_add_entry(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr); 
+extern paddr_t pgtbl_rem_ret(paddr_t pgtbl, vaddr_t va);
 COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, long mem_id)
 {
 	short int op, flags, dspd_id;
-	phys_addr_t page;
+	paddr_t page;
 	int ret = 0;
 	struct spd *spd;
 	
@@ -2901,13 +2901,13 @@ COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t dad
 		break;
 	case COS_MMAP_REVOKE:
 	{
-		phys_addr_t pa;
+		paddr_t pa;
 
 		if (!(pa = pgtbl_rem_ret(spd->spd_info.pg_tbl, daddr))) {
 			ret = 0;
 			break;
 		}
-		ret = cos_phys_addr_to_cap(pa);
+		ret = cos_paddr_to_cap(pa);
 		cos_meas_event(COS_MAP_REVOKE);
 
 		break;
@@ -3020,7 +3020,7 @@ COS_SYSCALL int cos_syscall_idle_cont(int spdid)
 	return COS_SCHED_RET_SUCCESS;
 }
 
-extern int pgtbl_add_middledir(phys_addr_t pt, unsigned long vaddr);
+extern int pgtbl_add_middledir(paddr_t pt, unsigned long vaddr);
 
 COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 {
@@ -3040,7 +3040,7 @@ COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 	switch (op) {
 	case COS_SPD_CREATE:
 	{
-		phys_addr_t pa;
+		paddr_t pa;
 
 		pa = spd_alloc_pgtbl();
 		if (0 == pa) {

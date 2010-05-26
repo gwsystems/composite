@@ -74,7 +74,7 @@ static enum {SCHED_CHILD, SCHED_ROOT} sched_type = SCHED_ROOT;
 static inline int sched_is_root(void) { return sched_type == SCHED_ROOT; }
 static inline int sched_is_child(void) { return !sched_is_root(); } 
 
-#define FPRR_REPORT_EVTS
+//#define FPRR_REPORT_EVTS
 
 typedef enum {
 	NULL_EVT = 0,
@@ -577,7 +577,7 @@ static void sched_timer_tick(void)
 		
 		if ((ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1)) {
 			report_thd_accouting();
-			cos_stats();
+			//cos_stats();
 		}
 		
 		/* are we done running? */

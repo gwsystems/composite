@@ -21,7 +21,7 @@
  * strtok so much.  Suffice to say, don't multithread this program.
  */
 
-//#define HIGHEST_PRIO 1
+#define HIGHEST_PRIO 1
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -352,7 +352,7 @@ static void run_linker(char *input_obj, char *output_exe)
 	char linker_cmd[256];
 	sprintf(linker_cmd, LINKER_BIN " -T %s -o %s %s", script, output_exe,
 		input_obj);
-	printl(PRINT_DEBUG, linker_cmd);
+	printl(PRINT_DEBUG, "%s", linker_cmd);
 	fflush(stdout);
 	system(linker_cmd);
 }

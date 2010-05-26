@@ -11,7 +11,7 @@
 
 #include <linux/kernel.h>
 
-extern vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr);
+extern vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr);
 extern int user_struct_fits_on_page(unsigned long addr, unsigned int size);
 /* 
  * Return -1 if there is some form of error (couldn't find ring

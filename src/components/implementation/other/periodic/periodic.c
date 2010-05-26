@@ -16,11 +16,35 @@
 #include <sched_conf.h>
 #include <synth_hier.h>
 
+int period = 100, num_invs = 1;
+
+char *parse_step(char *d)
+{
+	char *s = strchr(d, ' ');
+	if (!s) {
+		if ('\0' == d) return d;
+		s = d + strlen(d);
+	} else {
+		*s = '\0';
+		s++;
+	}
+
+	switch(*d) {
+	case 'p':		/* spin */
+		period = atoi(++d);
+		break;
+	case 'n':		/* num of invocations */
+		num_invs = atoi(++d);
+		break;
+	}
+
+	return s;
+}
+
 int parse_initstr(void)
 {
 	struct cos_array *data;
 	char *c;
-	int period;
 
 	data = cos_argreg_alloc(sizeof(struct cos_array) + 52);
 	assert(data);
@@ -32,22 +56,29 @@ int parse_initstr(void)
 	}
 
 	c = data->mem;
-	period = atoi(c);
+	while ('\0' != *c) c = parse_step(c);
 	
 	cos_argreg_free(data);
 
-	return period;
+	return 0;
 }
 
 void cos_init(void *arg)
 {
-	int period;
-
-	period = parse_initstr();
+	parse_initstr();
 	if (period < 1) BUG();
 	periodic_wake_create(cos_spd_id(), period);
+
+	printc("Periodic task %d ready to rock with period %d\n", cos_get_thd_id(), period);
+
+	/* Allow all periodic tasks to begin */
+	periodic_wake_wait(cos_spd_id());
+	periodic_wake_wait(cos_spd_id());
+	periodic_wake_wait(cos_spd_id());
 	while (1) {
-		left();
+		int i;
+
+		for (i = 0 ; i < num_invs ; i++) left();
 		periodic_wake_wait(cos_spd_id());
 	}
 	return;

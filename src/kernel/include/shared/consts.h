@@ -18,23 +18,23 @@
 #include <linux/thread_info.h> /* for PAGE_SIZE */
 #else 
 struct pt_regs {
-        long ebx;
-        long ecx;
-        long edx;
-        long esi;
-        long edi;
-        long ebp;
-        long eax;
-        int  xds;
-        int  xes;
-        int  xfs;
-        /* int  gs; */
-        long orig_eax;
-        long eip;
-        int  xcs;
-        long eflags;
-        long esp;
-        int  xss;
+        long bx;
+        long cx;
+        long dx;
+        long si;
+        long di;
+        long bp;
+        long ax;
+        long ds;
+        long es;
+        long fs;
+        long gs;
+        long orig_ax;
+        long ip;
+        long cs;
+        long flags;
+        long sp;
+        long ss;
 };
 //struct pt_regs { int dummy[16]; };
 #endif
@@ -44,7 +44,7 @@ struct pt_regs {
 #endif
 
 #define MAX_SERVICE_DEPTH 31
-#define MAX_NUM_THREADS 24
+#define MAX_NUM_THREADS 20
 /* Stacks are 2 * page_size (expressed in words) */
 //#define MAX_STACK_SZ    (PAGE_SIZE*2/4)
 #define MAX_STACK_SZ    (PAGE_SIZE/(2*4))

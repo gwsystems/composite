@@ -97,20 +97,6 @@ static int debug;
 static LIST_HEAD(tun_dev_list);
 static const struct ethtool_ops tun_ethtool_ops;
 
-/* Net device open. */
-static int tun_net_open(struct net_device *dev)
-{
-	netif_start_queue(dev);
-	return 0;
-}
-
-/* Net device close. */
-static int tun_net_close(struct net_device *dev)
-{
-	netif_stop_queue(dev);
-	return 0;
-}
-
 static inline struct cosnet_struct *cosnet_find_brand(struct tun_struct *ts, __u8 proto, __u16 dport)
 {
 	int i;
@@ -352,6 +338,7 @@ int cosnet_get_packet(struct cos_brand_info *bi, char **packet, unsigned long *l
 
 extern void host_start_syscall(void);
 extern void host_end_syscall(void);
+extern asmlinkage void do_softirq(void);
 
 static int cosnet_xmit_packet(void *headers, int hlen, struct gather_item *gi, 
 			      int gi_len, int tot_gi_len)
@@ -498,6 +485,42 @@ static int cosnet_execute_brand(struct cos_brand_info *brand, struct sk_buff *sk
 	return cos_net_try_brand(brand->brand, (void*)skb->data, skb->len);
 }
 
+/* Net device detach from fd. */
+static void tun_net_uninit(struct net_device *dev)
+{
+	/* struct tun_struct *tun = netdev_priv(dev); */
+	/* struct tun_file *tfile = tun->tfile; */
+
+	/* /\* Inform the methods they need to stop using the dev. */
+	/*  *\/ */
+	/* if (tfile) { */
+	/* 	wake_up_all(&tun->socket.wait); */
+	/* 	if (atomic_dec_and_test(&tfile->count)) */
+	/* 		__tun_detach(tun); */
+	/* } */
+}
+
+static void tun_free_netdev(struct net_device *dev)
+{
+//	struct tun_struct *tun = netdev_priv(dev);
+
+//	sock_put(tun->socket.sk);
+}
+
+/* Net device open. */
+static int tun_net_open(struct net_device *dev)
+{
+	netif_start_queue(dev);
+	return 0;
+}
+
+/* Net device close. */
+static int tun_net_close(struct net_device *dev)
+{
+	netif_stop_queue(dev);
+	return 0;
+}
+
 /* Net device start xmit */
 static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 {
@@ -567,49 +590,31 @@ drop:
 	return 0;
 }
 
-/** Add the specified Ethernet address to this multicast filter. */
-static void
-add_multi(u32* filter, const u8* addr)
-{
-	int bit_nr = ether_crc(ETH_ALEN, addr) >> 26;
-	filter[bit_nr >> 5] |= 1 << (bit_nr & 31);
-}
-
-/** Remove the specified Ethernet addres from this multicast filter. */
-static void
-del_multi(u32* filter, const u8* addr)
-{
-	int bit_nr = ether_crc(ETH_ALEN, addr) >> 26;
-	filter[bit_nr >> 5] &= ~(1 << (bit_nr & 31));
-}
-
-/** Update the list of multicast groups to which the network device belongs.
- * This list is used to filter packets being sent from the character device to
- * the network device. */
-static void
-tun_net_mclist(struct net_device *dev)
-{
-	struct tun_struct *tun = netdev_priv(dev);
-	const struct dev_mc_list *mclist;
-	int i;
-	DBG(KERN_DEBUG "%s: tun_net_mclist: mc_count %d\n",
-			dev->name, dev->mc_count);
-	memset(tun->chr_filter, 0, sizeof tun->chr_filter);
-	for (i = 0, mclist = dev->mc_list; i < dev->mc_count && mclist != NULL;
-			i++, mclist = mclist->next) {
-		add_multi(tun->net_filter, mclist->dmi_addr);
-		DBG(KERN_DEBUG "%s: tun_net_mclist: %x:%x:%x:%x:%x:%x\n",
-				dev->name,
-				mclist->dmi_addr[0], mclist->dmi_addr[1], mclist->dmi_addr[2],
-				mclist->dmi_addr[3], mclist->dmi_addr[4], mclist->dmi_addr[5]);
-	}
-}
-
 static struct net_device_stats *tun_net_stats(struct net_device *dev)
 {
 	struct tun_struct *tun = netdev_priv(dev);
 	return &tun->stats;
 }
+
+#define MIN_MTU 68
+#define MAX_MTU 65535
+
+static int
+tun_net_change_mtu(struct net_device *dev, int new_mtu)
+{
+	if (new_mtu < MIN_MTU || new_mtu + dev->hard_header_len > MAX_MTU)
+		return -EINVAL;
+	dev->mtu = new_mtu;
+	return 0;
+}
+
+static const struct net_device_ops tun_netdev_ops = {
+	.ndo_uninit		= tun_net_uninit,
+	.ndo_open		= tun_net_open,
+	.ndo_stop		= tun_net_close,
+	.ndo_start_xmit		= tun_net_xmit,
+	.ndo_change_mtu		= tun_net_change_mtu,
+};
 
 /* Initialize net device. */
 static void tun_net_init(struct net_device *dev)
@@ -618,6 +623,8 @@ static void tun_net_init(struct net_device *dev)
 
 	switch (tun->flags & TUN_TYPE_MASK) {
 	case TUN_TUN_DEV:
+		dev->netdev_ops = &tun_netdev_ops;
+
 		/* Point-to-Point TUN Device */
 		dev->hard_header_len = 0;
 		dev->addr_len = 0;
@@ -631,7 +638,7 @@ static void tun_net_init(struct net_device *dev)
 
 	case TUN_TAP_DEV:
 		/* Ethernet TAP Device */
-		dev->set_multicast_list = tun_net_mclist;
+		//dev->set_multicast_list = tun_net_mclist;
 
 		ether_setup(dev);
 
@@ -645,236 +652,27 @@ static void tun_net_init(struct net_device *dev)
 
 /* Character device part */
 
-/* Poll */
-static unsigned int tun_chr_poll(struct file *file, poll_table * wait)
-{
-	struct tun_struct *tun = file->private_data;
-	unsigned int mask = POLLOUT | POLLWRNORM;
-
-	if (!tun)
-		return -EBADFD;
-
-	DBG(KERN_INFO "%s: tun_chr_poll\n", tun->dev->name);
-
-	poll_wait(file, &tun->read_wait, wait);
-
-	if (!skb_queue_empty(&tun->readq))
-		mask |= POLLIN | POLLRDNORM;
-
-	return mask;
-}
-
-/* Get packet from user space buffer */
-static __inline__ ssize_t tun_get_user(struct tun_struct *tun, struct iovec *iv, size_t count)
-{
-	struct tun_pi pi = { 0, __constant_htons(ETH_P_IP) };
-	struct sk_buff *skb;
-	size_t len = count, align = 0;
-
-	if (!(tun->flags & TUN_NO_PI)) {
-		if ((len -= sizeof(pi)) > count)
-			return -EINVAL;
-
-		if(memcpy_fromiovec((void *)&pi, iv, sizeof(pi)))
-			return -EFAULT;
-	}
-
-	if ((tun->flags & TUN_TYPE_MASK) == TUN_TAP_DEV)
-		align = NET_IP_ALIGN;
-
-	if (!(skb = alloc_skb(len + align, GFP_KERNEL))) {
-		tun->stats.rx_dropped++;
-		return -ENOMEM;
-	}
-
-	if (align)
-		skb_reserve(skb, align);
-	if (memcpy_fromiovec(skb_put(skb, len), iv, len)) {
-		tun->stats.rx_dropped++;
-		kfree_skb(skb);
-		return -EFAULT;
-	}
-
-	switch (tun->flags & TUN_TYPE_MASK) {
-	case TUN_TUN_DEV:
-		skb_reset_mac_header(skb);
-		skb->protocol = pi.proto;
-		skb->dev = tun->dev;
-		break;
-	case TUN_TAP_DEV:
-		skb->protocol = eth_type_trans(skb, tun->dev);
-		break;
-	};
-
-	if (tun->flags & TUN_NOCHECKSUM)
-		skb->ip_summed = CHECKSUM_UNNECESSARY;
-
-	netif_rx_ni(skb);
-	tun->dev->last_rx = jiffies;
-
-	tun->stats.rx_packets++;
-	tun->stats.rx_bytes += len;
-
-	return count;
-}
-
-static inline size_t iov_total(const struct iovec *iv, unsigned long count)
-{
-	unsigned long i;
-	size_t len;
-
-	for (i = 0, len = 0; i < count; i++)
-		len += iv[i].iov_len;
-
-	return len;
-}
-
-static ssize_t tun_chr_aio_write(struct kiocb *iocb, const struct iovec *iv,
-			      unsigned long count, loff_t pos)
-{
-	struct tun_struct *tun = iocb->ki_filp->private_data;
-
-	if (!tun)
-		return -EBADFD;
-
-	DBG(KERN_INFO "%s: tun_chr_write %ld\n", tun->dev->name, count);
-
-	return tun_get_user(tun, (struct iovec *) iv, iov_total(iv, count));
-}
-
-/* Put packet to the user space buffer */
-static __inline__ ssize_t tun_put_user(struct tun_struct *tun,
-				       struct sk_buff *skb,
-				       struct iovec *iv, int len)
-{
-	struct tun_pi pi = { 0, skb->protocol };
-	ssize_t total = 0;
-
-	if (!(tun->flags & TUN_NO_PI)) {
-		if ((len -= sizeof(pi)) < 0)
-			return -EINVAL;
-
-		if (len < skb->len) {
-			/* Packet will be striped */
-			pi.flags |= TUN_PKT_STRIP;
-		}
-
-		if (memcpy_toiovec(iv, (void *) &pi, sizeof(pi)))
-			return -EFAULT;
-		total += sizeof(pi);
-	}
-
-	len = min_t(int, skb->len, len);
-
-	skb_copy_datagram_iovec(skb, 0, iv, len);
-	total += len;
-
-	tun->stats.tx_packets++;
-	tun->stats.tx_bytes += len;
-
-	return total;
-}
-
-static ssize_t tun_chr_aio_read(struct kiocb *iocb, const struct iovec *iv,
-			    unsigned long count, loff_t pos)
-{
-	struct file *file = iocb->ki_filp;
-	struct tun_struct *tun = file->private_data;
-	DECLARE_WAITQUEUE(wait, current);
-	struct sk_buff *skb;
-	ssize_t len, ret = 0;
-
-	if (!tun)
-		return -EBADFD;
-
-	DBG(KERN_INFO "%s: tun_chr_read\n", tun->dev->name);
-
-	len = iov_total(iv, count);
-	if (len < 0)
-		return -EINVAL;
-
-	add_wait_queue(&tun->read_wait, &wait);
-	while (len) {
-		const u8 ones[ ETH_ALEN] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-		u8 addr[ ETH_ALEN];
-		int bit_nr;
-
-		current->state = TASK_INTERRUPTIBLE;
-
-		/* Read frames from the queue */
-		if (!(skb=skb_dequeue(&tun->readq))) {
-			if (file->f_flags & O_NONBLOCK) {
-				ret = -EAGAIN;
-				break;
-			}
-			if (signal_pending(current)) {
-				ret = -ERESTARTSYS;
-				break;
-			}
-
-			/* Nothing to read, let's sleep */
-			schedule();
-			continue;
-		}
-		netif_wake_queue(tun->dev);
-
-		/** Decide whether to accept this packet. This code is designed to
-		 * behave identically to an Ethernet interface. Accept the packet if
-		 * - we are promiscuous.
-		 * - the packet is addressed to us.
-		 * - the packet is broadcast.
-		 * - the packet is multicast and
-		 *   - we are multicast promiscous.
-		 *   - we belong to the multicast group.
-		 */
-		skb_copy_from_linear_data(skb, addr, min_t(size_t, sizeof addr,
-								   skb->len));
-		bit_nr = ether_crc(sizeof addr, addr) >> 26;
-		if ((tun->if_flags & IFF_PROMISC) ||
-				memcmp(addr, tun->dev_addr, sizeof addr) == 0 ||
-				memcmp(addr, ones, sizeof addr) == 0 ||
-				(((addr[0] == 1 && addr[1] == 0 && addr[2] == 0x5e) ||
-				  (addr[0] == 0x33 && addr[1] == 0x33)) &&
-				 ((tun->if_flags & IFF_ALLMULTI) ||
-				  (tun->chr_filter[bit_nr >> 5] & (1 << (bit_nr & 31)))))) {
-			DBG(KERN_DEBUG "%s: tun_chr_readv: accepted: %x:%x:%x:%x:%x:%x\n",
-					tun->dev->name, addr[0], addr[1], addr[2],
-					addr[3], addr[4], addr[5]);
-			ret = tun_put_user(tun, skb, (struct iovec *) iv, len);
-			kfree_skb(skb);
-			break;
-		} else {
-			DBG(KERN_DEBUG "%s: tun_chr_readv: rejected: %x:%x:%x:%x:%x:%x\n",
-					tun->dev->name, addr[0], addr[1], addr[2],
-					addr[3], addr[4], addr[5]);
-			kfree_skb(skb);
-			continue;
-		}
-	}
-
-	current->state = TASK_RUNNING;
-	remove_wait_queue(&tun->read_wait, &wait);
-
-	return ret;
-}
-
 static void tun_setup(struct net_device *dev)
 {
 	struct tun_struct *tun = netdev_priv(dev);
 
-	skb_queue_head_init(&tun->readq);
+	//skb_queue_head_init(&tun->readq);
 	cosnet_init_queues(tun);
-	init_waitqueue_head(&tun->read_wait);
+	//init_waitqueue_head(&tun->read_wait);
 
 	tun->owner = -1;
+	//tun->group = -1;
 
-	SET_MODULE_OWNER(dev);
-	dev->open = tun_net_open;
-	dev->hard_start_xmit = tun_net_xmit;
-	dev->stop = tun_net_close;
-	dev->get_stats = tun_net_stats;
 	dev->ethtool_ops = &tun_ethtool_ops;
-	dev->destructor = free_netdev;
+	dev->destructor = tun_free_netdev;
+
+	/* SET_MODULE_OWNER(dev); */
+	/* dev->open = tun_net_open; */
+	/* dev->hard_start_xmit = tun_net_xmit; */
+	/* dev->stop = tun_net_close; */
+	/* dev->get_stats = tun_net_stats; */
+	/* dev->ethtool_ops = &tun_ethtool_ops; */
+	/* dev->destructor = free_netdev; */
 }
 
 static struct tun_struct *tun_get_by_name(const char *name)
@@ -902,12 +700,12 @@ static int tun_set_iff(struct file *file, struct ifreq *ifr)
 		//	return -EBUSY;
 
 		/* Check permissions */
-		if (tun->owner != -1 &&
-		    current->euid != tun->owner && !capable(CAP_NET_ADMIN))
-			return -EPERM;
+		/* if (tun->owner != -1 && */
+		/*     current->euid != tun->owner && !capable(CAP_NET_ADMIN)) */
+		/* 	return -EPERM; */
 	}
-	else if (__dev_get_by_name(ifr->ifr_name))
-		return -EINVAL;
+//	else if (__dev_get_by_name(ifr->ifr_name))
+//		return -EINVAL;
 	else {
 		char *name;
 		unsigned long flags = 0;
@@ -1106,29 +904,6 @@ static int tun_chr_ioctl(struct inode *inode, struct file *file,
 
 		return  ret;
 	}
-
-	case SIOCADDMULTI:
-		/** Add the specified group to the character device's multicast filter
-		 * list. */
-		add_multi(tun->chr_filter, ifr.ifr_hwaddr.sa_data);
-		DBG(KERN_DEBUG "%s: add multi: %x:%x:%x:%x:%x:%x\n",
-				tun->dev->name,
-				(u8)ifr.ifr_hwaddr.sa_data[0], (u8)ifr.ifr_hwaddr.sa_data[1],
-				(u8)ifr.ifr_hwaddr.sa_data[2], (u8)ifr.ifr_hwaddr.sa_data[3],
-				(u8)ifr.ifr_hwaddr.sa_data[4], (u8)ifr.ifr_hwaddr.sa_data[5]);
-		return 0;
-
-	case SIOCDELMULTI:
-		/** Remove the specified group from the character device's multicast
-		 * filter list. */
-		del_multi(tun->chr_filter, ifr.ifr_hwaddr.sa_data);
-		DBG(KERN_DEBUG "%s: del multi: %x:%x:%x:%x:%x:%x\n",
-				tun->dev->name,
-				(u8)ifr.ifr_hwaddr.sa_data[0], (u8)ifr.ifr_hwaddr.sa_data[1],
-				(u8)ifr.ifr_hwaddr.sa_data[2], (u8)ifr.ifr_hwaddr.sa_data[3],
-				(u8)ifr.ifr_hwaddr.sa_data[4], (u8)ifr.ifr_hwaddr.sa_data[5]);
-		return 0;
-
 	default:
 		return -EINVAL;
 	};
@@ -1188,7 +963,7 @@ static int tun_chr_close(struct inode *inode, struct file *file)
 	//tun->attached = 0;
 
 	/* Drop read queue */
-	skb_queue_purge(&tun->readq);
+	//skb_queue_purge(&tun->readq);
 	//cosnet_purge_queues(tun);
 	//cosnet_cos_deregister();
 
@@ -1206,7 +981,6 @@ static const struct file_operations tun_fops = {
 	.owner	= THIS_MODULE,
 //	.llseek = no_llseek,
 //	.read  = do_sync_read,
-//	.aio_read  = tun_chr_aio_read,
 //	.write = do_sync_write,
 //	.aio_write = tun_chr_aio_write,
 //	.poll	= tun_chr_poll,

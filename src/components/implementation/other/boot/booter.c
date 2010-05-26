@@ -207,7 +207,7 @@ static int boot_spd_thd(spdid_t spdid)
 static void boot_find_cobjs(struct cobj_header *h, int n)
 {
 	int i;
-	vaddr_t start, end, size;
+	vaddr_t start, end;
 
 	start = (vaddr_t)h;
 	hs[0] = h;
@@ -218,7 +218,8 @@ static void boot_find_cobjs(struct cobj_header *h, int n)
 		for (j = 0 ; j < (int)h->nsect ; j++) {
 			tot += cobj_sect_size(h, j);
 		}
-		printc("cobj found at %x:%d, size %d\n", hs[i-1], size, tot);
+		printc("cobj found at %p:%d, size %d -> %x\n", 
+		       hs[i-1], size, tot, cobj_sect_get(h, 0)->vaddr);
 
 		end = start + round_up_to_cacheline(size);
 		hs[i] = h = (struct cobj_header*)end;

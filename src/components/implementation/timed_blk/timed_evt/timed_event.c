@@ -43,8 +43,8 @@ struct thread_event {
 	struct thread_event *next, *prev;
 
 	/* if flags & TE_PERIODIC */
-	unsigned int period, executed;
-	unsigned short int dl_missed; /* missed deadlines */
+	unsigned int period, missed;
+	unsigned short int dl, dl_missed; /* missed deadlines */
 	unsigned int samples, miss_samples;
 	long long lateness_tot, miss_lateness_tot;
 	long long completion;
@@ -181,19 +181,28 @@ static void __event_expiration(event_time_t time, struct thread_event *events)
 			/* thread hasn't blocked? deadline miss! */
 			if (!b) {
 				tmp->dl_missed++;
-				/* save time of deadline */
-				if (!tmp->completion) rdtscll(tmp->completion);
+				if (!tmp->missed) { /* first miss? */
+					tmp->missed = 1;
+					/* save time of deadline, unless we
+					 * have saved the time of an earlier
+					 * deadline miss */
+					assert(!tmp->completion);
+					rdtscll(tmp->completion);
+				}
 			} else {
-				if (tmp->completion) { /* on time, compute lateness */
+				if (!tmp->missed) { /* on time, compute lateness */
 					long long t;
 
+					assert(tmp->completion);
 					rdtscll(t);
-					tmp->lateness_tot += (long)(tmp->completion - t);
+					tmp->lateness_tot += -(long)(t - tmp->completion);
 					tmp->samples++;
 					tmp->completion = 0;
 				}
+				tmp->missed = 0;
 			}
 
+			tmp->dl++;
 			/* Next periodic deadline! */
 			tmp->event_expiration += tmp->period;
 			insert_pevent(tmp);
@@ -328,6 +337,7 @@ static long te_get_reset_lateness(struct thread_event *te)
 
 	return avg;
 }
+
 static long te_get_reset_miss_lateness(struct thread_event *te)
 {
 	long avg;
@@ -393,6 +403,26 @@ int periodic_wake_get_misses(unsigned short int tid)
 	}
 	m = te->dl_missed;
 	te->dl_missed = 0;
+	RELEASE(spdid);
+
+	return m;
+}
+
+int periodic_wake_get_deadlines(unsigned short int tid)
+{
+	struct thread_event *te;
+	spdid_t spdid = cos_spd_id();
+	int m;
+
+	TAKE(spdid);
+	te = te_pget(tid);
+	if (NULL == te) BUG();
+	if (!(te->flags & TE_PERIODIC)) {
+		RELEASE(spdid);
+		return -1;
+	}
+	m = te->dl;
+	te->dl = 0;
 	RELEASE(spdid);
 
 	return m;
@@ -488,9 +518,9 @@ int periodic_wake_wait(spdid_t spdinv)
 	te->flags |= TE_BLOCKED;
 
 	rdtscll(t);
-	te->executed = 1;
-	if (te->completion) {	/* we're late */
+	if (te->missed) {	/* we're late */
 		long diff;
+		assert(te->completion);
 
 		diff = (long)(t - te->completion);
 		te->lateness_tot += diff;

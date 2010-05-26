@@ -125,7 +125,7 @@ struct invocation_cap {
 struct spd_poly {
 	unsigned int flags;
 	atomic_t ref_cnt;
-	phys_addr_t pg_tbl;
+	paddr_t pg_tbl;
 };
 
 /* 
@@ -197,12 +197,12 @@ struct spd {
 	struct spd *composite_member_next, *composite_member_prev;
 } CACHE_ALIGNED; //cache line size
 
-phys_addr_t spd_alloc_pgtbl(void);
-void spd_free_pgtbl(phys_addr_t pa);
+paddr_t spd_alloc_pgtbl(void);
+void spd_free_pgtbl(paddr_t pa);
 struct spd *spd_alloc(unsigned short int max_static_cap, struct usr_inv_cap *usr_cap_tbl, 
 		      vaddr_t upcall_entry);
 int spd_set_location(struct spd *spd, unsigned long lowest_addr, 
-		     unsigned long size, phys_addr_t pg_tbl);
+		     unsigned long size, paddr_t pg_tbl);
 void spd_free(struct spd *spd);
 
 int spd_is_free(int idx);
@@ -368,7 +368,7 @@ int virtual_namespace_alloc(struct spd *spd, unsigned long addr, unsigned int si
  *
  * FIXME: TEST THIS!
  */
-extern int pgtbl_entry_absent(vaddr_t addr, phys_addr_t pg_tbl);
+extern int pgtbl_entry_absent(vaddr_t addr, paddr_t pg_tbl);
 static inline int spd_composite_member(struct spd *spd, struct spd_poly *poly)
 {
 	vaddr_t lowest_addr = spd->location.lowest_addr;

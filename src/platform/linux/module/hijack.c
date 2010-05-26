@@ -13,7 +13,7 @@
 //#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/sched.h>
-#include <linux/interrupt.h> /* cli/sti */
+//#include <linux/interrupt.h> /* cli/sti */
 #include <linux/proc_fs.h>
 #include <linux/ioctl.h>
 #include <asm/uaccess.h>
@@ -169,7 +169,8 @@ static int aed_allocate_mm(void)
 		goto out_mem;
 
 	//init_new_empty_context(mm); see SKAS code, copied here:
-	init_MUTEX(&mm->context.sem);
+	//init_MUTEX(&mm->context.sem);
+	mutex_init(&mm->context.lock);
 	mm->context.size = 0;
 	
 	arch_pick_mmap_layout(mm);
@@ -371,7 +372,7 @@ static inline struct pt_regs* get_user_regs(void)
 	}
 	*/
 
-	return (struct pt_regs*)((int)current->thread.esp0 - sizeof(struct pt_regs));
+	return (struct pt_regs*)((int)current->thread.sp0 - sizeof(struct pt_regs));
 
 	/* 
 	 * This is complicated because the user registers can be in
@@ -466,7 +467,7 @@ static inline struct pt_regs* get_user_regs(void)
 
 static inline struct pt_regs* get_user_regs_thread(struct task_struct *thd)
 {
-	return (struct pt_regs*)((int)thd->thread.esp0 - sizeof(struct pt_regs));
+	return (struct pt_regs*)((int)thd->thread.sp0 - sizeof(struct pt_regs));
 }
 
 /* copy the current user-space regs to user-level */
@@ -495,14 +496,12 @@ static inline int save_user_regs_to_kern(struct pt_regs * __user user_regs_area,
 }
 
 /* not necessarily compiled in */
+#ifndef HPAGE_SHIFT
 #define HPAGE_SHIFT	22
 #define HPAGE_SIZE	((1UL) << HPAGE_SHIFT)
 #define HPAGE_MASK	(~(HPAGE_SIZE - 1))
-
-static inline void pte_clrglobal(pte_t* pte)
-{ 
-	pte->pte_low &= ~_PAGE_GLOBAL; 
-}
+#endif
+#define PTE_MASK PAGE_MASK
 
 /*
  * Find the corresponding pte for the address and return its virtual
@@ -529,31 +528,6 @@ static inline pte_t *lookup_address_mm(struct mm_struct *mm, unsigned long addr)
 	if (pmd_large(*pmd))
 		return (pte_t *)pmd;
         return pte_offset_kernel(pmd, addr);
-}
-
-/*
- * The lower and upper address ranges to be set to not global.  Must
- * be 4M aligned on x86 32bit.
- */
-static inline void set_trusted_as_nonglobal(struct mm_struct* mm, 
-					    unsigned long lower_addr, 
-					    unsigned long region_size)
-{
-	unsigned long curr_addr = lower_addr, 
-		upper_addr = lower_addr + region_size;
-	
-	/* FIXME: this will break for superpages */
-	while (curr_addr < upper_addr) {
-		pte_t *pte;
-
-		pte = lookup_address_mm(mm, curr_addr);
-		
-		if (pte) {
-			pte_clrglobal(pte);
-		}
-
-		curr_addr += PAGE_SIZE;
-	}
 }
 
 /* FIXME: change to clone_pgd_range */
@@ -749,7 +723,8 @@ void module_switch_to_executive(void)
 	 * must return either 0 or return code (-errno) as this will
 	 * return from the ioctl.
 	 */
-	regs->eax = 0;
+//	regs->eax = 0;
+	regs->ax = 0;
 
 	return;
 }
@@ -921,7 +896,8 @@ long module_switch_to_child(void* __user ptr)
 	printkd("cos: module_switch_to_child(...end)\n\n");
 
 	/* set the eax of the child process: */
-	return uregs->eax;
+//	return uregs->eax;
+	return uregs->ax;
 }
 
 /*
@@ -974,20 +950,21 @@ void prevent_executive_copying_on_fork(struct mm_struct *mm,
 
 static void cos_print_registers(struct pt_regs *regs)
 {
-	printk("cos: EIP:    %04x:[<%08lx>]    EFLAGS: %08lx\n",
-	        0xffff & regs->xcs, regs->eip,
-		regs->eflags);
-	//printk("cos: EIP is at %s\n", regs->eip);
+	printk("cos: EIP:    %04lx:[<%08lx>]    EFLAGS: %08lx\n",
+	        0xffff & regs->cs, regs->ip,
+		regs->flags);
+	//printk("cos: EIP is at %s\n", regs->ip);
 	printk("cos: eax: %08lx   ebx: %08lx   ecx: %08lx   edx: %08lx\n",
-		regs->eax, regs->ebx, regs->ecx, regs->edx);
+		regs->ax, regs->bx, regs->cx, regs->dx);
 	printk("cos: esi: %08lx   edi: %08lx   ebp: %08lx   esp: %08lx\n",
-		regs->esi, regs->edi, regs->ebp, regs->esp);
-	printk("cos: ds: %04x   es: %04x   ss: %04x\n",
-		regs->xds & 0xffff, regs->xes & 0xffff, regs->xss & 0xffff);
+		regs->si, regs->di, regs->bp, regs->sp);
+	printk("cos: ds: %04lx   es: %04lx   ss: %04lx\n",
+		regs->ds & 0xffff, regs->es & 0xffff, regs->ss & 0xffff);
 	printk("cos: Process %s (pid: %d, threadinfo=%p task=%p)\n",
 		current->comm, current->pid, current_thread_info(), current);
 	return;
 }
+
 static int syscalls_enabled = 1;
 void syscall_interposition(struct pt_regs *regs)
 {
@@ -999,14 +976,14 @@ void syscall_interposition(struct pt_regs *regs)
 
 
 extern int virtual_namespace_alloc(struct spd *spd, unsigned long addr, unsigned int size);
-void zero_pgtbl_range(phys_addr_t pt, unsigned long lower_addr, unsigned long size);
-void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from, 
+void zero_pgtbl_range(paddr_t pt, unsigned long lower_addr, unsigned long size);
+void copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from, 
 		      unsigned long lower_addr, unsigned long size);
-void copy_pgtbl(phys_addr_t pt_to, phys_addr_t pt_from);
+void copy_pgtbl(paddr_t pt_to, paddr_t pt_from);
 //extern int copy_mm(unsigned long clone_flags, struct task_struct * tsk);
-void print_valid_pgtbl_entries(phys_addr_t pt);
+void print_valid_pgtbl_entries(paddr_t pt);
 extern struct thread *ready_boot_thread(struct spd *init);
-vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr);
+vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr);
 
 static int aed_ioctl(struct inode *inode, struct file *file,
 		     unsigned int cmd, unsigned long arg)
@@ -1014,161 +991,6 @@ static int aed_ioctl(struct inode *inode, struct file *file,
 	int ret = 0;
 
 	switch(cmd) {
-		/* 
-		 * A task will want to be trusted when it creates a
-		 * child process that will have mm_structs controlled
-		 * by the parent, and will want to be untrusted
-		 * otherwise.
-		 */
-	case AED_PROMOTE_EXECUTIVE:
-	{
-		/* 
-		 * The executive should lie completely above the
-		 * boundry and all applications should lie below.
-		 */
-		executive_mem_limit_t mem_boundry;
-
-		/* if we already have a hijack environment, disallow
-		 * this thread to promote. */
-		if (trusted_mm) {
-			/* FIXME: need a better return value here */
-			return -EINVAL;
-		}
-		
-		if (copy_from_user(&mem_boundry, (void*)arg, 
-				   sizeof(executive_mem_limit_t))) {
-			//printk("cos: ");
-			return -EFAULT;
-		}
-
-		/* in kernel memory space */
-		if (mem_boundry.lower + mem_boundry.size >= PAGE_OFFSET) {
-			return -EINVAL;
-		}
-
-		/*
-		 * We must align on a pgd page boundry, and if code is
-		 * contained at mem_boundry, then we must round _down_
-		 * to the nearest super-page (pgd page).  ie. round
-		 * down to the nearest 4M.
-		 */
-		if (mem_boundry.lower % HPAGE_SIZE != 0) {
-			mem_boundry.lower = ((mem_boundry.lower+HPAGE_SIZE-1)&
-					     HPAGE_MASK)-HPAGE_SIZE;
-		}
-		/* 
-		 * Now round up...
-		 */
-		if (mem_boundry.size % HPAGE_SIZE != 0) {
-			mem_boundry.size =  (mem_boundry.size+HPAGE_SIZE-1)&HPAGE_MASK;
-		}
-
-		trusted_mem_limit = mem_boundry.lower;
-		trusted_mem_size = mem_boundry.size;
-
-		/*
-		 * FIXME: going to assume that no vm_area_structs span
-		 * across one of the 4M borders.  Should insert checks.
-		 */
-		set_trusted_as_nonglobal(current->mm, mem_boundry.lower, mem_boundry.size);
-
-		trusted_mm = current->mm;
-		set_ti_thread_flag(current_thread_info(), TIF_HIJACK_ENV);
-
-		printk("cos: [Promoting to executive the range from %x of size %d]\n",
-			(unsigned int)mem_boundry.lower, (unsigned int)mem_boundry.size);
-
-		break;
-	}
-	/* depricated 
-	case AED_TESTING:
-		//struct thread_info *ti = current_thread_info();
-		printk("cos: Setting _TIF_VIRTUAL_SYSCALL bit in thread structure.\n");
-		set_ti_thread_flag(current_thread_info(), TIF_VIRTUAL_SYSCALL);
-
-		break;
-	*/
-
-	/* DEPRICATED: old and probably broken interface */
-	case AED_CTXT_SWITCH:
-	{
-		//printk("cos: Depricated interface, don't use.\n");
-		ret = module_switch_to_child((void*)arg);
-
-		return ret;
-
-		break;
-	}
-	case AED_SWITCH_MM:
-	{
-		//struct mm_struct *old = current->mm;
-		struct mm_struct *new = aed_get_mm((int)arg);
-
-		if (!new) {
-			printk("cos: Invalid address space descriptor.\n");
-			ret = -EINVAL;
-			break;
-		}
-
-		//atomic_inc(&new->mm_users);
-
-		//printk("cos: about to copy trusted ");
-
-		current->mm = new;
-		current->active_mm = new;
-		current_active_guest = new;
-
-		copy_trusted_to_mm(current->mm, trusted_mm, 
-				   trusted_mem_limit, trusted_mem_size);
-
-		flush_all(new->pgd);
-
-		break;
-	}
-	case AED_CREATE_MM:
-	{
-		int mm_handle = aed_allocate_mm();
-
-		return mm_handle;
-	}
-	case AED_GET_REGSTATE:
-	{
-		struct pt_regs *regs = (struct pt_regs*)arg;
-
-		ret = write_regs_to_user(regs);
-
-		printkd("cos: getting regs w/i mm %x.\n", (unsigned int)current->mm);
-
-		break;
-	}
-	case AED_EXECUTIVE_MMAP:
-	{
-		struct mmap_args args;
-
-		if (copy_from_user(&args, (void*)arg, 
-				   sizeof(struct mmap_args))) {
-			return -EFAULT;
-		}
-
-		/* FIXME: implement! */
-		
-		ret = -EINVAL;
-		break;
-	}
-	case AED_TEST:
-	{
-		unsigned long vals[2];
-		if (copy_from_user(vals, (void*)arg, 
-				   sizeof(unsigned long)*2)) {
-			//printk("cos: ");
-			return -EFAULT;
-		}
-
-		jmp_addr = vals[0];
-		stub_addr = vals[1];
-		asm ("movl %%cr3, %0\n" : "=r" (saved_cr3));
-		break;
-	}
 	case AED_CREATE_SPD:
 	{
 		struct spd_info spd_info;
@@ -1207,7 +1029,7 @@ static int aed_ioctl(struct inode *inode, struct file *file,
 		 * stubs and ipc to the configuration process
 		 * itself. */
 		if (spd_info.lowest_addr == 0) {
-			spd->spd_info.pg_tbl = (phys_addr_t)(__pa(current->mm->pgd));
+			spd->spd_info.pg_tbl = (paddr_t)(__pa(current->mm->pgd));
 			spd->location.lowest_addr = 0;
 			spd->composite_spd = &spd->spd_info;
 		} else {
@@ -1247,7 +1069,7 @@ static int aed_ioctl(struct inode *inode, struct file *file,
 				return -1;
 			}
 
-			spd_set_location(spd, spd_info.lowest_addr, spd_info.size, (phys_addr_t)(__pa(mm->pgd)));
+			spd_set_location(spd, spd_info.lowest_addr, spd_info.size, (paddr_t)(__pa(mm->pgd)));
 
 			if (spd_composite_add_member(cspd, spd)) {
 				printk("cos: could not add spd %d to composite spd %d.\n",
@@ -1263,7 +1085,7 @@ static int aed_ioctl(struct inode *inode, struct file *file,
 */
 #ifdef NIL
 			/* To check the integrity of the created page table: */
-			void print_valid_pgtbl_entries(phys_addr_t pt);
+			void print_valid_pgtbl_entries(paddr_t pt);
 			print_valid_pgtbl_entries(spd->composite_spd->pg_tbl);
 #endif
 		}
@@ -1563,15 +1385,15 @@ static void cos_report_fault(struct thread *t, vaddr_t fault_addr, struct pt_reg
 	fi = &faults[fault_ptr];
 	fi->addr = fault_addr;
 	if (NULL != regs) {
-		fi->ip = regs->eip;
-		fi->sp = regs->esp;
-		fi->a = regs->eax;
-		fi->b = regs->ebx;
-		fi->c = regs->ecx;
-		fi->d = regs->edx;
-		fi->D = regs->edi;
-		fi->S = regs->esi;
-		fi->bp = regs->ebp;
+		fi->ip = regs->ip;
+		fi->sp = regs->sp;
+		fi->a = regs->ax;
+		fi->b = regs->bx;
+		fi->c = regs->cx;
+		fi->d = regs->dx;
+		fi->D = regs->di;
+		fi->S = regs->si;
+		fi->bp = regs->bp;
 	}
 	fi->spdid = spd_get_index(thd_get_thd_spd(t));
 	fi->thdid = thd_get_id(t);
@@ -1601,7 +1423,7 @@ static int cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *re
 {
 	struct spd_poly *active = thd_get_thd_spdpoly(thd), *curr;
 	struct composite_spd *cspd;
-	vaddr_t ucap_addr = regs->eax;
+	vaddr_t ucap_addr = regs->ax;
 	struct spd *origin;
 	struct pt_regs *regs_save;
 	
@@ -1687,7 +1509,7 @@ static int cos_handle_page_fault(struct thread *thd, vaddr_t fault_addr, struct 
 /*
  * The Linux provided descriptor structure is crap, probably due to
  * the intel spec for descriptors being crap:
- * 
+ *
  * struct desc_struct {
  *      unsigned long a, b;
  * };
@@ -1702,29 +1524,49 @@ struct my_desc_struct {
 	unsigned short address_high;
 } __attribute__ ((packed));
 
-/* Begin excerpts from arch/i386/kernel/traps.c */
-#define _set_gate(gate_addr,type,dpl,addr,seg) \
-do { \
-  int __d0, __d1; \
-  __asm__ __volatile__ ("movw %%dx,%%ax\n\t" \
-	"movw %4,%%dx\n\t" \
-	"movl %%eax,%0\n\t" \
-	"movl %%edx,%1" \
-	:"=m" (*((long *) (gate_addr))), \
-	 "=m" (*(1+(long *) (gate_addr))), "=&a" (__d0), "=&d" (__d1) \
-	:"i" ((short) (0x8000+(dpl<<13)+(type<<8))), \
-	 "3" ((char *) (addr)),"2" ((seg) << 16)); \
-} while (0)
+/* /\* Begin excerpts from arch/i386/kernel/traps.c *\/ */
+/* #define _set_gate(gate_addr,type,dpl,addr,seg) \ */
+/* do { \ */
+/*   int __d0, __d1; \ */
+/*   __asm__ __volatile__ ("movw %%dx,%%ax\n\t" \ */
+/* 	"movw %4,%%dx\n\t" \ */
+/* 	"movl %%eax,%0\n\t" \ */
+/* 	"movl %%edx,%1" \ */
+/* 	:"=m" (*((long *) (gate_addr))), \ */
+/* 	 "=m" (*(1+(long *) (gate_addr))), "=&a" (__d0), "=&d" (__d1) \ */
+/* 	:"i" ((short) (0x8000+(dpl<<13)+(type<<8))), \ */
+/* 	 "3" ((char *) (addr)),"2" ((seg) << 16)); \ */
+/* } while (0) */
 
-static void set_trap_gate(unsigned int n, void *addr, struct my_desc_struct *idt_table)
-{
-	_set_gate(idt_table+n,15,0,addr,__KERNEL_CS);
-}
-/* end traps.c rips */
+/* static void cos_set_trap_gate(unsigned int n, void *addr, struct my_desc_struct *idt_table) */
+/* { */
+/* 	_set_gate(idt_table+n,15,0,addr,__KERNEL_CS); */
+/* } */
+/* /\* end traps.c rips *\/ */
+
+#include <asm/desc.h>
 
 static inline unsigned long decipher_descriptor_address(struct my_desc_struct *desc)
 {
 	return (desc->address_high<<16) | desc->address_low;
+}
+
+static inline void 
+cos_set_intr_gate(unsigned int n, void *addr, struct my_desc_struct *idt_table)
+{
+	gate_desc s;
+	int gate = n;
+	unsigned type = GATE_INTERRUPT;
+	unsigned dpl = 0;
+	unsigned ist = 0;
+	unsigned seg = __KERNEL_CS;
+
+	pack_gate(&s, type, (unsigned long)addr, dpl, ist, seg);
+	/*
+	 * does not need to be atomic because it is only done once at
+	 * setup time
+	 */
+	write_idt_entry((void*)idt_table, gate, &s);
 }
 
 /*
@@ -1765,7 +1607,9 @@ static inline unsigned long change_page_fault_handler(void *new_handler)
 	 * remedy needs to be found.  For instance, use the fixmap.h
 	 * translation from include/asm-i386/fixmap.h
 	 */
-	set_trap_gate(14, new_handler, idt_table);
+	//cos_set_trap_gate(14, new_handler, idt_table);
+	cos_set_intr_gate(14, new_handler, idt_table);
+	cos_set_intr_gate(14, (void*)previous_fault_handler, idt_table);
 	//set_intr_gate(14, new_handler, idt_table);
 
 	return previous_fault_handler;
@@ -1967,7 +1811,7 @@ void *pa_to_va(void *pa)
 	return (void*)__va(pa);
 }
 
-static inline pte_t *pgtbl_lookup_address(phys_addr_t pgtbl, unsigned long addr)
+static inline pte_t *pgtbl_lookup_address(paddr_t pgtbl, unsigned long addr)
 {
 	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pgtbl)) + pgd_index(addr);
 	pud_t *pud;
@@ -1989,7 +1833,7 @@ static inline pte_t *pgtbl_lookup_address(phys_addr_t pgtbl, unsigned long addr)
 }
 
 #ifdef NIL
-void pgtbl_print_tree(phys_addr_t pgtbl, unsigned long addr)
+void pgtbl_print_tree(paddr_t pgtbl, unsigned long addr)
 {
 	pgd_t *pt = ((pgd_t *)pa_to_va((void*)pgtbl)) + pgd_index(addr);
 	pte_t *pe = pgtbl_lookup_address(pgtbl, addr);
@@ -2005,7 +1849,7 @@ void pgtbl_print_tree(phys_addr_t pgtbl, unsigned long addr)
 }
 #endif
 
-int pgtbl_add_entry(phys_addr_t pgtbl, unsigned long vaddr, unsigned long paddr)
+int pgtbl_add_entry(paddr_t pgtbl, unsigned long vaddr, unsigned long paddr)
 {
 	pte_t *pte = pgtbl_lookup_address(pgtbl, vaddr);
 
@@ -2018,7 +1862,7 @@ int pgtbl_add_entry(phys_addr_t pgtbl, unsigned long vaddr, unsigned long paddr)
 }
 
 /* allocate and link in a page middle directory */
-int pgtbl_add_middledir(phys_addr_t pt, unsigned long vaddr)
+int pgtbl_add_middledir(paddr_t pt, unsigned long vaddr)
 {
 	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(vaddr);
 	unsigned long *page;
@@ -2035,15 +1879,15 @@ int pgtbl_add_middledir(phys_addr_t pt, unsigned long vaddr)
  * there is no present mapping, and the physical address mapped if
  * there is an existant mapping.
  */
-phys_addr_t pgtbl_rem_ret(phys_addr_t pgtbl, vaddr_t va)
+paddr_t pgtbl_rem_ret(paddr_t pgtbl, vaddr_t va)
 {
 	pte_t *pte = pgtbl_lookup_address(pgtbl, va);
-	phys_addr_t val;
+	paddr_t val;
 
 	if (!pte || !(pte_val(*pte) & _PAGE_PRESENT)) {
 		return 0;
 	}
-	val = (phys_addr_t)(pte_val(*pte) & PTE_MASK);
+	val = (paddr_t)(pte_val(*pte) & PTE_MASK);
 	pte->pte_low = 0;
 
 	return val;
@@ -2053,7 +1897,7 @@ phys_addr_t pgtbl_rem_ret(phys_addr_t pgtbl, vaddr_t va)
  * This won't work to find the translation for the argument region as
  * __va doesn't work on module-mapped memory. 
  */
-vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr)
+vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr)
 {
 	pte_t *pte = pgtbl_lookup_address(pgtbl, addr);
 	unsigned long kaddr;
@@ -2079,7 +1923,7 @@ vaddr_t pgtbl_vaddr_to_kaddr(phys_addr_t pgtbl, unsigned long addr)
  * Verify that the given address in the page table is present.  Return
  * 0 if present, 1 if not.  *This will check the pgd, not for the pte.*
  */
-int pgtbl_entry_absent(phys_addr_t pt, unsigned long addr)
+int pgtbl_entry_absent(paddr_t pt, unsigned long addr)
 {
 	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(addr);
 
@@ -2087,7 +1931,7 @@ int pgtbl_entry_absent(phys_addr_t pt, unsigned long addr)
 }
 
 /* Find the nth valid pgd entry */
-unsigned long get_valid_pgtbl_entry(phys_addr_t pt, int n)
+unsigned long get_valid_pgtbl_entry(paddr_t pt, int n)
 {
 	int i;
 
@@ -2102,7 +1946,7 @@ unsigned long get_valid_pgtbl_entry(phys_addr_t pt, int n)
 	return 0;
 }
 
-void print_valid_pgtbl_entries(phys_addr_t pt) 
+void print_valid_pgtbl_entries(paddr_t pt) 
 {
 	int n = 1;
 	unsigned long ret;
@@ -2115,7 +1959,7 @@ void print_valid_pgtbl_entries(phys_addr_t pt)
 	return;
 }
 
-void zero_pgtbl_range(phys_addr_t pt, unsigned long lower_addr, unsigned long size)
+void zero_pgtbl_range(paddr_t pt, unsigned long lower_addr, unsigned long size)
 {
 	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(lower_addr);
 	unsigned int span = size>>HPAGE_SHIFT;
@@ -2129,7 +1973,7 @@ void zero_pgtbl_range(phys_addr_t pt, unsigned long lower_addr, unsigned long si
 	memset(pgd, 0, span*sizeof(pgd_t));
 }
 
-void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from, 
+void copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from, 
 		      unsigned long lower_addr, unsigned long size)
 {
 	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
@@ -2146,7 +1990,7 @@ void copy_pgtbl_range(phys_addr_t pt_to, phys_addr_t pt_from,
 }
 
 
-void copy_pgtbl_range_nocheck(phys_addr_t pt_to, phys_addr_t pt_from, 
+void copy_pgtbl_range_nocheck(paddr_t pt_to, paddr_t pt_from, 
 			      unsigned long lower_addr, unsigned long size)
 {
 	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
@@ -2157,7 +2001,7 @@ void copy_pgtbl_range_nocheck(phys_addr_t pt_to, phys_addr_t pt_from,
 	memcpy(tpgd, fpgd, span*sizeof(pgd_t));
 }
 
-void copy_pgtbl(phys_addr_t pt_to, phys_addr_t pt_from)
+void copy_pgtbl(paddr_t pt_to, paddr_t pt_from)
 {
 	copy_pgtbl_range_nocheck(pt_to, pt_from, 0, 0xFFFFFFFF);
 }
@@ -2167,7 +2011,7 @@ void copy_pgtbl(phys_addr_t pt_to, phys_addr_t pt_from)
  * it starts it back up again, it needs to know what page tables to
  * use.  Thus update the current mm_struct.
  */
-void switch_host_pg_tbls(phys_addr_t pt)
+void switch_host_pg_tbls(paddr_t pt)
 {
 	struct mm_struct *mm;
 
@@ -2256,6 +2100,16 @@ static volatile int idle_status = IDLE_AWAKE;
 int host_in_idle(void)
 {
 	return IDLE_AWAKE != idle_status;
+}
+
+static inline void sti(void)
+{
+	__asm__("sti");
+}
+
+static inline void cli(void)
+{
+	__asm__("cli");
 }
 
 void host_idle(void)
@@ -2400,11 +2254,11 @@ int host_attempt_brand(struct thread *brand)
 		 * the regs aren't spread across the main thread
 		 * stack, and the interrupt's saved registers as well.
 		 */
-		if (!(regs->esp == 0 && regs->xss == 0)
+		if (!(regs->sp == 0 && regs->ss == 0)
                     /* && (regs->xcs & SEGMENT_RPL_MASK) == USER_RPL*/) {
 			struct thread *next;
  			
-			if ((regs->xcs & SEGMENT_RPL_MASK) == USER_RPL) {
+			if ((regs->cs & SEGMENT_RPL_MASK) == USER_RPL) {
 				cos_meas_event(COS_MEAS_INT_PREEMPT_USER);
 			} else {
 				cos_meas_event(COS_MEAS_INT_PREEMPT_KERN);
@@ -2420,16 +2274,16 @@ int host_attempt_brand(struct thread *brand)
 					///*assert*/BUG_ON(!(next->flags & THD_STATE_ACTIVE_UPCALL));
 				}
 				thd_check_atomic_preempt(cos_current);
-				regs->ebx = next->regs.ebx;
-				regs->edi = next->regs.edi;
-				regs->esi = next->regs.esi;
-				regs->ecx = next->regs.ecx;
-				regs->eip = next->regs.eip;
-				regs->edx = next->regs.edx;
-				regs->eax = next->regs.eax;
-				regs->orig_eax = next->regs.eax;
-				regs->esp = next->regs.esp;
-				regs->ebp = next->regs.ebp;
+				regs->bx = next->regs.bx;
+				regs->di = next->regs.di;
+				regs->si = next->regs.si;
+				regs->cx = next->regs.cx;
+				regs->ip = next->regs.ip;
+				regs->dx = next->regs.dx;
+				regs->ax = next->regs.ax;
+				regs->orig_ax = next->regs.ax;
+				regs->sp = next->regs.sp;
+				regs->bp = next->regs.bp;
 				//cos_meas_event(COS_MEAS_BRAND_UC);
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
@@ -2519,12 +2373,12 @@ static int open_checks(void)
 	 */
 #define MAGIC_VAL_TEST 0xdeadbeef
 	volatile unsigned int *region_ptr;
-	phys_addr_t modval, userval;
+	paddr_t modval, userval;
 	volatile vaddr_t kern_data;
 
-	kern_data = pgtbl_vaddr_to_kaddr((phys_addr_t)va_to_pa(current->mm->pgd), (unsigned long)shared_data_page);
-	modval  = (phys_addr_t)va_to_pa((void *)kern_data);
-	userval = (phys_addr_t)va_to_pa((void *)pgtbl_vaddr_to_kaddr((phys_addr_t)va_to_pa(current->mm->pgd), 
+	kern_data = pgtbl_vaddr_to_kaddr((paddr_t)va_to_pa(current->mm->pgd), (unsigned long)shared_data_page);
+	modval  = (paddr_t)va_to_pa((void *)kern_data);
+	userval = (paddr_t)va_to_pa((void *)pgtbl_vaddr_to_kaddr((paddr_t)va_to_pa(current->mm->pgd), 
 								     (unsigned long)COS_INFO_REGION_ADDR));
 	if (modval != userval) {
 		printk("shared data page error: %x != %x\n", (unsigned int)modval, (unsigned int)userval);
@@ -2597,7 +2451,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	 * spend most of their time complaining about microkernels as
 	 * being horrible instead.
 	 */
-	shared_region_pte = (pte_t *)pgtbl_vaddr_to_kaddr((phys_addr_t)va_to_pa(current->mm->pgd), 
+	shared_region_pte = (pte_t *)pgtbl_vaddr_to_kaddr((paddr_t)va_to_pa(current->mm->pgd), 
 							  (unsigned long)shared_region_page);
 	if (((unsigned long)shared_region_pte & ~PAGE_MASK) != 0) {
 		printk("Allocated page for shared region not page aligned.\n");
@@ -2606,7 +2460,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	memset(shared_region_pte, 0, PAGE_SIZE);
 
 	/* hook in the data page */
-	data_page = va_to_pa((void *)pgtbl_vaddr_to_kaddr((phys_addr_t)va_to_pa(current->mm->pgd), 
+	data_page = va_to_pa((void *)pgtbl_vaddr_to_kaddr((paddr_t)va_to_pa(current->mm->pgd), 
 							   (unsigned long)shared_data_page));
 	shared_region_pte[0].pte_low = (unsigned long)(data_page) |
 		(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
@@ -2778,13 +2632,13 @@ static int make_proc_aed(void)
 {
 	struct proc_dir_entry *ent;
 
-	ent = create_proc_entry("aed", 0222, &proc_root);
+	ent = create_proc_entry("aed", 0222, NULL);
 	if(ent == NULL){
 		printk("cos: make_proc_aed : Failed to register /proc/aed\n");
 		return -1;
 	}
 	ent->proc_fops = &proc_aed_fops;
-	ent->owner = THIS_MODULE;
+//	ent->owner = THIS_MODULE;
 
 	return 0;
 }
@@ -2794,9 +2648,9 @@ static int asym_exec_dom_init(void)
 	int trash, se_addr;
 
 	printk("cos: Installing the asymmetric execution domains module.\n");
-
+	printk("cos: %d == %d/n", sizeof(struct pt_regs), (17*sizeof(long)));
 	/* pt_regs in this linux version has changed... */
-	BUG_ON(sizeof(struct pt_regs) != (11*sizeof(long) + 5*sizeof(int)));
+	//BUG_ON(sizeof(struct pt_regs) != (17*sizeof(long)));
 
 	if (make_proc_aed())
 		return -1;
@@ -2808,9 +2662,14 @@ static int asym_exec_dom_init(void)
 
 	printk("cos: Saving sysenter msr (%p) and activating %p.\n", 
 	       sysenter_addr, asym_exec_dom_entry);
+
+	/* FIXME: race on setting the interrupt and setting the
+	 * default handler variable */
 	default_page_fault_handler = (void*)change_page_fault_handler(page_fault_interposition);
 	printk("cos: Saving page fault handler (%p) and activating %p.\n", 
 	       default_page_fault_handler, page_fault_interposition);
+
+	return 0;
 
 	//switch_to_executive = module_switch_to_executive;
 	//asym_page_fault = module_page_fault;
@@ -2832,12 +2691,14 @@ static int asym_exec_dom_init(void)
 
 static void asym_exec_dom_exit(void)
 {
-	remove_proc_entry("aed", &proc_root);
+	remove_proc_entry("aed", NULL);
 
 	printk("cos: Resetting sysenter wsr to %p.\n", sysenter_addr);
 	wrmsr(MSR_IA32_SYSENTER_EIP, (int)sysenter_addr, 0);
 	printk("cos: Resetting page fault handler to %p.\n", default_page_fault_handler);
 	change_page_fault_handler(default_page_fault_handler);
+
+	return;
 
 	deregister_measurements();
 

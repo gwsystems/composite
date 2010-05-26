@@ -12,7 +12,7 @@
 #include "shared/consts.h"
 
 struct cos_page {
-	phys_addr_t addr;
+	paddr_t addr;
 };
 
 void cos_init_memory(void);
@@ -21,7 +21,7 @@ static inline unsigned int cos_max_mem_caps(void)
 {
 	return COS_MAX_MEMORY;
 }
-phys_addr_t cos_access_page(unsigned long cap_no);
-int cos_phys_addr_to_cap(phys_addr_t pa);
+paddr_t cos_access_page(unsigned long cap_no);
+int cos_paddr_to_cap(paddr_t pa);
 
 #endif

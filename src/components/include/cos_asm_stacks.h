@@ -59,7 +59,7 @@
         /* Remove me */                         \
         movl %eax, %edx;                        \
     	movl $stkmgr_stack_space, %esp;	        \
-        shl $11, %eax;	                        \
+        shl $9, %eax;	                        \
         addl %eax, %esp;                        \
         movl %edx, %eax;                        \
                                                 \
@@ -76,7 +76,7 @@
                                                 \
         /* First we need a stack */             \
         movl $stkmgr_stack_space, %esp;         \
-        shl $11, %edx;                          \
+        shl $9, %edx;                          \
         addl %edx, %esp;                        \
         /* save our registers */                \
         pushl %ebp;                             \
@@ -207,7 +207,7 @@
         movl $THD_ID_SHARED_PAGE, %ecx;          \
         movl (%ecx), %ecx;                      \
     	movl $stkmgr_stack_space, %esp;	        \
-        shl $11, %ecx;	                        \
+        shl $9, %ecx;	                        \
         addl %ecx, %esp;                        \
         /* save our registers */                \
         pushl %ebp;                             \
@@ -247,7 +247,7 @@
 
 #define COS_ASM_GET_STACK                   \
 	movl $cos_static_stack, %esp;	    \
-	shl $11, %eax;			    \
+	shl $9, %eax;			    \
 	addl %eax, %esp;
 
 #define COS_ASM_RET_STACK

@@ -180,7 +180,7 @@ int main(int argc, char *argv[])
 			cap_no++;
 		}
 		fns = orig_fns;
-		printf(footer1);
+		printf("%s", footer1);
 		while (NULL != fns) {
 			char new_name[FN_NAME_SZ] = "\n";
 
@@ -189,10 +189,10 @@ int main(int argc, char *argv[])
 			create_cap_data(product, len, new_name);
 			printf("%s\n", product);
 		}
-		printf(footer2);
+		printf("%s", footer2);
 	} else {
-		printf(footer1);
-		printf(footer2);
+		printf("%s", footer1);
+		printf("%s", footer2);
 	}
 
 	/* 

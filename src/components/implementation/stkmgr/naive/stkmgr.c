@@ -9,7 +9,7 @@
 
 #include <stkmgr.h>
 
-#define _DEBUG_STKMGR
+//#define _DEBUG_STKMGR
 
 #define WHERESTR  "[file %s, line %d]: "
 #define WHEREARG  __FILE__, __LINE__
@@ -25,7 +25,7 @@
 #define MAX_NUM_STACKS 100 //6    // MAX_NUM_THREADS
 
 #define MAX_BLKED  10
-#define DEFAULT_TARGET_ALLOC 5
+#define DEFAULT_TARGET_ALLOC 10
 
 #define TAKE() if(sched_component_take(cos_spd_id())) BUG();
 #define RELEASE() if(sched_component_release(cos_spd_id())) BUG();
@@ -102,8 +102,10 @@ void
 stkmgr_update_stats_block(struct spd_stk_info *ssi, unsigned short int tid)
 {
 	u64_t start;
-	int blked = ssi->num_blocked_thds;
+	int blked = ssi->num_blocked_thds + 1; /* +1 for us */
 
+	printc("************** dude, %d blocked my car in %d (nblocked %d) *****************\n", 
+	       tid, ssi->spdid, blked);
 	ssi->nthd_blks[tid]++;
 	rdtscll(start);
 	ssi->thd_blk_start[tid] = start;
@@ -116,15 +118,19 @@ stkmgr_update_stats_wakeup(struct spd_stk_info *ssi, unsigned short int tid)
 {
 	u64_t end, tot;
 
+	printc("************** dude, %d found my car in %d *****************\n", 
+	       tid, ssi->spdid);
+
 	rdtscll(end);
 	tot = end - ssi->thd_blk_start[tid];
 	ssi->thd_blk_tot[tid] += tot;
+	ssi->thd_blk_start[tid] = 0;
 }
 
 void stkmgr_reset_stats(struct spd_stk_info *ssi)
 {
 	int i;
-
+	BUG();
 	for (i = 0 ; i < MAX_NUM_THREADS ; i++) {
 		ssi->nthd_blks[i] = 0;
 		ssi->thd_blk_tot[i] = 0;
@@ -361,7 +367,7 @@ void blklist_wake_threads(struct blocked_thd *bl)
 		tid = bthd->thd_id;
 		free(bthd);
 		sched_wakeup(cos_spd_id(), tid);        
-		printc("......UP\n");
+		DOUT("......UP\n");
 	}
     
 	DOUT("All thds now awake\n");
@@ -372,6 +378,8 @@ void spd_wake_threads(spdid_t spdid)
 	struct spd_stk_info *ssi;
 
 	ssi = get_spd_stk_info(spdid);
+	printc("************ waking up %d threads for spd %d ************\n", 
+	       ssi->num_blocked_thds, spdid);
 	blklist_wake_threads(&ssi->bthd_list);
 	assert(EMPTY_LIST(&ssi->bthd_list, next, prev));
 	ssi->num_blocked_thds = 0;
@@ -442,7 +450,7 @@ stkmgr_stk_add_to_spd(struct cos_stk_item *stk_item, struct spd_stk_info *info)
 	info->ci->cos_heap_ptr += PAGE_SIZE;
 	ret = info->ci->cos_heap_ptr;
 
-	DOUT("Setting flags and assigning flags\n");
+//	DOUT("Setting flags and assigning flags\n");
 	stk_item->stk->flags = 0xDEADBEEF;
 	stk_item->stk->next = (void *)0xDEADBEEF;
 	stk_addr = (vaddr_t)(stk_item->hptr);
@@ -450,12 +458,12 @@ stkmgr_stk_add_to_spd(struct cos_stk_item *stk_item, struct spd_stk_info *info)
 		printc("<stkmgr>: Unable to map stack into component");
 		BUG();
 	}
-	DOUT("Mapped page\n");
+//	DOUT("Mapped page\n");
 	stk_item->d_addr = d_addr;
 	stk_item->parent_spdid = d_spdid;
     
 	// Add stack to allocated stack array
-	DOUT("Adding to local spdid stk list\n");
+//	DOUT("Adding to local spdid stk list\n");
 	ADD_LIST(&info->stk_list, stk_item, next, prev); 
 	info->num_allocated++;
 	assert(info->num_allocated == stkmgr_num_alloc_stks(info->spdid));
@@ -524,6 +532,13 @@ stkmgr_spd_unmark_relinquish(struct spd_stk_info *ssi)
 	}
 }
 
+static void 
+stkmgr_stack_remove_and_find_home(struct spd_stk_info *ssi, struct cos_stk_item *csi)
+{
+	stkmgr_stk_remove_from_spd(csi, ssi);
+	stkmgr_stack_find_home(csi, ssi);
+}
+
 /**
  * Give a stack back to the stk_mgr.  Assume that the stack is NOT on
  * the component's freelist.
@@ -551,8 +566,7 @@ __stkmgr_return_stack(struct spd_stk_info *ssi, struct cos_stk_item *stk_item)
 			stkmgr_spd_unmark_relinquish(ssi);
 		}
 	} else {
-		stkmgr_stk_remove_from_spd(stk_item, ssi);
-		stkmgr_stack_find_home(stk_item, ssi);
+		stkmgr_stack_remove_and_find_home(ssi, stk_item);
 	}
 }
 
@@ -590,7 +604,7 @@ stkmgr_revoke_stk_from(spdid_t spdid)
 	stk_item = spd_freelist_remove(spdid);
 	if(stk_item == NULL) return -1;
 
-	printc("revoking stack @ %x, switching freelist to %x.\n",
+	DOUT("revoking stack @ %x, switching freelist to %x.\n",
 	       (unsigned int)stk_item->d_addr, (unsigned int)stk_item->stk->next);
 	
 	__stkmgr_return_stack(ssi, stk_item);
@@ -619,7 +633,7 @@ stkmgr_spd_remove_stacks(spdid_t spdid, unsigned int n_stks)
 	
 	ssi = get_spd_stk_info(spdid);
 	while (n_stks && !stkmgr_revoke_stk_from(spdid)) {
-		printc(">>> found and removed stack from %d (tid %d)\n", spdid, cos_get_thd_id());
+		//printc(">>> found and removed stack from %d (tid %d)\n", spdid, cos_get_thd_id());
 		n_stks--;
 	}
 	/* if we haven't harvested enough stacks, do so lazily */
@@ -651,7 +665,7 @@ stkmgr_wait_for_stack(struct spd_stk_info *ssi)
 	RELEASE();
 
 	DOUT("Blocking thread: %d\n", bthd->thd_id);
-	/* FIXME: dependency */
+	/* FIXME: dependencies */
 	sched_block(cos_spd_id(), 0);
 	TAKE(); 
 	DOUT("Thd %d wokeup and is obtaining a stack\n", cos_get_thd_id());
@@ -720,7 +734,6 @@ stkmgr_grant_stack(spdid_t d_spdid)
 {
 	struct cos_stk_item *stk_item;
 	struct spd_stk_info *info;
-	vaddr_t d_addr;
 	vaddr_t ret;
 	int meas = 0;
 
@@ -728,7 +741,7 @@ stkmgr_grant_stack(spdid_t d_spdid)
 
 	info = get_spd_stk_info(d_spdid);
 
-	printc("<stkmgr>: stkmgr_grant_stack for, spdid: %d, thdid %d\n",
+	DOUT("<stkmgr>: stkmgr_grant_stack for, spdid: %d, thdid %d\n",
 	       d_spdid, cos_get_thd_id());
         
 	// Make sure we have access to the info page
@@ -760,7 +773,7 @@ stkmgr_grant_stack(spdid_t d_spdid)
 	ret = stk_item->d_addr + PAGE_SIZE;
 	RELEASE();
 
-	DOUT("Returning Stack address: %X\n",(unsigned int)d_addr);
+	//DOUT("Returning Stack address: %X\n",(unsigned int)ret);
 
 	return (void *)ret;
 }
@@ -773,12 +786,25 @@ stkmgr_stack_report(void)
 	RELEASE();
 }
 
+static int 
+spd_remove_spare_stacks(struct spd_stk_info *ssi)
+{
+	struct cos_stk_item *csi;
+
+	csi = spd_freelist_remove(ssi->spdid);
+	if (!csi) return -1;
+	stkmgr_stack_remove_and_find_home(ssi, csi);
+
+	return 0;
+}
+
 int 
-stkmgr_set_concurrency(spdid_t spdid, int concur_lvl)
+stkmgr_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare)
 {
 	struct spd_stk_info *ssi;
 	int diff, old;
 
+	printc("Setting concurrency of %d to %d\n", spdid, concur_lvl);
 	TAKE();
 	ssi = get_spd_stk_info(spdid);
 	if (!ssi || !SPD_IS_MANAGED(ssi)) goto err;
@@ -791,6 +817,9 @@ stkmgr_set_concurrency(spdid_t spdid, int concur_lvl)
 	diff = ssi->num_allocated - ssi->num_desired;
 	if (diff > 0) stkmgr_spd_remove_stacks(spdid, diff);
 	if (diff < 0 && SPD_HAS_BLK_THD(ssi)) spd_wake_threads(spdid);
+
+	if (remove_spare) while (!spd_remove_spare_stacks(ssi)) ;
+
 	RELEASE();
 	return 0;
 err:
@@ -813,6 +842,7 @@ stkmgr_spd_concurrency_estimate(spdid_t spdid)
 	}
 
 	if (ssi->num_allocated < ssi->num_desired) {
+		assert(!SPD_HAS_BLK_THD(ssi));
 		RELEASE();
 		return ssi->num_allocated;
 	}
@@ -824,8 +854,17 @@ stkmgr_spd_concurrency_estimate(spdid_t spdid)
 		cnt += n;
 		ssi->stat_thd_blk[i] = 0;
 	}
-	if (cnt == 0) avg = ssi->num_allocated;
-	else          avg = tot/cnt;
+	if (cnt == 0 && ssi->num_blocked_thds == 0) {
+		avg = ssi->num_allocated;
+	} else {
+		unsigned int blk_hist;
+
+		if (cnt) blk_hist = (tot/cnt) + 1; /* adjust for rounding */
+		else     blk_hist = 0;
+		
+		avg = ssi->num_allocated + (blk_hist > ssi->num_blocked_thds ? 
+					    blk_hist : ssi->num_blocked_thds); 
+	}
 	RELEASE();
 
 	return avg;
@@ -835,19 +874,23 @@ unsigned long
 stkmgr_thd_blk_time(unsigned short int tid, spdid_t spdid, int reset)
 {
 	struct spd_stk_info *ssi;
-	unsigned long a;
+	unsigned long a = 0;
+	u64_t t;
 
 	TAKE();
-	ssi = get_spd_stk_info(tid);
+	ssi = get_spd_stk_info(spdid);
 	if (!ssi || !SPD_IS_MANAGED(ssi) || tid >= MAX_NUM_THREADS) {
 		RELEASE();
 		return -1;
 	}
-	if (ssi->nthd_blks[tid]) {
-		a = (unsigned long)(ssi->thd_blk_tot[tid]/ssi->nthd_blks[tid]);
-	} else {
-		a = 0;
+	/* currently blocked? */
+	if (ssi->thd_blk_start[tid]) {
+		rdtscll(t);
+		a += t - ssi->thd_blk_start[tid];
 	}
+	if (ssi->nthd_blks[tid]) {
+		a = (unsigned long)((a + ssi->thd_blk_tot[tid])/ssi->nthd_blks[tid]);
+	} 
 	if (reset) {
 		ssi->thd_blk_tot[tid] = 0;
 		ssi->nthd_blks[tid] = 0;
@@ -864,12 +907,14 @@ stkmgr_thd_blk_cnt(unsigned short int tid, spdid_t spdid, int reset)
 	int n;
 
 	TAKE();
-	ssi = get_spd_stk_info(tid);
+	ssi = get_spd_stk_info(spdid);
 	if (!ssi || !SPD_IS_MANAGED(ssi) || tid >= MAX_NUM_THREADS) {
 		RELEASE();
 		return -1;
 	}
 	n = ssi->nthd_blks[tid];
+	/* Thread on the blocked list? */
+	if (ssi->thd_blk_start[tid] && n == 0) n = 1;
 	if (reset) {
 		ssi->thd_blk_tot[tid] = 0;
 		ssi->nthd_blks[tid] = 0;
@@ -940,6 +985,8 @@ stkmgr_in_freelist(spdid_t spdid, struct cos_stk_item *csi)
 	return 0;
 }
 
+//#define PRINT_FREELIST_ELEMENTS
+
 static void
 stkmgr_print_ci_freelist(void)
 {
@@ -949,18 +996,28 @@ stkmgr_print_ci_freelist(void)
 	struct cos_stk_item *stk_item, *p;
 
 	for(i = 0; i < MAX_NUM_SPDS; i++){
+		unsigned int cnt = 0;
+
 		info = &spd_stk_info_list[i];
 		if(info->ci == NULL) continue;
 
-		printc("SPDID: %d with %d stacks\n", i, info->num_allocated);
+		if (info->num_allocated == 0 && info->num_blocked_thds == 0) continue;
+
+		for (stk_item = FIRST_LIST(&info->stk_list, next, prev) ;
+		     stk_item != &info->stk_list ; 
+		     stk_item = FIRST_LIST(stk_item, next, prev)) {
+			if (stk_item->stk->flags & IN_USE) cnt++;
+		}
+		printc("stkmgr: spdid %d w/ %d stacks, %d on freelist, %d blocked\n", 
+		       i, info->num_allocated, cnt, info->num_blocked_thds);
 		assert(info->num_allocated == stkmgr_num_alloc_stks(info->spdid))
-				
+#ifdef PRINT_FREELIST_ELEMENTS
 		curr = (void *)info->ci->cos_stacks.freelists[0].freelist;
 		if(curr) {
-			printc("\tcomponent freelist: %p\n", curr);
+			DOUT("\tcomponent freelist: %p\n", curr);
 			p = stk_item = stkmgr_get_cos_stk_item((vaddr_t)curr);
 			while (stk_item) {
-				printc("\tStack:\n"	\
+				DOUT("\tStack:\n"	\
 				       "\t\tcurr: %X\n"	\
 				       "\t\taddr: %X\n"	\
 				       "\t\tnext: %X\n",
@@ -969,7 +1026,7 @@ stkmgr_print_ci_freelist(void)
 				       (unsigned int)stk_item->stk->next);
 				print_flags(stk_item->stk);
 				curr = stk_item->stk->next;
-				stk_item = stkmgr_get_cos_stk_item((vaddr_t)curr);    
+				stk_item = stkmgr_get_cos_stk_item((vaddr_t)curr);
 				if (p == stk_item) {
 					printc("<<WTF: freelist recursion...>>\n");
 					break;
@@ -978,10 +1035,10 @@ stkmgr_print_ci_freelist(void)
 			}
 		}
 		for (stk_item = FIRST_LIST(&info->stk_list, next, prev) ;
-		     stk_item != &info->stk_list ; 
+		     stk_item != &info->stk_list ;
 		     stk_item = FIRST_LIST(stk_item, next, prev)) {
 			if (!stkmgr_in_freelist(i, stk_item)) {
-				printc("\tStack off of freelist:\n"	\
+				DOUT("\tStack off of freelist:\n"	\
 				       "\t\tcurr: %X\n"			\
 				       "\t\taddr: %X\n"			\
 				       "\t\tnext: %X\n",
@@ -991,6 +1048,7 @@ stkmgr_print_ci_freelist(void)
 				print_flags(stk_item->stk);
 			}
 		}
+#endif
 	}
 
 }

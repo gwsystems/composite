@@ -167,7 +167,7 @@ int thd_check_atomic_preempt(struct thread *thd)
 	for (i = 0 ; i < COS_NUM_ATOMIC_SECTIONS/2 ; i+=2) {
 		if (ip > spd->atomic_sections[i] && 
 		    ip < spd->atomic_sections[i+1]) {
-			thd->regs.eip = spd->atomic_sections[i];
+			thd->regs.ip = spd->atomic_sections[i];
 			cos_meas_event(COS_MEAS_ATOMIC_RBK);
 			return 1;
 		}
@@ -183,9 +183,9 @@ void thd_print_regs(struct thread *t) {
 	printk("cos: spd %d, thd %d w/ regs: \ncos:\t\t"
 	       "eip %10x, esp %10x, eax %10x, ebx %10x, ecx %10x,\ncos:\t\t"
 	       "edx %10x, edi %10x, esi %10x, ebp %10x \n",
-	       spd_get_index(s), thd_get_id(t), (unsigned int)r->eip, (unsigned int)r->esp, 
-	       (unsigned int)r->eax, (unsigned int)r->ebx, (unsigned int)r->ecx, (unsigned int)r->edx, 
-	       (unsigned int)r->edi, (unsigned int)r->esi, (unsigned int)r->ebp);
+	       spd_get_index(s), thd_get_id(t), (unsigned int)r->ip, (unsigned int)r->sp, 
+	       (unsigned int)r->ax, (unsigned int)r->bx, (unsigned int)r->cx, (unsigned int)r->dx, 
+	       (unsigned int)r->di, (unsigned int)r->si, (unsigned int)r->bp);
 
 	return;
 }

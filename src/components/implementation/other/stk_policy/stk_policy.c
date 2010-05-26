@@ -15,27 +15,31 @@
 #include <sched_conf.h>
 #include <cos_alloc.h>
 #include <stkmgr.h>
+#define DEFAULT_STACK_AMNT 5
 
 #include <cos_list.h>
 #include <heap.h>
 
-#define POLICY_PERIODICITY 50
+#define POLICY_PERIODICITY 100
 
 /* data-structures */
 
 struct thd_sched {
-	int period, misses, priority;
+	int period, priority;
+
+	/* These change over time */
+	int misses, deadlines;
 	long lateness, miss_lateness;
 };
 
 struct component {
 	spdid_t spdid;
-	unsigned int concur_prev, concur_est, concur_new;
+	unsigned int allocated, concur_est, concur_new;
 	struct component *next, *prev;
 };
 
 struct thd_comp {
-	unsigned long time_blocked, tot_cost;
+	unsigned long avg_time_blocked, tot_time_blocked, time_per_deadline;
 	int stack_misses;
 	struct component *c;
 };
@@ -79,20 +83,28 @@ gather_data(void)
 		
 		est = stkmgr_spd_concurrency_estimate(citer->spdid);
 		assert(est != -1);
-		citer->concur_prev = citer->concur_est;
+		//citer->concur_prev = citer->concur_est;
 		citer->concur_est = est;
+		printc("Spd %d concurrency estimate: %d\n", citer->spdid, est);
 	}
 
 	for (titer = FIRST_LIST(&threads, next, prev) ; 
 	     titer != &threads ; 
 	     titer = FIRST_LIST(titer, next, prev)) {
 		unsigned short int tid = titer->tid;
+		struct thd_sched *ts = &titer->sched_info;
 		int i;
 
 		/* Scheduling info */
-		titer->sched_info.misses = periodic_wake_get_misses(tid);
-		titer->sched_info.lateness = periodic_wake_get_lateness(tid);
-		titer->sched_info.miss_lateness = periodic_wake_get_miss_lateness(tid);
+		ts->misses = periodic_wake_get_misses(tid);
+		ts->deadlines = periodic_wake_get_deadlines(tid);
+		ts->lateness = periodic_wake_get_lateness(tid);
+		ts->miss_lateness = periodic_wake_get_miss_lateness(tid);
+
+		printc("Thread %d, period %d, prio %d: %d deadlines, %d misses,"
+		       "%ld lateness, %ld miss lateness.\n", 
+		       tid, ts->period, ts->priority, ts->deadlines, 
+		       ts->misses, ts->lateness, ts->miss_lateness);
 
 		/* Component stack info */
 		for (i = 0 ; i < ncomps ; i++) {
@@ -100,31 +112,110 @@ gather_data(void)
 
 			tc = &titer->comp_info[i];
 			assert(tc && tc->c);
-			tc->time_blocked = stkmgr_thd_blk_time(tid, tc->c->spdid, 0);
-			tc->stack_misses = stkmgr_thd_blk_cnt(tid, tc->c->spdid, 1);
-			assert(tc->time_blocked != (unsigned long)-1 && tc->stack_misses >= 0);
+			tc->stack_misses = stkmgr_thd_blk_cnt(tid, tc->c->spdid, 0);
+			tc->avg_time_blocked = stkmgr_thd_blk_time(tid, tc->c->spdid, 1);
+			tc->tot_time_blocked = tc->avg_time_blocked * tc->stack_misses;
+			assert(tc->avg_time_blocked != (unsigned long)-1 && tc->stack_misses >= 0);
+
+			if (tc->stack_misses) {
+				printc("\tStack info for %d: time blocked %ld, misses %d\n", 
+				       tc->c->spdid, tc->avg_time_blocked/1000000, tc->stack_misses);
+			}
 		}
 	}
 }
 
-static void
-process_data(void)
+/* 
+ * This seems completely broken.  I should be estimating based on past
+ * experience, the amount of time that we will be made late due to
+ * adding or removing a stack.
+ */
+static unsigned long
+compute_lateness_chg_concur(struct thd *t, struct thd_comp *tc, unsigned int new_concurrency)
 {
+	long lateness = t->sched_info.lateness;
+	int deadlines = t->sched_info.deadlines;
+	unsigned long time_blocked = tc->tot_time_blocked;
+	unsigned long time_per_deadline, time_per_deadline_stack;
+	unsigned int est_concur = tc->c->concur_est, allocated = tc->c->allocated;
+	int num_blocked = est_concur - allocated; /* negative means surplus stacks! */
+	int change = new_concurrency - allocated;
+
+	if (0 == deadlines)  return 0; /* who knows, we don't have enough info */
+	if (change == 0) return lateness;
 	
+	time_per_deadline = time_blocked/deadlines;
+
+	/* Estimate the effect on block time of a single stack */
+	if (num_blocked == 0) {	/* nothing's changed, can't guess */
+		time_per_deadline_stack = 0;
+	} 
+	/* Not enough stacks! */
+	else if (num_blocked > 0) {
+		/* We assume that each stack allocated/taken away from
+		 * this component will effect the lateness by an
+		 * amount proportional to the amount of time we
+		 * currently spend blocking, and the number of threads
+		 * blocking at any point in time. */
+		time_per_deadline_stack = time_per_deadline/num_blocked;
+	} 
+	/* More than enough stacks */
+	else if (num_blocked < 0) {
+		int spare_stacks = -num_blocked;
+		int taken_away = -change;
+
+		if (taken_away <= spare_stacks) { /* no change! */
+			time_per_deadline_stack = 0;
+		} else {
+			time_per_deadline_stack = time_per_deadline/num_blocked;
+		}
+	}
+
+	return lateness - (time_per_deadline_stack * change);
 }
 
 static void
 policy(void)
 {
 	struct thd *iter;
+	struct component *c;
 
-	for (iter = FIRST_LIST(&threads, next, prev) ; 
-	     iter != &threads ; 
-	     iter = FIRST_LIST(iter, next, prev)) {
-		struct thd_sched *si = &iter->sched_info;
+/* 	for (iter = FIRST_LIST(&threads, next, prev) ;  */
+/* 	     iter != &threads ;  */
+/* 	     iter = FIRST_LIST(iter, next, prev)) { */
+/* 		//struct thd_sched *si = &iter->sched_info; */
+/* 		int i; */
 
-		printc("Thread %d, per %d, prio %d: %d misses, %ld lateness, %ld miss lateness.\n", 
-		       iter->tid, si->period, si->priority, si->misses, si->lateness, si->miss_lateness);
+/* 		for (i = 0 ; i < ncomps ; i++) { */
+/* 			struct thd_comp *tc; */
+
+/* 			tc = &iter->comp_info[i]; */
+/* 			assert(tc && tc->c); */
+/* 		} */
+/* 	} */
+
+	for (c = FIRST_LIST(&components, next, prev) ; 
+	     c != &components ;
+	     c = FIRST_LIST(c, next, prev)) {
+		//c->concur_new = c->allocated - 1 > c->concur_est ? 
+		//	c->allocated - 1 : c->concur_est;
+		c->concur_new = c->concur_est;
+		c->concur_new = c->concur_new > 0 ? c->concur_new : 1;
+//		stkmgr_set_concurrency(c->spdid, c->concur_new, 1);
+		c->allocated = c->concur_new;
+	}
+}
+
+static void
+init_policy(void)
+{
+	int i;
+
+	for (i = 0 ; i < ncomps ; i++) {
+		switch (i) {
+		case 9:  stkmgr_set_concurrency(i, 10, 1); break;
+		default: stkmgr_set_concurrency(i, 1, 1);
+		}
 	}
 }
 
@@ -168,13 +259,14 @@ init_thds(void)
 		
 		p = periodic_wake_get_period(i);
 		if (0 >= p) continue;
-
 		t = create_thread();
 		t->tid = i;
 		t->sched_info.period = p;
 		p = sched_priority(i);
 		t->sched_info.priority = p;
 		insert_thread(t);
+
+		printc("Found thread %d.\n", i);
 
 		c = FIRST_LIST(&components, next, prev);
 		for (j = 0 ; j < ncomps ; j++) {
@@ -199,6 +291,7 @@ init_spds(void)
 		if (!c) BUG();
 		memset(c, 0, sizeof(struct component));
 		c->spdid = i;
+		c->allocated = DEFAULT_STACK_AMNT;
 		INIT_LIST(c, next, prev);
 		ADD_LIST(&components, c, next, prev);
 		ncomps++;
@@ -208,22 +301,17 @@ init_spds(void)
 void 
 cos_init(void *arg)
 {
-	int c = 0;
-
 	INIT_LIST(&threads, next, prev);
 	/* Wait for all other threads to initialize */
 	timed_event_block(cos_spd_id(), 97);
+	periodic_wake_create(cos_spd_id(), POLICY_PERIODICITY);
 
 	init_spds();
 	init_thds();
-	periodic_wake_create(cos_spd_id(), POLICY_PERIODICITY);
+	init_policy();
 	while (1) {
 		gather_data();
 		policy();
-		if (c == 5) c = 0;
-		else c = 5;
-		stkmgr_stack_report();
-		stkmgr_set_concurrency(14, c);
 		stkmgr_stack_report();
 		periodic_wake_wait(cos_spd_id());
 	}

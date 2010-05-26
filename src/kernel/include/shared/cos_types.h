@@ -193,8 +193,8 @@ struct cos_net_callbacks {
  * dereferenced.  They will generally be used to set up page table
  * entries.
  */
-typedef unsigned long phys_addr_t;
-typedef unsigned long vaddr_t;
+typedef unsigned long paddr_t;	/* physical address */
+typedef unsigned long vaddr_t;	/* virtual address */
 typedef unsigned int page_index_t;
 
 typedef unsigned short int spdid_t;
