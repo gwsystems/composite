@@ -10,7 +10,12 @@
 #define COS_ASM_SERVER_STUB_H
 
 #define RET_CAP ((1<<20)-1)
-#include <cos_asm_stacks.h>
+#include <cos_stkmgr_configure.h>
+#if ENABLE_STACK_MANAGER
+ #include <cos_asm_stacks.h>
+#else
+ #include <cos_asm_simple_stacks.h>
+#endif
 
 /* 
  * The register layout is paired with that in ipc.S, %ecx holding the
@@ -36,7 +41,8 @@ name##_inv:                       \
         movl $RET_CAP, %eax;	  \
         COS_ASM_RET_STACK         \
                                   \
-        sysenter;
+        sysenter;                 \
+        COS_ASM_REQUEST_STACK
 
 #define cos_asm_server_stub_spdid(name) \
 .globl name##_inv ;                     \
@@ -56,6 +62,7 @@ name##_inv:                             \
         movl $RET_CAP, %eax;	        \
         COS_ASM_RET_STACK		\
                                         \
-        sysenter;
+        sysenter;                       \
+        COS_ASM_REQUEST_STACK
 
 #endif /* COS_ASM_SERVER_STUB_H */

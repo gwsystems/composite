@@ -9,5 +9,6 @@
 
 #define COS_ASM_RET_STACK
 
+#define COS_ASM_REQUEST_STACK
 
 #endif

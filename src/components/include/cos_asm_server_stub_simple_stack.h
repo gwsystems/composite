@@ -33,7 +33,7 @@ name##_inv:                       \
         pushl %esi;	          \
         pushl %ebx;	          \
         call name ; 		  \
-        addl $16, %esp;       \
+        addl $16, %esp;           \
                                   \
         movl %eax, %ecx;          \
         movl $RET_CAP, %eax;	  \
@@ -53,7 +53,7 @@ name##_inv:                             \
         pushl %esi;	                \
         pushl %ecx;	                \
         call name ; 		        \
-        addl $16, %esp;             \
+        addl $16, %esp;                 \
                                         \
         movl %eax, %ecx;                \
         movl $RET_CAP, %eax;	        \

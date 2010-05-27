@@ -6,7 +6,13 @@
  */
 
 #define __ASM__
-#include <cos_asm_stacks.h>
+#include <cos_stkmgr_configure.h>
+
+#if ENABLE_STACK_MANAGER
+  #include <cos_asm_stacks.h>
+#else
+  #include <cos_asm_simple_stacks.h>
+#endif
 #include <consts.h>
 
 #define RET_CAP ((1<<20)-1)
@@ -19,7 +25,8 @@ nil:
 	.rep 2048
 	.long 0
 	.endr
-/*
+
+#if !ENABLE_STACK_MANAGER
 .globl cos_static_stack
 cos_static_stack:
 	.rep ALL_STACK_SZ
@@ -28,8 +35,7 @@ cos_static_stack:
 .globl cos_static_stack_end
 cos_static_stack_end:
 	.long 0
-
-*/
+#endif
 	
 .text
 .globl cos_upcall_entry
@@ -51,7 +57,7 @@ cos_upcall_entry:
 	COS_ASM_RET_STACK
 
 	sysenter
-	
+	COS_ASM_REQUEST_STACK
 /*
  * %eax = cmpval, %ebx = memaddr, %ecx = newval
  * output %edx, either cmpval: fail, or newval:	success
