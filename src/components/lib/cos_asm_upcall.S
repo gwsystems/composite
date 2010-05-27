@@ -6,18 +6,14 @@
  */
 
 #define __ASM__
-#include <cos_stkmgr_configure.h>
 
-#if ENABLE_STACK_MANAGER
-  #include <cos_asm_stacks.h>
-#else
-  #include <cos_asm_simple_stacks.h>
-#endif
+#include <cos_asm_stacks.h>
 #include <consts.h>
 
 #define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 
+#if ENABLE_STACK_MANAGER!=1
 .bss
 .align 32
 .globl nil
@@ -26,7 +22,6 @@ nil:
 	.long 0
 	.endr
 
-#if !ENABLE_STACK_MANAGER
 .globl cos_static_stack
 cos_static_stack:
 	.rep ALL_STACK_SZ

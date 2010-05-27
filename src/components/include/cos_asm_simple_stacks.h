@@ -1,4 +1,3 @@
-
 #ifndef COS_ASM_SIMPLE_STACKS_H
 #define COS_ASM_SIMPLE_STACKS_H
 

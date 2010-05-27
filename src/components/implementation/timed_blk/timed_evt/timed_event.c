@@ -293,9 +293,8 @@ int timed_event_block(spdid_t spdinv, unsigned int amnt)
 	}
 	/* we better have been taking off the list! */
 	assert(EMPTY_LIST(te, next, prev));
-	if (te->flags & TE_TIMED_OUT) {
-		return TIMER_EXPIRED;
-	}
+	if (te->flags & TE_TIMED_OUT) return TIMER_EXPIRED;
+
 	/* 
 	 * The event has already been removed from event list in
 	 * event_expiration by the timeout thread.
@@ -488,7 +487,7 @@ int periodic_wake_remove(spdid_t spdinv, unsigned short int tid)
 	TAKE(spdid);
 	te = te_pget(tid);
 	if (NULL == te) BUG();
-	if (!te->flags & TE_PERIODIC) goto err;
+	if (!(te->flags & TE_PERIODIC)) goto err;
 		
 	assert(!EMPTY_LIST(te, next, prev));
 	REM_LIST(te, next, prev);
@@ -512,7 +511,7 @@ int periodic_wake_wait(spdid_t spdinv)
 	TAKE(spdid);
 	te = te_pget(tid);
 	if (NULL == te) BUG();
-	if (!te->flags & TE_PERIODIC) goto err;
+	if (!(te->flags & TE_PERIODIC)) goto err;
 		
 	assert(!EMPTY_LIST(te, next, prev));
 	te->flags |= TE_BLOCKED;

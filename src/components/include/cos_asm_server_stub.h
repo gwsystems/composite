@@ -10,12 +10,7 @@
 #define COS_ASM_SERVER_STUB_H
 
 #define RET_CAP ((1<<20)-1)
-#include <cos_stkmgr_configure.h>
-#if ENABLE_STACK_MANAGER
- #include <cos_asm_stacks.h>
-#else
- #include <cos_asm_simple_stacks.h>
-#endif
+#include <cos_asm_stacks.h>
 
 /* 
  * The register layout is paired with that in ipc.S, %ecx holding the
