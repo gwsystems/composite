@@ -36,7 +36,7 @@ void cos_init(void)
 	if(first == 0){
 		hthd = create_thd("r-1");
 		lthd = cos_get_thd_id();
-		for(j = 0; j < 10; j++){
+		for(j = 0; j < 3; j++){
 			create_thd("r1");
 		}
 		first = 1;

@@ -44,11 +44,15 @@ struct pt_regs {
 #endif
 
 #define MAX_SERVICE_DEPTH 31
-#define MAX_NUM_THREADS 32
+#define MAX_NUM_THREADS 40
 /* Stacks are 2 * page_size (expressed in words) */
-//#define MAX_STACK_SZ    (PAGE_SIZE*2/4)
-#define MAX_STACK_SZ    (PAGE_SIZE/(2*4))
+#define MAX_STACK_SZ    (PAGE_SIZE/4) /* a page */
 #define ALL_STACK_SZ    (MAX_NUM_THREADS*MAX_STACK_SZ)
+
+/* a kludge:  should not use a tmp stack on a stack miss */
+#define TMP_STACK_SZ    (128/4) 
+#define ALL_TMP_STACKS_SZ    (MAX_NUM_THREADS*TMP_STACK_SZ)
+
 #define MAX_SCHED_HIER_DEPTH 4
 
 #define MAX_NUM_SPDS 64

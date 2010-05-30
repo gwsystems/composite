@@ -207,6 +207,7 @@ static void __event_expiration(event_time_t time, struct thread_event *events)
 			tmp->event_expiration += tmp->period;
 			insert_pevent(tmp);
 		}
+
 		if (b) sched_wakeup(spdid, tmp->thread_id);
 		/* We don't have to deallocate the thread_events as
 		 * they are stack allocated on the sleeping
@@ -281,7 +282,7 @@ int timed_event_block(spdid_t spdinv, unsigned int amnt)
 	ticks = sched_timestamp();
 	te->event_expiration = ticks + amnt;
 	block_time = ticks;
-	assert(te->event_expiration > ticks);
+   	assert(te->event_expiration > ticks);
 	t = next_event_time();
 	insert_event(te);
 	assert(te->next && te->prev && !EMPTY_LIST(te, next, prev));
@@ -291,6 +292,7 @@ int timed_event_block(spdid_t spdinv, unsigned int amnt)
 	if (-1 == sched_block(spdid, 0)) {
 		prints("fprr: sched block failed in timed_event_block.");
 	}
+
 	/* we better have been taking off the list! */
 	assert(EMPTY_LIST(te, next, prev));
 	if (te->flags & TE_TIMED_OUT) return TIMER_EXPIRED;
@@ -588,6 +590,7 @@ static void start_timer_thread(void)
 				prints("fprr: scheduler lock release failed!!!");
 				BUG();
 			}
+
 			sched_block(spdid, 0);
 		} else {
 			unsigned int wakeup;
@@ -598,7 +601,6 @@ static void start_timer_thread(void)
 				prints("fprr: scheduler lock release failed!!!");
 				BUG();
 			}
-
 			sched_timeout(spdid, wakeup);
 		}
 	}

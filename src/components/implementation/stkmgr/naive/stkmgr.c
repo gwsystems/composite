@@ -1010,7 +1010,7 @@ stkmgr_print_ci_freelist(void)
 		}
 		printc("stkmgr: spdid %d w/ %d stacks, %d on freelist, %d blocked\n", 
 		       i, info->num_allocated, cnt, info->num_blocked_thds);
-		assert(info->num_allocated == stkmgr_num_alloc_stks(info->spdid))
+		assert(info->num_allocated == stkmgr_num_alloc_stks(info->spdid));
 #ifdef PRINT_FREELIST_ELEMENTS
 		curr = (void *)info->ci->cos_stacks.freelists[0].freelist;
 		if(curr) {

@@ -74,7 +74,7 @@ static enum {SCHED_CHILD, SCHED_ROOT} sched_type = SCHED_ROOT;
 static inline int sched_is_root(void) { return sched_type == SCHED_ROOT; }
 static inline int sched_is_child(void) { return !sched_is_root(); } 
 
-//#define FPRR_REPORT_EVTS
+#define FPRR_REPORT_EVTS
 
 typedef enum {
 	NULL_EVT = 0,
@@ -915,7 +915,6 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	ret = ticks - thd->block_time - 1;
 	ret = ret > 0 ? ret : 0;
 	cos_sched_lock_release();
-
 	return ret; 
 err:
 	cos_sched_lock_release();

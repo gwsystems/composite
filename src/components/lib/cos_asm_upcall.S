@@ -1,5 +1,7 @@
 /**
- * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ * Copyright 2007 by Boston University, Gabriel Parmer,
+ * gabep1@cs.bu.edu, and The George Washington University,
+ * Gabriel Parmer, gparmer@gwu.edu
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
@@ -16,9 +18,8 @@
 #if ENABLE_STACK_MANAGER!=1
 .bss
 .align 32
-.globl nil
 nil:
-	.rep 2048
+	.rep 1024
 	.long 0
 	.endr
 
@@ -39,10 +40,10 @@ cos_static_stack_end:
 cos_upcall_entry:
 	COS_ASM_GET_STACK
 
+	xor %ebp, %ebp
 	pushl %esi
 	pushl %edi
 	pushl %ebx
-	xor %ebp, %ebp
 	pushl %ecx /* option */	
 	call cos_upcall_fn
 	addl $16, %esp

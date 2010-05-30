@@ -15,7 +15,7 @@
  * FIXME: Please remove this since it is no longer needed
  */
 
-extern int stkmgr_stack_space[ALL_STACK_SZ];
+extern long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
 
 extern struct cos_sched_data_area cos_sched_notifications;
 extern struct cos_component_information cos_comp_info;

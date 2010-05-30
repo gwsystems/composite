@@ -201,7 +201,7 @@ static int fd_net_close(int fd, struct descriptor *d)
 	net_connection_t nc;
 	int ret;
 
-	assert(d->type == DESC_NET)
+	assert(d->type == DESC_NET);
 	nc = (net_connection_t)d->data;
 	ret = net_close(cos_spd_id(), nc);
 	evt_free_cached(cos_spd_id(), d->evt_id);

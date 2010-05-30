@@ -38,7 +38,7 @@
 2:                                              \
         /* get stk space */                     \
         movl $stkmgr_stack_space, %esp;         \
-        shl  $9, %eax;                          \
+        shl  $7, %eax;                          \
         addl %eax, %esp;                        \
                                                 \
         /* save our registers */                \
@@ -93,7 +93,7 @@
         movl $THD_ID_SHARED_PAGE, %ecx;         \
         movl (%ecx), %ecx;                      \
     	movl $stkmgr_stack_space, %esp;	        \
-        shl $9, %ecx;	                        \
+        shl $7, %ecx;	                        \
         addl %ecx, %esp;                        \
         /* save our registers */                \
         pushl %ebp;                             \
@@ -135,7 +135,7 @@
         /* Remove me */                         \
         movl %eax, %edx;                        \
     	movl $stkmgr_stack_space, %esp;	        \
-        shl $9, %eax;	                        \
+        shl $7, %eax;	                        \
         addl %eax, %esp;                        \
         movl %edx, %eax;                        \
                                                 \
@@ -152,7 +152,7 @@
                                                 \
         /* First we need a stack */             \
         movl $stkmgr_stack_space, %esp;         \
-        shl $9, %edx;                          \
+        shl $7, %edx;				\
         addl %edx, %esp;                        \
         /* save our registers */                \
         pushl %ebp;                             \
@@ -283,7 +283,7 @@
         movl $THD_ID_SHARED_PAGE, %ecx;          \
         movl (%ecx), %ecx;                      \
     	movl $stkmgr_stack_space, %esp;	        \
-        shl $9, %ecx;	                        \
+        shl $7, %ecx;	                        \
         addl %ecx, %esp;                        \
         /* save our registers */                \
         pushl %ebp;                             \
@@ -323,7 +323,7 @@
 
 #define COS_ASM_GET_STACK                   \
 	movl $cos_static_stack, %esp;	    \
-	shl $9, %eax;			    \
+	shl $12, %eax;			    \
 	addl %eax, %esp;
 
 #define COS_ASM_RET_STACK
