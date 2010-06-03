@@ -63,7 +63,11 @@ VM_MASK		= 0x00020000
 	pushl %ebx; \
 	movl $(__USER_DS), %edx; \
 	movl %edx, %ds; \
-	movl %edx, %es;
+	movl %edx, %es; \
+	movl $(__KERNEL_PERCPU), %edx; \
+	movl %edx, %fs;	\
+	movl $(__KERNEL_STACK_CANARY), %edx; \
+	movl %edx, %gs
 
 #define RESTORE_INT_REGS \
 	popl %ebx;	\
@@ -76,8 +80,8 @@ VM_MASK		= 0x00020000
 
 #define RESTORE_REGS	\
 	RESTORE_INT_REGS; \
-1:	popl %ds;	\
-2:	popl %es;	\
+	popl %ds;	\
+	popl %es;	\
 	popl %fs;       \
 	popl %gs
 /* 
@@ -86,14 +90,12 @@ VM_MASK		= 0x00020000
  * concurrently use hijack modules and composite modules.
  */
 .data
-.globl default_page_fault_handler
-default_page_fault_handler:	
+.align 16
+.globl cos_sysenter_addr
+cos_sysenter_addr:	
 	.long 0
-.globl sysenter_addr
-sysenter_addr:	
-	.long 0
-.globl temp_esp_storage
-temp_esp_storage:	
+.globl cos_temp_esp_storage
+cos_temp_esp_storage:	
 	.long 0
 	
 .text
@@ -192,9 +194,9 @@ hijack_checks:
 	RESTORE_REGS
 	jmp normal_syscall
 
-	ALIGN
+ALIGN
 ENTRY(asym_exec_dom_entry)
-	movl %esp, temp_esp_storage /* This is so we can restore it to continue normal linux syscall paths if necessary */
+	movl %esp, cos_temp_esp_storage /* This is so we can restore it to continue normal linux syscall paths if necessary */
 	/* FIXME: not smp safe */
 	movl TSS_sysenter_sp0(%esp),%esp
 
@@ -237,15 +239,16 @@ normal_syscall:
 		
 	popl %ebp
 	popfl
-	movl temp_esp_storage, %esp
-	jmp  *(sysenter_addr) /* sti will happen in syscall path */
+	movl cos_temp_esp_storage, %esp
+	jmp  *(cos_sysenter_addr) /* sti will happen in syscall path */
 
 	/* never get to here on syscall...*/
 
-		
-	ALIGN
+
+#ifdef NIL
+.align 64
 ENTRY(page_fault_interposition)
-	jmp *(default_page_fault_handler)
+	jmp *(cos_default_page_fault_handler)
 	/*
 	 * we don't want our function to muck with the previously 
 	 * active registers, so save them...  Note that the stack 
@@ -276,5 +279,83 @@ normal_pf:
 	addl $8, %esp
 	popl %fs
 	popl %gs
-	jmp *(default_page_fault_handler)
+	jmp *(cos_default_page_fault_handler)
+#endif
+	
+/*
+ * Trap will cause this handler to trigger.  The stack
+ * already contains cs, ds, flags, sp, eip, and 0.  We will save
+ * registers, call a composite handler, decide if we can deal with it
+ * there, or if we should call the linux handler, and if so,
+ * return the machine state (stack etc) to how it was when the
+ * trap occurred, and call the linux handler.
+ */
+#define COS_CREATE_TRAP_NO_ERRCODE(name)	 		\
+.data;								\
+.globl cos_default_##name##_handler; 				\
+cos_default_##name##_handler:					\
+.long 0;							\
+.text;								\
+.align 16;					 		\
+ENTRY(name##_interposition)					\
+	pushl $0;						\
+	SAVE_ALL; 						\
+	movl %esp, %eax; 					\
+	movl ORIG_EAX(%eax), %edx;				\
+	call main_##name##_interposition;			\
+	test %eax, %eax;					\
+	jnz 1f;							\
+	RESTORE_REGS;						\
+	addl $4, %esp;						\
+	iret;							\
+1:	/* linux path */					\
+	RESTORE_INT_REGS;					\
+	addl $8, %esp;						\
+	popl %fs;						\
+	popl %gs;						\
+	addl $4, %esp;						\
+	jmp *(cos_default_##name##_handler)	
 
+//#define TEST
+#ifdef TEST
+#define COS_CREATE_TRAP_ERRCODE(name)		 		\
+.data;								\
+.globl cos_default_##name##_handler; 				\
+cos_default_##name##_handler:					\
+.long 0;							\
+.text;								\
+.align 16;					 		\
+ENTRY(name##_interposition)					\
+	jmp *(cos_default_##name##_handler)	
+
+#else	/* TEST */
+	
+/* Same as above, but this time, there is an errorcode provided by the HW */
+#define COS_CREATE_TRAP_ERRCODE(name)		 		\
+.data;								\
+.globl cos_default_##name##_handler; 				\
+cos_default_##name##_handler:					\
+.long 0;							\
+.text;								\
+.align 16;					 		\
+ENTRY(name##_interposition)					\
+	SAVE_ALL; 						\
+	movl %esp, %eax; 					\
+	movl ORIG_EAX(%eax), %edx;				\
+	jmp 1f			 ;\
+	call main_##name##_interposition;			\
+	test %eax, %eax;					\
+	jnz 1f;							\
+	RESTORE_REGS;						\
+	addl $4, %esp;						\
+	iret;							\
+1:	/* linux path */					\
+	RESTORE_INT_REGS;					\
+	addl $8, %esp;						\
+	popl %fs;						\
+	popl %gs;						\
+	jmp *(cos_default_##name##_handler)	
+#endif 	/* TEST */
+	
+COS_CREATE_TRAP_NO_ERRCODE(div_fault)
+COS_CREATE_TRAP_ERRCODE(page_fault)

@@ -18,7 +18,9 @@ clean:
 	rmmod cnet
 	rmmod cos
 
+# sync to minimize possible file system corruption on crashes
 build: 
+	sync
 	insmod cos.ko
 	insmod cnet.ko
 	./cnet_user

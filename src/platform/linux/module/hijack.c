@@ -52,9 +52,11 @@ MODULE_LICENSE("GPL");
 
 extern void asym_exec_dom_entry(void);
 extern void page_fault_interposition(void);
+extern void div_fault_interposition(void);
 
-extern void *default_page_fault_handler;
-extern void *sysenter_addr;
+extern unsigned long cos_default_page_fault_handler;
+extern unsigned long cos_default_div_fault_handler;
+extern void *cos_sysenter_addr;
 /* 
  * This variable exists for the assembly code for temporary
  * storage...want it close to sysenter_addr for cache locality
@@ -1368,7 +1370,8 @@ void mem_mapping_syscall(struct pt_regs *regs)
 #define NFAULTS 200
 int fault_ptr = 0;
 struct fault_info {
-	vaddr_t addr, ip, sp, a, b, c, d, D, S, bp;
+	vaddr_t addr;
+	struct pt_regs regs;
 	unsigned short int spdid, thdid;
 	int cspd_flags, cspd_master_flags;
 	unsigned long long timestamp;
@@ -1384,17 +1387,7 @@ static void cos_report_fault(struct thread *t, vaddr_t fault_addr, struct pt_reg
 
 	fi = &faults[fault_ptr];
 	fi->addr = fault_addr;
-	if (NULL != regs) {
-		fi->ip = regs->ip;
-		fi->sp = regs->sp;
-		fi->a = regs->ax;
-		fi->b = regs->bx;
-		fi->c = regs->cx;
-		fi->d = regs->dx;
-		fi->D = regs->di;
-		fi->S = regs->si;
-		fi->bp = regs->bp;
-	}
+	if (NULL != regs) memcpy(&fi->regs, regs, sizeof(struct pt_regs));
 	fi->spdid = spd_get_index(thd_get_thd_spd(t));
 	fi->thdid = thd_get_id(t);
 	fi->timestamp = ts;
@@ -1497,12 +1490,18 @@ static int cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *re
 	return 1;
 }
 
-/* the composite specific page fault handler */
-static int cos_handle_page_fault(struct thread *thd, vaddr_t fault_addr, struct pt_regs *regs)
-{
-	memcpy(&thd->regs, regs, sizeof(struct pt_regs));
-	cos_report_fault(thd, fault_addr, regs);
+static void
+cos_record_fault_regs(struct thread *t, vaddr_t fault_addr, struct pt_regs *rs)
+{	
+	memcpy(&t->regs, rs, sizeof(struct pt_regs));
+	cos_report_fault(t, fault_addr, rs);
+}
 
+/* the composite specific page fault handler */
+static int 
+cos_handle_page_fault(struct thread *thd, vaddr_t fault_addr, struct pt_regs *regs)
+{
+	cos_record_fault_regs(thd, fault_addr, regs);
 	return 1;
 }
 
@@ -1548,6 +1547,9 @@ struct my_desc_struct {
 
 static inline unsigned long decipher_descriptor_address(struct my_desc_struct *desc)
 {
+	printk(">>> Descriptor address %x, other crap %x:%x.\n", 
+	       ((desc->address_high<<16) | desc->address_low), 
+	       (unsigned int)desc->trash & 0xFFFF, (unsigned int)desc->trash >> 16);
 	return (desc->address_high<<16) | desc->address_low;
 }
 
@@ -1556,16 +1558,12 @@ cos_set_intr_gate(unsigned int n, void *addr, struct my_desc_struct *idt_table)
 {
 	gate_desc s;
 	int gate = n;
-	unsigned type = GATE_INTERRUPT;
+	unsigned type = GATE_INTERRUPT;//15
 	unsigned dpl = 0;
 	unsigned ist = 0;
 	unsigned seg = __KERNEL_CS;
 
 	pack_gate(&s, type, (unsigned long)addr, dpl, ist, seg);
-	/*
-	 * does not need to be atomic because it is only done once at
-	 * setup time
-	 */
 	write_idt_entry((void*)idt_table, gate, &s);
 }
 
@@ -1573,7 +1571,8 @@ cos_set_intr_gate(unsigned int n, void *addr, struct my_desc_struct *idt_table)
  * Change the current page fault handler to point from where it is, to
  * our handler, and return the address of the old handler.
  */
-static inline unsigned long change_page_fault_handler(void *new_handler)
+static inline int 
+change_fault_handler(int fault_num, void *new_handler, unsigned long *save_handler)
 {
 	/* 
 	 * This is really just a pain in the ass.  See 5-14 (spec
@@ -1594,8 +1593,8 @@ static inline unsigned long change_page_fault_handler(void *new_handler)
 
 	idt_table = (struct my_desc_struct *)idt_descriptor.idt_base;
 
-	previous_fault_handler = decipher_descriptor_address(&idt_table[14]);
-
+	previous_fault_handler = decipher_descriptor_address(&idt_table[fault_num]);
+	*save_handler = previous_fault_handler;
 	/*
 	 * Now we have the previously active page fault address.  Set
 	 * the address of the new handler in the idt.  This
@@ -1607,12 +1606,11 @@ static inline unsigned long change_page_fault_handler(void *new_handler)
 	 * remedy needs to be found.  For instance, use the fixmap.h
 	 * translation from include/asm-i386/fixmap.h
 	 */
-	//cos_set_trap_gate(14, new_handler, idt_table);
-	cos_set_intr_gate(14, new_handler, idt_table);
-	cos_set_intr_gate(14, (void*)previous_fault_handler, idt_table);
-	//set_intr_gate(14, new_handler, idt_table);
+	cos_set_intr_gate(fault_num, new_handler, idt_table);
+//	decipher_descriptor_address(&idt_table[fault_num]);
+//	cos_set_intr_gate(fault_num, (void*)previous_fault_handler, idt_table);
 
-	return previous_fault_handler;
+	return 0;
 }
 
 //#define FAULT_DEBUG
@@ -1753,6 +1751,23 @@ linux_handler_put:
 linux_handler:
 	recur = 0;
 	return ret; 
+}
+
+/*
+ * This function will be called upon a hardware page fault.  Return 0
+ * if you want the linux page fault to be run, !0 otherwise.
+ */
+__attribute__((regparm(3))) 
+int main_div_fault_interposition(struct pt_regs *rs, unsigned int error_code)
+{
+	struct thread *t;
+
+	if (composite_thread != current) return 1;
+
+	t = thd_get_current();
+	cos_record_fault_regs(t, error_code, rs);
+
+	return 1;
 }
 
 /*
@@ -2607,11 +2622,25 @@ static int aed_release(struct inode *inode, struct file *file)
 			if (fi->thdid != 0) {
 				printk("cos: spd %d, thd %d @ addr %x @ time %lld, mpd flags %x (master %x) and w/ regs: \ncos:\t\t"
 				       "eip %10x, esp %10x, eax %10x, ebx %10x, ecx %10x,\ncos:\t\t"
-				       "edx %10x, edi %10x, esi %10x, ebp %10x \n",
-				       fi->spdid, fi->thdid, (unsigned int)fi->addr, fi->timestamp, fi->cspd_flags, 
-				       fi->cspd_master_flags, (unsigned int)fi->ip, (unsigned int)fi->sp, 
-				       (unsigned int)fi->a, (unsigned int)fi->b, (unsigned int)fi->c, (unsigned int)fi->d, 
-				       (unsigned int)fi->D, (unsigned int)fi->S, (unsigned int)fi->bp);
+				       "edx %10x, edi %10x, esi %10x, ebp %10x,\n"
+				       "cos:\t\tcs %10x, ss %10x, flags %10x\n",
+				       fi->spdid, fi->thdid, 
+				       (unsigned int)fi->addr, 
+				       fi->timestamp, 
+				       fi->cspd_flags, 
+				       fi->cspd_master_flags, 
+				       (unsigned int)fi->regs.ip, 
+				       (unsigned int)fi->regs.sp, 
+				       (unsigned int)fi->regs.ax, 
+				       (unsigned int)fi->regs.bx, 
+				       (unsigned int)fi->regs.cx, 
+				       (unsigned int)fi->regs.dx, 
+				       (unsigned int)fi->regs.di, 
+				       (unsigned int)fi->regs.si, 
+				       (unsigned int)fi->regs.bp,
+				       (unsigned int)fi->regs.cs, 
+				       (unsigned int)fi->regs.ss, 
+				       (unsigned int)fi->regs.flags);
 			}
 		}
 		event_print();
@@ -2655,21 +2684,20 @@ static int asym_exec_dom_init(void)
 	if (make_proc_aed())
 		return -1;
 
-//	rdmsr(MSR_IA32_SYSENTER_EIP, (int)sysenter_addr, trash);
 	rdmsr(MSR_IA32_SYSENTER_EIP, se_addr, trash);
-	sysenter_addr = (void*)se_addr;
+	cos_sysenter_addr = (void*)se_addr;
 	wrmsr(MSR_IA32_SYSENTER_EIP, (int)asym_exec_dom_entry, 0);
 
 	printk("cos: Saving sysenter msr (%p) and activating %p.\n", 
-	       sysenter_addr, asym_exec_dom_entry);
+	       cos_sysenter_addr, asym_exec_dom_entry);
 
-	/* FIXME: race on setting the interrupt and setting the
-	 * default handler variable */
-	default_page_fault_handler = (void*)change_page_fault_handler(page_fault_interposition);
-	printk("cos: Saving page fault handler (%p) and activating %p.\n", 
-	       default_page_fault_handler, page_fault_interposition);
+	change_fault_handler(14, page_fault_interposition, &cos_default_page_fault_handler);
+	printk("cos: Saving page fault handler (%lx) and activating %p.\n", 
+	       cos_default_page_fault_handler, page_fault_interposition);
 
-	return 0;
+	change_fault_handler(0, div_fault_interposition, &cos_default_div_fault_handler);
+	printk("cos: Saving page fp handler (%lx) and activating %p.\n", 
+	       cos_default_div_fault_handler, div_fault_interposition);
 
 	//switch_to_executive = module_switch_to_executive;
 	//asym_page_fault = module_page_fault;
@@ -2691,12 +2719,16 @@ static int asym_exec_dom_init(void)
 
 static void asym_exec_dom_exit(void)
 {
+	unsigned long tmp;
+
 	remove_proc_entry("aed", NULL);
 
-	printk("cos: Resetting sysenter wsr to %p.\n", sysenter_addr);
-	wrmsr(MSR_IA32_SYSENTER_EIP, (int)sysenter_addr, 0);
-	printk("cos: Resetting page fault handler to %p.\n", default_page_fault_handler);
-	change_page_fault_handler(default_page_fault_handler);
+	printk("cos: Resetting sysenter wsr to %p.\n", cos_sysenter_addr);
+	wrmsr(MSR_IA32_SYSENTER_EIP, (int)cos_sysenter_addr, 0);
+	printk("cos: Resetting page fault handler to %lx.\n", cos_default_page_fault_handler);
+	change_fault_handler(14, (void*)cos_default_page_fault_handler, &tmp);
+	printk("cos: Resetting division fault handler to %lx.\n", cos_default_div_fault_handler);
+	change_fault_handler(0, (void*)cos_default_div_fault_handler, &tmp);
 
 	return;
 
