@@ -1,0 +1,3881 @@
+Only in linux-2.6.33.new/arch/x86/include/asm: ansidecl_32.h
+Only in linux-2.6.33.new/arch/x86/include/asm: ansidecl_64.h
+Only in linux-2.6.33.new/arch/x86/include/asm: ansidecl.h
+Only in linux-2.6.33.new/arch/x86/include/asm: bfd_32.h
+Only in linux-2.6.33.new/arch/x86/include/asm: bfd_64.h
+Only in linux-2.6.33.new/arch/x86/include/asm: bfd.h
+Only in linux-2.6.33.new/arch/x86/include/asm: #desc.h#
+diff -rau linux-2.6.33/arch/x86/include/asm/irq_vectors.h linux-2.6.33.new/arch/x86/include/asm/irq_vectors.h
+--- linux-2.6.33/arch/x86/include/asm/irq_vectors.h	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/arch/x86/include/asm/irq_vectors.h	2010-06-28 18:06:35.384259486 -0400
+@@ -39,6 +39,7 @@
+ #else
+ # define IA32_SYSCALL_VECTOR		0x80
+ #endif
++#define KDBENTER_VECTOR 	0x81
+ 
+ /*
+  * Reserve the lowest usable priority level 0x20 - 0x2f for triggering
+@@ -97,6 +98,12 @@
+ #define NUM_INVALIDATE_TLB_VECTORS	   8
+ 
+ /*
++ * KDB_VECTOR will take over vector 0xfe when it is needed, as in theory
++ * it should not be used anyway.
++ */
++#define KDB_VECTOR			0xfe
++
++/*
+  * Local APIC timer IRQ vector is on a different priority level,
+  * to work around the 'lost local interrupt if more than 2 IRQ
+  * sources per level' errata.
+Only in linux-2.6.33.new/arch/x86/include/asm: kdb.h
+Only in linux-2.6.33.new/arch/x86/include/asm: kdbprivate.h
+diff -rau linux-2.6.33/arch/x86/include/asm/kdebug.h linux-2.6.33.new/arch/x86/include/asm/kdebug.h
+--- linux-2.6.33/arch/x86/include/asm/kdebug.h	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/arch/x86/include/asm/kdebug.h	2010-06-28 18:06:35.452260406 -0400
+@@ -15,6 +15,8 @@
+ 	DIE_DIE,
+ 	DIE_NMIWATCHDOG,
+ 	DIE_KERNELDEBUG,
++	DIE_KDEBUG_ENTER,
++	DIE_KDEBUG_LEAVE,
+ 	DIE_TRAP,
+ 	DIE_GPF,
+ 	DIE_CALL,
+diff -rau linux-2.6.33/arch/x86/include/asm/ptrace.h linux-2.6.33.new/arch/x86/include/asm/ptrace.h
+--- linux-2.6.33/arch/x86/include/asm/ptrace.h	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/arch/x86/include/asm/ptrace.h	2010-06-28 18:06:35.368449396 -0400
+@@ -16,6 +16,29 @@
+ /* this struct defines the way the registers are stored on the
+    stack during a system call. */
+ 
++enum EFLAGS {
++        EF_CF   = 0x00000001,
++        EF_PF   = 0x00000004,
++        EF_AF   = 0x00000010,
++        EF_ZF   = 0x00000040,
++        EF_SF   = 0x00000080,
++        EF_TF   = 0x00000100,
++        EF_IE   = 0x00000200,
++        EF_DF   = 0x00000400,
++        EF_OF   = 0x00000800,
++        EF_IOPL = 0x00003000,
++        EF_IOPL_RING0 = 0x00000000,
++        EF_IOPL_RING1 = 0x00001000,
++        EF_IOPL_RING2 = 0x00002000,
++        EF_NT   = 0x00004000,   /* nested task */
++        EF_RF   = 0x00010000,   /* resume */
++        EF_VM   = 0x00020000,   /* virtual mode */
++        EF_AC   = 0x00040000,   /* alignment */
++        EF_VIF  = 0x00080000,   /* virtual interrupt */
++        EF_VIP  = 0x00100000,   /* virtual interrupt pending */
++        EF_ID   = 0x00200000,   /* id */
++};
++
+ #ifndef __KERNEL__
+ 
+ struct pt_regs {
+diff -rau linux-2.6.33/arch/x86/Kconfig.debug linux-2.6.33.new/arch/x86/Kconfig.debug
+--- linux-2.6.33/arch/x86/Kconfig.debug	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/arch/x86/Kconfig.debug	2010-06-28 18:06:35.756260242 -0400
+@@ -310,4 +310,91 @@
+ 
+ 	  If unsure, or if you run an older (pre 4.4) gcc, say N.
+ 
++config KDB
++	bool "Built-in Kernel Debugger support"
++	depends on DEBUG_KERNEL
++	select KALLSYMS
++	select KALLSYMS_ALL
++	help
++	  This option provides a built-in kernel debugger.  The built-in
++	  kernel debugger contains commands which allow memory to be examined,
++	  instructions to be disassembled and breakpoints to be set.  For details,
++	  see Documentation/kdb/kdb.mm and the manual pages kdb_bt, kdb_ss, etc.
++	  Kdb can also be used via the serial port.  Set up the system to
++	  have a serial console (see Documentation/serial-console.txt).
++	  The key sequence <escape>KDB on the serial port will cause the
++	  kernel debugger to be entered with input from the serial port and
++	  output to the serial console.  If unsure, say N.
++
++config KDB_MODULES
++	tristate "KDB modules"
++	depends on KDB
++	help
++	  KDB can be extended by adding your own modules, in directory
++	  kdb/modules.  This option selects the way that these modules should
++	  be compiled, as free standing modules (select M) or built into the
++	  kernel (select Y).  If unsure say M.
++
++config KDB_OFF
++	bool "KDB off by default"
++	depends on KDB
++	help
++	  Normally kdb is activated by default, as long as CONFIG_KDB is set.
++	  If you want to ship a kernel with kdb support but only have kdb
++	  turned on when the user requests it then select this option.  When
++	  compiled with CONFIG_KDB_OFF, kdb ignores all events unless you boot
++	  with kdb=on or you echo "1" > /proc/sys/kernel/kdb.  This option also
++	  works in reverse, if kdb is normally activated, you can boot with
++	  kdb=off or echo "0" > /proc/sys/kernel/kdb to deactivate kdb. If
++	  unsure, say N.
++
++config KDB_CONTINUE_CATASTROPHIC
++	int "KDB continues after catastrophic errors"
++	depends on KDB
++	default "0"
++	help
++	  This integer controls the behaviour of kdb when the kernel gets a
++	  catastrophic error, i.e. for a panic, oops, NMI or other watchdog
++	  tripping.  CONFIG_KDB_CONTINUE_CATASTROPHIC interacts with
++	  /proc/sys/kernel/kdb and CONFIG_LKCD_DUMP (if your kernel has the
++	  LKCD patch).
++	  When KDB is active (/proc/sys/kernel/kdb == 1) and a catastrophic
++	  error occurs, nothing extra happens until you type 'go'.
++	  CONFIG_KDB_CONTINUE_CATASTROPHIC == 0 (default).  The first time
++	  you type 'go', kdb warns you.  The second time you type 'go', KDB
++	  tries to continue - no guarantees that the kernel is still usable.
++	  CONFIG_KDB_CONTINUE_CATASTROPHIC == 1.  KDB tries to continue - no
++	  guarantees that the kernel is still usable.
++	  CONFIG_KDB_CONTINUE_CATASTROPHIC == 2.  If your kernel has the LKCD
++	  patch and LKCD is configured to take a dump then KDB forces a dump.
++	  Whether or not a dump is taken, KDB forces a reboot.
++	  When KDB is not active (/proc/sys/kernel/kdb == 0) and a catastrophic
++	  error occurs, the following steps are automatic, no human
++	  intervention is required.
++	  CONFIG_KDB_CONTINUE_CATASTROPHIC == 0 (default) or 1.  KDB attempts
++	  to continue - no guarantees that the kernel is still usable.
++	  CONFIG_KDB_CONTINUE_CATASTROPHIC == 2.  If your kernel has the LKCD
++	  patch and LKCD is configured to take a dump then KDB automatically
++	  forces a dump.  Whether or not a dump is taken, KDB forces a
++	  reboot.
++	  If you are not sure, say 0.  Read Documentation/kdb/dump.txt before
++	  setting to 2.
++
++config KDB_USB
++	bool "Support for USB Keyboard in KDB"
++	depends on KDB && (USB_OHCI_HCD || USB_EHCI_HCD || USB_UHCI_HCD)
++	help
++	  If you want to use kdb from USB keyboards then say Y here.  If you
++	  say N then kdb can only be used from a PC (AT) keyboard or a serial
++	  console.
++
++config KDB_KDUMP
++	bool "Support for Kdump in KDB"
++	depends on KDB
++	select KEXEC
++	default N
++	help
++	  If you want to take Kdump kernel vmcore from KDB then say Y here.
++	  If unsure, say N.
++
+ endmenu
+Only in linux-2.6.33.new/arch/x86: kdb
+diff -rau linux-2.6.33/arch/x86/kernel/apic/io_apic.c linux-2.6.33.new/arch/x86/kernel/apic/io_apic.c
+--- linux-2.6.33/arch/x86/kernel/apic/io_apic.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/arch/x86/kernel/apic/io_apic.c	2010-06-28 18:06:39.747093053 -0400
+@@ -42,6 +42,9 @@
+ #include <linux/bootmem.h>
+ #include <linux/dmar.h>
+ #include <linux/hpet.h>
++#ifdef CONFIG_KDB
++#include <linux/kdb.h>
++#endif
+ 
+ #include <asm/idle.h>
+ #include <asm/io.h>
+@@ -1206,6 +1209,11 @@
+ 		if (test_bit(vector, used_vectors))
+ 			goto next;
+ 
++#ifdef CONFIG_KDB
++		if (vector == KDBENTER_VECTOR)
++			goto next;
++#endif
++
+ 		for_each_cpu_and(new_cpu, tmp_mask, cpu_online_mask)
+ 			if (per_cpu(vector_irq, new_cpu)[vector] != -1)
+ 				goto next;
+diff -rau linux-2.6.33/arch/x86/kernel/dumpstack.c linux-2.6.33.new/arch/x86/kernel/dumpstack.c
+--- linux-2.6.33/arch/x86/kernel/dumpstack.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/arch/x86/kernel/dumpstack.c	2010-06-28 18:06:37.588261158 -0400
+@@ -15,6 +15,9 @@
+ #include <linux/bug.h>
+ #include <linux/nmi.h>
+ #include <linux/sysfs.h>
++#ifdef CONFIG_KDB
++#include <linux/kdb.h>
++#endif
+ 
+ #include <asm/stacktrace.h>
+ 
+@@ -260,6 +263,9 @@
+ 		/* Nest count reaches zero, release the lock. */
+ 		arch_spin_unlock(&die_lock);
+ 	raw_local_irq_restore(flags);
++#ifdef CONFIG_KB
++	kdb(KDB_REASON_OOPS, signr, regs);
++#endif
+ 	oops_exit();
+ 
+ 	if (!signr)
+@@ -328,6 +334,9 @@
+ 
+ 	if (__die(str, regs, err))
+ 		sig = 0;
++#ifdef CONFIG_KDB
++	kdb_diemsg = str;
++#endif
+ 	oops_end(flags, regs, sig);
+ }
+ 
+@@ -348,6 +357,9 @@
+ 	printk(" on CPU%d, ip %08lx, registers:\n",
+ 		smp_processor_id(), regs->ip);
+ 	show_registers(regs);
++#ifdef CONFIG_KDB
++	kdb(KDB_REASON_NMI, 0, regs);
++#endif
+ 	oops_end(flags, regs, 0);
+ 	if (do_panic || panic_on_oops)
+ 		panic("Non maskable interrupt");
+diff -rau linux-2.6.33/arch/x86/kernel/entry_32.S linux-2.6.33.new/arch/x86/kernel/entry_32.S
+--- linux-2.6.33/arch/x86/kernel/entry_32.S	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/arch/x86/kernel/entry_32.S	2010-06-28 18:06:39.336260477 -0400
+@@ -1008,6 +1008,26 @@
+ 	CFI_ENDPROC
+ END(alignment_check)
+ 
++#ifdef	CONFIG_KDB
++
++ENTRY(kdb_call)
++	RING0_INT_FRAME
++	pushl %eax              # save orig EAX
++	CFI_ADJUST_CFA_OFFSET 4
++	SAVE_ALL
++	movl %esp,%ecx          # struct pt_regs
++	movl $0,%edx            # error_code
++	movl $1,%eax            # KDB_REASON_ENTER
++	call  kdb
++	jmp restore_all
++	CFI_ENDPROC
++
++#ifdef	CONFIG_SMP
++BUILD_INTERRUPT(kdb_interrupt,KDB_VECTOR)
++#endif	/* CONFIG_SMP */
++
++#endif	/* CONFIG_KDB */
++
+ ENTRY(divide_error)
+ 	RING0_INT_FRAME
+ 	pushl $0			# no error code
+diff -rau linux-2.6.33/arch/x86/kernel/entry_64.S linux-2.6.33.new/arch/x86/kernel/entry_64.S
+--- linux-2.6.33/arch/x86/kernel/entry_64.S	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/arch/x86/kernel/entry_64.S	2010-06-28 18:06:39.192263588 -0400
+@@ -1331,6 +1331,33 @@
+ 
+ #endif /* CONFIG_XEN */
+ 
++#ifdef	CONFIG_KDB
++
++#ifdef CONFIG_SMP
++apicinterrupt KDB_VECTOR \
++	kdb_interrupt, smp_kdb_interrupt
++#endif	/* CONFIG_SMP */
++
++ENTRY(kdb_call)
++	INTR_FRAME
++	cld
++	pushq $-1			# orig_eax
++	CFI_ADJUST_CFA_OFFSET 8
++	SAVE_ALL
++	movq $1,%rdi			# KDB_REASON_ENTER
++	movq $0,%rsi			# error_code
++	movq %rsp,%rdx			# struct pt_regs
++	call kdb
++	RESTORE_ALL
++	addq $8,%rsp			# forget orig_eax
++	CFI_ADJUST_CFA_OFFSET -8
++	iretq
++	CFI_ENDPROC
++END(kdb_call)
++
++#endif	/* CONFIG_KDB */
++
++
+ /*
+  * Some functions should be protected against kprobes
+  */
+diff -rau linux-2.6.33/arch/x86/kernel/reboot.c linux-2.6.33.new/arch/x86/kernel/reboot.c
+--- linux-2.6.33/arch/x86/kernel/reboot.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/arch/x86/kernel/reboot.c	2010-06-28 18:06:39.024260654 -0400
+@@ -3,6 +3,10 @@
+ #include <linux/init.h>
+ #include <linux/pm.h>
+ #include <linux/efi.h>
++#ifdef CONFIG_KDB
++#include <linux/kdb.h>
++#endif /* CONFIG_KDB */
++#include <linux/kexec.h>
+ #include <linux/dmi.h>
+ #include <linux/sched.h>
+ #include <linux/tboot.h>
+@@ -622,6 +626,14 @@
+ 	/* Make certain I only run on the appropriate processor */
+ 	set_cpus_allowed_ptr(current, cpumask_of(reboot_cpu_id));
+ 
++#if defined(CONFIG_X86_32) && defined(CONFIG_KDB)
++	/*
++	 * If this restart is occuring while kdb is running (e.g. reboot
++	 * command), the other CPU's are already stopped.  Don't try to
++	 * stop them yet again.
++	 */
++	if (!KDB_IS_RUNNING())
++#endif	/* defined(CONFIG_X86_32) && defined(CONFIG_KDB) */
+ 	/* O.K Now that I'm on the appropriate processor,
+ 	 * stop all of the others.
+ 	 */
+@@ -732,6 +744,29 @@
+ 
+ static atomic_t waiting_for_crash_ipi;
+ 
++#ifdef CONFIG_KDB_KDUMP
++void halt_current_cpu(struct pt_regs *regs)
++{
++#ifdef CONFIG_X86_32
++	struct pt_regs fixed_regs;
++#endif 
++	local_irq_disable();
++#ifdef CONFIG_X86_32
++	if (!user_mode_vm(regs)) {
++		crash_fixup_ss_esp(&fixed_regs, regs);
++		regs = &fixed_regs;
++	}
++#endif
++        crash_save_cpu(regs, raw_smp_processor_id());
++	disable_local_APIC();
++	atomic_dec(&waiting_for_crash_ipi);
++	/* Assume hlt works */
++	halt();
++	for(;;)
++		cpu_relax();
++}
++#endif /* CONFIG_KDB_KDUMP */
++
+ static int crash_nmi_callback(struct notifier_block *self,
+ 			unsigned long val, void *data)
+ {
+diff -rau linux-2.6.33/arch/x86/kernel/traps.c linux-2.6.33.new/arch/x86/kernel/traps.c
+--- linux-2.6.33/arch/x86/kernel/traps.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/arch/x86/kernel/traps.c	2010-06-28 18:06:38.060260558 -0400
+@@ -44,6 +44,10 @@
+ #include <linux/edac.h>
+ #endif
+ 
++#ifdef CONFIG_KDB
++#include <linux/kdb.h>
++#endif /* CONFIG_KDB */
++
+ #include <asm/kmemcheck.h>
+ #include <asm/stacktrace.h>
+ #include <asm/processor.h>
+@@ -361,6 +365,24 @@
+ static notrace __kprobes void
+ unknown_nmi_error(unsigned char reason, struct pt_regs *regs)
+ {
++#ifdef CONFIG_KDB
++	static int controlling_cpu = -1;
++	static DEFINE_SPINLOCK(kdb_nmi_lock);
++	unsigned long flags;
++
++	spin_lock_irqsave(&kdb_nmi_lock, flags);
++	if (controlling_cpu == -1) {
++		controlling_cpu = smp_processor_id();
++		spin_unlock_irqrestore(&kdb_nmi_lock, flags);
++		(void)kdb(KDB_REASON_NMI, reason, regs);
++		controlling_cpu = -1;
++	} else {
++		spin_unlock_irqrestore(&kdb_nmi_lock, flags);
++		(void)kdb(KDB_REASON_ENTER_SLAVE, reason, regs);
++	}
++	return;
++#else
++
+ 	if (notify_die(DIE_NMIUNKNOWN, "nmi", regs, reason, 2, SIGINT) ==
+ 			NOTIFY_STOP)
+ 		return;
+@@ -383,6 +405,7 @@
+ 		panic("NMI: Not continuing");
+ 
+ 	printk(KERN_EMERG "Dazed and confused, but trying to continue\n");
++#endif /* CONFIG_KDB */
+ }
+ 
+ static notrace __kprobes void default_do_nmi(struct pt_regs *regs)
+@@ -396,6 +419,16 @@
+ 	if (!cpu)
+ 		reason = get_nmi_reason();
+ 
++#if defined(CONFIG_SMP) && defined(CONFIG_KDB)
++	/*
++	 * Call the kernel debugger to see if this NMI is due
++	 * to an KDB requested IPI.  If so, kdb will handle it.
++	 */
++	if (kdb_ipi(regs, NULL)) {
++		return;
++	}
++#endif /* defined(CONFIG_SMP) && defined(CONFIG_KDB) */
++
+ 	if (!(reason & 0xc0)) {
+ 		if (notify_die(DIE_NMI_IPI, "nmi_ipi", regs, reason, 2, SIGINT)
+ 								== NOTIFY_STOP)
+@@ -460,6 +493,10 @@
+ /* May run on IST stack. */
+ dotraplinkage void __kprobes do_int3(struct pt_regs *regs, long error_code)
+ {
++#ifdef CONFIG_KDB
++	if (kdb(KDB_REASON_BREAK, error_code, regs))
++		return;
++#endif
+ #ifdef CONFIG_KPROBES
+ 	if (notify_die(DIE_INT3, "int3", regs, error_code, 3, SIGTRAP)
+ 			== NOTIFY_STOP)
+@@ -549,6 +586,11 @@
+ 	/* Store the virtualized DR6 value */
+ 	tsk->thread.debugreg6 = dr6;
+ 
++#ifdef  CONFIG_KDB
++	if (kdb(KDB_REASON_DEBUG, error_code, regs))
++		return;
++#endif  /* CONFIG_KDB */
++
+ 	if (notify_die(DIE_DEBUG, "debug", regs, PTR_ERR(&dr6), error_code,
+ 							SIGTRAP) == NOTIFY_STOP)
+ 		return;
+diff -rau linux-2.6.33/arch/x86/Makefile linux-2.6.33.new/arch/x86/Makefile
+--- linux-2.6.33/arch/x86/Makefile	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/arch/x86/Makefile	2010-06-28 18:06:35.752260520 -0400
+@@ -139,6 +139,9 @@
+ drivers-$(CONFIG_FB) += arch/x86/video/
+ endif
+ 
++# KDB support
++drivers-$(CONFIG_KDB) += arch/x86/kdb/
++
+ ####
+ # boot loader support. Several targets are kept for legacy purposes
+ 
+diff -rau linux-2.6.33/arch/x86/mm/mmap.c linux-2.6.33.new/arch/x86/mm/mmap.c
+--- linux-2.6.33/arch/x86/mm/mmap.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/arch/x86/mm/mmap.c	2010-06-28 18:06:37.236260456 -0400
+@@ -134,3 +134,7 @@
+ 		mm->unmap_area = arch_unmap_area_topdown;
+ 	}
+ }
++
++/* gparmer@gwu.edu: for composite */
++#include <linux/module.h>
++EXPORT_SYMBOL(arch_pick_mmap_layout);
+Only in linux-2.6.33.new/: .config.old.7.4
+Only in linux-2.6.33.new/Documentation: kdb
+diff -rau linux-2.6.33/drivers/char/keyboard.c linux-2.6.33.new/drivers/char/keyboard.c
+--- linux-2.6.33/drivers/char/keyboard.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/drivers/char/keyboard.c	2010-06-28 18:05:42.956260723 -0400
+@@ -43,6 +43,9 @@
+ #include <linux/reboot.h>
+ #include <linux/notifier.h>
+ #include <linux/jiffies.h>
++#ifdef CONFIG_KDB
++#include <linux/kdb.h>
++#endif /* CONFIG_KDB */
+ 
+ extern void ctrl_alt_del(void);
+ 
+@@ -1195,6 +1198,13 @@
+ 			if (keycode < BTN_MISC && printk_ratelimit())
+ 				printk(KERN_WARNING "keyboard.c: can't emulate rawmode for keycode %d\n", keycode);
+ 
++#ifdef	CONFIG_KDB
++	if (down && !rep && keycode == KEY_PAUSE && kdb_on == 1) {
++		kdb(KDB_REASON_KEYBOARD, 0, get_irq_regs());
++		return;
++	}
++#endif	/* CONFIG_KDB */
++
+ #ifdef CONFIG_MAGIC_SYSRQ	       /* Handle the SysRq Hack */
+ 	if (keycode == KEY_SYSRQ && (sysrq_down || (down == 1 && sysrq_alt))) {
+ 		if (!sysrq_down) {
+Only in linux-2.6.33.new/drivers/gpu/drm/radeon: r100_reg_safe.h
+Only in linux-2.6.33.new/drivers/gpu/drm/radeon: r200_reg_safe.h
+Only in linux-2.6.33.new/drivers/gpu/drm/radeon: r300_reg_safe.h
+Only in linux-2.6.33.new/drivers/gpu/drm/radeon: r420_reg_safe.h
+Only in linux-2.6.33.new/drivers/gpu/drm/radeon: rn50_reg_safe.h
+Only in linux-2.6.33.new/drivers/gpu/drm/radeon: rs600_reg_safe.h
+Only in linux-2.6.33.new/drivers/gpu/drm/radeon: rv515_reg_safe.h
+diff -rau linux-2.6.33/drivers/hid/usbhid/hid-core.c linux-2.6.33.new/drivers/hid/usbhid/hid-core.c
+--- linux-2.6.33/drivers/hid/usbhid/hid-core.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/drivers/hid/usbhid/hid-core.c	2010-06-28 18:05:46.680260382 -0400
+@@ -44,6 +44,10 @@
+ #define DRIVER_DESC "USB HID core driver"
+ #define DRIVER_LICENSE "GPL"
+ 
++#ifdef CONFIG_KDB_USB
++#include <linux/kdb.h>
++#endif
++
+ /*
+  * Module parameters.
+  */
+@@ -1029,6 +1033,14 @@
+ 
+ 	if (WARN_ON(!usbhid))
+ 		return;
++#ifdef CONFIG_KDB_USB
++	/*
++	 * If the URB was for a Keyboard, detach it from kdb.
++	 * If the URB was for another type of device, just
++	 * allow kdb_usb_keyboard_detach() to silently fail.
++	 */
++	kdb_usb_keyboard_detach(usbhid->urbin);
++#endif
+ 
+ 	clear_bit(HID_STARTED, &usbhid->iofl);
+ 	spin_lock_irq(&usbhid->lock);	/* Sync with error handler */
+@@ -1162,6 +1174,34 @@
+ 		goto err_free;
+ 	}
+ 
++#ifdef CONFIG_KDB_USB
++	/* Attach USB keyboards to kdb */
++	if (intf->cur_altsetting->desc.bInterfaceProtocol ==
++	    USB_INTERFACE_PROTOCOL_KEYBOARD) {
++		int ret;
++		struct usbhid_device *usbhid = hid->driver_data;
++		extern void *usb_hcd_get_kdb_poll_func(struct usb_device *udev);
++		extern void * usb_hcd_get_kdb_completion_func(struct usb_device *udev);
++		extern int usb_hcd_check_uhci(struct usb_device *udev);
++		extern kdb_hc_keyboard_attach_t
++			usb_hcd_get_hc_keyboard_attach(struct usb_device *udev);
++		extern kdb_hc_keyboard_detach_t
++			usb_hcd_get_hc_keyboard_detach(struct usb_device *udev);
++
++		ret = kdb_usb_keyboard_attach(usbhid->urbin, usbhid->inbuf,
++					      usb_hcd_get_kdb_poll_func(interface_to_usbdev(intf)),
++					      usb_hcd_get_kdb_completion_func(interface_to_usbdev(intf)),
++					      usb_hcd_get_hc_keyboard_attach(interface_to_usbdev(intf)),
++					      usb_hcd_get_hc_keyboard_detach(interface_to_usbdev(intf)),
++					      usbhid->bufsize,
++					      NULL);
++
++		if (ret == -1)
++			printk(": FAILED to register keyboard (%s) "
++				"with KDB\n", hid->phys);
++	}
++#endif /* CONFIG_KDB_USB */
++
+ 	return 0;
+ err_free:
+ 	kfree(usbhid);
+diff -rau linux-2.6.33/drivers/hid/usbhid/usbkbd.c linux-2.6.33.new/drivers/hid/usbhid/usbkbd.c
+--- linux-2.6.33/drivers/hid/usbhid/usbkbd.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/drivers/hid/usbhid/usbkbd.c	2010-06-28 18:05:46.680260382 -0400
+@@ -30,6 +30,9 @@
+ #include <linux/init.h>
+ #include <linux/usb/input.h>
+ #include <linux/hid.h>
++#ifdef	CONFIG_KDB_USB
++#include <linux/kdb.h>
++#endif
+ 
+ /*
+  * Version Information
+@@ -292,6 +295,16 @@
+ 	usb_fill_int_urb(kbd->irq, dev, pipe,
+ 			 kbd->new, (maxp > 8 ? 8 : maxp),
+ 			 usb_kbd_irq, kbd, endpoint->bInterval);
++
++#ifdef CONFIG_KDB_USB
++	/* Attach keyboard to kdb */
++	extern void * usb_hcd_get_kdb_poll_func(struct usb_device *udev);
++
++	kdb_usb_keyboard_attach(kbd->irq, kbd->new,
++				usb_hcd_get_kdb_poll_func(dev));
++
++#endif /* CONFIG_KDB_USB */
++
+ 	kbd->irq->transfer_dma = kbd->new_dma;
+ 	kbd->irq->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
+ 
+@@ -329,6 +342,10 @@
+ 
+ 	usb_set_intfdata(intf, NULL);
+ 	if (kbd) {
++#ifdef CONFIG_KDB_USB
++	       /* Detach the keyboard from kdb */
++        	kdb_usb_keyboard_detach(kbd->irq);
++#endif /* CONFIG_KDB_USB */
+ 		usb_kill_urb(kbd->irq);
+ 		input_unregister_device(kbd->dev);
+ 		usb_kbd_free_mem(interface_to_usbdev(intf), kbd);
+Only in linux-2.6.33.new/drivers/net: #tun.c#
+diff -rau linux-2.6.33/drivers/serial/8250.c linux-2.6.33.new/drivers/serial/8250.c
+--- linux-2.6.33/drivers/serial/8250.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/drivers/serial/8250.c	2010-06-28 18:05:47.068260470 -0400
+@@ -43,11 +43,26 @@
+ #include <asm/irq.h>
+ 
+ #include "8250.h"
+-
+ #ifdef CONFIG_SPARC
+ #include "suncore.h"
+ #endif
+ 
++#ifdef	CONFIG_KDB
++#include <linux/kdb.h>
++/*
++ * kdb_serial_line records the serial line number of the first serial console.
++ * NOTE: The kernel ignores characters on the serial line unless a user space
++ * program has opened the line first.  To enter kdb before user space has opened
++ * the serial line, you can use the 'kdb=early' flag to lilo and set the
++ * appropriate breakpoints.
++ */
++
++static int  kdb_serial_line = -1;
++static const char *kdb_serial_ptr = kdb_serial_str;
++#else
++#define KDB_8250() 0
++#endif	/* CONFIG_KDB */
++
+ /*
+  * Configuration:
+  *   share_irqs - whether we pass IRQF_SHARED to request_irq().  This option
+@@ -1402,6 +1417,20 @@
+ 			 * just force the read character to be 0
+ 			 */
+ 			ch = 0;
++#ifdef CONFIG_KDB
++		if ((up->port.line == kdb_serial_line) && kdb_on == 1) {
++		    if (ch == *kdb_serial_ptr) {
++			if (!(*++kdb_serial_ptr)) {
++				atomic_inc(&kdb_8250);
++				kdb(KDB_REASON_KEYBOARD, 0, get_irq_regs());
++				atomic_dec(&kdb_8250);
++				kdb_serial_ptr = kdb_serial_str;
++				break;
++			}
++		    } else
++			kdb_serial_ptr = kdb_serial_str;
++		}
++#endif /* CONFIG_KDB */
+ 
+ 		flag = TTY_NORMAL;
+ 		up->port.icount.rx++;
+@@ -2739,7 +2768,7 @@
+ 	if (up->port.sysrq) {
+ 		/* serial8250_handle_port() already took the lock */
+ 		locked = 0;
+-	} else if (oops_in_progress) {
++	} else if (oops_in_progress || KDB_8250()) {
+ 		locked = spin_trylock(&up->port.lock);
+ 	} else
+ 		spin_lock(&up->port.lock);
+@@ -2797,6 +2826,30 @@
+ 	if (!port->iobase && !port->membase)
+ 		return -ENODEV;
+ 
++#ifdef	CONFIG_KDB
++	/*
++	 * Remember the line number of the first serial
++	 * console.  We'll make this the kdb serial console too.
++	 */
++	if (co && kdb_serial_line == -1) {
++		kdb_serial_line = co->index;
++		kdb_serial.io_type = port->iotype;
++		switch (port->iotype) {
++		case SERIAL_IO_MEM:
++#ifdef  SERIAL_IO_MEM32
++		case SERIAL_IO_MEM32:
++#endif
++			kdb_serial.iobase = (unsigned long)(port->membase);
++			kdb_serial.ioreg_shift = port->regshift;
++			break;
++		default:
++			kdb_serial.iobase = port->iobase;
++			kdb_serial.ioreg_shift = 0;
++			break;
++		}
++	}
++#endif	/* CONFIG_KDB */
++
+ 	if (options)
+ 		uart_parse_options(options, &baud, &parity, &bits, &flow);
+ 
+diff -rau linux-2.6.33/drivers/serial/8250_early.c linux-2.6.33.new/drivers/serial/8250_early.c
+--- linux-2.6.33/drivers/serial/8250_early.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/drivers/serial/8250_early.c	2010-06-28 18:05:46.936260540 -0400
+@@ -38,6 +38,11 @@
+ #include <asm/fixmap.h>
+ #endif
+ 
++#ifdef	CONFIG_KDB
++#include <linux/kdb.h>
++static int  kdb_serial_line = -1;
++#endif	/* CONFIG_KDB */
++
+ struct early_serial8250_device {
+ 	struct uart_port port;
+ 	char options[16];		/* e.g., 115200n8 */
+@@ -231,6 +236,30 @@
+ 
+ 	register_console(&early_serial8250_console);
+ 
++#ifdef	CONFIG_KDB
++	/*
++	 * Remember the line number of the first serial
++	 * console.  We'll make this the kdb serial console too.
++	 */
++	if (kdb_serial_line == -1) {
++		kdb_serial_line = early_serial8250_console.index;
++		kdb_serial.io_type = early_device.port.iotype;
++		switch (early_device.port.iotype) {
++		case SERIAL_IO_MEM:
++#ifdef  SERIAL_IO_MEM32
++		case SERIAL_IO_MEM32:
++#endif
++			kdb_serial.iobase = (unsigned long)(early_device.port.membase);
++			kdb_serial.ioreg_shift = early_device.port.regshift;
++			break;
++		default:
++			kdb_serial.iobase = early_device.port.iobase;
++			kdb_serial.ioreg_shift = 0;
++			break;
++		}
++	}
++#endif	/* CONFIG_KDB */
++
+ 	return 0;
+ }
+ 
+diff -rau linux-2.6.33/drivers/serial/sn_console.c linux-2.6.33.new/drivers/serial/sn_console.c
+--- linux-2.6.33/drivers/serial/sn_console.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/drivers/serial/sn_console.c	2010-06-28 18:05:47.192260437 -0400
+@@ -48,6 +48,22 @@
+ #include <linux/delay.h> /* for mdelay */
+ #include <linux/miscdevice.h>
+ #include <linux/serial_core.h>
++#ifdef CONFIG_KDB
++#include <linux/kdb.h>
++#include <linux/kdbprivate.h>
++#include <linux/serial_reg.h>
++/*
++ * kdb_serial_line records the serial line number of the first serial console.
++ * NOTE: The kernel ignores characters on the serial line unless a user space
++ * program has opened the line first.  To enter kdb before user space has opened
++ * the serial line, you can use the 'kdb=early' flag to lilo and set the
++ * appropriate breakpoints.
++ */
++
++static int  kdb_serial_line = -1;
++static char *kdb_serial_ptr = (char *)kdb_serial_str;
++#endif /* CONFIG_KDB */
++
+ 
+ #include <asm/io.h>
+ #include <asm/sn/simulator.h>
+@@ -485,6 +501,26 @@
+ 			       "obtaining data from the console (0x%0x)\n", ch);
+ 			break;
+ 		}
++#ifdef CONFIG_KDB
++	if (kdb_on == 1) {
++		if (ch == *kdb_serial_ptr) {
++			if (!(*++kdb_serial_ptr)) {
++				spin_unlock_irqrestore(&port->sc_port.lock, flags);
++				if (!get_irq_regs()) {
++					KDB_STATE_SET(KEYBOARD);
++					KDB_ENTER();   /* to get some registers */
++				} else
++					kdb(KDB_REASON_KEYBOARD, 0, get_irq_regs());
++				kdb_serial_ptr = (char *)kdb_serial_str;
++				spin_lock_irqsave(&port->sc_port.lock, flags);
++				break;
++			}
++		}
++		else
++			kdb_serial_ptr = (char *)kdb_serial_str;
++	}
++#endif /* CONFIG_KDB */
++
+ #ifdef CONFIG_MAGIC_SYSRQ
+                 if (sysrq_requested) {
+                         unsigned long sysrq_timeout = sysrq_requested + HZ*5;
+@@ -1008,6 +1044,15 @@
+  */
+ static int sn_sal_console_setup(struct console *co, char *options)
+ {
++#ifdef CONFIG_KDB
++	/*
++	* Remember the line number of the first serial
++	* console.  We'll make this the kdb serial console too.
++	*/
++	if (kdb_serial_line == -1) {
++		kdb_serial_line = co->index;
++	}
++#endif /* CONFIG_KDB */
+ 	return 0;
+ }
+ 
+@@ -1083,3 +1128,31 @@
+ }
+ 
+ console_initcall(sn_sal_serial_console_init);
++
++#ifdef	CONFIG_KDB
++int
++l1_control_in_polled(int offset)
++{
++	int sal_call_status = 0, input;
++	int ret = 0;
++	if (offset == UART_LSR) {
++		ret = (UART_LSR_THRE | UART_LSR_TEMT);	/* can send anytime */
++		sal_call_status = ia64_sn_console_check(&input);
++		if (!sal_call_status && input) {
++			/* input pending */
++			ret |= UART_LSR_DR;
++		}
++	}
++	return ret;
++}
++
++int
++l1_serial_in_polled(void)
++{
++	int ch;
++	if (!ia64_sn_console_getc(&ch))
++		return ch;
++	else
++		return 0;
++}
++#endif /* CONFIG_KDB */
+diff -rau linux-2.6.33/drivers/usb/core/hcd.c linux-2.6.33.new/drivers/usb/core/hcd.c
+--- linux-2.6.33/drivers/usb/core/hcd.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/drivers/usb/core/hcd.c	2010-06-28 18:05:24.672260469 -0400
+@@ -39,6 +39,9 @@
+ #include <linux/platform_device.h>
+ #include <linux/workqueue.h>
+ #include <linux/mutex.h>
++#ifdef CONFIG_KDB_USB
++#include <linux/kdb.h>
++#endif
+ 
+ #include <linux/usb.h>
+ 
+@@ -2262,6 +2265,74 @@
+ }
+ EXPORT_SYMBOL_GPL(usb_hcd_platform_shutdown);
+ 
++#ifdef CONFIG_KDB_USB
++void *
++usb_hcd_get_kdb_poll_func(struct usb_device *udev)
++{
++	struct usb_hcd  *hcd = bus_to_hcd(udev->bus);
++
++	if (hcd && hcd->driver)
++		return (void *)(hcd->driver->kdb_poll_char);
++
++	return NULL;
++}
++EXPORT_SYMBOL_GPL (usb_hcd_get_kdb_poll_func);
++
++void *
++usb_hcd_get_kdb_completion_func(struct usb_device *udev)
++{
++	struct usb_hcd  *hcd = bus_to_hcd(udev->bus);
++
++	if (hcd && hcd->driver)
++		return (void *)(hcd->driver->kdb_completion);
++
++	return NULL;
++}
++EXPORT_SYMBOL_GPL (usb_hcd_get_kdb_completion_func);
++
++int
++usb_hcd_check_uhci(struct usb_device *udev)
++{
++	struct usb_hcd  *hcd = bus_to_hcd(udev->bus);
++
++	if (hcd && hcd->driver){
++		if (!(strcmp(hcd->driver->description, "uhci_hcd")))
++			return 1;
++	}
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL (usb_hcd_check_uhci);
++
++kdb_hc_keyboard_attach_t
++usb_hcd_get_hc_keyboard_attach(struct usb_device *udev)
++{
++	struct usb_hcd  *hcd = bus_to_hcd(udev->bus);
++
++	if (hcd && hcd->driver){
++		return hcd->driver->kdb_hc_keyboard_attach;
++	}
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL (usb_hcd_get_hc_keyboard_attach);
++
++kdb_hc_keyboard_detach_t
++usb_hcd_get_hc_keyboard_detach(struct usb_device *udev)
++{
++	struct usb_hcd  *hcd = bus_to_hcd(udev->bus);
++
++	if (hcd && hcd->driver){
++		return hcd->driver->kdb_hc_keyboard_detach;
++	}
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL (usb_hcd_get_hc_keyboard_detach);
++
++
++#endif /* CONFIG_KDB_USB */
++
+ /*-------------------------------------------------------------------------*/
+ 
+ #if defined(CONFIG_USB_MON) || defined(CONFIG_USB_MON_MODULE)
+diff -rau linux-2.6.33/drivers/usb/core/hcd.h linux-2.6.33.new/drivers/usb/core/hcd.h
+--- linux-2.6.33/drivers/usb/core/hcd.h	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/drivers/usb/core/hcd.h	2010-06-28 18:05:23.112263281 -0400
+@@ -22,6 +22,9 @@
+ #ifdef __KERNEL__
+ 
+ #include <linux/rwsem.h>
++#ifdef CONFIG_KDB_USB
++#include <linux/kdb.h>
++#endif
+ 
+ #define MAX_TOPO_LEVEL		6
+ 
+@@ -286,6 +289,14 @@
+ 		 */
+ 	int	(*update_hub_device)(struct usb_hcd *, struct usb_device *hdev,
+ 			struct usb_tt *tt, gfp_t mem_flags);
++
++#ifdef CONFIG_KDB_USB
++	/* KDB poll function for this HC */
++	int	(*kdb_poll_char)(struct urb *urb);
++	void	(*kdb_completion)(struct urb *urb);
++	kdb_hc_keyboard_attach_t	kdb_hc_keyboard_attach;
++	kdb_hc_keyboard_detach_t	kdb_hc_keyboard_detach;
++#endif /* CONFIG_KDB_USB */
+ };
+ 
+ extern int usb_hcd_link_urb_to_ep(struct usb_hcd *hcd, struct urb *urb);
+diff -rau linux-2.6.33/drivers/usb/host/ehci-hcd.c linux-2.6.33.new/drivers/usb/host/ehci-hcd.c
+--- linux-2.6.33/drivers/usb/host/ehci-hcd.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/drivers/usb/host/ehci-hcd.c	2010-06-28 18:05:22.780263759 -0400
+@@ -1092,6 +1092,48 @@
+ 		ehci->periodic_size;
+ }
+ 
++#ifdef CONFIG_KDB_USB
++
++int
++ehci_kdb_poll_char(struct urb *urb)
++{
++        struct ehci_hcd *ehci;
++
++        /* just to make sure */
++        if (!urb || !urb->dev || !urb->dev->bus)
++                return -1;
++
++        ehci = (struct ehci_hcd *) hcd_to_ehci(bus_to_hcd(urb->dev->bus));
++
++        /* make sure */
++        if (!ehci)
++                return -1;
++
++        if (!HC_IS_RUNNING (ehci_to_hcd(ehci)->state))
++                return -1;
++
++	/*
++	 * If ehci->lock is held coming into this routine, it could
++	 * mean KDB was entered while the HC driver was in the midst
++	 * of processing URBs. Therefore it could be dangerous to
++	 * processes URBs from this poll routine. And, we can't wait on
++	 * the lock since we are in KDB and kernel threads (including the
++	 * one holding the lock) are suspended.
++	 * So, we punt and return an error. Keyboards attached to this
++	 * HC will not be useable from KDB at this time.
++	 */
++	if (spin_is_locked(&ehci->lock))
++		return -EBUSY;
++
++	/* processes the URB */
++        if (qh_completions_kdb(ehci, urb->hcpriv, urb))
++                return 0;
++
++        return -1;
++}
++
++#endif /* CONFIG_KDB_USB */
++
+ /*-------------------------------------------------------------------------*/
+ 
+ MODULE_DESCRIPTION(DRIVER_DESC);
+diff -rau linux-2.6.33/drivers/usb/host/ehci-pci.c linux-2.6.33.new/drivers/usb/host/ehci-pci.c
+--- linux-2.6.33/drivers/usb/host/ehci-pci.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/drivers/usb/host/ehci-pci.c	2010-06-28 18:05:22.696260225 -0400
+@@ -22,6 +22,10 @@
+ #error "This file is PCI bus glue.  CONFIG_PCI must be defined."
+ #endif
+ 
++#ifdef CONFIG_KDB_USB
++#include <linux/kdb.h>
++#endif
++
+ /*-------------------------------------------------------------------------*/
+ 
+ /* called after powerup, by probe or system-pm "wakeup" */
+@@ -412,6 +416,10 @@
+ 	.port_handed_over =	ehci_port_handed_over,
+ 
+ 	.clear_tt_buffer_complete	= ehci_clear_tt_buffer_complete,
++
++#ifdef CONFIG_KDB_USB
++	.kdb_poll_char =	ehci_kdb_poll_char,
++#endif
+ };
+ 
+ /*-------------------------------------------------------------------------*/
+diff -rau linux-2.6.33/drivers/usb/host/ehci-q.c linux-2.6.33.new/drivers/usb/host/ehci-q.c
+--- linux-2.6.33/drivers/usb/host/ehci-q.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/drivers/usb/host/ehci-q.c	2010-06-28 18:05:22.776263400 -0400
+@@ -296,6 +296,28 @@
+ 	spin_lock (&ehci->lock);
+ }
+ 
++/*
++ * Lock hackery here...
++ * ehci_urb_done() makes the assumption that it's called with ehci->lock held.
++ * So, lock it if it isn't already.
++ */
++static void
++kdb_ehci_urb_done(struct ehci_hcd *ehci, struct urb *urb, int status)
++__acquires(ehci->lock)
++__releases(ehci->lock)
++{
++#ifdef CONFIG_KDB_USB
++	int locked;
++	if (!spin_is_locked(&ehci->lock)) {
++		spin_lock(&ehci->lock);
++		locked = 1;
++	}
++	ehci_urb_done(ehci, urb, status);
++	if (locked)
++		spin_unlock(&ehci->lock);
++#endif
++}
++
+ static void start_unlink_async (struct ehci_hcd *ehci, struct ehci_qh *qh);
+ static void unlink_async (struct ehci_hcd *ehci, struct ehci_qh *qh);
+ 
+@@ -305,9 +327,16 @@
+  * Process and free completed qtds for a qh, returning URBs to drivers.
+  * Chases up to qh->hw_current.  Returns number of completions called,
+  * indicating how much "real" work we did.
++ *
++ * The KDB part is ugly but KDB wants its own copy and it keeps getting
++ * out of sync. The difference with kdb=1 is that we will only process
++ * qtds that are associated with kdburb. ehci_urb_done also releases
++ * and retakes ehci->lock. We may not have that lock while KDB is
++ * running.
+  */
+ static unsigned
+-qh_completions (struct ehci_hcd *ehci, struct ehci_qh *qh)
++__qh_completions (struct ehci_hcd *ehci, struct ehci_qh *qh, int kdb,
++		  struct urb *kdburb)
+ {
+ 	struct ehci_qtd		*last, *end = qh->dummy;
+ 	struct list_head	*entry, *tmp;
+@@ -318,6 +347,9 @@
+ 	const __le32		halt = HALT_BIT(ehci);
+ 	struct ehci_qh_hw	*hw = qh->hw;
+ 
++	if (kdb && !kdburb)
++		return 0;
++
+ 	if (unlikely (list_empty (&qh->qtd_list)))
+ 		return count;
+ 
+@@ -353,10 +385,18 @@
+ 		qtd = list_entry (entry, struct ehci_qtd, qtd_list);
+ 		urb = qtd->urb;
+ 
++		if (kdburb && urb != kdburb)
++			continue;
++
+ 		/* clean up any state from previous QTD ...*/
+ 		if (last) {
+ 			if (likely (last->urb != urb)) {
+-				ehci_urb_done(ehci, last->urb, last_status);
++				if (kdb)
++					kdb_ehci_urb_done(ehci, last->urb,
++							  last_status);
++				else
++					ehci_urb_done(ehci, last->urb,
++						      last_status);
+ 				count++;
+ 				last_status = -EINPROGRESS;
+ 			}
+@@ -522,7 +562,10 @@
+ 
+ 	/* last urb's completion might still need calling */
+ 	if (likely (last != NULL)) {
+-		ehci_urb_done(ehci, last->urb, last_status);
++		if (kdb)
++			kdb_ehci_urb_done(ehci, last->urb, last_status);
++		else
++			ehci_urb_done(ehci, last->urb, last_status);
+ 		count++;
+ 		ehci_qtd_free (ehci, last);
+ 	}
+@@ -577,6 +620,19 @@
+ 	return count;
+ }
+ 
++static unsigned
++qh_completions (struct ehci_hcd *ehci, struct ehci_qh *qh)
++{
++	return __qh_completions(ehci, qh, 0, NULL);
++}
++
++unsigned
++qh_completions_kdb(struct ehci_hcd *ehci, struct ehci_qh *qh,
++		   struct urb *kdburb)
++{
++	return __qh_completions(ehci, qh, 1, kdburb);
++}
++
+ /*-------------------------------------------------------------------------*/
+ 
+ // high bandwidth multiplier, as encoded in highspeed endpoint descriptors
+diff -rau linux-2.6.33/drivers/usb/host/ohci-hcd.c linux-2.6.33.new/drivers/usb/host/ohci-hcd.c
+--- linux-2.6.33/drivers/usb/host/ohci-hcd.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/drivers/usb/host/ohci-hcd.c	2010-06-28 18:05:22.800263300 -0400
+@@ -987,6 +987,73 @@
+ 
+ /*-------------------------------------------------------------------------*/
+ 
++#ifdef	CONFIG_KDB_USB
++
++int
++ohci_kdb_poll_char(struct urb *urb)
++{
++	struct ohci_hcd *ohci;
++	struct ohci_regs * regs;
++
++        /* just to make sure */
++        if (!urb || !urb->dev || !urb->dev->bus)
++                return -1;
++
++	ohci = (struct ohci_hcd *) hcd_to_ohci(bus_to_hcd(urb->dev->bus));
++
++        /* make sure */
++        if (!ohci || !ohci->hcca)
++                return -1;
++
++        if (!HC_IS_RUNNING (ohci_to_hcd(ohci)->state))
++                return -1;
++
++	/*
++	 * If ohci->lock is held coming into this routine, it could
++	 * mean KDB was entered while the HC driver was in the midst
++	 * of processing URBs. Therefore it could be dangerous to
++	 * processes URBs from this poll routine. And, we can't wait on
++	 * the lock since we are in KDB and kernel threads (including the
++	 * one holding the lock) are suspended.
++	 * So, we punt and return an error. Keyboards attached to this
++	 * HC will not be useable from KDB at this time.
++	 */
++	if (spin_is_locked(&ohci->lock))
++		return -EBUSY;
++
++	regs = ohci->regs;
++
++	/* if the urb is not currently in progress resubmit it */
++	if (urb->status != -EINPROGRESS) {
++
++		if (usb_submit_urb (urb, GFP_ATOMIC))
++			return -1;
++
++		/* make sure the HC registers are set correctly */
++		ohci_writel (ohci, OHCI_INTR_WDH, &regs->intrenable);
++		ohci_writel (ohci, OHCI_INTR_WDH, &regs->intrstatus);
++		ohci_writel (ohci, OHCI_INTR_MIE, &regs->intrenable);
++
++		// flush those pci writes
++		(void) ohci_readl (ohci, &ohci->regs->control);
++	}
++
++	if (ohci->hcca->done_head) {
++		dl_done_list_kdb (ohci, urb);
++		ohci_writel (ohci, OHCI_INTR_WDH, &regs->intrstatus);
++		// flush the pci write
++		(void) ohci_readl (ohci, &ohci->regs->control);
++
++		return 0;
++	}
++
++	return -1;
++}
++
++#endif /* CONFIG_KDB_USB */
++
++/*-------------------------------------------------------------------------*/
++
+ MODULE_AUTHOR (DRIVER_AUTHOR);
+ MODULE_DESCRIPTION(DRIVER_DESC);
+ MODULE_LICENSE ("GPL");
+diff -rau linux-2.6.33/drivers/usb/host/ohci-pci.c linux-2.6.33.new/drivers/usb/host/ohci-pci.c
+--- linux-2.6.33/drivers/usb/host/ohci-pci.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/drivers/usb/host/ohci-pci.c	2010-06-28 18:05:22.784263347 -0400
+@@ -21,6 +21,10 @@
+ #include <linux/pci.h>
+ #include <linux/io.h>
+ 
++#ifdef CONFIG_KDB_USB
++#include <linux/kdb.h>
++#endif
++
+ 
+ /* constants used to work around PM-related transfer
+  * glitches in some AMD 700 series southbridges
+@@ -387,6 +391,7 @@
+ 		ohci_err (ohci, "can't start\n");
+ 		ohci_stop (hcd);
+ 	}
++
+ 	return ret;
+ }
+ 
+@@ -485,6 +490,9 @@
+ 	.bus_resume =		ohci_bus_resume,
+ #endif
+ 	.start_port_reset =	ohci_start_port_reset,
++#ifdef CONFIG_KDB_USB
++	.kdb_poll_char =	ohci_kdb_poll_char,
++#endif
+ };
+ 
+ /*-------------------------------------------------------------------------*/
+diff -rau linux-2.6.33/drivers/usb/host/ohci-q.c linux-2.6.33.new/drivers/usb/host/ohci-q.c
+--- linux-2.6.33/drivers/usb/host/ohci-q.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/drivers/usb/host/ohci-q.c	2010-06-28 18:05:22.780263759 -0400
+@@ -1133,3 +1133,65 @@
+ 		td = td_next;
+ 	}
+ }
++
++
++/*-------------------------------------------------------------------------*/
++
++#ifdef	CONFIG_KDB_USB
++static void
++dl_done_list_kdb (struct ohci_hcd *ohci, struct urb *kdburb)
++{
++	struct td	*td = dl_reverse_done_list (ohci);
++
++  	while (td) {
++		struct td	*td_next = td->next_dl_td;
++		struct urb	*urb = td->urb;
++		urb_priv_t	*urb_priv = urb->hcpriv;
++		struct ed	*ed = td->ed;
++
++		if (urb != kdburb) {
++			td = td_next;
++			continue;
++		}
++
++		/* update URB's length and status from TD */
++   		td_done (ohci, urb, td);
++  		urb_priv->td_cnt++;
++
++		/* If all this urb's TDs are done, just resubmit it */
++  		if (urb_priv->td_cnt == urb_priv->length) {
++			urb->actual_length = 0;
++			urb->status = -EINPROGRESS;
++			td_submit_urb (ohci, urb);
++		}
++
++		/* clean schedule:  unlink EDs that are no longer busy */
++		if (list_empty (&ed->td_list)) {
++			if (ed->state == ED_OPER)
++				start_ed_unlink (ohci, ed);
++
++		/* ... reenabling halted EDs only after fault cleanup */
++		} else if ((ed->hwINFO & cpu_to_hc32 (ohci, ED_SKIP | ED_DEQUEUE))
++					== cpu_to_hc32 (ohci, ED_SKIP)) {
++			td = list_entry (ed->td_list.next, struct td, td_list);
++ 			if (!(td->hwINFO & cpu_to_hc32 (ohci, TD_DONE))) {
++				ed->hwINFO &= ~cpu_to_hc32 (ohci, ED_SKIP);
++				/* ... hc may need waking-up */
++				switch (ed->type) {
++				case PIPE_CONTROL:
++					ohci_writel (ohci, OHCI_CLF,
++						&ohci->regs->cmdstatus);
++					break;
++				case PIPE_BULK:
++					ohci_writel (ohci, OHCI_BLF,
++						&ohci->regs->cmdstatus);
++					break;
++				}
++			}
++		}
++
++    		td = td_next;
++  	}
++}
++
++#endif /* CONFIG_KDB_USB */
+diff -rau linux-2.6.33/drivers/usb/host/uhci-hcd.c linux-2.6.33.new/drivers/usb/host/uhci-hcd.c
+--- linux-2.6.33/drivers/usb/host/uhci-hcd.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/drivers/usb/host/uhci-hcd.c	2010-06-28 18:05:22.736984023 -0400
+@@ -50,6 +50,11 @@
+ #include "uhci-hcd.h"
+ #include "pci-quirks.h"
+ 
++#ifdef CONFIG_KDB_USB
++#include <linux/kdb.h>
++#include <linux/kdbprivate.h>
++#endif
++
+ /*
+  * Version Information
+  */
+@@ -461,6 +466,213 @@
+ 	return IRQ_HANDLED;
+ }
+ 
++#ifdef CONFIG_KDB_USB
++/* Unlink KDB QH from hardware and software scheduler */
++static void kdb_unlink_uhci_qh(struct urb *urb, struct uhci_qh *qh)
++{
++	unsigned long flags;
++	struct uhci_hcd *uhci;
++
++	uhci = (struct uhci_hcd *) hcd_to_uhci(bus_to_hcd(urb->dev->bus));
++
++	spin_lock_irqsave(&uhci->lock, flags);
++	unlink_interrupt(NULL, qh);
++	list_del(&(qh->node));
++	spin_unlock_irqrestore(&uhci->lock, flags);
++
++}
++
++static int uhci_kdb_poll_char(struct urb *urb)
++{
++	if (!urb) /* can happen if no keyboard attached */
++		return -1;
++
++	return uhci_check_kdb_uhci_qh(kdb_uhci_keyboard_get_qh(urb));
++}
++
++/* Only 1 UHCI Keyboard supported */
++static inline void kdb_usb_fill_int_urb (struct urb *urb,
++					 struct usb_device *dev,
++					 unsigned int pipe,
++					 void *transfer_buffer,
++					 int buffer_length,
++					 usb_complete_t complete_fn,
++					 void *context,
++					 int interval)
++{
++	urb->dev = dev;
++	urb->pipe = pipe;
++	urb->transfer_buffer = transfer_buffer;
++	urb->transfer_buffer_length = buffer_length;
++	urb->complete = complete_fn;
++	urb->context = context;
++	urb->interval = interval;
++	urb->start_frame = -1;
++}
++
++static int kdb_uhci_keyboard_attach(int i, unsigned int usbhid_bufsize)
++{
++	struct urb *kdb_urb;
++	unsigned char *kdb_buffer;
++	dma_addr_t uhci_inbuf_dma;
++	struct urb *hid_inurb = kdb_usb_kbds[i].urb;
++	int ret = -1;
++
++	kdb_usb_kbds[i].hid_urb = hid_inurb;
++
++	kdb_urb = NULL;
++	kdb_buffer = NULL;
++	if (!(kdb_buffer = usb_buffer_alloc(hid_inurb->dev,
++					    usbhid_bufsize, GFP_ATOMIC,
++					    &uhci_inbuf_dma)))
++		goto out;
++
++	if (!(kdb_urb = usb_alloc_urb(0, GFP_KERNEL)))
++		goto out;
++
++	kdb_usb_fill_int_urb(kdb_urb,
++			     hid_inurb->dev,
++			     hid_inurb->pipe,
++			     kdb_buffer,
++			     hid_inurb->transfer_buffer_length,
++			     hid_inurb->complete,
++			     hid_inurb->context,
++			     hid_inurb->interval
++		);
++
++	(kdb_urb)->transfer_dma = uhci_inbuf_dma;
++	(kdb_urb)->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
++
++	kdb_usb_kbds[i].urb = kdb_urb;
++	kdb_usb_kbds[i].buffer = kdb_buffer;
++
++	if (usb_submit_urb(kdb_urb, GFP_ATOMIC)){
++		kdb_usb_keyboard_detach(hid_inurb);
++		goto out;
++	}
++	/* Remove KDB special URB from endpoin queue to
++	 * prevent hang during hid_disconnect().
++	 */
++	list_del(&(kdb_urb->urb_list));
++
++	ret = 0;
++	return ret;
++out:
++	/* Some Error Cleanup */
++	ret = -1;
++	printk("KDB: Error, UHCI Keyboard HID won't work!\n");
++
++	if (kdb_buffer)
++		usb_buffer_free(hid_inurb->dev,
++				usbhid_bufsize, kdb_buffer,
++				uhci_inbuf_dma);
++
++	if (kdb_urb)
++		usb_free_urb(kdb_urb);
++
++	return ret;
++}
++
++static int kdb_uhci_keyboard_detach(struct urb *urb, int i)
++{
++	int ret;
++
++	if (kdb_usb_kbds[i].qh && (kdb_usb_kbds[i].hid_urb == urb)) {
++		/* UHCI keyboard */
++		kdb_unlink_uhci_qh(kdb_usb_kbds[i].urb, kdb_usb_kbds[i].qh);
++		ret = 0;
++	}
++	ret = -1;
++
++	return ret;
++}
++
++/* Check if URB is managed by KDB code */
++static int kdb_uhci_keyboard_urb(struct urb *urb)
++{
++	int i;
++
++	for (i = 0; i < KDB_USB_NUM_KEYBOARDS; i++) {
++		if (kdb_usb_kbds[i].urb && kdb_usb_kbds[i].urb == urb)
++			return i;
++	}
++	return -1;
++}
++
++/* Check if UHCI QH is managed by KDB code */
++static int kdb_uhci_keyboard_check_uhci_qh(struct uhci_qh *qh)
++{
++	int i;
++
++	for (i = 0; i < KDB_USB_NUM_KEYBOARDS; i++) {
++		if (kdb_usb_kbds[i].urb && kdb_usb_kbds[i].qh == qh)
++			return i;
++	}
++	return -1;
++}
++
++/* Set UHCI QH using URB pointer */
++static int kdb_uhci_keyboard_set_qh(struct urb *urb, struct uhci_qh *qh)
++{
++	int i;
++
++	i = kdb_uhci_keyboard_urb(urb);
++	if (i != -1)
++		kdb_usb_kbds[i].qh = qh;
++
++	return 0;
++}
++
++/* Get UHCI QH using URB pointer */
++static struct uhci_qh *kdb_uhci_keyboard_get_qh(struct urb *urb)
++{
++	int i;
++
++	i = kdb_uhci_keyboard_urb(urb);
++	if (i != -1)
++		return kdb_usb_kbds[i].qh;
++
++	return NULL;
++}
++
++/* Set UHCI hid_event using URB pointer */
++static int kdb_uhci_keyboard_set_hid_event(struct urb *urb, int hid_event)
++{
++	int i;
++
++	i = kdb_uhci_keyboard_urb(urb);
++	if (i != -1)
++		kdb_usb_kbds[i].kdb_hid_event = hid_event;
++
++	return 0;
++}
++/* Get UHCI hid_event using URB pointer */
++static int kdb_uhci_keyboard_get_hid_event(struct urb *urb)
++{
++	int i;
++
++	i = kdb_uhci_keyboard_urb(urb);
++	if (i != -1)
++		return kdb_usb_kbds[i].kdb_hid_event;
++
++	return 0;
++}
++
++/* Set UHCI hid_event using UHCI QH pointer */
++static int kdb_uhci_keyboard_set_hid_event_qh(struct uhci_qh *qh, int hid_event)
++{
++	int i;
++
++	for (i = 0; i < KDB_USB_NUM_KEYBOARDS; i++) {
++		if (kdb_usb_kbds[i].urb && kdb_usb_kbds[i].qh == qh){
++			kdb_usb_kbds[i].kdb_hid_event = hid_event;
++			return i;
++		}
++	}
++	return -1;
++}
++#endif
++
+ /*
+  * Store the current frame number in uhci->frame_number if the controller
+  * is runnning.  Expand from 11 bits (of which we use only 10) to a
+@@ -934,6 +1146,12 @@
+ 
+ 	.hub_status_data =	uhci_hub_status_data,
+ 	.hub_control =		uhci_hub_control,
++#ifdef CONFIG_KDB_USB
++	.kdb_poll_char =        uhci_kdb_poll_char,
++	.kdb_completion =       kdb_uhci_urb_complete,
++	.kdb_hc_keyboard_attach =       kdb_uhci_keyboard_attach,
++	.kdb_hc_keyboard_detach =       kdb_uhci_keyboard_detach,
++#endif
+ };
+ 
+ static const struct pci_device_id uhci_pci_ids[] = { {
+diff -rau linux-2.6.33/drivers/usb/host/uhci-q.c linux-2.6.33.new/drivers/usb/host/uhci-q.c
+--- linux-2.6.33/drivers/usb/host/uhci-q.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/drivers/usb/host/uhci-q.c	2010-06-28 18:05:22.780263759 -0400
+@@ -25,6 +25,17 @@
+  * games with the FSBR code to make sure we get the correct order in all
+  * the cases. I don't think it's worth the effort
+  */
++#ifdef CONFIG_KDB_USB
++/* KDB HID QH, managed by KDB code */
++static int kdb_uhci_keyboard_check_uhci_qh(struct uhci_qh *qh);
++static int kdb_uhci_keyboard_set_qh(struct urb *urb, struct uhci_qh *qh);
++static struct uhci_qh *kdb_uhci_keyboard_get_qh(struct urb *urb);
++static int kdb_uhci_keyboard_set_hid_event(struct urb *urb, int hid_event);
++static int kdb_uhci_keyboard_get_hid_event(struct urb *urb);
++static int kdb_uhci_keyboard_set_hid_event_qh(struct uhci_qh *qh, int hid_event);
++static int kdb_uhci_keyboard_urb(struct urb *urb);
++#endif
++
+ static void uhci_set_next_interrupt(struct uhci_hcd *uhci)
+ {
+ 	if (uhci->is_stopped)
+@@ -288,6 +299,58 @@
+ 	return qh;
+ }
+ 
++#ifdef CONFIG_KDB_USB
++/*
++ * Same as uhci_alloc_qh execpt it doesn't change to hep->hcpriv
++ */
++static struct uhci_qh *kdb_uhci_alloc_qh(struct uhci_hcd *uhci,
++					 struct usb_device *udev, struct usb_host_endpoint *hep)
++{
++	dma_addr_t dma_handle;
++	struct uhci_qh *qh;
++
++	qh = dma_pool_alloc(uhci->qh_pool, GFP_ATOMIC, &dma_handle);
++	if (!qh)
++		return NULL;
++
++	memset(qh, 0, sizeof(*qh));
++	qh->dma_handle = dma_handle;
++
++	qh->element = UHCI_PTR_TERM;
++	qh->link = UHCI_PTR_TERM;
++
++	INIT_LIST_HEAD(&qh->queue);
++	INIT_LIST_HEAD(&qh->node);
++
++	if (udev) {             /* Normal QH */
++		qh->type = hep->desc.bmAttributes & USB_ENDPOINT_XFERTYPE_MASK;
++		if (qh->type != USB_ENDPOINT_XFER_ISOC) {
++			qh->dummy_td = uhci_alloc_td(uhci);
++			if (!qh->dummy_td) {
++				dma_pool_free(uhci->qh_pool, qh, dma_handle);
++				return NULL;
++			}
++		}
++		qh->state = QH_STATE_IDLE;
++		qh->hep = hep;
++		qh->udev = udev;
++
++		if (qh->type == USB_ENDPOINT_XFER_INT ||
++		    qh->type == USB_ENDPOINT_XFER_ISOC)
++			qh->load = usb_calc_bus_time(udev->speed,
++						     usb_endpoint_dir_in(&hep->desc),
++						     qh->type == USB_ENDPOINT_XFER_ISOC,
++						     le16_to_cpu(hep->desc.wMaxPacketSize))
++				/ 1000 + 1;
++
++	} else {                /* Skeleton QH */
++		qh->state = QH_STATE_ACTIVE;
++		qh->type = -1;
++	}
++	return qh;
++}
++#endif
++
+ static void uhci_free_qh(struct uhci_hcd *uhci, struct uhci_qh *qh)
+ {
+ 	WARN_ON(qh->state != QH_STATE_IDLE && qh->udev);
+@@ -1394,6 +1457,21 @@
+ 	if (!urbp)
+ 		goto done;
+ 
++#ifdef CONFIG_KDB_USB
++	/* Always allocate new QH for KDB URB.
++	 * KDB HQ will be managed by KDB poll code not by
++	 * UHCI HCD Driver.
++	 */
++	if (kdb_uhci_keyboard_urb(urb) != -1){
++		/* KDB urb will be enqued only once */
++		kdb_uhci_keyboard_set_qh(urb, NULL);
++		qh = kdb_uhci_alloc_qh(uhci, urb->dev, urb->ep);
++		if (!qh)
++			goto err_no_qh;
++		kdb_uhci_keyboard_set_qh(urb, qh);
++	} else
++#endif
++
+ 	if (urb->ep->hcpriv)
+ 		qh = urb->ep->hcpriv;
+ 	else {
+@@ -1641,6 +1719,14 @@
+ 	int ret = 1;
+ 	unsigned status;
+ 
++#ifdef CONFIG_KDB_USB
++	/* Don't manage KDB QH */
++	if(kdb_uhci_keyboard_check_uhci_qh(qh) != -1){
++		ret = 0;
++		goto done;
++	}
++#endif
++
+ 	if (qh->type == USB_ENDPOINT_XFER_ISOC)
+ 		goto done;
+ 
+@@ -1733,6 +1819,11 @@
+ 			uhci->next_qh = list_entry(qh->node.next,
+ 					struct uhci_qh, node);
+ 
++#ifdef CONFIG_KDB_USB
++			/* Don't manage KDB QH */
++			if(kdb_uhci_keyboard_check_uhci_qh(qh) != -1)
++				continue;
++#endif
+ 			if (uhci_advance_check(uhci, qh)) {
+ 				uhci_scan_qh(uhci, qh);
+ 				if (qh->state == QH_STATE_ACTIVE) {
+@@ -1759,3 +1850,76 @@
+ 	else
+ 		uhci_set_next_interrupt(uhci);
+ }
++
++#ifdef CONFIG_KDB_USB
++/*
++ * Activate KDB UHCI QH, called by KDB poll code.
++ */
++static void kdb_activate_uhci_qh(struct uhci_qh *qh)
++{
++	struct urb_priv *urbp;
++	struct uhci_td *td;
++	__le32 status, token;
++
++	urbp = list_entry(qh->queue.next, struct urb_priv, node);
++
++	list_for_each_entry(td, &urbp->td_list, list){
++		status = td->status;
++		token = td->token;
++		barrier();
++		/* Clear Status and ActLen */
++		status &= cpu_to_le32(0xff000000);
++		/* Make TD Active */
++		status |= cpu_to_le32(TD_CTRL_ACTIVE);
++		/* Clear TD Interrupt */
++		status &= cpu_to_le32(~TD_CTRL_IOC);
++		/* Toggle Data Sycronization Bit */
++		if (token & cpu_to_le32(TD_TOKEN_TOGGLE))
++			token &= cpu_to_le32(~TD_TOKEN_TOGGLE);
++		else
++			token |= cpu_to_le32(TD_TOKEN_TOGGLE);
++
++		td->token = token;
++		td->status = status;
++		barrier();
++	}
++	/* Activate KDB UHCI Keyboard HID QH */
++	td = list_entry(urbp->td_list.next, struct uhci_td, list);
++	qh->element = LINK_TO_TD(td);
++	barrier();
++}
++
++/*
++ * Called when KDB finishes process key press/release event.
++ */
++static void
++kdb_uhci_urb_complete (struct urb *urb)
++{
++	if (!kdb_uhci_keyboard_get_hid_event(urb))
++		return;
++
++	/* Activate KDB TD */
++	kdb_activate_uhci_qh(kdb_uhci_keyboard_get_qh(urb));
++	kdb_uhci_keyboard_set_hid_event(urb, 0);
++}
++
++/*
++ * Check if state of KDB URB changed (key was pressed/released).
++ */
++static int uhci_check_kdb_uhci_qh(struct uhci_qh *qh)
++{
++	struct urb_priv *urbp = NULL;
++	struct uhci_td *td;
++	unsigned status;
++
++	urbp = list_entry(qh->queue.next, struct urb_priv, node);
++	td = list_entry(urbp->td_list.next, struct uhci_td, list);
++	status = td_status(td);
++	if (!(status & TD_CTRL_ACTIVE)){
++		/* We're okay, the queue has advanced */
++		kdb_uhci_keyboard_set_hid_event_qh(qh, 1);
++		return 0;
++	}
++	return -1;
++}
++#endif
+diff -rau linux-2.6.33/fs/proc/meminfo.c linux-2.6.33.new/fs/proc/meminfo.c
+--- linux-2.6.33/fs/proc/meminfo.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/fs/proc/meminfo.c	2010-06-28 18:06:28.884260486 -0400
+@@ -161,6 +161,151 @@
+ #undef K
+ }
+ 
++#ifdef	CONFIG_KDB
++#include <linux/kdb.h>
++#include <linux/kdbprivate.h>
++/* Like meminfo_proc_show() but without the locks and using kdb_printf() */
++void
++kdb_meminfo_proc_show(void)
++{
++	struct sysinfo i;
++	unsigned long committed;
++	unsigned long allowed;
++	struct vmalloc_info vmi;
++	long cached;
++	unsigned long pages[NR_LRU_LISTS];
++	int lru;
++
++/*
++ * display in kilobytes.
++ */
++#define K(x) ((x) << (PAGE_SHIFT - 10))
++	si_meminfo(&i);
++	_si_swapinfo(&i);
++	committed = percpu_counter_read_positive(&vm_committed_as);
++	allowed = ((totalram_pages - hugetlb_total_pages())
++		* sysctl_overcommit_ratio / 100) + total_swap_pages;
++
++	cached = global_page_state(NR_FILE_PAGES) -
++			total_swapcache_pages - i.bufferram;
++	if (cached < 0)
++		cached = 0;
++
++	get_vmalloc_info(&vmi);
++
++	for (lru = LRU_BASE; lru < NR_LRU_LISTS; lru++)
++		pages[lru] = global_page_state(NR_LRU_BASE + lru);
++
++	kdb_printf(
++		"MemTotal:       %8lu kB\n"
++		"MemFree:        %8lu kB\n"
++		"Buffers:        %8lu kB\n",
++		K(i.totalram),
++		K(i.freeram),
++		K(i.bufferram)
++		);
++	kdb_printf(
++		"Cached:         %8lu kB\n"
++		"SwapCached:     %8lu kB\n"
++		"Active:         %8lu kB\n"
++		"Inactive:       %8lu kB\n",
++		K(cached),
++		K(total_swapcache_pages),
++		K(pages[LRU_ACTIVE_ANON]   + pages[LRU_ACTIVE_FILE]),
++                K(pages[LRU_INACTIVE_ANON] + pages[LRU_INACTIVE_FILE])
++		);
++	kdb_printf(
++		"Active(anon):   %8lu kB\n"
++		"Inactive(anon): %8lu kB\n"
++		"Active(file):   %8lu kB\n"
++		"Inactive(file): %8lu kB\n",
++		K(pages[LRU_ACTIVE_ANON]),
++		K(pages[LRU_INACTIVE_ANON]),
++		K(pages[LRU_ACTIVE_FILE]),
++		K(pages[LRU_INACTIVE_FILE])
++		);
++#ifdef CONFIG_UNEVICTABLE_LRU
++	kdb_printf(
++		"Unevictable:    %8lu kB\n"
++		"Mlocked:        %8lu kB\n",
++		K(pages[LRU_UNEVICTABLE]),
++		K(global_page_state(NR_MLOCK))
++		);
++#endif
++#ifdef CONFIG_HIGHMEM
++	kdb_printf(
++		"HighTotal:      %8lu kB\n"
++		"HighFree:       %8lu kB\n"
++		"LowTotal:       %8lu kB\n"
++		"LowFree:        %8lu kB\n",
++		K(i.totalhigh),
++		K(i.freehigh),
++		K(i.totalram-i.totalhigh),
++		K(i.freeram-i.freehigh)
++		);
++#endif
++	kdb_printf(
++		"SwapTotal:      %8lu kB\n"
++		"SwapFree:       %8lu kB\n"
++		"Dirty:          %8lu kB\n",
++		K(i.totalswap),
++		K(i.freeswap),
++		K(global_page_state(NR_FILE_DIRTY))
++		);
++	kdb_printf(
++		"Writeback:      %8lu kB\n"
++		"AnonPages:      %8lu kB\n"
++		"Mapped:         %8lu kB\n",
++		K(global_page_state(NR_WRITEBACK)),
++		K(global_page_state(NR_ANON_PAGES)),
++		K(global_page_state(NR_FILE_MAPPED))
++		);
++	kdb_printf(
++		"Slab:           %8lu kB\n"
++		"SReclaimable:   %8lu kB\n"
++		"SUnreclaim:     %8lu kB\n",
++		K(global_page_state(NR_SLAB_RECLAIMABLE) +
++				global_page_state(NR_SLAB_UNRECLAIMABLE)),
++		K(global_page_state(NR_SLAB_RECLAIMABLE)),
++		K(global_page_state(NR_SLAB_UNRECLAIMABLE))
++		);
++	kdb_printf(
++		"PageTables:     %8lu kB\n"
++#ifdef CONFIG_QUICKLIST
++		"Quicklists:     %8lu kB\n"
++#endif
++		"NFS_Unstable:   %8lu kB\n"
++		"Bounce:         %8lu kB\n",
++		K(global_page_state(NR_PAGETABLE)),
++#ifdef CONFIG_QUICKLIST
++		K(quicklist_total_size()),
++#endif
++		K(global_page_state(NR_UNSTABLE_NFS)),
++		K(global_page_state(NR_BOUNCE))
++		);
++	kdb_printf(
++		"WritebackTmp:   %8lu kB\n"
++		"CommitLimit:    %8lu kB\n"
++		"Committed_AS:   %8lu kB\n",
++		K(global_page_state(NR_WRITEBACK_TEMP)),
++		K(allowed),
++		K(committed)
++		);
++	kdb_printf(
++		"VmallocTotal:   %8lu kB\n"
++		"VmallocUsed:    %8lu kB\n"
++		"VmallocChunk:   %8lu kB\n",
++		(unsigned long)VMALLOC_TOTAL >> 10,
++		vmi.used >> 10,
++		vmi.largest_chunk >> 10
++		);
++
++#ifdef	CONFIG_HUGETLBFS
++	kdb_hugetlb_report_meminfo();
++#endif
++}
++#endif	/* CONFIG_KDB */
++
+ static int meminfo_proc_open(struct inode *inode, struct file *file)
+ {
+ 	return single_open(file, meminfo_proc_show, NULL);
+diff -rau linux-2.6.33/fs/proc/mmu.c linux-2.6.33.new/fs/proc/mmu.c
+--- linux-2.6.33/fs/proc/mmu.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/fs/proc/mmu.c	2010-06-28 18:06:29.012261498 -0400
+@@ -14,11 +14,21 @@
+ #include <asm/pgtable.h>
+ #include "internal.h"
+ 
++#ifdef	CONFIG_KDB
++#include <linux/kdb.h>
++#endif
++
+ void get_vmalloc_info(struct vmalloc_info *vmi)
+ {
+ 	struct vm_struct *vma;
+ 	unsigned long free_area_size;
+ 	unsigned long prev_end;
++#ifdef	CONFIG_KDB
++	int get_lock = !KDB_IS_RUNNING();
++#else
++#define	get_lock 1
++#endif
++
+ 
+ 	vmi->used = 0;
+ 
+@@ -30,7 +40,8 @@
+ 
+ 		prev_end = VMALLOC_START;
+ 
+-		read_lock(&vmlist_lock);
++		if (get_lock)
++			read_lock(&vmlist_lock);
+ 
+ 		for (vma = vmlist; vma; vma = vma->next) {
+ 			unsigned long addr = (unsigned long) vma->addr;
+@@ -55,6 +66,7 @@
+ 		if (VMALLOC_END - prev_end > vmi->largest_chunk)
+ 			vmi->largest_chunk = VMALLOC_END - prev_end;
+ 
+-		read_unlock(&vmlist_lock);
++		if (get_lock)
++			read_unlock(&vmlist_lock);
+ 	}
+ }
+diff -rau linux-2.6.33/include/asm-generic/kmap_types.h linux-2.6.33.new/include/asm-generic/kmap_types.h
+--- linux-2.6.33/include/asm-generic/kmap_types.h	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/include/asm-generic/kmap_types.h	2010-06-28 18:04:50.108760350 -0400
+@@ -28,7 +28,8 @@
+ KMAP_D(16)	KM_IRQ_PTE,
+ KMAP_D(17)	KM_NMI,
+ KMAP_D(18)	KM_NMI_PTE,
+-KMAP_D(19)	KM_TYPE_NR
++KMAP_D(19)	KM_KDB,
++KMAP_D(20)	KM_TYPE_NR
+ };
+ 
+ #undef KMAP_D
+diff -rau linux-2.6.33/include/linux/console.h linux-2.6.33.new/include/linux/console.h
+--- linux-2.6.33/include/linux/console.h	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/include/linux/console.h	2010-06-28 18:04:43.284760389 -0400
+@@ -142,7 +142,12 @@
+ 
+ /* Some debug stub to catch some of the obvious races in the VT code */
+ #if 1
++#ifdef	CONFIG_KDB
++#include <linux/kdb.h>
++#define WARN_CONSOLE_UNLOCKED()	WARN_ON(!is_console_locked() && !oops_in_progress && !atomic_read(&kdb_event))
++#else	/* !CONFIG_KDB */
+ #define WARN_CONSOLE_UNLOCKED()	WARN_ON(!is_console_locked() && !oops_in_progress)
++#endif	/* CONFIG_KDB */
+ #else
+ #define WARN_CONSOLE_UNLOCKED()
+ #endif
+Only in linux-2.6.33.new/include/linux: dis-asm.h
+Only in linux-2.6.33.new/include/linux: #interrupt.h#
+Only in linux-2.6.33.new/include/linux: kdb.h
+Only in linux-2.6.33.new/include/linux: kdbprivate.h
+diff -rau linux-2.6.33/include/linux/reboot.h linux-2.6.33.new/include/linux/reboot.h
+--- linux-2.6.33/include/linux/reboot.h	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/include/linux/reboot.h	2010-06-28 18:04:44.888760524 -0400
+@@ -53,7 +53,14 @@
+ 
+ extern void machine_shutdown(void);
+ struct pt_regs;
++#ifdef CONFIG_KDB_KDUMP
+ extern void machine_crash_shutdown(struct pt_regs *);
++extern void machine_crash_shutdown_begin(void);
++extern void machine_crash_shutdown_other_cpu(struct pt_regs *);
++extern void machine_crash_shutdown_end(struct pt_regs *);
++#else
++extern void machine_crash_shutdown(struct pt_regs *);
++#endif /* !CONFIG_KDB_KDUMP */
+ 
+ /* 
+  * Architecture independent implemenations of sys_reboot commands.
+diff -rau linux-2.6.33/include/linux/swap.h linux-2.6.33.new/include/linux/swap.h
+--- linux-2.6.33/include/linux/swap.h	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/include/linux/swap.h	2010-06-28 18:04:43.308760574 -0400
+@@ -312,6 +312,7 @@
+ /* linux/mm/swapfile.c */
+ extern long nr_swap_pages;
+ extern long total_swap_pages;
++extern void _si_swapinfo(struct sysinfo *);
+ extern void si_swapinfo(struct sysinfo *);
+ extern swp_entry_t get_swap_page(void);
+ extern swp_entry_t get_swap_page_of_type(int);
+@@ -377,6 +378,7 @@
+ 
+ #define si_swapinfo(val) \
+ 	do { (val)->freeswap = (val)->totalswap = 0; } while (0)
++#define _si_swapinfo(val) si_swapinfo(val)
+ /* only sparc can not include linux/pagemap.h in this file
+  * so leave page_cache_release and release_pages undeclared... */
+ #define free_page_and_swap_cache(page) \
+diff -rau linux-2.6.33/include/linux/sysctl.h linux-2.6.33.new/include/linux/sysctl.h
+--- linux-2.6.33/include/linux/sysctl.h	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/include/linux/sysctl.h	2010-06-28 18:04:43.577072649 -0400
+@@ -153,6 +153,7 @@
+ 	KERN_MAX_LOCK_DEPTH=74, /* int: rtmutex's maximum lock depth */
+ 	KERN_NMI_WATCHDOG=75, /* int: enable/disable nmi watchdog */
+ 	KERN_PANIC_ON_NMI=76, /* int: whether we will panic on an unrecovered */
++	KERN_KDB=77,		/* int: kdb on/off */
+ };
+ 
+ 
+diff -rau linux-2.6.33/init/main.c linux-2.6.33.new/init/main.c
+--- linux-2.6.33/init/main.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/init/main.c	2010-06-28 18:06:56.865759340 -0400
+@@ -101,6 +101,10 @@
+ enum system_states system_state __read_mostly;
+ EXPORT_SYMBOL(system_state);
+ 
++#ifdef	CONFIG_KDB
++#include <linux/kdb.h>
++#endif	/* CONFIG_KDB */
++
+ /*
+  * Boot command-line arguments
+  */
+@@ -189,6 +193,26 @@
+ 
+ extern struct obs_kernel_param __setup_start[], __setup_end[];
+ 
++#ifdef	CONFIG_KDB
++static int __init kdb_setup(char *str)
++{
++	if (strcmp(str, "on") == 0) {
++		kdb_on = 1;
++	} else if (strcmp(str, "on-nokey") == 0) {
++		kdb_on = 2;
++	} else if (strcmp(str, "off") == 0) {
++		kdb_on = 0;
++	} else if (strcmp(str, "early") == 0) {
++		kdb_on = 1;
++		kdb_flags |= KDB_FLAG_EARLYKDB;
++	} else
++		printk("kdb flag %s not recognised\n", str);
++	return 0;
++}
++
++__setup("kdb=", kdb_setup);
++#endif	/* CONFIG_KDB */
++
+ static int __init obsolete_checksetup(char *line)
+ {
+ 	struct obs_kernel_param *p;
+@@ -647,6 +671,14 @@
+ 	calibrate_delay();
+ 	pidmap_init();
+ 	anon_vma_init();
++
++#ifdef	CONFIG_KDB
++	kdb_init();
++	if (KDB_FLAG(EARLYKDB)) {
++		KDB_ENTER();
++	}
++#endif	/* CONFIG_KDB */
++
+ #ifdef CONFIG_X86
+ 	if (efi_enabled)
+ 		efi_enter_virtual_mode();
+Only in linux-2.6.33.new/: kdb
+diff -rau linux-2.6.33/kernel/exit.c linux-2.6.33.new/kernel/exit.c
+--- linux-2.6.33/kernel/exit.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/kernel/exit.c	2010-06-28 18:07:01.876265948 -0400
+@@ -4,6 +4,9 @@
+  *  Copyright (C) 1991, 1992  Linus Torvalds
+  */
+ 
++#ifdef	CONFIG_KDB
++#include <linux/kdb.h>
++#endif
+ #include <linux/mm.h>
+ #include <linux/slab.h>
+ #include <linux/interrupt.h>
+diff -rau linux-2.6.33/kernel/fork.c linux-2.6.33.new/kernel/fork.c
+--- linux-2.6.33/kernel/fork.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/kernel/fork.c	2010-06-28 18:06:59.581760692 -0400
+@@ -486,6 +486,8 @@
+ 	}
+ 	return mm;
+ }
++/* gparmer@gwu.edu: exported for composite */
++EXPORT_SYMBOL(mm_alloc);
+ 
+ /*
+  * Called when the last reference to the mm
+diff -rau linux-2.6.33/kernel/kallsyms.c linux-2.6.33.new/kernel/kallsyms.c
+--- linux-2.6.33/kernel/kallsyms.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/kernel/kallsyms.c	2010-06-28 18:06:59.389760097 -0400
+@@ -528,3 +528,26 @@
+ 	return 0;
+ }
+ device_initcall(kallsyms_init);
++
++
++#ifdef	CONFIG_KDB
++#include <linux/kdb.h>
++#include <linux/kdbprivate.h>
++
++const char *kdb_walk_kallsyms(loff_t *pos)
++{
++	static struct kallsym_iter kdb_walk_kallsyms_iter;
++	if (*pos == 0) {
++		memset(&kdb_walk_kallsyms_iter, 0, sizeof(kdb_walk_kallsyms_iter));
++		reset_iter(&kdb_walk_kallsyms_iter, 0);
++	}
++	while (1) {
++		if (!update_iter(&kdb_walk_kallsyms_iter, *pos))
++			return NULL;
++		++*pos;
++		/* Some debugging symbols have no name.  Ignore them. */
++		if (kdb_walk_kallsyms_iter.name[0])
++			return kdb_walk_kallsyms_iter.name;
++	}
++}
++#endif	/* CONFIG_KDB */
+diff -rau linux-2.6.33/kernel/kexec.c linux-2.6.33.new/kernel/kexec.c
+--- linux-2.6.33/kernel/kexec.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/kernel/kexec.c	2010-06-28 18:07:01.057762925 -0400
+@@ -40,6 +40,12 @@
+ #include <asm/system.h>
+ #include <asm/sections.h>
+ 
++#ifdef CONFIG_KDB_KDUMP
++#include <linux/module.h>
++#include <linux/device.h>
++#include <linux/kdb.h>
++#endif
++
+ /* Per cpu memory for storing cpu states in case of system crash. */
+ note_buf_t* crash_notes;
+ 
+@@ -1080,7 +1086,16 @@
+ 
+ 			crash_setup_regs(&fixed_regs, regs);
+ 			crash_save_vmcoreinfo();
++			/*
++			 * If we enabled KDB, we don't want to automatically
++			 * perform a kdump since KDB will be responsible for
++			 * executing kdb through a special 'kdump' command.
++			 */
++#ifdef CONFIG_KDB_KDUMP
++			kdba_kdump_prepare(&fixed_regs);
++#else
+ 			machine_crash_shutdown(&fixed_regs);
++#endif
+ 			machine_kexec(kexec_crash_image);
+ 		}
+ 		mutex_unlock(&kexec_mutex);
+diff -rau linux-2.6.33/kernel/module.c linux-2.6.33.new/kernel/module.c
+--- linux-2.6.33/kernel/module.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/kernel/module.c	2010-06-28 18:06:57.813760478 -0400
+@@ -2653,12 +2653,23 @@
+ 	return -ERANGE;
+ }
+ 
++#ifdef CONFIG_KDB
++#include <linux/kdb.h>
++struct list_head *kdb_modules = &modules;  /* kdb needs the list of modules */
++#endif /* CONFIG_KDB */
++
+ int module_get_kallsym(unsigned int symnum, unsigned long *value, char *type,
+ 			char *name, char *module_name, int *exported)
+ {
+ 	struct module *mod;
++#ifdef CONFIG_KDB
++	int get_lock = !KDB_IS_RUNNING();
++#else
++#define get_lock 1
++#endif
+ 
+-	preempt_disable();
++	if (get_lock)
++		preempt_disable();
+ 	list_for_each_entry_rcu(mod, &modules, list) {
+ 		if (symnum < mod->num_symtab) {
+ 			*value = mod->symtab[symnum].st_value;
+@@ -2667,12 +2678,14 @@
+ 				KSYM_NAME_LEN);
+ 			strlcpy(module_name, mod->name, MODULE_NAME_LEN);
+ 			*exported = is_exported(name, *value, mod);
+-			preempt_enable();
++			if (get_lock)
++				preempt_enable();
+ 			return 0;
+ 		}
+ 		symnum -= mod->num_symtab;
+ 	}
+-	preempt_enable();
++	if (get_lock)
++		preempt_enable();
+ 	return -ERANGE;
+ }
+ 
+diff -rau linux-2.6.33/kernel/panic.c linux-2.6.33.new/kernel/panic.c
+--- linux-2.6.33/kernel/panic.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/kernel/panic.c	2010-06-28 18:07:00.389760721 -0400
+@@ -23,6 +23,9 @@
+ #include <linux/init.h>
+ #include <linux/nmi.h>
+ #include <linux/dmi.h>
++#ifdef CONFIG_KDB_KDUMP
++#include <linux/kdb.h>
++#endif
+ 
+ int panic_on_oops;
+ static unsigned long tainted_mask;
+@@ -75,6 +78,11 @@
+ 	dump_stack();
+ #endif
+ 
++#ifdef CONFIG_KDB_KDUMP
++	if (kdb_kdump_state == KDB_KDUMP_RESET) {
++		(void)kdb(KDB_REASON_OOPS, 999, get_irq_regs());
++	}
++#endif
+ 	/*
+ 	 * If we have crashed and we have a crash kernel loaded let it handle
+ 	 * everything else.
+diff -rau linux-2.6.33/kernel/printk.c linux-2.6.33.new/kernel/printk.c
+--- linux-2.6.33/kernel/printk.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/kernel/printk.c	2010-06-28 18:06:58.525762553 -0400
+@@ -420,6 +420,20 @@
+ 	return do_syslog(type, buf, len);
+ }
+ 
++#ifdef	CONFIG_KDB
++/* kdb dmesg command needs access to the syslog buffer.  do_syslog() uses locks
++ * so it cannot be used during debugging.  Just tell kdb where the start and
++ * end of the physical and logical logs are.  This is equivalent to do_syslog(3).
++ */
++void kdb_syslog_data(char *syslog_data[4])
++{
++	syslog_data[0] = log_buf;
++	syslog_data[1] = log_buf + log_buf_len;
++	syslog_data[2] = log_buf + log_end - (logged_chars < log_buf_len ? logged_chars : log_buf_len);
++	syslog_data[3] = log_buf + log_end;
++}
++#endif	/* CONFIG_KDB */
++
+ /*
+  * Call the console drivers on a range of log_buf
+  */
+diff -rau linux-2.6.33/kernel/sched.c linux-2.6.33.new/kernel/sched.c
+--- linux-2.6.33/kernel/sched.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/kernel/sched.c	2010-06-28 18:06:58.473760821 -0400
+@@ -9802,7 +9802,7 @@
+ 
+ #endif /* CONFIG_MAGIC_SYSRQ */
+ 
+-#ifdef CONFIG_IA64
++#if	defined(CONFIG_IA64) || defined(CONFIG_KDB)
+ /*
+  * These functions are only useful for the IA64 MCA handling.
+  *
+@@ -11039,3 +11039,110 @@
+ EXPORT_SYMBOL_GPL(synchronize_sched_expedited);
+ 
+ #endif /* #else #ifndef CONFIG_SMP */
++
++
++#ifdef	CONFIG_KDB
++#include <linux/kdb.h>
++
++static void
++kdb_prio(char *name, struct rt_prio_array *array, kdb_printf_t xxx_printf,
++	unsigned int cpu)
++{
++	int pri, printed_header = 0;
++	struct task_struct *p;
++
++	xxx_printf(" %s rt bitmap: 0x%lx 0x%lx 0x%lx\n",
++		name,
++		array->bitmap[0], array->bitmap[1], array->bitmap[2]);
++
++	pri = sched_find_first_bit(array->bitmap);
++	if (pri < MAX_RT_PRIO) {
++		xxx_printf("   rt bitmap priorities:");
++		while (pri < MAX_RT_PRIO) {
++			xxx_printf(" %d", pri);
++			pri++;
++			pri = find_next_bit(array->bitmap, MAX_RT_PRIO, pri);
++		}
++		xxx_printf("\n");
++	}
++
++	for (pri = 0; pri < MAX_RT_PRIO; pri++) {
++		int printed_hdr = 0;
++		struct list_head *head, *curr;
++
++		head = array->queue + pri;
++		curr = head->next;
++		while(curr != head) {
++			struct task_struct *task;
++			if (!printed_hdr) {
++				xxx_printf("   queue at priority=%d\n", pri);
++				printed_hdr = 1;
++			}
++			task = list_entry(curr, struct task_struct, rt.run_list);
++			if (task)
++				xxx_printf("    0x%p %d %s  time_slice:%d\n",
++				   task, task->pid, task->comm,
++				   task->rt.time_slice);
++			curr = curr->next;
++		}
++	}
++	for_each_process(p) {
++		if (p->se.on_rq && (task_cpu(p) == cpu) &&
++		   (p->policy == SCHED_NORMAL)) {
++			if (!printed_header) {
++				xxx_printf("  sched_normal queue:\n");
++				printed_header = 1;
++			}
++			xxx_printf("    0x%p %d %s pri:%d spri:%d npri:%d\n",
++				p, p->pid, p->comm, p->prio,
++				p->static_prio, p->normal_prio);
++		}
++	}
++}
++
++/* This code must be in sched.c because struct rq is only defined in this
++ * source.  To allow most of kdb to be modular, this code cannot call any kdb
++ * functions directly, any external functions that it needs must be passed in
++ * as parameters.
++ */
++
++void
++kdb_runqueue(unsigned long cpu, kdb_printf_t xxx_printf)
++{
++	int i;
++	struct rq *rq;
++
++	rq = cpu_rq(cpu);
++
++	xxx_printf("CPU%ld lock:%s curr:0x%p(%d)(%s)",
++		   cpu, (spin_is_locked(&rq->lock))?"LOCKED":"free",
++		   rq->curr, rq->curr->pid, rq->curr->comm);
++	if (rq->curr == rq->idle)
++		xxx_printf(" is idle");
++	xxx_printf("\n");
++
++	xxx_printf(" nr_running:%ld ", rq->nr_running);
++	xxx_printf(" nr_uninterruptible:%ld ", rq->nr_uninterruptible);
++
++	xxx_printf(" nr_switches:%llu ", (long long)rq->nr_switches);
++	xxx_printf(" nr_iowait:%u ", atomic_read(&rq->nr_iowait));
++	xxx_printf(" next_balance:%lu\n", rq->next_balance);
++
++#ifdef CONFIG_SMP
++	xxx_printf(" active_balance:%u ", rq->active_balance);
++	xxx_printf(" idle_at_tick:%u\n", rq->idle_at_tick);
++
++	xxx_printf(" push_cpu:%u ", rq->push_cpu);
++	xxx_printf(" cpu:%u ", rq->cpu);
++	xxx_printf(" online:%u\n", rq->online);
++#endif
++
++	xxx_printf(" cpu_load:");
++	for (i=0; i<CPU_LOAD_IDX_MAX; i++)
++		xxx_printf(" %lu", rq->cpu_load[i]);
++	xxx_printf("\n");
++	kdb_prio("active", &rq->rt.active, xxx_printf, (unsigned int)cpu);
++}
++EXPORT_SYMBOL(kdb_runqueue);
++
++#endif	/* CONFIG_KDB */
+diff -rau linux-2.6.33/kernel/signal.c linux-2.6.33.new/kernel/signal.c
+--- linux-2.6.33/kernel/signal.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/kernel/signal.c	2010-06-28 18:06:58.512352932 -0400
+@@ -2718,3 +2718,52 @@
+ {
+ 	sigqueue_cachep = KMEM_CACHE(sigqueue, SLAB_PANIC);
+ }
++
++#ifdef CONFIG_KDB
++#include <linux/kdb.h>
++/*
++ * kdb_send_sig_info
++ *
++ *	Allows kdb to send signals without exposing signal internals.
++ *
++ * Inputs:
++ *	t	task
++ *	siginfo	signal information
++ *	seqno	current kdb sequence number (avoid including kdbprivate.h)
++ * Outputs:
++ *	None.
++ * Returns:
++ *	None.
++ * Locking:
++ *	Checks if the required locks are available before calling the main
++ *	signal code, to avoid kdb deadlocks.
++ * Remarks:
++ */
++void
++kdb_send_sig_info(struct task_struct *t, struct siginfo *info, int seqno)
++{
++	static struct task_struct *kdb_prev_t;
++	static int kdb_prev_seqno;
++	int sig, new_t;
++	if (!spin_trylock(&t->sighand->siglock)) {
++		kdb_printf("Can't do kill command now.\n"
++			"The sigmask lock is held somewhere else in kernel, try again later\n");
++		return;
++	}
++	spin_unlock(&t->sighand->siglock);
++	new_t = kdb_prev_t != t || kdb_prev_seqno != seqno;
++	kdb_prev_t = t;
++	kdb_prev_seqno = seqno;
++	if (t->state != TASK_RUNNING && new_t) {
++		kdb_printf("Process is not RUNNING, sending a signal from kdb risks deadlock\n"
++			   "on the run queue locks.  The signal has _not_ been sent.\n"
++			   "Reissue the kill command if you want to risk the deadlock.\n");
++		return;
++	}
++	sig = info->si_signo;
++	if (send_sig_info(sig, info, t))
++		kdb_printf("Fail to deliver Signal %d to process %d.\n", sig, t->pid);
++	else
++		kdb_printf("Signal %d is sent to process %d.\n", sig, t->pid);
++}
++#endif	/* CONFIG_KDB */
+diff -rau linux-2.6.33/kernel/softirq.c linux-2.6.33.new/kernel/softirq.c
+--- linux-2.6.33/kernel/softirq.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/kernel/softirq.c	2010-06-28 18:06:58.525762553 -0400
+@@ -269,6 +269,8 @@
+ }
+ 
+ #endif
++/* gparmer@gwu.edu */
++EXPORT_SYMBOL(do_softirq);
+ 
+ /*
+  * Enter an interrupt context.
+diff -rau linux-2.6.33/kernel/sysctl_check.c linux-2.6.33.new/kernel/sysctl_check.c
+--- linux-2.6.33/kernel/sysctl_check.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/kernel/sysctl_check.c	2010-06-28 18:07:01.053760128 -0400
+@@ -5,6 +5,1240 @@
+ #include <linux/string.h>
+ #include <net/ip_vs.h>
+ 
++struct trans_ctl_table {
++	int			ctl_name;
++	const char		*procname;
++	const struct trans_ctl_table *child;
++};
++
++static const struct trans_ctl_table trans_random_table[] = {
++	{ RANDOM_POOLSIZE,	"poolsize" },
++	{ RANDOM_ENTROPY_COUNT,	"entropy_avail" },
++	{ RANDOM_READ_THRESH,	"read_wakeup_threshold" },
++	{ RANDOM_WRITE_THRESH,	"write_wakeup_threshold" },
++	{ RANDOM_BOOT_ID,	"boot_id" },
++	{ RANDOM_UUID,		"uuid" },
++	{}
++};
++
++static const struct trans_ctl_table trans_pty_table[] = {
++	{ PTY_MAX,		"max" },
++	{ PTY_NR,		"nr" },
++	{}
++};
++
++static const struct trans_ctl_table trans_kern_table[] = {
++	{ KERN_OSTYPE,			"ostype" },
++	{ KERN_OSRELEASE,		"osrelease" },
++	/* KERN_OSREV not used */
++	{ KERN_VERSION,			"version" },
++	/* KERN_SECUREMASK not used */
++	/* KERN_PROF not used */
++	{ KERN_NODENAME,		"hostname" },
++	{ KERN_DOMAINNAME,		"domainname" },
++
++	{ KERN_PANIC,			"panic" },
++	{ KERN_REALROOTDEV,		"real-root-dev" },
++
++	{ KERN_SPARC_REBOOT,		"reboot-cmd" },
++	{ KERN_CTLALTDEL,		"ctrl-alt-del" },
++	{ KERN_PRINTK,			"printk" },
++
++	/* KERN_NAMETRANS not used */
++	/* KERN_PPC_HTABRECLAIM not used */
++	/* KERN_PPC_ZEROPAGED not used */
++	{ KERN_PPC_POWERSAVE_NAP,	"powersave-nap" },
++
++	{ KERN_MODPROBE,		"modprobe" },
++	{ KERN_SG_BIG_BUFF,		"sg-big-buff" },
++	{ KERN_ACCT,			"acct" },
++	{ KERN_PPC_L2CR,		"l2cr" },
++
++	/* KERN_RTSIGNR not used */
++	/* KERN_RTSIGMAX not used */
++
++	{ KERN_SHMMAX,			"shmmax" },
++	{ KERN_MSGMAX,			"msgmax" },
++	{ KERN_MSGMNB,			"msgmnb" },
++	/* KERN_MSGPOOL not used*/
++	{ KERN_SYSRQ,			"sysrq" },
++	{ KERN_MAX_THREADS,		"threads-max" },
++	{ KERN_RANDOM,			"random",	trans_random_table },
++	{ KERN_SHMALL,			"shmall" },
++	{ KERN_MSGMNI,			"msgmni" },
++	{ KERN_SEM,			"sem" },
++	{ KERN_SPARC_STOP_A,		"stop-a" },
++	{ KERN_SHMMNI,			"shmmni" },
++
++	{ KERN_OVERFLOWUID,		"overflowuid" },
++	{ KERN_OVERFLOWGID,		"overflowgid" },
++
++	{ KERN_HOTPLUG,			"hotplug", },
++	{ KERN_IEEE_EMULATION_WARNINGS,	"ieee_emulation_warnings" },
++
++	{ KERN_S390_USER_DEBUG_LOGGING,	"userprocess_debug" },
++	{ KERN_CORE_USES_PID,		"core_uses_pid" },
++	{ KERN_TAINTED,			"tainted" },
++	{ KERN_CADPID,			"cad_pid" },
++	{ KERN_PIDMAX,			"pid_max" },
++	{ KERN_CORE_PATTERN,		"core_pattern" },
++	{ KERN_PANIC_ON_OOPS,		"panic_on_oops" },
++	{ KERN_HPPA_PWRSW,		"soft-power" },
++	{ KERN_HPPA_UNALIGNED,		"unaligned-trap" },
++
++	{ KERN_PRINTK_RATELIMIT,	"printk_ratelimit" },
++	{ KERN_PRINTK_RATELIMIT_BURST,	"printk_ratelimit_burst" },
++
++	{ KERN_PTY,			"pty",		trans_pty_table },
++	{ KERN_NGROUPS_MAX,		"ngroups_max" },
++	{ KERN_SPARC_SCONS_PWROFF,	"scons-poweroff" },
++	{ KERN_HZ_TIMER,		"hz_timer" },
++	{ KERN_UNKNOWN_NMI_PANIC,	"unknown_nmi_panic" },
++	{ KERN_BOOTLOADER_TYPE,		"bootloader_type" },
++	{ KERN_RANDOMIZE,		"randomize_va_space" },
++
++	{ KERN_SPIN_RETRY,		"spin_retry" },
++	{ KERN_ACPI_VIDEO_FLAGS,	"acpi_video_flags" },
++	{ KERN_IA64_UNALIGNED,		"ignore-unaligned-usertrap" },
++	{ KERN_COMPAT_LOG,		"compat-log" },
++	{ KERN_MAX_LOCK_DEPTH,		"max_lock_depth" },
++	{ KERN_NMI_WATCHDOG,		"nmi_watchdog" },
++	{ KERN_PANIC_ON_NMI,		"panic_on_unrecovered_nmi" },
++	{ KERN_KDB,			"kdb" },
++	{}
++};
++
++static const struct trans_ctl_table trans_vm_table[] = {
++	{ VM_OVERCOMMIT_MEMORY,		"overcommit_memory" },
++	{ VM_PAGE_CLUSTER,		"page-cluster" },
++	{ VM_DIRTY_BACKGROUND,		"dirty_background_ratio" },
++	{ VM_DIRTY_RATIO,		"dirty_ratio" },
++	{ VM_DIRTY_WB_CS,		"dirty_writeback_centisecs" },
++	{ VM_DIRTY_EXPIRE_CS,		"dirty_expire_centisecs" },
++	{ VM_NR_PDFLUSH_THREADS,	"nr_pdflush_threads" },
++	{ VM_OVERCOMMIT_RATIO,		"overcommit_ratio" },
++	/* VM_PAGEBUF unused */
++	{ VM_HUGETLB_PAGES,		"nr_hugepages" },
++	{ VM_SWAPPINESS,		"swappiness" },
++	{ VM_LOWMEM_RESERVE_RATIO,	"lowmem_reserve_ratio" },
++	{ VM_MIN_FREE_KBYTES,		"min_free_kbytes" },
++	{ VM_MAX_MAP_COUNT,		"max_map_count" },
++	{ VM_LAPTOP_MODE,		"laptop_mode" },
++	{ VM_BLOCK_DUMP,		"block_dump" },
++	{ VM_HUGETLB_GROUP,		"hugetlb_shm_group" },
++	{ VM_VFS_CACHE_PRESSURE,	"vfs_cache_pressure" },
++	{ VM_LEGACY_VA_LAYOUT,		"legacy_va_layout" },
++	/* VM_SWAP_TOKEN_TIMEOUT unused */
++	{ VM_DROP_PAGECACHE,		"drop_caches" },
++	{ VM_PERCPU_PAGELIST_FRACTION,	"percpu_pagelist_fraction" },
++	{ VM_ZONE_RECLAIM_MODE,		"zone_reclaim_mode" },
++	{ VM_MIN_UNMAPPED,		"min_unmapped_ratio" },
++	{ VM_PANIC_ON_OOM,		"panic_on_oom" },
++	{ VM_VDSO_ENABLED,		"vdso_enabled" },
++	{ VM_MIN_SLAB,			"min_slab_ratio" },
++
++	{}
++};
++
++static const struct trans_ctl_table trans_net_core_table[] = {
++	{ NET_CORE_WMEM_MAX,		"wmem_max" },
++	{ NET_CORE_RMEM_MAX,		"rmem_max" },
++	{ NET_CORE_WMEM_DEFAULT,	"wmem_default" },
++	{ NET_CORE_RMEM_DEFAULT,	"rmem_default" },
++	/* NET_CORE_DESTROY_DELAY unused */
++	{ NET_CORE_MAX_BACKLOG,		"netdev_max_backlog" },
++	/* NET_CORE_FASTROUTE unused */
++	{ NET_CORE_MSG_COST,		"message_cost" },
++	{ NET_CORE_MSG_BURST,		"message_burst" },
++	{ NET_CORE_OPTMEM_MAX,		"optmem_max" },
++	/* NET_CORE_HOT_LIST_LENGTH unused */
++	/* NET_CORE_DIVERT_VERSION unused */
++	/* NET_CORE_NO_CONG_THRESH unused */
++	/* NET_CORE_NO_CONG unused */
++	/* NET_CORE_LO_CONG unused */
++	/* NET_CORE_MOD_CONG unused */
++	{ NET_CORE_DEV_WEIGHT,		"dev_weight" },
++	{ NET_CORE_SOMAXCONN,		"somaxconn" },
++	{ NET_CORE_BUDGET,		"netdev_budget" },
++	{ NET_CORE_AEVENT_ETIME,	"xfrm_aevent_etime" },
++	{ NET_CORE_AEVENT_RSEQTH,	"xfrm_aevent_rseqth" },
++	{ NET_CORE_WARNINGS,		"warnings" },
++	{},
++};
++
++static const struct trans_ctl_table trans_net_unix_table[] = {
++	/* NET_UNIX_DESTROY_DELAY unused */
++	/* NET_UNIX_DELETE_DELAY unused */
++	{ NET_UNIX_MAX_DGRAM_QLEN,	"max_dgram_qlen" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_ipv4_route_table[] = {
++	{ NET_IPV4_ROUTE_FLUSH,			"flush" },
++	{ NET_IPV4_ROUTE_MIN_DELAY,		"min_delay" },
++	{ NET_IPV4_ROUTE_MAX_DELAY,		"max_delay" },
++	{ NET_IPV4_ROUTE_GC_THRESH,		"gc_thresh" },
++	{ NET_IPV4_ROUTE_MAX_SIZE,		"max_size" },
++	{ NET_IPV4_ROUTE_GC_MIN_INTERVAL,	"gc_min_interval" },
++	{ NET_IPV4_ROUTE_GC_TIMEOUT,		"gc_timeout" },
++	{ NET_IPV4_ROUTE_GC_INTERVAL,		"gc_interval" },
++	{ NET_IPV4_ROUTE_REDIRECT_LOAD,		"redirect_load" },
++	{ NET_IPV4_ROUTE_REDIRECT_NUMBER,	"redirect_number" },
++	{ NET_IPV4_ROUTE_REDIRECT_SILENCE,	"redirect_silence" },
++	{ NET_IPV4_ROUTE_ERROR_COST,		"error_cost" },
++	{ NET_IPV4_ROUTE_ERROR_BURST,		"error_burst" },
++	{ NET_IPV4_ROUTE_GC_ELASTICITY,		"gc_elasticity" },
++	{ NET_IPV4_ROUTE_MTU_EXPIRES,		"mtu_expires" },
++	{ NET_IPV4_ROUTE_MIN_PMTU,		"min_pmtu" },
++	{ NET_IPV4_ROUTE_MIN_ADVMSS,		"min_adv_mss" },
++	{ NET_IPV4_ROUTE_SECRET_INTERVAL,	"secret_interval" },
++	{ NET_IPV4_ROUTE_GC_MIN_INTERVAL_MS,	"gc_min_interval_ms" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_ipv4_conf_vars_table[] = {
++	{ NET_IPV4_CONF_FORWARDING,		"forwarding" },
++	{ NET_IPV4_CONF_MC_FORWARDING,		"mc_forwarding" },
++
++	{ NET_IPV4_CONF_PROXY_ARP,		"proxy_arp" },
++	{ NET_IPV4_CONF_ACCEPT_REDIRECTS,	"accept_redirects" },
++	{ NET_IPV4_CONF_SECURE_REDIRECTS,	"secure_redirects" },
++	{ NET_IPV4_CONF_SEND_REDIRECTS,		"send_redirects" },
++	{ NET_IPV4_CONF_SHARED_MEDIA,		"shared_media" },
++	{ NET_IPV4_CONF_RP_FILTER,		"rp_filter" },
++	{ NET_IPV4_CONF_ACCEPT_SOURCE_ROUTE,	"accept_source_route" },
++	{ NET_IPV4_CONF_BOOTP_RELAY,		"bootp_relay" },
++	{ NET_IPV4_CONF_LOG_MARTIANS,		"log_martians" },
++	{ NET_IPV4_CONF_TAG,			"tag" },
++	{ NET_IPV4_CONF_ARPFILTER,		"arp_filter" },
++	{ NET_IPV4_CONF_MEDIUM_ID,		"medium_id" },
++	{ NET_IPV4_CONF_NOXFRM,			"disable_xfrm" },
++	{ NET_IPV4_CONF_NOPOLICY,		"disable_policy" },
++	{ NET_IPV4_CONF_FORCE_IGMP_VERSION,	"force_igmp_version" },
++
++	{ NET_IPV4_CONF_ARP_ANNOUNCE,		"arp_announce" },
++	{ NET_IPV4_CONF_ARP_IGNORE,		"arp_ignore" },
++	{ NET_IPV4_CONF_PROMOTE_SECONDARIES,	"promote_secondaries" },
++	{ NET_IPV4_CONF_ARP_ACCEPT,		"arp_accept" },
++	{ NET_IPV4_CONF_ARP_NOTIFY,		"arp_notify" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_ipv4_conf_table[] = {
++	{ NET_PROTO_CONF_ALL,		"all",		trans_net_ipv4_conf_vars_table },
++	{ NET_PROTO_CONF_DEFAULT,	"default",	trans_net_ipv4_conf_vars_table },
++	{ 0, NULL, trans_net_ipv4_conf_vars_table },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_neigh_vars_table[] = {
++	{ NET_NEIGH_MCAST_SOLICIT,	"mcast_solicit" },
++	{ NET_NEIGH_UCAST_SOLICIT,	"ucast_solicit" },
++	{ NET_NEIGH_APP_SOLICIT,	"app_solicit" },
++	{ NET_NEIGH_RETRANS_TIME,	"retrans_time" },
++	{ NET_NEIGH_REACHABLE_TIME,	"base_reachable_time" },
++	{ NET_NEIGH_DELAY_PROBE_TIME,	"delay_first_probe_time" },
++	{ NET_NEIGH_GC_STALE_TIME,	"gc_stale_time" },
++	{ NET_NEIGH_UNRES_QLEN,		"unres_qlen" },
++	{ NET_NEIGH_PROXY_QLEN,		"proxy_qlen" },
++	{ NET_NEIGH_ANYCAST_DELAY,	"anycast_delay" },
++	{ NET_NEIGH_PROXY_DELAY,	"proxy_delay" },
++	{ NET_NEIGH_LOCKTIME,		"locktime" },
++	{ NET_NEIGH_GC_INTERVAL,	"gc_interval" },
++	{ NET_NEIGH_GC_THRESH1,		"gc_thresh1" },
++	{ NET_NEIGH_GC_THRESH2,		"gc_thresh2" },
++	{ NET_NEIGH_GC_THRESH3,		"gc_thresh3" },
++	{ NET_NEIGH_RETRANS_TIME_MS,	"retrans_time_ms" },
++	{ NET_NEIGH_REACHABLE_TIME_MS,	"base_reachable_time_ms" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_neigh_table[] = {
++	{ NET_PROTO_CONF_DEFAULT, "default", trans_net_neigh_vars_table },
++	{ 0, NULL, trans_net_neigh_vars_table },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_ipv4_netfilter_table[] = {
++	{ NET_IPV4_NF_CONNTRACK_MAX,				"ip_conntrack_max" },
++
++	{ NET_IPV4_NF_CONNTRACK_TCP_TIMEOUT_SYN_SENT,		"ip_conntrack_tcp_timeout_syn_sent" },
++	{ NET_IPV4_NF_CONNTRACK_TCP_TIMEOUT_SYN_RECV,		"ip_conntrack_tcp_timeout_syn_recv" },
++	{ NET_IPV4_NF_CONNTRACK_TCP_TIMEOUT_ESTABLISHED,	"ip_conntrack_tcp_timeout_established" },
++	{ NET_IPV4_NF_CONNTRACK_TCP_TIMEOUT_FIN_WAIT,		"ip_conntrack_tcp_timeout_fin_wait" },
++	{ NET_IPV4_NF_CONNTRACK_TCP_TIMEOUT_CLOSE_WAIT,		"ip_conntrack_tcp_timeout_close_wait" },
++	{ NET_IPV4_NF_CONNTRACK_TCP_TIMEOUT_LAST_ACK,		"ip_conntrack_tcp_timeout_last_ack" },
++	{ NET_IPV4_NF_CONNTRACK_TCP_TIMEOUT_TIME_WAIT,		"ip_conntrack_tcp_timeout_time_wait" },
++	{ NET_IPV4_NF_CONNTRACK_TCP_TIMEOUT_CLOSE,		"ip_conntrack_tcp_timeout_close" },
++
++	{ NET_IPV4_NF_CONNTRACK_UDP_TIMEOUT,			"ip_conntrack_udp_timeout" },
++	{ NET_IPV4_NF_CONNTRACK_UDP_TIMEOUT_STREAM,		"ip_conntrack_udp_timeout_stream" },
++	{ NET_IPV4_NF_CONNTRACK_ICMP_TIMEOUT,			"ip_conntrack_icmp_timeout" },
++	{ NET_IPV4_NF_CONNTRACK_GENERIC_TIMEOUT,		"ip_conntrack_generic_timeout" },
++
++	{ NET_IPV4_NF_CONNTRACK_BUCKETS,			"ip_conntrack_buckets" },
++	{ NET_IPV4_NF_CONNTRACK_LOG_INVALID,			"ip_conntrack_log_invalid" },
++	{ NET_IPV4_NF_CONNTRACK_TCP_TIMEOUT_MAX_RETRANS,	"ip_conntrack_tcp_timeout_max_retrans" },
++	{ NET_IPV4_NF_CONNTRACK_TCP_LOOSE,			"ip_conntrack_tcp_loose" },
++	{ NET_IPV4_NF_CONNTRACK_TCP_BE_LIBERAL,			"ip_conntrack_tcp_be_liberal" },
++	{ NET_IPV4_NF_CONNTRACK_TCP_MAX_RETRANS,		"ip_conntrack_tcp_max_retrans" },
++
++	{ NET_IPV4_NF_CONNTRACK_SCTP_TIMEOUT_CLOSED,		"ip_conntrack_sctp_timeout_closed" },
++	{ NET_IPV4_NF_CONNTRACK_SCTP_TIMEOUT_COOKIE_WAIT,	"ip_conntrack_sctp_timeout_cookie_wait" },
++	{ NET_IPV4_NF_CONNTRACK_SCTP_TIMEOUT_COOKIE_ECHOED,	"ip_conntrack_sctp_timeout_cookie_echoed" },
++	{ NET_IPV4_NF_CONNTRACK_SCTP_TIMEOUT_ESTABLISHED,	"ip_conntrack_sctp_timeout_established" },
++	{ NET_IPV4_NF_CONNTRACK_SCTP_TIMEOUT_SHUTDOWN_SENT,	"ip_conntrack_sctp_timeout_shutdown_sent" },
++	{ NET_IPV4_NF_CONNTRACK_SCTP_TIMEOUT_SHUTDOWN_RECD,	"ip_conntrack_sctp_timeout_shutdown_recd" },
++	{ NET_IPV4_NF_CONNTRACK_SCTP_TIMEOUT_SHUTDOWN_ACK_SENT,	"ip_conntrack_sctp_timeout_shutdown_ack_sent" },
++
++	{ NET_IPV4_NF_CONNTRACK_COUNT,		"ip_conntrack_count" },
++	{ NET_IPV4_NF_CONNTRACK_CHECKSUM,	"ip_conntrack_checksum" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_ipv4_table[] = {
++	{ NET_IPV4_FORWARD,			"ip_forward" },
++	{ NET_IPV4_DYNADDR,			"ip_dynaddr" },
++
++	{ NET_IPV4_CONF,		"conf",		trans_net_ipv4_conf_table },
++	{ NET_IPV4_NEIGH,		"neigh",	trans_net_neigh_table },
++	{ NET_IPV4_ROUTE,		"route",	trans_net_ipv4_route_table },
++	/* NET_IPV4_FIB_HASH unused */
++	{ NET_IPV4_NETFILTER,		"netfilter",	trans_net_ipv4_netfilter_table },
++
++	{ NET_IPV4_TCP_TIMESTAMPS,		"tcp_timestamps" },
++	{ NET_IPV4_TCP_WINDOW_SCALING,		"tcp_window_scaling" },
++	{ NET_IPV4_TCP_SACK,			"tcp_sack" },
++	{ NET_IPV4_TCP_RETRANS_COLLAPSE,	"tcp_retrans_collapse" },
++	{ NET_IPV4_DEFAULT_TTL,			"ip_default_ttl" },
++	/* NET_IPV4_AUTOCONFIG unused */
++	{ NET_IPV4_NO_PMTU_DISC,		"ip_no_pmtu_disc" },
++	{ NET_IPV4_TCP_SYN_RETRIES,		"tcp_syn_retries" },
++	{ NET_IPV4_IPFRAG_HIGH_THRESH,		"ipfrag_high_thresh" },
++	{ NET_IPV4_IPFRAG_LOW_THRESH,		"ipfrag_low_thresh" },
++	{ NET_IPV4_IPFRAG_TIME,			"ipfrag_time" },
++	/* NET_IPV4_TCP_MAX_KA_PROBES unused */
++	{ NET_IPV4_TCP_KEEPALIVE_TIME,		"tcp_keepalive_time" },
++	{ NET_IPV4_TCP_KEEPALIVE_PROBES,	"tcp_keepalive_probes" },
++	{ NET_IPV4_TCP_RETRIES1,		"tcp_retries1" },
++	{ NET_IPV4_TCP_RETRIES2,		"tcp_retries2" },
++	{ NET_IPV4_TCP_FIN_TIMEOUT,		"tcp_fin_timeout" },
++	/* NET_IPV4_IP_MASQ_DEBUG unused */
++	{ NET_TCP_SYNCOOKIES,			"tcp_syncookies" },
++	{ NET_TCP_STDURG,			"tcp_stdurg" },
++	{ NET_TCP_RFC1337,			"tcp_rfc1337" },
++	/* NET_TCP_SYN_TAILDROP unused */
++	{ NET_TCP_MAX_SYN_BACKLOG,		"tcp_max_syn_backlog" },
++	{ NET_IPV4_LOCAL_PORT_RANGE,		"ip_local_port_range" },
++	{ NET_IPV4_ICMP_ECHO_IGNORE_ALL,	"icmp_echo_ignore_all" },
++	{ NET_IPV4_ICMP_ECHO_IGNORE_BROADCASTS,	"icmp_echo_ignore_broadcasts" },
++	/* NET_IPV4_ICMP_SOURCEQUENCH_RATE unused */
++	/* NET_IPV4_ICMP_DESTUNREACH_RATE unused */
++	/* NET_IPV4_ICMP_TIMEEXCEED_RATE unused */
++	/* NET_IPV4_ICMP_PARAMPROB_RATE unused */
++	/* NET_IPV4_ICMP_ECHOREPLY_RATE unused */
++	{ NET_IPV4_ICMP_IGNORE_BOGUS_ERROR_RESPONSES,	"icmp_ignore_bogus_error_responses" },
++	{ NET_IPV4_IGMP_MAX_MEMBERSHIPS,	"igmp_max_memberships" },
++	{ NET_TCP_TW_RECYCLE,			"tcp_tw_recycle" },
++	/* NET_IPV4_ALWAYS_DEFRAG unused */
++	{ NET_IPV4_TCP_KEEPALIVE_INTVL,		"tcp_keepalive_intvl" },
++	{ NET_IPV4_INET_PEER_THRESHOLD,		"inet_peer_threshold" },
++	{ NET_IPV4_INET_PEER_MINTTL,		"inet_peer_minttl" },
++	{ NET_IPV4_INET_PEER_MAXTTL,		"inet_peer_maxttl" },
++	{ NET_IPV4_INET_PEER_GC_MINTIME,	"inet_peer_gc_mintime" },
++	{ NET_IPV4_INET_PEER_GC_MAXTIME,	"inet_peer_gc_maxtime" },
++	{ NET_TCP_ORPHAN_RETRIES,		"tcp_orphan_retries" },
++	{ NET_TCP_ABORT_ON_OVERFLOW,		"tcp_abort_on_overflow" },
++	{ NET_TCP_SYNACK_RETRIES,		"tcp_synack_retries" },
++	{ NET_TCP_MAX_ORPHANS,			"tcp_max_orphans" },
++	{ NET_TCP_MAX_TW_BUCKETS,		"tcp_max_tw_buckets" },
++	{ NET_TCP_FACK,				"tcp_fack" },
++	{ NET_TCP_REORDERING,			"tcp_reordering" },
++	{ NET_TCP_ECN,				"tcp_ecn" },
++	{ NET_TCP_DSACK,			"tcp_dsack" },
++	{ NET_TCP_MEM,				"tcp_mem" },
++	{ NET_TCP_WMEM,				"tcp_wmem" },
++	{ NET_TCP_RMEM,				"tcp_rmem" },
++	{ NET_TCP_APP_WIN,			"tcp_app_win" },
++	{ NET_TCP_ADV_WIN_SCALE,		"tcp_adv_win_scale" },
++	{ NET_IPV4_NONLOCAL_BIND,		"ip_nonlocal_bind" },
++	{ NET_IPV4_ICMP_RATELIMIT,		"icmp_ratelimit" },
++	{ NET_IPV4_ICMP_RATEMASK,		"icmp_ratemask" },
++	{ NET_TCP_TW_REUSE,			"tcp_tw_reuse" },
++	{ NET_TCP_FRTO,				"tcp_frto" },
++	{ NET_TCP_LOW_LATENCY,			"tcp_low_latency" },
++	{ NET_IPV4_IPFRAG_SECRET_INTERVAL,	"ipfrag_secret_interval" },
++	{ NET_IPV4_IGMP_MAX_MSF,		"igmp_max_msf" },
++	{ NET_TCP_NO_METRICS_SAVE,		"tcp_no_metrics_save" },
++	/* NET_TCP_DEFAULT_WIN_SCALE unused */
++	{ NET_TCP_MODERATE_RCVBUF,		"tcp_moderate_rcvbuf" },
++	{ NET_TCP_TSO_WIN_DIVISOR,		"tcp_tso_win_divisor" },
++	/* NET_TCP_BIC_BETA unused */
++	{ NET_IPV4_ICMP_ERRORS_USE_INBOUND_IFADDR,	"icmp_errors_use_inbound_ifaddr" },
++	{ NET_TCP_CONG_CONTROL,			"tcp_congestion_control" },
++	{ NET_TCP_ABC,				"tcp_abc" },
++	{ NET_IPV4_IPFRAG_MAX_DIST,		"ipfrag_max_dist" },
++	{ NET_TCP_MTU_PROBING,			"tcp_mtu_probing" },
++	{ NET_TCP_BASE_MSS,			"tcp_base_mss" },
++	{ NET_IPV4_TCP_WORKAROUND_SIGNED_WINDOWS,	"tcp_workaround_signed_windows" },
++	{ NET_TCP_DMA_COPYBREAK,		"tcp_dma_copybreak" },
++	{ NET_TCP_SLOW_START_AFTER_IDLE,	"tcp_slow_start_after_idle" },
++	{ NET_CIPSOV4_CACHE_ENABLE,		"cipso_cache_enable" },
++	{ NET_CIPSOV4_CACHE_BUCKET_SIZE,	"cipso_cache_bucket_size" },
++	{ NET_CIPSOV4_RBM_OPTFMT,		"cipso_rbm_optfmt" },
++	{ NET_CIPSOV4_RBM_STRICTVALID,		"cipso_rbm_strictvalid" },
++	{ NET_TCP_AVAIL_CONG_CONTROL,		"tcp_available_congestion_control" },
++	{ NET_TCP_ALLOWED_CONG_CONTROL,		"tcp_allowed_congestion_control" },
++	{ NET_TCP_MAX_SSTHRESH,			"tcp_max_ssthresh" },
++	{ NET_TCP_FRTO_RESPONSE,		"tcp_frto_response" },
++	{ 2088 /* NET_IPQ_QMAX */,		"ip_queue_maxlen" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_ipx_table[] = {
++	{ NET_IPX_PPROP_BROADCASTING,	"ipx_pprop_broadcasting" },
++	/* NET_IPX_FORWARDING unused */
++	{}
++};
++
++static const struct trans_ctl_table trans_net_atalk_table[] = {
++	{ NET_ATALK_AARP_EXPIRY_TIME,		"aarp-expiry-time" },
++	{ NET_ATALK_AARP_TICK_TIME,		"aarp-tick-time" },
++	{ NET_ATALK_AARP_RETRANSMIT_LIMIT,	"aarp-retransmit-limit" },
++	{ NET_ATALK_AARP_RESOLVE_TIME,		"aarp-resolve-time" },
++	{},
++};
++
++static const struct trans_ctl_table trans_net_netrom_table[] = {
++	{ NET_NETROM_DEFAULT_PATH_QUALITY,		"default_path_quality" },
++	{ NET_NETROM_OBSOLESCENCE_COUNT_INITIALISER,	"obsolescence_count_initialiser" },
++	{ NET_NETROM_NETWORK_TTL_INITIALISER,		"network_ttl_initialiser" },
++	{ NET_NETROM_TRANSPORT_TIMEOUT,			"transport_timeout" },
++	{ NET_NETROM_TRANSPORT_MAXIMUM_TRIES,		"transport_maximum_tries" },
++	{ NET_NETROM_TRANSPORT_ACKNOWLEDGE_DELAY,	"transport_acknowledge_delay" },
++	{ NET_NETROM_TRANSPORT_BUSY_DELAY,		"transport_busy_delay" },
++	{ NET_NETROM_TRANSPORT_REQUESTED_WINDOW_SIZE,	"transport_requested_window_size" },
++	{ NET_NETROM_TRANSPORT_NO_ACTIVITY_TIMEOUT,	"transport_no_activity_timeout" },
++	{ NET_NETROM_ROUTING_CONTROL,			"routing_control" },
++	{ NET_NETROM_LINK_FAILS_COUNT,			"link_fails_count" },
++	{ NET_NETROM_RESET,				"reset" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_ax25_param_table[] = {
++	{ NET_AX25_IP_DEFAULT_MODE,	"ip_default_mode" },
++	{ NET_AX25_DEFAULT_MODE,	"ax25_default_mode" },
++	{ NET_AX25_BACKOFF_TYPE,	"backoff_type" },
++	{ NET_AX25_CONNECT_MODE,	"connect_mode" },
++	{ NET_AX25_STANDARD_WINDOW,	"standard_window_size" },
++	{ NET_AX25_EXTENDED_WINDOW,	"extended_window_size" },
++	{ NET_AX25_T1_TIMEOUT,		"t1_timeout" },
++	{ NET_AX25_T2_TIMEOUT,		"t2_timeout" },
++	{ NET_AX25_T3_TIMEOUT,		"t3_timeout" },
++	{ NET_AX25_IDLE_TIMEOUT,	"idle_timeout" },
++	{ NET_AX25_N2,			"maximum_retry_count" },
++	{ NET_AX25_PACLEN,		"maximum_packet_length" },
++	{ NET_AX25_PROTOCOL,		"protocol" },
++	{ NET_AX25_DAMA_SLAVE_TIMEOUT,	"dama_slave_timeout" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_ax25_table[] = {
++	{ 0, NULL, trans_net_ax25_param_table },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_bridge_table[] = {
++	{ NET_BRIDGE_NF_CALL_ARPTABLES,		"bridge-nf-call-arptables" },
++	{ NET_BRIDGE_NF_CALL_IPTABLES,		"bridge-nf-call-iptables" },
++	{ NET_BRIDGE_NF_CALL_IP6TABLES,		"bridge-nf-call-ip6tables" },
++	{ NET_BRIDGE_NF_FILTER_VLAN_TAGGED,	"bridge-nf-filter-vlan-tagged" },
++	{ NET_BRIDGE_NF_FILTER_PPPOE_TAGGED,	"bridge-nf-filter-pppoe-tagged" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_rose_table[] = {
++	{ NET_ROSE_RESTART_REQUEST_TIMEOUT,	"restart_request_timeout" },
++	{ NET_ROSE_CALL_REQUEST_TIMEOUT,	"call_request_timeout" },
++	{ NET_ROSE_RESET_REQUEST_TIMEOUT,	"reset_request_timeout" },
++	{ NET_ROSE_CLEAR_REQUEST_TIMEOUT,	"clear_request_timeout" },
++	{ NET_ROSE_ACK_HOLD_BACK_TIMEOUT,	"acknowledge_hold_back_timeout" },
++	{ NET_ROSE_ROUTING_CONTROL,		"routing_control" },
++	{ NET_ROSE_LINK_FAIL_TIMEOUT,		"link_fail_timeout" },
++	{ NET_ROSE_MAX_VCS,			"maximum_virtual_circuits" },
++	{ NET_ROSE_WINDOW_SIZE,			"window_size" },
++	{ NET_ROSE_NO_ACTIVITY_TIMEOUT,		"no_activity_timeout" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_ipv6_conf_var_table[] = {
++	{ NET_IPV6_FORWARDING,			"forwarding" },
++	{ NET_IPV6_HOP_LIMIT,			"hop_limit" },
++	{ NET_IPV6_MTU,				"mtu" },
++	{ NET_IPV6_ACCEPT_RA,			"accept_ra" },
++	{ NET_IPV6_ACCEPT_REDIRECTS,		"accept_redirects" },
++	{ NET_IPV6_AUTOCONF,			"autoconf" },
++	{ NET_IPV6_DAD_TRANSMITS,		"dad_transmits" },
++	{ NET_IPV6_RTR_SOLICITS,		"router_solicitations" },
++	{ NET_IPV6_RTR_SOLICIT_INTERVAL,	"router_solicitation_interval" },
++	{ NET_IPV6_RTR_SOLICIT_DELAY,		"router_solicitation_delay" },
++	{ NET_IPV6_USE_TEMPADDR,		"use_tempaddr" },
++	{ NET_IPV6_TEMP_VALID_LFT,		"temp_valid_lft" },
++	{ NET_IPV6_TEMP_PREFERED_LFT,		"temp_prefered_lft" },
++	{ NET_IPV6_REGEN_MAX_RETRY,		"regen_max_retry" },
++	{ NET_IPV6_MAX_DESYNC_FACTOR,		"max_desync_factor" },
++	{ NET_IPV6_MAX_ADDRESSES,		"max_addresses" },
++	{ NET_IPV6_FORCE_MLD_VERSION,		"force_mld_version" },
++	{ NET_IPV6_ACCEPT_RA_DEFRTR,		"accept_ra_defrtr" },
++	{ NET_IPV6_ACCEPT_RA_PINFO,		"accept_ra_pinfo" },
++	{ NET_IPV6_ACCEPT_RA_RTR_PREF,		"accept_ra_rtr_pref" },
++	{ NET_IPV6_RTR_PROBE_INTERVAL,		"router_probe_interval" },
++	{ NET_IPV6_ACCEPT_RA_RT_INFO_MAX_PLEN,	"accept_ra_rt_info_max_plen" },
++	{ NET_IPV6_PROXY_NDP,			"proxy_ndp" },
++	{ NET_IPV6_ACCEPT_SOURCE_ROUTE,		"accept_source_route" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_ipv6_conf_table[] = {
++	{ NET_PROTO_CONF_ALL,		"all",	trans_net_ipv6_conf_var_table },
++	{ NET_PROTO_CONF_DEFAULT, 	"default", trans_net_ipv6_conf_var_table },
++	{ 0, NULL, trans_net_ipv6_conf_var_table },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_ipv6_route_table[] = {
++	{ NET_IPV6_ROUTE_FLUSH,			"flush" },
++	{ NET_IPV6_ROUTE_GC_THRESH,		"gc_thresh" },
++	{ NET_IPV6_ROUTE_MAX_SIZE,		"max_size" },
++	{ NET_IPV6_ROUTE_GC_MIN_INTERVAL,	"gc_min_interval" },
++	{ NET_IPV6_ROUTE_GC_TIMEOUT,		"gc_timeout" },
++	{ NET_IPV6_ROUTE_GC_INTERVAL,		"gc_interval" },
++	{ NET_IPV6_ROUTE_GC_ELASTICITY,		"gc_elasticity" },
++	{ NET_IPV6_ROUTE_MTU_EXPIRES,		"mtu_expires" },
++	{ NET_IPV6_ROUTE_MIN_ADVMSS,		"min_adv_mss" },
++	{ NET_IPV6_ROUTE_GC_MIN_INTERVAL_MS,	"gc_min_interval_ms" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_ipv6_icmp_table[] = {
++	{ NET_IPV6_ICMP_RATELIMIT,	"ratelimit" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_ipv6_table[] = {
++	{ NET_IPV6_CONF,		"conf",		trans_net_ipv6_conf_table },
++	{ NET_IPV6_NEIGH,		"neigh",	trans_net_neigh_table },
++	{ NET_IPV6_ROUTE,		"route",	trans_net_ipv6_route_table },
++	{ NET_IPV6_ICMP,		"icmp",		trans_net_ipv6_icmp_table },
++	{ NET_IPV6_BINDV6ONLY,		"bindv6only" },
++	{ NET_IPV6_IP6FRAG_HIGH_THRESH,	"ip6frag_high_thresh" },
++	{ NET_IPV6_IP6FRAG_LOW_THRESH,	"ip6frag_low_thresh" },
++	{ NET_IPV6_IP6FRAG_TIME,	"ip6frag_time" },
++	{ NET_IPV6_IP6FRAG_SECRET_INTERVAL,	"ip6frag_secret_interval" },
++	{ NET_IPV6_MLD_MAX_MSF,		"mld_max_msf" },
++	{ 2088 /* IPQ_QMAX */,		"ip6_queue_maxlen" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_x25_table[] = {
++	{ NET_X25_RESTART_REQUEST_TIMEOUT,	"restart_request_timeout" },
++	{ NET_X25_CALL_REQUEST_TIMEOUT,		"call_request_timeout" },
++	{ NET_X25_RESET_REQUEST_TIMEOUT,	"reset_request_timeout" },
++	{ NET_X25_CLEAR_REQUEST_TIMEOUT,	"clear_request_timeout" },
++	{ NET_X25_ACK_HOLD_BACK_TIMEOUT,	"acknowledgement_hold_back_timeout" },
++	{ NET_X25_FORWARD,			"x25_forward" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_tr_table[] = {
++	{ NET_TR_RIF_TIMEOUT,	"rif_timeout" },
++	{}
++};
++
++
++static const struct trans_ctl_table trans_net_decnet_conf_vars[] = {
++	{ NET_DECNET_CONF_DEV_FORWARDING,	"forwarding" },
++	{ NET_DECNET_CONF_DEV_PRIORITY,		"priority" },
++	{ NET_DECNET_CONF_DEV_T2,		"t2" },
++	{ NET_DECNET_CONF_DEV_T3,		"t3" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_decnet_conf[] = {
++	{ 0, NULL, trans_net_decnet_conf_vars },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_decnet_table[] = {
++	{ NET_DECNET_CONF,		"conf",	trans_net_decnet_conf },
++	{ NET_DECNET_NODE_ADDRESS,	"node_address" },
++	{ NET_DECNET_NODE_NAME,		"node_name" },
++	{ NET_DECNET_DEFAULT_DEVICE,	"default_device" },
++	{ NET_DECNET_TIME_WAIT,		"time_wait" },
++	{ NET_DECNET_DN_COUNT,		"dn_count" },
++	{ NET_DECNET_DI_COUNT,		"di_count" },
++	{ NET_DECNET_DR_COUNT,		"dr_count" },
++	{ NET_DECNET_DST_GC_INTERVAL,	"dst_gc_interval" },
++	{ NET_DECNET_NO_FC_MAX_CWND,	"no_fc_max_cwnd" },
++	{ NET_DECNET_MEM,		"decnet_mem" },
++	{ NET_DECNET_RMEM,		"decnet_rmem" },
++	{ NET_DECNET_WMEM,		"decnet_wmem" },
++	{ NET_DECNET_DEBUG_LEVEL,	"debug" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_sctp_table[] = {
++	{ NET_SCTP_RTO_INITIAL,		"rto_initial" },
++	{ NET_SCTP_RTO_MIN,		"rto_min" },
++	{ NET_SCTP_RTO_MAX,		"rto_max" },
++	{ NET_SCTP_RTO_ALPHA,		"rto_alpha_exp_divisor" },
++	{ NET_SCTP_RTO_BETA,		"rto_beta_exp_divisor" },
++	{ NET_SCTP_VALID_COOKIE_LIFE,	"valid_cookie_life" },
++	{ NET_SCTP_ASSOCIATION_MAX_RETRANS,	"association_max_retrans" },
++	{ NET_SCTP_PATH_MAX_RETRANS,	"path_max_retrans" },
++	{ NET_SCTP_MAX_INIT_RETRANSMITS,	"max_init_retransmits" },
++	{ NET_SCTP_HB_INTERVAL,		"hb_interval" },
++	{ NET_SCTP_PRESERVE_ENABLE,	"cookie_preserve_enable" },
++	{ NET_SCTP_MAX_BURST,		"max_burst" },
++	{ NET_SCTP_ADDIP_ENABLE,	"addip_enable" },
++	{ NET_SCTP_PRSCTP_ENABLE,	"prsctp_enable" },
++	{ NET_SCTP_SNDBUF_POLICY,	"sndbuf_policy" },
++	{ NET_SCTP_SACK_TIMEOUT,	"sack_timeout" },
++	{ NET_SCTP_RCVBUF_POLICY,	"rcvbuf_policy" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_llc_llc2_timeout_table[] = {
++	{ NET_LLC2_ACK_TIMEOUT,		"ack" },
++	{ NET_LLC2_P_TIMEOUT,		"p" },
++	{ NET_LLC2_REJ_TIMEOUT,		"rej" },
++	{ NET_LLC2_BUSY_TIMEOUT,	"busy" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_llc_station_table[] = {
++	{ NET_LLC_STATION_ACK_TIMEOUT,	"ack_timeout" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_llc_llc2_table[] = {
++	{ NET_LLC2,		"timeout",	trans_net_llc_llc2_timeout_table },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_llc_table[] = {
++	{ NET_LLC2,		"llc2",		trans_net_llc_llc2_table },
++	{ NET_LLC_STATION,	"station",	trans_net_llc_station_table },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_netfilter_table[] = {
++	{ NET_NF_CONNTRACK_MAX,				"nf_conntrack_max" },
++	{ NET_NF_CONNTRACK_TCP_TIMEOUT_SYN_SENT,	"nf_conntrack_tcp_timeout_syn_sent" },
++	{ NET_NF_CONNTRACK_TCP_TIMEOUT_SYN_RECV,	"nf_conntrack_tcp_timeout_syn_recv" },
++	{ NET_NF_CONNTRACK_TCP_TIMEOUT_ESTABLISHED,	"nf_conntrack_tcp_timeout_established" },
++	{ NET_NF_CONNTRACK_TCP_TIMEOUT_FIN_WAIT,	"nf_conntrack_tcp_timeout_fin_wait" },
++	{ NET_NF_CONNTRACK_TCP_TIMEOUT_CLOSE_WAIT,	"nf_conntrack_tcp_timeout_close_wait" },
++	{ NET_NF_CONNTRACK_TCP_TIMEOUT_LAST_ACK,	"nf_conntrack_tcp_timeout_last_ack" },
++	{ NET_NF_CONNTRACK_TCP_TIMEOUT_TIME_WAIT,	"nf_conntrack_tcp_timeout_time_wait" },
++	{ NET_NF_CONNTRACK_TCP_TIMEOUT_CLOSE,		"nf_conntrack_tcp_timeout_close" },
++	{ NET_NF_CONNTRACK_UDP_TIMEOUT,			"nf_conntrack_udp_timeout" },
++	{ NET_NF_CONNTRACK_UDP_TIMEOUT_STREAM,		"nf_conntrack_udp_timeout_stream" },
++	{ NET_NF_CONNTRACK_ICMP_TIMEOUT,	"nf_conntrack_icmp_timeout" },
++	{ NET_NF_CONNTRACK_GENERIC_TIMEOUT,		"nf_conntrack_generic_timeout" },
++	{ NET_NF_CONNTRACK_BUCKETS,			"nf_conntrack_buckets" },
++	{ NET_NF_CONNTRACK_LOG_INVALID,			"nf_conntrack_log_invalid" },
++	{ NET_NF_CONNTRACK_TCP_TIMEOUT_MAX_RETRANS,	"nf_conntrack_tcp_timeout_max_retrans" },
++	{ NET_NF_CONNTRACK_TCP_LOOSE,			"nf_conntrack_tcp_loose" },
++	{ NET_NF_CONNTRACK_TCP_BE_LIBERAL,		"nf_conntrack_tcp_be_liberal" },
++	{ NET_NF_CONNTRACK_TCP_MAX_RETRANS,		"nf_conntrack_tcp_max_retrans" },
++	{ NET_NF_CONNTRACK_SCTP_TIMEOUT_CLOSED,		"nf_conntrack_sctp_timeout_closed" },
++	{ NET_NF_CONNTRACK_SCTP_TIMEOUT_COOKIE_WAIT,	"nf_conntrack_sctp_timeout_cookie_wait" },
++	{ NET_NF_CONNTRACK_SCTP_TIMEOUT_COOKIE_ECHOED,	"nf_conntrack_sctp_timeout_cookie_echoed" },
++	{ NET_NF_CONNTRACK_SCTP_TIMEOUT_ESTABLISHED,	"nf_conntrack_sctp_timeout_established" },
++	{ NET_NF_CONNTRACK_SCTP_TIMEOUT_SHUTDOWN_SENT,	"nf_conntrack_sctp_timeout_shutdown_sent" },
++	{ NET_NF_CONNTRACK_SCTP_TIMEOUT_SHUTDOWN_RECD,	"nf_conntrack_sctp_timeout_shutdown_recd" },
++	{ NET_NF_CONNTRACK_SCTP_TIMEOUT_SHUTDOWN_ACK_SENT,	"nf_conntrack_sctp_timeout_shutdown_ack_sent" },
++	{ NET_NF_CONNTRACK_COUNT,			"nf_conntrack_count" },
++	{ NET_NF_CONNTRACK_ICMPV6_TIMEOUT,	"nf_conntrack_icmpv6_timeout" },
++	{ NET_NF_CONNTRACK_FRAG6_TIMEOUT,		"nf_conntrack_frag6_timeout" },
++	{ NET_NF_CONNTRACK_FRAG6_LOW_THRESH,		"nf_conntrack_frag6_low_thresh" },
++	{ NET_NF_CONNTRACK_FRAG6_HIGH_THRESH,		"nf_conntrack_frag6_high_thresh" },
++	{ NET_NF_CONNTRACK_CHECKSUM,			"nf_conntrack_checksum" },
++
++	{}
++};
++
++static const struct trans_ctl_table trans_net_dccp_table[] = {
++	{ NET_DCCP_DEFAULT,	"default" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_irda_table[] = {
++	{ NET_IRDA_DISCOVERY,		"discovery" },
++	{ NET_IRDA_DEVNAME,		"devname" },
++	{ NET_IRDA_DEBUG,		"debug" },
++	{ NET_IRDA_FAST_POLL,		"fast_poll_increase" },
++	{ NET_IRDA_DISCOVERY_SLOTS,	"discovery_slots" },
++	{ NET_IRDA_DISCOVERY_TIMEOUT,	"discovery_timeout" },
++	{ NET_IRDA_SLOT_TIMEOUT,	"slot_timeout" },
++	{ NET_IRDA_MAX_BAUD_RATE,	"max_baud_rate" },
++	{ NET_IRDA_MIN_TX_TURN_TIME,	"min_tx_turn_time" },
++	{ NET_IRDA_MAX_TX_DATA_SIZE,	"max_tx_data_size" },
++	{ NET_IRDA_MAX_TX_WINDOW,	"max_tx_window" },
++	{ NET_IRDA_MAX_NOREPLY_TIME,	"max_noreply_time" },
++	{ NET_IRDA_WARN_NOREPLY_TIME,	"warn_noreply_time" },
++	{ NET_IRDA_LAP_KEEPALIVE_TIME,	"lap_keepalive_time" },
++	{}
++};
++
++static const struct trans_ctl_table trans_net_table[] = {
++	{ NET_CORE,		"core",		trans_net_core_table },
++	/* NET_ETHER not used */
++	/* NET_802 not used */
++	{ NET_UNIX,		"unix",		trans_net_unix_table },
++	{ NET_IPV4,		"ipv4",		trans_net_ipv4_table },
++	{ NET_IPX,		"ipx",		trans_net_ipx_table },
++	{ NET_ATALK,		"appletalk",	trans_net_atalk_table },
++	{ NET_NETROM,		"netrom",	trans_net_netrom_table },
++	{ NET_AX25,		"ax25",		trans_net_ax25_table },
++	{ NET_BRIDGE,		"bridge",	trans_net_bridge_table },
++	{ NET_ROSE,		"rose",		trans_net_rose_table },
++	{ NET_IPV6,		"ipv6",		trans_net_ipv6_table },
++	{ NET_X25,		"x25",		trans_net_x25_table },
++	{ NET_TR,		"token-ring",	trans_net_tr_table },
++	{ NET_DECNET,		"decnet",	trans_net_decnet_table },
++	/*  NET_ECONET not used */
++	{ NET_SCTP,		"sctp",		trans_net_sctp_table },
++	{ NET_LLC,		"llc",		trans_net_llc_table },
++	{ NET_NETFILTER,	"netfilter",	trans_net_netfilter_table },
++	{ NET_DCCP,		"dccp",		trans_net_dccp_table },
++	{ NET_IRDA,		"irda",		trans_net_irda_table },
++	{ 2089,			"nf_conntrack_max" },
++	{}
++};
++
++static const struct trans_ctl_table trans_fs_quota_table[] = {
++	{ FS_DQ_LOOKUPS,	"lookups" },
++	{ FS_DQ_DROPS,		"drops" },
++	{ FS_DQ_READS,		"reads" },
++	{ FS_DQ_WRITES,		"writes" },
++	{ FS_DQ_CACHE_HITS,	"cache_hits" },
++	{ FS_DQ_ALLOCATED,	"allocated_dquots" },
++	{ FS_DQ_FREE,		"free_dquots" },
++	{ FS_DQ_SYNCS,		"syncs" },
++	{ FS_DQ_WARNINGS,	"warnings" },
++	{}
++};
++
++static const struct trans_ctl_table trans_fs_xfs_table[] = {
++	{ XFS_SGID_INHERIT,	"irix_sgid_inherit" },
++	{ XFS_SYMLINK_MODE,	"irix_symlink_mode" },
++	{ XFS_PANIC_MASK,	"panic_mask" },
++
++	{ XFS_ERRLEVEL,		"error_level" },
++	{ XFS_SYNCD_TIMER,	"xfssyncd_centisecs" },
++	{ XFS_INHERIT_SYNC,	"inherit_sync" },
++	{ XFS_INHERIT_NODUMP,	"inherit_nodump" },
++	{ XFS_INHERIT_NOATIME,	"inherit_noatime" },
++	{ XFS_BUF_TIMER,	"xfsbufd_centisecs" },
++	{ XFS_BUF_AGE,		"age_buffer_centisecs" },
++	{ XFS_INHERIT_NOSYM,	"inherit_nosymlinks" },
++	{ XFS_ROTORSTEP,	"rotorstep" },
++	{ XFS_INHERIT_NODFRG,	"inherit_nodefrag" },
++	{ XFS_FILESTREAM_TIMER,	"filestream_centisecs" },
++	{ XFS_STATS_CLEAR,	"stats_clear" },
++	{}
++};
++
++static const struct trans_ctl_table trans_fs_ocfs2_nm_table[] = {
++	{ 1, "hb_ctl_path" },
++	{}
++};
++
++static const struct trans_ctl_table trans_fs_ocfs2_table[] = {
++	{ 1,	"nm",	trans_fs_ocfs2_nm_table },
++	{}
++};
++
++static const struct trans_ctl_table trans_inotify_table[] = {
++	{ INOTIFY_MAX_USER_INSTANCES,	"max_user_instances" },
++	{ INOTIFY_MAX_USER_WATCHES,	"max_user_watches" },
++	{ INOTIFY_MAX_QUEUED_EVENTS,	"max_queued_events" },
++	{}
++};
++
++static const struct trans_ctl_table trans_fs_table[] = {
++	{ FS_NRINODE,		"inode-nr" },
++	{ FS_STATINODE,		"inode-state" },
++	/* FS_MAXINODE unused */
++	/* FS_NRDQUOT unused */
++	/* FS_MAXDQUOT unused */
++	{ FS_NRFILE,		"file-nr" },
++	{ FS_MAXFILE,		"file-max" },
++	{ FS_DENTRY,		"dentry-state" },
++	/* FS_NRSUPER unused */
++	/* FS_MAXUPSER unused */
++	{ FS_OVERFLOWUID,	"overflowuid" },
++	{ FS_OVERFLOWGID,	"overflowgid" },
++	{ FS_LEASES,		"leases-enable" },
++	{ FS_DIR_NOTIFY,	"dir-notify-enable" },
++	{ FS_LEASE_TIME,	"lease-break-time" },
++	{ FS_DQSTATS,		"quota",		trans_fs_quota_table },
++	{ FS_XFS,		"xfs",			trans_fs_xfs_table },
++	{ FS_AIO_NR,		"aio-nr" },
++	{ FS_AIO_MAX_NR,	"aio-max-nr" },
++	{ FS_INOTIFY,		"inotify",		trans_inotify_table },
++	{ FS_OCFS2,		"ocfs2",		trans_fs_ocfs2_table },
++	{ KERN_SETUID_DUMPABLE,	"suid_dumpable" },
++	{}
++};
++
++static const struct trans_ctl_table trans_debug_table[] = {
++	{}
++};
++
++static const struct trans_ctl_table trans_cdrom_table[] = {
++	{ DEV_CDROM_INFO,		"info" },
++	{ DEV_CDROM_AUTOCLOSE,		"autoclose" },
++	{ DEV_CDROM_AUTOEJECT,		"autoeject" },
++	{ DEV_CDROM_DEBUG,		"debug" },
++	{ DEV_CDROM_LOCK,		"lock" },
++	{ DEV_CDROM_CHECK_MEDIA,	"check_media" },
++	{}
++};
++
++static const struct trans_ctl_table trans_ipmi_table[] = {
++	{ DEV_IPMI_POWEROFF_POWERCYCLE,	"poweroff_powercycle" },
++	{}
++};
++
++static const struct trans_ctl_table trans_mac_hid_files[] = {
++	/* DEV_MAC_HID_KEYBOARD_SENDS_LINUX_KEYCODES unused */
++	/* DEV_MAC_HID_KEYBOARD_LOCK_KEYCODES unused */
++	{ DEV_MAC_HID_MOUSE_BUTTON_EMULATION,	"mouse_button_emulation" },
++	{ DEV_MAC_HID_MOUSE_BUTTON2_KEYCODE,	"mouse_button2_keycode" },
++	{ DEV_MAC_HID_MOUSE_BUTTON3_KEYCODE,	"mouse_button3_keycode" },
++	/* DEV_MAC_HID_ADB_MOUSE_SENDS_KEYCODES unused */
++	{}
++};
++
++static const struct trans_ctl_table trans_raid_table[] = {
++	{ DEV_RAID_SPEED_LIMIT_MIN,	"speed_limit_min" },
++	{ DEV_RAID_SPEED_LIMIT_MAX,	"speed_limit_max" },
++	{}
++};
++
++static const struct trans_ctl_table trans_scsi_table[] = {
++	{ DEV_SCSI_LOGGING_LEVEL, "logging_level" },
++	{}
++};
++
++static const struct trans_ctl_table trans_parport_default_table[] = {
++	{ DEV_PARPORT_DEFAULT_TIMESLICE,	"timeslice" },
++	{ DEV_PARPORT_DEFAULT_SPINTIME,		"spintime" },
++	{}
++};
++
++static const struct trans_ctl_table trans_parport_device_table[] = {
++	{ DEV_PARPORT_DEVICE_TIMESLICE,		"timeslice" },
++	{}
++};
++
++static const struct trans_ctl_table trans_parport_devices_table[] = {
++	{ DEV_PARPORT_DEVICES_ACTIVE,		"active" },
++	{ 0, NULL, trans_parport_device_table },
++	{}
++};
++
++static const struct trans_ctl_table trans_parport_parport_table[] = {
++	{ DEV_PARPORT_SPINTIME,		"spintime" },
++	{ DEV_PARPORT_BASE_ADDR,	"base-addr" },
++	{ DEV_PARPORT_IRQ,		"irq" },
++	{ DEV_PARPORT_DMA,		"dma" },
++	{ DEV_PARPORT_MODES,		"modes" },
++	{ DEV_PARPORT_DEVICES,		"devices",	trans_parport_devices_table },
++	{ DEV_PARPORT_AUTOPROBE,	"autoprobe" },
++	{ DEV_PARPORT_AUTOPROBE + 1,	"autoprobe0" },
++	{ DEV_PARPORT_AUTOPROBE + 2,	"autoprobe1" },
++	{ DEV_PARPORT_AUTOPROBE + 3,	"autoprobe2" },
++	{ DEV_PARPORT_AUTOPROBE + 4,	"autoprobe3" },
++	{}
++};
++static const struct trans_ctl_table trans_parport_table[] = {
++	{ DEV_PARPORT_DEFAULT,	"default",	trans_parport_default_table },
++	{ 0, NULL, trans_parport_parport_table },
++	{}
++};
++
++static const struct trans_ctl_table trans_dev_table[] = {
++	{ DEV_CDROM,	"cdrom",	trans_cdrom_table },
++	/* DEV_HWMON unused */
++	{ DEV_PARPORT,	"parport",	trans_parport_table },
++	{ DEV_RAID,	"raid",		trans_raid_table },
++	{ DEV_MAC_HID,	"mac_hid",	trans_mac_hid_files },
++	{ DEV_SCSI,	"scsi",		trans_scsi_table },
++	{ DEV_IPMI,	"ipmi",		trans_ipmi_table },
++	{}
++};
++
++static const struct trans_ctl_table trans_bus_isa_table[] = {
++	{ BUS_ISA_MEM_BASE,	"membase" },
++	{ BUS_ISA_PORT_BASE,	"portbase" },
++	{ BUS_ISA_PORT_SHIFT,	"portshift" },
++	{}
++};
++
++static const struct trans_ctl_table trans_bus_table[] = {
++	{ CTL_BUS_ISA,	"isa",	trans_bus_isa_table },
++	{}
++};
++
++static const struct trans_ctl_table trans_arlan_conf_table0[] = {
++	{ 1,	"spreadingCode" },
++	{ 2,	"channelNumber" },
++	{ 3,	"scramblingDisable" },
++	{ 4,	"txAttenuation" },
++	{ 5,	"systemId" },
++	{ 6,	"maxDatagramSize" },
++	{ 7,	"maxFrameSize" },
++	{ 8,	"maxRetries" },
++	{ 9,	"receiveMode" },
++	{ 10,	"priority" },
++	{ 11,	"rootOrRepeater" },
++	{ 12,	"SID" },
++	{ 13,	"registrationMode" },
++	{ 14,	"registrationFill" },
++	{ 15,	"localTalkAddress" },
++	{ 16,	"codeFormat" },
++	{ 17,	"numChannels" },
++	{ 18,	"channel1" },
++	{ 19,	"channel2" },
++	{ 20,	"channel3" },
++	{ 21,	"channel4" },
++	{ 22,	"txClear" },
++	{ 23,	"txRetries" },
++	{ 24,	"txRouting" },
++	{ 25,	"txScrambled" },
++	{ 26,	"rxParameter" },
++	{ 27,	"txTimeoutMs" },
++	{ 28,	"waitCardTimeout" },
++	{ 29,	"channelSet" },
++	{ 30,	"name" },
++	{ 31,	"waitTime" },
++	{ 32,	"lParameter" },
++	{ 33,	"_15" },
++	{ 34,	"headerSize" },
++	{ 36,	"tx_delay_ms" },
++	{ 37,	"retries" },
++	{ 38,	"ReTransmitPacketMaxSize" },
++	{ 39,	"waitReTransmitPacketMaxSize" },
++	{ 40,	"fastReTransCount" },
++	{ 41,	"driverRetransmissions" },
++	{ 42,	"txAckTimeoutMs" },
++	{ 43,	"registrationInterrupts" },
++	{ 44,	"hardwareType" },
++	{ 45,	"radioType" },
++	{ 46,	"writeEEPROM" },
++	{ 47,	"writeRadioType" },
++	{ 48,	"entry_exit_debug" },
++	{ 49,	"debug" },
++	{ 50,	"in_speed" },
++	{ 51,	"out_speed" },
++	{ 52,	"in_speed10" },
++	{ 53,	"out_speed10" },
++	{ 54,	"in_speed_max" },
++	{ 55,	"out_speed_max" },
++	{ 56,	"measure_rate" },
++	{ 57,	"pre_Command_Wait" },
++	{ 58,	"rx_tweak1" },
++	{ 59,	"rx_tweak2" },
++	{ 60,	"tx_queue_len" },
++
++	{ 150,	"arlan0-txRing" },
++	{ 151,	"arlan0-rxRing" },
++	{ 152,	"arlan0-18" },
++	{ 153,	"arlan0-ring" },
++	{ 154,	"arlan0-shm-cpy" },
++	{ 155,	"config0" },
++	{ 156,	"reset0" },
++	{}
++};
++
++static const struct trans_ctl_table trans_arlan_conf_table1[] = {
++	{ 1,	"spreadingCode" },
++	{ 2,	"channelNumber" },
++	{ 3,	"scramblingDisable" },
++	{ 4,	"txAttenuation" },
++	{ 5,	"systemId" },
++	{ 6,	"maxDatagramSize" },
++	{ 7,	"maxFrameSize" },
++	{ 8,	"maxRetries" },
++	{ 9,	"receiveMode" },
++	{ 10,	"priority" },
++	{ 11,	"rootOrRepeater" },
++	{ 12,	"SID" },
++	{ 13,	"registrationMode" },
++	{ 14,	"registrationFill" },
++	{ 15,	"localTalkAddress" },
++	{ 16,	"codeFormat" },
++	{ 17,	"numChannels" },
++	{ 18,	"channel1" },
++	{ 19,	"channel2" },
++	{ 20,	"channel3" },
++	{ 21,	"channel4" },
++	{ 22,	"txClear" },
++	{ 23,	"txRetries" },
++	{ 24,	"txRouting" },
++	{ 25,	"txScrambled" },
++	{ 26,	"rxParameter" },
++	{ 27,	"txTimeoutMs" },
++	{ 28,	"waitCardTimeout" },
++	{ 29,	"channelSet" },
++	{ 30,	"name" },
++	{ 31,	"waitTime" },
++	{ 32,	"lParameter" },
++	{ 33,	"_15" },
++	{ 34,	"headerSize" },
++	{ 36,	"tx_delay_ms" },
++	{ 37,	"retries" },
++	{ 38,	"ReTransmitPacketMaxSize" },
++	{ 39,	"waitReTransmitPacketMaxSize" },
++	{ 40,	"fastReTransCount" },
++	{ 41,	"driverRetransmissions" },
++	{ 42,	"txAckTimeoutMs" },
++	{ 43,	"registrationInterrupts" },
++	{ 44,	"hardwareType" },
++	{ 45,	"radioType" },
++	{ 46,	"writeEEPROM" },
++	{ 47,	"writeRadioType" },
++	{ 48,	"entry_exit_debug" },
++	{ 49,	"debug" },
++	{ 50,	"in_speed" },
++	{ 51,	"out_speed" },
++	{ 52,	"in_speed10" },
++	{ 53,	"out_speed10" },
++	{ 54,	"in_speed_max" },
++	{ 55,	"out_speed_max" },
++	{ 56,	"measure_rate" },
++	{ 57,	"pre_Command_Wait" },
++	{ 58,	"rx_tweak1" },
++	{ 59,	"rx_tweak2" },
++	{ 60,	"tx_queue_len" },
++
++	{ 150,	"arlan1-txRing" },
++	{ 151,	"arlan1-rxRing" },
++	{ 152,	"arlan1-18" },
++	{ 153,	"arlan1-ring" },
++	{ 154,	"arlan1-shm-cpy" },
++	{ 155,	"config1" },
++	{ 156,	"reset1" },
++	{}
++};
++
++static const struct trans_ctl_table trans_arlan_conf_table2[] = {
++	{ 1,	"spreadingCode" },
++	{ 2,	"channelNumber" },
++	{ 3,	"scramblingDisable" },
++	{ 4,	"txAttenuation" },
++	{ 5,	"systemId" },
++	{ 6,	"maxDatagramSize" },
++	{ 7,	"maxFrameSize" },
++	{ 8,	"maxRetries" },
++	{ 9,	"receiveMode" },
++	{ 10,	"priority" },
++	{ 11,	"rootOrRepeater" },
++	{ 12,	"SID" },
++	{ 13,	"registrationMode" },
++	{ 14,	"registrationFill" },
++	{ 15,	"localTalkAddress" },
++	{ 16,	"codeFormat" },
++	{ 17,	"numChannels" },
++	{ 18,	"channel1" },
++	{ 19,	"channel2" },
++	{ 20,	"channel3" },
++	{ 21,	"channel4" },
++	{ 22,	"txClear" },
++	{ 23,	"txRetries" },
++	{ 24,	"txRouting" },
++	{ 25,	"txScrambled" },
++	{ 26,	"rxParameter" },
++	{ 27,	"txTimeoutMs" },
++	{ 28,	"waitCardTimeout" },
++	{ 29,	"channelSet" },
++	{ 30,	"name" },
++	{ 31,	"waitTime" },
++	{ 32,	"lParameter" },
++	{ 33,	"_15" },
++	{ 34,	"headerSize" },
++	{ 36,	"tx_delay_ms" },
++	{ 37,	"retries" },
++	{ 38,	"ReTransmitPacketMaxSize" },
++	{ 39,	"waitReTransmitPacketMaxSize" },
++	{ 40,	"fastReTransCount" },
++	{ 41,	"driverRetransmissions" },
++	{ 42,	"txAckTimeoutMs" },
++	{ 43,	"registrationInterrupts" },
++	{ 44,	"hardwareType" },
++	{ 45,	"radioType" },
++	{ 46,	"writeEEPROM" },
++	{ 47,	"writeRadioType" },
++	{ 48,	"entry_exit_debug" },
++	{ 49,	"debug" },
++	{ 50,	"in_speed" },
++	{ 51,	"out_speed" },
++	{ 52,	"in_speed10" },
++	{ 53,	"out_speed10" },
++	{ 54,	"in_speed_max" },
++	{ 55,	"out_speed_max" },
++	{ 56,	"measure_rate" },
++	{ 57,	"pre_Command_Wait" },
++	{ 58,	"rx_tweak1" },
++	{ 59,	"rx_tweak2" },
++	{ 60,	"tx_queue_len" },
++
++	{ 150,	"arlan2-txRing" },
++	{ 151,	"arlan2-rxRing" },
++	{ 152,	"arlan2-18" },
++	{ 153,	"arlan2-ring" },
++	{ 154,	"arlan2-shm-cpy" },
++	{ 155,	"config2" },
++	{ 156,	"reset2" },
++	{}
++};
++
++static const struct trans_ctl_table trans_arlan_conf_table3[] = {
++	{ 1,	"spreadingCode" },
++	{ 2,	"channelNumber" },
++	{ 3,	"scramblingDisable" },
++	{ 4,	"txAttenuation" },
++	{ 5,	"systemId" },
++	{ 6,	"maxDatagramSize" },
++	{ 7,	"maxFrameSize" },
++	{ 8,	"maxRetries" },
++	{ 9,	"receiveMode" },
++	{ 10,	"priority" },
++	{ 11,	"rootOrRepeater" },
++	{ 12,	"SID" },
++	{ 13,	"registrationMode" },
++	{ 14,	"registrationFill" },
++	{ 15,	"localTalkAddress" },
++	{ 16,	"codeFormat" },
++	{ 17,	"numChannels" },
++	{ 18,	"channel1" },
++	{ 19,	"channel2" },
++	{ 20,	"channel3" },
++	{ 21,	"channel4" },
++	{ 22,	"txClear" },
++	{ 23,	"txRetries" },
++	{ 24,	"txRouting" },
++	{ 25,	"txScrambled" },
++	{ 26,	"rxParameter" },
++	{ 27,	"txTimeoutMs" },
++	{ 28,	"waitCardTimeout" },
++	{ 29,	"channelSet" },
++	{ 30,	"name" },
++	{ 31,	"waitTime" },
++	{ 32,	"lParameter" },
++	{ 33,	"_15" },
++	{ 34,	"headerSize" },
++	{ 36,	"tx_delay_ms" },
++	{ 37,	"retries" },
++	{ 38,	"ReTransmitPacketMaxSize" },
++	{ 39,	"waitReTransmitPacketMaxSize" },
++	{ 40,	"fastReTransCount" },
++	{ 41,	"driverRetransmissions" },
++	{ 42,	"txAckTimeoutMs" },
++	{ 43,	"registrationInterrupts" },
++	{ 44,	"hardwareType" },
++	{ 45,	"radioType" },
++	{ 46,	"writeEEPROM" },
++	{ 47,	"writeRadioType" },
++	{ 48,	"entry_exit_debug" },
++	{ 49,	"debug" },
++	{ 50,	"in_speed" },
++	{ 51,	"out_speed" },
++	{ 52,	"in_speed10" },
++	{ 53,	"out_speed10" },
++	{ 54,	"in_speed_max" },
++	{ 55,	"out_speed_max" },
++	{ 56,	"measure_rate" },
++	{ 57,	"pre_Command_Wait" },
++	{ 58,	"rx_tweak1" },
++	{ 59,	"rx_tweak2" },
++	{ 60,	"tx_queue_len" },
++
++	{ 150,	"arlan3-txRing" },
++	{ 151,	"arlan3-rxRing" },
++	{ 152,	"arlan3-18" },
++	{ 153,	"arlan3-ring" },
++	{ 154,	"arlan3-shm-cpy" },
++	{ 155,	"config3" },
++	{ 156,	"reset3" },
++	{}
++};
++
++static const struct trans_ctl_table trans_arlan_table[] = {
++	{ 1,		"arlan0",	trans_arlan_conf_table0 },
++	{ 2,		"arlan1",	trans_arlan_conf_table1 },
++	{ 3,		"arlan2",	trans_arlan_conf_table2 },
++	{ 4,		"arlan3",	trans_arlan_conf_table3 },
++	{}
++};
++
++static const struct trans_ctl_table trans_s390dbf_table[] = {
++	{ 5678 /* CTL_S390DBF_STOPPABLE */,	"debug_stoppable" },
++	{ 5679 /* CTL_S390DBF_ACTIVE */,	"debug_active" },
++	{}
++};
++
++static const struct trans_ctl_table trans_sunrpc_table[] = {
++	{ CTL_RPCDEBUG,		"rpc_debug" },
++	{ CTL_NFSDEBUG,		"nfs_debug" },
++	{ CTL_NFSDDEBUG,	"nfsd_debug" },
++	{ CTL_NLMDEBUG,		"nlm_debug" },
++	{ CTL_SLOTTABLE_UDP,	"udp_slot_table_entries" },
++	{ CTL_SLOTTABLE_TCP,	"tcp_slot_table_entries" },
++	{ CTL_MIN_RESVPORT,	"min_resvport" },
++	{ CTL_MAX_RESVPORT,	"max_resvport" },
++	{}
++};
++
++static const struct trans_ctl_table trans_pm_table[] = {
++	{ 1 /* CTL_PM_SUSPEND */,	"suspend" },
++	{ 2 /* CTL_PM_CMODE */,		"cmode" },
++	{ 3 /* CTL_PM_P0 */,		"p0" },
++	{ 4 /* CTL_PM_CM */,		"cm" },
++	{}
++};
++
++static const struct trans_ctl_table trans_frv_table[] = {
++	{ 1,	"cache-mode" },
++	{ 2,	"pin-cxnr" },
++	{}
++};
++
++static const struct trans_ctl_table trans_root_table[] = {
++	{ CTL_KERN,	"kernel",	trans_kern_table },
++	{ CTL_VM,	"vm",		trans_vm_table },
++	{ CTL_NET,	"net",		trans_net_table },
++	/* CTL_PROC not used */
++	{ CTL_FS,	"fs",		trans_fs_table },
++	{ CTL_DEBUG,	"debug",	trans_debug_table },
++	{ CTL_DEV,	"dev",		trans_dev_table },
++	{ CTL_BUS,	"bus",		trans_bus_table },
++	{ CTL_ABI,	"abi" },
++	/* CTL_CPU not used */
++	{ CTL_ARLAN,	"arlan",	trans_arlan_table },
++	{ CTL_S390DBF,	"s390dbf",	trans_s390dbf_table },
++	{ CTL_SUNRPC,	"sunrpc",	trans_sunrpc_table },
++	{ CTL_PM,	"pm",		trans_pm_table },
++	{ CTL_FRV,	"frv",		trans_frv_table },
++	{}
++};
++
++
++
+ 
+ static int sysctl_depth(struct ctl_table *table)
+ {
+diff -rau linux-2.6.33/lib/bug.c linux-2.6.33.new/lib/bug.c
+--- linux-2.6.33/lib/bug.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/lib/bug.c	2010-06-28 18:06:33.052260674 -0400
+@@ -43,6 +43,10 @@
+ #include <linux/bug.h>
+ #include <linux/sched.h>
+ 
++#ifdef CONFIG_KDB
++#include <linux/kdb.h>
++#endif
++
+ extern const struct bug_entry __start___bug_table[], __stop___bug_table[];
+ 
+ static inline unsigned long bug_addr(const struct bug_entry *bug)
+@@ -177,5 +181,9 @@
+ 		       "[verbose debug info unavailable]\n",
+ 		       (void *)bugaddr);
+ 
++#ifdef CONFIG_KDB
++	kdb(KDB_REASON_ENTER, 0, regs);
++#endif
++
+ 	return BUG_TRAP_TYPE_BUG;
+ }
+diff -rau linux-2.6.33/Makefile linux-2.6.33.new/Makefile
+--- linux-2.6.33/Makefile	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/Makefile	2010-06-28 18:04:51.800260831 -0400
+@@ -651,6 +651,7 @@
+ 
+ ifeq ($(KBUILD_EXTMOD),)
+ core-y		+= kernel/ mm/ fs/ ipc/ security/ crypto/ block/
++core-$(CONFIG_KDB) += kdb/
+ 
+ vmlinux-dirs	:= $(patsubst %/,%,$(filter %/, $(init-y) $(init-m) \
+ 		     $(core-y) $(core-m) $(drivers-y) $(drivers-m) \
+diff -rau linux-2.6.33/mm/hugetlb.c linux-2.6.33.new/mm/hugetlb.c
+--- linux-2.6.33/mm/hugetlb.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/mm/hugetlb.c	2010-06-28 18:06:55.277761368 -0400
+@@ -1929,6 +1929,28 @@
+ 
+ #endif /* CONFIG_SYSCTL */
+ 
++#ifdef	CONFIG_KDB
++#include <linux/kdb.h>
++#include <linux/kdbprivate.h>
++/* Like hugetlb_report_meminfo() but using kdb_printf() */
++void
++kdb_hugetlb_report_meminfo(void)
++{
++	struct hstate *h = &default_hstate;
++	kdb_printf(
++		"HugePages_Total: %5lu\n"
++		"HugePages_Free:  %5lu\n"
++		"HugePages_Rsvd:  %5lu\n"
++		"HugePages_Surp:  %5lu\n"
++		"Hugepagesize:    %5lu kB\n",
++		h->nr_huge_pages,
++		h->free_huge_pages,
++		h->resv_huge_pages,
++		h->surplus_huge_pages,
++		1UL << (huge_page_order(h) + PAGE_SHIFT - 10));
++}
++#endif	/* CONFIG_KDB */
++
+ void hugetlb_report_meminfo(struct seq_file *m)
+ {
+ 	struct hstate *h = &default_hstate;
+diff -rau linux-2.6.33/mm/mmap.c linux-2.6.33.new/mm/mmap.c
+--- linux-2.6.33/mm/mmap.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/mm/mmap.c	2010-06-28 18:06:56.545759511 -0400
+@@ -2184,7 +2184,8 @@
+ 	while (vma)
+ 		vma = remove_vma(vma);
+ 
+-	BUG_ON(mm->nr_ptes > (FIRST_USER_ADDRESS+PMD_SIZE-1)>>PMD_SHIFT);
++	/* gparmer@gwu.edu */
++	//BUG_ON(mm->nr_ptes > (FIRST_USER_ADDRESS+PMD_SIZE-1)>>PMD_SHIFT);
+ }
+ 
+ /* Insert vm structure into process list sorted by address
+diff -rau linux-2.6.33/mm/mmzone.c linux-2.6.33.new/mm/mmzone.c
+--- linux-2.6.33/mm/mmzone.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/mm/mmzone.c	2010-06-28 18:06:56.525759520 -0400
+@@ -23,6 +23,10 @@
+ 		return NULL;
+ 	return NODE_DATA(nid);
+ }
++#ifdef CONFIG_KDB
++EXPORT_SYMBOL(first_online_pgdat);
++EXPORT_SYMBOL(next_online_pgdat);
++#endif
+ 
+ /*
+  * next_zone - helper magic for for_each_zone()
+diff -rau linux-2.6.33/mm/swapfile.c linux-2.6.33.new/mm/swapfile.c
+--- linux-2.6.33/mm/swapfile.c	2010-02-24 13:52:17.000000000 -0500
++++ linux-2.6.33.new/mm/swapfile.c	2010-06-28 18:06:55.189759583 -0400
+@@ -13,6 +13,10 @@
+ #include <linux/swap.h>
+ #include <linux/vmalloc.h>
+ #include <linux/pagemap.h>
++#ifdef	CONFIG_KDB
++#include <linux/kdb.h>
++#include <linux/kdbprivate.h>
++#endif	/* CONFIG_KDB */
+ #include <linux/namei.h>
+ #include <linux/shm.h>
+ #include <linux/blkdev.h>
+@@ -2056,12 +2060,11 @@
+ 	return error;
+ }
+ 
+-void si_swapinfo(struct sysinfo *val)
++void _si_swapinfo(struct sysinfo *val)
+ {
+ 	unsigned int type;
+ 	unsigned long nr_to_be_unused = 0;
+ 
+-	spin_lock(&swap_lock);
+ 	for (type = 0; type < nr_swapfiles; type++) {
+ 		struct swap_info_struct *si = swap_info[type];
+ 
+@@ -2070,6 +2073,12 @@
+ 	}
+ 	val->freeswap = nr_swap_pages + nr_to_be_unused;
+ 	val->totalswap = total_swap_pages + nr_to_be_unused;
++}
++
++void si_swapinfo(struct sysinfo *val)
++{
++	spin_lock(&swap_lock);
++	_si_swapinfo(val);
+ 	spin_unlock(&swap_lock);
+ }
+ 
+Only in linux-2.6.33.new/security/selinux: av_permissions.h

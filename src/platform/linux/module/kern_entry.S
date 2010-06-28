@@ -316,7 +316,7 @@ ENTRY(name##_interposition)					\
 	addl $4, %esp;						\
 	jmp *(cos_default_##name##_handler)	
 
-//#define TEST
+#define TEST
 #ifdef TEST
 #define COS_CREATE_TRAP_ERRCODE(name)		 		\
 .data;								\
@@ -326,7 +326,7 @@ cos_default_##name##_handler:					\
 .text;								\
 .align 16;					 		\
 ENTRY(name##_interposition)					\
-	jmp *(cos_default_##name##_handler)	
+	jmp 0xc049a978
 
 #else	/* TEST */
 	

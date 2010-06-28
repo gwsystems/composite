@@ -1558,7 +1558,7 @@ cos_set_intr_gate(unsigned int n, void *addr, struct my_desc_struct *idt_table)
 {
 	gate_desc s;
 	int gate = n;
-	unsigned type = GATE_INTERRUPT;//15
+	unsigned type = GATE_INTERRUPT;
 	unsigned dpl = 0;
 	unsigned ist = 0;
 	unsigned seg = __KERNEL_CS;
@@ -1593,6 +1593,7 @@ change_fault_handler(int fault_num, void *new_handler, unsigned long *save_handl
 
 	idt_table = (struct my_desc_struct *)idt_descriptor.idt_base;
 
+	printk("idt_table @ %p\n", idt_table);
 	previous_fault_handler = decipher_descriptor_address(&idt_table[fault_num]);
 	*save_handler = previous_fault_handler;
 	/*
