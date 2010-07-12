@@ -2692,12 +2692,12 @@ static int asym_exec_dom_init(void)
 	printk("cos: Saving sysenter msr (%p) and activating %p.\n", 
 	       cos_sysenter_addr, asym_exec_dom_entry);
 
-	change_fault_handler(14, page_fault_interposition, &cos_default_page_fault_handler);
+//	change_fault_handler(14, page_fault_interposition, &cos_default_page_fault_handler);
 	printk("cos: Saving page fault handler (%lx) and activating %p.\n", 
 	       cos_default_page_fault_handler, page_fault_interposition);
 
 	change_fault_handler(0, div_fault_interposition, &cos_default_div_fault_handler);
-	printk("cos: Saving page fp handler (%lx) and activating %p.\n", 
+	printk("cos: Saving page div handler (%lx) and activating %p.\n", 
 	       cos_default_div_fault_handler, div_fault_interposition);
 
 	//switch_to_executive = module_switch_to_executive;
@@ -2727,7 +2727,7 @@ static void asym_exec_dom_exit(void)
 	printk("cos: Resetting sysenter wsr to %p.\n", cos_sysenter_addr);
 	wrmsr(MSR_IA32_SYSENTER_EIP, (int)cos_sysenter_addr, 0);
 	printk("cos: Resetting page fault handler to %lx.\n", cos_default_page_fault_handler);
-	change_fault_handler(14, (void*)cos_default_page_fault_handler, &tmp);
+//	change_fault_handler(14, (void*)cos_default_page_fault_handler, &tmp);
 	printk("cos: Resetting division fault handler to %lx.\n", cos_default_div_fault_handler);
 	change_fault_handler(0, (void*)cos_default_div_fault_handler, &tmp);
 

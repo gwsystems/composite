@@ -4,7 +4,7 @@
 #include <sched.h>
 #include <pong.h>
  
-#define ITER 10000
+#define ITER 1000000
 
 void cos_init(void)
 {

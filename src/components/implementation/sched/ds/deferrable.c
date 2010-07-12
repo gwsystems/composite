@@ -185,13 +185,11 @@ static struct sched_thd *ds_get_second_highest_prio(struct sched_thd *highest)
  * not, then make the idle thread reap these threads by killing them
  * (for which a syscall will need to be added to inv.c).
  */
-static int ds_thread_remove(struct sched_thd *t)
+static void ds_thread_remove(struct sched_thd *t)
 {
 	assert(t);
 	REM_LIST(t, prio_next, prio_prev);
 	printc("ds_kill_thd: killing %d\n", t->id);
-
-	return 0;
 }
 
 static struct sched_thd *ds_schedule(struct sched_thd *c)
@@ -222,7 +220,7 @@ static void ds_periodicity_recompute(struct sched_thd *t)
 	}
 }
 
-static int ds_timer_tick(int nticks)
+static void ds_timer_tick(int nticks)
 {
 	struct sched_thd *t;
 	int i;
@@ -237,15 +235,13 @@ static int ds_timer_tick(int nticks)
 			ds_periodicity_recompute(t);
 		}
 	}
-
-	return 0;
 }
 
-static int ds_time_elapsed(struct sched_thd *t, u32_t processing)
+static void ds_time_elapsed(struct sched_thd *t, u32_t processing)
 {
 	struct sched_accounting *sa;
 
-	if (NULL == t) return 0;
+	assert(t);
 
 	sa = sched_get_accounting(t);
 	if (sa->cycles >= QUANTUM) {
@@ -263,15 +259,12 @@ static int ds_time_elapsed(struct sched_thd *t, u32_t processing)
 		}
 	}
 	ds_periodicity_recompute(t);
-
-	return 0;
 }
 
-static int ds_thread_block(struct sched_thd *t)
+static void ds_thread_block(struct sched_thd *t)
 {
 	assert(!sched_thd_member(t));
 	REM_LIST(t, prio_next, prio_prev);
-	return 0;
 }
 
 static int ds_thread_wakeup(struct sched_thd *t)
@@ -282,11 +275,9 @@ static int ds_thread_wakeup(struct sched_thd *t)
 	return 0;
 }
 
-static int ds_thread_new(struct sched_thd *t)
+static void ds_thread_new(struct sched_thd *t)
 {
 	ds_new_thd(t);
-
-	return 0;
 }
 
 #include <stdlib.h>
@@ -368,32 +359,30 @@ static void ds_runqueue_print(void)
 		}
 	}
 }
-int thread_new(struct sched_thd *t) { return ds_thread_new(t); }
-int thread_remove(struct sched_thd *t) { return ds_thread_remove(t); }
+void thread_new(struct sched_thd *t) { ds_thread_new(t); }
+void thread_remove(struct sched_thd *t) { ds_thread_remove(t); }
 int thread_params_set(struct sched_thd *t, char *params) 
 {
 	return ds_thread_params(t, params);
 }
 void runqueue_print(void) { ds_runqueue_print(); }
-int time_elapsed(struct sched_thd *t, u32_t processing_time)
+void time_elapsed(struct sched_thd *t, u32_t processing_time)
 {
-	return ds_time_elapsed(t, processing_time);
+	ds_time_elapsed(t, processing_time);
 }
-int timer_tick(int num_ticks) { return ds_timer_tick(num_ticks); }
+void timer_tick(int num_ticks) { ds_timer_tick(num_ticks); }
 struct sched_thd *schedule(struct sched_thd *t)
 {
 	return ds_schedule(t);
 }
-int thread_block(struct sched_thd *t) { return ds_thread_block(t); }
-int thread_wakeup(struct sched_thd *t) { return ds_thread_wakeup(t); }
+void thread_block(struct sched_thd *t) { ds_thread_block(t); }
+void thread_wakeup(struct sched_thd *t) { ds_thread_wakeup(t); }
 
-int sched_initialization(void)
+void sched_initialization(void)
 {
 	int i;
 
 	for (i = 0 ; i < NUM_PRIOS ; i++) {
 		sched_init_thd(&priorities[i].runnable, 0, THD_FREE);
 	}
-
-	return 0;
 }

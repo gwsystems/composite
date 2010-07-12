@@ -1,13 +1,11 @@
 /**
- * Copyright 2008 by Boston University.
- *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  *
+ * Copyright 2008 by Boston University.
  * Author: Gabriel Parmer, gabep1@cs.bu.edu
  * 
  * Copyright 2009, The George Washington University
- *
  * Author: Gabriel Parmer, gparmer@gwu.edu
  */
 
@@ -26,7 +24,7 @@
 #include <stack_trace.h>
 #include <sched_conf.h>
 
-//#define TIMER_ACTIVATE
+#define TIMER_ACTIVATE
 #include <timer.h>
 
 //#define SCHED_DEBUG
@@ -44,20 +42,6 @@ static volatile u64_t ticks = 0;
 static volatile u64_t wakeup_time = 0;
 static volatile u64_t child_wakeup_time = 0;
 static struct sched_thd *wakeup_thd;
-
-/* static u64_t upcall_cycles, cycle_cnt; */
-
-/* static inline void update_thd_accounting(struct sched_thd *t) */
-/* { */
-/* 	struct sched_accounting *sa = sched_get_accounting(t); */
-/* 	u64_t c, diff; */
-
-/* 	rdtscll(c); */
-/* 	diff = c - cycle_cnt; */
-
-/* 	sa->cycles += diff - upcall_cycles; */
-/* 	upcall_cycles = 0; */
-/* }  */
 
 /* 
  * timer is the timer tick thread for a root scheduler, or the child
@@ -280,11 +264,10 @@ static inline void fp_resume_thd(struct sched_thd *t)
 	t->flags &= ~THD_BLOCKED;
 	t->flags |= THD_READY;
 	REM_LIST(t, prio_next, prio_prev);
-	//fp_move_end_runnable(t);
 	/* child threads aren't reported to the scheduler */
 	if (!sched_thd_member(t)) {
 		assert(sched_is_root() || t != timer);
-		if (thread_wakeup(t)) BUG();
+		thread_wakeup(t);
 	} 
 	/* Is the member _not_ already on the list for the group? */
 	else if (EMPTY_LIST(t, cevt_next, cevt_prev) /* && is member */) {
@@ -303,9 +286,8 @@ static void fp_activate_upcall(struct sched_thd *uc)
 		uc->flags &= ~THD_UC_READY;
 		uc->flags |= THD_READY;
 		REM_LIST(uc, prio_next, prio_prev); //done in move_end_runnable
-		//fp_move_end_runnable(uc);
 		assert(sched_is_root() || uc != timer);
-		if (thread_wakeup(uc)) BUG();
+		thread_wakeup(uc);
 	}
 }
 
@@ -313,8 +295,7 @@ static void fp_deactivate_upcall(struct sched_thd *uc)
 {
 	uc->flags &= ~THD_READY;
 	uc->flags |= THD_UC_READY;
-	if (thread_block(uc)) BUG();
-	//REM_LIST(uc, prio_next, prio_prev);
+	thread_block(uc);
 	assert(EMPTY_LIST(uc, prio_next, prio_prev));
 	ADD_LIST(&upcall_deactive, uc, prio_next, prio_prev);
 }
@@ -322,7 +303,6 @@ static void fp_deactivate_upcall(struct sched_thd *uc)
 /* scheduler lock should already be taken */
 static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 {
-	struct sched_accounting *sa;
 	assert(!sched_thd_member(t));
 
 	if (sched_thd_free(t) || sched_thd_dying(t)) return;
@@ -344,20 +324,8 @@ static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 	} else {
 		report_event(BRAND_CYCLE);
 	}
-	sa = sched_get_accounting(t);
-	sa->cycles += cpu_usage;
-	if (sched_is_root() || t != timer) { 
-		if (time_elapsed(t, cpu_usage)) BUG();
-	} else {
-		/* child scheduler, timer thread */
-		struct sched_accounting *sa = sched_get_accounting(t);
-		assert(timer == t && sched_is_child());
+	time_elapsed(t, cpu_usage);
 
-		if (sa->cycles >= CYC_PER_TICK) {
-			sa->cycles -= CYC_PER_TICK;
-			sa->ticks++;
-		}
-	}
 	return;
 }
 
@@ -387,8 +355,6 @@ static struct sched_thd *resolve_dependencies(struct sched_thd *next)
 	}
 	return next;
 }
-
-TIMER_INIT(tswtch, recs, TIMER_SWTCH);
 
 /* 
  * Important: assume that cos_sched_lock_take() has been called.  The
@@ -432,14 +398,11 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 		 * the amount of cycles since we last explicitly
 		 * scheduled.
 		 */
-		//do {
-			if (cos_sched_pending_event()) {
-				cos_sched_clear_events();
-				cos_sched_process_events(evt_callback, 0);
-			}
-			//update_thd_accounting(current);
-			//} while (unlikely(cos_sched_pending_event()));
-
+		if (cos_sched_pending_event()) {
+			cos_sched_clear_events();
+			cos_sched_process_events(evt_callback, 0);
+		}
+		
 		if (likely(!target)) {
 			/* 
 			 * If current is an upcall that wishes to terminate
@@ -492,9 +455,7 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 		report_event(SWITCH_THD);
 		timer_end(&t);
 
-		timer_start(&tswtch);
 		ret = cos_switch_thread_release(next->id, flags);
-		if (COS_SCHED_RET_SUCCESS == ret) timer_end(&tswtch);
 		assert(ret != COS_SCHED_RET_ERROR);
 		if (COS_SCHED_RET_CEVT == ret) report_event(CEVT_RESCHED);
 
@@ -827,7 +788,7 @@ static inline void fp_block_thd(struct sched_thd *t)
 	t->flags |= THD_BLOCKED;
 	/* Child threads aren't reported to the scheduler */
 	if (!sched_thd_member(t)) {
-		if (thread_block(t)) BUG();
+		thread_block(t);
 		assert(EMPTY_LIST(t, prio_next, prio_prev));
 	} else if (EMPTY_LIST(t, cevt_next, cevt_prev) /* && is member */) {
 		struct sched_thd *g = sched_get_grp(t);
@@ -992,16 +953,13 @@ static int fp_kill_thd(struct sched_thd *t)
 	c = sched_get_current();
 
 	assert(!sched_thd_grp(t));
-//	if (sched_rem_event(t)) BUG();
-//	sched_rem_mapping(t->id);
 	t->flags = THD_DYING;
 
-	if (thread_remove(t)) BUG();
+	thread_remove(t);
 
 	REM_LIST(t, cevt_next, cevt_prev);
 	REM_LIST(t, prio_next, prio_prev);
 	REM_LIST(t, next, prev);
-//	sched_free_thd(t);
 
 	sched_switch_thread(0, NULL_EVT);
 	if (t == c) BUG();
@@ -1515,7 +1473,7 @@ static void sched_init(void)
 	sched_init_thd(&blocked, 0, THD_FREE);
 	sched_init_thd(&upcall_deactive, 0, THD_FREE);
 	sched_ds_init();
-	if (sched_initialization()) BUG();
+	sched_initialization();
 
 	return;
 }

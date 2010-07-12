@@ -1,9 +1,8 @@
 /**
- * Copyright 2007 by Boston University.
- *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  *
+ * Copyright 2007 by Boston University.
  * Author: Gabriel Parmer, gabep1@cs.bu.edu, 2007
  *
  * Copyright The George Washington University, Gabriel Parmer,
@@ -178,16 +177,8 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 		return 0;
 	}
 
-	cap_entry->invocation_cnt++;
-
-	/***************************************************************
-	 * IMPORTANT FIXME: Not only do we want to switch the page     *
-	 * tables here, but if there is any chance that we will block, *
-	 * then we should change current->mm->pgd =                    *
-	 * pa_to_va(dest_spd->composite_spd->pg_tbl).  In practice     *
-	 * there it is almost certainly probably that we _can_ block,  *
-	 * so we probably need to do this.                             *
-	 ***************************************************************/
+	/* now we are committing to the invocation */
+	cos_meas_event(COS_MEAS_INVOCATIONS);
 
 	open_close_spd(dest_spd->composite_spd, curr_spd->composite_spd);
 
@@ -197,18 +188,9 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
 
 //	printk("cos: thd %d inv %d->%d\n", thd_get_id(thd), spd_get_index(curr_spd), spd_get_index(dest_spd));
-	/* 
-	 * ref count the composite spds:
-	 * 
-	 * FIXME, TODO: move composite pgd into each spd and ref count
-	 * in spds.  Sum of all ref cnts is the composite ref count.
-	 * This will eliminate the composite cache miss.
-	 */
-	
 	/* add a new stack frame for the spd we are invoking (we're committed) */
 	thd_invocation_push(thd, cap_entry->destination, sp, ip);
-
-	cos_meas_event(COS_MEAS_INVOCATIONS);
+	cap_entry->invocation_cnt++;
 
 	return cap_entry->dest_entry_instruction;
 }

@@ -2,7 +2,7 @@
 
 #include <cos_component.h>
 
-#define DEBUG
+//#define DEBUG
 
 #define PRINT_FN prints
 #include <print.h>
@@ -14,7 +14,7 @@
 #define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
 
 #ifdef DEBUG
-#define assert(node) do { if (!(node)) { debug_print("assert error in @ "); *((int *)0) = 0;} } while(0)
+#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); *((int *)0) = 0;} } while(0)
 #else 
 #define assert(n)
 #endif 

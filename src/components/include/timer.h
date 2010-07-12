@@ -46,7 +46,7 @@ static inline void timer_report(struct timer_record *rs, int type, unsigned long
 				unsigned long *max, unsigned long *min)
 {
 	struct timer_record *r = &rs[type];
-	*avg = (unsigned long)(r->tot/r->cnt);
+	*avg = (unsigned long)(r->cnt ? (r->tot/r->cnt) : 0);
 	*max = rs[type].max;
 	*min = rs[type].min;
 
