@@ -187,7 +187,6 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 
 	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
 
-//	printk("cos: thd %d inv %d->%d\n", thd_get_id(thd), spd_get_index(curr_spd), spd_get_index(dest_spd));
 	/* add a new stack frame for the spd we are invoking (we're committed) */
 	thd_invocation_push(thd, cap_entry->destination, sp, ip);
 	cap_entry->invocation_cnt++;

@@ -692,7 +692,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 
 	printl(PRINT_NORMAL, "Object %s processed as %s with script %s.\n", 
 	       service_name, tmp_exec, script);
-//	unlink(tmp_exec);
+	unlink(tmp_exec);
 
 	return 0;
 
@@ -2180,6 +2180,9 @@ static void setup_kernel(struct service_symbs *services)
 
 #define ITER 1
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
+
+	/* This will hopefully avoid hugely annoying fsck runs */
+	sync();
 
 	aed_disable_syscalls(cntl_fd);
 	rdtscll(start);

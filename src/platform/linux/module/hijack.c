@@ -42,21 +42,21 @@
 #include "../../../kernel/include/measurement.h"
 #include "../../../kernel/include/mmap.h"
 
+#include "./hw_ints.h"
+
 MODULE_LICENSE("GPL");
 #define MODULE_NAME "asymmetric_execution_domain_support"
 
-/* exported in kernel/asym_exec_domain.c */
-//extern void (*switch_to_executive)(void);
-//extern long (*syscall_switch_exec_domain)(void *ptr);
-//extern struct mm_struct* (*asym_page_fault)(unsigned long address);
-
-extern void asym_exec_dom_entry(void);
+extern void sysenter_interposition_entry(void);
 extern void page_fault_interposition(void);
 extern void div_fault_interposition(void);
+extern void state_inv_interposition(void);
 
-extern unsigned long cos_default_page_fault_handler;
-extern unsigned long cos_default_div_fault_handler;
-extern void *cos_sysenter_addr;
+/* extern unsigned long cos_default_page_fault_handler; */
+/* extern unsigned long cos_default_div_fault_handler; */
+/* extern unsigned long cos_default_state_inv_handler; */
+//extern void *cos_sysenter_addr;
+
 /* 
  * This variable exists for the assembly code for temporary
  * storage...want it close to sysenter_addr for cache locality
@@ -253,104 +253,6 @@ static void remove_all_guest_mms(void)
 #else
 #define printkd(str,args...) 
 #endif
-
-/*
- * If you want fine-grained measurements of operation overheads for
- * profiling, uncomment this variable.
- * 
- * Not defining this does not make measurements have 0 effects on the
- * runtime when compiled out, unfortunately, as a variable is returned
- * from start measurement that will be in surrounding codes.
- */
-//#define MICRO_MEASUREMENTS
-#ifdef MICRO_MEASUREMENTS
-#include "../../../kernel/include/kern_meas.h"
-
-int meas_copy_trusted_to_mm, meas_write_regs_to_user, meas_restore_exec_regs;
-int meas_get_guest_mm, meas_save_exec_regs, meas_restore_guest_regs, 
-	meas_copynclr_exec_reg, meas_switch_pgtbls, meas_flush_exec;
-
-static void register_measurements(void)
-{
-	meas_copy_trusted_to_mm = register_measurement_point("g->e:copy_trusted_to_mm");
-	meas_write_regs_to_user = register_measurement_point("g->e:write_regs_to_user");
-	meas_restore_exec_regs  = register_measurement_point("g->e:restore_exec_regs");
-	meas_get_guest_mm       = register_measurement_point("e->g:get_guest_mm");
-	meas_save_exec_regs     = register_measurement_point("e->g:save_exec_regs");
-	meas_restore_guest_regs = register_measurement_point("e->g:restore_guest_regs");
-	meas_copynclr_exec_reg  = register_measurement_point("e->g:copynclr_exec_reg");
-	meas_switch_pgtbls      = register_measurement_point("e->g:switch_tbls");
-	meas_flush_exec         = register_measurement_point("e->g:flush_exec ");
-}
-
-static void deregister_measurements(void)
-{
-	deregister_measurement_point(meas_copy_trusted_to_mm);
-	deregister_measurement_point(meas_write_regs_to_user);
-	deregister_measurement_point(meas_restore_exec_regs );
-	deregister_measurement_point(meas_get_guest_mm);
-	deregister_measurement_point(meas_save_exec_regs);
-	deregister_measurement_point(meas_restore_guest_regs);
-	deregister_measurement_point(meas_copynclr_exec_reg);
-	deregister_measurement_point(meas_switch_pgtbls);
-	deregister_measurement_point(meas_flush_exec);
-}
-#else 
-#define register_measurements()
-#define deregister_measurements()
-#define start_measurement() 0 
-#define stop_measurement(a,b)
-#endif
-
-/*
- * This is called from within exec and where we are expected to
- * associate the new mm made via exec with the parents notion of what
- * this address space is so that SWITCH_MM still works.
- *
- * This is kind of a crap idea, so I never implemented it.
- */
-/* void exec_parent_vas_update(struct task_struct *parent, struct mm_struct *old_mm, struct mm_struct *new_mm) */
-/* { */
-/* 	struct file *file; */
-/* 	//struct files_struct *files; */
-	
-/* 	if (!parent) { */
-/* 		printk("cosParent of trusting child doesn't exist to change VAS pointer.\n"); */
-/* 		return; */
-/* 	} */
-
-/* 	//files = parent->files; */
-/* 	//spin_lock(&files->file_lock); */
-	
-/* 	/\*  */
-/* 	 * FIXME: I should do the reference counting on the */
-/* 	 * file, but this will only cause races when we are */
-/* 	 * opening alot of address space and execing a lot at */
-/* 	 * the same time...something I am not going to test */
-/* 	 * now. */
-/* 	 *\/ */
-/* 	file = old_mm->trusted_executive; */
-/* 	if (!file) BUG(); */
-	
-/* 	/\* A little error checking...this should never happen *\/ */
-/* 	/\* */
-/* 	if(file->f_op != &proc_mm_fops || file->private_data != old_mm) { */
-/* 		spin_unlock(&files->file_lock); */
-/* 		printk("cosConsistency problem between trusted and untrusted domains.\n"); */
-/* 		force_sig(SIGKILL, current); */
-/* 		force_sig(SIGKILL, parent); */
-/* 		break; */
-/* 	} */
-/* 	*\/ */
-
-/* 	/\* update the mapping between fd and address space *\/ */
-/* 	file->private_data = new_mm; */
-	
-/* 	//spin_unlock(&files->file_lock); */
-	
-/* 	return; */
-/* } */
-
 
 /* return a ptr to the register structure referring to the user-level regs */
 static inline struct pt_regs* get_user_regs(void)
@@ -551,431 +453,11 @@ static inline void copy_pgd_range(struct mm_struct *to_mm, struct mm_struct *fro
 	memcpy(tpgd, fpgd, span*sizeof(unsigned int));
 }
 
-static inline void copy_trusted_to_mm(struct mm_struct *mm, struct mm_struct *executive_mm, 
-				      unsigned long lower_addr, unsigned long region_size)
-{
-	pgd_t *pgd = pgd_offset(mm, lower_addr);
-	pgd_t *epgd = pgd_offset(executive_mm, lower_addr);
-
-	int span = region_size>>HPAGE_SHIFT;
-
-#ifdef DEBUG
-	if (!(pgd_val(*pgd_offset(executive_mm, (int)user_level_regs)) & _PAGE_PRESENT)) {
-		printk("cos: BUG: copying trusted->current, the executive's "
-		       "first page is not present in the pgd.\n");
-		//return;
-	}
-#endif
-
-	/*
-	printkd("cos: pre-copying memory at %x: %x to location %x: %x.\n", 
-		(unsigned int)(epgd), (unsigned int)pgd_val(*epgd), 
-		(unsigned int)(pgd), (unsigned int)pgd_val(*pgd));
-	*/
-
-	/* sizeof(pgd entry) is intended */
-	memcpy(pgd, epgd, span*sizeof(int));
-	/*
-	printkd("cos: post-copying memory at %x: %x to location %x: %x.\n", 
-		(unsigned int)(epgd), (unsigned int)pgd_val(*epgd), 
-		(unsigned int)(pgd), (unsigned int)pgd_val(*pgd));
-	*/
-#ifdef DEBUG
-	if (!(pgd_val(*pgd_offset(mm, (int)user_level_regs)) & _PAGE_PRESENT)) {
-		printk("cos: BUG: copying trusted->current, the guest's "
-		       "first page is not present in the pgd.\n");
-	}
-#endif
-
-	return;
-}
-
-static inline void copy_and_clear_trusted(struct mm_struct *guest_mm, struct mm_struct *executive_mm, 
-					  unsigned long lower_addr, unsigned long region_size)
-{
-	pgd_t *pgd = pgd_offset(guest_mm, lower_addr);
-	pgd_t *epgd = pgd_offset(executive_mm, lower_addr);
-	int span = region_size>>HPAGE_SHIFT;
-
-#ifdef DEBUG
-	if (!(pgd_val(*epgd) & _PAGE_PRESENT)) {
-		printk("cos: BUG: copying to trusted and zeroing, the executive's first "
-		       "page is not present in the pgd.\n");
-		return;
-	}
-#endif
-
-	/*
-	 * This next statement not essential when the pgd entry is
-	 * assured to be loaded in the trusted mm.
-	 *
-	 * If were are executing in the guest page tables while in the
-	 * executive (which we are currently), then we need to make
-	 * any updates we have made to the trusted page tables.
-	 */
-	if (likely(current->mm == guest_mm)) {
-		memcpy(epgd, pgd, span*sizeof(int));
-	}
-	memset(pgd, 0, span*sizeof(int));
-
-	return;
-}
-
 #define flush_all(pgdir) load_cr3(pgdir)
 #define my_load_cr3(pgdir) asm volatile("movl %0,%%cr3": :"r" (__pa(pgdir)))
 #define flush_executive(pgdir) my_load_cr3(pgdir)
 
-#ifdef DEBUG
-void show_registers(struct pt_regs *regs)
-{
-	printkd("cos: EIP:    %04x:[<%08lx>]    EFLAGS: %08lx\n",
-	        0xffff & regs->xcs, regs->eip,
-		regs->eflags);
-	//printk("cos: EIP is at %s\n", regs->eip);
-	printkd("cos: eax: %08lx   ebx: %08lx   ecx: %08lx   edx: %08lx\n",
-		regs->eax, regs->ebx, regs->ecx, regs->edx);
-	printkd("cos: esi: %08lx   edi: %08lx   ebp: %08lx   esp: %08lx\n",
-		regs->esi, regs->edi, regs->ebp, regs->esp);
-	printkd("cos: ds: %04x   es: %04x   ss: %04x\n",
-		regs->xds & 0xffff, regs->xes & 0xffff, regs->xss & 0xffff);
-	printkd("cos: Process %s (pid: %d, threadinfo=%p task=%p)\n",
-		current->comm, current->pid, current_thread_info(), current);
-	return;
-}
-#else
-#define show_registers(x)
-#endif
-
-
-/*
- * The mechanism for changing execution contexts from the truster to
- * the executive.  See syscall_virtualization in entry.S for the
- * context in which this is called.
- * 
- * NOTE: we cannot interrupt this method while the kernel is
- * non-preemptive.
- */
-void module_switch_to_executive(void)
-{
-	struct thread_info *ti = current_thread_info();
-	struct task_struct *cur = current;
-	struct pt_regs *regs = get_user_regs();
-	unsigned long long start;
-	//unsigned long flags;
-
-	/*
-	 * Context switch from the truster to the executive:
-	 * 1) switch back memory contexts
-	 * 2) Set the task so that it can make kernel calls
-	 * 3) copy the current regs to the executive's structures
-	 * 4) copy the executive's structures from the trusted location
-	 *    to be the current thread's regs.
-	 */
-
-	/* switching full mms
-        if (cur->trusted_mm != cur->active_mm) {
-		cur->active_mm = cur->trusted_mm;
-		cur->mm = cur->trusted_mm;
-
-		load_cr3(cur->mm->pgd);
-		//global_flush_tlb();		
-	}
-	*/
-
-	//rdtscll(start);
-	start = start_measurement();
-	
-	//local_save_flags(&flags);
-	
-	copy_trusted_to_mm(cur->mm, trusted_mm, 
-			   trusted_mem_limit, trusted_mem_size);
-
-	stop_measurement(meas_copy_trusted_to_mm, start);
-
-	clear_ti_thread_flag(ti, TIF_VIRTUAL_SYSCALL);
-	
-	//local_irq_restore(&flags);
-
-	printkd("cos: module_switch_to_executive(start...)\nChild registers:\n");
-	show_registers(regs);
-	printkd("cos: \n");
-
-	start = start_measurement();
-
-	/* context switch back to the executive */
-	if (write_regs_to_user(user_level_regs)) {
-		printk("cos: aed: Whoops, error copying regs to user on switch to executive.\n");
-		/* FIXME: this is a problem case that needs to be solved */
-		return;
-	}
-	
-	stop_measurement(meas_write_regs_to_user, start);
-
-	start = start_measurement();
-	memcpy(regs, &trusted_regs, sizeof(struct pt_regs));
-	stop_measurement(meas_restore_exec_regs, start);
-
-	printkd("cos: switching back from guest to executive in mm %p.\n", cur->mm);
-
-	printkd("cos: Executive registers:\n");
-	show_registers(regs);
-	printkd("cos: module_switch_to_executive(...end).\n\n");
-
-	/* 
-	 * must return either 0 or return code (-errno) as this will
-	 * return from the ioctl.
-	 */
-//	regs->eax = 0;
-	regs->ax = 0;
-
-	return;
-}
-
-#ifdef DEBUG
-static inline void print_pte_info(struct mm_struct *mm, unsigned long addr)
-{
-	pgd_t *off = pgd_offset(mm, addr);
-	
-	printkd("cos: Pte info for %p at addr %x is %p:%x.\n", 
-		mm, (unsigned int)addr,
-		off, (unsigned int)pgd_val(*off));
-	
-/*
-	if (!lookup_address_mm(mm, addr)) {
-		printk("cos: Cannot find pte within guest tables after mapping.\n");
-	}
-*/
-
-	return;
-}
-#else
-#define print_pte_info(a, b)
-#endif
-
-long module_switch_to_child(void* __user ptr)
-{
-	struct pt_regs  *uregs = get_user_regs();
-	child_context_t *ct = (child_context_t*)ptr;//(child_context_t*)uregs->ebx;
-	struct mm_struct *mm;
-	struct mm_struct *old_mm = current->mm;
-	/* horrendious names...refactor */
-	/* FIXME: don't access ct till copied into kernel */
-	struct pt_regs *regs = &ct->regs;
-	unsigned long long start;
-
-	/* FIXME: insert real error code here */
-	if (ptr == NULL) return -1;
-
-	start = start_measurement();
-
-	mm = aed_get_mm(ct->procmm_fd);
-	if (!mm) {
-		printk("cos: aed: no appropriate mm found.\n");
-		return -EFAULT;
-	}
-
-	stop_measurement(meas_get_guest_mm, start);
-
-	printkd("cos: module_switch_to_child(start...)\nExecutive registers:\n");
-	show_registers(uregs);
-	printkd("\n");
-
-	/* 
-	 * Context switch from executive to truster:
-	 * 1) copy the executive's regs to a safe position
-	 * 2) copy the trusters regs from the executive to this thread's regs
-	 * 3) set the flag so that truster can't do anything in kernel
-	 * 4) switch mm structs
-	 */
-	
-	start = start_measurement();
-
-	/* save the executive's regs */
-	memcpy(&trusted_regs, uregs, sizeof(struct pt_regs));
-	user_level_regs = regs;
-
-	stop_measurement(meas_save_exec_regs, start);
-
-	start = start_measurement();
-
-	/* copy the intended truster's regs to the current task's registers */
-	if (save_user_regs_to_kern(regs, uregs)) {
-		printk("cos: aed: Fault when copying regs to executive.\n");
-		return -EFAULT;
-	}
-
-	stop_measurement(meas_restore_guest_regs, start);
-
-	/* 
-	 * Set the task such that it will switch back to the
-	 * executive upon syscall
-	 */
-	set_ti_thread_flag(current_thread_info(), TIF_VIRTUAL_SYSCALL);
-	//task_unlock(current);
-
-	//print_pte_info(current->mm, (unsigned long)user_level_regs);
-
-	start = start_measurement();
-	/*
-	 * Cannot access executive user-pages between the load of the
-	 * cr3 and here or else they will get loaded into the tlb,
-	 * negating protection. FIXME: this should be done with the
-	 * page table lock taken for trusted_mm.
-	 */
-	copy_and_clear_trusted(mm, trusted_mm, 
-			       trusted_mem_limit, trusted_mem_size);
-
-	stop_measurement(meas_copynclr_exec_reg, start);
-
-	/* 
-	 * Fast path should be interposition and response, not
-	 * switching page tables.
-	 */
-	if (unlikely(old_mm != mm)) {
-		current->mm = mm;
-		current->active_mm = mm;
-		/* FIXME: remove this when we are not switching mms */
-		//trusted_mm = old_mm;
-
-		/* 
-		 * There are two options here: 1) we are legitimately
-		 * switching page tables, in which case the TLB must
-		 * be (really) flushed, 2) the mms don't match up
-		 * because we are in the trusted_mm due to a page
-		 * fault, in which case we really don't want to flush
-		 * the tlb, and instead update the
-		 * current_active_guest variable and flush out the
-		 * executive's pages.
-		 */
-		if (unlikely(mm != current_active_guest)) {
-			start = start_measurement();
-
-			printkd("cos: flushing all pages and ");
-			flush_all(mm->pgd);
-			if (unlikely(old_mm->context.ldt != mm->context.ldt)) {
-				/* 
-				 * If the guest or executive attempts to add
-				 * ldt entries and change them, get angry...we
-				 * don't support such rubbish.
-				 */
-				printk("cos: BUG: ldt is not the same between mm's.\n");
-			}
-			stop_measurement(meas_switch_pgtbls, start);
-
-			current_active_guest = mm;
-		} else {
-			/* 
-			 * ok, the correct page tables ARE active, so
-			 * now we just need to flush out the
-			 * executive.  
-			 */
-			start = start_measurement();
-			
-			flush_executive(mm->pgd);
-			
-			stop_measurement(meas_flush_exec, start);
-		}
-		//global_flush_tlb();
-	} else {
-		/* 
-		 * Now that the pages are removed from the page table, remove
-		 * from tlb.
-		 */
-		start = start_measurement();
-
-		flush_executive(mm->pgd);
-
-		stop_measurement(meas_flush_exec, start);
-	}
-
-	printkd("cos: switching mm's from %x to %x.\n",
-	       (unsigned int)old_mm, (unsigned int)mm);
-
-	//print_pte_info(current->mm, (unsigned long)user_level_regs);
-
-	printkd("cos: Child registers (%x mm):\n", (unsigned int)current->mm);
-	show_registers(/*uregs*/get_user_regs());
-	printkd("cos: module_switch_to_child(...end)\n\n");
-
-	/* set the eax of the child process: */
-//	return uregs->eax;
-	return uregs->ax;
-}
-
-/*
- * Make it so that the executive region will not be copied when we
- * make guest address spaces.  This actually is probably obsolete as
- * we will not service any page faults in the executive region with
- * guest page tables, instead only trusted tables.
- *
- * This should be invoked when we want to close the mm of the executive.
- */
-void prevent_executive_copying_on_fork(struct mm_struct *mm, 
-				       unsigned long start, unsigned long size)
-{
-	struct vm_area_struct *mpnt;
-	/*
-	 * +1 on the end because vm_end is defined as one byte past
-	 * the last memory address in the mapping.
-	 */
-	unsigned long end = start+size+1; 
-
-	down_write(&mm->mmap_sem);
-	flush_cache_mm(current->mm);
-
-	if (!mm | !mm->mmap) {
-		printk("cos: no mm to prevent copying for!\n");
-		return;
-	}
-
-	for (mpnt = mm->mmap ; mpnt ; mpnt = mpnt->vm_next) {
-		/* 
-		 * If the vma is within the executive's range, then
-		 * set it as DONTCOPY, so that when we copy the
-		 * address space (like fork), it won't copy these
-		 * pages.  They will only exist persistently in the
-		 * original address space, not those of the children.
-		 * They must be dynamically mapped in there.
-		 */
-		if (mpnt->vm_start >= start && mpnt->vm_end <= end) {
-			mpnt->vm_flags |= VM_DONTCOPY;
-			printkd("cos: Setting vmarea going from %x to %x to dont copy.\n",
-				(unsigned int)mpnt->vm_start, (unsigned int)mpnt->vm_end);
-		}
-	}
-
-	//flush_tlb_mm(current->mm);
-	up_write(&mm->mmap_sem);
-
-	return;
-}
-
-static void cos_print_registers(struct pt_regs *regs)
-{
-	printk("cos: EIP:    %04lx:[<%08lx>]    EFLAGS: %08lx\n",
-	        0xffff & regs->cs, regs->ip,
-		regs->flags);
-	//printk("cos: EIP is at %s\n", regs->ip);
-	printk("cos: eax: %08lx   ebx: %08lx   ecx: %08lx   edx: %08lx\n",
-		regs->ax, regs->bx, regs->cx, regs->dx);
-	printk("cos: esi: %08lx   edi: %08lx   ebp: %08lx   esp: %08lx\n",
-		regs->si, regs->di, regs->bp, regs->sp);
-	printk("cos: ds: %04lx   es: %04lx   ss: %04lx\n",
-		regs->ds & 0xffff, regs->es & 0xffff, regs->ss & 0xffff);
-	printk("cos: Process %s (pid: %d, threadinfo=%p task=%p)\n",
-		current->comm, current->pid, current_thread_info(), current);
-	return;
-}
-
 static int syscalls_enabled = 1;
-void syscall_interposition(struct pt_regs *regs)
-{
-	if (current == current && 0 == syscalls_enabled) {
-		printk("Received system call in composite process while syscalls disabled.\n");
-		cos_print_registers(regs);
-	}
-}
-
 
 extern int virtual_namespace_alloc(struct spd *spd, unsigned long addr, unsigned int size);
 void zero_pgtbl_range(paddr_t pt, unsigned long lower_addr, unsigned long size);
@@ -1279,94 +761,6 @@ static int aed_ioctl(struct inode *inode, struct file *file,
 	return ret;
 }
 
-/*
- * Event system if signals have too much overhead (or if the current
- * bug is intrusive).
- */
-/* int event_thread(void *arg) */
-/* { */
-/* 	wait_queue_t wait_var; */
-/* 	struct task_struct *me = current; */
-/* 	struct upcall_desc *ucdesc = (struct upcall_desc*)ucd; */
-	
-/* 	/\* Need to record the task struct for stack switcher lookups *\/ */
-/* 	ucdesc->thread = me; */
-	
-/* 	/\* Disassociate from the parent process *\/ */
-/* 	me->session = 1; */
-/* 	me->pgrp = 1; */
-/* 	me->tty = NULL; */
-	
-/* 	exit_mm(me); */
-
-/* 	/\* Block all signals except SIGKILL so we can do_exit() on KILL */
-/* 	 * - disabled this for apache in sandbox experiments */
-/* 	 *   as apache expects to receive certain signals */
-/* 	 spin_lock_irq(&me->sigmask_lock); */
-/* 	 sigfillset(&me->blocked); */
-/* 	 siginitsetinv(&me->blocked, sigmask(SIGKILL)); */
-/* 	 recalc_sigpending(me); */
-/* 	 spin_unlock_irq(&me->sigmask_lock); */
-/* 	*\/ */
-	
-/* 	current->flags |= PF_UPCALLSAND; */
-/* 	OpenSandbox(current); */
-	
-/* 	while(1) { */
-/* 		/\* SIGKILL the only signal we accept for now *\/ */
-/* 		/\* - not true when the signal mask is not modified above *\/ */
-/* 		if(signal_pending(current)){ */
-/* 			printk(KERN_DEBUG "quitting because of signal\n"); */
-/* 			current->flags &= ~PF_UPCALLSAND; */
-			
-/* 			/\* Block all signals and exit *\/ */
-/* 			spin_lock_irq(&me->sigmask_lock); */
-/* 			sigfillset(&me->blocked); */
-/* 			recalc_sigpending(me); */
-/* 			spin_unlock_irq(&me->sigmask_lock); */
-			
-/* 			/\* MOD_DEC_USE_COUNT; *\/ */
-/* 			_exit(0); */
-/* 		} */
-		
-/* 		/\* Initialize the wait variable *\/ */
-/* 		init_waitqueue_entry(&wait_var, me); */
-		
-/* 		add_wait_queue(&ucdesc->waitq, &wait_var); */
-/* 		current->state = TASK_INTERRUPTIBLE; */
-		
-/* 		/\* no need to wait, events ready. *\/ */
-/* 		if(ucdesc->event_count){ */
-/* 			remove_wait_queue(&ucdesc->waitq, &wait_var); */
-/* 			current->state = TASK_RUNNING; */
-			
-/* 			// deliver events */
-/* 		} */
-/* 		else { */
-/* 			/\* wait for more events *\/ */
-/* 			schedule(); */
-/* 			remove_wait_queue(&ucdesc->waitq, &wait_var); */
-/* 		} */
-/* 	} */
-/* } */
-
-/* void create_event_thread(int priority) */
-/* { */
-/* 	return kernel_thread(event_thread, priority, CLONE_FS | CLONE_FILES)); */
-/* } */
-
-//	wait_queue_head_t waitq;     /* used to schedule event delivery in threaded upcalls */
-
-/*
- * regs is really not a complete register set.  We should not access
- * anything other than the general purpose registers (anything under
- * and including orig_eax.)
- */
-void mem_mapping_syscall(struct pt_regs *regs)
-{
-	
-}
-
 #define NFAULTS 200
 int fault_ptr = 0;
 struct fault_info {
@@ -1505,114 +899,6 @@ cos_handle_page_fault(struct thread *thd, vaddr_t fault_addr, struct pt_regs *re
 	return 1;
 }
 
-/*
- * The Linux provided descriptor structure is crap, probably due to
- * the intel spec for descriptors being crap:
- *
- * struct desc_struct {
- *      unsigned long a, b;
- * };
- *
- * Again see docs to realize that the middle 4 bytes of the 8 bytes
- * are the address (what is relevant here).  Read that again, and see
- * the docs.  It is annoying.  All I want is the handler address.
- */
-struct my_desc_struct {
-	unsigned short address_low;
-	unsigned long trash __attribute__((packed));
-	unsigned short address_high;
-} __attribute__ ((packed));
-
-/* /\* Begin excerpts from arch/i386/kernel/traps.c *\/ */
-/* #define _set_gate(gate_addr,type,dpl,addr,seg) \ */
-/* do { \ */
-/*   int __d0, __d1; \ */
-/*   __asm__ __volatile__ ("movw %%dx,%%ax\n\t" \ */
-/* 	"movw %4,%%dx\n\t" \ */
-/* 	"movl %%eax,%0\n\t" \ */
-/* 	"movl %%edx,%1" \ */
-/* 	:"=m" (*((long *) (gate_addr))), \ */
-/* 	 "=m" (*(1+(long *) (gate_addr))), "=&a" (__d0), "=&d" (__d1) \ */
-/* 	:"i" ((short) (0x8000+(dpl<<13)+(type<<8))), \ */
-/* 	 "3" ((char *) (addr)),"2" ((seg) << 16)); \ */
-/* } while (0) */
-
-/* static void cos_set_trap_gate(unsigned int n, void *addr, struct my_desc_struct *idt_table) */
-/* { */
-/* 	_set_gate(idt_table+n,15,0,addr,__KERNEL_CS); */
-/* } */
-/* /\* end traps.c rips *\/ */
-
-#include <asm/desc.h>
-
-static inline unsigned long decipher_descriptor_address(struct my_desc_struct *desc)
-{
-	printk(">>> Descriptor address %x, other crap %x:%x.\n", 
-	       ((desc->address_high<<16) | desc->address_low), 
-	       (unsigned int)desc->trash & 0xFFFF, (unsigned int)desc->trash >> 16);
-	return (desc->address_high<<16) | desc->address_low;
-}
-
-static inline void 
-cos_set_intr_gate(unsigned int n, void *addr, struct my_desc_struct *idt_table)
-{
-	gate_desc s;
-	int gate = n;
-	unsigned type = GATE_INTERRUPT;
-	unsigned dpl = 0;
-	unsigned ist = 0;
-	unsigned seg = __KERNEL_CS;
-
-	pack_gate(&s, type, (unsigned long)addr, dpl, ist, seg);
-	write_idt_entry((void*)idt_table, gate, &s);
-}
-
-/*
- * Change the current page fault handler to point from where it is, to
- * our handler, and return the address of the old handler.
- */
-static inline int 
-change_fault_handler(int fault_num, void *new_handler, unsigned long *save_handler)
-{
-	/* 
-	 * This is really just a pain in the ass.  See 5-14 (spec
-	 * Figure 5-1, 5-2) in March 2006 version of Vol 3A of the
-	 * intel docs (system programming volume A).
-	 */
-	struct desc_ptr {
-		unsigned short idt_limit;
-		unsigned long idt_base;
-	} __attribute__((packed));
-
-	struct desc_ptr idt_descriptor;
-	struct my_desc_struct *idt_table;
-	unsigned long previous_fault_handler;
-
-	/* This will initialize the entire structure */
-	__asm__ __volatile__("sidt %0" : "=m" (idt_descriptor.idt_limit));
-
-	idt_table = (struct my_desc_struct *)idt_descriptor.idt_base;
-
-	printk("idt_table @ %p\n", idt_table);
-	previous_fault_handler = decipher_descriptor_address(&idt_table[fault_num]);
-	*save_handler = previous_fault_handler;
-	/*
-	 * Now we have the previously active page fault address.  Set
-	 * the address of the new handler in the idt.  This
-	 * functionality ripped from Linux (see above).
-	 *
-	 * If you are getting a kernel panic here, your processor
-	 * probably has the pentium f00f bug.  Check to see if
-	 * CONFIG_X86_F00F_BUG is set in your .config file.  If so, a
-	 * remedy needs to be found.  For instance, use the fixmap.h
-	 * translation from include/asm-i386/fixmap.h
-	 */
-	cos_set_intr_gate(fault_num, new_handler, idt_table);
-//	decipher_descriptor_address(&idt_table[fault_num]);
-//	cos_set_intr_gate(fault_num, (void*)previous_fault_handler, idt_table);
-
-	return 0;
-}
 
 //#define FAULT_DEBUG
 /*
@@ -1640,12 +926,12 @@ static unsigned long fault_addrs[NUM_BUCKETS];
 #endif
 
 /* checks on the error code provided for x86 page faults */
-#define PF_PERM(code) (code & 0x1)
+#define PF_PERM(code)   (code & 0x1)
 #define PF_ABSENT(code) (!PF_PERM(code))
-#define PF_USER(code) (code & 0x4)
-#define PF_KERN(code) (!PF_USER(code))
-#define PF_WRITE(code) (code & 0x2)
-#define PF_READ(code) (!PF_WRITE(code))
+#define PF_USER(code)   (code & 0x4)
+#define PF_KERN(code)   (!PF_USER(code))
+#define PF_WRITE(code)  (code & 0x2)
+#define PF_READ(code)   (!PF_WRITE(code))
 
 /*
  * This function will be called upon a hardware page fault.  Return 0
@@ -1660,11 +946,6 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	unsigned long fault_addr;
 	struct thread *thd;
 	int ret = 1;
-	
-	static volatile int recur = 0;
-
-	if (1 == recur) printk("cos recursive fault!\n");
-	recur = 1;
 
 	/* Composite doesn't know how to handle kernel faults */
 	if (PF_KERN(error_code)) goto linux_handler;
@@ -1679,7 +960,6 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 
 	fault_addr = read_cr2();
 
-	//__asm__("movl %%cr2,%0":"=r" (fault_addr));
 	curr_mm = get_task_mm(current);
 	if (!down_read_trylock(&curr_mm->mmap_sem)) {
 		/* 
@@ -1699,7 +979,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	 * check for this.
 	 */
 	thd = thd_get_current();
-//	cos_report_fault(thd, fault_addr, NULL);
+	//cos_report_fault(thd, fault_addr, NULL);
 	/* This is a magical address that we are getting faults for,
 	 * but I don't know why, and it doesn't seem to interfere with
 	 * execution.  For now ffffd0b0 is being counted as an unknown
@@ -1742,7 +1022,6 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	
 	if (get_user_regs_thread(composite_thread) != rs) printk("Nested page fault!\n");
 	ret = cos_handle_page_fault(thd, fault_addr, rs);
-	recur = 0;
 
 	return ret;
 linux_handler_release:
@@ -1750,7 +1029,6 @@ linux_handler_release:
 linux_handler_put:
 	mmput(curr_mm);
 linux_handler:
-	recur = 0;
 	return ret; 
 }
 
@@ -1765,10 +1043,30 @@ int main_div_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 
 	if (composite_thread != current) return 1;
 
+	printk("<<< finally >>>\n");
+
 	t = thd_get_current();
 	cos_record_fault_regs(t, error_code, rs);
 
 	return 1;
+}
+
+__attribute__((regparm(3))) 
+int main_state_inv_interposition(struct pt_regs *rs, unsigned int error_code)
+{
+	struct thread *t;
+	struct spd *s;
+
+	if (unlikely(composite_thread != current)) return 1;
+
+	t = thd_get_current();
+	memcpy(&t->fault_regs, rs, sizeof(struct pt_regs));
+	/* The spd that was invoked should be the one faulting here
+	 * (must get stack) */
+	s = thd_curr_spd_noprint();
+	
+
+	return 0;
 }
 
 /*
@@ -1935,6 +1233,11 @@ vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr)
 	return (vaddr_t)kaddr;
 }
 
+unsigned int *pgtbl_module_to_vaddr(unsigned long addr)
+{
+	return (unsigned int *)pgtbl_vaddr_to_kaddr((paddr_t)va_to_pa(current->mm->pgd), addr);
+}
+
 /*
  * Verify that the given address in the page table is present.  Return
  * 0 if present, 1 if not.  *This will check the pgd, not for the pte.*
@@ -2005,7 +1308,6 @@ void copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from,
 	memcpy(tpgd, fpgd, span*sizeof(pgd_t));
 }
 
-
 void copy_pgtbl_range_nocheck(paddr_t pt_to, paddr_t pt_from, 
 			      unsigned long lower_addr, unsigned long size)
 {
@@ -2015,6 +1317,26 @@ void copy_pgtbl_range_nocheck(paddr_t pt_to, paddr_t pt_from,
 
 	/* sizeof(pgd entry) is intended */
 	memcpy(tpgd, fpgd, span*sizeof(pgd_t));
+}
+
+/* Copy pages non-empty in from, and empty in to */
+void copy_pgtbl_range_nonzero(paddr_t pt_to, paddr_t pt_from, 
+			      unsigned long lower_addr, unsigned long size)
+{
+	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
+	pgd_t *fpgd = ((pgd_t *)pa_to_va((void*)pt_from)) + pgd_index(lower_addr);
+	unsigned int span = size>>HPAGE_SHIFT;
+	int i;
+
+	printk("Copying from %p:%d to %p.\n", fpgd, span, tpgd);
+
+	/* sizeof(pgd entry) is intended */
+	for (i = 0 ; i < span ; i++) {
+		if (!(pgd_val(tpgd[i]) & _PAGE_PRESENT)) {
+			if (pgd_val(fpgd[i]) & _PAGE_PRESENT) printk("\tcopying vaddr %lx.\n", lower_addr + i * HPAGE_SHIFT);
+			memcpy(&tpgd[i], &fpgd[i], sizeof(pgd_t));
+		}
+	}
 }
 
 void copy_pgtbl(paddr_t pt_to, paddr_t pt_from)
@@ -2650,6 +1972,36 @@ static int aed_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
+/* 
+ * Modules are vmalloc allocated, which means that their memory is
+ * lazy faulted into page tables.  If the page fault handler is in one
+ * of the un-faulted-in pages, then the machine will die (double
+ * fault).  Thus, make sure the vmalloc regions are updated in all
+ * page tables.
+ */
+/* static void update_vmalloc_regions(void) */
+/* { */
+/* 	struct task_struct *t; */
+/* 	pgd_t *curr_pgd; */
+
+/* 	BUG_ON(!current->mm); */
+/* 	curr_pgd = current->mm->pgd; */
+
+/* 	printk("curr pgd @ %p, cpy from %x to %x.  module code sample @ %p.\n",  */
+/* 	       (void*)pa_to_va((void*)curr_pgd), MODULES_VADDR, MODULES_END, &page_fault_interposition); */
+
+/* 	list_for_each_entry(t, &init_task.tasks, tasks) { */
+/* 		struct mm_struct *amm = t->active_mm, *mm = t->mm; */
+		
+/* 		if (current->mm == amm || current->mm == mm) continue; */
+
+/* 		if (amm) copy_pgtbl_range_nonzero((paddr_t)amm->pgd, (paddr_t)curr_pgd,  */
+/* 						  MODULES_VADDR, MODULES_END-MODULES_VADDR); */
+/* 		if (mm && mm != amm) copy_pgtbl_range_nonzero((paddr_t)mm->pgd, (paddr_t)curr_pgd,  */
+/* 							      MODULES_VADDR, MODULES_END-MODULES_VADDR); */
+/* 	} */
+/* } */
+
 static struct file_operations proc_aed_fops = {
 	.owner          = THIS_MODULE, 
 	.ioctl          = aed_ioctl, 
@@ -2668,74 +2020,39 @@ static int make_proc_aed(void)
 		return -1;
 	}
 	ent->proc_fops = &proc_aed_fops;
-//	ent->owner = THIS_MODULE;
 
 	return 0;
 }
-
 static int asym_exec_dom_init(void)
 {
-	int trash, se_addr;
-
-	printk("cos: Installing the asymmetric execution domains module.\n");
-	printk("cos: %d == %d/n", sizeof(struct pt_regs), (17*sizeof(long)));
+	printk("cos: Installing the hijack module.\n");
 	/* pt_regs in this linux version has changed... */
-	//BUG_ON(sizeof(struct pt_regs) != (17*sizeof(long)));
+	BUG_ON(sizeof(struct pt_regs) != (17*sizeof(long)));
 
 	if (make_proc_aed())
 		return -1;
 
-	rdmsr(MSR_IA32_SYSENTER_EIP, se_addr, trash);
-	cos_sysenter_addr = (void*)se_addr;
-	wrmsr(MSR_IA32_SYSENTER_EIP, (int)asym_exec_dom_entry, 0);
+//	update_vmalloc_regions();
+	hw_int_init();
+	hw_int_override_sysenter(sysenter_interposition_entry);
+	hw_int_override_pagefault(page_fault_interposition);
+	hw_int_override_idt(0, div_fault_interposition, 0, 0);
+	hw_int_override_idt(0xe9, state_inv_interposition, 0, 3);
 
-	printk("cos: Saving sysenter msr (%p) and activating %p.\n", 
-	       cos_sysenter_addr, asym_exec_dom_entry);
-
-//	change_fault_handler(14, page_fault_interposition, &cos_default_page_fault_handler);
-	printk("cos: Saving page fault handler (%lx) and activating %p.\n", 
-	       cos_default_page_fault_handler, page_fault_interposition);
-
-	change_fault_handler(0, div_fault_interposition, &cos_default_div_fault_handler);
-	printk("cos: Saving page div handler (%lx) and activating %p.\n", 
-	       cos_default_div_fault_handler, div_fault_interposition);
-
-	//switch_to_executive = module_switch_to_executive;
-	//asym_page_fault = module_page_fault;
-
-	printk("cos: regs offset in thread struct @ %d\n", offsetof(struct thread, regs));
+	BUG_ON(offsetof(struct thread, regs) != 8);
 
 	init_guest_mm_vect();
 	trusted_mm = NULL;
-
-/* 	thd_init(); */
-/* 	spd_init(); */
-/* 	ipc_init(); */
-
-	/* init measurements */
-	register_measurements();
 
 	return 0;
 }
 
 static void asym_exec_dom_exit(void)
 {
-	unsigned long tmp;
-
+	hw_int_reset();
 	remove_proc_entry("aed", NULL);
 
-	printk("cos: Resetting sysenter wsr to %p.\n", cos_sysenter_addr);
-	wrmsr(MSR_IA32_SYSENTER_EIP, (int)cos_sysenter_addr, 0);
-	printk("cos: Resetting page fault handler to %lx.\n", cos_default_page_fault_handler);
-//	change_fault_handler(14, (void*)cos_default_page_fault_handler, &tmp);
-	printk("cos: Resetting division fault handler to %lx.\n", cos_default_div_fault_handler);
-	change_fault_handler(0, (void*)cos_default_div_fault_handler, &tmp);
-
 	return;
-
-	deregister_measurements();
-
-	printk("cos: Asymmetric execution domains module removed.\n\n");
 }
 
 module_init(asym_exec_dom_init);
