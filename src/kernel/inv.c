@@ -2394,9 +2394,6 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 		break_preemption_chain(thd);
 		break;
 	}
-	case COS_SCHED_REMOVE_THD:
-		/* TODO */
-		break;
 	default:
 		printk("cos: cos_sched_cntl illegal operation %d.\n", operation);
 		return -1;

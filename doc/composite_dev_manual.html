@@ -1,0 +1,1101 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+               "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+lang="en" xml:lang="en">
+<head>
+<title>composite<sub>dev</sub><sub>manual</sub></title>
+<meta http-equiv="Content-Type" content="text/html;charset=iso-8859-1"/>
+<meta name="generator" content="Org-mode"/>
+<meta name="generated" content="2010-09-02 10:15:02 EDT"/>
+<meta name="author" content="Gabriel Parmer"/>
+<meta name="description" content=""/>
+<meta name="keywords" content=""/>
+<style type="text/css">
+ <!--/*--><![CDATA[/*><!--*/
+  html { font-family: Times, serif; font-size: 12pt; }
+  .title  { text-align: center; }
+  .todo   { color: red; }
+  .done   { color: green; }
+  .tag    { background-color: #add8e6; font-weight:normal }
+  .target { }
+  .timestamp { color: #bebebe; }
+  .timestamp-kwd { color: #5f9ea0; }
+  p.verse { margin-left: 3% }
+  pre {
+	border: 1pt solid #AEBDCC;
+	background-color: #F3F5F7;
+	padding: 5pt;
+	font-family: courier, monospace;
+        font-size: 90%;
+        overflow:auto;
+  }
+  table { border-collapse: collapse; }
+  td, th { vertical-align: top; }
+  dt { font-weight: bold; }
+  div.figure { padding: 0.5em; }
+  div.figure p { text-align: center; }
+  .linenr { font-size:smaller }
+  .code-highlighted {background-color:#ffff00;}
+  .org-info-js_info-navigation { border-style:none; }
+  #org-info-js_console-label { font-size:10px; font-weight:bold;
+                               white-space:nowrap; }
+  .org-info-js_search-highlight {background-color:#ffff00; color:#000000;
+                                 font-weight:bold; }
+  /*]]>*/-->
+</style>
+<script type="text/javascript">
+<!--/*--><![CDATA[/*><!--*/
+ function CodeHighlightOn(elem, id)
+ {
+   var target = document.getElementById(id);
+   if(null != target) {
+     elem.cacheClassElem = elem.className;
+     elem.cacheClassTarget = target.className;
+     target.className = "code-highlighted";
+     elem.className   = "code-highlighted";
+   }
+ }
+ function CodeHighlightOff(elem, id)
+ {
+   var target = document.getElementById(id);
+   if(elem.cacheClassElem)
+     elem.className = elem.cacheClassElem;
+   if(elem.cacheClassTarget)
+     target.className = elem.cacheClassTarget;
+ }
+/*]]>*///-->
+</script>
+</head>
+<body>
+<div id="content">
+
+<h1 class="title">composite<sub>dev</sub><sub>manual</sub></h1>
+
+
+<div id="table-of-contents">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents">
+<ul>
+<li><a href="#sec-1">1 <span style="text-decoration:underline;">Composite</span> Developer Manual v0.1 by Gabriel Parmer (<code>gparmer@gwu.edu</code>) </a>
+<ul>
+<li><a href="#sec-1.1">1.1 Component Library Functions </a></li>
+<li><a href="#sec-1.2">1.2 Component &lt;-&gt; Component Interface: </a>
+<ul>
+<li><a href="#sec-1.2.1">1.2.1 Requesting Memory, and Printing </a></li>
+<li><a href="#sec-1.2.2">1.2.2 Locking </a></li>
+<li><a href="#sec-1.2.3">1.2.3 Event notification </a></li>
+<li><a href="#sec-1.2.4">1.2.4 Networking </a></li>
+<li><a href="#sec-1.2.5">1.2.5 Time management </a></li>
+<li><a href="#sec-1.2.6">1.2.6 Scheduling </a></li>
+</ul>
+</li>
+<li><a href="#sec-1.3">1.3 Component &lt;-&gt; Kernel Interface: </a>
+<ul>
+<li><a href="#sec-1.3.1">1.3.1 Functions for creating and manipulating components and capabilities </a></li>
+<li><a href="#sec-1.3.2">1.3.2 Scheduler functions </a></li>
+<li><a href="#sec-1.3.3">1.3.3 Brand management and execution functions </a></li>
+<li><a href="#sec-1.3.4">1.3.4 Mutable protection domains management </a></li>
+<li><a href="#sec-1.3.5">1.3.5 Virtual memory management </a></li>
+<li><a href="#sec-1.3.6">1.3.6 Other functions </a></li>
+<li><a href="#sec-1.3.7">1.3.7 Future <span style="text-decoration:underline;">Composite</span> functionality </a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> <span style="text-decoration:underline;">Composite</span> Developer Manual v0.1 by Gabriel Parmer (<code>gparmer@gwu.edu</code>) </h2>
+<div class="outline-text-2" id="text-1">
+
+
+<p>
+<span style="text-decoration:underline;">Composite</span> is in a constant state of flux.  This manual might be out
+of date.  Specific functions might not exist &ndash; or might have
+changed, but the ideas will probably map across versions.  Please
+see the other files in the doc/ directory for the specifics
+regarding which files to create and modify to make a component or
+interface, how the build system is set up, what the directory
+structure is, how to execute the system, or how to debug.  This file
+should <b>only</b> be used once you understand these documents, and want
+to sit down and program!
+</p>
+<ul>
+<li>
+Document Organization: This document is separated into three
+general sections: 
+<ol>
+<li>
+Library functions that you can use in your program.  Note that
+they might not be as functional as their libc equivalents.
+</li>
+<li>
+The basic components that make up the current <span style="text-decoration:underline;">Composite</span>
+ecosystem.  These provide basic services, and can be used by
+your component.
+</li>
+<li>
+<span style="text-decoration:underline;">Composite</span> kernel system calls.  These are not typically used
+in many programs, and are instead abstracted either by a
+library or another component.  However, for lower-level
+programming, or to understand existing code, we document the
+system call layer.
+</li>
+</ol>
+</li>
+<li>
+Please keep in mind that this documentation was written quickly
+(as it always is), so <i>any documentation bug-fixes would be     appreciated</i>, and that <i>this documentation is not meant to be a     replacement for code inspection</i>.  This documentation provides
+high-level context so that you can see a little better how things
+fit together.  Use the information in here, to grep through the
+source code to find examples of how the different APIs are used,
+and how these APIs are implemented.
+
+</li>
+</ul>
+
+</div>
+
+<div id="outline-container-1.1" class="outline-3">
+<h3 id="sec-1.1"><span class="section-number-3">1.1</span> Component Library Functions </h3>
+<div class="outline-text-3" id="text-1.1">
+
+
+<ul>
+<li>
+<code>long cos_spd_id(void)</code> - retrieve the current spd identifier
+(i.e. component id).
+</li>
+<li>
+<code>long cos_get_thd_id(void)</code> - retrieve the current thread
+identifier
+</li>
+<li>
+<code>void *cos_get_heap_ptr(void)</code> - this should not be commonly
+used and is instead used internally by the heap management
+functions (malloc/free/get<sub>free</sub><sub>page</sub>)
+</li>
+<li>
+<code>void cos_set_heap_ptr(void *addr)</code> - mutator for the pointer
+to the end of the heap.  Again, this is not commonly used in
+component code.
+</li>
+<li>
+<code>long cos_cmpxchg(volatile void *memory, long                         anticipated, long result)</code> - A uni-processor
+compare and exchange implementation using restartable atomic
+sequences.  The memory location (<code>memory</code>), if set to
+<code>anticipated</code> is changed to <code>result</code>, atomically.  It returns the
+value of the memory after the atomic operation.
+
+</li>
+<li>
+<code>void *cos_argreg_alloc(int sz)</code> - Currently, to pass arguments
+to other components, the "argument region" must be used.  This is
+essentially a page that travels with a thread as it executes
+between multiple components.  This function is used to allocate a
+region of size <code>sz</code> in that region.  Often, one will want to
+allocate the size of the data you want to pass plus
+<code>sizeof(struct cos_array)</code> (see below).  This results in a
+bounded array.
+</li>
+<li>
+<code>int cos_argreg_free(void *p)</code> - Frees an "argument region"
+allocation.  The argument region must be allocated from and freed
+from as a stack.  If multiple allocations are made, they must be
+freed in the reverse order that they are allocated.
+</li>
+<li>
+<code>int cos_argreg_arr_intern(struct cos_array *ca)</code>
+
+<p>
+<code>struct cos_array {</code>
+<code>int sz;</code>
+<code>char mem[0];</code>
+<code>};</code> - This function returns true or false depending on if the
+<code>struct cos_array</code> is allocated from within the "argument
+region".
+</p>
+</li>
+<li>
+<code>void *malloc(int sz)</code> - A malloc implementation that is
+thread-safe, but does <span style="text-decoration:underline;">not</span> handle allocations larger than a
+page.  There is not a technical limitation preventing allocations
+larger than a page, but a more intelligent allocator must be
+implemented.
+</li>
+<li>
+<code>void *alloc_page(void)</code>, <code>void free_page(void *ptr)</code> - allocate
+and free a single page.
+
+
+</li>
+</ul>
+</div>
+
+</div>
+
+<div id="outline-container-1.2" class="outline-3">
+<h3 id="sec-1.2"><span class="section-number-3">1.2</span> Component &lt;-&gt; Component Interface: </h3>
+<div class="outline-text-3" id="text-1.2">
+
+
+<p>
+Components communicate with each other via invocations.  A
+component that is dependent on the other can make an invocation of
+a function in the exported interface of the other component.  That
+is to say, components can call functions exported in the interface
+for other components.  Here we discuss the foundational components
+that provide essential services in <span style="text-decoration:underline;">Composite</span>.  We go from the
+higher-level ones most likely to be used, to the lower-level ones
+that provide more primitive services.  The interfaces for each of
+these components can be seen in the <code>.h</code> files in the
+subdirectories of <code>src/components/interface/</code>.
+</p>
+<p>
+A general pattern for many components is that the component
+provides some abstraction or object whose functionality can be
+harnessed via the component's API.  To create such an object
+(e.g. a lock, an event, a network connection, all of which we will
+call resources), or release one, many component interfaces provide
+the following functions
+</p><ul>
+<li>
+<code>open</code>, <code>create</code>, or <code>alloc</code> to create the resource, and return
+an integer identifier for it (similar to a file-descriptor, and
+</li>
+<li>
+<code>close</code>, <code>release</code>, or <code>free</code> to release it.  In the future,
+</li>
+</ul>
+
+<p>these names should be unified to say <code>create</code> and <code>release</code>.
+<code>release</code> is more appropriate than <code>free</code> as the resources are
+often reference counted.
+</p>
+<p>
+Once a resource is allocated, it can be operated on.  The API for
+this is different for each component.  For the lock component, for
+example, one can <code>take</code> and <code>release</code> the lock, and for the event
+component, one can <code>trigger</code> the event, or <code>wait</code> on an event.
+</p>
+<p>
+This style of API is a consistent theme in <span style="text-decoration:underline;">Composite</span>, however it
+is not universal.
+</p>
+
+</div>
+
+<div id="outline-container-1.2.1" class="outline-4">
+<h4 id="sec-1.2.1"><span class="section-number-4">1.2.1</span> Requesting Memory, and Printing </h4>
+<div class="outline-text-4" id="text-1.2.1">
+
+
+<p>
+The component interface for getting memory is <code>mem_mgr</code>, and for
+printing, <code>printc</code>.  These should most often be used indirectly
+through the library calls for <code>malloc</code> / <code>free</code> and <code>printf</code>.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-1.2.2" class="outline-4">
+<h4 id="sec-1.2.2"><span class="section-number-4">1.2.2</span> Locking </h4>
+<div class="outline-text-4" id="text-1.2.2">
+
+<p>The interface specification for the lock component is in
+<code>src/components/interface/lock/lock.h</code> and
+<code>src/components/include/cos_synchronization.h</code>.  The lock
+component is an odd one in that some functionality is loaded (via
+cos<sub>synchronization</sub>.c) into the client component.  This enables
+the "fast path" of taking and releasing locks when there is no
+contention to be fast.
+</p>
+<p>
+The lock API (the one the library exposes) includes
+</p><ul>
+<li>
+<code>lock_static_init(cos_lock_t)</code> which initializes a lock that
+is statically allocated (and calls <code>lock_component_alloc</code>).
+</li>
+<li>
+<code>lock__release(cos_lock_t)</code> which will release the lock in
+the lock component.
+
+</li>
+</ul>
+
+<p>Once a lock is created, one can simply <code>lock_take(cos_lock_t)</code>
+and <code>lock_release(cos_lock_t)</code> to take and release the lock (up
+and down a semaphore) to provide a critical section.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-1.2.3" class="outline-4">
+<h4 id="sec-1.2.3"><span class="section-number-4">1.2.3</span> Event notification </h4>
+<div class="outline-text-4" id="text-1.2.3">
+
+
+<p>
+Often a thread will want to wait for an event to happen in another
+component.  This can vary from waiting for a packet to arrive in a
+networking component, or waiting for data to arrive on an
+asynchronous IPC channel.  This drives the need for the <code>select</code>
+and <code>poll</code> system calls in UNIX.  In general there are two
+components, one with a thread that wishes to wait for a number
+(multiple) events, and the other component that can trigger
+events. The event notification component provides this
+functionality.
+</p>
+<p>
+The API for the event notification component can be found in
+<code>src/components/interface/evt/evt.h</code>.  We'll discuss a subset of
+the API.  As with the lock component, there are <code>evt_create</code> and
+<code>evt_free</code> to create and remove an event.  Each event is
+referenced by a <code>long</code> value.  The component that will wait for
+the event usually creates the event, and passes the event
+identifier to the component that will trigger the event.
+</p>
+<p>
+The component in which the event is detected (because an interrupt
+delivers a packet) will call <code>evt_trigger</code> to "trigger" the
+event.  At this point, any threads waiting on that event will wake
+up and be notified of the event's activity.  
+</p>
+<p>
+The component executing the thread that wishes to wait for the
+event will call <code>evt_wait</code> to wait (block) waiting for any of its
+events to be triggered.  It will wait on <i>all</i> of the events that
+have been created by this thread.  The API might be changed in the
+future to allow the user to change which set of events to wait
+on.  Though the API allows one to prioritize events, we do not
+discuss that API here.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-1.2.4" class="outline-4">
+<h4 id="sec-1.2.4"><span class="section-number-4">1.2.4</span> Networking </h4>
+<div class="outline-text-4" id="text-1.2.4">
+
+<p><span style="text-decoration:underline;">Composite</span> includes the LWIP networking stack as a component.
+The API is distinctly lower-level than the socket API, but
+facilities are provided to send and receive packets.  The API
+should support both TCP and UDP, but we haven't tested the UDP in
+a couple of years.  It is doubtful it works.  The API can be
+viewed in
+<code>src/components/interface/net_transport/net_transport.h</code>.
+</p>
+<p>
+To create a connection, one has three options:
+</p><ul>
+<li>
+<code>net_connection_t net_create_tcp_connection(spdid_t spdid, u16_t tid, long evt_id);</code>
+</li>
+<li>
+<code>net_connection_t net_create_udp_connection(spdid_t spdid, long evt_id);</code>
+</li>
+<li>
+<code>net_connection_t net_accept(spdid_t spdid, net_connection_t nc);</code>
+
+</li>
+</ul>
+
+<p>As always, the <code>net_connection_t</code> is just an integer
+identifying the connection.  When creating a TCP connection, one
+passes in the thread id of the thread that can manipulate that
+connection.  This restriction will likely be lifted in the future,
+but for now, it must be passed in.  The accept call is similar to
+the similarly named call in UNIX.  The network connection
+identified by <code>nc</code> will wait for connection requests, and create a
+new connection identified by the returned connection.  This call
+is asynchronous, which means that a thread that calls it will not
+block waiting for the connection to be made.  If another
+connection cannot be made immediately, it will return <code>-EAGAIN</code>.
+</p>
+<p>
+The event id passed into these calls is the event that is to be
+triggered when an event happens on this connection.
+</p>
+<p>
+A <code>close</code> call will close the connection.
+</p>
+<p>
+To build a TCP connection, as in UNIX, one must <code>listen</code>, <code>bind</code>,
+and possibly <code>connect</code> the connection.  The connect call is an
+outlier in <span style="text-decoration:underline;">Composite</span> interface functions in that it will block
+until the actual connection is created.  This should be changed in
+the future.
+</p>
+<p>
+To actually use the connection by retrieving and sending data, one
+uses <code>net_send</code> and <code>net_recv</code>.   The <code>data</code> argument must be in
+the argument region (see the library functions above).  These are,
+again, asynchronous, so threads will not block on them if there is
+no data, or buffer space.  Instead <code>-EAGAIN</code> will be called.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-1.2.5" class="outline-4">
+<h4 id="sec-1.2.5"><span class="section-number-4">1.2.5</span> Time management </h4>
+<div class="outline-text-4" id="text-1.2.5">
+
+
+<p>
+Two components provide the ability to keep time, and block waiting
+for certain amounts of time to elapse.  The simpler of the two is
+<code>timed_blk</code> (<code>src/components/interface/timed_blk/timed_blk.h</code>).
+Simply, one can call <code>timed_event_block</code> and pass in the amount of
+time (in jiffies) one wishes to block.  The return value is the
+amount of time spent blocked.  You'll be waked up no sooner than
+at the end of that period.  The second function is
+<code>timed_event_wakeup</code> which can be used to prematurely wake up
+the thread specified as an argument.
+</p>
+<p>
+The more complicated time keeping component (actually usually
+provided by the same component) is the periodic timer, provided by
+<code>src/components/interface/periodic_wake/periodic_wake.h</code>.  This
+API generally allows a thread to be woken up periodically.  The
+thread creates a periodic timer using <code>periodic_wake_create</code>
+which specifies the periodicity of the timer in jiffies.  This
+timer can be deleted using <code>periodic_wake_remove</code>.
+<code>periodic_wake_wait</code> will cause the thread to block waiting for
+a periodic event.  It will be woken up either immediately if that
+event has triggered and this thread didn't wait on it before it
+triggered, or when the periodic amount of time passes.  Other
+functions in the API provide information about deadline misses,
+lateness, etc&hellip;
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-1.2.6" class="outline-4">
+<h4 id="sec-1.2.6"><span class="section-number-4">1.2.6</span> Scheduling </h4>
+<div class="outline-text-4" id="text-1.2.6">
+
+
+<p>
+This API should hopefully not be needed/used that often.  Most
+timing, blocking, and critical section services are provided by
+the time management components, the event notification component,
+and the locking components, respectively, described above.  The
+<code>sched</code> interface (<code>src/components/interface/sched/sched.h</code>)
+contains many functions.  I will assume that the previous
+components are used, and will describe functions in the scheduler
+API that provide orthogonal functionality.  These boil down to:
+</p>
+<ul>
+<li>
+<code>unsigned int sched_tick_freq(void);</code> - Get the number of
+jiffies in a second.
+</li>
+<li>
+<code>int sched_create_thread(spdid_t spdid, struct cos_array       *data);</code> - Create a new thread.  The <code>data</code> argument is an array
+in the argument region (see library functions above) that
+contains a textual representation of the priority of the created
+thread.
+
+
+</li>
+</ul>
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-1.3" class="outline-3">
+<h3 id="sec-1.3"><span class="section-number-3">1.3</span> Component &lt;-&gt; Kernel Interface: </h3>
+<div class="outline-text-3" id="text-1.3">
+
+
+<p>
+The system-call interface between component and kernel is detailed
+in components/include/cos_component.h.  We will discuss the
+different kernel system calls in the following sections.  It should
+be noted that unless you're writing a very "low level" component,
+you should probably <span style="text-decoration:underline;">not</span> be using these functions.  Instead
+another component probably provides what you want.  See the
+previous section on component to component interactions.
+</p>
+
+</div>
+
+<div id="outline-container-1.3.1" class="outline-4">
+<h4 id="sec-1.3.1"><span class="section-number-4">1.3.1</span> Functions for creating and manipulating components and capabilities </h4>
+<div class="outline-text-4" id="text-1.3.1">
+
+
+<ul>
+<li>
+<code>int cos_spd_cntl(short int op, short int spd_id,                           long arg1, long arg2);</code> 
+<ul>
+<li>
+<code>op</code> is taken from &lt;shared/cos_types.h&gt; and defines the
+function of this system call:
+<ul>
+<li>
+<code>COS_SPD_CREATE</code>: The other arguments don't matter.  Create a
+new component, and return its <code>spd_id</code>.
+</li>
+<li>
+<code>COS_SPD_DELETE</code>: <code>spd_id</code> is the spd to delete.
+</li>
+<li>
+<code>COS_SPD_RESERVE_CAPS</code>: <code>spd_id</code> is the spd to reserve a
+span of capabilities for, and <code>arg1</code> is the number of
+capabilities to reserve.  Capabilities can only be allocated
+once they are reserved, and they can only be reserved before
+any capability allocations are made.
+</li>
+<li>
+<code>COS\SPD_RELEASE_CAPS</code>: <code>spd_id</code> is the spd to release
+the capability reservation for.  This will deallocate all
+capabilities and de-reserve them.
+</li>
+<li>
+<code>COS_SPD_LOCATION</code>: Set the virtual address location of
+component <code>spd_id</code>.  Currently, this is limited to an
+aligned 4M region.  <code>arg1</code> is the base address, and <code>arg2</code>
+is the size of the allocation (currently on 4M is supported).
+</li>
+<li>
+<code>COS_SPD_UCAP_TBL</code>: Set the address, <code>arg1</code>, of the user
+capability list in component <code>spd_id</code>, of size related to
+the reservation made previously.
+</li>
+<li>
+<code>COS_SPD_ATOMIC_SECT</code>: Set the <code>arg2</code> th restartable
+atomic section for component <code>spd_id</code>.  The base of the RAS
+is <code>arg1</code>.
+</li>
+<li>
+<code>COS_SPD_UPCALL_ADDR</code>: <code>arg1</code> is the address of the
+upcall function in component <code>spd_id</code>.
+</li>
+<li>
+<code>COS_SPD_ACTIVATE</code>: <span style="text-decoration:underline;">IMPORTANT</span> - This should only be
+called after the component has been created, its
+capabilities reserved, its location set, and the location of
+its capability table, upcall address, and atomic sections
+set.  This will activate the component so that threads can
+execute into it.  This is the "commit" instruction.
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<code>long cos_cap_cntl_spds(spdid_t cspd, spdid_t sspd, long       arg);</code>
+<ul>
+<li>
+Return the number of invocations between component <code>cspd</code> and
+<code>sspd</code>, and reset the count.
+</li>
+</ul>
+</li>
+<li>
+<code>long cos_cap_cntl(short int op, spdid_t cspd, u16_t capid,       long arg);</code>
+<ul>
+<li>
+<code>op</code> is taken from &lt;shared/cos_types.h&gt; and defines the
+function of this system call:
+<ul>
+<li>
+<code>COS_CAP_SET_CSTUB</code>: Set component <code>cspd</code>'s address for capability
+<code>capid</code>'s client stub to <code>arg</code>.
+</li>
+<li>
+<code>COS_CAP_SET_SSTUB</code>: Set component <code>cspd</code>'s address for capability
+<code>capid</code>'s server stub to <code>arg</code>.
+</li>
+<li>
+<code>COS_CAP_SET_SERV_FN</code>: Set component <code>cspd</code>'s address
+for capability <code>capid</code>'s client function to be invoked to
+<code>arg</code>.
+</li>
+<li>
+<code>COS_CAP_ACTIVATE</code>: <span style="text-decoration:underline;">IMPORTANT</span> - the three functions must
+be set for each capability before it can be activated.
+Once it is activated, it can be invoked by a thread.  This
+is the "commit" instruction.
+
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+
+</div>
+
+<div id="outline-container-1.3.2" class="outline-4">
+<h4 id="sec-1.3.2"><span class="section-number-4">1.3.2</span> Scheduler functions </h4>
+<div class="outline-text-4" id="text-1.3.2">
+
+<p>Only a scheduler can actually usefully use these functions.  
+</p>
+<ul>
+<li>
+<code>int create_thread(int a, int b, int c);</code> 
+<ul>
+<li>
+Create a new thread with a thread id returned by this
+syscall.  Its initial registers (<code>bx</code>, <code>di</code>, and <code>si</code>) are set
+to <code>a</code>, <code>b</code>, and <code>c</code>.  It will begin executing in the
+component that invokes this syscall.
+</li>
+</ul>
+</li>
+<li>
+<code>int upcall(int spd_id);</code>
+<ul>
+<li>
+The current thread will terminate execution in this component,
+and will make an upcall into component <code>spd_id</code>.
+</li>
+</ul>
+</li>
+<li>
+<code>int sched_cntl(int operation, int thd_id, long option);</code>
+<ul>
+<li>
+<code>operation</code> determines the function of the syscall:
+<ul>
+<li>
+<code>COS_SCHED_EVT_REGION</code>: Set the event region
+(page-aligned) within the calling scheduler to the address
+<code>option</code>.
+</li>
+<li>
+<code>COS_SCHED_THD_EVT</code>: Associate a specific entry (number
+<code>option</code>) in the event region for the calling scheduler to
+the thread <code>thd_id</code>.
+</li>
+<li>
+<code>COS_SCHED_PROMOTE_CHLD</code>: Set the component specified in
+<code>option</code> to be a child scheduler under the current
+scheduler.  Errors if the component already has a parent, or
+if the maximum hierarchy depth has been reached.
+</li>
+<li>
+<code>COS_SCHED_GRANT_SCHED</code>: Grant access of the child
+scheduler <code>option</code> to schedule the thread <code>thd_id</code>.  That
+thread must be schedulable by the current scheduler.  The
+root scheduler is automatically granted schedulability of
+all threads.
+</li>
+<li>
+<code>COS_SCHED_REVOKE_SCHED</code>: Remove previously granted
+scheduling permission of thread <code>thd_id</code> to child scheduler
+<code>option</code>.
+</li>
+<li>
+<code>COS_SCHED_BREAK_PREEMPTION_CHAIN</code>: Complicated.  Default
+brand activation specifies that if the thread executing on
+the brand's behalf waits for the next event, the system will
+automatically switch back to the preempted thread.  That is
+not always what you want (i.e. if a thread was woken up with
+a higher priority than the preempted thread).  This call
+will prevent the automatic switch to the preempted thread.
+Instead, the scheduler will be upcalled.
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<code>int cos_thd_cntl(short int op, short int thd_id,                           long arg1, long arg2);</code>
+<ul>
+<li>
+<code>op</code> defines the specific behavior of this system call.  Most
+functionality is for accessing thread register or execution
+state.  General introspection facilities.
+<ul>
+<li>
+<code>COS_THD_INV_FRAME</code>: retrieve the invoked component for
+thread <code>thd_id</code> at the <code>arg1</code> th position in its invocation
+frame.
+</li>
+<li>
+<code>COS_THD_INVFRM_IP</code>, <code>COS_THD_INVFRM_SP</code>, and
+<code>COS_THD_INVFRM_FP</code>: retrieve a preempted thread,
+<code>thd_id</code>'s instruction pointer and stack pointer of the
+invocation at position <code>arg1</code> in its invocation frame.
+</li>
+<li>
+<code>COS_THD_GET_IP</code>, <code>COS_THD_GET_SP</code>: Get the
+instruction pointer and stack
+pointer from a preempted thread <code>thd_id</code>.  Return <code>0</code> if
+the thread is not preempted.
+</li>
+<li>
+<code>COS_THD_SET_IP</code>: Set the instruction pointer for thread
+<code>thd_id</code> to <code>arg1</code>.
+</li>
+<li>
+<code>COS_THD_STATUS</code>: return the status flags of thread
+<code>thd_id</code>.
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<code>int cos_switch_thread(unsigned short int thd_id, unsigned       short int flags);</code>
+<ul>
+<li>
+Only a scheduler can invoke this system call.  Additionally,
+the scheduler must have been granted scheduling permission to
+schedule the current thread and <code>thd_id</code>.  The specific
+behavior of this system call are dependent on the <code>flags</code>
+passed to it.
+<ul>
+<li>
+<code>0</code>: This is the common case.  The intention is to switch
+from the current thread to <code>thd_id</code>.  If that thread has
+been preempted, then this might involve switching between
+components.
+</li>
+<li>
+<code>COS_SCHED_SYNC_BLOCK</code> and <code>COS_SCHED_SYNC_UNBLOCK</code>:
+This is the wait-free synchronization primitive provided by
+the <span style="text-decoration:underline;">Composite</span> kernel.  <code>BLOCK</code> means that the current
+thread is attempting to take the scheduler critical section,
+and the kernel should switch immediately to the thread
+holding the critical section.  <code>UNBLOCK</code> is called by that
+thread that just released the critical section (CS), and will
+immediately switch to the thread waiting for the CS.
+</li>
+<li>
+<code>COS_SCHED_CHILD_EVT</code>: Used for hierarchical scheduling.
+When switching to the child scheduler's event thread, this
+flag is used to set the <code>pending_cevt</code> flag in the child
+scheduler.  This is used to avoid race conditions, and
+ensures that the child scheduler knows of this event.
+</li>
+<li>
+<code>COS_SCHED_TAILCALL</code>: When a brand is activated and its
+corresponding thread executes, then finishes, it can upcall
+into the scheduler &ndash; a notification of it finishing.  We
+want that thread to go back to waiting for additional brand
+activations, but it must also switch to another thread that
+can make progress.  This flag carries out this process.  1)
+switch to <code>thd_id</code>, and 2) set the current thread to
+waiting for brand activations again (or execute one
+immediately if some are pending).
+</li>
+<li>
+<code>COS_SCHED_BRAND_WAIT</code>: Only called by the timer tick
+thread.  This is equivalent to the timer saying "I'm done,
+and wait to wait for the next brand activation&hellip;but please
+switch to <code>thd_id</code>".  This call and <code>TAILCALL</code> are
+encapsulated in <code>cos_sched_base.c</code>, so you shouldn't have to
+worry about them&hellip;unless you're hacking the scheduler.
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<code>int idle(void);</code>: Idle the system until an event arrives.  This
+can mean many things in a hijacked environment.
+
+</li>
+</ul>
+</div>
+
+</div>
+
+<div id="outline-container-1.3.3" class="outline-4">
+<h4 id="sec-1.3.3"><span class="section-number-4">1.3.3</span> Brand management and execution functions </h4>
+<div class="outline-text-4" id="text-1.3.3">
+
+
+<ul>
+<li>
+<code>int cos_brand_cntl(int ops, unsigned short int bid,                             unsigned short int tid, spdid_t spdid);</code>
+<ul>
+<li>
+The semantics of this call depend on the <code>ops</code> passed in.
+<ul>
+<li>
+<code>COS_BRAND_CREATE_HW</code> and <code>COS_BRAND_CREATE</code>: Create a
+brand associated with component <code>spdid</code>.  the <code>HW</code> specifier
+enables the brand to be wired to an interrupt source.
+</li>
+<li>
+<code>COS_BRAND_ADD_THD</code>: Add a thread <code>tid</code> to a brand <code>bid</code>, so
+that when that brand is activated, that thread is executed.
+Multiple threads can be associated with a brand, and an
+arbitrary one of them &ndash; that is not already active &ndash; will
+be executed upon brand activation.
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<code>int cos_brand_upcall(short int thd_id, short int flags,                               long arg1, long arg2);</code>
+<ul>
+<li>
+Activate a brand <code>thd_id</code>, and pass the arguments <code>arg1</code> and
+<code>arg2</code> to the executed thread, unless there are no threads to
+execute in which case the arguments are silently dropped.
+Yes, silently dropped.  In the future, we will drop the
+ability to pass arguments.  This should be restricted so that
+any component <span style="text-decoration:underline;">cannot</span> activate any brand.  Certainly look for
+future changes.  This call might be deprecated completely so
+that interrupts can activate brands.
+</li>
+</ul>
+</li>
+<li>
+<code>int brand_wait(int thdid);</code>
+<ul>
+<li>
+The current thread attempts to wait for an activation on brand
+<code>thdid</code>.  This thread will block unless there is a pending
+activation.
+</li>
+</ul>
+</li>
+<li>
+<code>int brand_wire(long thd_id, long option, long data);</code>
+<ul>
+<li>
+Associate a specific brand, <code>thd_id</code> with a hardware
+interrupt source.  <code>option</code> can be either <code>COS_HW_TIMER</code> or
+<code>COS_HW_NET</code>.  In the case of wiring to the networking
+interrupts, <code>data</code> is the port being branded to.
+</li>
+</ul>
+</li>
+<li>
+<code>int cos_buff_mgmt(unsigned short int op, void *addr,                            unsigned short int len, short int thd_id);</code>
+<ul>
+<li>
+Currently, <span style="text-decoration:underline;">Composite</span> does not interface with devices
+directly.  It uses Linux device drivers and simply attempts to
+get the data from the device as early as possible (e.g. after
+IP for networking).  A means is required to move the data from
+the device into components.  That is what this system call
+does.  See
+<code>src/components/implementation/net_if/linux_if/netif.c</code> for an
+example use.  The semantics of this system call is dependent
+on the value of <code>op</code>.
+<ul>
+<li>
+<code>COS_BM_XMIT_REGION</code>:  The <span style="text-decoration:underline;">Composite</span> kernel assumes
+that if it touches user-level regions, those regions must
+never fault.  This option sets up a page that is shared
+between kernel and component that the component can place
+data into, and the kernel can read it out of to transmit.
+</li>
+<li>
+<code>COS_BM_XMIT</code>: This call actually does the transfer of
+data.  It parses the transmit region, gets pointers to
+disparate buffers to transmit, does a mapping between them
+and kernel addresses, and copies them to the kernel.  This,
+then, uses gather semantics.  This interface relies on the
+format of the transmit page.  Please see the associated code
+for that format (i.e. see <code>cos_net_xmit_headers</code> and
+<code>gather_item</code>).
+</li>
+<li>
+<code>COS_BM_RECV_RING</code>: To transfer data from the kernel to
+the components, a ring buffer is set up.  This, again is a
+single page shared between component and kernel that points
+to other page buffers (scatter).  See <code>ring_buff.c</code> for more
+details.
+
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+
+</div>
+
+<div id="outline-container-1.3.4" class="outline-4">
+<h4 id="sec-1.3.4"><span class="section-number-4">1.3.4</span> Mutable protection domains management </h4>
+<div class="outline-text-4" id="text-1.3.4">
+
+
+<p>
+Mutable Protection Domains (MPD) are a novel aspect of
+<span style="text-decoration:underline;">Composite</span>, but they do add complexity.  They enable protection
+domain boundaries between components to be removed and created
+dynamically as the system executes.  In conjunction with
+monitoring information about which communication paths (capability
+invocations) between components are most frequent, this enables
+the system to maximize reliability while meeting
+performance/predictability constraints.
+</p>
+<p>
+For details about implementation, interface justifications, and
+applications, please see the MPD paper.
+</p>
+<ul>
+<li>
+<code>int mpd_cntl(int operation, spdid_t composite_spd, spdid_t       composite_dest);</code>
+<ul>
+<li>
+The operation to be performed is dependent on <code>operation</code>.
+<ul>
+<li>
+<code>COS_MPD_SPLIT</code>: <code>spd1</code> is one component in a protection
+domain that includes multiple components, including <code>spd2</code>.
+<code>spd2</code> is the component that is to be separated and put in a
+separate protection domain from the rest.  This call simply
+"splits" that component out of that protection domain and
+into its own.
+</li>
+<li>
+<code>COS_MPD_MERGE</code>: <code>spd1</code> and <code>spd2</code> are components within
+separate protection domains, and each protection domain can
+contain multiple components.  This call with "merge" those
+two protection domains to remove protection boundaries by
+placing all components in each protection domains into one
+large protection domain containing all components.
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<code>void cos_mpd_update(void);</code>
+<ul>
+<li>
+Due to invocations operating on stale protection domain
+mappings, we must do garbage collection (of sorts) on
+protection domains.  This call makes that reference counting
+easier and allows components to provide "hints" to expedite
+protection domain changes.  Please see the MPD paper for
+details.  This is complicated.
+
+</li>
+</ul>
+</li>
+</ul>
+</div>
+
+</div>
+
+<div id="outline-container-1.3.5" class="outline-4">
+<h4 id="sec-1.3.5"><span class="section-number-4">1.3.5</span> Virtual memory management </h4>
+<div class="outline-text-4" id="text-1.3.5">
+
+
+<ul>
+<li>
+<code>int cos_mmap_cntl(short int op, short int flags,                            short int dest_spd, vaddr_t dest_addr, long mem_id);</code>
+<ul>
+<li>
+This system call enables the mapping of physical frames to
+virtual pages in separate components.  When the same physical
+frame is mapped into two components, that page is shared
+memory.  The action performed by this system call is dependent
+on <code>op</code>.
+<ul>
+<li>
+<code>COS_MMAP_GRANT</code>: The physical frame identified by
+<code>mem_id</code> is mapped into virtual address <code>dest_addr</code> of
+component <code>dest_spd</code>.  Physical frames are viewed as an
+array of frames, and <code>mem_id</code> is simply the offset into
+that array.  TODO: This call should be restricted in that
+only one component should be allowed to make it.
+</li>
+<li>
+<code>COS_MMAP_REVOKE</code>: Remove the virtual mapping at
+<code>dest_addr</code> in component <code>dest_spd</code>, and return the
+<code>mem_id</code> that was located there.
+
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+
+</div>
+
+<div id="outline-container-1.3.6" class="outline-4">
+<h4 id="sec-1.3.6"><span class="section-number-4">1.3.6</span> Other functions </h4>
+<div class="outline-text-4" id="text-1.3.6">
+
+
+<ul>
+<li>
+<code>int stats(void);</code>
+<ul>
+<li>
+Print out the event counters within the kernel.
+</li>
+</ul>
+</li>
+<li>
+<code>int print(char* str, int len);</code>
+<ul>
+<li>
+Print to dmesg the given string.  Don't use this directly.
+Call the print component.
+
+</li>
+</ul>
+</li>
+</ul>
+</div>
+
+</div>
+
+<div id="outline-container-1.3.7" class="outline-4">
+<h4 id="sec-1.3.7"><span class="section-number-4">1.3.7</span> Future <span style="text-decoration:underline;">Composite</span> functionality </h4>
+<div class="outline-text-4" id="text-1.3.7">
+
+
+<ul>
+<li>
+<code>int cos_vas_cntl(short int op...)</code>
+<ul>
+<li>
+Currently, all components share the same virtual address
+space.  This call with be necessary to create new virtual
+address spaces, map components into them, and allocate
+portions of the virtual memory to them.  This is not done
+currently, but needs to be done.  The first step is to enable
+components to use multiple virtual regions (all a multiple of
+4M large).  The second step is to enable the creation of
+multiple virtual address spaces.
+
+</li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div id="postamble">
+<p class="author"> Author: Gabriel Parmer
+<a href="mailto:gparmer@pi">&lt;gparmer@pi&gt;</a>
+</p>
+<p class="date"> Date: 2010-09-02 10:15:02 EDT</p>
+<p class="creator">HTML generated by org-mode 6.34c in emacs 23</p>
+</div>
+</div>
+</body>
+</html>

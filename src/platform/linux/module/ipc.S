@@ -45,14 +45,11 @@ kernel_ipc_syscall:
 .globl composite_call_ipc
 .align 32
 composite_call_ipc:	/* server_inv: */
-	/*pushl %ebp*/ /* user-sp: useful if using same stack */
-
 	pushl %edx /* cdecl makes it legal to use edx in called fn: save it */
 	/* room for the thdid and spdid */
 	subl $8, %esp
 	pushl %esp
 	/* invoke ipc_walk_static_cap */
-/*	pushl %edx*/ /* usr_def */
 	pushl %ecx /* ip */
 	pushl %ebp /* sp */
 	pushl %eax /* cap */
@@ -62,17 +59,7 @@ composite_call_ipc:	/* server_inv: */
 	cmpl $0, %eax /* error? */
 	jz composite_call_err
 	
-/*	addl $24, %esp*/
 	addl $20, %esp
-
-	/* these 2 lines (and the pushl ebp at the top) are not needed: can pass data in ebp, ecx, and eax, i.e. for spd defined ptr, thdid/spdid, and data page ptr */
-	/* FIXME: pass id in ebp? */
-	/*popl %ebp*/ /* invoking component's user stack */ /* can use ebp here to hold more data and pass it to server */
-	/*movl %ebp, %ecx*/
-	
-	/* movl INV_STK_START+INV_STK_SIZE-4, %ecx */
-	/*popl %ecx*/ /* user stack */
-	/*movl SS_ipc_server_unmarshal, %edx*/
 	movl %eax, %edx
 
 	/* thd and data_region */

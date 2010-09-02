@@ -979,7 +979,6 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	 * check for this.
 	 */
 	thd = thd_get_current();
-	//cos_report_fault(thd, fault_addr, NULL);
 	/* This is a magical address that we are getting faults for,
 	 * but I don't know why, and it doesn't seem to interfere with
 	 * execution.  For now ffffd0b0 is being counted as an unknown
