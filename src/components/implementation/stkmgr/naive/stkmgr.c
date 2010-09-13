@@ -992,8 +992,8 @@ stkmgr_print_ci_freelist(void)
 {
 	int i;
 	struct spd_stk_info *info;
-	void *curr;
-	struct cos_stk_item *stk_item, *p;
+	//void *curr;
+	struct cos_stk_item *stk_item;//, *p;
 
 	for(i = 0; i < MAX_NUM_SPDS; i++){
 		unsigned int cnt = 0;

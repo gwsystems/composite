@@ -169,6 +169,18 @@ static int boot_spd_reserve_caps(struct cobj_header *h, spdid_t spdid)
 	return 0;
 }
 
+static void
+boot_edge_create(spdid_t src, spdid_t dest)
+{
+	int i , c, s;
+
+	for (i = 0 ; (c = cgraph_client(i)) >= 0 ; i++) {
+		s = cgraph_server(i);
+		if (c == src && s == dest) return;
+	}
+	cgraph_add(dest, src);
+}
+
 /* 
  * This must happen _after_ the memory is mapped in so that the
  * ucap_tbl can be found in the spd
@@ -187,6 +199,8 @@ static int boot_spd_caps(struct cobj_header *h, spdid_t spdid)
 		    cos_cap_cntl(COS_CAP_SET_CSTUB, spdid, cap->cap_off, cap->cstub) ||
 		    cos_cap_cntl(COS_CAP_SET_SSTUB, spdid, cap->cap_off, cap->sstub) ||
 		    cos_cap_cntl(COS_CAP_ACTIVATE, spdid, cap->cap_off, cap->dest_id)) BUG();
+
+		boot_edge_create(spdid, cap->dest_id);
 	}
 
 	return 0;

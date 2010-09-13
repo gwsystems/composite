@@ -30,7 +30,7 @@ static void parse_initialization_strings(void)
 }
 
 /* Get the nth component for this specific scheduler */
-static struct component_init_str *nth_for_sched(spdid_t sched, int n)
+static struct component_init_str *nth_for_sched(spdid_t sched, int n, int startup)
 {
 	int i, idx;
 
@@ -39,7 +39,7 @@ static struct component_init_str *nth_for_sched(spdid_t sched, int n)
 		/* bypass other scheduler's components, and those not
 		 * started on bootup */
 		while (init_strs[idx].schedid != sched ||
-		       !init_strs[idx].startup) {
+		       startup == init_strs[idx].startup) {
 			if (0 == init_strs[idx].spdid) return &init_strs[idx];
 			idx++;
 		}
@@ -175,7 +175,8 @@ int sched_comp_config_default(spdid_t spdid, spdid_t target, struct cos_array *d
 	return 0;
 }
 
-spdid_t sched_comp_config(spdid_t spdid, int i, struct cos_array *data)
+spdid_t
+__sched_comp_config(spdid_t spdid, int i, struct cos_array *data, int dyn_loaded)
 {
 	int max_len, str_len;
 	struct component_init_str *cis;
@@ -192,7 +193,7 @@ spdid_t sched_comp_config(spdid_t spdid, int i, struct cos_array *data)
 	}
 	max_len = data->sz;
 
-	cis = nth_for_sched(spdid, i);
+	cis = nth_for_sched(spdid, i, dyn_loaded);
 	if (0 == cis->spdid) return 0; /* no dice */
 	assert(cis->schedid == spdid);
 
@@ -209,4 +210,16 @@ spdid_t sched_comp_config(spdid_t spdid, int i, struct cos_array *data)
 	data->sz = str_len;
 
 	return cis->spdid;
+}
+
+spdid_t
+sched_comp_config(spdid_t spdid, int i, struct cos_array *data)
+{
+	return __sched_comp_config(spdid, i, data, 0);
+}
+
+spdid_t
+sched_comp_config_poststart(spdid_t spdid, int i, struct cos_array *data)
+{
+	return __sched_comp_config(spdid, i, data, 1);
 }

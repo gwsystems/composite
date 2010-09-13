@@ -122,10 +122,8 @@ struct sched_thd *schedule(struct sched_thd *t)
 	assert(n);
 	if (n != t) return n;
 	
-	if (t) return fp_get_second_highest_prio(n);
-
-	BUG();
-	return NULL;
+	assert(t);
+	return fp_get_second_highest_prio(n);
 }
 
 void thread_new(struct sched_thd *t)
@@ -153,7 +151,6 @@ void time_elapsed(struct sched_thd *t, u32_t processing_time)
 		if (sched_thd_ready(t)) {
 			assert(!sched_thd_inactive_evt(t));
 			assert(!sched_thd_blocked(t));
-
 			fp_move_end_runnable(t);
 		}
 		sa->ticks++;

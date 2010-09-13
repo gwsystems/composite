@@ -54,7 +54,7 @@ const char *COMP_INFO = "cos_comp_info";
 
 const char *INIT_COMP  = "c0.o";
 const char *ROOT_SCHED = "fprr.o";
-const char *MPD_MGR    = "mpd.o";
+const char *MPD_MGR    = "cg.o"; // the component graph!
 const char *CONFIG_COMP = "schedconf.o";
 
 const char *BOOT_COMP = "boot.o";

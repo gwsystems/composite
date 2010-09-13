@@ -18,7 +18,8 @@ struct comp_graph {
 };
 //struct comp_graph *graph;
 
-static inline int split_w_err(spdid_t a, spdid_t b)
+static inline int 
+split_w_err(spdid_t a, spdid_t b)
 {
 	if (cos_mpd_cntl(COS_MPD_SPLIT, a, b)) {
 		printc("split of %d from %d failed. %d\n", b, a, 0);
@@ -27,7 +28,8 @@ static inline int split_w_err(spdid_t a, spdid_t b)
 	return 0;
 }
 
-static inline int merge_w_err(spdid_t a, spdid_t b)
+static inline int 
+merge_w_err(spdid_t a, spdid_t b)
 {
 	if (cos_mpd_cntl(COS_MPD_MERGE, a, b)) {
 		printc("merge of %d and %d failed. %d\n", a, b, 0);
@@ -41,8 +43,10 @@ static inline int merge_w_err(spdid_t a, spdid_t b)
 
 #include <timed_blk.h>
 #include <sched.h>
+#include <cgraph.h>
 
-static void mpd_report(void)
+static void 
+mpd_report(void)
 {
 	struct edge *e;
 	struct protection_domain *pd;
@@ -51,8 +55,10 @@ static void mpd_report(void)
 	for (e = FIRST_LIST(&es, next, prev) ; 
 	     e != &es ;
 	     e = FIRST_LIST(e, next, prev)) {
+		if (!e->invocations) continue;
 		printc("%d->%d:%ld, ", e->from->id, e->to->id, e->invocations);
 	}
+	printc("\n"); return;
 
 	printc("\nProtection Domains:\t");
 	for (pd = FIRST_LIST(&pds, next, prev) ; 
@@ -72,7 +78,8 @@ static void mpd_report(void)
 	printc("\n");
 }
 
-static void update_edge_weights(void)
+static void 
+update_edge_weights(void)
 {
 	struct edge *e;
 	
@@ -93,7 +100,8 @@ static void update_edge_weights(void)
 #define PERMITTED_EDGES (428571)
 //#define PERMITTED_EDGES (285714)
 
-static void mpd_pol_linear(void)
+static void 
+mpd_pol_linear(void)
 {
 	static int cnt = 0;
 	/* currently timeouts are expressed in ticks */
@@ -105,7 +113,8 @@ static void mpd_pol_linear(void)
 	else cnt++;
 }
 
-static void mpd_pol_never_increase(void)
+static void 
+mpd_pol_never_increase(void)
 {
 	static int cnt = 0;
 	/* currently timeouts are expressed in ticks */
@@ -117,7 +126,8 @@ static void mpd_pol_never_increase(void)
 	else cnt++;
 }
 
-static void mpd_pol_dec_isolation_by_one(void)
+static void 
+mpd_pol_dec_isolation_by_one(void)
 {
 	/* currently timeouts are expressed in ticks */
 	timed_event_block(cos_spd_id(), 98);
@@ -126,32 +136,22 @@ static void mpd_pol_dec_isolation_by_one(void)
 	mpd_report();
 }
 
-static void mpd_pol_report(void)
+static void 
+mpd_pol_report(void)
 {
-	timed_event_block(cos_spd_id(), 98);
+	timed_event_block(cos_spd_id(), 198);
 	update_edge_weights();
 	mpd_report();
 }
 
-static void mpd_loop(struct comp_graph *g)
+static void 
+mpd_loop(struct comp_graph *g)
 {
-	timed_event_block(cos_spd_id(), 198);
-	mpd_report();
-	timed_event_block(cos_spd_id(), 198);
-	mpd_report();
-	timed_event_block(cos_spd_id(), 198);
-	mpd_report();
-	timed_event_block(cos_spd_id(), 198);
-	mpd_report();
-	timed_event_block(cos_spd_id(), 198);
-	mpd_report();
-	timed_event_block(cos_spd_id(), 198);
-	mpd_report();
 	while (1) {
-		//mpd_pol_report();
+		mpd_pol_report();
 		//mpd_pol_linear();
 		//mpd_pol_never_increase();
-		mpd_pol_dec_isolation_by_one();
+		//mpd_pol_dec_isolation_by_one();
 	}
 	BUG();
 	return;
@@ -160,12 +160,14 @@ static void mpd_loop(struct comp_graph *g)
 static unsigned long long merge_total = 0;
 static int merge_cnt = 0;
 
-static unsigned long merge_avg(void)
+static unsigned long 
+merge_avg(void)
 {
 	return (unsigned long)(merge_total/merge_cnt);
 }
 
-static int merge_all(void)
+static int 
+merge_all(void)
 {
 	unsigned long long pre, post;
 	/*
@@ -197,12 +199,14 @@ static int merge_all(void)
 static unsigned long long split_total = 0;
 static int split_cnt = 0;
 
-static unsigned long split_avg(void)
+static unsigned long 
+split_avg(void)
 {
 	return (unsigned long)(split_total/split_cnt);
 }
 
-static int split_all(void)
+static int 
+split_all(void)
 {
 	unsigned long long pre, post;
 
@@ -223,7 +227,8 @@ static int split_all(void)
 	return 0;
 }
 
-static void mpd_bench(void)
+static void 
+mpd_bench(void)
 {
 	int i;
 	for (i = 0 ; i < 1000 ; i++) {
@@ -234,7 +239,8 @@ static void mpd_bench(void)
 	printc("merge: %ld, split %ld.\n", merge_avg(), split_avg());
 }
 
-static void mpd_merge_selective(void)
+static void 
+mpd_merge_selective(void)
 {
 	int ms[] = {1, 0};
 	int i;
@@ -266,7 +272,8 @@ static void mpd_merge_selective(void)
 	timed_event_block(cos_spd_id(), 498);
 }
 
-static void mpd_merge_all(struct comp_graph *g)
+static void 
+mpd_merge_all(struct comp_graph *g)
 {
 	int i;
 
@@ -280,17 +287,14 @@ static void mpd_merge_all(struct comp_graph *g)
 	return;
 }
 
-static void mpd_init(void)
+struct comp_graph graph[512];
+static void 
+mpd_init(void)
 {
 	int i;
-	struct comp_graph *graph;
-	/* The hack to give this component the component graph is to
-	 * place it @ cos_heap_ptr-PAGE_SIZE.  See cos_loader.c.
-	 */
-	struct comp_graph *g = (struct comp_graph *)cos_get_heap_ptr();
-
-	graph = (struct comp_graph *)((char*)g-PAGE_SIZE);
-	for (i = 0 ; graph[i].client && graph[i].server ; i++) {
+	for (i = 0 ; cgraph_server(i) >= 0 ; i++) {
+		graph[i].client = cgraph_client(i);
+		graph[i].server = cgraph_server(i);
 		cos_cap_cntl_spds(graph[i].client, graph[i].server, 0);	
 	}
 
@@ -303,24 +307,14 @@ static void mpd_init(void)
 	/* remove protection domains on a time-trigger */
 //	while (!remove_one_isolation_boundary()); /* merge all pds */
 	/* Intelligently manage pds */
-//	mpd_loop(graph);
+	mpd_loop(graph);
 	return;
 }
 
-void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
+void
+cos_init(void *d)
 {
-	switch (t) {
-	case COS_UPCALL_BOOTSTRAP:
-		mpd_init();
-		break;
-	default:
-		printc("mpd_mgr: cos_upcall_fn error - type %x, arg1 %d, arg2 %d\n", 
-		      (unsigned int)t, (unsigned int)arg1, (unsigned int)arg2);
-		BUG();
-		return;
-	}
-
-	return;
+	mpd_init();
 }
 
 void bin(void)

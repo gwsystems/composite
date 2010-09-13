@@ -266,7 +266,7 @@ static inline void fp_resume_thd(struct sched_thd *t)
 	REM_LIST(t, prio_next, prio_prev);
 	/* child threads aren't reported to the scheduler */
 	if (!sched_thd_member(t)) {
-		assert(sched_is_root() || t != timer);
+		assert(sched_is_root() || (t != timer && !sched_thd_phantom(t)));
 		thread_wakeup(t);
 	} 
 	/* Is the member _not_ already on the list for the group? */
@@ -286,7 +286,7 @@ static void fp_activate_upcall(struct sched_thd *uc)
 		uc->flags &= ~THD_UC_READY;
 		uc->flags |= THD_READY;
 		REM_LIST(uc, prio_next, prio_prev); //done in move_end_runnable
-		assert(sched_is_root() || uc != timer);
+		assert(sched_is_root() || (uc != timer && !sched_thd_phantom(uc)));
 		thread_wakeup(uc);
 	}
 }
@@ -324,7 +324,7 @@ static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 	} else {
 		report_event(BRAND_CYCLE);
 	}
-	time_elapsed(t, cpu_usage);
+	if (!sched_thd_phantom(t)) time_elapsed(t, cpu_usage);
 
 	return;
 }
@@ -1324,9 +1324,9 @@ static void sched_child_evt_thd(void)
 
 				wt = wakeup_time;
 				cwt = child_wakeup_time;
-				if (cwt == 0) wake_tm = wt;
+				if (cwt == 0)     wake_tm = wt;
 				else if (wt == 0) wake_tm = cwt;
-				else wake_tm = (wt < cwt) ? wt : cwt;
+				else              wake_tm = (wt < cwt) ? wt : cwt;
 
 				assert(!wake_tm || wake_tm >= ticks);
 				wake_diff = wake_tm ? (unsigned long)(wake_tm - ticks) : 0;
@@ -1346,7 +1346,7 @@ static void sched_child_evt_thd(void)
 		/* When there are no more events, schedule */
 		sched_switch_thread(0, NULL_EVT);
 		assert(EMPTY_LIST(timer, prio_next, prio_prev));
-	}
+	} /* no return */
 	cos_argreg_free(e);
 }
 
@@ -1455,7 +1455,9 @@ static void sched_init_create_threads(void)
 		data = cos_argreg_alloc(sizeof(struct cos_array) + SCHED_STR_SZ);
 		assert(data);
 		data->sz = SCHED_STR_SZ;
-		ret = sched_comp_config(cos_spd_id(), i++, data);
+		ret = (sched_is_root()) ? sched_comp_config(cos_spd_id(), i++, data) :
+                			  sched_comp_config_poststart(cos_spd_id(), i++, data);
+		
 		if (ret > 0 && data->sz > 0) fp_init_component(ret, data->mem);
 		cos_argreg_free(data);
 	} while (ret > 0);
@@ -1493,6 +1495,7 @@ static void sched_child_init(void)
 	timer = __sched_setup_thread_no_policy(cos_get_thd_id());
 	assert(timer);
 	sched_set_thd_urgency(timer, 0); /* highest urgency */
+	timer->flags |= THD_PHANTOM;
 
 	sched_init_create_threads();
 

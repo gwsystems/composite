@@ -151,7 +151,7 @@ static inline struct thd_invocation_frame *thd_invocation_pop(struct thread *cur
 {
 	struct thd_invocation_frame *prev_frame;
 
-	if (unlikely(curr_thd->stack_ptr <= 0)) {
+	if (curr_thd->stack_ptr <= 0) {
 		//printd("Tried to return without invocation.\n");
 		/* FIXME: kill the thread if not a branded upcall thread */
 		return NULL; //kill the kern for now...
@@ -170,7 +170,7 @@ static inline struct thd_invocation_frame *thd_invstk_top(struct thread *curr_th
 	/* pop should not allow us to escape from our home spd */
 	//assert(curr_thd->stack_ptr >= 0);
 
-	if (unlikely(curr_thd->stack_ptr < 0)) return NULL;
+	if (curr_thd->stack_ptr < 0) return NULL;
 	
 	return &curr_thd->stack_base[curr_thd->stack_ptr];
 }
@@ -179,7 +179,7 @@ static inline struct thd_invocation_frame *thd_invstk_nth(struct thread *thd, in
 {
 	int idx = thd->stack_ptr - nth;
 
-	if (unlikely(idx < 0)) return NULL;
+	if (idx < 0) return NULL;
 
 	return &thd->stack_base[idx];
 }
@@ -202,7 +202,7 @@ thd_curr_spd_thd(struct thread *t)
 {
 	unsigned int stkptr;
 
-	if (unlikely(NULL == t)) return NULL;
+	if (NULL == t) return NULL;
 
 	stkptr = t->stack_ptr;
 	if (unlikely(stkptr >= MAX_SERVICE_DEPTH)) return NULL;

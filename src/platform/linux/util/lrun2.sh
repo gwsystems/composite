@@ -6,11 +6,12 @@
 ./cos_loader \
 "c0.o, ;*fprr.o, ;mm.o, ;!sm.o,a1;print.o, ;boot.o,a2;!l.o,a8;!te.o,a3;!net.o,a6;!e.o,a3;!fd.o,a8;!conn.o,a9;!http.o,a8;\
 !stat.o,a25;st.o, ;!cm.o,a7;!sc.o,a6;!if.o,a5;!ip.o, ;!ainv.o,a6;!fn.o, ;!cgi.o,a9;!port.o, ;schedconf.o, ;\
-bc.o, ;(!fd2.o=fd.o),a8;(!fd3.o=fd.o),a8;(!cgi2.o=cgi.o),a9;(!ainv2.o=ainv.o),a6:\
+(*fprrc1.o=fprr.o),a11;bc.o, ;(!fd2.o=fd.o),a8;(!fd3.o=fd.o),a8;(!cgi2.o=cgi.o),a9;(!ainv2.o=ainv.o),a6:\
 \
 net.o-sm.o|fprr.o|mm.o|print.o|l.o|te.o|e.o|ip.o|port.o;\
 c0.o-fprr.o;\
 fprr.o-print.o|mm.o|st.o|schedconf.o|[parent_]bc.o;\
+fprrc1.o-print.o|mm.o|st.o|schedconf.o|[parent_]fprr.o;\
 l.o-sm.o|fprr.o|mm.o|print.o|te.o;\
 te.o-sm.o|print.o|fprr.o|mm.o;\
 mm.o-print.o;\

@@ -2,7 +2,7 @@ C_OBJS=mpd_mgr.o
 ASM_OBJS=
 COMPONENT=mpd.o
 INTERFACES=
-DEPENDENCIES=sched printc timed_blk mem_mgr
+DEPENDENCIES=sched printc timed_blk mem_mgr cgraph
 IF_LIB=
 ADDITIONAL_LIBS=-lheap
 

@@ -33,17 +33,19 @@
 			    // scheduled otherwise
 #define THD_DEPENDENCY 0x100
 #define THD_DYING      0x200
+#define THD_PHANTOM    0x400 // a thread that should never be processed by policy
 
 #define sched_thd_free(thd)          ((thd)->flags & THD_FREE)
 #define sched_thd_grp(thd)           ((thd)->flags & THD_GRP)
 #define sched_thd_member(thd)        ((thd)->flags & THD_MEMBER)
 #define sched_thd_blocked(thd)       ((thd)->flags & THD_BLOCKED)
 #define sched_thd_inactive_evt(thd)  ((thd)->flags & THD_UC_READY)
+#define sched_thd_phantom(thd)       ((thd)->flags & THD_PHANTOM)
 /* Thread ready: because the scheduler's thread structures might not
  * be updated to the fact that an upcall is actually active, "ready"
  * must include this discrepancy */
-#define sched_thd_dying(thd)         ((thd)->flags & THD_DYING)
 #define sched_thd_ready(thd)         (!sched_thd_blocked(thd) && !sched_thd_inactive_evt(thd) && !sched_thd_dying(thd))
+#define sched_thd_dying(thd)         ((thd)->flags & THD_DYING)
 #define sched_thd_dependent(thd)     ((thd)->flags & THD_DEPENDENCY)
 #define sched_thd_suspended(thd)     ((thd)->flags & THD_SUSPENDED)
 
