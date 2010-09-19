@@ -53,7 +53,7 @@ enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_H
 const char *COMP_INFO = "cos_comp_info";
 
 const char *INIT_COMP  = "c0.o";
-const char *ROOT_SCHED = "fprr.o";
+char *ROOT_SCHED = NULL;//"ds.o";
 const char *MPD_MGR    = "cg.o"; // the component graph!
 const char *CONFIG_COMP = "schedconf.o";
 
@@ -777,7 +777,15 @@ struct component_traits {
 static void parse_component_traits(char *name, struct component_traits *t, int *off)
 {
 	switch(name[*off]) {
-	case '*': t->sched = 1;            break;
+	case '*': {
+		t->sched = 1;
+		if (!ROOT_SCHED) {
+			char *r = malloc(strlen(name+1)+1);
+			strcpy(r, name+1);
+			ROOT_SCHED = r;
+		}
+		break;
+	}
 	case '!': t->composite_loaded = 1; break;
 	default:  /* base case */          return;
 	}
@@ -2142,7 +2150,7 @@ static void setup_kernel(struct service_symbs *services)
 	printl(PRINT_DEBUG, "\n");
 
 	if ((s = find_obj_by_name(services, ROOT_SCHED)) == NULL) {
-		fprintf(stderr, "Could not find root scheduler\n");
+		fprintf(stderr, "Could not find root scheduler %s\n", ROOT_SCHED);
 		exit(-1);
 	}
 	make_spd_scheduler(cntl_fd, s, NULL);

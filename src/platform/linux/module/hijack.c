@@ -1374,8 +1374,6 @@ void switch_host_pg_tbls(paddr_t pt)
  */
 static struct timer_list timer;
 
-extern void update_sched_evts(struct thread *new, int new_flags, 
-		       struct thread *prev, int prev_flags);
 extern struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
 
 extern void cos_net_deregister(struct cos_net_callbacks *cn_cb);
@@ -1591,7 +1589,7 @@ int host_attempt_brand(struct thread *brand)
 		 * the regs aren't spread across the main thread
 		 * stack, and the interrupt's saved registers as well.
 		 */
-		if (!(regs->sp == 0 && regs->ss == 0)
+		if (likely(!(regs->sp == 0 && regs->ss == 0))
                     /* && (regs->xcs & SEGMENT_RPL_MASK) == USER_RPL*/) {
 			struct thread *next;
  			

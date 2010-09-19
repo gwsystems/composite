@@ -4,6 +4,7 @@
 #include <mem_mgr.h>
 #include <sched.h>
 #include <cos_alloc.h>
+#include <cgraph.h>
 
 #include <cobj_format.h>
 #include <cos_vect.h>

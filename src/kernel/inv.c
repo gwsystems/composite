@@ -575,7 +575,7 @@ static inline void remove_preempted_status(struct thread *thd)
 }
 
 extern int cos_syscall_switch_thread(void);
-void update_sched_evts(struct thread *new, int new_flags, 
+static void update_sched_evts(struct thread *new, int new_flags, 
 		       struct thread *prev, int prev_flags);
 static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, 
 						     struct composite_spd *curr);
@@ -1962,8 +1962,8 @@ static inline void update_thd_evt_state(struct thread *t, int flags, unsigned lo
 	return;
 }
 
-void update_sched_evts(struct thread *new, int new_flags, 
-		       struct thread *prev, int prev_flags)
+static void update_sched_evts(struct thread *new, int new_flags, 
+			      struct thread *prev, int prev_flags)
 {
 	unsigned elapsed = 0;
 

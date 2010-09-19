@@ -13,7 +13,6 @@
 
 #include <cos_component.h>
 #include <cos_scheduler.h>
-//#include <cos_alloc.h>
 #include <cos_time.h>
 #include <print.h>
 
@@ -216,10 +215,13 @@ static void report_thd_accouting(void)
 	     t != &blocked ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
 		struct sched_accounting *sa = sched_get_accounting(t);
-		unsigned long diff = sa->ticks - sa->prev_ticks;
+		unsigned long diff = sa->ticks - sa->prev_ticks,
+		          cyc_diff = sa->cycles - sa->prev_cycles;
 		
-		if (diff) {
-			printc("\t%d, %d, %ld\n", t->id, sched_get_metric(t)->priority, diff);
+		if (diff || cyc_diff) {
+			printc("\t%d, %d, %ld+%ld/%d\n", t->id, 
+			       sched_get_metric(t)->priority, diff, 
+			       cyc_diff, CYC_PER_TICK);
 			print_thd_invframes(t);
 			sa->prev_ticks = sa->ticks;
 		}
@@ -229,16 +231,19 @@ static void report_thd_accouting(void)
 	     t != &upcall_deactive ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
 		struct sched_accounting *sa = sched_get_accounting(t);
-		unsigned long diff = sa->ticks - sa->prev_ticks;
+		unsigned long diff = sa->ticks - sa->prev_ticks,
+		          cyc_diff = sa->cycles - sa->prev_cycles;
 		
-		if (diff) {
-			printc("\t%d, %d, %ld\n", t->id, sched_get_metric(t)->priority, diff);
+		if (diff || cyc_diff) {
+			printc("\t%d, %d, %ld+%ld/%d\n", t->id, 
+			       sched_get_metric(t)->priority, diff, 
+			       cyc_diff, CYC_PER_TICK);
 			print_thd_invframes(t);
 			sa->prev_ticks = sa->ticks;
 		}
 	}
 	printc("\n");
-	report_output();
+//	report_output();
 
 #ifdef TIMER_ACTIVATE
 	{
@@ -1471,7 +1476,6 @@ static void sched_init(void)
 	assert(first);
 	first = 0;
 
-//	rdtscl(cycle_cnt);
 	sched_init_thd(&blocked, 0, THD_FREE);
 	sched_init_thd(&upcall_deactive, 0, THD_FREE);
 	sched_ds_init();

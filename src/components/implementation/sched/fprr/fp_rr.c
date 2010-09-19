@@ -45,6 +45,7 @@ static inline void fp_move_end_runnable(struct sched_thd *t)
 	unsigned short int p = sched_get_metric(t)->priority;
 
 	assert(sched_thd_ready(t));
+	assert(!sched_thd_suspended(t));
 	head = &priorities[p].runnable;
 	REM_LIST(t, prio_next, prio_prev);
 	ADD_LIST(LAST_LIST(head, prio_next, prio_prev), t, prio_next, prio_prev);
@@ -66,6 +67,7 @@ static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
 {
 	assert(prio < NUM_PRIOS);
 	assert(sched_thd_ready(t));
+	assert(!sched_thd_suspended(t));
 
 	sched_get_metric(t)->priority = prio;
 	sched_set_thd_urgency(t, prio);
@@ -136,7 +138,13 @@ void thread_remove(struct sched_thd *t)
 {
 	assert(t);
 	fp_rem_thd(t);
+	REM_LIST(t, sched_next, sched_prev);
 }
+
+#ifdef DEFERRABLE
+static unsigned long ticks = 0;
+struct sched_thd servers;
+#endif
 
 void time_elapsed(struct sched_thd *t, u32_t processing_time)
 {
@@ -144,39 +152,126 @@ void time_elapsed(struct sched_thd *t, u32_t processing_time)
 
 	assert(t);
 	sa = sched_get_accounting(t);
+	sa->prev_cycles = sa->cycles;
 	sa->cycles += processing_time;
 	if (sa->cycles >= QUANTUM) {
+		assert(sa->cycles <= QUANTUM);
 		sa->cycles -= QUANTUM;
+		sa->prev_cycles = 0;
+		sa->ticks++;
 		/* round robin */
-		if (sched_thd_ready(t)) {
+		if (sched_thd_ready(t) && !sched_thd_suspended(t)) {
 			assert(!sched_thd_inactive_evt(t));
 			assert(!sched_thd_blocked(t));
 			fp_move_end_runnable(t);
 		}
-		sa->ticks++;
+#ifdef DEFERRABLE
+		if (sa->T) {
+			sa->C_used++;
+			if (sa->C_used >= sa->C) {
+				sched_set_thd_urgency(t, NUM_PRIOS);
+				if (sched_thd_ready(t)) fp_rem_thd(t);
+
+				t->flags |= THD_SUSPENDED;
+			}
+		}
+#endif
 	}
 }
 
 void timer_tick(int num_ticks)
 {
-	/* see time_elapsed for time mgmt */
+/* see time_elapsed for time mgmt */
+#ifdef DEFERRABLE
+	{
+		struct sched_thd *t;
+
+		assert(num_ticks > 0);
+		ticks += num_ticks;
+		for (t = FIRST_LIST(&servers, sched_next, sched_prev) ;
+		     t != &servers                                    ;
+		     t = FIRST_LIST(t, sched_next, sched_prev))
+		{
+			struct sched_accounting *sa = sched_get_accounting(t);
+			unsigned long T_exp = sa->T_exp, T = sa->T;
+			assert(T);
+
+			if (T_exp <= ticks) {
+				unsigned long off = T - (ticks % T);
+				sa->T_exp  = ticks + off;
+				sa->C_used = 0;
+				sa->cycles = sa->prev_cycles = 0;
+				if (sched_thd_suspended(t)) {
+					t->flags &= ~THD_SUSPENDED;
+					if (sched_thd_ready(t)) fp_move_end_runnable(t);
+					sched_set_thd_urgency(t, sched_get_metric(t)->priority);
+				}
+			}
+		}
+	}
+#endif
 }
 
 void thread_block(struct sched_thd *t)
 {
 	assert(t);
 	assert(!sched_thd_member(t));
-	fp_rem_thd(t);
+	if (!sched_thd_suspended(t)) fp_rem_thd(t);
 }
 
 void thread_wakeup(struct sched_thd *t)
 {
 	assert(t);
 	assert(!sched_thd_member(t));
-	fp_move_end_runnable(t);
+	if (!sched_thd_suspended(t)) {
+		fp_move_end_runnable(t);
+	}
 }
 
 #include <stdlib.h> 		/* atoi */
+
+#ifdef DEFERRABLE
+static int
+ds_extract_nums(char *s, int *amnt)
+{
+	char tmp[11];
+	int i;
+
+	tmp[10] = '\0';
+	for (i = 0 ; s[i] >= '0' && s[i] <= '9' && i < 10 ; i++) {
+		tmp[i] = s[i];
+	}
+	tmp[i] = '\0';
+	*amnt = i;
+
+	return atoi(tmp);
+}
+
+static int
+ds_parse_params(struct sched_thd *t, char *s)
+{
+	int n, prio;
+
+	assert(s[0] == 'd');
+	s++;
+	prio = ds_extract_nums(s, &n);
+	s += n;
+
+	assert(s[0] == 'c');
+	s++;
+	sched_get_accounting(t)->C = ds_extract_nums(s, &n);
+	s += n;
+	sched_get_accounting(t)->C_used = 0;
+
+	assert(s[0] == 't');
+	s++;
+	sched_get_accounting(t)->T = ds_extract_nums(s, &n);
+	sched_get_accounting(t)->T_exp = 0;
+
+	return prio;
+}
+#endif
+
 static int fp_thread_params(struct sched_thd *t, char *p)
 {
 	int prio, tmp;
@@ -191,6 +286,11 @@ static int fp_thread_params(struct sched_thd *t, char *p)
 		assert(c);
 		tmp = atoi(&p[1]);
 		prio = sched_get_metric(c)->priority + tmp;
+		memcpy(sched_get_accounting(t), sched_get_accounting(c), sizeof(struct sched_accounting));
+#ifdef DEFERRABLE
+		if (sched_get_accounting(t)->T) ADD_LIST(&servers, t, sched_next, sched_prev);
+#endif
+
 		if (prio > PRIO_LOWEST) prio = PRIO_LOWEST;
 		break;
 	case 'a':
@@ -205,6 +305,14 @@ static int fp_thread_params(struct sched_thd *t, char *p)
 		/* timer thread */
 		prio = PRIO_HIGHEST;
 		break;
+#ifdef DEFERRABLE
+	case 'd':
+	{
+		prio = ds_parse_params(t, p);
+		if (sched_get_accounting(t)->T) ADD_LIST(&servers, t, sched_next, sched_prev);
+		break;
+	}
+#endif
 	default:
 		printc("unknown priority option @ %s, setting to low\n", p);
 		prio = PRIO_LOW;
@@ -235,15 +343,34 @@ void runqueue_print(void)
 		     t != &priorities[i].runnable ;
 		     t = FIRST_LIST(t, prio_next, prio_prev)) {
 			struct sched_accounting *sa = sched_get_accounting(t);
-			unsigned long diff = sa->ticks - sa->prev_ticks;
+			unsigned long diff = sa->ticks - sa->prev_ticks,
+				  cyc_diff = sa->cycles - sa->prev_cycles;
 
-			if (diff) {
-				printc("\t%d, %d, %ld\n", t->id, i, diff);
+			if (diff || cyc_diff) {
+				printc("\t%d, %d, %ld+%ld/%d\n", t->id, i, diff, cyc_diff, QUANTUM);
 				print_thd_invframes(t);
 				sa->prev_ticks = sa->ticks;
 			}
 		}
 	}
+#ifdef DEFERRABLE
+	printc("Suspended threads (thd, prio, ticks):\n");
+	for (t = FIRST_LIST(&servers, sched_next, sched_prev) ; 
+	     t != &servers ;
+	     t = FIRST_LIST(t, sched_next, sched_prev)) {
+		struct sched_accounting *sa = sched_get_accounting(t);
+		unsigned long diff = sa->ticks - sa->prev_ticks,
+   			      cyc_diff = sa->cycles - sa->prev_cycles;
+		
+		if (!sched_thd_suspended(t)) continue;
+		if (diff || cyc_diff) {
+			printc("\t%d, %d, %ld+%ld/%d\n", t->id, 
+			       sched_get_metric(t)->priority, diff, cyc_diff, QUANTUM);
+			print_thd_invframes(t);
+			sa->prev_ticks = sa->ticks;
+		}
+	}
+#endif
 }
 
 void sched_initialization(void)
@@ -253,4 +380,8 @@ void sched_initialization(void)
 	for (i = 0 ; i < NUM_PRIOS ; i++) {
 		sched_init_thd(&priorities[i].runnable, 0, THD_FREE);
 	}
+#ifdef DEFERRABLE
+	sched_init_thd(&servers, 0, THD_FREE);
+#endif
+	
 }

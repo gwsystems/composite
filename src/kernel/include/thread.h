@@ -205,7 +205,7 @@ thd_curr_spd_thd(struct thread *t)
 	if (NULL == t) return NULL;
 
 	stkptr = t->stack_ptr;
-	if (unlikely(stkptr >= MAX_SERVICE_DEPTH)) return NULL;
+	if (stkptr >= MAX_SERVICE_DEPTH) return NULL;
 	
 	return t->stack_base[stkptr].spd;
 }

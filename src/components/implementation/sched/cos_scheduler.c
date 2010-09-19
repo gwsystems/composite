@@ -52,6 +52,7 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 		}
 		
 		evt = &cos_sched_notifications.cos_events[cos_curr_evt];
+\
 		v_ptr = &COS_SCHED_EVT_VALS(evt);
 		do {
 			struct cos_se_values se;
@@ -140,6 +141,7 @@ void sched_init_thd(struct sched_thd *thd, unsigned short int thd_id, int flags)
 	cos_memset(thd, 0, sizeof(struct sched_thd));
 	INIT_LIST(thd, next, prev);
 	INIT_LIST(thd, prio_next, prio_prev);
+	INIT_LIST(thd, sched_next, sched_prev);
 	INIT_LIST(thd, cevt_next, cevt_prev);
 	thd->id = thd_id;
 	thd->flags = flags;

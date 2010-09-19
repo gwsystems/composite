@@ -59,7 +59,7 @@
 struct sched_accounting {
 	unsigned long C, T, C_used, T_exp;
 	unsigned long ticks, prev_ticks;
-	unsigned long long cycles;
+	unsigned long long cycles, prev_cycles;
 	void *private;
 };
 
@@ -72,7 +72,8 @@ struct sched_thd {
 	struct sched_accounting accounting;
 	struct sched_metric metric;
 	u16_t event;
-	struct sched_thd *prio_next, *prio_prev;
+	struct sched_thd *prio_next,  *prio_prev, 
+		         *sched_next, *sched_prev; /* for scheduler policy use */
 
 	/* blocking/waking specific info: 0 = blocked, 1 = running, 2
 	 * = received a wake for a block that hasn't happened yet */
@@ -271,43 +272,43 @@ static inline void sched_crit_sect_init(void)
  * cycles, which can cause this to infinitely regress (which, in
  * practice, will cause a fault).
  */
-static inline struct sched_thd *sched_thd_dependency(struct sched_thd *curr)
+static inline struct sched_thd *
+__sched_thd_dependency(struct sched_thd *curr)
 {
 	struct sched_crit_section *cs;
 	spdid_t spdid;
-	struct sched_thd *dep;
+	//struct sched_thd *dep;
 	assert(curr);
 	
 	if (likely(!sched_thd_dependent(curr))) return NULL;
 	
 	/* FIXME: recursive algorithm used, should be iterative */
-	if (curr->dependency_thd) {
-		dep = sched_thd_dependency(curr->dependency_thd);
-		if (dep) return dep;
-		return curr->dependency_thd;
-	} 
-	
+	if (curr->dependency_thd) return curr->dependency_thd;
+
 	spdid = curr->contended_component;
 	/* Horrible hack: */
 	if (!spdid) goto done;
-
 	/* If we have the dependency flag set, we should have an contended spd */
 	assert(spdid);
 	assert(spdid < MAX_NUM_SPDS);
 	
 	/* We have a critical section for a spd */
 	cs = &sched_spd_crit_sections[spdid];
-	if (cs->holding_thd) {
-		dep = sched_thd_dependency(cs->holding_thd);
-		if (dep) return dep;
-		return cs->holding_thd;
-	}
-
+	if (cs->holding_thd) return cs->holding_thd;
 done:
 	/* no more dependencies! */
 	curr->flags &= ~THD_DEPENDENCY;
 	curr->contended_component = 0;
 	return NULL;
+}
+
+static inline struct sched_thd *
+sched_thd_dependency(struct sched_thd *curr)
+{
+	struct sched_thd *d, *p; // dependency and prev dependency
+
+	for (p = curr ; ((d = __sched_thd_dependency(p))) ; p = d) ;
+	return p == curr ? NULL : p;
 }
 
 /* 
