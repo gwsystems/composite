@@ -53,10 +53,9 @@ enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_H
 const char *COMP_INFO = "cos_comp_info";
 
 const char *INIT_COMP  = "c0.o";
-char *ROOT_SCHED = NULL;//"ds.o";
+char *ROOT_SCHED = NULL; // this is set to the first listed scheduler
 const char *MPD_MGR    = "cg.o"; // the component graph!
 const char *CONFIG_COMP = "schedconf.o";
-
 const char *BOOT_COMP = "boot.o";
 
 const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] = 

@@ -12,8 +12,9 @@
 # sh? between id 18<->39, 40->50 are base cases
 
 ./cos_loader \
-"c0.o, ;*fprr.o, ;!l.o,a8;mm.o, ;print.o, ;!te.o,a3;!e.o,a3;schedconf.o, ;\
-!stat.o,a25;st.o, ;bc.o, ;boot.o,a4;!sm.o,a2;!sp.o,a4;\
+"c0.o, ;*fprr.o, ;mm.o, ;print.o, ;schedconf.o, ;st.o, ;bc.o, ;boot.o,a4;cg.o,a1;\
+\
+!l.o,a8;!stat.o,a25;!te.o,a3;!e.o,a3;!sm.o,a2;!sp.o,a4;\
 \
 (!p0.o=pt.o),a7'p10';(!p1.o=pt.o),a8'p15';\
 (!p3.o=pt.o),a9'p33 n1';(!p4.o=pt.o),a9'p33 n1';(!p5.o=pt.o),a9'p33 n1';\
@@ -33,6 +34,7 @@
 \
 c0.o-fprr.o;\
 fprr.o-print.o|mm.o|st.o|schedconf.o|[parent_]bc.o;\
+cg.o-fprr.o;\
 l.o-fprr.o|mm.o|print.o|te.o|sm.o;\
 te.o-print.o|fprr.o|mm.o|sm.o;\
 mm.o-print.o;\
@@ -41,7 +43,7 @@ stat.o-te.o|fprr.o|l.o|print.o|e.o|sm.o;\
 st.o-print.o;\
 schedconf.o-print.o;\
 bc.o-print.o;\
-boot.o-print.o|fprr.o|mm.o|schedconf.o;\
+boot.o-print.o|fprr.o|mm.o|schedconf.o|cg.o;\
 sp.o-te.o|fprr.o|schedconf.o|print.o|mm.o|sm.o;\
 sm.o-print.o|mm.o|fprr.o|boot.o;\
 \

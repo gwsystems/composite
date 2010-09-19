@@ -1448,7 +1448,7 @@ static struct sched_thd *fp_create_timer(void)
 static void sched_init_create_threads(void)
 {
 	spdid_t ret;
-	int i = 0;
+	int i = 0, j = 0;
 
 	/* create the idle thread */
 	idle = sched_setup_thread("i", fp_idle_loop);
@@ -1460,8 +1460,11 @@ static void sched_init_create_threads(void)
 		data = cos_argreg_alloc(sizeof(struct cos_array) + SCHED_STR_SZ);
 		assert(data);
 		data->sz = SCHED_STR_SZ;
-		ret = (sched_is_root()) ? sched_comp_config(cos_spd_id(), i++, data) :
-                			  sched_comp_config_poststart(cos_spd_id(), i++, data);
+		ret = sched_comp_config(cos_spd_id(), i++, data);
+		if (ret <= 0 && sched_is_child()) {
+			data->sz = SCHED_STR_SZ;
+			ret = sched_comp_config_poststart(cos_spd_id(), j++, data);
+		}
 		
 		if (ret > 0 && data->sz > 0) fp_init_component(ret, data->mem);
 		cos_argreg_free(data);

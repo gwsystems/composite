@@ -21,7 +21,7 @@ void cos_init(void)
 			rdtscll(t);
 			odd = 0;
 		} else {
-			printc("t @ %lld\n", t);
+			printc("timed_wait: t @ %lld\n", t);
 			odd = 1;
 		}
 	 */
@@ -35,7 +35,7 @@ void cos_init(void)
 			rdtscll(t);
 			odd = 0;
 		} else {
-			printc("w @ %lld\n", t);
+			printc("timed_wait: w @ %lld\n", t);
 			odd = 1;
 		}
 	}
