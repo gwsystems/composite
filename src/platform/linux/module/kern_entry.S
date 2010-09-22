@@ -115,7 +115,10 @@ ENTRY(sysenter_interposition_entry)
 	je composite_ret_ipc  /* component return */
 	cmpl $((1<<COS_SYSCALL_OFFSET)-1), %eax /* composite syscall */
 	ja composite_make_syscall
-	
+
+	SAVE_ALL
+	call hijack_syscall_monitor
+	RESTORE_REGS
 normal_syscall:
 	movl cos_temp_esp_storage, %esp
 	jmp  *(cos_default_sysenter_addr) /* sti will happen in syscall path */

@@ -9,6 +9,8 @@
  * Author: Gabriel Parmer, gparmer@gwu.edu
  */
 
+//#define IDLE_TO_LINUX
+
 #define COS_FMT_PRINT
 
 #include <cos_component.h>
@@ -243,7 +245,7 @@ static void report_thd_accouting(void)
 		}
 	}
 	printc("\n");
-//	report_output();
+	report_output();
 
 #ifdef TIMER_ACTIVATE
 	{
@@ -612,7 +614,9 @@ static void fp_idle_loop(void *d)
 			sched_switch_thread(0, IDLE_SCHED_SWITCH);
 		}
 		report_event(IDLE_SCHED_LOOP);
+#ifdef IDLE_TO_LINUX
 		cos_idle();
+#endif
 	}
 }
 

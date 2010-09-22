@@ -2199,9 +2199,7 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 	 * have a higher priority than the thread that upcall had
 	 * preempted.  Thus we must break its preemption chain.
 	 */
-	if (preempted->flags & THD_STATE_ACTIVE_UPCALL) {
-		break_preemption_chain(preempted);
-	}
+	if (preempted->flags & THD_STATE_ACTIVE_UPCALL) break_preemption_chain(preempted);
 	
 	event_record("upcall not immediately executed (less urgent), continue previous thread", 
 		     thd_get_id(preempted), thd_get_id(upcall));
@@ -2981,7 +2979,6 @@ COS_SYSCALL int cos_syscall_stats(int spdid)
 {
 	cos_meas_report();
 	cos_meas_init();
-//	printk("cos: brand w/ pending %ld\n", thd_get_by_id(15)->thread_brand->pending_upcall_requests);
 
 	return 0;
 }

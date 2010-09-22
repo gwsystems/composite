@@ -933,6 +933,13 @@ static unsigned long fault_addrs[NUM_BUCKETS];
 #define PF_WRITE(code)  (code & 0x2)
 #define PF_READ(code)   (!PF_WRITE(code))
 
+void hijack_syscall_monitor(void)
+{
+	if (unlikely(!syscalls_enabled && composite_thread == current)) {
+		printk("FAILURE: making a Linux system call in Composite.\n");
+	}
+}
+
 /*
  * This function will be called upon a hardware page fault.  Return 0
  * if you want the linux page fault to be run, !0 otherwise.
@@ -1550,7 +1557,7 @@ int host_attempt_brand(struct thread *brand)
 				/* the following call isn't
 				 * necessary: if we are in a syscall,
 				 * then we can't be in an RAS */
-				//thd_check_atomic_preempt(cos_current);
+				thd_check_atomic_preempt(cos_current);
 			}
 			if (host_in_syscall()) {
 				cos_meas_event(COS_MEAS_INT_PREEMPT);

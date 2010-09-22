@@ -307,7 +307,7 @@ mpd_init(void)
 	/* remove protection domains on a time-trigger */
 //	while (!remove_one_isolation_boundary()); /* merge all pds */
 	/* Intelligently manage pds */
-	mpd_loop(graph);
+//	mpd_loop(graph);
 	return;
 }
 
