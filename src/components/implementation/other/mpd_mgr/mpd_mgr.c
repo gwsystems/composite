@@ -242,34 +242,56 @@ mpd_bench(void)
 static void 
 mpd_merge_selective(void)
 {
-	int ms[] = {1, 0};
-	int i;
+	/* Define your clusters */
+	int
 
-	if (ms[0] == 0) return;
-	for (i = 1; ms[i] != 0 ; i++) {
-		if (cos_mpd_cntl(COS_MPD_MERGE, ms[0], ms[i])) {
-			printc("merge of %d and %d failed. %d\n", ms[i], ms[i], 0);
+// default
+	     c0[] = {0}, c1[] = {0}, c2[] = {0}, c3[] = {0},
+
+// for pp
+/*	     c0[] = {1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 0},
+	     c1[] = {0}, c2[] = {0}, c3[] = {0},
+*/
+
+// for ws
+/*	     c0[] = {1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 0},
+	     c1[] = {0}, c2[] = {0}, c3[] = {0},
+*/
+
+// for ws_h, a cluster for each subsystem
+/*	     c0[] = {1, 2, 3, 4, 5, 6, 7, 8, 0},
+	     c1[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0},
+	     c2[] = {0}, c3[] = {0},
+*/
+
+// for pipe_h
+/*	     c0[] = {1, 2, 3, 4, 5, 6, 7, 8, 0},
+	     c1[] = {11, 0},
+	     c2[] = {12, 0},
+	     c3[] = {13, 14, 15, 16, 17, 18, 0}, // 14-18 should be in the domain of their scheduler
+*/
+
+// for wake_h
+/*	     c0[] = {1, 2, 3, 4, 5, 6, 7, 8, 0},
+	     c1[] = {11, 0},
+	     c2[] = {12, 0},
+	     c3[] = {13, 14, 0}, // 14 should be in the domain of its scheduler
+*/
+
+	     c_last[] = {0};	
+	
+	int *ms[] = {c0, c1, c2, c3, c_last};
+	int i, j;
+
+	for (j = 0 ; ms[j][0] ; j++) {
+		for (i = 1 ; ms[j][i] != 0 ; i++) {
+			if (cos_mpd_cntl(COS_MPD_MERGE, ms[j][0], ms[j][i])) {
+				printc("merge of %d and %d failed. %d\n", ms[j][0], ms[j][i], 0);
+			}
 		}
 	}
 
-	update_edge_weights();
-	mpd_report();
-	timed_event_block(cos_spd_id(), 498);
-	update_edge_weights();
-	mpd_report();
-	timed_event_block(cos_spd_id(), 498);
-	update_edge_weights();
-	mpd_report();
-	timed_event_block(cos_spd_id(), 498);
-	update_edge_weights();
-	mpd_report();
-	timed_event_block(cos_spd_id(), 498);
-	update_edge_weights();
-	mpd_report();
-	timed_event_block(cos_spd_id(), 498);
-	update_edge_weights();
-	mpd_report();
-	timed_event_block(cos_spd_id(), 498);
+	return;
 }
 
 static void 
@@ -303,7 +325,7 @@ mpd_init(void)
 
 	/* merge all components into one protection domain */
 //	mpd_merge_all(graph);
-//	mpd_merge_selective();
+	mpd_merge_selective();
 	/* remove protection domains on a time-trigger */
 //	while (!remove_one_isolation_boundary()); /* merge all pds */
 	/* Intelligently manage pds */

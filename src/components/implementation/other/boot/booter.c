@@ -276,9 +276,7 @@ static void boot_create_system(void)
 		struct cobj_header *h;
 		h = hs[i];
 		
-		if (-1 != boot_spd_thd(h->id)) {
-			printc("bootstrapped spdid %d \n", h->id);
-		}
+		boot_spd_thd(h->id);
 	}
 }
 

@@ -6,8 +6,8 @@
 ./cos_loader \
 "c0.o, ;*ds.o, ;mm.o, ;print.o, ;boot.o,a2;schedconf.o, ;cg.o,a1;bc.o, ;st.o, ;\
 \
-!stat.o,a25;!cm.o,a7;!sc.o,a6;!if.o,a5;!ip.o, ;!ainv.o,a6;!fn.o, ;!cgi.o,a9;!port.o, ;!mpd.o,a5;\
-!sm.o,a1;!l.o,a4;!te.o,a3;(!fd2.o=fd.o),a8;(!fd3.o=fd.o),a8;(!cgi2.o=cgi.o),a9;(!ainv2.o=ainv.o),a6;\
+!sm.o,a1;!mpd.o,a5;!stat.o,a25;!cm.o,a7;!sc.o,a6;!if.o,a5;!ip.o, ;!ainv.o,a6;!fn.o, ;!cgi.o,a9;\
+!port.o, ;!l.o,a4;!te.o,a3;(!fd2.o=fd.o),a8;(!fd3.o=fd.o),a8;(!cgi2.o=cgi.o),a9;(!ainv2.o=ainv.o),a6;\
 !net.o,d6c2t2;!e.o,a5;!fd.o,a8;!conn.o,a9;!http.o,a8:\
 \
 c0.o-ds.o;\

@@ -682,7 +682,8 @@ stkmgr_wait_for_stack(struct spd_stk_info *ssi)
  * should work for now.
  */
 static inline void
-get_cos_info_page(spdid_t spdid){
+get_cos_info_page(spdid_t spdid)
+{
 	spdid_t s;
 	int i;
 	int found = 0;
@@ -690,14 +691,14 @@ get_cos_info_page(spdid_t spdid){
 	if(spdid > MAX_NUM_SPDS){
 		BUG(); 
 	}
-	for(i = 0; i < MAX_NUM_SPDS; i++){
+	for (i = 0; i < MAX_NUM_SPDS; i++) {
 		s = cinfo_get_spdid(i);
-		if(!s){
+		if(!s) { 
 			printc("Unable to map compoents cinfo page!\n");
 			BUG();
 		}
             
-		if(s == spdid){
+		if (s == spdid) {
 			found = 1;
 			break;
 		}

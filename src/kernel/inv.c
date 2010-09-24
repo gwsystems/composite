@@ -828,6 +828,7 @@ static struct thread *switch_thread_slowpath(struct thread *curr, unsigned short
 			//spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(curr));
 			cos_meas_event(COS_MEAS_BRAND_COMPLETION_PENDING);
 			event_record("switch_thread tailcall pending", thd_get_id(curr), 0);
+			report_upcall("c", curr);
 			*ret_code = COS_SCHED_RET_SUCCESS;
 			return sched_tailcall_pending_upcall_thd(curr, (struct composite_spd*)curr_spd->composite_spd);
 		} 
@@ -841,6 +842,7 @@ static struct thread *switch_thread_slowpath(struct thread *curr, unsigned short
 		*curr_flags = COS_SCHED_EVT_BRAND_READY;
 
 		event_record("tailcall inv and switch to specified thread", thd_get_id(curr), thd_get_id(thd));
+		report_upcall("f", curr);
 	}
 
 	/*** A synchronization event for the scheduler? ***/
@@ -1116,6 +1118,7 @@ static struct pt_regs *brand_execution_completion(struct thread *curr, int *pree
 	/* Immediately execute a pending upcall */
 	if (brand->pending_upcall_requests) {
 		event_record("brand complete, self pending upcall executed", thd_get_id(curr), 0);
+		report_upcall("c", curr);
 		return sched_tailcall_pending_upcall(curr, cspd);
 	}
 
@@ -1157,6 +1160,7 @@ static struct pt_regs *brand_execution_completion(struct thread *curr, int *pree
 
 	brand_completion_switch_to(curr, prev);
 	*preempt = 1;
+	report_upcall("i", curr);
 
 	return &prev->regs;
 }
@@ -1924,7 +1928,8 @@ static inline void update_thd_evt_state(struct thread *t, int flags, unsigned lo
 
 		tsi = thd_get_sched_info(t, i);
 		sched = tsi->scheduler;
-		if (sched && tsi->thread_notifications) {
+		if (!sched) break;
+		if (likely(tsi->thread_notifications)) {
 			struct cos_sched_events *se = tsi->thread_notifications;
 			u32_t p, n;
 
@@ -1940,11 +1945,12 @@ static inline void update_thd_evt_state(struct thread *t, int flags, unsigned lo
 				break;
 			}
 
-			if (elapsed) {
+			if (likely(elapsed)) {
 				n = p = se->cpu_consumption;
 				n += elapsed;
-				if (n < p) se->cpu_consumption = ~0UL; /* prevent overflow */
-				else       se->cpu_consumption = n;
+				 /* prevent overflow */
+				if (unlikely(n < p)) se->cpu_consumption = ~0UL;
+				else                 se->cpu_consumption = n;
 			}
 
 			/* 
@@ -1976,7 +1982,7 @@ static void update_sched_evts(struct thread *new, int new_flags,
 	 * - if new_flags, do sched evt flags update on new
 	 * - if prev_flags, do sched evt flags update on prev
 	 */
-	if ((new->flags | prev->flags) & THD_STATE_CYC_CNT) {
+	if (likely((new->flags | prev->flags) & THD_STATE_CYC_CNT)) {
 		unsigned long last;
 
 		last = cycle_cnt;
@@ -2127,6 +2133,8 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 		 */
 //		update_thd_evt_state(upcall, COS_SCHED_EVT_BRAND_PEND, 1);
 //		cos_meas_event(COS_MEAS_PENDING_HACK);
+		report_upcall("p", upcall);
+
 		return preempted;
 	}
 	assert(upcall->flags & THD_STATE_READY_UPCALL);
@@ -2189,6 +2197,7 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 				     thd_get_id(preempted), thd_get_id(upcall));
 		}
 
+		report_upcall("u", upcall);
 		cos_meas_event(COS_MEAS_BRAND_UC);
 		cos_meas_stats_end(COS_MEAS_STATS_UC_EXEC_DELAY, 1);
 		return upcall;
@@ -2204,6 +2213,8 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 	event_record("upcall not immediately executed (less urgent), continue previous thread", 
 		     thd_get_id(preempted), thd_get_id(upcall));
 //		printk("%d w\n", thd_get_id(upcall));
+
+	report_upcall("d", upcall);
 
 	cos_meas_event(COS_MEAS_BRAND_DELAYED);
 	return preempted;

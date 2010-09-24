@@ -59,7 +59,7 @@
 struct sched_accounting {
 	unsigned long C, T, C_used, T_exp;
 	unsigned long ticks, prev_ticks;
-	unsigned long long cycles, prev_cycles;
+	unsigned long long cycles, pol_cycles;
 	void *private;
 };
 

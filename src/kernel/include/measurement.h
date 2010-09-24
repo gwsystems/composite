@@ -154,6 +154,17 @@ static inline void cos_meas_stats_end(cos_meas_t type, int reset)
 #define cos_meas_stats_end(t, r)
 #endif	/* MEASUREMENTS_STATS */
 
+#ifdef MEASUREMENTS_UPCALLS
+static inline void report_upcall(char *n, struct thread *u)
+{
+	unsigned long long t;
+	rdtscll(t);
+	printk("%s %2d %ld\n", n, thd_get_id(u), (unsigned long)t/1600);
+}
+#else 
+#define report_upcall(n, u)
+#endif
+
 #else
 
 #define cos_meas_event(t)
@@ -161,6 +172,7 @@ static inline void cos_meas_stats_end(cos_meas_t type, int reset)
 #define cos_meas_report()
 #define cos_meas_stats_start(t, o)
 #define cos_meas_stats_end(t, r)
+#define report_upcall(n, u)
 
 #endif
 

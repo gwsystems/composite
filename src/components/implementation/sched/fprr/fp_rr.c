@@ -152,12 +152,11 @@ void time_elapsed(struct sched_thd *t, u32_t processing_time)
 
 	assert(t);
 	sa = sched_get_accounting(t);
-	sa->prev_cycles = sa->cycles;
-	sa->cycles += processing_time;
+	sa->pol_cycles += processing_time;
+	sa->cycles     += processing_time;
 	if (sa->cycles >= QUANTUM) {
 		assert(sa->cycles <= QUANTUM);
-		sa->cycles -= QUANTUM;
-		sa->prev_cycles = 0;
+		sa->cycles     -= QUANTUM;
 		sa->ticks++;
 		/* round robin */
 		if (sched_thd_ready(t) && !sched_thd_suspended(t)) {
@@ -166,16 +165,18 @@ void time_elapsed(struct sched_thd *t, u32_t processing_time)
 			fp_move_end_runnable(t);
 		}
 #ifdef DEFERRABLE
+#endif
+	}
+	if (sa->pol_cycles > QUANTUM) {
+		sa->pol_cycles -= QUANTUM;
 		if (sa->T) {
 			sa->C_used++;
 			if (sa->C_used >= sa->C) {
 				sched_set_thd_urgency(t, NUM_PRIOS);
 				if (sched_thd_ready(t)) fp_rem_thd(t);
-
 				t->flags |= THD_SUSPENDED;
 			}
 		}
-#endif
 	}
 }
 
@@ -200,13 +201,13 @@ void timer_tick(int num_ticks)
 				unsigned long off = T - (ticks % T);
 				sa->T_exp  = ticks + off;
 				sa->C_used = 0;
-				sa->cycles = sa->prev_cycles = 0;
 				if (sched_thd_suspended(t)) {
 					t->flags &= ~THD_SUSPENDED;
 					if (sched_thd_ready(t)) fp_move_end_runnable(t);
 					sched_set_thd_urgency(t, sched_get_metric(t)->priority);
 				}
 			}
+			sa->pol_cycles = 0;
 		}
 	}
 #endif
@@ -343,14 +344,13 @@ void runqueue_print(void)
 		     t != &priorities[i].runnable ;
 		     t = FIRST_LIST(t, prio_next, prio_prev)) {
 			struct sched_accounting *sa = sched_get_accounting(t);
-			unsigned long diff = sa->ticks - sa->prev_ticks,
-				  cyc_diff = sa->cycles - sa->prev_cycles;
+			unsigned long diff = sa->ticks - sa->prev_ticks;
 
-			if (diff || cyc_diff) {
-				printc("\t%d, %d, %ld+%ld/%d\n", t->id, i, diff, cyc_diff, QUANTUM);
-				print_thd_invframes(t);
-				sa->prev_ticks = sa->ticks;
-			}
+			if (!(diff || sa->cycles)) continue;
+			printc("\t%d, %d, %ld+%ld/%d\n", t->id, i, diff, (unsigned long)sa->cycles, QUANTUM);
+			print_thd_invframes(t);
+			sa->prev_ticks = sa->ticks;
+			sa->cycles = 0;
 		}
 	}
 #ifdef DEFERRABLE
@@ -359,15 +359,16 @@ void runqueue_print(void)
 	     t != &servers ;
 	     t = FIRST_LIST(t, sched_next, sched_prev)) {
 		struct sched_accounting *sa = sched_get_accounting(t);
-		unsigned long diff = sa->ticks - sa->prev_ticks,
-   			      cyc_diff = sa->cycles - sa->prev_cycles;
+		unsigned long diff = sa->ticks - sa->prev_ticks;
 		
 		if (!sched_thd_suspended(t)) continue;
-		if (diff || cyc_diff) {
+		if (diff || sa->cycles) {
 			printc("\t%d, %d, %ld+%ld/%d\n", t->id, 
-			       sched_get_metric(t)->priority, diff, cyc_diff, QUANTUM);
+			       sched_get_metric(t)->priority, diff, 
+			       (unsigned long)sa->cycles, QUANTUM);
 			print_thd_invframes(t);
 			sa->prev_ticks = sa->ticks;
+			sa->cycles = 0;
 		}
 	}
 #endif

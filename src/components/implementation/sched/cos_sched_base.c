@@ -9,7 +9,7 @@
  * Author: Gabriel Parmer, gparmer@gwu.edu
  */
 
-//#define IDLE_TO_LINUX
+#define IDLE_TO_LINUX
 
 #define COS_FMT_PRINT
 
@@ -217,15 +217,15 @@ static void report_thd_accouting(void)
 	     t != &blocked ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
 		struct sched_accounting *sa = sched_get_accounting(t);
-		unsigned long diff = sa->ticks - sa->prev_ticks,
-		          cyc_diff = sa->cycles - sa->prev_cycles;
+		unsigned long diff = sa->ticks - sa->prev_ticks;
 		
-		if (diff || cyc_diff) {
+		if (diff || sa->cycles) {
 			printc("\t%d, %d, %ld+%ld/%d\n", t->id, 
 			       sched_get_metric(t)->priority, diff, 
-			       cyc_diff, CYC_PER_TICK);
+			       (unsigned long)sa->cycles, CYC_PER_TICK);
 			print_thd_invframes(t);
 			sa->prev_ticks = sa->ticks;
+			sa->cycles = 0;
 		}
 	}
 	printc("\nInactive upcalls (thd, prio, ticks):\n");
@@ -233,15 +233,15 @@ static void report_thd_accouting(void)
 	     t != &upcall_deactive ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
 		struct sched_accounting *sa = sched_get_accounting(t);
-		unsigned long diff = sa->ticks - sa->prev_ticks,
-		          cyc_diff = sa->cycles - sa->prev_cycles;
+		unsigned long diff = sa->ticks - sa->prev_ticks;
 		
-		if (diff || cyc_diff) {
+		if (diff || sa->cycles) {
 			printc("\t%d, %d, %ld+%ld/%d\n", t->id, 
 			       sched_get_metric(t)->priority, diff, 
-			       cyc_diff, CYC_PER_TICK);
+			       (unsigned long)sa->cycles, CYC_PER_TICK);
 			print_thd_invframes(t);
 			sa->prev_ticks = sa->ticks;
+			sa->cycles = 0;
 		}
 	}
 	printc("\n");
