@@ -2039,7 +2039,7 @@ static int asym_exec_dom_init(void)
 //	update_vmalloc_regions();
 	hw_int_init();
 	hw_int_override_sysenter(sysenter_interposition_entry);
-	hw_int_override_pagefault(page_fault_interposition);
+//	hw_int_override_pagefault(page_fault_interposition);
 	hw_int_override_idt(0, div_fault_interposition, 0, 0);
 	hw_int_override_idt(0xe9, state_inv_interposition, 0, 3);
 

@@ -41,14 +41,14 @@
 #define BYTE_ORDER LITTLE_ENDIAN
 #endif /* BYTE_ORDER */
 
+/* If we're compiled with cos_types.h, these will be redefinitions */
+#ifndef COS_BASE_TYPES
+#define COS_BASE_TYPES
 /* Define generic types used in lwIP */
 typedef signed     char    s8_t;
 typedef signed     short   s16_t;
 typedef signed     long    s32_t;
 
-/* If we're compiled with cos_types.h, these will be redefinitions */
-#ifndef COS_BASE_TYPES
-#define COS_BASE_TYPES
 typedef unsigned   char    u8_t;
 typedef unsigned   short   u16_t;
 typedef unsigned   long    u32_t;

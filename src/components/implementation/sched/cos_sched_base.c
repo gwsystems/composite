@@ -995,8 +995,8 @@ static struct sched_thd *__sched_setup_thread_nocrt(unsigned int tid, char *metr
 	struct sched_thd *new;
 	
 	new = __sched_setup_thread_no_policy(tid);
-	thread_params_set(new, metric_str);
 	thread_new(new);
+	thread_params_set(new, metric_str);
 	
 	return new;
 }
@@ -1025,7 +1025,8 @@ static struct sched_thd *sched_setup_thread(char *metric_str, crt_thd_fn_t fn)
 
 /* this should just create the thread, not set the prio...there should
  * be a separate function for that */
-int sched_create_thread(spdid_t spdid, struct cos_array *data)
+int
+sched_create_thread(spdid_t spdid, struct cos_array *data)
 {
 	struct sched_thd *curr, *new;
 	/* well this is just stupid...thx gcc */
@@ -1048,8 +1049,25 @@ int sched_create_thread(spdid_t spdid, struct cos_array *data)
 
 #define SCHED_STR_SZ 64
 
+int 
+sched_thread_params(spdid_t spdid, u16_t thd_id, res_spec_t rs)
+{
+	struct sched_thd *t;
+	int ret = -1;
+	
+	cos_sched_lock_take();
+	t = sched_get_mapping(thd_id);
+	if (!t) goto done;
+
+	ret = thread_resparams_set(t, rs);
+done:
+	cos_sched_lock_release();
+	return ret;
+}
+
 /* Create a thread in target with the default parameters */
-int sched_create_thread_default(spdid_t spdid, spdid_t target)
+int
+sched_create_thread_default(spdid_t spdid, spdid_t target)
 {
 	struct cos_array *data;
 	struct sched_thd *new;

@@ -12,10 +12,12 @@
 
 #include <cos_scheduler.h>
 #include <sched_timing.h>
+#include <res_spec.h>
 
 void thread_new(struct sched_thd *t);
 void thread_remove(struct sched_thd *t);
 int thread_params_set(struct sched_thd *t, char *params);
+int thread_resparams_set(struct sched_thd *t, res_spec_t rs);
 
 void runqueue_print(void);
 

@@ -1,6 +1,8 @@
 #ifndef   	SCHED_H
 #define   	SCHED_H
 
+#include <res_spec.h>
+
 int sched_root_init(void);
 
 int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
@@ -14,8 +16,12 @@ int sched_priority(unsigned short int tid);
 
 int sched_create_thread(spdid_t spdid, struct cos_array *data);
 int sched_create_thread_default(spdid_t spdid, spdid_t target);
+int sched_thread_params(spdid_t spdid, u16_t thd_id, res_spec_t rs);
+
 int sched_create_net_brand(spdid_t spdid, unsigned short int port);
 int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short int tid);
+
+
 void sched_exit(void);
 
 int sched_component_take(spdid_t spdid);

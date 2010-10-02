@@ -72,6 +72,12 @@ int sched_create_thread_default(spdid_t spdid, spdid_t target)
 	return -ENOTSUP;
 }
 
+int sched_thread_params(spdid_t spdid, u16_t thd_id, res_spec_t rs)
+{
+	BUG();
+	return -ENOTSUP;
+}
+
 int sched_create_net_brand(spdid_t spdid, unsigned short int port)
 {
 	BUG();

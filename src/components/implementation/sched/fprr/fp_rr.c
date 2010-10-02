@@ -72,7 +72,6 @@ static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
 	sched_get_metric(t)->priority = prio;
 	sched_set_thd_urgency(t, prio);
 	fp_move_end_runnable(t);
-	mask_set(prio);
 
 	return;
 }
@@ -81,8 +80,11 @@ static inline void fp_rem_thd(struct sched_thd *t)
 {
 	u16_t p = sched_get_metric(t)->priority;
 
-	/* no other thread at this priority? */
-	if (t->prio_next == t->prio_prev) mask_unset(p);
+	/* if on a list _and_ no other thread at this priority? */
+	if (!EMPTY_LIST(t, prio_next, prio_prev) && 
+	    t->prio_next == t->prio_prev) {
+		mask_unset(p);
+	}
 	REM_LIST(t, prio_next, prio_prev);
 }
 
@@ -99,7 +101,6 @@ static struct sched_thd *fp_get_highest_prio(void)
 	assert(sched_get_metric(t));
 	assert(sched_get_metric(t)->priority == p);
 	assert(!sched_thd_free(t));
-	assert(sched_thd_ready(t));
 	
 	return t;
 }
@@ -131,7 +132,7 @@ struct sched_thd *schedule(struct sched_thd *t)
 void thread_new(struct sched_thd *t)
 {
 	assert(t);
-	fp_add_thd(t, sched_get_metric(t)->priority);
+//	fp_add_thd(t, sched_get_metric(t)->priority);
 }
 
 void thread_remove(struct sched_thd *t)
@@ -203,8 +204,9 @@ void timer_tick(int num_ticks)
 				sa->C_used = 0;
 				if (sched_thd_suspended(t)) {
 					t->flags &= ~THD_SUSPENDED;
-					if (sched_thd_ready(t)) fp_move_end_runnable(t);
-					sched_set_thd_urgency(t, sched_get_metric(t)->priority);
+					if (sched_thd_ready(t)) {
+						fp_add_thd(t, sched_get_metric(t)->priority);
+					}
 				}
 			}
 			sa->pol_cycles = 0;
@@ -217,16 +219,15 @@ void thread_block(struct sched_thd *t)
 {
 	assert(t);
 	assert(!sched_thd_member(t));
-	if (!sched_thd_suspended(t)) fp_rem_thd(t);
+	fp_rem_thd(t);
+	//if (!sched_thd_suspended(t)) fp_rem_thd(t);
 }
 
 void thread_wakeup(struct sched_thd *t)
 {
 	assert(t);
 	assert(!sched_thd_member(t));
-	if (!sched_thd_suspended(t)) {
-		fp_move_end_runnable(t);
-	}
+	if (!sched_thd_suspended(t)) fp_add_thd(t, sched_get_metric(t)->priority);
 }
 
 #include <stdlib.h> 		/* atoi */
@@ -310,7 +311,11 @@ static int fp_thread_params(struct sched_thd *t, char *p)
 	case 'd':
 	{
 		prio = ds_parse_params(t, p);
-		if (sched_get_accounting(t)->T) ADD_LIST(&servers, t, sched_next, sched_prev);
+		if (EMPTY_LIST(t, sched_next, sched_prev) && 
+		    sched_get_accounting(t)->T) {
+			ADD_LIST(&servers, t, sched_next, sched_prev);
+		}
+		fp_move_end_runnable(t);
 		break;
 	}
 #endif
@@ -318,9 +323,8 @@ static int fp_thread_params(struct sched_thd *t, char *p)
 		printc("unknown priority option @ %s, setting to low\n", p);
 		prio = PRIO_LOW;
 	}
-
-	sched_set_thd_urgency(t, prio);
-	sched_get_metric(t)->priority = prio;
+	if (sched_thd_ready(t)) fp_rem_thd(t);
+	fp_add_thd(t, prio);
 
 	return 0;
 }
@@ -329,6 +333,19 @@ int thread_params_set(struct sched_thd *t, char *params)
 {
 	assert(t && params);
 	return fp_thread_params(t, params);
+}
+
+int 
+thread_resparams_set(struct sched_thd *t, res_spec_t rs)
+{
+#ifdef DEFERRABLE
+	if (rs.a < 0 || rs.w < 0 || rs.a > rs.w) return -1;
+	sched_get_accounting(t)->C = rs.a;
+	sched_get_accounting(t)->C_used = 0;
+	sched_get_accounting(t)->T = rs.w;
+	sched_get_accounting(t)->T_exp = 0;
+#endif
+	return 0;
 }
 
 extern void print_thd_invframes(struct sched_thd *t);

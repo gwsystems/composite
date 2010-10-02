@@ -15,8 +15,10 @@
 
 #ifdef DEBUG
 #define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); *((int *)0) = 0;} } while(0)
+#define BUG_ON(c) assert(!(c))
 #else 
 #define assert(n)
+#define BUG_ON(c) c
 #endif 
 
 #endif

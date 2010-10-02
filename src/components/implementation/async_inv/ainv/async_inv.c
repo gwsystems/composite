@@ -749,4 +749,3 @@ void cos_init(void *arg)
 	cos_map_init_static(&messages);
 	INIT_LIST(&ps, next, prev);
 }
-
