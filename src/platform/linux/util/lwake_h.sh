@@ -9,7 +9,7 @@
 \
 (*fprrc2.o=fprr.o),a4;(*fprrc3.o=fprr.o),a4;(*fprrc4.o=fprr.o),a4;\
 \
-!wkup.o,a3;!te.o,a3:\
+!wkup.o,a6;!te.o,a3:\
 \
 c0.o-fprr.o;\
 fprr.o-print.o|mm.o|st.o|schedconf.o|[parent_]bc.o;\
@@ -26,5 +26,5 @@ bc.o-print.o;\
 te.o-sm.o|print.o|fprr.o|mm.o;\
 mpd.o-sm.o|fprr.o|print.o|te.o|mm.o|cg.o;\
 sm.o-print.o|fprr.o|mm.o|boot.o;\
-wkup.o-sm.o|print.o|fprrc4.o\
+wkup.o-sm.o|print.o|fprr.o\
 " ./gen_client_stub

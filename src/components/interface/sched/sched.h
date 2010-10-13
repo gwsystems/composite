@@ -12,6 +12,7 @@ void sched_timeout(spdid_t spdid, unsigned long amnt);
 int sched_timeout_thd(spdid_t spdid);
 unsigned int sched_tick_freq(void);
 unsigned long sched_timestamp(void);
+unsigned long sched_timer_stopclock(void);
 int sched_priority(unsigned short int tid);
 
 int sched_create_thread(spdid_t spdid, struct cos_array *data);

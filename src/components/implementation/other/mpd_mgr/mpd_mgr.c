@@ -260,23 +260,29 @@ mpd_merge_selective(void)
 
 // for ws_h, a cluster for each subsystem
 /*	     c0[] = {1, 2, 3, 4, 5, 6, 7, 8, 0},
-	     c1[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0},
+	     c1[] = {10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0},
 	     c2[] = {0}, c3[] = {0},
 */
 
 // for pipe_h
 /*	     c0[] = {1, 2, 3, 4, 5, 6, 7, 8, 0},
-	     c1[] = {11, 0},
-	     c2[] = {12, 0},
-	     c3[] = {13, 14, 15, 16, 17, 18, 0}, // 14-18 should be in the domain of their scheduler
+	     c1[] = {9, 0},
+	     c2[] = {10, 0},
+	     c3[] = {11, 14, 15, 16, 17, 18, 0}, // 14-18 should be in the domain of their scheduler
 */
 
 // for wake_h
-/*	     c0[] = {1, 2, 3, 4, 5, 6, 7, 8, 0},
+/*	     c0[] = {1, 2, 3, 4, 5, 6, 7, 8, 14, 0},
 	     c1[] = {11, 0},
 	     c2[] = {12, 0},
-	     c3[] = {13, 14, 0}, // 14 should be in the domain of its scheduler
+	     c3[] = {13, 0}, // 14 should be in the domain of its scheduler
 */
+
+// for lnet_lat_h.sh
+//	     c0[] = {18, 19, 0}, c1[] = {0}, c2[] = {0}, c3[] = {0},
+
+// for lmm_h.sh
+//	     c0[] = {7, 6, 0}, c1[] = {0}, c2[] = {0}, c3[] = {0},
 
 	     c_last[] = {0};	
 	

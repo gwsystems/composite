@@ -26,7 +26,7 @@ void start(void)
 	rdtscll(time);
 	while (1) {
 		if (eid == (PLINE_LEN-1)) {
-			printc("prevs: %lld\n", time);
+			printc("prevs %lld\n", time);
 			timed_event_block(cos_spd_id(), BLOCK_TIME);
 			rdtscll(time);
 		} else evt_wait(cos_spd_id(), eid);
@@ -34,7 +34,7 @@ void start(void)
 		if (eid > 0) evt_trigger(cos_spd_id(), eid-1);
 		else {
 			rdtscll(time);
-			printc("done:  %lld\n", time);
+			printc("done %lld\n", time);
 		}
 	}
 }

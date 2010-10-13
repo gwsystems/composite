@@ -21,7 +21,8 @@
  * strtok so much.  Suffice to say, don't multithread this program.
  */
 
-#define HIGHEST_PRIO 1
+#include <cos_config.h>
+#define HIGHEST_PRIO LINUX_HIGHEST_PRIORITY
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -820,7 +821,8 @@ static struct service_symbs *alloc_service_symbs(char *obj)
 		obj = cpy;
 		off = 0;
 	}
-
+	printl(PRINT_DEBUG, "Processed object %s (%s%s)\n", obj, t.sched ? "scheduler " : "", 
+	       t.composite_loaded ? "booted" : "");
 	str = malloc(sizeof(struct service_symbs));
 	if (!str || initialize_service_symbs(str)) {
 		return NULL;
@@ -1046,6 +1048,8 @@ static struct service_symbs *prepare_service_symbs(char *services)
 	const char *init_delim = ",", *serv_delim = ";";
 	char *tok, *init_str;
 	int len;
+	
+	printl(PRINT_DEBUG, "Prepare the list of components.\n");
 	
 	tok = strtok(services, init_delim);
 	first = str = alloc_service_symbs(tok);
@@ -2351,6 +2355,8 @@ int main(int argc, char *argv[])
 
 	setup_thread();
 
+	printl(PRINT_DEBUG, "Thread scheduling parameters setup\n");
+
 	if (argc != 3) {
 		print_usage(argc, argv);
 		goto exit;
@@ -2363,6 +2369,11 @@ int main(int argc, char *argv[])
 	 * cannot use it relating to the command line args before AND
 	 * after that invocation
 	 */
+	if (!strstr(argv[1], delim)) {
+	printl(PRINT_HIGH, "No %s separating the component list from the dependencies\n", delim);
+		goto exit;
+	}
+
 	servs = strtok(argv[1], delim);
 	dependencies = strtok(NULL, delim);
 

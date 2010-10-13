@@ -13,7 +13,7 @@
 #define PRIO_LOW     (NUM_PRIOS-2)
 #define PRIO_LOWEST  (NUM_PRIOS-1)
 #define PRIO_HIGHEST 0
-#define QUANTUM CYC_PER_TICK
+#define QUANTUM ((unsigned int)CYC_PER_TICK)
 
 /* runqueue */
 static struct prio_list {
@@ -156,8 +156,8 @@ void time_elapsed(struct sched_thd *t, u32_t processing_time)
 	sa->pol_cycles += processing_time;
 	sa->cycles     += processing_time;
 	if (sa->cycles >= QUANTUM) {
-		assert(sa->cycles <= QUANTUM);
 		sa->cycles     -= QUANTUM;
+		assert(sa->cycles <= QUANTUM);
 		sa->ticks++;
 		/* round robin */
 		if (sched_thd_ready(t) && !sched_thd_suspended(t)) {
@@ -200,8 +200,11 @@ void timer_tick(int num_ticks)
 
 			if (T_exp <= ticks) {
 				unsigned long off = T - (ticks % T);
+
+				//printc("(%ld+%ld/%ld @ %ld)\n", sa->C_used, (unsigned long)sa->pol_cycles, T, T_exp);
 				sa->T_exp  = ticks + off;
 				sa->C_used = 0;
+//				sa->pol_cycles = 0;
 				if (sched_thd_suspended(t)) {
 					t->flags &= ~THD_SUSPENDED;
 					if (sched_thd_ready(t)) {
@@ -209,7 +212,6 @@ void timer_tick(int num_ticks)
 					}
 				}
 			}
-			sa->pol_cycles = 0;
 		}
 	}
 #endif

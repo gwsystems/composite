@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define ARG_STRLEN 1024
+#define ARG_STRLEN 1024 //2048
 extern int print_str(char *str, int len);
 
 #define COS_FMT_PRINT

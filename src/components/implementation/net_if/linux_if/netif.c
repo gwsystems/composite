@@ -7,6 +7,8 @@
  * Author: Gabriel Parmer, gabep1@cs.bu.edu, 2009
  */
 
+//#define UPCALL_TIMING 1
+
 /* 
  *  This is a little bit of a mess, but it is a mess with motivation:
  *  The data-structures employed include ring buffers of memory
@@ -446,10 +448,30 @@ err:
 	return -1;
 }
 
+#ifdef UPCALL_TIMING
+u32_t last_upcall_cyc;
+#endif
+
+unsigned long netif_upcall_cyc(void)
+{
+#ifdef UPCALL_TIMING
+	u32_t t = last_upcall_cyc;
+	last_upcall_cyc = 0;
+	return t;
+#else
+	return 0;
+#endif
+}
+
 static int interrupt_wait(void)
 {
+	int ret;
+
 	assert(wildcard_brand_id > 0);
-	if (0 > cos_brand_wait(wildcard_brand_id)) BUG();
+	if (-1 == (ret = cos_brand_wait(wildcard_brand_id))) BUG();
+#ifdef UPCALL_TIMING
+	last_upcall_cyc = (u32_t)ret;
+#endif	
 	return 0;
 }
 

@@ -1,14 +1,19 @@
 If you just downloaded the source code, and wish to run Composite on
 your system, you must follow these steps:
 
-1) Get a linux 2.6.22 kernel running on your system.  Composite should
+1) Get a linux 2.6.33 kernel running on your system.  Composite should
 work on other systems, but this is the version I've tested on.
 
-2) Patch your kernel with short patch in src/platform/linux/patches/.
+2) Patch your kernel with the patch in src/platform/linux/patches/.
 
 3) (Optional:) Patch your kernel with kdb, the kernel debugger.
 
-4) When your new kernel is working, save the directory that all of
+4) When setting up your kernel (e.g. make menuconfig), make note of
+the timer tick frequency.  Modify the
+kernel/include/shared/cos_config.h file with your timer frequency AND
+update the config file with the GHZ of your machine.
+
+5) When your new kernel is working, save the directory that all of
 your kernel's header files are in.  I'll call this LINUX_DIR.  I'll
 call the directory that the Composite source is rooted in
 COMPOSITE_DIR.  You must also choose two additional directories: 1)
@@ -19,7 +24,7 @@ src/Makefile.src and change the following lines:
 # the directory this file is in
 TOP_DIR=/home/gparmer/research/composite/src/
 # the directory the linux source is in
-LDIR=/home/gparmer/research/linux-2.6.22
+LDIR=/home/gparmer/research/linux-2.6.33
 # the directory all objects will be copied to when they are ready for
 # deployment
 TRANS_DIR=/home/gparmer/transfer
@@ -55,9 +60,9 @@ make cp
 As root in your root execution directory:
 make init
 make
-sh run.sh
+sh lpp.sh
 
 Whenever you want to execute the system again:
 
 make
-sh run.sh
+sh lpp.sh

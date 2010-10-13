@@ -9,6 +9,8 @@
  * gparmer@gwu.edu, 2009
  */
 
+//#define UPCALL_TIMING 1
+
 #include "include/ipc.h"
 #include "include/spd.h"
 #include "include/debug.h"
@@ -1036,7 +1038,7 @@ static struct thread *sched_tailcall_pending_upcall_thd(struct thread *uc, struc
 	cos_meas_event(COS_MEAS_FINISHED_BRANDS);
 
 	/* return value is the number of pending upcalls */
-	uc->regs.ax = brand->pending_upcall_requests;
+	uc->regs.ax = 0;//brand->pending_upcall_requests;
 
 	event_record("pending upcall", thd_get_id(uc), 0);
 
@@ -1403,7 +1405,7 @@ COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int op, u32_t bid_tid, spdid_
 				continue;
 			}
 			if (tsi->scheduler == curr_spd) clear = 1;
-			assert(tsi->scheduler);
+			//assert(tsi->scheduler);
 		}
 		new_thd->flags |= THD_STATE_CYC_CNT;
 		
@@ -2184,7 +2186,26 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 		} else {
 			upcall_execute_no_vas_switch(upcall, preempted);
 		}
+#ifdef UPCALL_TIMING
+		{
+			u64_t t;
+			struct spd *s;
+
+			rdtscll(t);
+			s = thd_get_thd_spd(upcall);
+			if (s->sched_depth == 0) {
+				struct cos_sched_data_area *da;
+				
+				da = s->kern_sched_shared_page;
+				if (da) da->cos_evt_notif.timer = (u32_t)t;
+			} else {
+				if (-1 == (int)t) t = 0;
+				upcall->regs.ax = (u32_t)t;
+			}
+		}
+#else
 		upcall->regs.ax = upcall->thread_brand->pending_upcall_requests;
+#endif
 
 		if (preempted->flags & THD_STATE_ACTIVE_UPCALL && upcall->interrupted_thread) {
 			event_record("upcall activated and made immediately (preempted upcall)", 

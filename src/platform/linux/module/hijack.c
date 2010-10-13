@@ -1851,7 +1851,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-extern void event_print(void);
+//extern void event_print(void);
 
 static int aed_release(struct inode *inode, struct file *file)
 {

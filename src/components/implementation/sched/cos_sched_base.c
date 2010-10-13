@@ -9,7 +9,12 @@
  * Author: Gabriel Parmer, gparmer@gwu.edu
  */
 
+#include <cos_config.h>
+#ifdef LINUX_ON_IDLE
 #define IDLE_TO_LINUX
+#endif
+
+//#define UPCALL_TIMING 1
 
 #define COS_FMT_PRINT
 
@@ -25,7 +30,7 @@
 #include <stack_trace.h>
 #include <sched_conf.h>
 
-#define TIMER_ACTIVATE
+//#define TIMER_ACTIVATE
 #include <timer.h>
 
 //#define SCHED_DEBUG
@@ -59,7 +64,7 @@ static enum {SCHED_CHILD, SCHED_ROOT} sched_type = SCHED_ROOT;
 static inline int sched_is_root(void) { return sched_type == SCHED_ROOT; }
 static inline int sched_is_child(void) { return !sched_is_root(); } 
 
-#define FPRR_REPORT_EVTS
+//#define FPRR_REPORT_EVTS
 
 typedef enum {
 	NULL_EVT = 0,
@@ -220,9 +225,9 @@ static void report_thd_accouting(void)
 		unsigned long diff = sa->ticks - sa->prev_ticks;
 		
 		if (diff || sa->cycles) {
-			printc("\t%d, %d, %ld+%ld/%d\n", t->id, 
+			printc("\t%d, %d, %ld+%ld/%ld\n", t->id, 
 			       sched_get_metric(t)->priority, diff, 
-			       (unsigned long)sa->cycles, CYC_PER_TICK);
+			       (unsigned long)sa->cycles, (unsigned long)CYC_PER_TICK);
 			print_thd_invframes(t);
 			sa->prev_ticks = sa->ticks;
 			sa->cycles = 0;
@@ -236,9 +241,9 @@ static void report_thd_accouting(void)
 		unsigned long diff = sa->ticks - sa->prev_ticks;
 		
 		if (diff || sa->cycles) {
-			printc("\t%d, %d, %ld+%ld/%d\n", t->id, 
+			printc("\t%d, %d, %ld+%ld/%ld\n", t->id, 
 			       sched_get_metric(t)->priority, diff, 
-			       (unsigned long)sa->cycles, CYC_PER_TICK);
+			       (unsigned long)sa->cycles, (unsigned long)CYC_PER_TICK);
 			print_thd_invframes(t);
 			sa->prev_ticks = sa->ticks;
 			sa->cycles = 0;
@@ -464,14 +469,14 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 
 		ret = cos_switch_thread_release(next->id, flags);
 		assert(ret != COS_SCHED_RET_ERROR);
-		if (COS_SCHED_RET_CEVT == ret) report_event(CEVT_RESCHED);
+		if (COS_SCHED_RET_CEVT == ret) { report_event(CEVT_RESCHED); }
 
 		/* success, or we need to check for more child events:
 		 * exit the loop! */
 		if (likely(COS_SCHED_RET_SUCCESS == ret) || COS_SCHED_RET_CEVT == ret) break;
 
 		cos_sched_lock_take();
-		if (evt != NULL_EVT) report_event(evt);
+		if (evt != NULL_EVT) { report_event(evt); }
 		/* keep looping if we were scheduling using old info */
 	} while (unlikely(COS_SCHED_RET_SUCCESS != ret));
 
@@ -618,6 +623,17 @@ static void fp_idle_loop(void *d)
 		cos_idle();
 #endif
 	}
+}
+
+extern unsigned long parent_sched_timer_stopclock(void);
+unsigned long sched_timer_stopclock(void)
+{
+#ifdef UPCALL_TIMING
+	if (sched_is_child()) return parent_sched_timer_stopclock();
+	return cos_sched_timer_cyc();
+#else 
+	return 0;
+#endif	
 }
 
 unsigned int sched_tick_freq(void)
@@ -872,11 +888,11 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 			sched_switch_thread_target(0, BLOCK_LOOP, dep);
 			cos_sched_lock_take();
 			report_event(BLOCKED_W_DEPENDENCY);
-			if (!first) report_event(BLOCKED_DEP_RETRY);
+			if (!first) { report_event(BLOCKED_DEP_RETRY); }
 		} else {
 			sched_switch_thread(0, BLOCK_LOOP);
 			cos_sched_lock_take();
-			if (!first) report_event(RETRY_BLOCK);
+			if (!first) { report_event(RETRY_BLOCK); }
 		}
 		first = 0;
 	}
@@ -1231,7 +1247,7 @@ int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsi
 		    !idle) {
 			t->cevt_flags &= ~SCHED_CEVT_OTHER;
 			child_ticks_update(t, e);
-			if (!idle) report_event(PARENT_CHILD_EVT_OTHER);
+			if (!idle) { report_event(PARENT_CHILD_EVT_OTHER); } 
 			goto done;
 		}
 		report_event(PARENT_BLOCK_CHILD);
@@ -1533,10 +1549,57 @@ static void sched_child_init(void)
 	return;
 }
 
+//#define UBENCH_ACTIVE 1
+#define UBENCH_ITER 10000
+
+static void
+sched_ctxt_switch_fn(void *d)
+{
+	u16_t pid = (u16_t)(u32_t)d;
+	while (1) {
+		cos_switch_thread(pid, 0);
+	}
+}
+
+static void
+sched_ctxt_switch_ubench(void)
+{
+	u16_t pid, cid;
+	int i;
+	u64_t start, end;
+
+	pid = cos_get_thd_id();
+	cid = cos_create_thread((int)sched_ctxt_switch_fn, (int)pid, 0);
+
+	rdtscll(start);
+	for (i = 0 ; i < UBENCH_ITER ; i++) {
+		cos_switch_thread(cid, 0);
+	}
+	rdtscll(end);
+	printc("kernel context switch ubenchmark results: %lld\n", (end-start)/(u64_t)(2*UBENCH_ITER));
+}
+
+static void 
+print_config_info(void)
+{
+	printc("Please ensure that the following information is correct.\n");
+	printc("If it is not, edit kernel/include/shared/cos_config.h.\n");
+	printc("CPU_FREQUENCY=%lld\n"
+	       "TIMER_FREQUENCY=%lld\n", 	       
+	       (unsigned long long)CPU_FREQUENCY,
+	       (unsigned long long)TIMER_FREQ);
+	printc("USEC_PER_TICK=%lld\n"
+	       "CYC_PER_USEC=%lld\n",
+	       (unsigned long long)USEC_PER_TICK, 
+	       (unsigned long long)CYC_PER_USEC);
+}
+
 /* Initialize the root scheduler */
 int sched_root_init(void)
 {
 	struct sched_thd *new;
+
+	print_config_info();
 
 	cos_argreg_init();
 	sched_init();
@@ -1544,13 +1607,16 @@ int sched_root_init(void)
 	init = sched_alloc_thd(cos_get_thd_id());
 	assert(init);
 
+#ifdef UBENCH_ACTIVE
+	sched_ctxt_switch_ubench();
+#else	
 	sched_init_create_threads();
 	/* Create the clock tick (timer) thread */
 	fp_create_timer();
 
 	new = schedule(NULL);
 	cos_switch_thread(new->id, 0);
-
+#endif
 	/* Returning will exit the composite system. */
 	return 0;
 }

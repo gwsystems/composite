@@ -21,8 +21,9 @@ cos_asm_server_stub_spdid(sched_create_thread_default)
 cos_asm_server_stub_spdid(sched_thread_params)
 cos_asm_server_stub(sched_tick_freq)
 cos_asm_server_stub(sched_timestamp)
+cos_asm_server_stub(sched_timer_stopclock)
 cos_asm_server_stub(sched_priority)
-
+	
 cos_asm_server_stub_spdid(sched_component_take)
 cos_asm_server_stub_spdid(sched_component_release)
 

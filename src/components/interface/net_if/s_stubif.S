@@ -13,3 +13,5 @@ cos_asm_server_stub_spdid(netif_event_create)
 cos_asm_server_stub_spdid(netif_event_release)
 cos_asm_server_stub_spdid(netif_event_wait)
 cos_asm_server_stub_spdid(netif_event_xmit)
+
+cos_asm_server_stub(netif_upcall_cyc)

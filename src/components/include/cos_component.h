@@ -392,7 +392,11 @@ static inline int cos_argreg_free(void *p)
 		     top <= ex ||
 		     top->size > COS_ARGREG_USABLE_SZ /* this could be more exact given top's location */
 		     /* || p != ((char*)top)-top->size */)) {
+#ifdef BUG
+		BUG();
+#else
 		FAIL();
+#endif
 	}
 	ex->size -= top->size;
 	top->size = 0;

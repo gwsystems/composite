@@ -60,6 +60,11 @@ unsigned long sched_timestamp(void)
 	return 0;
 }
 
+unsigned long sched_timer_stopclock(void)
+{
+	BUG();
+	return 0;
+}
 
 int sched_create_thread(spdid_t spdid, struct cos_array *data){
 	BUG();

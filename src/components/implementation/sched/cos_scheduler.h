@@ -153,6 +153,13 @@ static inline void cos_sched_clear_cevts(void)
 	cos_sched_notifications.cos_evt_notif.pending_cevt = 0;
 }
 
+static inline u32_t cos_sched_timer_cyc(void)
+{
+	u32_t t = cos_sched_notifications.cos_evt_notif.timer;
+	cos_sched_notifications.cos_evt_notif.timer = 0;
+	return t;
+}
+
 int cos_sched_event_to_process(void);
 int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt);
 void cos_sched_set_evt_urgency(u8_t id, u16_t urgency);

@@ -21,13 +21,13 @@ bc.o-print.o;\
 cg.o-fprr.o;\
 boot.o-print.o|fprr.o|mm.o|cg.o;\
 sm.o-print.o|fprr.o|mm.o|boot.o;\
+mpd.o-sm.o|fprr.o|print.o|te.o|mm.o|cg.o;\
 \
-mpd.o-sm.o|fprrc4.o|print.o|te.o|mm.o|cg.o;\
-l.o-sm.o|fprrc4.o|mm.o|print.o|te.o;\
-te.o-sm.o|print.o|fprrc4.o|mm.o;\
-e.o-sm.o|fprrc4.o|print.o|mm.o|l.o|st.o;\
+l.o-sm.o|fprr.o|mm.o|print.o|te.o;\
+te.o-sm.o|print.o|fprr.o|mm.o;\
+e.o-sm.o|fprr.o|print.o|mm.o|l.o|st.o;\
 p.o-sm.o|print.o|te.o|fprrc4.o|e.o;\
-p1.o-sm.o|print.o|te.o|fprrc4.o|e.o\
+p1.o-sm.o|print.o|te.o|fprr.o|e.o\
 " ./gen_client_stub
 
 

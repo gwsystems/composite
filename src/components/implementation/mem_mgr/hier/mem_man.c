@@ -1,12 +1,12 @@
 /**
- * Copyright 2008 by Gabriel Parmer, gabep1@cs.bu.edu.  All rights
+ * Copyright 2010 by Gabriel Parmer, gparmer@gwu.edu.  All rights
  * reserved.
- *
- * The George Washington University, Gabriel Parmer, gparmer@gwu.edu.
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  */
+
+//#define ZERO_OUT
 
 /* 
  * FIXME: locking!
@@ -26,10 +26,9 @@
 struct mapping_info {
 	unsigned short int owner_spd, flags;
 	vaddr_t addr;
-	int parent;
 };
 struct mem_cell {
-	int naliases;
+	char *local_addr;
 	struct mapping_info map[MAX_ALIASES];
 } __attribute__((packed));
 
@@ -40,27 +39,45 @@ static inline long cell_index(struct mem_cell *c)
 	return c - cells;
 }
 
-static inline struct mem_cell *find_unused(void)
+extern void main_mman_release_page(spdid_t spd, vaddr_t addr, int flags);
+extern vaddr_t main_mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr);
+extern vaddr_t parent_mman_get_page(spdid_t spd, vaddr_t addr, int flags);
+
+static inline struct mem_cell *
+find_unused(void)
 {
 	int i;
 
 	/* If we care about scaling, this should, of course use freelist */
 	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
-		if (!cells[i].naliases) return &cells[i];
+		cells[i].map[0].flags = 0;
+		if (cells[i].map[0].owner_spd != 0) continue;
+
+		if (!cells[i].local_addr) {
+			char *hp = cos_get_heap_ptr();
+			cos_set_heap_ptr(hp + PAGE_SIZE);
+			if (!parent_mman_get_page(cos_spd_id(), (vaddr_t)hp, 0)) {
+				return NULL;
+			}
+			cells[i].local_addr = hp;
+		}
+		return &cells[i];
 	}
 	return NULL;
 }
 
-static inline struct mem_cell *find_cell(spdid_t spd, vaddr_t addr, int *alias)
+static inline struct mem_cell *
+find_cell(spdid_t spd, vaddr_t addr, int *alias)
 {
 	int i, j;
 
 	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
 		struct mem_cell *c = &cells[i];
-
+		
+		if (!c->local_addr) return NULL;
 		for (j = 0; j < MAX_ALIASES; j++) {
 			if (c->map[j].owner_spd == spd && 
-			    c->map[j].addr      == addr) {
+			    c->map[j].addr == addr) {
 				*alias = j;
 				return c;
 			}
@@ -76,25 +93,23 @@ static inline struct mem_cell *find_cell(spdid_t spd, vaddr_t addr, int *alias)
 vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 {
 	struct mem_cell *c;
-	struct mapping_info *m;
 
 	c = find_unused();
 	if (!c) {
-		printc("mm: no more available pages!\n");
+		printc("mh: no more available pages!\n");
 		goto err;
 	}
+	c->map[0].owner_spd = spd;
+	c->map[0].addr = addr;
 
-	c->naliases++;
-	m = c->map;
-	m->owner_spd = spd;
-	m->addr = addr;
-	m->parent = -1;
-
-	/* Here we check for overwriting an already established mapping. */
-	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, spd, addr, cell_index(c))) {
-		printc("mm: could not grant page @ %x to spd %d\n", 
+#ifdef ZERO_OUT
+	memset(c->local_addr, 0, 4096);
+#endif
+	if (!main_mman_alias_page(cos_spd_id(), (vaddr_t)c->local_addr, spd, addr)) {
+		printc("mh: could not grant page @ %x to spd %d\n", 
 		       (unsigned int)addr, (unsigned int)spd);
-		m->owner_spd = m->addr = 0;
+		c->map[0].owner_spd = 0;
+		c->map[0].addr = 0;
 		goto err;
 	}
 
@@ -117,37 +132,21 @@ vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_
 	if (-1 == alias) goto err;
 	assert(alias >= 0 && alias < MAX_ALIASES);
 	base = c->map;
-	for (i = 0 ; i < MAX_ALIASES ; i++) {
-		if (alias == i || base[i].owner_spd != 0 || base[i].addr != 0) {
-			continue;
-		}
+	for (i = alias+1 ; i < MAX_ALIASES ; i++) {
+		if (base[i].owner_spd != 0 || base[i].addr != 0) continue;
 
-		if (cos_mmap_cntl(COS_MMAP_GRANT, 0, d_spd, d_addr, cell_index(c))) {
-			printc("mm: could not alias page @ %x to spd %d from %x(%d)\n", 
+		if (!main_mman_alias_page(cos_spd_id(), (vaddr_t)c->local_addr, d_spd, d_addr)) {
+			printc("mh: could not alias page @ %x to spd %d from %x(%d)\n", 
 			       (unsigned int)d_addr, (unsigned int)d_spd, (unsigned int)s_addr, (unsigned int)s_spd);
 			goto err;
 		}
 		base[i].owner_spd = d_spd;
 		base[i].addr = d_addr;
-		base[i].parent = alias;
-		c->naliases++;
-
+		
 		return d_addr;
 	}
 	/* no available alias slots! */
 err:
-	return 0;
-}
-
-static inline int
-is_descendent(struct mapping_info *mi, int parent, int child)
-{
-	assert(child < MAX_ALIASES && child >= 0);	
-	while (mi[child].parent != -1) {
-		assert(mi[child].parent < MAX_ALIASES && mi[child].parent >= 0);
-		if (mi[child].parent == parent) return 1;
-		child = mi[child].parent;
-	}
 	return 0;
 }
 
@@ -156,37 +155,15 @@ is_descendent(struct mapping_info *mi, int parent, int child)
  */
 void mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 {
-	int alias, i;
+	int alias;
 	struct mem_cell *mc;
-	struct mapping_info *mi;
 
 	mc = find_cell(spd, addr, &alias);
-	if (!mc) {
-		/* FIXME: add return codes to this call */
-		return;
-	}
-	mi = mc->map;
-	/* All aliases after a mapping are the "children" subsystems...unmap them all */
-	for (i = 0 ; i < MAX_ALIASES ; i++) {
-		int idx;
-
-		if (i == alias || !mi[i].owner_spd || 
-		    !is_descendent(mi, alias, i)) continue;
-		idx = cos_mmap_cntl(COS_MMAP_REVOKE, 0, mi[i].owner_spd, 
-				    mi[i].addr, 0);
-		assert(&cells[idx] == mc);
-		/* mark page as removed */
-		mi[i].addr = 0;
-		mc->naliases--;
-	}
-	/* Go through and free all pages marked as removed */
-	for (i = 0 ; i < MAX_ALIASES ; i++) {
-		if (mi[i].addr == 0 && 
-		    mi[i].owner_spd) {
-			mi[i].owner_spd = 0;
-			mi[i].parent = 0;
-		}
-	}
+	if (!mc) return; /* FIXME: add return codes to this call */
+	main_mman_release_page(cos_spd_id(), (vaddr_t)mc->local_addr, flags);
+	/* put the page back in the pool */
+	mc->map[alias].owner_spd = 0;
+	mc->map[alias].addr = 0;
 
 	return;
 }

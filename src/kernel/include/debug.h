@@ -1,4 +1,7 @@
+#include "shared/cos_config.h"
+#ifdef COS_ASSERTIONS_ACTIVE
 #define COS_DEBUG
+#endif
 
 #ifdef __KERNEL__
 #ifdef COS_DEBUG

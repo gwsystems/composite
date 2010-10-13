@@ -29,7 +29,7 @@ TEST_DIR: the directory where root will execute Composite
 
 On my system, I have:
 TOP_DIR=/home/gparmer/research/composite/src/
-LDIR=/home/gparmer/research/linux-2.6.22
+LDIR=/home/gparmer/research/linux-2.6.33
 TRANS_DIR=/home/gparmer/transfer
 TEST_DIR=/root/experiments/
 

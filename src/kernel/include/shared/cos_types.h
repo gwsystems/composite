@@ -90,7 +90,7 @@ struct cos_synchronization_atom {
  * event since we last checked for them.
  */
 struct cos_event_notification {
-	volatile u32_t pending_event, pending_cevt;
+	volatile u32_t pending_event, pending_cevt, timer;
 };
 
 /* 

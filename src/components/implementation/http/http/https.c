@@ -549,7 +549,7 @@ static const char success_head[] =
 	"HTTP/1.1 200 OK\r\n"
 	"Date: Sat, 14 Feb 2008 14:59:00 GMT\r\n"
 	"Content-Type: text/html\r\n"
-//	"Connection: close\r\n"
+	"Connection: close\r\n"
 	"Content-Length: ";
 //static const char resp[] = "all your base are belong to us\r\n";
 

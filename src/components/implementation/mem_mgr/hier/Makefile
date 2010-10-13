@@ -1,9 +1,9 @@
-C_OBJS=fp_rr.o
+C_OBJS=mem_man.o
 ASM_OBJS=
-COMPONENT=fprr.o
-INTERFACES=sched
-DEPENDENCIES=printc mem_mgr stack_trace sched_conf
-IF_LIB=../complib.o
+COMPONENT=mh.o
+INTERFACES=mem_mgr
+DEPENDENCIES=printc
+IF_LIB=
 
 include ../../Makefile.subsubdir
 ifeq (${ENABLE_STACK_MANAGER},1)

@@ -1,8 +1,11 @@
 #ifndef COS_DEBUG_H
 
 #include <cos_component.h>
+#include <cos_config.h>
 
-//#define DEBUG
+#ifdef COMPONENT_ASSERTIONS
+#define DEBUG
+#endif
 
 #define PRINT_FN prints
 #include <print.h>

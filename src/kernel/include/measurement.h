@@ -1,8 +1,12 @@
 #ifndef MEASUREMENT_H
 #define MEASUREMENT_H
 
+#include "shared/cos_config.h"
+
+#ifdef COS_PRINT_MEASUREMENTS
 #define MEASUREMENTS
 //#define MEASUREMENTS_STATS
+#endif
 
 typedef enum { 
 	/* counters */
@@ -176,11 +180,13 @@ static inline void report_upcall(char *n, struct thread *u)
 
 #endif
 
+#ifdef COS_PRINT_SCHED_EVENTS
 #define COS_RECORD_EVTS
+#endif
 
 #ifdef COS_RECORD_EVTS
 /* must be power of 2 */
-#define COS_EVTS_NUM 16
+#define COS_EVTS_NUM 64
 #define COS_EVTS_MASK (COS_EVTS_NUM-1)
 
 struct exec_evt {
@@ -215,7 +221,8 @@ void event_print(void);
 #else
 
 #define event_record(m, a, b)
-static void event_print(void) {}
+#define event_print()
+//static void event_print(void) {}
 
 #endif
 
