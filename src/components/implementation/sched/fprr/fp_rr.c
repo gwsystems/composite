@@ -156,9 +156,10 @@ void time_elapsed(struct sched_thd *t, u32_t processing_time)
 	sa->pol_cycles += processing_time;
 	sa->cycles     += processing_time;
 	if (sa->cycles >= QUANTUM) {
-		sa->cycles     -= QUANTUM;
-		assert(sa->cycles <= QUANTUM);
-		sa->ticks++;
+		while (sa->cycles > QUANTUM) {
+			sa->cycles -= QUANTUM;
+			sa->ticks++;
+		}
 		/* round robin */
 		if (sched_thd_ready(t) && !sched_thd_suspended(t)) {
 			assert(!sched_thd_inactive_evt(t));
