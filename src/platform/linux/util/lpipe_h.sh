@@ -5,7 +5,7 @@
 \
 !sm.o,a1;!mpd.o,a5;\
 \
-(*fprrc2.o=fprr.o),a4;(*fprrc3.o=fprr.o),a4;(*fprrc4.o=fprr.o),a4;\
+(*fprrc2.o=fprr.o),a6;(*fprrc3.o=fprr.o),a4;(*fprrc4.o=fprr.o),a4;\
 \
 !e.o,a5;!te.o,a3;!l.o,a4;!p.o,a8;(!p1.o=p.o),a9:\
 \

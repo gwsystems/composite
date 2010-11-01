@@ -10,7 +10,7 @@ all:
 
 .PHONY: clean
 clean:
-	$(info [RM]   Cleaning up directory)
+	$(info |     [RM]   Cleaning up directory)
 	@for dir in $(INTERFACES) ; do \
 		$(MAKE) -C $$dir clean ; \
 	done

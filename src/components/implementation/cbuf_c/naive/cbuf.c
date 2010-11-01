@@ -16,6 +16,8 @@
 #include <cos_list.h>
 #include <mem_mgr.h>
 
+//#define PRINCIPAL_CHECKS
+
 struct cb_desc;
 struct cb_mapping {
 	spdid_t spd;
@@ -114,7 +116,10 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len, void *page)
 	TAKE();
 	d = cos_map_lookup(&cb_ids, cbid);
 	/* sanity and access checks */
-	if (!d || d->obj_sz < len || d->principal != cos_get_thd_id()) goto done;
+	if (!d || d->obj_sz < len) goto done;
+#ifdef PRINCIPAL_CHECKS
+	if (d->principal != cos_get_thd_id()) goto done;
+#endif
 	m = malloc(sizeof(struct cb_mapping));
 	if (!m) goto done;
 

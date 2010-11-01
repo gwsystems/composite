@@ -46,24 +46,24 @@ all: $(SOURCE_DEPENDENCIES) $(COMPONENT)
 # symbols there are used, thus the gcc, and the ld, but then (and only
 # then) do we want to use dietlibc's functions
 $(COMPONENT): $(OBJS)
-	$(info [LD]   Loading cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
+	$(info |     [LD]   Loading cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
 	@$(LD) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
-	$(info [DIET] Linking with dietlibc to produce $@)
+	$(info |     [DIET] Linking with dietlibc to produce $@)
 	@$(DIETCC) $(DIETCFLAGS) -Xlinker -r -o $@ $@.$(TMP_STR)
 	@rm $@.$(TMP_STR)
 
 %.o:%.c
-	$(info [CC]   Compiling $<)
+	$(info |     [CC]   Compiling $<)
 	@$(CC) $(INCLUDE) $(CFLAGS) -o $@ -c $<
 
 %.o:%.S
-	$(info [AS]   Compiling assembly file $^ into $@)
+	$(info |     [AS]   Compiling assembly file $^ into $@)
 	@$(AS) $(INCLUDE) $(ASFLAGS) -c -o $@ $^
 
 # see the make manual: create the .d dependencies from include
 # statements.
 %.d:%.c
-	$(info [DEP]  Creating dependency file for $<)
+	$(info |     [DEP]  Creating dependency file for $<)
 	@set -e; rm -f $@; \
 	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
@@ -71,12 +71,12 @@ $(COMPONENT): $(OBJS)
 
 .PHONY: cp
 cp:
-	$(info [CP]   Copying $(COMPONENT) to $(TRANS_DIR))
+	$(info |     [CP]   Copying $(COMPONENT) to $(TRANS_DIR))
 	@cp $(COMPONENT) $(TRANS_DIR)
 
 .PHONY: clean
 clean:
-	$(info [RM]   Cleaning up implementation directory for component $(COMPNAME))
+	$(info |     [RM]   Cleaning up implementation directory for component $(COMPNAME))
 	@rm -f a.out *.o *.a *.d *.d.* *~
 
 fresh: clean all

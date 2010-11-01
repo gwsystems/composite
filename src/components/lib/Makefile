@@ -14,7 +14,7 @@ all: $(LIBS) $(MAND) $(SIMPLE_STKLIB)
 # symbol conflicts and this is why we have the %.a here and don't
 # output a .a file.
 %.a:%.c
-	$(info [CC]   Creating library file $@ from $^)
+	$(info |     [CC]   Creating library file $@ from $^)
 	@$(CC) $(CFLAGS) $(CINC) -o $(@:%.a=%.o) -c $<
 	@$(AR) cr lib$@ $(@:%.a=%.o)
 
@@ -26,11 +26,11 @@ $(SIMPLE_STKLIB): $(SIMPLE_STACKS)
 	@$(LD) -r -o $@ $^
 
 %.o:%.S
-	$(info [AS]   Compiling assembly file $^ into $@)
+	$(info |     [AS]   Compiling assembly file $^ into $@)
 	@$(AS) $(ASFLAGS) $(CINC) -c -o $@ $^
 
 clean:
-	$(info [RM]   Cleaning up directory)
+	$(info |     [RM]   Cleaning up directory)
 	@rm -f a.out *.o *.a *.d *~
 
 distclean:
