@@ -16,6 +16,7 @@
 //#define COS_VECT_ALLOC 
 //#define COS_VECT_FREE  
 #include <cos_vect.h>
+#include <cos_list.h>
 #include <bitmap.h>
 
 extern cos_vect_t meta_cbuf;
@@ -162,6 +163,8 @@ again:				/* avoid convoluted conditions */
  * 12 - 6 =
  */
 #define N_CBUF_SLABS 6
+#define CBUF_MIN_SLAB_ORDER 6
+#define CBUF_MIN_SLAB (1<<CBUF_MIN_SLAB_ORDER)
 
 #define SLAB_MAX_OBJS 64
 #define SLAB_BITMAP_SIZE (SLAB_MAX_OBJS/32)
@@ -190,6 +193,31 @@ struct cbuf_slab_freelist {
 extern struct cbuf_slab_freelist slab_freelists[N_CBUF_SLABS];
 extern cos_vect_t slab_descs;
 
+static inline void
+slab_rem_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
+{
+	assert(s && fl);
+	if (fl->list == s) {
+		if (EMPTY_LIST(s, next, prev)) fl->list = NULL;
+		else fl->list = FIRST_LIST(s, next, prev);
+	}
+	REM_LIST(s, next, prev);
+	fl->npages--;
+}
+
+static inline void
+slab_add_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
+{
+	assert(s && fl);
+	assert(EMPTY_LIST(s, next, prev) && s != fl->list);
+	if (fl->list) {
+		assert(fl->npages > 0);
+		ADD_END_LIST(fl->list, s, next, prev);
+	}
+	fl->list = s;
+	fl->npages++;
+}
+
 extern struct cbuf_slab *cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist);
 extern void cbuf_slab_free(struct cbuf_slab *s);
 
@@ -203,13 +231,18 @@ __cbuf_free(void *buf)
 	int idx;
 	assert(s);
 
-	/* Ahhhhhh, division!  Maybe transform into loop? Maybe assume pow2? */
+	/* Argh, division!  Maybe transform into loop? Maybe assume pow2? */
 	idx = off/s->obj_sz;
 	assert(!bitmap_check(&s->bitmap[0], idx));
 	bitmap_set(&s->bitmap[0], idx);
 	s->nfree++;
 	assert(s->flh);
-	if (s->nfree == s->max_objs-1) cbuf_slab_free(s);
+	if (s->nfree == s->max_objs) {
+		cbuf_slab_free(s);
+	} else if (s->nfree == 1) {
+		assert(EMPTY_LIST(s, next, prev));
+		slab_add_freelist(s, s->flh);
+	}
 
 	return;
 }
@@ -220,10 +253,9 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 	struct cbuf_slab *s;
 	int idx;
 	u32_t *bm;
-	int off;
 
 	if (unlikely(!slab_freelist->list)) {
-		slab_freelist->list = cbuf_slab_alloc(size, slab_freelist);
+		cbuf_slab_alloc(size, slab_freelist);
 		if (unlikely(!slab_freelist->list)) return NULL;
 	}
 	s = slab_freelist->list;
@@ -231,13 +263,14 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 
 	bm  = &s->bitmap[0];
 	idx = bitmap_ls_one(bm, SLAB_BITMAP_SIZE);
+	assert(idx > -1 && idx < SLAB_MAX_OBJS);
 	bitmap_unset(bm, idx);
 	s->nfree--;
-	if (!s->nfree) slab_freelist->list = s->next;
-	off += idx;
+	/* remove from the freelist */
+	if (!s->nfree) slab_rem_freelist(s, slab_freelist);
 
-	*cb = cbuf_cons(s->cbid, off);
-	return s->mem + (off * s->obj_sz);
+	*cb = cbuf_cons(s->cbid, idx);
+	return s->mem + (idx * s->obj_sz);
 }
 
 /* 
@@ -272,9 +305,11 @@ cbuf_free_##name(void *buf)					\
 static inline void *
 cbuf_alloc_pow2(unsigned int order, cbuf_t *cb)
 {
-	struct cbuf_slab_freelist *sf = &slab_freelists[order];
-	assert(order <= N_CBUF_SLABS);
+	struct cbuf_slab_freelist *sf;
+	unsigned int dorder = order - CBUF_MIN_SLAB_ORDER;
+	assert(dorder <= N_CBUF_SLABS);
 
+	sf = &slab_freelists[dorder];
 	return __cbuf_alloc(sf, 1<<order, cb);
 }
 
@@ -287,11 +322,10 @@ cbuf_alloc(unsigned int sz, cbuf_t *cb)
 {
 	int o;
 
-	/* round up to the nearest value of 2 (min 64 bytes -- a cache-line) */
-//	sz >>= 6;
-//	for (o = 6 ; sz ; sz >>= 1, o++);
-	sz |= 64; // min size
-	o = log32(sz);
+	sz = sz < 65 ? 63 : sz; /* FIXME: do without branch */
+	/* FIXME: find way to avoid making the wrong decision on pow2 values */
+	sz = ones(sz) == 1 ? sz-1 : sz;
+	o = log32_floor(sz) + 1;
 	return cbuf_alloc_pow2(o, cb);
 }
 

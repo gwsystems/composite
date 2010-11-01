@@ -5,9 +5,9 @@
  * Public License v2.
  */
 
-#include <cos_asm_server_stub_simple_stack.h>
+#include <cos_asm_server_stub.h>
 
 .text	
-
-cos_asm_server_stub_spdid(cinfo_map)
-cos_asm_server_stub(cinfo_get_spdid)
+cos_asm_server_stub_spdid(cbuf_c_create)
+cos_asm_server_stub_spdid(cbuf_c_delete)
+cos_asm_server_stub_spdid(cbuf_c_retrieve)

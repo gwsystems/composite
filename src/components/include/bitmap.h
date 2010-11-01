@@ -85,8 +85,8 @@ static inline void
 bitmap_set(u32_t *x, int v)
 {
 	int idx, off;
-	idx = v >> 5; 		/* 5 = log(sizeof(u32_t)); */
-	off = v & ~(32-1);      /* 32 = sizeof(u32_t) */
+	idx = v/WORD_SIZE; 		/* WORD_SIZE = sizeof(u32_t) */
+	off = v & (WORD_SIZE-1);      
 	x[idx] = __bitmap_set(x[idx], off);
 }
 
@@ -94,8 +94,8 @@ static inline int
 bitmap_check(u32_t *x, int v)
 {
 	int idx, off;
-	idx = v >> 5; 		/* 5 = log(sizeof(u32_t)); */
-	off = v & ~(32-1);      /* 32 = sizeof(u32_t) */
+	idx = v/WORD_SIZE; 		/* WORD_SIZE = sizeof(u32_t) */
+	off = v & (WORD_SIZE-1);      
 	return __bitmap_check(x[idx], off);
 }
 
@@ -103,12 +103,12 @@ static inline void
 bitmap_unset(u32_t *x, int v)
 {
 	int idx, off;
-	idx = v >> 5; 		/* 5 = log(sizeof(u32_t)); */
-	off = v & ~(32-1);      /* 32 = sizeof(u32_t) */
+	idx = v/WORD_SIZE; 		/* WORD_SIZE = sizeof(u32_t) */
+	off = v & (WORD_SIZE-1);      
 	x[idx] = __bitmap_unset(x[idx], off);
 }
 
-/* find the most significant one set.  max is the maximum number of
+/* find the least significant one set.  max is the maximum number of
  * u32_ts in the bitmap. */
 static inline int
 bitmap_ls_one(u32_t *x, int max)
@@ -117,8 +117,8 @@ bitmap_ls_one(u32_t *x, int max)
 
 	for (i = 0 ; i < max ; i++) {
 		if (!x[i]) continue;
-		order = log32_floor(x[i]);
-		return (i * 32) + order;
+		order = ls_one(x[i]);
+		return (i * WORD_SIZE) + order - 1;
 	}
 	return -1;
 }

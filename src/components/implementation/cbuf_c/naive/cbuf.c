@@ -139,6 +139,7 @@ cos_init(void *d)
 {
 	lock_init(&l);
 	cos_map_init_static(&cb_ids);
+	BUG_ON(cos_map_add(&cb_ids, NULL)); /* reserve id 0 */
 }
 
 void

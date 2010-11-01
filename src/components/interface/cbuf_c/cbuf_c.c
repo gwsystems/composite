@@ -7,6 +7,8 @@
  * Author: Gabriel Parmer, gparmer@gwu.edu, 2010
  */
 
+#include <cos_component.h>
+#include <print.h>
 #include <cbuf.h>
 #include <cos_vect.h>
 
@@ -59,14 +61,12 @@ cbuf_slab_cons(struct cbuf_slab *s, int cbid, void *page,
 	s->cbid = cbid;
 	s->mem = page;
 	s->obj_sz = obj_sz;
-	memset(&s->bitmap[0], 0, sizeof(u32_t)*SLAB_BITMAP_SIZE);
+	memset(&s->bitmap[0], 0xFFFFFFFF, sizeof(u32_t)*SLAB_BITMAP_SIZE);
 	s->nfree = s->max_objs = PAGE_SIZE/obj_sz; /* not a perf sensitive path */
+	s->flh = freelist;
+	INIT_LIST(s, next, prev);
 	/* FIXME: race race race */
-	s->next = freelist->list;
-	s->prev = NULL;
-	s->flh  = freelist;
-	freelist->list = s;
-	freelist->npages++;
+	slab_add_freelist(s, freelist);
 
 	return;
 }
@@ -84,7 +84,7 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	cos_set_heap_ptr(h + PAGE_SIZE);
 	cbid = cbuf_c_create(cos_spd_id(), size, h);
 	if (cbid < 0) goto err;
-	cos_vect_add_id(&slab_descs, s, cbid);
+	cos_vect_add_id(&slab_descs, s, (long)h>>PAGE_ORDER);
 	cbuf_slab_cons(s, cbid, h, size, freelist);
 	freelist->velocity = 0;
 	ret = s;
@@ -106,20 +106,14 @@ cbuf_slab_free(struct cbuf_slab *s)
 	freelist = s->flh;
 	assert(freelist);
 	freelist->velocity--;
-	if (freelist->velocity < SLAB_VELOCITY_THRESH) return;
+	if (freelist->velocity > SLAB_VELOCITY_THRESH) return;
 
 	/* Have we freed the configured # in a row? Return the page. */
-	if (freelist->list == s) {
-		freelist->list = s->next;
-	} else {
-		assert(s->prev);
-		s->prev->next = s->next;
-	}
-	if (s->next) s->next->prev = NULL;
+	slab_rem_freelist(s, freelist);
 	assert(s->nfree = (PAGE_SIZE/s->obj_sz));
 	
 	/* FIXME: reclaim heap VAS! */
-	cos_vect_del(&slab_descs, s->cbid);
+	cos_vect_del(&slab_descs, (long)s->mem>>PAGE_ORDER);
 	cbuf_c_delete(cos_spd_id(), s->cbid);
 	free(s);
 
