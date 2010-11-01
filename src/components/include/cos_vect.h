@@ -53,8 +53,8 @@ typedef struct cos_vect_struct {
 #endif
 
 #define COS_VECT_CREATE_STATIC(name)					\
-	struct cos_vect_intern_struct __cos_##name##_vect[ COS_VECT_BASE ]; \
-	cos_vect_t name = {.depth = 0, .vect = __cos_##name##_vect}
+	struct cos_vect_intern_struct __cos_##name##_vect[ COS_VECT_BASE ] = {{.val=COS_VECT_INIT_VAL},}; \
+	cos_vect_t name = {.depth = 1, .vect = __cos_##name##_vect}
 
 /* true or false: is v a power of 2 */
 static inline int cos_vect_power_2(u32_t v)

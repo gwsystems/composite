@@ -19,7 +19,7 @@
 
 #include <mem_mgr.h>
 
-#define MAX_ALIASES 8
+#define MAX_ALIASES 32
 
 #define MEM_MARKED 1
 
@@ -166,7 +166,6 @@ void mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 		return;
 	}
 	mi = mc->map;
-	/* All aliases after a mapping are the "children" subsystems...unmap them all */
 	for (i = 0 ; i < MAX_ALIASES ; i++) {
 		int idx;
 

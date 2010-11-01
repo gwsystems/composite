@@ -1,3 +1,12 @@
+/**
+ * Copyright 2010 by The George Washington University.  All rights reserved.
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ *
+ * Author: Gabriel Parmer, gparmer@gwu.edu, 2010
+ */
+
 #ifndef   	MEM_MGR_H
 #define   	MEM_MGR_H
 

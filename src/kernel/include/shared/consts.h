@@ -39,8 +39,9 @@ struct pt_regs {
 //struct pt_regs { int dummy[16]; };
 #endif
 #endif
+#define PAGE_ORDER 12
 #ifndef __KERNEL__
-#define PAGE_SIZE (1<<12)
+#define PAGE_SIZE (1<<PAGE_ORDER)
 #endif
 
 #define MAX_SERVICE_DEPTH 31
@@ -72,6 +73,7 @@ struct pt_regs {
 #define CACHE_ALIGNED __attribute__ ((aligned (CACHE_LINE)))
 #define HALF_CACHE_ALIGNED __attribute__ ((aligned (CACHE_LINE/2)))
 #define PAGE_ALIGNED __attribute__ ((aligned(PAGE_SIZE)))
+#define WORD_SIZE 32
 
 #define round_to_cacheline(x) (((unsigned long)x)&~(CACHE_LINE-1))
 #define round_up_to_cacheline(x) (round_to_cacheline(x+CACHE_LINE-1))

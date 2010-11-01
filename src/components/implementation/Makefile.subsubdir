@@ -30,6 +30,7 @@ TMP_STR=tmp
 INCLUDE=-I../ $(DEP_INC) $(IF_INCLUDE) $(CINC)
 LIB_LIBRARIES_PRE=\
 $(if $(findstring lock, $(DEPENDENCIES)), -llock) \
+$(if $(findstring cbuf_c, $(DEPENDENCIES)), -lcbuf_c) \
 $(if $(findstring mem_mgr, $(DEPENDENCIES)), -lmem_mgr)
 LIB_LIBRARIES=$(strip $(LIB_LIBRARIES_PRE))
 LIB_FLAGS=-L$(LIBDIR) $(DEP_LIB) -lcos_component $(LIB_LIBRARIES) $(ADDITIONAL_LIBS)

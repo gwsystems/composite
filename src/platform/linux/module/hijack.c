@@ -954,6 +954,8 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	struct thread *thd;
 	int ret = 1;
 
+	return 1;
+
 	/* Composite doesn't know how to handle kernel faults */
 	if (PF_KERN(error_code)) goto linux_handler;
 
