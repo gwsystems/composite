@@ -281,7 +281,7 @@ cos_init(void *arg){
 		INIT_LIST(&spd_stk_info_list[i].bthd_list, next, prev);
 	}
 
-	// Initalize our free stack list
+	// Initialize our free stack list
 	for(i = 0; i < MAX_NUM_STACKS; i++){
         
 		// put stk list is some known state
@@ -416,7 +416,8 @@ stkmgr_stk_remove_from_spd(struct cos_stk_item *stk_item, struct spd_stk_info *s
 
 	s_spdid = ssi->spdid;
 	DOUT("Releasing Stack\n");
-	mman_release_page(s_spdid, (vaddr_t)(stk_item->d_addr), 0); 
+	//mman_release_page(s_spdid, (vaddr_t)(stk_item->d_addr), 0); 
+	mman_release_page(cos_spd_id(), (vaddr_t)(stk_item->hptr), 0); 
 	DOUT("Putting stack back on free list\n");
 	
 	// cause underflow for MAX Int

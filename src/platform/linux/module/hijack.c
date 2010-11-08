@@ -954,8 +954,6 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	struct thread *thd;
 	int ret = 1;
 
-	return 1;
-
 	/* Composite doesn't know how to handle kernel faults */
 	if (PF_KERN(error_code)) goto linux_handler;
 
@@ -2041,7 +2039,7 @@ static int asym_exec_dom_init(void)
 //	update_vmalloc_regions();
 	hw_int_init();
 	hw_int_override_sysenter(sysenter_interposition_entry);
-//	hw_int_override_pagefault(page_fault_interposition);
+	hw_int_override_pagefault(page_fault_interposition);
 	hw_int_override_idt(0, div_fault_interposition, 0, 0);
 	hw_int_override_idt(0xe9, state_inv_interposition, 0, 3);
 

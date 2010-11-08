@@ -153,7 +153,7 @@ ENTRY(name##_interposition)					\
 	addl $4, %esp;						\
 	iret;							\
 1:	/* linux path */					\
-	RESTORE_INT_REGS;					\
+	RESTORE_REGS;						\
 	addl $8, %esp;						\
 	popl %fs;						\
 	popl %gs;						\
@@ -180,12 +180,21 @@ ENTRY(name##_interposition)					\
 	addl $4, %esp;						\
 	iret;							\
 1:	/* linux path */					\
+	RESTORE_REGS;						\
+	jmp *(cos_default_##name##_handler)	
+
+
+	
+
+/*
 	RESTORE_INT_REGS;					\
 	addl $8, %esp;						\
 	popl %fs;						\
 	popl %gs;						\
 	jmp *(cos_default_##name##_handler)	
+*/
 
+	
 COS_CREATE_TRAP_NO_ERRCODE(div_fault)
 COS_CREATE_TRAP_NO_ERRCODE(state_inv)
 COS_CREATE_TRAP_ERRCODE(page_fault)

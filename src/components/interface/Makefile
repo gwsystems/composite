@@ -4,6 +4,7 @@ INTERFACES=$(wildcard */)
 
 .PHONY: all
 all:
+	$(info |     [MK]   Building interfaces)
 	@for dir in $(INTERFACES) ; do \
 		$(MAKE) -C $$dir ; \
 	done

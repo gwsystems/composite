@@ -13,11 +13,12 @@ version,
 2) compiling the code (first using "make init"),
 3) copying relevant objects and executables to a single "transfer"
 directory (using "make cp"),
-4) logging in as root, moving to a directory that root can manipulate, 
+4) logging in as root, moving to a directory that root can manipulate
+(e.g. "cd ~; mkdir experiments ; cd experiments" as root), 
 5) copying the Makefile from the transfer directory to this directory
 and executing first "make init", then "make", and
 6) running the script to install all components and execute Composite:
-"sh run.sh" (which was copied into the root directory by the
+"sh lpp.sh" (which was copied into the root directory by the
 Makefile).
 
 Correspondingly the four variables in src/Makefile.src are:
