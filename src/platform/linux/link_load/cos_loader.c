@@ -29,6 +29,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <assert.h>
 #include <sys/mman.h>
@@ -60,6 +62,7 @@ char *ROOT_SCHED = NULL; // this is set to the first listed scheduler
 const char *MPD_MGR    = "cg.o"; // the component graph!
 const char *CONFIG_COMP = "schedconf.o";
 const char *BOOT_COMP = "boot.o";
+const char *INIT_FILE = "init.o", *INIT_FILE_NAME = "init.tar";
 
 const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] = 
 { "cos_atomic_cmpxchg",
@@ -1898,6 +1901,64 @@ static void make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all
 	serialize_spd_graph(g, PAGE_SIZE/sizeof(struct comp_graph), all);
 }
 
+static void make_spd_init_file(struct service_symbs *ic, const char *fname)
+{
+	int fd = open(fname, O_RDWR);
+	struct stat b;
+	int real_sz, sz, ret;
+	int **heap_ptr, *heap_ptr_val;
+	int *start;
+	struct cos_component_information *ci;
+
+	if (fd == -1) {
+		printl(PRINT_HIGH, "Init file component specified, but file %s not found\n", fname);
+		perror("Error");
+		exit(-1);
+	}
+	if (fstat(fd, &b)) {
+		printl(PRINT_HIGH, "Init file component specified, but error stating file %s not found\n", fname);
+		perror("Error");
+		exit(-1);
+	}
+	real_sz = b.st_size;
+	sz = round_up_to_page(real_sz);
+
+	if (ic->is_composite_loaded) {
+		printl(PRINT_HIGH, "Cannot load %s via composite (%s).\n", INIT_FILE, BOOT_COMP);
+		return;
+	}
+	heap_ptr = get_heap_ptr(ic);
+	if (heap_ptr == NULL) {
+		printl(PRINT_HIGH, "Could not find heap pointer in %s.\n", ic->obj);
+		return;
+	}
+	heap_ptr_val = *heap_ptr;
+	ci = (void *)get_symb_address(&ic->exported, COMP_INFO);
+	if (!ci) {
+		printl(PRINT_HIGH, "Could not find component information in %s.\n", ic->obj);
+		return;
+	}
+	ci->cos_poly[0] = (vaddr_t)heap_ptr_val;
+
+	start = mmap((void*)heap_ptr_val, sz, PROT_WRITE | PROT_READ, 
+		     MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+	ret = read(fd, start, real_sz);
+	if (real_sz != ret) {
+		printl(PRINT_HIGH, "Reading in init file %s: could not retrieve whole file\n", fname);
+		perror("error: ");
+		exit(-1);
+	}
+	if (MAP_FAILED == start){
+		printl(PRINT_HIGH, "Couldn't map the init file, %s, into address space", fname);
+		perror("error:");
+		exit(-1);
+	}
+	printl(PRINT_HIGH, "Found init file component: remapping heap_ptr from %p to %p, mapping in file.\n",
+	       *heap_ptr, heap_ptr_val);
+	*heap_ptr = (int*)((char*)heap_ptr_val + sz);
+	ci->cos_poly[1] = real_sz;
+}
+
 static int make_cobj_symbols(struct service_symbs *s, struct cobj_header *h)
 {
 	u32_t addr;
@@ -2170,7 +2231,11 @@ static void setup_kernel(struct service_symbs *services)
 	if ((s = find_obj_by_name(services, MPD_MGR))) {
 		make_spd_mpd_mgr(s, services);
 	}
+	fflush(stdout);
 
+	if ((s = find_obj_by_name(services, INIT_FILE))) {
+		make_spd_init_file(s, INIT_FILE_NAME);
+	}
 	fflush(stdout);
 
 	if ((s = find_obj_by_name(services, CONFIG_COMP)) == NULL) {

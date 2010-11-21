@@ -129,7 +129,6 @@ struct cbuf_collection {
 	cbuf_t cb[0];
 };*/
 
-
 extern int cbuf_cache_miss(int cbid, int idx, int len);
 /* 
  * Common case.  This is the most optimized path.  Every component
