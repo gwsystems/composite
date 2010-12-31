@@ -61,7 +61,9 @@ struct pt_regs {
 #define MAX_STATIC_CAP 1024
 
 #define PAGE_MASK (~(PAGE_SIZE-1))
-#define PGD_RANGE (1<<22)
+#define PGD_SHIFT 22
+#define PGD_RANGE (1<<PGD_SHIFT)
+#define PGD_SIZE PGD_RANGE
 #define PGD_MASK  (~(PGD_RANGE-1))
 #define PGD_PER_PTBL 1024
 
@@ -82,6 +84,7 @@ struct pt_regs {
 #define SHARED_REGION_START (1<<30)  // 1 gig
 #define SHARED_REGION_SIZE PGD_RANGE
 #define SERVICE_START (SHARED_REGION_START+SHARED_REGION_SIZE)
+#define SERVICE_END   ((unsigned long)SHARED_REGION_START+(unsigned long)(1<<30))
 /* size of virtual address spanned by one pgd entry */
 #define SERVICE_SIZE PGD_RANGE
 #define COS_INFO_REGION_ADDR SHARED_REGION_START

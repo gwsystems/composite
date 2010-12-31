@@ -1,6 +1,6 @@
 C_OBJS=initf.o
 ASM_OBJS=
-COMPONENT=init.o
+COMPONENT=initfs.o
 INTERFACES=initf
 DEPENDENCIES=sched printc
 IF_LIB=
