@@ -286,6 +286,16 @@ enum {
 	COS_SPD_ACTIVATE
 };
 
+/* operations for cos_vas_cntl */
+enum {
+	COS_VAS_CREATE, 	/* new vas */
+	COS_VAS_DELETE,		/* remove vas */
+	COS_VAS_SPD_ADD,	/* add spd to vas */
+	COS_VAS_SPD_REM,	/* remove spd from vas */
+	COS_VAS_SPD_EXPAND,	/* allocate more vas to spd */
+	COS_VAS_SPD_RETRACT	/* deallocate some vas from spd */
+};
+
 enum {
 	COS_CAP_SET_CSTUB,
 	COS_CAP_SET_SSTUB,

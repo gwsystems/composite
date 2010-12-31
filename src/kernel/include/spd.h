@@ -160,7 +160,7 @@ typedef int mmaps_t;
 struct spd {
 	/* data touched on the ipc hotpath (32 bytes)*/
 	struct spd_poly spd_info;
-	struct spd_location location;
+	struct spd_location location[MAX_SPD_VAS_LOCATIONS];
 	/* The "current" protection state of the spd, which might
 	 * point directly to spd->spd_info, or
 	 * a composite_spd->spd_info 
@@ -203,6 +203,8 @@ struct spd *spd_alloc(unsigned short int max_static_cap, struct usr_inv_cap *usr
 		      vaddr_t upcall_entry);
 int spd_set_location(struct spd *spd, unsigned long lowest_addr, 
 		     unsigned long size, paddr_t pg_tbl);
+int spd_add_location(struct spd *spd, long base, long size);
+int spd_rem_location(struct spd *spd, long base, long size);
 void spd_free(struct spd *spd);
 
 int spd_is_free(int idx);
@@ -371,7 +373,7 @@ int virtual_namespace_alloc(struct spd *spd, unsigned long addr, unsigned int si
 extern int pgtbl_entry_absent(vaddr_t addr, paddr_t pg_tbl);
 static inline int spd_composite_member(struct spd *spd, struct spd_poly *poly)
 {
-	vaddr_t lowest_addr = spd->location.lowest_addr;
+	vaddr_t lowest_addr = spd->location[0].lowest_addr;
 
 	return !pgtbl_entry_absent(poly->pg_tbl, lowest_addr);
 }

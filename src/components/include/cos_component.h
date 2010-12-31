@@ -136,6 +136,7 @@ cos_syscall_3(14, int, __buff_mgmt, void *, addr, int, thd_id, int, len_option);
 cos_syscall_3(15, int, __thd_cntl, int, op_thdid, long, arg1, long, arg2);
 cos_syscall_0(16, int, idle);
 cos_syscall_3(17, int, __spd_cntl, int, op_spdid, long, arg1, long, arg2);
+cos_syscall_3(17, int, __vas_cntl, int, op_spdid, long, arg1, long, arg2);
 
 static inline int cos_mmap_cntl(short int op, short int flags, 
 				short int dest_spd, vaddr_t dest_addr, long mem_id) {
@@ -167,6 +168,11 @@ static inline int cos_thd_cntl(short int op, short int thd_id, long arg1, long a
 static inline int cos_spd_cntl(short int op, short int spd_id, long arg1, long arg2)
 {
 	return cos___spd_cntl(((op << 16) | (spd_id & 0xFFFF)), arg1, arg2);
+}
+
+static inline int cos_vas_cntl(short int op, short int spd_id, long addr, long sz)
+{
+	return cos___spd_cntl(((op << 16) | (spd_id & 0xFFFF)), addr, sz);
 }
 
 static inline long cos_cap_cntl_spds(spdid_t cspd, spdid_t sspd, long arg)

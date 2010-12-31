@@ -214,11 +214,11 @@ int spd_free_mm(struct spd *spd)
 
 	/* if the spd shares page tables with the creation program,
 	 * don't kill anything */
-	if (spd->location.lowest_addr == 0) return 0;
+	if (spd->location[0].size == 0) return 0;
 
 	mm = guest_mms[spd->local_mmaps];
-	pgd = pgd_offset(mm, spd->location.lowest_addr);
-	span = spd->location.size>>HPAGE_SHIFT;
+	pgd = pgd_offset(mm, spd->location[0].lowest_addr);
+	span = spd->location[0].size>>HPAGE_SHIFT;
 
 	/* ASSUMPTION: we are talking about a component's mm here, so
 	 * we need to remove the ptes */
@@ -513,9 +513,10 @@ static int aed_ioctl(struct inode *inode, struct file *file,
 		 * stubs and ipc to the configuration process
 		 * itself. */
 		if (spd_info.lowest_addr == 0) {
-			spd->spd_info.pg_tbl = (paddr_t)(__pa(current->mm->pgd));
-			spd->location.lowest_addr = 0;
-			spd->composite_spd = &spd->spd_info;
+			spd->spd_info.pg_tbl         = (paddr_t)(__pa(current->mm->pgd));
+			spd->location[0].lowest_addr = 0;
+			spd->location[0].size        = 0;
+			spd->composite_spd           = &spd->spd_info;
 		} else {
 			/*
 			 * Copy relevant page table entries from the
@@ -713,9 +714,9 @@ static int aed_ioctl(struct inode *inode, struct file *file,
 //		printk("cos: promoting component %d to scheduler at depth %d, and parent %d\n",
 //		       sched_info.spd_sched_handle, sched->sched_depth, sched_info.spd_parent_handle);
 
-		if (sched_info.sched_shared_page < sched->location.lowest_addr ||
+		if (sched_info.sched_shared_page < sched->location[0].lowest_addr ||
 		    sched_info.sched_shared_page + PAGE_SIZE >= 
-		    sched->location.lowest_addr + sched->location.size) {
+		    sched->location[0].lowest_addr + sched->location[0].size) {
 			/* undo changes made so far */
 			sched->sched_depth = -1;
 			sched->parent_sched = NULL;
@@ -1191,6 +1192,41 @@ int pgtbl_add_middledir(paddr_t pt, unsigned long vaddr)
 	if (!page) return -1;
 
 	pgd->pgd = (unsigned long)va_to_pa(page) | _PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED;
+	return 0;
+}
+
+int pgtbl_rem_middledir(paddr_t pt, unsigned long vaddr)
+{
+	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(vaddr);
+	unsigned long *page;
+
+	page = (unsigned long *)pa_to_va((void*)(pgd->pgd & PTE_PFN_MASK));
+	pgd->pgd = 0;
+	cos_free_page(page);
+
+	return 0;
+}
+
+int pgtbl_rem_middledir_range(paddr_t pt, unsigned long vaddr, long size)
+{
+	unsigned long a;
+
+	for (a = vaddr ; a < vaddr + (size>>HPAGE_SHIFT) ; a += HPAGE_SIZE) {
+		BUG_ON(pgtbl_rem_middledir(pt, a));
+	}
+	return 0;
+}
+
+int pgtbl_add_middledir_range(paddr_t pt, unsigned long vaddr, long size)
+{
+	unsigned long a;
+
+	for (a = vaddr ; a < vaddr + (size>>HPAGE_SHIFT) ; a += HPAGE_SIZE) {
+		if (pgtbl_add_middledir(pt, a)) {
+			pgtbl_rem_middledir_range(pt, vaddr, a-vaddr);
+			return -1;
+		}
+	}
 	return 0;
 }
 

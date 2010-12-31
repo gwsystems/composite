@@ -23,6 +23,7 @@ static int initf_read(int offset, char *buf, int req_sz)
 	da->sz = sz;
 	ret = __initf_read(offset, da);
 	memcpy(buf, da->mem, ret);
+	cos_argreg_free(da);
 
 	return ret;
 }

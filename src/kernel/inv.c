@@ -2273,8 +2273,8 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 	{
 		unsigned long region = (unsigned long)option;
 
-		if (region < spd->location.lowest_addr ||
-		    region + PAGE_SIZE >= spd->location.lowest_addr + spd->location.size) {
+		if (region < spd->location[0].lowest_addr ||
+		    region + PAGE_SIZE >= spd->location[0].lowest_addr + spd->location[0].size) {
 			printk("cos: attempted evt region for spd %d @ %lx.\n", spd_get_index(spd), region);
 			return -1;
 		}
@@ -2876,9 +2876,9 @@ COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t dad
 	dspd_id = op_flags_dspd & 0x0000FFFF;
 
 	spd = spd_get_by_index(dspd_id);
-	if (NULL == spd || /*virtual_namespace_query(daddr) != spd*/
-	    (daddr < spd->location.lowest_addr || 
-	     daddr >= spd->location.lowest_addr + spd->location.size)) {
+	if (NULL == spd || virtual_namespace_query(daddr) != spd
+/*	    (daddr < spd->location[0].lowest_addr || 
+	    daddr >= spd->location[0].lowest_addr + spd->location[0].size) */ ) {
 		//printk("cos: invalid mmap cntl call for spd %d for spd %d @ vaddr %x\n",
 		//       spdid, dspd_id, (unsigned int)daddr);
 		return -1;
@@ -3027,8 +3027,6 @@ COS_SYSCALL int cos_syscall_idle_cont(int spdid)
 	return COS_SCHED_RET_SUCCESS;
 }
 
-extern int pgtbl_add_middledir(paddr_t pt, unsigned long vaddr);
-
 COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 {
 	struct spd *spd;
@@ -3089,29 +3087,10 @@ COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		if (spd_release_cap_range(spd) == -1) ret = -1;
 		break;
 	case COS_SPD_LOCATION:
-		/* size already set */
-		if (spd->location.size || !spd->spd_info.pg_tbl) {
+		/* location already set */
+		if (spd->location[0].size ||
+		    spd_add_location(spd, arg1, arg2)) {
 			ret = -1;
-			break;
-		}
-		/* arg1 = base, arg2 = size */
-		/* the beginning address must be on a 4M boundary,
-		 * and 4M in size (for now) */
-		if (((arg1 & (SERVICE_SIZE-1)) != 0) || arg2 != SERVICE_SIZE) {
-			ret = -1;
-			break;
-		}
-		/* virtual address already reserved? */
-		if (!virtual_namespace_alloc(spd, arg1, arg2)) {
-			ret = -1;
-			break;
-		}
-		spd->location.lowest_addr = arg1;
-		spd->location.size = arg2;
-
-		if (pgtbl_add_middledir(spd->spd_info.pg_tbl, arg1)) {
-			ret = -1;
-			spd->location.size = 0;
 			break;
 		}
 		
@@ -3142,15 +3121,15 @@ COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 
 		/* Have we set the virtual address space, caps, cap tbl*/
 		if (!spd->user_vaddr_cap_tbl ||
-		    !spd->spd_info.pg_tbl || !spd->location.lowest_addr ||
+		    !spd->spd_info.pg_tbl || !spd->location[0].lowest_addr ||
 		    !spd->cap_base || !spd->cap_range) {
 			printk("cos: spd_cntl -- cap tbl, location, or capability range not set.\n");
 			ret = -1;
 			break;
 		}
-		if ((unsigned int)spd->user_vaddr_cap_tbl < spd->location.lowest_addr || 
+		if ((unsigned int)spd->user_vaddr_cap_tbl < spd->location[0].lowest_addr || 
 		    (unsigned int)spd->user_vaddr_cap_tbl + sizeof(struct usr_inv_cap) * spd->cap_range > 
-		    spd->location.lowest_addr + spd->location.size || 
+		    spd->location[0].lowest_addr + spd->location[0].size || 
 		    !user_struct_fits_on_page((unsigned int)spd->user_vaddr_cap_tbl, sizeof(struct usr_inv_cap) * spd->cap_range)) {
 			printk("cos: user capability table @ %x does not fit into spd, or onto a single page\n", 
 			       (unsigned int)spd->user_vaddr_cap_tbl);
@@ -3193,6 +3172,39 @@ COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 	return ret;
 }
 
+COS_SYSCALL int cos_syscall_vas_cntl(int id, int op_spdid, long addr, long sz)
+{
+	int ret = 0;
+	short int op;
+	spdid_t spd_id;
+	struct spd *spd;
+
+	op = op_spdid >> 16;
+	spd_id = op_spdid & 0xFFFF;
+	spd = spd_get_by_index(spd_id);
+	if (!spd) return -1;
+
+	switch(op) {
+	case COS_VAS_CREATE: 	/* new vas */
+	case COS_VAS_DELETE:	/* remove vas */
+	case COS_VAS_SPD_ADD:	/* add spd to vas */
+	case COS_VAS_SPD_REM:	/* remove spd from vas */
+		ret = -1;
+		break;
+	case COS_VAS_SPD_EXPAND:	/* allocate more vas to spd */
+		if (spd_add_location(spd, addr, sz)) ret = -1;
+		break;
+	case COS_VAS_SPD_RETRACT:	/* deallocate some vas from spd */
+		if (spd_rem_location(spd, addr, sz)) ret = -1;
+		break;
+	default:
+		ret = -1;
+		break;
+	}
+
+	return ret;
+}
+
 /* 
  * Composite's system call table that is indexed and invoked by ipc.S.
  * The user-level stubs are created in cos_component.h.
@@ -3216,7 +3228,7 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_thd_cntl,
 	(void*)cos_syscall_idle,
 	(void*)cos_syscall_spd_cntl,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_vas_cntl,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,

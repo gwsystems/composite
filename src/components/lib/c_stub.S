@@ -2,6 +2,7 @@
 #define IPRETURN 4
 #define CAPNUM 12
 
+#ifdef NIL
 .globl SS_ipc_client_marshal
 .type  SS_ipc_client_marshal, @function
 .align 16
@@ -24,7 +25,8 @@ SS_ipc_client_marshal:
 	movl $SS_ipc_client_ret_unmarshal, %ecx /* save the return ip */
 
 	sysenter 	
-
+#endif
+	
 .globl SS_ipc_client_marshal_args
 .type  SS_ipc_client_marshal_args, @function
 .align 16
@@ -67,6 +69,7 @@ SS_ipc_client_ret_unmarshal:
 	
 	ret
 
+#ifdef NIL
 .globl SS_ipc_client_marshal_saveregs
 .type  SS_ipc_client_marshal_saveregs, @function
 .align 16
@@ -93,3 +96,4 @@ SS_ipc_client_ret_unmarshal_saveregs:
 	popl %ebx
 	popl %ebp
 	ret
+#endif

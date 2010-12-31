@@ -50,6 +50,21 @@ struct spd *virtual_namespace_query(unsigned long addr)
 	return virtual_spd_layout[adj];
 }
 
+int virtual_namespace_free(struct spd *spd, unsigned long addr, unsigned int size)
+{
+	unsigned long a;
+	unsigned long addr_from_idx = addr>>HPAGE_SHIFT;
+	/* FIXME: this should be rounding up not down */
+	unsigned int addr_to_idx = addr_from_idx + (size>>HPAGE_SHIFT);
+	int i;
+
+	for (a = addr ; a < addr+(size>>HPAGE_SHIFT) ; a += HPAGE_SIZE) {
+		if (virtual_namespace_query(a) != spd) return 0;
+	}
+	for (i = addr_from_idx ; i < addr_to_idx ; i++) virtual_spd_layout[i] = NULL;
+	
+	return 1;
+}
 
 struct invocation_cap invocation_capabilities[MAX_STATIC_CAP];
 struct invocation_cap *inv_cap_get(int c_num)
@@ -361,6 +376,7 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 		      vaddr_t upcall_entry)
 {
 	struct spd *spd;
+	int i;
 
 	spd = spd_freelist_head;
 
@@ -406,6 +422,8 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 	spd->parent_sched = NULL;
 
 	spd->composite_member_next = spd->composite_member_prev = spd;
+
+	for (i = 0 ; i < MAX_SPD_VAS_LOCATIONS ; i++) spd->location[i].size = 0;
 
 	return spd;
 
@@ -474,8 +492,8 @@ int spd_set_location(struct spd *spd, unsigned long lowest_addr,
 	}
 
 	spd->spd_info.pg_tbl = pg_tbl;
-	spd->location.lowest_addr = lowest_addr;
-	spd->location.size = size;
+	spd->location[0].lowest_addr = lowest_addr;
+	spd->location[0].size = size;
 
 	/* 
 	 * We need to reference the kernel virtual address, not user
@@ -495,6 +513,59 @@ int spd_set_location(struct spd *spd, unsigned long lowest_addr,
 			       (unsigned long*)spd->user_cap_tbl));
 
 	return 0;
+}
+
+extern int pgtbl_add_middledir_range(paddr_t pt, unsigned long vaddr, long size);
+extern int pgtbl_rem_middledir_range(paddr_t pt, unsigned long vaddr, long size);
+
+int spd_add_location(struct spd *spd, long base, long size)
+{
+	int ret = 0;
+	int i;
+	
+	if (!spd->spd_info.pg_tbl) goto err;
+	/* the beginning address must be on a 4M boundary,
+	 * and 4M in size (for now) */
+	if (((base & (SERVICE_SIZE-1)) != 0) || size != SERVICE_SIZE) goto err;
+	for (i = 0 ; i < MAX_SPD_VAS_LOCATIONS ; i++) {
+		if (0 == spd->location[i].size) break;
+	}
+	if (i == MAX_SPD_VAS_LOCATIONS) goto err;
+	/* virtual address already reserved? */
+	if (!virtual_namespace_alloc(spd, base, size)) goto err;
+
+	spd->location[i].lowest_addr = base;
+	spd->location[i].size = size;
+	BUG_ON(pgtbl_add_middledir_range(spd->spd_info.pg_tbl, base, size));
+done:
+	return ret;
+err:
+	ret = -1;
+	goto done;
+}
+
+int spd_rem_location(struct spd *spd, long base, long size)
+{
+	int ret = 0;
+	int i;
+	
+	if (!spd->spd_info.pg_tbl) goto err;
+	for (i = 0 ; i < MAX_SPD_VAS_LOCATIONS ; i++) {
+		if (spd->location[i].size == size &&
+		    spd->location[i].lowest_addr == base) break;
+	}
+	if (i == MAX_SPD_VAS_LOCATIONS) goto err;
+	
+	/* virtual address already reserved? */
+	if (!virtual_namespace_free(spd, base, size)) goto err;
+	spd->location[i].lowest_addr = spd->location[i].size = 0;
+	
+	BUG_ON(pgtbl_rem_middledir_range(spd->spd_info.pg_tbl, base, size));
+done:
+	return ret;
+err:
+	ret = -1;
+	goto done;
 }
 
 struct spd *spd_get_by_index(int idx)
@@ -1133,14 +1204,25 @@ static inline void spd_remove_caps(struct composite_spd *cspd, struct spd *spd)
 static inline void spd_remove_mappings(struct composite_spd *cspd, struct spd *spd)
 {
 	paddr_t tbl = cspd->spd_info.pg_tbl;
+	int i;
 
-	zero_pgtbl_range(tbl, spd->location.lowest_addr, spd->location.size);
+	for (i = 0 ; i < MAX_SPD_VAS_LOCATIONS ; i++) {
+		if (spd->location[i].size) {
+			zero_pgtbl_range(tbl, spd->location[i].lowest_addr, spd->location[i].size);
+		}
+	}
 }
 
 static inline void spd_add_mappings(struct composite_spd *cspd, struct spd *spd) 
 {
-	copy_pgtbl_range(cspd->spd_info.pg_tbl, spd->spd_info.pg_tbl, 
-			 spd->location.lowest_addr, spd->location.size);
+	int i;
+
+	for (i = 0 ; i < MAX_SPD_VAS_LOCATIONS ; i++) {
+		if (spd->location[i].size) {
+			copy_pgtbl_range(cspd->spd_info.pg_tbl, spd->spd_info.pg_tbl, 
+					 spd->location[i].lowest_addr, spd->location[i].size);
+		}
+	}
 }
 
 /*
@@ -1162,14 +1244,14 @@ int spd_composite_add_member(struct composite_spd *cspd, struct spd *spd)
 	/* verify spd is not resident in any other composite_spd */
 	assert(&spd->spd_info == spd->composite_spd);
 	/* make sure spd's mappings don't already exist in cspd (a bug) */
-	assert(pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location.lowest_addr));
+	assert(pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location[0].lowest_addr));
 	
 	spd_add_caps(cspd, spd);
 	spd_add_mappings(cspd, spd);
 
-	if (pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location.lowest_addr)) {
+	if (pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location[0].lowest_addr)) {
 		printk("cos: adding spd to cspd -> page tables for cspd not initialized properly.\n");
-		if (pgtbl_entry_absent(spd->spd_info.pg_tbl, spd->location.lowest_addr)) {
+		if (pgtbl_entry_absent(spd->spd_info.pg_tbl, spd->location[0].lowest_addr)) {
 			printk("cos: adding spd to cspd -> page tables for spd not initialized properly.\n");
 		}
 		return -1;
@@ -1208,7 +1290,7 @@ int spd_composite_remove_member(struct spd *spd, int remove_mappings)
 	cspd = (struct composite_spd *)spd->composite_spd;
 	assert(!spd_mpd_is_depricated(cspd) && !spd_mpd_is_subordinate(cspd));
 	/* this spd better be present in its composite's pgtbl or bug */
-	assert(!pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location.lowest_addr));
+	assert(!pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location[0].lowest_addr));
 
 	/* linked list remove */
 	prev = spd->composite_member_prev;
@@ -1230,7 +1312,7 @@ int spd_composite_remove_member(struct spd *spd, int remove_mappings)
 	
 	if (remove_mappings) {
 		spd_remove_mappings(cspd, spd);
-		assert(pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location.lowest_addr));
+		assert(pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location[0].lowest_addr));
 	}
 
 	assert(0 < cos_ref_val(&cspd->spd_info.ref_cnt));
