@@ -42,8 +42,9 @@ vaddr_t vas_mgr_expand(spdid_t spd, long amnt)
 	struct spd_vas_info *svi;
 	vaddr_t ret = 0;
 	int loc;
-	unsigned long a, i;
+	unsigned long a, i, nentries;
 
+	amnt = round_up_to_pgd_page(amnt); 
 	LOCK();
 	svi = cos_vect_lookup(&spd_vas_map, spd);
 	if (!svi) {
@@ -52,36 +53,49 @@ vaddr_t vas_mgr_expand(spdid_t spd, long amnt)
 		memset(svi, 0, sizeof(struct spd_vas_info));
 		svi->spdid = spd;
 		svi->vas = vas;
-		printc("a\n");
 		if (-1 == cos_vect_add_id(&spd_vas_map, svi, spd)) {
 			free(svi);
 			goto done;
 		}
-		printc("b\n");
 	}
-		printc("c\n");
+
 	for (i = 0 ; i < MAX_SPD_VAS_LOCATIONS ; i++) {
 		if (!svi->locations[i].size) break;
 	}
 	if (i == MAX_SPD_VAS_LOCATIONS) goto done;
+
 	loc = i;
-		printc("d\n");
+	nentries = amnt>>PGD_SHIFT;
 	for (a = SERVICE_START, i = SERVICE_START>>PGD_SHIFT ; 
-	     a < SERVICE_END ; 
+	     a < (SERVICE_END-amnt) ; 
 	     a += SERVICE_SIZE, i++) {
-		if (vas->s[i]) continue;
-		printc("d.5\n");
-		if (cos_vas_cntl(COS_VAS_SPD_EXPAND, spd, a, SERVICE_SIZE)) {
-			vas->s[i] = &unknown;
+		unsigned long s = a, s_idx = i;
+		int found = 1;
+
+		printc("i=%d, %d\n", i, nentries);
+
+		for (; i < (s_idx + nentries) ; a += SERVICE_SIZE, i++) {
+			if (vas->s[i]) {
+				found = 0;
+				break;
+			}
+			printc("a\n");
+		}
+		printc("found %d\n", found);
+		a -= SERVICE_SIZE;
+		i--;
+		if (!found) continue;
+		
+		if (cos_vas_cntl(COS_VAS_SPD_EXPAND, spd, s, amnt)) {
+			vas->s[s_idx] = &unknown;
 			continue;
 		}
 		/* success */
-		vas->s[i] = svi;
-		svi->locations[loc].size = SERVICE_SIZE;
-		svi->locations[loc].base = ret = a;
+		for (i = s_idx ; i < (s_idx + nentries) ; i++) vas->s[i] = svi;
+		svi->locations[loc].size = amnt;
+		svi->locations[loc].base = ret = s;
 		break;
 	}
-		printc("e\n");
 done:
 	UNLOCK();
 	return ret;

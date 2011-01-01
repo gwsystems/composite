@@ -2876,11 +2876,9 @@ COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t dad
 	dspd_id = op_flags_dspd & 0x0000FFFF;
 
 	spd = spd_get_by_index(dspd_id);
-	if (NULL == spd || virtual_namespace_query(daddr) != spd
-/*	    (daddr < spd->location[0].lowest_addr || 
-	    daddr >= spd->location[0].lowest_addr + spd->location[0].size) */ ) {
-		//printk("cos: invalid mmap cntl call for spd %d for spd %d @ vaddr %x\n",
-		//       spdid, dspd_id, (unsigned int)daddr);
+	if (NULL == spd || virtual_namespace_query(daddr) != spd) {
+		printk("cos: invalid mmap cntl call for spd %d for spd %d @ vaddr %x\n",
+		       spdid, dspd_id, (unsigned int)daddr);
 		return -1;
 	}
 

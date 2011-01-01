@@ -526,7 +526,7 @@ int spd_add_location(struct spd *spd, long base, long size)
 	if (!spd->spd_info.pg_tbl) goto err;
 	/* the beginning address must be on a 4M boundary,
 	 * and 4M in size (for now) */
-	if (((base & (SERVICE_SIZE-1)) != 0) || size != SERVICE_SIZE) goto err;
+	if (((base & (SERVICE_SIZE-1)) != 0)/* || size != SERVICE_SIZE */) goto err;
 	for (i = 0 ; i < MAX_SPD_VAS_LOCATIONS ; i++) {
 		if (0 == spd->location[i].size) break;
 	}

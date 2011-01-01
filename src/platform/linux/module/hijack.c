@@ -1211,7 +1211,7 @@ int pgtbl_rem_middledir_range(paddr_t pt, unsigned long vaddr, long size)
 {
 	unsigned long a;
 
-	for (a = vaddr ; a < vaddr + (size>>HPAGE_SHIFT) ; a += HPAGE_SIZE) {
+	for (a = vaddr ; a < vaddr + size ; a += HPAGE_SIZE) {
 		BUG_ON(pgtbl_rem_middledir(pt, a));
 	}
 	return 0;
@@ -1221,7 +1221,7 @@ int pgtbl_add_middledir_range(paddr_t pt, unsigned long vaddr, long size)
 {
 	unsigned long a;
 
-	for (a = vaddr ; a < vaddr + (size>>HPAGE_SHIFT) ; a += HPAGE_SIZE) {
+	for (a = vaddr ; a < vaddr + size ; a += HPAGE_SIZE) {
 		if (pgtbl_add_middledir(pt, a)) {
 			pgtbl_rem_middledir_range(pt, vaddr, a-vaddr);
 			return -1;

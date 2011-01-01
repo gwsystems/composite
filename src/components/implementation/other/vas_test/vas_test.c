@@ -6,12 +6,13 @@
 
 void cos_init(void)
 {
-	vaddr_t a;
-	a = vas_mgr_expand(cos_spd_id(), SERVICE_SIZE);
+	vaddr_t a, t;
+	a = vas_mgr_expand(cos_spd_id(), SERVICE_SIZE*2);
 	printc("vas expand @ %x.\n", (unsigned int)a);
-	if (a != mman_get_page(cos_spd_id(), a, 0)) {
-		printc("ERROR: Could not map at new vas range\n");
-	}
+	if (a == 0) return;
+	t = mman_get_page(cos_spd_id(), a+SERVICE_SIZE, 0);
+	printc("mapped page %x, target %x\n", t, a+SERVICE_SIZE);
+	if (t != a+SERVICE_SIZE) printc("vas ERROR\n");
 
 	return;
 }
