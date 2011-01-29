@@ -321,6 +321,12 @@
 	+ =COS\_CAP\_SET\_SERV\_FN=: Set component =cspd='s address
           for capability =capid='s client function to be invoked to
           =arg=.
+	+ =COS\_CAP\_SET\_FAULT=: Set component =cspd='s handler for
+          fault number =arg= to the capability =capid=.  The page
+          fault, for example, is fault number 0.  When a fault occurs
+          in the component, it will cause an invocation of the
+          associated capability and will call a function of the
+          prototype =void fault\_page\_fault\_handler(spdid\_t spdid, void *fault\_addr, int flags, void *ip)=.
 	+ =COS\_CAP\_ACTIVATE=: _IMPORTANT_ - the three functions must
           be set for each capability before it can be activated.
           Once it is activated, it can be invoked by a thread.  This

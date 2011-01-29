@@ -169,13 +169,9 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	 * this.
 	 */
 	if (unlikely(!thd_spd_in_composite(curr_frame->current_composite_spd, curr_spd))) {
-		static int cnt = 0;
-		if (cnt < 5) {
-			printk("cos: Error, incorrect capability (Cap %d has cspd %x, stk has %x).\n",
-			       capability, spd_get_index(curr_spd), spd_get_index(curr_frame->spd));
-			print_stack(thd);
-			cnt++;
-		}
+		printk("cos: Error, incorrect capability (Cap %d has cspd %x, stk has %x).\n",
+		       capability, spd_get_index(curr_spd), spd_get_index(curr_frame->spd));
+		print_stack(thd);
 		/* 
 
 		 * FIXME: do something here like throw a fault to be
@@ -242,7 +238,7 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr, struct pt_regs
 	//spd_mpd_release((struct composite_spd *)inv_frame->current_composite_spd);
 	spd_mpd_ipc_release((struct composite_spd *)inv_frame->current_composite_spd);
 
-	/* Fault caused invocation.  FIXME: can we get this off the common case path? */
+	/* Fault caused initial invocation.  FIXME: can we get this off the common case path? */
 	if (unlikely(inv_frame->ip == 0)) {
 		*regs_restore = &curr->fault_regs;
 		return NULL;
