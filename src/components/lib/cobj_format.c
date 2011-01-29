@@ -172,7 +172,7 @@ int cobj_symb_init(struct cobj_header *h, unsigned int symb_idx, u32_t type, u32
 }
 
 int cobj_cap_init(struct cobj_header *h, unsigned int cap_idx, u32_t cap_off, 
-		  u32_t dest_id, u32_t sfn, u32_t cstub, u32_t sstub)
+		  u32_t dest_id, u32_t sfn, u32_t cstub, u32_t sstub, u32_t fault_num)
 {
 	struct cobj_cap *c;
 
@@ -183,6 +183,7 @@ int cobj_cap_init(struct cobj_header *h, unsigned int cap_idx, u32_t cap_off,
 	c->cstub = cstub;
 	c->sstub= sstub;
 	c->cap_off = cap_off;
+	c->fault_num = fault_num;
 
 	return 0;
 }

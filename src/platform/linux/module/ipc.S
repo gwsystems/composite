@@ -62,7 +62,7 @@ composite_call_ipc:	/* server_inv: */
 	addl $20, %esp
 	movl %eax, %edx
 
-	/* thd and data_region */
+	/* thd and spdid */
 	popl %eax
 	popl %ecx
 

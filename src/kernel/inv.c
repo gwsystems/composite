@@ -108,12 +108,12 @@ void print_regs(struct pt_regs *regs)
 	return;
 }
 
+extern struct invocation_cap invocation_capabilities[MAX_STATIC_CAP];
+
 struct inv_ret_struct {
 	int thd_id;
 	int spd_id;
 };
-
-extern struct invocation_cap invocation_capabilities[MAX_STATIC_CAP];
 /* 
  * FIXME: 1) should probably return the static capability to allow
  * isolation level isolation access from caller, 2) all return 0
@@ -169,10 +169,15 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	 * this.
 	 */
 	if (unlikely(!thd_spd_in_composite(curr_frame->current_composite_spd, curr_spd))) {
-		printk("cos: Error, incorrect capability (Cap %d has cspd %x, stk has %x).\n",
-		       capability, spd_get_index(curr_spd), spd_get_index(curr_frame->spd));
-		print_stack(thd);
+		static int cnt = 0;
+		if (cnt < 5) {
+			printk("cos: Error, incorrect capability (Cap %d has cspd %x, stk has %x).\n",
+			       capability, spd_get_index(curr_spd), spd_get_index(curr_frame->spd));
+			print_stack(thd);
+			cnt++;
+		}
 		/* 
+
 		 * FIXME: do something here like throw a fault to be
 		 * handled by a user-level handler
 		 */
@@ -235,10 +240,61 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr, struct pt_regs
 	 */
 	//cos_ref_release(&inv_frame->current_composite_spd->ref_cnt);
 	//spd_mpd_release((struct composite_spd *)inv_frame->current_composite_spd);
-//	printk("cos: thd %d returning\n", thd_get_id(curr));
 	spd_mpd_ipc_release((struct composite_spd *)inv_frame->current_composite_spd);
 
+	/* Fault caused invocation.  FIXME: can we get this off the common case path? */
+	if (unlikely(inv_frame->ip == 0)) {
+		*regs_restore = &curr->fault_regs;
+		return NULL;
+	}
+
 	return inv_frame;	
+}
+
+/* return 1 if the fault is handled by a component */
+int fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num)
+{
+	struct spd *s = virtual_namespace_query(regs->ip);
+	struct thd_invocation_frame *curr_frame;
+	struct inv_ret_struct r;
+	vaddr_t a;
+	unsigned int fault_cap;
+	struct pt_regs *nregs;
+
+	/* corrupted ip? */
+	if (unlikely(!s)) {
+		curr_frame = thd_invstk_top(thd);
+		s = curr_frame->spd;
+	}
+	assert(fault_num < COS_NUM_FAULTS);
+	fault_cap = s->fault_handler[fault_num];
+	/* If no component catches this fault, upcall into the
+	 * scheduler with a "destroy thread" event. */
+	if (unlikely(!fault_cap)) {
+		assert(0);
+		nregs = thd_ret_term_upcall(thd);
+		memcpy(regs, nregs, sizeof(struct pt_regs));
+		regs->cs = regs->ss = __USER_DS;
+		return 0;
+	}
+	
+	/* save the faulting registers */
+	memcpy(&thd->fault_regs, regs, sizeof(struct pt_regs));
+	a = ipc_walk_static_cap(thd, fault_cap<<20, 0, 0, &r);
+
+	/* setup the registers for the fault handler invocation */
+	regs->ax = r.thd_id;
+	regs->bx = regs->cx = r.spd_id;
+	regs->sp = 0;
+	/* arguments (including bx above) */
+	regs->si = fault_addr;
+	regs->di = flags;
+	regs->bp = regs->ip;
+
+	/* page fault handler address */
+	regs->dx = regs->ip = a;
+
+	return 1;
 }
 
 /********** Composite system calls **********/
@@ -2974,6 +3030,9 @@ COS_SYSCALL long cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long ar
 		assert((vaddr_t)cspd->user_cap_tbl == va);
 		
 		ret = spd_read_reset_invocation_cnt(cspd, sspd);
+		break;
+	case COS_CAP_SET_FAULT:
+		if (spd_cap_set_fault_handler(cspd, capid, arg2)) ret = -1;
 		break;
 	case COS_CAP_SET_CSTUB:
 		if (spd_cap_set_cstub(cspd, capid, arg2)) ret = -1;

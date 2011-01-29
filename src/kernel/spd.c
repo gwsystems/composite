@@ -587,7 +587,7 @@ unsigned int spd_add_static_cap(struct spd *owner_spd, vaddr_t ST_serv_entry,
 	return spd_add_static_cap_extended(owner_spd, trusted_spd, -1, ST_serv_entry, 0, 0, 0, 0, isolation_level, 0);
 }
 
-struct invocation_cap *spd_get_cap(struct spd *spd, int cap)
+static int spd_get_cap_off(struct spd *spd, int cap)
 {
 	assert(spd);
 
@@ -596,10 +596,18 @@ struct invocation_cap *spd_get_cap(struct spd *spd, int cap)
 	if (cap >= spd->cap_range) {
 		printd("cos: Capability out of range (valid [%d,%d), cap # %d).\n",
 		       spd->cap_base, spd->cap_range+spd->cap_base, spd->cap_base + cap);
-		return NULL;
+		return -1;
 	}
 
-	return &invocation_capabilities[spd->cap_base + cap];
+	return spd->cap_base + cap;
+}
+
+static struct invocation_cap *spd_get_cap(struct spd *spd, int cap)
+{
+	int abs_cap = spd_get_cap_off(spd, cap);
+	if (-1 == abs_cap) return NULL;
+
+	return &invocation_capabilities[abs_cap];
 }
 
 int spd_cap_set_dest(struct spd *spd, int cap, struct spd* dspd)
@@ -608,6 +616,17 @@ int spd_cap_set_dest(struct spd *spd, int cap, struct spd* dspd)
 	
 	if (!c) return -1;
 	c->destination = dspd;
+	return 0;
+}
+int spd_cap_set_fault_handler(struct spd *spd, int cap, int handler_num)
+{
+	int abs;
+	
+	if (handler_num >= COS_NUM_FAULTS) return -1;
+	abs = spd_get_cap_off(spd, cap);
+	if (abs == -1) return -1;
+	spd->fault_handler[handler_num] = abs;
+
 	return 0;
 }
 int spd_cap_set_cstub(struct spd *spd, int cap, vaddr_t fn)

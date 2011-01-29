@@ -13,7 +13,7 @@ void cos_init(void)
 	t = mman_get_page(cos_spd_id(), a+SERVICE_SIZE, 0);
 	printc("mapped page %x, target %x\n", t, a+SERVICE_SIZE);
 	if (t != a+SERVICE_SIZE) printc("vas ERROR\n");
-
+	
 	return;
 }
 

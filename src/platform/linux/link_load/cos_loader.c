@@ -80,6 +80,20 @@ const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] =
 #define CAP_CLIENT_STUB_POSTPEND "_call"
 #define CAP_SERVER_STUB_POSTPEND "_inv"
 
+char *fault_handlers[] = {"fault_page_fault_handler",
+			  NULL};
+
+inline int 
+fault_handler_num(char *fn_name)
+{
+	int i;
+
+	for (i = 0 ; fault_handlers[i] ; i++) {
+		if (!strcmp(fault_handlers[i], fn_name)) return i;
+	}
+	return -1;
+}
+
 #define BASE_SERVICE_ADDRESS SERVICE_START
 #define DEFAULT_SERVICE_SIZE SERVICE_SIZE
 
@@ -1646,6 +1660,7 @@ static struct symb *spd_contains_symb(struct service_symbs *s, char *name)
 struct cap_ret_info {
 	struct symb *csymb, *ssymbfn, *cstub, *sstub;
 	struct service_symbs *serv;
+	u32_t fault_handler;
 };
 
 static int cap_get_info(struct service_symbs *service, struct cap_ret_info *cri, struct symb *symb)
@@ -1684,11 +1699,14 @@ static int cap_get_info(struct service_symbs *service, struct cap_ret_info *cri,
 		return -1;
 	}
 
+//	printf("spd %s: symb %s, exp %s\n", exporter->obj, symb->name, exp_symb->name);
+
 	cri->csymb = symb;
 	cri->ssymbfn = exp_symb;
 	cri->cstub = c_stub;
 	cri->sstub = s_stub;
 	cri->serv = exporter;
+	cri->fault_handler = (u32_t)fault_handler_num(exp_symb->name);
 
 	return 0;
 }
@@ -1995,22 +2013,23 @@ static int make_cobj_caps(struct service_symbs *s, struct cobj_header *h)
 	
 	printl(PRINT_DEBUG, "%s loaded by Composite -- Capabilities:\n", s->obj);
 	for (i = 0 ; i < undef_symbs->num_symbs ; i++) {
-		u32_t cap_off, dest_id, sfn, cstub, sstub;
+		u32_t cap_off, dest_id, sfn, cstub, sstub, fault;
 		struct symb *symb = &undef_symbs->symbs[i];
 		struct cap_ret_info cri;
 
 		if (cap_get_info(s, &cri, symb)) return -1;
-		
+
 		cap_off = i;
 		dest_id = service_get_spdid(cri.serv);
 		sfn     = cri.ssymbfn->addr;
 		cstub   = cri.cstub->addr;
 		sstub   = cri.sstub->addr;
+		fault   = cri.fault_handler;
 
 		printl(PRINT_DEBUG, "\tcap %d, off %d, sfn %x, cstub %x, sstub %x\n", 
 		       i, cap_off, sfn, cstub, sstub);
 
-		if (cobj_cap_init(h, cap_off, cap_off, dest_id, sfn, cstub, sstub)) return -1;
+		if (cobj_cap_init(h, cap_off, cap_off, dest_id, sfn, cstub, sstub, fault)) return -1;
 
 		printl(PRINT_DEBUG, "capability from %s:%d to %s:%d\n", s->obj, s->cobj->id, cri.serv->obj, dest_id);
 	}

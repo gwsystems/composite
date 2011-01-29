@@ -892,12 +892,18 @@ cos_record_fault_regs(struct thread *t, vaddr_t fault_addr, struct pt_regs *rs)
 	cos_report_fault(t, fault_addr, rs);
 }
 
+extern void
+fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num);
+
 /* the composite specific page fault handler */
 static int 
 cos_handle_page_fault(struct thread *thd, vaddr_t fault_addr, struct pt_regs *regs)
 {
 	cos_record_fault_regs(thd, fault_addr, regs);
-	return 1;
+	fault_ipc_invoke(thd, fault_addr, 0, regs, 0);
+		
+	return 0;
+//	return 1;
 }
 
 

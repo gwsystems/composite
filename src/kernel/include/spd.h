@@ -168,6 +168,7 @@ struct spd {
 	struct spd_poly /*composite_spd*/ *composite_spd; 
 	
 	unsigned short int cap_base, cap_range;
+	unsigned short int fault_handler[COS_NUM_FAULTS];
 	/*
 	 * user_cap_tbl is a pointer to the virtual address within the
 	 * kernel address space of the user level capability table,
@@ -226,6 +227,7 @@ int spd_cap_set_dest(struct spd *spd, int cap, struct spd* dspd);
 int spd_cap_set_cstub(struct spd *spd, int cap, vaddr_t fn);
 int spd_cap_set_sstub(struct spd *spd, int cap, vaddr_t fn);
 int spd_cap_set_sfn(struct spd *spd, int cap, vaddr_t fn);
+int spd_cap_set_fault_handler(struct spd *spd, int cap, int handler_num);
 
 unsigned int spd_add_static_cap(struct spd *spd, vaddr_t service_entry_inst, struct spd *trusted_spd, 
 				isolation_level_t isolation_level);
