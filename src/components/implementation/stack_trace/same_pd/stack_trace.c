@@ -51,7 +51,7 @@ void st_trace_thd(unsigned short int tid)
 
 	if (status & 1/*THD_STATE_PREEMPTED*/) {
 		printc("\ttid %d status PREEMPTED:\n", tid);
-		sp = (unsigned long *)cos_thd_cntl(COS_THD_INVFRM_FP, tid, 0, 0);
+		sp = (unsigned long *)cos_thd_cntl(COS_THD_GET_FP, tid, 0, 0);
 	} else {
 		if (cos_get_thd_id() == tid) {
 			__asm__ __volatile__("movl %%ebp, %0" : "=m" (sp));

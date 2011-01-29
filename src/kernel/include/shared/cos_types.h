@@ -239,7 +239,8 @@ typedef enum {
 	COS_UPCALL_BRAND_COMPLETE,
 	COS_UPCALL_BOOTSTRAP,
 	COS_UPCALL_CREATE,
-	COS_UPCALL_DESTROY
+	COS_UPCALL_DESTROY,
+	COS_UPCALL_UNHANDLED_FAULT
 } upcall_type_t;
 
 /* operations for cos_brand_cntl and cos_brand_upcall */
@@ -263,13 +264,39 @@ enum {
 	COS_THD_INV_FRAME, 	/* Get the ith invocation frame for the thread */
 	COS_THD_INVFRM_IP,	/* get the instruction pointer in an inv frame  */
 	COS_THD_INVFRM_SP,	/* get the stack pointer in an inv frame  */
-	COS_THD_INVFRM_FP, 	/* get current frame pointer _only if thread is preempted_ */
-	COS_THD_GET_IP, 	/* get thread's instruction pointer */
-	COS_THD_SET_IP, 	/* set thread's instruction pointer
-				 * FIXME: should only work on threads
-				 * that haven't executed yet, or
-				 * whose ip is in the current component */
-	COS_THD_GET_SP, 	/* get thread's stack pointer */
+	/* 
+	 * For the following GET methods, the argument is 0 to get the
+	 * register of a _preempted thread_, or 1 to get the fault
+	 * register of the thread.  If the thread is not preempted and
+	 * arg1==0, return 0
+	 */
+	COS_THD_GET_IP,
+	COS_THD_GET_SP,
+	COS_THD_GET_FP,
+	COS_THD_GET_1,
+	COS_THD_GET_2,
+	COS_THD_GET_3,
+	COS_THD_GET_4,
+	COS_THD_GET_5,
+	COS_THD_GET_6,
+
+	/* 
+	 * For the following SET methods, arg1 is the value to set the
+	 * register to, and arg2 is 0 if we wish to set the register
+	 * for a preempted thread, while it is 1 if we wish to set the
+	 * fault registers for the thread.  Return -1, and do nothing
+	 * if arg2 == 0, and the thread is not preempted.
+	 */
+	COS_THD_SET_IP,
+	COS_THD_SET_SP,
+	COS_THD_SET_FP,
+	COS_THD_SET_1,
+	COS_THD_SET_2,
+	COS_THD_SET_3,
+	COS_THD_SET_4,
+	COS_THD_SET_5,
+	COS_THD_SET_6,
+
 	COS_THD_STATUS
 };
 

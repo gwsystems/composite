@@ -199,6 +199,7 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 
 static struct pt_regs *brand_execution_completion(struct thread *curr, int *preempt);
 static struct pt_regs *thd_ret_term_upcall(struct thread *t);
+static struct pt_regs *thd_ret_upcall_type(struct thread *t, upcall_type_t type);
 /*
  * Return from an invocation by popping off of the invocation stack an
  * entry, and returning its contents (including return ip and sp).
@@ -267,7 +268,7 @@ int fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct p
 	/* If no component catches this fault, upcall into the
 	 * scheduler with a "destroy thread" event. */
 	if (unlikely(!fault_cap)) {
-		nregs = thd_ret_term_upcall(thd);
+		nregs = thd_ret_upcall_type(thd, COS_UPCALL_UNHANDLED_FAULT);
 #define COPY_REG(name) regs-> name = nregs-> name
 		COPY_REG(ax);
 		COPY_REG(bx);
@@ -541,28 +542,37 @@ COS_SYSCALL int cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long a
 
 		return thd_get_frame_sp(thd, frame_offset);
 	}
-	/* This is only really valid/useful for preempted threads: */
-	case COS_THD_INVFRM_FP:
-	{
-		if (!(thd->flags & THD_STATE_PREEMPTED)) return 0;
-		return thd->regs.bp;
+#define __GET_REG(name)							\
+	{								\
+		if (arg1) return thd->fault_regs. name ;		\
+		if (!(thd->flags & THD_STATE_PREEMPTED)) return 0;	\
+		return thd->regs. name ;				\
 	}
-	case COS_THD_GET_IP:
-	{
-		if (!(thd->flags & THD_STATE_PREEMPTED)) return 0;
-		return thd->regs.ip;
+	case COS_THD_GET_IP: __GET_REG(ip);
+	case COS_THD_GET_SP: __GET_REG(sp);
+	case COS_THD_GET_FP: __GET_REG(bp);
+	case COS_THD_GET_1:  __GET_REG(ax);
+	case COS_THD_GET_2:  __GET_REG(bx);
+	case COS_THD_GET_3:  __GET_REG(cx);
+	case COS_THD_GET_4:  __GET_REG(dx);
+	case COS_THD_GET_5:  __GET_REG(di);
+	case COS_THD_GET_6:  __GET_REG(si);
+#define __SET_REG(name)							\
+	{							        \
+		if (arg2) thd->fault_regs. name = arg1;			\
+		else if ((thd->flags & THD_STATE_PREEMPTED)) thd->regs. name = arg1; \
+		else return -1;						\
+		return 0;						\
 	}
-	case COS_THD_GET_SP:
-	{
-		return thd->regs.sp;
-	}
-	case COS_THD_SET_IP:
-	{
-		/* FIXME: this should only be used on new threads */
-		if (!(thd->flags & THD_STATE_PREEMPTED)) return -1;
-		thd->regs.ip = arg1;
-		return 0;
-	}
+	case COS_THD_SET_IP: __SET_REG(ip);
+	case COS_THD_SET_SP: __SET_REG(sp);
+	case COS_THD_SET_FP: __SET_REG(bp);
+	case COS_THD_SET_1:  __SET_REG(ax);
+	case COS_THD_SET_2:  __SET_REG(bx);
+	case COS_THD_SET_3:  __SET_REG(cx);
+	case COS_THD_SET_4:  __SET_REG(dx);
+	case COS_THD_SET_5:  __SET_REG(di);
+	case COS_THD_SET_6:  __SET_REG(si);
 	case COS_THD_STATUS:
 	{
 		/* FIXME: all flags should NOT be part of the ABI.
@@ -1059,8 +1069,7 @@ static struct thd_sched_info *scheduler_find_leaf(struct thread *t)
 	return prev_tsi;
 }
 
-/* Upcall into base scheduler! */
-static struct pt_regs *thd_ret_term_upcall(struct thread *curr)
+static inline struct pt_regs *thd_ret_upcall_type(struct thread *curr, upcall_type_t t)
 {
 	struct composite_spd *cspd = (struct composite_spd *)thd_get_thd_spdpoly(curr);
 	struct thd_sched_info *tsi;
@@ -1071,10 +1080,16 @@ static struct pt_regs *thd_ret_term_upcall(struct thread *curr)
 	tsi = scheduler_find_leaf(curr);
 	dest = tsi->scheduler;
 	
-	upcall_setup(curr, dest, COS_UPCALL_DESTROY, 0, 0, 0);
+	upcall_setup(curr, dest, t, 0, 0, 0);
 	upcall_execute_compat(curr, NULL, cspd);
 	
 	return &curr->regs;
+}
+
+/* Upcall into base scheduler! */
+static struct pt_regs *thd_ret_term_upcall(struct thread *curr)
+{
+	return thd_ret_upcall_type(curr, COS_UPCALL_DESTROY);
 }
 
 //static int cos_net_try_packet(struct thread *brand, unsigned short int *port);

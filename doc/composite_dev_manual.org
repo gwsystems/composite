@@ -379,16 +379,19 @@ Only a scheduler can actually usefully use these functions.
 	+ =COS\_THD\_INV\_FRAME=: retrieve the invoked component for
           thread =thd\_id= at the =arg1= th position in its invocation
           frame.
-	+ =COS\_THD\_INVFRM\_IP=, =COS\_THD\_INVFRM\_SP=, and
-          =COS\_THD\_INVFRM\_FP=: retrieve a preempted thread,
-          =thd\_id='s instruction pointer and stack pointer of the
-          invocation at position =arg1= in its invocation frame.
-	+ =COS\_THD\_GET\_IP=, =COS\_THD\_GET\_SP=: Get the
-          instruction pointer and stack
-          pointer from a preempted thread =thd\_id=.  Return =0= if
-          the thread is not preempted.
-	+ =COS\_THD\_SET\_IP=: Set the instruction pointer for thread
-          =thd\_id= to =arg1=.
+	+ =COS\_THD\_INVFRM\_IP=, =COS\_THD\_INVFRM\_SP=: retrieve a
+          preempted thread, =thd\_id='s instruction pointer and stack
+          pointer of the invocation at position =arg1= in its
+          invocation frame.
+	+ =COS\_THD\_GET\_XX=, where =XX= is ={IP, SP, FP, 1, 2, 3, 4,
+          5, 6}=: Get the instruction pointer, stack pointer, frame
+          pointer, or one of the 6 general purpose registers from a
+          preempted thread =thd\_id=.  Return =0= if the thread is not
+          preempted.  If =arg1= is =1=, it will access the fault
+          registers.
+	+ =COS\_THD\_SET\_XX=: Where =XX= is defined above.  Set the
+          register for a preempted thread, =thd\_id=, to =arg1= if
+          =arg2= is 0, and for the fault registers if =arg2= is 1.
 	+ =COS\_THD\_STATUS=: return the status flags of thread
           =thd\_id=.
     - =int cos\_switch\_thread(unsigned short int thd\_id, unsigned

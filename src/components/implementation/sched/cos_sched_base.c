@@ -1641,6 +1641,10 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	case COS_UPCALL_DESTROY:
 		fp_kill_thd(sched_get_current());
 		break;
+	case COS_UPCALL_UNHANDLED_FAULT:
+		printc("Unhandled fault occurred, exiting system\n");
+		sched_exit();
+		break;
 	case COS_UPCALL_BRAND_COMPLETE:
 		fp_event_completion(sched_get_current());
 		break;
