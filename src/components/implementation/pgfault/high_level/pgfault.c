@@ -15,6 +15,7 @@
 void fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 {
 	printc("Fault in spd %d @ %p while executing at %p\n", spdid, fault_addr, ip);
+	flags = *((int*)0);
 	sched_block(spdid, 0);
 	return;
 }

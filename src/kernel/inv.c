@@ -271,10 +271,17 @@ int fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct p
 	/* If no component catches this fault, upcall into the
 	 * scheduler with a "destroy thread" event. */
 	if (unlikely(!fault_cap)) {
-		assert(0);
 		nregs = thd_ret_term_upcall(thd);
-		memcpy(regs, nregs, sizeof(struct pt_regs));
-		regs->cs = regs->ss = __USER_DS;
+#define COPY_REG(name) regs-> name = nregs-> name
+		COPY_REG(ax);
+		COPY_REG(bx);
+		COPY_REG(cx);
+		COPY_REG(dx);
+		COPY_REG(di);
+		COPY_REG(si);
+		COPY_REG(bp);
+		COPY_REG(sp);
+		COPY_REG(ip);
 		return 0;
 	}
 	
