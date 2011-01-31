@@ -1,5 +1,6 @@
 /**
- * Copyright 2009 by Andrew Sweeney, ajs86@gwu.edu
+ * Copyright 2009 by Andrew Sweeney, ajs86@gwu.edu, 2011 Gabriel
+ * Parmer, gparmer@gwu.edu
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
@@ -12,7 +13,7 @@
  * In the future we may want to change this too
  * cos_asm_server_stub_spdid
  */
-void * stkmgr_grant_stack(spdid_t d_spdid);
+void *stkmgr_grant_stack(spdid_t d_spdid);
 void stkmgr_return_stack(spdid_t s_spdid, vaddr_t addr);
 
 void stkmgr_stack_report(void);
@@ -21,6 +22,10 @@ int stkmgr_spd_concurrency_estimate(spdid_t spdid);
 unsigned long stkmgr_thd_blk_time(unsigned short int tid, spdid_t spdid, int reset);
 int stkmgr_thd_blk_cnt(unsigned short int tid, spdid_t spdid, int reset);
 
+/* map a stack to the destination location, from the source component */
+int stkmgr_stack_introspect(spdid_t d_spdid, vaddr_t d_addr, spdid_t s_spdid, vaddr_t s_addr);
+/* unmap a stack that was introspected on */
+int stkmgr_stack_close(spdid_t d_spdid, vaddr_t d_addr);
 
 #endif
 

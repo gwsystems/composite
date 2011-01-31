@@ -4,11 +4,22 @@
 #include <pgfault.h>
 #include <sched.h>
 
-void cos_init(void)
+int bar(void)
 {
 	int v;
-	printc("Starting page fault test...\n");
 	v = *((int *)0);
+	return v;
+}
+
+int foo(void) 
+{
+	return bar();
+}
+
+void cos_init(void)
+{
+	printc("Starting page fault test...\n");
+	foo();
 	printc("... and successfully finishing page fault test.\n");
 }
 

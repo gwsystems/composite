@@ -416,8 +416,7 @@ stkmgr_stk_remove_from_spd(struct cos_stk_item *stk_item, struct spd_stk_info *s
 
 	s_spdid = ssi->spdid;
 	DOUT("Releasing Stack\n");
-	//mman_release_page(s_spdid, (vaddr_t)(stk_item->d_addr), 0); 
-	mman_release_page(cos_spd_id(), (vaddr_t)(stk_item->hptr), 0); 
+	mman_revoke_page(cos_spd_id(), (vaddr_t)(stk_item->hptr), 0); 
 	DOUT("Putting stack back on free list\n");
 	
 	// cause underflow for MAX Int
@@ -986,6 +985,37 @@ stkmgr_in_freelist(spdid_t spdid, struct cos_stk_item *csi)
 	}
 	return 0;
 }
+
+int
+stkmgr_stack_introspect(spdid_t d_spdid, vaddr_t d_addr, 
+			spdid_t s_spdid, vaddr_t s_addr)
+{
+	struct cos_stk_item *si;
+	int ret = -1;
+
+	TAKE();
+	si = stkmgr_get_spds_stk_item(s_spdid, s_addr);
+	if (!si) goto err;
+	
+	if(d_addr != mman_alias_page(cos_spd_id(), (vaddr_t)si->hptr, d_spdid, d_addr)){
+		printc("<stkmgr>: Unable to map stack into component during introspection\n");
+		BUG();
+	}
+	ret = 0;
+err:
+	RELEASE();
+	return ret;
+}
+
+int 
+stkmgr_stack_close(spdid_t d_spdid, vaddr_t d_addr)
+{
+	/* the memory manager will ensure that both we and the
+	 * destination own this page */
+	mman_release_page(d_spdid, d_addr, 0);
+	return 0;
+}
+
 
 //#define PRINT_FREELIST_ELEMENTS
 

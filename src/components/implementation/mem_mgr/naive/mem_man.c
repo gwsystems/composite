@@ -114,7 +114,7 @@ vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_
 	struct mapping_info *base;
 	
 	c = find_cell(s_spd, s_addr, &alias);
-	if (-1 == alias) goto err;
+	if (-1 == alias) {printc("WTF\n");goto err;}
 	assert(alias >= 0 && alias < MAX_ALIASES);
 	base = c->map;
 	for (i = 0 ; i < MAX_ALIASES ; i++) {
@@ -154,7 +154,7 @@ is_descendent(struct mapping_info *mi, int parent, int child)
 /*
  * Call to give up a page of memory in an spd at an address.
  */
-void mman_release_page(spdid_t spd, vaddr_t addr, int flags)
+void mman_revoke_page(spdid_t spd, vaddr_t addr, int flags)
 {
 	int alias, i;
 	struct mem_cell *mc;
@@ -186,6 +186,36 @@ void mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 			mi[i].parent = 0;
 		}
 	}
+
+	return;
+}
+
+/* 
+ * FIXME: change interface to include the component making the call to
+ * make sure that it owns the page it is trying to unmap (and the one
+ * it is unmapping is a descendent.
+ */
+void mman_release_page(spdid_t spd, vaddr_t addr, int flags)
+{
+	int alias, i;
+	long idx;
+	struct mem_cell *mc;
+	struct mapping_info *mi;
+
+	mman_revoke_page(spd, addr, flags);
+	mc = find_cell(spd, addr, &alias);
+	if (!mc) {
+		/* FIXME: add return codes to this call */
+		return;
+	}
+	mi = mc->map;
+	idx = cos_mmap_cntl(COS_MMAP_REVOKE, 0, mi[alias].owner_spd, 
+			    mi[alias].addr, 0);
+	assert(&cells[idx] == mc);
+	mi[alias].addr = 0;
+	mi[alias].owner_spd = 0;
+	mi[alias].parent = 0;
+	mc->naliases--;
 
 	return;
 }

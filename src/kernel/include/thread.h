@@ -217,6 +217,7 @@ static inline struct spd *thd_curr_spd_noprint(void)
 
 static inline vaddr_t thd_get_frame_ip(struct thread *thd, int frame_offset)
 {
+	int off;
 	/* 
 	 * The only weird thing here is that we are looking at the
 	 * ip/sp stored in the frame_offset + 1.  This is because the
@@ -226,37 +227,36 @@ static inline vaddr_t thd_get_frame_ip(struct thread *thd, int frame_offset)
 	 */
 
 	if (frame_offset > thd->stack_ptr) return 0;
-	if (frame_offset == thd->stack_ptr) {
+	off = thd->stack_ptr - frame_offset;
+	if (off == thd->stack_ptr) {
 		if (thd->flags & THD_STATE_PREEMPTED) {
-//			return thd->regs.eip;
 			return thd->regs.ip;
 		} else {
-//			return thd->regs.edx;
 			return thd->regs.dx;
 		}
 	} else {
 		struct thd_invocation_frame *tif;
-		tif = &thd->stack_base[frame_offset+1];
+		tif = &thd->stack_base[off+1];
 		return tif->ip;
 	}
 }
 
 static inline vaddr_t thd_get_frame_sp(struct thread *thd, int frame_offset)
 {
+	int off;
 	/* See comment in thd_get_frame_ip */
 
 	if (frame_offset > thd->stack_ptr) return 0;
-	if (frame_offset == thd->stack_ptr) {
+	off = thd->stack_ptr - frame_offset;
+	if (off == thd->stack_ptr) {
 		if (thd->flags & THD_STATE_PREEMPTED) {
-//			return thd->regs.esp;
 			return thd->regs.sp;
 		} else {
-//			return thd->regs.ecx;
 			return thd->regs.cx;
 		}
 	} else {
 		struct thd_invocation_frame *tif;
-		tif = &thd->stack_base[frame_offset+1];
+		tif = &thd->stack_base[off+1];
 		return tif->sp;
 	}
 }

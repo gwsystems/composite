@@ -215,9 +215,18 @@ cos_interpose_page_fault_handler_tramp:
 page_fault_interposition_tramp:
 	testl $4,(%esp)  /* *sp = error code, 0x4 = user (=1) or kern (=0) */
 	jz 1f
+	pushl %eax
+	movl %cr2, %eax
+	cmpl %eax, cos_interpose_page_fault_handler_tramp
+.globl cos_post_interpose_deref_addr_tramp_0
+cos_post_interpose_deref_addr_tramp_0: /* for the previous address */
+	je 2f
+	popl %eax
 	jmp *(cos_interpose_page_fault_handler_tramp)
 .globl cos_post_interpose_deref_addr_tramp
 cos_post_interpose_deref_addr_tramp: /* for the previous address */
+2:	
+	popl %eax
 1:	
 	jmp *(cos_default_page_fault_handler_tramp)
 .globl cos_post_default_deref_addr_tramp

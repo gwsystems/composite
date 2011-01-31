@@ -39,7 +39,7 @@ static inline long cell_index(struct mem_cell *c)
 	return c - cells;
 }
 
-extern void main_mman_release_page(spdid_t spd, vaddr_t addr, int flags);
+extern void main_mman_revoke_page(spdid_t spd, vaddr_t addr, int flags);
 extern vaddr_t main_mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr);
 extern vaddr_t parent_mman_get_page(spdid_t spd, vaddr_t addr, int flags);
 
@@ -160,7 +160,7 @@ void mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 
 	mc = find_cell(spd, addr, &alias);
 	if (!mc) return; /* FIXME: add return codes to this call */
-	main_mman_release_page(cos_spd_id(), (vaddr_t)mc->local_addr, flags);
+	main_mman_revoke_page(cos_spd_id(), (vaddr_t)mc->local_addr, flags);
 	/* put the page back in the pool */
 	mc->map[alias].owner_spd = 0;
 	mc->map[alias].addr = 0;

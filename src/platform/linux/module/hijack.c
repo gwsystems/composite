@@ -903,7 +903,6 @@ cos_handle_page_fault(struct thread *thd, vaddr_t fault_addr, struct pt_regs *re
 	fault_ipc_invoke(thd, fault_addr, 0, regs, 0);
 		
 	return 0;
-//	return 1;
 }
 
 
@@ -961,8 +960,14 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	struct thread *thd;
 	int ret = 1;
 
+	fault_addr = read_cr2();
+//	printk("thread %d faults at %p\n", current->pid, (void*)fault_addr);
+
+	printk("*");
+
 	/* Composite doesn't know how to handle kernel faults */
-	if (PF_KERN(error_code)) goto linux_handler;
+//	if (PF_KERN(error_code)) goto linux_handler;
+	assert(!PF_KERN(error_code));
 
 	/*
 	 * We want to allow composite to handle the fault if we are in
