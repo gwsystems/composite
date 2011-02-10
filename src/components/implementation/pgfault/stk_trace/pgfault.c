@@ -61,7 +61,7 @@ walk_stack(spdid_t spdid, unsigned long *fp, unsigned long *stack)
 		ip = *(fp+1);
 		fp = (unsigned long *)*fp;
 
-		/* -5 as call <fn> is a 5 byte instruction (with argument) */
+		/* -5 as "call <fn>" is a 5 byte instruction (with argument) */
 		printc("\t[%d, %lx]\n", spdid, ip-5);
 	} while (fp);
 }

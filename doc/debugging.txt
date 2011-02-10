@@ -159,3 +159,20 @@ assert error in @ spin.c:18.
 Much easier than disassembling objects.  However, when a fault is
 caused by an error that didn't trigger an assert, you must use the
 above techniques to track down the error.
+
+Stack traces:
+-------------
+
+You can get not only the address that faults happened at, but a stack
+trace (of addresses that made function calls).  When you find a
+reproducible fault, add the pfs.o component into the dependency set of
+your faulting component (example in lpf.sh).  Unfortunately, you will
+probably also need to add the following into your component:
+
+#include <pgfault.h>
+void bin(void) { fault_page_fault_handler(cos_spd_id(), NULL, 0,
+NULL); }
+
+Now, when your component faults, it will print out not only the
+registers the component had when faulting, but a back-trace of all
+functions called in _all components invoked_ as well.

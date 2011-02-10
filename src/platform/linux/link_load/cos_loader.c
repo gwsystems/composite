@@ -55,14 +55,14 @@ enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_H
 #define NUM_ATOMIC_SYMBS 10 
 #define NUM_KERN_SYMBS 1
 
-const char *COMP_INFO = "cos_comp_info";
+const char *COMP_INFO   = "cos_comp_info";
 
-const char *INIT_COMP  = "c0.o";
-char *ROOT_SCHED = NULL; // this is set to the first listed scheduler
-const char *MPD_MGR    = "cg.o"; // the component graph!
+const char *INIT_COMP   = "c0.o";
+char *ROOT_SCHED        = NULL; // this is set to the first listed scheduler
+const char *MPD_MGR     = "cg.o"; // the component graph!
 const char *CONFIG_COMP = "schedconf.o";
-const char *BOOT_COMP = "boot.o";
-const char *INIT_FILE = "init.o", *INIT_FILE_NAME = "init.tar";
+const char *BOOT_COMP   = "boot.o";
+const char *INIT_FILE   = "init.o", *INIT_FILE_NAME = "init.tar";
 
 const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] = 
 { "cos_atomic_cmpxchg",
@@ -80,10 +80,10 @@ const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] =
 #define CAP_CLIENT_STUB_POSTPEND "_call"
 #define CAP_SERVER_STUB_POSTPEND "_inv"
 
-char *fault_handlers[] = {"fault_page_fault_handler",
-			  NULL};
+const char *SCHED_CREATE_FN = "sched_create_thread";
+const char *fault_handlers[] = {"fault_page_fault_handler", NULL};
 
-inline int 
+static inline int 
 fault_handler_num(char *fn_name)
 {
 	int i;
@@ -152,6 +152,8 @@ struct dependency {
 	struct service_symbs *dep;
 	char *modifier;
 	int mod_len;
+	/* has a capability been created for this dependency */
+	int resolved;
 };
 
 typedef enum {
@@ -187,6 +189,19 @@ struct service_symbs {
 
 	void *extern_info;
 };
+
+typedef enum {TRANS_CAP_NIL = 0, 
+	      TRANS_CAP_FAULT, 
+	      TRANS_CAP_OTHER} trans_cap_t;
+
+static inline trans_cap_t
+is_transparent_capability(struct symb *s) {
+	char *n = s->name;
+	
+	if (!strcmp(n, SCHED_CREATE_FN)) return TRANS_CAP_OTHER;
+	if (-1 != fault_handler_num(n))  return TRANS_CAP_FAULT;
+	return TRANS_CAP_NIL;
+}
 
 static unsigned long getsym(bfd *obj, char* symbol)
 {
@@ -750,6 +765,7 @@ static int __add_service_dependency(struct service_symbs *s, struct service_symb
 	d->dep = dep;
 	d->modifier = modifier;
 	d->mod_len = mod_len;
+	d->resolved = 0;
 	s->num_dependencies++;
 
 	return 0;
@@ -1023,14 +1039,26 @@ static inline int service_processed(char *obj_name, struct service_symbs *servic
 	return 0;
 }
 
+static inline void 
+__add_symb(const char *name, struct symb_type *exp_undef)
+{
+	exp_undef->symbs[exp_undef->num_symbs].name = malloc(strlen(name)+1);
+	strcpy(exp_undef->symbs[exp_undef->num_symbs].name, name);
+	exp_undef->num_symbs++;
+	assert(exp_undef->num_symbs <= MAX_SYMBOLS);
+}
+
 static inline void add_kexport(struct service_symbs *ss, const char *name)
 {
 	struct symb_type *ex = &ss->exported;
-	
-	ex->symbs[ex->num_symbs].name = malloc(strlen(name)+1);
-	strcpy(ex->symbs[ex->num_symbs].name, name);
-	ex->num_symbs++;
-	
+	__add_symb(name, ex);
+	return;
+}
+
+static inline void add_undef_symb(struct service_symbs *ss, const char *name)
+{
+	struct symb_type *ud = &ss->undef;
+	__add_symb(name, ud);
 	return;
 }
 
@@ -1107,9 +1135,9 @@ static struct service_symbs *prepare_service_symbs(char *services)
  * exporters.
  */
 static inline 
-struct service_symbs *find_symbol_exporter(struct symb *s, 
-					   struct dependency *exporters,
-					   int num_exporters, struct symb **exported)
+struct service_symbs *find_symbol_exporter_mark_resolved(struct symb *s, 
+							 struct dependency *exporters,
+							 int num_exporters, struct symb **exported)
 {
 	int i,j;
 
@@ -1123,18 +1151,66 @@ struct service_symbs *find_symbol_exporter(struct symb *s,
 		for (j = 0 ; j < exp_symbs->num_symbs ; j++) {
 			if (!strcmp(s->name, exp_symbs->symbs[j].name)) {
 				*exported = &exp_symbs->symbs[j];
+				exporters[i].resolved = 1;
 				return exporters[i].dep;
 			}
 			if (exporter->modifier && 
 			    !strncmp(s->name, exporter->modifier, exporter->mod_len) && 
 			    !strcmp(s->name + exporter->mod_len, exp_symbs->symbs[j].name)) {
 				*exported = &exp_symbs->symbs[j];
+				exporters[i].resolved = 1;
 				return exporters[i].dep;
 			}
 		}
 	}
 
 	return NULL;
+}
+
+static int 
+create_transparent_capabilities(struct service_symbs *service)
+{
+	int i, j;
+	struct dependency *dep = service->dependencies;
+
+	for (i = 0 ; i < service->num_dependencies ; i++) {
+		struct symb_type *symbs = &dep[i].dep->exported;
+
+		if (dep[i].resolved) continue;
+
+		for (j = 0 ; j < symbs->num_symbs ; j++) {
+			trans_cap_t r;
+			r = is_transparent_capability(&symbs->symbs[j]);
+			switch (r) {
+			case TRANS_CAP_FAULT: 
+			case TRANS_CAP_OTHER: 
+			{
+				struct symb_type *st;
+				struct symb *s;
+
+				add_undef_symb(service, symbs->symbs[j].name);
+				st = &service->undef;
+				s = &st->symbs[st->num_symbs-1];
+				s->exporter = dep[i].dep;
+				s->exported_symb = &symbs->symbs[j];
+
+				//printf("<<<<<<<<<<<<%s-%s, %s>>>>>>>>>>>>\n", 
+				//service->obj, s->exporter->obj, s->exported_symb->name);
+			
+				dep[i].resolved = 1;
+				break;
+			}
+			case TRANS_CAP_NIL: break;
+			}
+		}
+		if (!dep[i].resolved) {
+			printl(PRINT_HIGH, "Warning: dependency %s-%s "
+			       "is not creating a capability.\n", 
+			       service->obj, dep[i].dep->obj);
+		}
+	}
+
+	return 0;
 }
 
 /*
@@ -1149,11 +1225,12 @@ struct service_symbs *find_symbol_exporter(struct symb *s,
  */
 static int verify_dependency_completeness(struct service_symbs *services)
 {
+	struct service_symbs *start = services;
 	int ret = 0;
 	int i;
 
 	/* for each of the services... */
-	while (services) {
+	for (; services ; services = services->next) {
 		struct symb_type *undef_symbs = &services->undef;
 
 		/* ...go through each of its undefined symbols... */
@@ -1167,9 +1244,8 @@ static int verify_dependency_completeness(struct service_symbs *services)
 			 * exported function in a service we are
 			 * dependent on.
 			 */
-			exporter = find_symbol_exporter(symb, services->dependencies, 
-							services->num_dependencies, &exp_symb);
-
+			exporter = find_symbol_exporter_mark_resolved(symb, services->dependencies, 
+								      services->num_dependencies, &exp_symb);
 			if (!exporter) {
 				printl(PRINT_HIGH, "Could not find exporter of symbol %s in service %s.\n",
 				       symb->name, services->obj);
@@ -1181,21 +1257,22 @@ static int verify_dependency_completeness(struct service_symbs *services)
 				symb->exported_symb = exp_symb;
 			}
 
-			if (exporter->is_scheduler) {
-				if (NULL == services->scheduler) {
-					services->scheduler = exporter;
-					//printl(PRINT_HIGH, "%s has scheduler %s.\n", services->obj, exporter->obj);
-				} else if (exporter != services->scheduler) {
-					printl(PRINT_HIGH, "Service %s is dependent on more than one scheduler (at least %s and %s).  Error.\n", services->obj, exporter->obj, services->scheduler->obj);
-					ret = -1;
-					goto exit;
-				}
-			}
+			/* if (exporter->is_scheduler) { */
+			/* 	if (NULL == services->scheduler) { */
+			/* 		services->scheduler = exporter; */
+			/* 		//printl(PRINT_HIGH, "%s has scheduler %s.\n", services->obj, exporter->obj); */
+			/* 	} else if (exporter != services->scheduler) { */
+			/* 		printl(PRINT_HIGH, "Service %s is dependent on more than one scheduler (at least %s and %s).  Error.\n", services->obj, exporter->obj, services->scheduler->obj); */
+			/* 		ret = -1; */
+			/* 		goto exit; */
+			/* 	} */
+			/* } */
 		}
-		
-		services = services->next;
 	}
 
+	for (services = start ; services ; services = services->next) {
+		create_transparent_capabilities(services);
+	}
  exit:
 	return ret;
 }
@@ -1347,6 +1424,18 @@ static int deserialize_dependencies(char *deps, struct service_symbs *services)
 
 			if (mod) add_modified_service_dependency(s, dep, mod, strlen(mod));
 			else add_service_dependency(s, dep);
+
+			if (dep->is_scheduler) {
+				if (NULL == s->scheduler) {
+					s->scheduler = dep;
+				} else if (dep != s->scheduler) {
+					printl(PRINT_HIGH, "Service %s is dependent on more than "
+					       "one scheduler (at least %s and %s).  Error.\n", 
+					       s->obj, dep->obj, s->scheduler->obj);
+					return -1;
+				}
+			}
+
 			tmp = strtok(NULL, parallel);
 		} 
 

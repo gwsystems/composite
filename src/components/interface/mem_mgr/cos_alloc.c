@@ -67,6 +67,77 @@ typedef struct {
 #define REGPARM(x)
 #endif
 
+#define NVAS_REGIONS PGD_PER_PTBL
+#define PAGES_PER_REGION (PGD_RANGE/PAGE_SIZE)
+
+#ifdef NIL
+struct pages_bitmap {
+	struct pages_bitmap *next;
+	void *start_addr;
+	int nregions;
+	/* number of free pages */
+	int nused;
+	/* bitmap of used pages */
+	u32_t page_used[PAGES_PER_REGION/sizeof(u32_t)];
+	/* bitmap where 1 means that the page is the start of an allocation */
+	u32_t alloc_start[PAGES_PER_REGION/sizeof(u32_t)];
+};
+struct pages_bitmap __alloc_page_map;
+int vas_order = 0;
+
+static inline void *
+cos_get_pages(int npages)
+{
+	struct pages_bitmap *bm;
+	int offset;
+	vaddr_t new_addr;
+
+	for (bm = &__alloc_page_map ; bm ; bm = bm->next) {
+		int off, i;
+
+		if (bm->nused + npages >= PAGES_PER_REGION*bm->nregions) break;
+
+		off = bitmap_ls_one(&bm->page_used[0], PAGES_PER_REGION/sizeof(u32_t));
+		for (i = 1 ; i < npages ; i++) {
+			if (bitmap_check(&bm->page_used[0], off + i)) break;
+		}
+		if (i == npages) {
+			offset = off;
+			break;
+		}
+	}
+
+	/* Expand the virtual address space */
+	if (!bm) {
+		unsigned long nreg = 1<<++vas_order, size = PGD_SIZE * nreg;
+		int i;
+
+		new_addr = vas_mgr_expand(cos_spd_id(), size);
+		if (!new_addr) goto err;
+
+		bm = malloc(nreg * sizeof(struct pages_bitmap));
+		if (!bm) goto err_virt;
+		
+		bm->
+		for (i = 0 ; i < nreg ; i++) {
+			
+		}
+	}
+
+err_virt:
+	vas_order--;
+	vas_mgr_contract(cos_spd_id(), new_addr);
+err:
+	return NULL;
+}
+
+static inline void
+cos_free_pages(void *addr, int npages)
+{
+
+}
+#endif
+
 static inline REGPARM(1) void *do_mmap(size_t size) {
 #ifdef UNIX_TEST
   return mmap(0, size, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0);
@@ -344,7 +415,6 @@ void free_page(void *ptr)
 
 #ifdef NIL
 
-
 void* __libc_calloc(size_t nmemb, size_t _size);
 void* __libc_calloc(size_t nmemb, size_t _size) {
   register size_t size=_size*nmemb;
@@ -408,6 +478,25 @@ retzero:
 void* realloc(void* ptr, size_t size) __attribute__((weak,alias("__libc_realloc")));
 
 #endif
+
+/* void */
+/* __alloc_libc_initilize(void) */
+/* { */
+/* 	vaddr_t start, end; */
+/* 	unsigned int extent; */
+/* 	int i; */
+
+/* 	start = round_to_pgd_page((unsigned long)&start); */
+/* 	end = (vaddr_t)cos_get_heap_ptr(); */
+/* 	extent = (end-start)/PAGE_SIZE; */
+
+/* 	__alloc_page_map.next = NULL; */
+/* 	__alloc_page_map.start_addr = (void*)start; */
+/* 	__alloc_page_map.nused = extent; */
+/* 	for (i = 0 ; i < extent ; i++) { */
+/* 		bitmap_set(&__alloc_page_map.page_used[0], i); */
+/* 	} */
+/* } */
 
 /********************* testing code on unix ***********************/
 

@@ -961,12 +961,12 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	int ret = 1;
 
 	fault_addr = read_cr2();
-//	printk("thread %d faults at %p\n", current->pid, (void*)fault_addr);
 
-	printk("*");
-
-	/* Composite doesn't know how to handle kernel faults */
-//	if (PF_KERN(error_code)) goto linux_handler;
+	/* 
+	 * Composite doesn't know how to handle kernel faults, and
+	 * they should be sent by the assembly to the default linux
+	 * handler.
+	 */
 	assert(!PF_KERN(error_code));
 
 	/*
@@ -976,8 +976,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	 * address.
 	 */
 	if (composite_thread != current) goto linux_handler;
-
-	fault_addr = read_cr2();
+	if (fault_addr == (unsigned long)&page_fault_interposition) goto linux_handler;
 
 	curr_mm = get_task_mm(current);
 	if (!down_read_trylock(&curr_mm->mmap_sem)) {
@@ -2030,28 +2029,30 @@ static int aed_release(struct inode *inode, struct file *file)
  * fault).  Thus, make sure the vmalloc regions are updated in all
  * page tables.
  */
-/* static void update_vmalloc_regions(void) */
-/* { */
-/* 	struct task_struct *t; */
-/* 	pgd_t *curr_pgd; */
+int nothing;
+static void update_vmalloc_regions(void)
+{
+	struct task_struct *t;
+	pgd_t *curr_pgd;
 
-/* 	BUG_ON(!current->mm); */
-/* 	curr_pgd = current->mm->pgd; */
+	nothing = *(int*)&page_fault_interposition;
+	BUG_ON(!current->mm);
+	curr_pgd = current->mm->pgd;
 
-/* 	printk("curr pgd @ %p, cpy from %x to %x.  module code sample @ %p.\n",  */
-/* 	       (void*)pa_to_va((void*)curr_pgd), MODULES_VADDR, MODULES_END, &page_fault_interposition); */
-
-/* 	list_for_each_entry(t, &init_task.tasks, tasks) { */
-/* 		struct mm_struct *amm = t->active_mm, *mm = t->mm; */
+	printk("curr pgd @ %p, cpy from %x to %x.  module code sample @ %p.\n",
+	       (void*)pa_to_va((void*)curr_pgd), (unsigned int)MODULES_VADDR, 
+	       (unsigned int)MODULES_END, &page_fault_interposition);
+	list_for_each_entry(t, &init_task.tasks, tasks) {
+		struct mm_struct *amm = t->active_mm, *mm = t->mm;
 		
-/* 		if (current->mm == amm || current->mm == mm) continue; */
+		if (current->mm == amm || current->mm == mm) continue;
 
-/* 		if (amm) copy_pgtbl_range_nonzero((paddr_t)amm->pgd, (paddr_t)curr_pgd,  */
-/* 						  MODULES_VADDR, MODULES_END-MODULES_VADDR); */
-/* 		if (mm && mm != amm) copy_pgtbl_range_nonzero((paddr_t)mm->pgd, (paddr_t)curr_pgd,  */
-/* 							      MODULES_VADDR, MODULES_END-MODULES_VADDR); */
-/* 	} */
-/* } */
+		if (amm) copy_pgtbl_range_nonzero((paddr_t)amm->pgd, (paddr_t)curr_pgd,
+						  MODULES_VADDR, MODULES_END-MODULES_VADDR);
+		if (mm && mm != amm) copy_pgtbl_range_nonzero((paddr_t)mm->pgd, (paddr_t)curr_pgd,
+							      MODULES_VADDR, MODULES_END-MODULES_VADDR);
+	}
+}
 
 static struct file_operations proc_aed_fops = {
 	.owner          = THIS_MODULE, 
@@ -2083,7 +2084,7 @@ static int asym_exec_dom_init(void)
 	if (make_proc_aed())
 		return -1;
 
-//	update_vmalloc_regions();
+	update_vmalloc_regions();
 	hw_int_init();
 	hw_int_override_sysenter(sysenter_interposition_entry);
 	hw_int_override_pagefault(page_fault_interposition);

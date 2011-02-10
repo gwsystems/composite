@@ -225,7 +225,7 @@ struct cos_stack_freelists {
 struct cos_component_information {
 	struct cos_stack_freelists cos_stacks;
 	long cos_this_spd_id;
-	vaddr_t cos_heap_ptr;
+	vaddr_t cos_heap_ptr, cos_heap_limit;
 	vaddr_t cos_upcall_entry;
 	struct cos_sched_data_area *cos_sched_data_area;
 	vaddr_t cos_user_caps;

@@ -27,6 +27,7 @@ static void parse_initialization_strings(void)
 
 	init_strs = (struct component_init_str*)((char*)cos_get_heap_ptr()-PAGE_SIZE);
 	for (i = 1 ; init_strs[i].spdid ; i++) ;
+	//printc("initialization string for %d is %s\n", init_strs[i].spdid, init_strs[i].init_str);
 }
 
 /* Get the nth component for this specific scheduler */

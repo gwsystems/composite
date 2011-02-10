@@ -23,6 +23,12 @@ void cos_init(void *arg)
 }
 
 __attribute__ ((weak))
+void __alloc_libc_initilize(void)
+{
+	return;
+}
+
+__attribute__ ((weak))
 void cos_upcall_exec(void *arg)
 {
 	return;
@@ -39,6 +45,8 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	}
 	case COS_UPCALL_BOOTSTRAP:
 	{
+		static int first = 1;
+		if (first) { first = 0; __alloc_libc_initilize(); }
 		cos_argreg_init();
 		cos_init(arg1);
 		break;
@@ -73,6 +81,7 @@ extern const vaddr_t cos_upcall_entry;
 struct cos_component_information cos_comp_info = {
 	.cos_this_spd_id = 0,
 	.cos_heap_ptr = 0,
+	.cos_heap_limit = 0,
 	.cos_stacks.freelists[0] = {.freelist = 0, .thd_id = 0},
 	.cos_upcall_entry = (vaddr_t)&cos_upcall_entry,
 	.cos_sched_data_area = &cos_sched_notifications,

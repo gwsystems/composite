@@ -198,10 +198,9 @@ static int boot_spd_caps(struct cobj_header *h, spdid_t spdid)
 
 		/* we have a fault handler... */
 		if (cap->fault_num < COS_NUM_FAULTS) {
-			if (cos_cap_cntl(COS_CAP_SET_FAULT, spdid, cap->cap_off, cap->fault_num)) {
-				BUG();
-			}
+			if (cos_cap_cntl(COS_CAP_SET_FAULT, spdid, cap->cap_off, cap->fault_num)) BUG();
 		}
+
 		if (cos_cap_cntl(COS_CAP_SET_SERV_FN, spdid, cap->cap_off, cap->sfn) ||
 		    cos_cap_cntl(COS_CAP_SET_CSTUB, spdid, cap->cap_off, cap->cstub) ||
 		    cos_cap_cntl(COS_CAP_SET_SSTUB, spdid, cap->cap_off, cap->sstub) ||
@@ -221,7 +220,6 @@ static int boot_spd_thd(spdid_t spdid)
 	if ((new_thd = sched_create_thread_default(cos_spd_id(), spdid)) < 0) {
 		return -1;
 	}
-	
 	return new_thd;
 }
 
