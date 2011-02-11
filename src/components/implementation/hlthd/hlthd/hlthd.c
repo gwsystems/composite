@@ -5,7 +5,7 @@
 
 void call_low()
 {
-	printc("In low -- thd: %ld\n", cos_get_thd_id());
+	printc("In low -- thd: %d\n", cos_get_thd_id());
 	/* when the stack is revoked, return immediately... */
 //	while (!cos_comp_info.cos_poly[0]) ;
 	timed_event_block(cos_spd_id(), 1);
@@ -13,5 +13,5 @@ void call_low()
 
 void call_high()
 {
-	printc("In high -- thd: %ld\n", cos_get_thd_id());
+	printc("In high -- thd: %d\n", cos_get_thd_id());
 }

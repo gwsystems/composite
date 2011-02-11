@@ -177,7 +177,7 @@ compute_lateness_chg_concur(struct thd *t, struct thd_comp *tc, unsigned int new
 static void
 policy(void)
 {
-	struct thd *iter;
+//	struct thd *iter;
 	struct component *c;
 
 /* 	for (iter = FIRST_LIST(&threads, next, prev) ;  */

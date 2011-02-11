@@ -11,6 +11,7 @@ void cos_init(void *arg)
 	printc("hello world %d!\n", (int)cos_spd_id());
 	asm volatile ("int $0xe9");
 	printc("hello world %d!\n", (int)cos_spd_id());
+	other = 10;
 }
 
 void bin(void)

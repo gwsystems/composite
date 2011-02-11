@@ -197,7 +197,7 @@ void mman_revoke_page(spdid_t spd, vaddr_t addr, int flags)
  */
 void mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 {
-	int alias, i;
+	int alias;
 	long idx;
 	struct mem_cell *mc;
 	struct mapping_info *mi;

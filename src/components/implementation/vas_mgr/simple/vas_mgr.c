@@ -72,7 +72,7 @@ vaddr_t vas_mgr_expand(spdid_t spd, long amnt)
 		unsigned long s = a, s_idx = i;
 		int found = 1;
 
-		printc("i=%d, %d\n", i, nentries);
+		printc("i=%ld, %ld\n", i, nentries);
 
 		for (; i < (s_idx + nentries) ; a += SERVICE_SIZE, i++) {
 			if (vas->s[i]) {

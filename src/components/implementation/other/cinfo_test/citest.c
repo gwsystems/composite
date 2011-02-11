@@ -22,9 +22,9 @@ void cos_init(void)
 			return;
 		}
 		ci = hp;
-		printc("mapped -- id: %d, hp:%x, sp:%x\n", 
-		       ci->cos_this_spd_id, ci->cos_heap_ptr, 
-		       ci->cos_stacks.freelists[0].freelist);
+		printc("mapped -- id: %ld, hp:%x, sp:%x\n", 
+		       ci->cos_this_spd_id, (unsigned int)ci->cos_heap_ptr, 
+		       (unsigned int)ci->cos_stacks.freelists[0].freelist);
 
 		hp = cos_get_heap_ptr();
 	}

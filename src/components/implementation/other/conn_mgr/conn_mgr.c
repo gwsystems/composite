@@ -11,7 +11,7 @@
 #include <cos_alloc.h>
 #include <cos_debug.h>
 #include <cos_list.h>
-#define COS_VECT_INIT_VAL -1
+#define COS_VECT_INIT_VAL ((void*)-1)
 #include <cos_vect.h>
 #include <print.h>
 #include <errno.h>

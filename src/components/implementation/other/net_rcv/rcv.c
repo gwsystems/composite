@@ -10,7 +10,6 @@ void cos_init(void)
 	u32_t u;
 	struct cos_array *arr;
 	int sz = 1600 + sizeof(struct cos_array);
-	int c = 0;
 
 	arr = cos_argreg_alloc(sz);
 	BUG_ON(netif_event_create(cos_spd_id()));
