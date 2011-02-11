@@ -11,6 +11,7 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd);
 void sched_timeout(spdid_t spdid, unsigned long amnt);
 int sched_timeout_thd(spdid_t spdid);
 unsigned int sched_tick_freq(void);
+unsigned long sched_cyc_per_tick(void);
 unsigned long sched_timestamp(void);
 unsigned long sched_timer_stopclock(void);
 int sched_priority(unsigned short int tid);

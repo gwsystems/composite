@@ -24,6 +24,7 @@
 
 #include <sys/param.h> 		/* MIN/MAX */
 
+#include <limits.h>
 /* Lets save some typing... */
 #define TAKE(spdid) 	if (sched_component_take(spdid)) return -1;
 #define RELEASE(spdid)	if (sched_component_release(spdid)) return -1;
@@ -32,6 +33,7 @@
 typedef unsigned long long event_time_t;
 static volatile event_time_t ticks = 0;
 const event_time_t TIMER_NO_EVENTS = ~0;
+unsigned long cyc_per_tick;
 
 #define TE_TIMED_OUT 0x1
 #define TE_BLOCKED   0x2
@@ -180,13 +182,24 @@ static void __event_expiration(event_time_t time, struct thread_event *events)
 		if (tmp->flags & TE_PERIODIC) {
 			/* thread hasn't blocked? deadline miss! */
 			if (!b) {
+ 			        long long period_cyc;
+
 				tmp->dl_missed++;
+				
 				if (!tmp->missed) { /* first miss? */
 					tmp->missed = 1;
 					/* save time of deadline, unless we
 					 * have saved the time of an earlier
 					 * deadline miss */
 					assert(!tmp->completion);
+					rdtscll(tmp->completion);
+					tmp->miss_samples++;
+					tmp->samples++;
+				} else {
+					period_cyc = tmp->period*cyc_per_tick;
+					assert(period_cyc > cyc_per_tick);
+					tmp->lateness_tot +=period_cyc;
+					tmp->miss_lateness_tot += period_cyc;
 					rdtscll(tmp->completion);
 				}
 			} else {
@@ -195,7 +208,7 @@ static void __event_expiration(event_time_t time, struct thread_event *events)
 
 					assert(tmp->completion);
 					rdtscll(t);
-					tmp->lateness_tot += -(long)(t - tmp->completion);
+					tmp->lateness_tot += -(t - tmp->completion);
 					tmp->samples++;
 					tmp->completion = 0;
 				}
@@ -331,8 +344,11 @@ static long te_get_reset_lateness(struct thread_event *te)
 {
 	long avg;
 
-	if (0 == te->samples) return 0;
-	avg = te->lateness_tot/te->samples;
+	if (0 == te->samples) return 0;	
+	if(te->lateness_tot < 0)
+		avg = (te->lateness_tot/te->samples) <= LONG_MIN ? LONG_MIN : te->lateness_tot/te->samples;
+	else
+		avg = (te->lateness_tot/te->samples) >= LONG_MAX ? LONG_MAX : te->lateness_tot/te->samples;
 	te->lateness_tot = 0;
 	te->samples = 0;
 
@@ -344,7 +360,7 @@ static long te_get_reset_miss_lateness(struct thread_event *te)
 	long avg;
 
 	if (0 == te->miss_samples) return 0;
-	avg = te->miss_lateness_tot/te->miss_samples;
+	avg = (te->miss_lateness_tot/te->miss_samples) >= LONG_MAX ? LONG_MAX : te->miss_lateness_tot/te->miss_samples;
 	te->miss_lateness_tot = 0;
 	te->miss_samples = 0;
 
@@ -520,14 +536,15 @@ int periodic_wake_wait(spdid_t spdinv)
 
 	rdtscll(t);
 	if (te->missed) {	/* we're late */
-		long diff;
+		long long diff;
 		assert(te->completion);
 
-		diff = (long)(t - te->completion);
+		diff = (t - te->completion);
 		te->lateness_tot += diff;
-		te->samples++;
+		//te->samples++;
 		te->miss_lateness_tot += diff;
-		te->miss_samples++;
+		//te->miss_samples++;
+		
 		te->completion = 0;
 	} else {		/* on time! */
 		te->completion = t;
@@ -563,6 +580,8 @@ static void start_timer_thread(void)
 	ticks = sched_timestamp();
 	/* currently timeouts are expressed in ticks, so we don't need this */
 //	usec_per_tick = USEC_PER_SEC/tick_freq;
+	cyc_per_tick = sched_cyc_per_tick();
+	//	printc("cyc_per_tick = %lld\n", cyc_per_tick);
 
 	/* When the system boots, we have no pending waits */
 	assert(EMPTY_LIST(&events, next, prev));

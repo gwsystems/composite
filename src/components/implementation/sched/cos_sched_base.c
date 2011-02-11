@@ -641,6 +641,11 @@ unsigned int sched_tick_freq(void)
 	return TIMER_FREQ;
 }
 
+unsigned long sched_cyc_per_tick(void)
+{
+	return CYC_PER_TICK;
+}
+
 static void fp_pre_block(struct sched_thd *thd);
 static void fp_block(struct sched_thd *thd, spdid_t spdid);
 

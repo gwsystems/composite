@@ -54,6 +54,12 @@ unsigned int sched_tick_freq(void)
 	return 0;
 }
 
+unsigned long sched_cyc_per_tick(void)
+{
+	BUG();
+	return 0;
+}
+
 unsigned long sched_timestamp(void)
 {
 	BUG();
