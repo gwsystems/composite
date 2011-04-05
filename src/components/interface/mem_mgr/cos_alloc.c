@@ -30,6 +30,7 @@
 #include <print.h>
 int alloc_debug = 0;
 #endif
+//#include <string.h>
 
 struct free_page {
 	struct free_page *next;
@@ -39,6 +40,9 @@ static struct free_page page_list = {.next = NULL};
 extern void *mman_get_page(spdid_t spd, void *addr, int flags);
 extern void mman_release_page(spdid_t spd, void *addr, int flags);
 #endif
+
+#define DIE() (*((int*)0) = 1)
+#define massert(prop) do { if (!prop) DIE(); } while (0)
 
 /* -- HELPER CODE --------------------------------------------------------- */
 
@@ -75,7 +79,7 @@ struct pages_bitmap {
 	struct pages_bitmap *next;
 	void *start_addr;
 	int nregions;
-	/* number of free pages */
+	/* number of used pages */
 	int nused;
 	/* bitmap of used pages */
 	u32_t page_used[PAGES_PER_REGION/sizeof(u32_t)];
@@ -88,29 +92,41 @@ int vas_order = 0;
 static inline void *
 cos_get_pages(int npages)
 {
-	struct pages_bitmap *bm;
+	struct pages_bitmap *bm, *prev = NULL;
 	int offset;
 	vaddr_t new_addr;
 
-	for (bm = &__alloc_page_map ; bm ; bm = bm->next) {
-		int off, i;
+	for (bm = &__alloc_page_map ; bm ; prev = bm, bm = bm->next) {
+		int off = 0, i;
 
 		if (bm->nused + npages >= PAGES_PER_REGION*bm->nregions) break;
 
-		off = bitmap_ls_one(&bm->page_used[0], PAGES_PER_REGION/sizeof(u32_t));
-		for (i = 1 ; i < npages ; i++) {
-			if (bitmap_check(&bm->page_used[0], off + i)) break;
-		}
-		if (i == npages) {
-			offset = off;
-			break;
-		}
+		while (off < PAGES_PER_REGION) {
+			u32_t *start = &bm->page_used[0] + off/32;
+			int new_off;
+
+			off = bitmap_ls_one_offset(start, off, PAGES_PER_REGION/sizeof(u32_t));
+			for (i = 1 ; i < npages && bitmap_check(start, off + i) ; i++) ;
+			if (i == npages) {
+				offset = off;
+				goto found;
+			}
+			new_off = round_to_pow2(off, 32);
+			if (new_off <= off) new_off += 32;
+			off = new_off;
+		};
 	}
+found:
+	massert(prev);
 
 	/* Expand the virtual address space */
-	if (!bm) {
+	if (unlikely(!bm)) {
 		unsigned long nreg = 1<<++vas_order, size = PGD_SIZE * nreg;
 		int i;
+
+		if ((npages * PAGE_SIZE) > size) {
+			size = round_up_to_pgd_page(npages * PAGE_SIZE);
+		}
 
 		new_addr = vas_mgr_expand(cos_spd_id(), size);
 		if (!new_addr) goto err;
@@ -125,9 +141,9 @@ cos_get_pages(int npages)
 	}
 
 err_virt:
-	vas_order--;
 	vas_mgr_contract(cos_spd_id(), new_addr);
 err:
+	vas_order--;
 	return NULL;
 }
 
@@ -239,7 +255,7 @@ static inline void REGPARM(2) __small_free(void*_ptr,size_t _size) {
 	size_t size=_size;
 	size_t idx=get_index(size);
 	
-//  memset(ptr,0,size);	/* allways zero out small mem */
+//	memset(ptr,0,size);	/* allways zero out small mem */
 #if ALLOC_DEBUG >= ALLOC_DEBUG_ALL
 	if (alloc_debug) printc("free (in %d): freeing %p of size %d and index %d.", 
 				cos_spd_id(), ptr, size, idx);
@@ -368,7 +384,6 @@ err_out:
 //void* __libc_malloc(size_t size) __attribute__((alias("_alloc_libc_malloc")));
 void* malloc(size_t size) __attribute__((weak,alias("_alloc_libc_malloc")));
 
-extern void *memset(void *s, int c, size_t n);
 void *__libc_calloc(size_t nmemb, size_t _size)
 {
 	size_t tot = nmemb*_size;

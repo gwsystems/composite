@@ -68,10 +68,13 @@ struct pt_regs {
 #define PGD_MASK  (~(PGD_RANGE-1))
 #define PGD_PER_PTBL 1024
 
-#define round_to_page(x) (((unsigned long)x)&PAGE_MASK)
-#define round_up_to_page(x) (round_to_page((x)+PAGE_SIZE-1))
-#define round_to_pgd_page(x) ((x)&PGD_MASK)
-#define round_up_to_pgd_page(x) (round_to_pgd_page((x)+PGD_RANGE-1))
+#define round_to_pow2(x, pow2) (((unsigned long)(x))&(~(pow2-1)))
+#define round_up_to_pow2(x, pow2) (round_to_pow2(((unsigned long)x)+pow2-1, pow2))
+
+#define round_to_page(x) round_to_pow2(x, PAGE_SIZE)
+#define round_up_to_page(x) round_up_to_pow2(x, PAGE_SIZE)
+#define round_to_pgd_page(x) round_to_pow2(x, PGD_SIZE)
+#define round_up_to_pgd_page(x) round_up_to_pow2(x, PGD_SIZE)
 
 #define CACHE_LINE (32)
 #define CACHE_ALIGNED __attribute__ ((aligned (CACHE_LINE)))
@@ -79,8 +82,8 @@ struct pt_regs {
 #define PAGE_ALIGNED __attribute__ ((aligned(PAGE_SIZE)))
 #define WORD_SIZE 32
 
-#define round_to_cacheline(x) (((unsigned long)x)&~(CACHE_LINE-1))
-#define round_up_to_cacheline(x) (round_to_cacheline(x+CACHE_LINE-1))
+#define round_to_cacheline(x) round_to_pow2(x, CACHE_LINE)
+#define round_up_to_cacheline(x) round_up_to_pow2(x, CACHE_LINE)
 
 #define SHARED_REGION_START (1<<30)  // 1 gig
 #define SHARED_REGION_SIZE PGD_RANGE

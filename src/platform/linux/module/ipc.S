@@ -12,10 +12,19 @@
    call. See comment in hijack.c:get_user_regs.  Essentially, if we 
    get an interrupt, this makes the stack look like if user-level
    were preempted (in terms of register contents) */
-#define RET_TO_USER \
+
+#define RET_TO_USER_NOSEG \
 	pushl $0; \
 	pushl $0; \
 	sti ; sysexit
+
+//#define RET_TO_USER RET_TO_USER_NOSEG
+#define RET_TO_USER \
+	pushl %edx		;\
+	movl $(__USER_DS), %edx ;\
+	movl %edx, %fs		;\
+	popl %edx		;\
+	RET_TO_USER_NOSEG
 
 /* null ptr deref */
 #define ERROR_OUT \
@@ -68,7 +77,7 @@ composite_call_ipc:	/* server_inv: */
 
 	popl %ebp /* 4th argument */
 
-	RET_TO_USER
+	RET_TO_USER_NOSEG
 		
 .globl composite_ret_ipc
 .align 16
@@ -89,7 +98,7 @@ composite_ret_ipc:	 /*ret_cap:*/
 	movl SFRAMEIP(%eax), %edx
 	popl %eax /* user-level ret val */
 
-	RET_TO_USER
+	RET_TO_USER_NOSEG
 
 ipc_ret_slowpath:
 	addl $8, %esp

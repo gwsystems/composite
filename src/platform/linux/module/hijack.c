@@ -44,6 +44,8 @@
 
 #include "./hw_ints.h"
 
+#include "./kconfig_checks.h"
+
 MODULE_LICENSE("GPL");
 #define MODULE_NAME "asymmetric_execution_domain_support"
 
@@ -1617,7 +1619,7 @@ int host_attempt_brand(struct thread *brand)
 			}
 
 			goto done;
- 		} //else if (thd_get_id(brand->upcall_threads) == 13) printk(">r\n");
+ 		}
 
 		regs = get_user_regs_thread(composite_thread);
 
@@ -1691,7 +1693,7 @@ done:
 static void timer_interrupt(unsigned long data)
 {
 	BUG_ON(composite_thread == NULL);
-	mod_timer(&timer, jiffies+1);
+	mod_timer_pinned(&timer, jiffies+1);
 
 	if (!(cos_timer_brand_thd && cos_timer_brand_thd->upcall_threads)) {
 		return;
@@ -1705,7 +1707,7 @@ static void register_timers(void)
 {
 	init_timer(&timer);
 	timer.function = timer_interrupt;
-	mod_timer(&timer, jiffies+2);
+	mod_timer_pinned(&timer, jiffies+2);
 	
 	return;
 }

@@ -1603,11 +1603,13 @@ print_config_info(void)
 int sched_root_init(void)
 {
 	struct sched_thd *new;
+	int i;
 
 	print_config_info();
 
 	cos_argreg_init();
 	sched_init();
+
 	/* switch back to this thread to terminate the system. */
 	init = sched_alloc_thd(cos_get_thd_id());
 	assert(init);

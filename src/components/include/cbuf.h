@@ -85,11 +85,26 @@ extern cos_vect_t slab_descs;
  * belong to the principal, etc...).
  */
 
+/* 
+ * log2(max slab size) - log2(min slab size) = 
+ * log2(PAGE_SIZE) - log2(CACHELINE_SIZE) = 
+ * 12 - 6 = 6 thus
+ * max obj size = 2^6 = 64
+ */
+#define N_CBUF_SMALL_SLABS 6
+#define N_CBUF_LARGE_SLABS 10
+#define N_CBUF_SLABS (N_CBUF_LARGE_SLABS + N_CBUF_SMALL_SLABS)
+#define CBUF_MIN_SLAB_ORDER 6
+#define CBUF_MIN_SLAB (1<<CBUF_MIN_SLAB_ORDER)
+
+#define SLAB_MAX_OBJS (PAGE_SIZE/CBUF_MIN_SLAB)
+#define CBUF_ID_ORDER 26 //(32-CBUF_MIN_SLAB_ORDER)
+
 typedef u32_t cbuf_t; /* Requirement: gcc will return this in a register */
 typedef union {
 	cbuf_t v;
 	struct {
-		u32_t id:20, idx:12;
+		u32_t id:26, idx:6;
 	} __attribute__((packed)) c;
 } cbuf_unpacked_t;
 
@@ -107,6 +122,7 @@ static inline cbuf_t
 cbuf_cons(u32_t cbid, u32_t idx) 
 {
 	cbuf_unpacked_t cu;
+	assert(idx <= CBUF_MIN_SLAB);
 	cu.c.id  = cbid;
 	cu.c.idx = idx;
 	return cu.v; 
@@ -115,11 +131,19 @@ cbuf_cons(u32_t cbid, u32_t idx)
 static inline cbuf_t cbuf_null(void)      { return 0; }
 static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
 
+typedef enum {
+	CBUFM_LARGE = 1,
+	CBUFM_RO    = 1<<1,
+	CBUFM_GRANT = 1<<2
+} cbufm_flags_t;
+
 union cbuf_meta {
 	u32_t v;        		/* value */
 	struct {
-		long ptr:20; 		/* page pointer */
-		int  obj_sz:12;	        /* size of objects in page */
+		u32_t ptr:20, obj_sz:6; /* page pointer, and */
+                                        /* object size in page/order of large allocation */
+	        cbufm_flags_t flags:5;
+		int refcnt:1;
 	} __attribute__((packed)) c;	/* composite type */
 };
 
@@ -149,23 +173,19 @@ again:				/* avoid convoluted conditions */
 		if (cbuf_cache_miss(id, idx, len)) return NULL;
 		goto again;
 	}
-	obj_sz = cm.c.obj_sz;
-	off    = obj_sz * idx; /* multiplication...ouch */
-	if (unlikely(len > obj_sz || off + len > PAGE_SIZE )) return NULL;
+	if (likely(!(cm.c.flags & CBUFM_LARGE))) {
+		obj_sz = cm.c.obj_sz;
+		off    = obj_sz * idx; /* multiplication...ouch */
+		if (unlikely(len > obj_sz || off + len > PAGE_SIZE )) return NULL;
+	} else {
+		obj_sz = PAGE_SIZE * (1 << cm.c.obj_sz);
+		off    = 0;
+		if (unlikely(len > obj_sz)) return NULL;
+	}
 
 	return ((char*)(cm.c.ptr << 12)) + off;
 }
 
-/* 
- * log2(max slab size) - log2(min slab size) = 
- * log2(PAGE_SIZE) - log2(CACHELINE_SIZE1) = 
- * 12 - 6 =
- */
-#define N_CBUF_SLABS 6
-#define CBUF_MIN_SLAB_ORDER 6
-#define CBUF_MIN_SLAB (1<<CBUF_MIN_SLAB_ORDER)
-
-#define SLAB_MAX_OBJS 64
 #define SLAB_BITMAP_SIZE (SLAB_MAX_OBJS/32)
 /* When we have a velocity that causes us to really deallocate memory.
  * FIXME: This should entirely be a policy of the cbuf_c component. */
@@ -180,7 +200,8 @@ struct cbuf_slab_freelist;	/* forward decl */
 struct cbuf_slab {
 	int cbid;
 	char *mem;
-	u16_t nfree, obj_sz, max_objs;
+	u32_t obj_sz;
+	u16_t nfree, max_objs;
 	u32_t bitmap[SLAB_BITMAP_SIZE];
 	struct cbuf_slab *next, *prev; /* freelist next */
 	struct cbuf_slab_freelist *flh; /* freelist head */
@@ -190,7 +211,6 @@ struct cbuf_slab_freelist {
 	int npages, velocity;
 };
 extern struct cbuf_slab_freelist slab_freelists[N_CBUF_SLABS];
-extern cos_vect_t slab_descs;
 
 static inline void
 slab_rem_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
@@ -260,10 +280,12 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 	s = slab_freelist->list;
 	assert(s->nfree);
 
-	bm  = &s->bitmap[0];
-	idx = bitmap_ls_one(bm, SLAB_BITMAP_SIZE);
-	assert(idx > -1 && idx < SLAB_MAX_OBJS);
-	bitmap_unset(bm, idx);
+	if (s->obj_sz <= PAGE_SIZE) {
+		bm  = &s->bitmap[0];
+		idx = bitmap_ls_one(bm, SLAB_BITMAP_SIZE);
+		assert(idx > -1 && idx < SLAB_MAX_OBJS);
+		bitmap_unset(bm, idx);
+	}
 	s->nfree--;
 	/* remove from the freelist */
 	if (!s->nfree) slab_rem_freelist(s, slab_freelist);

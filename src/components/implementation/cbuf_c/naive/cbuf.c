@@ -53,7 +53,9 @@ cbuf_c_create(spdid_t spdid, int size, void *page)
 	TAKE();
 	h = cos_get_heap_ptr();
 	cos_set_heap_ptr(h + PAGE_SIZE);
+	/* get the page */
 	if (!mman_get_page(cos_spd_id(), (vaddr_t)h, 0)) goto err;
+	/* ...map it into the requesting component */
 	if (!mman_alias_page(cos_spd_id(), (vaddr_t)h, spdid, (vaddr_t)page)) goto err2;
 
 	d->principal  = cos_get_thd_id();

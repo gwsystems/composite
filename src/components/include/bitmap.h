@@ -123,4 +123,31 @@ bitmap_ls_one(u32_t *x, int max)
 	return -1;
 }
 
+/* Start looking for the least significant bit at an offset (in bits)
+ * into the bitmap.  The maximum size is offset from x (in u32_ts) */
+static inline int 
+bitmap_ls_one_offset(u32_t *x, int off, int max)
+{
+	int subword = WORD_SIZE - (off&(WORD_SIZE-1)), words = off/WORD_SIZE, i, ret;
+	
+	/* do we have an offset into a word? */
+	if (subword != WORD_SIZE) {
+		words++;
+		if (words > max) return -1;
+		for (i = 0 ; i < subword ; i++) {
+			if (bitmap_check(x, off + i)) return off + i;
+		}
+	}
+	ret = bitmap_ls_one(x+words, max-words);
+	if (ret != -1) ret += (words*WORD_SIZE);
+	return ret;
+}
+
+/* TODO */
+static inline int
+bitmap_ls_contiguous_ones(u32_t *x, int off, int span, int max)
+{
+	return 0;
+}
+
 #endif /* BITMAP_H */
