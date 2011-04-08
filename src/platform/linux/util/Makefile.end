@@ -1,15 +1,7 @@
 
 reset: clean cp build
 
-init: ready_hw first
-
-ready_hw:
-#	ethtool -A eth0 autoneg off rx off tx off
-	mknod /dev/net/cnet c 10 201
-	echo 1 > /proc/sys/net/ipv4/ip_forward
-# bullcrap arbitrary Linux defaults
-	echo "-1" > /proc/sys/kernel/sched_rt_runtime_us
-	echo "1000000000" > /proc/sys/kernel/sched_rt_period_us
+init: first
 
 first: cp build
 
@@ -18,12 +10,10 @@ cp:
 
 clean:
 	rm cos_loader
-	rmmod cnet
 	rmmod cos
 
 # sync to minimize possible file system corruption on crashes
 build: 
 	sync
 	insmod cos.ko
-	insmod cnet.ko
-	./cnet_user
+

@@ -24,7 +24,6 @@
 
 #include <sys/param.h> 		/* MIN/MAX */
 
-#include <limits.h>
 /* Lets save some typing... */
 #define TAKE(spdid) 	if (sched_component_take(spdid)) return -1;
 #define RELEASE(spdid)	if (sched_component_release(spdid)) return -1;
@@ -46,7 +45,7 @@ struct thread_event {
 
 	/* if flags & TE_PERIODIC */
 	unsigned int period, missed;
-	unsigned short int dl, dl_missed; /* missed deadlines */
+	unsigned short int dl, dl_missed, need_restart; /* missed deadlines */
 	unsigned int samples, miss_samples;
 	long long lateness_tot, miss_lateness_tot;
 	long long completion;
@@ -179,40 +178,37 @@ static void __event_expiration(event_time_t time, struct thread_event *events)
 		b = tmp->flags & TE_BLOCKED;
 		tmp->flags &= ~TE_BLOCKED;
 		tid = tmp->thread_id;
+
 		if (tmp->flags & TE_PERIODIC) {
 			/* thread hasn't blocked? deadline miss! */
 			if (!b) {
- 			        long long period_cyc;
-
 				tmp->dl_missed++;
-				
+				tmp->need_restart++;
 				if (!tmp->missed) { /* first miss? */
 					tmp->missed = 1;
+					if (tmp->completion) {
+						/* compute the lateness of 
+						   last task finished on time */
+						long long t;
+						rdtscll(t);
+						tmp->lateness_tot += -(t - tmp->completion);
+						tmp->samples++;
+ 					}
 					/* save time of deadline, unless we
 					 * have saved the time of an earlier
 					 * deadline miss */
-					assert(!tmp->completion);
 					rdtscll(tmp->completion);
 					tmp->miss_samples++;
 					tmp->samples++;
-				} else {
-					period_cyc = tmp->period*cyc_per_tick;
-					assert(period_cyc > cyc_per_tick);
-					tmp->lateness_tot +=period_cyc;
-					tmp->miss_lateness_tot += period_cyc;
-					rdtscll(tmp->completion);
 				}
 			} else {
-				if (!tmp->missed) { /* on time, compute lateness */
-					long long t;
-
-					assert(tmp->completion);
-					rdtscll(t);
-					tmp->lateness_tot += -(t - tmp->completion);
-					tmp->samples++;
-					tmp->completion = 0;
-				}
-				tmp->missed = 0;
+				assert(!tmp->missed); /* on time, compute lateness */
+				long long t;
+				assert (tmp->completion) ;
+				rdtscll(t);
+				tmp->lateness_tot += -(t - tmp->completion);
+				tmp->samples++;
+				tmp->completion = 0;
 			}
 
 			tmp->dl++;
@@ -251,7 +247,6 @@ static inline event_time_t next_event_time(void)
 	p = EMPTY_LIST(&periodic, next, prev) ? 
 		TIMER_NO_EVENTS : 
 		FIRST_LIST(&periodic, next, prev)->event_expiration;
-
 	/* assume here that TIMER_NO_EVENTS > all other values */
 	return MIN(e, p);
 }
@@ -342,13 +337,23 @@ int timed_event_wakeup(spdid_t spdinv, unsigned short int thd_id)
 
 static long te_get_reset_lateness(struct thread_event *te)
 {
-	long avg;
+	long long avg;
 
-	if (0 == te->samples) return 0;	
-	if(te->lateness_tot < 0)
-		avg = (te->lateness_tot/te->samples) <= LONG_MIN ? LONG_MIN : te->lateness_tot/te->samples;
-	else
-		avg = (te->lateness_tot/te->samples) >= LONG_MAX ? LONG_MAX : te->lateness_tot/te->samples;
+	if (0 == te->samples){
+		if (!te->missed)
+			return 0;	
+		else
+			te->samples = 1;
+	}
+	
+	if (te->missed && te->completion){
+		long long t;
+		rdtscll(t);
+		te->lateness_tot += (t - te->completion);
+	}
+	avg = te->lateness_tot / te->samples;
+	avg = (avg >> 20) + ! ((avg & 1048575) == 0);/* right shift 20 bits and round up, 2^20 - 1 = 1048575 */
+	
 	te->lateness_tot = 0;
 	te->samples = 0;
 
@@ -357,10 +362,24 @@ static long te_get_reset_lateness(struct thread_event *te)
 
 static long te_get_reset_miss_lateness(struct thread_event *te)
 {
-	long avg;
+	long long avg;
 
-	if (0 == te->miss_samples) return 0;
-	avg = (te->miss_lateness_tot/te->miss_samples) >= LONG_MAX ? LONG_MAX : te->miss_lateness_tot/te->miss_samples;
+	if (0 == te->miss_samples){
+		if (!te->missed)
+			return 0;
+		else
+			te->miss_samples = 1;
+	}
+
+	if (te->missed && te->completion){
+		long long t;
+		rdtscll(t);
+		te->miss_lateness_tot += (t - te->completion);
+	}
+
+	avg = te->miss_lateness_tot / te->miss_samples;
+	avg = (avg >> 20) + ! ((avg & 1048575) == 0);/* right shift 20 bits and round up, 2^20 - 1 = 1048575 */
+
 	te->miss_lateness_tot = 0;
 	te->miss_samples = 0;
 
@@ -491,6 +510,7 @@ int periodic_wake_create(spdid_t spdinv, unsigned int period)
 	assert(t > ticks);
 	insert_pevent(te);
 	if (t > n) sched_timeout(spdid, n-ticks);
+	te->need_restart = 0;
 
 	RELEASE(spdid);
 
@@ -532,11 +552,16 @@ int periodic_wake_wait(spdid_t spdinv)
 	if (!(te->flags & TE_PERIODIC)) goto err;
 		
 	assert(!EMPTY_LIST(te, next, prev));
-	te->flags |= TE_BLOCKED;
 
 	rdtscll(t);
+
 	if (te->missed) {	/* we're late */
 		long long diff;
+		if (te->miss_samples == 0){
+			te->miss_samples = 1;
+			te->samples = 1;
+		}
+
 		assert(te->completion);
 
 		diff = (t - te->completion);
@@ -546,14 +571,22 @@ int periodic_wake_wait(spdid_t spdinv)
 		//te->miss_samples++;
 		
 		te->completion = 0;
+		te->missed = 0;
 	} else {		/* on time! */
 		te->completion = t;
 	}
+	if(te->need_restart > 0)
+	{
+		te->need_restart--;
+		RELEASE(spdid);
+		return 0;
+	}
+	te->flags |= TE_BLOCKED;
 	RELEASE(spdid);
 
 	if (-1 == sched_block(spdid, 0)) {
-		prints("fprr: sched block failed in timed_event_periodic_wait.");
-	}
+		prints("fprr: sched block failed in timed_event_periodic_wait.");	}
+
 
 	return 0;
 err:
@@ -613,8 +646,12 @@ static void start_timer_thread(void)
 			sched_block(spdid, 0);
 		} else {
 			unsigned int wakeup;
-
-			assert(next_wakeup > ticks);
+#ifdef LINUX_HIGHEST_PRIORITY
+			//gap assert(next_wakeup > ticks);
+#endif
+			if (next_wakeup <= ticks) {
+				//...
+			}
 			wakeup = (unsigned int)(next_wakeup - ticks);
 			if (sched_component_release(spdid)) {
 				prints("fprr: scheduler lock release failed!!!");

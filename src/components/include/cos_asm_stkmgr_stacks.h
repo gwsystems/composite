@@ -89,12 +89,11 @@
                                                 \
         /* Since we are done with this stack    \
            We should not depend on it anymore */\
-                                                \
-        movl $THD_ID_SHARED_PAGE, %ecx;         \
-        movl (%ecx), %ecx;                      \
+	movl $THD_ID_SHARED_PAGE, %ebx;         \
+        movl (%ebx), %ebx;                      \
     	movl $stkmgr_stack_space, %esp;	        \
-        shl $7, %ecx;	                        \
-        addl %ecx, %esp;                        \
+        shl $7, %ebx;	                        \
+        addl %ebx, %esp;                        \
         /* save our registers */                \
         pushl %ebp;                             \
         pushl %esi;                             \

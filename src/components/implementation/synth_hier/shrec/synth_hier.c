@@ -63,7 +63,7 @@ void parse_initstr(void)
 	cos_argreg_free(data);
 }
 
-int v = 0;
+volatile int v = 0;
 
 extern void calll_left(void);
 extern void callr_right(void);
