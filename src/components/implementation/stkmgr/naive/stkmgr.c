@@ -45,8 +45,9 @@ enum stk_flags {
  */
 struct cos_stk {
 	struct cos_stk *next;
-	unsigned int flags;
-};
+	u32_t flags;
+	u32_t thdid_owner;
+} __attribute__((packed));
 
 #define D_COS_STK_ADDR(d_addr) (d_addr + PAGE_SIZE - sizeof(struct cos_stk))
 
@@ -576,7 +577,7 @@ stkmgr_return_stack(spdid_t s_spdid, vaddr_t addr)
 	struct cos_stk_item *stk_item;
 	struct spd_stk_info *ssi;
 
-	addr -= sizeof(struct cos_stk_item);
+	//addr -= sizeof(struct cos_stk_item);
 	DOUT("component %d returned stack @ %x\n", s_spdid, (unsigned int)addr);
 	TAKE();
 	ssi = get_spd_stk_info(s_spdid);
@@ -772,7 +773,7 @@ stkmgr_grant_stack(spdid_t d_spdid)
 	}
 	if (meas) stkmgr_update_stats_wakeup(info, cos_get_thd_id());
 	
-	ret = stk_item->d_addr + PAGE_SIZE;
+	ret = stk_item->d_addr + PAGE_SIZE - sizeof(struct cos_stk);
 	RELEASE();
 	
 	info->num_waiting_thds--;
@@ -1086,14 +1087,5 @@ stkmgr_print_ci_freelist(void)
 #endif
 	}
 
-}
-
-/**
- * This is here just to make sure we get scheduled, it can 
- * most likely be removed now
- */
-void
-bin(void){
-	sched_block(cos_spd_id(), 0);
 }
 

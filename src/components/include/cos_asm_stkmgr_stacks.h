@@ -27,7 +27,7 @@
         movl %edx, cos_comp_info;               \
         addl $4, %eax;                          \
 1:                                              \
-        /* Return Stack */                      \
+	/* now we have the stack */		\
         movl  %eax, %esp;                       \
         addl  $4, %esp;                         \
         pushl $0x01;    /* flags */             \
@@ -53,7 +53,7 @@
         call stkmgr_grant_stack;                \
         addl $4, %esp;                          \
                                                 \
-        subl $0x4, %eax;                        \
+        addl $0x4, %eax;                        \
                                                 \
         /*restore stack */                      \
         popl %ecx;                              \
@@ -82,10 +82,10 @@
         movl %esp, cos_comp_info;               \
         jmp  4f;                                \
 3:                                              \
-        /* stkmgr wants stack back */           \
-        addl $4, %esp;                          \
+        /* stkmgr wants stack back */		\
+        movl $0x0, (%esp);			\
+        subl $4, %esp;                          \
         movl %esp, %edx;                        \
-        push $0x00;  /* free flags */           \
                                                 \
         /* Since we are done with this stack    \
            We should not depend on it anymore */\
@@ -102,9 +102,9 @@
         pushl %ecx;                             \
         pushl %eax;                             \
                                                 \
-        pushl %edx; /* address of stack */      \
+        pushl %edx; /* address of structure in stack */      \
         movl cos_comp_info, %ecx;               \
-        subl $8, %ecx;                          \
+        /*subl $8, %ecx;*/                          \
         /*movl (%ecx), %edx;*/                  \
         pushl %ecx;                             \
         call stkmgr_return_stack;               \
