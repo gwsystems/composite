@@ -315,6 +315,7 @@ sched_thd_dependency(struct sched_thd *curr)
 	struct sched_thd *d, *p; // dependency and prev dependency
 
 	for (p = curr ; ((d = __sched_thd_dependency(p))) ; p = d) ;
+	if (sched_thd_blocked(p)) return NULL;
 	return p == curr ? NULL : p;
 }
 

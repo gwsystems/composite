@@ -95,6 +95,7 @@ typedef enum {
 	BLOCKED_DEP_RETRY,
 	RETRY_BLOCK,
 	BLOCKED_W_DEPENDENCY,
+	DEPENDENCY_BLOCKED_THD,
 	SCHED_TARGETTED_DEPENDENCY,
 	PARENT_BLOCK_CHILD,
 	PARENT_CHILD_EVT_OTHER,
@@ -143,6 +144,7 @@ static char *revt_names[] = {
 	"re-asserting dependency",
 	"premature unblock, retrying block",
 	"block with dependency",
+	"dependency on blocked thread",
 	"schedule will explicit target (via dependency)",
 	"parent scheduler blocking child scheduler",
 	"parent scheduler sending non-thread block/wake event",
@@ -869,6 +871,10 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 		if (sched_thd_blocked(dep)) goto err;
 	}
 
+	/* 
+	 * possible FIXME: should we be modifying the wake_cnt at all
+	 * if we are using dependencies?
+	 */
 	fp_pre_block(thd);
 	/* if we already got a wakeup call for this thread */
 	if (thd->wake_cnt) {
@@ -894,6 +900,29 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 			cos_sched_lock_take();
 			report_event(BLOCKED_W_DEPENDENCY);
 			if (!first) { report_event(BLOCKED_DEP_RETRY); }
+
+			/* 
+			 * Complicated case: We want to avoid the case
+			 * where we are dependent on a blocked thread
+			 * (i.e. due to self-suspension).  When we
+			 * resolve dependencies, if we are dependent
+			 * on a blocked thread, we actually run the
+			 * dependent thread.  Thus when we wake up
+			 * here, we will still be dependent
+			 * (otherwise, we would be scheduled because
+			 * the dependency thread executed
+			 * sched_wakeup).  So in this case, we want to
+			 * remove the dependency, execute the thread,
+			 * and return an error code from sched_block
+			 * indicating that we attempted to do priority
+			 * inheritance with a blocked thread.
+			 */
+			if (unlikely(sched_thd_dependent(thd))) {
+				thd->flags &= ~THD_DEPENDENCY;
+				thd->dependency_thd = NULL;
+				report_event(DEPENDENCY_BLOCKED_THD);
+				goto err;
+			}
 		} else {
 			sched_switch_thread(0, BLOCK_LOOP);
 			cos_sched_lock_take();
