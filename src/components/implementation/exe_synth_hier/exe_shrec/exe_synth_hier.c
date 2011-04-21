@@ -144,7 +144,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 		if (exe_time_left == 0) return 0;
 		kkk = 0;
 
-		//for (i=0;i<spin;i++) kkk++;  
+		/* for (i=0;i<spin;i++) kkk++;   */
 		unsigned long ss = initial_exe_t / 10 / 6;
 		for (i=0; i<ss; i++) kkk++;
 		has_run = ss * 6;//loop_cost;//
@@ -157,7 +157,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 		rdtscll(t);
 
 		val = (int)(t & (TOTAL_AMNT-1));
-		if (val <= l_to_r) {
+		if (val < 32) {//val <= l_to_r) {
 			exe_time_left = calll_left(exe_time_left, initial_exe_t );
 		} else {
 			exe_time_left = callr_right(exe_time_left, initial_exe_t );
