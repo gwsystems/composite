@@ -145,19 +145,19 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 		kkk = 0;
 
 		/* for (i=0;i<spin;i++) kkk++;   */
-		unsigned long ss = initial_exe_t / 10 / 6;
-		for (i=0; i<ss; i++) kkk++;
-		has_run = ss * 6;//loop_cost;//
+		/* unsigned long ss = initial_exe_t / 10 / 6; */
+		/* for (i=0; i<ss; i++) kkk++; */
+		/* has_run = ss * 6;//loop_cost;// */
 
-		if (has_run > exe_time_left) {
-			return 0;
-		}
-		exe_time_left -= has_run;
+		/* if (has_run > exe_time_left) { */
+		/* 	return 0; */
+		/* } */
+		/* exe_time_left -= has_run; */
 //		printc("thd %d, has_run %lu, left: %lu!\n", cos_get_thd_id(),loop_cost, exe_time_left);
 		rdtscll(t);
 
 		val = (int)(t & (TOTAL_AMNT-1));
-		if (val < 32) {//val <= l_to_r) {
+		if (0) {//val <= l_to_r) {
 			exe_time_left = calll_left(exe_time_left, initial_exe_t );
 		} else {
 			exe_time_left = callr_right(exe_time_left, initial_exe_t );

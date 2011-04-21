@@ -641,6 +641,19 @@ stkmgr_spd_remove_stacks(spdid_t spdid, unsigned int n_stks)
 	if (n_stks) stkmgr_spd_mark_relinquish(spdid);
 }
 
+static u32_t
+resolve_stk_dependency(struct spd_stk_info *ssi, int skip_stk)
+{
+	struct cos_stk_item *stk_item;
+
+	for(stk_item = FIRST_LIST(&ssi->stk_list, next, prev);
+	    stk_item != &ssi->stk_list && skip_stk > 0; 
+	    stk_item = FIRST_LIST(stk_item, next, prev), skip_stk--) ;
+
+	if (stk_item == &ssi->stk_list) return 0;
+	return stk_item->stk->thdid_owner;
+}
+
 /**
  * Asks for a stack back from all of the components.  Will release and
  * take the lock.
@@ -649,6 +662,7 @@ static void
 stkmgr_wait_for_stack(struct spd_stk_info *ssi)
 {
 	struct blocked_thd *bthd;
+	int i = 0, ret;
 
 	DOUT("stkmgr_request_stack\n");
 	stkmgr_spd_mark_relinquish(ssi->spdid);
@@ -663,12 +677,29 @@ stkmgr_wait_for_stack(struct spd_stk_info *ssi)
 	ADD_LIST(&ssi->bthd_list, bthd, next, prev);
 	ssi->num_blocked_thds++;
 
-	RELEASE();
+	do {
+		int dep_thd;
 
-	DOUT("Blocking thread: %d\n", bthd->thd_id);
-	/* FIXME: dependencies */
-	sched_block(cos_spd_id(), 0);
-	TAKE(); 
+		dep_thd = resolve_stk_dependency(ssi, i++);
+		RELEASE();
+		
+		DOUT("Blocking thread: %d\n", bthd->thd_id);
+		/* 
+		 * FIXME: We really need to pass multiple arguments to
+		 * the sched_block function.  We want sched block to
+		 * choose any one of the threads that is not blocked
+		 * as a dependency.  As it stands now, if we are
+		 * preempted between the RELEASE and the TAKE, the
+		 * stack list can change, giving us inconsistent
+		 * results iff we are preempted and the list changes.
+		 * Passing multiple arguments to sched_block (i.e. all
+		 * threads that have stacks in the component) will
+		 * make this algorithm correct, but we want cbuf/idl
+		 * support to implement that.
+		 */
+		ret = sched_block(cos_spd_id(), dep_thd);
+		TAKE(); 
+	} while (ret < 0);
 	DOUT("Thd %d wokeup and is obtaining a stack\n", cos_get_thd_id());
 
 	return;

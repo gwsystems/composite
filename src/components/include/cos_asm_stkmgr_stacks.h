@@ -29,7 +29,11 @@
 1:                                              \
 	/* now we have the stack */		\
         movl  %eax, %esp;                       \
-        addl  $4, %esp;                         \
+        addl  $8, %esp;                         \
+						\
+	movl $THD_ID_SHARED_PAGE, %edx;         \
+        movl (%edx), %edx;                      \
+	pushl %edx;	 			\
         pushl $0x01;    /* flags */             \
         pushl $0xFACE;  /* next */              
 

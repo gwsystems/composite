@@ -23,7 +23,7 @@
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
 #define ALGORITHM 1
  
-#define THD_POOL 1
+#define THD_POOL 55
 
 #define POLICY_PERIODICITY 100
 
@@ -123,10 +123,10 @@ gather_data()
 			   tc->tot_time_blocked >>= 1; */
 			assert(tc->avg_time_blocked != (unsigned long)-1 && tc->stack_misses >= 0);
 			
-			/* if (tc->stack_misses) { */
-			/*  	printc("\tStack info for %d: time blocked %ld, misses %d\n", */
-			/*  	       tc->c->spdid, tc->avg_time_blocked, tc->stack_misses); */
-			/* } */
+			if (tc->stack_misses) {
+			 	printc("\tStack info for %d: time blocked %ld, misses %d\n",
+			 	       tc->c->spdid, tc->avg_time_blocked, tc->stack_misses);
+			}
 			
 		}
 	}
@@ -698,7 +698,10 @@ init_thdpool_max_policy(void)
 	for (c = FIRST_LIST(&components, next, prev) ; 
 	     c != &components ;
 	     c = FIRST_LIST(c, next, prev)) {
-		stkmgr_set_concurrency(c->spdid, 100, 1);
+		switch (c->spdid) {
+		case 11:  stkmgr_set_concurrency(c->spdid, 10, 0); break;
+		default:  stkmgr_set_concurrency(c->spdid, 2, 0);
+		}
 	}
 }
 
@@ -710,8 +713,12 @@ thdpool_max_policy(void)
 	for (c = FIRST_LIST(&components, next, prev) ; 
 	     c != &components ;
 	     c = FIRST_LIST(c, next, prev)) {
-		stkmgr_set_concurrency(c->spdid, 100, 1);
+		switch (c->spdid) {
+		case 11:  stkmgr_set_concurrency(c->spdid, 10, 0); break;
+		default:  stkmgr_set_concurrency(c->spdid, 2, 0);
+		}
 	}
+	
 }
 
 void 
