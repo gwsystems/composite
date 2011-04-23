@@ -649,6 +649,7 @@ static void start_timer_thread(void)
 #ifdef LINUX_HIGHEST_PRIORITY
 			//gap assert(next_wakeup > ticks);
 #endif
+			assert(next_wakeup > ticks);
 			if (next_wakeup <= ticks) {
 				//...
 			}

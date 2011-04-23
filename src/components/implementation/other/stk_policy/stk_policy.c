@@ -23,7 +23,7 @@
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
 #define ALGORITHM 1
  
-#define THD_POOL 55
+#define THD_POOL 10
 
 #define POLICY_PERIODICITY 100
 
@@ -699,8 +699,8 @@ init_thdpool_max_policy(void)
 	     c != &components ;
 	     c = FIRST_LIST(c, next, prev)) {
 		switch (c->spdid) {
-		case 11:  stkmgr_set_concurrency(c->spdid, 10, 0); break;
-		default:  stkmgr_set_concurrency(c->spdid, 2, 0);
+		case 11:  stkmgr_set_concurrency(c->spdid, 100, 0); break;
+		default:  stkmgr_set_concurrency(c->spdid, THD_POOL, 0);
 		}
 	}
 }
@@ -714,8 +714,8 @@ thdpool_max_policy(void)
 	     c != &components ;
 	     c = FIRST_LIST(c, next, prev)) {
 		switch (c->spdid) {
-		case 11:  stkmgr_set_concurrency(c->spdid, 10, 0); break;
-		default:  stkmgr_set_concurrency(c->spdid, 2, 0);
+		case 11:  stkmgr_set_concurrency(c->spdid, 100, 0); break;
+		default:  stkmgr_set_concurrency(c->spdid, THD_POOL, 0);
 		}
 	}
 	

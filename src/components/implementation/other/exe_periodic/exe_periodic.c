@@ -18,7 +18,7 @@
 #include <timed_blk.h>
 
 int period = 100, num_invs = 1;
-int start_time = -1, duration_time = 120;
+int start_time = 0, duration_time = 120;
 
 #define US_PER_TICK 10000
 
@@ -100,8 +100,8 @@ volatile int k;
 
 void cos_init(void *arg)
 {
-	int start_time_in_ticks = -1;
-	int duration_time_in_ticks = -1;
+	int start_time_in_ticks = 0;
+	int duration_time_in_ticks = 0;
 
 	int local_period = 0;
 
@@ -122,7 +122,7 @@ void cos_init(void *arg)
 	printc("In spd %ld Thd %d, period %d ticks, execution time %d us in %lu cycles\n", cos_spd_id(),cos_get_thd_id(), local_period, exe_t, exe_cycle);
 
 	int event_thd = 0;
-	if (local_period < 0){/* Create all non-periodic tasks */
+	if (local_period <= 0){/* Create all non-periodic tasks */
 		event_thd = cos_get_thd_id();
 		/* pub_duration_time_in_ticks = duration_time_in_ticks; */
 		timed_event_block(cos_spd_id(), start_time_in_ticks);
@@ -134,7 +134,7 @@ void cos_init(void *arg)
 		int i = 0;
 		int waiting = 0;
 
-		if(start_time_in_ticks < 0)
+		if(start_time_in_ticks <= 0)
 			waiting = 50 / local_period;
 		else
 			waiting = start_time_in_ticks / local_period;
@@ -154,7 +154,7 @@ void cos_init(void *arg)
 	unsigned long exe_cyc_event_remained = 0;
 
 	while (1) {
-		if(local_period < 0){			/* used for transient non-periodic tasks only */
+		if(local_period <= 0){			/* used for transient non-periodic tasks only */
 			rdtscll(start);
 			exe_cyc_event_remained = exe_cycle;  /* refill */
 			while(1){

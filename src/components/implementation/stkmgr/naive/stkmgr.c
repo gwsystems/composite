@@ -561,7 +561,7 @@ __stkmgr_return_stack(struct spd_stk_info *ssi, struct cos_stk_item *stk_item)
 		spd_freelist_add(s_spdid, stk_item);
 		/* wake threads! */
 		spd_wake_threads(s_spdid);
-		if (!SPD_HAS_BLK_THD(ssi)) {
+		if (!SPD_HAS_BLK_THD(ssi) && ssi->num_waiting_thds == 0) {
 			/* we're under or at quota, and there are no
 			 * blocked threads, no more relinquishing! */
 			stkmgr_spd_unmark_relinquish(ssi);
