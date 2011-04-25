@@ -818,7 +818,7 @@ stkmgr_stack_report(void)
 {
 	TAKE();
 //	stkmgr_print_ci_freelist();
-	printc("available: %d,\n", stacks_allocated);
+	printc("allocated: %d,\n", stacks_allocated);
 	RELEASE();
 }
 

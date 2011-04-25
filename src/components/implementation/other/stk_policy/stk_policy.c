@@ -23,7 +23,7 @@
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
 #define ALGORITHM 1
  
-#define THD_POOL 10
+//#define THD_POOL 100
 
 #define POLICY_PERIODICITY 100
 
@@ -123,10 +123,10 @@ gather_data()
 			   tc->tot_time_blocked >>= 1; */
 			assert(tc->avg_time_blocked != (unsigned long)-1 && tc->stack_misses >= 0);
 			
-			if (tc->stack_misses) {
-			 	printc("\tStack info for %d: time blocked %ld, misses %d\n",
-			 	       tc->c->spdid, tc->avg_time_blocked, tc->stack_misses);
-			}
+			/* if (tc->stack_misses) { */
+			/*  	printc("\tStack info for %d: time blocked %ld, misses %d\n", */
+			/*  	       tc->c->spdid, tc->avg_time_blocked, tc->stack_misses); */
+			/* } */
 			
 		}
 	}
@@ -699,8 +699,8 @@ init_thdpool_max_policy(void)
 	     c != &components ;
 	     c = FIRST_LIST(c, next, prev)) {
 		switch (c->spdid) {
-		case 11:  stkmgr_set_concurrency(c->spdid, 100, 0); break;
-		default:  stkmgr_set_concurrency(c->spdid, THD_POOL, 0);
+		case 11:  stkmgr_set_concurrency(c->spdid, 100, 1); break;
+		default:  stkmgr_set_concurrency(c->spdid, THD_POOL, 1);
 		}
 	}
 }
@@ -714,8 +714,8 @@ thdpool_max_policy(void)
 	     c != &components ;
 	     c = FIRST_LIST(c, next, prev)) {
 		switch (c->spdid) {
-		case 11:  stkmgr_set_concurrency(c->spdid, 100, 0); break;
-		default:  stkmgr_set_concurrency(c->spdid, THD_POOL, 0);
+		case 11:  stkmgr_set_concurrency(c->spdid, 100, 1); break;
+		default:  stkmgr_set_concurrency(c->spdid, THD_POOL, 1);
 		}
 	}
 	
@@ -731,11 +731,13 @@ cos_init(void *arg)
 
 	init_spds();
 #ifdef THD_POOL
+	printc("<<<Thread Pool with size %d>>>\n", THD_POOL);
 	if (THD_POOL != 1)
 		init_thdpool_max_policy();
 	else
 		init_policy();
 #else
+	printc("<<<Now using Algorithm %d>>>\n", ALGORITHM);
 	init_policy();
 #endif
 	periodic_wake_create(cos_spd_id(), POLICY_PERIODICITY);
