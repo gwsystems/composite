@@ -54,8 +54,7 @@ find_unused(void)
 		if (cells[i].map[0].owner_spd != 0) continue;
 
 		if (!cells[i].local_addr) {
-			char *hp = cos_get_heap_ptr();
-			cos_set_heap_ptr(hp + PAGE_SIZE);
+			char *hp = cos_get_vas_page();
 			if (!parent_mman_get_page(cos_spd_id(), (vaddr_t)hp, 0)) {
 				return NULL;
 			}

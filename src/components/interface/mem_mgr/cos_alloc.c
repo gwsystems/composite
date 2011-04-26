@@ -30,7 +30,7 @@
 #include <print.h>
 int alloc_debug = 0;
 #endif
-//#include <string.h>
+#include <string.h>
 
 struct free_page {
 	struct free_page *next;
@@ -42,7 +42,7 @@ extern void mman_release_page(spdid_t spd, void *addr, int flags);
 #endif
 
 #define DIE() (*((int*)0) = 1)
-#define massert(prop) do { if (!prop) DIE(); } while (0)
+#define massert(prop) do { if (!(prop)) DIE(); } while (0)
 
 /* -- HELPER CODE --------------------------------------------------------- */
 
@@ -105,7 +105,7 @@ cos_get_pages(int npages)
 			u32_t *start = &bm->page_used[0] + off/32;
 			int new_off;
 
-			off = bitmap_ls_one_offset(start, off, PAGES_PER_REGION/sizeof(u32_t));
+			off = bitmap_one_offset(start, off, PAGES_PER_REGION/sizeof(u32_t));
 			for (i = 1 ; i < npages && bitmap_check(start, off + i) ; i++) ;
 			if (i == npages) {
 				offset = off;
@@ -160,12 +160,12 @@ static inline REGPARM(1) void *do_mmap(size_t size) {
 #else 
   void *hp, *ret;
 
-  hp = cos_get_heap_ptr();
-  cos_set_heap_ptr(hp + PAGE_SIZE);
+  massert(size <= PAGE_SIZE);
+  hp = cos_get_vas_page();
 
   /* FIXME: If this doesn't return success, we should terminate */
   ret = (void*)mman_get_page(cos_spd_id(), hp, 0);
-  if (NULL == ret) cos_set_heap_ptr(hp);
+  if (NULL == ret) cos_set_heap_ptr_conditional(hp+PAGE_SIZE, hp);
 #if ALLOC_DEBUG >= ALLOC_DEBUG_ALL
   if (alloc_debug) printc("malloc in %d: mmapped region into %x", cos_spd_id(), ret);
 #endif

@@ -139,8 +139,7 @@ static int boot_spd_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		while (left) {
 			/* data left on a page to copy over */
 			page_left = (left > PAGE_SIZE) ? PAGE_SIZE : left;
-			dsrc = cos_get_heap_ptr();
-			cos_set_heap_ptr((void*)(((unsigned long)cos_get_heap_ptr()) + PAGE_SIZE));
+			dsrc = cos_get_vas_page();
 			if ((vaddr_t)dsrc != mman_get_page(cos_spd_id(), (vaddr_t)dsrc, 0)) BUG();
 
 			if (sect->flags & COBJ_SECT_ZEROS) {

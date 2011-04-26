@@ -24,10 +24,7 @@ map_stack(spdid_t spdid, vaddr_t extern_stk)
 	static unsigned long *stack = 0;
 	vaddr_t extern_addr;
 	
-	if (!stack) {
-		stack = cos_get_heap_ptr();
-		cos_set_heap_ptr(((char *)stack) + PAGE_SIZE);
-	}
+	if (!stack) stack = cos_get_vas_page();
 	extern_addr = round_to_page(extern_stk);
 
 	if (stkmgr_stack_introspect(cos_spd_id(), (vaddr_t)stack, spdid, extern_addr)) BUG();

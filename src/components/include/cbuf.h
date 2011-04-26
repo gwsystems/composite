@@ -91,10 +91,10 @@ extern cos_vect_t slab_descs;
  * 12 - 6 = 6 thus
  * max obj size = 2^6 = 64
  */
-#define N_CBUF_SMALL_SLABS 6
+#define N_CBUF_SMALL_SLABS 6 	/* <= PAGE_SIZE */
 #define N_CBUF_LARGE_SLABS 10
 #define N_CBUF_SLABS (N_CBUF_LARGE_SLABS + N_CBUF_SMALL_SLABS)
-#define CBUF_MIN_SLAB_ORDER 6
+#define CBUF_MIN_SLAB_ORDER 6 	/* minimum slab size = 2^6 = 64 */
 #define CBUF_MIN_SLAB (1<<CBUF_MIN_SLAB_ORDER)
 
 #define SLAB_MAX_OBJS (PAGE_SIZE/CBUF_MIN_SLAB)
@@ -137,11 +137,18 @@ typedef enum {
 	CBUFM_GRANT = 1<<2
 } cbufm_flags_t;
 
+/* 
+ * This data-structure is shared between this component and the cbuf_c
+ * (the cbuf manager) and the refcnt is used to gauge if the cbuf is
+ * actually in use.  The cbuf_c can garbage collect it if not (TODO).
+ */
 union cbuf_meta {
 	u32_t v;        		/* value */
 	struct {
-		u32_t ptr:20, obj_sz:6; /* page pointer, and */
-                                        /* object size in page/order of large allocation */
+		u32_t ptr:20, obj_sz:6; /* page pointer, and ... */
+		/* the object size is the size of the object if it is
+		 * <= the size of a page, OR the _order_ of the number
+		 * of pages in the object, if it is > PAGE_SIZE */
 	        cbufm_flags_t flags:5;
 		int refcnt:1;
 	} __attribute__((packed)) c;	/* composite type */
@@ -170,6 +177,7 @@ cbuf2buf(cbuf_t cb, int len)
 again:				/* avoid convoluted conditions */
 	cm.v = (u32_t)cos_vect_lookup(&meta_cbuf, id);
 	if (unlikely(cm.v == 0)) {
+		/* slow path */
 		if (cbuf_cache_miss(id, idx, len)) return NULL;
 		goto again;
 	}
@@ -183,7 +191,7 @@ again:				/* avoid convoluted conditions */
 		if (unlikely(len > obj_sz)) return NULL;
 	}
 
-	return ((char*)(cm.c.ptr << 12)) + off;
+	return ((char*)(cm.c.ptr << PAGE_ORDER)) + off;
 }
 
 #define SLAB_BITMAP_SIZE (SLAB_MAX_OBJS/32)
@@ -282,7 +290,7 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 
 	if (s->obj_sz <= PAGE_SIZE) {
 		bm  = &s->bitmap[0];
-		idx = bitmap_ls_one(bm, SLAB_BITMAP_SIZE);
+		idx = bitmap_one(bm, SLAB_BITMAP_SIZE);
 		assert(idx > -1 && idx < SLAB_MAX_OBJS);
 		bitmap_unset(bm, idx);
 	}

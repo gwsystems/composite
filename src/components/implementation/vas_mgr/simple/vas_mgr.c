@@ -103,9 +103,8 @@ done:
 
 void vas_mgr_contract(spdid_t spd, vaddr_t addr)
 {
-	LOCK();
-
-	UNLOCK();
+	/* notsup */
+	BUG();
 }
 
 static void init(void)
@@ -129,9 +128,4 @@ void cos_init(void *arg)
 	} else {
 		prints("vas_mgr: not expecting more than one bootstrap.");
 	}
-}
-
-void bin(void)
-{
-	sched_block(cos_spd_id(), 0);
 }

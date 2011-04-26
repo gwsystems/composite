@@ -302,11 +302,11 @@ cos_init(void *arg){
 	stacks_allocated = 0;
 
 	// Map all of the spds we can into this component
-	void *hp = cos_get_heap_ptr();
 	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
 		spdid_t spdid;
+		void *hp;
 
-		cos_set_heap_ptr((void*)(((unsigned long)hp)+PAGE_SIZE));
+		hp = cos_get_vas_page();
 		spdid = cinfo_get_spdid(i);
 		if (!spdid) break;
 
@@ -321,8 +321,6 @@ cos_init(void *arg){
 		     (unsigned int)spd_stk_info_list[spdid].ci->cos_heap_ptr,
 		     (unsigned int)spd_stk_info_list[spdid].ci->cos_stacks.freelists[0].freelist);
     
-		hp = cos_get_heap_ptr();
-
 		stacks_target += DEFAULT_TARGET_ALLOC;
 		spd_stk_info_list[spdid].num_allocated = 0;
 		spd_stk_info_list[spdid].num_desired = DEFAULT_TARGET_ALLOC;
@@ -687,6 +685,7 @@ get_cos_info_page(spdid_t spdid)
 	spdid_t s;
 	int i;
 	int found = 0;
+	void *hp;
 
 	if(spdid > MAX_NUM_SPDS){
 		BUG(); 
@@ -709,9 +708,7 @@ get_cos_info_page(spdid_t spdid)
 		BUG();
 	}
     
-	void *hp = cos_get_heap_ptr();
-	cos_set_heap_ptr((void*)(((unsigned long)hp)+PAGE_SIZE));
-
+	hp = cos_get_vas_page();
 	if(cinfo_map(cos_spd_id(), (vaddr_t)hp, s)){
 		DOUT("Could not map cinfo page for %d\n", spdid);
 		BUG();

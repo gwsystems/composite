@@ -36,15 +36,12 @@ cbuf_cache_miss(int cbid, int idx, int len)
 	union cbuf_meta mc;
 	char *h;
 
-	/* FIXME: race race race */
-	h = cos_get_heap_ptr();
-	cos_set_heap_ptr(h + PAGE_SIZE);
+	h = cos_get_vas_page();
 	mc.c.ptr    = (long)h >> PAGE_ORDER;
 	mc.c.obj_sz = len;
 	if (cbuf_c_retrieve(cos_spd_id(), cbid, len, h)) {
 		/* do dumb test for race... */
-		assert(cos_get_heap_ptr() == h + PAGE_SIZE);
-		cos_set_heap_ptr(h);
+		cos_set_heap_ptr_conditional(h + PAGE_SIZE, h);
 		/* Illegal cbid or length!  Bomb out. */
 		return -1;
 	}
