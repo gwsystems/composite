@@ -804,9 +804,9 @@ error:
 static void fp_pre_block(struct sched_thd *thd)
 {
 	/* A blocked thread can't block... */
-	assert(thd->wake_cnt > 0);
+	//assert(thd->wake_cnt > 0);
 	assert(thd->wake_cnt <= 2);
-	thd->wake_cnt--;
+	if (thd->wake_cnt) thd->wake_cnt--;
 	thd->block_time = ticks;
 }
 

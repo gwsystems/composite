@@ -144,7 +144,7 @@ void stkmgr_reset_stats(struct spd_stk_info *ssi)
 struct cos_stk_item all_stk_list[MAX_NUM_STACKS];
 // Holds all currently free stacks
 struct cos_stk_item *free_stack_list = NULL;
-int stacks_allocated, stacks_target;
+int stacks_allocated, stacks_target, empty_comps;
 
 static inline int
 freelist_add(struct cos_stk_item *csi)
@@ -327,8 +327,9 @@ cos_init(void *arg){
 		spd_stk_info_list[spdid].num_desired = DEFAULT_TARGET_ALLOC;
 		spd_stk_info_list[spdid].num_blocked_thds = 0;
 		spd_stk_info_list[spdid].num_waiting_thds = 0;
+		empty_comps++;
 	}
-	
+
 	DOUT("Done mapping components information pages!\n");
 	DOUT("<stkmgr>: init finished\n");
 	return;
@@ -430,6 +431,7 @@ stkmgr_stk_remove_from_spd(struct cos_stk_item *stk_item, struct spd_stk_info *s
 	// remove from s_spdid's stk_list;
 	REM_LIST(stk_item, next, prev);
 	ssi->num_allocated--;
+	if(ssi->num_allocated == 0) empty_comps++;
 	assert(ssi->num_allocated == stkmgr_num_alloc_stks(s_spdid));
 
 	return 0;
@@ -467,6 +469,7 @@ stkmgr_stk_add_to_spd(struct cos_stk_item *stk_item, struct spd_stk_info *info)
 //	DOUT("Adding to local spdid stk list\n");
 	ADD_LIST(&info->stk_list, stk_item, next, prev); 
 	info->num_allocated++;
+	if(info->num_allocated == 1) empty_comps--;
 	assert(info->num_allocated == stkmgr_num_alloc_stks(info->spdid));
 
 	return ret;
@@ -788,11 +791,16 @@ stkmgr_grant_stack(spdid_t d_spdid)
 	 * stacks?  Otherwise block!
 	 */
 	while (NULL == (stk_item = spd_freelist_remove(d_spdid))) {
-		if (info->num_allocated < info->num_desired &&
-		    NULL != (stk_item = freelist_remove())) {
-			stkmgr_stk_add_to_spd(stk_item, info);
-			break;
+		if((empty_comps < (MAX_NUM_STACKS - stacks_allocated)) || info->num_allocated == 0) {
+			if (info->num_allocated < info->num_desired && 
+			    NULL != (stk_item = freelist_remove())) {
+				stkmgr_stk_add_to_spd(stk_item, info);
+				break;
+			}
 		}
+		/* if(empty_comps <= (MAX_NUM_STACKS - stacks_allocated)) { */
+		/* 	printc("we ensure one per comp! curr %d, num :%d, and empty comps:%d\n",d_spdid,info->num_allocated, empty_comps); */
+		/* } */
 		if (!meas) {
 			meas = 1;
 			stkmgr_update_stats_block(info, cos_get_thd_id());

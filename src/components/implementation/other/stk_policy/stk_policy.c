@@ -21,11 +21,11 @@
 #include <heap.h>
 
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
-#define ALGORITHM 1
+#define ALGORITHM 2
  
 //#define THD_POOL 100
 
-#define POLICY_PERIODICITY 100
+#define POLICY_PERIODICITY 25
 
 /* data-structures */
 
@@ -69,7 +69,7 @@ int available = MAX_NUM_STACKS;
 long largest_tardiness;
 
 static void 
-gather_data()
+gather_data(int counter)
 {
 	struct thd *titer;
 	struct component *citer;
@@ -90,7 +90,7 @@ gather_data()
 		       "%ld lateness, %ld miss lateness.\n", 
 		       tid, ts->period, ts->priority, ts->deadlines, 
 		       ts->misses, ts->lateness, ts->miss_lateness); */
-		printc("Thread DLM%d, %ld miss\n", ts->misses, ts->miss_lateness);
+		if (counter == 0) printc("Thread DLM%d, %ld miss\n", ts->misses, ts->miss_lateness);
 		/* } else {
 		   ts->misses += periodic_wake_get_misses(tid) + 1;
 		   ts->deadlines += periodic_wake_get_deadlines(tid) + 1;
@@ -123,10 +123,10 @@ gather_data()
 			   tc->tot_time_blocked >>= 1; */
 			assert(tc->avg_time_blocked != (unsigned long)-1 && tc->stack_misses >= 0);
 			
-			/* if (tc->stack_misses) { */
-			/*  	printc("\tStack info for %d: time blocked %ld, misses %d\n", */
-			/*  	       tc->c->spdid, tc->avg_time_blocked, tc->stack_misses); */
-			/* } */
+			if (counter == 0 && tc->stack_misses) {
+			 	printc("\tStack info for %d: time blocked %ld, misses %d\n",
+			 	       tc->c->spdid, tc->avg_time_blocked, tc->stack_misses);
+			}
 			
 		}
 	}
@@ -545,7 +545,7 @@ policy(void)
 	struct component * c_add, * c_get;
 
 	//printc("Policy Start!\n");
-	stkmgr_stack_report(); /* report stack usage */
+
 	/* collect_spare_stacks(); don't collect if not necessary */
 	calc_improvement();
 	int count = 0, collected = 0;
@@ -663,44 +663,27 @@ static void
 init_policy(void)
 {
 	struct component *c;
-	int tempsetting = 20;
 	for (c = FIRST_LIST(&components, next, prev) ; 
 	     c != &components ;
 	     c = FIRST_LIST(c, next, prev)) {
 		switch (c->spdid) {
-		case 11:  stkmgr_set_concurrency(c->spdid, tempsetting, 1); c->allocated = c->concur_new = tempsetting; available -= tempsetting ;break;
+		case 11:  stkmgr_set_concurrency(c->spdid, MAX_NUM_STACKS, 1); c->allocated = c->concur_new = MAX_NUM_STACKS; available -= MAX_NUM_STACKS ;break;
 		default:  stkmgr_set_concurrency(c->spdid, 1, 1); c->allocated = c->concur_new = 1; available -= 1;
 		}
 	}
 }
 
+#ifdef THD_POOL
 static void
 thdpool_1_policy(void)
 {
-	stkmgr_stack_report();  /* report stacks usage */
-	struct component *c;
-	int tempsetting = 100;
-	for (c = FIRST_LIST(&components, next, prev) ; 
-	     c != &components ;
-	     c = FIRST_LIST(c, next, prev)) {
-		switch (c->spdid) {
-		case 11:  stkmgr_set_concurrency(c->spdid, tempsetting, 0); break;
- 		default:  stkmgr_set_concurrency(c->spdid, 1, 0);
-		}
-	}
-}
-
-static void
-init_thdpool_max_policy(void)
-{
-	 /* no report when init */
 	struct component *c;
 	for (c = FIRST_LIST(&components, next, prev) ; 
 	     c != &components ;
 	     c = FIRST_LIST(c, next, prev)) {
 		switch (c->spdid) {
-		case 11:  stkmgr_set_concurrency(c->spdid, 100, 1); break;
-		default:  stkmgr_set_concurrency(c->spdid, THD_POOL, 1);
+		case 11:  stkmgr_set_concurrency(c->spdid, MAX_NUM_STACKS, 0); break;
+ 		default:  stkmgr_set_concurrency(c->spdid, 1, 0); /* 0 means pool 1 doesn't revoke stacks! */
 		}
 	}
 }
@@ -708,18 +691,18 @@ init_thdpool_max_policy(void)
 static void
 thdpool_max_policy(void)
 {
-	stkmgr_stack_report(); /* report stacks usage */
 	struct component *c;
 	for (c = FIRST_LIST(&components, next, prev) ; 
 	     c != &components ;
 	     c = FIRST_LIST(c, next, prev)) {
 		switch (c->spdid) {
-		case 11:  stkmgr_set_concurrency(c->spdid, 100, 1); break;
+		case 11:  stkmgr_set_concurrency(c->spdid, MAX_NUM_STACKS, 0); break; /* don't touch time event component for now...*/
 		default:  stkmgr_set_concurrency(c->spdid, THD_POOL, 1);
 		}
 	}
 	
 }
+#endif
 
 void 
 cos_init(void *arg)
@@ -731,34 +714,38 @@ cos_init(void *arg)
 
 	init_spds();
 #ifdef THD_POOL
-	printc("<<<Thread Pool with size %d>>>\n", THD_POOL);
+	printc("<<<Thd Pool with total %d stacks, component size %d>>>\n", MAX_NUM_STACKS, THD_POOL);
 	if (THD_POOL != 1)
-		init_thdpool_max_policy();
+		thdpool_max_policy();
 	else
-		init_policy();
+		thdpool_1_policy();
 #else
-	printc("<<<Now using Algorithm %d>>>\n", ALGORITHM);
+	printc("<<<Now using Algorithm %d, total number of stacks:%d >>>\n", ALGORITHM, MAX_NUM_STACKS);
 	init_policy();
 #endif
 	periodic_wake_create(cos_spd_id(), POLICY_PERIODICITY);
 
-	int i = 0, waiting = 100 / POLICY_PERIODICITY;
+	int i = 0, waiting = 100 / POLICY_PERIODICITY, counter = 0, report_period = 100 / POLICY_PERIODICITY;
 	do { 
 		periodic_wake_wait(cos_spd_id());
 	} while (i++ < waiting);
 
 	init_thds();
-
+	unsigned long long s,e;
 	while (1) {
-		gather_data();
-		/* stkmgr_stack_report(); */
+		gather_data(counter % report_period);
+		if (counter++ % report_period == 0) stkmgr_stack_report(); /* report stacks usage */
+		
 #ifdef THD_POOL
 		if (THD_POOL == 1)
 			thdpool_1_policy();
 		else
 			thdpool_max_policy();
 #else
+		rdtscll(s);
 		policy();
+		rdtscll(e);
+		printc("SP:%llu cycles\n",e-s);
 #endif
 		periodic_wake_wait(cos_spd_id());
 	}

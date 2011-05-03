@@ -156,11 +156,11 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 			return 0;
 		}
 		exe_time_left -= has_run;
-//		printc("thd %d, has_run %lu, left: %lu!\n", cos_get_thd_id(),loop_cost, exe_time_left);
+                //printc("thd %d, has_run %lu, left: %lu!\n", cos_get_thd_id(),loop_cost, exe_time_left);
 		rdtscll(t);
 
 		val = (int)(t & (TOTAL_AMNT-1));
-		if (val < 32) { //l_to_r) {
+		if (val >= l_to_r) {
 			exe_time_left = calll_left(exe_time_left, initial_exe_t );
 		} else {
 			exe_time_left = callr_right(exe_time_left, initial_exe_t );

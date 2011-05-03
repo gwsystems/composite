@@ -147,7 +147,6 @@ void cos_init(void *arg)
 
 /* Let all tasks run */
 	unsigned long exe_cyc_remained = 0;
-	u64_t start,end;
 
 	int refill_number = 0;
 
@@ -155,13 +154,12 @@ void cos_init(void *arg)
 
 	while (1) {
 		if(local_period <= 0){			/* used for transient non-periodic tasks only */
-			rdtscll(start);
 			exe_cyc_event_remained = exe_cycle;  /* refill */
-			while(1){
+			while(1) {
 				exe_cyc_event_remained = exe_cycle;  /* refill */
 				exe_cyc_event_remained = left(exe_cyc_event_remained,exe_cycle);
-				rdtscll(end);
-				if ((end-start) > (u64_t)duration_time_in_ticks*cyc_per_tick) return;
+				unsigned long t = sched_timestamp();
+				if ( t > (start_time_in_ticks + duration_time_in_ticks)) timed_event_block(cos_spd_id(), 10000);
 					/* printc("time elapsed is %llu  cyccs and duration ticks is %d, cyc_per_tick is %lu\n", (end-start), duration_time_in_ticks, cyc_per_tick); */
 			}
 		}
