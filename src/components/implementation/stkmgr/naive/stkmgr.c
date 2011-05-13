@@ -87,6 +87,7 @@ struct spd_stk_info {
 	unsigned int num_allocated, num_desired;
 	unsigned int num_blocked_thds,num_waiting_thds;
 
+	unsigned int ss_counter; /* Self-suspension counter */
 	/* Measurements */
 	unsigned int nthd_blks[MAX_NUM_THREADS];
 	u64_t        thd_blk_start[MAX_NUM_THREADS];
@@ -104,8 +105,8 @@ stkmgr_update_stats_block(struct spd_stk_info *ssi, unsigned short int tid)
 	u64_t start;
 	int blked = ssi->num_blocked_thds + 1; /* +1 for us */
 
-	/* printc("************** dude, %d blocked my car in %d (nblocked %d) *****************\n",   */
-	/*         tid, ssi->spdid, blked);  */
+	/* printc("************** dude, %d blocked my car in %d (nblocked %d) *****************\n", */
+	/*         tid, ssi->spdid, blked); */
 	ssi->nthd_blks[tid]++;
 	rdtscll(start);
 	ssi->thd_blk_start[tid] = start;
@@ -118,8 +119,8 @@ stkmgr_update_stats_wakeup(struct spd_stk_info *ssi, unsigned short int tid)
 {
 	u64_t end, tot;
 
-	/* printc("************** dude, %d found my car in %d *****************\n",   */
-	/*         tid, ssi->spdid);  */
+	/* printc("************** dude, %d found my car in %d *****************\n", */
+	/*         tid, ssi->spdid); */
 	rdtscll(end);
 	tot = end - ssi->thd_blk_start[tid];
 	ssi->thd_blk_tot[tid] += tot;
@@ -164,7 +165,13 @@ freelist_remove(void)
 {
 	struct cos_stk_item *csi;
 
-	if (stacks_allocated >= stacks_target) return NULL;
+	/* Do we need to maintain global stack target? If we set a
+	 * limit to each component, can we get a global target as
+	 * well? Disable this first because it prevents
+	 * self-suspension stacks over-quota allocation, which is
+	 * necessary
+	 */
+	/* if (stacks_allocated >= stacks_target) return NULL; */
 	csi = free_stack_list;
 	if (!csi) return NULL;
 	free_stack_list = csi->free_next;
@@ -327,6 +334,7 @@ cos_init(void *arg){
 		spd_stk_info_list[spdid].num_desired = DEFAULT_TARGET_ALLOC;
 		spd_stk_info_list[spdid].num_blocked_thds = 0;
 		spd_stk_info_list[spdid].num_waiting_thds = 0;
+		spd_stk_info_list[spdid].ss_counter = 0;
 		empty_comps++;
 	}
 
@@ -381,7 +389,7 @@ void spd_wake_threads(spdid_t spdid)
 
 	ssi = get_spd_stk_info(spdid);
 	/* printc("************ waking up %d threads for spd %d ************\n", */
-	/*         ssi->num_blocked_thds, spdid);  */
+	/*         ssi->num_blocked_thds, spdid); */
 	blklist_wake_threads(&ssi->bthd_list);
 	assert(EMPTY_LIST(&ssi->bthd_list, next, prev));
 	ssi->num_blocked_thds = 0;
@@ -559,7 +567,7 @@ __stkmgr_return_stack(struct spd_stk_info *ssi, struct cos_stk_item *stk_item)
 	     cos_get_thd_id());
 
 	/* Don't move the stack if it should be here! */
-	if (ssi->num_desired >= ssi->num_allocated) {
+	if (ssi->num_desired >= ssi->num_allocated || (ssi->ss_counter && ssi->num_waiting_thds)) {
 		/* restore in component's freelist */
 		spd_freelist_add(s_spdid, stk_item);
 		/* wake threads! */
@@ -667,6 +675,7 @@ stkmgr_wait_for_stack(struct spd_stk_info *ssi)
 	struct blocked_thd *bthd;
 	int i = 0, ret;
 
+	int old_ss_counter = ssi->ss_counter;
 	DOUT("stkmgr_request_stack\n");
 	stkmgr_spd_mark_relinquish(ssi->spdid);
 
@@ -682,9 +691,23 @@ stkmgr_wait_for_stack(struct spd_stk_info *ssi)
 
 	do {
 		int dep_thd;
-
 		dep_thd = resolve_stk_dependency(ssi, i++);
-		RELEASE();
+		if (dep_thd == 0) {
+			assert(ssi->num_allocated > 0);
+			ssi->ss_counter++;
+			//assert(ssi->ss_counter < 10);
+			printc("self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n",
+			       ssi->ss_counter,ssi->spdid, cos_get_thd_id(), ssi->num_waiting_thds, ssi->num_desired, ssi->num_allocated);
+
+			/* if we just found a "new" self-suspension component,
+			 * we should return and try again to see if we can get
+			 * a stack now due to self-suspension privilege
+			 */
+			if (old_ss_counter == 0) {
+				spd_wake_threads(ssi->spdid);
+				return;
+			}
+		}
 		
 		DOUT("Blocking thread: %d\n", bthd->thd_id);
 		/* 
@@ -700,14 +723,23 @@ stkmgr_wait_for_stack(struct spd_stk_info *ssi)
 		 * make this algorithm correct, but we want cbuf/idl
 		 * support to implement that.
 		 */
+
+		RELEASE();
 		ret = sched_block(cos_spd_id(), dep_thd);
 		TAKE(); 
+
 	} while (ret < 0);
 	DOUT("Thd %d wokeup and is obtaining a stack\n", cos_get_thd_id());
 
 	return;
 }
 
+int
+stkmgr_detect_self_suspension(spdid_t spdid)
+{
+	struct spd_stk_info * ssi = get_spd_stk_info(spdid);
+	return ssi->ss_counter;
+}
 
 /**
  * maps the compoenents spdid info page on startup
@@ -786,21 +818,20 @@ stkmgr_grant_stack(spdid_t d_spdid)
 
 	info->num_waiting_thds++;
 	/* 
-	 * Is there a stack in the local freelist?  If not, is there
-	 * one is the global freelist and we are under quota on
-	 * stacks?  Otherwise block!
+	 * Is there a stack in the local freelist? If not, is there
+	 * one in the global freelist and there are enough stacks for
+	 * the empty components, and we are under quota on stacks or
+	 * the destination component is self-suspension? Otherwise
+	 * block!
 	 */
+
 	while (NULL == (stk_item = spd_freelist_remove(d_spdid))) {
-		if((empty_comps < (MAX_NUM_STACKS - stacks_allocated)) || info->num_allocated == 0) {
-			if (info->num_allocated < info->num_desired && 
-			    NULL != (stk_item = freelist_remove())) {
-				stkmgr_stk_add_to_spd(stk_item, info);
-				break;
-			}
+		if (((empty_comps < (MAX_NUM_STACKS - stacks_allocated)) || info->num_allocated == 0)
+		   && (info->num_allocated < info->num_desired || info->ss_counter > 0)
+		       && NULL != (stk_item = freelist_remove())) {
+			stkmgr_stk_add_to_spd(stk_item, info);
+			break;
 		}
-		/* if(empty_comps <= (MAX_NUM_STACKS - stacks_allocated)) { */
-		/* 	printc("we ensure one per comp! curr %d, num :%d, and empty comps:%d\n",d_spdid,info->num_allocated, empty_comps); */
-		/* } */
 		if (!meas) {
 			meas = 1;
 			stkmgr_update_stats_block(info, cos_get_thd_id());
@@ -903,9 +934,9 @@ stkmgr_spd_concurrency_estimate(spdid_t spdid)
 	} else {
 		unsigned int blk_hist;
 
-		if (cnt) blk_hist = (tot/cnt) + !(tot%cnt == 0); /* adjust for rounding */
+		if (cnt && ssi->ss_counter == 0) blk_hist = (tot/cnt) + !(tot%cnt == 0); /* adjust for rounding */
 		else     blk_hist = 0;
-		
+
 		avg = ssi->num_allocated + (blk_hist > ssi->num_waiting_thds ? 
 					    blk_hist : ssi->num_waiting_thds); 
 	}
@@ -940,7 +971,7 @@ stkmgr_thd_blk_time(unsigned short int tid, spdid_t spdid, int reset)
 		ssi->nthd_blks[tid] = 0;
 	}
 	RELEASE();
-	
+
 	return (a >> 20) + ! ((a & 1048575) == 0);/* right shift 20 bits and round up, 2^20 - 1 = 1048575 */
 }
 

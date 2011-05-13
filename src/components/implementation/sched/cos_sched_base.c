@@ -804,9 +804,9 @@ error:
 static void fp_pre_block(struct sched_thd *thd)
 {
 	/* A blocked thread can't block... */
-	//assert(thd->wake_cnt > 0);
+	assert(thd->wake_cnt > 0);
 	assert(thd->wake_cnt <= 2);
-	if (thd->wake_cnt) thd->wake_cnt--;
+	thd->wake_cnt--;
 	thd->block_time = ticks;
 }
 
@@ -918,6 +918,8 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 			 * inheritance with a blocked thread.
 			 */
 			if (unlikely(sched_thd_dependent(thd))) {
+				printc("Cos_sched_base: Self-suspension thd %d, dep: %d\n",cos_get_thd_id(),dependency_thd);
+				fp_pre_wakeup(thd);
 				thd->flags &= ~THD_DEPENDENCY;
 				thd->dependency_thd = NULL;
 				report_event(DEPENDENCY_BLOCKED_THD);
