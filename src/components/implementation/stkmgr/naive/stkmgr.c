@@ -696,15 +696,26 @@ stkmgr_wait_for_stack(struct spd_stk_info *ssi)
 			assert(ssi->num_allocated > 0);
 			ssi->ss_counter++;
 			//assert(ssi->ss_counter < 10);
-			printc("self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n",
-			       ssi->ss_counter,ssi->spdid, cos_get_thd_id(), ssi->num_waiting_thds, ssi->num_desired, ssi->num_allocated);
+			if (ssi->ss_counter > 1)
+				printc("No enough stacks for self-suspension component!(cnt:%d) comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n",
+				       ssi->ss_counter,ssi->spdid, cos_get_thd_id(), ssi->num_waiting_thds, ssi->num_desired, ssi->num_allocated);
+			else
+				printc("Self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n",
+				       ssi->ss_counter,ssi->spdid, cos_get_thd_id(), ssi->num_waiting_thds, ssi->num_desired, ssi->num_allocated);
 
-			/* if we just found a "new" self-suspension component,
-			 * we should return and try again to see if we can get
-			 * a stack now due to self-suspension privilege
+			/* if we just found a "new" self-suspension
+			 * component, we should return and try again
+			 * to see if we can get a stack now due to
+			 * self-suspension privilege. Remove from the
+			 * block list before return.
 			 */
 			if (old_ss_counter == 0) {
-				spd_wake_threads(ssi->spdid);
+				printc("New self-suspension component:%d found. By thd %d.\n",ssi->spdid,cos_get_thd_id());
+				bthd = FIRST_LIST(&ssi->bthd_list, next, prev);
+				assert(bthd->thd_id == cos_get_thd_id());
+				REM_LIST(bthd, next, prev);
+				free(bthd);
+				ssi->num_blocked_thds--;
 				return;
 			}
 		}

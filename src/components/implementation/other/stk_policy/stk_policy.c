@@ -21,7 +21,7 @@
 #include <heap.h>
 
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
-#define ALGORITHM 2
+#define ALGORITHM 1
  
 //#define THD_POOL 100
 
