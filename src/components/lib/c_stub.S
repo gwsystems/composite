@@ -42,5 +42,11 @@ SS_ipc_client_ret_unmarshal:
 	
 	ret
 SS_ipc_client_ret_fatal_err:	
+	popl %edx
+	popl %edi
+	popl %esi
+	popl %ebx
+	popl %ebp
+	
 	movl $-0xDEAD, %eax
 	ret
