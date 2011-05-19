@@ -1,6 +1,6 @@
-#define RET_CAP ((1<<20)-1)
+#define RET_CAP  ((1<<20)-1)
 #define IPRETURN 4
-#define CAPNUM 12
+#define CAPNUM   12
 
 .globl SS_ipc_client_marshal_args
 .type  SS_ipc_client_marshal_args, @function
@@ -28,9 +28,11 @@ SS_ipc_client_marshal_args:
 	movl $SS_ipc_client_ret_unmarshal, %ecx /* save the return ip */
 
 	sysenter 
-			
+
+.align 8
+	jmp SS_ipc_client_ret_fatal_err
 .globl SS_ipc_client_ret_unmarshal
-.align 4
+.align 8
 SS_ipc_client_ret_unmarshal:
 	popl %edx
 	popl %edi
@@ -39,4 +41,6 @@ SS_ipc_client_ret_unmarshal:
 	popl %ebp
 	
 	ret
-
+SS_ipc_client_ret_fatal_err:	
+	movl $-0xDEAD, %eax
+	ret
