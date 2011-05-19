@@ -2,7 +2,7 @@ C_OBJS=deferrable.o
 ASM_OBJS=
 COMPONENT=ds.o
 INTERFACES=sched
-DEPENDENCIES=printc mem_mgr stack_trace sched_conf
+DEPENDENCIES=printc sched_conf
 IF_LIB=../complib.o
 
 include Makefile.subsubdir

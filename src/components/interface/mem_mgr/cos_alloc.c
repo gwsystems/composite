@@ -18,6 +18,8 @@
  *   let the kernel map all the stuff (if there is something to do)
  */
 
+#include <mem_mgr_config.h>
+
 //#define UNIX_TEST
 #ifdef UNIX_TEST
 #define PAGE_SIZE 4096
@@ -31,6 +33,10 @@
 int alloc_debug = 0;
 #endif
 #include <string.h>
+
+#ifdef USE_VALLOC
+#include "../valloc/valloc.h"
+#endif
 
 struct free_page {
 	struct free_page *next;
@@ -63,7 +69,7 @@ typedef struct {
 #define BLOCK_RET(b)	(((void*)(b))+sizeof(__alloc_t))
 
 #define MEM_BLOCK_SIZE	PAGE_SIZE
-#define PAGE_ALIGN(s)	(((s)+MEM_BLOCK_SIZE-1)&(unsigned long)(~(MEM_BLOCK_SIZE-1)))
+#define PAGE_ALIGN(s)	round_up_to_page(s)
 
 #ifdef NIL
 #define REGPARM(x) __attribute__((regparm(x)))
@@ -71,118 +77,66 @@ typedef struct {
 #define REGPARM(x)
 #endif
 
-#define NVAS_REGIONS PGD_PER_PTBL
-#define PAGES_PER_REGION (PGD_RANGE/PAGE_SIZE)
-
-#ifdef NIL
-struct pages_bitmap {
-	struct pages_bitmap *next;
-	void *start_addr;
-	int nregions;
-	/* number of used pages */
-	int nused;
-	/* bitmap of used pages */
-	u32_t page_used[PAGES_PER_REGION/sizeof(u32_t)];
-	/* bitmap where 1 means that the page is the start of an allocation */
-	u32_t alloc_start[PAGES_PER_REGION/sizeof(u32_t)];
-};
-struct pages_bitmap __alloc_page_map;
-int vas_order = 0;
-
-static inline void *
-cos_get_pages(int npages)
-{
-	struct pages_bitmap *bm, *prev = NULL;
-	int offset;
-	vaddr_t new_addr;
-
-	for (bm = &__alloc_page_map ; bm ; prev = bm, bm = bm->next) {
-		int off = 0, i;
-
-		if (bm->nused + npages >= PAGES_PER_REGION*bm->nregions) break;
-
-		while (off < PAGES_PER_REGION) {
-			u32_t *start = &bm->page_used[0] + off/32;
-			int new_off;
-
-			off = bitmap_one_offset(start, off, PAGES_PER_REGION/sizeof(u32_t));
-			for (i = 1 ; i < npages && bitmap_check(start, off + i) ; i++) ;
-			if (i == npages) {
-				offset = off;
-				goto found;
-			}
-			new_off = round_to_pow2(off, 32);
-			if (new_off <= off) new_off += 32;
-			off = new_off;
-		};
-	}
-found:
-	massert(prev);
-
-	/* Expand the virtual address space */
-	if (unlikely(!bm)) {
-		unsigned long nreg = 1<<++vas_order, size = PGD_SIZE * nreg;
-		int i;
-
-		if ((npages * PAGE_SIZE) > size) {
-			size = round_up_to_pgd_page(npages * PAGE_SIZE);
-		}
-
-		new_addr = vas_mgr_expand(cos_spd_id(), size);
-		if (!new_addr) goto err;
-
-		bm = malloc(nreg * sizeof(struct pages_bitmap));
-		if (!bm) goto err_virt;
-		
-		bm->
-		for (i = 0 ; i < nreg ; i++) {
-			
-		}
-	}
-
-err_virt:
-	vas_mgr_contract(cos_spd_id(), new_addr);
-err:
-	vas_order--;
-	return NULL;
+#ifdef UNIX_TEST
+static inline REGPARM(1) void *do_mmap(size_t size) { 
+	return mmap(0, size, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0); 
 }
-
-static inline void
-cos_free_pages(void *addr, int npages)
-{
-
+/*static inline*/ REGPARM(2) int do_munmap(void *addr, size_t size) {
+  return munmap(addr, size);
 }
-#endif
+#else 
 
 static inline REGPARM(1) void *do_mmap(size_t size) {
-#ifdef UNIX_TEST
-  return mmap(0, size, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0);
-#else 
-  void *hp, *ret;
+	void *hp, *ret;
+	unsigned long p;
+	size_t s = round_up_to_page(size);
 
-  massert(size <= PAGE_SIZE);
-  hp = cos_get_vas_page();
-
-  /* FIXME: If this doesn't return success, we should terminate */
-  ret = (void*)mman_get_page(cos_spd_id(), hp, 0);
-  if (NULL == ret) cos_set_heap_ptr_conditional(hp+PAGE_SIZE, hp);
+#ifdef USE_VALLOC
+	  hp = valloc_alloc(cos_spd_id(), cos_spd_id(), s/PAGE_SIZE);
+	  if (!hp) return NULL;
+#else
+	  massert(size <= PAGE_SIZE);
+	  hp = cos_get_vas_page();
+#endif
+  for (p = (unsigned long)hp ; 
+       p < (unsigned long)hp + s ; 
+       p += PAGE_SIZE) {
+	  ret = (void*)mman_get_page(cos_spd_id(), (void*)p, 0);
+	  if (unlikely(!ret)) {
+		  for (p -= PAGE_SIZE ; hp <= (void*)p ; p -= PAGE_SIZE) {
+			  mman_release_page(cos_spd_id(), (void*)p, 0);
+		  }
+#ifdef USE_VALLOC
+			  if (unlikely(valloc_free(cos_spd_id(), cos_spd_id(), hp, s/PAGE_SIZE))) DIE();
+#else
+			  cos_set_heap_ptr_conditional(hp+PAGE_SIZE, hp);
+#endif
+		  return NULL;
+	  }
+  }
 #if ALLOC_DEBUG >= ALLOC_DEBUG_ALL
   if (alloc_debug) printc("malloc in %d: mmapped region into %x", cos_spd_id(), ret);
 #endif
-  return ret;
-#endif
+  return hp;
 }
 
 /* remove qualifiers to make debugging easier */
 /*static inline*/ REGPARM(2) int do_munmap(void *addr, size_t size) {
-#ifdef UNIX_TEST
-  return munmap(addr, size);
+#ifndef USE_VALLOC
+	  /* not supported and given that we can't allocate > PAGE_SIZE, this should never happen */
+	  DIE();
 #else
-  /* not supported and given that we can't allocate > PAGE_SIZE, this should never happen */
-  *((unsigned long*)NULL) = 0;
-  return -1;
+	  unsigned long p;
+
+	  massert((unsigned long)addr == round_to_page((unsigned long)addr)); 
+	  for (p = (unsigned long)addr ; p < ((unsigned long)addr + size) ; p += PAGE_SIZE) {
+		  mman_release_page(cos_spd_id(), (void*)p, 0);
+	  }
+	  if (valloc_free(cos_spd_id(), cos_spd_id(), addr, round_up_to_page(size)/PAGE_SIZE)) DIE();
 #endif
+  return 0;
 }
+#endif
 
 /* -- SMALL MEM ----------------------------------------------------------- */
 
@@ -200,12 +154,11 @@ static __alloc_t* __small_mem[8];
 static inline int __ind_shift() { return (MEM_BLOCK_SIZE==4096)?4:5; }
 
 static size_t REGPARM(1) get_index(size_t _size) {
-  register size_t idx=0;
-//  if (_size) {	/* we already check this in the callers */
-    register size_t size=((_size-1)&(MEM_BLOCK_SIZE-1))>>__ind_shift();
-    while(size) { size>>=1; ++idx; }
-//  }
-  return idx;
+	size_t idx, size;
+	for (idx = 0, size = ((_size-1)&(MEM_BLOCK_SIZE-1))>>__ind_shift() ;  
+	     size ; 
+	     size>>=1, ++idx );
+	return idx;
 }
 
 #if ALLOC_DEBUG >= ALLOC_DEBUG_STATS
@@ -360,19 +313,14 @@ static void* _alloc_libc_malloc(size_t size) {
   if (!size) goto err_out;
 #endif
   size+=sizeof(__alloc_t);
-  if (size<sizeof(__alloc_t)) goto err_out;
-  /********** FIXME **********
-   * gabep1: Don't allow allocations larger than a page
-   **/
-  if (size > PAGE_SIZE) goto err_out;
+  if (unlikely(size<sizeof(__alloc_t))) goto err_out;
 
   if (size<=__MAX_SMALL_SIZE) {
     need=GET_SIZE(size);
     ptr=__small_malloc(need);
-  }
-  else {
+  } else {
     need=PAGE_ALIGN(size);
-    if (!need) ptr=MAP_FAILED; else ptr=do_mmap(need);
+    ptr = need ? do_mmap(need) : MAP_FAILED;
   }
   if (ptr==MAP_FAILED) goto err_out;
   ptr->size=need;

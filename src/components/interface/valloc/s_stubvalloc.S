@@ -7,6 +7,5 @@
 
 #include <cos_asm_server_stub.h>
 .text	
-cos_asm_server_stub_spdid(valloc_init)
 cos_asm_server_stub_spdid(valloc_alloc)
 cos_asm_server_stub_spdid(valloc_free)

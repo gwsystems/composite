@@ -23,7 +23,7 @@ all: $(LIBS) default
 
 clean:
 	$(info |     [RM]   Cleaning up interface directory for $(IFNAME))
-	@rm -f a.out *.o *.a *.d *~
+	@$(RM) -f a.out *.o *.a *.d *~
 
 fresh: clean all
 

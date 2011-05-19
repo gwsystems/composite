@@ -26,8 +26,6 @@
 #include <cos_sched_tk.h>
 
 #include <sched.h>
-#include <mem_mgr.h>
-#include <stack_trace.h>
 #include <sched_conf.h>
 
 //#define TIMER_ACTIVATE
@@ -194,14 +192,6 @@ static void report_output(void)
 #define report_output()
 #endif
 
-//extern void st_trace_thd(unsigned short int tid);
-void print_thd_invframes(struct sched_thd *t)
-{
-//	unsigned short int tid = t->id;
-
-//	st_trace_thd(tid);
-}
-
 static void report_thd_accouting(void)
 {
 	struct sched_thd *t;
@@ -213,7 +203,6 @@ static void report_thd_accouting(void)
 
 		printc("\nChild timer thread (thd, ticks):\n");		
 		printc("\t%d, %ld\n", timer->id, sa->ticks - sa->prev_ticks);
-		print_thd_invframes(timer);
 		sa->prev_ticks = sa->ticks;
 	}
 
@@ -228,7 +217,6 @@ static void report_thd_accouting(void)
 			printc("\t%d, %d, %ld+%ld/%ld\n", t->id, 
 			       sched_get_metric(t)->priority, diff, 
 			       (unsigned long)sa->cycles, (unsigned long)CYC_PER_TICK);
-			print_thd_invframes(t);
 			sa->prev_ticks = sa->ticks;
 			sa->cycles = 0;
 		}
@@ -244,7 +232,6 @@ static void report_thd_accouting(void)
 			printc("\t%d, %d, %ld+%ld/%ld\n", t->id, 
 			       sched_get_metric(t)->priority, diff, 
 			       (unsigned long)sa->cycles, (unsigned long)CYC_PER_TICK);
-			print_thd_invframes(t);
 			sa->prev_ticks = sa->ticks;
 			sa->cycles = 0;
 		}
@@ -1603,7 +1590,6 @@ print_config_info(void)
 int sched_root_init(void)
 {
 	struct sched_thd *new;
-	int i;
 
 	print_config_info();
 

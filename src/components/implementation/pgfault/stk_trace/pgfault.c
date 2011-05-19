@@ -9,7 +9,7 @@
 
 #include <cos_component.h>
 #include <pgfault.h>
-#include <sched.h>
+//#include <sched.h>
 #include <print.h>
 #include <fault_regs.h>
 #include <stkmgr.h>

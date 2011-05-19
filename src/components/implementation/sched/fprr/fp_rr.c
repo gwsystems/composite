@@ -351,8 +351,6 @@ thread_resparams_set(struct sched_thd *t, res_spec_t rs)
 	return 0;
 }
 
-extern void print_thd_invframes(struct sched_thd *t);
-
 void runqueue_print(void)
 {
 	struct sched_thd *t;
@@ -368,7 +366,6 @@ void runqueue_print(void)
 
 			if (!(diff || sa->cycles)) continue;
 			printc("\t%d, %d, %ld+%ld/%d\n", t->id, i, diff, (unsigned long)sa->cycles, QUANTUM);
-			print_thd_invframes(t);
 			sa->prev_ticks = sa->ticks;
 			sa->cycles = 0;
 		}
@@ -386,7 +383,6 @@ void runqueue_print(void)
 			printc("\t%d, %d, %ld+%ld/%d\n", t->id, 
 			       sched_get_metric(t)->priority, diff, 
 			       (unsigned long)sa->cycles, QUANTUM);
-			print_thd_invframes(t);
 			sa->prev_ticks = sa->ticks;
 			sa->cycles = 0;
 		}

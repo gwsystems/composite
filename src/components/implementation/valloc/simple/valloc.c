@@ -1,14 +1,15 @@
 /**
- * Copyright 2010 by The George Washington University.  All rights reserved.
+ * Copyright 2011 by The George Washington University.  All rights reserved.
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  *
- * Author: Gabriel Parmer, gparmer@gwu.edu, 2010
+ * Author: Gabriel Parmer, gparmer@gwu.edu, 2011
  */
 
 #include <cos_component.h>
-#include <cos_synchronization.h>
+#include <print.h>
+#include <sched.h>
 #include <cos_alloc.h>
 #include <cos_vect.h>
 #include <vas_mgr.h>
@@ -16,15 +17,24 @@
 #include <cinfo.h>
 #include <bitmap.h>
 
+#ifdef LOCK_COMPONENT
+#include <cos_synchronization.h>
+cos_lock_t valloc_lock;
+#define LOCK()      lock_take(&valloc_lock)
+#define UNLOCK()    lock_release(&valloc_lock)
+#define LOCK_INIT() lock_static_init(&valloc_lock);
+#else
+#define LOCK()   if(sched_component_take(cos_spd_id())) BUG();
+#define UNLOCK() if(sched_component_release(cos_spd_id())) BUG();
+#define LOCK_INIT()
+#endif
+
 /* vector of vas vectors for spds */
 COS_VECT_CREATE_STATIC(spd_vect);
-cos_lock_t valloc_lock;
-#define LOCK()   lock_take(&valloc_lock)
-#define UNLOCK() lock_release(&valloc_lock)
 
 #define WORDS_PER_PAGE (PAGE_SIZE/sizeof(u32_t))
 #define MAP_MAX WORDS_PER_PAGE
-#define VAS_SPAN (sizeof(u32_t) * WORDS_PER_PAGE)
+#define VAS_SPAN (WORDS_PER_PAGE * sizeof(u32_t) * 8)
 
 /* describes 2^(12+12+3 = 27) bytes */
 struct spd_vas_occupied {
@@ -40,13 +50,14 @@ struct vas_extent {
 };
 
 struct spd_vas_tracker {
+	spdid_t spdid;
 	struct cos_component_information *ci;
 	struct vas_extent extents[MAX_SPD_VAS_LOCATIONS];
 	/* should be an array to track more than 2^27 bytes */
 	struct spd_vas_occupied *map; 
 };
 
-int valloc_init(spdid_t spdid)
+static int __valloc_init(spdid_t spdid)
 {
 	int ret = -1;
 	struct spd_vas_tracker *trac;
@@ -55,7 +66,6 @@ int valloc_init(spdid_t spdid)
 	unsigned long page_off;
 	void *hp;
 
-	LOCK();
 	if (cos_vect_lookup(&spd_vect, spdid)) goto success;
 	trac = malloc(sizeof(struct spd_vas_tracker));
 	if (!trac) goto done;
@@ -67,6 +77,7 @@ int valloc_init(spdid_t spdid)
 	if (cinfo_map(cos_spd_id(), (vaddr_t)ci, spdid)) goto err_free2;
 	hp = (void*)ci->cos_heap_ptr;
 
+	trac->spdid            = spdid;
 	trac->ci               = ci;
 	trac->map              = occ;
 	trac->extents[0].start = (void*)round_to_pgd_page(hp);
@@ -75,11 +86,9 @@ int valloc_init(spdid_t spdid)
 	bitmap_set_contig(&occ->pgd_occupied[0], page_off, (PGD_SIZE/PAGE_SIZE)-page_off, 1);
 
 	cos_vect_add_id(&spd_vect, trac, spdid);
-
-	bitmap_print(&occ->pgd_occupied[0], 128);
 success:
 	ret = 0;
-done:	UNLOCK();
+done:
 	return ret;
 err_free2:
 	cos_set_heap_ptr_conditional((char*)ci+PAGE_SIZE, ci);
@@ -98,7 +107,10 @@ void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
 
 	LOCK();
 	trac = cos_vect_lookup(&spd_vect, spdid);
-	if (!trac) goto done;
+	if (!trac) {
+		if (__valloc_init(dest) ||
+		    !(trac = cos_vect_lookup(&spd_vect, spdid))) goto done;
+	}
 	occ = trac->map;
 	assert(occ);
 	off = bitmap_extent_find_set(&occ->pgd_occupied[0], 0, npages, MAP_MAX);
@@ -125,14 +137,13 @@ int valloc_free(spdid_t spdid, spdid_t dest, void *addr, unsigned long npages)
 	assert(off+npages < MAP_MAX*sizeof(u32_t));
 	bitmap_set_contig(&occ->pgd_occupied[0], off, npages, 1);
 	ret = 0;
-
-done:	UNLOCK();
+done:	
+	UNLOCK();
 	return ret;
 }
 
 static void init(void)
 {
-	lock_static_init(&valloc_lock);
 	cos_vect_init_static(&spd_vect);
 }
 
