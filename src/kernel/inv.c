@@ -536,11 +536,23 @@ COS_SYSCALL int cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long a
 
 		return thd_get_frame_ip(thd, frame_offset);
 	}
+	case COS_THD_INVFRM_SET_IP:
+	{
+		int frame_offset = arg1;
+
+		return thd_set_frame_ip(thd, frame_offset, arg2);
+	}
 	case COS_THD_INVFRM_SP:
 	{
 		int frame_offset = arg1;
 
 		return thd_get_frame_sp(thd, frame_offset);
+	}
+	case COS_THD_INVFRM_SET_SP:
+	{
+		int frame_offset = arg1;
+
+		return thd_set_frame_sp(thd, frame_offset, arg2);
 	}
 #define __GET_REG(name)							\
 	{								\

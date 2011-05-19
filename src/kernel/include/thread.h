@@ -241,6 +241,26 @@ static inline vaddr_t thd_get_frame_ip(struct thread *thd, int frame_offset)
 	}
 }
 
+static inline vaddr_t thd_set_frame_ip(struct thread *thd, int frame_offset, unsigned long new_ip)
+{
+	int off;
+
+	if (frame_offset > thd->stack_ptr) return -1;
+	off = thd->stack_ptr - frame_offset;
+	if (off == thd->stack_ptr) {
+		if (thd->flags & THD_STATE_PREEMPTED) {
+			thd->regs.ip = new_ip;
+		} else {
+			thd->regs.dx = new_ip;
+		}
+	} else {
+		struct thd_invocation_frame *tif;
+		tif = &thd->stack_base[off+1];
+		tif->ip = new_ip;
+	}
+	return 0;
+}
+
 static inline vaddr_t thd_get_frame_sp(struct thread *thd, int frame_offset)
 {
 	int off;
@@ -259,6 +279,27 @@ static inline vaddr_t thd_get_frame_sp(struct thread *thd, int frame_offset)
 		tif = &thd->stack_base[off+1];
 		return tif->sp;
 	}
+}
+
+static inline vaddr_t thd_set_frame_sp(struct thread *thd, int frame_offset, unsigned long new_sp)
+{
+	int off;
+	/* See comment in thd_get_frame_ip */
+
+	if (frame_offset > thd->stack_ptr) return 1;
+	off = thd->stack_ptr - frame_offset;
+	if (off == thd->stack_ptr) {
+		if (thd->flags & THD_STATE_PREEMPTED) {
+			thd->regs.sp = new_sp;
+		} else {
+			thd->regs.cx = new_sp;
+		}
+	} else {
+		struct thd_invocation_frame *tif;
+		tif = &thd->stack_base[off+1];
+		tif->sp = new_sp;
+	}
+	return 0;
 }
 
 static inline vaddr_t thd_get_ip(struct thread *t)
