@@ -262,6 +262,7 @@ enum {
 /* operations for cos_thd_cntl */
 enum {
 	COS_THD_INV_FRAME, 	/* Get the ith invocation frame for the thread */
+	COS_THD_INV_FRAME_REM, 	/* Remove a component return at an offset into the thd's stack */
 	COS_THD_INVFRM_IP,	/* get the instruction pointer in an inv frame  */
 	COS_THD_INVFRM_SET_IP,
 	COS_THD_INVFRM_SP,	/* get the stack pointer in an inv frame  */

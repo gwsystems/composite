@@ -184,6 +184,20 @@ static inline struct thd_invocation_frame *thd_invstk_nth(struct thread *thd, in
 	return &thd->stack_base[idx];
 }
 
+static inline int thd_invstk_rem_nth(struct thread *thd, int nth, struct thd_invocation_frame *tif)
+{
+	int idx = thd->stack_ptr - nth, i;
+
+	if (idx < 0) return -1;
+	memcpy(tif, &thd->stack_base[idx], sizeof(struct thd_invocation_frame));
+	/* shift the stack items down by one */
+	for (i = idx ; i < MAX_SERVICE_DEPTH-1 && thd->stack_base[idx].spd ; i++) {
+		memcpy(&thd->stack_base[idx], &thd->stack_base[idx+1], sizeof(struct thd_invocation_frame));
+	}
+
+	return 0;
+}
+
 extern struct thread *current_thread;
 static inline struct thread *thd_get_current(void) 
 {
