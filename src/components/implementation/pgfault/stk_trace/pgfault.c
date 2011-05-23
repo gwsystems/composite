@@ -103,7 +103,7 @@ walk_stack_all(spdid_t spdid, struct cos_regs *regs)
 	
 }
 
-void fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *orig_ip)
+int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *orig_ip)
 {
 	if (regs_active) BUG();
 	regs_active = 1;
@@ -119,5 +119,5 @@ void fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *
 	 * that is where the problem is. */
 	BUG(); 			
 
-	return;
+	return 0;
 }

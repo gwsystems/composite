@@ -17,15 +17,27 @@
 int regs_active = 0; 
 struct cos_regs regs;
 
-void fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
+int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 {
+	unsigned long r_ip; 	/* the ip to return to */
+	int tid = cos_get_thd_id();
+
 	if (regs_active) BUG();
 	regs_active = 1;
-	cos_regs_save(cos_get_thd_id(), spdid, fault_addr, &regs);
+	cos_regs_save(tid, spdid, fault_addr, &regs);
 	printc("Thread %d faults in spd %d @ %p\n", 
-	       cos_get_thd_id(), spdid, fault_addr);
+	       tid, spdid, fault_addr);
 	cos_regs_print(&regs);
-	BUG(); 			/* no fault is a good fault currently */
-//	sched_block(spdid, 0);
-	return;
+
+	/* remove from the invocation stack the faulting component! */
+	cos_thd_cntl(COS_THD_INV_FRAME_REM, tid, 1, 0);
+	
+	/* Manipulate the return address of the component that called
+	 * the faulting component... */
+	r_ip = cos_thd_cntl(COS_THD_INVFRM_IP, tid, 2, 0);
+	/* ...and set it to its value -8, which is the fault handler
+	 * of the stub. */
+	cos_thd_cntl(COS_THD_INVFRM_SET_IP, tid, r_ip-8, 2);
+
+	return 0;
 }
