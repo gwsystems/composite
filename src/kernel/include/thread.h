@@ -188,12 +188,13 @@ static inline int thd_invstk_rem_nth(struct thread *thd, int nth, struct thd_inv
 {
 	int idx = thd->stack_ptr - nth, i;
 
-	if (idx < 0) return -1;
+	if (thd->stack_ptr == 0 || idx < 0) return -1;
 	memcpy(tif, &thd->stack_base[idx], sizeof(struct thd_invocation_frame));
 	/* shift the stack items down by one */
-	for (i = idx ; i < MAX_SERVICE_DEPTH-1 && thd->stack_base[idx].spd ; i++) {
+	for (i = idx ; i < MAX_SERVICE_DEPTH-1 && thd->stack_base[idx+1].spd ; i++) {
 		memcpy(&thd->stack_base[idx], &thd->stack_base[idx+1], sizeof(struct thd_invocation_frame));
 	}
+	thd->stack_ptr--;
 
 	return 0;
 }

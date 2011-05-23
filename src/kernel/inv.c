@@ -535,10 +535,10 @@ COS_SYSCALL int cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long a
 		int frame_offset = arg1;
 		struct thd_invocation_frame tif;
 
-		if (thd_invstk_rem_nth(thd, frame_offset, &tif)) return 0;
+		if (thd_invstk_rem_nth(thd, frame_offset, &tif)) return -1;
 		spd_mpd_ipc_release((struct composite_spd *)tif.current_composite_spd);
 
-		return 1;
+		return 0;
 	}
 	case COS_THD_INVFRM_IP:
 	{
