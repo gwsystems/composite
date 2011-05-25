@@ -26,7 +26,7 @@
         movl (%eax), %edx;                      \
         movl %edx, cos_comp_info;               \
         addl $4, %eax;                          \
-1:                                              \
+						\
 	/* now we have the stack */		\
         movl  %eax, %esp;                       \
         addl  $8, %esp;                         \
@@ -35,6 +35,7 @@
         movl (%edx), %edx;                      \
 	pushl %edx;	 			\
         pushl $0x01;    /* flags */             \
+1:                                              \
         pushl $0xFACE;  /* next */              
 
 
@@ -66,7 +67,9 @@
         popl %esi;                              \
         popl %ebp;                              \
         /*movl %esp, %eax;*/                    \
-        jmp  1b;                                
+						\
+        movl  %eax, %esp;                       \
+	jmp  1b;                                
 
 
 #define COS_ASM_RET_STACK                       \
@@ -86,8 +89,13 @@
         movl %esp, cos_comp_info;               \
         jmp  4f;                                \
 3:                                              \
-        /* stkmgr wants stack back */		\
-        movl $0x0, (%esp);			\
+        /* stkmgr wants stack back */ 		\
+	/* don't mark the stack free here 	\
+	   as we are returning the stack to 	\
+	   stkmgr. leave the work to stkmgr 	\
+	   and stkmgr could still need the 	\
+	   flag information */			\
+	/* movl $0x0, (%esp); */		\
         subl $4, %esp;                          \
         movl %esp, %edx;                        \
                                                 \

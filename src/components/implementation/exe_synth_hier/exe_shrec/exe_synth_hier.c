@@ -130,7 +130,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	unsigned long has_run;   /* thread has run cycles in this inv */
 
 	parse_initstr();
-//	printc("thd %d enter!\n", cos_get_thd_id());
+//	printc("thd %d enter comp %d!\n", cos_get_thd_id(), cos_spd_id());
 	if (first) {
 		unsigned long temp = 0;
 		temp = measure_loop_costs(spin);
@@ -166,6 +166,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 			exe_time_left = callr_right(exe_time_left, initial_exe_t );
 		}
 	}
+//	printc("thd %d left comp %d!\n", cos_get_thd_id(), cos_spd_id());
 	return exe_time_left;
 }
 

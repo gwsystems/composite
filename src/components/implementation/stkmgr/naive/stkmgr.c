@@ -83,11 +83,16 @@ struct spd_stk_info {
 	struct cos_component_information *ci;
 	/* The number of stacks in use by spd, and the number want it
 	 * to use, and at any point in time the number of threads in
-	 * the blocked list. */
+	 * the blocked list. The num_waiting_thds includes the blocked
+	 * threads and the threads those are ready but haven't
+	 * obtained a stack in this component, which value is useful
+	 * for estimating the concurrency of the component.*/
 	unsigned int num_allocated, num_desired;
 	unsigned int num_blocked_thds,num_waiting_thds;
 
 	unsigned int ss_counter; /* Self-suspension counter */
+	unsigned int ss_max; /* threshold for self-suspension */
+
 	/* Measurements */
 	unsigned int nthd_blks[MAX_NUM_THREADS];
 	u64_t        thd_blk_start[MAX_NUM_THREADS];
@@ -145,7 +150,11 @@ void stkmgr_reset_stats(struct spd_stk_info *ssi)
 struct cos_stk_item all_stk_list[MAX_NUM_STACKS];
 // Holds all currently free stacks
 struct cos_stk_item *free_stack_list = NULL;
-int stacks_allocated, stacks_target, empty_comps;
+/* empty_comps is used to ensure at least one stack per
+ * component. over_quota and over_quota_limit save the number of
+ * over-quota allocated stacks (due to self-suspension) and the upper
+ * limit of it */
+int stacks_allocated, stacks_target, empty_comps, over_quota, over_quota_limit;
 
 static inline int
 freelist_add(struct cos_stk_item *csi)
@@ -335,9 +344,11 @@ cos_init(void *arg){
 		spd_stk_info_list[spdid].num_blocked_thds = 0;
 		spd_stk_info_list[spdid].num_waiting_thds = 0;
 		spd_stk_info_list[spdid].ss_counter = 0;
+		spd_stk_info_list[spdid].ss_max = MAX_NUM_STACKS;
 		empty_comps++;
 	}
-
+	over_quota = 0;
+	over_quota_limit = MAX_NUM_STACKS;
 	DOUT("Done mapping components information pages!\n");
 	DOUT("<stkmgr>: init finished\n");
 	return;
@@ -359,6 +370,18 @@ stkmgr_get_cos_stk_item(vaddr_t addr){
 	return NULL;
 }
 
+static inline void
+stkmgr_wake_thread(struct blocked_thd *bthd, unsigned int tid)
+{
+	DOUT("\t Waking UP thd: %d", bthd->thd_id);
+	/* printc("thd %d: ************ waking up thread %d ************\n", */
+	/*        cos_get_thd_id(),tid); */
+	REM_LIST(bthd, next, prev);
+	free(bthd);
+	sched_wakeup(cos_spd_id(), tid);
+	DOUT("......UP\n");
+}
+
 void blklist_wake_threads(struct blocked_thd *bl)
 {
 	struct blocked_thd *bthd, *bthd_next;
@@ -369,15 +392,8 @@ void blklist_wake_threads(struct blocked_thd *bl)
 	DOUT("waking up threads for spd %d\n", spdid);
     
 	for(bthd = FIRST_LIST(bl, next, prev) ; bthd != bl ; bthd = bthd_next){
-		unsigned short int tid;
-
 		bthd_next = FIRST_LIST(bthd, next, prev);
-		DOUT("\tWakeing UP thd: %d", bthd->thd_id);
-		REM_LIST(bthd, next, prev);
-		tid = bthd->thd_id;
-		free(bthd);
-		sched_wakeup(cos_spd_id(), tid);        
-		DOUT("......UP\n");
+		stkmgr_wake_thread(bthd, bthd->thd_id);
 	}
     
 	DOUT("All thds now awake\n");
@@ -386,15 +402,14 @@ void blklist_wake_threads(struct blocked_thd *bl)
 void spd_wake_threads(spdid_t spdid)
 {
 	struct spd_stk_info *ssi;
-
+	
 	ssi = get_spd_stk_info(spdid);
-	/* printc("************ waking up %d threads for spd %d ************\n", */
-	/*         ssi->num_blocked_thds, spdid); */
+	/* printc("thd %d: ************ start waking up %d threads for spd %d ************\n", */
+	/*        cos_get_thd_id(),ssi->num_blocked_thds, spdid); */
 	blklist_wake_threads(&ssi->bthd_list);
 	assert(EMPTY_LIST(&ssi->bthd_list, next, prev));
 	ssi->num_blocked_thds = 0;
 }
-
 
 /**
  * gets the number of stacks associated with a given
@@ -439,7 +454,8 @@ stkmgr_stk_remove_from_spd(struct cos_stk_item *stk_item, struct spd_stk_info *s
 	// remove from s_spdid's stk_list;
 	REM_LIST(stk_item, next, prev);
 	ssi->num_allocated--;
-	if(ssi->num_allocated == 0) empty_comps++;
+	if (ssi->num_allocated == 0) empty_comps++;
+	if (ssi->num_allocated >= ssi->num_desired) over_quota--;
 	assert(ssi->num_allocated == stkmgr_num_alloc_stks(s_spdid));
 
 	return 0;
@@ -477,7 +493,8 @@ stkmgr_stk_add_to_spd(struct cos_stk_item *stk_item, struct spd_stk_info *info)
 //	DOUT("Adding to local spdid stk list\n");
 	ADD_LIST(&info->stk_list, stk_item, next, prev); 
 	info->num_allocated++;
-	if(info->num_allocated == 1) empty_comps--;
+	if (info->num_allocated == 1) empty_comps--;
+	if (info->num_allocated > info->num_desired) over_quota++;
 	assert(info->num_allocated == stkmgr_num_alloc_stks(info->spdid));
 
 	return ret;
@@ -565,20 +582,23 @@ __stkmgr_return_stack(struct spd_stk_info *ssi, struct cos_stk_item *stk_item)
 	DOUT("$$$$$: %X\n", (unsigned int)stk_item->d_addr); 
 	DOUT("Return of s_spdid is: %d from thd: %d\n", s_spdid,
 	     cos_get_thd_id());
-
+	stk_item->stk->flags = 0;
+	stk_item->stk->thdid_owner = 0;
 	/* Don't move the stack if it should be here! */
-	if (ssi->num_desired >= ssi->num_allocated || (ssi->ss_counter && ssi->num_waiting_thds)) {
+	if (ssi->num_desired >= ssi->num_allocated) {
 		/* restore in component's freelist */
 		spd_freelist_add(s_spdid, stk_item);
 		/* wake threads! */
 		spd_wake_threads(s_spdid);
-		if (!SPD_HAS_BLK_THD(ssi) && ssi->num_waiting_thds == 0) {
+		if (!SPD_HAS_BLK_THD(ssi)) {
 			/* we're under or at quota, and there are no
 			 * blocked threads, no more relinquishing! */
 			stkmgr_spd_unmark_relinquish(ssi);
 		}
 	} else {
 		stkmgr_stack_remove_and_find_home(ssi, stk_item);
+		/* wake threads! */
+		spd_wake_threads(s_spdid);
 	}
 }
 
@@ -659,97 +679,167 @@ resolve_stk_dependency(struct spd_stk_info *ssi, int skip_stk)
 
 	for(stk_item = FIRST_LIST(&ssi->stk_list, next, prev);
 	    stk_item != &ssi->stk_list && skip_stk > 0; 
-	    stk_item = FIRST_LIST(stk_item, next, prev), skip_stk--) ;
+	    stk_item = FIRST_LIST(stk_item, next, prev), skip_stk--) {
+		assert(stk_item->stk->flags & RELINQUISH);
+	}
 
 	if (stk_item == &ssi->stk_list) return 0;
+
+	assert(stk_item->stk->thdid_owner != 0);
 	return stk_item->stk->thdid_owner;
+}
+
+static inline void
+stkmgr_add_to_blk_list(struct spd_stk_info *ssi, unsigned int tid)
+{
+	struct blocked_thd *bthd;
+	bthd = malloc(sizeof(struct blocked_thd));
+	if (bthd == NULL) BUG();
+
+	bthd->thd_id = tid;
+	DOUT("Adding thd to the blocked list: %d\n", bthd->thd_id);
+	ADD_LIST(&ssi->bthd_list, bthd, next, prev);
+	ssi->num_blocked_thds++;
 }
 
 /**
  * Asks for a stack back from all of the components.  Will release and
  * take the lock.
  */
-static void
-stkmgr_wait_for_stack(struct spd_stk_info *ssi)
+static int
+stkmgr_wait_for_stack(struct spd_stk_info *ssi, int with_dependency)
 {
-	struct blocked_thd *bthd;
-	int i = 0, ret;
+	unsigned int i = 0;
 
-	int old_ss_counter = ssi->ss_counter;
+	assert(ssi->num_allocated > 0);
 	DOUT("stkmgr_request_stack\n");
 	stkmgr_spd_mark_relinquish(ssi->spdid);
 
 	DOUT("All stacks for %d set to relinquish, %d waiting\n", ssi->spdid, cos_get_thd_id());
-        
-	bthd = malloc(sizeof(struct blocked_thd));
-	if (bthd == NULL) BUG();
+	
+	stkmgr_add_to_blk_list(ssi, cos_get_thd_id());
 
-	bthd->thd_id = cos_get_thd_id();
-	DOUT("Adding thd to the blocked list: %d\n", bthd->thd_id);
-	ADD_LIST(&ssi->bthd_list, bthd, next, prev);
-	ssi->num_blocked_thds++;
+	if (with_dependency) {
+		int ret, dep_thd, tid, on_blk_list;
+		struct blocked_thd *bthd;
+		do {
+			dep_thd = resolve_stk_dependency(ssi, i); 
+			if (i > ssi->ss_counter) ssi->ss_counter = i; /* update self-suspension counter */
 
-	do {
-		int dep_thd;
-		dep_thd = resolve_stk_dependency(ssi, i++);
-		if (dep_thd == 0) {
-			assert(ssi->num_allocated > 0);
-			ssi->ss_counter++;
-			//assert(ssi->ss_counter < 10);
-			if (ssi->ss_counter > 1)
-				printc("No enough stacks for self-suspension component!(cnt:%d) comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n",
-				       ssi->ss_counter,ssi->spdid, cos_get_thd_id(), ssi->num_waiting_thds, ssi->num_desired, ssi->num_allocated);
-			else
-				printc("Self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n",
-				       ssi->ss_counter,ssi->spdid, cos_get_thd_id(), ssi->num_waiting_thds, ssi->num_desired, ssi->num_allocated);
-
-			/* if we just found a "new" self-suspension
-			 * component, we should return and try again
-			 * to see if we can get a stack now due to
-			 * self-suspension privilege. Remove from the
-			 * block list before return.
-			 */
-			if (old_ss_counter == 0) {
-				printc("New self-suspension component:%d found. By thd %d.\n",ssi->spdid,cos_get_thd_id());
-				bthd = FIRST_LIST(&ssi->bthd_list, next, prev);
-				assert(bthd->thd_id == cos_get_thd_id());
-				REM_LIST(bthd, next, prev);
-				free(bthd);
-				ssi->num_blocked_thds--;
-				return;
+			if (dep_thd == 0) {
+				/* printc("Self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n", */
+				/*        ssi->ss_counter,ssi->spdid, cos_get_thd_id(), ssi->num_waiting_thds, ssi->num_desired, ssi->num_allocated); */
+				/* remove from the block list before return */
+				tid = cos_get_thd_id();
+				for (bthd = FIRST_LIST(&ssi->bthd_list, next, prev) ;
+				     bthd != &ssi->bthd_list ;
+				     bthd = FIRST_LIST(bthd, next, prev)) {
+					if (bthd->thd_id == tid) {
+						REM_LIST(bthd, next, prev);
+						free(bthd);
+						ssi->num_blocked_thds--;
+						break;
+					}
+				}
+				assert(bthd != &ssi->bthd_list);
+				assert(i > 0);
+				return 0;
 			}
-		}
-		
+
+			/* 
+			 * FIXME: We really need to pass multiple arguments to
+			 * the sched_block function.  We want sched block to
+			 * choose any one of the threads that is not blocked
+			 * as a dependency.  As it stands now, if we are
+			 * preempted between the RELEASE and the TAKE, the
+			 * stack list can change, giving us inconsistent
+			 * results iff we are preempted and the list changes.
+			 * Passing multiple arguments to sched_block (i.e. all
+			 * threads that have stacks in the component) will
+			 * make this algorithm correct, but we want cbuf/idl
+			 * support to implement that.
+			 */
+			//printc("%d try to depend on %d comp %d i%d\n", cos_get_thd_id(), dep_thd, ssi->spdid, i);
+			RELEASE();
+			ret = sched_block(cos_spd_id(), dep_thd);
+			TAKE(); 
+
+			/* 
+			 * STKMGR: self wakeup
+			 *
+			 * Note that the current thread will call
+			 * wakeup on ourselves here.  First, the
+			 * common case where sched_block does not
+			 * return -1: This happens because 1)
+			 * stkmgr_wait_for_stack has placed this
+			 * thread on a blocked list, then called
+			 * sched_block, 2) another thread (perhaps the
+			 * depended on thread) might find this thread
+			 * in the block list and wake it up (thus
+			 * correctly modifying the block counter in
+			 * the scheduler).  HOWEVER, if in step 1),
+			 * the dependency cannot be made (because the
+			 * depended on thread is blocked) and
+			 * sched_block returns -1, then we end up
+			 * modifying the block counter in the
+			 * scheduler, and if we don't later decrement
+			 * it, then it is inconsistent.  Thus we call
+			 * sched_wakeup on ourselves.
+			 */
+			tid = cos_get_thd_id();
+			for (bthd = FIRST_LIST(&ssi->bthd_list, next, prev) ;
+			     bthd != &ssi->bthd_list && bthd->thd_id != tid;
+			     bthd = FIRST_LIST(bthd, next, prev)) ;
+			
+			/* If we looped to the beginning of the list,
+			 * the item is not in the list. */
+			if (bthd == &ssi->bthd_list) {
+				on_blk_list = 0;
+			} else {
+				assert(ret < 0);
+				on_blk_list = 1;
+				if (ssi->spdid != 12) {printc("thd %d spdid %d, dep_thd %d\n",cos_get_thd_id(), ssi->spdid, dep_thd);assert(0);}
+				sched_wakeup(cos_spd_id(), cos_get_thd_id());
+			}
+			/* printc("%d finished depending on %d. comp %d. i %d. cnt %d. ret %d.on block list? %d\n", */
+			/*        cos_get_thd_id(), dep_thd, ssi->spdid,i,ssi->ss_counter, ret); */
+			i++;
+		} while (on_blk_list);
+	} else {
 		DOUT("Blocking thread: %d\n", bthd->thd_id);
-		/* 
-		 * FIXME: We really need to pass multiple arguments to
-		 * the sched_block function.  We want sched block to
-		 * choose any one of the threads that is not blocked
-		 * as a dependency.  As it stands now, if we are
-		 * preempted between the RELEASE and the TAKE, the
-		 * stack list can change, giving us inconsistent
-		 * results iff we are preempted and the list changes.
-		 * Passing multiple arguments to sched_block (i.e. all
-		 * threads that have stacks in the component) will
-		 * make this algorithm correct, but we want cbuf/idl
-		 * support to implement that.
-		 */
-
 		RELEASE();
-		ret = sched_block(cos_spd_id(), dep_thd);
+		sched_block(cos_spd_id(), 0);
 		TAKE(); 
-
-	} while (ret < 0);
+	}
 	DOUT("Thd %d wokeup and is obtaining a stack\n", cos_get_thd_id());
 
-	return;
+	return 1;
 }
 
+/* return the self-suspension counter of the component. Keep 75% of
+ * the value as history if reset is non zero */
+
 int
-stkmgr_detect_self_suspension(spdid_t spdid)
+stkmgr_detect_suspension(spdid_t cid, int reset)
 {
-	struct spd_stk_info * ssi = get_spd_stk_info(spdid);
-	return ssi->ss_counter;
+	TAKE();
+	struct spd_stk_info * ssi = get_spd_stk_info(cid);
+	unsigned int counter = ssi->ss_counter;
+	/* +3 for round up. right shift 2 to decrease 25% */
+	if (reset) ssi->ss_counter -= (ssi->ss_counter + 3) >> 2;
+	RELEASE();
+	return counter;
+}
+
+void
+stkmgr_set_over_quota_limit(int limit)
+{
+	TAKE();
+	if (limit > MAX_NUM_STACKS - stacks_target || limit < 0)
+		printc("Over-quota limit greater than global available quota. limit: %d.\n", limit);
+	else
+		over_quota_limit = limit;
+	RELEASE();
 }
 
 /**
@@ -837,8 +927,8 @@ stkmgr_grant_stack(spdid_t d_spdid)
 	 */
 
 	while (NULL == (stk_item = spd_freelist_remove(d_spdid))) {
-		if (((empty_comps < (MAX_NUM_STACKS - stacks_allocated)) || info->num_allocated == 0)
-		   && (info->num_allocated < info->num_desired || info->ss_counter > 0)
+		if ((empty_comps < (MAX_NUM_STACKS - stacks_allocated) || info->num_allocated == 0)
+		    && info->num_allocated < info->num_desired
 		       && NULL != (stk_item = freelist_remove())) {
 			stkmgr_stk_add_to_spd(stk_item, info);
 			break;
@@ -850,14 +940,24 @@ stkmgr_grant_stack(spdid_t d_spdid)
 		DOUT("Stack list is null, we need to revoke a stack: spdid: %d thdid: %d\n",
 		     d_spdid,
 		     cos_get_thd_id());
-		stkmgr_wait_for_stack(info);
+		if (stkmgr_wait_for_stack(info, 1) == 0) {
+			if (empty_comps < (MAX_NUM_STACKS - stacks_allocated) &&
+			    info->num_allocated < (info->num_desired + info->ss_max) &&
+			    over_quota < over_quota_limit && NULL != (stk_item = freelist_remove())){ 
+				stkmgr_stk_add_to_spd(stk_item, info);
+				break;
+			} else 
+				stkmgr_wait_for_stack(info, 0);
+		}
 	}
+	stk_item->stk->flags = 1;
+	stk_item->stk->thdid_owner = cos_get_thd_id();
 	if (meas) stkmgr_update_stats_wakeup(info, cos_get_thd_id());
 	
 	ret = stk_item->d_addr + PAGE_SIZE - sizeof(struct cos_stk);
-	RELEASE();
-	
 	info->num_waiting_thds--;
+	RELEASE();
+
 	//DOUT("Returning Stack address: %X\n",(unsigned int)ret);
 
 	return (void *)ret;
@@ -884,6 +984,24 @@ spd_remove_spare_stacks(struct spd_stk_info *ssi)
 	return 0;
 }
 
+int
+stkmgr_set_suspension_limit(spdid_t cid, int max)
+{
+	struct spd_stk_info *ssi;
+	TAKE();
+	ssi = get_spd_stk_info(cid);
+	if (!ssi || !SPD_IS_MANAGED(ssi)) goto err;
+	if (max < 0) goto err;
+
+	ssi->ss_max = max;
+
+	RELEASE();
+	return 0;
+err:
+	RELEASE();
+	return -1;
+}
+
 int 
 stkmgr_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare)
 {
@@ -900,6 +1018,12 @@ stkmgr_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare)
 	ssi->num_desired = concur_lvl;
 	stacks_target += concur_lvl - old;
 
+	/* update over-quota allocation counter */
+	if (old < (int)ssi->num_allocated) 
+		over_quota -= (concur_lvl <= (int)ssi->num_allocated) ? concur_lvl - old : (int)ssi->num_allocated - old;
+	else if (concur_lvl < (int)ssi->num_allocated)
+		over_quota += ssi->num_allocated - concur_lvl;
+
 	diff = ssi->num_allocated - ssi->num_desired;
 	if (diff > 0) stkmgr_spd_remove_stacks(spdid, diff);
 	if (diff < 0 && SPD_HAS_BLK_THD(ssi)) spd_wake_threads(spdid);
@@ -914,10 +1038,26 @@ err:
 }
 
 int
+stkmgr_get_allocated(spdid_t cid)
+{
+	struct spd_stk_info *ssi;
+	int ret;
+	TAKE();
+	ssi = get_spd_stk_info(cid);
+	if (!ssi || !SPD_IS_MANAGED(ssi)) {
+		RELEASE();
+		return -1;
+	}
+	ret = ssi->num_allocated;
+	RELEASE();
+	return ret;
+}
+
+int
 stkmgr_spd_concurrency_estimate(spdid_t spdid)
 {
 	struct spd_stk_info *ssi;
-	int i, avg;
+	unsigned int i, avg;
 	unsigned long tot = 0, cnt = 0;
 
 	TAKE();
@@ -940,17 +1080,23 @@ stkmgr_spd_concurrency_estimate(spdid_t spdid)
 		cnt += n;
 		ssi->stat_thd_blk[i] = 0;
 	}
+
 	if (cnt == 0 && ssi->num_waiting_thds == 0) {
 		avg = ssi->num_allocated;
 	} else {
 		unsigned int blk_hist;
 
-		if (cnt && ssi->ss_counter == 0) blk_hist = (tot/cnt) + !(tot%cnt == 0); /* adjust for rounding */
+		if (cnt) blk_hist = (tot/cnt) + !(tot%cnt == 0); /* adjust for rounding */
 		else     blk_hist = 0;
 
 		avg = ssi->num_allocated + (blk_hist > ssi->num_waiting_thds ? 
 					    blk_hist : ssi->num_waiting_thds); 
+		/* concurrency of self-suspension components can be estimated
+		 * more accurately by ss counter */
+		if (ssi->ss_counter && avg < (ssi->ss_counter + 1))
+			avg = ssi->ss_counter + 1;
 	}
+
 	RELEASE();
 
 	return avg;

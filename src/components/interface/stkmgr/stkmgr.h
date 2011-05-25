@@ -5,7 +5,7 @@
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  */
-#define MAX_NUM_STACKS 100
+#define MAX_NUM_STACKS 49
 #ifndef STKMGR_H_
 #define STKMGR_H_
 
@@ -21,7 +21,10 @@ int stkmgr_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare);
 int stkmgr_spd_concurrency_estimate(spdid_t spdid);
 unsigned long stkmgr_thd_blk_time(unsigned short int tid, spdid_t spdid, int reset);
 int stkmgr_thd_blk_cnt(unsigned short int tid, spdid_t spdid, int reset);
-int stkmgr_detect_self_suspension(spdid_t spdid);
+int stkmgr_detect_suspension(spdid_t cid, int reset);
+void stkmgr_set_over_quota_limit(int limit);
+int stkmgr_set_suspension_limit(spdid_t cid, int limit);
+int stkmgr_get_allocated(spdid_t cid);
 
 /* map a stack to the destination location, from the source component */
 int stkmgr_stack_introspect(spdid_t d_spdid, vaddr_t d_addr, spdid_t s_spdid, vaddr_t s_addr);

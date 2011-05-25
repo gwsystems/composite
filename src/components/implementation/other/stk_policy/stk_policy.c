@@ -23,7 +23,7 @@
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
 #define ALGORITHM 1
  
-//#define THD_POOL 100
+#define THD_POOL 10
 
 #define POLICY_PERIODICITY 25
 
@@ -39,7 +39,7 @@ struct thd_sched {
 
 struct component {
 	spdid_t spdid;
-	unsigned int allocated, concur_est, concur_new;
+	int allocated, concur_est, concur_new, concur_hist;
 	long add_impact, remove_impact; /* the impact of adding / removing one stack */
 	int add_in; /* number of stacks we add into this component in the current period */
 	int ss_counter; /* self-suspension counter*/
@@ -128,7 +128,6 @@ gather_data(int counter)
 			 	printc("\tStack info for %d: time blocked %ld, misses %d\n",
 			 	       tc->c->spdid, tc->avg_time_blocked, tc->stack_misses);
 			}
-			
 		}
 	}
 	for (citer = FIRST_LIST(&components, next, prev) ; 
@@ -138,12 +137,11 @@ gather_data(int counter)
 		est = stkmgr_spd_concurrency_estimate(citer->spdid);
 		assert(est != -1);
 		citer->concur_est = est;
-		citer->ss_counter = stkmgr_detect_self_suspension(citer->spdid);
-		if (citer->ss_counter > 0 && citer->concur_est > citer->concur_new) {
-			printc("comp %d is self-suspension !! cnt:%d\n",citer->spdid, citer->ss_counter);
-			available -= citer->concur_est - citer->concur_new;
-			citer->concur_new = citer->concur_est;
-		}
+		citer->ss_counter = stkmgr_detect_suspension(citer->spdid, 0);
+		/* reset the self-suspension counter if it's greater
+		 * than concurrency estimation */
+		if (citer->ss_counter > est) stkmgr_detect_suspension(citer->spdid, 1);
+		citer->allocated = stkmgr_get_allocated(citer->spdid);
 		/* if (citer->concur_est > 1) */
 		/* 	printc("Spd %d concurrency estimate: %d; ", citer->spdid, citer->concur_est); */
 		/*} else {
@@ -203,27 +201,6 @@ compute_lateness_chg_concur(struct thd *t, struct thd_comp *tc, unsigned int new
 	}
 
 	return lateness - (time_per_deadline_stack * change);
-}
-
-static void 
-collect_spare_stacks(void)
-{
-	struct component *c;
-	for (c = FIRST_LIST(&components, next, prev) ; 
-	     c != &components ;
-	     c = FIRST_LIST(c, next, prev)) {
-		if (c->concur_new > c->concur_est) { /* take the spare stacks away */
-			assert(c->concur_new == c->allocated);
-			if (c->concur_est == 0) {
-				available += c->concur_new - 1;
-				c->concur_new = 1;
-			}
-			else {
-				available += c->concur_new - c->concur_est;
-				c->concur_new = c->concur_est;
-			}
-		}
-	}
 }
 
 struct thd *
@@ -386,7 +363,7 @@ find_min_tardiness_comp(struct component * c_original)
 		for( c = FIRST_LIST(&components, next, prev) ; 
 		     c != &components ;
 		     c = FIRST_LIST(c, next, prev)) {
-			if (c->concur_new == 1 || c == c_original || c->add_in || c->ss_counter)
+			if (c->concur_new == 1 || c == c_original || c->add_in || c->ss_counter + 1 >= c->concur_new)
 				continue;
 			for ( titer = FIRST_LIST(&threads, next, prev) ;
 			      titer != &threads ; 
@@ -420,7 +397,7 @@ find_min_tardiness_comp(struct component * c_original)
 		for( c = FIRST_LIST(&components, next, prev); 
 		     c != &components ;
 		     c = FIRST_LIST(c, next, prev)) {
-			if (c->concur_new == 1 || c == c_original || c->add_in || c->ss_counter)
+			if (c->concur_new == 1 || c == c_original || c->add_in || c->ss_counter + 1 >= c->concur_new)
 				continue;
 			largest = 0;
 			impact_largest = 0;
@@ -522,9 +499,9 @@ calc_improvement(void)
 		      titer != &threads ; 
 		      titer = FIRST_LIST(titer, next, prev)) {
 			tc = &titer->comp_info[citer->spdid];
-			if (tc->avg_time_blocked > 0 && tc->c->concur_est > tc->c->concur_new)
+			if (tc->avg_time_blocked > 0 && tc->c->concur_est > tc->c->allocated)
 				/* improvement of one stack : time blocked / (est - allocated), +1 for round up */
-				tc->impact = tc->old_impact = tc->avg_time_blocked / (tc->c->concur_est - tc->c->concur_new) + 1;
+				tc->impact = tc->old_impact = tc->avg_time_blocked / (tc->c->concur_est - tc->c->allocated) + 1;
 			else {
 				tc->impact = 0;
 				tc->old_impact >>= 1;
@@ -534,39 +511,6 @@ calc_improvement(void)
 }
 
 static inline void 
-revoke_available(void)
-{
-	struct component * citer;
-	struct thd * iter;
-	struct thd_comp * tc;
-	unsigned long atb;
-
-	int revoked, change;
-
-	for (citer = FIRST_LIST(&components, next, prev) ; 
-	     citer != &components && available < 0; 
-	     citer = FIRST_LIST(citer, next, prev)) {
-		if (citer->concur_new == 1 || citer->ss_counter)
-			continue;
-		/* revoke quota, update lateness*/
-		revoked = citer->concur_new - 1;
-		for ( iter=FIRST_LIST(&threads, next, prev);
-		      iter!=&threads; /* calculate all the threads have tardiness in this component */
-		      iter=FIRST_LIST(iter,next,prev)){
-			tc = &(iter->comp_info[citer->spdid]);
-			atb = tc->avg_time_blocked; 
-			if (tc->impact || tc->old_impact) {
-				change = (tc->impact ? tc->impact : tc->old_impact) * revoked;
-				tc->avg_time_blocked += change;
-				iter->tardiness += change;
-			}
-		}
-		available += revoked;
-		citer->concur_new = 1;
-	}
-}
-
-static void 
 set_concur_new(void)
 {
 	struct component *c;
@@ -576,29 +520,114 @@ set_concur_new(void)
 	     c = FIRST_LIST(c, next, prev)) {
 		assert(c->concur_new != 0);
 		stkmgr_set_concurrency(c->spdid, c->concur_new, 1);
-		c->allocated = c->concur_new;
 	}
+}
+
+/* If we have spare quota, assign them according to the history record
+ * we saved. */
+
+static void
+history_allocation(void)
+{
+	int changed;
+	struct component * citer;
+	for (citer = FIRST_LIST(&components, next, prev) ; 
+	     citer != &components ;
+	     citer = FIRST_LIST(citer, next, prev)) {
+		if (available == 0) break;
+		if (citer->concur_hist > citer->concur_new) {
+			if (available > (citer->concur_hist - citer->concur_new))
+				changed = citer->concur_hist - citer->concur_new;
+			else 
+				changed = available;
+			citer->concur_new += changed;
+			available -= changed;
+		}
+	}
+}
+
+/* Update the actual number of allocated stacks, save the current
+ * concur_new to concur_hist for history allocation */
+
+static void
+update_allocation(void)
+{
+	struct component * citer;
+	for (citer = FIRST_LIST(&components, next, prev) ; 
+	     citer != &components ;
+	     citer = FIRST_LIST(citer, next, prev)) {
+		citer->concur_hist = citer->concur_new;
+		if (citer->allocated != citer->concur_new) {
+			if (citer->concur_est == 0) {
+				assert(citer->allocated == 0);
+				available += citer->concur_new - 1;
+				citer->concur_new = 1;
+			} else {
+				available += citer->concur_new - citer->allocated;
+				citer->concur_new = citer->allocated;
+			}
+		}
+	}
+}
+
+/* Allocate at least ss_counter + 1 stacks to self-suspension
+ * component if not satisfied yet. */
+
+static void
+solve_suspension(void)
+{
+	struct thd * iter;
+	struct thd_comp * tc;
+	struct component * citer;
+	unsigned long atb;
+	int changed;
+
+	for (citer = FIRST_LIST(&components, next, prev) ; 
+	     citer != &components ;
+	     citer = FIRST_LIST(citer, next, prev)) {
+		if (!citer->ss_counter) continue;
+		if (available == 0) break;
+		if (citer->concur_new < citer->ss_counter + 1) {
+			if (available > (citer->ss_counter + 1 - citer->concur_new))
+				changed = citer->ss_counter + 1 - citer->concur_new;
+			else 
+				changed = available;
+			citer->concur_new += changed;
+			available -= changed;
+
+			printc("allocate stacks to comp %d for suspension, cnt %d. concur_new %d -> %d \n", 
+			       citer->spdid, citer->ss_counter, citer->concur_new - changed, citer->concur_new);
+			/* update lateness */
+			for ( iter=FIRST_LIST(&threads, next, prev);
+			      iter!=&threads; /* calculate all the threads have tardiness in the component */
+			      iter=FIRST_LIST(iter,next,prev)){
+				tc = &(iter->comp_info[citer->spdid]);
+				atb = tc->avg_time_blocked;
+				if (atb) {   
+					if (tc->avg_time_blocked < tc->impact * changed)
+						tc->avg_time_blocked = 0;
+					else
+						tc->avg_time_blocked -= tc->impact * changed;
+					iter->tardiness -= tc->impact * changed;
+				}
+			}
+		}
+	}		
 }
 
 static void
 policy(void)
 {
 	struct component * c_add, * c_get;
-	int count = 0, collected = 0;
+	int count = 0;
 	//printc("Policy Start!\n");
 
-	/* collect_spare_stacks(); don't collect if not necessary */
-	calc_improvement();
+	update_allocation();
 
-	if (available < 0) {
-		collect_spare_stacks();
-		collected = 1;
-		/* available less than 0 means some stacks are
-		 * over-quota allocated due to self-suspension
-		 * privilege, here we need to revoke some quota */
-		revoke_available();
-	}
-		
+	calc_improvement();
+	
+	solve_suspension();
+
 	while(1){
 		c_add = find_tardiness_comp();
 		if (!c_add) break;
@@ -606,14 +635,7 @@ policy(void)
 		if (available > 0) { /* we have spare stacks, allocate one */
 			available--;
                         move_stack_and_update_tardiness(c_add, NULL);/* add one available stack to c_add */
-		}
-		else { 
-			/* search for spare stacks if we haven't*/
-			if (!collected) {
-				 collect_spare_stacks();
-				 collected = 1;
-				 continue;
-			}
+		} else { 
 			/* no available stacks, try to take one stack from other components if necessary */
 			c_get = find_min_tardiness_comp(c_add);
 			if (c_get) 
@@ -623,10 +645,12 @@ policy(void)
 		}
 		count++;
 	}
+	if (available > 0) history_allocation();
 	/* if (available > 0) {  /\* we have spare stacks for none real-time threads *\/ */
 	/* 	allocate_NRT_stacks(); */
 	/* } */
 	set_concur_new();
+	stkmgr_set_over_quota_limit(available);
 	printc("Quota left:%d, iters: %d\n", available, count);
 }
 
@@ -716,7 +740,7 @@ init_policy(void)
 	for (c = FIRST_LIST(&components, next, prev) ; 
 	     c != &components ;
 	     c = FIRST_LIST(c, next, prev)) {
-		stkmgr_set_concurrency(c->spdid, 1, 1); c->allocated = c->concur_new = 1; available -= 1;
+		stkmgr_set_concurrency(c->spdid, 1, 1); c->concur_new = 1; available -= 1;
 	}
 }
 
@@ -728,8 +752,12 @@ thdpool_1_policy(void)
 	for (c = FIRST_LIST(&components, next, prev) ; 
 	     c != &components ;
 	     c = FIRST_LIST(c, next, prev)) {
-		stkmgr_set_concurrency(c->spdid, 1, 0); /* 0 means pool 1 doesn't revoke stacks! */
+		if (c->ss_counter) 
+			stkmgr_set_concurrency(c->spdid, MAX_NUM_STACKS, 0);
+		else
+			stkmgr_set_concurrency(c->spdid, 1, 0); /* 0 means pool 1 doesn't revoke stacks! */
 	}
+	//stkmgr_set_over_quota_limit(available);
 }
 
 static void
@@ -744,6 +772,7 @@ thdpool_max_policy(void)
 		else 
 			stkmgr_set_concurrency(c->spdid, THD_POOL, 1);
 	}
+	//stkmgr_set_over_quota_limit(available);
 }
 #endif
 

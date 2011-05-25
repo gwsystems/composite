@@ -371,7 +371,7 @@ static inline int cos_sched_lock_take(void)
 {
 	struct cos_synchronization_atom *l = &cos_sched_notifications.cos_locks;
 	unsigned int curr_thd = cos_get_thd_id();
-	
+
 	/* Recursively taking the lock: not good */
 	assert(l->owner_thd != curr_thd);
 	while (1) {

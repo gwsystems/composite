@@ -716,12 +716,14 @@ static void fp_pre_wakeup(struct sched_thd *t)
 	assert(t->wake_cnt >= 0 && t->wake_cnt <= 2);
 	if (2 == t->wake_cnt) return;
 	t->wake_cnt++;
-	if (!sched_thd_dependent(t) &&
-	    !(sched_thd_blocked(t) || t->wake_cnt == 2)) {
-		printc("thread %d (from thd %d) has wake_cnt %d\n", 
-		       t->id, cos_get_thd_id(), t->wake_cnt);
-		BUG();
-	}
+	//printc("thd %d cnt++ %d ->%d\n", t->id, t->wake_cnt-1, t->wake_cnt);
+	/* if (sched_get_current() != t && /\* Hack around comment "STKMGR: self wakeup" *\/ */
+	/*     !sched_thd_dependent(t) && */
+	/*     !(sched_thd_blocked(t) || t->wake_cnt == 2)) { */
+	/* 	printc("thread %d (from thd %d) has wake_cnt %d\n", */
+	/* 	       t->id, cos_get_thd_id(), t->wake_cnt); */
+	/* 	BUG(); */
+	/* } */
 }
 
 /* Assuming the thread is asleep, this will actually wake it (change
@@ -758,11 +760,10 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 	
 	/* only increase the count once */
 	fp_pre_wakeup(thd);
-	assert(thd->blocking_component == 0 || thd->blocking_component == spdid);
 	
 	if (thd->dependency_thd) {
 		assert(sched_thd_dependent(thd));
-		assert(!thd->contended_component);
+		assert(!thd->contended_component || thd->id == cos_get_thd_id());
 		thd->flags &= ~THD_DEPENDENCY;
 		thd->dependency_thd = NULL;
 	} else {
@@ -861,15 +862,6 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 		       thd->blocking_component == spdid))) goto warn;
 	assert(!sched_thd_free(thd));
 	assert(!sched_thd_blocked(thd));
-	/* dependency thread blocked??? */
-	if (dependency_thd) {
-		dep = sched_get_mapping(dependency_thd);
-		if (!dep) {
-			printc("Dependency on non-existent thread %d.\n", dependency_thd);
-			goto err;
-		}
-		if (sched_thd_blocked(dep)) goto err;
-	}
 
 	/* 
 	 * possible FIXME: should we be modifying the wake_cnt at all
@@ -881,6 +873,15 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 		assert(thd->wake_cnt == 1);
 		cos_sched_lock_release();
 		return 0;
+	}
+	/* dependency thread blocked??? */
+	if (dependency_thd) {
+		dep = sched_get_mapping(dependency_thd);
+		if (!dep) {
+			printc("Dependency on non-existent thread %d.\n", dependency_thd);
+			goto err;
+		}
+		if (sched_thd_blocked(dep)) goto err;
 	}
 	/* dependencies keep the thread on the runqueue, so
 	 * that it can be selected to execute and its
@@ -918,8 +919,8 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 			 * inheritance with a blocked thread.
 			 */
 			if (unlikely(sched_thd_dependent(thd))) {
-				printc("Cos_sched_base: Self-suspension thd %d, dep: %d\n",cos_get_thd_id(),dependency_thd);
-				fp_pre_wakeup(thd);
+				printc("Cos_sched_base: Dependency thread self-suspended: dep_thd %d, flags %d, wake_cnt %d (curr thd: %d, comp:%d). \n"
+				       , dependency_thd, dep->flags, dep->wake_cnt, cos_get_thd_id(), spdid);
 				thd->flags &= ~THD_DEPENDENCY;
 				thd->dependency_thd = NULL;
 				report_event(DEPENDENCY_BLOCKED_THD);
