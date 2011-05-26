@@ -22,18 +22,19 @@
         je    2f;                               \
                                                 \
         /* We have a stack */                   \
-        movl cos_comp_info, %eax;               \
-        movl (%eax), %edx;                      \
-        movl %edx, cos_comp_info;               \
-        addl $4, %eax;                          \
+        movl cos_comp_info, %edx;               \
 						\
 	/* now we have the stack */		\
-        movl  %eax, %esp;                       \
-        addl  $8, %esp;                         \
+        movl  %edx, %esp;                       \
+        addl  $12, %esp;			\
 						\
-	movl $THD_ID_SHARED_PAGE, %edx;         \
         movl (%edx), %edx;                      \
-	pushl %edx;	 			\
+        movl %edx, cos_comp_info;               \
+						\
+	/* movl $THD_ID_SHARED_PAGE, %edx; */	\
+        /* movl (%edx), %edx;*/                 \
+	/* pushl %edx */			\
+	pushl %eax;	 			\
         pushl $0x01;    /* flags */             \
 1:                                              \
         pushl $0xFACE;  /* next */              
