@@ -19,6 +19,7 @@
 
 #include <cos_list.h>
 #include <heap.h>
+#include <limits.h>
 
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
 #define ALGORITHM 1
@@ -91,7 +92,7 @@ gather_data(int counter)
 		       "%ld lateness, %ld miss lateness.\n", 
 		       tid, ts->period, ts->priority, ts->deadlines, 
 		       ts->misses, ts->lateness, ts->miss_lateness); */
-		if (counter == 0) printc("Thread DLM%d, %ld miss\n", ts->misses, ts->miss_lateness);
+		if (counter == 0) printc("Thread %d DLM%d, %ld miss\n", tid, ts->misses, ts->miss_lateness);
 		/* } else {
 		   ts->misses += periodic_wake_get_misses(tid) + 1;
 		   ts->deadlines += periodic_wake_get_deadlines(tid) + 1;
@@ -206,11 +207,11 @@ compute_lateness_chg_concur(struct thd *t, struct thd_comp *tc, unsigned int new
 struct thd *
 find_largest_tardiness(void)
 {
-	struct thd *p1,*p2;
-	p2=FIRST_LIST(&threads, next, prev);
-	for (p1=FIRST_LIST(p2,next,prev);
-	     p1!=&threads;
-	     p1=FIRST_LIST(p1,next,prev)){
+	struct thd * p1,* p2;
+	p2 = FIRST_LIST(&threads, next, prev);
+	for (p1 = FIRST_LIST(p2,next,prev) ;
+	     p1 != &threads ;
+	     p1 = FIRST_LIST(p1,next,prev)) {
 		if (p1->tardiness > p2->tardiness)
 			p2 = p1;
         }
@@ -229,11 +230,11 @@ move_stack_and_update_tardiness(struct component *c_add, struct component * c_ta
 	
 	if (c_add) {
 		c = c_add;
-//		printc("Add one stack to Comp %d:(est:%d, old:%d -> new:%d)\n",c->spdid,c->concur_est,c->concur_new,c->concur_new+1);
-		
-		for ( iter=FIRST_LIST(&threads, next, prev);
-		      iter!=&threads; /* calculate all the threads have tardiness in c_add component */
-		      iter=FIRST_LIST(iter,next,prev)){
+		/* printc("Add one stack to Comp %d:(est:%d, old:%d -> new:%d)\n",c->spdid,c->concur_est,c->concur_new,c->concur_new+1); */
+		/* calculate all the threads have tardiness in c_add component */
+		for (iter = FIRST_LIST(&threads, next, prev) ;
+		     iter != &threads ;
+		     iter = FIRST_LIST(iter,next,prev)) {
 			tc = &(iter->comp_info[c->spdid]);
 			atb = tc->avg_time_blocked;
 			if (atb) {   
@@ -255,11 +256,11 @@ move_stack_and_update_tardiness(struct component *c_add, struct component * c_ta
 	if (c_take_away) {
 		c = c_take_away;
 		assert(c->concur_new > 1);
-//		printc("  Take away one stack from Comp %d:(est:%d, old:%d -> new:%d)\n",c->spdid,c->concur_est,c->concur_new,c->concur_new-1);
-		
-		for ( iter=FIRST_LIST(&threads, next, prev);
-		      iter!=&threads; /* calculate all the threads have tardiness in c_take_away component */
-		      iter=FIRST_LIST(iter,next,prev)){
+		/* printc("  Take away one stack from Comp %d:(est:%d, old:%d -> new:%d)\n",c->spdid,c->concur_est,c->concur_new,c->concur_new-1); */
+		/* calculate all the threads have tardiness in c_take_away component */
+		for (iter = FIRST_LIST(&threads, next, prev) ;
+		     iter != &threads ;
+		     iter = FIRST_LIST(iter,next,prev)) {
 			tc = &(iter->comp_info[c->spdid]);
 			atb = tc->avg_time_blocked; 
 			if (tc->impact || tc->old_impact) {
@@ -294,10 +295,101 @@ allocate_NRT_stacks()
 				break;
 			}
 		} else {
-			if (diff < 0 && c->concur_est){
-				printc("!!!!!!!!!BUG: concur_new %d > concur_est %d!",c->concur_new,c->concur_est);
+			if (diff < 0 && c->concur_est) {
+				printc("BUG: concur_new %d > concur_est %d!",c->concur_new,c->concur_est);
+				assert(0);
 			}
 		}
+	}
+}
+
+struct component * 
+find_min_tardiness_comp(struct component * c_original)
+{
+	struct component * c, * min_c = NULL;
+	struct thd_comp * tc, * tco;
+	struct thd * titer;
+
+	if (ALGORITHM == 1) {
+		long worsen, min = 0, tmp_tardiness, tot_impact, min_tot_impact = 0;
+		unsigned long impact_with_history;
+		/* find the component that increasing the total tardiness least if take one stack to c_original */
+		for( c = FIRST_LIST(&components, next, prev) ; 
+		     c != &components ;
+		     c = FIRST_LIST(c, next, prev)) {
+			if (c->concur_new == 1 || c == c_original || c->add_in || c->ss_counter + 1 >= c->concur_new)
+				continue;
+			tot_impact = 0;
+			for ( titer = FIRST_LIST(&threads, next, prev) ;
+			      titer != &threads ; 
+			      titer = FIRST_LIST(titer, next, prev)) {
+				tc = &titer->comp_info[c->spdid];
+				tco = &titer->comp_info[c_original->spdid];
+				tmp_tardiness = titer->tardiness  - (long)tco->impact;
+				impact_with_history = tc->impact ? tc->impact : tc->old_impact;
+				tot_impact += impact_with_history;
+				if (tmp_tardiness > 0) {
+					c->remove_impact += impact_with_history; 
+				} else {
+					if (tmp_tardiness + (long)impact_with_history > 0 && c->concur_new > 1)
+						c->remove_impact += tmp_tardiness + (long)impact_with_history;
+				}
+			}
+			worsen = c->remove_impact;
+			if (!min_c || worsen < min) {
+				min = worsen;
+				min_c = c;
+				min_tot_impact = tot_impact;
+			}
+			if (worsen == min && min_tot_impact > tot_impact) {
+				min_c = c;
+				min_tot_impact = tot_impact;
+			}
+		}
+		if (min_c && min < c_original->add_impact)
+			return min_c;
+		else
+			return NULL;
+	} else {
+		long largest, impact_largest, tmp_tardiness, min = 0, min_impact = 0;
+		unsigned long impact_with_history;
+		/* find the component that influence the max tardiness least if take one stack to c_original */
+		for( c = FIRST_LIST(&components, next, prev); 
+		     c != &components ;
+		     c = FIRST_LIST(c, next, prev)) {
+			if (c->concur_new == 1 || c == c_original || c->add_in || c->ss_counter + 1 >= c->concur_new)
+				continue;
+			largest = 0;
+			impact_largest = LONG_MIN;
+			for ( titer = FIRST_LIST(&threads, next, prev) ;
+			      titer != &threads ; 
+			      titer = FIRST_LIST(titer, next, prev)) {
+				tc = &titer->comp_info[c->spdid];
+				tco = &titer->comp_info[c_original->spdid];
+				impact_with_history = tc->impact ? tc->impact : tc->old_impact;
+				tmp_tardiness = titer->tardiness + (long)impact_with_history - (long)tco->impact;
+				if (tmp_tardiness > largest) 
+					largest = tmp_tardiness;
+				if (impact_with_history && tmp_tardiness > impact_largest)
+					impact_largest = tmp_tardiness;
+			}
+			c->remove_impact = largest;
+			if (largest < min || ! min_c) {
+				min = largest;
+				min_c = c;
+				min_impact = impact_largest;
+			}
+			/* if multiple components impact the same to the max tardiness,
+			   we choose one impact the actual tardiness least*/
+			if (largest == min && impact_largest < min_impact) {
+				min_c = c;
+				min_impact = impact_largest;
+			}
+		}
+		if (min < largest_tardiness && min_c)
+			return min_c;
+		else
+			return NULL;
 	}
 }
 
@@ -350,90 +442,6 @@ calc_component_max_tardiness(struct component * c)
 }
 
 struct component * 
-find_min_tardiness_comp(struct component * c_original)
-{
-	struct component * c, * min_c = NULL;
-	struct thd_comp * tc, * tco;
-	struct thd * titer;
-
-	if (ALGORITHM == 1) {
-		long worsen, min = 0, tmp_tardiness;
-		unsigned long impact_with_history;
-		/* find the component that increasing the total tardiness least if take one stack to c_original */
-		for( c = FIRST_LIST(&components, next, prev) ; 
-		     c != &components ;
-		     c = FIRST_LIST(c, next, prev)) {
-			if (c->concur_new == 1 || c == c_original || c->add_in || c->ss_counter + 1 >= c->concur_new)
-				continue;
-			for ( titer = FIRST_LIST(&threads, next, prev) ;
-			      titer != &threads ; 
-			      titer = FIRST_LIST(titer, next, prev)) {
-				tc = &titer->comp_info[c->spdid];
-				tco = &titer->comp_info[c_original->spdid];
-				tmp_tardiness = titer->tardiness  - (long)tco->impact;
-				impact_with_history = tc->impact ? tc->impact : tc->old_impact;
-				if (tmp_tardiness > 0){
-					c->remove_impact += impact_with_history; 
-				} else {
-					if (tmp_tardiness + (long)impact_with_history > 0 && c->concur_new > 1)
-						c->remove_impact += tmp_tardiness + (long)impact_with_history;
-				}
-			}
-			worsen = c->remove_impact;
-			if (min == 0 || worsen < min)
-			{
-				min = worsen;
-				min_c = c;
-			}
-		}
-		if (min_c && min < c_original->add_impact)
-			return min_c;
-		else
-			return NULL;
-	} else {
-		long largest, impact_largest, tmp_tardiness, min = 0, min_impact = 0;
-		unsigned long impact_with_history;
-		/* find the component that influence the max tardiness least if take one stack to c_original */
-		for( c = FIRST_LIST(&components, next, prev); 
-		     c != &components ;
-		     c = FIRST_LIST(c, next, prev)) {
-			if (c->concur_new == 1 || c == c_original || c->add_in || c->ss_counter + 1 >= c->concur_new)
-				continue;
-			largest = 0;
-			impact_largest = 0;
-			for ( titer = FIRST_LIST(&threads, next, prev) ;
-			      titer != &threads ; 
-			      titer = FIRST_LIST(titer, next, prev)) {
-				tc = &titer->comp_info[c->spdid];
-				tco = &titer->comp_info[c_original->spdid];
-				impact_with_history = tc->impact ? tc->impact : tc->old_impact;
-				tmp_tardiness = titer->tardiness + (long)impact_with_history - (long)tco->impact;
-				if (tmp_tardiness > largest) 
-					largest = tmp_tardiness;
-				if (impact_with_history && tmp_tardiness > impact_largest)
-					impact_largest = tmp_tardiness;
-			}
-			c->remove_impact = largest;
-			if (largest < min || ! min_c){
-				min = largest;
-				min_c = c;
-				min_impact = impact_largest;
-			}
-			/* if multiple components impact the same to the max tardiness,
-			   we choose one impact the actual tardiness least*/
-			if (largest == min && impact_largest < min_impact) {
-				min_c = c;
-				min_impact = impact_largest;
-			}
-		}
-		if (min < largest_tardiness && min_c)
-			return min_c;
-		else
-			return NULL;
-	}
-}
-
-struct component * 
 find_tardiness_comp(void)
 {
 	struct component * c, * max_c = NULL;
@@ -446,10 +454,26 @@ find_tardiness_comp(void)
 		     c != &components ;
 		     c = FIRST_LIST(c, next, prev))  {			
 			calc_component_tardiness(c);
-			if (c->add_impact > max){
+			if (c->add_impact > max) {
 				max_c = c;
 				max = c->add_impact;
-			}			
+			}
+			if (c->add_impact == max && max > 0 && max_c != c) {
+				/* if one stack benefits multiple
+				 * components the same of tardiness,
+				 * we want the component with the max
+				 * total block time. */
+				struct thd * titer;
+				unsigned long tot_impact1 = 0, tot_impact2 = 0;
+				for ( titer = FIRST_LIST(&threads, next, prev) ;
+				      titer != &threads ;
+				      titer = FIRST_LIST(titer, next, prev)) {
+					tot_impact1 += titer->comp_info[c->spdid].impact;
+					tot_impact2 += titer->comp_info[max_c->spdid].impact;
+				}
+				if (tot_impact1 > tot_impact2)
+					max_c = c;
+			}
 		}
 		if (max > 0)
 			return max_c;
@@ -468,7 +492,7 @@ find_tardiness_comp(void)
 			     c != &components ;
 			     c = FIRST_LIST(c, next, prev))  {			
 				calc_component_max_tardiness(c);
-				if (c->add_impact < min || ! max_c){
+				if (c->add_impact < min || ! max_c) {
 					max_c = c;
 					min = c->add_impact;
 				}
@@ -600,15 +624,17 @@ solve_suspension(void)
 			/* update lateness */
 			for ( iter=FIRST_LIST(&threads, next, prev);
 			      iter!=&threads; /* calculate all the threads have tardiness in the component */
-			      iter=FIRST_LIST(iter,next,prev)){
+			      iter=FIRST_LIST(iter,next,prev)) {
 				tc = &(iter->comp_info[citer->spdid]);
 				atb = tc->avg_time_blocked;
 				if (atb) {   
-					if (tc->avg_time_blocked < tc->impact * changed)
+					if (tc->avg_time_blocked < tc->impact * changed) {
+						iter->tardiness -= tc->avg_time_blocked;
 						tc->avg_time_blocked = 0;
-					else
+					} else {
+						iter->tardiness -= tc->impact * changed;
 						tc->avg_time_blocked -= tc->impact * changed;
-					iter->tardiness -= tc->impact * changed;
+					}
 				}
 			}
 		}
@@ -628,7 +654,7 @@ policy(void)
 	
 	solve_suspension();
 
-	while(1){
+	while (1) {
 		c_add = find_tardiness_comp();
 		if (!c_add) break;
 		assert(c_add->concur_est > c_add->concur_new);
@@ -753,7 +779,7 @@ thdpool_1_policy(void)
 	     c != &components ;
 	     c = FIRST_LIST(c, next, prev)) {
 		if (c->ss_counter) 
-			stkmgr_set_concurrency(c->spdid, MAX_NUM_STACKS, 0);
+			stkmgr_set_concurrency(c->spdid, INT_MAX, 0);
 		else
 			stkmgr_set_concurrency(c->spdid, 1, 0); /* 0 means pool 1 doesn't revoke stacks! */
 	}
@@ -768,7 +794,7 @@ thdpool_max_policy(void)
 	     c != &components ;
 	     c = FIRST_LIST(c, next, prev)) {
 		if (c->ss_counter) 
-			stkmgr_set_concurrency(c->spdid, MAX_NUM_STACKS, 0);
+			stkmgr_set_concurrency(c->spdid, INT_MAX, 0);
 		else 
 			stkmgr_set_concurrency(c->spdid, THD_POOL, 1);
 	}
