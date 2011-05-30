@@ -2,4 +2,5 @@
 #include <print.h>
 #include <pong.h>
 
-void call(void) { return; }
+volatile int c = 0;
+void call(void) { if (c++ == 10) assert(0); return; }

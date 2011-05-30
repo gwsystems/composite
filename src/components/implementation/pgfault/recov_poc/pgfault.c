@@ -30,14 +30,16 @@ int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *i
 	cos_regs_print(&regs);
 
 	/* remove from the invocation stack the faulting component! */
-	cos_thd_cntl(COS_THD_INV_FRAME_REM, tid, 1, 0);
-	
+	assert(!cos_thd_cntl(COS_THD_INV_FRAME_REM, tid, 1, 0));
+
 	/* Manipulate the return address of the component that called
 	 * the faulting component... */
-	r_ip = cos_thd_cntl(COS_THD_INVFRM_IP, tid, 2, 0);
+	assert(r_ip = cos_thd_cntl(COS_THD_INVFRM_IP, tid, 1, 0));
 	/* ...and set it to its value -8, which is the fault handler
 	 * of the stub. */
-	cos_thd_cntl(COS_THD_INVFRM_SET_IP, tid, r_ip-8, 2);
+	assert(!cos_thd_cntl(COS_THD_INVFRM_SET_IP, tid, 1, r_ip-8));
+
+	
 
 	return 0;
 }

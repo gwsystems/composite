@@ -184,15 +184,37 @@ static inline struct thd_invocation_frame *thd_invstk_nth(struct thread *thd, in
 	return &thd->stack_base[idx];
 }
 
-static inline int thd_invstk_rem_nth(struct thread *thd, int nth, struct thd_invocation_frame *tif)
+static inline void thd_invstk_move_nth(struct thread *thd, int nth, int rem)
+{
+	struct thd_invocation_frame *if_keep, *if_rem;
+
+	assert(nth != 0);
+	assert(nth < thd->stack_ptr);
+
+	if_keep = &thd->stack_base[nth+1];
+	if_rem = &thd->stack_base[nth];
+	if (rem) {
+		if_rem->spd = if_keep->spd;
+		if_rem->current_composite_spd = if_keep->current_composite_spd;
+	} else {
+		memcpy(if_rem, if_keep, sizeof(struct thd_invocation_frame));
+	}
+}
+
+static inline int thd_invstk_rem_nth(struct thread *thd, unsigned int nth)
 {
 	int idx = thd->stack_ptr - nth, i;
+	struct spd_poly *cspd;
+	int first = 1;
 
-	if (thd->stack_ptr == 0 || idx < 0) return -1;
-	memcpy(tif, &thd->stack_base[idx], sizeof(struct thd_invocation_frame));
+	if (nth >= thd->stack_ptr) return -1;
+	/* release the composite spd */
+	cspd = thd->stack_base[idx].current_composite_spd;
+	spd_mpd_ipc_release((struct composite_spd*)cspd);
 	/* shift the stack items down by one */
-	for (i = idx ; i < MAX_SERVICE_DEPTH-1 && thd->stack_base[idx+1].spd ; i++) {
-		memcpy(&thd->stack_base[idx], &thd->stack_base[idx+1], sizeof(struct thd_invocation_frame));
+	for (i = idx ; i < thd->stack_ptr ; i++) {
+		thd_invstk_move_nth(thd, i, first);
+		first = 0;
 	}
 	thd->stack_ptr--;
 
@@ -243,7 +265,7 @@ static inline vaddr_t thd_get_frame_ip(struct thread *thd, int frame_offset)
 
 	if (frame_offset > thd->stack_ptr) return 0;
 	off = thd->stack_ptr - frame_offset;
-	if (off == thd->stack_ptr) {
+	if (off == 0) {
 		if (thd->flags & THD_STATE_PREEMPTED) {
 			return thd->regs.ip;
 		} else {
@@ -262,7 +284,7 @@ static inline vaddr_t thd_set_frame_ip(struct thread *thd, int frame_offset, uns
 
 	if (frame_offset > thd->stack_ptr) return -1;
 	off = thd->stack_ptr - frame_offset;
-	if (off == thd->stack_ptr) {
+	if (off == 0) {
 		if (thd->flags & THD_STATE_PREEMPTED) {
 			thd->regs.ip = new_ip;
 		} else {
@@ -283,7 +305,7 @@ static inline vaddr_t thd_get_frame_sp(struct thread *thd, int frame_offset)
 
 	if (frame_offset > thd->stack_ptr) return 0;
 	off = thd->stack_ptr - frame_offset;
-	if (off == thd->stack_ptr) {
+	if (off == 0) {
 		if (thd->flags & THD_STATE_PREEMPTED) {
 			return thd->regs.sp;
 		} else {
@@ -303,7 +325,7 @@ static inline vaddr_t thd_set_frame_sp(struct thread *thd, int frame_offset, uns
 
 	if (frame_offset > thd->stack_ptr) return 1;
 	off = thd->stack_ptr - frame_offset;
-	if (off == thd->stack_ptr) {
+	if (off == 0) {
 		if (thd->flags & THD_STATE_PREEMPTED) {
 			thd->regs.sp = new_sp;
 		} else {

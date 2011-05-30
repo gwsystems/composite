@@ -169,8 +169,8 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	 * this.
 	 */
 	if (unlikely(!thd_spd_in_composite(curr_frame->current_composite_spd, curr_spd))) {
-		printk("cos: Error, incorrect capability (Cap %d has cspd %x, stk has %x).\n",
-		       capability, spd_get_index(curr_spd), spd_get_index(curr_frame->spd));
+		printk("cos: Error, incorrect capability (Cap %d has spd %d, stk @ %d has %d).\n",
+		       capability, spd_get_index(curr_spd), thd->stack_ptr, spd_get_index(curr_frame->spd));
 		print_stack(thd);
 		/* 
 
@@ -533,11 +533,9 @@ COS_SYSCALL int cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long a
 	case COS_THD_INV_FRAME_REM:
 	{
 		int frame_offset = arg1;
-		struct thd_invocation_frame tif;
 
 		if (thd == curr && frame_offset < 1) return -1;
-		if (thd_invstk_rem_nth(thd, frame_offset, &tif)) return -1;
-		spd_mpd_ipc_release((struct composite_spd *)tif.current_composite_spd);
+		if (thd_invstk_rem_nth(thd, frame_offset)) return -1;
 
 		return 0;
 	}
