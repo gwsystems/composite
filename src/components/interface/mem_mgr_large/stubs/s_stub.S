@@ -1,1 +1,1 @@
-../../mem_mgr/stubs/s_stubmm.S
+../../mem_mgr/stubs/s_stub.S
