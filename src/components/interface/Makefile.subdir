@@ -1,10 +1,15 @@
 include Makefile.src Makefile.comp
 
-STUBS=$(ASM_STUBS)
+STUB_DIR=stubs
+S_CSTUBS=$(wildcard $(STUB_DIR)/s_*.c)
+S_SSTUBS=$(wildcard $(STUB_DIR)/s_*.S)
+S_STUB_OBJS=$(S_CSTUBS:%.c=%.o) $(S_SSTUBS:%.S=%.o)
+C_STUB_OBJS=$(wildcard $(STUB_DIR)/c_*.c:%.o=%.c)
+STUBS=$(ASM_STUBS) 
 IFNAME=$(lastword $(subst /, ,$(shell pwd)))
 
 .PHONY: all
-all: $(LIBS) default
+all: $(LIBS) stubs
 
 # we have to compile these without dietlibc so that there are not
 # symbol conflicts and this is why we have the %.a here and don't
@@ -13,20 +18,26 @@ all: $(LIBS) default
 	$(info |     [AR]   Creating library file lib$(IFNAME).a from $<)
 	@$(AR) cr lib$(IFNAME).a $<
 
-%.o:%.S
-	$(info |     [AS]   Compiling assembly file $^ into $@)
-	@$(AS) $(ASFLAGS) -c -o $@ $^
-
 %.o:%.c
 	$(info |     [CC]   Compiling c file $^ into $@)
 	@$(CC) $(CFLAGS) $(CINC) -c -o $(@) $<
 
+%.o:%.S
+	$(info |     [AS]   Compiling assembly file $^ into $@)
+	@$(AS) $(ASFLAGS) -c -o $@ $^
+
+server_stubs: $(S_STUB_OBJS)
+	$(if $(S_STUB_OBJS), $(info |     [LD]   Creating server stubs from $^))
+	@$(if $(S_STUB_OBJS), $(LD) -r -o $(SERVER_STUB) $^)
+
+client_stubs: $(C_STUB_OBJS)
+	$(if $(C_STUB_OBJS), $(info |     [LD]   Creating client stubs from $^))
+	@$(if $(C_STUB_OBJS), $(LD) -r -o $(CLIENT_STUB) $^)
+
+stubs: server_stubs client_stubs
+
 clean:
 	$(info |     [RM]   Cleaning up interface directory for $(IFNAME))
-	@$(RM) -f a.out *.o *.a *.d *~
+	@$(RM) -f a.out *.o *.a *.d *~ $(STUB_DIR)/*.o
 
 fresh: clean all
-
-default: $(STUBS)
-	$(info |     [LD]   Creating server stubs from $^)
-	@$(LD) -r -o $(SERVER_STUB) $^
