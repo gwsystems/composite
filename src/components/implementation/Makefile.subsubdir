@@ -22,16 +22,14 @@ IF_SERV_STUBS=$(foreach I,$(INTERFACES),$(INTERDIR)/$(I)/$(SERVER_STUB))
 #dependency components added to include listings and linker listings
 DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
 DEP_LIB=$(foreach D,$(DEPENDENCIES),-L$(INTERDIR)/$(D)/)
+DEP_LIB_EXIST=$(foreach D, $(DEPENDENCIES), $(if $(wildcard $(INTERDIR)/$(D)/*.a), -l$(D)))
 
 #COMPLIB=$(if $(wildcard $(CLIB)),$(CLIB))
 COMPLIB=$(IF_LIB)
 OBJS=$(C_OBJS) $(ASM_OBJS) $(COMPLIB)
 TMP_STR=tmp
 INCLUDE=-I../ $(DEP_INC) $(IF_INCLUDE) $(CINC)
-LIB_LIBRARIES_PRE=\
-$(if $(findstring lock, $(DEPENDENCIES)), -llock) \
-$(if $(findstring cbuf_c, $(DEPENDENCIES)), -lcbuf_c) \
-$(if $(findstring mem_mgr, $(DEPENDENCIES)), $(if $(findstring mem_mgr_large, $(DEPENDENCIES)), -lmem_mgr_large, -lmem_mgr))
+LIB_LIBRARIES_PRE=$(DEP_LIB_EXIST)
 LIB_LIBRARIES=$(strip $(LIB_LIBRARIES_PRE))
 LIB_FLAGS=-L$(LIBDIR) $(DEP_LIB) -lcos_component $(LIB_LIBRARIES) $(ADDITIONAL_LIBS)
 

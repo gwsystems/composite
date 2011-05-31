@@ -101,4 +101,6 @@ struct pt_regs {
 
 #include "../asm_ipc_defs.h"
 
+#define KERN_BASE_ADDR 0xc0000000 //CONFIG_PAGE_OFFSET
+
 #endif

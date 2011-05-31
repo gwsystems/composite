@@ -964,6 +964,8 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 
 	fault_addr = read_cr2();
 
+	if (fault_addr > KERN_BASE_ADDR) goto linux_handler;
+
 	/* 
 	 * Composite doesn't know how to handle kernel faults, and
 	 * they should be sent by the assembly to the default linux
@@ -2086,7 +2088,7 @@ static int asym_exec_dom_init(void)
 	if (make_proc_aed())
 		return -1;
 
-	update_vmalloc_regions();
+	//update_vmalloc_regions();
 	hw_int_init();
 	hw_int_override_sysenter(sysenter_interposition_entry);
 	hw_int_override_pagefault(page_fault_interposition);

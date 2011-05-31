@@ -24,6 +24,6 @@ clean:
 # sync to minimize possible file system corruption on crashes
 build: 
 	sync
-	insmod cos.ko
+	nice -n -20 insmod cos.ko
 	insmod cnet.ko
 	./cnet_user

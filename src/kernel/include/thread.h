@@ -201,13 +201,13 @@ static inline void thd_invstk_move_nth(struct thread *thd, int nth, int rem)
 	}
 }
 
-static inline int thd_invstk_rem_nth(struct thread *thd, unsigned int nth)
+static inline int thd_invstk_rem_nth(struct thread *thd, int nth)
 {
 	int idx = thd->stack_ptr - nth, i;
 	struct spd_poly *cspd;
 	int first = 1;
 
-	if (nth >= thd->stack_ptr) return -1;
+	if (nth < 0 || nth >= thd->stack_ptr) return -1;
 	/* release the composite spd */
 	cspd = thd->stack_base[idx].current_composite_spd;
 	spd_mpd_ipc_release((struct composite_spd*)cspd);
