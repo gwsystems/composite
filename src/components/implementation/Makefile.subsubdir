@@ -23,6 +23,9 @@ IF_SERV_STUBS=$(foreach I,$(INTERFACES),$(INTERDIR)/$(I)/$(SERVER_STUB))
 DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
 DEP_LIB=$(foreach D,$(DEPENDENCIES),-L$(INTERDIR)/$(D)/)
 DEP_LIB_EXIST=$(foreach D, $(DEPENDENCIES), $(if $(wildcard $(INTERDIR)/$(D)/*.a), -l$(D)))
+IF_CLIENT_STUBS=$(foreach D, $(DEPENDENCIES),      \
+ $(if $(wildcard $(INTERDIR)/$(D)/$(CLIENT_STUB)), \
+ $(wildcard $(INTERDIR)/$(D)/$(CLIENT_STUB))))
 
 #COMPLIB=$(if $(wildcard $(CLIB)),$(CLIB))
 COMPLIB=$(IF_LIB)
@@ -44,9 +47,9 @@ all: $(SOURCE_DEPENDENCIES) $(COMPONENT)
 # symbols there are used, thus the gcc, and the ld, but then (and only
 # then) do we want to use dietlibc's functions
 $(COMPONENT): $(OBJS)
-	$(info |     [LD]   Loading cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
-	@$(LD) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
-	$(info |     [DIET] Linking with dietlibc to produce $@)
+	$(info |     [LD]   $@: Loading stubs and cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
+	@$(LD) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(IF_CLIENT_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
+#	$(info |     [DIET] Linking with dietlibc to produce $@)
 	@$(DIETCC) $(DIETCFLAGS) -Xlinker -r -o $@ $@.$(TMP_STR)
 	@rm $@.$(TMP_STR)
 

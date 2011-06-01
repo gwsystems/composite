@@ -263,14 +263,11 @@ static inline vaddr_t thd_get_frame_ip(struct thread *thd, int frame_offset)
 	 * stack is at the beginning of the next call's stack frame.
 	 */
 
-	if (frame_offset > thd->stack_ptr) return 0;
+	if (frame_offset > thd->stack_ptr || frame_offset < 0) return 0;
 	off = thd->stack_ptr - frame_offset;
-	if (off == 0) {
-		if (thd->flags & THD_STATE_PREEMPTED) {
-			return thd->regs.ip;
-		} else {
-			return thd->regs.dx;
-		}
+	if (off == thd->stack_ptr) {
+		if (thd->flags & THD_STATE_PREEMPTED) return thd->regs.ip;
+		else                                  return 0;//thd->regs.dx;
 	} else {
 		struct thd_invocation_frame *tif;
 		tif = &thd->stack_base[off+1];
@@ -282,14 +279,11 @@ static inline vaddr_t thd_set_frame_ip(struct thread *thd, int frame_offset, uns
 {
 	int off;
 
-	if (frame_offset > thd->stack_ptr) return -1;
+	if (frame_offset > thd->stack_ptr || frame_offset < 0) return -1;
 	off = thd->stack_ptr - frame_offset;
-	if (off == 0) {
-		if (thd->flags & THD_STATE_PREEMPTED) {
-			thd->regs.ip = new_ip;
-		} else {
-			thd->regs.dx = new_ip;
-		}
+	if (off == thd->stack_ptr) {
+		if (thd->flags & THD_STATE_PREEMPTED) thd->regs.ip = new_ip;
+		//else                                  thd->regs.dx = new_ip;
 	} else {
 		struct thd_invocation_frame *tif;
 		tif = &thd->stack_base[off+1];
@@ -303,14 +297,11 @@ static inline vaddr_t thd_get_frame_sp(struct thread *thd, int frame_offset)
 	int off;
 	/* See comment in thd_get_frame_ip */
 
-	if (frame_offset > thd->stack_ptr) return 0;
+	if (frame_offset > thd->stack_ptr || frame_offset < 0) return 0;
 	off = thd->stack_ptr - frame_offset;
-	if (off == 0) {
-		if (thd->flags & THD_STATE_PREEMPTED) {
-			return thd->regs.sp;
-		} else {
-			return thd->regs.cx;
-		}
+	if (off == thd->stack_ptr) {
+		if (thd->flags & THD_STATE_PREEMPTED) return thd->regs.sp;
+		else                                  return 0;//thd->regs.cx;
 	} else {
 		struct thd_invocation_frame *tif;
 		tif = &thd->stack_base[off+1];
@@ -323,14 +314,11 @@ static inline vaddr_t thd_set_frame_sp(struct thread *thd, int frame_offset, uns
 	int off;
 	/* See comment in thd_get_frame_ip */
 
-	if (frame_offset > thd->stack_ptr) return 1;
+	if (frame_offset > thd->stack_ptr || frame_offset < 0) return 1;
 	off = thd->stack_ptr - frame_offset;
-	if (off == 0) {
-		if (thd->flags & THD_STATE_PREEMPTED) {
-			thd->regs.sp = new_sp;
-		} else {
-			thd->regs.cx = new_sp;
-		}
+	if (off == thd->stack_ptr) {
+		if (thd->flags & THD_STATE_PREEMPTED) thd->regs.sp = new_sp;
+		//else                                  thd->regs.cx = new_sp;
 	} else {
 		struct thd_invocation_frame *tif;
 		tif = &thd->stack_base[off+1];

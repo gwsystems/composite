@@ -284,7 +284,7 @@ int fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct p
 	
 	/* save the faulting registers */
 	memcpy(&thd->fault_regs, regs, sizeof(struct pt_regs));
-	a = ipc_walk_static_cap(thd, fault_cap<<20, 0, 0, &r);
+	a = ipc_walk_static_cap(thd, fault_cap<<20, regs->sp, regs->ip, &r);
 
 	/* setup the registers for the fault handler invocation */
 	regs->ax = r.thd_id;

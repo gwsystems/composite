@@ -48,10 +48,7 @@
  * and the capability number for this entry.  Be sure to keep this
  * synchronized with asm_ipc_defs.h.
  */
-struct usr_inv_cap {
-	vaddr_t invocation_fn, service_entry_inst;
-	unsigned int invocation_count, cap_no;
-} HALF_CACHE_ALIGNED; 
+/* user half found in cos_types.h */
 
 /* ST stubs are linked automatically */
 struct usr_cap_stubs {

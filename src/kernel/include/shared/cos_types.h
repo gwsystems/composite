@@ -208,6 +208,12 @@ struct restartable_atomic_sequence {
 	vaddr_t start, end;
 };
 
+/* see explanation in spd.h */
+struct usr_inv_cap {
+	vaddr_t invocation_fn, service_entry_inst;
+	unsigned int invocation_count, cap_no;
+} HALF_CACHE_ALIGNED; 
+
 #define COMP_INFO_POLY_NUM 10
 #define COMP_INFO_INIT_STR_LEN 128
 #define COMP_INFO_STACK_FREELISTS 1

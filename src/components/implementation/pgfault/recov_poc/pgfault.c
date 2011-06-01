@@ -21,6 +21,7 @@ int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *i
 {
 	unsigned long r_ip; 	/* the ip to return to */
 	int tid = cos_get_thd_id();
+	int i;
 
 	if (regs_active) BUG();
 	regs_active = 1;
@@ -28,6 +29,11 @@ int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *i
 	printc("Thread %d faults in spd %d @ %p\n", 
 	       tid, spdid, fault_addr);
 	cos_regs_print(&regs);
+
+	for (i = 0 ; i < 5 ; i++)
+		printc("Frame ip:%lx, sp:%lx\n", 
+		       cos_thd_cntl(COS_THD_INVFRM_IP, tid, i, 0), 
+		       cos_thd_cntl(COS_THD_INVFRM_SP, tid, i, 0));
 
 	/* remove from the invocation stack the faulting component! */
 	assert(!cos_thd_cntl(COS_THD_INV_FRAME_REM, tid, 1, 0));
@@ -39,7 +45,7 @@ int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *i
 	 * of the stub. */
 	assert(!cos_thd_cntl(COS_THD_INVFRM_SET_IP, tid, 1, r_ip-8));
 
-	
+	regs_active = 0;
 
 	return 0;
 }
