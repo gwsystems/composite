@@ -9,7 +9,7 @@
 
 #include <cos_component.h>
 #include <pgfault.h>
-#include <sched.h>
+//#include <sched.h>
 #include <print.h>
 #include <fault_regs.h>
 #include <stkmgr.h>
@@ -24,10 +24,7 @@ map_stack(spdid_t spdid, vaddr_t extern_stk)
 	static unsigned long *stack = 0;
 	vaddr_t extern_addr;
 	
-	if (!stack) {
-		stack = cos_get_heap_ptr();
-		cos_set_heap_ptr(((char *)stack) + PAGE_SIZE);
-	}
+	if (!stack) stack = cos_get_vas_page();
 	extern_addr = round_to_page(extern_stk);
 
 	if (stkmgr_stack_introspect(cos_spd_id(), (vaddr_t)stack, spdid, extern_addr)) BUG();
@@ -106,7 +103,7 @@ walk_stack_all(spdid_t spdid, struct cos_regs *regs)
 	
 }
 
-void fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *orig_ip)
+int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *orig_ip)
 {
 	if (regs_active) BUG();
 	regs_active = 1;
@@ -122,5 +119,5 @@ void fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *
 	 * that is where the problem is. */
 	BUG(); 			
 
-	return;
+	return 0;
 }

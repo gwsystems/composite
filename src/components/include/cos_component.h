@@ -137,6 +137,7 @@ cos_syscall_3(15, int, __thd_cntl, int, op_thdid, long, arg1, long, arg2);
 cos_syscall_0(16, int, idle);
 cos_syscall_3(17, int, __spd_cntl, int, op_spdid, long, arg1, long, arg2);
 cos_syscall_3(18, int, __vas_cntl, int, op_spdid, long, arg1, long, arg2);
+cos_syscall_0(31,  int, null);
 
 static inline int cos_mmap_cntl(short int op, short int flags, 
 				short int dest_spd, vaddr_t dest_addr, long mem_id) {
@@ -282,6 +283,24 @@ static inline long cos_cmpxchg(volatile void *memory, long anticipated, long res
 		: "cc", "memory");
 
 	return ret;
+}
+
+/* allocate a page in the vas */
+static inline void *cos_get_vas_page(void)
+{
+	char *h;
+	long r;
+	do {
+		h = cos_get_heap_ptr();
+		r = (long)h+PAGE_SIZE;
+	} while (cos_cmpxchg(&cos_comp_info.cos_heap_ptr, (long)h, r) != r);
+	return h;
+}
+
+/* only if the heap pointer is pre_addr, set it to post_addr */
+static inline void cos_set_heap_ptr_conditional(void *pre_addr, void *post_addr)
+{
+	cos_cmpxchg(&cos_comp_info.cos_heap_ptr, (long)pre_addr, (long)post_addr);
 }
 
 /* from linux source in string.h */

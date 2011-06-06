@@ -51,9 +51,10 @@ cbuf_c_create(spdid_t spdid, int size, void *page)
 	d = malloc(sizeof(struct cb_desc));
 	if (!d) goto done;
 	TAKE();
-	h = cos_get_heap_ptr();
-	cos_set_heap_ptr(h + PAGE_SIZE);
+	h = cos_get_vas_page();
+	/* get the page */
 	if (!mman_get_page(cos_spd_id(), (vaddr_t)h, 0)) goto err;
+	/* ...map it into the requesting component */
 	if (!mman_alias_page(cos_spd_id(), (vaddr_t)h, spdid, (vaddr_t)page)) goto err2;
 
 	d->principal  = cos_get_thd_id();
@@ -71,7 +72,7 @@ done:
 err2:
 	mman_release_page(cos_spd_id(), (vaddr_t)h, 0);
 err:
-	cos_set_heap_ptr(h - PAGE_SIZE);
+	cos_set_heap_ptr_conditional(h + PAGE_SIZE, h);
 	goto done;
 }
 

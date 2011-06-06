@@ -184,6 +184,43 @@ static inline struct thd_invocation_frame *thd_invstk_nth(struct thread *thd, in
 	return &thd->stack_base[idx];
 }
 
+static inline void thd_invstk_move_nth(struct thread *thd, int nth, int rem)
+{
+	struct thd_invocation_frame *if_keep, *if_rem;
+
+	assert(nth != 0);
+	assert(nth < thd->stack_ptr);
+
+	if_keep = &thd->stack_base[nth+1];
+	if_rem = &thd->stack_base[nth];
+	if (rem) {
+		if_rem->spd = if_keep->spd;
+		if_rem->current_composite_spd = if_keep->current_composite_spd;
+	} else {
+		memcpy(if_rem, if_keep, sizeof(struct thd_invocation_frame));
+	}
+}
+
+static inline int thd_invstk_rem_nth(struct thread *thd, int nth)
+{
+	int idx = thd->stack_ptr - nth, i;
+	struct spd_poly *cspd;
+	int first = 1;
+
+	if (nth < 0 || nth >= thd->stack_ptr) return -1;
+	/* release the composite spd */
+	cspd = thd->stack_base[idx].current_composite_spd;
+	spd_mpd_ipc_release((struct composite_spd*)cspd);
+	/* shift the stack items down by one */
+	for (i = idx ; i < thd->stack_ptr ; i++) {
+		thd_invstk_move_nth(thd, i, first);
+		first = 0;
+	}
+	thd->stack_ptr--;
+
+	return 0;
+}
+
 extern struct thread *current_thread;
 static inline struct thread *thd_get_current(void) 
 {
@@ -226,14 +263,11 @@ static inline vaddr_t thd_get_frame_ip(struct thread *thd, int frame_offset)
 	 * stack is at the beginning of the next call's stack frame.
 	 */
 
-	if (frame_offset > thd->stack_ptr) return 0;
+	if (frame_offset > thd->stack_ptr || frame_offset < 0) return 0;
 	off = thd->stack_ptr - frame_offset;
 	if (off == thd->stack_ptr) {
-		if (thd->flags & THD_STATE_PREEMPTED) {
-			return thd->regs.ip;
-		} else {
-			return thd->regs.dx;
-		}
+		if (thd->flags & THD_STATE_PREEMPTED) return thd->regs.ip;
+		else                                  return 0;//thd->regs.dx;
 	} else {
 		struct thd_invocation_frame *tif;
 		tif = &thd->stack_base[off+1];
@@ -241,24 +275,56 @@ static inline vaddr_t thd_get_frame_ip(struct thread *thd, int frame_offset)
 	}
 }
 
+static inline vaddr_t thd_set_frame_ip(struct thread *thd, int frame_offset, unsigned long new_ip)
+{
+	int off;
+
+	if (frame_offset > thd->stack_ptr || frame_offset < 0) return -1;
+	off = thd->stack_ptr - frame_offset;
+	if (off == thd->stack_ptr) {
+		if (thd->flags & THD_STATE_PREEMPTED) thd->regs.ip = new_ip;
+		//else                                  thd->regs.dx = new_ip;
+	} else {
+		struct thd_invocation_frame *tif;
+		tif = &thd->stack_base[off+1];
+		tif->ip = new_ip;
+	}
+	return 0;
+}
+
 static inline vaddr_t thd_get_frame_sp(struct thread *thd, int frame_offset)
 {
 	int off;
 	/* See comment in thd_get_frame_ip */
 
-	if (frame_offset > thd->stack_ptr) return 0;
+	if (frame_offset > thd->stack_ptr || frame_offset < 0) return 0;
 	off = thd->stack_ptr - frame_offset;
 	if (off == thd->stack_ptr) {
-		if (thd->flags & THD_STATE_PREEMPTED) {
-			return thd->regs.sp;
-		} else {
-			return thd->regs.cx;
-		}
+		if (thd->flags & THD_STATE_PREEMPTED) return thd->regs.sp;
+		else                                  return 0;//thd->regs.cx;
 	} else {
 		struct thd_invocation_frame *tif;
 		tif = &thd->stack_base[off+1];
 		return tif->sp;
 	}
+}
+
+static inline vaddr_t thd_set_frame_sp(struct thread *thd, int frame_offset, unsigned long new_sp)
+{
+	int off;
+	/* See comment in thd_get_frame_ip */
+
+	if (frame_offset > thd->stack_ptr || frame_offset < 0) return 1;
+	off = thd->stack_ptr - frame_offset;
+	if (off == thd->stack_ptr) {
+		if (thd->flags & THD_STATE_PREEMPTED) thd->regs.sp = new_sp;
+		//else                                  thd->regs.cx = new_sp;
+	} else {
+		struct thd_invocation_frame *tif;
+		tif = &thd->stack_base[off+1];
+		tif->sp = new_sp;
+	}
+	return 0;
 }
 
 static inline vaddr_t thd_get_ip(struct thread *t)

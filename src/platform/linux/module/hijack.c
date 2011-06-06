@@ -44,6 +44,8 @@
 
 #include "./hw_ints.h"
 
+#include "./kconfig_checks.h"
+
 MODULE_LICENSE("GPL");
 #define MODULE_NAME "asymmetric_execution_domain_support"
 
@@ -962,6 +964,8 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 
 	fault_addr = read_cr2();
 
+	if (fault_addr > KERN_BASE_ADDR) goto linux_handler;
+
 	/* 
 	 * Composite doesn't know how to handle kernel faults, and
 	 * they should be sent by the assembly to the default linux
@@ -1617,7 +1621,7 @@ int host_attempt_brand(struct thread *brand)
 			}
 
 			goto done;
- 		} //else if (thd_get_id(brand->upcall_threads) == 13) printk(">r\n");
+ 		}
 
 		regs = get_user_regs_thread(composite_thread);
 
@@ -1691,7 +1695,7 @@ done:
 static void timer_interrupt(unsigned long data)
 {
 	BUG_ON(composite_thread == NULL);
-	mod_timer(&timer, jiffies+1);
+	mod_timer_pinned(&timer, jiffies+1);
 
 	if (!(cos_timer_brand_thd && cos_timer_brand_thd->upcall_threads)) {
 		return;
@@ -1705,7 +1709,7 @@ static void register_timers(void)
 {
 	init_timer(&timer);
 	timer.function = timer_interrupt;
-	mod_timer(&timer, jiffies+2);
+	mod_timer_pinned(&timer, jiffies+2);
 	
 	return;
 }
@@ -2084,7 +2088,7 @@ static int asym_exec_dom_init(void)
 	if (make_proc_aed())
 		return -1;
 
-	update_vmalloc_regions();
+	//update_vmalloc_regions();
 	hw_int_init();
 	hw_int_override_sysenter(sysenter_interposition_entry);
 	hw_int_override_pagefault(page_fault_interposition);

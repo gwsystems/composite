@@ -4,7 +4,6 @@
 #define CPU_GHZ        2.0
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 
-// How long should Composite run before returning to Linux?
 #define RUNTIME                61 // seconds
 // After how many seconds should schedulers print out their information?
 #define SCHED_PRINTOUT_PERIOD  50 

@@ -169,8 +169,8 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	 * this.
 	 */
 	if (unlikely(!thd_spd_in_composite(curr_frame->current_composite_spd, curr_spd))) {
-		printk("cos: Error, incorrect capability (Cap %d has cspd %x, stk has %x).\n",
-		       capability, spd_get_index(curr_spd), spd_get_index(curr_frame->spd));
+		printk("cos: Error, incorrect capability (Cap %d has spd %d, stk @ %d has %d).\n",
+		       capability, spd_get_index(curr_spd), thd->stack_ptr, spd_get_index(curr_frame->spd));
 		print_stack(thd);
 		/* 
 
@@ -284,7 +284,7 @@ int fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct p
 	
 	/* save the faulting registers */
 	memcpy(&thd->fault_regs, regs, sizeof(struct pt_regs));
-	a = ipc_walk_static_cap(thd, fault_cap<<20, 0, 0, &r);
+	a = ipc_walk_static_cap(thd, fault_cap<<20, regs->sp, regs->ip, &r);
 
 	/* setup the registers for the fault handler invocation */
 	regs->ax = r.thd_id;
@@ -530,17 +530,38 @@ COS_SYSCALL int cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long a
 		i_spd = tif->spd;
 		return spd_get_index(i_spd);
 	}
+	case COS_THD_INV_FRAME_REM:
+	{
+		int frame_offset = arg1;
+
+		if (thd == curr && frame_offset < 1) return -1;
+		if (thd_invstk_rem_nth(thd, frame_offset)) return -1;
+
+		return 0;
+	}
 	case COS_THD_INVFRM_IP:
 	{
 		int frame_offset = arg1;
 
 		return thd_get_frame_ip(thd, frame_offset);
 	}
+	case COS_THD_INVFRM_SET_IP:
+	{
+		int frame_offset = arg1;
+
+		return thd_set_frame_ip(thd, frame_offset, arg2);
+	}
 	case COS_THD_INVFRM_SP:
 	{
 		int frame_offset = arg1;
 
 		return thd_get_frame_sp(thd, frame_offset);
+	}
+	case COS_THD_INVFRM_SET_SP:
+	{
+		int frame_offset = arg1;
+
+		return thd_set_frame_sp(thd, frame_offset, arg2);
 	}
 #define __GET_REG(name)							\
 	{								\

@@ -32,7 +32,7 @@ void make_alloc_call_free(int sz, char c)
 void cos_init(void)
 {
 	void *mem1, *mem2;
-	cbuf_t cb1, cb2;
+	cbuf_t cb1 = cbuf_null(), cb2 = cbuf_null();
 	u32_t id, idx;
 
 	mem1 = cbuf_alloc(2048, &cb1);

@@ -28,3 +28,4 @@ LD=ld
 AS=$(CC)
 MV=mv
 CP=cp
+RM=rm

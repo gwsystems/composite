@@ -208,6 +208,12 @@ struct restartable_atomic_sequence {
 	vaddr_t start, end;
 };
 
+/* see explanation in spd.h */
+struct usr_inv_cap {
+	vaddr_t invocation_fn, service_entry_inst;
+	unsigned int invocation_count, cap_no;
+} HALF_CACHE_ALIGNED; 
+
 #define COMP_INFO_POLY_NUM 10
 #define COMP_INFO_INIT_STR_LEN 128
 #define COMP_INFO_STACK_FREELISTS 1
@@ -262,8 +268,11 @@ enum {
 /* operations for cos_thd_cntl */
 enum {
 	COS_THD_INV_FRAME, 	/* Get the ith invocation frame for the thread */
+	COS_THD_INV_FRAME_REM, 	/* Remove a component return at an offset into the thd's stack */
 	COS_THD_INVFRM_IP,	/* get the instruction pointer in an inv frame  */
+	COS_THD_INVFRM_SET_IP,
 	COS_THD_INVFRM_SP,	/* get the stack pointer in an inv frame  */
+	COS_THD_INVFRM_SET_SP,
 	/* 
 	 * For the following GET methods, the argument is 0 to get the
 	 * register of a _preempted thread_, or 1 to get the fault

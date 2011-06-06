@@ -111,16 +111,76 @@ bitmap_unset(u32_t *x, int v)
 /* find the least significant one set.  max is the maximum number of
  * u32_ts in the bitmap. */
 static inline int
-bitmap_ls_one(u32_t *x, int max)
+bitmap_one(u32_t *x, int max)
 {
 	int i, order;
 
 	for (i = 0 ; i < max ; i++) {
 		if (!x[i]) continue;
-		order = ls_one(x[i]);
-		return (i * WORD_SIZE) + order - 1;
+		order = log32(ls_one(x[i]));
+		return (i * WORD_SIZE) + order;
 	}
 	return -1;
+}
+
+/* Start looking for the least significant bit at an offset (in bits)
+ * into the bitmap.  The maximum size is offset from x (in u32_ts) */
+static inline int 
+bitmap_one_offset(u32_t *x, int off, int max)
+{
+	int subword = off&(WORD_SIZE-1), words = off/WORD_SIZE, ret;
+	
+	/* do we have an offset into a word? */
+	if (subword) {
+		u32_t v = x[words] >> subword;
+		if (v) return log32(ls_one(v)) + off;
+		words++;
+	}
+	ret = bitmap_one(x+words, max-words);
+	if (ret != -1) ret += (words*WORD_SIZE);
+	return ret;
+}
+
+static inline void
+bitmap_set_contig(u32_t *x, int off, int extent, int one)
+{
+	int i;
+
+	/* TODO: could optimize by setting blocks of 8, 16, 32... */
+	for (i = off ; i < off+extent ; i++) {
+		if (one) bitmap_set(x, i);
+		else     bitmap_unset(x, i);
+	} 
+}
+
+static inline int
+bitmap_contiguous_ones(u32_t *x, int off, int extent, int max)
+{
+	int i, prev, start;
+
+	prev = start = 0;
+	for (i = 0 ; i < (int)(max*sizeof(u32_t)) ; i++) {
+		prev = i;
+		i = bitmap_one_offset(x, i, max);
+		/* end of bitmap? */
+		if (i < 0) return -1;
+		/* uncontiguous? */
+		else if (i != prev) start = i;
+		/* found an appropriate extent? */
+		else if (i-start == extent) return start;
+	}
+	return -1;
+}
+
+/* find a contiguous extent of ones, and set them to zero */
+static inline int
+bitmap_extent_find_set(u32_t *x, int off, int extent, int max)
+{
+	int r = bitmap_contiguous_ones(x, off, extent, max);
+	if (r < 0) return r;
+	bitmap_set_contig(x, r, extent, 0);
+
+	return r;
 }
 
 #endif /* BITMAP_H */

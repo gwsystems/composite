@@ -49,7 +49,10 @@ enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_H
 
 #define printl(lvl,format, args...)				\
 	{							\
-		if (lvl <= print_lvl) printf(format, ## args);	\
+		if (lvl <= print_lvl) {				\
+			printf(format, ## args);		\
+			fflush(stdout);				\
+		}						\
 	}
 
 #define NUM_ATOMIC_SYMBS 10 

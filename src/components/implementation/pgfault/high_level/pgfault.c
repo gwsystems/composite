@@ -17,7 +17,7 @@
 int regs_active = 0; 
 struct cos_regs regs;
 
-void fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
+int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 {
 	if (regs_active) BUG();
 	regs_active = 1;
@@ -27,5 +27,5 @@ void fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *
 	cos_regs_print(&regs);
 	BUG(); 			/* no fault is a good fault currently */
 //	sched_block(spdid, 0);
-	return;
+	return 0;
 }

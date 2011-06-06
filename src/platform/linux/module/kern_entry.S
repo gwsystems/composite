@@ -40,13 +40,13 @@ IF_MASK		= 0x00000200
 DF_MASK		= 0x00000400 
 NT_MASK		= 0x00004000
 VM_MASK		= 0x00020000
-		
-#define SAVE_ALL \
-	cld; \
-	pushl %gs; \
-	pushl %fs; \
-	pushl %es; \
-	pushl %ds; \
+
+#define SAVE_ALL    \
+	cld;        \
+	pushl $0 ;  \
+	pushl %fs;  \
+	pushl %es;  \
+	pushl %ds;  \
 	pushl %eax; \
 	pushl %ebp; \
 	pushl %edi; \
@@ -58,10 +58,8 @@ VM_MASK		= 0x00020000
 	movl %edx, %ds; \
 	movl %edx, %es; \
 	movl $(__KERNEL_PERCPU), %edx; \
-	movl %edx, %fs;	\
-	movl $(__KERNEL_STACK_CANARY), %edx; \
-	movl %edx, %gs
-
+	movl %edx, %fs
+	
 #define RESTORE_INT_REGS \
 	popl %ebx;	\
 	popl %ecx;	\
@@ -76,7 +74,8 @@ VM_MASK		= 0x00020000
 	popl %ds;	\
 	popl %es;	\
 	popl %fs;       \
-	popl %gs
+	addl $4, %esp
+
 /* 
  * This is all information that is needed within this file, and
  * external to this file.  It is here, so that it is easier to
@@ -113,8 +112,9 @@ ENTRY(sysenter_interposition_entry)
 	cmpl $((1<<COS_CAPABILITY_OFFSET)-1), %eax /* 2^20-1 shift for capability invocations */
 	ja composite_call_ipc /* component invocation */
 	je composite_ret_ipc  /* component return */
+
 	cmpl $((1<<COS_SYSCALL_OFFSET)-1), %eax /* composite syscall */
-	ja composite_make_syscall
+	ja cos_syscall_thunk
 
 	SAVE_ALL
 	call hijack_syscall_monitor
@@ -124,6 +124,14 @@ normal_syscall:
 	jmp  *(cos_default_sysenter_addr) /* sti will happen in syscall path */
 
 	/* never get to here on syscall...*/
+
+/* cos system calls might call linux functions, so we need fs */
+cos_syscall_thunk:
+	pushl %edx
+	movl $(__KERNEL_PERCPU), %edx
+	movl %edx, %fs
+	popl %edx
+	jmp composite_make_syscall
 
 /*
  * Trap will cause this handler to trigger.  The stack

@@ -22,16 +22,17 @@ IF_SERV_STUBS=$(foreach I,$(INTERFACES),$(INTERDIR)/$(I)/$(SERVER_STUB))
 #dependency components added to include listings and linker listings
 DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
 DEP_LIB=$(foreach D,$(DEPENDENCIES),-L$(INTERDIR)/$(D)/)
+DEP_LIB_EXIST=$(foreach D, $(DEPENDENCIES), $(if $(wildcard $(INTERDIR)/$(D)/*.a), -l$(D)))
+IF_CLIENT_STUBS=$(foreach D, $(DEPENDENCIES),      \
+ $(if $(wildcard $(INTERDIR)/$(D)/$(CLIENT_STUB)), \
+ $(wildcard $(INTERDIR)/$(D)/$(CLIENT_STUB))))
 
 #COMPLIB=$(if $(wildcard $(CLIB)),$(CLIB))
 COMPLIB=$(IF_LIB)
 OBJS=$(C_OBJS) $(ASM_OBJS) $(COMPLIB)
 TMP_STR=tmp
 INCLUDE=-I../ $(DEP_INC) $(IF_INCLUDE) $(CINC)
-LIB_LIBRARIES_PRE=\
-$(if $(findstring lock, $(DEPENDENCIES)), -llock) \
-$(if $(findstring cbuf_c, $(DEPENDENCIES)), -lcbuf_c) \
-$(if $(findstring mem_mgr, $(DEPENDENCIES)), -lmem_mgr)
+LIB_LIBRARIES_PRE=$(DEP_LIB_EXIST)
 LIB_LIBRARIES=$(strip $(LIB_LIBRARIES_PRE))
 LIB_FLAGS=-L$(LIBDIR) $(DEP_LIB) -lcos_component $(LIB_LIBRARIES) $(ADDITIONAL_LIBS)
 
@@ -46,9 +47,9 @@ all: $(SOURCE_DEPENDENCIES) $(COMPONENT)
 # symbols there are used, thus the gcc, and the ld, but then (and only
 # then) do we want to use dietlibc's functions
 $(COMPONENT): $(OBJS)
-	$(info |     [LD]   Loading cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
-	@$(LD) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
-	$(info |     [DIET] Linking with dietlibc to produce $@)
+	$(info |     [LD]   $@: Loading stubs and cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
+	@$(LD) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(IF_CLIENT_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
+#	$(info |     [DIET] Linking with dietlibc to produce $@)
 	@$(DIETCC) $(DIETCFLAGS) -Xlinker -r -o $@ $@.$(TMP_STR)
 	@rm $@.$(TMP_STR)
 

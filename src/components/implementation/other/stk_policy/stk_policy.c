@@ -24,7 +24,7 @@
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
 #define ALGORITHM 1
  
-//#define THD_POOL 10
+#define THD_POOL 1
 
 #define POLICY_PERIODICITY 25
 
@@ -217,7 +217,6 @@ find_largest_tardiness(void)
         }
 	return p2;
 }
-
 
 void 
 move_stack_and_update_tardiness(struct component *c_add, struct component * c_take_away)
@@ -446,8 +445,7 @@ find_tardiness_comp(void)
 {
 	struct component * c, * max_c = NULL;
 	
-	if (ALGORITHM == 1)
-	{
+	if (ALGORITHM == 1) {
 		long max = 0;
 		/* find one that improve the total tardiness most */
 		for (c = FIRST_LIST(&components, next, prev) ; 
