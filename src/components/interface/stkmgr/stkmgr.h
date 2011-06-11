@@ -5,7 +5,7 @@
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  */
-#define MAX_NUM_STACKS 55
+#define MAX_NUM_STACKS 100
 #ifndef STKMGR_H_
 #define STKMGR_H_
 

@@ -489,7 +489,7 @@ int periodic_wake_create(spdid_t spdinv, unsigned int period)
 	unsigned short int tid = cos_get_thd_id();
 	spdid_t spdid = cos_spd_id();
 	event_time_t n, t;
-	
+
 	if (period < 1) return -1;
 
 	TAKE(spdid);

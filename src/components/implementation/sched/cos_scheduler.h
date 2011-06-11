@@ -82,6 +82,7 @@ struct sched_thd {
 	 * section contention in a component, which is the contended
 	 * component */
 	spdid_t blocking_component, contended_component;
+	int ncs_held;
 	/* the thread that this is dependent on (via
 	 * sched_block_dependency) */
 	struct sched_thd *dependency_thd;
@@ -342,7 +343,8 @@ static inline struct sched_thd *sched_take_crit_sect(spdid_t spdid, struct sched
 		assert(!curr->dependency_thd);
 		return cs->holding_thd;
 	} 
-	curr->contended_component = spdid;
+	curr->ncs_held++;
+	curr->contended_component = 0;
 	cs->holding_thd = curr;
 	return NULL;
 }
@@ -359,9 +361,9 @@ static inline int sched_release_crit_sect(spdid_t spdid, struct sched_thd *curr)
 
 	/* This ostensibly should be the case */
 	assert(cs->holding_thd == curr);
-	assert(curr->contended_component == spdid);
-	curr->contended_component = 0;
+	assert(curr->contended_component == 0);
 	cs->holding_thd = NULL;
+	curr->ncs_held--;
 	return 0;
 }
 

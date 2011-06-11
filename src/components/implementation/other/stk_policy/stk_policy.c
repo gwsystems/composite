@@ -24,7 +24,7 @@
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
 #define ALGORITHM 1
  
-#define THD_POOL 1
+#define THD_POOL 10
 
 #define POLICY_PERIODICITY 25
 
@@ -792,7 +792,7 @@ thdpool_max_policy(void)
 	     c != &components ;
 	     c = FIRST_LIST(c, next, prev)) {
 		if (c->ss_counter) 
-			stkmgr_set_concurrency(c->spdid, INT_MAX, 0);
+			stkmgr_set_concurrency(c->spdid, INT_MAX, 1);
 		else 
 			stkmgr_set_concurrency(c->spdid, THD_POOL, 1);
 	}

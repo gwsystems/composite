@@ -750,7 +750,7 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 	
 	if (thd->dependency_thd) {
 		assert(sched_thd_dependent(thd));
-		assert(!thd->contended_component || thd->id == cos_get_thd_id());
+		assert(thd->ncs_held == 0 || thd->id == cos_get_thd_id());
 		thd->flags &= ~THD_DEPENDENCY;
 		thd->dependency_thd = NULL;
 	} else {
@@ -844,7 +844,7 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	assert(spdid);
 
 	/* we shouldn't block while holding a component lock */
-	if (unlikely(0 != thd->contended_component)) goto warn;
+	if (unlikely(0 != thd->ncs_held)) goto warn;
 	if (unlikely(!(thd->blocking_component == 0 || 
 		       thd->blocking_component == spdid))) goto warn;
 	assert(!sched_thd_free(thd));
@@ -876,7 +876,7 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	if (dependency_thd) {
 		thd->dependency_thd = dep;
 		thd->flags |= THD_DEPENDENCY;
-		assert(!thd->contended_component);
+		assert(thd->ncs_held == 0);
 	} else {
 		fp_block(thd, spdid);
 	}

@@ -146,7 +146,7 @@ static struct meta_lock *lock_alloc(spdid_t spd)
 {
 	struct meta_lock *l;
 	struct meta_lock *snd, *lst;
- 	
+
 	l = (struct meta_lock*)malloc(sizeof(struct meta_lock));
 	if (!l) return NULL;
 	l->b_thds.thd_id = 0;

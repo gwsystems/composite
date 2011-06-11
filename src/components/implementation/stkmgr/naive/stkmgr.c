@@ -2,12 +2,13 @@
 #include <print.h>
 #include <cos_alloc.h>
 #include <cos_list.h>
-#include <mem_mgr.h>
+#include <mem_mgr_large.h>
 #include <cos_vect.h>
 #include <sched.h>
 #include <cinfo.h>
 
 #include <stkmgr.h>
+#include <valloc.h>
 
 //#define _DEBUG_STKMGR
 
@@ -321,7 +322,8 @@ cos_init(void *arg){
 		spdid_t spdid;
 		void *hp;
 
-		hp = cos_get_vas_page();
+		/* hp = cos_get_vas_page(); */
+		hp = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
 		spdid = cinfo_get_spdid(i);
 		if (!spdid) break;
 
@@ -440,6 +442,7 @@ stkmgr_stk_remove_from_spd(struct cos_stk_item *stk_item, struct spd_stk_info *s
 	s_spdid = ssi->spdid;
 	DOUT("Releasing Stack\n");
 	mman_revoke_page(cos_spd_id(), (vaddr_t)(stk_item->hptr), 0); 
+	valloc_free(cos_spd_id(), s_spdid, (void *)stk_item->d_addr, 1);
 	DOUT("Putting stack back on free list\n");
 	
 	// cause underflow for MAX Int
@@ -470,11 +473,10 @@ stkmgr_stk_add_to_spd(struct cos_stk_item *stk_item, struct spd_stk_info *info)
 	assert(EMPTY_LIST(stk_item, next, prev));
 
 	d_spdid = info->spdid;
-	// FIXME:  Race condition
-	d_addr = info->ci->cos_heap_ptr; 
-	info->ci->cos_heap_ptr += PAGE_SIZE;
-	ret = info->ci->cos_heap_ptr;
-
+	
+	d_addr = (vaddr_t)valloc_alloc(cos_spd_id(), d_spdid, 1);
+	ret = d_addr + PAGE_SIZE;
+	
 //	DOUT("Setting flags and assigning flags\n");
 	stk_item->stk->flags = 0xDEADBEEF;
 	stk_item->stk->next = (void *)0xDEADBEEF;
@@ -876,7 +878,8 @@ get_cos_info_page(spdid_t spdid)
 		BUG();
 	}
     
-	hp = cos_get_vas_page();
+	/* hp = cos_get_vas_page(); */
+	hp = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
 	if(cinfo_map(cos_spd_id(), (vaddr_t)hp, s)){
 		DOUT("Could not map cinfo page for %d\n", spdid);
 		BUG();
@@ -891,9 +894,6 @@ get_cos_info_page(spdid_t spdid)
 
 /**
  * grant a stack to an address
- *
- * TODO:
- *  - Keep various heap pointers around instead of incrementign it every time.
  */
 void *
 stkmgr_grant_stack(spdid_t d_spdid)
@@ -953,6 +953,7 @@ stkmgr_grant_stack(spdid_t d_spdid)
 	
 	ret = stk_item->d_addr + PAGE_SIZE - sizeof(struct cos_stk);
 	info->num_waiting_thds--;
+
 	RELEASE();
 
 	//DOUT("Returning Stack address: %X\n",(unsigned int)ret);
