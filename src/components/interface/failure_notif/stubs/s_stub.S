@@ -5,7 +5,7 @@
  * Public License v2.
  */
 
-#include <cos_asm_server_stub.h>
+#include <cos_asm_server_stub_simple_stack.h>
 .text	
-cos_asm_server_stub_spdid(skel_foo)
-cos_asm_server_stub(skel_bar)
+
+cos_asm_server_stub_spdid(failure_notif_fail)

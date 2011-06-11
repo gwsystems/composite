@@ -65,6 +65,7 @@ char *ROOT_SCHED        = NULL; // this is set to the first listed scheduler
 const char *MPD_MGR     = "cg.o"; // the component graph!
 const char *CONFIG_COMP = "schedconf.o";
 const char *BOOT_COMP   = "boot.o";
+const char *BOOT_COMP2  = "bootr.o";
 const char *INIT_FILE   = "init.o", *INIT_FILE_NAME = "init.tar";
 
 const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] = 
@@ -2200,6 +2201,7 @@ static void make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 	ci->cos_poly[1] = (vaddr_t)n;
 }
 
+//#define INIT_STR_SZ 116
 #define INIT_STR_SZ 52
 
 /* struct is 64 bytes, so we can have 64 entries in a page. */
@@ -2335,6 +2337,8 @@ static void setup_kernel(struct service_symbs *services)
 	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;
 
 	if ((s = find_obj_by_name(services, BOOT_COMP))) {
+		make_spd_boot(s, services);
+	} else if ((s = find_obj_by_name(services, BOOT_COMP2))) {
 		make_spd_boot(s, services);
 	}
 

@@ -1,10 +1,22 @@
+/**
+ * Copyright 2011 by Gabriel Parmer, gparmer@gwu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ */
+
 #include <cos_component.h>
 
+/* dependencies */
 #include <print.h>
 #include <mem_mgr.h>
 #include <sched.h>
 #include <cos_alloc.h>
 #include <cgraph.h>
+
+/* interfaces */
+#include <cinfo.h>
+#include <failure_notif.h>
 
 #include <cobj_format.h>
 #include <cos_vect.h>
@@ -12,6 +24,12 @@
 COS_VECT_CREATE_STATIC(spd_info_addresses);
 extern struct cos_component_information cos_comp_info;
 struct cobj_header *hs[MAX_NUM_SPDS+1];
+
+struct spd_local_md {
+	spdid_t spdid;
+	char *page_start, *page_end;
+	struct cobj_header *h;
+} local_md[MAX_NUM_SPDS+1];
 
 int cinfo_map(spdid_t spdid, vaddr_t map_addr, spdid_t target)
 {
@@ -33,6 +51,11 @@ spdid_t cinfo_get_spdid(int iter)
 	if (hs[iter] == NULL) return 0;
 
 	return hs[iter]->id;
+}
+
+void failure_notif_fail(spdid_t caller, spdid_t failed)
+{
+	
 }
 
 static int boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci)
@@ -120,16 +143,48 @@ static vaddr_t boot_spd_end(struct cobj_header *h)
 	return sect->vaddr + round_up_to_page(sect->bytes);
 }
 
-static int boot_spd_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
+static int boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
 	unsigned int i;
+	vaddr_t dest_daddr;
 
+	local_md[spdid].spdid = spdid;
+	local_md[spdid].h = h;
+	local_md[spdid].page_start = cos_get_heap_ptr();
+	for (i = 0 ; i < h->nsect ; i++) {
+		struct cobj_sect *sect;
+		char *dsrc;
+		int left;
+
+		sect = cobj_sect_get(h, i);
+		dest_daddr = sect->vaddr;
+		left = cobj_sect_size(h, i);
+
+		while (left > 0) {
+			dsrc = cos_get_vas_page();
+			if ((vaddr_t)dsrc != mman_get_page(cos_spd_id(), (vaddr_t)dsrc, 0)) BUG();
+			if (dest_daddr != (mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr))) BUG();
+
+			dest_daddr += PAGE_SIZE;
+			left -= PAGE_SIZE;
+		}
+	}
+	local_md[spdid].page_end = (void*)dest_daddr;
+
+	return 0;
+}
+
+static int boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
+{
+	unsigned int i;
+	char *start_page;
+	
+	start_page = local_md[spdid].page_start;
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
 		vaddr_t dest_daddr;
 		char *lsrc, *dsrc;
 		int left, page_left;
-		//unsigned short int flags;
 
 		sect = cobj_sect_get(h, i);
 		dest_daddr = sect->vaddr;
@@ -139,8 +194,8 @@ static int boot_spd_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		while (left) {
 			/* data left on a page to copy over */
 			page_left = (left > PAGE_SIZE) ? PAGE_SIZE : left;
-			dsrc = cos_get_vas_page();
-			if ((vaddr_t)dsrc != mman_get_page(cos_spd_id(), (vaddr_t)dsrc, 0)) BUG();
+			dsrc = start_page;
+			start_page += PAGE_SIZE;
 
 			if (sect->flags & COBJ_SECT_ZEROS) {
 				memset(dsrc, 0, PAGE_SIZE);
@@ -153,13 +208,19 @@ static int boot_spd_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 			 * modification are in this page */
 			boot_symb_process(h, spdid, boot_spd_end(h), dsrc, dest_daddr, comp_info);
 			
-			if (dest_daddr != (mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr))) BUG();
-
 			lsrc += PAGE_SIZE;
 			dest_daddr += PAGE_SIZE;
 			left -= page_left;
 		}
 	}
+	return 0;
+}
+
+static int boot_spd_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
+{
+	if (boot_spd_map_memory(h, spdid, comp_info) || 
+	    boot_spd_map_populate(h, spdid, comp_info)) return -1;
+
 	return 0;
 }
 
@@ -275,7 +336,6 @@ static void boot_create_system(void)
 		h = hs[i];
 
 		if (boot_spd_caps(h, h->id)) BUG();
-		//printc("loaded spdid %d \n", h->id);
 	}
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;
@@ -304,9 +364,3 @@ void cos_init(void *arg)
 
 	return;
 }
-
-void bin (void)
-{
-	sched_block(cos_spd_id(), 0);
-}
-

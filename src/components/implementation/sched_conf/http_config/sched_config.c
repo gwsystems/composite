@@ -13,10 +13,13 @@
 
 #include <sched_conf.h>
 
+//#define INIT_STR_SZ 116
+#define INIT_STR_SZ 52
+
 struct component_init_str {
 	unsigned int spdid, schedid;
 	int startup;
-	char init_str[52];
+	char init_str[INIT_STR_SZ];
 }__attribute__((packed));
 
 struct component_init_str *init_strs;
