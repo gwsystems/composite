@@ -19,7 +19,7 @@ schedconf.o-print.o;\
 bc.o-print.o;\
 pi.o-sm.o|po.o|print.o|fprr.o;\
 po.o-sm.o|pr.o|print.o;\
-pr.o-print.o;\
+pr.o-print.o|boot.o;\
 boot.o-print.o|fprr.o|mm.o|cg.o;\
 sm.o-print.o|fprr.o|mm.o|boot.o;\
 mpd.o-sm.o|cg.o|fprr.o|print.o|te.o|mm.o;\

@@ -2,5 +2,6 @@
 #include <print.h>
 #include <pong.h>
 
-//void call(void) { assert(0); return; }
-void call(void) { return; }
+int c = 0;
+void call(void) { if (c++ == 500000) assert(0); return; }
+//void call(void) { return; }

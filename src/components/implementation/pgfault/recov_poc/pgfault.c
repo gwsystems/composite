@@ -13,6 +13,8 @@
 #include <print.h>
 #include <fault_regs.h>
 
+#include <failure_notif.h>
+
 /* FIXME: should have a set of saved fault regs per thread. */
 int regs_active = 0; 
 struct cos_regs regs;
@@ -29,6 +31,7 @@ int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *i
 	printc("Thread %d faults in spd %d @ %p\n", 
 	       tid, spdid, fault_addr);
 	cos_regs_print(&regs);
+	regs_active = 0;
 
 	for (i = 0 ; i < 5 ; i++)
 		printc("Frame ip:%lx, sp:%lx\n", 
@@ -45,7 +48,7 @@ int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *i
 	 * of the stub. */
 	assert(!cos_thd_cntl(COS_THD_INVFRM_SET_IP, tid, 1, r_ip-8));
 
-	regs_active = 0;
+	failure_notif_fail(cos_spd_id(), spdid);
 
 	return 0;
 }

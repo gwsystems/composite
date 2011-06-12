@@ -25,8 +25,10 @@ COS_VECT_CREATE_STATIC(spd_info_addresses);
 extern struct cos_component_information cos_comp_info;
 struct cobj_header *hs[MAX_NUM_SPDS+1];
 
+/* local meta-data to track the components */
 struct spd_local_md {
 	spdid_t spdid;
+	vaddr_t comp_info;
 	char *page_start, *page_end;
 	struct cobj_header *h;
 } local_md[MAX_NUM_SPDS+1];
@@ -53,9 +55,17 @@ spdid_t cinfo_get_spdid(int iter)
 	return hs[iter]->id;
 }
 
+static int boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info);
+static int boot_spd_thd(spdid_t spdid);
+/* Reboot the failed component! */
 void failure_notif_fail(spdid_t caller, spdid_t failed)
 {
-	
+	struct spd_local_md *md;
+
+	md = &local_md[failed];
+	assert(md);
+	if (boot_spd_map_populate(md->h, failed, md->comp_info)) BUG();
+	boot_spd_thd(failed); 	/* can fail if component had no boot threads! */
 }
 
 static int boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci)
@@ -122,13 +132,15 @@ static void boot_symb_process(struct cobj_header *h, spdid_t spdid, vaddr_t heap
 		struct cos_component_information *ci;
 		
 		ci = (struct cos_component_information*)(mem + ((PAGE_SIZE-1) & symb_addr));
-		boot_spd_set_symbs(h, spdid, ci);
 		ci->cos_heap_ptr = heap_val;
 		ci->cos_this_spd_id = spdid;
 
 		/* save the address of this page for later retrieval
 		 * (e.g. to manipulate the stack pointer) */
-		cos_vect_add_id(&spd_info_addresses, (void*)round_to_page(ci), spdid);
+		if (!cos_vect_lookup(&spd_info_addresses, spdid)) {
+			boot_spd_set_symbs(h, spdid, ci);
+			cos_vect_add_id(&spd_info_addresses, (void*)round_to_page(ci), spdid);
+		}
 	}
 }
 
@@ -151,6 +163,7 @@ static int boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t com
 	local_md[spdid].spdid = spdid;
 	local_md[spdid].h = h;
 	local_md[spdid].page_start = cos_get_heap_ptr();
+	local_md[spdid].comp_info = comp_info;
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
 		char *dsrc;
@@ -277,9 +290,7 @@ static int boot_spd_thd(spdid_t spdid)
 	int new_thd;
 
 	/* Create a thread IF the component requested one */
-	if ((new_thd = sched_create_thread_default(cos_spd_id(), spdid)) < 0) {
-		return -1;
-	}
+	if ((new_thd = sched_create_thread_default(cos_spd_id(), spdid)) < 0) return -1;
 	return new_thd;
 }
 
