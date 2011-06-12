@@ -57,15 +57,18 @@ spdid_t cinfo_get_spdid(int iter)
 
 static int boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info);
 static int boot_spd_thd(spdid_t spdid);
+static int boot_spd_caps_chg_activation(spdid_t spdid, int activate);
 /* Reboot the failed component! */
 void failure_notif_fail(spdid_t caller, spdid_t failed)
 {
 	struct spd_local_md *md;
 
+	boot_spd_caps_chg_activation(failed, 0);
 	md = &local_md[failed];
 	assert(md);
 	if (boot_spd_map_populate(md->h, failed, md->comp_info)) BUG();
 	boot_spd_thd(failed); 	/* can fail if component had no boot threads! */
+	boot_spd_caps_chg_activation(failed, 1);
 }
 
 static int boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci)
@@ -243,6 +246,29 @@ static int boot_spd_reserve_caps(struct cobj_header *h, spdid_t spdid)
 	return 0;
 }
 
+/* Deactivate or activate all capabilities to an spd (i.e. call faults
+ * on invocation, or use normal stubs) */
+static int boot_spd_caps_chg_activation(spdid_t spdid, int activate)
+{
+	int i;
+
+	for (i = 0 ; hs[i] != NULL ; i++) {
+		unsigned int j;
+
+		for (j = 0 ; j < hs[i]->ncap ; j++) {
+			struct cobj_cap *cap;
+
+			cap = cobj_cap_get(hs[i], j);
+			if (cobj_cap_undef(cap)) break;
+
+			if (cap->dest_id != spdid) continue;
+
+			cos_cap_cntl(COS_CAP_SET_SSTUB, hs[i]->id, cap->cap_off, activate ? cap->sstub : 1);
+		}
+	}
+	return 0;
+}
+
 static void
 boot_edge_create(spdid_t src, spdid_t dest)
 {
@@ -273,12 +299,12 @@ static int boot_spd_caps(struct cobj_header *h, spdid_t spdid)
 		if (cap->fault_num < COS_NUM_FAULTS) {
 			if (cos_cap_cntl(COS_CAP_SET_FAULT, spdid, cap->cap_off, cap->fault_num)) BUG();
 		}
-
+		
 		if (cos_cap_cntl(COS_CAP_SET_SERV_FN, spdid, cap->cap_off, cap->sfn) ||
 		    cos_cap_cntl(COS_CAP_SET_CSTUB, spdid, cap->cap_off, cap->cstub) ||
 		    cos_cap_cntl(COS_CAP_SET_SSTUB, spdid, cap->cap_off, cap->sstub) ||
 		    cos_cap_cntl(COS_CAP_ACTIVATE, spdid, cap->cap_off, cap->dest_id)) BUG();
-
+		
 		boot_edge_create(spdid, cap->dest_id);
 	}
 
