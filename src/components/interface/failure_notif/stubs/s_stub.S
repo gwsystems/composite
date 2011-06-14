@@ -9,3 +9,4 @@
 .text	
 
 cos_asm_server_stub_spdid(failure_notif_fail)
+cos_asm_server_stub_spdid(failure_notif_wait)

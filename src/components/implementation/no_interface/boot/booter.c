@@ -21,6 +21,9 @@
 #include <cobj_format.h>
 #include <cos_vect.h>
 
+#define LOCK() if(sched_component_take(cos_spd_id())) BUG();
+#define UNLOCK() if(sched_component_release(cos_spd_id())) BUG();
+
 COS_VECT_CREATE_STATIC(spd_info_addresses);
 extern struct cos_component_information cos_comp_info;
 struct cobj_header *hs[MAX_NUM_SPDS+1];
@@ -53,22 +56,6 @@ spdid_t cinfo_get_spdid(int iter)
 	if (hs[iter] == NULL) return 0;
 
 	return hs[iter]->id;
-}
-
-static int boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info);
-static int boot_spd_thd(spdid_t spdid);
-static int boot_spd_caps_chg_activation(spdid_t spdid, int activate);
-/* Reboot the failed component! */
-void failure_notif_fail(spdid_t caller, spdid_t failed)
-{
-	struct spd_local_md *md;
-
-	boot_spd_caps_chg_activation(failed, 0);
-	md = &local_md[failed];
-	assert(md);
-	if (boot_spd_map_populate(md->h, failed, md->comp_info)) BUG();
-	boot_spd_thd(failed); 	/* can fail if component had no boot threads! */
-	boot_spd_caps_chg_activation(failed, 1);
 }
 
 static int boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci)
@@ -252,9 +239,11 @@ static int boot_spd_caps_chg_activation(spdid_t spdid, int activate)
 {
 	int i;
 
+	/* Find all capabilities to spdid */
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		unsigned int j;
 
+		if (hs[i]->id == spdid) continue;
 		for (j = 0 ; j < hs[i]->ncap ; j++) {
 			struct cobj_cap *cap;
 
@@ -382,11 +371,36 @@ static void boot_create_system(void)
 	}
 }
 
+void failure_notif_wait(spdid_t caller, spdid_t failed)
+{
+	/* wait for the other thread to finish rebooting the component */
+	LOCK();	
+	UNLOCK();
+}
+
+/* Reboot the failed component! */
+void failure_notif_fail(spdid_t caller, spdid_t failed)
+{
+	struct spd_local_md *md;
+
+	LOCK();
+
+	boot_spd_caps_chg_activation(failed, 0);
+	md = &local_md[failed];
+	assert(md);
+	if (boot_spd_map_populate(md->h, failed, md->comp_info)) BUG();
+	boot_spd_thd(failed); 	/* can fail if component had no boot threads! */
+	boot_spd_caps_chg_activation(failed, 1);
+
+	UNLOCK();
+}
+
 void cos_init(void *arg)
 {
 	struct cobj_header *h;
 	int num_cobj;
 
+	LOCK();
 	cos_vect_init_static(&spd_info_addresses);
 	h = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj = (int)cos_comp_info.cos_poly[1];
@@ -398,6 +412,7 @@ void cos_init(void *arg)
 
 	/* Assumes that hs have been setup with boot_find_cobjs */
 	boot_create_system();
+	UNLOCK();
 
 	return;
 }
