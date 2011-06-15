@@ -24,7 +24,7 @@
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
 #define ALGORITHM 1
  
-#define THD_POOL 10
+//#define THD_POOL 10
 
 #define POLICY_PERIODICITY 25
 
