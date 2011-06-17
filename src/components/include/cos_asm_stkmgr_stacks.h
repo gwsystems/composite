@@ -16,6 +16,7 @@
 
 
 #define COS_ASM_GET_STACK                       \
+1:                                              \
         /* Check to see if we have a stk */     \
         movl  cos_comp_info, %edx;              \
         testl %edx, %edx;                       \
@@ -31,15 +32,11 @@
         movl (%edx), %edx;                      \
         movl %edx, cos_comp_info;               \
 						\
-	/* movl $THD_ID_SHARED_PAGE, %edx; */	\
-        /* movl (%edx), %edx;*/                 \
-	/* pushl %edx */			\
 	pushl %eax;	 			\
         pushl $0x01;    /* flags */             \
-1:                                              \
         pushl $0xFACE;  /* next */              
 
-
+	
 #define COS_ASM_REQUEST_STACK                   \
 2:                                              \
         /* get stk space */                     \
@@ -59,7 +56,7 @@
         call stkmgr_grant_stack;                \
         addl $4, %esp;                          \
                                                 \
-        addl $0x4, %eax;                        \
+        /* addl $0x4, %eax; */                  \
                                                 \
         /*restore stack */                      \
         popl %ecx;                              \
@@ -69,7 +66,10 @@
         popl %ebp;                              \
         /*movl %esp, %eax;*/                    \
 						\
-        movl  %eax, %esp;                       \
+        /* movl  %eax, %esp; */                 \
+	/* restore Thd_id in eax */		\
+	movl $THD_ID_SHARED_PAGE, %edx;		\
+        movl (%edx), %eax;	                \
 	jmp  1b;                                
 
 

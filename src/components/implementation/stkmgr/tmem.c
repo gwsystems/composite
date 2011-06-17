@@ -134,7 +134,7 @@ tmem_wait_for_mem(struct spd_stk_info *ssi)
 tmem_item *
 tmem_contend_mem(struct spd_stk_info *ssi)
 {
-	tmem_item *tmi;
+	tmem_item *tmi = NULL;
 	int meas = 0;
 
 	ssi->num_waiting_thds++;
@@ -146,11 +146,15 @@ tmem_contend_mem(struct spd_stk_info *ssi)
 	 * block!
 	 */
 
-	while (NULL == (tmi = spd_freelist_remove(ssi->spdid))) {
+	while (1) {
+#ifdef CHECK_LOCAL_CACHE
+		if (CHECK_LOCAL_CACHE(ssi)) break;
+#endif
 		if ((empty_comps < (MAX_NUM_STACKS - stacks_allocated) || ssi->num_allocated == 0)
 		    && ssi->num_allocated < ssi->num_desired
 		    && NULL != (tmi = freelist_remove())) {
 			add_tmem_to_spd(tmi, ssi);
+			spd_freelist_add(ssi->spdid, tmi);
 			break;
 		}
 		if (!meas) {
@@ -169,6 +173,7 @@ tmem_contend_mem(struct spd_stk_info *ssi)
 			    ssi->num_allocated < (ssi->num_desired + ssi->ss_max) &&
 			    over_quota < over_quota_limit && NULL != (tmi = freelist_remove())){ 
 				add_tmem_to_spd(tmi, ssi);
+				spd_freelist_add(ssi->spdid, tmi);
 				break;
 			} else 
 				tmem_wait_for_mem_no_dependency(ssi);

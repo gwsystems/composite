@@ -397,9 +397,7 @@ resolve_dependency(struct spd_stk_info *ssi, int skip_stk)
 void *
 stkmgr_grant_stack(spdid_t d_spdid)
 {
-	struct cos_stk_item *stk_item;
 	struct spd_stk_info *info;
-	vaddr_t ret;
 
 	TAKE();
 
@@ -413,19 +411,19 @@ stkmgr_grant_stack(spdid_t d_spdid)
 	assert(SPD_IS_MANAGED(info));
 	
 	/* Apply for transient memory. Might block! */
-	stk_item = tmem_contend_mem(info);
+	tmem_contend_mem(info);
 	
-	/* Here we got the stk already! */
-	ret = stk_item->d_addr + PAGE_SIZE - sizeof(struct cos_stk);
+	/* /\* Here we got the stk already! *\/ */
+	/* ret = stk_item->d_addr + PAGE_SIZE - sizeof(struct cos_stk); */
 
-	stk_item->stk->flags = IN_USE;
-	stk_item->stk->thdid_owner = cos_get_thd_id();
+	/* stk_item->stk->flags = IN_USE; */
+	/* stk_item->stk->thdid_owner = cos_get_thd_id(); */
 
 	RELEASE();
 
 	//DOUT("Returning Stack address: %X\n",(unsigned int)ret);
 
-	return (void *)ret;
+	return NULL;
 }
 
 void 

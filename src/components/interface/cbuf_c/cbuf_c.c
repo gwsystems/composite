@@ -12,6 +12,9 @@
 #include <cbuf.h>
 #include <cos_vect.h>
 
+#include <cos_alloc.h>
+#include <valloc.h>
+
 /* 
  * All of the structures that must be compiled (only once) into each
  * component that uses cbufs.
@@ -36,12 +39,13 @@ cbuf_cache_miss(int cbid, int idx, int len)
 	union cbuf_meta mc;
 	char *h;
 
-	h = cos_get_vas_page();
+	h = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
+	assert(h);
 	mc.c.ptr    = (long)h >> PAGE_ORDER;
-	mc.c.obj_sz = len;
+	mc.c.obj_sz = len>>6;
 	if (cbuf_c_retrieve(cos_spd_id(), cbid, len, h)) {
-		/* do dumb test for race... */
-		cos_set_heap_ptr_conditional(h + PAGE_SIZE, h);
+		valloc_free(cos_spd_id(), cos_spd_id(),h, 1);
+		BUG();
 		/* Illegal cbid or length!  Bomb out. */
 		return -1;
 	}
@@ -77,8 +81,8 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 
 	if (!s) return NULL;
 	/* FIXME: race race race */
-	h = cos_get_heap_ptr();
-	cos_set_heap_ptr(h + PAGE_SIZE);
+	h = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
+	assert(h); 
 	cbid = cbuf_c_create(cos_spd_id(), size, h);
 	if (cbid < 0) goto err;
 	cos_vect_add_id(&slab_descs, s, (long)h>>PAGE_ORDER);
@@ -89,7 +93,7 @@ done:
 	return ret;
 err:    
 	/* FIXME: race race race */
-	cos_set_heap_ptr(h);
+	valloc_free(cos_spd_id(), cos_spd_id(), h, 1);
 	free(s);
 	goto done;
 }
@@ -111,7 +115,9 @@ cbuf_slab_free(struct cbuf_slab *s)
 	
 	/* FIXME: reclaim heap VAS! */
 	cos_vect_del(&slab_descs, (long)s->mem>>PAGE_ORDER);
+	
 	cbuf_c_delete(cos_spd_id(), s->cbid);
+	valloc_free(cos_spd_id(), cos_spd_id(), s->mem, 1);
 	free(s);
 
 	return;

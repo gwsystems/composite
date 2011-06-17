@@ -4,18 +4,20 @@
 #include <cbuf_test.h>
 #include <cbuf.h>
 
+#define SZ 2000
+
 void make_alloc_call_free(int sz, char c)
 {
 	void *m;
 	cbuf_t cb = cbuf_null();
 	u32_t id, idx;
 	u64_t start, end;
-	const int ITER = 1000000;
+	const int ITER = 100000;
 	int i;
 
 	m = cbuf_alloc(sz, &cb);
 	cbuf_unpack(cb, &id, &idx);
-//	printc("@ %p, memid %x, idx %x\n", m, id, idx);
+	printc("@ %p, memid %x, idx %x\n", m, id, idx);
 //	memset(m, c, sz);
 	rdtscll(start);
 	for (i = 0 ; i < ITER ; i++) {
@@ -38,11 +40,11 @@ void cos_init(void)
 	mem1 = cbuf_alloc(2048, &cb1);
 	cbuf_unpack(cb1, &id, &idx);
 	printc("@ %p, memid %x, idx %x\n", mem1, id, idx);
-	mem2 = cbuf_alloc(2000, &cb2);
+	mem2 = cbuf_alloc(SZ, &cb2);
 	cbuf_unpack(cb2, &id, &idx);
 	printc("@ %p, memid %x, idx %x\n", mem2, id, idx);
 
-	make_alloc_call_free(2000, 'a');
+	make_alloc_call_free(SZ, 'a');
 
 	cbuf_free(mem1);
 	cbuf_free(mem2);

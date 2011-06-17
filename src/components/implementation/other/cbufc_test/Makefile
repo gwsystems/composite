@@ -2,8 +2,7 @@ C_OBJS=cbufc.o
 ASM_OBJS=
 COMPONENT=cbc.o
 INTERFACES=
-DEPENDENCIES=cbuf_test sched mem_mgr printc cbuf_c
+DEPENDENCIES=cbuf_test sched printc cbuf_c valloc mem_mgr_large 
 IF_LIB=
 
 include ../../Makefile.subsubdir
-

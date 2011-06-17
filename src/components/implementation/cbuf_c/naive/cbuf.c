@@ -14,7 +14,8 @@
 #include <cos_alloc.h>
 #include <cos_map.h>
 #include <cos_list.h>
-#include <mem_mgr.h>
+#include <mem_mgr_large.h>
+#include <valloc.h>
 
 //#define PRINCIPAL_CHECKS
 
@@ -51,7 +52,7 @@ cbuf_c_create(spdid_t spdid, int size, void *page)
 	d = malloc(sizeof(struct cb_desc));
 	if (!d) goto done;
 	TAKE();
-	h = cos_get_vas_page();
+	h = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
 	/* get the page */
 	if (!mman_get_page(cos_spd_id(), (vaddr_t)h, 0)) goto err;
 	/* ...map it into the requesting component */
@@ -72,7 +73,7 @@ done:
 err2:
 	mman_release_page(cos_spd_id(), (vaddr_t)h, 0);
 err:
-	cos_set_heap_ptr_conditional(h + PAGE_SIZE, h);
+	valloc_free(cos_spd_id(), cos_spd_id(),h, 1);
 	goto done;
 }
 
