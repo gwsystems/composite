@@ -284,7 +284,7 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 	struct cbuf_slab *s;
 	int idx;
 	u32_t *bm;
-
+	printc("<<<__cbuf_alloc size %d>>>\n",size);
 	if (unlikely(!slab_freelist->list)) {
 		cbuf_slab_alloc(size, slab_freelist);
 		if (unlikely(!slab_freelist->list)) return NULL;
@@ -359,6 +359,7 @@ cbuf_alloc(unsigned int sz, cbuf_t *cb)
 	/* FIXME: find way to avoid making the wrong decision on pow2 values */
 	sz = ones(sz) == 1 ? sz-1 : sz;
 	o = log32_floor(sz) + 1;
+	printc("cbuf_alloc o: %d\n",o);
 	return cbuf_alloc_pow2(o, cb);
 }
 

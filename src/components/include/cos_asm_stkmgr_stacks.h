@@ -75,29 +75,28 @@
 
 #define COS_ASM_RET_STACK                       \
                                                 \
-        addl $4, %esp;                          \
-        movl (%esp),%edx;                       \
-        andl $0x02, %edx;                       \
-        test %edx, %edx;                        \
-        jne  3f;                                \
-                                                \
         /* Put back on free list */             \
-        addl $4, %esp;                          \
-        pushl $0x00;  /* Flag Mark Not in Use */\
-        pushl $0xFACE;  /* next */              \
+        /* FIXME: race! */			\
         movl cos_comp_info, %edx;               \
         movl %edx, (%esp);                      \
         movl %esp, cos_comp_info;               \
+						\
+        addl $4, %esp;                          \
+        movl (%esp),%edx;                       \
+						\
+	/* Flag Mark Not in Use */		\
+        movl $0x00, (%esp);			\
+	addl $4, %esp;                          \
+	pushl $0x00;				\
+	subl $4, %esp;				\
+						\
+        andl $0x02, %edx;                       \
+        test %edx, %edx;                        \
+        jne  3f;                                \
+						\
         jmp  4f;                                \
 3:                                              \
         /* stkmgr wants stack back */ 		\
-	/* don't mark the stack free here 	\
-	   as we are returning the stack to 	\
-	   stkmgr. leave the work to stkmgr 	\
-	   and stkmgr could still need the 	\
-	   flag information */			\
-	/* movl $0x0, (%esp); */		\
-        subl $4, %esp;                          \
         movl %esp, %edx;                        \
                                                 \
         /* Since we are done with this stack    \

@@ -52,6 +52,7 @@ cbuf_c_create(spdid_t spdid, int size, void *page)
 	d = malloc(sizeof(struct cb_desc));
 	if (!d) goto done;
 	TAKE();
+	/* TODO: multiple pages cbuf! */
 	h = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
 	/* get the page */
 	if (!mman_get_page(cos_spd_id(), (vaddr_t)h, 0)) goto err;

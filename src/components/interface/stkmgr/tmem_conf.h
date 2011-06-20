@@ -8,8 +8,8 @@ typedef struct cos_stk_item tmem_item;
 /* Shared page between the target component, and us */
 typedef	struct cos_component_information shared_component_info;
 
-/* 1 means there's memory available in local freelist */
-#define CHECK_LOCAL_CACHE(ssi) ((ssi)->ci->cos_stacks.freelists[0].freelist != 0)
+/* 1 means there's memory available in local cache */
+#define MEM_IN_LOCAL_CACHE(ssi) ((ssi)->ci->cos_stacks.freelists[0].freelist != 0)
 
 /**
  * This struct maps directly to how the memory

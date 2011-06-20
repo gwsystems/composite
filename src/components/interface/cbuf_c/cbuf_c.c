@@ -80,7 +80,7 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	int cbid;
 
 	if (!s) return NULL;
-	/* FIXME: race race race */
+
 	h = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
 	assert(h); 
 	cbid = cbuf_c_create(cos_spd_id(), size, h);
@@ -92,7 +92,6 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 done:   
 	return ret;
 err:    
-	/* FIXME: race race race */
 	valloc_free(cos_spd_id(), cos_spd_id(), h, 1);
 	free(s);
 	goto done;
@@ -113,7 +112,6 @@ cbuf_slab_free(struct cbuf_slab *s)
 	slab_rem_freelist(s, freelist);
 	assert(s->nfree = (PAGE_SIZE/s->obj_sz));
 	
-	/* FIXME: reclaim heap VAS! */
 	cos_vect_del(&slab_descs, (long)s->mem>>PAGE_ORDER);
 	
 	cbuf_c_delete(cos_spd_id(), s->cbid);

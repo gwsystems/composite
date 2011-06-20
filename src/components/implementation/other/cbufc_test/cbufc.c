@@ -4,7 +4,7 @@
 #include <cbuf_test.h>
 #include <cbuf.h>
 
-#define SZ 2000
+#define SZ 1024
 
 void make_alloc_call_free(int sz, char c)
 {
@@ -40,14 +40,24 @@ void cos_init(void)
 	mem1 = cbuf_alloc(2048, &cb1);
 	cbuf_unpack(cb1, &id, &idx);
 	printc("@ %p, memid %x, idx %x\n", mem1, id, idx);
-	mem2 = cbuf_alloc(SZ, &cb2);
+	mem2 = cbuf_alloc(2048, &cb2);
 	cbuf_unpack(cb2, &id, &idx);
 	printc("@ %p, memid %x, idx %x\n", mem2, id, idx);
 
-	make_alloc_call_free(SZ, 'a');
+	printc(">>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
 
-	cbuf_free(mem1);
-	cbuf_free(mem2);
+	cbuf_t cb3 = cbuf_null(), cb4 = cbuf_null();
+	mem1 = cbuf_alloc(2048, &cb3);
+	cbuf_unpack(cb3, &id, &idx);
+	printc("@ %p, memid %x, idx %x\n", mem1, id, idx);
+	mem2 = cbuf_alloc(SZ, &cb4);
+	cbuf_unpack(cb4, &id, &idx);
+	printc("@ %p, memid %x, idx %x\n", mem2, id, idx);
+
+	/* make_alloc_call_free(SZ, 'a'); */
+
+	/* cbuf_free(mem1); */
+	/* cbuf_free(mem2); */
 
 	return;
 }
