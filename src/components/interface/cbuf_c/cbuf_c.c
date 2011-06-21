@@ -10,7 +10,7 @@
 #include <cos_component.h>
 #include <print.h>
 #include <cbuf.h>
-#include <cos_vect.h>
+#include <cbuf_vect.h>
 
 #include <cos_alloc.h>
 #include <valloc.h>
@@ -24,8 +24,8 @@
  * zero. 
  */
 
-COS_VECT_CREATE_STATIC(meta_cbuf);
-COS_VECT_CREATE_STATIC(slab_descs);
+CBUF_VECT_CREATE_STATIC(meta_cbuf);
+CBUF_VECT_CREATE_STATIC(slab_descs);
 struct cbuf_slab_freelist slab_freelists[N_CBUF_SLABS];
 
 /* 
@@ -50,7 +50,7 @@ cbuf_cache_miss(int cbid, int idx, int len)
 		return -1;
 	}
 	/* This is the commit point */
-	cos_vect_add_id(&meta_cbuf, (void*)mc.v, cbid);
+	cbuf_vect_add_id(&meta_cbuf, (void*)mc.v, cbid);
 
 	return 0;
 }
@@ -82,10 +82,12 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	if (!s) return NULL;
 
 	h = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
+
 	assert(h); 
 	cbid = cbuf_c_create(cos_spd_id(), size, h);
 	if (cbid < 0) goto err;
-	cos_vect_add_id(&slab_descs, s, (long)h>>PAGE_ORDER);
+
+	cbuf_vect_add_id(&slab_descs, s, (long)h>>PAGE_ORDER);
 	cbuf_slab_cons(s, cbid, h, size, freelist);
 	freelist->velocity = 0;
 	ret = s;
@@ -112,7 +114,7 @@ cbuf_slab_free(struct cbuf_slab *s)
 	slab_rem_freelist(s, freelist);
 	assert(s->nfree = (PAGE_SIZE/s->obj_sz));
 	
-	cos_vect_del(&slab_descs, (long)s->mem>>PAGE_ORDER);
+	cbuf_vect_del(&slab_descs, (long)s->mem>>PAGE_ORDER);
 	
 	cbuf_c_delete(cos_spd_id(), s->cbid);
 	valloc_free(cos_spd_id(), cos_spd_id(), s->mem, 1);

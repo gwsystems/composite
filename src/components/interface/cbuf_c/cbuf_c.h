@@ -11,6 +11,7 @@
 #define   	CBUF_C_H
 
 #include <mem_mgr_large.h>
+#include <cbuf_vect.h>
 
 /* Component functions */
 int cbuf_c_create(spdid_t spdid, int size, void *page); /* return cbid */

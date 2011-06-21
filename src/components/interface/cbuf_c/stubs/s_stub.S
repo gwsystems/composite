@@ -11,3 +11,5 @@
 cos_asm_server_stub_spdid(cbuf_c_create)
 cos_asm_server_stub_spdid(cbuf_c_delete)
 cos_asm_server_stub_spdid(cbuf_c_retrieve)
+cos_asm_server_stub_spdid(cbuf_c_register)
+cos_asm_server_stub_spdid(get_cbuf_id)

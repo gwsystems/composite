@@ -15,12 +15,13 @@
 #include <cbuf_c.h>
 //#define COS_VECT_ALLOC 
 //#define COS_VECT_FREE  
-#include <cos_vect.h>
+//#include <cos_vect.h>
+#include <cbuf_vect.h>
 #include <cos_list.h>
 #include <bitmap.h>
 
-extern cos_vect_t meta_cbuf;
-extern cos_vect_t slab_descs;
+extern cbuf_vect_t meta_cbuf;
+extern cbuf_vect_t slab_descs;
 
 /* 
  * Shared buffer management for Composite.
@@ -179,7 +180,7 @@ cbuf2buf(cbuf_t cb, int len)
 	len = nlpow2(len - 1);
 	cbuf_unpack(cb, &id, &idx);
 again:				/* avoid convoluted conditions */
-	cm.v = (u32_t)cos_vect_lookup(&meta_cbuf, id);
+	cm.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, id);
 	if (unlikely(cm.v == 0)) {
 		/* slow path */
 		if (cbuf_cache_miss(id, idx, len)) return NULL;
@@ -256,7 +257,7 @@ static inline void
 __cbuf_free(void *buf)
 {
 	u32_t p = ((u32_t)buf & PAGE_MASK) >> PAGE_ORDER; /* page id */
-	struct cbuf_slab *s = cos_vect_lookup(&slab_descs, p);
+	struct cbuf_slab *s = cbuf_vect_lookup(&slab_descs, p);
 	u32_t b   = (u32_t)buf;
 	u32_t off = b - (b & PAGE_MASK);
 	int idx;
