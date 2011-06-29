@@ -41,13 +41,62 @@
 /* }; */
 
 COS_MAP_CREATE_STATIC(cb_ids);
+
 /* cos_lock_t l; */
 /* #define TAKE() lock_take(&l); */
 /* #define RELEASE() lock_release(&l); */
 
 
-void mgr_map_client_mem(tmem_item *tmi, struct spd_stk_info *info)
+//  all cbufs that created for this component
+
+/* cbuf_freelist_add(struct spd_stk_info *ssi, struct cos_stk_item *csi) */
+/* { */
+/* 	/\* Should either belong to this spd, or not to another (we */
+/* 	 * don't want it mapped into two components) *\/ */
+/* 	assert(csi->parent_spdid == ssi->spdid || EMPTY_LIST(csi, next, prev)); */
+/* 	assert(ssi->ci); */
+
+/* 	/\* FIXME: race *\/ */
+/* 	csi->stk->next = (struct cos_stk*)ssi->ci->cos_stacks.freelists[0].freelist; */
+/* 	ssi->ci->cos_stacks.freelists[0].freelist = D_COS_STK_ADDR(csi->d_addr); */
+
+/* 	return 0; */
+/* } */
+
+
+void mgr_map_client_mem(tmem_item *csi, struct spd_stk_info *info)
 {
+	vaddr_t d_addr, stk_addr;
+	spdid_t d_spdid;
+	assert(info && csi);
+	assert(EMPTY_LIST(csi, next, prev));
+
+	d_spdid = info->spdid;
+	
+	d_addr = (vaddr_t)valloc_alloc(cos_spd_id(), d_spdid, 1);
+	
+//	DOUT("Setting flags and assigning flags\n");
+	csi->flags = 0xDEADBEEF;
+	csi->next = (void *)0xDEADBEEF;
+	stk_addr = (vaddr_t)(csi->desc_ptr->addr);
+	if(unlikely(d_addr != mman_alias_page(cos_spd_id(), stk_addr, d_spdid, d_addr))){
+		printc("<stkmgr>: Unable to map stack into component");
+		BUG();
+	}
+//	DOUT("Mapped page\n");
+	csi->d_addr = d_addr;
+	csi->parent_spdid = d_spdid;
+    
+	// Add stack to allocated stack array
+//	DOUT("Adding to local spdid stk list\n");
+	ADD_LIST(&info->tmem_list, csi, next, prev);
+	info->num_allocated++;
+	if (info->num_allocated == 1) empty_comps--;
+	if (info->num_allocated > info->num_desired) over_quota_total++;
+	assert(info->num_allocated == tmem_num_alloc_stks(info->spdid));
+
+//	cbuf_freelist_add(info, csi);
+	return;
 
 }
 
@@ -58,6 +107,13 @@ tmem_item * mgr_get_client_mem(struct spd_stk_info *ssi)
 
 void spd_mark_relinquish(spdid_t spdid)
 {
+	struct cos_cbuf_item *cbuf_item;
+
+	/* for(cbuf_item = FIRST_LIST(&spd_stk_info_list[spdid].tmem_list, next, prev); */
+	/*     cbuf_item != &spd_stk_info_list[spdid].tmem_list;  */
+	/*     cbuf_item = FIRST_LIST(cbuf_item, next, prev)){ */
+	/* 	cbuf_item->flags |= RELINQUISH; */
+	/* } */
 
 }
 
@@ -77,28 +133,87 @@ int get_cbuf_id()
 }
 
 vaddr_t
-cbuf_c_register(spdid_t spdid, struct cbuf_vect_intern_struct *is)
+cbuf_c_register(spdid_t spdid)
 {
 	struct spd_stk_info *ssi;
-	vaddr_t p;
+	vaddr_t p, mgr_addr;
 
 	ssi = get_spd_info(spdid);
 	
-	p = (vaddr_t)valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
+	mgr_addr = (vaddr_t)alloc_page();
+
+	p = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, 1);
+
+	if (p !=
+	    (mman_alias_page(cos_spd_id(), mgr_addr, spdid, p))) {
+		printc("mapped faied p is %p\n",(void *)p);
+		return -1;
+	}
+
+	printc("p here %p\n",(void *)p);
+
+	ssi->ci = (struct cbuf_vect_t *)mgr_addr;
 	
 	return p;
 
-	/* printc("is %p. s_spdid %ld\n",is, spdid);  */
-	if (p !=
-	    (mman_alias_page(spdid, (vaddr_t)is, cos_spd_id(), p))) {
-		printc("mapped faied p is %p\n",p);
-		return -1;
-	}
+	/* /\* printc("is %p. s_spdid %ld\n",is, spdid);  *\/ */
+	/* if (p != */
+	/*     (mman_alias_page(spdid, (vaddr_t)is, cos_spd_id(), p))) { */
+	/* 	printc("mapped faied p is %p\n",p); */
+	/* 	return -1; */
+	/* } */
 	
-	ssi->ci = (struct cbuf_vect_intern_struct *)p;
-	/* printc("mapped p is %p\n",ssi->ci);  */
 
-	return 0;
+	/* /\* printc("mapped p is %p\n",ssi->ci);  *\/ */
+
+	/* return 0; */
+}
+
+
+static inline void
+map_cbuf_vect_info(spdid_t spdid)
+{
+	spdid_t s;
+	int i;
+	int found = 0;
+	void *hp;
+
+	assert(spdid < MAX_NUM_SPDS);
+
+	/* for (i = 0; i < MAX_NUM_SPDS; i++) { */
+	/* 	s = cinfo_get_spdid(i); */
+	/* 	if(!s) {  */
+	/* 		printc("Unable to map compoents cinfo page!\n"); */
+	/* 		BUG(); */
+	/* 	} */
+            
+	/* 	if (s == spdid) { */
+	/* 		found = 1; */
+	/* 		break; */
+	/* 	} */
+	/* }  */
+    
+	/* if(!found){ */
+	/* 	DOUT("Could not find cinfo for spdid: %d\n", spdid); */
+	/* 	BUG(); */
+	/* } */
+    
+	/* hp = cos_get_vas_page(); */
+	hp = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
+
+	// map cbuf info into manager here
+
+	/* if(cbuf_info_map(cos_spd_id(), (vaddr_t)hp, s)){ */
+	/* 	DOUT("Could not map cinfo page for %d\n", spdid); */
+	/* 	BUG(); */
+	/* } */
+	spd_stk_info_list[spdid].ci = hp;
+	spd_stk_info_list[spdid].managed = 1;
+
+	/* DOUT("mapped -- id: %ld, hp:%x, sp:%x\n", */
+	/*      spd_stk_info_list[spdid].ci->cos_this_spd_id,  */
+	/*      (unsigned int)spd_stk_info_list[spdid].ci->cos_heap_ptr, */
+	/*      (unsigned int)spd_stk_info_list[spdid].ci->cos_stacks.freelists[0].freelist); */
 }
 
 
@@ -112,7 +227,19 @@ cbuf_c_create(spdid_t spdid, int size, void *page)
 	if (size > PAGE_SIZE) goto done;
 	d = malloc(sizeof(struct cb_desc));
 	if (!d) goto done;
+
+	struct spd_stk_info *info;
+
 	TAKE();
+
+	info = get_spd_info(spdid);
+	
+	/* // Make sure we have access to the info page */
+	if (!SPD_IS_MANAGED(info)) map_cbuf_vect_info(spdid);
+	assert(SPD_IS_MANAGED(info));
+
+//	tmem_grant(info);
+
 	/* TODO: multiple pages cbuf! */
 	h = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
 	/* get the page */

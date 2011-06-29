@@ -2,14 +2,24 @@
 #define TMEM_CONF_H
 
 #include <cbuf_c.h>
-//#include <lock.h>
 
 #define MAX_NUM_CBUFS 100
 
 typedef struct cos_cbuf_item tmem_item;
 
 /* Shared page between the target component, and us */
-typedef	struct cbuf_vect_intern_struct shared_component_info;
+typedef	struct cbuf_vect_t shared_component_info;
+
+/* /\* 1 means there's memory available in local cache *\/ */
+/* #define MEM_IN_LOCAL_CACHE(sci) ((sci)->ci->cos_stacks.freelists[0].freelist != 0) */
+
+typedef enum {
+	CBUFM_LARGE = 1,
+	CBUFM_RO    = 1<<1,
+	CBUFM_GRANT = 1<<2,
+	CBUFM_IN_USE = 1<<3,
+	CBUFM_RELINQUISH = 1<<4
+} cbufm_flags_t;
 
 
 struct cb_desc;
@@ -34,7 +44,8 @@ struct cos_cbuf_item {
 	struct cos_cbuf_item *next, *prev;
 	struct cos_cbuf_item *free_next;
 	u32_t mapped;
-	vaddr_t d_addr;   //  address in other spds that created?
+	u32_t flags;
+	vaddr_t d_addr;
 	spdid_t parent_spdid;	
 	struct cb_desc *desc_ptr;
 };

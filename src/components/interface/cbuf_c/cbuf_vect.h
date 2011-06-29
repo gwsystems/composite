@@ -24,8 +24,7 @@ struct cbuf_vect_intern_struct {
 	void *val;
 };
 
-vaddr_t cbuf_c_register(spdid_t spdid, struct cbuf_vect_intern_struct *is);
-int get_cbuf_id();
+vaddr_t cbuf_c_register(spdid_t spdid);
 
 typedef struct cbuf_vect_struct {
 	u16_t depth;
@@ -57,8 +56,11 @@ typedef struct cbuf_vect_struct {
 #endif
 
 #define CBUF_VECT_CREATE_STATIC(name)					\
-	struct cbuf_vect_intern_struct __cos_##name##_vect[ CBUF_VECT_BASE ] = {{.val=CBUF_VECT_INIT_VAL},}; \
-	cbuf_vect_t name = {.depth = 1, .vect = __cos_##name##_vect}
+	cbuf_vect_t name = {.depth = 0, .vect = NULL}
+	/* struct cbuf_vect_intern_struct __cos_##name##_vect[ CBUF_VECT_BASE ] = {{.val=CBUF_VECT_INIT_VAL},}; \ */
+	/* cbuf_vect_t name = {.depth = 1, .vect = __cos_##name##_vect} */
+
+          
 
 /* true or false: is v a power of 2 */
 static inline int cbuf_vect_power_2(u32_t v)
@@ -68,32 +70,32 @@ static inline int cbuf_vect_power_2(u32_t v)
 	return (v > 1 && smallest_set_bit == v);
 }
 
-static inline int __cbuf_vect_init(cbuf_vect_t *v)
-{
-	struct cbuf_vect_intern_struct *vs;
-	int i;
+/* static inline int __cbuf_vect_init(cbuf_vect_t *v) */
+/* { */
+/* 	struct cbuf_vect_intern_struct *vs; */
+/* 	int i; */
 
-	v->depth = 1;
-	assert(cbuf_vect_power_2(CBUF_VECT_BASE));
-	vs = v->vect;
-	assert(vs);
-	for (i = 0 ; i < (int)CBUF_VECT_BASE ; i++) {
-		vs[i].val = (void*)CBUF_VECT_INIT_VAL;
-	}
+/* 	v->depth = 1; */
+/* 	assert(cbuf_vect_power_2(CBUF_VECT_BASE)); */
+/* 	vs = v->vect; */
+/* 	assert(vs); */
+/* 	for (i = 0 ; i < (int)CBUF_VECT_BASE ; i++) { */
+/* 		vs[i].val = (void*)CBUF_VECT_INIT_VAL; */
+/* 	} */
 
-	return 0;
-}
+/* 	return 0; */
+/* } */
 
-static inline void cbuf_vect_init_static(cbuf_vect_t *v)
-{
-	__cbuf_vect_init(v);
-}
+/* static inline void cbuf_vect_init_static(cbuf_vect_t *v) */
+/* { */
+/* 	__cbuf_vect_init(v); */
+/* } */
 
-static inline void cbuf_vect_init(cbuf_vect_t *v, struct cbuf_vect_intern_struct *vs)
-{
-	v->vect = vs;
-	__cbuf_vect_init(v);
-}
+/* static inline void cbuf_vect_init(cbuf_vect_t *v, struct cbuf_vect_intern_struct *vs) */
+/* { */
+/* 	v->vect = vs; */
+/* 	__cbuf_vect_init(v); */
+/* } */
 
 #ifdef CBUF_VECT_DYNAMIC
 
@@ -113,31 +115,31 @@ static inline void cbuf_vect_init(cbuf_vect_t *v, struct cbuf_vect_intern_struct
 #endif /* COS_LINUX_ENV */
 
 
-static int cbuf_vect_alloc_vect_data(cbuf_vect_t *v)
-{
-	struct cbuf_vect_intern_struct *is;
+/* static int cbuf_vect_alloc_vect_data(cbuf_vect_t *v) */
+/* { */
+/* 	struct cbuf_vect_intern_struct *is; */
 
-	is = CBUF_VECT_ALLOC(sizeof(struct cbuf_vect_intern_struct) * CBUF_VECT_BASE);
-	if (NULL == is) return -1;
-	v->vect = is;
-	return 0;
-}
+/* 	is = CBUF_VECT_ALLOC(sizeof(struct cbuf_vect_intern_struct) * CBUF_VECT_BASE); */
+/* 	if (NULL == is) return -1; */
+/* 	v->vect = is; */
+/* 	return 0; */
+/* } */
 
-static cbuf_vect_t *cbuf_vect_alloc_vect(void)
-{
-	cbuf_vect_t *v;
+/* static cbuf_vect_t *cbuf_vect_alloc_vect(void) */
+/* { */
+/* 	cbuf_vect_t *v; */
 	
-	v = malloc(sizeof(cbuf_vect_t));
-	if (NULL == v) return NULL;
+/* 	v = malloc(sizeof(cbuf_vect_t)); */
+/* 	if (NULL == v) return NULL; */
 	
-	if (cbuf_vect_alloc_vect_data(v)) {
-		free(v);
-		return NULL;
-	}
-	cbuf_vect_init(v, v->vect);
+/* 	if (cbuf_vect_alloc_vect_data(v)) { */
+/* 		free(v); */
+/* 		return NULL; */
+/* 	} */
+/* 	cbuf_vect_init(v, v->vect); */
 
-	return v;
-}
+/* 	return v; */
+/* } */
 
 static void cbuf_vect_free_vect(cbuf_vect_t *v)
 {
@@ -152,7 +154,7 @@ static inline struct cbuf_vect_intern_struct *__cbuf_vect_lookup(cbuf_vect_t *v,
 {
 	long depth;
 	struct cbuf_vect_intern_struct *is;
-	printc("id : %ld",id);
+	/* printc("id : %ld",id); */
 	/* make sure the data structure is configured and initialized */
 	assert(v);
 	assert(v->depth != 0);
@@ -177,7 +179,7 @@ static inline struct cbuf_vect_intern_struct *__cbuf_vect_lookup(cbuf_vect_t *v,
 	case 1:
 		if (id >= (long)CBUF_VECT_BASE) return NULL;
 	}
-	printc("id after mask: %ld",id);
+	/* printc("id after mask: %ld",id); */
 	return &is[id];
 }
 
@@ -194,35 +196,17 @@ static inline int __cbuf_vect_expand(cbuf_vect_t *v, long id)
 	struct cbuf_vect_intern_struct *is, *root;
 	int i;
 
-	assert(v && NULL == __cbuf_vect_lookup(v, id));
-
-	/* do we want an index outside of the range of the current structure? */
-	if (id >= (1 << (CBUF_VECT_SHIFT * v->depth))) {
-		if (v->depth >= CBUF_VECT_DEPTH_MAX) return -1;
-
-		is = CBUF_VECT_ALLOC(CBUF_VECT_BASE * sizeof(struct cbuf_vect_intern_struct));
-		if (NULL == is) return -1;
-		for (i = 0 ; i < (int)CBUF_VECT_BASE ; i++) is[i].val = NULL;
-		is->val = v->vect;
-		v->depth++;
-		v->vect = is;
-	}
+	assert(v);//&& NULL == __cbuf_vect_lookup(v, id));
+	printc("extended\n...");
 
 	/* we must be asking for an index that doesn't have a complete
 	 * path through the tree (intermediate nodes) */
 	assert(v->depth == 2);
 
-	is = CBUF_VECT_ALLOC(CBUF_VECT_BASE * sizeof(struct cbuf_vect_intern_struct));
+	/* is = CBUF_VECT_ALLOC(CBUF_VECT_BASE * sizeof(struct cbuf_vect_intern_struct)); */
 
-	// map vector address from this component to cbufmgr
-
-	/* printc("caller is %p\n",is); */
-	vaddr_t h;
-	
-	int idc = get_cbuf_id();
-	h = cbuf_c_register(cos_spd_id(),is); 
-	int a = mman_alias_page(cos_spd_id(), (vaddr_t)is, idc, h);
-	/* printc("sldfhals... a is %d\n",a); */
+	is = (struct cbuf_vect_intern_struct *)cbuf_c_register(cos_spd_id());
+	printc("is here %p\n",is);
 
 	if (NULL == is) return -1;
 	for (i = 0 ; i < (int)CBUF_VECT_BASE ; i++) is[i].val = (void*)CBUF_VECT_INIT_VAL;
@@ -250,12 +234,42 @@ static inline int __cbuf_vect_set(cbuf_vect_t *v, long id, void *val)
  */
 static long cbuf_vect_add_id(cbuf_vect_t *v, void *val, long id)
 {
-	struct cbuf_vect_intern_struct *is;
+	int i;
+	struct cbuf_vect_intern_struct *is_0, *is, *root;
 
 	assert(v && val != 0);
-	printc("id is %ld\n",id);
+	/* printc("id is %ld\n",id); */
+
+	// do it once for 2 levels
+	if(unlikely(v->depth == 0)){
+
+		v->depth = 1;
+
+		if (v->depth >= CBUF_VECT_DEPTH_MAX) return -1;
+
+		printc("root!!\n");
+		root = CBUF_VECT_ALLOC(CBUF_VECT_BASE * sizeof(struct cbuf_vect_intern_struct));
+		if (NULL == root) return -1;
+		for (i = 0 ; i < (int)CBUF_VECT_BASE ; i++) root[i].val = (void*)NULL;
+
+
+		v->vect = root;
+		printc("is_0!!\n");
+		is_0 = (struct cbuf_vect_intern_struct *)cbuf_c_register(cos_spd_id());
+		if (NULL == is_0) return -1;
+		for (i = 0 ; i < (int)CBUF_VECT_BASE ; i++) is_0[i].val = (void*)CBUF_VECT_INIT_VAL;
+
+		printc("is here %p\n",is_0);
+		root->val = is_0;
+
+		v->depth++;
+	}
+		assert(v->depth == 2);
+
 	is = __cbuf_vect_lookup(v, id);
+
 	if (NULL == is) {
+		printc("look up id %ld \n",id);
 		printc("expand!!\n");
 		if (__cbuf_vect_expand(v, id)) return -1;
 		is = __cbuf_vect_lookup(v, id);

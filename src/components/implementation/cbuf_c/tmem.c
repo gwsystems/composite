@@ -133,10 +133,16 @@ tmem_grant(struct spd_stk_info *ssi)
 	 * quota on stacks? Otherwise block!
 	 */
 
+	/*
+	 * find an unused cbuf_id
+	 * looks through to find id
+	 * if does not find, allocate a page for the meta data
+	 */
+
 	while (1) {
-#ifdef MEM_IN_LOCAL_CACHE
-		if (MEM_IN_LOCAL_CACHE(ssi)) break;
-#endif
+/* #ifdef MEM_IN_LOCAL_CACHE */
+/* 		if (MEM_IN_LOCAL_CACHE(ssi)) break; */
+/* #endif */
 		DOUT("request tmem\n");
 		eligible = 0;
 		if (ssi->num_allocated < ssi->num_desired &&
@@ -160,25 +166,39 @@ tmem_grant(struct spd_stk_info *ssi)
 		DOUT("Wait for mem: spdid: %d thdid: %d\n",
 		     d_spdid,
 		     cos_get_thd_id());
-		/* Priority-Inheritance */
-		if (tmem_wait_for_mem(ssi) == 0) {
-			assert(ssi->ss_counter);
-			/* We found self-suspension. Are we eligible
-			 * for stacks now? If still not, block
-			 * ourselves without dependencies! */
-			if (ssi->num_allocated < (ssi->num_desired + ssi->ss_max) &&
-			    over_quota_total < over_quota_limit &&
-			    (empty_comps < (MAX_NUM_CBUFS - stacks_allocated) || ssi->num_allocated == 0)) {
-				tmi = get_mem();
-				if (tmi) {
-					/* remove from the block list before grant */
-					remove_thd_from_blk_list(ssi, cos_get_thd_id());
-					break;
-				}
+
+		if (ssi->num_allocated < (ssi->num_desired + ssi->ss_max) &&
+		    over_quota_total < over_quota_limit &&
+		    (empty_comps < (MAX_NUM_CBUFS - stacks_allocated) || ssi->num_allocated == 0)) {
+			tmi = get_mem();
+			if (tmi) {
+				/* remove from the block list before grant */
+				remove_thd_from_blk_list(ssi, cos_get_thd_id());
+				break;
 			}
-			tmem_wait_for_mem_no_dependency(ssi);
 		}
+		tmem_wait_for_mem_no_dependency(ssi);
 	}
+
+		//* * Priority-Inheritance *\/ */
+		/* if (tmem_wait_for_mem(ssi) == 0) { */
+		/* 	assert(ssi->ss_counter); */
+		/* 	/\* We found self-suspension. Are we eligible */
+		/* 	 * for stacks now? If still not, block */
+		/* 	 * ourselves without dependencies! *\/ */
+		/* 	if (ssi->num_allocated < (ssi->num_desired + ssi->ss_max) && */
+		/* 	    over_quota_total < over_quota_limit && */
+		/* 	    (empty_comps < (MAX_NUM_CBUFS - stacks_allocated) || ssi->num_allocated == 0)) { */
+		/* 		tmi = get_mem(); */
+		/* 		if (tmi) { */
+		/* 			/\* remove from the block list before grant *\/ */
+		/* 			remove_thd_from_blk_list(ssi, cos_get_thd_id()); */
+		/* 			break; */
+		/* 		} */
+		/* 	} */
+		/* 	tmem_wait_for_mem_no_dependency(ssi); */
+		/* } */
+	/* } */
 	
 	if (tmi) mgr_map_client_mem(tmi, ssi); 
 

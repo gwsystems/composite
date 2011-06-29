@@ -37,6 +37,9 @@ void cos_init(void)
 	cbuf_t cb1 = cbuf_null(), cb2 = cbuf_null();
 	u32_t id, idx;
 
+	cbuf_test_temp();
+	return;
+
 	mem1 = cbuf_alloc(2048, &cb1);
 	cbuf_unpack(cb1, &id, &idx);
 	printc("@ %p, memid %x, idx %x\n", mem1, id, idx);

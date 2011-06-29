@@ -17,11 +17,14 @@
 //#define COS_VECT_FREE  
 //#include <cos_vect.h>
 #include <cbuf_vect.h>
+#include <cos_vect.h>
 #include <cos_list.h>
 #include <bitmap.h>
 
+#include <tmem_conf.h>
+
 extern cbuf_vect_t meta_cbuf;
-extern cbuf_vect_t slab_descs;
+extern cos_vect_t slab_descs; 
 
 /* 
  * Shared buffer management for Composite.
@@ -132,11 +135,6 @@ cbuf_cons(u32_t cbid, u32_t idx)
 static inline cbuf_t cbuf_null(void)      { return 0; }
 static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
 
-typedef enum {
-	CBUFM_LARGE = 1,
-	CBUFM_RO    = 1<<1,
-	CBUFM_GRANT = 1<<2
-} cbufm_flags_t;
 
 /* 
  * This data-structure is shared between this component and the cbuf_c
@@ -150,8 +148,8 @@ union cbuf_meta {
 		/* the object size is the size of the object if it is
 		 * <= the size of a page, OR the _order_ of the number
 		 * of pages in the object, if it is > PAGE_SIZE */
-	        cbufm_flags_t flags:5;
-		int refcnt:1;
+	        cbufm_flags_t flags:6;
+		/* int refcnt:1; */
 	} __attribute__((packed)) c;	/* composite type */
 };
 
@@ -257,7 +255,7 @@ static inline void
 __cbuf_free(void *buf)
 {
 	u32_t p = ((u32_t)buf & PAGE_MASK) >> PAGE_ORDER; /* page id */
-	struct cbuf_slab *s = cbuf_vect_lookup(&slab_descs, p);
+	struct cbuf_slab *s = cos_vect_lookup(&slab_descs, p);
 	u32_t b   = (u32_t)buf;
 	u32_t off = b - (b & PAGE_MASK);
 	int idx;
@@ -369,5 +367,24 @@ cbuf_free(void *buf)
 {
 	__cbuf_free(buf);
 }
+
+static inline void 
+cbuf_test_temp()
+{
+	int i;
+	void *k;
+	for(i=1;i<2049;i++){
+		cbuf_vect_add_id(&meta_cbuf, (void*)i, i);	
+	}
+	printc("cbuf added!!\n");
+
+	for(i=1;i<2049;i++){
+		k = cbuf_vect_lookup(&meta_cbuf,i);	
+		printc("cbuf id address %d : %d\n",i,(int)k);
+	}
+	
+
+}
+
 
 #endif /* CBUF_H */

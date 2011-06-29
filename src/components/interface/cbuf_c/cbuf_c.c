@@ -11,6 +11,7 @@
 #include <print.h>
 #include <cbuf.h>
 #include <cbuf_vect.h>
+#include <cos_vect.h>
 
 #include <cos_alloc.h>
 #include <valloc.h>
@@ -25,7 +26,7 @@
  */
 
 CBUF_VECT_CREATE_STATIC(meta_cbuf);
-CBUF_VECT_CREATE_STATIC(slab_descs);
+COS_VECT_CREATE_STATIC(slab_descs);
 struct cbuf_slab_freelist slab_freelists[N_CBUF_SLABS];
 
 /* 
@@ -80,14 +81,20 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	int cbid;
 
 	if (!s) return NULL;
+	union cbuf_meta mc;
 
 	h = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
 
 	assert(h); 
+
 	cbid = cbuf_c_create(cos_spd_id(), size, h);
 	if (cbid < 0) goto err;
 
-	cbuf_vect_add_id(&slab_descs, s, (long)h>>PAGE_ORDER);
+	mc.c.ptr    = (long)h >> PAGE_ORDER;
+	mc.c.obj_sz = size>>6;
+	cbuf_vect_add_id(&meta_cbuf, (void*)mc.v, cbid);
+
+	cos_vect_add_id(&slab_descs, s, (long)h>>PAGE_ORDER);
 	cbuf_slab_cons(s, cbid, h, size, freelist);
 	freelist->velocity = 0;
 	ret = s;
@@ -114,7 +121,7 @@ cbuf_slab_free(struct cbuf_slab *s)
 	slab_rem_freelist(s, freelist);
 	assert(s->nfree = (PAGE_SIZE/s->obj_sz));
 	
-	cbuf_vect_del(&slab_descs, (long)s->mem>>PAGE_ORDER);
+	cos_vect_del(&slab_descs, (long)s->mem>>PAGE_ORDER);
 	
 	cbuf_c_delete(cos_spd_id(), s->cbid);
 	valloc_free(cos_spd_id(), cos_spd_id(), s->mem, 1);
