@@ -534,10 +534,20 @@ COS_SYSCALL int cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long a
 	{
 		int frame_offset = arg1;
 
-		if (thd == curr && frame_offset < 1) return -1;
+		if (thd == curr && frame_offset < 1)       return -1;
 		if (thd_invstk_rem_nth(thd, frame_offset)) return -1;
 
 		return 0;
+	}
+	case COS_THD_INV_SPD:
+	{
+		struct thd_invocation_frame *tif;
+		int i;
+
+		for (i = 0 ; (tif = thd_invstk_nth(thd, i)) ; i++) {
+			if (arg1 == spd_get_index(tif->spd)) return i;
+		}
+		return -1;
 	}
 	case COS_THD_INVFRM_IP:
 	{

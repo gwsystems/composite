@@ -22,6 +22,7 @@ all: $(LIBS) stubs
 %.o:%.c
 #	$(info |     [CC]   Compiling c file $^ into $@)
 	@$(CC) $(CFLAGS) $(CINC) -c -o $(@) $<
+#	@$(CC) $(CFLAGS) $(CINC) -E -o blah.c $<
 
 %.o:%.S
 #	$(info |     [AS]   Compiling assembly file $^ into $@)

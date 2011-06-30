@@ -285,6 +285,19 @@ static inline long cos_cmpxchg(volatile void *memory, long anticipated, long res
 	return ret;
 }
 
+static inline void *cos_get_prealloc_page(void)
+{
+	char *h;
+	long r;
+	do {
+		h = (void*)cos_comp_info.cos_heap_alloc_extent;
+		if (!h || (char*)cos_comp_info.cos_heap_allocated >= h) return NULL;
+		r = (long)h+PAGE_SIZE;
+	} while (cos_cmpxchg(&cos_comp_info.cos_heap_allocated, (long)h, r) != r);
+
+	return h;
+}
+
 /* allocate a page in the vas */
 static inline void *cos_get_vas_page(void)
 {
