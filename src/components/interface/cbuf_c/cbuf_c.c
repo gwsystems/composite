@@ -96,7 +96,6 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 
 	cos_vect_add_id(&slab_descs, s, (long)h>>PAGE_ORDER);
 	cbuf_slab_cons(s, cbid, h, size, freelist);
-	freelist->velocity = 0;
 	ret = s;
 done:   
 	return ret;
@@ -110,14 +109,23 @@ void
 cbuf_slab_free(struct cbuf_slab *s)
 {
 	struct cbuf_slab_freelist *freelist;
+	union cbuf_meta cm;
 
 	/* FIXME: soooo many races */
 	freelist = s->flh;
 	assert(freelist);
-	freelist->velocity--;
-	if (freelist->velocity > SLAB_VELOCITY_THRESH) return;
 
-	/* Have we freed the configured # in a row? Return the page. */
+	/* clear IN_USE bit */
+	cm.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, s->cbid);
+	cm.c.flags &= ~CBUFM_IN_USE;
+	cbuf_vect_add_id(&meta_cbuf, (void*)cm.v, s->cbid);
+	
+	/* check relinquish here! */
+	if (!(cm.c.flags & CBUFM_RELINQUISH)) return;
+
+//	if (freelist->velocity > SLAB_VELOCITY_THRESH) return;
+
+	/* Has the cbuf mgr asked for the cbuf? Return the page. */
 	slab_rem_freelist(s, freelist);
 	assert(s->nfree = (PAGE_SIZE/s->obj_sz));
 	

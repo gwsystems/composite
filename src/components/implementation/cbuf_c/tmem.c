@@ -8,22 +8,22 @@
 
 #include <tmem.h>
 
-struct spd_stk_info *
+struct spd_tmem_info *
 get_spd_info(spdid_t spdid)
 {
-	struct spd_stk_info *ssi;
+	struct spd_tmem_info *sti;
 
 	assert(spdid < MAX_NUM_SPDS);
-	ssi = &spd_stk_info_list[spdid];
+	sti = &spd_tmem_info_list[spdid];
 	
-	return ssi;
+	return sti;
 }
 
 inline int
-tmem_wait_for_mem_no_dependency(struct spd_stk_info *ssi)
+tmem_wait_for_mem_no_dependency(struct spd_tmem_info *sti)
 {
-	assert(ssi->num_allocated > 0);
-	assert(ssi->ss_counter);
+	assert(sti->num_allocated > 0);
+	assert(sti->ss_counter);
 
 	RELEASE();
 	sched_block(cos_spd_id(), 0);
@@ -38,20 +38,20 @@ tmem_wait_for_mem_no_dependency(struct spd_stk_info *ssi)
  * and take the lock.
  */
 inline int
-tmem_wait_for_mem(struct spd_stk_info *ssi)
+tmem_wait_for_mem(struct spd_tmem_info *sti)
 {
 	unsigned int i = 0;
 
-	assert(ssi->num_allocated > 0);
+	assert(sti->num_allocated > 0);
 	
 	int ret, dep_thd, in_blk_list;
 	do {
-		dep_thd = resolve_dependency(ssi, i); 
-		if (i > ssi->ss_counter) ssi->ss_counter = i; /* update self-suspension counter */
+		dep_thd = resolve_dependency(sti, i); 
+		if (i > sti->ss_counter) sti->ss_counter = i; /* update self-suspension counter */
 
 		if (dep_thd == 0) {
 			/* printc("Self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n", */
-			/*        ssi->ss_counter,ssi->spdid, cos_get_thd_id(), ssi->num_waiting_thds, ssi->num_desired, ssi->num_allocated); */
+			/*        sti->ss_counter,sti->spdid, cos_get_thd_id(), sti->num_waiting_thds, sti->num_desired, sti->num_allocated); */
 			assert(i > 0);
 			return 0;
 		}
@@ -64,12 +64,12 @@ tmem_wait_for_mem(struct spd_stk_info *ssi)
 		 * preempted between the RELEASE and the TAKE, the
 		 * stack list can change, giving us inconsistent
 		 * results iff we are preempted and the list changes.
-		 * Passing multiple arguments to sched_block (i.e. all
+		 * Pasting multiple arguments to sched_block (i.e. all
 		 * threads that have stacks in the component) will
 		 * make this algorithm correct, but we want cbuf/idl
 		 * support to implement that.
 		 */
-		//printc("%d try to depend on %d comp %d i%d\n", cos_get_thd_id(), dep_thd, ssi->spdid, i);
+		//printc("%d try to depend on %d comp %d i%d\n", cos_get_thd_id(), dep_thd, sti->spdid, i);
 		RELEASE();
 		ret = sched_block(cos_spd_id(), dep_thd);
 		TAKE(); 
@@ -96,21 +96,21 @@ tmem_wait_for_mem(struct spd_stk_info *ssi)
 		 * sched_wakeup on ourselves.
 		 */
 
-		in_blk_list = tmem_thd_in_blk_list(ssi, cos_get_thd_id());
+		in_blk_list = tmem_thd_in_blk_list(sti, cos_get_thd_id());
 			
 		if (in_blk_list) {
 			assert(ret < 0);
-			if (ssi->spdid != 12) {
+			if (sti->spdid != 12) {
 				/* Remover Me: test for
 				 * self-suspension when TE component
 				 * id is 12 */
-				printc("thd %d spdid %d, dep_thd %d\n",cos_get_thd_id(), ssi->spdid, dep_thd);
+				printc("thd %d spdid %d, dep_thd %d\n",cos_get_thd_id(), sti->spdid, dep_thd);
 				assert(0);
 			}
 			sched_wakeup(cos_spd_id(), cos_get_thd_id());
 		}
 		/* printc("%d finished depending on %d. comp %d. i %d. cnt %d. ret %d.on block list? %d\n", */
-		/*        cos_get_thd_id(), dep_thd, ssi->spdid,i,ssi->ss_counter, ret); */
+		/*        cos_get_thd_id(), dep_thd, sti->spdid,i,sti->ss_counter, ret); */
 		i++;
 	} while (in_blk_list);
 	DOUT("Thd %d wokeup and is obtaining a stack\n", cos_get_thd_id());
@@ -119,12 +119,12 @@ tmem_wait_for_mem(struct spd_stk_info *ssi)
 }
 
 inline tmem_item *
-tmem_grant(struct spd_stk_info *ssi)
+tmem_grant(struct spd_tmem_info *sti)
 {
 	tmem_item *tmi = NULL;
 	int eligible, meas = 0;
 
-	ssi->num_waiting_thds++;
+	sti->num_waiting_thds++;
 
 	/* 
 	 * Is there a stack in the local freelist? If not, is there
@@ -140,13 +140,13 @@ tmem_grant(struct spd_stk_info *ssi)
 	 */
 
 	while (1) {
-/* #ifdef MEM_IN_LOCAL_CACHE */
-/* 		if (MEM_IN_LOCAL_CACHE(ssi)) break; */
-/* #endif */
+#ifdef MEM_IN_LOCAL_CACHE
+		if (MEM_IN_LOCAL_CACHE(sti)) break;
+#endif
 		DOUT("request tmem\n");
 		eligible = 0;
-		if (ssi->num_allocated < ssi->num_desired &&
-		    (empty_comps < (MAX_NUM_CBUFS - stacks_allocated) || ssi->num_allocated == 0)) {
+		if (sti->num_allocated < sti->num_desired &&
+		    (empty_comps < (MAX_NUM_ITEMS - stacks_allocated) || sti->num_allocated == 0)) {
 			/* We are eligible for allocation! */
 			eligible = 1;
 			tmi = get_mem();
@@ -154,91 +154,87 @@ tmem_grant(struct spd_stk_info *ssi)
 		}
 		if (!meas) {
 			meas = 1;
-			tmem_update_stats_block(ssi, cos_get_thd_id());
+			tmem_update_stats_block(sti, cos_get_thd_id());
 		}
-		DOUT("All mem for %d set to relinquish, %d waiting\n", ssi->spdid, cos_get_thd_id());
-		spd_mark_relinquish(ssi->spdid);
+		DOUT("All mem for %d set to relinquish, %d waiting\n", sti->spdid, cos_get_thd_id());
+		spd_mark_relinquish(sti);
 		DOUT("Blocking thread: %d\n", bthd->thd_id);
 		if (eligible)
-			tmem_add_to_gbl(cos_get_thd_id());
+			tmem_add_to_gbl(sti, cos_get_thd_id());
 		else
-			tmem_add_to_blk_list(ssi, cos_get_thd_id());
+			tmem_add_to_blk_list(sti, cos_get_thd_id());
 		DOUT("Wait for mem: spdid: %d thdid: %d\n",
 		     d_spdid,
 		     cos_get_thd_id());
 
-		if (ssi->num_allocated < (ssi->num_desired + ssi->ss_max) &&
-		    over_quota_total < over_quota_limit &&
-		    (empty_comps < (MAX_NUM_CBUFS - stacks_allocated) || ssi->num_allocated == 0)) {
-			tmi = get_mem();
-			if (tmi) {
-				/* remove from the block list before grant */
-				remove_thd_from_blk_list(ssi, cos_get_thd_id());
-				break;
-			}
-		}
-		tmem_wait_for_mem_no_dependency(ssi);
-	}
-
-		//* * Priority-Inheritance *\/ */
-		/* if (tmem_wait_for_mem(ssi) == 0) { */
-		/* 	assert(ssi->ss_counter); */
+		/* Priority-Inheritance */
+		/* if (tmem_wait_for_mem(sti) == 0) { */
+		/* 	assert(sti->ss_counter); */
 		/* 	/\* We found self-suspension. Are we eligible */
 		/* 	 * for stacks now? If still not, block */
 		/* 	 * ourselves without dependencies! *\/ */
-		/* 	if (ssi->num_allocated < (ssi->num_desired + ssi->ss_max) && */
+		/* 	if (sti->num_allocated < (sti->num_desired + sti->ss_max) && */
 		/* 	    over_quota_total < over_quota_limit && */
-		/* 	    (empty_comps < (MAX_NUM_CBUFS - stacks_allocated) || ssi->num_allocated == 0)) { */
+		/* 	    (empty_comps < (MAX_NUM_ITEMS - stacks_allocated) || sti->num_allocated == 0)) { */
 		/* 		tmi = get_mem(); */
 		/* 		if (tmi) { */
 		/* 			/\* remove from the block list before grant *\/ */
-		/* 			remove_thd_from_blk_list(ssi, cos_get_thd_id()); */
+		/* 			remove_thd_from_blk_list(sti, cos_get_thd_id()); */
 		/* 			break; */
 		/* 		} */
 		/* 	} */
-		/* 	tmem_wait_for_mem_no_dependency(ssi); */
-		/* } */
-	/* } */
+			tmem_wait_for_mem_no_dependency(sti);
+//		}
+	}
 	
-	if (tmi) mgr_map_client_mem(tmi, ssi); 
+	if (tmi) {
+		mgr_map_client_mem(tmi, sti); 
+		DOUT("Adding to local spdid list\n");
+		ADD_LIST(&sti->tmem_list, tmi, next, prev);
+		sti->num_allocated++;
+		if (sti->num_allocated == 1) empty_comps--;
+		if (sti->num_allocated > sti->num_desired) over_quota_total++;
+		assert(sti->num_allocated == tmem_num_alloc_stks(sti->spdid));
+	}
 
-	if (meas) tmem_update_stats_wakeup(ssi, cos_get_thd_id());
+	if (meas) tmem_update_stats_wakeup(sti, cos_get_thd_id());
 
-	ssi->num_waiting_thds--;
+	sti->num_waiting_thds--;
 
 	return tmi;
 }
 
 inline void
-get_mem_from_client(struct spd_stk_info *ssi)
+get_mem_from_client(struct spd_tmem_info *sti)
 {
 	tmem_item * tmi;
-	while (ssi->num_desired < ssi->num_allocated) {
-		tmi = mgr_get_client_mem(ssi);
+	while (sti->num_desired < sti->num_allocated) {
+		tmi = mgr_get_client_mem(sti);
 		if (!tmi)
 			break;
 		put_mem(tmi);
 	}
 	/* if we haven't harvested enough stacks, do so lazily */
-	if (ssi->num_desired < ssi->num_allocated) spd_mark_relinquish(ssi->spdid);
+	if (sti->num_desired < sti->num_allocated) spd_mark_relinquish(sti);
 }
 
 inline void
-return_tmem(struct spd_stk_info *ssi)
+return_tmem(struct spd_tmem_info *sti)
 {
 	spdid_t s_spdid;
 
-	assert(ssi);
-	s_spdid = ssi->spdid;
+	assert(sti);
+	s_spdid = sti->spdid;
 	
-	if (ssi->num_desired < ssi->num_allocated || GLOBAL_BLKED) {
-		get_mem_from_client(ssi);
+	if (sti->num_desired < sti->num_allocated || sti->num_glb_blocked) {
+		get_mem_from_client(sti);
 	}
-	tmem_spd_wake_threads(ssi);
-	if (!SPD_HAS_BLK_THD(ssi) && ssi->num_desired >= ssi->num_allocated) {
+	tmem_spd_wake_threads(sti);
+	assert(!SPD_HAS_BLK_THD(sti));
+	if (sti->num_desired >= sti->num_allocated) {
 		/* we're under or at quota, and there are no
 		 * blocked threads, no more relinquishing! */
-		spd_unmark_relinquish(ssi);
+		spd_unmark_relinquish(sti);
 	}
 }
 
@@ -246,11 +242,11 @@ return_tmem(struct spd_stk_info *ssi)
  * Remove all free cache from client. Only called by set_concurrency.
  */
 static inline void
-remove_spare_cache_from_client(struct spd_stk_info *ssi)
+remove_spare_cache_from_client(struct spd_tmem_info *sti)
 {
 	tmem_item * tmi;
 	while (1) {
-		tmi = mgr_get_client_mem(ssi);
+		tmi = mgr_get_client_mem(sti);
 		if (!tmi)
 			return;
 		put_mem(tmi);
@@ -263,30 +259,30 @@ remove_spare_cache_from_client(struct spd_stk_info *ssi)
 inline int
 tmem_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare)
 {
-	struct spd_stk_info *ssi;
+	struct spd_tmem_info *sti;
 	int diff, old;
 
 	TAKE();
-	ssi = get_spd_info(spdid);	
+	sti = get_spd_info(spdid);	
 
 	/* if (concur_lvl > 1) printc("Set concur of %d to %d\n", spdid, concur_lvl); */
-	if (!ssi || !SPD_IS_MANAGED(ssi)) goto err;
+	if (!sti || !SPD_IS_MANAGED(sti)) goto err;
 	if (concur_lvl < 0) goto err;
 
-	old = ssi->num_desired;
-	ssi->num_desired = concur_lvl;
+	old = sti->num_desired;
+	sti->num_desired = concur_lvl;
 	stacks_target += concur_lvl - old;
 
 	/* update over-quota allocation counter */
-	if (old < (int)ssi->num_allocated) 
-		over_quota_total -= (concur_lvl <= (int)ssi->num_allocated) ? concur_lvl - old : (int)ssi->num_allocated - old;
-	else if (concur_lvl < (int)ssi->num_allocated)
-		over_quota_total += ssi->num_allocated - concur_lvl;
+	if (old < (int)sti->num_allocated) 
+		over_quota_total -= (concur_lvl <= (int)sti->num_allocated) ? concur_lvl - old : (int)sti->num_allocated - old;
+	else if (concur_lvl < (int)sti->num_allocated)
+		over_quota_total += sti->num_allocated - concur_lvl;
 
-	diff = ssi->num_allocated - ssi->num_desired;
-	if (diff > 0) get_mem_from_client(ssi);
-	if (diff < 0 && SPD_HAS_BLK_THD(ssi)) tmem_spd_wake_threads(ssi);
-	if (remove_spare) remove_spare_cache_from_client(ssi);
+	diff = sti->num_allocated - sti->num_desired;
+	if (diff > 0) get_mem_from_client(sti);
+	if (diff < 0 && SPD_HAS_BLK_THD(sti)) tmem_spd_wake_threads(sti);
+	if (remove_spare) remove_spare_cache_from_client(sti);
 
 	RELEASE();
 	return 0;
