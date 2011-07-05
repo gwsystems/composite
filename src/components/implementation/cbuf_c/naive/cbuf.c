@@ -23,6 +23,15 @@
 
 #define DEFAULT_TARGET_ALLOC 10
 
+/* typedef enum { */
+/* 	CBUFM_LARGE = 1, */
+/* 	CBUFM_RO    = 1<<1, */
+/* 	CBUFM_GRANT = 1<<2, */
+/* 	CBUFM_IN_USE = 1<<3, */
+/* 	CBUFM_RELINQUISH = 1<<4 */
+/* } cbufm_flags_t; */
+
+
 /* struct cb_desc; */
 /* struct cb_mapping { */
 /* 	spdid_t spd; */
@@ -40,12 +49,17 @@
 /* 	struct cb_mapping owner; */
 /* }; */
 
+
+/* struct cos_cbuf_item { */
+/* 	struct cos_cbuf_item *next, *prev; */
+/* 	struct cos_cbuf_item *free_next; */
+/* 	spdid_t parent_spdid;	 */
+/* 	struct cb_desc *desc_ptr; */
+/* }; */
+
+
+
 COS_MAP_CREATE_STATIC(cb_ids);
-
-/* cos_lock_t l; */
-/* #define TAKE() lock_take(&l); */
-/* #define RELEASE() lock_release(&l); */
-
 
 //  all cbufs that created for this component
 
@@ -153,20 +167,9 @@ cbuf_c_register(spdid_t spdid)
 	printc("p here %p\n",(void *)p);
 
 	ssi->ci = (struct cbuf_vect_t *)mgr_addr;
-	
+
 	return p;
 
-	/* /\* printc("is %p. s_spdid %ld\n",is, spdid);  *\/ */
-	/* if (p != */
-	/*     (mman_alias_page(spdid, (vaddr_t)is, cos_spd_id(), p))) { */
-	/* 	printc("mapped faied p is %p\n",p); */
-	/* 	return -1; */
-	/* } */
-	
-
-	/* /\* printc("mapped p is %p\n",ssi->ci);  *\/ */
-
-	/* return 0; */
 }
 
 

@@ -142,15 +142,20 @@ static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
  * actually in use.  The cbuf_c can garbage collect it if not (TODO).
  */
 union cbuf_meta {
-	u32_t v;        		/* value */
+	struct {
+		u32_t v;        		/* value */
+		u32_t thd_id;
+	} c_0;
 	struct {
 		u32_t ptr:20, obj_sz:6; /* page pointer, and ... */
 		/* the object size is the size of the object if it is
 		 * <= the size of a page, OR the _order_ of the number
 		 * of pages in the object, if it is > PAGE_SIZE */
 	        cbufm_flags_t flags:6;
+		u32_t thd_id:32;
 		/* int refcnt:1; */
 	} __attribute__((packed)) c;	/* composite type */
+
 };
 
 /* multiple cbs together = larger shared objects *//*
@@ -178,8 +183,8 @@ cbuf2buf(cbuf_t cb, int len)
 	len = nlpow2(len - 1);
 	cbuf_unpack(cb, &id, &idx);
 again:				/* avoid convoluted conditions */
-	cm.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, id);
-	if (unlikely(cm.v == 0)) {
+	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, id);
+	if (unlikely(cm.c_0.v == 0)) {
 		/* slow path */
 		if (cbuf_cache_miss(id, idx, len)) return NULL;
 		goto again;
@@ -285,9 +290,23 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 	u32_t *bm;
 	printc("<<<__cbuf_alloc size %d>>>\n",size);
 	if (unlikely(!slab_freelist->list)) {
+		printc("3\n");
 		cbuf_slab_alloc(size, slab_freelist);
 		if (unlikely(!slab_freelist->list)) return NULL;
 	}
+		cbuf_slab_alloc(size, slab_freelist);
+	printc("4\n");
+
+	/* int i; */
+	/* void *k; */
+	/* k = cbuf_vect_lookup(&meta_cbuf,5); */
+	/* printc("cbuf @ : %p\n",k); */
+
+
+	/* k = cbuf_vect_lookup(&meta_cbuf,6); */
+	/* printc("thd_id is : %d\n",(int)k); */
+
+	
 	s = slab_freelist->list;
 	assert(s->nfree);
 
@@ -340,7 +359,7 @@ cbuf_alloc_pow2(unsigned int order, cbuf_t *cb)
 	struct cbuf_slab_freelist *sf;
 	unsigned int dorder = order - CBUF_MIN_SLAB_ORDER;
 	assert(dorder <= N_CBUF_SLABS);
-
+	printc("2\n");
 	sf = &slab_freelists[dorder];
 	return __cbuf_alloc(sf, 1<<order, cb);
 }
@@ -353,7 +372,7 @@ static inline void *
 cbuf_alloc(unsigned int sz, cbuf_t *cb)
 {
 	int o;
-
+	printc("1\n");
 	sz = sz < 65 ? 63 : sz; /* FIXME: do without branch */
 	/* FIXME: find way to avoid making the wrong decision on pow2 values */
 	sz = ones(sz) == 1 ? sz-1 : sz;
@@ -373,14 +392,14 @@ cbuf_test_temp()
 {
 	int i;
 	void *k;
-	for(i=1;i<2049;i++){
-		cbuf_vect_add_id(&meta_cbuf, (void*)i, i);	
+	for(i=1;i<1033;i++){
+		cbuf_vect_add_id(&meta_cbuf, (void*)(i*2), i*2);	
 	}
 	printc("cbuf added!!\n");
 
-	for(i=1;i<2049;i++){
-		k = cbuf_vect_lookup(&meta_cbuf,i);	
-		printc("cbuf id address %d : %d\n",i,(int)k);
+	for(i=1;i<1033;i++){
+		k = cbuf_vect_lookup(&meta_cbuf,i*2);	
+		printc("cbuf id address %d : %d\n",i*2,(int)k);
 	}
 	
 

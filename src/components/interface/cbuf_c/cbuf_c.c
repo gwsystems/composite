@@ -51,7 +51,7 @@ cbuf_cache_miss(int cbid, int idx, int len)
 		return -1;
 	}
 	/* This is the commit point */
-	cbuf_vect_add_id(&meta_cbuf, (void*)mc.v, cbid);
+	cbuf_vect_add_id(&meta_cbuf, (void*)mc.c_0.v, cbid);
 
 	return 0;
 }
@@ -79,7 +79,8 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	struct cbuf_slab *s = malloc(sizeof(struct cbuf_slab)), *ret = NULL;
 	void *h;
 	int cbid;
-
+	int c_cbid;// combined id
+	printc("5\n");
 	if (!s) return NULL;
 	union cbuf_meta mc;
 
@@ -88,14 +89,24 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	assert(h); 
 
 	cbid = cbuf_c_create(cos_spd_id(), size, h);
+	printc("6\n");
+	printc("cbid is %d\n",cbid);
+	printc("thdid is %d\n",cos_get_thd_id());
 	if (cbid < 0) goto err;
 
 	mc.c.ptr    = (long)h >> PAGE_ORDER;
 	mc.c.obj_sz = size>>6;
-	cbuf_vect_add_id(&meta_cbuf, (void*)mc.v, cbid);
+	mc.c.thd_id = cos_get_thd_id();
+
+	c_cbid = cbid*2;
+	/* printc("added address: %p\n",(void*)mc.c_0.v); */
+	cbuf_vect_add_id(&meta_cbuf, (void*)mc.c_0.thd_id, c_cbid);
+	cbuf_vect_add_id(&meta_cbuf, (void*)mc.c_0.v, c_cbid-1);
 
 	cos_vect_add_id(&slab_descs, s, (long)h>>PAGE_ORDER);
+	
 	cbuf_slab_cons(s, cbid, h, size, freelist);
+
 	freelist->velocity = 0;
 	ret = s;
 done:   
