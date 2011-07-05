@@ -246,30 +246,28 @@ static long cbuf_vect_add_id(cbuf_vect_t *v, void *val, long id)
 
 		if (v->depth >= CBUF_VECT_DEPTH_MAX) return -1;
 
-		printc("root!!\n");
+		/* printc("root!!\n"); */
 		root = CBUF_VECT_ALLOC(CBUF_VECT_BASE * sizeof(struct cbuf_vect_intern_struct));
 		if (NULL == root) return -1;
 		for (i = 0 ; i < (int)CBUF_VECT_BASE ; i++) root[i].val = (void*)NULL;
 
-
 		v->vect = root;
-		printc("is_0!!\n");
+		/* printc("is_0!!\n"); */
 		is_0 = (struct cbuf_vect_intern_struct *)cbuf_c_register(cos_spd_id());
 		if (NULL == is_0) return -1;
 		for (i = 0 ; i < (int)CBUF_VECT_BASE ; i++) is_0[i].val = (void*)CBUF_VECT_INIT_VAL;
 
-		printc("is here %p\n",is_0);
+		/* printc("is here %p\n",is_0); */
 		root->val = is_0;
 
 		v->depth++;
 	}
-		assert(v->depth == 2);
+	assert(v->depth == 2);
 
 	is = __cbuf_vect_lookup(v, id);
 
 	if (NULL == is) {
-		printc("look up id %ld \n",id);
-		printc("expand!!\n");
+		printc("look up id %ld, going to expand!\n",id);
 		if (__cbuf_vect_expand(v, id)) return -1;
 		is = __cbuf_vect_lookup(v, id);
 		assert(is);

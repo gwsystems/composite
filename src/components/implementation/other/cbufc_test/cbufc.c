@@ -37,6 +37,7 @@ void cos_init(void)
 	cbuf_t cb1 = cbuf_null(), cb2 = cbuf_null();
 	u32_t id, idx;
 
+
 	/* cbuf_test_temp(); */
 	/* return; */
 
@@ -50,6 +51,7 @@ void cos_init(void)
 
 	return;
 
+	printc("start alloc!\n");
 	mem1 = cbuf_alloc(2048, &cb1);
 	cbuf_unpack(cb1, &id, &idx);
 	printc("@ %p, memid %x, idx %x\n", mem1, id, idx);
@@ -58,7 +60,13 @@ void cos_init(void)
 	cbuf_unpack(cb2, &id, &idx);
 	printc("@ %p, memid %x, idx %x\n", mem2, id, idx);
 
+	cbuf_free(mem1);
+	cbuf_free(mem2);
+
 	printc(">>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+	
+	/* cbuf_c_delete(cos_spd_id(), id); */
+	/* printc("deleted!\n"); */
 
 	return;
 
@@ -73,8 +81,8 @@ void cos_init(void)
 
 	/* make_alloc_call_free(SZ, 'a'); */
 
-	/* cbuf_free(mem1); */
-	/* cbuf_free(mem2); */
+	cbuf_free(mem1);
+	cbuf_free(mem2);
 
 	return;
 }

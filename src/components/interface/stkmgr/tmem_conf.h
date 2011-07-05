@@ -3,6 +3,11 @@
 
 #include <stkmgr.h>
 
+#define MAX_NUM_ITEMS MAX_NUM_STACKS
+
+#define TAKE() if(sched_component_take(cos_spd_id())) BUG();
+#define RELEASE() if(sched_component_release(cos_spd_id())) BUG();
+
 typedef struct cos_stk_item tmem_item;
 
 /* Shared page between the target component, and us */

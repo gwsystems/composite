@@ -135,7 +135,6 @@ cbuf_cons(u32_t cbid, u32_t idx)
 static inline cbuf_t cbuf_null(void)      { return 0; }
 static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
 
-
 /* 
  * This data-structure is shared between this component and the cbuf_c
  * (the cbuf manager) and the refcnt is used to gauge if the cbuf is
@@ -157,6 +156,7 @@ union cbuf_meta {
 	} __attribute__((packed)) c;	/* composite type */
 
 };
+
 
 /* multiple cbs together = larger shared objects *//*
 struct cbuf_collection { 
@@ -203,9 +203,6 @@ again:				/* avoid convoluted conditions */
 }
 
 #define SLAB_BITMAP_SIZE (SLAB_MAX_OBJS/32)
-/* When we have a velocity that causes us to really deallocate memory.
- * FIXME: This should entirely be a policy of the cbuf_c component. */
-#define SLAB_VELOCITY_THRESH (-4) 
 
 /* 
  * This is really the slab cache, and ->mem points to the slab, but
@@ -224,7 +221,7 @@ struct cbuf_slab {
 };
 struct cbuf_slab_freelist {
 	struct cbuf_slab *list;
-	int npages, velocity;
+	int npages;
 };
 extern struct cbuf_slab_freelist slab_freelists[N_CBUF_SLABS];
 
@@ -286,9 +283,11 @@ static inline void *
 __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 {
 	struct cbuf_slab *s;
+	union cbuf_meta cm;
 	int idx;
 	u32_t *bm;
 	printc("<<<__cbuf_alloc size %d>>>\n",size);
+again:					/* avoid convoluted conditions */
 	if (unlikely(!slab_freelist->list)) {
 		printc("3\n");
 		cbuf_slab_alloc(size, slab_freelist);
@@ -308,6 +307,12 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 
 	
 	s = slab_freelist->list;
+	/* check if the cbuf has been revoked by cbuf mgr */
+	if (unlikely(!cbuf_vect_lookup(&meta_cbuf, s->cbid))) {
+		slab_rem_freelist(s, slab_freelist);
+		free(s);
+		goto again;
+	}
 	assert(s->nfree);
 
 	if (s->obj_sz <= PAGE_SIZE) {
@@ -316,7 +321,14 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 		assert(idx > -1 && idx < SLAB_MAX_OBJS);
 		bitmap_unset(bm, idx);
 	}
+	if (s->nfree == s->max_objs) {
+		/* set IN_USE bit */
+		cm.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, s->cbid);
+		cm.c.flags |= CBUFM_IN_USE;
+		cbuf_vect_add_id(&meta_cbuf, (void*)cm.v, s->cbid);
+	}
 	s->nfree--;
+
 	/* remove from the freelist */
 	if (!s->nfree) slab_rem_freelist(s, slab_freelist);
 
