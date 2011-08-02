@@ -10,12 +10,14 @@
 
 #include <cos_component.h>
 #include <print.h>
-
 #include <periodic_wake.h>
 #include <sched.h>
 #include <sched_conf.h>
 #include <exe_synth_hier.h>
 #include <timed_blk.h>
+//#include <cbuf.h>
+
+#define SZ 2048
 
 int period = 100, num_invs = 1;
 int start_time = 0, duration_time = 120;
@@ -100,6 +102,16 @@ volatile int k;
 
 void cos_init(void *arg)
 {
+
+	/* void *mem1, *mem2; */
+	/* cbuf_t cb1 = cbuf_null(), cb2 = cbuf_null(); */
+	/* u32_t id, idx; */
+
+	/* mem1 = cbuf_alloc(2048, &cb1); */
+	/* cbuf_unpack(cb1, &id, &idx); */
+	/* printc("@ %p, memid %x, idx %x\n", mem1, id, idx); */
+	/* cbuf_free(mem1); */
+
 	int start_time_in_ticks = 0;
 	int duration_time_in_ticks = 0;
 

@@ -46,6 +46,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 	
 	int ret, dep_thd, in_blk_list;
 	do {
+		DOUT("wait cbuf...\n");
 		dep_thd = resolve_dependency(sti, i); 
 		if (i > sti->ss_counter) sti->ss_counter = i; /* update self-suspension counter */
 
@@ -139,6 +140,7 @@ tmem_grant(struct spd_tmem_info *sti)
 	 * if does not find, allocate a page for the meta data
 	 */
 
+	printc("in tmeme_grant\n");
 	while (1) {
 #ifdef MEM_IN_LOCAL_CACHE
 		if (MEM_IN_LOCAL_CACHE(sti)) break;
@@ -168,23 +170,23 @@ tmem_grant(struct spd_tmem_info *sti)
 		     cos_get_thd_id());
 
 		/* Priority-Inheritance */
-		/* if (tmem_wait_for_mem(sti) == 0) { */
-		/* 	assert(sti->ss_counter); */
-		/* 	/\* We found self-suspension. Are we eligible */
-		/* 	 * for stacks now? If still not, block */
-		/* 	 * ourselves without dependencies! *\/ */
-		/* 	if (sti->num_allocated < (sti->num_desired + sti->ss_max) && */
-		/* 	    over_quota_total < over_quota_limit && */
-		/* 	    (empty_comps < (MAX_NUM_ITEMS - stacks_allocated) || sti->num_allocated == 0)) { */
-		/* 		tmi = get_mem(); */
-		/* 		if (tmi) { */
-		/* 			/\* remove from the block list before grant *\/ */
-		/* 			remove_thd_from_blk_list(sti, cos_get_thd_id()); */
-		/* 			break; */
-		/* 		} */
-		/* 	} */
+		if (tmem_wait_for_mem(sti) == 0) {
+			assert(sti->ss_counter);
+			/* We found self-suspension. Are we eligible
+			 * for stacks now? If still not, block
+			 * ourselves without dependencies! */
+			if (sti->num_allocated < (sti->num_desired + sti->ss_max) &&
+			    over_quota_total < over_quota_limit &&
+			    (empty_comps < (MAX_NUM_ITEMS - stacks_allocated) || sti->num_allocated == 0)) {
+				tmi = get_mem();
+				if (tmi) {
+					/* remove from the block list before grant */
+					remove_thd_from_blk_list(sti, cos_get_thd_id());
+					break;
+				}
+			}
 			tmem_wait_for_mem_no_dependency(sti);
-//		}
+		}
 	}
 	
 	if (tmi) {

@@ -38,21 +38,31 @@ int
 cbuf_cache_miss(int cbid, int idx, int len)
 {
 	union cbuf_meta mc;
-	char *h;
-
-	h = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
-	assert(h);
-	mc.c.ptr    = (long)h >> PAGE_ORDER;
-	mc.c.obj_sz = len>>6;
-	if (cbuf_c_retrieve(cos_spd_id(), cbid, len, h)) {
-		valloc_free(cos_spd_id(), cos_spd_id(),h, 1);
+	void *h;
+	/* printc("cbid is %d idx is %d\n",cbid, idx); */
+//	h = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
+//	assert(h);
+//	mc.c.ptr    = (long)h >> PAGE_ORDER;
+//	mc.c.obj_sz = len>>6;
+	h = cbuf_c_retrieve(cos_spd_id(), cbid, len);
+	if (!h) {
+		//valloc_free(cos_spd_id(), cos_spd_id(),h, 1);
 		BUG();
 		/* Illegal cbid or length!  Bomb out. */
 		return -1;
 	}
-	/* This is the commit point */
-	cbuf_vect_add_id(&meta_cbuf, (void*)mc.c_0.v, cbid);
 
+	mc.c.ptr    = (long)h >> PAGE_ORDER;
+	mc.c.obj_sz = len>>6;
+
+	/* This is the commit point */
+	/* printc("miss: meta_cbuf is at %p, h is %p\n", &meta_cbuf, h); */
+	cbuf_vect_add_id(&meta_cbuf, (void*)mc.c_0.v, (cbid-1)*2);
+	cbuf_vect_add_id(&meta_cbuf, cos_get_thd_id(), (cbid-1)*2+1);
+	int i;
+	for(i=0;i<20;i++)
+		printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i));
+	
 	return 0;
 }
 
@@ -73,47 +83,46 @@ cbuf_slab_cons(struct cbuf_slab *s, int cbid, void *page,
 	return;
 }
 
+
 struct cbuf_slab *
 cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 {
 	struct cbuf_slab *s = malloc(sizeof(struct cbuf_slab)), *ret = NULL;
-	void *h;
+	void *addr;
 	int cbid;
-	int c_cbid;// combined id
-	printc("5\n");
-	if (!s) return NULL;
-	union cbuf_meta mc;
-
-	h = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
-
-	assert(h); 
-
-	cbid = cbuf_c_create(cos_spd_id(), size, h);
-	printc("6\n");
-	printc("cbid is %d\n",cbid);
-	printc("thdid is %d\n",cos_get_thd_id());
-	if (cbid < 0) goto err;
-
-	mc.c.ptr    = (long)h >> PAGE_ORDER;
-	mc.c.obj_sz = size>>6;
-	mc.c.thd_id = cos_get_thd_id();
-
-	c_cbid = cbid*2;
-	/* printc("added address: %p\n",(void*)mc.c_0.v); */
-	cbuf_vect_add_id(&meta_cbuf, (void*)mc.c_0.thd_id, c_cbid);
-	cbuf_vect_add_id(&meta_cbuf, (void*)mc.c_0.v, c_cbid-1);
-
-	cos_vect_add_id(&slab_descs, s, (long)h>>PAGE_ORDER);
+	int cnt;
 	
-	cbuf_slab_cons(s, cbid, h, size, freelist);
+	if (!s) return NULL;
+	/* union cbuf_meta mc; */
 
-	/* freelist->velocity = 0; */
+	/* printc("meta_cbuf is %p\n",&meta_cbuf); */
+	cnt = 0;
+	cbid = 0;
+	do {
+		cbid = cbuf_c_create(cos_spd_id(), size, cbid*-1);
+		if (cbid < 0) {
+			if (cbuf_vect_expand(&meta_cbuf, cbid*-1, 1) < 0) goto err;
+		}
+		/* FIXME: once everything is well debugged, remove this check */
+		assert(cnt++ < 10);
+	} while (cbid < 0);
+	/* printc("6\n"); */
+
+	/* int i; */
+	/* for(i=0;i<20;i++) */
+	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
+
+	printc("create: meta_cbuf is at %p\n", &meta_cbuf);
+	addr = cbuf_vect_addr_lookup(&meta_cbuf, (cbid-1)*2);
+	if (!addr) goto err;
+	cos_vect_add_id(&slab_descs, s, (long)addr>>PAGE_ORDER); // h look up by id
+	cbuf_slab_cons(s, cbid, addr, size, freelist);
 
 	ret = s;
 done:   
 	return ret;
 err:    
-	valloc_free(cos_spd_id(), cos_spd_id(), h, 1);
+	/* valloc_free(cos_spd_id(), cos_spd_id(), h, 1); */
 	free(s);
 	goto done;
 }
@@ -123,30 +132,31 @@ cbuf_slab_free(struct cbuf_slab *s)
 {
 	struct cbuf_slab_freelist *freelist;
 	union cbuf_meta cm;
-
+	printc("call slab_free(s)...\n");	
 	/* FIXME: soooo many races */
 	freelist = s->flh;
 	assert(freelist);
 
 	/* clear IN_USE bit */
-	cm.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, s->cbid);
+	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, (s->cbid - 1) * 2);
 	cm.c.flags &= ~CBUFM_IN_USE;
-	cbuf_vect_add_id(&meta_cbuf, (void*)cm.v, s->cbid);
-	
+	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, (s->cbid - 1 ) * 2);
+	printc("Check relinquish\n");	
 	/* check relinquish here! */
 	if (!(cm.c.flags & CBUFM_RELINQUISH)) return;
+	printc("Check relinquish done!\n");	
 
 //	if (freelist->velocity > SLAB_VELOCITY_THRESH) return;
 
-	/* Has the cbuf mgr asked for the cbuf? Return the page. */
+	/* Has the cbuf mgr asked for the cbuf? Return the page. Relinqush to return to mgr! */
 	slab_rem_freelist(s, freelist);
-	assert(s->nfree = (PAGE_SIZE/s->obj_sz));
+	assert(s->nfree == (PAGE_SIZE/s->obj_sz));
 	
 	cos_vect_del(&slab_descs, (long)s->mem>>PAGE_ORDER);
-	
+	printc("call cbuf_delete...\n");	
 	cbuf_c_delete(cos_spd_id(), s->cbid);
-	valloc_free(cos_spd_id(), cos_spd_id(), s->mem, 1);
-	free(s);
+	/* valloc_free(cos_spd_id(), cos_spd_id(), s->mem, 1); */
+	free(s);  // created at slab_alloc
 
 	return;
 }

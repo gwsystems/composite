@@ -57,11 +57,11 @@ spd_freelist_add(struct spd_tmem_info *sti, struct cos_stk_item *csi)
 	/* Should either belong to this spd, or not to another (we
 	 * don't want it mapped into two components) */
 	assert(csi->parent_spdid == sti->spdid || EMPTY_LIST(csi, next, prev));
-	assert(sti->ci);
+	assert(sti->ci.ptr);
 
 	/* FIXME: race */
-	csi->stk->next = (struct cos_stk*)sti->ci->cos_stacks.freelists[0].freelist;
-	sti->ci->cos_stacks.freelists[0].freelist = D_COS_STK_ADDR(csi->d_addr);
+	csi->stk->next = (struct cos_stk*)sti->ci.ptr->cos_stacks.freelists[0].freelist;
+	(sti->ci.ptr)->cos_stacks.freelists[0].freelist = D_COS_STK_ADDR(csi->d_addr);
 
 	return 0;
 }
@@ -100,14 +100,14 @@ spd_freelist_remove(struct spd_tmem_info *sti)
 	struct cos_stk *stk;
 	struct cos_stk_item *csi;
 
-	stk = (struct cos_stk *)sti->ci->cos_stacks.freelists[0].freelist;
+	stk = (struct cos_stk *)sti->ci.ptr->cos_stacks.freelists[0].freelist;
 	if(stk == NULL) return NULL;
 
 	csi = stkmgr_get_spds_stk_item(sti, (vaddr_t)stk);
 	assert(csi);
 	stk = csi->stk; 	/* convert to local address */
 	/* FIXME: race condition */
-	sti->ci->cos_stacks.freelists[0].freelist = (vaddr_t)stk->next;
+	sti->ci.ptr->cos_stacks.freelists[0].freelist = (vaddr_t)stk->next;
 
 	return csi;
 }
@@ -201,7 +201,7 @@ cos_init(void *arg){
 			DOUT("Could not map cinfo page for %d\n", spdid);
 			BUG();
 		}
-		spd_tmem_info_list[spdid].ci = hp; 
+		spd_tmem_info_list[spdid].ci.ptr = hp; 
 		spd_tmem_info_list[spdid].managed = 1;
 
 		DOUT("mapped -- id: %ld, hp:%x, sp:%x\n",
@@ -332,13 +332,13 @@ get_cos_info_page(spdid_t spdid)
 		DOUT("Could not map cinfo page for %d\n", spdid);
 		BUG();
 	}
-	spd_tmem_info_list[spdid].ci = hp;
+	spd_tmem_info_list[spdid].ci.ptr = hp;
 	spd_tmem_info_list[spdid].managed = 1;
 
 	DOUT("mapped -- id: %ld, hp:%x, sp:%x\n",
-	     spd_tmem_info_list[spdid].ci->cos_this_spd_id, 
-	     (unsigned int)spd_tmem_info_list[spdid].ci->cos_heap_ptr,
-	     (unsigned int)spd_tmem_info_list[spdid].ci->cos_stacks.freelists[0].freelist);
+	     spd_tmem_info_list[spdid].ci.ptr->cos_this_spd_id, 
+	     (unsigned int)spd_tmem_info_list[spdid].ci.ptr->cos_heap_ptr,
+	     (unsigned int)spd_tmem_info_list[spdid].ci.ptr->cos_stacks.freelists[0].freelist);
 }
 
 u32_t
@@ -477,9 +477,9 @@ stkmgr_in_freelist(spdid_t spdid, struct cos_stk_item *csi)
 	void *curr;
 
 	info = &spd_tmem_info_list[spdid];
-	if (info->ci == NULL) return -1;
+	if (info->ci.ptr == NULL) return -1;
 
-	curr = (void *)info->ci->cos_stacks.freelists[0].freelist;
+	curr = (void *)info->ci.ptr->cos_stacks.freelists[0].freelist;
 	if (curr == NULL) return 0;
 	
 	stk_item = stkmgr_get_cos_stk_item((vaddr_t)curr);
@@ -535,7 +535,7 @@ stkmgr_print_ci_freelist(void)
 		unsigned int cnt = 0;
 
 		info = &spd_tmem_info_list[i];
-		if(info->ci == NULL) continue;
+		if(info->ci.ptr == NULL) continue;
 
 		if (info->num_allocated == 0 && info->num_blocked_thds == 0) continue;
 
@@ -548,7 +548,7 @@ stkmgr_print_ci_freelist(void)
 		       i, info->num_allocated, cnt, info->num_blocked_thds);
 		assert(info->num_allocated == tmem_num_alloc_stks(info->spdid));
 #ifdef PRINT_FREELIST_ELEMENTS
-		curr = (void *)info->ci->cos_stacks.freelists[0].freelist;
+		curr = (void *)info->ci.ptr->cos_stacks.freelists[0].freelist;
 		if(curr) {
 			DOUT("\tcomponent freelist: %p\n", curr);
 			p = stk_item = stkmgr_get_cos_stk_item((vaddr_t)curr);

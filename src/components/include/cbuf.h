@@ -26,6 +26,8 @@
 extern cbuf_vect_t meta_cbuf;
 extern cos_vect_t slab_descs; 
 
+static init_flag = 0;
+
 /* 
  * Shared buffer management for Composite.
  *
@@ -139,23 +141,23 @@ static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
  * This data-structure is shared between this component and the cbuf_c
  * (the cbuf manager) and the refcnt is used to gauge if the cbuf is
  * actually in use.  The cbuf_c can garbage collect it if not (TODO).
- */
-union cbuf_meta {
-	struct {
-		u32_t v;        		/* value */
-		u32_t thd_id;
-	} c_0;
-	struct {
-		u32_t ptr:20, obj_sz:6; /* page pointer, and ... */
-		/* the object size is the size of the object if it is
-		 * <= the size of a page, OR the _order_ of the number
-		 * of pages in the object, if it is > PAGE_SIZE */
-	        cbufm_flags_t flags:6;
-		u32_t thd_id:32;
-		/* int refcnt:1; */
-	} __attribute__((packed)) c;	/* composite type */
+/*  *\/ */
+/* union cbuf_meta { */
+/* 	struct { */
+/* 		u32_t v;        		/\* value *\/ */
+/* 		u32_t thd_id; */
+/* 	} c_0; */
+/* 	struct { */
+/* 		u32_t ptr:20, obj_sz:6; /\* page pointer, and ... *\/ */
+/* 		/\* the object size is the size of the object if it is */
+/* 		 * <= the size of a page, OR the _order_ of the number */
+/* 		 * of pages in the object, if it is > PAGE_SIZE *\/ */
+/* 	        cbufm_flags_t flags:6; */
+/* 		u32_t thd_id:32; */
+/* 		/\* int refcnt:1; *\/ */
+/* 	} __attribute__((packed)) c;	/\* composite type *\/ */
 
-};
+/* }; */
 
 
 /* multiple cbs together = larger shared objects *//*
@@ -182,8 +184,16 @@ cbuf2buf(cbuf_t cb, int len)
 	/* len = nlpow2(len); */
 	len = nlpow2(len - 1);
 	cbuf_unpack(cb, &id, &idx);
+	/* printc("id %x, idx %x\n", id, idx); */
+
+	//TODO: Initialize meta_cbuf here, call expand?
+	if (init_flag == 0){
+		init_flag = 1;
+		cbuf_vect_expand(&meta_cbuf, id, 0);  // 0 means vector not mapped into mgr
+	}
+
 again:				/* avoid convoluted conditions */
-	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, id);
+	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, (id-1)*2);
 	if (unlikely(cm.c_0.v == 0)) {
 		/* slow path */
 		if (cbuf_cache_miss(id, idx, len)) return NULL;
@@ -193,6 +203,7 @@ again:				/* avoid convoluted conditions */
 		obj_sz = cm.c.obj_sz<<6;
 		off    = obj_sz * idx; /* multiplication...ouch */
 		if (unlikely(len > obj_sz || off + len > PAGE_SIZE )) return NULL;
+		printc("<<<Not CBUF_LARGE>>> idx: %d off: %d\n", idx, off);
 	} else {
 		BUG();
 		obj_sz = PAGE_SIZE * (1 << cm.c.obj_sz);
@@ -229,6 +240,7 @@ static inline void
 slab_rem_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 {
 	assert(s && fl);
+	printc("remove from the freelist now!!!!\n");
 	if (fl->list == s) {
 		if (EMPTY_LIST(s, next, prev)) fl->list = NULL;
 		else fl->list = FIRST_LIST(s, next, prev);
@@ -248,6 +260,7 @@ slab_add_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 	}
 	fl->list = s;
 	fl->npages++;
+	printc("add back to free list!!\n");
 }
 
 extern struct cbuf_slab *cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist);
@@ -257,6 +270,7 @@ static inline void
 __cbuf_free(void *buf)
 {
 	u32_t p = ((u32_t)buf & PAGE_MASK) >> PAGE_ORDER; /* page id */
+	printc("page id is %p\n",p);
 	struct cbuf_slab *s = cos_vect_lookup(&slab_descs, p);
 	u32_t b   = (u32_t)buf;
 	u32_t off = b - (b & PAGE_MASK);
@@ -269,9 +283,12 @@ __cbuf_free(void *buf)
 	bitmap_set(&s->bitmap[0], idx);
 	s->nfree++;
 	assert(s->flh);
+	printc("nfree is now : %d\n", s->nfree);
 	if (s->nfree == s->max_objs) {
+		printc("slab_free(s) is called\n");
 		cbuf_slab_free(s);
 	} else if (s->nfree == 1) {
+		printc("slab_add_freelist is called\n");
 		assert(EMPTY_LIST(s, next, prev));
 		slab_add_freelist(s, s->flh);
 	}
@@ -289,28 +306,20 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 	printc("<<<__cbuf_alloc size %d>>>\n",size);
 again:					/* avoid convoluted conditions */
 	if (unlikely(!slab_freelist->list)) {
-		printc("3\n");
+		printc("..in..\n");
 		cbuf_slab_alloc(size, slab_freelist);
 		if (unlikely(!slab_freelist->list)) return NULL;
 	}
-		cbuf_slab_alloc(size, slab_freelist);
-	printc("4\n");
 
-	/* int i; */
-	/* void *k; */
-	/* k = cbuf_vect_lookup(&meta_cbuf,5); */
-	/* printc("cbuf @ : %p\n",k); */
-
-
-	/* k = cbuf_vect_lookup(&meta_cbuf,6); */
-	/* printc("thd_id is : %d\n",(int)k); */
-
-	
+	printc("*****Alloc:******\n");
 	s = slab_freelist->list;
+	printc("s->cbid is  %d\n",s->cbid);
+
 	/* check if the cbuf has been revoked by cbuf mgr */
-	if (unlikely(!cbuf_vect_lookup(&meta_cbuf, s->cbid))) {
+	if (unlikely(!cbuf_vect_lookup(&meta_cbuf, (s->cbid-1)*2))) {
 		slab_rem_freelist(s, slab_freelist);
 		free(s);
+		printc("goto again\n");
 		goto again;
 	}
 	assert(s->nfree);
@@ -323,17 +332,21 @@ again:					/* avoid convoluted conditions */
 	}
 	if (s->nfree == s->max_objs) {
 		/* set IN_USE bit */
-		cm.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, s->cbid);
+		cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, (s->cbid-1)*2);
 		cm.c.flags |= CBUFM_IN_USE;
-		cbuf_vect_add_id(&meta_cbuf, (void*)cm.v, s->cbid);
+		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, (s->cbid-1)*2);
 	}
+
+	int i;
+	for(i=0;i<25;i++)
+		printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i));
 	s->nfree--;
 
 	/* remove from the freelist */
 	if (!s->nfree) slab_rem_freelist(s, slab_freelist);
 
 	*cb = cbuf_cons(s->cbid, idx);
-	return s->mem + (idx * s->obj_sz);
+	return s->mem + (idx * s->obj_sz);  // return correct position of cbuf in this slab
 }
 
 /* 
@@ -384,7 +397,6 @@ static inline void *
 cbuf_alloc(unsigned int sz, cbuf_t *cb)
 {
 	int o;
-	printc("1\n");
 	sz = sz < 65 ? 63 : sz; /* FIXME: do without branch */
 	/* FIXME: find way to avoid making the wrong decision on pow2 values */
 	sz = ones(sz) == 1 ? sz-1 : sz;
@@ -398,24 +410,5 @@ cbuf_free(void *buf)
 {
 	__cbuf_free(buf);
 }
-
-static inline void 
-cbuf_test_temp()
-{
-	int i;
-	void *k;
-	for(i=1;i<1033;i++){
-		cbuf_vect_add_id(&meta_cbuf, (void*)(i*2), i*2);	
-	}
-	printc("cbuf added!!\n");
-
-	for(i=1;i<1033;i++){
-		k = cbuf_vect_lookup(&meta_cbuf,i*2);	
-		printc("cbuf id address %d : %d\n",i*2,(int)k);
-	}
-	
-
-}
-
 
 #endif /* CBUF_H */

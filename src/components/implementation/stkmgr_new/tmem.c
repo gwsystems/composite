@@ -133,12 +133,6 @@ tmem_grant(struct spd_tmem_info *sti)
 	 * quota on stacks? Otherwise block!
 	 */
 
-	/*
-	 * find an unused cbuf_id
-	 * looks through to find id
-	 * if does not find, allocate a page for the meta data
-	 */
-
 	while (1) {
 #ifdef MEM_IN_LOCAL_CACHE
 		if (MEM_IN_LOCAL_CACHE(sti)) break;

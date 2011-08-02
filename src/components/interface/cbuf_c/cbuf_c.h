@@ -14,9 +14,9 @@
 #include <cbuf_vect.h>
 
 /* Component functions */
-int cbuf_c_create(spdid_t spdid, int size, void *page); /* return cbid */
+int cbuf_c_create(spdid_t spdid, int size, long cbid); /* return cbid */
 void cbuf_c_delete(spdid_t spdid, int cbid);
-int cbuf_c_retrieve(spdid_t spdid, int cbid, int len, void *page);
+void *cbuf_c_retrieve(spdid_t spdid, int cbid, int len); /* return client address */
 
 /* 
  * FIXME: The API currently requires the valloc be done in the client,

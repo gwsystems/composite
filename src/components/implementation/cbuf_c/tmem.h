@@ -67,7 +67,7 @@ struct spd_tmem_info {
 	 * which are defined in tmem_conf.h (in interface dir) */
 
 	/* Shared data-structure between the target component and mgr */
-	shared_component_info *ci;
+	shared_component_info ci;
 
 	/* tmem item list */
 	tmem_item tmem_list;
@@ -75,7 +75,7 @@ struct spd_tmem_info {
 	struct blocked_thd bthd_list;
 };
 
-// Holds info about stack usage
+// Holds info about mem usage
 struct spd_tmem_info spd_tmem_info_list[MAX_NUM_SPDS];
 
 // Holds all currently free tmem

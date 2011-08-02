@@ -67,7 +67,7 @@ struct spd_tmem_info {
 	 * which are defined in tmem_conf.h (in interface dir) */
 
 	/* Shared data-structure between the target component and mgr */
-	shared_component_info *ci;
+	shared_component_info ci;
 
 	/* tmem item list */
 	tmem_item tmem_list;

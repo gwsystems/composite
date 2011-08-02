@@ -16,7 +16,7 @@
 typedef struct cos_cbuf_item tmem_item;
 
 /* Shared page between the target component, and us */
-typedef	struct cbuf_vect_intern_struct shared_component_info;
+typedef	struct spd_cbvect_range shared_component_info;
 
 /* /\* 1 means there's memory available in local cache *\/ */
 /* #define MEM_IN_LOCAL_CACHE(sci) ((sci)->ci->cos_stacks.freelists[0].freelist != 0) */
@@ -34,17 +34,37 @@ typedef enum {
  * (the cbuf manager) and the refcnt is used to gauge if the cbuf is
  * actually in use.  The cbuf_c can garbage collect it if not (TODO).
  */
+/* union cbuf_meta { */
+/* 	u32_t v;        		/\* value *\/ */
+/* 	struct { */
+/* 		u32_t ptr:20, obj_sz:6; /\* page pointer, and ... *\/ */
+/* 		/\* the object size is the size of the object if it is */
+/* 		 * <= the size of a page, OR the _order_ of the number */
+/* 		 * of pages in the object, if it is > PAGE_SIZE *\/ */
+/* 	        cbufm_flags_t flags:6; */
+/* 		/\* int refcnt:1; *\/ */
+/* 	} __attribute__((packed)) c;	/\* composite type *\/ */
+/* }; */
+
+
 union cbuf_meta {
-	u32_t v;        		/* value */
+	struct {
+		u32_t v;        		/* value */
+		u32_t th_id;
+	} c_0;
 	struct {
 		u32_t ptr:20, obj_sz:6; /* page pointer, and ... */
 		/* the object size is the size of the object if it is
 		 * <= the size of a page, OR the _order_ of the number
 		 * of pages in the object, if it is > PAGE_SIZE */
 	        cbufm_flags_t flags:6;
+
+		u32_t thdid_owner;
 		/* int refcnt:1; */
 	} __attribute__((packed)) c;	/* composite type */
+
 };
+
 
 struct cb_desc;
 struct cb_mapping {
@@ -59,7 +79,7 @@ struct cb_desc {
 	u16_t principal;	/* principal that owns the memory */
 	int cbid;		/* cbuf id */
 	int obj_sz;
-	void *addr; 	/* local map address */
+	void *addr; 	/* local map address, done at init*/
 	struct cb_mapping owner;
 };
 
@@ -67,11 +87,21 @@ struct cb_desc {
 struct cos_cbuf_item {
 	struct cos_cbuf_item *next, *prev;
 	struct cos_cbuf_item *free_next;
-//	u32_t mapped;
-//	u32_t flags;
-//	vaddr_t d_addr;
+	vaddr_t page;   // use when revoke
 	spdid_t parent_spdid;	
 	struct cb_desc desc;
+};
+
+/* 
+ * A linked list of the cbuf_vect second level pages -- the
+ * data-structure used to track cbufs, that is mapped between the
+ * client and the server -- that tracks for a given cbuf_id, which
+ * page represents that mapping.
+ */
+struct spd_cbvect_range {
+	long start_id, end_id;
+	union cbuf_meta *meta; /* sizeof == PAGE_SIZE, 512 entries */
+	struct spd_cbvect_range *next, *prev;
 };
 
 #endif
