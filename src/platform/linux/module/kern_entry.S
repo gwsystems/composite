@@ -117,7 +117,9 @@ ENTRY(sysenter_interposition_entry)
 	ja cos_syscall_thunk
 
 	SAVE_ALL
+	pushl %eax
 	call hijack_syscall_monitor
+	addl $4, %esp
 	RESTORE_REGS
 normal_syscall:
 	movl cos_temp_esp_storage, %esp

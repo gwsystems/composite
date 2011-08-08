@@ -1,10 +1,12 @@
 /**
  * Copyright 2008 by Boston University.  All rights reserved.
+ * Copyright 2011 by The George Washington University.  All rights reserved.
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  *
  * Author: Gabriel Parmer, gabep1@cs.bu.edu, 2008.
+ * Author: Gabriel Parmer, gparmer@gwu.edu, 2011.
  */
 
 #define COS_FMT_PRINT

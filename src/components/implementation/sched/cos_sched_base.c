@@ -1443,7 +1443,11 @@ int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short
 
 void sched_exit(void)
 {
+	
+	printc("Switching to %d\n", init->id);
+	cos_sched_clear_events();
 	cos_switch_thread(init->id, 0);
+	BUG();
 }
 
 static struct sched_thd *fp_init_component(spdid_t spdid, char *metric_str)

@@ -112,8 +112,6 @@ int main(void)
 			data_new(fd);
 		}
 	}
-
-	while(1);
 }
 
 void cos_init(void *arg)
@@ -127,9 +125,4 @@ void cos_init(void *arg)
 	} else {
 		prints("conn: not expecting more than one bootstrap.");
 	}
-}
-
-void bin(void)
-{
-	sched_block(cos_spd_id(), 0);
 }

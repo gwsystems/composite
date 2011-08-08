@@ -589,7 +589,7 @@ int cos_wait_all(void)
 	int fd;
 
 	FD_LOCK_TAKE();
-#define CACHE_EVT_NOTIFICATIONS
+//#define CACHE_EVT_NOTIFICATIONS
 #ifdef  CACHE_EVT_NOTIFICATIONS
 	while (0 == evt_notif_top) {
 		FD_LOCK_RELEASE();

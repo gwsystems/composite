@@ -941,10 +941,10 @@ static unsigned long fault_addrs[NUM_BUCKETS];
 #define PF_WRITE(code)  (code & 0x2)
 #define PF_READ(code)   (!PF_WRITE(code))
 
-void hijack_syscall_monitor(void)
+void hijack_syscall_monitor(int num)
 {
 	if (unlikely(!syscalls_enabled && composite_thread == current)) {
-		printk("FAILURE: making a Linux system call in Composite.\n");
+		printk("FAILURE: making a Linux system call (#%d) in Composite.\n", num);
 	}
 }
 
