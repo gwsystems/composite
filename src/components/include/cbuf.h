@@ -26,7 +26,7 @@
 extern cbuf_vect_t meta_cbuf;
 extern cos_vect_t slab_descs; 
 
-static init_flag = 0;
+/* static init_flag = 0; */
 
 /* 
  * Shared buffer management for Composite.
@@ -186,17 +186,13 @@ cbuf2buf(cbuf_t cb, int len)
 	cbuf_unpack(cb, &id, &idx);
 	/* printc("id %x, idx %x\n", id, idx); */
 
-	//TODO: Initialize meta_cbuf here, call expand?
-	if (init_flag == 0){
-		init_flag = 1;
-		cbuf_vect_expand(&meta_cbuf, id, 0);  // 0 means vector not mapped into mgr
-	}
-
 again:				/* avoid convoluted conditions */
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, (id-1)*2);
 	if (unlikely(cm.c_0.v == 0)) {
 		/* slow path */
+		// If there is no 2nd level vector exists, create here!!
 		if (cbuf_cache_miss(id, idx, len)) return NULL;
+		printc("go to again!!!\n");
 		goto again;
 	}
 	if (likely(!(cm.c.flags & CBUFM_LARGE))) {

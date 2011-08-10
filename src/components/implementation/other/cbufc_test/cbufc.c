@@ -13,7 +13,7 @@ void make_alloc_call_free(int sz, char c)
 	cbuf_t cb = cbuf_null();
 	u32_t id, idx;
 	u64_t start, end;
-	const int ITER = 1;
+	const int ITER = 3;
 	int i;
 
 	m = cbuf_alloc(sz, &cb);
@@ -64,12 +64,12 @@ void cos_init(void)
 	static int hthd;
 	static int lthd;
 	/* timed_event_block(cos_spd_id(), 9); */
-	if(first == 0){
-		hthd = create_thd("r-1");
-		lthd = cos_get_thd_id();
+	/* if(first == 0){ */
+	/* 	hthd = create_thd("r-1"); */
+	/* 	lthd = cos_get_thd_id(); */
 
-		first = 1;
-	}
+	/* 	first = 1; */
+	/* } */
 
 	printc("start alloc!\n");
 
@@ -77,10 +77,10 @@ void cos_init(void)
 		mem1 = cbuf_alloc(2048, &cb1);
 		cbuf_unpack(cb1, &id, &idx);
 		printc("@ %p, memid %x, idx %x\n", mem1, id, idx);
-		/* cbuf_free(mem1); */
+		cbuf_free(mem1);
 	}
 
-	/* make_alloc_call_free(SZ, 'a'); */
+	make_alloc_call_free(SZ, 'a');
 
 	/* cbuf_free(mem1); */
 	/* cbuf_free(mem2); */

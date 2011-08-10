@@ -40,10 +40,12 @@ cbuf_cache_miss(int cbid, int idx, int len)
 	union cbuf_meta mc;
 	void *h;
 	/* printc("cbid is %d idx is %d\n",cbid, idx); */
+
 //	h = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
 //	assert(h);
 //	mc.c.ptr    = (long)h >> PAGE_ORDER;
 //	mc.c.obj_sz = len>>6;
+
 	h = cbuf_c_retrieve(cos_spd_id(), cbid, len);
 	if (!h) {
 		//valloc_free(cos_spd_id(), cos_spd_id(),h, 1);
@@ -56,7 +58,7 @@ cbuf_cache_miss(int cbid, int idx, int len)
 	mc.c.obj_sz = len>>6;
 
 	/* This is the commit point */
-	/* printc("miss: meta_cbuf is at %p, h is %p\n", &meta_cbuf, h); */
+	printc("miss: meta_cbuf is at %p, h is %p\n", &meta_cbuf, h);
 	cbuf_vect_add_id(&meta_cbuf, (void*)mc.c_0.v, (cbid-1)*2);
 	cbuf_vect_add_id(&meta_cbuf, cos_get_thd_id(), (cbid-1)*2+1);
 	int i;
@@ -101,7 +103,7 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	do {
 		cbid = cbuf_c_create(cos_spd_id(), size, cbid*-1);
 		if (cbid < 0) {
-			if (cbuf_vect_expand(&meta_cbuf, cbid*-1, 1) < 0) goto err;
+			if (cbuf_vect_expand(&meta_cbuf, cbid*-1) < 0) goto err;
 		}
 		/* FIXME: once everything is well debugged, remove this check */
 		assert(cnt++ < 10);

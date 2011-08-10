@@ -13,6 +13,10 @@
 /* #define TAKE() lock_take(&l); */
 /* #define RELEASE() lock_release(&l); */
 
+/* 
+ * tmem_item in this case is a list of the cbufs that are _owned_ by a
+ * specific spdid (as opposed to all that are mapped into it).
+ */
 typedef struct cos_cbuf_item tmem_item;
 
 /* Shared page between the target component, and us */

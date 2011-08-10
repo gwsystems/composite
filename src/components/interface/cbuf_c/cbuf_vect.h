@@ -158,7 +158,8 @@ static inline struct cbuf_vect_intern_struct *__cbuf_vect_lookup(cbuf_vect_t *v,
 	/* printc("id : %ld",id); */
 	/* printc("cbuf_vect_v is %p depth is %ld vect is %p \n", v, v->depth, v->vect); */
 	assert(v);
-	assert(v->depth != 0);
+	if (v->depth == 0) return NULL;
+	/* assert(v->depth != 0); */
 	assert(v->depth <= 2);
 	if (id < 0) return NULL;
 	depth = v->depth;
@@ -210,7 +211,7 @@ static inline vaddr_t cbuf_vect_addr_lookup(cbuf_vect_t *v, long cbid)
 	}
 }
 
-static inline int __cbuf_vect_expand(cbuf_vect_t *v, long id, int f)
+static inline int __cbuf_vect_expand(cbuf_vect_t *v, long id)
 {
 	struct cbuf_vect_intern_struct *is, *root;
 	int i;
@@ -242,10 +243,7 @@ static inline int __cbuf_vect_expand(cbuf_vect_t *v, long id, int f)
 
 	assert(v && NULL == __cbuf_vect_lookup(v, id));
 
-	if (f == 1)
-		is = (struct cbuf_vect_intern_struct *)cbuf_c_register(cos_spd_id(), id);
-	else
-		is = CBUF_VECT_ALLOC(CBUF_VECT_BASE * sizeof(struct cbuf_vect_intern_struct));
+	is = (struct cbuf_vect_intern_struct *)cbuf_c_register(cos_spd_id(), id);
 
 	/* printc("extended: [[[[[[ %p ]]]]]]\n",is); */
 
@@ -260,9 +258,9 @@ static inline int __cbuf_vect_expand(cbuf_vect_t *v, long id, int f)
 	return 0;
 }
 
-static inline int cbuf_vect_expand(cbuf_vect_t *v, long id, int f) 
+static inline int cbuf_vect_expand(cbuf_vect_t *v, long id) 
 { 
-	return __cbuf_vect_expand(v, id, f);
+	return __cbuf_vect_expand(v, id);
 }
 
 static inline int __cbuf_vect_set(cbuf_vect_t *v, long id, void *val)
@@ -284,17 +282,17 @@ static long cbuf_vect_add_id(cbuf_vect_t *v, void *val, long id)
 	/* struct cbuf_vect_intern_struct *is_0, *is, *root; */
 	struct cbuf_vect_intern_struct *is;
 
-	/* assert(v && val != 0); */
-	/* assert(v->depth == 2); */
+	assert(v && val != 0);
 
 	is = __cbuf_vect_lookup(v, id);
 
-	/* if (NULL == is) { */
-	/* 	printc("look up id %ld, going to expand!\n",id); */
-	/* 	if (__cbuf_vect_expand(v, id)) return -1; */
-	/* 	is = __cbuf_vect_lookup(v, id); */
-	/* 	assert(is); */
-	/* } */
+	if (NULL == is) {
+		printc("look up id %ld, going to expand!\n",id);
+		if (__cbuf_vect_expand(v, id)) return -1;
+		is = __cbuf_vect_lookup(v, id);
+		assert(is);
+		assert(v->depth == 2);
+	}
 	assert(is);
 
 	is->val = val;

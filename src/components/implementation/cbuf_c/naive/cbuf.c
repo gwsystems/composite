@@ -65,7 +65,7 @@ err:
 	printc("Cbuf mgr: Cannot alias page to client!\n");
 	mman_release_page(cos_spd_id(), (vaddr_t)l_addr, 0);
 	/* valloc_free(cos_spd_id(), cos_spd_id(), l_addr, 1); */
-	valloc_free(cos_spd_id(), cos_spd_id(), (void *)d_addr, 1);
+	valloc_free(cos_spd_id(), d_spdid, (void *)d_addr, 1);
 	goto done;
 }
 
@@ -80,6 +80,7 @@ tmem_item * mgr_get_client_mem(struct spd_tmem_info *sti)
 	assert(sti);
 	s_spdid = sti->spdid;
 
+	//list = get_spd_info(s_spdid).tmem_list;
 	list = &spd_tmem_info_list[s_spdid].tmem_list;
 
 	union cbuf_meta cm;
@@ -206,6 +207,22 @@ __spd_cbvect_lookup_range(struct spd_tmem_info *sti, long cbuf_id)
 	return NULL;
 }
 
+static inline void
+__spd_cbvect_clean_val(struct spd_tmem_info *sti, long cbuf_id)
+{
+	struct spd_cbvect_range *cbr;
+
+	for (cbr = FIRST_LIST(&sti->ci, next, prev) ; 
+	     cbr != &sti->ci ; 
+	     cbr = FIRST_LIST(cbr, next, prev)) {
+		if (cbuf_id >= cbr->start_id && cbuf_id <= cbr->end_id) {
+			cbr->meta[(cbuf_id - cbr->start_id - 1)].c_0.v = (u32_t)COS_VECT_INIT_VAL;
+			cbr->meta[(cbuf_id - cbr->start_id - 1)].c_0.th_id = (u32_t)COS_VECT_INIT_VAL;
+		}
+	}
+	return;
+}
+
 vaddr_t
 cbuf_c_register(spdid_t spdid, long cbid)
 {
@@ -229,7 +246,7 @@ cbuf_c_register(spdid_t spdid, long cbid)
 
 	return p;
 }
-
+ 
 int
 cbuf_c_create(spdid_t spdid, int size, long cbid)
 {
@@ -332,23 +349,23 @@ void __cbuf_c_delete(struct spd_tmem_info *sti, int cbid)
 	cos_map_del(&cb_ids, cbid);
 	/* mapping model will release all child mappings */
 	DOUT("Releasing cbuf\n");
-	mman_release_page(cos_spd_id(), (vaddr_t)d->addr, 0);
-	valloc_free(cos_spd_id(), sti->spdid, (void *)(d->owner.addr), 1);// used to be done in client
+
+	mman_revoke_page(cos_spd_id(), (vaddr_t)d->addr, 0);  // remove all children
 
 	m = FIRST_LIST(&d->owner, next, prev);
 	while (m != &d->owner) {
 		/* remove from the vector as well! */
 		map_sti = get_spd_info(m->spd);
-		cbr = &map_sti->ci;			
 		// TODO: check if mapped cbuf is being used?
-		cbr->meta[cbid & COS_VECT_MASK].c_0.v = (u32_t)COS_VECT_INIT_VAL;
-		cbr->meta[cbid & COS_VECT_MASK].c_0.th_id = (u32_t)COS_VECT_INIT_VAL;
+		__spd_cbvect_clean_val(map_sti, cbid);
 		valloc_free(cos_spd_id(), m->spd, (void *)(m->addr), 1);
 		struct cb_mapping *n = FIRST_LIST(m, next, prev);
 		REM_LIST(m, next, prev);
 		free(m);
 		m = n;
 	}
+	mman_release_page(cos_spd_id(), (vaddr_t)d->addr, 0); // remove owner
+	valloc_free(cos_spd_id(), sti->spdid, (void *)(d->owner.addr), 1);
 done:
 	return;
 }

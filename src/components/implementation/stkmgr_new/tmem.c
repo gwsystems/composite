@@ -105,7 +105,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 				 * self-suspension when TE component
 				 * id is 12 */
 				printc("thd %d spdid %d, dep_thd %d\n",cos_get_thd_id(), sti->spdid, dep_thd);
-				assert(0);
+				//assert(0);
 			}
 			sched_wakeup(cos_spd_id(), cos_get_thd_id());
 		}
