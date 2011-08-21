@@ -7,5 +7,6 @@
 
 #include <cos_asm_server_stub.h>
 .text	
+
 cos_asm_server_stub_spdid(skel_foo)
 cos_asm_server_stub(skel_bar)

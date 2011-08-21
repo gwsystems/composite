@@ -47,7 +47,7 @@ extern void *mman_get_page(spdid_t spd, void *addr, int flags);
 extern void mman_release_page(spdid_t spd, void *addr, int flags);
 #endif
 
-#define DIE() (*((int*)0) = 1)
+#define DIE() (*((int*)0) = 0xDEADDEAD)
 #define massert(prop) do { if (!(prop)) DIE(); } while (0)
 
 /* -- HELPER CODE --------------------------------------------------------- */

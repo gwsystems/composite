@@ -7,5 +7,8 @@
 
 #include <cos_asm_server_stub.h>
 .text	
-cos_asm_server_stub_spdid(skel_foo)
-cos_asm_server_stub(skel_bar)
+cos_asm_server_fn_stub_spdid(tsplit, __sg_tsplit)
+cos_asm_server_fn_stub_spdid(tmerge, __sg_tmerge)
+cos_asm_server_stub_spdid(trelease)
+cos_asm_server_stub_spdid(tread)
+cos_asm_server_stub_spdid(twrite)

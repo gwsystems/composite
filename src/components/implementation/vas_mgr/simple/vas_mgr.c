@@ -103,7 +103,7 @@ done:
 
 void vas_mgr_contract(spdid_t spd, vaddr_t addr)
 {
-	/* notsup */
+	/* -NOTSUP */
 	BUG();
 }
 

@@ -1,3 +1,10 @@
+/**
+ * Copyright 2011 by Gabriel Parmer, gparmer@gwu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ */
+
 #ifndef COS_MAP_H
 #define COS_MAP_H
 
@@ -14,7 +21,9 @@
 
 #define COS_MAP_DYNAMIC
 #ifdef COS_MAP_DYNAMIC
+#ifndef COS_VECT_DYNAMIC
 #define COS_VECT_DYNAMIC
+#endif
 #endif
 #include <cos_vect.h>
 

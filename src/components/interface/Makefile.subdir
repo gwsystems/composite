@@ -8,6 +8,7 @@ C_CSTUBS=$(wildcard $(STUB_DIR)/c_*.c)
 C_STUB_OBJS=$(C_CSTUBS:%.c=%.o)
 STUBS=$(ASM_STUBS) 
 IFNAME=$(lastword $(subst /, ,$(shell pwd)))
+INCLUDES= $(CINC) $(foreach I,$(INTERFACES),-I$(INTERDIR)/$(I)/)
 
 .PHONY: all
 all: $(LIBS) stubs
@@ -21,8 +22,7 @@ all: $(LIBS) stubs
 
 %.o:%.c
 #	$(info |     [CC]   Compiling c file $^ into $@)
-	@$(CC) $(CFLAGS) $(CINC) -c -o $(@) $<
-#	@$(CC) $(CFLAGS) $(CINC) -E -o blah.c $<
+	@$(CC) $(CFLAGS) $(INCLUDES) -c -o $(@) $<
 
 %.o:%.S
 #	$(info |     [AS]   Compiling assembly file $^ into $@)

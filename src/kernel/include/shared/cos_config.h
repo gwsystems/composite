@@ -1,7 +1,7 @@
 #ifndef COS_CONFIG_H
 #define COS_CONFIG_H
 
-#define CPU_GHZ        1.6
+#define CPU_GHZ        3.1
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 
 // How long should Composite run before returning to Linux?

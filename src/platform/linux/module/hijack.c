@@ -471,8 +471,7 @@ void print_valid_pgtbl_entries(paddr_t pt);
 extern struct thread *ready_boot_thread(struct spd *init);
 vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr);
 
-static int aed_ioctl(struct inode *inode, struct file *file,
-		     unsigned int cmd, unsigned long arg)
+static int aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
 
@@ -2060,7 +2059,7 @@ static int aed_release(struct inode *inode, struct file *file)
 
 static struct file_operations proc_aed_fops = {
 	.owner          = THIS_MODULE, 
-	.ioctl          = aed_ioctl, 
+	.unlocked_ioctl = aed_ioctl, 
 	.open           = aed_open,
 	.release        = aed_release,
 };

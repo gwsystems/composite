@@ -167,7 +167,6 @@ static int boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t com
 
 		while (left > 0) {
 			dsrc = cos_get_vas_page();
-			printc("%d: VAS address %p\n", spdid, dsrc);
 			if ((vaddr_t)dsrc != mman_get_page(cos_spd_id(), (vaddr_t)dsrc, 0)) BUG();
 			if (dest_daddr != (mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr))) BUG();
 

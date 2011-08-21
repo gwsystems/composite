@@ -1,11 +1,22 @@
+/**
+ * Copyright 2011 by Gabriel Parmer, gparmer@gwu.edu
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ */
+
 #ifndef TORRENT_H
 #define TORRENT_H
 
+#include <cos_component.h>
+#include <cbuf_c.h>
 #include <cbuf.h>
+#include <evt.h>
 
 /* torrent descriptor */
-typedef int tid_t;
-const tid_t td_init = 0, td_sink = 0;
+typedef int td_t;
+#define td_root 1
+#define td_null 0
 typedef enum {
 	TOR_WRITE = 0x1,
 	TOR_READ  = 0x2,
@@ -13,36 +24,58 @@ typedef enum {
 	TOR_ALL   = TOR_WRITE | TOR_READ | TOR_SPLIT /* 0 is a synonym */
 } tor_flags_t;
 
-//tid_t tsplit(tid_t td, char *param, int len, tor_flags_t tflags, evtid_t evtid);
-struct tsplit_data {
-	short int end;
-	tor_flags_t tflags;
-	long evtid;
-	char data[0];
-};
-tid_t tsplit(tid_t td, int cbid, int sz);
+td_t tsplit(spdid_t spdid, td_t tid, char *param, int len, tor_flags_t tflags, long evtid);
+void trelease(spdid_t spdid, td_t tid);
+int tmerge(spdid_t spdid, td_t td, td_t td_into, char *param, int len);
+int tread(spdid_t spdid, td_t td, int cbid, int sz);
+int twrite(spdid_t spdid, td_t td, int cbid, int sz);
 
-//int tmerge(tid_t td, tid_t td_into, char *param, int len);
-int tmerge(tid_t td, tid_t td_into, int cbid, int sz);
+static inline int
+tread_pack(spdid_t spdid, td_t td, char *data, int len)
+{
+	cbuf_t cb;
+	char *d;
+	int ret;
 
-//int tread(tid_t td, char *data, int amnt);
-int tread(tid_t td, int cbid, int sz);
+	d = cbuf_alloc(len, &cb);
+	if (!d) return -1;
 
-//int twrite(tid_t td, char *data, int amnt);
-int twrite(tid_t td, int cbid, int sz);
+	memcpy(d, data, len);
+	ret = tread(spdid, td, cb, len);
+	cbuf_free(d);
+	
+	return ret;
+}
 
-//int trmeta(tid_t td, char *key, int flen, char *value, int vlen);
-struct trmeta_data {
-	short int value, end; /* offsets into data */
-	char data[0];
-};
-int trmeta(tid_t td, int cbid, int sz);
+static inline int
+twrite_pack(spdid_t spdid, td_t td, char *data, int len)
+{
+	cbuf_t cb;
+	char *d;
+	int ret;
 
-//int twmeta(tid_t td, char *key, int flen, char *value, int vlen);
-struct twmeta_data {
-	short int value, end; /* offsets into data */
-	char data[0];
-};
-int twmeta(tid_t td, int cbid, int sz);
+	d = cbuf_alloc(len, &cb);
+	if (!d) return -1;
+
+	memcpy(d, data, len);
+	ret = twrite(spdid, td, cb, len);
+	cbuf_free(d);
+	
+	return ret;
+}
+
+/* //int trmeta(td_t td, char *key, int flen, char *value, int vlen); */
+/* struct trmeta_data { */
+/* 	short int value, end; /\* offsets into data *\/ */
+/* 	char data[0]; */
+/* }; */
+/* int trmeta(td_t td, int cbid, int sz); */
+
+/* //int twmeta(td_t td, char *key, int flen, char *value, int vlen); */
+/* struct twmeta_data { */
+/* 	short int value, end; /\* offsets into data *\/ */
+/* 	char data[0]; */
+/* }; */
+/* int twmeta(td_t td, int cbid, int sz); */
 
 #endif /* TORRENT_H */ 
