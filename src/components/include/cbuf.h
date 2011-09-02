@@ -184,7 +184,7 @@ cbuf2buf(cbuf_t cb, int len)
 	/* len = nlpow2(len); */
 	len = nlpow2(len - 1);
 	cbuf_unpack(cb, &id, &idx);
-	/* printc("id %x, idx %x\n", id, idx); */
+	/* printc("buf2buf:: id %x, idx %x\n", id, idx); */
 
 again:				/* avoid convoluted conditions */
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, (id-1)*2);
@@ -199,7 +199,7 @@ again:				/* avoid convoluted conditions */
 		obj_sz = cm.c.obj_sz<<6;
 		off    = obj_sz * idx; /* multiplication...ouch */
 		if (unlikely(len > obj_sz || off + len > PAGE_SIZE )) return NULL;
-		printc("<<<Not CBUF_LARGE>>> idx: %d off: %d\n", idx, off);
+		/* printc("<<<Not CBUF_LARGE>>> idx: %d off: %d\n", idx, off); */
 	} else {
 		BUG();
 		obj_sz = PAGE_SIZE * (1 << cm.c.obj_sz);
@@ -236,7 +236,8 @@ static inline void
 slab_rem_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 {
 	assert(s && fl);
-	printc("remove from the freelist now!!!!\n");
+
+	/* printc("remove from the freelist now!!!!\n"); */
 	if (fl->list == s) {
 		if (EMPTY_LIST(s, next, prev)) fl->list = NULL;
 		else fl->list = FIRST_LIST(s, next, prev);
@@ -256,7 +257,7 @@ slab_add_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 	}
 	fl->list = s;
 	fl->npages++;
-	printc("add back to free list!!\n");
+	/* printc("add back to free list!!\n"); */
 }
 
 extern struct cbuf_slab *cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist);
@@ -266,28 +267,31 @@ static inline void
 __cbuf_free(void *buf)
 {
 	u32_t p = ((u32_t)buf & PAGE_MASK) >> PAGE_ORDER; /* page id */
-	printc("page id is %p\n",p);
+	/* printc("page id is %p\n",p); */
 	struct cbuf_slab *s = cos_vect_lookup(&slab_descs, p);
 	u32_t b   = (u32_t)buf;
 	u32_t off = b - (b & PAGE_MASK);
 	int idx;
 	assert(s);
-
+	printc("***** thd %d spd :: %d __cbuf_free:******\n", cos_get_thd_id(),cos_spd_id());
 	/* Argh, division!  Maybe transform into loop? Maybe assume pow2? */
 	idx = off/s->obj_sz;
 	assert(!bitmap_check(&s->bitmap[0], idx));
 	bitmap_set(&s->bitmap[0], idx);
 	s->nfree++;
 	assert(s->flh);
-	printc("nfree is now : %d\n", s->nfree);
+	/* printc("nfree is now : %d\n", s->nfree); */
 	if (s->nfree == s->max_objs) {
-		printc("slab_free(s) is called\n");
+		/* printc("slab_free(s) is called\n"); */
 		cbuf_slab_free(s);
 	} else if (s->nfree == 1) {
 		printc("slab_add_freelist is called\n");
 		assert(EMPTY_LIST(s, next, prev));
 		slab_add_freelist(s, s->flh);
 	}
+	/* int i; */
+	/* for(i=0;i<20;i++) */
+	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
 
 	return;
 }
@@ -299,15 +303,16 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 	union cbuf_meta cm;
 	int idx;
 	u32_t *bm;
+	int i;
+	printc("***** thd %d spd :: %d __cbuf_alloc:******\n", cos_get_thd_id(), cos_spd_id());
 	printc("<<<__cbuf_alloc size %d>>>\n",size);
 again:					/* avoid convoluted conditions */
 	if (unlikely(!slab_freelist->list)) {
-		printc("..in..\n");
-		cbuf_slab_alloc(size, slab_freelist);
+		printc("..not on free list..\n");
+		if (unlikely(!cbuf_slab_alloc(size, slab_freelist))) return NULL;
 		if (unlikely(!slab_freelist->list)) return NULL;
 	}
 
-	printc("*****Alloc:******\n");
 	s = slab_freelist->list;
 	printc("s->cbid is  %d\n",s->cbid);
 
@@ -333,8 +338,7 @@ again:					/* avoid convoluted conditions */
 		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, (s->cbid-1)*2);
 	}
 
-	int i;
-	for(i=0;i<25;i++)
+	for(i=0;i<20;i++)
 		printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i));
 	s->nfree--;
 
@@ -380,7 +384,6 @@ cbuf_alloc_pow2(unsigned int order, cbuf_t *cb)
 	struct cbuf_slab_freelist *sf;
 	unsigned int dorder = order - CBUF_MIN_SLAB_ORDER;
 	assert(dorder <= N_CBUF_SLABS);
-	printc("2\n");
 	sf = &slab_freelists[dorder];
 	return __cbuf_alloc(sf, 1<<order, cb);
 }
@@ -397,7 +400,6 @@ cbuf_alloc(unsigned int sz, cbuf_t *cb)
 	/* FIXME: find way to avoid making the wrong decision on pow2 values */
 	sz = ones(sz) == 1 ? sz-1 : sz;
 	o = log32_floor(sz) + 1;
-	printc("cbuf_alloc o: %d\n",o);
 	return cbuf_alloc_pow2(o, cb);
 }
 

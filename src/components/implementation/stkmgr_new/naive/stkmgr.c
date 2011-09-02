@@ -153,7 +153,7 @@ void
 cos_init(void *arg){
 	int i;
 	struct cos_stk_item *stk_item;
-
+	printc("stk mgr running.....\n");
 	DOUT("<stkmgr>: STACK in cos_init\n");
 
 	memset(spd_tmem_info_list, 0, sizeof(struct spd_tmem_info) * MAX_NUM_SPDS);

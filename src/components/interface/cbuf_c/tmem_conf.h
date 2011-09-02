@@ -3,7 +3,6 @@
 
 #include <cbuf_c.h>
 
-#define MAX_NUM_CBUFS 100
 #define MAX_NUM_ITEMS MAX_NUM_CBUFS
 
 #define TAKE() if(sched_component_take(cos_spd_id())) BUG();
@@ -24,6 +23,7 @@ typedef	struct spd_cbvect_range shared_component_info;
 
 /* /\* 1 means there's memory available in local cache *\/ */
 /* #define MEM_IN_LOCAL_CACHE(sci) ((sci)->ci->cos_stacks.freelists[0].freelist != 0) */
+#define MEM_IN_LOCAL_CACHE(csi) ((csi)->ci.meta != 0)
 
 typedef enum {
 	CBUFM_LARGE = 1,

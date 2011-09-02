@@ -30,6 +30,7 @@
 
 //#define TIMER_ACTIVATE
 #include <timer.h>
+#include <errno.h>
 
 //#define SCHED_DEBUG
 #ifdef SCHED_DEBUG
@@ -837,6 +838,9 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	struct sched_thd *thd, *dep = NULL;
 	int ret;
 	int first = 1;
+
+	// Added by Gabe 08/19
+	if (dependency_thd == cos_get_thd_id()) return -EINVAL;
 
 	cos_sched_lock_take();
 	thd = sched_get_current();

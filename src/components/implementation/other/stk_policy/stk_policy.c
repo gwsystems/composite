@@ -14,6 +14,7 @@
 #include <timed_blk.h>
 #include <sched_conf.h>
 #include <cos_alloc.h>
+
 #include <stkmgr.h>
 #define DEFAULT_STACK_AMNT 5
 
@@ -708,7 +709,6 @@ static void
 init_thds(void)
 {
 	unsigned short int i, j;
-	
 	/* initialize the spds first! */
 	assert(ncomps);
 	for (i = 0 ; i < MAX_NUM_THREADS ; i++) {
@@ -806,7 +806,7 @@ cos_init(void *arg)
 	INIT_LIST(&threads, next, prev);
 	/* Wait for all other threads to initialize */
 	//timed_event_block(cos_spd_id(), 97);
-
+	printc("stk policy running.....\n");
 	init_spds();
 #ifdef THD_POOL
 	printc("<<<Thd Pool with total %d stacks, component size %d>>>\n", MAX_NUM_STACKS, THD_POOL);

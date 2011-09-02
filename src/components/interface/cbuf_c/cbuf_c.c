@@ -58,12 +58,12 @@ cbuf_cache_miss(int cbid, int idx, int len)
 	mc.c.obj_sz = len>>6;
 
 	/* This is the commit point */
-	printc("miss: meta_cbuf is at %p, h is %p\n", &meta_cbuf, h);
+	/* printc("miss: meta_cbuf is at %p, h is %p\n", &meta_cbuf, h); */
 	cbuf_vect_add_id(&meta_cbuf, (void*)mc.c_0.v, (cbid-1)*2);
 	cbuf_vect_add_id(&meta_cbuf, cos_get_thd_id(), (cbid-1)*2+1);
-	int i;
-	for(i=0;i<20;i++)
-		printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i));
+	/* int i; */
+	/* for(i=0;i<20;i++) */
+	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
 	
 	return 0;
 }
@@ -108,13 +108,13 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 		/* FIXME: once everything is well debugged, remove this check */
 		assert(cnt++ < 10);
 	} while (cbid < 0);
-	/* printc("6\n"); */
+	printc("cbid is %d\n",cbid);
 
 	/* int i; */
 	/* for(i=0;i<20;i++) */
 	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
 
-	printc("create: meta_cbuf is at %p\n", &meta_cbuf);
+	/* printc("create: meta_cbuf is at %p\n", &meta_cbuf); */
 	addr = cbuf_vect_addr_lookup(&meta_cbuf, (cbid-1)*2);
 	if (!addr) goto err;
 	cos_vect_add_id(&slab_descs, s, (long)addr>>PAGE_ORDER); // h look up by id
@@ -143,23 +143,30 @@ cbuf_slab_free(struct cbuf_slab *s)
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, (s->cbid - 1) * 2);
 	cm.c.flags &= ~CBUFM_IN_USE;
 	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, (s->cbid - 1 ) * 2);
-	printc("Check relinquish\n");	
 	/* check relinquish here! */
-	if (!(cm.c.flags & CBUFM_RELINQUISH)) return;
-	printc("Check relinquish done!\n");	
+	printc("cm.c.flags & CBUFM_IN_USE are %p and %p\n",cm.c.flags , CBUFM_IN_USE);
+	printc("cm.c.flags & CBUFM_RELINQUISH are %p and %p\n",cm.c.flags , CBUFM_RELINQUISH);
 
-//	if (freelist->velocity > SLAB_VELOCITY_THRESH) return;
+	if (!(cm.c.flags & CBUFM_RELINQUISH)) return;
 
 	/* Has the cbuf mgr asked for the cbuf? Return the page. Relinqush to return to mgr! */
-	slab_rem_freelist(s, freelist);
-	assert(s->nfree == (PAGE_SIZE/s->obj_sz));
-	
-	cos_vect_del(&slab_descs, (long)s->mem>>PAGE_ORDER);
-	printc("call cbuf_delete...\n");	
-	cbuf_c_delete(cos_spd_id(), s->cbid);
-	/* valloc_free(cos_spd_id(), cos_spd_id(), s->mem, 1); */
-	free(s);  // created at slab_alloc
+	if (cbuf_c_delete(cos_spd_id(), s->cbid))
+	{
+		printc("\n call delete but old cbuf used");	
+		goto done;
+	}
+	else
+	{
+		printc("truly delete from free list\n");
+		slab_rem_freelist(s, freelist);
+		assert(s->nfree == (PAGE_SIZE/s->obj_sz));
+		cos_vect_del(&slab_descs, (long)s->mem>>PAGE_ORDER);
+		/* printc("s->mem %p\n",(long)s->mem>>PAGE_ORDER); */
+		free(s);  // created at slab_alloc
+	}
 
+done:
+	printc("\nthd %d slab_free done here...\n\n", cos_get_thd_id());
 	return;
 }
 

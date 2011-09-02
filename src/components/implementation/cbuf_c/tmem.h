@@ -213,8 +213,8 @@ static inline void
 tmem_spd_wake_threads(struct spd_tmem_info *sti)
 {
 	DOUT("waking up threads for spd %d\n", cos_spd_id());
-	/* printc("thd %d: ************ start waking up %d threads for spd %d ************\n", */
-	/*        cos_get_thd_id(),sti->num_blocked_thds, spdid); */
+	printc("thd %d: ************ start waking up %d threads for spd %d ************\n",
+	       cos_get_thd_id(),sti->num_blocked_thds, sti->spdid);
 	wake_blk_list(&sti->bthd_list);
 	sti->num_blocked_thds = 0;
 	DOUT("All thds now awake\n");
@@ -231,6 +231,7 @@ tmem_add_to_blk_list(struct spd_tmem_info *sti, unsigned int tid)
 	if (unlikely(bthd == NULL)) BUG();
 
 	bthd->thd_id = tid;
+	printc("Adding thd to the blocked list: %d\n", bthd->thd_id);
 	DOUT("Adding thd to the blocked list: %d\n", bthd->thd_id);
 	ADD_LIST(&sti->bthd_list, bthd, next, prev);
 	sti->num_blocked_thds++;
@@ -246,6 +247,7 @@ tmem_add_to_gbl(struct spd_tmem_info *sti, unsigned int tid)
 	sti->num_glb_blocked++;
 	bthd->thd_id = tid;
 	bthd->spdid = sti->spdid;
+	printc("Adding thd to the global blocked list: %d\n", bthd->thd_id);
 	DOUT("Adding thd to the global blocked list: %d\n", bthd->thd_id);
 	ADD_LIST(&global_blk_list, bthd, next, prev);
 }
@@ -325,12 +327,15 @@ tmem_spd_concurrency_estimate(spdid_t spdid)
 		goto err;
 	}
 
+	/* printc("sti->num_allocated %d sti->num_desired %d\n",sti->num_allocated, sti->num_desired); */
+
 	if (sti->num_allocated < sti->num_desired && !sti->num_waiting_thds) {
 		assert(!SPD_HAS_BLK_THD(sti));
 		avg = sti->num_allocated;
 		goto done;
 	}
 
+	printc("i4 here .. avg is %d\n",avg);
 	for (i = 0 ; i < MAX_BLKED ; i++) {
 		int n = sti->stat_thd_blk[i];
 
