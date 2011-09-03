@@ -18,7 +18,7 @@ void cos_init(void)
 
 	t1 = tsplit(cos_spd_id(), td_root, params1, strlen(params1)+1, 0, evt1);
 	if (t1 < 1) {
-		printc("1\n");
+		printc("split failed\n");
 		return;
 	}
 	trelease(cos_spd_id(), t1);

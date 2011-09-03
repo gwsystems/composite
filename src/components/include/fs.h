@@ -108,7 +108,7 @@ fsobj_alloc(char *name, struct fsobj *parent)
 	len = end-name;
 	if (end) {
 		/* only a single / allowed, at the end */
-		if (end[1] != '\0') goto done;
+		if (end[1] != '\0') goto done
 		t = FSOBJ_DIR;
 	} else {
 		t = FSOBJ_FILE;

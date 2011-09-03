@@ -38,6 +38,8 @@ tsplit(spdid_t spdid, td_t td, char *param,
 	struct fsobj *fso, *fsc, *parent; /* obj and child */
 	char *p, *subpath;
 
+	printc("0\n");
+
 	if (td == td_null) return -1;
 	LOCK();
 	t = cos_map_lookup(&torrents, td);
@@ -53,13 +55,15 @@ tsplit(spdid_t spdid, td_t td, char *param,
 
 	fsc = fsobj_path2obj(p, fso, &parent, &subpath);
 	if (!fsc) {
+		int ret = 0;
 		fsc = fsobj_alloc(subpath, parent);
-		if (!fsc) goto free1; /* here */
+		if (!fsc) goto free1;
 	}
 
 	fsobj_take(fsc);
 	nt = malloc(sizeof(struct torrent));
 	if (!nt) goto free1;
+
 	new = (td_t)cos_map_add(&torrents, nt);
 	if (new == -1) goto free2;
 
