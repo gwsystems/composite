@@ -914,6 +914,8 @@ int sched_component_take(spdid_t spdid)
 	struct sched_thd *holder, *curr;
 	int first = 1;
 
+	//printc("sched take %d\n", spdid);
+
 	cos_sched_lock_take();
 	report_event(COMP_TAKE);
 	curr = sched_get_current();
@@ -948,13 +950,16 @@ int sched_component_release(spdid_t spdid)
 {
 	struct sched_thd *curr;
 
+	//printc("sched release %d\n", spdid);
+
 	report_event(COMP_RELEASE);
 	cos_sched_lock_take();
 	curr = sched_get_current();
 	assert(curr);
 
 	if (sched_release_crit_sect(spdid, curr)) {
-		prints("fprr: error releasing spd's critical section\n");
+		printc("fprr: error releasing spd %d's critical section (contended %d)\n", 
+		       spdid, curr->contended_component);
 	}
 	sched_switch_thread(0, NULL_EVT);
 

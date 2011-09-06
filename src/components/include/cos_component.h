@@ -299,16 +299,7 @@ static inline void *cos_get_prealloc_page(void)
 }
 
 /* allocate a page in the vas */
-static inline void *cos_get_vas_page(void)
-{
-	char *h;
-	long r;
-	do {
-		h = cos_get_heap_ptr();
-		r = (long)h+PAGE_SIZE;
-	} while (cos_cmpxchg(&cos_comp_info.cos_heap_ptr, (long)h, r) != r);
-	return h;
-}
+extern void *cos_get_vas_page(void);
 
 /* only if the heap pointer is pre_addr, set it to post_addr */
 static inline void cos_set_heap_ptr_conditional(void *pre_addr, void *post_addr)

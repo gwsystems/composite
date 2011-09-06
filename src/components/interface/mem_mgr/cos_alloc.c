@@ -77,6 +77,13 @@ typedef struct {
 #define REGPARM(x)
 #endif
 
+#ifdef USE_VALLOC
+void *cos_get_vas_page(void)
+{
+	return valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
+}
+#endif
+
 #ifdef UNIX_TEST
 static inline REGPARM(1) void *do_mmap(size_t size) { 
 	return mmap(0, size, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0); 

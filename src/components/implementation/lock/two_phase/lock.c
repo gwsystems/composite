@@ -295,6 +295,8 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 		ACT_RECORD(ACT_WAKEUP, spd, lock_id, cos_get_thd_id(), 0);
 		ret = 0;
 	} else {
+		assert(0);
+#ifdef NIL
 		/* ret here will fall through.  We do NOT use the
 		 * dependency here as I can't think through the
 		 * repercussions */
@@ -316,6 +318,7 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 
 		ACT_RECORD(ACT_WAKEUP, spd, lock_id, cos_get_thd_id(), 0); 
 		/* ret is set to the amnt of time we blocked */
+#endif 
 	}
 	return ret;
 error:
@@ -381,7 +384,10 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 
 		/* Wakeup the way we were put to sleep */
 		if (timed) {
+			assert(0);
+#ifdef NIL
 			timed_event_wakeup(spdid, tid);
+#endif
 		} else {
 			assert(tid != cos_get_thd_id());
 			sched_wakeup(spdid, tid);

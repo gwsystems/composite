@@ -67,6 +67,19 @@ int main(void)
 
 __attribute__((weak)) vaddr_t ST_user_caps;
 
+__attribute__((weak)) 
+void *cos_get_vas_page(void)
+{
+	char *h;
+	long r;
+	do {
+		h = cos_get_heap_ptr();
+		r = (long)h+PAGE_SIZE;
+	} while (cos_cmpxchg(&cos_comp_info.cos_heap_ptr, (long)h, r) != r);
+	return h;
+}
+
+
 extern const vaddr_t cos_atomic_cmpxchg, cos_atomic_cmpxchg_end, 
 	cos_atomic_user1, cos_atomic_user1_end, 
 	cos_atomic_user2, cos_atomic_user2_end, 

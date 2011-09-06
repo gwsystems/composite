@@ -86,6 +86,7 @@ static int __valloc_init(spdid_t spdid)
 	bitmap_set_contig(&occ->pgd_occupied[0], page_off, (PGD_SIZE/PAGE_SIZE)-page_off, 1);
 
 	cos_vect_add_id(&spd_vect, trac, spdid);
+	assert(cos_vect_lookup(&spd_vect, spdid));
 success:
 	ret = 0;
 done:
@@ -106,10 +107,10 @@ void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
 	long off;
 
 	LOCK();
-	trac = cos_vect_lookup(&spd_vect, spdid);
+	trac = cos_vect_lookup(&spd_vect, dest);
 	if (!trac) {
 		if (__valloc_init(dest) ||
-		    !(trac = cos_vect_lookup(&spd_vect, spdid))) goto done;
+		    !(trac = cos_vect_lookup(&spd_vect, dest))) goto done;
 	}
 	occ = trac->map;
 	assert(occ);

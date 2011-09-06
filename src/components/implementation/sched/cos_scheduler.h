@@ -358,7 +358,7 @@ static inline int sched_release_crit_sect(spdid_t spdid, struct sched_thd *curr)
 
 	/* This ostensibly should be the case */
 	assert(cs->holding_thd == curr);
-	assert(curr->contended_component == spdid);
+	if (curr->contended_component != spdid) return -1;
 	curr->contended_component = 0;
 	cs->holding_thd = NULL;
 	return 0;

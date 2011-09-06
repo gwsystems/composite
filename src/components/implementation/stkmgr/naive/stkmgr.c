@@ -6,6 +6,7 @@
 #include <cos_vect.h>
 #include <sched.h>
 #include <cinfo.h>
+#include <valloc.h>
 
 #include <stkmgr.h>
 
@@ -415,6 +416,7 @@ stkmgr_stk_remove_from_spd(struct cos_stk_item *stk_item, struct spd_stk_info *s
 	s_spdid = ssi->spdid;
 	DOUT("Releasing Stack\n");
 	mman_revoke_page(cos_spd_id(), (vaddr_t)(stk_item->hptr), 0); 
+	valloc_free(cos_spd_id(), s_spdid, (void*)stk_item->d_addr, 1);
 	DOUT("Putting stack back on free list\n");
 	
 	// cause underflow for MAX Int
@@ -444,9 +446,10 @@ stkmgr_stk_add_to_spd(struct cos_stk_item *stk_item, struct spd_stk_info *info)
 
 	d_spdid = info->spdid;
 	// FIXME:  Race condition
-	d_addr = info->ci->cos_heap_ptr; 
-	info->ci->cos_heap_ptr += PAGE_SIZE;
-	ret = info->ci->cos_heap_ptr;
+	ret = d_addr = (vaddr_t)valloc_alloc(cos_spd_id(), d_spdid, 1);
+	/* d_addr = info->ci->cos_heap_ptr;  */
+	/* info->ci->cos_heap_ptr += PAGE_SIZE; */
+	/* ret = info->ci->cos_heap_ptr; */
 
 //	DOUT("Setting flags and assigning flags\n");
 	stk_item->stk->flags = 0xDEADBEEF;
