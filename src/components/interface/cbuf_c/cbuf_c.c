@@ -95,10 +95,7 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	int cbid;
 	int cnt;
 
-	if (!s) return NULL;
-
-	printc("look up my freelist\n");
-	if (!freelist) goto err;
+	if (!s || !freelist) goto err;
 
 	/* union cbuf_meta mc; */
 
@@ -113,7 +110,7 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 		/* FIXME: once everything is well debugged, remove this check */
 		assert(cnt++ < 10);
 	} while (cbid < 0);
-	printc("slab_alloc -- cbid is %d\n",cbid);
+	/* printc("slab_alloc -- cbid is %d\n",cbid); */
 
 	/* int i; */
 	/* for(i=0;i<20;i++) */
@@ -189,8 +186,8 @@ cbuf_slab_free(struct cbuf_slab *s)
 	cm.c.flags &= ~CBUFM_IN_USE;
 	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, (s->cbid - 1 ) * 2);
 	/* check relinquish here! */
-	printc("cm.c.flags & CBUFM_IN_USE are %p and %p\n",cm.c.flags , CBUFM_IN_USE);
-	printc("cm.c.flags & CBUFM_RELINQUISH are %p and %p\n",cm.c.flags , CBUFM_RELINQUISH);
+	/* printc("cm.c.flags & CBUFM_IN_USE are %p and %p\n",cm.c.flags , CBUFM_IN_USE); */
+	/* printc("cm.c.flags & CBUFM_RELINQUISH are %p and %p\n",cm.c.flags , CBUFM_RELINQUISH); */
 
 	if (!(cm.c.flags & CBUFM_RELINQUISH))
 	{

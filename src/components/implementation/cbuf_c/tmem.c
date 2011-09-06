@@ -237,7 +237,7 @@ return_tmem(struct spd_tmem_info *sti)
 	printc("return_mem is called \n");
 	//printc("Before:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);
 	/* if (sti->num_desired < sti->num_allocated || sti->num_glb_blocked) { */
-	printc("fly..............\n");
+	printc("flying back..........\n");
 	get_mem_from_client(sti);
 	/* } */
 	/* tmem_spd_wake_threads(sti); */

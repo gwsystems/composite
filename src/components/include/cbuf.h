@@ -342,8 +342,8 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 	u32_t *bm;
 	int i;
 
-	printc("***** thd %d spd :: %d __cbuf_alloc:******\n", cos_get_thd_id(), cos_spd_id());
-	printc("<<<__cbuf_alloc size %d>>>\n",size);
+	/* printc("***** thd %d spd :: %d __cbuf_alloc:******\n", cos_get_thd_id(), cos_spd_id()); */
+	/* printc("<<<__cbuf_alloc size %d>>>\n",size); */
 again:					/* avoid convoluted conditions */
 	if (unlikely(!slab_freelist->list)) {
 		printc("..not on free list..\n");
@@ -352,7 +352,7 @@ again:					/* avoid convoluted conditions */
 	}
 
 	s = slab_freelist->list;
-	printc("Kevin:::s->cbid is  %d\n",s->cbid);
+	/* printc("Kevin:::s->cbid is  %d\n",s->cbid); */
 
 	/* check if the cbuf has been revoked by cbuf mgr */
 	if (unlikely(!cbuf_vect_lookup(&meta_cbuf, (s->cbid-1)*2))) {
@@ -362,7 +362,7 @@ again:					/* avoid convoluted conditions */
 		goto again;
 	}
 	assert(s->nfree);
-	printc("nfree is now : %d\n", s->nfree);
+	/* printc("nfree is now : %d\n", s->nfree); */
 	if (s->obj_sz <= PAGE_SIZE) {
 		bm  = &s->bitmap[0];
 		idx = bitmap_one(bm, SLAB_BITMAP_SIZE);
@@ -376,9 +376,9 @@ again:					/* avoid convoluted conditions */
 		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, (s->cbid-1)*2);
 	}
 
-	for(i=0;i<20;i++)
-		printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i));
-	s->nfree--;
+	/* for(i=0;i<20;i++) */
+	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
+	/* s->nfree--; */
 
 	/* remove from the freelist */
 	if (!s->nfree) slab_rem_freelist(s, slab_freelist);

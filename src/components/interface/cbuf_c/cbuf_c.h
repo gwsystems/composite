@@ -23,18 +23,16 @@ void *cbuf_c_retrieve(spdid_t spdid, int cbid, int len); /* return client addres
 
 
 /* CbufMgr API that works with Cbuf_policy*/
-int cbuf_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare);
-int cbuf_spd_concurrency_estimate(spdid_t spdid);
-
-/* void stkmgr_stack_report(void); */
-/* int stkmgr_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare); */
-/* int stkmgr_spd_concurrency_estimate(spdid_t spdid); */
-/* unsigned long stkmgr_thd_blk_time(unsigned short int tid, spdid_t spdid, int reset); */
-/* int stkmgr_thd_blk_cnt(unsigned short int tid, spdid_t spdid, int reset); */
-/* int stkmgr_detect_suspension(spdid_t cid, int reset); */
-/* int stkmgr_set_over_quota_limit(int limit); */
-/* int stkmgr_set_suspension_limit(spdid_t cid, int limit); */
-/* int stkmgr_get_allocated(spdid_t cid); */
+int cbufmgr_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare);
+int cbufmgr_spd_concurrency_estimate(spdid_t spdid);
+void cbufmgr_buf_report(void);
+int cbufmgr_spd_concurrency_estimate(spdid_t spdid);
+unsigned long cbufmgr_thd_blk_time(unsigned short int tid, spdid_t spdid, int reset);
+int cbufmgr_thd_blk_cnt(unsigned short int tid, spdid_t spdid, int reset);
+int cbufmgr_detect_suspension(spdid_t cid, int reset);
+int cbufmgr_set_over_quota_limit(int limit);
+int cbufmgr_set_suspension_limit(spdid_t cid, int limit);
+int cbufmgr_get_allocated(spdid_t cid);
 
 /* /\* map a stack to the destination location, from the source component *\/ */
 /* int stkmgr_stack_introspect(spdid_t d_spdid, vaddr_t d_addr, spdid_t s_spdid, vaddr_t s_addr); */
