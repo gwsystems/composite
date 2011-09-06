@@ -12,6 +12,7 @@
 (!top2.o=cbf_top.o),a10;\
 (!top3.o=cbf_top.o),a10;\
 (!top4.o=cbf_top.o),a10;\
+(!top5.o=cbf_top.o),a10;\
 \
 (!mid0.o=cbf_mid.o), ;\
 (!mid1.o=cbf_mid.o), ;\
@@ -38,6 +39,7 @@ top1.o-smn.o|fprr.o|mm.o|print.o|buf.o|mid0.o|schedconf.o|te.o|va.o;\
 top2.o-smn.o|fprr.o|mm.o|print.o|buf.o|mid0.o|schedconf.o|te.o|va.o;\
 top3.o-smn.o|fprr.o|mm.o|print.o|buf.o|mid1.o|schedconf.o|te.o|va.o;\
 top4.o-smn.o|fprr.o|mm.o|print.o|buf.o|mid1.o|schedconf.o|te.o|va.o;\
+top5.o-smn.o|fprr.o|mm.o|print.o|buf.o|mid1.o|schedconf.o|te.o|va.o;\
 mid0.o-smn.o|mm.o|print.o|buf.o|va.o|bot0.o;\
 mid1.o-smn.o|mm.o|print.o|buf.o|va.o|bot0.o;\
 bot0.o-smn.o|mm.o|print.o|buf.o|va.o;\

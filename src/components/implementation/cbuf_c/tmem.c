@@ -300,6 +300,7 @@ tmem_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare)
 	printc("diff is %d\n",diff);
 	if (diff > 0) get_mem_from_client(sti);
 	if (diff < 0 && SPD_HAS_BLK_THD(sti)) tmem_spd_wake_threads(sti);
+	printc("remove spare page!!\n");
 	if (remove_spare) remove_spare_cache_from_client(sti);
 	/* printc("set_concurrency done!\n"); */
 	RELEASE();

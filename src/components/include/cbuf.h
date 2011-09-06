@@ -237,13 +237,14 @@ slab_rem_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 {
 	assert(s && fl);
 
-	/* printc("remove from the freelist now!!!!\n"); */
+	printc("remove from the freelist now!!!!\n");
 	if (fl->list == s) {
 		if (EMPTY_LIST(s, next, prev)) fl->list = NULL;
 		else fl->list = FIRST_LIST(s, next, prev);
 	}
 	REM_LIST(s, next, prev);
 	fl->npages--;
+	return;
 }
 
 static inline void
@@ -257,8 +258,44 @@ slab_add_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 	}
 	fl->list = s;
 	fl->npages++;
+	return;
 	/* printc("add back to free list!!\n"); */
 }
+
+
+/* static inline void */
+/* slab_freelist_lookup(int cbid, struct cbuf_slab_freelist *fl) */
+/* { */
+/* 	struct cbuf_slab *free = NULL; */
+
+/* 	int ret = 0; */
+
+/* 	printc("look up my freelist\n"); */
+/* 	if (!fl) goto done; */
+/* 	printc("2\n"); */
+/* 	if (!fl->list) goto done; */
+
+/* 	printc("3\n"); */
+/* 	/\* if (fl->list->cbid == cbid) return fl->list; *\/ */
+
+/* 	for (free = FIRST_LIST(fl->list, next, prev); */
+/* 	     free != fl->list; */
+/* 	     free = FIRST_LIST(free, next, prev)) { */
+/* 		printc("2\n"); */
+/* 		if (free->cbid == cbid) { */
+/* 			assert(fl->npages > 0); */
+/* 			ret++; */
+/* 			if(ret > 1) { */
+/* 				slab_rem_freelist(free, fl); */
+/* 				ret--; */
+/* 			} */
+/* 		} */
+/* 	} */
+/* 	printc("duplics :: %d\n", duplics); */
+
+/* 	return; */
+
+/* } */
 
 extern struct cbuf_slab *cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist);
 extern void cbuf_slab_free(struct cbuf_slab *s);
@@ -304,6 +341,7 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 	int idx;
 	u32_t *bm;
 	int i;
+
 	printc("***** thd %d spd :: %d __cbuf_alloc:******\n", cos_get_thd_id(), cos_spd_id());
 	printc("<<<__cbuf_alloc size %d>>>\n",size);
 again:					/* avoid convoluted conditions */
@@ -314,7 +352,7 @@ again:					/* avoid convoluted conditions */
 	}
 
 	s = slab_freelist->list;
-	printc("s->cbid is  %d\n",s->cbid);
+	printc("Kevin:::s->cbid is  %d\n",s->cbid);
 
 	/* check if the cbuf has been revoked by cbuf mgr */
 	if (unlikely(!cbuf_vect_lookup(&meta_cbuf, (s->cbid-1)*2))) {
@@ -324,7 +362,7 @@ again:					/* avoid convoluted conditions */
 		goto again;
 	}
 	assert(s->nfree);
-
+	printc("nfree is now : %d\n", s->nfree);
 	if (s->obj_sz <= PAGE_SIZE) {
 		bm  = &s->bitmap[0];
 		idx = bitmap_one(bm, SLAB_BITMAP_SIZE);

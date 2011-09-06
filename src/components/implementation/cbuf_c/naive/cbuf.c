@@ -59,7 +59,7 @@ tmem_item * free_mem_in_local_cache(struct spd_tmem_info *sti)
 
 	if (cci == list) goto err;
 done:
-	printc("\n found one!!\n");
+	printc("\n found one!!\n\n");
 	return cci;
 err:
 	printc("\n can not found one!!\n");
@@ -145,13 +145,16 @@ tmem_item * mgr_get_client_mem(struct spd_tmem_info *sti)
 	}
 out:
 	if (cci == list) goto err;
-
+	printc("here 1\n");
 	/* ...and remove it if it is still valid and not in use by owner */
 	d = cos_map_lookup(&cb_ids, cci->desc.cbid);
 	if(!d) goto err;
-
+	printc("here 3\n");
 	if (__cbuf_c_delete(sti, cci->desc.cbid,d)) goto err;
+	printc("here 4\n");
+	cos_map_del(&cb_ids, cci->desc.cbid);
 
+	cci->desc.cbid = 0;
 	cci->parent_spdid = 0;
 	
 	// Clear our memory to prevent leakage
@@ -440,6 +443,7 @@ err:
 	goto done;
 }
 
+
 int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 {
 	struct cb_mapping *m;
@@ -473,19 +477,17 @@ err:
 }
 
 /* 
- * FIXME: 1) reference counting so that components can maintain the
- * buffer if they please, 2) asynchronous (shmmem) notification of cb
- * deallocation.
+ * To release all mapping relation
  */
 int
-cbuf_c_delete(spdid_t spdid, int cbid)
+cbuf_c_del_elig(spdid_t spdid, int cbid)
 {
 	struct cb_desc *d;
 	struct spd_tmem_info *sti;
-	int ret = -1;  // -1 means not really removing from spd and gives back to mgr
+	int ret = 0;  // 0 means the page will stay
 
 	TAKE();
-	printc("start returning!\n");
+	printc("start cleanning cbid :: %d!\n", cbid);
 	sti = get_spd_info(spdid);
 	assert(sti);
 
@@ -499,29 +501,69 @@ cbuf_c_delete(spdid_t spdid, int cbid)
 	/* mapping model will release all child mappings */
 	DOUT("Releasing cbuf\n");
 
-	printc("Return of s_spdid is: %d from thd: %d\n", spdid, cos_get_thd_id());
-	printc(" ::: cbid  %d\n",cbid);
-
 	__cbuf_c_delete(sti, cbid, d);
 
-	// let page stay
 	if (sti->num_desired >= sti->num_allocated && !sti->num_glb_blocked) {
 		printc("Reestablish mapping here!\n");
 		mman_alias_page(cos_spd_id(), (vaddr_t)d->addr, sti->spdid, (vaddr_t)d->owner.addr);
 		spd_unmark_relinquish(sti);
-		ret = -1;
+		ret = 0;
 	}
-        // let page go back mgr
-	else{
-		printc("Deleting is here...\n");
-		return_tmem(sti);
+	else
+	{
+		ret = -1;  
+	}
+done:
+	printc("del_elig is verified here and ret :: %d\n", ret);
+	RELEASE();	
+	return ret;
+err:
+	ret = -1;
+	goto done;
+}
+
+
+/* 
+ * FIXME: 1) reference counting so that components can maintain the
+ * buffer if they please, 2) asynchronous (shmmem) notification of cb
+ * deallocation.
+ */
+int
+cbuf_c_delete(spdid_t spdid, int cbid, int flag)
+{
+	struct cb_desc *d;
+	struct spd_tmem_info *sti;
+	int ret = -1;  // -1 means not really removing from spd and gives back to mgr
+
+	TAKE();
+
+	sti = get_spd_info(spdid);
+	assert(sti);
+
+	/* if (sti->num_blocked_thds) goto err; */
+	d = cos_map_lookup(&cb_ids, cbid);
+	if (!d) goto err;
+
+	/* should be conditional on the principal??? */
+	if (d->owner.spd != sti->spdid) goto err;
+
+	/* mapping model will release all child mappings */
+	DOUT("Releasing cbuf\n");
+
+	printc(" ::: cbid  %d\n",cbid);
+
+	/* __cbuf_c_delete(sti, cbid, d); */
+	if (flag == 1){
+		printc("start returning!\n");
+		printc("Return of s_spdid is: %d from thd: %d\n", spdid, cos_get_thd_id());
+		/* cos_map_del(&cb_ids, cbid); */
 		valloc_free(cos_spd_id(), sti->spdid, (void *)(d->owner.addr), 1);
-		cos_map_del(&cb_ids, cbid);
-		ret = 0;  
+		return_tmem(sti);
 	}
 
 	tmem_spd_wake_threads(sti);
 	assert(!SPD_HAS_BLK_THD(sti));
+
 	if (sti->num_desired >= sti->num_allocated)
 		spd_unmark_relinquish(sti);
 
@@ -541,14 +583,16 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 	struct cb_mapping *m;
 
 	TAKE();
-
+	printc("0-----cbid %d\n",cbid);
 	d = cos_map_lookup(&cb_ids, cbid);
+	printc("d--%p--\n",d);
 	/* sanity and access checks */
 	if (!d || d->obj_sz < len) goto done;
+	printc("1-----\n");
 #ifdef PRINCIPAL_CHECKS
 	if (d->principal != cos_get_thd_id()) goto done;
 #endif
-	/* printc("info: thd_id %d obj_size %d addr %p\n", d->principal, d->obj_sz, d->addr); */
+	printc("info: thd_id %d obj_size %d addr %p\n", d->principal, d->obj_sz, d->addr);
 	m = malloc(sizeof(struct cb_mapping));
 	if (!m) goto done;
 
