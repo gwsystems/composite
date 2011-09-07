@@ -61,9 +61,10 @@ cbuf_cache_miss(int cbid, int idx, int len)
 	/* printc("miss: meta_cbuf is at %p, h is %p\n", &meta_cbuf, h); */
 	cbuf_vect_add_id(&meta_cbuf, (void*)mc.c_0.v, (cbid-1)*2);
 	cbuf_vect_add_id(&meta_cbuf, cos_get_thd_id(), (cbid-1)*2+1);
-	int i;
-	for(i=0;i<20;i++)
-		printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i));
+
+	/* int i; */
+	/* for(i=0;i<20;i++) */
+	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
 	
 	return 0;
 }
@@ -90,12 +91,14 @@ struct cbuf_slab *
 cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 {
 	struct cbuf_slab *s = malloc(sizeof(struct cbuf_slab)), *ret = NULL;
-	struct cbuf_slab *dup = NULL;
+	/* struct cbuf_slab *dup = NULL; */
 	void *addr;
 	int cbid;
 	int cnt;
 
-	if (!s || !freelist) goto err;
+	if (!s) return NULL;
+
+	if (!freelist) goto err;
 
 	/* union cbuf_meta mc; */
 

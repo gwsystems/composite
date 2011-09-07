@@ -38,7 +38,7 @@ volatile unsigned long kkk = 0;
 unsigned long loop_cost = 0;
 unsigned long get_loop_cost(unsigned long loop_num)
 {
-	u64_t start,end,touch;
+	u64_t start,end;
 	unsigned long int i;
 
 	kkk = 0;
@@ -179,7 +179,7 @@ void cos_init(void *arg)
 				exe_cyc_event_remained = exe_cycle;  /* refill */
 				exe_cyc_event_remained = left(exe_cyc_event_remained,exe_cycle);
 				unsigned long t = sched_timestamp();
-				if ( t > (start_time_in_ticks + duration_time_in_ticks)) timed_event_block(cos_spd_id(), 10000);
+				if ( t > (unsigned long)(start_time_in_ticks + duration_time_in_ticks)) timed_event_block(cos_spd_id(), 10000);
 					/* printc("time elapsed is %llu  cyccs and duration ticks is %d, cyc_per_tick is %lu\n", (end-start), duration_time_in_ticks, cyc_per_tick); */
 			}
 		}

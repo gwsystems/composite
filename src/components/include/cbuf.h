@@ -141,7 +141,8 @@ static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
  * This data-structure is shared between this component and the cbuf_c
  * (the cbuf manager) and the refcnt is used to gauge if the cbuf is
  * actually in use.  The cbuf_c can garbage collect it if not (TODO).
-/*  *\/ */
+*/
+
 /* union cbuf_meta { */
 /* 	struct { */
 /* 		u32_t v;        		/\* value *\/ */
@@ -237,7 +238,7 @@ slab_rem_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 {
 	assert(s && fl);
 
-	printc("remove from the freelist now!!!!\n");
+	/* printc("remove from the freelist now!!!!\n"); */
 	if (fl->list == s) {
 		if (EMPTY_LIST(s, next, prev)) fl->list = NULL;
 		else fl->list = FIRST_LIST(s, next, prev);
@@ -310,7 +311,7 @@ __cbuf_free(void *buf)
 	u32_t off = b - (b & PAGE_MASK);
 	int idx;
 	assert(s);
-	printc("***** thd %d spd :: %d __cbuf_free:******\n", cos_get_thd_id(),cos_spd_id());
+	printc("***** thd %d spd :: %ld __cbuf_free:******\n", cos_get_thd_id(),cos_spd_id());
 	/* Argh, division!  Maybe transform into loop? Maybe assume pow2? */
 	idx = off/s->obj_sz;
 	assert(!bitmap_check(&s->bitmap[0], idx));
@@ -322,7 +323,7 @@ __cbuf_free(void *buf)
 		/* printc("slab_free(s) is called\n"); */
 		cbuf_slab_free(s);
 	} else if (s->nfree == 1) {
-		printc("slab_add_freelist is called\n");
+		/* printc("slab_add_freelist is called\n"); */
 		assert(EMPTY_LIST(s, next, prev));
 		slab_add_freelist(s, s->flh);
 	}
@@ -340,7 +341,6 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 	union cbuf_meta cm;
 	int idx;
 	u32_t *bm;
-	int i;
 
 	/* printc("***** thd %d spd :: %d __cbuf_alloc:******\n", cos_get_thd_id(), cos_spd_id()); */
 	/* printc("<<<__cbuf_alloc size %d>>>\n",size); */
@@ -378,7 +378,8 @@ again:					/* avoid convoluted conditions */
 
 	/* for(i=0;i<20;i++) */
 	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
-	/* s->nfree--; */
+
+	s->nfree--;
 
 	/* remove from the freelist */
 	if (!s->nfree) slab_rem_freelist(s, slab_freelist);

@@ -19,6 +19,42 @@ get_spd_info(spdid_t spdid)
 	return sti;
 }
 
+tmem_item *free_mem_in_local_cache(struct spd_tmem_info *sti)
+{
+	spdid_t s_spdid;
+	struct cos_cbuf_item *cci = NULL, *list;
+	struct spd_cbvect_range *cbr;
+	assert(sti);
+	s_spdid = sti->spdid;
+
+	printc("\n Check if in local cache!!!");
+	//list = get_spd_info(s_spdid).tmem_list;
+	list = &spd_tmem_info_list[s_spdid].tmem_list;
+	/* Go through the allocated cbufs, and see if any are not in use... */
+	for (cci = FIRST_LIST(list, next, prev) ; 
+	     cci != list; 
+	     cci = FIRST_LIST(cci, next, prev)) {
+		for (cbr = FIRST_LIST(&sti->ci, next, prev) ; 
+		     cbr != &sti->ci && cbr->meta != 0; 
+		     cbr = FIRST_LIST(cbr, next, prev)) {
+			if (cci->desc.cbid >= cbr->start_id && cci->desc.cbid <= cbr->end_id) {
+				union cbuf_meta cm;
+				cm.c_0.v = cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.v;
+				if (!CBUF_IN_USE(cm.c.flags)) goto done;
+			}
+		}
+	}
+
+	if (cci == list) goto err;
+done:
+	printc("\n found one!!\n\n");
+	return cci;
+err:
+	printc("\n can not found one!!\n");
+	cci = NULL;	
+	return cci;
+}
+
 inline int
 tmem_wait_for_mem_no_dependency(struct spd_tmem_info *sti)
 {
@@ -145,10 +181,10 @@ tmem_grant(struct spd_tmem_info *sti)
 		eligible = 0;
 
 		printc("sti->num_allocated %d sti->num_desired %d\n",sti->num_allocated, sti->num_desired);
-		printc("empty_comps %d (MAX_NUM_ITEMS - stacks_allocated) %d\n",empty_comps , (MAX_NUM_ITEMS - stacks_allocated));
+		printc("empty_comps %d (MAX_NUM_ITEMS - stacks_allocated) %d\n",empty_comps , (MAX_NUM_ITEMS - cbufs_allocated));
 
 		if (sti->num_allocated < sti->num_desired &&
-		    (empty_comps < (MAX_NUM_ITEMS - stacks_allocated) || sti->num_allocated == 0)) {
+		    (empty_comps < (MAX_NUM_ITEMS - cbufs_allocated) || sti->num_allocated == 0)) {
 			printc("alloooooooooo!!\n");
 			/* We are eligible for allocation! */
 			eligible = 1;
@@ -176,7 +212,7 @@ tmem_grant(struct spd_tmem_info *sti)
 			 * ourselves without dependencies! */
 			if (sti->num_allocated < (sti->num_desired + sti->ss_max) &&
 			    over_quota_total < over_quota_limit &&
-			    (empty_comps < (MAX_NUM_ITEMS - stacks_allocated) || sti->num_allocated == 0)) {
+			    (empty_comps < (MAX_NUM_ITEMS - cbufs_allocated) || sti->num_allocated == 0)) {
 
 				printc("when self:: num_allocated %d num_desired+max %d\n",sti->num_allocated, sti->num_desired + sti->ss_max);				
 				tmi = get_mem();
@@ -237,7 +273,7 @@ return_tmem(struct spd_tmem_info *sti)
 	printc("return_mem is called \n");
 	//printc("Before:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);
 	/* if (sti->num_desired < sti->num_allocated || sti->num_glb_blocked) { */
-	printc("flying back..........\n");
+	printc("fly..............\n");
 	get_mem_from_client(sti);
 	/* } */
 	/* tmem_spd_wake_threads(sti); */
@@ -275,7 +311,6 @@ tmem_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare)
 {
 	struct spd_tmem_info *sti;
 	int diff, old;
-	static k = 0;
 
 	TAKE();
 	sti = get_spd_info(spdid);	
@@ -287,7 +322,7 @@ tmem_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare)
 
 	old = sti->num_desired;
 	sti->num_desired = concur_lvl;
-	stacks_target += concur_lvl - old;
+	cbufs_target += concur_lvl - old;
 
 	/* update over-quota allocation counter */
 	if (old < (int)sti->num_allocated) 
@@ -295,12 +330,12 @@ tmem_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare)
 	else if (concur_lvl < (int)sti->num_allocated)
 		over_quota_total += sti->num_allocated - concur_lvl;
 	
-	printc("spd %d allocated %d desired %d\n",spdid,sti->num_allocated, sti->num_desired);
+	/* printc("spd %d allocated %d desired %d\n",spdid,sti->num_allocated, sti->num_desired); */
 	diff = sti->num_allocated - sti->num_desired;
-	printc("diff is %d\n",diff);
+	/* printc("diff is %d\n",diff); */
 	if (diff > 0) get_mem_from_client(sti);
 	if (diff < 0 && SPD_HAS_BLK_THD(sti)) tmem_spd_wake_threads(sti);
-	printc("remove spare page!!\n");
+	/* printc("remove spare page!!\n"); */
 	if (remove_spare) remove_spare_cache_from_client(sti);
 	/* printc("set_concurrency done!\n"); */
 	RELEASE();

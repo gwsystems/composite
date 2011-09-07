@@ -25,6 +25,8 @@ typedef	struct spd_cbvect_range shared_component_info;
 /* #define MEM_IN_LOCAL_CACHE(sci) ((sci)->ci->cos_stacks.freelists[0].freelist != 0) */
 #define MEM_IN_LOCAL_CACHE(csi) ((csi)->ci.meta != 0)
 
+#define CBUF_IN_USE(flags) (flags & CBUFM_IN_USE)
+
 typedef enum {
 	CBUFM_LARGE = 1,
 	CBUFM_RO    = 1<<1,

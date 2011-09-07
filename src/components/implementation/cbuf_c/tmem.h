@@ -23,7 +23,6 @@
 
 #define GLOBAL_BLKED (FIRST_LIST(&global_blk_list, next, prev) != &global_blk_list)
 
-
 /**
  * keep track of thread id's
  * Should this be a typedef'd type?
@@ -87,7 +86,7 @@ struct blocked_thd global_blk_list;
  * component. over_quota and over_quota_limit save the number of
  * over-quota allocated stacks (due to self-suspension) and the upper
  * limit of it */
-int stacks_allocated, stacks_target, empty_comps, over_quota_total, over_quota_limit;
+int cbufs_allocated, cbufs_target, empty_comps, over_quota_total, over_quota_limit;
 
 static inline void wake_blk_list(struct blocked_thd * bl);
 
@@ -96,7 +95,7 @@ put_mem(tmem_item *tmi)
 {
 	assert(EMPTY_LIST(tmi, next, prev));
 	assert(tmi->parent_spdid == 0);
-	stacks_allocated--;
+	cbufs_allocated--;
 	tmi->free_next = free_tmem_list;
 	free_tmem_list = tmi;
 
@@ -117,11 +116,11 @@ get_mem(void)
 	 * self-suspension stacks over-quota allocation, which is
 	 * necessary
 	 */
-	/* if (stacks_allocated >= stacks_target) return NULL; */
+	/* if (cbufs_allocated >= cbufs_target) return NULL; */
 	tmi = free_tmem_list;
 	if (!tmi) return NULL;
 	free_tmem_list = tmi->free_next;
-	stacks_allocated++;
+	cbufs_allocated++;
 
 	return tmi;
 }
@@ -335,7 +334,6 @@ tmem_spd_concurrency_estimate(spdid_t spdid)
 		goto done;
 	}
 
-	printc("i4 here .. avg is %d\n",avg);
 	for (i = 0 ; i < MAX_BLKED ; i++) {
 		int n = sti->stat_thd_blk[i];
 
@@ -360,6 +358,9 @@ tmem_spd_concurrency_estimate(spdid_t spdid)
 			avg = sti->ss_counter + 1;
 	}
 done:
+
+	if(spdid == 23 || spdid == 24)	
+		printc("estimate done .. avg is %d in spd %d\n",avg, spdid);
 	RELEASE();
 	return avg;
 err:
@@ -372,7 +373,7 @@ tmem_report(void)
 {
 	TAKE();
 	/* stkmgr_print_ci_freelist(); */
-	printc("allocated: %d,\n", stacks_allocated);
+	printc("allocated: %d,\n", cbufs_allocated);
 	RELEASE();
 }
 
@@ -412,7 +413,7 @@ static inline int
 tmem_set_over_quota_limit(int limit)
 {
 	TAKE();
-	if (limit > MAX_NUM_ITEMS - stacks_target || limit < 0) {
+	if (limit > MAX_NUM_ITEMS - cbufs_target || limit < 0) {
 		printc("Over-quota limit greater than global available quota. limit: %d.\n", limit);
 		goto err;
 	} else

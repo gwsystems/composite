@@ -198,13 +198,13 @@ static inline void *cbuf_vect_lookup(cbuf_vect_t *v, long id)
 	else            return is->val;
 }
 
-static inline vaddr_t cbuf_vect_addr_lookup(cbuf_vect_t *v, long cbid)
+static inline void *cbuf_vect_addr_lookup(cbuf_vect_t *v, long cbid)
 {
 	vaddr_t ret;
 	ret = ((u32_t)cbuf_vect_lookup(v,cbid));
 	if (ret){
 		ret = ret << PAGE_ORDER;//& (~((1 << PAGE_ORDER)-1));
-		return ret;
+		return (void *)ret; 
 	}
 	else{
 		return NULL;
