@@ -22,6 +22,8 @@ struct fsobj root;
 #define LOCK() if (lock_take(&l)) BUG();
 #define UNLOCK() if (lock_release(&l)) BUG();
 
+#define ERR_HAND(errval, label) do { ret = errval; goto label; } while (0)
+
 struct torrent {
 	td_t tid;
 	u32_t offset;
@@ -33,45 +35,42 @@ td_t
 tsplit(spdid_t spdid, td_t td, char *param, 
        int len, tor_flags_t tflags, long evtid) 
 {
-	td_t new = -1;
+	td_t ret = -1;
 	struct torrent *t, *nt;
 	struct fsobj *fso, *fsc, *parent; /* obj and child */
 	char *p, *subpath;
 
-	printc("0\n");
-
 	if (td == td_null) return -1;
 	LOCK();
 	t = cos_map_lookup(&torrents, td);
-	if (!t) goto done;
+	if (!t) ERR_HAND(-EINVAL, done);
 	assert(t->tid == td);
 	assert(t->fso);
 	fso = t->fso;
 
 	p = malloc(len+1);
-	if (!p) goto done;
+	if (!p) ERR_HAND(-ENOMEM, done);
 	strncpy(p, param, len);
 	p[len] = '\0';
 
 	fsc = fsobj_path2obj(p, fso, &parent, &subpath);
 	if (!fsc) {
-		int ret = 0;
 		fsc = fsobj_alloc(subpath, parent);
-		if (!fsc) goto free1;
+		if (!fsc) ERR_HAND(-EINVAL, free1);
 	}
 
 	fsobj_take(fsc);
 	nt = malloc(sizeof(struct torrent));
-	if (!nt) goto free1;
+	if (!nt) ERR_HAND(-ENOMEM, free1);
 
-	new = (td_t)cos_map_add(&torrents, nt);
-	if (new == -1) goto free2;
+	ret = (td_t)cos_map_add(&torrents, nt);
+	if (ret == -1) goto free2;
 
-	nt->tid = new;
+	nt->tid = ret;
 	nt->fso = fsc;
 done:
 	UNLOCK();
-	return new;
+	return ret;
 free2:  
 	free(nt);
 free1:  free(p);
@@ -88,9 +87,9 @@ tmerge(spdid_t spdid, td_t td, td_t td_into, char *param, int len)
 
 	LOCK();
 	t = cos_map_lookup(&torrents, td);
-	if (!t) goto done;
+	if (!t) ERR_HAND(-EINVAL, done);
 	t_into = cos_map_lookup(&torrents, td_into);
-	if (td_into != td_null && !t_into) goto done;
+	if (td_into != td_null && !t_into) ERR_HAND(-EINVAL, done);
 
 	if (cos_map_del(&torrents, t->tid)) BUG();
 	free(t);

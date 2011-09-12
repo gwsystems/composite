@@ -17,6 +17,7 @@
 #include <cinfo.h>
 #include <bitmap.h>
 
+#define LOCK_COMPONENT
 #ifdef LOCK_COMPONENT
 #include <cos_synchronization.h>
 cos_lock_t valloc_lock;
@@ -92,7 +93,7 @@ success:
 done:
 	return ret;
 err_free2:
-	cos_set_heap_ptr_conditional((char*)ci+PAGE_SIZE, ci);
+	cos_release_vas_page(ci);
 	free_page(occ);
 err_free1:
 	free(trac);

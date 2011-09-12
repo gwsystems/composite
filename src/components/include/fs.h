@@ -42,6 +42,8 @@ struct fsobj {
 	struct fsobj *child, *parent; 	/* child != NULL iff type = dir */
 };
 
+#define ERR_HAND(errval, label) do { ret = errval; goto label; } while (0)
+
 static void
 fs_init_root(struct fsobj *o)
 {
@@ -77,7 +79,6 @@ fsobj_cons(struct fsobj *o, struct fsobj *parent,
 {
 	assert(o && parent && name);
 	assert(!(sz && (t == FSOBJ_DIR)));
-	assert(!((sz == 0) && t == FSOBJ_FILE));
 
 	o->name = name;
 	o->type = t;
@@ -105,24 +106,25 @@ fsobj_alloc(char *name, struct fsobj *parent)
 	int len;
 
 	end = strchr(name, '/');
-	len = end-name;
 	if (end) {
+		len = end-name;
 		/* only a single / allowed, at the end */
-		if (end[1] != '\0') goto done;
+		if (end[1] != '\0') { printc("0\n"); goto done; }
 		t = FSOBJ_DIR;
 	} else {
+		len = strlen(name);
 		t = FSOBJ_FILE;
 	}
 
 	chld = FS_ALLOC(sizeof(struct fsobj));
-	if (!chld) goto done;
+	if (!chld) { printc("1\n"); goto done; }
 	chld_name = FS_ALLOC(len + 1);
-	if (!chld_name) goto free1;
+	if (!chld_name) { printc("2\n"); goto free1; }
 
 	memcpy(chld_name, name, len);
 	chld_name[len] = '\0';
 
-	if (fsobj_cons(chld, parent, chld_name, t, 0, NULL)) goto free2;
+	if (fsobj_cons(chld, parent, chld_name, t, 0, NULL)) { printc("3\n"); goto free2; }
 done:
 	return chld;
 free2:

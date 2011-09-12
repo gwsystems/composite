@@ -79,6 +79,11 @@ void *cos_get_vas_page(void)
 	return h;
 }
 
+__attribute__((weak)) 
+void cos_release_vas_page(void *p)
+{
+	cos_set_heap_ptr_conditional(p + PAGE_SIZE, p);
+}
 
 extern const vaddr_t cos_atomic_cmpxchg, cos_atomic_cmpxchg_end, 
 	cos_atomic_user1, cos_atomic_user1_end, 

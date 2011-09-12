@@ -122,8 +122,8 @@ static void boot_symb_process(struct cobj_header *h, spdid_t spdid, vaddr_t heap
 		struct cos_component_information *ci;
 		
 		ci = (struct cos_component_information*)(mem + ((PAGE_SIZE-1) & symb_addr));
-		ci->cos_heap_alloc_extent = ci->cos_heap_ptr;
-		ci->cos_heap_allocated = heap_val;
+//		ci->cos_heap_alloc_extent = ci->cos_heap_ptr;
+//		ci->cos_heap_allocated = heap_val;
 		if (!ci->cos_heap_ptr) ci->cos_heap_ptr = heap_val;
 		ci->cos_this_spd_id = spdid;
 

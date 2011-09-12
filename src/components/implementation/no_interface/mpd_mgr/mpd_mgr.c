@@ -345,8 +345,3 @@ cos_init(void *d)
 	mpd_init();
 }
 
-void bin(void)
-{
-	sched_block(cos_spd_id(), 0);
-}
-

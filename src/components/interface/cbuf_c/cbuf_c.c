@@ -40,8 +40,6 @@ cbuf_cache_miss(int cbid, int idx, int len)
 	mc.c.ptr    = (long)h >> PAGE_ORDER;
 	mc.c.obj_sz = len;
 	if (cbuf_c_retrieve(cos_spd_id(), cbid, len, h)) {
-		/* do dumb test for race... */
-		cos_set_heap_ptr_conditional(h + PAGE_SIZE, h);
 		/* Illegal cbid or length!  Bomb out. */
 		return -1;
 	}
@@ -76,9 +74,7 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	int cbid;
 
 	if (!s) return NULL;
-	/* FIXME: race race race */
-	h = cos_get_heap_ptr();
-	cos_set_heap_ptr(h + PAGE_SIZE);
+	h = cos_get_vas_page();
 	cbid = cbuf_c_create(cos_spd_id(), size, h);
 	if (cbid < 0) goto err;
 	cos_vect_add_id(&slab_descs, s, (long)h>>PAGE_ORDER);
@@ -88,8 +84,7 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 done:   
 	return ret;
 err:    
-	/* FIXME: race race race */
-	cos_set_heap_ptr(h);
+	cos_release_vas_page(h);
 	free(s);
 	goto done;
 }

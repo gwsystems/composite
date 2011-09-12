@@ -14,7 +14,8 @@
 #include <cos_alloc.h>
 #include <cos_map.h>
 #include <cos_list.h>
-#include <mem_mgr.h>
+#include <mem_mgr_large.h>
+#include <cos_alloc.h>
 
 //#define PRINCIPAL_CHECKS
 
@@ -72,7 +73,7 @@ done:
 err2:
 	mman_release_page(cos_spd_id(), (vaddr_t)h, 0);
 err:
-	cos_set_heap_ptr_conditional(h + PAGE_SIZE, h);
+	cos_release_vas_page(h);
 	goto done;
 }
 

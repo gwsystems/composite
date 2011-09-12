@@ -82,6 +82,11 @@ void *cos_get_vas_page(void)
 {
 	return valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
 }
+
+void cos_release_vas_page(void *p)
+{
+	valloc_free(cos_spd_id(), cos_spd_id(), p, 1);
+}
 #endif
 
 #ifdef UNIX_TEST
@@ -103,8 +108,9 @@ static inline REGPARM(1) void *do_mmap(size_t size) {
 	if (!hp) return NULL;
 #else
 	massert(size <= PAGE_SIZE);
-	hp = cos_get_prealloc_page();
-	if (!hp) hp = cos_get_vas_page();
+	//hp = cos_get_prealloc_page();
+	//if (!hp) 
+	hp = cos_get_vas_page();
 #endif
 	for (p = (unsigned long)hp ; 
 	     p < (unsigned long)hp + s ; 
@@ -117,7 +123,7 @@ static inline REGPARM(1) void *do_mmap(size_t size) {
 #ifdef USE_VALLOC
 			if (unlikely(valloc_free(cos_spd_id(), cos_spd_id(), hp, s/PAGE_SIZE))) DIE();
 #else
-			cos_set_heap_ptr_conditional(hp+PAGE_SIZE, hp);
+			cos_release_vas_page(hp);
 #endif
 			return NULL;
 		}

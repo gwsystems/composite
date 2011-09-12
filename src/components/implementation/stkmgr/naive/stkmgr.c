@@ -28,8 +28,18 @@
 #define MAX_BLKED  10
 #define DEFAULT_TARGET_ALLOC 10
 
+#define LOCK_COMPONENT
+#ifdef LOCK_COMPONENT
+#include <cos_synchronization.h>
+cos_lock_t stkmgr_lock;
+#define TAKE()      lock_take(&stkmgr_lock)
+#define RELEASE()   lock_release(&stkmgr_lock)
+#define LOCK_INIT() lock_static_init(&stkmgr_lock);
+#else
 #define TAKE() if(sched_component_take(cos_spd_id())) BUG();
 #define RELEASE() if(sched_component_release(cos_spd_id())) BUG();
+#define LOCK_INIT() 
+#endif
 
 /** 
  * Flags to control stack
@@ -326,6 +336,8 @@ cos_init(void *arg){
 		spd_stk_info_list[spdid].num_allocated = 0;
 		spd_stk_info_list[spdid].num_desired = DEFAULT_TARGET_ALLOC;
 	}
+
+	LOCK_INIT();
 	
 	DOUT("Done mapping components information pages!\n");
 	DOUT("<stkmgr>: init finished\n");
@@ -1084,13 +1096,3 @@ stkmgr_print_ci_freelist(void)
 	}
 
 }
-
-/**
- * This is here just to make sure we get scheduled, it can 
- * most likely be removed now
- */
-void
-bin(void){
-	sched_block(cos_spd_id(), 0);
-}
-
