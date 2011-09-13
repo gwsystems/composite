@@ -12,7 +12,7 @@ fprr.o-print.o|mm.o|st.o|schedconf.o|[parent_]bc.o;\
 l.o-fprr.o|mm.o|print.o;\
 te.o-sm.o|print.o|fprr.o|mm.o;\
 mm.o-print.o;\
-e.o-sm.o|fprr.o|print.o|mm.o|l.o|st.o|va.o;\
+e.o-sm.o|fprr.o|print.o|mm.o|l.o|va.o;\
 stat.o-sm.o|te.o|fprr.o|l.o|print.o|e.o;\
 st.o-print.o;\
 schedconf.o-print.o;\

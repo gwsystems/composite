@@ -170,15 +170,14 @@ long evt_create(spdid_t spdid)
 	}
 	e->extern_id = mapping_create(e);
 	if (0 > e->extern_id) goto free_evt_err;
-
+	ret = e->extern_id;
+done:
 	lock_release(&evt_lock);
-
-	return e->extern_id;
+	return ret;
 free_evt_err:
 	__evt_free(e);
 err:
-	lock_release(&evt_lock);
-	return ret;
+	goto done;
 }
 
 void evt_free(spdid_t spdid, long extern_evt)
@@ -349,6 +348,7 @@ static void init_evts(void)
 {
 	lock_static_init(&evt_lock);
 	cos_map_init_static(&evt_map);
+	if (mapping_create(NULL) != 0) BUG();
 	INIT_LIST(&grps, next, prev);
 }
 

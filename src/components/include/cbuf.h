@@ -174,15 +174,13 @@ cbuf2buf(cbuf_t cb, int len)
 	union cbuf_meta cm;
 
 	cbuf_unpack(cb, &id, &idx);
-again:				/* avoid convoluted conditions */
-	cm.v = (u32_t)cos_vect_lookup(&meta_cbuf, id);
-	if (unlikely(cm.v == 0)) {
+
+	while (unlikely(0 == (cm.v = (u32_t)cos_vect_lookup(&meta_cbuf, id)))) {
 		/* slow path */
 		if (cbuf_cache_miss(id, idx, len)) return NULL;
-		goto again;
 	}
 	if (likely(!(cm.c.flags & CBUFM_LARGE))) {
-		obj_sz = cm.c.obj_sz;
+		obj_sz = cm.c.obj_sz * CBUF_MIN_SLAB;
 		off    = obj_sz * idx; /* multiplication...ouch */
 		if (unlikely(len > obj_sz || off + len > PAGE_SIZE )) return NULL;
 	} else {
@@ -190,7 +188,6 @@ again:				/* avoid convoluted conditions */
 		off    = 0;
 		if (unlikely(len > obj_sz)) return NULL;
 	}
-
 	return ((char*)(cm.c.ptr << PAGE_ORDER)) + off;
 }
 

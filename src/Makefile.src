@@ -4,7 +4,7 @@
 # the directory this file is in
 TOP_DIR=/home/gparmer/research/composite/src/
 # the directory the linux source is in
-LDIR=/home/gparmer/research/linux-2.6.36/
+LDIR=/home/gparmer/research/linux-2.6.33.test/
 # the directory all objects will be copied to when they are ready for
 # deployment
 TRANS_DIR=/home/gparmer/transfer

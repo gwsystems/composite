@@ -782,7 +782,7 @@ static int tun_set_iff(struct file *file, struct ifreq *ifr)
 	return err;
 }
 
-static int tun_chr_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long tun_chr_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct tun_struct *tun = file->private_data;
 	void __user* argp = (void __user*)arg;

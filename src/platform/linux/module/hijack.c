@@ -471,7 +471,7 @@ void print_valid_pgtbl_entries(paddr_t pt);
 extern struct thread *ready_boot_thread(struct spd *init);
 vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr);
 
-static int aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
 

@@ -35,12 +35,12 @@ td_t
 tsplit(spdid_t spdid, td_t td, char *param, 
        int len, tor_flags_t tflags, long evtid) 
 {
-	td_t ret = -1;
+	td_t ret = -10;
 	struct torrent *t, *nt;
 	struct fsobj *fso, *fsc, *parent; /* obj and child */
 	char *p, *subpath;
 
-	if (td == td_null) return -1;
+	if (td == td_null) return -EINVAL;
 	LOCK();
 	t = cos_map_lookup(&torrents, td);
 	if (!t) ERR_HAND(-EINVAL, done);
@@ -158,7 +158,7 @@ twrite(spdid_t spdid, td_t td, int cbid, int sz)
 
 	LOCK();
 	t = cos_map_lookup(&torrents, td);
-	if (!t) goto done;
+	if (!t) ERR_HAND(-EINVAL, done);
 	assert(t->tid == td);
 	assert(t->fso);
 	fso = t->fso;
@@ -166,29 +166,41 @@ twrite(spdid_t spdid, td_t td, int cbid, int sz)
 	assert(t->offset <= fso->size);
 
 	buf = cbuf2buf(cbid, sz);
-	if (!buf) goto done;
+	if (!buf) ERR_HAND(-EINVAL, done);
 
 	left = fso->allocated - t->offset;
 	if (left >= sz) {
 		ret = sz;
+		if (fso->size < (t->offset + sz)) fso->size = t->offset + sz;
 	} else {
 		char *new;
-		
-		new = malloc(fso->allocated * 2);
-		if (!new) goto done;
-		memcpy(new, fso->data, fso->size);
-		free(fso->data);
+		int new_sz;
 
-		fso->data = new;
-		fso->allocated *= 2;
-		left = fso->allocated - t->offset;
-		ret  = left > sz ? sz : left;
-		fso->size = t->offset + ret;
+		new_sz = fso->allocated == 0 ? 256 : fso->allocated * 2;
+		new    = malloc(new_sz);
+		if (!new) ERR_HAND(-ENOMEM, done);
+		if (fso->data) {
+			memcpy(new, fso->data, fso->size);
+			free(fso->data);
+		}
+
+		fso->data      = new;
+		fso->allocated = new_sz;
+		left           = new_sz - t->offset;
+		ret            = left > sz ? sz : left;
+		fso->size      = t->offset + ret;
 	}
+	printc("<<data %p, off %d (both %p), from %p, amnt %d>>\n",
+	       fso->data, t->offset, fso->data + t->offset, buf, ret);
+	fso->data[ret-1] = '0';
+	printc("<<1>>\n");
+	buf[ret-1] = '0';
+	printc("<<2>>\n");
 	memcpy(fso->data + t->offset, buf, ret);
+	printc("<<3>>\n");
 	t->offset += ret;
-	
-done:	UNLOCK();
+done:	
+	UNLOCK();
 	return ret;
 }
 

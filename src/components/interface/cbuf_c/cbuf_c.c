@@ -35,18 +35,27 @@ cbuf_cache_miss(int cbid, int idx, int len)
 {
 	union cbuf_meta mc;
 	char *h;
+	int sz, ret = -1;
 
 	h = cos_get_vas_page();
 	mc.c.ptr    = (long)h >> PAGE_ORDER;
-	mc.c.obj_sz = len;
-	if (cbuf_c_retrieve(cos_spd_id(), cbid, len, h)) {
-		/* Illegal cbid or length!  Bomb out. */
-		return -1;
-	}
+
+	sz = len < 65 ? 63 : len; /* FIXME: do without branch */
+	/* FIXME: find way to avoid making the wrong decision on pow2 values */
+	sz = ones(sz) == 1 ? sz-1 : sz;
+	sz = 1<<(log32_floor(sz) + 1 - CBUF_MIN_SLAB_ORDER);
+	mc.c.obj_sz = sz;//len;
+
+	/* Illegal cbid or length!  Bomb out. */
+	if (cbuf_c_retrieve(cos_spd_id(), cbid, len, h)) goto err;
 	/* This is the commit point */
 	cos_vect_add_id(&meta_cbuf, (void*)mc.v, cbid);
-
-	return 0;
+	ret = 0;
+done:
+	return ret;
+err:
+	cos_release_vas_page(h);
+	goto done;
 }
 
 void
