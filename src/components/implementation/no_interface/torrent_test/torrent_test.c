@@ -45,11 +45,8 @@ void cos_init(void)
 	trelease(cos_spd_id(), t1);
 	trelease(cos_spd_id(), t2);
 
-	printc("<<>>\n");
 	t1 = tsplit(cos_spd_id(), td_root, params2, strlen(params2) + 1, 0, evt1);
-	printc("<<>>\n");
 	t2 = tsplit(cos_spd_id(), t1, params2, strlen(params2) + 1, 0, evt2);
-	printc("<<>>\n");
 	if (t1 < 1 || t2 < 1) {
 		printc("later splits failed\n");
 		return;
@@ -58,10 +55,12 @@ void cos_init(void)
 	ret1 = tread_pack(cos_spd_id(), t1, buffer, 1023);
 	if (ret1 > 0) buffer[ret1] = '\0';
 	printc("read %d: %s\n", ret1, buffer);
+	buffer[0] = '\0';
 
 	ret1 = tread_pack(cos_spd_id(), t2, buffer, 1023);
 	if (ret1 > 0) buffer[ret1] = '\0';
 	printc("read %d: %s\n", ret1, buffer);
+	buffer[0] = '\0';
 
 	trelease(cos_spd_id(), t1);
 	trelease(cos_spd_id(), t2);
@@ -70,6 +69,7 @@ void cos_init(void)
 	ret1 = tread_pack(cos_spd_id(), t1, buffer, 1023);
 	if (ret1 > 0) buffer[ret1] = '\0';
 	printc("read %d: %s\n", ret1, buffer);
+	buffer[0] = '\0';
 	ret1 = twrite_pack(cos_spd_id(), t1, data1, strlen(data1)+1);
 	printc("write %d, ret %d\n", strlen(data1)+1, ret1);
 
@@ -78,6 +78,7 @@ void cos_init(void)
 	ret1 = tread_pack(cos_spd_id(), t1, buffer, 1023);
 	if (ret1 > 0) buffer[ret1] = '\0';
 	printc("read %d: %s\n", ret1, buffer);
+	buffer[0] = '\0';
 
 	return;
 }

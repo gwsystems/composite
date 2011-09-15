@@ -23,6 +23,7 @@ struct fsobj root;
 #define UNLOCK() if (lock_release(&l)) BUG();
 
 #define ERR_HAND(errval, label) do { ret = errval; goto label; } while (0)
+#define MIN_DATA_SZ 256
 
 struct torrent {
 	td_t tid;
@@ -56,7 +57,6 @@ tsplit(spdid_t spdid, td_t td, char *param,
 	fsc = fsobj_path2obj(p, fso, &parent, &subpath);
 	if (!fsc) {
 		assert(parent);
-		printc("parent %s, creating %s\n", parent->name, subpath);
 		fsc = fsobj_alloc(subpath, parent);
 		if (!fsc) ERR_HAND(-EINVAL, free1);
 	}
@@ -71,8 +71,6 @@ tsplit(spdid_t spdid, td_t td, char *param,
 	nt->tid    = ret;
 	nt->fso    = fsc;
 	nt->offset = 0;
-	
-	printc("t %d is fso %p for %s, size %d\n", ret, fso, fso->name, fso->size);
 done:
 	UNLOCK();
 	return ret;
@@ -137,7 +135,6 @@ tread(spdid_t spdid, td_t td, int cbid, int sz)
 	assert(t->tid <= td_root || t->fso);
 	fso = t->fso;
 	assert(fso->size <= fso->allocated);
-	printc("torrent %d (%p), offset %d, size %d\n", td, t, t->offset, fso->size);
 	assert(t->offset <= fso->size);
 	if (!fso->size) ERR_HAND(0, done);
 
@@ -170,7 +167,6 @@ twrite(spdid_t spdid, td_t td, int cbid, int sz)
 	assert(t->fso);
 	fso = t->fso;
 	assert(fso->size <= fso->allocated);
-	printc("torrent %d (%p), offset %d, size %d\n", td, t, t->offset, fso->size);
 	assert(t->offset <= fso->size);
 
 	buf = cbuf2buf(cbid, sz);
@@ -184,7 +180,7 @@ twrite(spdid_t spdid, td_t td, int cbid, int sz)
 		char *new;
 		int new_sz;
 
-		new_sz = fso->allocated == 0 ? 256 : fso->allocated * 2;
+		new_sz = fso->allocated == 0 ? MIN_DATA_SZ : fso->allocated * 2;
 		new    = malloc(new_sz);
 		if (!new) ERR_HAND(-ENOMEM, done);
 		if (fso->data) {
@@ -200,7 +196,6 @@ twrite(spdid_t spdid, td_t td, int cbid, int sz)
 	}
 	memcpy(fso->data + t->offset, buf, ret);
 	t->offset += ret;
-	printc("torrent %d (%p), offset %d, size %d\n", td, t, t->offset, fso->size);
 done:	
 	UNLOCK();
 	return ret;
