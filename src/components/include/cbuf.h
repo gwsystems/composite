@@ -261,9 +261,10 @@ __cbuf_free(void *buf)
 	bitmap_set(&s->bitmap[0], idx);
 	s->nfree++;
 	assert(s->flh);
-	if (s->nfree == s->max_objs) {
-		cbuf_slab_free(s);
-	} else if (s->nfree == 1) {
+	/* if (s->nfree == s->max_objs) { */
+	/* 	cbuf_slab_free(s); */
+	/* } else */ 
+	if (s->nfree == 1) {
 		assert(EMPTY_LIST(s, next, prev));
 		slab_add_freelist(s, s->flh);
 	}

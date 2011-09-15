@@ -35,7 +35,7 @@ td_t
 tsplit(spdid_t spdid, td_t td, char *param, 
        int len, tor_flags_t tflags, long evtid) 
 {
-	td_t ret = -10;
+	td_t ret = -1;
 	struct torrent *t, *nt;
 	struct fsobj *fso, *fsc, *parent; /* obj and child */
 	char *p, *subpath;
@@ -55,6 +55,8 @@ tsplit(spdid_t spdid, td_t td, char *param,
 
 	fsc = fsobj_path2obj(p, fso, &parent, &subpath);
 	if (!fsc) {
+		assert(parent);
+		printc("parent %s, creating %s\n", parent->name, subpath);
 		fsc = fsobj_alloc(subpath, parent);
 		if (!fsc) ERR_HAND(-EINVAL, free1);
 	}
@@ -66,8 +68,11 @@ tsplit(spdid_t spdid, td_t td, char *param,
 	ret = (td_t)cos_map_add(&torrents, nt);
 	if (ret == -1) goto free2;
 
-	nt->tid = ret;
-	nt->fso = fsc;
+	nt->tid    = ret;
+	nt->fso    = fsc;
+	nt->offset = 0;
+	
+	printc("t %d is fso %p for %s, size %d\n", ret, fso, fso->name, fso->size);
 done:
 	UNLOCK();
 	return ret;
@@ -132,7 +137,9 @@ tread(spdid_t spdid, td_t td, int cbid, int sz)
 	assert(t->tid <= td_root || t->fso);
 	fso = t->fso;
 	assert(fso->size <= fso->allocated);
+	printc("torrent %d (%p), offset %d, size %d\n", td, t, t->offset, fso->size);
 	assert(t->offset <= fso->size);
+	if (!fso->size) ERR_HAND(0, done);
 
 	buf = cbuf2buf(cbid, sz);
 	if (!buf) goto done;
@@ -163,6 +170,7 @@ twrite(spdid_t spdid, td_t td, int cbid, int sz)
 	assert(t->fso);
 	fso = t->fso;
 	assert(fso->size <= fso->allocated);
+	printc("torrent %d (%p), offset %d, size %d\n", td, t, t->offset, fso->size);
 	assert(t->offset <= fso->size);
 
 	buf = cbuf2buf(cbid, sz);
@@ -190,15 +198,9 @@ twrite(spdid_t spdid, td_t td, int cbid, int sz)
 		ret            = left > sz ? sz : left;
 		fso->size      = t->offset + ret;
 	}
-	printc("<<data %p, off %d (both %p), from %p, amnt %d>>\n",
-	       fso->data, t->offset, fso->data + t->offset, buf, ret);
-	fso->data[ret-1] = '0';
-	printc("<<1>>\n");
-	buf[ret-1] = '0';
-	printc("<<2>>\n");
 	memcpy(fso->data + t->offset, buf, ret);
-	printc("<<3>>\n");
 	t->offset += ret;
+	printc("torrent %d (%p), offset %d, size %d\n", td, t, t->offset, fso->size);
 done:	
 	UNLOCK();
 	return ret;

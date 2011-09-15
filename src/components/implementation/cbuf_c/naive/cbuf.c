@@ -88,6 +88,7 @@ cbuf_c_delete(spdid_t spdid, int cbid)
 	struct cb_desc *d;
 	struct cb_mapping *m;
 	
+	printc("removing!!!\n");
 	TAKE();
 	d = cos_map_lookup(&cb_ids, cbid);
 	if (!d) goto done;
@@ -95,7 +96,7 @@ cbuf_c_delete(spdid_t spdid, int cbid)
 	if (d->owner.spd != spdid) goto done;
 	cos_map_del(&cb_ids, cbid);
 	/* mapping model will release all child mappings */
-	mman_release_page(cos_spd_id(), (vaddr_t)d->addr, 0);
+	mman_revoke_page(cos_spd_id(), (vaddr_t)d->addr, 0);
 	m = FIRST_LIST(&d->owner, next, prev);
 	while (m != &d->owner) {
 		struct cb_mapping *n = FIRST_LIST(m, next, prev);

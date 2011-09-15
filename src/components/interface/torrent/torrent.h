@@ -40,8 +40,8 @@ tread_pack(spdid_t spdid, td_t td, char *data, int len)
 	d = cbuf_alloc(len, &cb);
 	if (!d) return -1;
 
-	memcpy(d, data, len);
 	ret = tread(spdid, td, cb, len);
+	memcpy(data, d, len);
 	cbuf_free(d);
 	
 	return ret;
