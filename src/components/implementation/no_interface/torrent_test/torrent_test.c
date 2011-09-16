@@ -9,7 +9,6 @@ char buffer[1024];
 
 void cos_init(void)
 {
-	cbuf_t c1 = cbuf_null();
 	td_t t1, t2;
 	long evt1, evt2;
 	char *params1 = "bar";
@@ -24,7 +23,7 @@ void cos_init(void)
 
 	t1 = tsplit(cos_spd_id(), td_root, params1, strlen(params1)+1, TOR_ALL, evt1);
 	if (t1 < 1) {
-		printc("split failed\n");
+		printc("split failed %d\n", t1);
 		return;
 	}
 	trelease(cos_spd_id(), t1);

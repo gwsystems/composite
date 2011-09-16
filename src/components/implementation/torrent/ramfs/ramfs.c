@@ -5,8 +5,9 @@
  * Public License v2.
  */
 
-#include <torrent.h>
 #include <cos_component.h>
+#include <torrent.h>
+#include <torlib.h>
 
 #include <cbuf.h>
 #include <print.h>
@@ -16,22 +17,12 @@
 #include <cos_map.h>
 #include <fs.h>
 
-COS_MAP_CREATE_STATIC(torrents);
 cos_lock_t l;
 struct fsobj root;
 #define LOCK() if (lock_take(&l)) BUG();
 #define UNLOCK() if (lock_release(&l)) BUG();
 
-#define ERR_HAND(errval, label) do { ret = errval; goto label; } while (0)
 #define MIN_DATA_SZ 256
-
-struct torrent {
-	td_t tid;
-	u32_t offset;
-	tor_flags_t flags;
-	struct fsobj *fso;
-};
-struct torrent null_torrent, root_torrent;
 
 td_t 
 tsplit(spdid_t spdid, td_t td, char *param, 
@@ -42,69 +33,57 @@ tsplit(spdid_t spdid, td_t td, char *param,
 	struct fsobj *fso, *fsc, *parent; /* obj, child, and parent */
 	char *p, *subpath;
 
-	if (td == td_null) return -EINVAL;
+	if (tor_isnull(td)) return -EINVAL;
 	LOCK();
-	t = cos_map_lookup(&torrents, td);
-	if (!t) ERR_HAND(-EINVAL, done);
-	assert(t->tid == td);
-	assert(t->fso);
-	fso = t->fso;
+	t = tor_lookup(td);
+	if (!t) ERR_THROW(-EINVAL, done);
+	fso = t->data;
 
 	p = malloc(len+1);
-	if (!p) ERR_HAND(-ENOMEM, done);
+	if (!p) ERR_THROW(-ENOMEM, done);
 	strncpy(p, param, len);
 	p[len] = '\0';
 
 	fsc = fsobj_path2obj(p, fso, &parent, &subpath);
 	if (!fsc) {
 		assert(parent);
-		if (!(parent->flags & TOR_SPLIT)) ERR_HAND(-EACCES, free1);
+		if (!(parent->flags & TOR_SPLIT)) ERR_THROW(-EACCES, free);
 		fsc = fsobj_alloc(subpath, parent);
-		if (!fsc) ERR_HAND(-EINVAL, free1);
+		if (!fsc) ERR_THROW(-EINVAL, free);
 		fsc->flags = tflags;
 	} else {
 		/* File has less permissions than asked for? */
-		if ((~fsc->flags) & tflags) ERR_HAND(-EACCES, free1);
+		if ((~fsc->flags) & tflags) ERR_THROW(-EACCES, free);
 	}
 
 	fsobj_take(fsc);
-	nt = malloc(sizeof(struct torrent));
-	if (!nt) ERR_HAND(-ENOMEM, free1);
-
-	ret = (td_t)cos_map_add(&torrents, nt);
-	if (ret == -1) goto free2;
-
-	nt->tid    = ret;
-	nt->fso    = fsc;
-	nt->offset = 0;
-	nt->flags  = tflags;
+	nt = tor_alloc(fsc, tflags);
+	if (!nt) ERR_THROW(-ENOMEM, free);
+	ret = nt->td;
 done:
 	UNLOCK();
 	return ret;
-free2:  
-	free(nt);
-free1:  free(p);
+free:  
+	free(p);
 	goto done;
 }
 
 int 
 tmerge(spdid_t spdid, td_t td, td_t td_into, char *param, int len)
 {
-	struct torrent *t, *t_into;
-	int ret = -1;
+	struct torrent *t;
+	int ret = 0;
 
-	if (td == td_null || td == td_root) return -1;
+	if (!tor_is_usrdef(td)) return -1;
 
 	LOCK();
-	t = cos_map_lookup(&torrents, td);
-	if (!t) ERR_HAND(-EINVAL, done);
-	t_into = cos_map_lookup(&torrents, td_into);
-	if (td_into != td_null && !t_into) ERR_HAND(-EINVAL, done);
+	t = tor_lookup(td);
+	if (!t) ERR_THROW(-EINVAL, done);
+	/* currently only allow deletion */
+	if (td_into != td_null) ERR_THROW(-EINVAL, done);
 
-	if (cos_map_del(&torrents, t->tid)) BUG();
-	free(t);
+	tor_free(t);
 
-	ret = 0;
 done:   UNLOCK();
 	return ret;
 }
@@ -114,14 +93,13 @@ trelease(spdid_t spdid, td_t td)
 {
 	struct torrent *t;
 
-	if (td == td_null || td == td_root) return;
+	if (!tor_is_usrdef(td)) return;
 
 	LOCK();
-	t = cos_map_lookup(&torrents, td);
+	t = tor_lookup(td);
 	if (!t) goto done;
-	cos_map_del(&torrents, td);
-	fsobj_release(t->fso);
-	free(t);
+	fsobj_release((struct fsobj *)t->data);
+	tor_free(t);
 done:
 	UNLOCK();
 	return;
@@ -135,17 +113,18 @@ tread(spdid_t spdid, td_t td, int cbid, int sz)
 	struct fsobj *fso;
 	char *buf;
 
-	LOCK();
-	t = cos_map_lookup(&torrents, td);
-	if (!t) goto done;
-	assert(t->tid == td);
-	assert(t->tid <= td_root || t->fso);
+	if (tor_isnull(td)) return -EINVAL;
 
-	if (!(t->flags & TOR_READ)) ERR_HAND(-EACCES, done);
-	fso = t->fso;
+	LOCK();
+	t = tor_lookup(td);
+	if (!t) ERR_THROW(-EINVAL, done);
+	assert(!tor_is_usrdef(td) || t->data);
+	if (!(t->flags & TOR_READ)) ERR_THROW(-EACCES, done);
+
+	fso = t->data;
 	assert(fso->size <= fso->allocated);
 	assert(t->offset <= fso->size);
-	if (!fso->size) ERR_HAND(0, done);
+	if (!fso->size) ERR_THROW(0, done);
 
 	buf = cbuf2buf(cbid, sz);
 	if (!buf) goto done;
@@ -169,19 +148,20 @@ twrite(spdid_t spdid, td_t td, int cbid, int sz)
 	struct fsobj *fso;
 	char *buf;
 
-	LOCK();
-	t = cos_map_lookup(&torrents, td);
-	if (!t) ERR_HAND(-EINVAL, done);
-	assert(t->tid == td);
-	assert(t->fso);
+	if (tor_isnull(td)) return -EINVAL;
 
-	if (!(t->flags & TOR_WRITE)) ERR_HAND(-EACCES, done);
-	fso = t->fso;
+	LOCK();
+	t = tor_lookup(td);
+	if (!t) ERR_THROW(-EINVAL, done);
+	assert(t->data);
+	if (!(t->flags & TOR_WRITE)) ERR_THROW(-EACCES, done);
+
+	fso = t->data;
 	assert(fso->size <= fso->allocated);
 	assert(t->offset <= fso->size);
 
 	buf = cbuf2buf(cbid, sz);
-	if (!buf) ERR_HAND(-EINVAL, done);
+	if (!buf) ERR_THROW(-EINVAL, done);
 
 	left = fso->allocated - t->offset;
 	if (left >= sz) {
@@ -193,7 +173,7 @@ twrite(spdid_t spdid, td_t td, int cbid, int sz)
 
 		new_sz = fso->allocated == 0 ? MIN_DATA_SZ : fso->allocated * 2;
 		new    = malloc(new_sz);
-		if (!new) ERR_HAND(-ENOMEM, done);
+		if (!new) ERR_THROW(-ENOMEM, done);
 		if (fso->data) {
 			memcpy(new, fso->data, fso->size);
 			free(fso->data);
@@ -215,14 +195,11 @@ done:
 int cos_init(void)
 {
 	lock_static_init(&l);
-	cos_map_init_static(&torrents);
+	torlib_init();
+
 	fs_init_root(&root);
-	/* save descriptors for the null and root spots */
-	null_torrent.tid = td_null;
-	if (td_null != cos_map_add(&torrents, &null_torrent)) BUG();
-	root_torrent.tid = td_root;
-	root_torrent.fso = &root;
+	root_torrent.data = &root;
 	root.flags = TOR_READ | TOR_SPLIT;
-	if (td_root != cos_map_add(&torrents, &root_torrent)) BUG();
+
 	return 0;
 }

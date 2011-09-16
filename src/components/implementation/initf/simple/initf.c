@@ -29,5 +29,3 @@ void cos_init(void)
 	info.start = (char*)cos_comp_info.cos_poly[0];
 	info.size = (int)cos_comp_info.cos_poly[1];
 }
-
-void ignore_me(void) { sched_block(cos_spd_id(), 0); }

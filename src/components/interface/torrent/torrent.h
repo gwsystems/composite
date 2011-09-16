@@ -15,8 +15,7 @@
 
 /* torrent descriptor */
 typedef int td_t;
-#define td_root 1
-#define td_null 0
+static const td_t td_null = 0, td_root = 1;
 typedef enum {
 	TOR_WRITE = 0x1,
 	TOR_READ  = 0x2,

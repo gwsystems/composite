@@ -239,6 +239,8 @@ static inline unsigned short int cos_get_thd_id(void)
 	return ud->current_thread;
 }
 
+#define ERR_THROW(errval, label) do { ret = errval; goto label; } while (0)
+
 static inline void *cos_arg_region_base(void)
 {
 	struct shared_user_data *ud = (void *)COS_INFO_REGION_ADDR;
