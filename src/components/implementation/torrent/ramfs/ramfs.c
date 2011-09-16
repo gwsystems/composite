@@ -28,6 +28,7 @@ struct fsobj root;
 struct torrent {
 	td_t tid;
 	u32_t offset;
+	tor_flags_t flags;
 	struct fsobj *fso;
 };
 struct torrent null_torrent, root_torrent;
@@ -38,7 +39,7 @@ tsplit(spdid_t spdid, td_t td, char *param,
 {
 	td_t ret = -1;
 	struct torrent *t, *nt;
-	struct fsobj *fso, *fsc, *parent; /* obj and child */
+	struct fsobj *fso, *fsc, *parent; /* obj, child, and parent */
 	char *p, *subpath;
 
 	if (td == td_null) return -EINVAL;
@@ -57,8 +58,13 @@ tsplit(spdid_t spdid, td_t td, char *param,
 	fsc = fsobj_path2obj(p, fso, &parent, &subpath);
 	if (!fsc) {
 		assert(parent);
+		if (!(parent->flags & TOR_SPLIT)) ERR_HAND(-EACCES, free1);
 		fsc = fsobj_alloc(subpath, parent);
 		if (!fsc) ERR_HAND(-EINVAL, free1);
+		fsc->flags = tflags;
+	} else {
+		/* File has less permissions than asked for? */
+		if ((~fsc->flags) & tflags) ERR_HAND(-EACCES, free1);
 	}
 
 	fsobj_take(fsc);
@@ -71,6 +77,7 @@ tsplit(spdid_t spdid, td_t td, char *param,
 	nt->tid    = ret;
 	nt->fso    = fsc;
 	nt->offset = 0;
+	nt->flags  = tflags;
 done:
 	UNLOCK();
 	return ret;
@@ -133,6 +140,8 @@ tread(spdid_t spdid, td_t td, int cbid, int sz)
 	if (!t) goto done;
 	assert(t->tid == td);
 	assert(t->tid <= td_root || t->fso);
+
+	if (!(t->flags & TOR_READ)) ERR_HAND(-EACCES, done);
 	fso = t->fso;
 	assert(fso->size <= fso->allocated);
 	assert(t->offset <= fso->size);
@@ -165,6 +174,8 @@ twrite(spdid_t spdid, td_t td, int cbid, int sz)
 	if (!t) ERR_HAND(-EINVAL, done);
 	assert(t->tid == td);
 	assert(t->fso);
+
+	if (!(t->flags & TOR_WRITE)) ERR_HAND(-EACCES, done);
 	fso = t->fso;
 	assert(fso->size <= fso->allocated);
 	assert(t->offset <= fso->size);
@@ -211,6 +222,7 @@ int cos_init(void)
 	if (td_null != cos_map_add(&torrents, &null_torrent)) BUG();
 	root_torrent.tid = td_root;
 	root_torrent.fso = &root;
+	root.flags = TOR_READ | TOR_SPLIT;
 	if (td_root != cos_map_add(&torrents, &root_torrent)) BUG();
 	return 0;
 }

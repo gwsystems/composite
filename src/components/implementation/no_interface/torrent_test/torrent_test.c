@@ -22,18 +22,18 @@ void cos_init(void)
 	evt2 = evt_create(cos_spd_id());
 	assert(evt1 > 0 && evt2 > 0);
 
-	t1 = tsplit(cos_spd_id(), td_root, params1, strlen(params1)+1, 0, evt1);
+	t1 = tsplit(cos_spd_id(), td_root, params1, strlen(params1)+1, TOR_ALL, evt1);
 	if (t1 < 1) {
 		printc("split failed\n");
 		return;
 	}
 	trelease(cos_spd_id(), t1);
 
-	t1 = tsplit(cos_spd_id(), td_root, params2, strlen(params2) + 1, 0, evt1);
+	t1 = tsplit(cos_spd_id(), td_root, params2, strlen(params2) + 1, TOR_ALL, evt1);
 	if (t1 < 1) {
 		printc("split2 failed %d\n", t1); return;
 	}
-	t2 = tsplit(cos_spd_id(), t1, params1, strlen(params1) + 1, 0, evt2);
+	t2 = tsplit(cos_spd_id(), t1, params1, strlen(params1) + 1, TOR_ALL, evt2);
 	if (t2 < 1) {
 		printc("split3 failed %d\n", t2); return;
 	}
@@ -45,8 +45,8 @@ void cos_init(void)
 	trelease(cos_spd_id(), t1);
 	trelease(cos_spd_id(), t2);
 
-	t1 = tsplit(cos_spd_id(), td_root, params2, strlen(params2) + 1, 0, evt1);
-	t2 = tsplit(cos_spd_id(), t1, params2, strlen(params2) + 1, 0, evt2);
+	t1 = tsplit(cos_spd_id(), td_root, params2, strlen(params2) + 1, TOR_ALL, evt1);
+	t2 = tsplit(cos_spd_id(), t1, params2, strlen(params2) + 1, TOR_ALL, evt2);
 	if (t1 < 1 || t2 < 1) {
 		printc("later splits failed\n");
 		return;
@@ -65,7 +65,7 @@ void cos_init(void)
 	trelease(cos_spd_id(), t1);
 	trelease(cos_spd_id(), t2);
 
-	t1 = tsplit(cos_spd_id(), td_root, params3, strlen(params3) + 1, 0, evt1);
+	t1 = tsplit(cos_spd_id(), td_root, params3, strlen(params3) + 1, TOR_ALL, evt1);
 	ret1 = tread_pack(cos_spd_id(), t1, buffer, 1023);
 	if (ret1 > 0) buffer[ret1] = '\0';
 	printc("read %d: %s\n", ret1, buffer);
@@ -74,7 +74,7 @@ void cos_init(void)
 	printc("write %d, ret %d\n", strlen(data1)+1, ret1);
 
 	trelease(cos_spd_id(), t1);
-	t1 = tsplit(cos_spd_id(), td_root, params3, strlen(params3) + 1, 0, evt1);
+	t1 = tsplit(cos_spd_id(), td_root, params3, strlen(params3) + 1, TOR_ALL, evt1);
 	ret1 = tread_pack(cos_spd_id(), t1, buffer, 1023);
 	if (ret1 > 0) buffer[ret1] = '\0';
 	printc("read %d: %s\n", ret1, buffer);
