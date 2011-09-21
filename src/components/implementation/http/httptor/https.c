@@ -239,20 +239,11 @@ static int http_get_request(struct http_request *r)
 	int ret;
 	assert(r && r->c);
 
-	arg = cos_argreg_alloc(r->path_len + sizeof(struct cos_array) + 1);
-	assert(arg);
-	memcpy(arg->mem, r->path, r->path_len);
-	arg->sz = r->path_len;
-	arg->mem[arg->sz] = '\0';
-	if (0 > r->content_id ) {
-		r->content_id = content_open(cos_spd_id(), r->c->evt_id, arg);
-		if (r->content_id < 0) {
-			cos_argreg_free(arg);
-			return r->content_id;
-		}
+	if (0 > r->content_id) {
+		r->content_id = tsplit(cos_spd_id(), td_root, r->path, 
+				       r->path_len, TOR_READ, r->c->evt_id);
+		if (r->content_id < 0) return r->content_id;
 	}
-	ret = content_request(cos_spd_id(), r->content_id, arg);
-	cos_argreg_free(arg);
 	return ret;
 }
 
@@ -417,7 +408,7 @@ static void http_free_request(struct http_request *r)
 	if (c->pending_reqs == r) {
 		c->pending_reqs = (r == next) ? NULL : next;
 	}
-	content_close(cos_spd_id(), r->content_id);
+	trelease(cos_spd_id(), r->content_id);
 	conn_refcnt_dec(c);
 	__http_free_request(r);
 }
@@ -636,7 +627,7 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 			local_resp = arr->mem;
 		}
 		
-		/* still more date, but not available now... */
+		/* still more data, but not available now... */
 		if (local_resp_sz == 0) {
 			cos_argreg_free(arr);
 			cos_argreg_free(more);

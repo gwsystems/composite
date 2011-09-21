@@ -20,7 +20,8 @@ typedef enum {
 	TOR_WRITE = 0x1,
 	TOR_READ  = 0x2,
 	TOR_SPLIT = 0x4,
-	TOR_ALL   = TOR_WRITE | TOR_READ | TOR_SPLIT /* 0 is a synonym */
+	TOR_RW    = TOR_WRITE | TOR_READ, 
+	TOR_ALL   = TOR_RW    | TOR_SPLIT /* 0 is a synonym */
 } tor_flags_t;
 
 td_t tsplit(spdid_t spdid, td_t tid, char *param, int len, tor_flags_t tflags, long evtid);
