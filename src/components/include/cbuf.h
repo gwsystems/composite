@@ -106,6 +106,8 @@ extern cos_vect_t slab_descs;
 #define SLAB_MAX_OBJS (PAGE_SIZE/CBUF_MIN_SLAB)
 #define CBUF_ID_ORDER 26 //(32-CBUF_MIN_SLAB_ORDER)
 
+#define CBUF_OBJ_SZ_SHIFT 7
+
 typedef u32_t cbuf_t; /* Requirement: gcc will return this in a register */
 typedef union {
 	cbuf_t v;
@@ -185,7 +187,7 @@ cbuf2buf(cbuf_t cb, int len)
 	/* len = nlpow2(len); */
 	len = nlpow2(len - 1);
 	cbuf_unpack(cb, &id, &idx);
-	/* printc("buf2buf:: id %x, idx %x\n", id, idx); */
+	printc("buf2buf:: id %x, idx %x\n", id, idx);
 
 again:				/* avoid convoluted conditions */
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, (id-1)*2);
@@ -193,12 +195,13 @@ again:				/* avoid convoluted conditions */
 		/* slow path */
 		// If there is no 2nd level vector exists, create here!!
 		if (cbuf_cache_miss(id, idx, len)) return NULL;
-		printc("go to again!!!\n");
 		goto again;
 	}
+
 	if (likely(!(cm.c.flags & CBUFM_LARGE))) {
-		obj_sz = cm.c.obj_sz<<6;
+		obj_sz = cm.c.obj_sz << CBUF_OBJ_SZ_SHIFT;
 		off    = obj_sz * idx; /* multiplication...ouch */
+		printc("len %d obj_sz %d off %d \n",len, obj_sz ,off);
 		if (unlikely(len > obj_sz || off + len > PAGE_SIZE )) return NULL;
 		/* printc("<<<Not CBUF_LARGE>>> idx: %d off: %d\n", idx, off); */
 	} else {
@@ -207,6 +210,7 @@ again:				/* avoid convoluted conditions */
 		off    = 0;
 		if (unlikely(len > obj_sz)) return NULL;
 	}
+	printc("%p\n",((char*)(cm.c.ptr << PAGE_ORDER)) + off);
 	return ((char*)(cm.c.ptr << PAGE_ORDER)) + off;
 }
 
@@ -251,8 +255,10 @@ slab_rem_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 static inline void
 slab_add_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 {
+	/* printc("add_feelist\n"); */
 	assert(s && fl);
-	assert(EMPTY_LIST(s, next, prev) && s != fl->list);
+	assert(EMPTY_LIST(s, next, prev));
+	assert(s != fl->list);
 	if (fl->list) {
 		assert(fl->npages > 0);
 		ADD_END_LIST(fl->list, s, next, prev);
@@ -263,6 +269,15 @@ slab_add_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 	/* printc("add back to free list!!\n"); */
 }
 
+static void
+slab_deallocate(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
+{
+	slab_rem_freelist(s, fl);
+	cbuf_vect_del(&slab_descs, (u32_t)s->mem >> PAGE_ORDER);
+	free(s);
+
+	return;
+}
 
 /* static inline void */
 /* slab_freelist_lookup(int cbid, struct cbuf_slab_freelist *fl) */
@@ -311,7 +326,7 @@ __cbuf_free(void *buf)
 	u32_t off = b - (b & PAGE_MASK);
 	int idx;
 	assert(s);
-	printc("***** thd %d spd :: %ld __cbuf_free:******\n", cos_get_thd_id(),cos_spd_id());
+	/* printc("***** thd %d spd :: %ld __cbuf_free:******\n", cos_get_thd_id(),cos_spd_id()); */
 	/* Argh, division!  Maybe transform into loop? Maybe assume pow2? */
 	idx = off/s->obj_sz;
 	assert(!bitmap_check(&s->bitmap[0], idx));
@@ -346,23 +361,53 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 	/* printc("<<<__cbuf_alloc size %d>>>\n",size); */
 again:					/* avoid convoluted conditions */
 	if (unlikely(!slab_freelist->list)) {
-		printc("..not on free list..\n");
+		/* printc("..not on free list..\n"); */
 		if (unlikely(!cbuf_slab_alloc(size, slab_freelist))) return NULL;
 		if (unlikely(!slab_freelist->list)) return NULL;
 	}
-
 	s = slab_freelist->list;
-	/* printc("Kevin:::s->cbid is  %d\n",s->cbid); */
-
-	/* check if the cbuf has been revoked by cbuf mgr */
-	if (unlikely(!cbuf_vect_lookup(&meta_cbuf, (s->cbid-1)*2))) {
-		slab_rem_freelist(s, slab_freelist);
-		free(s);
-		printc("goto again\n");
-		goto again;
+	/* 
+	 * This is complicated.
+	 *
+	 * See cbuf_slab_free for the rest of the story.  
+	 *
+	 * Assumptions:
+	 * 1) The cbuf manager shared the cbuf meta (in the meta_cbuf
+	 * vector) information with this component.  It can remove
+	 * asynchronously a cbuf from this structure at any time IFF
+	 * that cbuf is marked as ~CBUF_IN_USE.  
+	 *
+	 * 2) The slab descriptors, and the slab_desc vector are _not_
+	 * shared with the cbuf manager for complexity reasons.
+	 *
+	 * Question: How do we reconcile the fact that the cbuf mgr
+	 * might remove at any point a cbuf from this component, but
+	 * we still have a slab descriptor lying around for it?  How
+	 * will we know that the cbuf has been removed, and not to use
+	 * the slab data-structure anymore?
+	 *
+	 * Answer: The slabs are deallocated lazily.  When a slab is
+	 * pulled off of the freelist (see the following code), we
+	 * check to make sure that the cbuf meta information matches
+	 * up with the slab's information (i.e. the cbuf id and the
+	 * address in memory of the cbuf.  If they do not, then we
+	 * know that the slab is outdated and that the cbuf backing it
+	 * has been taken from this component.  In that case (shown in
+	 * the following code), we delete the slab descriptor.  Again,
+	 * see cbuf_slab_free to see the surprising fact that we do
+	 * _not_ deallocate the slab descriptor there to reinforce
+	 * that point.
+	 */
+	if (unlikely(!(cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, (s->cbid-1)*2)))) {
+		if (cm.c.ptr != ((u32_t)s->mem >> PAGE_ORDER)) {
+			slab_deallocate(s, slab_freelist);
+			/* printc("goto again\n"); */
+			goto again;
+		}
 	}
+
 	assert(s->nfree);
-	/* printc("nfree is now : %d\n", s->nfree); */
+
 	if (s->obj_sz <= PAGE_SIZE) {
 		bm  = &s->bitmap[0];
 		idx = bitmap_one(bm, SLAB_BITMAP_SIZE);
@@ -370,14 +415,20 @@ again:					/* avoid convoluted conditions */
 		bitmap_unset(bm, idx);
 	}
 	if (s->nfree == s->max_objs) {
-		/* set IN_USE bit */
+		/* set IN_USE bit and thread info */
 		cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, (s->cbid-1)*2);
 		cm.c.flags |= CBUFM_IN_USE;
 		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, (s->cbid-1)*2);
+		cm.c_0.th_id = cos_get_thd_id();
+		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.th_id, (s->cbid-1)*2+1);
 	}
 
-	/* for(i=0;i<20;i++) */
-	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
+	/* int thd,i; */
+	/* thd = cos_get_thd_id(); */
+	/* if(thd == 24){ */
+	/* 	for(i=0;i<20;i++) */
+	/* 		printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
+	/* } */
 
 	s->nfree--;
 

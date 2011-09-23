@@ -311,7 +311,7 @@ get_cos_info_page(spdid_t spdid)
 	for (i = 0; i < MAX_NUM_SPDS; i++) {
 		s = cinfo_get_spdid(i);
 		if(!s) { 
-			printc("Unable to map compoents cinfo page!\n");
+			printc("Unable to map components cinfo page!\n");
 			BUG();
 		}
             

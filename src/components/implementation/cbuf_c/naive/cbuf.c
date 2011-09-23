@@ -15,6 +15,8 @@
 #include <cos_map.h>
 #include <cos_list.h>
 
+#include <cinfo.h>
+
 #include <mem_mgr_large.h>
 #include <valloc.h>
 
@@ -27,6 +29,74 @@
 struct cos_cbuf_item all_cbuf_list[MAX_NUM_CBUFS];
 
 COS_MAP_CREATE_STATIC(cb_ids);
+
+#define CBUF_OBJ_SZ_SHIFT 7
+/* tmem_item *free_mem_in_local_cache(struct spd_tmem_info *sti) */
+/* { */
+/* 	spdid_t s_spdid; */
+/* 	struct cos_cbuf_item *cci = NULL, *list; */
+/* 	struct spd_cbvect_range *cbr; */
+/* 	assert(sti); */
+/* 	s_spdid = sti->spdid; */
+
+/* 	printc("\n Check if in local cache!!!"); */
+/* 	//list = get_spd_info(s_spdid).tmem_list; */
+/* 	list = &spd_tmem_info_list[s_spdid].tmem_list; */
+/* 	/\* Go through the allocated cbufs, and see if any are not in use... *\/ */
+/* 	for (cci = FIRST_LIST(list, next, prev) ;  */
+/* 	     cci != list;  */
+/* 	     cci = FIRST_LIST(cci, next, prev)) { */
+/* 		for (cbr = FIRST_LIST(&sti->ci, next, prev) ;  */
+/* 		     cbr != &sti->ci && cbr->meta != 0;  */
+/* 		     cbr = FIRST_LIST(cbr, next, prev)) { */
+/* 			if (cci->desc.cbid >= cbr->start_id && cci->desc.cbid <= cbr->end_id) { */
+/* 				union cbuf_meta cm; */
+/* 				cm.c_0.v = cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.v; */
+/* 				if (!CBUF_IN_USE(cm.c.flags)) goto done; */
+/* 			} */
+/* 		} */
+/* 	} */
+
+/* 	if (cci == list) goto err; */
+/* done: */
+/* 	printc("\n found one!!\n\n"); */
+/* 	return cci; */
+/* err: */
+/* 	printc("\n can not found one!!\n"); */
+/* 	cci = NULL;	 */
+/* 	return cci; */
+/* } */
+
+tmem_item *free_mem_in_local_cache(struct spd_tmem_info *sti)
+{
+	spdid_t s_spdid;
+	struct cos_cbuf_item *cci = NULL, *list;
+
+	assert(sti);
+	s_spdid = sti->spdid;
+
+	/* printc("\n Check if in local cache!!!"); */
+	//list = get_spd_info(s_spdid).tmem_list;
+	list = &spd_tmem_info_list[s_spdid].tmem_list;
+	/* Go through the allocated cbufs, and see if any are not in use... */
+	for (cci = FIRST_LIST(list, next, prev) ; 
+	     cci != list; 
+	     cci = FIRST_LIST(cci, next, prev)) {
+		union cbuf_meta cm;
+		cm.c_0.v = cci->entry->c_0.v;
+		if (!CBUF_IN_USE(cm.c.flags)) goto done;
+	}
+
+	if (cci == list) goto err;
+done:
+	/* printc("\n hehe found one!!\n\n"); */
+	return cci;
+err:
+	/* printc("\n can not found one!!\n"); */
+	cci = NULL;	
+	return cci;
+}
+
 
 //  all cbufs that created for this component
 void mgr_map_client_mem(struct cos_cbuf_item *cci, struct spd_tmem_info *sti)
@@ -52,8 +122,6 @@ void mgr_map_client_mem(struct cos_cbuf_item *cci, struct spd_tmem_info *sti)
 	/* printc("<<<MAPPED>>> mgr addr %p client addr %p\n ",(vaddr_t)l_addr, (vaddr_t)d_addr); */
 	
 	cci->desc.owner.addr = (vaddr_t)d_addr;
-
-	cci->page = (vaddr_t)l_addr;  //keep local address for later revoke
 	cci->parent_spdid = d_spdid;
 
 	// add the cbuf to shared vect here? now we do it in the client.
@@ -70,45 +138,10 @@ err:
 
 int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d);
 
-tmem_item * mgr_get_client_mem(struct spd_tmem_info *sti)
+static void
+mgr_remove_client_mem(struct spd_tmem_info *sti, struct cos_cbuf_item *cci)
 {
-	spdid_t s_spdid;
-	struct cb_desc *d;
-	struct cos_cbuf_item *cci = NULL, *list;
-	struct spd_cbvect_range *cbr;
-	assert(sti);
-	s_spdid = sti->spdid;
-
-	//list = get_spd_info(s_spdid).tmem_list;
-	list = &spd_tmem_info_list[s_spdid].tmem_list;
-	/* Go through the allocated cbufs, and see if any are not in use... */
-	for (cci = FIRST_LIST(list, next, prev) ; 
-	     cci != list ; 
-	     cci = FIRST_LIST(cci, next, prev)) {
-		for (cbr = FIRST_LIST(&sti->ci, next, prev) ; 
-		     cbr != &sti->ci ; 
-		     cbr = FIRST_LIST(cbr, next, prev)) {
-			if (cci->desc.cbid >= cbr->start_id && cci->desc.cbid <= cbr->end_id) {
-				union cbuf_meta cm;
-
-				//printc("::spd %d\n",sti->spdid);
-				//printc("cbid is %d\n",cci->desc.cbid);
-				cm.c_0.v = cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.v;
-				/* cm.c_0.v = cbr->meta[(cci->desc.cbid & COS_VECT_MASK)].c_0.v; */
-				//printc("cm.c_0.v is %p\n",cm.c_0.v);
-				//printc("cm.c.flags is %p\n",cm.c.flags);
-				/* printc("CBUF_IN_USE is %p\n",CBUF_IN_USE(cm.c.flags)); */
-				if (!CBUF_IN_USE(cm.c.flags)) goto out;
-			}
-		}
-	}
-out:
-	if (cci == list) goto err;
-	/* ...and remove it if it is still valid and not in use by owner */
-	d = cos_map_lookup(&cb_ids, cci->desc.cbid);
-	if(!d) goto err;
-
-	if (__cbuf_c_delete(sti, cci->desc.cbid,d)) goto err;
+	__cbuf_c_delete(sti, cci->desc.cbid, &cci->desc);
 	cos_map_del(&cb_ids, cci->desc.cbid);
 
 	cci->desc.cbid = 0;
@@ -124,9 +157,38 @@ out:
 	sti->num_allocated--;
 	if (sti->num_allocated == 0) empty_comps++;
 	if (sti->num_allocated >= sti->num_desired) over_quota_total--;
-	assert(sti->num_allocated == tmem_num_alloc_stks(s_spdid));
+	//assert(sti->num_allocated == tmem_num_alloc_stks(s_spdid));
+}
 
-	printc("spd: %d Leaving get cli mem:: num_allocated %d  num_desired %d\n",s_spdid, sti->num_allocated, sti->num_desired);
+tmem_item *mgr_get_client_mem(struct spd_tmem_info *sti)
+{
+	spdid_t s_spdid;
+	/* struct cb_desc *d; */
+	struct cos_cbuf_item *cci = NULL, *list;
+	assert(sti);
+	s_spdid = sti->spdid;
+
+	//list = get_spd_info(s_spdid).tmem_list;
+	list = &spd_tmem_info_list[s_spdid].tmem_list;
+
+	for (cci = FIRST_LIST(list, next, prev) ; 
+	     cci != list ; 
+	     cci = FIRST_LIST(cci, next, prev)) {
+		union cbuf_meta cm;
+		cm.c_0.v = cci->entry->c_0.v;
+		if (!CBUF_IN_USE(cm.c.flags)) goto out;
+	}
+
+out:
+	if (cci == list) goto err;
+	/* ...and remove it if it is still valid and not in use by owner */
+	//d = cos_map_lookup(&cb_ids, cci->desc.cbid);
+	//if(!d) goto err;
+	assert(&cci->desc == cos_map_lookup(&cb_ids, cci->desc.cbid));
+
+	mgr_remove_client_mem(sti, cci);
+
+	printc("Kevin:spd: %d Leaving get cli mem:: num_allocated %d  num_desired %d\n",s_spdid, sti->num_allocated, sti->num_desired);
 
 done:
 	return cci;
@@ -135,102 +197,279 @@ err:
 	goto done;
 }
 
-void spd_mark_relinquish(struct spd_tmem_info *sti)   // called in mem_grant
-{
-	struct cos_cbuf_item *cci;
-	union cbuf_meta cm;
-	struct spd_cbvect_range *cbr;
 
-	printc("thd %d In mark relinquish!\n", cos_get_thd_id());
-	/* for each cbuf for a specific spd... */
-	for(cci = FIRST_LIST(&sti->tmem_list, next, prev);
-	    cci != &sti->tmem_list;
-	    cci = FIRST_LIST(cci, next, prev)){
-		/* ...for each vector range in the second level cbuf_vects... */
-		for (cbr = FIRST_LIST(&sti->ci, next, prev) ; 
-		     cbr != &sti->ci ; 
-		     cbr = FIRST_LIST(cbr, next, prev)) {
-			/* ...find the correct aliased vector page */
-			if (cci->desc.cbid >= cbr->start_id && cci->desc.cbid <= cbr->end_id) {
-				/* printc("cbid %d spd %d  sti %p cbr->meta %p\n",cci->desc.cbid,sti->spdid,sti, cbr->meta); */
-				cm.c_0.v = cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.v;
-				cm.c.flags |= CBUFM_RELINQUISH;
-				cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.v = cm.c_0.v;
-				break;
-			}
-		}
-	}
+
+/* tmem_item *mgr_get_client_mem(struct spd_tmem_info *sti) */
+/* { */
+/* 	spdid_t s_spdid; */
+/* 	/\* struct cb_desc *d; *\/ */
+/* 	struct cos_cbuf_item *cci = NULL, *list; */
+/* 	struct spd_cbvect_range *cbr; */
+/* 	assert(sti); */
+/* 	s_spdid = sti->spdid; */
+
+/* 	//list = get_spd_info(s_spdid).tmem_list; */
+/* 	list = &spd_tmem_info_list[s_spdid].tmem_list; */
+
+/* 	for (cci = FIRST_LIST(list, next, prev) ;  */
+/* 	     cci != list ;  */
+/* 	     cci = FIRST_LIST(cci, next, prev)) { */
+/* 		for (cbr = FIRST_LIST(&sti->ci, next, prev) ;  */
+/* 		     cbr != &sti->ci ;  */
+/* 		     cbr = FIRST_LIST(cbr, next, prev)) { */
+/* 			if (cci->desc.cbid >= cbr->start_id && cci->desc.cbid <= cbr->end_id) { */
+/* 				union cbuf_meta cm; */
+
+/* 				//printc("::spd %d\n",sti->spdid); */
+/* 				//printc("cbid is %d\n",cci->desc.cbid); */
+/* 				cm.c_0.v = cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.v; */
+/* 				/\* cm.c_0.v = cbr->meta[(cci->desc.cbid & COS_VECT_MASK)].c_0.v; *\/ */
+/* 				//printc("cm.c_0.v is %p\n",cm.c_0.v); */
+/* 				//printc("cm.c.flags is %p\n",cm.c.flags); */
+/* 				/\* printc("CBUF_IN_USE is %p\n",CBUF_IN_USE(cm.c.flags)); *\/ */
+/* 				if (!CBUF_IN_USE(cm.c.flags)) goto out; */
+/* 			} */
+/* 		} */
+/* 	} */
+/* out: */
+/* 	if (cci == list) goto err; */
+/* 	/\* ...and remove it if it is still valid and not in use by owner *\/ */
+/* 	//d = cos_map_lookup(&cb_ids, cci->desc.cbid); */
+/* 	//if(!d) goto err; */
+/* 	assert(&cci->desc == cos_map_lookup(&cb_ids, cci->desc.cbid)); */
+
+/* 	mgr_remove_client_mem(sti, cci); */
+
+/* 	printc("spd: %d Leaving get cli mem:: num_allocated %d  num_desired %d\n",s_spdid, sti->num_allocated, sti->num_desired); */
+
+/* done: */
+/* 	return cci; */
+/* err:  */
+/* 	cci = NULL; */
+/* 	goto done; */
+/* } */
+
+/* static inline struct cos_component_information * */
+/* get_cos_info_page(spdid_t spdid) */
+/* { */
+/* 	spdid_t s; */
+/* 	int i; */
+/* 	int found = 0; */
+/* 	void *hp; */
+
+/* 	assert(spdid < MAX_NUM_SPDS); */
+
+/* 	for (i = 0; i < MAX_NUM_SPDS; i++) { */
+/* 		s = cinfo_get_spdid(i); */
+/* 		if(!s) { */
+/* 			printc("Unable to map components cinfo page!\n"); */
+/* 			BUG(); */
+/* 		} */
+            
+/* 		if (s == spdid) { */
+/* 			found = 1; */
+/* 			break; */
+/* 		} */
+/* 	} */
+
+/* 	if(!found){ */
+/* 		DOUT("Could not find cinfo for spdid: %d\n", spdid); */
+/* 		BUG(); */
+/* 	} */
+    
+/* 	hp = valloc_alloc(cos_spd_id(), cos_spd_id(), 1); */
+/* 	if(cinfo_map(cos_spd_id(), (vaddr_t)hp, s)){ */
+/* 		DOUT("Could not map cinfo page for %d\n", spdid); */
+/* 		BUG(); */
+/* 	} */
+
+/* 	return (struct cos_component_information *)hp; */
+/* } */
+
+void spd_mark_relinquish_all(struct spd_tmem_info *sti)
+{
+	struct cos_component_information *spd_c_info;
+	
+	int spd_id;
+	spd_id = cos_spd_id();
+
+	spd_c_info = sti->spd_cinfo_page;
+
+	assert(spd_c_info);
+	/* printc("Now, mark all linquish no assert!!!\n"); */
+	spd_c_info->cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] = 1;
+
+	//valloc_free(spd_id, spd_id, (void *)spd_c_info, 1);
+	
+	sti->relinquish_mark = 1;
+	
+	return;
+
 }
 
-void spd_unmark_relinquish(struct spd_tmem_info *sti)
+/* void spd_mark_relinquish(struct spd_tmem_info *sti)   // called in mem_grant */
+/* { */
+/* 	struct cos_cbuf_item *cci; */
+/* 	union cbuf_meta cm; */
+/* 	struct spd_cbvect_range *cbr; */
+
+/* 	/\* printc("thd %d In mark relinquish!\n", cos_get_thd_id()); *\/ */
+/* 	/\* for each cbuf for a specific spd... *\/ */
+/* 	for(cci = FIRST_LIST(&sti->tmem_list, next, prev); */
+/* 	    cci != &sti->tmem_list; */
+/* 	    cci = FIRST_LIST(cci, next, prev)){ */
+/* 		/\* ...for each vector range in the second level cbuf_vects... *\/ */
+/* 		for (cbr = FIRST_LIST(&sti->ci, next, prev) ;  */
+/* 		     cbr != &sti->ci ;  */
+/* 		     cbr = FIRST_LIST(cbr, next, prev)) { */
+/* 			/\* ...find the correct aliased vector page *\/ */
+/* 			if (cci->desc.cbid >= cbr->start_id && cci->desc.cbid <= cbr->end_id) { */
+/* 				/\* printc("cbid %d spd %d  sti %p cbr->meta %p\n",cci->desc.cbid,sti->spdid,sti, cbr->meta); *\/ */
+/* 				cm.c_0.v = cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.v; */
+/* 				cm.c.flags |= CBUFM_RELINQUISH; */
+/* 				cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.v = cm.c_0.v; */
+/* 				break; */
+/* 			} */
+/* 		} */
+/* 	} */
+/* } */
+
+
+void spd_unmark_relinquish_all(struct spd_tmem_info *sti)
 {
-	struct cos_cbuf_item *cci;
-	union cbuf_meta cm;
-	struct spd_cbvect_range *cbr;
+	struct cos_component_information *spd_c_info;
 
-	printc("thd %d In unmark relinquish!\n", cos_get_thd_id());
+	int spd_id;
+	spd_id = cos_spd_id();
+	
+	spd_c_info = sti->spd_cinfo_page;
+	assert(spd_c_info);
 
-	for(cci = FIRST_LIST(&sti->tmem_list, next, prev);
-	    cci != &sti->tmem_list;
-	    cci = FIRST_LIST(cci, next, prev)){
-		for (cbr = FIRST_LIST(&sti->ci, next, prev) ; 
-		     cbr != &sti->ci ; 
-		     cbr = FIRST_LIST(cbr, next, prev)) {
-			if (cci->desc.cbid >= cbr->start_id && cci->desc.cbid <= cbr->end_id) {
-				cm.c_0.v = cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.v;
-				cm.c.flags &= ~CBUFM_RELINQUISH;
-				cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.v = cm.c_0.v;
-				break;
-			}
-		}
-	}
+	spd_c_info->cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] = 0;
+
+	//valloc_free(spd_id, spd_id, (void *)spd_c_info, 1);
+
+	sti->relinquish_mark = 0;
+	
+	return;
 }
+
+/* void spd_unmark_relinquish(struct spd_tmem_info *sti) */
+/* { */
+/* 	struct cos_cbuf_item *cci; */
+/* 	union cbuf_meta cm; */
+/* 	struct spd_cbvect_range *cbr; */
+
+/* 	/\* printc("thd %d In unmark relinquish!\n", cos_get_thd_id()); *\/ */
+
+/* 	for(cci = FIRST_LIST(&sti->tmem_list, next, prev); */
+/* 	    cci != &sti->tmem_list; */
+/* 	    cci = FIRST_LIST(cci, next, prev)){ */
+/* 		for (cbr = FIRST_LIST(&sti->ci, next, prev) ;  */
+/* 		     cbr != &sti->ci ;  */
+/* 		     cbr = FIRST_LIST(cbr, next, prev)) { */
+/* 			if (cci->desc.cbid >= cbr->start_id && cci->desc.cbid <= cbr->end_id) { */
+/* 				cm.c_0.v = cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.v; */
+/* 				cm.c.flags &= ~CBUFM_RELINQUISH; */
+/* 				cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.v = cm.c_0.v; */
+/* 				break; */
+/* 			} */
+/* 		} */
+/* 	} */
+/* } */
+
+
 
 u32_t 
-resolve_dependency(struct spd_tmem_info *sti, int skip_stk)
+resolve_dependency(struct spd_tmem_info *sti, int skip_cbuf)
 {
 	struct cos_cbuf_item *cci;
 	/* union cbuf_meta cm; */
-	struct spd_cbvect_range *cbr;
+
 	u32_t ret = 0;
 
-	/* cbr = &sti->ci; */
+	printc("skip_stk is %d\n",skip_cbuf);
+
 	for(cci = FIRST_LIST(&sti->tmem_list, next, prev);
-	    cci != &sti->tmem_list && skip_stk > 0; 
-	    cci = FIRST_LIST(cci, next, prev), skip_stk--) ;
+	    cci != &sti->tmem_list && skip_cbuf > 0; 
+	    cci = FIRST_LIST(cci, next, prev), skip_cbuf--) ;
 
 	if (cci == &sti->tmem_list) goto done;
 
-	for (cbr = FIRST_LIST(&sti->ci, next, prev) ; 
-	     cbr != &sti->ci ; 
-	     cbr = FIRST_LIST(cbr, next, prev)) {
-		if (cci->desc.cbid >= cbr->start_id && cci->desc.cbid <= cbr->end_id) {
-			union cbuf_meta cm;
-			
-			cm.c_0.v = cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.v;
-			/* printc("falgs is %p \n", cm.c.flags); */
-			if (!CBUF_IN_USE(cm.c.flags)) {
-				printc("thd id set for PIP, and cbuf not in use!\n");
-				break;
-			}
-			ret = (u32_t)cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.th_id;
-			/* printc("cm.c_0.v is %p \n", cm.c_0.v); */
-			/* printc("ret :: %d current thd : %d \n", ret, cos_get_thd_id()); */
-			if (ret == cos_get_thd_id()) 
-				goto none;
-			else 
-				break;
-		}
+	union cbuf_meta cm;
+	cm.c_0.v = cci->entry->c_0.v;			
+
+	assert(CBUF_IN_USE(cm.c.flags));
+	/* if (!CBUF_IN_USE(cm.c.flags)) { */
+	/* 	printc("thd id set for PIP, and cbuf not in use!\n"); */
+	/* 	goto none; */
+	/* } */
+	
+	ret = (u32_t)cci->entry->c_0.th_id;
+	/* printc("cm.c_0.v is %p \n", cm.c_0.v); */
+	// Jiguo: A thread could ask for multiple cbuf items, so it 
+	// could find to be dependent on itself
+	printc("ret :: %d current thd : %d \n", ret, cos_get_thd_id());
+	if (ret == cos_get_thd_id()){
+		printc("Try to depend on itself since > 1 cbufs by it");
+		goto none;
 	}
+
 	printc("foo\n");		
 
-	/* return (u32_t)((cbr->meta)[(conv_cbid & COS_VECT_MASK)].c_0.th_id); */
 done:
 	return ret;
 none:
 	ret = 0;
 	goto done;
 }
+
+/* u32_t  */
+/* resolve_dependency(struct spd_tmem_info *sti, int skip_cbuf) */
+/* { */
+/* 	struct cos_cbuf_item *cci; */
+/* 	/\* union cbuf_meta cm; *\/ */
+/* 	struct spd_cbvect_range *cbr; */
+/* 	u32_t ret = 0; */
+
+/* 	printc("skip_stk is %d\n",skip_cbuf); */
+/* 	/\* cbr = &sti->ci; *\/ */
+/* 	for(cci = FIRST_LIST(&sti->tmem_list, next, prev); */
+/* 	    cci != &sti->tmem_list && skip_cbuf > 0;  */
+/* 	    cci = FIRST_LIST(cci, next, prev), skip_cbuf--) ; */
+
+/* 	if (cci == &sti->tmem_list) goto done; */
+
+/* 	for (cbr = FIRST_LIST(&sti->ci, next, prev) ;  */
+/* 	     cbr != &sti->ci ;  */
+/* 	     cbr = FIRST_LIST(cbr, next, prev)) { */
+/* 		if (cci->desc.cbid >= cbr->start_id && cci->desc.cbid <= cbr->end_id) { */
+/* 			union cbuf_meta cm; */
+			
+/* 			cm.c_0.v = cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.v; */
+/* 			/\* printc("falgs is %p \n", cm.c.flags); *\/ */
+/* 			if (!CBUF_IN_USE(cm.c.flags)) { */
+/* 				printc("thd id set for PIP, and cbuf not in use!\n"); */
+/* 				break; */
+/* 			} */
+/* 			ret = (u32_t)cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.th_id; */
+/* 			/\* printc("cm.c_0.v is %p \n", cm.c_0.v); *\/ */
+/* 			printc("ret :: %d current thd : %d \n", ret, cos_get_thd_id()); */
+/* 			if (ret == cos_get_thd_id()) */
+/* 				goto none; */
+/* 			else  */
+/* 				break; */
+/* 		} */
+/* 	} */
+/* 	printc("foo\n");		 */
+
+/* 	/\* return (u32_t)((cbr->meta)[(conv_cbid & COS_VECT_MASK)].c_0.th_id); *\/ */
+/* done: */
+/* 	return ret; */
+/* none: */
+/* 	ret = 0; */
+/* 	goto done; */
+/* } */
 
 static inline int
 __spd_cbvect_add_range(struct spd_tmem_info *sti, long cbuf_id, vaddr_t page)
@@ -265,6 +504,24 @@ __spd_cbvect_lookup_range(struct spd_tmem_info *sti, long cbuf_id)
 	return NULL;
 }
 
+/*  // get vector entry */
+
+/* static inline union cbuf_meta * */
+/* __spd_cbvect_lookup_entry(struct spd_tmem_info *sti, long cbuf_id) */
+/* { */
+/* 	struct spd_cbvect_range *cbr; */
+
+/* 	for (cbr = FIRST_LIST(&sti->ci, next, prev) ;  */
+/* 	     cbr != &sti->ci ;  */
+/* 	     cbr = FIRST_LIST(cbr, next, prev)) { */
+/* 		if (cbuf_id >= cbr->start_id && cbuf_id <= cbr->end_id) { */
+/* 			return &cbr->meta[(cbuf_id - cbr->start_id - 1)]; */
+/* 		} */
+/* 	} */
+/* 	return NULL; */
+/* } */
+
+
 static inline void
 __spd_cbvect_clean_val(struct spd_tmem_info *sti, long cbuf_id)
 {
@@ -288,7 +545,7 @@ cbuf_c_register(spdid_t spdid, long cbid)
 	struct spd_tmem_info *sti;
 	vaddr_t p, mgr_addr;
 
-	printc("\nREGISTERED!!!\n");
+	/* printc("\nREGISTERED!!!\n"); */
 	sti = get_spd_info(spdid);
 	
 	mgr_addr = (vaddr_t)alloc_page();
@@ -317,7 +574,7 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 
 	union cbuf_meta *mc = NULL;
 
-	printc("cbuf_c_create is called here!!\n");
+	/* printc("thd: %d spd: %ld cbuf_c_create is called here!!\n", cos_get_thd_id(), spdid); */
 	/* printc("passed cbid is %ld\n",cbid); */
 	TAKE();
 
@@ -334,7 +591,7 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 		if (unlikely(v != (void *)spdid)){
 			goto err;
 		}
-	}
+ 	}
 	else {
 		cbid = cos_map_add(&cb_ids, (void *)spdid);
 		if ((mc = __spd_cbvect_lookup_range(sti, cbid)) == NULL){
@@ -344,7 +601,6 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	}
 
 	/* printc("... cbid is %ld\n",cbid); */
-
 	cos_map_del(&cb_ids, cbid);
 
 	/* call trasient memory grant! */
@@ -360,7 +616,12 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	d->owner.cbd  = d;
 	INIT_LIST(&d->owner, next, prev);
 
-	if(!cbuf_item->desc.cbid){
+	/* Jiguo:
+	  This can be two different cases:
+	  1. A local cached one is returned with a cbid
+	  2. A cbuf item is obtained from the global free list without cbid
+	 */
+	if(d->cbid == 0){
 		cbid = cos_map_add(&cb_ids, d);   // use new cbuf
 	}
 	else{
@@ -371,22 +632,14 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 
 	mc = __spd_cbvect_lookup_range(sti, cbid);
 	assert(mc);
+	cbuf_item->entry = mc;
 
-	/* printc("get mc here from mgr %p\n",mc); */
 	//FIXME: RACE here!
-	// add cbuf_meta.c_0.v
 	mc->c.ptr = d->owner.addr >> PAGE_ORDER;
-	mc->c.obj_sz = size >> 6;
-	
-	/* mc = __spd_cbvect_lookup_range(sti, cbid); */
-	/* printc("mc->c_0.v is %p\n", mc->c_0.v); */
-	/* printc("ptr is  %p\n", mc->c.ptr); */
-	/* printc("size is  %p\n", mc->c.obj_sz); */
-	/* printc("size is  %d\n", mc->c.obj_sz << 6); */
-
-	// add thd_id
+	mc->c.obj_sz = size >> CBUF_OBJ_SZ_SHIFT;
 	mc->c_0.th_id = cos_get_thd_id();
-	/* printc("\nthread id is added: %ld\n",mc->c_0.th_id); */
+
+	/* printc("Create: size %d, c.obj_sz %d\n", size, mc->c.obj_sz); */
 
 done:
 	RELEASE();
@@ -401,14 +654,14 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 {
 	struct cb_mapping *m;
 	struct spd_tmem_info *map_sti;
-
-	int ret = -1;
 	/* printc("cbid is %d\n",cbid); */
 
 	mman_revoke_page(cos_spd_id(), (vaddr_t)d->addr, 0);  // remove all mapped children
 
 	m = FIRST_LIST(&d->owner, next, prev);
 	while (m != &d->owner) {
+		struct cb_mapping *n;
+
 		/* remove from the vector in all mapped spds as well! */
 		map_sti = get_spd_info(m->spd);
 		/* printc("Clean val in spd %d\n", map_sti->spdid); */
@@ -416,64 +669,62 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 		__spd_cbvect_clean_val(map_sti, cbid);
 
 		valloc_free(cos_spd_id(), m->spd, (void *)(m->addr), 1);
-		struct cb_mapping *n = FIRST_LIST(m, next, prev);
+		n = FIRST_LIST(m, next, prev);
 		REM_LIST(m, next, prev);
 		free(m);
 		m = n;
 	}
 	__spd_cbvect_clean_val(sti, cbid);
-	//valloc_free(cos_spd_id(), sti->spdid, (void *)(d->owner.addr), 1);
-	ret = 0;
-	/* printc("clean val and ready to return \n"); */
+	valloc_free(cos_spd_id(), sti->spdid, (void *)(d->owner.addr), 1);
 
-	return ret;
+	return 0;
 }
 
-/* 
- * To release all mapping relation
- */
-int
-cbuf_c_del_elig(spdid_t spdid, int cbid)
-{
-	struct cb_desc *d;
-	struct spd_tmem_info *sti;
-	int ret = 0;  // 0 means the page will stay
+/* /\*  */
+/*  * To release all mapping relation */
+/*  *\/ */
+/* int */
+/* cbuf_c_del_elig(spdid_t spdid, int cbid) */
+/* { */
+/* 	struct cb_desc *d; */
+/* 	struct spd_tmem_info *sti; */
+/* 	int ret = 0;  // 0 means the page will stay */
 
-	TAKE();
-	/* printc("start cleanning cbid :: %d!\n", cbid); */
-	sti = get_spd_info(spdid);
-	assert(sti);
+/* 	TAKE(); */
+/* 	/\* printc("start cleanning cbid :: %d!\n", cbid); *\/ */
+/* 	sti = get_spd_info(spdid); */
+/* 	assert(sti); */
 
-	/* if (sti->num_blocked_thds) goto err; */
-	d = cos_map_lookup(&cb_ids, cbid);
-	if (!d) goto err;
+/* 	/\* if (sti->num_blocked_thds) goto err; *\/ */
+/* 	d = cos_map_lookup(&cb_ids, cbid); */
+/* 	if (!d) goto err; */
 
-	/* should be conditional on the principal??? */
-	if (d->owner.spd != sti->spdid) goto err;
+/* 	/\* should be conditional on the principal??? *\/ */
+/* 	if (d->owner.spd != sti->spdid) goto err; */
 
-	/* mapping model will release all child mappings */
-	DOUT("Releasing cbuf\n");
+/* 	/\* mapping model will release all child mappings *\/ */
+/* 	DOUT("Releasing cbuf\n"); */
 
-	__cbuf_c_delete(sti, cbid, d);
+/* 	__cbuf_c_delete(sti, cbid, d); */
 
-	if (sti->num_desired >= sti->num_allocated && !sti->num_glb_blocked) {
-		printc("Reestablish mapping here!\n");
-		mman_alias_page(cos_spd_id(), (vaddr_t)d->addr, sti->spdid, (vaddr_t)d->owner.addr);
-		spd_unmark_relinquish(sti);
-		ret = 0;
-	}
-	else
-	{
-		ret = -1;  
-	}
-done:
-	/* printc("del_elig is verified here and ret :: %d\n", ret); */
-	RELEASE();	
-	return ret;
-err:
-	ret = -1;
-	goto done;
-}
+/* 	if (sti->num_desired >= sti->num_allocated && !sti->num_glb_blocked) { */
+/* 		/\* printc("Reestablish mapping here! in %ld\n", sti->spdid); *\/ */
+/* 		mman_alias_page(cos_spd_id(), (vaddr_t)d->addr, sti->spdid, (vaddr_t)d->owner.addr); */
+/* 		spd_unmark_relinquish(sti); */
+/* 		ret = 0; */
+/* 	} */
+/* 	else */
+/* 	{ */
+/* 		ret = -1;   */
+/* 	} */
+/* done: */
+/* 	/\* printc("del_elig is verified here and ret :: %d\n", ret); *\/ */
+/* 	RELEASE();	 */
+/* 	return ret; */
+/* err: */
+/* 	ret = -1; */
+/* 	goto done; */
+/* } */
 
 
 /* 
@@ -482,7 +733,7 @@ err:
  * deallocation.
  */
 int
-cbuf_c_delete(spdid_t spdid, int cbid, int flag)
+cbuf_c_delete(spdid_t spdid, int cbid)
 {
 	struct cb_desc *d;
 	struct spd_tmem_info *sti;
@@ -501,26 +752,59 @@ cbuf_c_delete(spdid_t spdid, int cbid, int flag)
 	if (d->owner.spd != sti->spdid) goto err;
 
 	/* mapping model will release all child mappings */
-	DOUT("Releasing cbuf\n");
+	printc("Releasing cbuf\n");
 
 	/* printc(" ::: cbid  %d\n",cbid); */
 
 	/* __cbuf_c_delete(sti, cbid, d); */
-	if (flag == 1){
+	/* if (flag == 1){ */
 		/* printc("start returning!\n"); */
 		/* printc("Return of s_spdid is: %d from thd: %d\n", spdid, cos_get_thd_id()); */
 		/* cos_map_del(&cb_ids, cbid); */
-		valloc_free(cos_spd_id(), sti->spdid, (void *)(d->owner.addr), 1);
-		return_tmem(sti);
-	}
 
-	tmem_spd_wake_threads(sti);
-	assert(!SPD_HAS_BLK_THD(sti));
+	/* } */
 
-	if (sti->num_desired >= sti->num_allocated)
-		spd_unmark_relinquish(sti);
+	/* 
+	   if (nallocated > ndesired) {
+	        // 1) unmap from all mapped components
+		// 2) remove from the meta_cbuf vectors (perhaps part of the __delete function
+		// 3) add onto global freelist (put_mem)
+	   } else {
+	        // tmem_spd_wake_threads(sti)
+	   }
+	 */
 
-	printc("thd %d finished return!\n", cos_get_thd_id());
+	/* valloc_free(cos_spd_id(), sti->spdid, (void *)(d->owner.addr), 1); */
+	return_tmem(sti);
+
+	/* /\* gap added this  comment out now*\/ */
+	/* if (sti->num_allocated > sti->num_desired) { */
+	/* 	struct cos_cbuf_item *list, *cci; */
+
+	/* 	//__cbuf_c_delete(sti, cbid, d); */
+
+	/* 	list = &spd_tmem_info_list[spdid].tmem_list; */
+	/* 	/\* Go through the allocated cbufs, and see if any are not in use... *\/ */
+	/* 	for (cci = FIRST_LIST(list, next, prev) ;  */
+	/* 	     cci != list && &cci->desc != d ;  */
+	/* 	     cci = FIRST_LIST(cci, next, prev)) ; */
+	/* 	assert(cci != list); */
+	/* 	mgr_remove_client_mem(sti, cci); */
+	/* 	put_mem(cci); */
+	/* } else if (SPD_HAS_BLK_THD(sti)) { */
+	/* 	tmem_spd_wake_threads(sti); */
+	/* }/\* else if (GLBL_HAS_LOCAL_BLK_THD(sti)) { */
+	/*     // wakeup only threads from this component on that global */
+	/*     // list....change their wakeup code to see if any cbufs */
+	/*     // are free on the local cache (in addition to the current behavior of */
+	/*     // trying on the global cache. */
+	/* }*\/ */
+	/* //tmem_spd_wake_threads(sti); */
+
+	/* if (!SPD_HAS_BLK_THD(sti) && sti->num_desired >= sti->num_allocated) */
+	/* 	spd_unmark_relinquish(sti); */
+
+	/* printc("thd %d finished return!\n", cos_get_thd_id()); */
 err:
 	RELEASE();
 	return ret;
@@ -607,6 +891,10 @@ cos_init(void *d)
 		// allocate a page
 		cbuf_item->desc.addr = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
 		assert(cbuf_item->desc.addr); 
+
+		cbuf_item->desc.cbid = 0;
+		cbuf_item->desc.obj_sz = 0;
+		cbuf_item->desc.principal = 0;
 		/* get the page */
 		if (!mman_get_page(cos_spd_id(), (vaddr_t)cbuf_item->desc.addr, 0)) {
 			DOUT("<cbuf_mgr>: ERROR, could not allocate page for cbuf\n"); 
@@ -619,21 +907,23 @@ cos_init(void *d)
 	// Map all of the spds we can into this component
 	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
 		spdid_t spdid = i;
-		/* void *hp; */
 
-		/* /\* hp = cos_get_vas_page(); *\/ */
-		/* hp = valloc_alloc(cos_spd_id(), cos_spd_id(), 1); */
-		/* spdid = cinfo_get_spdid(i); */
-		/* if (!spdid) break; */
+		void *hp;
+		hp = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
+		spdid = cinfo_get_spdid(i);
+		if (!spdid) break;
 
-		/* if(cinfo_map(cos_spd_id(), (vaddr_t)hp, spdid)){ */
-		/* 	DOUT("Could not map cinfo page for %d\n", spdid); */
-		/* 	BUG(); */
-		/* } */
+		if(cinfo_map(cos_spd_id(), (vaddr_t)hp, spdid)){
+			DOUT("Could not map cinfo page for %d\n", spdid);
+			BUG();
+		}
 		/* spd_tmem_info_list[spdid].ci = hp;  */
+		spd_tmem_info_list[spdid].spd_cinfo_page = hp;
+
 		spd_tmem_info_list[spdid].ci.meta = NULL; 
 		spd_tmem_info_list[spdid].managed = 1;
 
+		spd_tmem_info_list[spdid].relinquish_mark = 0; 
     
 		cbufs_target += DEFAULT_TARGET_ALLOC;
 		spd_tmem_info_list[spdid].num_allocated = 0;
@@ -644,6 +934,7 @@ cos_init(void *d)
 		spd_tmem_info_list[spdid].ss_counter = 0;
 		spd_tmem_info_list[spdid].ss_max = MAX_NUM_CBUFS;
 		empty_comps++;
+
 	}
 	over_quota_total = 0;
 	over_quota_limit = MAX_NUM_CBUFS;

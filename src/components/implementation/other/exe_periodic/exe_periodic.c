@@ -18,7 +18,7 @@
 #include <timed_blk.h>
 
 /* #include <cos_alloc.h> */
-#include <cbuf.h>
+/* #include <cbuf.h> */
 /* #include <cos_list.h> */
 /* #include <heap.h> */
 /* #include <limits.h> */
@@ -109,16 +109,6 @@ volatile int k;
 void cos_init(void *arg)
 {
 
-	void *mem;
-	cbuf_t cb = cbuf_null();
-	u32_t id, idx;
-	
-	u32_t size = 2048;
-	
-	mem = cbuf_alloc(size, &cb);
-	cbuf_unpack(cb, &id, &idx);
-	printc("@ %p, memid %x, idx %x\n", mem, id, idx);
-	/* cbuf_free(mem1); */
 
 	int start_time_in_ticks = 0;
 	int duration_time_in_ticks = 0;

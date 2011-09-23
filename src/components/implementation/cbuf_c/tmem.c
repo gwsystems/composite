@@ -19,42 +19,6 @@ get_spd_info(spdid_t spdid)
 	return sti;
 }
 
-tmem_item *free_mem_in_local_cache(struct spd_tmem_info *sti)
-{
-	spdid_t s_spdid;
-	struct cos_cbuf_item *cci = NULL, *list;
-	struct spd_cbvect_range *cbr;
-	assert(sti);
-	s_spdid = sti->spdid;
-
-	printc("\n Check if in local cache!!!");
-	//list = get_spd_info(s_spdid).tmem_list;
-	list = &spd_tmem_info_list[s_spdid].tmem_list;
-	/* Go through the allocated cbufs, and see if any are not in use... */
-	for (cci = FIRST_LIST(list, next, prev) ; 
-	     cci != list; 
-	     cci = FIRST_LIST(cci, next, prev)) {
-		for (cbr = FIRST_LIST(&sti->ci, next, prev) ; 
-		     cbr != &sti->ci && cbr->meta != 0; 
-		     cbr = FIRST_LIST(cbr, next, prev)) {
-			if (cci->desc.cbid >= cbr->start_id && cci->desc.cbid <= cbr->end_id) {
-				union cbuf_meta cm;
-				cm.c_0.v = cbr->meta[(cci->desc.cbid - cbr->start_id - 1)].c_0.v;
-				if (!CBUF_IN_USE(cm.c.flags)) goto done;
-			}
-		}
-	}
-
-	if (cci == list) goto err;
-done:
-	printc("\n found one!!\n\n");
-	return cci;
-err:
-	printc("\n can not found one!!\n");
-	cci = NULL;	
-	return cci;
-}
-
 inline int
 tmem_wait_for_mem_no_dependency(struct spd_tmem_info *sti)
 {
@@ -77,13 +41,10 @@ inline int
 tmem_wait_for_mem(struct spd_tmem_info *sti)
 {
 	unsigned int i = 0;
-
 	assert(sti->num_allocated > 0);
 	
 	int ret, dep_thd, in_blk_list;
 	do {
-		DOUT("wait cbuf...\n");
-
 		dep_thd = resolve_dependency(sti, i); 
 
 		if (i > sti->ss_counter) sti->ss_counter = i; /* update self-suspension counter */
@@ -150,10 +111,29 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 	return 1;
 }
 
+// Before this function is called, threads are already on the block lists
+inline int tmem_should_mark_relinquish(struct spd_tmem_info *sti)
+{
+	if (sti->num_allocated >= sti->num_desired 
+	    || (empty_comps >= (MAX_NUM_ITEMS - cbufs_allocated)))
+		return 1;
+	else
+		return 0;
+}
+
+inline int tmem_should_unmark_relinquish(struct spd_tmem_info *sti)
+{
+	if (!SPD_HAS_BLK_THD(sti) && !SPD_HAS_BLK_THD_ON_GLB(sti)
+	    && sti->num_desired >= sti->num_allocated)
+		return 1;
+	else
+		return 0;
+}
+
 inline tmem_item *
 tmem_grant(struct spd_tmem_info *sti)
 {
-	tmem_item *tmi = NULL;
+	tmem_item *tmi = NULL, *local_cache = NULL;
 	int eligible, meas = 0;
 
 	sti->num_waiting_thds++;
@@ -172,12 +152,15 @@ tmem_grant(struct spd_tmem_info *sti)
 	 */
 
 	while (1) {
-
-		tmi = free_mem_in_local_cache(sti);
-		if (tmi) goto skip;
-		
+#ifdef MEM_IN_LOCAL_CACHE
+		tmi = (tmem_item *)MEM_IN_LOCAL_CACHE(sti);
+		if (tmi){
+			local_cache = tmi;
+			break;
+		}
+#endif
 		DOUT("request tmem\n");
-		printc(" \n ~~~ thd %d request tmem!! ~~~\n\n", cos_get_thd_id());
+		/* printc(" \n ~~~ thd %d request tmem!! ~~~\n\n", cos_get_thd_id()); */
 		eligible = 0;
 
 		printc("sti->num_allocated %d sti->num_desired %d\n",sti->num_allocated, sti->num_desired);
@@ -185,7 +168,7 @@ tmem_grant(struct spd_tmem_info *sti)
 
 		if (sti->num_allocated < sti->num_desired &&
 		    (empty_comps < (MAX_NUM_ITEMS - cbufs_allocated) || sti->num_allocated == 0)) {
-			printc("alloooooooooo!!\n");
+			/* printc("alloooooooooo!!\n"); */
 			/* We are eligible for allocation! */
 			eligible = 1;
 			tmi = get_mem();
@@ -195,13 +178,72 @@ tmem_grant(struct spd_tmem_info *sti)
 			meas = 1;
 			tmem_update_stats_block(sti, cos_get_thd_id());
 		}
-		printc("In tmem_grant:: mem in %d set to relinquish, %d waiting\n", sti->spdid, cos_get_thd_id());
-		spd_mark_relinquish(sti);
+		/* printc("In tmem_grant:: mem in %d set to relinquish, %d waiting\n", sti->spdid, cos_get_thd_id()); */
 
-		if (eligible)
+		/* 
+		 * gap: relinquish is NOT really used right now to
+		 * facilitate the priority inheritance.  Instead of
+		 * making the conditions for relinquish only based on
+		 * desired and allocated, lets try and be smarter:  
+
+		 * if desired < allocated || HP thread for stack ->
+		 * marked relinquished
+
+		 * if desired >= allocated && no (HP) threads waiting
+		 * for stack in this component -> UNmarked relinquished
+
+		 * OR 
+
+		 * 1) threads waiting (from this component, either on the
+		 * local or global blocked list) -> marked relinquish
+
+		 * 2) desired < allocated -> marked relinquish
+
+		 * OTHERWISE -> unmarked relinquished
+
+		 * We want two functions:
+
+		 * tmem_should_mark_relinquish(sti) -> should the tmem in
+		 * component sti->spdid be marked as reqlinquish???
+
+		 * tmem_should_unmark_relinquish(sti) -> should the tmem in
+		 * component sti->spdid be unmarked as reqlinquish???
+
+		 * int tmem_should_unmark_relinquish(sti) { return !tmem_should_mark_relinquish(sti); }
+
+
+
+		 * when we will carry out an action that could provide a tmem:
+		 * if tmem_should_mark_relinquish(...) marked = 1
+		 * ...
+		 * if tmem_should_unmark_relinquish(...) && marked -> spd_unmark_relinquish()
+
+		 * when we will carry out an action that could require a tmem:
+		 * if tmem_should_unmark_relinquish(...) unmarked = 1
+		 * ...
+		 * if tmem_should_mark_relinquish(...) && unmarked -> spd_mark_relinquish()
+
+		 */
+
+		if (eligible) {
 			tmem_add_to_gbl(sti, cos_get_thd_id());
-		else
+		        /* 
+			 * gap: come back to this -- problem is that a
+			 * high priority thread can block on the
+			 * global list, but a thread in the component
+			 * that sees the reqlinquish will _not_ wake
+			 * up threads on the global list in
+			 * cbuf_c_delete...  Possibly solve this by
+			 * waking up threads on the global list that
+			 * are waiting for this component. 
+			 */
+		} else {
 			tmem_add_to_blk_list(sti, cos_get_thd_id());
+		}
+
+		/* spd_mark_relinquish(sti); */
+		if (tmem_should_mark_relinquish(sti))
+			spd_mark_relinquish_all(sti);
 
 		/* /\* Priority-Inheritance *\/ */
 		if (tmem_wait_for_mem(sti) == 0) {
@@ -228,9 +270,9 @@ tmem_grant(struct spd_tmem_info *sti)
 		}
 	}
 
-	if (tmi) {
+	if (!local_cache) {
 		mgr_map_client_mem(tmi, sti); 
-		printc("Adding to local spdid list\n");
+		/* printc("Adding to local spdid list\n"); */
 		ADD_LIST(&sti->tmem_list, tmi, next, prev);
 		sti->num_allocated++;
 		if (sti->num_allocated == 1) empty_comps--;
@@ -238,15 +280,15 @@ tmem_grant(struct spd_tmem_info *sti)
 		assert(sti->num_allocated == tmem_num_alloc_stks(sti->spdid));
 	}
 
-skip:
 	if (meas) tmem_update_stats_wakeup(sti, cos_get_thd_id());
 
 	sti->num_waiting_thds--;
 
-	printc("Granted: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);
+	/* printc("Granted: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired); */
 
 	return tmi;
 }
+
 
 inline void
 get_mem_from_client(struct spd_tmem_info *sti)
@@ -254,13 +296,16 @@ get_mem_from_client(struct spd_tmem_info *sti)
 	//printc("calling into get_mem_from_cli\n");
 	tmem_item * tmi;
 	while (sti->num_desired < sti->num_allocated) {
-		printc("get_mem_from cli\n");
+		/* printc("get_mem_from cli\n"); */
 		tmi = mgr_get_client_mem(sti);
 		if (!tmi) break;
 		put_mem(tmi);
 	}
 	/* if we haven't harvested enough stacks, do so lazily */
-	if (sti->num_desired < sti->num_allocated) spd_mark_relinquish(sti);
+	/* if (sti->num_desired < sti->num_allocated) spd_mark_relinquish(sti); */
+	// Jiguo: This is used for policy, so should_mark_relinquish is not used here	
+	if (sti->num_desired < sti->num_allocated)
+		spd_mark_relinquish_all(sti);
 }
 
 inline void
@@ -271,19 +316,29 @@ return_tmem(struct spd_tmem_info *sti)
 	assert(sti);
 	s_spdid = sti->spdid;
 	printc("return_mem is called \n");
-	//printc("Before:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);
-	/* if (sti->num_desired < sti->num_allocated || sti->num_glb_blocked) { */
-	printc("fly..............\n");
-	get_mem_from_client(sti);
-	/* } */
-	/* tmem_spd_wake_threads(sti); */
-	/* assert(!SPD_HAS_BLK_THD(sti)); */
-	/* if (sti->num_desired >= sti->num_allocated) { */
+	printc("Before:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);
+	/* if (sti->num_desired < sti->num_allocated || sti->num_glb_blocked) { 2nd condition is used for max pool testing */
+	if (sti->num_desired < sti->num_allocated) {   // only blocked on glb for other spds
+		printc("fly..............\n");
+		get_mem_from_client(sti);
+	}
+	if (SPD_HAS_BLK_THD(sti) || SPD_HAS_BLK_THD_ON_GLB(sti))
+		tmem_spd_wake_threads(sti);
+
+	assert(!SPD_HAS_BLK_THD(sti) && !SPD_HAS_BLK_THD_ON_GLB(sti));
+
+	if (tmem_should_unmark_relinquish(sti) && sti->relinquish_mark == 1) 
+		spd_unmark_relinquish_all(sti);
+
+	/* if (!SPD_HAS_BLK_THD(sti) && !sti->num_glb_blocked  */
+	/*     && sti->num_desired >= sti->num_allocated) { */
 	/* 	/\* we're under or at quota, and there are no */
 	/* 	 * blocked threads, no more relinquishing! *\/ */
-	/* 	spd_unmark_relinquish(sti); */
+	/* 	/\* spd_unmark_relinquish(sti); *\/ */
+	/* 	spd_unmark_relinquish_all(sti); */
 	/* } */
-	/* printc("After return called:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired); */
+
+	printc("After return called:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);
 
 }
 
@@ -299,7 +354,7 @@ remove_spare_cache_from_client(struct spd_tmem_info *sti)
 		if (!tmi)
 			return;
 		put_mem(tmi);
-		printc("remove spare-------\n");
+		/* printc("remove spare----\n"); */
 	}
 }
 

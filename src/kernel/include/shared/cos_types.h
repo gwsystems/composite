@@ -243,8 +243,8 @@ struct cos_stack_freelists {
 
 struct cos_component_information {
 	struct cos_stack_freelists cos_stacks;
-	u32_t tmem_relinquish[COMP_INFO_TMEM_RELINQUISH];
 	long cos_this_spd_id;
+	u32_t cos_tmem_relinquish[COMP_INFO_TMEM_RELINQUISH];
 	vaddr_t cos_heap_ptr, cos_heap_limit;
 	vaddr_t cos_upcall_entry;
 	struct cos_sched_data_area *cos_sched_data_area;

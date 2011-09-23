@@ -24,6 +24,7 @@
  * so try and use structures that by default are initialized as all
  * zero. 
  */
+extern struct cos_component_information cos_comp_info;
 
 CBUF_VECT_CREATE_STATIC(meta_cbuf);
 COS_VECT_CREATE_STATIC(slab_descs);
@@ -39,12 +40,7 @@ cbuf_cache_miss(int cbid, int idx, int len)
 {
 	union cbuf_meta mc;
 	void *h;
-	/* printc("cbid is %d idx is %d\n",cbid, idx); */
-
-//	h = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
-//	assert(h);
-//	mc.c.ptr    = (long)h >> PAGE_ORDER;
-//	mc.c.obj_sz = len>>6;
+	/* printc("cbid is %d idx is %d len is %d\n",cbid, idx, len); */
 
 	h = cbuf_c_retrieve(cos_spd_id(), cbid, len);
 	if (!h) {
@@ -55,7 +51,7 @@ cbuf_cache_miss(int cbid, int idx, int len)
 	}
 
 	mc.c.ptr    = (long)h >> PAGE_ORDER;
-	mc.c.obj_sz = len>>6;
+	mc.c.obj_sz = len >> CBUF_OBJ_SZ_SHIFT;
 
 	/* This is the commit point */
 	/* printc("miss: meta_cbuf is at %p, h is %p\n", &meta_cbuf, h); */
@@ -90,14 +86,16 @@ cbuf_slab_cons(struct cbuf_slab *s, int cbid, void *page,
 struct cbuf_slab *
 cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 {
-	struct cbuf_slab *s = malloc(sizeof(struct cbuf_slab)), *ret = NULL;
+	struct cbuf_slab *s, *ret = NULL;
+	struct cbuf_slab *exist;
 	/* struct cbuf_slab *dup = NULL; */
 	void *addr;
 	int cbid;
 	int cnt;
 
+	/* printc("Relinquish bit :: %d\n",cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ]); */
+	s = malloc(sizeof(struct cbuf_slab));
 	if (!s) return NULL;
-
 	if (!freelist) goto err;
 
 	/* union cbuf_meta mc; */
@@ -125,47 +123,23 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 
 	// Check if the allocated cbuf item is the used one and if it is still on local free_list
 
+	/* 
+	 * See __cbuf_alloc and cbuf_slab_free.  It is possible that a
+	 * slab descriptor will exist for a piece of cbuf memory
+	 * _before_ it is allocated because it is actually from a
+	 * previous cbuf.  If this is the case, then we should take
+	 * over the slab, and use it for this cbuf.
+	 */
+	exist = cos_vect_lookup(&slab_descs, (u32_t)addr>>PAGE_ORDER);
+	if (exist) slab_deallocate(exist, freelist);
+	assert(!cos_vect_lookup(&slab_descs, (u32_t)addr>>PAGE_ORDER));
 
-	struct cbuf_slab *exist = cos_vect_lookup(&slab_descs, (long)addr>>PAGE_ORDER);
+	/* printc("not exist??? add to freelist and slab_desc\n"); */
+	cos_vect_add_id(&slab_descs, s, (long)addr>>PAGE_ORDER);
+	cbuf_slab_cons(s, cbid, addr, size, freelist);
 
-	if(!exist){
-		printc("not exist???\n");
-		cos_vect_add_id(&slab_descs, s, (long)addr>>PAGE_ORDER);
-		cbuf_slab_cons(s, cbid, addr, size, freelist);
-		ret = s;
-	}
-	else
-	{
-		printc("exist:: %d\n", exist->cbid);
-		ret = exist;
-	}
+	ret = s;
 
-	/* printc("1\n"); */
-	/* if (!freelist->list) goto err; */
-
-	/* // Try to remove all duplicate stayed cbufs */
-	/* cnt = 0; */
-	/* if (cbid == freelist->list->cbid) cnt++; */
-
-	/* for (dup = FIRST_LIST(freelist->list, next, prev); */
-	/*      dup != freelist->list; */
-	/*      dup = FIRST_LIST(dup, next, prev)) { */
-	/* 	printc("dup's id %d\n",dup->cbid); */
-	/* 	if (dup->cbid == cbid) { */
-	/* 		cnt++; */
-	/* 		printc("3\n"); */
-	/* 		//break; */
-	/* 	} */
-	/* } */
-	/* while (cnt-- > 1) */
-	/* { */
-	/* 	assert(freelist->npages > 0); */
-	/* 	cos_vect_del(&slab_descs, (long)addr>>PAGE_ORDER); */
-	/* 	slab_rem_freelist(dup, freelist); */
-	/* } */
-
-	/* assert(cnt == 0); */
-	/* ret = s; */
 done:   
 	return ret;
 err:    
@@ -179,56 +153,54 @@ cbuf_slab_free(struct cbuf_slab *s)
 {
 	struct cbuf_slab_freelist *freelist;
 	union cbuf_meta cm;
-	printc("call slab_free(s)...\n");	
+	/* printc("call slab_free(s)...\n");	 */
 	/* FIXME: soooo many races */
 	freelist = s->flh;
 	assert(freelist);
 
+	/* 
+	 * A good question: When is the slab deallocated???  See
+	 * cbuf.h:__cbuf_alloc for an explanation.
+	 */
+	/* slab_add_freelist(s, freelist); */
+
 	/* clear IN_USE bit */
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, (s->cbid - 1) * 2);
 	cm.c.flags &= ~CBUFM_IN_USE;
+	/* cm.c_0.th_id = 0; */
 	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, (s->cbid - 1 ) * 2);
-	/* check relinquish here! */
-	/* printc("cm.c.flags & CBUFM_IN_USE are %p and %p\n",cm.c.flags , CBUFM_IN_USE); */
-	/* printc("cm.c.flags & CBUFM_RELINQUISH are %p and %p\n",cm.c.flags , CBUFM_RELINQUISH); */
 
-	if (!(cm.c.flags & CBUFM_RELINQUISH))
-	{
-		printc("No need to relinquish~~~\n");	
-		return;
+	if(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] == 1){
+		printc("need relinquish\n");
+		cbuf_c_delete(cos_spd_id(), s->cbid);
 	}
 
-	if(cbuf_c_del_elig(cos_spd_id(), s->cbid))
-	{
-		printc("Not on freelist anymore\n");
-		/* Have we freed the configured # in a row? Return the page. */
-		slab_rem_freelist(s, freelist);
-		assert(s->nfree == (PAGE_SIZE/s->obj_sz));
-
-		cos_vect_del(&slab_descs, (long)s->mem>>PAGE_ORDER);
-		/* Has the cbuf mgr asked for the cbuf? Return the page. Relinqush to return to mgr! */
-		cbuf_c_delete(cos_spd_id(), s->cbid, 1);
-		free(s);  // created at slab_alloc
-	}
-	else
-	{
-		printc("Still on freelist\n");
-		cbuf_c_delete(cos_spd_id(), s->cbid, 0);
-	}
-	
 	return;
 
-	/* else */
+}
+
+	/* if (cm.c.flags & CBUFM_RELINQUISH) { */
+	/* 	printc("need relinquish\n"); */
+	/* 	cbuf_c_delete(cos_spd_id(), s->cbid); */
+	/* } */
+
+	/* printc("cm.c.flags & CBUFM_IN_USE are %p and %p\n",cm.c.flags , CBUFM_IN_USE); */
+
+	/* if(cbuf_c_del_elig(cos_spd_id(), s->cbid)) */
 	/* { */
-	/* 	printc("truly delete from free list\n"); */
-	/* 	cos_vect_del(&slab_descs, (long)s->mem>>PAGE_ORDER); */
+	/* 	printc("Not on freelist anymore spd %ld\n",cos_spd_id()); */
+	/* 	/\* Have we freed the configured # in a row? Return the page. *\/ */
 	/* 	slab_rem_freelist(s, freelist); */
 	/* 	assert(s->nfree == (PAGE_SIZE/s->obj_sz)); */
-	/* 	/\* printc("s->mem %p\n",(long)s->mem>>PAGE_ORDER); *\/ */
+
+	/* 	cos_vect_del(&slab_descs, (long)s->mem>>PAGE_ORDER); */
+	/* 	/\* Has the cbuf mgr asked for the cbuf? Return the page. Relinqush to return to mgr! *\/ */
+	/* 	cbuf_c_delete(cos_spd_id(), s->cbid, 1); */
 	/* 	free(s);  // created at slab_alloc */
 	/* } */
-/* done: */
-/* 	printc("\nthd %d slab_free done here...\n\n", cos_get_thd_id()); */
-/* 	return; */
-}
+	/* else */
+	/* { */
+	/* 	printc("Still on freelist spd %ld\n",cos_spd_id()); */
+	/* 	cbuf_c_delete(cos_spd_id(), s->cbid, 0); */
+	/* } */
 

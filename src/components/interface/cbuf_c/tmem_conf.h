@@ -22,8 +22,8 @@ typedef struct cos_cbuf_item tmem_item;
 typedef	struct spd_cbvect_range shared_component_info;
 
 /* /\* 1 means there's memory available in local cache *\/ */
-/* #define MEM_IN_LOCAL_CACHE(sci) ((sci)->ci->cos_stacks.freelists[0].freelist != 0) */
-#define MEM_IN_LOCAL_CACHE(csi) ((csi)->ci.meta != 0)
+/* #define MEM_IN_LOCAL_CACHE(csi) ((csi)->ci.meta != 0) */
+#define MEM_IN_LOCAL_CACHE(csi) (free_mem_in_local_cache(csi))
 
 #define CBUF_IN_USE(flags) (flags & CBUFM_IN_USE)
 
@@ -93,7 +93,7 @@ struct cb_desc {
 struct cos_cbuf_item {
 	struct cos_cbuf_item *next, *prev;
 	struct cos_cbuf_item *free_next;
-	vaddr_t page;   // use when revoke
+	union cbuf_meta *entry;    /* vector entry for quick lookup */
 	spdid_t parent_spdid;	
 	struct cb_desc desc;
 };

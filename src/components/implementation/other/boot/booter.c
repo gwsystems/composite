@@ -13,6 +13,15 @@ COS_VECT_CREATE_STATIC(spd_info_addresses);
 extern struct cos_component_information cos_comp_info;
 struct cobj_header *hs[MAX_NUM_SPDS+1];
 
+/* vaddr_t cinfo_map_peek(spdid_t target) */
+/* { */
+/* 	vaddr_t cinfo_addr; */
+
+/* 	cinfo_addr = (vaddr_t)cos_vect_lookup(&spd_info_addresses, target); */
+/* 	if (0 == cinfo_addr) return -1; */
+/* 	return cinfo_addr; */
+/* } */
+
 int cinfo_map(spdid_t spdid, vaddr_t map_addr, spdid_t target)
 {
 	vaddr_t cinfo_addr;

@@ -100,13 +100,13 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 			
 		if (in_blk_list) {
 			assert(ret < 0);
-			if (sti->spdid != 12) {
-				/* Remover Me: test for
-				 * self-suspension when TE component
-				 * id is 12 */
-				printc("thd %d spdid %d, dep_thd %d\n",cos_get_thd_id(), sti->spdid, dep_thd);
-				//assert(0);
-			}
+			/* if (sti->spdid != 12) { */
+			/* 	/\* Remover Me: test for */
+			/* 	 * self-suspension when TE component */
+			/* 	 * id is 12 *\/ */
+			/* 	printc("thd %d spdid %d, dep_thd %d\n",cos_get_thd_id(), sti->spdid, dep_thd); */
+			/* 	//assert(0); */
+			/* } */
 			sched_wakeup(cos_spd_id(), cos_get_thd_id());
 		}
 		/* printc("%d finished depending on %d. comp %d. i %d. cnt %d. ret %d.on block list? %d\n", */
@@ -121,7 +121,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 inline tmem_item *
 tmem_grant(struct spd_tmem_info *sti)
 {
-	tmem_item *tmi = NULL;
+	tmem_item *tmi = NULL, *local_cache = NULL;
 	int eligible, meas = 0;
 
 	sti->num_waiting_thds++;
@@ -135,8 +135,13 @@ tmem_grant(struct spd_tmem_info *sti)
 
 	while (1) {
 #ifdef MEM_IN_LOCAL_CACHE
-		if (MEM_IN_LOCAL_CACHE(sti)) break;
+		tmi = (tmem_item *)MEM_IN_LOCAL_CACHE(sti);
+		if (tmi){
+			local_cache = tmi;
+			break;
+		}
 #endif
+
 		DOUT("request tmem\n");
 		eligible = 0;
 		if (sti->num_allocated < sti->num_desired &&
@@ -181,7 +186,7 @@ tmem_grant(struct spd_tmem_info *sti)
 		}
 	}
 	
-	if (tmi) {
+	if (!local_cache) {
 		mgr_map_client_mem(tmi, sti); 
 		DOUT("Adding to local spdid list\n");
 		ADD_LIST(&sti->tmem_list, tmi, next, prev);
@@ -209,6 +214,7 @@ get_mem_from_client(struct spd_tmem_info *sti)
 		put_mem(tmi);
 	}
 	/* if we haven't harvested enough stacks, do so lazily */
+	// Jiguo: This is used for policy, so should_mark_relinquish is not used here
 	if (sti->num_desired < sti->num_allocated) spd_mark_relinquish(sti);
 }
 
@@ -220,16 +226,25 @@ return_tmem(struct spd_tmem_info *sti)
 	assert(sti);
 	s_spdid = sti->spdid;
 	
-	if (sti->num_desired < sti->num_allocated || sti->num_glb_blocked) {
+	if (sti->num_desired < sti->num_allocated /* gap || sti->num_glb_blocked */) {
 		get_mem_from_client(sti);
 	}
-	tmem_spd_wake_threads(sti);
-	assert(!SPD_HAS_BLK_THD(sti));
-	if (sti->num_desired >= sti->num_allocated) {
+
+	if (SPD_HAS_BLK_THD(sti))
+		tmem_spd_wake_threads(sti);
+	/* assert(!SPD_HAS_BLK_THD(sti)); */
+	if (!SPD_HAS_BLK_THD(sti) && sti->num_desired >= sti->num_allocated) {
 		/* we're under or at quota, and there are no
 		 * blocked threads, no more relinquishing! */
 		spd_unmark_relinquish(sti);
 	}
+	/* tmem_spd_wake_threads(sti); */
+	/* assert(!SPD_HAS_BLK_THD(sti)); */
+	/* if (sti->num_desired >= sti->num_allocated) { */
+	/* 	/\* we're under or at quota, and there are no */
+	/* 	 * blocked threads, no more relinquishing! *\/ */
+	/* 	spd_unmark_relinquish(sti); */
+	/* } */
 }
 
 /**

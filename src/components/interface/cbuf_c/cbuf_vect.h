@@ -223,10 +223,10 @@ static inline int __cbuf_vect_expand(cbuf_vect_t *v, long id)
 
 		if (v->depth >= CBUF_VECT_DEPTH_MAX) return -1;
 
-		printc("root in %ld!!\n",cos_spd_id());
+		/* printc("root in %ld!!\n",cos_spd_id()); */
 		root = CBUF_VECT_ALLOC(CBUF_VECT_BASE * sizeof(struct cbuf_vect_intern_struct));
 		if (NULL == root) return -1;
-		printc("CBUF_VECT_BASE is %d\n",CBUF_VECT_BASE);
+		/* printc("CBUF_VECT_BASE is %d\n",CBUF_VECT_BASE); */
 		
 		for (i = 0 ; i < (int)CBUF_VECT_BASE ; i++) root[i].val = (void*)NULL;
 		v->vect = root;

@@ -17,8 +17,7 @@
 
 /* Component functions */
 int cbuf_c_create(spdid_t spdid, int size, long cbid); /* return cbid */
-int cbuf_c_delete(spdid_t spdid, int cbid, int flag);
-int cbuf_c_del_elig(spdid_t spdid, int cbid);
+int cbuf_c_delete(spdid_t spdid, int cbid);
 void *cbuf_c_retrieve(spdid_t spdid, int cbid, int len); /* return client address */
 
 
@@ -33,11 +32,6 @@ int cbufmgr_detect_suspension(spdid_t cid, int reset);
 int cbufmgr_set_over_quota_limit(int limit);
 int cbufmgr_set_suspension_limit(spdid_t cid, int limit);
 int cbufmgr_get_allocated(spdid_t cid);
-
-/* /\* map a stack to the destination location, from the source component *\/ */
-/* int stkmgr_stack_introspect(spdid_t d_spdid, vaddr_t d_addr, spdid_t s_spdid, vaddr_t s_addr); */
-/* /\* unmap a stack that was introspected on *\/ */
-/* int stkmgr_stack_close(spdid_t d_spdid, vaddr_t d_addr); */
 
 /* 
  * FIXME: The API currently requires the valloc be done in the client,
