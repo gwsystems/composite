@@ -28,7 +28,7 @@
 #include <errno.h>
 
 #include <http.h>
-
+#include <torrent.h>
 #include <content_mux.h>
 #include <timed_blk.h>
 #include <sched.h>
@@ -235,7 +235,6 @@ struct http_request {
 
 static int http_get_request(struct http_request *r)
 {
-	struct cos_array *arg;
 	int ret;
 	assert(r && r->c);
 
