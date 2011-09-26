@@ -61,7 +61,8 @@ typedef struct cbuf_vect_struct {
 	/* struct cbuf_vect_intern_struct __cos_##name##_vect[ CBUF_VECT_BASE ] = {{.val=CBUF_VECT_INIT_VAL},}; \ */
 	/* cbuf_vect_t name = {.depth = 1, .vect = __cos_##name##_vect} */
 
-          
+#define cbid_to_meta_idx(cid) ((cid-1) << 1)
+#define meta_to_cbid_idx(mid) ((mid-1) >> 1)
 
 /* true or false: is v a power of 2 */
 static inline int cbuf_vect_power_2(u32_t v)

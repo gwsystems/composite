@@ -100,7 +100,7 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 
 	/* union cbuf_meta mc; */
 
-	/* printc("meta_cbuf is %p\n",&meta_cbuf); */
+	printc("meta_cbuf is %p\n",&meta_cbuf);
 	cnt = 0;
 	cbid = 0;
 	do {
@@ -111,15 +111,18 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 		/* FIXME: once everything is well debugged, remove this check */
 		assert(cnt++ < 10);
 	} while (cbid < 0);
-	/* printc("slab_alloc -- cbid is %d\n",cbid); */
+	printc("slab_alloc -- cbid is %d\n",cbid);
 
-	/* int i; */
-	/* for(i=0;i<20;i++) */
-	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
+	int i;
+	for(i=0;i<20;i++)
+		printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i));
+
+	long cbidx;
+	cbidx = cbid_to_meta_idx(cbid);
+	addr = cbuf_vect_addr_lookup(&meta_cbuf, cbidx);
+	if (!addr) goto err;
 
 	/* printc("create: meta_cbuf is at %p\n", &meta_cbuf); */
-	addr = cbuf_vect_addr_lookup(&meta_cbuf, (cbid-1)*2);
-	if (!addr) goto err;
 
 	// Check if the allocated cbuf item is the used one and if it is still on local free_list
 
@@ -163,12 +166,18 @@ cbuf_slab_free(struct cbuf_slab *s)
 	 * cbuf.h:__cbuf_alloc for an explanation.
 	 */
 	/* slab_add_freelist(s, freelist); */
+	printc("s->cbid is %d\n",s->cbid);
+	long cbidx;
+	cbidx = cbid_to_meta_idx(s->cbid);
+	printc("cbidx is %d\n",cbidx);
 
 	/* clear IN_USE bit */
-	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, (s->cbid - 1) * 2);
+	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
 	cm.c.flags &= ~CBUFM_IN_USE;
-	/* cm.c_0.th_id = 0; */
-	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, (s->cbid - 1 ) * 2);
+	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbidx);
+
+	/* cm.c_0.th_id = COS_VECT_INIT_VAL; */
+	/* cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.th_id, cbidx+1); */
 
 	if(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] == 1){
 		printc("need relinquish\n");
@@ -178,29 +187,3 @@ cbuf_slab_free(struct cbuf_slab *s)
 	return;
 
 }
-
-	/* if (cm.c.flags & CBUFM_RELINQUISH) { */
-	/* 	printc("need relinquish\n"); */
-	/* 	cbuf_c_delete(cos_spd_id(), s->cbid); */
-	/* } */
-
-	/* printc("cm.c.flags & CBUFM_IN_USE are %p and %p\n",cm.c.flags , CBUFM_IN_USE); */
-
-	/* if(cbuf_c_del_elig(cos_spd_id(), s->cbid)) */
-	/* { */
-	/* 	printc("Not on freelist anymore spd %ld\n",cos_spd_id()); */
-	/* 	/\* Have we freed the configured # in a row? Return the page. *\/ */
-	/* 	slab_rem_freelist(s, freelist); */
-	/* 	assert(s->nfree == (PAGE_SIZE/s->obj_sz)); */
-
-	/* 	cos_vect_del(&slab_descs, (long)s->mem>>PAGE_ORDER); */
-	/* 	/\* Has the cbuf mgr asked for the cbuf? Return the page. Relinqush to return to mgr! *\/ */
-	/* 	cbuf_c_delete(cos_spd_id(), s->cbid, 1); */
-	/* 	free(s);  // created at slab_alloc */
-	/* } */
-	/* else */
-	/* { */
-	/* 	printc("Still on freelist spd %ld\n",cos_spd_id()); */
-	/* 	cbuf_c_delete(cos_spd_id(), s->cbid, 0); */
-	/* } */
-

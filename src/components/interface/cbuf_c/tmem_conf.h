@@ -106,6 +106,7 @@ struct cos_cbuf_item {
  */
 struct spd_cbvect_range {
 	long start_id, end_id;
+	struct cos_component_information *spd_cinfo_page;
 	union cbuf_meta *meta; /* sizeof == PAGE_SIZE, 512 entries */
 	struct spd_cbvect_range *next, *prev;
 };

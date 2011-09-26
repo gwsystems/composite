@@ -20,11 +20,11 @@
 #define DOUT(fmt, ...)
 #endif
 
-#define SPD_IS_MANAGED(spd_stk_info) ((spd_stk_info)->managed != 0)
+#define SPD_IS_MANAGED(spd_tmem_info) ((spd_tmem_info)->managed != 0)
 
-#define SPD_HAS_BLK_THD(spd_stk_info) ((spd_stk_info)->num_blocked_thds != 0)
+#define SPD_HAS_BLK_THD(spd_tmem_info) ((spd_tmem_info)->num_blocked_thds != 0)
 
-#define SPD_HAS_BLK_THD_ON_GLB(spd_stk_info) ((spd_stk_info)->num_glb_blocked != 0)
+#define SPD_HAS_BLK_THD_ON_GLB(spd_tmem_info) ((spd_tmem_info)->num_glb_blocked != 0)
 
 #define GLOBAL_BLKED (FIRST_LIST(&global_blk_list, next, prev) != &global_blk_list)
 
@@ -45,20 +45,18 @@ struct blocked_thd {
  */
 struct spd_tmem_info {
 	spdid_t spdid;
-	/* The number of stacks in use by spd, and the number want it
+	/* The number of tmems in use by spd, and the number want it
 	 * to use, and at any point in time the number of threads in
 	 * the blocked list. The num_waiting_thds includes the blocked
 	 * threads and the threads those are ready but haven't
-	 * obtained a stack in this component, which value is useful
+	 * obtained a tmem in this component, which value is useful
 	 * for estimating the concurrency of the component.*/
 	unsigned int num_allocated, num_desired;
 	unsigned int num_blocked_thds,num_waiting_thds;
 	unsigned int num_glb_blocked;
 	/* 0 means not managed by us */
 	unsigned int managed;
-
 	unsigned int relinquish_mark;
-	struct cos_component_information *spd_cinfo_page;
 
 	unsigned int ss_counter; /* Self-suspension counter */
 	/* if ss_counter > 0, at most ss_max items can be over-quota allocated */
@@ -94,7 +92,7 @@ struct blocked_thd global_blk_list;
  * component. over_quota and over_quota_limit save the number of
  * over-quota allocated stacks (due to self-suspension) and the upper
  * limit of it */
-int cbufs_allocated, cbufs_target, empty_comps, over_quota_total, over_quota_limit;
+int tmems_allocated, tmems_target, empty_comps, over_quota_total, over_quota_limit;
 
 static inline void wake_glb_blk_list(struct blocked_thd *bl, spdid_t spdid);
 static inline void wake_local_blk_list(struct blocked_thd *bl);
@@ -104,7 +102,7 @@ put_mem(tmem_item *tmi)
 {
 	assert(EMPTY_LIST(tmi, next, prev));
 	assert(tmi->parent_spdid == 0);
-	cbufs_allocated--;
+	tmems_allocated--;
 	tmi->free_next = free_tmem_list;
 	free_tmem_list = tmi;
 
@@ -125,11 +123,11 @@ get_mem(void)
 	 * self-suspension stacks over-quota allocation, which is
 	 * necessary
 	 */
-	/* if (cbufs_allocated >= cbufs_target) return NULL; */
+	/* if (tmems_allocated >= tmems_target) return NULL; */
 	tmi = free_tmem_list;
 	if (!tmi) return NULL;
 	free_tmem_list = tmi->free_next;
-	cbufs_allocated++;
+	tmems_allocated++;
 
 	return tmi;
 }
@@ -139,7 +137,7 @@ get_mem(void)
  * used in assert since we have item->num_allocated already.
  */
 static inline unsigned int
-tmem_num_alloc_stks(spdid_t s_spdid)
+tmem_num_alloc_tmems(spdid_t s_spdid)
 {
 	int count = 0;
 	tmem_item *item, *list;
@@ -425,7 +423,7 @@ tmem_report(void)
 {
 	TAKE();
 	/* stkmgr_print_ci_freelist(); */
-	printc("allocated: %d,\n", cbufs_allocated);
+	printc("allocated: %d,\n", tmems_allocated);
 	RELEASE();
 }
 
@@ -465,7 +463,7 @@ static inline int
 tmem_set_over_quota_limit(int limit)
 {
 	TAKE();
-	if (limit > MAX_NUM_ITEMS - cbufs_target || limit < 0) {
+	if (limit > MAX_NUM_ITEMS - tmems_target || limit < 0) {
 		printc("Over-quota limit greater than global available quota. limit: %d.\n", limit);
 		goto err;
 	} else
