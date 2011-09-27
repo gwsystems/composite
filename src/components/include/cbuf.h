@@ -220,10 +220,10 @@ again:				/* avoid convoluted conditions */
 		if (unlikely(len > obj_sz)) return NULL;
 	}
 
-	printc("After Cache missing here::\n");
-	int i;
-	for(i=0;i<20;i++)
-		printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i));
+	/* printc("After Cache missing here::\n"); */
+	/* int i; */
+	/* for(i=0;i<20;i++) */
+	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
 
 	/* printc("%p\n",((char*)(cm.c.ptr << PAGE_ORDER)) + off); */
 	return ((char*)(cm.c.ptr << PAGE_ORDER)) + off;
@@ -350,13 +350,13 @@ __cbuf_free(void *buf)
 	assert(s->flh);
 	/* printc("nfree is now : %d\n", s->nfree); */
 	if (s->nfree == 1) {
-		printc("slab_add_freelist is called\n");
+		/* printc("slab_add_freelist is called\n"); */
 		assert(EMPTY_LIST(s, next, prev));
 		slab_add_freelist(s, s->flh);
 	}
 
 	if (s->nfree == s->max_objs) {
-		printc("slab_free(s) is called\n");
+		/* printc("slab_free(s) is called\n"); */
 		cbuf_slab_free(s);
 	} 
 	

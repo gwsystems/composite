@@ -197,8 +197,8 @@ tmem_grant(struct spd_tmem_info *sti)
 		/* printc(" \n ~~~ thd %d request tmem!! ~~~\n\n", cos_get_thd_id()); */
 		eligible = 0;
 
-		printc("thd %d  spd %ld sti->num_allocated %d sti->num_desired %d\n",cos_get_thd_id(), sti->spdid, sti->num_allocated, sti->num_desired);
-		printc("empty_comps %d (MAX_NUM_ITEMS - tmems_allocated) %d\n",empty_comps , (MAX_NUM_ITEMS - tmems_allocated));
+		/* printc("thd %d  spd %ld sti->num_allocated %d sti->num_desired %d\n",cos_get_thd_id(), sti->spdid, sti->num_allocated, sti->num_desired); */
+		/* printc("empty_comps %d (MAX_NUM_ITEMS - tmems_allocated) %d\n",empty_comps , (MAX_NUM_ITEMS - tmems_allocated)); */
 
 		if (sti->num_allocated < sti->num_desired &&
 		    (empty_comps < (MAX_NUM_ITEMS - tmems_allocated) || sti->num_allocated == 0)) {

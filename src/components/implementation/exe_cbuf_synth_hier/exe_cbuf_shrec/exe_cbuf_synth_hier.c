@@ -14,7 +14,7 @@
 
 #define TOTAL_AMNT 128		/* power of 2 */
 
-unsigned int spin = 1000, l_to_r = 64, num_invs = 1;
+unsigned int spin = 1000, l_to_r = 64, num_invs = 1, cbuf_l_to_r = 32;
 
 #define AVG_INVC_CYCS 1000   /* From the measurement */
 
@@ -139,6 +139,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 
 	unsigned long has_run;   /* thread has run cycles in this inv */
 
+	u32_t id, idx;
 	cbuf_t cbt[NCBUF];
 	void *mt[NCBUF];
 
@@ -169,20 +170,22 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 			return 0;
 		}
 		exe_time_left -= has_run;
-                //printc("thd %d, has_run %lu, left: %lu!\n", cos_get_thd_id(),loop_cost, exe_time_left);
 
-		u64_t start,end;
-#ifdef TEST_CBUF		
-		i = 0;
-		/* printc("--- thd %d in spd %ld call to create ----\n", cos_get_thd_id(), cos_spd_id()); */
-		rdtscll(start);
-		for (i = 0; i < NCBUF ; i++){
-			cbt[i] = cbuf_null();
-			mt[i] = cbuf_alloc(SZ, &cbt[i]);
+		/* u64_t start,end; */
+
+		rdtscll(t);
+		val = (int)(t & (TOTAL_AMNT-1));
+
+		if (val >= cbuf_l_to_r){
+			for (i = 0; i < NCBUF ; i++){
+				cbt[i] = cbuf_null();
+				mt[i] = cbuf_alloc(SZ, &cbt[i]);
+				cbuf_unpack(cbt[i], &id, &idx);
+				printc("Now @ %p, memid %x, idx %x\n", mt[i], id, idx);
+				memset(mt[i], 'a', SZ);
+				
+			}
 		}
-		rdtscll(end);
-		printc("cost to alloc is %ld\n",end-start);
-#endif
 
 		rdtscll(t);
 		val = (int)(t & (TOTAL_AMNT-1));
@@ -193,17 +196,11 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 			exe_time_left = callr_right(exe_time_left, initial_exe_t );
 		}
 
-#ifdef TEST_CBUF
-		/* printc("--- thd %d in spd %ld call to free ----\n", cos_get_thd_id(), cos_spd_id());	 */
-		rdtscll(start);
 		for (i = 0; i < NCBUF ; i++){
 			cbuf_free(mt[i]);
 		}
-		rdtscll(end);
-		printc("cost to free is %ld\n",end-start);
-#endif
 	}
-//	printc("thd %d left comp %d!\n", cos_get_thd_id(), cos_spd_id());
+
 	return exe_time_left;
 }
 

@@ -55,8 +55,8 @@ cbuf_cache_miss(int cbid, int idx, int len)
 
 	/* This is the commit point */
 	/* printc("miss: meta_cbuf is at %p, h is %p\n", &meta_cbuf, h); */
-	cbuf_vect_add_id(&meta_cbuf, (void*)mc.c_0.v, (cbid-1)*2);
-	cbuf_vect_add_id(&meta_cbuf, cos_get_thd_id(), (cbid-1)*2+1);
+	cbuf_vect_add_id(&meta_cbuf, (void*)mc.c_0.v, cbid_to_meta_idx(s->cbid));
+	cbuf_vect_add_id(&meta_cbuf, cos_get_thd_id(), cbid_to_meta_idx(s->cbid)+1);
 
 	return 0;
 }
@@ -113,9 +113,7 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	/* for(i=0;i<20;i++) */
 	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
 
-	long cbidx;
-	cbidx = cbid_to_meta_idx(cbid);
-	addr = cbuf_vect_addr_lookup(&meta_cbuf, cbidx);
+	addr = cbuf_vect_addr_lookup(&meta_cbuf, cbid_to_meta_idx(cbid));
 	if (!addr) goto err;
 
 	/* printc("create: meta_cbuf is at %p\n", &meta_cbuf); */
@@ -162,15 +160,11 @@ cbuf_slab_free(struct cbuf_slab *s)
 	 * cbuf.h:__cbuf_alloc for an explanation.
 	 */
 	/* slab_add_freelist(s, freelist); */
-	/* printc("s->cbid is %d\n",s->cbid); */
-	long cbidx;
-	cbidx = cbid_to_meta_idx(s->cbid);
-	/* printc("cbidx is %d\n",cbidx); */
 
 	/* clear IN_USE bit */
-	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
+	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbid_to_meta_idx(s->cbid));
 	cm.c.flags &= ~CBUFM_IN_USE;
-	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbidx);
+	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbid_to_meta_idx(s->cbid));
 
 	/* cm.c_0.th_id = COS_VECT_INIT_VAL; */
 	/* cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.th_id, cbidx+1); */
