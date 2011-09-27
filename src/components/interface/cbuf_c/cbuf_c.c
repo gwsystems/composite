@@ -58,10 +58,6 @@ cbuf_cache_miss(int cbid, int idx, int len)
 	cbuf_vect_add_id(&meta_cbuf, (void*)mc.c_0.v, (cbid-1)*2);
 	cbuf_vect_add_id(&meta_cbuf, cos_get_thd_id(), (cbid-1)*2+1);
 
-	/* int i; */
-	/* for(i=0;i<20;i++) */
-	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
-	
 	return 0;
 }
 
@@ -100,7 +96,7 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 
 	/* union cbuf_meta mc; */
 
-	printc("meta_cbuf is %p\n",&meta_cbuf);
+	/* printc("meta_cbuf is %p\n",&meta_cbuf); */
 	cnt = 0;
 	cbid = 0;
 	do {
@@ -111,11 +107,11 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 		/* FIXME: once everything is well debugged, remove this check */
 		assert(cnt++ < 10);
 	} while (cbid < 0);
-	printc("slab_alloc -- cbid is %d\n",cbid);
+	/* printc("slab_alloc -- cbid is %d\n",cbid); */
 
-	int i;
-	for(i=0;i<20;i++)
-		printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i));
+	/* int i; */
+	/* for(i=0;i<20;i++) */
+	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
 
 	long cbidx;
 	cbidx = cbid_to_meta_idx(cbid);
@@ -166,10 +162,10 @@ cbuf_slab_free(struct cbuf_slab *s)
 	 * cbuf.h:__cbuf_alloc for an explanation.
 	 */
 	/* slab_add_freelist(s, freelist); */
-	printc("s->cbid is %d\n",s->cbid);
+	/* printc("s->cbid is %d\n",s->cbid); */
 	long cbidx;
 	cbidx = cbid_to_meta_idx(s->cbid);
-	printc("cbidx is %d\n",cbidx);
+	/* printc("cbidx is %d\n",cbidx); */
 
 	/* clear IN_USE bit */
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);

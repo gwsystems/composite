@@ -18,6 +18,8 @@ typedef struct ci_wrapper_ptr shared_component_info;
 /* 1 means there's memory available in local cache */
 #define MEM_IN_LOCAL_CACHE(ssi) ((ssi)->ci.spd_cinfo_page->cos_stacks.freelists[0].freelist != 0)
 
+#define TMEM_RELINQ COMP_INFO_TMEM_STK_RELINQ
+
 /**
  * This struct maps directly to how the memory
  * is layed out and used in memory

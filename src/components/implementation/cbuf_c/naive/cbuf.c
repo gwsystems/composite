@@ -188,6 +188,12 @@ out:
 	//if(!d) goto err;
 	assert(&cci->desc == cos_map_lookup(&cb_ids, cci->desc.cbid));
 
+	/* struct cb_mapping *m; */
+	/* m = FIRST_LIST(&cci->desc.owner, next, prev); */
+	/* printc("in spd: %ld\n",sti->spdid); */
+	/* printc("...list on mapped: %p\n", m); */
+	/* printc("...list on mapped: %p\n", FIRST_LIST(m, next, prev)); */
+
 	mgr_remove_client_mem(sti, cci);
 
 	printc("Kevin:spd: %d Leaving get cli mem:: num_allocated %d  num_desired %d\n",s_spdid, sti->num_allocated, sti->num_desired);
@@ -583,21 +589,21 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	d->obj_sz     = size;
 	d->owner.spd  = sti->spdid;
 	d->owner.cbd  = d;
-	INIT_LIST(&d->owner, next, prev);
 
 	/* Jiguo:
 	  This can be two different cases:
 	  1. A local cached one is returned with a cbid
 	  2. A cbuf item is obtained from the global free list without cbid
 	 */
-	printc("d->cbid is %ld\n",d->cbid);
+	/* printc("d->cbid is %ld\n",d->cbid); */
 	if(d->cbid == 0){
+		INIT_LIST(&d->owner, next, prev);  // only created when first time
 		cbid = cos_map_add(&cb_ids, d);   // use new cbuf
 	}
 	else{
 		cbid = cbuf_item->desc.cbid;  // use a local cached one
 	}
-	printc("new cbid is %ld\n",cbid);
+	/* printc("in create:::new cbid is %ld\n",cbid); */
 	ret = d->cbid = cbid;
 
 	mc = __spd_cbvect_lookup_range(sti, cbid);
@@ -624,11 +630,15 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 {
 	struct cb_mapping *m;
 	struct spd_tmem_info *map_sti;
-	/* printc("cbid is %d\n",cbid); */
+	/* printc("_c_delete....cbid %d\n", cbid); */
 
 	mman_revoke_page(cos_spd_id(), (vaddr_t)d->addr, 0);  // remove all mapped children
 
 	m = FIRST_LIST(&d->owner, next, prev);
+	/* printc("list on mapped: %p\n", m); */
+	/* printc("list on mapped: %p\n", FIRST_LIST(m, next, prev)); */
+	/* printc("First:m%p, d->owner%p\n",m,&d->owner); */
+	
 	while (m != &d->owner) {
 		struct cb_mapping *n;
 
@@ -694,6 +704,7 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 	struct cb_mapping *m;
 
 	TAKE();
+	/* printc("retrieve in spd: %ld, cbid %d\n",spdid,cbid); */
 	d = cos_map_lookup(&cb_ids, cbid);
 	/* sanity and access checks */
 	if (!d || d->obj_sz < len) goto done;
@@ -721,8 +732,13 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 	m->spd  = spdid;
 	m->addr = (vaddr_t)d_addr;
 
+	//struct cb_mapping *m;
 	ADD_LIST(&d->owner, m, next, prev);
-	/* ret = cbid; */
+
+	/* printc("Added: m %p, d->owner %p\n",m,&d->owner); */
+	/* printc("list on mapped: %p\n", FIRST_LIST(&d->owner, next, prev)); */
+	/* printc("list on mapped: %p\n", FIRST_LIST(FIRST_LIST(&d->owner, next, prev), next, prev)); */
+
 	ret = (void *)d_addr;
 done:
 	RELEASE();

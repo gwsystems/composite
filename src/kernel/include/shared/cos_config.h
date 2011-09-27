@@ -4,7 +4,7 @@
 #define CPU_GHZ        2.534
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 
-#define RUNTIME                10 // seconds
+#define RUNTIME                60 // seconds
 // After how many seconds should schedulers print out their information?
 #define SCHED_PRINTOUT_PERIOD  50 
 #define COMPONENT_ASSERTIONS   1 // activate assertions in components?

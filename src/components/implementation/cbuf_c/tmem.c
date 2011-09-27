@@ -28,7 +28,7 @@ inline void tmem_mark_relinquish_all(struct spd_tmem_info *sti)
 	spd_c_info = sti->ci.spd_cinfo_page;
 	assert(spd_c_info);
 
-	spd_c_info->cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] = 1;
+	spd_c_info->cos_tmem_relinquish[TMEM_RELINQ] = 1;
 	sti->relinquish_mark = 1;
 	
 	return;
@@ -45,7 +45,7 @@ inline void tmem_unmark_relinquish_all(struct spd_tmem_info *sti)
 	spd_c_info = sti->ci.spd_cinfo_page;
 	assert(spd_c_info);
 
-	spd_c_info->cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] = 0;
+	spd_c_info->cos_tmem_relinquish[TMEM_RELINQ] = 0;
 	sti->relinquish_mark = 0;
 	
 	return;
@@ -103,7 +103,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 		 * make this algorithm correct, but we want tmem/idl
 		 * support to implement that.
 		 */
-		/* printc("%d try to depend on %d comp %d i%d\n", cos_get_thd_id(), dep_thd, sti->spdid, i); */
+		printc("%d try to depend on %d comp %d i%d\n", cos_get_thd_id(), dep_thd, sti->spdid, i);
 		RELEASE();
 		ret = sched_block(cos_spd_id(), dep_thd);
 		TAKE(); 
@@ -197,7 +197,7 @@ tmem_grant(struct spd_tmem_info *sti)
 		/* printc(" \n ~~~ thd %d request tmem!! ~~~\n\n", cos_get_thd_id()); */
 		eligible = 0;
 
-		printc("sti->num_allocated %d sti->num_desired %d\n",sti->num_allocated, sti->num_desired);
+		printc("thd %d  spd %ld sti->num_allocated %d sti->num_desired %d\n",cos_get_thd_id(), sti->spdid, sti->num_allocated, sti->num_desired);
 		printc("empty_comps %d (MAX_NUM_ITEMS - tmems_allocated) %d\n",empty_comps , (MAX_NUM_ITEMS - tmems_allocated));
 
 		if (sti->num_allocated < sti->num_desired &&
@@ -349,9 +349,10 @@ return_tmem(struct spd_tmem_info *sti)
 
 	assert(sti);
 	s_spdid = sti->spdid;
-	printc("return_mem is called \n");
-	printc("Before:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);
-	/* if (sti->num_desired < sti->num_allocated || sti->num_glb_blocked) { 2nd condition is used for max pool testing */
+	/* printc("return_mem is called \n"); */
+	/* printc("Before:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired); */
+	
+        /* if (sti->num_desired < sti->num_allocated || sti->num_glb_blocked) { 2nd condition is used for max pool testing */
 	if (sti->num_desired < sti->num_allocated) {   // only blocked on glb for other spds
 		printc("fly..............\n");
 		get_mem_from_client(sti);
@@ -364,7 +365,7 @@ return_tmem(struct spd_tmem_info *sti)
 	if (tmem_should_unmark_relinquish(sti) && sti->relinquish_mark == 1) 
 		tmem_unmark_relinquish_all(sti);
 
-	printc("After return called:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);
+	/* printc("After return called:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired); */
 
 }
 

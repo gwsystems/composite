@@ -187,10 +187,16 @@ cbuf2buf(cbuf_t cb, int len)
 	/* len = nlpow2(len); */
 	len = nlpow2(len - 1);
 	cbuf_unpack(cb, &id, &idx);
-	printc("buf2buf:: id %x, idx %x\n", id, idx);
 
 	long cbidx;
 	cbidx = cbid_to_meta_idx(id);
+
+	/* printc("buf2buf:: id %x, idx %x  cbidx is %ld\n", id, idx, cbidx); */
+
+	/* printc("cbuf2buf before cache_miss::\n"); */
+	/* int i; */
+	/* for(i=0;i<20;i++) */
+	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
 
 again:				/* avoid convoluted conditions */
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
@@ -213,6 +219,12 @@ again:				/* avoid convoluted conditions */
 		off    = 0;
 		if (unlikely(len > obj_sz)) return NULL;
 	}
+
+	printc("After Cache missing here::\n");
+	int i;
+	for(i=0;i<20;i++)
+		printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i));
+
 	/* printc("%p\n",((char*)(cm.c.ptr << PAGE_ORDER)) + off); */
 	return ((char*)(cm.c.ptr << PAGE_ORDER)) + off;
 }
@@ -323,20 +335,20 @@ static inline void
 __cbuf_free(void *buf)
 {
 	u32_t p = ((u32_t)buf & PAGE_MASK) >> PAGE_ORDER; /* page id */
-	printc("page id is %p\n",p);
+	/* printc("page id is %p\n",p); */
 	struct cbuf_slab *s = cos_vect_lookup(&slab_descs, p);
 	u32_t b   = (u32_t)buf;
 	u32_t off = b - (b & PAGE_MASK);
 	int idx;
 	assert(s);
-	printc("***** thd %d spd :: %ld __cbuf_free:******\n", cos_get_thd_id(),cos_spd_id());
+	/* printc("***** thd %d spd :: %ld __cbuf_free:******\n", cos_get_thd_id(),cos_spd_id()); */
 	/* Argh, division!  Maybe transform into loop? Maybe assume pow2? */
 	idx = off/s->obj_sz;
 	assert(!bitmap_check(&s->bitmap[0], idx));
 	bitmap_set(&s->bitmap[0], idx);
 	s->nfree++;
 	assert(s->flh);
-	printc("nfree is now : %d\n", s->nfree);
+	/* printc("nfree is now : %d\n", s->nfree); */
 	if (s->nfree == 1) {
 		printc("slab_add_freelist is called\n");
 		assert(EMPTY_LIST(s, next, prev));
@@ -364,7 +376,7 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 	u32_t *bm;
 
 	/* printc("***** thd %d spd :: %d __cbuf_alloc:******\n", cos_get_thd_id(), cos_spd_id()); */
-	printc("<<<__cbuf_alloc size %d>>>\n",size);
+	/* printc("<<<__cbuf_alloc size %d>>>\n",size); */
 again:					/* avoid convoluted conditions */
 	if (unlikely(!slab_freelist->list)) {
 		/* printc("..not on free list..\n"); */
@@ -433,12 +445,12 @@ again:					/* avoid convoluted conditions */
 		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.th_id, cbidx+1);
 	}
 
-	int thd,i;
-	thd = cos_get_thd_id();
-	if(thd == 24){
-		for(i=0;i<20;i++)
-			printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i));
-	}
+	/* int thd,i; */
+	/* thd = cos_get_thd_id(); */
+	/* if(thd == 24){ */
+	/* 	for(i=0;i<20;i++) */
+	/* 		printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
+	/* } */
 
 	s->nfree--;
 
