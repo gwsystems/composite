@@ -289,6 +289,7 @@ static long cbuf_vect_add_id(cbuf_vect_t *v, void *val, long id)
 
 	if (NULL == is) {
 		printc("look up id %ld, going to expand!\n",id);
+		id++;
 		if (__cbuf_vect_expand(v, id)) return -1;
 		is = __cbuf_vect_lookup(v, id);
 		assert(is);

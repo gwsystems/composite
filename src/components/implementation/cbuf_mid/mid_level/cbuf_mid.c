@@ -4,7 +4,7 @@
 #include <cbuf_bot.h>
 
 #define SZ 4096
-#define iter 1
+#define iter 20
 
 volatile unsigned long test;
 
@@ -28,7 +28,6 @@ void cbuf_call(char c)
 
 	printc("\n****** MID: thread %d in spd %ld ******\n",cos_get_thd_id(), cos_spd_id());
 
-	/* void *m;2 */
 	/* cbuf_t cb = cbuf_null(); */
 	u32_t id, idx;
 	/* u64_t start, end; */
@@ -40,9 +39,10 @@ void cbuf_call(char c)
 		cbt[i] = cbuf_null();
 		mt[i] = cbuf_alloc(SZ, &cbt[i]);
 		cbuf_unpack(cbt[i], &id, &idx);
-		printc("Now @ %p, memid %x, idx %x\n", mt[i], id, idx);
+		printc("thread %d Now @ %p, memid %x, idx %x\n", cos_get_thd_id(), mt[i], id, idx);
 		memset(mt[i], c, SZ);
 	}
+
 	
 	delay(DELAY);
 	delay(DELAY);

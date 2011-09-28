@@ -9,7 +9,7 @@ f(cbuf_t cb, int len)
 
 	printc("\n****** BOT: thread %d in spd %ld ******\n",cos_get_thd_id(), cos_spd_id());
 	b = cbuf2buf(cb, len);
-	printc("b is %p\n",b);	
+
 	if (!b) {
 		printc("WTF\n");
 		return cbuf_null();
@@ -17,7 +17,7 @@ f(cbuf_t cb, int len)
 	/* check_val(); */
 	printc("1!\n");
 	memset(b, 'b', len);
-	printc("after but2buf\n");	
+
 	return cb;
 }
 

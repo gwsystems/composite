@@ -173,19 +173,18 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 
 		/* u64_t start,end; */
 
-		rdtscll(t);
-		val = (int)(t & (TOTAL_AMNT-1));
+		/* rdtscll(t); */
+		/* val = (int)(t & (TOTAL_AMNT-1)); */
 
-		if (val >= cbuf_l_to_r){
-			for (i = 0; i < NCBUF ; i++){
-				cbt[i] = cbuf_null();
-				mt[i] = cbuf_alloc(SZ, &cbt[i]);
-				cbuf_unpack(cbt[i], &id, &idx);
-				printc("Now @ %p, memid %x, idx %x\n", mt[i], id, idx);
-				memset(mt[i], 'a', SZ);
-				
-			}
-		}
+		/* if (val >= cbuf_l_to_r){ */
+		/* 	for (i = 0; i < NCBUF ; i++){ */
+		/* 		cbt[i] = cbuf_null(); */
+		/* 		mt[i] = cbuf_alloc(SZ, &cbt[i]); */
+		/* 		cbuf_unpack(cbt[i], &id, &idx); */
+		/* 		printc("Now @ %p, memid %x, idx %x\n", mt[i], id, idx); */
+		/* 		memset(mt[i], 'a', SZ); */
+		/* 	} */
+		/* } */
 
 		rdtscll(t);
 		val = (int)(t & (TOTAL_AMNT-1));
@@ -196,9 +195,9 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 			exe_time_left = callr_right(exe_time_left, initial_exe_t );
 		}
 
-		for (i = 0; i < NCBUF ; i++){
-			cbuf_free(mt[i]);
-		}
+		/* for (i = 0; i < NCBUF ; i++){ */
+		/* 	cbuf_free(mt[i]); */
+		/* } */
 	}
 
 	return exe_time_left;

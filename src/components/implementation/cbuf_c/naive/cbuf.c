@@ -218,7 +218,7 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_cbuf)
 	// could find to be dependent on itself
 	/* printc("ret :: %d current thd : %d \n", ret, cos_get_thd_id()); */
 	if (ret == cos_get_thd_id()){
-		printc("Try to depend on itself since > 1 cbufs by it");
+		printc("Try to depend on itself since > 1 cbufs by it\n");
 		goto none;
 	}
 
@@ -237,13 +237,15 @@ __spd_cbvect_add_range(struct spd_tmem_info *sti, long cbuf_id, vaddr_t page)
 	cbr = malloc(sizeof(struct spd_cbvect_range));
 	if (!cbr) return -1;
 
-	cbr->start_id = (cbuf_id-1) & ~CBUF_VECT_MASK;
+	cbr->start_id = (cbuf_id - 1) & ~CBUF_VECT_MASK;
 
 	cbr->end_id = cbr->start_id + CBUF_VECT_PAGE_BASE - 1;
 	cbr->meta = (union cbuf_meta*)page;
 
 	/* printc("spd %d  sti %p cbr->meta %p\n",sti->spdid,sti, cbr->meta); */
 	ADD_LIST(&sti->ci, cbr, next, prev);
+
+	/* printc("range is added here:: startid %d endid %d\n", cbr->start_id, cbr->end_id); */
 
 	return 0;
 }
@@ -274,6 +276,7 @@ static inline void
 __spd_cbvect_clean_val(struct spd_tmem_info *sti, long cbuf_id)
 {
 	struct spd_cbvect_range *cbr;
+	static test = 0;
 
 	for (cbr = FIRST_LIST(&sti->ci, next, prev) ; 
 	     cbr != &sti->ci ; 
@@ -454,7 +457,7 @@ cbuf_c_delete(spdid_t spdid, int cbid)
 	if (d->owner.spd != sti->spdid) goto err;
 
 	/* mapping model will release all child mappings */
-	printc("Releasing cbuf\n");
+	/* printc("Releasing cbuf\n"); */
 
 	return_tmem(sti);
 
