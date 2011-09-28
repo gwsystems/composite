@@ -55,8 +55,8 @@ cbuf_cache_miss(int cbid, int idx, int len)
 
 	/* This is the commit point */
 	/* printc("miss: meta_cbuf is at %p, h is %p\n", &meta_cbuf, h); */
-	cbuf_vect_add_id(&meta_cbuf, (void*)mc.c_0.v, cbid_to_meta_idx(s->cbid));
-	cbuf_vect_add_id(&meta_cbuf, cos_get_thd_id(), cbid_to_meta_idx(s->cbid)+1);
+	cbuf_vect_add_id(&meta_cbuf, (void*)mc.c_0.v, cbid_to_meta_idx(cbid));
+	cbuf_vect_add_id(&meta_cbuf, cos_get_thd_id(), cbid_to_meta_idx(cbid)+1);
 
 	return 0;
 }

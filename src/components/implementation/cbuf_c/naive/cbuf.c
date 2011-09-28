@@ -19,9 +19,11 @@
 
 #include <mem_mgr_large.h>
 #include <valloc.h>
+#include <mem_pool.h>
 
 #include <tmem.h>
 #include <cbuf_c.h>
+
 //#define PRINCIPAL_CHECKS
 
 #define DEFAULT_TARGET_ALLOC 10
@@ -33,8 +35,29 @@ COS_MAP_CREATE_STATIC(cb_ids);
 #define CBUF_OBJ_SZ_SHIFT 7
 #define CB_IDX(name) (name - cbr->start_id - 1)
 
+struct cos_cbuf_item *alloc_item_data_struct(void *l_addr) 
+{
+	struct cos_cbuf_item *cci;
+	cci = malloc(sizeof(struct cos_cbuf_item));
+	if (!cci) BUG();
 
-tmem_item *free_mem_in_local_cache(struct spd_tmem_info *sti)
+	INIT_LIST(cci, next, prev);
+        
+	cci->desc.addr = l_addr;
+
+	cci->desc.cbid = 0;
+	cci->desc.obj_sz = 0;
+	cci->desc.principal = 0;
+
+	return cci;
+}
+
+void free_item_data_struct(struct cos_cbuf_item *tmi) 
+{
+	free(tmi);
+}
+
+struct cos_cbuf_item *free_mem_in_local_cache(struct spd_tmem_info *sti)
 {
 	spdid_t s_spdid;
 	struct cos_cbuf_item *cci = NULL, *list;
@@ -63,7 +86,6 @@ err:
 	cci = NULL;	
 	return cci;
 }
-
 
 //  all cbufs that created for this component
 void mgr_map_client_mem(struct cos_cbuf_item *cci, struct spd_tmem_info *sti)
@@ -501,7 +523,6 @@ cos_init(void *d)
 	cos_map_init_static(&cb_ids);
 	BUG_ON(cos_map_add(&cb_ids, NULL)); /* reserve id 0 */
 	int i;
-	struct cos_cbuf_item *cbuf_item;
 
 	memset(spd_tmem_info_list, 0, sizeof(struct spd_tmem_info) * MAX_NUM_SPDS);
     
@@ -516,25 +537,25 @@ cos_init(void *d)
 	INIT_LIST(&global_blk_list, next, prev);
 
 	/* Initialize our free list */
-	for(i = 0; i < MAX_NUM_CBUFS; i++){
+	/* for(i = 0; i < MAX_NUM_CBUFS; i++){ */
                 
-		// put cbuf list is some known state
-		cbuf_item = &(all_cbuf_list[i]);
-		INIT_LIST(cbuf_item, next, prev);
-		// allocate a page
-		cbuf_item->desc.addr = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
-		assert(cbuf_item->desc.addr); 
+	/* 	// put cbuf list is some known state */
+	/* 	cbuf_item = &(all_cbuf_list[i]); */
+	/* 	INIT_LIST(cbuf_item, next, prev); */
+	/* 	// allocate a page */
+	/* 	cbuf_item->desc.addr = valloc_alloc(cos_spd_id(), cos_spd_id(), 1); */
+	/* 	assert(cbuf_item->desc.addr);  */
 
-		cbuf_item->desc.cbid = 0;
-		cbuf_item->desc.obj_sz = 0;
-		cbuf_item->desc.principal = 0;
-		/* get the page */
-		if (!mman_get_page(cos_spd_id(), (vaddr_t)cbuf_item->desc.addr, 0)) {
-			DOUT("<cbuf_mgr>: ERROR, could not allocate page for cbuf\n"); 
-		} else {
-			put_mem(cbuf_item);
-		}
-	}
+	/* 	cbuf_item->desc.cbid = 0; */
+	/* 	cbuf_item->desc.obj_sz = 0; */
+	/* 	cbuf_item->desc.principal = 0; */
+	/* 	/\* get the page *\/ */
+	/* 	if (!mman_get_page(cos_spd_id(), (vaddr_t)cbuf_item->desc.addr, 0)) { */
+	/* 		DOUT("<cbuf_mgr>: ERROR, could not allocate page for cbuf\n");  */
+	/* 	} else { */
+	/* 		put_mem(cbuf_item); */
+	/* 	} */
+	/* } */
 	tmems_allocated = 0;
 
 	// Map all of the spds we can into this component
@@ -572,8 +593,8 @@ cos_init(void *d)
 	}
 	over_quota_total = 0;
 	over_quota_limit = MAX_NUM_CBUFS;
-	/* DOUT("Done mapping components information pages!\n"); */
-	/* DOUT("<stkmgr>: init finished\n"); */
+
+	event_waiting();
 	return;
 
 }

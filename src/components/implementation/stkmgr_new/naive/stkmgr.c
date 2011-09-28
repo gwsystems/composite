@@ -10,6 +10,7 @@
 #include <valloc.h>
 
 #include <tmem.h>
+#include <mem_pool.h>
 
 //#define _DEBUG_STKMGR
 
@@ -35,6 +36,31 @@ enum stk_flags {
 struct cos_stk_item all_stk_list[MAX_NUM_STACKS];
 
 static void stkmgr_print_ci_freelist(void);
+
+struct cos_stk_item *free_mem_in_local_cache(struct spd_tmem_info *sti)
+{
+	return (struct cos_stk_item *)((sti)->ci.spd_cinfo_page->cos_stacks.freelists[0].freelist);
+}
+
+struct cos_stk_item *alloc_item_data_struct(void *l_addr)
+{
+	struct cos_stk_item *csi;
+	csi = malloc(sizeof(struct cos_stk_item));
+	if (!csi) BUG();
+
+	INIT_LIST(csi, next, prev);
+        
+	csi->hptr = l_addr;
+	// figure out or location of the top of the stack
+	csi->stk = (struct cos_stk *)D_COS_STK_ADDR((char *)csi->hptr);
+
+	return csi;
+}
+
+void free_item_data_struct(struct cos_stk_item *csi)
+{
+	free(csi);
+}
 
 static inline struct cos_stk_item *
 stkmgr_get_spds_stk_item(struct spd_tmem_info *sti, vaddr_t a)
@@ -152,7 +178,7 @@ mgr_get_client_mem(struct spd_tmem_info *sti)
 void 
 cos_init(void *arg){
 	int i;
-	struct cos_stk_item *stk_item;
+
 	printc("stk mgr running.....\n");
 	DOUT("<stkmgr>: STACK in cos_init\n");
 
@@ -168,23 +194,23 @@ cos_init(void *arg){
 	INIT_LIST(&global_blk_list, next, prev);
 
 	// Initialize our free stack list
-	for(i = 0; i < MAX_NUM_STACKS; i++){
+	/* for(i = 0; i < MAX_NUM_STACKS; i++){ */
         
-		// put stk list is some known state
-		stk_item = &(all_stk_list[i]);
-		stk_item->stk  = NULL;
-		INIT_LIST(stk_item, next, prev);
+	/* 	// put stk list is some known state */
+	/* 	stk_item = &(all_stk_list[i]); */
+	/* 	stk_item->stk  = NULL; */
+	/* 	INIT_LIST(stk_item, next, prev); */
         
-		// allocate a page
-		stk_item->hptr = alloc_page();
-		if (stk_item->hptr == NULL){
-			DOUT("<stk_mgr>: ERROR, could not allocate stack\n"); 
-		} else {
-			// figure out or location of the top of the stack
-			stk_item->stk = (struct cos_stk *)D_COS_STK_ADDR((char *)stk_item->hptr);
-			put_mem(stk_item);
-		}
-	}
+	/* 	// allocate a page */
+	/* 	stk_item->hptr = alloc_page(); */
+	/* 	if (stk_item->hptr == NULL){ */
+	/* 		DOUT("<stk_mgr>: ERROR, could not allocate stack\n");  */
+	/* 	} else { */
+	/* 		// figure out or location of the top of the stack */
+	/* 		stk_item->stk = (struct cos_stk *)D_COS_STK_ADDR((char *)stk_item->hptr); */
+	/* 		put_mem(stk_item); */
+	/* 	} */
+	/* } */
 	tmems_allocated = 0;
 
 	// Map all of the spds we can into this component
@@ -224,7 +250,10 @@ cos_init(void *arg){
 	over_quota_total = 0;
 	over_quota_limit = MAX_NUM_STACKS;
 	DOUT("Done mapping components information pages!\n");
-	DOUT("<stkmgr>: init finished\n");
+
+	DOUT("<stkmgr>: init finished, call event waiting!\n");
+	event_waiting();
+
 	return;
 }
 

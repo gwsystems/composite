@@ -6,6 +6,7 @@
 #include <sched.h>
 
 #include <tmem.h>
+#include <mem_pool.h>
 
 struct spd_tmem_info *
 get_spd_info(spdid_t spdid)
@@ -16,6 +17,68 @@ get_spd_info(spdid_t spdid)
 	sti = &spd_tmem_info_list[spdid];
 	
 	return sti;
+}
+
+int
+put_mem(tmem_item *tmi)
+{
+	assert(EMPTY_LIST(tmi, next, prev));
+	assert(tmi->parent_spdid == 0);
+	tmems_allocated--;
+	if (tmems_allocated > tmems_target) {
+		mempool_put_mem(cos_spd_id(), LOCAL_ADDR(tmi));
+		free_item_data_struct(tmi);
+	} else {
+		tmi->free_next = free_tmem_list;
+		free_tmem_list = tmi;
+		if (GLOBAL_BLKED)
+			wake_glb_blk_list(&global_blk_list, 0);
+	}	
+
+	return 0;
+}
+
+tmem_item *
+get_mem(void)
+{
+	tmem_item *tmi;
+	void *l_addr;
+
+	/* Do we need to maintain global stack target? If we set a
+	 * limit to each component, can we get a global target as
+	 * well? Disable this first because it prevents
+	 * self-suspension stacks over-quota allocation, which is
+	 * necessary
+	 */
+	/* if (stacks_allocated >= stacks_target) return NULL; */
+
+	tmi = free_tmem_list;
+
+	if (tmi) {
+		free_tmem_list = tmi->free_next;
+	} else {
+		l_addr = mempool_get_mem(cos_spd_id(), 1);
+		if (l_addr) tmi = alloc_item_data_struct(l_addr);
+	}
+
+	if (!tmi) return NULL;
+
+	tmems_allocated++;
+
+	return tmi;
+}
+
+void event_waiting()
+{
+	while (1) {
+		mempool_tmem_mgr_event_waiting(cos_spd_id());
+		TAKE();
+		wake_glb_blk_list(&global_blk_list, 0);
+		RELEASE();
+	}
+	printc("Event thread terminated!\n");
+	BUG();
+	return;
 }
 
 inline void tmem_mark_relinquish_all(struct spd_tmem_info *sti)
@@ -186,13 +249,12 @@ tmem_grant(struct spd_tmem_info *sti)
 	 */
 
 	while (1) {
-#ifdef MEM_IN_LOCAL_CACHE
-		tmi = (tmem_item *)MEM_IN_LOCAL_CACHE(sti);
-		if (tmi){
+		tmi = free_mem_in_local_cache(sti);
+		if (tmi) {
 			local_cache = tmi;
 			break;
 		}
-#endif
+
 		DOUT("request tmem\n");
 		/* printc(" \n ~~~ thd %d request tmem!! ~~~\n\n", cos_get_thd_id()); */
 		eligible = 0;
