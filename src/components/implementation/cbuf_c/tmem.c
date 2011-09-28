@@ -79,14 +79,14 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 	
 	int ret, dep_thd, in_blk_list;
 	do {
-		dep_thd = resolve_dependency(sti, i); 
+		dep_thd = resolve_dependency(sti, i++); 
 
 		if (i > sti->ss_counter) sti->ss_counter = i; /* update self-suspension counter */
 
 		if (dep_thd == 0) {
-			/* printc("Self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n", */
-			/*        sti->ss_counter,sti->spdid, cos_get_thd_id(), sti->num_waiting_thds, sti->num_desired, sti->num_allocated); */
-			assert(i > 0); 
+			printc("Self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n",
+			       sti->ss_counter,sti->spdid, cos_get_thd_id(), sti->num_waiting_thds, sti->num_desired, sti->num_allocated);
+			/* assert(i > 0);  */
 			return 0;
 		}
 
@@ -138,7 +138,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 		}
 		printc("%d finished depending on %d. comp %d. i %d. ss_cnt %d. ret %d\n",
 		       cos_get_thd_id(), dep_thd, sti->spdid,i,sti->ss_counter, ret);
-		i++;
+
 	} while (in_blk_list);
 	printc("Thd %d wokeup and is obtaining a tmem\n", cos_get_thd_id());
 

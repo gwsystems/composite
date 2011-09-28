@@ -139,35 +139,6 @@ cbuf_cons(u32_t cbid, u32_t idx)
 static inline cbuf_t cbuf_null(void)      { return 0; }
 static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
 
-/* 
- * This data-structure is shared between this component and the cbuf_c
- * (the cbuf manager) and the refcnt is used to gauge if the cbuf is
- * actually in use.  The cbuf_c can garbage collect it if not (TODO).
-*/
-
-/* union cbuf_meta { */
-/* 	struct { */
-/* 		u32_t v;        		/\* value *\/ */
-/* 		u32_t thd_id; */
-/* 	} c_0; */
-/* 	struct { */
-/* 		u32_t ptr:20, obj_sz:6; /\* page pointer, and ... *\/ */
-/* 		/\* the object size is the size of the object if it is */
-/* 		 * <= the size of a page, OR the _order_ of the number */
-/* 		 * of pages in the object, if it is > PAGE_SIZE *\/ */
-/* 	        cbufm_flags_t flags:6; */
-/* 		u32_t thd_id:32; */
-/* 		/\* int refcnt:1; *\/ */
-/* 	} __attribute__((packed)) c;	/\* composite type *\/ */
-
-/* }; */
-
-
-/* multiple cbs together = larger shared objects *//*
-struct cbuf_collection { 
-	int ncbs;
-	cbuf_t cb[0];
-};*/
 
 extern int cbuf_cache_miss(int cbid, int idx, int len);
 /* 
