@@ -15,7 +15,7 @@ f(cbuf_t cb, int len)
 		return cbuf_null();
 	}
 	/* check_val(); */
-	printc("1!\n");
+
 	memset(b, 'b', len);
 
 	return cb;

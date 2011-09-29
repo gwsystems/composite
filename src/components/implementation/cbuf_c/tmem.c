@@ -118,8 +118,10 @@ inline void tmem_unmark_relinquish_all(struct spd_tmem_info *sti)
 inline int
 tmem_wait_for_mem_no_dependency(struct spd_tmem_info *sti)
 {
-	assert(sti->num_allocated > 0);
-	assert(sti->ss_counter);
+	/* Following are not ture for cbufs now, do we need to ensure
+	 * these? */
+	/* assert(sti->num_allocated > 0); */
+	/* assert(sti->ss_counter); */
 
 	RELEASE();
 	sched_block(cos_spd_id(), 0);
@@ -138,7 +140,8 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 {
 	unsigned int i = 0;
 
-	assert(sti->num_allocated > 0);
+	/* How to ensure one item per component? */
+	/* assert(sti->num_allocated > 0); */
 	
 	int ret, dep_thd, in_blk_list;
 	do {
@@ -166,7 +169,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 		 * make this algorithm correct, but we want tmem/idl
 		 * support to implement that.
 		 */
-		printc("%d try to depend on %d comp %d i%d\n", cos_get_thd_id(), dep_thd, sti->spdid, i);
+		printc("MGR %d >>> %d try to depend on %d comp %d i%d\n", cos_spd_id(), cos_get_thd_id(), dep_thd, sti->spdid, i);
 		RELEASE();
 		ret = sched_block(cos_spd_id(), dep_thd);
 		TAKE(); 
@@ -212,7 +215,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 inline int tmem_should_mark_relinquish(struct spd_tmem_info *sti)
 {
 	if (sti->num_allocated >= sti->num_desired 
-	    || (empty_comps >= (MAX_NUM_ITEMS - tmems_allocated)))
+	    || (empty_comps >= (MAX_NUM_MEM - tmems_allocated)))
 		return 1;
 	else
 		return 0;
@@ -260,10 +263,10 @@ tmem_grant(struct spd_tmem_info *sti)
 		eligible = 0;
 
 		/* printc("thd %d  spd %ld sti->num_allocated %d sti->num_desired %d\n",cos_get_thd_id(), sti->spdid, sti->num_allocated, sti->num_desired); */
-		/* printc("empty_comps %d (MAX_NUM_ITEMS - tmems_allocated) %d\n",empty_comps , (MAX_NUM_ITEMS - tmems_allocated)); */
+		/* printc("empty_comps %d (MAX_NUM_MEM - tmems_allocated) %d\n",empty_comps , (MAX_NUM_MEM - tmems_allocated)); */
 
 		if (sti->num_allocated < sti->num_desired &&
-		    (empty_comps < (MAX_NUM_ITEMS - tmems_allocated) || sti->num_allocated == 0)) {
+		    (empty_comps < (MAX_NUM_MEM - tmems_allocated) || sti->num_allocated == 0)) {
 			/* printc("alloooooooooo!!\n"); */
 			/* We are eligible for allocation! */
 			eligible = 1;
@@ -350,7 +353,7 @@ tmem_grant(struct spd_tmem_info *sti)
 			 * ourselves without dependencies! */
 			if (sti->num_allocated < (sti->num_desired + sti->ss_max) &&
 			    over_quota_total < over_quota_limit &&
-			    (empty_comps < (MAX_NUM_ITEMS - tmems_allocated) || sti->num_allocated == 0)) {
+			    (empty_comps < (MAX_NUM_MEM - tmems_allocated) || sti->num_allocated == 0)) {
 
 				printc("when self:: num_allocated %d num_desired+max %d\n",sti->num_allocated, sti->num_desired + sti->ss_max);				
 				tmi = get_mem();

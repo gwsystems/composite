@@ -13,9 +13,6 @@
 #define TAKE() if(sched_component_take(cos_spd_id())) BUG();
 #define RELEASE() if(sched_component_release(cos_spd_id())) BUG();
 
-#define NUM_TMEM_MGR 2
-#define MAX_NUM_MEM 100
-
 COS_VECT_CREATE_STATIC(page_descs_1);
 COS_VECT_CREATE_STATIC(page_descs_2);
 cos_vect_t * page_descs[NUM_TMEM_MGR] = {&page_descs_1, &page_descs_2};
@@ -45,7 +42,7 @@ int unregistered_mgrs = NUM_TMEM_MGR;
 struct tmem_mgr *tmem_mgr_list = NULL;
 
 #define ADDO_MGR_LIST(mgr)				\
-	mgr->next_mgr = tmem_mgr_list;	\
+	mgr->next_mgr = tmem_mgr_list;			\
 	tmem_mgr_list = mgr;
 
 

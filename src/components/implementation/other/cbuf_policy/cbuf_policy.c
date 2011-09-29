@@ -17,8 +17,10 @@
 
 #include <cbuf.h>
 #include <cbuf_c.h>
+#include <mem_pool.h>
 
 #define DEFAULT_CBUF_AMNT 5
+#define MAX_NUM_CBUFS MAX_NUM_MEM
 
 #include <cos_list.h>
 #include <heap.h>

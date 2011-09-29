@@ -5,7 +5,7 @@
 ./cos_loader \
 "c0.o, ;*fprr.o, ;mm.o, ;print.o, ;schedconf.o, ;st.o, ;bc.o, ;boot.o,a4;cg.o,a1;\
 \
-!mpool.o,a2;!smn.o,a2;!va.o,a1;!l.o,a8;!te.o,a3;!e.o,a3;!stat.o,a25;!cbp.o,a4;!buf.o,a2;\
+!mpool.o,a2;!smn.o,a2;!va.o,a1;!l.o,a8;!te.o,a3;!e.o,a3;!stat.o,a25;!tp.o,a4;!buf.o,a2;\
 \
 (!top0.o=cbf_top.o),a10;\
 (!top1.o=cbf_top.o),a10;\
@@ -45,6 +45,6 @@ mid0.o-smn.o|mm.o|print.o|buf.o|va.o|bot0.o;\
 mid1.o-smn.o|mm.o|print.o|buf.o|va.o|bot0.o;\
 bot0.o-smn.o|mm.o|print.o|buf.o|va.o;\
 \
-cbp.o-smn.o|buf.o|print.o|te.o|fprr.o|schedconf.o|mm.o|va.o;\
+tp.o-smn.o|buf.o|print.o|te.o|fprr.o|schedconf.o|mm.o|va.o|mpool.o;\
 cg.o-fprr.o\
 " ./gen_client_stub

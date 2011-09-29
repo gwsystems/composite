@@ -1,10 +1,10 @@
 #ifndef COS_CONFIG_H
 #define COS_CONFIG_H
 
-#define CPU_GHZ        2.0
+#define CPU_GHZ        3.39
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 
-#define RUNTIME                60 // seconds
+#define RUNTIME                2 // seconds
 
 // After how many seconds should schedulers print out their information?
 #define SCHED_PRINTOUT_PERIOD  50 

@@ -15,8 +15,10 @@
 #include <sched_conf.h>
 #include <cos_alloc.h>
 
+#include <mem_pool.h>
 #include <stkmgr.h>
 #define DEFAULT_STACK_AMNT 5
+#define MAX_NUM_STACKS MAX_NUM_MEM
 
 #include <cos_list.h>
 #include <heap.h>

@@ -28,8 +28,6 @@
 
 #define DEFAULT_TARGET_ALLOC 10
 
-struct cos_cbuf_item all_cbuf_list[MAX_NUM_CBUFS];
-
 COS_MAP_CREATE_STATIC(cb_ids);
 
 #define CBUF_OBJ_SZ_SHIFT 7
@@ -476,7 +474,7 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 	struct cb_mapping *m;
 
 	TAKE();
-	/* printc("retrieve in spd: %ld, cbid %d\n",spdid,cbid); */
+	printc("retrieve in spd: %ld, cbid %d\n",spdid,cbid);
 	d = cos_map_lookup(&cb_ids, cbid);
 	/* sanity and access checks */
 	if (!d || d->obj_sz < len) goto done;
@@ -539,26 +537,6 @@ cos_init(void *d)
 	free_tmem_list = NULL;
 	INIT_LIST(&global_blk_list, next, prev);
 
-	/* Initialize our free list */
-	/* for(i = 0; i < MAX_NUM_CBUFS; i++){ */
-                
-	/* 	// put cbuf list is some known state */
-	/* 	cbuf_item = &(all_cbuf_list[i]); */
-	/* 	INIT_LIST(cbuf_item, next, prev); */
-	/* 	// allocate a page */
-	/* 	cbuf_item->desc.addr = valloc_alloc(cos_spd_id(), cos_spd_id(), 1); */
-	/* 	assert(cbuf_item->desc.addr);  */
-
-	/* 	cbuf_item->desc.cbid = 0; */
-	/* 	cbuf_item->desc.obj_sz = 0; */
-	/* 	cbuf_item->desc.principal = 0; */
-	/* 	/\* get the page *\/ */
-	/* 	if (!mman_get_page(cos_spd_id(), (vaddr_t)cbuf_item->desc.addr, 0)) { */
-	/* 		DOUT("<cbuf_mgr>: ERROR, could not allocate page for cbuf\n");  */
-	/* 	} else { */
-	/* 		put_mem(cbuf_item); */
-	/* 	} */
-	/* } */
 	tmems_allocated = 0;
 
 	// Map all of the spds we can into this component
@@ -590,25 +568,23 @@ cos_init(void *d)
 		spd_tmem_info_list[spdid].num_waiting_thds = 0;
 		spd_tmem_info_list[spdid].num_glb_blocked = 0;
 		spd_tmem_info_list[spdid].ss_counter = 0;
-		spd_tmem_info_list[spdid].ss_max = MAX_NUM_CBUFS;
+		spd_tmem_info_list[spdid].ss_max = MAX_NUM_MEM;
 		empty_comps++;
 
 	}
 	over_quota_total = 0;
-	over_quota_limit = MAX_NUM_CBUFS;
+	over_quota_limit = MAX_NUM_MEM;
 
 	event_waiting();
 	return;
 
 }
-
  
 void 
 cbufmgr_buf_report(void)
 {
 	tmem_report();
 }
-
 
 int
 cbufmgr_set_suspension_limit(spdid_t cid, int max)

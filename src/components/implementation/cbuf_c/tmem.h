@@ -11,6 +11,7 @@
 #include <mem_mgr_large.h>
 
 #include <tmem_tk.h>
+#include <mem_pool.h>
 
 #define MAX_BLKED 10
 
@@ -427,7 +428,7 @@ static inline int
 tmem_set_over_quota_limit(int limit)
 {
 	TAKE();
-	if (limit > MAX_NUM_ITEMS - tmems_target || limit < 0) {
+	if (limit > MAX_NUM_MEM - tmems_target || limit < 0) {
 		printc("Over-quota limit greater than global available quota. limit: %d.\n", limit);
 		goto err;
 	} else
