@@ -5,7 +5,7 @@
 ./cos_loader \
 "c0.o, ;*fprr.o, ;mm.o, ;print.o, ;schedconf.o, ;st.o, ;bc.o, ;boot.o,a4;cg.o,a1;\
 \
-!l.o,a8;!stat.o,a25;!te.o,a3;!e.o,a3;!smn.o,a2;!va.o,a1;!buf.o,a2;!cbp.o,a4;\
+!mpool.o,a2;|!l.o,a8;!stat.o,a25;!te.o,a3;!e.o,a3;!smn.o,a2;!va.o,a1;!buf.o,a2;!tp.o,a4;\
 \
 (!p0.o=exe_cb_pt.o),a9'p5 e500 s0 d120';\
 (!p1.o=exe_cb_pt.o),a11'p7 e700 s0 d120';\
@@ -33,7 +33,7 @@
 c0.o-fprr.o;\
 fprr.o-print.o|mm.o|st.o|schedconf.o|[parent_]bc.o;\
 cg.o-fprr.o;\
-l.o-fprr.o|mm.o|print.o|te.o|smn.o|va.o;\
+l.o-fprr.o|mm.o|print.o|te.o|va.o;\
 te.o-print.o|fprr.o|mm.o|smn.o|va.o;\
 mm.o-print.o;\
 e.o-fprr.o|print.o|mm.o|l.o|st.o|smn.o;\
@@ -43,9 +43,10 @@ schedconf.o-print.o;\
 bc.o-print.o;\
 boot.o-print.o|fprr.o|mm.o|schedconf.o|cg.o;\
 va.o-print.o|fprr.o|mm.o|boot.o;\
-smn.o-print.o|fprr.o|mm.o|boot.o|va.o;\
-buf.o-smn.o|fprr.o|print.o|l.o|mm.o|boot.o|va.o;\
-cbp.o-smn.o|buf.o|print.o|te.o|fprr.o|schedconf.o|mm.o|va.o;\
+smn.o-print.o|fprr.o|mm.o|boot.o|va.o|mpool.a;\
+buf.o-fprr.o|print.o|l.o|mm.o|boot.o|va.o|mpool.o;\
+mpool.o-print.o|fprr.o|mm.o|boot.o|va.o;\
+tp.o-smn.o|buf.o|print.o|te.o|fprr.o|schedconf.o|mm.o|va.o|mpool.o;\
 \
 p0.o-te.o|fprr.o|schedconf.o|print.o|sh18.o|smn.o;\
 p1.o-te.o|fprr.o|schedconf.o|print.o|sh18.o|smn.o;\
