@@ -13,7 +13,7 @@
 #include <mem_mgr_large.h>
 #include <cbuf_vect.h>
 
-#define MAX_NUM_CBUFS 100
+#define MAX_NUM_CBUFS 200
 
 /* Component functions */
 int cbuf_c_create(spdid_t spdid, int size, long cbid); /* return cbid */

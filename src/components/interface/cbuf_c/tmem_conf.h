@@ -34,7 +34,7 @@ typedef enum {
 	CBUFM_RO    = 1<<1,
 	CBUFM_GRANT = 1<<2,
 	CBUFM_IN_USE = 1<<3,
-	CBUFM_RELINQUISH = 1<<4
+	CBUFM_RELINQUISH_TEST = 1<<4
 } cbufm_flags_t;
 
 /* 

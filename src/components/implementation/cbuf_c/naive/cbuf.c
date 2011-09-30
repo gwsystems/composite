@@ -109,17 +109,24 @@ static void
 mgr_remove_client_mem(struct spd_tmem_info *sti, struct cos_cbuf_item *cci)
 {
 	__cbuf_c_delete(sti, cci->desc.cbid, &cci->desc);
+	printc("after buf del before map del\n");
 	cos_map_del(&cb_ids, cci->desc.cbid);
 
+	printc("fly..........cbid is %d\n", cci->desc.cbid);
 	cci->desc.cbid = 0;
 	cci->parent_spdid = 0;
 	
 	// Clear our memory to prevent leakage
 	memset(cci->desc.addr, 0, PAGE_SIZE);
 	
-	/* printc("Removing from local list\n"); */
+	printc("Removing from local list\n");
+	union cbuf_meta cm;
+	cm.c_0.v = cci->entry->c_0.v;
+	if (cm.c.flags & CBUFM_RELINQUISH_TEST) 
+		cm.c.flags &= ~CBUFM_RELINQUISH_TEST;
 
 	REM_LIST(cci, next, prev);
+
 	/* TODO: move all of this into the tmem generic code just like the ++s */
 	sti->num_allocated--;
 	if (sti->num_allocated == 0) empty_comps++;
@@ -146,6 +153,7 @@ tmem_item *mgr_get_client_mem(struct spd_tmem_info *sti)
 		if (!CBUF_IN_USE(cm.c.flags)) goto out;
 	}
 out:
+
 	if (cci == list) goto err;
 	assert(&cci->desc == cos_map_lookup(&cb_ids, cci->desc.cbid));
 
@@ -154,7 +162,7 @@ out:
 
 	mgr_remove_client_mem(sti, cci);
 
-	/* printc("Kevin:spd: %d Leaving get cli mem:: num_allocated %d  num_desired %d\n",s_spdid, sti->num_allocated, sti->num_desired); */
+	printc("Kevin:spd: %d Leaving get cli mem:: num_allocated %d  num_desired %d\n",s_spdid, sti->num_allocated, sti->num_desired);
 
 done:
 	return cci;
@@ -254,7 +262,6 @@ static inline void
 __spd_cbvect_clean_val(struct spd_tmem_info *sti, long cbuf_id)
 {
 	struct spd_cbvect_range *cbr;
-	static test = 0;
 
 	for (cbr = FIRST_LIST(&sti->ci, next, prev) ; 
 	     cbr != &sti->ci ; 
@@ -317,7 +324,7 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	if (cbid) {
 		 // vector should already exist
 		v = cos_map_lookup(&cb_ids, cbid);
-		if (unlikely(v != (void *)spdid)){
+		if (unlikely(v != (void *)((unsigned long) spdid))){
 			goto err;
 		}
  	}
@@ -353,9 +360,11 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	if(d->cbid == 0){
 		INIT_LIST(&d->owner, next, prev);  // only created when first time
 		cbid = cos_map_add(&cb_ids, d);   // use new cbuf
+		printc("new cbid is %ld\n",cbid);
 	}
 	else{
 		cbid = cbuf_item->desc.cbid;  // use a local cached one
+		printc("cached cbid is %ld\n",cbid);
 	}
 	/* printc("in create:::new cbid is %ld\n",cbid); */
 	ret = d->cbid = cbid;
@@ -368,6 +377,7 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	mc->c.ptr = d->owner.addr >> PAGE_ORDER;
 	mc->c.obj_sz = size >> CBUF_OBJ_SZ_SHIFT;
 	mc->c_0.th_id = cos_get_thd_id();
+	mc->c.flags |= CBUFM_IN_USE;
 
 	/* printc("Create: size %d, c.obj_sz %d\n", size, mc->c.obj_sz); */
 done:
@@ -383,7 +393,9 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 {
 	struct cb_mapping *m;
 	struct spd_tmem_info *map_sti;
-	/* printc("_c_delete....cbid %d\n", cbid); */
+	printc("_c_delete....cbid %d\n", cbid);
+
+	__spd_cbvect_clean_val(sti, cbid);  // do this first to avoid preemption
 
 	mman_revoke_page(cos_spd_id(), (vaddr_t)d->addr, 0);  // remove all mapped children
 
@@ -404,9 +416,9 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 		free(m);
 		m = n;
 	}
-	__spd_cbvect_clean_val(sti, cbid);
 	valloc_free(cos_spd_id(), sti->spdid, (void *)(d->owner.addr), 1);
 
+	printc("unmapped is done\n");
 	return 0;
 }
 
@@ -420,7 +432,7 @@ cbuf_c_delete(spdid_t spdid, int cbid)
 {
 	struct cb_desc *d;
 	struct spd_tmem_info *sti;
-	int ret = -1;  // -1 means not really removing from spd and gives back to mgr
+	int ret = 0;  // 1 means not really removing from spd (stay as cache)
 
 	TAKE();
 
@@ -436,7 +448,6 @@ cbuf_c_delete(spdid_t spdid, int cbid)
 
 	/* mapping model will release all child mappings */
 	/* printc("Releasing cbuf\n"); */
-
 	return_tmem(sti);
 
 err:

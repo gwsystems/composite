@@ -302,12 +302,4 @@ static long cbuf_vect_add_id(cbuf_vect_t *v, void *val, long id)
 	return id;
 }
 
-static int cbuf_vect_del(cbuf_vect_t *v, long id)
-{
-	assert(v);
-	if (__cbuf_vect_set(v, id, (void*)CBUF_VECT_INIT_VAL)) return 1;
-	return 0;
-}
-
-
 #endif /* CBUF_VECT_H */

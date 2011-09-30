@@ -14,7 +14,7 @@
 
 #define TOTAL_AMNT 128		/* power of 2 */
 
-unsigned int spin = 1000, l_to_r = 64, num_invs = 1, cbuf_l_to_r = 32;
+unsigned int spin = 1000, l_to_r = 64, num_invs = 1, cbuf_l_to_r = 1;
 
 #define AVG_INVC_CYCS 1000   /* From the measurement */
 
@@ -23,10 +23,9 @@ unsigned int spin = 1000, l_to_r = 64, num_invs = 1, cbuf_l_to_r = 32;
 #define PERCENT_EXE 10
 
 #define TEST_CBUF
-//#undef  TEST_CBUF
 
 #define SZ 4096  // size of one cbuf item
-#define NCBUF 1   // number of cbufs to create each time
+#define NCBUF 50   // number of cbufs to create each time
 
 volatile unsigned long kkk = 0;
 unsigned long loop_cost = 0;
@@ -101,8 +100,8 @@ static void parse_initstr(void)
 	cos_argreg_free(data);
 }
 
-extern unsigned long calll_left(unsigned long exe_t, unsigned long const initial_exe_t);
-extern unsigned long callr_right(unsigned long exe_t, unsigned long  const initial_exe_t);
+extern unsigned long calll_left(unsigned long exe_t, unsigned long const initial_exe_t, cbuf_t cbt, int len);
+extern unsigned long callr_right(unsigned long exe_t, unsigned long  const initial_exe_t, cbuf_t cbt, int len);
 
 static unsigned long measure_loop_costs(unsigned long spin) 
 {
@@ -130,7 +129,7 @@ static unsigned long measure_loop_costs(unsigned long spin)
 	return temp;*/
 }
 
-static unsigned long do_action(unsigned long exe_time_left, const unsigned long initial_exe_t)
+static unsigned long do_action(unsigned long exe_time_left, const unsigned long initial_exe_t, cbuf_t cbt_t, int len)
 {
 
 	unsigned long i, j, val;
@@ -138,10 +137,14 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	static int first = 1;
 
 	unsigned long has_run;   /* thread has run cycles in this inv */
-
+	
 	u32_t id, idx;
 	cbuf_t cbt[NCBUF];
+	memset(cbt, 0 , NCBUF*sizeof(cbuf_t));
+
 	void *mt[NCBUF];
+	int get[NCBUF];
+	memset(get, 0 , NCBUF*sizeof(cbuf_t));
 
 	parse_initstr();
 //	printc("thd %d enter comp %d!\n", cos_get_thd_id(), cos_spd_id());
@@ -171,51 +174,90 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 		}
 		exe_time_left -= has_run;
 
-		/* u64_t start,end; */
+		u64_t start,end;
+		int mark = 0;
+		len = SZ;
+		for (i = 0; i < NCBUF ; i++){
+			/* rdtscll(t); */
+			/* val = (int)(t & (TOTAL_AMNT-1)); */
+			/* if (val >= cbuf_l_to_r){ */
+				cbt[i] = cbuf_null();
+				rdtscll(start);
+				mt[i] = cbuf_alloc(len, &cbt[i]);
+				rdtscll(end);
+				cbuf_unpack(cbt[i], &id, &idx);
+				/* printc("---- cost Alloc :: %llu  ----\n", end-start); */
+				printc("Now thd %d create in spd %ld, memid %x, idx %x\n", cos_get_thd_id(), cos_spd_id(), id, idx);
+				memset(mt[i], 'a', len);
+				printc("write sth...\n");
+				get[i] = 1;
+				mark = 1;
+			/* } */
+		}
 
-		/* rdtscll(t); */
-		/* val = (int)(t & (TOTAL_AMNT-1)); */
+		
+		for (i = 0; i < NCBUF ; i++){
+			/* if (get[i] == 1){ */
+				get[i] = 0;
+				/* rdtscll(start); */
+				cbuf_free(mt[i]);
+				/* rdtscll(end); */
+				/* printc("---- cost Free :: %llu ----\n", end-start); */
+				/* printc("EXECBUF i %lu : thd %d freed in spd %ld\n",i, cos_get_thd_id(), cos_spd_id()); */
+			/* } */
+		}
 
-		/* if (val >= cbuf_l_to_r){ */
-		/* 	for (i = 0; i < NCBUF ; i++){ */
-		/* 		cbt[i] = cbuf_null(); */
-		/* 		mt[i] = cbuf_alloc(SZ, &cbt[i]); */
-		/* 		cbuf_unpack(cbt[i], &id, &idx); */
-		/* 		printc("Now @ %p, memid %x, idx %x\n", mt[i], id, idx); */
-		/* 		memset(mt[i], 'a', SZ); */
-		/* 	} */
-		/* } */
+
+		/* goto quick; */
 
 		rdtscll(t);
 		val = (int)(t & (TOTAL_AMNT-1));
-		if (val >= l_to_r) {
-			exe_time_left = calll_left(exe_time_left, initial_exe_t );
 		
-		} else {
-			exe_time_left = callr_right(exe_time_left, initial_exe_t );
+		if(mark == 2){
+			if (val >= l_to_r) {
+				exe_time_left = calll_left(exe_time_left, initial_exe_t , cbt[0], len);
+				
+			} else {
+				exe_time_left = callr_right(exe_time_left, initial_exe_t, cbt[0], len);
+			}
 		}
-
+		else{
+			if (val >= l_to_r) {
+				exe_time_left = calll_left(exe_time_left, initial_exe_t , 0, 0);
+				
+			} else {
+				exe_time_left = callr_right(exe_time_left, initial_exe_t, 0, 0);
+			}
+		}	
+		
 		/* for (i = 0; i < NCBUF ; i++){ */
-		/* 	cbuf_free(mt[i]); */
+		/* 	/\* if (get[i] == 1){ *\/ */
+		/* 		get[i] = 0; */
+		/* 		rdtscll(start); */
+		/* 		cbuf_free(mt[i]); */
+		/* 		rdtscll(end); */
+		/* 		printc("cost Free :: %llu\n", end-start); */
+		/* 		/\* printc("Now thd %d freed in spd %ld\n", cos_get_thd_id(), cos_spd_id()); *\/ */
+		/* 	/\* } *\/ */
 		/* } */
 	}
-
+quick:			
 	return exe_time_left;
 }
 
-unsigned long left(unsigned long exe_t, unsigned long const  initial_exe_t)
+unsigned long left(unsigned long exe_t, unsigned long const  initial_exe_t, cbuf_t cbt, int len)
 {
-	return do_action(exe_t,initial_exe_t);
+	return do_action(exe_t,initial_exe_t, cbt, len);
 }
 
-unsigned long right(unsigned long exe_t,  unsigned long const initial_exe_t)
+unsigned long right(unsigned long exe_t,  unsigned long const initial_exe_t, cbuf_t cbt, int len)
 {
-	return do_action(exe_t,initial_exe_t);
+	return do_action(exe_t,initial_exe_t, cbt, len);
 }
 
 
 void cos_init(void)
 {
 
-	while (1) do_action(10000,10000);
+	while (1) do_action(10000,10000,0,0);
 }
