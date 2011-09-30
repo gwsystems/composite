@@ -16,9 +16,7 @@
 #include <cos_alloc.h>
 
 #include <cbuf_c.h>
-
 #include <stkmgr.h>
-
 #include <mem_pool.h>
 
 #define DEFAULT_TMEM_AMNT 5
@@ -28,11 +26,11 @@
 #include <limits.h>
 
 #define _DEBUG_TMEM_POLICY
-
 #ifdef _DEBUG_TMEM_POLICY
-#define WHERESTR "[file %s, line %d]:"
-#define WHEREARG __FILE__, __LINE__
-#define DOUT(fmt,...) printc(WHERESTR fmt, WHEREARG, ##__VA_ARGS__)
+/* #define WHERESTR "[file %s, line %d]:" */
+/* #define WHEREARG __FILE__, __LINE__ */
+/* #define DOUT(fmt,...) printc(WHERESTR fmt, WHEREARG, ##__VA_ARGS__) */
+#define DOUT(fmt,...) printc(fmt, ##__VA_ARGS__)
 #else
 #define DOUT(fmt,...)
 #endif
@@ -42,10 +40,11 @@
  
 //#define THD_POOL 1
 
-#define POLICY_PERIODICITY 25
+#define POLICY_PERIODICITY 100
 
 #define STK_MGR 0
 #define CBUF_MGR 1
+
 /* data-structures */
 struct thd_sched {
 	int period, priority;
@@ -118,8 +117,6 @@ collect_stk_compinfo(struct component *citer)
 	 * than concurrency estimation */
 	if (citer->ss_counter > est) stkmgr_detect_suspension(citer->spdid, 1);
 	citer->allocated = stkmgr_get_allocated(citer->spdid);
-	/* if (citer->concur_est > 1) */
-	/* printc("Spd %d concurrency estimate: %d; ", citer->spdid, citer->concur_est); */
 }
 
 static inline void 
@@ -134,8 +131,6 @@ collect_cbuf_compinfo(struct component *citer)
 	 * than concurrency estimation */
 	if (citer->ss_counter > est) cbufmgr_detect_suspension(citer->spdid, 1);
 	citer->allocated = cbufmgr_get_allocated(citer->spdid);
-	/* if (citer->concur_est > 1) */
-	/* printc("Spd %d concurrency estimate: %d; ", citer->spdid, citer->concur_est); */
 }
 
 static void
@@ -184,12 +179,9 @@ gather_data(int counter)
 				assert(tc->tmem_misses >= 0);
 			
 				if (counter == 0 && tc->tmem_misses) {
-
-					DOUT("\nTmem info for %d: time blocked %ld, misses %d\n",
-					       tc->c->spdid, tc->avg_time_blocked, tc->tmem_misses);
+					DOUT("MGR%d Tmem info for spd %d: time blocked %ld, misses %d\n", tc->c->mgr, tc->c->spdid, tc->avg_time_blocked, tc->tmem_misses);
 				}
 			}
-			DOUT("\n Next MGR!\n");
 		}
 	}
 
@@ -207,6 +199,7 @@ gather_data(int counter)
 			default: 
 				BUG();
 			}
+			/* printc("MGR %d, Spd %d concurrency estimate: %d;alloc %d,ss %d\n", mgr, citer->spdid, citer->concur_est, citer->allocated, citer->ss_counter); */
 		}
 	}
 }
@@ -292,7 +285,8 @@ move_stack_and_update_tardiness(struct component *c_add, struct component * c_ta
 /* 	     c != &components ; */
 /* 	     c = FIRST_LIST(c, next, prev)) { */
 /* 		diff = c->concur_est - c->concur_new; */
-/* 		if (diff > 0) { */
+/* 		if (diff
+ > 0) { */
 /* 			if (diff < available) { */
 /* 				c->concur_new=c->concur_est; */
 /* 				available -= diff; */
@@ -410,20 +404,17 @@ calc_component_tardiness(struct component * c)
 {
 	struct thd * titer;
 	struct thd_comp * tc;
-	int mgr;
 
 	c->add_impact = 0;
 	c->remove_impact = 0;
 	/* calculate the total tardiness of this component if adding one stack */
-	for (mgr = 0; mgr < NUM_TMEM_MGR; mgr++) {
-		for ( titer = FIRST_LIST(&threads, next, prev) ;
-		      titer != &threads ;
-		      titer = FIRST_LIST(titer, next, prev)) {
-			tc = &titer->comp_info[mgr][c->spdid];
-			if (titer->tardiness > 0 && tc->avg_time_blocked) {
-				/*tardiness = min(tardiness, blocking time)*/
-				c->add_impact += (long)tc->impact < titer->tardiness ? (long)tc->impact : titer->tardiness;
-			}
+	for ( titer = FIRST_LIST(&threads, next, prev) ;
+	      titer != &threads ;
+	      titer = FIRST_LIST(titer, next, prev)) {
+		tc = &titer->comp_info[c->mgr][c->spdid];
+		if (titer->tardiness > 0 && tc->avg_time_blocked) {
+			/*tardiness = min(tardiness, blocking time)*/
+			c->add_impact += (long)tc->impact < titer->tardiness ? (long)tc->impact : titer->tardiness;
 		}
 	}
 	/* if (c->add_impact) */
@@ -436,24 +427,21 @@ calc_component_max_tardiness(struct component * c)
 	struct thd * titer;
 	struct thd_comp * tc;
 	long largest = 0, tmp_tardiness;
-	int mgr;
 
 	c->add_impact = 0;
 	c->remove_impact = 0;
 	/* calculate the max tardiness if adding one stack to this component */
-	for (mgr = 0; mgr < NUM_TMEM_MGR; mgr++) {
-		for ( titer = FIRST_LIST(&threads, next, prev) ;
-		      titer != &threads ;
-		      titer = FIRST_LIST(titer, next, prev)) {
-			tc = &titer->comp_info[mgr][c->spdid];
-			if (titer->tardiness > 0) {
-				if (tc->avg_time_blocked)
-					tmp_tardiness = titer->tardiness - (long)tc->impact;
-				else
-					tmp_tardiness = titer->tardiness;
-				if (tmp_tardiness > largest)
-					largest = tmp_tardiness;
-			}
+	for ( titer = FIRST_LIST(&threads, next, prev) ;
+	      titer != &threads ;
+	      titer = FIRST_LIST(titer, next, prev)) {
+		tc = &titer->comp_info[c->mgr][c->spdid];
+		if (titer->tardiness > 0) {
+			if (tc->avg_time_blocked)
+				tmp_tardiness = titer->tardiness - (long)tc->impact;
+			else
+				tmp_tardiness = titer->tardiness;
+			if (tmp_tardiness > largest)
+				largest = tmp_tardiness;
 		}
 	}
 	c->add_impact = largest;
@@ -621,24 +609,33 @@ static void
 update_allocation(void)
 {
 	struct component * citer;
-	int mgr;
+	int mgr, diff;
 	for (mgr = 0 ; mgr < NUM_TMEM_MGR ; mgr++) {
 		for (citer = FIRST_LIST(&components[mgr], next, prev) ;
 		     citer != &components[mgr] ;
 		     citer = FIRST_LIST(citer, next, prev)) {
 			citer->concur_hist = citer->concur_new;
 			if (citer->allocated != citer->concur_new) {
-				if (citer->concur_est == 0) {
+				if (citer->concur_est == 0 || citer->allocated == 0) {
 					assert(citer->allocated == 0);
 					available += citer->concur_new - 1;
 					citer->concur_new = 1;
 				} else {
-					available += citer->concur_new - citer->allocated;
-					citer->concur_new = citer->allocated;
+					diff = citer->allocated - citer->concur_new;
+
+					if (diff > available) {
+						citer->concur_new += available;
+						available = 0;
+					} else {
+						available += citer->concur_new - citer->allocated;
+						citer->concur_new = citer->allocated;
+					}
 				}
+				assert(citer->concur_new);
 			}
 		}
 	}
+	assert(available >= 0);
 }
 
 /* Allocate at least ss_counter cbufs to self-suspension
@@ -667,13 +664,13 @@ solve_suspension(void)
 					changed = available;
 				citer->concur_new += changed;
 				available -= changed;
-
-				DOUT("allocate tmems to comp %d for suspension, cnt %d. concur_new %d -> %d \n",
-				       citer->spdid, citer->ss_counter, citer->concur_new - changed, citer->concur_new);
+				assert(citer->concur_new);
+				DOUT("allocate tmems to comp %d for suspension, cnt %d. concur_new %d -> %d \n", citer->spdid, citer->ss_counter, citer->concur_new - changed, citer->concur_new);
 				/* update lateness */
 				for ( iter = FIRST_LIST(&threads, next, prev);
 				      iter != &threads; /* calculate all the threads have tardiness in the component */
 				      iter = FIRST_LIST(iter,next,prev)) {
+					tc = &(iter->comp_info[citer->mgr][citer->spdid]);
 					atb = tc->avg_time_blocked;
 					if (atb) {
 						if (tc->avg_time_blocked < tc->impact * changed) {
@@ -685,6 +682,7 @@ solve_suspension(void)
 						}
 					}
 				}
+				printc("done. \n");
 			}
 		}
 	}
@@ -792,7 +790,6 @@ init_policy(void)
 		for (c = FIRST_LIST(&components[mgr], next, prev) ;
 		     c != &components[mgr] ;
 		     c = FIRST_LIST(c, next, prev)) {
-			DOUT("mgr %d, spd %d\n", mgr, c->spdid);
 			switch (mgr) {
 			case STK_MGR:
 				stkmgr_set_concurrency(c->spdid, 1, 1); c->concur_new = 1; available -= 1;
@@ -871,7 +868,6 @@ thdpool_max_policy(void)
 static void
 policy(void)
 {
-	DOUT("\n<<<in policy>>>\n");
 	struct component * c_add, * c_get;
 	int count = 0;
 
@@ -880,12 +876,11 @@ policy(void)
 	calc_improvement();
 	
 	solve_suspension();
-	DOUT("\n<<<in policy1>>>\n");
+
 	while (1) {
 		c_add = find_tardiness_comp();
 		if (!c_add) break;
 		assert(c_add->concur_est > c_add->concur_new);
-		DOUT("\n<<<in while1>>>\n");
 		if (available > 0) { /* we have spare stacks, allocate one */
 			available--;
                         move_stack_and_update_tardiness(c_add, NULL);/* add one available stack to c_add */
@@ -897,16 +892,15 @@ policy(void)
 			else
 				break;/* we shouldn't take stacks away from any where */
 		}
-		DOUT("\n<<<in while2>>>\n");
 		count++;
 	}
-	DOUT("\n<<<in poilcy2>>>\n");
 	if (available > 0) history_allocation();
 	/* if (available > 0) {  /\* we have spare stacks for none real-time threads *\/ */
 	/* 	allocate_NRT_stacks(); */
 	/* } */
 	set_concur_new();
-	cbufmgr_set_over_quota_limit(available);
+	/* cbufmgr_set_over_quota_limit(available); */
+	/* stkmgr_set_over_quota_limit(available); */
 	printc("Quota left:%d, iters: %d\n", available, count);
 	return;
 }
@@ -948,7 +942,11 @@ cos_init(void *arg)
 	//unsigned long long s,e;
 	while (1) {
 		gather_data(counter % report_period);
-		if (counter++ % report_period == 0) cbufmgr_buf_report(); /* report stacks usage */
+		if (counter++ % report_period == 0) {
+			/* report stacks usage */
+			cbufmgr_buf_report();
+			stkmgr_stack_report();
+		}
 		
 #ifdef THD_POOL
 		if (THD_POOL == 1)

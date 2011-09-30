@@ -107,11 +107,7 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 		/* FIXME: once everything is well debugged, remove this check */
 		assert(cnt++ < 10);
 	} while (cbid < 0);
-	/* printc("slab_alloc -- cbid is %d\n",cbid); */
-
-	/* int i; */
-	/* for(i=0;i<20;i++) */
-	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
+	printc("slab_alloc -- cbid is %d\n",cbid);
 
 	addr = cbuf_vect_addr_lookup(&meta_cbuf, cbid_to_meta_idx(cbid));
 	if (!addr) goto err;
@@ -128,12 +124,15 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	 * over the slab, and use it for this cbuf.
 	 */
 	exist = cos_vect_lookup(&slab_descs, (u32_t)addr>>PAGE_ORDER);
-	if (exist) slab_deallocate(exist, freelist);
+	if (exist) {
+		printc("exist cbid %d\n",exist->cbid);
+		slab_deallocate(exist, freelist);
+	}
 	assert(!cos_vect_lookup(&slab_descs, (u32_t)addr>>PAGE_ORDER));
 
-	/* printc("not exist??? add to freelist and slab_desc\n"); */
 	cos_vect_add_id(&slab_descs, s, (long)addr>>PAGE_ORDER);
 	cbuf_slab_cons(s, cbid, addr, size, freelist);
+	printc("\nafter check exist. added to freelist and slab_desc, s cbid %d\n",s->cbid, s->mem);
 
 	ret = s;
 

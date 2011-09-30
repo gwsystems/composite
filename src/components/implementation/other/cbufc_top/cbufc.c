@@ -7,7 +7,7 @@
 #include <timed_blk.h>
 #include <cbuf_mid.h>
 
-#define PERIODIC 1000
+#define PERIODIC 100
 
 void cos_init(void)
 {

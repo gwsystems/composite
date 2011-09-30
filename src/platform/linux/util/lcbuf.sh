@@ -21,7 +21,7 @@
 \
 c0.o-fprr.o;\
 fprr.o-print.o|mm.o|st.o|schedconf.o|[parent_]bc.o;\
-l.o-smn.o|fprr.o|mm.o|print.o|te.o|va.o;\
+l.o-fprr.o|mm.o|print.o|te.o|va.o;\
 te.o-smn.o|print.o|fprr.o|mm.o|va.o;\
 mm.o-print.o;\
 e.o-smn.o|fprr.o|print.o|mm.o|l.o|st.o;\
@@ -33,7 +33,7 @@ boot.o-print.o|fprr.o|mm.o|cg.o;\
 va.o-print.o|fprr.o|mm.o|boot.o;\
 smn.o-print.o|fprr.o|mm.o|boot.o|va.o|mpool.o;\
 mpool.o-print.o|fprr.o|mm.o|boot.o|va.o;\
-buf.o-smn.o|fprr.o|print.o|l.o|mm.o|boot.o|va.o|mpool.o;\
+buf.o-fprr.o|print.o|l.o|mm.o|boot.o|va.o|mpool.o;\
 \
 top0.o-smn.o|fprr.o|mm.o|print.o|buf.o|mid0.o|schedconf.o|te.o|va.o;\
 top1.o-smn.o|fprr.o|mm.o|print.o|buf.o|mid0.o|schedconf.o|te.o|va.o;\

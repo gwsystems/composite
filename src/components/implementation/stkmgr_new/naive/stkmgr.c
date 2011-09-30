@@ -214,10 +214,10 @@ cos_init(void *arg){
 
 		spd_tmem_info_list[spdid].managed = 1;
 
-		DOUT("mapped -- id: %ld, hp:%x, sp:%x\n",
-		     spd_tmem_info_list[spdid].ci->cos_this_spd_id, 
-		     (unsigned int)spd_tmem_info_list[spdid].ci->cos_heap_ptr,
-		     (unsigned int)spd_tmem_info_list[spdid].ci->cos_stacks.freelists[0].freelist);
+		/* DOUT("mapped -- id: %ld, hp:%x, sp:%x\n", */
+		/*      spd_tmem_info_list[spdid].ci->cos_this_spd_id,  */
+		/*      (unsigned int)spd_tmem_info_list[spdid].ci->cos_heap_ptr, */
+		/*      (unsigned int)spd_tmem_info_list[spdid].ci->cos_stacks.freelists[0].freelist); */
     
 		tmems_target += DEFAULT_TARGET_ALLOC;
 		spd_tmem_info_list[spdid].num_allocated = 0;

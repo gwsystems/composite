@@ -404,6 +404,7 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 	struct cb_mapping *m;
 	struct spd_tmem_info *map_sti;
 	/* printc("_c_delete....cbid %d\n", cbid); */
+	__spd_cbvect_clean_val(sti, cbid);
 
 	mman_revoke_page(cos_spd_id(), (vaddr_t)d->addr, 0);  // remove all mapped children
 
@@ -424,7 +425,7 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 		free(m);
 		m = n;
 	}
-	__spd_cbvect_clean_val(sti, cbid);
+
 	valloc_free(cos_spd_id(), sti->spdid, (void *)(d->owner.addr), 1);
 
 	return 0;

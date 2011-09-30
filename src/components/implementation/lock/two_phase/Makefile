@@ -6,3 +6,4 @@ DEPENDENCIES=sched mem_mgr_large printc timed_blk
 IF_LIB=
 
 include ../../Makefile.subsubdir
+MANDITORY_LIB=simple_stklib.o
