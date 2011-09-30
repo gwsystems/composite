@@ -40,6 +40,7 @@ void cbuf_call(char c)
 		mt[i] = cbuf_alloc(SZ, &cbt[i]);
 		cbuf_unpack(cbt[i], &id, &idx);
 		printc("thread %d Now @ %p, memid %x, idx %x\n", cos_get_thd_id(), mt[i], id, idx);
+		assert(mt[i]);
 		memset(mt[i], c, SZ);
 	}
 

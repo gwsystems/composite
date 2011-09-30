@@ -32,7 +32,7 @@ put_mem(tmem_item *tmi)
 		tmi->free_next = free_tmem_list;
 		free_tmem_list = tmi;
 		if (GLOBAL_BLKED)
-			wake_glb_blk_list(&global_blk_list, 0);
+			wake_glb_blk_list(0);
 	}	
 
 	return 0;
@@ -73,7 +73,7 @@ void event_waiting()
 	while (1) {
 		mempool_tmem_mgr_event_waiting(cos_spd_id());
 		TAKE();
-		wake_glb_blk_list(&global_blk_list, 0);
+		wake_glb_blk_list(0);
 		RELEASE();
 	}
 	printc("Event thread terminated!\n");
@@ -169,7 +169,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 		 * make this algorithm correct, but we want tmem/idl
 		 * support to implement that.
 		 */
-		printc("MGR %d >>> %d try to depend on %d comp %d i%d\n", cos_spd_id(), cos_get_thd_id(), dep_thd, sti->spdid, i);
+		printc("MGR %ld >>> %d try to depend on %d comp %d i%d\n", cos_spd_id(), cos_get_thd_id(), dep_thd, sti->spdid, i);
 		RELEASE();
 		ret = sched_block(cos_spd_id(), dep_thd);
 		TAKE(); 
@@ -427,6 +427,7 @@ return_tmem(struct spd_tmem_info *sti)
 	if (SPD_HAS_BLK_THD(sti) || SPD_HAS_BLK_THD_ON_GLB(sti))
 		tmem_spd_wake_threads(sti);
 
+	// TODO: check if assert is true!!
 	assert(!SPD_HAS_BLK_THD(sti) && !SPD_HAS_BLK_THD_ON_GLB(sti));
 
 	if (tmem_should_unmark_relinquish(sti) && sti->relinquish_mark == 1) 

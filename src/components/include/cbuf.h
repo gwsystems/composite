@@ -226,52 +226,49 @@ struct cbuf_slab_freelist {
 };
 extern struct cbuf_slab_freelist slab_freelists[N_CBUF_SLABS];
 
-static inline void print_free_list (struct cbuf_slab_freelist *fl)
-{
-	struct cbuf_slab *s;
-	s = fl->list;
-	while(s){
-		printc("[[[[ cbid is %d addr %p ]]]]\n",s->cbid, s->mem);
-		s = s->next;
-		if (s == fl->list) break;
+static inline void printfl(struct cbuf_slab_freelist *fl){
+	struct cbuf_slab *p;
+	p = fl->list;
+	while (p) {
+		printc("p->cbid %d @ %p\n", p->cbid, p->mem);
+		p = FIRST_LIST(p, next, prev);
+		if (p==fl->list) break;
 	}
-	return;
+	printc("done print fl\n");
 }
-
 
 static inline void
 slab_rem_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 {
 	assert(s && fl);
 
-	printc("remove from the freelist now!!!!\n");
 	if (fl->list == s) {
 		if (EMPTY_LIST(s, next, prev)) fl->list = NULL;
 		else fl->list = FIRST_LIST(s, next, prev);
 	}
 	REM_LIST(s, next, prev);
 	fl->npages--;
-	assert(fl->npages>=0);
-	printc("thd %d REM:fl->npages %d cbid is %d\n",cos_get_thd_id(),fl->npages, s->cbid);
-	print_free_list(fl);
+
+	assert(fl->npages >= 0);
+
 	return;
 }
 
 static inline void
 slab_add_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 {
-	printc("add_feelist\n");
 	assert(s && fl);
 	assert(EMPTY_LIST(s, next, prev));
 	assert(s != fl->list);
 	if (fl->list) {
+		if (fl->npages <= 0) {
+			printc("s cbid %d @%p; fl cbid %d @%p\n", s->cbid,s->mem, fl->list->cbid,fl->list->mem);
+		}
 		assert(fl->npages > 0);
 		ADD_END_LIST(fl->list, s, next, prev);
 	}
 	fl->list = s;
 	fl->npages++;
-	printc("thread %d added:fl->npages %d\n",cos_get_thd_id(),fl->npages);
-	print_free_list(fl);
 	return;
 }
 
@@ -417,31 +414,15 @@ again:					/* avoid convoluted conditions */
 	long cbidx;
 	cbidx = cbid_to_meta_idx(s->cbid);
 
-	/* /\* Lazily remove *\/ */
-	/* if (unlikely(!(cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx)))) */
-	/* { */
-	/* 	if (cm.c.ptr != ((u32_t)s->mem >> PAGE_ORDER)) { */
-	/* 		slab_deallocate(s, slab_freelist); */
-	/* 		printc("goto again\n"); */
-	/* 		goto again; */
-	/* 	} */
-	/* } */
-
-	/* if (unlikely(cm.c.flags & CBUFM_RELINQUISH_TEST)){ */
-	/* 	printc("during del.... go back again\n"); */
-	/* 	goto again; */
-	/* } */
-
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
-	/* Lazily remove */
-	if (unlikely(!(cm.c_0.v) || (cm.c.ptr != ((u32_t)s->mem >> PAGE_ORDER))))
-	{
+	if (unlikely(!cm.c_0.v || cm.c.ptr != ((u32_t)s->mem >> PAGE_ORDER))) {
 		slab_deallocate(s, slab_freelist);
-		printc("goto again\n");
+		/* printc("goto again\n"); */
 		goto again;
 	}
 
-	printc(">>> alloc: nfree is now : %d cbid is %d\n",s->nfree,s->cbid);
+	printc("got slab. s cbid %d @ %p\n", s->cbid, s->mem);
+
 	assert(s->nfree);
 
 	if (s->obj_sz <= PAGE_SIZE) {

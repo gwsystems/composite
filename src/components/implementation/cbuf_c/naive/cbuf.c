@@ -413,9 +413,8 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 {
 	struct cb_mapping *m;
 	struct spd_tmem_info *map_sti;
-	printc("_c_delete....cbid %d\n", cbid);
-
-	__spd_cbvect_clean_val(sti, cbid);  // do this first to avoid preemption
+	/* printc("_c_delete....cbid %d\n", cbid); */
+	__spd_cbvect_clean_val(sti, cbid);
 
 	mman_revoke_page(cos_spd_id(), (vaddr_t)d->addr, 0);  // remove all mapped children
 
@@ -485,7 +484,7 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 	struct cb_mapping *m;
 
 	TAKE();
-	printc("retrieve in spd: %ld, cbid %d\n",spdid,cbid);
+
 	d = cos_map_lookup(&cb_ids, cbid);
 	/* sanity and access checks */
 	if (!d || d->obj_sz < len) goto done;
