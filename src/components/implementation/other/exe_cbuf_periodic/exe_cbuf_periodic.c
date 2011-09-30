@@ -155,7 +155,7 @@ void cos_init(void *arg)
 			exe_cyc_event_remained = exe_cycle;  /* refill */
 			while(1) {
 				exe_cyc_event_remained = exe_cycle;  /* refill */
-				exe_cyc_event_remained = left(exe_cyc_event_remained,exe_cycle);
+				exe_cyc_event_remained = left(exe_cyc_event_remained,exe_cycle,0,0);
 				unsigned long t = sched_timestamp();
 				if ( t > (unsigned long)(start_time_in_ticks + duration_time_in_ticks)) timed_event_block(cos_spd_id(), 10000);
 					/* printc("time elapsed is %llu  cyccs and duration ticks is %d, cyc_per_tick is %lu\n", (end-start), duration_time_in_ticks, cyc_per_tick); */
@@ -170,7 +170,7 @@ void cos_init(void *arg)
 
 			exe_cyc_remained = exe_cycle;  /* refill */
 			while(exe_cyc_remained) {
-				exe_cyc_remained = left(exe_cyc_remained,exe_cycle);	  
+				exe_cyc_remained = left(exe_cyc_remained,exe_cycle,0,0);	  
 			}
 			
 			/* rdtscll(end); */

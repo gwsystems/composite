@@ -100,11 +100,12 @@ extern cos_vect_t slab_descs;
 #define N_CBUF_SMALL_SLABS 6 	/* <= PAGE_SIZE */
 #define N_CBUF_LARGE_SLABS 10
 #define N_CBUF_SLABS (N_CBUF_LARGE_SLABS + N_CBUF_SMALL_SLABS)
+
 #define CBUF_MIN_SLAB_ORDER 6 	/* minimum slab size = 2^6 = 64 */
 #define CBUF_MIN_SLAB (1<<CBUF_MIN_SLAB_ORDER)
-
 #define SLAB_MAX_OBJS (PAGE_SIZE/CBUF_MIN_SLAB)
-#define CBUF_ID_ORDER 26 //(32-CBUF_MIN_SLAB_ORDER)
+
+/* #define CBUF_ID_ORDER 26 //(32-CBUF_MIN_SLAB_ORDER) */
 
 #define CBUF_OBJ_SZ_SHIFT 7
 
@@ -112,14 +113,16 @@ typedef u32_t cbuf_t; /* Requirement: gcc will return this in a register */
 typedef union {
 	cbuf_t v;
 	struct {
-		u32_t id:26, idx:6;
+		/* u32_t id:20, idx:12; */
+		u32_t id:32, idx:6;  /*Jiguo: Since min_slab_order is 6, set idx to be 6? */
 	} __attribute__((packed)) c;
 } cbuf_unpacked_t;
 
 static inline void 
 cbuf_unpack(cbuf_t cb, u32_t *cbid, u32_t *idx) 
 {
-	cbuf_unpacked_t cu;
+	cbuf_unpacked_t cu = {0};
+	
 	cu.v  = cb;
 	*cbid = cu.c.id;
 	*idx  = cu.c.idx;
@@ -233,6 +236,7 @@ static inline void printfl(struct cbuf_slab_freelist *fl){
 	}
 	printc("done print fl\n");
 }
+
 static inline void
 slab_rem_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 {
@@ -246,6 +250,7 @@ slab_rem_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 	fl->npages--;
 
 	assert(fl->npages >= 0);
+
 	return;
 }
 
@@ -264,12 +269,14 @@ slab_add_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 	}
 	fl->list = s;
 	fl->npages++;
-
-	/* printc("after add. print fl!:\n");  */
-	/* printfl(fl); */
-
 	return;
-	/* printc("add back to free list!!\n"); */
+}
+
+static int cbuf_vect_del(cos_vect_t *v, long id)
+{
+	assert(v);
+	if (__cbuf_vect_set((cbuf_vect_t *)v, id, (void*)CBUF_VECT_INIT_VAL)) return 1;
+	return 0;
 }
 
 static void
@@ -329,16 +336,16 @@ __cbuf_free(void *buf)
 	u32_t off = b - (b & PAGE_MASK);
 	int idx;
 	assert(s);
-	/* printc("***** thd %d spd :: %ld __cbuf_free:******\n", cos_get_thd_id(),cos_spd_id()); */
 	/* Argh, division!  Maybe transform into loop? Maybe assume pow2? */
 	idx = off/s->obj_sz;
 	assert(!bitmap_check(&s->bitmap[0], idx));
 	bitmap_set(&s->bitmap[0], idx);
 	s->nfree++;
 	assert(s->flh);
-	/* printc("nfree is now : %d\n", s->nfree); */
+	printc(">>>  free: nfree is now : %d cbid is %d\n",s->nfree,s->cbid);
+	printc("thd %d spd %ld in __cbuf_free\n", cos_get_thd_id(),cos_spd_id());
 	if (s->nfree == 1) {
-		/* printc("slab_add_freelist is called\n"); */
+		printc("Add slab_add_freelist cbid is %d\n", s->cbid);
 		assert(EMPTY_LIST(s, next, prev));
 		slab_add_freelist(s, s->flh);
 	}
@@ -363,11 +370,11 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 	int idx;
 	u32_t *bm;
 
-	/* printc("***** thd %d spd :: %d __cbuf_alloc:******\n", cos_get_thd_id(), cos_spd_id()); */
+	printc("\n***** thd %d spd :: %ld __cbuf_alloc:******\n", cos_get_thd_id(), cos_spd_id());
 	/* printc("<<<__cbuf_alloc size %d>>>\n",size); */
 again:					/* avoid convoluted conditions */
 	if (unlikely(!slab_freelist->list)) {
-		/* printc("..not on free list..\n"); */
+		printc("..not on free list..\n");
 		if (unlikely(!cbuf_slab_alloc(size, slab_freelist))) return NULL;
 		if (unlikely(!slab_freelist->list)) return NULL;
 	}
@@ -407,14 +414,6 @@ again:					/* avoid convoluted conditions */
 	long cbidx;
 	cbidx = cbid_to_meta_idx(s->cbid);
 
-	/* if (unlikely(!(cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx)))) */
-	/* { */
-	/* 	if (cm.c.ptr != ((u32_t)s->mem >> PAGE_ORDER)) { */
-	/* 		slab_deallocate(s, slab_freelist); */
-	/* 		/\* printc("goto again\n"); *\/ */
-	/* 		goto again; */
-	/* 	} */
-	/* } */
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
 	if (unlikely(!cm.c_0.v || cm.c.ptr != ((u32_t)s->mem >> PAGE_ORDER))) {
 		slab_deallocate(s, slab_freelist);
@@ -423,6 +422,7 @@ again:					/* avoid convoluted conditions */
 	}
 
 	printc("got slab. s cbid %d @ %p\n", s->cbid, s->mem);
+
 	assert(s->nfree);
 
 	if (s->obj_sz <= PAGE_SIZE) {
@@ -450,6 +450,7 @@ again:					/* avoid convoluted conditions */
 	s->nfree--;
 
 	/* remove from the freelist */
+	printc("after alloc and  nfree %d\n",s->nfree);
 	if (!s->nfree) slab_rem_freelist(s, slab_freelist);
 
 	*cb = cbuf_cons(s->cbid, idx);

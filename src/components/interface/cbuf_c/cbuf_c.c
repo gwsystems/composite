@@ -55,8 +55,8 @@ cbuf_cache_miss(int cbid, int idx, int len)
 
 	/* This is the commit point */
 	/* printc("miss: meta_cbuf is at %p, h is %p\n", &meta_cbuf, h); */
-	cbuf_vect_add_id(&meta_cbuf, (void*)mc.c_0.v, cbid_to_meta_idx(cbid));
-	cbuf_vect_add_id(&meta_cbuf, cos_get_thd_id(), cbid_to_meta_idx(cbid)+1);
+	cbuf_vect_add_id(&meta_cbuf, (void *)mc.c_0.v, cbid_to_meta_idx(cbid));
+	cbuf_vect_add_id(&meta_cbuf, (void *)cos_get_thd_id(), cbid_to_meta_idx(cbid)+1);
 
 	return 0;
 }
@@ -107,7 +107,6 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 		/* FIXME: once everything is well debugged, remove this check */
 		assert(cnt++ < 10);
 	} while (cbid < 0);
-	printc("slab_alloc -- cbid is %d\n",cbid);
 
 	addr = cbuf_vect_addr_lookup(&meta_cbuf, cbid_to_meta_idx(cbid));
 	if (!addr) goto err;
@@ -125,14 +124,12 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	 */
 	exist = cos_vect_lookup(&slab_descs, (u32_t)addr>>PAGE_ORDER);
 	if (exist) {
-		printc("exist cbid %d\n",exist->cbid);
 		slab_deallocate(exist, freelist);
 	}
 	assert(!cos_vect_lookup(&slab_descs, (u32_t)addr>>PAGE_ORDER));
 
 	cos_vect_add_id(&slab_descs, s, (long)addr>>PAGE_ORDER);
 	cbuf_slab_cons(s, cbid, addr, size, freelist);
-	printc("\nafter check exist. added to freelist and slab_desc, s cbid %d\n",s->cbid, s->mem);
 
 	ret = s;
 
@@ -164,13 +161,23 @@ cbuf_slab_free(struct cbuf_slab *s)
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbid_to_meta_idx(s->cbid));
 	cm.c.flags &= ~CBUFM_IN_USE;
 	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbid_to_meta_idx(s->cbid));
-
+	printc("In cbuf_slab_free -- cbid is %d\n", s->cbid);
 	/* cm.c_0.th_id = COS_VECT_INIT_VAL; */
 	/* cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.th_id, cbidx+1); */
 
 	if(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] == 1){
+		assert(!CBUF_IN_USE(cm.c.flags));
 		printc("need relinquish\n");
+		/* cm.c.flags |= CBUFM_RELINQUISH_TEST; */
+		/* cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbid_to_meta_idx(s->cbid)); */
+
 		cbuf_c_delete(cos_spd_id(), s->cbid);
+
+		/* if (cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbid_to_meta_idx(s->cbid))){		 */
+		/* 	cm.c.flags &= ~CBUFM_RELINQUISH_TEST; */
+		/* 	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbid_to_meta_idx(s->cbid)); */
+		/* } */
+
 	}
 
 	return;
