@@ -3,8 +3,6 @@
 
 #include <cbuf_c.h>
 
-#define MAX_NUM_ITEMS MAX_NUM_CBUFS
-
 #define TAKE() if(sched_component_take(cos_spd_id())) BUG();
 #define RELEASE() if(sched_component_release(cos_spd_id())) BUG();
 
@@ -18,12 +16,10 @@
  */
 typedef struct cos_cbuf_item tmem_item;
 
+#define LOCAL_ADDR(cci) (cci->desc.addr)
+
 /* Shared page between the target component, and us */
 typedef	struct spd_cbvect_range shared_component_info;
-
-/* /\* 1 means there's memory available in local cache *\/ */
-/* #define MEM_IN_LOCAL_CACHE(csi) ((csi)->ci.meta != 0) */
-#define MEM_IN_LOCAL_CACHE(csi) (free_mem_in_local_cache(csi))
 
 #define TMEM_RELINQ COMP_INFO_TMEM_CBUF_RELINQ
 

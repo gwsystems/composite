@@ -11,6 +11,7 @@
 #include <mem_mgr_large.h>
 
 #include <tmem_tk.h>
+#include <mem_pool.h>
 
 #define MAX_BLKED 10
 
@@ -96,41 +97,6 @@ int tmems_allocated, tmems_target, empty_comps, over_quota_total, over_quota_lim
 
 static inline void wake_glb_blk_list(struct blocked_thd *bl, spdid_t spdid);
 static inline void wake_local_blk_list(struct blocked_thd *bl);
-
-static inline int
-put_mem(tmem_item *tmi)
-{
-	assert(EMPTY_LIST(tmi, next, prev));
-	assert(tmi->parent_spdid == 0);
-	tmems_allocated--;
-	tmi->free_next = free_tmem_list;
-	free_tmem_list = tmi;
-
-	if (GLOBAL_BLKED)
-		wake_glb_blk_list(&global_blk_list, 0); // wake up all on glb blk list
-
-	return 0;
-}
-
-static inline tmem_item *
-get_mem(void)
-{
-	tmem_item *tmi;
-
-	/* Do we need to maintain global stack target? If we set a
-	 * limit to each component, can we get a global target as
-	 * well? Disable this first because it prevents
-	 * self-suspension stacks over-quota allocation, which is
-	 * necessary
-	 */
-	/* if (tmems_allocated >= tmems_target) return NULL; */
-	tmi = free_tmem_list;
-	if (!tmi) return NULL;
-	free_tmem_list = tmi->free_next;
-	tmems_allocated++;
-
-	return tmi;
-}
 
 /**
  * gets the number of tmem items associated with a given spdid. Only
@@ -219,8 +185,7 @@ wake_glb_blk_list(struct blocked_thd *bl, spdid_t spdid)
 		for(bthd = FIRST_LIST(bl, next, prev) ; bthd != bl ; bthd = bthd_next) {
 			bthd_next = __wake_glb_thread(bl, bthd, mgr_spdid);
 		}
-	}
-	else{
+	} else {
 		for(bthd = FIRST_LIST(bl, next, prev) ; bthd != bl ; bthd = bthd_next) {
 			if (spdid == bl->spdid){   // only thds in that spd on glb blk list
 				bthd_next = __wake_glb_thread(bl, bthd, mgr_spdid);
@@ -463,7 +428,7 @@ static inline int
 tmem_set_over_quota_limit(int limit)
 {
 	TAKE();
-	if (limit > MAX_NUM_ITEMS - tmems_target || limit < 0) {
+	if (limit > MAX_NUM_MEM - tmems_target || limit < 0) {
 		printc("Over-quota limit greater than global available quota. limit: %d.\n", limit);
 		goto err;
 	} else

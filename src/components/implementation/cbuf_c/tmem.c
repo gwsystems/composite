@@ -6,6 +6,7 @@
 #include <sched.h>
 
 #include <tmem.h>
+#include <mem_pool.h>
 
 struct spd_tmem_info *
 get_spd_info(spdid_t spdid)
@@ -16,6 +17,68 @@ get_spd_info(spdid_t spdid)
 	sti = &spd_tmem_info_list[spdid];
 	
 	return sti;
+}
+
+int
+put_mem(tmem_item *tmi)
+{
+	assert(EMPTY_LIST(tmi, next, prev));
+	assert(tmi->parent_spdid == 0);
+	tmems_allocated--;
+	if (tmems_allocated > tmems_target) {
+		mempool_put_mem(cos_spd_id(), LOCAL_ADDR(tmi));
+		free_item_data_struct(tmi);
+	} else {
+		tmi->free_next = free_tmem_list;
+		free_tmem_list = tmi;
+		if (GLOBAL_BLKED)
+			wake_glb_blk_list(&global_blk_list, 0);
+	}	
+
+	return 0;
+}
+
+tmem_item *
+get_mem(void)
+{
+	tmem_item *tmi;
+	void *l_addr;
+
+	/* Do we need to maintain global stack target? If we set a
+	 * limit to each component, can we get a global target as
+	 * well? Disable this first because it prevents
+	 * self-suspension stacks over-quota allocation, which is
+	 * necessary
+	 */
+	/* if (stacks_allocated >= stacks_target) return NULL; */
+
+	tmi = free_tmem_list;
+
+	if (tmi) {
+		free_tmem_list = tmi->free_next;
+	} else {
+		l_addr = mempool_get_mem(cos_spd_id(), 1);
+		if (l_addr) tmi = alloc_item_data_struct(l_addr);
+	}
+
+	if (!tmi) return NULL;
+
+	tmems_allocated++;
+
+	return tmi;
+}
+
+void event_waiting()
+{
+	while (1) {
+		mempool_tmem_mgr_event_waiting(cos_spd_id());
+		TAKE();
+		wake_glb_blk_list(&global_blk_list, 0);
+		RELEASE();
+	}
+	printc("Event thread terminated!\n");
+	BUG();
+	return;
 }
 
 inline void tmem_mark_relinquish_all(struct spd_tmem_info *sti)
@@ -55,8 +118,10 @@ inline void tmem_unmark_relinquish_all(struct spd_tmem_info *sti)
 inline int
 tmem_wait_for_mem_no_dependency(struct spd_tmem_info *sti)
 {
-	assert(sti->num_allocated > 0);
-	assert(sti->ss_counter);
+	/* Following are not ture for cbufs now, do we need to ensure
+	 * these? */
+	/* assert(sti->num_allocated > 0); */
+	/* assert(sti->ss_counter); */
 
 	RELEASE();
 	sched_block(cos_spd_id(), 0);
@@ -75,7 +140,8 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 {
 	unsigned int i = 0;
 
-	assert(sti->num_allocated > 0);
+	/* How to ensure one item per component? */
+	/* assert(sti->num_allocated > 0); */
 	
 	int ret, dep_thd, in_blk_list;
 	do {
@@ -103,7 +169,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 		 * make this algorithm correct, but we want tmem/idl
 		 * support to implement that.
 		 */
-		printc("%d try to depend on %d comp %d i%d\n", cos_get_thd_id(), dep_thd, sti->spdid, i);
+		printc("MGR %d >>> %d try to depend on %d comp %d i%d\n", cos_spd_id(), cos_get_thd_id(), dep_thd, sti->spdid, i);
 		RELEASE();
 		ret = sched_block(cos_spd_id(), dep_thd);
 		TAKE(); 
@@ -149,7 +215,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 inline int tmem_should_mark_relinquish(struct spd_tmem_info *sti)
 {
 	if (sti->num_allocated >= sti->num_desired 
-	    || (empty_comps >= (MAX_NUM_ITEMS - tmems_allocated)))
+	    || (empty_comps >= (MAX_NUM_MEM - tmems_allocated)))
 		return 1;
 	else
 		return 0;
@@ -186,23 +252,22 @@ tmem_grant(struct spd_tmem_info *sti)
 	 */
 
 	while (1) {
-#ifdef MEM_IN_LOCAL_CACHE
-		tmi = (tmem_item *)MEM_IN_LOCAL_CACHE(sti);
-		if (tmi){
+		tmi = free_mem_in_local_cache(sti);
+		if (tmi) {
 			local_cache = tmi;
 			printc("found one \n");
 			break;
 		}
-#endif
+
 		DOUT("request tmem\n");
 		/* printc(" \n ~~~ thd %d request tmem!! ~~~\n\n", cos_get_thd_id()); */
 		eligible = 0;
 
 		/* printc("thd %d  spd %ld sti->num_allocated %d sti->num_desired %d\n",cos_get_thd_id(), sti->spdid, sti->num_allocated, sti->num_desired); */
-		/* printc("empty_comps %d (MAX_NUM_ITEMS - tmems_allocated) %d\n",empty_comps , (MAX_NUM_ITEMS - tmems_allocated)); */
+		/* printc("empty_comps %d (MAX_NUM_MEM - tmems_allocated) %d\n",empty_comps , (MAX_NUM_MEM - tmems_allocated)); */
 
 		if (sti->num_allocated < sti->num_desired &&
-		    (empty_comps < (MAX_NUM_ITEMS - tmems_allocated) || sti->num_allocated == 0)) {
+		    (empty_comps < (MAX_NUM_MEM - tmems_allocated) || sti->num_allocated == 0)) {
 			/* printc("alloooooooooo!!\n"); */
 			/* We are eligible for allocation! */
 			eligible = 1;
@@ -289,7 +354,7 @@ tmem_grant(struct spd_tmem_info *sti)
 			 * ourselves without dependencies! */
 			if (sti->num_allocated < (sti->num_desired + sti->ss_max) &&
 			    over_quota_total < over_quota_limit &&
-			    (empty_comps < (MAX_NUM_ITEMS - tmems_allocated) || sti->num_allocated == 0)) {
+			    (empty_comps < (MAX_NUM_MEM - tmems_allocated) || sti->num_allocated == 0)) {
 
 				/* printc("when self:: num_allocated %d num_desired+max %d\n",sti->num_allocated, sti->num_desired + sti->ss_max);				 */
 				tmi = get_mem();

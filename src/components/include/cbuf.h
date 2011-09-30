@@ -165,9 +165,9 @@ cbuf2buf(cbuf_t cb, int len)
 	long cbidx;
 	cbidx = cbid_to_meta_idx(id);
 
-	/* printc("buf2buf:: id %x, idx %x  cbidx is %ld\n", id, idx, cbidx); */
+	printc("buf2buf:: id %x, idx %x  cbidx is %ld\n", id, idx, cbidx);
 
-	/* printc("cbuf2buf before cache_miss::\n"); */
+	printc("cbuf2buf before cache_miss::\n");
 	/* int i; */
 	/* for(i=0;i<20;i++) */
 	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
@@ -194,7 +194,7 @@ again:				/* avoid convoluted conditions */
 		if (unlikely(len > obj_sz)) return NULL;
 	}
 
-	/* printc("After Cache missing here::\n"); */
+	printc("After Cache missing here::\n");
 	/* int i; */
 	/* for(i=0;i<20;i++) */
 	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
