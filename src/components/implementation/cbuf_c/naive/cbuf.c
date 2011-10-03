@@ -415,7 +415,8 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 	struct spd_tmem_info *map_sti;
 	/* printc("_c_delete....cbid %d\n", cbid); */
 	__spd_cbvect_clean_val(sti, cbid);
-
+	assert(sti->ci->meta[CB_IDX(cbid)].c_0.v == NULL);
+	printc("_c_delete....cbid %d, meta %p\n", cbid, sti->ci->meta[CB_IDX(cbid)].c_0.v);
 	mman_revoke_page(cos_spd_id(), (vaddr_t)d->addr, 0);  // remove all mapped children
 
 	m = FIRST_LIST(&d->owner, next, prev);

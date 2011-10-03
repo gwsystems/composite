@@ -1015,7 +1015,11 @@ static int fp_kill_thd(struct sched_thd *t)
 	REM_LIST(t, next, prev);
 
 	sched_switch_thread(0, NULL_EVT);
-	if (t == c) BUG();
+	if (t == c) {
+		printc("t: id %d, c: id %d\n",t->id, c->id);
+
+		BUG();
+	}
 
 	return 0;
 }

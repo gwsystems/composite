@@ -226,11 +226,11 @@ struct cbuf_slab_freelist {
 };
 extern struct cbuf_slab_freelist slab_freelists[N_CBUF_SLABS];
 
-static inline void printfl(struct cbuf_slab_freelist *fl){
+static inline void printfl(struct cbuf_slab_freelist *fl, char *c){
 	struct cbuf_slab *p;
 	p = fl->list;
 	while (p) {
-		printc("p->cbid %d @ %p\n", p->cbid, p->mem);
+		printc("[[[ %s p->cbid %d @ %p\n]]]", c, p->cbid, p->mem);
 		p = FIRST_LIST(p, next, prev);
 		if (p==fl->list) break;
 	}
@@ -250,6 +250,8 @@ slab_rem_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 	fl->npages--;
 
 	assert(fl->npages >= 0);
+	printc("thd %d REM:fl->npages %d cbid is %d\n",cos_get_thd_id(),fl->npages, s->cbid);
+	/* printfl(fl,"REM"); */
 
 	return;
 }
@@ -269,59 +271,22 @@ slab_add_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 	}
 	fl->list = s;
 	fl->npages++;
-	return;
-}
+	printc("thd %d ADD:fl->npages %d cbid is %d\n",cos_get_thd_id(),fl->npages, s->cbid);
+	/* printfl(fl,"ADD"); */
 
-static int cbuf_vect_del(cos_vect_t *v, long id)
-{
-	assert(v);
-	if (__cbuf_vect_set((cbuf_vect_t *)v, id, (void*)CBUF_VECT_INIT_VAL)) return 1;
-	return 0;
+	return;
 }
 
 static void
 slab_deallocate(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 {
 	slab_rem_freelist(s, fl);
-	cbuf_vect_del(&slab_descs, (u32_t)s->mem >> PAGE_ORDER);
+	cos_vect_del(&slab_descs, (u32_t)s->mem >> PAGE_ORDER);
 	free(s);
 
 	return;
 }
 
-/* static inline void */
-/* slab_freelist_lookup(int cbid, struct cbuf_slab_freelist *fl) */
-/* { */
-/* 	struct cbuf_slab *free = NULL; */
-
-/* 	int ret = 0; */
-
-/* 	printc("look up my freelist\n"); */
-/* 	if (!fl) goto done; */
-/* 	printc("2\n"); */
-/* 	if (!fl->list) goto done; */
-
-/* 	printc("3\n"); */
-/* 	/\* if (fl->list->cbid == cbid) return fl->list; *\/ */
-
-/* 	for (free = FIRST_LIST(fl->list, next, prev); */
-/* 	     free != fl->list; */
-/* 	     free = FIRST_LIST(free, next, prev)) { */
-/* 		printc("2\n"); */
-/* 		if (free->cbid == cbid) { */
-/* 			assert(fl->npages > 0); */
-/* 			ret++; */
-/* 			if(ret > 1) { */
-/* 				slab_rem_freelist(free, fl); */
-/* 				ret--; */
-/* 			} */
-/* 		} */
-/* 	} */
-/* 	printc("duplics :: %d\n", duplics); */
-
-/* 	return; */
-
-/* } */
 
 extern struct cbuf_slab *cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist);
 extern void cbuf_slab_free(struct cbuf_slab *s);
@@ -417,10 +382,10 @@ again:					/* avoid convoluted conditions */
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
 	if (unlikely(!cm.c_0.v || cm.c.ptr != ((u32_t)s->mem >> PAGE_ORDER))) {
 		slab_deallocate(s, slab_freelist);
-		/* printc("goto again\n"); */
+		printc("goto again\n");
 		goto again;
 	}
-
+	printc("cm.c_0.v %p, cm.c.ptr %p, lookup again! %d\n",cm.c_0.v,cm.c.ptr,(u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx));
 	printc("got slab. s cbid %d @ %p\n", s->cbid, s->mem);
 
 	assert(s->nfree);

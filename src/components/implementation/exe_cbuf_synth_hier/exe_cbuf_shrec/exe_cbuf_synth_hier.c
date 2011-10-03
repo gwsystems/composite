@@ -188,7 +188,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 				cbuf_unpack(cbt[i], &id, &idx);
 				/* printc("---- cost Alloc :: %llu  ----\n", end-start); */
 				printc("Now thd %d create in spd %ld, memid %x, idx %x\n", cos_get_thd_id(), cos_spd_id(), id, idx);
-				memset(mt[i], 'a', len);
+				assert(memset(mt[i], 'a', len));
 				printc("write sth...\n");
 				get[i] = 1;
 				mark = 1;

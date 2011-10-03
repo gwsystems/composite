@@ -375,6 +375,11 @@ static inline int cos_sched_lock_take(void)
 	unsigned int curr_thd = cos_get_thd_id();
 
 	/* Recursively taking the lock: not good */
+	if (l->owner_thd == curr_thd) {
+		printc("BUG assert here! l tid %d\n",l->owner_thd);
+		return 0;
+	}
+
 	assert(l->owner_thd != curr_thd);
 	while (1) {
 		unsigned int lock_val;
