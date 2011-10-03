@@ -59,7 +59,10 @@
 #define DRV_DESCRIPTION	"cos: Universal TUN/TAP device driver"
 #define DRV_COPYRIGHT	"cos: (C) 1999-2004 Max Krasnyansky <maxk@qualcomm.com>"
 
-#define COS_IP_ADDR     0xa000208
+/* 192.168.1.128 */
+//#define COS_IP_ADDR   0xc0a80180
+//10.0.2.8: 0x0a000208
+#define COS_IP_ADDR   0x0a000208
 
 #include <linux/module.h>
 #include <linux/errno.h>
@@ -393,8 +396,10 @@ static int cosnet_xmit_packet(void *headers, int hlen, struct gather_item *gi,
 	}
 
 	if (NET_RX_DROP == netif_rx/*_ni*/(skb)) {
+		printk("<<fail>>\n");
 		local_ts->stats.tx_dropped++;
 	} else {
+		printk("<<sent>>\n");
 		local_ts->dev->last_rx = jiffies;
 		local_ts->stats.tx_packets++;
 		local_ts->stats.tx_bytes += totlen;
@@ -532,6 +537,8 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	/* Drop packet if interface is not attached */
 	//if (!tun->attached)
 	//goto drop;
+
+	printk("<<dev_recv>>\n");
 
 	cos_net_prebrand();
 	cosnet = cosnet_resolve_brand(tun, skb);

@@ -23,7 +23,7 @@ int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *i
 {
 	unsigned long r_ip; 	/* the ip to return to */
 	int tid = cos_get_thd_id();
-	int i;
+	//int i;
 
 	/* START UNCOMMENT FOR FAULT INFO */
 	/* if (regs_active) BUG(); */

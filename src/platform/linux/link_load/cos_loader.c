@@ -1299,6 +1299,7 @@ static int rec_verify_dag(struct service_symbs *services,
 		struct service_symbs *d = services->dependencies[i].dep;
 
 		if (rec_verify_dag(d, current_depth+1, max_depth)) {
+			printl(PRINT_HIGH, "Component %s found in cycle\n", d->obj);
 			return -1;
 		}
 	}

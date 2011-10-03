@@ -1,12 +1,12 @@
 #ifndef COS_CONFIG_H
 #define COS_CONFIG_H
 
-//#define CPU_GHZ        3.1
-#define CPU_GHZ        1.6
+#define CPU_GHZ        3.1
+//#define CPU_GHZ        1.6
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 
 // How long should Composite run before returning to Linux?
-#define RUNTIME                5 // seconds
+#define RUNTIME                30 // seconds
 // After how many seconds should schedulers print out their information?
 #define SCHED_PRINTOUT_PERIOD  5 
 #define COMPONENT_ASSERTIONS   1 // activate assertions in components?

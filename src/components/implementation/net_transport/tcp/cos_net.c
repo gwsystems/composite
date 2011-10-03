@@ -617,7 +617,6 @@ static err_t cos_net_lwip_tcp_connected(void *arg, struct tcp_pcb *tp, err_t err
 	assert(CONNECTING == ic->thd_status);
 	if (sched_wakeup(cos_spd_id(), ic->tid)) BUG();
 	ic->thd_status = ACTIVE;
-	prints("cos connected!");
 
 	return ERR_OK;
 }
@@ -1005,7 +1004,9 @@ perm_err:
 
 int net_connect(spdid_t spdid, net_connection_t nc, u32_t ip, u16_t port)
 {
-	struct ip_addr ipa = *(struct ip_addr*)&ip;
+	struct ip_addr ipa;
+	ipa.addr = ip;
+	//printc("ip addr %x\n", ipa.addr);
 	return __net_connect(spdid, nc, &ipa, port);
 }
 
@@ -1363,8 +1364,11 @@ static void init_lwip(void)
 	lwip_init();
 	tcp_mem_free(lwip_free_payload);
 
+	/* setting the IP address */
 	IP4_ADDR(&ip, 10,0,2,8);
-	IP4_ADDR(&gw, 10,0,1,1); //korma
+	IP4_ADDR(&gw, 10,0,1,1);
+	/* IP4_ADDR(&ip, 192,168,1,128); */
+	/* IP4_ADDR(&gw, 192,168,1,1); */
 	IP4_ADDR(&mask, 255,255,255,0);
 	
 	netif_add(&cos_if, &ip, &mask, &gw, NULL, cos_if_init, ip_input);
