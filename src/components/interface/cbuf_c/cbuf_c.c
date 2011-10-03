@@ -168,15 +168,8 @@ cbuf_slab_free(struct cbuf_slab *s)
 	if(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] == 1){
 		assert(!CBUF_IN_USE(cm.c.flags));
 		printc("need relinquish\n");
-		/* cm.c.flags |= CBUFM_RELINQUISH_TEST; */
-		/* cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbid_to_meta_idx(s->cbid)); */
 
 		cbuf_c_delete(cos_spd_id(), s->cbid);
-
-		/* if (cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbid_to_meta_idx(s->cbid))){		 */
-		/* 	cm.c.flags &= ~CBUFM_RELINQUISH_TEST; */
-		/* 	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbid_to_meta_idx(s->cbid)); */
-		/* } */
 
 	}
 

@@ -11,19 +11,10 @@
 (!p1.o=exe_cb_pt.o),a11'p7 e700 s0 d120';\
 (!p2.o=exe_cb_pt.o),a8'p4 e3600 s0 d120';\
 (!p3.o=exe_cb_pt.o),a10'p6 e2400 s0 d120';\
-(!p4.o=exe_cb_pt.o),a10'p6 e600 s0 d120';\
-(!p5.o=exe_cb_pt.o),a7'p3 e1500 s0 d120';\
-(!p6.o=exe_cb_pt.o),a7'p3 e1800 s0 d120';\
-(!p7.o=exe_cb_pt.o),a12'p13 e10400 s0 d120';\
-(!p8.o=exe_cb_pt.o),a14'p29 e2900 s0 d120';\
-(!p9.o=exe_cb_pt.o),a13'p17 e6800 s0 d120';\
 \
 (!sh0.o=exe_cb_sh.o),'s50000 n1';(!sh1.o=exe_cb_sh.o),'s5000 n1 r2';(!sh2.o=exe_cb_sh.o),'s50000 n1 r96 ';\
 (!sh3.o=exe_cb_sh.o),'s5000 n1 r32';(!sh4.o=exe_cb_sh.o),'s50000 n1 r125';(!sh5.o=exe_cb_sh.o),'s50000 n1 r96 ';\
 (!sh6.o=exe_cb_sh.o),'s50000 n1 r32';(!sh7.o=exe_cb_sh.o),'s50000 n1 r96';(!sh8.o=exe_cb_sh.o),'s500000 n1 ';\
-\
-(!sh12.o=exe_cb_sh.o),'s500000 n1 r32';(!sh13.o=exe_cb_sh.o),'s50000 n1 r32';(!sh14.o=exe_cb_sh.o),'s50000 n1 r32';\
-(!sh9.o=exe_cb_sh.o),'s50000 n1 r32';(!sh10.o=exe_cb_sh.o),'s500000 n1 r32';(!sh11.o=exe_cb_sh.o),'s50000 n1 r32';\
 \
 (!sh18.o=exe_cb_sh.o),'s500000 n1 r32';(!sh19.o=exe_cb_sh.o),'s50000 n1 r32';(!sh20.o=exe_cb_sh.o),'s50000 n1 r96';\
 (!sh15.o=exe_cb_sh.o),'s50000 n1 r32';(!sh16.o=exe_cb_sh.o),'s5000 n1 r32';(!sh17.o=exe_cb_sh.o),'s50000 n1 r96';\
@@ -52,19 +43,6 @@ p0.o-te.o|fprr.o|schedconf.o|print.o|sh18.o|smn.o;\
 p1.o-te.o|fprr.o|schedconf.o|print.o|sh18.o|smn.o;\
 p2.o-te.o|fprr.o|schedconf.o|print.o|sh18.o|smn.o;\
 p3.o-te.o|fprr.o|schedconf.o|print.o|sh18.o|smn.o;\
-p4.o-te.o|fprr.o|schedconf.o|print.o|sh18.o|smn.o;\
-p5.o-te.o|fprr.o|schedconf.o|print.o|sh12.o|smn.o;\
-p6.o-te.o|fprr.o|schedconf.o|print.o|sh12.o|smn.o;\
-p7.o-te.o|fprr.o|schedconf.o|print.o|sh12.o|smn.o;\
-p8.o-te.o|fprr.o|schedconf.o|print.o|sh12.o|smn.o;\
-p9.o-te.o|fprr.o|schedconf.o|print.o|sh12.o|smn.o;\
-\
-sh12.o-fprr.o|schedconf.o|print.o|[calll_]sh13.o|[callr_]sh9.o|smn.o|buf.o|va.o|mm.o;\
-sh13.o-fprr.o|schedconf.o|print.o|[calll_]sh14.o|[callr_]sh10.o|smn.o|buf.o|va.o|mm.o;\
-sh14.o-fprr.o|schedconf.o|print.o|[calll_]exe_cb_sbc.o|[callr_]sh11.o|smn.o|buf.o|va.o|mm.o;\
-sh9.o-fprr.o|schedconf.o|print.o|[calll_]sh10.o|[callr_]sh0.o|smn.o|buf.o|va.o|mm.o;\
-sh10.o-fprr.o|schedconf.o|print.o|[calll_]sh11.o|[callr_]sh1.o|smn.o|buf.o|va.o|mm.o;\
-sh11.o-fprr.o|schedconf.o|print.o|[calll_]exe_cb_sbc.o|[callr_]sh3.o|smn.o|buf.o|va.o|mm.o;\
 \
 sh18.o-fprr.o|schedconf.o|print.o|[calll_]sh15.o|[callr_]sh19.o|smn.o|buf.o|va.o|mm.o;\
 sh19.o-fprr.o|schedconf.o|print.o|[calll_]sh16.o|[callr_]sh20.o|smn.o|buf.o|va.o|mm.o;\
