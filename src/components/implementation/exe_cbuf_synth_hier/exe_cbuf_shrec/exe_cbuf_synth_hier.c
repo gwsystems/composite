@@ -25,7 +25,7 @@ unsigned int spin = 1000, l_to_r = 64, num_invs = 1, cbuf_l_to_r = 1;
 #define TEST_CBUF
 
 #define SZ 4096  // size of one cbuf item
-#define NCBUF 50   // number of cbufs to create each time
+#define NCBUF 30   // number of cbufs to create each time
 
 volatile unsigned long kkk = 0;
 unsigned long loop_cost = 0;
