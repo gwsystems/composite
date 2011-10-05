@@ -21,12 +21,12 @@
 
 #include <tmem_conf.h>
 
+cos_lock_t l;
+#define CBUF_TAKE()    do { if (unlikely(l.lock_id == 0)) lock_static_init(&l); if (lock_take(&l) != 0) BUG(); } while(0)
+#define CBUF_RELEASE() do { if (lock_release(&l) != 0) BUG(); } while(0)
+
 extern cbuf_vect_t meta_cbuf;
 extern cos_vect_t slab_descs; 
-
-cos_lock_t l;
-#define CBUF_TAKE()  do { if (l.lock_id == 0) lock_static_init(&l) ; if (lock_take(&l) != 0) BUG(); } while(0)
-#define CBUF_RELEASE() do { if (lock_release(&l) != 0) BUG() } while(0)
 
 /* static init_flag = 0; */
 
@@ -158,7 +158,7 @@ cbuf2buf(cbuf_t cb, int len)
 	u32_t id, idx;
 	union cbuf_meta cm;
 	void *ret;
-	
+
 	CBUF_TAKE();
 	assert(len);
 	/* len = len == 1 ? 1 : len-1; */
@@ -172,6 +172,7 @@ cbuf2buf(cbuf_t cb, int len)
 	DOUT("buf2buf:: id %x, idx %x  cbidx is %ld\n", id, idx, cbidx);
 
 	/* DOUT("cbuf2buf before cache_miss::\n"); */
+
 	/* int i; */
 	/* for(i=0;i<20;i++) */
 	/* 	DOUT("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
@@ -199,12 +200,7 @@ again:				/* avoid convoluted conditions */
 	}
 
 	/* DOUT("After Cache missing here::\n"); */
-	/* int i; */
-	/* for(i=0;i<20;i++) */
-	/* 	DOUT("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
-
 	DOUT("%p\n",((char*)(cm.c.ptr << PAGE_ORDER)) + off);
-	
 	ret = ((char*)(cm.c.ptr << PAGE_ORDER)) + off;
 
 done:	
@@ -240,11 +236,15 @@ extern struct cbuf_slab_freelist slab_freelists[N_CBUF_SLABS];
 
 static inline void printfl(struct cbuf_slab_freelist *fl, char *c){
 	struct cbuf_slab *p;
+	int a=0;
 	p = fl->list;
+	printc("thd %d\n", cos_get_thd_id());
 	while (p) {
-		DOUT("[[[ %s p->cbid %d @ %p\n]]]", c, p->cbid, p->mem);
-		p = FIRST_LIST(p, next, prev);
+		printc("[%s p->cbid %d @ %p]\n", c, p->cbid, p->mem);
+		a++;
+		assert(a < 50);
 		if (p==fl->list) break;
+		p = FIRST_LIST(p, next, prev);
 	}
 	DOUT("done print fl\n");
 }
@@ -263,7 +263,7 @@ slab_rem_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 
 	assert(fl->npages >= 0);
 	DOUT("thd %d REM:fl->npages %d cbid is %d\n",cos_get_thd_id(),fl->npages, s->cbid);
-	printfl(fl,"REM");
+	/* printfl(fl,"REM"); */
 
 	return;
 }
@@ -284,8 +284,7 @@ slab_add_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 	fl->list = s;
 	fl->npages++;
 	DOUT("thd %d ADD:fl->npages %d cbid is %d\n",cos_get_thd_id(),fl->npages, s->cbid);
-
-	printfl(fl,"ADD");
+	/* printfl(fl,"ADD"); */
 
 	return;
 }
@@ -313,6 +312,9 @@ __cbuf_free(void *buf)
 	u32_t b   = (u32_t)buf;
 	u32_t off = b - (b & PAGE_MASK);
 	int idx;
+	union cbuf_meta cm;
+	long cbidx;
+
 	assert(s);
 	/* Argh, division!  Maybe transform into loop? Maybe assume pow2? */
 	idx = off/s->obj_sz;
@@ -325,6 +327,10 @@ __cbuf_free(void *buf)
 	if (s->nfree == 1) {
 		DOUT("Add slab_add_freelist cbid is %d\n", s->cbid);
 		assert(EMPTY_LIST(s, next, prev));
+		cbidx = cbid_to_meta_idx(s->cbid);
+		cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
+		cm.c.flags &= ~CBUFM_ALL_ALLOCATED;
+ 		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbidx);
 		slab_add_freelist(s, s->flh);
 	}
 
@@ -393,7 +399,9 @@ again:					/* avoid convoluted conditions */
 	cbidx = cbid_to_meta_idx(s->cbid);
 
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
-	if (unlikely(!cm.c_0.v || cm.c.ptr != ((u32_t)s->mem >> PAGE_ORDER))) {
+
+	if (unlikely(!cm.c_0.v || (cm.c.flags & CBUFM_ALL_ALLOCATED) || 
+		     (cm.c.ptr != ((u32_t)s->mem >> PAGE_ORDER)))) {
 		slab_deallocate(s, slab_freelist);
 		DOUT("goto again\n");
 		goto again;
@@ -418,18 +426,15 @@ again:					/* avoid convoluted conditions */
 		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.th_id, cbidx+1);
 	}
 
-	/* int thd,i; */
-	/* thd = cos_get_thd_id(); */
-	/* if(thd == 24){ */
-	/* 	for(i=0;i<20;i++) */
-	/* 		DOUT("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
-	/* } */
-
 	s->nfree--;
 
 	/* remove from the freelist */
-	DOUT("after alloc and nfree %d\n",s->nfree);
-	if (!s->nfree) slab_rem_freelist(s, slab_freelist);
+	/* printc("after alloc and  nfree %d\n",s->nfree); */
+	if (!s->nfree) {
+		cm.c.flags |= CBUFM_ALL_ALLOCATED;
+		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbidx);
+		slab_rem_freelist(s, slab_freelist);
+	}
 
 	*cb = cbuf_cons(s->cbid, idx);
 	return s->mem + (idx * s->obj_sz);  // return correct position of cbuf in this slab
@@ -481,30 +486,25 @@ cbuf_alloc_pow2(unsigned int order, cbuf_t *cb)
 static inline void *
 cbuf_alloc(unsigned int sz, cbuf_t *cb)
 {
-	int o;
 	void *ret;
+	int o;
+
+	CBUF_TAKE();
 	sz = sz < 65 ? 63 : sz; /* FIXME: do without branch */
 	/* FIXME: find way to avoid making the wrong decision on pow2 values */
 	sz = ones(sz) == 1 ? sz-1 : sz;
 	o = log32_floor(sz) + 1;
 
-	DOUT("alloc take:: spd %ld thd %d \n",cos_spd_id(), cos_get_thd_id());
-	CBUF_TAKE();
 	ret = cbuf_alloc_pow2(o, cb);
-	DOUT("alloc release:: spd %ld thd %d \n",cos_spd_id(), cos_get_thd_id());
 	CBUF_RELEASE();
-	
 	return ret;
-
 }
 
 static inline void
 cbuf_free(void *buf)
 {
-	DOUT("free take:: spd %ld thd %d \n",cos_spd_id(), cos_get_thd_id());
 	CBUF_TAKE();
 	__cbuf_free(buf);
-	DOUT("free release:: spd %ld thd %d \n",cos_spd_id(), cos_get_thd_id());
 	CBUF_RELEASE();
 }
 

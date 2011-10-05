@@ -24,8 +24,10 @@ unsigned int spin = 1000, l_to_r = 64, num_invs = 1, cbuf_l_to_r = 1;
 
 #define TEST_CBUF
 
+#define ALLOC_CBUF
+#define CBUF2BUF
 #define SZ 4096  // size of one cbuf item
-#define NCBUF 2   // number of cbufs to create each time
+#define NCBUF 10   // number of cbufs to create each time
 
 volatile unsigned long kkk = 0;
 unsigned long loop_cost = 0;
@@ -160,19 +162,20 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	exe_time_left -= AVG_INVC_CYCS;
 
 	u64_t start,end;	
-	/* char *b; */
-	/* if(cbt_map && len_map){ */
-	/* 	rdtscll(start); */
-	/* 	b = cbuf2buf(cbt_map,len_map); */
-	/* 	rdtscll(end); */
-	/* 	printc("---- cost Bf2Bf :: %llu in spd %ld\n", end-start, cos_spd_id()); */
-	/* 	if (!b) { */
-	/* 		printc("Can not map into this spd %ld\n", cos_spd_id()); */
-	/* 		return cbuf_null(); */
-	/* 	} */
-	/* 	memset(b, 's', len_map); */
-	/* } */
-
+#ifdef CBUF2BUF
+	char *b;
+	if(cbt_map && len_map){
+		rdtscll(start);
+		b = cbuf2buf(cbt_map,len_map);
+		rdtscll(end);
+		/* printc("---- cost Bf2Bf :: %llu in spd %ld\n", end-start, cos_spd_id()); */
+		if (!b) {
+			printc("Can not map into this spd %ld\n", cos_spd_id());
+			return cbuf_null();
+		}
+		memset(b, 's', len_map);
+	}
+#endif
 	for (j = 0 ; j < num_invs ; j++) {
 		if (exe_time_left == 0) return 0;
 		kkk = 0;
@@ -190,23 +193,28 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 
 		int mark = 0;
 		int len = SZ;
+#ifdef ALLOC_CBUF
 		for (i = 0; i < NCBUF ; i++){
 			rdtscll(t);
 			val = (int)(t & (TOTAL_AMNT-1));
-			if (val >= cbuf_l_to_r){
+//			if (val >= cbuf_l_to_r){
+			{
 				cbt[i] = cbuf_null();
 				rdtscll(start);
 				mt[i] = cbuf_alloc(len, &cbt[i]);
 				rdtscll(end);
 				cbuf_unpack(cbt[i], &id, &idx);
-				printc("---- cost Alloc :: %llu in spd %ld\n", end-start, cos_spd_id());
+
+				/* printc("---- cost Alloc :: %llu in spd %ld\n", end-start, cos_spd_id()); */
 				/* printc("Now thd %d create in spd %ld, memid %x, idx %x\n", cos_get_thd_id(), cos_spd_id(), id, idx); */
 				memset(mt[i], 'a', len);
 				/* printc("write sth...\n"); */
+
 				get[i] = 1;
 				mark = 1;
 			}
 		}
+#endif
 
 		/* for (i = 0; i < NCBUF ; i++){ */
 		/* 	if (get[i] == 1){ */
@@ -240,18 +248,18 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 			}
 		}	
 
+#ifdef ALLOC_CBUF
 		for (i = 0; i < NCBUF ; i++){
 			if (get[i] == 1){
 				get[i] = 0;
 				rdtscll(start);
 				cbuf_free(mt[i]);
 				rdtscll(end);
-				printc("---- cost Freed :: %llu in spd %ld\n", end-start, cos_spd_id());
+				/* printc("---- cost Freed :: %llu in spd %ld\n", end-start, cos_spd_id()); */
 				/* printc("EXECBUF i %lu : thd %d freed in spd %ld\n",i, cos_get_thd_id(), cos_spd_id()); */
 			}
 		}
-
-		
+#endif
 
 	}
 

@@ -868,6 +868,13 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	/* dependency thread blocked??? */
 	if (dependency_thd) {
 		dep = sched_get_mapping(dependency_thd);
+		if (dep->dependency_thd) {
+			if(dep->dependency_thd->id == cos_get_thd_id()) {
+				cos_sched_lock_release();
+				assert(0);
+			}
+		}
+
 		if (!dep) {
 			printc("Dependency on non-existent thread %d.\n", dependency_thd);
 			goto err;
@@ -1015,7 +1022,11 @@ static int fp_kill_thd(struct sched_thd *t)
 	REM_LIST(t, next, prev);
 
 	sched_switch_thread(0, NULL_EVT);
-	if (t == c) BUG();
+	if (t == c) {
+		printc("t: id %d, c: id %d\n",t->id, c->id);
+
+		BUG();
+	}
 
 	return 0;
 }

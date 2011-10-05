@@ -26,6 +26,7 @@ struct tmem_mgr {
 	u32_t thdid;
 	u32_t mgr_allocated, mgr_desired;
 	u32_t glb_blked;
+	u32_t evt_thd_waiting;
 	struct tmem_mgr *next_mgr;
 };
 
@@ -74,9 +75,9 @@ int mempool_put_mem(spdid_t d_spdid, void* mgr_addr)
 	mgr->mgr_allocated--;
 
 	mgr = tmem_mgr_list;
-	/* wake up all event threads! */
+	/* wake up all event threads if necessary! */
 	while (mgr) {
-		if (mgr->glb_blked && mgr->mgr_desired > mgr->mgr_allocated) {
+		if (mgr->glb_blked && mgr->mgr_desired > mgr->mgr_allocated && mgr->evt_thd_waiting) {
 			sched_wakeup(cos_spd_id(), mgr->thdid);
 		}
 		mgr = mgr->next_mgr;
@@ -207,13 +208,22 @@ static inline void mempoolmem_mgr_register(spdid_t spdid)
 }
 int mempool_tmem_mgr_event_waiting(spdid_t spdid)
 {
+	struct tmem_mgr *mgr;
 	if (unlikely(!all_tmem_mgr[spdid]))
 		mempoolmem_mgr_register(spdid);
 
-	assert(cos_get_thd_id() == all_tmem_mgr[spdid]->thdid);
+	TAKE();
+	mgr = all_tmem_mgr[spdid];
+	assert(cos_get_thd_id() == mgr->thdid);
+	RELEASE();
 
+	/* shall we set and clear the waiting flag without holding the
+	 * lock? Maybe this can avoid some RACE condition, but not totally. */
+	mgr->evt_thd_waiting = 1;
 	/* Waiting for wake up event here. */
 	sched_block(cos_spd_id(), 0);	
+	mgr->evt_thd_waiting = 0;
+
 	TAKE();
 	all_tmem_mgr[spdid]->glb_blked = 0;
 	RELEASE();

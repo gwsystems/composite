@@ -110,7 +110,7 @@ void mgr_map_client_mem(struct cos_cbuf_item *cci, struct spd_tmem_info *sti)
 	
 	cci->desc.owner.addr = (vaddr_t)d_addr;
 	cci->parent_spdid = d_spdid;
-
+	assert(cci->desc.cbid == 0);
 	// add the cbuf to shared vect here? now we do it in the client.
 	// and l_addr and d_addr has been assinged
 done:
@@ -133,17 +133,20 @@ mgr_remove_client_mem(struct spd_tmem_info *sti, struct cos_cbuf_item *cci)
 	cos_map_del(&cb_ids, cci->desc.cbid);
 
 	DOUT("fly..........cbid is %d\n", cci->desc.cbid);
+
 	cci->desc.cbid = 0;
 	cci->parent_spdid = 0;
-	
+
 	// Clear our memory to prevent leakage
 	memset(cci->desc.addr, 0, PAGE_SIZE);
-	
+	/* printc("Removing from local list\n"); */
+
 	REM_LIST(cci, next, prev);
 
 	/* TODO: move all of this into the tmem generic code just like the ++s */
 	sti->num_allocated--;
 	if (sti->num_allocated == 0) empty_comps++;
+
 	if (sti->num_allocated >= sti->num_desired) over_quota_total--;
 	assert(sti->num_allocated == tmem_num_alloc_tmems(sti->spdid));
 }
@@ -176,7 +179,7 @@ out:
 
 	mgr_remove_client_mem(sti, cci);
 
-	DOUT("Kevin:spd: %d Leaving get cli mem:: num_allocated %d  num_desired %d\n",s_spdid, sti->num_allocated, sti->num_desired);
+	DOUT("spd: %d Leaving get cli mem:: num_allocated %d  num_desired %d\n",s_spdid, sti->num_allocated, sti->num_desired);
 
 done:
 	return cci;
@@ -185,15 +188,13 @@ err:
 	goto done;
 }
 
-
-
-u32_t 
+int
 resolve_dependency(struct spd_tmem_info *sti, int skip_cbuf)
 {
 	struct cos_cbuf_item *cci;
 	/* union cbuf_meta cm; */
 
-	u32_t ret = 0;
+	int ret = -1;
 
 	/* DOUT("skip_cbuf is %d\n",skip_cbuf); */
 
@@ -215,12 +216,12 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_cbuf)
 	/* DOUT("ret :: %d current thd : %d \n", ret, cos_get_thd_id()); */
 	if (ret == cos_get_thd_id()){
 		DOUT("Try to depend on itself ....\n");
-		goto none;
+		goto self;
 	}
 
 done:
 	return ret;
-none:
+self:
 	ret = 0;
 	goto done;
 }
@@ -404,7 +405,8 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 	struct spd_tmem_info *map_sti;
 	DOUT("_c_delete....cbid %d\n", cbid);
 	__spd_cbvect_clean_val(sti, cbid);
-
+	//assert(sti->ci.meta[(cbid-1)].c_0.v == NULL);
+	//printc("_c_delete....cbid %d, meta %p\n", cbid, sti->ci.meta[cbid - 1].c_0.v);
 	mman_revoke_page(cos_spd_id(), (vaddr_t)d->addr, 0);  // remove all mapped children
 
 	m = FIRST_LIST(&d->owner, next, prev);
@@ -576,13 +578,26 @@ cos_init(void *d)
 
 	event_waiting();
 	return;
-
 }
  
 void 
 cbufmgr_buf_report(void)
 {
 	tmem_report();
+	/* int i; */
+	/* for (i = 0 ; i < MAX_NUM_SPDS ; i++) { */
+	/* 	spdid_t spdid = i; */
+
+	/* 	if (!spd_tmem_info_list[spdid].managed) continue; */
+
+	/* 	printc("spdid %d: allocated %d, desired %d, blked %d, glb_blked %d, ss %d\n", */
+	/* 	       spd_tmem_info_list[spdid].spdid, */
+	/* 	       spd_tmem_info_list[spdid].num_allocated, */
+	/* 	       spd_tmem_info_list[spdid].num_desired, */
+	/* 	       spd_tmem_info_list[spdid].num_blocked_thds, */
+	/* 	       spd_tmem_info_list[spdid].num_glb_blocked, */
+	/* 	       spd_tmem_info_list[spdid].ss_counter); */
+	/* } */
 }
 
 int

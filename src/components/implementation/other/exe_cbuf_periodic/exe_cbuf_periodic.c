@@ -179,7 +179,7 @@ void cos_init(void *arg)
 			periodic_wake_wait(cos_spd_id());
 			refill_number++;	  
 			/* printc("\n @@thd %ld is waking in spd %d\n", cos_get_thd_id(), cos_spd_id()); */
-			/* printc("\n refilled...%d\n", refill_number); */
+			/* printc("\n thd %d refilled...%d\n", cos_get_thd_id(), refill_number); */
 		}
 	}
 	return;

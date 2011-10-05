@@ -165,6 +165,7 @@ cbuf_slab_free(struct cbuf_slab *s)
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbid_to_meta_idx(s->cbid));
 	cm.c.flags &= ~CBUFM_IN_USE;
 	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbid_to_meta_idx(s->cbid));
+
 	DOUT("In cbuf_slab_free -- cbid is %d\n", s->cbid);
 
 	if(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] == 1){
@@ -174,7 +175,6 @@ cbuf_slab_free(struct cbuf_slab *s)
 		CBUF_RELEASE();
 		cbuf_c_delete(cos_spd_id(), s->cbid);
 		CBUF_TAKE();
-
 	}
 
 	return;

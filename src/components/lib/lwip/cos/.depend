@@ -1,19 +1,19 @@
 mem.o: ../lwip-1.3.0/src/core/mem.c ../lwip-1.3.0/src/include/lwip/opt.h \
  include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -21,24 +21,24 @@ mem.o: ../lwip-1.3.0/src/core/mem.c ../lwip-1.3.0/src/include/lwip/opt.h \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h
 memp.o: ../lwip-1.3.0/src/core/memp.c \
  ../lwip-1.3.0/src/include/lwip/opt.h include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -46,8 +46,8 @@ memp.o: ../lwip-1.3.0/src/core/memp.c \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h \
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h \
  ../lwip-1.3.0/src/include/lwip/memp.h \
  ../lwip-1.3.0/src/include/lwip/memp_std.h \
  ../lwip-1.3.0/src/include/lwip/pbuf.h \
@@ -72,20 +72,20 @@ memp.o: ../lwip-1.3.0/src/core/memp.c \
  ../lwip-1.3.0/src/include/ipv4/lwip/ip_frag.h
 netif.o: ../lwip-1.3.0/src/core/netif.c \
  ../lwip-1.3.0/src/include/lwip/opt.h include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -93,8 +93,8 @@ netif.o: ../lwip-1.3.0/src/core/netif.c \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h \
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h \
  ../lwip-1.3.0/src/include/lwip/def.h \
  ../lwip-1.3.0/src/include/ipv4/lwip/ip_addr.h \
  ../lwip-1.3.0/src/include/lwip/netif.h \
@@ -112,20 +112,20 @@ netif.o: ../lwip-1.3.0/src/core/netif.c \
  ../lwip-1.3.0/src/include/netif/etharp.h
 pbuf.o: ../lwip-1.3.0/src/core/pbuf.c \
  ../lwip-1.3.0/src/include/lwip/opt.h include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -133,8 +133,8 @@ pbuf.o: ../lwip-1.3.0/src/core/pbuf.c \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h \
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h \
  ../lwip-1.3.0/src/include/lwip/stats.h \
  ../lwip-1.3.0/src/include/lwip/mem.h \
  ../lwip-1.3.0/src/include/lwip/memp.h \
@@ -145,20 +145,20 @@ pbuf.o: ../lwip-1.3.0/src/core/pbuf.c \
  ../lwip-1.3.0/src/include/lwip/sys.h include/arch/perf.h
 raw.o: ../lwip-1.3.0/src/core/raw.c ../lwip-1.3.0/src/include/lwip/opt.h \
  include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -166,8 +166,8 @@ raw.o: ../lwip-1.3.0/src/core/raw.c ../lwip-1.3.0/src/include/lwip/opt.h \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h \
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h \
  ../lwip-1.3.0/src/include/lwip/def.h \
  ../lwip-1.3.0/src/include/lwip/memp.h \
  ../lwip-1.3.0/src/include/lwip/memp_std.h \
@@ -184,20 +184,20 @@ raw.o: ../lwip-1.3.0/src/core/raw.c ../lwip-1.3.0/src/include/lwip/opt.h \
  ../lwip-1.3.0/src/include/lwip/udp.h include/arch/perf.h
 stats.o: ../lwip-1.3.0/src/core/stats.c \
  ../lwip-1.3.0/src/include/lwip/opt.h include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -205,8 +205,8 @@ stats.o: ../lwip-1.3.0/src/core/stats.c \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h \
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h \
  ../lwip-1.3.0/src/include/lwip/def.h \
  ../lwip-1.3.0/src/include/lwip/stats.h \
  ../lwip-1.3.0/src/include/lwip/mem.h \
@@ -214,20 +214,20 @@ stats.o: ../lwip-1.3.0/src/core/stats.c \
  ../lwip-1.3.0/src/include/lwip/memp_std.h
 sys.o: ../lwip-1.3.0/src/core/sys.c ../lwip-1.3.0/src/include/lwip/opt.h \
  include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -235,24 +235,24 @@ sys.o: ../lwip-1.3.0/src/core/sys.c ../lwip-1.3.0/src/include/lwip/opt.h \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h
 tcp.o: ../lwip-1.3.0/src/core/tcp.c ../lwip-1.3.0/src/include/lwip/opt.h \
  include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -260,8 +260,8 @@ tcp.o: ../lwip-1.3.0/src/core/tcp.c ../lwip-1.3.0/src/include/lwip/opt.h \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h \
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h \
  ../lwip-1.3.0/src/include/lwip/def.h \
  ../lwip-1.3.0/src/include/lwip/mem.h \
  ../lwip-1.3.0/src/include/lwip/memp.h \
@@ -279,20 +279,20 @@ tcp.o: ../lwip-1.3.0/src/core/tcp.c ../lwip-1.3.0/src/include/lwip/opt.h \
  ../lwip-1.3.0/src/include/ipv4/lwip/icmp.h
 tcp_in.o: ../lwip-1.3.0/src/core/tcp_in.c \
  ../lwip-1.3.0/src/include/lwip/opt.h include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -300,8 +300,8 @@ tcp_in.o: ../lwip-1.3.0/src/core/tcp_in.c \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h \
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h \
  ../lwip-1.3.0/src/include/lwip/tcp.h \
  ../lwip-1.3.0/src/include/lwip/sys.h \
  ../lwip-1.3.0/src/include/lwip/mem.h \
@@ -321,20 +321,20 @@ tcp_in.o: ../lwip-1.3.0/src/core/tcp_in.c \
  ../lwip-1.3.0/src/include/lwip/udp.h include/arch/perf.h
 tcp_out.o: ../lwip-1.3.0/src/core/tcp_out.c \
  ../lwip-1.3.0/src/include/lwip/opt.h include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -342,8 +342,8 @@ tcp_out.o: ../lwip-1.3.0/src/core/tcp_out.c \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h \
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h \
  ../lwip-1.3.0/src/include/lwip/tcp.h \
  ../lwip-1.3.0/src/include/lwip/sys.h \
  ../lwip-1.3.0/src/include/lwip/mem.h \
@@ -363,20 +363,20 @@ tcp_out.o: ../lwip-1.3.0/src/core/tcp_out.c \
  ../lwip-1.3.0/src/include/lwip/udp.h
 udp.o: ../lwip-1.3.0/src/core/udp.c ../lwip-1.3.0/src/include/lwip/opt.h \
  include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -384,8 +384,8 @@ udp.o: ../lwip-1.3.0/src/core/udp.c ../lwip-1.3.0/src/include/lwip/opt.h \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h \
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h \
  ../lwip-1.3.0/src/include/lwip/udp.h \
  ../lwip-1.3.0/src/include/lwip/pbuf.h \
  ../lwip-1.3.0/src/include/lwip/err.h \
@@ -404,20 +404,20 @@ udp.o: ../lwip-1.3.0/src/core/udp.c ../lwip-1.3.0/src/include/lwip/opt.h \
  ../lwip-1.3.0/src/include/lwip/dhcp.h
 init.o: ../lwip-1.3.0/src/core/init.c \
  ../lwip-1.3.0/src/include/lwip/opt.h include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -425,8 +425,8 @@ init.o: ../lwip-1.3.0/src/core/init.c \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h \
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h \
  ../lwip-1.3.0/src/include/lwip/init.h \
  ../lwip-1.3.0/src/include/lwip/stats.h \
  ../lwip-1.3.0/src/include/lwip/mem.h \
@@ -451,20 +451,20 @@ init.o: ../lwip-1.3.0/src/core/init.c \
  ../lwip-1.3.0/src/include/netif/etharp.h
 icmp.o: ../lwip-1.3.0/src/core/ipv4/icmp.c \
  ../lwip-1.3.0/src/include/lwip/opt.h include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -472,24 +472,24 @@ icmp.o: ../lwip-1.3.0/src/core/ipv4/icmp.c \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h
 ip.o: ../lwip-1.3.0/src/core/ipv4/ip.c \
  ../lwip-1.3.0/src/include/lwip/opt.h include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -497,8 +497,8 @@ ip.o: ../lwip-1.3.0/src/core/ipv4/ip.c \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h \
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h \
  ../lwip-1.3.0/src/include/ipv4/lwip/ip.h \
  ../lwip-1.3.0/src/include/lwip/def.h \
  ../lwip-1.3.0/src/include/lwip/pbuf.h \
@@ -522,20 +522,20 @@ ip.o: ../lwip-1.3.0/src/core/ipv4/ip.c \
  ../lwip-1.3.0/src/include/lwip/memp_std.h include/arch/perf.h
 inet.o: ../lwip-1.3.0/src/core/ipv4/inet.c \
  ../lwip-1.3.0/src/include/lwip/opt.h include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -543,26 +543,26 @@ inet.o: ../lwip-1.3.0/src/core/ipv4/inet.c \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h \
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h \
  ../lwip-1.3.0/src/include/ipv4/lwip/inet.h \
  ../lwip-1.3.0/src/include/ipv4/lwip/ip_addr.h
 ip_addr.o: ../lwip-1.3.0/src/core/ipv4/ip_addr.c \
  ../lwip-1.3.0/src/include/lwip/opt.h include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -570,8 +570,8 @@ ip_addr.o: ../lwip-1.3.0/src/core/ipv4/ip_addr.c \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h \
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h \
  ../lwip-1.3.0/src/include/ipv4/lwip/ip_addr.h \
  ../lwip-1.3.0/src/include/ipv4/lwip/inet.h \
  ../lwip-1.3.0/src/include/lwip/netif.h \
@@ -579,20 +579,20 @@ ip_addr.o: ../lwip-1.3.0/src/core/ipv4/ip_addr.c \
  ../lwip-1.3.0/src/include/lwip/pbuf.h
 ip_frag.o: ../lwip-1.3.0/src/core/ipv4/ip_frag.c \
  ../lwip-1.3.0/src/include/lwip/opt.h include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -600,8 +600,8 @@ ip_frag.o: ../lwip-1.3.0/src/core/ipv4/ip_frag.c \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h \
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h \
  ../lwip-1.3.0/src/include/ipv4/lwip/ip_frag.h \
  ../lwip-1.3.0/src/include/lwip/err.h \
  ../lwip-1.3.0/src/include/lwip/pbuf.h \
@@ -620,20 +620,20 @@ ip_frag.o: ../lwip-1.3.0/src/core/ipv4/ip_frag.c \
  ../lwip-1.3.0/src/include/ipv4/lwip/icmp.h
 inet_chksum.o: ../lwip-1.3.0/src/core/ipv4/inet_chksum.c \
  ../lwip-1.3.0/src/include/lwip/opt.h include/lwipopts.h \
- /home/songjiguo/research/composite/src//components//include/cos_alloc.h \
+ /home/interwq/research/composite/src//components//include/cos_alloc.h \
  ../../dietlibc-0.29/include/stddef.h \
  ../../dietlibc-0.29/include/sys/cdefs.h \
  ../lwip-1.3.0/src/include/lwip/debug.h \
  ../lwip-1.3.0/src/include/lwip/arch.h include/arch/cc.h \
- /home/songjiguo/research/composite/src//components//include/print.h \
- /home/songjiguo/research/composite/src//components//include/cos_component.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_types.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/./consts.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../shared/cos_config.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/../measurement.h \
+ /home/interwq/research/composite/src//components//include/print.h \
+ /home/interwq/research/composite/src//components//include/cos_component.h \
+ /home/interwq/research/composite/src//kernel/include/shared/consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../asm_ipc_defs.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_types.h \
+ /home/interwq/research/composite/src//kernel/include/shared/./consts.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../shared/cos_config.h \
+ /home/interwq/research/composite/src//kernel/include/shared/../measurement.h \
  ../../dietlibc-0.29/include/stdio.h \
  ../../dietlibc-0.29/include/sys/types.h \
  ../../dietlibc-0.29/include/inttypes.h \
@@ -641,8 +641,8 @@ inet_chksum.o: ../lwip-1.3.0/src/core/ipv4/inet_chksum.c \
  ../../dietlibc-0.29/include/sys/stat.h \
  ../../dietlibc-0.29/include/stdarg.h \
  ../../dietlibc-0.29/include/string.h \
- /home/songjiguo/research/composite/src//components//include/cos_debug.h \
- /home/songjiguo/research/composite/src//kernel/include/shared/cos_config.h \
+ /home/interwq/research/composite/src//components//include/cos_debug.h \
+ /home/interwq/research/composite/src//kernel/include/shared/cos_config.h \
  ../lwip-1.3.0/src/include/ipv4/lwip/inet_chksum.h \
  ../lwip-1.3.0/src/include/lwip/pbuf.h \
  ../lwip-1.3.0/src/include/lwip/err.h \

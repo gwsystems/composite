@@ -27,7 +27,9 @@ put_mem(tmem_item *tmi)
 	assert(tmi->parent_spdid == 0);
 	tmems_allocated--;
 	if (tmems_allocated > tmems_target) {
+		RELEASE();
 		mempool_put_mem(cos_spd_id(), LOCAL_ADDR(tmi));
+		TAKE();
 		free_item_data_struct(tmi);
 	} else {
 		tmi->free_next = free_tmem_list;
@@ -58,7 +60,9 @@ get_mem(void)
 	if (tmi) {
 		free_tmem_list = tmi->free_next;
 	} else {
+		RELEASE();
 		l_addr = mempool_get_mem(cos_spd_id(), 1);
+		TAKE();
 		if (l_addr) tmi = alloc_item_data_struct(l_addr);
 	}
 
@@ -150,7 +154,11 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 
 		if (i > sti->ss_counter) sti->ss_counter = i; /* update self-suspension counter */
 
-		if (dep_thd == 0) {
+		/* dep_thd == 0 means the tmem owner is the current
+		 * thd, try next tmem */
+		if (dep_thd == 0) {in_blk_list = 1; continue;}
+
+		if (dep_thd == -1) {
 			DOUT("Self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n",
 			       sti->ss_counter,sti->spdid, cos_get_thd_id(), sti->num_waiting_thds, sti->num_desired, sti->num_allocated);
 
@@ -171,6 +179,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 		 * support to implement that.
 		 */
 		DOUT("MGR %ld >>> %d try to depend on %d comp %d i%d\n", cos_spd_id(), cos_get_thd_id(), dep_thd, sti->spdid, i);
+
 		RELEASE();
 		ret = sched_block(cos_spd_id(), dep_thd);
 		TAKE();
@@ -370,7 +379,7 @@ tmem_grant(struct spd_tmem_info *sti)
 
 	if (!local_cache) {
 		mgr_map_client_mem(tmi, sti); 
-		DOUT("Adding to local spdid list\n");
+		/* DOUT("Adding to local tmem_list\n"); */
 		ADD_LIST(&sti->tmem_list, tmi, next, prev);
 		sti->num_allocated++;
 		if (sti->num_allocated == 1) empty_comps--;
@@ -433,7 +442,6 @@ return_tmem(struct spd_tmem_info *sti)
 		tmem_unmark_relinquish_all(sti);
 
 	DOUT("After return called:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);
-
 }
 
 /**
