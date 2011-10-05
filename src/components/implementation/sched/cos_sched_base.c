@@ -868,6 +868,13 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	/* dependency thread blocked??? */
 	if (dependency_thd) {
 		dep = sched_get_mapping(dependency_thd);
+		if (dep->dependency_thd) {
+			if(dep->dependency_thd->id == cos_get_thd_id()) {
+				cos_sched_lock_release();
+				assert(0);
+			}
+		}
+
 		if (!dep) {
 			printc("Dependency on non-existent thread %d.\n", dependency_thd);
 			goto err;
@@ -924,6 +931,7 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 		}
 		first = 0;
 	}
+	if (thd->wake_cnt != 1) {printc("thd %d, wake cnt after blk %d\n", cos_get_thd_id(), thd->wake_cnt);}
 	assert(thd->wake_cnt == 1);
 	/* The amount of time we've blocked */
 	ret = ticks - thd->block_time - 1;

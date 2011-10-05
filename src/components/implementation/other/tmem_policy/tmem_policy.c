@@ -38,7 +38,7 @@
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
 #define ALGORITHM 1
  
-//#define THD_POOL 1
+#define THD_POOL MAX_NUM_MEM
 
 #define POLICY_PERIODICITY 100
 
@@ -914,7 +914,7 @@ cos_init(void *arg)
 	init_spds();
 
 #ifdef THD_POOL
-	DOUT("<<<Thd Pool with total %d tmems, component size %d>>>\n", MAX_NUM_CBUFS, THD_POOL);
+	DOUT("<<<Thd Pool with total %d tmems, component size %d>>>\n", MAX_NUM_MEM, THD_POOL);
 	if (THD_POOL != 1)
 		thdpool_max_policy();
 	else
@@ -925,8 +925,6 @@ cos_init(void *arg)
 	init_policy();
 #endif
 
-	DOUT("Tmem policy: %d in spd %ld wait other thds to run...\n", cos_get_thd_id(), cos_spd_id());
-
 	periodic_wake_create(cos_spd_id(), POLICY_PERIODICITY);
 
 	/* Wait for all other threads to initialize */
@@ -934,8 +932,6 @@ cos_init(void *arg)
 	do { 
 		periodic_wake_wait(cos_spd_id());
 	} while (i++ < waiting);
-
-	DOUT("Now other thds are running..\n");
 
 	init_thds();
 
@@ -947,7 +943,6 @@ cos_init(void *arg)
 			cbufmgr_buf_report();
 			stkmgr_stack_report();
 		}
-		
 #ifdef THD_POOL
 		if (THD_POOL == 1)
 			thdpool_1_policy();

@@ -110,7 +110,7 @@ void mgr_map_client_mem(struct cos_cbuf_item *cci, struct spd_tmem_info *sti)
 	
 	cci->desc.owner.addr = (vaddr_t)d_addr;
 	cci->parent_spdid = d_spdid;
-
+	assert(cci->desc.cbid == 0);
 	// add the cbuf to shared vect here? now we do it in the client.
 	// and l_addr and d_addr has been assinged
 done:
@@ -129,27 +129,24 @@ static void
 mgr_remove_client_mem(struct spd_tmem_info *sti, struct cos_cbuf_item *cci)
 {
 	__cbuf_c_delete(sti, cci->desc.cbid, &cci->desc);
-	printc("after buf del before map del\n");
+	/* printc("after buf del before map del\n"); */
 	cos_map_del(&cb_ids, cci->desc.cbid);
 
-	printc("fly..........cbid is %d\n", cci->desc.cbid);
+	/* printc("fly..........cbid is %d\n", cci->desc.cbid); */
 	cci->desc.cbid = 0;
 	cci->parent_spdid = 0;
-	
+
 	// Clear our memory to prevent leakage
 	memset(cci->desc.addr, 0, PAGE_SIZE);
-	
-	printc("Removing from local list\n");
-	union cbuf_meta cm;
-	cm.c_0.v = cci->entry->c_0.v;
-	if (cm.c.flags & CBUFM_RELINQUISH_TEST) 
-		cm.c.flags &= ~CBUFM_RELINQUISH_TEST;
+
+	/* printc("Removing from local list\n"); */
 
 	REM_LIST(cci, next, prev);
 
 	/* TODO: move all of this into the tmem generic code just like the ++s */
 	sti->num_allocated--;
 	if (sti->num_allocated == 0) empty_comps++;
+
 	if (sti->num_allocated >= sti->num_desired) over_quota_total--;
 	assert(sti->num_allocated == tmem_num_alloc_tmems(sti->spdid));
 }
@@ -182,7 +179,7 @@ out:
 
 	mgr_remove_client_mem(sti, cci);
 
-	printc("Kevin:spd: %d Leaving get cli mem:: num_allocated %d  num_desired %d\n",s_spdid, sti->num_allocated, sti->num_desired);
+	/* printc("Kevin:spd: %d Leaving get cli mem:: num_allocated %d  num_desired %d\n",s_spdid, sti->num_allocated, sti->num_desired); */
 
 done:
 	return cci;
@@ -224,7 +221,7 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_cbuf)
 	// could find to be dependent on itself
 	/* printc("ret :: %d current thd : %d \n", ret, cos_get_thd_id()); */
 	if (ret == cos_get_thd_id()){
-		printc("Try to depend on itself since > 1 cbufs by it\n");
+		/* printc("Try to depend on itself since > 1 cbufs by it\n"); */
 		goto none;
 	}
 
@@ -349,7 +346,7 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 		}
  	}
 	else {
-		cbid = cos_map_add(&cb_ids, (void *)spdid);
+		cbid = cos_map_add(&cb_ids, (void *)(unsigned long)spdid);
 		if ((mc = __spd_cbvect_lookup_range(sti, (cbid))) == NULL){
 			RELEASE();
 			return cbid*-1;	
@@ -380,11 +377,11 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	if(d->cbid == 0){
 		INIT_LIST(&d->owner, next, prev);  // only created when first time
 		cbid = cos_map_add(&cb_ids, d);   // use new cbuf
-		printc("new cbid is %ld\n",cbid);
+//		printc("new cbid is %ld\n",cbid);
 	}
 	else{
 		cbid = cbuf_item->desc.cbid;  // use a local cached one
-		printc("cached cbid is %ld\n",cbid);
+//		printc("cached cbid is %ld\n",cbid);
 	}
 	/* printc("in create:::new cbid is %ld\n",cbid); */
 	ret = d->cbid = cbid;
@@ -415,8 +412,8 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 	struct spd_tmem_info *map_sti;
 	/* printc("_c_delete....cbid %d\n", cbid); */
 	__spd_cbvect_clean_val(sti, cbid);
-	assert(sti->ci->meta[CB_IDX(cbid)].c_0.v == NULL);
-	printc("_c_delete....cbid %d, meta %p\n", cbid, sti->ci->meta[CB_IDX(cbid)].c_0.v);
+	//assert(sti->ci.meta[(cbid-1)].c_0.v == NULL);
+	//printc("_c_delete....cbid %d, meta %p\n", cbid, sti->ci.meta[cbid - 1].c_0.v);
 	mman_revoke_page(cos_spd_id(), (vaddr_t)d->addr, 0);  // remove all mapped children
 
 	m = FIRST_LIST(&d->owner, next, prev);
@@ -438,7 +435,6 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 	}
 	valloc_free(cos_spd_id(), sti->spdid, (void *)(d->owner.addr), 1);
 
-	printc("unmapped is done\n");
 	return 0;
 }
 
@@ -588,7 +584,6 @@ cos_init(void *d)
 
 	event_waiting();
 	return;
-
 }
  
 void 

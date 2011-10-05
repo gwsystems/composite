@@ -20,8 +20,13 @@
 #include <cos_vect.h>
 #include <cos_list.h>
 #include <bitmap.h>
+#include <cos_synchronization.h>
 
 #include <tmem_conf.h>
+
+cos_lock_t l;
+#define CBUF_TAKE()    do { if (l.lock_id == 0) lock_static_init(&l); if (lock_take(&l) != 0) BUG(); } while(0)
+#define CBUF_RELEASE() do { if (lock_release(&l) != 0) BUG(); } while(0)
 
 extern cbuf_vect_t meta_cbuf;
 extern cos_vect_t slab_descs; 
@@ -155,7 +160,9 @@ cbuf2buf(cbuf_t cb, int len)
 	int obj_sz, off;
 	u32_t id, idx;
 	union cbuf_meta cm;
+	void *ret;
 
+	CBUF_TAKE();
 	assert(len);
 	/* len = len == 1 ? 1 : len-1; */
 	/* len = nlpow2(len); */
@@ -165,9 +172,9 @@ cbuf2buf(cbuf_t cb, int len)
 	long cbidx;
 	cbidx = cbid_to_meta_idx(id);
 
-	printc("buf2buf:: id %x, idx %x  cbidx is %ld\n", id, idx, cbidx);
+	/* printc("buf2buf:: id %x, idx %x  cbidx is %ld\n", id, idx, cbidx); */
 
-	printc("cbuf2buf before cache_miss::\n");
+	/* printc("cbuf2buf before cache_miss::\n"); */
 	/* int i; */
 	/* for(i=0;i<20;i++) */
 	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
@@ -175,32 +182,39 @@ cbuf2buf(cbuf_t cb, int len)
 again:				/* avoid convoluted conditions */
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
 	if (unlikely(cm.c_0.v == 0)) {
+		int r;
 		/* slow path */
 		// If there is no 2nd level vector exists, create here!!
-		if (cbuf_cache_miss(id, idx, len)) return NULL;
+		CBUF_RELEASE();
+		r = cbuf_cache_miss(id, idx, len);
+		if (r) return NULL;
+		CBUF_TAKE();
 		goto again;
 	}
 
 	if (likely(!(cm.c.flags & CBUFM_LARGE))) {
 		obj_sz = cm.c.obj_sz << CBUF_OBJ_SZ_SHIFT;
 		off    = obj_sz * idx; /* multiplication...ouch */
-		printc("len %d obj_sz %d off %d \n",len, obj_sz ,off);
+		/* printc("len %d obj_sz %d off %d \n",len, obj_sz ,off); */
 		if (unlikely(len > obj_sz || off + len > PAGE_SIZE )) return NULL;
 		/* printc("<<<Not CBUF_LARGE>>> idx: %d off: %d\n", idx, off); */
 	} else {
 		BUG();
 		obj_sz = PAGE_SIZE * (1 << cm.c.obj_sz);
 		off    = 0;
+		CBUF_RELEASE();
 		if (unlikely(len > obj_sz)) return NULL;
 	}
 
-	printc("After Cache missing here::\n");
+	/* printc("After Cache missing here::\n"); */
 	/* int i; */
 	/* for(i=0;i<20;i++) */
 	/* 	printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
 
 	/* printc("%p\n",((char*)(cm.c.ptr << PAGE_ORDER)) + off); */
-	return ((char*)(cm.c.ptr << PAGE_ORDER)) + off;
+	ret = ((char*)(cm.c.ptr << PAGE_ORDER)) + off;
+	CBUF_RELEASE();
+	return ret;
 }
 
 #define SLAB_BITMAP_SIZE (SLAB_MAX_OBJS/32)
@@ -228,11 +242,15 @@ extern struct cbuf_slab_freelist slab_freelists[N_CBUF_SLABS];
 
 static inline void printfl(struct cbuf_slab_freelist *fl, char *c){
 	struct cbuf_slab *p;
+	int a=0;
 	p = fl->list;
+	printc("thd %d\n", cos_get_thd_id());
 	while (p) {
-		printc("[[[ %s p->cbid %d @ %p\n]]]", c, p->cbid, p->mem);
-		p = FIRST_LIST(p, next, prev);
+		printc("[%s p->cbid %d @ %p]\n", c, p->cbid, p->mem);
+		a++;
+		assert(a < 50);
 		if (p==fl->list) break;
+		p = FIRST_LIST(p, next, prev);
 	}
 	printc("done print fl\n");
 }
@@ -249,9 +267,9 @@ slab_rem_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 	REM_LIST(s, next, prev);
 	fl->npages--;
 
-	assert(fl->npages >= 0);
-	printc("thd %d REM:fl->npages %d cbid is %d\n",cos_get_thd_id(),fl->npages, s->cbid);
+	/* printc("thd %d REM:fl->npages %d cbid is %d\n",cos_get_thd_id(),fl->npages, s->cbid); */
 	/* printfl(fl,"REM"); */
+	assert(fl->npages >= 0);
 
 	return;
 }
@@ -271,7 +289,7 @@ slab_add_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 	}
 	fl->list = s;
 	fl->npages++;
-	printc("thd %d ADD:fl->npages %d cbid is %d\n",cos_get_thd_id(),fl->npages, s->cbid);
+	/* printc("thd %d ADD:fl->npages %d cbid is %d\n",cos_get_thd_id(),fl->npages, s->cbid); */
 	/* printfl(fl,"ADD"); */
 
 	return;
@@ -300,6 +318,9 @@ __cbuf_free(void *buf)
 	u32_t b   = (u32_t)buf;
 	u32_t off = b - (b & PAGE_MASK);
 	int idx;
+	union cbuf_meta cm;
+	long cbidx;
+
 	assert(s);
 	/* Argh, division!  Maybe transform into loop? Maybe assume pow2? */
 	idx = off/s->obj_sz;
@@ -307,11 +328,15 @@ __cbuf_free(void *buf)
 	bitmap_set(&s->bitmap[0], idx);
 	s->nfree++;
 	assert(s->flh);
-	printc(">>>  free: nfree is now : %d cbid is %d\n",s->nfree,s->cbid);
-	printc("thd %d spd %ld in __cbuf_free\n", cos_get_thd_id(),cos_spd_id());
+	/* printc(">>>  free: nfree is now : %d cbid is %d\n",s->nfree,s->cbid); */
+	/* printc("thd %d spd %ld in __cbuf_free\n", cos_get_thd_id(),cos_spd_id()); */
 	if (s->nfree == 1) {
-		printc("Add slab_add_freelist cbid is %d\n", s->cbid);
+		/* printc("Add slab_add_freelist cbid is %d\n", s->cbid); */
 		assert(EMPTY_LIST(s, next, prev));
+		cbidx = cbid_to_meta_idx(s->cbid);
+		cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
+		cm.c.flags &= ~CBUFM_ALL_ALLOCATED;
+ 		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbidx);
 		slab_add_freelist(s, s->flh);
 	}
 
@@ -335,11 +360,10 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 	int idx;
 	u32_t *bm;
 
-	printc("\n***** thd %d spd :: %ld __cbuf_alloc:******\n", cos_get_thd_id(), cos_spd_id());
+	/* printc("\n***** thd %d spd :: %ld __cbuf_alloc:******\n", cos_get_thd_id(), cos_spd_id()); */
 	/* printc("<<<__cbuf_alloc size %d>>>\n",size); */
 again:					/* avoid convoluted conditions */
 	if (unlikely(!slab_freelist->list)) {
-		printc("..not on free list..\n");
 		if (unlikely(!cbuf_slab_alloc(size, slab_freelist))) return NULL;
 		if (unlikely(!slab_freelist->list)) return NULL;
 	}
@@ -380,13 +404,16 @@ again:					/* avoid convoluted conditions */
 	cbidx = cbid_to_meta_idx(s->cbid);
 
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
-	if (unlikely(!cm.c_0.v || cm.c.ptr != ((u32_t)s->mem >> PAGE_ORDER))) {
+
+	if (unlikely(!cm.c_0.v || (cm.c.flags & CBUFM_ALL_ALLOCATED) || 
+		     (cm.c.ptr != ((u32_t)s->mem >> PAGE_ORDER)))) {
 		slab_deallocate(s, slab_freelist);
-		printc("goto again\n");
+		/* printc("goto again\n"); */
 		goto again;
 	}
-	printc("cm.c_0.v %p, cm.c.ptr %p, lookup again! %d\n",cm.c_0.v,cm.c.ptr,(u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx));
-	printc("got slab. s cbid %d @ %p\n", s->cbid, s->mem);
+
+	/* printc("cm.c_0.v %p, cm.c.ptr %p, lookup again! %d\n",cm.c_0.v,cm.c.ptr,(u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx)); */
+	/* printc("got slab. s cbid %d @ %p\n", s->cbid, s->mem); */
 
 	assert(s->nfree);
 
@@ -405,18 +432,15 @@ again:					/* avoid convoluted conditions */
 		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.th_id, cbidx+1);
 	}
 
-	/* int thd,i; */
-	/* thd = cos_get_thd_id(); */
-	/* if(thd == 24){ */
-	/* 	for(i=0;i<20;i++) */
-	/* 		printc("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
-	/* } */
-
 	s->nfree--;
 
 	/* remove from the freelist */
-	printc("after alloc and  nfree %d\n",s->nfree);
-	if (!s->nfree) slab_rem_freelist(s, slab_freelist);
+	/* printc("after alloc and  nfree %d\n",s->nfree); */
+	if (!s->nfree) {
+		cm.c.flags |= CBUFM_ALL_ALLOCATED;
+		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbidx);
+		slab_rem_freelist(s, slab_freelist);
+	}
 
 	*cb = cbuf_cons(s->cbid, idx);
 	return s->mem + (idx * s->obj_sz);  // return correct position of cbuf in this slab
@@ -468,18 +492,24 @@ cbuf_alloc_pow2(unsigned int order, cbuf_t *cb)
 static inline void *
 cbuf_alloc(unsigned int sz, cbuf_t *cb)
 {
+	void *ret;
+	CBUF_TAKE();
 	int o;
 	sz = sz < 65 ? 63 : sz; /* FIXME: do without branch */
 	/* FIXME: find way to avoid making the wrong decision on pow2 values */
 	sz = ones(sz) == 1 ? sz-1 : sz;
 	o = log32_floor(sz) + 1;
-	return cbuf_alloc_pow2(o, cb);
+	ret = cbuf_alloc_pow2(o, cb);
+	CBUF_RELEASE();
+	return ret;
 }
 
 static inline void
 cbuf_free(void *buf)
 {
+	CBUF_TAKE();
 	__cbuf_free(buf);
+	CBUF_RELEASE();
 }
 
 #endif /* CBUF_H */

@@ -26,7 +26,9 @@ put_mem(tmem_item *tmi)
 	assert(tmi->parent_spdid == 0);
 	tmems_allocated--;
 	if (tmems_allocated > tmems_target) {
+		RELEASE();
 		mempool_put_mem(cos_spd_id(), LOCAL_ADDR(tmi));
+		TAKE();
 		free_item_data_struct(tmi);
 	} else {
 		tmi->free_next = free_tmem_list;
@@ -57,7 +59,9 @@ get_mem(void)
 	if (tmi) {
 		free_tmem_list = tmi->free_next;
 	} else {
+		RELEASE();
 		l_addr = mempool_get_mem(cos_spd_id(), 1);
+		TAKE();
 		if (l_addr) tmi = alloc_item_data_struct(l_addr);
 	}
 
@@ -169,7 +173,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 		 * make this algorithm correct, but we want tmem/idl
 		 * support to implement that.
 		 */
-		printc("MGR %ld >>> %d try to depend on %d comp %d i%d\n", cos_spd_id(), cos_get_thd_id(), dep_thd, sti->spdid, i);
+		DOUT ("MGR %ld >>> %d try to depend on %d comp %d i%d\n", cos_spd_id(), cos_get_thd_id(), dep_thd, sti->spdid, i);
 		RELEASE();
 		ret = sched_block(cos_spd_id(), dep_thd);
 		TAKE(); 
@@ -202,11 +206,11 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 			assert(ret < 0);
 			sched_wakeup(cos_spd_id(), cos_get_thd_id());
 		}
-		printc("%d finished depending on %d. comp %d. i %d. ss_cnt %d. ret %d\n",
-		       cos_get_thd_id(), dep_thd, sti->spdid,i,sti->ss_counter, ret);
+		DOUT ("%d finished depending on %d. ss_cnt %d. ret %d\n alloc %d, desired %d\n"
+		       , cos_get_thd_id(), dep_thd, sti->ss_counter, ret, sti->num_allocated, sti->num_desired);
 
 	} while (in_blk_list);
-	printc("Thd %d wokeup and is obtaining a tmem\n", cos_get_thd_id());
+	DOUT ("Thd %d wokeup and is obtaining a tmem\n", cos_get_thd_id());
 
 	return 1;
 }
@@ -255,11 +259,11 @@ tmem_grant(struct spd_tmem_info *sti)
 		tmi = free_mem_in_local_cache(sti);
 		if (tmi) {
 			local_cache = tmi;
-			printc("found one \n");
+			DOUT("found one in local cache!\n");
 			break;
 		}
 
-		DOUT("request tmem\n");
+		/* DOUT("request tmem\n"); */
 		/* printc(" \n ~~~ thd %d request tmem!! ~~~\n\n", cos_get_thd_id()); */
 		eligible = 0;
 
@@ -359,7 +363,6 @@ tmem_grant(struct spd_tmem_info *sti)
 				/* printc("when self:: num_allocated %d num_desired+max %d\n",sti->num_allocated, sti->num_desired + sti->ss_max);				 */
 				tmi = get_mem();
 				if (tmi) {
-					printc(" got tmi!!!\n");
 					/* remove from the block list before grant */
 					remove_thd_from_blk_list(sti, cos_get_thd_id());
 					break;
@@ -371,7 +374,7 @@ tmem_grant(struct spd_tmem_info *sti)
 
 	if (!local_cache) {
 		mgr_map_client_mem(tmi, sti); 
-		DOUT("Adding to local spdid list\n");
+		/* DOUT("Adding to local tmem_list\n"); */
 		ADD_LIST(&sti->tmem_list, tmi, next, prev);
 		sti->num_allocated++;
 		if (sti->num_allocated == 1) empty_comps--;
@@ -417,7 +420,6 @@ return_tmem(struct spd_tmem_info *sti)
 	assert(sti);
 	s_spdid = sti->spdid;
 	/* printc("return_mem is called \n"); */
-	printc("Before:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);
 	
         /* if (sti->num_desired < sti->num_allocated || sti->num_glb_blocked) { 2nd condition is used for max pool testing */
 	if (sti->num_desired < sti->num_allocated) {   // only blocked on glb for other spds
@@ -432,9 +434,6 @@ return_tmem(struct spd_tmem_info *sti)
 
 	if (tmem_should_unmark_relinquish(sti) && sti->relinquish_mark == 1) 
 		tmem_unmark_relinquish_all(sti);
-
-	printc("After return called:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);
-
 }
 
 /**

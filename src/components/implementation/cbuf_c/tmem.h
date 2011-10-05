@@ -163,8 +163,7 @@ __wake_glb_thread(struct blocked_thd *bthd)
 	sti = get_spd_info(bthd->spdid);
 	sti->num_glb_blocked--;
 	tid = bthd->thd_id;
-	DOUT("\t Waking UP thd: %d", tid);
-	printc("thd %d: ************ waking up thread %d ************\n",
+	DOUT("thd %d: ************ waking up thread %d ************\n",
 	       cos_get_thd_id(),tid);
 	REM_LIST(bthd, next, prev);
 	free(bthd);
@@ -177,26 +176,30 @@ __wake_glb_thread(struct blocked_thd *bthd)
 static inline void
 wake_glb_blk_list(spdid_t spdid)
 {
+	int woken = 0;
 	struct blocked_thd *bthd, *bthd_next;
-	spdid_t mgr_spdid;
 
-	mgr_spdid = cos_spd_id();
-	printc("now wake glb!\n");
+	DOUT("thd %d now wake glb, spd %d!\n",cos_get_thd_id(),spdid);
+
 	if (!spdid){  // all thds on glb blk list
 		for(bthd = FIRST_LIST(&global_blk_list, next, prev) ; bthd != &global_blk_list ; bthd = bthd_next) {
 			bthd_next = __wake_glb_thread(bthd);
+			woken++;
 		}
 	} else {
 		for(bthd = FIRST_LIST(&global_blk_list, next, prev) ; bthd != &global_blk_list ; bthd = bthd_next) {
 			if (spdid == bthd->spdid){   // only thds in that spd on glb blk list
-				printc("wake %d in spd %d!\n",bthd->thd_id, bthd->spdid);
+				DOUT("wake %d in spd %d!\n",bthd->thd_id, bthd->spdid);
 				bthd_next = __wake_glb_thread(bthd);
+				woken++;
 			} else {
 				bthd_next = FIRST_LIST(bthd, next, prev);
 			}
 		}
 	}
-	printc("done!\n");
+	if (woken && EMPTY_LIST(&global_blk_list, next, prev))
+		mempool_clear_glb_blked(cos_spd_id());
+	DOUT("done wake up glb!\n");
 }
 
 /* wake up all blked threads on local list */
@@ -212,8 +215,7 @@ wake_local_blk_list(struct blocked_thd *bl)
 	for(bthd = FIRST_LIST(bl, next, prev) ; bthd != bl ; bthd = bthd_next) {
 		bthd_next = FIRST_LIST(bthd, next, prev);
 		tid = bthd->thd_id;
-		DOUT("\t Waking UP thd: %d", tid);
-		printc("thd %d: ************ waking up thread %d ************\n",
+		DOUT("thd %d: ************ waking up thread %d ************\n",
 		       cos_get_thd_id(),tid);
 		REM_LIST(bthd, next, prev);
 		free(bthd);
@@ -227,8 +229,7 @@ wake_local_blk_list(struct blocked_thd *bl)
 static inline void
 tmem_spd_wake_threads(struct spd_tmem_info *sti)
 {
-	DOUT("waking up local threads for spd %ld\n", cos_spd_id());
-	printc("thd %d: ************ start waking up %d threads for spd %d ************\n",
+	DOUT("thd %d: ************ start waking up %d threads for spd %d ************\n",
 	       cos_get_thd_id(),sti->num_blocked_thds, sti->spdid);
 	wake_local_blk_list(&sti->bthd_list);
 	sti->num_blocked_thds = 0;
@@ -250,7 +251,6 @@ tmem_add_to_blk_list(struct spd_tmem_info *sti, unsigned int tid)
 	if (unlikely(bthd == NULL)) BUG();
 
 	bthd->thd_id = tid;
-	printc("Adding thd to the blocked list: %d\n", bthd->thd_id);
 	DOUT("Adding thd to the blocked list: %d\n", bthd->thd_id);
 	ADD_LIST(&sti->bthd_list, bthd, next, prev);
 	sti->num_blocked_thds++;
@@ -266,7 +266,7 @@ tmem_add_to_gbl(struct spd_tmem_info *sti, unsigned int tid)
 	sti->num_glb_blocked++;
 	bthd->thd_id = tid;
 	bthd->spdid = sti->spdid;
-	printc("Adding thd to the global blocked list: %d\n", bthd->thd_id);
+
 	DOUT("Adding thd to the global blocked list: %d\n", bthd->thd_id);
 	ADD_LIST(&global_blk_list, bthd, next, prev);
 }

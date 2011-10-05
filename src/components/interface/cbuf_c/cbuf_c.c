@@ -56,7 +56,7 @@ cbuf_cache_miss(int cbid, int idx, int len)
 	/* This is the commit point */
 	/* printc("miss: meta_cbuf is at %p, h is %p\n", &meta_cbuf, h); */
 	cbuf_vect_add_id(&meta_cbuf, (void *)mc.c_0.v, cbid_to_meta_idx(cbid));
-	cbuf_vect_add_id(&meta_cbuf, (void *)cos_get_thd_id(), cbid_to_meta_idx(cbid)+1);
+	cbuf_vect_add_id(&meta_cbuf, (void *)(unsigned long)cos_get_thd_id(), cbid_to_meta_idx(cbid)+1);
 
 	return 0;
 }
@@ -100,7 +100,9 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	cnt = 0;
 	cbid = 0;
 	do {
+		CBUF_RELEASE();
 		cbid = cbuf_c_create(cos_spd_id(), size, cbid*-1);
+		CBUF_TAKE();
 		if (cbid < 0) {
 			if (cbuf_vect_expand(&meta_cbuf, cbid*-1) < 0) goto err;
 		}
@@ -161,16 +163,16 @@ cbuf_slab_free(struct cbuf_slab *s)
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbid_to_meta_idx(s->cbid));
 	cm.c.flags &= ~CBUFM_IN_USE;
 	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbid_to_meta_idx(s->cbid));
-	printc("In cbuf_slab_free -- cbid is %d\n", s->cbid);
+	/* printc("In cbuf_slab_free -- cbid is %d\n", s->cbid); */
 	/* cm.c_0.th_id = COS_VECT_INIT_VAL; */
 	/* cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.th_id, cbidx+1); */
 
 	if(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] == 1){
 		assert(!CBUF_IN_USE(cm.c.flags));
-		printc("need relinquish\n");
-
+		/* printc("need relinquish\n"); */
+		CBUF_RELEASE();
 		cbuf_c_delete(cos_spd_id(), s->cbid);
-
+		CBUF_TAKE();
 	}
 
 	return;
