@@ -18,6 +18,7 @@
 #include <cbuf_c.h>
 #include <stkmgr.h>
 #include <mem_pool.h>
+#include <cos_debug.h>
 
 #define DEFAULT_TMEM_AMNT 5
 
@@ -25,15 +26,15 @@
 #include <heap.h>
 #include <limits.h>
 
-#define _DEBUG_TMEM_POLICY
-#ifdef _DEBUG_TMEM_POLICY
-/* #define WHERESTR "[file %s, line %d]:" */
-/* #define WHEREARG __FILE__, __LINE__ */
-/* #define DOUT(fmt,...) printc(WHERESTR fmt, WHEREARG, ##__VA_ARGS__) */
-#define DOUT(fmt,...) printc(fmt, ##__VA_ARGS__)
-#else
-#define DOUT(fmt,...)
-#endif
+/* #define _DEBUG_TMEM_POLICY */
+/* #ifdef _DEBUG_TMEM_POLICY */
+/* /\* #define WHERESTR "[file %s, line %d]:" *\/ */
+/* /\* #define WHEREARG __FILE__, __LINE__ *\/ */
+/* /\* #define DOUT(fmt,...) printc(WHERESTR fmt, WHEREARG, ##__VA_ARGS__) *\/ */
+/* #define DOUT(fmt,...) printc(fmt, ##__VA_ARGS__) */
+/* #else */
+/* #define DOUT(fmt,...) */
+/* #endif */
  
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
 #define ALGORITHM 1

@@ -81,7 +81,7 @@ extern const vaddr_t cos_upcall_entry;
 struct cos_component_information cos_comp_info = {
 	.cos_this_spd_id = 0,
 	.cos_heap_ptr = 0,
-	.cos_tmem_relinquish = {0, 0, 0},
+	.cos_tmem_relinquish = {0},
 	.cos_heap_limit = 0,
 	.cos_stacks.freelists[0] = {.freelist = 0, .thd_id = 0},
 	.cos_upcall_entry = (vaddr_t)&cos_upcall_entry,

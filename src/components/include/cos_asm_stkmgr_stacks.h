@@ -90,7 +90,8 @@
 	pushl $0x00;				\
 	subl $4, %esp;				\
 						\
-        andl $0x02, %edx;                       \
+        movl cos_comp_info, %edx; 		\
+	addl $8, %edx;		                \
         test %edx, %edx;                        \
         jne  3f;                                \
 						\
