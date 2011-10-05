@@ -355,25 +355,27 @@ get_cos_info_page(spdid_t spdid)
 	     (unsigned int)spd_tmem_info_list[spdid].ci.spd_cinfo_page->cos_stacks.freelists[0].freelist);
 }
 
-u32_t
+int
 resolve_dependency(struct spd_tmem_info *sti, int skip_stk)
 {
 	struct cos_stk_item *stk_item;
+	int ret = -1;
 
 	for(stk_item = FIRST_LIST(&sti->tmem_list, next, prev);
 	    stk_item != &sti->tmem_list && skip_stk > 0; 
 	    stk_item = FIRST_LIST(stk_item, next, prev), skip_stk--) ;
 
-	if (stk_item == &sti->tmem_list) return 0;
+	if (stk_item == &sti->tmem_list) goto done;
 
 	/* Remove the assert? thdid_owner is postibly to be 0, which
 	 * means there is available stacks in the local freelist. */
 	assert(stk_item->stk->thdid_owner != 0);
-	if ((stk_item->stk->flags & IN_USE) == 0) {
-		printc("spdid %d: owner id %d, flag %d\n", sti->spdid, stk_item->stk->thdid_owner, stk_item->stk->flags);
-	}
+	assert(stk_item->stk->thdid_owner != cos_get_thd_id());
 	assert(stk_item->stk->flags & IN_USE);
-	return stk_item->stk->thdid_owner;
+
+	ret =  stk_item->stk->thdid_owner;
+done:
+	return ret;
 }
 
 /**

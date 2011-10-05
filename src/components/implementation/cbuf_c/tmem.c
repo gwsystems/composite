@@ -154,7 +154,11 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 
 		if (i > sti->ss_counter) sti->ss_counter = i; /* update self-suspension counter */
 
-		if (dep_thd == 0) {
+		/* dep_thd == 0 means the tmem owner is the current
+		 * thd, try next tmem */
+		if (dep_thd == 0) {in_blk_list = 1; continue;}
+
+		if (dep_thd == -1) {
 			DOUT("Self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n",
 			       sti->ss_counter,sti->spdid, cos_get_thd_id(), sti->num_waiting_thds, sti->num_desired, sti->num_allocated);
 

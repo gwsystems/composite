@@ -39,7 +39,7 @@
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
 #define ALGORITHM 1
  
-#define THD_POOL MAX_NUM_MEM
+//#define THD_POOL MAX_NUM_MEM
 
 #define POLICY_PERIODICITY 100
 
@@ -683,7 +683,6 @@ solve_suspension(void)
 						}
 					}
 				}
-				printc("done. \n");
 			}
 		}
 	}
@@ -915,13 +914,13 @@ cos_init(void *arg)
 	init_spds();
 
 #ifdef THD_POOL
-	DOUT("<<<Thd Pool with total %d tmems, component size %d>>>\n", MAX_NUM_MEM, THD_POOL);
+	printc("<<<Thd Pool with total %d tmems, component size %d>>>\n", MAX_NUM_MEM, THD_POOL);
 	if (THD_POOL != 1)
 		thdpool_max_policy();
 	else
 		thdpool_1_policy();
 #else
-	DOUT("<<<Now using Algorithm %d, total number of tmems:%d >>>\n", ALGORITHM, MAX_NUM_MEM);
+	printc("<<<Now using Algorithm %d, total number of tmems:%d >>>\n", ALGORITHM, MAX_NUM_MEM);
 	DOUT("Tmem policy: %d in spd %ld\n", cos_get_thd_id(), cos_spd_id());
 	init_policy();
 #endif
@@ -938,12 +937,12 @@ cos_init(void *arg)
 
 	//unsigned long long s,e;
 	while (1) {
-		gather_data(counter % report_period);
 		if (counter++ % report_period == 0) {
 			/* report stacks usage */
 			cbufmgr_buf_report();
 			stkmgr_stack_report();
 		}
+		gather_data(counter % report_period);
 #ifdef THD_POOL
 		if (THD_POOL == 1)
 			thdpool_1_policy();

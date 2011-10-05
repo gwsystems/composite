@@ -26,7 +26,7 @@ void mgr_map_client_mem(tmem_item *tmi, struct spd_tmem_info *info);
 tmem_item *mgr_get_client_mem(struct spd_tmem_info *sti);
 void tmem_mark_relinquish_all(struct spd_tmem_info *sti);
 void tmem_unmark_relinquish_all(struct spd_tmem_info *sti);
-u32_t resolve_dependency(struct spd_tmem_info *sti, int skip_stk);
+int resolve_dependency(struct spd_tmem_info *sti, int skip_stk);
 tmem_item *alloc_item_data_struct(void *l_addr);
 void free_item_data_struct(tmem_item *tmi);
 tmem_item *free_mem_in_local_cache(struct spd_tmem_info *sti);

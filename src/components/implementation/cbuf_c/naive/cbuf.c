@@ -188,15 +188,13 @@ err:
 	goto done;
 }
 
-
-
-u32_t 
+int
 resolve_dependency(struct spd_tmem_info *sti, int skip_cbuf)
 {
 	struct cos_cbuf_item *cci;
 	/* union cbuf_meta cm; */
 
-	u32_t ret = 0;
+	int ret = -1;
 
 	/* DOUT("skip_cbuf is %d\n",skip_cbuf); */
 
@@ -218,12 +216,12 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_cbuf)
 	/* DOUT("ret :: %d current thd : %d \n", ret, cos_get_thd_id()); */
 	if (ret == cos_get_thd_id()){
 		DOUT("Try to depend on itself ....\n");
-		goto none;
+		goto self;
 	}
 
 done:
 	return ret;
-none:
+self:
 	ret = 0;
 	goto done;
 }
@@ -586,6 +584,20 @@ void
 cbufmgr_buf_report(void)
 {
 	tmem_report();
+	/* int i; */
+	/* for (i = 0 ; i < MAX_NUM_SPDS ; i++) { */
+	/* 	spdid_t spdid = i; */
+
+	/* 	if (!spd_tmem_info_list[spdid].managed) continue; */
+
+	/* 	printc("spdid %d: allocated %d, desired %d, blked %d, glb_blked %d, ss %d\n", */
+	/* 	       spd_tmem_info_list[spdid].spdid, */
+	/* 	       spd_tmem_info_list[spdid].num_allocated, */
+	/* 	       spd_tmem_info_list[spdid].num_desired, */
+	/* 	       spd_tmem_info_list[spdid].num_blocked_thds, */
+	/* 	       spd_tmem_info_list[spdid].num_glb_blocked, */
+	/* 	       spd_tmem_info_list[spdid].ss_counter); */
+	/* } */
 }
 
 int
