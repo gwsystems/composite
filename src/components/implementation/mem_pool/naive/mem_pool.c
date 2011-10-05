@@ -10,8 +10,11 @@
 #include <valloc.h>
 #include <mem_pool.h>
 
-#define TAKE() if(sched_component_take(cos_spd_id())) BUG();
-#define RELEASE() if(sched_component_release(cos_spd_id())) BUG();
+#include <cos_synchronization.h>
+cos_lock_t pool_l;
+#define TAKE()  do { if (lock_take(&pool_l) != 0) BUG(); } while(0)
+#define RELEASE() do { if (lock_release(&pool_l) != 0) BUG() } while(0)
+#define LOCK_INIT()    lock_static_init(&pool_l);
 
 COS_VECT_CREATE_STATIC(page_descs_1);
 COS_VECT_CREATE_STATIC(page_descs_2);
@@ -225,6 +228,9 @@ cos_init(void *arg)
 {
 	int i;
 	struct page_item *mem_item;
+
+	LOCK_INIT();
+	
 	memset(all_tmem_mgr, 0, sizeof(struct tmem_mgr *) * MAX_NUM_SPDS);
 	/* Initialize our free page list */
 	for (i = 0; i < MAX_NUM_MEM; i++) {

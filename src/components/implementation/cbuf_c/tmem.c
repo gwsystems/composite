@@ -173,7 +173,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 		DOUT("MGR %ld >>> %d try to depend on %d comp %d i%d\n", cos_spd_id(), cos_get_thd_id(), dep_thd, sti->spdid, i);
 		RELEASE();
 		ret = sched_block(cos_spd_id(), dep_thd);
-		TAKE(); 
+		TAKE();
 
 		/* 
 		 * STKMGR: self wakeup

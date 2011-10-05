@@ -13,6 +13,12 @@
 #include <tmem_tk.h>
 #include <mem_pool.h>
 
+/* #include <cos_synchronization.h> */
+/* cos_lock_t tmem_l; */
+/* #define TAKE()  do { if (lock_take(&tmem_l) != 0) BUG(); } while(0) */
+/* #define RELEASE() do { if (lock_release(&tmem_l) != 0) BUG() } while(0) */
+/* #define LOCK_INIT()    lock_static_init(&tmem_l); */
+
 #define MAX_BLKED 10
 
 #define SPD_IS_MANAGED(spd_tmem_info) ((spd_tmem_info)->managed != 0)

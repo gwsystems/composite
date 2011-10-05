@@ -25,7 +25,7 @@ c0.o-fprr.o;\
 fprr.o-print.o|mm.o|st.o|schedconf.o|[parent_]bc.o;\
 cg.o-fprr.o;\
 l.o-fprr.o|mm.o|print.o|te.o|va.o;\
-te.o-print.o|fprr.o|mm.o|smn.o|va.o;\
+te.o-print.o|fprr.o|mm.o|va.o;\
 mm.o-print.o;\
 e.o-fprr.o|print.o|mm.o|l.o|st.o|smn.o;\
 stat.o-te.o|fprr.o|l.o|print.o|e.o|smn.o;\
@@ -34,9 +34,9 @@ schedconf.o-print.o;\
 bc.o-print.o;\
 boot.o-print.o|fprr.o|mm.o|schedconf.o|cg.o;\
 va.o-print.o|fprr.o|mm.o|boot.o;\
-smn.o-print.o|fprr.o|mm.o|boot.o|va.o|mpool.o;\
+smn.o-print.o|fprr.o|mm.o|boot.o|va.o|mpool.o|l.o;\
 buf.o-fprr.o|print.o|l.o|mm.o|boot.o|va.o|mpool.o;\
-mpool.o-print.o|fprr.o|mm.o|boot.o|va.o;\
+mpool.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o;\
 tp.o-smn.o|buf.o|print.o|te.o|fprr.o|schedconf.o|mm.o|va.o|mpool.o;\
 \
 p0.o-te.o|fprr.o|schedconf.o|print.o|sh18.o|smn.o;\

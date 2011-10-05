@@ -2,7 +2,7 @@ C_OBJS=stkmgr.o
 ASM_OBJS=
 COMPONENT=smn.o
 INTERFACES=stkmgr
-DEPENDENCIES=mem_mgr_large printc sched cinfo valloc mem_pool
+DEPENDENCIES=sched printc lock mem_mgr_large valloc cinfo mem_pool
 IF_LIB=../complib.o
 
 include ../../Makefile.subsubdir

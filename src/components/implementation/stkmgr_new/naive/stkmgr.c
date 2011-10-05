@@ -181,6 +181,7 @@ cos_init(void *arg){
 
 	printc("stk mgr running.....\n");
 	DOUT("<stkmgr>: STACK in cos_init\n");
+	LOCK_INIT();
 
 	memset(spd_tmem_info_list, 0, sizeof(struct spd_tmem_info) * MAX_NUM_SPDS);
     

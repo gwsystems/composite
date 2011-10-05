@@ -207,12 +207,12 @@ again:				/* avoid convoluted conditions */
 	
 	ret = ((char*)(cm.c.ptr << PAGE_ORDER)) + off;
 
-go:	
+done:	
 	CBUF_RELEASE();
 	return ret;
 err:
 	ret = NULL;
-	goto go;
+	goto done;
 }
 
 #define SLAB_BITMAP_SIZE (SLAB_MAX_OBJS/32)

@@ -6,3 +6,4 @@ DEPENDENCIES=printc sched mem_mgr_large
 IF_LIB=
 
 include ../../Makefile.subsubdir
+MANDITORY_LIB=simple_stklib.o

@@ -9,7 +9,7 @@
 
 #include <cos_component.h>
 #include <sched.h>
-#include <cos_synchronization.h>
+/* #include <cos_synchronization.h> */
 #include <print.h>
 #include <cos_alloc.h>
 #include <cos_map.h>
@@ -519,7 +519,7 @@ void
 cos_init(void *d)
 {
 	DOUT("CBUFMgr: %d in spd %ld cbuf mgr running.....\n", cos_get_thd_id(), cos_spd_id());
-	/* lock_init(&l); */
+	LOCK_INIT();
 	cos_map_init_static(&cb_ids);
 	BUG_ON(cos_map_add(&cb_ids, NULL)); /* reserve id 0 */
 	int i;

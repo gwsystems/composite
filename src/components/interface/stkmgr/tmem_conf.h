@@ -2,9 +2,12 @@
 #define TMEM_CONF_H
 
 #include <stkmgr.h>
+#include <cos_synchronization.h>
 
-#define TAKE() if(sched_component_take(cos_spd_id())) BUG();
-#define RELEASE() if(sched_component_release(cos_spd_id())) BUG();
+cos_lock_t tmem_l;
+#define TAKE()  do { if (lock_take(&tmem_l) != 0) BUG(); } while(0)
+#define RELEASE() do { if (lock_release(&tmem_l) != 0) BUG() } while(0)
+#define LOCK_INIT()    lock_static_init(&tmem_l);
 
 typedef struct cos_stk_item tmem_item;
 
