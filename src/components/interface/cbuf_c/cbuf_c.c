@@ -12,7 +12,7 @@
 #include <cbuf.h>
 #include <cbuf_vect.h>
 #include <cos_vect.h>
-
+#include <cos_debug.h>
 #include <cos_alloc.h>
 #include <valloc.h>
 
@@ -40,9 +40,11 @@ cbuf_cache_miss(int cbid, int idx, int len)
 {
 	union cbuf_meta mc;
 	void *h;
-	/* printc("cbid is %d idx is %d len is %d\n",cbid, idx, len); */
+	/* DOUT("cbid is %d idx is %d len is %d\n",cbid, idx, len); */
 
+	CBUF_RELEASE();
 	h = cbuf_c_retrieve(cos_spd_id(), cbid, len);
+	CBUF_TAKE();
 	if (!h) {
 		//valloc_free(cos_spd_id(), cos_spd_id(),h, 1);
 		BUG();
@@ -54,7 +56,7 @@ cbuf_cache_miss(int cbid, int idx, int len)
 	mc.c.obj_sz = len >> CBUF_OBJ_SZ_SHIFT;
 
 	/* This is the commit point */
-	/* printc("miss: meta_cbuf is at %p, h is %p\n", &meta_cbuf, h); */
+	DOUT("cache miss: meta_cbuf is at %p, h is %p\n", &meta_cbuf, h);
 	cbuf_vect_add_id(&meta_cbuf, (void *)mc.c_0.v, cbid_to_meta_idx(cbid));
 	cbuf_vect_add_id(&meta_cbuf, (void *)(unsigned long)cos_get_thd_id(), cbid_to_meta_idx(cbid)+1);
 
@@ -89,14 +91,14 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	int cbid;
 	int cnt;
 
-	/* printc("Relinquish bit :: %d\n",cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ]); */
+	/* DOUT("Relinquish bit :: %d\n",cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ]); */
 	s = malloc(sizeof(struct cbuf_slab));
 	if (!s) return NULL;
 	if (!freelist) goto err;
 
 	/* union cbuf_meta mc; */
 
-	/* printc("meta_cbuf is %p\n",&meta_cbuf); */
+	/* DOUT("meta_cbuf is %p\n",&meta_cbuf); */
 	cnt = 0;
 	cbid = 0;
 	do {
@@ -113,7 +115,7 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	addr = cbuf_vect_addr_lookup(&meta_cbuf, cbid_to_meta_idx(cbid));
 	if (!addr) goto err;
 
-	/* printc("create: meta_cbuf is at %p\n", &meta_cbuf); */
+	/* DOUT("create: meta_cbuf is at %p\n", &meta_cbuf); */
 
 	// Check if the allocated cbuf item is the used one and if it is still on local free_list
 
@@ -148,7 +150,7 @@ cbuf_slab_free(struct cbuf_slab *s)
 {
 	struct cbuf_slab_freelist *freelist;
 	union cbuf_meta cm;
-	/* printc("call slab_free(s)...\n");	 */
+	DOUT("call slab_free(s)...\n");
 	/* FIXME: soooo many races */
 	freelist = s->flh;
 	assert(freelist);
@@ -163,13 +165,13 @@ cbuf_slab_free(struct cbuf_slab *s)
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbid_to_meta_idx(s->cbid));
 	cm.c.flags &= ~CBUFM_IN_USE;
 	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbid_to_meta_idx(s->cbid));
-	/* printc("In cbuf_slab_free -- cbid is %d\n", s->cbid); */
-	/* cm.c_0.th_id = COS_VECT_INIT_VAL; */
-	/* cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.th_id, cbidx+1); */
+
+	DOUT("In cbuf_slab_free -- cbid is %d\n", s->cbid);
 
 	if(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] == 1){
 		assert(!CBUF_IN_USE(cm.c.flags));
-		/* printc("need relinquish\n"); */
+		DOUT("need relinquish\n");
+		
 		CBUF_RELEASE();
 		cbuf_c_delete(cos_spd_id(), s->cbid);
 		CBUF_TAKE();

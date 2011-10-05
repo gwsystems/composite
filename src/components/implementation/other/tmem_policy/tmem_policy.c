@@ -18,6 +18,7 @@
 #include <cbuf_c.h>
 #include <stkmgr.h>
 #include <mem_pool.h>
+#include <cos_debug.h>
 
 #define DEFAULT_TMEM_AMNT 5
 
@@ -25,7 +26,7 @@
 #include <heap.h>
 #include <limits.h>
 
-#define _DEBUG_TMEM_POLICY
+//#define _DEBUG_TMEM_POLICY
 #ifdef _DEBUG_TMEM_POLICY
 /* #define WHERESTR "[file %s, line %d]:" */
 /* #define WHEREARG __FILE__, __LINE__ */

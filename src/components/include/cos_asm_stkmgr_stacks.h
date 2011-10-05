@@ -90,10 +90,10 @@
 	pushl $0x00;				\
 	subl $4, %esp;				\
 						\
-	movl cos_comp_info, %edx ;		\
-	addl $8, %edx		 ;		\
-	test %edx, %edx		 ;		\
-	jne 3f			 ;		\
+        movl cos_comp_info, %edx; 		\
+	addl $8, %edx;		                \
+        test %edx, %edx;                        \
+        jne  3f;                                \
 						\
         jmp  4f;                                \
 3:                                              \

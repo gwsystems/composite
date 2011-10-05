@@ -2,6 +2,7 @@
 #include <print.h>
 #include <cos_alloc.h>
 #include <cos_list.h>
+#include <cos_debug.h>
 
 #include <sched.h>
 
@@ -80,7 +81,7 @@ void event_waiting()
 		wake_glb_blk_list(0);
 		RELEASE();
 	}
-	printc("Event thread terminated!\n");
+	DOUT("Event thread terminated!\n");
 	BUG();
 	return;
 }
@@ -154,8 +155,8 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 		if (i > sti->ss_counter) sti->ss_counter = i; /* update self-suspension counter */
 
 		if (dep_thd == 0) {
-			/* printc("Self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n", */
-			/*        sti->ss_counter,sti->spdid, cos_get_thd_id(), sti->num_waiting_thds, sti->num_desired, sti->num_allocated); */
+			DOUT("Self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n",
+			       sti->ss_counter,sti->spdid, cos_get_thd_id(), sti->num_waiting_thds, sti->num_desired, sti->num_allocated);
 
 			return 0;
 		}
@@ -173,7 +174,8 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 		 * make this algorithm correct, but we want tmem/idl
 		 * support to implement that.
 		 */
-		DOUT ("MGR %ld >>> %d try to depend on %d comp %d i%d\n", cos_spd_id(), cos_get_thd_id(), dep_thd, sti->spdid, i);
+		DOUT("MGR %ld >>> %d try to depend on %d comp %d i%d\n", cos_spd_id(), cos_get_thd_id(), dep_thd, sti->spdid, i);
+
 		RELEASE();
 		ret = sched_block(cos_spd_id(), dep_thd);
 		TAKE(); 
@@ -206,11 +208,11 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 			assert(ret < 0);
 			sched_wakeup(cos_spd_id(), cos_get_thd_id());
 		}
-		DOUT ("%d finished depending on %d. ss_cnt %d. ret %d\n alloc %d, desired %d\n"
-		       , cos_get_thd_id(), dep_thd, sti->ss_counter, ret, sti->num_allocated, sti->num_desired);
+		DOUT("%d finished depending on %d. comp %d. i %d. ss_cnt %d. ret %d\n",
+		       cos_get_thd_id(), dep_thd, sti->spdid,i,sti->ss_counter, ret);
 
 	} while (in_blk_list);
-	DOUT ("Thd %d wokeup and is obtaining a tmem\n", cos_get_thd_id());
+	DOUT("Thd %d wokeup and is obtaining a tmem\n", cos_get_thd_id());
 
 	return 1;
 }
@@ -259,20 +261,18 @@ tmem_grant(struct spd_tmem_info *sti)
 		tmi = free_mem_in_local_cache(sti);
 		if (tmi) {
 			local_cache = tmi;
-			DOUT("found one in local cache!\n");
+			DOUT("found one cached!! \n");
 			break;
 		}
 
-		/* DOUT("request tmem\n"); */
-		/* printc(" \n ~~~ thd %d request tmem!! ~~~\n\n", cos_get_thd_id()); */
 		eligible = 0;
 
-		/* printc("thd %d  spd %ld sti->num_allocated %d sti->num_desired %d\n",cos_get_thd_id(), sti->spdid, sti->num_allocated, sti->num_desired); */
-		/* printc("empty_comps %d (MAX_NUM_MEM - tmems_allocated) %d\n",empty_comps , (MAX_NUM_MEM - tmems_allocated)); */
+		DOUT("thd %d  spd %d sti->num_allocated %d sti->num_desired %d\n",cos_get_thd_id(), sti->spdid, sti->num_allocated, sti->num_desired);
+		DOUT("empty_comps %d (MAX_NUM_MEM - tmems_allocated) %d\n",empty_comps , (MAX_NUM_MEM - tmems_allocated));
 
 		if (sti->num_allocated < sti->num_desired &&
 		    (empty_comps < (MAX_NUM_MEM - tmems_allocated) || sti->num_allocated == 0)) {
-			/* printc("alloooooooooo!!\n"); */
+			/* DOUT("alloooooooooo!!\n"); */
 			/* We are eligible for allocation! */
 			eligible = 1;
 			tmi = get_mem();
@@ -282,7 +282,7 @@ tmem_grant(struct spd_tmem_info *sti)
 			meas = 1;
 			tmem_update_stats_block(sti, cos_get_thd_id());
 		}
-		/* printc("In tmem_grant:: mem in %d set to relinquish, %d waiting\n", sti->spdid, cos_get_thd_id()); */
+		/* DOUT("In tmem_grant:: mem in %d set to relinquish, %d waiting\n", sti->spdid, cos_get_thd_id()); */
 
 		/* 
 		 * gap: relinquish is NOT really used right now to
@@ -352,7 +352,7 @@ tmem_grant(struct spd_tmem_info *sti)
 		/* /\* Priority-Inheritance *\/ */
 		if (tmem_wait_for_mem(sti) == 0) {
 			assert(sti->ss_counter);
-			/* printc("self...\n"); */
+			DOUT("self...\n");
 			/* We found self-suspension. Are we eligible
 			 * for tmems now? If still not, block
 			 * ourselves without dependencies! */
@@ -360,9 +360,10 @@ tmem_grant(struct spd_tmem_info *sti)
 			    over_quota_total < over_quota_limit &&
 			    (empty_comps < (MAX_NUM_MEM - tmems_allocated) || sti->num_allocated == 0)) {
 
-				/* printc("when self:: num_allocated %d num_desired+max %d\n",sti->num_allocated, sti->num_desired + sti->ss_max);				 */
+				/* DOUT("when self:: num_allocated %d num_desired+max %d\n",sti->num_allocated, sti->num_desired + sti->ss_max);				 */
 				tmi = get_mem();
 				if (tmi) {
+					DOUT(" got tmi!!!\n");
 					/* remove from the block list before grant */
 					remove_thd_from_blk_list(sti, cos_get_thd_id());
 					break;
@@ -386,7 +387,7 @@ tmem_grant(struct spd_tmem_info *sti)
 
 	sti->num_waiting_thds--;
 
-	/* printc("Granted: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired); */
+	DOUT("Granted: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);
 
 	return tmi;
 }
@@ -395,10 +396,10 @@ tmem_grant(struct spd_tmem_info *sti)
 inline void
 get_mem_from_client(struct spd_tmem_info *sti)
 {
-	//printc("calling into get_mem_from_cli\n");
+	//DOUT("calling into get_mem_from_cli\n");
 	tmem_item * tmi;
 	while (sti->num_desired < sti->num_allocated) {
-		/* printc("get_mem_from cli\n"); */
+		DOUT("get_mem_from cli\n");
 		tmi = mgr_get_client_mem(sti);
 		if (!tmi) 
 			break;
@@ -419,7 +420,8 @@ return_tmem(struct spd_tmem_info *sti)
 
 	assert(sti);
 	s_spdid = sti->spdid;
-	/* printc("return_mem is called \n"); */
+	DOUT("return_mem is called \n");
+	DOUT("Before:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);
 	
         /* if (sti->num_desired < sti->num_allocated || sti->num_glb_blocked) { 2nd condition is used for max pool testing */
 	if (sti->num_desired < sti->num_allocated) {   // only blocked on glb for other spds
@@ -434,6 +436,8 @@ return_tmem(struct spd_tmem_info *sti)
 
 	if (tmem_should_unmark_relinquish(sti) && sti->relinquish_mark == 1) 
 		tmem_unmark_relinquish_all(sti);
+
+	DOUT("After return called:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);
 }
 
 /**
@@ -448,7 +452,7 @@ remove_spare_cache_from_client(struct spd_tmem_info *sti)
 		if (!tmi)
 			return;
 		put_mem(tmi);
-		/* printc("remove spare----\n"); */
+		DOUT("remove spare----\n");
 	}
 }
 
@@ -464,8 +468,8 @@ tmem_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare)
 	TAKE();
 	sti = get_spd_info(spdid);	
 
-	/* if (concur_lvl > 1) printc("Set concur of %d to %d\n", spdid, concur_lvl); */
-	//printc("\n<<<tmem::Set concur of %d to %d>>>\n", spdid, concur_lvl);
+	/* if (concur_lvl > 1) DOUT("Set concur of %d to %d\n", spdid, concur_lvl); */
+	//DOUT("\n<<<tmem::Set concur of %d to %d>>>\n", spdid, concur_lvl);
 	if (!sti || !SPD_IS_MANAGED(sti)) goto err;
 	if (concur_lvl < 0) goto err;
 

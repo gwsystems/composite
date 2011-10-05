@@ -7,7 +7,7 @@
 #define RUNTIME                60 // seconds
 
 // After how many seconds should schedulers print out their information?
-#define SCHED_PRINTOUT_PERIOD  50 
+#define SCHED_PRINTOUT_PERIOD  10 
 #define COMPONENT_ASSERTIONS   1 // activate assertions in components?
 
 //#define LINUX_ON_IDLE          1 // should Linux be activated on Composite idle
