@@ -45,6 +45,8 @@ cbuf_cache_miss(int cbid, int idx, int len)
 	CBUF_RELEASE();
 	h = cbuf_c_retrieve(cos_spd_id(), cbid, len);
 	CBUF_TAKE();
+	/* printc("cost of retrieve :: %ld\n", end-start); */
+	/* printc("(cbid %d)\n", cbid); */
 	if (!h) {
 		//valloc_free(cos_spd_id(), cos_spd_id(),h, 1);
 		BUG();
@@ -57,10 +59,11 @@ cbuf_cache_miss(int cbid, int idx, int len)
 
 	/* This is the commit point */
 	DOUT("cache miss: meta_cbuf is at %p, h is %p\n", &meta_cbuf, h);
+
 	assert((void *)mc.c_0.v);
 	cbuf_vect_add_id(&meta_cbuf, (void *)mc.c_0.v, cbid_to_meta_idx(cbid));
 	cbuf_vect_add_id(&meta_cbuf, (void *)(unsigned long)cos_get_thd_id(), cbid_to_meta_idx(cbid)+1);
-
+	/* printc("cost of add id :: %ld\n", end-start); */
 	return 0;
 }
 
