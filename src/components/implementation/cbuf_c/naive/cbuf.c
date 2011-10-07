@@ -103,10 +103,16 @@ void mgr_map_client_mem(struct cos_cbuf_item *cci, struct spd_tmem_info *sti)
 
 	assert(d_addr && l_addr); 
 
+	u64_t start,end;
+	rdtscll(start);
+
 	/* ...map it into the requesting component */
 	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)l_addr, d_spdid, (vaddr_t)d_addr))) 
 		goto err;
 	/* DOUT("<<<MAPPED>>> mgr addr %p client addr %p\n ",l_addr, d_addr); */
+
+	rdtscll(end);
+	printc("cost create map: %ld\n", end-start);
 	
 	cci->desc.owner.addr = (vaddr_t)d_addr;
 	cci->parent_spdid = d_spdid;
@@ -486,6 +492,9 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 	m = malloc(sizeof(struct cb_mapping));
 	if (!m) goto done;
 
+	/* u64_t start,end; */
+	/* rdtscll(start); */
+
 	INIT_LIST(m, next, prev);
 
 	d_addr = valloc_alloc(cos_spd_id(), spdid, 1);
@@ -494,10 +503,17 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 
 	assert(d_addr && l_addr);
 
+	/* rdtscll(end); */
+	/* printc("cost of valloc: %lu\n", end-start); */
+	/* rdtscll(start); */
+
 	/* if (!mman_alias_page(cos_spd_id(), (vaddr_t)d->addr, spdid, (vaddr_t)page)) goto err; */
 	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)l_addr, spdid, (vaddr_t)d_addr)))
 		goto err;
 	/* DOUT("<<<MAPPED>>> mgr addr %p client addr %p\n ",l_addr, d_addr); */
+
+	/* rdtscll(end); */
+	/* printc("cost of mman_alias_page: %lu\n", end-start); */
 
 	m->cbd  = d;
 	m->spd  = spdid;
@@ -505,6 +521,7 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 
 	//struct cb_mapping *m;
 	ADD_LIST(&d->owner, m, next, prev);
+
 
 	ret = (void *)d_addr;
 done:

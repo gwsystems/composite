@@ -51,17 +51,97 @@ static inline struct mem_cell *find_unused(void)
 	return NULL;
 }
 
-static inline struct mem_cell *find_cell(spdid_t spd, vaddr_t addr, int *alias)
+#define CACHE_SIZE 256
+static struct mapping_cache {
+	spdid_t spdid;
+	vaddr_t addr;
+	struct mem_cell *cell;
+	int alias_num;
+} cache[CACHE_SIZE];
+int cache_head = 0;
+
+static inline struct mapping_cache *cache_lookup(spdid_t spdid, vaddr_t addr)
+{
+	int i;
+
+	for (i = 0 ; i < CACHE_SIZE ; i++) {
+		struct mapping_cache *c = &cache[i];
+		if (c->spdid == spdid && c->addr == addr) {
+			assert(c->cell);
+			return c;
+		}
+	}
+	return NULL;
+}
+
+static inline void cache_add(spdid_t spdid, vaddr_t addr, struct mem_cell *mc, int alias)
+{
+	struct mapping_cache *c = &cache[cache_head];
+	assert(cache_head < CACHE_SIZE);
+	assert(mc);
+	assert(spdid > 0);
+
+	c->spdid = spdid;
+	c->addr = addr;
+	c->cell = mc;
+	c->alias_num = alias;
+	cache_head = (cache_head + 1) == CACHE_SIZE ? 0 : cache_head + 1;
+}
+
+static inline void cache_remove(struct mapping_cache *entry)
+{
+	assert(entry);
+
+	entry->spdid = 0;
+	cache_head = entry-cache;
+}
+
+static inline struct mem_cell *find_cell(spdid_t spd, vaddr_t addr, int *alias, int use_cache)
 {
 	int i, j;
+	static int last_found = 0;
+	int start_looking;
+	struct mapping_cache *entry;
 
-	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
+	if (likely(use_cache)) {
+		entry = cache_lookup(spd, addr);
+		if (entry) {
+			*alias = entry->alias_num;
+			return entry->cell;
+		}
+	}
+	
+	start_looking = last_found - 150;
+	if (start_looking < 0) start_looking = 0;
+
+	for (i = start_looking ; i < COS_MAX_MEMORY ; i++) {
 		struct mem_cell *c = &cells[i];
 
 		for (j = 0; j < MAX_ALIASES; j++) {
 			if (c->map[j].owner_spd == spd && 
 			    c->map[j].addr      == addr) {
 				*alias = j;
+				last_found = i;
+				if (entry) {
+					assert(entry->alias_num == j);
+					assert(entry->cell == c);
+				}
+				return c;
+			}
+		}
+	}
+	for (i = 0 ; i < start_looking ; i++) {
+		struct mem_cell *c = &cells[i];
+
+		for (j = 0; j < MAX_ALIASES; j++) {
+			if (c->map[j].owner_spd == spd && 
+			    c->map[j].addr      == addr) {
+				*alias = j;
+				last_found = i;
+				if (entry) {
+					assert(entry->alias_num == j);
+					assert(entry->cell == c);
+				}
 				return c;
 			}
 		}
@@ -98,6 +178,8 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 		goto err;
 	}
 
+	cache_add(spd, addr, c, 0);
+
 	return addr;
 err:
 	return 0;
@@ -113,7 +195,8 @@ vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_
 	struct mem_cell *c;
 	struct mapping_info *base;
 
-	c = find_cell(s_spd, s_addr, &alias);
+	c = find_cell(s_spd, s_addr, &alias, 1);
+
 	if (-1 == alias) {printc("WTF \n");goto err;}
 	assert(alias >= 0 && alias < MAX_ALIASES);
 	base = c->map;
@@ -121,7 +204,7 @@ vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_
 		if (alias == i || base[i].owner_spd != 0 || base[i].addr != 0) {
 			continue;
 		}
-
+		
 		if (cos_mmap_cntl(COS_MMAP_GRANT, 0, d_spd, d_addr, cell_index(c))) {
 			printc("mm: could not alias page @ %x to spd %d from %x(%d)\n", 
 			       (unsigned int)d_addr, (unsigned int)d_spd, (unsigned int)s_addr, (unsigned int)s_spd);
@@ -131,6 +214,7 @@ vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_
 		base[i].addr = d_addr;
 		base[i].parent = alias;
 		c->naliases++;
+		cache_add(d_spd, d_addr, c, i);
 
 		return d_addr;
 	}
@@ -160,7 +244,8 @@ void mman_revoke_page(spdid_t spd, vaddr_t addr, int flags)
 	struct mem_cell *mc;
 	struct mapping_info *mi;
 
-	mc = find_cell(spd, addr, &alias);
+	mc = find_cell(spd, addr, &alias, 1);
+	
 	if (!mc) {
 		/* FIXME: add return codes to this call */
 		return;
@@ -168,12 +253,15 @@ void mman_revoke_page(spdid_t spd, vaddr_t addr, int flags)
 	mi = mc->map;
 	for (i = 0 ; i < MAX_ALIASES ; i++) {
 		int idx;
+		struct mapping_cache *cache;
 
 		if (i == alias || !mi[i].owner_spd || 
 		    !is_descendent(mi, alias, i)) continue;
 		idx = cos_mmap_cntl(COS_MMAP_REVOKE, 0, mi[i].owner_spd, 
 				    mi[i].addr, 0);
 		assert(&cells[idx] == mc);
+		if ((cache = cache_lookup(mi[i].owner_spd, mi[i].addr))) cache_remove(cache);
+
 		/* mark page as removed */
 		mi[i].addr = 0;
 		mc->naliases--;
@@ -197,13 +285,22 @@ void mman_revoke_page(spdid_t spd, vaddr_t addr, int flags)
  */
 void mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 {
-	int alias;
+	int alias = -1;
 	long idx;
 	struct mem_cell *mc;
 	struct mapping_info *mi;
+	struct mapping_cache *cache_entry;
 
 	mman_revoke_page(spd, addr, flags);
-	mc = find_cell(spd, addr, &alias);
+
+	cache_entry = cache_lookup(spd, addr);
+	if (cache_entry) {
+		alias = cache_entry->alias_num;
+		mc = cache_entry->cell;
+		cache_remove(cache_entry);
+	} else {
+		mc = find_cell(spd, addr, &alias, 0);
+	}
 	if (!mc) {
 		/* FIXME: add return codes to this call */
 		return;
@@ -216,6 +313,7 @@ void mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 	mi[alias].owner_spd = 0;
 	mi[alias].parent = 0;
 	mc->naliases--;
+	if (cache_entry) cache_remove(cache_entry);
 
 	return;
 }
