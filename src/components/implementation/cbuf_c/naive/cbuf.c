@@ -151,7 +151,7 @@ mgr_remove_client_mem(struct spd_tmem_info *sti, struct cos_cbuf_item *cci)
 	assert(sti->num_allocated == tmem_num_alloc_tmems(sti->spdid));
 }
 
-tmem_item *mgr_get_client_mem(struct spd_tmem_info *sti)
+struct cos_cbuf_item *mgr_get_client_mem(struct spd_tmem_info *sti)
 {
 	spdid_t s_spdid;
 	/* struct cb_desc *d; */
@@ -159,7 +159,6 @@ tmem_item *mgr_get_client_mem(struct spd_tmem_info *sti)
 	assert(sti);
 	s_spdid = sti->spdid;
 
-	//list = get_spd_info(s_spdid).tmem_list;
 	list = &spd_tmem_info_list[s_spdid].tmem_list;
 
 	for (cci = FIRST_LIST(list, next, prev) ; 
@@ -167,9 +166,8 @@ tmem_item *mgr_get_client_mem(struct spd_tmem_info *sti)
 	     cci = FIRST_LIST(cci, next, prev)) {
 		union cbuf_meta cm;
 		cm.c_0.v = cci->entry->c_0.v;
-		if (!CBUF_IN_USE(cm.c.flags)) goto out;
+		if (!CBUF_IN_USE(cm.c.flags)) break;
 	}
-out:
 
 	if (cci == list) goto err;
 	assert(&cci->desc == cos_map_lookup(&cb_ids, cci->desc.cbid));
@@ -224,6 +222,24 @@ done:
 self:
 	ret = 0;
 	goto done;
+}
+
+void mgr_clear_touched_flag(struct spd_tmem_info *sti)
+{
+	struct cos_cbuf_item *cci;
+	union cbuf_meta *cm = NULL;
+
+	for (cci = FIRST_LIST(&sti->tmem_list, next, prev) ; 
+	     cci != &sti->tmem_list ; 
+	     cci = FIRST_LIST(cci, next, prev)) {
+		cm = cci->entry;
+		if (!CBUF_IN_USE(cm->c.flags)) {
+			cm->c.flags &= ~CBUFM_TOUCHED;
+		} else {
+			assert(cm->c.flags & CBUFM_TOUCHED);
+		}
+	}
+	return;
 }
 
 static inline int
@@ -384,11 +400,11 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	assert(mc);
 	cbuf_item->entry = mc;
 
-	//FIXME: RACE here!
 	mc->c.ptr = d->owner.addr >> PAGE_ORDER;
 	mc->c.obj_sz = size >> CBUF_OBJ_SZ_SHIFT;
 	mc->c_0.th_id = cos_get_thd_id();
 	mc->c.flags |= CBUFM_IN_USE;
+	mc->c.flags |= CBUFM_TOUCHED;
 
 done:
 	RELEASE();

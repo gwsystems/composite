@@ -22,16 +22,6 @@
 
 #define DEFAULT_TARGET_ALLOC 10
 
-/** 
- * Flags to control stack
- */
-enum stk_flags {
-	IN_USE      = (0x01 << 0),
-	RELINQUISH  = (0x01 << 1),
-	PERMANATE   = (0x01 << 2),
-	MONITOR     = (0x01 << 3),
-};
-
 // The total number of stacks
 struct cos_stk_item all_stk_list[MAX_NUM_MEM];
 
@@ -257,19 +247,19 @@ stkmgr_get_cos_stk_item(vaddr_t addr){
 	return NULL;
 }
 
-void
-spd_unmark_relinquish(struct spd_tmem_info *sti)
-{
-	struct cos_stk_item *stk_item;
+/* void */
+/* spd_unmark_relinquish(struct spd_tmem_info *sti) */
+/* { */
+/* 	struct cos_stk_item *stk_item; */
 
-	DOUT("Unmarking relinquish for %d\n", sti->spdid);
+/* 	DOUT("Unmarking relinquish for %d\n", sti->spdid); */
 	
-	for(stk_item = FIRST_LIST(&sti->tmem_list, next, prev);
-	    stk_item != &sti->tmem_list; 
-	    stk_item = FIRST_LIST(stk_item, next, prev)){
-		stk_item->stk->flags &= ~RELINQUISH;
-	}
-}
+/* 	for(stk_item = FIRST_LIST(&sti->tmem_list, next, prev); */
+/* 	    stk_item != &sti->tmem_list;  */
+/* 	    stk_item = FIRST_LIST(stk_item, next, prev)){ */
+/* 		stk_item->stk->flags &= ~RELINQUISH; */
+/* 	} */
+/* } */
 
 void
 stkmgr_return_stack(spdid_t s_spdid, vaddr_t addr)
@@ -292,18 +282,18 @@ stkmgr_return_stack(spdid_t s_spdid, vaddr_t addr)
 	RELEASE();
 }
 
-inline void
-spd_mark_relinquish(struct spd_tmem_info *sti)
-{
-	struct cos_stk_item *stk_item;
-	DOUT("stkmgr_request_stk_from spdid: %d\n", sti->spdid);
+/* inline void */
+/* spd_mark_relinquish(struct spd_tmem_info *sti) */
+/* { */
+/* 	struct cos_stk_item *stk_item; */
+/* 	DOUT("stkmgr_request_stk_from spdid: %d\n", sti->spdid); */
 	
-	for(stk_item = FIRST_LIST(&sti->tmem_list, next, prev);
-	    stk_item != &sti->tmem_list;
-	    stk_item = FIRST_LIST(stk_item, next, prev)){
-		stk_item->stk->flags |= RELINQUISH;
-	}
-}
+/* 	for(stk_item = FIRST_LIST(&sti->tmem_list, next, prev); */
+/* 	    stk_item != &sti->tmem_list; */
+/* 	    stk_item = FIRST_LIST(stk_item, next, prev)){ */
+/* 		stk_item->stk->flags |= RELINQUISH; */
+/* 	} */
+/* } */
 
 /**
  * maps the compoenents spdid info page on startup
@@ -377,6 +367,23 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_stk)
 	ret =  stk_item->stk->thdid_owner;
 done:
 	return ret;
+}
+
+void mgr_clear_touched_flag(struct spd_tmem_info *sti)
+{
+	struct cos_stk_item *csi;
+
+	for (csi = FIRST_LIST(&sti->tmem_list, next, prev) ; 
+	     csi != &sti->tmem_list ; 
+	     csi = FIRST_LIST(csi, next, prev)) {
+		if (!(csi->stk->flags & IN_USE)) {
+			csi->stk->flags &= ~TOUCHED;
+		} else {
+			assert(csi->stk->flags & TOUCHED); 
+		}		
+	}
+
+	return;
 }
 
 /**
@@ -477,7 +484,7 @@ print_flags(struct cos_stk *stk)
 	if(stk->flags & IN_USE){
 		printc(" In Use"); p = 1;
 	}
-	if(stk->flags & RELINQUISH){
+	if(stk->flags & TOUCHED){
 		printc(" Relinquish"); p = 1;
 	}
 	if(stk->flags & PERMANATE){

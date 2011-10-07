@@ -330,6 +330,7 @@ __cbuf_free(void *buf)
 		cbidx = cbid_to_meta_idx(s->cbid);
 		cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
 		cm.c.flags &= ~CBUFM_ALL_ALLOCATED;
+		assert((void*)cm.c_0.v);
  		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbidx);
 		slab_add_freelist(s, s->flh);
 	}
@@ -421,6 +422,8 @@ again:					/* avoid convoluted conditions */
 		/* set IN_USE bit and thread info */
 		cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
 		cm.c.flags |= CBUFM_IN_USE;
+		cm.c.flags |= CBUFM_TOUCHED; /* this bit is used for policy to estimate concurrency */
+		assert((void*)cm.c_0.v);
 		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbidx);
 		cm.c_0.th_id = cos_get_thd_id();
 		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.th_id, cbidx+1);
@@ -432,6 +435,7 @@ again:					/* avoid convoluted conditions */
 	/* printc("after alloc and  nfree %d\n",s->nfree); */
 	if (!s->nfree) {
 		cm.c.flags |= CBUFM_ALL_ALLOCATED;
+		assert((void*)cm.c_0.v);
 		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbidx);
 		slab_rem_freelist(s, slab_freelist);
 	}

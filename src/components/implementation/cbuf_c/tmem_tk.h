@@ -30,5 +30,6 @@ int resolve_dependency(struct spd_tmem_info *sti, int skip_stk);
 tmem_item *alloc_item_data_struct(void *l_addr);
 void free_item_data_struct(tmem_item *tmi);
 tmem_item *free_mem_in_local_cache(struct spd_tmem_info *sti);
+void mgr_clear_touched_flag(struct spd_tmem_info *sti);
 
 #endif

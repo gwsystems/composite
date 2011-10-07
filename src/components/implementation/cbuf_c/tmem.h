@@ -95,8 +95,8 @@ struct blocked_thd global_blk_list;
  * limit of it */
 int tmems_allocated, tmems_target, empty_comps, over_quota_total, over_quota_limit;
 
-static inline void wake_glb_blk_list(spdid_t spdid);
-static inline void wake_local_blk_list(struct blocked_thd *bl);
+static inline void wake_glb_blk_list(spdid_t spdid, int only_wake_first);
+static inline void wake_local_blk_list(struct spd_tmem_info *sti, int only_wake_first);
 
 /**
  * gets the number of tmem items associated with a given spdid. Only
@@ -172,8 +172,9 @@ __wake_glb_thread(struct blocked_thd *bthd)
 	return bthd_next;
 }
 
+/* if spdid is 0, means wake all thds in glb. */
 static inline void
-wake_glb_blk_list(spdid_t spdid)
+wake_glb_blk_list(spdid_t spdid, int only_wake_first)
 {
 	int woken = 0;
 	struct blocked_thd *bthd, *bthd_next;
@@ -184,6 +185,7 @@ wake_glb_blk_list(spdid_t spdid)
 		for(bthd = FIRST_LIST(&global_blk_list, next, prev) ; bthd != &global_blk_list ; bthd = bthd_next) {
 			bthd_next = __wake_glb_thread(bthd);
 			woken++;
+			if (only_wake_first) break;
 		}
 	} else {
 		for(bthd = FIRST_LIST(&global_blk_list, next, prev) ; bthd != &global_blk_list ; bthd = bthd_next) {
@@ -194,6 +196,7 @@ wake_glb_blk_list(spdid_t spdid)
 			} else {
 				bthd_next = FIRST_LIST(bthd, next, prev);
 			}
+			if (only_wake_first) break;
 		}
 	}
 
@@ -204,15 +207,18 @@ wake_glb_blk_list(spdid_t spdid)
 
 /* wake up all blked threads on local list */
 static inline void
-wake_local_blk_list(struct blocked_thd *bl)
+wake_local_blk_list(struct spd_tmem_info *sti, int only_wake_first)
 {
-	struct blocked_thd *bthd, *bthd_next;
+	struct blocked_thd *bl, *bthd, *bthd_next;
 	spdid_t spdid;
 	unsigned int tid;
 
-	spdid = cos_spd_id();
+	spdid = sti->spdid;
+	bl = &sti->bthd_list;
 
-	for(bthd = FIRST_LIST(bl, next, prev) ; bthd != bl ; bthd = bthd_next) {
+	for (bthd = FIRST_LIST(bl, next, prev) ; 
+	     bthd != bl ; 
+	     bthd = bthd_next) {
 		bthd_next = FIRST_LIST(bthd, next, prev);
 		tid = bthd->thd_id;
 		DOUT("thd %d: ************ waking up thread %d ************\n",
@@ -221,27 +227,38 @@ wake_local_blk_list(struct blocked_thd *bl)
 		free(bthd);
 		sched_wakeup(spdid, tid);
 		DOUT("......UP\n");
+		assert(sti->num_blocked_thds);
+		sti->num_blocked_thds--;
+		if (only_wake_first) break;
 	}
 }
 
-/* data structure independent function? */
 /* Wake up threads on local blk list for this spd */
 static inline void
 tmem_spd_wake_threads(struct spd_tmem_info *sti)
 {
 	DOUT("waking up local threads for spd %ld\n", cos_spd_id());
-
 	DOUT("thd %d: ************ start waking up %d threads for spd %d ************\n",
 	       cos_get_thd_id(),sti->num_blocked_thds, sti->spdid);
-	wake_local_blk_list(&sti->bthd_list);
-	sti->num_blocked_thds = 0;
-	DOUT("All thds now awake\n");
 
+	wake_local_blk_list(sti, 0);
 	assert(EMPTY_LIST(&sti->bthd_list, next, prev));
+	DOUT("All thds now awake\n");
 
         /* Only wake up threads on global blk list that associates this spd*/
 	if (SPD_HAS_BLK_THD_ON_GLB(sti))
-		wake_glb_blk_list(sti->spdid);
+		wake_glb_blk_list(sti->spdid, 0);
+}
+
+/* Wake up the first thread on local blk list for this spd */
+static inline void
+tmem_spd_wake_first_thread(struct spd_tmem_info *sti)
+{
+	DOUT("waking up the first local threads for spd %ld\n", cos_spd_id());
+	wake_local_blk_list(sti, 0);
+
+	if (SPD_HAS_BLK_THD_ON_GLB(sti))
+		wake_glb_blk_list(sti->spdid, 0);
 }
 
 /* data structure independent function */
@@ -339,7 +356,8 @@ static inline int
 tmem_spd_concurrency_estimate(spdid_t spdid)
 {
 	struct spd_tmem_info *sti;
-	unsigned int i, avg;
+	tmem_item *tmi;
+	unsigned int i, avg, touched_in_last_period = 0;
 	unsigned long tot = 0, cnt = 0;
 	
 	TAKE();
@@ -350,9 +368,17 @@ tmem_spd_concurrency_estimate(spdid_t spdid)
 
 	DOUT("sti->num_allocated %d sti->num_desired %d\n",sti->num_allocated, sti->num_desired);
 
-	if (sti->num_allocated < sti->num_desired && !sti->num_waiting_thds) {
+//	if (sti->num_allocated < sti->num_desired && !sti->num_waiting_thds) {
+
+	for (tmi = FIRST_LIST(&sti->tmem_list, next, prev) ; 
+	     tmi != &sti->tmem_list ; 
+	     tmi = FIRST_LIST(tmi, next, prev)) 
+		if (TMEM_TOUCHED(tmi)) touched_in_last_period++;
+
+	if (touched_in_last_period < sti->num_desired 
+	     && !sti->num_waiting_thds) {
 		assert(!SPD_HAS_BLK_THD(sti));
-		avg = sti->num_allocated;
+		avg = touched_in_last_period;
 		goto done;
 	}
 

@@ -180,7 +180,7 @@ gather_data(int counter)
 				assert(tc->tmem_misses >= 0);
 			
 				if (counter == 0 && tc->tmem_misses) {
-					DOUT("MGR%d Tmem info for spd %d: time blocked %ld, misses %d\n", tc->c->mgr, tc->c->spdid, tc->avg_time_blocked, tc->tmem_misses);
+					/* printc("MGR%d Tmem info for spd %d: time blocked %ld, misses %d\n", tc->c->mgr, tc->c->spdid, tc->avg_time_blocked, tc->tmem_misses); */
 				}
 			}
 		}
@@ -618,7 +618,6 @@ update_allocation(void)
 			citer->concur_hist = citer->concur_new;
 			if (citer->allocated != citer->concur_new) {
 				if (citer->concur_est == 0 || citer->allocated == 0) {
-					assert(citer->allocated == 0);
 					available += citer->concur_new - 1;
 					citer->concur_new = 1;
 				} else {

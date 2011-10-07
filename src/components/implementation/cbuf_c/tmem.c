@@ -35,7 +35,7 @@ put_mem(tmem_item *tmi)
 		tmi->free_next = free_tmem_list;
 		free_tmem_list = tmi;
 		if (GLOBAL_BLKED)
-			wake_glb_blk_list(0);
+			wake_glb_blk_list(0, 0);
 	}	
 
 	return 0;
@@ -78,7 +78,7 @@ void event_waiting()
 	while (1) {
 		mempool_tmem_mgr_event_waiting(cos_spd_id());
 		TAKE();
-		wake_glb_blk_list(0);
+		wake_glb_blk_list(0, 0);
 		RELEASE();
 	}
 	DOUT("Event thread terminated!\n");
@@ -156,7 +156,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 
 		/* dep_thd == 0 means the tmem owner is the current
 		 * thd, try next tmem */
-		if (dep_thd == 0) {in_blk_list = 1; continue;}
+		if (dep_thd == 0 || tmem_thd_in_blk_list(sti, dep_thd)) {in_blk_list = 1; continue;}
 
 		if (dep_thd == -1) {
 			DOUT("Self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n",
@@ -353,7 +353,7 @@ tmem_grant(struct spd_tmem_info *sti)
 		if (tmem_should_mark_relinquish(sti))
 			tmem_mark_relinquish_all(sti);
 
-		/* /\* Priority-Inheritance *\/ */
+		/* Priority-Inheritance */
 		if (tmem_wait_for_mem(sti) == 0) {
 			assert(sti->ss_counter);
 			DOUT("self...\n");
@@ -375,6 +375,10 @@ tmem_grant(struct spd_tmem_info *sti)
 			}
 			tmem_wait_for_mem_no_dependency(sti);
 		}
+                /* Wake up others here. if we are the highest priority
+		 * thd, we need to wake up other blked thds! */
+		/* issue here, stop it first... */
+		/* tmem_spd_wake_threads(sti); */
 	}
 
 	if (!local_cache) {
@@ -434,8 +438,9 @@ return_tmem(struct spd_tmem_info *sti)
 
 	if (SPD_HAS_BLK_THD(sti) || SPD_HAS_BLK_THD_ON_GLB(sti))
 		tmem_spd_wake_threads(sti);
+		/* tmem_spd_wake_first_thread(sti); */
 
-	// TODO: check if assert is true!!
+	/* TODO: check if assert is true!! */
 	assert(!SPD_HAS_BLK_THD(sti) && !SPD_HAS_BLK_THD_ON_GLB(sti));
 
 	if (tmem_should_unmark_relinquish(sti) && sti->relinquish_mark == 1) 
@@ -446,19 +451,20 @@ return_tmem(struct spd_tmem_info *sti)
 
 /**
  * Remove all free cache from client. Only called by set_concurrency.
+ * Now replaced by TOUCHED flag.
  */
-static inline void
-remove_spare_cache_from_client(struct spd_tmem_info *sti)
-{
-	tmem_item * tmi;
-	while (1) {
-		tmi = mgr_get_client_mem(sti);
-		if (!tmi)
-			return;
-		put_mem(tmi);
-		DOUT("remove spare----\n");
-	}
-}
+/* static inline void */
+/* remove_spare_cache_from_client(struct spd_tmem_info *sti) */
+/* { */
+/* 	tmem_item * tmi; */
+/* 	while (1) { */
+/* 		tmi = mgr_get_client_mem(sti); */
+/* 		if (!tmi) */
+/* 			return; */
+/* 		put_mem(tmi); */
+/* 		DOUT("remove spare----\n"); */
+/* 	} */
+/* } */
 
 /**
  * returns 0 on success
@@ -489,8 +495,13 @@ tmem_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare)
 	
 	diff = sti->num_allocated - sti->num_desired;
 	if (diff > 0) get_mem_from_client(sti);
-	if (diff < 0 && SPD_HAS_BLK_THD(sti)) tmem_spd_wake_threads(sti);
-	if (remove_spare) remove_spare_cache_from_client(sti);
+	if (diff < 0 && SPD_HAS_BLK_THD(sti)) 
+		tmem_spd_wake_threads(sti);
+	/* tmem_spd_wake_first_thread(sti); */
+
+	mgr_clear_touched_flag(sti);
+	/* if (remove_spare) remove_spare_cache_from_client(sti); */
+
 	RELEASE();
 	return 0;
 err:

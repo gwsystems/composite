@@ -870,6 +870,7 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 		dep = sched_get_mapping(dependency_thd);
 		if (dep->dependency_thd) {
 			if(dep->dependency_thd->id == cos_get_thd_id()) {
+				printc("dep %d, curr %d\n", dep->id, cos_get_thd_id());
 				cos_sched_lock_release();
 				assert(0);
 			}

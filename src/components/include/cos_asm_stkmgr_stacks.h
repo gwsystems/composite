@@ -33,7 +33,7 @@
         movl %edx, cos_comp_info;               \
 						\
 	pushl %eax;	 			\
-        pushl $0x01;    /* flags */             \
+        pushl $0x03;    /* flags */             \
         pushl $0xFACE;  /* next */              
 
 	
@@ -82,10 +82,9 @@
         movl %esp, cos_comp_info;               \
 						\
         addl $4, %esp;                          \
-        movl (%esp),%edx;                       \
 						\
-	/* Flag Mark Not in Use */		\
-        movl $0x00, (%esp);			\
+	/* Flag Mark Not in Use, but Touched */	\
+        movl $0x02, (%esp);			\
 	addl $4, %esp;                          \
 	pushl $0x00;				\
 	subl $4, %esp;				\

@@ -14,7 +14,7 @@
 
 #define TOTAL_AMNT 128		/* power of 2 */
 
-unsigned int spin = 1000, l_to_r = 64, num_invs = 1, cbuf_l_to_r = 1;
+unsigned int spin = 1000, l_to_r = 64, num_invs = 1, cbuf_l_to_r = 64;
 
 #define AVG_INVC_CYCS 1000   /* From the measurement */
 
@@ -197,8 +197,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 		for (i = 0; i < NCBUF ; i++){
 			rdtscll(t);
 			val = (int)(t & (TOTAL_AMNT-1));
-//			if (val >= cbuf_l_to_r){
-			{
+			if (val >= cbuf_l_to_r) {
 				cbt[i] = cbuf_null();
 				rdtscll(start);
 				mt[i] = cbuf_alloc(len, &cbt[i]);

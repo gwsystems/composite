@@ -57,6 +57,7 @@ cbuf_cache_miss(int cbid, int idx, int len)
 
 	/* This is the commit point */
 	DOUT("cache miss: meta_cbuf is at %p, h is %p\n", &meta_cbuf, h);
+	assert((void *)mc.c_0.v);
 	cbuf_vect_add_id(&meta_cbuf, (void *)mc.c_0.v, cbid_to_meta_idx(cbid));
 	cbuf_vect_add_id(&meta_cbuf, (void *)(unsigned long)cos_get_thd_id(), cbid_to_meta_idx(cbid)+1);
 
@@ -164,6 +165,7 @@ cbuf_slab_free(struct cbuf_slab *s)
 	/* clear IN_USE bit */
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbid_to_meta_idx(s->cbid));
 	cm.c.flags &= ~CBUFM_IN_USE;
+	assert((void *)cm.c_0.v);
 	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbid_to_meta_idx(s->cbid));
 
 	DOUT("In cbuf_slab_free -- cbid is %d\n", s->cbid);

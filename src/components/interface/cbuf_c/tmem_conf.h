@@ -15,21 +15,22 @@ cos_lock_t tmem_l;
  */
 typedef struct cos_cbuf_item tmem_item;
 
+#define CBUF_IN_USE(flags) (flags & CBUFM_IN_USE)
+
 #define LOCAL_ADDR(cci) (cci->desc.addr)
+#define TMEM_TOUCHED(cci) (cci->entry->c.flags & CBUFM_TOUCHED)
+#define TMEM_RELINQ COMP_INFO_TMEM_CBUF_RELINQ
 
 /* Shared page between the target component, and us */
 typedef	struct spd_cbvect_range shared_component_info;
-
-#define TMEM_RELINQ COMP_INFO_TMEM_CBUF_RELINQ
-
-#define CBUF_IN_USE(flags) (flags & CBUFM_IN_USE)
 
 typedef enum {
 	CBUFM_LARGE = 1,
 	CBUFM_RO    = 1<<1,
 	CBUFM_GRANT = 1<<2,
 	CBUFM_IN_USE = 1<<3,
-	CBUFM_ALL_ALLOCATED = 1<<4
+	CBUFM_ALL_ALLOCATED = 1<<4,
+	CBUFM_TOUCHED = 1<<5
 } cbufm_flags_t;
 
 /* 
