@@ -37,7 +37,7 @@
 #endif
  
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
-#define ALGORITHM 1
+#define ALGORITHM 0
  
 //#define THD_POOL MAX_NUM_MEM
 
@@ -512,12 +512,12 @@ find_tardiness_comp(void)
 						max_c = c;
 					}
 				}
-				if (t->comp_info[max_c->mgr][max_c->spdid].avg_time_blocked && t->comp_info[max_c->mgr][max_c->spdid].impact)
-					break;
-				else
-					t->tardiness = 0;
-				/* allocating stacks can't benefit current largest tardiness thread */
 			}
+			if (t->comp_info[max_c->mgr][max_c->spdid].avg_time_blocked && t->comp_info[max_c->mgr][max_c->spdid].impact)
+				break;
+			else
+				t->tardiness = 0;
+			/* allocating stacks can't benefit current largest tardiness thread */
 		}
 		return max_c;
 	}

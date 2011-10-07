@@ -15,8 +15,8 @@
 (!p5.o=exe_cb_pt.o),a12'p15 e10400 s0 d120';\
 (!p6.o=exe_cb_pt.o),a13'p18 e10400 s0 d120';\
 (!p7.o=exe_cb_pt.o),a14'p20 e15000 s0 d120';\
-(!p8.o=exe_cb_pt.o),a15'p33 e35000 s0 d120';\
-(!p9.o=exe_cb_pt.o),a15'p33 e35000 s0 d120';\
+(!p8.o=exe_cb_pt.o),a15'p33 e66000 s0 d120';\
+(!p9.o=exe_cb_pt.o),a15'p33 e33000 s0 d120';\
 \
 (!sh0.o=exe_cb_sh.o),'s50000 n1';(!sh1.o=exe_cb_sh.o),'s5000 n1 r2';(!sh2.o=exe_cb_sh.o),'s50000 n1 r96 ';\
 (!sh3.o=exe_cb_sh.o),'s5000 n1 r32';(!sh4.o=exe_cb_sh.o),'s50000 n1 r125';(!sh5.o=exe_cb_sh.o),'s50000 n1 r96 ';\

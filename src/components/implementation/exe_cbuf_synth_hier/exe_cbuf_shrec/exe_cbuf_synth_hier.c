@@ -165,7 +165,6 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	/* DOUTs("thd %d enter comp %ld!\n", cos_get_thd_id(), cos_spd_id()); */
 	if (first) {
 		unsigned long temp = 0;
-		printc("measure loop cost\n");
 		temp = measure_loop_costs(spin);
 		first = 0;
 		/*if (exe_time_left < temp) return 0;
