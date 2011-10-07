@@ -103,17 +103,10 @@ void mgr_map_client_mem(struct cos_cbuf_item *cci, struct spd_tmem_info *sti)
 
 	assert(d_addr && l_addr); 
 
-	u64_t start,end;
-	rdtscll(start);
-
 	/* ...map it into the requesting component */
 	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)l_addr, d_spdid, (vaddr_t)d_addr))) 
 		goto err;
 	/* DOUT("<<<MAPPED>>> mgr addr %p client addr %p\n ",l_addr, d_addr); */
-
-	rdtscll(end);
-	printc("cost create map: %llu\n", end-start);
-	
 	cci->desc.owner.addr = (vaddr_t)d_addr;
 	cci->parent_spdid = d_spdid;
 	assert(cci->desc.cbid == 0);

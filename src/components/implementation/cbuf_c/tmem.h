@@ -255,10 +255,10 @@ static inline void
 tmem_spd_wake_first_thread(struct spd_tmem_info *sti)
 {
 	DOUT("waking up the first local threads for spd %ld\n", cos_spd_id());
-	wake_local_blk_list(sti, 0);
+	wake_local_blk_list(sti, 1);
 
 	if (SPD_HAS_BLK_THD_ON_GLB(sti))
-		wake_glb_blk_list(sti->spdid, 0);
+		wake_glb_blk_list(sti->spdid, 1);
 }
 
 /* data structure independent function */

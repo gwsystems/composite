@@ -28,7 +28,7 @@ unsigned int spin = 1000, l_to_r = 64, num_invs = 1, cbuf_l_to_r = 64;
 #define ALLOC_CBUF
 #define CBUF2BUF
 
-#define DEBUG_SYNTH
+//#define DEBUG_SYNTH
 
 #ifdef DEBUG_SYNTH
 #define DOUTs(fmt,...) printc(fmt, ##__VA_ARGS__)
@@ -115,12 +115,14 @@ extern unsigned long callr_right(unsigned long exe_t, unsigned long  const initi
 
 static unsigned long measure_loop_costs(unsigned long spin) 
 {
-	
+	u64_t start, end, min, max;
 	unsigned long temp = 0;
-	temp = 6 * spin;
+
+	temp = spin * 15 / 2;
 	loop_cost = temp;
 	return temp;
-	/*rdtscll(start);
+
+	rdtscll(start);
 	do {
 		int i;
 		min = MAXULONG;
@@ -135,8 +137,8 @@ static unsigned long measure_loop_costs(unsigned long spin)
 	loop_cost = temp;
 	rdtscll(end);
 	assert(end>start);
-	DOUTs("spin:%lu, loopcost measurement :%lu\n",spin, temp );
-	return temp;*/
+	printc("spin:%lu, loopcost measurement :%lu\n",spin, temp );
+	return temp;
 }
 
 static unsigned long do_action(unsigned long exe_time_left, const unsigned long initial_exe_t, cbuf_t cbt_map, int len_map)
@@ -163,6 +165,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	/* DOUTs("thd %d enter comp %ld!\n", cos_get_thd_id(), cos_spd_id()); */
 	if (first) {
 		unsigned long temp = 0;
+		printc("measure loop cost\n");
 		temp = measure_loop_costs(spin);
 		first = 0;
 		/*if (exe_time_left < temp) return 0;
@@ -171,8 +174,9 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	if (AVG_INVC_CYCS > exe_time_left) return 0;
 	exe_time_left -= AVG_INVC_CYCS;
 
-	u64_t start,end;	
+
 #ifdef CBUF2BUF
+	u64_t start,end;	
 	char *b;
 	if(cbt_map && len_map){
 		rdtscll(start);
@@ -191,11 +195,9 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 		if (exe_time_left == 0) return 0;
 		kkk = 0;
 
-		for (i=0;i<spin;i++) kkk++;
-		
-		unsigned long ss = initial_exe_t / (100 / PERCENT_EXE) / 6;
+		unsigned long ss = initial_exe_t / (100 / PERCENT_EXE) / 15 * 2;
 		for (i=0; i<ss; i++) kkk++;
-		has_run = ss * 6;//loop_cost;//
+		has_run = ss * 15 / 2;//loop_cost;//
 
 		if (has_run > exe_time_left) {
 			return 0;
@@ -275,6 +277,5 @@ unsigned long right(unsigned long exe_t,  unsigned long const initial_exe_t, cbu
 
 void cos_init(void)
 {
-
-	while (1) do_action(10000,10000,0,0);
+//	while (1) do_action(10000,10000,0,0);
 }
