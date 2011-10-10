@@ -204,9 +204,10 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_cbuf)
 	union cbuf_meta cm;
 	cm.c_0.v = cci->entry->c_0.v;			
 
-	assert(CBUF_IN_USE(cm.c.flags));
-	
 	ret = (u32_t)cci->entry->c_0.th_id;
+
+	if (!CBUF_IN_USE(cm.c.flags)) goto cache;
+
 	/* DOUT("cm.c_0.v is %p \n", cm.c_0.v); */
 	// Jiguo: A thread could ask for multiple cbuf items, so it 
 	// could find to be dependent on itself
@@ -218,6 +219,9 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_cbuf)
 
 done:
 	return ret;
+cache:
+	ret = -2;
+	goto done;
 self:
 	ret = 0;
 	goto done;
@@ -455,27 +459,16 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 int
 cbuf_c_delete(spdid_t spdid, int cbid)
 {
-	struct cb_desc *d;
 	struct spd_tmem_info *sti;
-	int ret = 0;  // 1 means not really removing from spd (stay as cache)
+	int ret = 0;  /* return value not used */
 
 	TAKE();
 
 	sti = get_spd_info(spdid);
 	assert(sti);
 
-	/* if (sti->num_blocked_thds) goto err; */
-	d = cos_map_lookup(&cb_ids, cbid);
-	if (!d) goto err;
-
-	/* should be conditional on the principal??? */
-	if (d->owner.spd != sti->spdid) goto err;
-
-	/* mapping model will release all child mappings */
-	/* DOUT("Releasing cbuf\n"); */
 	return_tmem(sti);
 
-err:
 	RELEASE();
 	return ret;
 }

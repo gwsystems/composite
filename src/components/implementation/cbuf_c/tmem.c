@@ -155,8 +155,13 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 		if (i > sti->ss_counter) sti->ss_counter = i; /* update self-suspension counter */
 
 		/* dep_thd == 0 means the tmem owner is the current
-		 * thd, try next tmem */
+		 * thd, try next tmem. -2 means found local cache. we
+		 * should try to use it */
 		if (dep_thd == 0 || tmem_thd_in_blk_list(sti, dep_thd)) {in_blk_list = 1; continue;}
+		if (dep_thd == -2) {
+			remove_thd_from_blk_list(sti, cos_get_thd_id());
+			break;
+		}
 
 		if (dep_thd == -1) {
 			DOUT("Self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n",

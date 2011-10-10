@@ -1,17 +1,19 @@
 #include <cos_component.h>
-
 #include <sched.h>
 #include <sched_conf.h>
 #include <print.h>
 
-
 #include <exe_cbuf_synth_hier.h>
 #include <cbuf.h>
+#include <cos_synchronization.h>
 
-#define MAXULONG (~0)
+cos_lock_t synth_lock;
+#define SYNTH_TAKE()    do { if (unlikely(synth_lock.lock_id == 0)) lock_static_init(&synth_lock); if (lock_take(&synth_lock) != 0) BUG(); } while(0)
+#define SYNTH_RELEASE() do { if (lock_release(&synth_lock) != 0) BUG(); } while(0)
 
 #include <stdlib.h>
 
+#define MAXULONG (~0)
 #define TOTAL_AMNT 128		/* power of 2 */
 
 unsigned int spin = 1000, l_to_r = 64, num_invs = 1, cbuf_l_to_r = 64;
@@ -35,7 +37,6 @@ unsigned int spin = 1000, l_to_r = 64, num_invs = 1, cbuf_l_to_r = 64;
 #else
 #define DOUTs(fmt, ...)
 #endif
-
 
 volatile unsigned long kkk = 0;
 unsigned long loop_cost = 0;
@@ -204,6 +205,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 		exe_time_left -= has_run;
 
 #ifdef ALLOC_CBUF
+		SYNTH_TAKE();
 		for (i = 0; i < NCBUF ; i++){
 			rdtscll(t);
 			val = (int)(t & (TOTAL_AMNT-1));
@@ -223,6 +225,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 				mark = 1;
 			}
 		}
+		SYNTH_RELEASE();
 #endif
 
 		rdtscll(t);

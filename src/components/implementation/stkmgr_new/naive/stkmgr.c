@@ -360,13 +360,17 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_stk)
 
 	/* Remove the assert? thdid_owner is postibly to be 0, which
 	 * means there is available stacks in the local freelist. */
-	assert(stk_item->stk->thdid_owner != 0);
+
 	assert(stk_item->stk->thdid_owner != cos_get_thd_id());
-	assert(stk_item->stk->flags & IN_USE);
+	if (!(stk_item->stk->flags & IN_USE)) goto cache;
+	assert(stk_item->stk->thdid_owner != 0);
 
 	ret =  stk_item->stk->thdid_owner;
 done:
 	return ret;
+cache:
+	ret = -2;
+	goto done;
 }
 
 void mgr_clear_touched_flag(struct spd_tmem_info *sti)

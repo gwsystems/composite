@@ -58,15 +58,15 @@ struct component {
 	spdid_t spdid;
 	int allocated, concur_est, concur_new, concur_hist;
 	int mgr; /* which tmem_mgr this component "belongs" to */
-	long add_impact, remove_impact; /* the impact of adding / removing one stack */
-	int add_in; /* number of stacks we add into this component in the current period */
+	long add_impact, remove_impact; /* the impact of adding / removing one tmem */
+	int add_in; /* number of tmems we add into this component in the current period */
 	int ss_counter; /* self-suspension counter*/
 	struct component *next, *prev;
 };
 
 struct thd_comp {
 	unsigned long avg_time_blocked, tot_time_blocked, time_per_deadline;
-	/* impact and history impact for one stack */
+	/* impact and history impact for one tmem */
 	unsigned long impact, old_impact;
 	int tmem_misses;
 	struct component *c;
@@ -221,7 +221,7 @@ find_largest_tardiness(void)
 }
 
 void
-move_stack_and_update_tardiness(struct component *c_add, struct component * c_take_away)
+move_tmem_and_update_tardiness(struct component *c_add, struct component * c_take_away)
 {
 	
 	struct thd * iter;
@@ -231,7 +231,7 @@ move_stack_and_update_tardiness(struct component *c_add, struct component * c_ta
 	
 	if (c_add) {
 		c = c_add;
-		/* printc("Add one stack to Comp %d:(est:%d, old:%d -> new:%d)\n",c->spdid,c->concur_est,c->concur_new,c->concur_new+1); */
+		/* printc("Add one tmem to Comp %d:(est:%d, old:%d -> new:%d)\n",c->spdid,c->concur_est,c->concur_new,c->concur_new+1); */
 		/* calculate all the threads have tardiness in c_add component */
 		for (iter = FIRST_LIST(&threads, next, prev) ;
 		     iter != &threads ;
@@ -257,7 +257,7 @@ move_stack_and_update_tardiness(struct component *c_add, struct component * c_ta
 	if (c_take_away) {
 		c = c_take_away;
 		assert(c->concur_new > 1);
-		/* printc("  Take away one stack from Comp %d:(est:%d, old:%d -> new:%d)\n",c->spdid,c->concur_est,c->concur_new,c->concur_new-1); */
+		/* printc("  Take away one tmem from Comp %d:(est:%d, old:%d -> new:%d)\n",c->spdid,c->concur_est,c->concur_new,c->concur_new-1); */
 		/* calculate all the threads have tardiness in c_take_away component */
 		for (iter = FIRST_LIST(&threads, next, prev) ;
 		     iter != &threads ;
@@ -278,7 +278,7 @@ move_stack_and_update_tardiness(struct component *c_add, struct component * c_ta
 }
 
 /* void  */
-/* allocate_NRT_stacks() */
+/* allocate_NRT_tmems() */
 /* { */
 /* 	int diff=0; */
 /* 	struct component * c; */
@@ -316,7 +316,7 @@ find_min_tardiness_comp(struct component * c_original)
 	if (ALGORITHM == 1) {
 		long worsen, min = 0, tmp_tardiness, tot_impact, min_tot_impact = 0;
 		unsigned long impact_with_history;
-		/* find the component that increasing the total tardiness least if take one stack to c_original */
+		/* find the component that increasing the total tardiness least if take one tmem to c_original */
 		for (mgr = 0; mgr < NUM_TMEM_MGR; mgr++) {
 			for (c = FIRST_LIST(&components[mgr], next, prev) ;
 			     c != &components[mgr] ;
@@ -358,7 +358,7 @@ find_min_tardiness_comp(struct component * c_original)
 	} else {
 		long largest, impact_largest, tmp_tardiness, min = 0, min_impact = 0;
 		unsigned long impact_with_history;
-		/* find the component that influence the max tardiness least if take one stack to c_original */
+		/* find the component that influence the max tardiness least if take one tmem to c_original */
 		for (mgr = 0; mgr < NUM_TMEM_MGR; mgr++) {		
 			for( c = FIRST_LIST(&components[mgr], next, prev);
 			     c != &components[mgr] ;
@@ -385,8 +385,10 @@ find_min_tardiness_comp(struct component * c_original)
 					min_c = c;
 					min_impact = impact_largest;
 				}
-				/* if multiple components impact the same to the max tardiness,
-				   we choose one impact the actual tardiness least*/
+				/* if multiple components impact the
+				 * same to the max tardiness, we
+				 * choose one impact the actual
+				 * tardiness least */
 				if (largest == min && impact_largest < min_impact) {
 					min_c = c;
 					min_impact = impact_largest;
@@ -408,7 +410,7 @@ calc_component_tardiness(struct component * c)
 
 	c->add_impact = 0;
 	c->remove_impact = 0;
-	/* calculate the total tardiness of this component if adding one stack */
+	/* calculate the total tardiness of this component if adding one tmem */
 	for ( titer = FIRST_LIST(&threads, next, prev) ;
 	      titer != &threads ;
 	      titer = FIRST_LIST(titer, next, prev)) {
@@ -419,7 +421,7 @@ calc_component_tardiness(struct component * c)
 		}
 	}
 	/* if (c->add_impact) */
-	/* 	printc("          comp %d, one stack can improve total tardiness: %ld\n", c->spdid, c->add_impact); */
+	/* 	printc("          comp %d, one tmem can improve total tardiness: %ld\n", c->spdid, c->add_impact); */
 }
 
 void
@@ -431,7 +433,7 @@ calc_component_max_tardiness(struct component * c)
 
 	c->add_impact = 0;
 	c->remove_impact = 0;
-	/* calculate the max tardiness if adding one stack to this component */
+	/* calculate the max tardiness if adding one tmem to this component */
 	for ( titer = FIRST_LIST(&threads, next, prev) ;
 	      titer != &threads ;
 	      titer = FIRST_LIST(titer, next, prev)) {
@@ -447,7 +449,7 @@ calc_component_max_tardiness(struct component * c)
 	}
 	c->add_impact = largest;
 	/* if (c->add_impact < largest_tardiness) */
-	/* 	printc("           largest tardiness: %ld if add one stack to comp %d\n",c->add_impact, c->spdid); */
+	/* 	printc("           largest tardiness: %ld if add one tmem to comp %d\n",c->add_impact, c->spdid); */
 }
 
 struct component *
@@ -469,7 +471,7 @@ find_tardiness_comp(void)
 					max = c->add_impact;
 				}
 				if (c->add_impact == max && max > 0 && max_c != c) {
-					/* if one stack benefits multiple
+					/* if one tmem benefits multiple
 					 * components the same of tardiness,
 					 * we want the component with the max
 					 * total block time. */
@@ -517,7 +519,7 @@ find_tardiness_comp(void)
 				break;
 			else
 				t->tardiness = 0;
-			/* allocating stacks can't benefit current largest tardiness thread */
+			/* allocating tmems can't benefit current largest tardiness thread */
 		}
 		return max_c;
 	}
@@ -541,7 +543,7 @@ calc_improvement(void)
 			      titer = FIRST_LIST(titer, next, prev)) {
 				tc = &titer->comp_info[citer->mgr][citer->spdid];
 				if (tc->avg_time_blocked > 0 && tc->c->concur_est > tc->c->allocated)
-					/* improvement of one stack : time blocked / (est - allocated), +1 for round up */
+					/* improvement of one tmem : time blocked / (est - allocated), +1 for round up */
 					tc->impact = tc->old_impact = tc->avg_time_blocked / (tc->c->concur_est - tc->c->allocated) + 1;
 				else {
 					tc->impact = 0;
@@ -565,10 +567,10 @@ set_concur_new(void)
 			assert(c->concur_new != 0);
 			switch (mgr) {
 			case STK_MGR:
-				stkmgr_set_concurrency(c->spdid, c->concur_new, 1);
+				stkmgr_set_concurrency(c->spdid, c->concur_new, 0);
 				break;
 			case CBUF_MGR:
-				cbufmgr_set_concurrency(c->spdid, c->concur_new, 1);
+				cbufmgr_set_concurrency(c->spdid, c->concur_new, 0);
 				break;
 			default: BUG();
 			}
@@ -603,7 +605,7 @@ history_allocation(void)
 	}
 }
 
-/* Update the actual number of allocated stacks, save the current
+/* Update the actual number of allocated tmems, save the current
  * concur_new to concur_hist for history allocation */
 
 static void
@@ -791,10 +793,10 @@ init_policy(void)
 		     c = FIRST_LIST(c, next, prev)) {
 			switch (mgr) {
 			case STK_MGR:
-				stkmgr_set_concurrency(c->spdid, 1, 1); c->concur_new = 1; available -= 1;
+				stkmgr_set_concurrency(c->spdid, 1, 0); c->concur_new = 1; available -= 1;
 				break;
 			case CBUF_MGR:
-				cbufmgr_set_concurrency(c->spdid, 1, 1); c->concur_new = 1; available -= 1;
+				cbufmgr_set_concurrency(c->spdid, 1, 0); c->concur_new = 1; available -= 1;
 				break;
 			default: BUG();
 			}
@@ -818,13 +820,13 @@ thdpool_1_policy(void)
 				if (c->ss_counter) 
 					stkmgr_set_concurrency(c->spdid, INT_MAX, 0);
 				else
-					stkmgr_set_concurrency(c->spdid, 1, 0); /* 0 means pool 1 doesn't revoke stacks! */
+					stkmgr_set_concurrency(c->spdid, 1, 0); /* 0 means pool 1 doesn't revoke tmems! */
 				break;
 			case CBUF_MGR:
 				if (c->ss_counter) 
 					cbufmgr_set_concurrency(c->spdid, INT_MAX, 0);
 				else
-					cbufmgr_set_concurrency(c->spdid, 1, 0); /* 0 means pool 1 doesn't revoke stacks! */
+					cbufmgr_set_concurrency(c->spdid, 1, 0); /* 0 means pool 1 doesn't revoke tmems! */
 				break;
 			default: BUG();
 			}
@@ -880,22 +882,22 @@ policy(void)
 		c_add = find_tardiness_comp();
 		if (!c_add) break;
 		assert(c_add->concur_est > c_add->concur_new);
-		if (available > 0) { /* we have spare stacks, allocate one */
+		if (available > 0) { /* we have spare tmems, allocate one */
 			available--;
-                        move_stack_and_update_tardiness(c_add, NULL);/* add one available stack to c_add */
+                        move_tmem_and_update_tardiness(c_add, NULL);/* add one available tmem to c_add */
 		} else {
-			/* no available stacks, try to take one stack from other components if necessary */
+			/* no available tmems, try to take one tmem from other components if necessary */
 			c_get = find_min_tardiness_comp(c_add);
 			if (c_get)
-				move_stack_and_update_tardiness(c_add, c_get);/* we found one */
+				move_tmem_and_update_tardiness(c_add, c_get);/* we found one */
 			else
-				break;/* we shouldn't take stacks away from any where */
+				break;/* we shouldn't take tmems away from any where */
 		}
 		count++;
 	}
 	if (available > 0) history_allocation();
-	/* if (available > 0) {  /\* we have spare stacks for none real-time threads *\/ */
-	/* 	allocate_NRT_stacks(); */
+	/* if (available > 0) {  /\* we have spare tmems for none real-time threads *\/ */
+	/* 	allocate_NRT_tmems(); */
 	/* } */
 	set_concur_new();
 	/* cbufmgr_set_over_quota_limit(available); */
@@ -937,7 +939,7 @@ cos_init(void *arg)
 	//unsigned long long s,e;
 	while (1) {
 		if (counter++ % report_period == 0) {
-			/* report stacks usage */
+			/* report tmems usage */
 			cbufmgr_buf_report();
 			stkmgr_stack_report();
 		}
