@@ -16,7 +16,7 @@ cos_lock_t synth_lock;
 #define MAXULONG (~0)
 #define TOTAL_AMNT 128		/* power of 2 */
 
-unsigned int spin = 1000, l_to_r = 64, num_invs = 1, cbuf_l_to_r = 64;
+unsigned int spin = 1000, l_to_r = 64, num_invs = 1, cbuf_l_to_r = 0;
 
 #define AVG_INVC_CYCS 1000   /* From the measurement */
 

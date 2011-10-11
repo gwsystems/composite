@@ -169,7 +169,7 @@ void
 cos_init(void *arg){
 	int i;
 
-	printc("stk mgr running.....\n");
+	DOUT("stk mgr running.....\n");
 	DOUT("<stkmgr>: STACK in cos_init\n");
 	LOCK_INIT();
 
@@ -356,7 +356,7 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_stk)
 	    stk_item != &sti->tmem_list && skip_stk > 0; 
 	    stk_item = FIRST_LIST(stk_item, next, prev), skip_stk--) ;
 
-	if (stk_item == &sti->tmem_list) goto done;
+	if (stk_item == &sti->tmem_list) {printc("skip_stk %d!!\n",skip_stk);goto done;}
 
 	/* Remove the assert? thdid_owner is postibly to be 0, which
 	 * means there is available stacks in the local freelist. */
@@ -369,6 +369,7 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_stk)
 done:
 	return ret;
 cache:
+	printc("local cache found!\n");
 	ret = -2;
 	goto done;
 }
@@ -423,6 +424,24 @@ void
 stkmgr_stack_report(void)
 {
 	tmem_report();
+	/* int i; */
+	/* for (i = 0 ; i < MAX_NUM_SPDS ; i++) { */
+	/* 	spdid_t spdid; */
+	/* 	void *hp; */
+
+	/* 	/\* hp = cos_get_vas_page(); *\/ */
+	/* 	hp = valloc_alloc(cos_spd_id(), cos_spd_id(), 1); */
+	/* 	spdid = cinfo_get_spdid(i); */
+	/* 	if (!spdid) break; */
+
+	/* 	printc("spd %d, allocated %d, desired %d, blk thds %d, glb %d, ss_counter %d\n",  */
+	/* 	       spdid,  */
+	/* 	       spd_tmem_info_list[spdid].num_allocated, */
+	/* 	       spd_tmem_info_list[spdid].num_desired, */
+	/* 	       spd_tmem_info_list[spdid].num_blocked_thds, */
+	/* 	       spd_tmem_info_list[spdid].num_glb_blocked, */
+	/* 	       spd_tmem_info_list[spdid].ss_counter); */
+	/* } */
 }
 
 int

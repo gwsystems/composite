@@ -152,20 +152,27 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 	do {
 		dep_thd = resolve_dependency(sti, i++); 
 
-		if (i > sti->ss_counter) sti->ss_counter = i; /* update self-suspension counter */
+		if (i - 1 > sti->ss_counter) {
+			sti->ss_counter = i - 1; /* update self-suspension counter */
+			DOUT("sti->allcoated %d, sti->desired %d, dep_thd %d!!,curr %d\n",sti->num_allocated, sti->num_desired,dep_thd, cos_get_thd_id());
+		}
 
 		/* dep_thd == 0 means the tmem owner is the current
 		 * thd, try next tmem. -2 means found local cache. we
 		 * should try to use it */
-		if (dep_thd == 0 || tmem_thd_in_blk_list(sti, dep_thd)) {in_blk_list = 1; continue;}
+		if (dep_thd == 0 || tmem_thd_in_blk_list(sti, dep_thd)) {
+			in_blk_list = 1;
+			continue;
+		}
 		if (dep_thd == -2) {
 			remove_thd_from_blk_list(sti, cos_get_thd_id());
 			break;
 		}
 
 		if (dep_thd == -1) {
-			DOUT("Self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n",
+			printc("Self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n",
 			       sti->ss_counter,sti->spdid, cos_get_thd_id(), sti->num_waiting_thds, sti->num_desired, sti->num_allocated);
+			if (i > sti->ss_counter) sti->ss_counter = i;
 
 			return 0;
 		}

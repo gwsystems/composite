@@ -121,7 +121,10 @@ void * mempool_get_mem(spdid_t d_spdid, int pages)
 	}
 
 	mgr_addr = valloc_alloc(cos_spd_id(), d_spdid, 1);
-	if (unlikely(!mgr_addr)) goto err1;
+	if (unlikely(!mgr_addr)) {
+		printc("Cannot valloc for comp d_spdid!\n");
+		goto err1;
+	}
 
 	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)page->l_addr, d_spdid, (vaddr_t)mgr_addr))) 
 		goto err2;
