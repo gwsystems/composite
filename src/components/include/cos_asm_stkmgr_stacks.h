@@ -89,12 +89,10 @@
 	pushl $0x00;				\
 	subl $4, %esp;				\
 						\
-        movl cos_comp_info, %edx; 		\
-	addl $8, %edx;		                \
+        movl $cos_comp_info, %edx; 		\
+	movl 12(%edx), %edx;			\
         test %edx, %edx;                        \
-        jne  3f;                                \
-						\
-        jmp  4f;                                \
+        je  4f;					\
 3:                                              \
         /* stkmgr wants stack back */ 		\
         movl %esp, %edx;                        \

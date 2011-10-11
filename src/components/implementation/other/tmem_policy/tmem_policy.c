@@ -40,6 +40,8 @@
 #define ALGORITHM 0
  
 //#define THD_POOL MAX_NUM_MEM
+#define THD_POOL 1
+#define CBUF_UNIT 10
 
 #define POLICY_PERIODICITY 100
 
@@ -824,9 +826,10 @@ thdpool_1_policy(void)
 				break;
 			case CBUF_MGR:
 				if (c->ss_counter) 
-					cbufmgr_set_concurrency(c->spdid, INT_MAX, 0);
+//					cbufmgr_set_concurrency(c->spdid, INT_MAX, 0);
+					cbufmgr_set_concurrency(c->spdid, CBUF_UNIT, 0);
 				else
-					cbufmgr_set_concurrency(c->spdid, 1, 0); /* 0 means pool 1 doesn't revoke tmems! */
+					cbufmgr_set_concurrency(c->spdid, CBUF_UNIT, 0); /* 0 means pool 1 doesn't revoke tmems! */
 				break;
 			default: BUG();
 			}
