@@ -173,7 +173,7 @@ cbuf_slab_free(struct cbuf_slab *s)
 
 	DOUT("In cbuf_slab_free -- cbid is %d\n", s->cbid);
 
-	if(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] == 1){
+	if (cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] == 1) {
 		assert(!CBUF_IN_USE(cm.c.flags));
 		DOUT("need relinquish\n");
 		

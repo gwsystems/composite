@@ -40,8 +40,8 @@
 #define ALGORITHM 0
  
 //#define THD_POOL MAX_NUM_MEM
-#define THD_POOL 1
-#define CBUF_UNIT 10
+//#define THD_POOL 1
+#define CBUF_UNIT 5
 
 #define POLICY_PERIODICITY 100
 
@@ -798,7 +798,7 @@ init_policy(void)
 				stkmgr_set_concurrency(c->spdid, 1, 0); c->concur_new = 1; available -= 1;
 				break;
 			case CBUF_MGR:
-				cbufmgr_set_concurrency(c->spdid, 1, 0); c->concur_new = 1; available -= 1;
+				cbufmgr_set_concurrency(c->spdid, CBUF_UNIT, 0); c->concur_new = CBUF_UNIT; available -= CBUF_UNIT;
 				break;
 			default: BUG();
 			}
@@ -933,7 +933,7 @@ cos_init(void *arg)
 
 	/* Wait for all other threads to initialize */
 	int i = 0, waiting = 100 / POLICY_PERIODICITY, counter = 0, report_period = 100 / POLICY_PERIODICITY;
-	do { 
+	do {
 		periodic_wake_wait(cos_spd_id());
 	} while (i++ < waiting);
 

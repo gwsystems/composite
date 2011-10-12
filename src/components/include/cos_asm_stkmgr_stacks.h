@@ -92,7 +92,7 @@
         movl $cos_comp_info, %edx; 		\
 	movl 12(%edx), %edx;			\
         test %edx, %edx;                        \
-        je  4f;					\
+	je 4f;					\
 3:                                              \
         /* stkmgr wants stack back */ 		\
         movl %esp, %edx;                        \

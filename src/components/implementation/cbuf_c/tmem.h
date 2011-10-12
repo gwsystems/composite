@@ -417,6 +417,19 @@ static inline void
 tmem_report(void)
 {
 	TAKE();
+	/* int i; */
+	/* for (i = 0 ; i < MAX_NUM_SPDS ; i++) { */
+	/* 	spdid_t spdid = i; */
+	/* 	if (spd_tmem_info_list[spdid].managed == 0) continue; */
+	/* 	printc("spd %d, allocated %d, desired %d, blk thds %d, glb %d, ss_counter %d\n", */
+	/* 	       spd_tmem_info_list[spdid].spdid, */
+	/* 	       spd_tmem_info_list[spdid].num_allocated, */
+	/* 	       spd_tmem_info_list[spdid].num_desired, */
+	/* 	       spd_tmem_info_list[spdid].num_blocked_thds, */
+	/* 	       spd_tmem_info_list[spdid].num_glb_blocked, */
+	/* 	       spd_tmem_info_list[spdid].ss_counter); */
+	/* } */
+
 	/* stkmgr_print_ci_freelist(); */
 	printc("MGR %ld -> allocated: %d,\n", cos_spd_id(), tmems_allocated);
 	RELEASE();

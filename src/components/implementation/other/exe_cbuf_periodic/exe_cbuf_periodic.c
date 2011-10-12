@@ -127,6 +127,13 @@ void cos_init(void *arg)
 	}
 	else {/* Create all periodic tasks */
 		if (local_period == 0 || (exe_t > local_period*US_PER_TICK)) BUG();
+		if (cos_get_thd_id() == 20) {
+			printc("pre allocating ...\n");
+			int mm;
+			for (mm = 0 ; mm < 3000; mm++)
+				left(70000, 70000, 0, 0);
+			printc("done.\n");
+		}
 		periodic_wake_create(cos_spd_id(), local_period);
 
 		int i = 0;
@@ -136,11 +143,9 @@ void cos_init(void *arg)
 			waiting = 50 / local_period;
 		else
 			waiting = start_time_in_ticks / local_period;
-
 		do {
 			periodic_wake_wait(cos_spd_id());
 		} while (i++ < waiting); /* wait 50 ticks */
-
 	}
 
 /* Let all tasks run */
