@@ -44,9 +44,9 @@ enum{
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
 #define ALGORITHM MAX
  
-#define THD_POOL MAX_NUM_MEM
+//#define THD_POOL MAX_NUM_MEM
 //#define THD_POOL 1
-#define CBUF_UNIT 10
+#define CBUF_UNIT 5
 
 #define POLICY_PERIODICITY 100
 
@@ -938,7 +938,7 @@ cos_init(void *arg)
 
 	/* Wait for all other threads to initialize */
 	int i = 0, waiting = 100 / POLICY_PERIODICITY, counter = 0, report_period = 100 / POLICY_PERIODICITY;
-	do { 
+	do {
 		periodic_wake_wait(cos_spd_id());
 	} while (i++ < waiting);
 

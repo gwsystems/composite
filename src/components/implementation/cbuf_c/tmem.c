@@ -170,8 +170,8 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 		}
 
 		if (dep_thd == -1) {
-			printc("Self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n",
-			       sti->ss_counter,sti->spdid, cos_get_thd_id(), sti->num_waiting_thds, sti->num_desired, sti->num_allocated);
+			printc("MGR %ld: Self-suspension detected(cnt:%d)! comp: %d, thd:%d, waiting:%d desired: %d alloc:%d\n",
+			       cos_spd_id(), sti->ss_counter,sti->spdid, cos_get_thd_id(), sti->num_waiting_thds, sti->num_desired, sti->num_allocated);
 			if (i > sti->ss_counter) sti->ss_counter = i;
 
 			return 0;
@@ -236,8 +236,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 // Before this function is called, threads are already on the block lists
 inline int tmem_should_mark_relinquish(struct spd_tmem_info *sti)
 {
-	if (sti->num_allocated >= sti->num_desired 
-	    || (empty_comps >= (MAX_NUM_MEM - tmems_allocated)))
+	if (sti->relinquish_mark == 0)
 		return 1;
 	else
 		return 0;
@@ -246,7 +245,8 @@ inline int tmem_should_mark_relinquish(struct spd_tmem_info *sti)
 inline int tmem_should_unmark_relinquish(struct spd_tmem_info *sti)
 {
 	if (!SPD_HAS_BLK_THD(sti) && !SPD_HAS_BLK_THD_ON_GLB(sti)
-	    && sti->num_desired >= sti->num_allocated)
+	    && sti->num_desired >= sti->num_allocated 
+	    && sti->relinquish_mark == 1)
 		return 1;
 	else
 		return 0;
@@ -440,7 +440,7 @@ return_tmem(struct spd_tmem_info *sti)
 
 	assert(sti);
 	s_spdid = sti->spdid;
-	DOUT("return_mem is called \n");
+	DOUT("spd %d: return_mem is called \n", s_spdid);
 	DOUT("Before:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);
 	
         /* if (sti->num_desired < sti->num_allocated || sti->num_glb_blocked) { 2nd condition is used for max pool testing */
@@ -455,7 +455,7 @@ return_tmem(struct spd_tmem_info *sti)
 	/* TODO: check if assert is true!! */
 	assert(!SPD_HAS_BLK_THD(sti) && !SPD_HAS_BLK_THD_ON_GLB(sti));
 
-	if (tmem_should_unmark_relinquish(sti) && sti->relinquish_mark == 1) 
+	if (tmem_should_unmark_relinquish(sti)) 
 		tmem_unmark_relinquish_all(sti);
 
 	DOUT("After return called:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);

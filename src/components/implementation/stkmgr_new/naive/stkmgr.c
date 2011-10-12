@@ -190,7 +190,6 @@ cos_init(void *arg){
 	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
 		spdid_t spdid;
 		void *hp;
-
 		/* hp = cos_get_vas_page(); */
 		hp = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
 		spdid = cinfo_get_spdid(i);
@@ -352,11 +351,12 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_stk)
 	struct cos_stk_item *stk_item;
 	int ret = -1;
 
+	assert(!EMPTY_LIST(&sti->tmem_list, next, prev));
 	for(stk_item = FIRST_LIST(&sti->tmem_list, next, prev);
 	    stk_item != &sti->tmem_list && skip_stk > 0; 
 	    stk_item = FIRST_LIST(stk_item, next, prev), skip_stk--) ;
 
-	if (stk_item == &sti->tmem_list) {printc("skip_stk %d!!\n",skip_stk);goto done;}
+	if (stk_item == &sti->tmem_list) goto done;
 
 	/* Remove the assert? thdid_owner is postibly to be 0, which
 	 * means there is available stacks in the local freelist. */
@@ -430,7 +430,6 @@ stkmgr_stack_report(void)
 	/* 	void *hp; */
 
 	/* 	/\* hp = cos_get_vas_page(); *\/ */
-	/* 	hp = valloc_alloc(cos_spd_id(), cos_spd_id(), 1); */
 	/* 	spdid = cinfo_get_spdid(i); */
 	/* 	if (!spdid) break; */
 

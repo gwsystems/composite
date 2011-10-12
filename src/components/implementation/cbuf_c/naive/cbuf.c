@@ -590,7 +590,6 @@ cos_init(void *d)
 		spd_tmem_info_list[spdid].ss_counter = 0;
 		spd_tmem_info_list[spdid].ss_max = MAX_NUM_MEM;
 		empty_comps++;
-
 	}
 	over_quota_total = 0;
 	over_quota_limit = MAX_NUM_MEM;

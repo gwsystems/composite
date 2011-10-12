@@ -236,7 +236,7 @@ struct cos_stack_freelists {
 
 /* move this to the stack manager assembly file, and use the ASM_... to access the relinquish variable */
 //#define ASM_OFFSET_TO_STK_RELINQ (sizeof(struct cos_stack_freelists) + sizeof(u32_t) * COMP_INFO_TMEM_STK_RELINQ)
-#define ASM_OFFSET_TO_STK_RELINQ 8
+//#define ASM_OFFSET_TO_STK_RELINQ 8
 /* #ifdef COMP_INFO_STACK_FREELISTS != 1 || COMP_INFO_TMEM_STK_RELINQ != 0 */
 /* #error "Assembly in <fill in file name here> requires that COMP_INFO_STACK_FREELISTS != 1 || COMP_INFO_TMEM_STK_RELINQ != 0.  Change the defines, or change the assembly" */
 /* #endif */
