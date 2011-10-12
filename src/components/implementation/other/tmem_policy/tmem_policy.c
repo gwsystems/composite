@@ -36,11 +36,16 @@
 #define DOUT(fmt,...)
 #endif
  
+enum{
+	MAX = 0,
+	AVG
+};
+
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
-#define ALGORITHM 0
+#define ALGORITHM MAX
  
-//#define THD_POOL MAX_NUM_MEM
-#define THD_POOL 1
+#define THD_POOL MAX_NUM_MEM
+//#define THD_POOL 1
 #define CBUF_UNIT 10
 
 #define POLICY_PERIODICITY 100
@@ -798,7 +803,7 @@ init_policy(void)
 				stkmgr_set_concurrency(c->spdid, 1, 0); c->concur_new = 1; available -= 1;
 				break;
 			case CBUF_MGR:
-				cbufmgr_set_concurrency(c->spdid, 1, 0); c->concur_new = 1; available -= 1;
+				cbufmgr_set_concurrency(c->spdid, CBUF_UNIT, 0); c->concur_new = CBUF_UNIT; available -= CBUF_UNIT;
 				break;
 			default: BUG();
 			}

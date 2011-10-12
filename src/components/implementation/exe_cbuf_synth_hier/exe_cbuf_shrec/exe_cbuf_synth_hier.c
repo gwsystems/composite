@@ -195,9 +195,9 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 		if (exe_time_left == 0) return 0;
 		kkk = 0;
 
-		unsigned long ss = initial_exe_t / (100 / PERCENT_EXE) / 15 * 2;
+		unsigned long ss = initial_exe_t / (100 / PERCENT_EXE) / 6;
 		for (i=0; i<ss; i++) kkk++;
-		has_run = ss * 15 / 2;//loop_cost;//
+		has_run = ss * 6;//loop_cost;//
 
 		if (has_run > exe_time_left) {
 			return 0;

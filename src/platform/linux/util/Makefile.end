@@ -6,6 +6,7 @@ init: first
 first: cp build
 
 cp:
+	rm *.o
 	cp $(TRANS_DIR)/* $(TEST_DIR)
 
 clean:
