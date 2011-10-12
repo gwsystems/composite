@@ -43,7 +43,7 @@
 //#define THD_POOL 1
 #define CBUF_UNIT 5
 
-#define POLICY_PERIODICITY 100
+#define POLICY_PERIODICITY 25
 
 #define STK_MGR 0
 #define CBUF_MGR 1
@@ -365,7 +365,7 @@ find_min_tardiness_comp(struct component * c_original)
 			for( c = FIRST_LIST(&components[mgr], next, prev);
 			     c != &components[mgr] ;
 			     c = FIRST_LIST(c, next, prev)) {
-				if (c->concur_new == 1 || c == c_original || c->add_in || c->ss_counter + 1 >= c->concur_new)
+				if (c->concur_new == 1 || c == c_original || c->add_in || c->ss_counter + 1 >= c->concur_new || (mgr == CBUF_MGR && c->concur_est > 0 && c->concur_new <= CBUF_UNIT))
 					continue;
 				largest = 0;
 				impact_largest = LONG_MIN;
