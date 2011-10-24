@@ -511,6 +511,7 @@ int netif_event_wait(spdid_t spdid, struct cos_array *d)
 	if (d->sz < MTU) return -EINVAL;
 
 	interrupt_wait();
+	prints("In netif\n");
 	NET_LOCK_TAKE();
 	if (interrupt_process(d->mem, d->sz, &ret_sz)) BUG();
 	NET_LOCK_RELEASE();

@@ -325,8 +325,8 @@ static void boot_find_cobjs(struct cobj_header *h, int n)
 		for (j = 0 ; j < (int)h->nsect ; j++) {
 			tot += cobj_sect_size(h, j);
 		}
-		printc("cobj found at %p:%d, size %d -> %x\n", 
-		       hs[i-1], size, tot, cobj_sect_get(hs[i-1], 0)->vaddr);
+		printc("cobj %d found at %p:%d, size %d -> %x\n", 
+		       i, hs[i-1], size, tot, cobj_sect_get(hs[i-1], 0)->vaddr);
 
 		end = start + round_up_to_cacheline(size);
 		hs[i] = h = (struct cobj_header*)end;

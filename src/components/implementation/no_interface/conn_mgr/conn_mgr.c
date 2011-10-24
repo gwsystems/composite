@@ -87,7 +87,6 @@ static void data_new(int fd)
 			cos_close(fd_pair);
 			cos_close(fd);
 			printc("conn_mgr: write failed w/ %d on fd %d\n", ret, fd_pair);
-			BUG();
 		}
 	}
 	cos_argreg_free(buf);
