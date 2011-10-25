@@ -407,6 +407,15 @@ void cos_init(void *arg)
 	h = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj = (int)cos_comp_info.cos_poly[1];
 	boot_find_cobjs(h, num_cobj);
+	/* This component really might need more vas */
+	if (cos_vas_cntl(COS_VAS_SPD_EXPAND, cos_spd_id(), 
+			 round_up_to_pgd_page((unsigned long)&num_cobj), 
+			 round_up_to_pgd_page(1))) {
+		printc("Could not expand boot component to %p:%x\n",
+		       round_up_to_pgd_page((unsigned long)&num_cobj), 
+		       round_up_to_pgd_page(1));
+		BUG();
+	}
 
 	printc("h @ %p, heap ptr @ %p\n", h, cos_get_heap_ptr());
 	printc("header %p, size %d, num comps %d, new heap %p\n", 
