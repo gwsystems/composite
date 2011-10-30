@@ -52,6 +52,7 @@ $(COMPONENT): $(OBJS)
 #	$(info |     [DIET] Linking with dietlibc to produce $@)
 	@$(DIETCC) $(DIETCFLAGS) -Xlinker -r -o $@ $@.$(TMP_STR)
 	@rm $@.$(TMP_STR)
+	@cp $@ c.o
 
 %.o:%.c
 	$(info |     [CC]   Compiling $<)
