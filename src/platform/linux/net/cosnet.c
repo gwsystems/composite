@@ -399,7 +399,6 @@ static int cosnet_xmit_packet(void *headers, int hlen, struct gather_item *gi,
 		printk("<<fail>>\n");
 		local_ts->stats.tx_dropped++;
 	} else {
-		printk("<<sent>>\n");
 		local_ts->dev->last_rx = jiffies;
 		local_ts->stats.tx_packets++;
 		local_ts->stats.tx_bytes += totlen;
@@ -537,8 +536,6 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	/* Drop packet if interface is not attached */
 	//if (!tun->attached)
 	//goto drop;
-
-	printk("<<dev_recv>>\n");
 
 	cos_net_prebrand();
 	cosnet = cosnet_resolve_brand(tun, skb);

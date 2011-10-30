@@ -1522,10 +1522,6 @@ void host_idle(void)
 	idle_status = IDLE_AWAKE;
 	cos_meas_event(COS_MEAS_IDLE_RUN);
 	event_record("coming out of idle", thd_get_id(thd_get_current()), 0);
-	printk("out of idle: page table %x\n", (unsigned int)current->mm->pgd);
-	printk("out of idle: spd %d, ip %x\n", 
-	       spd_get_index(thd_get_thd_spd(thd_get_current())), 
-	       thd_get_current()->regs.ip);
 }
 
 static void host_idle_wakeup(void)
@@ -1620,9 +1616,6 @@ int host_attempt_brand(struct thread *brand)
 			} else if (host_in_idle()) {
 				event_record("upcall causing host idle wakeup", 
 					     thd_get_id(cos_current), thd_get_id(next));
-				printk("next thd's spd,pagetable %d, %x\n", 
-					     (long)spd_get_index(thd_get_thd_spd(next)), 
-					     (long)thd_get_thd_spd(next)->spd_info.pg_tbl);
 				host_idle_wakeup();
 			}
 

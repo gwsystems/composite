@@ -651,9 +651,6 @@ static inline int sched_tailcall_adjust_invstk(struct thread *t)
 	if (NULL == ntif) return -1;
 	nspd = ntif->current_composite_spd;
 
-	printk("XXX current %d and return to spd %d\n", 
-	       (long)spd_get_index(tif->spd), (long)spd_get_index(ntif->spd));
-
 	open_close_spd(nspd, cspd);
 
 	spd_mpd_ipc_release((struct composite_spd *)tif->current_composite_spd);

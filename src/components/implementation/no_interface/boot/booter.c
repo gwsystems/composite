@@ -412,8 +412,8 @@ void cos_init(void *arg)
 			 round_up_to_pgd_page((unsigned long)&num_cobj), 
 			 round_up_to_pgd_page(1))) {
 		printc("Could not expand boot component to %p:%x\n",
-		       round_up_to_pgd_page((unsigned long)&num_cobj), 
-		       round_up_to_pgd_page(1));
+		       (void *)round_up_to_pgd_page((unsigned long)&num_cobj), 
+		       (unsigned int)round_up_to_pgd_page(1));
 		BUG();
 	}
 
