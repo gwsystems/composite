@@ -1,12 +1,14 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, NoMonomorphismRestriction #-}
 
 import Data.Graph.Inductive
 import Data.Generics
 import Data.List
+import Data.GraphViz
 
-data Component = C String String CArgs COptions -- Component Specification
-               | CA Agg                         -- Aggregate
-               | CT Component CType deriving (Eq, Show, Data, Typeable) -- Typed Component 
+data Component = CS String String CArgs COptions -- Component Specification
+               | CA Agg                          -- Aggregate
+               | CT Component CType              -- Typed Component
+               | Dup Component String  deriving (Eq, Show, Data, Typeable) -- Duplicate and rename an existing component
 
 data COptions = COpt { schedParams :: String
                      , isSched :: Bool
@@ -23,10 +25,9 @@ data CType = T [Fn] [(IF, Fn)] deriving (Eq, Show, Data, Typeable)
 type Fn = String -- function name
 type IF = String -- interface
 
-data Stmt = As CType Component         -- Stype must be a subtype (wrt structural subtyping) of Component's type 
+data Stmt = As CType Component         -- Stype must be a subtype (wrt structural subtyping) of Component's type
           | Dep Component Component    -- Dependency from the first to the second
           | DepTSyn Component Component String -- Dependency with local type synonym
-          | Dup Component String       -- Duplicate and rename an existing component
           | Comp Component deriving (Eq, Show, Data, Typeable)
 
 -- The CFuse language
@@ -34,7 +35,7 @@ data CFuse = CFuse [Stmt] deriving (Eq, Show, Data, Typeable)
 
 -- Component construction
 comp :: String -> String -> String -> Component
-comp i n s = C i n "" COpt {schedParams = s, isSched = False, isFaultHndl = False, isInit = False}
+comp i n s = CS i n "" COpt {schedParams = s, isSched = False, isFaultHndl = False, isInit = False}
 
 agg :: [Component] -> Component
 agg cs = CA cs -- map cunwrap cs 
@@ -47,12 +48,12 @@ uwcomp (Comp c) = c
 
 -- set component fields
 cSetSched :: Component -> String -> Component
-cSetSched (C a b c o) s = C a b c (o {schedParams=s})
-cSetArgs  (C a b _ c) s = C a b s c
+cSetSched (CS a b c o) s = CS a b c (o {schedParams=s})
+cSetArgs  (CS a b _ c) s = CS a b s c
 cIsSched  :: Component -> Component
-cIsSched  (C a b c o)   = C a b c (o {isSched=True})
-cIsFltH   (C a b c o)   = C a b c (o {isFaultHndl=True})
-cIsInit   (C a b c o)   = C a b c (o {isInit=True})
+cIsSched  (CS a b c o)   = CS a b c (o {isSched=True})
+cIsFltH   (CS a b c o)   = CS a b c (o {isFaultHndl=True})
+cIsInit   (CS a b c o)   = CS a b c (o {isInit=True})
 
 -- Dependencies
 dep  c1 c2   = Dep c1 c2
@@ -64,7 +65,7 @@ progConcat (CFuse p1) (CFuse p2) = (CFuse (p1 ++ p2))
 -- Querying the structure
 lstCs :: CFuse -> [Component]
 lstCs p = let f = (\c -> case c of 
-                           (C _ _ _ _) -> True
+                           (CS _ _ _ _) -> True
                            _ -> False)
           in nub $ listify f p
 
@@ -84,13 +85,13 @@ lstDeps p = let f = (\c -> case c of
 -- This will need to be very complicated and read all the type info from the FS
 annotateCs :: [Component] -> [Component]
 annotateCs cs = map f cs
-    where f c = case c of 
-                  (C a b c d) -> (CT (C a b c d) (T [""] [("","")]))
+    where f (CS i n c d) = (CT (CS i n c d) (T [""] [("","")]))
+          f (Dup (CS i n c d) n') -> (CT (CS i n' c d) (T [""] [("","")]))
 
 compLift cs = map (\a -> case a of 
                            (CT a' _) -> a') cs
 
-compIndex :: [Stmt] -> Component -> Int
+compIndex :: [Component] -> Component -> Int
 compIndex cts c = n
     where cs = compLift cts
           a = elemIndex c cs
@@ -99,31 +100,49 @@ compIndex cts c = n
                 (Nothing) -> -1
 
 -- Should only pass in CTs
-cmkVertices :: [Component] -> [LNode]
+cmkVertices :: [Component] -> [LNode Component]
 cmkVertices cs = map f (compLift cs)
     where f c = ((compIndex cs c), c)
 
 -- Should only pass in Deps and (compIndex cs)
-cmkEdges :: [Stmt] -> (Component -> Int) -> [LEdge]
+cmkEdges :: [Stmt] -> (Component -> Int) -> [LEdge String]
 cmkEdges ds idxf = map f ds
-    where f (Dep c1 c2) = (((idxf c1), (idxf c2)), "")
+    where f (Dep c1 c2) = ((idxf c1), (idxf c2), "")
+          f (DepTSyn c1 c2 s) = ((idxf c1), (idxf c2), s)
 
-compGraph :: CFuse -> Graph a b
+--type FusedSys (DynGraph Component String, [Stmt], [Component])
+
+compGraph :: CFuse -> Gr Component String
 compGraph p = let cts = annotateCs $ lstCs p
-                  vs = cmkVertices cts
-                  es = cmkEdges (lstDeps p) (compIndex cts)
+                  vs  = cmkVertices cts
+                  es  = cmkEdges (lstDeps p) (compIndex cts)
               in mkGraph vs es
-              
+
+--cParams = GraphvizParams n n1 el () nl
+cParams = nonClusteredParams { globalAttributes = []
+                             , fmtNode = fn
+                             , fmtEdge = fe}
+          where 
+            fn (_, (CT (CS s1 s2 _ _) _)) = [toLabel (s1 ++ "." ++ s2)]
+            fn (_, (CS s1 s2 _ _))        = [toLabel (s1 ++ "." ++ s2)]
+            fn _                          = [toLabel ""]
+            fe (_, _, e)                  = [toLabel e]
+
+--translateToDot :: CFuse -> String
+translateToDot p =  printDotGraph $ graphToDot cParams (compGraph p)
+
+--translateToRunscript p = 
 
 main :: IO ()
 main = let b = comp "no_interface" "booter" ""
            c = comp "something" "comp" ""
            d = comp "no_interface" "booter" ""
-           e = annotateCs $ lstCs $ CFuse 
-              [ Comp b
-              , Comp (agg [cSetSched (comp "a" "b" "") "a1", comp "c" "d" "", d])
-              , dep b c
-              , dep c d]
+           p = CFuse 
+               [ Comp b
+               , Comp (agg [cSetSched (comp "a" "b" "") "a1", comp "c" "d" "", d])
+               , dep b c
+               , dep c d]
+           e = annotateCs $ lstCs $ p
            i = compIndex e
-       in print $ (show $ i b) ++ (show $ i c) ++ (show $ i d)
+       in print $ translateToDot p
 
