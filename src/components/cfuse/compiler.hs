@@ -34,15 +34,15 @@ data Stmt = As CType Component         -- Stype must be a subtype (wrt structura
 data CFuse = CFuse [Stmt] deriving (Eq, Show, Data, Typeable)
 
 -- Component construction
-comp :: String -> String -> String -> Component
-comp i n s = CS i n "" COpt {schedParams = s, isSched = False, isFaultHndl = False, isInit = False}
+comp :: String -> String -> String -> String -> Component
+comp i n s a = CS i n a COpt {schedParams = s, isSched = False, isFaultHndl = False, isInit = False}
 
 agg :: [Component] -> Component
 agg cs = CA cs -- map cunwrap cs 
 
 -- wrapped comp
-wcomp  :: String -> String -> String -> Stmt
-wcomp i n s     = Comp (comp i n s)
+wcomp  :: String -> String -> String -> String -> Stmt
+wcomp i n s a   = Comp (comp i n s a)
 uwcomp :: Stmt -> Component
 uwcomp (Comp c) = c
 
@@ -66,6 +66,7 @@ progConcat (CFuse p1) (CFuse p2) = (CFuse (p1 ++ p2))
 lstCs :: CFuse -> [Component]
 lstCs p = let f = (\c -> case c of 
                            (CS _ _ _ _) -> True
+                           (Dup _ _)      -> True
                            _ -> False)
           in nub $ listify f p
 
@@ -77,7 +78,8 @@ lstAggs p = let f = (\c -> case c of
 
 lstDeps :: CFuse -> [Stmt]
 lstDeps p = let f = (\c -> case c of
-                             (Dep _ _) -> True 
+                             (Dep _ _)     -> True 
+                             (DepTSyn _ _ _) -> True 
                              _ -> False)
             in nub $ listify f p
 
@@ -85,8 +87,9 @@ lstDeps p = let f = (\c -> case c of
 -- This will need to be very complicated and read all the type info from the FS
 annotateCs :: [Component] -> [Component]
 annotateCs cs = map f cs
-    where f (CS i n c d) = (CT (CS i n c d) (T [""] [("","")]))
-          f (Dup (CS i n c d) n') -> (CT (CS i n' c d) (T [""] [("","")]))
+    where f (CS i n c d)          = (CT (CS i n c d) (T [""] [("","")]))
+          f (CA cs)               = (CT (CA cs) (T [""] [("","")]))
+          f (Dup (CS i n c d) n') = (CT (CS i n' c d) (T [""] [("","")]))
 
 compLift cs = map (\a -> case a of 
                            (CT a' _) -> a') cs
@@ -94,10 +97,10 @@ compLift cs = map (\a -> case a of
 compIndex :: [Component] -> Component -> Int
 compIndex cts c = n
     where cs = compLift cts
-          a = elemIndex c cs
-          n = case a of 
-                (Just a') -> a'
-                (Nothing) -> -1
+          a  = elemIndex c cs
+          n  = case a of 
+                 (Just a') -> a'
+                 (Nothing) -> -1
 
 -- Should only pass in CTs
 cmkVertices :: [Component] -> [LNode Component]
@@ -107,7 +110,7 @@ cmkVertices cs = map f (compLift cs)
 -- Should only pass in Deps and (compIndex cs)
 cmkEdges :: [Stmt] -> (Component -> Int) -> [LEdge String]
 cmkEdges ds idxf = map f ds
-    where f (Dep c1 c2) = ((idxf c1), (idxf c2), "")
+    where f (Dep c1 c2)       = ((idxf c1), (idxf c2), "")
           f (DepTSyn c1 c2 s) = ((idxf c1), (idxf c2), s)
 
 --type FusedSys (DynGraph Component String, [Stmt], [Component])
@@ -128,21 +131,26 @@ cParams = nonClusteredParams { globalAttributes = []
             fn _                          = [toLabel ""]
             fe (_, _, e)                  = [toLabel e]
 
---translateToDot :: CFuse -> String
 translateToDot p =  printDotGraph $ graphToDot cParams (compGraph p)
 
---translateToRunscript p = 
+-- dependency list
+depl :: [(Component, [Component])] -> [Stmt]
+depl dl = concat $ map (\(c, cs) -> map (\d -> dep c d) cs) dl
+
+-- component list
+compl :: [Component] -> [Stmt]
+compl cs = map (\c -> Comp c) cs
+
+cfuse ss = CFuse $ concat ss
 
 main :: IO ()
-main = let b = comp "no_interface" "booter" ""
-           c = comp "something" "comp" ""
-           d = comp "no_interface" "booter" ""
-           p = CFuse 
-               [ Comp b
-               , Comp (agg [cSetSched (comp "a" "b" "") "a1", comp "c" "d" "", d])
-               , dep b c
-               , dep c d]
-           e = annotateCs $ lstCs $ p
-           i = compIndex e
+main = let a = comp  "a" "b" "a1" ""
+           b = comp "no_interface" "booter" "" ""
+           c = comp "something" "comp" "" ""
+           d = comp "no_interface" "other" "" ""
+           e = comp "c" "d" "" ""
+           f = agg [a, e, d]
+           p = cfuse [depl [ (b, [c, d])
+                           , (a, [b, d])
+                           , (c, [a, d, e])]]
        in print $ translateToDot p
-
