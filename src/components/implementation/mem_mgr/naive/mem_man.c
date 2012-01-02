@@ -2,7 +2,8 @@
  * Copyright 2008 by Gabriel Parmer, gabep1@cs.bu.edu.  All rights
  * reserved.
  *
- * The George Washington University, Gabriel Parmer, gparmer@gwu.edu.
+ * Completely rewritten to use a sane data-structure, Gabriel Parmer,
+ * gparmer@gwu.edu, 2011.
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
@@ -15,245 +16,320 @@
 #define COS_FMT_PRINT
 #include <cos_component.h>
 #include <cos_debug.h>
+#include <cos_alloc.h>
 #include <print.h>
 
 #include <mem_mgr.h>
 
-#define MAX_ALIASES 32
+/*** Data-structure for tracking physical memory ***/
+struct frame {
+	union c {
+		int nmaps;
+		struct frame *free;
+	}
+} frames[COS_MAX_MEMORY];
+struct frame *freelist;
 
-#define MEM_MARKED 1
+static inline int  frame_index(struct frame *f)   { return f-frames; }
+static inline void frame_nrefs(struct frame *f)   { return f->c.nmaps; }
+static inline void frame_ref(struct frame *f)     { f->c.nmaps++; }
 
-struct mapping_info {
-	unsigned short int owner_spd, flags;
-	vaddr_t addr;
-	int parent;
-};
-struct mem_cell {
-	int naliases;
-	struct mapping_info map[MAX_ALIASES];
-} __attribute__((packed));
-
-static struct mem_cell cells[COS_MAX_MEMORY];
-
-static inline long cell_index(struct mem_cell *c)
+static inline struct frame *
+frame_alloc(void)
 {
-	return c - cells;
+	struct frame *f = freelist;
+
+	if (!f) return NULL;
+	freelist = f->c.free;
+	f->c.nmaps = 0;
+
+	return f;
 }
 
-static inline struct mem_cell *find_unused(void)
+static inline void 
+frame_deref(struct frame *f)
+{ 
+	f->c.nmaps--; 
+	if (f->c.nmaps == 0) {
+		f->c.free = freelist;
+		freelist = f;
+	}
+}
+
+static void
+frame_init(void)
 {
 	int i;
 
-	/* If we care about scaling, this should, of course use freelist */
-	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
-		if (!cells[i].naliases) return &cells[i];
+	for (i = 0 ; i < COS_MAX_MEMORY-1 ; i++) {
+		frames[i].c.free = &frames[i+1];
 	}
-	return NULL;
+	freelist = &frames[0];
 }
 
-static inline struct mem_cell *find_cell(spdid_t spd, vaddr_t addr, int *alias)
+static inline void
+mm_init(void)
 {
-	int i, j;
-
-	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
-		struct mem_cell *c = &cells[i];
-
-		for (j = 0; j < MAX_ALIASES; j++) {
-			if (c->map[j].owner_spd == spd && 
-			    c->map[j].addr      == addr) {
-				*alias = j;
-				return c;
-			}
-		}
+	static int first = 1;
+	if (unlikely(first)) {
+		first = 0;
+		frame_init();
 	}
-
-	return NULL;
 }
 
-/* 
- * Call to get a page of memory at a location.
- */
+/**********************************************/
+/*** Virtual address tracking per component ***/
+/**********************************************/
+
+COS_VECT_CREATE_STATIC(comps);
+struct comp_vas {
+	int nmaps;
+	cos_vect_t *pages;
+};
+
+static struct comp_vas *
+cvas_lookup(spdid_t spdid)
+{ return cos_vect_lookup(&comps, spdid); }
+
+static struct comp_vas *
+cvas_alloc(spdid_t spdid)
+{
+	struct comp_vas *cv
+
+	assert(!cvas_lookup(spdid));
+	cv = malloc(sizeof(struct comp_vas));
+	if (!cv) goto done;
+	cv->pages = cos_vect_alloc();
+	if (!cv->pages) goto free;
+	cos_vect_init(cv->pages);
+	cv->nmaps = 0;
+done:
+	return cv;
+free:
+	free(cv);
+	cv = NULL;
+	goto done;
+}
+
+static void
+cvas_ref(struct comp_vas *cv)
+{
+	assert(cv);
+	cv->nmaps++;
+}
+
+static void 
+cvas_deref(struct comp_vas *cv)
+{
+	assert(cv && cv->nmaps > 0);
+	cv->nmaps--;
+	if (cv->nmaps == 0) {
+		cos_vect_free(cv->pages);
+		free(cv);
+	}
+}
+
+/**************************/
+/*** Mapping operations ***/
+/**************************/
+
+struct mapping {
+	int flags;
+	spdid_t spdid;
+	vaddr_t addr;
+
+	struct frame *f;
+	/* child and sibling mappings */
+	struct mapping *p, *c, *_s, *s_;
+} __attribute__((packed));
+
+static void
+mapping_init(struct mapping *m, struct mapping *p, struct frame *f)
+{
+	assert(m && f);
+	INIT_LIST(m, _s, s_);
+	m->p = p;
+	m->f = f;
+	m->flags = 0;
+	if (p) {
+		m->flags = p->flags;
+		if (!p->c) p->c = m;
+		else       ADD_LIST(p->c, m, _s, s_);
+	}
+}
+
+static struct mapping *
+mapping_lookup(spdid_t spdid, vaddr_t addr)
+{
+	struct comp_vas *cv = cvas_lookup(spdid);
+
+	if (!cv) return NULL;
+	return cos_vect_lookup(cv->pages, addr >> PAGE_SHIFT);
+}
+
+/* Make a child mapping */
+static struct mapping *
+mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to)
+{
+	struct comp_vas *cv = cvas_lookup(spdid);
+	struct mapping *m;
+	long idx = to >> PAGE_SHIFT;
+
+	assert(!p || p->f == f);
+	if (!cv) {
+		cv = cvas_alloc(dest);
+		if (!cv) return NULL;
+	}
+	cvas_ref(cv);
+	if (cos_vect_lookup(cv->pages, idx)) goto no_mapping;
+	m = malloc(sizeof(struct mapping));
+	if (!m) goto no_mapping;
+
+	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, dest, to, frame_index(f))) {
+		BUG();
+		goto no_mapping;
+	}
+	mapping_init(m, p, f);
+	assert(frame_nrefs(f) > 0)
+	frame_ref(f);
+	if (cos_vect_add(cv->pages, m, idx)) BUG();
+done:
+	return m;
+no_mapping:
+	cvas_deref(cv);
+	m = NULL;
+	goto done;
+}
+
+/* Take all decedents, return them in a list. */
+static struct mapping *
+__mapping_linearize_decendents(struct mapping *m)
+{
+	struct mapping *first, *last, *c, *gc;
+	
+	first = c = m->c;
+	m->c = NULL;
+	if (!c) return NULL;
+	do {
+		last = PREV_LIST(first, _s, s_);
+		c->p = NULL;
+		gc = c->c;
+		c->c = NULL;
+		/* add the grand-children onto the end of our list of decedents */
+		LIST_ADD(last, gc, _s, s_);
+		c = NEXT_LIST(c, _s, s_);
+	} while (first != c);
+	
+	return first;
+}
+
+static void
+__mapping_destroy(struct mapping *m)
+{
+	comp_vas *cv;
+	int idx;
+
+	assert(m);
+	assert(EMPTY_LIST(m, _s, s_));
+	assert(m->p == NULL && m->c == NULL);
+	cv = cvas_lookup(m->spdid);
+	assert(cv);
+	cos_vect_del(cv->pages, m->addr >> PAGE_SHIFT);
+	cvas_deref(cv);
+
+	idx = cos_mmap_cntl(COS_MMAP_REVOKE, 0, m->spdid, m->addr, 0);
+	assert(idx == frame_index(m->f));
+	frame_deref(m->f);
+	free(m);
+}
+
+static void
+mapping_del_children(struct mapping *m)
+{
+	struct mapping *d, *n; 	/* decedents, next */
+
+	assert(m);
+	d = mapping_linearize_decendents(m);
+	while (d) {
+		n = NEXT_LIST(d, _s, s_);
+		REM_LIST(d, _s, s_);
+		__mapping_destroy(d);
+		d = (n == d) ? NULL : n;
+	}
+	assert(!m->c);
+}
+
+static void
+mapping_del(struct mapping *m)
+{
+	assert(m);
+	mapping_del_children(m);
+	assert(!m->c);
+	if (m->p && m->p->c == m) {
+		if (EMPTY_LIST(m, _s, s_)) m->p->c = NULL;
+		else                       m->p->c = NEXT_LIST(m, _s, s_);
+		m->p = NULL;
+	}
+	REM_LIST(m, _s, s_);
+	__mapping_destroy(d);
+}
+
+/********************************/
+/*** Public interface methods ***/
+/********************************/
+
 vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 {
-	struct mem_cell *c;
-	struct mapping_info *m;
+	struct frame *f;
+	struct mapping *m;
 
-	c = find_unused();
-	if (!c) {
-		printc("mm: no more available pages!\n");
-		goto err;
-	}
-
-	c->naliases++;
-	m = c->map;
-	m->owner_spd = spd;
-	m->addr = addr;
-	m->parent = -1;
-
-	/* Here we check for overwriting an already established mapping. */
-	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, spd, addr, cell_index(c))) {
-		printc("mm: could not grant page @ %x to spd %d\n", 
-		       (unsigned int)addr, (unsigned int)spd);
-		m->owner_spd = m->addr = 0;
-		goto err;
-	}
-
-	return addr;
-err:
-	return 0;
+	mm_init();
+	f = frame_alloc();
+	if (!f) return 0;
+	m = mapping_crt(NULL, f, spd, addr);
+	if (!m) goto dealloc;
+	assert(m->addr == addr);
+	assert(m->spdid == spd);
+done:
+	return m->addr;
+dealloc:
+	frame_ref(f);
+	frame_deref(f);
+	goto done;
 }
 
-/* 
- * Make an alias to a page in a source spd @ a source address to a
- * destination spd/addr
- */
 vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr)
 {
-	int alias = -1, i;
-	struct mem_cell *c;
-	struct mapping_info *base;
+	struct mapping *m, *n;
+
+	mm_init();
+	m = mapping_lookup(s_spd, s_addr);
+	if (!m) return 0;
+	n = mapping_crt(m, m->f, d_spd, d_addr);
+	if (!n) return 0;
 	
-	c = find_cell(s_spd, s_addr, &alias);
-	if (-1 == alias) {printc("WTF\n");goto err;}
-	assert(alias >= 0 && alias < MAX_ALIASES);
-	base = c->map;
-	for (i = 0 ; i < MAX_ALIASES ; i++) {
-		if (alias == i || base[i].owner_spd != 0 || base[i].addr != 0) {
-			continue;
-		}
-
-		if (cos_mmap_cntl(COS_MMAP_GRANT, 0, d_spd, d_addr, cell_index(c))) {
-			printc("mm: could not alias page @ %x to spd %d from %x(%d)\n", 
-			       (unsigned int)d_addr, (unsigned int)d_spd, (unsigned int)s_addr, (unsigned int)s_spd);
-			goto err;
-		}
-		base[i].owner_spd = d_spd;
-		base[i].addr = d_addr;
-		base[i].parent = alias;
-		c->naliases++;
-
-		return d_addr;
-	}
-	/* no available alias slots! */
-err:
-	return 0;
+	assert(n->addr == d_addr);
+	assert(n->spdid == d_spdid);
+	assert(n->p == m);
+	return d_addr;
 }
 
-static inline int
-is_descendent(struct mapping_info *mi, int parent, int child)
+int mman_revoke_page(spdid_t spd, vaddr_t addr, int flags)
 {
-	assert(child < MAX_ALIASES && child >= 0);	
-	while (mi[child].parent != -1) {
-		assert(mi[child].parent < MAX_ALIASES && mi[child].parent >= 0);
-		if (mi[child].parent == parent) return 1;
-		child = mi[child].parent;
-	}
-	return 0;
+	struct mapping *m;
+
+	mm_init();
+	m = mapping_lookup(spd, addr);
+	if (!m) return -1;
+	mapping_del_children(m);
 }
 
-/*
- * Call to give up a page of memory in an spd at an address.
- */
-void mman_revoke_page(spdid_t spd, vaddr_t addr, int flags)
+int mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 {
-	int alias, i;
-	struct mem_cell *mc;
-	struct mapping_info *mi;
+	struct mapping *m;
 
-	mc = find_cell(spd, addr, &alias);
-	if (!mc) {
-		/* FIXME: add return codes to this call */
-		return;
-	}
-	mi = mc->map;
-	for (i = 0 ; i < MAX_ALIASES ; i++) {
-		int idx;
-
-		if (i == alias || !mi[i].owner_spd || 
-		    !is_descendent(mi, alias, i)) continue;
-		idx = cos_mmap_cntl(COS_MMAP_REVOKE, 0, mi[i].owner_spd, 
-				    mi[i].addr, 0);
-		assert(&cells[idx] == mc);
-		/* mark page as removed */
-		mi[i].addr = 0;
-		mc->naliases--;
-	}
-	/* Go through and free all pages marked as removed */
-	for (i = 0 ; i < MAX_ALIASES ; i++) {
-		if (mi[i].addr == 0 && 
-		    mi[i].owner_spd) {
-			mi[i].owner_spd = 0;
-			mi[i].parent = 0;
-		}
-	}
-
-	return;
+	mm_init();
+	m = mapping_lookup(spd, addr);
+	if (!m) return -1;
+	mapping_del(m);
 }
-
-/* 
- * FIXME: change interface to include the component making the call to
- * make sure that it owns the page it is trying to unmap (and the one
- * it is unmapping is a descendent.
- */
-void mman_release_page(spdid_t spd, vaddr_t addr, int flags)
-{
-	int alias;
-	long idx;
-	struct mem_cell *mc;
-	struct mapping_info *mi;
-
-	mman_revoke_page(spd, addr, flags);
-	mc = find_cell(spd, addr, &alias);
-	if (!mc) {
-		/* FIXME: add return codes to this call */
-		return;
-	}
-	mi = mc->map;
-	idx = cos_mmap_cntl(COS_MMAP_REVOKE, 0, mi[alias].owner_spd, 
-			    mi[alias].addr, 0);
-	assert(&cells[idx] == mc);
-	mi[alias].addr = 0;
-	mi[alias].owner_spd = 0;
-	mi[alias].parent = 0;
-	mc->naliases--;
-
-	return;
-}
-
-void mman_print_stats(void)
-{
-	int i, j, k, l;
-
-	printc("Memory allocation stats:\n");
-	for (k = 0 ; k < COS_MAX_MEMORY ; k++) {
-		for (l = 0 ; l < MAX_ALIASES ; l++) {
-			int spd_accum = 0, curr_spd;
-			struct mapping_info *mc;
-
-			mc = &cells[k].map[l];
-			
-			if (MEM_MARKED & mc->flags) continue;
-			mc->flags |= MEM_MARKED;
-			curr_spd = mc->owner_spd;
-			spd_accum++;
-			for (i = k ; i < COS_MAX_MEMORY ; i++) {
-				for (j = 0 ; j < MAX_ALIASES ; j++) {
-					mc = &cells[i].map[j];
-					if (mc->owner_spd == curr_spd && !(MEM_MARKED & mc->flags)) {
-						mc->flags |= MEM_MARKED;
-						spd_accum++;
-					}
-				}
-			}
-			
-			printc("\tspd %d used %d pages\n", 
-			       (unsigned int)curr_spd, (unsigned int)spd_accum);
-		}
-	}
-}
-
-/* 
- * FIXME: add calls to obtain descriptors for the page regions, so
- * that they can be used to produce aliases.  This will allow for
- * shared memory, which we don't really support quite yet.
- */
