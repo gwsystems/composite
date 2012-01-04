@@ -152,19 +152,19 @@ err:
 /*
  * Call to give up a page of memory in an spd at an address.
  */
-void mman_release_page(spdid_t spd, vaddr_t addr, int flags)
+int mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 {
 	int alias;
 	struct mem_cell *mc;
 
 	mc = find_cell(spd, addr, &alias);
-	if (!mc) return; /* FIXME: add return codes to this call */
+	if (!mc) return -1; /* FIXME: add return codes to this call */
 	main_mman_revoke_page(cos_spd_id(), (vaddr_t)mc->local_addr, flags);
 	/* put the page back in the pool */
 	mc->map[alias].owner_spd = 0;
 	mc->map[alias].addr = 0;
 
-	return;
+	return 0;
 }
 
 void mman_print_stats(void)

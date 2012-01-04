@@ -1,8 +1,16 @@
 #ifndef BITMAP_H
 #define BITMAP_H
 
+#ifdef LINUX_TEST
+
+#define u32_t unsigned int 
+
+#else
+
 #include <cos_types.h>
 #include <consts.h>
+
+#endif
 
 /* Many of these taken from aggregate.org/MAGIC */
 

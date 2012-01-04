@@ -18,9 +18,9 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags);
  * pass in the component id of the calling component to ensure that it
  * is allowed to remove the designated page.
  */
-void mman_release_page(spdid_t spd, vaddr_t addr, int flags);
+int mman_release_page(spdid_t spd, vaddr_t addr, int flags);
 /* remove all descendent mappings of this one (but not this one). */ 
-void mman_revoke_page(spdid_t spd, vaddr_t addr, int flags); 
+int mman_revoke_page(spdid_t spd, vaddr_t addr, int flags); 
 /* The invoking component (s_spd) must own the mapping. */
 vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr);
 void mman_print_stats(void);
