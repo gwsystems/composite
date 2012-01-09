@@ -5,12 +5,16 @@ component exports an interface used to harness its functionality, and
 components are composed together to form an executable system.
 
 Composite currently supports a platform with:
+
 - x86-32
+
 - booting using Linux 2.6.33 or 2.6.36 (see Hijack support for booting
   information)
+
 - networking
 
 Research features of COMPOSITE currently include:
+
 - Mutable protection domains -- hardware protection boundaries can be
   raised or lowered dynamically in a controlled manner to trade fault
   isolation for performance
