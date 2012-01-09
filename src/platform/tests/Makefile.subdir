@@ -4,7 +4,7 @@ INCLUDE = -I$(SHAREDINC) -I$(CDIR)/include/
 CFILES  = $(wildcard *.c)
 OFILES  = $(CFILES:%.c=%.o)
 EXEC    = $(CFILES:%.c=%)
-OPT     = -O3
+OPT     = -ggdb3
 CFLAGS  = -Wall -Wextra $(OPT) $(INCLUDE)
 
 $(EXEC):$(OFILES)
