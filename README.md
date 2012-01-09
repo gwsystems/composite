@@ -40,7 +40,8 @@ Where to start -- a tour of the source code
 -------------------------------------------
 
 - Please read the doc/ directory for more information on how the code
-  is organized, or join the compositeos@googlegroups.com mailing list.
+  is organized
+- Join the compositeos@googlegroups.com mailing list
 
 _Composite_ system support
 --------------------------
