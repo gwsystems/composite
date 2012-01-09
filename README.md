@@ -4,11 +4,8 @@ synchronization are defined as discrete user-level components.  Each
 component exports an interface used to harness its functionality, and
 components are composed together to form an executable system.
 
-Composite currently supports a platform with:
-- x86-32
-- booting using Linux 2.6.33 or 2.6.36 (see Hijack support for booting
-  information)
-- networking
+Please see www.seas.gwu.edu/~gparmer/composite for publications and
+more information.
 
 Research features of COMPOSITE currently include:
 
@@ -38,6 +35,18 @@ Research features of COMPOSITE currently include:
   election based on Scantegrity in Takoma Park, MD.  It provided a
   secure webpage for verifying ballots after the election.
 
-Source code: This package includes the source code for COMPOSITE.
-Please read the doc/ directory for more information, or join the
-compositeos@googlegroups.com mailing list.
+Source code: 
+
+- Please read the doc/ directory for more information on how the code
+  is organized, or join the compositeos@googlegroups.com mailing list.
+
+Composite currently supports a platform with:
+
+- x86-32
+- booting using Linux 2.6.33 or 2.6.36 (see Hijack support for booting
+  information)
+- networking
+
+**The code is pre-alpha quality.  Some parts are quite solid, many
+  others are absolutely not.  Please consult with us to determine if
+  it is right for you.**
