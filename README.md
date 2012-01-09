@@ -8,7 +8,7 @@ Please see www.seas.gwu.edu/~gparmer/composite for publications and
 more information.
 
 Research features of _Composite_
-------------------------------
+--------------------------------
 
 - Mutable protection domains -- hardware protection boundaries can be
   raised or lowered _dynamically_ and in a controlled manner to trade
@@ -55,4 +55,4 @@ Important note
 
 **The code is pre-alpha quality.  Some parts are quite solid, many
   others are absolutely not.  Please consult with us to determine if
-  it is right for you.**
+  it is right for your use-case.**
