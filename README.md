@@ -5,34 +5,35 @@ component exports an interface used to harness its functionality, and
 components are composed together to form an executable system.
 
 Composite currently supports a platform with:
-
 - x86-32
-
 - booting using Linux 2.6.33 or 2.6.36 (see Hijack support for booting
   information)
-
 - networking
 
 Research features of COMPOSITE currently include:
 
 - Mutable protection domains -- hardware protection boundaries can be
-  raised or lowered dynamically in a controlled manner to trade fault
-  isolation for performance
+  raised or lowered _dynamically_ and in a controlled manner to trade
+  fault isolation for performance
+
 - Hierarchical resource management (HiRes) -- resource management
   decisions concerning CPU, memory, and I/O can be delegated to
   applications so they can control their allocations.  However, even
   malicious subsystems cannot use this power to interfere with other
   subsystems.  In many ways this is a generalization of
   virtualization.
+
 - User-level scheduling -- threads and interrupts are scheduled by
-  user-level components.  The COMPOSITE kernel does not have a
-  scheduler!
+  user-level components.  The COMPOSITE kernel _does not have a
+  scheduler_!
+
 - Memory scheduling -- memory in COMPOSITE is dynamically transferred
   between protection domains in the system based on the percieved
   impact that the additional allocation will make on predictability
-  and performance.  In this way memory is "scheduled" by allocating it
-  over a window of time to specific parts of the system to minimize
-  memory usage in embedded systems.
+  and performance while minimizing memory usage.  In this way memory
+  is "scheduled" by allocating it over a window of time to specific
+  parts of the system.
+
 - Secure bulletin board system -- COMPOSITE was used in the verifiable
   election based on Scantegrity in Takoma Park, MD.  It provided a
   secure webpage for verifying ballots after the election.
