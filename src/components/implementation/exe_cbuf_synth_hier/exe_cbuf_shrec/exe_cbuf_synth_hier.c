@@ -7,6 +7,9 @@
 #include <cbuf.h>
 #include <cos_synchronization.h>
 
+#include <timed_blk.h>
+#include <exe_self_suspension.h>
+
 cos_lock_t synth_lock;
 #define SYNTH_TAKE()    do { if (unlikely(synth_lock.lock_id == 0)) lock_static_init(&synth_lock); if (lock_take(&synth_lock) != 0) BUG(); } while(0)
 #define SYNTH_RELEASE() do { if (lock_release(&synth_lock) != 0) BUG(); } while(0)
@@ -16,7 +19,9 @@ cos_lock_t synth_lock;
 #define MAXULONG (~0)
 #define TOTAL_AMNT 128		/* power of 2 */
 
-unsigned int spin = 1000, l_to_r = 64, num_invs = 1, cbuf_l_to_r = 0;
+unsigned int spin = 1000, l_to_r = 64, num_invs = 1, cbuf_l_to_r = 0, ss_attached = 0;
+
+unsigned int prop_call_ss = 10;    /* 10: %7 0: never call ss, 128: always call ss*/
 
 #define AVG_INVC_CYCS 1000   /* From the measurement */
 
@@ -25,7 +30,7 @@ unsigned int spin = 1000, l_to_r = 64, num_invs = 1, cbuf_l_to_r = 0;
 #define PERCENT_EXE 10
 
 #define SZ 4096  // size of one cbuf item
-#define NCBUF 5   // number of cbufs to create each time
+#define NCBUF 1   // number of cbufs to create each time
 
 #define ALLOC_CBUF
 #define CBUF2BUF
@@ -80,6 +85,9 @@ static char *parse_step(char *d)
 		break;
 	case 'n':		/* num of invocations */
 		num_invs = atoi(++d);
+		break;
+	case 'a':		/* ss component is attached? */
+		ss_attached = atoi(++d);
 		break;
 	}
 
@@ -195,14 +203,36 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 		if (exe_time_left == 0) return 0;
 		kkk = 0;
 
-		unsigned long ss = initial_exe_t / (100 / PERCENT_EXE) / 6;
+		unsigned long ss = initial_exe_t / (100 / PERCENT_EXE) / 15 * 2;
 		for (i=0; i<ss; i++) kkk++;
-		has_run = ss * 6;//loop_cost;//
+		has_run = ss * 15 / 2;//loop_cost;//
 
 		if (has_run > exe_time_left) {
 			return 0;
 		}
 		exe_time_left -= has_run;
+
+		rdtscll(t);
+		val = (int)(t & (TOTAL_AMNT-1));
+		if (ss_attached && (val < prop_call_ss)) {
+			//exe_time_left = ss_action(exe_time_left, initial_exe_t);
+
+			SYNTH_TAKE();
+			for (i = 0; i < NCBUF ; i++){
+				rdtscll(t);
+				cbt[i] = cbuf_null();
+				mt[i] = cbuf_alloc(len, &cbt[i]);
+			}
+			SYNTH_RELEASE();
+			printc("I am suspended :(\n");
+			timed_event_block(cos_spd_id(), 2);
+			printc("I am back :)\n");
+			for (i = 0; i < NCBUF ; i++){
+				cbuf_free(mt[i]);
+			}
+		}
+		if (exe_time_left == 0) return 0;
+		
 
 #ifdef ALLOC_CBUF
 		SYNTH_TAKE();
@@ -216,11 +246,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 				mt[i] = cbuf_alloc(len, &cbt[i]);
 				rdtscll(end);
 				cbuf_unpack(cbt[i], &id, &idx);
-
-				/* DOUTs("---- cost Alloc :: %llu in spd %ld\n", end-start, cos_spd_id()); */
-				/* DOUTs("Thd %d create in spd %ld, memid %x, idx %x\n", cos_get_thd_id(), cos_spd_id(), id, idx); */
 				memset(mt[i], 'a', len);
-				/* DOUTs("after alloc write sth...\n"); */
 				get[i] = 1;
 				mark = 1;
 			}
@@ -255,8 +281,6 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 				rdtscll(start);
 				cbuf_free(mt[i]);
 				rdtscll(end);
-				/* DOUTs("---- cost Freed :: %llu in spd %ld\n", end-start, cos_spd_id()); */
-				/* DOUTs("EXECBUF i %lu : thd %d freed in spd %ld\n",i, cos_get_thd_id(), cos_spd_id()); */
 			}
 		}
 #endif
@@ -277,7 +301,3 @@ unsigned long right(unsigned long exe_t,  unsigned long const initial_exe_t, cbu
 }
 
 
-void cos_init(void)
-{
-//	while (1) do_action(10000,10000,0,0);
-}

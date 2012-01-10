@@ -24,6 +24,8 @@ int start_time = 0, duration_time = 120;
 
 int exe_t = 80;  /* in us,less than 2^32/(2.33*10^9/1000) which is 1843 ms on 2.33GHz machine */
 
+#define TOTAL_AMNT 128		/* power of 2 */
+
 #define NUM_LOOPS 1000
 
 volatile unsigned long kkk = 0;
@@ -92,6 +94,27 @@ int parse_initstr(void)
 	return 0;
 }
 
+
+static int create_thd(const char *pri)
+{
+	struct cos_array *data;
+	int event_thd;
+	int sz = strlen(pri) + 1;
+    
+	data = cos_argreg_alloc(sizeof(struct cos_array) + sz);
+	assert(data);
+	strcpy(&data->mem[0], pri);
+	//data->sz = 4;
+	data->sz = sz;
+
+	if (0 > (event_thd = sched_create_thread(cos_spd_id(), data))) assert(0);
+	cos_argreg_free(data);
+    
+	return event_thd;
+}
+
+#define BEST_EFF
+
 volatile u64_t touch;
 volatile int k;
 
@@ -102,6 +125,10 @@ void cos_init(void *arg)
 	int duration_time_in_ticks = 0;
 
 	int local_period = 0;
+
+	static int first = 0;
+
+	static int pre_run = 0;
 
 	parse_initstr();
 
@@ -120,10 +147,41 @@ void cos_init(void *arg)
 	printc("In spd %ld Thd %d, period %d ticks, execution time %d us in %lu cycles\n", cos_spd_id(),cos_get_thd_id(), local_period, exe_t, exe_cycle);
 
 	int event_thd = 0;
+	unsigned long pre_t_0;
 	if (local_period <= 0){/* Create all non-periodic tasks */
+
+#ifdef BEST_EFF   // for best effort sys now
+		int i;
+		if (first == 0){
+			for (i=0;i<5;i++) create_thd("r0");
+			pre_t_0 = sched_timestamp();
+			first = 1;
+		}
+
+		printc("<<<<1 thd %d in spd %ld\n",cos_get_thd_id(), cos_spd_id());
 		event_thd = cos_get_thd_id();
+
+		for (i = 0 ; i < 100; i++){
+			left(200000,200000,0,0);
+		}
+
+		unsigned long pre_run_remained = 0;
+		unsigned long numm = 10000*cyc_per_tick/US_PER_TICK;;
+		while(1) {
+			for (i = 0 ; i < 10; i++){
+				pre_run_remained = numm;  /* refill */
+				pre_run_remained = left(20000,20000,0,0);
+				/* printc(" thd %d pre_t_0 %u pre_t %lu\n", cos_get_thd_id(), pre_t_0, pre_t); */
+			}
+			unsigned long pre_t = sched_timestamp();
+			if ( pre_t > pre_t_0 + 1*100) break;
+		}
+		printc("BF thd %d finish pre_run\n", cos_get_thd_id());
+
+#endif
 		/* pub_duration_time_in_ticks = duration_time_in_ticks; */
 		timed_event_block(cos_spd_id(), start_time_in_ticks);
+		printc("<<<<2 thd %d in spd %ld\n",cos_get_thd_id(), cos_spd_id());
 	}
 	else {/* Create all periodic tasks */
 		if (local_period == 0 || (exe_t > local_period*US_PER_TICK)) BUG();
@@ -140,7 +198,8 @@ void cos_init(void *arg)
 		int waiting = 0;
 
 		if(start_time_in_ticks <= 0)
-			waiting = 50 / local_period;
+			/* waiting = (50+100*10) / local_period;   /\* use 50 before. Now change to let BF threads run first 10 seconds before 0 second *\/ */
+			waiting = (50) / local_period;   /* use 50 before. Now change to let BF threads run first 10 seconds before 0 second */
 		else
 			waiting = start_time_in_ticks / local_period;
 		do {
@@ -150,7 +209,8 @@ void cos_init(void *arg)
 
 /* Let all tasks run */
 	unsigned long exe_cyc_remained = 0;
-
+	unsigned long long t;
+	unsigned long val;
 	int refill_number = 0;
 
 	unsigned long exe_cyc_event_remained = 0;
@@ -160,10 +220,22 @@ void cos_init(void *arg)
 			exe_cyc_event_remained = exe_cycle;  /* refill */
 			while(1) {
 				exe_cyc_event_remained = exe_cycle;  /* refill */
-				exe_cyc_event_remained = left(exe_cyc_event_remained,exe_cycle,0,0);
+				/* rdtscll(t); */
+				/* val = (int)(t & (TOTAL_AMNT-1)); */
+				/* if (val >= 64){ */
+					exe_cyc_event_remained = left(exe_cyc_event_remained,exe_cycle,0,0);
+				/* } */
+				/* else{ */
+				/* 	exe_cyc_event_remained = right(exe_cyc_event_remained,exe_cycle,0,0); */
+				/* } */
 				unsigned long t = sched_timestamp();
-				if ( t > (unsigned long)(start_time_in_ticks + duration_time_in_ticks)) timed_event_block(cos_spd_id(), 10000);
-					/* printc("time elapsed is %llu  cyccs and duration ticks is %d, cyc_per_tick is %lu\n", (end-start), duration_time_in_ticks, cyc_per_tick); */
+				/* if ( t > (unsigned long)(7*100 + start_time_in_ticks + duration_time_in_ticks)) { */
+				/* 	printc("thd %d left!!!\n",cos_get_thd_id()); */
+				if ( t > (unsigned long)( start_time_in_ticks + duration_time_in_ticks)) {
+					printc("thd %d left>>>\n",cos_get_thd_id());
+
+					timed_event_block(cos_spd_id(), 10000);
+				}
 			}
 		}
 		else{

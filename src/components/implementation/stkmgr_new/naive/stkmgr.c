@@ -351,6 +351,7 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_stk)
 	struct cos_stk_item *stk_item;
 	int ret = -1;
 
+	if (EMPTY_LIST(&sti->tmem_list, next, prev)) printc("thd%d  @ spd %d\n", cos_get_thd_id(), sti->spdid);
 	assert(!EMPTY_LIST(&sti->tmem_list, next, prev));
 	for(stk_item = FIRST_LIST(&sti->tmem_list, next, prev);
 	    stk_item != &sti->tmem_list && skip_stk > 0; 
@@ -369,7 +370,7 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_stk)
 done:
 	return ret;
 cache:
-	printc("local cache found!\n");
+	/* printc("local cache found!\n"); */
 	ret = -2;
 	goto done;
 }

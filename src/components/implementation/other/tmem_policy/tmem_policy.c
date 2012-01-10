@@ -40,15 +40,18 @@ enum{
 	MAX = 0,
 	AVG
 };
-
-/* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
+/* ALGORITHM: 1 for minimize AVG tardiness, 0 for minimize MAX tardiness*/
 #define ALGORITHM MAX
  
-//#define THD_POOL MAX_NUM_MEM
+#define THD_POOL MAX_NUM_MEM
 //#define THD_POOL 1
-#define CBUF_UNIT 5
+//#define THD_POOL 300/18
+
+#define CBUF_UNIT 1
 
 #define POLICY_PERIODICITY 25
+
+#define HISTORICAL_ALLOC
 
 #define STK_MGR 0
 #define CBUF_MGR 1
@@ -320,7 +323,7 @@ find_min_tardiness_comp(struct component * c_original)
 	struct thd * titer;
 	int mgr;
 
-	if (ALGORITHM == 1) {
+	if (ALGORITHM == AVG) {
 		long worsen, min = 0, tmp_tardiness, tot_impact, min_tot_impact = 0;
 		unsigned long impact_with_history;
 		/* find the component that increasing the total tardiness least if take one tmem to c_original */
@@ -465,7 +468,7 @@ find_tardiness_comp(void)
 	struct component * c, * max_c = NULL;
 	int mgr;
 
-	if (ALGORITHM == 1) {
+	if (ALGORITHM == AVG) {
 		long max = 0;
 		/* find one that improve the total tardiness most */
 		for (mgr = 0 ; mgr < NUM_TMEM_MGR ; mgr++) {
@@ -589,7 +592,7 @@ set_concur_new(void)
  * we saved. */
 
 static void
-history_allocation(void)
+historical_allocation(void)
 {
 	int changed;
 	struct component * citer;
@@ -613,7 +616,7 @@ history_allocation(void)
 }
 
 /* Update the actual number of allocated tmems, save the current
- * concur_new to concur_hist for history allocation */
+ * concur_new to concur_hist for historical allocation */
 
 static void
 update_allocation(void)
@@ -647,7 +650,7 @@ update_allocation(void)
 	assert(available >= 0);
 }
 
-/* Allocate at least ss_counter cbufs to self-suspension
+/* Allocate at least ss_counter items to self-suspension
  * component if not satisfied yet. */
 
 static void
@@ -903,7 +906,9 @@ policy(void)
 		}
 		count++;
 	}
-	if (available > 0) history_allocation();
+#ifdef HISTORICAL_ALLOC
+	if (available > 0) historical_allocation();
+#endif
 	/* if (available > 0) {  /\* we have spare tmems for none real-time threads *\/ */
 	/* 	allocate_NRT_tmems(); */
 	/* } */
@@ -917,7 +922,7 @@ policy(void)
 void 
 cos_init(void *arg)
 {
-	DOUT("Tmem policy running.....\n");
+	printc("thd %d Tmem policy running.....\n", cos_get_thd_id());
 	INIT_LIST(&threads, next, prev);
 
 	init_spds();

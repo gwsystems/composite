@@ -463,19 +463,23 @@ return_tmem(struct spd_tmem_info *sti)
 
 /**
  * Remove all free cache from client. Only called by set_concurrency.
- * Now replaced by TOUCHED flag.
+ * Now replaced by TOUCHED flag. Not used anymore. 
  */
 /* static inline void */
 /* remove_spare_cache_from_client(struct spd_tmem_info *sti) */
 /* { */
 /* 	tmem_item * tmi; */
+
 /* 	while (1) { */
+/* 		if (sti->num_allocated <= 5) return NULL; */
 /* 		tmi = mgr_get_client_mem(sti); */
 /* 		if (!tmi) */
 /* 			return; */
+/* 		/\* printc("spd %d found tmem to be allocated  %d\n", sti->spdid, sti->num_allocated); *\/ */
 /* 		put_mem(tmi); */
 /* 		DOUT("remove spare----\n"); */
 /* 	} */
+/* 	return; */
 /* } */
 
 /**
@@ -513,7 +517,6 @@ tmem_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare)
 
 	mgr_clear_touched_flag(sti);
 	/* if (remove_spare) remove_spare_cache_from_client(sti); */
-
 	RELEASE();
 	return 0;
 err:
