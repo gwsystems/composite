@@ -52,7 +52,8 @@ _Composite_ system support
 - x86-32
 - booting using Linux 2.6.33 or 2.6.36 (see Hijack support for booting
   information)
-- networking
+- networking using Linux drivers and a modified tun/tap driver to
+  communicate with _Composite_
 
 Important note
 --------------
