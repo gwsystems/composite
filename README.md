@@ -84,3 +84,9 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ```
+
+This license is not set in stone, and we would be willing to negotiate
+on a case-by-case basis for more business-friendly terms.  The license
+should not prevent you from using this OS, as alternatives can be
+arranged.  It _should_ prevent you from stealing the work and claiming
+it as your own.
