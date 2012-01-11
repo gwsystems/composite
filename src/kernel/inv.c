@@ -455,8 +455,10 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, int a, int b, int c)
 		return -1;
 	}
 
-//	if (!spd_is_scheduler(curr_spd) || !thd_scheduled_by(curr, curr_spd)) {
-	if (!spd_is_root_sched(curr_spd)) {
+	if (!spd_is_scheduler(curr_spd)/* || !thd_scheduled_by(curr, curr_spd)*/) {
+/* FIXME: if initmm is the root, then the second to root should be
+ * able to create threads. */
+//	if (!spd_is_root_sched(curr_spd)) {
 		printk("cos: non-scheduler attempted to create thread.\n");
 		return -1;
 	}
@@ -2127,9 +2129,7 @@ static inline int most_common_sched_depth(struct thread *t1, struct thread *t2)
 		s2 = thd_get_depth_sched(t2, i);
 
 		/* If the scheduler's diverge, previous depth is most common */
-		if (!s1 || s1 != s2) {
-			return i-1;
-		}
+		if (!s1 || s1 != s2) return i-1;
 	}
 
 	return MAX_SCHED_HIER_DEPTH-1;
@@ -2473,6 +2473,8 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 		child->sched_depth = sched_lvl;
 		break;
 	}
+	case COS_SCHED_PROMOTE_ROOT:
+		break;
 	case COS_SCHED_GRANT_SCHED:
 	case COS_SCHED_REVOKE_SCHED:
 	{
@@ -2537,7 +2539,7 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 	}
 	
 	return 0;
-	}
+}
 	
 /*
  * Assume spd \in cspd.  Remove spd from cspd and add it to new1. Add

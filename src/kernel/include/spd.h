@@ -112,7 +112,7 @@ struct invocation_cap {
 #define SPD_ACTIVE      0x10 // spd is active, can have capabilities
 			     // assigned to it, and threads executed
 			     // within it...
-#define MAX_MPD_DESC 1024  // Max number of descriptors for composite spds
+#define MAX_MPD_DESC    1024 // Max number of descriptors for composite spds
 
 /*
  * The spd_poly struct contains all the information that both struct

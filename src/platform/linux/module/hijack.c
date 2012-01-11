@@ -612,8 +612,9 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	{
 		struct cos_thread_info thread_info;
 		struct thd_sched_info *tsi;
+		int i;
 		struct thread *thd;
-		struct spd *spd;
+		struct spd *spd, *sched;
 
 		if (copy_from_user(&thread_info, (void*)arg, 
 				   sizeof(struct cos_thread_info))) {
@@ -637,9 +638,13 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			thd_free(thd);
 			return -EINVAL;
 		}
-		
-		tsi = thd_get_sched_info(thd, 0);
-		tsi->scheduler = spd;
+
+		sched = spd;
+		for (i = spd->sched_depth ; i >= 0 ; i--) {
+			tsi = thd_get_sched_info(thd, i);
+			tsi->scheduler = sched;
+			sched = sched->parent_sched;
+		}
 
 		/* FIXME: need to return opaque handle, rather than
 		 * just set the current thread to be the new one. */

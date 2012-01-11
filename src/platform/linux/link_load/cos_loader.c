@@ -61,7 +61,8 @@ enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_H
 const char *COMP_INFO   = "cos_comp_info";
 
 const char *INIT_COMP   = "c0.o";
-char *ROOT_SCHED        = NULL; // this is set to the first listed scheduler
+char *ROOT_SCHED        = NULL; // this is set to the first listed scheduler (*)
+char *INITMM            = NULL; // this is set to the first listed memory manager (#)
 const char *MPD_MGR     = "cg.o"; // the component graph!
 const char *CONFIG_COMP = "schedconf.o";
 const char *BOOT_COMP   = "boot.o";
@@ -184,6 +185,8 @@ struct service_symbs {
 	int is_scheduler;
 	struct service_symbs *scheduler;
 	
+	int is_initmm;
+
 	struct spd *spd;
 	struct symb_type exported, undef;
 	int num_dependencies;
@@ -810,7 +813,7 @@ static int initialize_service_symbs(struct service_symbs *str)
 }
 
 struct component_traits {
-	int sched, composite_loaded;
+	int sched, initmm, composite_loaded;
 };
 
 static void parse_component_traits(char *name, struct component_traits *t, int *off)
@@ -823,6 +826,19 @@ static void parse_component_traits(char *name, struct component_traits *t, int *
 			strcpy(r, name+1);
 			ROOT_SCHED = r;
 		}
+		break;
+	}
+	case '#': {
+		char *n;
+
+		if (INITMM) {
+			printl(PRINT_HIGH, "Error: Have multiple initial memory managers -- %s and %s\n", INITMM, name);
+			exit(-1);
+		} 
+		n = malloc(strlen(name+1)+1);
+		strcpy(n, name+1);
+		INITMM = n;
+		t->initmm = 1;
 		break;
 	}
 	case '!': t->composite_loaded = 1; break;
@@ -838,7 +854,7 @@ static struct service_symbs *alloc_service_symbs(char *obj)
 	struct service_symbs *str;
 	char *obj_name = malloc(strlen(obj)+1), *cpy, *orig, *pos;
 	const char lassign = '(', *rassign = ")", *assign = "=";
-	struct component_traits t = {.sched = 0, .composite_loaded = 0};
+	struct component_traits t = {.sched = 0, .composite_loaded = 0, .initmm = 0};
 	int off = 0;
 
 	parse_component_traits(obj, &t, &off);
@@ -872,6 +888,7 @@ static struct service_symbs *alloc_service_symbs(char *obj)
 
 	str->is_scheduler = t.sched;
 	str->scheduler = NULL;
+	str->is_initmm = t.initmm;
 	str->is_composite_loaded = t.composite_loaded;
 
 	return str;
@@ -2287,7 +2304,7 @@ static struct service_symbs *find_obj_by_name(struct service_symbs *s, const cha
 
 static void setup_kernel(struct service_symbs *services)
 {
-	struct service_symbs *s;
+	struct service_symbs *m, *s;
 	struct service_symbs *init = NULL;
 	struct spd_info *init_spd = NULL;
 
@@ -2332,11 +2349,17 @@ static void setup_kernel(struct service_symbs *services)
 	}
 	printl(PRINT_DEBUG, "\n");
 
+	if ((m = find_obj_by_name(services, INITMM)) == NULL) {
+		fprintf(stderr, "Could not find initial memory manager %s\n", INITMM);
+		exit(-1);
+	}
+	make_spd_scheduler(cntl_fd, m, NULL);
+	assert(!m->is_composite_loaded);
 	if ((s = find_obj_by_name(services, ROOT_SCHED)) == NULL) {
 		fprintf(stderr, "Could not find root scheduler %s\n", ROOT_SCHED);
 		exit(-1);
 	}
-	make_spd_scheduler(cntl_fd, s, NULL);
+	make_spd_scheduler(cntl_fd, s, m);
 	assert(!s->is_composite_loaded);
 	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;
 
