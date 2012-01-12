@@ -35,7 +35,7 @@ int alloc_debug = 0;
 #include <string.h>
 
 #ifdef USE_VALLOC
-#include "../valloc/valloc.h"
+#include <valloc.h>
 #endif
 
 struct free_page {

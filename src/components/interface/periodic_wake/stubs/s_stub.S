@@ -5,8 +5,8 @@
  * Public License v2.
  */
 
-#include <cos_asm_server_stub.h>
-	
+#include <cos_asm_server_stub_simple_stack.h>
+
 .text	
 cos_asm_server_stub_spdid(periodic_wake_create)
 cos_asm_server_stub_spdid(periodic_wake_remove)
