@@ -13,6 +13,16 @@ more information.
 Research features of _Composite_
 --------------------------------
 
+- *Component-based system construction* -- All system software, from
+  applications to the most low-level OS policies, is implemented as 
+  components.  Components interact to harness each other's functionality
+  and create an executable system.  The power of this model is that the 
+  system is customizable -- policies can be replaced given the system's
+  goals, the system software is reusable -- the same scheduler used in
+  in the kernel can be used in an application, and the system is dependable
+  -- each component can be isolated from each other so a fault or compromise
+  in one, doesn't necessarily impact the other.
+ 
 - *Mutable protection domains* -- hardware protection boundaries can be
   raised or lowered _dynamically_ and in a controlled manner to trade
   fault isolation for performance
