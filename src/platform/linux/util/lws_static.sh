@@ -4,7 +4,7 @@
 # Can be tested with: httperf --server=10.0.2.8 --port=200 --uri=/cgi/hw --num-conns=7000
 
 ./cos_loader \
-"c0.o, ;*ds.o, ;#mm.o, ;mh.o, ;print.o, ;boot.o,a2;schedconf.o, ;cg.o,a1;bc.o, ;st.o, ;\
+"c0.o, ;*ds.o, ;mm.o, ;mh.o, ;print.o, ;boot.o,a2;schedconf.o, ;cg.o,a1;bc.o, ;st.o, ;\
 \
 !sm.o,a1;!mpd.o,a5;!stat.o,a25;!cm.o,a7;!sc.o,a6;!map.o,a6;!if.o,a5;!ip.o, ;\
 !port.o, ;!l.o,a4;!te.o,a3;!net.o,d6c2t2;!e.o,a5;!fd.o,a8;!conn.o,a9;!va.o,a2;!http.o,a8:\

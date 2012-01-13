@@ -63,6 +63,7 @@ const char *COMP_INFO   = "cos_comp_info";
 const char *INIT_COMP   = "c0.o";
 char *ROOT_SCHED        = NULL; // this is set to the first listed scheduler (*)
 char *INITMM            = NULL; // this is set to the first listed memory manager (#)
+const char *MM_NAME     = "mm.o"; // this is set to the first listed memory manager (#)
 const char *MPD_MGR     = "cg.o"; // the component graph!
 const char *CONFIG_COMP = "schedconf.o";
 const char *BOOT_COMP   = "boot.o";
@@ -828,7 +829,13 @@ static void parse_component_traits(char *name, struct component_traits *t, int *
 		}
 		break;
 	}
-	case '#': {
+	case '!': t->composite_loaded = 1; break;
+	default:  /* base case */          return;
+	}
+	(*off)++;
+	parse_component_traits(name, t, off);
+	
+	if (!strcmp(name, MM_NAME)) {
 		char *n;
 
 		if (INITMM) {
@@ -841,11 +848,7 @@ static void parse_component_traits(char *name, struct component_traits *t, int *
 		t->initmm = 1;
 		break;
 	}
-	case '!': t->composite_loaded = 1; break;
-	default:  /* base case */          return;
-	}
-	(*off)++;
-	parse_component_traits(name, t, off);
+
 	return;
 }
 
