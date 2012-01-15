@@ -17,6 +17,7 @@
 #include <cinfo.h>
 #include <bitmap.h>
 
+#define LOCK_COMPONENT
 #ifdef LOCK_COMPONENT
 #include <cos_synchronization.h>
 cos_lock_t valloc_lock;
@@ -86,12 +87,13 @@ static int __valloc_init(spdid_t spdid)
 	bitmap_set_contig(&occ->pgd_occupied[0], page_off, (PGD_SIZE/PAGE_SIZE)-page_off, 1);
 
 	cos_vect_add_id(&spd_vect, trac, spdid);
+	assert(cos_vect_lookup(&spd_vect, spdid));
 success:
 	ret = 0;
 done:
 	return ret;
 err_free2:
-	cos_set_heap_ptr_conditional((char*)ci+PAGE_SIZE, ci);
+	cos_release_vas_page(ci);
 	free_page(occ);
 err_free1:
 	free(trac);

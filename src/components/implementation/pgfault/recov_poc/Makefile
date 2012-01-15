@@ -1,8 +1,8 @@
 C_OBJS=pgfault.o
 ASM_OBJS=
-COMPONENT=pr.o
+COMPONENT=pfr.o
 INTERFACES=pgfault
-DEPENDENCIES=sched printc
+DEPENDENCIES=sched printc failure_notif
 IF_LIB=
 
 include ../../Makefile.subsubdir

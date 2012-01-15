@@ -544,16 +544,16 @@ static void sched_timer_tick(void)
 		}
 		
 		/* are we done running? */
-		if (ticks >= RUNTIME_SEC*TIMER_FREQ+1) {
-			while (COS_SCHED_RET_SUCCESS != 
-			       cos_switch_thread_release(init->id, COS_SCHED_BRAND_WAIT)) {
-				cos_sched_lock_take();
-				if (cos_sched_pending_event()) {
-					cos_sched_clear_events();
-					cos_sched_process_events(evt_callback, 0);
-				}
-			}
-		}
+		/* if (ticks >= RUNTIME_SEC*TIMER_FREQ+1) { */
+		/* 	while (COS_SCHED_RET_SUCCESS !=  */
+		/* 	       cos_switch_thread_release(init->id, COS_SCHED_BRAND_WAIT)) { */
+		/* 		cos_sched_lock_take(); */
+		/* 		if (cos_sched_pending_event()) { */
+		/* 			cos_sched_clear_events(); */
+		/* 			cos_sched_process_events(evt_callback, 0); */
+		/* 		} */
+		/* 	} */
+		/* } */
 		
 		ticks++;
 		sched_process_wakeups();
@@ -958,6 +958,8 @@ int sched_component_take(spdid_t spdid)
 	struct sched_thd *holder, *curr;
 	int first = 1;
 
+	//printc("sched take %d\n", spdid);
+
 	cos_sched_lock_take();
 	report_event(COMP_TAKE);
 	curr = sched_get_current();
@@ -992,13 +994,16 @@ int sched_component_release(spdid_t spdid)
 {
 	struct sched_thd *curr;
 
+	//printc("sched release %d\n", spdid);
+
 	report_event(COMP_RELEASE);
 	cos_sched_lock_take();
 	curr = sched_get_current();
 	assert(curr);
 
 	if (sched_release_crit_sect(spdid, curr)) {
-		prints("fprr: error releasing spd's critical section\n");
+		printc("fprr: error releasing spd %d's critical section (contended %d)\n", 
+		       spdid, curr->contended_component);
 	}
 	sched_switch_thread(0, NULL_EVT);
 
@@ -1491,7 +1496,11 @@ int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short
 
 void sched_exit(void)
 {
+	
+	printc("Switching to %d\n", init->id);
+	cos_sched_clear_events();
 	cos_switch_thread(init->id, 0);
+	BUG();
 }
 
 static struct sched_thd *fp_init_component(spdid_t spdid, char *metric_str)

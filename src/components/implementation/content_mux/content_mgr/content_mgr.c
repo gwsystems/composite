@@ -26,10 +26,16 @@ typedef int (*content_close_fn_t)(spdid_t spdid, content_req_t cr);
 #include <async_inv.h>
 
 /* reproduced as aliases from async_inv.h */
-extern content_req_t alt_async_open(spdid_t spdid, long evt_id, struct cos_array *data);
-extern int alt_async_request(spdid_t spdid, content_req_t cr, struct cos_array *data);
-extern int alt_async_retrieve(spdid_t spdid, content_req_t cr, struct cos_array *data, int *more);
-extern int alt_async_close(spdid_t spdid, content_req_t cr);
+/* extern content_req_t alt_async_open(spdid_t spdid, long evt_id, struct cos_array *data); */
+/* extern int alt_async_request(spdid_t spdid, content_req_t cr, struct cos_array *data); */
+/* extern int alt_async_retrieve(spdid_t spdid, content_req_t cr, struct cos_array *data, int *more); */
+/* extern int alt_async_close(spdid_t spdid, content_req_t cr); */
+
+extern content_req_t alt_static_open(spdid_t spdid, long evt_id, struct cos_array *data);
+extern int alt_static_request(spdid_t spdid, content_req_t cr, struct cos_array *data);
+extern int alt_static_retrieve(spdid_t spdid, content_req_t cr, struct cos_array *data, int *more);
+extern int alt_static_close(spdid_t spdid, content_req_t cr);
+
 
 struct provider_fns {
 	content_open_fn_t     open;
@@ -45,19 +51,26 @@ struct provider_fns static_content = {
 	.close = static_close
 };
 
-struct provider_fns async_content = {
-	.open = async_open,
-	.request = async_request,
-	.retrieve = async_retrieve,
-	.close = async_close
+struct provider_fns alt_static_content = {
+	.open = alt_static_open,
+	.request = alt_static_request,
+	.retrieve = alt_static_retrieve,
+	.close = alt_static_close
 };
 
-struct provider_fns alt_async_content = {
-	.open = alt_async_open,
-	.request = alt_async_request,
-	.retrieve = alt_async_retrieve,
-	.close = alt_async_close
-};
+/* struct provider_fns async_content = { */
+/* 	.open = async_open, */
+/* 	.request = async_request, */
+/* 	.retrieve = async_retrieve, */
+/* 	.close = async_close */
+/* }; */
+
+/* struct provider_fns alt_async_content = { */
+/* 	.open = alt_async_open, */
+/* 	.request = alt_async_request, */
+/* 	.retrieve = alt_async_retrieve, */
+/* 	.close = alt_async_close */
+/* }; */
 
 struct route {
 	char *prefix;
@@ -74,16 +87,24 @@ struct route {
  * specific path exists above it.
  */
 struct route routing_tbl[] = {
+	/* { */
+	/* 	.prefix = "/cgi/hw", */
+	/* 	.fns = &async_content */
+	/* }, */
+	/* { */
+	/* 	.prefix = "/cgi/HW", */
+	/* 	.fns = &alt_async_content */
+	/* }, */
 	{
-		.prefix = "/cgi/hw",
-		.fns = &async_content
-	},
-	{
-		.prefix = "/cgi/HW",
-		.fns = &alt_async_content
+		.prefix = "/map",
+		.fns = &alt_static_content
 	},
 	{
 		.prefix = "/", 
+		.fns = &static_content
+	},
+	{
+		.prefix = "", 
 		.fns = &static_content
 	},
 	{

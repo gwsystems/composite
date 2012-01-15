@@ -58,7 +58,12 @@ int static_request(spdid_t spdid, content_req_t cr, struct cos_array *data)
 	return 0;
 }
 
-static const char msg[] = "Hello World";
+static const char msg[] = 
+	"<html><title>Scantegrity Verification</title>"
+	"<body><form action=\"map\" method=\"get\">"
+	"Voter Ballot ID: <input type=\"text\" name=\"id\">"
+	"<input type=\"submit\" value=\"Get Confirmation\">"
+	"</form></body></html>";
 
 int static_retrieve(spdid_t spdid, content_req_t cr, struct cos_array *data, int *more)
 {

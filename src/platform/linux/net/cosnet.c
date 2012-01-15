@@ -59,7 +59,10 @@
 #define DRV_DESCRIPTION	"cos: Universal TUN/TAP device driver"
 #define DRV_COPYRIGHT	"cos: (C) 1999-2004 Max Krasnyansky <maxk@qualcomm.com>"
 
-#define COS_IP_ADDR     0xa000208
+/* 192.168.1.128 */
+//#define COS_IP_ADDR   0xc0a80180
+//10.0.2.8: 0x0a000208
+#define COS_IP_ADDR   0x0a000208
 
 #include <linux/module.h>
 #include <linux/errno.h>
@@ -393,6 +396,7 @@ static int cosnet_xmit_packet(void *headers, int hlen, struct gather_item *gi,
 	}
 
 	if (NET_RX_DROP == netif_rx/*_ni*/(skb)) {
+		printk("<<fail>>\n");
 		local_ts->stats.tx_dropped++;
 	} else {
 		local_ts->dev->last_rx = jiffies;
@@ -782,46 +786,54 @@ static int tun_set_iff(struct file *file, struct ifreq *ifr)
 	return err;
 }
 
-static int tun_chr_ioctl(struct inode *inode, struct file *file,
-			 unsigned int cmd, unsigned long arg)
+static long tun_chr_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct tun_struct *tun = file->private_data;
 	void __user* argp = (void __user*)arg;
 	struct ifreq ifr;
+	int ret = 0;
 
+	rtnl_lock();
 	if (cmd == TUNSETIFF || _IOC_TYPE(cmd) == 0x89)
-		if (copy_from_user(&ifr, argp, sizeof ifr))
-			return -EFAULT;
+		if (copy_from_user(&ifr, argp, sizeof ifr)) {
+			ret = -EFAULT;
+			goto unlock;
+		}
+
 
 	if (cmd == TUNSETIFF && !tun) {
 		int err;
 
 		ifr.ifr_name[IFNAMSIZ-1] = '\0';
 
-		rtnl_lock();
+		//rtnl_lock();
 		err = tun_set_iff(file, &ifr);
-		rtnl_unlock();
+		//rtnl_unlock();
 
-		if (err)
-			return err;
+		if (err) {
+			ret = err;
+			goto unlock;
+		}
 
-		if (copy_to_user(argp, &ifr, sizeof(ifr)))
-			return -EFAULT;
-		return 0;
+		if (copy_to_user(argp, &ifr, sizeof(ifr))) {
+			ret = -EFAULT;
+			goto unlock;
+		}
+		goto unlock;
 	}
 
-	if (!tun)
-		return -EBADFD;
+	if (!tun) {
+		ret = -EBADFD;
+		goto unlock;
+	}
 
 	DBG(KERN_INFO "%s: tun_chr_ioctl cmd %d\n", tun->dev->name, cmd);
 
 	switch (cmd) {
 	case TUNSETNOCSUM:
 		/* Disable/Enable checksum */
-		if (arg)
-			tun->flags |= TUN_NOCHECKSUM;
-		else
-			tun->flags &= ~TUN_NOCHECKSUM;
+		if (arg) tun->flags |= TUN_NOCHECKSUM;
+		else     tun->flags &= ~TUN_NOCHECKSUM;
 
 		DBG(KERN_INFO "%s: checksum %s\n",
 		    tun->dev->name, arg ? "disabled" : "enabled");
@@ -829,10 +841,8 @@ static int tun_chr_ioctl(struct inode *inode, struct file *file,
 
 	case TUNSETPERSIST:
 		/* Disable/Enable persist mode */
-		if (arg)
-			tun->flags |= TUN_PERSIST;
-		else
-			tun->flags &= ~TUN_PERSIST;
+		if (arg) tun->flags |= TUN_PERSIST;
+		else     tun->flags &= ~TUN_PERSIST;
 
 		DBG(KERN_INFO "%s: persist %s\n",
 		    tun->dev->name, arg ? "disabled" : "enabled");
@@ -850,24 +860,25 @@ static int tun_chr_ioctl(struct inode *inode, struct file *file,
 		if (tun->dev->flags & IFF_UP) {
 			DBG(KERN_INFO "%s: Linktype set failed because interface is up\n",
 				tun->dev->name);
-			return -EBUSY;
+			ret = -EBUSY;
+			goto unlock;
 		} else {
 			tun->dev->type = (int) arg;
 			DBG(KERN_INFO "%s: linktype set to %d\n", tun->dev->name, tun->dev->type);
 		}
 		break;
-
 #ifdef TUN_DEBUG
 	case TUNSETDEBUG:
 		tun->debug = arg;
 		break;
 #endif
-
 	case SIOCGIFFLAGS:
 		ifr.ifr_flags = tun->if_flags;
-		if (copy_to_user( argp, &ifr, sizeof ifr))
-			return -EFAULT;
-		return 0;
+		if (copy_to_user( argp, &ifr, sizeof ifr)) {
+			ret = -EFAULT;
+			goto unlock;
+		}
+		break;
 
 	case SIOCSIFFLAGS:
 		/** Set the character device's interface flags. Currently only
@@ -875,20 +886,20 @@ static int tun_chr_ioctl(struct inode *inode, struct file *file,
 		tun->if_flags = ifr.ifr_flags;
 		DBG(KERN_INFO "%s: interface flags 0x%lx\n",
 				tun->dev->name, tun->if_flags);
-		return 0;
-
+		break;
 	case SIOCGIFHWADDR:
 		/* Note: the actual net device's address may be different */
 		memcpy(ifr.ifr_hwaddr.sa_data, tun->dev_addr,
 				min(sizeof ifr.ifr_hwaddr.sa_data, sizeof tun->dev_addr));
-		if (copy_to_user( argp, &ifr, sizeof ifr))
-			return -EFAULT;
-		return 0;
-
+		if (copy_to_user( argp, &ifr, sizeof ifr)) {
+			ret = -EFAULT;
+			goto unlock;
+		}
+		break;
 	case SIOCSIFHWADDR:
 	{
 		/* try to set the actual net device's hw address */
-		int ret = dev_set_mac_address(tun->dev, &ifr.ifr_hwaddr);
+		ret = dev_set_mac_address(tun->dev, &ifr.ifr_hwaddr);
 
 		if (ret == 0) {
 			/** Set the character device's hardware address. This is used when
@@ -901,14 +912,14 @@ static int tun_chr_ioctl(struct inode *inode, struct file *file,
 					tun->dev_addr[0], tun->dev_addr[1], tun->dev_addr[2],
 					tun->dev_addr[3], tun->dev_addr[4], tun->dev_addr[5]);
 		}
-
-		return  ret;
+		break;
 	}
 	default:
-		return -EINVAL;
+		ret = -EINVAL;
 	};
-
-	return 0;
+unlock:
+	rtnl_unlock();
+	return ret;
 }
 
 static int tun_chr_fasync(int fd, struct file *file, int on)
@@ -984,7 +995,7 @@ static const struct file_operations tun_fops = {
 //	.write = do_sync_write,
 //	.aio_write = tun_chr_aio_write,
 //	.poll	= tun_chr_poll,
-	.ioctl	= tun_chr_ioctl,
+	.unlocked_ioctl	= tun_chr_ioctl,
 	.open	= tun_chr_open,
 	.release = tun_chr_close,
 //	.fasync = tun_chr_fasync

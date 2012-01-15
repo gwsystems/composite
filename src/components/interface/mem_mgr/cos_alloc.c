@@ -47,7 +47,7 @@ extern void *mman_get_page(spdid_t spd, void *addr, int flags);
 extern void mman_release_page(spdid_t spd, void *addr, int flags);
 #endif
 
-#define DIE() (*((int*)0) = 1)
+#define DIE() (*((int*)0) = 0xDEADDEAD)
 #define massert(prop) do { if (!(prop)) DIE(); } while (0)
 
 /* -- HELPER CODE --------------------------------------------------------- */
@@ -77,12 +77,24 @@ typedef struct {
 #define REGPARM(x)
 #endif
 
+#ifdef USE_VALLOC
+void *cos_get_vas_page(void)
+{
+	return valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
+}
+
+void cos_release_vas_page(void *p)
+{
+	valloc_free(cos_spd_id(), cos_spd_id(), p, 1);
+}
+#endif
+
 #ifdef UNIX_TEST
 static inline REGPARM(1) void *do_mmap(size_t size) { 
 	return mmap(0, size, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0); 
 }
 /*static inline*/ REGPARM(2) int do_munmap(void *addr, size_t size) {
-  return munmap(addr, size);
+	return munmap(addr, size);
 }
 #else 
 
@@ -92,32 +104,34 @@ static inline REGPARM(1) void *do_mmap(size_t size) {
 	size_t s = round_up_to_page(size);
 
 #ifdef USE_VALLOC
-	  hp = valloc_alloc(cos_spd_id(), cos_spd_id(), s/PAGE_SIZE);
-	  if (!hp) return NULL;
+	hp = valloc_alloc(cos_spd_id(), cos_spd_id(), s/PAGE_SIZE);
+	if (!hp) return NULL;
 #else
-	  massert(size <= PAGE_SIZE);
-	  hp = cos_get_vas_page();
+	massert(size <= PAGE_SIZE);
+	//hp = cos_get_prealloc_page();
+	//if (!hp) 
+	hp = cos_get_vas_page();
 #endif
-  for (p = (unsigned long)hp ; 
-       p < (unsigned long)hp + s ; 
-       p += PAGE_SIZE) {
-	  ret = (void*)mman_get_page(cos_spd_id(), (void*)p, 0);
-	  if (unlikely(!ret)) {
-		  for (p -= PAGE_SIZE ; hp <= (void*)p ; p -= PAGE_SIZE) {
-			  mman_release_page(cos_spd_id(), (void*)p, 0);
-		  }
+	for (p = (unsigned long)hp ; 
+	     p < (unsigned long)hp + s ; 
+	     p += PAGE_SIZE) {
+		ret = (void*)mman_get_page(cos_spd_id(), (void*)p, 0);
+		if (unlikely(!ret)) {
+			for (p -= PAGE_SIZE ; hp <= (void*)p ; p -= PAGE_SIZE) {
+				mman_release_page(cos_spd_id(), (void*)p, 0);
+			}
 #ifdef USE_VALLOC
-			  if (unlikely(valloc_free(cos_spd_id(), cos_spd_id(), hp, s/PAGE_SIZE))) DIE();
+			if (unlikely(valloc_free(cos_spd_id(), cos_spd_id(), hp, s/PAGE_SIZE))) DIE();
 #else
-			  cos_set_heap_ptr_conditional(hp+PAGE_SIZE, hp);
+			cos_release_vas_page(hp);
 #endif
-		  return NULL;
-	  }
-  }
+			return NULL;
+		}
+	}
 #if ALLOC_DEBUG >= ALLOC_DEBUG_ALL
-  if (alloc_debug) printc("malloc in %d: mmapped region into %x", cos_spd_id(), ret);
+	if (alloc_debug) printc("malloc in %d: mmapped region into %x", cos_spd_id(), ret);
 #endif
-  return hp;
+	return hp;
 }
 
 /* remove qualifiers to make debugging easier */

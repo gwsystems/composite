@@ -52,7 +52,7 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 		}
 		
 		evt = &cos_sched_notifications.cos_events[cos_curr_evt];
-\
+
 		v_ptr = &COS_SCHED_EVT_VALS(evt);
 		do {
 			struct cos_se_values se;

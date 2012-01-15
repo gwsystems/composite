@@ -14,6 +14,7 @@
 #include <cos_alloc.h>
 #include <cos_map.h>
 #include <cos_list.h>
+
 #include <cos_debug.h>
 
 #include <cinfo.h>
@@ -24,6 +25,7 @@
 
 #include <tmem.h>
 #include <cbuf_c.h>
+
 
 //#define PRINCIPAL_CHECKS
 
@@ -421,6 +423,7 @@ err:
 int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 {
 	struct cb_mapping *m;
+
 	struct spd_tmem_info *map_sti;
 	DOUT("_c_delete....cbid %d\n", cbid);
 	__spd_cbvect_clean_val(sti, cbid);

@@ -471,8 +471,7 @@ void print_valid_pgtbl_entries(paddr_t pt);
 extern struct thread *ready_boot_thread(struct spd *init);
 vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr);
 
-static int aed_ioctl(struct inode *inode, struct file *file,
-		     unsigned int cmd, unsigned long arg)
+static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
 
@@ -941,10 +940,10 @@ static unsigned long fault_addrs[NUM_BUCKETS];
 #define PF_WRITE(code)  (code & 0x2)
 #define PF_READ(code)   (!PF_WRITE(code))
 
-void hijack_syscall_monitor(void)
+void hijack_syscall_monitor(int num)
 {
 	if (unlikely(!syscalls_enabled && composite_thread == current)) {
-		printk("FAILURE: making a Linux system call in Composite.\n");
+		printk("FAILURE: making a Linux system call (#%d) in Composite.\n", num);
 	}
 }
 
@@ -2033,34 +2032,34 @@ static int aed_release(struct inode *inode, struct file *file)
  * fault).  Thus, make sure the vmalloc regions are updated in all
  * page tables.
  */
-int nothing;
-static void update_vmalloc_regions(void)
-{
-	struct task_struct *t;
-	pgd_t *curr_pgd;
+/* int nothing; */
+/* static void update_vmalloc_regions(void) */
+/* { */
+/* 	struct task_struct *t; */
+/* 	pgd_t *curr_pgd; */
 
-	nothing = *(int*)&page_fault_interposition;
-	BUG_ON(!current->mm);
-	curr_pgd = current->mm->pgd;
+/* 	nothing = *(int*)&page_fault_interposition; */
+/* 	BUG_ON(!current->mm); */
+/* 	curr_pgd = current->mm->pgd; */
 
-	printk("curr pgd @ %p, cpy from %x to %x.  module code sample @ %p.\n",
-	       (void*)pa_to_va((void*)curr_pgd), (unsigned int)MODULES_VADDR, 
-	       (unsigned int)MODULES_END, &page_fault_interposition);
-	list_for_each_entry(t, &init_task.tasks, tasks) {
-		struct mm_struct *amm = t->active_mm, *mm = t->mm;
+/* 	printk("curr pgd @ %p, cpy from %x to %x.  module code sample @ %p.\n", */
+/* 	       (void*)pa_to_va((void*)curr_pgd), (unsigned int)MODULES_VADDR,  */
+/* 	       (unsigned int)MODULES_END, &page_fault_interposition); */
+/* 	list_for_each_entry(t, &init_task.tasks, tasks) { */
+/* 		struct mm_struct *amm = t->active_mm, *mm = t->mm; */
 		
-		if (current->mm == amm || current->mm == mm) continue;
+/* 		if (current->mm == amm || current->mm == mm) continue; */
 
-		if (amm) copy_pgtbl_range_nonzero((paddr_t)amm->pgd, (paddr_t)curr_pgd,
-						  MODULES_VADDR, MODULES_END-MODULES_VADDR);
-		if (mm && mm != amm) copy_pgtbl_range_nonzero((paddr_t)mm->pgd, (paddr_t)curr_pgd,
-							      MODULES_VADDR, MODULES_END-MODULES_VADDR);
-	}
-}
+/* 		if (amm) copy_pgtbl_range_nonzero((paddr_t)amm->pgd, (paddr_t)curr_pgd, */
+/* 						  MODULES_VADDR, MODULES_END-MODULES_VADDR); */
+/* 		if (mm && mm != amm) copy_pgtbl_range_nonzero((paddr_t)mm->pgd, (paddr_t)curr_pgd, */
+/* 							      MODULES_VADDR, MODULES_END-MODULES_VADDR); */
+/* 	} */
+/* } */
 
 static struct file_operations proc_aed_fops = {
 	.owner          = THIS_MODULE, 
-	.ioctl          = aed_ioctl, 
+	.unlocked_ioctl = aed_ioctl, 
 	.open           = aed_open,
 	.release        = aed_release,
 };

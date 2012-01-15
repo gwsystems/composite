@@ -142,3 +142,6 @@ int call_buf2buf(cbuf_t cb, int len, int flag) {
 	return 1;
 }
 
+
+//volatile int f;
+//void call(void) { f = *(int*)NULL; return; }

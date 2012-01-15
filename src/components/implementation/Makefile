@@ -4,6 +4,9 @@ MAKEFLAGS=-I$(shell pwd)
 
 .PHONY: all
 all: 
+	$(info ***********************************************)
+	$(info *********[ Building Implementations ]**********)
+	$(info ***********************************************)
 	@for dir in $(SUBDIRS) ; do \
 		$(MAKE) $(MAKEFLAGS) -C $$dir ; \
 	done

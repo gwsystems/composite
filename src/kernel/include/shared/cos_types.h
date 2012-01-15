@@ -246,6 +246,7 @@ struct cos_component_information {
 	long cos_this_spd_id;
 	u32_t cos_tmem_relinquish[COMP_INFO_TMEM_RELINQUISH];
 	vaddr_t cos_heap_ptr, cos_heap_limit;
+	vaddr_t cos_heap_allocated, cos_heap_alloc_extent;
 	vaddr_t cos_upcall_entry;
 	struct cos_sched_data_area *cos_sched_data_area;
 	vaddr_t cos_user_caps;
@@ -283,6 +284,7 @@ enum {
 enum {
 	COS_THD_INV_FRAME, 	/* Get the ith invocation frame for the thread */
 	COS_THD_INV_FRAME_REM, 	/* Remove a component return at an offset into the thd's stack */
+	COS_THD_INV_SPD,        /* has the spd been invoked by the thread? return offset into invstk */
 	COS_THD_INVFRM_IP,	/* get the instruction pointer in an inv frame  */
 	COS_THD_INVFRM_SET_IP,
 	COS_THD_INVFRM_SP,	/* get the stack pointer in an inv frame  */

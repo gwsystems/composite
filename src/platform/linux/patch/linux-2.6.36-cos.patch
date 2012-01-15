@@ -1,0 +1,49 @@
+diff -rupN linux-2.6.36/arch/x86/mm/mmap.c linux-2.6.36-cos/arch/x86/mm/mmap.c
+--- linux-2.6.36/arch/x86/mm/mmap.c	2010-10-20 16:30:22.000000000 -0400
++++ linux-2.6.36-cos/arch/x86/mm/mmap.c	2011-08-19 19:22:38.000000000 -0400
+@@ -134,3 +134,7 @@ void arch_pick_mmap_layout(struct mm_str
+ 		mm->unmap_area = arch_unmap_area_topdown;
+ 	}
+ }
++
++/* gparmer@gwu.edu: for composite */
++#include <linux/module.h>
++EXPORT_SYMBOL(arch_pick_mmap_layout);
+diff -rupN linux-2.6.36/kernel/fork.c linux-2.6.36-cos/kernel/fork.c
+--- linux-2.6.36/kernel/fork.c	2010-10-20 16:30:22.000000000 -0400
++++ linux-2.6.36-cos/kernel/fork.c	2011-08-19 19:23:29.000000000 -0400
+@@ -513,6 +513,9 @@ struct mm_struct * mm_alloc(void)
+ 	}
+ 	return mm;
+ }
++/* gparmer@gwu.edu: exported for composite */
++EXPORT_SYMBOL(mm_alloc);
++
+ 
+ /*
+  * Called when the last reference to the mm
+diff -rupN linux-2.6.36/kernel/softirq.c linux-2.6.36-cos/kernel/softirq.c
+--- linux-2.6.36/kernel/softirq.c	2010-10-20 16:30:22.000000000 -0400
++++ linux-2.6.36-cos/kernel/softirq.c	2011-08-19 19:23:58.000000000 -0400
+@@ -269,6 +269,8 @@ asmlinkage void do_softirq(void)
+ }
+ 
+ #endif
++/* gparmer@gwu.edu */
++EXPORT_SYMBOL(do_softirq);
+ 
+ /*
+  * Enter an interrupt context.
+diff -rupN linux-2.6.36/mm/mmap.c linux-2.6.36-cos/mm/mmap.c
+--- linux-2.6.36/mm/mmap.c	2010-10-20 16:30:22.000000000 -0400
++++ linux-2.6.36-cos/mm/mmap.c	2011-08-19 19:24:59.000000000 -0400
+@@ -2289,7 +2289,8 @@ void exit_mmap(struct mm_struct *mm)
+ 	while (vma)
+ 		vma = remove_vma(vma);
+ 
+-	BUG_ON(mm->nr_ptes > (FIRST_USER_ADDRESS+PMD_SIZE-1)>>PMD_SHIFT);
++	/* gparmer@gwu.edu */
++	//BUG_ON(mm->nr_ptes > (FIRST_USER_ADDRESS+PMD_SIZE-1)>>PMD_SHIFT);
+ }
+ 
+ /* Insert vm structure into process list sorted by address

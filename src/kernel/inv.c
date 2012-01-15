@@ -534,10 +534,20 @@ COS_SYSCALL int cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long a
 	{
 		int frame_offset = arg1;
 
-		if (thd == curr && frame_offset < 1) return -1;
+		if (thd == curr && frame_offset < 1)       return -1;
 		if (thd_invstk_rem_nth(thd, frame_offset)) return -1;
 
 		return 0;
+	}
+	case COS_THD_INV_SPD:
+	{
+		struct thd_invocation_frame *tif;
+		int i;
+
+		for (i = 0 ; (tif = thd_invstk_nth(thd, i)) ; i++) {
+			if (arg1 == spd_get_index(tif->spd)) return i;
+		}
+		return -1;
 	}
 	case COS_THD_INVFRM_IP:
 	{
@@ -640,6 +650,7 @@ static inline int sched_tailcall_adjust_invstk(struct thread *t)
 	ntif = thd_invstk_top(t);
 	if (NULL == ntif) return -1;
 	nspd = ntif->current_composite_spd;
+
 	open_close_spd(nspd, cspd);
 
 	spd_mpd_ipc_release((struct composite_spd *)tif->current_composite_spd);
@@ -911,7 +922,8 @@ static struct thread *switch_thread_slowpath(struct thread *curr, unsigned short
 		cos_meas_stats_end(COS_MEAS_STATS_UC_TERM_DELAY, 1);
 		cos_meas_stats_end(COS_MEAS_STATS_UC_PEND_DELAY, 0);
 
-		if (flags & COS_SCHED_TAILCALL && unlikely(spd_get_index(curr_spd) != sched_tailcall_adjust_invstk(curr))) 
+		if (flags & COS_SCHED_TAILCALL && 
+		    unlikely(spd_get_index(curr_spd) != sched_tailcall_adjust_invstk(curr))) 
 			goto_err(ret_err, "tailcall from incorrect spd!\n");
 		
 		assert(curr->thread_brand);

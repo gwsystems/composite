@@ -10,6 +10,7 @@
 
 #include <consts.h>
 #include <cos_types.h>
+#include <errno.h>
 
 /**
  * FIXME: Please remove this since it is no longer needed
@@ -238,6 +239,8 @@ static inline unsigned short int cos_get_thd_id(void)
 	return ud->current_thread;
 }
 
+#define ERR_THROW(errval, label) do { ret = errval; goto label; } while (0)
+
 static inline void *cos_arg_region_base(void)
 {
 	struct shared_user_data *ud = (void *)COS_INFO_REGION_ADDR;
@@ -285,17 +288,22 @@ static inline long cos_cmpxchg(volatile void *memory, long anticipated, long res
 	return ret;
 }
 
-/* allocate a page in the vas */
-static inline void *cos_get_vas_page(void)
+static inline void *cos_get_prealloc_page(void)
 {
 	char *h;
 	long r;
 	do {
-		h = cos_get_heap_ptr();
+		h = (void*)cos_comp_info.cos_heap_alloc_extent;
+		if (!h || (char*)cos_comp_info.cos_heap_allocated >= h) return NULL;
 		r = (long)h+PAGE_SIZE;
-	} while (cos_cmpxchg(&cos_comp_info.cos_heap_ptr, (long)h, r) != r);
+	} while (cos_cmpxchg(&cos_comp_info.cos_heap_allocated, (long)h, r) != r);
+
 	return h;
 }
+
+/* allocate and release a page in the vas */
+extern void *cos_get_vas_page(void);
+extern void cos_release_vas_page(void *p);
 
 /* only if the heap pointer is pre_addr, set it to post_addr */
 static inline void cos_set_heap_ptr_conditional(void *pre_addr, void *post_addr)

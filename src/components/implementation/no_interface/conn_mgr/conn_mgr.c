@@ -87,7 +87,6 @@ static void data_new(int fd)
 			cos_close(fd_pair);
 			cos_close(fd);
 			printc("conn_mgr: write failed w/ %d on fd %d\n", ret, fd_pair);
-			BUG();
 		}
 	}
 	cos_argreg_free(buf);
@@ -112,8 +111,6 @@ int main(void)
 			data_new(fd);
 		}
 	}
-
-	while(1);
 }
 
 void cos_init(void *arg)
@@ -127,9 +124,4 @@ void cos_init(void *arg)
 	} else {
 		prints("conn: not expecting more than one bootstrap.");
 	}
-}
-
-void bin(void)
-{
-	sched_block(cos_spd_id(), 0);
 }

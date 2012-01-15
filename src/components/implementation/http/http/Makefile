@@ -2,7 +2,7 @@ C_OBJS=https.o
 ASM_OBJS=
 COMPONENT=http.o
 INTERFACES=http
-DEPENDENCIES=mem_mgr printc sched content_mux timed_blk
+DEPENDENCIES=mem_mgr_large printc sched content_mux timed_blk
 IF_LIB=
 
 include ../../Makefile.subsubdir
