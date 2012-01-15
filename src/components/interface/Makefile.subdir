@@ -8,6 +8,7 @@ C_CSTUBS=$(wildcard $(STUB_DIR)/c_*.c)
 C_STUB_OBJS=$(C_CSTUBS:%.c=%.o)
 STUBS=$(ASM_STUBS) 
 IFNAME=$(lastword $(subst /, ,$(shell pwd)))
+
 DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
 
 .PHONY: all

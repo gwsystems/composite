@@ -48,6 +48,8 @@ enum{
 //#define THD_POOL 1
 #define CBUF_UNIT 5
 
+#define stack_1_num 20
+
 #define POLICY_PERIODICITY 25
 
 #define STK_MGR 0
@@ -828,6 +830,7 @@ thdpool_1_policy(void)
 					stkmgr_set_concurrency(c->spdid, INT_MAX, 0);
 				else
 					stkmgr_set_concurrency(c->spdid, 1, 0); /* 0 means pool 1 doesn't revoke tmems! */
+				if (c->spdid == 25) stkmgr_set_concurrency(c->spdid, stack_1_num, 0); 
 				break;
 			case CBUF_MGR:
 				if (c->ss_counter) 
