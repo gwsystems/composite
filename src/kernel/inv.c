@@ -1675,6 +1675,26 @@ int cos_net_notify_drop(struct thread *brand)
 	return 0;
 }
 
+/****************************/
+/*** Translator Interface ***/
+/****************************/
+
+typedef int (*trans_fn_t)(int channel);
+static trans_fn_t trans_fn = NULL;
+
+void cos_trans_reg_levtfn(trans_fn_t fn) { trans_fn = fn; }
+void cos_trans_dereg_levtfn(void) { trans_fn = NULL; }
+
+COS_SYSCALL int cos_syscall_trans_cntl(spdid_t spdid, int op, long arg)
+{
+	printk("trans_cntl\n");
+	switch (op) {
+	case COS_TRANS_TRIGGER:
+		if (trans_fn) return trans_fn((int)arg);
+	}
+	return -1;
+}
+
 /* 
  * Partially emulate a device here: Receive ring for holding buffers
  * to receive data into, and a synchronous call to transmit data.
@@ -3338,7 +3358,7 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_idle,
 	(void*)cos_syscall_spd_cntl,
 	(void*)cos_syscall_vas_cntl,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_trans_cntl,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,

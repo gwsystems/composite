@@ -9,14 +9,16 @@
 #include <fcntl.h>
 #include <string.h>
 
+#include "../../translator_ioctl.h"
+
 #define PROC_FILE "/proc/translator"
-#define MAP_SIZE (4096 * 256)
+#define MAP_SIZE 4096 //(4096 * 256)
 
 int main(void)
 {
 	int fd;
 	void *a;
-//	const char *name = "print";
+	char c;
 
 	fd = open(PROC_FILE, O_RDWR);
 	if (fd < 0) {
@@ -24,11 +26,16 @@ int main(void)
 		exit(-1);
 	}
 
-	a = mmap(NULL, MAP_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, fd, 0);
+	trans_ioctl_set_channel(fd, 0);
+	a = mmap(NULL, MAP_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 	if (MAP_FAILED == a) {
 		perror("mmap");
 		exit(-1);
 	}
+
+	read(fd, &c, 1);
+
+	printf(".\n");
 
 	if (munmap(a, MAP_SIZE) < 0) {
 		perror("munmap");

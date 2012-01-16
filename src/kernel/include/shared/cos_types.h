@@ -361,6 +361,10 @@ enum {
 	COS_SCHED_BREAK_PREEMPTION_CHAIN
 };
 
+enum {
+	COS_TRANS_TRIGGER,
+};
+
 /* flags for cos_switch_thread */
 #define COS_SCHED_TAILCALL     0x1
 #define COS_SCHED_SYNC_BLOCK   0x2
