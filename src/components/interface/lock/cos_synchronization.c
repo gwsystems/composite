@@ -120,12 +120,14 @@ int lock_release(cos_lock_t *l) {
 	struct cos_lock_atomic_struct result;
 	volatile u32_t *result_ptr;
 	u32_t new_val, prev_val;
-
 	result_ptr = (volatile u32_t*)&result;
+
 	do {
 		prev_val = *result_ptr = *(volatile u32_t *)&l->atom;
 		/* If we're here, we better own the lock... */
-		if (unlikely(result.owner != curr)) BUG();
+		if (unlikely(result.owner != curr)) {
+			BUG();
+		}
 
 		result.owner = 0;
 		if (unlikely(result.contested)) {
@@ -152,7 +154,6 @@ int lock_release(cos_lock_t *l) {
 		assert(result.owner != curr);
 	} while ((u32_t)cos_cmpxchg(&l->atom, prev_val, new_val) != new_val);
 	assert(l->atom.owner != curr);
-
 	return 0;
 }
 

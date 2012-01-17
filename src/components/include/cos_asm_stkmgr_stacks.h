@@ -16,24 +16,27 @@
 
 
 #define COS_ASM_GET_STACK                       \
+1:                                              \
         /* Check to see if we have a stk */     \
         movl  cos_comp_info, %edx;              \
         testl %edx, %edx;                       \
         je    2f;                               \
                                                 \
         /* We have a stack */                   \
-        movl cos_comp_info, %eax;               \
-        movl (%eax), %edx;                      \
+        movl cos_comp_info, %edx;               \
+						\
+	/* now we have the stack */		\
+        movl  %edx, %esp;                       \
+        addl  $12, %esp;			\
+						\
+        movl (%edx), %edx;                      \
         movl %edx, cos_comp_info;               \
-        addl $4, %eax;                          \
-1:                                              \
-        /* Return Stack */                      \
-        movl  %eax, %esp;                       \
-        addl  $4, %esp;                         \
-        pushl $0x01;    /* flags */             \
+						\
+	pushl %eax;	 			\
+        pushl $0x03;    /* flags */             \
         pushl $0xFACE;  /* next */              
 
-
+	
 #define COS_ASM_REQUEST_STACK                   \
 2:                                              \
         /* get stk space */                     \
@@ -53,7 +56,7 @@
         call stkmgr_grant_stack;                \
         addl $4, %esp;                          \
                                                 \
-        subl $0x4, %eax;                        \
+        /* addl $0x4, %eax; */                  \
                                                 \
         /*restore stack */                      \
         popl %ecx;                              \
@@ -62,39 +65,45 @@
         popl %esi;                              \
         popl %ebp;                              \
         /*movl %esp, %eax;*/                    \
-        jmp  1b;                                
+						\
+        /* movl  %eax, %esp; */                 \
+	/* restore Thd_id in eax */		\
+	movl $THD_ID_SHARED_PAGE, %edx;		\
+        movl (%edx), %eax;	                \
+	jmp  1b;                                
 
 
 #define COS_ASM_RET_STACK                       \
                                                 \
-        addl $4, %esp;                          \
-        movl (%esp),%edx;                       \
-        andl $0x02, %edx;                       \
-        test %edx, %edx;                        \
-        jne  3f;                                \
-                                                \
         /* Put back on free list */             \
-        addl $4, %esp;                          \
-        pushl $0x00;  /* Flag Mark Not in Use */\
-        pushl $0xFACE;  /* next */              \
+        /* FIXME: race! */			\
         movl cos_comp_info, %edx;               \
         movl %edx, (%esp);                      \
         movl %esp, cos_comp_info;               \
-        jmp  4f;                                \
-3:                                              \
-        /* stkmgr wants stack back */           \
+						\
         addl $4, %esp;                          \
+						\
+	/* Flag Mark Not in Use, but Touched */	\
+        movl $0x02, (%esp);			\
+	addl $4, %esp;                          \
+	pushl $0x00;				\
+	subl $4, %esp;				\
+						\
+        movl $cos_comp_info, %edx; 		\
+	movl 12(%edx), %edx;			\
+        test %edx, %edx;                        \
+	je 4f;					\
+3:                                              \
+        /* stkmgr wants stack back */ 		\
         movl %esp, %edx;                        \
-        push $0x00;  /* free flags */           \
                                                 \
         /* Since we are done with this stack    \
            We should not depend on it anymore */\
-                                                \
-        movl $THD_ID_SHARED_PAGE, %ecx;         \
-        movl (%ecx), %ecx;                      \
+	movl $THD_ID_SHARED_PAGE, %ebx;         \
+        movl (%ebx), %ebx;                      \
     	movl $stkmgr_stack_space, %esp;	        \
-        shl $7, %ecx;	                        \
-        addl %ecx, %esp;                        \
+        shl $7, %ebx;	                        \
+        addl %ebx, %esp;                        \
         /* save our registers */                \
         pushl %ebp;                             \
         pushl %esi;                             \
@@ -103,9 +112,9 @@
         pushl %ecx;                             \
         pushl %eax;                             \
                                                 \
-        pushl %edx; /* address of stack */      \
+        pushl %edx; /* address of structure in stack */      \
         movl cos_comp_info, %ecx;               \
-        subl $8, %ecx;                          \
+        /*subl $8, %ecx;*/                          \
         /*movl (%ecx), %edx;*/                  \
         pushl %ecx;                             \
         call stkmgr_return_stack;               \
