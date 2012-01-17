@@ -9,7 +9,6 @@ C_STUB_OBJS=$(C_CSTUBS:%.c=%.o)
 STUBS=$(ASM_STUBS) 
 IFNAME=$(lastword $(subst /, ,$(shell pwd)))
 INCLUDES= $(CINC) $(foreach I,$(INTERFACES),-I$(INTERDIR)/$(I)/)
-
 DEP_INC=$(foreach D,$(DEPENDENCIES),-I$(INTERDIR)/$(D)/)
 
 .PHONY: all
@@ -24,9 +23,7 @@ all: $(LIBS) stubs
 
 %.o:%.c
 #	$(info |     [CC]   Compiling c file $^ into $@)
-
-	@$(CC) $(CFLAGS) $(INCLUDES) $(DEP_INC) -c -o $(@) $<
-
+	@$(CC) $(CFLAGS) $(INCLUDES) $(CINC) $(DEP_INC) -c -o $(@) $<
 
 %.o:%.S
 #	$(info |     [AS]   Compiling assembly file $^ into $@)

@@ -1,7 +1,6 @@
 #include <cos_component.h>
 #include <print.h>
 #include <sched.h>
-#include <cbuf_test.h>
 #include <cbuf.h>
 
 void make_alloc_call_free(int sz, char c)

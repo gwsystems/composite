@@ -10,8 +10,8 @@
 #ifndef   	CBUF_C_H
 #define   	CBUF_C_H
 
-#include <mem_mgr_large.h>
 #include <cbuf_vect.h>
+#include <mem_mgr_large.h>
 
 /* Component functions */
 int cbuf_c_create(spdid_t spdid, int size, long cbid); /* return cbid */

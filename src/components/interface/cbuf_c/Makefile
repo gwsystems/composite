@@ -1,6 +1,6 @@
 LIB_OBJS=cbuf_c.o
 LIBS=$(LIB_OBJS:%.o=%.a)
 ASM_STUBS=s_stubcb.o
-DEPENDENCIES=valloc mem_mgr_large lock
+DEPENDENCIES=mem_mgr_large valloc lock
 
 include ../Makefile.subdir
