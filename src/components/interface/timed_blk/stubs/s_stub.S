@@ -5,9 +5,8 @@
  * Public License v2.
  */
 
-#include <cos_asm_server_stub.h>
-	
+#include <cos_asm_server_stub_simple_stack.h>	
+
 .text	
 cos_asm_server_stub_spdid(timed_event_block)
 cos_asm_server_stub_spdid(timed_event_wakeup)
-

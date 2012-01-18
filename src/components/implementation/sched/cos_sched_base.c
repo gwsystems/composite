@@ -30,6 +30,7 @@
 
 //#define TIMER_ACTIVATE
 #include <timer.h>
+#include <errno.h>
 
 //#define SCHED_DEBUG
 #ifdef SCHED_DEBUG
@@ -93,6 +94,7 @@ typedef enum {
 	BLOCKED_DEP_RETRY,
 	RETRY_BLOCK,
 	BLOCKED_W_DEPENDENCY,
+	DEPENDENCY_BLOCKED_THD,
 	SCHED_TARGETTED_DEPENDENCY,
 	PARENT_BLOCK_CHILD,
 	PARENT_CHILD_EVT_OTHER,
@@ -141,6 +143,7 @@ static char *revt_names[] = {
 	"re-asserting dependency",
 	"premature unblock, retrying block",
 	"block with dependency",
+	"dependency on blocked thread",
 	"schedule will explicit target (via dependency)",
 	"parent scheduler blocking child scheduler",
 	"parent scheduler sending non-thread block/wake event",
@@ -701,12 +704,14 @@ static void fp_pre_wakeup(struct sched_thd *t)
 	assert(t->wake_cnt >= 0 && t->wake_cnt <= 2);
 	if (2 == t->wake_cnt) return;
 	t->wake_cnt++;
-	if (!sched_thd_dependent(t) &&
-	    !(sched_thd_blocked(t) || t->wake_cnt == 2)) {
-		printc("thread %d (from thd %d) has wake_cnt %d\n", 
-		       t->id, cos_get_thd_id(), t->wake_cnt);
-		BUG();
-	}
+	//printc("thd %d cnt++ %d ->%d\n", t->id, t->wake_cnt-1, t->wake_cnt);
+	/* if (sched_get_current() != t && /\* Hack around comment "STKMGR: self wakeup" *\/ */
+	/*     !sched_thd_dependent(t) && */
+	/*     !(sched_thd_blocked(t) || t->wake_cnt == 2)) { */
+	/* 	printc("thread %d (from thd %d) has wake_cnt %d\n", */
+	/* 	       t->id, cos_get_thd_id(), t->wake_cnt); */
+	/* 	BUG(); */
+	/* } */
 }
 
 /* Assuming the thread is asleep, this will actually wake it (change
@@ -743,11 +748,10 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 	
 	/* only increase the count once */
 	fp_pre_wakeup(thd);
-	assert(thd->blocking_component == 0 || thd->blocking_component == spdid);
 	
 	if (thd->dependency_thd) {
 		assert(sched_thd_dependent(thd));
-		assert(!thd->contended_component);
+		assert(thd->ncs_held == 0 || thd->id == cos_get_thd_id());
 		thd->flags &= ~THD_DEPENDENCY;
 		thd->dependency_thd = NULL;
 	} else {
@@ -835,27 +839,25 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	int ret;
 	int first = 1;
 
+	// Added by Gabe 08/19
+	if (dependency_thd == cos_get_thd_id()) return -EINVAL;
+
 	cos_sched_lock_take();
 	thd = sched_get_current();
 	assert(thd);
 	assert(spdid);
 
 	/* we shouldn't block while holding a component lock */
-	if (unlikely(0 != thd->contended_component)) goto warn;
+	if (unlikely(0 != thd->ncs_held)) goto warn;
 	if (unlikely(!(thd->blocking_component == 0 || 
 		       thd->blocking_component == spdid))) goto warn;
 	assert(!sched_thd_free(thd));
 	assert(!sched_thd_blocked(thd));
-	/* dependency thread blocked??? */
-	if (dependency_thd) {
-		dep = sched_get_mapping(dependency_thd);
-		if (!dep) {
-			printc("Dependency on non-existent thread %d.\n", dependency_thd);
-			goto err;
-		}
-		if (sched_thd_blocked(dep)) goto err;
-	}
 
+	/* 
+	 * possible FIXME: should we be modifying the wake_cnt at all
+	 * if we are using dependencies?
+	 */
 	fp_pre_block(thd);
 	/* if we already got a wakeup call for this thread */
 	if (thd->wake_cnt) {
@@ -863,13 +865,30 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 		cos_sched_lock_release();
 		return 0;
 	}
+	/* dependency thread blocked??? */
+	if (dependency_thd) {
+		dep = sched_get_mapping(dependency_thd);
+		if (dep->dependency_thd) {
+			if(dep->dependency_thd->id == cos_get_thd_id()) {
+				printc("dep %d, curr %d\n", dep->id, cos_get_thd_id());
+				cos_sched_lock_release();
+				assert(0);
+			}
+		}
+
+		if (!dep) {
+			printc("Dependency on non-existent thread %d.\n", dependency_thd);
+			goto err;
+		}
+		if (sched_thd_blocked(dep)) goto err;
+	}
 	/* dependencies keep the thread on the runqueue, so
 	 * that it can be selected to execute and its
 	 * dependency list walked. */
 	if (dependency_thd) {
 		thd->dependency_thd = dep;
 		thd->flags |= THD_DEPENDENCY;
-		assert(!thd->contended_component);
+		assert(thd->ncs_held == 0);
 	} else {
 		fp_block(thd, spdid);
 	}
@@ -881,6 +900,31 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 			cos_sched_lock_take();
 			report_event(BLOCKED_W_DEPENDENCY);
 			if (!first) { report_event(BLOCKED_DEP_RETRY); }
+
+			/* 
+			 * Complicated case: We want to avoid the case
+			 * where we are dependent on a blocked thread
+			 * (i.e. due to self-suspension).  When we
+			 * resolve dependencies, if we are dependent
+			 * on a blocked thread, we actually run the
+			 * dependent thread.  Thus when we wake up
+			 * here, we will still be dependent
+			 * (otherwise, we would be scheduled because
+			 * the dependency thread executed
+			 * sched_wakeup).  So in this case, we want to
+			 * remove the dependency, execute the thread,
+			 * and return an error code from sched_block
+			 * indicating that we attempted to do priority
+			 * inheritance with a blocked thread.
+			 */
+			if (unlikely(sched_thd_dependent(thd))) {
+				printc("Cos_sched_base: Dependency thread self-suspended: dep_thd %d, flags %d, wake_cnt %d (curr thd: %d, comp:%d). \n"
+				       , dependency_thd, dep->flags, dep->wake_cnt, cos_get_thd_id(), spdid);
+				thd->flags &= ~THD_DEPENDENCY;
+				thd->dependency_thd = NULL;
+				report_event(DEPENDENCY_BLOCKED_THD);
+				goto err;
+			}
 		} else {
 			sched_switch_thread(0, BLOCK_LOOP);
 			cos_sched_lock_take();
@@ -984,7 +1028,11 @@ static int fp_kill_thd(struct sched_thd *t)
 	REM_LIST(t, next, prev);
 
 	sched_switch_thread(0, NULL_EVT);
-	if (t == c) BUG();
+	if (t == c) {
+		printc("t: id %d, c: id %d\n",t->id, c->id);
+
+		BUG();
+	}
 
 	return 0;
 }

@@ -1,0 +1,19 @@
+
+reset: clean cp build
+
+init: first
+
+first: cp build
+
+cp:
+	cp $(TRANS_DIR)/* $(TEST_DIR)
+
+clean:
+	rm cos_loader
+	rmmod cos
+
+# sync to minimize possible file system corruption on crashes
+build: 
+	insmod cos.ko
+#	insmod cnet.ko
+#	./cnet_user
