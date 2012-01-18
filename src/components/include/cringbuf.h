@@ -87,14 +87,15 @@ static inline int
 cringbuf_empty_sz(struct cringbuf *rb)
 {
 	assert(rb && rb->b);
-	return rb->sz - cringbuf_sz(rb);
+	return rb->sz - 1 - cringbuf_sz(rb);
 }
 
 static inline int
 cringbuf_full(struct cringbuf *rb)
 {
 	assert(rb && rb->b);
-	return cringbuf_sz(rb) == rb->sz;
+	assert(cringbuf_sz(rb) <= (rb->sz-1));
+	return cringbuf_sz(rb) == (rb->sz-1);
 }
 
 /* returns a contiguous extent of active entries (not _all_ used entries) */
@@ -117,6 +118,26 @@ cringbuf_active_extent(struct cringbuf *rb, int *len, int amnt)
 	return &b->buffer[head];
 }
 
+static inline char *
+cringbuf_inactive_extent(struct cringbuf *rb, int *len, int amnt)
+{
+	struct __cringbuf *b;
+	int head, tail;
+
+	assert(rb && rb->b);
+	b    = rb->b;
+	*len = 0;
+	if (cringbuf_full(rb)) return NULL;
+
+	head = b->head;
+	tail = b->tail;
+	if (head <= tail) *len = rb->sz - tail;
+	else              *len = head - tail - 1;
+	if (*len > amnt)  *len = amnt;
+
+	return &b->buffer[tail];
+}
+
 /* amnt should be < cringbuf_active_extent */
 static inline void
 cringbuf_delete(struct cringbuf *rb, int amnt)
@@ -128,10 +149,29 @@ cringbuf_delete(struct cringbuf *rb, int amnt)
 	c     = cringbuf_active_extent(rb, &l, amnt);
 	assert(c && l <= amnt);
 	head  = rb->b->head;
-	nhead = head + amnt;
+	nhead = head + l;
 	assert(nhead <= rb->sz);
 	if (nhead == rb->sz) nhead = 0;
 	rb->b->head = nhead;
+}
+
+/* amnt should be <= cringbuf_inactive_extent */
+static inline void
+cringbuf_add(struct cringbuf *rb, int amnt)
+{
+	int l, tail, ntail;
+	char *c;
+
+	assert(rb && rb->b);
+	c     = cringbuf_inactive_extent(rb, &l, amnt);
+	assert(c && l <= amnt);
+	tail  = rb->b->tail;
+	ntail = tail + l;
+	assert(ntail <= rb->sz);
+	if (ntail == rb->sz) ntail = 0;
+	rb->b->tail = ntail;
+	assert(ntail != rb->b->head);
+	assert(ntail < rb->sz);
 }
 
 static int
@@ -145,6 +185,23 @@ ringbuf_consume_some(struct cringbuf *rb, char *b, int amnt)
 	memcpy(b, t, l);
 	cringbuf_delete(rb, l);
 	memsetd(t, 0, l);	/* only for debugging */
+
+	return l;
+}
+
+static int
+ringbuf_produce_some(struct cringbuf *rb, char *b, int amnt)
+{
+	int l;
+	char *t;
+
+	t = cringbuf_inactive_extent(rb, &l, amnt);
+	if (!t) return 0;
+	__cringbuf_zeros(t, l);	/* only for debugging */
+	memcpy(t, b, l);
+	assert(l + rb->b->tail <= rb->sz);
+	cringbuf_add(rb, l);
+	assert(rb->b->tail < rb->sz);
 
 	return l;
 }
@@ -170,44 +227,17 @@ cringbuf_consume(struct cringbuf *rb, char *b, int amnt)
 }
 
 static int
-cringbuf_produce(struct cringbuf *rb, char *buf, int amnt)
+cringbuf_produce(struct cringbuf *rb, char *b, int amnt)
 {
-	int head, tail, ntail, left = amnt, off = 0;
-	struct __cringbuf *b;
+	int left = amnt;
 
-	assert(rb && buf && amnt);
-	/* Not enough room for all the data */
-	if (cringbuf_empty_sz(rb) < amnt) return -1;
+	printd("produce %d: h %d, tail %d >> ", amnt, rb->b->head, rb->b->tail);
+	left -= ringbuf_produce_some(rb, b, amnt);
+	if (left) left -= ringbuf_produce_some(rb, b+(amnt-left), left);
 
-	b = rb->b;
-	assert(b);
-	head = b->head;
-	tail = ntail = b->tail;
-	printd("produce %d: h %d, tail %d >> ", amnt, head, tail);
-	if (tail >= head) {
-		int cpy;
-
-		cpy   = rb->sz - tail;
-		cpy   = cpy > amnt ? amnt : cpy;
-		__cringbuf_zeros(&b->buffer[tail], cpy);
-		memcpy(&b->buffer[tail], buf, cpy);
-		left  -= cpy;
-		off   += cpy;
-		if (left) ntail = 0;
-	}
-	if (left) {
-		__cringbuf_zeros(&b->buffer[ntail], left);
-		memcpy(&b->buffer[ntail], buf+off, left);
-		rb->b->tail = ntail + left;
-	} else {
-		int t = ntail + amnt;
-		if (t == rb->sz) t = 0;
-		rb->b->tail = t;
-	}
-	assert(rb->b->tail < rb->sz);
 	printd("h %d, tail %d\n", rb->b->head, rb->b->tail);
-
-	return amnt;
+	
+	return amnt-left;
 }
 
 #endif
