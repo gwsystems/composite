@@ -23,4 +23,29 @@
 #define COS_PRINT_SCHED_EVENTS 1
 #define COS_ASSERTIONS_ACTIVE  1
 
+/*** Console and output options ***/
+/* 
+ * Notes: If you are using composite as high priority and no idle to
+ * linux, then the shell output will not appear until the Composite
+ * system has exited.  Thus, you will want to make the memory size
+ * large enough to buffer _all_ output.  Note that currently
+ * COS_PRINT_MEM_SZ should not exceed around (1024*1024*3).
+ *
+ * If you have COS_PRINT_SHELL, you _will not see output_ unless you
+ * run 
+ * $~/transfer/print
+ * after
+ * # make
+ * but before the runscript.
+ */
+/* print out to the shell? */
+#define COS_PRINT_SHELL   1
+/* how much should we buffer before sending an event to the shell? */
+#define COS_PRINT_BUF_SZ  128
+/* how large should the shared memory region be that will buffer print data? */
+#define COS_PRINT_MEM_SZ  4096
+
+/* print out to dmesg? */
+//#define COS_PRINT_DMESG 1
+
 #endif /* COS_CONFIG_H */

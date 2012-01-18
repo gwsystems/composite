@@ -10,7 +10,9 @@
 #define printd(str,args...)
 #endif
 #else 
+#ifndef REDEFINE_ASSERT
 #include <cos_debug.h>
+#endif
 #define printd(str,args...)
 #endif
 
