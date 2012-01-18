@@ -192,6 +192,13 @@ struct cos_net_callbacks {
 			  cos_net_data_completion_t *fn, void **data, unsigned short int *port);
 };
 
+/* Communication of callback functions for the translator module */
+struct cos_trans_fns {
+	int   (*levt)(int channel);
+	void *(*map_kaddr)(int channel);
+	int   (*map_sz)(int channel);
+};
+
 /*
  * These types are for addresses that are never meant to be
  * dereferenced.  They will generally be used to set up page table
@@ -368,10 +375,17 @@ enum {
 	COS_SCHED_EVT_REGION,
 	COS_SCHED_THD_EVT,
 	COS_SCHED_PROMOTE_CHLD,
+	COS_SCHED_PROMOTE_ROOT,
 	COS_SCHED_GRANT_SCHED,
 	COS_SCHED_REVOKE_SCHED,
 	COS_SCHED_REMOVE_THD,
 	COS_SCHED_BREAK_PREEMPTION_CHAIN
+};
+
+enum {
+	COS_TRANS_TRIGGER,
+	COS_TRANS_MAP_SZ,
+	COS_TRANS_MAP,
 };
 
 /* flags for cos_switch_thread */

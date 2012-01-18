@@ -1,8 +1,8 @@
-C_OBJS=mem_man.o
-ASM_OBJS=cos_asm_scheduler.o
-COMPONENT=mm.o
-INTERFACES=mem_mgr
-DEPENDENCIES=printc
+C_OBJS=print_comp.o
+ASM_OBJS=
+COMPONENT=printl.o
+INTERFACES=printc
+DEPENDENCIES=
 IF_LIB=
 
 include ../../Makefile.subsubdir

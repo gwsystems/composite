@@ -1038,10 +1038,11 @@ static int fp_kill_thd(struct sched_thd *t)
 }
 
 /* Create a thread without invoking the scheduler policy */
-static struct sched_thd *__sched_setup_thread_no_policy(unsigned int tid)
+static struct sched_thd *__sched_setup_thread_no_policy(int tid)
 {
 	struct sched_thd *new;
 
+	assert(tid > 0);
 	new = sched_alloc_thd(tid);
 	assert(new);
 	if (0 > sched_alloc_event(new)) BUG();
@@ -1051,7 +1052,7 @@ static struct sched_thd *__sched_setup_thread_no_policy(unsigned int tid)
 }
 
 /* Create the thread and invoke the scheduling policy */
-static struct sched_thd *__sched_setup_thread_nocrt(unsigned int tid, char *metric_str)
+static struct sched_thd *__sched_setup_thread_nocrt(int tid, char *metric_str)
 {
 	struct sched_thd *new;
 	
@@ -1066,7 +1067,7 @@ extern int parent_sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd);
 
 static struct sched_thd *sched_setup_thread_arg(char *metric_str, crt_thd_fn_t fn, void *d)
 {
-	unsigned int tid;
+	int tid;
 	struct sched_thd *new;
 
 	tid = (sched_is_root())                       ?
@@ -1216,7 +1217,7 @@ int sched_child_cntl_thd(spdid_t spdid)
 int sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd)
 {
 	struct sched_thd *t, *st, *new;
-	unsigned int tid;
+	int tid;
 
 	cos_sched_lock_take();
 	t = sched_get_current();
@@ -1228,7 +1229,7 @@ int sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd)
 		cos_create_thread((int)fp_create_spd_thd, (int)dest_spd, 0) :
 		parent_sched_child_thd_crt(cos_spd_id(), dest_spd);
 
-	assert(0 != tid);
+	assert(tid > 0);
 	new = sched_alloc_thd(tid);
 	assert(new);
 	sched_add_mapping(tid, new);
@@ -1500,6 +1501,7 @@ void sched_exit(void)
 	printc("Switching to %d\n", init->id);
 	cos_sched_clear_events();
 	cos_switch_thread(init->id, 0);
+	while (1) ;
 	BUG();
 }
 

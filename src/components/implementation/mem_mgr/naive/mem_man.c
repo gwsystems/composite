@@ -7,6 +7,23 @@
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
+ *
+ * I do _not_ use "embedded mapping nodes" here.  That is, I don't
+ * embed the mapping nodes into the per-component "page tables" that
+ * are used to look up individual mappings in each component.
+ * Additionally, instead of the conventional implementation that has
+ * these page table structures point to the frame structure that is
+ * the base of the mapping tree, we point directly to the mapping to
+ * avoid the O(N) cost when mapping where N is the number of nodes in
+ * a mapping tree.  The combination of these design decisions means
+ * that we might use more memory and have a few more data cache line
+ * accesses.  We use a slab allocator to avoid excessive memory usage
+ * for allocating memory mapping structures.  However, we use a very
+ * fast (and predictable) lookup structure to perform the (component,
+ * address)->mapping lookup.  Unfortunately the memory overhead of
+ * that is significant (2 pages per component in the common case).
+ * See cvectc.h for an alternative that trades (some) speed for memory
+ * usage.
  */
 
 /* 
@@ -20,6 +37,11 @@
 #include <print.h>
 
 #include <cos_list.h>
+#include "../../sched/cos_sched_sync.h"
+/* #define LOCK()  */
+/* #define UNLOCK()  */
+#define LOCK() if (cos_sched_lock_take()) assert(0);
+#define UNLOCK() if (cos_sched_lock_release()) assert(0);
 
 #include <mem_mgr.h>
 
@@ -526,61 +548,82 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 {
 	struct frame *f;
 	struct mapping *m;
+	vaddr_t ret = 0;
 
+	LOCK();
 	mm_init();
 	f = frame_alloc();
-	if (!f) return 0; 	/* -ENOMEM */
+	if (!f) goto done; 	/* -ENOMEM */
 	frame_ref(f);
 	m = mapping_crt(NULL, f, spd, addr);
 	if (!m) goto dealloc;
 	assert(m->addr == addr);
 	assert(m->spdid == spd);
 	assert(m == mapping_lookup(spd, addr));
-
+	ret = m->addr;
+done:
+	UNLOCK();
 	return m->addr;
 dealloc:
 	frame_deref(f);
-	return 0;		/* -EINVAL */
+	goto done;		/* -EINVAL */
 }
 
 vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr)
 {
 	struct mapping *m, *n;
+	vaddr_t ret = 0;
 
+	LOCK();
 	mm_init();
 	m = mapping_lookup(s_spd, s_addr);
-	if (!m) return 0; 	/* -EINVAL */
+	if (!m) goto done; 	/* -EINVAL */
 	n = mapping_crt(m, m->f, d_spd, d_addr);
-	if (!n) return 0;
+	if (!n) goto done;
 
-	assert(n->addr == d_addr);
+	assert(n->addr  == d_addr);
 	assert(n->spdid == d_spd);
-	assert(n->p == m);
-	return d_addr;
+	assert(n->p     == m);
+	ret = d_addr;
+done:
+	UNLOCK();
+	return ret;
 }
 
 int mman_revoke_page(spdid_t spd, vaddr_t addr, int flags)
 {
 	struct mapping *m;
+	int ret = 0;
 
+	LOCK();
 	mm_init();
 	m = mapping_lookup(spd, addr);
-	if (!m) return -1;	/* -EINVAL */
+	if (!m) {
+		ret = -1;	/* -EINVAL */
+		goto done;
+	}
 	mapping_del_children(m);
-
-	return 0;
+done:
+	UNLOCK();
+	return ret;
 }
 
 int mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 {
 	struct mapping *m;
+	int ret = 0;
 
+	LOCK();
 	mm_init();
 	m = mapping_lookup(spd, addr);
-	if (!m) return -1;	/* -EINVAL */
+	if (!m) {
+		ret = -1;	/* -EINVAL */
+		goto done;
+	}
 	mapping_del(m);
-
-	return 0;
+done:
+	UNLOCK();
+	return ret;
 }
 
 void mman_print_stats(void) {}

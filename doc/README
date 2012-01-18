@@ -1,5 +1,9 @@
 The files in this directory follow:
 
+- composite_dev_manual.{html|org}: If you want to understand at the
+  surface level some of the system calls and interfaces to important
+  components, start here.
+
 - build_system.txt: Discusses the build system, how to compile and
   execute the system.
 

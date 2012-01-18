@@ -61,7 +61,8 @@ enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_H
 const char *COMP_INFO   = "cos_comp_info";
 
 const char *INIT_COMP   = "c0.o";
-char *ROOT_SCHED        = NULL; // this is set to the first listed scheduler
+char *ROOT_SCHED        = NULL; // this is set to the first listed scheduler (*)
+const char *INITMM      = "mm.o"; // this is set to the first listed memory manager (#)
 const char *MPD_MGR     = "cg.o"; // the component graph!
 const char *CONFIG_COMP = "schedconf.o";
 const char *BOOT_COMP   = "boot.o";
@@ -826,10 +827,11 @@ static void parse_component_traits(char *name, struct component_traits *t, int *
 		break;
 	}
 	case '!': t->composite_loaded = 1; break;
-	default:  /* base case */          return;
+	default: /* base case */ return;
 	}
 	(*off)++;
 	parse_component_traits(name, t, off);
+	
 	return;
 }
 
@@ -2287,7 +2289,7 @@ static struct service_symbs *find_obj_by_name(struct service_symbs *s, const cha
 
 static void setup_kernel(struct service_symbs *services)
 {
-	struct service_symbs *s;
+	struct service_symbs *m, *s;
 	struct service_symbs *init = NULL;
 	struct spd_info *init_spd = NULL;
 
@@ -2332,11 +2334,17 @@ static void setup_kernel(struct service_symbs *services)
 	}
 	printl(PRINT_DEBUG, "\n");
 
+	if ((m = find_obj_by_name(services, INITMM)) == NULL) {
+		fprintf(stderr, "Could not find initial memory manager %s\n", INITMM);
+		exit(-1);
+	}
+	make_spd_scheduler(cntl_fd, m, NULL);
+	assert(!m->is_composite_loaded);
 	if ((s = find_obj_by_name(services, ROOT_SCHED)) == NULL) {
 		fprintf(stderr, "Could not find root scheduler %s\n", ROOT_SCHED);
 		exit(-1);
 	}
-	make_spd_scheduler(cntl_fd, s, NULL);
+	make_spd_scheduler(cntl_fd, s, m);
 	assert(!s->is_composite_loaded);
 	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;
 
