@@ -1675,6 +1675,56 @@ int cos_net_notify_drop(struct thread *brand)
 	return 0;
 }
 
+/****************************/
+/*** Translator Interface ***/
+/****************************/
+
+extern int pgtbl_add_entry(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr); 
+extern void *va_to_pa(void *va);
+static const struct cos_trans_fns *trans_fns = NULL;
+void cos_trans_reg(const struct cos_trans_fns *fns) { trans_fns = fns; }
+void cos_trans_dereg(void) { trans_fns = NULL; }
+
+COS_SYSCALL int
+cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, int off)
+{
+	int op, channel;
+
+	op = op_ch >> 16;
+	channel = op_ch & 0xFFFF;
+
+	switch (op) {
+	case COS_TRANS_TRIGGER:
+		if (trans_fns) return trans_fns->levt(channel);
+	case COS_TRANS_MAP_SZ:
+	{
+		int sz = -1;
+		if (trans_fns) sz = trans_fns->map_sz(channel);
+		return sz;
+	}
+	case COS_TRANS_MAP:
+	{
+		unsigned long kaddr;
+		int sz;
+		struct spd *s;
+
+		s = spd_get_by_index(spdid);
+		if (!s) return -1;
+		if (!trans_fns) return -1;
+		kaddr = (unsigned long)trans_fns->map_kaddr(channel);
+		sz    = trans_fns->map_sz(channel);
+		if (off > sz) return -1;
+
+		if (pgtbl_add_entry(s->spd_info.pg_tbl, addr, (paddr_t)va_to_pa(((char *)kaddr+off)))) {
+			printk("cos: trans grant -- could not add entry to page table.\n");
+			return -1;
+		}
+		return 0;
+	}
+	}
+	return -1;
+}
+
 /* 
  * Partially emulate a device here: Receive ring for holding buffers
  * to receive data into, and a synchronous call to transmit data.
@@ -2970,7 +3020,6 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
  * or is in the current composite spd, or is a child of a fault
  * thread.
  */
-extern int pgtbl_add_entry(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr); 
 extern paddr_t pgtbl_rem_ret(paddr_t pgtbl, vaddr_t va);
 COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, long mem_id)
 {
@@ -3338,7 +3387,7 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_idle,
 	(void*)cos_syscall_spd_cntl,
 	(void*)cos_syscall_vas_cntl,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_trans_cntl,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,

@@ -62,8 +62,7 @@ const char *COMP_INFO   = "cos_comp_info";
 
 const char *INIT_COMP   = "c0.o";
 char *ROOT_SCHED        = NULL; // this is set to the first listed scheduler (*)
-char *INITMM            = NULL; // this is set to the first listed memory manager (#)
-const char *MM_NAME     = "mm.o"; // this is set to the first listed memory manager (#)
+const char *INITMM      = "mm.o"; // this is set to the first listed memory manager (#)
 const char *MPD_MGR     = "cg.o"; // the component graph!
 const char *CONFIG_COMP = "schedconf.o";
 const char *BOOT_COMP   = "boot.o";
@@ -186,8 +185,6 @@ struct service_symbs {
 	int is_scheduler;
 	struct service_symbs *scheduler;
 	
-	int is_initmm;
-
 	struct spd *spd;
 	struct symb_type exported, undef;
 	int num_dependencies;
@@ -814,7 +811,7 @@ static int initialize_service_symbs(struct service_symbs *str)
 }
 
 struct component_traits {
-	int sched, initmm, composite_loaded;
+	int sched, composite_loaded;
 };
 
 static void parse_component_traits(char *name, struct component_traits *t, int *off)
@@ -830,25 +827,11 @@ static void parse_component_traits(char *name, struct component_traits *t, int *
 		break;
 	}
 	case '!': t->composite_loaded = 1; break;
-	default:  /* base case */          return;
+	default: /* base case */ return;
 	}
 	(*off)++;
 	parse_component_traits(name, t, off);
 	
-	if (!strcmp(name, MM_NAME)) {
-		char *n;
-
-		if (INITMM) {
-			printl(PRINT_HIGH, "Error: Have multiple initial memory managers -- %s and %s\n", INITMM, name);
-			exit(-1);
-		} 
-		n = malloc(strlen(name+1)+1);
-		strcpy(n, name+1);
-		INITMM = n;
-		t->initmm = 1;
-		break;
-	}
-
 	return;
 }
 
@@ -857,7 +840,7 @@ static struct service_symbs *alloc_service_symbs(char *obj)
 	struct service_symbs *str;
 	char *obj_name = malloc(strlen(obj)+1), *cpy, *orig, *pos;
 	const char lassign = '(', *rassign = ")", *assign = "=";
-	struct component_traits t = {.sched = 0, .composite_loaded = 0, .initmm = 0};
+	struct component_traits t = {.sched = 0, .composite_loaded = 0};
 	int off = 0;
 
 	parse_component_traits(obj, &t, &off);
@@ -891,7 +874,6 @@ static struct service_symbs *alloc_service_symbs(char *obj)
 
 	str->is_scheduler = t.sched;
 	str->scheduler = NULL;
-	str->is_initmm = t.initmm;
 	str->is_composite_loaded = t.composite_loaded;
 
 	return str;
