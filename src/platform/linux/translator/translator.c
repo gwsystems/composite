@@ -9,13 +9,15 @@
 
 #include <linux/ioctl.h>
 #include "translator_ioctl.h"
+#include "../../../kernel/include/shared/cos_types.h"
 
 #define MODULE_NAME "cos <-> Linux translator"
 #define FILE_NAME "translator"
 #define TRANS_PAGE_ORDER 0
 #define TRANS_MAX_MAPPING (1024*1024*4)
 #define MAX_NCHANNELS 8
-#define printl(str,args...) printk(str, ## args)
+//#define printl(str,args...) printk(str, ## args)
+#define printl(str,args...)
 
 struct trans_channel {
 	char *mem; 		/* kernel address */
@@ -112,7 +114,7 @@ trans_mmap(struct file *f, struct vm_area_struct *vma)
 	int i;
 	BUG_ON(!c);
 
-	printl("trans_mmap\n");
+	printl("trans_mmap, sz %d\n", vma->vm_end - vma->vm_start);
 	sz = vma->vm_end - vma->vm_start;
 	pages = sz/PAGE_SIZE;
 	if (sz > TRANS_MAX_MAPPING) return -EINVAL;
@@ -131,8 +133,10 @@ trans_mmap(struct file *f, struct vm_area_struct *vma)
 	}
 	vma->vm_flags |= (VM_RESERVED | VM_INSERTPAGE);
 	vma->vm_ops = &trans_vmops;
+
 	BUG_ON(vma->vm_private_data);
 	vma->vm_private_data = c;
+	c->size = sz;
 
 	return 0;
 err:
@@ -167,6 +171,8 @@ trans_write(struct file *f, const char __user *b, size_t s, loff_t *o)
 /*** Composite interface ***/
 /***************************/
 
+/* trans_cos_* are call-back functions */
+
 int trans_cos_evt(int channel)
 {
 	struct trans_channel *c;
@@ -182,8 +188,36 @@ int trans_cos_evt(int channel)
 	return 0;
 }
 
-extern void cos_trans_reg_levtfn(int (*fn)(int));
-extern void cos_trans_dereg_levtfn(void);
+int trans_cos_map_sz(int channel)
+{
+	struct trans_channel *c;
+
+	BUG_ON(channel < 0 || channel >= MAX_NCHANNELS);
+	c = channels[channel];
+	if (!c) return -1;
+	
+	return c->size;
+}
+
+void *trans_cos_map_kaddr(int channel)
+{
+	struct trans_channel *c;
+
+	BUG_ON(channel < 0 || channel >= MAX_NCHANNELS);
+	c = channels[channel];
+	if (!c) return NULL;
+	
+	return c->mem;
+}
+
+const struct cos_trans_fns trans_fns = {
+	.levt      = trans_cos_evt,
+	.map_kaddr = trans_cos_map_kaddr,
+	.map_sz    = trans_cos_map_sz,
+};
+
+extern void cos_trans_reg(const struct cos_trans_fns *fns);
+extern void cos_trans_dereg(void);
 
 static int
 trans_ioctl(struct inode *i, struct file *f, unsigned int cmd, unsigned long arg)
@@ -230,7 +264,7 @@ trans_init(void)
 		return -1;
 	}
 	ent->proc_fops = &trans_fsops;
-	cos_trans_reg_levtfn(trans_cos_evt);
+	cos_trans_reg(&trans_fns);
 
 	printk(MODULE_NAME ": registered successfully.\n");
 
@@ -241,7 +275,7 @@ void
 trans_exit(void)
 {
 	remove_proc_entry(FILE_NAME, NULL);
-	cos_trans_dereg_levtfn();
+	cos_trans_dereg();
 	printk(MODULE_NAME ": unregistered successfully.\n");
 }
 

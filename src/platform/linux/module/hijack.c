@@ -1450,10 +1450,10 @@ EXPORT_SYMBOL(cos_net_notify_drop);
 extern void cos_net_init(void);
 extern void cos_net_finish(void);
 
-extern void cos_trans_reg_levtfn(int (*fn)(int channel));
-extern void cos_trans_dereg_levtfn(void);
-EXPORT_SYMBOL(cos_trans_reg_levtfn);
-EXPORT_SYMBOL(cos_trans_dereg_levtfn);
+extern void cos_trans_reg(const struct cos_trans_fns *fns);
+extern void cos_trans_dereg(void);
+EXPORT_SYMBOL(cos_trans_reg);
+EXPORT_SYMBOL(cos_trans_dereg);
 
 extern struct thread *cos_timer_brand_thd;
 #define NUM_NET_BRANDS 2 /* keep consistent with inv.c */

@@ -138,7 +138,7 @@ cos_syscall_3(15, int, __thd_cntl, int, op_thdid, long, arg1, long, arg2);
 cos_syscall_0(16, int, idle);
 cos_syscall_3(17, int, __spd_cntl, int, op_spdid, long, arg1, long, arg2);
 cos_syscall_3(18, int, __vas_cntl, int, op_spdid, long, arg1, long, arg2);
-cos_syscall_2(19, int, trans_cntl, int, op, long, arg);
+cos_syscall_3(19, int, __trans_cntl, unsigned long, op_ch, unsigned long, addr, int, off);
 cos_syscall_0(31,  int, null);
 
 static inline int cos_mmap_cntl(short int op, short int flags, 
@@ -187,6 +187,12 @@ static inline long cos_cap_cntl(short int op, spdid_t cspd, u16_t capid, long ar
 {
 	return cos___cap_cntl(op, (cspd << 16) | (capid & 0xFFFF), arg);
 }
+
+static inline int cos_trans_cntl(int op, int channel, unsigned long addr, int off)
+{
+	return cos___trans_cntl(((op << 16) | (channel & 0xFFFF)), addr, off);
+}
+
 
 /*
  * We cannot just pass the thread id into the system call in registers
