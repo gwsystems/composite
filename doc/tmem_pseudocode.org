@@ -1,0 +1,129 @@
+* notes on the abstractions in tmem/stkmgr/cbufmgr
+** Operations on the client->mgr interface
+*** cache_miss -- not found in client-local cache.  
+    The return value is _not_ the address of the memory to use.  The
+    client must attempt to allocate the memory again to use it.
+*** return_mem -- client asked to return memory
+** Two levels of tmem abstraction with data-structures
+*** 1) per-component
+    - desired (d), allocated (a), suspension cnt (s)
+      + we will ignore s for the time being
+    - blocked list (lbl) -- when we need memory, but d <= a
+*** 2) global
+    - blocked list (gbl) -- when we can't find a mem in the mem pool
+      (and d > a)
+    - mem_pool (mp)
+*** Operations:
+    - block(list): 
+      mgr_mark_mem_relinquish(current component);
+      add to block list "list"
+      sched_block(tid)
+**** 2) global ops
+     - mem get_mem(mp)
+       while (!(m = memory on global freelist)) block (gbl);
+     - put_mem(mp, mem) -- add mem to mp; if thread on gbl, wake all.
+**** local: cache_miss
+     m;
+     while (1) {
+         if (mgr_mem_in_client_cache()) return NULL; // client-local freelist has memory 
+         if (d > a) { 
+	     m = give_mem_to_client(); 
+	     return m;
+	 } else {
+	     block(lbl);
+	 }
+     }
+**** Throughput:     local: return_mem (don't remove from local caches!!!)
+     if (d < a) {
+         get_mem_from_client()
+     } else if (threads in lbl) { 
+         wakeup all in lbl; // question: what if there are thds on gbl?
+     }
+     // but what if a thread in the gbl list has higher priority than
+     // a local thread?
+**** Note on the predictability of the previous policy
+     In the previous "throughput" option, we could wake up local
+     threads instead of higher priority global threads.  We believe
+     this is the correct decision because it is abiding by the d set
+     by the policy.  If the policy finds that the higher priority
+     threads are not meeting deadlines, it should increase the d
+     appropriately.  
+
+     This design not only abides by the policies requests, but also is
+     more throughput conscious.  The main consideration here is that
+     mapping and unmapping memory from a component is a somewhat
+     expensive option, and we want to maintain locality within each
+     component.
+
+     The other option that loses locality and maps/unmaps frequently,
+     but does abide by thread priority is shown here ->
+***** Predictability: local: return_mem (don't remove from local caches!!!)
+     a--;
+     put_mem(mp); // remember: wakes up any threads on the gbl waiting for memory!
+     if (d < a) return;
+     // we know the memory should stay in that component
+     else if (threads in lbl) wakeup all in lbl;
+** Operations due to interactions with the tmem_policy
+*** "getter" functions still part of tmem for 
+    - estimated concurrency
+    - suspensions
+    - per-thread blocking time
+    - ...
+*** "setter" functions 
+    - set concurrency level (d)
+    - set s max
+*** What happens behind the scenes?  Two steps:
+**** 0) Policy runs, gather info on components/threads and runs algorithms
+**** 1) Policy runs, sets new d \forall components
+     - when d is set
+       get_mem_from_client()
+       if (d >= a && threads blocked on lbl) {
+           wakeup all on lbl;
+       } 
+** utility functions
+*** give_mem_to_client()
+    p = get_mem()
+    a++;
+    mgr_map_client_mem(p)
+*** get_mem_from_client()
+    while (d < a && (p = mgr_get_client_mem()) { 
+        a--; 
+	put_mem(p); 
+    }
+    if (d < a) mgr_mark_mem_relinquish()
+** Manager-specific code
+*** mgr_map_client_mem(p)
+    - take memory and make it available to the client.
+      + stkmgr: add to the freelist
+      + cbufmgr: add it to a list in the mgr to be returned when
+        cache_miss is called.
+*** p = mgr_get_client_mem(c)
+    - actually remove the memory from the client protection domain,
+      and return a pointer to it.  This will return NULL if there is
+      no memory to take from the client (either a = 0, or all memory
+      is used)
+*** mgr_mark_mem_relinquish()
+    - mark all memory regions as "return to mgr asap"
+      + stkmgr: set the RELINQUISH flag in the stack header
+      + cbufmgr: set the RELINQUISH bit in the cbuf_meta structure???
+	* only need to set this bit in the caller!
+*** mgr_unmark_mem_relinquish()
+    - unmark memory regions if we have reclaimed enough memory
+      + stkmgr: unmark the relinquish bit for stacks in use
+      + cbufmgr: unset the RELINQUISH bit in the cbuf_meta
+        structure???
+	* see above
+*** mgr_resolve_dependency()
+    - Which thread(s) hold memory in that component
+      + stkmgr: check the tid field in the stack of each thread
+      + cbufmgr: ??? cbuf_meta isn't enough here...
+*** mgr_mem_in_client_cache()
+    - Check in local client cache to see if mem exists
+      + stkmgr: check freelist for stacks
+      + cbufmgr: return NULL
+
+** Interesting test cases:
+   1) maxpool: d = \inf, |mp| = N
+   2) c > d
+   3) policy changing d < a
+   4) policy changing d > a

@@ -21,7 +21,8 @@ INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/
 # probably ballooning its size.  Fix this need for no merge constants
 # in cos_loader.
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib
-OPT=-ggdb3
+#OPT= -ggdb3
+OPT= -O3
 CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer $(INC_PATH) $(DIETINC) $(LWIPINC) $(OPT) $(SHARED_FLAGS)
 DIETCFLAGS=$(CFLAGS) -Xlinker -r
 ASFLAGS=$(INC_PATH) $(SHARED_FLAGS)
