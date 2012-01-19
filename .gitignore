@@ -1,0 +1,17 @@
+*.o
+*.tmp
+*.d
+*.swp
+*.ko
+*.cmd
+*.a
+*~
+*.sw*
+*#
+.#*
+composite_new
+tags
+GRTAGS
+GPATH
+GSYMS
+GTAGS

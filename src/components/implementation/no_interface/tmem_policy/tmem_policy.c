@@ -44,7 +44,7 @@ enum{
 /* ALGORITHM: 1 for minimize AVG tardiness, otherwise minimize MAX tardiness*/
 #define ALGORITHM MAX
  
-//#define THD_POOL MAX_NUM_MEM
+#define THD_POOL MAX_NUM_MEM
 //#define THD_POOL 1
 #define CBUF_UNIT 5
 
