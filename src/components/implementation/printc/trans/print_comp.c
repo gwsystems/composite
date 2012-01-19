@@ -1,4 +1,5 @@
 #include <cos_component.h>
+#include <cos_config.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -6,6 +7,7 @@
 
 #include <printc.h>
 #define assert(x) do { int y; if (!(x)) y = *(int*)NULL; } while(0)
+#define REDEFINE_ASSERT
 #include <cringbuf.h>
 
 struct cringbuf sharedbuf;
@@ -32,35 +34,36 @@ static int print_init(void)
 	for (i = 0, addr = start ; i < sz ; i += PAGE_SIZE, addr += PAGE_SIZE) {
 		if (cos_trans_cntl(COS_TRANS_MAP, 0, (unsigned long)addr, i)) return -4;
 	}
-	sharedbuf.b = (struct __cringbuf *)start;
+	cringbuf_init(&sharedbuf, start, sz);
 
 	return 0;
 }
 
-static char foo[MAX_LEN];
 int print_str(char *s, unsigned int len)
 {
 	int r;
 
 	if (!COS_IN_ARGREG(s) || !COS_IN_ARGREG(s + len)) {
+		static char foo[MAX_LEN];
 		snprintf(foo, MAX_LEN, "print argument out of bounds: %x", (unsigned int)s);
 		cos_print(foo, 0);
 		return -1;
 	}
 	s[len+1] = '\0';
-	if ((r = print_init())) {
-		snprintf(foo, MAX_LEN, "<<WTF: %d>>\n", r);
-		cos_print(foo, 13);
-	}
-
-	cos_print(s, len);
+#ifdef COS_PRINT_SHELL
+	assert(!print_init()); 
 	if (sharedbuf.b) {
-		memcpy(sharedbuf.b->buffer, s, len);
-		sharedbuf.b->head = 0;
-		sharedbuf.b->tail = len-1;
-	}
-	cos_trans_cntl(COS_TRANS_TRIGGER, 0, 0, 0);
+		int amnt;
 
+		amnt = cringbuf_produce(&sharedbuf, s, len);
+		assert(amnt >= 0);
+		cos_trans_cntl(COS_TRANS_TRIGGER, 0, 0, 0);
+	}
+#endif
+
+#ifdef COS_PRINT_DMESG
+	cos_print(s, len);
+#endif
 	return 0;
 }
 
