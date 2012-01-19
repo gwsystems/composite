@@ -49,7 +49,7 @@ enum{
 
 #define CBUF_UNIT 1
 
-#define POLICY_PERIODICITY 25
+#define POLICY_PERIODICITY 100
 
 #define HISTORICAL_ALLOC
 
