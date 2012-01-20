@@ -12,7 +12,7 @@
  * essentially at most 3.
  */
 #include <cbuf_c.h>
-
+#include <cos_debug.h>
 #ifdef COS_LINUX_ENV
 typedef unsigned short int u16_t;
 typedef unsigned int u32_t;
@@ -144,7 +144,7 @@ static inline int cbuf_vect_power_2(u32_t v)
 /* 	return v; */
 /* } */
 
-static void cbuf_vect_free_vect(cbuf_vect_t *v)
+static inline void cbuf_vect_free_vect(cbuf_vect_t *v)
 {
 	assert(v && v->vect);
 	CBUF_VECT_FREE(v->vect);

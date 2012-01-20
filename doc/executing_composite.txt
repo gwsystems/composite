@@ -23,12 +23,44 @@ be sure to type "make init".  From that point on, you simply need to
 type "make" to transfer the files into a root-accessible directory,
 and insert the Composite module.
 
-Presumably, you have access to a run script, i.e. run.sh that was just
+If COS_PRINT_SHELL is set in cos_config.h, then you are setup to print
+out to the shell.  You will need to run the user-level Linux program
+that will do the printing before running Composite.  To do this, run
+the "print" program (I recommend running it in the background).
+
+Presumably, you have access to a run script, i.e. lpp.sh that was just
 transferred over.  Executing this file should link and load the
 components and execute them.
 
 Each time you wish to execute Composite, you should run "make" before
 the run script again.
+
+
+A summary of terminal A (non-root user denoted by $) follows.  My
+system is setup such that
+TOP_DIR=/home/gparmer/research/composite/src/,
+TRANS_DIR=/home/gparmer/transfer, and TEST_DIR=/root/experiments/ (as
+defined in src/Makefile.src).
+
+$ pwd
+/home/gparmer/research/composite/src/
+$ make init // only done _once_ when you initially check out the repository
+$ make      // you _must_ check for errors in component compilation
+$ make cp   // transfer all executables to TRANS_DIR
+
+You might also need to remove all object and executable files at some
+point:
+
+$ make clean
+
+A summary of terminal B (root denoted by #):
+
+# pwd
+/root/experiments/
+# make init // only done when you boot up your system (i.e. once per boot)
+# make      // will copy files from TRANS_DIR to .
+# ./print & // prints composite output to the terminal
+# sh lpp.sh // run the ping-pong program
 
 Format of the runscript:
 ------------------------

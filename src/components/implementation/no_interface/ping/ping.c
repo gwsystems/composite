@@ -3,7 +3,7 @@
 
 #include <sched.h>
 #include <pong.h>
-#include <pong_lower.h>
+/* #include <pong_lower.h> */
 #include <cbuf.h>
 
 //#define CONTEXT_SWITCH

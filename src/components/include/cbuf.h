@@ -166,7 +166,6 @@ cbuf2buf(cbuf_t cb, int len)
 	len = nlpow2(len - 1);
 	cbuf_unpack(cb, &id, &idx);
 
-/* <<<<<<< HEAD */
 	long cbidx;
 	cbidx = cbid_to_meta_idx(id);
 
@@ -185,19 +184,10 @@ again:				/* avoid convoluted conditions */
 		// If there is no 2nd level vector exists, create here!!
 		if (cbuf_cache_miss(id, idx, len)) goto err;
 		goto again;
-/* ======= */
-/* 	while (unlikely(0 == (cm.v = (u32_t)cos_vect_lookup(&meta_cbuf, id)))) { */
-/* 		/\* slow path *\/ */
-/* 		if (cbuf_cache_miss(id, idx, len)) return NULL; */
-/* >>>>>>> 2fcd65a9bfe926ab27e66db140a7bef058fdfcee */
 	}
 
 	if (likely(!(cm.c.flags & CBUFM_LARGE))) {
-/* <<<<<<< HEAD */
 		obj_sz = cm.c.obj_sz << CBUF_OBJ_SZ_SHIFT;
-/* ======= */
-/* 		obj_sz = cm.c.obj_sz * CBUF_MIN_SLAB; */
-/* >>>>>>> 2fcd65a9bfe926ab27e66db140a7bef058fdfcee */
 		off    = obj_sz * idx; /* multiplication...ouch */
 		/* DOUT("len %d obj_sz %d off %d \n",len, obj_sz ,off); */
 		if (unlikely(len > obj_sz || off + len > PAGE_SIZE )) goto err;
@@ -208,7 +198,6 @@ again:				/* avoid convoluted conditions */
 		off    = 0;
 		if (unlikely(len > obj_sz)) goto err;
 	}
-/* <<<<<<< HEAD */
 
 	/* DOUT("After Cache missing here::\n"); */
 	DOUT("%p\n",((char*)(cm.c.ptr << PAGE_ORDER)) + off);
@@ -220,9 +209,6 @@ done:
 err:
 	ret = NULL;
 	goto done;
-/* ======= */
-/* 	return ((char*)(cm.c.ptr << PAGE_ORDER)) + off; */
-/* >>>>>>> 2fcd65a9bfe926ab27e66db140a7bef058fdfcee */
 }
 
 #define SLAB_BITMAP_SIZE (SLAB_MAX_OBJS/32)
@@ -336,17 +322,10 @@ __cbuf_free(void *buf)
 	bitmap_set(&s->bitmap[0], idx);
 	s->nfree++;
 	assert(s->flh);
-/* <<<<<<< HEAD */
 	DOUT(">>>  free: nfree is now : %d cbid is %d\n",s->nfree,s->cbid);
 	DOUT("thd %d spd %ld in __cbuf_free\n", cos_get_thd_id(),cos_spd_id());
 	if (s->nfree == 1) {
 		DOUT("Add slab_add_freelist cbid is %d\n", s->cbid);
-/* ======= */
-/* 	/\* if (s->nfree == s->max_objs) { *\/ */
-/* 	/\* 	cbuf_slab_free(s); *\/ */
-/* 	/\* } else *\/  */
-/* 	if (s->nfree == 1) { */
-/* >>>>>>> 2fcd65a9bfe926ab27e66db140a7bef058fdfcee */
 		assert(EMPTY_LIST(s, next, prev));
 		cbidx = cbid_to_meta_idx(s->cbid);
 		cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);

@@ -36,7 +36,6 @@ struct spd_local_md {
 	struct cobj_header *h;
 } local_md[MAX_NUM_SPDS+1];
 
-
 int cinfo_map(spdid_t spdid, vaddr_t map_addr, spdid_t target)
 {
 	vaddr_t cinfo_addr;

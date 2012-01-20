@@ -26,10 +26,9 @@
 #include <tmem.h>
 #include <cbuf_c.h>
 
-
 //#define PRINCIPAL_CHECKS
 
-#define DEFAULT_TARGET_ALLOC 10
+#define DEFAULT_TARGET_ALLOC MAX_NUM_MEM 
 
 COS_MAP_CREATE_STATIC(cb_ids);
 

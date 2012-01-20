@@ -39,7 +39,6 @@ int
 cbuf_cache_miss(int cbid, int idx, int len)
 {
 	union cbuf_meta mc;
-//<<<<<<< HEAD
 	void *h;
 	/* DOUT("cbid is %d idx is %d len is %d\n",cbid, idx, len); */
 
@@ -66,30 +65,6 @@ cbuf_cache_miss(int cbid, int idx, int len)
 	cbuf_vect_add_id(&meta_cbuf, (void *)(unsigned long)cos_get_thd_id(), cbid_to_meta_idx(cbid)+1);
 	/* printc("cost of add id :: %ld\n", end-start); */
 	return 0;
-/* ======= */
-/* 	char *h; */
-/* 	int sz, ret = -1; */
-
-/* 	h = cos_get_vas_page(); */
-/* 	mc.c.ptr    = (long)h >> PAGE_ORDER; */
-
-/* 	sz = len < 65 ? 63 : len; /\* FIXME: do without branch *\/ */
-/* 	/\* FIXME: find way to avoid making the wrong decision on pow2 values *\/ */
-/* 	sz = ones(sz) == 1 ? sz-1 : sz; */
-/* 	sz = 1<<(log32_floor(sz) + 1 - CBUF_MIN_SLAB_ORDER); */
-/* 	mc.c.obj_sz = sz;//len; */
-
-/* 	/\* Illegal cbid or length!  Bomb out. *\/ */
-/* 	if (cbuf_c_retrieve(cos_spd_id(), cbid, len, h)) goto err; */
-/* 	/\* This is the commit point *\/ */
-/* 	cos_vect_add_id(&meta_cbuf, (void*)mc.v, cbid); */
-/* 	ret = 0; */
-/* done: */
-/* 	return ret; */
-/* err: */
-/* 	cos_release_vas_page(h); */
-/* 	goto done; */
-/* >>>>>>> 2fcd65a9bfe926ab27e66db140a7bef058fdfcee */
 }
 
 void
@@ -123,7 +98,6 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	/* DOUT("Relinquish bit :: %d\n",cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ]); */
 	s = malloc(sizeof(struct cbuf_slab));
 	if (!s) return NULL;
-//<<<<<<< HEAD
 	if (!freelist) goto err;
 
 	/* union cbuf_meta mc; */
@@ -165,24 +139,11 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	cos_vect_add_id(&slab_descs, s, (long)addr>>PAGE_ORDER);
 	cbuf_slab_cons(s, cbid, addr, size, freelist);
 
-/* ======= */
-/* 	h = cos_get_vas_page(); */
-/* 	cbid = cbuf_c_create(cos_spd_id(), size, h); */
-/* 	if (cbid < 0) goto err; */
-/* 	cos_vect_add_id(&slab_descs, s, (long)h>>PAGE_ORDER); */
-/* 	cbuf_slab_cons(s, cbid, h, size, freelist); */
-/* 	freelist->velocity = 0; */
-/* >>>>>>> 2fcd65a9bfe926ab27e66db140a7bef058fdfcee */
 	ret = s;
 
 done:   
 	return ret;
 err:    
-//<<<<<<< HEAD
-	/* valloc_free(cos_spd_id(), cos_spd_id(), h, 1); */
-/* ======= */
-/* 	cos_release_vas_page(h); */
-/* >>>>>>> 2fcd65a9bfe926ab27e66db140a7bef058fdfcee */
 	free(s);
 	goto done;
 }

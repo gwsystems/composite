@@ -30,7 +30,7 @@ unsigned int prop_call_ss = 10;    /* 10: %7 0: never call ss, 128: always call 
 #define PERCENT_EXE 10
 
 #define SZ 4096  // size of one cbuf item
-#define NCBUF 5   // number of cbufs to create each time
+#define NCBUF 1   // number of cbufs to create each time
 
 #define ALLOC_CBUF
 #define CBUF2BUF
@@ -166,7 +166,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	cbuf_t cbt[NCBUF];
 	memset(cbt, 0 , NCBUF*sizeof(cbuf_t));
 
-	void *mt[NCBUF];
+	void *mt[NCBUF] = {};
 	int get[NCBUF];
 	memset(get, 0 , NCBUF*sizeof(cbuf_t));
 
@@ -203,9 +203,9 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 		if (exe_time_left == 0) return 0;
 		kkk = 0;
 
-		unsigned long ss = initial_exe_t / (100 / PERCENT_EXE) / 6;
+		unsigned long ss = initial_exe_t / (100 / PERCENT_EXE) / 15 * 2;
 		for (i=0; i<ss; i++) kkk++;
-		has_run = ss * 6;//loop_cost;//
+		has_run = ss * 15 / 2;//loop_cost;//
 
 		if (has_run > exe_time_left) {
 			return 0;

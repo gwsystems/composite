@@ -10,7 +10,7 @@ LDIR=/home/songjiguo/research/linux-2.6.33/
 TRANS_DIR=/home/songjiguo/transfer
 # the directory that root can access that the objects are copied to
 # where the experiments are run from
-TEST_DIR=/root/experiments/
+TEST_DIR=/root/experiments
 
 KDIR=$(TOP_DIR)/kernel/
 KINC=$(TOP_DIR)/kernel/include/

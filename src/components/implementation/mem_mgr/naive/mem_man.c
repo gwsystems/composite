@@ -191,6 +191,7 @@ frame_init(void)
 /* 			} */
 /* 		} */
 /* ======= */
+
 static inline void
 mm_init(void)
 {
@@ -398,7 +399,7 @@ static struct mapping *
 mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to)
 {
 	struct comp_vas *cv = cvas_lookup(dest);
-	struct mapping *m;
+	struct mapping *m = NULL;
 	long idx = to >> PAGE_SHIFT;
 
 	assert(!p || p->f == f);

@@ -11,6 +11,8 @@ cp:
 
 clean:
 	rm cos_loader
+	rmmod trans
+	rmmod cnet
 	rmmod cos
 
 # sync to minimize possible file system corruption on crashes
@@ -18,6 +20,7 @@ build:
 	sync
 	sleep 1
 	nice -n -20 insmod cos.ko
-	sleep 1
-#	insmod cnet.ko
-#	./cnet_user
+#	sleep 1
+	insmod cnet.ko
+	insmod trans.ko
+	./cnet_user
