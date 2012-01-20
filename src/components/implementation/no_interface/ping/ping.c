@@ -3,13 +3,12 @@
 
 #include <sched.h>
 #include <pong.h>
-/* #include <pong_lower.h> */
-#include <cbuf.h>
+//#include <cbuf.h>
 
 //#define CONTEXT_SWITCH
 //#define MEASURE_PIP 
 //#define MEASURE_CACHED_CBUF
-#define MEASURE_CACHED_STK
+//#define MEASURE_CACHED_STK
 
 #ifdef CONTEXT_SWITCH    // change to max_policy!!  use lubench2.sh
 void cos_init(void)
