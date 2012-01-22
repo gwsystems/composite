@@ -1,7 +1,8 @@
 #ifndef COS_CONFIG_H
 #define COS_CONFIG_H
 
-#define CPU_GHZ        3.39
+//#define CPU_GHZ        1.6
+#include "cpu_ghz.h"
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 
 #define RUNTIME                10 // seconds

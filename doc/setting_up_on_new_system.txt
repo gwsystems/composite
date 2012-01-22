@@ -2,7 +2,14 @@ If you just downloaded the source code, and wish to run Composite on
 your system, you must follow these steps:
 
 1) Get a linux 2.6.33 kernel running on your system.  Composite should
-work on other systems, but this is the version I've tested on.
+work on other systems, but this is the version I've tested on.  The
+build system assumes that you have both the composite source and the
+linux source in the same shared directory.  By default this is
+
+/homedir/research/
+
+where homedir is your home directory.  These assumptions can be
+modified in the src/Makefile.config file that is generated later.
 
 2) Patch your kernel with the patch in src/platform/linux/patches/.
 
@@ -13,56 +20,27 @@ the timer tick frequency.  Modify the
 kernel/include/shared/cos_config.h file with your timer frequency AND
 update the config file with the GHZ of your machine.
 
-5) When your new kernel is working, save the directory that all of
-your kernel's header files are in.  I'll call this LINUX_DIR.  I'll
-call the directory that the Composite source is rooted in
-COMPOSITE_DIR.  You must also choose two additional directories: 1)
-the temporary directory all components are copied to, and 2) the
-directory you will use as root to run Composite in.  Open the file
-src/Makefile.src and change the following lines:
+5) When your new kernel is working, you need to configure Composite,
+notably, the directory locations it assumes for various functions.
+Much of this is automated for default system layouts.  A default
+system layout will feature:
 
-# the directory this file is in
-TOP_DIR=/home/gparmer/research/composite/src/
-# the directory the linux source is in
-LDIR=/home/gparmer/research/linux-2.6.33
-# the directory all objects will be copied to when they are ready for
-# deployment
-TRANS_DIR=/home/gparmer/transfer
-# the directory that root can access that the objects are copied to
-# where the experiments are run from
-TEST_DIR=/root/experiments/
+HOME_DIR: /something/username/ -- your home directory in two nested subdirs.
+CODE_DIR: HOME_DIR/research/ -- the directory that _both_ the
+Composite code is in, and the linux tree.
+LDIR: CODE_DIR/linux-2.6.33/ -- linux tree.
+COMPOSITE_DIR: CODE_DIR/composite -- composite source
+TRANS_DIR: HOME_DIR/transfer/ -- used to transfer files from composite
+to root
+TEST_DIR: /root/experiments/ -- directory you should create and use as
+root to run composite.
 
-to
+To automatically configure many of these variables, in src/, first run
 
-# the directory this file is in
-TOP_DIR=COMPOSITE_DIR
-# the directory the linux source is in
-LDIR=LINUX_DIR
-# the directory all objects will be copied to when they are ready for
-# deployment
-TRANS_DIR=/home/gparmer/transfer
-# the directory that root can access that the objects are copied to
-# where the experiments are run from
-TEST_DIR=/root/experiments/
+make config
 
-where COMPOSITE_DIR and LINUX_DIR refer to your real directories
-specified as absolute paths, and /home/gparmer/transfer should be your
-temporary directory, and /root/experiments should be your root
-execution directory.
+If any of these assumptions are incorrect, please modify
+src/Makefile.config (after running "make config"), and/or src/Makefile.src
 
 Now you should be able to build and execute the source!  Read about
-the build system in build_system.txt.  Summary:
-
-make init # in src/
-make
-make cp
-
-As root in your root execution directory:
-make init
-make
-sh lpp.sh
-
-Whenever you want to execute the system again:
-
-make
-sh lpp.sh
+the build system in build_system.txt.
