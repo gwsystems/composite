@@ -3,10 +3,10 @@
 
 #include <sched.h>
 #include <pong.h>
-//#include <cbuf.h>
+#include <cbuf.h>
 
 //#define CONTEXT_SWITCH
-//#define MEASURE_PIP 
+#define MEASURE_PIP 
 //#define MEASURE_CACHED_CBUF
 //#define MEASURE_CACHED_STK
 
