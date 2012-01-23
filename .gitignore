@@ -11,7 +11,5 @@
 .#*
 composite_new
 tags
-GRTAGS
-GPATH
-GSYMS
-GTAGS
+src/kernel/include/shared/cpu_ghz.h
+src/Makefile.cosconfig

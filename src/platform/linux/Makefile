@@ -15,6 +15,7 @@ cp:
 # makefile, so intelligently make the makefile dynamically with the
 # includes patched in!
 	cat $(TOP_DIR)/Makefile.src ./util/Makefile.end > $(TRANS_DIR)/Makefile
+	cp $(TOP_DIR)/Makefile.cosconfig $(TRANS_DIR)/
 	cp ./util/*.sh $(TRANS_DIR)
 
 clean:

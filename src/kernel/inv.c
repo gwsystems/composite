@@ -1684,6 +1684,11 @@ extern void *va_to_pa(void *va);
 static const struct cos_trans_fns *trans_fns = NULL;
 void cos_trans_reg(const struct cos_trans_fns *fns) { trans_fns = fns; }
 void cos_trans_dereg(void) { trans_fns = NULL; }
+void cos_trans_upcall(void *brand) 
+{
+	assert(brand);
+	host_attempt_brand((struct thread *)brand);
+}
 
 COS_SYSCALL int
 cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, int off)
@@ -1719,6 +1724,18 @@ cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, i
 			printk("cos: trans grant -- could not add entry to page table.\n");
 			return -1;
 		}
+		return 0;
+	}
+	case COS_TRANS_BRAND:
+	{
+		int tid = addr;
+		struct thread *t;
+		
+		t = thd_get_by_id(tid);
+		if (!t) return -1;
+		if (!trans_fns) return -1;
+		trans_fns->brand_created(channel, t);
+
 		return 0;
 	}
 	}

@@ -1452,8 +1452,10 @@ extern void cos_net_finish(void);
 
 extern void cos_trans_reg(const struct cos_trans_fns *fns);
 extern void cos_trans_dereg(void);
+extern void cos_trans_upcall(void *brand);
 EXPORT_SYMBOL(cos_trans_reg);
 EXPORT_SYMBOL(cos_trans_dereg);
+EXPORT_SYMBOL(cos_trans_upcall);
 
 extern struct thread *cos_timer_brand_thd;
 #define NUM_NET_BRANDS 2 /* keep consistent with inv.c */

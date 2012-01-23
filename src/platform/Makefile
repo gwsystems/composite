@@ -10,3 +10,6 @@ clean:
 	$(MAKE) -C linux clean
 
 init: clean default
+
+ltests:
+	$(MAKE) -C tests 

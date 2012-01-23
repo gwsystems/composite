@@ -1,4 +1,4 @@
-include ../../../Makefile.src
+include Makefile.src
 
 INCLUDE = -I$(SHAREDINC) -I$(CDIR)/include/
 CFILES  = $(wildcard *.c)

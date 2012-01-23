@@ -21,7 +21,8 @@
 
 struct trans_channel {
 	char *mem; 		/* kernel address */
-	unsigned long linux_addr, composite_addr, size;
+	unsigned long size;
+	void *brand;
 
 	wait_queue_head_t e;
 	int levent, cevent; 		/* is data available? */
@@ -156,13 +157,19 @@ trans_read(struct file *f, char __user *b, size_t s, loff_t *o)
 	return s;
 }
 
+extern void cos_trans_reg(const struct cos_trans_fns *fns);
+extern void cos_trans_dereg(void);
+extern void cos_trans_upcall(void *brand);
+
 static ssize_t
 trans_write(struct file *f, const char __user *b, size_t s, loff_t *o)
 {
 	struct trans_channel *c = f->private_data;
 	BUG_ON(!c);
 
+	if (!c->brand) return -EINVAL;
 	printl("trans_write\n");
+	cos_trans_upcall(c->brand);
 
 	return s;
 }
@@ -210,14 +217,25 @@ void *trans_cos_map_kaddr(int channel)
 	return c->mem;
 }
 
-const struct cos_trans_fns trans_fns = {
-	.levt      = trans_cos_evt,
-	.map_kaddr = trans_cos_map_kaddr,
-	.map_sz    = trans_cos_map_sz,
-};
+int trans_cos_brand_created(int channel, void *b)
+{
+	struct trans_channel *c;
 
-extern void cos_trans_reg(const struct cos_trans_fns *fns);
-extern void cos_trans_dereg(void);
+	BUG_ON(channel < 0 || channel >= MAX_NCHANNELS);
+	c = channels[channel];
+	if (!c) return -1;
+
+	c->brand = b;
+
+	return 0;
+}
+
+const struct cos_trans_fns trans_fns = {
+	.levt          = trans_cos_evt,
+	.map_kaddr     = trans_cos_map_kaddr,
+	.map_sz        = trans_cos_map_sz,
+	.brand_created = trans_cos_brand_created,
+};
 
 static int
 trans_ioctl(struct inode *i, struct file *f, unsigned int cmd, unsigned long arg)

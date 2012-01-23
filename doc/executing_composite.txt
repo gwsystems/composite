@@ -61,6 +61,8 @@ A summary of terminal B (root denoted by #):
 # make      // will copy files from TRANS_DIR to .
 # ./print & // prints composite output to the terminal
 # sh lpp.sh // run the ping-pong program
+# fg
+<cntl-c to kill ./print, or use 'killall print'>
 
 Format of the runscript:
 ------------------------

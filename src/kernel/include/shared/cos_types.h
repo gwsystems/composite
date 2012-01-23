@@ -197,6 +197,7 @@ struct cos_trans_fns {
 	int   (*levt)(int channel);
 	void *(*map_kaddr)(int channel);
 	int   (*map_sz)(int channel);
+	int   (*brand_created)(int channel, void *b);
 };
 
 /*
@@ -386,6 +387,7 @@ enum {
 	COS_TRANS_TRIGGER,
 	COS_TRANS_MAP_SZ,
 	COS_TRANS_MAP,
+	COS_TRANS_BRAND,
 };
 
 /* flags for cos_switch_thread */
