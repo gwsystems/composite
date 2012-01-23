@@ -1,5 +1,6 @@
 0x00000000	cos_net_prebrand	/home/songjiguo/research/composite/src/platform/linux/module/cos	EXPORT_SYMBOL
 0x00000000	cos_net_register	/home/songjiguo/research/composite/src/platform/linux/module/cos	EXPORT_SYMBOL
+0x00000000	cos_trans_upcall	/home/songjiguo/research/composite/src/platform/linux/module/cos	EXPORT_SYMBOL
 0x00000000	host_end_syscall	/home/songjiguo/research/composite/src/platform/linux/module/cos	EXPORT_SYMBOL
 0x00000000	host_start_syscall	/home/songjiguo/research/composite/src/platform/linux/module/cos	EXPORT_SYMBOL
 0x00000000	cos_net_notify_drop	/home/songjiguo/research/composite/src/platform/linux/module/cos	EXPORT_SYMBOL
