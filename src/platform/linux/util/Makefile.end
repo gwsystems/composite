@@ -13,13 +13,12 @@ ready_hw:
 first: cp build
 
 cp:
-	rm *.o
 	cp $(TRANS_DIR)/* $(TEST_DIR)
 
 clean:
 	rm cos_loader
 	rmmod trans
-	rmmod cnet
+#	rmmod cnet
 	rmmod cos
 
 # sync to minimize possible file system corruption on crashes
@@ -28,9 +27,9 @@ build:
 	sleep 1
 	nice -n -20 insmod cos.ko
 #	sleep 1
-	insmod cnet.ko
+#	insmod cnet.ko
 	insmod trans.ko
-	./cnet_user
+#	./cnet_user
 
 print_kill:
 	killall print

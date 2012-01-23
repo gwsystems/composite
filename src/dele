@@ -1,0 +1,269 @@
+make  --no-print-directory -I /home/songjiguo/research/composite/src -C platform clean
+make -C linux clean
+make -C module clean
+rm -rf *.ko *.mod.c *.o *.mod.o .*.cmd .tmp_versions test Module.symvers
+rm -rf /home/songjiguo/research/composite/src//kernel//*.o /home/songjiguo/research/composite/src//kernel//.*.o.cmd
+make -C net clean
+rm -rf *.ko *.mod.c *.o *.mod.o .*.cmd .tmp_versions test Module.symvers
+make -C util clean
+rm -rf cnet_user udp_client udp_server tcp_server tcp_client *.o
+make -C link_load clean
+rm -f *~ *.o *.a cos_loader gen_client_stub
+make  --no-print-directory -I /home/songjiguo/research/composite/src -C components clean
+components makeflag  --no-print-directory
+####### Stack Manager is Enabled #######
+make  --no-print-directory -I /home/songjiguo/research/composite/src -I /home/songjiguo/research/composite/src -I /home/songjiguo/research/composite/src/components -C lib clean
+|     [RM]   Cleaning up directory
+make  --no-print-directory -I /home/songjiguo/research/composite/src -I /home/songjiguo/research/composite/src -I /home/songjiguo/research/composite/src/components -C interface clean
+|     [RM]   Cleaning up directory
+|     [RM]   Cleaning up interface directory for async_inv
+|     [RM]   Cleaning up interface directory for cbuf_bot
+|     [RM]   Cleaning up interface directory for cbuf_c
+|     [RM]   Cleaning up interface directory for cbuf_mid
+|     [RM]   Cleaning up interface directory for cgraph
+|     [RM]   Cleaning up interface directory for cinfo
+|     [RM]   Cleaning up interface directory for content_mux
+|     [RM]   Cleaning up interface directory for evt
+|     [RM]   Cleaning up interface directory for exe_cbuf_synth_hier
+|     [RM]   Cleaning up interface directory for exe_self_suspension
+|     [RM]   Cleaning up interface directory for exe_synth_hier
+|     [RM]   Cleaning up interface directory for failure_notif
+|     [RM]   Cleaning up interface directory for fd
+|     [RM]   Cleaning up interface directory for hlc
+|     [RM]   Cleaning up interface directory for http
+|     [RM]   Cleaning up interface directory for initf
+|     [RM]   Cleaning up interface directory for lock
+|     [RM]   Cleaning up interface directory for mem_mgr
+|     [RM]   Cleaning up interface directory for mem_mgr_large
+|     [RM]   Cleaning up interface directory for mem_pool
+|     [RM]   Cleaning up interface directory for net_if
+|     [RM]   Cleaning up interface directory for net_internet
+|     [RM]   Cleaning up interface directory for net_portns
+|     [RM]   Cleaning up interface directory for net_transport
+|     [RM]   Cleaning up interface directory for periodic_wake
+|     [RM]   Cleaning up interface directory for pgfault
+|     [RM]   Cleaning up interface directory for pong
+|     [RM]   Cleaning up interface directory for pong_lower
+|     [RM]   Cleaning up interface directory for printc
+|     [RM]   Cleaning up interface directory for resres
+|     [RM]   Cleaning up interface directory for sched
+|     [RM]   Cleaning up interface directory for sched_conf
+|     [RM]   Cleaning up interface directory for skel
+|     [RM]   Cleaning up interface directory for stack_trace
+|     [RM]   Cleaning up interface directory for static_content
+|     [RM]   Cleaning up interface directory for stkmgr
+|     [RM]   Cleaning up interface directory for synth_hier
+|     [RM]   Cleaning up interface directory for timed_blk
+|     [RM]   Cleaning up interface directory for torrent
+|     [RM]   Cleaning up interface directory for valloc
+|     [RM]   Cleaning up interface directory for vas_mgr
+make  --no-print-directory -I /home/songjiguo/research/composite/src -I /home/songjiguo/research/composite/src -I /home/songjiguo/research/composite/src/components -C implementation clean
+|     [RM]   Cleaning up implementation directory
+|     [RM]   Cleaning up implementation directory for interface async_inv
+|     [DEP]  Creating dependency file for async_inv.c
+|     [RM]   Cleaning up implementation directory for component ainv
+|     [RM]   Cleaning up implementation directory for interface cbuf_bot
+|     [DEP]  Creating dependency file for cbufs.c
+|     [RM]   Cleaning up implementation directory for component serv
+|     [DEP]  Creating dependency file for tmem.c
+|     [RM]   Cleaning up implementation directory for interface cbuf_c
+|     [DEP]  Creating dependency file for cbuf.c
+|     [RM]   Cleaning up implementation directory for component naive
+|     [RM]   Cleaning up implementation directory for interface cbuf_mid
+|     [DEP]  Creating dependency file for cbuf_mid.c
+|     [RM]   Cleaning up implementation directory for component mid_level
+|     [RM]   Cleaning up implementation directory for interface cgraph
+|     [DEP]  Creating dependency file for comp_graph.c
+|     [RM]   Cleaning up implementation directory for component static
+|     [RM]   Cleaning up implementation directory for interface content_mux
+|     [DEP]  Creating dependency file for content_mgr.c
+|     [RM]   Cleaning up implementation directory for component content_mgr
+|     [RM]   Cleaning up implementation directory for interface evt
+|     [DEP]  Creating dependency file for evt.c
+|     [RM]   Cleaning up implementation directory for component edge
+|     [RM]   Cleaning up implementation directory for interface exe_cbuf_synth_hier
+|     [DEP]  Creating dependency file for exe_cbuf_synth_basecase.c
+|     [RM]   Cleaning up implementation directory for component exe_cbuf_shbc
+|     [DEP]  Creating dependency file for exe_cbuf_synth_hier.c
+|     [RM]   Cleaning up implementation directory for component exe_cbuf_shrec
+|     [DEP]  Creating dependency file for exe_self_suspended.c
+|     [RM]   Cleaning up implementation directory for component exe_self_suspended
+|     [RM]   Cleaning up implementation directory for interface exe_synth_hier
+|     [DEP]  Creating dependency file for exe_synth_basecase.c
+|     [RM]   Cleaning up implementation directory for component exe_shbc
+|     [DEP]  Creating dependency file for exe_synth_hier.c
+|     [RM]   Cleaning up implementation directory for component exe_shrec
+|     [RM]   Cleaning up implementation directory for interface fd
+|     [DEP]  Creating dependency file for fd_api.c
+|     [RM]   Cleaning up implementation directory for component api
+|     [RM]   Cleaning up implementation directory for interface hlthd
+|     [DEP]  Creating dependency file for hlthd.c
+|     [RM]   Cleaning up implementation directory for component hlthd
+|     [RM]   Cleaning up implementation directory for interface http
+|     [DEP]  Creating dependency file for echos.c
+|     [RM]   Cleaning up implementation directory for component echo
+|     [DEP]  Creating dependency file for https.c
+|     [RM]   Cleaning up implementation directory for component http
+|     [DEP]  Creating dependency file for https.c
+|     [RM]   Cleaning up implementation directory for component httptor
+|     [RM]   Cleaning up implementation directory for interface initf
+|     [DEP]  Creating dependency file for initf.c
+|     [RM]   Cleaning up implementation directory for component simple
+|     [RM]   Cleaning up implementation directory for interface lock
+|     [DEP]  Creating dependency file for pessimistic.c
+|     [RM]   Cleaning up implementation directory for component pessimistic
+|     [DEP]  Creating dependency file for lock.c
+|     [RM]   Cleaning up implementation directory for component two_phase
+|     [RM]   Cleaning up implementation directory for interface mem_mgr
+|     [DEP]  Creating dependency file for mem_man.c
+|     [RM]   Cleaning up implementation directory for component hier
+|     [DEP]  Creating dependency file for mem_man.c
+|     [RM]   Cleaning up implementation directory for component naive
+|     [RM]   Cleaning up implementation directory for interface mem_pool
+|     [DEP]  Creating dependency file for mem_pool.c
+|     [RM]   Cleaning up implementation directory for component naive
+|     [RM]   Cleaning up implementation directory for interface net_if
+|     [DEP]  Creating dependency file for netif.c
+|     [RM]   Cleaning up implementation directory for component linux_if
+|     [RM]   Cleaning up implementation directory for interface net_internet
+|     [DEP]  Creating dependency file for cos_ip.c
+|     [RM]   Cleaning up implementation directory for component ip
+|     [RM]   Cleaning up implementation directory for interface net_portns
+|     [DEP]  Creating dependency file for port_mgr.c
+|     [RM]   Cleaning up implementation directory for component fake_pns
+|     [RM]   Cleaning up implementation directory for interface net_transport
+|     [DEP]  Creating dependency file for fake_net.c
+|     [RM]   Cleaning up implementation directory for component fake
+|     [DEP]  Creating dependency file for cos_net.c
+|     [RM]   Cleaning up implementation directory for component tcp
+|     [RM]   Cleaning up implementation directory for interface no_interface
+|     [DEP]  Creating dependency file for blk.c
+|     [RM]   Cleaning up implementation directory for component blk
+|     [DEP]  Creating dependency file for booter.c
+|     [RM]   Cleaning up implementation directory for component boot
+|     [DEP]  Creating dependency file for cbufc.c
+|     [RM]   Cleaning up implementation directory for component cbufc_test
+|     [DEP]  Creating dependency file for cbufc.c
+|     [RM]   Cleaning up implementation directory for component cbufc_top
+|     [DEP]  Creating dependency file for cbuf_policy.c
+|     [RM]   Cleaning up implementation directory for component cbuf_policy
+|     [DEP]  Creating dependency file for persist_cgi.c
+|     [RM]   Cleaning up implementation directory for component cgi
+|     [DEP]  Creating dependency file for citest.c
+|     [RM]   Cleaning up implementation directory for component cinfo_test
+|     [DEP]  Creating dependency file for comp0.c
+|     [RM]   Cleaning up implementation directory for component comp0
+|     [DEP]  Creating dependency file for sconnector.c
+|     [RM]   Cleaning up implementation directory for component connector
+|     [DEP]  Creating dependency file for conn_mgr.c
+|     [RM]   Cleaning up implementation directory for component conn_mgr
+|     [DEP]  Creating dependency file for spin.c
+|     [RM]   Cleaning up implementation directory for component cpu
+|     [DEP]  Creating dependency file for exe_cbuf_periodic.c
+|     [RM]   Cleaning up implementation directory for component exe_cbuf_periodic
+|     [DEP]  Creating dependency file for exe_periodic.c
+|     [RM]   Cleaning up implementation directory for component exe_periodic
+|     [DEP]  Creating dependency file for hlthd_test.c
+|     [RM]   Cleaning up implementation directory for component hlthd_test
+|     [DEP]  Creating dependency file for initft.c
+|     [RM]   Cleaning up implementation directory for component initf_test
+|     [DEP]  Creating dependency file for ltest.c
+|     [RM]   Cleaning up implementation directory for component lock_test
+|     [DEP]  Creating dependency file for mhtest.c
+|     [RM]   Cleaning up implementation directory for component mh_test
+|     [DEP]  Creating dependency file for mpd_mgr.c
+|     [RM]   Cleaning up implementation directory for component mpd_mgr
+|     [DEP]  Creating dependency file for rcv.c
+|     [RM]   Cleaning up implementation directory for component net_rcv
+|     [DEP]  Creating dependency file for periodic.c
+|     [RM]   Cleaning up implementation directory for component periodic
+|     [DEP]  Creating dependency file for periodic_read.c
+|     [RM]   Cleaning up implementation directory for component periodic_read
+|     [DEP]  Creating dependency file for pftest.c
+|     [RM]   Cleaning up implementation directory for component pftest
+|     [DEP]  Creating dependency file for ping.c
+|     [RM]   Cleaning up implementation directory for component ping
+|     [DEP]  Creating dependency file for pline.c
+|     [RM]   Cleaning up implementation directory for component pipeline
+|     [DEP]  Creating dependency file for sr_test.c
+|     [RM]   Cleaning up implementation directory for component sched_recov_test
+|     [DEP]  Creating dependency file for stat_gather.c
+|     [RM]   Cleaning up implementation directory for component stat
+|     [DEP]  Creating dependency file for stk_policy.c
+|     [RM]   Cleaning up implementation directory for component stk_policy
+|     [DEP]  Creating dependency file for t.c
+|     [RM]   Cleaning up implementation directory for component test
+|     [DEP]  Creating dependency file for wakeup.c
+|     [RM]   Cleaning up implementation directory for component timed_wkup
+|     [DEP]  Creating dependency file for tmem_policy.c
+|     [RM]   Cleaning up implementation directory for component tmem_policy
+|     [DEP]  Creating dependency file for torrent_test.c
+|     [RM]   Cleaning up implementation directory for component torrent_test
+|     [DEP]  Creating dependency file for valloc_test.c
+|     [RM]   Cleaning up implementation directory for component valloc_test
+|     [DEP]  Creating dependency file for vas_test.c
+|     [RM]   Cleaning up implementation directory for component vas_test
+|     [RM]   Cleaning up implementation directory for interface pgfault
+|     [DEP]  Creating dependency file for pgfault.c
+|     [RM]   Cleaning up implementation directory for component high_level
+|     [DEP]  Creating dependency file for pgfault.c
+|     [RM]   Cleaning up implementation directory for component recov_poc
+|     [DEP]  Creating dependency file for pgfault.c
+|     [RM]   Cleaning up implementation directory for component stk_trace
+|     [RM]   Cleaning up implementation directory for interface pong
+|     [DEP]  Creating dependency file for pong.c
+|     [RM]   Cleaning up implementation directory for component pingpong
+|     [RM]   Cleaning up implementation directory for interface pong_lower
+|     [DEP]  Creating dependency file for pong_lower.c
+|     [RM]   Cleaning up implementation directory for component pingpong
+|     [RM]   Cleaning up implementation directory for interface printc
+|     [DEP]  Creating dependency file for print_comp.c
+|     [RM]   Cleaning up implementation directory for component linux_log
+|     [RM]   Cleaning up implementation directory for interface resres
+|     [DEP]  Creating dependency file for resres.c
+|     [RM]   Cleaning up implementation directory for component lenient
+|     [DEP]  Creating dependency file for cos_scheduler.c
+|     [DEP]  Creating dependency file for cos_sched_base.c
+|     [RM]   Cleaning up implementation directory for interface sched
+|     [DEP]  Creating dependency file for base_case.c
+|     [RM]   Cleaning up implementation directory for component base_case
+|     [DEP]  Creating dependency file for deferrable.c
+|     [RM]   Cleaning up implementation directory for component ds
+|     [DEP]  Creating dependency file for fp_rr.c
+|     [RM]   Cleaning up implementation directory for component fprr
+|     [RM]   Cleaning up implementation directory for interface sched_conf
+|     [DEP]  Creating dependency file for sched_config.c
+|     [RM]   Cleaning up implementation directory for component http_config
+|     [RM]   Cleaning up implementation directory for interface skel
+|     [DEP]  Creating dependency file for skel.c
+|     [RM]   Cleaning up implementation directory for component comp
+|     [RM]   Cleaning up implementation directory for interface stack_trace
+|     [DEP]  Creating dependency file for stack_trace.c
+|     [RM]   Cleaning up implementation directory for component same_pd
+|     [RM]   Cleaning up implementation directory for interface static_content
+|     [DEP]  Creating dependency file for static_content.c
+|     [RM]   Cleaning up implementation directory for component fake_fs
+|     [DEP]  Creating dependency file for static_content.c
+|     [RM]   Cleaning up implementation directory for component map
+|     [DEP]  Creating dependency file for tmem.c
+|     [RM]   Cleaning up implementation directory for interface stkmgr_new
+|     [DEP]  Creating dependency file for stkmgr.c
+|     [RM]   Cleaning up implementation directory for component naive
+|     [RM]   Cleaning up implementation directory for interface synth_hier
+|     [DEP]  Creating dependency file for synth_basecase.c
+|     [RM]   Cleaning up implementation directory for component shbc
+|     [DEP]  Creating dependency file for synth_hier.c
+|     [RM]   Cleaning up implementation directory for component shrec
+|     [RM]   Cleaning up implementation directory for interface timed_blk
+|     [DEP]  Creating dependency file for timed_event.c
+|     [RM]   Cleaning up implementation directory for component timed_evt
+|     [DEP]  Creating dependency file for torlib.c
+|     [RM]   Cleaning up implementation directory for interface torrent
+|     [DEP]  Creating dependency file for ramfs.c
+|     [RM]   Cleaning up implementation directory for component ramfs
+|     [RM]   Cleaning up implementation directory for interface valloc
+|     [DEP]  Creating dependency file for valloc.c
+|     [RM]   Cleaning up implementation directory for component simple
+|     [RM]   Cleaning up implementation directory for interface vas_mgr
+|     [DEP]  Creating dependency file for vas_mgr.c
+|     [RM]   Cleaning up implementation directory for component simple

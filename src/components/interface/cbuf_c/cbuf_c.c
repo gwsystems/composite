@@ -144,7 +144,6 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 done:   
 	return ret;
 err:    
-	/* valloc_free(cos_spd_id(), cos_spd_id(), h, 1); */
 	free(s);
 	goto done;
 }

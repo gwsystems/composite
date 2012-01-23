@@ -18,6 +18,7 @@ typedef unsigned short int u16_t;
 typedef unsigned int u32_t;
 #else
 #include <cos_component.h>
+#include <cos_debug.h>
 #endif
 
 vaddr_t cbuf_c_register(spdid_t spdid, long cbid);

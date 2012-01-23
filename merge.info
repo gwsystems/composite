@@ -1,0 +1,54 @@
+Renaming src/components/implementation/other/boot/booter.c => src/components/implementation/no_interface/boot/booter.c
+Auto-merging src/components/implementation/no_interface/boot/booter.c
+CONFLICT (rename/modify): Merge conflict in src/components/implementation/no_interface/boot/booter.c
+CONFLICT (rename/delete): Rename src/components/implementation/other/cbufc_test/Makefile->src/components/implementation/no_interface/cbufc_test/Makefile in 2fcd65a9bfe926ab27e66db140a7bef058fdfcee and deleted in HEAD
+CONFLICT (rename/delete): Rename src/components/implementation/other/cbufc_test/cbufc.c->src/components/implementation/no_interface/cbufc_test/cbufc.c in 2fcd65a9bfe926ab27e66db140a7bef058fdfcee and deleted in HEAD
+Renaming src/components/implementation/other/mpd_mgr/mpd_mgr.c => src/components/implementation/no_interface/mpd_mgr/mpd_mgr.c
+Auto-merging src/components/implementation/no_interface/mpd_mgr/mpd_mgr.c
+Renaming src/components/implementation/stkmgr/naive/Makefile => src/components/implementation/stkmgr_new/naive/Makefile
+Auto-merging src/components/implementation/stkmgr_new/naive/Makefile
+CONFLICT (rename/modify): Merge conflict in src/components/implementation/stkmgr_new/naive/Makefile
+Auto-merging src/Makefile.src
+CONFLICT (content): Merge conflict in src/Makefile.src
+Auto-merging src/components/Makefile.comp
+CONFLICT (content): Merge conflict in src/components/Makefile.comp
+Auto-merging src/components/implementation/cbuf_c/naive/Makefile
+CONFLICT (content): Merge conflict in src/components/implementation/cbuf_c/naive/Makefile
+Auto-merging src/components/implementation/cbuf_c/naive/cbuf.c
+CONFLICT (content): Merge conflict in src/components/implementation/cbuf_c/naive/cbuf.c
+Auto-merging src/components/implementation/lock/two_phase/Makefile
+Auto-merging src/components/implementation/lock/two_phase/lock.c
+Auto-merging src/components/implementation/mem_mgr/naive/mem_man.c
+CONFLICT (content): Merge conflict in src/components/implementation/mem_mgr/naive/mem_man.c
+CONFLICT (delete/modify): src/components/implementation/other/ping/ping.c deleted in 2fcd65a9bfe926ab27e66db140a7bef058fdfcee and modified in HEAD. Version HEAD of src/components/implementation/other/ping/ping.c left in tree.
+Auto-merging src/components/implementation/pong/pingpong/pong.c
+CONFLICT (content): Merge conflict in src/components/implementation/pong/pingpong/pong.c
+Auto-merging src/components/implementation/sched/cos_sched_base.c
+Auto-merging src/components/implementation/sched/cos_scheduler.h
+CONFLICT (content): Merge conflict in src/components/implementation/sched/cos_scheduler.h
+CONFLICT (delete/modify): src/components/implementation/stkmgr/naive/stkmgr.c deleted in HEAD and modified in 2fcd65a9bfe926ab27e66db140a7bef058fdfcee. Version 2fcd65a9bfe926ab27e66db140a7bef058fdfcee of src/components/implementation/stkmgr/naive/stkmgr.c left in tree.
+Auto-merging src/components/implementation/timed_blk/timed_evt/Makefile
+CONFLICT (content): Merge conflict in src/components/implementation/timed_blk/timed_evt/Makefile
+Auto-merging src/components/implementation/valloc/simple/Makefile
+CONFLICT (content): Merge conflict in src/components/implementation/valloc/simple/Makefile
+Auto-merging src/components/implementation/valloc/simple/valloc.c
+CONFLICT (content): Merge conflict in src/components/implementation/valloc/simple/valloc.c
+Auto-merging src/components/include/cbuf.h
+CONFLICT (content): Merge conflict in src/components/include/cbuf.h
+Auto-merging src/components/interface/Makefile.subdir
+CONFLICT (content): Merge conflict in src/components/interface/Makefile.subdir
+Auto-merging src/components/interface/cbuf_c/cbuf_c.c
+CONFLICT (content): Merge conflict in src/components/interface/cbuf_c/cbuf_c.c
+Auto-merging src/components/interface/lock/stubs/s_stub.S
+CONFLICT (content): Merge conflict in src/components/interface/lock/stubs/s_stub.S
+Auto-merging src/components/interface/mem_mgr/cos_alloc.c
+Auto-merging src/components/interface/valloc/stubs/s_stub.S
+CONFLICT (content): Merge conflict in src/components/interface/valloc/stubs/s_stub.S
+Auto-merging src/kernel/include/shared/consts.h
+CONFLICT (content): Merge conflict in src/kernel/include/shared/consts.h
+Auto-merging src/kernel/include/shared/cos_config.h
+CONFLICT (content): Merge conflict in src/kernel/include/shared/cos_config.h
+Auto-merging src/kernel/include/shared/cos_types.h
+Auto-merging src/platform/linux/util/Makefile.end
+CONFLICT (content): Merge conflict in src/platform/linux/util/Makefile.end
+Automatic merge failed; fix conflicts and then commit the result.

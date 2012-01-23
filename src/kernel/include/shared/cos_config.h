@@ -1,8 +1,8 @@
 #ifndef COS_CONFIG_H
 #define COS_CONFIG_H
 
-//#define CPU_GHZ        1.6
-#include "cpu_ghz.h"
+#define CPU_GHZ        2.534
+
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 
 #define RUNTIME                10 // seconds
@@ -12,12 +12,11 @@
 #define COMPONENT_ASSERTIONS   1 // activate assertions in components?
 
 //#define LINUX_ON_IDLE          1 // should Linux be activated on Composite idle
-
 /* 
  * Should Composite run as highest priority?  Should NOT be set if
  * using networking (cnet). 
  */
-//#define LINUX_HIGHEST_PRIORITY 1 
+//#define LINUX_HIGHEST_PRIORITY 1
 
 // cos kernel settings
 #define COS_PRINT_MEASUREMENTS 1

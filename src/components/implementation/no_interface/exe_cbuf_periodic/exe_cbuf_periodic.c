@@ -128,7 +128,6 @@ void cos_init(void *arg)
 
 	static int first = 0;
 
-//	static int pre_run = 0;
 
 	parse_initstr();
 
@@ -147,12 +146,30 @@ void cos_init(void *arg)
 	printc("In spd %ld Thd %d, period %d ticks, execution time %d us in %lu cycles\n", cos_spd_id(),cos_get_thd_id(), local_period, exe_t, exe_cycle);
 
 	int event_thd = 0;
+
 	unsigned long pre_t_0 = 0;
+
 	if (local_period <= 0){/* Create all non-periodic tasks */
 
 #ifdef BEST_EFF   // for best effort sys now
 		int i;
 		if (first == 0){
+/* <<<<<<< HEAD */
+/* 			for (i=0;i<0;i++) create_thd("r0"); */
+/* 			pre_t_0 = sched_timestamp(); */
+/* 			first = 1; */
+/* 		} */
+/* 		printc("<<<<1 thd %d in spd %ld\n",cos_get_thd_id(), cos_spd_id()); */
+/* 		event_thd = cos_get_thd_id(); */
+
+/* 		unsigned long pre_run_remained = 0; */
+/* 		while(1) { */
+/* 			pre_run_remained = exe_cycle*5000;  /\* refill *\/ */
+/* 			pre_run_remained = left(pre_run_remained,exe_cycle*5000,0,0); */
+/* 			unsigned long pre_t = sched_timestamp(); */
+/* 			printc(" thd %d pre_t_0 %u pre_t %lu\n", cos_get_thd_id(), pre_t_0, pre_t); */
+/* 			if ( pre_t > pre_t_0 + 10*100) break; */
+/* ======= */
 			for (i=0;i<5;i++) create_thd("r0");
 			pre_t_0 = sched_timestamp();
 			first = 1;
@@ -198,8 +215,12 @@ void cos_init(void *arg)
 		int waiting = 0;
 
 		if(start_time_in_ticks <= 0)
+/* <<<<<<< HEAD */
+/* 			waiting = (50+100*10) / local_period;   /\* use 50 before. Now change to let BF threads run first 10 seconds before 0 second *\/ */
+/* ======= */
 			/* waiting = (50+100*10) / local_period;   /\* use 50 before. Now change to let BF threads run first 10 seconds before 0 second *\/ */
 			waiting = (50) / local_period;   /* use 50 before. Now change to let BF threads run first 10 seconds before 0 second */
+
 		else
 			waiting = start_time_in_ticks / local_period;
 		do {
@@ -209,8 +230,10 @@ void cos_init(void *arg)
 
 /* Let all tasks run */
 	unsigned long exe_cyc_remained = 0;
+
 //	unsigned long long t;
 //	unsigned long val;
+
 	int refill_number = 0;
 
 	unsigned long exe_cyc_event_remained = 0;
@@ -220,6 +243,19 @@ void cos_init(void *arg)
 			exe_cyc_event_remained = exe_cycle;  /* refill */
 			while(1) {
 				exe_cyc_event_remained = exe_cycle;  /* refill */
+/* <<<<<<< HEAD */
+/* 				rdtscll(t); */
+/* 				val = (int)(t & (TOTAL_AMNT-1)); */
+/* 				if (val >= 64){ */
+/* 					exe_cyc_event_remained = left(exe_cyc_event_remained,exe_cycle,0,0); */
+/* 				} */
+/* 				else{ */
+/* 					exe_cyc_event_remained = right(exe_cyc_event_remained,exe_cycle,0,0); */
+/* 				} */
+/* 				unsigned long t = sched_timestamp(); */
+/* 				if ( t > (unsigned long)(10*1000 + start_time_in_ticks + duration_time_in_ticks)) timed_event_block(cos_spd_id(), 10000); */
+/* 					/\* printc("time elapsed is %llu  cyccs and duration ticks is %d, cyc_per_tick is %lu\n", (end-start), duration_time_in_ticks, cyc_per_tick); *\/ */
+/* ======= */
 				/* rdtscll(t); */
 				/* val = (int)(t & (TOTAL_AMNT-1)); */
 				/* if (val >= 64){ */

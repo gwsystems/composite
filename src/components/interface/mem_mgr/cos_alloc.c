@@ -123,7 +123,8 @@ static inline REGPARM(1) void *do_mmap(size_t size) {
 #ifdef USE_VALLOC
 			if (unlikely(valloc_free(cos_spd_id(), cos_spd_id(), hp, s/PAGE_SIZE))) DIE();
 #else
-			cos_release_vas_page(hp);
+			/* cos_release_vas_page(hp); */
+			cos_set_heap_ptr_conditional(hp+PAGE_SIZE, hp);
 #endif
 			return NULL;
 		}
