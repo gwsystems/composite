@@ -144,7 +144,7 @@ cringbuf_inactive_extent(struct cringbuf *rb, int *len, int amnt)
 static inline void
 cringbuf_delete(struct cringbuf *rb, int amnt)
 {
-	int l, head, nhead;
+	int l = 0, head, nhead;
 	char *c;
 
 	assert(rb && rb->b);

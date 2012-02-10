@@ -23,7 +23,7 @@ void cos_init(void)
 	char *params3 = "foo/bar";
 	char *data1 = "1234567890", *data2 = "asdf;lkj";
 	int ret1, ret2;
-	
+
 	evt1 = evt_create(cos_spd_id());
 	evt2 = evt_create(cos_spd_id());
 	assert(evt1 > 0 && evt2 > 0);

@@ -2,7 +2,6 @@
 #include <print.h>
 #include <cos_alloc.h>
 #include <cos_list.h>
-#include <cos_vect.h>
 #include <cinfo.h>
 #include <sched.h>
 #include <mem_mgr_large.h>
@@ -10,6 +9,7 @@
 #include <valloc.h>
 #include <mem_pool.h>
 
+#include <cos_vect.h>
 #include <cos_synchronization.h>
 cos_lock_t pool_l;
 #define TAKE()  do { if (lock_take(&pool_l) != 0) BUG(); } while(0)
@@ -131,6 +131,7 @@ void * mempool_get_mem(spdid_t d_spdid, int pages)
 
         /* cos_vect_add_id(cos_vect *v, void *val, long id) */
 	cos_vect_add_id(mgr->mgr_page_descs, (void *)page, (u32_t)mgr_addr>>PAGE_ORDER);
+
 	mgr->mgr_allocated++;
 
 done:
@@ -194,8 +195,7 @@ static inline void mempoolmem_mgr_register(spdid_t spdid)
 
 	all_tmem_mgr[spdid] = malloc(sizeof(struct tmem_mgr));
 	mgr = all_tmem_mgr[spdid];
-
-	if (unlikely(!mgr)) BUG();
+	assert(mgr);
 
 	mgr->mgr_page_descs = page_descs[--unregistered_mgrs];
 	mgr->spdid = spdid;

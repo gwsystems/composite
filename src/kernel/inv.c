@@ -1717,6 +1717,7 @@ cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, i
 		if (!s) return -1;
 		if (!trans_fns) return -1;
 		kaddr = (unsigned long)trans_fns->map_kaddr(channel);
+		if (!kaddr) return -1;
 		sz    = trans_fns->map_sz(channel);
 		if (off > sz) return -1;
 
@@ -1726,6 +1727,8 @@ cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, i
 		}
 		return 0;
 	}
+	case COS_TRANS_DIRECTION:
+		if (trans_fns) return trans_fns->direction(channel);
 	case COS_TRANS_BRAND:
 	{
 		int tid = addr;
@@ -1734,7 +1737,7 @@ cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, i
 		t = thd_get_by_id(tid);
 		if (!t) return -1;
 		if (!trans_fns) return -1;
-		trans_fns->brand_created(channel, t);
+		if (trans_fns->brand_created(channel, t)) return -1;
 
 		return 0;
 	}

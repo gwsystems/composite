@@ -7,7 +7,9 @@
 #define DEBUG
 #endif
 
+#ifndef PRINT_FN
 #define PRINT_FN prints
+#endif
 #include <print.h>
 /* Convoluted: We need to pass the __LINE__ through 2 macros to get it
  * to expand to a constant string */

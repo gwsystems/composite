@@ -29,6 +29,7 @@
 #include <cos_component.h>
 #include <cos_map.h>
 #include <errno.h>
+#include <string.h>
 
 #include <http.h>
 
@@ -458,7 +459,7 @@ static struct http_request *connection_handle_request(struct connection *c, char
 		new_len = amnt + last->req_len;
 		new_buff = malloc(new_len + 1);
 		if (NULL == new_buff) {
-			printc("malloc fail 1\n"); fflush(stdout);
+			printc("malloc fail 1\n");
 			http_free_request(r);
 			return NULL;
 		}
@@ -497,7 +498,7 @@ static struct http_request *connection_handle_request(struct connection *c, char
 		 */
 		save_buff = malloc(amnt + 1);
 		if (NULL == save_buff) {
-			printc("malloc fail 2\n"); fflush(stdout);
+			printc("malloc fail 2\n");
 			/* FIXME: kill connection */
 			http_free_request(r);
 			return NULL;

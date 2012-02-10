@@ -195,6 +195,7 @@ struct cos_net_callbacks {
 /* Communication of callback functions for the translator module */
 struct cos_trans_fns {
 	int   (*levt)(int channel);
+	int   (*direction)(int direction);
 	void *(*map_kaddr)(int channel);
 	int   (*map_sz)(int channel);
 	int   (*brand_created)(int channel, void *b);
@@ -384,9 +385,16 @@ enum {
 };
 
 enum {
+	COS_TRANS_DIR_INVAL = 0,
+	COS_TRANS_DIR_LTOC,
+	COS_TRANS_DIR_CTOL,
+};
+
+enum {
 	COS_TRANS_TRIGGER,
 	COS_TRANS_MAP_SZ,
 	COS_TRANS_MAP,
+	COS_TRANS_DIRECTION,
 	COS_TRANS_BRAND,
 };
 

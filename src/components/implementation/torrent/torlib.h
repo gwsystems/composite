@@ -15,6 +15,7 @@ struct torrent {
 	td_t td;
 	u32_t offset;
 	int flags;
+	long evtid;
 	void *data;
 };
 extern cos_map_t torrents;

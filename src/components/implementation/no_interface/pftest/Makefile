@@ -2,7 +2,7 @@ C_OBJS=pftest.o
 ASM_OBJS=
 COMPONENT=pft.o
 INTERFACES=
-DEPENDENCIES=print sched pgfault
+DEPENDENCIES=printc sched pgfault
 IF_LIB=
 ADDITIONAL_LIBS=
 

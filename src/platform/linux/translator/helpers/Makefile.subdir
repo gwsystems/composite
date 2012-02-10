@@ -6,7 +6,7 @@ CFILES  = $(wildcard *.c)
 OFILES  = $(CFILES:%.c=%.o)
 EXEC    = $(CFILES:%.c=%)
 OPT     = -ggdb3
-CFLAGS  = -Wall -Wextra $(OPT) $(INCLUDE)
+CFLAGS  = -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer $(OPT) $(INCLUDE) 
 
 $(EXEC):$(OFILES)
 	$(CC) -o $@ $<

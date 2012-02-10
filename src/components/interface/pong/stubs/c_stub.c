@@ -1,5 +1,4 @@
 #include <cos_component.h>
-#include <pong.h>
 
 #include <print.h>
 

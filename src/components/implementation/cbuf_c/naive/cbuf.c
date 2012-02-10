@@ -31,7 +31,7 @@
 
 COS_MAP_CREATE_STATIC(cb_ids);
 
-#define CBUF_OBJ_SZ_SHIFT 7
+#define CBUF_OBJ_SZ_SHIFT 6
 #define CB_IDX(name) (name - cbr->start_id - 1)
 
 struct cos_cbuf_item *alloc_item_data_struct(void *l_addr) 
@@ -353,28 +353,19 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	if (cbid) {
 		 // vector should already exist
 		v = cos_map_lookup(&cb_ids, cbid);
-		if (unlikely(v != (void *)((unsigned long) spdid))){
-			goto err;
-		}
- 	}
-	else {
+		if (unlikely((spdid_t)(int)v != spdid)) goto err;
+ 	} else {
 		cbid = cos_map_add(&cb_ids, (void *)(unsigned long)spdid);
 		if ((mc = __spd_cbvect_lookup_range(sti, (cbid))) == NULL){
 			RELEASE();
 			return cbid*-1;	
 		} 
 	}
-
-	/* DOUT("... cbid is %ld\n",cbid); */
 	cos_map_del(&cb_ids, cbid);
-
-	/* call trasient memory grant! */
 	cbuf_item = tmem_grant(sti);
-
-	/* DOUT("cbuf_item->desc.cbid is %d \n",cbuf_item->desc.cbid); */
 	assert(cbuf_item);
 
-	d = &cbuf_item->desc;
+	d             = &cbuf_item->desc;
 	d->principal  = cos_get_thd_id();
 	d->obj_sz     = size;
 	d->owner.spd  = sti->spdid;
@@ -386,13 +377,12 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	  2. A cbuf item is obtained from the global free list without cbid
 	 */
 	DOUT("d->cbid is %d\n",d->cbid);
-	if(d->cbid == 0){
+	if (d->cbid == 0) {
 		INIT_LIST(&d->owner, next, prev);  // only created when first time
-		cbid = cos_map_add(&cb_ids, d);   // use new cbuf
+		cbid = cos_map_add(&cb_ids, d);    // we use a new cbuf
 		DOUT("new cbid is %ld\n",cbid);
-	}
-	else{
-		cbid = cbuf_item->desc.cbid;  // use a local cached one
+	} else {
+		cbid = cbuf_item->desc.cbid;       // use a local cached one
 		DOUT("cached cbid is %ld\n",cbid);
 	}
 
@@ -403,11 +393,11 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	assert(mc);
 	cbuf_item->entry = mc;
 
-	mc->c.ptr = d->owner.addr >> PAGE_ORDER;
-	mc->c.obj_sz = size >> CBUF_OBJ_SZ_SHIFT;
+	mc->c.ptr     = d->owner.addr >> PAGE_ORDER;
+	mc->c.obj_sz  = size >> CBUF_OBJ_SZ_SHIFT;
 	mc->c_0.th_id = cos_get_thd_id();
-	mc->c.flags |= CBUFM_IN_USE;
-	mc->c.flags |= CBUFM_TOUCHED;
+	mc->c.flags  |= CBUFM_IN_USE;
+	mc->c.flags  |= CBUFM_TOUCHED;
 
 done:
 	RELEASE();
@@ -510,8 +500,10 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 	/* rdtscll(start); */
 
 	/* if (!mman_alias_page(cos_spd_id(), (vaddr_t)d->addr, spdid, (vaddr_t)page)) goto err; */
-	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)l_addr, spdid, (vaddr_t)d_addr)))
+	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)l_addr, spdid, (vaddr_t)d_addr))) {
+		printc("No alias!\n");
 		goto err;
+	}
 	/* DOUT("<<<MAPPED>>> mgr addr %p client addr %p\n ",l_addr, d_addr); */
 
 	/* rdtscll(end); */
@@ -523,8 +515,6 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 
 	//struct cb_mapping *m;
 	ADD_LIST(&d->owner, m, next, prev);
-
-
 	ret = (void *)d_addr;
 done:
 	RELEASE();

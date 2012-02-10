@@ -21,9 +21,9 @@
 
 #include <tmem_conf.h>
 
-cos_lock_t l;
-#define CBUF_TAKE()    do { if (unlikely(l.lock_id == 0)) lock_static_init(&l); if (lock_take(&l) != 0) BUG(); } while(0)
-#define CBUF_RELEASE() do { if (lock_release(&l) != 0) BUG(); } while(0)
+extern cos_lock_t cbuf_lock;
+#define CBUF_TAKE()    do { if (unlikely(cbuf_lock.lock_id == 0)) lock_static_init(&cbuf_lock); if (lock_take(&cbuf_lock) != 0) BUG(); } while(0)
+#define CBUF_RELEASE() do { if (lock_release(&cbuf_lock) != 0) BUG(); } while(0)
 
 extern cbuf_vect_t meta_cbuf;
 extern cos_vect_t slab_descs; 
@@ -109,14 +109,14 @@ extern cos_vect_t slab_descs;
 
 /* #define CBUF_ID_ORDER 26 //(32-CBUF_MIN_SLAB_ORDER) */
 
-#define CBUF_OBJ_SZ_SHIFT 7
+#define CBUF_OBJ_SZ_SHIFT CBUF_MIN_SLAB_ORDER
 
 typedef u32_t cbuf_t; /* Requirement: gcc will return this in a register */
 typedef union {
 	cbuf_t v;
 	struct {
-		/* u32_t id:20, idx:12; */
-		u32_t id:32, idx:6;  /*Jiguo: Since min_slab_order is 6, set idx to be 6? */
+		u32_t id:20, idx:12;
+//		u32_t id:32, idx:6;  /*Jiguo: Since min_slab_order is 6, set idx to be 6? */
 	} __attribute__((packed)) c;
 } cbuf_unpacked_t;
 
@@ -144,6 +144,8 @@ cbuf_cons(u32_t cbid, u32_t idx)
 static inline cbuf_t cbuf_null(void)      { return 0; }
 static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
 
+static inline int cbuf_round_sz(int len) 
+{ return len < CBUF_MIN_SLAB ? CBUF_MIN_SLAB : nlpow2(len - 1); }
 
 extern int cbuf_cache_miss(int cbid, int idx, int len);
 /* 
@@ -158,15 +160,12 @@ cbuf2buf(cbuf_t cb, int len)
 	u32_t id, idx;
 	union cbuf_meta cm;
 	void *ret;
+	long cbidx;
 
 	CBUF_TAKE();
 	assert(len);
-	/* len = len == 1 ? 1 : len-1; */
-	/* len = nlpow2(len); */
-	len = nlpow2(len - 1);
+	len = cbuf_round_sz(len);
 	cbuf_unpack(cb, &id, &idx);
-
-	long cbidx;
 	cbidx = cbid_to_meta_idx(id);
 
 	DOUT("buf2buf:: id %x, idx %x  cbidx is %ld\n", id, idx, cbidx);
@@ -202,7 +201,6 @@ again:				/* avoid convoluted conditions */
 	/* DOUT("After Cache missing here::\n"); */
 	DOUT("%p\n",((char*)(cm.c.ptr << PAGE_ORDER)) + off);
 	ret = ((char*)(cm.c.ptr << PAGE_ORDER)) + off;
-
 done:	
 	CBUF_RELEASE();
 	return ret;
@@ -234,13 +232,12 @@ struct cbuf_slab_freelist {
 };
 extern struct cbuf_slab_freelist slab_freelists[N_CBUF_SLABS];
 
-static inline void printfl(struct cbuf_slab_freelist *fl, char *c){
+static inline void 
+printfl(struct cbuf_slab_freelist *fl, char *c){
 	struct cbuf_slab *p;
 	int a=0;
 	p = fl->list;
-	printc("thd %d\n", cos_get_thd_id());
 	while (p) {
-		printc("[%s p->cbid %d @ %p]\n", c, p->cbid, p->mem);
 		a++;
 		assert(a < 50);
 		if (p==fl->list) break;
@@ -255,13 +252,16 @@ slab_rem_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
 	assert(s && fl);
 
 	if (fl->list == s) {
-		if (EMPTY_LIST(s, next, prev)) fl->list = NULL;
+		if (EMPTY_LIST(s, next, prev)) {
+			assert(fl->list == s);
+			fl->list = NULL;
+		}
 		else fl->list = FIRST_LIST(s, next, prev);
 	}
 	REM_LIST(s, next, prev);
 	fl->npages--;
-
 	assert(fl->npages >= 0);
+
 	DOUT("thd %d REM:fl->npages %d cbid is %d\n",cos_get_thd_id(),fl->npages, s->cbid);
 	/* printfl(fl,"REM"); */
 
@@ -306,7 +306,7 @@ extern void cbuf_slab_free(struct cbuf_slab *s);
 static inline void 
 __cbuf_free(void *buf)
 {
-	u32_t p = ((u32_t)buf & PAGE_MASK) >> PAGE_ORDER; /* page id */
+	u32_t p   = ((u32_t)buf & PAGE_MASK) >> PAGE_ORDER; /* page id */
 	/* DOUT("page id is %d\n",p); */
 	struct cbuf_slab *s = cos_vect_lookup(&slab_descs, p);
 	u32_t b   = (u32_t)buf;
@@ -330,8 +330,6 @@ __cbuf_free(void *buf)
 		cbidx = cbid_to_meta_idx(s->cbid);
 		cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
 		cm.c.flags &= ~CBUFM_ALL_ALLOCATED;
-		/* if (!(void*)cm.c_0.v) */
-		/* 	printc("thd %d spd %ld in __cbuf_free\n", cos_get_thd_id(),cos_spd_id()); */
 		assert((void*)cm.c_0.v);
  		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbidx);
 		slab_add_freelist(s, s->flh);
@@ -356,6 +354,7 @@ __cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
 	union cbuf_meta cm;
 	int idx;
 	u32_t *bm;
+	long cbidx;
 
 	DOUT("\n***** thd %d spd :: %ld __cbuf_alloc:******\n", cos_get_thd_id(), cos_spd_id());
 	DOUT("<<<__cbuf_alloc size %d>>>\n",size);
@@ -365,7 +364,9 @@ again:					/* avoid convoluted conditions */
 		if (unlikely(!cbuf_slab_alloc(size, slab_freelist))) return NULL;
 		if (unlikely(!slab_freelist->list)) return NULL;
 	}
+
 	s = slab_freelist->list;
+	assert(s && s != (struct cbuf_slab*)1);
 	/* 
 	 * This is complicated.
 	 *
@@ -398,11 +399,9 @@ again:					/* avoid convoluted conditions */
 	 * _not_ deallocate the slab descriptor there to reinforce
 	 * that point.
 	 */
-	long cbidx;
 	cbidx = cbid_to_meta_idx(s->cbid);
-
 	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
-
+	/* outdated slab: remove it. */
 	if (unlikely(!cm.c_0.v || (cm.c.flags & CBUFM_ALL_ALLOCATED) || 
 		     (cm.c.ptr != ((u32_t)s->mem >> PAGE_ORDER)))) {
 		slab_deallocate(s, slab_freelist);
@@ -413,7 +412,6 @@ again:					/* avoid convoluted conditions */
 	DOUT("alloc get slab. s-> cbid %d @ %p\n", s->cbid, s->mem);
 
 	assert(s->nfree);
-
 	if (s->obj_sz <= PAGE_SIZE) {
 		bm  = &s->bitmap[0];
 		idx = bitmap_one(bm, SLAB_BITMAP_SIZE);
@@ -430,11 +428,9 @@ again:					/* avoid convoluted conditions */
 		cm.c_0.th_id = cos_get_thd_id();
 		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.th_id, cbidx+1);
 	}
-
 	s->nfree--;
 
 	/* remove from the freelist */
-	/* printc("after alloc and  nfree %d\n",s->nfree); */
 	if (!s->nfree) {
 		cm.c.flags |= CBUFM_ALL_ALLOCATED;
 		assert((void*)cm.c_0.v);
@@ -496,7 +492,7 @@ cbuf_alloc(unsigned int sz, cbuf_t *cb)
 	int o;
 
 	CBUF_TAKE();
-	sz = sz < 65 ? 63 : sz; /* FIXME: do without branch */
+	sz = sz < CBUF_MIN_SLAB+1 ? CBUF_MIN_SLAB-1 : sz; /* FIXME: do without branch */
 	/* FIXME: find way to avoid making the wrong decision on pow2 values */
 	sz = ones(sz) == 1 ? sz-1 : sz;
 	o = log32_floor(sz) + 1;

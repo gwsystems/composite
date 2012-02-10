@@ -69,6 +69,7 @@ typedef unsigned int u32_t;
 /* CVECT_DEPTH -- How many levels are in the structure? Default: 2 */
 #define CVECT_DEPTH 2
 #endif
+#define CVECT_MAX_ID (CVECT_BASE * CVECT_BASE) // really CVECT_BASE^CVECT_DEPTH
 
 #ifdef LINUX_TEST
 #include <malloc.h>
@@ -264,6 +265,7 @@ static int
 cvect_add(cvect_t *v, void *val, long id)
 {
 	assert(v && val != CVECT_INIT_VAL);
+	assert(id < CVECT_MAX_ID);
 	assert(!cvect_lookup(v, id));
 	if (__cvect_set(v, id, val)) {
 		if (__cvect_expand(v, id)) return -1;

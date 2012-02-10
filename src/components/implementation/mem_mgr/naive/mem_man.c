@@ -38,8 +38,6 @@
 
 #include <cos_list.h>
 #include "../../sched/cos_sched_sync.h"
-/* #define LOCK()  */
-/* #define UNLOCK()  */
 #define LOCK() if (cos_sched_lock_take()) assert(0);
 #define UNLOCK() if (cos_sched_lock_release()) assert(0);
 
@@ -247,10 +245,11 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to)
 		assert(cv == cvas_lookup(dest));
 	}
 	assert(cv->pages);
+
 	if (cvect_lookup(cv->pages, idx)) goto collision;
 	cvas_ref(cv);
 	m = cslab_alloc_mapping();
-	if (!m) goto no_mapping;
+	if (!m) goto collision;
 
 	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, dest, to, frame_index(f))) {
 		BUG();
@@ -263,8 +262,9 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to)
 done:
 	return m;
 no_mapping:
-	cvas_deref(cv);
+	cslab_free_mapping(m);
 collision:
+	cvas_deref(cv);
 	m = NULL;
 	goto done;
 }
@@ -351,8 +351,8 @@ mapping_del(struct mapping *m)
 vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 {
 	struct frame *f;
-	struct mapping *m;
-	vaddr_t ret = 0;
+	struct mapping *m = NULL;
+	vaddr_t ret = -1;
 
 	LOCK();
 	mm_init();
@@ -367,7 +367,7 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 	ret = m->addr;
 done:
 	UNLOCK();
-	return m->addr;
+	return ret;
 dealloc:
 	frame_deref(f);
 	goto done;		/* -EINVAL */

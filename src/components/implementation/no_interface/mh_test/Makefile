@@ -2,7 +2,7 @@ C_OBJS=mhtest.o
 ASM_OBJS=
 COMPONENT=mht.o
 INTERFACES=
-DEPENDENCIES=print sched mem_mgr
+DEPENDENCIES=printc sched mem_mgr
 IF_LIB=
 ADDITIONAL_LIBS=
 

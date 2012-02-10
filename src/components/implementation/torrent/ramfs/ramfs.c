@@ -17,10 +17,10 @@
 #include <cos_map.h>
 #include <fs.h>
 
-cos_lock_t l;
+static cos_lock_t fs_lock;
 struct fsobj root;
-#define LOCK() if (lock_take(&l)) BUG();
-#define UNLOCK() if (lock_release(&l)) BUG();
+#define LOCK() if (lock_take(&fs_lock)) BUG();
+#define UNLOCK() if (lock_release(&fs_lock)) BUG();
 
 #define MIN_DATA_SZ 256
 
@@ -83,8 +83,8 @@ tmerge(spdid_t spdid, td_t td, td_t td_into, char *param, int len)
 	if (td_into != td_null) ERR_THROW(-EINVAL, done);
 
 	tor_free(t);
-
-done:   UNLOCK();
+done:   
+	UNLOCK();
 	return ret;
 }
 
@@ -127,7 +127,7 @@ tread(spdid_t spdid, td_t td, int cbid, int sz)
 	if (!fso->size) ERR_THROW(0, done);
 
 	buf = cbuf2buf(cbid, sz);
-	if (!buf) goto done;
+	if (!buf) ERR_THROW(-EINVAL, done);
 
 	left = fso->size - t->offset;
 	ret  = left > sz ? sz : left;
@@ -194,7 +194,7 @@ done:
 
 int cos_init(void)
 {
-	lock_static_init(&l);
+	lock_static_init(&fs_lock);
 	torlib_init();
 
 	fs_init_root(&root);

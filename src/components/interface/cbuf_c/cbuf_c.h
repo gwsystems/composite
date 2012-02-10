@@ -14,6 +14,16 @@
 #include <mem_mgr_large.h>
 
 /* Component functions */
+/* 
+ * cbid is complicated:
+ * 0: we don't know the cbuf id we want to create
+ * n > 0: we want to initialize the cbuf_meta structure and get the cbuf addr
+ *
+ * The return value is negative (-c) if we need to create a new level
+ * in the cbuf_meta vector for c.  We expect that we will call this
+ * function again with c to get the cbuf's address via a populated
+ * cbuf_meta.
+ */
 int cbuf_c_create(spdid_t spdid, int size, long cbid); /* return cbid */
 int cbuf_c_delete(spdid_t spdid, int cbid);
 void *cbuf_c_retrieve(spdid_t spdid, int cbid, int len); /* return client address */

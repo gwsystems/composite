@@ -15,7 +15,7 @@
 #define FILE_NAME "translator"
 #define TRANS_PAGE_ORDER 0
 #define TRANS_MAX_MAPPING (1024*1024*4)
-#define MAX_NCHANNELS 8
+#define MAX_NCHANNELS 10
 //#define printl(str,args...) printk(str, ## args)
 #define printl(str,args...)
 
@@ -23,6 +23,7 @@ struct trans_channel {
 	char *mem; 		/* kernel address */
 	unsigned long size;
 	void *brand;
+	int direction;
 
 	wait_queue_head_t e;
 	int levent, cevent; 		/* is data available? */
@@ -195,6 +196,16 @@ int trans_cos_evt(int channel)
 	return 0;
 }
 
+int trans_cos_direction(int channel)
+{
+	struct trans_channel *c;
+
+	BUG_ON(channel < 0 || channel >= MAX_NCHANNELS);
+	c = channels[channel];
+	if (!c) return -1;
+	return c->direction;
+}
+
 int trans_cos_map_sz(int channel)
 {
 	struct trans_channel *c;
@@ -232,6 +243,7 @@ int trans_cos_brand_created(int channel, void *b)
 
 const struct cos_trans_fns trans_fns = {
 	.levt          = trans_cos_evt,
+	.direction     = trans_cos_direction,
 	.map_kaddr     = trans_cos_map_kaddr,
 	.map_sz        = trans_cos_map_sz,
 	.brand_created = trans_cos_brand_created,
@@ -256,6 +268,10 @@ trans_ioctl(struct inode *i, struct file *f, unsigned int cmd, unsigned long arg
 	}
 	case TRANS_GET_CHANNEL:
 		if (copy_to_user((void*)arg, &c->channel, sizeof(int))) return -EINVAL;
+		break;
+	case TRANS_SET_DIRECTION:
+		if (arg != COS_TRANS_DIR_LTOC && arg != COS_TRANS_DIR_CTOL) return -EINVAL;
+		c->direction = (int)arg;
 		break;
 	}
 	return 0;

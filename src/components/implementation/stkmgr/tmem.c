@@ -272,7 +272,6 @@ tmem_grant(struct spd_tmem_info *sti)
 	 * looks through to find id
 	 * if does not find, allocate a page for the meta data
 	 */
-
 	while (1) {
 		tmi = free_mem_in_local_cache(sti);
 		if (tmi) {

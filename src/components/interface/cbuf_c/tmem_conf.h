@@ -5,9 +5,9 @@
 #include <cos_synchronization.h>
 
 cos_lock_t tmem_l;
-#define TAKE()  do { if (lock_take(&tmem_l) != 0) BUG(); } while(0)
-#define RELEASE() do { if (lock_release(&tmem_l) != 0) BUG() } while(0)
-#define LOCK_INIT()    lock_static_init(&tmem_l);
+#define LOCK_INIT() lock_static_init(&tmem_l);
+#define TAKE()      do { if (lock_take(&tmem_l) != 0) BUG(); } while(0)
+#define RELEASE()   do { if (lock_release(&tmem_l) != 0) BUG() } while(0)
 
 /* 
  * tmem_item in this case is a list of the cbufs that are _owned_ by a
@@ -16,10 +16,9 @@ cos_lock_t tmem_l;
 typedef struct cos_cbuf_item tmem_item;
 
 #define CBUF_IN_USE(flags) (flags & CBUFM_IN_USE)
-
-#define LOCAL_ADDR(cci) (cci->desc.addr)
-#define TMEM_TOUCHED(cci) (cci->entry->c.flags & CBUFM_TOUCHED)
-#define TMEM_RELINQ COMP_INFO_TMEM_CBUF_RELINQ
+#define LOCAL_ADDR(cci)    (cci->desc.addr)
+#define TMEM_TOUCHED(cci)  (cci->entry->c.flags & CBUFM_TOUCHED)
+#define TMEM_RELINQ        COMP_INFO_TMEM_CBUF_RELINQ
 
 /* Shared page between the target component, and us */
 typedef	struct spd_cbvect_range shared_component_info;
@@ -49,7 +48,6 @@ typedef enum {
 /* 		/\* int refcnt:1; *\/ */
 /* 	} __attribute__((packed)) c;	/\* composite type *\/ */
 /* }; */
-
 
 union cbuf_meta {
 	struct {

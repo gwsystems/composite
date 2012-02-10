@@ -41,8 +41,6 @@ static int print_init(void)
 
 int print_str(char *s, unsigned int len)
 {
-	int r;
-
 	if (!COS_IN_ARGREG(s) || !COS_IN_ARGREG(s + len)) {
 		static char foo[MAX_LEN];
 		snprintf(foo, MAX_LEN, "print argument out of bounds: %x", (unsigned int)s);

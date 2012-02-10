@@ -15,9 +15,9 @@ int tor_cons(struct torrent *t, void *data, int flags)
 	td_t td;
 	assert(t && data);
 
-	td = (td_t)cos_map_add(&torrents, t);
+	td        = (td_t)cos_map_add(&torrents, t);
 	if (td == -1) return -1;
-	t->td    = td;
+	t->td     = td;
 	t->data   = data;
 	t->flags  = flags;
 	t->offset = 0;
@@ -42,7 +42,6 @@ struct torrent *tor_alloc(void *data, int flags)
 void tor_free(struct torrent *t)
 {
 	assert(t);
-
 	if (cos_map_del(&torrents, t->td)) BUG();
 	free(t);
 }

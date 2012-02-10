@@ -21,11 +21,19 @@
 
 struct cringbuf sharedbuf;
 
-int main(void)
+int main(int argc, char **argv)
 {
 	int fd;
 	void *a;
 	char c, buf[PRINT_CHUNK_SZ];
+	int channel;
+
+	if (argc > 2) return -1;
+	if (argc == 2) {
+		channel = atoi(argv[1]);
+	} else {
+		channel = 0;
+	}
 
 	fd = open(PROC_FILE, O_RDWR);
 	if (fd < 0) {
@@ -33,7 +41,8 @@ int main(void)
 		exit(-1);
 	}
 
-	trans_ioctl_set_channel(fd, 0);
+	trans_ioctl_set_channel(fd, channel);
+	trans_ioctl_set_direction(fd, COS_TRANS_DIR_CTOL);
 	a = mmap(NULL, MAP_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 	if (MAP_FAILED == a) {
 		perror("mmap");

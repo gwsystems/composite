@@ -16,6 +16,7 @@
 #include <cos_alloc.h>
 #include <valloc.h>
 
+cos_lock_t cbuf_lock;
 /* 
  * All of the structures that must be compiled (only once) into each
  * component that uses cbufs.
@@ -40,17 +41,13 @@ cbuf_cache_miss(int cbid, int idx, int len)
 {
 	union cbuf_meta mc;
 	void *h;
-	/* DOUT("cbid is %d idx is %d len is %d\n",cbid, idx, len); */
 
 	CBUF_RELEASE();
 	h = cbuf_c_retrieve(cos_spd_id(), cbid, len);
 	CBUF_TAKE();
-	/* printc("cost of retrieve :: %ld\n", end-start); */
-	/* printc("(cbid %d)\n", cbid); */
 	if (!h) {
-		//valloc_free(cos_spd_id(), cos_spd_id(),h, 1);
-		BUG();
 		/* Illegal cbid or length!  Bomb out. */
+		BUG();
 		return -1;
 	}
 
@@ -63,7 +60,7 @@ cbuf_cache_miss(int cbid, int idx, int len)
 	assert((void *)mc.c_0.v);
 	cbuf_vect_add_id(&meta_cbuf, (void *)mc.c_0.v, cbid_to_meta_idx(cbid));
 	cbuf_vect_add_id(&meta_cbuf, (void *)(unsigned long)cos_get_thd_id(), cbid_to_meta_idx(cbid)+1);
-	/* printc("cost of add id :: %ld\n", end-start); */
+
 	return 0;
 }
 
@@ -74,7 +71,7 @@ cbuf_slab_cons(struct cbuf_slab *s, int cbid, void *page,
 	s->cbid = cbid;
 	s->mem = page;
 	s->obj_sz = obj_sz;
-	memset(&s->bitmap[0], 0xFFFFFFFF, sizeof(u32_t)*SLAB_BITMAP_SIZE);
+	memset(&s->bitmap[0], ~(u32_t)0, sizeof(u32_t)*SLAB_BITMAP_SIZE);
 	s->nfree = s->max_objs = PAGE_SIZE/obj_sz; /* not a perf sensitive path */
 	s->flh = freelist;
 	INIT_LIST(s, next, prev);
@@ -84,31 +81,26 @@ cbuf_slab_cons(struct cbuf_slab *s, int cbid, void *page,
 	return;
 }
 
-
 struct cbuf_slab *
 cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 {
 	struct cbuf_slab *s, *ret = NULL;
 	struct cbuf_slab *exist;
-	/* struct cbuf_slab *dup = NULL; */
 	void *addr;
 	int cbid;
 	int cnt;
 
-	/* DOUT("Relinquish bit :: %d\n",cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ]); */
 	s = malloc(sizeof(struct cbuf_slab));
 	if (!s) return NULL;
 	if (!freelist) goto err;
 
-	/* union cbuf_meta mc; */
-
-	/* DOUT("meta_cbuf is %p\n",&meta_cbuf); */
 	cnt = 0;
 	cbid = 0;
 	do {
 		CBUF_RELEASE();
 		cbid = cbuf_c_create(cos_spd_id(), size, cbid*-1);
 		CBUF_TAKE();
+
 		if (cbid < 0) {
 			if (cbuf_vect_expand(&meta_cbuf, cbid*-1) < 0) goto err;
 		}
@@ -117,11 +109,7 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	} while (cbid < 0);
 
 	addr = cbuf_vect_addr_lookup(&meta_cbuf, cbid_to_meta_idx(cbid));
-	if (!addr) goto err;
-
-	/* DOUT("create: meta_cbuf is at %p\n", &meta_cbuf); */
-
-	// Check if the allocated cbuf item is the used one and if it is still on local free_list
+	if (unlikely(!addr)) goto err;
 
 	/* 
 	 * See __cbuf_alloc and cbuf_slab_free.  It is possible that a
@@ -131,16 +119,13 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	 * over the slab, and use it for this cbuf.
 	 */
 	exist = cos_vect_lookup(&slab_descs, (u32_t)addr>>PAGE_ORDER);
-	if (exist) {
-		slab_deallocate(exist, freelist);
-	}
-	assert(!cos_vect_lookup(&slab_descs, (u32_t)addr>>PAGE_ORDER));
+	if (exist) slab_deallocate(exist, freelist);
 
+	assert(!cos_vect_lookup(&slab_descs, (u32_t)addr>>PAGE_ORDER));
 	cos_vect_add_id(&slab_descs, s, (long)addr>>PAGE_ORDER);
 	cbuf_slab_cons(s, cbid, addr, size, freelist);
 
 	ret = s;
-
 done:   
 	return ret;
 err:    
@@ -166,7 +151,7 @@ cbuf_slab_free(struct cbuf_slab *s)
 	/* slab_add_freelist(s, freelist); */
 
 	/* clear IN_USE bit */
-	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbid_to_meta_idx(s->cbid));
+	cm.c_0.v   = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbid_to_meta_idx(s->cbid));
 	cm.c.flags &= ~CBUFM_IN_USE;
 	assert((void *)cm.c_0.v);
 	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbid_to_meta_idx(s->cbid));
