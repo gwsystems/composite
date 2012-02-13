@@ -1,5 +1,5 @@
-Todo list of items relatively small improvements/features
-`````````````````````````````````````````````````````````
+Todo list of relatively small improvements/features
+===================================================
 
 This is a list of divisible chunks of work that are _not_ part of a
 research agenda, rather interesting technical challenges that will
