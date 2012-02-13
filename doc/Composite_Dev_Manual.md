@@ -305,9 +305,8 @@ Component <-> Kernel Interface:
 
 **Functions for creating and manipulating components and capabilities**
 
-- `int cos_spd_cntl(short int op, short int spd_id, long arg1, long arg2);` 
-
- * `op` is taken from <shared/cos_types.h> and defines the
+- `int cos_spd_cntl(short int op, short int spd_id, long arg1, long
+   arg2);` -- `op` is taken from <shared/cos_types.h> and defines the
    function of this system call:
 
    + `COS_SPD_CREATE`: The other arguments don't matter.  Create a
@@ -341,13 +340,11 @@ Component <-> Kernel Interface:
      execute into it.  This is the "commit" instruction.
 
 - `long cos_cap_cntl_spds(spdid_t cspd, spdid_t sspd, long arg);`
-
- * Return the number of invocations between component `cspd` and
-   `sspd`, and reset the count.
+  Return the number of invocations between component `cspd` and
+  `sspd`, and reset the count.
 
 - `long cos_cap_cntl(short int op, spdid_t cspd, u16_t capid, long arg);`
-
- * `op` is taken from <shared/cos_types.h> and defines the
+  `op` is taken from <shared/cos_types.h> and defines the
    function of this system call:
 
    + `COS_CAP_SET_CSTUB`: Set component `cspd`'s address for capability
@@ -373,20 +370,17 @@ Component <-> Kernel Interface:
 Only a scheduler can actually usefully use these functions.  
 
 - `int create_thread(int a, int b, int c);` 
-
- * Create a new thread with a thread id returned by this
+  Create a new thread with a thread id returned by this
        syscall.  Its initial registers (`bx`, `di`, and `si`) are set
         to `a`, `b`, and `c`.  It will begin executing in the
         component that invokes this syscall.
 
 - `int upcall(int spd_id);`
-
- * The current thread will terminate execution in this component,
+  The current thread will terminate execution in this component,
         and will make an upcall into component `spd_id`.
 
 - `int sched_cntl(int operation, int thd_id, long option);`
-
- * `operation` determines the function of the syscall:
+  `operation` determines the function of the syscall:
 
    + `COS_SCHED_EVT_REGION`: Set the event region
          (page-aligned) within the calling scheduler to the address
@@ -416,8 +410,7 @@ Only a scheduler can actually usefully use these functions.
           Instead, the scheduler will be upcalled.
 
 - `int cos_thd_cntl(short int op, short int thd_id, long arg1, long arg2);`
-
- * `op` defines the specific behavior of this system call.  Most
+  `op` defines the specific behavior of this system call.  Most
         functionality is for accessing thread register or execution
         state.  General introspection facilities.
 
@@ -441,8 +434,7 @@ Only a scheduler can actually usefully use these functions.
           `thd_id`.
 
 - `int cos_switch_thread(unsigned short int thd_id, unsigned short int flags);`
-
- * Only a scheduler can invoke this system call.  Additionally,
+  Only a scheduler can invoke this system call.  Additionally,
         the scheduler must have been granted scheduling permission to
         schedule the current thread and `thd_id`.  The specific
         behavior of this system call are dependent on the `flags`
@@ -487,8 +479,7 @@ Only a scheduler can actually usefully use these functions.
 **Brand management and execution functions**
 
 - `int cos_brand_cntl(int ops, unsigned short int bid, unsigned short int tid, spdid_t spdid);`
-
- * The semantics of this call depend on the `ops` passed in.
+  The semantics of this call depend on the `ops` passed in.
 
    + `COS_BRAND_CREATE_HW` and `COS_BRAND_CREATE`: Create a
           brand associated with component `spdid`.  the `HW` specifier
@@ -501,8 +492,7 @@ Only a scheduler can actually usefully use these functions.
 
 - `int cos_brand_upcall(short int thd_id, short int flags,
                               long arg1, long arg2);`
-
- * Activate a brand `thd_id`, and pass the arguments `arg1` and
+  Activate a brand `thd_id`, and pass the arguments `arg1` and
         `arg2` to the executed thread, unless there are no threads to
         execute in which case the arguments are silently dropped.
         Yes, silently dropped.  In the future, we will drop the
@@ -512,22 +502,19 @@ Only a scheduler can actually usefully use these functions.
         that interrupts can activate brands.
 
 - `int brand_wait(int thdid);`
-
- * The current thread attempts to wait for an activation on brand
+  The current thread attempts to wait for an activation on brand
         `thdid`.  This thread will block unless there is a pending
         activation.
 
 - `int brand_wire(long thd_id, long option, long data);`
-
- * Associate a specific brand, `thd_id` with a hardware
+  Associate a specific brand, `thd_id` with a hardware
         interrupt source.  `option` can be either `COS_HW_TIMER` or
         `COS_HW_NET`.  In the case of wiring to the networking
         interrupts, `data` is the port being branded to.
 
 - `int cos_buff_mgmt(unsigned short int op, void *addr,
                            unsigned short int len, short int thd_id);`
-
- * Currently, _Composite_ does not interface with devices
+  Currently, _Composite_ does not interface with devices
         directly.  It uses Linux device drivers and simply attempts to
         get the data from the device as early as possible (e.g. after
         IP for networking).  A means is required to move the data from
@@ -571,8 +558,7 @@ applications, please see the MPD paper.
 
  - `int mpd_cntl(int operation, spdid_t composite_spd, spdid_t
       composite_dest);`
-
-  * The operation to be performed is dependent on `operation`.
+   The operation to be performed is dependent on `operation`.
 
    + `COS_MPD_SPLIT`: `spd1` is one component in a protection
           domain that includes multiple components, including `spd2`.
@@ -587,9 +573,7 @@ applications, please see the MPD paper.
           placing all components in each protection domains into one
           large protection domain containing all components.
 
-- `void cos_mpd_update(void);`
-
- * Due to invocations operating on stale protection domain
+- `void cos_mpd_update(void);`  Due to invocations operating on stale protection domain
         mappings, we must do garbage collection (of sorts) on
         protection domains.  This call makes that reference counting
         easier and allows components to provide "hints" to expedite
@@ -599,8 +583,7 @@ applications, please see the MPD paper.
 **Virtual memory management**
 
 - `int cos_mmap_cntl(short int op, short int flags, short int dest_spd, vaddr_t dest_addr, long mem_id);`
-
- * This system call enables the mapping of physical frames to
+  This system call enables the mapping of physical frames to
         virtual pages in separate components.  When the same physical
         frame is mapped into two components, that page is shared
         memory.  The action performed by this system call is dependent
@@ -618,20 +601,15 @@ applications, please see the MPD paper.
 
 **Other functions**
 
-- `int stats(void);`
+- `int stats(void);`  Print out the event counters within the kernel.
 
- * Print out the event counters within the kernel.
-
-- `int print(char* str, int len);`
-
- * Print to dmesg the given string.  Don't use this directly.
+- `int print(char* str, int len);`  Print to dmesg the given string.  Don't use this directly.
         Call the print component.
 
 **Future _Composite_ functionality**
     
 - `int cos_vas_cntl(short int op...)`
-
- * Currently, all components share the same virtual address
+  Currently, all components share the same virtual address
         space.  This call with be necessary to create new virtual
         address spaces, map components into them, and allocate
         portions of the virtual memory to them.  This is not done
