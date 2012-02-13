@@ -5,6 +5,8 @@
  * Public License v2.
  *
  * Author: Gabriel Parmer, gparmer@gwu.edu, 2010
+ * Updated by Qi Wang and Jiguo Song, 2011
+ * Updated and simplified by removing sub-page allocations, Gabe Parmer, 2012
  */
 
 #ifndef  CBUF_H
@@ -19,16 +21,15 @@
 #include <bitmap.h>
 #include <cos_synchronization.h>
 
+#define CVECT_ALLOC() alloc_page()
+#define CVECT_FREE(x) free_page(x)
+#include <cvect.h>
+
 #include <tmem_conf.h>
 
 extern cos_lock_t cbuf_lock;
 #define CBUF_TAKE()    do { if (unlikely(cbuf_lock.lock_id == 0)) lock_static_init(&cbuf_lock); if (lock_take(&cbuf_lock) != 0) BUG(); } while(0)
 #define CBUF_RELEASE() do { if (lock_release(&cbuf_lock) != 0) BUG(); } while(0)
-
-extern cbuf_vect_t meta_cbuf;
-extern cos_vect_t slab_descs; 
-
-/* static init_flag = 0; */
 
 /* 
  * Shared buffer management for Composite.
@@ -93,61 +94,96 @@ extern cos_vect_t slab_descs;
  * belong to the principal, etc...).
  */
 
-/* 
- * log2(max slab size) - log2(min slab size) = 
- * log2(PAGE_SIZE) - log2(CACHELINE_SIZE) = 
- * 12 - 6 = 6 thus
- * max obj size = 2^6 = 64
+/***
+ * Concurrency invariants:
+ * 
+ * 1) While the cbuf lock is taken, only this thread will access the
+ * slab and set the USED bits in the meta structure.  Keep in mind
+ * that many of the functions that call the cbuf manager interface
+ * functions do drop this lock, thus requiring us to re-check the
+ * state of these data-structures.
+ *
+ * 2) While the USED bit is set in a meta entry, the cbuf manager will
+ * not remove the cbuf from us and from the meta-entry.  Therefore,
+ * setting the USED bit acts as a form of a lock between this
+ * component and the manager.
  */
-#define N_CBUF_SMALL_SLABS 6 	/* <= PAGE_SIZE */
-#define N_CBUF_LARGE_SLABS 10
-#define N_CBUF_SLABS (N_CBUF_LARGE_SLABS + N_CBUF_SMALL_SLABS)
 
-#define CBUF_MIN_SLAB_ORDER 6 	/* minimum slab size = 2^6 = 64 */
-#define CBUF_MIN_SLAB (1<<CBUF_MIN_SLAB_ORDER)
-#define SLAB_MAX_OBJS (PAGE_SIZE/CBUF_MIN_SLAB)
-
-/* #define CBUF_ID_ORDER 26 //(32-CBUF_MIN_SLAB_ORDER) */
-
-#define CBUF_OBJ_SZ_SHIFT CBUF_MIN_SLAB_ORDER
+/***
+ * On data-structure consistency:
+ *
+ * The cbuf_meta data-structure is shared between manager and client,
+ * and is one-to-one mapped with the cbufs themselves.  These are
+ * indexed by the cbuf id.  The cbuf_alloc_descs are a client-local
+ * data-structure tracking the cbuf allocations (and caching them).
+ * These are indexed by the address of the cbuf (to enable cbuf_free),
+ * and stored in local free-lists.
+ *
+ * When the USED bit is not set in the cbuf_meta structure (i.e. it is
+ * in the common case on a free-list in the client), the manager can
+ * remove it at any time.  This means that free-list entries can exist
+ * that don't actually refer to a cbuf.  We call these stale free-list
+ * entries (see __cbuf_alloc_meta_inconsistent for the check to see if
+ * this is the case) that must be cleaned up.
+ *
+ * The more difficult case is this: 1) the manager removes a cbuf from
+ * the client (but the free-list entry still remains), 2) a thread t_0
+ * attempts to allocate a cbuf and must ask the manager for a new cbuf
+ * which is then mapped into the client and added to the cbuf_meta
+ * structure (with the USED bit set) at the same address of the old
+ * cbuf that was removed, and 3) before it can return, another thread
+ * t_1 enters the cbuf code and finds the stale free-list entry.  The
+ * question here is this: How does t_1 know that the free-list entry is
+ * stale, and that it should be deallocated?  Answer: If a cbuf is
+ * marked as USED when it is seen to be on the free-list, we know this
+ * case has been triggered.  
+ *
+ * Similar to this latter case, when a thread allocates a new cbuf
+ * (cbuf_c_create), it should check to see if a freelist descriptor
+ * exists before allocating a new one to avoid two descriptors
+ * existing for one cbuf.
+ *
+ * Luckily, the correct way to fix all these inconsistencies is the
+ * same: deallocate the allocation free-list descriptor.
+ */
 
 typedef u32_t cbuf_t; /* Requirement: gcc will return this in a register */
 typedef union {
 	cbuf_t v;
 	struct {
-		u32_t id:20, idx:12;
-//		u32_t id:32, idx:6;  /*Jiguo: Since min_slab_order is 6, set idx to be 6? */
+		u32_t id:20, len:12; /* cbuf id and its maximum length */
 	} __attribute__((packed)) c;
 } cbuf_unpacked_t;
 
 static inline void 
-cbuf_unpack(cbuf_t cb, u32_t *cbid, u32_t *idx) 
+cbuf_unpack(cbuf_t cb, u32_t *cbid, u32_t *len) 
 {
 	cbuf_unpacked_t cu = {0};
 	
 	cu.v  = cb;
 	*cbid = cu.c.id;
-	*idx  = cu.c.idx;
+	*len  = (u32_t)cu.c.len;
 	return;
 }
 
 static inline cbuf_t 
-cbuf_cons(u32_t cbid, u32_t idx) 
+cbuf_cons(u32_t cbid, u32_t len) 
 {
 	cbuf_unpacked_t cu;
-	assert(idx <= CBUF_MIN_SLAB);
 	cu.c.id  = cbid;
-	cu.c.idx = idx;
+	cu.c.len = len;
 	return cu.v; 
 }
 
 static inline cbuf_t cbuf_null(void)      { return 0; }
 static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
 
-static inline int cbuf_round_sz(int len) 
-{ return len < CBUF_MIN_SLAB ? CBUF_MIN_SLAB : nlpow2(len - 1); }
+extern struct cbuf_alloc_desc *__cbuf_alloc_slow(int size, int *len);
+extern int __cbuf_2buf_miss(int cbid, int len);
+extern void __cbuf_desc_free(struct cbuf_alloc_desc *d);
 
-extern int cbuf_cache_miss(int cbid, int idx, int len);
+extern cbuf_vect_t meta_cbuf;
+
 /* 
  * Common case.  This is the most optimized path.  Every component
  * that wishes to access a cbuf created by another component must use
@@ -156,358 +192,164 @@ extern int cbuf_cache_miss(int cbid, int idx, int len);
 static inline void * 
 cbuf2buf(cbuf_t cb, int len)
 {
-	int obj_sz, off;
-	u32_t id, idx;
+	int sz;
+	u32_t id;
 	union cbuf_meta cm;
-	void *ret;
+	void *ret = NULL;
 	long cbidx;
 
+	if (unlikely(!len)) return NULL;
 	CBUF_TAKE();
-	assert(len);
-	len = cbuf_round_sz(len);
-	cbuf_unpack(cb, &id, &idx);
+	cbuf_unpack(cb, &id, (u32_t*)&sz);
 	cbidx = cbid_to_meta_idx(id);
 
-	DOUT("buf2buf:: id %x, idx %x  cbidx is %ld\n", id, idx, cbidx);
+	do {
+		cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
+		if (unlikely(cm.c_0.v == 0)) {
+			if (__cbuf_2buf_miss(id, len)) goto done;
+		}
+	} while (unlikely(cm.c_0.v == 0));
 
-	/* DOUT("cbuf2buf before cache_miss::\n"); */
-
-	/* int i; */
-	/* for(i=0;i<20;i++) */
-	/* 	DOUT("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
-
-again:				/* avoid convoluted conditions */
-	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
-	if (unlikely(cm.c_0.v == 0)) {
-		/* slow path */
-		// If there is no 2nd level vector exists, create here!!
-		if (cbuf_cache_miss(id, idx, len)) goto err;
-		goto again;
-	}
-
-	if (likely(!(cm.c.flags & CBUFM_LARGE))) {
-		obj_sz = cm.c.obj_sz << CBUF_OBJ_SZ_SHIFT;
-		off    = obj_sz * idx; /* multiplication...ouch */
-		/* DOUT("len %d obj_sz %d off %d \n",len, obj_sz ,off); */
-		if (unlikely(len > obj_sz || off + len > PAGE_SIZE )) goto err;
-		/* DOUT("<<<Not CBUF_LARGE>>> idx: %d off: %d\n", idx, off); */
-	} else {
-		BUG();
-		obj_sz = PAGE_SIZE * (1 << cm.c.obj_sz);
-		off    = 0;
-		if (unlikely(len > obj_sz)) goto err;
-	}
-
-	/* DOUT("After Cache missing here::\n"); */
-	DOUT("%p\n",((char*)(cm.c.ptr << PAGE_ORDER)) + off);
-	ret = ((char*)(cm.c.ptr << PAGE_ORDER)) + off;
+	ret = ((void*)(cm.c.ptr << PAGE_ORDER));
 done:	
 	CBUF_RELEASE();
 	return ret;
-err:
-	ret = NULL;
-	goto done;
 }
 
-#define SLAB_BITMAP_SIZE (SLAB_MAX_OBJS/32)
-
-/* 
- * This is really the slab cache, and ->mem points to the slab, but
- * calling this cbuf_cache would not make its association with a slab
- * allocator clear.
- */
-struct cbuf_slab_freelist;	/* forward decl */
-struct cbuf_slab {
-	int cbid;
-	char *mem;
-	u32_t obj_sz;
-	u16_t nfree, max_objs;
-	u32_t bitmap[SLAB_BITMAP_SIZE];
-	struct cbuf_slab *next, *prev; /* freelist next */
-	struct cbuf_slab_freelist *flh; /* freelist head */
+extern cvect_t alloc_descs; 
+struct cbuf_alloc_desc {
+	int cbid, length;
+	void *addr;
+	union cbuf_meta *meta;
+	struct cbuf_alloc_desc *next, *prev, *flhead; /* freelist */
 };
-struct cbuf_slab_freelist {
-	struct cbuf_slab *list;
-	int npages;
-};
-extern struct cbuf_slab_freelist slab_freelists[N_CBUF_SLABS];
+extern struct cbuf_alloc_desc cbuf_alloc_freelists;
 
-static inline void 
-printfl(struct cbuf_slab_freelist *fl, char *c){
-	struct cbuf_slab *p;
-	int a=0;
-	p = fl->list;
-	while (p) {
-		a++;
-		assert(a < 50);
-		if (p==fl->list) break;
-		p = FIRST_LIST(p, next, prev);
-	}
-	DOUT("done print fl\n");
-}
-
-static inline void
-slab_rem_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
-{
-	assert(s && fl);
-
-	if (fl->list == s) {
-		if (EMPTY_LIST(s, next, prev)) {
-			assert(fl->list == s);
-			fl->list = NULL;
-		}
-		else fl->list = FIRST_LIST(s, next, prev);
-	}
-	REM_LIST(s, next, prev);
-	fl->npages--;
-	assert(fl->npages >= 0);
-
-	DOUT("thd %d REM:fl->npages %d cbid is %d\n",cos_get_thd_id(),fl->npages, s->cbid);
-	/* printfl(fl,"REM"); */
-
-	return;
-}
-
-static inline void
-slab_add_freelist(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
-{
-	assert(s && fl);
-	assert(EMPTY_LIST(s, next, prev));
-	assert(s != fl->list);
-	if (fl->list) {
-		if (fl->npages <= 0) {
-			DOUT("s cbid %d @%p; fl cbid %d @%p\n", s->cbid,s->mem, fl->list->cbid,fl->list->mem);
-		}
-		assert(fl->npages > 0);
-		ADD_END_LIST(fl->list, s, next, prev);
-	}
-	fl->list = s;
-	fl->npages++;
-	DOUT("thd %d ADD:fl->npages %d cbid is %d\n",cos_get_thd_id(),fl->npages, s->cbid);
-	/* printfl(fl,"ADD"); */
-
-	return;
-}
-
-static void
-slab_deallocate(struct cbuf_slab *s, struct cbuf_slab_freelist *fl)
-{
-	slab_rem_freelist(s, fl);
-	cos_vect_del(&slab_descs, (u32_t)s->mem >> PAGE_ORDER);
-	free(s);
-
-	return;
-}
-
-
-extern struct cbuf_slab *cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist);
-extern void cbuf_slab_free(struct cbuf_slab *s);
-
-static inline void 
-__cbuf_free(void *buf)
-{
-	u32_t p   = ((u32_t)buf & PAGE_MASK) >> PAGE_ORDER; /* page id */
-	/* DOUT("page id is %d\n",p); */
-	struct cbuf_slab *s = cos_vect_lookup(&slab_descs, p);
-	u32_t b   = (u32_t)buf;
-	u32_t off = b - (b & PAGE_MASK);
-	int idx;
-	union cbuf_meta cm;
-	long cbidx;
-
-	assert(s);
-	/* Argh, division!  Maybe transform into loop? Maybe assume pow2? */
-	idx = off/s->obj_sz;
-	assert(!bitmap_check(&s->bitmap[0], idx));
-	bitmap_set(&s->bitmap[0], idx);
-	s->nfree++;
-	assert(s->flh);
-	DOUT(">>>  free: nfree is now : %d cbid is %d\n",s->nfree,s->cbid);
-	DOUT("thd %d spd %ld in __cbuf_free\n", cos_get_thd_id(),cos_spd_id());
-	if (s->nfree == 1) {
-		DOUT("Add slab_add_freelist cbid is %d\n", s->cbid);
-		assert(EMPTY_LIST(s, next, prev));
-		cbidx = cbid_to_meta_idx(s->cbid);
-		cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
-		cm.c.flags &= ~CBUFM_ALL_ALLOCATED;
-		assert((void*)cm.c_0.v);
- 		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbidx);
-		slab_add_freelist(s, s->flh);
-	}
-
-	if (s->nfree == s->max_objs) {
-		DOUT("slab_free(s) is called\n");
-		cbuf_slab_free(s);
-	} 
-	
-	/* int i; */
-	/* for(i=0;i<20;i++) */
-	/* 	DOUT("i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i)); */
-
-	return;
-}
-
-static inline void *
-__cbuf_alloc(struct cbuf_slab_freelist *slab_freelist, int size, cbuf_t *cb)
-{
-	struct cbuf_slab *s;
-	union cbuf_meta cm;
-	int idx;
-	u32_t *bm;
-	long cbidx;
-
-	DOUT("\n***** thd %d spd :: %ld __cbuf_alloc:******\n", cos_get_thd_id(), cos_spd_id());
-	DOUT("<<<__cbuf_alloc size %d>>>\n",size);
-again:					/* avoid convoluted conditions */
-	if (unlikely(!slab_freelist->list)) {
-		DOUT("..not on free list..\n");
-		if (unlikely(!cbuf_slab_alloc(size, slab_freelist))) return NULL;
-		if (unlikely(!slab_freelist->list)) return NULL;
-	}
-
-	s = slab_freelist->list;
-	assert(s && s != (struct cbuf_slab*)1);
-	/* 
-	 * This is complicated.
-	 *
-	 * See cbuf_slab_free for the rest of the story.  
-	 *
-	 * Assumptions:
-	 * 1) The cbuf manager shared the cbuf meta (in the meta_cbuf
-	 * vector) information with this component.  It can remove
-	 * asynchronously a cbuf from this structure at any time IFF
-	 * that cbuf is marked as ~CBUF_IN_USE.  
-	 *
-	 * 2) The slab descriptors, and the slab_desc vector are _not_
-	 * shared with the cbuf manager for complexity reasons.
-	 *
-	 * Question: How do we reconcile the fact that the cbuf mgr
-	 * might remove at any point a cbuf from this component, but
-	 * we still have a slab descriptor lying around for it?  How
-	 * will we know that the cbuf has been removed, and not to use
-	 * the slab data-structure anymore?
-	 *
-	 * Answer: The slabs are deallocated lazily.  When a slab is
-	 * pulled off of the freelist (see the following code), we
-	 * check to make sure that the cbuf meta information matches
-	 * up with the slab's information (i.e. the cbuf id and the
-	 * address in memory of the cbuf.  If they do not, then we
-	 * know that the slab is outdated and that the cbuf backing it
-	 * has been taken from this component.  In that case (shown in
-	 * the following code), we delete the slab descriptor.  Again,
-	 * see cbuf_slab_free to see the surprising fact that we do
-	 * _not_ deallocate the slab descriptor there to reinforce
-	 * that point.
-	 */
-	cbidx = cbid_to_meta_idx(s->cbid);
-	cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
-	/* outdated slab: remove it. */
-	if (unlikely(!cm.c_0.v || (cm.c.flags & CBUFM_ALL_ALLOCATED) || 
-		     (cm.c.ptr != ((u32_t)s->mem >> PAGE_ORDER)))) {
-		slab_deallocate(s, slab_freelist);
-		DOUT("goto again\n");
-		goto again;
-	}
-
-	DOUT("alloc get slab. s-> cbid %d @ %p\n", s->cbid, s->mem);
-
-	assert(s->nfree);
-	if (s->obj_sz <= PAGE_SIZE) {
-		bm  = &s->bitmap[0];
-		idx = bitmap_one(bm, SLAB_BITMAP_SIZE);
-		assert(idx > -1 && idx < SLAB_MAX_OBJS);
-		bitmap_unset(bm, idx);
-	}
-	if (s->nfree == s->max_objs) {
-		/* set IN_USE bit and thread info */
-		cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
-		cm.c.flags |= CBUFM_IN_USE;
-		cm.c.flags |= CBUFM_TOUCHED; /* this bit is used for policy to estimate concurrency */
-		assert((void*)cm.c_0.v);
-		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbidx);
-		cm.c_0.th_id = cos_get_thd_id();
-		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.th_id, cbidx+1);
-	}
-	s->nfree--;
-
-	/* remove from the freelist */
-	if (!s->nfree) {
-		cm.c.flags |= CBUFM_ALL_ALLOCATED;
-		assert((void*)cm.c_0.v);
-		cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbidx);
-		slab_rem_freelist(s, slab_freelist);
-	}
-
-	*cb = cbuf_cons(s->cbid, idx);
-	return s->mem + (idx * s->obj_sz);  // return correct position of cbuf in this slab
-}
+static inline struct cbuf_alloc_desc *
+__cbuf_alloc_lookup(int page_index) { return cvect_lookup(&alloc_descs, page_index); }
 
 /* 
- * Create a slab of a specific size (smaller than or equal to the size
- * of a page).  This relies on the compiler to do proper inlining and
- * consequentially partial evaluation to get the slab allocation
- * benefits in terms of avoiding touching many memory locations.
+ * Assume that m was retrieved with 
+ * m = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(d->cbid));
+ * This validates that the d->cbid = cbid of cbuf_meta.
  */
-/*
-#define SLAB_BOUND_CHK(sz)					\
-	#ifdef sz > PAGE_SIZE					\
-	#error "Cannot create slabs larger than a page"		\
-	#endif							
-*/
-
-#define CBUF_CREATE_SLAB(name, size)				\
-	/*SLAB_BOUND_CHK(size)*/				\
-struct cbuf_slab *slab_##name##_freelist;			\
-								\
-static inline void *						\
-cbuf_alloc_##name(cbuf_t *cb)					\
-{								\
-	return __cbuf_alloc(&slab_##name##_freelist, size, cb);	\
-}								\
-								\
-cbuf_free_##name(void *buf)					\
-{								\
-	return __cbuf_free(&slab_##name##_freelist, buf);	\
-}
-
-/* Allocate something of a power of two (order = log(size)) */
-static inline void *
-cbuf_alloc_pow2(unsigned int order, cbuf_t *cb)
+static inline int
+__cbuf_alloc_meta_inconsistent(struct cbuf_alloc_desc *d, union cbuf_meta *m)
 {
-	struct cbuf_slab_freelist *sf;
-	unsigned int dorder = order - CBUF_MIN_SLAB_ORDER;
-	assert(dorder <= N_CBUF_SLABS);
-	sf = &slab_freelists[dorder];
-	return __cbuf_alloc(sf, 1<<order, cb);
+	assert(d && m && d->addr);
+	/* we don't want the manager changing this under us */
+	assert(m->c.flags & CBUFM_IN_USE);
+	return (unlikely((unsigned long)d->addr >> PAGE_SHIFT != m->c.ptr ||
+			 d->meta != m /*|| length*/));
 }
 
-/* 
- * Allocate/free memory of a dynamic size (not known statically), up
- * to the size of a page.
- */
 static inline void *
 cbuf_alloc(unsigned int sz, cbuf_t *cb)
 {
 	void *ret;
-	int o;
+	struct cbuf_alloc_desc *d;
+	int cbid, len, already_used;
+	union cbuf_meta *cm;
+	long cbidx;
 
 	CBUF_TAKE();
-	sz = sz < CBUF_MIN_SLAB+1 ? CBUF_MIN_SLAB-1 : sz; /* FIXME: do without branch */
-	/* FIXME: find way to avoid making the wrong decision on pow2 values */
-	sz = ones(sz) == 1 ? sz-1 : sz;
-	o = log32_floor(sz) + 1;
+again:
+	if (unlikely(EMPTY_LIST(&cbuf_alloc_freelists, next, prev))) {
+		d    = __cbuf_alloc_slow(sz, &len);
+		assert(d);
+		ret  = d->addr;
+		cbid = d->cbid;
+		goto done;
+	} 
 
-	ret = cbuf_alloc_pow2(o, cb);
+	d     = FIRST_LIST(&cbuf_alloc_freelists, next, prev);
+	cbid  = d->cbid;
+	REM_LIST(d, next, prev);
+	assert(EMPTY_LIST(d, next, prev));
+	assert(cbid);
+	    
+	cbidx        = cbid_to_meta_idx(cbid);
+	cm           = cbuf_vect_lookup_addr(&meta_cbuf, cbidx);
+	already_used = cm->c.flags & CBUFM_IN_USE;
+	cm->c.flags |= CBUFM_IN_USE | CBUFM_TOUCHED; /* should be atomic */
+	/* 
+	 * Now that IN_USE is set, we know the manager will not rip
+	 * this out from under us.  Check that nothing has changed,
+	 * and the pointer is consistent with the allocation
+	 * descriptor 
+	 */
+	if (__cbuf_alloc_meta_inconsistent(d, cm) || already_used) {
+		/* 
+		 * This is complicated.
+		 *
+		 * See cbuf_slab_free for the rest of the story.  
+		 *
+		 * Assumptions:
+		 * 1) The cbuf manager shared the cbuf meta (in the meta_cbuf
+		 * vector) information with this component.  It can remove
+		 * asynchronously a cbuf from this structure at any time IFF
+		 * that cbuf is marked as ~CBUF_IN_USE.  
+		 *
+		 * 2) The slab descriptors, and the slab_desc vector are _not_
+		 * shared with the cbuf manager for complexity reasons.
+		 *
+		 * Question: How do we reconcile the fact that the cbuf mgr
+		 * might remove at any point a cbuf from this component, but
+		 * we still have a slab descriptor lying around for it?  How
+		 * will we know that the cbuf has been removed, and not to use
+		 * the slab data-structure anymore?
+		 *
+		 * Answer: The slabs are deallocated lazily (seen here).  When a
+		 * slab is pulled off of the freelist (see the following code), 
+		 * we check to make sure that the cbuf meta information matches
+		 * up with the slab's information (i.e. the cbuf id and the
+		 * address in memory of the cbuf.  If they do not, then we
+		 * know that the slab is outdated and that the cbuf backing it
+		 * has been taken from this component.  In that case (shown in
+		 * the following code), we delete the slab descriptor.  Again,
+		 * see cbuf_slab_free to see the surprising fact that we do
+		 * _not_ deallocate the slab descriptor there to reinforce
+		 * that point.
+		 */
+		__cbuf_desc_free(d);
+		goto again;
+	}
+	
+	cm->c.thdid_owner = cos_get_thd_id();
+	ret = (void*)(cm->c.ptr << PAGE_ORDER);
+done:
+	*cb = cbuf_cons(cbid, len);
 	CBUF_RELEASE();
+
 	return ret;
 }
 
 static inline void
 cbuf_free(void *buf)
 {
+	u32_t idx = ((u32_t)buf) >> PAGE_ORDER;
+	struct cbuf_alloc_desc *d, *fl;
+	union cbuf_meta *cm;
+
 	CBUF_TAKE();
-	__cbuf_free(buf);
+	d  = __cbuf_alloc_lookup(idx);
+	assert(d);
+	cm = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(d->cbid));
+	assert(!__cbuf_alloc_meta_inconsistent(d, cm));
+	assert(cm->c.flags & CBUFM_IN_USE);
+	
+	fl = d->flhead;
+	assert(fl);
+	ADD_LIST(fl, d, next, prev);
+	/* do this last, so that we can guarantee the manager will not steal the cbuf before now... */
+	cm->c.flags &= ~CBUFM_IN_USE;
 	CBUF_RELEASE();
+
+	/* Does the manager want the memory back? */
+	if (cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] == 1) {
+		cbuf_c_delete(cos_spd_id(), d->cbid);
+		return;
+	} 
 }
 
 #endif /* CBUF_H */

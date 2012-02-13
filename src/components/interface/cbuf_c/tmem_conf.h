@@ -24,12 +24,11 @@ typedef struct cos_cbuf_item tmem_item;
 typedef	struct spd_cbvect_range shared_component_info;
 
 typedef enum {
-	CBUFM_LARGE = 1,
-	CBUFM_RO    = 1<<1,
-	CBUFM_GRANT = 1<<2,
-	CBUFM_IN_USE = 1<<3,
-	CBUFM_ALL_ALLOCATED = 1<<4,
-	CBUFM_TOUCHED = 1<<5
+	CBUFM_LARGE   = 1,
+	CBUFM_RO      = 1<<1,
+	CBUFM_GRANT   = 1<<2,
+	CBUFM_IN_USE  = 1<<3,
+	CBUFM_TOUCHED = 1<<4
 } cbufm_flags_t;
 
 /* 

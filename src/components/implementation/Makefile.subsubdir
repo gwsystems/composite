@@ -65,7 +65,7 @@ $(COMPONENT): $(OBJS)
 # see the make manual: create the .d dependencies from include
 # statements.
 %.d:%.c
-	$(info |     [DEP]  Creating dependency file for $<)
+#	$(info |     [DEP]  Creating dependency file for $<)
 	@set -e; rm -f $@; \
 	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \

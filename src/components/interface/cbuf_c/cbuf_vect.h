@@ -206,10 +206,15 @@ static inline void *cbuf_vect_addr_lookup(cbuf_vect_t *v, long cbid)
 	if (ret){
 		ret = ret << PAGE_ORDER;//& (~((1 << PAGE_ORDER)-1));
 		return (void *)ret; 
-	}
-	else{
+	} else {
 		return NULL;
 	}
+}
+
+static inline void *
+cbuf_vect_lookup_addr(cbuf_vect_t *v, long cbid)
+{
+	return __cbuf_vect_lookup(v, cbid);
 }
 
 static inline int __cbuf_vect_expand(cbuf_vect_t *v, long id)
@@ -288,7 +293,6 @@ static long cbuf_vect_add_id(cbuf_vect_t *v, void *val, long id)
 	is = __cbuf_vect_lookup(v, id);
 
 	if (NULL == is) {
-		/* printc("look up id %ld, going to expand!\n",id); */
 		id++;
 		if (__cbuf_vect_expand(v, id)) return -1;
 		is = __cbuf_vect_lookup(v, id);

@@ -30,6 +30,8 @@
  *
  * ...and the 3 common-case functions, lookup being the most optimized:
  * void *cvect_lookup(cvect_t *v, long id) -- find the stored value for id
+ * void *cvect_lookup_addr(cvect_t *v, long id) -- find the address of the stored
+ *                                              -- value for id
  * int cvect_add(cvect_t *v, void *val, long id) -- add a value for id
  * int cvect_del(cvect_t *v, long id) -- remove a value for id
  */
@@ -69,7 +71,7 @@ typedef unsigned int u32_t;
 /* CVECT_DEPTH -- How many levels are in the structure? Default: 2 */
 #define CVECT_DEPTH 2
 #endif
-#define CVECT_MAX_ID (CVECT_BASE * CVECT_BASE) // really CVECT_BASE^CVECT_DEPTH
+#define CVECT_MAX_ID ((long)(CVECT_BASE * CVECT_BASE)) // really CVECT_BASE^CVECT_DEPTH
 
 #ifdef LINUX_TEST
 #include <malloc.h>
@@ -219,6 +221,18 @@ cvect_lookup(cvect_t *v, long id)
 	vi = __cvect_lookup(v, id);
 	if (!vi) return NULL;
 	return vi->c.val;
+}
+
+static inline void *
+cvect_lookup_addr(cvect_t *v, long id)
+{
+	struct cvect_intern *vi;
+
+	assert(v);
+	assert(id >= 0);
+	vi = __cvect_lookup(v, id);
+	if (!vi) return NULL;
+	return vi;
 }
 
 static inline int

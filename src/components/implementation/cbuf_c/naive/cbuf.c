@@ -367,7 +367,7 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 
 	d             = &cbuf_item->desc;
 	d->principal  = cos_get_thd_id();
-	d->obj_sz     = size;
+	d->obj_sz     = PAGE_SIZE;
 	d->owner.spd  = sti->spdid;
 	d->owner.cbd  = d;
 
@@ -394,11 +394,9 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	cbuf_item->entry = mc;
 
 	mc->c.ptr     = d->owner.addr >> PAGE_ORDER;
-	mc->c.obj_sz  = size >> CBUF_OBJ_SZ_SHIFT;
+	mc->c.obj_sz  = PAGE_SIZE >> CBUF_OBJ_SZ_SHIFT;
 	mc->c_0.th_id = cos_get_thd_id();
-	mc->c.flags  |= CBUFM_IN_USE;
-	mc->c.flags  |= CBUFM_TOUCHED;
-
+	mc->c.flags  |= CBUFM_IN_USE | CBUFM_TOUCHED;
 done:
 	RELEASE();
 	return ret;

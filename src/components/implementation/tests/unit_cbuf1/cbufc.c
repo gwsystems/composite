@@ -4,14 +4,14 @@
 #include <unit_cbuf.h>
 #include <cbuf.h>
 
-#define VERBOSE 1
+//#define VERBOSE 1
 #ifdef VERBOSE
 #define printv(fmt,...) printc(fmt, ##__VA_ARGS__)
 #else
 #define printv(fmt,...) 
 #endif
 
-#define MAX_CBUFS   512
+#define MAX_CBUFS   200
 #define MAX_CBUF_SZ 4096
 
 void cos_init(void)
@@ -50,12 +50,15 @@ void cos_init(void)
 		printv("UNIT TEST alloc %d -> %p\n", sz, bufs[i]);
 		szs[i] = sz;
 		assert(bufs[i]);
+		bufs[i][0] = '_';
 		unit_cbuf(cbs[i], sz);
+		assert(bufs[i][0] == '*');
 		printv("UNIT TEST cbuf2buf %d\n", sz);
 	}
 	printc("UNIT TEST PASSED: N alloc + cbuf2buf\n");
 	
 	for (i = 0 ; i < MAX_CBUFS ; i++) {
+		bufs[i][0] = '_';
 		unit_cbuf(cbs[i], szs[i]);
 		printv("UNIT TEST cbuf2buf %d\n", szs[i]);
 	}

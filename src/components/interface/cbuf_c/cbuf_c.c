@@ -5,6 +5,8 @@
  * Public License v2.
  *
  * Author: Gabriel Parmer, gparmer@gwu.edu, 2010
+ * Updated by Qi Wang and Jiguo Song, 2011
+ * Updated and simplified by removing sub-page allocations, Gabe Parmer, 2012
  */
 
 #include <cos_component.h>
@@ -15,6 +17,11 @@
 #include <cos_debug.h>
 #include <cos_alloc.h>
 #include <valloc.h>
+
+#define CSLAB_ALLOC(sz)   alloc_page()
+#define CSLAB_FREE(x, sz) free_page(x)
+#include <cslab.h>
+CSLAB_CREATE(desc, sizeof(struct cbuf_alloc_desc));
 
 cos_lock_t cbuf_lock;
 /* 
@@ -28,88 +35,122 @@ cos_lock_t cbuf_lock;
 extern struct cos_component_information cos_comp_info;
 
 CBUF_VECT_CREATE_STATIC(meta_cbuf);
-COS_VECT_CREATE_STATIC(slab_descs);
-struct cbuf_slab_freelist slab_freelists[N_CBUF_SLABS];
+CVECT_CREATE_STATIC(alloc_descs);
+//struct cbuf_slab_freelist alloc_freelists[N_CBUF_SLABS];
+struct cbuf_alloc_desc cbuf_alloc_freelists = {.next = &cbuf_alloc_freelists, .prev = &cbuf_alloc_freelists, .addr = NULL};
+
+/*** Manage the cbuf allocation descriptors and freelists  ***/
+
+static struct cbuf_alloc_desc *
+__cbuf_desc_alloc(int cbid, int size, void *addr, union cbuf_meta *cm)
+{
+	struct cbuf_alloc_desc *d;
+	int idx = ((int)addr >> PAGE_ORDER);
+
+	assert(addr && cm);
+	assert(cm->c.ptr == idx);
+	assert(__cbuf_alloc_lookup(idx) == NULL);
+
+	d = cslab_alloc_desc();
+	if (!d) return NULL;
+
+	d->cbid   = cbid;
+	d->addr   = addr;
+	d->length = size;
+	d->meta   = cm;
+	INIT_LIST(d, next, prev);
+	//ADD_LIST(&cbuf_alloc_freelists, d, next, prev);
+	d->flhead = &cbuf_alloc_freelists;
+	cvect_add(&alloc_descs, d, idx);
+
+	return d;
+}
+
+/*
+ * We got to this function because d and m aren't consistent.  This
+ * can only happen because the manager removed a cbuf, 1) thus leaving
+ * the meta pointer as NULL, and the freelist referring to no actual
+ * cbuf, or 2) when another thread is given a new cbuf (via
+ * cbuf_c_create) with the same cbid as the one referred to in the
+ * freelist.  Either way, we want to simply remove the descriptor.
+ */
+void
+__cbuf_desc_free(struct cbuf_alloc_desc *d)
+{
+	assert(d);
+	assert(cvect_lookup(&alloc_descs, (unsigned long)d->addr >> PAGE_ORDER) == d);
+	
+	REM_LIST(d, next, prev);
+	cvect_del(&alloc_descs, (unsigned long)d->addr >> PAGE_ORDER);
+	cslab_free_desc(d);
+}
+
+/*** Slow paths for each cbuf operation ***/
 
 /* 
+ * Precondition: cbuf lock is taken.
+ *
  * A component has tried to map a cbuf_t to a buffer, but that cbuf
  * isn't mapping into the component.  The component's cache of cbufs
  * had a miss.
  */
 int 
-cbuf_cache_miss(int cbid, int idx, int len)
+__cbuf_2buf_miss(int cbid, int len)
 {
-	union cbuf_meta mc;
+	union cbuf_meta *mc;
 	void *h;
 
 	CBUF_RELEASE();
 	h = cbuf_c_retrieve(cos_spd_id(), cbid, len);
 	CBUF_TAKE();
 	if (!h) {
-		/* Illegal cbid or length!  Bomb out. */
 		BUG();
 		return -1;
 	}
 
-	mc.c.ptr    = (long)h >> PAGE_ORDER;
-	mc.c.obj_sz = len >> CBUF_OBJ_SZ_SHIFT;
-
-	/* This is the commit point */
-	DOUT("cache miss: meta_cbuf is at %p, h is %p\n", &meta_cbuf, h);
-
-	assert((void *)mc.c_0.v);
-	cbuf_vect_add_id(&meta_cbuf, (void *)mc.c_0.v, cbid_to_meta_idx(cbid));
-	cbuf_vect_add_id(&meta_cbuf, (void *)(unsigned long)cos_get_thd_id(), cbid_to_meta_idx(cbid)+1);
+	mc = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
+	/* have to expand the cbuf_vect */
+	if (unlikely(!mc)) {
+		if (cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid))) BUG();
+		mc = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
+		assert(mc);
+	}
+	mc->c.ptr         = (long)h >> PAGE_ORDER;
+	mc->c.obj_sz      = len;
+	mc->c.thdid_owner = cos_get_thd_id();
 
 	return 0;
 }
 
-void
-cbuf_slab_cons(struct cbuf_slab *s, int cbid, void *page, 
-	       int obj_sz, struct cbuf_slab_freelist *freelist)
+/* 
+ * Precondition: cbuf lock is taken.
+ */
+struct cbuf_alloc_desc *
+__cbuf_alloc_slow(int size, int *len)
 {
-	s->cbid = cbid;
-	s->mem = page;
-	s->obj_sz = obj_sz;
-	memset(&s->bitmap[0], ~(u32_t)0, sizeof(u32_t)*SLAB_BITMAP_SIZE);
-	s->nfree = s->max_objs = PAGE_SIZE/obj_sz; /* not a perf sensitive path */
-	s->flh = freelist;
-	INIT_LIST(s, next, prev);
-	/* FIXME: race race race */
-	slab_add_freelist(s, freelist);
-
-	return;
-}
-
-struct cbuf_slab *
-cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
-{
-	struct cbuf_slab *s, *ret = NULL;
-	struct cbuf_slab *exist;
+	struct cbuf_alloc_desc *d_prev, *ret;
+	union cbuf_meta *cm;
 	void *addr;
 	int cbid;
 	int cnt;
 
-	s = malloc(sizeof(struct cbuf_slab));
-	if (!s) return NULL;
-	if (!freelist) goto err;
-
-	cnt = 0;
-	cbid = 0;
+	cnt = cbid = 0;
 	do {
 		CBUF_RELEASE();
 		cbid = cbuf_c_create(cos_spd_id(), size, cbid*-1);
 		CBUF_TAKE();
 
-		if (cbid < 0) {
-			if (cbuf_vect_expand(&meta_cbuf, cbid*-1) < 0) goto err;
-		}
-		/* FIXME: once everything is well debugged, remove this check */
+		/* TODO: we will hold the lock in expand which calls
+		 * the manager...remove that */
+		if (cbid < 0 && cbuf_vect_expand(&meta_cbuf, cbid*-1) < 0) goto done;
 		assert(cnt++ < 10);
 	} while (cbid < 0);
 
-	addr = cbuf_vect_addr_lookup(&meta_cbuf, cbid_to_meta_idx(cbid));
-	if (unlikely(!addr)) goto err;
+	cm   = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
+	assert(cm->c.flags & CBUFM_IN_USE);
+	assert(cm->c.thdid_owner);
+	addr = (void*)(cm->c.ptr << PAGE_ORDER);
+	assert(addr);
 
 	/* 
 	 * See __cbuf_alloc and cbuf_slab_free.  It is possible that a
@@ -118,55 +159,9 @@ cbuf_slab_alloc(int size, struct cbuf_slab_freelist *freelist)
 	 * previous cbuf.  If this is the case, then we should take
 	 * over the slab, and use it for this cbuf.
 	 */
-	exist = cos_vect_lookup(&slab_descs, (u32_t)addr>>PAGE_ORDER);
-	if (exist) slab_deallocate(exist, freelist);
-
-	assert(!cos_vect_lookup(&slab_descs, (u32_t)addr>>PAGE_ORDER));
-	cos_vect_add_id(&slab_descs, s, (long)addr>>PAGE_ORDER);
-	cbuf_slab_cons(s, cbid, addr, size, freelist);
-
-	ret = s;
+	d_prev = __cbuf_alloc_lookup((u32_t)addr>>PAGE_ORDER);
+	if (d_prev) __cbuf_desc_free(d_prev);
+	ret    = __cbuf_desc_alloc(cbid, size, addr, cm);
 done:   
 	return ret;
-err:    
-	/* valloc_free(cos_spd_id(), cos_spd_id(), h, 1); */
-	free(s);
-	goto done;
-}
-
-void
-cbuf_slab_free(struct cbuf_slab *s)
-{
-	struct cbuf_slab_freelist *freelist;
-	union cbuf_meta cm;
-	DOUT("call slab_free(s)...\n");
-	/* FIXME: soooo many races */
-	freelist = s->flh;
-	assert(freelist);
-
-	/* 
-	 * A good question: When is the slab deallocated???  See
-	 * cbuf.h:__cbuf_alloc for an explanation.
-	 */
-	/* slab_add_freelist(s, freelist); */
-
-	/* clear IN_USE bit */
-	cm.c_0.v   = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbid_to_meta_idx(s->cbid));
-	cm.c.flags &= ~CBUFM_IN_USE;
-	assert((void *)cm.c_0.v);
-	cbuf_vect_add_id(&meta_cbuf, (void*)cm.c_0.v, cbid_to_meta_idx(s->cbid));
-
-	DOUT("In cbuf_slab_free -- cbid is %d\n", s->cbid);
-
-	if (cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] == 1) {
-		assert(!CBUF_IN_USE(cm.c.flags));
-		DOUT("need relinquish\n");
-		
-		CBUF_RELEASE();
-		cbuf_c_delete(cos_spd_id(), s->cbid);
-		CBUF_TAKE();
-	}
-
-	return;
-
 }
