@@ -305,110 +305,108 @@ Component <-> Kernel Interface:
 
 **Functions for creating and manipulating components and capabilities**
 
-    - `int cos_spd_cntl(short int op, short int spd_id,
-                          long arg1, long arg2);` 
+- `int cos_spd_cntl(short int op, short int spd_id, long arg1, long arg2);` 
 
-      * `op` is taken from <shared/cos_types.h> and defines the
-        function of this system call:
+ * `op` is taken from <shared/cos_types.h> and defines the
+   function of this system call:
 
-	+ `COS_SPD_CREATE`: The other arguments don't matter.  Create a
-          new component, and return its `spd_id`.
-	+ `COS_SPD_DELETE`: `spd_id` is the spd to delete.
-	+ `COS_SPD_RESERVE_CAPS`: `spd_id` is the spd to reserve a
-          span of capabilities for, and `arg1` is the number of
-          capabilities to reserve.  Capabilities can only be allocated
-          once they are reserved, and they can only be reserved before
-          any capability allocations are made.
-	+ `COS\SPD_RELEASE_CAPS`: `spd_id` is the spd to release
-          the capability reservation for.  This will deallocate all
-          capabilities and de-reserve them.
-	+ `COS_SPD_LOCATION`: Set the virtual address location of
-          component `spd_id`.  Currently, this is limited to an
-          aligned 4M region.  `arg1` is the base address, and `arg2`
-          is the size of the allocation (currently on 4M is supported).
-	+ `COS_SPD_UCAP_TBL`: Set the address, `arg1`, of the user
-          capability list in component `spd_id`, of size related to
-          the reservation made previously.
-	+ `COS_SPD_ATOMIC_SECT`: Set the `arg2` th restartable
-          atomic section for component `spd_id`.  The base of the RAS
-          is `arg1`.
-	+ `COS_SPD_UPCALL_ADDR`: `arg1` is the address of the
-          upcall function in component `spd_id`.
-	+ `COS_SPD_ACTIVATE`: _IMPORTANT_ - This should only be
-          called after the component has been created, its
-          capabilities reserved, its location set, and the location of
-          its capability table, upcall address, and atomic sections
-          set.  This will activate the component so that threads can
-          execute into it.  This is the "commit" instruction.
+   + `COS_SPD_CREATE`: The other arguments don't matter.  Create a
+      new component, and return its `spd_id`.
+   + `COS_SPD_DELETE`: `spd_id` is the spd to delete.
+   + `COS_SPD_RESERVE_CAPS`: `spd_id` is the spd to reserve a
+     span of capabilities for, and `arg1` is the number of
+     capabilities to reserve.  Capabilities can only be allocated
+     once they are reserved, and they can only be reserved before
+     any capability allocations are made.
+   + `COS\SPD_RELEASE_CAPS`: `spd_id` is the spd to release
+     the capability reservation for.  This will deallocate all
+     capabilities and de-reserve them.
+   + `COS_SPD_LOCATION`: Set the virtual address location of
+     component `spd_id`.  Currently, this is limited to an
+     aligned 4M region.  `arg1` is the base address, and `arg2`
+     is the size of the allocation (currently on 4M is supported).
+   + `COS_SPD_UCAP_TBL`: Set the address, `arg1`, of the user
+     capability list in component `spd_id`, of size related to
+     the reservation made previously.
+   + `COS_SPD_ATOMIC_SECT`: Set the `arg2` th restartable
+     atomic section for component `spd_id`.  The base of the RAS
+     is `arg1`.
+   + `COS_SPD_UPCALL_ADDR`: `arg1` is the address of the
+     upcall function in component `spd_id`.
+   + `COS_SPD_ACTIVATE`: _IMPORTANT_ - This should only be
+     called after the component has been created, its
+     capabilities reserved, its location set, and the location of
+     its capability table, upcall address, and atomic sections
+     set.  This will activate the component so that threads can
+     execute into it.  This is the "commit" instruction.
 
-    - `long cos_cap_cntl_spds(spdid_t cspd, spdid_t sspd, long
-      arg);`
+- `long cos_cap_cntl_spds(spdid_t cspd, spdid_t sspd, long arg);`
 
-      * Return the number of invocations between component `cspd` and
-        `sspd`, and reset the count.
+ * Return the number of invocations between component `cspd` and
+   `sspd`, and reset the count.
 
-    - `long cos_cap_cntl(short int op, spdid_t cspd, u16_t capid,
-      long arg);`
+- `long cos_cap_cntl(short int op, spdid_t cspd, u16_t capid, long arg);`
 
-      * `op` is taken from <shared/cos_types.h> and defines the
-        function of this system call:
+ * `op` is taken from <shared/cos_types.h> and defines the
+   function of this system call:
 
-	+ `COS_CAP_SET_CSTUB`: Set component `cspd`'s address for capability
-          `capid`'s client stub to `arg`.
-	+ `COS_CAP_SET_SSTUB`: Set component `cspd`'s address for capability
-          `capid`'s server stub to `arg`.
-	+ `COS_CAP_SET_SERV_FN`: Set component `cspd`'s address
-          for capability `capid`'s client function to be invoked to
-          `arg`.
-	+ `COS_CAP_SET_FAULT`: Set component `cspd`'s handler for
-          fault number `arg` to the capability `capid`.  The page
-          fault, for example, is fault number 0.  When a fault occurs
-          in the component, it will cause an invocation of the
-          associated capability and will call a function of the
-          prototype `void fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)`.
-	+ `COS_CAP_ACTIVATE`: _IMPORTANT_ - the three functions must
-          be set for each capability before it can be activated.
-          Once it is activated, it can be invoked by a thread.  This
-          is the "commit" instruction.
+   + `COS_CAP_SET_CSTUB`: Set component `cspd`'s address for capability
+     `capid`'s client stub to `arg`.
+   + `COS_CAP_SET_SSTUB`: Set component `cspd`'s address for capability
+     `capid`'s server stub to `arg`.
+   + `COS_CAP_SET_SERV_FN`: Set component `cspd`'s address
+     for capability `capid`'s client function to be invoked to
+     `arg`.
+   + `COS_CAP_SET_FAULT`: Set component `cspd`'s handler for
+     fault number `arg` to the capability `capid`.  The page
+     fault, for example, is fault number 0.  When a fault occurs
+     in the component, it will cause an invocation of the
+     associated capability and will call a function of the
+     prototype `void fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)`.
+   + `COS_CAP_ACTIVATE`: _IMPORTANT_ - the three functions must
+     be set for each capability before it can be activated.
+     Once it is activated, it can be invoked by a thread.  This
+     is the "commit" instruction.
 
 **Scheduler functions**
+
 Only a scheduler can actually usefully use these functions.  
 
-    - `int create_thread(int a, int b, int c);` 
+- `int create_thread(int a, int b, int c);` 
 
-      * Create a new thread with a thread id returned by this
-        syscall.  Its initial registers (`bx`, `di`, and `si`) are set
+ * Create a new thread with a thread id returned by this
+       syscall.  Its initial registers (`bx`, `di`, and `si`) are set
         to `a`, `b`, and `c`.  It will begin executing in the
         component that invokes this syscall.
 
-    - `int upcall(int spd_id);`
+- `int upcall(int spd_id);`
 
-      * The current thread will terminate execution in this component,
+ * The current thread will terminate execution in this component,
         and will make an upcall into component `spd_id`.
 
-    - `int sched_cntl(int operation, int thd_id, long option);`
+- `int sched_cntl(int operation, int thd_id, long option);`
 
-      * `operation` determines the function of the syscall:
+ * `operation` determines the function of the syscall:
 
-	+ `COS_SCHED_EVT_REGION`: Set the event region
-          (page-aligned) within the calling scheduler to the address
+   + `COS_SCHED_EVT_REGION`: Set the event region
+         (page-aligned) within the calling scheduler to the address
           `option`.
-	+ `COS_SCHED_THD_EVT`: Associate a specific entry (number
+   + `COS_SCHED_THD_EVT`: Associate a specific entry (number
           `option`) in the event region for the calling scheduler to
           the thread `thd_id`.
-	+ `COS_SCHED_PROMOTE_CHLD`: Set the component specified in
+   + `COS_SCHED_PROMOTE_CHLD`: Set the component specified in
           `option` to be a child scheduler under the current
           scheduler.  Errors if the component already has a parent, or
           if the maximum hierarchy depth has been reached.
-	+ `COS_SCHED_GRANT_SCHED`: Grant access of the child
+   + `COS_SCHED_GRANT_SCHED`: Grant access of the child
           scheduler `option` to schedule the thread `thd_id`.  That
           thread must be schedulable by the current scheduler.  The
           root scheduler is automatically granted schedulability of
           all threads.
-	+ `COS_SCHED_REVOKE_SCHED`: Remove previously granted
+   + `COS_SCHED_REVOKE_SCHED`: Remove previously granted
           scheduling permission of thread `thd_id` to child scheduler
           `option`.
-	+ `COS_SCHED_BREAK_PREEMPTION_CHAIN`: Complicated.  Default
+   + `COS_SCHED_BREAK_PREEMPTION_CHAIN`: Complicated.  Default
           brand activation specifies that if the thread executing on
           the brand's behalf waits for the next event, the system will
           automatically switch back to the preempted thread.  That is
@@ -417,46 +415,44 @@ Only a scheduler can actually usefully use these functions.
           will prevent the automatic switch to the preempted thread.
           Instead, the scheduler will be upcalled.
 
-    - `int cos_thd_cntl(short int op, short int thd_id,
-                          long arg1, long arg2);`
+- `int cos_thd_cntl(short int op, short int thd_id, long arg1, long arg2);`
 
-      * `op` defines the specific behavior of this system call.  Most
+ * `op` defines the specific behavior of this system call.  Most
         functionality is for accessing thread register or execution
         state.  General introspection facilities.
 
-	+ `COS_THD_INV_FRAME`: retrieve the invoked component for
+   + `COS_THD_INV_FRAME`: retrieve the invoked component for
           thread `thd_id` at the `arg1` th position in its invocation
           frame.
-	+ `COS_THD_INVFRM_IP`, `COS_THD_INVFRM_SP`: retrieve a
+   + `COS_THD_INVFRM_IP`, `COS_THD_INVFRM_SP`: retrieve a
           preempted thread, `thd_id`'s instruction pointer and stack
           pointer of the invocation at position `arg1` in its
           invocation frame.
-	+ `COS_THD_GET_XX`, where `XX` is `{IP, SP, FP, 1, 2, 3, 4,
+   + `COS_THD_GET_XX`, where `XX` is `{IP, SP, FP, 1, 2, 3, 4,
           5, 6}`: Get the instruction pointer, stack pointer, frame
           pointer, or one of the 6 general purpose registers from a
           preempted thread `thd_id`.  Return `0` if the thread is not
           preempted.  If `arg1` is `1`, it will access the fault
           registers.
-	+ `COS_THD_SET_XX`: Where `XX` is defined above.  Set the
+   + `COS_THD_SET_XX`: Where `XX` is defined above.  Set the
           register for a preempted thread, `thd_id`, to `arg1` if
           `arg2` is 0, and for the fault registers if `arg2` is 1.
-	+ `COS_THD_STATUS`: return the status flags of thread
+   + `COS_THD_STATUS`: return the status flags of thread
           `thd_id`.
 
-    - `int cos_switch_thread(unsigned short int thd_id, unsigned
-      short int flags);`
+- `int cos_switch_thread(unsigned short int thd_id, unsigned short int flags);`
 
-      * Only a scheduler can invoke this system call.  Additionally,
+ * Only a scheduler can invoke this system call.  Additionally,
         the scheduler must have been granted scheduling permission to
         schedule the current thread and `thd_id`.  The specific
         behavior of this system call are dependent on the `flags`
         passed to it.
 
-	+ `0`: This is the common case.  The intention is to switch
+   + `0`: This is the common case.  The intention is to switch
           from the current thread to `thd_id`.  If that thread has
           been preempted, then this might involve switching between
           components.
-	+ `COS_SCHED_SYNC_BLOCK` and `COS_SCHED_SYNC_UNBLOCK`:
+   + `COS_SCHED_SYNC_BLOCK` and `COS_SCHED_SYNC_UNBLOCK`:
           This is the wait-free synchronization primitive provided by
           the _Composite_ kernel.  `BLOCK` means that the current
           thread is attempting to take the scheduler critical section,
@@ -464,12 +460,12 @@ Only a scheduler can actually usefully use these functions.
           holding the critical section.  `UNBLOCK` is called by that
           thread that just released the critical section (CS), and will
           immediately switch to the thread waiting for the CS.
-	+ `COS_SCHED_CHILD_EVT`: Used for hierarchical scheduling.
+   + `COS_SCHED_CHILD_EVT`: Used for hierarchical scheduling.
           When switching to the child scheduler's event thread, this
           flag is used to set the `pending_cevt` flag in the child
           scheduler.  This is used to avoid race conditions, and
           ensures that the child scheduler knows of this event.
-	+ `COS_SCHED_TAILCALL`: When a brand is activated and its
+   + `COS_SCHED_TAILCALL`: When a brand is activated and its
           corresponding thread executes, then finishes, it can upcall
           into the scheduler -- a notification of it finishing.  We
           want that thread to go back to waiting for additional brand
@@ -478,36 +474,35 @@ Only a scheduler can actually usefully use these functions.
           switch to `thd_id`, and 2) set the current thread to
           waiting for brand activations again (or execute one
           immediately if some are pending).
-	+ `COS_SCHED_BRAND_WAIT`: Only called by the timer tick
+   + `COS_SCHED_BRAND_WAIT`: Only called by the timer tick
           thread.  This is equivalent to the timer saying "I'm done,
           and wait to wait for the next brand activation...but please
           switch to `thd_id`".  This call and `TAILCALL` are
           encapsulated in `cos_sched_base.c`, so you shouldn't have to
           worry about them...unless you're hacking the scheduler.
 
-    - `int idle(void);`: Idle the system until an event arrives.  This
+- `int idle(void);`: Idle the system until an event arrives.  This
       can mean many things in a hijacked environment.
 
 **Brand management and execution functions**
 
-    - `int cos_brand_cntl(int ops, unsigned short int bid,
-                            unsigned short int tid, spdid_t spdid);`
+- `int cos_brand_cntl(int ops, unsigned short int bid, unsigned short int tid, spdid_t spdid);`
 
-      * The semantics of this call depend on the `ops` passed in.
+ * The semantics of this call depend on the `ops` passed in.
 
-	+ `COS_BRAND_CREATE_HW` and `COS_BRAND_CREATE`: Create a
+   + `COS_BRAND_CREATE_HW` and `COS_BRAND_CREATE`: Create a
           brand associated with component `spdid`.  the `HW` specifier
           enables the brand to be wired to an interrupt source.
-	+ `COS_BRAND_ADD_THD`: Add a thread `tid` to a brand `bid`, so
+   + `COS_BRAND_ADD_THD`: Add a thread `tid` to a brand `bid`, so
           that when that brand is activated, that thread is executed.
           Multiple threads can be associated with a brand, and an
           arbitrary one of them -- that is not already active -- will
           be executed upon brand activation.
 
-    - `int cos_brand_upcall(short int thd_id, short int flags,
+- `int cos_brand_upcall(short int thd_id, short int flags,
                               long arg1, long arg2);`
 
-      * Activate a brand `thd_id`, and pass the arguments `arg1` and
+ * Activate a brand `thd_id`, and pass the arguments `arg1` and
         `arg2` to the executed thread, unless there are no threads to
         execute in which case the arguments are silently dropped.
         Yes, silently dropped.  In the future, we will drop the
@@ -516,23 +511,23 @@ Only a scheduler can actually usefully use these functions.
         future changes.  This call might be deprecated completely so
         that interrupts can activate brands.
 
-    - `int brand_wait(int thdid);`
+- `int brand_wait(int thdid);`
 
-      * The current thread attempts to wait for an activation on brand
+ * The current thread attempts to wait for an activation on brand
         `thdid`.  This thread will block unless there is a pending
         activation.
 
-    - `int brand_wire(long thd_id, long option, long data);`
+- `int brand_wire(long thd_id, long option, long data);`
 
-      * Associate a specific brand, `thd_id` with a hardware
+ * Associate a specific brand, `thd_id` with a hardware
         interrupt source.  `option` can be either `COS_HW_TIMER` or
         `COS_HW_NET`.  In the case of wiring to the networking
         interrupts, `data` is the port being branded to.
 
-    - `int cos_buff_mgmt(unsigned short int op, void *addr,
+- `int cos_buff_mgmt(unsigned short int op, void *addr,
                            unsigned short int len, short int thd_id);`
 
-      * Currently, _Composite_ does not interface with devices
+ * Currently, _Composite_ does not interface with devices
         directly.  It uses Linux device drivers and simply attempts to
         get the data from the device as early as possible (e.g. after
         IP for networking).  A means is required to move the data from
@@ -542,12 +537,12 @@ Only a scheduler can actually usefully use these functions.
         example use.  The semantics of this system call is dependent
         on the value of `op`.
 
-	+ `COS_BM_XMIT_REGION`:  The _Composite_ kernel assumes
+   + `COS_BM_XMIT_REGION`:  The _Composite_ kernel assumes
           that if it touches user-level regions, those regions must
           never fault.  This option sets up a page that is shared
           between kernel and component that the component can place
           data into, and the kernel can read it out of to transmit.
-	+ `COS_BM_XMIT`: This call actually does the transfer of
+   + `COS_BM_XMIT`: This call actually does the transfer of
           data.  It parses the transmit region, gets pointers to
           disparate buffers to transmit, does a mapping between them
           and kernel addresses, and copies them to the kernel.  This,
@@ -555,7 +550,7 @@ Only a scheduler can actually usefully use these functions.
           format of the transmit page.  Please see the associated code
           for that format (i.e. see `cos_net_xmit_headers` and
           `gather_item`).
-	+ `COS_BM_RECV_RING`: To transfer data from the kernel to
+   + `COS_BM_RECV_RING`: To transfer data from the kernel to
           the components, a ring buffer is set up.  This, again is a
           single page shared between component and kernel that points
           to other page buffers (scatter).  See `ring_buff.c` for more
@@ -563,39 +558,38 @@ Only a scheduler can actually usefully use these functions.
 
 **Mutable protection domains management**
 
-    Mutable Protection Domains (MPD) are a novel aspect of
-    _Composite_, but they do add complexity.  They enable protection
-    domain boundaries between components to be removed and created
-    dynamically as the system executes.  In conjunction with
-    monitoring information about which communication paths (capability
-    invocations) between components are most frequent, this enables
-    the system to maximize reliability while meeting
-    performance/predictability constraints.
+Mutable Protection Domains (MPD) are a novel aspect of _Composite_,
+but they do add complexity.  They enable protection domain boundaries
+between components to be removed and created dynamically as the system
+executes.  In conjunction with monitoring information about which
+communication paths (capability invocations) between components are
+most frequent, this enables the system to maximize reliability while
+meeting performance/predictability constraints.
 
-    For details about implementation, interface justifications, and
-    applications, please see the MPD paper.
+For details about implementation, interface justifications, and
+applications, please see the MPD paper.
 
-    - `int mpd_cntl(int operation, spdid_t composite_spd, spdid_t
+ - `int mpd_cntl(int operation, spdid_t composite_spd, spdid_t
       composite_dest);`
 
-      * The operation to be performed is dependent on `operation`.
+  * The operation to be performed is dependent on `operation`.
 
-	+ `COS_MPD_SPLIT`: `spd1` is one component in a protection
+   + `COS_MPD_SPLIT`: `spd1` is one component in a protection
           domain that includes multiple components, including `spd2`.
           `spd2` is the component that is to be separated and put in a
           separate protection domain from the rest.  This call simply
           "splits" that component out of that protection domain and
           into its own.
-	+ `COS_MPD_MERGE`: `spd1` and `spd2` are components within
+   + `COS_MPD_MERGE`: `spd1` and `spd2` are components within
           separate protection domains, and each protection domain can
           contain multiple components.  This call with "merge" those
           two protection domains to remove protection boundaries by
           placing all components in each protection domains into one
           large protection domain containing all components.
 
-    - `void cos_mpd_update(void);`
+- `void cos_mpd_update(void);`
 
-      * Due to invocations operating on stale protection domain
+ * Due to invocations operating on stale protection domain
         mappings, we must do garbage collection (of sorts) on
         protection domains.  This call makes that reference counting
         easier and allows components to provide "hints" to expedite
@@ -604,41 +598,40 @@ Only a scheduler can actually usefully use these functions.
 
 **Virtual memory management**
 
-    - `int cos_mmap_cntl(short int op, short int flags,
-	      	           short int dest_spd, vaddr_t dest_addr, long mem_id);`
+- `int cos_mmap_cntl(short int op, short int flags, short int dest_spd, vaddr_t dest_addr, long mem_id);`
 
-      * This system call enables the mapping of physical frames to
+ * This system call enables the mapping of physical frames to
         virtual pages in separate components.  When the same physical
         frame is mapped into two components, that page is shared
         memory.  The action performed by this system call is dependent
         on `op`.
 
-	+ `COS_MMAP_GRANT`: The physical frame identified by
+   + `COS_MMAP_GRANT`: The physical frame identified by
           `mem_id` is mapped into virtual address `dest_addr` of
           component `dest_spd`.  Physical frames are viewed as an
           array of frames, and `mem_id` is simply the offset into
           that array.  TODO: This call should be restricted in that
           only one component should be allowed to make it.
-	+ `COS_MMAP_REVOKE`: Remove the virtual mapping at
+   + `COS_MMAP_REVOKE`: Remove the virtual mapping at
           `dest_addr` in component `dest_spd`, and return the
           `mem_id` that was located there.
 
 **Other functions**
 
-    - `int stats(void);`
+- `int stats(void);`
 
-      * Print out the event counters within the kernel.
+ * Print out the event counters within the kernel.
 
-    - `int print(char* str, int len);`
+- `int print(char* str, int len);`
 
-      * Print to dmesg the given string.  Don't use this directly.
+ * Print to dmesg the given string.  Don't use this directly.
         Call the print component.
 
 **Future _Composite_ functionality**
     
-    - `int cos_vas_cntl(short int op...)`
+- `int cos_vas_cntl(short int op...)`
 
-      * Currently, all components share the same virtual address
+ * Currently, all components share the same virtual address
         space.  This call with be necessary to create new virtual
         address spaces, map components into them, and allocate
         portions of the virtual memory to them.  This is not done
