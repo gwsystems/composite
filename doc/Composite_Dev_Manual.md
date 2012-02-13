@@ -13,16 +13,18 @@ _Composite_ Developer Manual v0.1 by Gabriel Parmer (`gparmer@gwu.edu`)
 
   - Document Organization: This document is separated into three
     general sections: 
-    1) Library functions that you can use in your program.  Note that
+
+    1. Library functions that you can use in your program.  Note that
        they might not be as functional as their libc equivalents.
-    2) The basic components that make up the current _Composite_
+    2. The basic components that make up the current _Composite_
        ecosystem.  These provide basic services, and can be used by
        your component.
-    3) _Composite_ kernel system calls.  These are not typically used
+    3. _Composite_ kernel system calls.  These are not typically used
        in many programs, and are instead abstracted either by a
        library or another component.  However, for lower-level
        programming, or to understand existing code, we document the
        system call layer.
+
   - Please keep in mind that this documentation was written quickly
     (as it always is), so /any documentation bug-fixes would be
     appreciated/, and that /this documentation is not meant to be a
@@ -106,9 +108,11 @@ Component <-> Component Interface:
    (e.g. a lock, an event, a network connection, all of which we will
    call resources), or release one, many component interfaces provide
    the following functions
+
    + `open`, `create`, or `alloc` to create the resource, and return
      an integer identifier for it (similar to a file-descriptor, and
    + `close`, `release`, or `free` to release it.  In the future,
+
    these names should be unified to say `create` and `release`.
    `release` is more appropriate than `free` as the resources are
    often reference counted.
@@ -128,6 +132,7 @@ Component <-> Component Interface:
   through the library calls for `malloc` / `free` and `printf`.
 
 **Locking**
+
   The interface specification for the lock component is in
   `src/components/interface/lock/lock.h` and
   `src/components/include/cos_synchronization.h`.  The lock
@@ -137,9 +142,10 @@ Component <-> Component Interface:
   contention to be fast.
 
   The lock API (the one the library exposes) includes
-  + `lock_static_init(cos_lock_t)` which initializes a lock that
+
+  - `lock_static_init(cos_lock_t)` which initializes a lock that
     is statically allocated (and calls `lock_component_alloc`).
-  + `lock_release(cos_lock_t)` which will release the lock in
+  - `lock_release(cos_lock_t)` which will release the lock in
     the lock component.
 
   Once a lock is created, one can simply `lock_take(cos_lock_t)`
@@ -188,6 +194,7 @@ Component <-> Component Interface:
   `src/components/interface/net_transport/net_transport.h`.
 
   To create a connection, one has three options:
+
   - `net_connection_t net_create_tcp_connection(spdid_t spdid, u16_t tid, long evt_id);`
   - `net_connection_t net_create_udp_connection(spdid_t spdid, long evt_id);`
   - `net_connection_t net_accept(spdid_t spdid, net_connection_t nc);`
@@ -300,8 +307,10 @@ Component <-> Kernel Interface:
 
     - `int cos_spd_cntl(short int op, short int spd_id,
                           long arg1, long arg2);` 
+
       * `op` is taken from <shared/cos_types.h> and defines the
         function of this system call:
+
 	+ `COS_SPD_CREATE`: The other arguments don't matter.  Create a
           new component, and return its `spd_id`.
 	+ `COS_SPD_DELETE`: `spd_id` is the spd to delete.
@@ -331,14 +340,19 @@ Component <-> Kernel Interface:
           its capability table, upcall address, and atomic sections
           set.  This will activate the component so that threads can
           execute into it.  This is the "commit" instruction.
+
     - `long cos_cap_cntl_spds(spdid_t cspd, spdid_t sspd, long
       arg);`
+
       * Return the number of invocations between component `cspd` and
         `sspd`, and reset the count.
+
     - `long cos_cap_cntl(short int op, spdid_t cspd, u16_t capid,
       long arg);`
+
       * `op` is taken from <shared/cos_types.h> and defines the
         function of this system call:
+
 	+ `COS_CAP_SET_CSTUB`: Set component `cspd`'s address for capability
           `capid`'s client stub to `arg`.
 	+ `COS_CAP_SET_SSTUB`: Set component `cspd`'s address for capability
@@ -361,15 +375,21 @@ Component <-> Kernel Interface:
 Only a scheduler can actually usefully use these functions.  
 
     - `int create_thread(int a, int b, int c);` 
+
       * Create a new thread with a thread id returned by this
         syscall.  Its initial registers (`bx`, `di`, and `si`) are set
         to `a`, `b`, and `c`.  It will begin executing in the
         component that invokes this syscall.
+
     - `int upcall(int spd_id);`
+
       * The current thread will terminate execution in this component,
         and will make an upcall into component `spd_id`.
+
     - `int sched_cntl(int operation, int thd_id, long option);`
+
       * `operation` determines the function of the syscall:
+
 	+ `COS_SCHED_EVT_REGION`: Set the event region
           (page-aligned) within the calling scheduler to the address
           `option`.
@@ -396,11 +416,14 @@ Only a scheduler can actually usefully use these functions.
           a higher priority than the preempted thread).  This call
           will prevent the automatic switch to the preempted thread.
           Instead, the scheduler will be upcalled.
+
     - `int cos_thd_cntl(short int op, short int thd_id,
                           long arg1, long arg2);`
+
       * `op` defines the specific behavior of this system call.  Most
         functionality is for accessing thread register or execution
         state.  General introspection facilities.
+
 	+ `COS_THD_INV_FRAME`: retrieve the invoked component for
           thread `thd_id` at the `arg1` th position in its invocation
           frame.
@@ -419,13 +442,16 @@ Only a scheduler can actually usefully use these functions.
           `arg2` is 0, and for the fault registers if `arg2` is 1.
 	+ `COS_THD_STATUS`: return the status flags of thread
           `thd_id`.
+
     - `int cos_switch_thread(unsigned short int thd_id, unsigned
       short int flags);`
+
       * Only a scheduler can invoke this system call.  Additionally,
         the scheduler must have been granted scheduling permission to
         schedule the current thread and `thd_id`.  The specific
         behavior of this system call are dependent on the `flags`
         passed to it.
+
 	+ `0`: This is the common case.  The intention is to switch
           from the current thread to `thd_id`.  If that thread has
           been preempted, then this might involve switching between
@@ -458,6 +484,7 @@ Only a scheduler can actually usefully use these functions.
           switch to `thd_id`".  This call and `TAILCALL` are
           encapsulated in `cos_sched_base.c`, so you shouldn't have to
           worry about them...unless you're hacking the scheduler.
+
     - `int idle(void);`: Idle the system until an event arrives.  This
       can mean many things in a hijacked environment.
 
@@ -465,7 +492,9 @@ Only a scheduler can actually usefully use these functions.
 
     - `int cos_brand_cntl(int ops, unsigned short int bid,
                             unsigned short int tid, spdid_t spdid);`
+
       * The semantics of this call depend on the `ops` passed in.
+
 	+ `COS_BRAND_CREATE_HW` and `COS_BRAND_CREATE`: Create a
           brand associated with component `spdid`.  the `HW` specifier
           enables the brand to be wired to an interrupt source.
@@ -474,8 +503,10 @@ Only a scheduler can actually usefully use these functions.
           Multiple threads can be associated with a brand, and an
           arbitrary one of them -- that is not already active -- will
           be executed upon brand activation.
+
     - `int cos_brand_upcall(short int thd_id, short int flags,
                               long arg1, long arg2);`
+
       * Activate a brand `thd_id`, and pass the arguments `arg1` and
         `arg2` to the executed thread, unless there are no threads to
         execute in which case the arguments are silently dropped.
@@ -484,17 +515,23 @@ Only a scheduler can actually usefully use these functions.
         any component _cannot_ activate any brand.  Certainly look for
         future changes.  This call might be deprecated completely so
         that interrupts can activate brands.
+
     - `int brand_wait(int thdid);`
+
       * The current thread attempts to wait for an activation on brand
         `thdid`.  This thread will block unless there is a pending
         activation.
+
     - `int brand_wire(long thd_id, long option, long data);`
+
       * Associate a specific brand, `thd_id` with a hardware
         interrupt source.  `option` can be either `COS_HW_TIMER` or
         `COS_HW_NET`.  In the case of wiring to the networking
         interrupts, `data` is the port being branded to.
+
     - `int cos_buff_mgmt(unsigned short int op, void *addr,
                            unsigned short int len, short int thd_id);`
+
       * Currently, _Composite_ does not interface with devices
         directly.  It uses Linux device drivers and simply attempts to
         get the data from the device as early as possible (e.g. after
@@ -504,6 +541,7 @@ Only a scheduler can actually usefully use these functions.
         `src/components/implementation/net_if/linux_if/netif.c` for an
         example use.  The semantics of this system call is dependent
         on the value of `op`.
+
 	+ `COS_BM_XMIT_REGION`:  The _Composite_ kernel assumes
           that if it touches user-level regions, those regions must
           never fault.  This option sets up a page that is shared
@@ -539,7 +577,9 @@ Only a scheduler can actually usefully use these functions.
 
     - `int mpd_cntl(int operation, spdid_t composite_spd, spdid_t
       composite_dest);`
+
       * The operation to be performed is dependent on `operation`.
+
 	+ `COS_MPD_SPLIT`: `spd1` is one component in a protection
           domain that includes multiple components, including `spd2`.
           `spd2` is the component that is to be separated and put in a
@@ -552,7 +592,9 @@ Only a scheduler can actually usefully use these functions.
           two protection domains to remove protection boundaries by
           placing all components in each protection domains into one
           large protection domain containing all components.
+
     - `void cos_mpd_update(void);`
+
       * Due to invocations operating on stale protection domain
         mappings, we must do garbage collection (of sorts) on
         protection domains.  This call makes that reference counting
@@ -564,11 +606,13 @@ Only a scheduler can actually usefully use these functions.
 
     - `int cos_mmap_cntl(short int op, short int flags,
 	      	           short int dest_spd, vaddr_t dest_addr, long mem_id);`
+
       * This system call enables the mapping of physical frames to
         virtual pages in separate components.  When the same physical
         frame is mapped into two components, that page is shared
         memory.  The action performed by this system call is dependent
         on `op`.
+
 	+ `COS_MMAP_GRANT`: The physical frame identified by
           `mem_id` is mapped into virtual address `dest_addr` of
           component `dest_spd`.  Physical frames are viewed as an
@@ -582,14 +626,18 @@ Only a scheduler can actually usefully use these functions.
 **Other functions**
 
     - `int stats(void);`
+
       * Print out the event counters within the kernel.
+
     - `int print(char* str, int len);`
+
       * Print to dmesg the given string.  Don't use this directly.
         Call the print component.
 
 **Future _Composite_ functionality**
     
     - `int cos_vas_cntl(short int op...)`
+
       * Currently, all components share the same virtual address
         space.  This call with be necessary to create new virtual
         address spaces, map components into them, and allocate
