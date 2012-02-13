@@ -123,169 +123,167 @@ Component <-> Component Interface:
 
 **Requesting Memory, and Printing**
 
-    The component interface for getting memory is `mem_mgr`, and for
-    printing, `printc`.  These should most often be used indirectly
-    through the library calls for `malloc` / `free` and `printf`.
+  The component interface for getting memory is `mem_mgr`, and for
+  printing, `printc`.  These should most often be used indirectly
+  through the library calls for `malloc` / `free` and `printf`.
 
 **Locking**
-    The interface specification for the lock component is in
-    `src/components/interface/lock/lock.h` and
-    `src/components/include/cos_synchronization.h`.  The lock
-    component is an odd one in that some functionality is loaded (via
-    cos_synchronization.c) into the client component.  This enables
-    the "fast path" of taking and releasing locks when there is no
-    contention to be fast.
+  The interface specification for the lock component is in
+  `src/components/interface/lock/lock.h` and
+  `src/components/include/cos_synchronization.h`.  The lock
+  component is an odd one in that some functionality is loaded (via
+  cos_synchronization.c) into the client component.  This enables
+  the "fast path" of taking and releasing locks when there is no
+  contention to be fast.
 
-    The lock API (the one the library exposes) includes
-    + `lock_static_init(cos_lock_t)` which initializes a lock that
-      is statically allocated (and calls `lock_component_alloc`).
-    + `lock_release(cos_lock_t)` which will release the lock in
-      the lock component.
+  The lock API (the one the library exposes) includes
+  + `lock_static_init(cos_lock_t)` which initializes a lock that
+    is statically allocated (and calls `lock_component_alloc`).
+  + `lock_release(cos_lock_t)` which will release the lock in
+    the lock component.
 
-    Once a lock is created, one can simply `lock_take(cos_lock_t)`
-    and `lock_release(cos_lock_t)` to take and release the lock (up
-    and down a semaphore) to provide a critical section.
+  Once a lock is created, one can simply `lock_take(cos_lock_t)`
+  and `lock_release(cos_lock_t)` to take and release the lock (up
+  and down a semaphore) to provide a critical section.
 
 **Event notification**
 
-    Often a thread will want to wait for an event to happen in another
-    component.  This can vary from waiting for a packet to arrive in a
-    networking component, or waiting for data to arrive on an
-    asynchronous IPC channel.  This drives the need for the `select`
-    and `poll` system calls in UNIX.  In general there are two
-    components, one with a thread that wishes to wait for a number
-    (multiple) events, and the other component that can trigger
-    events. The event notification component provides this
-    functionality.
+  Often a thread will want to wait for an event to happen in another
+  component.  This can vary from waiting for a packet to arrive in a
+  networking component, or waiting for data to arrive on an
+  asynchronous IPC channel.  This drives the need for the `select` and
+  `poll` system calls in UNIX.  In general there are two components,
+  one with a thread that wishes to wait for a number (multiple)
+  events, and the other component that can trigger events. The event
+  notification component provides this functionality.
     
-    The API for the event notification component can be found in
-    `src/components/interface/evt/evt.h`.  We'll discuss a subset of
-    the API.  As with the lock component, there are `evt_create` and
-    `evt_free` to create and remove an event.  Each event is
-    referenced by a `long` value.  The component that will wait for
-    the event usually creates the event, and passes the event
-    identifier to the component that will trigger the event.
+  The API for the event notification component can be found in
+  `src/components/interface/evt/evt.h`.  We'll discuss a subset of the
+  API.  As with the lock component, there are `evt_create` and
+  `evt_free` to create and remove an event.  Each event is referenced
+  by a `long` value.  The component that will wait for the event
+  usually creates the event, and passes the event identifier to the
+  component that will trigger the event.
 
-    The component in which the event is detected (because an interrupt
-    delivers a packet) will call `evt_trigger` to "trigger" the
-    event.  At this point, any threads waiting on that event will wake
-    up and be notified of the event's activity.  
+  The component in which the event is detected (because an interrupt
+  delivers a packet) will call `evt_trigger` to "trigger" the event.
+  At this point, any threads waiting on that event will wake up and be
+  notified of the event's activity.
 
-    The component executing the thread that wishes to wait for the
-    event will call `evt_wait` to wait (block) waiting for any of its
-    events to be triggered.  It will wait on /all/ of the events that
-    have been created by this thread.  The API might be changed in the
-    future to allow the user to change which set of events to wait
-    on.  Though the API allows one to prioritize events, we do not
-    discuss that API here.
+  The component executing the thread that wishes to wait for the event
+  will call `evt_wait` to wait (block) waiting for any of its events
+  to be triggered.  It will wait on /all/ of the events that have been
+  created by this thread.  The API might be changed in the future to
+  allow the user to change which set of events to wait on.  Though the
+  API allows one to prioritize events, we do not discuss that API
+  here.
 
 **Networking**
-    _Composite_ includes the LWIP networking stack as a component.
-    The API is distinctly lower-level than the socket API, but
-    facilities are provided to send and receive packets.  The API
-    should support both TCP and UDP, but we haven't tested the UDP in
-    a couple of years.  It is doubtful it works.  The API can be
-    viewed in
-    `src/components/interface/net_transport/net_transport.h`.
 
-    To create a connection, one has three options:
-    - `net_connection_t net_create_tcp_connection(spdid_t spdid, u16_t tid, long evt_id);`
-    - `net_connection_t net_create_udp_connection(spdid_t spdid, long evt_id);`
-    - `net_connection_t net_accept(spdid_t spdid, net_connection_t nc);`
+  _Composite_ includes the LWIP networking stack as a component.  The
+  API is distinctly lower-level than the socket API, but facilities
+  are provided to send and receive packets.  The API should support
+  both TCP and UDP, but we haven't tested the UDP in a couple of
+  years.  It is doubtful it works.  The API can be viewed in
+  `src/components/interface/net_transport/net_transport.h`.
 
-    As always, the `net_connection_t` is just an integer
-    identifying the connection.  When creating a TCP connection, one
-    passes in the thread id of the thread that can manipulate that
-    connection.  This restriction will likely be lifted in the future,
-    but for now, it must be passed in.  The accept call is similar to
-    the similarly named call in UNIX.  The network connection
-    identified by `nc` will wait for connection requests, and create a
-    new connection identified by the returned connection.  This call
-    is asynchronous, which means that a thread that calls it will not
-    block waiting for the connection to be made.  If another
-    connection cannot be made immediately, it will return `-EAGAIN`.
+  To create a connection, one has three options:
+  - `net_connection_t net_create_tcp_connection(spdid_t spdid, u16_t tid, long evt_id);`
+  - `net_connection_t net_create_udp_connection(spdid_t spdid, long evt_id);`
+  - `net_connection_t net_accept(spdid_t spdid, net_connection_t nc);`
 
-    The event id passed into these calls is the event that is to be
-    triggered when an event happens on this connection.
+  As always, the `net_connection_t` is just an integer identifying the
+  connection.  When creating a TCP connection, one passes in the
+  thread id of the thread that can manipulate that connection.  This
+  restriction will likely be lifted in the future, but for now, it
+  must be passed in.  The accept call is similar to the similarly
+  named call in UNIX.  The network connection identified by `nc` will
+  wait for connection requests, and create a new connection identified
+  by the returned connection.  This call is asynchronous, which means
+  that a thread that calls it will not block waiting for the
+  connection to be made.  If another connection cannot be made
+  immediately, it will return `-EAGAIN`.
 
-    A `close` call will close the connection.
+  The event id passed into these calls is the event that is to be
+  triggered when an event happens on this connection.
 
-    To build a TCP connection, as in UNIX, one must `listen`, `bind`,
-    and possibly `connect` the connection.  The connect call is an
-    outlier in _Composite_ interface functions in that it will block
-    until the actual connection is created.  This should be changed in
-    the future.
+  A `close` call will close the connection.
 
-    To actually use the connection by retrieving and sending data, one
-    uses `net_send` and `net_recv`.   The `data` argument must be in
-    the argument region (see the library functions above).  These are,
-    again, asynchronous, so threads will not block on them if there is
-    no data, or buffer space.  Instead `-EAGAIN` will be called.
+  To build a TCP connection, as in UNIX, one must `listen`, `bind`,
+  and possibly `connect` the connection.  The connect call is an
+  outlier in _Composite_ interface functions in that it will block
+  until the actual connection is created.  This should be changed in
+  the future.
+
+  To actually use the connection by retrieving and sending data, one
+  uses `net_send` and `net_recv`.  The `data` argument must be in the
+  argument region (see the library functions above).  These are,
+  again, asynchronous, so threads will not block on them if there is
+  no data, or buffer space.  Instead `-EAGAIN` will be called.
     
 **Time management**
 
-    Two components provide the ability to keep time, and block waiting
-    for certain amounts of time to elapse.  The simpler of the two is
-    `timed_blk` (`src/components/interface/timed_blk/timed_blk.h`).
-    Simply, one can call `timed_event_block` and pass in the amount of
-    time (in jiffies) one wishes to block.  The return value is the
-    amount of time spent blocked.  You'll be waked up no sooner than
-    at the end of that period.  The second function is
-    `timed_event_wakeup` which can be used to prematurely wake up
-    the thread specified as an argument.
+  Two components provide the ability to keep time, and block waiting
+  for certain amounts of time to elapse.  The simpler of the two is
+  `timed_blk` (`src/components/interface/timed_blk/timed_blk.h`).
+  Simply, one can call `timed_event_block` and pass in the amount of
+  time (in jiffies) one wishes to block.  The return value is the
+  amount of time spent blocked.  You'll be waked up no sooner than at
+  the end of that period.  The second function is `timed_event_wakeup`
+  which can be used to prematurely wake up the thread specified as an
+  argument.
 
-    The more complicated time keeping component (actually usually
-    provided by the same component) is the periodic timer, provided by
-    `src/components/interface/periodic_wake/periodic_wake.h`.  This
-    API generally allows a thread to be woken up periodically.  The
-    thread creates a periodic timer using `periodic_wake_create`
-    which specifies the periodicity of the timer in jiffies.  This
-    timer can be deleted using `periodic_wake_remove`.
-    `periodic_wake_wait` will cause the thread to block waiting for
-    a periodic event.  It will be woken up either immediately if that
-    event has triggered and this thread didn't wait on it before it
-    triggered, or when the periodic amount of time passes.  Other
-    functions in the API provide information about deadline misses,
-    lateness, etc...
+  The more complicated time keeping component (actually usually
+  provided by the same component) is the periodic timer, provided by
+  `src/components/interface/periodic_wake/periodic_wake.h`.  This API
+  generally allows a thread to be woken up periodically.  The thread
+  creates a periodic timer using `periodic_wake_create` which
+  specifies the periodicity of the timer in jiffies.  This timer can
+  be deleted using `periodic_wake_remove`.  `periodic_wake_wait` will
+  cause the thread to block waiting for a periodic event.  It will be
+  woken up either immediately if that event has triggered and this
+  thread didn't wait on it before it triggered, or when the periodic
+  amount of time passes.  Other functions in the API provide
+  information about deadline misses, lateness, etc...
 
 **Scheduling**
 
-    This API should hopefully not be needed/used that often.  Most
-    timing, blocking, and critical section services are provided by
-    the time management components, the event notification component,
-    and the locking components, respectively, described above.  The
-    `sched` interface (`src/components/interface/sched/sched.h`)
-    contains many functions.  I will assume that the previous
-    components are used, and will describe functions in the scheduler
-    API that provide orthogonal functionality.  These boil down to:
+  This API should hopefully not be needed/used that often.  Most
+  timing, blocking, and critical section services are provided by the
+  time management components, the event notification component, and
+  the locking components, respectively, described above.  The `sched`
+  interface (`src/components/interface/sched/sched.h`) contains many
+  functions.  I will assume that the previous components are used, and
+  will describe functions in the scheduler API that provide orthogonal
+  functionality.  These boil down to:
 
-    - `unsigned int sched_tick_freq(void);` - Get the number of
-      jiffies in a second.
-    - `int sched_create_thread(spdid_t spdid, struct cos_array
-      *data);` - Create a new thread.  The `data` argument is an array
-      in the argument region (see library functions above) that
-      contains a textual representation of the priority of the created
-      thread.
+  - `unsigned int sched_tick_freq(void);` - Get the number of
+    jiffies in a second.
+  - `int sched_create_thread(spdid_t spdid, struct cos_array
+    *data);` - Create a new thread.  The `data` argument is an array
+    in the argument region (see library functions above) that
+    contains a textual representation of the priority of the created
+    thread.
 
 **Shared Memory**
     
-    The `cbuf` API (spelled out in `src/components/include/cbuf.h`)
-    includes the facilities for shared memory between components.  The
-    API centers around three functions:
+  The `cbuf` API (spelled out in `src/components/include/cbuf.h`)
+  includes the facilities for shared memory between components.  The
+  API centers around three functions:
 
-    - `void *cbuf_alloc(int size, cbuf_t *cb)` - allocate a shared
-      memory region within this component of at least size `size`.
-      Each shared memory region has an identifier associated with it
-      that is returned in `cb`.  This is the token passed to other
-      components that they can use to map in the cbuf.
-    - `void cbuf_free(void *buf)` - Free up the cbuf
-      located at `buf` to be used by a later allocation.  There is no
-      need to "cache" cbufs, as the cbuf subsystem does that for you.
-    - `void *cbuf2buf(cbuf_t cb, int len)` - This function is used for
-      a component that has been passed a `cbuf_t` id, to map that
-      buffer into this component.  The `len` is the advertised length
-      of the buffer, and is used by a consistency check preventing a
-      component from passing you a cbuf with an incorrect length.
+  - `void *cbuf_alloc(int size, cbuf_t *cb)` - allocate a shared
+    memory region within this component of at least size `size`.
+    Each shared memory region has an identifier associated with it
+    that is returned in `cb`.  This is the token passed to other
+    components that they can use to map in the cbuf.
+  - `void cbuf_free(void *buf)` - Free up the cbuf
+    located at `buf` to be used by a later allocation.  There is no
+    need to "cache" cbufs, as the cbuf subsystem does that for you.
+  - `void *cbuf2buf(cbuf_t cb, int len)` - This function is used for
+    a component that has been passed a `cbuf_t` id, to map that
+    buffer into this component.  The `len` is the advertised length
+    of the buffer, and is used by a consistency check preventing a
+    component from passing you a cbuf with an incorrect length.
 
 Component <-> Kernel Interface:
 -------------------------------
