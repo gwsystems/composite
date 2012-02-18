@@ -343,7 +343,7 @@ cbuf_free(void *buf)
 	ADD_LIST(fl, d, next, prev);
 	/* do this last, so that we can guarantee the manager will not steal the cbuf before now... */
 	cm->c.flags &= ~CBUFM_IN_USE;
-	cm->ct.thdid_owner = 0;
+	cm->c.thdid_owner = 0;
 	CBUF_RELEASE();
 
 	/* Does the manager want the memory back? */

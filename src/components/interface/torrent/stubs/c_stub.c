@@ -27,7 +27,6 @@ CSTUB_FN_ARGS_6(td_t, tsplit, spdid_t, spdid, td_t, tid, char *, param, int, len
         d->len[1] = len;
 	memcpy(&d->data[0], param, len);
 
-printc("client stub sz %d and len %d\n", sz, len);
 CSTUB_ASM_3(tsplit, spdid, cb, sz)
 
 	cbuf_free(d);

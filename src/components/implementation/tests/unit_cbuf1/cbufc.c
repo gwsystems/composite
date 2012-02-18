@@ -68,6 +68,8 @@ void cos_init(void)
 		printv("UNIT TEST free %p\n", bufs[i]);
 	}
 	printc("UNIT TEST PASSED: N deallocs\n");
+
+	printc("UNIT TEST ALL PASSED\n");
 	
 	return;
 }
