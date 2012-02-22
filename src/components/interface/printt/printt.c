@@ -45,5 +45,5 @@ int __attribute__((format(printf,1,2))) printc(char *fmt, ...)
 
 int prints(char *str)
 {
-	return printc(str);
+	return printc("%s", str);
 }

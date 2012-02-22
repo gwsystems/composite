@@ -20,7 +20,7 @@ cp:
 
 .PHONY: clean
 clean:
-	$(info |     [RM]   Cleaning up implementation directory)
+	$(info |     [RM]   Cleaning up implementation directories)
 	@for dir in $(SUBDIRS) ; do \
 		$(MAKE) $(MAKEFLAGS) -C $$dir clean ; \
 	done

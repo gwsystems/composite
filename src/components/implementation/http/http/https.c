@@ -11,10 +11,10 @@
 //#define COS_LINUX_ENV
 
 #include <string.h>
+#include <stdio.h>
 
 #ifdef COS_LINUX_ENV
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #include "cos_map.h"
@@ -240,7 +240,7 @@ struct http_request {
 static int http_get_request(struct http_request *r)
 {
 	struct cos_array *arg;
-	int ret;
+	int ret = -1;
 	assert(r && r->c);
 
 	arg = cos_argreg_alloc(r->path_len + sizeof(struct cos_array) + 1);

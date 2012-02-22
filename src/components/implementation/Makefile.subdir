@@ -25,22 +25,23 @@ subdirs:
 
 $(CLIB):$(OBJS)
 ifneq ($(strip $(OBJS)),)
-	$(info |     [LD]   Creating $(CLIB) for $(INTERFACES))
+#	$(info |     [LD]   Creating $(CLIB) for $(INTERFACES))
 	@$(LD) -r -o $@ $^
 endif
 
 %.o:%.c
-	$(info |     [CC]   Compiling $<)
+	$(info |     [CC]   $<: Compiling)
 	@$(CC) $(INCLUDE) $(CFLAGS) -o $@ -c $<
 
 %.o:%.S
-	$(info |     [AS]   Compiling assembly file $^ into $@)
+#	$(info |     [AS]   Compiling assembly file $^ into $@)
+	$(info |     [AS]   $<: Compiling)
 	@$(AS) $(INCLUDE) $(ASFLAGS) -c -o $@ $^
 
 # see the make manual: create the .d dependencies from include
 # statements.
 %.d:%.c
-	$(info |     [DEP]  Creating dependency file for $<)
+#	$(info |     [DEP]  Creating dependency file for $<)
 	@set -e; rm -f $@; \
 	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
@@ -54,7 +55,7 @@ cp:
 
 .PHONY: clean
 clean:
-	$(info |     [RM]   Cleaning up implementation directory for interface $(IFNAME))
+#	$(info |     [RM]   Cleaning up implementation directory for interface $(IFNAME))
 	@rm -f a.out *.o *.a *.d *.d.* *~
 	@for dir in $(SUBDIRS) ; do \
 		$(MAKE) -C $$dir clean ; \

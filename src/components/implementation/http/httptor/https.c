@@ -235,7 +235,7 @@ struct http_request {
 
 static int http_get_request(struct http_request *r)
 {
-	int ret;
+	int ret = -1;
 	assert(r && r->c);
 
 	if (0 > r->content_id) {

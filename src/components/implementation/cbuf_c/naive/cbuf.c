@@ -340,8 +340,6 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 
 	union cbuf_meta *mc = NULL;
 
-	printc("cbuf create\n");
-
 	/* DOUT("thd: %d spd: %d cbuf_c_create is called here!!\n", cos_get_thd_id(), spdid); */
 	/* DOUT("passed cbid is %ld\n",cbid); */
 	TAKE();
@@ -396,7 +394,7 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	cbuf_item->entry = mc;
 
 	mc->c.ptr     = d->owner.addr >> PAGE_ORDER;
-	mc->c.obj_sz  = PAGE_SIZE >> CBUF_OBJ_SZ_SHIFT;
+	mc->c.obj_sz  = ((unsigned int)PAGE_SIZE) >> CBUF_OBJ_SZ_SHIFT;
 	mc->c_0.th_id = cos_get_thd_id();
 	mc->c.flags  |= CBUFM_IN_USE | CBUFM_TOUCHED;
 done:
@@ -452,8 +450,6 @@ cbuf_c_delete(spdid_t spdid, int cbid)
 	struct spd_tmem_info *sti;
 	int ret = 0;  /* return value not used */
 
-	printc("cbuf delete\n");
-
 	TAKE();
 
 	sti = get_spd_info(spdid);
@@ -474,7 +470,6 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 	struct cb_desc *d;
 	struct cb_mapping *m;
 
-	printc("cbuf retrieve\n");
 	TAKE();
 
 	d = cos_map_lookup(&cb_ids, cbid);
