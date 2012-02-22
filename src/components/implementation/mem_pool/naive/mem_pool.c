@@ -138,7 +138,7 @@ done:
 	RELEASE();
 	return mgr_addr;
 err2:
-	printc("Memory Pool: Cannot alias page to client!\n");
+	printc("Memory Pool: Cannot alias page to client at %x!\n", (unsigned int)mgr_addr);
 	valloc_free(cos_spd_id(), d_spdid, mgr_addr, 1);
 	mgr_addr = NULL;
 err1:

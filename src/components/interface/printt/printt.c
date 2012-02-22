@@ -1,3 +1,6 @@
+#define PRINT_FN print_null
+int print_null(char *s) { return 0; }
+
 #include <cos_component.h>
 #include <stdio.h>
 #include <string.h>
@@ -11,8 +14,9 @@ extern int print_twrite(spdid_t spdid, td_t td, int cbid, int sz);
 static td_t printt_init(void)
 {
 	td_t init;
+	char *pchan = "0";
 
-	init = print_tsplit(cos_spd_id(), td_root, "1", 1, TOR_READ, 0);
+	init = print_tsplit(cos_spd_id(), td_root, pchan, strlen(pchan), TOR_WRITE, 0);
 	assert(init > 0);
 	return init;
 }

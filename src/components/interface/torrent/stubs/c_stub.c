@@ -15,14 +15,14 @@ CSTUB_FN_ARGS_6(td_t, tsplit, spdid_t, spdid, td_t, tid, char *, param, int, len
 	int sz = len + sizeof(struct __sg_tsplit_data);
 
         assert(param && len > 0);
-        assert(param[len-1] == '\0');
+        assert(param[len] == '\0');
 
 	d = cbuf_alloc(sz, &cb);
 	if (!d) return -6;
 
-        d->tid = tid;
+        d->tid    = tid;
 	d->tflags = tflags;
-	d->evtid = evtid;
+	d->evtid  = evtid;
         d->len[0] = 0;
         d->len[1] = len;
 	memcpy(&d->data[0], param, len);

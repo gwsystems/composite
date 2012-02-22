@@ -32,22 +32,22 @@ tsplit(spdid_t spdid, td_t td, char *param,
 	if (tor_isnull(td)) ERR_THROW(-EINVAL, done);
 	t = tor_lookup(td);
 	if (!t) ERR_THROW(-EINVAL, done);
-	nt = tor_alloc(NULL, tflags);
+	if (len > 1) ERR_THROW(-EINVAL, done);
+
+	channel = (int)(*param - '0');
+	if (channel > 9 || channel < 0) ERR_THROW(-EINVAL, done);
+	if (!channels[channel].exists)  ERR_THROW(-ENOENT, done);
+
+	nt = tor_alloc(&channels[channel], tflags);
 	if (!nt) ERR_THROW(-ENOMEM, done);
 	ret = nt->td;
 
-	if (len > 1) ERR_THROW(-EINVAL, free);
-	channel = (int)(*param - '0');
-	if (channel > 9 || channel < 0) ERR_THROW(-EINVAL, free);
-	if (!channels[channel].exists)  ERR_THROW(-ENOENT, free);
 	direction = channels[channel].direction;
 	if (direction == COS_TRANS_DIR_LTOC) {
 		if (tflags != TOR_READ)  ERR_THROW(-EINVAL, free);
 		if (channels[channel].t) ERR_THROW(-EBUSY, free);
 	}
 	if (direction == COS_TRANS_DIR_CTOL && tflags != TOR_WRITE) ERR_THROW(-EINVAL, free);
-
-	nt->data  = (void*)channel;
 	if (direction == COS_TRANS_DIR_LTOC) {
 		nt->evtid = evtid;
 		channels[channel].t = nt;
@@ -74,7 +74,8 @@ tmerge(spdid_t spdid, td_t td, td_t td_into, char *param, int len)
 	if (!t) ERR_THROW(-EINVAL, done);
 	/* currently only allow deletion */
 	if (td_into != td_null) ERR_THROW(-EINVAL, done);
-	channels[(int)t->data].t = NULL;
+	assert(t->data);
+	((struct channel_info *)t->data)->t = NULL;
 	tor_free(t);
 done:
 	UNLOCK();
@@ -90,7 +91,8 @@ trelease(spdid_t spdid, td_t td)
 	LOCK();
 	t = tor_lookup(td);
 	if (!t) goto done;
-	channels[(int)t->data].t = NULL;
+	assert(t->data);
+	((struct channel_info *)t->data)->t = NULL;
 	tor_free(t);
 done:
 	UNLOCK();
@@ -100,7 +102,8 @@ done:
 int 
 tread(spdid_t spdid, td_t td, int cbid, int sz)
 {
-	int ret = -1, channel;
+	int ret = -1;
+	struct channel_info *channel;
 	struct torrent *t;
 	char *buf;
 
@@ -115,8 +118,8 @@ tread(spdid_t spdid, td_t td, int cbid, int sz)
 	buf = cbuf2buf(cbid, sz);
 	if (!buf) goto done;
 
-	channel = (int)t->data;
-	ret = cringbuf_consume(&channels[channel].rb, buf, sz);
+	channel = (struct channel_info*)t->data;
+	ret = cringbuf_consume(&channel->rb, buf, sz);
 done:	
 	UNLOCK();
 	return ret;
@@ -125,7 +128,8 @@ done:
 int 
 twrite(spdid_t spdid, td_t td, int cbid, int sz)
 {
-	int ret = -1, channel;
+	int ret = -1;
+	struct channel_info *channel;
 	struct torrent *t;
 	char *buf;
 
@@ -140,8 +144,9 @@ twrite(spdid_t spdid, td_t td, int cbid, int sz)
 	buf = cbuf2buf(cbid, sz);
 	if (!buf) ERR_THROW(-EINVAL, done);
 
-	channel = (int)t->data;
-	ret = cringbuf_produce(&channels[channel].rb, buf, sz);
+	channel = (struct channel_info*)t->data;
+	ret = cringbuf_produce(&channels->rb, buf, sz);
+	cos_trans_cntl(COS_TRANS_TRIGGER, 0, 0, 0);
 
 	t->offset += ret;
 done:	
@@ -165,7 +170,7 @@ static int channel_init(int channel)
 	channels[channel].direction = direction;
 
 	sz = cos_trans_cntl(COS_TRANS_MAP_SZ, channel, 0, 0);
-	assert(sz <= (8*1024*1024)); /* current 8MB max */
+	assert(sz <= (4*1024*1024)); /* current 8MB max */
 	start = valloc_alloc(cos_spd_id(), cos_spd_id(), sz/PAGE_SIZE);
 	assert(start);
 	for (i = 0, addr = start ; i < sz ; i += PAGE_SIZE, addr += PAGE_SIZE) {
@@ -192,9 +197,13 @@ static int channel_init(int channel)
 
 int cos_init(void)
 {
+	int i;
+
 	lock_static_init(&l);
 	torlib_init();
-	channel_init(1);
+	for (i = 0 ; i < COS_TRANS_SERVICE_MAX ; i++) {
+		channel_init(i);
+	}
 
 	return 0;
 }

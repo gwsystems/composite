@@ -11,6 +11,7 @@ td_t __sg_tsplit(spdid_t spdid, cbuf_t cbid, int len)
 {
 	struct __sg_tsplit_data *d;
 
+	printc("cbid %d, len %d\n", cbid, len);
 	d = cbuf2buf(cbid, len);
 	if (unlikely(!d)) return -5;
 	/* mainly to inform the compiler that optimizations are possible */

@@ -28,12 +28,8 @@ int main(int argc, char **argv)
 	char c, buf[PRINT_CHUNK_SZ];
 	int channel;
 
-	if (argc > 2) return -1;
-	if (argc == 2) {
-		channel = atoi(argv[1]);
-	} else {
-		channel = 0;
-	}
+	if (argc > 1) return -1;
+	channel = COS_TRANS_SERVICE_PRINT;
 
 	fd = open(PROC_FILE, O_RDWR);
 	if (fd < 0) {

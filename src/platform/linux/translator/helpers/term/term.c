@@ -33,7 +33,8 @@ int main(void)
 		exit(-1);
 	}
 
-	trans_ioctl_set_channel(fd, 1);
+	trans_ioctl_set_channel(fd, COS_TRANS_SERVICE_TERM);
+	trans_ioctl_set_direction(fd, COS_TRANS_DIR_LTOC);
 	a = mmap(NULL, MAP_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 	if (MAP_FAILED == a) {
 		perror("mmap");
@@ -42,21 +43,19 @@ int main(void)
 	cringbuf_init(&sharedbuf, a, MAP_SIZE);
 	
 	while (1) {
-		int amnt, i;
+		int off = 0;
 
 		/* wait for user input */
-		amnt = read(0, buf+_read, PRINT_CHUNK_SZ-_read);
-		assert(amnt >= 0);
-		_read += amnt;
-		for (i = 0 ; i < _read ; i++) {
-			if (buf[i] != '\n') continue;
-			do {
-				cringbuf_produce(&sharedbuf, buf, _read);
-				write(fd, &c, 1);
-			} while (amnt);
-			_read = 0;
-			break;
-		}
+		_read = read(0, buf, PRINT_CHUNK_SZ);
+		assert(_read >= 0);
+		do {
+			int p;
+
+			p = cringbuf_produce(&sharedbuf, buf + off, _read);
+			_read -= p;
+			off += p;
+			if (p) write(fd, &c, 1);
+		} while (_read);
 	}
 
 	if (munmap(a, MAP_SIZE) < 0) {

@@ -138,6 +138,7 @@ struct sec_info ldobj[MAXSEC_S];
 typedef int (*observer_t)(asymbol *, void *data);
 
 struct service_symbs;
+struct dependency;
 
 struct symb {
 	char *name;
@@ -1200,7 +1201,6 @@ create_transparent_capabilities(struct service_symbs *service)
 				s->exporter = dep[i].dep;
 				s->exported_symb = &symbs->symbs[j];
 
-				//printf("<<<<<<<<<<<<%s-%s, %s>>>>>>>>>>>>\n", 
 				//service->obj, s->exporter->obj, s->exported_symb->name);
 			
 				dep[i].resolved = 1;
@@ -1745,12 +1745,29 @@ int create_invocation_cap(struct spd_info *from_spd, struct service_symbs *from_
 
 static struct symb *spd_contains_symb(struct service_symbs *s, char *name) 
 {
-	int i;
+	int i, client_stub;
 	struct symb_type *symbs = &s->exported; 
 
+	client_stub = strstr(name, CAP_CLIENT_STUB_POSTPEND) != NULL;
 	for (i = 0 ; i < symbs->num_symbs ; i++) {
-		if (strcmp(name, symbs->symbs[i].name) == 0) {
+		char *n = symbs->symbs[i].name;
+		if (strcmp(name, n) == 0) {
 			return &symbs->symbs[i];
+		}
+		if (client_stub && strstr(n, CAP_CLIENT_STUB_POSTPEND)) {
+			int j = 0;
+
+			for (j = 0 ; j < s->num_dependencies ; j++) {
+				struct dependency *d = &s->dependencies[j];
+
+				if (!d->modifier || strncmp(d->modifier, name, d->mod_len)) continue;
+				if (!strcmp(name+d->mod_len, n)) {
+					printl(PRINT_DEBUG, 
+					       "Found client stub with dependency modification: %s->%s in %s\n", 
+					       name, n, s->obj);
+					return &symbs->symbs[i];
+				}
+			}
 		}
 	}
 	return NULL;
@@ -1776,6 +1793,13 @@ static int cap_get_info(struct service_symbs *service, struct cap_ret_info *cri,
 		printl(PRINT_HIGH, "symbol name %s too long to become client capability\n", symb->name);
 		return -1;
 	}
+	/* gap */
+	/* if (s->modifier &&  */
+	/*     !strncmp(n, s->modifier, s->mod_len) &&  */
+	/*     !strcmp(n + s->mod_len, name)) { */
+	/* 	return &symbs->symbs[i]; */
+	/* } */
+	
 	c_stub = spd_contains_symb(service, tmp);
 	if (NULL == c_stub) {
 		c_stub = spd_contains_symb(service, CAP_CLIENT_STUB_DEFAULT);
@@ -1784,7 +1808,7 @@ static int cap_get_info(struct service_symbs *service, struct cap_ret_info *cri,
 			       symb->name, service->obj);
 			return -1;
 		}
-	}
+	} 
 
 	if (MAX_SYMB_LEN-1 == snprintf(tmp, MAX_SYMB_LEN-1, "%s%s", exp_symb->name, CAP_SERVER_STUB_POSTPEND)) {
 		printl(PRINT_HIGH, "symbol name %s too long to become server capability\n", exp_symb->name);
