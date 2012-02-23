@@ -110,7 +110,7 @@ trans_mmap(struct file *f, struct vm_area_struct *vma)
 	int i;
 	BUG_ON(!c);
 
-	printk("trans_mmap, sz %d\n", vma->vm_end - vma->vm_start);
+	printl("trans_mmap, sz %d\n", vma->vm_end - vma->vm_start);
 
 	if (vma->vm_end - vma->vm_start > TRANS_MAX_MAPPING) return -EINVAL;
 	if (c->mem) return -EINVAL;
