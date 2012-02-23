@@ -14,7 +14,7 @@
 #define MODULE_NAME "cos <-> Linux translator"
 #define FILE_NAME "translator"
 #define TRANS_PAGE_ORDER 0
-#define TRANS_MAX_MAPPING (1024*1024*4)
+#define TRANS_MAX_MAPPING (1024*1024)
 #define MAX_NCHANNELS 10
 //#define printl(str,args...) printk(str, ## args)
 #define printl(str,args...)
@@ -78,22 +78,16 @@ static int
 trans_open(struct inode *i, struct file *f)
 {
 	struct trans_channel *c;
-	struct page *p;
 
 	printl("trans_open\n");
 	c = kmalloc(sizeof(struct trans_channel), GFP_KERNEL);
 	if (!c) return -ENOMEM;
 	trans_channel_init(c);
 
-	p = alloc_pages(GFP_KERNEL, TRANS_PAGE_ORDER);
-	if (!p) goto free;
-	c->mem = page_to_virt(p);
+	c->mem = NULL;
 	f->private_data = c;
 
 	return 0;
-free:
-	kfree(c);
-	return -ENOMEM;
 }
 
 static int
@@ -111,12 +105,21 @@ static int
 trans_mmap(struct file *f, struct vm_area_struct *vma)
 {
 	struct trans_channel *c = f->private_data;
-	struct page *pg = NULL;
+	struct page *pg = NULL, *p;
 	unsigned long addr, sz, pages;
 	int i;
 	BUG_ON(!c);
 
-	printl("trans_mmap, sz %d\n", vma->vm_end - vma->vm_start);
+	printk("trans_mmap, sz %d\n", vma->vm_end - vma->vm_start);
+
+	if (vma->vm_end - vma->vm_start > TRANS_MAX_MAPPING) return -EINVAL;
+	if (c->mem) return -EINVAL;
+
+	if (vma->vm_end - vma->vm_start > 4096) return -EINVAL;
+	p = alloc_pages(GFP_KERNEL, TRANS_PAGE_ORDER); /* hardcoded for now */
+	if (!p) return -ENOMEM;
+	c->mem = page_to_virt(p);
+
 	sz = vma->vm_end - vma->vm_start;
 	pages = sz/PAGE_SIZE;
 	if (sz > TRANS_MAX_MAPPING) return -EINVAL;
@@ -129,6 +132,7 @@ trans_mmap(struct file *f, struct vm_area_struct *vma)
 		
 		if (vm_insert_page(vma, addr, pg)) {
 			zap_vma_ptes(vma, vma->vm_start, addr - vma->vm_start);
+			printk("translator: unknown error while inserting vm page\n");
 			goto err;
 		}
 		//BUG_ON(pg != follow_page(vma, addr, 0));

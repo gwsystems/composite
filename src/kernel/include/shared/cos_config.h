@@ -44,7 +44,7 @@
 /* how much should we buffer before sending an event to the shell? */
 #define COS_PRINT_BUF_SZ  128
 /* how large should the shared memory region be that will buffer print data? */
-#define COS_PRINT_MEM_SZ  (4096*16)
+#define COS_PRINT_MEM_SZ  (4096)
 
 /* print out to dmesg? */
 //#define COS_PRINT_DMESG 1

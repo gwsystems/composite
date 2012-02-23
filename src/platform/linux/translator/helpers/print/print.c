@@ -17,7 +17,7 @@
 
 #define PROC_FILE "/proc/translator"
 #define MAP_SIZE  COS_PRINT_MEM_SZ //(4096 * 256)
-#define PRINT_CHUNK_SZ (4096*16)
+#define PRINT_CHUNK_SZ (4096*4)
 
 struct cringbuf sharedbuf;
 
