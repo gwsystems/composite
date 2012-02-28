@@ -65,7 +65,7 @@ progConcat (CFuse p1) (CFuse p2) = (CFuse (p1 ++ p2))
 -- Querying the structure
 lstCs :: CFuse -> [Component]
 lstCs p = let f = (\c -> case c of 
-                           (CS _ _ _ _) -> True
+                           (CS _ _ _ _)   -> True
                            (Dup _ _)      -> True
                            _ -> False)
           in nub $ listify f p
@@ -73,12 +73,12 @@ lstCs p = let f = (\c -> case c of
 lstAggs :: CFuse -> [Component]
 lstAggs p = let f = (\c -> case c of
                              (CA _) -> True 
-                             _ -> False)
+                             _      -> False)
             in nub $ listify f p
 
 lstDeps :: CFuse -> [Stmt]
 lstDeps p = let f = (\c -> case c of
-                             (Dep _ _)     -> True 
+                             (Dep _ _)       -> True 
                              (DepTSyn _ _ _) -> True 
                              _ -> False)
             in nub $ listify f p

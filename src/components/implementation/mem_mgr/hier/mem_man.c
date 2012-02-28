@@ -39,8 +39,8 @@ static inline long cell_index(struct mem_cell *c)
 	return c - cells;
 }
 
-extern void main_mman_revoke_page(spdid_t spd, vaddr_t addr, int flags);
-extern vaddr_t main_mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr);
+extern void parent_mman_revoke_page(spdid_t spd, vaddr_t addr, int flags);
+extern vaddr_t parent_mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr);
 extern vaddr_t parent_mman_get_page(spdid_t spd, vaddr_t addr, int flags);
 
 static inline struct mem_cell *
@@ -104,7 +104,7 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 #ifdef ZERO_OUT
 	memset(c->local_addr, 0, 4096);
 #endif
-	if (!main_mman_alias_page(cos_spd_id(), (vaddr_t)c->local_addr, spd, addr)) {
+	if (!parent_mman_alias_page(cos_spd_id(), (vaddr_t)c->local_addr, spd, addr)) {
 		printc("mh: could not grant page @ %x to spd %d\n", 
 		       (unsigned int)addr, (unsigned int)spd);
 		c->map[0].owner_spd = 0;
@@ -134,7 +134,7 @@ vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_
 	for (i = alias+1 ; i < MAX_ALIASES ; i++) {
 		if (base[i].owner_spd != 0 || base[i].addr != 0) continue;
 
-		if (!main_mman_alias_page(cos_spd_id(), (vaddr_t)c->local_addr, d_spd, d_addr)) {
+		if (!parent_mman_alias_page(cos_spd_id(), (vaddr_t)c->local_addr, d_spd, d_addr)) {
 			printc("mh: could not alias page @ %x to spd %d from %x(%d)\n", 
 			       (unsigned int)d_addr, (unsigned int)d_spd, (unsigned int)s_addr, (unsigned int)s_spd);
 			goto err;
@@ -159,7 +159,7 @@ int mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 
 	mc = find_cell(spd, addr, &alias);
 	if (!mc) return -1; /* FIXME: add return codes to this call */
-	main_mman_revoke_page(cos_spd_id(), (vaddr_t)mc->local_addr, flags);
+	parent_mman_revoke_page(cos_spd_id(), (vaddr_t)mc->local_addr, flags);
 	/* put the page back in the pool */
 	mc->map[alias].owner_spd = 0;
 	mc->map[alias].addr = 0;

@@ -1,9 +1,8 @@
 C_OBJS=synth_hier.o
-ASM_OBJS=
 COMPONENT=sh.o
 INTERFACES=synth_hier
-DEPENDENCIES=sched sched_conf print
-IF_LIB=
+DEPENDENCIES=sched sched_conf printc synth_hier
+FN_PREPEND=calll_ callr_
 
 include ../../Makefile.subsubdir
 

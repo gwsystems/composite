@@ -40,13 +40,22 @@ SOURCES=$(C_OBJS:%.o=%.c)
 #NOTE: assembly files don't have dependencies generated for them
 SOURCE_DEPENDENCIES=$(SOURCES:%.c=%.d)
 
+FNDEP_DIR=../../../cidl
+FNDEP_GEN=$(FNDEP_DIR)/comp_undef.sh
+FNDEP_VERIFY=$(FNDEP_DIR)/verify_completeness.py
+FNDEP_FILE=.fn_dependencies
+
 .PHONY: all
-all: $(SOURCE_DEPENDENCIES) $(COMPONENT)
+all: $(SOURCE_DEPENDENCIES) $(COMPONENT) fndeps
+
+fndeps:
+	@sh $(FNDEP_GEN) c.o > $(FNDEP_FILE)
+	@python $(FNDEP_VERIFY)
 
 # Jumping through hoops: want to link to our libraries first so that
 # symbols there are used, thus the gcc, and the ld, but then (and only
 # then) do we want to use dietlibc's functions
-$(COMPONENT): $(OBJS)
+$(COMPONENT): $(OBJS) 
 #	$(info |     [LD]   $@: Loading stubs and cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
 	$(info |     [LD]   $@: Linking $(if $(strip $(LIB_LIBRARIES)),$(LIB_LIBRARIES)) $<)
 	@$(LD) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(IF_CLIENT_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
@@ -81,7 +90,7 @@ cp:
 .PHONY: clean
 clean:
 #	$(info |     [RM]   Cleaning up implementation directory for component $(COMPNAME))
-	@rm -f a.out *.o *.a *.d *.d.* *~
+	@rm -f a.out *.o *.a *.d *.d.* *~ $(FNDEP_FILE)
 
 fresh: clean all
 

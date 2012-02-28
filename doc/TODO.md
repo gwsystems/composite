@@ -55,3 +55,13 @@ Components
 - Automated system for running all unit tests and validating that they
   all pass
 
+- Currently, we validate at compile time that all of the functions
+  that are undefined in a component, are satisfied by a dependency.
+  We do *not* verify 
+
+  1. that if you state that you have a dependency, that you actually have
+     an undefined function satisfied by that dependency, and
+  2. that two dependencies don't satisfy the same undefined function.
+
+  Both of these changes would involve only adding to the logic of 
+  `src/components/cidl/verify_completeness.py`.
