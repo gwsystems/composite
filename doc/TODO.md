@@ -37,38 +37,36 @@ Kernel
 Components
 ----------
 
-- Cbufs: 
+- **Cbufs**: 
   1. Add support for granting cbuf allocation/deallocation privileges
      to other components.  Include reference counting on cbufs, and
      cbuf tracking in the cbuf_manager.  
 
-- Unit Tests required for:
-  1. torrents (initial unit tests exist for ramfs)
-  2. locks
-  3. events
+- **Unit Tests.** Required for:
+  1. locks
+  2. events
+  3. vas_mgr -- extending the size of reachable memory
   4. timing functionality (e.g. timed_block)
   5. simple IPC (in the style of ping/pong)
   6. memory mapping and allocation
   7. virtual memory allocations (valloc)
-  8. vas_mgr -- extending the size of reachable memory
 
-- Automated system for running all unit tests and validating that they
-  all pass
+- **Automated unit tests.** Automated system for running all unit
+  tests and validating that they all pass
 
 Build System
 ------------
 
-- Currently, we validate at compile time that all of the functions
-  that are undefined in a component, are satisfied by a dependency.
-  We do *not* verify 
+- **Increased compile-time checking.** Currently, we validate at
+  compile time that all of the functions that are undefined in a
+  component, are satisfied by a dependency.  Both of these changes
+  would involve only adding to the logic of
+  `src/components/cidl/verify_completeness.py`.  We do *not* verify
 
   1. that if you state that you have a dependency, that you actually have
      an undefined function satisfied by that dependency, and
   2. that two dependencies don't satisfy the same undefined function.
 
-  Both of these changes would involve only adding to the logic of 
-  `src/components/cidl/verify_completeness.py`.
-
-- The build system should be cleaned up so that the output doesn't
-  include all of the `rm blah.o`, `*** No rule to make target `clean'.
-  Stop.`, `make -C foo`, etc...
+- **Beautified build system.** The build system should be cleaned up
+  so that the output doesn't include all of the `rm blah.o`, `*** No
+  rule to make target clean.  Stop.`, `make -C foo`, etc...
