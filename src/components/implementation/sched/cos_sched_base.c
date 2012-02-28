@@ -58,6 +58,7 @@ static struct sched_thd *wakeup_thd;
 static struct sched_thd *timer, *init, *idle;
 static struct sched_thd blocked;
 static struct sched_thd upcall_deactive;
+static struct sched_thd graveyard;
 
 static enum {SCHED_CHILD, SCHED_ROOT} sched_type = SCHED_ROOT;
 static inline int sched_is_root(void) { return sched_type == SCHED_ROOT; }
@@ -1026,8 +1027,15 @@ static int fp_kill_thd(struct sched_thd *t)
 	REM_LIST(t, cevt_next, cevt_prev);
 	REM_LIST(t, prio_next, prio_prev);
 	REM_LIST(t, next, prev);
+	ADD_LIST(&graveyard, t, prio_next, prio_prev);
 
 	sched_switch_thread(0, NULL_EVT);
+
+	/* reincarnated!!! */
+	assert(!(t->flags & THD_DYING));
+	assert(t->spdid != 0);
+	fp_create_spd_thd((void*)(unsigned int)t->spdid);
+	
 	if (t == c) {
 		printc("t: id %d, c: id %d\n",t->id, c->id);
 
@@ -1070,6 +1078,20 @@ static struct sched_thd *sched_setup_thread_arg(char *metric_str, crt_thd_fn_t f
 	int tid;
 	struct sched_thd *new;
 
+	/* can we reuse an already created (but since killed) thread? */
+	if (!EMPTY_LIST(&graveyard, prio_next, prio_prev)) {
+		assert(fn == fp_create_spd_thd); /* can't do the timer here */
+		assert(d != NULL);
+		new = FIRST_LIST(&graveyard, prio_next, prio_prev);
+		assert(new->flags & THD_DYING);
+		REM_LIST(new, prio_next, prio_prev);
+		sched_init_thd(new, new->id, THD_READY);
+		new->spdid = (spdid_t)(unsigned int)d;
+		thread_new(new);
+		thread_params_set(new, metric_str);
+
+		return new;
+	}
 	tid = (sched_is_root())                       ?
 		cos_create_thread((int)fn, (int)d, 0) :
 		parent_sched_child_thd_crt(cos_spd_id(), (spdid_t)(int)d);
@@ -1091,7 +1113,6 @@ int
 sched_create_thread(spdid_t spdid, struct cos_array *data)
 {
 	struct sched_thd *curr, *new;
-	/* well this is just stupid...thx gcc */
 	void *d = (void*)(int)spdid;
 	char *metric_str;
 
@@ -1570,6 +1591,7 @@ static void sched_init(void)
 
 	sched_init_thd(&blocked, 0, THD_FREE);
 	sched_init_thd(&upcall_deactive, 0, THD_FREE);
+	sched_init_thd(&graveyard, 0, THD_FREE);
 	sched_ds_init();
 	sched_initialization();
 

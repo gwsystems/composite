@@ -55,6 +55,9 @@ Components
 - Automated system for running all unit tests and validating that they
   all pass
 
+Build System
+------------
+
 - Currently, we validate at compile time that all of the functions
   that are undefined in a component, are satisfied by a dependency.
   We do *not* verify 
@@ -65,3 +68,7 @@ Components
 
   Both of these changes would involve only adding to the logic of 
   `src/components/cidl/verify_completeness.py`.
+
+- The build system should be cleaned up so that the output doesn't
+  include all of the `rm blah.o`, `*** No rule to make target `clean'.
+  Stop.`, `make -C foo`, etc...

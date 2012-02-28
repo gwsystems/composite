@@ -99,6 +99,11 @@ struct sched_thd {
 	struct sched_thd *next, *prev;
 	/* linked list for child threads with events */
 	struct sched_thd *cevt_next, *cevt_prev;
+
+	/* If we have been killed, and are going to be reused, we have
+	 * to call the fp_create_spd_thd function with a specific
+	 * spdid...stored here. */
+	spdid_t spdid;
 };
 
 struct sched_crit_section {
