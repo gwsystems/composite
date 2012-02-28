@@ -9,6 +9,8 @@
 *.sw*
 *#
 .#*
+.fn_dependencies
+.fn_exports
 composite_new
 tags
 src/kernel/include/shared/cpu_ghz.h

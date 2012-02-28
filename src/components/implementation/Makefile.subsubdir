@@ -10,7 +10,10 @@
 
 include Makefile.src Makefile.comp
 
-COMPNAME=$(lastword $(subst /, ,$(shell pwd)))
+COMPPATH=$(subst /, ,$(shell pwd))
+COMPLEN=$(words $(COMPPATH))
+COMPLIST=$(wordlist $(shell echo $(COMPLEN)-1 | bc), $(COMPLEN), $(COMPPATH))
+COMPNAME=$(shell echo $(strip $(COMPLIST)) | sed "s/ /./")
 
 # These are compiled in with the components regardless of if they
 # export an undefined symbol from the component.  They are a manditory
@@ -86,6 +89,7 @@ $(COMPONENT): $(OBJS)
 cp:
 #	$(info |     [CP]   Copying $(COMPONENT) to $(TRANS_DIR))
 	@cp $(COMPONENT) $(TRANS_DIR)
+	@cp c.o $(TRANS_DIR)/$(COMPNAME).o
 
 .PHONY: clean
 clean:
