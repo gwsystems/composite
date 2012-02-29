@@ -67,7 +67,7 @@ const char *MPD_MGR     = "cg.o"; // the component graph!
 const char *CONFIG_COMP = "schedconf.o";
 const char *BOOT_COMP   = "boot.o";
 const char *BOOT_COMP2  = "bootr.o";
-const char *INIT_FILE   = "init.o", *INIT_FILE_NAME = "init.tar";
+const char *INIT_FILE   = "initfs.o", *INIT_FILE_NAME = "init.tar";
 
 const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] = 
 { "cos_atomic_cmpxchg",
@@ -2095,7 +2095,7 @@ static void make_spd_init_file(struct service_symbs *ic, const char *fname)
 		exit(-1);
 	}
 	printl(PRINT_HIGH, "Found init file component: remapping heap_ptr from %p to %p, mapping in file.\n",
-	       *heap_ptr, heap_ptr_val);
+	       *heap_ptr, (char*)heap_ptr_val + sz);
 	*heap_ptr = (int*)((char*)heap_ptr_val + sz);
 	ci->cos_poly[1] = real_sz;
 }

@@ -5,6 +5,16 @@
  * Public License v2.
  */
 
+/* 
+ * A simple ram file-system interface.  Essentially, just a
+ * hierarchical tree that maintains data at each node.  Each parent
+ * maintains a linked list of children, so walking through the
+ * hierarchy is almost always O(C_p * P) where C_p is the number of
+ * children for a parent p, and P is the length of the path.  We could
+ * 1) sort the children, or 2) use a more intelligent data-structure
+ * to index them, but I'm striving for simplicity here.
+ */
+
 #ifndef FS_H
 #define FS_H
 
