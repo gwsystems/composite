@@ -44,15 +44,19 @@ SOURCES=$(C_OBJS:%.o=%.c)
 SOURCE_DEPENDENCIES=$(SOURCES:%.c=%.d)
 
 FNDEP_DIR=../../../cidl
-FNDEP_GEN=$(FNDEP_DIR)/comp_undef.sh
+FNDEP_GEN=$(FNDEP_DIR)/comp_undef.py
 FNDEP_VERIFY=$(FNDEP_DIR)/verify_completeness.py
+IFEXP_GEN=$(FNDEP_DIR)/exp_ifs.py
 FNDEP_FILE=.fn_dependencies
+IFEXP_FILE=.exported_interfaces
 
 .PHONY: all
 all: $(SOURCE_DEPENDENCIES) $(COMPONENT) fndeps
 
 fndeps:
-	@sh $(FNDEP_GEN) c.o > $(FNDEP_FILE)
+#	@sh $(FNDEP_GEN) c.o > $(FNDEP_FILE)
+	@python $(FNDEP_GEN) > $(FNDEP_FILE)
+	@python $(IFEXP_GEN) > $(IFEXP_FILE)
 	@python $(FNDEP_VERIFY)
 
 # Jumping through hoops: want to link to our libraries first so that
@@ -94,7 +98,7 @@ cp:
 .PHONY: clean
 clean:
 #	$(info |     [RM]   Cleaning up implementation directory for component $(COMPNAME))
-	@rm -f a.out *.o *.a *.d *.d.* *~ $(FNDEP_FILE)
+	@rm -f a.out *.o *.a *.d *.d.* *~ $(FNDEP_FILE) $(IFEXP_FILE)
 
 fresh: clean all
 

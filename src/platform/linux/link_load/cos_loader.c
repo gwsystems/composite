@@ -2377,8 +2377,8 @@ static void setup_kernel(struct service_symbs *services)
 	} else if ((s = find_obj_by_name(services, BOOT_COMP2))) {
 		make_spd_boot(s, services);
 	}
-
 	fflush(stdout);
+
 	if ((s = find_obj_by_name(services, MPD_MGR))) {
 		make_spd_mpd_mgr(s, services);
 	}

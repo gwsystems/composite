@@ -31,6 +31,7 @@ TODO: also check that we export all of the function for the interfaces
 we implement.
 """
 
+UNDEF_CMD="nm -u c.o | awk '{print $2}'"
 
 FNDEP_FILE=".fn_dependencies"
 FNEXP_FILE=".fn_exports"
@@ -40,38 +41,21 @@ path = os.getcwd() #string.rstrip(os.popen("pwd").readlines()[0])
 comp = re.split("/", path)[-1]
 cif  = re.split("/", path)[-2]
 
+f = os.popen(UNDEF_CMD)
+fndeps = f.readlines()
+nfndeps = []
+for d in fndeps:
+    nfndeps.append(string.rstrip(d))
+fndeps = nfndeps
+
 f = open('Makefile', 'r')
 lines = f.readlines()
-fnexps = []
 fnxform = []
 for line in lines:
     line = string.rstrip(line)
     data = re.split("=", line)
-    if data[0] == "DEPENDENCIES":
-       deps = re.split(" ", data[1])
-       deps.append("stkmgr")
-       for d in deps:
-       	   if d == "":
-	      continue
-       	   ifpath = IFDIR + d + "/" + FNEXP_FILE
-	   try:
-		f = open(ifpath, 'r')
-	   except IOError:
-		print "Warning: component " + cif + "." + comp + " has stated dependency on " + d + " and the interface doesn't exist."
-		print "\tSuggested Fix: remove it from the DEPENDENCIES list in components/implementation/" + cif + "/" + comp + "/Makefile"
-		continue
-	   ls = f.readlines()
-	   for l in ls:
-	       fnexps.append(string.rstrip(l))
     if data[0] == "FN_PREPEND":
        fnxform = re.split(" ", string.rstrip(data[1]))
-
-f = open(FNDEP_FILE, 'r')
-fndeps = []
-lines = f.readlines()
-for line in lines:
-    line = string.rstrip(line)
-    fndeps.append(line)
 
 if len(fnxform) != 0:
    nfndeps = []
@@ -83,17 +67,5 @@ if len(fnxform) != 0:
        nfndeps.append(d)
    fndeps = nfndeps
 
-dangling = []
-for undef in fndeps:
-    found = 0
-    for exp in fnexps:
-    	if undef + "_inv" == exp:
-	   found = 1
-	   break
-    if found == 0:
-       dangling.append(undef)
-
-if dangling != []:
-   print "Error: component " + cif + "." + comp + " does not have stated dependencies to provide " + str(dangling)
-   print "\tSuggested Fix: add the proper interface dependency in the DEPENDENCIES list in components/implementation/" + cif + "/" + comp + "/Makefile."
-   print "A less likely fix is that you should specify a FN_PREPEND in the Makefile for a component that wishes to invoke another component with the same interface."
+for d in fndeps:
+    print d
