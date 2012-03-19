@@ -4,11 +4,11 @@
 TODO:
 - check for cycles
 - output aggregates as clusters correctly -- requires enabling dependencies to and from clusters (in dot)
-- generate dependencies between components when there are dependencies to and from aggregates
 - runscript backend
 - check for dependencies that resolve to an ambiguous exporter
 - check that two componenents in the same aggregate don't define
   overlapping functions when there is a dependency on the aggregate
+- better error reporting: within an aggregate, only report those that are undefined at the aggregate level.
 -}
 
 import Data.Graph.Inductive
@@ -24,16 +24,14 @@ import Data.Text.Lazy(unpack)
 
 data Component = CS CName CArgs COptions Uniq -- Component Specification
                | CA CName [Component]         -- Aggregate
-               | CR Component [IFName]        -- Restricted interface
-               | CD Component String deriving (Eq, Show, Data, Typeable)
-                                              -- Duplicate and rename a component
+               | CR Component [IFName] deriving (Eq, Show, Data, Typeable)
+                                              -- Restricted interface
 
 -- The name has an interface, implementation, and possibly a duplicated name
 data CName    = CName String String deriving (Eq, Show, Data, Typeable)
 
 data COptions = COpt { schedParams :: String
                      , isSched :: Bool
-                     , isFaultHndl :: Bool
                      , isInit :: Bool
                      } deriving (Eq, Show, Data, Typeable)
 
@@ -51,17 +49,47 @@ data Dep    = Dep Component Component deriving (Eq, Show, Data, Typeable)
 data Stmt   = SDep  Dep
             | SComp Component deriving (Eq, Show, Data, Typeable)
 
+--[ System construction utility functions ]--
+ca :: String -> String -> String -> String -> Component
+ca i n s a = CS (CName i n) a COpt {schedParams = s, isSched = False, isInit = False} (newDname 1)
+
+c :: String -> String -> Component
+c i n = CS (CName i n) [] COpt {schedParams = [], isSched = False, isInit = False} (newDname 1)
+
 -- set component fields
 cSetSchedP :: Component -> String -> Component
 cSetSchedP (CS n c o u) s = CS n c (o {schedParams=s}) u
 
 cSetArgs   (CS n _ c u) s = CS n s c u
 
-cIsSched  :: Component -> Component
-cIsSched  (CS n c o u)   = CS n c (o {isSched=True}) u
-cIsFltH   (CS n c o u)   = CS n c (o {isFaultHndl=True}) u
-cIsInit   (CS n c o u)   = CS n c (o {isInit=True}) u
+cSetSched  :: Component -> Component
+cSetSched  (CS n c o u)   = CS n c (o {isSched=True}) u
+cSetInit   (CS n c o u)   = CS n c (o {isInit=True}) u
 
+agg :: String -> [Component] -> Component
+agg name cs = CA (CName "aggregate" name) cs
+
+-- OK, the idea here is that we want a _new_ version of the component.
+-- Thus, we generate a fresh name for it.  This works because the Eq
+-- class that Component derives will make this duplicate non-equal to
+-- other verions of the component.
+dup :: Component -> Component
+dup (CA n cs)     = (CA n (map dup cs))
+dup (CS n i o u)  = CS n i COpt {schedParams = schedParams o, isSched = isSched o, isInit = isInit o} (newDname 1)
+
+restrict :: Component -> [String] -> Component
+restrict c is = CR c is
+
+-- Dependencies
+dep  c1 c2   = Dep c1 c2
+
+--[ End system constructor utility functions ]-- 
+
+
+cIsSched :: Component -> Bool
+cIsSched (CS n a o u) = isSched o
+cIsInit  (CS n a o u) = isInit o
+cGetSchedP (CS n a o u) = schedParams o
 
 -- Type Data-base with a function for mapping from a component name to
 -- component type, and for mapping from an interface name to its
@@ -91,41 +119,44 @@ queryCT t n  = case t of Tdb p f g -> f n
 compName :: Component -> CName
 compName (CS n _ _ _) = n
 compName (CR c _)     = compName c
-compName (CD c _)     = compName c
 compName (CA n _)     = n
 
 cexps :: Tdb -> Component -> [Fn]
 cexps t c@(CS n _ _ _) = cexpsC t c
 cexps t   (CR c' is)   = intersect (concatMap (\i -> queryIFT t i) is) (cexps t c')
-cexps t   (CD c' _)    = cexps t c'
-cexps t   (CA _ cs)    = foldr (\c' r -> r ++ (cexps t c')) [] cs
+cexps t   (CA _ cs)    = nub $ concatMap (\c' -> cexps t c') cs
 cexpsC t c = case (queryCT t $ compName c) of T es ds -> es
 
-cdeps :: Tdb -> Component -> [Fn]
-cdeps t c@(CS n _ _ _) = cdepsC t c
-cdeps t   (CR c' _)    = cdeps t c'
-cdeps t   (CD c' _)    = cdeps t c'
-cdeps t   (CA _ cs)    = concatMap (\c' -> depsUnsatisfied t p c') cs
+cdeps :: Tdb -> [Dep] -> Component -> [Fn]
+cdeps t ds c@(CS n _ _ _) = cdepsC t c
+cdeps t ds   (CR c' _)    = cdeps t ds c'
+cdeps t ds   (CA _ cs)    = nub $ concatMap (\c' -> depsUnsatisfied t p ds c') cs
     where p = case t of (Tdb p _ _) -> p
 cdepsC t c = case (queryCT t $ compName c) of T es ds -> ds
 
 --[ Checking for undefined dependencies ]--
 
-depList :: Tdb -> Component -> Dep -> [Fn]
-depList t c d = case d of (Dep a b) -> if a == c then cexps t b else []
+-- the exported functions of all depended-on components
+depExpList :: Tdb -> Component -> Dep -> [Fn]
+depExpList t c d = case d of (Dep a b) -> if a == c then cexps t b else []
 
-depsUnsatisfied :: Tdb -> CFuse -> Component -> [Fn]
-depsUnsatisfied t p c = (cdeps t c) \\ exps
-    where exps = concatMap (depList t c) (lstDeps p)
+depsUnsatisfied :: Tdb -> CFuse -> [Dep] -> Component -> [Fn]
+depsUnsatisfied t p ds c = (cdeps t ds c) \\ exps
+    where exps = concatMap (depExpList t c) ds
 
 undefinedDependencies :: Tdb -> CFuse -> [(String, [Fn])]
 undefinedDependencies t p = 
-    let cs    = lstCs p ++ lstAggs p
+    let cs    = acs ++ as
+        acs   = lstCs p
+        ds    = lstDeps p
+        as    = lstAggs p
         ns    = map printCName cs
-        ds    = map (depsUnsatisfied t p) cs
-        z     = zip ns ds
+        uds   = map (depsUnsatisfied t p ds) cs
+        z     = zip ns uds
         undef = filter (\(n, fns) -> not (fns == [])) z
-    in undef
+        topA  = (aggPath as (acs !! 0)) !! 0
+        isErr = not $ depsUnsatisfied t p ds topA == []
+    in if (isErr) then undef else []
 
 stringifyUndefDeps :: Tdb -> CFuse -> String
 stringifyUndefDeps t p =
@@ -134,43 +165,30 @@ stringifyUndefDeps t p =
                               ++ " has undefined dependencies:\n\t" ++ (show fns) ++ "\n")
     in foldr pfn "" (undefinedDependencies t p)
 
-inDeps :: Tdb -> Component -> [Component] -> [Dep]
-inDeps t a cs = 
+inDeps :: Tdb -> [Dep] -> Component -> [Component] -> [Dep]
+inDeps t ds a cs = 
     let
-        doesExp c a = not ((intersect (cexps t a) (cdeps t c)) == [])
+        doesExp c a = not ((intersect (cexps t a) (cdeps t ds c)) == [])
         needDep     = filter (\c -> doesExp c a) cs 
     in map (\c -> Dep c a) needDep
 
-outDeps :: Tdb -> Component -> [Component] -> [Dep]
-outDeps t a cs = 
+outDeps :: Tdb -> [Dep] -> Component -> [Component] -> [Dep]
+outDeps t ds a cs = 
     let
-        doesExp c a = not ((intersect (cexps t c) (cdeps t a)) == [])
+        doesExp c a = not ((intersect (cexps t c) (cdeps t ds a)) == [])
         needDep     = filter (\c -> (doesExp c a)) cs 
     in map (\c -> Dep a c) needDep
 
 depsWith cs deps = concatMap (\c -> filter (\(Dep f t) -> t == c || f == c) deps) cs
 
--- resolveAggDeps :: Tdb -> CFuse -> [(Component, [Fn])]
--- resolveAggDeps t p = nds
---     where 
---       -- isc2a (Dep (CA _ _) (CA _ _)) = False
---       -- isc2a (Dep _        (CA _ _)) = True
---       -- isc2a _                       = False
---       -- cs2as ds                      = filter isc2a ds
---       newp                          = CFuse $ deps2Stmt (lstNADeps p)
---       -- note that the dependencies from depsUnsatisfied should be
---       -- only those from component to aggregate (and not the opposite) as this is executed 
---       unsatisNoA c                  = (c, depsUnsatisfied t newp c)
---       depsOnAggs                    = filter (\(c, fs) -> not (fs == [])) $ map unsatisNoA (lstCs p)
-
 generateAggDeps :: Tdb -> [Dep] -> Component -> [Dep]
 generateAggDeps t deps a@(CA n cs) = all where
     -- comp dependencies from agg
     lout       = map (\(Dep f t) -> t) $ filter (\(Dep f t) -> f == a) deps 
-    newOutDeps = concatMap (\cina -> outDeps t cina lout) cs
+    newOutDeps = concatMap (\cina -> outDeps t deps cina lout) cs
     -- comp dependencies coming into agg
     lin        = map (\(Dep f t) -> f) $ filter (\(Dep f t) -> t == a) deps
-    newInDeps  = concatMap (\cina -> inDeps t cina lin) cs
+    newInDeps  = concatMap (\cina -> inDeps t deps cina lin) cs
     all        = newInDeps ++ newOutDeps
 generateAggDeps t deps a = [Dep (c "should pass" "aggregates") (c "into" "generateAggDeps")]
 
@@ -178,13 +196,13 @@ generateOutAggDeps :: Tdb -> [Dep] -> Component -> [Dep]
 generateOutAggDeps t deps a@(CA n cs) = newOutDeps where
     -- comp dependencies from agg
     lout       = map (\(Dep f t) -> t) $ filter (\(Dep f t) -> f == a) deps 
-    newOutDeps = concatMap (\cina -> outDeps t cina lout) cs
+    newOutDeps = concatMap (\cina -> outDeps t deps cina lout) cs
 generateOutAggDeps t deps a = [Dep (c "should pass" "aggregates") (c "into" "generateAggDeps")]
 
 generateInAggDeps :: Tdb -> [Dep] -> Component -> [Dep]
 generateInAggDeps t deps a@(CA n cs) = newInDeps where
     lin        = map (\(Dep f t) -> f) $ filter (\(Dep f t) -> t == a) deps
-    newInDeps  = concatMap (\cina -> inDeps t cina lin) cs
+    newInDeps  = concatMap (\cina -> inDeps t deps cina lin) cs
 generateInAggDeps t deps  a = [Dep (c "should pass" "aggregates") (c "into" "generateAggDeps")]
 
 -- the components should be a list of aggregates
@@ -233,23 +251,13 @@ aggIn (CA (CName _ n) cs) ds = foldr chk "" ds
                                      ++ " inside the aggregate\n\tSuggestion: just depend on " ++ n ++ "\n"
                             else s
 
--- aggregates, dependencies, and the resulting errors
+-- Ensure there are no dependencies from inside aggregate to outside and vice-versa
 aggsErrors :: [Component] -> [Dep] -> String
 aggsErrors as ds = foldr aggErrs "" as
     where aggErrs a s = s ++ (aggOut a ds) ++ (aggIn a ds)
 
 -- Highest-level node
 data CFuse = CFuse [Stmt] deriving (Eq, Show, Data, Typeable)
-
---[ System construction utility functions ]--
-ca :: String -> String -> String -> String -> Component
-ca i n s a = CS (CName i n) a COpt {schedParams = s, isSched = False, isFaultHndl = False, isInit = False} (newDname 1)
-
-c :: String -> String -> Component
-c i n = CS (CName i n) [] COpt {schedParams = [], isSched = False, isFaultHndl = False, isInit = False} (newDname 1)
-
-agg :: String -> [Component] -> Component
-agg name cs = CA (CName "aggregate" name) cs
 
 aggTop = agg "all" []
 
@@ -283,20 +291,6 @@ newDname _ = unsafePerformIO $
                writeIORef counter (i+1)
                return $ show i
 
--- OK, the idea here is that we want a _new_ version of the component.
--- Thus, we generate a fresh name for it.  This works because the Eq
--- class that Component derives will make this duplicate non-equal to
--- other verions of the component.
-dup :: Component -> Component
-dup (CD c s) = dup c
-dup c        = CD c (newDname 1)
-
-restrict :: Component -> [String] -> Component
-restrict c is = CR c is
-
--- Dependencies
-dep  c1 c2   = Dep c1 c2
-
 progConcat :: CFuse -> CFuse -> CFuse
 progConcat (CFuse p1) (CFuse p2) = CFuse (p1 ++ p2)
 
@@ -304,7 +298,6 @@ progConcat (CFuse p1) (CFuse p2) = CFuse (p1 ++ p2)
 lstCs :: CFuse -> [Component]
 lstCs p = let f = (\c -> case c of 
                            (CS _ _ _ _) -> True
-                           (CD _ _)     -> True
                            _            -> False)
           in nub $ listify f p
 
@@ -341,12 +334,11 @@ lstIFs p = let f = (\c -> case c of
 --[ Graph Backend ]--
 
 compIndex :: [Component] -> Component -> Int
-compIndex cts c = n
-    where cs = cts
-          a  = elemIndex c cs
-          n  = case a of 
-                 (Just a') -> a'
-                 (Nothing) -> -1
+compIndex cs c = n
+    where a = elemIndex c cs
+          n = case a of 
+                (Just a') -> a'
+                (Nothing) -> -1
 
 -- Should only pass in CTs
 cmkVertices :: [Component] -> [LNode Component]
@@ -360,11 +352,17 @@ cmkEdges ds idxf = map f ds
 
 --type FusedSys (DynGraph Component String, [Stmt], [Component])
 
-compGraph :: CFuse -> Gr Component String
-compGraph p = let cts = lstCs p
-                  vs  = cmkVertices cts
-                  es  = cmkEdges (lstDeps p) (compIndex cts)
-              in mkGraph vs es
+compGraphFlat :: CFuse -> Gr Component String
+compGraphFlat p = let cs = lstCs p
+                      vs = cmkVertices cs
+                      es = cmkEdges (lstNADeps p) (compIndex cs)
+                  in mkGraph vs es
+
+compGraphAgg :: CFuse -> Gr Component String
+compGraphAgg p = let cs = (lstCs p) ++ (lstAggs p)
+                     vs = cmkVertices cs
+                     es = cmkEdges (lstDeps p) (compIndex cs)
+                 in mkGraph vs es
 
 --cParams = GraphvizParams n nl el cl nl
 cParams aggfn = defaultParams { clusterBy = cb
@@ -372,13 +370,19 @@ cParams aggfn = defaultParams { clusterBy = cb
                               , fmtEdge   = fe}
     where 
       cb (i, c)                               = C (aggfn c) (N (i, c))
-      fn (_, (CS (CName s1 s2) _ _ _))        = [toLabel (s1 ++ "." ++ s2)]
-      fn (_, (CD (CS (CName s1 s2) _ _ _) _)) = [toLabel (s1 ++ "." ++ s2)]
+      fn (_, (CS (CName s1 s2) _ _ u))        = [toLabel (s1 ++ "." ++ s2 ++ "(" ++ u ++ ")")]
+      fn (_, (CA (CName _ n) _))              = [toLabel (n ++ " (aggregate)")]
       fn _                                    = [toLabel ""]
       fe (_, _, e)                            = [toLabel e] -- LHead "cname", LTail
 
-translateToDot :: CFuse -> String
-translateToDot p =  unpack (printDotGraph $ graphToDot (cParams (aggPathS (lstAggs p))) (compGraph p))
+translateToDot :: CFuse -> (CFuse -> Gr Component String) -> String
+translateToDot p gg = unpack (printDotGraph $ graphToDot (cParams (aggPathS (lstAggs p))) (gg p))
+
+graphFlat :: CFuse -> String
+graphFlat p = translateToDot p compGraphFlat
+
+graphAgg :: CFuse -> String
+graphAgg p = translateToDot p compGraphAgg
 
 -- dependency list construction
 depl :: [(Component, [Component])] -> [Stmt]
@@ -416,9 +420,11 @@ perror = hPutStrLn stderr
 readCTypes :: CName -> IO (CName, CType)
 readCTypes n = do
   e <- (readFile $ implDir ++ (name2str "/" n) ++ expIfs) `catch` 
-       (\e -> do {perror ("Error: no component named " ++ (name2str "." n)); return "";})
+       (\e -> do {perror ("Error: no component named " ++ (name2str "." n) ++ 
+                          "\n\tSuggestion: perhaps run 'make' in src/"); return "";})
   d <- (readFile $ implDir ++ (name2str "/" n) ++ fnDeps) `catch` 
-       (\e -> do {perror ("Error: no component named " ++ (name2str "." n)); return "";})
+       (\e -> do {perror ("Error: no component named " ++ (name2str "." n) ++ 
+                          "\n\tSuggestion: perhaps run 'make' in src/"); return "";})
   return (n, T (lines e) (lines d))
 readAllCTypes ns = mapM readCTypes ns
 
@@ -431,13 +437,20 @@ readIFfns i = do
 readAllIFfns :: [IFName] -> IO [(IFName, [String])]
 readAllIFfns is = mapM readIFfns is
 
--- adds in the top aggregate component
+isSystemAgg (CA (CName _ n) _) = n == "system" 
+isSystemAgg _                  = False
+
+-- adds in the top "system" aggregate component
 cfuse :: [Stmt] -> CFuse
-cfuse ss = CFuse [SComp (agg "system" na)]
-    where p = CFuse ss
+cfuse ss = n
+    where p  = CFuse ss
           as = lstAggs p
           cs = lstCs p
+          ds = lstDeps p
           na = filter (\c -> not $ inAggregate as c) (cs ++ as)
+          n  = if ((not (length na == 1)) || (not (isSystemAgg (na !! 0)))) then 
+                   CFuse $ ([SComp (agg "system" na)]) ++ (deps2Stmt ds)
+               else p -- has the system aggregate already been added?
 
 -- utility functions for printing
 aggStructS p = foldr (\c s -> (printCName c) ++ "\t" ++ (aggPathS as c) ++ "\n" ++ s) "" (lstCs p)
@@ -446,26 +459,70 @@ aggMembersS p = aggMs $ lstAggs p
     where members (CA _ cs) = concatMap (\c -> (printCName c) ++ ", ") cs
           aggMs as          = concatMap (\a -> (printCName a) ++ ": " ++ (members a) ++ "\n") as
 
+outputFlat :: CFuse -> (CFuse -> String) -> IO(String)
+outputFlat p gen = 
+    let ifs = ifns p
+    in do 
+      --         args  <- getArgs
+      ifnfo <- readAllIFfns ifs
+      cnfo  <- readAllCTypes (cnames (lstOnlyCs p))
+      let tdb       = constructTdb p cnfo ifnfo
+          deps      = lstDeps p
+          aggs      = lstAggs p
+          err       = (stringifyUndefDeps tdb p) ++ 
+                      (aggSingularS aggs ((lstCs p) ++ aggs)) ++
+                      (aggsErrors (lstAggs p) (lstDeps p))
+          moreds as = generateAllAggDeps tdb deps as
+       --             newds p   = (deps \\ (depsWith aggs deps)) ++ (moreds aggs)
+          newds p   = deps ++ (moreds aggs)
+          newprog p = cfuse (deps2Stmt (newds p))
+       --         hPutStrLn stdout $ aggStructS p
+          out = if err == "" then (gen (newprog p)) else err
+      return out
+
+outputFlatGraph :: CFuse -> IO(String)
+outputFlatGraph p = outputFlat p graphFlat
+
+-- compStr :: Component -> String
+-- compStr c@(CS n a o _) = loaded ++ init ++ (printCName n) ++ ".o," ++ schedInit ++ ";"
+--     where schedInit
+--           loaded = if (not $ cIsInit c) then "!" else ""
+--           init   = if (cIsSched c) then "*" else ""
+
+-- runscriptFlat :: CFuse -> String
+-- runscriptFlat p = out
+--     where
+--       cs   = lstCs p
+--       ds   = lstDeps p
+--       cStr = map compStr cs
+--       dStr = 
+
+-- outputFlatRunscript :: CFuse -> IO(String)
+-- outputFlatRunscript p = outputFlat p runscriptFlat
+
+outputAggGraph :: CFuse -> IO(String)
+outputAggGraph p = 
+    let ifs = ifns p
+    in do 
+      --         args  <- getArgs
+      ifnfo <- readAllIFfns ifs
+      cnfo  <- readAllCTypes (cnames (lstOnlyCs p))
+      let tdb       = constructTdb p cnfo ifnfo
+          deps      = lstDeps p
+          aggs      = lstAggs p
+          err       = (stringifyUndefDeps tdb p) ++ 
+                      (aggSingularS aggs ((lstCs p) ++ aggs)) ++
+                      (aggsErrors (lstAggs p) (lstDeps p))
+          out = if err == "" then (graphAgg p) else err
+      return out
+
 program = sysAgg
 
 main :: IO ()
 main = let p   = cfuse $ concat program
-           ifs = ifns p
        in do 
---         args  <- getArgs
-         ifnfo <- readAllIFfns ifs
-         cnfo  <- readAllCTypes (cnames (lstOnlyCs p))
-         let tdb       = constructTdb p cnfo ifnfo
-             deps      = lstDeps p
-             aggs      = lstAggs p
-             err       = (stringifyUndefDeps tdb p) ++ 
-                         (aggSingularS aggs ((lstCs p) ++ aggs)) ++
-                         (aggsErrors (lstAggs p) (lstDeps p))
-             moreds as = generateAllAggDeps tdb deps as
-             newds p   = (deps \\ (depsWith aggs deps)) ++ (moreds aggs)
-             newprog p = cfuse (deps2Stmt (newds p))
-         hPutStrLn stdout $ aggStructS p
-         if err == "" then (putStrLn (translateToDot (newprog p))) else (hPutStrLn stderr err)
+         out <- outputAggGraph p
+         putStrLn out
 
 -- unit_cbuf.sh
 system = let c0     = c "no_interface" "comp0"
@@ -532,9 +589,11 @@ sysAgg = let c0     = c "no_interface" "comp0"
              tp     = c "no_interface" "tmem_policy"
              va     = c "valloc" "simple"
              tmem   = agg "tmem" [mpool, sm, l, e, te, stat, buf, tp, va]
-
+             tmem2  = dup tmem
              ucbuf1 = c "tests" "unit_cbuf1"
              ucbuf2 = c "tests" "unit_cbuf2"
+             ucbuf1d = dup $ c "tests" "unit_cbuf1"
+             ucbuf2d = dup $ c "tests" "unit_cbuf2"
          in [depl [ (c0, [fprr])
                   , (fprr, [print, mm, st, schedconf, bc])
                   , (bc, [print])
@@ -545,6 +604,7 @@ sysAgg = let c0     = c "no_interface" "comp0"
                   , (boot, [print, fprr, mm, cg])
 
                   , (tmem, [ll])
+                  , (tmem2, [ll])
                   , (l, [])
                   , (te, [sm, va])
                   , (e, [sm, l, va])
@@ -566,4 +626,7 @@ sysAgg = let c0     = c "no_interface" "comp0"
                   -- , (va, [ll, l])
 
                   , (ucbuf1, [ll, tmem, ucbuf2])
-                  , (ucbuf2, [ll, tmem])]]
+                  , (ucbuf2, [ll, tmem])
+                  , (ucbuf1d, [ll, tmem, ucbuf2d])
+                  , (ucbuf2d, [ll, tmem])
+                  ]]
