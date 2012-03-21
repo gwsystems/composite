@@ -3,11 +3,11 @@
 {- 
 TODO:
 - check for cycles
-- output aggregates as clusters correctly -- requires enabling dependencies to and from clusters (in dot)
 - runscript backend
 - check for dependencies that resolve to an ambiguous exporter
 - check that two componenents in the same aggregate don't define
   overlapping functions when there is a dependency on the aggregate
+  (specific case of the previous bullet)
 - better error reporting: within an aggregate, only report those that are undefined at the aggregate level.
 -}
 
@@ -69,7 +69,7 @@ cSetSched  (CS n c o u orig)   = CS n c (o {isSched=True}) u orig
 cSetInit   (CS n c o u orig)   = CS n c (o {isInit=True}) u orig
 
 agg :: String -> [Component] -> Component
-agg name cs = CA (CName "aggregate" name) cs (newUniqName 1) Nothing
+agg name cs = CA (CName "aggregate" name) (nub cs) (newUniqName 1) Nothing
 
 -- OK, the idea here is that we want a _new_ version of the component.
 -- Thus, we generate a fresh name for it.  This works because the Eq
@@ -136,8 +136,7 @@ cexpsC t c = case (queryCT t $ compName c) of T es ds -> es
 cdeps :: Tdb -> [Dep] -> Component -> [Fn]
 cdeps t ds c@(CS n _ _ _ _) = cdepsC t c
 cdeps t ds   (CR c' _)      = cdeps t ds c'
-cdeps t ds   (CA _ cs _ _)  = nub $ concatMap (\c' -> depsUnsatisfied t p ds c') cs
-    where p = case t of (Tdb p _ _) -> p
+cdeps t ds   (CA _ cs _ _)  = nub $ concatMap (\c' -> depsUnsatisfied t ds c') cs
 cdepsC t c = case (queryCT t $ compName c) of T es ds -> ds
 
 --[ Checking for undefined dependencies ]--
@@ -146,30 +145,29 @@ cdepsC t c = case (queryCT t $ compName c) of T es ds -> ds
 depExpList :: Tdb -> Component -> Dep -> [Fn]
 depExpList t c d = case d of (Dep a b) -> if a == c then cexps t b else []
 
-depsUnsatisfied :: Tdb -> CFuse -> [Dep] -> Component -> [Fn]
-depsUnsatisfied t p ds c = (cdeps t ds c) \\ exps
+depsUnsatisfied :: Tdb -> [Dep] -> Component -> [Fn]
+depsUnsatisfied t ds c = (cdeps t ds c) \\ exps
     where exps = concatMap (depExpList t c) ds
 
-undefinedDependencies :: Tdb -> CFuse -> [(String, [Fn])]
-undefinedDependencies t p = 
+-- (type database, components, aggregates, dependencies) -> mapping of
+-- deps to undefined functions
+undefinedDependencies :: Tdb -> [Component] -> [Component] -> [Dep] -> [(String, [Fn])]
+undefinedDependencies t acs as ds = 
     let cs    = acs ++ as
-        acs   = lstCs p
-        ds    = lstDeps p
-        as    = lstAggs p
         ns    = map printCName cs
-        uds   = map (depsUnsatisfied t p ds) cs
+        uds   = map (depsUnsatisfied t ds) cs
         z     = zip ns uds
         undef = filter (\(n, fns) -> not (fns == [])) z
         topA  = (aggPath as (acs !! 0)) !! 0
-        isErr = not $ depsUnsatisfied t p ds topA == []
+        isErr = not $ depsUnsatisfied t ds topA == []
     in if (isErr) then undef else []
 
-stringifyUndefDeps :: Tdb -> CFuse -> String
-stringifyUndefDeps t p =
+stringifyUndefDeps :: Tdb -> [Component] -> [Component] -> [Dep] -> String
+stringifyUndefDeps t cs as ds =
     let
         pfn = (\(n, fns) s -> s ++ "Error: component " ++ n 
                               ++ " has undefined dependencies:\n\t" ++ (show fns) ++ "\n")
-    in foldr pfn "" (undefinedDependencies t p)
+    in foldr pfn "" (undefinedDependencies t cs as ds)
 
 inDeps :: Tdb -> [Dep] -> Component -> [Component] -> [Dep]
 inDeps t ds a cs = 
@@ -461,30 +459,8 @@ aggStructS p = foldr (\c s -> (printCName c) ++ "\t" ++ (aggPathS as c) ++ "\n" 
 aggMembersS p = aggMs $ lstAggs p
     where members (CA _ cs _ _) = concatMap (\c -> (printCName c) ++ ", ") cs
           aggMs as              = concatMap (\a -> (printCName a) ++ ": " ++ (members a) ++ "\n") as
+depsS ds = concatMap (\(Dep f t) -> "(" ++ (printCName f) ++ ", " ++ (printCName t) ++ ")\n") ds
 
-outputFlat :: CFuse -> (CFuse -> String) -> IO(String)
-outputFlat p gen = 
-    let ifs = ifns p
-    in do 
-      --         args  <- getArgs
-      ifnfo <- readAllIFfns ifs
-      cnfo  <- readAllCTypes (cnames (lstOnlyCs p))
-      let tdb       = constructTdb p cnfo ifnfo
-          deps      = lstDeps p
-          aggs      = lstAggs p
-          err       = (stringifyUndefDeps tdb p) ++ 
-                      (aggSingularS aggs ((lstCs p) ++ aggs)) ++
-                      (aggsErrors (lstAggs p) (lstDeps p))
-          moreds as = generateAllAggDeps tdb deps as
-       --             newds p   = (deps \\ (depsWith aggs deps)) ++ (moreds aggs)
-          newds p   = deps ++ (moreds aggs)
-          newprog p = cfuse (deps2Stmt (newds p))
-       --         hPutStrLn stdout $ aggStructS p
-          out = if err == "" then (gen (newprog p)) else err
-      return out
-
-outputFlatGraph :: CFuse -> IO(String)
-outputFlatGraph p = outputFlat p graphFlat
 
 -- compStr :: Component -> String
 -- compStr c@(CS n a o _) = loaded ++ init ++ (printCName n) ++ ".o," ++ schedInit ++ ";"
@@ -503,6 +479,75 @@ outputFlatGraph p = outputFlat p graphFlat
 -- outputFlatRunscript :: CFuse -> IO(String)
 -- outputFlatRunscript p = outputFlat p runscriptFlat
 
+--[ Flat graph processing ]--
+
+aggDupOf :: Component -> Maybe Component
+aggDupOf (CS _ _ _ _ _) = Nothing
+aggDupOf (CA _ _ _ mc)  = mc
+
+isDup :: Component -> Component -> Bool
+isDup o d = case d of 
+              (CS _ _ _ _ (Just c)) -> c == o
+              (CA _ _ _   (Just a)) -> a == o
+              _ -> False
+
+-- duplicate aggregate, original aggregate it is a duplicate of, all
+-- deps, and return the new additional deps
+dupAgg :: Component -> Component -> [Dep] -> [Dep]
+dupAgg d o ds = let 
+    csIn a           = case a of 
+                         (CA _ cs _ _) -> cs
+                         _             -> []
+    origCs           = csIn o
+    dupCs            = csIn d
+    depsIn           = filter (\(Dep f t) -> (elem f origCs) || (elem t origCs)) ds
+    getDup c         = (filter (isDup c) dupCs) !! 0 -- should be a singleton list
+    cpyDep (Dep f t) = Dep (getDup f) (getDup t)
+    newds            = map cpyDep depsIn
+    in newds ++ (dupAggs d ds) -- the recursion
+
+dupAggs :: Component -> [Dep] -> [Dep]
+dupAggs (CS _ _ _ _ _) ds = []
+dupAggs (CA _ cs _ _)  ds = concatMap (\c -> let a = aggDupOf c in case a of
+                                                                     (Just d)  -> dupAgg c d ds
+                                                                     (Nothing) -> dupAggs c ds) cs
+
+-- Creating the CD with dup alone doesn't duplicate the dependencies
+-- within the aggregate.  Do that here.
+duplicateAggs :: Tdb -> CFuse -> [Dep]
+duplicateAggs t p = ndeps where
+    as = lstAggs p
+    ds = lstDeps p
+    sysa = (filter isSystemAgg as) !! 0
+    ndeps = dupAggs sysa ds
+
+outputFlat :: CFuse -> (CFuse -> String) -> IO(String)
+outputFlat p gen = 
+    let ifs = ifns p
+    in do 
+      --         args  <- getArgs
+      ifnfo <- readAllIFfns ifs
+      cnfo  <- readAllCTypes (cnames (lstOnlyCs p))
+      let tdb       = constructTdb p cnfo ifnfo
+          aggs      = lstAggs p
+          comps     = lstCs p
+          dupdeps   = duplicateAggs tdb p
+          deps      = (lstDeps p) ++ dupdeps
+          err       = (stringifyUndefDeps tdb comps aggs deps) ++ 
+                      (aggSingularS aggs (comps ++ aggs)) ++
+                      (aggsErrors aggs deps)
+       --             newds p   = (deps \\ (depsWith aggs deps)) ++ (moreds aggs)
+          newds     = deps ++ (generateAllAggDeps tdb deps aggs)
+          newprog p = cfuse (deps2Stmt newds)
+          out = if err == "" then (gen (newprog p)) else err
+--      putStrLn $ depsS (nub deps)
+      return out
+
+outputFlatGraph :: CFuse -> IO(String)
+outputFlatGraph p = outputFlat p graphFlat
+
+--[ Aggregate graph processing ]--
+
 outputAggGraph :: CFuse -> IO(String)
 outputAggGraph p = 
     let ifs = ifns p
@@ -511,10 +556,12 @@ outputAggGraph p =
       ifnfo <- readAllIFfns ifs
       cnfo  <- readAllCTypes (cnames (lstOnlyCs p))
       let tdb       = constructTdb p cnfo ifnfo
-          deps      = lstDeps p
           aggs      = lstAggs p
-          err       = (stringifyUndefDeps tdb p) ++ 
-                      (aggSingularS aggs ((lstCs p) ++ aggs)) ++
+          comps     = lstCs p
+          dupdeps   = duplicateAggs tdb p
+          deps      = (lstDeps p) ++ dupdeps
+          err       = (stringifyUndefDeps tdb comps aggs deps) ++ 
+                      (aggSingularS aggs (comps ++ aggs)) ++
                       (aggsErrors aggs deps)
           out = if err == "" then (graphAgg p) else err
       return out
@@ -522,9 +569,8 @@ outputAggGraph p =
 program = sysAgg
 
 main :: IO ()
-main = let p   = cfuse $ concat program
-       in do 
-         out <- outputAggGraph p
+main = do 
+         out <- outputAggGraph (cfuse $ concat program)
          putStrLn out
 
 -- unit_cbuf.sh
@@ -592,7 +638,7 @@ sysAgg = let c0     = c "no_interface" "comp0"
              tp     = c "no_interface" "tmem_policy"
              va     = c "valloc" "simple"
              tmem   = agg "tmem" [mpool, sm, l, e, te, stat, buf, tp, va]
---             tmem2  = dup tmem
+             tmem2  = dup tmem
              ucbuf1 = c "tests" "unit_cbuf1"
              ucbuf2 = c "tests" "unit_cbuf2"
              ucbuf1d = dup ucbuf1
@@ -607,7 +653,7 @@ sysAgg = let c0     = c "no_interface" "comp0"
                   , (boot, [print, fprr, mm, cg])
 
                   , (tmem, [ll])
---                  , (tmem2, [ll])
+                  , (tmem2, [ll])
                   , (l, [])
                   , (te, [sm, va])
                   , (e, [sm, l, va])
