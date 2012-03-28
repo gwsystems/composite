@@ -397,15 +397,32 @@ void failure_notif_fail(spdid_t caller, spdid_t failed)
 	UNLOCK();
 }
 
+#define INIT_STR_SZ 52
+
+/* struct is 64 bytes, so we can have 64 entries in a page. */
+struct component_init_str {
+	unsigned int spdid, schedid;
+	int startup;
+	char init_str[INIT_STR_SZ];
+}__attribute__((packed));
+struct deps { int from, to; };
+
 void cos_init(void *arg)
 {
 	struct cobj_header *h;
 	int num_cobj;
+	struct deps *ds;
+	struct component_init_str *init_args;
 
 	LOCK();
 	cos_vect_init_static(&spd_info_addresses);
-	h = (struct cobj_header *)cos_comp_info.cos_poly[0];
-	num_cobj = (int)cos_comp_info.cos_poly[1];
+	h         = (struct cobj_header *)cos_comp_info.cos_poly[0];
+	num_cobj  = (int)cos_comp_info.cos_poly[1];
+
+	ds        = (struct deps *)cos_comp_info.cos_poly[2];
+	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
+	init_args++; 
+
 	boot_find_cobjs(h, num_cobj);
 	/* This component really might need more vas */
 	if (cos_vas_cntl(COS_VAS_SPD_EXPAND, cos_spd_id(), 

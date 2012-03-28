@@ -2025,7 +2025,7 @@ static void make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all
 	}
 	heap_ptr = get_heap_ptr(mm);
 	if (heap_ptr == NULL) {
-		printl(PRINT_DEBUG, "Could not find heap pointer in %s.\n", mm->obj);
+		printl(PRINT_HIGH, "Could not find heap pointer in %s.\n", mm->obj);
 		return;
 	}
 	heap_ptr_val = *heap_ptr;
@@ -2164,10 +2164,12 @@ static struct service_symbs *find_obj_by_name(struct service_symbs *s, const cha
 
 //#define ROUND_UP_TO_PAGE(a) (((vaddr_t)(a)+PAGE_SIZE-1) & ~(PAGE_SIZE-1))
 //#deinfe ROUND_UP_TO_CACHELINE(a) (((vaddr_t)(a)+CACHE_LINE-1) & ~(CACHE_LINE-1))
+static void make_spd_config_comp(struct service_symbs *c, struct service_symbs *all);
 
 static void make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 {
-	int **heap_ptr, *heap_ptr_val, n = 0;
+	volatile int **heap_ptr;
+	int *heap_ptr_val, n = 0;
 	struct cobj_header *h;
 	char *mem;
 	u32_t obj_size;
@@ -2196,7 +2198,7 @@ static void make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 		}
 	}
 
-	heap_ptr = get_heap_ptr(boot);
+	heap_ptr = (volatile int **)get_heap_ptr(boot);
 	ci = (void *)get_symb_address(&boot->exported, COMP_INFO);
 	ci->cos_poly[0] = (vaddr_t)*heap_ptr;
 	for (all = first ; NULL != all ; all = all->next) {
@@ -2206,7 +2208,7 @@ static void make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 		if (!all->is_composite_loaded) continue;
 		n++;
 
-		heap_ptr_val = *heap_ptr;
+		heap_ptr_val = (int*)*heap_ptr;
 		assert(all->is_composite_loaded);
 		h = all->cobj;
 		assert(h);
@@ -2227,8 +2229,15 @@ static void make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 		memcpy(heap_ptr_val, h, h->size);
 		*heap_ptr = (void*)(((int)heap_ptr_val) + obj_size);
 	}
+	all = first;
 	*heap_ptr = (int*)(round_up_to_page((int)*heap_ptr));
 	ci->cos_poly[1] = (vaddr_t)n;
+
+	ci->cos_poly[2] = ((unsigned int)*heap_ptr);
+	make_spd_mpd_mgr(boot, all);
+
+	ci->cos_poly[3] = ((unsigned int)*heap_ptr);
+	make_spd_config_comp(boot, all);
 }
 
 //#define INIT_STR_SZ 116
@@ -2262,6 +2271,7 @@ static void format_config_info(struct service_symbs *ss, struct component_init_s
 			data[i].startup = 1;
 			data[i].spdid = ((struct spd_info *)(ss->extern_info))->spd_handle;
 		}
+
 		data[i].schedid = ss->scheduler ? 
 			((struct spd_info *)(ss->scheduler->extern_info))->spd_handle : 
 			0;
