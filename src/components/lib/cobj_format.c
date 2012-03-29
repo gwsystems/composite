@@ -100,21 +100,26 @@ u32_t cobj_sect_addr(struct cobj_header *h, unsigned int sect_id)
 	return s->vaddr;
 }
 
-struct cobj_header *cobj_create(u32_t id, u32_t nsect, u32_t sect_sz, u32_t nsymb, u32_t ncap, 
-				char *space, unsigned int sz)
+struct cobj_header *cobj_create(u32_t id, char *name, u32_t nsect, u32_t sect_sz, u32_t nsymb, 
+				u32_t ncap, char *space, unsigned int sz)
 {
 	struct cobj_header *h = (struct cobj_header*)space;
 	u32_t tot_sz = 0;
 	const unsigned int sect_symb_cap_sz = 
 		nsect * sizeof(struct cobj_sect) + 
 		nsymb * sizeof(struct cobj_symb) + 
-		ncap * sizeof(struct cobj_cap);
+		ncap  * sizeof(struct cobj_cap);
 
 	if (!space) return NULL;
 	tot_sz = sect_sz + sizeof(struct cobj_header) + sect_symb_cap_sz;
 	if (tot_sz > sz) return NULL;
 
 	h->id = id;
+	if (name) {
+		h->name[0] = '\0';
+		strncpy(h->name, name, COBJ_NAME_SZ-1);
+		h->name[COBJ_NAME_SZ-1] = '\0';
+	}
 	h->nsect = nsect;
 	h->nsymb = nsymb;
 	h->ncap = ncap;
@@ -203,7 +208,7 @@ int main(void)
 	       sizeof(struct cobj_symb), sizeof(struct cobj_cap));
 	sz = cobj_size_req(3, 20, 3, 4);
 	mem = malloc(sz);
-	h = cobj_create(0, 3, 20, 3, 4, mem, sz);
+	h = cobj_create(0, NULL, 3, 20, 3, 4, mem, sz);
 	if (!h) return -1;
 	printf("predicted=%d, actual=%d, data off=%d\n", sz, h->size, cobj_sect_content_offset(h));
 

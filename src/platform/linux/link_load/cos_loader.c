@@ -558,6 +558,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 		u32_t size, obj_size;
 		u32_t nsymbs, ncaps;
 		char *mem;
+		char cobj_name[COBJ_NAME_SZ], *end;
 
 		size = ro_size_unaligned + bfd_sect_size(obj, srcobj[DATA_S].s);
 		nsymbs = ret_data->exported.num_symbs;
@@ -571,7 +572,11 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 		}
 		//printl(PRINT_HIGH, "Allocated %d byte cobj for %s w/ %d bytes data\n", obj_size, ret_data->obj, size);
 
-		h = cobj_create(0, 3, size, nsymbs, ncaps, mem, obj_size);
+		strncpy(cobj_name, &service_name[5], COBJ_NAME_SZ);
+		end = strstr(cobj_name, ".o.");
+		if (!end) end = &cobj_name[COBJ_NAME_SZ-1];
+		*end = '\0';
+		h = cobj_create(0, cobj_name, 3, size, nsymbs, ncaps, mem, obj_size);
 		if (!h) {
 			printl(PRINT_HIGH, "boot component: couldn't create cobj.\n");
 			return -1;

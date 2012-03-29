@@ -325,16 +325,16 @@ static void boot_find_cobjs(struct cobj_header *h, int n)
 		for (j = 0 ; j < (int)h->nsect ; j++) {
 			tot += cobj_sect_size(h, j);
 		}
-		printc("cobj %d found at %p:%d, size %d -> %x\n", 
-		       i, hs[i-1], size, tot, cobj_sect_get(hs[i-1], 0)->vaddr);
+		printc("cobj %s:%d found at %p:%d, size %d -> %x\n", 
+		       h->name, h->id, hs[i-1], size, tot, cobj_sect_get(hs[i-1], 0)->vaddr);
 
 		end = start + round_up_to_cacheline(size);
 		hs[i] = h = (struct cobj_header*)end;
 		start = end;
 	}
 	hs[n] = NULL;
-	printc("cobj found at %p ... -> %x\n", 
-	       hs[n-1], cobj_sect_get(hs[n-1], 0)->vaddr);
+	printc("cobj %s:%d found at %p -> %x\n", 
+	       hs[n-1]->name, hs[n-1]->id, hs[n-1], cobj_sect_get(hs[n-1], 0)->vaddr);
 }
 
 static void boot_create_system(void)
@@ -392,6 +392,7 @@ void failure_notif_fail(spdid_t caller, spdid_t failed)
 	assert(md);
 	if (boot_spd_map_populate(md->h, failed, md->comp_info)) BUG();
 	boot_spd_thd(failed); 	/* can fail if component had no boot threads! */
+	if (boot_spd_caps(md->h, failed)) BUG();
 	boot_spd_caps_chg_activation(failed, 1);
 
 	UNLOCK();
