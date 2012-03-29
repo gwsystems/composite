@@ -6,3 +6,18 @@
 your runscripts, if you have the cg component, and it is depended on
 by more than boot, then you should make the dependency to
 `no_interface.boot` instead.
+
+==Commit ...==
+
+From the component lists *and* from the dependency lists in your
+runscripts:
+
+1. Remove `bc`.
+
+2. Remove `st`.
+
+3. Change dependency for `fprr` (scheduler) from `mm.o` to `[parent_]mm.o`.
+
+4. Remove `cg`.
+
+See examples in the `unit_*.sh` runscripts.
