@@ -7,7 +7,7 @@ your runscripts, if you have the cg component, and it is depended on
 by more than boot, then you should make the dependency to
 `no_interface.boot` instead.
 
-==Commit ...==
+==Commit cb4bef52bbc729a7eaececa60fb59c3f4978fccc==
 
 From the component lists *and* from the dependency lists in your
 runscripts:
