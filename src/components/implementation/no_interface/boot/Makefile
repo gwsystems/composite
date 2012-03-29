@@ -1,8 +1,8 @@
 C_OBJS=booter.o
 ASM_OBJS=
 COMPONENT=boot.o
-INTERFACES=cinfo failure_notif
-DEPENDENCIES=sched printc mem_mgr sched_conf cgraph
+INTERFACES=cinfo failure_notif cgraph
+DEPENDENCIES=sched printc mem_mgr sched_conf
 IF_LIB=
 ADDITIONAL_LIBS=-lcobj_format
 

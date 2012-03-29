@@ -1952,7 +1952,7 @@ void make_spd_scheduler(int cntl_fd, struct service_symbs *s, struct service_sym
 
 /* Edge description of components.  Mirrored in mpd_mgr.c */
 struct comp_graph {
-	int client, server;
+	short int client, server;
 };
 
 static int service_get_spdid(struct service_symbs *ss)
@@ -1989,8 +1989,8 @@ static int serialize_spd_graph(struct comp_graph *g, int sz, struct service_symb
 			}
 
 			edge = &g[g_frontier++];
-			edge->client = cid;
-			edge->server = sid;
+			edge->client = (short int)cid;
+			edge->server = (short int)sid;
 			//printl(PRINT_DEBUG, "serialized edge @ %p: %d->%d.\n", edge, cid, sid);
 		}
 		

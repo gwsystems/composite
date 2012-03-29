@@ -406,13 +406,39 @@ struct component_init_str {
 	int startup;
 	char init_str[INIT_STR_SZ];
 }__attribute__((packed));
-struct deps { int from, to; };
+struct deps { short int client, server; };
+struct deps *deps;
+int ndeps;
+
+int
+cgraph_server(int iter)
+{
+	if (iter >= ndeps || iter < 0) return -1;
+	return deps[iter].server;
+}
+
+int
+cgraph_client(int iter)
+{
+	if (iter >= ndeps || iter < 0) return -1;
+	return deps[iter].client;
+}
+
+#define MAX_DEP (PAGE_SIZE/sizeof(struct deps))
+int
+cgraph_add(int serv, int client)
+{
+	if (ndeps == MAX_DEP) return -1;
+	deps[ndeps].server = serv;
+	deps[ndeps].client = client;
+	ndeps++;
+	return 0;
+}
 
 void cos_init(void *arg)
 {
 	struct cobj_header *h;
-	int num_cobj;
-	struct deps *ds;
+	int num_cobj, i;
 	struct component_init_str *init_args;
 
 	LOCK();
@@ -420,7 +446,9 @@ void cos_init(void *arg)
 	h         = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj  = (int)cos_comp_info.cos_poly[1];
 
-	ds        = (struct deps *)cos_comp_info.cos_poly[2];
+	deps      = (struct deps *)cos_comp_info.cos_poly[2];
+	for (i = 0 ; deps[i].server ; i++) ;
+	ndeps     = i;
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
 	init_args++; 
 
