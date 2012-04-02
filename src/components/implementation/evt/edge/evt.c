@@ -344,29 +344,12 @@ err:
 	return -1;
 }
 
-static void init_evts(void)
+void cos_init(void *arg)
 {
 	lock_static_init(&evt_lock);
 	cos_map_init_static(&evt_map);
 	if (mapping_create(NULL) != 0) BUG();
 	INIT_LIST(&grps, next, prev);
-}
-
-void cos_init(void *arg)
-{
-	static volatile int first = 1;
-
-	if (first) {
-		first = 0;
-		init_evts();
-	} else {
-		prints("net: not expecting more than one bootstrap.");
-	}
-}
-
-static void bin(void)
-{
-	sched_block(cos_spd_id(), 0);
 }
 
 #ifdef ACT_LOG

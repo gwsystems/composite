@@ -1059,21 +1059,9 @@ static struct sched_thd *__sched_setup_thread_no_policy(int tid)
 	return new;
 }
 
-/* Create the thread and invoke the scheduling policy */
-static struct sched_thd *__sched_setup_thread_nocrt(int tid, char *metric_str)
-{
-	struct sched_thd *new;
-	
-	new = __sched_setup_thread_no_policy(tid);
-	thread_new(new);
-	thread_params_set(new, metric_str);
-	
-	return new;
-}
-
 extern int parent_sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd);
 
-static struct sched_thd *sched_setup_thread_arg(char *metric_str, crt_thd_fn_t fn, void *d)
+static struct sched_thd *sched_setup_thread_arg(void *metric_str, crt_thd_fn_t fn, void *d, int parm)
 {
 	int tid;
 	struct sched_thd *new;
@@ -1087,24 +1075,24 @@ static struct sched_thd *sched_setup_thread_arg(char *metric_str, crt_thd_fn_t f
 		REM_LIST(new, prio_next, prio_prev);
 		sched_init_thd(new, new->id, THD_READY);
 		new->spdid = (spdid_t)(unsigned int)d;
-		thread_new(new);
-		thread_params_set(new, metric_str);
+	} else {
+		tid = (sched_is_root())                       ?
+			cos_create_thread((int)fn, (int)d, 0) :
+			parent_sched_child_thd_crt(cos_spd_id(), (spdid_t)(int)d);
+		assert(0 != tid);
 
-		return new;
+		new = __sched_setup_thread_no_policy(tid);
 	}
-	tid = (sched_is_root())                       ?
-		cos_create_thread((int)fn, (int)d, 0) :
-		parent_sched_child_thd_crt(cos_spd_id(), (spdid_t)(int)d);
-	assert(0 != tid);
-
-	new = __sched_setup_thread_nocrt(tid, metric_str);
-
+	thread_new(new);
+	if (parm) thread_param_set(new,  (struct sched_param_s *)metric_str);
+	else      thread_params_set(new, (char *)metric_str);
+	
 	return new;
 }
 
 static struct sched_thd *sched_setup_thread(char *metric_str, crt_thd_fn_t fn)
 {
-	return sched_setup_thread_arg(metric_str, fn, NULL);
+	return sched_setup_thread_arg(metric_str, fn, NULL, 0);
 }
 
 /* this should just create the thread, not set the prio...there should
@@ -1122,7 +1110,7 @@ sched_create_thread(spdid_t spdid, struct cos_array *data)
 	cos_sched_lock_take();
 	curr = sched_get_current();
 	metric_str = (char *)data->mem;
-	new = sched_setup_thread_arg((char *)metric_str, fp_create_spd_thd, d);
+	new = sched_setup_thread_arg((char *)metric_str, fp_create_spd_thd, d, 0);
 	cos_sched_lock_release();
 	printc("sched %d: created thread %d in spdid %d (requested by %d)\n",
 	       (unsigned int)cos_spd_id(), new->id, spdid, curr->id);
@@ -1150,29 +1138,48 @@ done:
 
 /* Create a thread in target with the default parameters */
 int
-sched_create_thread_default(spdid_t spdid, spdid_t target)
+sched_create_thread_default(spdid_t spdid, u32_t sched_param_0, 
+			    u32_t sched_param_1, u32_t sched_param_2)
 {
-	struct cos_array *data;
+	struct sched_param_s sp[4];
 	struct sched_thd *new;
-	vaddr_t t = target;
+	vaddr_t t = spdid;
 
-	data = cos_argreg_alloc(sizeof(struct cos_array) + SCHED_STR_SZ);
-	assert(data);
-	data->sz = SCHED_STR_SZ;
+	sp[0] = ((union sched_param)sched_param_0).c;
+	sp[1] = ((union sched_param)sched_param_1).c;
+	sp[2] = ((union sched_param)sched_param_2).c;
+	sp[3] = (union sched_param){.c = {.type = SCHEDP_NOOP}}.c;
+	
 	cos_sched_lock_take();
-
-	if (sched_comp_config_default(cos_spd_id(), target, data)) goto err;
-	new = sched_setup_thread_arg((char *)data->mem, fp_create_spd_thd, (void*)t);
-	cos_argreg_free(data);
-	cos_sched_lock_release();
+	new = sched_setup_thread_arg(&sp, fp_create_spd_thd, (void*)t, 1);
+	sched_switch_thread(0, NULL_EVT);
+	if (!new) return -1;
 	printc("sched %d: created default thread %d in spdid %d (requested by %d from %d)\n",
-	       (unsigned int)cos_spd_id(), new->id, target, sched_get_current()->id, spdid);
+	       (unsigned int)cos_spd_id(), new->id, spdid, sched_get_current()->id, spdid);
 
 	return 0;
-err:
-	cos_argreg_free(data);
-	cos_sched_lock_release();
-	return -1;
+
+/* 	struct cos_array *data; */
+/* 	struct sched_thd *new; */
+/* 	vaddr_t t = target; */
+
+/* 	data = cos_argreg_alloc(sizeof(struct cos_array) + SCHED_STR_SZ); */
+/* 	assert(data); */
+/* 	data->sz = SCHED_STR_SZ; */
+/* 	cos_sched_lock_take(); */
+
+/* 	if (sched_comp_config_default(cos_spd_id(), target, data)) goto err; */
+/* 	new = sched_setup_thread_arg((char *)data->mem, fp_create_spd_thd, (void*)t); */
+/* 	cos_argreg_free(data); */
+/* 	cos_sched_lock_release(); */
+/* 	printc("sched %d: created default thread %d in spdid %d (requested by %d from %d)\n", */
+/* 	       (unsigned int)cos_spd_id(), new->id, target, sched_get_current()->id, spdid); */
+
+/* 	return 0; */
+/* err: */
+/* 	cos_argreg_free(data); */
+/* 	cos_sched_lock_release(); */
+/* 	return -1; */
 }
 
 static void activate_child_sched(struct sched_thd *g)
@@ -1531,7 +1538,7 @@ static struct sched_thd *fp_init_component(spdid_t spdid, char *metric_str)
 	struct sched_thd *new;
 
 	assert(spdid > 0);
-	new = sched_setup_thread_arg(metric_str, fp_create_spd_thd, (void*)(int)spdid);
+	new = sched_setup_thread_arg(metric_str, fp_create_spd_thd, (void*)(int)spdid, 0);
 	printc("sched %d: component %d's thread has id %d and priority %s.\n", 
 	       (unsigned int)cos_spd_id(), spdid, new->id, metric_str);
 	
@@ -1544,7 +1551,7 @@ static struct sched_thd *fp_create_timer(void)
 
 	bid = sched_setup_brand(cos_spd_id());
 	assert(sched_is_root());
-	timer = sched_setup_thread_arg("t", fp_timer, (void*)bid);
+	timer = sched_setup_thread_arg("t", fp_timer, (void*)bid, 0);
 	if (NULL == timer) BUG();
 	if (0 > sched_add_thd_to_brand(cos_spd_id(), bid, timer->id)) BUG();
 	printc("Timer thread has id %d with priority %s.\n", timer->id, "t");

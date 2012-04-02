@@ -180,7 +180,7 @@ struct service_symbs {
 	
 	struct service_section sections[SERV_SECT_NUM];
 
-	int is_composite_loaded;
+	int is_composite_loaded, already_loaded;
 	struct cobj_header *cobj;
 
 	int is_scheduler;
@@ -576,7 +576,8 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 		end = strstr(cobj_name, ".o.");
 		if (!end) end = &cobj_name[COBJ_NAME_SZ-1];
 		*end = '\0';
-		h = cobj_create(0, cobj_name, 3, size, nsymbs, ncaps, mem, obj_size);
+		h = cobj_create(0, cobj_name, 3, size, nsymbs, ncaps, mem, obj_size,
+				ret_data->scheduler ? COBJ_INIT_THD : 0);
 		if (!h) {
 			printl(PRINT_HIGH, "boot component: couldn't create cobj.\n");
 			return -1;
@@ -881,6 +882,7 @@ static struct service_symbs *alloc_service_symbs(char *obj)
 	str->is_scheduler = t.sched;
 	str->scheduler = NULL;
 	str->is_composite_loaded = t.composite_loaded;
+	str->already_loaded = 0;
 
 	return str;
 }
@@ -2171,15 +2173,47 @@ static struct service_symbs *find_obj_by_name(struct service_symbs *s, const cha
 //#deinfe ROUND_UP_TO_CACHELINE(a) (((vaddr_t)(a)+CACHE_LINE-1) & ~(CACHE_LINE-1))
 static void make_spd_config_comp(struct service_symbs *c, struct service_symbs *all);
 
-static void make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
+static int 
+spd_already_loaded(struct service_symbs *c)
+{
+	return c->already_loaded || !c->is_composite_loaded;
+}
+
+static void 
+make_spd_boot_schedule(struct service_symbs *comp, struct service_symbs **sched, 
+		       unsigned int *off)
+{
+	int i;
+
+	if (spd_already_loaded(comp)) return;
+
+	for (i = 0 ; i < comp->num_dependencies ; i++) {
+		struct dependency *d = &comp->dependencies[i];
+
+		if (!spd_already_loaded(d->dep)) {
+			make_spd_boot_schedule(d->dep, sched, off);
+		}
+		assert(spd_already_loaded(d->dep));
+	}
+	sched[*off] = comp;
+	comp->already_loaded = 1;
+	(*off)++;
+	printf("schedule: %s\n", comp->obj);
+}
+
+static void 
+make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 {
 	volatile int **heap_ptr;
-	int *heap_ptr_val, n = 0;
+	int *heap_ptr_val, n = 0, cnt = 0;
+	unsigned int off = 0, i;
 	struct cobj_header *h;
 	char *mem;
 	u32_t obj_size;
 	struct cos_component_information *ci;
 	struct service_symbs *first = all;
+	/* array to hold the order of initialization/schedule */
+	struct service_symbs **schedule; 
 
 	/* Assign ids to the booter-loaded components. */
 	for (all = first ; NULL != all ; all = all->next) {
@@ -2189,6 +2223,13 @@ static void make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 		assert(h);
 		spdid_inc++;
 		h->id = spdid_inc;
+		cnt++;
+	}
+
+	schedule = malloc(sizeof(struct service_symbs *) * cnt);
+	assert(schedule);
+	for (all = first ; NULL != all ; all = all->next) {
+		make_spd_boot_schedule(all, schedule, &off);
 	}
 
 	/* Setup the capabilities for each of the booter-loaded
@@ -2206,10 +2247,13 @@ static void make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 	heap_ptr = (volatile int **)get_heap_ptr(boot);
 	ci = (void *)get_symb_address(&boot->exported, COMP_INFO);
 	ci->cos_poly[0] = (vaddr_t)*heap_ptr;
+
 	for (all = first ; NULL != all ; all = all->next) {
+//	for (i = 0 ; i < cnt ; i++) {
 		vaddr_t map_addr;
 		int map_sz;
 
+//		all = schedule[i];
 		if (!all->is_composite_loaded) continue;
 		n++;
 
@@ -2243,6 +2287,21 @@ static void make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 
 	ci->cos_poly[3] = ((unsigned int)*heap_ptr);
 	make_spd_config_comp(boot, all);
+
+	assert(off < PAGE_SIZE/sizeof(unsigned int)); /* schedule must fit into page. */
+	/* pass the schedule to the boot component */
+	mem = mmap((void*)*heap_ptr, PAGE_SIZE, PROT_WRITE | PROT_READ,
+		   MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+	if (MAP_FAILED == mem) {
+		perror("Couldn't map component initialization schedule into the boot component");
+		exit(-1);
+	}
+	for (i = 0 ; i < off ; i++) {
+		((int *)mem)[i] = service_get_spdid(schedule[i]);
+	}
+	((int *)mem)[off] = 0;
+	ci->cos_poly[4] = (unsigned int)*heap_ptr;
+	*heap_ptr += PAGE_SIZE;
 }
 
 //#define INIT_STR_SZ 116

@@ -37,8 +37,13 @@
 #define COBJ_NSECT 3
 #define COBJ_NAME_SZ 64
 
+/* cobj flags */
+enum {
+	COBJ_INIT_THD = 1,
+};
+
 struct cobj_header {
-	u32_t id, nsect, nsymb, ncap, size;
+	u32_t id, nsect, nsymb, ncap, size, flags;
 	char name[COBJ_NAME_SZ];
 } __attribute__((packed));
 
@@ -75,7 +80,7 @@ cobj_cap_is_fault(struct cobj_cap *c) { return c->fault_num <= COS_NUM_FAULTS; }
 u32_t cobj_size_req(u32_t nsect, u32_t sect_sz, u32_t nsymb, u32_t ncap);
 struct cobj_header *cobj_create(u32_t id, char *name, u32_t nsect, 
 				u32_t sect_sz, u32_t nsymb, u32_t ncap, 
-				char *space, unsigned int sz);
+				char *space, unsigned int sz, u32_t flags);
 
 int cobj_sect_init(struct cobj_header *h, unsigned int sect_idx, u32_t flags, u32_t vaddr, u32_t size);
 int cobj_symb_init(struct cobj_header *h, unsigned int symb_idx, u32_t type, u32_t vaddr);

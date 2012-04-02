@@ -302,16 +302,34 @@ static int boot_spd_caps(struct cobj_header *h, spdid_t spdid)
 	return 0;
 }
 
-static int boot_spd_thd(spdid_t spdid)
+#define INIT_STR_SZ 52
+
+/* struct is 64 bytes, so we can have 64 entries in a page. */
+struct component_init_str {
+	unsigned int spdid, schedid;
+	int startup;
+	char init_str[INIT_STR_SZ];
+}__attribute__((packed));
+struct component_init_str *init_args;
+
+/* The order of creating boot threads */
+unsigned int *boot_sched;
+
+static int 
+boot_spd_thd(spdid_t spdid)
 {
 	int new_thd;
+	union sched_param sp = {.c = {.type = SCHEDP_RPRIO, .value = 1}};
+
+	/* HERE: pass the params as a struct sched_param_s */
 
 	/* Create a thread IF the component requested one */
-	if ((new_thd = sched_create_thread_default(cos_spd_id(), spdid)) < 0) return -1;
+	if ((new_thd = sched_create_thread_default(spdid, sp.v, 0, 0)) < 0) return -1;
 	return new_thd;
 }
 
-static void boot_find_cobjs(struct cobj_header *h, int n)
+static void 
+boot_find_cobjs(struct cobj_header *h, int n)
 {
 	int i;
 	vaddr_t start, end;
@@ -339,8 +357,13 @@ static void boot_find_cobjs(struct cobj_header *h, int n)
 
 static void boot_create_system(void)
 {
-	int i;
+	unsigned int i, min = ~0;
+
+	for (i = 0 ; hs[i] != NULL ; i++) {
+		if (hs[i]->id < min) min = hs[i]->id;
+	}
 	
+	/* HERE */
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;
 		spdid_t spdid;
@@ -365,11 +388,18 @@ static void boot_create_system(void)
 
 		if (boot_spd_caps(h, h->id)) BUG();
 	}
-	for (i = 0 ; hs[i] != NULL ; i++) {
+	
+	for (i = 0 ; boot_sched[i] != 0 ; i++) {
 		struct cobj_header *h;
-		h = hs[i];
-		
-		boot_spd_thd(h->id);
+		int j;
+
+		h = NULL;
+		for (j = 0 ; hs[j] != NULL; j++) {
+			if (hs[j]->id == boot_sched[i]) h = hs[j];
+		}
+		assert(h);
+
+		if (h->flags & COBJ_INIT_THD) boot_spd_thd(h->id);
 	}
 }
 
@@ -391,21 +421,13 @@ void failure_notif_fail(spdid_t caller, spdid_t failed)
 	md = &local_md[failed];
 	assert(md);
 	if (boot_spd_map_populate(md->h, failed, md->comp_info)) BUG();
-	boot_spd_thd(failed); 	/* can fail if component had no boot threads! */
+	if (md->h->flags & COBJ_INIT_THD) boot_spd_thd(failed); 	/* can fail if component had no boot threads! */
 	if (boot_spd_caps(md->h, failed)) BUG();
 	boot_spd_caps_chg_activation(failed, 1);
 
 	UNLOCK();
 }
 
-#define INIT_STR_SZ 52
-
-/* struct is 64 bytes, so we can have 64 entries in a page. */
-struct component_init_str {
-	unsigned int spdid, schedid;
-	int startup;
-	char init_str[INIT_STR_SZ];
-}__attribute__((packed));
 struct deps { short int client, server; };
 struct deps *deps;
 int ndeps;
@@ -439,7 +461,6 @@ void cos_init(void *arg)
 {
 	struct cobj_header *h;
 	int num_cobj, i;
-	struct component_init_str *init_args;
 
 	LOCK();
 	cos_vect_init_static(&spd_info_addresses);
@@ -451,6 +472,9 @@ void cos_init(void *arg)
 	ndeps     = i;
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
 	init_args++; 
+
+	boot_sched = (unsigned int *)cos_comp_info.cos_poly[4];
+	assert(boot_sched);
 
 	boot_find_cobjs(h, num_cobj);
 	/* This component really might need more vas */

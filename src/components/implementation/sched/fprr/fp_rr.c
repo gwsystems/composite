@@ -338,6 +338,71 @@ int thread_params_set(struct sched_thd *t, char *params)
 	return fp_thread_params(t, params);
 }
 
+
+int
+thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
+{
+	unsigned int prio;
+	struct sched_thd *c;
+	
+	assert(t);
+	while (ps->type != SCHEDP_NOOP) {
+		switch (ps->type) {
+		case SCHEDP_RPRIO:
+		case SCHEDP_RLPRIO:
+			/* priority relative to current thread */
+			c = sched_get_current();
+			assert(c);
+			prio = ps->type == SCHEDP_RPRIO ? 
+				sched_get_metric(c)->priority - ps->value:
+				sched_get_metric(c)->priority + ps->value;
+			memcpy(sched_get_accounting(t), sched_get_accounting(c), sizeof(struct sched_accounting));
+#ifdef DEFERRABLE
+			if (sched_get_accounting(t)->T) ADD_LIST(&servers, t, sched_next, sched_prev);
+#endif
+			
+			if (prio > PRIO_LOWEST) prio = PRIO_LOWEST;
+			break;
+		case SCHEDP_PRIO:
+			/* absolute priority */
+			prio = ps->value;
+			break;
+		case SCHEDP_IDLE:
+			/* idle thread */
+			prio = PRIO_LOWEST;
+			break;
+		case SCHEDP_TIMER:
+			/* timer thread */
+			prio = PRIO_HIGHEST;
+			break;
+#ifdef DEFERRABLE
+		case SCHEDP_BUDGET:
+			sched_get_accounting(t)->C = ps->value;
+			sched_get_accounting(t)->C_used = 0;
+			fp_move_end_runnable(t);
+			break;
+		case SCHEDP_WINDOW:
+			sched_get_accounting(t)->T = ps->value;
+			sched_get_accounting(t)->T_exp = 0;
+			if (EMPTY_LIST(t, sched_next, sched_prev) && 
+			    sched_get_accounting(t)->T) {
+				ADD_LIST(&servers, t, sched_next, sched_prev);
+			}
+			fp_move_end_runnable(t);
+			break;
+#endif
+		default:
+			printc("unknown priority option\n");
+			prio = PRIO_LOW;
+		}
+		ps++;
+	}
+	if (sched_thd_ready(t)) fp_rem_thd(t);
+	fp_add_thd(t, prio);
+	
+	return 0;
+}
+
 int 
 thread_resparams_set(struct sched_thd *t, res_spec_t rs)
 {
