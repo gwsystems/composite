@@ -25,3 +25,16 @@ runscripts:
 
 See examples in the `unit_*.sh` runscripts.
 
+Commit 8a7ffc887d7a795185079e0977ec0f217d392118
+-----------------------------------------------
+
+Scheduling of boot-time initialization threads.  No component changes,
+but now
+
+1. The priorities and threads given in the runscript are now ignored.
+If you want an initialization thread, depend on the scheduler.  If you
+want to be scheduled for initialization before another component, then
+appear earlier in the list of components.
+
+2. If you want to have a thread with a specific priority, use
+sched_create_thread to create it.
