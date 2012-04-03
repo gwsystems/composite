@@ -36,6 +36,16 @@ struct spd_local_md {
 	struct cobj_header *h;
 } local_md[MAX_NUM_SPDS+1];
 
+/* Component initialization info. */
+#define INIT_STR_SZ 52
+/* struct is 64 bytes, so we can have 64 entries in a page. */
+struct component_init_str {
+	unsigned int spdid, schedid;
+	int startup;
+	char init_str[INIT_STR_SZ];
+}__attribute__((packed));
+struct component_init_str *init_args;
+
 int cinfo_map(spdid_t spdid, vaddr_t map_addr, spdid_t target)
 {
 	vaddr_t cinfo_addr;
@@ -115,9 +125,12 @@ static void boot_symb_reify_16(char *mem, vaddr_t d_addr, vaddr_t symb_addr, u16
 	}
 }
 
-static void boot_symb_process(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val, char *mem, 
-			      vaddr_t d_addr, vaddr_t symb_addr)
+static void 
+boot_symb_process(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val, 
+		  char *mem, vaddr_t d_addr, vaddr_t symb_addr)
 {
+	int i;
+
 	if (round_to_page(symb_addr) == d_addr) {
 		struct cos_component_information *ci;
 		
@@ -126,6 +139,22 @@ static void boot_symb_process(struct cobj_header *h, spdid_t spdid, vaddr_t heap
 //		ci->cos_heap_allocated = heap_val;
 		if (!ci->cos_heap_ptr) ci->cos_heap_ptr = heap_val;
 		ci->cos_this_spd_id = spdid;
+		ci->init_string[0] = '\0';
+		for (i = 0 ; init_args[i].spdid ; i++) {
+			char *start, *end;
+			int len;
+
+			if (init_args[i].spdid != spdid) continue;
+
+			start = strchr(init_args[i].init_str, '\'');
+			if (!start) break;
+			start++;
+			end   = strchr(start, '\'');
+			if (!end) break;
+			len = (int)(end-start);
+			memcpy(&ci->init_string[0], start, len);
+			ci->init_string[len] = '\0';
+		}
 
 		/* save the address of this page for later retrieval
 		 * (e.g. to manipulate the stack pointer) */
@@ -302,15 +331,41 @@ static int boot_spd_caps(struct cobj_header *h, spdid_t spdid)
 	return 0;
 }
 
-#define INIT_STR_SZ 52
+int
+arguments_size(spdid_t spdid)
+{
+	int i;
 
-/* struct is 64 bytes, so we can have 64 entries in a page. */
-struct component_init_str {
-	unsigned int spdid, schedid;
-	int startup;
-	char init_str[INIT_STR_SZ];
-}__attribute__((packed));
-struct component_init_str *init_args;
+	for (i = 0 ; init_args[i].spdid ; i++) {
+		if (init_args[i].spdid == spdid) {
+			char *start, *end;
+			start = strchr(init_args[i].init_str, '\'');
+			start++;
+			end   = strchr(start, '\'');
+			return end-start;
+		}
+	}
+	return -1;
+}
+
+char 
+arguments_char(spdid_t spdid, int offset)
+{
+	int i;
+
+	if (offset >= INIT_STR_SZ || offset < 0) return 0;
+	for (i = 0 ; init_args[i].spdid ; i++) {
+		if (init_args[i].spdid == spdid) {
+			char *start, *end;
+			start = strchr(init_args[i].init_str, '\'');
+			start++;
+			end   = strchr(start, '\'');
+			if (offset >= (int)(end-start)) return 0;
+			return start[offset];
+		}
+	}
+	return 0;
+}
 
 /* The order of creating boot threads */
 unsigned int *boot_sched;

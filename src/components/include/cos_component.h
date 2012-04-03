@@ -280,6 +280,11 @@ static inline void cos_set_heap_ptr(void *addr)
 	cos_comp_info.cos_heap_ptr = (vaddr_t)addr;
 }
 
+static inline char *cos_init_args(void)
+{
+	return cos_comp_info.init_string;
+}
+
 #define COS_EXTERN_FN(fn) __cos_extern_##fn
 
 static inline long cos_cmpxchg(volatile void *memory, long anticipated, long result)
