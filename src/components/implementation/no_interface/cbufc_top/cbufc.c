@@ -3,7 +3,6 @@
 
 #include <periodic_wake.h>
 #include <sched.h>
-#include <sched_conf.h>
 #include <timed_blk.h>
 #include <cbuf_mid.h>
 

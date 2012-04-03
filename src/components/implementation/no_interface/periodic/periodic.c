@@ -13,7 +13,6 @@
 
 #include <periodic_wake.h>
 #include <sched.h>
-#include <sched_conf.h>
 #include <synth_hier.h>
 
 int period = 100, num_invs = 1;
@@ -43,22 +42,25 @@ char *parse_step(char *d)
 
 int parse_initstr(void)
 {
-	struct cos_array *data;
+//	struct cos_array *data;
 	char *c;
 
-	data = cos_argreg_alloc(sizeof(struct cos_array) + 52);
-	assert(data);
-	data->sz = 52;
-	
-	if (sched_comp_config_initstr(cos_spd_id(), data)) {
-		printc("No initstr found.\n");
-		return -1;
-	}
-
-	c = data->mem;
+	c = cos_init_args();
 	while ('\0' != *c) c = parse_step(c);
+
+	/* data = cos_argreg_alloc(sizeof(struct cos_array) + 52); */
+	/* assert(data); */
+	/* data->sz = 52; */
 	
-	cos_argreg_free(data);
+	/* if (sched_comp_config_initstr(cos_spd_id(), data)) { */
+	/* 	printc("No initstr found.\n"); */
+	/* 	return -1; */
+	/* } */
+
+	/* c = data->mem; */
+	/* while ('\0' != *c) c = parse_step(c); */
+	
+	/* cos_argreg_free(data); */
 
 	return 0;
 }

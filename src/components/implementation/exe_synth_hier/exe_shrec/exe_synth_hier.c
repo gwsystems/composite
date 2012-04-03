@@ -2,7 +2,6 @@
 #include <exe_synth_hier.h>
 
 #include <sched.h>
-#include <sched_conf.h>
 #include <print.h>
 
 #define MAXULONG (~0)
@@ -69,27 +68,29 @@ static char *parse_step(char *d)
 
 static void parse_initstr(void)
 {
-	struct cos_array *data;
+//	struct cos_array *data;
 	char *c;
 	static int parsed = 0;
 
 	if (parsed) return;
 	parsed = 1;
 
-	data = cos_argreg_alloc(sizeof(struct cos_array) + 52);
-	assert(data);
-	data->sz = 52;
+	/* data = cos_argreg_alloc(sizeof(struct cos_array) + 52); */
+	/* assert(data); */
+	/* data->sz = 52; */
 	
-	if (sched_comp_config_initstr(cos_spd_id(), data)) {
-		printc("No initstr found.\n");
-		return;
-	}
-	//printc("%s\n", data->mem);
+	/* if (sched_comp_config_initstr(cos_spd_id(), data)) { */
+	/* 	printc("No initstr found.\n"); */
+	/* 	return; */
+	/* } */
+	/* //printc("%s\n", data->mem); */
 
-	c = data->mem;
-	while ('\0' != *c) c = parse_step(c);
+	/* c = data->mem; */
+	/* while ('\0' != *c) c = parse_step(c); */
 	
-	cos_argreg_free(data);
+	/* cos_argreg_free(data); */
+	c = cos_init_args();
+	while ('\0' != *c) c = parse_step(c);
 }
 
 extern unsigned long calll_left(unsigned long exe_t, unsigned long const initial_exe_t);
