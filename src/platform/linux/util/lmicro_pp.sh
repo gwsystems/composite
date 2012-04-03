@@ -3,7 +3,7 @@
 # ping pong
 
 ./cos_loader \
-"c0.o, ;*fprr.o, ;mm.o, ;print.o, ;schedconf.o, ;st.o, ;bc.o, ;boot.o,a4;cg.o,a1;\
+"c0.o, ;*fprr.o, ;mm.o, ;boot.o, ;print.o, ;\
 \
 !mpool.o,a2;!l.o,a8;!te.o,a3;!e.o,a3;!sm.o,a2;!va.o,a1;!buf.o,a2;!tp.o,a4;\
 (!po_low.o=micro_ppong_lower.o), ;(!po.o=micro_ppong.o), ;(!pi.o=micro_pingp.o),a9;(!pi2.o=micro_pingp.o),a10:\

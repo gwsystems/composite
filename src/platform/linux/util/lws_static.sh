@@ -4,37 +4,33 @@
 # Can be tested with: httperf --server=10.0.2.8 --port=200 --uri=/cgi/hw --num-conns=7000
 
 ./cos_loader \
-"c0.o, ;*ds.o, ;mm.o, ;mh.o, ;print.o, ;boot.o,a2;schedconf.o, ;cg.o,a1;bc.o, ;st.o, ;\
+"c0.o, ;*fprr.o, ;mm.o, ;boot.o, ;print.o, ;\
 \
-!sm.o,a1;!mpd.o,a5;!stat.o,a25;!cm.o,a7;!sc.o,a6;!map.o,a6;!if.o,a5;!ip.o, ;\
-!port.o, ;!l.o,a4;!te.o,a3;!net.o,d6c2t2;!e.o,a5;!fd.o,a8;!conn.o,a9;!va.o,a2;!http.o,a8:\
+!sm.o,a1;!mpool.o, ;!buf.o, ;!va.o, ;!mpd.o,a5;!cm.o,a7;!sc.o,a6;!map.o,a6;!if.o,a5;!ip.o, ;\
+!port.o, ;!l.o,a4;!te.o,a3;!net.o,d6c2t2;!e.o,a5;!fd.o,a8;!conn.o,a9;!http.o,a8:\
 \
-c0.o-ds.o;\
-ds.o-print.o|mh.o|st.o|schedconf.o|[parent_]bc.o;\
-net.o-sm.o|ds.o|mh.o|print.o|l.o|te.o|e.o|ip.o|port.o|va.o;\
-l.o-ds.o|mh.o|print.o;\
-te.o-sm.o|print.o|ds.o|mh.o|va.o;\
+c0.o-fprr.o;\
+fprr.o-print.o|[parent_]mm.o;\
+net.o-sm.o|fprr.o|mm.o|print.o|l.o|te.o|e.o|ip.o|port.o|va.o;\
+l.o-fprr.o|mm.o|print.o;\
+te.o-sm.o|print.o|fprr.o|mm.o|va.o;\
 mm.o-print.o;\
-mh.o-[parent_]mm.o|[main_]mm.o|print.o;\
-e.o-sm.o|ds.o|print.o|mh.o|l.o|st.o|va.o;\
-fd.o-sm.o|print.o|e.o|net.o|l.o|ds.o|http.o|mh.o|va.o;\
-conn.o-sm.o|fd.o|print.o|mh.o|ds.o|va.o;\
-http.o-sm.o|mh.o|print.o|ds.o|cm.o|te.o|va.o;\
-stat.o-sm.o|te.o|ds.o|l.o|print.o|e.o|va.o;\
-st.o-print.o;\
+e.o-sm.o|fprr.o|print.o|mm.o|l.o|va.o;\
+fd.o-sm.o|print.o|e.o|net.o|l.o|fprr.o|http.o|mm.o|va.o;\
+conn.o-sm.o|fd.o|print.o|mm.o|fprr.o|va.o;\
+http.o-sm.o|mm.o|print.o|fprr.o|cm.o|te.o|va.o;\
 ip.o-sm.o|if.o|va.o;\
 port.o-sm.o|l.o;\
-cm.o-sm.o|print.o|mh.o|sc.o|[alt_]map.o|ds.o|va.o;\
-sc.o-sm.o|print.o|mh.o|e.o|ds.o|va.o;\
-map.o-sm.o|print.o|mh.o|e.o|ds.o|va.o;\
-if.o-sm.o|print.o|mh.o|l.o|ds.o|va.o;\
-schedconf.o-print.o;\
-va.o-ds.o|print.o|mm.o|l.o|boot.o;\
-boot.o-print.o|ds.o|mm.o|cg.o;\
-sm.o-va.o|print.o|ds.o|mm.o|boot.o|va.o|l.o;\
-mpd.o-sm.o|cg.o|ds.o|print.o|te.o|mh.o|va.o;\
-cg.o-ds.o;\
-bc.o-print.o\
+cm.o-sm.o|print.o|mm.o|sc.o|[alt_]map.o|fprr.o|va.o;\
+sc.o-sm.o|print.o|mm.o|e.o|fprr.o|va.o;\
+map.o-sm.o|print.o|mm.o|e.o|fprr.o|va.o;\
+if.o-sm.o|print.o|mm.o|l.o|fprr.o|va.o;\
+boot.o-print.o|fprr.o|mm.o;\
+sm.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o|mpool.o;\
+mpool.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o;\
+buf.o-boot.o|sm.o|fprr.o|print.o|l.o|mm.o|va.o|mpool.o;\
+mpd.o-sm.o|boot.o|fprr.o|print.o|te.o|mm.o|va.o;\
+va.o-fprr.o|print.o|mm.o|l.o|boot.o\
 " ./gen_client_stub
 
 

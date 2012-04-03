@@ -2,7 +2,7 @@ C_OBJS=fp_rr.o
 ASM_OBJS=
 COMPONENT=fprr.o
 INTERFACES=sched
-DEPENDENCIES=printc sched_conf sched
+DEPENDENCIES=printc sched
 IF_LIB=../complib.o
 FN_PREPEND=parent_
 

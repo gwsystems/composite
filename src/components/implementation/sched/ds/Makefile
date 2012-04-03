@@ -2,7 +2,7 @@ C_OBJS=deferrable.o
 ASM_OBJS=
 COMPONENT=ds.o
 INTERFACES=sched
-DEPENDENCIES=printc sched_conf sched
+DEPENDENCIES=printc sched
 IF_LIB=../complib.o
 FN_PREPEND=parent_
 
