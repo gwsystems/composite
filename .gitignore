@@ -11,6 +11,7 @@
 .#*
 .fn_dependencies
 .fn_exports
+.exported_interfaces
 composite_new
 tags
 src/kernel/include/shared/cpu_ghz.h

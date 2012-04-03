@@ -2198,7 +2198,7 @@ make_spd_boot_schedule(struct service_symbs *comp, struct service_symbs **sched,
 	sched[*off] = comp;
 	comp->already_loaded = 1;
 	(*off)++;
-	printf("schedule: %s\n", comp->obj);
+	printl(PRINT_HIGH, "\t%d: %s\n", *off, comp->obj);
 }
 
 static void 
@@ -2215,6 +2215,12 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 	/* array to hold the order of initialization/schedule */
 	struct service_symbs **schedule; 
 
+	if (service_get_spdid(boot) != 3) {
+		printf("Booter component must be component number 3.\n"
+		       "\tSuggested fix: Your first four components should be c0.o, ;*fprr.o, ;mm.o, ;boot.o, ;\n");
+		exit(-1);
+	}
+
 	/* Assign ids to the booter-loaded components. */
 	for (all = first ; NULL != all ; all = all->next) {
 		if (!all->is_composite_loaded) continue;
@@ -2228,6 +2234,7 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 
 	schedule = malloc(sizeof(struct service_symbs *) * cnt);
 	assert(schedule);
+	printl(PRINT_HIGH, "Loaded component's initialization scheduled in the following order:\n");
 	for (all = first ; NULL != all ; all = all->next) {
 		make_spd_boot_schedule(all, schedule, &off);
 	}
@@ -2458,16 +2465,14 @@ static void setup_kernel(struct service_symbs *services)
 	}
 	fflush(stdout);
 
-	if ((s = find_obj_by_name(services, INIT_FILE))) {
-		make_spd_init_file(s, INIT_FILE_NAME);
-	}
-	fflush(stdout);
+	/* if ((s = find_obj_by_name(services, INIT_FILE))) { */
+	/* 	make_spd_init_file(s, INIT_FILE_NAME); */
+	/* } */
+	/* fflush(stdout); */
 
-	if ((s = find_obj_by_name(services, CONFIG_COMP)) == NULL) {
-		fprintf(stderr, "Could not find the configuration component.\n");
-		exit(-1);
+	if ((s = find_obj_by_name(services, CONFIG_COMP))) {
+		make_spd_config_comp(s, services);
 	}
-	make_spd_config_comp(s, services);
 
 	if ((s = find_obj_by_name(services, INIT_COMP)) == NULL) {
 		fprintf(stderr, "Could not find initial component\n");

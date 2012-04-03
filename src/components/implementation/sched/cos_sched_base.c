@@ -26,7 +26,6 @@
 #include <cos_sched_tk.h>
 
 #include <sched.h>
-#include <sched_conf.h>
 
 //#define TIMER_ACTIVATE
 #include <timer.h>
@@ -1090,11 +1089,6 @@ static struct sched_thd *sched_setup_thread_arg(void *metric_str, crt_thd_fn_t f
 	return new;
 }
 
-static struct sched_thd *sched_setup_thread(char *metric_str, crt_thd_fn_t fn)
-{
-	return sched_setup_thread_arg(metric_str, fn, NULL, 0);
-}
-
 /* this should just create the thread, not set the prio...there should
  * be a separate function for that */
 int
@@ -1104,6 +1098,8 @@ sched_create_thread(spdid_t spdid, struct cos_array *data)
 	void *d = (void*)(int)spdid;
 	char *metric_str;
 
+	printc("WARNING: the sched_create_thread function is deprecated.  Please use sched_create_thd\n");
+	
 	if (!cos_argreg_arr_intern(data)) return -1;
 	if (((char *)data->mem)[data->sz-1] != '\0') return -1;
 
@@ -1111,6 +1107,28 @@ sched_create_thread(spdid_t spdid, struct cos_array *data)
 	curr = sched_get_current();
 	metric_str = (char *)data->mem;
 	new = sched_setup_thread_arg((char *)metric_str, fp_create_spd_thd, d, 0);
+	cos_sched_lock_release();
+	printc("sched %d: created thread %d in spdid %d (requested by %d)\n",
+	       (unsigned int)cos_spd_id(), new->id, spdid, curr->id);
+
+	return new->id;
+}
+
+int
+sched_create_thd(spdid_t spdid, u32_t sched_param0, u32_t sched_param1, u32_t sched_param2)
+{
+	struct sched_param_s sp[4];
+	struct sched_thd *curr, *new;
+	void *d = (void*)(int)spdid;
+
+	sp[0] = ((union sched_param)sched_param0).c;
+	sp[1] = ((union sched_param)sched_param1).c;
+	sp[2] = ((union sched_param)sched_param2).c;
+	sp[3] = (union sched_param){.c = {.type = SCHEDP_NOOP}}.c;
+
+	cos_sched_lock_take();
+	curr = sched_get_current();
+	new = sched_setup_thread_arg(&sp, fp_create_spd_thd, d, 1);
 	cos_sched_lock_release();
 	printc("sched %d: created thread %d in spdid %d (requested by %d)\n",
 	       (unsigned int)cos_spd_id(), new->id, spdid, curr->id);
@@ -1158,28 +1176,6 @@ sched_create_thread_default(spdid_t spdid, u32_t sched_param_0,
 	       (unsigned int)cos_spd_id(), new->id, spdid, sched_get_current()->id, spdid);
 
 	return 0;
-
-/* 	struct cos_array *data; */
-/* 	struct sched_thd *new; */
-/* 	vaddr_t t = target; */
-
-/* 	data = cos_argreg_alloc(sizeof(struct cos_array) + SCHED_STR_SZ); */
-/* 	assert(data); */
-/* 	data->sz = SCHED_STR_SZ; */
-/* 	cos_sched_lock_take(); */
-
-/* 	if (sched_comp_config_default(cos_spd_id(), target, data)) goto err; */
-/* 	new = sched_setup_thread_arg((char *)data->mem, fp_create_spd_thd, (void*)t); */
-/* 	cos_argreg_free(data); */
-/* 	cos_sched_lock_release(); */
-/* 	printc("sched %d: created default thread %d in spdid %d (requested by %d from %d)\n", */
-/* 	       (unsigned int)cos_spd_id(), new->id, target, sched_get_current()->id, spdid); */
-
-/* 	return 0; */
-/* err: */
-/* 	cos_argreg_free(data); */
-/* 	cos_sched_lock_release(); */
-/* 	return -1; */
 }
 
 static void activate_child_sched(struct sched_thd *g)
@@ -1188,7 +1184,6 @@ static void activate_child_sched(struct sched_thd *g)
 	assert(!sched_thd_free(g));
 	assert(g->wake_cnt >= 0 && g->wake_cnt <= 2);
 
-//	printc("Activating child scheduler (wake cnt = %d)\n", g->wake_cnt);
 	/* if the scheduler's thread is blocked, wake it! */
 	if (g->wake_cnt == 0/*sched_thd_blocked(g)*/) {
 		assert(sched_thd_blocked(g));
@@ -1533,25 +1528,15 @@ void sched_exit(void)
 	BUG();
 }
 
-static struct sched_thd *fp_init_component(spdid_t spdid, char *metric_str)
-{
-	struct sched_thd *new;
-
-	assert(spdid > 0);
-	new = sched_setup_thread_arg(metric_str, fp_create_spd_thd, (void*)(int)spdid, 0);
-	printc("sched %d: component %d's thread has id %d and priority %s.\n", 
-	       (unsigned int)cos_spd_id(), spdid, new->id, metric_str);
-	
-	return new;
-}
-
 static struct sched_thd *fp_create_timer(void)
 {
 	int bid;
+	union sched_param sp[2] = {{.c = {.type = SCHEDP_TIMER}},
+				   {.c = {.type = SCHEDP_NOOP}}};
 
 	bid = sched_setup_brand(cos_spd_id());
 	assert(sched_is_root());
-	timer = sched_setup_thread_arg("t", fp_timer, (void*)bid, 0);
+	timer = sched_setup_thread_arg(&sp, fp_timer, (void*)bid, 1);
 	if (NULL == timer) BUG();
 	if (0 > sched_add_thd_to_brand(cos_spd_id(), bid, timer->id)) BUG();
 	printc("Timer thread has id %d with priority %s.\n", timer->id, "t");
@@ -1562,30 +1547,27 @@ static struct sched_thd *fp_create_timer(void)
 
 /* Iterate through the configuration and create threads for
  * components as appropriate */
-static void sched_init_create_threads(void)
+static void sched_init_create_threads(int boot_threads)
 {
-	spdid_t ret;
-	int i = 0, j = 0;
+	struct sched_thd *t;
+	union sched_param sp[4] = {{.c = {.type = SCHEDP_IDLE}}, 
+				   {.c = {.type = SCHEDP_NOOP}}, 
+				   {.c = {.type = SCHEDP_NOOP}}, 
+				   {.c = {.type = SCHEDP_NOOP}}};
 
 	/* create the idle thread */
-	idle = sched_setup_thread("i", fp_idle_loop);
+	idle = sched_setup_thread_arg(&sp, fp_idle_loop, NULL, 1);
 	printc("Idle thread has id %d with priority %s.\n", idle->id, "i");
 
-	do {
-		struct cos_array *data;
+	if (!boot_threads) return;
 
-		data = cos_argreg_alloc(sizeof(struct cos_array) + SCHED_STR_SZ);
-		assert(data);
-		data->sz = SCHED_STR_SZ;
-		ret = sched_comp_config(cos_spd_id(), i++, data);
-		if (ret <= 0 && sched_is_child()) {
-			data->sz = SCHED_STR_SZ;
-			ret = sched_comp_config_poststart(cos_spd_id(), j++, data);
-		}
-		
-		if (ret > 0 && data->sz > 0) fp_init_component(ret, data->mem);
-		cos_argreg_free(data);
-	} while (ret > 0);
+	sp[0].c.type = SCHEDP_INIT;
+	t = sched_setup_thread_arg(&sp, fp_create_spd_thd, (void*)(int)3, 1);	
+	assert(t);
+	printc("Initialization thread has id %d.\n", t->id);
+	/* t = sched_setup_thread_arg(&sp, fp_create_spd_thd, (void*)(int)6, 1);	 */
+	/* assert(t); */
+	/* printc("Initialization thread has id %d.\n", t->id); */
 }
 
 /* Initialize data-structures */
@@ -1622,7 +1604,7 @@ static void sched_child_init(void)
 	sched_set_thd_urgency(timer, 0); /* highest urgency */
 	timer->flags |= THD_PHANTOM;
 
-	sched_init_create_threads();
+	sched_init_create_threads(0);
 
 	sched_child_evt_thd();	/* doesn't return */
 
@@ -1691,7 +1673,7 @@ int sched_root_init(void)
 #ifdef UBENCH_ACTIVE
 	sched_ctxt_switch_ubench();
 #else	
-	sched_init_create_threads();
+	sched_init_create_threads(1);
 	/* Create the clock tick (timer) thread */
 	fp_create_timer();
 

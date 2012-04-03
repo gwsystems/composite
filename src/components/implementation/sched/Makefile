@@ -1,5 +1,5 @@
 INTERFACES=sched
-DEPENDENCIES=printc sched_conf
+DEPENDENCIES=printc
 
 include ../Makefile.subdir
 ifeq (${ENABLE_STACK_MANAGER},1)

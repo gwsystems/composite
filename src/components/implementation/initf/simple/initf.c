@@ -2,6 +2,9 @@
 #include <initf.h>
 #include <sched.h>
 
+__attribute__((weak)) int _binary_init_tar_start = 0;
+__attribute__((weak)) int _binary_init_tar_size  = 0;
+
 struct init_fs_info {
 	int size;
 	char *start;
@@ -26,6 +29,6 @@ int initf_size(void)
 
 void cos_init(void)
 {
-	info.start = (char*)cos_comp_info.cos_poly[0];
-	info.size = (int)cos_comp_info.cos_poly[1];
+	info.start = (char*)&_binary_init_tar_start;
+	info.size  = (int)  &_binary_init_tar_size;
 }

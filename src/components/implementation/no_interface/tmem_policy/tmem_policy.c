@@ -12,7 +12,6 @@
 #include <periodic_wake.h>
 #include <sched.h>
 #include <timed_blk.h>
-#include <sched_conf.h>
 #include <cos_alloc.h>
 
 #include <cbuf_c.h>

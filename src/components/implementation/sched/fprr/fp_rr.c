@@ -371,6 +371,10 @@ thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
 			/* idle thread */
 			prio = PRIO_LOWEST;
 			break;
+		case SCHEDP_INIT:
+			/* idle thread */
+			prio = PRIO_LOW;
+			break;
 		case SCHEDP_TIMER:
 			/* timer thread */
 			prio = PRIO_HIGHEST;

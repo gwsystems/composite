@@ -23,7 +23,7 @@ clean:
 	rmmod cos
 
 # sync to minimize possible file system corruption on crashes
-build: 
+build: tar
 	@sync
 	@sleep 0.1
 	nice -n -20 insmod cos.ko
@@ -31,6 +31,14 @@ build:
 	insmod cnet.ko
 	insmod trans.ko
 	./cnet_user
+
+tar:
+	@ld -r -b binary -o inittar.o init.tar
+	@ld -r -o initfs.tmp.o inittar.o initfs.o
+	@mv initfs.tmp.o initfs.o
+	@ld -r -o initf.simple.tmp.o inittar.o initf.simple.o
+	@mv initf.simple.tmp.o initf.simple.o
+	@echo "Integrating init.tar into the initf component."
 
 print_kill:
 	killall print

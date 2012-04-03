@@ -321,8 +321,6 @@ boot_spd_thd(spdid_t spdid)
 	int new_thd;
 	union sched_param sp = {.c = {.type = SCHEDP_RPRIO, .value = 1}};
 
-	/* HERE: pass the params as a struct sched_param_s */
-
 	/* Create a thread IF the component requested one */
 	if ((new_thd = sched_create_thread_default(spdid, sp.v, 0, 0)) < 0) return -1;
 	return new_thd;
@@ -363,7 +361,6 @@ static void boot_create_system(void)
 		if (hs[i]->id < min) min = hs[i]->id;
 	}
 	
-	/* HERE */
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;
 		spdid_t spdid;
