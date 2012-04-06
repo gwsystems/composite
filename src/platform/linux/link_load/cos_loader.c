@@ -1578,7 +1578,7 @@ static int load_all_services(struct service_symbs *services)
 
 		service_addr += DEFAULT_SERVICE_SIZE;
 		if (strstr(services->obj, BOOT_COMP)) {
-			service_addr += DEFAULT_SERVICE_SIZE;
+			service_addr += 3*DEFAULT_SERVICE_SIZE;
 		}
 
 		printl(PRINT_DEBUG, "\n");

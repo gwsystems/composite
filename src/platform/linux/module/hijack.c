@@ -772,13 +772,14 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 int fault_ptr = 0;
 struct fault_info {
 	vaddr_t addr;
+	int err_code;
 	struct pt_regs regs;
 	unsigned short int spdid, thdid;
 	int cspd_flags, cspd_master_flags;
 	unsigned long long timestamp;
 } faults[NFAULTS];
 
-static void cos_report_fault(struct thread *t, vaddr_t fault_addr, struct pt_regs *regs)
+static void cos_report_fault(struct thread *t, vaddr_t fault_addr, int ecode, struct pt_regs *regs)
 {
 	struct fault_info *fi;
 	unsigned long long ts;
@@ -788,6 +789,7 @@ static void cos_report_fault(struct thread *t, vaddr_t fault_addr, struct pt_reg
 
 	fi = &faults[fault_ptr];
 	fi->addr = fault_addr;
+	fi->err_code = ecode;
 	if (NULL != regs) memcpy(&fi->regs, regs, sizeof(struct pt_regs));
 	fi->spdid = spd_get_index(thd_get_thd_spd(t));
 	fi->thdid = thd_get_id(t);
@@ -892,10 +894,10 @@ static int cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *re
 }
 
 static void
-cos_record_fault_regs(struct thread *t, vaddr_t fault_addr, struct pt_regs *rs)
+cos_record_fault_regs(struct thread *t, vaddr_t fault_addr, int ecode, struct pt_regs *rs)
 {	
 	memcpy(&t->regs, rs, sizeof(struct pt_regs));
-	cos_report_fault(t, fault_addr, rs);
+	cos_report_fault(t, fault_addr, ecode, rs);
 }
 
 extern void
@@ -903,9 +905,10 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 
 /* the composite specific page fault handler */
 static int 
-cos_handle_page_fault(struct thread *thd, vaddr_t fault_addr, struct pt_regs *regs)
+cos_handle_page_fault(struct thread *thd, vaddr_t fault_addr, 
+		      int ecode, struct pt_regs *regs)
 {
-	cos_record_fault_regs(thd, fault_addr, regs);
+	cos_record_fault_regs(thd, fault_addr, ecode, regs);
 	fault_ipc_invoke(thd, fault_addr, 0, regs, 0);
 		
 	return 0;
@@ -1046,7 +1049,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	cos_meas_event(COS_PG_FAULT);
 	
 	if (get_user_regs_thread(composite_thread) != rs) printk("Nested page fault!\n");
-	ret = cos_handle_page_fault(thd, fault_addr, rs);
+	ret = cos_handle_page_fault(thd, fault_addr, error_code, rs);
 
 	return ret;
 linux_handler_release:
@@ -1071,7 +1074,7 @@ int main_div_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	printk("<<< finally >>>\n");
 
 	t = thd_get_current();
-	cos_record_fault_regs(t, error_code, rs);
+	cos_record_fault_regs(t, error_code, error_code, rs);
 
 	return 1;
 }
@@ -1171,22 +1174,36 @@ static inline pte_t *pgtbl_lookup_address(paddr_t pgtbl, unsigned long addr)
         return pte_offset_kernel(pmd, addr);
 }
 
-#ifdef NIL
-void pgtbl_print_tree(paddr_t pgtbl, unsigned long addr)
+/* returns the page table entry */
+unsigned long
+__pgtbl_lookup_address(paddr_t pgtbl, unsigned long addr)
+{
+	pte_t *pte;
+
+	pte = pgtbl_lookup_address(pgtbl, addr);
+	if (!pte) return 0;
+	return pte->pte_low;
+}
+
+/* returns the page table entry */
+void
+__pgtbl_or_pgd(paddr_t pgtbl, unsigned long addr, unsigned long val)
+{
+	pgd_t *pt = ((pgd_t *)pa_to_va((void*)pgtbl)) + pgd_index(addr);
+
+	pt->pgd = pgd_val(*pt) | val;
+}
+
+void pgtbl_print_path(paddr_t pgtbl, unsigned long addr)
 {
 	pgd_t *pt = ((pgd_t *)pa_to_va((void*)pgtbl)) + pgd_index(addr);
 	pte_t *pe = pgtbl_lookup_address(pgtbl, addr);
 	
-	if (!pt || !pe) {
-		printk("cos: printing page table error, NULL found\n");
-	} else {
-		printk("cos: pgd entry -- %x, pte entry -- %x\n", 
-		       pgd_val(*pt), pte_val(*pe));
-	}
+	printk("cos: pgd entry -- %x, pte entry -- %x\n", 
+	       (unsigned int)pgd_val(*pt), (unsigned int)pte_val(*pe));
 
 	return;
 }
-#endif
 
 int pgtbl_add_entry(paddr_t pgtbl, unsigned long vaddr, unsigned long paddr)
 {
@@ -2008,12 +2025,13 @@ static int aed_release(struct inode *inode, struct file *file)
 			struct fault_info *fi = &faults[i];
 
 			if (fi->thdid != 0) {
-				printk("cos: spd %d, thd %d @ addr %x @ time %lld, mpd flags %x (master %x) and w/ regs: \ncos:\t\t"
+				printk("cos: spd %d, thd %d @ addr %x w/ flags %x @ time %lld, mpd flags %x (master %x) and w/ regs: \ncos:\t\t"
 				       "eip %10x, esp %10x, eax %10x, ebx %10x, ecx %10x,\ncos:\t\t"
 				       "edx %10x, edi %10x, esi %10x, ebp %10x,\n"
-				       "cos:\t\tcs %10x, ss %10x, flags %10x\n",
+				       "cos:\t\tcs  %10x, ss  %10x, flags %10x\n",
 				       fi->spdid, fi->thdid, 
 				       (unsigned int)fi->addr, 
+				       fi->err_code,
 				       fi->timestamp, 
 				       fi->cspd_flags, 
 				       fi->cspd_master_flags, 

@@ -3041,6 +3041,10 @@ COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation,
  * thread.
  */
 extern paddr_t pgtbl_rem_ret(paddr_t pgtbl, vaddr_t va);
+extern unsigned long __pgtbl_lookup_address(paddr_t pgtbl, unsigned long addr);
+extern void __pgtbl_or_pgd(paddr_t pgtbl, unsigned long addr, unsigned long val);
+extern void pgtbl_print_path(paddr_t pgtbl, unsigned long addr);
+
 COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, long mem_id)
 {
 	short int op, flags, dspd_id;
@@ -3081,7 +3085,6 @@ COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t dad
 			break;
 		}
 		cos_meas_event(COS_MAP_GRANT);
-
 		break;
 	case COS_MMAP_REVOKE:
 	{
@@ -3096,6 +3099,9 @@ COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t dad
 
 		break;
 	}
+	case COS_MMAP_TLBFLUSH:
+		native_write_cr3(spd->spd_info.pg_tbl);
+		break;
 	default:
 		ret = -1;
 	}
@@ -3362,6 +3368,7 @@ COS_SYSCALL int cos_syscall_vas_cntl(int id, int op_spdid, long addr, long sz)
 	spd_id = op_spdid & 0xFFFF;
 	spd = spd_get_by_index(spd_id);
 	if (!spd) return -1;
+	if (!sz)  return -1;
 
 	switch(op) {
 	case COS_VAS_CREATE: 	/* new vas */

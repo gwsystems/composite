@@ -447,7 +447,8 @@ enum {
 
 enum {
 	COS_MMAP_GRANT,
-	COS_MMAP_REVOKE
+	COS_MMAP_REVOKE,
+	COS_MMAP_TLBFLUSH
 };
 
 #define IL_INV_UNMAP (0x1) // when invoking, should we be unmapped?

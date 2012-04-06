@@ -213,6 +213,8 @@ static int boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t c
 	unsigned int i;
 	char *start_page;
 	
+	cos_mmap_cntl(COS_MMAP_TLBFLUSH, 0, cos_spd_id(), 0, 0);
+
 	start_page = local_md[spdid].page_start;
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
@@ -252,8 +254,8 @@ static int boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t c
 
 static int boot_spd_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
-	if (boot_spd_map_memory(h, spdid, comp_info) || 
-	    boot_spd_map_populate(h, spdid, comp_info)) return -1;
+	if (boot_spd_map_memory(h, spdid, comp_info)) return -1; 
+	if (boot_spd_map_populate(h, spdid, comp_info)) return -1;
 
 	return 0;
 }
@@ -396,7 +398,7 @@ boot_find_cobjs(struct cobj_header *h, int n)
 		for (j = 0 ; j < (int)h->nsect ; j++) {
 			tot += cobj_sect_size(h, j);
 		}
-		printc("cobj %s:%d found at %p:%d, size %d -> %x\n", 
+		printc("cobj %s:%d found at %p:%x, size %x -> %x\n", 
 		       h->name, h->id, hs[i-1], size, tot, cobj_sect_get(hs[i-1], 0)->vaddr);
 
 		end = start + round_up_to_cacheline(size);
@@ -529,13 +531,13 @@ void cos_init(void *arg)
 	assert(boot_sched);
 
 	boot_find_cobjs(h, num_cobj);
-	/* This component really might need more vas */
+	/* This component really might need more vas, get the next 4M region */
 	if (cos_vas_cntl(COS_VAS_SPD_EXPAND, cos_spd_id(), 
 			 round_up_to_pgd_page((unsigned long)&num_cobj), 
-			 round_up_to_pgd_page(1))) {
+			 3 * round_up_to_pgd_page(1))) {
 		printc("Could not expand boot component to %p:%x\n",
 		       (void *)round_up_to_pgd_page((unsigned long)&num_cobj), 
-		       (unsigned int)round_up_to_pgd_page(1));
+		       (unsigned int)round_up_to_pgd_page(1)*3);
 		BUG();
 	}
 
