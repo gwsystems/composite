@@ -24,7 +24,7 @@ port.o-sm.o|l.o;\
 cm.o-sm.o|print.o|mm.o|sc.o|[alt_]map.o|fprr.o|va.o;\
 sc.o-sm.o|print.o|mm.o|e.o|fprr.o|va.o;\
 map.o-sm.o|print.o|mm.o|e.o|fprr.o|va.o;\
-if.o-sm.o|print.o|mm.o|l.o|fprr.o|va.o;\
+if.o-sm.o|print.o|fprr.o|mm.o|l.o|va.o;\
 boot.o-print.o|fprr.o|mm.o;\
 sm.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o|mpool.o;\
 mpool.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o;\
