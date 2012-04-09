@@ -38,3 +38,17 @@ appear earlier in the list of components.
 
 2. If you want to have a thread with a specific priority, use
 sched_create_thread to create it.
+
+Commit e919be82b1856d776a7e7d1c4906611e4b388f4e
+-----------------------------------------------
+
+The order of dependencies matters for components.  If you want to
+invoke the scheduler for anything, make sure that the scheduler comes
+before the memory manager in the list of dependencies.  Else, you will
+get BUG() calls from within the memory manager.  This should be taken
+care of automatically in the cfuse compiler, for is manual for now.
+
+This is an issue now, and not before as the base memory manager
+exports the scheduler interface as well so that it can act as the base
+scheduler interface.  However, none of its functions should ever be
+called.
