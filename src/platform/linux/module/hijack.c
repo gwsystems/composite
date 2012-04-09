@@ -900,6 +900,7 @@ cos_record_fault_regs(struct thread *t, vaddr_t fault_addr, int ecode, struct pt
 	cos_report_fault(t, fault_addr, ecode, rs);
 }
 
+extern int fault_update_mpd_pgtbl(struct thread *thd, struct pt_regs *regs, vaddr_t fault_addr);
 extern void
 fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num);
 
@@ -1049,7 +1050,8 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	cos_meas_event(COS_PG_FAULT);
 	
 	if (get_user_regs_thread(composite_thread) != rs) printk("Nested page fault!\n");
-	ret = cos_handle_page_fault(thd, fault_addr, error_code, rs);
+	if (fault_update_mpd_pgtbl(thd, rs, fault_addr)) ret = 0;
+	else ret = cos_handle_page_fault(thd, fault_addr, error_code, rs);
 
 	return ret;
 linux_handler_release:
@@ -1199,8 +1201,8 @@ void pgtbl_print_path(paddr_t pgtbl, unsigned long addr)
 	pgd_t *pt = ((pgd_t *)pa_to_va((void*)pgtbl)) + pgd_index(addr);
 	pte_t *pe = pgtbl_lookup_address(pgtbl, addr);
 	
-	printk("cos: pgd entry -- %x, pte entry -- %x\n", 
-	       (unsigned int)pgd_val(*pt), (unsigned int)pte_val(*pe));
+	printk("cos: addr %x, pgd entry - %x, pte entry - %x\n", 
+	       (unsigned int)addr, (unsigned int)pgd_val(*pt), (unsigned int)pte_val(*pe));
 
 	return;
 }

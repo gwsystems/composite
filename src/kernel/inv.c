@@ -3101,12 +3101,43 @@ COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t dad
 	}
 	case COS_MMAP_TLBFLUSH:
 		native_write_cr3(spd->spd_info.pg_tbl);
+//		pgtbl_print_path(spd->spd_info.pg_tbl, daddr);
 		break;
 	default:
 		ret = -1;
 	}
 
 	return ret;
+}
+
+extern void copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from, 
+			     unsigned long lower_addr, unsigned long size);
+/* 
+ * The problem solved here is this: Each component has a page-table
+ * that defines its memory mappings.  This is updated by the
+ * mmap_cntl, and vas_cntl system calls.  However, there can be
+ * multiple composite protection domains (due to MPD) that include
+ * this component.  The question is how do they all stay consistent.
+ * This is the function that maintains this.  On a page-fault, the
+ * composite page-table is updated from the main component's
+ * page-tables if the mapping is not present in the composite, but is
+ * in the master.
+ */
+int fault_update_mpd_pgtbl(struct thread *thd, struct pt_regs *regs, vaddr_t fault_addr)
+{
+	struct spd *origin;
+	struct spd_poly *active;
+
+	origin = thd_get_thd_spd(thd);
+	if (origin != virtual_namespace_query(fault_addr)) return 0;
+	active = thd_get_thd_spdpoly(thd);
+
+	if ( pgtbl_entry_absent(origin->spd_info.pg_tbl, fault_addr)) return 0;
+	if (!pgtbl_entry_absent(active->pg_tbl, fault_addr)) return 0;
+
+	copy_pgtbl_range(active->pg_tbl, origin->spd_info.pg_tbl, fault_addr, HPAGE_SIZE);
+
+	return 1;
 }
 
 COS_SYSCALL int cos_syscall_print(int spdid, char *str, int len)
