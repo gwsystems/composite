@@ -632,7 +632,8 @@ COS_SYSCALL int cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long a
  * The second argument is used to return the composite spd that was
  * upcalled into to execute the scheduler.
  */
-static inline int sched_tailcall_adjust_invstk(struct thread *t)
+static inline int 
+sched_tailcall_adjust_invstk(struct thread *t)
 {
 	struct thd_invocation_frame *tif, *ntif;
 	struct spd *s;
@@ -660,7 +661,8 @@ static inline int sched_tailcall_adjust_invstk(struct thread *t)
 	return spd_get_index(s);
 }
 
-static inline void remove_preempted_status(struct thread *thd)
+static inline void 
+remove_preempted_status(struct thread *thd)
 {
  	if (thd->preempter_thread) {
 		struct thread *p = thd->preempter_thread;
@@ -687,7 +689,8 @@ static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc,
 static struct thread *sched_tailcall_pending_upcall_thd(struct thread *uc, 
 							 struct composite_spd *curr);
 static inline void update_thd_evt_state(struct thread *t, int flags, unsigned long elapsed_cycles);
-static inline void break_preemption_chain(struct thread *t)
+static inline void 
+break_preemption_chain(struct thread *t)
 {
 	struct thread *other;
 
@@ -706,7 +709,8 @@ static inline void break_preemption_chain(struct thread *t)
 	}
 }
 
-static inline unsigned short int switch_thread_parse_data_area(struct cos_sched_data_area *da, int *ret_code)
+static inline unsigned short int 
+switch_thread_parse_data_area(struct cos_sched_data_area *da, int *ret_code)
 {
 	unsigned short int next_thd;
 
@@ -733,8 +737,9 @@ ret_err:
 	return 0;
 }
 
-static inline struct thread *switch_thread_get_target(unsigned short int tid, struct thread *curr, 
-						      struct spd *curr_spd, int *ret_code)
+static inline struct thread *
+switch_thread_get_target(unsigned short int tid, struct thread *curr, 
+			 struct spd *curr_spd, int *ret_code)
 {
 	struct thread *thd;
 
@@ -785,12 +790,14 @@ ret_err:
 	return NULL;
 }
 
-static struct thread *switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd *curr_spd, 
-					     unsigned short int rthd_id, struct cos_sched_data_area *da,
-					     int *ret_code, unsigned short int *curr_flags, 
-					     unsigned short int *thd_flags);
+static struct thread *
+switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd *curr_spd, 
+		       unsigned short int rthd_id, struct cos_sched_data_area *da,
+		       int *ret_code, unsigned short int *curr_flags, 
+		       unsigned short int *thd_flags);
 
-static inline void switch_thread_update_flags(struct cos_sched_data_area *da, unsigned short int *flags)
+static inline void 
+switch_thread_update_flags(struct cos_sched_data_area *da, unsigned short int *flags)
 {
 	if (likely(!(da->cos_next.next_thd_flags & COS_SCHED_CHILD_EVT))) 
 		*flags &= ~COS_SCHED_CHILD_EVT;
@@ -819,8 +826,9 @@ static inline void switch_thread_update_flags(struct cos_sched_data_area *da, un
  * more pleasant way to deal with this might be to pass the args in
  * registers.  see ipc.S cos_syscall_switch_thread.
  */
-COS_SYSCALL struct pt_regs *cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id, 
-							   unsigned short int rflags, long *preempt)
+COS_SYSCALL struct pt_regs *
+cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id, 
+			       unsigned short int rflags, long *preempt)
 {
 	struct thread *thd, *curr;
 	struct spd *curr_spd;
@@ -892,10 +900,11 @@ ret:
 	return &curr->regs;
 }
 
-static struct thread *switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd *curr_spd, 
-					     unsigned short int rthd_id, struct cos_sched_data_area *da,
-					     int *ret_code, unsigned short int *curr_flags, 
-					     unsigned short int *thd_flags)
+static struct thread *
+switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd *curr_spd, 
+		       unsigned short int rthd_id, struct cos_sched_data_area *da,
+		       int *ret_code, unsigned short int *curr_flags, 
+		       unsigned short int *thd_flags)
 {
 	struct thread *thd;
 	unsigned short int next_thd;
@@ -1009,8 +1018,9 @@ ret_err:
 	return curr;
 }
 
-static inline void upcall_setup_regs(struct thread *uc, struct spd *dest,
-				     upcall_type_t option, long arg1, long arg2, long arg3)
+static inline void 
+upcall_setup_regs(struct thread *uc, struct spd *dest,
+		  upcall_type_t option, long arg1, long arg2, long arg3)
 {
 	struct pt_regs *r = &uc->regs;
 
@@ -1026,8 +1036,9 @@ static inline void upcall_setup_regs(struct thread *uc, struct spd *dest,
  * Here we aren't throwing away the entire invocation stack.  Just add
  * the upcall frame on top of the existing stack.
  */
-static struct thread *upcall_inv_setup(struct thread *uc, struct spd *dest, upcall_type_t option,
-				       long arg1, long arg2, long arg3)
+static struct thread *
+upcall_inv_setup(struct thread *uc, struct spd *dest, upcall_type_t option,
+		 long arg1, long arg2, long arg3)
 {
 	/* Call this first so that esp and eip are intact...clobbered
 	 * in the next line */
@@ -1038,8 +1049,9 @@ static struct thread *upcall_inv_setup(struct thread *uc, struct spd *dest, upca
 	return uc;
 }
 
-static struct thread *upcall_setup(struct thread *uc, struct spd *dest, upcall_type_t option,
-				   long arg1, long arg2, long arg3)
+static struct thread *
+upcall_setup(struct thread *uc, struct spd *dest, upcall_type_t option,
+	     long arg1, long arg2, long arg3)
 {
 	upcall_setup_regs(uc, dest, option, arg1, arg2, arg3);
 	
@@ -1051,8 +1063,9 @@ static struct thread *upcall_setup(struct thread *uc, struct spd *dest, upcall_t
 	return uc;
 }
 
-static inline struct thread *upcall_execute(struct thread *uc, struct composite_spd *new,
-					    struct thread *prev, struct composite_spd *old)
+static inline struct thread *
+upcall_execute(struct thread *uc, struct composite_spd *new,
+	       struct thread *prev, struct composite_spd *old)
 {
 	if (prev && prev != uc) {
 		/* This will switch the page tables for us */
@@ -1067,7 +1080,8 @@ static inline struct thread *upcall_execute(struct thread *uc, struct composite_
 
 /* This version of the call is to be used when we wish to make an
  * upcall that won't immediately switch page tables */
-static inline struct thread *upcall_execute_no_vas_switch(struct thread *uc, struct thread *prev)
+static inline struct thread *
+upcall_execute_no_vas_switch(struct thread *uc, struct thread *prev)
 {
 	if (likely(prev && prev != uc)) {
 		struct spd_poly *nspd;
@@ -1081,14 +1095,16 @@ static inline struct thread *upcall_execute_no_vas_switch(struct thread *uc, str
 	return uc;
 }
 
-static inline struct thread *upcall_execute_compat(struct thread *uc, struct thread *prev, 
-						   struct composite_spd *old)
+static inline struct thread *
+upcall_execute_compat(struct thread *uc, struct thread *prev, 
+		      struct composite_spd *old)
 {
 	struct composite_spd *cspd = (struct composite_spd*)uc->stack_base[0].current_composite_spd;
 	return upcall_execute(uc, cspd, prev, old);
 }
 
-static struct thd_sched_info *scheduler_find_leaf(struct thread *t)
+static struct thd_sched_info *
+scheduler_find_leaf(struct thread *t)
 {
 	struct thd_sched_info *tsi = NULL, *prev_tsi;
 	int i = 0;
@@ -1104,7 +1120,8 @@ static struct thd_sched_info *scheduler_find_leaf(struct thread *t)
 	return prev_tsi;
 }
 
-static inline struct pt_regs *thd_ret_upcall_type(struct thread *curr, upcall_type_t t)
+static inline struct pt_regs *
+thd_ret_upcall_type(struct thread *curr, upcall_type_t t)
 {
 	struct composite_spd *cspd = (struct composite_spd *)thd_get_thd_spdpoly(curr);
 	struct thd_sched_info *tsi;
@@ -1122,14 +1139,16 @@ static inline struct pt_regs *thd_ret_upcall_type(struct thread *curr, upcall_ty
 }
 
 /* Upcall into base scheduler! */
-static struct pt_regs *thd_ret_term_upcall(struct thread *curr)
+static struct pt_regs *
+thd_ret_term_upcall(struct thread *curr)
 {
 	return thd_ret_upcall_type(curr, COS_UPCALL_DESTROY);
 }
 
 //static int cos_net_try_packet(struct thread *brand, unsigned short int *port);
 
-static struct thread *sched_tailcall_pending_upcall_thd(struct thread *uc, struct composite_spd *curr)
+static struct thread *
+sched_tailcall_pending_upcall_thd(struct thread *uc, struct composite_spd *curr)
 {
 	struct thread *brand = uc->thread_brand;
 	struct composite_spd *cspd;
@@ -1159,7 +1178,8 @@ static struct thread *sched_tailcall_pending_upcall_thd(struct thread *uc, struc
  * TAIL_CALL flag (i.e. we are switching away from an upcall).  Also,
  * that the previous component was released.
  */
-static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, struct composite_spd *curr)
+static struct pt_regs *
+sched_tailcall_pending_upcall(struct thread *uc, struct composite_spd *curr)
 {
 	return &sched_tailcall_pending_upcall_thd(uc, curr)->regs;
 }
