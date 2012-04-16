@@ -15,7 +15,7 @@ td_t __sg_tsplit(spdid_t spdid, cbuf_t cbid, int len)
 	if (unlikely(!d)) return -5;
 	/* mainly to inform the compiler that optimizations are possible */
 	if (unlikely(d->len[0] != 0)) return -2; 
-	if (unlikely(d->len[0] >= d->len[1])) return -3;
+	if (unlikely(d->len[0] > d->len[1])) return -3;
 	if (unlikely(((int)(d->len[1] + sizeof(struct __sg_tsplit_data))) != len)) return -4;
 
 	return tsplit(spdid, d->tid, &d->data[0], 

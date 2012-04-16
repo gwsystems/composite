@@ -1,6 +1,8 @@
 /**
  * Copyright 2011 by Gabriel Parmer, gparmer@gwu.edu
  *
+ * Change to the torrent interface, gparmer 2012
+ *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  */
@@ -42,11 +44,7 @@ extern int server_tread(spdid_t spdid, td_t td, int cbid, int sz);
 /* Keeping some stats (unsynchronized across threads currently) */
 static volatile unsigned long http_conn_cnt = 0, http_req_cnt = 0;
 
-inline static int is_whitespace(char s)
-{
-	if (' ' == s) return 1;
-	return 0;
-}
+inline static int is_whitespace(char s) { return ' ' == s; }
 
 inline static char *remove_whitespace(char *s, int len)
 {
@@ -239,6 +237,7 @@ static int http_get_request(struct http_request *r)
 		r->content_id = server_tsplit(cos_spd_id(), td_root, r->path, 
 					      r->path_len, TOR_READ, r->c->evt_id);
 		if (r->content_id < 0) return r->content_id;
+		ret = 0;
 	}
 	return ret;
 }
@@ -780,19 +779,104 @@ tread(spdid_t spdid, td_t td, int cbid, int sz)
 	int ret;
 	
 	if (tor_isnull(td)) return -EINVAL;
-
+	
 	t = tor_lookup(td);
 	if (!t) ERR_THROW(-EINVAL, done);
 	assert(!tor_is_usrdef(td) || t->data);
 	if (!(t->flags & TOR_READ)) ERR_THROW(-EACCES, done);
 	c = t->data;
-
+	
 	buf = cbuf2buf(cbid, sz);
 	if (!buf) ERR_THROW(-EINVAL, done);
 
 	ret = connection_get_reply(c, buf, sz);
 done:	
 	return ret;
+}
+
+long 
+content_split(spdid_t spdid, long conn_id, long evt_id)
+{
+	return -ENOSYS;
+}
+
+int 
+content_write(spdid_t spdid, long connection_id, char *reqs, int sz)
+{
+	struct connection *c;
+	struct torrent *t;
+	cbuf_t cb;
+	char *cbuf;
+//     printc("HTTP write");
+	
+	t = tor_lookup(connection_id);
+	assert(t);
+	c = t->data;
+	
+	cbuf = cbuf_alloc(sz, &cb);
+	memcpy(cbuf, reqs, sz);
+	if (connection_parse_requests(c, cbuf, sz)) return -EINVAL;
+	cbuf_free(cbuf);
+
+	return sz;
+}
+
+int 
+content_read(spdid_t spdid, long connection_id, char *reqs, int sz)
+{
+	struct torrent *t;
+	struct connection *c;
+	cbuf_t cb;
+	char *cbuf;
+	int ret;
+	
+	t = tor_lookup(connection_id);
+	assert(t);
+	c = t->data;
+	
+	cbuf = cbuf_alloc(sz, &cb);
+	ret  = connection_get_reply(c, cbuf, sz);
+	memcpy(reqs, cbuf, sz);
+	cbuf_free(cbuf);
+
+	return ret;
+}
+
+long
+content_create(spdid_t spdid, long evt_id, struct cos_array *d)
+{
+	struct connection *c = http_new_connection(0, evt_id);
+	struct torrent *t;
+	
+	t = tor_alloc(c, TOR_ALL);
+	if (!t) return -1;
+	c->conn_id = t->td;
+	if (t->td < 0) {
+		http_free_connection(c);
+		return -ENOMEM;
+	}
+	return c->conn_id;
+}
+
+int 
+content_remove(spdid_t spdid, long conn_id)
+{
+	struct torrent *t;
+	struct connection *c;
+
+	if (!tor_is_usrdef(conn_id)) return -1;
+
+	t = tor_lookup(conn_id);
+	if (!t) goto done;
+	c = t->data;
+	if (c) {
+		http_free_connection(c);
+		/* bookkeeping */
+		http_conn_cnt++;
+	}
+	tor_free(t);
+done:
+	return 0;
 }
 
 #define HTTP_REPORT_FREQ 100

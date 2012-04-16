@@ -83,10 +83,11 @@ typedef unsigned int u32_t;
 
 #ifndef CVECT_ALLOC
 /* How do we allocate and free a chunk of size CVECT_SZ? */
-#error "You must define CVECT_ALLOC and CVECT_FREE to allocate and free a page."
+#define CVECT_ALLOC() alloc_page()
+#define CVECT_FREE(x) free_page(x)
+//#error "You must define CVECT_ALLOC and CVECT_FREE to allocate and free a page."
 #endif
 #endif
-
 
 struct cvect_intern {
 	union {

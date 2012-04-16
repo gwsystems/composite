@@ -222,9 +222,9 @@ static inline int __cbuf_vect_expand(cbuf_vect_t *v, long id)
 	struct cbuf_vect_intern_struct *is, *root;
 	int i;
 
+	assert(v);
 	// do it once for 2 levels
-	if(unlikely(v->depth == 0)){
-
+	if (unlikely(v->depth == 0)) {
  		v->depth = 1;
 
 		if (v->depth >= CBUF_VECT_DEPTH_MAX) return -1;
@@ -246,13 +246,9 @@ static inline int __cbuf_vect_expand(cbuf_vect_t *v, long id)
 	/* we must be asking for an index that doesn't have a complete
 	 * path through the tree (intermediate nodes) */
 	assert(v->depth == 2);
-
-	assert(v && NULL == __cbuf_vect_lookup(v, id));
+	assert(NULL == __cbuf_vect_lookup(v, id));
 
 	is = (struct cbuf_vect_intern_struct *)cbuf_c_register(cos_spd_id(), id);
-
-	/* printc("extended: [[[[[[ %p ]]]]]]\n",is); */
-
 	if (NULL == is) return -1;
 	for (i = 0 ; i < (int)CBUF_VECT_BASE ; i++) is[i].val = (void*)CBUF_VECT_INIT_VAL;
 

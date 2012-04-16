@@ -111,7 +111,7 @@ __cbuf_2buf_miss(int cbid, int len)
 	mc = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
 	/* have to expand the cbuf_vect */
 	if (unlikely(!mc)) {
-		if (cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid))) BUG();
+		if (cbuf_vect_expand(&meta_cbuf, cbid)) BUG();
 		mc = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
 		assert(mc);
 	}
