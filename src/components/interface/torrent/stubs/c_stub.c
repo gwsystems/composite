@@ -14,7 +14,7 @@ CSTUB_FN_ARGS_6(td_t, tsplit, spdid_t, spdid, td_t, tid, char *, param, int, len
 	cbuf_t cb;
 	int sz = len + sizeof(struct __sg_tsplit_data);
 
-        assert(param && len > 0);
+        assert(param && len >= 0);
         assert(param[len] == '\0');
 
 	d = cbuf_alloc(sz, &cb);

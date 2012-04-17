@@ -2,7 +2,7 @@ C_OBJS=pgfault.o
 ASM_OBJS=
 COMPONENT=pfs.o
 INTERFACES=pgfault
-DEPENDENCIES=printc stkmgr
+DEPENDENCIES=printc stkmgr mem_mgr_large
 IF_LIB=
 
 include ../../Makefile.subsubdir

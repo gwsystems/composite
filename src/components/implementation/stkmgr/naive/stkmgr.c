@@ -563,15 +563,6 @@ err:
 	return ret;
 }
 
-int 
-stkmgr_stack_close(spdid_t d_spdid, vaddr_t d_addr)
-{
-	/* the memory manager will ensure that both we and the
-	 * destination own this page */
-	mman_release_page(d_spdid, d_addr, 0);
-	return 0;
-}
-
 //#define PRINT_FREELIST_ELEMENTS
 
 static void

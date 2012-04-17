@@ -13,6 +13,7 @@
 #include <print.h>
 #include <fault_regs.h>
 #include <stkmgr.h>
+#include <mem_mgr_large.h>
 
 /* FIXME: should have a set of saved fault regs per thread. */
 int regs_active = 0; 
@@ -35,7 +36,8 @@ map_stack(spdid_t spdid, vaddr_t extern_stk)
 static void
 unmap_stack(spdid_t spdid, unsigned long *stack)
 {
-	stkmgr_stack_close(spdid, (vaddr_t)stack);
+	//stkmgr_stack_close(spdid, (vaddr_t)stack);
+	mman_release_page(cos_spd_id(), (vaddr_t)stack, 0);
 }
 
 /* 
@@ -88,13 +90,13 @@ walk_stack_all(spdid_t spdid, struct cos_regs *regs)
 		 * stubs */
 		sp = cos_thd_cntl(COS_THD_INVFRM_SP, tid, i, 0);
 		assert(sp);
-		
+
 		stack = map_stack(spdid, sp);
 		/* The invocation stubs save ebp last, thus *(esp+16)
 		 * = ebp.  This offset corresponds to the number of
 		 * registers pushed in
 		 * SS_ipc_client_marshal_args... */
-		fp_off = ((sp & (~PAGE_MASK))/sizeof(unsigned long)) + 4;
+		fp_off = ((sp & (~PAGE_MASK))/sizeof(unsigned long));
 		fp = (unsigned long *)&stack[fp_off];
 		
 		walk_stack(spdid, fp, stack);
@@ -117,6 +119,7 @@ int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *o
 	/* No fault is a good fault currently.  Thus if we get _any_
 	 * fault, we bomb out here.  Look into the stack-trace, as
 	 * that is where the problem is. */
+	printc("Bombing out after fault.\n");
 	BUG(); 			
 
 	return 0;

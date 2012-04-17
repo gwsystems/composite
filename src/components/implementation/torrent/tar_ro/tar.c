@@ -50,6 +50,9 @@ tsplit(spdid_t spdid, td_t td, char *param,
 	nt = tor_alloc(fsc, tflags);
 	if (!nt) ERR_THROW(-ENOMEM, free);
 	ret = nt->td;
+
+	/* If we created the torrent, then trigger an event as we have data! */
+	evt_trigger(cos_spd_id(), evtid);
 done:
 	UNLOCK();
 	return ret;

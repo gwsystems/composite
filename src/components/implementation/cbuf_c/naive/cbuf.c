@@ -33,7 +33,7 @@
 COS_MAP_CREATE_STATIC(cb_ids);
 
 #define CBUF_OBJ_SZ_SHIFT 6
-#define CB_IDX(name) (name - cbr->start_id - 1)
+#define CB_IDX(id, cbr) (id - cbr->start_id - 1)
 
 struct cos_cbuf_item *alloc_item_data_struct(void *l_addr) 
 {
@@ -255,7 +255,6 @@ __spd_cbvect_add_range(struct spd_tmem_info *sti, long cbuf_id, vaddr_t page)
 	if (!cbr) return -1;
 
 	cbr->start_id = (cbuf_id - 1) & ~CVECT_MASK;
-
 	cbr->end_id = cbr->start_id + CVECT_BASE - 1;
 	cbr->meta = (union cbuf_meta*)page;
 
@@ -282,7 +281,7 @@ __spd_cbvect_lookup_range(struct spd_tmem_info *sti, long cbuf_id)
 			/* idx = cbid_idx - cbr->start_id; */
 			/* DOUT("cbid_idx %ld idx %ld\n", cbid_idx, idx); */
 			/* return &cbr->meta[1]; */
-			return &cbr->meta[CB_IDX(cbuf_id)];
+			return &cbr->meta[CB_IDX(cbuf_id, cbr)];
 		}
 	}
 	return NULL;
@@ -298,8 +297,8 @@ __spd_cbvect_clean_val(struct spd_tmem_info *sti, long cbuf_id)
 	     cbr != &sti->ci ; 
 	     cbr = FIRST_LIST(cbr, next, prev)) {
 		if (cbuf_id >= cbr->start_id && cbuf_id <= cbr->end_id) {
-			cbr->meta[CB_IDX(cbuf_id)].c_0.v = (u32_t)COS_VECT_INIT_VAL;
-			cbr->meta[CB_IDX(cbuf_id)].c_0.th_id = (u32_t)COS_VECT_INIT_VAL;
+			cbr->meta[CB_IDX(cbuf_id, cbr)].c_0.v = (u32_t)COS_VECT_INIT_VAL;
+			cbr->meta[CB_IDX(cbuf_id, cbr)].c_0.th_id = (u32_t)COS_VECT_INIT_VAL;
 			break;
 		}
 	}

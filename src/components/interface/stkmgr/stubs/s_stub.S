@@ -24,4 +24,3 @@ cos_asm_server_stub(stkmgr_set_suspension_limit)
 cos_asm_server_stub(stkmgr_get_allocated)
 	
 cos_asm_server_stub_spdid(stkmgr_stack_introspect)
-cos_asm_server_stub_spdid(stkmgr_stack_close)

@@ -538,7 +538,7 @@ static void sched_timer_tick(void)
 		
 		report_event(TIMER_TICK);
 		
-		if ((ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1)) {
+		if (unlikely(ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1)) {
 			report_thd_accouting();
 			//cos_stats();
 		}

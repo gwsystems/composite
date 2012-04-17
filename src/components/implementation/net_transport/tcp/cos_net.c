@@ -212,6 +212,7 @@ COS_MAP_CREATE_STATIC(connections);
 static int net_conn_init(void)
 {
 	cos_map_init_static(&connections);
+	cos_map_add(&connections, (void*)1);
 
 	return 0;
 }
@@ -624,7 +625,8 @@ static err_t cos_net_lwip_tcp_connected(void *arg, struct tcp_pcb *tp, err_t err
 static err_t cos_net_lwip_tcp_accept(void *arg, struct tcp_pcb *new_tp, err_t err);
 
 /* FIXME: same as for the udp version of this function. */
-static net_connection_t __net_create_tcp_connection(spdid_t spdid, u16_t tid, struct tcp_pcb *new_tp, long evt_id)
+static net_connection_t 
+__net_create_tcp_connection(spdid_t spdid, u16_t tid, struct tcp_pcb *new_tp, long evt_id)
 {
 	struct tcp_pcb *tp;
 	struct intern_connection *ic;
@@ -653,6 +655,9 @@ static net_connection_t __net_create_tcp_connection(spdid_t spdid, u16_t tid, st
 	tcp_recv(tp, cos_net_lwip_tcp_recv);
 	tcp_sent(tp, cos_net_lwip_tcp_sent);
 	tcp_accept(tp, cos_net_lwip_tcp_accept);
+
+	assert(net_conn_get_internal(net_conn_get_opaque(ic)));
+
 	return net_conn_get_opaque(ic);
 tcp_err:
 	tcp_abort(tp);

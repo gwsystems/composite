@@ -11,11 +11,11 @@ SS_ipc_client_marshal_args:
 	 * pushed after the stack frame, we need to change the stack
 	 * tracking functions.
 	 */
-	pushl %ebp
 	pushl %ebx
 	pushl %esi
 	pushl %edi
 	pushl %edx
+	pushl %ebp
 	movl CAPNUM(%eax), %eax /* typeof(%eax) = (usr_inv_cap*) */
 
 	/* arguments */
@@ -34,19 +34,19 @@ SS_ipc_client_marshal_args:
 .globl SS_ipc_client_ret_unmarshal
 .align 8
 SS_ipc_client_ret_unmarshal:
+	popl %ebp
 	popl %edx
 	popl %edi
 	popl %esi
 	popl %ebx
-	popl %ebp
 	
 	ret
 SS_ipc_client_ret_fatal_err:	
+	popl %ebp
 	popl %edx
 	popl %edi
 	popl %esi
 	popl %ebx
-	popl %ebp
 	
 	movl $-0xDEAD, %eax
 	ret
