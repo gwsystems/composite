@@ -25,6 +25,7 @@
 #include <tmem.h>
 #include <cbuf_c.h>
 
+
 //#define PRINCIPAL_CHECKS
 
 #define DEFAULT_TARGET_ALLOC MAX_NUM_MEM 
@@ -77,7 +78,7 @@ struct cos_cbuf_item *free_mem_in_local_cache(struct spd_tmem_info *sti)
 
 	if (cci == list) goto err;
 done:
-	/* DOUT("\n hehe found one!!\n\n"); */
+	/* DOUT("\n Found one!!\n\n"); */
 	return cci;
 err:
 	/* DOUT("\n can not found one!!\n"); */
@@ -350,6 +351,11 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	assert(SPD_IS_MANAGED(sti));
 	assert(cbid >= 0);
 
+	/* For cbuf only
+	 * find an unused cbuf_id
+	 * looks through to find id
+	 * if does not find, allocate a page for the meta data
+	 */
 	if (cbid) {
 		 // vector should already exist
 		v = cos_map_lookup(&cb_ids, cbid);
@@ -394,7 +400,7 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	cbuf_item->entry = mc;
 
 	mc->c.ptr     = d->owner.addr >> PAGE_ORDER;
-	mc->c.obj_sz  = ((unsigned int)PAGE_SIZE) >> CBUF_OBJ_SZ_SHIFT;
+	mc->c.obj_sz  = (unsigned int)(PAGE_SIZE) >> CBUF_OBJ_SZ_SHIFT;
 	mc->c_0.th_id = cos_get_thd_id();
 	mc->c.flags  |= CBUFM_IN_USE | CBUFM_TOUCHED;
 done:
@@ -434,6 +440,7 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 		m = n;
 	}
 	valloc_free(cos_spd_id(), sti->spdid, (void *)(d->owner.addr), 1);
+	sti->ci.spd_cinfo_page->cos_tmem_available[COMP_INFO_TMEM_CBUF]--;
 
 	DOUT("unmapped is done\n");
 	return 0;

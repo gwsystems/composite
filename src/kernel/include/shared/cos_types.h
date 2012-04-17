@@ -228,9 +228,9 @@ struct usr_inv_cap {
 #define COMP_INFO_STACK_FREELISTS 1
 
 enum {
-	COMP_INFO_TMEM_STK_RELINQ = 0,
-	COMP_INFO_TMEM_CBUF_RELINQ,
-	COMP_INFO_TMEM_RELINQUISH
+	COMP_INFO_TMEM_STK = 0,
+	COMP_INFO_TMEM_CBUF,
+	COMP_INFO_TMEM
 };
 
 /* Each stack freelist is associated with a thread id that can be used
@@ -253,7 +253,8 @@ struct cos_stack_freelists {
 struct cos_component_information {
 	struct cos_stack_freelists cos_stacks;
 	long cos_this_spd_id;
-	u32_t cos_tmem_relinquish[COMP_INFO_TMEM_RELINQUISH];
+	u32_t cos_tmem_relinquish[COMP_INFO_TMEM];
+	u32_t cos_tmem_available[COMP_INFO_TMEM];
 	vaddr_t cos_heap_ptr, cos_heap_limit;
 	vaddr_t cos_heap_allocated, cos_heap_alloc_extent;
 	vaddr_t cos_upcall_entry;

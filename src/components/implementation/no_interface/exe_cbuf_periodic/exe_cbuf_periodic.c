@@ -18,6 +18,7 @@
 
 int period = 100;
 int start_time = 0, duration_time = 120;
+int priority = 0;
 
 #define US_PER_TICK 10000
 
@@ -54,6 +55,9 @@ char *parse_step(char *d)
 	}
 
 	switch(*d) {
+	case 'a':
+		priority = atoi(++d);
+		break;
 	case 'p':		/* spin */
 		period = atoi(++d);
 		break;
@@ -109,13 +113,14 @@ static int create_thd(const char *pri)
 	//data->sz = 4;
 	data->sz = sz;
 
-	if (0 > (event_thd = sched_create_thread(cos_spd_id(), data))) assert(0);
+	assert(0);// TODO: use create_thd
+//	if (0 > (event_thd = sched_create_thread(cos_spd_id(), data))) assert(0);
 	cos_argreg_free(data);
     
 	return event_thd;
 }
 
-#define BEST_EFF
+//#define BEST_EFF
 
 volatile u64_t touch;
 volatile int k;
@@ -128,11 +133,21 @@ void cos_init(void *arg)
 
 	int local_period = 0;
 
-	static int first = 0;
+	static int first = 1;
 
 //	static int pre_run = 0;
 
-	parse_initstr();
+	if (first) {
+		union sched_param sp;
+		first = 0;
+		parse_initstr();
+		assert(priority);
+		sp.c.type = SCHEDP_PRIO;
+		sp.c.value = priority;
+
+		if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG();
+		return;
+	}
 
 	local_period = period;
 
@@ -155,7 +170,7 @@ void cos_init(void *arg)
 #ifdef BEST_EFF   // for best effort sys now
 		int i;
 		if (first == 0){
-			for (i=0;i<5;i++) create_thd("r0");
+//			for (i= 0;i<5;i++) create_thd("r0");
 			pre_t_0 = sched_timestamp();
 			first = 1;
 		}
@@ -216,7 +231,7 @@ void cos_init(void *arg)
 	int refill_number = 0;
 
 	unsigned long exe_cyc_event_remained = 0;
-
+//	printc("start...!!\n");
 	while (1) {
 		if(local_period <= 0){			/* used for transient non-periodic tasks only */
 			exe_cyc_event_remained = exe_cycle;  /* refill */
@@ -234,7 +249,7 @@ void cos_init(void *arg)
 				/* if ( t > (unsigned long)(7*100 + start_time_in_ticks + duration_time_in_ticks)) { */
 				/* 	printc("thd %d left!!!\n",cos_get_thd_id()); */
 				if ( t > (unsigned long)( start_time_in_ticks + duration_time_in_ticks)) {
-					printc("thd %d left>>>\n",cos_get_thd_id());
+					/* printc("thd %d left>>>\n",cos_get_thd_id()); */
 
 					timed_event_block(cos_spd_id(), 10000);
 				}
@@ -248,6 +263,7 @@ void cos_init(void *arg)
 			}
 
 			exe_cyc_remained = exe_cycle;  /* refill */
+			/* printc("thd %d in home comp, going to call\n",cos_get_thd_id()); */
 			while(exe_cyc_remained) {
 				exe_cyc_remained = left(exe_cyc_remained,exe_cycle,0,0);	  
 			}
@@ -255,7 +271,9 @@ void cos_init(void *arg)
 			/* rdtscll(end); */
 			/* printc("%d, times : %d\n", cos_get_thd_id(), times); */
 			/* printc("\n @@thd %ld is sleeping in spd %d\n", cos_get_thd_id(), cos_spd_id()); */
+			/* printc("thd %d back in home comp, going to block\n",cos_get_thd_id()); */
 			periodic_wake_wait(cos_spd_id());
+			/* printc("thd %d woke up.\n",cos_get_thd_id()); */
 			refill_number++;	  
 			/* printc("\n @@thd %ld is waking in spd %d\n", cos_get_thd_id(), cos_spd_id()); */
 			/* printc("\n thd %d refilled...%d\n", cos_get_thd_id(), refill_number); */

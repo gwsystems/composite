@@ -544,16 +544,16 @@ static void sched_timer_tick(void)
 		}
 		
 		/* are we done running? */
-		/* if (ticks >= RUNTIME_SEC*TIMER_FREQ+1) { */
-		/* 	while (COS_SCHED_RET_SUCCESS !=  */
-		/* 	       cos_switch_thread_release(init->id, COS_SCHED_BRAND_WAIT)) { */
-		/* 		cos_sched_lock_take(); */
-		/* 		if (cos_sched_pending_event()) { */
-		/* 			cos_sched_clear_events(); */
-		/* 			cos_sched_process_events(evt_callback, 0); */
-		/* 		} */
-		/* 	} */
-		/* } */
+		if (unlikely(ticks >= RUNTIME_SEC*TIMER_FREQ+1)) {
+			while (COS_SCHED_RET_SUCCESS !=
+			       cos_switch_thread_release(init->id, COS_SCHED_BRAND_WAIT)) {
+				cos_sched_lock_take();
+				if (cos_sched_pending_event()) {
+					cos_sched_clear_events();
+					cos_sched_process_events(evt_callback, 0);
+				}
+			}
+		}
 		
 		ticks++;
 		sched_process_wakeups();

@@ -921,11 +921,22 @@ policy(void)
 void 
 cos_init(void *arg)
 {
-	printc("thd %d Tmem policy running.....\n", cos_get_thd_id());
-	INIT_LIST(&threads, next, prev);
+	static int first = 1;
 
-	init_spds();
+	if (first) {
+		union sched_param sp;
 
+		first = 0;
+		INIT_LIST(&threads, next, prev);
+		init_spds();
+
+		sp.c.type = SCHEDP_PRIO;
+		sp.c.value = 5;
+
+		if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG();
+		return;
+	}
+	DOUT("thd %d Tmem policy running.....\n", cos_get_thd_id());
 #ifdef THD_POOL
 	printc("<<<Thd Pool with total %d tmems, component size %d>>>\n", MAX_NUM_MEM, THD_POOL);
 	if (THD_POOL != 1)

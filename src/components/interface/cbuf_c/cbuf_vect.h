@@ -242,12 +242,14 @@ static inline int __cbuf_vect_expand(cbuf_vect_t *v, long id)
 		/* for (i = 0 ; i < (int)CBUF_VECT_BASE ; i++) is_0[i].val = (void*)CBUF_VECT_INIT_VAL; */
 		v->depth++;
 	}
-
+//	printc("222\n");
 	/* we must be asking for an index that doesn't have a complete
 	 * path through the tree (intermediate nodes) */
-	assert(v->depth == 2);
+//	assert(v->depth == 2);
 
-	assert(v && NULL == __cbuf_vect_lookup(v, id));
+//	assert(v);
+//	printc("id %d\n", id);
+//	assert(NULL == __cbuf_vect_lookup(v, id));
 
 	is = (struct cbuf_vect_intern_struct *)cbuf_c_register(cos_spd_id(), id);
 
@@ -257,7 +259,7 @@ static inline int __cbuf_vect_expand(cbuf_vect_t *v, long id)
 	for (i = 0 ; i < (int)CBUF_VECT_BASE ; i++) is[i].val = (void*)CBUF_VECT_INIT_VAL;
 
 	root = &v->vect[(id >> CBUF_VECT_SHIFT) & CBUF_VECT_MASK];
-	assert(NULL == root->val);
+//	assert(NULL == root->val);
 	root->val = is;
 
 	/* printc("cbuf_vect_t v is %p\n",v); */
