@@ -139,7 +139,7 @@ __page_get(void)
 
 CVECT_CREATE_STATIC(comps);
 struct comp_vas {
-	int nmaps;
+	int nmaps, spdid;
 	cvect_t *pages;
 };
 CSLAB_CREATE(cvas, sizeof(struct comp_vas));
@@ -161,6 +161,7 @@ cvas_alloc(spdid_t spdid)
 	cvect_init(cv->pages);
 	cvect_add(&comps, cv, spdid);
 	cv->nmaps = 0;
+	cv->spdid = spdid;
 done:
 	return cv;
 free:
@@ -183,6 +184,7 @@ cvas_deref(struct comp_vas *cv)
 	cv->nmaps--;
 	if (cv->nmaps == 0) {
 		cvect_free(cv->pages);
+		cvect_del(&comps, cv->spdid);
 		cslab_free_cvas(cv);
 	}
 }

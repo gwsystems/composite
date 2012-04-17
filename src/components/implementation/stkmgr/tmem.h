@@ -247,12 +247,12 @@ wake_local_blk_list(struct spd_tmem_info *sti)
 	struct blocked_thd *bl, *bthd, *bthd_next;
 
 	bl = &sti->bthd_list;
-	printc("wake local blk.wake_up_epoch %d..\n",sti->wake_up_epoch);
+	DOUT("wake local blk.wake_up_epoch %d..\n",sti->wake_up_epoch);
 	for (bthd = FIRST_LIST(bl, next, prev) ; 
 	     bthd != bl ; 
 	     bthd = bthd_next) {
 		bthd_next = FIRST_LIST(bthd, next, prev);
-		printc("wake bthd %d, epoch%d.\n", bthd->thd_id, bthd->wake_up_epoch);
+		DOUT("wake bthd %d, epoch%d.\n", bthd->thd_id, bthd->wake_up_epoch);
 		if (bthd->wake_up_epoch != sti->wake_up_epoch)
 			__wake_local_blk_list(sti, bthd, 0);
 	}

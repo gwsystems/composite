@@ -21,6 +21,7 @@
 #include <bitmap.h>
 #include <cos_synchronization.h>
 
+#include <cos_alloc.h>
 #define CVECT_ALLOC() alloc_page()
 #define CVECT_FREE(x) free_page(x)
 #include <cvect.h>
@@ -28,8 +29,8 @@
 #include <tmem_conf.h>
 
 extern cos_lock_t cbuf_lock;
-#define CBUF_TAKE()    do { if (unlikely(cbuf_lock.lock_id == 0)) lock_static_init(&cbuf_lock); if (lock_take(&cbuf_lock) != 0) BUG(); } while(0)
-#define CBUF_RELEASE() do { if (lock_release(&cbuf_lock) != 0) BUG(); } while(0)
+#define CBUF_TAKE()    do { if (unlikely(cbuf_lock.lock_id == 0)) lock_static_init(&cbuf_lock); if (unlikely(lock_take(&cbuf_lock) != 0)) BUG(); } while(0)
+#define CBUF_RELEASE() do { if (unlikely(lock_release(&cbuf_lock) != 0)) BUG(); } while(0)
 
 /* 
  * Shared buffer management for Composite.
@@ -182,7 +183,7 @@ extern struct cbuf_alloc_desc *__cbuf_alloc_slow(int size, int *len);
 extern int __cbuf_2buf_miss(int cbid, int len);
 extern void __cbuf_desc_free(struct cbuf_alloc_desc *d);
 
-extern cbuf_vect_t meta_cbuf;
+extern cvect_t meta_cbuf;
 
 /* 
  * Common case.  This is the most optimized path.  Every component
@@ -254,7 +255,9 @@ cbuf_alloc(unsigned int sz, cbuf_t *cb)
 
 	CBUF_TAKE();
 again:
-	if (unlikely(EMPTY_LIST(&cbuf_alloc_freelists, next, prev))) {
+	d     = FIRST_LIST(&cbuf_alloc_freelists, next, prev);
+	if (unlikely(EMPTY_LIST(d, next, prev))) {
+
 //	if (unlikely(cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF] < pages)) {
 		//d    = __cbuf_alloc_slow(sz, &len, pages - cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]);
 		d    = __cbuf_alloc_slow(sz, &len);
@@ -265,8 +268,7 @@ again:
 		//TODO: check if this cbuf has been taken by another thd already.
 		// shall we add this cbuf to the freelist and just continue?
 	} 
-	assert(!EMPTY_LIST(&cbuf_alloc_freelists, next, prev));
-	d     = FIRST_LIST(&cbuf_alloc_freelists, next, prev);
+
 	cbid  = d->cbid;
 	REM_LIST(d, next, prev);
 	assert(EMPTY_LIST(d, next, prev));
@@ -353,7 +355,7 @@ cbuf_free(void *buf)
 	CBUF_RELEASE();
 
 	/* Does the manager want the memory back? */
-	if (cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF] == 1) {
+	if (unlikely(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF] == 1)) {
 		cbuf_c_delete(cos_spd_id(), d->cbid);
 		return;
 	} 

@@ -87,7 +87,6 @@ typedef unsigned int u32_t;
 #endif
 #endif
 
-
 struct cvect_intern {
 	union {
 		void *val;
@@ -278,7 +277,8 @@ __cvect_set(cvect_t *v, long id, void *val)
 static int
 cvect_add(cvect_t *v, void *val, long id)
 {
-	assert(v && val != CVECT_INIT_VAL);
+	assert(v);
+	assert(val != CVECT_INIT_VAL);
 	assert(id < CVECT_MAX_ID);
 	assert(!cvect_lookup(v, id));
 	if (__cvect_set(v, id, val)) {

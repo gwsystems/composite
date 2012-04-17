@@ -1228,8 +1228,7 @@ create_transparent_capabilities(struct service_symbs *service)
 
 /*
  * Verify that all symbols can be resolved by the present dependency
- * relations.  This is an equivalent to programming language
- * "completeness".
+ * relations.
  *
  * Assumptions: All exported and undefined symbols are defined for
  * each service (prepare_service_symbs has been called), and that the
@@ -1269,7 +1268,6 @@ static int verify_dependency_completeness(struct service_symbs *services)
 				symb->exporter = exporter;
 				symb->exported_symb = exp_symb;
 			}
-
 			/* if (exporter->is_scheduler) { */
 			/* 	if (NULL == services->scheduler) { */
 			/* 		services->scheduler = exporter; */
@@ -1578,7 +1576,7 @@ static int load_all_services(struct service_symbs *services)
 
 		service_addr += DEFAULT_SERVICE_SIZE;
 		if (strstr(services->obj, BOOT_COMP)) {
-			service_addr += DEFAULT_SERVICE_SIZE;
+			service_addr += 3*DEFAULT_SERVICE_SIZE;
 		}
 
 		printl(PRINT_DEBUG, "\n");

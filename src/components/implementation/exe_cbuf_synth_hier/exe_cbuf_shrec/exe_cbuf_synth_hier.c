@@ -34,7 +34,7 @@ unsigned int prop_call_ss = 10;    /* 10: %7 0: never call ss, 128: always call 
 #define ALLOC_CBUF
 #define CBUF2BUF
 
-//#define DEBUG_SYNTH
+/* #define DEBUG_SYNTH */
 
 #ifdef DEBUG_SYNTH
 #define DOUTs(fmt,...) printc(fmt, ##__VA_ARGS__)
@@ -107,7 +107,7 @@ static void parse_initstr(void)
 	/* data->sz = 52; */
 	
 	/* if (sched_comp_config_initstr(cos_spd_id(), data)) { */
-	/* 	printc("No initstr found.\n"); */
+	/* 	DOUTs("No initstr found.\n"); */
 	/* 	return; */
 	/* } */
 	/* //DOUTs("%s\n", data->mem); */
@@ -145,7 +145,7 @@ static unsigned long measure_loop_costs(unsigned long spin)
 	loop_cost = temp;
 	rdtscll(end);
 	assert(end>start);
-	printc("spin:%lu, loopcost measurement :%lu\n",spin, temp );
+	DOUTs("spin:%lu, loopcost measurement :%lu\n",spin, temp );
 	return temp;
 }
 
@@ -180,8 +180,8 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	if (AVG_INVC_CYCS > exe_time_left) return 0;
 	exe_time_left -= AVG_INVC_CYCS;
 
-#ifdef CBUF2BUF
 	u64_t start,end;	
+#ifdef CBUF2BUF
 	char *b;
 	if(cbt_map && len_map){
 		rdtscll(start);
@@ -193,7 +193,6 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 			return cbuf_null();
 		}
 		memset(b, 's', len_map);
-		/* DOUTs("after buf2buf write sth...\n"); */
 	}
 #endif
 	for (j = 0 ; j < num_invs ; j++) {
@@ -213,7 +212,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 		val = (int)(t & (TOTAL_AMNT-1));
 		if (ss_attached && (val < prop_call_ss)) {
 			//exe_time_left = ss_action(exe_time_left, initial_exe_t);
-
+			DOUTs("..........\n");
 			SYNTH_TAKE();
 			for (i = 0; i < NCBUF ; i++){
 				rdtscll(t);
@@ -221,28 +220,29 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 				mt[i] = cbuf_alloc(len, &cbt[i]);
 			}
 			SYNTH_RELEASE();
-			printc("I am suspended :(\n");
+			DOUTs("I am suspended :(\n");
 			timed_event_block(cos_spd_id(), 2);
-			printc("I am back :)\n");
+			DOUTs("I am back :)\n");
 			for (i = 0; i < NCBUF ; i++){
 				cbuf_free(mt[i]);
 			}
 		}
 		if (exe_time_left == 0) return 0;
-		
 
 #ifdef ALLOC_CBUF
 		SYNTH_TAKE();
 		for (i = 0; i < NCBUF ; i++){
 			rdtscll(t);
 			val = (int)(t & (TOTAL_AMNT-1));
-
 			if (val >= cbuf_l_to_r) {
 				cbt[i] = cbuf_null();
+				DOUTs("2\n");
 				rdtscll(start);
 				mt[i] = cbuf_alloc(len, &cbt[i]);
+				DOUTs("3\n");
 				rdtscll(end);
 				cbuf_unpack(cbt[i], &id, &idx);
+				DOUTs("alloc cbid done !%ld\n", id);
 				memset(mt[i], 'a', len);
 				get[i] = 1;
 				mark = 1;

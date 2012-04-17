@@ -27,11 +27,15 @@
 #include <cos_map.h>
 #include <errno.h>
 
-#include <http.h>
 #include <torrent.h>
-#include <content_mux.h>
-#include <timed_blk.h>
+#include <torlib.h>
+#include <cbuf.h>
+#include <periodic_wake.h>
 #include <sched.h>
+
+extern td_t server_tsplit(spdid_t spdid, td_t tid, char *param, int len, tor_flags_t tflags, long evtid);
+extern void server_trelease(spdid_t spdid, td_t tid);
+extern int server_tread(spdid_t spdid, td_t td, int cbid, int sz);
 
 #endif	/* COS_LINUX_ENV */
 
@@ -180,22 +184,15 @@ malformed_request:
 	return -1;
 }
 
-extern long content_open(spdid_t spdid, long evt_id, struct cos_array *data);
-extern int content_request(spdid_t spdid, long cr, struct cos_array *data);
-extern int content_retrieve(spdid_t spdid, long cr, struct cos_array *data, int *more);
-extern int content_close(spdid_t spdid, long cr);
-
-extern int timed_event_block(spdid_t spdid, unsigned int microsec);
-
 struct http_response {
 	char *resp;
 	int resp_len;
-	int more; 		/* is there more data to retrieve? */
 };
 
 struct connection {
 	int refcnt;
-	long conn_id, evt_id;
+	td_t conn_id;
+	long evt_id;
 	struct http_request *pending_reqs;
 };
 
@@ -239,8 +236,8 @@ static int http_get_request(struct http_request *r)
 	assert(r && r->c);
 
 	if (0 > r->content_id) {
-		r->content_id = tsplit(cos_spd_id(), td_root, r->path, 
-				       r->path_len, TOR_READ, r->c->evt_id);
+		r->content_id = server_tsplit(cos_spd_id(), td_root, r->path, 
+					      r->path_len, TOR_READ, r->c->evt_id);
 		if (r->content_id < 0) return r->content_id;
 	}
 	return ret;
@@ -407,7 +404,7 @@ static void http_free_request(struct http_request *r)
 	if (c->pending_reqs == r) {
 		c->pending_reqs = (r == next) ? NULL : next;
 	}
-	trelease(cos_spd_id(), r->content_id);
+	server_trelease(cos_spd_id(), r->content_id);
 	conn_refcnt_dec(c);
 	__http_free_request(r);
 }
@@ -534,7 +531,7 @@ static int connection_parse_requests(struct connection *c, char *req, int req_sz
 
 static const char success_head[] =
 	"HTTP/1.1 200 OK\r\n"
-	"Date: Sat, 14 Feb 2008 14:59:00 GMT\r\n"
+	"Date: Mon, 01 Jan 1984 00:00:01 GMT\r\n"
 	"Content-Type: text/html\r\n"
 	"Connection: close\r\n"
 	"Content-Length: ";
@@ -587,10 +584,9 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 	if (NULL == r) return 0;
 	while (r) {
 		struct http_request *next;
-		struct cos_array *arr = NULL;
 		char *local_resp;
-		int *more = NULL; 
-		int local_more, consumed, ret, local_resp_sz;
+		cbuf_t cb;
+		int consumed, ret, local_resp_sz;
 
 		assert(r->c == c);
 		if (r->flags & HTTP_REQ_PENDING) break;
@@ -601,35 +597,26 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 		if (NULL != r->resp.resp) {
 			local_resp = r->resp.resp;
 			local_resp_sz = r->resp.resp_len;
-			local_more = r->resp.more;
 		} else {
+			int sz;
 			/* Make the request to the content
 			 * component */
-			more = cos_argreg_alloc(sizeof(int));
-			assert(more);
-			arr = cos_argreg_alloc(sizeof(struct cos_array) + resp_sz - used);
-			assert(arr);
+			sz         = resp_sz - used;
+			local_resp = cbuf_alloc(sz, &cb);
+			if (!local_resp) BUG();
 
-			arr->sz = resp_sz - used;
-			if ((ret = content_retrieve(cos_spd_id(), r->content_id, arr, more))) {
-				cos_argreg_free(arr);
-				cos_argreg_free(more);
-				if (0 > ret) {
-					BUG();
-					/* FIXME send an error message. */
-				}
+			ret = server_tread(cos_spd_id(), r->content_id, cb, sz);
+			if (ret < 0) {
+				cbuf_free(local_resp);
 				printc("https get reply returning %d.\n", ret);
 				return ret;
 			}
-			local_more = *more;
-			local_resp_sz = arr->sz;
-			local_resp = arr->mem;
+			local_resp_sz = ret;
 		}
 		
-		/* still more data, but not available now... */
+		/* no more data */
 		if (local_resp_sz == 0) {
-			cos_argreg_free(arr);
-			cos_argreg_free(more);
+			cbuf_free(local_resp);
 			break;
 		}
 
@@ -642,19 +629,17 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 			
 				save = malloc(local_resp_sz);
 				assert(save);
-				assert(arr);
-				memcpy(save, arr->mem, local_resp_sz);
-				cos_argreg_free(arr);
-				r->resp.more = *more;
-				cos_argreg_free(more);
+				assert(local_resp);
+				memcpy(save, local_resp, local_resp_sz);
+				cbuf_free(local_resp);
+				local_resp = NULL;
 
 				r->resp.resp = save;
 				r->resp.resp_len = local_resp_sz;
 			}
 			if (0 == used) {
 				printc("https: could not allocate either header or response of sz %d:%s\n", local_resp_sz, local_resp);
-				if (arr) cos_argreg_free(arr);
-				if (more) cos_argreg_free(more);
+				if (local_resp) cbuf_free(local_resp);
 				return -ENOMEM;
 			}
 			break;
@@ -662,15 +647,12 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 
 		memcpy(resp+used+consumed, local_resp, local_resp_sz);
 		
-		if (arr)  cos_argreg_free(arr);
-		if (more) cos_argreg_free(more);
-		more = NULL;
-		arr  = NULL;
+		assert(local_resp);
+		cbuf_free(local_resp);
+		local_resp = NULL;
 
 		used += local_resp_sz + consumed;
-
 		next = r->next;
-
 		/* bookkeeping */
 		http_req_cnt++;
 
@@ -690,382 +672,141 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 // ./ab -c 32 -n 66000 10.0.2.8:200/ ; 
 // ./ab -c 32 -n 66000 10.0.2.8:200/cgi/hw2
 
-COS_MAP_CREATE_STATIC(conn_map);
+/* static int connection_process_requests(struct connection *c, char *req, int req_sz, */
+/* 				char *resp, int resp_sz) */
+/* { */
+/* 	/\* FIXME: close connection on error? *\/ */
+/* 	if (connection_parse_requests(c, req, req_sz)) return -EINVAL; */
+/* 	return connection_get_reply(c, resp, resp_sz); */
+/* } */
 
-static int connection_process_requests(struct connection *c, char *req, int req_sz,
-				char *resp, int resp_sz)
-{
-	/* FIXME: close connection on error? */
-	if (connection_parse_requests(c, req, req_sz)) return -EINVAL;
-	return connection_get_reply(c, resp, resp_sz);
-}
+/* static int http_read_write(spdid_t spdid, long connection_id, char *reqs, int req_sz, char *resp, int resp_sz) */
+/* { */
+/* 	struct connection *c; */
+	
+/* 	c = cos_map_lookup(&conn_map, connection_id); */
+/* 	if (NULL == c) return -EINVAL; */
 
-long content_split(spdid_t spdid, long conn_id, long evt_id)
-{
-	return -ENOSYS;
-}
+/* 	return connection_process_requests(c, reqs, req_sz, resp, resp_sz); */
+/* } */
 
-int content_write(spdid_t spdid, long connection_id, char *reqs, int sz)
+td_t 
+tsplit(spdid_t spdid, td_t tid, char *param, int len, 
+       tor_flags_t tflags, long evtid)
 {
+	td_t ret = -1;
+	struct torrent *t;
 	struct connection *c;
 
-//	printc("HTTP write");
-	
-	c = cos_map_lookup(&conn_map, connection_id);
-	if (NULL == c) return -EINVAL;
-	if (connection_parse_requests(c, reqs, sz)) return -EINVAL;
-	
-	return sz;
-}
+	if (tor_isnull(tid)) return -EINVAL;
 
-int content_read(spdid_t spdid, long connection_id, char *buff, int sz)
-{
-	struct connection *c;
-	
-//	printc("HTTP read");
-
-	c = cos_map_lookup(&conn_map, connection_id);
-	if (NULL == c) return -EINVAL;
-	
-	return connection_get_reply(c, buff, sz);
-}
-
-static int http_read_write(spdid_t spdid, long connection_id, char *reqs, int req_sz, char *resp, int resp_sz)
-{
-	struct connection *c;
-	
-	c = cos_map_lookup(&conn_map, connection_id);
-	if (NULL == c) return -EINVAL;
-
-	return connection_process_requests(c, reqs, req_sz, resp, resp_sz);
-}
-
-long content_create(spdid_t spdid, long evt_id, struct cos_array *d)
-{
-	struct connection *c = http_new_connection(0, evt_id);
-	long c_id;
-
-//	printc("HTTP open connection");
-	if (NULL == c) return -ENOMEM;
-	c_id = cos_map_add(&conn_map, c);
-	if (c_id < 0) {
-		http_free_connection(c);
-		return -ENOMEM;
-	}
-	c->conn_id = c_id;
-	
-	return c_id;
-}
-
-int content_remove(spdid_t spdid, long conn_id)
-{
-	struct connection *c = cos_map_lookup(&conn_map, conn_id);
-
-	if (NULL == c) return 1;
-	cos_map_del(&conn_map, c->conn_id);
-	c->conn_id = -1;
+	c = http_new_connection(0, evtid);
+	if (!c) ERR_THROW(-ENOMEM, err);
+	/* ignore the param for now */
+	t = tor_alloc(c, tflags);
+	if (!t) ERR_THROW(-ENOMEM, free);
+	c->conn_id = ret = t->td;
+err:
+	return ret;
+free:
 	http_free_connection(c);
+	goto err;
+}
 
-	/* bookkeeping */
-	http_conn_cnt++;
+void
+trelease(spdid_t spdid, td_t td)
+{
+	struct torrent *t;
+	struct connection *c;
 
-	return 0;
+	if (!tor_is_usrdef(td)) return;
+
+	t = tor_lookup(td);
+	if (!t) goto done;
+	c = t->data;
+	if (c) {
+		http_free_connection(c);
+		/* bookkeeping */
+		http_conn_cnt++;
+	}
+	tor_free(t);
+done:
+	return;
+}
+
+int 
+tmerge(spdid_t spdid, td_t td, td_t td_into, char *param, int len)
+{
+	int ret = 0;
+
+	/* currently only allow deletion */
+	if (td_into != td_null) ERR_THROW(-EINVAL, done);
+	trelease(spdid, td);
+done:
+	return ret;
+}
+
+int 
+twrite(spdid_t spdid, td_t td, int cbid, int sz)
+{
+	struct connection *c;
+	struct torrent *t;
+	char *buf;
+	int ret = -1;
+
+	if (tor_isnull(td)) return -EINVAL;
+	t = tor_lookup(td);
+	if (!t) ERR_THROW(-EINVAL, done);
+	if (!(t->flags & TOR_WRITE)) ERR_THROW(-EACCES, done);
+
+	assert(t->data);
+	c = t->data;
+
+	buf = cbuf2buf(cbid, sz);
+	if (!buf) ERR_THROW(-EINVAL, done);
+	
+	if (connection_parse_requests(c, buf, sz)) return -EINVAL;
+	ret = sz;
+done:
+	return ret;
+}
+
+int 
+tread(spdid_t spdid, td_t td, int cbid, int sz)
+{
+	struct connection *c;
+	struct torrent *t;
+	char *buf;
+	int ret;
+	
+	if (tor_isnull(td)) return -EINVAL;
+
+	t = tor_lookup(td);
+	if (!t) ERR_THROW(-EINVAL, done);
+	assert(!tor_is_usrdef(td) || t->data);
+	if (!(t->flags & TOR_READ)) ERR_THROW(-EACCES, done);
+	c = t->data;
+
+	buf = cbuf2buf(cbid, sz);
+	if (!buf) ERR_THROW(-EINVAL, done);
+
+	ret = connection_get_reply(c, buf, sz);
+done:	
+	return ret;
 }
 
 #define HTTP_REPORT_FREQ 100
 
 void cos_init(void *arg)
 {
-	cos_map_init_static(&conn_map);
+	torlib_init();
 
+	if (periodic_wake_create(cos_spd_id(), HTTP_REPORT_FREQ)) BUG();
 	while (1) {
-		timed_event_block(cos_spd_id(), HTTP_REPORT_FREQ);
+		periodic_wake_wait(cos_spd_id());
 		printc("HTTP conns %ld, reqs %ld\n", http_conn_cnt, http_req_cnt);
 		http_conn_cnt = http_req_cnt = 0;
 	}
 	
 	return;
 }
-
-#ifdef COS_LINUX_ENV
-
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/epoll.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <stdio.h>
-#include <errno.h>
-#include <netinet/in.h>
-#include <fcntl.h>
-#include <arpa/inet.h>
-#include <malloc.h>
-#include <unistd.h>
-
-
-#define BUFF_SZ 256//1024
-
-static int connection_event(struct connection *c)
-{
-	int amnt;
-	char buff[BUFF_SZ+1];
-	buff[BUFF_SZ] = '\0';
-
-	amnt = read(c->evt_id, buff, BUFF_SZ);
-	if (0 == amnt) return 1;
-	if (amnt < 0) {
-		printf("read from fd %ld, ret %d\n", c->evt_id, amnt);
-		perror("read from session");
-		return -1;
-	}
-	buff[amnt] = '\0';
-
-	/* The work: */
-	if (amnt != http_write(c->conn_id, buff, amnt)) {
-		printf("Error writing.\n");
-		return 1;
-	}
-	while (1) {
-		if ((amnt = http_read(c->conn_id, buff, BUFF_SZ)) < 0) {
-			printf("Error reading (%d)\n", amnt);
-			return -1;
-		}
-		if (0 == amnt) break;
-		if (write(c->evt_id, buff, amnt) != amnt) {
-			perror("writing");
-			return -1;
-		}
-	}
-
-	return 0;
-}
-
-int connmgr_create_server(short int port)
-{
-	int fd;
-	struct sockaddr_in server;
-
-	if ((fd = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
-		perror("Establishing socket");
-		return -1;
-	}
-
-	server.sin_family      = AF_INET;
-	server.sin_port        = htons(port);
-	server.sin_addr.s_addr = htonl(INADDR_ANY);
-	if (bind(fd, (struct sockaddr *)&server, sizeof(server))) {
-		perror("binding receive socket");
-		return -1;
-	}
-	listen(fd, 10);
-
-	return fd;
-}
-
-struct connection *connmgr_accept(int fd)
-{
-	struct sockaddr_in sai;
-	int new_fd;
-	unsigned int len = sizeof(sai);
-	struct connection *c;
-	long c_id;
-
-	new_fd = accept(fd, (struct sockaddr *)&sai, &len);
-	if (-1 == new_fd) {
-		perror("accept");
-		return NULL;
-	}
-	c_id = http_open_connection(new_fd);
-	c = cos_map_lookup(&conn_map, c_id);
-	if (NULL == c) http_close_connection(c_id);
-
-	return c;
-}
-
-#define MAX_CONNECTIONS 100
-struct epoll_event evts[MAX_CONNECTIONS];
-
-static void event_new(int evt_fd, struct connection *c)
-{
-	struct epoll_event e;
-	assert(c);
-
-	e.events = EPOLLIN;//|EPOLLOUT;
-	e.data.ptr = c;
-	if (epoll_ctl(evt_fd, EPOLL_CTL_ADD, c->evt_id, &e)) {
-		perror("epoll create event");
-		exit(-1);
-	}
-
-	return;
-}
-
-static void event_delete(int evt_fd, struct connection *c)
-{
-	if (epoll_ctl(evt_fd, EPOLL_CTL_DEL, c->evt_id, NULL)) {
-		perror("epoll delete event");
-		exit(-1);
-	}
-}
-
-#include <signal.h>
-void prep_signals(void)
-{
-	struct sigaction sa;
-
-	sa.sa_handler = SIG_IGN;
-	if (sigaction(SIGPIPE, &sa, NULL)) {
-		perror("sigaction");
-		exit(-1);
-	}
-}
-
-int ut_num = 0;
-
-enum {UT_SUCCESS, UT_FAIL, UT_PENDING};
-static int print_ut(char *s, int len, get_ret_t *ret, int type, int print_success)
-{
-	int r;
-
-	switch(type) {
-	case UT_SUCCESS:
-		r = http_get_parse(s, len, ret);
-		break;
-	case UT_FAIL:
-		r = !http_get_parse(s, len, ret);
-		break;
-	case UT_PENDING:
-		r = (!http_get_parse(s, len, ret) && ret->end != s+len);
-		break;
-	}
-
-	if (r) {
-		printf("******************\nUnit test %d failed:\n"
-		       "String (@%p):\n%s\nResult(@%p):\n<%s>\n******************\n\n",
-		       ut_num, s, s, ret->end, ret->end);
-		ut_num++;
-		return 1;
-	} else if (print_success) {
-		printf("Unit test %d successful(s@%p-%p, e@%p).\n", ut_num, s, s+len, ret->end);
-	}
-	ut_num++;
-	return 0;
-}
-
-static int unittest_http_parse(int print_success)
-{
-	int success = 1, i;
-	char *ut_successes[] = {
-		"GET / HTTP/1.1\r\nUser-Agent: httperf/0.9.0\r\nHost: localhost\r\n\r\n",
-		NULL
-	};
-	char *ut_pend[] = {
-		"G",		/* 1 */
-		"GET",
-		"GET ",
-		"GET /",
-		"GET / ",	/* 5 */
-		"GET / HT",
-		"GET / HTTP/1.",
-		"GET / HTTP/1.1",
-		"GET / HTTP/1.1\r",
-		"GET / HTTP/1.1\r\n", /* 10 */
-		"GET / HTTP/1.1\r\nUser-",
-		"GET / HTTP/1.1\r\nUser-blah:blah\r",
-		NULL
-	};
-	char *ut_fail[] = {
-		"GET / HTTP/1.2",
-		"GET / HTTP/1.2\r\nUser-blah:blah\r", /* 14 */
-		NULL
-	};
-	get_ret_t ret;
-
-	for (i = 0 ; ut_successes[i] ; i++) {
-		if (print_ut(ut_successes[i], strlen(ut_successes[i]), &ret, UT_SUCCESS, print_success)) {
-			success = 0;
-		}
-	}
-	for (i = 0 ; ut_pend[i] ; i++) {
-		if (print_ut(ut_pend[i], strlen(ut_pend[i]), &ret, UT_PENDING, print_success)) {
-			success = 0;
-		}
-	}
-	for (i = 0 ; ut_fail[i] ; i++) {
-		if (print_ut(ut_fail[i], strlen(ut_fail[i]), &ret, UT_FAIL, print_success)) {
-			success = 0;
-		}
-	}
-
-	if (success) return 0;
-	return 1;
-}
-
-int main(void)
-{
-	int sfd, epfd;
-	struct connection main_c;
-	struct epoll_event new_evts[MAX_CONNECTIONS];
-
-	if (unittest_http_parse(0)) return -1;
-
-	prep_signals();
-
-	epfd = epoll_create(MAX_CONNECTIONS);
-	sfd = connmgr_create_server(8000);
-	main_c.evt_id = sfd;
-	event_new(epfd, &main_c);
-
-	cos_init(NULL);
-
-	while (1) {
-		int nevts, i, accept_event = 0;
-
-		nevts = epoll_wait(epfd, new_evts, MAX_CONNECTIONS, -1);
-		if (nevts < 0) {
-			perror("waiting for events");
-			return -1;
-		}
-		for (i = 0 ; i < nevts ; i++) {
-			struct epoll_event *e = &new_evts[i];
-			struct connection *c = (struct connection *)e->data.ptr;
-
-			if (c == &main_c) {
-				if (e->events & (EPOLLERR | EPOLLHUP)) {
-					printf("errors on the listen fd\n");
-					return -1;
-				}
-				accept_event = 1;
-			} else if (e->events & (EPOLLERR | EPOLLHUP)) {
-				event_delete(epfd, c);
-				close(c->evt_id);
-				http_close_connection(c->conn_id);
-				/* FIXME: free requests for connection */
-			} else {
-				int ret;
-
-				ret = connection_event(c);
-				if (ret > 0) {
-					event_delete(epfd, c);
-					close(c->evt_id);
-					http_close_connection(c->conn_id);
-				} else if (ret < 0) {
-					return -1;
-				}
-			}
-		}
-
-		if (accept_event) {
-			struct connection *c;
-			c = connmgr_accept(main_c.evt_id);
-			if (NULL == c) {
-				printf("Not a large enough connection namespace.");
-			} else {
-				event_new(epfd, c);
-			}
-		}
-	}
-	return 0;
-}
-
-#endif

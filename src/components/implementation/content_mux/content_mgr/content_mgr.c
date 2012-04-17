@@ -268,11 +268,3 @@ void cos_init(void *arg)
 	cos_map_init_static(&content_requests);
 	return;
 }
-
-#include <sched.h>
-
-void bin(void)
-{
-//	extern int sched_block(spdid_t spdid, unsigned short int thd_dep);
-	sched_block(cos_spd_id(), 0);
-}
