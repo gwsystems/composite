@@ -33,8 +33,8 @@ void cos_init(void)
 
 	printc("UNIT TEST Unit tests for torrents...\n");
 
-	evt1 = evt_create(cos_spd_id());
-	evt2 = evt_create(cos_spd_id());
+	evt1 = evt_split(cos_spd_id(), 0, 0);
+	evt2 = evt_split(cos_spd_id(), 0, 0);
 	assert(evt1 > 0 && evt2 > 0);
 
 	t1 = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_ALL, evt1);

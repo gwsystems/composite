@@ -32,16 +32,31 @@ CVECT_CREATE_STATIC(tor_from);
 CVECT_CREATE_STATIC(tor_to);
 
 static inline int 
-tor_get_to(int from) { return (int)cvect_lookup(&tor_from, from); }
+tor_get_to(int from, long *teid) 
+{ 
+	int val = (int)cvect_lookup(&tor_from, from);
+	*teid = val >> 16;
+	return val & ((1<<16)-1); 
+}
 
 static inline int 
-tor_get_from(int to) { return (int)cvect_lookup(&tor_to, to); }
+tor_get_from(int to, long *feid) 
+{ 
+	int val = (int)cvect_lookup(&tor_to, to);
+	*feid = val >> 16;
+	return val & ((1<<16)-1); 
+}
 
 static inline void 
-tor_add_pair(int from, int to)
+tor_add_pair(int from, int to, long feid, long teid)
 {
-	if (cvect_add(&tor_from, (void*)to, from) < 0) BUG();
-	if (cvect_add(&tor_to, (void*)from, to) < 0) BUG();
+#define MAXVAL (1<<16)
+	assert(from < MAXVAL);
+	assert(to   < MAXVAL);
+	assert(feid < MAXVAL);
+	assert(teid < MAXVAL);
+	if (cvect_add(&tor_from, (void*)((teid << 16) | to), from) < 0) BUG();
+	if (cvect_add(&tor_to, (void*)((feid << 16) | from), to) < 0) BUG();
 }
 
 static inline void
@@ -52,9 +67,14 @@ tor_del_pair(int from, int to)
 }
 
 CVECT_CREATE_STATIC(evts);
-#define EVT_CACHE_SZ 128
+#define EVT_CACHE_SZ 0
 int evt_cache[EVT_CACHE_SZ];
 int ncached = 0;
+
+long evt_all = 0;
+
+static inline long
+evt_wait_all(void) { return evt_wait(cos_spd_id(), evt_all); }
 
 /* 
  * tor > 0 == event is "from"
@@ -63,8 +83,14 @@ int ncached = 0;
 static inline long
 evt_get(void)
 {
-	long eid = (ncached == 0) ?
-		evt_create(cos_spd_id()) :
+	long eid;
+
+	if (!evt_all) {
+		evt_all = evt_split(cos_spd_id(), 0, 1);
+	}
+	assert(evt_all);
+	eid = (ncached == 0) ?
+		evt_split(cos_spd_id(), evt_all, 0) :
 		evt_cache[--ncached];
 	assert(eid > 0);
 
@@ -94,13 +120,17 @@ struct tor_conn {
 static inline void 
 mapping_add(int from, int to, long feid, long teid)
 {
-	tor_add_pair(from, to);
+	long tf, tt;
+
+	tor_add_pair(from, to, feid, teid);
 	evt_add(from,    feid);
 	evt_add(to * -1, teid);
-	assert(tor_get_to(from) == to);
-	assert(tor_get_from(to) == from);
+	assert(tor_get_to(from, &tt) == to);
+	assert(tor_get_from(to, &tf) == from);
 	assert(evt_torrent(feid) == from);
 	assert(evt_torrent(teid) == (-1*to));
+	assert(tt == teid);
+	assert(tf == feid);
 }
 
 static void accept_new(int accept_fd)
@@ -165,8 +195,9 @@ close:
 	net_close(cos_spd_id(), from);
 	trelease(cos_spd_id(), to);
 	tor_del_pair(from, to);
-	if (tc->feid) cvect_del(&evts, tc->feid);
-	if (tc->teid) cvect_del(&evts, tc->teid);
+	assert(tc->feid && tc->teid);
+	evt_put(tc->feid);
+	evt_put(tc->teid);
 	goto done;
 }
 
@@ -204,8 +235,9 @@ close:
 	net_close(cos_spd_id(), from);
 	trelease(cos_spd_id(), to);
 	tor_del_pair(from, to);
-	if (tc->feid) cvect_del(&evts, tc->feid);
-	if (tc->teid) cvect_del(&evts, tc->teid);
+	assert(tc->feid && tc->teid);
+	cvect_del(&evts, tc->feid);
+	cvect_del(&evts, tc->teid);
 	goto done;
 }
 
@@ -234,8 +266,7 @@ void cos_init(void *arg)
 		long evt;
 
 		memset(&tc, 0, sizeof(struct tor_conn));
-		printc("waiting...\n");
-		evt = evt_grp_wait(cos_spd_id());
+		evt = evt_wait_all();
 		t   = evt_torrent(evt);
 
 		if (t > 0) {
@@ -243,21 +274,18 @@ void cos_init(void *arg)
 			tc.from = t;
 			if (t == accept_fd) {
 				tc.to = 0;
-				printc("accepting event.\n");
 				accept_new(accept_fd);
 			} else {
-				tc.to = tor_get_to(t);
+				tc.to = tor_get_to(t, &tc.teid);
 				assert(tc.to > 0);
-				printc("data from net.\n");
 				from_data_new(&tc);
 			}
 		} else {
 			t *= -1;
 			tc.teid = evt;
 			tc.to   = t;
-			tc.from = tor_get_from(t);
+			tc.from = tor_get_from(t, &tc.feid);
 			assert(tc.from > 0);
-			printc("data from torrent.\n");
 			to_data_new(&tc);
 		}
 
