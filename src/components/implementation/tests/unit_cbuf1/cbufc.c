@@ -1,4 +1,5 @@
 #include <cos_component.h>
+#include <cos_alloc.h>
 #include <print.h>
 #include <stdlib.h> 		/* rand */
 #include <unit_cbuf.h>

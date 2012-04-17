@@ -128,7 +128,7 @@ __cbuf_2buf_miss(int cbid, int len)
 struct cbuf_alloc_desc *
 __cbuf_alloc_slow(int size, int *len)
 {
-	struct cbuf_alloc_desc *d_prev, *ret;
+	struct cbuf_alloc_desc *d_prev, *ret = NULL;
 	union cbuf_meta *cm;
 	void *addr;
 	int cbid;

@@ -103,7 +103,7 @@ void cos_init(void)
 	trelease(cos_spd_id(), t1);
 	t1 = tsplit(cos_spd_id(), td_root, params3, strlen(params3), TOR_ALL, evt1);
 	ret1 = tread_pack(cos_spd_id(), t1, buffer, 1023);
-	if (ret1 > 0) buffer[ret1] = '\0';
+	if (ret1 > 0 && ret1 < 1024) buffer[ret1] = '\0';
 	printv("read %d: %s (%s)\n", ret1, buffer, data3);
 	assert(ret1 == strlen(data2)+strlen(data1));
 	assert(!strcmp(buffer, data3));

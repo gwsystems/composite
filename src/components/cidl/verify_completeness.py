@@ -96,4 +96,5 @@ for undef in fndeps:
 if dangling != []:
    print "Error: component " + cif + "." + comp + " does not have stated dependencies to provide " + str(dangling)
    print "\tSuggested Fix: add the proper interface dependency in the DEPENDENCIES list in components/implementation/" + cif + "/" + comp + "/Makefile."
-   print "A less likely fix is that you should specify a FN_PREPEND in the Makefile for a component that wishes to invoke another component with the same interface."
+   print "Less likely fixes: a) you should specify a FN_PREPEND in the Makefile for a component that wishes to invoke another component with the same interface."
+   print "b) you should reorder dependencies within the Makefile (see FAQ)."
