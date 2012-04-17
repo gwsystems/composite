@@ -111,7 +111,7 @@ __cbuf_2buf_miss(int cbid, int len)
 	mc = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
 	/* have to expand the cbuf_vect */
 	if (unlikely(!mc)) {
-		if (cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid))) BUG();
+		if (cbuf_vect_expand(&meta_cbuf, cbid)) BUG();
 		mc = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
 		assert(mc);
 	}
@@ -128,7 +128,7 @@ __cbuf_2buf_miss(int cbid, int len)
 struct cbuf_alloc_desc *
 __cbuf_alloc_slow(int size, int *len)
 {
-	struct cbuf_alloc_desc *d_prev, *ret;
+	struct cbuf_alloc_desc *d_prev, *ret = NULL;
 	union cbuf_meta *cm;
 	void *addr;
 	int cbid;
@@ -139,19 +139,16 @@ __cbuf_alloc_slow(int size, int *len)
 		CBUF_RELEASE();
 		cbid = cbuf_c_create(cos_spd_id(), size, cbid*-1);
 		CBUF_TAKE();
-
 		/* TODO: we will hold the lock in expand which calls
 		 * the manager...remove that */
 		if (cbid < 0 && cbuf_vect_expand(&meta_cbuf, cbid*-1) < 0) goto done;
 		assert(cnt++ < 10);
 	} while (cbid < 0);
-
 	cm   = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
 	assert(cm->c.flags & CBUFM_IN_USE);
 	assert(cm->c.thdid_owner);
 	addr = (void*)(cm->c.ptr << PAGE_ORDER);
 	assert(addr);
-
 	/* 
 	 * See __cbuf_alloc and cbuf_slab_free.  It is possible that a
 	 * slab descriptor will exist for a piece of cbuf memory
@@ -165,3 +162,4 @@ __cbuf_alloc_slow(int size, int *len)
 done:   
 	return ret;
 }
+

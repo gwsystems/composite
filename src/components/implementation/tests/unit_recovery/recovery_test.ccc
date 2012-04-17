@@ -1,0 +1,95 @@
+#include <cos_component.h>
+#include <print.h>
+#include <sched.h>
+#include <cbuf.h>
+#include <evt.h>
+#include <torrent.h>
+
+#include <pgfault.h>
+
+char *params[3];
+char *data[3];
+long evt[3];
+
+char buffer[1024];
+
+void read(td_t tid, char *r_data)
+{
+	unsigned int ret;
+
+	ret = tread_pack(cos_spd_id(), tid, buffer, 1023);
+
+	if (ret > 0) buffer[ret] = '\0';
+	assert(!strcmp(buffer, r_data));
+	assert(ret == strlen(r_data));
+	buffer[0] = '\0';
+
+	return;
+}
+
+void write(td_t tid, char *w_data)
+{
+	unsigned int ret;
+	ret = twrite_pack(cos_spd_id(), tid, w_data, strlen(w_data));
+	return;
+}
+
+
+void cos_init(void)
+{
+	td_t t1, t2, t3;
+
+	params[0] = "tor1";
+	params[1] = "tor2";
+	params[2] = "tor3";
+	
+	data[0] = "data_111_tor1";
+	data[1] = "data_2222_tor22";
+	data[2] = "data_33333_tor333";
+
+	evt[0] = evt_create(cos_spd_id());
+	evt[1] = evt_create(cos_spd_id());
+	evt[2] = evt_create(cos_spd_id());
+	assert(evt[0] > 0 && evt[1] > 0 && evt[2] > 0);
+
+	t1 = tsplit(cos_spd_id(), td_root, params[0], strlen(params[0]), TOR_ALL, evt[0]);
+	if (t1 < 1) {
+		printc("UNIT TEST FAILED: split failed %d\n", t1);
+		return;
+	}
+	
+	t2 = tsplit(cos_spd_id(), td_root, params[1], strlen(params[1]), TOR_ALL, evt[1]);
+	if (t2 < 1) {
+		printc("UNIT TEST FAILED: split failed %d\n", t2);
+		return;
+	}
+	
+	t3 = tsplit(cos_spd_id(), td_root, params[2], strlen(params[2]), TOR_ALL, evt[2]);
+	if (t3 < 1) {
+		printc("UNIT TEST FAILED: split failed %d\n", t3);
+		return;
+	}
+	
+	printc("Recovery TEST. 3 files have been created:\n ");
+	printc("t1 %d t2 %d t3 %d\n", t1,t2,t3);
+	/* printc("evt1 %ld evt2 %ld evt3 %ld\n", evt[0], evt[1], evt[2]); */
+        /////////////////////////////////////////////////////
+	write(t1, data[0]);
+	write(t2, data[1]);
+	write(t3, data[2]);
+
+	/* read(t1, data[0]); */
+	/* read(t2, data[1]); */
+	read(t3, data[2]);
+
+
+	trelease(cos_spd_id(), t1);
+	trelease(cos_spd_id(), t2);
+	trelease(cos_spd_id(), t3);
+
+	/////////////////////////////////////////////////////
+
+
+	printc("Recovery TEST PASSED\n");
+	return;
+}

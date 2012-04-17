@@ -87,7 +87,6 @@ typedef unsigned int u32_t;
 #endif
 #endif
 
-
 struct cvect_intern {
 	union {
 		void *val;

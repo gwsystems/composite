@@ -115,7 +115,7 @@ static int create_thd(const char *pri)
 	return event_thd;
 }
 
-#define BEST_EFF
+/* #define BEST_EFF */
 
 volatile u64_t touch;
 volatile int k;
@@ -246,7 +246,6 @@ void cos_init(void *arg)
 			if (start_time_in_ticks > 0 && (local_period*refill_number > duration_time_in_ticks)){
 				for(;;) periodic_wake_wait(cos_spd_id());
 			}
-
 			exe_cyc_remained = exe_cycle;  /* refill */
 			while(exe_cyc_remained) {
 				exe_cyc_remained = left(exe_cyc_remained,exe_cycle,0,0);	  

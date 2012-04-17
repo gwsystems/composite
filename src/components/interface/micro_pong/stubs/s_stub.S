@@ -11,3 +11,5 @@
 .text
 
 cos_asm_server_stub(call)
+cos_asm_server_stub(call_buf2buf)
+cos_asm_server_stub(simple_call_buf2buf)

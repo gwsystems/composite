@@ -253,9 +253,9 @@ __spd_cbvect_add_range(struct spd_tmem_info *sti, long cbuf_id, vaddr_t page)
 	cbr = malloc(sizeof(struct spd_cbvect_range));
 	if (!cbr) return -1;
 
-	cbr->start_id = (cbuf_id - 1) & ~CBUF_VECT_MASK;
+	cbr->start_id = (cbuf_id - 1) & ~CVECT_MASK;
 
-	cbr->end_id = cbr->start_id + CBUF_VECT_PAGE_BASE - 1;
+	cbr->end_id = cbr->start_id + CVECT_BASE - 1;
 	cbr->meta = (union cbuf_meta*)page;
 
 	/* DOUT("spd %d  sti %p cbr->meta %p\n",sti->spdid,sti, cbr->meta); */
