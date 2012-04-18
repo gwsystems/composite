@@ -1,9 +1,7 @@
 #include <cos_component.h>
 #include <print.h>
 #include <sched.h>
-
 #include <cbuf.h>
-//#include <micro_pong_lower.h>
 #include <micro_pong.h>
 
 void call(void)

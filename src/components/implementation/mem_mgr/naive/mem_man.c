@@ -514,6 +514,11 @@ int sched_create_thread(spdid_t spdid, struct cos_array *data){
 	return -ENOTSUP;
 }
 
+int sched_create_thd(spdid_t spdid, u32_t sched_param0, u32_t sched_param1, u32_t sched_param2){
+	BUG();
+	return -ENOTSUP;
+}
+
 int
 sched_create_thread_default(spdid_t spdid, u32_t sched_param_0, 
 			    u32_t sched_param_1, u32_t sched_param_2)
