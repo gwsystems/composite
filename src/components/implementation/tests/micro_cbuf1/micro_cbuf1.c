@@ -12,6 +12,7 @@ void cos_init(void)
 	int thd_id;
 
 	if(first == 0){
+		printc("<<< CBUF PIP MICRO BENCHMARK TEST  >>>\n");
 		first = 1;
 
 		thd_id = cos_get_thd_id();
@@ -26,6 +27,7 @@ void cos_init(void)
 	} else {
 		call_cbuf2();
 	}
+	printc("<<< CBUF PIP MICRO BENCHMARK TEST DONE! >>>\n");
 
 	return;
 }

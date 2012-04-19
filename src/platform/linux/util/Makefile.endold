@@ -1,0 +1,49 @@
+reset: clean cp build
+
+init: ready_hw first
+
+ready_hw:
+#	ethtool -A eth0 autoneg off rx off tx off
+	mknod /dev/net/cnet c 10 201
+	echo 1 > /proc/sys/net/ipv4/ip_forward
+# bullcrap arbitrary Linux defaults
+	echo "-1" > /proc/sys/kernel/sched_rt_runtime_us
+	echo "1000000000" > /proc/sys/kernel/sched_rt_period_us
+
+first: cp build
+
+cp:
+	rm *.o
+	cp $(TRANS_DIR)/* $(TEST_DIR)
+
+clean:
+	rm cos_loader
+	rmmod trans
+	rmmod cnet
+	rmmod cos
+
+# sync to minimize possible file system corruption on crashes
+build: tar
+	@sync
+	@sleep 0.1
+	nice -n -20 insmod cos.ko
+	@sleep 0.1
+	insmod cnet.ko
+	insmod trans.ko
+	./cnet_user
+
+tar:
+	@ld -r -b binary -o inittar.o init.tar
+	@ld -r -o initfs.tmp.o inittar.o initfs.o
+	@mv initfs.tmp.o initfs.o
+	@ld -r -o initf.simple.tmp.o inittar.o initf.simple.o
+	@mv initf.simple.tmp.o initf.simple.o
+	@echo "Integrating init.tar into the initf component."
+
+print_kill:
+	killall print
+
+print_start:
+	./print &
+
+lprint: print_kill clean cp build print_start

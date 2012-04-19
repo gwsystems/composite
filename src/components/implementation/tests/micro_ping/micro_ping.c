@@ -24,10 +24,10 @@ void cos_init(void)
 		sz[i] = 0;
 	}
 
-	printc("\nMicro Benchmark Test (pingpong with cbuf)\n");
+	printc("\nMICRO BENCHMARK TEST (PINGPONG WITH CBUF)\n");
 
         /* RDTSCLL */
-	printc("\n<<< RDTSCLL Micro-Benchmark Test >>>\n");
+	printc("\n<<< RDTSCLL MICRO-BENCHMARK TEST >>>\n");
 	rdtscll(start_tmp);
 	for (i = 0 ; i < ITER ; i++) {
 		rdtscll(start);
@@ -36,7 +36,7 @@ void cos_init(void)
 	printc("%d rdtscll %lld cycs\n", ITER, end_tmp-start_tmp);
 	
         /* PINGPONG */
-	printc("\n<<< PINGPONG Micro-Benchmark Test >>>\n");
+	printc("\n<<< PINGPONG MICRO-BENCHMARK TEST >>>\n");
 	call();
 	for (k = 0; k <5 ;k++){
 		
@@ -47,10 +47,10 @@ void cos_init(void)
 		rdtscll(end);
 		printc("%d invs %lld cycs\n", ITER, end-start);
 	}
-	printc("<<< PingPong Benchmark Test Done >>>\n");
+	printc("<<< PINGPONG BENCHMARK TEST DONE >>>\n");
 
         /* CACHING */
-	printc("\n<<< Warm Up CBUF Cache.......");
+	printc("\n<<< WARM UP CBUF CACHE.......");
 	for (i = 0; i < NCBUF ; i++){
 		sz[i] = (rand() % MAX_SZ) + 1;		
 		mt[i] = cbuf_alloc(sz[i], &cbt[i]);
@@ -66,7 +66,7 @@ void cos_init(void)
 	printc(" Done! >>>\n");
 
         /* CBUF_ALLOC  */
-	printc("\n<<< CBUF_ALLOC Micro-Benchmark Test >>>\n");
+	printc("\n<<< CBUF_ALLOC MICRO-BENCHMARK TEST >>>\n");
 	for (i = 0; i < NCBUF ; i++){
 		sz[i] = (rand() % MAX_SZ) + 1;
 		rdtscll(start);
@@ -74,27 +74,27 @@ void cos_init(void)
 		rdtscll(end);
 		printc("%d alloc_cbuf %llu cycs\n", NCBUF, end-start);
 	}
-	printc("<<< CBUF_ALLOC Micro-Benchmark Test Done >>>\n");
+	printc("<<< CBUF_ALLOC MICRO-BENCHMARK TEST DONE >>>\n");
 
         /* CBUF2BUF  */
-	printc("\n<<< CBUF2BUF Micro-Benchmark Test >>>\n");
+	printc("\n<<< CBUF2BUF MICRO-BENCHMARK TEST >>>\n");
 	for (i = 0; i < NCBUF ; i++){
 		call_buf2buf(cbt[i], sz[i]);
 	}
-	printc("<<< CBUF2BUF Micro-Benchmark Test Done >>>\n");
+	printc("<<< CBUF2BUF MICRO-BENCHMARK TEST DONE >>>\n");
 
         /* CBUF_FREE  */
-	printc("\n<<< CBUF_FREE Micro-Benchmark Test >>>\n");
+	printc("\n<<< CBUF_FREE MICRO-BENCHMARK TEST >>>\n");
 	for (i = 0; i < NCBUF ; i++){
 		rdtscll(start);
 		cbuf_free(mt[i]);                
 		rdtscll(end);
 		printc("%d free_cbuf %llu cycs\n", NCBUF, end-start);
 	}
-	printc("<<< CBUF_FREE Micro-Benchmark Test Done >>>\n");
+	printc("<<< CBUF_FREE MICRO-BENCHMARK TEST DONE >>>\n");
 
         /* CBUF_ALLOC-CBUF2BUF-CBUF_FREE */
-	printc("\n<<< CBUF_ALLOC-CBUF2BUF-CBUF_FREE Micro-Benchmark Test >>>\n");
+	printc("\n<<< CBUF_ALLOC-CBUF2BUF-CBUF_FREE MICRO-BENCHMARK TEST >>>\n");
 	sz[0] = (rand() % MAX_SZ) + 1;
 	rdtscll(start);
 	for (i = 0; i < ITER ; i++){
@@ -105,9 +105,9 @@ void cos_init(void)
 	rdtscll(end);
 	printc("%d alloc-cbuf2buf-free %llu cycs\n", ITER, end-start);
 
-	printc("<<< CBUF_ALLOC-CBUF2BUF-CBUF_FREE Micro-Benchmark Test Done >>>\n");
+	printc("<<< CBUF_ALLOC-CBUF2BUF-CBUF_FREE MICRO-BENCHMARK TEST DONE >>>\n");
 
-	printc("\nMicro Benchmark Test (pingpong with cbuf) done!\n\n");
+	printc("\nMICRO BENCHMARK TEST (PINGPONG WITH CBUF) DONE!\n\n");
 	return;
 }
 
