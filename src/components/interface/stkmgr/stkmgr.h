@@ -27,7 +27,5 @@ int stkmgr_get_allocated(spdid_t cid);
 
 /* map a stack to the destination location, from the source component */
 int stkmgr_stack_introspect(spdid_t d_spdid, vaddr_t d_addr, spdid_t s_spdid, vaddr_t s_addr);
-/* unmap a stack that was introspected on */
-int stkmgr_stack_close(spdid_t d_spdid, vaddr_t d_addr);
 
 #endif

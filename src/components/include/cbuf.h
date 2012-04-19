@@ -257,11 +257,16 @@ cbuf_alloc(unsigned int sz, cbuf_t *cb)
 again:
 	d     = FIRST_LIST(&cbuf_alloc_freelists, next, prev);
 	if (unlikely(EMPTY_LIST(d, next, prev))) {
+
+//	if (unlikely(cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF] < pages)) {
+		//d    = __cbuf_alloc_slow(sz, &len, pages - cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]);
 		d    = __cbuf_alloc_slow(sz, &len);
 		assert(d);
 		ret  = d->addr;
 		cbid = d->cbid;
 		goto done;
+		//TODO: check if this cbuf has been taken by another thd already.
+		// shall we add this cbuf to the freelist and just continue?
 	} 
 
 	cbid  = d->cbid;
@@ -315,8 +320,9 @@ again:
 		__cbuf_desc_free(d);
 		goto again;
 	}
-	
+
 	cm->c.thdid_owner = cos_get_thd_id();
+	cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]--;
 	ret = (void*)(cm->c.ptr << PAGE_ORDER);
 done:
 	*cb = cbuf_cons(cbid, len);
@@ -345,10 +351,11 @@ cbuf_free(void *buf)
 	/* do this last, so that we can guarantee the manager will not steal the cbuf before now... */
 	cm->c.flags &= ~CBUFM_IN_USE;
 	cm->c.thdid_owner = 0;
+	cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]++;
 	CBUF_RELEASE();
 
 	/* Does the manager want the memory back? */
-	if (unlikely(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] == 1)) {
+	if (unlikely(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF] == 1)) {
 		cbuf_c_delete(cos_spd_id(), d->cbid);
 		return;
 	} 

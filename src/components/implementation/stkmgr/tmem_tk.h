@@ -18,9 +18,6 @@ void return_tmem(struct spd_tmem_info *sti);
 tmem_item *tmem_grant(struct spd_tmem_info *sti);
 void event_waiting();
 
-inline int tmem_should_mark_relinquish(struct spd_tmem_info *sti);
-inline int tmem_should_unmark_relinquish(struct spd_tmem_info *sti);
-
 /* need to be implemented in manager */
 void mgr_map_client_mem(tmem_item *tmi, struct spd_tmem_info *info);
 tmem_item *mgr_get_client_mem(struct spd_tmem_info *sti);

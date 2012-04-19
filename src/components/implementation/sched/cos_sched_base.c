@@ -538,13 +538,17 @@ static void sched_timer_tick(void)
 		
 		report_event(TIMER_TICK);
 		
-		if ((ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1)) {
+		if (unlikely(ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1)) {
 			report_thd_accouting();
 			//cos_stats();
 		}
 		
 		/* are we done running? */
+<<<<<<< HEAD
 		if (ticks >= RUNTIME_SEC*TIMER_FREQ+1) {
+=======
+		if (unlikely(ticks >= RUNTIME_SEC*TIMER_FREQ+1)) {
+>>>>>>> origin/master
 			while (COS_SCHED_RET_SUCCESS !=
 			       cos_switch_thread_release(init->id, COS_SCHED_BRAND_WAIT)) {
 				cos_sched_lock_take();

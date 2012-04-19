@@ -153,9 +153,11 @@ __cbuf_alloc_slow(int size, int *len)
 	 * See __cbuf_alloc and cbuf_slab_free.  It is possible that a
 	 * slab descriptor will exist for a piece of cbuf memory
 	 * _before_ it is allocated because it is actually from a
-	 * previous cbuf.  If this is the case, then we should take
-	 * over the slab, and use it for this cbuf.
+	 * previous cbuf.  If this is the case, then we should trash
+	 * the old one and allocate a new one.
 	 */
+	/* TODO: check if this is correct. what if this cbuf is from
+	 * the local cache and has been taken by another thd? */
 	d_prev = __cbuf_alloc_lookup((u32_t)addr>>PAGE_ORDER);
 	if (d_prev) __cbuf_desc_free(d_prev);
 	ret    = __cbuf_desc_alloc(cbid, size, addr, cm);

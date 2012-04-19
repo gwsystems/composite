@@ -35,7 +35,7 @@ put_mem(tmem_item *tmi)
 		tmi->free_next = free_tmem_list;
 		free_tmem_list = tmi;
 		if (GLOBAL_BLKED)
-			wake_glb_blk_list(0, 0);
+			wake_glb_blk_list(0);
 	}	
 
 	return 0;
@@ -78,7 +78,7 @@ void event_waiting()
 	while (1) {
 		mempool_tmem_mgr_event_waiting(cos_spd_id());
 		TAKE();
-		wake_glb_blk_list(0, 0);
+		wake_glb_blk_list(0);
 		RELEASE();
 	}
 	DOUT("Event thread terminated!\n");
@@ -233,25 +233,6 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 	return 1;
 }
 
-// Before this function is called, threads are already on the block lists
-inline int tmem_should_mark_relinquish(struct spd_tmem_info *sti)
-{
-	if (sti->relinquish_mark == 0)
-		return 1;
-	else
-		return 0;
-}
-
-inline int tmem_should_unmark_relinquish(struct spd_tmem_info *sti)
-{
-	if (!SPD_HAS_BLK_THD(sti) && !SPD_HAS_BLK_THD_ON_GLB(sti)
-	    && sti->num_desired >= sti->num_allocated 
-	    && sti->relinquish_mark == 1)
-		return 1;
-	else
-		return 0;
-}
-
 inline tmem_item *
 tmem_grant(struct spd_tmem_info *sti)
 {
@@ -267,11 +248,6 @@ tmem_grant(struct spd_tmem_info *sti)
 	 * quota on tmems? Otherwise block!
 	 */
 
-	/* For cbuf only
-	 * find an unused cbuf_id
-	 * looks through to find id
-	 * if does not find, allocate a page for the meta data
-	 */
 	while (1) {
 		tmi = free_mem_in_local_cache(sti);
 		if (tmi) {
@@ -388,13 +364,17 @@ tmem_grant(struct spd_tmem_info *sti)
 		}
                 /* Wake up others here. if we are the highest priority
 		 * thd, we need to wake up other blked thds! */
-		/* issue here, stop it first... */
-		/* tmem_spd_wake_threads(sti); */
+		tmem_spd_wake_threads(sti);
+		/* Make sure we call the wake function above. Don't
+		 * use "if blked then call wake" here because we also
+		 * check if we should clear relinquish bit in it. Call
+		 * it and it will do the correct logic.
+		 */
 	}
 
 	if (!local_cache) {
 		mgr_map_client_mem(tmi, sti); 
-		/* DOUT("Adding to local tmem_list\n"); */
+		DOUT("Adding to local tmem_list\n");
 		ADD_LIST(&sti->tmem_list, tmi, next, prev);
 		sti->num_allocated++;
 		if (sti->num_allocated == 1) empty_comps--;
@@ -447,15 +427,16 @@ return_tmem(struct spd_tmem_info *sti)
 		get_mem_from_client(sti);
 	}
 
-	if (SPD_HAS_BLK_THD(sti) || SPD_HAS_BLK_THD_ON_GLB(sti))
-		tmem_spd_wake_threads(sti);
-		/* tmem_spd_wake_first_thread(sti); */
+	if (SPD_HAS_BLK_THD(sti) || SPD_HAS_BLK_THD_ON_GLB(sti)) {
+		/* Here we release the lock then wake up the highest
+		 * priority thread. This is a more efficient way to
+		 * wake up higher priority threads. */
+		tmem_spd_wake_first_thread(sti);
+	}
 
-	/* TODO: check if assert is true!! */
-	assert(!SPD_HAS_BLK_THD(sti) && !SPD_HAS_BLK_THD_ON_GLB(sti));
-
-	if (tmem_should_unmark_relinquish(sti)) 
-		tmem_unmark_relinquish_all(sti);
+	/* below assert is not true as we might release lock when
+	 * waking up other threads. */
+	/* assert(!SPD_HAS_BLK_THD(sti) && !SPD_HAS_BLK_THD_ON_GLB(sti)); */
 
 	DOUT("After return called:: num_allocated %d num_desired %d\n",sti->num_allocated, sti->num_desired);
 }
@@ -510,12 +491,15 @@ tmem_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare)
 	
 	diff = sti->num_allocated - sti->num_desired;
 	if (diff > 0) get_mem_from_client(sti);
-	if (diff < 0 && SPD_HAS_BLK_THD(sti)) 
+	if (diff < 0 && SPD_HAS_BLK_THD(sti)) {
+		sti->wake_up_epoch++;
 		tmem_spd_wake_threads(sti);
-	/* tmem_spd_wake_first_thread(sti); */
+		/* No need to use the wake_first here. Only increment the
+		   epoch counter. The set_tmem thd should has a higher
+		   priority */ 
+	}
 
 	mgr_clear_touched_flag(sti);
-	/* if (remove_spare) remove_spare_cache_from_client(sti); */
 	RELEASE();
 	return 0;
 err:

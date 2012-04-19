@@ -23,7 +23,7 @@
 #include <sched.h>
 
 #include <sys/param.h> 		/* MIN/MAX */
-
+#include <res_spec.h> /* For creating timer thread */
 /* Lets save some typing... */
 #define TAKE(spdid) 	if (sched_component_take(spdid)) return -1;
 #define RELEASE(spdid)	if (sched_component_release(spdid)) return -1;
@@ -575,8 +575,7 @@ int periodic_wake_wait(spdid_t spdinv)
 	} else {		/* on time! */
 		te->completion = t;
 	}
-	if(te->need_restart > 0)
-	{
+	if (te->need_restart > 0) {
 		te->need_restart--;
 		RELEASE(spdid);
 		return 0;
@@ -598,14 +597,6 @@ static void start_timer_thread(void)
 {
 	spdid_t spdid = cos_spd_id();
 	unsigned int tick_freq;
-
-	INIT_LIST(&events, next, prev);
-	events.thread_id = 0;
-	INIT_LIST(&periodic, next, prev);
-	periodic.thread_id = 0;
-
-	cos_vect_init_static(&thd_evts);
-	cos_vect_init_static(&thd_periodic);
 
 	sched_timeout_thd(spdid);
 	tick_freq = sched_tick_freq();
@@ -650,9 +641,6 @@ static void start_timer_thread(void)
 			//gap assert(next_wakeup > ticks);
 #endif
 			assert(next_wakeup > ticks);
-			if (next_wakeup <= ticks) {
-				//...
-			}
 			wakeup = (unsigned int)(next_wakeup - ticks);
 			if (sched_component_release(spdid)) {
 				prints("fprr: scheduler lock release failed!!!");
@@ -663,25 +651,49 @@ static void start_timer_thread(void)
 	}
 }
 
-void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
+/* void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3) */
+/* { */
+/* 	static int first = 1; */
+
+/* 	switch (t) { */
+/* 	case COS_UPCALL_BOOTSTRAP: */
+/* 		if (first) { */
+/* 			start_timer_thread(); */
+/* 			first = 0; */
+/* 		} else { */
+/* 			printc("timed_event component received too many bootstrap threads."); */
+/* 		} */
+/* 		break; */
+/* 	default: */
+/* 		printc("wf_text: cos_upcall_fn error - type %x, arg1 %d, arg2 %d",  */
+/* 		      (unsigned int)t, (unsigned int)arg1, (unsigned int)arg2); */
+/* 		BUG(); */
+/* 		return; */
+/* 	} */
+/* 	BUG(); */
+/* 	return; */
+/* } */
+void cos_init()
 {
+	union sched_param sp;
 	static int first = 1;
 
-	switch (t) {
-	case COS_UPCALL_BOOTSTRAP:
-		if (first) {
-			start_timer_thread();
-			first = 0;
-		} else {
-			printc("timed_event component received too many bootstrap threads.");
-		}
-		break;
-	default:
-		printc("wf_text: cos_upcall_fn error - type %x, arg1 %d, arg2 %d", 
-		      (unsigned int)t, (unsigned int)arg1, (unsigned int)arg2);
-		BUG();
-		return;
+	if (first) {
+		first = 0;
+		INIT_LIST(&events, next, prev);
+		events.thread_id = 0;
+		INIT_LIST(&periodic, next, prev);
+		periodic.thread_id = 0;
+
+		cos_vect_init_static(&thd_evts);
+		cos_vect_init_static(&thd_periodic);
+
+		sp.c.type = SCHEDP_PRIO;
+		sp.c.value = 3;
+
+		if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG();
+	} else {
+		start_timer_thread();
 	}
-	BUG();
-	return;
 }
+

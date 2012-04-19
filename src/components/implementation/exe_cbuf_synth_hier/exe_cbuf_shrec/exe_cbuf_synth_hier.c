@@ -160,7 +160,6 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	static int first = 1;
 
 	unsigned long has_run;   /* thread has run cycles in this inv */
-	
 	u32_t id, idx;
 	cbuf_t cbt[NCBUF];
 	memset(cbt, 0 , NCBUF*sizeof(cbuf_t));
@@ -168,7 +167,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	void *mt[NCBUF] = {};
 	int get[NCBUF];
 	memset(get, 0 , NCBUF*sizeof(cbuf_t));
-
+	
 	parse_initstr();
 	/* DOUTs("thd %d enter comp %ld!\n", cos_get_thd_id(), cos_spd_id()); */
 	if (first) {

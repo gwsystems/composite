@@ -25,6 +25,7 @@
 #include <tmem.h>
 #include <cbuf_c.h>
 
+
 //#define PRINCIPAL_CHECKS
 
 #define DEFAULT_TARGET_ALLOC MAX_NUM_MEM 
@@ -32,7 +33,7 @@
 COS_MAP_CREATE_STATIC(cb_ids);
 
 #define CBUF_OBJ_SZ_SHIFT 6
-#define CB_IDX(name) (name - cbr->start_id - 1)
+#define CB_IDX(id, cbr) (id - cbr->start_id - 1)
 
 struct cos_cbuf_item *alloc_item_data_struct(void *l_addr) 
 {
@@ -77,7 +78,7 @@ struct cos_cbuf_item *free_mem_in_local_cache(struct spd_tmem_info *sti)
 
 	if (cci == list) goto err;
 done:
-	/* DOUT("\n hehe found one!!\n\n"); */
+	/* DOUT("\n Found one!!\n\n"); */
 	return cci;
 err:
 	/* DOUT("\n can not found one!!\n"); */
@@ -254,7 +255,6 @@ __spd_cbvect_add_range(struct spd_tmem_info *sti, long cbuf_id, vaddr_t page)
 	if (!cbr) return -1;
 
 	cbr->start_id = (cbuf_id - 1) & ~CVECT_MASK;
-
 	cbr->end_id = cbr->start_id + CVECT_BASE - 1;
 	cbr->meta = (union cbuf_meta*)page;
 
@@ -281,7 +281,7 @@ __spd_cbvect_lookup_range(struct spd_tmem_info *sti, long cbuf_id)
 			/* idx = cbid_idx - cbr->start_id; */
 			/* DOUT("cbid_idx %ld idx %ld\n", cbid_idx, idx); */
 			/* return &cbr->meta[1]; */
-			return &cbr->meta[CB_IDX(cbuf_id)];
+			return &cbr->meta[CB_IDX(cbuf_id, cbr)];
 		}
 	}
 	return NULL;
@@ -297,8 +297,8 @@ __spd_cbvect_clean_val(struct spd_tmem_info *sti, long cbuf_id)
 	     cbr != &sti->ci ; 
 	     cbr = FIRST_LIST(cbr, next, prev)) {
 		if (cbuf_id >= cbr->start_id && cbuf_id <= cbr->end_id) {
-			cbr->meta[CB_IDX(cbuf_id)].c_0.v = (u32_t)COS_VECT_INIT_VAL;
-			cbr->meta[CB_IDX(cbuf_id)].c_0.th_id = (u32_t)COS_VECT_INIT_VAL;
+			cbr->meta[CB_IDX(cbuf_id, cbr)].c_0.v = (u32_t)COS_VECT_INIT_VAL;
+			cbr->meta[CB_IDX(cbuf_id, cbr)].c_0.th_id = (u32_t)COS_VECT_INIT_VAL;
 			break;
 		}
 	}
@@ -350,6 +350,11 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	assert(SPD_IS_MANAGED(sti));
 	assert(cbid >= 0);
 
+	/* For cbuf only
+	 * find an unused cbuf_id
+	 * looks through to find id
+	 * if does not find, allocate a page for the meta data
+	 */
 	if (cbid) {
 		 // vector should already exist
 		v = cos_map_lookup(&cb_ids, cbid);
@@ -394,7 +399,7 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	cbuf_item->entry = mc;
 
 	mc->c.ptr     = d->owner.addr >> PAGE_ORDER;
-	mc->c.obj_sz  = ((unsigned int)PAGE_SIZE) >> CBUF_OBJ_SZ_SHIFT;
+	mc->c.obj_sz  = (unsigned int)(PAGE_SIZE) >> CBUF_OBJ_SZ_SHIFT;
 	mc->c_0.th_id = cos_get_thd_id();
 	mc->c.flags  |= CBUFM_IN_USE | CBUFM_TOUCHED;
 done:
@@ -434,6 +439,7 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 		m = n;
 	}
 	valloc_free(cos_spd_id(), sti->spdid, (void *)(d->owner.addr), 1);
+	sti->ci.spd_cinfo_page->cos_tmem_available[COMP_INFO_TMEM_CBUF]--;
 
 	DOUT("unmapped is done\n");
 	return 0;

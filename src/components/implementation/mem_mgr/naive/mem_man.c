@@ -301,7 +301,8 @@ __mapping_destroy(struct mapping *m)
 
 	assert(m);
 	assert(EMPTY_LIST(m, _s, s_));
-	assert(m->p == NULL && m->c == NULL);
+	assert(m->p == NULL);
+	assert(m->c == NULL);
 	cv = cvas_lookup(m->spdid);
 
 	assert(cv && cv->pages);
@@ -340,8 +341,8 @@ mapping_del(struct mapping *m)
 	if (m->p && m->p->c == m) {
 		if (EMPTY_LIST(m, _s, s_)) m->p->c = NULL;
 		else                       m->p->c = FIRST_LIST(m, _s, s_);
-		m->p = NULL;
 	}
+	m->p = NULL;
 	REM_LIST(m, _s, s_);
 	__mapping_destroy(m);
 }
@@ -514,7 +515,8 @@ int sched_create_thread(spdid_t spdid, struct cos_array *data){
 	return -ENOTSUP;
 }
 
-int sched_create_thd(spdid_t spdid, u32_t sched_param0, u32_t sched_param1, u32_t sched_param2){
+int sched_create_thd(spdid_t spdid, u32_t sched_param0, u32_t sched_param1, u32_t sched_param2)
+{
 	BUG();
 	return -ENOTSUP;
 }

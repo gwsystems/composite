@@ -36,6 +36,7 @@
 struct blocked_thd {
 	unsigned short int thd_id;
 	spdid_t spdid;
+	unsigned int wake_up_epoch;
 	struct blocked_thd *next, *prev;
 };
 
@@ -58,6 +59,7 @@ struct spd_tmem_info {
 	/* 0 means not managed by us */
 	unsigned int managed;
 	unsigned int relinquish_mark;
+	unsigned int wake_up_epoch;
 
 	unsigned int ss_counter; /* Self-suspension counter */
 	/* if ss_counter > 0, at most ss_max items can be over-quota allocated */
@@ -95,8 +97,8 @@ struct blocked_thd global_blk_list;
  * limit of it */
 int tmems_allocated, tmems_target, empty_comps, over_quota_total, over_quota_limit;
 
-static inline void wake_glb_blk_list(spdid_t spdid, int only_wake_first);
-static inline void wake_local_blk_list(struct spd_tmem_info *sti, int only_wake_first);
+static inline void wake_glb_blk_list(spdid_t spdid);
+static inline void wake_local_blk_list(struct spd_tmem_info *sti);
 
 /**
  * gets the number of tmem items associated with a given spdid. Only
@@ -152,7 +154,7 @@ tmem_update_stats_wakeup(struct spd_tmem_info *sti, unsigned short int tid)
 
 
 static inline struct blocked_thd *
-__wake_glb_thread(struct blocked_thd *bthd)
+__wake_glb_thread(struct blocked_thd *bthd, int release_lock)
 {
 	struct spd_tmem_info *sti;
 	struct blocked_thd *bthd_next;
@@ -162,11 +164,19 @@ __wake_glb_thread(struct blocked_thd *bthd)
 	sti = get_spd_info(bthd->spdid);
 	sti->num_glb_blocked--;
 	tid = bthd->thd_id;
-	DOUT("thd %d: ************ waking up thread %d ************\n",
-	       cos_get_thd_id(),tid);
+	DOUT("(glb)thd %d: ******* waking up thread %d ***** release lock? %d\n",
+	       cos_get_thd_id(), tid, release_lock);
 	REM_LIST(bthd, next, prev);
 	free(bthd);
-	sched_wakeup(cos_spd_id(), tid);
+
+	if (release_lock) {
+		RELEASE();
+		sched_wakeup(cos_spd_id(), tid);
+		TAKE();
+	} else {
+		sched_wakeup(cos_spd_id(), tid);
+	}
+
 	DOUT("......UP\n");
 
 	return bthd_next;
@@ -174,29 +184,30 @@ __wake_glb_thread(struct blocked_thd *bthd)
 
 /* if spdid is 0, means wake all thds in glb. */
 static inline void
-wake_glb_blk_list(spdid_t spdid, int only_wake_first)
+wake_glb_blk_list(spdid_t spdid)
 {
 	int woken = 0;
 	struct blocked_thd *bthd, *bthd_next;
+	struct spd_tmem_info *sti;
 
 	DOUT("thd %d now wake glb, spd %d!\n",cos_get_thd_id(),spdid);
 
 	if (!spdid){  // all thds on glb blk list
 		for(bthd = FIRST_LIST(&global_blk_list, next, prev) ; bthd != &global_blk_list ; bthd = bthd_next) {
-			bthd_next = __wake_glb_thread(bthd);
+			bthd_next = __wake_glb_thread(bthd, 0);
 			woken++;
-			if (only_wake_first) break;
 		}
 	} else {
 		for(bthd = FIRST_LIST(&global_blk_list, next, prev) ; bthd != &global_blk_list ; bthd = bthd_next) {
-			if (spdid == bthd->spdid){   // only thds in that spd on glb blk list
+			bthd_next = FIRST_LIST(bthd, next, prev);
+			sti = get_spd_info(spdid);
+			if (spdid == bthd->spdid && 
+			    sti->wake_up_epoch != bthd->wake_up_epoch){
+				// only thds in that spd on glb blk list
 				DOUT("wake %d in spd %d!\n",bthd->thd_id, bthd->spdid);
-				bthd_next = __wake_glb_thread(bthd);
+				__wake_glb_thread(bthd, 0);
 				woken++;
-			} else {
-				bthd_next = FIRST_LIST(bthd, next, prev);
 			}
-			if (only_wake_first) break;
 		}
 	}
 
@@ -205,32 +216,64 @@ wake_glb_blk_list(spdid_t spdid, int only_wake_first)
 	DOUT("done wake up glb!\n");
 }
 
-/* wake up all blked threads on local list */
-static inline void
-wake_local_blk_list(struct spd_tmem_info *sti, int only_wake_first)
+static inline void 
+__wake_local_blk_list(struct spd_tmem_info *sti, struct blocked_thd *bthd, int release_lock)
 {
-	struct blocked_thd *bl, *bthd, *bthd_next;
 	spdid_t spdid;
 	unsigned int tid;
 
 	spdid = sti->spdid;
-	bl = &sti->bthd_list;
+	tid = bthd->thd_id;
 
+	DOUT("thd %d: ************ waking up thread %d, release lock? %d\n",
+	       cos_get_thd_id(), tid, release_lock);
+	REM_LIST(bthd, next, prev);
+	free(bthd);
+	assert(sti->num_blocked_thds);
+	sti->num_blocked_thds--;
+	if (release_lock) {
+		RELEASE();
+		sched_wakeup(spdid, tid);
+		TAKE();
+	} else {
+		sched_wakeup(spdid, tid);
+	}
+	DOUT("......UP\n");
+}
+/* wake up all blked threads on local list */
+static inline void
+wake_local_blk_list(struct spd_tmem_info *sti)
+{
+	struct blocked_thd *bl, *bthd, *bthd_next;
+
+	bl = &sti->bthd_list;
+	DOUT("wake local blk.wake_up_epoch %d..\n",sti->wake_up_epoch);
 	for (bthd = FIRST_LIST(bl, next, prev) ; 
 	     bthd != bl ; 
 	     bthd = bthd_next) {
 		bthd_next = FIRST_LIST(bthd, next, prev);
-		tid = bthd->thd_id;
-		DOUT("thd %d: ************ waking up thread %d ************\n",
-		       cos_get_thd_id(),tid);
-		REM_LIST(bthd, next, prev);
-		free(bthd);
-		sched_wakeup(spdid, tid);
-		DOUT("......UP\n");
-		assert(sti->num_blocked_thds);
-		sti->num_blocked_thds--;
-		if (only_wake_first) break;
+		DOUT("wake bthd %d, epoch%d.\n", bthd->thd_id, bthd->wake_up_epoch);
+		if (bthd->wake_up_epoch != sti->wake_up_epoch)
+			__wake_local_blk_list(sti, bthd, 0);
 	}
+}
+
+static inline int tmem_should_mark_relinquish(struct spd_tmem_info *sti)
+{
+	if (sti->relinquish_mark == 0)
+		return 1;
+	else
+		return 0;
+}
+
+static inline int tmem_should_unmark_relinquish(struct spd_tmem_info *sti)
+{
+	if (!SPD_HAS_BLK_THD(sti) && !SPD_HAS_BLK_THD_ON_GLB(sti)
+	    && sti->num_desired >= sti->num_allocated 
+	    && sti->relinquish_mark == 1)
+		return 1;
+	else
+		return 0;
 }
 
 /* Wake up threads on local blk list for this spd */
@@ -241,13 +284,16 @@ tmem_spd_wake_threads(struct spd_tmem_info *sti)
 	DOUT("thd %d: ************ start waking up %d threads for spd %d ************\n",
 	       cos_get_thd_id(),sti->num_blocked_thds, sti->spdid);
 
-	wake_local_blk_list(sti, 0);
+	wake_local_blk_list(sti);
 	assert(EMPTY_LIST(&sti->bthd_list, next, prev));
 	DOUT("All thds now awake\n");
 
         /* Only wake up threads on global blk list that associates this spd*/
 	if (SPD_HAS_BLK_THD_ON_GLB(sti))
-		wake_glb_blk_list(sti->spdid, 0);
+		wake_glb_blk_list(sti->spdid);
+
+	if (tmem_should_unmark_relinquish(sti)) 
+		tmem_unmark_relinquish_all(sti);
 }
 
 /* Wake up the first thread on local blk list for this spd */
@@ -255,10 +301,20 @@ static inline void
 tmem_spd_wake_first_thread(struct spd_tmem_info *sti)
 {
 	DOUT("waking up the first local threads for spd %ld\n", cos_spd_id());
-	wake_local_blk_list(sti, 1);
+	struct blocked_thd *bthd;
+	
+	sti->wake_up_epoch++;
 
-	if (SPD_HAS_BLK_THD_ON_GLB(sti))
-		wake_glb_blk_list(sti->spdid, 1);
+	if (SPD_HAS_BLK_THD_ON_GLB(sti)) {
+		bthd = FIRST_LIST(&global_blk_list, next, prev);
+		__wake_glb_thread(bthd, 1);
+		if (EMPTY_LIST(&global_blk_list, next, prev))
+			mempool_clear_glb_blked(cos_spd_id());
+	} else {
+		bthd = FIRST_LIST(&sti->bthd_list, next, prev);
+		if (bthd == &sti->bthd_list) return;
+		__wake_local_blk_list(sti, bthd, 1);
+	}
 }
 
 /* data structure independent function */
@@ -270,6 +326,7 @@ tmem_add_to_blk_list(struct spd_tmem_info *sti, unsigned int tid)
 	if (unlikely(bthd == NULL)) BUG();
 
 	bthd->thd_id = tid;
+	bthd->wake_up_epoch = sti->wake_up_epoch;
 	DOUT("Adding thd to the blocked list: %d\n", bthd->thd_id);
 	ADD_LIST(&sti->bthd_list, bthd, next, prev);
 	sti->num_blocked_thds++;
@@ -285,6 +342,7 @@ tmem_add_to_gbl(struct spd_tmem_info *sti, unsigned int tid)
 	sti->num_glb_blocked++;
 	bthd->thd_id = tid;
 	bthd->spdid = sti->spdid;
+	bthd->wake_up_epoch = sti->wake_up_epoch;
 
 	DOUT("Adding thd to the global blocked list: %d\n", bthd->thd_id);
 	ADD_LIST(&global_blk_list, bthd, next, prev);
