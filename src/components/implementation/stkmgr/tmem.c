@@ -161,6 +161,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 		 * thd, try next tmem. -2 means found local cache. we
 		 * should try to use it */
 		if (dep_thd == 0 || tmem_thd_in_blk_list(sti, dep_thd)) {
+			DOUT("dep_thd %d, in_blk %d\n", dep_thd, tmem_thd_in_blk_list(sti, dep_thd));
 			in_blk_list = 1;
 			continue;
 		}
@@ -442,25 +443,24 @@ return_tmem(struct spd_tmem_info *sti)
 }
 
 /**
- * Remove all free cache from client. Only called by set_concurrency.
- * Now replaced by TOUCHED flag. Not used anymore. 
+ * Remove all free cache from client. Only called by set_concurrency
+ * when using memory pool policy.
  */
-/* static inline void */
-/* remove_spare_cache_from_client(struct spd_tmem_info *sti) */
-/* { */
-/* 	tmem_item * tmi; */
+static inline void
+remove_spare_cache_from_client(struct spd_tmem_info *sti)
+{
+	tmem_item * tmi;
 
-/* 	while (1) { */
-/* 		if (sti->num_allocated <= 5) return NULL; */
-/* 		tmi = mgr_get_client_mem(sti); */
-/* 		if (!tmi) */
-/* 			return; */
-/* 		/\* printc("spd %d found tmem to be allocated  %d\n", sti->spdid, sti->num_allocated); *\/ */
-/* 		put_mem(tmi); */
-/* 		DOUT("remove spare----\n"); */
-/* 	} */
-/* 	return; */
-/* } */
+	while (1) {
+		tmi = mgr_get_client_mem(sti);
+		if (!tmi)
+			return;
+		/* printc("spd %d found tmem to be allocated  %d\n", sti->spdid, sti->num_allocated); */
+		put_mem(tmi);
+		DOUT("remove spare----\n");
+	}
+	return;
+}
 
 /**
  * returns 0 on success
@@ -498,6 +498,9 @@ tmem_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare)
 		   epoch counter. The set_tmem thd should has a higher
 		   priority */ 
 	}
+	
+	if (remove_spare) 
+		remove_spare_cache_from_client(sti);
 
 	mgr_clear_touched_flag(sti);
 	RELEASE();

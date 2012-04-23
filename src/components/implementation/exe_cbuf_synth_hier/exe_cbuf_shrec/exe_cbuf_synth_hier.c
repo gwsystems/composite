@@ -213,13 +213,13 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 		if (ss_attached && (val < prop_call_ss)) {
 			//exe_time_left = ss_action(exe_time_left, initial_exe_t);
 			DOUTs("..........\n");
-			SYNTH_TAKE();
+//			SYNTH_TAKE();
 			for (i = 0; i < NCBUF ; i++){
 				rdtscll(t);
 				cbt[i] = cbuf_null();
 				mt[i] = cbuf_alloc(len, &cbt[i]);
 			}
-			SYNTH_RELEASE();
+//			SYNTH_RELEASE();
 			DOUTs("I am suspended :(\n");
 			timed_event_block(cos_spd_id(), 2);
 			DOUTs("I am back :)\n");
@@ -230,7 +230,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 		if (exe_time_left == 0) return 0;
 
 #ifdef ALLOC_CBUF
-		SYNTH_TAKE();
+//		SYNTH_TAKE();
 		for (i = 0; i < NCBUF ; i++){
 			rdtscll(t);
 			val = (int)(t & (TOTAL_AMNT-1));
@@ -248,7 +248,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 				mark = 1;
 			}
 		}
-		SYNTH_RELEASE();
+//		SYNTH_RELEASE();
 #endif
 
 		rdtscll(t);
@@ -297,4 +297,14 @@ unsigned long right(unsigned long exe_t,  unsigned long const initial_exe_t, cbu
 	return do_action(exe_t,initial_exe_t, cbt, len);
 }
 
-
+void cos_init()
+{
+	//pre_allocation
+	printc("Component %ld: 1 stack pre_alloacated.\n", cos_spd_id());
+	cbuf_t cbt;
+	void *mt;
+	cbt = cbuf_null();
+	mt = cbuf_alloc(4095, &cbt);
+	cbuf_free(mt);
+	printc("Component %ld: 1 cbuf pre_alloacated.\n", cos_spd_id());
+}

@@ -48,7 +48,7 @@ enum{
 
 #define CBUF_UNIT 1
 
-#define POLICY_PERIODICITY 100
+#define POLICY_PERIODICITY 25
 
 #define HISTORICAL_ALLOC
 
@@ -855,18 +855,19 @@ thdpool_max_policy(void)
 		for (c = FIRST_LIST(&components[mgr], next, prev) ; 
 		     c != &components[mgr] ;
 		     c = FIRST_LIST(c, next, prev)) {
+#define REVOKE_TMEM 0
 			switch (mgr) {
 			case STK_MGR:
 				if (c->ss_counter) 
-					stkmgr_set_concurrency(c->spdid, INT_MAX, 1);
+					stkmgr_set_concurrency(c->spdid, INT_MAX, REVOKE_TMEM);
 				else 
-					stkmgr_set_concurrency(c->spdid, THD_POOL, 1);
+					stkmgr_set_concurrency(c->spdid, THD_POOL, REVOKE_TMEM);
 				break;
 			case CBUF_MGR:
 				if (c->ss_counter) 
-					cbufmgr_set_concurrency(c->spdid, INT_MAX, 1);
+					cbufmgr_set_concurrency(c->spdid, INT_MAX, REVOKE_TMEM);
 				else 
-					cbufmgr_set_concurrency(c->spdid, THD_POOL, 1);
+					cbufmgr_set_concurrency(c->spdid, THD_POOL, REVOKE_TMEM);
 				break;
 			default: BUG();
 			}
@@ -914,7 +915,7 @@ policy(void)
 	set_concur_new();
 	/* cbufmgr_set_over_quota_limit(available); */
 	/* stkmgr_set_over_quota_limit(available); */
-	printc("Quota left:%d, iters: %d\n", available, count);
+	DOUT("Quota left:%d, iters: %d\n", available, count);
 	return;
 }
 

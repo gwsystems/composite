@@ -95,6 +95,10 @@ struct blocked_thd global_blk_list;
  * component. over_quota and over_quota_limit save the number of
  * over-quota allocated stacks (due to self-suspension) and the upper
  * limit of it */
+/* Note: empty_comps is broken when using multiple tmem managers. Now we can
+ * only use pre-allocation to ensure at least one item per
+ * component. */
+
 int tmems_allocated, tmems_target, empty_comps, over_quota_total, over_quota_limit;
 
 static inline void wake_glb_blk_list(spdid_t spdid);
@@ -284,13 +288,13 @@ tmem_spd_wake_threads(struct spd_tmem_info *sti)
 	DOUT("thd %d: ************ start waking up %d threads for spd %d ************\n",
 	       cos_get_thd_id(),sti->num_blocked_thds, sti->spdid);
 
-	wake_local_blk_list(sti);
-	assert(EMPTY_LIST(&sti->bthd_list, next, prev));
-	DOUT("All thds now awake\n");
-
         /* Only wake up threads on global blk list that associates this spd*/
 	if (SPD_HAS_BLK_THD_ON_GLB(sti))
 		wake_glb_blk_list(sti->spdid);
+
+	wake_local_blk_list(sti);
+	assert(EMPTY_LIST(&sti->bthd_list, next, prev));
+	DOUT("All thds now awake\n");
 
 	if (tmem_should_unmark_relinquish(sti)) 
 		tmem_unmark_relinquish_all(sti);
@@ -306,7 +310,12 @@ tmem_spd_wake_first_thread(struct spd_tmem_info *sti)
 	sti->wake_up_epoch++;
 
 	if (SPD_HAS_BLK_THD_ON_GLB(sti)) {
-		bthd = FIRST_LIST(&global_blk_list, next, prev);
+		bthd = FIRST_LIST(&global_blk_list, next, prev) ;
+		while (bthd != &global_blk_list 
+		       && bthd->spdid != sti->spdid)
+			bthd = FIRST_LIST(bthd, next, prev);
+		/* We found the first thread of this spd on the glb */
+		assert(bthd != &global_blk_list);
 		__wake_glb_thread(bthd, 1);
 		if (EMPTY_LIST(&global_blk_list, next, prev))
 			mempool_clear_glb_blked(cos_spd_id());
@@ -326,6 +335,12 @@ tmem_add_to_blk_list(struct spd_tmem_info *sti, unsigned int tid)
 	if (unlikely(bthd == NULL)) BUG();
 
 	bthd->thd_id = tid;
+
+        /* usually we don't need this spdid information in the bthd
+	 * structure. For the compatibility of the in_blk_list
+	 * function, we add this spdid here also, otherwise we would
+	 * access this field without assignment. */
+	bthd->spdid = sti->spdid; 
 	bthd->wake_up_epoch = sti->wake_up_epoch;
 	DOUT("Adding thd to the blocked list: %d\n", bthd->thd_id);
 	ADD_LIST(&sti->bthd_list, bthd, next, prev);
@@ -376,9 +391,12 @@ remove_thd_from_blk_list(struct spd_tmem_info *sti, unsigned int tid)
 	return 0;
 }
 
-/* return 1 if in the local / global block list */
+/* return 1 if in the local / global block list. Here the parameter
+ * tid is defined as int because we pass int type in. When defined as
+ * unsigned int, Linux crashes after Composite exits for some
+ * reason. */
 static inline int
-tmem_thd_in_blk_list(struct spd_tmem_info *sti, unsigned int tid)
+tmem_thd_in_blk_list(struct spd_tmem_info *sti, int tid)
 {
 	struct blocked_thd *bthd;
 	for (bthd = FIRST_LIST(&sti->bthd_list, next, prev) ;
@@ -389,7 +407,7 @@ tmem_thd_in_blk_list(struct spd_tmem_info *sti, unsigned int tid)
 	for (bthd = FIRST_LIST(&global_blk_list, next, prev) ;
 	     bthd != &global_blk_list ;
 	     bthd = FIRST_LIST(bthd, next, prev)) 
-		if (bthd->thd_id == tid) return 1;
+		if (bthd->thd_id == tid && bthd->spdid == sti->spdid) return 1;
 
 	return 0;
 }
