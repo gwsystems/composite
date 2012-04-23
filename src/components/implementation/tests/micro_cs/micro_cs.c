@@ -1,33 +1,38 @@
 #include <cos_component.h>
 #include <print.h>
-#include <micro_cbuf2.h>
-#include <res_spec.h>
 #include <sched.h>
+#include <res_spec.h>
+#include <micro_pong.h>
 
+/* 
+   changes: max_pool
+*/
 void cos_init(void)
 {
-	static int first = 0;
+	static int flag = 0;
 	union sched_param sp;
+	int i;
 
-	int thd_id;
-
-	if(first == 0){
-		printc("<<< CBUF PIP MICRO BENCHMARK TEST  >>>\n");
-		first = 1;
-
-		thd_id = cos_get_thd_id();
+	if(flag == 0){
+		printc("<<< CONTEXT SWITCH MICRO BENCHMARK TEST  >>>\n");
+		flag = 1;
 
 		sp.c.type = SCHEDP_PRIO;
 		sp.c.value = 10;
 		sched_create_thd(cos_spd_id(), sp.v, 0, 0);
-		
+
 		sp.c.type = SCHEDP_PRIO;
 		sp.c.value = 11;
 		sched_create_thd(cos_spd_id(), sp.v, 0, 0);
+
 	} else {
-		call_cbuf2();
+		for(i=0; i<10; i++){
+			call_cs();
+		}
 	}
-	printc("<<< CBUF PIP MICRO BENCHMARK TEST DONE! >>>\n");
+
+	printc("<<< CONTEXT SWITCH MICRO BENCHMARK TEST DONE >>>\n");
 
 	return;
 }
+
