@@ -43,7 +43,7 @@ enum{
 #define ALGORITHM MAX
  
 //#define THD_POOL MAX_NUM_MEM
-#define THD_POOL 1
+//#define THD_POOL 1
 //#define THD_POOL 300/18
 
 #define CBUF_UNIT 1

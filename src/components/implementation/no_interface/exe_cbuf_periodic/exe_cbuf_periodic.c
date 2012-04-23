@@ -139,6 +139,7 @@ void cos_init(void *arg)
 
 	if (first) {
 		union sched_param sp;
+		int i;
 		first = 0;
 		parse_initstr();
 		assert(priority);
@@ -146,6 +147,10 @@ void cos_init(void *arg)
 		sp.c.value = priority;
 
 		if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG();
+		if (priority == 30) { //best effort thds
+			for (i=0; i< 7; i++)
+				sched_create_thd(cos_spd_id(), sp.v, 0, 0);
+		}
 		return;
 	}
 
@@ -202,13 +207,13 @@ void cos_init(void *arg)
 	}
 	else {/* Create all periodic tasks */
 		if (local_period == 0 || (exe_t > local_period*US_PER_TICK)) BUG();
-		if (cos_get_thd_id() == 20) {
-			printc("pre allocating ...\n");
-			int mm;
-			for (mm = 0 ; mm < 3000; mm++)
-				left(70000, 70000, 0, 0);
-			printc("done.\n");
-		}
+		/* if (cos_get_thd_id() == 20) { */
+		/* 	printc("pre allocating ...\n"); */
+		/* 	int mm; */
+		/* 	for (mm = 0 ; mm < 3000; mm++) */
+		/* 		left(70000, 70000, 0, 0); */
+		/* 	printc("done.\n"); */
+		/* } */
 		periodic_wake_create(cos_spd_id(), local_period);
 
 		int i = 0;

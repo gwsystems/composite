@@ -198,10 +198,17 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	for (j = 0 ; j < num_invs ; j++) {
 		if (exe_time_left == 0) return 0;
 		kkk = 0;
-
+#ifdef I7
 		unsigned long ss = initial_exe_t / (100 / PERCENT_EXE) / 15 * 2;
+#else
+		unsigned long ss = initial_exe_t / (100 / PERCENT_EXE) / 6;
+#endif
 		for (i=0; i<ss; i++) kkk++;
+#ifdef i7
 		has_run = ss * 15 / 2;//loop_cost;//
+#else
+		has_run = ss * 6;//loop_cost;//
+#endif
 
 		if (has_run > exe_time_left) {
 			return 0;
@@ -300,11 +307,10 @@ unsigned long right(unsigned long exe_t,  unsigned long const initial_exe_t, cbu
 void cos_init()
 {
 	//pre_allocation
-	printc("Component %ld: 1 stack pre_alloacated.\n", cos_spd_id());
 	cbuf_t cbt;
 	void *mt;
 	cbt = cbuf_null();
 	mt = cbuf_alloc(4095, &cbt);
 	cbuf_free(mt);
-	printc("Component %ld: 1 cbuf pre_alloacated.\n", cos_spd_id());
+	printc("Component %ld: stack and cbuf pre_alloacated.\n", cos_spd_id());
 }
