@@ -138,7 +138,8 @@ static inline long cos_map_add(cos_map_t *m, void *val)
 	/* no free slots? Create more! */
 	if (free == -1) {
 		long lower, upper;
-		if (0 > cos_vect_add_id(&m->data, val, cos_map_to_vect_id(m->id_boundary))) return -1;	
+		if (val != COS_VECT_INIT_VAL &&
+		    0 > cos_vect_add_id(&m->data, val, cos_map_to_vect_id(m->id_boundary))) return -1;	
 		free = lower = m->id_boundary;
 		m->id_boundary = upper = lower + COS_MAP_BASE;
 		/* Add the new values to the free list */

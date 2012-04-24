@@ -16,3 +16,4 @@ composite_new
 tags
 src/kernel/include/shared/cpu_ghz.h
 src/Makefile.cosconfig
+modules.order

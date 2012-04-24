@@ -353,4 +353,26 @@ cbuf_free(void *buf)
 	} 
 }
 
+/* Is it a cbuf?  If so, what's its id? */
+static inline int 
+cbuf_id(void *buf)
+{
+	u32_t idx = ((u32_t)buf) >> PAGE_ORDER;
+	struct cbuf_alloc_desc *d;
+	int id;
+
+	CBUF_TAKE();
+	d  = __cbuf_alloc_lookup(idx);
+	id = (likely(d)) ? d->cbid : 0;
+	CBUF_RELEASE();
+	return id;
+}
+
+/* Is the pointer a cbuf?  */
+static inline int 
+cbuf_is_cbuf(void *buf)
+{
+	return cbuf_id(buf) != 0;
+}
+
 #endif /* CBUF_H */

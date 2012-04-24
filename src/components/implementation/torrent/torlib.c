@@ -51,7 +51,7 @@ void torlib_init(void)
 	cos_map_init_static(&torrents);
 	/* save descriptors for the null and root spots */
 	null_torrent.td = td_null;
-	if (td_null != cos_map_add(&torrents, &null_torrent)) BUG();
+	if (td_null != cos_map_add(&torrents, NULL)) BUG();
 	root_torrent.td = td_root;
 	if (td_root != cos_map_add(&torrents, &root_torrent)) BUG();
 }
