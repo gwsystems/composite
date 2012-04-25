@@ -142,18 +142,6 @@ static void accept_new(int accept_fd)
 	int from, to, feid, teid;
 
 	while (1) {
-		/* from = net_accept(cos_spd_id(), accept_fd); */
-		/* assert(from != accept_fd); */
-		/* if (-EAGAIN == from) { */
-		/* 	return; */
-		/* } else if (from < 0) { */
-		/* 	BUG(); */
-		/* 	return; */
-		/* } */
-		/* feid = evt_get(); */
-		/* assert(feid > 0); */
-		/* if (0 < net_accept_data(cos_spd_id(), from, feid)) BUG(); */
-		/* no evt_put below... */
 		feid = evt_get();
 		assert(feid > 0);
 		from = from_tsplit(cos_spd_id(), accept_fd, "", 0, TOR_RW, feid);
@@ -166,8 +154,6 @@ static void accept_new(int accept_fd)
 			BUG();
 			return;
 		}
-		//if (0 < net_accept_data(cos_spd_id(), from, feid)) BUG();
-
 		teid = evt_get();
 		assert(teid > 0);
 		to = tsplit(cos_spd_id(), td_root, "", 0, TOR_RW, teid);
@@ -187,15 +173,12 @@ static void from_data_new(struct tor_conn *tc)
 
 	from = tc->from;
 	to   = tc->to;
-//	buf = cos_argreg_alloc(BUFF_SZ);
-//	assert(buf);
 	while (1) {
 		int ret;
 		cbuf_t cb;
 
 		buf = cbuf_alloc(BUFF_SZ, &cb);
 		assert(buf);
-//		amnt = net_recv(cos_spd_id(), from, buf, BUFF_SZ-1);
 		amnt = from_tread(cos_spd_id(), from, cb, BUFF_SZ-1);
 		if (0 == amnt) break;
 		else if (-EPIPE == amnt) {
@@ -214,7 +197,6 @@ static void from_data_new(struct tor_conn *tc)
 	}
 done:
 	cbuf_free(buf);
-//	cos_argreg_free(buf);
 	return;
 close:
 	from_trelease(cos_spd_id(), from);
@@ -233,8 +215,6 @@ static void to_data_new(struct tor_conn *tc)
 
 	from = tc->from;
 	to   = tc->to;
-//	buf = cos_argreg_alloc(BUFF_SZ);
-//	assert(buf);
 	while (1) {
 		int ret;
 		cbuf_t cb;
@@ -250,7 +230,6 @@ static void to_data_new(struct tor_conn *tc)
 		}
 		assert(amnt <= BUFF_SZ);
 		if (amnt != (ret = from_twrite(cos_spd_id(), from, cb, amnt))) {
-//		if (amnt != (ret = net_send(cos_spd_id(), from, buf, amnt))) {
 			printc("conn_mgr: write failed w/ %d of %d on fd %d\n", 
 			       ret, amnt, to);
 			goto close;
@@ -259,7 +238,6 @@ static void to_data_new(struct tor_conn *tc)
 	}
 done:
 	cbuf_free(buf);
-	//cos_argreg_free(buf);
 	return;
 close:
 	from_trelease(cos_spd_id(), from);
@@ -282,11 +260,6 @@ void cos_init(void *arg)
 	cvect_init_static(&tor_to);
 	
 	eid = evt_get();
-	/* c = net_create_tcp_connection(cos_spd_id(), cos_get_thd_id(), eid); */
-	/* if (c < 0) BUG(); */
-	/* ret = net_bind(cos_spd_id(), c, 0, 200); */
-	/* if (ret < 0) BUG(); */
-	/* ret = net_listen(cos_spd_id(), c, 255); */
 	ret = c = from_tsplit(cos_spd_id(), td_root, create_str, strlen(create_str), TOR_ALL, eid);
 	if (ret <= td_root) BUG();
 	accept_fd = c;
