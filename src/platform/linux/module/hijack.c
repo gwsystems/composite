@@ -137,7 +137,6 @@ load_per_core_TSS(void)
 /* We load the TSS to a per CPU variable x86_tss when  */
 /* we try getting it the first time. After that, we  */
 /* can just load it from that variable. */
-
 void get_TSS(struct pt_regs *rs)
 {
 	/* We pass the esp to this function from assembly. 
@@ -1186,7 +1185,7 @@ void *cos_alloc_page(void)
 
 void cos_free_page(void *page)
 {
-	__free_pages(page, 0);
+	free_pages(page, 0);
 }
 
 /*
@@ -1894,7 +1893,7 @@ static int aed_open(struct inode *inode, struct file *file)
 
 	if (pte != NULL) {
 		printk("cos: address range for info region @ %x already used.\n",
-		       (unsigned int)COS_INFO_REGION_ADDR);
+ 		       (unsigned int)COS_INFO_REGION_ADDR);
 		return -ENOMEM;
 	}
 

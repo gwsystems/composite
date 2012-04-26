@@ -47,17 +47,21 @@
 /*** Data-structure for tracking physical memory ***/
 /***************************************************/
 
+struct mapping;
+/* A tagged union, where the tag holds the number of maps: */
 struct frame {
+	int nmaps;
 	union {
-		int nmaps;
-		struct frame *free;
+		struct mapping *m;  /* nmaps > 0 : root of all mappings */
+		vaddr_t addr;	    /* nmaps = -1: local mapping */
+		struct frame *free; /* nmaps = 0 : no mapping */
 	} c;
 } frames[COS_MAX_MEMORY];
 struct frame *freelist;
 
 static inline int  frame_index(struct frame *f) { return f-frames; }
-static inline int  frame_nrefs(struct frame *f) { return f->c.nmaps; }
-static inline void frame_ref(struct frame *f)   { f->c.nmaps++; }
+static inline int  frame_nrefs(struct frame *f) { return f->nmaps; }
+static inline void frame_ref(struct frame *f)   { f->nmaps++; }
 
 static inline struct frame *
 frame_alloc(void)
@@ -66,7 +70,8 @@ frame_alloc(void)
 
 	if (!f) return NULL;
 	freelist = f->c.free;
-	f->c.nmaps = 0;
+	f->nmaps = 0;
+	f->c.m   = NULL;
 
 	return f;
 }
@@ -74,10 +79,11 @@ frame_alloc(void)
 static inline void 
 frame_deref(struct frame *f)
 { 
-	f->c.nmaps--; 
-	if (f->c.nmaps == 0) {
+	assert(f->nmaps > 0);
+	f->nmaps--; 
+	if (f->nmaps == 0) {
 		f->c.free = freelist;
-		freelist = f;
+		freelist  = f;
 	}
 }
 
@@ -88,6 +94,7 @@ frame_init(void)
 
 	for (i = 0 ; i < COS_MAX_MEMORY-1 ; i++) {
 		frames[i].c.free = &frames[i+1];
+		frames[i].nmaps  = 0;
 	}
 	frames[COS_MAX_MEMORY-1].c.free = NULL;
 	freelist = &frames[0];
@@ -117,6 +124,8 @@ __page_get(void)
 
 	assert(hp && f);
 	frame_ref(f);
+	f->nmaps  = -1; 	 /* belongs to us... */
+	f->c.addr = (vaddr_t)hp; /* ...at this address */
 	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, cos_spd_id(), (vaddr_t)hp, frame_index(f))) {
 		BUG();
 	}
@@ -260,6 +269,7 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to)
 	mapping_init(m, dest, to, p, f);
 	assert(!p || frame_nrefs(f) > 0);
 	frame_ref(f);
+	assert(frame_nrefs(f) > 0);
 	if (cvect_add(cv->pages, m, idx)) BUG();
 done:
 	return m;
@@ -358,12 +368,13 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 	vaddr_t ret = -1;
 
 	LOCK();
-	mm_init();
 	f = frame_alloc();
 	if (!f) goto done; 	/* -ENOMEM */
+	assert(frame_nrefs(f) == 0);
 	frame_ref(f);
 	m = mapping_crt(NULL, f, spd, addr);
 	if (!m) goto dealloc;
+	f->c.m = m;
 	assert(m->addr == addr);
 	assert(m->spdid == spd);
 	assert(m == mapping_lookup(spd, addr));
@@ -382,7 +393,6 @@ vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_
 	vaddr_t ret = 0;
 
 	LOCK();
-	mm_init();
 	m = mapping_lookup(s_spd, s_addr);
 	if (!m) goto done; 	/* -EINVAL */
 	n = mapping_crt(m, m->f, d_spd, d_addr);
@@ -403,7 +413,6 @@ int mman_revoke_page(spdid_t spd, vaddr_t addr, int flags)
 	int ret = 0;
 
 	LOCK();
-	mm_init();
 	m = mapping_lookup(spd, addr);
 	if (!m) {
 		ret = -1;	/* -EINVAL */
@@ -421,7 +430,6 @@ int mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 	int ret = 0;
 
 	LOCK();
-	mm_init();
 	m = mapping_lookup(spd, addr);
 	if (!m) {
 		ret = -1;	/* -EINVAL */
@@ -435,6 +443,32 @@ done:
 
 void mman_print_stats(void) {}
 
+void mman_release_all(void)
+{
+	int i;
+
+	LOCK();
+	/* kill all mappings in other components */
+	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
+		struct frame *f = &frames[i];
+		struct mapping *m;
+
+		if (frame_nrefs(f) <= 0) continue;
+		m = f->c.m;
+		assert(m);
+		mapping_del(m);
+	}
+	/* kill local mappings */
+	/* for (i = 0 ; i < COS_MAX_MEMORY ; i++) { */
+	/* 	struct frame *f = &frames[i]; */
+	/*      int idx; */
+
+	/* 	if (frame_nrefs(f) >= 0) continue; */
+	/* 	idx = cos_mmap_cntl(COS_MMAP_REVOKE, 0, cos_spd_id(), f->c.addr, 0); */
+	/* 	assert(idx == frame_index(f)); */
+	/* } */
+	UNLOCK();
+}
 
 /*******************************/
 /*** The base-case scheduler ***/
@@ -442,6 +476,9 @@ void mman_print_stats(void) {}
 
 #include <errno.h>
 #include <sched.h>
+
+int sched_root_init(void) { mm_init(); return 0; }
+void sched_exit(void)     { mman_release_all(); }
 
 int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff)
 {
@@ -460,9 +497,6 @@ int sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd)
 	BUG();
 	return 0;
 }
-
-
-int sched_root_init(void) { BUG(); return 0; }
 
 int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 {
@@ -540,9 +574,6 @@ int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short
 	BUG();
 	return -ENOTSUP;
 }
-
-void sched_exit(void) { BUG(); return; }
-
 
 int sched_component_take(spdid_t spdid) 
 { 

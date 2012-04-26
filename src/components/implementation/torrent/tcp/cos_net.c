@@ -1248,35 +1248,38 @@ done:
 	return;
 }
 
-static volatile int event_thd = 0;
+#include <stdio.h>
+#include <torrent.h>
+#include <torlib.h>
 
-extern int ip_xmit(spdid_t spdid, struct cos_array *d);
-extern int ip_wait(spdid_t spdid, struct cos_array *d);
-extern int ip_netif_release(spdid_t spdid);
-extern int ip_netif_create(spdid_t spdid);
+extern td_t parent_tsplit(spdid_t spdid, td_t tid, char *param, int len, tor_flags_t tflags, long evtid);
+extern int parent_twrite(spdid_t spdid, td_t td, int cbid, int sz);
+extern int parent_tread(spdid_t spdid, td_t td, int cbid, int sz);
+
+static volatile int event_thd = 0;
+static td_t ip_td = 0;
 
 static int cos_net_evt_loop(void)
 {
-	struct cos_array *data;
-//	char *data;
 	int alloc_sz = MTU;
-//	cbuf_t cb;
+	char *data;
+	cbuf_t cb;
 
 	assert(event_thd > 0);
-	if (ip_netif_create(cos_spd_id())) BUG();
+	ip_td = parent_tsplit(cos_spd_id(), td_root, "", 0, TOR_ALL, -1);
+	assert(ip_td > 0);
 	printc("network uc %d starting...\n", cos_get_thd_id());
 	alloc_sz = sizeof(struct cos_array) + MTU;
-	data = cos_argreg_alloc(alloc_sz);
-	if (NULL == data) BUG();
-	/* data = cbuf_alloc(alloc_sz, &cb); */
-	/* if (NULL == data) BUG(); */
 	while (1) {
-		data->sz = alloc_sz;
-		ip_wait(cos_spd_id(), data);
-		cos_net_interrupt(data->mem, data->sz);
+		int sz;
+
+		data = cbuf_alloc(alloc_sz, &cb);
+		assert(data);
+		sz = parent_tread(cos_spd_id(), ip_td, cb, alloc_sz);
+		assert(sz > 0);
+		cos_net_interrupt(data, sz);
+		cbuf_free(data);
 	}
-	cos_argreg_free(data);
-	/* cbuf_free(data); */
 
 	return 0;
 }
@@ -1290,21 +1293,16 @@ static err_t cos_net_stack_link_send(struct netif *ni, struct pbuf *p)
 
 static err_t cos_net_stack_send(struct netif *ni, struct pbuf *p, struct ip_addr *ip)
 {
-	int tot_len = 0;
-	struct cos_array *b;
-	/* char *b; */
+	int tot_len = 0, sz;
 	char *buff;
+	cbuf_t cb;
 
 	/* assuming the net lock is taken here */
 
 	assert(p && p->ref == 1);
 	assert(p->type == PBUF_RAM);
-	b = cos_argreg_alloc(sizeof(struct cos_array) + MTU);
-	if (NULL == b) BUG();
-	buff = b->mem;
-	/* b = cbuf_alloc(MTU); */
-	/* assert(b); */
-	/* buff = b; */
+	buff = cbuf_alloc(MTU, &cb);
+	assert(buff);
 	while (p) {
 		if (p->len + tot_len > MTU) BUG();
 		memcpy(buff + tot_len, p->payload, p->len);
@@ -1323,13 +1321,14 @@ static err_t cos_net_stack_send(struct netif *ni, struct pbuf *p, struct ip_addr
 		assert(p->ref == 1);
 		p = p->next;
 	}
+
 	
-	b->sz = tot_len;
-	//sz = tot_len;
-	// add size argument to ip_xmit
-	if (0 > ip_xmit(cos_spd_id(), b)) BUG();
-	cos_argreg_free(b);
-	/* cbuf_free(b); */
+	sz = parent_twrite(cos_spd_id(), ip_td, cb, tot_len);
+	if (sz <= 0) {
+		printc("<<transmit returns %d -> %d>>\n", sz, tot_len);
+	}
+	assert(sz > 0);
+	cbuf_free(buff);
 	
 	/* cannot deallocate packets here as we might need to
 	 * retransmit them. */
@@ -1363,10 +1362,6 @@ static void lwip_free_payload(struct pbuf *p)
 }
 
 /*** Torrent functions ***/
-
-#include <stdio.h>
-#include <torrent.h>
-#include <torlib.h>
 
 static int 
 modify_connection(spdid_t spdid, net_connection_t nc, char *ops, int len)
