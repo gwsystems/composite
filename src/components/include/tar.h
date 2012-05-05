@@ -96,10 +96,12 @@ tar_parse_record(struct tar_record *r, struct fsobj **o, struct fsobj *root)
 	name = strrchr(&r->name[0], '/');
 	if (name) {
 		char *fail_path;
+		int len;
 
 		*name = '\0';
 		name++;
-		parent = fsobj_path2obj(&r->name[0], root, &p, &fail_path);
+		len = (int)(name - r->name[0]);
+		parent = fsobj_path2obj(&r->name[0], len, root, &p, &fail_path);
 	} else {
 		name = &r->name[0];
 		parent = root;

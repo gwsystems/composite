@@ -31,29 +31,23 @@ tsplit(spdid_t spdid, td_t td, char *param,
 	td_t ret = -1;
 	struct torrent *t, *nt;
 	struct fsobj *fso, *fsc, *parent; /* obj, child, and parent */
-	char *p, *subpath;
+	char *subpath;
 
-	if (tor_isnull(td)) return -EINVAL;
 	LOCK();
 	t = tor_lookup(td);
 	if (!t) ERR_THROW(-EINVAL, done);
 	fso = t->data;
 
-	p = malloc(len+1);
-	if (!p) ERR_THROW(-ENOMEM, done);
-	strncpy(p, param, len);
-	p[len] = '\0';
-
-	fsc = fsobj_path2obj(p, fso, &parent, &subpath);
+	fsc = fsobj_path2obj(param, len, fso, &parent, &subpath);
 	if (!fsc) {
 		assert(parent);
-		if (!(parent->flags & TOR_SPLIT)) ERR_THROW(-EACCES, free);
+		if (!(parent->flags & TOR_SPLIT)) ERR_THROW(-EACCES, done);
 		fsc = fsobj_alloc(subpath, parent);
-		if (!fsc) ERR_THROW(-EINVAL, free);
+		if (!fsc) ERR_THROW(-EINVAL, done);
 		fsc->flags = tflags;
 	} else {
 		/* File has less permissions than asked for? */
-		if ((~fsc->flags) & tflags) ERR_THROW(-EACCES, free);
+		if ((~fsc->flags) & tflags) ERR_THROW(-EACCES, done);
 	}
 
 	fsobj_take(fsc);
@@ -64,7 +58,7 @@ done:
 	UNLOCK();
 	return ret;
 free:  
-	free(p);
+	fsobj_release(fsc);
 	goto done;
 }
 

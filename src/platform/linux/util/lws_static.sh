@@ -8,8 +8,9 @@
 "c0.o, ;*fprr.o, ;mm.o, ;boot.o, ;print.o, ;\
 \
 !sm.o,a1;!mpool.o, ;!buf.o, ;!va.o, ;!mpd.o,a5;!tif.o,a5;!tip.o, ;\
-!port.o, ;!l.o,a4;!te.o,a3;!tnet.o, ;!eg.o,a5;!stconn.o,a9;!pfs.o, ;\
-!httpt.o,a8;!rotar.o,a7;!initfs.o,a3:\
+!port.o, ;!l.o,a4;!te.o,a3;!tnet.o, ;!eg.o,a5;\
+!stconn.o, '/bind:0:200/listen:255';\
+!pfs.o, ;!httpt.o,a8;!rotar.o,a7;!initfs.o,a3:\
 \
 c0.o-fprr.o;\
 fprr.o-print.o|[parent_]mm.o;\

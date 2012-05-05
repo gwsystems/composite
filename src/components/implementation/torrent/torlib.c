@@ -13,7 +13,7 @@ struct torrent null_torrent, root_torrent;
 int tor_cons(struct torrent *t, void *data, int flags)
 {
 	td_t td;
-	assert(t && data);
+	assert(t);
 
 	td        = (td_t)cos_map_add(&torrents, t);
 	if (td == -1) return -1;

@@ -137,7 +137,8 @@ mapping_add(int from, int to, long feid, long teid)
 	assert(tf == feid);
 }
 
-static void accept_new(int accept_fd)
+static void 
+accept_new(int accept_fd)
 {
 	int from, to, feid, teid;
 
@@ -166,7 +167,8 @@ static void accept_new(int accept_fd)
 	}
 }
 
-static void from_data_new(struct tor_conn *tc)
+static void 
+from_data_new(struct tor_conn *tc)
 {
 	int from, to, amnt;
 	char *buf;
@@ -208,7 +210,8 @@ close:
 	goto done;
 }
 
-static void to_data_new(struct tor_conn *tc)
+static void 
+to_data_new(struct tor_conn *tc)
 {
 	int from, to, amnt;
 	char *buf;
@@ -249,11 +252,12 @@ close:
 	goto done;
 }
 
-void cos_init(void *arg)
+void
+cos_init(void *arg)
 {
 	int c, accept_fd, ret;
 	long eid;
-	char *create_str = "/bind:0:200/listen:255";
+	char *create_str = cos_init_args();
 
 	cvect_init_static(&evts);
 	cvect_init_static(&tor_from);

@@ -1185,7 +1185,7 @@ void *cos_alloc_page(void)
 
 void cos_free_page(void *page)
 {
-	free_pages(page, 0);
+	free_pages((unsigned long int)page, 0);
 }
 
 /*
