@@ -157,6 +157,9 @@ int lock_release(cos_lock_t *l) {
 	return 0;
 }
 
+u32_t __lid_cache[NCACHED_LOCK_IDS] = {};
+int __lid_top;
+
 #ifndef STATIC_ALLOC
 cos_lock_t *lock_alloc(void)
 {

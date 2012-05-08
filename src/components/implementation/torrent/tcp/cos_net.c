@@ -1553,14 +1553,11 @@ static void init_lwip(void)
 
 static void cos_net_create_netif_thd(void)
 {
-	struct cos_array *data;
-
-	data = cos_argreg_alloc(sizeof(struct cos_array) + 4);
-	assert(data);
-	strcpy(&data->mem[0], "r-1");
-	data->sz = 4;
-	if (0 > (event_thd = sched_create_thread(cos_spd_id(), data))) BUG();
-	cos_argreg_free(data);
+	union sched_param sp;
+	
+	sp.c.type  = SCHEDP_PRIO;
+	sp.c.value = 3;
+	if (0 > (event_thd = sched_create_thd(cos_spd_id(), sp.v, 0, 0))) BUG();
 }
 
 static int init(void) 

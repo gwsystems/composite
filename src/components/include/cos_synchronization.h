@@ -41,12 +41,33 @@ int lock_take_timed(cos_lock_t *t, unsigned int microsec);
 int lock_release(cos_lock_t *t);
 unsigned int lock_contested(cos_lock_t *l);
 
-static inline unsigned long lock_id_alloc(void)
+static inline unsigned long 
+lock_id_alloc(void)
 {
 	return lock_component_alloc(cos_spd_id());
 }
 
-static inline int lock_init(cos_lock_t *l)
+#define NCACHED_LOCK_IDS 32
+extern u32_t __lid_cache[];
+extern int __lid_top;
+
+static inline void 
+lock_id_put(u32_t lid)
+{
+	if (__lid_top == NCACHED_LOCK_IDS) lock_component_free(cos_spd_id(), lid);
+	else                               __lid_cache[__lid_top++] = lid;
+
+}
+
+static inline u32_t 
+lock_id_get(void)
+{
+	if (__lid_top == 0) return lock_id_alloc();
+	else                return __lid_cache[--__lid_top];
+}
+
+static inline int 
+lock_init(cos_lock_t *l)
 {
 	l->lock_id = 0;
 	l->atom.owner = 0;
@@ -55,12 +76,21 @@ static inline int lock_init(cos_lock_t *l)
 	return 0;
 }
 
-static inline unsigned long lock_static_init(cos_lock_t *l)
+static inline unsigned long 
+lock_static_init(cos_lock_t *l)
 {
 	lock_init(l);
-	l->lock_id = lock_id_alloc();
+	l->lock_id = lock_id_get();
 
 	return l->lock_id;
+}
+
+static inline void 
+lock_static_free(cos_lock_t *l)
+{
+	assert(l);
+	lock_id_put(l->lock_id);
+	lock_init(l);
 }
 
 #ifndef STATIC_ALLOC

@@ -18,17 +18,18 @@
 #include <print.h>
 #include <errno.h>
 #include <cos_synchronization.h>
-
 #include <sys/socket.h>
-//#include <cos_net.h>
-//#include <net_transport.h>
-
+#include <stdio.h>
 #include <torrent.h>
 extern td_t from_tsplit(spdid_t spdid, td_t tid, char *param, int len, tor_flags_t tflags, long evtid);
 extern void from_trelease(spdid_t spdid, td_t tid);
 extern int from_tread(spdid_t spdid, td_t td, int cbid, int sz);
 extern int from_twrite(spdid_t spdid, td_t td, int cbid, int sz);
 #include <sched.h>
+
+static cos_lock_t sc_lock;
+#define LOCK() if (lock_take(&sc_lock)) BUG();
+#define UNLOCK() if (lock_release(&sc_lock)) BUG();
 
 #define BUFF_SZ 2048//1401 //(COS_MAX_ARG_SZ/2)
 
@@ -89,10 +90,9 @@ evt_get(void)
 {
 	long eid;
 
-	if (!evt_all) {
-		evt_all = evt_split(cos_spd_id(), 0, 1);
-	}
+	if (!evt_all) evt_all = evt_split(cos_spd_id(), 0, 1);
 	assert(evt_all);
+
 	eid = (ncached == 0) ?
 		evt_split(cos_spd_id(), evt_all, 0) :
 		evt_cache[--ncached];
@@ -106,7 +106,6 @@ evt_put(long evtid)
 {
 	if (ncached >= EVT_CACHE_SZ) evt_free(cos_spd_id(), evtid);
 	else                         evt_cache[ncached++] = evtid;
-	cvect_del(&evts, evtid);
 }
 
 /* positive return value == "from", negative == "to" */
@@ -126,6 +125,7 @@ mapping_add(int from, int to, long feid, long teid)
 {
 	long tf, tt;
 
+	LOCK();
 	tor_add_pair(from, to, feid, teid);
 	evt_add(from,    feid);
 	evt_add(to * -1, teid);
@@ -135,6 +135,17 @@ mapping_add(int from, int to, long feid, long teid)
 	assert(evt_torrent(teid) == (-1*to));
 	assert(tt == teid);
 	assert(tf == feid);
+	UNLOCK();
+}
+
+static inline void
+mapping_remove(int from, int to, long feid, long teid)
+{
+	LOCK();
+	tor_del_pair(from, to);
+	cvect_del(&evts, feid);
+	cvect_del(&evts, teid);
+	UNLOCK();
 }
 
 static void 
@@ -201,9 +212,9 @@ done:
 	cbuf_free(buf);
 	return;
 close:
+	mapping_remove(from, to, tc->feid, tc->teid);
 	from_trelease(cos_spd_id(), from);
 	trelease(cos_spd_id(), to);
-	tor_del_pair(from, to);
 	assert(tc->feid && tc->teid);
 	evt_put(tc->feid);
 	evt_put(tc->teid);
@@ -243,12 +254,12 @@ done:
 	cbuf_free(buf);
 	return;
 close:
+	mapping_remove(from, to, tc->feid, tc->teid);
 	from_trelease(cos_spd_id(), from);
 	trelease(cos_spd_id(), to);
-	tor_del_pair(from, to);
 	assert(tc->feid && tc->teid);
-	cvect_del(&evts, tc->feid);
-	cvect_del(&evts, tc->teid);
+	evt_put(tc->feid);
+	evt_put(tc->teid);
 	goto done;
 }
 
@@ -257,18 +268,26 @@ cos_init(void *arg)
 {
 	int c, accept_fd, ret;
 	long eid;
-	char *create_str = cos_init_args();
-
+	char *init_str = cos_init_args(), *create_str;
+	int lag, nthds, prio;
+	
 	cvect_init_static(&evts);
 	cvect_init_static(&tor_from);
 	cvect_init_static(&tor_to);
-	
+	lock_static_init(&sc_lock);
+		
+	sscanf(init_str, "%d:%d:%d", &lag, &nthds, &prio);
+	printc("lag: %d, nthds:%d, prio:%d\n", lag, nthds, prio);
+	create_str = strstr(init_str, "/");
+	assert(create_str);
+
 	eid = evt_get();
 	ret = c = from_tsplit(cos_spd_id(), td_root, create_str, strlen(create_str), TOR_ALL, eid);
 	if (ret <= td_root) BUG();
 	accept_fd = c;
 	evt_add(c, eid);
 
+	/* event loop... */
 	while (1) {
 		struct tor_conn tc;
 		int t;
