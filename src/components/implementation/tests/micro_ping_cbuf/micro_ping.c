@@ -5,9 +5,11 @@
 #include <micro_pong.h>
 #include <cbuf.h>
 
-#define ITER 1000000
+#define ITER 2000
 #define MAX_SZ 4096
 #define NCBUF 100
+
+// using threadpool_max
 
 void cos_init(void)
 {
@@ -33,19 +35,19 @@ void cos_init(void)
 		rdtscll(start);
 	}
 	rdtscll(end_tmp);
-	printc("%d rdtscll %lld cycs\n", ITER, end_tmp-start_tmp);
+	printc("%d rdtscll avg %lld cycs\n", ITER, (end_tmp-start_tmp)/ITER);
 	
         /* PINGPONG */
 	printc("\n<<< PINGPONG MICRO-BENCHMARK TEST >>>\n");
 	call();
-	for (k = 0; k <5 ;k++){
+	for (k = 0; k <10 ;k++){
 		
 		rdtscll(start);
 		for (i = 0 ; i < ITER ; i++) {
 			call();
 		}
 		rdtscll(end);
-		printc("%d invs %lld cycs\n", ITER, end-start);
+		printc("%d invs avg %lld cycs\n", ITER, (end-start)/ITER);
 	}
 	printc("<<< PINGPONG BENCHMARK TEST DONE >>>\n");
 

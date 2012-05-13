@@ -50,10 +50,7 @@ void call_cs(void)
 	static int high, low;
 	u64_t start = 0, end = 0;
 
-
-	printv("thd %d in cs\n", cos_get_thd_id());
 	if(first == 1){
-		printv("..........\n");
 		low = cos_get_thd_id();
 		sched_wakeup(cos_spd_id(), high);
 	}
@@ -61,27 +58,21 @@ void call_cs(void)
 	if(first == 0){
 		first = 1;
 		high = cos_get_thd_id();
-		printv("1\n");
 		sched_block(cos_spd_id(), 0);
-		printv("2\n");
 		rdtscll(start);
 		sched_block(cos_spd_id(), low);
-		printv("3\n");
 	}
 
 	if (cos_get_thd_id() == low) {
-		printv("4\n");
 		sched_wakeup(cos_spd_id(), high);
-		printv("5\n");
 	}
 
 	if (cos_get_thd_id() == high) {
-		printv("6\n");
 		rdtscll(end);
-		printc("cost of context switch %llu cycs\n", end-start);
+		printc("context switch cost: %llu cycs\n", (end-start) >> 1);
 		first = 0;
 	}
-
-	printv("7\n");
 	return;
 }
+
+

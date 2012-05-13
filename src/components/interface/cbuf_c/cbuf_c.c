@@ -104,6 +104,7 @@ __cbuf_2buf_miss(int cbid, int len)
 	h = cbuf_c_retrieve(cos_spd_id(), cbid, len);
 	CBUF_TAKE();
 	if (!h) {
+		assert(0);
 		BUG();
 		return -1;
 	}
@@ -118,6 +119,8 @@ __cbuf_2buf_miss(int cbid, int len)
 	mc->c.ptr         = (long)h >> PAGE_ORDER;
 	mc->c.obj_sz      = len;
 	mc->c.thdid_owner = cos_get_thd_id();
+
+	mc->c.flags       |= CBUFM_MAPPED_IN;
 
 	return 0;
 }

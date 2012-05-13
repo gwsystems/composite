@@ -183,12 +183,14 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	u64_t start,end;	
 #ifdef CBUF2BUF
 	char *b;
+	/* printc("In spd %d\n", cos_spd_id()); */
 	if(cbt_map && len_map){
 		rdtscll(start);
 		b = cbuf2buf(cbt_map,len_map);
 		rdtscll(end);
 		DOUTs("---- cost Bf2Bf :: %llu in spd %ld\n", end-start, cos_spd_id());
 		if (!b) {
+			assert(0);
 			DOUTs("Can not map into this spd %ld\n", cos_spd_id());
 			return cbuf_null();
 		}
@@ -243,10 +245,8 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 			val = (int)(t & (TOTAL_AMNT-1));
 			if (val >= cbuf_l_to_r) {
 				cbt[i] = cbuf_null();
-				DOUTs("2\n");
 				rdtscll(start);
 				mt[i] = cbuf_alloc(len, &cbt[i]);
-				DOUTs("3\n");
 				rdtscll(end);
 				cbuf_unpack(cbt[i], &id, &idx);
 				DOUTs("alloc cbid done !%ld\n", id);

@@ -29,6 +29,7 @@ typedef enum {
 	CBUFM_GRANT   = 1<<2,
 	CBUFM_IN_USE  = 1<<3,
 	CBUFM_TOUCHED = 1<<4,
+	CBUFM_MAPPED_IN = 1<<5,
 } cbufm_flags_t;
 
 /* 
