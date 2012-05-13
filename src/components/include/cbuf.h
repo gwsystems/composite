@@ -213,6 +213,7 @@ cbuf2buf(cbuf_t cb, int len)
 	ret = ((void*)(cm.c.ptr << PAGE_ORDER));
 done:	
 	CBUF_RELEASE();
+	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 	return ret;
 }
 
@@ -320,6 +321,7 @@ again:
 done:
 	*cb = cbuf_cons(cbid, len);
 	CBUF_RELEASE();
+	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 
 	return ret;
 }
@@ -345,12 +347,15 @@ cbuf_free(void *buf)
 	cm->c.flags &= ~CBUFM_IN_USE;
 	cm->c.thdid_owner = 0;
 	CBUF_RELEASE();
+	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 
 	/* Does the manager want the memory back? */
 	if (cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF_RELINQ] == 1) {
 		cbuf_c_delete(cos_spd_id(), d->cbid);
+		assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 		return;
 	} 
+	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 }
 
 /* Is it a cbuf?  If so, what's its id? */
@@ -365,6 +370,8 @@ cbuf_id(void *buf)
 	d  = __cbuf_alloc_lookup(idx);
 	id = (likely(d)) ? d->cbid : 0;
 	CBUF_RELEASE();
+	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
+
 	return id;
 }
 

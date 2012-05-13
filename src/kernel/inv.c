@@ -194,6 +194,8 @@ COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capabil
 	thd_invocation_push(thd, cap_entry->destination, sp, ip);
 	cap_entry->invocation_cnt++;
 
+//	printk("%d: %d->%d\n", thd_get_id(thd), spd_get_index(curr_spd), spd_get_index(dest_spd));
+
 	return cap_entry->dest_entry_instruction;
 }
 
@@ -244,6 +246,8 @@ COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr, struct pt_regs
 		*regs_restore = &curr->fault_regs;
 		return NULL;
 	}
+
+//	printk("%d: ->%d\n", thd_get_id(curr), spd_get_index(curr_frame->spd));
 
 	return inv_frame;	
 }

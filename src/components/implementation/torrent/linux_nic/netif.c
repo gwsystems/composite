@@ -516,6 +516,7 @@ int netif_event_wait(spdid_t spdid, char *mem, int sz)
 
 	if (sz < MTU) return -EINVAL;
 
+//	printc("%d: I\n", cos_get_thd_id());
 	interrupt_wait();
 	NET_LOCK_TAKE();
 	if (interrupt_process(mem, sz, &ret_sz)) BUG();

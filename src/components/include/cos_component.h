@@ -300,6 +300,19 @@ static inline long cos_cmpxchg(volatile void *memory, long anticipated, long res
 	return ret;
 }
 
+static inline int 
+cos_cas(unsigned long *target, unsigned long cmp, unsigned long updated)
+{
+	char z;
+	__asm__ __volatile__("lock cmpxchgl %2, %0; setz %1"
+			     : "+m" (*target),
+			       "=a" (z)
+			     : "q"  (updated),
+			       "a"  (cmp)
+			     : "memory", "cc");
+	return (int)z;
+}
+
 static inline void *cos_get_prealloc_page(void)
 {
 	char *h;
