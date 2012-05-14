@@ -110,6 +110,50 @@ unsigned long trusted_mem_size;
 #define MAX_ALLOC_MM 64
 struct mm_struct *guest_mms[MAX_ALLOC_MM]; 
 
+DEFINE_PER_CPU(unsigned long, x86_tss) = { 0 };
+
+/* This function gets the TSS pointer from Linux. */
+/* We read it from Linux only once. After that, use the */
+/* get_TSS function below for efficiency. */
+
+static inline void 
+load_per_core_TSS(void)
+{
+	unsigned long *cpu_x86_tss;
+        struct tss_struct *gdt_tss = NULL;
+	struct desc_struct *gdt_array = NULL;
+	unsigned long *temp_gdt_tss;
+
+	gdt_array = get_cpu_gdt_table(get_cpu());
+        temp_gdt_tss = (unsigned long *)get_desc_base(&gdt_array[GDT_ENTRY_TSS]);
+	gdt_tss = (struct tss_struct *)temp_gdt_tss;
+
+	cpu_x86_tss = &get_cpu_var(x86_tss);
+	*cpu_x86_tss = (unsigned long)((void *)gdt_tss + sizeof(struct tss_struct));
+	put_cpu_var(x86_tss);
+}
+
+/* This function gets the TSS pointer of current CPU.  */
+/* We load the TSS to a per CPU variable x86_tss when  */
+/* we try getting it the first time. After that, we  */
+/* can just load it from that variable. */
+void get_TSS(struct pt_regs *rs)
+{
+	/* We pass the esp to this function from assembly. 
+	 * In the assembly code, we do SAVE_ALL before call 
+	 * this function. We also reserve a position in the stack
+	 * before SAVE_ALL to receive the TSS from this function.
+	 * So here, the orig_ax points right to that position.*/
+
+	rs->orig_ax = get_cpu_var(x86_tss);
+	if (unlikely(rs->orig_ax == 0)) {
+		/* We need to load the variable if not loaded yet. */
+	  	load_per_core_TSS();
+		rs->orig_ax = get_cpu_var(x86_tss);
+	}
+	return;
+}
+
 static void init_guest_mm_vect(void)
 {
 	int i;
@@ -207,7 +251,11 @@ static int aed_free_mm(int mm_handle)
 	 * fast path. */
 	return 0;
 }
-
+static inline unsigned int hpage_index(unsigned long n)
+{
+        unsigned int idx = n >> HPAGE_SHIFT;
+        return (idx << HPAGE_SHIFT) != n ? idx + 1 : idx;
+}
 int spd_free_mm(struct spd *spd)
 {
 	struct mm_struct *mm;
@@ -220,7 +268,7 @@ int spd_free_mm(struct spd *spd)
 
 	mm = guest_mms[spd->local_mmaps];
 	pgd = pgd_offset(mm, spd->location[0].lowest_addr);
-	span = spd->location[0].size>>HPAGE_SHIFT;
+	span = hpage_index(spd->location[0].size);
 
 	/* ASSUMPTION: we are talking about a component's mm here, so
 	 * we need to remove the ptes */
@@ -442,7 +490,7 @@ static inline void copy_pgd_range(struct mm_struct *to_mm, struct mm_struct *fro
 {
 	pgd_t *tpgd = pgd_offset(to_mm, lower_addr);
 	pgd_t *fpgd = pgd_offset(from_mm, lower_addr);
-	unsigned int span = size>>HPAGE_SHIFT;
+	unsigned int span = hpage_index(size);
 
 #ifdef NIL
 	if (!(pgd_val(*fpgd) & _PAGE_PRESENT)) {
@@ -1137,7 +1185,7 @@ void *cos_alloc_page(void)
 
 void cos_free_page(void *page)
 {
-	__free_pages(page, 0);
+	free_pages((unsigned long int)page, 0);
 }
 
 /*
@@ -1360,7 +1408,7 @@ void print_valid_pgtbl_entries(paddr_t pt)
 void zero_pgtbl_range(paddr_t pt, unsigned long lower_addr, unsigned long size)
 {
 	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(lower_addr);
-	unsigned int span = size>>HPAGE_SHIFT;
+	unsigned int span = hpage_index(size);
 
 	if (!(pgd_val(*pgd)) & _PAGE_PRESENT) {
 		printk("cos: BUG: nothing to copy from pgd @ %x.\n", 
@@ -1376,7 +1424,7 @@ void copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from,
 {
 	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
 	pgd_t *fpgd = ((pgd_t *)pa_to_va((void*)pt_from)) + pgd_index(lower_addr);
-	unsigned int span = size>>HPAGE_SHIFT;
+	unsigned int span = hpage_index(size);
 
 	if (!(pgd_val(*fpgd)) & _PAGE_PRESENT) {
 		printk("cos: BUG: nothing to copy from pgd @ %x.\n", 
@@ -1392,7 +1440,7 @@ void copy_pgtbl_range_nocheck(paddr_t pt_to, paddr_t pt_from,
 {
 	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
 	pgd_t *fpgd = ((pgd_t *)pa_to_va((void*)pt_from)) + pgd_index(lower_addr);
-	unsigned int span = size>>HPAGE_SHIFT;
+	unsigned int span = hpage_index(size);
 
 	/* sizeof(pgd entry) is intended */
 	memcpy(tpgd, fpgd, span*sizeof(pgd_t));
@@ -1404,7 +1452,7 @@ void copy_pgtbl_range_nonzero(paddr_t pt_to, paddr_t pt_from,
 {
 	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
 	pgd_t *fpgd = ((pgd_t *)pa_to_va((void*)pt_from)) + pgd_index(lower_addr);
-	unsigned int span = size>>HPAGE_SHIFT;
+	unsigned int span = hpage_index(size);
 	int i;
 
 	printk("Copying from %p:%d to %p.\n", fpgd, span, tpgd);
@@ -1845,14 +1893,14 @@ static int aed_open(struct inode *inode, struct file *file)
 
 	if (pte != NULL) {
 		printk("cos: address range for info region @ %x already used.\n",
-		       (unsigned int)COS_INFO_REGION_ADDR);
+ 		       (unsigned int)COS_INFO_REGION_ADDR);
 		return -ENOMEM;
 	}
 
 	kern_handle = aed_allocate_mm();
 	kern_mm = aed_get_mm(kern_handle);
 	kern_pgtbl_mapping = (vaddr_t)kern_mm->pgd;
-
+	//assert(!pgtbl_entry_absent(kern_pgtbl_mapping, 0xffffb0b0));
 	/*
 	 * This is really and truly crap, because of Linux.  Linux has
 	 * 4 address namespaces, it seems and I was only aware of 3.

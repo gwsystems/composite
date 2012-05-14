@@ -43,7 +43,7 @@ enum{
 /* ALGORITHM: 1 for minimize AVG tardiness, 0 for minimize MAX tardiness*/
 #define ALGORITHM MAX
  
-//#define THD_POOL MAX_NUM_MEM
+#define THD_POOL MAX_NUM_MEM
 //#define THD_POOL 1
 //#define THD_POOL 300/18
 

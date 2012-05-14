@@ -215,6 +215,7 @@ cbuf2buf(cbuf_t cb, int len)
 	ret = ((void*)(cm.c.ptr << PAGE_ORDER));
 done:	
 	CBUF_RELEASE();
+	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 	return ret;
 }
 
@@ -332,6 +333,7 @@ again:
 done:
 	*cb = cbuf_cons(cbid, len);
 	CBUF_RELEASE();
+	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 
 	return ret;
 }
@@ -358,12 +360,39 @@ cbuf_free(void *buf)
 	cm->c.thdid_owner = 0;
 	cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]++;
 	CBUF_RELEASE();
+	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 
 	/* Does the manager want the memory back? */
 	if (unlikely(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF] == 1)) {
 		cbuf_c_delete(cos_spd_id(), d->cbid);
+		assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 		return;
 	} 
+	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
+}
+
+/* Is it a cbuf?  If so, what's its id? */
+static inline int 
+cbuf_id(void *buf)
+{
+	u32_t idx = ((u32_t)buf) >> PAGE_ORDER;
+	struct cbuf_alloc_desc *d;
+	int id;
+
+	CBUF_TAKE();
+	d  = __cbuf_alloc_lookup(idx);
+	id = (likely(d)) ? d->cbid : 0;
+	CBUF_RELEASE();
+	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
+
+	return id;
+}
+
+/* Is the pointer a cbuf?  */
+static inline int 
+cbuf_is_cbuf(void *buf)
+{
+	return cbuf_id(buf) != 0;
 }
 
 #endif /* CBUF_H */

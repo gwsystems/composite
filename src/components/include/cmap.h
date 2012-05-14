@@ -121,7 +121,8 @@ cmap_add(cmap_t *m, void *val)
 	/* no free slots? Create more! */
 	if (free == -1) {
 		long lower, upper;
-		if (0 > cvect_add_id(m->data, val, cmap_to_vect_id(m->id_boundary))) return -1;	
+		if (val != CVECT_INIT_VAL && 
+		    0 > cvect_add_id(m->data, val, cmap_to_vect_id(m->id_boundary))) return -1;	
 		free = lower = m->id_boundary;
 		m->id_boundary = upper = lower + CVECT_BASE;
 		/* Add the new values to the free list */

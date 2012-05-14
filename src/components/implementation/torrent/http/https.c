@@ -35,6 +35,10 @@
 #include <periodic_wake.h>
 #include <sched.h>
 
+static cos_lock_t h_lock;
+#define LOCK() if (lock_take(&h_lock)) BUG();
+#define UNLOCK() if (lock_release(&h_lock)) BUG();
+
 extern td_t server_tsplit(spdid_t spdid, td_t tid, char *param, int len, tor_flags_t tflags, long evtid);
 extern void server_trelease(spdid_t spdid, td_t tid);
 extern int server_tread(spdid_t spdid, td_t td, int cbid, int sz);
@@ -191,8 +195,14 @@ struct connection {
 	int refcnt;
 	td_t conn_id;
 	long evt_id;
+	cos_lock_t lock;
 	struct http_request *pending_reqs;
 };
+
+static inline void
+lock_connection(struct connection *c) { if (lock_take(&c->lock)) BUG(); }
+static inline void
+unlock_connection(struct connection *c) { if (lock_release(&c->lock)) BUG(); }
 
 /*
  * The queue of requests should look like so:
@@ -301,6 +311,7 @@ static struct connection *http_new_connection(long conn_id, long evt_id)
 	c->evt_id = evt_id;
 	c->pending_reqs = NULL;
 	c->refcnt = 1;
+	lock_static_init(&c->lock);
 
 	return c;
 }
@@ -327,6 +338,7 @@ static inline void conn_refcnt_dec(struct connection *c)
 				r = next;
 			} while (first != r);
 		}
+		lock_static_free(&c->lock);
 		free(c);
 	}
 }
@@ -698,7 +710,8 @@ tsplit(spdid_t spdid, td_t tid, char *param, int len,
 	struct connection *c;
 
 	if (tor_isnull(tid)) return -EINVAL;
-
+	
+	LOCK();
 	c = http_new_connection(0, evtid);
 	if (!c) ERR_THROW(-ENOMEM, err);
 	/* ignore the param for now */
@@ -706,6 +719,7 @@ tsplit(spdid_t spdid, td_t tid, char *param, int len,
 	if (!t) ERR_THROW(-ENOMEM, free);
 	c->conn_id = ret = t->td;
 err:
+	UNLOCK();
 	return ret;
 free:
 	http_free_connection(c);
@@ -720,9 +734,13 @@ trelease(spdid_t spdid, td_t td)
 
 	if (!tor_is_usrdef(td)) return;
 
+	LOCK();
 	t = tor_lookup(td);
 	if (!t) goto done;
 	c = t->data;
+	lock_connection(c);
+	/* wait till others release the connection */
+	unlock_connection(c);
 	if (c) {
 		http_free_connection(c);
 		/* bookkeeping */
@@ -730,6 +748,7 @@ trelease(spdid_t spdid, td_t td)
 	}
 	tor_free(t);
 done:
+	UNLOCK();
 	return;
 }
 
@@ -740,7 +759,6 @@ tmerge(spdid_t spdid, td_t td, td_t td_into, char *param, int len)
 
 	/* currently only allow deletion */
 	if (td_into != td_null) ERR_THROW(-EINVAL, done);
-	trelease(spdid, td);
 done:
 	return ret;
 }
@@ -748,26 +766,35 @@ done:
 int 
 twrite(spdid_t spdid, td_t td, int cbid, int sz)
 {
-	struct connection *c;
+	struct connection *c = NULL;
 	struct torrent *t;
 	char *buf;
 	int ret = -1;
 
 	if (tor_isnull(td)) return -EINVAL;
-	t = tor_lookup(td);
-	if (!t) ERR_THROW(-EINVAL, done);
-	if (!(t->flags & TOR_WRITE)) ERR_THROW(-EACCES, done);
-
-	assert(t->data);
-	c = t->data;
-
 	buf = cbuf2buf(cbid, sz);
 	if (!buf) ERR_THROW(-EINVAL, done);
-	
-	if (connection_parse_requests(c, buf, sz)) return -EINVAL;
+
+	LOCK();
+	t = tor_lookup(td);
+	if (!t) ERR_THROW(-EINVAL, unlock);
+	if (!(t->flags & TOR_WRITE)) ERR_THROW(-EACCES, unlock);
+
+	c = t->data;
+	assert(c);
+
+	lock_connection(c);
+	UNLOCK();
+	if (connection_parse_requests(c, buf, sz)) ERR_THROW(-EINVAL, release);
+	unlock_connection(c);
 	ret = sz;
 done:
 	return ret;
+unlock:
+	UNLOCK();
+release:
+	unlock_connection(c);
+	goto done;
 }
 
 int 
@@ -779,111 +806,118 @@ tread(spdid_t spdid, td_t td, int cbid, int sz)
 	int ret;
 	
 	if (tor_isnull(td)) return -EINVAL;
-	
-	t = tor_lookup(td);
-	if (!t) ERR_THROW(-EINVAL, done);
-	assert(!tor_is_usrdef(td) || t->data);
-	if (!(t->flags & TOR_READ)) ERR_THROW(-EACCES, done);
-	c = t->data;
-	
 	buf = cbuf2buf(cbid, sz);
 	if (!buf) ERR_THROW(-EINVAL, done);
 
+	LOCK();
+	t = tor_lookup(td);
+	if (!t) ERR_THROW(-EINVAL, unlock);
+	assert(!tor_is_usrdef(td) || t->data);
+	if (!(t->flags & TOR_READ)) ERR_THROW(-EACCES, unlock);
+	c = t->data;
+
+	lock_connection(c);
+	UNLOCK();
 	ret = connection_get_reply(c, buf, sz);
+	unlock_connection(c);
 done:	
 	return ret;
+unlock:
+	UNLOCK();
+	goto done;
 }
 
-long 
-content_split(spdid_t spdid, long conn_id, long evt_id)
-{
-	return -ENOSYS;
-}
+/* long  */
+/* content_split(spdid_t spdid, long conn_id, long evt_id) */
+/* { */
+/* 	return -ENOSYS; */
+/* } */
 
-int 
-content_write(spdid_t spdid, long connection_id, char *reqs, int sz)
-{
-	struct connection *c;
-	struct torrent *t;
-	cbuf_t cb;
-	char *cbuf;
-//     printc("HTTP write");
+/* int  */
+/* content_write(spdid_t spdid, long connection_id, char *reqs, int sz) */
+/* { */
+/* 	struct connection *c; */
+/* 	struct torrent *t; */
+/* 	cbuf_t cb; */
+/* 	char *cbuf; */
+/* //     printc("HTTP write"); */
 	
-	t = tor_lookup(connection_id);
-	assert(t);
-	c = t->data;
+/* 	t = tor_lookup(connection_id); */
+/* 	assert(t); */
+/* 	c = t->data; */
 	
-	cbuf = cbuf_alloc(sz, &cb);
-	memcpy(cbuf, reqs, sz);
-	if (connection_parse_requests(c, cbuf, sz)) return -EINVAL;
-	cbuf_free(cbuf);
+/* 	cbuf = cbuf_alloc(sz, &cb); */
+/* 	memcpy(cbuf, reqs, sz); */
+/* 	if (connection_parse_requests(c, cbuf, sz)) return -EINVAL; */
+/* 	cbuf_free(cbuf); */
 
-	return sz;
-}
+/* 	return sz; */
+/* } */
 
-int 
-content_read(spdid_t spdid, long connection_id, char *reqs, int sz)
-{
-	struct torrent *t;
-	struct connection *c;
-	cbuf_t cb;
-	char *cbuf;
-	int ret;
+/* int  */
+/* content_read(spdid_t spdid, long connection_id, char *reqs, int sz) */
+/* { */
+/* 	struct torrent *t; */
+/* 	struct connection *c; */
+/* 	cbuf_t cb; */
+/* 	char *cbuf; */
+/* 	int ret; */
 	
-	t = tor_lookup(connection_id);
-	assert(t);
-	c = t->data;
+/* 	t = tor_lookup(connection_id); */
+/* 	assert(t); */
+/* 	c = t->data; */
 	
-	cbuf = cbuf_alloc(sz, &cb);
-	ret  = connection_get_reply(c, cbuf, sz);
-	memcpy(reqs, cbuf, sz);
-	cbuf_free(cbuf);
+/* 	cbuf = cbuf_alloc(sz, &cb); */
+/* 	ret  = connection_get_reply(c, cbuf, sz); */
+/* 	memcpy(reqs, cbuf, sz); */
+/* 	cbuf_free(cbuf); */
 
-	return ret;
-}
+/* 	return ret; */
+/* } */
 
-long
-content_create(spdid_t spdid, long evt_id, struct cos_array *d)
-{
-	struct connection *c = http_new_connection(0, evt_id);
-	struct torrent *t;
+/* long */
+/* content_create(spdid_t spdid, long evt_id, struct cos_array *d) */
+/* { */
+/* 	struct connection *c = http_new_connection(0, evt_id); */
+/* 	struct torrent *t; */
 	
-	t = tor_alloc(c, TOR_ALL);
-	if (!t) return -1;
-	c->conn_id = t->td;
-	if (t->td < 0) {
-		http_free_connection(c);
-		return -ENOMEM;
-	}
-	return c->conn_id;
-}
+/* 	t = tor_alloc(c, TOR_ALL); */
+/* 	if (!t) return -1; */
+/* 	c->conn_id = t->td; */
+/* 	if (t->td < 0) { */
+/* 		http_free_connection(c); */
+/* 		return -ENOMEM; */
+/* 	} */
+/* 	return c->conn_id; */
+/* } */
 
-int 
-content_remove(spdid_t spdid, long conn_id)
-{
-	struct torrent *t;
-	struct connection *c;
+/* int  */
+/* content_remove(spdid_t spdid, long conn_id) */
+/* { */
+/* 	struct torrent *t; */
+/* 	struct connection *c; */
 
-	if (!tor_is_usrdef(conn_id)) return -1;
+/* 	if (!tor_is_usrdef(conn_id)) return -1; */
 
-	t = tor_lookup(conn_id);
-	if (!t) goto done;
-	c = t->data;
-	if (c) {
-		http_free_connection(c);
-		/* bookkeeping */
-		http_conn_cnt++;
-	}
-	tor_free(t);
-done:
-	return 0;
-}
+/* 	t = tor_lookup(conn_id); */
+/* 	if (!t) goto done; */
+/* 	c = t->data; */
+/* 	if (c) { */
+/* 		http_free_connection(c); */
+/* 		/\* bookkeeping *\/ */
+/* 		http_conn_cnt++; */
+/* 	} */
+/* 	tor_free(t); */
+/* done: */
+/* 	return 0; */
+/* } */
 
 #define HTTP_REPORT_FREQ 100
 
 void cos_init(void *arg)
 {
 	torlib_init();
+	lock_static_init(&h_lock);
 
 	if (periodic_wake_create(cos_spd_id(), HTTP_REPORT_FREQ)) BUG();
 	while (1) {

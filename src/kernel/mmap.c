@@ -19,7 +19,11 @@ void cos_init_memory(void)
 	int i;
 
 	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
-		cos_pages[i].addr = 0;
+		void *r = cos_alloc_page();
+		if (NULL == r) {
+			printk("cos: ERROR -- could not allocate page for cos memory\n");
+		}
+		cos_pages[i].addr = (paddr_t)va_to_pa(r);
 	}
 
 	return;
@@ -31,11 +35,8 @@ void cos_shutdown_memory(void)
 
 	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
 		paddr_t addr = cos_pages[i].addr;
-
-		if (0 != addr) {
-			cos_free_page(pa_to_va((void*)addr));
-			addr = 0;
-		}
+		cos_free_page(pa_to_va((void*)addr));
+		cos_pages[i].addr = 0;
 	}
 }
 
@@ -63,17 +64,8 @@ paddr_t cos_access_page(unsigned long cap_no)
 	paddr_t addr;
 
 	if (cap_no > COS_MAX_MEMORY) return 0;
-
 	addr = cos_pages[cap_no].addr;
-	if (0 == addr) {
-		void *r = cos_alloc_page();
-
-		if (NULL == r) {
-			printk("cos: could not allocate page for cos memory\n");
-			return 0;
-		}
-		addr = cos_pages[cap_no].addr = (paddr_t)va_to_pa(r);
-	}
+	assert(addr);
 
 	return addr;
 }

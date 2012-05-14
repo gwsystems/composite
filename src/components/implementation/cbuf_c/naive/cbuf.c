@@ -398,7 +398,11 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	cbuf_item->entry = mc;
 
 	mc->c.ptr     = d->owner.addr >> PAGE_ORDER;
-	mc->c.obj_sz  = (unsigned int)(PAGE_SIZE) >> CBUF_OBJ_SZ_SHIFT;
+
+	/* Crap solution to get rid of a compiler warning... */
+	mc->c.obj_sz  = (u16_t) 0x3F & 
+		(((u16_t)PAGE_SIZE) >> (u16_t)CBUF_OBJ_SZ_SHIFT);
+
 	mc->c_0.th_id = cos_get_thd_id();
 	mc->c.flags  |= CBUFM_IN_USE | CBUFM_TOUCHED;
 done:
