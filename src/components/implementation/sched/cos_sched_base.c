@@ -766,10 +766,7 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 		 * before it could complete the call to block), no reason to
 		 * wake it via scheduling.
 		 */
-		if (!sched_thd_blocked(thd)) {
-			printc("thd %d hasn't blocked! gonna return\n",thd->id);
-			goto cleanup;
-		}
+		if (!sched_thd_blocked(thd)) goto cleanup;
 		/* 
 		 * We are waking up a thread, which means that if we
 		 * are an upcall, we don't want composite to
@@ -887,7 +884,7 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 			/* circular dependency... */
 			if(dep->dependency_thd->id == cos_get_thd_id()) {
 				debug_print("BUG @ ");
-				printc("cos_sched_base: circular dependency between dep %d, curr %d (from spdid %d)\n", dep->id, cos_get_thd_id(), spdid);
+				printc("cos_sched_base: circular dependency between dep %d, curr %d (From spdid %d)\n", dep->id, cos_get_thd_id(), spdid);
 				assert(0);
 				goto unblock;
 			}

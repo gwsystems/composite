@@ -43,7 +43,7 @@ enum{
 /* ALGORITHM: 1 for minimize AVG tardiness, 0 for minimize MAX tardiness*/
 #define ALGORITHM MAX
  
-//#define THD_POOL MAX_NUM_MEM
+#define THD_POOL MAX_NUM_MEM
 //#define THD_POOL 1
 
 #define CBUF_UNIT 1
@@ -52,7 +52,8 @@ enum{
 
 #define HISTORICAL_ALLOC
 
-#define REVOKE_SPARE_TMEM 1 //used for tmem pool policy.
+//#define REVOKE_SPARE_TMEM 1 //used for tmem pool policy.
+#define REVOKE_SPARE_TMEM 0 //used for tmem pool policy.
 
 #define STK_MGR 0
 #define CBUF_MGR 1

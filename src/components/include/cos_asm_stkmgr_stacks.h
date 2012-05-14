@@ -14,23 +14,25 @@
 #define USE_NEW_STACKS 1
 #ifdef  USE_NEW_STACKS
 
-
 #define COS_ASM_GET_STACK                       \
 1:                                              \
+        movl %eax, %edx;		        \
+8:						\
         /* Check to see if we have a stk */     \
-        movl  cos_comp_info, %edx;              \
-        testl %edx, %edx;                       \
+        movl  cos_comp_info, %eax;              \
+        testl %eax, %eax;                       \
         je    2f;                               \
                                                 \
         /* We have a stack */                   \
-        movl cos_comp_info, %edx;               \
+        movl cos_comp_info, %eax;               \
+        movl (%eax), %esp;                      \
+	cmpxchgl %esp, cos_comp_info;		\
+        jnz 8b;					\
 						\
 	/* now we have the stack */		\
-        movl  %edx, %esp;                       \
+        movl  %eax, %esp;                       \
         addl  $12, %esp;			\
-						\
-        movl (%edx), %edx;                      \
-        movl %edx, cos_comp_info;               \
+	movl %edx, %eax;			\
 						\
 	pushl %eax;	 			\
         pushl $0x03;    /* flags */             \
@@ -39,6 +41,7 @@
 	
 #define COS_ASM_REQUEST_STACK                   \
 2:                                              \
+        movl %edx, %eax;			\
         /* get stk space */                     \
         movl $stkmgr_stack_space, %esp;         \
         shl  $7, %eax;                          \
@@ -72,22 +75,20 @@
         movl (%edx), %eax;	                \
 	jmp  1b;                                
 
-
 #define COS_ASM_RET_STACK                       \
                                                 \
+	movl $0x2, 4(%esp);			\
+	movl $0x0, 8(%esp);			\
+						\
         /* Put back on free list */             \
         /* FIXME: race! */			\
-        movl cos_comp_info, %edx;               \
-        movl %edx, (%esp);                      \
-        movl %esp, cos_comp_info;               \
-						\
-        addl $4, %esp;                          \
-						\
-	/* Flag Mark Not in Use, but Touched */	\
-        movl $0x02, (%esp);			\
-	addl $4, %esp;                          \
-	pushl $0x00;				\
-	subl $4, %esp;				\
+	movl %eax, %ebx;			\
+9:						\
+        movl cos_comp_info, %eax;               \
+        movl %eax, (%esp);                      \
+	cmpxchgl %esp, cos_comp_info;		\
+	jnz 9b;					\
+	movl %ebx, %eax;			\
 						\
         movl $cos_comp_info, %edx; 		\
 	movl 12(%edx), %edx;			\

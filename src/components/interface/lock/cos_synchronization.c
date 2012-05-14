@@ -30,8 +30,8 @@ int lock_take_timed(cos_lock_t *l, unsigned int microsec)
 
 	prev_val.c.owner = prev_val.c.contested = 0;
 	result.v = 0;
-//	printc("%d: lt %d (%d, %d) %d\n", 
-//	       curr, l->lock_id, l->atom.owner, l->atom.contested, spdid);
+	/* printc("%d: lt %d (%d, %d) %d\n",  */
+	/*        curr, l->lock_id, l->atom.c.owner, l->atom.c.contested, spdid); */
 	do {
 		int ret;
 restart:
@@ -83,7 +83,7 @@ restart:
 		/* Commit the new lock value, or try again */
 		assert(result.v == curr);
 	} while (unlikely(!cos_cas((unsigned long *)&l->atom.v, prev_val.v, result.v)));
-//	printc("%d:\tlt %d %d\n", curr, l->lock_id, spdid);
+	/* printc("%d:\tlt %d %d\n", curr, l->lock_id, spdid); */
 	assert(l->atom.c.owner == curr);
 
 	return elapsed_time;
@@ -106,8 +106,8 @@ int lock_release(cos_lock_t *l) {
 	union cos_lock_atomic_struct prev_val;
 	int lock_id = l->lock_id;
 
-//	printc("%d: lr %d (%d, %d) %d\n", 
-//	       curr, l->lock_id, l->atom.owner, l->atom.contested, cos_spd_id());
+	/* printc("%d: lr %d (%d, %d) %d\n",  */
+	/*        curr, l->lock_id, l->atom.c.owner, l->atom.c.contested, cos_spd_id()); */
 	prev_val.c.owner = prev_val.c.contested = 0;
 	do {
 		assert(sizeof(union cos_lock_atomic_struct) == sizeof(u32_t));
@@ -132,7 +132,7 @@ int lock_release(cos_lock_t *l) {
 		 * not be contested, but by the time we get here,
 		 * another thread might have tried to take it. */
 	} while (unlikely(!cos_cas((unsigned long *)&l->atom, prev_val.v, 0)));
-//	printc("%d:\tlr %d %d\n", curr, l->lock_id, cos_spd_id());
+	/* printc("%d:\tlr %d %d\n", curr, l->lock_id, cos_spd_id()); */
 	assert(l->atom.c.owner != curr);
 
 	return 0;
