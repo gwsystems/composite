@@ -2645,7 +2645,7 @@ int main(int argc, char *argv[])
 {
 	struct service_symbs *services;
 	char *delim = ":";
-	char *servs, *dependencies, *stub_gen_prog;
+	char *servs, *dependencies, *ndeps, *stub_gen_prog;
 	int ret = -1;
 
 	setup_thread();
@@ -2669,8 +2669,14 @@ int main(int argc, char *argv[])
 		goto exit;
 	}
 
+	/* find the last : */
 	servs = strtok(argv[1], delim);
-	dependencies = strtok(NULL, delim);
+	while ((ndeps = strtok(NULL, delim))) {
+		dependencies = ndeps;
+		*(ndeps-1) = ':';
+	}
+	*(dependencies-1) = '\0';
+	//printf("comps: %s\ndeps: %s\n", servs, dependencies);
 
 	if (!servs) {
 		print_usage(argc, argv);

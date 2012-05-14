@@ -14,6 +14,7 @@
 #include <fault_regs.h>
 #include <stkmgr.h>
 #include <mem_mgr_large.h>
+#include <sched.h>
 
 /* FIXME: should have a set of saved fault regs per thread. */
 int regs_active = 0; 
@@ -120,7 +121,7 @@ int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *o
 	 * fault, we bomb out here.  Look into the stack-trace, as
 	 * that is where the problem is. */
 	printc("Bombing out after fault.\n");
-	BUG(); 			
+	sched_exit();
 
 	return 0;
 }

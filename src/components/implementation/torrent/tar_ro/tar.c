@@ -30,7 +30,7 @@ tsplit(spdid_t spdid, td_t td, char *param,
 	td_t ret = -1;
 	struct torrent *t, *nt;
 	struct fsobj *fso, *fsc, *parent; /* obj, child, and parent */
-	char *p, *subpath;
+	char *subpath;
 
 	if (tor_isnull(td)) return -EINVAL;
 	LOCK();
@@ -38,17 +38,12 @@ tsplit(spdid_t spdid, td_t td, char *param,
 	if (!t) ERR_THROW(-EINVAL, done);
 	fso = t->data;
 
-	p = malloc(len+1);
-	if (!p) ERR_THROW(-ENOMEM, done);
-	strncpy(p, param, len);
-	p[len] = '\0';
-
-	fsc = fsobj_path2obj(p, fso, &parent, &subpath);
+	fsc = fsobj_path2obj(param, len, fso, &parent, &subpath);
 	if (!fsc) return -ENOENT;
 
 	fsobj_take(fsc);
 	nt = tor_alloc(fsc, tflags);
-	if (!nt) ERR_THROW(-ENOMEM, free);
+	if (!nt) ERR_THROW(-ENOMEM, done);
 	ret = nt->td;
 
 	/* If we created the torrent, then trigger an event as we have data! */
@@ -56,9 +51,6 @@ tsplit(spdid_t spdid, td_t td, char *param,
 done:
 	UNLOCK();
 	return ret;
-free:  
-	free(p);
-	goto done;
 }
 
 int 

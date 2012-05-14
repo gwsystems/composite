@@ -42,15 +42,16 @@ enum{
 /* ALGORITHM: 1 for minimize AVG tardiness, 0 for minimize MAX tardiness*/
 #define ALGORITHM MAX
  
-//#define THD_POOL MAX_NUM_MEM
+#define THD_POOL MAX_NUM_MEM
 //#define THD_POOL 1
-//#define THD_POOL 300/18
 
 #define CBUF_UNIT 1
 
 #define POLICY_PERIODICITY 25
 
 #define HISTORICAL_ALLOC
+
+#define REVOKE_SPARE_TMEM 1 //used for tmem pool policy.
 
 #define STK_MGR 0
 #define CBUF_MGR 1
@@ -576,10 +577,10 @@ set_concur_new(void)
 			assert(c->concur_new != 0);
 			switch (mgr) {
 			case STK_MGR:
-				stkmgr_set_concurrency(c->spdid, c->concur_new, 0);
+				stkmgr_set_concurrency(c->spdid, c->concur_new, REVOKE_SPARE_TMEM);
 				break;
 			case CBUF_MGR:
-				cbufmgr_set_concurrency(c->spdid, c->concur_new, 0);
+				cbufmgr_set_concurrency(c->spdid, c->concur_new, REVOKE_SPARE_TMEM);
 				break;
 			default: BUG();
 			}
@@ -846,7 +847,7 @@ thdpool_1_policy(void)
 }
 
 static void
-thdpool_max_policy(void)
+thdpool_max_policy()
 {
 	struct component *c;
 	int mgr;
@@ -855,19 +856,19 @@ thdpool_max_policy(void)
 		for (c = FIRST_LIST(&components[mgr], next, prev) ; 
 		     c != &components[mgr] ;
 		     c = FIRST_LIST(c, next, prev)) {
-#define REVOKE_TMEM 0
+
 			switch (mgr) {
 			case STK_MGR:
 				if (c->ss_counter) 
-					stkmgr_set_concurrency(c->spdid, INT_MAX, REVOKE_TMEM);
+					stkmgr_set_concurrency(c->spdid, INT_MAX, REVOKE_SPARE_TMEM);
 				else 
-					stkmgr_set_concurrency(c->spdid, THD_POOL, REVOKE_TMEM);
+					stkmgr_set_concurrency(c->spdid, THD_POOL, REVOKE_SPARE_TMEM);
 				break;
 			case CBUF_MGR:
 				if (c->ss_counter) 
-					cbufmgr_set_concurrency(c->spdid, INT_MAX, REVOKE_TMEM);
+					cbufmgr_set_concurrency(c->spdid, INT_MAX, REVOKE_SPARE_TMEM);
 				else 
-					cbufmgr_set_concurrency(c->spdid, THD_POOL, REVOKE_TMEM);
+					cbufmgr_set_concurrency(c->spdid, THD_POOL, REVOKE_SPARE_TMEM);
 				break;
 			default: BUG();
 			}
@@ -962,17 +963,20 @@ cos_init(void *arg)
 
 	//unsigned long long s,e;
 	while (1) {
-		if (counter++ % report_period == 0) {
+		counter++;
+		if (counter % report_period == 0) {
 			/* report tmems usage */
 			cbufmgr_buf_report();
 			stkmgr_stack_report();
 		}
 		gather_data(counter % report_period);
 #ifdef THD_POOL
-		if (THD_POOL == 1)
-			thdpool_1_policy();
-		else
-			thdpool_max_policy();
+		if (counter % report_period == 0) {
+			if (THD_POOL == 1)
+				thdpool_1_policy();
+			else
+				thdpool_max_policy(counter % report_period);
+		}
 #else
 		//rdtscll(s);
 		DOUT("POLICY starts!\n");

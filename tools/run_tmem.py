@@ -35,7 +35,7 @@ if ff == 1:
     call_mode = "default"
 else:
     run_mode = "transient"
-    call_mode = "default"
+    call_mode = "uniform_call"
     event_mode = "true"
 
 runs_num = end_num - start_num + 1
@@ -204,19 +204,23 @@ def set_util(ofile):
 def set_thds(ofile):
     global counter_i
     #for i in range(counter_i):
+    right_idx = [9,11,14]
+    left_idx = [18,19,21]
     for i in range(thds_num):
         temp = random.randint(0, 1)
-        if temp < 0.5:  # 9-14
-#        if (period[i] > 0) :
+#        if temp < 0.5:  # 9-14
+        if (period[i] > 0) :#9,11,14
             if (call_mode == "uniform_call"):
-                call_left_id = str(int(round(random.uniform(9,9))))
-                ofile.write('p' + str(i) + '.o-te.o|fprr.o|print.o|sh'+call_left_id+'.o|sm.o|buf.o|va.o|mm.o')
+                #call_left_id = str(int(round(random.uniform(9,9))))
+                call_left_id = right_idx[i % 3]
+                ofile.write('p' + str(i) + '.o-te.o|fprr.o|print.o|sh'+str(call_left_id)+'.o|sm.o|buf.o|va.o|mm.o')
             else:
                 ofile.write('p' + str(i) + '.o-te.o|fprr.o|print.o|sh9.o|sm.o|buf.o|va.o|mm.o')
         else:           # 15-20
             if (call_mode == "uniform_call"):
-               call_right_id = str(int(round(random.uniform(18,18))))
-               ofile.write('p' + str(i) + '.o-te.o|fprr.o|print.o|sh'+call_right_id+'.o|sm.o|buf.o|va.o|mm.o')                
+               #call_right_id = str(int(round(random.uniform(18,18))))
+               call_right_id = left_idx[i % 3]
+               ofile.write('p' + str(i) + '.o-te.o|fprr.o|print.o|sh'+str(call_right_id)+'.o|sm.o|buf.o|va.o|mm.o')                
             else:
                 ofile.write('p' + str(i) + '.o-te.o|fprr.o|print.o|sh18.o|sm.o|buf.o|va.o|mm.o')            
         ofile.write(';\\\n')

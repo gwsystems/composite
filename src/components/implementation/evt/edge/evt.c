@@ -90,12 +90,12 @@ static void mapping_free(long extern_evt)
  * is essentially a thread.  Thus a thread can wait for a set of
  * events defined by it's "event group".
  */
-static inline struct evt_grp *evt_grp_create(spdid_t spdid, u16_t tid)
+static inline struct evt_grp *evt_grp_create(spdid_t spdid, long gid)
 {
 	struct evt_grp *g = malloc(sizeof(struct evt_grp));
 
 	if (!g) return NULL;
-	evt_grp_init(g, spdid, tid);
+	evt_grp_init(g, spdid, gid);
 	return g;
 }
 
@@ -123,12 +123,12 @@ static inline void evt_grp_free(struct evt_grp *g)
 	free(g);
 }
 
-static inline struct evt_grp *evt_grp_find(u16_t tid)
+static inline struct evt_grp *evt_grp_find(long gid)
 {
 	struct evt_grp *g;
 
 	for (g = FIRST_LIST(&grps, next, prev) ; g != &grps ; g = FIRST_LIST(g, next, prev)) {
-		if (g->tid == tid) return g;
+		if (g->tid == gid) return g;
 	}
 	return NULL;
 }
@@ -379,3 +379,5 @@ unsigned long *evt_stats(spdid_t spdid, unsigned long *stats) { return NULL; }
 int evt_stats_len(spdid_t spdid) { return 0; }
 
 #endif
+
+long evt_split(spdid_t spdid, long parent, int group) { return -1; }

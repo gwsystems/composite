@@ -19,6 +19,7 @@
 int period = 100;
 int start_time = 0, duration_time = 120;
 int priority = 0;
+int thd_num = 0;
 
 #define US_PER_TICK 10000
 
@@ -69,6 +70,8 @@ char *parse_step(char *d)
 		break;
 	case 'd':		/* duration time in sec */
 		duration_time = atoi(++d);
+	case 'n':
+		thd_num = atoi(++d);
 		break;
 	}
 
@@ -148,7 +151,8 @@ void cos_init(void *arg)
 
 		if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG();
 		if (priority == 30) { //best effort thds
-			for (i=0; i< 7; i++)
+			printc("thd num %d\n",thd_num);
+				for (i=0; i<(thd_num-1); i++)
 				sched_create_thd(cos_spd_id(), sp.v, 0, 0);
 		}
 		return;

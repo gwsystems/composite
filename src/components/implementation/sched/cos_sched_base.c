@@ -544,7 +544,9 @@ static void sched_timer_tick(void)
 		}
 		
 		/* are we done running? */
+
 		if (unlikely(ticks >= RUNTIME_SEC*TIMER_FREQ+1)) {
+			sched_exit();
 			while (COS_SCHED_RET_SUCCESS !=
 			       cos_switch_thread_release(init->id, COS_SCHED_BRAND_WAIT)) {
 				cos_sched_lock_take();
@@ -1518,13 +1520,16 @@ int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short
 	return 0;
 }
 
+extern void parent_sched_exit(void);
 void sched_exit(void)
 {
-	
 	printc("Switching to %d\n", init->id);
 	cos_sched_clear_events();
-	cos_switch_thread(init->id, 0);
-	while (1) ;
+//	cos_switch_thread_release(init->id, 0);
+	while (1) {
+		cos_sched_clear_events();
+		cos_switch_thread(init->id, 0);
+	}
 	BUG();
 }
 
@@ -1656,11 +1661,13 @@ print_config_info(void)
 	       (unsigned long long)CYC_PER_USEC);
 }
 
+extern int parent_sched_root_init(void);
 /* Initialize the root scheduler */
 int sched_root_init(void)
 {
 	struct sched_thd *new;
 
+	parent_sched_root_init();
 	print_config_info();
 
 	cos_argreg_init();
@@ -1680,6 +1687,8 @@ int sched_root_init(void)
 	new = schedule(NULL);
 	cos_switch_thread(new->id, 0);
 #endif
+	parent_sched_exit();
+
 	/* Returning will exit the composite system. */
 	return 0;
 }

@@ -47,12 +47,20 @@ Components
   2. events
   3. vas_mgr -- extending the size of reachable memory
   4. timing functionality (e.g. timed_block)
-  5. simple IPC (in the style of ping/pong)
-  6. memory mapping and allocation
-  7. virtual memory allocations (valloc)
 
 - **Automated unit tests.** Automated system for running all unit
   tests and validating that they all pass
+
+- **Torrents**:
+  1. Return two arguments from `read/write/split`.  The second will
+     determine if there is more data to `read`, more splits to be done
+     (or more `write`s???).  This will avoid the superfluous call to
+     `read/write/split` to get the `-EAGAIN`.
+  2. Return a cbuf from `split` so that we can information about a newly
+     split connection when it was created due to an internal event
+     (i.e. reception of a packet to create an accepted connection, or
+     received a request for an asynchronous service).
+  3. `read` and `write` should include an `offset` argument. 
 
 Build System
 ------------

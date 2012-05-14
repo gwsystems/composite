@@ -601,7 +601,9 @@ tmem_get_thd_blk_time(unsigned short int tid, spdid_t spdid, int reset)
 		sti->thd_blk_tot[tid] = 0;
 		sti->nthd_blks[tid] = 0;
 	}
-	ret = (a >> 20) + ! ((a & 1048575) == 0);/* right shift 20 bits and round up, 2^20 - 1 = 1048575 */
+//	ret = (a >> 20) + ! ((a & 1048575) == 0);/* right shift 20 bits and round up, 2^20 - 1 = 1048575 */
+	ret = (a >> 8) + 1;//! ((a & 1048575) == 0);
+
 	RELEASE();
 
 	return ret;

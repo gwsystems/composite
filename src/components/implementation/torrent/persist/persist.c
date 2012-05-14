@@ -51,7 +51,7 @@ tsplit(spdid_t spdid, td_t td, char *param,
 	strncpy(p, param, len);
 	p[len] = '\0';
 
-	fsc = fsobj_path2obj(p, fso, &parent, &subpath);
+	fsc = fsobj_path2obj(p, len, fso, &parent, &subpath);
 	if (!fsc) {
 		assert(parent);
 		if (!(parent->flags & TOR_SPLIT)) ERR_THROW(-EACCES, free);
