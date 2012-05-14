@@ -543,13 +543,13 @@ static void sched_timer_tick(void)
 		
 		report_event(TIMER_TICK);
 		
-		if ((ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1)) {
+		if (unlikely((ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1))) {
 			report_thd_accouting();
 			//cos_stats();
 		}
 		
 		/* are we done running? */
-		if (ticks >= RUNTIME_SEC*TIMER_FREQ+1) {
+		if (unlikely(ticks >= RUNTIME_SEC*TIMER_FREQ+1)) {
 			sched_exit();
 			while (COS_SCHED_RET_SUCCESS !=
 			       cos_switch_thread_release(init->id, COS_SCHED_BRAND_WAIT)) {
@@ -710,7 +710,7 @@ static void fp_pre_wakeup(struct sched_thd *t)
 	assert(t->wake_cnt >= 0 && t->wake_cnt <= 2);
 	if (2 == t->wake_cnt) return;
 	t->wake_cnt++;
-	//printc("thd %d cnt++ %d ->%d\n", t->id, t->wake_cnt-1, t->wake_cnt);
+	/* printc("thd %d cnt++ %d ->%d\n", t->id, t->wake_cnt-1, t->wake_cnt); */
 	/* if (sched_get_current() != t && /\* Hack around comment "STKMGR: self wakeup" *\/ */
 	/*     !sched_thd_dependent(t) && */
 	/*     !(sched_thd_blocked(t) || t->wake_cnt == 2)) { */
@@ -747,8 +747,7 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 	
 	cos_sched_lock_take();
 		
-	//printc("thread %d waking up thread %d. %d", cos_get_thd_id(), thd_id, 0);
-	
+	/* printc("thread %d waking up thread %d. %d\n", cos_get_thd_id(), thd_id, 0); */
 	thd = sched_get_mapping(thd_id);
 	if (!thd) goto error;
 	
@@ -767,7 +766,10 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 		 * before it could complete the call to block), no reason to
 		 * wake it via scheduling.
 		 */
-		if (!sched_thd_blocked(thd)) goto cleanup;
+		if (!sched_thd_blocked(thd)) {
+			printc("thd %d hasn't blocked! gonna return\n",thd->id);
+			goto cleanup;
+		}
 		/* 
 		 * We are waking up a thread, which means that if we
 		 * are an upcall, we don't want composite to
@@ -806,6 +808,7 @@ static void fp_pre_block(struct sched_thd *thd)
 	assert(thd->wake_cnt > 0);
 	assert(thd->wake_cnt <= 2);
 	thd->wake_cnt--;
+	/* printc("thd %d wake cnt %d -> %d \n",thd->id,thd->wake_cnt+1, thd->wake_cnt); */
 	thd->block_time = ticks;
 }
 
@@ -850,7 +853,7 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	int first = 1;
 
 	// Added by Gabe 08/19
-	if (dependency_thd == cos_get_thd_id()) return -EINVAL;
+	if (unlikely(dependency_thd == cos_get_thd_id())) return -EINVAL;
 
 	cos_sched_lock_take();
 	thd = sched_get_current();
@@ -869,6 +872,7 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	 * if we are using dependencies?
 	 */
 	fp_pre_block(thd);
+
 	/* if we already got a wakeup call for this thread */
 	if (thd->wake_cnt) {
 		assert(thd->wake_cnt == 1);
@@ -877,6 +881,7 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	}
 	/* dependency thread blocked??? */
 	if (dependency_thd) {
+		/* printc("thd %d trying to depend on %d\n", thd->id, dependency_thd); */
 		dep = sched_get_mapping(dependency_thd);
 		if (dep->dependency_thd) {
 			/* circular dependency... */
@@ -892,12 +897,16 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 			printc("Dependency on non-existent thread %d.\n", dependency_thd);
 			goto unblock;
 		}
-		if (sched_thd_blocked(dep)) goto unblock;
+		if (sched_thd_blocked(dep)) {
+			printc("dep thd blocked already.\n");
+			goto unblock;
+		}
 	}
 	/* dependencies keep the thread on the runqueue, so
 	 * that it can be selected to execute and its
 	 * dependency list walked. */
 	if (dependency_thd) {
+		/* printc("...no dependency problem, going to depend on %d\n",dependency_thd); */
 		thd->dependency_thd = dep;
 		thd->flags |= THD_DEPENDENCY;
 		assert(thd->ncs_held == 0);

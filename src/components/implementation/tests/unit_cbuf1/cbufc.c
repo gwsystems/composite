@@ -2,8 +2,8 @@
 #include <cos_alloc.h>
 #include <print.h>
 #include <stdlib.h> 		/* rand */
-#include <unit_cbuf.h>
 #include <cbuf.h>
+#include <unit_cbuf.h>
 
 //#define VERBOSE 1
 #ifdef VERBOSE

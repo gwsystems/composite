@@ -18,7 +18,7 @@ typedef struct ci_wrapper_ptr shared_component_info;
 
 #define LOCAL_ADDR(csi) (csi->hptr)
 #define TMEM_TOUCHED(csi) (csi->stk->flags & TOUCHED)
-#define TMEM_RELINQ COMP_INFO_TMEM_STK_RELINQ
+#define TMEM_RELINQ COMP_INFO_TMEM_STK
 
 /** 
  * Flags to control stack

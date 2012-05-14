@@ -25,6 +25,7 @@
 #include <tmem.h>
 #include <cbuf_c.h>
 
+
 //#define PRINCIPAL_CHECKS
 
 #define DEFAULT_TARGET_ALLOC MAX_NUM_MEM 
@@ -77,7 +78,7 @@ struct cos_cbuf_item *free_mem_in_local_cache(struct spd_tmem_info *sti)
 
 	if (cci == list) goto err;
 done:
-	/* DOUT("\n hehe found one!!\n\n"); */
+	/* DOUT("\n Found one!!\n\n"); */
 	return cci;
 err:
 	/* DOUT("\n can not found one!!\n"); */
@@ -128,9 +129,9 @@ static void
 mgr_remove_client_mem(struct spd_tmem_info *sti, struct cos_cbuf_item *cci)
 {
 	__cbuf_c_delete(sti, cci->desc.cbid, &cci->desc);
-	/* DOUT("after buf del before map del\n"); */
-	cos_map_del(&cb_ids, cci->desc.cbid);
+	DOUT("already delete....cbid %d\n", cci->desc.cbid);
 
+	cos_map_del(&cb_ids, cci->desc.cbid);
 	DOUT("fly..........cbid is %d\n", cci->desc.cbid);
 
 	cci->desc.cbid = 0;
@@ -170,10 +171,9 @@ struct cos_cbuf_item *mgr_get_client_mem(struct spd_tmem_info *sti)
 
 	if (cci == list) goto err;
 	assert(&cci->desc == cos_map_lookup(&cb_ids, cci->desc.cbid));
-
 	/* struct cb_mapping *m; */
 	/* m = FIRST_LIST(&cci->desc.owner, next, prev); */
-
+	
 	mgr_remove_client_mem(sti, cci);
 
 	DOUT("spd: %d Leaving get cli mem:: num_allocated %d  num_desired %d\n",s_spdid, sti->num_allocated, sti->num_desired);
@@ -253,8 +253,8 @@ __spd_cbvect_add_range(struct spd_tmem_info *sti, long cbuf_id, vaddr_t page)
 	cbr = malloc(sizeof(struct spd_cbvect_range));
 	if (!cbr) return -1;
 
-	cbr->start_id = (cbuf_id - 1) & ~CBUF_VECT_MASK;
-	cbr->end_id = cbr->start_id + CBUF_VECT_PAGE_BASE - 1;
+	cbr->start_id = (cbuf_id - 1) & ~CVECT_MASK;
+	cbr->end_id = cbr->start_id + CVECT_BASE - 1;
 	cbr->meta = (union cbuf_meta*)page;
 
 	/* DOUT("spd %d  sti %p cbr->meta %p\n",sti->spdid,sti, cbr->meta); */
@@ -349,6 +349,11 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	assert(SPD_IS_MANAGED(sti));
 	assert(cbid >= 0);
 
+	/* For cbuf only
+	 * find an unused cbuf_id
+	 * looks through to find id
+	 * if does not find, allocate a page for the meta data
+	 */
 	if (cbid) {
 		 // vector should already exist
 		v = cos_map_lookup(&cb_ids, cbid);
@@ -393,6 +398,7 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	cbuf_item->entry = mc;
 
 	mc->c.ptr     = d->owner.addr >> PAGE_ORDER;
+
 	/* Crap solution to get rid of a compiler warning... */
 	mc->c.obj_sz  = (u16_t) 0x3F & 
 		(((u16_t)PAGE_SIZE) >> (u16_t)CBUF_OBJ_SZ_SHIFT);
@@ -411,10 +417,20 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 {
 	struct cb_mapping *m;
 	struct spd_tmem_info *map_sti;
-	DOUT("_c_delete....cbid %d\n", cbid);
+	DOUT("__cbuf_c_delete....cbid %d\n", cbid);
+
+
+	/* union cbuf_meta *test_cm; */
+	/* test_cm = __spd_cbvect_lookup_range(sti, cbid); */
+	/* assert(test_cm->c_0.v != NULL); */
+	/* DOUT("_c_delete....cbid %d, flags %p\n", cbid, test_cm->c.flags); */
+
 	__spd_cbvect_clean_val(sti, cbid);
-	//assert(sti->ci.meta[(cbid-1)].c_0.v == NULL);
-	//printc("_c_delete....cbid %d, meta %p\n", cbid, sti->ci.meta[cbid - 1].c_0.v);
+
+	/* test_cm = __spd_cbvect_lookup_range(sti, cbid); */
+	/* assert(test_cm->c_0.v == NULL); */
+	/* printc("_c_delete....cbid %d, flags %p\n", cbid, test_cm->c.flags); */
+
 	mman_revoke_page(cos_spd_id(), (vaddr_t)d->addr, 0);  // remove all mapped children
 
 	m = FIRST_LIST(&d->owner, next, prev);
@@ -424,8 +440,7 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 
 		/* remove from the vector in all mapped spds as well! */
 		map_sti = get_spd_info(m->spd);
-		DOUT("Clean val in spd %d\n", map_sti->spdid);
-		DOUT("Clean: cbid  %d\n",cbid);
+		DOUT("clear cbid %d in %d\n",cbid, map_sti->spdid);
 		__spd_cbvect_clean_val(map_sti, cbid);
 
 		valloc_free(cos_spd_id(), m->spd, (void *)(m->addr), 1);
@@ -434,7 +449,9 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 		free(m);
 		m = n;
 	}
+
 	valloc_free(cos_spd_id(), sti->spdid, (void *)(d->owner.addr), 1);
+	sti->ci.spd_cinfo_page->cos_tmem_available[COMP_INFO_TMEM_CBUF]--;
 
 	DOUT("unmapped is done\n");
 	return 0;

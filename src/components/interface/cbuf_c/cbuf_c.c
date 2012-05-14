@@ -104,6 +104,7 @@ __cbuf_2buf_miss(int cbid, int len)
 	h = cbuf_c_retrieve(cos_spd_id(), cbid, len);
 	CBUF_TAKE();
 	if (!h) {
+		assert(0);
 		BUG();
 		return -1;
 	}
@@ -118,6 +119,8 @@ __cbuf_2buf_miss(int cbid, int len)
 	mc->c.ptr         = (long)h >> PAGE_ORDER;
 	mc->c.obj_sz      = len;
 	mc->c.thdid_owner = cos_get_thd_id();
+
+	mc->c.flags       |= CBUFM_MAPPED_IN;
 
 	return 0;
 }
@@ -139,29 +142,29 @@ __cbuf_alloc_slow(int size, int *len)
 		CBUF_RELEASE();
 		cbid = cbuf_c_create(cos_spd_id(), size, cbid*-1);
 		CBUF_TAKE();
-
 		/* TODO: we will hold the lock in expand which calls
 		 * the manager...remove that */
 		if (cbid < 0 && cbuf_vect_expand(&meta_cbuf, cbid*-1) < 0) goto done;
 		assert(cnt++ < 10);
 	} while (cbid < 0);
-
 	cm   = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
 	assert(cm->c.flags & CBUFM_IN_USE);
 	assert(cm->c.thdid_owner);
 	addr = (void*)(cm->c.ptr << PAGE_ORDER);
 	assert(addr);
-
 	/* 
 	 * See __cbuf_alloc and cbuf_slab_free.  It is possible that a
 	 * slab descriptor will exist for a piece of cbuf memory
 	 * _before_ it is allocated because it is actually from a
-	 * previous cbuf.  If this is the case, then we should take
-	 * over the slab, and use it for this cbuf.
+	 * previous cbuf.  If this is the case, then we should trash
+	 * the old one and allocate a new one.
 	 */
+	/* TODO: check if this is correct. what if this cbuf is from
+	 * the local cache and has been taken by another thd? */
 	d_prev = __cbuf_alloc_lookup((u32_t)addr>>PAGE_ORDER);
 	if (d_prev) __cbuf_desc_free(d_prev);
 	ret    = __cbuf_desc_alloc(cbid, size, addr, cm);
 done:   
 	return ret;
 }
+
