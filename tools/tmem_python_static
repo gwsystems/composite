@@ -1,0 +1,74 @@
+#!/bin/sh
+
+./cos_loader \
+"c0.o, ;*fprr.o, ;mm.o, ;boot.o, ;print.o, ;\
+\
+!l.o,a1;!va.o,a2;!mpool.o,a3;!te.o,a3;!sm.o,a4;!e.o,a4;!buf.o,a5;!tp.o,a6;!stat.o,a25;\
+\
+# define utilization
+\
+(!sh0.o=exe_cb_sh.o),'s50000 n20000 a0';(!sh1.o=exe_cb_sh.o),'s5000 n20000 r96 a0';(!sh2.o=exe_cb_sh.o),'s50000 n20000 r32 a0';\
+(!sh3.o=exe_cb_sh.o),'s5000 n20000 r96 a0';(!sh4.o=exe_cb_sh.o),'s50000 n20000 a0';(!sh5.o=exe_cb_sh.o),'s50000 n20000 r32 a0';\
+(!sh6.o=exe_cb_sh.o),'s50000 n20000 r96 a0';(!sh7.o=exe_cb_sh.o),'s50000 n20000 r32 a0';(!sh8.o=exe_cb_sh.o),'s500000 n20000 a0';\
+\
+(!sh9.o=exe_cb_sh.o),'s50000 n20000 a0 r32';(!sh10.o=exe_cb_sh.o),'s5000 n20000 r32 a0';(!sh11.o=exe_cb_sh.o),'s50000 n20000 r32 a0';\
+(!sh12.o=exe_cb_sh.o),'s5000 n20000 r32 a0';(!sh13.o=exe_cb_sh.o),'s50000 n20000 r32 a0';(!sh14.o=exe_cb_sh.o),'s50000 n20000 r32 a0';\
+(!sh15.o=exe_cb_sh.o),'s50000 n20000 r32 a0';(!sh16.o=exe_cb_sh.o),'s50000 n20000 r32 a0';(!sh17.o=exe_cb_sh.o),'s500000 n20000 r32 a0';\
+\
+(!sh18.o=exe_cb_sh.o),'s50000 n20000 a0 r96';(!sh19.o=exe_cb_sh.o),'s5000 n20000 r96 a0';(!sh20.o=exe_cb_sh.o),'s50000 n20000 r96 a0';\
+(!sh21.o=exe_cb_sh.o),'s5000 n20000 r96 a0';(!sh22.o=exe_cb_sh.o),'s50000 n20000 r96 a0';(!sh23.o=exe_cb_sh.o),'s50000 n20000 r96 a0';\
+(!sh24.o=exe_cb_sh.o),'s50000 n20000 r96 a0';(!sh25.o=exe_cb_sh.o),'s50000 n20000 r96 a0';(!sh26.o=exe_cb_sh.o),'s500000 n20000 r96 a0';\
+\
+!exe_cb_sbc.o, :\
+\
+c0.o-fprr.o;\
+fprr.o-print.o|[parent_]mm.o;\
+l.o-fprr.o|mm.o|print.o;\
+te.o-sm.o|print.o|fprr.o|mm.o|va.o;\
+mm.o-print.o;\
+e.o-sm.o|fprr.o|print.o|mm.o|l.o|va.o;\
+stat.o-sm.o|te.o|fprr.o|l.o|print.o|e.o;\
+boot.o-print.o|fprr.o|mm.o;\
+sm.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o|mpool.o;\
+buf.o-boot.o|sm.o|fprr.o|print.o|l.o|mm.o|va.o|mpool.o;\
+mpool.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o;\
+tp.o-sm.o|buf.o|print.o|te.o|fprr.o|mm.o|va.o|mpool.o;\
+va.o-fprr.o|print.o|mm.o|l.o|boot.o;\
+\
+# define threads
+\
+sh9.o-fprr.o||print.o|[calll_]sh10.o|[callr_]sh11.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh10.o-fprr.o||print.o|[calll_]sh12.o|[callr_]sh13.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh11.o-fprr.o||print.o|[calll_]sh13.o|[callr_]sh14.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh12.o-fprr.o||print.o|[calll_]sh0.o|[callr_]sh15.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh13.o-fprr.o||print.o|[calll_]sh15.o|[callr_]sh16.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh14.o-fprr.o||print.o|[calll_]sh16.o|[callr_]exe_cb_sbc.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh15.o-fprr.o||print.o|[calll_]sh2.o|[callr_]sh17.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh16.o-fprr.o||print.o|[calll_]sh17.o|[callr_]exe_cb_sbc.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh17.o-fprr.o||print.o|[calll_]sh5.o|[callr_]exe_cb_sbc.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh18.o-fprr.o||print.o|[calll_]sh19.o|[callr_]sh20.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh19.o-fprr.o||print.o|[calll_]sh21.o|[callr_]sh22.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh20.o-fprr.o||print.o|[calll_]sh22.o|[callr_]sh23.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh21.o-fprr.o||print.o|[calll_]exe_cb_sbc.o|[callr_]sh24.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh22.o-fprr.o||print.o|[calll_]sh24.o|[callr_]sh25.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh23.o-fprr.o||print.o|[calll_]sh25.o|[callr_]sh0.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh24.o-fprr.o||print.o|[calll_]exe_cb_sbc.o|[callr_]sh26.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh25.o-fprr.o||print.o|[calll_]sh26.o|[callr_]sh1.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh26.o-fprr.o||print.o|[calll_]exe_cb_sbc.o|[callr_]sh3.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+\
+sh0.o-fprr.o||print.o|[calll_]sh1.o|[callr_]sh2.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh1.o-fprr.o||print.o|[calll_]sh3.o|[callr_]sh4.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh2.o-fprr.o||print.o|[calll_]sh4.o|[callr_]sh5.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh3.o-fprr.o||print.o|[calll_]exe_cb_sbc.o|[callr_]sh6.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh4.o-fprr.o||print.o|[calll_]sh6.o|[callr_]sh7.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh5.o-fprr.o||print.o|[calll_]sh7.o|[callr_]exe_cb_sbc.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh6.o-fprr.o||print.o|[calll_]exe_cb_sbc.o|[callr_]sh8.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh7.o-fprr.o||print.o|[calll_]sh8.o|[callr_]exe_cb_sbc.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+sh8.o-fprr.o||print.o|[calll_]exe_cb_sbc.o|[callr_]exe_cb_sbc.o|sm.o|buf.o|va.o|mm.o|l.o|te.o;\
+\
+exe_cb_sbc.o-sm.o|buf.o|va.o|mm.o|print.o\
+" ./gen_client_stub
+
+#mpd.o-sm.o|cg.o|fprr.o|print.o|te.o|mm.o|va.o;\
+#!mpd.o,a5;
+#[print_]trans.o
