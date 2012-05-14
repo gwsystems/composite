@@ -574,8 +574,10 @@ static void fp_event_completion(struct sched_thd *e)
 {
 	report_event(EVT_CMPLETE);
 
-	cos_sched_lock_take();
-	sched_switch_thread(COS_SCHED_TAILCALL, EVT_CMPLETE_LOOP);
+	while (1) {
+		cos_sched_lock_take();
+		sched_switch_thread(COS_SCHED_TAILCALL, EVT_CMPLETE_LOOP);
+	}
 	BUG();
 
 	return;

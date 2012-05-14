@@ -28,7 +28,7 @@
 
 #ifndef _DEBUG_TMEMMGR
 #define _DEBUG_TMEMMGR
-#undef  _DEBUG_TMEMMGR
+//#undef  _DEBUG_TMEMMGR
 #ifdef _DEBUG_TMEMMGR
 #define DOUT(fmt,...) printc(fmt, ##__VA_ARGS__)
 #else

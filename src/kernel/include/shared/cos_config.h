@@ -5,7 +5,7 @@
 #include "cpu_ghz.h"
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 
-#define RUNTIME                30 // seconds
+#define RUNTIME                60 // seconds
 
 // After how many seconds should schedulers print out their information?
 #define SCHED_PRINTOUT_PERIOD  29 

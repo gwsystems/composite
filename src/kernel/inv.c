@@ -966,14 +966,14 @@ switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd
 
 	/*** A synchronization event for the scheduler? ***/
 	if (flags & COS_SCHED_SYNC_BLOCK) {
-		struct cos_synchronization_atom *l = &da->cos_locks;
+		union cos_synchronization_atom *l = &da->cos_locks;
 		
 		/* if a thread's version of which thread should be
 		 * scheduled next does not comply with the in-memory
 		 * version within the lock, then we are dealing with a
 		 * stale invocation.
 		 */
-		if (l->owner_thd != next_thd) {
+		if (l->c.owner_thd != next_thd) {
 			cos_meas_event(COS_MEAS_ATOMIC_STALE_LOCK);
 			*ret_code = COS_SCHED_RET_SUCCESS;
 			goto ret_err;
@@ -987,7 +987,7 @@ switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd
 		 * thread, so it is valid to simply set the queued_thd
 		 * to the current one.
 		 */
-		l->queued_thd = thd_get_id(curr);
+		l->c.queued_thd = thd_get_id(curr);
 		/* 
 		 * FIXME: alter the urgency/priority of the owner
 		 * thread to inherit that of the current blocked thd.
