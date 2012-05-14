@@ -198,22 +198,24 @@ cbuf2buf(cbuf_t cb, int len)
 	union cbuf_meta cm;
 	void *ret = NULL;
 	long cbidx;
-
 	if (unlikely(!len)) return NULL;
 	CBUF_TAKE();
 	cbuf_unpack(cb, &id, (u32_t*)&sz);
 	cbidx = cbid_to_meta_idx(id);
-
 	do {
 		cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
 		if (unlikely(cm.c_0.v == 0)) {
 			if (__cbuf_2buf_miss(id, len)) goto done;
+			/* printc("spd %ld map cbid %d\n", cos_spd_id(), id); */
 		}
 	} while (unlikely(cm.c_0.v == 0));
+
+	assert(cm.c.flags & CBUFM_MAPPED_IN);
 
 	ret = ((void*)(cm.c.ptr << PAGE_ORDER));
 done:	
 	CBUF_RELEASE();
+	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 	return ret;
 }
 
@@ -249,7 +251,7 @@ cbuf_alloc(unsigned int sz, cbuf_t *cb)
 {
 	void *ret;
 	struct cbuf_alloc_desc *d;
-	int cbid, len, already_used;
+	int cbid, len, already_used, mapped_in;
 	union cbuf_meta *cm;
 	long cbidx;
 
@@ -273,11 +275,13 @@ again:
 	REM_LIST(d, next, prev);
 	assert(EMPTY_LIST(d, next, prev));
 	assert(cbid);
-	    
 	cbidx        = cbid_to_meta_idx(cbid);
 	cm           = cbuf_vect_lookup_addr(&meta_cbuf, cbidx);
+
+	mapped_in    = cm->c.flags & CBUFM_MAPPED_IN;
 	already_used = cm->c.flags & CBUFM_IN_USE;
 	cm->c.flags |= CBUFM_IN_USE | CBUFM_TOUCHED; /* should be atomic */
+
 	/* 
 	 * Now that IN_USE is set, we know the manager will not rip
 	 * this out from under us.  Check that nothing has changed,
@@ -285,7 +289,7 @@ again:
 	 * descriptor 
 	 */
 	assert(!already_used);
-	if (__cbuf_alloc_meta_inconsistent(d, cm)) {
+	if (__cbuf_alloc_meta_inconsistent(d, cm) || already_used || mapped_in) {
 		/* 
 		 * This is complicated.
 		 *
@@ -318,8 +322,10 @@ again:
 		 * _not_ deallocate the slab descriptor there to reinforce
 		 * that point.
 		 */
-		cm->c.flags &= ~CBUFM_IN_USE | CBUFM_TOUCHED; /* should be atomic */
+
 		__cbuf_desc_free(d);
+		if (likely(!already_used))
+			cm->c.flags &= ~(CBUFM_IN_USE | CBUFM_TOUCHED);
 		goto again;
 	}
 
@@ -329,6 +335,7 @@ again:
 done:
 	*cb = cbuf_cons(cbid, len);
 	CBUF_RELEASE();
+	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 
 	return ret;
 }
@@ -346,7 +353,7 @@ cbuf_free(void *buf)
 	cm = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(d->cbid));
 	assert(!__cbuf_alloc_meta_inconsistent(d, cm));
 	assert(cm->c.flags & CBUFM_IN_USE);
-	
+
 	fl = d->flhead;
 	assert(fl);
 	ADD_LIST(fl, d, next, prev);
@@ -355,12 +362,15 @@ cbuf_free(void *buf)
 	cm->c.thdid_owner = 0;
 	cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]++;
 	CBUF_RELEASE();
+	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 
 	/* Does the manager want the memory back? */
 	if (unlikely(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF] == 1)) {
 		cbuf_c_delete(cos_spd_id(), d->cbid);
+		assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 		return;
 	} 
+	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 }
 
 /* Is it a cbuf?  If so, what's its id? */
@@ -375,6 +385,8 @@ cbuf_id(void *buf)
 	d  = __cbuf_alloc_lookup(idx);
 	id = (likely(d)) ? d->cbid : 0;
 	CBUF_RELEASE();
+	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
+
 	return id;
 }
 

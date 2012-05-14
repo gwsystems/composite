@@ -18,14 +18,16 @@
 #define assert(x)
 #endif
 
-
-struct cos_lock_atomic_struct {
-	volatile u16_t owner; /* thread id || 0 */
-	volatile u16_t contested; /* 0 || 1 */
+union cos_lock_atomic_struct {
+	struct {
+		volatile u16_t owner; /* thread id || 0 */
+		volatile u16_t contested; /* 0 || 1 */
+	} c;
+	volatile u32_t v;
 } __attribute__((packed,aligned(4)));
 
 typedef struct __attribute__((packed)) {
-	volatile struct cos_lock_atomic_struct atom;
+	volatile union cos_lock_atomic_struct atom;
 	u32_t lock_id;
 } cos_lock_t;
 
@@ -70,8 +72,7 @@ static inline int
 lock_init(cos_lock_t *l)
 {
 	l->lock_id = 0;
-	l->atom.owner = 0;
-	l->atom.contested = 0;
+	l->atom.v  = 0;
 
 	return 0;
 }

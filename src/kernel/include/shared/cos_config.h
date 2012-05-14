@@ -5,13 +5,13 @@
 #include "cpu_ghz.h"
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 
-#define RUNTIME                62 // seconds
+#define RUNTIME                60 // seconds
 
 // After how many seconds should schedulers print out their information?
 #define SCHED_PRINTOUT_PERIOD  51 
 #define COMPONENT_ASSERTIONS   1 // activate assertions in components?
 
-//#define LINUX_ON_IDLE          1 // should Linux be activated on Composite idle
+//#define LINUX_ON_IDLE          1 // should Linux be activated on Composite idl
 
 /* 
  * Should Composite run as highest priority?  Should NOT be set if
@@ -47,6 +47,6 @@
 #define COS_PRINT_MEM_SZ  (4096)
 
 /* print out to dmesg? */
-//#define COS_PRINT_DMESG 1
+/* #define COS_PRINT_DMESG 1 */
 
 #endif /* COS_CONFIG_H */

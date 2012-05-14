@@ -8,6 +8,7 @@
 
 #include <timed_blk.h>
 #include <exe_self_suspension.h>
+#include <timed_blk.h>
 
 cos_lock_t synth_lock;
 #define SYNTH_TAKE()    do { if (unlikely(synth_lock.lock_id == 0)) lock_static_init(&synth_lock); if (lock_take(&synth_lock) != 0) BUG(); } while(0)
@@ -15,8 +16,8 @@ cos_lock_t synth_lock;
 
 #include <stdlib.h>
 
-#define I7 
-
+//#define I7 
+#define SUSPENSION 
 #define MAXULONG (~0)
 #define TOTAL_AMNT 128		/* power of 2 */
 
@@ -34,7 +35,7 @@ unsigned int prop_call_ss = 10;    /* 10: %7 0: never call ss, 128: always call 
 #define NCBUF 1   // number of cbufs to create each time
 
 #define ALLOC_CBUF
-//#define CBUF2BUF
+#define CBUF2BUF
 
 //#define DEBUG_SYNTH
 
@@ -151,6 +152,7 @@ static unsigned long measure_loop_costs(unsigned long spin)
 	return temp;
 }
 
+int blocked = 0;
 static unsigned long do_action(unsigned long exe_time_left, const unsigned long initial_exe_t, cbuf_t cbt_map, int len_map)
 {
 
@@ -185,12 +187,14 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	u64_t start,end;	
 #ifdef CBUF2BUF
 	char *b;
+	/* printc("In spd %d\n", cos_spd_id()); */
 	if(cbt_map && len_map){
 		rdtscll(start);
 		b = cbuf2buf(cbt_map,len_map);
 		rdtscll(end);
 		DOUTs("---- cost Bf2Bf :: %llu in spd %ld\n", end-start, cos_spd_id());
 		if (!b) {
+			assert(0);
 			DOUTs("Can not map into this spd %ld\n", cos_spd_id());
 			return cbuf_null();
 		}
@@ -211,6 +215,17 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 		has_run = ss * 15 / 2;//loop_cost;//
 #else
 		has_run = ss * 6;//loop_cost;//
+#endif
+#ifdef SUSPENSION
+		if (cos_get_thd_id() == 15) {
+			blocked = 1;
+//			printc("15 gonna block itself!\n");
+			sched_block(cos_spd_id(), 0);
+		} else if (blocked) {
+			blocked = 0;
+///			printc("gonna wake up 15\n");
+			sched_wakeup(cos_spd_id(), 15);
+		}
 #endif
 
 		if (has_run > exe_time_left) {
@@ -246,10 +261,8 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 			val = (int)(t & (TOTAL_AMNT-1));
 			if (val >= cbuf_l_to_r) {
 				cbt[i] = cbuf_null();
-				DOUTs("2\n");
 				rdtscll(start);
 				mt[i] = cbuf_alloc(len, &cbt[i]);
-				DOUTs("3\n");
 				rdtscll(end);
 				cbuf_unpack(cbt[i], &id, &idx);
 				DOUTs("alloc cbid done !%ld\n", id);

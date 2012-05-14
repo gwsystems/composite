@@ -1,7 +1,6 @@
 C_OBJS=cbufc.o
 COMPONENT=ucbuf2.o
 INTERFACES=unit_cbuf
-DEPENDENCIES=lock sched printc cbuf_c valloc mem_mgr_large  
-IF_LIB=
+DEPENDENCIES=printc valloc cbuf_c mem_mgr_large lock
 
 include ../../Makefile.subsubdir

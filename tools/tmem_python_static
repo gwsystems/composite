@@ -8,7 +8,7 @@
 # define utilization
 \
 (!sh0.o=exe_cb_sh.o),'s50000 n20000 a0';(!sh1.o=exe_cb_sh.o),'s5000 n20000 r96 a0';(!sh2.o=exe_cb_sh.o),'s50000 n20000 r32 a0';\
-(!sh3.o=exe_cb_sh.o),'s5000 n20000 r96 a0';(!sh4.o=exe_cb_sh.o),'s50000 n20000 r125 a0';(!sh5.o=exe_cb_sh.o),'s50000 n20000 r32 a0';\
+(!sh3.o=exe_cb_sh.o),'s5000 n20000 r96 a0';(!sh4.o=exe_cb_sh.o),'s50000 n20000 a0';(!sh5.o=exe_cb_sh.o),'s50000 n20000 r32 a0';\
 (!sh6.o=exe_cb_sh.o),'s50000 n20000 r96 a0';(!sh7.o=exe_cb_sh.o),'s50000 n20000 r32 a0';(!sh8.o=exe_cb_sh.o),'s500000 n20000 a0';\
 \
 (!sh9.o=exe_cb_sh.o),'s50000 n20000 a0 r32';(!sh10.o=exe_cb_sh.o),'s5000 n20000 r32 a0';(!sh11.o=exe_cb_sh.o),'s50000 n20000 r32 a0';\

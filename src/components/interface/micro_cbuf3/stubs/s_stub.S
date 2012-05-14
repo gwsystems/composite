@@ -5,9 +5,12 @@
  * Public License v2.
  */
 
-//#include <cos_asm_server_stub.h>
-#include <cos_asm_server_stub_simple_stack.h>
+#include <cos_asm_server_stub.h>
+
+//needed for cbuf PIP
+//#include <cos_asm_server_stub_simple_stack.h>
 
 .text
 
 cos_asm_server_stub(call_cbuf3)
+cos_asm_server_stub(call_lower)

@@ -6,4 +6,5 @@ DEPENDENCIES=sched printc cbuf_c valloc mem_mgr_large lock
 IF_LIB=
 
 include ../../Makefile.subsubdir
-MANDITORY_LIB=simple_stklib.o
+##using simple_stk when measure cbuf with PIP
+##MANDITORY_LIB=simple_stklib.o
