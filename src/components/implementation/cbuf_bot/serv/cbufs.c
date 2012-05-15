@@ -1,6 +1,7 @@
 #include <cos_component.h>
 #include <print.h>
 #include <cbuf.h>
+#include <sched.h>
 
 cbuf_t 
 f(cbuf_t cb, int len)

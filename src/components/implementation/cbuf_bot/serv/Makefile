@@ -2,7 +2,7 @@ C_OBJS=cbufs.o
 ASM_OBJS=
 COMPONENT=cbf_bot.o
 INTERFACES=cbuf_bot
-DEPENDENCIES=lock cbuf_c mem_mgr_large valloc printc
+DEPENDENCIES=sched printc cbuf_c valloc mem_mgr_large lock
 IF_LIB=
 
 include ../../Makefile.subsubdir

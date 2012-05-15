@@ -17,7 +17,7 @@ cos_lock_t synth_lock;
 #include <stdlib.h>
 
 //#define I7 
-#define SUSPENSION 
+//#define SUSPENSION 
 #define MAXULONG (~0)
 #define TOTAL_AMNT 128		/* power of 2 */
 
