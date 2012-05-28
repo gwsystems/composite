@@ -294,15 +294,12 @@ __sched_thd_dependency(struct sched_thd *curr)
 	assert(curr);
 	
 	if (likely(!sched_thd_dependent(curr))) return NULL;
-	
-	/* FIXME: recursive algorithm used, should be iterative */
 	if (curr->dependency_thd) return curr->dependency_thd;
 
 	spdid = curr->contended_component;
 	/* Horrible hack: */
 	if (!spdid) goto done;
 	/* If we have the dependency flag set, we should have an contended spd */
-	assert(spdid);
 	assert(spdid < MAX_NUM_SPDS);
 	
 	/* We have a critical section for a spd */
@@ -321,7 +318,8 @@ sched_thd_dependency(struct sched_thd *curr)
 	struct sched_thd *d, *p; // dependency and prev dependency
 
 	for (p = curr ; ((d = __sched_thd_dependency(p))) ; p = d) ;
-	if (sched_thd_blocked(p)) return NULL;
+//	if (sched_thd_blocked(p) /* || sched_thd_inactive_evt(p) */) return NULL;
+	if (!sched_thd_ready(p)) return NULL;
 	return p == curr ? NULL : p;
 }
 
@@ -344,7 +342,6 @@ static inline struct sched_thd *sched_take_crit_sect(spdid_t spdid, struct sched
 		/* no recursive lock taking allowed */
 		assert(curr != cs->holding_thd);
 		curr->contended_component = spdid;
-		curr->flags |= THD_DEPENDENCY;
 		assert(!curr->dependency_thd);
 		return cs->holding_thd;
 	} 

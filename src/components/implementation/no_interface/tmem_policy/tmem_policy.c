@@ -39,18 +39,21 @@ enum{
 	MAX = 0,
 	AVG
 };
+
 /* ALGORITHM: 1 for minimize AVG tardiness, 0 for minimize MAX tardiness*/
 #define ALGORITHM MAX
  
 #define THD_POOL MAX_NUM_MEM
 //#define THD_POOL 1
-//#define THD_POOL 300/18
 
 #define CBUF_UNIT 1
 
-#define POLICY_PERIODICITY 100
+#define POLICY_PERIODICITY 25
 
 #define HISTORICAL_ALLOC
+
+//#define REVOKE_SPARE_TMEM 1 //used for tmem pool policy.
+#define REVOKE_SPARE_TMEM 0 //used for tmem pool policy.
 
 #define STK_MGR 0
 #define CBUF_MGR 1
@@ -576,10 +579,10 @@ set_concur_new(void)
 			assert(c->concur_new != 0);
 			switch (mgr) {
 			case STK_MGR:
-				stkmgr_set_concurrency(c->spdid, c->concur_new, 0);
+				stkmgr_set_concurrency(c->spdid, c->concur_new, REVOKE_SPARE_TMEM);
 				break;
 			case CBUF_MGR:
-				cbufmgr_set_concurrency(c->spdid, c->concur_new, 0);
+				cbufmgr_set_concurrency(c->spdid, c->concur_new, REVOKE_SPARE_TMEM);
 				break;
 			default: BUG();
 			}
@@ -846,7 +849,7 @@ thdpool_1_policy(void)
 }
 
 static void
-thdpool_max_policy(void)
+thdpool_max_policy()
 {
 	struct component *c;
 	int mgr;
@@ -858,15 +861,15 @@ thdpool_max_policy(void)
 			switch (mgr) {
 			case STK_MGR:
 				if (c->ss_counter) 
-					stkmgr_set_concurrency(c->spdid, INT_MAX, 1);
+					stkmgr_set_concurrency(c->spdid, INT_MAX, REVOKE_SPARE_TMEM);
 				else 
-					stkmgr_set_concurrency(c->spdid, THD_POOL, 1);
+					stkmgr_set_concurrency(c->spdid, THD_POOL, REVOKE_SPARE_TMEM);
 				break;
 			case CBUF_MGR:
 				if (c->ss_counter) 
-					cbufmgr_set_concurrency(c->spdid, INT_MAX, 1);
+					cbufmgr_set_concurrency(c->spdid, INT_MAX, REVOKE_SPARE_TMEM);
 				else 
-					cbufmgr_set_concurrency(c->spdid, THD_POOL, 1);
+					cbufmgr_set_concurrency(c->spdid, THD_POOL, REVOKE_SPARE_TMEM);
 				break;
 			default: BUG();
 			}
@@ -914,18 +917,29 @@ policy(void)
 	set_concur_new();
 	/* cbufmgr_set_over_quota_limit(available); */
 	/* stkmgr_set_over_quota_limit(available); */
-	printc("Quota left:%d, iters: %d\n", available, count);
+	DOUT("Quota left:%d, iters: %d\n", available, count);
 	return;
 }
 
 void 
 cos_init(void *arg)
 {
-	printc("thd %d Tmem policy running.....\n", cos_get_thd_id());
-	INIT_LIST(&threads, next, prev);
+	static int first = 1;
 
-	init_spds();
+	if (first) {
+		union sched_param sp;
 
+		first = 0;
+		INIT_LIST(&threads, next, prev);
+		init_spds();
+
+		sp.c.type = SCHEDP_PRIO;
+		sp.c.value = 5;
+
+		if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG();
+		return;
+	}
+	DOUT("thd %d Tmem policy running.....\n", cos_get_thd_id());
 #ifdef THD_POOL
 	printc("<<<Thd Pool with total %d tmems, component size %d>>>\n", MAX_NUM_MEM, THD_POOL);
 	if (THD_POOL != 1)
@@ -950,17 +964,20 @@ cos_init(void *arg)
 
 	//unsigned long long s,e;
 	while (1) {
-		if (counter++ % report_period == 0) {
+		counter++;
+		if (counter % report_period == 0) {
 			/* report tmems usage */
 			cbufmgr_buf_report();
 			stkmgr_stack_report();
 		}
 		gather_data(counter % report_period);
 #ifdef THD_POOL
-		if (THD_POOL == 1)
-			thdpool_1_policy();
-		else
-			thdpool_max_policy();
+		if (counter % report_period == 0) {
+			if (THD_POOL == 1)
+				thdpool_1_policy();
+			else
+				thdpool_max_policy(counter % report_period);
+		}
 #else
 		//rdtscll(s);
 		DOUT("POLICY starts!\n");

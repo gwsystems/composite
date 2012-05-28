@@ -3,24 +3,28 @@
 # ping pong
 
 ./cos_loader \
-"c0.o, ;*fprr.o, ;mm.o, ;printl.o, ;schedconf.o, ;bc.o, ;boot.o,a4;cg.o,a1;\
+"c0.o, ;*fprr.o, ;mm.o, ;boot.o, ;print.o, ;\
 \
-!mpool.o,a2;!mpd.o,a5;!sm.o,a2;!l.o,a5;!te.o,a3;!e.o,a3;(!po.o=ppong.o), ;(!pi.o=pingp.o),a9;!va.o,a1:\
+!mpool.o,a3;!trans.o,a6;!sm.o,a4;!l.o,a1;!te.o,a3;!e.o,a4;!stat.o,a25;!buf.o,a5;!tp.o,a6;(!po.o=ppong.o), ;(!pi.o=pingp.o),a9;!va.o,a2:\
 \
 c0.o-fprr.o;\
-fprr.o-printl.o|mm.o|schedconf.o|[parent_]bc.o;\
-l.o-fprr.o|mm.o|printl.o;\
-te.o-sm.o|va.o|printl.o|fprr.o|mm.o;\
-mm.o-printl.o;\
-e.o-sm.o|va.o|fprr.o|printl.o|mm.o|l.o;\
-schedconf.o-printl.o;\
-bc.o-printl.o;\
-va.o-fprr.o|printl.o|mm.o|l.o|boot.o;\
-pi.o-sm.o|va.o|po.o|printl.o|fprr.o;\
-po.o-sm.o|va.o|printl.o;\
-boot.o-printl.o|fprr.o|mm.o|cg.o;\
-sm.o-printl.o|fprr.o|mm.o|boot.o|va.o|mpool.o|l.o;\
-mpool.o-printl.o|fprr.o|mm.o|boot.o|va.o|l.o;\
-mpd.o-sm.o|cg.o|fprr.o|printl.o|te.o|mm.o|va.o;\
-cg.o-fprr.o\
+fprr.o-print.o|[parent_]mm.o;\
+l.o-fprr.o|mm.o|print.o;\
+te.o-sm.o|print.o|fprr.o|mm.o|va.o;\
+mm.o-print.o;\
+e.o-sm.o|fprr.o|print.o|mm.o|l.o|va.o;\
+stat.o-sm.o|te.o|fprr.o|l.o|print.o|e.o;\
+boot.o-print.o|fprr.o|mm.o;\
+sm.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o|mpool.o;\
+buf.o-boot.o|sm.o|fprr.o|print.o|l.o|mm.o|va.o|mpool.o;\
+mpool.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o;\
+tp.o-sm.o|buf.o|print.o|te.o|fprr.o|mm.o|va.o|mpool.o;\
+va.o-fprr.o|print.o|mm.o|l.o|boot.o;\
+trans.o-sm.o|fprr.o|l.o|buf.o|mm.o|va.o|e.o|print.o;\
+\
+pi.o-sm.o|fprr.o|va.o|po.o|print.o;\
+po.o-sm.o|va.o|print.o\
 " ./gen_client_stub
+
+#rfs.o-sm.o|fprr.o|print.o|mm.o|buf.o|l.o|e.o|va.o;\
+#tt.o-sm.o|fprr.o|rfs.o|buf.o|mm.o|e.o|va.o|l.o|print.o;\

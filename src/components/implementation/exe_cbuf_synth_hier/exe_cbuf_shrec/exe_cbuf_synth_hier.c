@@ -8,6 +8,7 @@
 
 #include <timed_blk.h>
 #include <exe_self_suspension.h>
+#include <timed_blk.h>
 
 cos_lock_t synth_lock;
 #define SYNTH_TAKE()    do { if (unlikely(synth_lock.lock_id == 0)) lock_static_init(&synth_lock); if (lock_take(&synth_lock) != 0) BUG(); } while(0)
@@ -15,6 +16,8 @@ cos_lock_t synth_lock;
 
 #include <stdlib.h>
 
+//#define I7 
+#define SUSPENSION 
 #define MAXULONG (~0)
 #define TOTAL_AMNT 128		/* power of 2 */
 
@@ -107,7 +110,7 @@ static void parse_initstr(void)
 	/* data->sz = 52; */
 	
 	/* if (sched_comp_config_initstr(cos_spd_id(), data)) { */
-	/* 	printc("No initstr found.\n"); */
+	/* 	DOUTs("No initstr found.\n"); */
 	/* 	return; */
 	/* } */
 	/* //DOUTs("%s\n", data->mem); */
@@ -145,10 +148,11 @@ static unsigned long measure_loop_costs(unsigned long spin)
 	loop_cost = temp;
 	rdtscll(end);
 	assert(end>start);
-	printc("spin:%lu, loopcost measurement :%lu\n",spin, temp );
+	DOUTs("spin:%lu, loopcost measurement :%lu\n",spin, temp );
 	return temp;
 }
 
+int blocked = 0;
 static unsigned long do_action(unsigned long exe_time_left, const unsigned long initial_exe_t, cbuf_t cbt_map, int len_map)
 {
 
@@ -160,7 +164,6 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	static int first = 1;
 
 	unsigned long has_run;   /* thread has run cycles in this inv */
-	
 	u32_t id, idx;
 	cbuf_t cbt[NCBUF];
 	memset(cbt, 0 , NCBUF*sizeof(cbuf_t));
@@ -168,9 +171,9 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	void *mt[NCBUF] = {};
 	int get[NCBUF];
 	memset(get, 0 , NCBUF*sizeof(cbuf_t));
-
+	
 	parse_initstr();
-	/* DOUTs("thd %d enter comp %ld!\n", cos_get_thd_id(), cos_spd_id()); */
+	DOUTs("thd %d enter comp %ld!\n", cos_get_thd_id(), cos_spd_id());
 	if (first) {
 		unsigned long temp = 0;
 		temp = measure_loop_costs(spin);
@@ -181,30 +184,49 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	if (AVG_INVC_CYCS > exe_time_left) return 0;
 	exe_time_left -= AVG_INVC_CYCS;
 
-
-#ifdef CBUF2BUF
 	u64_t start,end;	
+#ifdef CBUF2BUF
 	char *b;
+	/* printc("In spd %d\n", cos_spd_id()); */
 	if(cbt_map && len_map){
 		rdtscll(start);
 		b = cbuf2buf(cbt_map,len_map);
 		rdtscll(end);
 		DOUTs("---- cost Bf2Bf :: %llu in spd %ld\n", end-start, cos_spd_id());
 		if (!b) {
+			assert(0);
 			DOUTs("Can not map into this spd %ld\n", cos_spd_id());
 			return cbuf_null();
 		}
 		memset(b, 's', len_map);
-		/* DOUTs("after buf2buf write sth...\n"); */
 	}
 #endif
 	for (j = 0 ; j < num_invs ; j++) {
 		if (exe_time_left == 0) return 0;
 		kkk = 0;
 
+#ifdef I7
 		unsigned long ss = initial_exe_t / (100 / PERCENT_EXE) / 15 * 2;
+#else
+		unsigned long ss = initial_exe_t / (100 / PERCENT_EXE) / 6;
+#endif
 		for (i=0; i<ss; i++) kkk++;
+#ifdef I7
 		has_run = ss * 15 / 2;//loop_cost;//
+#else
+		has_run = ss * 6;//loop_cost;//
+#endif
+#ifdef SUSPENSION
+		if (cos_get_thd_id() == 15) {
+			blocked = 1;
+//			printc("15 gonna block itself!\n");
+			sched_block(cos_spd_id(), 0);
+		} else if (blocked) {
+			blocked = 0;
+///			printc("gonna wake up 15\n");
+			sched_wakeup(cos_spd_id(), 15);
+		}
+#endif
 
 		if (has_run > exe_time_left) {
 			return 0;
@@ -215,42 +237,41 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 		val = (int)(t & (TOTAL_AMNT-1));
 		if (ss_attached && (val < prop_call_ss)) {
 			//exe_time_left = ss_action(exe_time_left, initial_exe_t);
-
-			SYNTH_TAKE();
+			DOUTs("..........\n");
+//			SYNTH_TAKE();
 			for (i = 0; i < NCBUF ; i++){
 				rdtscll(t);
 				cbt[i] = cbuf_null();
 				mt[i] = cbuf_alloc(len, &cbt[i]);
 			}
-			SYNTH_RELEASE();
-			printc("I am suspended :(\n");
+//			SYNTH_RELEASE();
+			DOUTs("I am suspended :(\n");
 			timed_event_block(cos_spd_id(), 2);
-			printc("I am back :)\n");
+			DOUTs("I am back :)\n");
 			for (i = 0; i < NCBUF ; i++){
 				cbuf_free(mt[i]);
 			}
 		}
 		if (exe_time_left == 0) return 0;
-		
 
 #ifdef ALLOC_CBUF
-		SYNTH_TAKE();
+//		SYNTH_TAKE();
 		for (i = 0; i < NCBUF ; i++){
 			rdtscll(t);
 			val = (int)(t & (TOTAL_AMNT-1));
-
 			if (val >= cbuf_l_to_r) {
 				cbt[i] = cbuf_null();
 				rdtscll(start);
 				mt[i] = cbuf_alloc(len, &cbt[i]);
 				rdtscll(end);
 				cbuf_unpack(cbt[i], &id, &idx);
+				DOUTs("alloc cbid done !%ld\n", id);
 				memset(mt[i], 'a', len);
 				get[i] = 1;
 				mark = 1;
 			}
 		}
-		SYNTH_RELEASE();
+//		SYNTH_RELEASE();
 #endif
 
 		rdtscll(t);
@@ -299,4 +320,13 @@ unsigned long right(unsigned long exe_t,  unsigned long const initial_exe_t, cbu
 	return do_action(exe_t,initial_exe_t, cbt, len);
 }
 
-
+void cos_init()
+{
+	//pre_allocation
+	cbuf_t cbt;
+	void *mt;
+	cbt = cbuf_null();
+	mt = cbuf_alloc(4095, &cbt);
+	cbuf_free(mt);
+	printc("Component %ld: stack and cbuf pre_alloacated.\n", cos_spd_id());
+}

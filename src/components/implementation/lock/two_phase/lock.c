@@ -79,8 +79,8 @@ static volatile unsigned long long generation = 0;
 /* Datastructure of blocked thread structures */
 COS_VECT_CREATE_STATIC(bthds);
 
-#define TAKE(spdid) 	if (sched_component_take(spdid))    return -1;
-#define RELEASE(spdid)	if (sched_component_release(spdid)) return -1;
+#define TAKE(spdid) 	do { if (sched_component_take(spdid))    return -1; } while (0)
+#define RELEASE(spdid)	do { if (sched_component_release(spdid)) return -1; } while (0)
 
 /* 
  * FIXME: to make this predictable (avoid memory allocation in the
@@ -276,7 +276,17 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 //	assert(TIMER_EVENT_INF == microsec);
 //	assert(!blocked_desc.timed);
 	if (TIMER_EVENT_INF == microsec) {
-		if (-1 == sched_block(spdid, thd_id)) BUG();
+		/* printc("%d: lt %d %d %d\n", (unsigned int)curr, lock_id, thd_id, spd); */
+		if (-1 == sched_block(spdid, thd_id)) {
+			printc("Deadlock including thdids %d -> %d in spd %d, lock id %d.\n", 
+			       cos_get_thd_id(), thd_id, spd, (int)lock_id);
+			debug_print("BUG: Possible deadlock @ "); 
+			RELEASE(spdid);
+			return -3;
+			assert(0);
+			if (-1 == sched_block(spdid, 0)) assert(0);
+		}
+		/* printc("%d:\tlt %d\n", (unsigned int)curr, lock_id); */
 		if (!EMPTY_LIST(&blocked_desc, next, prev)) BUG();
 		/* 
 		 * OK, this seems ridiculous but here is the rational: Assume
@@ -390,7 +400,9 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 #endif
 		} else {
 			assert(tid != cos_get_thd_id());
+//			printc("%d: lr %d %d %d\n", cos_get_thd_id(), lock_id, tid, spd);
 			sched_wakeup(spdid, tid);
+//			printc("%d:\tlr %d\n", cos_get_thd_id(), lock_id);
 		}
 		if (bt == next) break;
 		bt = next;

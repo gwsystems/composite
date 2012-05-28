@@ -1,7 +1,7 @@
 #include <cos_component.h>
 #include <sched.h>
 #include <print.h>
-
+#include <cbuf.h>
 #include <exe_self_suspension.h>
 #include <timed_blk.h>
 
@@ -112,4 +112,16 @@ unsigned long ss_action(unsigned long exe_time_left, unsigned long const initial
 
 	return exe_time_left;
 }
+
+
+unsigned long left(unsigned long exe_t, unsigned long const  initial_exe_t, cbuf_t cbt, int len)
+{
+	return -1;
+}
+
+unsigned long right(unsigned long exe_t,  unsigned long const initial_exe_t, cbuf_t cbt, int len)
+{
+	return -1;
+}
+
 

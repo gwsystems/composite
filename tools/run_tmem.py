@@ -29,13 +29,13 @@ if (thd_per_com > 0) :
     mean_total_util = mean_total_util/2
     run_RT_thds_num = RT_thds_num*(thd_per_com+1)
 
-ff = 1
+ff = 0
 if ff == 1:
     run_mode = "default"
     call_mode = "default"
 else:
     run_mode = "transient"
-    call_mode = "default"
+    call_mode = "uniform_call"
     event_mode = "true"
 
 runs_num = end_num - start_num + 1
@@ -43,7 +43,7 @@ gen_num = 0
 
 us_per_tick = 10000
        
-staticFile = 'basic_tmem_small.sh'
+staticFile = 'tmem_python_static'
 
 thds_num = mean_total_RT_thds+mean_total_NRT_thds
 period = [0] * thds_num
@@ -195,30 +195,34 @@ def set_util(ofile):
                     ofile.write( ' ')
 
         if(run_mode == "transient"):
-            ofile.write('(!p' + str(i) + '.o=exe_cb_pt.o),a' + str(P) + '\'' + 'p' + str(T) + ' e' + str(C) + ' s' + str(S)+ ' d' + str(D) + ' m' + str(thd_per_com))
+            ofile.write('(!p' + str(i) + '.o=exe_cb_pt.o),a' + str(P) + '\'' + 'a' + str(P) + ' p' + str(T) + ' e' + str(C) + ' s' + str(S)+ ' d' + str(D) + ' m' + str(thd_per_com))
             ofile.write('\''+';\\\n')
         else:
-            ofile.write('(!p' + str(i) + '.o=exe_cb_pt.o),a' + str(P) + '\'' + 'p' + str(T) + ' e' + str(C) + '\'')
+            ofile.write('(!p' + str(i) + '.o=exe_cb_pt.o),a' + str(P) + '\'' + 'a' + str(P) + ' p' + str(T) + ' e' + str(C) + '\'')
             ofile.write(';\\\n')
         
 def set_thds(ofile):
     global counter_i
     #for i in range(counter_i):
+    right_idx = [9,11,14]
+    left_idx = [18,19,21]
     for i in range(thds_num):
-#        temp = random.randint(0, 1)
+        temp = random.randint(0, 1)
 #        if temp < 0.5:  # 9-14
-        if (period[i] > 0) :
+        if (period[i] > 0) :#9,11,14
             if (call_mode == "uniform_call"):
-                call_left_id = str(int(round(random.uniform(9,14))))
-                ofile.write('p' + str(i) + '.o-te.o|fprr.o|schedconf.o|print.o|sh'+call_left_id+'.o|smn.o')
+                #call_left_id = str(int(round(random.uniform(9,9))))
+                call_left_id = right_idx[i % 3]
+                ofile.write('p' + str(i) + '.o-te.o|fprr.o|print.o|sh'+str(call_left_id)+'.o|sm.o|buf.o|va.o|mm.o')
             else:
-                ofile.write('p' + str(i) + '.o-te.o|fprr.o|schedconf.o|print.o|sh18.o|smn.o')
+                ofile.write('p' + str(i) + '.o-te.o|fprr.o|print.o|sh9.o|sm.o|buf.o|va.o|mm.o')
         else:           # 15-20
             if (call_mode == "uniform_call"):
-               call_right_id = str(int(round(random.uniform(15,20))))
-               ofile.write('p' + str(i) + '.o-te.o|fprr.o|schedconf.o|print.o|sh'+call_right_id+'.o|smn.o')                
+               #call_right_id = str(int(round(random.uniform(18,18))))
+               call_right_id = left_idx[i % 3]
+               ofile.write('p' + str(i) + '.o-te.o|fprr.o|print.o|sh'+str(call_right_id)+'.o|sm.o|buf.o|va.o|mm.o')                
             else:
-                ofile.write('p' + str(i) + '.o-te.o|fprr.o|schedconf.o|print.o|sh12.o|smn.o')            
+                ofile.write('p' + str(i) + '.o-te.o|fprr.o|print.o|sh18.o|sm.o|buf.o|va.o|mm.o')            
         ofile.write(';\\\n')
         
 def gen_scripts():
@@ -247,7 +251,7 @@ def run_scripts():
     for i in range(runs_num):
         x_axis = 0
         infilename = 'Scripts/ltmem' + str(end_num - i) + '.sh'            
-        os.system("dmesg -c >> dmesg.dump && sleep 1 && make && sleep 2 && sh " + infilename + ">> running.log && sleep 1")
+        os.system("dmesg -c >> dmesg.dump && sleep 3 && make && sleep 3 && sh " + infilename + ">> running.log && sleep 3")
         result_temp = "Result/result_temp"
         result_temp_alloc = "Result/result_temp_alloc"
 
@@ -270,13 +274,19 @@ def run_scripts():
                     index = index + 1
                     if (((ff == 0) and (event_mode == "true") and index == run_RT_thds_num+1) or index == thds_num + 1):
                         x_axis = x_axis + 1
-                        alloc_line = result_temp_alloc_file.readline()
-                        alloc = int(alloc_line[alloc_line.find(':') + 2:alloc_line.find(',')])
                         mgr16 = 0
                         mgr14 = 0
-                        if (alloc_line.find('MGR 16') != -1):
+                        alloc_line = result_temp_alloc_file.readline()
+                        alloc = int(alloc_line[alloc_line.find(':') + 2:alloc_line.find(',')])
+                        if (alloc_line.find('MGR 11') != -1):
                             mgr16 = alloc
-                        if (alloc_line.find('MGR 14') != -1):
+                        if (alloc_line.find('MGR 9') != -1):
+                            mgr14 = alloc
+                        alloc_line = result_temp_alloc_file.readline()
+                        alloc = int(alloc_line[alloc_line.find(':') + 2:alloc_line.find(',')])
+                        if (alloc_line.find('MGR 11') != -1):
+                            mgr16 = alloc
+                        if (alloc_line.find('MGR 9') != -1):
                             mgr14 = alloc
                         mgr_total = mgr14 + mgr16
                         os.system("echo " + str(x_axis) + " " + str(max_miss) + " " + str(total_miss) + " " + str(mgr14) + " " + str(mgr16) + " " + str(mgr_total) + " " + str(total_DLMs) + " >> " + result)

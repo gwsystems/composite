@@ -789,7 +789,7 @@ net_connection_t net_accept(spdid_t spdid, net_connection_t nc)
 	struct intern_connection *ic, *new_ic;
 	net_connection_t ret = -1;
 
-	NET_LOCK_TAKE();
+	//NET_LOCK_TAKE();
 	ic = net_verify_tcp_connection(nc, &ret);
 	if (NULL == ic) {
 		ret = -EINVAL;
@@ -817,9 +817,8 @@ net_connection_t net_accept(spdid_t spdid, net_connection_t nc)
 	assert(ic->conn.tp);
 	tcp_accepted(ic->conn.tp);
 	ret = net_conn_get_opaque(new_ic);
-
 done:
-	NET_LOCK_RELEASE();
+	//NET_LOCK_RELEASE();
 	return ret;
 }
 
@@ -833,7 +832,7 @@ int net_accept_data(spdid_t spdid, net_connection_t nc, long data)
 	struct intern_connection *ic;
 	int ret;
 
-	NET_LOCK_TAKE();
+	//NET_LOCK_TAKE();
 	ic = net_verify_tcp_connection(nc, &ret);
 	if (NULL == ic || -1 != ic->data) goto err;
 	ic->data = data;
@@ -841,11 +840,11 @@ int net_accept_data(spdid_t spdid, net_connection_t nc, long data)
 	 * because ->data was not set, trigger the event now. */
 	if (0 < ic->incoming_size && 
 	    evt_trigger(cos_spd_id(), data)) goto err;
-	NET_LOCK_RELEASE();
 
+	//NET_LOCK_RELEASE();
 	return 0;	
 err:
-	NET_LOCK_RELEASE();
+	//NET_LOCK_RELEASE();
 	return -1;
 }
 
@@ -856,7 +855,7 @@ int net_listen(spdid_t spdid, net_connection_t nc, int queue)
 	int ret = 0;
 	spdid_t si;
 
-	NET_LOCK_TAKE();
+	//NET_LOCK_TAKE();
 	ic = net_verify_tcp_connection(nc, &ret);
 	if (NULL == ic) {
 		ret = -EINVAL;
@@ -875,7 +874,7 @@ int net_listen(spdid_t spdid, net_connection_t nc, int queue)
 	tcp_accept(new_tp, cos_net_lwip_tcp_accept);
 	//if (0 > __net_create_tcp_connection(si, new_tp)) BUG();
 done:
-	NET_LOCK_RELEASE();
+	//NET_LOCK_RELEASE();
 	return ret;
 }
 
@@ -885,7 +884,7 @@ static int __net_bind(spdid_t spdid, net_connection_t nc, struct ip_addr *ip, u1
 	u16_t tid = cos_get_thd_id();
 	int ret = 0;
 
-	NET_LOCK_TAKE();
+	//NET_LOCK_TAKE();
 	if (!net_conn_valid(nc)) {
 		ret = -EINVAL;
 		goto done;
@@ -929,8 +928,7 @@ static int __net_bind(spdid_t spdid, net_connection_t nc, struct ip_addr *ip, u1
 			ret = -ENOMEM;
 			goto done;
 		}
-		NET_LOCK_RELEASE();
-		return 0;
+		break;
 	}
 	case TCP_CLOSED:
 //		__net_close(ic);
@@ -941,7 +939,7 @@ static int __net_bind(spdid_t spdid, net_connection_t nc, struct ip_addr *ip, u1
 	}
 
 done:
-	NET_LOCK_RELEASE();
+	//NET_LOCK_RELEASE();
 	return ret;
 }
 
@@ -1010,6 +1008,7 @@ int net_connect(spdid_t spdid, net_connection_t nc, u32_t ip, u16_t port)
 {
 	struct ip_addr ipa;
 	ipa.addr = ip;
+	assert(0); 		/* I'm sure this doesn't work... */
 	//printc("ip addr %x\n", ipa.addr);
 	return __net_connect(spdid, nc, &ipa, port);
 }
@@ -1019,7 +1018,6 @@ int net_close(spdid_t spdid, net_connection_t nc)
 	struct intern_connection *ic;
 	u16_t tid = cos_get_thd_id();
 
-	NET_LOCK_TAKE();
 	if (!net_conn_valid(nc)) goto perm_err;
 	ic = net_conn_get_internal(nc);
 	if (NULL == ic) goto perm_err; /* should really be EINVAL */
@@ -1032,10 +1030,8 @@ int net_close(spdid_t spdid, net_connection_t nc)
 	portmgr_free(cos_spd_id(), /* u16_t port_num */ 0);
 
 	__net_close(ic);
-	NET_LOCK_RELEASE();
 	return 0;
 perm_err:
-	NET_LOCK_RELEASE();
 	return -EPERM;
 }
 
@@ -1049,14 +1045,14 @@ int net_recv(spdid_t spdid, net_connection_t nc, void *data, int sz)
 //	if (!cos_argreg_buff_intern(data, sz)) return -EFAULT;
 	if (!net_conn_valid(nc)) return -EINVAL;
 
-	NET_LOCK_TAKE();
+//	NET_LOCK_TAKE();
 	ic = net_conn_get_internal(nc);
 	if (NULL == ic) {
-		NET_LOCK_RELEASE();
+		//NET_LOCK_RELEASE();
 		return -EINVAL;
 	}
 	if (tid != ic->tid) {
-		NET_LOCK_RELEASE();
+		//NET_LOCK_RELEASE();
 		return -EPERM;
 	}
 
@@ -1076,7 +1072,7 @@ int net_recv(spdid_t spdid, net_connection_t nc, void *data, int sz)
 		BUG();
 	}
 	assert(xfer_amnt <= sz);
-	NET_LOCK_RELEASE();
+	//NET_LOCK_RELEASE();
 	return xfer_amnt;
 }
 
@@ -1090,7 +1086,7 @@ int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 	if (!net_conn_valid(nc)) return -EINVAL;
 	if (sz > MAX_SEND) return -EMSGSIZE;
 
-	NET_LOCK_TAKE();
+//	NET_LOCK_TAKE();
 	ic = net_conn_get_internal(nc);
 	if (NULL == ic) {
 		ret = -EINVAL;
@@ -1176,7 +1172,7 @@ int net_send(spdid_t spdid, net_connection_t nc, void *data, int sz)
 		BUG();
 	}
 err:
-	NET_LOCK_RELEASE();
+//	NET_LOCK_RELEASE();
 	return ret;
 }
 
@@ -1195,7 +1191,9 @@ static void cos_net_interrupt(char *packet, int sz)
 #ifdef TEST_TIMING
 	unsigned long long ts;
 #endif
+//	printc(">>> %d\n", net_lock.lock_id);
 	NET_LOCK_TAKE();
+//	printc("<<< %d\n", net_lock.lock_id);
 
 	assert(packet);
 	ih = (struct ip_hdr*)packet;
@@ -1278,6 +1276,7 @@ static int cos_net_evt_loop(void)
 		sz = parent_tread(cos_spd_id(), ip_td, cb, alloc_sz);
 		assert(sz > 0);
 		cos_net_interrupt(data, sz);
+		assert(lock_contested(&net_lock) != cos_get_thd_id());
 		cbuf_free(data);
 	}
 
@@ -1370,33 +1369,44 @@ modify_connection(spdid_t spdid, net_connection_t nc, char *ops, int len)
 	char *prop;
 	int ret = -EINVAL;
 
-	ic = net_conn_get_internal(nc);
-	//ic = net_verify_tcp_connection(nc, &ret);
-	if (NULL == ic) goto done;
-
 	prop = strstr(ops, "bind");
 	if (prop) {
 		u32_t ip;
 		u32_t port;
 		int r;
 
+		NET_LOCK_TAKE();
+		ic = net_conn_get_internal(nc);
+		//ic = net_verify_tcp_connection(nc, &ret);
+		if (NULL == ic) goto release;
+
 		r = sscanf(prop, "bind:%x:%d", &ip, &port);
-		if (r != 2) goto done;
+		if (r != 2) goto release;
 
 		port &= 0xFFFF;
 		ret = net_bind(spdid, nc, ip, port);
+		NET_LOCK_RELEASE();
 	}
 	prop = strstr(ops, "listen");
 	if (prop) {
 		int r;
 		unsigned int q;
 
+		NET_LOCK_TAKE();
+		ic = net_conn_get_internal(nc);
+		//ic = net_verify_tcp_connection(nc, &ret);
+		if (NULL == ic) goto release;
+
 		r = sscanf(prop, "listen:%d", &q);
-		if (r != 1) goto done;
+		if (r != 1) goto release;
 		ret = net_listen(spdid, nc, q);
+		NET_LOCK_RELEASE();
 	}
 done:
 	return ret;
+release:
+	NET_LOCK_RELEASE();
+	goto done;
 }
 
 td_t
@@ -1410,6 +1420,7 @@ tsplit(spdid_t spdid, td_t tid, char *param, int len,
 
 	if (tor_isnull(tid)) return -EINVAL;
 
+	NET_LOCK_TAKE();
 	/* creating a new connection */
 	if (tid == td_root || len == 0 || strstr(param, "accept")) {
 		if (tid == td_root) { 	/* new connection */
@@ -1434,10 +1445,15 @@ tsplit(spdid_t spdid, td_t tid, char *param, int len,
 	}
 	if (!accept && len != 0) {
 		int r;
+
+		NET_LOCK_RELEASE();
 		r = modify_connection(spdid, nc, param, len);
 		if (r < 0) ret = r;
+		NET_LOCK_TAKE();
 	}
 done:
+	NET_LOCK_RELEASE();
+	assert(lock_contested(&net_lock) != cos_get_thd_id());
 	return ret;
 free:
 	net_close(spdid, nc);
@@ -1452,12 +1468,15 @@ trelease(spdid_t spdid, td_t td)
 
 	if (!tor_is_usrdef(td)) return;
 
+	NET_LOCK_TAKE();
 	t = tor_lookup(td);
 	if (!t) goto done;
 	nc = (net_connection_t)t->data;
 	if (nc) net_close(spdid, nc);
 	tor_free(t);
 done:
+	NET_LOCK_RELEASE();
+	assert(lock_contested(&net_lock) != cos_get_thd_id());
 	return;
 }
 
@@ -1470,6 +1489,7 @@ tmerge(spdid_t spdid, td_t td, td_t td_into, char *param, int len)
 	if (td_into != td_null) ERR_THROW(-EINVAL, done);
 	trelease(spdid, td);
 done:
+	assert(lock_contested(&net_lock) != cos_get_thd_id());
 	return ret;
 }
 
@@ -1481,19 +1501,21 @@ twrite(spdid_t spdid, td_t td, int cbid, int sz)
 	char *buf;
 	int ret = -1;
 
+	buf = cbuf2buf(cbid, sz);
+	if (!buf)           return -EINVAL;
 	if (tor_isnull(td)) return -EINVAL;
+
+	NET_LOCK_TAKE();
 	t = tor_lookup(td);
 	if (!t) ERR_THROW(-EINVAL, done);
 	if (!(t->flags & TOR_WRITE)) ERR_THROW(-EACCES, done);
 
 	assert(t->data);
 	nc = (net_connection_t)t->data;
-
-	buf = cbuf2buf(cbid, sz);
-	if (!buf) ERR_THROW(-EINVAL, done);
-
 	ret = net_send(spdid, nc, buf, sz);
 done:
+	NET_LOCK_RELEASE();
+	assert(lock_contested(&net_lock) != cos_get_thd_id());
 	return ret;
 }
 
@@ -1505,7 +1527,11 @@ tread(spdid_t spdid, td_t td, int cbid, int sz)
 	char *buf;
 	int ret;
 	
+	buf = cbuf2buf(cbid, sz);
+	if (!buf)           return -EINVAL;
 	if (tor_isnull(td)) return -EINVAL;
+
+	NET_LOCK_TAKE();
 	t = tor_lookup(td);
 	if (!t) ERR_THROW(-EINVAL, done);
 	if (!(t->flags & TOR_READ)) ERR_THROW(-EACCES, done);
@@ -1513,11 +1539,10 @@ tread(spdid_t spdid, td_t td, int cbid, int sz)
 	assert(t->data);
 	nc = (net_connection_t)t->data;
 	
-	buf = cbuf2buf(cbid, sz);
-	if (!buf) ERR_THROW(-EINVAL, done);
-
 	ret = net_recv(spdid, nc, buf, sz);
 done:
+	NET_LOCK_RELEASE();
+	assert(lock_contested(&net_lock) != cos_get_thd_id());
 	return ret;
 }
 
@@ -1556,7 +1581,7 @@ static void cos_net_create_netif_thd(void)
 	union sched_param sp;
 	
 	sp.c.type  = SCHEDP_PRIO;
-	sp.c.value = 3;
+	sp.c.value = 4;
 	if (0 > (event_thd = sched_create_thd(cos_spd_id(), sp.v, 0, 0))) BUG();
 }
 
@@ -1568,6 +1593,7 @@ static int init(void)
 #endif
 
 	lock_static_init(&net_lock);
+	printc("netlock id %d\n", net_lock.lock_id);
 	NET_LOCK_TAKE();
 
 	torlib_init();

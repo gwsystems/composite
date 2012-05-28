@@ -2,7 +2,7 @@ C_OBJS=micro_pong.o
 ASM_OBJS=
 COMPONENT=micro_ppong.o
 INTERFACES=micro_pong
-DEPENDENCIES=cbuf_c sched printc lock mem_mgr_large valloc micro_pong_lower
+DEPENDENCIES=sched printc cbuf_c valloc mem_mgr_large lock
 IF_LIB=
 
 include ../../Makefile.subsubdir

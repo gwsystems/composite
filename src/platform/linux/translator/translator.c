@@ -253,8 +253,8 @@ const struct cos_trans_fns trans_fns = {
 	.brand_created = trans_cos_brand_created,
 };
 
-static int
-trans_ioctl(struct inode *i, struct file *f, unsigned int cmd, unsigned long arg)
+static long
+trans_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 {
 	struct trans_channel *c = f->private_data;
 	BUG_ON(!c);
@@ -287,7 +287,8 @@ struct file_operations trans_fsops = {
 	.mmap    = trans_mmap,
 	.open    = trans_open,
 	.release = trans_close,
-	.ioctl   = trans_ioctl,
+	.unlocked_ioctl = trans_ioctl, 
+//	.ioctl   = trans_ioctl,
 	.owner   = THIS_MODULE,
 };
 
