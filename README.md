@@ -105,7 +105,7 @@ it as your own.
 Support
 -------
 
-The _Composite_ Component-Based OS development effort has been
-supported by grants from the National Science Foundation (NSF) under
-awards CNS 1137973, CNS 1149675, and CNS 1117243.  We'd like to thank
-our sponsors.
+We'd like to sincerely thank our sponsors.  The _Composite_
+Component-Based OS development effort has been supported by grants
+from the National Science Foundation (NSF) under awards `CNS 1137973`,
+`CNS 1149675`, and `CNS 1117243`.
