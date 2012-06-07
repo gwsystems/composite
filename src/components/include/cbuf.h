@@ -29,8 +29,10 @@
 #include <tmem_conf.h>
 
 extern cos_lock_t cbuf_lock;
-#define CBUF_TAKE()    do { if (unlikely(cbuf_lock.lock_id == 0)) lock_static_init(&cbuf_lock); if (unlikely(lock_take(&cbuf_lock) != 0)) BUG(); } while(0)
-#define CBUF_RELEASE() do { if (unlikely(lock_release(&cbuf_lock) != 0)) BUG(); } while(0)
+#define CBUF_TAKE()    do { if (unlikely(cbuf_lock.lock_id == 0)) lock_static_init(&cbuf_lock); if (unlikely(lock_take_up(&cbuf_lock))) BUG(); } while(0)
+#define CBUF_RELEASE() do { if (unlikely(lock_release_up(&cbuf_lock))) BUG(); } while(0)
+//#define CBUF_TAKE()
+//#define CBUF_RELEASE()
 
 /* 
  * Shared buffer management for Composite.
@@ -206,7 +208,6 @@ cbuf2buf(cbuf_t cb, int len)
 		cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
 		if (unlikely(cm.c_0.v == 0)) {
 			if (__cbuf_2buf_miss(id, len)) goto done;
-			/* printc("spd %ld map cbid %d\n", cos_spd_id(), id); */
 		}
 	} while (unlikely(cm.c_0.v == 0));
 
@@ -259,9 +260,6 @@ cbuf_alloc(unsigned int sz, cbuf_t *cb)
 again:
 	d     = FIRST_LIST(&cbuf_alloc_freelists, next, prev);
 	if (unlikely(EMPTY_LIST(d, next, prev))) {
-
-//	if (unlikely(cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF] < pages)) {
-		//d    = __cbuf_alloc_slow(sz, &len, pages - cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]);
 		d    = __cbuf_alloc_slow(sz, &len);
 		assert(d);
 		ret  = d->addr;
@@ -335,7 +333,6 @@ again:
 done:
 	*cb = cbuf_cons(cbid, len);
 	CBUF_RELEASE();
-	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 
 	return ret;
 }
@@ -362,15 +359,13 @@ cbuf_free(void *buf)
 	cm->c.thdid_owner = 0;
 	cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]++;
 	CBUF_RELEASE();
-	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 
 	/* Does the manager want the memory back? */
-	if (unlikely(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF] == 1)) {
+	if (unlikely(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF])) {
 		cbuf_c_delete(cos_spd_id(), d->cbid);
 		assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 		return;
 	} 
-	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 }
 
 /* Is it a cbuf?  If so, what's its id? */

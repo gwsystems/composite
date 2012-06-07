@@ -22,9 +22,7 @@
 #define MAX_BLKED 10
 
 #define SPD_IS_MANAGED(spd_tmem_info) ((spd_tmem_info)->managed != 0)
-
 #define SPD_HAS_BLK_THD(spd_tmem_info) ((spd_tmem_info)->num_blocked_thds != 0)
-
 #define SPD_HAS_BLK_THD_ON_GLB(spd_tmem_info) ((spd_tmem_info)->num_glb_blocked != 0)
 
 #define GLOBAL_BLKED (FIRST_LIST(&global_blk_list, next, prev) != &global_blk_list)

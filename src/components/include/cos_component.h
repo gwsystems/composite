@@ -313,6 +313,21 @@ cos_cas(unsigned long *target, unsigned long cmp, unsigned long updated)
 	return (int)z;
 }
 
+/* A uni-processor variant with less overhead but that doesn't
+ * guarantee atomicity across cores. */
+static inline int 
+cos_cas_up(unsigned long *target, unsigned long cmp, unsigned long updated)
+{
+	char z;
+	__asm__ __volatile__("cmpxchgl %2, %0; setz %1"
+			     : "+m" (*target),
+			       "=a" (z)
+			     : "q"  (updated),
+			       "a"  (cmp)
+			     : "memory", "cc");
+	return (int)z;
+}
+
 static inline void *cos_get_prealloc_page(void)
 {
 	char *h;
