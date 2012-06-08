@@ -11,8 +11,9 @@ typedef enum {
 } evt_flags_t;
 
 long evt_create(spdid_t spdid);
+long evt_split(spdid_t spdid, long parent_evt, int grp);
 void evt_free(spdid_t spdid, long extern_evt);
-int evt_wait(spdid_t spdid, long extern_evt);
+long evt_wait(spdid_t spdid, long extern_evt);
 long evt_grp_wait(spdid_t spdid);
 int evt_grp_mult_wait(spdid_t spdid, struct cos_array *data);
 int evt_trigger(spdid_t spdid, long extern_evt);

@@ -284,7 +284,8 @@ again:
 	 * and the pointer is consistent with the allocation
 	 * descriptor 
 	 */
-	if (__cbuf_alloc_meta_inconsistent(d, cm) || already_used) {
+	assert(!already_used);
+	if (__cbuf_alloc_meta_inconsistent(d, cm)) {
 		/* 
 		 * This is complicated.
 		 *
@@ -317,6 +318,7 @@ again:
 		 * _not_ deallocate the slab descriptor there to reinforce
 		 * that point.
 		 */
+		cm->c.flags &= ~CBUFM_IN_USE | CBUFM_TOUCHED; /* should be atomic */
 		__cbuf_desc_free(d);
 		goto again;
 	}
@@ -359,6 +361,28 @@ cbuf_free(void *buf)
 		cbuf_c_delete(cos_spd_id(), d->cbid);
 		return;
 	} 
+}
+
+/* Is it a cbuf?  If so, what's its id? */
+static inline int 
+cbuf_id(void *buf)
+{
+	u32_t idx = ((u32_t)buf) >> PAGE_ORDER;
+	struct cbuf_alloc_desc *d;
+	int id;
+
+	CBUF_TAKE();
+	d  = __cbuf_alloc_lookup(idx);
+	id = (likely(d)) ? d->cbid : 0;
+	CBUF_RELEASE();
+	return id;
+}
+
+/* Is the pointer a cbuf?  */
+static inline int 
+cbuf_is_cbuf(void *buf)
+{
+	return cbuf_id(buf) != 0;
 }
 
 #endif /* CBUF_H */

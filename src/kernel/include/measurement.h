@@ -186,7 +186,7 @@ static inline void report_upcall(char *n, struct thread *u)
 
 #ifdef COS_RECORD_EVTS
 /* must be power of 2 */
-#define COS_EVTS_NUM 64
+#define COS_EVTS_NUM 8
 #define COS_EVTS_MASK (COS_EVTS_NUM-1)
 
 struct exec_evt {

@@ -49,7 +49,7 @@ struct evt {
 
 struct evt_grp {
 	spdid_t spdid; 		/* currently ignored */
-	u16_t tid;              /* thread that waits for events */
+	long tid;               /* thread that waits for events */
 	evt_grp_status_t status;
 	struct evt_grp *next, *prev;
 	struct evt events, triggered[EVT_NUM_PRIOS];

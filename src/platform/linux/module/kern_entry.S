@@ -61,7 +61,7 @@ VM_MASK		= 0x00020000
 	movl %edx, %fs
 	
 #define RESTORE_INT_REGS \
-	popl %ebx;	\
+ 	popl %ebx;	\
 	popl %ecx;	\
 	popl %edx;	\
 	popl %esi;	\
@@ -86,15 +86,13 @@ VM_MASK		= 0x00020000
 //.globl cos_sysenter_addr
 //cos_sysenter_addr:	
 //	.long 0
-.globl cos_temp_esp_storage
-cos_temp_esp_storage:	
-	.long 0
+//.globl cos_temp_esp_storage
+//cos_temp_esp_storage:	
+//	.long 0
 
 .text
 ALIGN
 ENTRY(sysenter_interposition_entry)
-	movl %esp, cos_temp_esp_storage /* This is so we can restore it to continue normal linux syscall paths if necessary */
-	/* FIXME: not smp safe */
 	movl TSS_sysenter_sp0(%esp),%esp
 
 	/*
@@ -122,7 +120,14 @@ ENTRY(sysenter_interposition_entry)
 	addl $4, %esp
 	RESTORE_REGS
 normal_syscall:
-	movl cos_temp_esp_storage, %esp
+	/* We reserve the position in the stack to get the TSS. */
+	/* see the comments of get_TSS in hijack.c */	
+	pushl $0
+	SAVE_ALL
+	movl %esp, %eax 	
+	call get_TSS
+	RESTORE_REGS
+	popl %esp
 	jmp  *(cos_default_sysenter_addr) /* sti will happen in syscall path */
 
 	/* never get to here on syscall...*/

@@ -54,7 +54,7 @@ void cos_init(void)
 
 	printc("UNIT TEST Unit tests for initial RO tar fs...\n");
 
-	evt = evt_create(cos_spd_id());
+	evt = evt_split(cos_spd_id(), 0, 0);
 	for (i = 0 ; files[i].name ; i++) validate_data(&files[i], evt);
 
 	printc("UNIT TEST ALL PASSED\n");

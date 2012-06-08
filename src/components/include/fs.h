@@ -155,17 +155,20 @@ fsobj_take(struct fsobj *o)
 }
 
 static inline struct fsobj *
-fsobj_find_child(char *name, struct fsobj *dir)
+fsobj_find_child(char *name, char *name_end, struct fsobj *dir)
 {
 	struct fsobj *sibling, *first;
+	int len;
 
 	assert(dir && name);
 	assert(dir->type == FSOBJ_DIR);
 	if (!dir->child) return NULL;
 
+	if (name_end) len = name_end-name;
+	else          len = strlen(name);
 	first = sibling = dir->child;
 	do {
-		if (!strcmp(sibling->name, name)) return sibling;
+		if (!strncmp(sibling->name, name, len)) return sibling;
 		sibling = FIRST_LIST(sibling, next, prev);
 	} while (sibling != first);
 
@@ -278,12 +281,13 @@ fsobj_free_hier(struct fsobj *o)
  * failed in subpath.
  */
 static struct fsobj *
-fsobj_path2obj(char *path, struct fsobj *root, struct fsobj **parent, char **subpath)
+fsobj_path2obj(char *path, int len, struct fsobj *root, 
+	       struct fsobj **parent, char **subpath)
 {
 	char *next;
 	struct fsobj *dir = root;
 
-	assert(path && root);
+	assert(path && root && len >= 0);
 
 	*parent = NULL;
 	do {
@@ -293,13 +297,9 @@ fsobj_path2obj(char *path, struct fsobj *root, struct fsobj **parent, char **sub
 		
 		next = strchr(path, '/');
 		/* next == NULL means there is no next entry */
-		if (next) {
-			*next = '\0';
-			next++;
-		}
 		*parent = dir;
-		dir = fsobj_find_child(path, dir);
-		if (next) *(next-1) = '/'; /* restore the path */
+		dir = fsobj_find_child(path, next, dir);
+		if (next) next++;
 		if (!dir) return NULL;
 		
 		path = next; 

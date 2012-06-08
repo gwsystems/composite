@@ -452,6 +452,7 @@ remove_spare_cache_from_client(struct spd_tmem_info *sti)
 	tmem_item * tmi;
 
 	while (1) {
+		if (sti->num_allocated == 1) return;
 		tmi = mgr_get_client_mem(sti);
 		if (!tmi)
 			return;

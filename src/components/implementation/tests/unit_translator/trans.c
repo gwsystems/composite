@@ -23,7 +23,7 @@ void cos_init(void)
 
 	printc("UNIT TEST Unit tests for the translator (type into term)...\n");
 
-	evt = evt_create(cos_spd_id());
+	evt = evt_split(cos_spd_id(), 0, 0);
 	assert(evt > 0);
 	td = tsplit(cos_spd_id(), td_root, params, strlen(params), TOR_READ, evt);
 	do {

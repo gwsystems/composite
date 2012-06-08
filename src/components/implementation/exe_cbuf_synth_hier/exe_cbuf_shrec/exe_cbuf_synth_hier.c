@@ -15,6 +15,8 @@ cos_lock_t synth_lock;
 
 #include <stdlib.h>
 
+#define I7 
+
 #define MAXULONG (~0)
 #define TOTAL_AMNT 128		/* power of 2 */
 
@@ -32,9 +34,9 @@ unsigned int prop_call_ss = 10;    /* 10: %7 0: never call ss, 128: always call 
 #define NCBUF 1   // number of cbufs to create each time
 
 #define ALLOC_CBUF
-#define CBUF2BUF
+//#define CBUF2BUF
 
-/* #define DEBUG_SYNTH */
+//#define DEBUG_SYNTH
 
 #ifdef DEBUG_SYNTH
 #define DOUTs(fmt,...) printc(fmt, ##__VA_ARGS__)
@@ -169,7 +171,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	memset(get, 0 , NCBUF*sizeof(cbuf_t));
 	
 	parse_initstr();
-	/* DOUTs("thd %d enter comp %ld!\n", cos_get_thd_id(), cos_spd_id()); */
+	DOUTs("thd %d enter comp %ld!\n", cos_get_thd_id(), cos_spd_id());
 	if (first) {
 		unsigned long temp = 0;
 		temp = measure_loop_costs(spin);
@@ -198,13 +200,14 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 	for (j = 0 ; j < num_invs ; j++) {
 		if (exe_time_left == 0) return 0;
 		kkk = 0;
+
 #ifdef I7
 		unsigned long ss = initial_exe_t / (100 / PERCENT_EXE) / 15 * 2;
 #else
 		unsigned long ss = initial_exe_t / (100 / PERCENT_EXE) / 6;
 #endif
 		for (i=0; i<ss; i++) kkk++;
-#ifdef i7
+#ifdef I7
 		has_run = ss * 15 / 2;//loop_cost;//
 #else
 		has_run = ss * 6;//loop_cost;//
