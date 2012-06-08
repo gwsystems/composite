@@ -43,6 +43,10 @@ int lock_take_timed(cos_lock_t *t, unsigned int microsec);
 int lock_release(cos_lock_t *t);
 unsigned int lock_contested(cos_lock_t *l);
 
+int lock_take_up(cos_lock_t *t);
+int lock_take_timed_up(cos_lock_t *t, unsigned int microsec);
+int lock_release_up(cos_lock_t *t);
+
 static inline unsigned long 
 lock_id_alloc(void)
 {

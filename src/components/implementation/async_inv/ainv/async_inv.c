@@ -11,9 +11,11 @@
 #include <cos_alloc.h>
 #include <print.h>
 #include <cos_map.h>
+#include <sched.h>
 #include <cos_list.h>
 #include <errno.h>
 #include <cos_synchronization.h>
+
 
 #include <async_inv.h>
 
@@ -25,7 +27,6 @@
 #endif
 
 #include <evt.h>
-#include <sched.h>
 
 #define ASYNC_MAX_BUFFERED 512
 

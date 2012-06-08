@@ -29,8 +29,8 @@
 #include <tmem_conf.h>
 
 extern cos_lock_t cbuf_lock;
-#define CBUF_TAKE()    do { if (unlikely(cbuf_lock.lock_id == 0)) lock_static_init(&cbuf_lock); if (unlikely(lock_take(&cbuf_lock) != 0)) BUG(); } while(0)
-#define CBUF_RELEASE() do { if (unlikely(lock_release(&cbuf_lock) != 0)) BUG(); } while(0)
+#define CBUF_TAKE()    do { if (unlikely(cbuf_lock.lock_id == 0)) lock_static_init(&cbuf_lock); if (unlikely(lock_take_up(&cbuf_lock) != 0)) BUG(); } while(0)
+#define CBUF_RELEASE() do { if (unlikely(lock_release_up(&cbuf_lock) != 0)) BUG(); } while(0)
 
 /* 
  * Shared buffer management for Composite.

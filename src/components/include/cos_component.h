@@ -313,6 +313,22 @@ cos_cas(unsigned long *target, unsigned long cmp, unsigned long updated)
 	return (int)z;
 }
 
+/* on multiprocessor, cbuf is likely to be partitioned into different
+   processor. This is an uniprocessor version used for cbuf lock */
+static inline int 
+cos_cas_up(unsigned long *target, unsigned long cmp, unsigned long updated)
+{
+	char z;
+	__asm__ __volatile__(" cmpxchgl %2, %0; setz %1"
+			     : "+m" (*target),
+			       "=a" (z)
+			     : "q"  (updated),
+			       "a"  (cmp)
+			     : "memory", "cc");
+	return (int)z;
+}
+
+
 static inline void *cos_get_prealloc_page(void)
 {
 	char *h;

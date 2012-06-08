@@ -5,10 +5,10 @@
 #include "cpu_ghz.h"
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 
-#define RUNTIME                60 // seconds
+#define RUNTIME                10 // seconds
 
 // After how many seconds should schedulers print out their information?
-#define SCHED_PRINTOUT_PERIOD  29 
+#define SCHED_PRINTOUT_PERIOD  50
 #define COMPONENT_ASSERTIONS   1 // activate assertions in components?
 
 //#define LINUX_ON_IDLE          1 // should Linux be activated on Composite idl
@@ -40,13 +40,13 @@
  * but before the runscript.
  */
 /* print out to the shell? */
-#define COS_PRINT_SHELL   1
+/* #define COS_PRINT_SHELL   1 */
 /* how much should we buffer before sending an event to the shell? */
 #define COS_PRINT_BUF_SZ  128
 /* how large should the shared memory region be that will buffer print data? */
 #define COS_PRINT_MEM_SZ  (4096)
 
 /* print out to dmesg? */
-/* #define COS_PRINT_DMESG 1 */
+#define COS_PRINT_DMESG 1
 
 #endif /* COS_CONFIG_H */

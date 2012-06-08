@@ -53,7 +53,7 @@ enum{
 #define HISTORICAL_ALLOC
 
 //#define REVOKE_SPARE_TMEM 1 //used for tmem pool policy.
-#define REVOKE_SPARE_TMEM 0 //used for tmem pool policy.
+#define REVOKE_SPARE_TMEM 1 //used for tmem pool policy.
 
 #define STK_MGR 0
 #define CBUF_MGR 1
