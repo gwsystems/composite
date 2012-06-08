@@ -184,7 +184,6 @@ static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
 extern struct cbuf_alloc_desc *__cbuf_alloc_slow(int size, int *len);
 extern int __cbuf_2buf_miss(int cbid, int len);
 extern void __cbuf_desc_free(struct cbuf_alloc_desc *d);
-
 extern cvect_t meta_cbuf;
 
 /* 
