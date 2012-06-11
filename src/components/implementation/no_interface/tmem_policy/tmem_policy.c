@@ -39,6 +39,7 @@ enum{
 	MAX = 0,
 	AVG
 };
+
 /* ALGORITHM: 1 for minimize AVG tardiness, 0 for minimize MAX tardiness*/
 #define ALGORITHM MAX
  
@@ -856,7 +857,6 @@ thdpool_max_policy()
 		for (c = FIRST_LIST(&components[mgr], next, prev) ; 
 		     c != &components[mgr] ;
 		     c = FIRST_LIST(c, next, prev)) {
-
 			switch (mgr) {
 			case STK_MGR:
 				if (c->ss_counter) 

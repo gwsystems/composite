@@ -23,7 +23,7 @@
 
 #include <cos_config.h>
 #ifdef LINUX_HIGHEST_PRIORITY
-#define HIGHEST_PRIO
+#define HIGHEST_PRIO 1
 #endif
 
 #include <stdlib.h>

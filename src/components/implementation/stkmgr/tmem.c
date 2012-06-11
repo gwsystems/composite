@@ -223,7 +223,6 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 			
 		if (in_blk_list) {
 			assert(ret < 0);
-			sched_wakeup(cos_spd_id(), cos_get_thd_id());
 		}
 		DOUT("%d finished depending on %d. comp %d. i %d. ss_cnt %d. ret %d\n",
 		       cos_get_thd_id(), dep_thd, sti->spdid,i,sti->ss_counter, ret);
@@ -451,12 +450,14 @@ remove_spare_cache_from_client(struct spd_tmem_info *sti)
 {
 	tmem_item * tmi;
 
+	/* printc("in spd %ld\n", sti->spdid); */
+
 	while (1) {
 		if (sti->num_allocated == 1) return;
 		tmi = mgr_get_client_mem(sti);
 		if (!tmi)
 			return;
-		/* printc("spd %d found tmem to be allocated  %d\n", sti->spdid, sti->num_allocated); */
+		DOUT("In %d found tmem to be allocated  %d\n\n", sti->spdid, sti->num_allocated);
 		put_mem(tmi);
 		DOUT("remove spare----\n");
 	}
@@ -500,7 +501,7 @@ tmem_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare)
 		   priority */ 
 	}
 	
-	if (remove_spare) 
+	if (remove_spare)
 		remove_spare_cache_from_client(sti);
 
 	mgr_clear_touched_flag(sti);

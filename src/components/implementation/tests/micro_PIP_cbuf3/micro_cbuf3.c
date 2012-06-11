@@ -18,6 +18,7 @@
    change policy to 1
    change to simple stack
    change interface and Makefile (MANDITORY LIB) 
+   use simple stack in s_stub.S
 */
 void call_cbuf3(int low, int high)
 {
@@ -36,7 +37,7 @@ void call_cbuf3(int low, int high)
 	printv("thd %d got cbufs\n", cos_get_thd_id());
 	if (cos_get_thd_id() == high) {
 		rdtscll(end);
-		printc("cost of cached cbufPIP %llu cycs\n", end-start);
+		printc("cbufPIP C: %llu cycs\n", end-start);
 	}
 	
 	if (cos_get_thd_id() == low) {
@@ -50,3 +51,20 @@ void call_cbuf3(int low, int high)
 	return; 
 }
 
+/* Test STACK PIP cost
+
+   change policy to 1   
+   using stkmgr instead simple stk and thdpool_1 for PIP
+   do not use simple stack in s_stub.S 
+
+*/
+
+void call_lower(int low, int high)
+{
+	if (cos_get_thd_id() == low) {
+		/* printc("%d to wake up...%d\n", cos_get_thd_id(), high); */
+		sched_wakeup(cos_spd_id(), high);
+		/* printc("%d get running\n", cos_get_thd_id()); */
+	}
+	return;
+}

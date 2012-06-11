@@ -7,6 +7,9 @@
 /* 
    changes: max_pool
 */
+
+#define ITER 2000
+
 void cos_init(void)
 {
 	static int flag = 0;
@@ -26,7 +29,7 @@ void cos_init(void)
 		sched_create_thd(cos_spd_id(), sp.v, 0, 0);
 
 	} else {
-		for(i=0; i<10; i++){
+		for(i=0; i<ITER; i++){
 			call_cs();
 		}
 	}

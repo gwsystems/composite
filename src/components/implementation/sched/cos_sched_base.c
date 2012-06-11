@@ -343,9 +343,14 @@ static struct sched_thd *resolve_dependencies(struct sched_thd *next)
 
 	/* Take dependencies into account */
 	if ((dep = sched_thd_dependency(next))) {
-		assert(!(next->flags & (COS_SCHED_BRAND_WAIT|COS_SCHED_TAILCALL)));
-		assert(!sched_thd_blocked(dep) && sched_thd_ready(dep));
 		assert(!sched_thd_free(dep));
+		assert(!(next->flags & (COS_SCHED_BRAND_WAIT|COS_SCHED_TAILCALL)));
+		assert(!sched_thd_blocked(dep));
+		if (sched_thd_inactive_evt(dep)) {
+			printc("Thread %d resolving dependency to %d, but the latter is waiting for an interrupt\n", next->id, dep->id);
+		}
+		assert(!sched_thd_inactive_evt(dep));
+		assert(sched_thd_ready(dep));
 		assert(dep != next);
 		report_event(SCHED_DEPENDENCY);
 		next = dep;
@@ -405,7 +410,7 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 			cos_sched_process_events(evt_callback, 0);
 		}
 		
-		if (likely(!target)) {
+		if (!target) {
 			/* 
 			 * If current is an upcall that wishes to terminate
 			 * its execution upon switching to the next thread,
@@ -706,7 +711,7 @@ static void fp_pre_wakeup(struct sched_thd *t)
 	assert(t->wake_cnt >= 0 && t->wake_cnt <= 2);
 	if (2 == t->wake_cnt) return;
 	t->wake_cnt++;
-	//printc("thd %d cnt++ %d ->%d\n", t->id, t->wake_cnt-1, t->wake_cnt);
+	/* printc("thd %d cnt++ %d ->%d\n", t->id, t->wake_cnt-1, t->wake_cnt); */
 	/* if (sched_get_current() != t && /\* Hack around comment "STKMGR: self wakeup" *\/ */
 	/*     !sched_thd_dependent(t) && */
 	/*     !(sched_thd_blocked(t) || t->wake_cnt == 2)) { */
@@ -743,8 +748,7 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 	
 	cos_sched_lock_take();
 		
-	//printc("thread %d waking up thread %d. %d", cos_get_thd_id(), thd_id, 0);
-	
+	/* printc("thread %d waking up thread %d. %d\n", cos_get_thd_id(), thd_id, 0); */
 	thd = sched_get_mapping(thd_id);
 	if (!thd) goto error;
 	
@@ -756,12 +760,17 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 		assert(thd->ncs_held == 0 || thd->id == cos_get_thd_id());
 		thd->flags &= ~THD_DEPENDENCY;
 		thd->dependency_thd = NULL;
+		assert(!sched_thd_dependent(thd));
 	} else {
+		assert(!sched_thd_dependent(thd));
 		/* If the thd isn't blocked yet (as it was probably preempted
 		 * before it could complete the call to block), no reason to
 		 * wake it via scheduling.
 		 */
-		if (!sched_thd_blocked(thd)) goto cleanup;
+		if (!sched_thd_blocked(thd)) {
+			printc("thd %d hasn't blocked! gonna return\n",thd->id);
+			goto cleanup;
+		}
 		/* 
 		 * We are waking up a thread, which means that if we
 		 * are an upcall, we don't want composite to
@@ -777,8 +786,10 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 		 * flag to switch_thread */
 		cos_sched_cntl(COS_SCHED_BREAK_PREEMPTION_CHAIN, 0, 0);
 		fp_wakeup(thd, spdid);
+		assert(!sched_thd_dependent(thd));
 	}
 
+	assert(!sched_thd_dependent(thd));
 	sched_switch_thread(0, WAKE_LOOP);
 done:
 	return 0;
@@ -798,6 +809,7 @@ static void fp_pre_block(struct sched_thd *thd)
 	assert(thd->wake_cnt > 0);
 	assert(thd->wake_cnt <= 2);
 	thd->wake_cnt--;
+	/* printc("thd %d wake cnt %d -> %d \n",thd->id,thd->wake_cnt+1, thd->wake_cnt); */
 	thd->block_time = ticks;
 }
 
@@ -842,7 +854,7 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	int first = 1;
 
 	// Added by Gabe 08/19
-	if (dependency_thd == cos_get_thd_id()) return -EINVAL;
+	if (unlikely(dependency_thd == cos_get_thd_id())) return -EINVAL;
 
 	cos_sched_lock_take();
 	thd = sched_get_current();
@@ -861,6 +873,7 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	 * if we are using dependencies?
 	 */
 	fp_pre_block(thd);
+
 	/* if we already got a wakeup call for this thread */
 	if (thd->wake_cnt) {
 		assert(thd->wake_cnt == 1);
@@ -869,25 +882,32 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	}
 	/* dependency thread blocked??? */
 	if (dependency_thd) {
+		/* printc("thd %d trying to depend on %d\n", thd->id, dependency_thd); */
 		dep = sched_get_mapping(dependency_thd);
 		if (dep->dependency_thd) {
+			/* circular dependency... */
 			if(dep->dependency_thd->id == cos_get_thd_id()) {
-				printc("dep %d, curr %d\n", dep->id, cos_get_thd_id());
-				cos_sched_lock_release();
+				debug_print("BUG @ ");
+				printc("cos_sched_base: circular dependency between dep %d, curr %d (from spdid %d)\n", dep->id, cos_get_thd_id(), spdid);
 				assert(0);
+				goto unblock;
 			}
 		}
 
 		if (!dep) {
 			printc("Dependency on non-existent thread %d.\n", dependency_thd);
-			goto err;
+			goto unblock;
 		}
-		if (sched_thd_blocked(dep)) goto err;
+		if (sched_thd_blocked(dep)) {
+			printc("dep thd blocked already.\n");
+			goto unblock;
+		}
 	}
 	/* dependencies keep the thread on the runqueue, so
 	 * that it can be selected to execute and its
 	 * dependency list walked. */
 	if (dependency_thd) {
+		/* printc("...no dependency problem, going to depend on %d\n",dependency_thd); */
 		thd->dependency_thd = dep;
 		thd->flags |= THD_DEPENDENCY;
 		assert(thd->ncs_held == 0);
@@ -920,12 +940,14 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 			 * inheritance with a blocked thread.
 			 */
 			if (unlikely(sched_thd_dependent(thd))) {
-				printc("Cos_sched_base: Dependency thread self-suspended: dep_thd %d, flags %d, wake_cnt %d (curr thd: %d, comp:%d). \n"
-				       , dependency_thd, dep->flags, dep->wake_cnt, cos_get_thd_id(), spdid);
+				printc("cos_sched_base: Dependency thread self-suspended: dep_thd"
+				       " %d, flags %d, wake_cnt %d, spdid %d (curr thd: %d, comp:%d). \n"
+				       , dependency_thd, dep->flags, dep->wake_cnt, 
+				       dep->blocking_component, cos_get_thd_id(), spdid);
 				thd->flags &= ~THD_DEPENDENCY;
 				thd->dependency_thd = NULL;
 				report_event(DEPENDENCY_BLOCKED_THD);
-				goto err;
+				goto unblock;
 			}
 		} else {
 			sched_switch_thread(0, BLOCK_LOOP);
@@ -938,14 +960,20 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	/* The amount of time we've blocked */
 	ret = ticks - thd->block_time - 1;
 	ret = ret > 0 ? ret : 0;
+done:
+	assert(thd->wake_cnt == 1);
+	assert(!sched_thd_dependent(thd));
 	cos_sched_lock_release();
 	return ret; 
-err:
-	cos_sched_lock_release();
-	return -1;
 warn:
 	printc("Blocking while holding lock!!!\n");
-	goto err;
+	ret = -1;
+	goto done;
+unblock:
+	fp_pre_wakeup(thd);
+	ret = -1;
+	goto done;
+
 }
 
 /* 
@@ -975,6 +1003,7 @@ int sched_component_take(spdid_t spdid)
 		/* If the current thread is dependent on another thread, switch to it for help! */
 		holder = sched_take_crit_sect(spdid, curr);
 		if (NULL == holder) break;
+		curr->flags |= THD_DEPENDENCY;
 
 		/* FIXME: proper handling of recursive locking */
 		assert(curr != holder);
@@ -987,7 +1016,9 @@ int sched_component_take(spdid_t spdid)
 			report_event(COMP_TAKE_LOOP);
 		}
 	}
+	curr->flags &= ~THD_DEPENDENCY;
 	cos_sched_lock_release();
+	assert(!sched_thd_dependent(curr));
 	return 0;
 }
 
@@ -1008,6 +1039,7 @@ int sched_component_release(spdid_t spdid)
 		       spdid, curr->contended_component);
 	}
 	sched_switch_thread(0, NULL_EVT);
+	assert(!sched_thd_dependent(curr));
 
 	return 0;
 }

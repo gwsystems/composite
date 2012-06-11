@@ -434,8 +434,8 @@ stkmgr_stack_report(void)
 	/* 	spdid = cinfo_get_spdid(i); */
 	/* 	if (!spdid) break; */
 
-	/* 	printc("spd %d, allocated %d, desired %d, blk thds %d, glb %d, ss_counter %d\n",  */
-	/* 	       spdid,  */
+	/* 	printc("spd %d, allocated %d, desired %d, blk thds %d, glb %d, ss_counter %d\n", */
+	/* 	       spdid, */
 	/* 	       spd_tmem_info_list[spdid].num_allocated, */
 	/* 	       spd_tmem_info_list[spdid].num_desired, */
 	/* 	       spd_tmem_info_list[spdid].num_blocked_thds, */
