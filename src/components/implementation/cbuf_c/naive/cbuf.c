@@ -274,12 +274,6 @@ __spd_cbvect_lookup_range(struct spd_tmem_info *sti, long cbuf_id)
 	     cbr != &sti->ci ; 
 	     cbr = FIRST_LIST(cbr, next, prev)) {
 		if (cbuf_id >= cbr->start_id && cbuf_id <= cbr->end_id) {
-			// TO BE CHANGED
-			/* long cbid_idx, idx; */
-			/* cbid_idx = cbid_to_meta_idx(cbuf_id); */
-			/* idx = cbid_idx - cbr->start_id; */
-			/* DOUT("cbid_idx %ld idx %ld\n", cbid_idx, idx); */
-			/* return &cbr->meta[1]; */
 			return &cbr->meta[CB_IDX(cbuf_id, cbr)];
 		}
 	}
@@ -302,6 +296,22 @@ __spd_cbvect_clean_val(struct spd_tmem_info *sti, long cbuf_id)
 		}
 	}
 	return;
+}
+
+
+static inline vaddr_t
+__spd_cbvect_retrieve_page(struct spd_tmem_info *sti, long cbuf_id)
+{
+	struct spd_cbvect_range *cbr;
+
+	for (cbr = FIRST_LIST(&sti->ci, next, prev) ; 
+	     cbr != &sti->ci ; 
+	     cbr = FIRST_LIST(cbr, next, prev)) {
+		if (cbuf_id >= cbr->start_id && cbuf_id <= cbr->end_id) {
+			return (vaddr_t)cbr->meta;
+		}
+	}
+	return 0;
 }
 
 vaddr_t
@@ -419,18 +429,7 @@ int __cbuf_c_delete(struct spd_tmem_info *sti, int cbid, struct cb_desc *d)
 	struct spd_tmem_info *map_sti;
 	DOUT("__cbuf_c_delete....cbid %d\n", cbid);
 
-
-	/* union cbuf_meta *test_cm; */
-	/* test_cm = __spd_cbvect_lookup_range(sti, cbid); */
-	/* assert(test_cm->c_0.v != NULL); */
-	/* DOUT("_c_delete....cbid %d, flags %p\n", cbid, test_cm->c.flags); */
-
 	__spd_cbvect_clean_val(sti, cbid);
-
-	/* test_cm = __spd_cbvect_lookup_range(sti, cbid); */
-	/* assert(test_cm->c_0.v == NULL); */
-	/* printc("_c_delete....cbid %d, flags %p\n", cbid, test_cm->c.flags); */
-
 	mman_revoke_page(cos_spd_id(), (vaddr_t)d->addr, 0);  // remove all mapped children
 
 	m = FIRST_LIST(&d->owner, next, prev);
@@ -541,6 +540,152 @@ err:
 	goto done;
 }
 
+int
+cbuf_c_introspect(spdid_t spdid, int iter)
+{
+	struct spd_tmem_info *sti;
+	spdid_t s_spdid;
+	struct cos_cbuf_item *cci = NULL, *list;
+	
+	int counter = 0;
+
+	TAKE();
+
+	sti = get_spd_info(spdid);
+	assert(sti);
+	s_spdid = sti->spdid;
+	list = &spd_tmem_info_list[s_spdid].tmem_list;
+	printc("try to find cbuf for this spd 1\n");
+	if (iter == -1){
+		for (cci = FIRST_LIST(list, next, prev) ;
+		     cci != list;
+		     cci = FIRST_LIST(cci, next, prev)) {
+			printc("try to find cbuf for this spd 2\n");
+			union cbuf_meta cm;
+			cm.c_0.v = cci->entry->c_0.v;
+			if (CBUF_OWNER(cm.c.flags) && 
+			    CBUF_IN_USE(cm.c.flags)) counter++;
+		}
+		RELEASE();
+		return counter;
+	}
+	else{
+		for (cci = FIRST_LIST(list, next, prev) ;
+		     cci != list;
+		     cci = FIRST_LIST(cci, next, prev)) {
+			union cbuf_meta cm;
+			cm.c_0.v = cci->entry->c_0.v;
+			if (CBUF_OWNER(cm.c.flags) && 
+                            CBUF_IN_USE(cm.c.flags) &&
+                            !(--iter)) goto found;
+		}
+	}
+	
+found:
+	RELEASE();
+	return cci->desc.cbid;
+}
+
+/* Exchange the cbuf descriptor (flags of ownership)
+   of old spd and requested spd */
+
+static int 
+mgr_update_owner(spdid_t new_spdid, long cbid)
+{
+	struct spd_tmem_info *old_sti, *new_sti;
+	struct cb_desc *d;
+	struct cb_mapping *old_owner, *new_owner, tmp;
+	union cbuf_meta *old_mc, *new_mc;
+	vaddr_t mgr_addr;
+
+	int ret = 0;
+	printc("updating ownership \n");
+	d = cos_map_lookup(&cb_ids, cbid);
+	if (!d) goto err;
+	old_owner = &d->owner;
+	/* printc("((1))\n"); */
+	old_sti = get_spd_info(old_owner->spd);
+	assert(SPD_IS_MANAGED(old_sti));
+
+	old_mc = __spd_cbvect_lookup_range(old_sti, cbid);
+	if(!old_mc) goto err;
+	/* printc("((2))\n"); */
+	if (!CBUF_OWNER(old_mc->c.flags)) goto err;
+	/* printc("((3))\n"); */
+	for (new_owner = FIRST_LIST(old_owner, next, prev) ; 
+	     new_owner != old_owner; 
+	     new_owner = FIRST_LIST(new_owner, next, prev)) {
+		if (new_owner->spd == new_spdid) break;
+	}
+
+	if (new_owner == old_owner) goto err;
+	/* printc("((4))\n"); */
+	new_sti = get_spd_info(new_owner->spd);
+	assert(SPD_IS_MANAGED(new_sti));
+
+        // this return the whole page for the range
+	mgr_addr = __spd_cbvect_retrieve_page(old_sti, cbid); 
+	assert(mgr_addr);
+	__spd_cbvect_add_range(new_sti, cbid, mgr_addr);
+
+	new_mc = __spd_cbvect_lookup_range(new_sti, cbid);
+	if(!new_mc) goto err;
+	new_mc->c.flags |= CBUFM_OWNER;
+	old_mc->c.flags &= ~CBUFM_OWNER;	
+	/* printc("((5))\n"); */
+
+	// exchange the spd and addr in cbuf_mapping
+	tmp.spd = old_owner->spd;
+	old_owner->spd = new_owner->spd;
+	new_owner->spd = tmp.spd;
+
+	tmp.addr = old_owner->addr;
+	old_owner->addr = new_owner->addr;
+	new_owner->addr = tmp.addr;
+	/* printc("((6))\n"); */
+done:
+	return ret;
+err:
+	ret = -1;
+	goto done;
+}
+
+
+/* 
+   This is called when the component checks if it still owns the cbuf or
+   wants to hold a cbuf, if it is not the creater, the ownership
+   should be re-granted to it from the original owner. For example,
+   when the ramfs server is called and the server wants to keep the 
+   cbuf longer before restore.(need remember which cbufs for that tid??)
+*/
+/* r_spdid is the requested spd */
+
+int   
+cbuf_c_claim(spdid_t r_spdid, int cbid)
+{
+	assert(cbid >= 0);
+
+	int ret = 0;
+	spdid_t o_spdid;
+	struct cb_desc *d;
+
+	TAKE();
+
+	d = cos_map_lookup(&cb_ids, cbid);
+	if (!d) { 
+		ret = -1; 
+		goto done;
+	}
+
+	o_spdid =  d->owner.spd;
+	if (o_spdid == r_spdid) goto done;
+
+	ret = mgr_update_owner(r_spdid, cbid); // -1 fail, 0 success
+
+done:
+	RELEASE();
+	return ret;   
+}
 
 void 
 cos_init(void *d)
@@ -578,9 +723,7 @@ cos_init(void *d)
 			DOUT("Could not map cinfo page for %d\n", spdid);
 			BUG();
 		}
-		/* spd_tmem_info_list[spdid].ci = hp;  */
 		spd_tmem_info_list[spdid].ci.spd_cinfo_page = hp;
-		/* spd_tmem_info_list[spdid].spd_cinfo_page = hp; */
 
 		spd_tmem_info_list[spdid].ci.meta = NULL; 
 		spd_tmem_info_list[spdid].managed = 1;
