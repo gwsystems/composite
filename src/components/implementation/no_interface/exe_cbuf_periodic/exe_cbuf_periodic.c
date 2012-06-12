@@ -172,8 +172,8 @@ void cos_init(void *arg)
 
 	printc("In spd %ld Thd %d, period %d ticks, execution time %d us in %lu cycles\n", cos_spd_id(),cos_get_thd_id(), local_period, exe_t, exe_cycle);
 
-	int event_thd = 0;
-	unsigned long pre_t_0 = 0;
+	/* int event_thd = 0; */
+	/* unsigned long pre_t_0 = 0; */
 	if (local_period <= 0){/* Create all non-periodic tasks */
 
 #ifdef BEST_EFF   // for best effort sys now

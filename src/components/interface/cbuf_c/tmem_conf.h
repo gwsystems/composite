@@ -15,6 +15,7 @@ extern cos_lock_t tmem_l;
  */
 typedef struct cos_cbuf_item tmem_item;
 
+#define CBUF_OWNER(flags) (flags & CBUFM_OWNER)
 #define CBUF_IN_USE(flags) (flags & CBUFM_IN_USE)
 #define LOCAL_ADDR(cci)    (cci->desc.addr)
 #define TMEM_TOUCHED(cci)  (cci->entry->c.flags & CBUFM_TOUCHED)
