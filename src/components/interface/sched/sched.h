@@ -3,7 +3,8 @@
 
 #include <res_spec.h>
 
-int sched_root_init(void);
+int sched_init(void);
+int sched_isroot(void);
 
 int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
 int sched_block(spdid_t spdid, unsigned short int dependency_thd);

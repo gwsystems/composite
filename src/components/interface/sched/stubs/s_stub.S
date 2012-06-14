@@ -8,7 +8,8 @@
 #include <cos_asm_server_stub_simple_stack.h>
 .text	
 
-cos_asm_server_stub(sched_root_init)
+cos_asm_server_stub(sched_init)
+cos_asm_server_stub(sched_isroot)
 cos_asm_server_stub_spdid(sched_wakeup)
 cos_asm_server_stub_spdid(sched_block)
 cos_asm_server_stub_spdid(sched_timeout)

@@ -6,27 +6,17 @@
  */
 
 #include <cos_component.h>
-
-/* dependencies */
-#include <print.h>
-#include <mem_mgr.h>
-#include <sched.h>
-#include <cos_alloc.h>
-#include <cgraph.h>
-
-/* interfaces */
-#include <cinfo.h>
-#include <failure_notif.h>
-
 #include <cobj_format.h>
-#include <cos_vect.h>
 
-#define LOCK() if(sched_component_take(cos_spd_id())) BUG();
-#define UNLOCK() if(sched_component_release(cos_spd_id())) BUG();
-
-COS_VECT_CREATE_STATIC(spd_info_addresses);
 extern struct cos_component_information cos_comp_info;
 struct cobj_header *hs[MAX_NUM_SPDS+1];
+
+/* dependencies */
+#include <boot_deps.h>
+
+/* interfaces */
+#include <failure_notif.h>
+#include <cgraph.h>
 
 /* local meta-data to track the components */
 struct spd_local_md {
@@ -45,28 +35,6 @@ struct component_init_str {
 	char init_str[INIT_STR_SZ];
 }__attribute__((packed));
 struct component_init_str *init_args;
-
-int cinfo_map(spdid_t spdid, vaddr_t map_addr, spdid_t target)
-{
-	vaddr_t cinfo_addr;
-
-	cinfo_addr = (vaddr_t)cos_vect_lookup(&spd_info_addresses, target);
-	if (0 == cinfo_addr) return -1;
-	if (map_addr != 
-	    (mman_alias_page(cos_spd_id(), cinfo_addr, spdid, map_addr))) {
-		return -1;
-	}
-
-	return 0;
-}
-
-spdid_t cinfo_get_spdid(int iter)
-{
-	if (iter > MAX_NUM_SPDS) return 0;
-	if (hs[iter] == NULL) return 0;
-
-	return hs[iter]->id;
-}
 
 static int boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci)
 {
@@ -139,7 +107,7 @@ boot_symb_process(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val,
 //		ci->cos_heap_allocated = heap_val;
 		if (!ci->cos_heap_ptr) ci->cos_heap_ptr = heap_val;
 		ci->cos_this_spd_id = spdid;
-		ci->init_string[0] = '\0';
+		ci->init_string[0]  = '\0';
 		for (i = 0 ; init_args[i].spdid ; i++) {
 			char *start, *end;
 			int len;
@@ -151,17 +119,14 @@ boot_symb_process(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val,
 			start++;
 			end   = strchr(start, '\'');
 			if (!end) break;
-			len = (int)(end-start);
+			len   = (int)(end-start);
 			memcpy(&ci->init_string[0], start, len);
 			ci->init_string[len] = '\0';
 		}
 
 		/* save the address of this page for later retrieval
 		 * (e.g. to manipulate the stack pointer) */
-		if (!cos_vect_lookup(&spd_info_addresses, spdid)) {
-			boot_spd_set_symbs(h, spdid, ci);
-			cos_vect_add_id(&spd_info_addresses, (void*)round_to_page(ci), spdid);
-		}
+		comp_info_record(h, spdid, ci);
 	}
 }
 
@@ -171,7 +136,7 @@ static vaddr_t boot_spd_end(struct cobj_header *h)
 	int max_sect;
 
 	max_sect = h->nsect-1;
-	sect = cobj_sect_get(h, max_sect);
+	sect     = cobj_sect_get(h, max_sect);
 	
 	return sect->vaddr + round_up_to_page(sect->bytes);
 }
@@ -181,26 +146,26 @@ static int boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t com
 	unsigned int i;
 	vaddr_t dest_daddr;
 
-	local_md[spdid].spdid = spdid;
-	local_md[spdid].h = h;
+	local_md[spdid].spdid      = spdid;
+	local_md[spdid].h          = h;
 	local_md[spdid].page_start = cos_get_heap_ptr();
-	local_md[spdid].comp_info = comp_info;
+	local_md[spdid].comp_info  = comp_info;
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
 		char *dsrc;
 		int left;
 
-		sect = cobj_sect_get(h, i);
+		sect       = cobj_sect_get(h, i);
 		dest_daddr = sect->vaddr;
-		left = cobj_sect_size(h, i);
+		left       = cobj_sect_size(h, i);
 
 		while (left > 0) {
 			dsrc = cos_get_vas_page();
-			if ((vaddr_t)dsrc != mman_get_page(cos_spd_id(), (vaddr_t)dsrc, 0)) BUG();
-			if (dest_daddr != (mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr))) BUG();
+			if ((vaddr_t)dsrc != __mman_get_page(cos_spd_id(), (vaddr_t)dsrc, 0)) BUG();
+			if (dest_daddr != (__mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr))) BUG();
 
 			dest_daddr += PAGE_SIZE;
-			left -= PAGE_SIZE;
+			left       -= PAGE_SIZE;
 		}
 	}
 	local_md[spdid].page_end = (void*)dest_daddr;
@@ -220,15 +185,15 @@ static int boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t c
 		char *lsrc, *dsrc;
 		int left, page_left;
 
-		sect = cobj_sect_get(h, i);
+		sect       = cobj_sect_get(h, i);
 		dest_daddr = sect->vaddr;
-		lsrc = cobj_sect_contents(h, i);
-		left = cobj_sect_size(h, i);
+		lsrc       = cobj_sect_contents(h, i);
+		left       = cobj_sect_size(h, i);
 
 		while (left) {
 			/* data left on a page to copy over */
-			page_left = (left > PAGE_SIZE) ? PAGE_SIZE : left;
-			dsrc = start_page;
+			page_left   = (left > PAGE_SIZE) ? PAGE_SIZE : left;
+			dsrc        = start_page;
 			start_page += PAGE_SIZE;
 
 			if (sect->flags & COBJ_SECT_ZEROS) {
@@ -242,9 +207,9 @@ static int boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t c
 			 * modification are in this page */
 			boot_symb_process(h, spdid, boot_spd_end(h), dsrc, dest_daddr, comp_info);
 			
-			lsrc += PAGE_SIZE;
+			lsrc       += PAGE_SIZE;
 			dest_daddr += PAGE_SIZE;
-			left -= page_left;
+			left       -= page_left;
 		}
 	}
 	return 0;
@@ -264,30 +229,30 @@ static int boot_spd_reserve_caps(struct cobj_header *h, spdid_t spdid)
 	return 0;
 }
 
-/* Deactivate or activate all capabilities to an spd (i.e. call faults
- * on invocation, or use normal stubs) */
-static int boot_spd_caps_chg_activation(spdid_t spdid, int activate)
-{
-	int i;
+/* /\* Deactivate or activate all capabilities to an spd (i.e. call faults */
+/*  * on invocation, or use normal stubs) *\/ */
+/* static int boot_spd_caps_chg_activation(spdid_t spdid, int activate) */
+/* { */
+/* 	int i; */
 
-	/* Find all capabilities to spdid */
-	for (i = 0 ; hs[i] != NULL ; i++) {
-		unsigned int j;
+/* 	/\* Find all capabilities to spdid *\/ */
+/* 	for (i = 0 ; hs[i] != NULL ; i++) { */
+/* 		unsigned int j; */
 
-		if (hs[i]->id == spdid) continue;
-		for (j = 0 ; j < hs[i]->ncap ; j++) {
-			struct cobj_cap *cap;
+/* 		if (hs[i]->id == spdid) continue; */
+/* 		for (j = 0 ; j < hs[i]->ncap ; j++) { */
+/* 			struct cobj_cap *cap; */
 
-			cap = cobj_cap_get(hs[i], j);
-			if (cobj_cap_undef(cap)) break;
+/* 			cap = cobj_cap_get(hs[i], j); */
+/* 			if (cobj_cap_undef(cap)) break; */
 
-			if (cap->dest_id != spdid) continue;
+/* 			if (cap->dest_id != spdid) continue; */
 
-			cos_cap_cntl(COS_CAP_SET_SSTUB, hs[i]->id, cap->cap_off, activate ? cap->sstub : 1);
-		}
-	}
-	return 0;
-}
+/* 			cos_cap_cntl(COS_CAP_SET_SSTUB, hs[i]->id, cap->cap_off, activate ? cap->sstub : 1); */
+/* 		} */
+/* 	} */
+/* 	return 0; */
+/* } */
 
 static void
 boot_edge_create(spdid_t src, spdid_t dest)
@@ -331,54 +296,17 @@ static int boot_spd_caps(struct cobj_header *h, spdid_t spdid)
 	return 0;
 }
 
-int
-arguments_size(spdid_t spdid)
-{
-	int i;
-
-	for (i = 0 ; init_args[i].spdid ; i++) {
-		if (init_args[i].spdid == spdid) {
-			char *start, *end;
-			start = strchr(init_args[i].init_str, '\'');
-			start++;
-			end   = strchr(start, '\'');
-			return end-start;
-		}
-	}
-	return -1;
-}
-
-char 
-arguments_char(spdid_t spdid, int offset)
-{
-	int i;
-
-	if (offset >= INIT_STR_SZ || offset < 0) return 0;
-	for (i = 0 ; init_args[i].spdid ; i++) {
-		if (init_args[i].spdid == spdid) {
-			char *start, *end;
-			start = strchr(init_args[i].init_str, '\'');
-			start++;
-			end   = strchr(start, '\'');
-			if (offset >= (int)(end-start)) return 0;
-			return start[offset];
-		}
-	}
-	return 0;
-}
-
 /* The order of creating boot threads */
 unsigned int *boot_sched;
 
 static int 
 boot_spd_thd(spdid_t spdid)
 {
-	int new_thd;
 	union sched_param sp = {.c = {.type = SCHEDP_RPRIO, .value = 1}};
 
 	/* Create a thread IF the component requested one */
-	if ((new_thd = sched_create_thread_default(spdid, sp.v, 0, 0)) < 0) return -1;
-	return new_thd;
+	if ((sched_create_thread_default(spdid, sp.v, 0, 0)) < 0) return -1;
+	return 0;
 }
 
 static void 
@@ -399,7 +327,7 @@ boot_find_cobjs(struct cobj_header *h, int n)
 		printc("cobj %s:%d found at %p:%x, size %x -> %x\n", 
 		       h->name, h->id, hs[i-1], size, tot, cobj_sect_get(hs[i-1], 0)->vaddr);
 
-		end = start + round_up_to_cacheline(size);
+		end   = start + round_up_to_cacheline(size);
 		hs[i] = h = (struct cobj_header*)end;
 		start = end;
 	}
@@ -469,13 +397,14 @@ void failure_notif_fail(spdid_t caller, spdid_t failed)
 
 	LOCK();
 
-	boot_spd_caps_chg_activation(failed, 0);
+//	boot_spd_caps_chg_activation(failed, 0);
 	md = &local_md[failed];
 	assert(md);
 	if (boot_spd_map_populate(md->h, failed, md->comp_info)) BUG();
-	if (md->h->flags & COBJ_INIT_THD) boot_spd_thd(failed); 	/* can fail if component had no boot threads! */
+	/* can fail if component had no boot threads: */
+	if (md->h->flags & COBJ_INIT_THD) boot_spd_thd(failed); 	
 	if (boot_spd_caps(md->h, failed)) BUG();
-	boot_spd_caps_chg_activation(failed, 1);
+//	boot_spd_caps_chg_activation(failed, 1);
 
 	UNLOCK();
 }
@@ -517,7 +446,7 @@ void cos_init(void *arg)
 	int num_cobj, i;
 
 	LOCK();
-	cos_vect_init_static(&spd_info_addresses);
+	boot_deps_init();
 	h         = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj  = (int)cos_comp_info.cos_poly[1];
 

@@ -38,7 +38,7 @@
 
 #include <cos_list.h>
 #include "../../sched/cos_sched_sync.h"
-#define LOCK() if (cos_sched_lock_take()) assert(0);
+#define LOCK()   if (cos_sched_lock_take())    assert(0);
 #define UNLOCK() if (cos_sched_lock_release()) assert(0);
 
 #include <mem_mgr.h>
@@ -477,8 +477,9 @@ void mman_release_all(void)
 #include <errno.h>
 #include <sched.h>
 
-int sched_root_init(void) { mm_init(); return 0; }
-void sched_exit(void)     { mman_release_all(); }
+int  sched_init(void)   { mm_init(); return 0; }
+void sched_exit(void)   { mman_release_all(); }
+int  sched_isroot(void) { return 1; }
 
 int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff)
 {

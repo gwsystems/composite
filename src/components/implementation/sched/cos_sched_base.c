@@ -63,6 +63,9 @@ static enum {SCHED_CHILD, SCHED_ROOT} sched_type = SCHED_ROOT;
 static inline int sched_is_root(void) { return sched_type == SCHED_ROOT; }
 static inline int sched_is_child(void) { return !sched_is_root(); } 
 
+/* What is the spdid of the booter component? */
+#define BOOT_SPD 3
+
 //#define FPRR_REPORT_EVTS
 
 typedef enum {
@@ -1597,7 +1600,7 @@ static void sched_init_create_threads(int boot_threads)
 	if (!boot_threads) return;
 
 	sp[0].c.type = SCHEDP_INIT;
-	t = sched_setup_thread_arg(&sp, fp_create_spd_thd, (void*)(int)3, 1);	
+	t = sched_setup_thread_arg(&sp, fp_create_spd_thd, (void*)(int)BOOT_SPD, 1);	
 	assert(t);
 	printc("Initialization thread has id %d.\n", t->id);
 	/* t = sched_setup_thread_arg(&sp, fp_create_spd_thd, (void*)(int)6, 1);	 */
@@ -1606,7 +1609,7 @@ static void sched_init_create_threads(int boot_threads)
 }
 
 /* Initialize data-structures */
-static void sched_init(void)
+static void __sched_init(void)
 {
 	static int first = 1;
 
@@ -1631,7 +1634,7 @@ static void sched_child_init(void)
 	sched_type = SCHED_CHILD;
 	if (parent_sched_child_cntl_thd(cos_spd_id())) BUG();
 	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)&cos_sched_notifications)) BUG();
-	sched_init();
+	__sched_init();
 
 	/* Don't involve the scheduler policy... */
 	timer = __sched_setup_thread_no_policy(cos_get_thd_id());
@@ -1644,36 +1647,6 @@ static void sched_child_init(void)
 	sched_child_evt_thd();	/* doesn't return */
 
 	return;
-}
-
-//#define UBENCH_ACTIVE 1
-#define UBENCH_ITER 10000
-
-static void
-sched_ctxt_switch_fn(void *d)
-{
-	u16_t pid = (u16_t)(u32_t)d;
-	while (1) {
-		cos_switch_thread(pid, 0);
-	}
-}
-
-static void
-sched_ctxt_switch_ubench(void)
-{
-	u16_t pid, cid;
-	int i;
-	u64_t start, end;
-
-	pid = cos_get_thd_id();
-	cid = cos_create_thread((int)sched_ctxt_switch_fn, (int)pid, 0);
-
-	rdtscll(start);
-	for (i = 0 ; i < UBENCH_ITER ; i++) {
-		cos_switch_thread(cid, 0);
-	}
-	rdtscll(end);
-	printc("kernel context switch ubenchmark results: %lld\n", (end-start)/(u64_t)(2*UBENCH_ITER));
 }
 
 static void 
@@ -1691,35 +1664,44 @@ print_config_info(void)
 	       (unsigned long long)CYC_PER_USEC);
 }
 
-extern int parent_sched_root_init(void);
+extern int parent_sched_init(void);
 /* Initialize the root scheduler */
 int sched_root_init(void)
 {
 	struct sched_thd *new;
 
-	parent_sched_root_init();
+	parent_sched_init();
 	print_config_info();
 
 	cos_argreg_init();
-	sched_init();
+	__sched_init();
 
 	/* switch back to this thread to terminate the system. */
 	init = sched_alloc_thd(cos_get_thd_id());
 	assert(init);
 
-#ifdef UBENCH_ACTIVE
-	sched_ctxt_switch_ubench();
-#else	
 	sched_init_create_threads(1);
 	/* Create the clock tick (timer) thread */
 	fp_create_timer();
 
 	new = schedule(NULL);
 	cos_switch_thread(new->id, 0);
-#endif
 	parent_sched_exit();
 
 	/* Returning will exit the composite system. */
+	return 0;
+}
+
+int 
+sched_isroot(void) { return 0; }
+
+extern int parent_sched_isroot(void);
+int
+sched_init(void)
+{
+	/* Are we root? */
+	if (parent_sched_isroot()) sched_root_init();
+	else                       sched_child_init();
 	return 0;
 }
 
@@ -1733,7 +1715,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	}
 	case COS_UPCALL_BOOTSTRAP:
 	{
-		sched_child_init();
+		sched_init();
 		break;
 	}
 	case COS_UPCALL_CREATE:

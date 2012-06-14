@@ -2254,11 +2254,9 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 	ci->cos_poly[0] = (vaddr_t)*heap_ptr;
 
 	for (all = first ; NULL != all ; all = all->next) {
-//	for (i = 0 ; i < cnt ; i++) {
 		vaddr_t map_addr;
 		int map_sz;
 
-//		all = schedule[i];
 		if (!all->is_composite_loaded) continue;
 		n++;
 

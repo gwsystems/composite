@@ -34,6 +34,15 @@ Kernel
   seems that the fault is passed to Linux, not Composite.  This is a
   problem.
 
+- **Clean up the upcall/interrupt handling code** -- Remove the
+  concept of brands, and instead only have upcalls.  Simplify all of
+  the upcall code where possible, and prepare it for IPI handling.
+
+- **Generally clean up the code** -- There's quite a bit of cruft in
+  the kernel.
+
+- **** -- 
+
 Components
 ----------
 
@@ -65,7 +74,7 @@ Components
 Build System
 ------------
 
-- **Increased compile-time checking.** Currently, we validate at
+- **Increased compile-time checking.** -- Currently, we validate at
   compile time that all of the functions that are undefined in a
   component, are satisfied by a dependency.  Both of these changes
   would involve only adding to the logic of
@@ -75,6 +84,19 @@ Build System
      an undefined function satisfied by that dependency, and
   2. that two dependencies don't satisfy the same undefined function.
 
-- **Beautified build system.** The build system should be cleaned up
+- **Beautified build system.** -- The build system should be cleaned up
   so that the output doesn't include all of the `rm blah.o`, `*** No
   rule to make target clean.  Stop.`, `make -C foo`, etc...
+
+CFuse
+-----
+
+- **Runscript backend** -- Output a runscript as output to CFuse.
+
+- **More compile-time checking** -- How can resources annotate a
+  graph?  How can applicative passes be added to the compiler to
+  interpret different resource specification or other annotations in
+  an intelligent manner?
+
+- **DSL for CFuse** -- To avoid the annoyingly high costs of compiling
+  the EDSL every time you want to generate a runscript.

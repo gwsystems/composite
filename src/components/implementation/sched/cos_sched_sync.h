@@ -50,9 +50,7 @@ static inline int cos_sched_lock_release(void)
 	union cos_synchronization_atom p;
 	u16_t queued_thd;
 
-	/* TODO: sanity check that verify that we do own the lock */
 	assert(l->c.owner_thd == cos_get_thd_id());
-
 	do {
 		p.v           = l->v;
 		queued_thd    = p.c.queued_thd;
