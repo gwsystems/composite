@@ -58,16 +58,16 @@ enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_H
 #define NUM_ATOMIC_SYMBS 10 
 #define NUM_KERN_SYMBS 1
 
-const char *COMP_INFO   = "cos_comp_info";
-
-const char *INIT_COMP   = "c0.o";
-char *ROOT_SCHED        = NULL; // this is set to the first listed scheduler (*)
-const char *INITMM      = "mm.o"; // this is set to the first listed memory manager (#)
-const char *MPD_MGR     = "cg.o"; // the component graph!
-const char *CONFIG_COMP = "schedconf.o";
-const char *BOOT_COMP   = "boot.o";
-const char *BOOT_COMP2  = "bootr.o";
-const char *INIT_FILE   = "initfs.o", *INIT_FILE_NAME = "init.tar";
+const char *COMP_INFO      = "cos_comp_info";
+const char *INIT_COMP      = "c0.o";
+char *ROOT_SCHED           = NULL; // this is set to the first listed scheduler (*)
+const char *INITMM         = "mm.o"; // this is set to the first listed memory manager (#)
+const char *MPD_MGR        = "cg.o"; // the component graph!
+const char *CONFIG_COMP    = "schedconf.o";
+const char *BOOT_COMP      = "boot.o";
+const char *LLBOOT_COMP    = "llboot.o";
+const char *INIT_FILE      = "initfs.o";
+const char *INIT_FILE_NAME = "init.tar";
 
 const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] = 
 { "cos_atomic_cmpxchg",
@@ -2451,9 +2451,7 @@ static void setup_kernel(struct service_symbs *services)
 
 	if ((s = find_obj_by_name(services, BOOT_COMP))) {
 		make_spd_boot(s, services);
-	} else if ((s = find_obj_by_name(services, BOOT_COMP2))) {
-		make_spd_boot(s, services);
-	}
+	} 
 	fflush(stdout);
 
 	if ((s = find_obj_by_name(services, MPD_MGR))) {

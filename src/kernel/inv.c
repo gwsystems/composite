@@ -119,9 +119,9 @@ struct inv_ret_struct {
  * isolation level isolation access from caller, 2) all return 0
  * should kill thread.
  */
-COS_SYSCALL vaddr_t ipc_walk_static_cap(struct thread *thd, unsigned int capability, 
-					vaddr_t sp, vaddr_t ip, /*vaddr_t usr_def, */
-					struct inv_ret_struct *ret)
+COS_SYSCALL vaddr_t 
+ipc_walk_static_cap(struct thread *thd, unsigned int capability, vaddr_t sp, 
+		    vaddr_t ip, struct inv_ret_struct *ret)
 {
 	struct thd_invocation_frame *curr_frame;
 	struct spd *curr_spd, *dest_spd;
@@ -208,7 +208,8 @@ static struct pt_regs *thd_ret_upcall_type(struct thread *t, upcall_type_t type)
  * This is complicated by the fact that we may return when no
  * invocation is made because a thread is terminating.
  */
-COS_SYSCALL struct thd_invocation_frame *pop(struct thread *curr, struct pt_regs **regs_restore)
+COS_SYSCALL struct thd_invocation_frame *
+pop(struct thread *curr, struct pt_regs **regs_restore)
 {
 	struct thd_invocation_frame *inv_frame;
 	struct thd_invocation_frame *curr_frame;
@@ -307,7 +308,8 @@ int fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct p
 
 /********** Composite system calls **********/
 
-COS_SYSCALL int cos_syscall_void(int spdid)
+COS_SYSCALL int 
+cos_syscall_void(int spdid)
 {
 	printk("cos: error - %d made void system call from %d\n", thd_get_id(thd_get_current()), spdid);
 
@@ -439,7 +441,8 @@ void copy_sched_info(struct thread *new, struct thread *old)
  * to the fn and stack to be used anyway, which can be assigned at
  * user-level.
  */
-COS_SYSCALL int cos_syscall_create_thread(int spd_id, int a, int b, int c)
+COS_SYSCALL int 
+cos_syscall_create_thread(int spd_id, int a, int b, int c)
 {
 	struct thread *thd, *curr;
 	struct spd *curr_spd;
@@ -493,7 +496,8 @@ COS_SYSCALL int cos_syscall_create_thread(int spd_id, int a, int b, int c)
 	return thd_get_id(thd);
 }
 
-COS_SYSCALL int cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long arg2)
+COS_SYSCALL int 
+cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long arg2)
 {
 	struct thread *thd, *curr;
 	struct spd *curr_spd;
@@ -1324,7 +1328,8 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 
 
 extern void cos_syscall_brand_wait(int spd_id, unsigned short int bid, int *preempt);
-COS_SYSCALL struct pt_regs *cos_syscall_brand_wait_cont(int spd_id, unsigned short int bid, int *preempt)
+COS_SYSCALL struct pt_regs *
+cos_syscall_brand_wait_cont(int spd_id, unsigned short int bid, int *preempt)
 {
 	struct thread *curr, *brand;
 	struct spd *curr_spd;
@@ -1358,7 +1363,8 @@ brand_wait_err:
 
 
 extern void cos_syscall_brand_upcall(int spd_id, int thread_id_flags);
-COS_SYSCALL struct pt_regs *cos_syscall_brand_upcall_cont(int spd_id, int thread_id_flags, int arg1, int arg2)
+COS_SYSCALL struct pt_regs *
+cos_syscall_brand_upcall_cont(int spd_id, int thread_id_flags, int arg1, int arg2)
 {
 	struct thread *curr_thd, *brand_thd, *next_thd;
 	struct spd *curr_spd;
@@ -1473,7 +1479,8 @@ static inline struct thread* verify_brand_thd(unsigned short int thd_id)
 	return brand_thd;
 }
 
-COS_SYSCALL int cos_syscall_brand_cntl(int spd_id, int op, u32_t bid_tid, spdid_t dest)
+COS_SYSCALL int 
+cos_syscall_brand_cntl(int spd_id, int op, u32_t bid_tid, spdid_t dest)
 {
 	u16_t bid, tid, retid;
 	struct thread *new_thd, *curr_thd;
@@ -1777,7 +1784,8 @@ extern vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr);
 extern int user_struct_fits_on_page(unsigned long addr, unsigned int size);
 /* assembly in ipc.S */
 extern int cos_syscall_buff_mgmt(void);
-COS_SYSCALL int cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int thd_id, unsigned int len_op)
+COS_SYSCALL int 
+cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int thd_id, unsigned int len_op)
 {
 	/* 
 	 * FIXME: To do this right, we would need to either 1) pin the
@@ -1927,7 +1935,8 @@ COS_SYSCALL int cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int 
  * replaced by something a little more subtle and more closely related
  * to the APIC and timer hardware, rather than the device in general.
  */
-COS_SYSCALL int cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
+COS_SYSCALL int 
+cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
 {
 	struct thread *curr_thd, *brand_thd;
 	struct spd *curr_spd;
@@ -2007,7 +2016,8 @@ static int verify_trust(struct spd *truster, struct spd *trustee)
  * active entities (threads).
  */
 extern void cos_syscall_upcall(void);
-COS_SYSCALL int cos_syscall_upcall_cont(int this_spd_id, int spd_id, struct pt_regs **regs)
+COS_SYSCALL int 
+cos_syscall_upcall_cont(int this_spd_id, int spd_id, struct pt_regs **regs)
 {
 	struct spd *dest, *curr_spd;
 	struct thread *thd;
@@ -2444,7 +2454,8 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 
 /************** end functions for parsing async set urgencies ************/
 
-COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
+COS_SYSCALL int 
+cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 {
 	struct thread *thd;
 	struct spd *spd;
@@ -2885,7 +2896,8 @@ static struct composite_spd *mpd_merge(struct composite_spd *c1,
  * and the meaning here is "the composite protection domain that this
  * spd is part of".
  */
-COS_SYSCALL int cos_syscall_mpd_cntl(int spd_id, int operation, 
+COS_SYSCALL int 
+cos_syscall_mpd_cntl(int spd_id, int operation, 
 				     spdid_t spd1, spdid_t spd2)
 {
 	int ret = 0; 
@@ -3069,20 +3081,21 @@ extern unsigned long __pgtbl_lookup_address(paddr_t pgtbl, unsigned long addr);
 extern void __pgtbl_or_pgd(paddr_t pgtbl, unsigned long addr, unsigned long val);
 extern void pgtbl_print_path(paddr_t pgtbl, unsigned long addr);
 
-COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, long mem_id)
+COS_SYSCALL int 
+cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, unsigned long mem_id)
 {
 	short int op, flags, dspd_id;
 	paddr_t page;
 	int ret = 0;
-	struct spd *spd;
+	struct spd *spd, *this_spd;
 	
 	/* decode arguments */
-	op = op_flags_dspd>>24;
-	flags = op_flags_dspd>>16 & 0x000000FF;
-	dspd_id = op_flags_dspd & 0x0000FFFF;
-
-	spd = spd_get_by_index(dspd_id);
-	if (NULL == spd || virtual_namespace_query(daddr) != spd) {
+	op       = op_flags_dspd>>24;
+	flags    = op_flags_dspd>>16 & 0x000000FF;
+	dspd_id  = op_flags_dspd & 0x0000FFFF;
+	this_spd = spd_get_by_index(spdid);
+	spd      = spd_get_by_index(dspd_id);
+	if (!this_spd || !spd || virtual_namespace_query(daddr) != spd) {
 		printk("cos: invalid mmap cntl call for spd %d for spd %d @ vaddr %x\n",
 		       spdid, dspd_id, (unsigned int)daddr);
 		return -1;
@@ -3090,11 +3103,16 @@ COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t dad
 
 	switch(op) {
 	case COS_MMAP_GRANT:
+		mem_id += this_spd->pfn_base;
+		if (mem_id < this_spd->pfn_base || /* <- check for overflow? */
+		    mem_id >= (this_spd->pfn_base + this_spd->pfn_extent)) {
+			printk("Accessing physical frame outside of allowed range.\n");
+			return -EINVAL;
+		}
 		page = cos_access_page(mem_id);
 		if (0 == page) {
 			printk("cos: mmap grant -- could not get a physical page.\n");
-			ret = -1;
-			break;
+			return -EINVAL;
 		}
 		/*
 		 * Demand paging could mess this up as the entry might
@@ -3134,8 +3152,32 @@ COS_SYSCALL int cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t dad
 	return ret;
 }
 
-extern void copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from, 
-			     unsigned long lower_addr, unsigned long size);
+COS_SYSCALL int 
+cos_syscall_pfn_cntl(int spdid, long op_dspd, unsigned int mem_id, int extent)
+{
+	struct spd *spd, *dspd;
+	spdid_t dspdid;
+	int op;
+
+	op     = op_dspd >> 16;
+	dspdid = 0xFFFF & op_dspd;
+	spd    = spd_get_by_index(spdid);
+	dspd   = spd_get_by_index(dspdid);
+
+	if (!spd || !dspd) return -1;
+	/* Do we own the physical page number range? */
+	if (mem_id < spd->pfn_base || extent > spd->pfn_extent) return -EINVAL;
+
+	/* Given "grant" access to the destination component for the pfn range */
+	dspd->pfn_base   = mem_id;
+	dspd->pfn_extent = extent;
+
+	return 0;
+}
+
+extern void
+copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from, 
+		 unsigned long lower_addr, unsigned long size);
 /* 
  * The problem solved here is this: Each component has a page-table
  * that defines its memory mappings.  This is updated by the
@@ -3147,7 +3189,8 @@ extern void copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from,
  * page-tables if the mapping is not present in the composite, but is
  * in the master.
  */
-int fault_update_mpd_pgtbl(struct thread *thd, struct pt_regs *regs, vaddr_t fault_addr)
+int 
+fault_update_mpd_pgtbl(struct thread *thd, struct pt_regs *regs, vaddr_t fault_addr)
 {
 	struct spd *origin;
 	struct spd_poly *active;
@@ -3164,7 +3207,8 @@ int fault_update_mpd_pgtbl(struct thread *thd, struct pt_regs *regs, vaddr_t fau
 	return 1;
 }
 
-COS_SYSCALL int cos_syscall_print(int spdid, char *str, int len)
+COS_SYSCALL int 
+cos_syscall_print(int spdid, char *str, int len)
 {
 	static char last = '\n';
 	/*
@@ -3186,7 +3230,8 @@ COS_SYSCALL int cos_syscall_print(int spdid, char *str, int len)
 	return 0;
 }
 
-COS_SYSCALL long cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
+COS_SYSCALL long 
+cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
 {
 	vaddr_t va;
 	u16_t capid;
@@ -3247,7 +3292,8 @@ COS_SYSCALL long cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long ar
 	return ret;
 }
 
-COS_SYSCALL int cos_syscall_stats(int spdid)
+COS_SYSCALL int 
+cos_syscall_stats(int spdid)
 {
 	cos_meas_report();
 	cos_meas_init();
@@ -3257,7 +3303,8 @@ COS_SYSCALL int cos_syscall_stats(int spdid)
 
 extern int cos_syscall_idle(void);
 extern void host_idle(void);
-COS_SYSCALL int cos_syscall_idle_cont(int spdid)
+COS_SYSCALL int 
+cos_syscall_idle_cont(int spdid)
 {
 	struct thread *c = thd_get_current();
 	
@@ -3267,7 +3314,8 @@ COS_SYSCALL int cos_syscall_idle_cont(int spdid)
 	return COS_SCHED_RET_SUCCESS;
 }
 
-COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
+COS_SYSCALL int 
+cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 {
 	struct spd *spd;
 	short int op;
@@ -3412,7 +3460,8 @@ COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 	return ret;
 }
 
-COS_SYSCALL int cos_syscall_vas_cntl(int id, int op_spdid, long addr, long sz)
+COS_SYSCALL int 
+cos_syscall_vas_cntl(int id, int op_spdid, long addr, long sz)
 {
 	int ret = 0;
 	short int op;
@@ -3470,7 +3519,7 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_spd_cntl,
 	(void*)cos_syscall_vas_cntl,
 	(void*)cos_syscall_trans_cntl,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_pfn_cntl,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,

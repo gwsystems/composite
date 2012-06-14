@@ -41,7 +41,14 @@ Kernel
 - **Generally clean up the code** -- There's quite a bit of cruft in
   the kernel.
 
-- **** -- 
+- **Remove the atomic restartable sections support** -- This was
+  useful on Pentium 4s where the cost of atomic operations was very
+  high.  Now the cmpxchg instruct is quite cheap, in both the locked
+  and unlocked variants.  The code should 1) be migrated to use the
+  libary functions for cas (cos_cas and cos_cap_up), and 2)
+  restartable atomic sections should be removed from the kernel, the
+  loader, the libraries (e.g. see components/lib/cos_component.c|S)
+  and the entire API.  Simplify, simplify, simplify!
 
 Components
 ----------
@@ -100,3 +107,33 @@ CFuse
 
 - **DSL for CFuse** -- To avoid the annoyingly high costs of compiling
   the EDSL every time you want to generate a runscript.
+
+Renaming
+--------
+
+Many of the current names/types are very bad.  This should be changed,
+and many of the names should be unified.  Some examples:
+
+- spdid -> cid
+
+- mem_id -> pfn (physical frame number)
+
+- unsigned short -> tid_t (thread ids)
+
+- cos_get_thd_id() -> cos_thdid()
+
+- cos_spd_id() -> cos_cid()
+
+- int, unsigned int, unsigned long, long -> vaddr_t -- when we are
+  modifying or taking virtual addresses as an argument, this should be
+  uniform and is far from uniform right now.
+
+- same -> paddr_t when a physical address is assumed.
+
+- struct composite_spd -> component_pd (protection domain)
+
+- struct spd -> struct component
+
+- ipc_walk_static_cap -> component_call, pop -> component_return
+
+- ...many more...

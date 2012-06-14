@@ -130,7 +130,7 @@ cos_syscall_3(7,  int, __brand_cntl, int, ops, u32_t, bid_tid, spdid_t, spdid);
 cos_syscall_1(8,  int, upcall, int, spd_id);
 cos_syscall_3(9,  int, sched_cntl, int, operation, int, thd_id, long, option);
 cos_syscall_3(10, int, mpd_cntl, int, operation, spdid_t, composite_spd, spdid_t, composite_dest);
-cos_syscall_3(11, int, __mmap_cntl, long, op_flags_dspd, long, daddr, long, mem_id);
+cos_syscall_3(11, int, __mmap_cntl, long, op_flags_dspd, vaddr_t, daddr, unsigned long, mem_id);
 cos_syscall_3(12, int, brand_wire, long, thd_id, long, option, long, data);
 cos_syscall_3(13, long, __cap_cntl, int, option, u32_t, arg1, long, arg2);
 cos_syscall_3(14, int, __buff_mgmt, void *, addr, int, thd_id, int, len_option);
@@ -139,13 +139,24 @@ cos_syscall_0(16, int, idle);
 cos_syscall_3(17, int, __spd_cntl, int, op_spdid, long, arg1, long, arg2);
 cos_syscall_3(18, int, __vas_cntl, int, op_spdid, long, arg1, long, arg2);
 cos_syscall_3(19, int, __trans_cntl, unsigned long, op_ch, unsigned long, addr, int, off);
+cos_syscall_3(20, int, __pfn_cntl, unsigned long, op_spd, unsigned long, mem_id, int, extent);
 cos_syscall_0(31,  int, null);
 
-static inline int cos_mmap_cntl(short int op, short int flags, 
-				short int dest_spd, vaddr_t dest_addr, long mem_id) {
+static inline int cos_mmap_cntl(short int op, short int flags, short int dest_spd, 
+				vaddr_t dest_addr, unsigned long mem_id) {
 	/* encode into 3 arguments */
 	return cos___mmap_cntl(((op<<24) | (flags << 16) | (dest_spd)), 
 			       dest_addr, mem_id);
+}
+
+/* 
+ * Physical frame number manipulations.  Which component, and what
+ * extent of physical frames are we manipulating. 
+ */
+static inline int 
+cos_pfn_cntl(short int op, int dest_spd, unsigned int mem_id, int extent) {
+	/* encode into 3 arguments */
+	return cos___pfn_cntl(((op<<16) | (dest_spd)), mem_id, extent);
 }
 
 static inline int cos_brand_upcall(short int thd_id, short int flags, long arg1, long arg2)
