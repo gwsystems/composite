@@ -1,7 +1,10 @@
 #include <print.h>
+#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); *((int *)0) = 0;} } while(0)
+
 #include <mem_mgr.h>
 #include <sched.h>
 #include <cos_alloc.h>
+#include <cobj_format.h>
 
 /* 
  * Abstraction layer around 1) synchronization, 2) scheduling and
@@ -63,3 +66,6 @@ boot_deps_init(void)
 {
 	cos_vect_init_static(&spd_info_addresses);
 }
+
+static void
+boot_deps_run(void) { return; }

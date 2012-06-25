@@ -17,11 +17,7 @@ void cos_init(void *arg)
 {
 //	BUG();
 //	spin_var = *(int*)NULL;
-	while (1) if (spin_var) other = 1;
+	printc("<<**Running!**>>\n");
+//	while (1) if (spin_var) other = 1;
 	return;
-}
-
-void bin (void)
-{
-	sched_block(cos_spd_id(), 0);
 }

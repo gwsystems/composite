@@ -121,7 +121,7 @@ int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *o
 	 * fault, we bomb out here.  Look into the stack-trace, as
 	 * that is where the problem is. */
 	printc("Bombing out after fault.\n");
-	sched_exit();
+	assert(0);
 
 	return 0;
 }

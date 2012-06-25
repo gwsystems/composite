@@ -849,12 +849,12 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	*preempt = 0;
 	curr = thd_get_current();
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
-	if (unlikely(NULL == curr_spd)) goto ret_err;
+	if (unlikely(!curr_spd)) goto ret_err;
 
 	assert(!(curr->flags & THD_STATE_PREEMPTED));
 
 	da = curr_spd->sched_shared_page;
-	if (unlikely(NULL == da)) goto ret_err;
+	if (unlikely(!da)) goto ret_err;
 
 	/* 
 	 * So far all flags should be taken in the context of the
@@ -878,6 +878,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		if (unlikely(0 == next_thd)) goto_err(ret_err, "data_area\n");
 
 		thd = switch_thread_get_target(next_thd, curr, curr_spd, &ret_code);
+		
 		if (unlikely(NULL == thd)) goto_err(ret_err, "get target");
 	}
 
@@ -2219,7 +2220,8 @@ static void update_sched_evts(struct thread *new, int new_flags,
 
 /************** functions for parsing async set urgencies ************/
 
-static inline int most_common_sched_depth(struct thread *t1, struct thread *t2)
+static inline int 
+most_common_sched_depth(struct thread *t1, struct thread *t2)
 {
 	int i;
 
@@ -2261,7 +2263,8 @@ static inline int most_common_sched_depth(struct thread *t1, struct thread *t2)
  *    - check forall s in (<a_uc + a + >a) that upcall is not disabled.
  *    - return 1 to signal that upcall should be executed.
  */
-int brand_higher_urgency(struct thread *upcall, struct thread *prev)
+int 
+brand_higher_urgency(struct thread *upcall, struct thread *prev)
 {
 	int d;
 	u16_t u_urg, p_urg;
@@ -2314,7 +2317,8 @@ extern int host_can_switch_pgtbls(void);
  * executed.  Otherwise, it won't be, even if the schedulers deem it
  * to be most important.
  */
-struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
+struct thread *
+brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 {
 	/* Assume here that we only have one upcall thread */
 	struct thread *upcall = brand->upcall_threads;
@@ -2660,7 +2664,8 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
  * composite can simply be reused by removing any further spds split
  * from it.
  */
-static int mpd_split_composite_populate(struct composite_spd *new1, struct composite_spd *new2, 
+static int 
+mpd_split_composite_populate(struct composite_spd *new1, struct composite_spd *new2, 
 					struct spd *spd, struct composite_spd *cspd)
 {
 	struct spd *curr;
@@ -2712,7 +2717,8 @@ static int mpd_split_composite_populate(struct composite_spd *new1, struct compo
  * free) the preexisting composite c.  This method will reset all
  * capabilities correctly.
  */
-static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new, short int *old)
+static int 
+mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new, short int *old)
 {
 	short int d1, d2;
 	struct composite_spd *new1, *new2;
@@ -2804,8 +2810,8 @@ static int mpd_split(struct composite_spd *cspd, struct spd *spd, short int *new
  * processing time.  This might not be the appropriate long-term
  * prioritization, but only empirical studies will show.
  */
-static inline struct composite_spd *get_spd_to_subordinate(struct composite_spd *c1, 
-							   struct composite_spd *c2)
+static inline struct composite_spd *
+get_spd_to_subordinate(struct composite_spd *c1, struct composite_spd *c2)
 {
 	int members1, members2;
 
@@ -2841,8 +2847,8 @@ static inline struct composite_spd *get_spd_to_subordinate(struct composite_spd 
  *
  * Assume that the composites passed in aren't the same.
  */
-static struct composite_spd *mpd_merge(struct composite_spd *c1, 
-				       struct composite_spd *c2)
+static struct composite_spd *
+mpd_merge(struct composite_spd *c1, struct composite_spd *c2)
 {
 	struct spd *curr;
 	struct composite_spd *dest, *other;
@@ -3157,6 +3163,7 @@ cos_syscall_pfn_cntl(int spdid, long op_dspd, unsigned int mem_id, int extent)
 {
 	struct spd *spd, *dspd;
 	spdid_t dspdid;
+	unsigned int end;
 	int op;
 
 	op     = op_dspd >> 16;
@@ -3165,12 +3172,19 @@ cos_syscall_pfn_cntl(int spdid, long op_dspd, unsigned int mem_id, int extent)
 	dspd   = spd_get_by_index(dspdid);
 
 	if (!spd || !dspd) return -1;
+	end = mem_id + extent;
 	/* Do we own the physical page number range? */
-	if (mem_id < spd->pfn_base || extent > spd->pfn_extent) return -EINVAL;
+	/* FIXME: permission check */
+//	if (end >= spd->pfn_base + mem_id) return -EINVAL;
 
-	/* Given "grant" access to the destination component for the pfn range */
-	dspd->pfn_base   = mem_id;
-	dspd->pfn_extent = extent;
+	switch(op) {
+	case COS_PFN_GRANT:
+		/* Given "grant" access to the destination component for the pfn range */
+		dspd->pfn_base   = mem_id;
+		dspd->pfn_extent = extent;
+		break;
+	default: return -1;
+	}
 
 	return 0;
 }
@@ -3411,7 +3425,11 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		if (!spd->user_vaddr_cap_tbl ||
 		    !spd->spd_info.pg_tbl || !spd->location[0].lowest_addr ||
 		    !spd->cap_base || !spd->cap_range) {
-			printk("cos: spd_cntl -- cap tbl, location, or capability range not set.\n");
+			printk("cos: spd_cntl -- cap tbl, location, or capability range not set (error %d).\n",
+			       !spd->user_vaddr_cap_tbl      ? 1 : 
+			       !spd->spd_info.pg_tbl         ? 2 :
+			       !spd->location[0].lowest_addr ? 3 :
+			       !spd->cap_base                ? 4 : 5);
 			ret = -1;
 			break;
 		}

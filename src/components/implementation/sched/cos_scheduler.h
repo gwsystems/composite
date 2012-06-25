@@ -18,6 +18,7 @@
 #include <cos_list.h>
 
 #include <sched.h>
+#include <sched_hier.h>
 
 /**************** Scheduler Util Fns *******************/
 

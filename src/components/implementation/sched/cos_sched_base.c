@@ -26,6 +26,7 @@
 #include <cos_sched_tk.h>
 
 #include <sched.h>
+#include <sched_hier.h>
 
 //#define TIMER_ACTIVATE
 #include <timer.h>
@@ -64,7 +65,7 @@ static inline int sched_is_root(void) { return sched_type == SCHED_ROOT; }
 static inline int sched_is_child(void) { return !sched_is_root(); } 
 
 /* What is the spdid of the booter component? */
-#define BOOT_SPD 3
+#define BOOT_SPD 4
 
 //#define FPRR_REPORT_EVTS
 
@@ -600,9 +601,7 @@ static void fp_create_spd_thd(void *d)
 {
 	int spdid = (int)d;
 
-	if (cos_upcall(spdid)) {
-		prints("fprr: error making upcall into spd.\n");
-	}
+	if (cos_upcall(spdid)) prints("fprr: error making upcall into spd.\n");
 	BUG();
 }
 
@@ -1053,6 +1052,8 @@ static int fp_kill_thd(struct sched_thd *t)
 	cos_sched_lock_take();
 	c = sched_get_current();
 
+	if (!t) printc("kill thread in %d\n", cos_get_thd_id());
+	assert(t);
 	assert(!sched_thd_grp(t));
 	t->flags = THD_DYING;
 
@@ -1585,7 +1586,8 @@ static struct sched_thd *fp_create_timer(void)
 
 /* Iterate through the configuration and create threads for
  * components as appropriate */
-static void sched_init_create_threads(int boot_threads)
+static void 
+sched_init_create_threads(int boot_threads)
 {
 	struct sched_thd *t;
 	union sched_param sp[4] = {{.c = {.type = SCHEDP_IDLE}}, 
@@ -1609,7 +1611,8 @@ static void sched_init_create_threads(int boot_threads)
 }
 
 /* Initialize data-structures */
-static void __sched_init(void)
+static void 
+__sched_init(void)
 {
 	static int first = 1;
 
@@ -1625,15 +1628,15 @@ static void __sched_init(void)
 	return;
 }
 
-extern int parent_sched_child_cntl_thd(spdid_t spdid);
+extern int 
+parent_sched_child_cntl_thd(spdid_t spdid);
 
 /* Initialize the child scheduler. */
-static void sched_child_init(void)
+static void 
+sched_child_init(void)
 {
 	/* Child scheduler */
 	sched_type = SCHED_CHILD;
-	if (parent_sched_child_cntl_thd(cos_spd_id())) BUG();
-	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)&cos_sched_notifications)) BUG();
 	__sched_init();
 
 	/* Don't involve the scheduler policy... */
@@ -1664,13 +1667,12 @@ print_config_info(void)
 	       (unsigned long long)CYC_PER_USEC);
 }
 
-extern int parent_sched_init(void);
 /* Initialize the root scheduler */
 int sched_root_init(void)
 {
 	struct sched_thd *new;
+	int ret;
 
-	parent_sched_init();
 	print_config_info();
 
 	cos_argreg_init();
@@ -1685,10 +1687,13 @@ int sched_root_init(void)
 	fp_create_timer();
 
 	new = schedule(NULL);
-	cos_switch_thread(new->id, 0);
-	parent_sched_exit();
+	if ((ret = cos_switch_thread(new->id, 0))) {
+		printc("switch thread failed with %d\n", ret);
+	}
 
-	/* Returning will exit the composite system. */
+	parent_sched_exit();
+	assert(0);
+
 	return 0;
 }
 
@@ -1699,6 +1704,9 @@ extern int parent_sched_isroot(void);
 int
 sched_init(void)
 {
+	/* Promote us to a scheduler! */
+	if (parent_sched_child_cntl_thd(cos_spd_id())) BUG();
+	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)&cos_sched_notifications)) BUG();
 	/* Are we root? */
 	if (parent_sched_isroot()) sched_root_init();
 	else                       sched_child_init();
@@ -1709,15 +1717,11 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	switch (t) {
 	case COS_UPCALL_BRAND_EXEC:
-	{
 		sched_timer_tick();
 		break;
-	}
 	case COS_UPCALL_BOOTSTRAP:
-	{
 		sched_init();
 		break;
-	}
 	case COS_UPCALL_CREATE:
 		cos_argreg_init();
 		((crt_thd_fn_t)arg1)(arg2);

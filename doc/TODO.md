@@ -31,7 +31,7 @@ Kernel
 
 - **Fix page fault handling** -- It appears that if a page fault
   happens due to a stack pointer access, or perhaps and ip access, it
-  seems that the fault is passed to Linux, not Composite.  This is a
+  seems that the fault is passed to Linux, not _Composite_.  This is a
   problem.
 
 - **Clean up the upcall/interrupt handling code** -- Remove the
@@ -94,6 +94,19 @@ Build System
 - **Beautified build system.** -- The build system should be cleaned up
   so that the output doesn't include all of the `rm blah.o`, `*** No
   rule to make target clean.  Stop.`, `make -C foo`, etc...
+
+- **Separate, loadable object files.** -- Currently, when a runscript
+  is given to the `cos_loader`, it will manually load all of the
+  components either into memory, or into the booter's memory space.
+  We'd rather have a lighter weight `cos_loader` that can process
+  normal elf `.o` files, and output cobjs (_Composite_ objects).
+  However, since we lose the global context of all components in a
+  runscript that have capabilities between specific functions (that we
+  know the addresses of), we will have to specify dependencies and
+  exported functions textually within the cobj so that we can later
+  link dependencies up with exported functions within _Composite_.
+  This will require a more intelligent in-_Composite_ loader.  This
+  would enable the dynamic loading of components in _Composite_!
 
 CFuse
 -----

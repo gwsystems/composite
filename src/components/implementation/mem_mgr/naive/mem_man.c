@@ -474,124 +474,45 @@ void mman_release_all(void)
 /*** The base-case scheduler ***/
 /*******************************/
 
-#include <errno.h>
-#include <sched.h>
+#include <sched_hier.h>
 
-int  sched_init(void)   { mm_init(); return 0; }
-void sched_exit(void)   { mman_release_all(); }
-int  sched_isroot(void) { return 1; }
-
-int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff)
+int  sched_init(void)   { return 0; }
+extern void parent_sched_exit(void);
+void 
+sched_exit(void)   
 {
-	BUG();
-	return 0;
+	mman_release_all(); 
+	parent_sched_exit();
 }
 
-int sched_child_cntl_thd(spdid_t spdid)
-{
-	BUG();
-	return 0;
-}
+int sched_isroot(void) { return 1; }
 
-int sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd)
-{
-	BUG();
-	return 0;
-}
+int 
+sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff) { BUG(); return 0; }
 
-int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
-{
-	BUG();
-	return -ENOTSUP;
-}
+extern int parent_sched_child_cntl_thd(spdid_t spdid);
 
-int sched_block(spdid_t spdid, unsigned short int dependency_thd)
-{
-	BUG();
-	return -ENOTSUP;
-}
-
-void sched_timeout(spdid_t spdid, unsigned long amnt) { BUG(); return; }
-
-int sched_priority(unsigned short int tid) { BUG(); return 0; }
-
-int sched_timeout_thd(spdid_t spdid)
-{
-	BUG();
-	return -ENOTSUP;
-}
-
-unsigned int sched_tick_freq(void)
-{
-	BUG();
-	return 0;
-}
-
-unsigned long sched_cyc_per_tick(void)
-{
-	BUG();
-	return 0;
-}
-
-unsigned long sched_timestamp(void)
-{
-	BUG();
-	return 0;
-}
-
-unsigned long sched_timer_stopclock(void)
-{
-	BUG();
-	return 0;
-}
-
-int sched_create_thread(spdid_t spdid, struct cos_array *data)
-{
-	BUG();
-	return -ENOTSUP;
-}
-
-int sched_create_thd(spdid_t spdid, u32_t sched_param0, u32_t sched_param1, u32_t sched_param2)
-{
-	BUG();
-	return -ENOTSUP;
-}
-
-int
-sched_create_thread_default(spdid_t spdid, u32_t sched_param_0, 
-			    u32_t sched_param_1, u32_t sched_param_2)
-{
-	BUG();
-	return -ENOTSUP;
-}
-
-int sched_thread_params(spdid_t spdid, u16_t thd_id, res_spec_t rs)
-{
-	BUG();
-	return -ENOTSUP;
-}
-
-int sched_create_net_brand(spdid_t spdid, unsigned short int port)
-{
-	BUG();
-	return -ENOTSUP;
-}
-
-int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short int tid)
-{
-	BUG();
-	return -ENOTSUP;
-}
-
-int sched_component_take(spdid_t spdid) 
+int 
+sched_child_cntl_thd(spdid_t spdid) 
 { 
-	BUG(); 
-	return -ENOTSUP;
+	if (parent_sched_child_cntl_thd(cos_spd_id())) BUG();
+	if (cos_sched_cntl(COS_SCHED_PROMOTE_CHLD, 0, spdid)) BUG();
+	if (cos_sched_cntl(COS_SCHED_GRANT_SCHED, cos_get_thd_id(), spdid)) BUG();
+
+	return 0;
 }
 
-int sched_component_release(spdid_t spdid)
+int 
+sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd) { BUG(); return 0; }
+
+void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
-	BUG();
-	return -ENOTSUP;
-}
+	switch (t) {
+	case COS_UPCALL_BOOTSTRAP:
+		mm_init(); break;
+	default:
+		BUG(); return;
+	}
 
+	return;
+}

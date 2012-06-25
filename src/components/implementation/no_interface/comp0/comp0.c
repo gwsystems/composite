@@ -1,6 +1,6 @@
 #include <cos_component.h>
 
-#include <sched.h>
+#include <sched_hier.h>
 
 int nothing = 0, ret = 0;
 

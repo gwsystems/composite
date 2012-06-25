@@ -6,7 +6,6 @@
  */
 
 #include <cos_component.h>
-#include <cobj_format.h>
 
 extern struct cos_component_information cos_comp_info;
 struct cobj_header *hs[MAX_NUM_SPDS+1];
@@ -14,8 +13,10 @@ struct cobj_header *hs[MAX_NUM_SPDS+1];
 /* dependencies */
 #include <boot_deps.h>
 
+#include <cobj_format.h>
+
 /* interfaces */
-#include <failure_notif.h>
+//#include <failure_notif.h>
 #include <cgraph.h>
 
 /* local meta-data to track the components */
@@ -336,7 +337,8 @@ boot_find_cobjs(struct cobj_header *h, int n)
 	       hs[n-1]->name, hs[n-1]->id, hs[n-1], cobj_sect_get(hs[n-1], 0)->vaddr);
 }
 
-static void boot_create_system(void)
+static void 
+boot_create_system(void)
 {
 	unsigned int i, min = ~0;
 
@@ -356,10 +358,10 @@ static void boot_create_system(void)
 		assert(spdid == h->id);
 		sect = cobj_sect_get(h, 0);
 		if (cos_spd_cntl(COS_SPD_LOCATION, spdid, sect->vaddr, SERVICE_SIZE)) BUG();
-		
-		if (boot_spd_symbs(h, spdid, &comp_info)) BUG();
-		if (boot_spd_map(h, spdid, comp_info)) BUG();
-		if (boot_spd_reserve_caps(h, spdid)) BUG();
+
+		if (boot_spd_symbs(h, spdid, &comp_info))        BUG();
+		if (boot_spd_map(h, spdid, comp_info))           BUG();
+		if (boot_spd_reserve_caps(h, spdid))             BUG();
 		if (cos_spd_cntl(COS_SPD_ACTIVATE, spdid, 0, 0)) BUG();
 	}
 	for (i = 0 ; hs[i] != NULL ; i++) {
@@ -369,6 +371,7 @@ static void boot_create_system(void)
 		if (boot_spd_caps(h, h->id)) BUG();
 	}
 	
+	if (!boot_sched) return;
 	for (i = 0 ; boot_sched[i] != 0 ; i++) {
 		struct cobj_header *h;
 		int j;
@@ -383,7 +386,8 @@ static void boot_create_system(void)
 	}
 }
 
-void failure_notif_wait(spdid_t caller, spdid_t failed)
+void 
+failure_notif_wait(spdid_t caller, spdid_t failed)
 {
 	/* wait for the other thread to finish rebooting the component */
 	LOCK();	
@@ -391,7 +395,8 @@ void failure_notif_wait(spdid_t caller, spdid_t failed)
 }
 
 /* Reboot the failed component! */
-void failure_notif_fail(spdid_t caller, spdid_t failed)
+void 
+failure_notif_fail(spdid_t caller, spdid_t failed)
 {
 	struct spd_local_md *md;
 
@@ -440,7 +445,7 @@ cgraph_add(int serv, int client)
 
 #define NREGIONS 4
 
-void cos_init(void *arg)
+void cos_init(void)
 {
 	struct cobj_header *h;
 	int num_cobj, i;
@@ -457,7 +462,6 @@ void cos_init(void *arg)
 	init_args++; 
 
 	boot_sched = (unsigned int *)cos_comp_info.cos_poly[4];
-	assert(boot_sched);
 
 	boot_find_cobjs(h, num_cobj);
 	/* This component really might need more vas, get the next 4M region */
@@ -476,6 +480,7 @@ void cos_init(void *arg)
 	/* Assumes that hs have been setup with boot_find_cobjs */
 	boot_create_system();
 	UNLOCK();
+	boot_deps_run();
 
 	return;
 }
