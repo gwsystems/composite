@@ -1,3 +1,5 @@
+/* For printing: */
+
 #include <stdio.h>
 #include <string.h>
 
@@ -23,6 +25,7 @@ printc(char *fmt, ...)
 
 	return ret;
 }
+/* On assert, immediately switch to the "exit" thread */
 #define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); cos_switch_thread(alpha, 0);} } while(0)
 
 
@@ -51,8 +54,8 @@ enum { /* hard-coded initialization schedule */
 };
 static spdid_t init_schedule[]   = {LLBOOT_MM, LLBOOT_SCHED, 0};
 static int     init_mem_access[] = {1, 0, 0};
-static int     sched_offset = 0;
-static int     frame_frontier = 0; /* which physical frames have we used? */
+static int     sched_offset      = 0, nmmgrs = 0;
+static int     frame_frontier    = 0; /* which physical frames have we used? */
 
 typedef void (*crt_thd_fn_t)(void);
 
@@ -95,10 +98,15 @@ llboot_thd_done(void)
 		spdid_t s = init_schedule[sched_offset];
 		if (s) {
 			if (init_mem_access[sched_offset]) {
-				int max_pfn;
+				int max_pfn, proportion;
 
-				max_pfn = cos_pfn_cntl(COS_PFN_GRANT, 0, 0, 0);
-				cos_pfn_cntl(COS_PFN_GRANT, s, frame_frontier, 0);
+				max_pfn = cos_pfn_cntl(COS_PFN_MAX_MEM, 0, 0, 0);
+				/* Give the memory manager a
+				 * proportional amount of memory
+				 * compared to the rest of the memory
+				 * managers. */
+				proportion = (max_pfn - frame_frontier)/nmmgrs;
+				cos_pfn_cntl(COS_PFN_GRANT, s, frame_frontier, proportion);
 			}
 			sched_offset++;
 			cos_upcall(s);
@@ -215,6 +223,8 @@ comp_info_record(struct cobj_header *h, spdid_t spdid, struct cos_component_info
 static void
 boot_deps_init(void)
 {
+	int i;
+
 	alpha        = cos_get_thd_id();
 	recovery_thd = cos_create_thread((int)llboot_ret_thd, (int)0, 0);
 	assert(recovery_thd >= 0);
@@ -223,6 +233,10 @@ boot_deps_init(void)
 	       "%d: alpha\n\t%d: recov\n\t%d: init\n",
 	       alpha, recovery_thd, init_thd);
 	assert(init_thd >= 0);
+
+	/* How many memory managers are there? */
+	for (i = 0 ; init_schedule[i] ; i++) nmmgrs += init_mem_access[i];
+	assert(nmmgrs > 0);
 }
 
 static void

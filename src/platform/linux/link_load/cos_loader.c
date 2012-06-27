@@ -73,8 +73,8 @@ typedef enum {
 	LLBOOT_COMPN = 1,
 	LLBOOT_SCHED = 2,
 	LLBOOT_MM    = 3,
-	LLBOOT_BOOT  = 4,
-	LLBOOT_PRINT = 5
+	LLBOOT_PRINT = 4,
+	LLBOOT_BOOT  = 5
 } llboot_component_ids;
 
 const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] = 
@@ -213,6 +213,11 @@ static int is_booter_loaded(struct service_symbs *s)
 {
 	return (!(strstr(s->obj, INIT_COMP) || strstr(s->obj, LLBOOT_COMP)));
 //	return s->is_composite_loaded;
+}
+
+static int is_hl_booter_loaded(struct service_symbs *s)
+{
+	return s->is_composite_loaded;
 }
 
 static inline trans_cap_t
@@ -571,15 +576,17 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 
 	if (is_booter_loaded(ret_data)) {
 		u32_t size, obj_size;
-		u32_t nsymbs, ncaps;
+		u32_t nsymbs, ncaps, nsects;
 		char *mem;
 		char cobj_name[COBJ_NAME_SZ], *end;
 
-		size = ro_size_unaligned + bfd_sect_size(obj, srcobj[DATA_S].s);
+		size   = ro_size_unaligned + bfd_sect_size(obj, srcobj[DATA_S].s);
 		nsymbs = ret_data->exported.num_symbs;
-		ncaps = ret_data->undef.num_symbs;
+		ncaps  = ret_data->undef.num_symbs;
+		nsects = strncmp(&service_name[5], BOOT_COMP, strlen(BOOT_COMP)) ?
+			 3 : 4; /* booter gets an extra section */
 
-		obj_size = cobj_size_req(3, size, nsymbs, ncaps);
+		obj_size = cobj_size_req(nsects, size, nsymbs, ncaps);
 		mem = malloc(obj_size);
 		if (!mem) {
 			printl(PRINT_HIGH, "could not allocate memory for composite-loaded %s.\n", service_name);
@@ -591,7 +598,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 		end = strstr(cobj_name, ".o.");
 		if (!end) end = &cobj_name[COBJ_NAME_SZ-1];
 		*end = '\0';
-		h = cobj_create(0, cobj_name, 3, size, nsymbs, ncaps, mem, obj_size,
+		h = cobj_create(0, cobj_name, nsects, size, nsymbs, ncaps, mem, obj_size,
 				ret_data->scheduler ? COBJ_INIT_THD : 0);
 		if (!h) {
 			printl(PRINT_HIGH, "boot component: couldn't create cobj.\n");
@@ -2198,7 +2205,7 @@ static void make_spd_config_comp(struct service_symbs *c, struct service_symbs *
 static int 
 spd_already_loaded(struct service_symbs *c)
 {
-	return c->already_loaded || !is_booter_loaded(c);
+	return c->already_loaded || !is_hl_booter_loaded(c);
 }
 
 static void 
@@ -2223,36 +2230,48 @@ make_spd_boot_schedule(struct service_symbs *comp, struct service_symbs **sched,
 	printl(PRINT_HIGH, "\t%d: %s\n", *off, comp->obj);
 }
 
+//#define INIT_STR_SZ 116
+#define INIT_STR_SZ 52
+/* struct is 64 bytes, so we can have 64 entries in a page. */
+struct component_init_str {
+	unsigned int spdid, schedid;
+	int startup;
+	char init_str[INIT_STR_SZ];
+}__attribute__((packed));
+static void format_config_info(struct service_symbs *ss, struct component_init_str *data);
+
 static void 
 make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 {
-	volatile int **heap_ptr;
-	int *heap_ptr_val, n = 0, cnt = 0;
+	int n = 0, cnt = 0, tot_sz = 0;
 	unsigned int off = 0, i;
-	struct cobj_header *h;
-	char *mem;
-	u32_t obj_size;
+	struct cobj_header *h, *new_h;
+	char *new_end, *new_sect_start;
+	u32_t new_vaddr_start;
+	u32_t all_obj_sz;
 	struct cos_component_information *ci;
 	struct service_symbs *first = all;
 	/* array to hold the order of initialization/schedule */
 	struct service_symbs **schedule; 
 
 	if (service_get_spdid(boot) != LLBOOT_BOOT) {
-		printf("Booter component must be component number %d.\n"
+		printf("Booter component must be component number %d, is %d.\n"
 		       "\tSuggested fix: Your first four components should be e.g. "
-		       "c0.o, ;*fprr.o, ;mm.o, ;boot.o, ;\n", LLBOOT_BOOT);
+		       "c0.o, ;llboot.o, ;*fprr.o, ;mm.o, ;print.o, ;boot.o, ;\n", LLBOOT_BOOT, service_get_spdid(boot));
 		exit(-1);
 	}
 
+	/* should be loaded by llboot */
+	assert(is_booter_loaded(boot) && !is_hl_booter_loaded(boot)); 
+	assert(boot->cobj->nsect == 4); /* extra section for other components */
 	/* Assign ids to the booter-loaded components. */
 	for (all = first ; NULL != all ; all = all->next) {
-		if (!is_booter_loaded(all)) continue;
+		if (!is_hl_booter_loaded(all)) continue;
 
 		h = all->cobj;
 		assert(h);
-		spdid_inc++;
-		h->id = spdid_inc;
 		cnt++;
+		tot_sz += h->size;
 	}
 
 	schedule = malloc(sizeof(struct service_symbs *) * cnt);
@@ -2266,7 +2285,7 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 	 * components */
 	all = first;
 	for (all = first ; NULL != all ; all = all->next) {
-		if (!is_booter_loaded(all)) continue;
+		if (!is_hl_booter_loaded(all)) continue;
 
 		if (make_cobj_caps(all, all->cobj)) {
 			printl(PRINT_HIGH, "Could not create capabilities in cobj for %s\n", all->obj);
@@ -2274,62 +2293,109 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 		}
 	}
 
-	heap_ptr = (volatile int **)get_heap_ptr(boot);
-	ci = (void *)get_symb_address(&boot->exported, COMP_INFO);
-	ci->cos_poly[0] = (vaddr_t)*heap_ptr;
-
+	all_obj_sz = 0;
+	/* Find the cobj's size */
 	for (all = first ; NULL != all ; all = all->next) {
-		vaddr_t map_addr;
-		int map_sz;
+		struct cobj_header *h;
 
-		if (!is_booter_loaded(all)) continue;
+		if (!is_hl_booter_loaded(all)) continue;
+		printl(PRINT_HIGH, "booter found %s:%d with len %d\n", 
+		       all->obj, service_get_spdid(all), all->cobj->size)
 		n++;
 
-		heap_ptr_val = (int*)*heap_ptr;
-		assert(is_booter_loaded(all));
+		assert(is_hl_booter_loaded(all));
 		h = all->cobj;
 		assert(h);
-
-		obj_size = round_up_to_cacheline(h->size);
-		map_addr = round_up_to_page(heap_ptr_val);
-		map_sz = (int)obj_size - (int)(map_addr-(vaddr_t)heap_ptr_val);
-		if (map_sz > 0) {
-			mem = mmap((void*)map_addr, map_sz, PROT_WRITE | PROT_READ,
-				   MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
-			if (MAP_FAILED == mem) {
-				perror("Couldn't map test component into the boot component");
-				exit(-1);
-			}
-		}
-		printl(PRINT_HIGH, "boot component: placing %s:%d @ %p, copied from %p:%d\n", 
-		       all->obj, service_get_spdid(all), heap_ptr_val, h, obj_size);
-		memcpy(heap_ptr_val, h, h->size);
-		*heap_ptr = (void*)(((int)heap_ptr_val) + obj_size);
+		all_obj_sz += round_up_to_cacheline(h->size);
 	}
+	all_obj_sz  = all_obj_sz;
+	all_obj_sz += 3 * PAGE_SIZE; // schedule, config info, and edge info
+	h           = boot->cobj;
+	assert(h->nsect == 4);
+	new_h       = malloc(h->size + all_obj_sz);
+	assert(new_h);
+	memcpy(new_h, h, h->size);
+
+	/* Initialize the new section */
+	{
+		struct cobj_sect *s_prev;
+
+		new_h->size += all_obj_sz;
+
+		s_prev = cobj_sect_get(new_h, 2);
+
+		cobj_sect_init(new_h, 3, COBJ_SECT_READ | COBJ_SECT_WRITE, 
+			       round_up_to_page(s_prev->vaddr + s_prev->bytes), 
+			       all_obj_sz);
+	}
+	new_sect_start  = new_end = cobj_sect_contents(new_h, 3);
+	new_vaddr_start = cobj_sect_get(new_h, 3)->vaddr;
+#define ADDR2VADDR(a) ((a-new_sect_start)+new_vaddr_start)
+
+
+	ci = (void *)cobj_vaddr_get(new_h, (u32_t)get_symb_address(&boot->exported, COMP_INFO));
+	assert(ci);
+	printf("***> vaddr %x, local addr %p, cobj %p\n", 
+	       (unsigned int)get_symb_address(&boot->exported, COMP_INFO), ci, boot->cobj);
+	ci->cos_poly[0] = ADDR2VADDR(new_sect_start);
+
+	/* copy the cobjs */
+	for (all = first ; NULL != all ; all = all->next) {
+		struct cobj_header *h;
+
+		if (!is_hl_booter_loaded(all)) continue;
+		h = all->cobj;
+		assert(h);
+		memcpy(new_end, h, h->size);
+		new_end += round_up_to_cacheline(h->size);
+ 	}
+	assert((u32_t)(new_end - new_sect_start) + 3*PAGE_SIZE == 
+	       cobj_sect_get(new_h, 3)->bytes);
+	
 	all = first;
-	*heap_ptr = (int*)(round_up_to_page((int)*heap_ptr));
 	ci->cos_poly[1] = (vaddr_t)n;
 
-	ci->cos_poly[2] = ((unsigned int)*heap_ptr);
-	make_spd_mpd_mgr(boot, all);
+	ci->cos_poly[2] = ADDR2VADDR(new_end);
+	serialize_spd_graph((struct comp_graph*)new_end, PAGE_SIZE/sizeof(struct comp_graph), all);
 
-	ci->cos_poly[3] = ((unsigned int)*heap_ptr);
-	make_spd_config_comp(boot, all);
+	new_end += PAGE_SIZE;
+	ci->cos_poly[3] = ADDR2VADDR(new_end);
+	format_config_info(all, (struct component_init_str*)new_end);
 
 	assert(off < PAGE_SIZE/sizeof(unsigned int)); /* schedule must fit into page. */
-	/* pass the schedule to the boot component */
-	mem = mmap((void*)*heap_ptr, PAGE_SIZE, PROT_WRITE | PROT_READ,
-		   MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
-	if (MAP_FAILED == mem) {
-		perror("Couldn't map component initialization schedule into the boot component");
-		exit(-1);
-	}
+	new_end += PAGE_SIZE;
+	ci->cos_poly[4] = ADDR2VADDR(new_end);
 	for (i = 0 ; i < off ; i++) {
-		((int *)mem)[i] = service_get_spdid(schedule[i]);
+		((int *)new_end)[i] = service_get_spdid(schedule[i]);
 	}
-	((int *)mem)[off] = 0;
-	ci->cos_poly[4] = (unsigned int)*heap_ptr;
-	*heap_ptr += PAGE_SIZE;
+	((int *)new_end)[off] = 0;
+
+	new_end += PAGE_SIZE;
+	ci->cos_heap_ptr = round_up_to_page(ADDR2VADDR(new_end));
+
+	boot->cobj = new_h;
+
+	printl(PRINT_HIGH, "boot component %s:%d has new section @ %x:%x at address %x, \n\t"
+	       "with n %d, graph @ %x, config info @ %x, schedule %x, and heap %x\n",
+	       boot->obj, service_get_spdid(boot), (unsigned int)cobj_sect_get(new_h, 3)->vaddr, 
+	       (int)cobj_sect_get(new_h, 3)->bytes, (unsigned int)ci->cos_poly[0], (unsigned int)ci->cos_poly[1], 
+	       (unsigned int)ci->cos_poly[2], (unsigned int)ci->cos_poly[3], (unsigned int)ci->cos_poly[4], (unsigned int)ci->cos_heap_ptr);
+}
+
+static void
+spd_assign_ids(struct service_symbs *all)
+{
+	struct cobj_header *h;
+
+	/* Assign ids to the booter-loaded components. */
+	for (; NULL != all ; all = all->next) {
+		if (!is_booter_loaded(all)) continue;
+
+		h = all->cobj;
+		assert(h);
+		spdid_inc++;
+		h->id = spdid_inc;
+	}
 }
 
 static void 
@@ -2351,16 +2417,6 @@ make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
 		exit(-1);
 	}
 
-	/* Assign ids to the booter-loaded components. */
-	for (all = first ; NULL != all ; all = all->next) {
-		if (!is_booter_loaded(all)) continue;
-
-		h = all->cobj;
-		assert(h);
-		spdid_inc++;
-		h->id = spdid_inc;
-	}
-
 	/* Setup the capabilities for each of the booter-loaded
 	 * components */
 	all = first;
@@ -2381,7 +2437,7 @@ make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
 		vaddr_t map_addr;
 		int map_sz;
 
-		if (!is_booter_loaded(all)) continue;
+		if (!is_booter_loaded(all) || is_hl_booter_loaded(all)) continue;
 		n++;
 
 		heap_ptr_val = (int*)*heap_ptr;
@@ -2415,16 +2471,6 @@ make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
 	ci->cos_poly[3] = ((unsigned int)*heap_ptr);
 	make_spd_config_comp(boot, all);
 }
-
-//#define INIT_STR_SZ 116
-#define INIT_STR_SZ 52
-
-/* struct is 64 bytes, so we can have 64 entries in a page. */
-struct component_init_str {
-	unsigned int spdid, schedid;
-	int startup;
-	char init_str[INIT_STR_SZ];
-}__attribute__((packed));
 
 static void format_config_info(struct service_symbs *ss, struct component_init_str *data)
 {
@@ -2487,7 +2533,7 @@ static void make_spd_config_comp(struct service_symbs *c, struct service_symbs *
 static struct service_symbs *find_obj_by_name(struct service_symbs *s, const char *n)
 {
 	while (s) {
-		if (strstr(s->obj, n) != NULL) {
+		if (!strncmp(&s->obj[5], n, strlen(n))) {
 			return s;
 		}
 
@@ -2560,17 +2606,19 @@ static void setup_kernel(struct service_symbs *services)
 	/* assert(!is_booter_loaded(s)); */
 	/* thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle; */
 
+	spd_assign_ids(services);
+
+	if ((s = find_obj_by_name(services, BOOT_COMP))) {
+		make_spd_boot(s, services);
+	}
+	fflush(stdout);
+
 	if ((s = find_obj_by_name(services, LLBOOT_COMP))) {
 		make_spd_llboot(s, services);
 		make_spd_scheduler(cntl_fd, s, NULL);
 	} 
 	fflush(stdout);
 	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;
-
-	/* if ((s = find_obj_by_name(services, BOOT_COMP))) { */
-	/* 	make_spd_boot(s, services); */
-	/* }  */
-	/* fflush(stdout); */
 
 	/* if ((s = find_obj_by_name(services, MPD_MGR))) { */
 	/* 	make_spd_mpd_mgr(s, services); */

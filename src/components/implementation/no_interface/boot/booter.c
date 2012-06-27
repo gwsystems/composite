@@ -99,36 +99,35 @@ boot_symb_process(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val,
 		  char *mem, vaddr_t d_addr, vaddr_t symb_addr)
 {
 	int i;
+	struct cos_component_information *ci;
 
-	if (round_to_page(symb_addr) == d_addr) {
-		struct cos_component_information *ci;
+	if (round_to_page(symb_addr) != d_addr) return;
 		
-		ci = (struct cos_component_information*)(mem + ((PAGE_SIZE-1) & symb_addr));
+	ci = (struct cos_component_information*)(mem + ((PAGE_SIZE-1) & symb_addr));
 //		ci->cos_heap_alloc_extent = ci->cos_heap_ptr;
 //		ci->cos_heap_allocated = heap_val;
-		if (!ci->cos_heap_ptr) ci->cos_heap_ptr = heap_val;
-		ci->cos_this_spd_id = spdid;
-		ci->init_string[0]  = '\0';
-		for (i = 0 ; init_args[i].spdid ; i++) {
-			char *start, *end;
-			int len;
-
-			if (init_args[i].spdid != spdid) continue;
-
-			start = strchr(init_args[i].init_str, '\'');
-			if (!start) break;
-			start++;
-			end   = strchr(start, '\'');
-			if (!end) break;
-			len   = (int)(end-start);
-			memcpy(&ci->init_string[0], start, len);
-			ci->init_string[len] = '\0';
-		}
-
-		/* save the address of this page for later retrieval
-		 * (e.g. to manipulate the stack pointer) */
-		comp_info_record(h, spdid, ci);
+	if (!ci->cos_heap_ptr) ci->cos_heap_ptr = heap_val;
+	ci->cos_this_spd_id = spdid;
+	ci->init_string[0]  = '\0';
+	for (i = 0 ; init_args[i].spdid ; i++) {
+		char *start, *end;
+		int len;
+		
+		if (init_args[i].spdid != spdid) continue;
+		
+		start = strchr(init_args[i].init_str, '\'');
+		if (!start) break;
+		start++;
+		end   = strchr(start, '\'');
+		if (!end) break;
+		len   = (int)(end-start);
+		memcpy(&ci->init_string[0], start, len);
+		ci->init_string[len] = '\0';
 	}
+	
+	/* save the address of this page for later retrieval
+	 * (e.g. to manipulate the stack pointer) */
+	comp_info_record(h, spdid, ci);
 }
 
 static vaddr_t boot_spd_end(struct cobj_header *h)
@@ -452,6 +451,13 @@ void cos_init(void)
 
 	LOCK();
 	boot_deps_init();
+
+	printc("%p, %d, %p, %p, %p\n",
+	       (int *)cos_comp_info.cos_poly[0],
+	       (int  )cos_comp_info.cos_poly[1],
+	       (int *)cos_comp_info.cos_poly[2],
+	       (int *)cos_comp_info.cos_poly[3],
+	       (int *)cos_comp_info.cos_poly[4]);
 	h         = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj  = (int)cos_comp_info.cos_poly[1];
 

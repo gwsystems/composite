@@ -127,6 +127,7 @@ __page_get(void)
 	f->nmaps  = -1; 	 /* belongs to us... */
 	f->c.addr = (vaddr_t)hp; /* ...at this address */
 	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, cos_spd_id(), (vaddr_t)hp, frame_index(f))) {
+		printc("grant @ %p for frame %d\n", hp, frame_index(f));
 		BUG();
 	}
 	return hp;
@@ -263,7 +264,7 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to)
 	if (!m) goto collision;
 
 	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, dest, to, frame_index(f))) {
-		BUG();
+		printc("mem_man: could not grant at %x:%d\n", dest, (int)to);
 		goto no_mapping;
 	}
 	mapping_init(m, dest, to, p, f);

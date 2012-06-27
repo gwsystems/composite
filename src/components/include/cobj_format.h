@@ -47,10 +47,12 @@ struct cobj_header {
 	char name[COBJ_NAME_SZ];
 } __attribute__((packed));
 
-#define COBJ_SECT_UNINIT 0
-#define COBJ_SECT_READ   0x1
-#define COBJ_SECT_WRITE  0x2
-#define COBJ_SECT_ZEROS  0x8
+enum {
+	COBJ_SECT_UNINIT = 0,
+	COBJ_SECT_READ   = 0x1,
+	COBJ_SECT_WRITE  = 0x2,
+	COBJ_SECT_ZEROS  = 0x8
+};
 
 struct cobj_sect {
 	u32_t flags;
@@ -89,9 +91,10 @@ int cobj_cap_init(struct cobj_header *h, unsigned int cap_idx, u32_t cap_off,
 
 struct cobj_sect *cobj_sect_get(struct cobj_header *h, unsigned int sect_id);
 struct cobj_symb *cobj_symb_get(struct cobj_header *h, unsigned int symb_id);
-struct cobj_cap *cobj_cap_get(struct cobj_header *h, unsigned int cap_id);
+struct cobj_cap * cobj_cap_get(struct cobj_header *h, unsigned int cap_id);
+void *            cobj_vaddr_get(struct cobj_header *h, u32_t vaddr);
 
-int cobj_sect_empty(struct cobj_header *h, unsigned int sect_id);
+int   cobj_sect_empty(struct cobj_header *h, unsigned int sect_id);
 u32_t cobj_sect_content_offset(struct cobj_header *h);
 char *cobj_sect_contents(struct cobj_header *h, unsigned int sect_id);
 u32_t cobj_sect_size(struct cobj_header *h, unsigned int sect_id);

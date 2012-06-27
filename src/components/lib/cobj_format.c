@@ -15,7 +15,8 @@
 #include <stdio.h>
 #endif
 
-struct cobj_sect *cobj_sect_get(struct cobj_header *h, unsigned int sect_id)
+struct cobj_sect *
+cobj_sect_get(struct cobj_header *h, unsigned int sect_id)
 {
 	struct cobj_sect *s;
 
@@ -26,7 +27,8 @@ struct cobj_sect *cobj_sect_get(struct cobj_header *h, unsigned int sect_id)
 	return &s[sect_id];
 }
 
-struct cobj_symb *cobj_symb_get(struct cobj_header *h, unsigned int symb_id)
+struct cobj_symb *
+cobj_symb_get(struct cobj_header *h, unsigned int symb_id)
 {
 	struct cobj_symb *s;
 
@@ -38,7 +40,8 @@ struct cobj_symb *cobj_symb_get(struct cobj_header *h, unsigned int symb_id)
 	return &s[symb_id];
 }
 
-struct cobj_cap *cobj_cap_get(struct cobj_header *h, unsigned int cap_id)
+struct cobj_cap *
+cobj_cap_get(struct cobj_header *h, unsigned int cap_id)
 {
 	struct cobj_cap *c;
 
@@ -51,7 +54,24 @@ struct cobj_cap *cobj_cap_get(struct cobj_header *h, unsigned int cap_id)
 	return &c[cap_id];
 }
 
-int cobj_sect_empty(struct cobj_header *h, unsigned int sect_id)
+void *
+cobj_vaddr_get(struct cobj_header *h, u32_t vaddr)
+{
+	u32_t i;
+
+	for (i = 0 ; i < h->nsect ; i++) {
+		struct cobj_sect *s;
+
+		s = cobj_sect_get(h, i);
+		if (vaddr < s->vaddr || vaddr >= s->vaddr + s->bytes) continue;
+		if (s->flags & COBJ_SECT_ZEROS) return NULL;
+		return cobj_sect_contents(h, i) + (vaddr - s->vaddr);
+	}
+	return NULL;
+}
+ 
+int 
+cobj_sect_empty(struct cobj_header *h, unsigned int sect_id)
 {
 	struct cobj_sect *s;
 
@@ -61,15 +81,17 @@ int cobj_sect_empty(struct cobj_header *h, unsigned int sect_id)
 	return s->flags & COBJ_SECT_ZEROS;
 }
 
-u32_t cobj_sect_content_offset(struct cobj_header *h)
+u32_t 
+cobj_sect_content_offset(struct cobj_header *h)
 {
 	return sizeof(struct cobj_header) + 
-		sizeof(struct cobj_sect) * h->nsect +
-		sizeof(struct cobj_symb) * h->nsymb +
-		sizeof(struct cobj_cap) * h->ncap;
+	       sizeof(struct cobj_sect) * h->nsect +
+	       sizeof(struct cobj_symb) * h->nsymb +
+	       sizeof(struct cobj_cap)  * h->ncap;
 }
 
-char *cobj_sect_contents(struct cobj_header *h, unsigned int sect_id)
+char *
+cobj_sect_contents(struct cobj_header *h, unsigned int sect_id)
 {
 	struct cobj_sect *s;
 
@@ -80,7 +102,8 @@ char *cobj_sect_contents(struct cobj_header *h, unsigned int sect_id)
 	return ((char *)h) + s->offset;
 }
 
-u32_t cobj_sect_size(struct cobj_header *h, unsigned int sect_id)
+u32_t 
+cobj_sect_size(struct cobj_header *h, unsigned int sect_id)
 {
 	struct cobj_sect *s;
 
@@ -90,7 +113,8 @@ u32_t cobj_sect_size(struct cobj_header *h, unsigned int sect_id)
 	return s->bytes;
 }
 
-u32_t cobj_sect_addr(struct cobj_header *h, unsigned int sect_id)
+u32_t 
+cobj_sect_addr(struct cobj_header *h, unsigned int sect_id)
 {
 	struct cobj_sect *s;
 
@@ -100,8 +124,9 @@ u32_t cobj_sect_addr(struct cobj_header *h, unsigned int sect_id)
 	return s->vaddr;
 }
 
-struct cobj_header *cobj_create(u32_t id, char *name, u32_t nsect, u32_t sect_sz, u32_t nsymb, 
-				u32_t ncap, char *space, unsigned int sz, u32_t flags)
+struct cobj_header *
+cobj_create(u32_t id, char *name, u32_t nsect, u32_t sect_sz, u32_t nsymb, 
+	    u32_t ncap, char *space, unsigned int sz, u32_t flags)
 {
 	struct cobj_header *h = (struct cobj_header*)space;
 	u32_t tot_sz = 0;
@@ -131,7 +156,8 @@ struct cobj_header *cobj_create(u32_t id, char *name, u32_t nsect, u32_t sect_sz
 	return h;
 }
 
-u32_t cobj_size_req(u32_t nsect, u32_t sect_sz, u32_t nsymb, u32_t ncap)
+u32_t 
+cobj_size_req(u32_t nsect, u32_t sect_sz, u32_t nsymb, u32_t ncap)
 {
 	return  sect_sz +
 		sizeof(struct cobj_header) +
@@ -140,7 +166,8 @@ u32_t cobj_size_req(u32_t nsect, u32_t sect_sz, u32_t nsymb, u32_t ncap)
 		ncap * sizeof(struct cobj_cap);
 }
 
-int cobj_sect_init(struct cobj_header *h, unsigned int sect_idx, u32_t flags, u32_t vaddr, u32_t size)
+int 
+cobj_sect_init(struct cobj_header *h, unsigned int sect_idx, u32_t flags, u32_t vaddr, u32_t size)
 {
 	struct cobj_sect *s;
 	u32_t offset;
@@ -165,7 +192,8 @@ int cobj_sect_init(struct cobj_header *h, unsigned int sect_idx, u32_t flags, u3
 	return 0;
 }
 
-int cobj_symb_init(struct cobj_header *h, unsigned int symb_idx, u32_t type, u32_t vaddr)
+int 
+cobj_symb_init(struct cobj_header *h, unsigned int symb_idx, u32_t type, u32_t vaddr)
 {
 	struct cobj_symb *s;
 
@@ -177,8 +205,9 @@ int cobj_symb_init(struct cobj_header *h, unsigned int symb_idx, u32_t type, u32
 	return 0;
 }
 
-int cobj_cap_init(struct cobj_header *h, unsigned int cap_idx, u32_t cap_off, 
-		  u32_t dest_id, u32_t sfn, u32_t cstub, u32_t sstub, u32_t fault_num)
+int 
+cobj_cap_init(struct cobj_header *h, unsigned int cap_idx, u32_t cap_off, 
+	      u32_t dest_id, u32_t sfn, u32_t cstub, u32_t sstub, u32_t fault_num)
 {
 	struct cobj_cap *c;
 
@@ -197,7 +226,8 @@ int cobj_cap_init(struct cobj_header *h, unsigned int cap_idx, u32_t cap_off,
 #ifdef TESTING
 #include <malloc.h>
 
-int main(void)
+int 
+main(void)
 {
 	u32_t sz;
 	char *mem;

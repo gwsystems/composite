@@ -65,7 +65,7 @@ static inline int sched_is_root(void) { return sched_type == SCHED_ROOT; }
 static inline int sched_is_child(void) { return !sched_is_root(); } 
 
 /* What is the spdid of the booter component? */
-#define BOOT_SPD 4
+#define BOOT_SPD 5
 
 //#define FPRR_REPORT_EVTS
 

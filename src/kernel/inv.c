@@ -3112,7 +3112,9 @@ cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, unsigned lon
 		mem_id += this_spd->pfn_base;
 		if (mem_id < this_spd->pfn_base || /* <- check for overflow? */
 		    mem_id >= (this_spd->pfn_base + this_spd->pfn_extent)) {
-			printk("Accessing physical frame outside of allowed range.\n");
+			printk("Accessing physical frame outside of allowed range (%d outside of [%d, %d).\n",
+			       (int)mem_id, this_spd->pfn_base, 
+			       this_spd->pfn_base + this_spd->pfn_extent);
 			return -EINVAL;
 		}
 		page = cos_access_page(mem_id);
@@ -3128,7 +3130,8 @@ cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, unsigned lon
 		 * writing all of the pages itself).
 		 */
 		if (pgtbl_add_entry(spd->spd_info.pg_tbl, daddr, page)) {
-			printk("cos: mmap grant -- could not add entry to page table.\n");
+			printk("cos: mmap grant into %d @ %x -- could not add entry to page table.\n", 
+			       dspd_id, (unsigned int)daddr);
 			ret = -1;
 			break;
 		}
@@ -3164,7 +3167,7 @@ cos_syscall_pfn_cntl(int spdid, long op_dspd, unsigned int mem_id, int extent)
 	struct spd *spd, *dspd;
 	spdid_t dspdid;
 	unsigned int end;
-	int op;
+	int op, ret = 0;
 
 	op     = op_dspd >> 16;
 	dspdid = 0xFFFF & op_dspd;
@@ -3183,10 +3186,13 @@ cos_syscall_pfn_cntl(int spdid, long op_dspd, unsigned int mem_id, int extent)
 		dspd->pfn_base   = mem_id;
 		dspd->pfn_extent = extent;
 		break;
+	case COS_PFN_MAX_MEM:
+		ret = spd->pfn_extent;
+		break;
 	default: return -1;
 	}
 
-	return 0;
+	return ret;
 }
 
 extern void
