@@ -46,9 +46,35 @@ The order of dependencies matters for components.  If you want to
 invoke the scheduler for anything, make sure that the scheduler comes
 before the memory manager in the list of dependencies.  Else, you will
 get BUG() calls from within the memory manager.  This should be taken
-care of automatically in the cfuse compiler, for is manual for now.
+care of automatically in the cfuse compiler, but for now this is manual.
 
 This is an issue now, and not before as the base memory manager
 exports the scheduler interface as well so that it can act as the base
 scheduler interface.  However, none of its functions should ever be
 called.
+
+Commit 10d76c80acb9f033a67e40ef940a66b33c8eb104 (6/27/12)
+---------------------------------------------------------
+
+System bootup is completely changed.  Now comp0 calls a low-level
+booter that creates the rest of the system.  Changes should only be to
+runscripts.  These include:
+
+- The first line of runscripts often looks like:
+
+  `c0.o, ;*fprr.o, ;mm.o, ;boot.o, ;print.o, ;\`
+
+  and should be changed this to (order matters)
+
+  `c0.o, ;llboot.o, ;*fprr.o, ;mm.o, ;print.o, ;boot.o, ;`
+
+- The component dependencies should be changed as such:
+
+  + `c0.o-fprr.o;\` -> `c0.o-llboot.o;\`
+
+  + `mm.o-print.o;\` ->  `mm.o-[parent_]llboot.o|print.o;\`
+
+  + `fprr.o-print.o|[parent_]mm.o` -> `fprr.o-print.o|[parent_]mm.o|[faulthndlr_]llboot.o;\`
+
+  + `boot.o-print.o|fprr.o|mm.o;\` -> `boot.o-print.o|fprr.o|mm.o|llboot.o;\`
+

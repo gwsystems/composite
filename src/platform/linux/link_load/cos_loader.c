@@ -204,9 +204,11 @@ struct service_symbs {
 	void *extern_info;
 };
 
-typedef enum {TRANS_CAP_NIL = 0, 
-	      TRANS_CAP_FAULT, 
-	      TRANS_CAP_OTHER} trans_cap_t;
+typedef enum {
+	TRANS_CAP_NIL = 0, 
+	TRANS_CAP_FAULT, 
+	TRANS_CAP_SCHED
+} trans_cap_t;
 
 static int service_get_spdid(struct service_symbs *ss);
 static int is_booter_loaded(struct service_symbs *s)
@@ -224,7 +226,7 @@ static inline trans_cap_t
 is_transparent_capability(struct symb *s) {
 	char *n = s->name;
 	
-	if (!strcmp(n, SCHED_CREATE_FN)) return TRANS_CAP_OTHER;
+	if (!strcmp(n, SCHED_CREATE_FN)) return TRANS_CAP_SCHED;
 	if (-1 != fault_handler_num(n))  return TRANS_CAP_FAULT;
 	return TRANS_CAP_NIL;
 }
@@ -1075,6 +1077,18 @@ static inline int service_processed(char *obj_name, struct service_symbs *servic
 	return 0;
 }
 
+static int
+symb_already_undef(struct service_symbs *ss, const char *name)
+{
+	int i;
+	struct symb_type *undef = &ss->undef;
+
+	for (i = 0 ; i < undef->num_symbs ; i++) {
+		if (!strcmp(undef->symbs[i].name, name)) return 1;
+	}
+	return 0;
+}
+
 static inline void 
 __add_symb(const char *name, struct symb_type *exp_undef)
 {
@@ -1211,6 +1225,8 @@ create_transparent_capabilities(struct service_symbs *service)
 
 	for (i = 0 ; i < service->num_dependencies ; i++) {
 		struct symb_type *symbs = &dep[i].dep->exported;
+		char *modifier = dep[i].modifier;
+		int mod_len    = dep[i].mod_len;
 
 		if (dep[i].resolved) continue;
 
@@ -1221,16 +1237,25 @@ create_transparent_capabilities(struct service_symbs *service)
 			case TRANS_CAP_FAULT: 
 				if (fault_found) break;
 				fault_found = 1;
-			case TRANS_CAP_OTHER: 
+			case TRANS_CAP_SCHED: 
 			{
 				struct symb_type *st;
 				struct symb *s;
+				char mod_name[256]; /* arbitrary value... */
 
-				if (r == TRANS_CAP_OTHER) {
+//				if (symb_already_undef(service, symbs->symbs[j].name)) break;
+
+				if (r == TRANS_CAP_SCHED) {
 					if (other_found) break;
 					other_found = 1;
 				}
-				add_undef_symb(service, symbs->symbs[j].name);
+
+				assert(strlen(symbs->symbs[j].name) + mod_len < 256);
+				strncpy(mod_name, modifier, mod_len);
+				mod_name[mod_len] = '\0';
+				strcat(mod_name, symbs->symbs[j].name);
+
+				add_undef_symb(service, mod_name);
 				st = &service->undef;
 				s = &st->symbs[st->num_symbs-1];
 				s->exporter = dep[i].dep;
@@ -2335,8 +2360,6 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 
 	ci = (void *)cobj_vaddr_get(new_h, (u32_t)get_symb_address(&boot->exported, COMP_INFO));
 	assert(ci);
-	printf("***> vaddr %x, local addr %p, cobj %p\n", 
-	       (unsigned int)get_symb_address(&boot->exported, COMP_INFO), ci, boot->cobj);
 	ci->cos_poly[0] = ADDR2VADDR(new_sect_start);
 
 	/* copy the cobjs */

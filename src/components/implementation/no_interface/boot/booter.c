@@ -451,13 +451,6 @@ void cos_init(void)
 
 	LOCK();
 	boot_deps_init();
-
-	printc("%p, %d, %p, %p, %p\n",
-	       (int *)cos_comp_info.cos_poly[0],
-	       (int  )cos_comp_info.cos_poly[1],
-	       (int *)cos_comp_info.cos_poly[2],
-	       (int *)cos_comp_info.cos_poly[3],
-	       (int *)cos_comp_info.cos_poly[4]);
 	h         = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj  = (int)cos_comp_info.cos_poly[1];
 
