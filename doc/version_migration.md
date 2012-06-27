@@ -78,3 +78,5 @@ runscripts.  These include:
 
   + `boot.o-print.o|fprr.o|mm.o;\` -> `boot.o-print.o|fprr.o|mm.o|llboot.o;\`
 
+- If you have the spdid or thread id hard-coded anywhere, your code
+  will almost certainly break.  Serves you right;-)
