@@ -1704,9 +1704,12 @@ extern int parent_sched_isroot(void);
 int
 sched_init(void)
 {
+	printc("Sched init has thread %d\n", cos_get_thd_id());
+	assert(0);
 	/* Promote us to a scheduler! */
 	if (parent_sched_child_cntl_thd(cos_spd_id())) BUG();
 	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)&cos_sched_notifications)) BUG();
+
 	/* Are we root? */
 	if (parent_sched_isroot()) sched_root_init();
 	else                       sched_child_init();

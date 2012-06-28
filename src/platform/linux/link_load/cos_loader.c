@@ -150,6 +150,7 @@ struct dependency;
 
 struct symb {
 	char *name;
+	int modifier_offset;
 	vaddr_t addr;
 	struct service_symbs *exporter;
 	struct symb *exported_symb;
@@ -226,8 +227,11 @@ static inline trans_cap_t
 is_transparent_capability(struct symb *s) {
 	char *n = s->name;
 	
+	if (s->modifier_offset) {
+		printf("%s -> %s.\n", n, n+s->modifier_offset);
+	}
 	if (!strcmp(n, SCHED_CREATE_FN)) return TRANS_CAP_SCHED;
-	if (-1 != fault_handler_num(n))  return TRANS_CAP_FAULT;
+	if (-1 != fault_handler_num(n + s->modifier_offset))  return TRANS_CAP_FAULT;
 	return TRANS_CAP_NIL;
 }
 
@@ -1090,9 +1094,10 @@ symb_already_undef(struct service_symbs *ss, const char *name)
 }
 
 static inline void 
-__add_symb(const char *name, struct symb_type *exp_undef)
+__add_symb(const char *name, struct symb_type *exp_undef, int mod_len)
 {
 	exp_undef->symbs[exp_undef->num_symbs].name = malloc(strlen(name)+1);
+	exp_undef->symbs[exp_undef->num_symbs].modifier_offset = mod_len;
 	strcpy(exp_undef->symbs[exp_undef->num_symbs].name, name);
 	exp_undef->num_symbs++;
 	assert(exp_undef->num_symbs <= MAX_SYMBOLS);
@@ -1101,14 +1106,14 @@ __add_symb(const char *name, struct symb_type *exp_undef)
 static inline void add_kexport(struct service_symbs *ss, const char *name)
 {
 	struct symb_type *ex = &ss->exported;
-	__add_symb(name, ex);
+	__add_symb(name, ex, 0);
 	return;
 }
 
-static inline void add_undef_symb(struct service_symbs *ss, const char *name)
+static inline void add_undef_symb(struct service_symbs *ss, const char *name, int mod_len)
 {
 	struct symb_type *ud = &ss->undef;
-	__add_symb(name, ud);
+	__add_symb(name, ud, mod_len);
 	return;
 }
 
@@ -1222,13 +1227,11 @@ create_transparent_capabilities(struct service_symbs *service)
 {
 	int i, j, fault_found = 0, other_found = 0;
 	struct dependency *dep = service->dependencies;
-
+	
 	for (i = 0 ; i < service->num_dependencies ; i++) {
 		struct symb_type *symbs = &dep[i].dep->exported;
 		char *modifier = dep[i].modifier;
 		int mod_len    = dep[i].mod_len;
-
-		if (dep[i].resolved) continue;
 
 		for (j = 0 ; j < symbs->num_symbs ; j++) {
 			trans_cap_t r;
@@ -1244,8 +1247,17 @@ create_transparent_capabilities(struct service_symbs *service)
 				char mod_name[256]; /* arbitrary value... */
 
 //				if (symb_already_undef(service, symbs->symbs[j].name)) break;
-
 				if (r == TRANS_CAP_SCHED) {
+					/* This is pretty crap: We
+					 * don't want to ad a
+					 * capability to a parent
+					 * scheduler if we already
+					 * have a capability
+					 * established, but we _do_
+					 * want to create a capability
+					 * for other special
+					 * symbols. */
+					if (dep[i].resolved) continue;
 					if (other_found) break;
 					other_found = 1;
 				}
@@ -1255,7 +1267,7 @@ create_transparent_capabilities(struct service_symbs *service)
 				mod_name[mod_len] = '\0';
 				strcat(mod_name, symbs->symbs[j].name);
 
-				add_undef_symb(service, mod_name);
+				add_undef_symb(service, mod_name, mod_len);
 				st = &service->undef;
 				s = &st->symbs[st->num_symbs-1];
 				s->exporter = dep[i].dep;
@@ -1889,7 +1901,11 @@ static int cap_get_info(struct service_symbs *service, struct cap_ret_info *cri,
 	cri->cstub = c_stub;
 	cri->sstub = s_stub;
 	cri->serv = exporter;
-	cri->fault_handler = (u32_t)fault_handler_num(exp_symb->name);
+	if (exp_symb->modifier_offset) {
+		printf("%d: %s\n", service_get_spdid(exporter), 
+		       exp_symb->name + exp_symb->modifier_offset);
+	}
+	cri->fault_handler = (u32_t)fault_handler_num(exp_symb->name + exp_symb->modifier_offset);
 
 	return 0;
 }

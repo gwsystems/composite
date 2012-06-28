@@ -52,6 +52,13 @@ enum { /* hard-coded initialization schedule */
 	LLBOOT_SCHED = 2,
 	LLBOOT_MM    = 3,
 };
+
+struct comp_boot_info {
+	int symbols_initialized, initialized, memory_granted;
+};
+#define NCOMPS 6 	/* comp0, us, and the four other components */
+static struct comp_boot_info comp_boot_nfo[NCOMPS];
+
 static spdid_t init_schedule[]   = {LLBOOT_MM, LLBOOT_SCHED, 0};
 static int     init_mem_access[] = {1, 0, 0};
 static int     sched_offset      = 0, nmmgrs = 0;
@@ -96,24 +103,30 @@ llboot_thd_done(void)
 	 */
 	if (tid == init_thd) {
 		spdid_t s = init_schedule[sched_offset];
+
+		/* Is it done, or do we need to initialize another component? */
 		if (s) {
+			/* If we have a memory manger, give it a
+			 * proportional amount of memory WRT to the
+			 * other memory managers. */
 			if (init_mem_access[sched_offset]) {
 				int max_pfn, proportion;
 
 				max_pfn = cos_pfn_cntl(COS_PFN_MAX_MEM, 0, 0, 0);
-				/* Give the memory manager a
-				 * proportional amount of memory
-				 * compared to the rest of the memory
-				 * managers. */
 				proportion = (max_pfn - frame_frontier)/nmmgrs;
 				cos_pfn_cntl(COS_PFN_GRANT, s, frame_frontier, proportion);
+				comp_boot_nfo[s].memory_granted = 1;
 			}
 			sched_offset++;
-			cos_upcall(s);
+			comp_boot_nfo[s].initialized = 1;
+			cos_upcall(s); /* initialize the component! */
 			BUG();
 		}
-		/* Done initializing, reboot!  Technically, the other
-		 * components should have called sched_exit... */
+		/* Done initializing; reboot!  If we are here, then
+		 * all of the threads have terminated, thus there is
+		 * no more execution left to do.  Technically, the
+		 * other components should have called
+		 * sched_exit... */
 		while (1) cos_switch_thread(alpha, 0);
 		BUG();
 	}
@@ -144,9 +157,10 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 {
 	unsigned long r_ip; 	/* the ip to return to */
 	int tid = cos_get_thd_id();
+	printc("<<0>>\n");
 
 	failure_notif_fail(cos_spd_id(), spdid);
-
+	printc("<<1>>\n");
 	/* no reason to save register contents... */
 	if(!cos_thd_cntl(COS_THD_INV_FRAME_REM, tid, 1, 0)) {
 		/* Manipulate the return address of the component that called
@@ -163,6 +177,7 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 		/* after the recovery thread is done, it should switch back to us. */
 		return 0;
 	}
+	printc("<<2>>\n");
 	/* 
 	 * The thread was created in the failed component...just use
 	 * it to restart the component!  This might even be the
@@ -217,7 +232,13 @@ __mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr)
 
 static int boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci);
 static void
-comp_info_record(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci) { boot_spd_set_symbs(h, spdid, ci); }
+comp_info_record(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci) 
+{ 
+	if (!comp_boot_nfo[spdid].symbols_initialized) {
+		comp_boot_nfo[spdid].symbols_initialized = 1;
+		boot_spd_set_symbs(h, spdid, ci);
+	}
+}
 
 
 static void

@@ -37,7 +37,8 @@ struct component_init_str {
 }__attribute__((packed));
 struct component_init_str *init_args;
 
-static int boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci)
+static int 
+boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci)
 {
 	int i;
 
@@ -51,7 +52,8 @@ static int boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_c
 	return 0;
 }
 
-static int boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info)
+static int 
+boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info)
 {
 	unsigned int i;
 
@@ -74,7 +76,8 @@ static int boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_in
 	return 0;
 }
 
-static void boot_symb_reify(char *mem, vaddr_t d_addr, vaddr_t symb_addr, u32_t value)
+static void 
+boot_symb_reify(char *mem, vaddr_t d_addr, vaddr_t symb_addr, u32_t value)
 {
 	if (round_to_page(symb_addr) == d_addr) {
 		u32_t *p;
@@ -84,7 +87,8 @@ static void boot_symb_reify(char *mem, vaddr_t d_addr, vaddr_t symb_addr, u32_t 
 	}
 }
 
-static void boot_symb_reify_16(char *mem, vaddr_t d_addr, vaddr_t symb_addr, u16_t value)
+static void 
+boot_symb_reify_16(char *mem, vaddr_t d_addr, vaddr_t symb_addr, u16_t value)
 {
 	if (round_to_page(symb_addr) == d_addr) {
 		u16_t *p;

@@ -103,11 +103,9 @@ frame_init(void)
 static inline void
 mm_init(void)
 {
-	static int first = 1;
-	if (unlikely(first)) {
-		first = 0;
-		frame_init();
-	}
+	printc("mm init as thread %d\n", cos_get_thd_id());
+
+	frame_init();
 }
 
 /*************************************/
