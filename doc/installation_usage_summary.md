@@ -34,21 +34,21 @@ Shell commands prefixed by `$` are normal user commands, and those prefixed by `
 
    You'll run this every time you write some code and want to recompile and test.
 
-9. `# cd ; mkdir experiments ; cp ~yourusername/transfer/* .`
+10. `# cd ; mkdir experiments ; cp ~yourusername/transfer/* .`
 
-10. `# make init ; sh unit_torrent.sh`
+11. `# make init ; sh unit_torrent.sh`
 
     Only use `make init` once per reboot.
 
-11. `$ dmesg | less`
+12. `$ dmesg | less`
 
     See the bottom of the kernel log for output from *Composite*.
 
-12. `# make`
+13. `# make`
 
     Use `make` to run the system repeatedly (as opposed to `make init`).
 
-13. `# sh unit_torrent.sh`
+14. `# sh unit_torrent.sh`
 
 Shell Setup
 -----------
@@ -56,13 +56,13 @@ Shell Setup
 To get into the write code, compile, run, debug, write code, loop, I
 setup my system using `screen` to have 4 consoles:
 
-1. Used to view *Composite* output (i.e. run `dmesg | less` in step 11.).
+1. Used to view *Composite* output (i.e. run `dmesg | less` in step 12.).
 
 2. `emacs -nw` to do development.
 
 3. `bash` to run `make ; make cp` (step 9).
 
-4. Root shell to run `make ; sh runscript.sh` (steps 12 and 13).
+4. Root shell to run `make ; sh runscript.sh` (steps 13 and 14).
 
 Development Loop
 ----------------
@@ -73,9 +73,9 @@ Development Loop
 
 3. Fix compilation errors/warnings and goto 2.
 
-4. Update the kernel and load it (step 12).
+4. Update the kernel and load it (step 13).
 
-5. Run the runscript (step 13).
+5. Run the runscript (step 14).
 
-6. Check output (step 11), and goto 1.
+6. Check output (step 12), and goto 1.
 
