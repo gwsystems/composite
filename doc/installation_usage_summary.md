@@ -1,5 +1,5 @@
-Installation Summary
-====================
+Installation and Usage Summary
+==============================
 
 Example
 -------
