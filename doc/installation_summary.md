@@ -24,11 +24,15 @@ Shell commands prefixed by `$` are normal user commands, and those prefixed by `
 
    Make sure that you edit `/etc/default/grub` before updating grub.
 
-8. `cd ../composite/src/ ; make config ; make init ; make cp` 
+8. `cd ../composite/src/ ; make config ; make init` 
 
    Make sure to follow the instructions of `make config` to verify
    that the configuration information is correct.  Be sure to watch
    for errors during `make init`
+
+9. `make ; make cp`
+
+   You'll run this every time you write some code and want to recompile and test.
 
 9. ` # cd ; mkdir experiments ; cp ~yourusername/transfer/* .`
 
@@ -50,10 +54,10 @@ Shell setup
 To get into the write code, compile, run, debug, write code, loop, I
 setup my system using `screen` to have 4 consoles:
 
-1. Used to view *Composite* output (i.e. run `dmesg | less`).
+1. Used to view *Composite* output (i.e. run `dmesg | less` in step 11.).
 
 2. `emacs -nw` to do development.
 
-3. `bash` to run `make ; make cp`.
+3. `bash` to run `make ; make cp` (i.e. steps ).
 
 4. Root shell to run `make ; sh runscript.sh`.
