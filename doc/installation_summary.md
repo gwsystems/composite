@@ -33,12 +33,15 @@ Shell commands prefixed by `$` are normal user commands, and those prefixed by `
 9. ` # cd ; mkdir experiments ; cp ~yourusername/transfer/* .`
 
 10. `# make init ; sh unit_torrent.sh`
+
     Only use `make init` once per reboot.
 
 11. `$ dmesg | less`
+
     See the bottom of the kernel log for output from *Composite*.
 
 12. `# make ; sh unit_torrent.sh`
+
     Use `make` to run the system repeatedly (as opposed to `make init`).
 
 Shell setup
@@ -47,10 +50,10 @@ Shell setup
 To get into the write code, compile, run, debug, write code, loop, I
 setup my system using `screen` to have 4 consoles:
 
-0. Used to view *Composite* output (i.e. run `dmesg | less`).
+1. Used to view *Composite* output (i.e. run `dmesg | less`).
 
-1. `emacs -nw` to do development.
+2. `emacs -nw` to do development.
 
-2. `bash` to run `make ; make cp`.
+3. `bash` to run `make ; make cp`.
 
-3. Root shell to run `make ; sh runscript.sh`.
+4. Root shell to run `make ; sh runscript.sh`.
