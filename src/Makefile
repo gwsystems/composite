@@ -41,7 +41,7 @@ config:
 	@pwd | sed 's/\(\/[a-zA-Z0-9]*\/[a-zA-Z0-9]*\/\).*/HOME_DIR=\1/' > Makefile.cosconfig
 	@echo "CODE_DIR=\$$(HOME_DIR)/research/" >> Makefile.cosconfig
 	@echo "TRANS_DIR=\$$(HOME_DIR)/transfer/" >> Makefile.cosconfig
-	@echo "LDIR=\$$(CODE_DIR)/linux-2.6.33/" >> Makefile.cosconfig
+	@echo "LDIR=\$$(CODE_DIR)/linux-2.6.36/" >> Makefile.cosconfig
 	@echo "TEST_DIR=/root/experiments/" >> Makefile.cosconfig
 
 ltests:
