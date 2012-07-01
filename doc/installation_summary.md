@@ -24,17 +24,17 @@ Shell commands prefixed by `$` are normal user commands, and those prefixed by `
 
    Make sure that you edit `/etc/default/grub` before updating grub.
 
-8. `cd ../composite/src/ ; make config ; make init` 
+8. `$ cd ../composite/src/ ; make config ; make init` 
 
    Make sure to follow the instructions of `make config` to verify
    that the configuration information is correct.  Be sure to watch
    for errors during `make init`
 
-9. `make ; make cp`
+9. `$ make ; make cp`
 
    You'll run this every time you write some code and want to recompile and test.
 
-9. ` # cd ; mkdir experiments ; cp ~yourusername/transfer/* .`
+9. `# cd ; mkdir experiments ; cp ~yourusername/transfer/* .`
 
 10. `# make init ; sh unit_torrent.sh`
 
@@ -44,11 +44,13 @@ Shell commands prefixed by `$` are normal user commands, and those prefixed by `
 
     See the bottom of the kernel log for output from *Composite*.
 
-12. `# make ; sh unit_torrent.sh`
+12. `# make`
 
     Use `make` to run the system repeatedly (as opposed to `make init`).
 
-Shell setup
+13. `# sh unit_torrent.sh`
+
+Shell Setup
 -----------
 
 To get into the write code, compile, run, debug, write code, loop, I
@@ -58,6 +60,22 @@ setup my system using `screen` to have 4 consoles:
 
 2. `emacs -nw` to do development.
 
-3. `bash` to run `make ; make cp` (i.e. steps ).
+3. `bash` to run `make ; make cp` (step 9).
 
-4. Root shell to run `make ; sh runscript.sh`.
+4. Root shell to run `make ; sh runscript.sh` (steps 12 and 13).
+
+Development Loop
+----------------
+
+1. Modify code.
+
+2. Compile (step 9).
+
+3. Fix compilation errors/warnings and goto 2.
+
+4. Update the kernel and load it (step 12).
+
+5. Run the runscript (step 13).
+
+6. Check output (step 11), and goto 1.
+
