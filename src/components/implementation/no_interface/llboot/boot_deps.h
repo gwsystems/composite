@@ -307,7 +307,7 @@ sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned
 int 
 sched_child_cntl_thd(spdid_t spdid) 
 { 
-	if (cos_sched_cntl(COS_SCHED_PROMOTE_CHLD, 0, spdid)) BUG();
+	if (cos_sched_cntl(COS_SCHED_PROMOTE_CHLD, 0, spdid)) {BUG(); while(1);}
 	if (cos_sched_cntl(COS_SCHED_GRANT_SCHED, cos_get_thd_id(), spdid)) BUG();
 	return 0;
 }

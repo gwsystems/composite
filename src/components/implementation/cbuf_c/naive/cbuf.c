@@ -25,9 +25,6 @@
 #include <tmem.h>
 #include <cbuf_c.h>
 
-
-//#define PRINCIPAL_CHECKS
-
 #define DEFAULT_TARGET_ALLOC MAX_NUM_MEM 
 
 COS_MAP_CREATE_STATIC(cb_ids);
@@ -43,11 +40,9 @@ struct cos_cbuf_item *alloc_item_data_struct(void *l_addr)
 
 	INIT_LIST(cci, next, prev);
         
-	cci->desc.addr = l_addr;
-
-	cci->desc.cbid = 0;
-	cci->desc.obj_sz = 0;
-	cci->desc.principal = 0;
+	cci->desc.addr      = l_addr;
+	cci->desc.cbid      = 0;
+	cci->desc.sz        = 0;
 
 	return cci;
 }
@@ -71,9 +66,9 @@ struct cos_cbuf_item *free_mem_in_local_cache(struct spd_tmem_info *sti)
 	for (cci = FIRST_LIST(list, next, prev) ; 
 	     cci != list; 
 	     cci = FIRST_LIST(cci, next, prev)) {
-		union cbuf_meta cm;
-		cm.c_0.v = cci->entry->c_0.v;
-		if (!CBUF_IN_USE(cm.c.flags)) goto done;
+		struct cbuf_meta cm;
+		cm.nfo.v = cci->entry->nfo.v;
+		if (!CBUF_IN_USE(cm.nfo.c.flags)) goto done;
 	}
 
 	if (cci == list) goto err;
@@ -164,9 +159,9 @@ struct cos_cbuf_item *mgr_get_client_mem(struct spd_tmem_info *sti)
 	for (cci = FIRST_LIST(list, next, prev) ; 
 	     cci != list ; 
 	     cci = FIRST_LIST(cci, next, prev)) {
-		union cbuf_meta cm;
-		cm.c_0.v = cci->entry->c_0.v;
-		if (!CBUF_IN_USE(cm.c.flags)) break;
+		struct cbuf_meta cm;
+		cm.nfo.v = cci->entry->nfo.v;
+		if (!CBUF_IN_USE(cm.nfo.c.flags)) break;
 	}
 
 	if (cci == list) goto err;
@@ -189,10 +184,8 @@ int
 resolve_dependency(struct spd_tmem_info *sti, int skip_cbuf)
 {
 	struct cos_cbuf_item *cci;
-	/* union cbuf_meta cm; */
-
+	struct cbuf_meta cm;
 	int ret = -1;
-
 	/* DOUT("skip_cbuf is %d\n",skip_cbuf); */
 
 	for(cci = FIRST_LIST(&sti->tmem_list, next, prev);
@@ -201,17 +194,11 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_cbuf)
 
 	if (cci == &sti->tmem_list) goto done;
 
-	union cbuf_meta cm;
-	cm.c_0.v = cci->entry->c_0.v;			
+	cm.nfo.v = cci->entry->nfo.v;			
 
-	ret = (u32_t)cci->entry->c_0.th_id;
+	ret = (u32_t)cci->entry->thdid_owner;
 
-	if (!CBUF_IN_USE(cm.c.flags)) goto cache;
-
-	/* DOUT("cm.c_0.v is %p \n", cm.c_0.v); */
-	// Jiguo: A thread could ask for multiple cbuf items, so it 
-	// could find to be dependent on itself
-	/* DOUT("ret :: %d current thd : %d \n", ret, cos_get_thd_id()); */
+	if (!CBUF_IN_USE(cm.nfo.c.flags)) goto cache;
 	if (ret == cos_get_thd_id()){
 		DOUT("Try to depend on itself ....\n");
 		goto self;
@@ -230,16 +217,16 @@ self:
 void mgr_clear_touched_flag(struct spd_tmem_info *sti)
 {
 	struct cos_cbuf_item *cci;
-	union cbuf_meta *cm = NULL;
+	struct cbuf_meta *cm = NULL;
 
 	for (cci = FIRST_LIST(&sti->tmem_list, next, prev) ; 
 	     cci != &sti->tmem_list ; 
 	     cci = FIRST_LIST(cci, next, prev)) {
 		cm = cci->entry;
-		if (!CBUF_IN_USE(cm->c.flags)) {
-			cm->c.flags &= ~CBUFM_TOUCHED;
+		if (!CBUF_IN_USE(cm->nfo.c.flags)) {
+			cm->nfo.c.flags &= ~CBUFM_TOUCHED;
 		} else {
-			assert(cm->c.flags & CBUFM_TOUCHED);
+			assert(cm->nfo.c.flags & CBUFM_TOUCHED);
 		}
 	}
 	return;
@@ -255,7 +242,7 @@ __spd_cbvect_add_range(struct spd_tmem_info *sti, long cbuf_id, vaddr_t page)
 
 	cbr->start_id = (cbuf_id - 1) & ~CVECT_MASK;
 	cbr->end_id = cbr->start_id + CVECT_BASE - 1;
-	cbr->meta = (union cbuf_meta*)page;
+	cbr->meta = (struct cbuf_meta*)page;
 
 	/* DOUT("spd %d  sti %p cbr->meta %p\n",sti->spdid,sti, cbr->meta); */
 	ADD_LIST(&sti->ci, cbr, next, prev);
@@ -265,7 +252,7 @@ __spd_cbvect_add_range(struct spd_tmem_info *sti, long cbuf_id, vaddr_t page)
 	return 0;
 }
 
-static inline union cbuf_meta *
+static inline struct cbuf_meta *
 __spd_cbvect_lookup_range(struct spd_tmem_info *sti, long cbuf_id)
 {
 	struct spd_cbvect_range *cbr;
@@ -290,8 +277,8 @@ __spd_cbvect_clean_val(struct spd_tmem_info *sti, long cbuf_id)
 	     cbr != &sti->ci ; 
 	     cbr = FIRST_LIST(cbr, next, prev)) {
 		if (cbuf_id >= cbr->start_id && cbuf_id <= cbr->end_id) {
-			cbr->meta[CB_IDX(cbuf_id, cbr)].c_0.v = (u32_t)COS_VECT_INIT_VAL;
-			cbr->meta[CB_IDX(cbuf_id, cbr)].c_0.th_id = (u32_t)COS_VECT_INIT_VAL;
+			cbr->meta[CB_IDX(cbuf_id, cbr)].nfo.v = (u32_t)COS_VECT_INIT_VAL;
+			cbr->meta[CB_IDX(cbuf_id, cbr)].thdid_owner = (u32_t)COS_VECT_INIT_VAL;
 			break;
 		}
 	}
@@ -347,7 +334,7 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	struct cos_cbuf_item *cbuf_item;
 	struct cb_desc *d;
 
-	union cbuf_meta *mc = NULL;
+	struct cbuf_meta *mc = NULL;
 
 	/* DOUT("thd: %d spd: %d cbuf_c_create is called here!!\n", cos_get_thd_id(), spdid); */
 	/* DOUT("passed cbid is %ld\n",cbid); */
@@ -379,11 +366,10 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	cbuf_item = tmem_grant(sti);
 	assert(cbuf_item);
 
-	d             = &cbuf_item->desc;
-	d->principal  = cos_get_thd_id();
-	d->obj_sz     = PAGE_SIZE;
-	d->owner.spd  = sti->spdid;
-	d->owner.cbd  = d;
+	d            = &cbuf_item->desc;
+	d->sz        = PAGE_SIZE;
+	d->owner.spd = sti->spdid;
+	d->owner.cbd = d;
 
 	/* Jiguo:
 	  This can be two different cases:
@@ -407,13 +393,11 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	assert(mc);
 	cbuf_item->entry = mc;
 
-	mc->c.ptr     = d->owner.addr >> PAGE_ORDER;
-
+	mc->nfo.c.ptr       = d->owner.addr >> PAGE_ORDER;
 	/* Crap solution to get rid of a compiler warning... */
-	mc->c.obj_sz  = (u16_t) 0x3F & 
-		(((u16_t)PAGE_SIZE) >> (u16_t)CBUF_OBJ_SZ_SHIFT);
-	mc->c_0.th_id = cos_get_thd_id();
-	mc->c.flags  |= CBUFM_IN_USE | CBUFM_TOUCHED;
+	mc->sz          = PAGE_SIZE; 	/* one page */
+	mc->thdid_owner = cos_get_thd_id();
+	mc->nfo.c.flags    |= CBUFM_IN_USE | CBUFM_TOUCHED;
 done:
 	RELEASE();
 	return ret;
@@ -491,44 +475,24 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 
 	d = cos_map_lookup(&cb_ids, cbid);
 	/* sanity and access checks */
-	if (!d || d->obj_sz < len) goto done;
-#ifdef PRINCIPAL_CHECKS
-	if (d->principal != cos_get_thd_id()) goto done;
-#endif
-	/* DOUT("info: thd_id %d obj_size %d addr %p\n", d->principal, d->obj_sz, d->addr); */
+	if (!d || d->sz < len) goto done;
 	m = malloc(sizeof(struct cb_mapping));
 	if (!m) goto done;
-
-	/* u64_t start,end; */
-	/* rdtscll(start); */
-
 	INIT_LIST(m, next, prev);
 
 	d_addr = valloc_alloc(cos_spd_id(), spdid, 1);
 	l_addr = d->addr;  //cbuf_item addr, initialized in cos_init()
-	/* l_addr = d->owner.addr;  // mapped from owner */
 
 	assert(d_addr && l_addr);
-
-	/* rdtscll(end); */
-	/* printc("cost of valloc: %lu\n", end-start); */
-	/* rdtscll(start); */
-
-	/* if (!mman_alias_page(cos_spd_id(), (vaddr_t)d->addr, spdid, (vaddr_t)page)) goto err; */
 	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)l_addr, spdid, (vaddr_t)d_addr))) {
 		printc("No alias!\n");
 		goto err;
 	}
-	/* DOUT("<<<MAPPED>>> mgr addr %p client addr %p\n ",l_addr, d_addr); */
-
-	/* rdtscll(end); */
-	/* printc("cost of mman_alias_page: %lu\n", end-start); */
 
 	m->cbd  = d;
 	m->spd  = spdid;
 	m->addr = (vaddr_t)d_addr;
 
-	//struct cb_mapping *m;
 	ADD_LIST(&d->owner, m, next, prev);
 	ret = (void *)d_addr;
 done:
@@ -561,10 +525,10 @@ cbuf_c_introspect(spdid_t spdid, int iter)
 		     cci != list;
 		     cci = FIRST_LIST(cci, next, prev)) {
 			printc("try to find cbuf for this spd 2\n");
-			union cbuf_meta cm;
-			cm.c_0.v = cci->entry->c_0.v;
-			if (CBUF_OWNER(cm.c.flags) && 
-			    CBUF_IN_USE(cm.c.flags)) counter++;
+			struct cbuf_meta cm;
+			cm.nfo.v = cci->entry->nfo.v;
+			if (CBUF_OWNER(cm.nfo.c.flags) && 
+			    CBUF_IN_USE(cm.nfo.c.flags)) counter++;
 		}
 		RELEASE();
 		return counter;
@@ -573,10 +537,10 @@ cbuf_c_introspect(spdid_t spdid, int iter)
 		for (cci = FIRST_LIST(list, next, prev) ;
 		     cci != list;
 		     cci = FIRST_LIST(cci, next, prev)) {
-			union cbuf_meta cm;
-			cm.c_0.v = cci->entry->c_0.v;
-			if (CBUF_OWNER(cm.c.flags) && 
-                            CBUF_IN_USE(cm.c.flags) &&
+			struct cbuf_meta cm;
+			cm.nfo.v = cci->entry->nfo.v;
+			if (CBUF_OWNER(cm.nfo.c.flags) && 
+                            CBUF_IN_USE(cm.nfo.c.flags) &&
                             !(--iter)) goto found;
 		}
 	}
@@ -595,23 +559,19 @@ mgr_update_owner(spdid_t new_spdid, long cbid)
 	struct spd_tmem_info *old_sti, *new_sti;
 	struct cb_desc *d;
 	struct cb_mapping *old_owner, *new_owner, tmp;
-	union cbuf_meta *old_mc, *new_mc;
+	struct cbuf_meta *old_mc, *new_mc;
 	vaddr_t mgr_addr;
-
 	int ret = 0;
-	printc("updating ownership \n");
+
 	d = cos_map_lookup(&cb_ids, cbid);
 	if (!d) goto err;
 	old_owner = &d->owner;
-	/* printc("((1))\n"); */
 	old_sti = get_spd_info(old_owner->spd);
 	assert(SPD_IS_MANAGED(old_sti));
 
 	old_mc = __spd_cbvect_lookup_range(old_sti, cbid);
 	if(!old_mc) goto err;
-	/* printc("((2))\n"); */
-	if (!CBUF_OWNER(old_mc->c.flags)) goto err;
-	/* printc("((3))\n"); */
+	if (!CBUF_OWNER(old_mc->nfo.c.flags)) goto err;
 	for (new_owner = FIRST_LIST(old_owner, next, prev) ; 
 	     new_owner != old_owner; 
 	     new_owner = FIRST_LIST(new_owner, next, prev)) {
@@ -619,7 +579,6 @@ mgr_update_owner(spdid_t new_spdid, long cbid)
 	}
 
 	if (new_owner == old_owner) goto err;
-	/* printc("((4))\n"); */
 	new_sti = get_spd_info(new_owner->spd);
 	assert(SPD_IS_MANAGED(new_sti));
 
@@ -630,9 +589,8 @@ mgr_update_owner(spdid_t new_spdid, long cbid)
 
 	new_mc = __spd_cbvect_lookup_range(new_sti, cbid);
 	if(!new_mc) goto err;
-	new_mc->c.flags |= CBUFM_OWNER;
-	old_mc->c.flags &= ~CBUFM_OWNER;	
-	/* printc("((5))\n"); */
+	new_mc->nfo.c.flags |= CBUFM_OWNER;
+	old_mc->nfo.c.flags &= ~CBUFM_OWNER;	
 
 	// exchange the spd and addr in cbuf_mapping
 	tmp.spd = old_owner->spd;
@@ -642,7 +600,6 @@ mgr_update_owner(spdid_t new_spdid, long cbid)
 	tmp.addr = old_owner->addr;
 	old_owner->addr = new_owner->addr;
 	new_owner->addr = tmp.addr;
-	/* printc("((6))\n"); */
 done:
 	return ret;
 err:
@@ -663,14 +620,13 @@ err:
 int   
 cbuf_c_claim(spdid_t r_spdid, int cbid)
 {
-	assert(cbid >= 0);
-
 	int ret = 0;
 	spdid_t o_spdid;
 	struct cb_desc *d;
 
-	TAKE();
+	assert(cbid >= 0);
 
+	TAKE();
 	d = cos_map_lookup(&cb_ids, cbid);
 	if (!d) { 
 		ret = -1; 

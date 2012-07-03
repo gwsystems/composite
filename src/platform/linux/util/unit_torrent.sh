@@ -1,7 +1,5 @@
 #!/bin/sh
 
-# torrent test
-
 ./cos_loader \
 "c0.o, ;llboot.o, ;*fprr.o, ;mm.o, ;print.o, ;boot.o, ;\
 \
@@ -9,11 +7,11 @@
 \
 c0.o-llboot.o;\
 fprr.o-print.o|[parent_]mm.o|[faulthndlr_]llboot.o;\
+mm.o-[parent_]llboot.o|print.o;\
+boot.o-print.o|fprr.o|mm.o|llboot.o;\
 l.o-fprr.o|mm.o|print.o;\
 te.o-sm.o|print.o|fprr.o|mm.o|va.o;\
-mm.o-[parent_]llboot.o|print.o;\
 eg.o-sm.o|fprr.o|print.o|mm.o|l.o|va.o;\
-boot.o-print.o|fprr.o|mm.o|llboot.o;\
 sm.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o|mpool.o;\
 buf.o-boot.o|sm.o|fprr.o|print.o|l.o|mm.o|va.o|mpool.o;\
 mpool.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o;\

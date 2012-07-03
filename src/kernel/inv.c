@@ -3145,7 +3145,7 @@ cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, unsigned lon
 			ret = 0;
 			break;
 		}
-		ret = cos_paddr_to_cap(pa);
+		ret = cos_paddr_to_cap(pa) - this_spd->pfn_base;
 		cos_meas_event(COS_MAP_REVOKE);
 
 		break;

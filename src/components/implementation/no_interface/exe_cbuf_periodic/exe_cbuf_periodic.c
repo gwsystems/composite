@@ -107,7 +107,7 @@ int parse_initstr(void)
 static int create_thd(const char *pri)
 {
 	struct cos_array *data;
-	int event_thd;
+	int event_thd = 0;
 	int sz = strlen(pri) + 1;
     
 	data = cos_argreg_alloc(sizeof(struct cos_array) + sz);

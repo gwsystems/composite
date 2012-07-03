@@ -196,23 +196,32 @@ cbuf2buf(cbuf_t cb, int len)
 {
 	int sz;
 	u32_t id;
-	union cbuf_meta cm;
+	struct cbuf_meta *cm;
+	union cbufm_info ci;//, ci_new;
 	void *ret = NULL;
 	long cbidx;
 	if (unlikely(!len)) return NULL;
-	CBUF_TAKE();
 	cbuf_unpack(cb, &id, (u32_t*)&sz);
+
+	CBUF_TAKE();
 	cbidx = cbid_to_meta_idx(id);
+again:
 	do {
-		cm.c_0.v = (u32_t)cbuf_vect_lookup(&meta_cbuf, cbidx);
-		if (unlikely(cm.c_0.v == 0)) {
+		cm = cbuf_vect_lookup_addr(&meta_cbuf, cbidx);
+		if (unlikely(!cm || cm->nfo.v == 0)) {
 			if (__cbuf_2buf_miss(id, len)) goto done;
+			goto again;
 		}
-	} while (unlikely(cm.c_0.v == 0));
+	} while (unlikely(!cm->nfo.v));
+	ci.v = cm->nfo.v;
 
-	assert(cm.c.flags & CBUFM_MAPPED_IN);
-
-	ret = ((void*)(cm.c.ptr << PAGE_ORDER));
+	/* if (unlikely(cm->sz && (((int)cm->sz)<<PAGE_ORDER) < len)) goto done; */
+	/* ci_new.v     = ci.v; */
+	/* ci_new.c.flags = ci.c.flags | CBUFM_RECVED | CBUFM_IN_USE; */
+	/* if (unlikely(!cos_cas((unsigned long *)&cm->nfo.v,  */
+	/* 		      (unsigned long)   ci.v,  */
+	/* 		      (unsigned long)   ci_new.v))) goto again; */
+	ret = ((void*)(cm->nfo.c.ptr << PAGE_ORDER));
 done:	
 	CBUF_RELEASE();
 	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
@@ -223,7 +232,7 @@ extern cvect_t alloc_descs;
 struct cbuf_alloc_desc {
 	int cbid, length;
 	void *addr;
-	union cbuf_meta *meta;
+	struct cbuf_meta *meta;
 	struct cbuf_alloc_desc *next, *prev, *flhead; /* freelist */
 };
 extern struct cbuf_alloc_desc cbuf_alloc_freelists;
@@ -237,12 +246,12 @@ __cbuf_alloc_lookup(int page_index) { return cvect_lookup(&alloc_descs, page_ind
  * This validates that the d->cbid = cbid of cbuf_meta.
  */
 static inline int
-__cbuf_alloc_meta_inconsistent(struct cbuf_alloc_desc *d, union cbuf_meta *m)
+__cbuf_alloc_meta_inconsistent(struct cbuf_alloc_desc *d, struct cbuf_meta *m)
 {
 	assert(d && m && d->addr);
 	/* we don't want the manager changing this under us */
-	assert(m->c.flags & CBUFM_IN_USE);
-	return (unlikely((unsigned long)d->addr >> PAGE_SHIFT != m->c.ptr ||
+	assert(m->nfo.c.flags & CBUFM_IN_USE);
+	return (unlikely((unsigned long)d->addr >> PAGE_SHIFT != m->nfo.c.ptr ||
 			 d->meta != m /*|| length*/));
 }
 
@@ -252,12 +261,12 @@ cbuf_alloc(unsigned int sz, cbuf_t *cb)
 	void *ret;
 	struct cbuf_alloc_desc *d;
 	int cbid, len, already_used, mapped_in;
-	union cbuf_meta *cm;
+	struct cbuf_meta *cm;
 	long cbidx;
 
 	CBUF_TAKE();
 again:
-	d     = FIRST_LIST(&cbuf_alloc_freelists, next, prev);
+	d = FIRST_LIST(&cbuf_alloc_freelists, next, prev);
 	if (unlikely(EMPTY_LIST(d, next, prev))) {
 		d    = __cbuf_alloc_slow(sz, &len);
 		assert(d);
@@ -267,17 +276,16 @@ again:
 		//TODO: check if this cbuf has been taken by another thd already.
 		// shall we add this cbuf to the freelist and just continue?
 	} 
-
 	cbid  = d->cbid;
 	REM_LIST(d, next, prev);
 	assert(EMPTY_LIST(d, next, prev));
 	assert(cbid);
-	cbidx        = cbid_to_meta_idx(cbid);
-	cm           = cbuf_vect_lookup_addr(&meta_cbuf, cbidx);
+	cbidx            = cbid_to_meta_idx(cbid);
+	cm               = cbuf_vect_lookup_addr(&meta_cbuf, cbidx);
 
-	mapped_in    = cm->c.flags & CBUFM_MAPPED_IN;
-	already_used = cm->c.flags & CBUFM_IN_USE;
-	cm->c.flags |= CBUFM_IN_USE | CBUFM_TOUCHED; /* should be atomic */
+	mapped_in        = cbufm_is_mapped(cm);
+	already_used     = cm->nfo.c.flags & CBUFM_IN_USE;
+	cm->nfo.c.flags |= CBUFM_IN_USE | CBUFM_TOUCHED; /* should be atomic */
 
 	/* 
 	 * Now that IN_USE is set, we know the manager will not rip
@@ -286,49 +294,56 @@ again:
 	 * descriptor 
 	 */
 	assert(!already_used);
-	if (__cbuf_alloc_meta_inconsistent(d, cm) || already_used || mapped_in) {
+	if (__cbuf_alloc_meta_inconsistent(d, cm) || already_used || !mapped_in) {
 		/* 
 		 * This is complicated.
 		 *
 		 * See cbuf_slab_free for the rest of the story.  
 		 *
-		 * Assumptions:
-		 * 1) The cbuf manager shared the cbuf meta (in the meta_cbuf
-		 * vector) information with this component.  It can remove
-		 * asynchronously a cbuf from this structure at any time IFF
-		 * that cbuf is marked as ~CBUF_IN_USE.  
+		 * Assumptions: 
+		 * 
+		 * 1) The cbuf manager shared the cbuf meta (in the
+		 * meta_cbuf vector) information with this component.
+		 * It can remove asynchronously a cbuf from this
+		 * structure at any time IFF that cbuf is marked as
+		 * ~CBUF_IN_USE.
 		 *
-		 * 2) The slab descriptors, and the slab_desc vector are _not_
-		 * shared with the cbuf manager for complexity reasons.
+		 * 2) The slab descriptors, and the slab_desc vector
+		 * are _not_ shared with the cbuf manager for
+		 * complexity reasons.
 		 *
-		 * Question: How do we reconcile the fact that the cbuf mgr
-		 * might remove at any point a cbuf from this component, but
-		 * we still have a slab descriptor lying around for it?  How
-		 * will we know that the cbuf has been removed, and not to use
-		 * the slab data-structure anymore?
+		 * Question: How do we reconcile the fact that the
+		 * cbuf mgr might remove at any point a cbuf from this
+		 * component, but we still have a slab descriptor
+		 * lying around for it?  How will we know that the
+		 * cbuf has been removed, and not to use the slab
+		 * data-structure anymore?
 		 *
-		 * Answer: The slabs are deallocated lazily (seen here).  When a
-		 * slab is pulled off of the freelist (see the following code), 
-		 * we check to make sure that the cbuf meta information matches
-		 * up with the slab's information (i.e. the cbuf id and the
-		 * address in memory of the cbuf.  If they do not, then we
-		 * know that the slab is outdated and that the cbuf backing it
-		 * has been taken from this component.  In that case (shown in
-		 * the following code), we delete the slab descriptor.  Again,
-		 * see cbuf_slab_free to see the surprising fact that we do
-		 * _not_ deallocate the slab descriptor there to reinforce
-		 * that point.
+		 * Answer: The slabs are deallocated lazily (seen
+		 * here).  When a slab is pulled off of the freelist
+		 * (see the following code), we check to make sure
+		 * that the cbuf meta information matches up with the
+		 * slab's information (i.e. the cbuf id and the
+		 * address in memory of the cbuf.  If they do not,
+		 * then we know that the slab is outdated and that the
+		 * cbuf backing it has been taken from this component.
+		 * In that case (shown in the following code), we
+		 * delete the slab descriptor.  Again, see
+		 * cbuf_slab_free to see the surprising fact that we
+		 * do _not_ deallocate the slab descriptor there to
+		 * reinforce that point.
 		 */
 
 		__cbuf_desc_free(d);
-		if (likely(!already_used))
-			cm->c.flags &= ~(CBUFM_IN_USE | CBUFM_TOUCHED);
+		if (likely(!already_used)) {
+			cm->nfo.c.flags &= ~(CBUFM_IN_USE | CBUFM_TOUCHED);
+		}
 		goto again;
 	}
 
-	cm->c.thdid_owner = cos_get_thd_id();
+	cm->thdid_owner = cos_get_thd_id();
 	cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]--;
-	ret = (void*)(cm->c.ptr << PAGE_ORDER);
+	ret = (void*)(cm->nfo.c.ptr << PAGE_ORDER);
 done:
 	*cb = cbuf_cons(cbid, len);
 	CBUF_RELEASE();
@@ -341,21 +356,21 @@ cbuf_free(void *buf)
 {
 	u32_t idx = ((u32_t)buf) >> PAGE_ORDER;
 	struct cbuf_alloc_desc *d, *fl;
-	union cbuf_meta *cm;
+	struct cbuf_meta *cm;
 
 	CBUF_TAKE();
 	d  = __cbuf_alloc_lookup(idx);
 	assert(d);
 	cm = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(d->cbid));
 	assert(!__cbuf_alloc_meta_inconsistent(d, cm));
-	assert(cm->c.flags & CBUFM_IN_USE);
+	assert(cm->nfo.c.flags & CBUFM_IN_USE);
 
 	fl = d->flhead;
 	assert(fl);
 	ADD_LIST(fl, d, next, prev);
 	/* do this last, so that we can guarantee the manager will not steal the cbuf before now... */
-	cm->c.flags &= ~CBUFM_IN_USE;
-	cm->c.thdid_owner = 0;
+	cm->nfo.c.flags &= ~CBUFM_IN_USE;
+	cm->thdid_owner = 0;
 	cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]++;
 	CBUF_RELEASE();
 
