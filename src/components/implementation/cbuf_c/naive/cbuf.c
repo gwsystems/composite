@@ -550,9 +550,10 @@ found:
 	return cci->desc.cbid;
 }
 
-/* Exchange the cbuf descriptor (flags of ownership)
-   of old spd and requested spd */
-
+/* 
+ * Exchange the cbuf descriptor (flags of ownership) of old spd and
+ * requested spd
+ */
 static int 
 mgr_update_owner(spdid_t new_spdid, long cbid)
 {
@@ -609,14 +610,15 @@ err:
 
 
 /* 
-   This is called when the component checks if it still owns the cbuf or
-   wants to hold a cbuf, if it is not the creater, the ownership
-   should be re-granted to it from the original owner. For example,
-   when the ramfs server is called and the server wants to keep the 
-   cbuf longer before restore.(need remember which cbufs for that tid??)
-*/
-/* r_spdid is the requested spd */
-
+ * This is called when the component checks if it still owns the cbuf
+ * or wants to hold a cbuf, if it is not the creater, the ownership
+ * should be re-granted to it from the original owner. For example,
+ * when the ramfs server is called and the server wants to keep the
+ * cbuf longer before restore.(need remember which cbufs for that
+ * tid??)
+ *
+ * r_spdid is the requested spd
+ */
 int   
 cbuf_c_claim(spdid_t r_spdid, int cbid)
 {
@@ -633,11 +635,10 @@ cbuf_c_claim(spdid_t r_spdid, int cbid)
 		goto done;
 	}
 
-	o_spdid =  d->owner.spd;
+	o_spdid = d->owner.spd;
 	if (o_spdid == r_spdid) goto done;
 
 	ret = mgr_update_owner(r_spdid, cbid); // -1 fail, 0 success
-
 done:
 	RELEASE();
 	return ret;   

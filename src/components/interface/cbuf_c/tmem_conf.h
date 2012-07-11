@@ -69,7 +69,7 @@ struct cbuf_meta {
 static inline 
 int cbufm_is_mapped(struct cbuf_meta *m) { return m->nfo.c.ptr != 0; }
 static inline
-int cbufm_is_tmem(struct cbuf_meta *m) { return m->sz == 0; }
+int cbufm_is_tmem(struct cbuf_meta *m)   { return m->sz == 0; }
 
 struct cb_desc;
 struct cb_mapping {
