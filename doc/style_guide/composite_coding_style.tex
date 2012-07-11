@@ -1224,6 +1224,133 @@ understand which parts of the code are important, and which aren't.
 If you're schizophrenic about your formatting, you are denying readers
 this important tool toward understanding your code.
 
+\section{{\tt assert}s, {\tt BUG}s, and Error Conditions}
+\label{s:exceptions}
+
+Functions go wrong.  The arguments to the function might not be valid,
+the assumed structure of a data-structure (see {\em invariants} in
+Section~\ref{s:comments}) might be inconsistent, or many other
+possible exceptional cases might occur.  Different types of exceptions
+should be dealt with using different mechanisms.
+
+\head{{\tt assert}ion usage.}  Often the inputs to a functions are
+assumed to have some properties.  For example, perhaps pointers should
+not be {\tt NULL}, different arguments must be initialized in a
+certain manner, or should be related to each other in specific ways,
+or numerical arguments should be within allowed ranges.  If such a
+condition is not true, the question is this: is this an error within
+your logic?  If it is simply an error, then you should use {\tt
+  assert} statements to verify the truthfulness of the constraints.
+
+You can get rid of assertions using preprocessor macros (by undefining
+debugging), so you should not put functions that have side-effects
+that must be executed for program correctness inside assertions
+(because they might be compiled away!).  However, we have not observed
+more than a 2\% performance degradation for including assertions, so
+we suggest using them even in production code.
+
+In systems, it is very important to differentiate between constraints
+that must be true concerning input values that are passed from the
+same ``source'' as the currently executing function.  For example, if
+you are implementing a data-structure manipulation function in the
+kernel, if the arguments come from other functions within the kernel,
+it is appropriate to use assertions on the arguments.  In such a case,
+if the invariant is violated, you'll find out immediately
+(fail-stop).  {\em However}, if the arguments come from code with
+different trust properties (i.e. user-level), you do {\em not} want to
+assume the inputs are valid.  Do not use {\tt assert}ions here.
+
+\head{Exceptional conditions, error codes, and return values.} As
+pointed out in the previous bullet, if the input values do not come
+from a trusted source, then you should not {\tt assert} on them (such
+assertions would provide a trivial vector for users to crash a
+component, or the kernel), and instead appropriate return values
+should be synthesized.  See Section~\ref{s:exception} for mechanisms
+to structure your code to handle such erroneous conditions.  If your
+function is returning an integer (the common case), and negative
+values are not return values within the defined range, then you should
+return a {\tt -EVAL}, where {\tt EVAL} is defined in {\tt errno.h}.
+For example, if the error is the result of an invalid argument, you
+can return {\tt -EINVAL}, and if you run out of memory, return {\tt
+  -ENOMEM}.  Checking for the occurrence of an error in the calling
+function is often done by checking for a negative return value.
+
+Often the error condition is not actually an error, and is instead
+part of the interface.  For example, returning {\tt -EAGAIN} specifies
+that ``data is not ready now, please try again later'' is used on
+non-blocking interfaces.  This is an {\em exceptional} condition, but
+not an {\em erroneous} condition.
+
+\head{{\tt BUG} usage.} {\tt BUG()} will kill the current thread by
+accessing the {\tt NULL} pointer (just as {\tt assert} does).  This is
+done unconditionally.  {\tt BUG} statements will not be compiled away
+even if debugging is not enabled.  This is not for checking conditions
+on inputs, and is instead of stopping the system when something is
+verifiably wrong.  This is similar to {\tt panic()} in other systems
+such as Linux.
+
+\section{Comments}
+\label{s:comments}
+
+A few notes on notation, and comment style.  These are largely
+convention, and there isn't much of a justification for this style
+over alternatives.  In \composite , we simply have standardized around
+these rules.
+\begin{itemize}[itemsep=0pt,topsep=1pt,parsep=1pt,leftmargin=2.5em]
+\item {\tt /* TODO: ... */} This comment denotes a message about a
+  functionality that should be added.  This functionality is not
+  necessary for correct functionality, but might result in sub-optimal
+  performance, or inconvenient functionality.  Work to be done in the
+  future, but work that is not essential.
+\item {\tt /* FIXME: ... */} This comment denotes a message about
+  functionality, or logic that must be augmented for correct
+  functionality.  If, for example, an edge case is not implemented, a
+  {\tt FIXME} should be added to document the lack of this edge case
+  logic.  
+\item {/* ... */} {\em vs.} {//}.  We simply prefer the use of the
+  former over the latter.  For multi-line comments, we use the
+  formatting:
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+/*
+ * Multi-line
+ * comment
+ */
+      \end{lstlisting}
+    \end{minipage}
+
+  Ascii-art in multi-line comments to diagram data-structures is
+  welcomed, and in emacs {\tt artist-mode} can be quite useful in
+  producing such diagrams.
+
+\item {\em Pre-conditions, post-conditions, and invariants}.  Often
+  during the design process, and later in development, it is useful to
+  employ contract-driven development.  Often this is encoded in
+  assertions, which is the optimal solution, but occasionally, it is
+  not realistically possible to include the assertion due to the cost
+  of the checks (i.e. on fast paths).  In these cases, you should
+  still document the conditions that must exist before the call of the
+  function (pre-conditions), the conditions that must be true after
+  the function executes (post-conditions), and the invariants often
+  imposed on data-structures (e.g. trees must be acyclic).  In such a
+  case, it is useful to include a comment before the function (a
+  function to add a child to a tree in this case):
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+/*
+ * preconditions: p != NULL, c != NULL, c.parent == NULL
+ * postconditions: is_child(p, c), c.parent == p
+ * invariants: tree is acyclic.
+ */
+int tree_add_child(struct tree_node *p, struct tree_node *c);
+      \end{lstlisting}
+    \end{minipage}
+\end{itemize}
+
 %\subsection{Formatting in \composite}
 
 %% \section{Object Orientated Programming in C}
@@ -1249,17 +1376,17 @@ this important tool toward understanding your code.
 \end{itemize}
 \item \lsthead{Version 0.11}, 8/28/11 -- Small changes and added the
   onion model.
+\item \lsthead{Version 0.12}, 7/11/12 -- Added sections on Comments
+  (Section~\ref{s:comments}) and Exceptions/Errors
+  (Section~\ref{s:exceptions}).
 \end{itemize}
 
 \head{TODO}
 \begin{itemize}[itemsep=0pt,topsep=1pt,parsep=1pt,leftmargin=2.5em]
 \item Edit and proof-read.
 \item OO in C,
-\item add instructions on comment format and when to use TODO, FIXME,
-  etc..., 
 \item header files vs. normal source files and static functions in
   header files with -Wextra,
-\item comments and documentation (artist-mode and dot), 
 \item Makefiles and the build procedure, 
 \item and again: edit and proof-read.
 \end{itemize}
