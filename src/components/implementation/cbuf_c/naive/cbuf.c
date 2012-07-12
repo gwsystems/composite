@@ -583,7 +583,7 @@ mgr_update_owner(spdid_t new_spdid, long cbid)
 	new_sti = get_spd_info(new_owner->spd);
 	assert(SPD_IS_MANAGED(new_sti));
 
-        // this return the whole page for the range
+        // this returns the whole page for the range
 	mgr_addr = __spd_cbvect_retrieve_page(old_sti, cbid); 
 	assert(mgr_addr);
 	__spd_cbvect_add_range(new_sti, cbid, mgr_addr);

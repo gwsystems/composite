@@ -1299,14 +1299,17 @@ these rules.
 \begin{itemize}[itemsep=0pt,topsep=1pt,parsep=1pt,leftmargin=2.5em]
 \item {\tt /* TODO: ... */} This comment denotes a message about a
   functionality that should be added.  This functionality is not
-  necessary for correct functionality, but might result in sub-optimal
-  performance, or inconvenient functionality.  Work to be done in the
-  future, but work that is not essential.
+  necessary for correct system operation, but might result in
+  sub-optimal performance or inconvenient functionality.  This is work
+  to be done in the future, and work that is not essential.
 \item {\tt /* FIXME: ... */} This comment denotes a message about
   functionality, or logic that must be augmented for correct
   functionality.  If, for example, an edge case is not implemented, a
   {\tt FIXME} should be added to document the lack of this edge case
-  logic.  
+  logic.  In an ideal world, we'd write code that deals with every
+  case.  However, this is often not possible due to the realities of
+  software development.  Please minimize the number of {\tt FIXME}s,
+  and use only where appropriate.
 \item {/* ... */} {\em vs.} {//}.  We simply prefer the use of the
   former over the latter.  For multi-line comments, we use the
   formatting:
@@ -1322,7 +1325,7 @@ these rules.
     \end{minipage}
 
   Ascii-art in multi-line comments to diagram data-structures is
-  welcomed, and in emacs {\tt artist-mode} can be quite useful in
+  welcomed, and the emacs {\tt artist-mode} can be quite useful in
   producing such diagrams.
 
 \item {\em Pre-conditions, post-conditions, and invariants}.  Often
@@ -1335,8 +1338,8 @@ these rules.
   function (pre-conditions), the conditions that must be true after
   the function executes (post-conditions), and the invariants often
   imposed on data-structures (e.g. trees must be acyclic).  In such a
-  case, it is useful to include a comment before the function (a
-  function to add a child to a tree in this case):
+  case, it is useful to include a comment before the function.  We use
+  the function to add a child to a tree as an example:
     \begin{minipage}{3in}
       \footnotesize
       \lstset{language=C}
@@ -1350,6 +1353,103 @@ int tree_add_child(struct tree_node *p, struct tree_node *c);
       \end{lstlisting}
     \end{minipage}
 \end{itemize}
+
+  It is also acceptable to abbreviate ``preconditions'' as ``pre'',
+  and ``postconditions'' as ``post''.
+
+\section{Function Visibility, Location, and Modifiers}
+\label{s:visibility}
+
+A practical question you must answer when using C, is what should a
+function's visibility be?  A function's visibility is determined by a
+number of factors:
+\begin{enumerate}[itemsep=0pt,topsep=1pt,parsep=1pt,leftmargin=2.5em]
+\item Is the function {\tt static}?
+\item Is the function implemented in a header file ({\tt *.h}), or a
+  {\tt *.c} file?
+\end{enumerate}
+
+How do these decisions change software development characteristics,
+and efficiency?  First, I'm going to assume that we're using {\tt gcc}
+as your compiler, and not a compiler that does link-time inlining
+(such as {\tt llvm}).  When you implement a function in a {\tt *.c}
+file, it will generate an object file that will be linked together
+with other objects.  When linking together objects, calls to that
+function will have the proper function address inserted into the
+executable.  When a function is implemented in a {\tt *.h} file, that
+function becomes part of the same object as the functions that call
+it.  There are multiple implications:
+\begin{itemize}[itemsep=0pt,topsep=1pt,parsep=1pt,leftmargin=2.5em]
+\item {\tt gcc} does not inline functions across objects.  You will
+  always have a function all overhead when the function is compiled
+  into a separate object.
+\item When a function is in the same object (i.e. compiled in the same
+  compilation unit), then it can be inlined according to the
+  compiler's heuristic.
+\end{itemize}
+
+When a function is marked as {\tt static}, the function is not visible
+outside of this object (compilation unit).  You can check this by
+looking at the output of {\tt nm object.o}; functions with lower case
+``symbol type'' are not visible outside of the object.  Thus, a
+function inside another object cannot call that function.  If the
+function is not {\tt static}, then {\tt nm} will yield a capital-case
+symbol type, which denotes that it is visible from other objects:
+functions within another compilation unit can call that function.
+
+A note: a function defined in multiple object files that are linked
+together cannot be visible outside of either object, or else the
+linker will fail with an error.  This is the equivalent of defining
+the function twice!  No compiler can deal with this case well.
+
+The question is how to decide for any function, where to implement it,
+and what modifiers to use?  Lets go through the conditions:
+\begin{itemize}[itemsep=0pt,topsep=1pt,parsep=1pt,leftmargin=2.5em]
+\item {\tt static} and {\tt *.h}: This is a common usage for
+  performance-sensitive code.  The function being {\tt static} means
+  that it can be defined in this compilation unit, and it won't
+  conflict if it is also used in another compilation unit and the
+  objects are linked together.  The {\tt inline} modifier is often
+  used as well to suggest that the compiler inline the function.  This
+  is generally the only reason to implement functions in this way.
+
+  You must really know what you're doing with this implementation
+  style.  If you implement functions in this style indiscriminately,
+  you can end up using quite a bit of memory because when functions
+  are inlined, their contents are duplicated at all call-points. 
+\item {\tt static} and {\tt *.c}: By default, this should be the way
+  that you implement functions.  Most functions are not called so
+  frequently from outside of their object that they should be in
+  header files, and you want to avoid any naming conflicts with
+  functions with the same name in other objects, so static makes
+  sense.
+\item Not {\tt static} and {\tt *.h}: Don't do this.  There are uses,
+  but they are sufficiently rare, that I'll simply say: don't do this.
+  You are asking for link-time errors where the same header file is
+  included in two {\tt *.c} files, and they are linked together.
+\item Not {\tt static} and {\tt *.c}: If you have a function that you
+  want to be called from another {\tt *.c} file, this is the default.
+  You will often also have a {\tt *.h} file that includes {\tt only}
+  the prototype of the function.  That will enable the other {\tt *.c}
+  file to compile, as it sees the prototype, and upon linking, it can
+  now call the function.
+
+  You can safely think about these functions as defining the external
+  {\em interface} into the object.
+\end{itemize}
+
+\head{Example.}  A good example of the split of functionality into
+     {\tt .c} and {\tt .h} files is the {\tt cbuf} implementation.
+     The functions in {\tt src/components/include/cbuf.h} are
+     performance critical, so they should be inlined into the calling
+     code.  In contrast, the functions in {\tt
+       src/components/interface/cbuf_c/cbuf_c.c} are also compiled
+     into the same components and define the rest of the {\tt cbuf}
+     interface.  Specifically, you can see that the functions in the
+     {\tt .h} files attempt to be small, and call out to ``slow
+     paths'' that are implemented in the {\tt .c} file.  This avoids
+     memory waste by inlining all of the functionality, and makes the
+     ``fast path'' as fast as possible.
 
 %\subsection{Formatting in \composite}
 
@@ -1379,6 +1479,8 @@ int tree_add_child(struct tree_node *p, struct tree_node *c);
 \item \lsthead{Version 0.12}, 7/11/12 -- Added sections on Comments
   (Section~\ref{s:comments}) and Exceptions/Errors
   (Section~\ref{s:exceptions}).
+\item \lsthead{version 0.13}, 7/12/12 -- added section on function
+  visibility, location, and modifiers, Section~\ref{s:visibility}.
 \end{itemize}
 
 \head{TODO}
