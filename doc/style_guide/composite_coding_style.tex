@@ -1313,6 +1313,7 @@ these rules.
 \item {/* ... */} {\em vs.} {//}.  We simply prefer the use of the
   former over the latter.  For multi-line comments, we use the
   formatting:
+
     \begin{minipage}{3in}
       \footnotesize
       \lstset{language=C}
@@ -1340,6 +1341,7 @@ these rules.
   imposed on data-structures (e.g. trees must be acyclic).  In such a
   case, it is useful to include a comment before the function.  We use
   the function to add a child to a tree as an example:
+
     \begin{minipage}{3in}
       \footnotesize
       \lstset{language=C}
@@ -1443,7 +1445,7 @@ and what modifiers to use?  Lets go through the conditions:
      The functions in {\tt src/components/include/cbuf.h} are
      performance critical, so they should be inlined into the calling
      code.  In contrast, the functions in {\tt
-       src/components/interface/cbuf_c/cbuf_c.c} are also compiled
+       src/components/interface/cbuf\_c/cbuf\_c.c} are also compiled
      into the same components and define the rest of the {\tt cbuf}
      interface.  Specifically, you can see that the functions in the
      {\tt .h} files attempt to be small, and call out to ``slow

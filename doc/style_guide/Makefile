@@ -11,3 +11,6 @@ bib: default
 
 show: default
 	xpdf $(NAME).pdf
+
+clean:
+	rm *.aux *.out *.log
