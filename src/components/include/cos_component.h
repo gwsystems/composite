@@ -239,11 +239,32 @@ static inline void cos_next_thread(unsigned short int thd_id)
 	cos_next->next_thd_id = thd_id;
 }
 
+static inline long cos_cpuid(void)
+{
+	unsigned long curr_stk_pointer;
+
+	asm ("movl %%esp, %0;" : "=r" (curr_stk_pointer));
+	/* 
+	 * We save the CPU_ID in the stack for fast access.  We want
+	 * to find the struct cos_stk (see the stkmgr interface) so
+	 * that we can then offset into it and get the cpu_id.  This
+	 * struct is at the _top_ of the current stack, and cpu_id is
+	 * at the top of the struct (it is a u32_t).
+	 */
+	return *(long *)((curr_stk_pointer & ~(COS_STACK_SZ - 1)) + 
+			 COS_STACK_SZ - sizeof(u32_t));
+}
+
 static inline unsigned short int cos_get_thd_id(void)
 {
-	struct shared_user_data *ud = (void *)COS_INFO_REGION_ADDR;
+	unsigned long curr_stk_pointer;
 
-	return ud->current_thread;
+	asm ("movl %%esp, %0;" : "=r" (curr_stk_pointer));
+	/* 
+	 * see comments in the cos_cpuid above.
+	 */
+	return *(long *)((curr_stk_pointer & ~(COS_STACK_SZ - 1)) + 
+			 COS_STACK_SZ - 2 * sizeof(u32_t));
 }
 
 #define ERR_THROW(errval, label) do { ret = errval; goto label; } while (0)
@@ -305,6 +326,21 @@ cos_cas(unsigned long *target, unsigned long cmp, unsigned long updated)
 {
 	char z;
 	__asm__ __volatile__("lock cmpxchgl %2, %0; setz %1"
+			     : "+m" (*target),
+			       "=a" (z)
+			     : "q"  (updated),
+			       "a"  (cmp)
+			     : "memory", "cc");
+	return (int)z;
+}
+
+/* A uni-processor variant with less overhead but that doesn't
+ * guarantee atomicity across cores. */
+static inline int 
+cos_cas_up(unsigned long *target, unsigned long cmp, unsigned long updated)
+{
+	char z;
+	__asm__ __volatile__("cmpxchgl %2, %0; setz %1"
 			     : "+m" (*target),
 			       "=a" (z)
 			     : "q"  (updated),

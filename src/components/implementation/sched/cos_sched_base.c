@@ -40,6 +40,9 @@
 
 #include <sched_timing.h>
 
+
+
+/* should be per_core >>>>>>>> *//////////////////////////////////////
 static volatile u64_t ticks = 0;
 
 /* When the wakeup thread (in charge of higher-level timing) should be woken */
@@ -58,6 +61,8 @@ static struct sched_thd *timer, *init, *idle;
 static struct sched_thd blocked;
 static struct sched_thd upcall_deactive;
 static struct sched_thd graveyard;
+/* <<<<<<<<<<< should be per_core *//////////////////////////////////
+
 
 static enum {SCHED_CHILD, SCHED_ROOT} sched_type = SCHED_ROOT;
 static inline int sched_is_root(void) { return sched_type == SCHED_ROOT; }
@@ -386,7 +391,6 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 		TIMER_INIT(tfp, recs, TIMER_FPRR);
 
 		timer_start(&t);
-
 		assert(cos_sched_lock_own());
 		/* 
 		 * This is subtle: an event might happen _after_ we
@@ -409,7 +413,7 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 			cos_sched_clear_events();
 			cos_sched_process_events(evt_callback, 0);
 		}
-		
+
 		if (!target) {
 			/* 
 			 * If current is an upcall that wishes to terminate
@@ -447,7 +451,6 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 		}
 		next = resolve_dependencies(next);
 		if (next == current) goto done;
-
 		if (sched_is_child() && unlikely(next == idle)) {
 			/* This is a kludge: child schedulers don't
 			 * have idle threads...instead they just use
@@ -457,7 +460,6 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 			next = timer;
 		}
 		if (sched_thd_grp(next)) flags |= COS_SCHED_CHILD_EVT;
-
 		assert(!sched_thd_blocked(next));
 		report_event(SWITCH_THD);
 		timer_end(&t);
@@ -540,14 +542,12 @@ static void sched_timer_tick(void)
 {
 	while (1) {
 		cos_sched_lock_take();
-		
 		report_event(TIMER_TICK);
-		
+
 		if (unlikely((ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1))) {
 			report_thd_accouting();
 			//cos_stats();
 		}
-		
 		/* are we done running? */
 
 		if (unlikely(ticks >= RUNTIME_SEC*TIMER_FREQ+1)) {
@@ -575,8 +575,10 @@ static void fp_event_completion(struct sched_thd *e)
 {
 	report_event(EVT_CMPLETE);
 
-	cos_sched_lock_take();
-	sched_switch_thread(COS_SCHED_TAILCALL, EVT_CMPLETE_LOOP);
+	while (1) {
+		cos_sched_lock_take();
+		sched_switch_thread(COS_SCHED_TAILCALL, EVT_CMPLETE_LOOP);
+	}
 	BUG();
 
 	return;
@@ -587,7 +589,7 @@ typedef void (*crt_thd_fn_t)(void *data);
 
 static void fp_timer(void *d)
 {
-	printc("Starting timer\n");
+	printc("Core %ld: Starting timer thread (thread id %d)\n", cos_cpuid(), cos_get_thd_id());
 	sched_timer_tick();
 	BUG();
 }
@@ -767,10 +769,7 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 		 * before it could complete the call to block), no reason to
 		 * wake it via scheduling.
 		 */
-		if (!sched_thd_blocked(thd)) {
-			printc("thd %d hasn't blocked! gonna return\n",thd->id);
-			goto cleanup;
-		}
+		if (!sched_thd_blocked(thd)) goto cleanup;
 		/* 
 		 * We are waking up a thread, which means that if we
 		 * are an upcall, we don't want composite to
@@ -888,7 +887,7 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 			/* circular dependency... */
 			if(dep->dependency_thd->id == cos_get_thd_id()) {
 				debug_print("BUG @ ");
-				printc("cos_sched_base: circular dependency between dep %d, curr %d (from spdid %d)\n", dep->id, cos_get_thd_id(), spdid);
+				printc("cos_sched_base: circular dependency between dep %d, curr %d (From spdid %d)\n", dep->id, cos_get_thd_id(), spdid);
 				assert(0);
 				goto unblock;
 			}
@@ -1695,9 +1694,21 @@ print_config_info(void)
 
 extern int parent_sched_root_init(void);
 /* Initialize the root scheduler */
+volatile int initialized = 0;
 int sched_root_init(void)
 {
 	struct sched_thd *new;
+
+	printc("<<< CPU %ld: thread %d spinning in the sched_base... >>>\n", cos_cpuid(), cos_get_thd_id());
+	
+	if (cos_cpuid() == 1) {
+//		initialized++;
+	} else {
+		while (1);
+		while (initialized == 0);
+	}
+	printc("<<< CPU %ld, init thd %d going to run.\n", cos_cpuid(), cos_get_thd_id());
+	assert(initialized <= 1);
 
 	parent_sched_root_init();
 	print_config_info();

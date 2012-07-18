@@ -20,7 +20,6 @@
 #include <lock.h>
 
 #include <sched.h>
-#include <timed_blk.h>
 
 //#define ACT_LOG
 #ifdef ACT_LOG
@@ -53,12 +52,8 @@ typedef enum {
 #define ACT_RECORD(a, s, l, t1, t2)
 #endif
 
-//#define TIMED
-
 struct blocked_thds {
-	/* Timed records if this invocation is timed or not */
 	unsigned short int thd_id;
-	unsigned char timed;
 	struct blocked_thds *next, *prev;
 };
 
@@ -222,35 +217,24 @@ done:
 /* 
  * Dependencies here (thus priority inheritance) will NOT be used if
  * you specify a timeout value.
+ *
+ * Return 0: lock taken, -1: could not find lock, 1: inconsistency -- retry!
  */
-int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int thd_id, unsigned int microsec)
+int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int thd_id)
 {
 	struct meta_lock *ml;
 	spdid_t spdid = cos_spd_id();
 	unsigned short int curr = (unsigned short int)cos_get_thd_id();
 	struct blocked_thds blocked_desc = {.thd_id = curr};
-	int ret = 0;
+	int ret = -1;
 	
-//	print("thread %d from spd %d locking for %d micrseconds.", curr, spdid, microsec);
-
 	ACT_RECORD(ACT_LOCK, spd, lock_id, cos_get_thd_id(), thd_id);
 	TAKE(spdid);
 
-	if (0 == microsec) {
-		ret = TIMER_EXPIRED;
-		goto error;
-	}
 	ml = lock_find(lock_id, spd);
 	/* tried to access a lock not yet created */
-	if (!ml) {
-		ret = -1;
-		//print("take wtf%d%d%d", 0,0,0);
-		goto error;
-	}
-	if (lock_is_thd_blocked(ml, curr)) {
-		prints("lock: lock_is_thd_blocked failed in lock_component_take\n");
-		goto error;
-	}
+	if (!ml) goto error;
+	assert(!lock_is_thd_blocked(ml, curr));
 
 	/* The calling component needs to retry its user-level lock,
 	 * some preemption has caused the generation count to get off,
@@ -258,7 +242,7 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 	 * lock's state */
 	if (ml->gen_num != generation) {
 		ml->gen_num = generation;
-		ret = 0;
+		ret = 1;
 		goto error;
 	}
 	generation++;
@@ -267,71 +251,39 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 	 * memory allocated on the individual thread's stacks. */
 	INIT_LIST(&blocked_desc, next, prev);
 	ADD_LIST(&ml->b_thds, &blocked_desc, next, prev);
-	blocked_desc.timed = (TIMER_EVENT_INF != microsec);
 	//ml->owner = thd_id;
 
 	RELEASE(spdid);
 
-	/* Bypass calling the timed every component if there is an infinite wait */
-//	assert(TIMER_EVENT_INF == microsec);
-//	assert(!blocked_desc.timed);
-	if (TIMER_EVENT_INF == microsec) {
-//		printc("%d: lt %d %d %d\n", (unsigned int)curr, lock_id, thd_id, spd);
-		if (-1 == sched_block(spdid, thd_id)) {
-			printc("Deadlock including thdids %d -> %d in spd %d, lock id %d.\n", 
-			       cos_get_thd_id(), thd_id, spd, (int)lock_id);
-			debug_print("BUG: Possible deadlock @ "); 
-			assert(0);
-			if (-1 == sched_block(spdid, 0)) assert(0);
-		}
-//		printc("%d:\tlt %d\n", (unsigned int)curr, lock_id);
-		if (!EMPTY_LIST(&blocked_desc, next, prev)) BUG();
-		/* 
-		 * OK, this seems ridiculous but here is the rational: Assume
-		 * we are a middle-prio thread, and were just woken by a low
-		 * priority thread. We will preempt that thread when woken,
-		 * and will continue here.  If a high priority thread is also
-		 * waiting on the lock, then we would preempt the low priority
-		 * thread while it should wake the high prio thread. With the
-		 * following crit sect will switch to the low prio thread that
-		 * still holds the component lock.  See the comments in
-		 * lock_component_release. 
-		 */
-		//TAKE(spdid);
-		//RELEASE(spdid);
-
-		ACT_RECORD(ACT_WAKEUP, spd, lock_id, cos_get_thd_id(), 0);
-		ret = 0;
-	} else {
+	if (-1 == sched_block(spdid, thd_id)) {
+		printc("Deadlock including thdids %d -> %d in spd %d, lock id %d.\n", 
+		       cos_get_thd_id(), thd_id, spd, (int)lock_id);
+		debug_print("BUG: Possible deadlock @ "); 
 		assert(0);
-#ifdef NIL
-		/* ret here will fall through.  We do NOT use the
-		 * dependency here as I can't think through the
-		 * repercussions */
-		if (-1 == (ret = timed_event_block(spdid, microsec))) return ret;
-
-		/* 
-		 * We might have woken from a timeout, which means
-		 * that we need to remove this thread from the waiting
-		 * list for the lock.
-		 */
-		TAKE(spdid);
-		ml = lock_find(lock_id, spd);
-		if (!ml) {
-			ret = -1;
-			goto error;
-		}
-		REM_LIST(&blocked_desc, next, prev);
-		RELEASE(spdid);
-
-		ACT_RECORD(ACT_WAKEUP, spd, lock_id, cos_get_thd_id(), 0); 
-		/* ret is set to the amnt of time we blocked */
-#endif 
+		if (-1 == sched_block(spdid, 0)) assert(0);
 	}
+	if (!EMPTY_LIST(&blocked_desc, next, prev)) BUG();
+	/* 
+	 * OK, this seems ridiculous but here is the rational: Assume
+	 * we are a middle-prio thread, and were just woken by a low
+	 * priority thread. We will preempt that thread when woken,
+	 * and will continue here.  If a high priority thread is also
+	 * waiting on the lock, then we would preempt the low priority
+	 * thread while it should wake the high prio thread. With the
+	 * following crit sect will switch to the low prio thread that
+	 * still holds the component lock.  See the comments in
+	 * lock_component_release. 
+	 */
+	//TAKE(spdid);
+	//RELEASE(spdid);
+
+	ACT_RECORD(ACT_WAKEUP, spd, lock_id, cos_get_thd_id(), 0);
+	ret = 0;
+done:
 	return ret;
 error:
 	RELEASE(spdid);
-	return ret;
+	goto done;
 }
 
 int lock_component_release(spdid_t spd, unsigned long lock_id)
@@ -359,7 +311,6 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 	while (1) {
 		struct blocked_thds *next;
 		u16_t tid;
-		int timed;
 
 		/* This is suboptimal: if we wake a thread with a
 		 * higher priority, it will be switched to.  Given we
@@ -373,8 +324,6 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 
 		/* cache locally */
 		tid = bt->thd_id;
-		timed = bt->timed;
-
 		/* Last node in the list? */
 		if (bt == next) {
 			/* This is sneaky, so to reiterate: Keep this
@@ -391,17 +340,9 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 		}
 
 		/* Wakeup the way we were put to sleep */
-		if (timed) {
-			assert(0);
-#ifdef NIL
-			timed_event_wakeup(spdid, tid);
-#endif
-		} else {
-			assert(tid != cos_get_thd_id());
-//			printc("%d: lr %d %d %d\n", cos_get_thd_id(), lock_id, tid, spd);
-			sched_wakeup(spdid, tid);
-//			printc("%d:\tlr %d\n", cos_get_thd_id(), lock_id);
-		}
+		assert(tid != cos_get_thd_id());
+		sched_wakeup(spdid, tid);
+
 		if (bt == next) break;
 		bt = next;
 	}

@@ -4,7 +4,7 @@
 #include <sched.h>
 #include <pong.h>
  
-#define ITER (1024*128)
+#define ITER (10)
 u64_t meas[ITER];
 
 void cos_init(void)
@@ -13,6 +13,7 @@ void cos_init(void)
 	int i, j;
 
 	call();			/* get stack */
+	printc("cpuid from ping %ld\n",cos_cpuid());
 	printc("Starting Invocations.\n");
 
 	for (i = 0 ; i < ITER ; i++) {

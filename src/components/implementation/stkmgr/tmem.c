@@ -9,6 +9,8 @@
 #include <tmem.h>
 #include <mem_pool.h>
 
+cos_lock_t tmem_l;
+
 struct spd_tmem_info *
 get_spd_info(spdid_t spdid)
 {

@@ -13,8 +13,9 @@
 
 struct thread threads[MAX_NUM_THREADS];
 static struct thread *thread_freelist_head = NULL;
-/* like "current" in linux */
-struct thread *current_thread = NULL;
+/* like "current" in linux; now this is replaced by the per_cpu
+ * function core_get_curr_thd() as we are supporting smp. Qi. */
+//struct thread *current_thread = NULL;
 
 /* 
  * Return the depth into the stack were we are present or -1 for
@@ -62,18 +63,20 @@ struct thread *thd_alloc(struct spd *spd)
 	unsigned short int id;
 	void *page;
 
+	/* FIXME: race condition */
 	thd = thread_freelist_head;
 	if (thd == NULL) {
 		printk("cos: Could not create thread.\n");
 		return NULL;
 	}
+	thread_freelist_head = thread_freelist_head->freelist_next;
 	
 	page = cos_get_pg_pool();
 	if (NULL == page) {
 		printk("cos: Could not allocate the data page for new thread.\n");
-		
+		thread_freelist_head = thd;
+		return NULL;
 	}
-	thread_freelist_head = thread_freelist_head->freelist_next;
 
 	id = thd->thread_id;
 	memset(thd, 0, sizeof(struct thread));
@@ -145,7 +148,7 @@ void thd_free_all(void)
 void thd_init(void)
 {
 	thd_init_all(threads);
-	current_thread = NULL;
+	/* current_thread = NULL; // Not used anymore */
 }
 
 extern int host_in_syscall(void);

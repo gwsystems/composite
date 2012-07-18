@@ -7,51 +7,58 @@
 #include <cos_component.h>
 #include <cos_debug.h>
 
+/* 
+ * The lock contains the thread that owns it (or 0 if it is not
+ * taken), and the thread id of the most recent thread to contend the
+ * lock (if one did).  Here we just do atomic operations to ensure
+ * that this is so.
+ */
+
 static inline int cos_sched_lock_take(void)
 {
-	struct cos_synchronization_atom *l = &cos_sched_notifications.cos_locks;
-	unsigned int curr_thd = cos_get_thd_id();
+	union cos_synchronization_atom *l = &cos_sched_notifications.cos_locks;
+	u16_t curr_thd = cos_get_thd_id(), owner;
 	
 	/* Recursively taking the lock: not good */
-	assert(l->owner_thd != curr_thd);
-	while (1) {
-		unsigned int lock_val;
+	assert(l->c.owner_thd != curr_thd);
+	do {
+		union cos_synchronization_atom p, n; /* previous and new */
 
-		__asm__ __volatile__("call cos_atomic_user1"
-				     : "=D" (lock_val) 
-				     : "a" (l), "b" (curr_thd)
-				     : "cc", "memory");
-		/* no contention?  We're done! */
-		if (lock_val == 0) {
-			break;
+		do {
+			p.v            = l->v;
+			owner          = p.c.owner_thd;
+			n.c.queued_thd = 0; /* will be set in the kernel... */
+			if (unlikely(owner)) n.c.owner_thd = owner;
+			else                 n.c.owner_thd = curr_thd;
+		} while (unlikely(!cos_cas((unsigned long *)&l->v, p.v, n.v)));
+
+		if (unlikely(owner)) {
+			/* If another thread holds the lock, notify
+			 * kernel to switch */
+			if (cos___switch_thread(owner, COS_SCHED_SYNC_BLOCK) == -1) return -1;
 		}
-		/* If another thread holds the lock, notify kernel to switch */
-		if (cos___switch_thread(lock_val & 0x0000FFFF, COS_SCHED_SYNC_BLOCK) == -1) {
-			return -1;
-		}
-	} 
+		/* If we are now the owner, we're done.  If not, try
+		 * to take the lock again! */
+	} while (unlikely(owner));
 
 	return 0;
 }
 
 static inline int cos_sched_lock_release(void)
 {
-	struct cos_synchronization_atom *l = &cos_sched_notifications.cos_locks;
-	unsigned int lock_val;
-	/* TODO: sanity check that verify that lower 16 bits of
-	   lock_val == curr_thd unsigned int curr_thd =
-	   cos_get_thd_id(); */
-	assert(l->owner_thd == cos_get_thd_id());
-	__asm__ __volatile__("call cos_atomic_user2"
-			     : "=c" (lock_val)
-			     : "a" (l)
-			     : "memory");
-	/* If a thread is attempting to access the resource, */
-	lock_val >>= 16;
-	if (lock_val) {
-		//assert(sched_get_current()->id != lock_val);
-		return cos___switch_thread(lock_val, COS_SCHED_SYNC_UNBLOCK);
-	}
+	union cos_synchronization_atom *l = &cos_sched_notifications.cos_locks;
+	union cos_synchronization_atom p;
+	u16_t queued_thd;
+
+	/* TODO: sanity check that verify that we do own the lock */
+	assert(l->c.owner_thd == cos_get_thd_id());
+
+	do {
+		p.v           = l->v;
+		queued_thd    = p.c.queued_thd;
+	} while (unlikely(!cos_cas((unsigned long *)&l->v, p.v, 0)));
+	/* If a thread is contending the lock. */
+	if (queued_thd) return cos___switch_thread(queued_thd, COS_SCHED_SYNC_UNBLOCK);
 	
 	return 0;
 
@@ -60,9 +67,9 @@ static inline int cos_sched_lock_release(void)
 /* do we own the lock? */
 static inline int cos_sched_lock_own(void)
 {
-	struct cos_synchronization_atom *l = &cos_sched_notifications.cos_locks;
+	union cos_synchronization_atom *l = &cos_sched_notifications.cos_locks;
 	
-	return l->owner_thd == cos_get_thd_id();
+	return l->c.owner_thd == cos_get_thd_id();
 }
 
 #endif

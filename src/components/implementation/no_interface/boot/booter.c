@@ -546,6 +546,7 @@ void cos_init(void *arg)
 
 	/* Assumes that hs have been setup with boot_find_cobjs */
 	boot_create_system();
+	printc("booter: done creating system.\n");
 	UNLOCK();
 
 	return;

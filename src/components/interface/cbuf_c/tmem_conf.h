@@ -4,10 +4,10 @@
 #include <cbuf_c.h>
 #include <cos_synchronization.h>
 
-cos_lock_t tmem_l;
+extern cos_lock_t tmem_l;
 #define LOCK_INIT() lock_static_init(&tmem_l);
-#define TAKE()      do { if (lock_take(&tmem_l) != 0) BUG(); } while(0)
-#define RELEASE()   do { if (lock_release(&tmem_l) != 0) BUG() } while(0)
+#define TAKE()      do { if (lock_take(&tmem_l))    BUG(); } while(0)
+#define RELEASE()   do { if (lock_release(&tmem_l)) BUG() } while(0)
 
 /* 
  * tmem_item in this case is a list of the cbufs that are _owned_ by a

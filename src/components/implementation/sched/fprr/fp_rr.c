@@ -16,9 +16,11 @@
 #define QUANTUM ((unsigned int)CYC_PER_TICK)
 
 /* runqueue */
-static struct prio_list {
+struct prio_list {
 	struct sched_thd runnable;
-} priorities[NUM_PRIOS];
+} CACHE_ALIGNED;
+
+static struct prio_list priorities[MAX_NUM_CPU][NUM_PRIOS];
 
 /* bit-mask describing which priorities are active */
 u32_t active = 0;
@@ -38,7 +40,6 @@ static inline unsigned short int mask_high(void)
 	return r;
 }
 
-
 static inline void fp_move_end_runnable(struct sched_thd *t)
 {
 	struct sched_thd *head;
@@ -46,7 +47,7 @@ static inline void fp_move_end_runnable(struct sched_thd *t)
 
 	assert(sched_thd_ready(t));
 	assert(!sched_thd_suspended(t));
-	head = &priorities[p].runnable;
+	head = &priorities[cos_cpuid()][p].runnable;
 	REM_LIST(t, prio_next, prio_prev);
 	ADD_LIST(LAST_LIST(head, prio_next, prio_prev), t, prio_next, prio_prev);
 	mask_set(p);
@@ -58,7 +59,7 @@ static inline void fp_add_start_runnable(struct sched_thd *t)
 	u16_t p = sched_get_metric(t)->priority;
 
 	assert(sched_thd_ready(t));
-	head = &priorities[p].runnable;
+	head = &priorities[cos_cpuid()][p].runnable;
 	ADD_LIST(head, t, prio_next, prio_prev);
 	mask_set(p);
 }
@@ -93,15 +94,13 @@ static struct sched_thd *fp_get_highest_prio(void)
 	struct sched_thd *t, *head;
 	u16_t p = mask_high();
 
-	head = &(priorities[p].runnable);
+	head = &(priorities[cos_cpuid()][p].runnable);
 	t = FIRST_LIST(head, prio_next, prio_prev);
 	assert(t != head);
-	
 	assert(sched_thd_ready(t));
 	assert(sched_get_metric(t));
 	assert(sched_get_metric(t)->priority == p);
 	assert(!sched_thd_free(t));
-	
 	return t;
 }
 
@@ -124,7 +123,6 @@ struct sched_thd *schedule(struct sched_thd *t)
 	n = fp_get_highest_prio();
 	assert(n);
 	if (n != t) return n;
-	
 	assert(t);
 	return fp_get_second_highest_prio(n);
 }
@@ -425,12 +423,12 @@ thread_resparams_set(struct sched_thd *t, res_spec_t rs)
 void runqueue_print(void)
 {
 	struct sched_thd *t;
-	int i;
-
-	printc("Running threads (thd, prio, ticks):\n");
+	int i = 0;
+	
+	printc("Core %ld: Running threads (thd, prio, ticks):\n", cos_cpuid());
 	for (i = 0 ; i < NUM_PRIOS ; i++) {
-		for (t = FIRST_LIST(&priorities[i].runnable, prio_next, prio_prev) ; 
-		     t != &priorities[i].runnable ;
+		for (t = FIRST_LIST(&priorities[cos_cpuid()][i].runnable, prio_next, prio_prev) ; 
+		     t != &priorities[cos_cpuid()][i].runnable || !t ;
 		     t = FIRST_LIST(t, prio_next, prio_prev)) {
 			struct sched_accounting *sa = sched_get_accounting(t);
 			unsigned long diff = sa->ticks - sa->prev_ticks;
@@ -466,7 +464,7 @@ void sched_initialization(void)
 	int i;
 
 	for (i = 0 ; i < NUM_PRIOS ; i++) {
-		sched_init_thd(&priorities[i].runnable, 0, THD_FREE);
+		sched_init_thd(&priorities[cos_cpuid()][i].runnable, 0, THD_FREE);
 	}
 #ifdef DEFERRABLE
 	sched_init_thd(&servers, 0, THD_FREE);

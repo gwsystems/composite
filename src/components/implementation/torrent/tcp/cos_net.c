@@ -1276,6 +1276,7 @@ static int cos_net_evt_loop(void)
 		sz = parent_tread(cos_spd_id(), ip_td, cb, alloc_sz);
 		assert(sz > 0);
 		cos_net_interrupt(data, sz);
+		assert(lock_contested(&net_lock) != cos_get_thd_id());
 		cbuf_free(data);
 	}
 
@@ -1580,7 +1581,7 @@ static void cos_net_create_netif_thd(void)
 	union sched_param sp;
 	
 	sp.c.type  = SCHEDP_PRIO;
-	sp.c.value = 3;
+	sp.c.value = 4;
 	if (0 > (event_thd = sched_create_thd(cos_spd_id(), sp.v, 0, 0))) BUG();
 }
 

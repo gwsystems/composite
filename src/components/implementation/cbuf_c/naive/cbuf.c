@@ -9,7 +9,7 @@
 
 #include <cos_component.h>
 #include <sched.h>
-/* #include <cos_synchronization.h> */
+#include <cos_synchronization.h>
 #include <print.h>
 #include <cos_alloc.h>
 #include <cos_map.h>

@@ -101,3 +101,11 @@ on a case-by-case basis for more business-friendly terms.  The license
 should not prevent you from using this OS, as alternatives can be
 arranged.  It _should_ prevent you from stealing the work and claiming
 it as your own.
+
+Support
+-------
+
+We'd like to sincerely thank our sponsors.  The _Composite_
+Component-Based OS development effort has been supported by grants
+from the National Science Foundation (NSF) under awards `CNS 1137973`,
+`CNS 1149675`, and `CNS 1117243`.

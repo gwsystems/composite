@@ -19,7 +19,7 @@ int cos_use_force_sched_link(void)
 }
 
 /**************** Scheduler Event Fns *******************/
-
+/* should be per_core >>>>>>>> *////////////////////////////////////////////////////////
 static volatile u8_t cos_curr_evt = 0;
 
 /* 

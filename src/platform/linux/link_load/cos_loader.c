@@ -38,9 +38,14 @@
 
 #include <bfd.h>
 
+#include <stdbool.h>
+//#include <ck_spinlock.h>
+//#include <pthread.h>
+#include <sys/wait.h> /* wait for children process termination */
+#include <sched.h>
+
 /* composite includes */
 #include <spd.h>
-#include <thread.h>
 #include <ipc.h>
 
 #include <cobj_format.h>
@@ -2390,15 +2395,28 @@ static struct service_symbs *find_obj_by_name(struct service_symbs *s, const cha
 
 #define MAX_SCHEDULERS 3
 
+void set_curr_affinity(u32_t cpu)
+{
+	cpu_set_t s;
+	CPU_ZERO(&s);
+	assert(cpu < MAX_NUM_CPU - 1);
+	CPU_SET(cpu, &s);
+	sched_setaffinity(0, 1, &s);
+	return;
+}
+
+int (*fn)(void);
+
 static void setup_kernel(struct service_symbs *services)
 {
 	struct service_symbs *m, *s;
 	struct service_symbs *init = NULL;
 	struct spd_info *init_spd = NULL;
-
+	pid_t pid;
+	int cntl_fd = 0, i;
 	struct cos_thread_info thd;
-	int cntl_fd, ret;
-	int (*fn)(void);
+	int cpuid;
+	int ret, child_status;
 	unsigned long long start, end;
 	
 	cntl_fd = aed_open_cntl_fd();
@@ -2477,12 +2495,30 @@ static void setup_kernel(struct service_symbs *services)
 		exit(-1);
 	}
 	thd.spd_handle = ((struct spd_info *)s->extern_info)->spd_handle;//spd0->spd_handle;
+
+	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
+
+	set_curr_affinity(0);
 	cos_create_thd(cntl_fd, &thd);
+
+	for (i = 1; i < MAX_NUM_CPU - 1; i++) {
+		printf("Parent: forking for core %d..\n", i);
+		cpuid = i;
+		pid = fork();
+		if (pid == 0) break;
+	}
+
+	if (pid == 0) { /* child process: set own affinity */ 
+		set_curr_affinity(cpuid);
+		cos_create_thd(cntl_fd, &thd);
+//		while (1) ;
+	} else {
+		printf("Parent: created %d threads.\n", i - 1);
+//		while (1) ;
+	}
 
 	printl(PRINT_HIGH, "\nOK, good to go, calling component 0's main\n\n");
 	fflush(stdout);
-
-	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
 
 #define ITER 1
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
@@ -2491,10 +2527,18 @@ static void setup_kernel(struct service_symbs *services)
 	sync();
 
 	aed_disable_syscalls(cntl_fd);
+
 	rdtscll(start);
 	ret = fn();
 	rdtscll(end);
+
 	aed_enable_syscalls(cntl_fd);
+
+	 /* parent process waits for all children to complete. */
+	if (pid > 0) 
+		while (wait(&child_status) > 0) ;
+	else 
+		exit(getpid());
 
 	printl(PRINT_HIGH, "Invocation takes %lld, ret %x.\n", (end-start)/ITER, ret);
 	
@@ -2604,6 +2648,51 @@ void set_prio(void)
 	return;
 }
 
+void set_smp_affinity()
+{
+	printf("start!\n");
+	char cmd[64], cmd1[64];
+	
+	// TODO: move these to a python script...
+
+
+	system("mkdir -p /dev/cpuset");
+	system("mount -t cgroup -ocpuset cpuset /dev/cpuset");
+	system("mkdir -p /dev/cpuset/linux");
+	system("mkdir -p /dev/cpuset/cos");
+	system("echo 7 > /dev/cpuset/linux/cpuset.cpus");
+	system("echo 0 > /dev/cpuset/linux/cpuset.mems");
+	sprintf(cmd, "echo 0-%d > /dev/cpuset/cos/cpuset.cpus", MAX_NUM_CPU - 2);
+	system(cmd);
+	system("echo 0 > /dev/cpuset/cos/cpuset.mems");
+	//	printf("1:\\pid %d!\n", getpid());
+	fflush(stdout);
+	sprintf(cmd1, "echo %d > /dev/cpuset/cos/tasks", getpid());
+	system(cmd1);
+
+	system("for i in `cat /dev/cpuset/tasks`; do echo $i > /dev/cpuset/linux/tasks; done");
+	//	system("cat /dev/cpuset/cos/tasks");
+	//	printf("2:\\pid %d!\n", getpid());
+
+	//system("for i in {0..15}; do echo 1 > /proc/irq/$i/smp_affinity; done");
+	system("echo 7 > /proc/irq/0/smp_affinity");
+	system("echo 7 > /proc/irq/1/smp_affinity");
+	system("echo 7 > /proc/irq/2/smp_affinity");
+	system("echo 7 > /proc/irq/3/smp_affinity");
+	system("echo 7 > /proc/irq/4/smp_affinity");
+	system("echo 7 > /proc/irq/5/smp_affinity");
+	system("echo 7 > /proc/irq/6/smp_affinity");
+	system("echo 7 > /proc/irq/7/smp_affinity");
+	system("echo 7 > /proc/irq/8/smp_affinity");
+	system("echo 7 > /proc/irq/9/smp_affinity");
+	system("echo 7 > /proc/irq/10/smp_affinity");
+	system("echo 7 > /proc/irq/11/smp_affinity");
+	system("echo 7 > /proc/irq/12/smp_affinity");
+	system("echo 7 > /proc/irq/13/smp_affinity");
+	system("echo 7 > /proc/irq/14/smp_affinity");
+	system("echo 7 > /proc/irq/15/smp_affinity");
+}
+
 void setup_thread(void)
 {
 #ifdef FAULT_SIGNAL
@@ -2613,6 +2702,9 @@ void setup_thread(void)
 	sa.sa_flags = SA_SIGINFO;
 	sigaction(SIGSEGV, &sa, NULL);
 #endif
+
+	set_smp_affinity();
+
 #ifdef HIGHEST_PRIO
 	set_prio();
 #endif

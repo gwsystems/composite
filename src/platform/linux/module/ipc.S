@@ -31,6 +31,15 @@
 	movl $0, %eax ; \
 	movl (%eax), %eax
 
+/* Loads current thread structure to eax register. ECD and EDX can be
+ * clobbered, as per the calling convention. */
+#define LOAD_CURR_THD_EAX \
+	push %ecx		   ;\
+	push %edx		   ;\
+	call core_get_curr_thd_asm ;\
+	pop %edx		   ;\
+	pop %ecx		   ;
+	
 #define THD_REGS 8 /* offsetof(struct thread, regs) */
 		
 #include <asm/asm-offsets.h>
@@ -62,13 +71,12 @@ composite_call_ipc:	/* server_inv: */
 	pushl %ecx /* ip */
 	pushl %ebp /* sp */
 	pushl %eax /* cap */
-	pushl current_thread
 	call ipc_walk_static_cap
 	/* %eax = handler fn in server */
 	cmpl $0, %eax /* error? */
 	jz composite_call_err
 	
-	addl $20, %esp
+	addl $16, %esp
 	movl %eax, %edx
 
 	/* thd and spdid */
@@ -86,11 +94,10 @@ composite_ret_ipc:	 /*ret_cap:*/
 
 	pushl $0
 	pushl %esp /* ptr to space we just made for return val */
-	pushl current_thread
 	call pop
 	cmpl $0, %eax /* error? */
 	jz ipc_ret_slowpath
-	addl $12, %esp
+	addl $8, %esp
 
 	/* eax contains ptr to invocation_frame */
 	/* FIXME: this is brain-damaged, should allocate ret area on stack instead of messing with invocation stack frame... Saved for now by the non-preemption thing and fact that thread is only modified one one core at a time. */
@@ -119,7 +126,8 @@ ipc_ret_err:
 .globl cos_syscall_brand_upcall
 .align 16
 cos_syscall_brand_upcall:
-	movl current_thread, %eax
+	LOAD_CURR_THD_EAX
+	
 	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
 
 	movl $0, PT_EAX(%eax)   /* return 0 when we return from this thread */
@@ -157,7 +165,8 @@ cos_syscall_brand_upcall:
 .globl cos_syscall_brand_wait
 .align 16
 cos_syscall_brand_wait:
-	movl current_thread, %eax
+	LOAD_CURR_THD_EAX
+	
 	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
 
 	movl $0, PT_EAX(%eax)   /* return 0 when we return from this thread */
@@ -192,7 +201,8 @@ cos_syscall_brand_wait:
 .align 16
 cos_syscall_switch_thread:
 	/* can use edx to pass in conditional for if we should save regs or not and term thread */
-	movl current_thread, %eax
+	LOAD_CURR_THD_EAX
+	
 	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
 
 	movl $0, PT_EAX(%eax)   /* return 0 when we return from this thread */
@@ -236,7 +246,8 @@ cos_syscall_switch_thread:
 
 .align 4
 ret_from_preemption_getregs:
-	movl current_thread, %eax
+	LOAD_CURR_THD_EAX
+	
 	addl $THD_REGS, %eax /* offsetof(struct thread, regs) */
 ret_from_preemption:
 	/* restore from preemption */
@@ -261,7 +272,8 @@ ret_from_preemption:
 .align 4
 .globl cos_syscall_buff_mgmt
 cos_syscall_buff_mgmt:
-	movl current_thread, %eax
+	LOAD_CURR_THD_EAX
+	
 	pushl %eax              /* save the current thread */
 	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
 	movl %ebp, PT_ECX(%eax) /* save the return sp, so that sysenter will jump to it */
@@ -275,8 +287,13 @@ cos_syscall_buff_mgmt:
 	call  cos_syscall_buff_mgmt_cont
 	addl  $16, %esp
 	popl  %ebx              /* retrieve saved thread */
-	cmpl  current_thread, %ebx
+
+	pushl %eax
+	LOAD_CURR_THD_EAX
+	cmpl %eax, %ebx
+	popl %eax
 	jne   cos_syscall_interrupted
+	
 	ret
 /* 
  * This is horrible: when we are in buff_mgmt transmitting packets, 
@@ -289,7 +306,8 @@ cos_syscall_interrupted:
 	movl  %eax, PT_EAX(%ebx)
 
 	/* get the regs of the new thread, load 'em up, and start 'er flying */
-	movl current_thread, %eax
+	LOAD_CURR_THD_EAX
+	
 	addl $THD_REGS, %eax
 	movl PT_EBX(%eax), %ebx
 	movl PT_ECX(%eax), %ecx
@@ -307,7 +325,8 @@ cos_syscall_interrupted:
 .globl cos_syscall_idle
 .align 16
 cos_syscall_idle:
-	movl current_thread, %eax
+	LOAD_CURR_THD_EAX
+	
 	pushl %eax              /* save the current thread */
 	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
 	movl %ebp, PT_ECX(%eax) /* save the return sp, so that sysenter will jump to it */
@@ -317,7 +336,11 @@ cos_syscall_idle:
 	call  cos_syscall_idle_cont
 	addl  $4, %esp
 	popl  %ebx              /* retrieve saved thread */
-	cmpl  current_thread, %ebx
+	
+	pushl %eax
+	LOAD_CURR_THD_EAX
+	cmpl %eax, %ebx
+	popl %eax
 	jne   cos_syscall_interrupted
 	ret
 	

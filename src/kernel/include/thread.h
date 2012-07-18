@@ -11,6 +11,7 @@
 #include "spd.h"
 #include "debug.h"
 #include "shared/consts.h"
+#include "per_cpu.h"
 
 #include <linux/kernel.h>
 
@@ -221,18 +222,19 @@ static inline int thd_invstk_rem_nth(struct thread *thd, int nth)
 	return 0;
 }
 
-extern struct thread *current_thread;
-static inline struct thread *thd_get_current(void) 
-{
-	return current_thread;
-}
+/* Replaced by per_core functions */
+/* extern struct thread *current_thread; */
+/* static inline struct thread *thd_get_current(void)  */
+/* { */
+/* 	return core_get_curr_thd(); */
+/* } */
 
-static inline void thd_set_current(struct thread *thd)
-{
-	current_thread = thd;
+/* static inline void thd_set_current(struct thread *thd) */
+/* { */
+/* 	current_thread = thd; */
 
-	return;
-}
+/* 	return; */
+/* } */
 
 static inline struct spd *
 thd_curr_spd_thd(struct thread *t)
@@ -249,7 +251,7 @@ thd_curr_spd_thd(struct thread *t)
 
 static inline struct spd *thd_curr_spd_noprint(void)
 {
-	return thd_curr_spd_thd(thd_get_current());
+	return thd_curr_spd_thd(core_get_curr_thd());
 }
 
 static inline vaddr_t thd_get_frame_ip(struct thread *thd, int frame_offset)
@@ -365,14 +367,14 @@ static inline struct spd_poly *thd_get_thd_spdpoly(struct thread *thd)
 	return frame->current_composite_spd;
 }
 
-static inline struct spd_poly *thd_get_current_spdpoly(void)
-{
-	struct thread *thd = thd_get_current();
-	if (NULL == thd) { 
-		return NULL;
-	}
-	return thd_get_thd_spdpoly(thd);
-}
+/* static inline struct spd_poly *thd_get_current_spdpoly(void) */
+/* { */
+/* 	struct thread *thd = thd_get_current(); */
+/* 	if (NULL == thd) {  */
+/* 		return NULL; */
+/* 	} */
+/* 	return thd_get_thd_spdpoly(thd); */
+/* } */
 
 extern struct thread threads[MAX_NUM_THREADS];
 static inline struct thread *thd_get_by_id(int id)
