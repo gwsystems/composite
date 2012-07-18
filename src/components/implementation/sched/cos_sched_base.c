@@ -40,28 +40,36 @@
 
 #include <sched_timing.h>
 
-
-
 /* should be per_core >>>>>>>> *//////////////////////////////////////
-static volatile u64_t ticks = 0;
+struct sched_per_core {
+	volatile u64_t ticks;
 
-/* When the wakeup thread (in charge of higher-level timing) should be woken */
-static volatile u64_t wakeup_time = 0;
-static volatile u64_t child_wakeup_time = 0;
-static struct sched_thd *wakeup_thd;
+        /* When the wakeup thread (in charge of higher-level timing) should be woken */
+	volatile u64_t wakeup_time;
+	volatile u64_t child_wakeup_time;
+	struct sched_thd *wakeup_thd;
 
-/* 
- * timer is the timer tick thread for a root scheduler, or the child
- * event thread for a child scheduler.  init is the initial bootup
- * thread for a root scheduler.  init is meaningless for a child
- * scheduler.  idle is the idle thread, again only meaningful for root
- * schedulers.
- */
-static struct sched_thd *timer, *init, *idle;
-static struct sched_thd blocked;
-static struct sched_thd upcall_deactive;
-static struct sched_thd graveyard;
+        /* 
+	 * timer is the timer tick thread for a root scheduler, or the child
+	 * event thread for a child scheduler.  init is the initial bootup
+	 * thread for a root scheduler.  init is meaningless for a child
+	 * scheduler.  idle is the idle thread, again only meaningful for root
+	 * schedulers.
+	 */
+	struct sched_thd *timer, *init, *idle;
+	struct sched_thd blocked;
+	struct sched_thd upcall_deactive;
+	struct sched_thd graveyard;
+} CACHE_ALIGNED;
+
+static struct sched_per_core per_core[MAX_NUM_CPU];
 /* <<<<<<<<<<< should be per_core *//////////////////////////////////
+
+//////////////not sure...
+/* STATIC_TIMER_RECORDS(recs, TIMER_MAX); */
+
+//static long long report_evts[REVT_LAST];
+//////////////not sure...
 
 
 static enum {SCHED_CHILD, SCHED_ROOT} sched_type = SCHED_ROOT;
@@ -207,16 +215,16 @@ static void report_thd_accouting(void)
 	runqueue_print();
 
 	if (sched_is_child()) {
-		struct sched_accounting *sa = sched_get_accounting(timer);
+		struct sched_accounting *sa = sched_get_accounting(per_core[cos_cpuid()].timer);
 
 		printc("\nChild timer thread (thd, ticks):\n");		
-		printc("\t%d, %ld\n", timer->id, sa->ticks - sa->prev_ticks);
+		printc("\t%d, %ld\n", per_core[cos_cpuid()].timer->id, sa->ticks - sa->prev_ticks);
 		sa->prev_ticks = sa->ticks;
 	}
 
 	printc("\nBlocked threads (thd, prio, ticks):\n");
-	for (t = FIRST_LIST(&blocked, prio_next, prio_prev) ; 
-	     t != &blocked ;
+	for (t = FIRST_LIST(&per_core[cos_cpuid()].blocked, prio_next, prio_prev) ; 
+	     t != &per_core[cos_cpuid()].blocked ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
 		struct sched_accounting *sa = sched_get_accounting(t);
 		unsigned long diff = sa->ticks - sa->prev_ticks;
@@ -230,8 +238,8 @@ static void report_thd_accouting(void)
 		}
 	}
 	printc("\nInactive upcalls (thd, prio, ticks):\n");
-	for (t = FIRST_LIST(&upcall_deactive, prio_next, prio_prev) ; 
-	     t != &upcall_deactive ;
+	for (t = FIRST_LIST(&per_core[cos_cpuid()].upcall_deactive, prio_next, prio_prev) ; 
+	     t != &per_core[cos_cpuid()].upcall_deactive ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
 		struct sched_accounting *sa = sched_get_accounting(t);
 		unsigned long diff = sa->ticks - sa->prev_ticks;
@@ -273,7 +281,7 @@ static inline void fp_resume_thd(struct sched_thd *t)
 	REM_LIST(t, prio_next, prio_prev);
 	/* child threads aren't reported to the scheduler */
 	if (!sched_thd_member(t)) {
-		assert(sched_is_root() || (t != timer && !sched_thd_phantom(t)));
+		assert(sched_is_root() || (t != per_core[cos_cpuid()].timer && !sched_thd_phantom(t)));
 		thread_wakeup(t);
 	} 
 	/* Is the member _not_ already on the list for the group? */
@@ -293,7 +301,7 @@ static void fp_activate_upcall(struct sched_thd *uc)
 		uc->flags &= ~THD_UC_READY;
 		uc->flags |= THD_READY;
 		REM_LIST(uc, prio_next, prio_prev); //done in move_end_runnable
-		assert(sched_is_root() || (uc != timer && !sched_thd_phantom(uc)));
+		assert(sched_is_root() || (uc != per_core[cos_cpuid()].timer && !sched_thd_phantom(uc)));
 		thread_wakeup(uc);
 	}
 }
@@ -304,7 +312,7 @@ static void fp_deactivate_upcall(struct sched_thd *uc)
 	uc->flags |= THD_UC_READY;
 	thread_block(uc);
 	assert(EMPTY_LIST(uc, prio_next, prio_prev));
-	ADD_LIST(&upcall_deactive, uc, prio_next, prio_prev);
+	ADD_LIST(&per_core[cos_cpuid()].upcall_deactive, uc, prio_next, prio_prev);
 }
 
 /* scheduler lock should already be taken */
@@ -430,14 +438,14 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 				timer_start(&tfp);
 				next = schedule(current);
 				timer_end(&tfp);
-				assert(sched_is_root() || timer != next);
+				assert(sched_is_root() || per_core[cos_cpuid()].timer != next);
 				assert(next != current);
 				assert(!sched_thd_member(next));
 			} else {
 				timer_start(&tfp);
 				next = schedule(NULL);
 				timer_end(&tfp);
-				assert(sched_is_root() || timer != next);
+				assert(sched_is_root() || per_core[cos_cpuid()].timer != next);
 				assert(!sched_thd_member(next));
 				/* if we are the next thread and no
 				 * dependencies have been introduced (i.e. we
@@ -451,13 +459,13 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 		}
 		next = resolve_dependencies(next);
 		if (next == current) goto done;
-		if (sched_is_child() && unlikely(next == idle)) {
+		if (sched_is_child() && unlikely(next == per_core[cos_cpuid()].idle)) {
 			/* This is a kludge: child schedulers don't
 			 * have idle threads...instead they just use
 			 * the event/timer thread */
 			/* We are in the timer/child event thread! */
-			if (current == timer) goto done;
-			next = timer;
+			if (current == per_core[cos_cpuid()].timer) goto done;
+			next = per_core[cos_cpuid()].timer;
 		}
 		if (sched_thd_grp(next)) flags |= COS_SCHED_CHILD_EVT;
 		assert(!sched_thd_blocked(next));
@@ -497,15 +505,15 @@ static void sched_process_wakeups(void)
 	u64_t lowest_child = 0;
 
 	/* Wakeup the event thread? */
-	if (wakeup_time && ticks >= wakeup_time && likely(wakeup_thd)) {
-		if (wakeup_thd->wake_cnt < 2) {
-			wakeup_time = 0;
-			fp_pre_wakeup(wakeup_thd);
+	if (per_core[cos_cpuid()].wakeup_time && per_core[cos_cpuid()].ticks >= per_core[cos_cpuid()].wakeup_time && likely(per_core[cos_cpuid()].wakeup_thd)) {
+		if (per_core[cos_cpuid()].wakeup_thd->wake_cnt < 2) {
+			per_core[cos_cpuid()].wakeup_time = 0;
+			fp_pre_wakeup(per_core[cos_cpuid()].wakeup_thd);
 			/* If the event thread has not blocked yet, then don't
 			 * wake it fully */
-			if (sched_thd_blocked(wakeup_thd)) fp_wakeup(wakeup_thd, 0);
+			if (sched_thd_blocked(per_core[cos_cpuid()].wakeup_thd)) fp_wakeup(per_core[cos_cpuid()].wakeup_thd, 0);
 		} else {
-			assert(!sched_thd_blocked(wakeup_thd));
+			assert(!sched_thd_blocked(per_core[cos_cpuid()].wakeup_thd));
 		}
 	}
 
@@ -515,13 +523,13 @@ static void sched_process_wakeups(void)
 	 * list instead of using a linear walk through all blocked
 	 * threads here.
 	 */
-	for (t = FIRST_LIST(&blocked, prio_next, prio_prev) ;
-	     t != &blocked ;
+	for (t = FIRST_LIST(&per_core[cos_cpuid()].blocked, prio_next, prio_prev) ;
+	     t != &per_core[cos_cpuid()].blocked ;
 	     t = next) {
 		next = FIRST_LIST(t, prio_next, prio_prev);
 		/* child scheduler requested wakeup */
 		if (sched_thd_grp(t) && t->wakeup_tick) {
-			if (t->wakeup_tick <= ticks) {
+			if (t->wakeup_tick <= per_core[cos_cpuid()].ticks) {
 				/* if the child thread has not been executed
 				 * since the wakeup expired */
 				if (t->wakeup_tick > t->tick) {
@@ -535,7 +543,7 @@ static void sched_process_wakeups(void)
 			}
 		}
 	}
-	child_wakeup_time = lowest_child;
+	per_core[cos_cpuid()].child_wakeup_time = lowest_child;
 }
 
 static void sched_timer_tick(void)
@@ -544,16 +552,16 @@ static void sched_timer_tick(void)
 		cos_sched_lock_take();
 		report_event(TIMER_TICK);
 
-		if (unlikely((ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1))) {
+		if (unlikely((per_core[cos_cpuid()].ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1))) {
 			report_thd_accouting();
 			//cos_stats();
 		}
 		/* are we done running? */
 
-		if (unlikely(ticks >= RUNTIME_SEC*TIMER_FREQ+1)) {
+		if (unlikely(per_core[cos_cpuid()].ticks >= RUNTIME_SEC*TIMER_FREQ+1)) {
 			sched_exit();
 			while (COS_SCHED_RET_SUCCESS !=
-			       cos_switch_thread_release(init->id, COS_SCHED_BRAND_WAIT)) {
+			       cos_switch_thread_release(per_core[cos_cpuid()].init->id, COS_SCHED_BRAND_WAIT)) {
 				cos_sched_lock_take();
 				if (cos_sched_pending_event()) {
 					cos_sched_clear_events();
@@ -562,7 +570,7 @@ static void sched_timer_tick(void)
 			}
 		}
 		
-		ticks++;
+		per_core[cos_cpuid()].ticks++;
 		sched_process_wakeups();
 
 		timer_tick(1);
@@ -590,6 +598,10 @@ typedef void (*crt_thd_fn_t)(void *data);
 static void fp_timer(void *d)
 {
 	printc("Core %ld: Starting timer thread (thread id %d)\n", cos_cpuid(), cos_get_thd_id());
+	per_core[cos_cpuid()].ticks = 0;
+	per_core[cos_cpuid()].wakeup_time = 0;
+	per_core[cos_cpuid()].child_wakeup_time = 0;
+
 	sched_timer_tick();
 	BUG();
 }
@@ -664,13 +676,13 @@ void sched_timeout(spdid_t spdid, unsigned long amnt)
 	thd = sched_get_mapping(cos_get_thd_id());
 	assert(thd);
 
-	abs_timeout = ticks + amnt;
+	abs_timeout = per_core[cos_cpuid()].ticks + amnt;
 
-	if (0 == wakeup_time || abs_timeout < wakeup_time) {
-		wakeup_time = abs_timeout;
+	if (0 == per_core[cos_cpuid()].wakeup_time || abs_timeout < per_core[cos_cpuid()].wakeup_time) {
+		per_core[cos_cpuid()].wakeup_time = abs_timeout;
 	}
 	/* If we're the timer thread, lets block, otherwise return */
-	if (thd != wakeup_thd) {
+	if (thd != per_core[cos_cpuid()].wakeup_thd) {
 		cos_sched_lock_release();
 		return;
 	}
@@ -701,7 +713,7 @@ int sched_timeout_thd(spdid_t spdid)
 		cos_sched_lock_release();
 		return -1;
 	}
-	wakeup_thd = thd;
+	per_core[cos_cpuid()].wakeup_thd = thd;
 
 	cos_sched_lock_release();
 	return 0;
@@ -809,7 +821,7 @@ static void fp_pre_block(struct sched_thd *thd)
 	assert(thd->wake_cnt <= 2);
 	thd->wake_cnt--;
 	/* printc("thd %d wake cnt %d -> %d \n",thd->id,thd->wake_cnt+1, thd->wake_cnt); */
-	thd->block_time = ticks;
+	thd->block_time = per_core[cos_cpuid()].ticks;
 }
 
 static inline void fp_block_thd(struct sched_thd *t)
@@ -829,7 +841,7 @@ static inline void fp_block_thd(struct sched_thd *t)
 		ADD_LIST(g, t, cevt_next, cevt_prev);
 		activate_child_sched(g);
 	}
-	ADD_LIST(&blocked, t, prio_next, prio_prev);
+	ADD_LIST(&per_core[cos_cpuid()].blocked, t, prio_next, prio_prev);
 }
 
 /* Really block the thread (inc. queue manipulation) */
@@ -957,7 +969,7 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	}
 	assert(thd->wake_cnt == 1);
 	/* The amount of time we've blocked */
-	ret = ticks - thd->block_time - 1;
+	ret = per_core[cos_cpuid()].ticks - thd->block_time - 1;
 	ret = ret > 0 ? ret : 0;
 done:
 	assert(thd->wake_cnt == 1);
@@ -1059,7 +1071,7 @@ static int fp_kill_thd(struct sched_thd *t)
 	REM_LIST(t, cevt_next, cevt_prev);
 	REM_LIST(t, prio_next, prio_prev);
 	REM_LIST(t, next, prev);
-	ADD_LIST(&graveyard, t, prio_next, prio_prev);
+	ADD_LIST(&per_core[cos_cpuid()].graveyard, t, prio_next, prio_prev);
 
 	sched_switch_thread(0, NULL_EVT);
 
@@ -1099,10 +1111,10 @@ static struct sched_thd *sched_setup_thread_arg(void *metric_str, crt_thd_fn_t f
 	struct sched_thd *new;
 
 	/* can we reuse an already created (but since killed) thread? */
-	if (!EMPTY_LIST(&graveyard, prio_next, prio_prev)) {
+	if (!EMPTY_LIST(&per_core[cos_cpuid()].graveyard, prio_next, prio_prev)) {
 		assert(fn == fp_create_spd_thd); /* can't do the timer here */
 		assert(d != NULL);
-		new = FIRST_LIST(&graveyard, prio_next, prio_prev);
+		new = FIRST_LIST(&per_core[cos_cpuid()].graveyard, prio_next, prio_prev);
 		assert(new->flags & THD_DYING);
 		REM_LIST(new, prio_next, prio_prev);
 		sched_init_thd(new, new->id, THD_READY);
@@ -1261,7 +1273,7 @@ int sched_child_cntl_thd(spdid_t spdid)
 	if (cos_sched_cntl(COS_SCHED_PROMOTE_CHLD, 0, spdid)) BUG();
 	if (cos_sched_cntl(COS_SCHED_GRANT_SCHED, c->id, spdid)) BUG();
 
-	c->tick = ticks;
+	c->tick = per_core[cos_cpuid()].ticks;
 
 	return 0;
 }
@@ -1307,7 +1319,7 @@ err:
 static int child_ticks_stale(struct sched_thd *t) 
 {
 	assert(sched_thd_grp(t));
-	return t->tick != ticks;
+	return t->tick != per_core[cos_cpuid()].ticks;
 }
 
 /* return 1 if the child's time is updated, 0 if not */
@@ -1316,7 +1328,7 @@ static void child_ticks_update(struct sched_thd *t, struct sched_child_evt *e)
 	u64_t ts, lticks;
 
 	ts = t->tick;
-	lticks = ticks;
+	lticks = per_core[cos_cpuid()].ticks;
 	if (lticks > ts) {
 		e->time_elapsed = lticks - ts;
 		t->tick = lticks;
@@ -1422,11 +1434,11 @@ static void sched_process_cevt(struct sched_child_evt *e)
 		u64_t te = e->time_elapsed;
 		static u64_t prev_print = 0;
 
-		ticks += te;
+		per_core[cos_cpuid()].ticks += te;
 		timer_tick(te);
 		
 		report_event(TIMER_TICK);
-		if ((ticks - prev_print) >= (CHLD_REPORT_FREQ*TIMER_FREQ)) {
+		if ((per_core[cos_cpuid()].ticks - prev_print) >= (CHLD_REPORT_FREQ*TIMER_FREQ)) {
 			report_thd_accouting();
 			prev_print += CHLD_REPORT_FREQ*TIMER_FREQ;
 		}
@@ -1455,11 +1467,11 @@ static void sched_child_evt_thd(void)
 			struct sched_thd *n = schedule(NULL);
 			unsigned long wake_diff = 0;
 
-			assert(n != timer);
+			assert(n != per_core[cos_cpuid()].timer);
 			/* If there isn't a thread to schedule, and
 			 * there are no events, this child scheduler
 			 * should idle */
-			should_idle = (n == idle);
+			should_idle = (n == per_core[cos_cpuid()].idle);
 			if (should_idle) {
 				/* locally cache the volatile value */
 				u64_t wake_tm, wt, cwt;
@@ -1467,14 +1479,14 @@ static void sched_child_evt_thd(void)
 				/* check for new timeouts */
 				sched_process_wakeups();
 
-				wt = wakeup_time;
-				cwt = child_wakeup_time;
+				wt = per_core[cos_cpuid()].wakeup_time;
+				cwt = per_core[cos_cpuid()].child_wakeup_time;
 				if (cwt == 0)     wake_tm = wt;
 				else if (wt == 0) wake_tm = cwt;
 				else              wake_tm = (wt < cwt) ? wt : cwt;
 
-				assert(!wake_tm || wake_tm >= ticks);
-				wake_diff = wake_tm ? (unsigned long)(wake_tm - ticks) : 0;
+				assert(!wake_tm || wake_tm >= per_core[cos_cpuid()].ticks);
+				wake_diff = wake_tm ? (unsigned long)(wake_tm - per_core[cos_cpuid()].ticks) : 0;
 			}
 			cos_sched_clear_cevts();
 			cos_sched_lock_release();
@@ -1490,7 +1502,7 @@ static void sched_child_evt_thd(void)
 		report_event(CHILD_SWITCH_THD);
 		/* When there are no more events, schedule */
 		sched_switch_thread(0, NULL_EVT);
-		assert(EMPTY_LIST(timer, prio_next, prio_prev));
+		assert(EMPTY_LIST(per_core[cos_cpuid()].timer, prio_next, prio_prev));
 	} /* no return */
 	cos_argreg_free(e);
 }
@@ -1524,7 +1536,7 @@ int sched_priority(unsigned short int tid)
 
 unsigned long sched_timestamp(void)
 {
-	return (unsigned long)ticks;
+	return (unsigned long)per_core[cos_cpuid()].ticks;
 }
 
 int sched_create_net_brand(spdid_t spdid, unsigned short int port)
@@ -1554,12 +1566,12 @@ int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short
 extern void parent_sched_exit(void);
 void sched_exit(void)
 {
-	printc("Switching to %d\n", init->id);
+	printc("Switching to %d\n", per_core[cos_cpuid()].init->id);
 	cos_sched_clear_events();
-//	cos_switch_thread_release(init->id, 0);
+//	cos_switch_thread_release(per_core[cos_cpuid()].init->id, 0);
 	while (1) {
 		cos_sched_clear_events();
-		cos_switch_thread(init->id, 0);
+		cos_switch_thread(per_core[cos_cpuid()].init->id, 0);
 	}
 	BUG();
 }
@@ -1572,13 +1584,14 @@ static struct sched_thd *fp_create_timer(void)
 
 	bid = sched_setup_brand(cos_spd_id());
 	assert(sched_is_root());
-	timer = sched_setup_thread_arg(&sp, fp_timer, (void*)bid, 1);
-	if (NULL == timer) BUG();
-	if (0 > sched_add_thd_to_brand(cos_spd_id(), bid, timer->id)) BUG();
-	printc("Timer thread has id %d with priority %s.\n", timer->id, "t");
+	per_core[cos_cpuid()].timer = sched_setup_thread_arg(&sp, fp_timer, (void*)bid, 1);
+
+	if (NULL == per_core[cos_cpuid()].timer) BUG();
+	if (0 > sched_add_thd_to_brand(cos_spd_id(), bid, per_core[cos_cpuid()].timer->id)) BUG();
+	printc("Core %ld: Timer thread has id %d with priority %s.\n", cos_cpuid(), per_core[cos_cpuid()].timer->id, "t");
 	cos_brand_wire(bid, COS_HW_TIMER, 0);
 
-	return timer;
+	return per_core[cos_cpuid()].timer;
 }
 
 /* Iterate through the configuration and create threads for
@@ -1592,8 +1605,8 @@ static void sched_init_create_threads(int boot_threads)
 				   {.c = {.type = SCHEDP_NOOP}}};
 
 	/* create the idle thread */
-	idle = sched_setup_thread_arg(&sp, fp_idle_loop, NULL, 1);
-	printc("Idle thread has id %d with priority %s.\n", idle->id, "i");
+	per_core[cos_cpuid()].idle = sched_setup_thread_arg(&sp, fp_idle_loop, NULL, 1);
+	printc("Idle thread has id %d with priority %s.\n", per_core[cos_cpuid()].idle->id, "i");
 
 	if (!boot_threads) return;
 
@@ -1614,9 +1627,9 @@ static void sched_init(void)
 	assert(first);
 	first = 0;
 
-	sched_init_thd(&blocked, 0, THD_FREE);
-	sched_init_thd(&upcall_deactive, 0, THD_FREE);
-	sched_init_thd(&graveyard, 0, THD_FREE);
+	sched_init_thd(&per_core[cos_cpuid()].blocked, 0, THD_FREE);
+	sched_init_thd(&per_core[cos_cpuid()].upcall_deactive, 0, THD_FREE);
+	sched_init_thd(&per_core[cos_cpuid()].graveyard, 0, THD_FREE);
 	sched_ds_init();
 	sched_initialization();
 
@@ -1635,10 +1648,10 @@ static void sched_child_init(void)
 	sched_init();
 
 	/* Don't involve the scheduler policy... */
-	timer = __sched_setup_thread_no_policy(cos_get_thd_id());
-	assert(timer);
-	sched_set_thd_urgency(timer, 0); /* highest urgency */
-	timer->flags |= THD_PHANTOM;
+	per_core[cos_cpuid()].timer = __sched_setup_thread_no_policy(cos_get_thd_id());
+	assert(per_core[cos_cpuid()].timer);
+	sched_set_thd_urgency(per_core[cos_cpuid()].timer, 0); /* highest urgency */
+	per_core[cos_cpuid()].timer->flags |= THD_PHANTOM;
 
 	sched_init_create_threads(0);
 
@@ -1704,10 +1717,9 @@ int sched_root_init(void)
 	if (cos_cpuid() == 1) {
 //		initialized++;
 	} else {
-		while (1);
 		while (initialized == 0);
 	}
-	printc("<<< CPU %ld, init thd %d going to run.\n", cos_cpuid(), cos_get_thd_id());
+	printc("<<< CPU %ld, init thd %d going to run.>>>\n", cos_cpuid(), cos_get_thd_id());
 	assert(initialized <= 1);
 
 	parent_sched_root_init();
@@ -1717,8 +1729,8 @@ int sched_root_init(void)
 	sched_init();
 
 	/* switch back to this thread to terminate the system. */
-	init = sched_alloc_thd(cos_get_thd_id());
-	assert(init);
+	per_core[cos_cpuid()].init = sched_alloc_thd(cos_get_thd_id());
+	assert(per_core[cos_cpuid()].init);
 
 #ifdef UBENCH_ACTIVE
 	sched_ctxt_switch_ubench();

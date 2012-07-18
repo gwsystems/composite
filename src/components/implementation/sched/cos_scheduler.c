@@ -18,9 +18,24 @@ int cos_use_force_sched_link(void)
 	return cos_force_sched_link;
 }
 
-/**************** Scheduler Event Fns *******************/
+
 /* should be per_core >>>>>>>> *////////////////////////////////////////////////////////
+
+
+/**************** Scheduler Event Fns *******************/
+
 static volatile u8_t cos_curr_evt = 0;
+
+/************** critical section functions/state *************/
+
+struct sched_crit_section sched_spd_crit_sections[MAX_NUM_SPDS];
+
+/* --- Thread Management Utiliities --- */
+
+struct sched_thd *sched_thd_map[SCHED_NUM_THREADS];
+struct sched_thd sched_thds[SCHED_NUM_THREADS]; 
+struct sched_thd *sched_map_evt_thd[NUM_SCHED_EVTS];
+
 
 /* 
  * Use the visitor pattern here.  Pass in a function that will be
@@ -125,12 +140,6 @@ void cos_sched_set_evt_urgency(u8_t evt_id, u16_t urgency)
 
 	return;
 }
-
-/* --- Thread Management Utiliities --- */
-
-struct sched_thd *sched_thd_map[SCHED_NUM_THREADS];
-struct sched_thd sched_thds[SCHED_NUM_THREADS]; 
-struct sched_thd *sched_map_evt_thd[NUM_SCHED_EVTS];
 
 void sched_init_thd(struct sched_thd *thd, unsigned short int thd_id, int flags)
 {
@@ -304,6 +313,3 @@ void sched_grp_rem(struct sched_thd *thd)
 	REM_LIST(thd, cevt_next, cevt_prev);
 }
 
-/************** critical section functions/state *************/
-
-struct sched_crit_section sched_spd_crit_sections[MAX_NUM_SPDS];
