@@ -108,7 +108,7 @@ composite_ret_ipc:	 /*ret_cap:*/
 	RET_TO_USER_NOSEG
 
 ipc_ret_slowpath:
-	addl $8, %esp
+	addl $4, %esp
 	popl %eax /* regs to restore */
 
 	cmpl $0, %eax
@@ -363,7 +363,7 @@ cos_syscall_upcall:
 	movl PT_ECX(%ebx), %ecx
 	movl %ecx, (COS_SYSCALL_ECX)(%esp)
 	/* movl %ebx, (COS_SYSCALL_EDX)(%esp)*/
-	/* eax remains as the thread id */
+	/* eax remains as the thread id + cpuid */
 upcall_err:	
 	ret
 
@@ -413,7 +413,7 @@ composite_make_syscall:
 
 .align 16
 composite_call_err:	
-	addl $8, %esp /* thread might be useful later, i.e. for termination */		
+	addl $4, %esp
 	movl $-1, %eax
 	popl %ecx
 	/* perhaps more appropriate to trap to exception handler */

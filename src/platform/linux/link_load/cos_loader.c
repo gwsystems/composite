@@ -1,6 +1,6 @@
 /**
- * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu; 2010 The George
- * Washington University, Gabriel Parmer, gparmer@gwu.edu
+ * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ * 2010 The George Washington University, Gabriel Parmer, gparmer@gwu.edu
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
@@ -61,18 +61,26 @@ enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_H
 	}
 
 #define NUM_ATOMIC_SYMBS 10 
-#define NUM_KERN_SYMBS 1
+#define NUM_KERN_SYMBS   1
 
-const char *COMP_INFO   = "cos_comp_info";
+const char *COMP_INFO      = "cos_comp_info";
+const char *INIT_COMP      = "c0.o";
+char       *ROOT_SCHED     = NULL;   // this is set to the first listed scheduler (*)
+const char *INITMM         = "mm.o"; // this is set to the first listed memory manager (#)
+const char *MPD_MGR        = "cg.o"; // the component graph!
+const char *CONFIG_COMP    = "schedconf.o";
+const char *BOOT_COMP      = "boot.o";
+const char *LLBOOT_COMP    = "llboot.o";
+const char *INIT_FILE      = "initfs.o";
+const char *INIT_FILE_NAME = "init.tar";
 
-const char *INIT_COMP   = "c0.o";
-char *ROOT_SCHED        = NULL; // this is set to the first listed scheduler (*)
-const char *INITMM      = "mm.o"; // this is set to the first listed memory manager (#)
-const char *MPD_MGR     = "cg.o"; // the component graph!
-const char *CONFIG_COMP = "schedconf.o";
-const char *BOOT_COMP   = "boot.o";
-const char *BOOT_COMP2  = "bootr.o";
-const char *INIT_FILE   = "initfs.o", *INIT_FILE_NAME = "init.tar";
+typedef enum {
+	LLBOOT_COMPN = 1,
+	LLBOOT_SCHED = 2,
+	LLBOOT_MM    = 3,
+	LLBOOT_PRINT = 4,
+	LLBOOT_BOOT  = 5
+} llboot_component_ids;
 
 const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] = 
 { "cos_atomic_cmpxchg",
@@ -90,7 +98,7 @@ const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] =
 #define CAP_CLIENT_STUB_POSTPEND "_call"
 #define CAP_SERVER_STUB_POSTPEND "_inv"
 
-const char *SCHED_CREATE_FN = "sched_create_thread";
+const char *SCHED_CREATE_FN = "sched_init";
 const char *fault_handlers[] = {"fault_page_fault_handler", NULL};
 
 static inline int 
@@ -147,6 +155,7 @@ struct dependency;
 
 struct symb {
 	char *name;
+	int modifier_offset;
 	vaddr_t addr;
 	struct service_symbs *exporter;
 	struct symb *exported_symb;
@@ -201,16 +210,33 @@ struct service_symbs {
 	void *extern_info;
 };
 
-typedef enum {TRANS_CAP_NIL = 0, 
-	      TRANS_CAP_FAULT, 
-	      TRANS_CAP_OTHER} trans_cap_t;
+typedef enum {
+	TRANS_CAP_NIL = 0, 
+	TRANS_CAP_FAULT, 
+	TRANS_CAP_SCHED
+} trans_cap_t;
+
+static int service_get_spdid(struct service_symbs *ss);
+static int is_booter_loaded(struct service_symbs *s)
+{
+	return (!(strstr(s->obj, INIT_COMP) || strstr(s->obj, LLBOOT_COMP)));
+//	return s->is_composite_loaded;
+}
+
+static int is_hl_booter_loaded(struct service_symbs *s)
+{
+	return s->is_composite_loaded;
+}
 
 static inline trans_cap_t
 is_transparent_capability(struct symb *s) {
 	char *n = s->name;
 	
-	if (!strcmp(n, SCHED_CREATE_FN)) return TRANS_CAP_OTHER;
-	if (-1 != fault_handler_num(n))  return TRANS_CAP_FAULT;
+	if (s->modifier_offset) {
+		printf("%s -> %s.\n", n, n+s->modifier_offset);
+	}
+	if (!strcmp(n, SCHED_CREATE_FN)) return TRANS_CAP_SCHED;
+	if (-1 != fault_handler_num(n + s->modifier_offset))  return TRANS_CAP_FAULT;
 	return TRANS_CAP_NIL;
 }
 
@@ -501,16 +527,16 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	ro_start = lower_addr;
 	/* Determine the size of and allocate the text and Read-Only data area */
 	text_size = calculate_mem_size(TEXT_S, RODATA_S);
-	ro_size = calculate_mem_size(RODATA_S, DATA_S);
+	ro_size   = calculate_mem_size(RODATA_S, DATA_S);
 	printl(PRINT_DEBUG, "\tRead only text (%x) and data section (%x): %x:%x.\n",
 	       (unsigned int)text_size, (unsigned int)ro_size, 
 	       (unsigned int)ro_start, (unsigned int)text_size+ro_size);
 
 	/* see calculate_mem_size for why we do this...not intelligent */
 	ro_size_unaligned = calculate_mem_size(TEXT_S, DATA_S);
-	ro_size = round_up_to_page(ro_size_unaligned);
+	ro_size           = round_up_to_page(ro_size_unaligned);
 
-	if (!ret_data->is_composite_loaded) {
+	if (!is_booter_loaded(ret_data)) {
 		/**
 		 * FIXME: needing PROT_WRITE is daft, should write to
 		 * file, then map in ro
@@ -531,16 +557,16 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 		}
 	}
 	
-	data_start = ro_start + ro_size;
+	data_start   = ro_start + ro_size;
 	/* Allocate the read-writable areas .data .bss */
 	alldata_size = calculate_mem_size(DATA_S, MAXSEC_S);
-	data_size = bfd_sect_size(obj, srcobj[DATA_S].s);
+	data_size    = bfd_sect_size(obj, srcobj[DATA_S].s);
 
 	printl(PRINT_DEBUG, "\tData section: %x:%x\n",
 	       (unsigned int)data_start, (unsigned int)alldata_size);
 
 	alldata_size = round_up_to_page(alldata_size);
-	if (alldata_size != 0 && !ret_data->is_composite_loaded) {
+	if (alldata_size != 0 && !is_booter_loaded(ret_data)) {
 		ret_addr = mmap((void*)data_start, alldata_size,
 				PROT_WRITE | PROT_READ,
 				MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
@@ -559,17 +585,19 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 		return -1;
 	}
 
-	if (ret_data->is_composite_loaded) {
+	if (is_booter_loaded(ret_data)) {
 		u32_t size, obj_size;
-		u32_t nsymbs, ncaps;
+		u32_t nsymbs, ncaps, nsects;
 		char *mem;
 		char cobj_name[COBJ_NAME_SZ], *end;
 
-		size = ro_size_unaligned + bfd_sect_size(obj, srcobj[DATA_S].s);
+		size   = ro_size_unaligned + bfd_sect_size(obj, srcobj[DATA_S].s);
 		nsymbs = ret_data->exported.num_symbs;
-		ncaps = ret_data->undef.num_symbs;
+		ncaps  = ret_data->undef.num_symbs;
+		nsects = strncmp(&service_name[5], BOOT_COMP, strlen(BOOT_COMP)) ?
+			 3 : 4; /* booter gets an extra section */
 
-		obj_size = cobj_size_req(3, size, nsymbs, ncaps);
+		obj_size = cobj_size_req(nsects, size, nsymbs, ncaps);
 		mem = malloc(obj_size);
 		if (!mem) {
 			printl(PRINT_HIGH, "could not allocate memory for composite-loaded %s.\n", service_name);
@@ -581,7 +609,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 		end = strstr(cobj_name, ".o.");
 		if (!end) end = &cobj_name[COBJ_NAME_SZ-1];
 		*end = '\0';
-		h = cobj_create(0, cobj_name, 3, size, nsymbs, ncaps, mem, obj_size,
+		h = cobj_create(0, cobj_name, nsects, size, nsymbs, ncaps, mem, obj_size,
 				ret_data->scheduler ? COBJ_INIT_THD : 0);
 		if (!h) {
 			printl(PRINT_HIGH, "boot component: couldn't create cobj.\n");
@@ -630,7 +658,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 //	assert((int)round_up_to_page(ret_data->sections[SERV_SECT_RO].size) == ro_size);
 	assert(0 == ret_data->sections[SERV_SECT_RO].offset);
 
-	if (!ret_data->is_composite_loaded) {
+	if (!is_booter_loaded(ret_data)) {
 		/* 
 		 * ... and copy that buffer into the actual memory location
 		 * object is linked for (load it!)
@@ -681,7 +709,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 //	assert((ret_data->sections[SERV_SECT_BSS].offset - ret_data->sections[SERV_SECT_DATA].offset +
 //		round_up_to_page(ret_data->sections[SERV_SECT_BSS].size)) == (unsigned int)alldata_size);
 
-	if (!ret_data->is_composite_loaded) {
+	if (!is_booter_loaded(ret_data)) {
 		printl(PRINT_DEBUG, "\tCopying DATA to %x from %x of size %x.\n", 
 		       (unsigned int) data_start, (unsigned int)tmp_storage, (unsigned int)alldata_size);
 		
@@ -726,7 +754,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	ret_data->allocated = alldata_size + ro_size;
 	ret_data->heap_top = (int)data_start + alldata_size;
 	
-	if (ret_data->is_composite_loaded) {
+	if (is_booter_loaded(ret_data)) {
 		if (make_cobj_symbols(ret_data, h)) {
 			printl(PRINT_HIGH, "Could not create symbols in cobj for %s\n", service_name);
 			return -1;
@@ -773,7 +801,7 @@ static int __add_service_dependency(struct service_symbs *s, struct service_symb
 	if (!s || !dep || s->num_dependencies == MAX_TRUSTED) {
 		return -1;
 	}
-	if (!s->is_composite_loaded && dep->is_composite_loaded) {
+	if (!is_booter_loaded(s) && is_booter_loaded(dep)) {
 		printl(PRINT_HIGH, "Error: Non-Composite-loaded component dependent on composite loaded component.\n");
 		return -1;
 	}
@@ -1058,10 +1086,23 @@ static inline int service_processed(char *obj_name, struct service_symbs *servic
 	return 0;
 }
 
+static int
+symb_already_undef(struct service_symbs *ss, const char *name)
+{
+	int i;
+	struct symb_type *undef = &ss->undef;
+
+	for (i = 0 ; i < undef->num_symbs ; i++) {
+		if (!strcmp(undef->symbs[i].name, name)) return 1;
+	}
+	return 0;
+}
+
 static inline void 
-__add_symb(const char *name, struct symb_type *exp_undef)
+__add_symb(const char *name, struct symb_type *exp_undef, int mod_len)
 {
 	exp_undef->symbs[exp_undef->num_symbs].name = malloc(strlen(name)+1);
+	exp_undef->symbs[exp_undef->num_symbs].modifier_offset = mod_len;
 	strcpy(exp_undef->symbs[exp_undef->num_symbs].name, name);
 	exp_undef->num_symbs++;
 	assert(exp_undef->num_symbs <= MAX_SYMBOLS);
@@ -1070,14 +1111,14 @@ __add_symb(const char *name, struct symb_type *exp_undef)
 static inline void add_kexport(struct service_symbs *ss, const char *name)
 {
 	struct symb_type *ex = &ss->exported;
-	__add_symb(name, ex);
+	__add_symb(name, ex, 0);
 	return;
 }
 
-static inline void add_undef_symb(struct service_symbs *ss, const char *name)
+static inline void add_undef_symb(struct service_symbs *ss, const char *name, int mod_len)
 {
 	struct symb_type *ud = &ss->undef;
-	__add_symb(name, ud);
+	__add_symb(name, ud, mod_len);
 	return;
 }
 
@@ -1189,25 +1230,49 @@ struct service_symbs *find_symbol_exporter_mark_resolved(struct symb *s,
 static int 
 create_transparent_capabilities(struct service_symbs *service)
 {
-	int i, j;
+	int i, j, fault_found = 0, other_found = 0;
 	struct dependency *dep = service->dependencies;
-
+	
 	for (i = 0 ; i < service->num_dependencies ; i++) {
 		struct symb_type *symbs = &dep[i].dep->exported;
-
-		if (dep[i].resolved) continue;
+		char *modifier = dep[i].modifier;
+		int mod_len    = dep[i].mod_len;
 
 		for (j = 0 ; j < symbs->num_symbs ; j++) {
 			trans_cap_t r;
 			r = is_transparent_capability(&symbs->symbs[j]);
 			switch (r) {
 			case TRANS_CAP_FAULT: 
-			case TRANS_CAP_OTHER: 
+				if (fault_found) break;
+				fault_found = 1;
+			case TRANS_CAP_SCHED: 
 			{
 				struct symb_type *st;
 				struct symb *s;
+				char mod_name[256]; /* arbitrary value... */
 
-				add_undef_symb(service, symbs->symbs[j].name);
+//				if (symb_already_undef(service, symbs->symbs[j].name)) break;
+				if (r == TRANS_CAP_SCHED) {
+					/* This is pretty crap: We
+					 * don't want to ad a
+					 * capability to a parent
+					 * scheduler if we already
+					 * have a capability
+					 * established, but we _do_
+					 * want to create a capability
+					 * for other special
+					 * symbols. */
+					if (dep[i].resolved) continue;
+					if (other_found) break;
+					other_found = 1;
+				}
+
+				assert(strlen(symbs->symbs[j].name) + mod_len < 256);
+				strncpy(mod_name, modifier, mod_len);
+				mod_name[mod_len] = '\0';
+				strcat(mod_name, symbs->symbs[j].name);
+
+				add_undef_symb(service, mod_name, mod_len);
 				st = &service->undef;
 				s = &st->symbs[st->num_symbs-1];
 				s->exporter = dep[i].dep;
@@ -1433,7 +1498,7 @@ static int deserialize_dependencies(char *deps, struct service_symbs *services)
 				return -1;
 			}
 
-			if (!s->is_composite_loaded && dep->is_composite_loaded) {
+			if (!is_booter_loaded(s) && is_booter_loaded(dep)) {
 				printl(PRINT_HIGH, "Error: Non-Composite-loaded component %s dependent "
 				       "on composite loaded component %s.\n", s->obj, dep->obj);
 				return -1;
@@ -1530,6 +1595,7 @@ static void gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *servic
 		/* invoke the stub generator */
 		sprintf(dest, " > %s_stub.S", tmp_name);
 		strcat(tmp_str, dest);
+		printl(PRINT_DEBUG, "%s\n", tmp_str);
 		system(tmp_str);
 
 		/* compile the stub */
@@ -1580,7 +1646,8 @@ static int load_all_services(struct service_symbs *services)
 		}
 
 		service_addr += DEFAULT_SERVICE_SIZE;
-		if (strstr(services->obj, BOOT_COMP)) {
+		/* note this works for the llbooter too */
+		if (strstr(services->obj, BOOT_COMP)) { 
 			service_addr += 3*DEFAULT_SERVICE_SIZE;
 		}
 
@@ -1839,7 +1906,11 @@ static int cap_get_info(struct service_symbs *service, struct cap_ret_info *cri,
 	cri->cstub = c_stub;
 	cri->sstub = s_stub;
 	cri->serv = exporter;
-	cri->fault_handler = (u32_t)fault_handler_num(exp_symb->name);
+	if (exp_symb->modifier_offset) {
+		printf("%d: %s\n", service_get_spdid(exporter), 
+		       exp_symb->name + exp_symb->modifier_offset);
+	}
+	cri->fault_handler = (u32_t)fault_handler_num(exp_symb->name + exp_symb->modifier_offset);
 
 	return 0;
 }
@@ -1850,13 +1921,13 @@ static int create_spd_capabilities(struct service_symbs *service/*, struct spd_i
 	struct symb_type *undef_symbs = &service->undef;
 	struct spd_info *spd = (struct spd_info*)service->extern_info;
 	
-	assert(!service->is_composite_loaded);
+	assert(!is_booter_loaded(service));
 	for (i = 0 ; i < undef_symbs->num_symbs ; i++) {
 		struct symb *symb = &undef_symbs->symbs[i];
 		struct cap_ret_info cri;
 
 		if (cap_get_info(service, &cri, symb)) return -1;
-		assert(!cri.serv->is_composite_loaded);
+		assert(!is_booter_loaded(cri.serv));
 		if (create_invocation_cap(spd, service, cri.serv->extern_info, cri.serv, cntl_fd, 
 					  cri.csymb->name, cri.cstub->name, cri.sstub->name, 
 					  cri.ssymbfn->name, 0)) {
@@ -1877,8 +1948,7 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 	struct cos_component_information *ci;
 	int i;
 
-	assert(!s->is_composite_loaded);
-
+	assert(!is_booter_loaded(s));
 	spd = (struct spd_info *)malloc(sizeof(struct spd_info));
 	if (NULL == spd) {
 		perror("Could not allocate memory for spd\n");
@@ -1968,9 +2038,12 @@ struct comp_graph {
 
 static int service_get_spdid(struct service_symbs *ss)
 {
-	return (ss->is_composite_loaded) ? 
-		(int)ss->cobj->id :
-		((struct spd_info*)ss->extern_info)->spd_handle;
+	if (is_booter_loaded(ss)) { 
+		return (int)ss->cobj->id;
+	} else {
+		assert(ss->extern_info);
+		return ((struct spd_info*)ss->extern_info)->spd_handle;
+	}
 }
 
 static int serialize_spd_graph(struct comp_graph *g, int sz, struct service_symbs *ss)
@@ -1981,7 +2054,7 @@ static int serialize_spd_graph(struct comp_graph *g, int sz, struct service_symb
 	while (ss) {
 		int i, cid, sid;
 
-		if (ss->is_composite_loaded) {
+		if (is_booter_loaded(ss)) {
 			ss = ss->next;
 			continue;
 		}
@@ -2035,7 +2108,7 @@ static void make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all
 	int **heap_ptr, *heap_ptr_val;
 	struct comp_graph *g;
 
-	if (mm->is_composite_loaded) {
+	if (is_booter_loaded(mm)) {
 		printl(PRINT_HIGH, "Cannot load %s via composite (%s).\n", MPD_MGR, BOOT_COMP);
 		return;
 	}
@@ -2080,7 +2153,7 @@ static void make_spd_init_file(struct service_symbs *ic, const char *fname)
 	real_sz = b.st_size;
 	sz = round_up_to_page(real_sz);
 
-	if (ic->is_composite_loaded) {
+	if (is_booter_loaded(ic)) {
 		printl(PRINT_HIGH, "Cannot load %s via composite (%s).\n", INIT_FILE, BOOT_COMP);
 		return;
 	}
@@ -2185,7 +2258,7 @@ static void make_spd_config_comp(struct service_symbs *c, struct service_symbs *
 static int 
 spd_already_loaded(struct service_symbs *c)
 {
-	return c->already_loaded || !c->is_composite_loaded;
+	return c->already_loaded || !is_hl_booter_loaded(c);
 }
 
 static void 
@@ -2210,35 +2283,48 @@ make_spd_boot_schedule(struct service_symbs *comp, struct service_symbs **sched,
 	printl(PRINT_HIGH, "\t%d: %s\n", *off, comp->obj);
 }
 
+//#define INIT_STR_SZ 116
+#define INIT_STR_SZ 52
+/* struct is 64 bytes, so we can have 64 entries in a page. */
+struct component_init_str {
+	unsigned int spdid, schedid;
+	int startup;
+	char init_str[INIT_STR_SZ];
+}__attribute__((packed));
+static void format_config_info(struct service_symbs *ss, struct component_init_str *data);
+
 static void 
 make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 {
-	volatile int **heap_ptr;
-	int *heap_ptr_val, n = 0, cnt = 0;
+	int n = 0, cnt = 0, tot_sz = 0;
 	unsigned int off = 0, i;
-	struct cobj_header *h;
-	char *mem;
-	u32_t obj_size;
+	struct cobj_header *h, *new_h;
+	char *new_end, *new_sect_start;
+	u32_t new_vaddr_start;
+	u32_t all_obj_sz;
 	struct cos_component_information *ci;
 	struct service_symbs *first = all;
 	/* array to hold the order of initialization/schedule */
 	struct service_symbs **schedule; 
 
-	if (service_get_spdid(boot) != 3) {
-		printf("Booter component must be component number 3.\n"
-		       "\tSuggested fix: Your first four components should be c0.o, ;*fprr.o, ;mm.o, ;boot.o, ;\n");
+	if (service_get_spdid(boot) != LLBOOT_BOOT) {
+		printf("Booter component must be component number %d, is %d.\n"
+		       "\tSuggested fix: Your first four components should be e.g. "
+		       "c0.o, ;llboot.o, ;*fprr.o, ;mm.o, ;print.o, ;boot.o, ;\n", LLBOOT_BOOT, service_get_spdid(boot));
 		exit(-1);
 	}
 
+	/* should be loaded by llboot */
+	assert(is_booter_loaded(boot) && !is_hl_booter_loaded(boot)); 
+	assert(boot->cobj->nsect == 4); /* extra section for other components */
 	/* Assign ids to the booter-loaded components. */
 	for (all = first ; NULL != all ; all = all->next) {
-		if (!all->is_composite_loaded) continue;
+		if (!is_hl_booter_loaded(all)) continue;
 
 		h = all->cobj;
 		assert(h);
-		spdid_inc++;
-		h->id = spdid_inc;
 		cnt++;
+		tot_sz += h->size;
 	}
 
 	schedule = malloc(sizeof(struct service_symbs *) * cnt);
@@ -2252,7 +2338,141 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 	 * components */
 	all = first;
 	for (all = first ; NULL != all ; all = all->next) {
-		if (!all->is_composite_loaded) continue;
+		if (!is_hl_booter_loaded(all)) continue;
+
+		if (make_cobj_caps(all, all->cobj)) {
+			printl(PRINT_HIGH, "Could not create capabilities in cobj for %s\n", all->obj);
+			exit(-1);
+		}
+	}
+
+	all_obj_sz = 0;
+	/* Find the cobj's size */
+	for (all = first ; NULL != all ; all = all->next) {
+		struct cobj_header *h;
+
+		if (!is_hl_booter_loaded(all)) continue;
+		printl(PRINT_HIGH, "booter found %s:%d with len %d\n", 
+		       all->obj, service_get_spdid(all), all->cobj->size)
+		n++;
+
+		assert(is_hl_booter_loaded(all));
+		h = all->cobj;
+		assert(h);
+		all_obj_sz += round_up_to_cacheline(h->size);
+	}
+	all_obj_sz  = all_obj_sz;
+	all_obj_sz += 3 * PAGE_SIZE; // schedule, config info, and edge info
+	h           = boot->cobj;
+	assert(h->nsect == 4);
+	new_h       = malloc(h->size + all_obj_sz);
+	assert(new_h);
+	memcpy(new_h, h, h->size);
+
+	/* Initialize the new section */
+	{
+		struct cobj_sect *s_prev;
+
+		new_h->size += all_obj_sz;
+
+		s_prev = cobj_sect_get(new_h, 2);
+
+		cobj_sect_init(new_h, 3, COBJ_SECT_READ | COBJ_SECT_WRITE, 
+			       round_up_to_page(s_prev->vaddr + s_prev->bytes), 
+			       all_obj_sz);
+	}
+	new_sect_start  = new_end = cobj_sect_contents(new_h, 3);
+	new_vaddr_start = cobj_sect_get(new_h, 3)->vaddr;
+#define ADDR2VADDR(a) ((a-new_sect_start)+new_vaddr_start)
+
+
+	ci = (void *)cobj_vaddr_get(new_h, (u32_t)get_symb_address(&boot->exported, COMP_INFO));
+	assert(ci);
+	ci->cos_poly[0] = ADDR2VADDR(new_sect_start);
+
+	/* copy the cobjs */
+	for (all = first ; NULL != all ; all = all->next) {
+		struct cobj_header *h;
+
+		if (!is_hl_booter_loaded(all)) continue;
+		h = all->cobj;
+		assert(h);
+		memcpy(new_end, h, h->size);
+		new_end += round_up_to_cacheline(h->size);
+ 	}
+	assert((u32_t)(new_end - new_sect_start) + 3*PAGE_SIZE == 
+	       cobj_sect_get(new_h, 3)->bytes);
+	
+	all = first;
+	ci->cos_poly[1] = (vaddr_t)n;
+
+	ci->cos_poly[2] = ADDR2VADDR(new_end);
+	serialize_spd_graph((struct comp_graph*)new_end, PAGE_SIZE/sizeof(struct comp_graph), all);
+
+	new_end += PAGE_SIZE;
+	ci->cos_poly[3] = ADDR2VADDR(new_end);
+	format_config_info(all, (struct component_init_str*)new_end);
+
+	assert(off < PAGE_SIZE/sizeof(unsigned int)); /* schedule must fit into page. */
+	new_end += PAGE_SIZE;
+	ci->cos_poly[4] = ADDR2VADDR(new_end);
+	for (i = 0 ; i < off ; i++) {
+		((int *)new_end)[i] = service_get_spdid(schedule[i]);
+	}
+	((int *)new_end)[off] = 0;
+
+	new_end += PAGE_SIZE;
+	ci->cos_heap_ptr = round_up_to_page(ADDR2VADDR(new_end));
+
+	boot->cobj = new_h;
+
+	printl(PRINT_HIGH, "boot component %s:%d has new section @ %x:%x at address %x, \n\t"
+	       "with n %d, graph @ %x, config info @ %x, schedule %x, and heap %x\n",
+	       boot->obj, service_get_spdid(boot), (unsigned int)cobj_sect_get(new_h, 3)->vaddr, 
+	       (int)cobj_sect_get(new_h, 3)->bytes, (unsigned int)ci->cos_poly[0], (unsigned int)ci->cos_poly[1], 
+	       (unsigned int)ci->cos_poly[2], (unsigned int)ci->cos_poly[3], (unsigned int)ci->cos_poly[4], (unsigned int)ci->cos_heap_ptr);
+}
+
+static void
+spd_assign_ids(struct service_symbs *all)
+{
+	struct cobj_header *h;
+
+	/* Assign ids to the booter-loaded components. */
+	for (; NULL != all ; all = all->next) {
+		if (!is_booter_loaded(all)) continue;
+
+		h = all->cobj;
+		assert(h);
+		spdid_inc++;
+		h->id = spdid_inc;
+	}
+}
+
+static void 
+make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
+{
+	volatile int **heap_ptr;
+	int *heap_ptr_val, n = 0;
+	struct cobj_header *h;
+	char *mem;
+	u32_t obj_size;
+	struct cos_component_information *ci;
+	struct service_symbs *first = all;
+
+	if (service_get_spdid(boot) != LLBOOT_COMPN) {
+		printf("Low-Level Booter component must be component number %d, but is %d instead.\n"
+		       "\tSuggested fix: Your first four components should be e.g. "
+		       "c0.o, ;llboot.o, ;*fprr.o, ;mm.o, ;boot.o, ;\n", 
+		       LLBOOT_COMPN, service_get_spdid(boot));
+		exit(-1);
+	}
+
+	/* Setup the capabilities for each of the booter-loaded
+	 * components */
+	all = first;
+	for (all = first ; NULL != all ; all = all->next) {
+		if (!is_booter_loaded(all)) continue;
 
 		if (make_cobj_caps(all, all->cobj)) {
 			printl(PRINT_HIGH, "Could not create capabilities in cobj for %s\n", all->obj);
@@ -2265,16 +2485,14 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 	ci->cos_poly[0] = (vaddr_t)*heap_ptr;
 
 	for (all = first ; NULL != all ; all = all->next) {
-//	for (i = 0 ; i < cnt ; i++) {
 		vaddr_t map_addr;
 		int map_sz;
 
-//		all = schedule[i];
-		if (!all->is_composite_loaded) continue;
+		if (!is_booter_loaded(all) || is_hl_booter_loaded(all)) continue;
 		n++;
 
 		heap_ptr_val = (int*)*heap_ptr;
-		assert(all->is_composite_loaded);
+		assert(is_booter_loaded(all));
 		h = all->cobj;
 		assert(h);
 
@@ -2303,32 +2521,7 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 
 	ci->cos_poly[3] = ((unsigned int)*heap_ptr);
 	make_spd_config_comp(boot, all);
-
-	assert(off < PAGE_SIZE/sizeof(unsigned int)); /* schedule must fit into page. */
-	/* pass the schedule to the boot component */
-	mem = mmap((void*)*heap_ptr, PAGE_SIZE, PROT_WRITE | PROT_READ,
-		   MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
-	if (MAP_FAILED == mem) {
-		perror("Couldn't map component initialization schedule into the boot component");
-		exit(-1);
-	}
-	for (i = 0 ; i < off ; i++) {
-		((int *)mem)[i] = service_get_spdid(schedule[i]);
-	}
-	((int *)mem)[off] = 0;
-	ci->cos_poly[4] = (unsigned int)*heap_ptr;
-	*heap_ptr += PAGE_SIZE;
 }
-
-//#define INIT_STR_SZ 116
-#define INIT_STR_SZ 52
-
-/* struct is 64 bytes, so we can have 64 entries in a page. */
-struct component_init_str {
-	unsigned int spdid, schedid;
-	int startup;
-	char init_str[INIT_STR_SZ];
-}__attribute__((packed));
 
 static void format_config_info(struct service_symbs *ss, struct component_init_str *data)
 {
@@ -2344,7 +2537,7 @@ static void format_config_info(struct service_symbs *ss, struct component_init_s
 			exit(-1);
 		}
 
-		if (ss->is_composite_loaded) {
+		if (is_booter_loaded(ss)) {
 			data[i].startup = 0;
 			data[i].spdid = ss->cobj->id;
 		} else {
@@ -2352,9 +2545,11 @@ static void format_config_info(struct service_symbs *ss, struct component_init_s
 			data[i].spdid = ((struct spd_info *)(ss->extern_info))->spd_handle;
 		}
 
-		data[i].schedid = ss->scheduler ? 
-			((struct spd_info *)(ss->scheduler->extern_info))->spd_handle : 
-			0;
+		if (ss->scheduler) {
+			data[i].schedid = service_get_spdid(ss->scheduler);
+		} else {
+			data[i].schedid = 0;
+		}
 
 		if (0 == strcmp(" ", info)) info = "";
 		strcpy(data[i].init_str, info);
@@ -2389,7 +2584,7 @@ static void make_spd_config_comp(struct service_symbs *c, struct service_symbs *
 static struct service_symbs *find_obj_by_name(struct service_symbs *s, const char *n)
 {
 	while (s) {
-		if (strstr(s->obj, n) != NULL) {
+		if (!strncmp(&s->obj[5], n, strlen(n))) {
 			return s;
 		}
 
@@ -2415,7 +2610,7 @@ int (*fn)(void);
 
 static void setup_kernel(struct service_symbs *services)
 {
-	struct service_symbs *m, *s;
+	struct service_symbs /* *m, */ *s;
 	struct service_symbs *init = NULL;
 	struct spd_info *init_spd = NULL;
 	pid_t pid;
@@ -2435,7 +2630,7 @@ static void setup_kernel(struct service_symbs *services)
 		struct spd_info *t_spd;
 
 		t = s;
-		if (!s->is_composite_loaded) {
+		if (!is_booter_loaded(s)) {
 			if (strstr(s->obj, INIT_COMP) != NULL) {
 				init = t;
 				t_spd = init_spd = create_spd(cntl_fd, init, 0, 0);
@@ -2452,7 +2647,7 @@ static void setup_kernel(struct service_symbs *services)
 
 	s = services;
 	while (s) {
-		if (!s->is_composite_loaded) {
+		if (!is_booter_loaded(s)) {
 			if (create_spd_capabilities(s, cntl_fd)) {
 				fprintf(stderr, "\tCould not find all stubs.\n");
 				exit(-1);
@@ -2463,40 +2658,47 @@ static void setup_kernel(struct service_symbs *services)
 	}
 	printl(PRINT_DEBUG, "\n");
 
-	if ((m = find_obj_by_name(services, INITMM)) == NULL) {
-		fprintf(stderr, "Could not find initial memory manager %s\n", INITMM);
-		exit(-1);
-	}
-	make_spd_scheduler(cntl_fd, m, NULL);
-	assert(!m->is_composite_loaded);
-	if ((s = find_obj_by_name(services, ROOT_SCHED)) == NULL) {
-		fprintf(stderr, "Could not find root scheduler %s\n", ROOT_SCHED);
-		exit(-1);
-	}
-	make_spd_scheduler(cntl_fd, s, m);
-	assert(!s->is_composite_loaded);
-	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;
+	/* if ((m = find_obj_by_name(services, INITMM)) == NULL) { */
+	/* 	fprintf(stderr, "Could not find initial memory manager %s\n", INITMM); */
+	/* 	exit(-1); */
+	/* } */
+	/* make_spd_scheduler(cntl_fd, m, NULL); */
+	/* assert(!is_booter_loaded(m)); */
+	/* if ((s = find_obj_by_name(services, ROOT_SCHED)) == NULL) { */
+	/* 	fprintf(stderr, "Could not find root scheduler %s\n", ROOT_SCHED); */
+	/* 	exit(-1); */
+	/* } */
+	/* make_spd_scheduler(cntl_fd, s, m); */
+	/* assert(!is_booter_loaded(s)); */
+	/* thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle; */
+
+	spd_assign_ids(services);
 
 	if ((s = find_obj_by_name(services, BOOT_COMP))) {
 		make_spd_boot(s, services);
-	} else if ((s = find_obj_by_name(services, BOOT_COMP2))) {
-		make_spd_boot(s, services);
 	}
 	fflush(stdout);
 
-	if ((s = find_obj_by_name(services, MPD_MGR))) {
-		make_spd_mpd_mgr(s, services);
-	}
+	if ((s = find_obj_by_name(services, LLBOOT_COMP))) {
+		make_spd_llboot(s, services);
+		make_spd_scheduler(cntl_fd, s, NULL);
+	} 
 	fflush(stdout);
+	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;
+
+	/* if ((s = find_obj_by_name(services, MPD_MGR))) { */
+	/* 	make_spd_mpd_mgr(s, services); */
+	/* } */
+	/* fflush(stdout); */
 
 	/* if ((s = find_obj_by_name(services, INIT_FILE))) { */
 	/* 	make_spd_init_file(s, INIT_FILE_NAME); */
 	/* } */
 	/* fflush(stdout); */
 
-	if ((s = find_obj_by_name(services, CONFIG_COMP))) {
-		make_spd_config_comp(s, services);
-	}
+	/* if ((s = find_obj_by_name(services, CONFIG_COMP))) { */
+	/* 	make_spd_config_comp(s, services); */
+	/* } */
 
 	if ((s = find_obj_by_name(services, INIT_COMP)) == NULL) {
 		fprintf(stderr, "Could not find initial component\n");
@@ -2506,10 +2708,13 @@ static void setup_kernel(struct service_symbs *services)
 
 	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
 
+	/* This will hopefully avoid hugely annoying fsck runs */
+	sync();
+
 	cos_create_thd(cntl_fd, &thd);
 
 	for (i = 1; i < MAX_NUM_CPU - 1; i++) {
-		printf("Parent: forking for core %d..\n", i);
+		printf("Parent: forking for core %d.\n", i);
 		cpuid = i;
 		pid = fork();
 		if (pid == 0) break;
@@ -2517,9 +2722,8 @@ static void setup_kernel(struct service_symbs *services)
 
 	if (pid == 0) { /* child process: set own affinity */ 
 		set_curr_affinity(cpuid);
-//		make_spd_scheduler(cntl_fd, s, m);
 		cos_create_thd(cntl_fd, &thd);
-//		while (1) ;
+		while (1) ;
 	} else {
 		printf("Parent: created %d threads.\n", i - 1);
 //		while (1) ;
@@ -2530,9 +2734,6 @@ static void setup_kernel(struct service_symbs *services)
 
 #define ITER 1
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
-
-	/* This will hopefully avoid hugely annoying fsck runs */
-	sync();
 
 	aed_disable_syscalls(cntl_fd);
 

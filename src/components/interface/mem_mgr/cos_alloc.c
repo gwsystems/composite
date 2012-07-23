@@ -349,7 +349,7 @@ void* malloc(size_t size) __attribute__((weak,alias("_alloc_libc_malloc")));
 void *__libc_calloc(size_t nmemb, size_t _size)
 {
 	size_t tot = nmemb*_size;
-	char *ret = malloc(tot);
+	char *ret  = malloc(tot);
 	
 	memset(ret, 0, tot);
 	return ret;
@@ -369,8 +369,8 @@ void *alloc_page(void)
 		a = do_mmap(PAGE_SIZE);
 	} else {
 		page_list.next = fp->next;
-		fp->next = NULL;
-		a = (void*)fp;
+		fp->next       = NULL;
+		a              = (void*)fp;
 	}
 	
 	return a;

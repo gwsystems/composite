@@ -42,13 +42,13 @@ struct cbuf_alloc_desc cbuf_alloc_freelists = {.next = &cbuf_alloc_freelists, .p
 /*** Manage the cbuf allocation descriptors and freelists  ***/
 
 static struct cbuf_alloc_desc *
-__cbuf_desc_alloc(int cbid, int size, void *addr, union cbuf_meta *cm)
+__cbuf_desc_alloc(int cbid, int size, void *addr, struct cbuf_meta *cm)
 {
 	struct cbuf_alloc_desc *d;
 	int idx = ((int)addr >> PAGE_ORDER);
 
 	assert(addr && cm);
-	assert(cm->c.ptr == idx);
+	assert(cm->nfo.c.ptr == idx);
 	assert(__cbuf_alloc_lookup(idx) == NULL);
 
 	d = cslab_alloc_desc();
@@ -97,7 +97,7 @@ __cbuf_desc_free(struct cbuf_alloc_desc *d)
 int 
 __cbuf_2buf_miss(int cbid, int len)
 {
-	union cbuf_meta *mc;
+	struct cbuf_meta *mc;
 	void *h;
 
 	CBUF_RELEASE();
@@ -105,7 +105,6 @@ __cbuf_2buf_miss(int cbid, int len)
 	CBUF_TAKE();
 	if (!h) {
 		assert(0);
-		BUG();
 		return -1;
 	}
 
@@ -116,11 +115,9 @@ __cbuf_2buf_miss(int cbid, int len)
 		mc = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
 		assert(mc);
 	}
-	mc->c.ptr         = (long)h >> PAGE_ORDER;
-	mc->c.obj_sz      = len;
-	mc->c.thdid_owner = cos_get_thd_id();
-
-	mc->c.flags       |= CBUFM_MAPPED_IN;
+	mc->nfo.c.ptr   = (long)h >> PAGE_ORDER;
+	mc->sz          = len;
+	mc->thdid_owner = cos_get_thd_id();
 
 	return 0;
 }
@@ -132,7 +129,7 @@ struct cbuf_alloc_desc *
 __cbuf_alloc_slow(int size, int *len)
 {
 	struct cbuf_alloc_desc *d_prev, *ret = NULL;
-	union cbuf_meta *cm;
+	struct cbuf_meta *cm;
 	void *addr;
 	int cbid;
 	int cnt;
@@ -148,9 +145,9 @@ __cbuf_alloc_slow(int size, int *len)
 		assert(cnt++ < 10);
 	} while (cbid < 0);
 	cm   = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
-	assert(cm->c.flags & CBUFM_IN_USE);
-	assert(cm->c.thdid_owner);
-	addr = (void*)(cm->c.ptr << PAGE_ORDER);
+	assert(cm->nfo.c.flags & CBUFM_IN_USE);
+	assert(cm->thdid_owner);
+	addr = (void*)(cm->nfo.c.ptr << PAGE_ORDER);
 	assert(addr);
 	/* 
 	 * See __cbuf_alloc and cbuf_slab_free.  It is possible that a

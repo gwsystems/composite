@@ -18,6 +18,7 @@
 #include <cos_list.h>
 
 #include <sched.h>
+#include <sched_hier.h>
 
 /**************** Scheduler Util Fns *******************/
 
@@ -112,6 +113,19 @@ struct sched_crit_section {
 	struct sched_thd *holding_thd;
 };
 
+struct scheduler_per_core {
+        /**************** Scheduler Event Fns *******************/
+	volatile u8_t cos_curr_evt;
+
+        /************** critical section functions/state *************/
+	struct sched_crit_section sched_spd_crit_sections[MAX_NUM_SPDS];
+
+        /* --- Thread Management Utiliities --- */
+	struct sched_thd *sched_thd_map[SCHED_NUM_THREADS];
+	struct sched_thd sched_thds[SCHED_NUM_THREADS]; 
+	struct sched_thd *sched_map_evt_thd[NUM_SCHED_EVTS];
+} CACHE_ALIGNED;
+
 void sched_init_thd(struct sched_thd *thd, unsigned short int id, int flags);
 struct sched_thd *sched_alloc_thd(unsigned short int id);
 struct sched_thd *sched_alloc_upcall_thd(unsigned short int thd_id);
@@ -140,10 +154,12 @@ static inline struct sched_metric *sched_get_metric(struct sched_thd *thd)
 typedef void (*sched_evt_visitor_t)(struct sched_thd *t, u8_t flags, u32_t cpu_consumption);
 static inline int cos_sched_pending_event(void)
 {
-/*	struct cos_sched_events *evt;*/
+	/* struct cos_sched_events *evt; */
 
-	printc("pending? %d, addr %p, cpuid %ld, thd %d\n", cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_event, &cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_event, cos_cpuid(), cos_get_thd_id());
-	cos_spd_cntl(9876, 0, 0, 0);
+	/* printc("pending? %d, addr %p, cpuid %ld, thd %d\n", 
+	   cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_event, 
+	   &cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_event, 
+	   cos_cpuid(), cos_get_thd_id()); */
 	return cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_event;
 /*
 	evt = &cos_sched_notifications[cos_cpuid()].cos_events[cos_curr_evt];
@@ -155,7 +171,7 @@ static inline int cos_sched_pending_event(void)
 
 static inline void cos_sched_clear_events(void)
 {
-	printc("core %ld, thd %d clearing pending_event!!!!\n", cos_cpuid(), cos_get_thd_id());
+	/* printc("core %ld, thd %d clearing pending_event!!!!\n", cos_cpuid(), cos_get_thd_id()); */
 	cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_event = 0;
 }
 
@@ -177,14 +193,15 @@ void cos_sched_set_evt_urgency(u8_t id, u16_t urgency);
 short int sched_alloc_event(struct sched_thd *thd);
 int sched_rem_event(struct sched_thd *thd);
 int sched_share_event(struct sched_thd *n, struct sched_thd *old);
-extern struct sched_thd *sched_map_evt_thd[NUM_SCHED_EVTS];
+
+extern struct scheduler_per_core per_core_sched[MAX_NUM_CPU];
 
 static inline struct sched_thd *sched_evt_to_thd(short int evt_id)
 {
 	assert(evt_id < NUM_SCHED_EVTS);
 	assert(evt_id != 0);
 
-	return sched_map_evt_thd[evt_id];
+	return per_core_sched[cos_cpuid()].sched_map_evt_thd[evt_id];
 }
 static inline void sched_set_thd_urgency(struct sched_thd *t, u16_t urgency)
 {
@@ -194,63 +211,16 @@ static inline void sched_set_thd_urgency(struct sched_thd *t, u16_t urgency)
 	sched_get_metric(t)->urgency = urgency;
 }
 
-/*
- * We cannot just pass the thread id into the system call in registers
- * as the current thread of control making the switch_thread system
- * call might be preempted after deciding based on memory structures
- * which thread to run, but before the actual system call is made.
- * The preempting thread might change the current threads with high
- * priority.  When the system call ends up being executed, it is on
- * stale info, and a thread is switched to that might be actually be
- * interesting.
- *
- * Storing in memory the intended thread to switch to, allows other
- * preempting threads to update the next_thread even if a thread is
- * preempted between logic and calling switch_thread.
- */
-static inline int cos_switch_thread(unsigned short int thd_id, unsigned short int flags)
-{
-	struct cos_sched_next_thd *cos_next = &cos_sched_notifications[cos_cpuid()].cos_next;
-
-        /* This must be volatile as we must commit what we want to
-	 * write to memory immediately to be read by the kernel */
-	cos_next->next_thd_id = thd_id;
-	cos_next->next_thd_flags = flags;
-
-	/* kernel will read next thread information from cos_next */
-	return cos___switch_thread(thd_id, flags); 
-}
-
-/*
- * If you want to switch to a thread after an interrupt that is
- * currently executing is finished, that thread can be set here.  This
- * is a common case: An interrupt's execution wishes to wake up a
- * thread, thus it calls the scheduler.  Assume the woken thread is of
- * highest priority besides the interrupt thread.  When the interrupt
- * completes, it should possibly consider switching to that thread
- * instead of the one it interrupted.  This is the mechanism for
- * telling the kernel to look at the thd_id for execution when the
- * interrupt completes.
- */
-static inline void cos_next_thread(unsigned short int thd_id)
-{
-	volatile struct cos_sched_next_thd *cos_next = &cos_sched_notifications[cos_cpuid()].cos_next;
-
-	cos_next->next_thd_id = thd_id;
-}
-
 /* --- Thread Id -> Sched Thread Mapping Utilities --- */
-
-extern struct sched_thd *sched_thd_map[];
 static inline struct sched_thd *sched_get_mapping(unsigned short int thd_id)
 {
 	if (thd_id >= SCHED_NUM_THREADS ||
-	    sched_thd_map[thd_id] == NULL ||
-	    (sched_thd_map[thd_id]->flags & THD_FREE)) {
+	    per_core_sched[cos_cpuid()].sched_thd_map[thd_id] == NULL ||
+	    (per_core_sched[cos_cpuid()].sched_thd_map[thd_id]->flags & THD_FREE)) {
 		return NULL;
 	}
 
-	return sched_thd_map[thd_id];
+	return per_core_sched[cos_cpuid()].sched_thd_map[thd_id];
 }
 
 static inline struct sched_thd *sched_get_current(void)
@@ -267,11 +237,11 @@ static inline struct sched_thd *sched_get_current(void)
 static inline int sched_add_mapping(unsigned short int thd_id, struct sched_thd *thd)
 {
 	if (thd_id >= SCHED_NUM_THREADS ||
-	    sched_thd_map[thd_id] != NULL) {
+	    per_core_sched[cos_cpuid()].sched_thd_map[thd_id] != NULL) {
 		return -1;
 	}
 	
-	sched_thd_map[thd_id] = thd;
+	per_core_sched[cos_cpuid()].sched_thd_map[thd_id] = thd;
 
 	return 0;
 }
@@ -280,7 +250,7 @@ static inline void sched_rem_mapping(unsigned short int thd_id)
 {
 	if (thd_id >= SCHED_NUM_THREADS) return;
 
-	sched_thd_map[thd_id] = NULL;
+	per_core_sched[cos_cpuid()].sched_thd_map[thd_id] = NULL;
 }
 
 static inline int sched_is_grp(struct sched_thd *thd)
@@ -313,14 +283,12 @@ static inline struct sched_thd *sched_get_grp(struct sched_thd *thd)
 
 /*************** critical section functions *****************/
 
-extern struct sched_crit_section sched_spd_crit_sections[MAX_NUM_SPDS];
-
 static inline void sched_crit_sect_init(void)
 {
 	int i;
 	
 	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
-		struct sched_crit_section *cs = &sched_spd_crit_sections[i];
+		struct sched_crit_section *cs = &per_core_sched[cos_cpuid()].sched_spd_crit_sections[i];
 
 		cs->holding_thd = NULL;
 	}
@@ -352,7 +320,7 @@ __sched_thd_dependency(struct sched_thd *curr)
 	assert(spdid < MAX_NUM_SPDS);
 	
 	/* We have a critical section for a spd */
-	cs = &sched_spd_crit_sections[spdid];
+	cs = &per_core_sched[cos_cpuid()].sched_spd_crit_sections[spdid];
 	if (cs->holding_thd) return cs->holding_thd;
 done:
 	/* no more dependencies! */
@@ -382,7 +350,7 @@ static inline struct sched_thd *sched_take_crit_sect(spdid_t spdid, struct sched
 	assert(spdid < MAX_NUM_SPDS);
 	assert(!sched_thd_free(curr));
 	assert(!sched_thd_blocked(curr));
-	cs = &sched_spd_crit_sections[spdid];
+	cs = &per_core_sched[cos_cpuid()].sched_spd_crit_sections[spdid];
 
 	if (cs->holding_thd) {
 		/* The second assumption here might be too restrictive in the future */
@@ -405,7 +373,7 @@ static inline int sched_release_crit_sect(spdid_t spdid, struct sched_thd *curr)
 {
 	struct sched_crit_section *cs;
 	assert(spdid < MAX_NUM_SPDS);
-	cs = &sched_spd_crit_sections[spdid];
+	cs = &per_core_sched[cos_cpuid()].sched_spd_crit_sections[spdid];
 	assert(curr);
 	assert(!sched_thd_free(curr));
 	assert(!sched_thd_blocked(curr));
@@ -438,7 +406,7 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 	cos_next->next_thd_flags = flags;
 
 	cos_sched_lock_release();
-	printc("switch_thread_release...\n");
+
 	/* kernel will read next thread information from cos_next */
 	return cos___switch_thread(thd_id, flags); 
 }

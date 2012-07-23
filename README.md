@@ -54,7 +54,11 @@ Where to start -- a tour of the source code
 
 - Please read the doc/ directory for more information on how the code
   is organized
+
 - Join the compositeos@googlegroups.com mailing list
+
+- To run *Composite*, you start by reading the installation and usage
+  summary in `docs/installation_usage_summary.md`.
 
 _Composite_ system support
 --------------------------

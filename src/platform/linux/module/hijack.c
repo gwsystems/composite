@@ -650,6 +650,8 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				return -1;
 			}
 
+			spd->pfn_base   = 0;
+			spd->pfn_extent = COS_MAX_MEMORY;
 /*
 			copy_pgtbl(cspd->spd_info.pg_tbl, __pa(mm->pgd));
 			cspd->spd_info.pg_tbl = __pa(mm->pgd);

@@ -54,7 +54,6 @@ static inline void fp_move_end_runnable(struct sched_thd *t)
 	struct sched_thd *head;
 	unsigned short int p = sched_get_metric(t)->priority;
 
-	printc("thd %d move end runnable\n", t->id);
 	assert(sched_thd_ready(t));
 	assert(!sched_thd_suspended(t));
 	head = &per_core[cos_cpuid()].priorities[p].runnable;
@@ -68,7 +67,6 @@ static inline void fp_add_start_runnable(struct sched_thd *t)
 	struct sched_thd *head;
 	u16_t p = sched_get_metric(t)->priority;
 
-	printc("thd %d add start runnable\n", t->id);
 	assert(sched_thd_ready(t));
 	head = &per_core[cos_cpuid()].priorities[p].runnable;
 	ADD_LIST(head, t, prio_next, prio_prev);
@@ -77,8 +75,6 @@ static inline void fp_add_start_runnable(struct sched_thd *t)
 
 static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
 {
-	printc("<<<<adding thd %d to runqueue...\n", t->id);
-
 	assert(prio < NUM_PRIOS);
 	assert(sched_thd_ready(t));
 	assert(!sched_thd_suspended(t));
@@ -93,7 +89,6 @@ static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
 static inline void fp_rem_thd(struct sched_thd *t)
 {
 	u16_t p = sched_get_metric(t)->priority;
-	printc("<<<<removing thd %d from runqueue...\n", t->id);
 
 	/* if on a list _and_ no other thread at this priority? */
 	if (!EMPTY_LIST(t, prio_next, prio_prev) && 

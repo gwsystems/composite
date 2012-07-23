@@ -455,6 +455,11 @@ enum {
 	COS_MMAP_TLBFLUSH
 };
 
+enum {
+	COS_PFN_GRANT,
+	COS_PFN_MAX_MEM
+};
+
 #define IL_INV_UNMAP (0x1) // when invoking, should we be unmapped?
 #define IL_RET_UNMAP (0x2) // when returning, should we unmap?
 #define MAX_ISOLATION_LVL_VAL (IL_INV_UNMAP|IL_RET_UNMAP)
