@@ -261,7 +261,7 @@ struct cos_component_information {
 	vaddr_t cos_heap_ptr, cos_heap_limit;
 	vaddr_t cos_heap_allocated, cos_heap_alloc_extent;
 	vaddr_t cos_upcall_entry;
-	struct cos_sched_data_area *cos_sched_data_area;
+//	struct cos_sched_data_area *cos_sched_data_area;
 	vaddr_t cos_user_caps;
 	struct restartable_atomic_sequence cos_ras[COS_NUM_ATOMIC_SECTIONS/2];
 	vaddr_t cos_poly[COMP_INFO_POLY_NUM];

@@ -136,7 +136,7 @@ load_per_core_TSS(void)
 	struct desc_struct *gdt_array = NULL;
 	unsigned long *temp_gdt_tss;
 
-	gdt_array = get_cpu_gdt_table(get_cpu());
+	gdt_array = get_cpu_gdt_table(get_cpuid());
         temp_gdt_tss = (unsigned long *)get_desc_base(&gdt_array[GDT_ENTRY_TSS]);
 	gdt_tss = (struct tss_struct *)temp_gdt_tss;
 
@@ -711,7 +711,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		}
 
-		printk("cos core %u: creating thread.\n", get_cpu());
+		printk("cos core %u: creating thread.\n", get_cpuid());
 		spd = spd_get_by_index(thread_info.spd_handle);
 		if (!spd) {
 			printk("cos: Spd %d invalid for thread creation.\n", 
@@ -807,34 +807,38 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			sched->sched_depth = p->sched_depth + 1;
 		}
 
-//		printk("cos: promoting component %d to scheduler at depth %d, and parent %d\n",
-//		       sched_info.spd_sched_handle, sched->sched_depth, sched_info.spd_parent_handle);
+		/* Now the mapping of the shared area is built by
+		 * per_core in sched_root_init to support SMP. */
 
-		if (sched_info.sched_shared_page < sched->location[0].lowest_addr ||
-		    sched_info.sched_shared_page + PAGE_SIZE >= 
-		    sched->location[0].lowest_addr + sched->location[0].size) {
-			/* undo changes made so far */
-			sched->sched_depth = -1;
-			sched->parent_sched = NULL;
+		/* printk("cos: promoting component %d to scheduler at depth %d, and parent %d\n", */
+		/*        sched_info.spd_sched_handle, sched->sched_depth, sched_info.spd_parent_handle); */
+		/* if (sched_info.sched_shared_page < sched->location[0].lowest_addr || */
+		/*     sched_info.sched_shared_page + PAGE_SIZE >= */
+		/*     sched->location[0].lowest_addr + sched->location[0].size) { */
+		/* 	/\* undo changes made so far *\/ */
+		/* 	sched->sched_depth = -1; */
+		/* 	sched->parent_sched = NULL; */
 
-			printk("cos: could not promote spd %d to scheduler - invalid pinned page @ %x.\n",
-			       spd_get_index(sched), (unsigned int)sched_info.sched_shared_page);
-			return -EINVAL;
-		} 
+		/* 	printk("cos: could not promote spd %d to scheduler - invalid pinned page @ %x.\n", */
+		/* 	       spd_get_index(sched), (unsigned int)sched_info.sched_shared_page); */
+		/* 	return -EINVAL; */
+		/* } */
 
-		sched->sched_shared_page = (struct cos_sched_data_area *)sched_info.sched_shared_page;
-		/* We will need to access the shared_page for thread
-		 * events when the pagetable for this spd is not
-		 * mapped in.  */
-		sched->kern_sched_shared_page = (struct cos_sched_data_area *)
-			pgtbl_vaddr_to_kaddr(sched->spd_info.pg_tbl, (unsigned long)sched->sched_shared_page);
-		sched->prev_notification = 0;
+		/* sched->sched_shared_page[get_cpuid()] = (struct cos_sched_data_area *)sched_info.sched_shared_page; */
+		/* /\* We will need to access the shared_page for thread */
+		/*  * events when the pagetable for this spd is not */
+		/*  * mapped in.  *\/ */
+		/* sched->kern_sched_shared_page[get_cpuid()] = (struct cos_sched_data_area *) */
+		/* 	pgtbl_vaddr_to_kaddr(sched->spd_info.pg_tbl, (unsigned long)(sched->sched_shared_page[get_cpuid()])); */
+
+		/* printk("<<<sched shared page %p, kernel sched_shared page %p\n", sched->sched_shared_page[get_cpuid()], sched->kern_sched_shared_page[get_cpuid()]); */
+		/* sched->prev_notification[get_cpuid()] = 0; */
 			
 		return 0;
 	}
 	case AED_EMULATE_PREEMPT:
 	{
-		struct pt_regs *regs = get_user_regs_thread(cos_thd_per_core[get_cpu()].cos_thd);
+		struct pt_regs *regs = get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd);
 		struct thread *cos_thd = core_get_curr_thd();
 		//struct pt_regs *irq_regs = get_irq_regs();
 
@@ -1041,7 +1045,7 @@ static unsigned long fault_addrs[NUM_BUCKETS];
 
 void hijack_syscall_monitor(int num)
 {
-	if (unlikely(!syscalls_enabled && cos_thd_per_core[get_cpu()].cos_thd == current)) {
+	if (unlikely(!syscalls_enabled && cos_thd_per_core[get_cpuid()].cos_thd == current)) {
 		printk("FAILURE: making a Linux system call (#%d) in Composite.\n", num);
 	}
 }
@@ -1077,7 +1081,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	 * spd's boundaries or there is not a linux mapping for the
 	 * address.
 	 */
-	if (cos_thd_per_core[get_cpu()].cos_thd != current) goto linux_handler;
+	if (cos_thd_per_core[get_cpuid()].cos_thd != current) goto linux_handler;
 	if (fault_addr == (unsigned long)&page_fault_interposition) goto linux_handler;
 
 	curr_mm = get_task_mm(current);
@@ -1139,7 +1143,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 
 	cos_meas_event(COS_PG_FAULT);
 	
-	if (get_user_regs_thread(cos_thd_per_core[get_cpu()].cos_thd) != rs) printk("Nested page fault!\n");
+	if (get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd) != rs) printk("Nested page fault!\n");
 	if (fault_update_mpd_pgtbl(thd, rs, fault_addr)) ret = 0;
 	else ret = cos_handle_page_fault(thd, fault_addr, error_code, rs);
 
@@ -1161,7 +1165,7 @@ int main_div_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 {
 	struct thread *t;
 
-	if (cos_thd_per_core[get_cpu()].cos_thd != current) return 1;
+	if (cos_thd_per_core[get_cpuid()].cos_thd != current) return 1;
 
 	printk("<<< finally >>>\n");
 
@@ -1177,7 +1181,7 @@ int main_state_inv_interposition(struct pt_regs *rs, unsigned int error_code)
 	struct thread *t;
 	struct spd *s;
 
-	if (unlikely(cos_thd_per_core[get_cpu()].cos_thd != current)) return 1;
+	if (unlikely(cos_thd_per_core[get_cpuid()].cos_thd != current)) return 1;
 
 	t = core_get_curr_thd();
 	memcpy(&t->fault_regs, rs, sizeof(struct pt_regs));
@@ -1517,12 +1521,12 @@ void copy_pgtbl(paddr_t pt_to, paddr_t pt_from)
 void save_per_core_cos_thd(void)
 {
 	/* long fs_val = 0; */
-	/* if (get_cpu() == 1) { */
+	/* if (get_cpuid() == 1) { */
 	/* 	__asm__ ("movl %%fs, %0;":"=r" (fs_val)); */
 	/* 	printk("fs when set per_core variable: %ld\n", fs_val); */
 	/* 	//while (1); */
 	/* } */
-	cos_thd_per_core[get_cpu()].cos_thd = current;
+	cos_thd_per_core[get_cpuid()].cos_thd = current;
 
 	return;
 }
@@ -1665,11 +1669,11 @@ void host_idle(void)
 static void host_idle_wakeup(void)
 {
 	assert(host_in_idle());
-	if (likely(cos_thd_per_core[get_cpu()].cos_thd)) {
+	if (likely(cos_thd_per_core[get_cpuid()].cos_thd)) {
 		if (IDLE_ASLEEP == idle_status) {
 			cos_meas_event(COS_MEAS_IDLE_LINUX_WAKE);
 			event_record("idle wakeup", thd_get_id(core_get_curr_thd()), 0);
-			wake_up_process(cos_thd_per_core[get_cpu()].cos_thd);
+			wake_up_process(cos_thd_per_core[get_cpuid()].cos_thd);
 			idle_status = IDLE_WAKING;
 		} else {
 			cos_meas_event(COS_MEAS_IDLE_RECURSIVE_WAKE);
@@ -1679,7 +1683,7 @@ static void host_idle_wakeup(void)
 	}
 }
 
-int host_can_switch_pgtbls(void) { return current == cos_thd_per_core[get_cpu()].cos_thd; }
+int host_can_switch_pgtbls(void) { return current == cos_thd_per_core[get_cpuid()].cos_thd; }
 
 int host_attempt_brand(struct thread *brand)
 {
@@ -1687,10 +1691,10 @@ int host_attempt_brand(struct thread *brand)
 	unsigned long flags;
 
 	local_irq_save(flags);
-	if (likely(cos_thd_per_core[get_cpu()].cos_thd)/* == current*/) {
+	if (likely(cos_thd_per_core[get_cpuid()].cos_thd)/* == current*/) {
 		struct thread *cos_current;
 
-		if (cos_thd_per_core[get_cpu()].cos_thd == current) {
+		if (cos_thd_per_core[get_cpuid()].cos_thd == current) {
 			cos_meas_event(COS_MEAS_INT_COS_THD);
 		} else {
 			cos_meas_event(COS_MEAS_INT_OTHER_THD);
@@ -1760,7 +1764,7 @@ int host_attempt_brand(struct thread *brand)
 			goto done;
  		}
 
-		regs = get_user_regs_thread(cos_thd_per_core[get_cpu()].cos_thd);
+		regs = get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd);
 
 		/* 
 		 * If both esp and xss == 0, then the interrupt
@@ -1831,7 +1835,7 @@ done:
 
 static void timer_interrupt(unsigned long data)
 {
-	BUG_ON(cos_thd_per_core[get_cpu()].cos_thd == NULL);
+	BUG_ON(cos_thd_per_core[get_cpuid()].cos_thd == NULL);
 	mod_timer_pinned(&timer, jiffies+1);
 
 	if (!(cos_timer_brand_thd && cos_timer_brand_thd->upcall_threads)) {
@@ -1941,8 +1945,8 @@ static int aed_open(struct inode *inode, struct file *file)
 	pgd_t *pgd;
 	void* data_page;
 
-	if (cos_thd_per_core[get_cpu()].cos_thd != NULL || composite_union_mm != NULL) {
-		printk("cos (CPU %d): Composite subsystem already used by %d (%p).\n", get_cpu(), cos_thd_per_core[get_cpu()].cos_thd->pid, cos_thd_per_core[get_cpu()].cos_thd);
+	if (cos_thd_per_core[get_cpuid()].cos_thd != NULL || composite_union_mm != NULL) {
+		printk("cos (CPU %d): Composite subsystem already used by %d (%p).\n", get_cpuid(), cos_thd_per_core[get_cpuid()].cos_thd->pid, cos_thd_per_core[get_cpuid()].cos_thd);
 		return -EBUSY;
 	}
 

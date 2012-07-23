@@ -38,6 +38,10 @@
 
 #include <cos_list.h>
 #include "../../sched/cos_sched_sync.h"
+
+/* We use the the sched_data_area here only for the mem_mgr lock below. */
+struct cos_sched_data_area cos_sched_notifications[MAX_NUM_CPU];
+
 #define LOCK() if (cos_sched_lock_take()) assert(0);
 #define UNLOCK() if (cos_sched_lock_release()) assert(0);
 
@@ -249,19 +253,28 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to)
 
 	assert(!p || p->f == f);
 	assert(dest && to);
+
+//	printc("mapping crt .. <<<1>>>\n");
 	/* no vas structure for this spd yet... */
 	if (!cv) {
 		cv = cvas_alloc(dest);
+//		printc("mapping crt .. <<<2>>>\n");
 		if (!cv) goto done;
 		assert(cv == cvas_lookup(dest));
+//		printc("mapping crt .. <<<3>>>\n");
 	}
 	assert(cv->pages);
-
-	if (cvect_lookup(cv->pages, idx)) goto collision;
+//	printc("mapping crt .. <<<4>>>\n");
+	if (cvect_lookup(cv->pages, idx)) 
+	{
+		printc("collision... page %p, idx %ld\n", cv->pages, idx);
+		goto collision;
+	}
+//	printc("mapping crt .. <<<5>>>\n");
 	cvas_ref(cv);
 	m = cslab_alloc_mapping();
 	if (!m) goto collision;
-
+//	printc("mapping crt .. <<<6>>>\n");
 	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, dest, to, frame_index(f))) {
 		BUG();
 		goto no_mapping;
@@ -271,6 +284,7 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to)
 	frame_ref(f);
 	assert(frame_nrefs(f) > 0);
 	if (cvect_add(cv->pages, m, idx)) BUG();
+//	printc("mapping crt .. <<<7>>>\n");
 done:
 	return m;
 no_mapping:
@@ -372,7 +386,9 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 	if (!f) goto done; 	/* -ENOMEM */
 	assert(frame_nrefs(f) == 0);
 	frame_ref(f);
+//	printc("in get page: 1.\n");
 	m = mapping_crt(NULL, f, spd, addr);
+//	printc("in get page: 2.\n");
 	if (!m) goto dealloc;
 	f->c.m = m;
 	assert(m->addr == addr);
@@ -393,10 +409,13 @@ vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_
 	vaddr_t ret = 0;
 
 	LOCK();
+//	printc("in alias <1>\n");
 	m = mapping_lookup(s_spd, s_addr);
 	if (!m) goto done; 	/* -EINVAL */
+//	printc("map s_spd %d, addr %p --> spd %d, addr %p\n", s_spd, s_addr, d_spd, d_addr);
 	n = mapping_crt(m, m->f, d_spd, d_addr);
 	if (!n) goto done;
+//	printc("in alias <2>\n");
 
 	assert(n->addr  == d_addr);
 	assert(n->spdid == d_spd);

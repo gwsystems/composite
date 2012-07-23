@@ -397,7 +397,7 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 		struct sched_thd *next;
 		TIMER_INIT(t, recs, TIMER_SCHED);
 		TIMER_INIT(tfp, recs, TIMER_FPRR);
-
+		cos_sched_pending_event();
 		timer_start(&t);
 		assert(cos_sched_lock_own());
 		/* 
@@ -421,7 +421,7 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 			cos_sched_clear_events();
 			cos_sched_process_events(evt_callback, 0);
 		}
-
+		cos_sched_pending_event();
 		if (!target) {
 			/* 
 			 * If current is an upcall that wishes to terminate
@@ -471,8 +471,14 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 		assert(!sched_thd_blocked(next));
 		report_event(SWITCH_THD);
 		timer_end(&t);
-
+		printc("1.\n");
+		cos_sched_pending_event();
 		ret = cos_switch_thread_release(next->id, flags);
+		printc("2.\n");
+		cos_sched_pending_event();
+		if (ret == COS_SCHED_RET_ERROR) {
+			printc("core %ld, thd %d...\n", cos_cpuid(), cos_get_thd_id());
+		}
 		assert(ret != COS_SCHED_RET_ERROR);
 		if (COS_SCHED_RET_CEVT == ret) { report_event(CEVT_RESCHED); }
 
@@ -550,14 +556,16 @@ static void sched_timer_tick(void)
 {
 	while (1) {
 		cos_sched_lock_take();
+		printc("timer thread (id %d) running on core %ld...\n", cos_get_thd_id(), cos_cpuid());
 		report_event(TIMER_TICK);
 
+		printc("1\n");
 		if (unlikely((per_core[cos_cpuid()].ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1))) {
 			report_thd_accouting();
 			//cos_stats();
 		}
 		/* are we done running? */
-
+		printc("2\n");
 		if (unlikely(per_core[cos_cpuid()].ticks >= RUNTIME_SEC*TIMER_FREQ+1)) {
 			sched_exit();
 			while (COS_SCHED_RET_SUCCESS !=
@@ -569,11 +577,13 @@ static void sched_timer_tick(void)
 				}
 			}
 		}
-		
+		printc("3\n");
 		per_core[cos_cpuid()].ticks++;
+		printc("4\n");
 		sched_process_wakeups();
-
+		printc("5\n");
 		timer_tick(1);
+		printc("timer thread (id %d)going to sleep, core %ld...\n", cos_get_thd_id(), cos_cpuid());
 		sched_switch_thread(COS_SCHED_BRAND_WAIT, TIMER_SWITCH_LOOP);
 		/* Tailcall out of the loop */
 	}
@@ -597,6 +607,7 @@ typedef void (*crt_thd_fn_t)(void *data);
 
 static void fp_timer(void *d)
 {
+	cos_sched_pending_event();
 	printc("Core %ld: Starting timer thread (thread id %d)\n", cos_cpuid(), cos_get_thd_id());
 	per_core[cos_cpuid()].ticks = 0;
 	per_core[cos_cpuid()].wakeup_time = 0;
@@ -1000,7 +1011,7 @@ int sched_component_take(spdid_t spdid)
 	int first = 1;
 
 	//printc("sched take %d\n", spdid);
-
+	cos_sched_pending_event();
 	cos_sched_lock_take();
 	report_event(COMP_TAKE);
 	curr = sched_get_current();
@@ -1208,14 +1219,18 @@ sched_create_thread_default(spdid_t spdid, u32_t sched_param_0,
 	struct sched_thd *new;
 	vaddr_t t = spdid;
 
+	if (sched_param_2 == 9876) return cos_sched_pending_event();
 	sp[0] = ((union sched_param)sched_param_0).c;
 	sp[1] = ((union sched_param)sched_param_1).c;
 	sp[2] = ((union sched_param)sched_param_2).c;
 	sp[3] = (union sched_param){.c = {.type = SCHEDP_NOOP}}.c;
 	
 	cos_sched_lock_take();
+	printc("create_thread_default<<1>>\n");
 	new = sched_setup_thread_arg(&sp, fp_create_spd_thd, (void*)t, 1);
+	printc("create_thread_default<<2>>\n");
 	sched_switch_thread(0, NULL_EVT);
+	printc("create_thread_default<<3>>\n");
 	if (!new) return -1;
 	printc("sched %d: created default thread %d in spdid %d (requested by %d from %d)\n",
 	       (unsigned int)cos_spd_id(), new->id, spdid, sched_get_current()->id, spdid);
@@ -1589,6 +1604,7 @@ static struct sched_thd *fp_create_timer(void)
 	if (NULL == per_core[cos_cpuid()].timer) BUG();
 	if (0 > sched_add_thd_to_brand(cos_spd_id(), bid, per_core[cos_cpuid()].timer->id)) BUG();
 	printc("Core %ld: Timer thread has id %d with priority %s.\n", cos_cpuid(), per_core[cos_cpuid()].timer->id, "t");
+	cos_sched_pending_event();
 	cos_brand_wire(bid, COS_HW_TIMER, 0);
 
 	return per_core[cos_cpuid()].timer;
@@ -1644,7 +1660,7 @@ static void sched_child_init(void)
 	/* Child scheduler */
 	sched_type = SCHED_CHILD;
 	if (parent_sched_child_cntl_thd(cos_spd_id())) BUG();
-	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)&cos_sched_notifications)) BUG();
+	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)&cos_sched_notifications[cos_cpuid()])) BUG();
 	sched_init();
 
 	/* Don't involve the scheduler policy... */
@@ -1711,15 +1727,41 @@ volatile int initialized = 0;
 int sched_root_init(void)
 {
 	struct sched_thd *new;
+	static volatile int test[MAX_NUM_CPU] = { 0, 0 };
 
-	printc("<<< CPU %ld: thread %d spinning in the sched_base... >>>\n", cos_cpuid(), cos_get_thd_id());
-	
+	printc("core %d: pending_event @ addr %p\n", cos_cpuid(), &(cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_event));
+	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)&cos_sched_notifications[cos_cpuid()])) BUG();
+
+	test[cos_cpuid()]++;
+
 	if (cos_cpuid() == 1) {
+//		cos_sched_cntl(1111, 0, 0);
+
+		while (test[0] + test[1] < 2) ;
+
+		printc("core %ld: both test flags are set!!\n", cos_cpuid());
+
+		/* while (cos_sched_notifications[1].cos_evt_notif.pending_event < 2) ; */
+		/* printc("core %ld: pending event is set!!\n", cos_cpuid()); */
+
+		/* while(1); */
+
+		printc("Total number of CPUs: %d. Composite runs on core 0 - %d. ", MAX_NUM_CPU, (MAX_NUM_CPU - 2) >= 0 ? (MAX_NUM_CPU - 2) : 0);
+		printc("Linux runs on core %d.\n", MAX_NUM_CPU - 1);
 //		initialized++;
 	} else {
-		while (initialized == 0);
+		//core 0 here.
+		while (cos_sched_notifications[1].cos_evt_notif.pending_event == 0) ;
+		printc("core 0: core 1 pending_event detected @ %p !\n", &(cos_sched_notifications[1].cos_evt_notif.pending_event));
+
+//		while (cos_sched_notifications[0].cos_evt_notif.pending_event + cos_sched_notifications[1].cos_evt_notif.pending_event < 2) ;
+//		printc("core %ld: both pending events are set!!\n", cos_cpuid());
+
+		while (initialized == 0) ;
+		
+		while (1);
 	}
-	printc("<<< CPU %ld, init thd %d going to run.>>>\n", cos_cpuid(), cos_get_thd_id());
+	printc("<<< CPU %ld, in root init, thd %d going to run.>>>\n", cos_cpuid(), cos_get_thd_id());
 	assert(initialized <= 1);
 
 	parent_sched_root_init();

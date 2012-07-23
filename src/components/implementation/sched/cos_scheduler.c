@@ -18,9 +18,9 @@ int cos_use_force_sched_link(void)
 	return cos_force_sched_link;
 }
 
+struct cos_sched_data_area cos_sched_notifications[MAX_NUM_CPU];
 
-/* should be per_core >>>>>>>> *////////////////////////////////////////////////////////
-
+/* should be per_core? >>>>>>>> *////////////////////////////////////////////////////////
 
 /**************** Scheduler Event Fns *******************/
 
@@ -62,12 +62,15 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 		struct sched_thd *t;
 		u32_t v, v_new, *v_ptr;
 
+		printc("in process evt...<<1>>\n");
 		if (cos_curr_evt >= NUM_SCHED_EVTS) {
+			printc("cos curr evt %u", cos_curr_evt);
+			assert(0);
 			return -1;//return cos_curr_evt;
 		}
 		
-		evt = &cos_sched_notifications.cos_events[cos_curr_evt];
-
+		evt = &cos_sched_notifications[cos_cpuid()].cos_events[cos_curr_evt];
+		printc("in process evt...<<2>>\n");
 		v_ptr = &COS_SCHED_EVT_VALS(evt);
 		do {
 			struct cos_se_values se;
@@ -84,7 +87,7 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 			assert(!(v_new & 0xFFFF));
 			ret = cos_cmpxchg(v_ptr, (long)v, (long)v_new);
 		} while (ret != (long)v_new);
-
+		printc("in process evt...<<3>>\n");
 		/* get and reset cpu consumption */
 		do {
 			cpu = evt->cpu_consumption;
@@ -99,11 +102,11 @@ int cos_sched_process_events(sched_evt_visitor_t fn, unsigned int proc_amnt)
 			}
 		}
 		proc_amnt--;
-
+		printc("in process evt...<<4>>\n");
 		if (0 == id) break;
 		cos_curr_evt = id;
 	}
-
+	printc("in process evt...<<5>>\n");
 	return 0;
 }
 
@@ -116,7 +119,7 @@ void cos_sched_set_evt_urgency(u8_t evt_id, u16_t urgency)
 
 	assert(evt_id < NUM_SCHED_EVTS);
 
-	evt = &cos_sched_notifications.cos_events[evt_id];
+	evt = &cos_sched_notifications[cos_cpuid()].cos_events[evt_id];
 	ptr = &COS_SCHED_EVT_VALS(evt);
 
 	/* Need to do this atomically with cmpxchg as next and flags
@@ -162,7 +165,7 @@ int sched_share_event(struct sched_thd *n, struct sched_thd *old)
 	int i;
 
 	i = old->evt_id;
-	assert(!(COS_SCHED_EVT_FLAGS(&cos_sched_notifications.cos_events[i]) & COS_SCHED_EVT_FREE));
+	assert(!(COS_SCHED_EVT_FLAGS(&cos_sched_notifications[cos_cpuid()].cos_events[i]) & COS_SCHED_EVT_FREE));
 	n->event = n->evt_id = i;
 	if (cos_sched_cntl(COS_SCHED_THD_EVT, n->id, i)) return -1;
 
@@ -178,7 +181,7 @@ short int sched_alloc_event(struct sched_thd *thd)
 	for (i = 1 ; i < NUM_SCHED_EVTS ; i++) {
 		struct cos_sched_events *se;
 
-		se = &cos_sched_notifications.cos_events[i];
+		se = &cos_sched_notifications[cos_cpuid()].cos_events[i];
 		if (COS_SCHED_EVT_FLAGS(se) & COS_SCHED_EVT_FREE) {
 			COS_SCHED_EVT_FLAGS(se) &= ~COS_SCHED_EVT_FREE;
 			assert(sched_map_evt_thd[i] == NULL);
@@ -205,7 +208,7 @@ int sched_rem_event(struct sched_thd *thd)
 	struct cos_sched_events *se;
 	assert(idx);
 
-	se = &cos_sched_notifications.cos_events[idx];
+	se = &cos_sched_notifications[cos_cpuid()].cos_events[idx];
 	assert(!(COS_SCHED_EVT_FLAGS(se) & COS_SCHED_EVT_FREE));
 	if (cos_sched_cntl(COS_SCHED_THD_EVT, thd->id, 0)) {
 		return -1;
@@ -231,7 +234,7 @@ void sched_ds_init(void)
 	for (i = 0 ; i < NUM_SCHED_EVTS ; i++) {
 		struct cos_sched_events *se;
 
-		se = &cos_sched_notifications.cos_events[i];
+		se = &cos_sched_notifications[cos_cpuid()].cos_events[i];
 		if (i == 0) {
 			COS_SCHED_EVT_FLAGS(se) = 0;
 		} else {

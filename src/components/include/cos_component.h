@@ -18,7 +18,6 @@
 
 extern long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
 
-extern struct cos_sched_data_area cos_sched_notifications;
 extern struct cos_component_information cos_comp_info;
 
 /*
@@ -191,52 +190,6 @@ static inline long cos_cap_cntl(short int op, spdid_t cspd, u16_t capid, long ar
 static inline int cos_trans_cntl(int op, int channel, unsigned long addr, int off)
 {
 	return cos___trans_cntl(((op << 16) | (channel & 0xFFFF)), addr, off);
-}
-
-
-/*
- * We cannot just pass the thread id into the system call in registers
- * as the current thread of control making the switch_thread system
- * call might be preempted after deciding based on memory structures
- * which thread to run, but before the actual system call is made.
- * The preempting thread might change the current threads with high
- * priority.  When the system call ends up being executed, it is on
- * stale info, and a thread is switched to that might be actually be
- * interesting.
- *
- * Storing in memory the intended thread to switch to, allows other
- * preempting threads to update the next_thread even if a thread is
- * preempted between logic and calling switch_thread.
- */
-static inline int cos_switch_thread(unsigned short int thd_id, unsigned short int flags)
-{
-	struct cos_sched_next_thd *cos_next = &cos_sched_notifications.cos_next;
-
-        /* This must be volatile as we must commit what we want to
-	 * write to memory immediately to be read by the kernel */
-	cos_next->next_thd_id = thd_id;
-	cos_next->next_thd_flags = flags;
-
-	/* kernel will read next thread information from cos_next */
-	return cos___switch_thread(thd_id, flags); 
-}
-
-/*
- * If you want to switch to a thread after an interrupt that is
- * currently executing is finished, that thread can be set here.  This
- * is a common case: An interrupt's execution wishes to wake up a
- * thread, thus it calls the scheduler.  Assume the woken thread is of
- * highest priority besides the interrupt thread.  When the interrupt
- * completes, it should possibly consider switching to that thread
- * instead of the one it interrupted.  This is the mechanism for
- * telling the kernel to look at the thd_id for execution when the
- * interrupt completes.
- */
-static inline void cos_next_thread(unsigned short int thd_id)
-{
-	volatile struct cos_sched_next_thd *cos_next = &cos_sched_notifications.cos_next;
-
-	cos_next->next_thd_id = thd_id;
 }
 
 static inline long cos_cpuid(void)

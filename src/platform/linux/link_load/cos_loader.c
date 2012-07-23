@@ -1936,16 +1936,22 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 	return spd;
 }
 
+const char *SCHED_NOTIF   = "cos_sched_notifications";
+
 void make_spd_scheduler(int cntl_fd, struct service_symbs *s, struct service_symbs *p)
 {
 	vaddr_t sched_page;
 	struct spd_info *spd = s->extern_info, *parent = NULL;
-	struct cos_component_information *ci;
+//	struct cos_component_information *ci;
+	struct cos_sched_data_area *sched_page_ptr;
 
 	if (p) parent = p->extern_info;
 
-	ci = (struct cos_component_information*)get_symb_address(&s->exported, COMP_INFO);
-	sched_page = (vaddr_t)ci->cos_sched_data_area;
+//	ci = (struct cos_component_information*)get_symb_address(&s->exported, COMP_INFO);
+//	sched_page = (vaddr_t)ci->cos_sched_data_area;
+	sched_page_ptr = (struct cos_sched_data_area*)get_symb_address(&s->exported, SCHED_NOTIF);
+	printf("the ptr we got: %p\n",sched_page_ptr);
+	sched_page = (vaddr_t)sched_page_ptr;
 
 	printl(PRINT_DEBUG, "Found spd notification page @ %x.  Promoting to scheduler.\n", 
 	       (unsigned int) sched_page);
@@ -2399,7 +2405,7 @@ void set_curr_affinity(u32_t cpu)
 {
 	cpu_set_t s;
 	CPU_ZERO(&s);
-	assert(cpu < MAX_NUM_CPU - 1);
+	assert(cpu <= MAX_NUM_CPU - 1);
 	CPU_SET(cpu, &s);
 	sched_setaffinity(0, 1, &s);
 	return;
@@ -2419,6 +2425,8 @@ static void setup_kernel(struct service_symbs *services)
 	int ret, child_status;
 	unsigned long long start, end;
 	
+	set_curr_affinity(0);
+
 	cntl_fd = aed_open_cntl_fd();
 
 	s = services;
@@ -2498,7 +2506,6 @@ static void setup_kernel(struct service_symbs *services)
 
 	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
 
-	set_curr_affinity(0);
 	cos_create_thd(cntl_fd, &thd);
 
 	for (i = 1; i < MAX_NUM_CPU - 1; i++) {
@@ -2510,6 +2517,7 @@ static void setup_kernel(struct service_symbs *services)
 
 	if (pid == 0) { /* child process: set own affinity */ 
 		set_curr_affinity(cpuid);
+//		make_spd_scheduler(cntl_fd, s, m);
 		cos_create_thd(cntl_fd, &thd);
 //		while (1) ;
 	} else {
@@ -2662,7 +2670,7 @@ void set_smp_affinity()
 	system("mkdir -p /dev/cpuset/cos");
 	system("echo 7 > /dev/cpuset/linux/cpuset.cpus");
 	system("echo 0 > /dev/cpuset/linux/cpuset.mems");
-	sprintf(cmd, "echo 0-%d > /dev/cpuset/cos/cpuset.cpus", MAX_NUM_CPU - 2);
+	sprintf(cmd, "echo 0-%d > /dev/cpuset/cos/cpuset.cpus", (MAX_NUM_CPU - 2) >= 0 ? (MAX_NUM_CPU - 2) : 0);
 	system(cmd);
 	system("echo 0 > /dev/cpuset/cos/cpuset.mems");
 	//	printf("1:\\pid %d!\n", getpid());

@@ -56,6 +56,8 @@
 #define SCHED_CEVT_WAKE      0x2
 #define SCHED_CEVT_BLOCK     0x4
 
+extern struct cos_sched_data_area cos_sched_notifications[MAX_NUM_CPU];
+
 struct sched_accounting {
 	unsigned long C, T, C_used, T_exp;
 	unsigned long ticks, prev_ticks;
@@ -140,9 +142,11 @@ static inline int cos_sched_pending_event(void)
 {
 /*	struct cos_sched_events *evt;*/
 
-	return cos_sched_notifications.cos_evt_notif.pending_event;
+	printc("pending? %d, addr %p, cpuid %ld, thd %d\n", cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_event, &cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_event, cos_cpuid(), cos_get_thd_id());
+	cos_spd_cntl(9876, 0, 0, 0);
+	return cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_event;
 /*
-	evt = &cos_sched_notifications.cos_events[cos_curr_evt];
+	evt = &cos_sched_notifications[cos_cpuid()].cos_events[cos_curr_evt];
 	evt1 = COS_SCHED_EVT_FLAGS(evt) || COS_SCHED_EVT_NEXT(evt);
 	assert(!(evt0 ^ evt1));
 	return evt0;
@@ -151,18 +155,19 @@ static inline int cos_sched_pending_event(void)
 
 static inline void cos_sched_clear_events(void)
 {
-	cos_sched_notifications.cos_evt_notif.pending_event = 0;
+	printc("core %ld, thd %d clearing pending_event!!!!\n", cos_cpuid(), cos_get_thd_id());
+	cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_event = 0;
 }
 
 static inline void cos_sched_clear_cevts(void)
 {
-	cos_sched_notifications.cos_evt_notif.pending_cevt = 0;
+	cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_cevt = 0;
 }
 
 static inline u32_t cos_sched_timer_cyc(void)
 {
-	u32_t t = cos_sched_notifications.cos_evt_notif.timer;
-	cos_sched_notifications.cos_evt_notif.timer = 0;
+	u32_t t = cos_sched_notifications[cos_cpuid()].cos_evt_notif.timer;
+	cos_sched_notifications[cos_cpuid()].cos_evt_notif.timer = 0;
 	return t;
 }
 
@@ -173,6 +178,7 @@ short int sched_alloc_event(struct sched_thd *thd);
 int sched_rem_event(struct sched_thd *thd);
 int sched_share_event(struct sched_thd *n, struct sched_thd *old);
 extern struct sched_thd *sched_map_evt_thd[NUM_SCHED_EVTS];
+
 static inline struct sched_thd *sched_evt_to_thd(short int evt_id)
 {
 	assert(evt_id < NUM_SCHED_EVTS);
@@ -188,7 +194,50 @@ static inline void sched_set_thd_urgency(struct sched_thd *t, u16_t urgency)
 	sched_get_metric(t)->urgency = urgency;
 }
 
+/*
+ * We cannot just pass the thread id into the system call in registers
+ * as the current thread of control making the switch_thread system
+ * call might be preempted after deciding based on memory structures
+ * which thread to run, but before the actual system call is made.
+ * The preempting thread might change the current threads with high
+ * priority.  When the system call ends up being executed, it is on
+ * stale info, and a thread is switched to that might be actually be
+ * interesting.
+ *
+ * Storing in memory the intended thread to switch to, allows other
+ * preempting threads to update the next_thread even if a thread is
+ * preempted between logic and calling switch_thread.
+ */
+static inline int cos_switch_thread(unsigned short int thd_id, unsigned short int flags)
+{
+	struct cos_sched_next_thd *cos_next = &cos_sched_notifications[cos_cpuid()].cos_next;
 
+        /* This must be volatile as we must commit what we want to
+	 * write to memory immediately to be read by the kernel */
+	cos_next->next_thd_id = thd_id;
+	cos_next->next_thd_flags = flags;
+
+	/* kernel will read next thread information from cos_next */
+	return cos___switch_thread(thd_id, flags); 
+}
+
+/*
+ * If you want to switch to a thread after an interrupt that is
+ * currently executing is finished, that thread can be set here.  This
+ * is a common case: An interrupt's execution wishes to wake up a
+ * thread, thus it calls the scheduler.  Assume the woken thread is of
+ * highest priority besides the interrupt thread.  When the interrupt
+ * completes, it should possibly consider switching to that thread
+ * instead of the one it interrupted.  This is the mechanism for
+ * telling the kernel to look at the thd_id for execution when the
+ * interrupt completes.
+ */
+static inline void cos_next_thread(unsigned short int thd_id)
+{
+	volatile struct cos_sched_next_thd *cos_next = &cos_sched_notifications[cos_cpuid()].cos_next;
+
+	cos_next->next_thd_id = thd_id;
+}
 
 /* --- Thread Id -> Sched Thread Mapping Utilities --- */
 
@@ -383,13 +432,13 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 {
         /* This must be volatile as we must commit what we want to
 	 * write to memory immediately to be read by the kernel */
-	volatile struct cos_sched_next_thd *cos_next = &cos_sched_notifications.cos_next;
+	volatile struct cos_sched_next_thd *cos_next = &cos_sched_notifications[cos_cpuid()].cos_next;
 
 	cos_next->next_thd_id = thd_id;
 	cos_next->next_thd_flags = flags;
 
 	cos_sched_lock_release();
-
+	printc("switch_thread_release...\n");
 	/* kernel will read next thread information from cos_next */
 	return cos___switch_thread(thd_id, flags); 
 }

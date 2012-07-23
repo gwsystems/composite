@@ -188,6 +188,7 @@ static int boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t com
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
 		char *dsrc;
+		vaddr_t ret;
 		int left;
 
 		sect = cobj_sect_get(h, i);
@@ -197,8 +198,8 @@ static int boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t com
 		while (left > 0) {
 			dsrc = cos_get_vas_page();
 			if ((vaddr_t)dsrc != mman_get_page(cos_spd_id(), (vaddr_t)dsrc, 0)) BUG();
-			if (dest_daddr != (mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr))) BUG();
-
+			ret = (mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr));
+			if (dest_daddr != ret) BUG();
 			dest_daddr += PAGE_SIZE;
 			left -= PAGE_SIZE;
 		}
@@ -415,7 +416,8 @@ static void boot_create_system(void)
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		if (hs[i]->id < min) min = hs[i]->id;
 	}
-	
+	printc("<<1>>\n");
+	printc("pending check: %d\n",sched_create_thread_default(0, 0, 0, 9876));
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;
 		spdid_t spdid;
@@ -426,33 +428,40 @@ static void boot_create_system(void)
 		if ((spdid = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG();
 		//printc("spdid %d, h->id %d\n", spdid, h->id);
 		assert(spdid == h->id);
+
 		sect = cobj_sect_get(h, 0);
 		if (cos_spd_cntl(COS_SPD_LOCATION, spdid, sect->vaddr, SERVICE_SIZE)) BUG();
-		
 		if (boot_spd_symbs(h, spdid, &comp_info)) BUG();
 		if (boot_spd_map(h, spdid, comp_info)) BUG();
 		if (boot_spd_reserve_caps(h, spdid)) BUG();
 		if (cos_spd_cntl(COS_SPD_ACTIVATE, spdid, 0, 0)) BUG();
 	}
+	printc("<<2>>\n");
+	printc("pending check: %d\n",sched_create_thread_default(0, 0, 0, 9876));
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;
 		h = hs[i];
 
 		if (boot_spd_caps(h, h->id)) BUG();
 	}
-	
+	printc("<<3>>\n");
+	printc("pending check: %d\n",sched_create_thread_default(0, 0, 0, 9876));
 	for (i = 0 ; boot_sched[i] != 0 ; i++) {
 		struct cobj_header *h;
 		int j;
-
+		printc("<<3.1>>\n");
+		printc("pending check: %d\n",sched_create_thread_default(0, 0, 0, 9876));
 		h = NULL;
 		for (j = 0 ; hs[j] != NULL; j++) {
 			if (hs[j]->id == boot_sched[i]) h = hs[j];
-		}
-		assert(h);
+		}		
 
+		assert(h);
+		printc("<<3.2>>\n");
 		if (h->flags & COBJ_INIT_THD) boot_spd_thd(h->id);
+		printc("<<3.3>>\n");
 	}
+	printc("<<4>>\n");
 }
 
 void failure_notif_wait(spdid_t caller, spdid_t failed)
@@ -515,8 +524,11 @@ void cos_init(void *arg)
 {
 	struct cobj_header *h;
 	int num_cobj, i;
+	printc("in booter init: thd %d: pending check: %d\n", cos_get_thd_id(), sched_create_thread_default(0, 0, 0, 9876));
+	cos_spd_cntl(9876, 0, 0, 0);
 
 	LOCK();
+	printc("1pending check: %d\n",sched_create_thread_default(0, 0, 0, 9876));
 	cos_vect_init_static(&spd_info_addresses);
 	h         = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj  = (int)cos_comp_info.cos_poly[1];
@@ -529,7 +541,7 @@ void cos_init(void *arg)
 
 	boot_sched = (unsigned int *)cos_comp_info.cos_poly[4];
 	assert(boot_sched);
-
+	printc("2pending check: %d\n",sched_create_thread_default(0, 0, 0, 9876));
 	boot_find_cobjs(h, num_cobj);
 	/* This component really might need more vas, get the next 4M region */
 	if (cos_vas_cntl(COS_VAS_SPD_EXPAND, cos_spd_id(), 
@@ -540,10 +552,11 @@ void cos_init(void *arg)
 		       (unsigned int)round_up_to_pgd_page(1)*3);
 		BUG();
 	}
+	printc("3pending check: %d\n",sched_create_thread_default(0, 0, 0, 9876));
 	printc("h @ %p, heap ptr @ %p\n", h, cos_get_heap_ptr());
 	printc("header %p, size %d, num comps %d, new heap %p\n", 
 	       h, h->size, num_cobj, cos_get_heap_ptr());
-
+	printc("4pending check: %d\n",sched_create_thread_default(0, 0, 0, 9876));
 	/* Assumes that hs have been setup with boot_find_cobjs */
 	boot_create_system();
 	printc("booter: done creating system.\n");

@@ -7,6 +7,8 @@
 #include <cos_component.h>
 #include <cos_debug.h>
 
+extern struct cos_sched_data_area cos_sched_notifications[MAX_NUM_CPU];
+
 /* 
  * The lock contains the thread that owns it (or 0 if it is not
  * taken), and the thread id of the most recent thread to contend the
@@ -16,7 +18,7 @@
 
 static inline int cos_sched_lock_take(void)
 {
-	union cos_synchronization_atom *l = &cos_sched_notifications.cos_locks;
+	union cos_synchronization_atom *l = &cos_sched_notifications[cos_cpuid()].cos_locks;
 	u16_t curr_thd = cos_get_thd_id(), owner;
 	
 	/* Recursively taking the lock: not good */
@@ -46,7 +48,7 @@ static inline int cos_sched_lock_take(void)
 
 static inline int cos_sched_lock_release(void)
 {
-	union cos_synchronization_atom *l = &cos_sched_notifications.cos_locks;
+	union cos_synchronization_atom *l = &cos_sched_notifications[cos_cpuid()].cos_locks;
 	union cos_synchronization_atom p;
 	u16_t queued_thd;
 
@@ -67,7 +69,7 @@ static inline int cos_sched_lock_release(void)
 /* do we own the lock? */
 static inline int cos_sched_lock_own(void)
 {
-	union cos_synchronization_atom *l = &cos_sched_notifications.cos_locks;
+	union cos_synchronization_atom *l = &cos_sched_notifications[cos_cpuid()].cos_locks;
 	
 	return l->c.owner_thd == cos_get_thd_id();
 }

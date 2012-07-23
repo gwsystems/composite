@@ -115,11 +115,15 @@ struct inv_ret_struct {
 	int thd_id;
 	int spd_id;
 };
+
+
 /* 
  * FIXME: 1) should probably return the static capability to allow
  * isolation level isolation access from caller, 2) all return 0
  * should kill thread.
  */
+struct cos_sched_data_area *temp;
+
 COS_SYSCALL vaddr_t ipc_walk_static_cap(unsigned int capability, 
 					vaddr_t sp, vaddr_t ip, /*vaddr_t usr_def, */
 					struct inv_ret_struct *ret)
@@ -787,13 +791,16 @@ switch_thread_get_target(unsigned short int tid, struct thread *curr,
 	if (unlikely(!thd_scheduled_by(curr, curr_spd) ||
 		     !thd_scheduled_by(thd, curr_spd))) {
 		*ret_code = COS_SCHED_RET_ERROR;
+		printk("<<1>>>>>>>>\n");
 		goto ret_err;
 	}
 
 	/* we cannot schedule to run an upcall thread that is not running */
 	if (unlikely(thd->flags & THD_STATE_READY_UPCALL)) {
+		printk("args: tid %u, curr thd %d, curr spd %p, \n thd id %d is upcall thd...", tid, thd_get_id(curr), curr_spd, thd_get_id(thd));
 		cos_meas_event(COS_MEAS_UPCALL_INACTIVE);
 		*ret_code = COS_SCHED_RET_INVAL;
+		printk("<<2>>>>>>>>\n");
 		goto ret_err;
 	}
 	
@@ -838,6 +845,7 @@ switch_thread_update_flags(struct cos_sched_data_area *da, unsigned short int *f
  * more pleasant way to deal with this might be to pass the args in
  * registers.  see ipc.S cos_syscall_switch_thread.
  */
+
 COS_SYSCALL struct pt_regs *
 cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id, 
 			       unsigned short int rflags, long *preempt)
@@ -856,8 +864,8 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	if (unlikely(NULL == curr_spd)) goto ret_err;
 
 	assert(!(curr->flags & THD_STATE_PREEMPTED));
-
-	da = curr_spd->sched_shared_page;
+	///////////QW: should this be kern_sched_shared_page????
+	da = curr_spd->sched_shared_page[get_cpuid()];
 	if (unlikely(NULL == da)) goto ret_err;
 
 	/* 
@@ -876,13 +884,23 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		 * thread, and its registers have been changed,
 		 * return without setting the return value */
 		if (ret_code == COS_SCHED_RET_SUCCESS && thd == curr) goto ret;
-		if (thd == curr) goto_err(ret_err, "sloooow\n");
+		if (thd == curr) 
+		{
+			printk("err: thd == curr\n");
+			goto_err(ret_err, "sloooow\n");
+		}
 	} else {
 		next_thd = switch_thread_parse_data_area(da, &ret_code);
-		if (unlikely(0 == next_thd)) goto_err(ret_err, "data_area\n");
+		if (unlikely(0 == next_thd)) {
+			printk("err: data area\n");
+			goto_err(ret_err, "data_area\n");
+		}
 
 		thd = switch_thread_get_target(next_thd, curr, curr_spd, &ret_code);
-		if (unlikely(NULL == thd)) goto_err(ret_err, "get target");
+		if (unlikely(NULL == thd)) {
+			printk("err: get target\n");
+			goto_err(ret_err, "get target");
+		}
 	}
 
 	/* If a thread is involved in a scheduling decision, we should
@@ -898,15 +916,29 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	} else {
 		cos_meas_event(COS_MEAS_SWITCH_COOP);
 	}
-
+	if (temp) printk("a kern pending check %d!\n", temp->cos_evt_notif.pending_event);
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
+	if (temp) printk("thd %d: kern pending check %d!\n", thd_get_id(core_get_curr_thd()), temp->cos_evt_notif.pending_event);
 	/* success for this current thread */
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
 
 	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
 
+	/* QW */
+	static int first = 1;
+	if (first)
+	{
+		first = 0;
+		//printk("setting pending here @ kern %p!!\n",&(da->cos_evt_notif.pending_event));
+		//da->cos_evt_notif.pending_event = 1;
+		curr_spd->kern_sched_shared_page[get_cpuid()]->cos_evt_notif.pending_event = 1;
+		printk("setting pending here @ kern %p!!\n",&(curr_spd->kern_sched_shared_page[get_cpuid()]->cos_evt_notif.pending_event));
+	}
+
 	return &thd->regs;
 ret_err:
+	printk("returned error in switch_thread_cont\n");
+	assert(0);
 	curr->regs.ax = ret_code;
 ret:
 	return &curr->regs;
@@ -1020,7 +1052,7 @@ switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd
 		 * pointers should be non-NULL */
 		child = tsi->scheduler;
 		assert(child);
-		cda = child->sched_shared_page;
+		cda = child->sched_shared_page[get_cpuid()];
 		assert(cda);
 		cda->cos_evt_notif.pending_cevt = 1;
 	}
@@ -1301,7 +1333,7 @@ static struct pt_regs *brand_execution_completion(struct thread *curr, int *pree
 	}
 
 	event_record("brand completion, switch to interrupted thread", thd_get_id(curr), thd_get_id(prev));
-
+	if (temp) printk("brand kern pending check %d!\n", temp->cos_evt_notif.pending_event);
 	brand_completion_switch_to(curr, prev);
 	*preempt = 1;
 	report_upcall("i", curr);
@@ -2082,7 +2114,8 @@ static int update_evt_list(struct thd_sched_info *tsi)
 
 	sched = tsi->scheduler;
 	/* if tsi->scheduler, then all of this should follow */
-	da = sched->kern_sched_shared_page;
+	da = sched->kern_sched_shared_page[get_cpuid()];
+	temp = da;
 	/* 
 	 * Here we want to prevent a race condition:
 	 *
@@ -2099,9 +2132,11 @@ static int update_evt_list(struct thd_sched_info *tsi)
 	/* same intention as previous line, but this deprecates the
 	 * previous */
 	da->cos_evt_notif.pending_event = 1;
+//	temp = &(da->cos_evt_notif.pending_event);
+	printk("thd %d setting evt here, @kernel addr %p!\n", thd_get_id(core_get_curr_thd()), &(da->cos_evt_notif.pending_event));
 			
 	evts = da->cos_events;
-	prev_evt = sched->prev_notification;
+	prev_evt = sched->prev_notification[get_cpuid()];
 	this_evt = tsi->notification_offset;
 	if (unlikely(prev_evt >= NUM_SCHED_EVTS ||
 		     this_evt >= NUM_SCHED_EVTS ||
@@ -2123,10 +2158,10 @@ static int update_evt_list(struct thd_sched_info *tsi)
 			 */
 		}
 		COS_SCHED_EVT_NEXT(&evts[prev_evt]) = this_evt;
-		sched->prev_notification = this_evt;
+		sched->prev_notification[get_cpuid()] = this_evt;
 //		printk(">>\tp = t\n");
 	}
-	
+	printk("kern pending check %d!\n", temp->cos_evt_notif.pending_event);
 	return 0;
 }
 
@@ -2176,6 +2211,7 @@ static inline void update_thd_evt_state(struct thread *t, int flags, unsigned lo
 			}
 			/* handle error conditions of list manip here??? */
 			update_evt_list(tsi);
+			printk("1kern pending check %d!\n", temp->cos_evt_notif.pending_event);
 		}
 	}
 	
@@ -2207,9 +2243,11 @@ static void update_sched_evts(struct thread *new, int new_flags,
 	if (new_flags != COS_SCHED_EVT_NIL) {
 		update_thd_evt_state(new, new_flags, 0);
 	}
+	if (temp) printk("2kern pending check %d!\n", temp->cos_evt_notif.pending_event);
 	if (elapsed || prev_flags != COS_SCHED_EVT_NIL) {
 		update_thd_evt_state(prev, prev_flags, elapsed);
 	}
+	if (temp) printk("3kern pending check %d!\n", temp->cos_evt_notif.pending_event);
 
 	return;
 }
@@ -2479,6 +2517,11 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 */
 
 	switch(operation) {
+	case 1111:
+	{
+		spd->kern_sched_shared_page[get_cpuid()]->cos_evt_notif.pending_event = 1;
+		return 0;
+	}
 	case COS_SCHED_EVT_REGION:
 	{
 		unsigned long region = (unsigned long)option;
@@ -2488,16 +2531,30 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 			printk("cos: attempted evt region for spd %d @ %lx.\n", spd_get_index(spd), region);
 			return -1;
 		}
-		
-		spd->sched_shared_page = (struct cos_sched_data_area *)region;
+		spd->sched_shared_page[get_cpuid()] = (struct cos_sched_data_area *)region;
 		/* We will need to access the shared_page for thread
 		 * events when the pagetable for this spd is not
 		 * mapped in.  */
-		spd->kern_sched_shared_page = (struct cos_sched_data_area *)
-			pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, region);
-		spd->prev_notification = 0;
+		spd->kern_sched_shared_page[get_cpuid()] = (struct cos_sched_data_area *)
+			pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, (unsigned long)spd->sched_shared_page[get_cpuid()]);
+		spd->prev_notification[get_cpuid()] = 0;
+
+
+		/* sched->sched_shared_page[get_cpuid()] = (struct cos_sched_data_area *)sched_info.sched_shared_page; */
+		/* /\* We will need to access the shared_page for thread */
+		/*  * events when the pagetable for this spd is not */
+		/*  * mapped in.  *\/ */
+		/* sched->kern_sched_shared_page[get_cpuid()] = (struct cos_sched_data_area *) */
+		/* 	pgtbl_vaddr_to_kaddr(sched->spd_info.pg_tbl, (unsigned long)(sched->sched_shared_page[get_cpuid()])); */
+
+		/* printk("<<<sched shared page %p, kernel sched_shared page %p\n", sched->sched_shared_page[get_cpuid()], sched->kern_sched_shared_page[get_cpuid()]); */
+		/* sched->prev_notification[get_cpuid()] = 0; */
+
+
+
+
 		/* FIXME: pin the page */
-		
+		printk("core %u, sched shared region @%p, kern @%p\n", get_cpuid(), spd->sched_shared_page[get_cpuid()], spd->kern_sched_shared_page[get_cpuid()]);		
 		break;
 	}
 	case COS_SCHED_THD_EVT:
@@ -2529,7 +2586,7 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 
 		if (0 == idx) {
 			/* reset thread */
-			evts = spd->kern_sched_shared_page->cos_events;
+			evts = spd->kern_sched_shared_page[get_cpuid()]->cos_events;
 			this_evt = &evts[idx];
 			COS_SCHED_EVT_NEXT(this_evt) = 0;
 			COS_SCHED_EVT_FLAGS(this_evt) = 0;
@@ -2538,7 +2595,7 @@ COS_SYSCALL int cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, lo
 			tsi->thread_notifications = NULL;
 			tsi->notification_offset = 0;
 		} else {
-			evts = spd->kern_sched_shared_page->cos_events;
+			evts = spd->kern_sched_shared_page[get_cpuid()]->cos_events;
 			this_evt = &evts[idx];
 			tsi->thread_notifications = this_evt;
 			tsi->notification_offset = idx;
@@ -3292,6 +3349,11 @@ COS_SYSCALL int cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 	}
 
 	switch (op) {
+	case 9876:
+	{
+		if (temp) printk("core %d, in kernel, pending event is : %d\n", get_cpuid(), temp->cos_evt_notif.pending_event);
+		return 0;
+	}
 	case COS_SPD_CREATE:
 	{
 		paddr_t pa;

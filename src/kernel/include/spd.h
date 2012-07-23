@@ -179,8 +179,8 @@ struct spd {
 	int sched_depth;
 	struct spd *parent_sched;
 
-	struct cos_sched_data_area *sched_shared_page, *kern_sched_shared_page;
-	unsigned short int prev_notification;
+	struct cos_sched_data_area *sched_shared_page[MAX_NUM_CPU], *kern_sched_shared_page[MAX_NUM_CPU];
+	unsigned short int prev_notification[MAX_NUM_CPU];
 	struct cos_net_xmit_headers *cos_net_xmit_headers;
 
 	mmaps_t local_mmaps; /* mm_handle (see hijack.c) for linux compat */
