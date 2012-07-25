@@ -21,7 +21,6 @@ struct per_core_variables {
 } CACHE_ALIGNED;
 
 extern struct per_core_variables per_core[MAX_NUM_CPU];
-//extern static inline u32_t get_cpuid(void);
 
 typedef int cpuid_t;
 

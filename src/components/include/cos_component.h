@@ -415,6 +415,11 @@ static inline int cos_argreg_buff_intern(char *buff, int sz)
 
 static inline void cos_argreg_init(void)
 {
+	/* The printc implementation is replaced by the low-level
+	 * print component, which requires no shared region between
+	 * components. This shared region init function should not be
+	 * used anymore. */
+//	BUG();
 	struct cos_argreg_extent *ex = cos_get_arg_region();
 	
 	ex->size = sizeof(struct cos_argreg_extent) + sizeof(struct pt_regs);

@@ -350,8 +350,7 @@ boot_create_system(void)
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		if (hs[i]->id < min) min = hs[i]->id;
 	}
-	printc("<<1>>\n");
-//	printc("pending check: %d\n",sched_create_thread_default(0, 0, 0, 9876));
+
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;
 		spdid_t spdid;
@@ -371,8 +370,7 @@ boot_create_system(void)
 		if (boot_spd_reserve_caps(h, spdid))             BUG();
 		if (cos_spd_cntl(COS_SPD_ACTIVATE, spdid, 0, 0)) BUG();
 	}
-	printc("<<2>>\n");
-//	printc("pending check: %d\n",sched_create_thread_default(0, 0, 0, 9876));
+
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;
 		h = hs[i];
@@ -381,22 +379,18 @@ boot_create_system(void)
 	}
 	
 	if (!boot_sched) return;
+
 	for (i = 0 ; boot_sched[i] != 0 ; i++) {
 		struct cobj_header *h;
 		int j;
-		printc("<<3.1>>\n");
-//		printc("pending check: %d\n",sched_create_thread_default(0, 0, 0, 9876));
 		h = NULL;
 		for (j = 0 ; hs[j] != NULL; j++) {
 			if (hs[j]->id == boot_sched[i]) h = hs[j];
 		}		
 
 		assert(h);
-		printc("<<3.2>>\n");
 		if (h->flags & COBJ_INIT_THD) boot_spd_thd(h->id);
-		printc("<<3.3>>\n");
 	}
-	printc("<<4>>\n");
 }
 
 void 
@@ -462,7 +456,6 @@ void cos_init(void)
 {
 	struct cobj_header *h;
 	int num_cobj, i;
-//	printc("in booter init: thd %d: pending check: %d\n", cos_get_thd_id(), sched_create_thread_default(0, 0, 0, 9876));
 
 	LOCK();
 
@@ -488,15 +481,14 @@ void cos_init(void)
 		       (unsigned int)round_up_to_pgd_page(1)*3);
 		BUG();
 	}
-//	printc("3pending check: %d\n",sched_create_thread_default(0, 0, 0, 9876));
 	printc("h @ %p, heap ptr @ %p\n", h, cos_get_heap_ptr());
 	printc("header %p, size %d, num comps %d, new heap %p\n", 
 	       h, h->size, num_cobj, cos_get_heap_ptr());
-//	printc("4pending check: %d\n",sched_create_thread_default(0, 0, 0, 9876));
+
 	/* Assumes that hs have been setup with boot_find_cobjs */
 	boot_create_system();
-
 	printc("booter: done creating system.\n");
+
 	UNLOCK();
 	boot_deps_run();
 

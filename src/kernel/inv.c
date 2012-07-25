@@ -20,6 +20,7 @@
 
 #include <linux/kernel.h>
 
+
 /* 
  * These are the 1) page for the pte for the shared region and 2) the
  * page to hold general data including cpuid, thread id, identity
@@ -122,8 +123,6 @@ struct inv_ret_struct {
  * isolation level isolation access from caller, 2) all return 0
  * should kill thread.
  */
-
-struct cos_sched_data_area *temp;
 
 COS_SYSCALL vaddr_t 
 ipc_walk_static_cap(unsigned int capability, vaddr_t sp, 
@@ -794,10 +793,13 @@ switch_thread_get_target(unsigned short int tid, struct thread *curr,
 		goto ret_err;
 	}
 
+
 	/* We have valid threads, lets make sure we can schedule them! */
 	if (unlikely(!thd_scheduled_by(curr, curr_spd) ||
 		     !thd_scheduled_by(thd, curr_spd))) {
 		*ret_code = COS_SCHED_RET_ERROR;
+		/* printk("curr %d sched by %d, thd %d sched by %d.\n", thd_get_id(curr), spd_get_index(thd_get_sched_info(curr, curr_spd->sched_depth)->scheduler),  */
+		/*        thd_get_id(thd), spd_get_index(thd_get_sched_info(thd, curr_spd->sched_depth)->scheduler)); */
 		goto ret_err;
 	}
 
@@ -863,6 +865,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	struct cos_sched_data_area *da;
 	int ret_code = COS_SCHED_RET_ERROR;
 
+//	printk("switch thd core %d\n", get_cpuid());
 	*preempt = 0;
 	curr = core_get_curr_thd();
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
@@ -898,7 +901,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		if (ret_code == COS_SCHED_RET_SUCCESS && thd == curr) goto ret;
 		if (thd == curr) 
 		{
-			printk("err: thd == curr\n");
+			printk("err: thd == curr, ret %d\n", ret_code);
 			goto_err(ret_err, "sloooow\n");
 		}
 	} else {
@@ -933,12 +936,13 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
 	/* success for this current thread */
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
-
+//	printk("core %d: switch %d -> %d\n", get_cpuid(), thd_get_id(curr), thd_get_id(thd));
 	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
 
 	return &thd->regs;
 ret_err:
 	curr->regs.ax = ret_code;
+	assert(0);
 ret:
 	return &curr->regs;
 }
@@ -1614,7 +1618,9 @@ cos_syscall_brand_cntl(int spd_id, int op, u32_t bid_tid, spdid_t dest)
 	return retid;
 }
 
-struct thread *cos_timer_brand_thd, *cos_upcall_notif_thd;
+struct thread *cos_timer_brand_thd[MAX_NUM_CPU]; CACHE_ALIGNED
+struct thread *cos_upcall_notif_thd[MAX_NUM_CPU]; CACHE_ALIGNED
+
 #define NUM_NET_BRANDS 2
 unsigned int active_net_brands = 0;
 struct cos_brand_info cos_net_brand[NUM_NET_BRANDS];
@@ -1964,6 +1970,7 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int thd_id, unsigned
 	return 0;
 }
 
+extern void register_timers(void);
 /*
  * This is a bandaid currently.  This syscall should really be 
  * replaced by something a little more subtle and more closely related
@@ -1991,7 +1998,8 @@ cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
 
 	switch (option) {
 	case COS_HW_TIMER:
-		cos_timer_brand_thd = brand_thd;
+		register_timers();
+		cos_timer_brand_thd[get_cpuid()] = brand_thd;
 		
 		break;
 	case COS_HW_NET:
@@ -2012,7 +2020,7 @@ cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
 
 		break;
 	case COS_UC_NOTIF:
-		cos_upcall_notif_thd = brand_thd;
+		cos_upcall_notif_thd[get_cpuid()] = brand_thd;
 
 		break;
 	default:
@@ -2113,12 +2121,12 @@ static int update_evt_list(struct thd_sched_info *tsi)
 	
 	assert(tsi);
 	assert(tsi->scheduler);
-	assert(tsi->scheduler->kern_sched_shared_page);
+	assert(tsi->scheduler->kern_sched_shared_page[get_cpuid()]);
 
 	sched = tsi->scheduler;
 	/* if tsi->scheduler, then all of this should follow */
 	da = sched->kern_sched_shared_page[get_cpuid()];
-	temp = da;
+
 	/* 
 	 * Here we want to prevent a race condition:
 	 *
@@ -2445,7 +2453,7 @@ brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 			if (s->sched_depth == 0) {
 				struct cos_sched_data_area *da;
 				
-				da = s->kern_sched_shared_page;
+				da = s->kern_sched_shared_page[get_cpuid()];
 				if (da) da->cos_evt_notif.timer = (u32_t)t;
 			} else {
 				if (-1 == (int)t) t = 0;
@@ -2519,6 +2527,10 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 */
 
 	switch(operation) {
+	case 1234:{ // QW: gonna remove. for print test.
+		printk("ticks %d. core %d\n", option, (int)get_cpuid());
+		break;
+	}
 	case COS_SCHED_EVT_REGION:
 	{
 		unsigned long region = (unsigned long)option;
@@ -2608,7 +2620,7 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 			printk("Cannot promote child, exceeds sched hier depth.\n");
 			return -1;
 		}
-		if (child->parent_sched) {
+		if (child->parent_sched && child->parent_sched != spd) {
 			printk("Child scheduler already child to another scheduler.\n");
 			return -1;
 		}

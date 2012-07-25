@@ -2721,9 +2721,16 @@ static void setup_kernel(struct service_symbs *services)
 	}
 
 	if (pid == 0) { /* child process: set own affinity */ 
+//		while (1) ;
 		set_curr_affinity(cpuid);
 		cos_create_thd(cntl_fd, &thd);
-		while (1) ;
+//		while (1) ;
+		volatile int kk = 0;
+		long i,j,k;
+		while (i++ < 20000)
+			while (j++ < 100000)
+				while (k++ < 100000)
+					kk ++;
 	} else {
 		printf("Parent: created %d threads.\n", i - 1);
 //		while (1) ;

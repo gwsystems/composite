@@ -112,7 +112,7 @@ struct cos_sched_data_area {
 	union cos_synchronization_atom cos_locks;
 	struct cos_event_notification cos_evt_notif;
 	struct cos_sched_events cos_events[NUM_SCHED_EVTS]; // maximum of PAGE_SIZE/sizeof(struct cos_sched_events) - ceil(sizeof(struct cos_sched_curr_thd)/(sizeof(struct cos_sched_events)+sizeof(locks)))
-} __attribute__((packed,aligned(4096)));//[NUM_CPUS]
+} __attribute__((packed,aligned(4096)));
 
 #ifndef NULL
 #define NULL ((void*)0)

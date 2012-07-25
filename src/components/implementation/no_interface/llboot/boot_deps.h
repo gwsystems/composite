@@ -101,11 +101,14 @@ llboot_thd_done(void)
 {
 	int tid = cos_get_thd_id();
 
-	printc("<<here (init thd %d)>>\n", per_core_llbooter[cos_cpuid()].init_thd == tid);
 	assert(per_core_llbooter[cos_cpuid()].alpha);
+	if (cos_cpuid() > 0) {
+		printc("core %ld: booter init_thd upcalling. \n", cos_cpuid());
+		cos_upcall(init_schedule[1]);
+	}
 	/* 
 	 * When the initial thread is done, then all we have to do is
-	 * switch back to per_core_llbooter[cos_cpuid()].alpha who should reboot the system.
+	 * switch back to alpha who should reboot the system.
 	 */
 	if (tid == per_core_llbooter[cos_cpuid()].init_thd) {
 		spdid_t s = init_schedule[sched_offset];
@@ -126,7 +129,7 @@ llboot_thd_done(void)
 			sched_offset++;
 			comp_boot_nfo[s].initialized = 1;
 			
-			printc("booter init_thd upcalling into spdid %d.\n", (unsigned int)s);
+			printc("core %ld: booter init_thd upcalling into spdid %d.\n", cos_cpuid(), (unsigned int)s);
 			cos_upcall(s); /* initialize the component! */
 			BUG();
 		}
@@ -245,12 +248,8 @@ comp_info_record(struct cobj_header *h, spdid_t spdid, struct cos_component_info
 	}
 }
 
-
-static void
-boot_deps_init(void)
+static inline void boot_create_init_thds(void)
 {
-	int i;
-
 	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)&cos_sched_notifications[cos_cpuid()])) BUG();
 
 	per_core_llbooter[cos_cpuid()].alpha        = cos_get_thd_id();
@@ -261,6 +260,13 @@ boot_deps_init(void)
 	       "%d: alpha\n\t%d: recov\n\t%d: init\n",
 	       per_core_llbooter[cos_cpuid()].alpha, per_core_llbooter[cos_cpuid()].recovery_thd, per_core_llbooter[cos_cpuid()].init_thd);
 	assert(per_core_llbooter[cos_cpuid()].init_thd >= 0);
+}
+
+static void
+boot_deps_init(void)
+{
+	int i;
+	boot_create_init_thds();
 
 	/* How many memory managers are there? */
 	for (i = 0 ; init_schedule[i] ; i++) nmmgrs += init_mem_access[i];
@@ -277,8 +283,8 @@ boot_deps_run(void)
 void 
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
-	/* printc("<<cos_upcall_fn as %d (type %d, CREATE=%d, DESTROY=%d, FAULT=%d)>>\n", 
-	   cos_get_thd_id(), t, COS_UPCALL_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT); */
+	/* printc("core %ld: <<cos_upcall_fn as %d (type %d, CREATE=%d, DESTROY=%d, FAULT=%d)>>\n",  */
+	/*        cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT); */
 	switch (t) {
 	case COS_UPCALL_CREATE:
 		cos_argreg_init();
@@ -302,7 +308,17 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 #include <sched_hier.h>
 
 void cos_init(void);
-int  sched_init(void)   { cos_init(); return 0; }
+int  sched_init(void)   
+{ 
+	/* if ((s = find_obj_by_name(services, ROOT_SCHED)) == NULL) { */
+	if (cos_cpuid() == 0) 
+		cos_init(); 
+	else {
+		boot_create_init_thds();
+		boot_deps_run();
+	}
+	return 0; 
+}
 int  sched_isroot(void) { return 1; }
 void 
 sched_exit(void)
@@ -318,6 +334,7 @@ int
 sched_child_cntl_thd(spdid_t spdid) 
 { 
 	if (cos_sched_cntl(COS_SCHED_PROMOTE_CHLD, 0, spdid)) {BUG(); while(1);}
+	/* printc("Grant thd %d to sched %d\n", cos_get_thd_id(), spdid); */
 	if (cos_sched_cntl(COS_SCHED_GRANT_SCHED, cos_get_thd_id(), spdid)) BUG();
 	return 0;
 }

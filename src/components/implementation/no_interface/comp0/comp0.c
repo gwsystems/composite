@@ -10,5 +10,6 @@ int spd0_main(void)
 
 	nothing = ret + 1;
 	//prevent_tail_call(ret);
+
 	return ret;
 }

@@ -44,6 +44,7 @@
 #include "../../../kernel/include/measurement.h"
 #include "../../../kernel/include/mmap.h"
 #include "../../../kernel/include/per_cpu.h"
+#include "../../../kernel/include/shared/consts.h"
 
 #include "./hw_ints.h"
 
@@ -78,8 +79,6 @@ pte_t *shared_region_pte;
 pgd_t *union_pgd;
 
 
-//DEFINE_PER_CPU(struct task_struct *, composite_thread) = { NULL };
-
 struct per_core_cos_thd
 {
 	struct task_struct *cos_thd;
@@ -87,6 +86,7 @@ struct per_core_cos_thd
 
 struct per_core_cos_thd cos_thd_per_core[MAX_NUM_CPU];
 
+//QW: should be per core? >>
 struct mm_struct *composite_union_mm = NULL;
 
 /* composite: should be in separate module */
@@ -121,6 +121,7 @@ unsigned long trusted_mem_size;
 
 #define MAX_ALLOC_MM 64
 struct mm_struct *guest_mms[MAX_ALLOC_MM]; 
+//QW: should be per core? <<
 
 DEFINE_PER_CPU(unsigned long, x86_tss) = { 0 };
 
@@ -558,6 +559,8 @@ vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr);
 
 void save_per_core_cos_thd(void);
 
+void register_timers(void);
+
 static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
@@ -737,7 +740,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			tsi->scheduler = sched;
 			sched = sched->parent_sched;
 		}
-
+		
 		/* FIXME: need to return opaque handle, rather than
 		 * just set the current thread to be the new one. */
 
@@ -864,6 +867,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	return ret;
 }
 
+//QW: should be per core? >>
 #define NFAULTS 200
 int fault_ptr = 0;
 struct fault_info {
@@ -874,6 +878,7 @@ struct fault_info {
 	int cspd_flags, cspd_master_flags;
 	unsigned long long timestamp;
 } faults[NFAULTS];
+//QW: should be per core? <<
 
 static void cos_report_fault(struct thread *t, vaddr_t fault_addr, int ecode, struct pt_regs *regs)
 {
@@ -1565,7 +1570,7 @@ void switch_host_pg_tbls(paddr_t pt)
  * Our composite emulated timer interrupt executed from a Linux
  * softirq
  */
-static struct timer_list timer;
+static struct timer_list timer[MAX_NUM_CPU]; CACHE_ALIGNED
 
 extern struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
 
@@ -1589,29 +1594,28 @@ EXPORT_SYMBOL(cos_trans_reg);
 EXPORT_SYMBOL(cos_trans_dereg);
 EXPORT_SYMBOL(cos_trans_upcall);
 
-extern struct thread *cos_timer_brand_thd;
+extern struct thread *cos_timer_brand_thd[MAX_NUM_CPU];CACHE_ALIGNED
 #define NUM_NET_BRANDS 2 /* keep consistent with inv.c */
 extern int active_net_brands;
 extern struct cos_brand_info cos_net_brand[NUM_NET_BRANDS];
 extern struct cos_net_callbacks *cos_net_fns;
 
-/* FIXME: per cpu */
-static int in_syscall = 0;
+static int in_syscall[MAX_NUM_CPU] = { 0 }; CACHE_ALIGNED
 
 int host_in_syscall(void) 
 {
-	return in_syscall;
+	return in_syscall[get_cpuid()];
 }
 
 void host_start_syscall(void)
 {
-	in_syscall = 1;
+	in_syscall[get_cpuid()] = 1;
 }
 EXPORT_SYMBOL(host_start_syscall);
 
 void host_end_syscall(void)
 {
-	in_syscall = 0;
+	in_syscall[get_cpuid()] = 0;
 }
 EXPORT_SYMBOL(host_end_syscall);
 
@@ -1838,29 +1842,35 @@ done:
 static void timer_interrupt(unsigned long data)
 {
 	BUG_ON(cos_thd_per_core[get_cpuid()].cos_thd == NULL);
-	mod_timer_pinned(&timer, jiffies+1);
+	mod_timer_pinned(&timer[get_cpuid()], jiffies+1);
 
-	if (!(cos_timer_brand_thd && cos_timer_brand_thd->upcall_threads)) {
+	if (!(cos_timer_brand_thd[get_cpuid()] && cos_timer_brand_thd[get_cpuid()]->upcall_threads)) {
 		return;
 	}
 
-	host_attempt_brand(cos_timer_brand_thd);
+	host_attempt_brand(cos_timer_brand_thd[get_cpuid()]);
 	return;
 }
 
-static void register_timers(void)
+void register_timers(void)
 {
-	init_timer(&timer);
-	timer.function = timer_interrupt;
-	mod_timer_pinned(&timer, jiffies+2);
+	printk("core %d registering timer...\n", get_cpuid());
+	assert(!timer[get_cpuid()].function);
+	init_timer(&timer[get_cpuid()]);
+	timer[get_cpuid()].function = timer_interrupt;
+	mod_timer_pinned(&timer[get_cpuid()], jiffies+2);
 	
 	return;
 }
 
 static void deregister_timers(void)
 {
-	cos_timer_brand_thd = NULL;    
-	del_timer(&timer);
+	int i;
+	for (i = 0; i < MAX_NUM_CPU; i++) {
+		cos_timer_brand_thd[i] = NULL;
+		if (timer[i].function)
+			del_timer(&timer[i]);
+	}
 
 	return;
 }
@@ -2039,7 +2049,9 @@ static int aed_open(struct inode *inode, struct file *file)
 	ipc_init();
 	cos_init_memory();
 
-	register_timers();
+        /* Now the timers are registered when we register timer
+	 * threads in Composite. */
+	/* register_timers(); */
 	cos_meas_init();
 	cos_net_init();
 
