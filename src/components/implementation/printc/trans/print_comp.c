@@ -11,6 +11,14 @@
 #include <cringbuf.h>
 
 struct cringbuf sharedbuf;
+
+struct print_buffer {
+	char foo[MAX_LEN];
+	unsigned int index;
+} CACHE_ALIGNED;
+
+static struct print_buffer pbuf[MAX_NUM_CPU];
+
 static int print_init(void)
 {
 	static int first = 1;
@@ -39,30 +47,78 @@ static int print_init(void)
 	return 0;
 }
 
-int print_str(char *s, unsigned int len)
+int print_str(int s1, int s2, int s3, int s4)
 {
-	if (!COS_IN_ARGREG(s) || !COS_IN_ARGREG(s + len)) {
-		static char foo[MAX_LEN];
-		snprintf(foo, MAX_LEN, "print argument out of bounds: %x", (unsigned int)s);
-		cos_print(foo, 0);
-		return -1;
+	int *p[4];
+	unsigned int i, j, len = 0;
+	char *s;
+
+	s = &pbuf[cos_cpuid()].foo[pbuf[cos_cpuid()].index]; // the beginning of the buffer.
+
+	for (i = 0; i < PARAMS_PER_INV; i++) {
+		p[i] = (int *)&pbuf[cos_cpuid()].foo[pbuf[cos_cpuid()].index];
+		pbuf[cos_cpuid()].index += CHAR_PER_INT;
 	}
-	s[len+1] = '\0';
+
+//	assert(pbuf[cos_cpuid()].index < MAX_LEN);
+
+	*p[0] = s1;
+	*p[1] = s2;
+	*p[2] = s3;
+	*p[3] = s4;
+
+	for (j = 0; j < CHAR_PER_INV; j++) {
+		if (s[j] == '\0') {
+			len = pbuf[cos_cpuid()].index - CHAR_PER_INV + j;
+			break;
+		}
+	}
+	
+	if (j == CHAR_PER_INV)
+		goto pending_print;
+
 #ifdef COS_PRINT_SHELL
 	assert(!print_init()); 
 	if (sharedbuf.b) {
 		int amnt;
 
-		amnt = cringbuf_produce(&sharedbuf, s, len);
+		amnt = cringbuf_produce(&sharedbuf, pbuf[cos_cpuid()].foo, len);
 		assert(amnt >= 0);
 		cos_trans_cntl(COS_TRANS_TRIGGER, 0, 0, 0);
 	}
 #endif
 
 #ifdef COS_PRINT_DMESG
-	cos_print(s, len);
+	cos_print(pbuf[cos_cpuid()].foo, len);
+	pbuf[cos_cpuid()].index = 0;
 #endif
 	return 0;
+
+pending_print:
+	return 1;
+/* Old implementation below */
+/* 	if (!COS_IN_ARGREG(s) || !COS_IN_ARGREG(s + len)) { */
+/* 		static char foo[MAX_LEN]; */
+/* 		snprintf(foo, MAX_LEN, "print argument out of bounds: %x", (unsigned int)s); */
+/* 		cos_print(foo, 0); */
+/* 		return -1; */
+/* 	} */
+/* 	s[len+1] = '\0'; */
+/* #ifdef COS_PRINT_SHELL */
+/* 	assert(!print_init());  */
+/* 	if (sharedbuf.b) { */
+/* 		int amnt; */
+
+/* 		amnt = cringbuf_produce(&sharedbuf, s, len); */
+/* 		assert(amnt >= 0); */
+/* 		cos_trans_cntl(COS_TRANS_TRIGGER, 0, 0, 0); */
+/* 	} */
+/* #endif */
+
+/* #ifdef COS_PRINT_DMESG */
+/* 	cos_print(s, len); */
+/* #endif */
+/* 	return 0; */
 }
 
 void print_null(void)

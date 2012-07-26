@@ -6,8 +6,6 @@
 #include <printc.h>
 //#include <cos_debug.h>
 
-//static char foo[MAX_LEN];
-
 struct print_buffer {
 	char foo[MAX_LEN];
 	unsigned int index;
@@ -15,34 +13,13 @@ struct print_buffer {
 
 static struct print_buffer pbuf[MAX_NUM_CPU];
 
-//volatile int l = 0;
-/* int print_str(char *s, unsigned int len) */
-/* { */
-/* //	char *ptr; */
-/* //	int l = len; */
-/* 	while (l != 0) ; */
-/* 	l = 1; */
-/* 	if (!COS_IN_ARGREG(s) || !COS_IN_ARGREG(s + len)) { */
-/* 		snprintf(foo, MAX_LEN, "print argument out of bounds: %x", (unsigned int)s); */
-/* 		cos_print(foo, 0); */
-/* 		return -1; */
-/* 	} */
-/* 	s[len+1] = '\0'; */
-
-/* 	cos_print(s, len); */
-/* 	l = 0; */
-/* 	return 0; */
-/* } */
-
 int print_str(int s1, int s2, int s3, int s4)
 {
-	unsigned int len = 0;
-
 	int *p[4];
-	unsigned int i, j;
+	unsigned int i, j, len = 0;
 	char *s;
 
-	s = &pbuf[cos_cpuid()].foo[pbuf[cos_cpuid()].index];
+	s = &pbuf[cos_cpuid()].foo[pbuf[cos_cpuid()].index]; // the beginning of the buffer.
 
 	for (i = 0; i < PARAMS_PER_INV; i++) {
 		p[i] = (int *)&pbuf[cos_cpuid()].foo[pbuf[cos_cpuid()].index];
@@ -84,3 +61,20 @@ int main(void)
 {
 	return 0;
 }
+
+/* Old implementation below */
+/* int print_str(char *s, unsigned int len) */
+/* { */
+/* //	char *ptr; */
+/* //	int l = len; */
+/* 	if (!COS_IN_ARGREG(s) || !COS_IN_ARGREG(s + len)) { */
+/* 		snprintf(foo, MAX_LEN, "print argument out of bounds: %x", (unsigned int)s); */
+/* 		cos_print(foo, 0); */
+/* 		return -1; */
+/* 	} */
+/* 	s[len+1] = '\0'; */
+
+/* 	cos_print(s, len); */
+/* 	return 0; */
+/* } */
+

@@ -1680,7 +1680,7 @@ int sched_root_init(void)
 	struct sched_thd *new;
 	int ret;
 
-	printc("TEST PRINT! core %ld: thd %d in sched_init (spd %ld) \n", cos_cpuid(), cos_get_thd_id(), cos_spd_id());
+	printc("core %ld: thd %d in sched_init (spd %ld) \n", cos_cpuid(), cos_get_thd_id(), cos_spd_id());
 
 	if (cos_cpuid() == 0) {
 		assert(!initialized);
