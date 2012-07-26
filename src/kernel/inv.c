@@ -2527,10 +2527,6 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 */
 
 	switch(operation) {
-	case 1234:{ // QW: gonna remove. for print test.
-		printk("ticks %d. core %d\n", option, (int)get_cpuid());
-		break;
-	}
 	case COS_SCHED_EVT_REGION:
 	{
 		unsigned long region = (unsigned long)option;

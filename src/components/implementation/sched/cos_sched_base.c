@@ -41,7 +41,6 @@
 
 #include <sched_timing.h>
 
-/* should be per_core >>>>>>>> *//////////////////////////////////////
 struct sched_base_per_core {
 	volatile u64_t ticks;
 
@@ -64,7 +63,6 @@ struct sched_base_per_core {
 } CACHE_ALIGNED;
 
 static struct sched_base_per_core per_core_sched_base[MAX_NUM_CPU];
-/* <<<<<<<<<<< should be per_core *//////////////////////////////////
 
 //////////////not sure...
 /* STATIC_TIMER_RECORDS(recs, TIMER_MAX); */
@@ -556,11 +554,8 @@ static void sched_timer_tick(void)
 {
 	while (1) {
 		cos_sched_lock_take();
-//		if (cos_cpuid() == 1 && per_core_sched_base[cos_cpuid()].ticks == 1000) printc("Core %ld: timer (id %d) running, tick %d\n", cos_cpuid(), cos_get_thd_id(), (int)per_core_sched_base[cos_cpuid()].ticks);
-//		if (cos_cpuid() == 0 && per_core_sched_base[cos_cpuid()].ticks == 200) printc("Core %ld: timer (id %d) running, tick %llu\n", cos_cpuid(), cos_get_thd_id(), per_core_sched_base[cos_cpuid()].ticks);
 		report_event(TIMER_TICK);
-		cos_sched_cntl(1234, 0, per_core_sched_base[cos_cpuid()].ticks);
-		
+//		printc("ticks %d. core %ld\n", (int)per_core_sched_base[cos_cpuid()].ticks, cos_cpuid());		
 		if (unlikely((per_core_sched_base[cos_cpuid()].ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1))) {
 			report_thd_accouting();
 			//cos_stats();
@@ -580,7 +575,6 @@ static void sched_timer_tick(void)
 		per_core_sched_base[cos_cpuid()].ticks++;
 		sched_process_wakeups();
 		timer_tick(1);
-//		if (cos_cpuid() == 1) printc("timer (id %d) going to sleep, core %ld\n", cos_get_thd_id(), cos_cpuid());
 		sched_switch_thread(COS_SCHED_BRAND_WAIT, TIMER_SWITCH_LOOP);
 		/* Tailcall out of the loop */
 	}
@@ -1686,7 +1680,7 @@ int sched_root_init(void)
 	struct sched_thd *new;
 	int ret;
 
-	printc("core %ld: thd %d in sched_init (spd %ld) \n", cos_cpuid(), cos_get_thd_id(), cos_spd_id());
+	printc("TEST PRINT! core %ld: thd %d in sched_init (spd %ld) \n", cos_cpuid(), cos_get_thd_id(), cos_spd_id());
 
 	if (cos_cpuid() == 0) {
 		assert(!initialized);

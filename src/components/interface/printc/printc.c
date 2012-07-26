@@ -21,16 +21,16 @@ int cos_strlen(char *s)
 
 int prints(char *str)
 {
-	unsigned int len;
-	char *s;
+	/* unsigned int len; */
+	/* char *s; */
 
-	len = cos_strlen(str);
-	s = cos_argreg_alloc(len);
-	if (!s) return -1;
+	/* len = cos_strlen(str); */
+	/* s = cos_argreg_alloc(len); */
+	/* if (!s) return -1; */
 
-	cos_memcpy(s, str, len+1);
-	print_str(s, len);
-	cos_argreg_free(s);
+	/* cos_memcpy(s, str, len+1); */
+	/* print_str(s, len); */
+	/* cos_argreg_free(s); */
 
 	return 0;
 }
@@ -38,20 +38,52 @@ int prints(char *str)
 #include <cos_debug.h>
 int __attribute__((format(printf,1,2))) printc(char *fmt, ...)
 {
-	char *s;
+	char s[MAX_LEN];
 	va_list arg_ptr;
-	int ret, len;
+	int len;
+	unsigned int i = 0, j, ret;
+	int param[4], pending;
+	
+	char *p = (char *)param;
 
-	//len = strlen(fmt)+1;
-	len = ARG_STRLEN; //(len > ARG_STRLEN) ? COS_FMT_PRINT : len;
-	s = cos_argreg_alloc(len);
-	if (!s) BUG();
+	len = MAX_LEN;
 
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, len, fmt, arg_ptr);
 	va_end(arg_ptr);
-	print_str(s, ret);
-	cos_argreg_free(s);
+
+	if (unlikely(ret == 0)) return ret;
+
+	while (i < ret) {
+		for (j = 0; j < CHAR_PER_INV; j++) {
+			if (s[i + j] == '\0') { 
+				p[j] = '\0'; 
+				while (++j < CHAR_PER_INV)
+					p[j] = '\0';
+				break; 
+			} else {
+				p[j] = s[i + j];
+			}
+		}
+		pending = print_str(param[0], param[1], param[2], param[3]);
+		i += CHAR_PER_INV;
+	}
 
 	return ret;
+
+        /* Old implementation below*/
+	/* char *s; */
+	/* va_list arg_ptr; */
+	/* int ret, len; */
+
+	/* //len = strlen(fmt)+1; */
+	/* len = ARG_STRLEN; //(len > ARG_STRLEN) ? COS_FMT_PRINT : len; */
+	/* s = cos_argreg_alloc(len); */
+	/* if (!s) BUG(); */
+
+	/* va_start(arg_ptr, fmt); */
+	/* ret = vsnprintf(s, len, fmt, arg_ptr); */
+	/* va_end(arg_ptr); */
+	/* print_str(s, ret); */
+	/* cos_argreg_free(s); */
 }

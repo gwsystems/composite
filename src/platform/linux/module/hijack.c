@@ -1854,7 +1854,6 @@ static void timer_interrupt(unsigned long data)
 
 void register_timers(void)
 {
-	printk("core %d registering timer...\n", get_cpuid());
 	assert(!timer[get_cpuid()].function);
 	init_timer(&timer[get_cpuid()]);
 	timer[get_cpuid()].function = timer_interrupt;
