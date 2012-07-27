@@ -496,10 +496,14 @@ void mman_release_all(void)
 
 int  sched_init(void)   { return 0; }
 extern void parent_sched_exit(void);
+
+static int initialized_core = 0; /* record the number of cores that upcalled to us */
+
 void 
 sched_exit(void)   
 {
-	mman_release_all(); 
+	initialized_core--;
+	if (!initialized_core) mman_release_all(); 
 	parent_sched_exit();
 }
 
@@ -525,8 +529,12 @@ sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd) { BUG(); return 0; }
 
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
+
 	switch (t) {
 	case COS_UPCALL_BOOTSTRAP:
+		/* FIXME: RACE */
+		if (initialized_core) { initialized_core++; return; }
+		initialized_core = 1;
 		mm_init(); break;
 	default:
 		BUG(); return;

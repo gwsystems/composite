@@ -25,22 +25,20 @@ static inline int send_str(char *s, unsigned int len)
 
 	p = (char *)param; 
 
-	while (i < len) {
+	for (i = 0; i < len; i += CHAR_PER_INV) {
 		for (j = 0; j < CHAR_PER_INV; j++) {
 			if (s[i + j] == '\0') { 
 				p[j] = '\0'; 
                                 /* if we reach the end of the string,
 				 * then pedding the rest of the
 				 * parameters with \0 */
-				while (++j < CHAR_PER_INV)
-					p[j] = '\0';
+				while (++j < CHAR_PER_INV) { p[j] = '\0'; }
 				break; 
 			} else {
 				p[j] = s[i + j];
 			}
 		}
 		pending = print_str(param[0], param[1], param[2], param[3]);
-		i += CHAR_PER_INV;
 	}
 	return 0;
 }

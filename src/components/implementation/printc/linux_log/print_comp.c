@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include <printc.h>
-//#include <cos_debug.h>
+#define assert(x) do { int y; if (!(x)) y = *(int*)NULL; } while(0)
 
 struct print_buffer {
 	char foo[MAX_LEN];
@@ -16,17 +16,20 @@ static struct print_buffer pbuf[MAX_NUM_CPU];
 int print_str(int s1, int s2, int s3, int s4)
 {
 	int *p[4];
-	unsigned int i, j, len = 0;
-	char *s;
+	unsigned int i, j, len = 0, *index_ptr;
+	char *s, *buf_ptr;
+	struct print_buffer *pbuf_ptr = &pbuf[cos_cpuid()];
 
-	s = &pbuf[cos_cpuid()].foo[pbuf[cos_cpuid()].index]; // the beginning of the buffer.
+	index_ptr = &(pbuf_ptr->index);
+	buf_ptr = pbuf_ptr->foo;
+	s = &buf_ptr[*index_ptr]; // the beginning of the buffer.
 
 	for (i = 0; i < PARAMS_PER_INV; i++) {
-		p[i] = (int *)&pbuf[cos_cpuid()].foo[pbuf[cos_cpuid()].index];
-		pbuf[cos_cpuid()].index += CHAR_PER_INT;
+		p[i] = (int *)&buf_ptr[*index_ptr];
+		(*index_ptr) += CHAR_PER_INT;
 	}
 
-//	assert(pbuf[cos_cpuid()].index < MAX_LEN);
+	if (unlikely(*index_ptr >= MAX_LEN)) { cos_print("BUG", 3); assert(0); }
 
 	*p[0] = s1;
 	*p[1] = s2;
@@ -35,7 +38,7 @@ int print_str(int s1, int s2, int s3, int s4)
 
 	for (j = 0; j < CHAR_PER_INV; j++) {
 		if (s[j] == '\0') {
-			len = pbuf[cos_cpuid()].index - CHAR_PER_INV + j;
+			len = *index_ptr - CHAR_PER_INV + j;
 			break;
 		}
 	}
@@ -43,8 +46,8 @@ int print_str(int s1, int s2, int s3, int s4)
 	if (j == CHAR_PER_INV)
 		goto pending_print;
 
-	cos_print(pbuf[cos_cpuid()].foo, len);
-	pbuf[cos_cpuid()].index = 0;
+	cos_print(buf_ptr, len);
+	*index_ptr = 0;
 
 	return 0;
 

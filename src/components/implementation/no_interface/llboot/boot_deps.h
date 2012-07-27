@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#define INIT_CORE 0
+
 static int 
 prints(char *s)
 {
@@ -47,7 +49,8 @@ struct llbooter_per_core {
 	 * prev_thd:     the thread requesting the initialization
 	 * recover_spd:  the spd that will require rebooting
 	 */
-	int          alpha, init_thd, recovery_thd;	
+	int     alpha, init_thd, recovery_thd;
+	int     sched_offset;      
 	volatile int prev_thd, recover_spd;
 } CACHE_ALIGNED;
 
@@ -66,7 +69,7 @@ static struct comp_boot_info comp_boot_nfo[NCOMPS];
 
 static spdid_t init_schedule[]   = {LLBOOT_MM, LLBOOT_SCHED, 0};
 static int     init_mem_access[] = {1, 0, 0};
-static int     sched_offset      = 0, nmmgrs = 0;
+static int     nmmgrs            = 0;
 static int     frame_frontier    = 0; /* which physical frames have we used? */
 
 typedef void (*crt_thd_fn_t)(void);
@@ -102,23 +105,20 @@ llboot_thd_done(void)
 	int tid = cos_get_thd_id();
 
 	assert(per_core_llbooter[cos_cpuid()].alpha);
-	if (cos_cpuid() > 0) {
-		printc("core %ld: booter init_thd upcalling. \n", cos_cpuid());
-		cos_upcall(init_schedule[1]);
-	}
 	/* 
 	 * When the initial thread is done, then all we have to do is
 	 * switch back to alpha who should reboot the system.
 	 */
 	if (tid == per_core_llbooter[cos_cpuid()].init_thd) {
-		spdid_t s = init_schedule[sched_offset];
+		int offset = per_core_llbooter[cos_cpuid()].sched_offset;
+		spdid_t s = init_schedule[offset];
 
 		/* Is it done, or do we need to initialize another component? */
 		if (s) {
 			/* If we have a memory manger, give it a
 			 * proportional amount of memory WRT to the
 			 * other memory managers. */
-			if (init_mem_access[sched_offset]) {
+			if (init_mem_access[offset] && cos_cpuid() == INIT_CORE) {
 				int max_pfn, proportion;
 
 				max_pfn = cos_pfn_cntl(COS_PFN_MAX_MEM, 0, 0, 0);
@@ -126,7 +126,7 @@ llboot_thd_done(void)
 				cos_pfn_cntl(COS_PFN_GRANT, s, frame_frontier, proportion);
 				comp_boot_nfo[s].memory_granted = 1;
 			}
-			sched_offset++;
+			per_core_llbooter[cos_cpuid()].sched_offset++;
 			comp_boot_nfo[s].initialized = 1;
 			
 			printc("core %ld: booter init_thd upcalling into spdid %d.\n", cos_cpuid(), (unsigned int)s);
@@ -138,6 +138,8 @@ llboot_thd_done(void)
 		 * no more execution left to do.  Technically, the
 		 * other components should have called
 		 * sched_exit... */
+		printc("core %ld: booter init_thd switching back to alpha %d.\n", cos_cpuid(), per_core_llbooter[cos_cpuid()].alpha);
+
 		while (1) cos_switch_thread(per_core_llbooter[cos_cpuid()].alpha, 0);
 		BUG();
 	}
@@ -314,8 +316,11 @@ int  sched_init(void)
 	if (cos_cpuid() == 0) 
 		cos_init(); 
 	else {
+		LOCK();
 		boot_create_init_thds();
+		UNLOCK();
 		boot_deps_run();
+		printc("core %ld, alpha: exiting system.\n", cos_cpuid());
 	}
 	return 0; 
 }
@@ -323,6 +328,7 @@ int  sched_isroot(void) { return 1; }
 void 
 sched_exit(void)
 {
+	printc("LLBooter: Core %ld called sched_exit. Switching back to alpha.\n", cos_cpuid());
 	while (1) cos_switch_thread(per_core_llbooter[cos_cpuid()].alpha, 0);	
 }
 

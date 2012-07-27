@@ -555,7 +555,7 @@ static void sched_timer_tick(void)
 	while (1) {
 		cos_sched_lock_take();
 		report_event(TIMER_TICK);
-//		printc("ticks %d. core %ld\n", (int)per_core_sched_base[cos_cpuid()].ticks, cos_cpuid());		
+		if (cos_cpuid() == 1) printc("ticks %d. core %ld\n", (int)per_core_sched_base[cos_cpuid()].ticks, cos_cpuid());		
 		if (unlikely((per_core_sched_base[cos_cpuid()].ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1))) {
 			report_thd_accouting();
 			//cos_stats();
@@ -1567,7 +1567,7 @@ int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short
 extern void parent_sched_exit(void);
 void sched_exit(void)
 {
-	printc("Switching to %d\n", per_core_sched_base[cos_cpuid()].init->id);
+	printc("In sched_exit, core %ld, switching to %d\n", cos_cpuid(), per_core_sched_base[cos_cpuid()].init->id);
 	cos_sched_clear_events();
 //	cos_switch_thread_release(per_core_sched_base[cos_cpuid()].init->id, 0);
 	while (1) {
@@ -1698,7 +1698,6 @@ int sched_root_init(void)
 
 	printc("<<< CPU %ld, in root init, thd %d going to run.>>>\n", cos_cpuid(), cos_get_thd_id());
 
-	cos_argreg_init();
 	__sched_init();
 
 	/* switch back to this thread to terminate the system. */
@@ -1712,7 +1711,7 @@ int sched_root_init(void)
 
 	new = schedule(NULL);
 	
-	printc("--------------------core %ld: sched init done.---------------------\n", cos_cpuid());
+	printc("-----------------core %ld, thd %d: sched init done.------------------\n", cos_cpuid(), cos_get_thd_id());
 	initialized++;
 	assert(initialized < MAX_NUM_CPU); /* Reserve the last core to Linux. */
 
@@ -1720,6 +1719,7 @@ int sched_root_init(void)
 		printc("switch thread failed with %d\n", ret);
 	}
 
+	printc("-----------------core %ld, thd %d: going to exit.------------------\n", cos_cpuid(), cos_get_thd_id());
 	parent_sched_exit();
 	assert(0);
 
@@ -1757,7 +1757,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		sched_init();
 		break;
 	case COS_UPCALL_CREATE:
-		cos_argreg_init();
+//		cos_argreg_init();
 		((crt_thd_fn_t)arg1)(arg2);
 		break;
 	case COS_UPCALL_DESTROY:
