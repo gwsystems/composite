@@ -2613,11 +2613,11 @@ static void setup_kernel(struct service_symbs *services)
 	struct service_symbs /* *m, */ *s;
 	struct service_symbs *init = NULL;
 	struct spd_info *init_spd = NULL;
-	pid_t pid;
-	int cntl_fd = 0, i;
 	struct cos_thread_info thd;
-	int cpuid;
-	int ret, child_status;
+
+	pid_t pid;
+	pid_t children[MAX_NUM_CPU];
+	int cntl_fd = 0, i, cpuid, ret;;
 	unsigned long long start, end;
 	
 	set_curr_affinity(0);
@@ -2721,6 +2721,7 @@ static void setup_kernel(struct service_symbs *services)
 		printf("Parent(pid %d): forking for core %d.\n", getpid(), i);
 		cpuid = i;
 		pid = fork();
+		children[i] = pid;
 		if (pid == 0) break;
 		printf("Created pid %d for core %d.\n", pid, i);
 	}
@@ -2745,15 +2746,17 @@ static void setup_kernel(struct service_symbs *services)
 	aed_enable_syscalls(cntl_fd);
 
 	printf("Pid %d back in cos_loader.\n", getpid());
+	fflush(stdout);
 
-	 /* parent process waits for all children to complete. */
-	if (pid > 0) 
-		while (wait(&child_status) > 0) ;
-	else 
-		exit(getpid());
+	if (pid > 0) { /* only the parent should return here and
+			* terminate all children process. */
+		for (i = 1 ; i < MAX_NUM_CPU ; i++) {
+			assert(children[i]);
+			kill(children[i], SIGKILL);
+		}
+	} else assert(0);
+	sleep(1);
 
-	printl(PRINT_HIGH, "Invocation takes %lld, ret %x.\n", (end-start)/ITER, ret);
-	
 	close(cntl_fd);
 
 	return;

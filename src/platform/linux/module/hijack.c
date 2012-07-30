@@ -716,7 +716,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		}
 
-		printk("cos core %u: creating thread.\n", get_cpuid());
+		printk("cos core %u: creating thread in spd %d.\n", get_cpuid(), thread_info.spd_handle);
 		spd = spd_get_by_index(thread_info.spd_handle);
 		if (!spd) {
 			printk("cos: Spd %d invalid for thread creation.\n", 

@@ -50,7 +50,7 @@ struct llbooter_per_core {
 	int     alpha, init_thd, recovery_thd;
 	int     sched_offset;      
 	volatile int prev_thd, recover_spd;
-} CACHE_ALIGNED;
+} __attribute__((aligned(4096))); /* Avoid the copy-on-write issue for us. */
 
 static struct llbooter_per_core per_core_llbooter[MAX_NUM_CPU];
 
@@ -333,7 +333,24 @@ int  sched_init(void)
 		UNLOCK();
 		boot_deps_run_all();
 		printc("core %ld, alpha: exiting system.\n", cos_cpuid());
+		while (1) ; 	/* wait for the parent to kill us! */
+		/* Here the children cannot return to their original
+		 * processes since the component 0 has only one
+		 * spd_poly that points to the parent process. We let
+		 * the parent return and kill all children processes
+		 * as this solution is the simplest. */
 	}
+
+	/* int i, n, spdid; */
+	/* n = cos_thd_cntl(COS_THD_INV_SPD, cos_get_thd_id(), 0, 0); */
+	/* printc("Invocation stack (%d, %d) has %d items:\n",  */
+	/*        cos_get_thd_id(), cos_cpuid(), n+1); */
+	/* for (i = 0 ; (spdid = cos_thd_cntl(COS_THD_INV_FRAME, cos_get_thd_id(), i, 0)) || i <= n ; i++) { */
+	/* 	printc("\t%d (%x:%x)\n", spdid,  */
+	/* 	       cos_thd_cntl(COS_THD_INVFRM_IP, cos_get_thd_id(), i, 0),  */
+	/* 	       cos_thd_cntl(COS_THD_INVFRM_SP, cos_get_thd_id(), i, 0)); */
+	/* } */
+
 	return 0; 
 }
 

@@ -3272,7 +3272,6 @@ fault_update_mpd_pgtbl(struct thread *thd, struct pt_regs *regs, vaddr_t fault_a
 COS_SYSCALL int 
 cos_syscall_print(int spdid, char *str, int len)
 {
-	static char last = '\n';
 	/*
 	 * FIXME: use linux functions to copy the string into local
 	 * storage to avoid faults.  ...This won't work with cos
@@ -3281,14 +3280,11 @@ cos_syscall_print(int spdid, char *str, int len)
 	 * passed in the arg region.  Perhaps we should just check
 	 * that.
 	 */
-	
+	if (len < 1) return 0;
+	if (len > 512) len = 512;
 	str[len] = '\0';
-	if ('\n' == last)
-//		printk("cos,%d: %s", thd_get_id(core_get_curr_thd()), str);
-		printk("%s", str);
-	else 
-		printk("%s", str);
-	last = str[len-1];
+	printk("%s", str);
+
 	return 0;
 }
 

@@ -556,6 +556,7 @@ static void sched_timer_tick(void)
 		cos_sched_lock_take();
 		report_event(TIMER_TICK);
 		if (cos_cpuid() == 1) {
+//		{
 			printc("ticks %d. core %ld\n", (int)per_core_sched_base[cos_cpuid()].ticks, cos_cpuid());		
 		}
 		if (unlikely((per_core_sched_base[cos_cpuid()].ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1))) {
