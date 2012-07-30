@@ -491,7 +491,6 @@ void cos_init(void)
 
 	UNLOCK();
 	boot_deps_run();
-	printc("core %ld, alpha: exiting system.\n", cos_cpuid());
 
 	return;
 }

@@ -19,13 +19,13 @@ int cos_strlen(char *s)
 
 static inline int send_str(char *s, unsigned int len)
 {
-	int param[4], pending;
+	int param[PARAMS_PER_INV], pending;
 	unsigned int i = 0, j;
 	char *p; 
 
 	p = (char *)param; 
 
-	for (i = 0; i < len; i += CHAR_PER_INV) {
+	for (i = 0; i <= len; i += CHAR_PER_INV) {
 		for (j = 0; j < CHAR_PER_INV; j++) {
 			if (s[i + j] == '\0') { 
 				p[j] = '\0'; 

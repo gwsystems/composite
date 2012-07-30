@@ -555,7 +555,9 @@ static void sched_timer_tick(void)
 	while (1) {
 		cos_sched_lock_take();
 		report_event(TIMER_TICK);
-		if (cos_cpuid() == 1) printc("ticks %d. core %ld\n", (int)per_core_sched_base[cos_cpuid()].ticks, cos_cpuid());		
+		if (cos_cpuid() == 1) {
+			printc("ticks %d. core %ld\n", (int)per_core_sched_base[cos_cpuid()].ticks, cos_cpuid());		
+		}
 		if (unlikely((per_core_sched_base[cos_cpuid()].ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1))) {
 			report_thd_accouting();
 			//cos_stats();
@@ -1671,6 +1673,8 @@ print_config_info(void)
 	       "CYC_PER_USEC=%lld\n",
 	       (unsigned long long)USEC_PER_TICK, 
 	       (unsigned long long)CYC_PER_USEC);
+	printc("Total number of CPUs: %d. Composite runs on core 0 - %d. ", MAX_NUM_CPU, (MAX_NUM_CPU - 2) >= 0 ? (MAX_NUM_CPU - 2) : 0);
+	printc("Linux runs on core %d.\n", MAX_NUM_CPU - 1);
 }
 
 /* Initialize the root scheduler */
@@ -1680,23 +1684,15 @@ int sched_root_init(void)
 	struct sched_thd *new;
 	int ret;
 
-	printc("core %ld: thd %d in sched_init (spd %ld) \n", cos_cpuid(), cos_get_thd_id(), cos_spd_id());
-
-	if (cos_cpuid() == 0) {
+	if (cos_cpuid() == INIT_CORE) {
 		assert(!initialized);
-
-		printc("Total number of CPUs: %d. Composite runs on core 0 - %d. ", MAX_NUM_CPU, (MAX_NUM_CPU - 2) >= 0 ? (MAX_NUM_CPU - 2) : 0);
-		printc("Linux runs on core %d.\n", MAX_NUM_CPU - 1);
 		assert(initialized == 0);
 		print_config_info();
-//		while (1);
 	} else {
 		while (initialized == 0) ;
-		printc("core %ld released!\n", cos_cpuid());
-//		while (1);
 	}
 
-	printc("<<< CPU %ld, in root init, thd %d going to run.>>>\n", cos_cpuid(), cos_get_thd_id());
+	/* printc("<<< CPU %ld, in root init, thd %d going to run.>>>\n", cos_cpuid(), cos_get_thd_id()); */
 
 	__sched_init();
 
@@ -1708,18 +1704,17 @@ int sched_root_init(void)
 
 	/* Create the clock tick (timer) thread */
 	fp_create_timer();
-
 	new = schedule(NULL);
-	
-	printc("-----------------core %ld, thd %d: sched init done.------------------\n", cos_cpuid(), cos_get_thd_id());
-	initialized++;
-	assert(initialized < MAX_NUM_CPU); /* Reserve the last core to Linux. */
 
+	initialized++;
+	assert(initialized <= MAX_NUM_CPU);
+
+	printc("<<<Core %ld, thread %d: sched_init done.>>>\n", cos_cpuid(), cos_get_thd_id());
 	if ((ret = cos_switch_thread(new->id, 0))) {
 		printc("switch thread failed with %d\n", ret);
 	}
 
-	printc("-----------------core %ld, thd %d: going to exit.------------------\n", cos_cpuid(), cos_get_thd_id());
+	printc("<<<Core %ld, thread %d: Exiting system.>>>\n", cos_cpuid(), cos_get_thd_id());
 	parent_sched_exit();
 	assert(0);
 
@@ -1733,7 +1728,7 @@ extern int parent_sched_isroot(void);
 int
 sched_init(void)
 {
-	printc("Sched init has thread %d\n", cos_get_thd_id());
+//	printc("Sched init has thread %d\n", cos_get_thd_id());
 
 	/* Promote us to a scheduler! */
 	if (parent_sched_child_cntl_thd(cos_spd_id())) BUG();

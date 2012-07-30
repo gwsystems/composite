@@ -1527,12 +1527,6 @@ void copy_pgtbl(paddr_t pt_to, paddr_t pt_from)
 /* We need to save cos thread for each core. This is used when switch host pg tables.*/
 void save_per_core_cos_thd(void)
 {
-	/* long fs_val = 0; */
-	/* if (get_cpuid() == 1) { */
-	/* 	__asm__ ("movl %%fs, %0;":"=r" (fs_val)); */
-	/* 	printk("fs when set per_core variable: %ld\n", fs_val); */
-	/* 	//while (1); */
-	/* } */
 	cos_thd_per_core[get_cpuid()].cos_thd = current;
 
 	return;

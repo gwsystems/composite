@@ -3,8 +3,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#define INIT_CORE 0
-
 static int 
 prints(char *s)
 {
@@ -278,8 +276,18 @@ boot_deps_init(void)
 static void
 boot_deps_run(void)
 {
+	assert(cos_cpuid() == INIT_CORE);
+	assert(per_core_llbooter[cos_cpuid()].init_thd);
+	return; /* We return to comp0 and release other cores first. */
+	//cos_switch_thread(per_core_llbooter[cos_cpuid()].init_thd, 0);
+}
+
+static void
+boot_deps_run_all(void)
+{
 	assert(per_core_llbooter[cos_cpuid()].init_thd);
 	cos_switch_thread(per_core_llbooter[cos_cpuid()].init_thd, 0);
+	return ;
 }
 
 void 
@@ -312,18 +320,23 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 void cos_init(void);
 int  sched_init(void)   
 { 
-	/* if ((s = find_obj_by_name(services, ROOT_SCHED)) == NULL) { */
-	if (cos_cpuid() == 0) 
-		cos_init(); 
-	else {
+	if (cos_cpuid() == INIT_CORE) {
+		/* The init core will call this function twice: first do
+		 * the cos_init, then return to cos_loader and boot
+		 * other cores, last call here again to run the init
+		 * core. */
+		if (!per_core_llbooter[cos_cpuid()].init_thd) cos_init();
+		else boot_deps_run_all();
+	} else {
 		LOCK();
 		boot_create_init_thds();
 		UNLOCK();
-		boot_deps_run();
+		boot_deps_run_all();
 		printc("core %ld, alpha: exiting system.\n", cos_cpuid());
 	}
 	return 0; 
 }
+
 int  sched_isroot(void) { return 1; }
 void 
 sched_exit(void)

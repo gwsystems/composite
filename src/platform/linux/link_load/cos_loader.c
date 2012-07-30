@@ -2020,7 +2020,7 @@ void make_spd_scheduler(int cntl_fd, struct service_symbs *s, struct service_sym
 //	ci = (struct cos_component_information*)get_symb_address(&s->exported, COMP_INFO);
 //	sched_page = (vaddr_t)ci->cos_sched_data_area;
 	sched_page_ptr = (struct cos_sched_data_area*)get_symb_address(&s->exported, SCHED_NOTIF);
-	printf("the ptr we got: %p\n",sched_page_ptr);
+	/* printf("the ptr we got: %p\n",sched_page_ptr); */
 	sched_page = (vaddr_t)sched_page_ptr;
 
 	printl(PRINT_DEBUG, "Found spd notification page @ %x.  Promoting to scheduler.\n", 
@@ -2706,37 +2706,31 @@ static void setup_kernel(struct service_symbs *services)
 	}
 	thd.spd_handle = ((struct spd_info *)s->extern_info)->spd_handle;//spd0->spd_handle;
 
-	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
-
 	/* This will hopefully avoid hugely annoying fsck runs */
 	sync();
 
 	cos_create_thd(cntl_fd, &thd);
+	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
+
+	/* We call fn to init the low level booter first! Init
+	 * function will return to here and create processes for other
+	 * cores. */
+	fn();
 
 	for (i = 1; i < MAX_NUM_CPU - 1; i++) {
-		printf("Parent: forking for core %d.\n", i);
+		printf("Parent(pid %d): forking for core %d.\n", getpid(), i);
 		cpuid = i;
 		pid = fork();
 		if (pid == 0) break;
+		printf("Created pid %d for core %d.\n", pid, i);
 	}
 
 	if (pid == 0) { /* child process: set own affinity */ 
-//		while (1) ;
 		set_curr_affinity(cpuid);
 		cos_create_thd(cntl_fd, &thd);
-//		while (1) ;
-		volatile int kk = 0;
-		long i,j,k;
-		while (i++ < 20000)
-			while (j++ < 100000)
-				while (k++ < 100000)
-					kk ++;
-	} else {
-		printf("Parent: created %d threads.\n", i - 1);
-//		while (1) ;
 	}
 
-	printl(PRINT_HIGH, "\nOK, good to go, calling component 0's main\n\n");
+	printl(PRINT_HIGH, "\n Pid %d: OK, good to go, calling component 0's main\n\n", getpid());
 	fflush(stdout);
 
 #define ITER 1
@@ -2749,6 +2743,8 @@ static void setup_kernel(struct service_symbs *services)
 	rdtscll(end);
 
 	aed_enable_syscalls(cntl_fd);
+
+	printf("Pid %d back in cos_loader.\n", getpid());
 
 	 /* parent process waits for all children to complete. */
 	if (pid > 0) 

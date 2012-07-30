@@ -495,15 +495,22 @@ void mman_release_all(void)
 #include <sched_hier.h>
 
 int  sched_init(void)   { return 0; }
+
 extern void parent_sched_exit(void);
 
-static int initialized_core = 0; /* record the number of cores that upcalled to us */
+static int initialized_core[MAX_NUM_CPU] = { 0 }; /* record the cores that still depend on us */
 
 void 
 sched_exit(void)   
 {
-	initialized_core--;
-	if (!initialized_core) mman_release_all(); 
+	int i;
+	initialized_core[cos_cpuid()] = 0;
+	if (cos_cpuid() == INIT_CORE) {
+		/* The init core waiting for all cores to exit. */
+		for (i = 0; i < MAX_NUM_CPU ; i++)
+			if (initialized_core[i]) i = 0;
+		mman_release_all(); 
+	}
 	parent_sched_exit();
 }
 
@@ -529,13 +536,15 @@ sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd) { BUG(); return 0; }
 
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
-
 	switch (t) {
 	case COS_UPCALL_BOOTSTRAP:
-		/* FIXME: RACE */
-		if (initialized_core) { initialized_core++; return; }
-		initialized_core = 1;
-		mm_init(); break;
+		if (cos_cpuid() == INIT_CORE) {
+			mm_init(); 
+		} else {
+			while (initialized_core[INIT_CORE] == 0) ;
+		}
+		initialized_core[cos_cpuid()] = 1;
+		break;			
 	default:
 		BUG(); return;
 	}
