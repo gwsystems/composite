@@ -18,7 +18,7 @@
  * Should Composite run as highest priority?  Should NOT be set if
  * using networking (cnet). 
  */
-//#define LINUX_HIGHEST_PRIORITY 1 
+#define LINUX_HIGHEST_PRIORITY 1 
 
 // cos kernel settings
 #define COS_PRINT_MEASUREMENTS 1

@@ -3269,9 +3269,11 @@ fault_update_mpd_pgtbl(struct thread *thd, struct pt_regs *regs, vaddr_t fault_a
 	return 1;
 }
 
+#define MAX_LEN 512 /* keep consistent as in printc.h */
 COS_SYSCALL int 
 cos_syscall_print(int spdid, char *str, int len)
 {
+	char kern_buf[MAX_LEN];
 	/*
 	 * FIXME: use linux functions to copy the string into local
 	 * storage to avoid faults.  ...This won't work with cos
@@ -3281,9 +3283,10 @@ cos_syscall_print(int spdid, char *str, int len)
 	 * that.
 	 */
 	if (len < 1) return 0;
-	if (len > 512) len = 512;
-	str[len] = '\0';
-	printk("%s", str);
+	if (len >= MAX_LEN) len = MAX_LEN - 1;
+	memcpy(kern_buf, str, len);
+	kern_buf[len] = '\0';
+	printk("%s", kern_buf);
 
 	return 0;
 }

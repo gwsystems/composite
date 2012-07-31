@@ -39,6 +39,8 @@ static inline int send_str(char *s, unsigned int len)
 			}
 		}
 		pending = print_str(param[0], param[1], param[2], param[3]);
+		if(p[j-1] =='\0' && pending) {cos_print("BUG1", 4); while (1);}
+		if(p[j-1] != '\0' && !pending) {cos_print("BUG2", 4); while (1);}
 	}
 	return 0;
 }

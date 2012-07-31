@@ -498,7 +498,7 @@ int  sched_init(void)   { return 0; }
 
 extern void parent_sched_exit(void);
 
-static int initialized_core[MAX_NUM_CPU] = { 0 }; /* record the cores that still depend on us */
+static volatile int initialized_core[MAX_NUM_CPU] = { 0 }; /* record the cores that still depend on us */
 
 void 
 sched_exit(void)   

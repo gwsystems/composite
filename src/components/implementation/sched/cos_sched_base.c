@@ -555,10 +555,9 @@ static void sched_timer_tick(void)
 	while (1) {
 		cos_sched_lock_take();
 		report_event(TIMER_TICK);
-		if (cos_cpuid() == 1) {
-//		{
-			printc("ticks %d. core %ld\n", (int)per_core_sched_base[cos_cpuid()].ticks, cos_cpuid());		
-		}
+		/* if (cos_cpuid() == 1) { */
+		/* 	printc("ticks %d. core %ld\n", (int)per_core_sched_base[cos_cpuid()].ticks, cos_cpuid());		 */
+		/* } */
 		if (unlikely((per_core_sched_base[cos_cpuid()].ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1))) {
 			report_thd_accouting();
 			//cos_stats();
@@ -1570,7 +1569,7 @@ int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short
 extern void parent_sched_exit(void);
 void sched_exit(void)
 {
-	printc("In sched_exit, core %ld, switching to %d\n", cos_cpuid(), per_core_sched_base[cos_cpuid()].init->id);
+	/* printc("In sched_exit, core %ld, switching to %d\n", cos_cpuid(), per_core_sched_base[cos_cpuid()].init->id); */
 	cos_sched_clear_events();
 //	cos_switch_thread_release(per_core_sched_base[cos_cpuid()].init->id, 0);
 	while (1) {

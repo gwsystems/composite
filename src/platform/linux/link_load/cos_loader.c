@@ -2594,6 +2594,8 @@ static struct service_symbs *find_obj_by_name(struct service_symbs *s, const cha
 	return NULL;
 }
 
+void set_prio(void);
+
 #define MAX_SCHEDULERS 3
 
 void set_curr_affinity(u32_t cpu)
@@ -2728,7 +2730,13 @@ static void setup_kernel(struct service_symbs *services)
 
 	if (pid == 0) { /* child process: set own affinity */ 
 		set_curr_affinity(cpuid);
+#ifdef HIGHEST_PRIO
+		set_prio();
+#endif
 		cos_create_thd(cntl_fd, &thd);
+	} else { /* The parent should give other processes a chance to
+		  * run. They need to migrate to their cores. */
+		sleep(1);
 	}
 
 	printl(PRINT_HIGH, "\n Pid %d: OK, good to go, calling component 0's main\n\n", getpid());
