@@ -203,32 +203,36 @@ static inline int cos_trans_cntl(int op, int channel, unsigned long addr, int of
 	return cos___trans_cntl(((op << 16) | (channel & 0xFFFF)), addr, off);
 }
 
-static inline long cos_cpuid(void)
+static inline long get_stk_data(int offset)
 {
 	unsigned long curr_stk_pointer;
 
 	asm ("movl %%esp, %0;" : "=r" (curr_stk_pointer));
 	/* 
-	 * We save the CPU_ID in the stack for fast access.  We want
-	 * to find the struct cos_stk (see the stkmgr interface) so
-	 * that we can then offset into it and get the cpu_id.  This
-	 * struct is at the _top_ of the current stack, and cpu_id is
-	 * at the top of the struct (it is a u32_t).
+	 * We save the CPU_ID and thread id in the stack for fast
+	 * access.  We want to find the struct cos_stk (see the stkmgr
+	 * interface) so that we can then offset into it and get the
+	 * cpu_id.  This struct is at the _top_ of the current stack,
+	 * and cpu_id is at the top of the struct (it is a u32_t).
 	 */
 	return *(long *)((curr_stk_pointer & ~(COS_STACK_SZ - 1)) + 
-			 COS_STACK_SZ - sizeof(u32_t));
+			 COS_STACK_SZ - offset * sizeof(u32_t));
+}
+
+static inline long cos_cpuid(void)
+{
+	/* 
+	 * see comments in the get_stk_data above.
+	 */
+	return get_stk_data(CPUID_OFFSET);
 }
 
 static inline unsigned short int cos_get_thd_id(void)
 {
-	unsigned long curr_stk_pointer;
-
-	asm ("movl %%esp, %0;" : "=r" (curr_stk_pointer));
 	/* 
-	 * see comments in the cos_cpuid above.
+	 * see comments in the get_stk_data above.
 	 */
-	return *(long *)((curr_stk_pointer & ~(COS_STACK_SZ - 1)) + 
-			 COS_STACK_SZ - 2 * sizeof(u32_t));
+	return get_stk_data(THDID_OFFSET);
 }
 
 #define ERR_THROW(errval, label) do { ret = errval; goto label; } while (0)
@@ -413,19 +417,26 @@ static inline int cos_argreg_buff_intern(char *buff, int sz)
 	return COS_IN_ARGREG(buff) && COS_IN_ARGREG(buff+sz);
 }
 
+#define FAIL() *(int*)NULL = 0
+
 static inline void cos_argreg_init(void)
 {
 	/* The printc implementation is replaced by the low-level
 	 * print component, which requires no shared region between
 	 * components. This shared region init function should not be
 	 * used anymore. */
-//	BUG();
+
+	/* No print if fault here... */
+/* #ifdef BUG */
+/* 		BUG(); */
+/* #else */
+/* 		FAIL(); */
+/* #endif */
+
 	struct cos_argreg_extent *ex = cos_get_arg_region();
 	
 	ex->size = sizeof(struct cos_argreg_extent) + sizeof(struct pt_regs);
 }
-
-#define FAIL() *(int*)NULL = 0
 
 /* allocate an argument buffer in the argument region */
 static inline void *cos_argreg_alloc(int sz)

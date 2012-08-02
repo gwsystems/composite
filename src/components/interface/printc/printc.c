@@ -51,20 +51,27 @@ int __attribute__((format(printf,1,2))) printc(char *fmt, ...)
 	char s[MAX_LEN];
 	va_list arg_ptr;
 	unsigned int ret;
-	int len;
-	
-	len = MAX_LEN;
+	int len = MAX_LEN;
+
+	/* Stable approach below. */
 
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, len, fmt, arg_ptr);
 	va_end(arg_ptr);
-
-	if (unlikely(ret == 0)) goto done;
-
-	send_str(s, ret);
+	cos_print(s, ret);
 	
-done:
-	return ret;
+	return 0;
+
+/* 	va_start(arg_ptr, fmt); */
+/* 	ret = vsnprintf(s, len, fmt, arg_ptr); */
+/* 	va_end(arg_ptr); */
+
+/* 	if (unlikely(ret == 0)) goto done; */
+
+/* 	send_str(s, ret); */
+	
+/* done: */
+/* 	return ret; */
 }
 
 int prints(char *str)

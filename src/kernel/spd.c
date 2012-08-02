@@ -404,7 +404,7 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 	spd->user_vaddr_cap_tbl = user_cap_tbl;
 
 	spd->upcall_entry = upcall_entry;
-	for (i = 0; i < MAX_NUM_CPU ; i++)
+	for (i = 0; i < NUM_CPU ; i++)
 		spd->sched_shared_page[i] = NULL;
 	
 	/* This will cause the spd to never be deallocated via garbage collection.

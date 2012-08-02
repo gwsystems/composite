@@ -477,9 +477,11 @@ cos_syscall_create_thread(int spd_id, int a, int b, int c)
 	}
 
 	if (!spd_is_scheduler(curr_spd)/* || !thd_scheduled_by(curr, curr_spd)*/) {
-/* FIXME: if initmm is the root, then the second to root should be
- * able to create threads. */
-//	if (!spd_is_root_sched(curr_spd)) {
+		/* 
+		 * FIXME: if initmm is the root, then the second to
+		 * root should be able to create threads. 
+		 */
+		//	if (!spd_is_root_sched(curr_spd)) {
 		printk("cos: non-scheduler attempted to create thread.\n");
 		return -1;
 	}
@@ -1618,8 +1620,8 @@ cos_syscall_brand_cntl(int spd_id, int op, u32_t bid_tid, spdid_t dest)
 	return retid;
 }
 
-struct thread *cos_timer_brand_thd[MAX_NUM_CPU]; CACHE_ALIGNED
-struct thread *cos_upcall_notif_thd[MAX_NUM_CPU]; CACHE_ALIGNED
+struct thread *cos_timer_brand_thd[NUM_CPU]; CACHE_ALIGNED
+struct thread *cos_upcall_notif_thd[NUM_CPU]; CACHE_ALIGNED
 
 #define NUM_NET_BRANDS 2
 unsigned int active_net_brands = 0;
@@ -1860,7 +1862,7 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int thd_id, unsigned
 	/* Transmit the data buffer */
 	case COS_BM_XMIT:
 	{
-		struct cos_net_xmit_headers *h = spd->cos_net_xmit_headers;
+		struct cos_net_xmit_headers *h = spd->cos_net_xmit_headers[get_cpuid()];
 		int gather_buffs = 0, i, tot_len = 0;
 		struct gather_item gi[XMIT_HEADERS_GATHER_LEN];
 
@@ -1918,7 +1920,7 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int thd_id, unsigned
 			return -1;
 		}
 		/* FIXME: pin page in memory */
-		spd->cos_net_xmit_headers = (struct cos_net_xmit_headers*)kaddr;
+		spd->cos_net_xmit_headers[get_cpuid()] = (struct cos_net_xmit_headers*)kaddr;
 
 		break;
 	}
@@ -2545,7 +2547,7 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 		spd->prev_notification[get_cpuid()] = 0;
 
 		/* FIXME: pin the page */
-		printk("core %u, sched shared region @%p, kern @%p\n", get_cpuid(), spd->sched_shared_page[get_cpuid()], spd->kern_sched_shared_page[get_cpuid()]);		
+		/* printk("core %u, sched shared region @%p, kern @%p\n", get_cpuid(), spd->sched_shared_page[get_cpuid()], spd->kern_sched_shared_page[get_cpuid()]);		 */
 		break;
 	}
 	case COS_SCHED_THD_EVT:

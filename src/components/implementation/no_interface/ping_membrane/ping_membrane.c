@@ -2,7 +2,7 @@
 #include <print.h>
 
 #include <sched.h>
-#include <pong.h>
+#include <membrane.h>
  
 #define ITER (10240)
 u64_t meas[ITER];
@@ -12,13 +12,23 @@ void cos_init(void)
 	u64_t start, end, avg, tot = 0, dev = 0;
 	int i, j;
 
-	call();			/* get stack */
-	printc("cpuid from ping %ld\n",cos_cpuid());
-	printc("Starting Invocations.\n");
+	static int first = 1;
+	
+	if (first) {
+		union sched_param sp;
+		first = 0;
+		sp.c.type = SCHEDP_PRIO;
+		sp.c.value = 30;
+		if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG();
+		return;
+	}
+	
+	call_server(99,99,99,99);			/* get stack */
+	printc("Core %ld: starting Invocations.\n", cos_cpuid());
 
 	for (i = 0 ; i < ITER ; i++) {
 		rdtscll(start);
-		call();
+		call_server(99,99,99,99);
 		rdtscll(end);
 		meas[i] = end-start;
 	}

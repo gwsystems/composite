@@ -5,8 +5,6 @@
  * Public License v2.
  */
 
-//#include <thread.h>
-//#include <spd.h>
 #include "include/thread.h"
 #include "include/spd.h"
 #include "include/page_pool.h"
@@ -59,20 +57,22 @@ extern void thd_publish_data_page(struct thread *thd, vaddr_t page);
 
 struct thread *thd_alloc(struct spd *spd)
 {
-	struct thread *thd;
+	struct thread *thd, *new_freelist_head;
 	unsigned short int id;
 	void *page;
 
-	/* FIXME: race condition */
-	thd = thread_freelist_head;
+	do {
+		thd = thread_freelist_head;
+		new_freelist_head = thread_freelist_head->freelist_next;
+	} while (unlikely(!cos_cas((unsigned long *)&thread_freelist_head, (unsigned long)thd, (unsigned long)new_freelist_head)));
+
 	if (thd == NULL) {
 		printk("cos: Could not create thread.\n");
 		return NULL;
 	}
-	thread_freelist_head = thread_freelist_head->freelist_next;
-	
+
 	page = cos_get_pg_pool();
-	if (NULL == page) {
+	if (unlikely(NULL == page)) {
 		printk("cos: Could not allocate the data page for new thread.\n");
 		thread_freelist_head = thd;
 		return NULL;
@@ -104,6 +104,7 @@ struct thread *thd_alloc(struct spd *spd)
 
 void thd_free(struct thread *thd)
 {
+	struct thread *old_freelist_head;
 	if (NULL == thd) return;
 
 	while (thd->stack_ptr > 0) {
@@ -124,8 +125,10 @@ void thd_free(struct thread *thd)
 		cos_put_pg_pool((struct page_list*)thd->data_region);
 	}
 
-	thd->freelist_next = thread_freelist_head;
-	thread_freelist_head = thd;
+	do {
+		old_freelist_head = thread_freelist_head;
+		thd->freelist_next = old_freelist_head;
+	} while (unlikely(!cos_cas((unsigned long *)&thread_freelist_head, (unsigned long)old_freelist_head, (unsigned long)thd)));
 
 	return;
 }

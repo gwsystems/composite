@@ -40,7 +40,7 @@
 #include "../../sched/cos_sched_sync.h"
 
 /* We use the the sched_data_area here only for the mem_mgr lock below. */
-struct cos_sched_data_area cos_sched_notifications[MAX_NUM_CPU];
+struct cos_sched_data_area cos_sched_notifications[NUM_CPU];
 
 #define LOCK()   if (cos_sched_lock_take())    assert(0);
 #define UNLOCK() if (cos_sched_lock_release()) assert(0);
@@ -498,7 +498,7 @@ int  sched_init(void)   { return 0; }
 
 extern void parent_sched_exit(void);
 
-static volatile int initialized_core[MAX_NUM_CPU] = { 0 }; /* record the cores that still depend on us */
+static volatile int initialized_core[NUM_CPU] = { 0 }; /* record the cores that still depend on us */
 
 void 
 sched_exit(void)   
@@ -507,7 +507,7 @@ sched_exit(void)
 	initialized_core[cos_cpuid()] = 0;
 	if (cos_cpuid() == INIT_CORE) {
 		/* The init core waiting for all cores to exit. */
-		for (i = 0; i < MAX_NUM_CPU ; i++)
+		for (i = 0; i < NUM_CPU ; i++)
 			if (initialized_core[i]) i = 0;
 		mman_release_all(); 
 	}

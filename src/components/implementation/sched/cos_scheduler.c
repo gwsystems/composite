@@ -18,9 +18,9 @@ int cos_use_force_sched_link(void)
 	return cos_force_sched_link;
 }
 
-struct cos_sched_data_area cos_sched_notifications[MAX_NUM_CPU];
+struct cos_sched_data_area cos_sched_notifications[NUM_CPU];
 
-struct scheduler_per_core per_core_sched[MAX_NUM_CPU];
+struct scheduler_per_core per_core_sched[NUM_CPU];
 
 /* 
  * Use the visitor pattern here.  Pass in a function that will be

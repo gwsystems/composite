@@ -7,7 +7,7 @@
 #include <cos_component.h>
 #include <cos_debug.h>
 
-extern struct cos_sched_data_area cos_sched_notifications[MAX_NUM_CPU];
+extern struct cos_sched_data_area cos_sched_notifications[NUM_CPU];
 
 /* Following two functions are also needed by the low-level booter to
  * provide scheduler functionality when booting the system. */

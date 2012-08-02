@@ -17,7 +17,7 @@ void cos_init(void *arg)
 {
 //	BUG();
 //	spin_var = *(int*)NULL;
-	printc("<<**Running!**>>\n");
+	printc("Core %ld: <<**Running!**>>\n", cos_cpuid());
 //	while (1) if (spin_var) other = 1;
 	return;
 }

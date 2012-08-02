@@ -2602,7 +2602,7 @@ void set_curr_affinity(u32_t cpu)
 {
 	cpu_set_t s;
 	CPU_ZERO(&s);
-	assert(cpu <= MAX_NUM_CPU - 1);
+	assert(cpu <= NUM_CPU - 1);
 	CPU_SET(cpu, &s);
 	sched_setaffinity(0, 1, &s);
 	return;
@@ -2618,7 +2618,7 @@ static void setup_kernel(struct service_symbs *services)
 	struct cos_thread_info thd;
 
 	pid_t pid;
-	pid_t children[MAX_NUM_CPU];
+	pid_t children[NUM_CPU];
 	int cntl_fd = 0, i, cpuid, ret;;
 	unsigned long long start, end;
 	
@@ -2719,7 +2719,7 @@ static void setup_kernel(struct service_symbs *services)
 	 * cores. */
 	fn();
 
-	for (i = 1; i < MAX_NUM_CPU - 1; i++) {
+	for (i = 1; i < NUM_CPU - 1; i++) {
 		printf("Parent(pid %d): forking for core %d.\n", getpid(), i);
 		cpuid = i;
 		pid = fork();
@@ -2758,7 +2758,7 @@ static void setup_kernel(struct service_symbs *services)
 
 	if (pid > 0) { /* only the parent should return here and
 			* terminate all children process. */
-		for (i = 1 ; i < MAX_NUM_CPU ; i++) {
+		for (i = 1 ; i < NUM_CPU ; i++) {
 			assert(children[i]);
 			kill(children[i], SIGKILL);
 		}
@@ -2885,7 +2885,7 @@ void set_smp_affinity()
 	system("mkdir -p /dev/cpuset/cos");
 	system("echo 7 > /dev/cpuset/linux/cpuset.cpus");
 	system("echo 0 > /dev/cpuset/linux/cpuset.mems");
-	sprintf(cmd, "echo 0-%d > /dev/cpuset/cos/cpuset.cpus", (MAX_NUM_CPU - 2) >= 0 ? (MAX_NUM_CPU - 2) : 0);
+	sprintf(cmd, "echo 0-%d > /dev/cpuset/cos/cpuset.cpus", (NUM_CPU - 2) >= 0 ? (NUM_CPU - 2) : 0);
 	system(cmd);
 	system("echo 0 > /dev/cpuset/cos/cpuset.mems");
 	//	printf("1:\\pid %d!\n", getpid());

@@ -108,4 +108,9 @@ struct pt_regs {
 #define PARAMS_PER_INV 4
 #define CHAR_PER_INV CHAR_PER_INT * PARAMS_PER_INV
 
+#define CPUID_OFFSET_IN_THREAD_INFO 4
+
+#define CPUID_OFFSET 1
+#define THDID_OFFSET 2
+
 #endif

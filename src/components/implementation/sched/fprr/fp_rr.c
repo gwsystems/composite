@@ -31,7 +31,7 @@ struct fprr_per_core {
 #endif
 } CACHE_ALIGNED;
 
-static struct fprr_per_core per_core[MAX_NUM_CPU];
+static struct fprr_per_core per_core[NUM_CPU];
 
 static inline void mask_set(unsigned short int p) { per_core[cos_cpuid()].active |= 1 << p; }
 static inline void mask_unset(unsigned short int p) { per_core[cos_cpuid()].active &= ~(1 << p); }

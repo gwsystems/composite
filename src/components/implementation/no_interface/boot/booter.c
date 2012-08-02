@@ -10,7 +10,7 @@
 extern struct cos_component_information cos_comp_info;
 struct cobj_header *hs[MAX_NUM_SPDS+1];
 
-struct cos_sched_data_area cos_sched_notifications[MAX_NUM_CPU];
+struct cos_sched_data_area cos_sched_notifications[NUM_CPU];
 
 /* dependencies */
 #include <boot_deps.h>

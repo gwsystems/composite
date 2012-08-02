@@ -20,9 +20,22 @@ struct per_core_variables {
 	struct spd_poly *curr_spd;
 } CACHE_ALIGNED;
 
-extern struct per_core_variables per_core[MAX_NUM_CPU];
+extern struct per_core_variables per_core[NUM_CPU];
 
 typedef int cpuid_t;
+
+static inline int 
+cos_cas(unsigned long *target, unsigned long cmp, unsigned long updated)
+{
+	char z;
+	__asm__ __volatile__("lock cmpxchgl %2, %0; setz %1"
+			     : "+m" (*target),
+			       "=a" (z)
+			     : "q"  (updated),
+			       "a"  (cmp)
+			     : "memory", "cc");
+	return (int)z;
+}
 
 /* TODO: put this in platform specific directory */
 #define THREAD_SIZE_LINUX 8192	/* put in include/shared/consts.h */
@@ -38,7 +51,7 @@ static inline u32_t
 get_cpuid(void)
 {
 	/* Linux saves the CPU_ID in the stack for fast access. */
-	return *(get_linux_thread_info() + 4);
+	return *(get_linux_thread_info() + CPUID_OFFSET_IN_THREAD_INFO);
 }
 
 #define CREATE_PERCPU_FNS(type, name)           \

@@ -52,7 +52,7 @@ struct llbooter_per_core {
 	volatile int prev_thd, recover_spd;
 } __attribute__((aligned(4096))); /* Avoid the copy-on-write issue for us. */
 
-static struct llbooter_per_core per_core_llbooter[MAX_NUM_CPU];
+static struct llbooter_per_core per_core_llbooter[NUM_CPU];
 
 enum { /* hard-coded initialization schedule */
 	LLBOOT_SCHED = 2,
@@ -127,7 +127,7 @@ llboot_thd_done(void)
 			per_core_llbooter[cos_cpuid()].sched_offset++;
 			comp_boot_nfo[s].initialized = 1;
 			
-			printc("core %ld: booter init_thd upcalling into spdid %d.\n", cos_cpuid(), (unsigned int)s);
+			/* printc("core %ld: booter init_thd upcalling into spdid %d.\n", cos_cpuid(), (unsigned int)s); */
 			cos_upcall(s); /* initialize the component! */
 			BUG();
 		}
@@ -250,16 +250,19 @@ comp_info_record(struct cobj_header *h, spdid_t spdid, struct cos_component_info
 
 static inline void boot_create_init_thds(void)
 {
-	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)&cos_sched_notifications[cos_cpuid()])) BUG();
+	int cpu = cos_cpuid();
 
-	per_core_llbooter[cos_cpuid()].alpha        = cos_get_thd_id();
-	per_core_llbooter[cos_cpuid()].recovery_thd = cos_create_thread((int)llboot_ret_thd, (int)0, 0);
-	assert(per_core_llbooter[cos_cpuid()].recovery_thd >= 0);
-	per_core_llbooter[cos_cpuid()].init_thd     = cos_create_thread((int)llboot_ret_thd, 0, 0);
-	printc("Low-level booter created threads:\n\t"
+	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)&cos_sched_notifications[cpu])) BUG();
+
+	per_core_llbooter[cpu].alpha        = cos_get_thd_id();
+	per_core_llbooter[cpu].recovery_thd = cos_create_thread((int)llboot_ret_thd, (int)0, 0);
+	assert(per_core_llbooter[cpu].recovery_thd >= 0);
+	per_core_llbooter[cpu].init_thd     = cos_create_thread((int)llboot_ret_thd, 0, 0);
+	printc("Core %ld, Low-level booter created threads:\n\t"
 	       "%d: alpha\n\t%d: recov\n\t%d: init\n",
-	       per_core_llbooter[cos_cpuid()].alpha, per_core_llbooter[cos_cpuid()].recovery_thd, per_core_llbooter[cos_cpuid()].init_thd);
-	assert(per_core_llbooter[cos_cpuid()].init_thd >= 0);
+	       cos_cpuid(), per_core_llbooter[cpu].alpha, 
+	       per_core_llbooter[cpu].recovery_thd, per_core_llbooter[cpu].init_thd);
+	assert(per_core_llbooter[cpu].init_thd >= 0);
 }
 
 static void
@@ -297,7 +300,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	/*        cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT); */
 	switch (t) {
 	case COS_UPCALL_CREATE:
-		cos_argreg_init();
+//		cos_argreg_init();
 		llboot_ret_thd();
 //		((crt_thd_fn_t)arg1)();
 		break;
@@ -332,7 +335,7 @@ int  sched_init(void)
 		boot_create_init_thds();
 		UNLOCK();
 		boot_deps_run_all();
-		printc("core %ld, alpha: exiting system.\n", cos_cpuid());
+		/* printc("core %ld, alpha: exiting system.\n", cos_cpuid()); */
 		while (1) ; 	/* wait for the parent to kill us! */
 		/* Here the children cannot return to their original
 		 * processes since the component 0 has only one

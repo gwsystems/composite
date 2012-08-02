@@ -84,7 +84,7 @@ struct per_core_cos_thd
 	struct task_struct *cos_thd;
 } CACHE_ALIGNED;
 
-struct per_core_cos_thd cos_thd_per_core[MAX_NUM_CPU];
+struct per_core_cos_thd cos_thd_per_core[NUM_CPU];
 
 //QW: should be per core? >>
 struct mm_struct *composite_union_mm = NULL;
@@ -1564,7 +1564,7 @@ void switch_host_pg_tbls(paddr_t pt)
  * Our composite emulated timer interrupt executed from a Linux
  * softirq
  */
-static struct timer_list timer[MAX_NUM_CPU]; CACHE_ALIGNED
+static struct timer_list timer[NUM_CPU]; CACHE_ALIGNED
 
 extern struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
 
@@ -1588,13 +1588,13 @@ EXPORT_SYMBOL(cos_trans_reg);
 EXPORT_SYMBOL(cos_trans_dereg);
 EXPORT_SYMBOL(cos_trans_upcall);
 
-extern struct thread *cos_timer_brand_thd[MAX_NUM_CPU];CACHE_ALIGNED
+extern struct thread *cos_timer_brand_thd[NUM_CPU];CACHE_ALIGNED
 #define NUM_NET_BRANDS 2 /* keep consistent with inv.c */
 extern int active_net_brands;
 extern struct cos_brand_info cos_net_brand[NUM_NET_BRANDS];
 extern struct cos_net_callbacks *cos_net_fns;
 
-static int in_syscall[MAX_NUM_CPU] = { 0 }; CACHE_ALIGNED
+static int in_syscall[NUM_CPU] = { 0 }; CACHE_ALIGNED
 
 int host_in_syscall(void) 
 {
@@ -1859,7 +1859,7 @@ void register_timers(void)
 static void deregister_timers(void)
 {
 	int i;
-	for (i = 0; i < MAX_NUM_CPU; i++) {
+	for (i = 0; i < NUM_CPU; i++) {
 		cos_timer_brand_thd[i] = NULL;
 		if (timer[i].function)
 			del_timer(&timer[i]);
@@ -2104,7 +2104,7 @@ static int aed_release(struct inode *inode, struct file *file)
 	spd_free_all();
 	ipc_init();
 	cos_shutdown_memory();
-	for (cpuid = 0; cpuid < MAX_NUM_CPU; cpuid++) {
+	for (cpuid = 0; cpuid < NUM_CPU; cpuid++) {
 		cos_thd_per_core[cpuid].cos_thd = NULL;
 	}
 

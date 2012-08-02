@@ -11,7 +11,7 @@ struct print_buffer {
 	unsigned int index;
 } CACHE_ALIGNED;
 
-static struct print_buffer pbuf[MAX_NUM_CPU];
+static struct print_buffer pbuf[NUM_CPU];
 
 int print_str(int s1, int s2, int s3, int s4)
 {

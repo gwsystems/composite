@@ -42,7 +42,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	{
 		static int first = 1;
 		if (first) { first = 0; __alloc_libc_initilize(); }
-		cos_argreg_init();
+//		cos_argreg_init();
 		cos_init(arg1);
 		break;
 	}

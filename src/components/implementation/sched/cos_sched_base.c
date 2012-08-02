@@ -62,7 +62,7 @@ struct sched_base_per_core {
 	struct sched_thd graveyard;
 } CACHE_ALIGNED;
 
-static struct sched_base_per_core per_core_sched_base[MAX_NUM_CPU];
+static struct sched_base_per_core per_core_sched_base[NUM_CPU];
 
 //////////////not sure...
 /* STATIC_TIMER_RECORDS(recs, TIMER_MAX); */
@@ -556,7 +556,7 @@ static void sched_timer_tick(void)
 		cos_sched_lock_take();
 		report_event(TIMER_TICK);
 		/* if (cos_cpuid() == 1) { */
-		/* 	printc("ticks %d. core %ld\n", (int)per_core_sched_base[cos_cpuid()].ticks, cos_cpuid());		 */
+		/* 	printc("ticks %d. core %ld\n", (int)per_core_sched_base[cos_cpuid()].ticks, cos_cpuid()); */
 		/* } */
 		if (unlikely((per_core_sched_base[cos_cpuid()].ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1))) {
 			report_thd_accouting();
@@ -617,6 +617,17 @@ static void fp_create_spd_thd(void *d)
 	BUG();
 }
 
+struct shared_default_thread_data {
+	int active;
+	spdid_t spdid;
+	u32_t param[3];
+	int ret;
+} CACHE_ALIGNED;
+
+volatile struct shared_default_thread_data default_thread_data[NUM_CPU];
+
+static int current_core_create_thread_default(spdid_t spdid, u32_t sched_param_0, 
+					      u32_t sched_param_1, u32_t sched_param_2);
 static void fp_idle_loop(void *d)
 {
 	assert(sched_is_root());
@@ -629,6 +640,16 @@ static void fp_idle_loop(void *d)
 			report_event(IDLE_SCHED);
  			cos_sched_lock_take();
 			sched_switch_thread(0, IDLE_SCHED_SWITCH);
+		}
+		if (default_thread_data[cos_cpuid()].active) {
+			/* FIXME: currently this is only used when
+			 * booting up the system. We should use IPIs
+			 * to notify other cores about the thread
+			 * creation, not this way. Qi.*/
+			default_thread_data[cos_cpuid()].ret = \
+				current_core_create_thread_default(default_thread_data[cos_cpuid()].spdid, default_thread_data[cos_cpuid()].param[0],
+								   default_thread_data[cos_cpuid()].param[1], default_thread_data[cos_cpuid()].param[2]);
+			default_thread_data[cos_cpuid()].active = 0;
 		}
 		report_event(IDLE_SCHED_LOOP);
 #ifdef IDLE_TO_LINUX
@@ -1155,8 +1176,8 @@ sched_create_thread(spdid_t spdid, struct cos_array *data)
 	metric_str = (char *)data->mem;
 	new = sched_setup_thread_arg((char *)metric_str, fp_create_spd_thd, d, 0);
 	cos_sched_lock_release();
-	printc("sched %d: created thread %d in spdid %d (requested by %d)\n",
-	       (unsigned int)cos_spd_id(), new->id, spdid, curr->id);
+	printc("Core %ld, sched %d: created thread %d in spdid %d (requested by %d)\n",
+	       cos_cpuid(), (unsigned int)cos_spd_id(), new->id, spdid, curr->id);
 
 	return new->id;
 }
@@ -1177,8 +1198,8 @@ sched_create_thd(spdid_t spdid, u32_t sched_param0, u32_t sched_param1, u32_t sc
 	curr = sched_get_current();
 	new = sched_setup_thread_arg(&sp, fp_create_spd_thd, d, 1);
 	cos_sched_lock_release();
-	printc("sched %d: created thread %d in spdid %d (requested by %d)\n",
-	       (unsigned int)cos_spd_id(), new->id, spdid, curr->id);
+	printc("Core %ld, sched %d: created thread %d in spdid %d (requested by %d)\n",
+	       cos_cpuid(), (unsigned int)cos_spd_id(), new->id, spdid, curr->id);
 
 	return new->id;
 }
@@ -1201,27 +1222,54 @@ done:
 	return ret;
 }
 
-/* Create a thread in target with the default parameters */
-int
-sched_create_thread_default(spdid_t spdid, u32_t sched_param_0, 
-			    u32_t sched_param_1, u32_t sched_param_2)
+static int current_core_create_thread_default(spdid_t spdid, u32_t sched_param_0, 
+						    u32_t sched_param_1, u32_t sched_param_2)
 {
 	struct sched_param_s sp[4];
 	struct sched_thd *new;
 	vaddr_t t = spdid;
 
-//	if (sched_param_2 == 9876) return cos_sched_pending_event();
 	sp[0] = ((union sched_param)sched_param_0).c;
 	sp[1] = ((union sched_param)sched_param_1).c;
 	sp[2] = ((union sched_param)sched_param_2).c;
 	sp[3] = (union sched_param){.c = {.type = SCHEDP_NOOP}}.c;
 	
 	cos_sched_lock_take();
+
 	new = sched_setup_thread_arg(&sp, fp_create_spd_thd, (void*)t, 1);
 	sched_switch_thread(0, NULL_EVT);
+
+	printc("Core %ld, sched %d: created default thread %d in spdid %d (requested by %d from %d)\n",
+	       cos_cpuid(), (unsigned int)cos_spd_id(), new->id, spdid, sched_get_current()->id, spdid);
+
 	if (!new) return -1;
-	printc("sched %d: created default thread %d in spdid %d (requested by %d from %d)\n",
-	       (unsigned int)cos_spd_id(), new->id, spdid, sched_get_current()->id, spdid);
+
+	return 0;
+}
+
+int created_default_thds = 0;
+/* Create a thread in target with the default parameters */
+int
+sched_create_thread_default(spdid_t spdid, u32_t sched_param_0, 
+			    u32_t sched_param_1, u32_t sched_param_2)
+{
+	int core_id, ret;
+	/* FIX ME: we should send an IPI to the core that we want to
+	 * create thread on. Not using shared memory. */
+	core_id = created_default_thds % (NUM_CPU > 1 ? NUM_CPU - 1 : 1);
+
+	if (core_id != 0) {
+		default_thread_data[core_id].spdid = spdid;
+		default_thread_data[core_id].param[0] = sched_param_0;
+		default_thread_data[core_id].param[1] = sched_param_1;
+		default_thread_data[core_id].param[2] = sched_param_2;
+		default_thread_data[core_id].active = 1;
+		while (default_thread_data[core_id].active) ;
+		ret = default_thread_data[core_id].ret;
+	} else {
+		ret = current_core_create_thread_default(spdid, sched_param_0, sched_param_1, sched_param_2);
+	}
+	created_default_thds++;
 
 	return 0;
 }
@@ -1609,7 +1657,7 @@ sched_init_create_threads(int boot_threads)
 
 	/* create the idle thread */
 	per_core_sched_base[cos_cpuid()].idle = sched_setup_thread_arg(&sp, fp_idle_loop, NULL, 1);
-	printc("Idle thread has id %d with priority %s.\n", per_core_sched_base[cos_cpuid()].idle->id, "i");
+	printc("(Core %ld) Idle thread has id %d with priority %s.\n", cos_cpuid(), per_core_sched_base[cos_cpuid()].idle->id, "i");
 
 	if (!boot_threads) return;
 
@@ -1673,8 +1721,8 @@ print_config_info(void)
 	       "CYC_PER_USEC=%lld\n",
 	       (unsigned long long)USEC_PER_TICK, 
 	       (unsigned long long)CYC_PER_USEC);
-	printc("Total number of CPUs: %d. Composite runs on core 0 - %d. ", MAX_NUM_CPU, (MAX_NUM_CPU - 2) >= 0 ? (MAX_NUM_CPU - 2) : 0);
-	printc("Linux runs on core %d.\n", MAX_NUM_CPU - 1);
+	printc("Total number of CPUs: %d. Composite runs on core 0 - %d. ", NUM_CPU, (NUM_CPU - 2) >= 0 ? (NUM_CPU - 2) : 0);
+	printc("Linux runs on core %d.\n", NUM_CPU - 1);
 }
 
 /* Initialize the root scheduler */
@@ -1700,14 +1748,14 @@ int sched_root_init(void)
 	per_core_sched_base[cos_cpuid()].init = sched_alloc_thd(cos_get_thd_id());
 	assert(per_core_sched_base[cos_cpuid()].init);
 
-	sched_init_create_threads(initialized == 0 ? 1 : 0);
+	sched_init_create_threads(initialized == 0);
 
 	/* Create the clock tick (timer) thread */
 	fp_create_timer();
 	new = schedule(NULL);
 
-	initialized++;
-	assert(initialized <= MAX_NUM_CPU);
+	initialized = 1;
+	/* assert(initialized <= NUM_CPU); */
 
 	printc("<<<Core %ld, thread %d: sched_init done.>>>\n", cos_cpuid(), cos_get_thd_id());
 	if ((ret = cos_switch_thread(new->id, 0))) {

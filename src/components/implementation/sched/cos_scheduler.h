@@ -57,7 +57,7 @@
 #define SCHED_CEVT_WAKE      0x2
 #define SCHED_CEVT_BLOCK     0x4
 
-extern struct cos_sched_data_area cos_sched_notifications[MAX_NUM_CPU];
+extern struct cos_sched_data_area cos_sched_notifications[NUM_CPU];
 
 struct sched_accounting {
 	unsigned long C, T, C_used, T_exp;
@@ -194,7 +194,7 @@ short int sched_alloc_event(struct sched_thd *thd);
 int sched_rem_event(struct sched_thd *thd);
 int sched_share_event(struct sched_thd *n, struct sched_thd *old);
 
-extern struct scheduler_per_core per_core_sched[MAX_NUM_CPU];
+extern struct scheduler_per_core per_core_sched[NUM_CPU];
 
 static inline struct sched_thd *sched_evt_to_thd(short int evt_id)
 {

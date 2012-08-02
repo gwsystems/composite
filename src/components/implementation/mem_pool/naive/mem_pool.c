@@ -12,8 +12,8 @@
 #include <cos_vect.h>
 #include <cos_synchronization.h>
 cos_lock_t pool_l;
-#define TAKE()  do { if (lock_take(&pool_l) != 0) BUG(); } while(0)
-#define RELEASE() do { if (lock_release(&pool_l) != 0) BUG() } while(0)
+#define TAKE()    do { if (unlikely(lock_take(&pool_l) != 0)) BUG(); }   while(0)
+#define RELEASE() do { if (unlikely(lock_release(&pool_l) != 0)) BUG() } while(0)
 #define LOCK_INIT()    lock_static_init(&pool_l);
 
 COS_VECT_CREATE_STATIC(page_descs_1);
