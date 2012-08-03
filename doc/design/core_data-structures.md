@@ -1,3 +1,2 @@
-![data structures](./data_structures.png)
+![data structures](http://www.seas.gwu.edu/~gparmer/data_structures.png)
 
-<img src="./data_structures.png">
