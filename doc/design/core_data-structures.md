@@ -1,1 +1,1 @@
-![data structures](data_structures.png)
+![data structures](./data_structures.png)
