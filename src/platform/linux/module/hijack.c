@@ -52,12 +52,7 @@ MODULE_LICENSE("GPL");
 extern void sysenter_interposition_entry(void);
 extern void page_fault_interposition(void);
 extern void div_fault_interposition(void);
-extern void state_inv_interposition(void);
-
-/* extern unsigned long cos_default_page_fault_handler; */
-/* extern unsigned long cos_default_div_fault_handler; */
-/* extern unsigned long cos_default_state_inv_handler; */
-//extern void *cos_sysenter_addr;
+extern void reg_save_interposition(void);
 
 /* 
  * This variable exists for the assembly code for temporary
@@ -960,7 +955,7 @@ cos_handle_page_fault(struct thread *thd, vaddr_t fault_addr,
 		      int ecode, struct pt_regs *regs)
 {
 	cos_record_fault_regs(thd, fault_addr, ecode, regs);
-	fault_ipc_invoke(thd, fault_addr, 0, regs, 0);
+	fault_ipc_invoke(thd, fault_addr, 0, regs, COS_FLT_PGFLT);
 		
 	return 0;
 }
@@ -1131,8 +1126,8 @@ int main_div_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	return 1;
 }
 
-__attribute__((regparm(3))) 
-int main_state_inv_interposition(struct pt_regs *rs, unsigned int error_code)
+__attribute__((regparm(3))) int
+main_reg_save_interposition(struct pt_regs *rs, unsigned int error_code)
 {
 	struct thread *t;
 	struct spd *s;
@@ -1144,7 +1139,6 @@ int main_state_inv_interposition(struct pt_regs *rs, unsigned int error_code)
 	/* The spd that was invoked should be the one faulting here
 	 * (must get stack) */
 	s = thd_curr_spd_noprint();
-	
 
 	return 0;
 }
@@ -2174,7 +2168,7 @@ static int asym_exec_dom_init(void)
 	hw_int_override_sysenter(sysenter_interposition_entry);
 	hw_int_override_pagefault(page_fault_interposition);
 	hw_int_override_idt(0, div_fault_interposition, 0, 0);
-	hw_int_override_idt(0xe9, state_inv_interposition, 0, 3);
+	hw_int_override_idt(0xe9, reg_save_interposition, 0, 3);
 
 	BUG_ON(offsetof(struct thread, regs) != 8);
 

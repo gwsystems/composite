@@ -59,7 +59,7 @@ cos_set_idt_entry(unsigned int n, unsigned dpl, unsigned ints_enabled,
 extern void *cos_default_page_fault_handler;
 void *cos_realloc_page_fault_handler;
 extern void *cos_default_div_fault_handler;
-extern void *cos_default_state_inv_handler;
+extern void *cos_default_reg_save_handler;
 
 /* 
  * This is really just a pain in the ass.  See 5-14 (spec Figure 5-1,
@@ -109,13 +109,13 @@ hw_int_init(void)
 		/* Yuck...we should simply use the array of saved handlers instead */
 		switch (i) {
 		case 0:
-			cos_default_div_fault_handler = did->handler;
+			cos_default_div_fault_handler  = did->handler;
 			break;
 		case 14:
 			cos_default_page_fault_handler = did->handler;
 			break;
 		case 0xe9:
-			cos_default_state_inv_handler = did->handler;
+			cos_default_reg_save_handler   = did->handler;
 			break;
 		};
 	}

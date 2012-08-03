@@ -622,7 +622,7 @@ int spd_cap_set_fault_handler(struct spd *spd, int cap, int handler_num)
 {
 	int abs;
 	
-	if (handler_num >= COS_NUM_FAULTS) return -1;
+	if (handler_num >= COS_FLT_MAX || handler_num < 0) return -1;
 	abs = spd_get_cap_off(spd, cap);
 	if (abs == -1) return -1;
 	spd->fault_handler[handler_num] = abs;

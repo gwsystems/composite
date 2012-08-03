@@ -165,7 +165,8 @@ struct spd {
 	struct spd_poly /*composite_spd*/ *composite_spd; 
 	
 	unsigned short int cap_base, cap_range;
-	unsigned short int fault_handler[COS_NUM_FAULTS];
+	/* numbered faults correspond to which capability? */
+	unsigned short int fault_handler[COS_FLT_MAX];
 	/*
 	 * user_cap_tbl is a pointer to the virtual address within the
 	 * kernel address space of the user level capability table,

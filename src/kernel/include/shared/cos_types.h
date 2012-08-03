@@ -460,6 +460,24 @@ enum {
 	COS_PFN_MAX_MEM
 };
 
+/* 
+ * Fault and fault handler information.  Fault indices/identifiers and
+ * the function names to handle them.
+ */
+typedef enum {
+	COS_FLT_PGFLT,
+	COS_FLT_DIVZERO,
+	COS_FLT_BRKPT,
+	COS_FLT_OVERFLOW,
+	COS_FLT_RANGE,
+	COS_FLT_GEN_PROT,
+	/* software defined: */
+	COS_FLT_LINUX,
+	COS_FLT_SAVE_REGS,
+	COS_FLT_FLT_NOTIF,
+	COS_FLT_MAX
+} cos_flt_off; /* <- this indexes into cos_flt_handlers in the loader */
+
 #define IL_INV_UNMAP (0x1) // when invoking, should we be unmapped?
 #define IL_RET_UNMAP (0x2) // when returning, should we unmap?
 #define MAX_ISOLATION_LVL_VAL (IL_INV_UNMAP|IL_RET_UNMAP)

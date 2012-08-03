@@ -94,15 +94,31 @@ const char *ATOMIC_USER_DEF[NUM_ATOMIC_SYMBS] =
 #define CAP_SERVER_STUB_POSTPEND "_inv"
 
 const char *SCHED_CREATE_FN = "sched_init";
-const char *fault_handlers[] = {"fault_page_fault_handler", NULL};
+
+/* 
+ * See cos_types.h for the numerical identifiers of each of these
+ * fault handlers.
+ */
+static const char *
+cos_flt_handlers[COS_FLT_MAX] = {
+	"fault_page_fault_handler", 
+	"fault_div_zero_handler",
+	"fault_brkpt_handler",
+	"fault_overflow_handler",
+	"fault_range_handler",
+	"fault_gen_prot_handler",
+	"fault_linux_handler",
+	"fault_save_regs_handler",
+	"fault_flt_notif_handler"
+};
 
 static inline int 
 fault_handler_num(char *fn_name)
 {
 	int i;
 
-	for (i = 0 ; fault_handlers[i] ; i++) {
-		if (!strcmp(fault_handlers[i], fn_name)) return i;
+	for (i = 0 ; i < COS_FLT_MAX ; i++) {
+		if (!strcmp(cos_flt_handlers[i], fn_name)) return i;
 	}
 	return -1;
 }

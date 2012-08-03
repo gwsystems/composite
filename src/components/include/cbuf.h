@@ -35,6 +35,14 @@ extern cos_lock_t cbuf_lock;
 //#define CBUF_RELEASE()
 
 /* 
+ * Naming scheme: The cbuf_* functions are transient memory
+ * allocations -- their lifetime must match an invocation.  The
+ * cbufp_* functions are persistent cbufs that can have any lifetime
+ * (but that don't come with a guarantee about bounded access, thus
+ * predictable sharing of the buffer).
+ */
+
+/* 
  * Shared buffer management for Composite.
  *
  * A delicate dance between cbuf structures.  There are a number of
@@ -154,9 +162,25 @@ typedef u32_t cbuf_t; /* Requirement: gcc will return this in a register */
 typedef union {
 	cbuf_t v;
 	struct {
-		u32_t id:20, len:12; /* cbuf id and its maximum length */
+		/* 
+		 * cbuf id, its maximum length or 0 if length is
+		 * passed using another mechanism, aggregate = 1 if
+		 * this cbuf holds an array of other cbufs, and tmem =
+		 * 1 if this buffer is transient memory.
+		 */
+		u32_t id:20, len:10, aggregate: 1, tmem: 1; 
 	} __attribute__((packed)) c;
 } cbuf_unpacked_t;
+
+/* TODO: use these! */
+struct cbuf_agg_elem {
+	cbuf_t id;
+	u32_t offset, len;
+};
+struct cbuf_agg {
+	int ncbufs;
+	struct cbuf_agg_elem elem[0];
+};
 
 static inline void 
 cbuf_unpack(cbuf_t cb, u32_t *cbid, u32_t *len) 
@@ -165,7 +189,7 @@ cbuf_unpack(cbuf_t cb, u32_t *cbid, u32_t *len)
 	
 	cu.v  = cb;
 	*cbid = cu.c.id;
-	*len  = (u32_t)cu.c.len;
+	*len  = cu.c.len;
 	return;
 }
 
@@ -181,8 +205,8 @@ cbuf_cons(u32_t cbid, u32_t len)
 static inline cbuf_t cbuf_null(void)      { return 0; }
 static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
 
-extern struct cbuf_alloc_desc *__cbuf_alloc_slow(int size, int *len);
-extern int __cbuf_2buf_miss(int cbid, int len);
+extern struct cbuf_alloc_desc *__cbuf_alloc_slow(int size, int *len, int tmem);
+extern int __cbuf_2buf_miss(int cbid, int len, int tmem);
 extern void __cbuf_desc_free(struct cbuf_alloc_desc *d);
 extern cvect_t meta_cbuf;
 
@@ -192,7 +216,7 @@ extern cvect_t meta_cbuf;
  * this function to map the cbuf_t to the actual buffer.
  */
 static inline void * 
-cbuf2buf(cbuf_t cb, int len)
+__cbuf2buf(cbuf_t cb, int len, int tmem)
 {
 	int sz;
 	u32_t id;
@@ -209,14 +233,14 @@ again:
 	do {
 		cm = cbuf_vect_lookup_addr(&meta_cbuf, cbidx);
 		if (unlikely(!cm || cm->nfo.v == 0)) {
-			if (__cbuf_2buf_miss(id, len)) goto done;
+			if (__cbuf_2buf_miss(id, len, tmem)) goto done;
 			goto again;
 		}
 	} while (unlikely(!cm->nfo.v));
 	ci.v = cm->nfo.v;
 
 	/* if (unlikely(cm->sz && (((int)cm->sz)<<PAGE_ORDER) < len)) goto done; */
-	/* ci_new.v     = ci.v; */
+	/* ci_new.v       = ci.v; */
 	/* ci_new.c.flags = ci.c.flags | CBUFM_RECVED | CBUFM_IN_USE; */
 	/* if (unlikely(!cos_cas((unsigned long *)&cm->nfo.v,  */
 	/* 		      (unsigned long)   ci.v,  */
@@ -227,6 +251,11 @@ done:
 	assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 	return ret;
 }
+
+static inline void *
+cbuf2buf(cbuf_t cb, int len) { return __cbuf2buf(cb, len, 1); }
+static inline void *
+cbufp2buf(cbuf_t cb, int len) { return __cbuf2buf(cb, len, 0); }
 
 extern cvect_t alloc_descs; 
 struct cbuf_alloc_desc {
@@ -256,7 +285,7 @@ __cbuf_alloc_meta_inconsistent(struct cbuf_alloc_desc *d, struct cbuf_meta *m)
 }
 
 static inline void *
-cbuf_alloc(unsigned int sz, cbuf_t *cb)
+__cbuf_alloc(unsigned int sz, cbuf_t *cb, int tmem)
 {
 	void *ret;
 	struct cbuf_alloc_desc *d;
@@ -268,17 +297,20 @@ cbuf_alloc(unsigned int sz, cbuf_t *cb)
 again:
 	d = FIRST_LIST(&cbuf_alloc_freelists, next, prev);
 	if (unlikely(EMPTY_LIST(d, next, prev))) {
-		d    = __cbuf_alloc_slow(sz, &len);
+		d    = __cbuf_alloc_slow(sz, &len, tmem);
 		assert(d);
 		ret  = d->addr;
 		cbid = d->cbid;
 		goto done;
-		//TODO: check if this cbuf has been taken by another thd already.
-		// shall we add this cbuf to the freelist and just continue?
+		/*
+		 * TODO: check if this cbuf has been taken by another
+		 * thd already.  shall we add this cbuf to the
+		 * freelist and just continue?
+		 */
 	} 
-	cbid  = d->cbid;
 	REM_LIST(d, next, prev);
 	assert(EMPTY_LIST(d, next, prev));
+	cbid  = d->cbid;
 	assert(cbid);
 	cbidx            = cbid_to_meta_idx(cbid);
 	cm               = cbuf_vect_lookup_addr(&meta_cbuf, cbidx);
@@ -341,7 +373,7 @@ again:
 		goto again;
 	}
 
-	cm->thdid_owner = cos_get_thd_id();
+	cm->owner_nfo.thdid = cos_get_thd_id();
 	cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]--;
 	ret = (void*)(cm->nfo.c.ptr << PAGE_ORDER);
 done:
@@ -351,8 +383,13 @@ done:
 	return ret;
 }
 
+static inline void *
+cbuf_alloc(unsigned int sz, cbuf_t *cb) { return __cbuf_alloc(sz, cb, 1); }
+static inline void *
+cbufp_alloc(unsigned int sz, cbuf_t *cb)  { return __cbuf_alloc(sz, cb, 0); }
+
 static inline void
-cbuf_free(void *buf)
+__cbuf_free(void *buf, int tmem)
 {
 	u32_t idx = ((u32_t)buf) >> PAGE_ORDER;
 	struct cbuf_alloc_desc *d, *fl;
@@ -370,7 +407,7 @@ cbuf_free(void *buf)
 	ADD_LIST(fl, d, next, prev);
 	/* do this last, so that we can guarantee the manager will not steal the cbuf before now... */
 	cm->nfo.c.flags &= ~CBUFM_IN_USE;
-	cm->thdid_owner = 0;
+	cm->owner_nfo.thdid = 0;
 	cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]++;
 	CBUF_RELEASE();
 
@@ -381,6 +418,11 @@ cbuf_free(void *buf)
 		return;
 	} 
 }
+
+static inline void
+cbuf_free(void *buf) { __cbuf_free(buf, 1); }
+static inline void
+cbufp_free(void *buf) { __cbuf_free(buf, 0); }
 
 /* Is it a cbuf?  If so, what's its id? */
 static inline int 

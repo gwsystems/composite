@@ -38,6 +38,7 @@ CBUF_VECT_CREATE_STATIC(meta_cbuf);
 CVECT_CREATE_STATIC(alloc_descs);
 //struct cbuf_slab_freelist alloc_freelists[N_CBUF_SLABS];
 struct cbuf_alloc_desc cbuf_alloc_freelists = {.next = &cbuf_alloc_freelists, .prev = &cbuf_alloc_freelists, .addr = NULL};
+struct cbuf_alloc_desc cbufp_alloc_freelists = {.next = &cbufp_alloc_freelists, .prev = &cbufp_alloc_freelists, .addr = NULL};
 
 /*** Manage the cbuf allocation descriptors and freelists  ***/
 
@@ -95,7 +96,7 @@ __cbuf_desc_free(struct cbuf_alloc_desc *d)
  * had a miss.
  */
 int 
-__cbuf_2buf_miss(int cbid, int len)
+__cbuf_2buf_miss(int cbid, int len, int tmem)
 {
 	struct cbuf_meta *mc;
 	void *h;
@@ -115,9 +116,9 @@ __cbuf_2buf_miss(int cbid, int len)
 		mc = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
 		assert(mc);
 	}
-	mc->nfo.c.ptr   = (long)h >> PAGE_ORDER;
-	mc->sz          = len;
-	mc->thdid_owner = cos_get_thd_id();
+	mc->nfo.c.ptr       = (long)h >> PAGE_ORDER;
+	mc->sz              = len;
+	if (tmem) mc->owner_nfo.thdid = cos_get_thd_id();
 
 	return 0;
 }
@@ -126,7 +127,7 @@ __cbuf_2buf_miss(int cbid, int len)
  * Precondition: cbuf lock is taken.
  */
 struct cbuf_alloc_desc *
-__cbuf_alloc_slow(int size, int *len)
+__cbuf_alloc_slow(int size, int *len, int tmem)
 {
 	struct cbuf_alloc_desc *d_prev, *ret = NULL;
 	struct cbuf_meta *cm;
@@ -146,7 +147,7 @@ __cbuf_alloc_slow(int size, int *len)
 	} while (cbid < 0);
 	cm   = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
 	assert(cm->nfo.c.flags & CBUFM_IN_USE);
-	assert(cm->thdid_owner);
+	assert(cm->owner_nfo.thdid);
 	addr = (void*)(cm->nfo.c.ptr << PAGE_ORDER);
 	assert(addr);
 	/* 

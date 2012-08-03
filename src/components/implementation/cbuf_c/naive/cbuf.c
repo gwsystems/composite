@@ -129,7 +129,7 @@ mgr_remove_client_mem(struct spd_tmem_info *sti, struct cos_cbuf_item *cci)
 	cos_map_del(&cb_ids, cci->desc.cbid);
 	DOUT("fly..........cbid is %d\n", cci->desc.cbid);
 
-	cci->desc.cbid = 0;
+	cci->desc.cbid    = 0;
 	cci->parent_spdid = 0;
 
 	// Clear our memory to prevent leakage
@@ -196,7 +196,7 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_cbuf)
 
 	cm.nfo.v = cci->entry->nfo.v;			
 
-	ret = (u32_t)cci->entry->thdid_owner;
+	ret = (u32_t)cci->entry->owner_nfo.thdid;
 
 	if (!CBUF_IN_USE(cm.nfo.c.flags)) goto cache;
 	if (ret == cos_get_thd_id()){
@@ -278,7 +278,7 @@ __spd_cbvect_clean_val(struct spd_tmem_info *sti, long cbuf_id)
 	     cbr = FIRST_LIST(cbr, next, prev)) {
 		if (cbuf_id >= cbr->start_id && cbuf_id <= cbr->end_id) {
 			cbr->meta[CB_IDX(cbuf_id, cbr)].nfo.v = (u32_t)COS_VECT_INIT_VAL;
-			cbr->meta[CB_IDX(cbuf_id, cbr)].thdid_owner = (u32_t)COS_VECT_INIT_VAL;
+			cbr->meta[CB_IDX(cbuf_id, cbr)].owner_nfo.thdid = (u32_t)COS_VECT_INIT_VAL;
 			break;
 		}
 	}
@@ -333,7 +333,6 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	struct spd_tmem_info *sti;
 	struct cos_cbuf_item *cbuf_item;
 	struct cb_desc *d;
-
 	struct cbuf_meta *mc = NULL;
 
 	/* DOUT("thd: %d spd: %d cbuf_c_create is called here!!\n", cos_get_thd_id(), spdid); */
@@ -395,8 +394,8 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 
 	mc->nfo.c.ptr       = d->owner.addr >> PAGE_ORDER;
 	/* Crap solution to get rid of a compiler warning... */
-	mc->sz          = PAGE_SIZE; 	/* one page */
-	mc->thdid_owner = cos_get_thd_id();
+	mc->sz              = PAGE_SIZE; 	/* one page */
+	mc->owner_nfo.thdid = cos_get_thd_id();
 	mc->nfo.c.flags    |= CBUFM_IN_USE | CBUFM_TOUCHED;
 done:
 	RELEASE();
