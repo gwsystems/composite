@@ -14,7 +14,7 @@
    id="svg2"
    version="1.1"
    inkscape:version="0.47 r22583"
-   sodipodi:docname="data_structures.svg">
+   sodipodi:docname="data_structures.png">
   <defs
      id="defs4">
     <marker
@@ -489,13 +489,13 @@
     <text
        xml:space="preserve"
        style="font-size:12px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
-       x="80"
-       y="67.362183"
+       x="41.5"
+       y="67.335114"
        id="text7454"><tspan
          sodipodi:role="line"
          id="tspan7456"
-         x="80"
-         y="67.362183">usr_inv_cap</tspan></text>
+         x="41.5"
+         y="67.335114">usr_inv_cap</tspan></text>
     <path
        transform="translate(160,0)"
        sodipodi:type="arc"
@@ -546,5 +546,65 @@
        style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#Arrow1Mend)"
        d="M 260,172.36218 290,82.362183"
        id="path8319" />
+    <text
+       xml:space="preserve"
+       style="font-size:12px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="139.5"
+       y="41.335114"
+       id="text8568"><tspan
+         sodipodi:role="line"
+         id="tspan8570"
+         x="139.5"
+         y="41.335114">fn_stub</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:12px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="213.5"
+       y="41.335114"
+       id="text8572"><tspan
+         sodipodi:role="line"
+         id="tspan8574"
+         x="213.5"
+         y="41.335114">fn_stub</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:12px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="323.5"
+       y="41.335114"
+       id="text8576"><tspan
+         sodipodi:role="line"
+         id="tspan8578"
+         x="323.5"
+         y="41.335114">fn</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#Arrow1Mend)"
+       d="m 110,155.47293 10,0 0,-40"
+       id="path8580"
+       transform="translate(29.5,-68.137817)" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#Arrow1Mend)"
+       d="m 140,115.47293 0,100 60,0 0,-100"
+       id="path8766"
+       transform="translate(29.5,-68.137817)" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#Arrow1Mend)"
+       d="m 230,105.47293 60,0"
+       id="path8952"
+       transform="translate(29.5,-68.137817)" />
+    <text
+       xml:space="preserve"
+       style="font-size:12px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="99.5"
+       y="7.335114"
+       id="text9138"><tspan
+         sodipodi:role="line"
+         id="tspan9140"
+         x="99.5"
+         y="7.335114">main</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#Arrow1Mend)"
+       d="m 90,85.472931 0,49.999999"
+       id="path9142"
+       transform="translate(29.5,-68.137817)" />
   </g>
 </svg>
