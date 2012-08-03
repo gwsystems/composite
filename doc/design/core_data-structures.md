@@ -1,1 +1,1 @@
-![data structures](data_structures.svg)
+![data structures](data_structures.png)
