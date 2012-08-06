@@ -240,14 +240,15 @@ static int is_hl_booter_loaded(struct service_symbs *s)
 }
 
 static inline trans_cap_t
-is_transparent_capability(struct symb *s) {
+is_transparent_capability(struct symb *s, int *fltn) {
 	char *n = s->name;
-	
+	*fltn = 0;
+
 	if (s->modifier_offset) {
 		printf("%s -> %s.\n", n, n+s->modifier_offset);
 	}
 	if (!strcmp(n, SCHED_CREATE_FN)) return TRANS_CAP_SCHED;
-	if (-1 != fault_handler_num(n + s->modifier_offset))  return TRANS_CAP_FAULT;
+	if (-1 != (*fltn = fault_handler_num(n + s->modifier_offset)))  return TRANS_CAP_FAULT;
 	return TRANS_CAP_NIL;
 }
 
@@ -1241,9 +1242,11 @@ struct service_symbs *find_symbol_exporter_mark_resolved(struct symb *s,
 static int 
 create_transparent_capabilities(struct service_symbs *service)
 {
-	int i, j, fault_found = 0, other_found = 0;
+	int i, j, fault_found[COS_FLT_MAX], other_found = 0;
 	struct dependency *dep = service->dependencies;
 	
+	memset(fault_found, 0, sizeof(int) * COS_FLT_MAX);
+
 	for (i = 0 ; i < service->num_dependencies ; i++) {
 		struct symb_type *symbs = &dep[i].dep->exported;
 		char *modifier = dep[i].modifier;
@@ -1251,11 +1254,13 @@ create_transparent_capabilities(struct service_symbs *service)
 
 		for (j = 0 ; j < symbs->num_symbs ; j++) {
 			trans_cap_t r;
-			r = is_transparent_capability(&symbs->symbs[j]);
+			int fltn;
+
+			r = is_transparent_capability(&symbs->symbs[j], &fltn);
 			switch (r) {
 			case TRANS_CAP_FAULT: 
-				if (fault_found) break;
-				fault_found = 1;
+				if (fault_found[fltn]) break;
+				fault_found[fltn] = 1;
 			case TRANS_CAP_SCHED: 
 			{
 				struct symb_type *st;
