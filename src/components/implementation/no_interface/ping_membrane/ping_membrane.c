@@ -4,7 +4,7 @@
 #include <sched.h>
 #include <membrane.h>
  
-#define ITER (10240)
+#define ITER (1024*128)
 u64_t meas[ITER];
 
 void cos_init(void)

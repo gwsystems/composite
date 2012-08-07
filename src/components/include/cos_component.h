@@ -221,6 +221,9 @@ static inline long get_stk_data(int offset)
 
 static inline long cos_cpuid(void)
 {
+#if NUM_CPU == 1
+	return 0;
+#endif
 	/* 
 	 * see comments in the get_stk_data above.
 	 */

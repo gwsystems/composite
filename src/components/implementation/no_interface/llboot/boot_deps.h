@@ -296,7 +296,7 @@ boot_deps_run_all(void)
 void 
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
-	/* printc("core %ld: <<cos_upcall_fn as %d (type %d, CREATE=%d, DESTROY=%d, FAULT=%d)>>\n",  */
+	/* printc("core %ld: <<cos_upcall_fn as %d (type %d, CREATE=%d, DESTROY=%d, FAULT=%d)>>\n", */
 	/*        cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT); */
 	switch (t) {
 	case COS_UPCALL_CREATE:

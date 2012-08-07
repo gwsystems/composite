@@ -151,7 +151,6 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 
 	/* what spd are we in (what stack frame)? */
 	curr_frame = &thd->stack_base[thd->stack_ptr];
-
 	dest_spd = cap_entry->destination;
 	curr_spd = cap_entry->owner;
 
@@ -159,7 +158,6 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 		printk("cos: Attempted use of unallocated capability.\n");
 		return 0;
 	}
-
 	/*
 	 * If the spd that owns this capability is part of a composite
 	 * spd that is the same as the composite spd that was the
@@ -185,7 +183,6 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 		 */
 		return 0;
 	}
-	
 	/* now we are committing to the invocation */
 	cos_meas_event(COS_MEAS_INVOCATIONS);
 

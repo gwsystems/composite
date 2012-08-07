@@ -1072,7 +1072,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	int ret = 1;
 
 	fault_addr = read_cr2();
-
+	
 	if (fault_addr > KERN_BASE_ADDR) goto linux_handler;
 
 	/* 
@@ -2268,8 +2268,10 @@ static int asym_exec_dom_init(void)
 
 	hw_init_CPU();
 
+#if NUM_CPU > 1
 	/* Init all the other cores. */
 	smp_call_function(hw_init_other_cores, NULL, 1);
+#endif
 
 	BUG_ON(offsetof(struct thread, regs) != 8);
 

@@ -28,8 +28,13 @@ struct inv_data {
 
 volatile struct inv_data inv;
 
+#define NO_MEMBRAIN
+
 int server_receive(void)
 {
+#ifdef NO_MEMBRAIN
+	return 0;
+#endif	
 	printc("Core %ld: membrane waiting...\n", cos_cpuid());
 
 	while (1) {//keep spinning on shmem.
@@ -46,8 +51,6 @@ int server_receive(void)
 
 	return 0;
 }
-
-#define NO_MEMBRAIN
 
 int call_server(int p1, int p2, int p3, int p4)
 {

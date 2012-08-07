@@ -1657,7 +1657,7 @@ sched_init_create_threads(int boot_threads)
 
 	/* create the idle thread */
 	per_core_sched_base[cos_cpuid()].idle = sched_setup_thread_arg(&sp, fp_idle_loop, NULL, 1);
-	printc("(Core %ld) Idle thread has id %d with priority %s.\n", cos_cpuid(), per_core_sched_base[cos_cpuid()].idle->id, "i");
+	printc("Core %ld: Idle thread has id %d with priority %s.\n", cos_cpuid(), per_core_sched_base[cos_cpuid()].idle->id, "i");
 
 	if (!boot_threads) return;
 

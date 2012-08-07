@@ -2,7 +2,7 @@
 #define COS_CONFIG_H
 
 #include "cpu_ghz.h"
-#define NUM_CPU 5
+#define NUM_CPU 1
 #define INIT_CORE 0
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 

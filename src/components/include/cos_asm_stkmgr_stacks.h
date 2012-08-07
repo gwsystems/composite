@@ -48,6 +48,7 @@
         movl %edx, %eax;			\
         /* get stk space */                     \
         movl $stkmgr_stack_space, %esp;         \
+	andl $0xffff, %eax;			\
         shl  $7, %eax;                          \
         addl %eax, %esp;                        \
                                                 \
@@ -57,6 +58,7 @@
         pushl %edi;                             \
         pushl %ebx;                             \
         pushl %ecx;                             \
+	pushl %edx;				\
                                                 \
         /* Call Stkmgr */                       \
         pushl %ecx;                             \
@@ -66,17 +68,18 @@
         /* addl $0x4, %eax; */                  \
                                                 \
         /*restore stack */                      \
+	popl %edx;				\
         popl %ecx;                              \
         popl %ebx;                              \
         popl %edi;                              \
         popl %esi;                              \
         popl %ebp;                              \
-        /*movl %esp, %eax;*/                    \
 						\
         /* movl  %eax, %esp; */                 \
 	/* restore Thd_id in eax */		\
-	movl $THD_ID_SHARED_PAGE, %edx;		\
-        movl (%edx), %eax;	                \
+	/* movl $THD_ID_SHARED_PAGE, %edx; */	\
+        /* movl (%edx), %eax; */		\
+	movl %edx, %eax;			\
 	jmp  1b;                                
 
 #define COS_ASM_RET_STACK                       \
@@ -85,7 +88,6 @@
 	movl $0x0, 8(%esp);			\
 						\
         /* Put back on free list */             \
-        /* FIXME: race! */			\
 	movl %eax, %ebx;			\
 9:						\
         movl cos_comp_info, %eax;               \

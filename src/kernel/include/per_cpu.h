@@ -38,7 +38,6 @@ cos_cas(unsigned long *target, unsigned long cmp, unsigned long updated)
 }
 
 /* TODO: put this in platform specific directory */
-#define THREAD_SIZE_LINUX 8192	/* put in include/shared/consts.h */
 static inline unsigned long *
 get_linux_thread_info(void)
 {
@@ -50,6 +49,9 @@ get_linux_thread_info(void)
 static inline u32_t
 get_cpuid(void)
 {
+#if NUM_CPU == 1
+	return 0;
+#endif
 	/* Linux saves the CPU_ID in the stack for fast access. */
 	return *(get_linux_thread_info() + CPUID_OFFSET_IN_THREAD_INFO);
 }

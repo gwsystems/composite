@@ -224,7 +224,7 @@ struct restartable_atomic_sequence {
 struct usr_inv_cap {
 	vaddr_t invocation_fn, service_entry_inst;
 	unsigned int invocation_count, cap_no;
-} HALF_CACHE_ALIGNED; 
+} __attribute__((aligned(16))); 
 
 #define COMP_INFO_POLY_NUM 10
 #define COMP_INFO_INIT_STR_LEN 128

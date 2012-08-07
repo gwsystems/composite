@@ -2710,15 +2710,14 @@ static void setup_kernel(struct service_symbs *services)
 
 	/* This will hopefully avoid hugely annoying fsck runs */
 	sync();
-
 	cos_create_thd(cntl_fd, &thd);
-	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
 
+	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
 	/* We call fn to init the low level booter first! Init
 	 * function will return to here and create processes for other
 	 * cores. */
 	fn();
-
+	pid = getpid();
 	for (i = 1; i < NUM_CPU - 1; i++) {
 		printf("Parent(pid %d): forking for core %d.\n", getpid(), i);
 		cpuid = i;
