@@ -4,31 +4,117 @@
 #include <assert.h>
 
 #define LINUX_TEST
+#define CVECTC_STATS
 #include <cvect_compressed.h>
 
-#define NTESTS 1024
-#define RANGE  (1<<16)
+#define NTESTS (1<<13)
+#define RANGE  (1<<30)
+#define OUTPUT (1<<10)
 
 struct cvectc static_vect;
+long ids[NTESTS];
+void print(struct cvectc *s);
 
-struct pair {
-	long id;
-	void *val;
-};
-
-int in_pairs(struct pair *ps, int len, long id)
+int
+in_pairs(int nid)
 {
-	for (; len >= 0 ; len--) {
-		if (ps[len].id == id) return 1;
+	int i;
+
+	if (nid == 0) return 1;
+	for (i = 0 ; i < NTESTS ; i++) {
+		if (ids[i] == (long)nid) return 1;
 	}
 	return 0;
 }
 
-/* I separate this out so that we can easily confirm that the compiler
- * is doing the proper optimizations. */
-void *do_lookups(struct pair *ps, struct cvectc *v)
+static void
+__s(struct cvcentry *e, int size, int depth, int *tot, int *n, int *max)
 {
-	return cvectc_lookup(v, ps->id);
+	int i;
+
+	for (i = 0 ; i < size ; i++) {
+		struct cvcentry *new = &e[i];
+
+		if (__cvc_isleaf(new) && __cvc_ispresent(__cvc_leaf(new))) {
+			*tot += depth;
+			(*n)++;
+			if (*max < depth) *max = depth;
+		}
+
+		else if (!__cvc_isleaf(new)) {
+			struct cvcdir *d = __cvc_dir(new);
+			assert(d->next);
+			__s(d->next, __cvectc_size(d), depth+1, tot, n, max);
+		}
+	}
+}
+
+static void 
+ps(void)
+{
+	int tot, n, max;
+
+	tot = n = max = 0;
+	__s(static_vect.d.e.d.next, __cvectc_size(__cvc_dir(&static_vect.d)), 1, &tot, &n, &max);
+	if (!n) printf("No data\n");
+	else    printf("Average depth %d, max %d\n", tot/n, max);
+}
+
+#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
+
+void
+rand_test(void)
+{
+	int i, j;
+	unsigned long long start, end;
+
+	printf("Incremental tests:\n");
+	/* Incremental identifiers between 0 and NTESTS (best case) */
+	for (i = 1 ; i < NTESTS ; i++) {
+		assert(!cvectc_add(&static_vect, (void *)i, i));
+//		print(&static_vect);
+		if (((i+1) % OUTPUT) == 0) { cvectc_stats(); ps(); }
+	}
+	cvectc_stats();
+	rdtscll(start);
+	for (i = 1 ; i < NTESTS ; i++) {
+		assert(cvectc_lookup(&static_vect, i) == (void *)i);
+	}
+	rdtscll(end);
+	printf("lookup cost: %lld\n", (end-start)/(NTESTS-1));
+	for (i = 1 ; i < NTESTS ; i++) {
+		cvectc_del(&static_vect, i);
+		if (((i+1) % OUTPUT) == 0) { cvectc_stats(); ps(); }
+	}
+
+	printf("\nRandom tests:\n");
+	/* Random identifiers between 0 and RANGE (2^16) (worst case) */
+	for (j = 0 ; j < 2 ; j++) {
+		for (i = 0 ; i < NTESTS ; i++) {
+			int id;
+			do { id = rand() % RANGE; } while (in_pairs(id));
+			ids[i]  = id;
+			assert(!cvectc_add(&static_vect, (void *)id, id));
+			if (((i+1) % OUTPUT) == 0) { cvectc_stats(); ps(); }
+		}
+		
+		rdtscll(start);
+		for (i = 0 ; i < NTESTS ; i++) {
+			assert(cvectc_lookup(&static_vect, ids[i]) == (void *)ids[i]);
+		}
+		rdtscll(end);
+		cvectc_stats();
+		printf("lookup cost: %lld\n", (end-start)/NTESTS);
+		for (i = 0 ; i < NTESTS ; i++) {
+			cvectc_del(&static_vect, ids[i]);
+			if (((i+1) % OUTPUT) == 0) { cvectc_stats(); ps(); }
+					
+		}
+		for (i = 0 ; i < NTESTS ; i++) {
+			assert((void*)CVECTC_INIT_VAL == cvectc_lookup(&static_vect, ids[i]));
+		}
+		cvectc_stats();
+	}
 }
 
 struct node {
@@ -41,13 +127,13 @@ void
 print(struct cvectc *s)
 {
 	struct node *n = malloc(sizeof(struct node));
-	static int cnt = 0;
+	int cnt = 0;
 	assert(n);
 	
 	n->e      = &s->d;
 	n->next   = NULL;
 	n->prev   = NULL;
-	n->size   = CVECTC_MIN_ENTRIES;
+	n->size   = __cvectc_size(__cvc_dir(&s->d));
 	n->parent = -1;
 	n->id     = cnt++;
 	n->lvl    = 0;
@@ -58,7 +144,6 @@ print(struct cvectc *s)
 		int i;
 		struct cvcentry *e;
 
-		printf("*\n");
 		n     = start;
 		start = n->next;
 		if (n == end)   end   = NULL;
@@ -67,19 +152,19 @@ print(struct cvectc *s)
 		
 		if (__cvc_isleaf(e)) {
 			struct cvcleaf *l = __cvc_leaf(e);
-			printf("[l:%3d, p:%3d, n:%3d](k:%d->v:%d)\n", 
-			       n->lvl, n->parent, n->id, l->id, (unsigned int)l->val);
+			printf("[l:%3d @ %p, p:%3d, n:%3d](k:%d->v:%d)\n", 
+			       n->lvl, n->e, n->parent, n->id, l->id, (unsigned int)l->val);
 		} else {
 			struct cvcdir *d = __cvc_dir(e);
 
-			printf("[l:%3d, p:%3d, n:%3d](ignore %d)\n",
-			       n->lvl, n->parent, n->id, d->ignore);
+			printf("[l:%3d @ %p, p:%3d, n:%3d](ignore %d)\n",
+			       n->lvl, n->e, n->parent, n->id, d->ignore);
 			for (i = 0 ; i < n->size ; i++) {
 				struct node *new;
 				struct cvcleaf *l;
 
 				/* don't print empty entries */
-				if (__cvc_leaf(&d->next[i])) {
+				if (__cvc_isleaf(&d->next[i])) {
 					l = __cvc_leaf(&d->next[i]);
 					if (!l->id) continue;
 				}
@@ -92,7 +177,7 @@ print(struct cvectc *s)
 				end         = new;
 				if (!start) start = new;
 				/* FIXME...use real size */
-				new->size   = CVECTC_MIN_ENTRIES; 
+				new->size   = __cvectc_size(__cvc_dir(&d->next[i])); 
 				new->parent = n->id;
 				new->id     = cnt++;
 				new->lvl    = n->lvl+1;
@@ -104,11 +189,16 @@ print(struct cvectc *s)
 	return;
 }
 
+void 
+add(int i)
+{
+	assert(cvectc_add(&static_vect, (void*)i, i) >= 0);
+	print(&static_vect);
+	cvectc_lookup(&static_vect, i);
+}
+
 int main(void)
 {
-//	struct pair pairs[NTESTS];
-//	int i;
-
 	assert( __cvectc_prefix_match(0xF0F00000, 0xF00F0000, 8));
 	assert( __cvectc_prefix_match(0xF0F00000, 0xF0F00000, 32));
 	assert( __cvectc_prefix_match(0xF0F00000, 0xF0F00001, 31));
@@ -121,42 +211,16 @@ int main(void)
 
 	cvectc_init(&static_vect);
 
-	assert(cvectc_add(&static_vect, (void*)1, 1) >= 0);
-	print(&static_vect);
-	cvectc_lookup(&static_vect, 1);
-	assert(cvectc_add(&static_vect, (void*)2, 2) >= 0);
-	print(&static_vect);
-	cvectc_lookup(&static_vect, 2);
-	assert(cvectc_add(&static_vect, (void*)3, 3) >= 0);
-	print(&static_vect);
-	cvectc_lookup(&static_vect, 3);
-	assert(cvectc_add(&static_vect, (void*)4, 4) >= 0);
-	print(&static_vect);
-	cvectc_lookup(&static_vect, 4);
+	/* add(1); */
+	/* add(2); */
+	/* add(3); */
+	/* add(7); */
+	/* add(6); */
+	/* add(8); */
+	/* add(9); */
+	/* add(100); */
 
-	print(&static_vect);
+	rand_test();
 
-	printf("%p %p %p %p\n",
-	       cvectc_lookup(&static_vect, 1),
-	       cvectc_lookup(&static_vect, 2),
-	       cvectc_lookup(&static_vect, 3),
-	       cvectc_lookup(&static_vect, 4));
-
-	
-
-	/* for (i = 0 ; i < NTESTS ; i++) { */
-	/* 	do { */
-	/* 		pairs[i].id = rand() % RANGE; */
-	/* 	} while (in_pairs(pairs, i-1, pairs[i].id)); */
-	/* 	pairs[i].val = malloc(10); */
-	/* 	assert(!cvect_add_id(&static_vect, pairs[i].val, pairs[i].id)); */
-	/* } */
-	/* for (i = 0 ; i < NTESTS ; i++) { */
-	/* 	assert(do_lookups(&pairs[i], &static_vect) == pairs[i].val); */
-	/* } */
-	/* for (i = 0 ; i < NTESTS ; i++) { */
-	/* 	assert(!cvect_del(&static_vect, pairs[i].id)); */
-	/* } */
-	
 	return 0;
 }
