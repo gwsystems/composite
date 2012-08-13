@@ -28,10 +28,16 @@ in_pairs(int nid)
 }
 
 static void
-__s(struct cvcentry *e, int size, int depth, int *tot, int *n, int *max)
+__s(struct cvcentry *e, int size, int depth, 
+    int *tot, int *n, int *max, int *etot, int *en, int *emax)
 {
 	int i;
 
+	if (!__cvc_isleaf(e)) {
+		*etot += size;
+		(*en)++;
+		if (size > *emax) *emax = size;
+	}
 	for (i = 0 ; i < size ; i++) {
 		struct cvcentry *new = &e[i];
 
@@ -39,12 +45,10 @@ __s(struct cvcentry *e, int size, int depth, int *tot, int *n, int *max)
 			*tot += depth;
 			(*n)++;
 			if (*max < depth) *max = depth;
-		}
-
-		else if (!__cvc_isleaf(new)) {
+		} else if (!__cvc_isleaf(new)) {
 			struct cvcdir *d = __cvc_dir(new);
 			assert(d->next);
-			__s(d->next, __cvectc_size(d), depth+1, tot, n, max);
+			__s(d->next, __cvectc_size(d), depth+1, tot, n, max, etot, en, emax);
 		}
 	}
 }
@@ -52,12 +56,14 @@ __s(struct cvcentry *e, int size, int depth, int *tot, int *n, int *max)
 static void 
 ps(void)
 {
-	int tot, n, max;
+	int tot, n, max, etot, en, emax;
 
-	tot = n = max = 0;
-	__s(static_vect.d.e.d.next, __cvectc_size(__cvc_dir(&static_vect.d)), 1, &tot, &n, &max);
+	tot = n = max = etot = en = emax = 0;
+	__s(static_vect.d.e.d.next, __cvectc_size(__cvc_dir(&static_vect.d)), 1, 
+	    &tot, &n, &max, &etot, &en, &emax);
 	if (!n) printf("No data\n");
-	else    printf("Average depth %d, max %d\n", tot/n, max);
+	else    printf("Average depth %d, max %d; average level size %d, max %d\n", 
+		       tot/n, max, etot/en, emax);
 }
 
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))

@@ -4,22 +4,25 @@
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  *
- * Author: Gabriel Parmer, gparmer@gwu.edu, 2012
+ * Authors: 
+ * Gabriel Parmer, gparmer@gwu.edu, 
+ * - Jan, 2012 -- n-ary tree
+ * - Aug, 2012 -- initial versions of path and level compression
  */
 
 #ifndef CVECT_COMPRESSED_H
 #define CVECT_COMPRESSED_H
 
 /***
- * Vector mapping an id (30 bit u32_t) to a word-size value (e.g. an
- * address).  Is a PLC tree: one that does Path Compression
- * (decreasing the depth of the tree by ignoring shared bits between
- * entries in sub-trees) and Level Compression (using variable sized
- * index nodes in each subtree to use larger allocations when ids are
- * more dense).  These, together, hopefully result in a data-structure
- * that is quite fast (though not as fast as cvect.h), and has
- * reasonable memory usage characteristics (unlike cvect.h for sparse
- * id distributions).
+ * This is a data-structure behaving like a vector mapping an id (30
+ * bit u32_t) to a word-size value (e.g. an address).  Is a PLC tree:
+ * one that does Path Compression (decreasing the depth of the tree by
+ * ignoring shared bits between entries in sub-trees) and Level
+ * Compression (using variable sized index nodes in each subtree to
+ * use larger allocations when ids are more dense).  These, together,
+ * hopefully result in a data-structure that is quite fast (though not
+ * as fast as cvect.h), and has reasonable memory usage
+ * characteristics (unlike cvect.h for sparse id distributions).
  *
  * This is the first draft.  It does _not_ currently provide level
  * compression.
@@ -32,6 +35,11 @@
 #ifdef LINUX_TEST
  #ifndef CVECTC_ALLOC
   #define CVECTC_ALLOC(sz)   malloc(sz)
+  /* 
+   * Note that free is non-standard here, taking the size as an
+   * argument.  This might simplify intelligent reallocing using a
+   * buddy allocator.
+   */
   #define CVECTC_FREE(x, sz) free(x)
  #endif
  typedef unsigned int u32_t;
@@ -86,26 +94,76 @@ struct cvectc {
 };
 
 #ifdef CVECTC_STATS
+#define SIZE_REC 8
 static struct cvectc_stats {
 	int nodes, mem, nentries;
-} __cvectc_stats;
-#endif
+	struct lvlsz {
+		int sz, cnt, tot;
+	} lvlsizes[SIZE_REC];
+} __cvectc_stats = {
+	.lvlsizes = {
+		{.sz = 2},
+		{.sz = 4},
+		{.sz = 8},
+		{.sz = 16},
+		{.sz = 32},
+		{.sz = 64},
+		{.sz = 128},
+		{.sz = 0}, 	/* catch all */
+	}
+};
 
-#ifdef CVECTC_STATS
-static void cvectc_stats_nodes(int delta) { __cvectc_stats.nodes    += delta; }
-static void cvectc_stats_mem  (int delta) { __cvectc_stats.mem      += delta; }
-static void cvectc_stats_nent (int delta) { __cvectc_stats.nentries += delta; }
+static void 
+cvectc_stats_node(int sz) 
+{ 
+	int i;
+
+	if (sz > 0) __cvectc_stats.nodes++;
+	else        __cvectc_stats.nodes--;
+	__cvectc_stats.mem += sz * sizeof(struct cvcentry);
+
+	for (i = 0 ; i < SIZE_REC-1 ; i++) {
+		if (__cvectc_stats.lvlsizes[i].sz == sz) {
+			__cvectc_stats.lvlsizes[i].tot++;
+			__cvectc_stats.lvlsizes[i].cnt++;
+			return;
+		} else if (__cvectc_stats.lvlsizes[i].sz == -1 * sz) {
+			__cvectc_stats.lvlsizes[i].cnt--;
+			return;
+		}
+	}
+	if (sz > 0) {
+		__cvectc_stats.lvlsizes[SIZE_REC-1].tot++;
+		__cvectc_stats.lvlsizes[SIZE_REC-1].cnt++;
+		return;
+	} else {
+		__cvectc_stats.lvlsizes[SIZE_REC-1].cnt--;
+		return;
+	}
+
+}
+static void 
+cvectc_stats_nent(int delta) 
+{ 
+	__cvectc_stats.nentries += delta; 
+}
 static void
 cvectc_stats(void)
 {
-	int nent = __cvectc_stats.nentries;
+	int nent = __cvectc_stats.nentries, i;
 	printf("Tree nodes %d, memory %d, entries %d, %d memory/entry\n", 
 	       __cvectc_stats.nodes, __cvectc_stats.mem, nent,
-	       __cvectc_stats.mem/(nent ? __cvectc_stats.nentries : 1));
+	       __cvectc_stats.mem/(nent ? nent : 1));
+	for (i = 0 ; i < SIZE_REC ; i++) {
+		if (__cvectc_stats.lvlsizes[i].cnt == 0) continue;
+		printf("\tnode %d: %d, total %d\n", 
+		       __cvectc_stats.lvlsizes[i].sz, 
+		       __cvectc_stats.lvlsizes[i].cnt, 
+		       __cvectc_stats.lvlsizes[i].tot);
+	}
 }
 #else 
-#define cvectc_stats_nodes(v, d)
-#define cvectc_stats_mem(v, d)
+#define cvectc_stats_node(v, d)
 #define cvectc_stats_nent(v, d)
 #define cvectc_stats()
 #endif
@@ -141,7 +199,7 @@ __cvectc_dir_init(struct cvcentry *d, int ignored_sz, int next_sz, struct cvcent
  * when to decompress it.
  */
 static inline int
-__cvectc_upper_thresh(int sz) { return sz + 1; /* return sz/2 + sz/4;*/ } /* 75% */
+__cvectc_upper_thresh(int sz, int amnt) { return amnt >= (sz/2 + sz/4); } /* 75% */
 static inline int
 __cvectc_lower_thresh(int sz) { return sz/4; }        /* 25% */
 
@@ -180,8 +238,7 @@ cvectc_init(struct cvectc *v)
 
 	n = CVECTC_ALLOC(sizeof(struct cvcentry) * CVECTC_MIN_ENTRIES);
 	if (!n) return -1;
-	cvectc_stats_nodes(1);
-	cvectc_stats_mem(sizeof(struct cvcentry) * CVECTC_MIN_ENTRIES);
+	cvectc_stats_node(CVECTC_MIN_ENTRIES);
 
 	for (i = 0 ; i < CVECTC_MIN_ENTRIES ; i++) {
 		__cvectc_leaf_init_empty(&n[i], 0);
@@ -272,18 +329,17 @@ static inline int
 __cvectc_level_compress(struct cvcdir *p, u32_t id)
 {
 	int i, sz, nsz, subsz = 0, uniform_subsz = 1, pignored;
-	struct cvcentry *e, *n;
+	struct cvcentry *e, *n, *t;
 	struct cvcleaf *l;
 
 	l = __cvectc_lookup_leaf((struct cvcentry *)p, id);
 	assert(__cvc_ispresent(l));
 	assert(l->id == id);
 
-	printf("level compression when inserting %d\n", id);
+//	printf(">>> level compression when inserting %d\n", id);
 
 	e  = p->next;
 	sz = __cvectc_size(p);
-	assert(sz >= __cvectc_upper_thresh(sz));
 	/* 
 	 * Get the sizes of the subdirectories.  We want to know if we
 	 * can actually do the compression, or if some subdirectories
@@ -308,16 +364,32 @@ __cvectc_level_compress(struct cvcdir *p, u32_t id)
 	assert(subsz);
 
 	/* 
-	 * TODO: add logic for demotion of sublevels to enable this
-	 * level to be compressed.
+	 * TODO: add logic for demotion of sublevels to enable any
+	 * non-uniformly sized subdirectories to be
+	 * compressed/decompressed.
 	 */
 	if (!uniform_subsz) return 0;
 
 	nsz = subsz * CVECTC_MIN_ENTRIES;
 	n   = CVECTC_ALLOC(sizeof(struct cvcentry) * nsz);
 	if (!n) return -1;
+	cvectc_stats_node(nsz);
 	for (i = 0 ; i < nsz ; i++) __cvectc_leaf_init_empty(&n[i], id);
 
+	/* t = __cvectc_next_lvl(p, id); */
+	/* t = __cvectc_next_lvl(__cvc_dir(t), id); */
+	/* printf("*** Pre\n"); */
+	/* cvcprint((struct cvcentry *)p); */
+	/* printf("->\n"); */
+	/* cvcprint(t); */
+	/* printf("L1: id %x, ignored %x, size %x\n",  */
+	/*        id, id << p->ignore, (id << p->ignore) >> p->size); */
+	/* t = __cvectc_next_lvl(p, id); */
+	/* printf("L2: id %x, ignored %x, size %x\n",  */
+	/*        id, id << __cvc_dir(t)->ignore, (id << __cvc_dir(t)->ignore) >> __cvc_dir(t)->size); */
+	/* printf("***\n"); */
+
+	/* setup the new, larger parent node */
 	pignored = p->ignore;
 	__cvectc_dir_init((struct cvcentry *)p, pignored, 
 			  __cvectc_size_order(p) + CVECTC_MIN_ORDER, n);
@@ -343,54 +415,83 @@ __cvectc_level_compress(struct cvcdir *p, u32_t id)
 
 			target = __cvectc_next_lvl(p, l->id);
 			__cvectc_leaf_init(target, l->id, l->val);
-			printf("copying leaf %d into %p.\n", l->id, target);
+			/* printf("copying leaf %d into %p.\n", l->id, target); */
 			continue;
 		}
 
 		/* directories */
 		d = __cvc_dir(sub);
 		assert(__cvectc_size(d) == subsz);
-		printf("processing directory with ignore %d, and size %d\n",
-		       d->ignore, __cvectc_size(d));
-		
+		/* printf("processing directory with ignore %d, and size %d\n", */
+		/*        d->ignore, __cvectc_size(d)); */
+
 		/* offset into new compressed level */
 		dir_off  = i * subsz;
 		ndir_off = &n[dir_off];
-		/* bounds checking */
-		assert(ndir_off >= n && (&ndir_off[subsz] <= &n[nsz]));
-		memcpy(ndir_off, d->next, subsz * sizeof(struct cvcentry));
+
+		/* 
+		 * Subtle case here: If this node cannot properly
+		 * separately index the children of this directory,
+		 * then we have to keep the subtree.
+		 */
+		if (d->ignore > p->ignore + subsz) {
+			memcpy(ndir_off, d, sizeof(struct cvcentry));
+		}
+		/* 
+		 * If we can discriminate between the children of the
+		 * subtree given our ignore bits and size, then we can
+		 * copy those children into this new, larger directory
+		 * directly.
+		 */
+		else {
+			/* bounds checking */
+			assert(ndir_off >= n && (&ndir_off[subsz] <= &n[nsz]));
+			memcpy(ndir_off, d->next, subsz * sizeof(struct cvcentry));
+			CVECTC_FREE(d->next, subsz);
+			cvectc_stats_node(-1 * subsz);
+		}
 	}
 
-	printf("Pre:\n");
-	for (i = 0 ; i < sz ; i++) {
-		int j;
-		struct cvcentry *ent = &e[i];
-		struct cvcdir *dir;
+	/* t = __cvectc_next_lvl(p, id); */
 
-		if (__cvc_isleaf(ent)) {
-			cvcprint(ent);
-			continue;
-		}
-		dir = __cvc_dir(ent);
+	/* for (i = 0 ; i < sz ; i++) { */
+	/* 	int j; */
+	/* 	struct cvcentry *ent = &e[i]; */
+	/* 	struct cvcdir *dir; */
+
+	/* 	if (__cvc_isleaf(ent)) { */
+	/* 		cvcprint(ent); */
+	/* 		continue; */
+	/* 	} */
+	/* 	dir = __cvc_dir(ent); */
 		
-		for (j = 0 ; j < subsz ; j++) {
-			struct cvcentry *sube = &((dir->next)[j]);
-			cvcprint(sube);
-		}
-	}
+	/* 	for (j = 0 ; j < subsz ; j++) { */
+	/* 		struct cvcentry *sube = &((dir->next)[j]); */
+	/* 		cvcprint(sube); */
+	/* 	} */
+	/* } */
 
-	printf("Post:\n");
-	for (i = 0 ; i < nsz ; i++) {
-		cvcprint(&n[i]);
-	}
+	/* printf("*** Post\n"); */
+	/* cvcprint((struct cvcentry *)p); */
+	/* printf("->\n"); */
+	/* cvcprint(t); */
+	/* printf("L1: id %x, ignored %x, size %x\n",  */
+	/*        id, id << p->ignore, (id << p->ignore) >> p->size); */
+	/* printf("***\n"); */
+
+	/* for (i = 0 ; i < nsz ; i++) { */
+	/* 	cvcprint(&n[i]); */
+	/* } */
 
 	l = __cvectc_lookup_leaf((struct cvcentry *)p, id);
 	assert(__cvc_ispresent(l));
 	assert(l->id == id);
 
 	CVECTC_FREE(e, sz);
+	cvectc_stats_node(-1 * sz);
 
-	return 0;
+	/* printf("\n"); */
+	return 1;
 }
 
 /* 
@@ -404,8 +505,7 @@ __cvectc_alloc_link(struct cvcentry *e, u32_t nprefix, int prefix_sz)
 
 	n = CVECTC_ALLOC(sizeof(struct cvcentry) * CVECTC_MIN_ENTRIES);
 	if (!n) return -1;
-	cvectc_stats_nodes(1);
-	cvectc_stats_mem(sizeof(struct cvcentry) * CVECTC_MIN_ENTRIES);
+	cvectc_stats_node(CVECTC_MIN_ENTRIES);
 
 	for (i = 0 ; i < CVECTC_MIN_ENTRIES ; i++) {
 		__cvectc_leaf_init_empty(&n[i], nprefix);
@@ -515,11 +615,14 @@ cvectc_add(struct cvectc *v, void *val, u32_t id)
 		 * (i.e. create a leaf node).
 		 */
 		else {
+			int ret;
 			int sz = __cvectc_size(p);
-
+			
+			ret = 0;
 			if (__cvectc_path_decompress((struct cvcentry *)l, id, l->id, val)) return -1;
-			if (__cvectc_nsubdirs(p) >= __cvectc_upper_thresh(sz)) {
-				if (__cvectc_level_compress(p, id)) return -1;
+			if (__cvectc_upper_thresh(sz, __cvectc_nsubdirs(p))) {
+				ret = __cvectc_level_compress(p, id);
+				if (ret < 0) return -1;
 			}
 		}
 		assert(cvectc_lookup(v, id) == val);
@@ -627,14 +730,15 @@ static inline void
 __cvectc_path_compress(struct cvcdir *d, u32_t id)
 {
 	struct cvcentry *c, *p;
+	int sz;
 
 	assert(d && !__cvc_isleaf((struct cvcentry *)d) && __cvectc_nentries(d, &p) == 0);
 	
-	c = d->next;
-	CVECTC_FREE(c, __cvectc_size(d));
+	c  = d->next;
+	sz = __cvectc_size(d);
+	CVECTC_FREE(c, sz);
 	__cvectc_leaf_init_empty((struct cvcentry *)d, id);
-	cvectc_stats_mem(-1*(sizeof(struct cvcentry) * CVECTC_MIN_ENTRIES));
-	cvectc_stats_nodes(-1);
+	cvectc_stats_node(-1 * sz);
 }
 
 static void
