@@ -146,6 +146,8 @@ struct composite_spd {
  * Currently spds consist of a contiguous range of virtual
  * addresses. if lowest_addr == 0, then we share page tables with the
  * main configuration task, thus having universal memory access.
+ * Please do _not_ make the assumption that this (lowest_addr == 0 is
+ * the linux task) in your code.  It will change in the near future.
  */
 struct spd_location {
 	unsigned int lowest_addr;

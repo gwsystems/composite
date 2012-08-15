@@ -545,6 +545,53 @@ static inline void copy_pgd_range(struct mm_struct *to_mm, struct mm_struct *fro
 #define my_load_cr3(pgdir) asm volatile("movl %0,%%cr3": :"r" (__pa(pgdir)))
 #define flush_executive(pgdir) my_load_cr3(pgdir)
 
+struct spd_poly linux_pgtbls_per_core[NUM_CPU];
+
+struct thread *ready_boot_thread(struct spd *init)
+{
+//	struct shared_user_data *ud = get_shared_data();
+	struct thread *thd;
+	unsigned int tid;
+	struct spd_poly *this_pgtbl;
+	struct thd_invocation_frame *frame;
+
+	assert(NULL != init);
+
+	thd = thd_alloc(init);
+	if (NULL == thd) {
+		printk("cos: Could not allocate boot thread.\n");
+		return NULL;
+	}
+	/* 
+	 * Create the spd_poly with a pointer to the page tables for
+	 * each Linux process to return to, so that when the separate
+	 * core's cos threads return to comp0 (thus the cos_loader and
+	 * Linux in general), we will return to the _separate_ and
+	 * correct page-tables.
+	 */
+	this_pgtbl                   = &linux_pgtbls_per_core[get_cpuid()];
+	this_pgtbl->pg_tbl           = (paddr_t)(__pa(current->mm->pgd));
+	cos_ref_set(&this_pgtbl->ref_cnt, 2);
+	frame                        = thd_invstk_top(thd);
+	assert(thd->stack_ptr == 0);
+	frame->current_composite_spd = this_pgtbl;
+	
+	assert(init->location[0].lowest_addr == SERVICE_START);
+	assert(thd_spd_in_composite(this_pgtbl, init));
+
+	tid = thd_get_id(thd);
+	core_put_curr_thd(thd);
+
+	assert(tid);
+
+//	switch_thread_data_page(2, tid);
+	/* thread ids start @ 1 */
+//	ud->current_thread = tid;
+//	ud->argument_region = (void*)((tid * PAGE_SIZE) + COS_INFO_REGION_ADDR);
+
+	return thd;
+}
+
 static int syscalls_enabled = 1;
 
 extern int virtual_namespace_alloc(struct spd *spd, unsigned long addr, unsigned int size);
@@ -554,7 +601,6 @@ void copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from,
 void copy_pgtbl(paddr_t pt_to, paddr_t pt_from);
 //extern int copy_mm(unsigned long clone_flags, struct task_struct * tsk);
 void print_valid_pgtbl_entries(paddr_t pt);
-extern struct thread *ready_boot_thread(struct spd *init);
 vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr);
 
 void save_per_core_cos_thd(void);
@@ -605,8 +651,8 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		 * itself. */
 		if (spd_info.lowest_addr == 0) {
 			spd->spd_info.pg_tbl         = (paddr_t)(__pa(current->mm->pgd));
-			spd->location[0].lowest_addr = 0;
-			spd->location[0].size        = 0;
+			spd->location[0].lowest_addr = SERVICE_START;
+			spd->location[0].size        = PGD_RANGE;
 			spd->composite_spd           = &spd->spd_info;
 		} else {
 			/*
@@ -1833,6 +1879,31 @@ done:
 	return 0;
 }
 
+/* unsigned long long sum=0; */
+/* int cnt = 0; */
+static void receive_IPI(void *remote_thd)
+{
+//	printk("core %d: got an ipi for thd %d\n", get_cpuid(), thd_get_id(remote_thd));
+	if (unlikely(!remote_thd)) return;
+
+	/* unsigned long long s,e; */
+	/* rdtscll(s); */
+	host_attempt_brand((struct thread *)remote_thd);
+	/* rdtscll(e); */
+	/* sum += e - s; */
+	/* cnt++; */
+	/* if (cnt == 1024) printk("host brand func cost: %llu\n", sum / 1024); */
+
+	return;
+}
+
+void send_IPI(int cpuid, struct thread *remote_thd, int wait)
+{
+	/* printk("core %d: sending an ipi to core %d and thd %d, wait %d.\n", get_cpuid(), cpuid, thd_get_id(remote_thd), wait); */
+	smp_call_function_single(cpuid , receive_IPI, remote_thd, wait);
+	return;
+}
+
 static void timer_interrupt(unsigned long data)
 {
 	BUG_ON(cos_thd_per_core[get_cpuid()].cos_thd == NULL);
@@ -2251,11 +2322,13 @@ static void hw_init_CPU(void)
 	return;
 }
 
-static void hw_init_other_cores(void * param)
+#if NUM_CPU > 1
+static void hw_init_other_cores(void *param)
 {
 	hw_int_override_all();
 	return;
 }
+#endif
 
 static int asym_exec_dom_init(void)
 {
@@ -2281,9 +2354,19 @@ static int asym_exec_dom_init(void)
 	return 0;
 }
 
+#if NUM_CPU > 1
+static void hw_reset_other_cores(void *param)
+{
+	hw_int_reset();
+}
+#endif
+
 static void asym_exec_dom_exit(void)
 {
 	hw_int_reset();
+#if NUM_CPU > 1
+	smp_call_function(hw_reset_other_cores, NULL, 1);
+#endif
 	remove_proc_entry("aed", NULL);
 
 	return;

@@ -1247,7 +1247,9 @@ static int current_core_create_thread_default(spdid_t spdid, u32_t sched_param_0
 	return 0;
 }
 
-int created_default_thds = 0;
+#define DEF_OFFSET 0
+int created_default_thds = DEF_OFFSET;
+
 /* Create a thread in target with the default parameters */
 int
 sched_create_thread_default(spdid_t spdid, u32_t sched_param_0, 

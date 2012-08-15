@@ -1638,7 +1638,7 @@ static int load_all_services(struct service_symbs *services)
 {
 	unsigned long service_addr = BASE_SERVICE_ADDRESS;
 
-	service_addr += DEFAULT_SERVICE_SIZE;
+//	service_addr += DEFAULT_SERVICE_SIZE;
 
 	while (services) {
 		if (load_service(services, service_addr, DEFAULT_SERVICE_SIZE)) {
@@ -2608,6 +2608,7 @@ void set_curr_affinity(u32_t cpu)
 	return;
 }
 
+volatile int var;
 int (*fn)(void);
 
 static void setup_kernel(struct service_symbs *services)
@@ -2710,6 +2711,9 @@ static void setup_kernel(struct service_symbs *services)
 
 	/* This will hopefully avoid hugely annoying fsck runs */
 	sync();
+
+	/* Access comp0 to make sure it is present in the page tables */
+	var = *((int *)SERVICE_START);
 	cos_create_thd(cntl_fd, &thd);
 
 	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
@@ -2732,6 +2736,11 @@ static void setup_kernel(struct service_symbs *services)
 #ifdef HIGHEST_PRIO
 		set_prio();
 #endif
+		/* 
+		 * Access comp0 to make sure it is present in the page
+		 * tables
+		 */
+		var = *((int *)SERVICE_START);
 		cos_create_thd(cntl_fd, &thd);
 	} else { /* The parent should give other processes a chance to
 		  * run. They need to migrate to their cores. */
@@ -2752,17 +2761,13 @@ static void setup_kernel(struct service_symbs *services)
 
 	aed_enable_syscalls(cntl_fd);
 
-	printf("Pid %d back in cos_loader.\n", getpid());
-	fflush(stdout);
-
-	if (pid > 0) { /* only the parent should return here and
-			* terminate all children process. */
-		for (i = 1 ; i < NUM_CPU ; i++) {
-			assert(children[i]);
-			kill(children[i], SIGKILL);
-		}
-	} else assert(0);
-	sleep(1);
+	if (pid > 0) {
+		int child_status;
+		while (wait(&child_status) > 0) ;
+	} else {
+		/* printf("Child %d back in cos_loader.\n", getpid()); */
+		exit(getpid());
+	}
 
 	close(cntl_fd);
 

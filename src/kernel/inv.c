@@ -326,31 +326,6 @@ cos_syscall_void(int spdid)
 }
 
 extern int switch_thread_data_page(int old_thd, int new_thd);
-struct thread *ready_boot_thread(struct spd *init)
-{
-	struct shared_user_data *ud = get_shared_data();
-	struct thread *thd;
-	unsigned int tid;
-
-	assert(NULL != init);
-
-	thd = thd_alloc(init);
-	if (NULL == thd) {
-		printk("cos: Could not allocate boot thread.\n");
-		return NULL;
-	}
-	tid = thd_get_id(thd);
-	core_put_curr_thd(thd);
-
-	assert(tid);
-
-	switch_thread_data_page(2, tid);
-	/* thread ids start @ 1 */
-	ud->current_thread = tid;
-	ud->argument_region = (void*)((tid * PAGE_SIZE) + COS_INFO_REGION_ADDR);
-
-	return thd;
-}
 
 static inline void __switch_thread_context(struct thread *curr, struct thread *next, 
 					   struct spd_poly *cspd, struct spd_poly *nspd)
@@ -864,9 +839,10 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	struct cos_sched_data_area *da;
 	int ret_code = COS_SCHED_RET_ERROR;
 
-//	printk("switch thd core %d\n", get_cpuid());
 	*preempt = 0;
 	curr = core_get_curr_thd();
+	/* printk("thd %d, switch thd core %d\n", thd_get_id(curr), get_cpuid()); */
+
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
 	if (unlikely(!curr_spd)) {
 		printk("err: wrong spd!\n");
@@ -941,7 +917,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	return &thd->regs;
 ret_err:
 	curr->regs.ax = ret_code;
-	assert(0);
+//	assert(0);
 ret:
 	return &curr->regs;
 }
@@ -2395,6 +2371,7 @@ brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 
 		return preempted;
 	}
+
 	assert(upcall->flags & THD_STATE_READY_UPCALL);
 
 	upcall->flags |= THD_STATE_ACTIVE_UPCALL;
@@ -3558,6 +3535,22 @@ cos_syscall_vas_cntl(int id, int op_spdid, long addr, long sz)
 	return ret;
 }
 
+extern void send_IPI(int cpuid, struct thread *remote_thd, int wait);
+
+COS_SYSCALL int 
+cos_syscall_send_ipi(int spd_id, long cpuid, int thdid, long arg)
+{
+	struct thread *thd;
+	int wait;
+	//int option = arg & 0xFFFF;
+	wait = arg >> 16;
+
+	thd = thd_get_by_id(thdid);
+	
+	send_IPI(cpuid, thd, wait);
+	return 0;
+}
+
 /* 
  * Composite's system call table that is indexed and invoked by ipc.S.
  * The user-level stubs are created in cos_component.h.
@@ -3584,7 +3577,7 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_vas_cntl,
 	(void*)cos_syscall_trans_cntl,
 	(void*)cos_syscall_pfn_cntl,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_send_ipi,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
@@ -3596,3 +3589,4 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void
 };
+ 
