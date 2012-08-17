@@ -1879,29 +1879,41 @@ done:
 	return 0;
 }
 
+/* extern volatile int kern_tsc; */
 /* unsigned long long sum=0; */
 /* int cnt = 0; */
 static void receive_IPI(void *remote_thd)
 {
+	int thdid = (int)remote_thd;
+	struct thread *thd = thd_get_by_id(thdid);
+
 //	printk("core %d: got an ipi for thd %d\n", get_cpuid(), thd_get_id(remote_thd));
-	if (unlikely(!remote_thd)) return;
+	if (unlikely(!thd)) return;
 
 	/* unsigned long long s,e; */
 	/* rdtscll(s); */
-	host_attempt_brand((struct thread *)remote_thd);
+	host_attempt_brand(thd);
 	/* rdtscll(e); */
 	/* sum += e - s; */
+	/* printk("cost %llu\n", e-s); */
 	/* cnt++; */
 	/* if (cnt == 1024) printk("host brand func cost: %llu\n", sum / 1024); */
+	/* unsigned long long t; */
+	/* rdtscll(t); */
+	/* kern_tsc = (int)t; */
 
 	return;
 }
 
-void send_IPI(int cpuid, struct thread *remote_thd, int wait)
+int send_IPI(int cpuid, int thdid, int wait)
 {
-	/* printk("core %d: sending an ipi to core %d and thd %d, wait %d.\n", get_cpuid(), cpuid, thd_get_id(remote_thd), wait); */
-	smp_call_function_single(cpuid , receive_IPI, remote_thd, wait);
-	return;
+	/* unsigned long long t, t2; */
+	/* rdtscll(t); */
+//	printk("core %d: sending an ipi to core %d and thd %d, wait %d.\n", get_cpuid(), cpuid, thdid, wait);
+	smp_call_function_single(cpuid , receive_IPI, (void *)thdid, wait);
+//	rdtscll(t2);
+
+	return 0;//(int)(t2-t);
 }
 
 static void timer_interrupt(unsigned long data)

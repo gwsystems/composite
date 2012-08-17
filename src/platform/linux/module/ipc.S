@@ -34,11 +34,27 @@
 /* Loads current thread structure to eax register. ECD and EDX can be
  * clobbered, as per the calling convention. */
 #define LOAD_CURR_THD_EAX \
+	pushl %fs;  \
+	pushl %es;  \
+	pushl %ds;  \
+	pushl %ebp; \
+	pushl %edi; \
+	pushl %esi; \
+	push %ebx		   ;\
 	push %ecx		   ;\
 	push %edx		   ;\
 	call core_get_curr_thd_asm ;\
 	pop %edx		   ;\
-	pop %ecx		   ;
+	pop %ecx		   ;\
+	pop %ebx		   ;\
+	popl %esi;	\
+	popl %edi;	\
+	popl %ebp;      \
+	popl %ds;	\
+	popl %es;	\
+	popl %fs
+
+
 	
 #define THD_REGS 8 /* offsetof(struct thread, regs) */
 		
@@ -126,7 +142,7 @@ ipc_ret_err:
 .globl cos_syscall_brand_upcall
 .align 16
 cos_syscall_brand_upcall:
-	LOAD_CURR_THD_EAX
+	LOAD_CURR_THD_EAX;
 	
 	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
 
@@ -165,7 +181,7 @@ cos_syscall_brand_upcall:
 .globl cos_syscall_brand_wait
 .align 16
 cos_syscall_brand_wait:
-	LOAD_CURR_THD_EAX
+	LOAD_CURR_THD_EAX;
 	
 	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
 
@@ -201,7 +217,7 @@ cos_syscall_brand_wait:
 .align 16
 cos_syscall_switch_thread:
 	/* can use edx to pass in conditional for if we should save regs or not and term thread */
-	LOAD_CURR_THD_EAX
+	LOAD_CURR_THD_EAX;
 	
 	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
 
@@ -246,7 +262,7 @@ cos_syscall_switch_thread:
 
 .align 4
 ret_from_preemption_getregs:
-	LOAD_CURR_THD_EAX
+	LOAD_CURR_THD_EAX;
 	
 	addl $THD_REGS, %eax /* offsetof(struct thread, regs) */
 ret_from_preemption:
@@ -272,7 +288,7 @@ ret_from_preemption:
 .align 4
 .globl cos_syscall_buff_mgmt
 cos_syscall_buff_mgmt:
-	LOAD_CURR_THD_EAX
+	LOAD_CURR_THD_EAX;
 	
 	pushl %eax              /* save the current thread */
 	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
@@ -289,7 +305,7 @@ cos_syscall_buff_mgmt:
 	popl  %ebx              /* retrieve saved thread */
 
 	pushl %eax
-	LOAD_CURR_THD_EAX
+	LOAD_CURR_THD_EAX;
 	cmpl %eax, %ebx
 	popl %eax
 	jne   cos_syscall_interrupted
@@ -306,7 +322,7 @@ cos_syscall_interrupted:
 	movl  %eax, PT_EAX(%ebx)
 
 	/* get the regs of the new thread, load 'em up, and start 'er flying */
-	LOAD_CURR_THD_EAX
+	LOAD_CURR_THD_EAX;
 	
 	addl $THD_REGS, %eax
 	movl PT_EBX(%eax), %ebx
@@ -325,7 +341,7 @@ cos_syscall_interrupted:
 .globl cos_syscall_idle
 .align 16
 cos_syscall_idle:
-	LOAD_CURR_THD_EAX
+	LOAD_CURR_THD_EAX;
 	
 	pushl %eax              /* save the current thread */
 	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
@@ -338,7 +354,7 @@ cos_syscall_idle:
 	popl  %ebx              /* retrieve saved thread */
 	
 	pushl %eax
-	LOAD_CURR_THD_EAX
+	LOAD_CURR_THD_EAX;
 	cmpl %eax, %ebx
 	popl %eax
 	jne   cos_syscall_interrupted

@@ -651,11 +651,18 @@ static void fp_idle_loop(void *d)
 								   default_thread_data[cos_cpuid()].param[1], default_thread_data[cos_cpuid()].param[2]);
 			default_thread_data[cos_cpuid()].active = 0;
 		}
-		report_event(IDLE_SCHED_LOOP);
+//		report_event(IDLE_SCHED_LOOP);
 #ifdef IDLE_TO_LINUX
 		cos_idle();
 #endif
 	}
+}
+
+volatile unsigned long long t_0;
+static void fp_idle_loop_meas(void *d)
+{
+	printc("core 0 recording time stamp...\n");
+	while (1) rdtscll(t_0);
 }
 
 extern unsigned long parent_sched_timer_stopclock(void);
@@ -1189,6 +1196,8 @@ sched_create_thd(spdid_t spdid, u32_t sched_param0, u32_t sched_param1, u32_t sc
 	struct sched_thd *curr, *new;
 	void *d = (void*)(int)spdid;
 
+	if (sched_param0 == 999) return (int)t_0;
+
 	sp[0] = ((union sched_param)sched_param0).c;
 	sp[1] = ((union sched_param)sched_param1).c;
 	sp[2] = ((union sched_param)sched_param2).c;
@@ -1658,7 +1667,8 @@ sched_init_create_threads(int boot_threads)
 				   {.c = {.type = SCHEDP_NOOP}}};
 
 	/* create the idle thread */
-	per_core_sched_base[cos_cpuid()].idle = sched_setup_thread_arg(&sp, fp_idle_loop, NULL, 1);
+	if (cos_cpuid()) per_core_sched_base[cos_cpuid()].idle = sched_setup_thread_arg(&sp, fp_idle_loop, NULL, 1);
+	else per_core_sched_base[cos_cpuid()].idle = sched_setup_thread_arg(&sp, fp_idle_loop_meas, NULL, 1);
 	printc("Core %ld: Idle thread has id %d with priority %s.\n", cos_cpuid(), per_core_sched_base[cos_cpuid()].idle->id, "i");
 
 	if (!boot_threads) return;
@@ -1779,6 +1789,7 @@ int
 sched_init(void)
 {
 //	printc("Sched init has thread %d\n", cos_get_thd_id());
+	assert(!(per_core_sched_base[cos_cpuid()].init)); // don't re-initialize. should be removed if doing recovery test. 
 
 	/* Promote us to a scheduler! */
 	if (parent_sched_child_cntl_thd(cos_spd_id())) BUG();

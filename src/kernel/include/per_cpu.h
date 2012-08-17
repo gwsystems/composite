@@ -84,8 +84,4 @@ core_put_##name##_id(cpuid_t core, type val)    \
 CREATE_PERCPU_FNS(struct thread *, curr_thd); /* core_get/put_curr_thd */
 CREATE_PERCPU_FNS(struct spd_poly *, curr_spd); /* core_get/put_curr_spd */
 
-/* void push_current_thread(void) */
-/* { */
-/* 	core_get_curr_thd(); */
-/* } */
 #endif /* PER_CPU_H */

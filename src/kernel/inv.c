@@ -1339,8 +1339,6 @@ struct thread *brand_next_thread(struct thread *brand, struct thread *preempted,
 
 //#define BRAND_UL_LATENCY
 
-
-
 extern void cos_syscall_brand_wait(int spd_id, unsigned short int bid, int *preempt);
 COS_SYSCALL struct pt_regs *
 cos_syscall_brand_wait_cont(int spd_id, unsigned short int bid, int *preempt)
@@ -1368,12 +1366,12 @@ cos_syscall_brand_wait_cont(int spd_id, unsigned short int bid, int *preempt)
 		       thd_get_id(brand), spd_get_index(thd_invstk_top(brand)->spd), thd_get_id(curr), spd_get_index(curr_spd));
 		goto brand_wait_err;
 	}
+
 	return brand_execution_completion(curr, preempt);
 brand_wait_err:
 	curr->regs.ax = -1;
 	return &curr->regs;
 }
-
 
 extern void cos_syscall_brand_upcall(int spd_id, int thread_id_flags);
 COS_SYSCALL struct pt_regs *
@@ -1387,8 +1385,8 @@ cos_syscall_brand_upcall_cont(int spd_id, int thread_id_flags, int arg1, int arg
 
 	thread_id = thread_id_flags>>16;
 	flags = thread_id_flags & 0x0000FFFF;
-
 	curr_thd = core_get_curr_thd();
+
 	curr_spd = thd_validate_get_current_spd(curr_thd, spd_id);
 	if (unlikely(NULL == curr_spd)) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
@@ -3535,20 +3533,24 @@ cos_syscall_vas_cntl(int id, int op_spdid, long addr, long sz)
 	return ret;
 }
 
-extern void send_IPI(int cpuid, struct thread *remote_thd, int wait);
+extern int send_IPI(int cpuid, int thdid, int wait);
+
+volatile int kern_tsc = 0;
 
 COS_SYSCALL int 
 cos_syscall_send_ipi(int spd_id, long cpuid, int thdid, long arg)
 {
-	struct thread *thd;
+	//struct thread *thd;
+	/* unsigned long long t; */
+	/* rdtscll(t); */
 	int wait;
-	//int option = arg & 0xFFFF;
+//	int option = arg & 0xFFFF;
 	wait = arg >> 16;
+//	if (cpuid == 999) return kern_tsc;
+	assert(wait == 0);
 
-	thd = thd_get_by_id(thdid);
-	
-	send_IPI(cpuid, thd, wait);
-	return 0;
+	//thd = thd_get_by_id(thdid);
+	return send_IPI(cpuid, thdid, wait);
 }
 
 /* 

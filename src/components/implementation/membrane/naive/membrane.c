@@ -34,41 +34,57 @@ struct inv_data {
 } CACHE_ALIGNED;
 volatile struct inv_data inv;
 
-int brand_tid;
+volatile int t1, t2;
+volatile int brand_tid;
+volatile int cnt = 0;
 
 ck_spinlock_ticket_t sl = CK_SPINLOCK_TICKET_INITIALIZER;
 int server_receive(void)
 {
 	/* ck_spinlock_ticket_lock_pb(&sl); */
 	/* ck_spinlock_ticket_unlock(&sl); */
-
 #ifdef NO_MEMBRAIN
 	return 0;
 #endif	
+
 	printc("Core %ld thd %d: membrane waiting...\n", cos_cpuid(), cos_get_thd_id());
 
+	/* IPI mechanism */
 #ifdef IPI_TEST
 //	int received = 0;
 	brand_tid = cos_brand_cntl(COS_BRAND_CREATE, 0, 0, cos_spd_id());
 	assert(brand_tid > 0);
 	if (sched_add_thd_to_brand(cos_spd_id(), brand_tid, cos_get_thd_id())) BUG();
+	int local_tid;
+	local_tid = brand_tid;
 
 	while (1) {
 		int ret;
-//		printc("Core %ld: going to wait on brand %d...\n", cos_cpuid(), brand_tid);
-		if (-1 == (ret = cos_brand_wait(brand_tid))) BUG();
+		//FIXME: brand_tid != local_tid ?????
+//		printc("Core %ld: going to wait on brand thd...\n", cos_cpuid());
+		/* if (local_tid != brand_tid) { */
+		/* 	printc("core %d, local %d, global %d\n", cos_cpuid(), local_tid, brand_tid); */
+		/* 	//while(1); */
+				
+		/* 	//BUG(); */
+		/* } */
+//		cnt++;
+		if (-1 == (ret = cos_brand_wait(17))) BUG();
+//		if (-1 == (ret = cos_brand_wait(brand_tid))) BUG();
+//		rdtscll(t2);
+//		t1 = sched_create_thd(cos_spd_id(), 999, 0, 0);
+//		t2 = cos_send_ipi(999, 0, 0, 1);
 //		printc("Core %ld: got an IPI, %d!\n", cos_cpuid(), received++);
-//		while (inv.loaded == 0) ;
+		/* printc("t1 %d, t2 %d, diff %d\n", t1, t2, t2 - t1); */
 		inv.loaded = 0;
+//		while (inv.loaded == 0) ;
 	}
 #endif
 
-	while (1) {//keep spinning on shmem.
+	/* Shared memory mechanism */
+	while (1) { //keep spinning on shmem.
 		while (inv.loaded == 0) ;
 		/* assert(inv.p1 == 99); */
-		/* assert(inv.p2 == 99); */
-		/* assert(inv.p3 == 99); */
-		/* assert(inv.p4 == 99); */
 		call();
 		//inv.ret = call();
 		inv.loaded = 0;
@@ -82,36 +98,42 @@ int call_server(int p1, int p2, int p3, int p4)
 {
 	/* ck_spinlock_ticket_lock_pb(&sl); */
 	/* ck_spinlock_ticket_unlock(&sl); */
-	
 #ifdef NO_MEMBRAIN
 	return 0;
 #endif	
 
+	/* IPI mechanism */
 #ifdef IPI_TEST
+#define ITER (1000)
 	/* inv.loaded = 1; */
-	/* cos_send_ipi(((cos_cpuid() + 1) % (NUM_CPU - 1)), brand_tid, 1, 0); */
+	/* cos_send_ipi(((cos_cpuid() + 1) % (NUM_CPU - 1)), brand_tid, 0, 0); */
 	/* while (inv.loaded == 1) ; */
 	/* return 0; */
 
-//	assert(NUM_CPU > 2);
 //	printc("Core %ld: going to send an IPI to tid %d!\n",cos_cpuid(), brand_tid);
-#define ITER (1000)
 	u64_t meas[ITER];
-	u64_t start, end, avg, tot = 0, dev = 0;
-	int i, j;
+	u64_t start, end, avg, tot = 0, dev = 0, max = 0;
+	int i, j, t;
+	int local_bid;
 	printc("Core %ld: starting Invocations.\n", cos_cpuid());
+	local_bid = brand_tid;
 	for (i = 0 ; i < ITER ; i++) {
 		rdtscll(start);
 		inv.loaded = 1;
 //		printc("Core %ld: sending %d.\n", cos_cpuid(), i);
-		cos_send_ipi(((cos_cpuid() + 1) % (NUM_CPU - 1 > 0 ? NUM_CPU - 1 : 1)), brand_tid, 1, 0);
-//		while (inv.loaded == 1) ;
-
+		t = cos_send_ipi(((cos_cpuid() + 1) % (NUM_CPU - 1 > 0 ? NUM_CPU - 1 : 1)), local_bid, 0, 0);
+		while (inv.loaded == 1) ;
 		rdtscll(end);
-		meas[i] = end-start;
+//		t1 = cos_send_ipi(999, 0, 0, 1);
+//		printc("t2 %d, t1 %d, diff %d\n", t2,t1,t2-t1);
+//		meas[i] = (int)(t2-t1);//end - start;
+		meas[i] = end - start;
 	}
 
-	for (i = 0 ; i < ITER ; i++) tot += meas[i];
+	for (i = 0 ; i < ITER ; i++) {
+		tot += meas[i];
+		if (meas[i] > max) max = meas[i];
+	}
 	avg = tot/ITER;
 	printc("avg %lld\n", avg);
 	for (tot = 0, i = 0, j = 0 ; i < ITER ; i++) {
@@ -130,8 +152,13 @@ int call_server(int p1, int p2, int p3, int p4)
 	}
 	dev /= ITER;
 	printc("deviation^2 = %lld\n", dev);
+	printc("max = %llu\n", max);
+	return 0;
 	
 #endif
+
+	/* Shared memory mechanism */
+	
 	int ret = 0;
 	//write to shmem.
 	inv.p1 = p1;
