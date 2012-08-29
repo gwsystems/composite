@@ -1,4 +1,4 @@
-C_OBJS=cbuf.o
+C_OBJS=cbuf.o cbufp.o
 ASM_OBJS=
 COMPONENT=buf.o
 INTERFACES=cbuf_c
