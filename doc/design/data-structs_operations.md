@@ -199,11 +199,8 @@ Components require some mechanism for being notified of interrupts
 with a low (bounded) latency.  This is currently used for 
 
 1. timer notification,
-
 2. IPIs,
-
 3. network packet arrival,
-
 4. translator events
 
 When a component wants to receive interrupts, they create a `brand`
