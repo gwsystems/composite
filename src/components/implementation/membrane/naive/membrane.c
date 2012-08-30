@@ -40,12 +40,11 @@ volatile struct inv_data inv;
 
 volatile int t1, t2;
 volatile int brand_tid;
+volatile int global_cnt = 0;
 
 ck_spinlock_ticket_t sl = CK_SPINLOCK_TICKET_INITIALIZER;
 int server_receive(void)
 {
-	/* ck_spinlock_ticket_lock_pb(&sl); */
-	/* ck_spinlock_ticket_unlock(&sl); */
 #ifdef NO_MEMBRAIN
 	return 0;
 #endif	
@@ -53,15 +52,18 @@ int server_receive(void)
 
 	/* IPI mechanism */
 #ifdef IPI_TEST
-//	int received = 0;
 	brand_tid = cos_brand_cntl(COS_BRAND_CREATE, 0, 0, cos_spd_id());
 	assert(brand_tid > 0);
 	if (sched_add_thd_to_brand(cos_spd_id(), brand_tid, cos_get_thd_id())) BUG();
 	int tid;
 	tid = brand_tid;
+        int received_ipi = 0;
 	while (1) {
 		int ret = 0;
 		if (-1 == (ret = cos_brand_wait(tid))) BUG();
+		received_ipi++;
+		global_cnt++;
+		if (received_ipi > 19990) printc("rec %d, global_cnt %d\n", received_ipi, global_cnt);
 		inv.loaded = 0;
 	}
 #endif
@@ -80,8 +82,9 @@ int server_receive(void)
 	return 0;
 }
 
-#define ITER (100000)
-u64_t meas[ITER];
+#define ITER (10000)
+u64_t meas[NUM_CPU][ITER];
+volatile int start = 0;
 
 int call_server(int p1, int p2, int p3, int p4)
 {
@@ -93,52 +96,57 @@ int call_server(int p1, int p2, int p3, int p4)
 
 	/* IPI mechanism */
 #ifdef IPI_TEST
+	if (cos_cpuid() == 2) start++;
+
+	while (start == 0) ;
 	/* inv.loaded = 1; */
 	/* cos_send_ipi(((cos_cpuid() + 1) % (NUM_CPU - 1)), brand_tid, 0, 0); */
 	/* while (inv.loaded == 1) ; */
 	/* return 0; */
 
-//	printc("Core %ld: going to send an IPI to tid %d!\n",cos_cpuid(), brand_tid);
+	printc("Core %ld: going to send IPIs to tid %d! # of calling cores %d\n",cos_cpuid(), brand_tid, start);
 	u64_t start = 0, end = 0, avg, tot = 0, dev = 0, max = 0;
 	int i, j, t;
 	int bid;
-	printc("Core %ld: starting Invocations.\n", cos_cpuid());
-	printc("brandtid @ %p.\n", &brand_tid);
-	printc("meas from %p to %p.\n", meas, &meas[ITER-1]);
+	/* printc("brandtid @ %p.\n", &brand_tid); */
+	/* printc("meas from %p to %p.\n", meas, &meas[ITER-1]); */
 	bid = brand_tid;
 	for (i = 0 ; i < ITER ; i++) {
 		rdtscll(start);
 		inv.loaded = 1;
 //		t = cos_send_ipi(cos_cpuid(), bid, 0, 0);
-		t = cos_send_ipi(((cos_cpuid() + 1) % (NUM_CPU - 1 > 0 ? NUM_CPU - 1 : 1)), bid, 0, 0);
+//		t = cos_send_ipi(((cos_cpuid() + 1) % (NUM_CPU - 1 > 0 ? NUM_CPU - 1 : 1)), bid, 0, 0);
+		t = cos_send_ipi(1, bid, 0, 0);
 		while (inv.loaded == 1) ;
 		rdtscll(end);
-		meas[i] = end - start;
+		meas[cos_cpuid()][i] = end - start;
 	}
 
 	for (i = 0 ; i < ITER ; i++) {
-		tot += meas[i];
-		if (meas[i] > max) max = meas[i];
+		tot += meas[cos_cpuid()][i];
+		if (meas[cos_cpuid()][i] > max) max = meas[cos_cpuid()][i];
 	}
 	avg = tot/ITER;
 	printc("avg %lld\n", avg);
 	for (tot = 0, i = 0, j = 0 ; i < ITER ; i++) {
-		if (meas[i] < avg*2) {
-			tot += meas[i];
+		if (meas[cos_cpuid()][i] < avg*2) {
+			tot += meas[cos_cpuid()][i];
 			j++;
 		}
 	}
 	printc("avg w/o %d outliers %lld\n", ITER-j, tot/j);
 
 	for (i = 0 ; i < ITER ; i++) {
-		u64_t diff = (meas[i] > avg) ?
-			meas[i] - avg :
-			avg - meas[i];
+		u64_t diff = (meas[cos_cpuid()][i] > avg) ?
+			meas[cos_cpuid()][i] - avg :
+			avg - meas[cos_cpuid()][i];
 		dev += (diff*diff);
 	}
 	dev /= ITER;
 	printc("deviation^2 = %lld\n", dev);
 	printc("max = %llu\n", max);
+	printc("global_cnt = %d\n", global_cnt);
+//	cos_send_ipi(123, bid, 0, 0);
 
 	return 0;
 #endif
