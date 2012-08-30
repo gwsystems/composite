@@ -28,8 +28,7 @@
 #define GLOBAL_BLKED (FIRST_LIST(&global_blk_list, next, prev) != &global_blk_list)
 
 /**
- * keep track of thread id's
- * Should this be a typedef'd type?
+ * Keep track of thread id's. Should this be a typedef'd type?
  */
 struct blocked_thd {
 	unsigned short int thd_id;
@@ -39,9 +38,8 @@ struct blocked_thd {
 };
 
 /**
- * This structure is used to keep
- * track of information and stats about each
- * spd
+ * This structure is used to keep track of information and stats about
+ * each spd
  */
 struct spd_tmem_info {
 	spdid_t spdid;
@@ -52,7 +50,7 @@ struct spd_tmem_info {
 	 * obtained a tmem in this component, which value is useful
 	 * for estimating the concurrency of the component.*/
 	unsigned int num_allocated, num_desired;
-	unsigned int num_blocked_thds,num_waiting_thds;
+	unsigned int num_blocked_thds, num_waiting_thds;
 	unsigned int num_glb_blocked;
 	/* 0 means not managed by us */
 	unsigned int managed;
@@ -79,6 +77,12 @@ struct spd_tmem_info {
 	tmem_item tmem_list;
 
 	struct blocked_thd bthd_list;
+
+	/* 
+	 * To be used by the managers as they see fit.  Currently only
+	 * used by the persistent cbuf management code.
+	 */
+	void *data;
 };
 
 // Holds info about mem usage

@@ -18,7 +18,7 @@ typedef struct cos_cbuf_item tmem_item;
 #define CBUF_OWNER(flags)  (flags & CBUFM_OWNER)
 #define CBUF_IN_USE(flags) (flags & CBUFM_IN_USE)
 #define LOCAL_ADDR(cci)    (cci->desc.addr)
-#define TMEM_TOUCHED(cci)  (cci->entry->nfo.c.flags & CBUFM_TOUCHED)
+#define TMEM_TOUCHED(cci)  (cci->desc.owner.meta->nfo.c.flags & CBUFM_TOUCHED)
 #define TMEM_RELINQ        COMP_INFO_TMEM_CBUF
 
 /* Shared page between the target component, and us */
@@ -73,6 +73,8 @@ union cbufm_info {
 	} __attribute__((packed)) c;
 };
 
+#define TMEM_SENDRECV_MAX  ((1<<8)-1)
+
 union cbufm_ownership {
 	u16_t thdid;        	/*  CBUFM_TMEM && sz == 0 */
 	struct {
@@ -95,12 +97,18 @@ struct cb_desc;
 struct cb_mapping {
 	spdid_t spd;
 	vaddr_t addr;		/* other component's map address */
+	struct cbuf_meta *meta; /* vector entry for quick lookup */
 	struct cb_mapping *next, *prev;
 	struct cb_desc *cbd;
 };
 
+enum {
+	CBUF_DESC_TMEM = 0x1
+};
+
 /* Data we wish to track for every cbuf */
 struct cb_desc {
+	int flags;
 	int cbid, sz;
 	void *addr; 	/* local map address, done at init*/
 	struct cb_mapping owner;
@@ -108,7 +116,6 @@ struct cb_desc {
 
 struct cos_cbuf_item {
 	struct cos_cbuf_item *next, *prev, *free_next;
-	struct cbuf_meta *entry;    /* vector entry for quick lookup */
 	spdid_t parent_spdid;	
 	struct cb_desc desc;
 };
