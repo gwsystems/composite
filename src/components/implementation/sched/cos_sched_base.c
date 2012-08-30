@@ -658,12 +658,13 @@ static void fp_idle_loop(void *d)
 	}
 }
 
-volatile unsigned long long t_0;
-static void fp_idle_loop_meas(void *d)
-{
-	printc("core 0 recording time stamp...\n");
-	while (1) rdtscll(t_0);
-}
+/* This is only used for IPI cost measurements. */
+/* volatile unsigned long long t_0; */
+/* static void fp_idle_loop_meas(void *d) */
+/* { */
+/* 	printc("core 0 recording time stamp...\n"); */
+/* 	while (1) rdtscll(t_0); */
+/* } */
 
 extern unsigned long parent_sched_timer_stopclock(void);
 unsigned long sched_timer_stopclock(void)
@@ -1196,8 +1197,6 @@ sched_create_thd(spdid_t spdid, u32_t sched_param0, u32_t sched_param1, u32_t sc
 	struct sched_thd *curr, *new;
 	void *d = (void*)(int)spdid;
 
-	if (sched_param0 == 999) return (int)t_0;
-
 	sp[0] = ((union sched_param)sched_param0).c;
 	sp[1] = ((union sched_param)sched_param1).c;
 	sp[2] = ((union sched_param)sched_param2).c;
@@ -1667,8 +1666,7 @@ sched_init_create_threads(int boot_threads)
 				   {.c = {.type = SCHEDP_NOOP}}};
 
 	/* create the idle thread */
-	if (cos_cpuid()) per_core_sched_base[cos_cpuid()].idle = sched_setup_thread_arg(&sp, fp_idle_loop, NULL, 1);
-	else per_core_sched_base[cos_cpuid()].idle = sched_setup_thread_arg(&sp, fp_idle_loop_meas, NULL, 1);
+	per_core_sched_base[cos_cpuid()].idle = sched_setup_thread_arg(&sp, fp_idle_loop, NULL, 1);
 	printc("Core %ld: Idle thread has id %d with priority %s.\n", cos_cpuid(), per_core_sched_base[cos_cpuid()].idle->id, "i");
 
 	if (!boot_threads) return;

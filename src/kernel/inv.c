@@ -882,7 +882,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	} else {
 		next_thd = switch_thread_parse_data_area(da, &ret_code);
 		if (unlikely(0 == next_thd)) {
-			printk("err: data area\n");
+//			printk("err: data area\n");
 			goto_err(ret_err, "data_area\n");
 		}
 
@@ -917,7 +917,6 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	return &thd->regs;
 ret_err:
 	curr->regs.ax = ret_code;
-//	assert(0);
 ret:
 	return &curr->regs;
 }
@@ -1266,7 +1265,6 @@ static struct pt_regs *brand_execution_completion(struct thread *curr, int *pree
 
 	cos_meas_stats_end(COS_MEAS_STATS_UC_TERM_DELAY, 1);
 	cos_meas_stats_end(COS_MEAS_STATS_UC_PEND_DELAY, 0);
-
 	*preempt = 0;
 
 	/* Immediately execute a pending upcall */
@@ -1282,13 +1280,15 @@ static struct pt_regs *brand_execution_completion(struct thread *curr, int *pree
 	 * do.
 	 */
 	prev = curr->interrupted_thread;
+
 	if (NULL == prev) {
 		struct thd_sched_info *tsi, *prev_tsi;
 		struct spd *dest;
 		int i;
-
+	
 		prev_tsi = thd_get_sched_info(brand, 0);
 		assert(prev_tsi->scheduler);
+
 		for (i = 1 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
 			//tsi = scheduler_find_leaf(curr);
 			tsi = thd_get_sched_info(brand, i);
@@ -1338,7 +1338,6 @@ static struct pt_regs *brand_execution_completion(struct thread *curr, int *pree
 struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
 
 //#define BRAND_UL_LATENCY
-
 extern void cos_syscall_brand_wait(int spd_id, unsigned short int bid, int *preempt);
 COS_SYSCALL struct pt_regs *
 cos_syscall_brand_wait_cont(int spd_id, unsigned short int bid, int *preempt)
@@ -1347,6 +1346,7 @@ cos_syscall_brand_wait_cont(int spd_id, unsigned short int bid, int *preempt)
 	struct spd *curr_spd;
 
 	curr = core_get_curr_thd();
+
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
 	if (unlikely(NULL == curr_spd)) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
@@ -2353,6 +2353,7 @@ brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 		assert(!(upcall->flags & THD_STATE_READY_UPCALL));
 		cos_meas_event(COS_MEAS_BRAND_PEND);
 		cos_meas_stats_start(COS_MEAS_STATS_UC_PEND_DELAY, 0);
+		/* FIXME: RACE */
 		brand->pending_upcall_requests++;
 
 		event_record("brand activated, but upcalls active", thd_get_id(preempted), thd_get_id(upcall));
@@ -3535,7 +3536,7 @@ cos_syscall_vas_cntl(int id, int op_spdid, long addr, long sz)
 
 extern int send_IPI(int cpuid, int thdid, int wait);
 
-volatile int kern_tsc = 0;
+//volatile int kern_tsc = 0;
 
 COS_SYSCALL int 
 cos_syscall_send_ipi(int spd_id, long cpuid, int thdid, long arg)
@@ -3543,10 +3544,9 @@ cos_syscall_send_ipi(int spd_id, long cpuid, int thdid, long arg)
 	//struct thread *thd;
 	/* unsigned long long t; */
 	/* rdtscll(t); */
-	int wait;
-//	int option = arg & 0xFFFF;
+	int wait, option;
+	option = arg & 0xFFFF;
 	wait = arg >> 16;
-//	if (cpuid == 999) return kern_tsc;
 	assert(wait == 0);
 
 	//thd = thd_get_by_id(thdid);

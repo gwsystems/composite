@@ -68,16 +68,27 @@ extern struct cos_component_information cos_comp_info;
  * them in this operation.  I can't clobber ebp in the clobber list,
  * so I do it manually.  This is right up there with hideous.
  */
+
 #define cos_syscall_asm \
 	__asm__ __volatile__("":::"eax", "ecx", "edx", "esi", "edi");	\
 	__asm__ __volatile__(                        \
-		"pushl %%ebp\n\t"                    \
+	        "pushl %%ebx\n\t"                    \
+	        "pushl %%ecx\n\t"                    \
+	        "pushl %%edx\n\t"                    \
+	        "pushl %%esi\n\t"                    \
+	        "pushl %%edi\n\t"                    \
+	        "pushl %%ebp\n\t"                    \
 		"movl %%esp, %%ebp\n\t"              \
 		"movl $1f, %%ecx\n\t"                \
 		"sysenter\n\t"                       \
 		"1:\n\t"                             \
 		"movl %%eax, %0\n\t"                 \
-		"popl %%ebp"                         \
+		"popl %%ebp\n\t"                     \
+		"popl %%edi\n\t"                     \
+		"popl %%esi\n\t"                     \
+		"popl %%edx\n\t"                     \
+		"popl %%ecx\n\t"                     \
+		"popl %%ebx"                         \
 		: "=a" (ret)
 #define cos_syscall_clobber			     \
 	: "memory", "cc");			     \

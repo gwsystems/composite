@@ -34,26 +34,11 @@
 /* Loads current thread structure to eax register. ECD and EDX can be
  * clobbered, as per the calling convention. */
 #define LOAD_CURR_THD_EAX \
-	pushl %fs;  \
-	pushl %es;  \
-	pushl %ds;  \
-	pushl %ebp; \
-	pushl %edi; \
-	pushl %esi; \
-	push %ebx		   ;\
-	push %ecx		   ;\
-	push %edx		   ;\
+	pushl %ecx		   ;\
+	pushl %edx		   ;\
 	call core_get_curr_thd_asm ;\
-	pop %edx		   ;\
-	pop %ecx		   ;\
-	pop %ebx		   ;\
-	popl %esi;	\
-	popl %edi;	\
-	popl %ebp;      \
-	popl %ds;	\
-	popl %es;	\
-	popl %fs
-
+	popl %edx		   ;\
+	popl %ecx		  
 
 	
 #define THD_REGS 8 /* offsetof(struct thread, regs) */
@@ -186,16 +171,17 @@ cos_syscall_brand_wait:
 	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
 
 	movl $0, PT_EAX(%eax)   /* return 0 when we return from this thread */
-	movl %ebx, PT_EBX(%eax)
 	movl %ebp, PT_ECX(%eax) /* save the return sp, so that sysenter will jump to it */
 	movl %ebp, PT_OLDESP(%eax)
 	movl %ecx, PT_EDX(%eax) /* save the return address (so that sysexit will return to it) */
 	movl %ecx, PT_EIP(%eax)
 
 	/* save volatile registers, as defined by cdecl (including ebx above) */
+	/* Now the volatile registers are saved in user space.
+	movl %ebx, PT_EBX(%eax)
 	movl %esi, PT_ESI(%eax)
 	movl %edi, PT_EDI(%eax)
-	movl %ebp, PT_EBP(%eax)
+	movl %ebp, PT_EBP(%eax) */
 
 	pushl $0   /* make room for ret val */
 	pushl %esp /* argument to track if the thread to return to was preempted or not */

@@ -1853,16 +1853,21 @@ int host_attempt_brand(struct thread *brand)
 					///*assert*/BUG_ON(!(next->flags & THD_STATE_ACTIVE_UPCALL));
 				}
 				thd_check_atomic_preempt(cos_current);
-				regs->bx = next->regs.bx;
-				regs->di = next->regs.di;
-				regs->si = next->regs.si;
+				
+				/* Those registers are saved in the
+				 * user space. No need to restore
+				 * here. */
+				/* regs->bx = next->regs.bx; */
+				/* regs->di = next->regs.di; */
+				/* regs->si = next->regs.si; */
+				/* regs->bp = next->regs.bp; */
+
 				regs->cx = next->regs.cx;
 				regs->ip = next->regs.ip;
 				regs->dx = next->regs.dx;
 				regs->ax = next->regs.ax;
 				regs->orig_ax = next->regs.ax;
 				regs->sp = next->regs.sp;
-				regs->bp = next->regs.bp;
 				//cos_meas_event(COS_MEAS_BRAND_UC);
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
@@ -2358,6 +2363,7 @@ static int asym_exec_dom_init(void)
 	smp_call_function(hw_init_other_cores, NULL, 1);
 #endif
 
+	/* Consistency check. We define the THD_REGS = 8 in ipc.S. */
 	BUG_ON(offsetof(struct thread, regs) != 8);
 
 	init_guest_mm_vect();
