@@ -183,12 +183,17 @@ implementation.
 
 Other types of upcalls:
 
-- sd
+- Thread termination (see _Thread Termination_ later).
 
-- sd
+- Unhandled faults (for which an exception handler is not defined; see
+  _Fault/Exception Handling_ later).
 
-Interrupt Notification
-----------------------
+- Thread creation within the scheduler.
+
+- Brand completion (see _Interrupt Notification and Handling_).
+
+Interrupt Notification and Handling
+-----------------------------------
 
 Components require some mechanism for being notified of interrupts
 with a low (bounded) latency.  This is currently used for 
@@ -241,7 +246,7 @@ higher (numerically lower) for the interrupt thread is it immedately
 executed.  When this is done, a pointer is maintained to the
 `interrupted_thread` in the interrupt `thread`'s structure.
 
-_`brand_wait` implementation_: The kernel does the following
+`brand_wait` _implementation_: The kernel does the following
 operations when `brand_wait` is called.  If `pending_interrupt` is
 non-zero, it is decrimented, and the thread returns immediately.
 
