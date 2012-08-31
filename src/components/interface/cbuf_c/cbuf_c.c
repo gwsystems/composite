@@ -130,7 +130,7 @@ __cbuf_2buf_miss(int cbid, int len, int tmem)
 		     (tmem && !(mc->nfo.c.flags & CBUFM_TMEM)) || 
 		     (!tmem && mc->nfo.c.flags & CBUFM_TMEM)))
 	    return -1;
-	h = mc->nfo.c.ptr << PAGE_ORDER;
+	assert(mc->nfo.c.ptr);
 	if (tmem) mc->owner_nfo.thdid = 0;
 
 	return 0;

@@ -10,8 +10,7 @@
 #ifndef   	CBUF_C_H
 #define   	CBUF_C_H
 
-#include <cbuf_vect.h>
-#include <mem_mgr_large.h>
+#include <cos_component.h>
 
 /* 
  * cbuf_c_create and cbuf_c_retrieve:
@@ -43,5 +42,8 @@ int cbufmgr_detect_suspension(spdid_t cid, int reset);
 int cbufmgr_set_over_quota_limit(int limit);
 int cbufmgr_set_suspension_limit(spdid_t cid, int limit);
 int cbufmgr_get_allocated(spdid_t cid);
+
+#include <cbuf_vect.h>
+#include <mem_mgr_large.h>
 
 #endif 	    /* !CBUF_C_H */
