@@ -511,7 +511,6 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 
 	assert(d_addr && l_addr);
 	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)l_addr, spdid, d_addr))) {
-		printc("No alias!\n");
 		goto err;
 	}
 
