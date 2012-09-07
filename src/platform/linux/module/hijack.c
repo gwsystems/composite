@@ -1886,12 +1886,8 @@ done:
 
 /* extern volatile int kern_tsc; */
 /* unsigned long long sum=0; */
-volatile int ipicnt = 0;
-volatile int nest = 0, maxnest = 0;
 static void receive_IPI(void *remote_thd)
 {
-	nest++;
-	if (nest > maxnest) maxnest = nest; 
 	int thdid = (int)remote_thd;
 	struct thread *thd = thd_get_by_id(thdid);
 
@@ -1904,18 +1900,16 @@ static void receive_IPI(void *remote_thd)
 	/* rdtscll(e); */
 	/* sum += e - s; */
 	/* printk("cost %llu\n", e-s); */
-	ipicnt++;
 	/* if (cnt == 1024) printk("host brand func cost: %llu\n", sum / 1024); */
 	/* unsigned long long t; */
 	/* rdtscll(t); */
 	/* kern_tsc = (int)t; */
-	nest--;
+
 	return;
 }
 
 int send_IPI(int cpuid, int thdid, int wait)
 {
-	if (cpuid == 123) {printk("kern cnt %d, max nested %d\n", ipicnt, maxnest); return 0;}
 	/* unsigned long long t, t2; */
 	/* rdtscll(t); */
 //	printk("core %d: sending an ipi to core %d and thd %d, wait %d.\n", get_cpuid(), cpuid, thdid, wait);

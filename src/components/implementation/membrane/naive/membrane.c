@@ -84,7 +84,7 @@ int server_receive(void)
 
 #define ITER (10000)
 u64_t meas[NUM_CPU][ITER];
-volatile int start = 0;
+volatile int start[NUM_CPU] = { 0 };
 
 int call_server(int p1, int p2, int p3, int p4)
 {
@@ -96,15 +96,16 @@ int call_server(int p1, int p2, int p3, int p4)
 
 	/* IPI mechanism */
 #ifdef IPI_TEST
-	if (cos_cpuid() == 2) start++;
-
-	while (start == 0) ;
+	start[cos_cpuid()] = 1;
+	
+	while (start[0] == 0) ;
+	while (start[2] == 0) ;
 	/* inv.loaded = 1; */
 	/* cos_send_ipi(((cos_cpuid() + 1) % (NUM_CPU - 1)), brand_tid, 0, 0); */
 	/* while (inv.loaded == 1) ; */
 	/* return 0; */
 
-	printc("Core %ld: going to send IPIs to tid %d! # of calling cores %d\n",cos_cpuid(), brand_tid, start);
+	printc("Core %ld: going to send IPIs to tid %d!\n",cos_cpuid(), brand_tid);
 	u64_t start = 0, end = 0, avg, tot = 0, dev = 0, max = 0;
 	int i, j, t;
 	int bid;
@@ -113,11 +114,11 @@ int call_server(int p1, int p2, int p3, int p4)
 	bid = brand_tid;
 	for (i = 0 ; i < ITER ; i++) {
 		rdtscll(start);
-		inv.loaded = 1;
+//		inv.loaded = 1;
 //		t = cos_send_ipi(cos_cpuid(), bid, 0, 0);
 //		t = cos_send_ipi(((cos_cpuid() + 1) % (NUM_CPU - 1 > 0 ? NUM_CPU - 1 : 1)), bid, 0, 0);
 		t = cos_send_ipi(1, bid, 0, 0);
-		while (inv.loaded == 1) ;
+//		while (inv.loaded == 1) ;
 		rdtscll(end);
 		meas[cos_cpuid()][i] = end - start;
 	}
@@ -146,7 +147,6 @@ int call_server(int p1, int p2, int p3, int p4)
 	printc("deviation^2 = %lld\n", dev);
 	printc("max = %llu\n", max);
 	printc("global_cnt = %d\n", global_cnt);
-//	cos_send_ipi(123, bid, 0, 0);
 
 	return 0;
 #endif

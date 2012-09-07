@@ -2877,47 +2877,10 @@ void set_prio(void)
 
 void set_smp_affinity()
 {
-	printf("start!\n");
-	char cmd[64], cmd1[64];
-	
-	// TODO: move these to a python script...
-
-
-	system("mkdir -p /dev/cpuset");
-	system("mount -t cgroup -ocpuset cpuset /dev/cpuset");
-	system("mkdir -p /dev/cpuset/linux");
-	system("mkdir -p /dev/cpuset/cos");
-	system("echo 7 > /dev/cpuset/linux/cpuset.cpus");
-	system("echo 0 > /dev/cpuset/linux/cpuset.mems");
-	sprintf(cmd, "echo 0-%d > /dev/cpuset/cos/cpuset.cpus", (NUM_CPU - 2) >= 0 ? (NUM_CPU - 2) : 0);
+	char cmd[64];
+	/* everything done is the python script. */
+	sprintf(cmd, "python set_smp_affinity.py %d %d", NUM_CPU, getpid());
 	system(cmd);
-	system("echo 0 > /dev/cpuset/cos/cpuset.mems");
-	//	printf("1:\\pid %d!\n", getpid());
-	fflush(stdout);
-	sprintf(cmd1, "echo %d > /dev/cpuset/cos/tasks", getpid());
-	system(cmd1);
-
-	system("for i in `cat /dev/cpuset/tasks`; do echo $i > /dev/cpuset/linux/tasks; done");
-	//	system("cat /dev/cpuset/cos/tasks");
-	//	printf("2:\\pid %d!\n", getpid());
-
-	//system("for i in {0..15}; do echo 1 > /proc/irq/$i/smp_affinity; done");
-	system("echo 7 > /proc/irq/0/smp_affinity");
-	system("echo 7 > /proc/irq/1/smp_affinity");
-	system("echo 7 > /proc/irq/2/smp_affinity");
-	system("echo 7 > /proc/irq/3/smp_affinity");
-	system("echo 7 > /proc/irq/4/smp_affinity");
-	system("echo 7 > /proc/irq/5/smp_affinity");
-	system("echo 7 > /proc/irq/6/smp_affinity");
-	system("echo 7 > /proc/irq/7/smp_affinity");
-	system("echo 7 > /proc/irq/8/smp_affinity");
-	system("echo 7 > /proc/irq/9/smp_affinity");
-	system("echo 7 > /proc/irq/10/smp_affinity");
-	system("echo 7 > /proc/irq/11/smp_affinity");
-	system("echo 7 > /proc/irq/12/smp_affinity");
-	system("echo 7 > /proc/irq/13/smp_affinity");
-	system("echo 7 > /proc/irq/14/smp_affinity");
-	system("echo 7 > /proc/irq/15/smp_affinity");
 }
 
 void setup_thread(void)
@@ -2929,8 +2892,8 @@ void setup_thread(void)
 	sa.sa_flags = SA_SIGINFO;
 	sigaction(SIGSEGV, &sa, NULL);
 #endif
-
-	set_smp_affinity();
+	if (NUM_CPU > 1)
+		set_smp_affinity();
 
 #ifdef HIGHEST_PRIO
 	set_prio();
