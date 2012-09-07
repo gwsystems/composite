@@ -17,7 +17,6 @@
 #include "./consts.h"
 
 #include "../debug.h"
-#include "../measurement.h"
 
 #ifndef COS_BASE_TYPES
 #define COS_BASE_TYPES
@@ -30,6 +29,8 @@ typedef signed short int s16_t;
 typedef signed int       s32_t;
 typedef signed long long s64_t;
 #endif
+
+#include "../measurement.h"
 
 struct shared_user_data {
 	unsigned int current_thread;

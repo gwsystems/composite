@@ -1,10 +1,13 @@
 #include "include/measurement.h"
+#include "include/per_cpu.h"
 #include <linux/kernel.h>
+
 
 #ifdef MEASUREMENTS
 
-struct cos_meas_struct cos_measurements[COS_MEAS_MAX_SIZE] = 
-{
+struct per_core_meas_struct per_core_meas[NUM_CPU];
+
+struct cos_meas_struct measurements_desc[COS_MEAS_MAX_SIZE] = {
 	{.type = MEAS_CNT, .description = "normal component invocations"},
 	{.type = MEAS_CNT, .description = "bootstrapping upcalls"},
 	{.type = MEAS_CNT, .description = "self (effectless) thread switch"},
@@ -75,12 +78,16 @@ struct cos_meas_struct cos_measurements[COS_MEAS_MAX_SIZE] =
 
 void cos_meas_init(void)
 {
-	int i;
+	int i, cpu;
 
-	for (i = 0; i < COS_MEAS_MAX_SIZE ; i++) {
-		cos_measurements[i].cnt = cos_measurements[i].meas = 0;
-		cos_measurements[i].tot = cos_measurements[i].max = 0;
-		cos_measurements[i].min = ~(0ULL);
+	for (cpu = 0; cpu < NUM_CPU; cpu++) {
+		memcpy(per_core_meas[cpu].cos_measurements, measurements_desc, sizeof(struct cos_meas_struct) * COS_MEAS_MAX_SIZE);
+		for (i = 0; i < COS_MEAS_MAX_SIZE ; i++) {
+			per_core_meas[cpu].cos_measurements[i].cnt = per_core_meas[cpu].cos_measurements[i].meas = 0;
+			per_core_meas[cpu].cos_measurements[i].tot = per_core_meas[cpu].cos_measurements[i].max = 0;
+			per_core_meas[cpu].cos_measurements[i].min = ~(0ULL);
+		}
+		per_core_recorded_evts[cpu].evts_head = 0;
 	}
 
 	return;
@@ -88,28 +95,30 @@ void cos_meas_init(void)
 
 void cos_meas_report(void)
 {
-	int i;
+	int i, cpu;
 
-	printk("cos: Measurements:\n");
-	for (i = 0 ; i < COS_MEAS_MAX_SIZE ; i++) {
-		switch (cos_measurements[i].type) {
-		case MEAS_CNT:
-			printk("cos: %8lld : %s\n", 
-			       cos_measurements[i].cnt, cos_measurements[i].description);
-			break;
-		case MEAS_STATS:
-			printk("cos: %56s : avg: %lld/%lld, max: %lld, min: %lld\n",
-			       cos_measurements[i].description, 
-			       cos_measurements[i].tot, cos_measurements[i].cnt, 
-			       cos_measurements[i].max, cos_measurements[i].min);
-			break;
-		default:
-			printk("cos: unknown type for %d of %d", i, cos_measurements[i].type);
+	for (cpu = 0; cpu < NUM_CPU; cpu++) {
+		if (NUM_CPU > 1 && (cpu == NUM_CPU - 1)) break; // no need to report the core belongs to Linux
+		printk("\nCore %d Measurements:\n", cpu);
+		for (i = 0 ; i < COS_MEAS_MAX_SIZE ; i++) {
+			switch (per_core_meas[cpu].cos_measurements[i].type) {
+			case MEAS_CNT:
+				printk("cos: %8lld : %s\n", 
+				       per_core_meas[cpu].cos_measurements[i].cnt, per_core_meas[cpu].cos_measurements[i].description);
+				break;
+			case MEAS_STATS:
+				printk("cos: %56s : avg: %lld/%lld, max: %lld, min: %lld\n",
+				       per_core_meas[cpu].cos_measurements[i].description, 
+				       per_core_meas[cpu].cos_measurements[i].tot, per_core_meas[cpu].cos_measurements[i].cnt, 
+				       per_core_meas[cpu].cos_measurements[i].max, per_core_meas[cpu].cos_measurements[i].min);
+				break;
+			default:
+				printk("cos: unknown type for %d of %d", i, per_core_meas[cpu].cos_measurements[i].type);
+			}
 		}
 	}
 
 	return;
-	
 }
 
 #endif
@@ -117,21 +126,23 @@ void cos_meas_report(void)
 
 #ifdef COS_RECORD_EVTS
 
-struct exec_evt recorded_evts[COS_EVTS_NUM];
-int evts_head = 0;
-
+struct per_core_evt_record per_core_recorded_evts[NUM_CPU];
 void event_print(void)
 {
-	int i, last;
+	int i, last, cpu;
 	unsigned long long ts;
 
-	last = (evts_head + (COS_EVTS_NUM-1)) & COS_EVTS_MASK;
 	cos_rdtscll(ts);
-	printk("cos: Most recent events (head %d, pre %d) @ %lld.\n", evts_head, last, ts);
-	for (i = evts_head ; 1 ; i = (i+1) & COS_EVTS_MASK) {
-		struct exec_evt *e = &recorded_evts[i];
-		printk("cos:\t%d:%s (%ld, %ld) @ %lld\n", i, e->msg, e->a, e->b, e->timestamp);
-		if (i == last) break;
+	printk("\ncos: Most recent events @ current t %llu.\n", ts);
+	for (cpu = 0; cpu < NUM_CPU; cpu++) {
+		if (NUM_CPU > 1 && (cpu == NUM_CPU - 1)) break; // no need to report the core belongs to Linux
+		last = (per_core_recorded_evts[cpu].evts_head + (COS_EVTS_NUM-1)) & COS_EVTS_MASK;
+		printk("\ncos: Core %d most recent events (head %d, pre %d).\n", cpu, per_core_recorded_evts[cpu].evts_head, last);
+		for (i = per_core_recorded_evts[cpu].evts_head ; 1 ; i = (i+1) & COS_EVTS_MASK) {
+			struct exec_evt *e = &per_core_recorded_evts[cpu].recorded_evts[i];
+			printk("cos:\t%d:%s (%ld, %ld) @ %lld\n", i, e->msg, e->a, e->b, e->timestamp);
+			if (i == last) break;
+		}
 	}
 }
 

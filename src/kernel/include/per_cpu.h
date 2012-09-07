@@ -11,8 +11,10 @@
 
 #include "shared/cos_config.h"
 #include "shared/consts.h"
+#include "shared/cos_types.h"
 #include "spd.h"
 #include "debug.h"
+#include "cpuid.h"
 
 
 struct per_core_variables {
@@ -35,25 +37,6 @@ cos_cas(unsigned long *target, unsigned long cmp, unsigned long updated)
 			       "a"  (cmp)
 			     : "memory", "cc");
 	return (int)z;
-}
-
-/* TODO: put this in platform specific directory */
-static inline unsigned long *
-get_linux_thread_info(void)
-{
-	unsigned long curr_stk_pointer;
-	asm ("movl %%esp, %0;" : "=r" (curr_stk_pointer));
-	return (unsigned long *)(curr_stk_pointer & ~(THREAD_SIZE_LINUX - 1));
-}
-
-static inline u32_t
-get_cpuid(void)
-{
-#if NUM_CPU == 1
-	return 0;
-#endif
-	/* Linux saves the CPU_ID in the stack for fast access. */
-	return *(get_linux_thread_info() + CPUID_OFFSET_IN_THREAD_INFO);
 }
 
 #define CREATE_PERCPU_FNS(type, name)           \
