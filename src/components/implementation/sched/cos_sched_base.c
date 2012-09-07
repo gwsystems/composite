@@ -60,16 +60,13 @@ struct sched_base_per_core {
 	struct sched_thd blocked;
 	struct sched_thd upcall_deactive;
 	struct sched_thd graveyard;
+	long long report_evts[REVT_LAST];
 } CACHE_ALIGNED;
 
 static struct sched_base_per_core per_core_sched_base[NUM_CPU];
 
-//////////////not sure...
+//////////////per_core?
 /* STATIC_TIMER_RECORDS(recs, TIMER_MAX); */
-
-//static long long report_evts[REVT_LAST];
-//////////////not sure...
-
 
 static enum {SCHED_CHILD, SCHED_ROOT} sched_type = SCHED_ROOT;
 static inline int sched_is_root(void) { return sched_type == SCHED_ROOT; }
@@ -79,53 +76,6 @@ static inline int sched_is_child(void) { return !sched_is_root(); }
 #define BOOT_SPD 5
 
 //#define FPRR_REPORT_EVTS
-
-typedef enum {
-	NULL_EVT = 0,
-	SWITCH_THD,
-	BRAND_ACTIVE,
-	BRAND_READY,
-	BRAND_PENDING,
-	BRAND_CYCLE,
-	SCHED_DEPENDENCY,
-	THD_BLOCK,
-	THD_WAKE,
-	COMP_TAKE,
-	COMP_TAKE_ATTEMPT,
-	COMP_TAKE_CONTENTION,
-	COMP_RELEASE,
-	TIMER_TICK,
-	TIMER_SWITCH_LOOP,
-	IDLE_SCHED,
-	IDLE_SCHED_SWITCH,
-	EVT_CMPLETE,
-	BLOCK_LOOP,
-	WAKE_LOOP,
-	TIMER_LOOP,
-	COMP_TAKE_LOOP,
-	EVT_CMPLETE_LOOP,
-	TIMEOUT_LOOP,
-	IDLE_SCHED_LOOP,
-	BLOCKED_DEP_RETRY,
-	RETRY_BLOCK,
-	BLOCKED_W_DEPENDENCY,
-	DEPENDENCY_BLOCKED_THD,
-	SCHED_TARGETTED_DEPENDENCY,
-	PARENT_BLOCK_CHILD,
-	PARENT_CHILD_EVT_OTHER,
-	PARENT_CHILD_EVT_THD,
-	PARENT_CHILD_DEACTIVATE,
-	PARENT_CHILD_RESUME,
-	PARENT_CHILD_REDUNDANT_RESUME,
-	CHILD_PROCESS_EVT_IDLE,
-	CHILD_PROCESS_EVT_PEND,
-	CHILD_EVT_BLOCK,
-	CHILD_EVT_WAKE,
-	CHILD_EVT_OTHER,
-	CHILD_SWITCH_THD,
-	CEVT_RESCHED,
-	REVT_LAST
-} report_evt_t;
 
 #ifdef FPRR_REPORT_EVTS
 
@@ -175,7 +125,6 @@ static char *revt_names[] = {
 	"child scheduler reschedules due to pending cevt",
 	""
 };
-static long long report_evts[REVT_LAST];
 
 /* Timers */
 enum {
@@ -190,17 +139,19 @@ static void report_event(report_evt_t evt)
 {
 	if (unlikely(evt >= REVT_LAST)) return;
 
-	report_evts[evt]++;
+	per_core_sched_base[cos_cpuid()].report_evts[evt]++;
 }
 
 static void report_output(void)
 {
-	int i;
+	int i, j;
 
-	prints("All counters:\n");
-	for (i = 0 ; i < REVT_LAST ; i++) {
-		printc("\t%s: %lld\n", revt_names[i], report_evts[i]);
-		report_evts[i] = 0;
+	for (j = 0; j < NUM_CPU; j++) {
+		printc("  <<<Core %d>>> All counters:\n", j);
+		for (i = 0 ; i < REVT_LAST ; i++) {
+			printc("\t%s: %lld\n", revt_names[i], per_core_sched_base[j].report_evts[i]);
+			per_core_sched_base[j].report_evts[i] = 0;
+		}
 	}
 
 //	mman_print_stats();
@@ -555,9 +506,6 @@ static void sched_timer_tick(void)
 	while (1) {
 		cos_sched_lock_take();
 		report_event(TIMER_TICK);
-		/* if (cos_cpuid() == 1) { */
-		/* 	printc("ticks %d. core %ld\n", (int)per_core_sched_base[cos_cpuid()].ticks, cos_cpuid()); */
-		/* } */
 		if (unlikely((per_core_sched_base[cos_cpuid()].ticks % (REPORT_FREQ*TIMER_FREQ)) == ((REPORT_FREQ*TIMER_FREQ)-1))) {
 			report_thd_accouting();
 			//cos_stats();
@@ -617,17 +565,52 @@ static void fp_create_spd_thd(void *d)
 	BUG();
 }
 
-struct shared_default_thread_data {
+struct shared_xcore_fn_data {
 	int active;
-	spdid_t spdid;
-	u32_t param[3];
+	void *fn;
+	int nparams;
+	u32_t param[4];
 	int ret;
 } CACHE_ALIGNED;
 
-volatile struct shared_default_thread_data default_thread_data[NUM_CPU];
+volatile struct shared_xcore_fn_data xcore_fn_data[NUM_CPU];
 
 static int current_core_create_thread_default(spdid_t spdid, u32_t sched_param_0, 
 					      u32_t sched_param_1, u32_t sched_param_2);
+static inline int execute_fn_current_core() 
+{
+	/* Currently this is only used for creating default threads
+	 * when booting up the system. */
+	assert(xcore_fn_data[cos_cpuid()].nparams <= 4);
+	assert(xcore_fn_data[cos_cpuid()].active);
+
+	int (*fn)();
+	fn = xcore_fn_data[cos_cpuid()].fn;
+	switch (xcore_fn_data[cos_cpuid()].nparams)
+	{		
+	case 0:
+		xcore_fn_data[cos_cpuid()].ret = fn();
+		break;
+	case 1:
+		xcore_fn_data[cos_cpuid()].ret = fn(xcore_fn_data[cos_cpuid()].param[0]);
+		break;
+	case 2:
+		xcore_fn_data[cos_cpuid()].ret = fn(xcore_fn_data[cos_cpuid()].param[0], xcore_fn_data[cos_cpuid()].param[1]);
+		break;
+	case 3:
+		xcore_fn_data[cos_cpuid()].ret = fn(xcore_fn_data[cos_cpuid()].param[0], xcore_fn_data[cos_cpuid()].param[1], 
+						    xcore_fn_data[cos_cpuid()].param[2]);
+		break;
+	case 4:
+		xcore_fn_data[cos_cpuid()].ret = fn(xcore_fn_data[cos_cpuid()].param[0], xcore_fn_data[cos_cpuid()].param[1],
+						    xcore_fn_data[cos_cpuid()].param[2], xcore_fn_data[cos_cpuid()].param[3]);
+		break;
+	}
+
+	xcore_fn_data[cos_cpuid()].active = 0;
+
+	return 0;
+}
 static void fp_idle_loop(void *d)
 {
 	assert(sched_is_root());
@@ -641,15 +624,8 @@ static void fp_idle_loop(void *d)
  			cos_sched_lock_take();
 			sched_switch_thread(0, IDLE_SCHED_SWITCH);
 		}
-		if (default_thread_data[cos_cpuid()].active) {
-			/* FIXME: currently this is only used when
-			 * booting up the system. We should use IPIs
-			 * to notify other cores about the thread
-			 * creation, not this way. Qi.*/
-			default_thread_data[cos_cpuid()].ret = \
-				current_core_create_thread_default(default_thread_data[cos_cpuid()].spdid, default_thread_data[cos_cpuid()].param[0],
-								   default_thread_data[cos_cpuid()].param[1], default_thread_data[cos_cpuid()].param[2]);
-			default_thread_data[cos_cpuid()].active = 0;
+		if (xcore_fn_data[cos_cpuid()].active) {
+			execute_fn_current_core();
 		}
 //		report_event(IDLE_SCHED_LOOP);
 #ifdef IDLE_TO_LINUX
@@ -1255,6 +1231,29 @@ static int current_core_create_thread_default(spdid_t spdid, u32_t sched_param_0
 	return 0;
 }
 
+/* Execute a function on a remote core. Using shared memory to send
+ * the event. The idle thread of the destination core detects and
+ * executes the function. */
+static int remote_execute_fn(int core_id, void *fn, int nparams, int *param, int wait)
+{
+	int ret = 0, i;
+	
+	assert(core_id < NUM_CPU);
+	assert(nparams <= 4);
+
+	xcore_fn_data[core_id].fn = fn;
+	xcore_fn_data[core_id].nparams = nparams;
+	for (i = 0; i < nparams; i++)
+		xcore_fn_data[core_id].param[i] = param[i];
+	xcore_fn_data[core_id].active = 1;
+	if (wait) {
+		while (xcore_fn_data[core_id].active) ; /* Waiting */
+		ret = xcore_fn_data[core_id].ret;
+	} 
+
+	return ret;
+}
+
 #define DEF_OFFSET 0
 int created_default_thds = DEF_OFFSET;
 
@@ -1264,18 +1263,11 @@ sched_create_thread_default(spdid_t spdid, u32_t sched_param_0,
 			    u32_t sched_param_1, u32_t sched_param_2)
 {
 	int core_id, ret;
-	/* FIX ME: we should send an IPI to the core that we want to
-	 * create thread on. Not using shared memory. */
 	core_id = created_default_thds % (NUM_CPU > 1 ? NUM_CPU - 1 : 1);
 
 	if (core_id != 0) {
-		default_thread_data[core_id].spdid = spdid;
-		default_thread_data[core_id].param[0] = sched_param_0;
-		default_thread_data[core_id].param[1] = sched_param_1;
-		default_thread_data[core_id].param[2] = sched_param_2;
-		default_thread_data[core_id].active = 1;
-		while (default_thread_data[core_id].active) ;
-		ret = default_thread_data[core_id].ret;
+		int param[4] = {spdid, sched_param_0, sched_param_1, sched_param_2};
+		ret = remote_execute_fn(core_id, (void *)current_core_create_thread_default, 4, param, 1);
 	} else {
 		ret = current_core_create_thread_default(spdid, sched_param_0, sched_param_1, sched_param_2);
 	}

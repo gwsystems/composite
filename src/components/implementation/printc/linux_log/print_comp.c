@@ -47,6 +47,8 @@ int print_str(int s1, int s2, int s3, int s4)
 	
 	if (j == CHAR_PER_INV) return 1;
 
+	assert(len < MAX_LEN);
+	assert(s[len] == '\0');
 //	cos_print(":", 1);
 	cos_print(buf_ptr, len);
 	*index_ptr = 0;
