@@ -41,8 +41,8 @@ struct cos_cbuf_item *alloc_item_data_struct(void *l_addr)
 	cci = malloc(sizeof(struct cos_cbuf_item));
 	if (!cci) BUG();
 
+	memset(cci, 0, sizeof(struct cos_cbuf_item));
 	INIT_LIST(cci, next, prev);
-        
 	cci->desc.addr      = l_addr;
 	cci->desc.cbid      = 0;
 	cci->desc.sz        = 0;
@@ -157,7 +157,7 @@ struct cos_cbuf_item *mgr_get_client_mem(struct spd_tmem_info *sti)
 	     cci != list ; 
 	     cci = FIRST_LIST(cci, next, prev)) {
 		struct cbuf_meta cm;
-		cm.nfo.v = cci->desc.meta->nfo.v;
+		cm.nfo.v = cci->desc.owner.meta->nfo.v;
 		if (!CBUF_IN_USE(cm.nfo.c.flags)) break;
 	}
 
@@ -400,7 +400,7 @@ cbuf_c_create(spdid_t spdid, int size, long cbid, int tmem)
 	assert(mc); 		/* see FIXME above */
 	d->owner.meta = mc;
 
-	mc->nfo.c.ptr       = d->owner.addr >> PAGE_ORDER;
+	mc->nfo.c.ptr = d->owner.addr >> PAGE_ORDER;
 	if (tmem) {
 		mc->sz              = PAGE_SIZE;
 		mc->owner_nfo.thdid = cos_get_thd_id();
@@ -480,11 +480,13 @@ int
 cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 {
 	int ret = -1;
-	char *l_addr, *d_addr;
+	char *l_addr;
+	vaddr_t d_addr;
 	struct cos_cbuf_item *cbi;
 	struct cb_desc *d;
 	struct cb_mapping *m;
 	struct spd_tmem_info *sti;
+	struct cbuf_meta *mc;
 
 	TAKE();
 
@@ -497,7 +499,7 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 	if (!m) goto done;
 	INIT_LIST(m, next, prev);
 
-	d_addr = valloc_alloc(cos_spd_id(), spdid, 1);
+	d_addr = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, 1);
 	if (!d_addr) goto free;
 	l_addr = d->addr;  //cbuf_item addr, initialized in cos_init()
 
@@ -508,18 +510,20 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 	if (!mc) goto err;
 
 	assert(d_addr && l_addr);
-	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)l_addr, spdid, (vaddr_t)d_addr))) {
-		printc("No alias!\n");
+	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)l_addr, spdid, d_addr))) {
 		goto err;
 	}
 
 	m->cbd  = d;
 	m->spd  = spdid;
-	m->addr = (vaddr_t)d_addr;
+	m->addr = d_addr;
 	m->meta = mc;
 	if (d->flags & CBUF_DESC_TMEM) {
-		mc->owner_nfo.thdid = 0;
-		mc->nfo.c.flags    |= CBUFM_IN_USE | CBUFM_TOUCHED | CBUFM_TMEM | CBUFM_WRITABLE;
+		/* owners should not be cbuf2bufing their buffers. */
+		assert(!(mc->nfo.c.flags & CBUFM_OWNER));
+		mc->owner_nfo.thdid   = 0;
+		mc->nfo.c.flags      |= CBUFM_IN_USE | CBUFM_TOUCHED | 
+			                CBUFM_TMEM   | CBUFM_WRITABLE;
 	} else {
 		mc->owner_nfo.c.nsent = mc->owner_nfo.c.nrecvd = 0;
 		mc->nfo.c.flags      |= CBUFM_IN_USE | CBUFM_WRITABLE;
@@ -533,7 +537,7 @@ done:
 	RELEASE();
 	return ret;
 err:
-	valloc_free(cos_spd_id(), spdid, d_addr, 1);
+	valloc_free(cos_spd_id(), spdid, (void*)d_addr, 1);
 free:
 	free(m);
 	goto done;

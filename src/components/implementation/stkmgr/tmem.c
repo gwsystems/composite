@@ -76,7 +76,8 @@ get_mem(void)
 	return tmi;
 }
 
-void event_waiting()
+void
+event_waiting(void)
 {
 	while (1) {
 		mempool_tmem_mgr_event_waiting(cos_spd_id());
@@ -266,7 +267,6 @@ tmem_grant(struct spd_tmem_info *sti)
 
 		if (sti->num_allocated < sti->num_desired &&
 		    (empty_comps < (MAX_NUM_MEM - tmems_allocated) || sti->num_allocated == 0)) {
-			/* DOUT("alloooooooooo!!\n"); */
 			/* We are eligible for allocation! */
 			eligible = 1;
 			tmi = get_mem();
