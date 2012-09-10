@@ -10,52 +10,58 @@
 #include <tmem.h>
 #include <cbuf_c.h>
 
-struct cbufp_desc {
-	struct cos_cbuf_item freelist;
-};
+/* 
+ * For a certain principal, collect any unreferenced persistent cbufs
+ * so that they can be reused.  This is the garbage-collection
+ * mechanism.
+ *
+ * Collect cbufps and add them onto the component's freelist.
+ */
+int
+cbufp_collect(struct spd_tmem_info *sti, int size)
+{
+	return -1;
+}
 
+extern struct cos_cbuf_item *alloc_item_data_struct(void *l_addr);
 /* 
  * Get a new persistent cbuf of a specific size.
  */
 struct cos_cbuf_item *
 cbufp_grant(struct spd_tmem_info *sti, int size)
 {
-	struct cbufp_desc *cbpd;
-	struct cos_cbuf_item *cbi;
+	struct cos_cbuf_item *cbi = NULL, *ncbi;
+
+	assert(size <= PAGE_SIZE);
 
 	return NULL;
-	/* assert(size <= PAGE_SIZE); */
 
-	/* if (!sti->data) { */
-	/* 	cbpd = malloc(sizeof(struct cbufp_desc)); */
-	/* 	if (!cbpd) return NULL; */
-	/* } else { */
-	/* 	cbpd = sti->data; */
-	/* } */
+	if (!sti->data) {
+		if (cbufp_collect(sti, PAGE_SIZE)) {
+			/* no memory collected... */
+			void *p = alloc_page();
+			assert(p);
 
-	/* if (EMPTY_LIST(&cbpd->freelist, next, prev)) { */
-	/* 	void *p; */
+			ncbi    = alloc_item_data_struct(p);
+			assert(ncbi);
+			ncbi->parent_spdid = ncbi->desc.cbid = ncbi->desc.owner.spd = sti->spdid;
+			ncbi->desc.sz         = PAGE_SIZE;
+			ncbi->desc.owner.addr = (vaddr_t)p;
+			ncbi->desc.owner.cbd  = &ncbi->desc;
+			INIT_LIST(&ncbi->desc.owner, next, prev);
+		} else {
+			cbi = sti->data;
+			assert(cbi);
+		}
+	} else {
+		cbi = sti->data;
+	}
 
-	/* 	/\*  */
-	/* 	 * For now, we just allocate more memory! TODO: block */
-	/* 	 * waiting for memory to become available on our free */
-	/* 	 * list. */
-	/* 	 *\/ */
-	/* 	alloc_page( */
-	/* } */
-	/* cbi = FIRST_LIST(&cbpd->freelist, next, prev); */
-	/* REM_LIST(cbi, next, prev); */
-}
-
-/* 
- * For a certain principal, collect any unreferenced persistent cbufs
- * so that they can be reused.  This is the garbage-collection
- * mechanism.
- */
-int
-cbufp_collect(struct spd_tmem_info *sti, int size)
-{
-	return -1;
+	if (EMPTY_LIST(cbi, next, prev)) sti->data = NULL;
+	else                             sti->data = FIRST_LIST(cbi, next, prev);
+	REM_LIST(cbi, next, prev);
+	
+	return NULL;
 }
 
 /* 

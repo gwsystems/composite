@@ -112,10 +112,10 @@ __cbuf_2buf_miss(int cbid, int len, int tmem)
 	 * 
 	 * Solution: the security mechanisms of the kernel (preventing
 	 * cbids being passed to this component if they don't already
-	 * below to the client) should fix this.
+	 * belong to the client) should fix this.
 	 */
 	mc = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
-	/* have to expand the cbuf_vect */
+	/* ...have to expand the cbuf_vect */
 	if (unlikely(!mc)) {
 		if (cbuf_vect_expand(&meta_cbuf, cbid)) BUG();
 		mc = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));

@@ -41,8 +41,8 @@ struct cos_cbuf_item *alloc_item_data_struct(void *l_addr)
 	cci = malloc(sizeof(struct cos_cbuf_item));
 	if (!cci) BUG();
 
+	memset(cci, 0, sizeof(struct cos_cbuf_item));
 	INIT_LIST(cci, next, prev);
-        
 	cci->desc.addr      = l_addr;
 	cci->desc.cbid      = 0;
 	cci->desc.sz        = 0;
@@ -400,7 +400,7 @@ cbuf_c_create(spdid_t spdid, int size, long cbid, int tmem)
 	assert(mc); 		/* see FIXME above */
 	d->owner.meta = mc;
 
-	mc->nfo.c.ptr       = d->owner.addr >> PAGE_ORDER;
+	mc->nfo.c.ptr = d->owner.addr >> PAGE_ORDER;
 	if (tmem) {
 		mc->sz              = PAGE_SIZE;
 		mc->owner_nfo.thdid = cos_get_thd_id();
@@ -519,6 +519,8 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 	m->addr = d_addr;
 	m->meta = mc;
 	if (d->flags & CBUF_DESC_TMEM) {
+		/* owners should not be cbuf2bufing their buffers. */
+		assert(!(mc->nfo.c.flags & CBUFM_OWNER));
 		mc->owner_nfo.thdid   = 0;
 		mc->nfo.c.flags      |= CBUFM_IN_USE | CBUFM_TOUCHED | 
 			                CBUFM_TMEM   | CBUFM_WRITABLE;
