@@ -49,7 +49,8 @@ get_mem(void)
 	tmem_item *tmi;
 	void *l_addr;
 
-	/* Do we need to maintain global stack target? If we set a
+	/* 
+	 * Do we need to maintain global stack target? If we set a
 	 * limit to each component, can we get a global target as
 	 * well? Disable this first because it prevents
 	 * self-suspension stacks over-quota allocation, which is
@@ -235,7 +236,7 @@ tmem_wait_for_mem(struct spd_tmem_info *sti)
 	return 1;
 }
 
-inline tmem_item *
+tmem_item *
 tmem_grant(struct spd_tmem_info *sti)
 {
 	tmem_item *tmi = NULL, *local_cache = NULL;

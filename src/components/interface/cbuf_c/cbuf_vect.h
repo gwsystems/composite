@@ -16,8 +16,6 @@
 #define CVECT_FREE(x) free_page(x)
 #include <cvect.h>
 
-vaddr_t cbuf_c_register(spdid_t spdid, long cbid);
-
 #define CBUF_VECT_CREATE_STATIC(name)	CVECT_CREATE_STATIC(name)
 
 #define cbid_to_meta_idx(cid) ((cid-1) << 1)

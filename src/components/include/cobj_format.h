@@ -77,7 +77,7 @@ struct cobj_cap {
 } __attribute__((packed));
 
 static inline int
-cobj_cap_is_fault(struct cobj_cap *c) { return c->fault_num <= COS_NUM_FAULTS; }
+cobj_cap_is_fault(struct cobj_cap *c) { return c->fault_num <= COS_FLT_MAX; }
 
 u32_t cobj_size_req(u32_t nsect, u32_t sect_sz, u32_t nsymb, u32_t ncap);
 struct cobj_header *cobj_create(u32_t id, char *name, u32_t nsect, 

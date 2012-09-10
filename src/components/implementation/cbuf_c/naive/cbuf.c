@@ -4,7 +4,10 @@
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  *
- * Author: Gabriel Parmer, gparmer@gwu.edu, 2010
+ * Authors and history: 
+ * Gabriel Parmer, gparmer@gwu.edu, 2010 -- initial version
+ * Qi Wang and Jiguo Song, 2010-12 -- tmem
+ * Gabriel Parmer, gparmer@gwu.edu, 2012 -- persistent cbufs
  */
 
 #include <cos_component.h>
@@ -67,16 +70,14 @@ struct cos_cbuf_item *free_mem_in_local_cache(struct spd_tmem_info *sti)
 	     cci != list; 
 	     cci = FIRST_LIST(cci, next, prev)) {
 		struct cbuf_meta cm;
-		cm.nfo.v = cci->entry->nfo.v;
+		cm.nfo.v = cci->desc.owner.meta->nfo.v;
 		if (!CBUF_IN_USE(cm.nfo.c.flags)) goto done;
 	}
 
 	if (cci == list) goto err;
 done:
-	/* DOUT("\n Found one!!\n\n"); */
 	return cci;
 err:
-	/* DOUT("\n can not found one!!\n"); */
 	cci = NULL;	
 	return cci;
 }
@@ -102,7 +103,6 @@ void mgr_map_client_mem(struct cos_cbuf_item *cci, struct spd_tmem_info *sti)
 	/* ...map it into the requesting component */
 	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)l_addr, d_spdid, (vaddr_t)d_addr))) 
 		goto err;
-	/* DOUT("<<<MAPPED>>> mgr addr %p client addr %p\n ",l_addr, d_addr); */
 	cci->desc.owner.addr = (vaddr_t)d_addr;
 	cci->parent_spdid = d_spdid;
 	assert(cci->desc.cbid == 0);
@@ -124,12 +124,9 @@ static void
 mgr_remove_client_mem(struct spd_tmem_info *sti, struct cos_cbuf_item *cci)
 {
 	__cbuf_c_delete(sti, cci->desc.cbid, &cci->desc);
-	DOUT("already delete....cbid %d\n", cci->desc.cbid);
-
 	cos_map_del(&cb_ids, cci->desc.cbid);
-	DOUT("fly..........cbid is %d\n", cci->desc.cbid);
 
-	cci->desc.cbid = 0;
+	cci->desc.cbid    = 0;
 	cci->parent_spdid = 0;
 
 	// Clear our memory to prevent leakage
@@ -160,14 +157,12 @@ struct cos_cbuf_item *mgr_get_client_mem(struct spd_tmem_info *sti)
 	     cci != list ; 
 	     cci = FIRST_LIST(cci, next, prev)) {
 		struct cbuf_meta cm;
-		cm.nfo.v = cci->entry->nfo.v;
+		cm.nfo.v = cci->desc.meta->nfo.v;
 		if (!CBUF_IN_USE(cm.nfo.c.flags)) break;
 	}
 
 	if (cci == list) goto err;
 	assert(&cci->desc == cos_map_lookup(&cb_ids, cci->desc.cbid));
-	/* struct cb_mapping *m; */
-	/* m = FIRST_LIST(&cci->desc.owner, next, prev); */
 	
 	mgr_remove_client_mem(sti, cci);
 
@@ -194,9 +189,9 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_cbuf)
 
 	if (cci == &sti->tmem_list) goto done;
 
-	cm.nfo.v = cci->entry->nfo.v;			
+	cm.nfo.v = cci->desc.owner.meta->nfo.v;			
 
-	ret = (u32_t)cci->entry->thdid_owner;
+	ret = (u32_t)cci->desc.owner.meta->owner_nfo.thdid;
 
 	if (!CBUF_IN_USE(cm.nfo.c.flags)) goto cache;
 	if (ret == cos_get_thd_id()){
@@ -222,7 +217,7 @@ void mgr_clear_touched_flag(struct spd_tmem_info *sti)
 	for (cci = FIRST_LIST(&sti->tmem_list, next, prev) ; 
 	     cci != &sti->tmem_list ; 
 	     cci = FIRST_LIST(cci, next, prev)) {
-		cm = cci->entry;
+		cm = cci->desc.owner.meta;
 		if (!CBUF_IN_USE(cm->nfo.c.flags)) {
 			cm->nfo.c.flags &= ~CBUFM_TOUCHED;
 		} else {
@@ -278,7 +273,7 @@ __spd_cbvect_clean_val(struct spd_tmem_info *sti, long cbuf_id)
 	     cbr = FIRST_LIST(cbr, next, prev)) {
 		if (cbuf_id >= cbr->start_id && cbuf_id <= cbr->end_id) {
 			cbr->meta[CB_IDX(cbuf_id, cbr)].nfo.v = (u32_t)COS_VECT_INIT_VAL;
-			cbr->meta[CB_IDX(cbuf_id, cbr)].thdid_owner = (u32_t)COS_VECT_INIT_VAL;
+			cbr->meta[CB_IDX(cbuf_id, cbr)].owner_nfo.thdid = (u32_t)COS_VECT_INIT_VAL;
 			break;
 		}
 	}
@@ -307,49 +302,51 @@ cbuf_c_register(spdid_t spdid, long cbid)
 	struct spd_tmem_info *sti;
 	vaddr_t p, mgr_addr;
 
-	/* DOUT("\nREGISTERED!!!\n"); */
+	TAKE();
 	sti = get_spd_info(spdid);
 	
 	mgr_addr = (vaddr_t)alloc_page();
 	p = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, 1);
-	if (p !=
-	    (mman_alias_page(cos_spd_id(), mgr_addr, spdid, p))) {
-		DOUT("mapped faied p is %p\n",(void *)p);
+	if (p != (mman_alias_page(cos_spd_id(), mgr_addr, spdid, p))) {
 		valloc_free(cos_spd_id(), spdid, (void *)p, 1);
+		RELEASE();
 		return -1;
 	}
 	sti->managed = 1;
-	/* __spd_cbvect_add_range(sti, cbid, (struct cbuf_vect_intern_struct *)mgr_addr); */
 	__spd_cbvect_add_range(sti, cbid, mgr_addr);
+	RELEASE();
 
 	return p;
 }
- 
+
+extern struct cos_cbuf_item *cbufp_grant(struct spd_tmem_info *sti, int size);
+
 int
-cbuf_c_create(spdid_t spdid, int size, long cbid)
+cbuf_c_create(spdid_t spdid, int size, long cbid, int tmem)
 {
 	int ret = -1;
 	void *v;
 	struct spd_tmem_info *sti;
 	struct cos_cbuf_item *cbuf_item;
 	struct cb_desc *d;
-
 	struct cbuf_meta *mc = NULL;
 
-	/* DOUT("thd: %d spd: %d cbuf_c_create is called here!!\n", cos_get_thd_id(), spdid); */
-	/* DOUT("passed cbid is %ld\n",cbid); */
 	TAKE();
-
 	sti = get_spd_info(spdid);
-	
 	/* Make sure we have access to the component shared page */
 	assert(SPD_IS_MANAGED(sti));
 	assert(cbid >= 0);
 
-	/* For cbuf only
-	 * find an unused cbuf_id
-	 * looks through to find id
-	 * if does not find, allocate a page for the meta data
+	/* 
+	 * This is ugly:
+	 * 
+	 * If we can't find the cbuf id in the meta structure, then we
+	 * know we have to let the client extend the cbuf vector.  We
+	 * allocate a cbuf id, and set its entry to the spdid that we
+	 * are allocating it to.  When this function is called again
+	 * with the cbid as the argument, we verify that the entry is
+	 * still the spdid, then we actually add the real
+	 * cos_cbuf_item to the structure instead of the spdid.
 	 */
 	if (cbid) {
 		 // vector should already exist
@@ -357,47 +354,64 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 		if (unlikely((spdid_t)(int)v != spdid)) goto err;
  	} else {
 		cbid = cos_map_add(&cb_ids, (void *)(unsigned long)spdid);
-		if ((mc = __spd_cbvect_lookup_range(sti, (cbid))) == NULL){
+		if ((mc = __spd_cbvect_lookup_range(sti, cbid)) == NULL){
 			RELEASE();
 			return cbid*-1;	
 		} 
 	}
 	cos_map_del(&cb_ids, cbid);
-	cbuf_item = tmem_grant(sti);
-	assert(cbuf_item);
-
-	d            = &cbuf_item->desc;
-	d->sz        = PAGE_SIZE;
-	d->owner.spd = sti->spdid;
-	d->owner.cbd = d;
-
-	/* Jiguo:
-	  This can be two different cases:
-	  1. A local cached one is returned with a cbid
-	  2. A cbuf item is obtained from the global free list without cbid
+	/* 
+	 * We rely on the FIFO properties of cbid allocation with the
+	 * cos_map here to ensure that the new cbuf_item has the same
+	 * cbid as the entry we created above.
 	 */
-	DOUT("d->cbid is %d\n",d->cbid);
+	if (tmem) cbuf_item = tmem_grant(sti);
+	else      cbuf_item = cbufp_grant(sti, size);
+	assert(cbuf_item);
+	d                   = &cbuf_item->desc;
+	d->sz               = PAGE_SIZE;
+	d->owner.spd        = sti->spdid;
+	d->owner.cbd        = d;
+	d->flags            = 0;
+
+	/* 
+	 * Jiguo:
+	 * This can be two different cases:
+	 * 1. A local cached one is returned with a cbid
+	 * 2. A cbuf item is obtained from the global free list without cbid
+	 */
 	if (d->cbid == 0) {
-		INIT_LIST(&d->owner, next, prev);  // only created when first time
-		cbid = cos_map_add(&cb_ids, d);    // we use a new cbuf
-		DOUT("new cbid is %ld\n",cbid);
+		/* Only created the first time we allocate a new cbuf */
+		INIT_LIST(&d->owner, next, prev);
+		cbid = cos_map_add(&cb_ids, cbuf_item);
 	} else {
-		cbid = cbuf_item->desc.cbid;       // use a local cached one
-		DOUT("cached cbid is %ld\n",cbid);
+		/* We have a local, cached cbuf, so lets use its ID */
+		cbid = cbuf_item->desc.cbid;
+		/* 
+		 * FIXME: What if this cbid is not the same as the one
+		 * we setup above?  In this case, we have set up a mc
+		 * in the client component for one cbid, and now
+		 * allocated a different cbid.  The assert below might
+		 * trigger.
+		 */
 	}
-
-	DOUT("cbuf_create:::new cbid is %ld\n",cbid);
-	ret = d->cbid = cbid;
-
-	mc = __spd_cbvect_lookup_range(sti, cbid);
-	assert(mc);
-	cbuf_item->entry = mc;
+	ret           = d->cbid = cbid;
+	mc            = __spd_cbvect_lookup_range(sti, cbid);
+	assert(mc); 		/* see FIXME above */
+	d->owner.meta = mc;
 
 	mc->nfo.c.ptr       = d->owner.addr >> PAGE_ORDER;
-	/* Crap solution to get rid of a compiler warning... */
-	mc->sz          = PAGE_SIZE; 	/* one page */
-	mc->thdid_owner = cos_get_thd_id();
-	mc->nfo.c.flags    |= CBUFM_IN_USE | CBUFM_TOUCHED;
+	if (tmem) {
+		mc->sz              = PAGE_SIZE;
+		mc->owner_nfo.thdid = cos_get_thd_id();
+		mc->nfo.c.flags    |= CBUFM_IN_USE | CBUFM_TOUCHED | CBUFM_OWNER | 
+			              CBUFM_TMEM   | CBUFM_WRITABLE;
+		d->flags           |= CBUF_DESC_TMEM;
+	} else {
+		mc->sz                = size;
+		mc->owner_nfo.c.nsent = mc->owner_nfo.c.nrecvd = 0;
+		mc->nfo.c.flags      |= CBUFM_IN_USE | CBUFM_OWNER | CBUFM_WRITABLE;
+	}
 done:
 	RELEASE();
 	return ret;
@@ -462,26 +476,36 @@ cbuf_c_delete(spdid_t spdid, int cbid)
 	return ret;
 }
 
-void *
+int
 cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 {
-	void *ret = NULL;
+	int ret = -1;
 	char *l_addr, *d_addr;
-
+	struct cos_cbuf_item *cbi;
 	struct cb_desc *d;
 	struct cb_mapping *m;
+	struct spd_tmem_info *sti;
 
 	TAKE();
 
-	d = cos_map_lookup(&cb_ids, cbid);
+	cbi = cos_map_lookup(&cb_ids, cbid);
+	if (!cbi) goto done;
+	d = &cbi->desc;
 	/* sanity and access checks */
-	if (!d || d->sz < len) goto done;
+	if (d->sz < len) goto done;
 	m = malloc(sizeof(struct cb_mapping));
 	if (!m) goto done;
 	INIT_LIST(m, next, prev);
 
 	d_addr = valloc_alloc(cos_spd_id(), spdid, 1);
+	if (!d_addr) goto free;
 	l_addr = d->addr;  //cbuf_item addr, initialized in cos_init()
+
+	sti = get_spd_info(spdid);
+	/* Make sure we have access to the component shared page */
+	assert(SPD_IS_MANAGED(sti));
+	mc = __spd_cbvect_lookup_range(sti, cbid);
+	if (!mc) goto err;
 
 	assert(d_addr && l_addr);
 	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)l_addr, spdid, (vaddr_t)d_addr))) {
@@ -492,14 +516,25 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 	m->cbd  = d;
 	m->spd  = spdid;
 	m->addr = (vaddr_t)d_addr;
+	m->meta = mc;
+	if (d->flags & CBUF_DESC_TMEM) {
+		mc->owner_nfo.thdid = 0;
+		mc->nfo.c.flags    |= CBUFM_IN_USE | CBUFM_TOUCHED | CBUFM_TMEM | CBUFM_WRITABLE;
+	} else {
+		mc->owner_nfo.c.nsent = mc->owner_nfo.c.nrecvd = 0;
+		mc->nfo.c.flags      |= CBUFM_IN_USE | CBUFM_WRITABLE;
+	}
+	mc->nfo.c.ptr = d_addr >> PAGE_ORDER;
+	mc->sz        = d->sz;
 
 	ADD_LIST(&d->owner, m, next, prev);
-	ret = (void *)d_addr;
+	ret = 0;
 done:
 	RELEASE();
 	return ret;
 err:
 	valloc_free(cos_spd_id(), spdid, d_addr, 1);
+free:
 	free(m);
 	goto done;
 }
@@ -526,19 +561,18 @@ cbuf_c_introspect(spdid_t spdid, int iter)
 		     cci = FIRST_LIST(cci, next, prev)) {
 			printc("try to find cbuf for this spd 2\n");
 			struct cbuf_meta cm;
-			cm.nfo.v = cci->entry->nfo.v;
+			cm.nfo.v = cci->desc.owner.meta->nfo.v;
 			if (CBUF_OWNER(cm.nfo.c.flags) && 
 			    CBUF_IN_USE(cm.nfo.c.flags)) counter++;
 		}
 		RELEASE();
 		return counter;
-	}
-	else{
+	} else {
 		for (cci = FIRST_LIST(list, next, prev) ;
 		     cci != list;
 		     cci = FIRST_LIST(cci, next, prev)) {
 			struct cbuf_meta cm;
-			cm.nfo.v = cci->entry->nfo.v;
+			cm.nfo.v = cci->desc.owner.meta->nfo.v;
 			if (CBUF_OWNER(cm.nfo.c.flags) && 
                             CBUF_IN_USE(cm.nfo.c.flags) &&
                             !(--iter)) goto found;
@@ -559,19 +593,21 @@ mgr_update_owner(spdid_t new_spdid, long cbid)
 {
 	struct spd_tmem_info *old_sti, *new_sti;
 	struct cb_desc *d;
+	struct cos_cbuf_item *cbi;
 	struct cb_mapping *old_owner, *new_owner, tmp;
 	struct cbuf_meta *old_mc, *new_mc;
 	vaddr_t mgr_addr;
 	int ret = 0;
 
-	d = cos_map_lookup(&cb_ids, cbid);
-	if (!d) goto err;
+	cbi = cos_map_lookup(&cb_ids, cbid);
+	if (!cbi) goto err;
+	d = &cbi->desc;
 	old_owner = &d->owner;
 	old_sti = get_spd_info(old_owner->spd);
 	assert(SPD_IS_MANAGED(old_sti));
 
 	old_mc = __spd_cbvect_lookup_range(old_sti, cbid);
-	if(!old_mc) goto err;
+	if (!old_mc) goto err;
 	if (!CBUF_OWNER(old_mc->nfo.c.flags)) goto err;
 	for (new_owner = FIRST_LIST(old_owner, next, prev) ; 
 	     new_owner != old_owner; 
@@ -625,16 +661,18 @@ cbuf_c_claim(spdid_t r_spdid, int cbid)
 	int ret = 0;
 	spdid_t o_spdid;
 	struct cb_desc *d;
+	struct cos_cbuf_item *cbi;
 
 	assert(cbid >= 0);
 
 	TAKE();
-	d = cos_map_lookup(&cb_ids, cbid);
-	if (!d) { 
+	cbi = cos_map_lookup(&cb_ids, cbid);
+	if (!cbi) { 
 		ret = -1; 
 		goto done;
 	}
-
+	d = &cbi->desc;
+	
 	o_spdid = d->owner.spd;
 	if (o_spdid == r_spdid) goto done;
 

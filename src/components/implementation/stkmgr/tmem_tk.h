@@ -9,12 +9,19 @@
 
 /* some static inline functions are implemented in tmem.h */
 
-/* implemented in transien mem base and need to call manager */
+/* implemented in transient mem base and need to call manager */
 inline struct spd_tmem_info *get_spd_info(spdid_t spdid);
 int tmem_wait_for_mem_no_dependency(struct spd_tmem_info *sti);
 int tmem_wait_for_mem(struct spd_tmem_info *sti);
 inline int tmem_set_concurrency(spdid_t spdid, int concur_lvl, int remove_spare);
+/* 
+ * When you're done with a piece of tmem, call this function to wake
+ * any threads that were blocked waiting for tmem.
+ */
 void return_tmem(struct spd_tmem_info *sti);
+/* 
+ * When we need a piece of tmem, this is appropriate.
+ */
 tmem_item *tmem_grant(struct spd_tmem_info *sti);
 void event_waiting();
 

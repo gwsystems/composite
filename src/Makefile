@@ -46,3 +46,6 @@ config:
 
 ltests:
 	$(MAKE) $(MAKEFLAGS) -C platform ltests
+
+cltests:
+	$(MAKE) $(MAKEFLAGS) -C platform cltests

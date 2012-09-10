@@ -25,9 +25,11 @@ printc(char *fmt, ...)
 
 	return ret;
 }
+
+#ifndef assert
 /* On assert, immediately switch to the "exit" thread */
 #define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); cos_switch_thread(per_core_llbooter[cos_cpuid()].alpha, 0);} } while(0)
-
+#endif
 
 #ifdef BOOT_DEPS_H
 #error "boot_deps.h should not be included more than once, or in anything other than boot."
@@ -35,7 +37,6 @@ printc(char *fmt, ...)
 #define BOOT_DEPS_H
 
 #include <cos_component.h>
-//#include <print.h>
 #include <res_spec.h>
 
 struct llbooter_per_core {

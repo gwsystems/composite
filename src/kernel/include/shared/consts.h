@@ -51,7 +51,6 @@ struct pt_regs {
 #define COS_STACK_SZ    (MAX_STACK_SZ*4)
 #define ALL_STACK_SZ    (MAX_NUM_THREADS*MAX_STACK_SZ)
 #define MAX_SPD_VAS_LOCATIONS 8
-#define COS_NUM_FAULTS 1
 
 /* a kludge:  should not use a tmp stack on a stack miss */
 #define TMP_STACK_SZ       (128/4) 

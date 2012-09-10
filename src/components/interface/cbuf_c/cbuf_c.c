@@ -38,11 +38,12 @@ CBUF_VECT_CREATE_STATIC(meta_cbuf);
 CVECT_CREATE_STATIC(alloc_descs);
 //struct cbuf_slab_freelist alloc_freelists[N_CBUF_SLABS];
 struct cbuf_alloc_desc cbuf_alloc_freelists = {.next = &cbuf_alloc_freelists, .prev = &cbuf_alloc_freelists, .addr = NULL};
+struct cbuf_alloc_desc cbufp_alloc_freelists = {.next = &cbufp_alloc_freelists, .prev = &cbufp_alloc_freelists, .addr = NULL};
 
 /*** Manage the cbuf allocation descriptors and freelists  ***/
 
 static struct cbuf_alloc_desc *
-__cbuf_desc_alloc(int cbid, int size, void *addr, struct cbuf_meta *cm)
+__cbuf_desc_alloc(int cbid, int size, void *addr, struct cbuf_meta *cm, int tmem)
 {
 	struct cbuf_alloc_desc *d;
 	int idx = ((int)addr >> PAGE_ORDER);
@@ -50,6 +51,8 @@ __cbuf_desc_alloc(int cbid, int size, void *addr, struct cbuf_meta *cm)
 	assert(addr && cm);
 	assert(cm->nfo.c.ptr == idx);
 	assert(__cbuf_alloc_lookup(idx) == NULL);
+	assert((!tmem && !(cm->nfo.c.flags & CBUFM_TMEM)) ||
+	       (tmem && cm->nfo.c.flags & CBUFM_TMEM));
 
 	d = cslab_alloc_desc();
 	if (!d) return NULL;
@@ -60,7 +63,8 @@ __cbuf_desc_alloc(int cbid, int size, void *addr, struct cbuf_meta *cm)
 	d->meta   = cm;
 	INIT_LIST(d, next, prev);
 	//ADD_LIST(&cbuf_alloc_freelists, d, next, prev);
-	d->flhead = &cbuf_alloc_freelists;
+	if (tmem) d->flhead = &cbuf_alloc_freelists;
+	else      d->flhead = &cbufp_alloc_freelists;
 	cvect_add(&alloc_descs, d, idx);
 
 	return d;
@@ -95,19 +99,21 @@ __cbuf_desc_free(struct cbuf_alloc_desc *d)
  * had a miss.
  */
 int 
-__cbuf_2buf_miss(int cbid, int len)
+__cbuf_2buf_miss(int cbid, int len, int tmem)
 {
 	struct cbuf_meta *mc;
+	int ret;
 	void *h;
 
-	CBUF_RELEASE();
-	h = cbuf_c_retrieve(cos_spd_id(), cbid, len);
-	CBUF_TAKE();
-	if (!h) {
-		assert(0);
-		return -1;
-	}
-
+	/* 
+	 * FIXME: This can lead to a DOS where the client passes all
+	 * possible cbids to be cbuf2bufed, which will allocate the
+	 * entire 4M of meta vectors in this component.  Yuck.
+	 * 
+	 * Solution: the security mechanisms of the kernel (preventing
+	 * cbids being passed to this component if they don't already
+	 * below to the client) should fix this.
+	 */
 	mc = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
 	/* have to expand the cbuf_vect */
 	if (unlikely(!mc)) {
@@ -115,9 +121,17 @@ __cbuf_2buf_miss(int cbid, int len)
 		mc = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
 		assert(mc);
 	}
-	mc->nfo.c.ptr   = (long)h >> PAGE_ORDER;
-	mc->sz          = len;
-	mc->thdid_owner = cos_get_thd_id();
+
+	CBUF_RELEASE();
+	ret = cbuf_c_retrieve(cos_spd_id(), cbid, len);
+	CBUF_TAKE();
+	if (unlikely(ret < 0                                   ||
+		     mc->sz < len                              ||
+		     (tmem && !(mc->nfo.c.flags & CBUFM_TMEM)) || 
+		     (!tmem && mc->nfo.c.flags & CBUFM_TMEM)))
+	    return -1;
+	h = mc->nfo.c.ptr << PAGE_ORDER;
+	if (tmem) mc->owner_nfo.thdid = 0;
 
 	return 0;
 }
@@ -126,7 +140,7 @@ __cbuf_2buf_miss(int cbid, int len)
  * Precondition: cbuf lock is taken.
  */
 struct cbuf_alloc_desc *
-__cbuf_alloc_slow(int size, int *len)
+__cbuf_alloc_slow(int size, int *len, int tmem)
 {
 	struct cbuf_alloc_desc *d_prev, *ret = NULL;
 	struct cbuf_meta *cm;
@@ -137,7 +151,7 @@ __cbuf_alloc_slow(int size, int *len)
 	cnt = cbid = 0;
 	do {
 		CBUF_RELEASE();
-		cbid = cbuf_c_create(cos_spd_id(), size, cbid*-1);
+		cbid = cbuf_c_create(cos_spd_id(), size, cbid*-1, tmem);
 		CBUF_TAKE();
 		/* TODO: we will hold the lock in expand which calls
 		 * the manager...remove that */
@@ -146,7 +160,7 @@ __cbuf_alloc_slow(int size, int *len)
 	} while (cbid < 0);
 	cm   = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
 	assert(cm->nfo.c.flags & CBUFM_IN_USE);
-	assert(cm->thdid_owner);
+	assert(cm->owner_nfo.thdid);
 	addr = (void*)(cm->nfo.c.ptr << PAGE_ORDER);
 	assert(addr);
 	/* 
@@ -160,7 +174,7 @@ __cbuf_alloc_slow(int size, int *len)
 	 * the local cache and has been taken by another thd? */
 	d_prev = __cbuf_alloc_lookup((u32_t)addr>>PAGE_ORDER);
 	if (d_prev) __cbuf_desc_free(d_prev);
-	ret    = __cbuf_desc_alloc(cbid, size, addr, cm);
+	ret    = __cbuf_desc_alloc(cbid, size, addr, cm, tmem);
 done:   
 	return ret;
 }

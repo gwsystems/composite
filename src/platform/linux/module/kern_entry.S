@@ -198,9 +198,6 @@ ENTRY(name##_interposition)					\
 	RESTORE_REGS;						\
 	jmp *(cos_default_##name##_handler)	
 
-
-	
-
 /*
 	RESTORE_INT_REGS;					\
 	addl $8, %esp;						\
@@ -208,11 +205,10 @@ ENTRY(name##_interposition)					\
 	popl %gs;						\
 	jmp *(cos_default_##name##_handler)	
 */
-
 	
 COS_CREATE_TRAP_NO_ERRCODE(div_fault)
-COS_CREATE_TRAP_NO_ERRCODE(state_inv)
 COS_CREATE_TRAP_ERRCODE(page_fault)
+COS_CREATE_TRAP_NO_ERRCODE(reg_save)
 
 /* The page fault trampoline for kernel faults.  See explanation in relocate_page_fault_handler:hw_ints.c */
 .data

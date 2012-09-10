@@ -260,7 +260,8 @@ pop(struct pt_regs **regs_restore)
 }
 
 /* return 1 if the fault is handled by a component */
-int fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num)
+int 
+fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num)
 {
 	struct spd *s = virtual_namespace_query(regs->ip);
 	struct thd_invocation_frame *curr_frame;
@@ -275,9 +276,8 @@ int fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct p
 		curr_frame = thd_invstk_top(thd);
 		s = curr_frame->spd;
 	}
-	/* printk("fault in spdid %d\n", spd_get_index(s)); */
+	assert(fault_num < COS_FLT_MAX);
 
-	assert(fault_num < COS_NUM_FAULTS);
 	fault_cap = s->fault_handler[fault_num];
 	/* If no component catches this fault, upcall into the
 	 * scheduler with a "destroy thread" event. */

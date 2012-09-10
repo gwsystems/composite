@@ -287,7 +287,7 @@ static int boot_spd_caps(struct cobj_header *h, spdid_t spdid)
 		if (cobj_cap_undef(cap)) break;
 
 		/* we have a fault handler... */
-		if (cap->fault_num < COS_NUM_FAULTS) {
+		if (cap->fault_num < COS_FLT_MAX) {
 			if (cos_cap_cntl(COS_CAP_SET_FAULT, spdid, cap->cap_off, cap->fault_num)) BUG();
 		}
 		

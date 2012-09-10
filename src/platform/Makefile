@@ -8,9 +8,12 @@ cp:
 
 clean:
 	$(MAKE) -C linux clean
-	$(MAKE) -C tests clean
 
 init: clean default
 
 ltests:
 	$(MAKE) -C tests 
+
+#clean the linux tests
+cltests:
+	$(MAKE) -C tests clean
