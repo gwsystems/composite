@@ -1,3 +1,12 @@
+/**
+ * Copyright 2012 by The George Washington University.  All rights reserved.
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ *
+ * Author: Qi Wang, interwq@gwu.edu, 2012
+ */
+
 #include <cos_component.h>
 #include <print.h>
 #include <cos_alloc.h>
@@ -11,7 +20,7 @@
 #include <cos_vect.h>
 #include <cos_synchronization.h>
 
-#include <ck_spinlock.h>
+//#include <ck_spinlock.h>
 
 #include <pong.h>
 
@@ -42,7 +51,7 @@ volatile int t1, t2;
 volatile int brand_tid;
 volatile int global_cnt = 0;
 
-ck_spinlock_ticket_t sl = CK_SPINLOCK_TICKET_INITIALIZER;
+//ck_spinlock_ticket_t sl = CK_SPINLOCK_TICKET_INITIALIZER;
 int server_receive(void)
 {
 #ifdef NO_MEMBRAIN
