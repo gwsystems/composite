@@ -2913,8 +2913,10 @@ void setup_thread(void)
 	sa.sa_flags = SA_SIGINFO;
 	sigaction(SIGSEGV, &sa, NULL);
 #endif
-	if (NUM_CPU > 1)
-		set_smp_affinity();
+
+#if (NUM_CPU > 1)
+	set_smp_affinity();
+#endif
 
 #ifdef HIGHEST_PRIO
 	set_prio();

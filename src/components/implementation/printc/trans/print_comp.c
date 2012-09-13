@@ -13,7 +13,7 @@
 struct cringbuf sharedbuf;
 
 struct print_buffer {
-	char foo[MAX_LEN];
+	char buf[MAX_LEN];
 	unsigned int index;
 } CACHE_ALIGNED;
 
@@ -40,7 +40,7 @@ static int print_init(void)
 	}
 
 	for (i = 0, addr = start ; i < sz ; i += PAGE_SIZE, addr += PAGE_SIZE) {
-		if (cos_trans_cntl(COS_TRANS_MAP, 0, (unsigned long)addr, i)) return -4;
+		if (cos_trans_cntl(COS_TRANS_MAP, COS_TRANS_SERVICE_PRINT, (unsigned long)addr, i)) return -4;
 	}
 	cringbuf_init(&sharedbuf, start, sz);
 
@@ -49,26 +49,28 @@ static int print_init(void)
 
 int print_str(int s1, int s2, int s3, int s4)
 {
-	int *p[4];
-	unsigned int i, j, len = 0, *index_ptr;
+	int *p;
+	unsigned int j, len = 0, *index_ptr;
 	char *s, *buf_ptr;
 	struct print_buffer *pbuf_ptr = &pbuf[cos_cpuid()];
 
 	index_ptr = &(pbuf_ptr->index);
-	buf_ptr = pbuf_ptr->foo;
+	buf_ptr = pbuf_ptr->buf;
 	s = &buf_ptr[*index_ptr]; // the beginning of the buffer.
 
-	for (i = 0; i < PARAMS_PER_INV; i++) {
-		p[i] = (int *)&buf_ptr[*index_ptr];
-		(*index_ptr) += CHAR_PER_INT;
+ 	p = (int *)&buf_ptr[*index_ptr];
+	(*index_ptr) += CHAR_PER_INV;
+	if (unlikely(*index_ptr >= MAX_LEN)) { 
+		cos_print("BUG", 4); 
+		while (1);
+		assert(0); 
 	}
 
-	if (unlikely(*index_ptr >= MAX_LEN)) { cos_print("BUG", 3); assert(0); }
-
-	*p[0] = s1;
-	*p[1] = s2;
-	*p[2] = s3;
-	*p[3] = s4;
+	/* set the values in the array. */
+	p[0] = s1;
+	p[1] = s2;
+	p[2] = s3;
+	p[3] = s4;
 
 	for (j = 0; j < CHAR_PER_INV; j++) {
 		if (s[j] == '\0') {
@@ -77,28 +79,29 @@ int print_str(int s1, int s2, int s3, int s4)
 		}
 	}
 	
-	if (j == CHAR_PER_INV)
-		goto pending_print;
+	if (j == CHAR_PER_INV) return 1;
+
+	assert(len < MAX_LEN);
+	assert(s[len] == '\0');
 
 #ifdef COS_PRINT_SHELL
 	assert(!print_init()); 
 	if (sharedbuf.b) {
 		int amnt;
 
-		amnt = cringbuf_produce(&sharedbuf, pbuf[cos_cpuid()].foo, len);
+		amnt = cringbuf_produce(&sharedbuf, buf_ptr, len);
 		assert(amnt >= 0);
-		cos_trans_cntl(COS_TRANS_TRIGGER, 0, 0, 0);
+		cos_trans_cntl(COS_TRANS_TRIGGER, COS_TRANS_SERVICE_PRINT, 0, 0);
 	}
 #endif
 
 #ifdef COS_PRINT_DMESG
-	cos_print(pbuf[cos_cpuid()].foo, len);
-	pbuf[cos_cpuid()].index = 0;
+	cos_print(buf_ptr, len);
 #endif
+	*index_ptr = 0;
+
 	return 0;
 
-pending_print:
-	return 1;
 /* Old implementation below */
 /* 	if (!COS_IN_ARGREG(s) || !COS_IN_ARGREG(s + len)) { */
 /* 		static char foo[MAX_LEN]; */

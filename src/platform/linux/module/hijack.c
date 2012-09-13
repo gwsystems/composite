@@ -1880,12 +1880,11 @@ done:
 
 /* extern volatile int kern_tsc; */
 /* unsigned long long sum=0; */
-static void receive_IPI(void *remote_thd)
+static void receive_IPI(void *thdid)
 {
-	int thdid = (int)remote_thd;
-	struct thread *thd = thd_get_by_id(thdid);
-
 //	printk("core %d: got an ipi for thd %d\n", get_cpuid(), thd_get_id(remote_thd));
+	struct thread *thd = thd_get_by_id((int)thdid);
+
 	if (unlikely(!thd)) return;
 
 	/* unsigned long long s,e; */
@@ -1907,7 +1906,7 @@ int send_IPI(int cpuid, int thdid, int wait)
 	/* unsigned long long t, t2; */
 	/* rdtscll(t); */
 //	printk("core %d: sending an ipi to core %d and thd %d, wait %d.\n", get_cpuid(), cpuid, thdid, wait);
-	smp_call_function_single(cpuid , receive_IPI, (void *)thdid, wait);
+	smp_call_function_single(cpuid, receive_IPI, (void *)thdid, wait);
 //	rdtscll(t2);
 
 	return 0;//(int)(t2-t);
@@ -2034,6 +2033,9 @@ static int aed_open(struct inode *inode, struct file *file)
 		printk("cos (CPU %d): Composite subsystem already used by %d (%p).\n", get_cpuid(), cos_thd_per_core[get_cpuid()].cos_thd->pid, cos_thd_per_core[get_cpuid()].cos_thd);
 		return -EBUSY;
 	}
+	
+	/* We assume this in one page. */
+	assert(sizeof(struct cos_component_information) <= PAGE_SIZE);
 
 	save_per_core_cos_thd();
 

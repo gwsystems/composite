@@ -23,6 +23,7 @@ struct trans_channel {
 	char *mem; 		/* kernel address */
 	unsigned long size;
 	void *brand;
+	int cpuid;
 	int direction;
 
 	wait_queue_head_t e;
@@ -156,7 +157,10 @@ trans_read(struct file *f, char __user *b, size_t s, loff_t *o)
 	BUG_ON(!c);
 
 	printl("trans_read\n");
+
 	wait_event_interruptible(c->e, (c->levent)); /* block until condition */
+	assert(get_cpuid() == LINUX_CORE);
+
 	c->levent = 0;
 
 	return s;
@@ -166,6 +170,15 @@ extern void cos_trans_reg(const struct cos_trans_fns *fns);
 extern void cos_trans_dereg(void);
 extern void cos_trans_upcall(void *brand);
 
+static void remote_brand(void *brand)
+{
+	cos_trans_upcall(brand);
+
+	return;
+}
+
+
+
 static ssize_t
 trans_write(struct file *f, const char __user *b, size_t s, loff_t *o)
 {
@@ -174,7 +187,11 @@ trans_write(struct file *f, const char __user *b, size_t s, loff_t *o)
 
 	if (!c->brand) return -EINVAL;
 	printl("trans_write\n");
-	cos_trans_upcall(c->brand);
+	if (get_cpuid() == c->cpuid) {
+		cos_trans_upcall(c->brand);
+	} else {
+		smp_call_function_single(c->cpuid, remote_brand, c->brand, 0);
+	}
 
 	return s;
 }
@@ -182,6 +199,17 @@ trans_write(struct file *f, const char __user *b, size_t s, loff_t *o)
 /***************************/
 /*** Composite interface ***/
 /***************************/
+
+static void wake_up_channel(void *c)
+{
+	struct trans_channel *tc = (struct trans_channel *)c;
+	
+	assert(get_cpuid() == LINUX_CORE);
+	tc->levent = 1;
+	wake_up_interruptible(&tc->e);
+	
+	return;
+}
 
 /* trans_cos_* are call-back functions */
 
@@ -193,8 +221,11 @@ int trans_cos_evt(int channel)
 	c = channels[channel];
 	if (!c) return -1;
 	if (!c->levent) {
-		c->levent = 1;
-		wake_up_interruptible(&c->e);
+		if (get_cpuid() == LINUX_CORE) {
+			wake_up_channel(c);
+		} else {
+			smp_call_function_single(LINUX_CORE, wake_up_channel, c, 0);			
+		}
 	}
 	
 	return 0;
@@ -241,6 +272,7 @@ int trans_cos_brand_created(int channel, void *b)
 	if (!c) return -1;
 
 	c->brand = b;
+	c->cpuid = get_cpuid();
 
 	return 0;
 }

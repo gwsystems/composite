@@ -55,23 +55,23 @@ int __attribute__((format(printf,1,2))) printc(char *fmt, ...)
 
 	/* Stable approach below. */
 
+	/* va_start(arg_ptr, fmt); */
+	/* ret = vsnprintf(s, len, fmt, arg_ptr); */
+	/* va_end(arg_ptr); */
+	/* cos_print(s, ret); */
+	
+	/* return 0; */
+
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, len, fmt, arg_ptr);
 	va_end(arg_ptr);
-	cos_print(s, ret);
+
+	if (unlikely(ret == 0)) goto done;
+
+	send_str(s, ret);
 	
-	return 0;
-
-/* 	va_start(arg_ptr, fmt); */
-/* 	ret = vsnprintf(s, len, fmt, arg_ptr); */
-/* 	va_end(arg_ptr); */
-
-/* 	if (unlikely(ret == 0)) goto done; */
-
-/* 	send_str(s, ret); */
-	
-/* done: */
-/* 	return ret; */
+done:
+	return ret;
 }
 
 int prints(char *str)

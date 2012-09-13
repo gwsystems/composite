@@ -188,7 +188,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 
 	open_close_spd(dest_spd->composite_spd, curr_spd->composite_spd);
 	
-	core_put_curr_spd(&(dest_spd->spd_info));
+	/* core_put_curr_spd(&(dest_spd->spd_info)); */
 
 	ret->thd_id = thd->thread_id | (get_cpuid() << 16);
 	ret->spd_id = spd_get_index(curr_spd);
@@ -1337,6 +1337,7 @@ static struct pt_regs *brand_execution_completion(struct thread *curr, int *pree
  */
 struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
 
+unsigned long long brand_s = 0;
 //#define BRAND_UL_LATENCY
 extern void cos_syscall_brand_wait(int spd_id, unsigned short int bid, int *preempt);
 COS_SYSCALL struct pt_regs *
@@ -1345,6 +1346,7 @@ cos_syscall_brand_wait_cont(int spd_id, unsigned short int bid, int *preempt)
 	struct thread *curr, *brand;
 	struct spd *curr_spd;
 
+	rdtscll(brand_s);
 	curr = core_get_curr_thd();
 
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
