@@ -866,6 +866,8 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	flags = rflags;
 	switch_thread_update_flags(da, &flags);
 
+	fsave(curr->fpu);
+
 	if (unlikely(flags)) {
 		thd = switch_thread_slowpath(curr, flags, curr_spd, rthd_id, da, &ret_code, 
 					     &curr_sched_flags, &thd_sched_flags);
@@ -900,6 +902,8 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
 	/* success for this current thread */
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
+
+	frstor(the->fpu);
 
 	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
 

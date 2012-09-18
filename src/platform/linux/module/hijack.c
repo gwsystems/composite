@@ -1621,6 +1621,7 @@ int host_can_switch_pgtbls(void) { return current == composite_thread; }
 int host_attempt_brand(struct thread *brand)
 {
 	struct pt_regs *regs = NULL;
+	struct cos_fpu *fpu = NULL;
 	unsigned long flags;
 
 	local_irq_save(flags);
@@ -1733,6 +1734,7 @@ int host_attempt_brand(struct thread *brand)
 			/* the major work here: */
 			next = brand_next_thread(brand, cos_current, 1);
 			if (next != cos_current) {
+				fsave(cos_current->fpu);
 				thd_save_preempted_state(cos_current, regs);
 				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
 					printk("cos: upcall thread %d is not set to be an active upcall.\n",
@@ -1751,6 +1753,7 @@ int host_attempt_brand(struct thread *brand)
 				regs->sp = next->regs.sp;
 				regs->bp = next->regs.bp;
 				//cos_meas_event(COS_MEAS_BRAND_UC);
+				frstor(next->fpu);
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 
