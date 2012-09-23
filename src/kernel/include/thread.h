@@ -11,6 +11,7 @@
 #include "spd.h"
 #include "debug.h"
 #include "shared/consts.h"
+#include "fpu.h"
 
 #include <linux/kernel.h>
 

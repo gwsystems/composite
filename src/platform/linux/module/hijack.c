@@ -41,6 +41,7 @@
 #include "../../../kernel/include/thread.h"
 #include "../../../kernel/include/measurement.h"
 #include "../../../kernel/include/mmap.h"
+#include "../../../kernel/include/fpu.h"
 
 #include "./hw_ints.h"
 
@@ -1621,7 +1622,6 @@ int host_can_switch_pgtbls(void) { return current == composite_thread; }
 int host_attempt_brand(struct thread *brand)
 {
 	struct pt_regs *regs = NULL;
-	struct cos_fpu *fpu = NULL;
 	unsigned long flags;
 
 	local_irq_save(flags);

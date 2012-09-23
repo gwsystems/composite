@@ -190,6 +190,7 @@ void thd_print_regs(struct thread *t) {
 	return;
 }
 
+/*
 void thd_print_fregs(struct cos_fpu *t) {
 	struct cos_fpu *r = &t->fpu;
 	struct spd *s = thd_get_thd_spd(t);
@@ -198,3 +199,4 @@ void thd_print_fregs(struct cos_fpu *t) {
 
 	return;
 }
+*/
