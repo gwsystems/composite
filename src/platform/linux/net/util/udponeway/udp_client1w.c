@@ -1,7 +1,6 @@
 /*
  *	This is the original client code, but will only send data to 
  *	a receiver instead of receiving as well.
- *
  */
 
 #include <sys/types.h>
