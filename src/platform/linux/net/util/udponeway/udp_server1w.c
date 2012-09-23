@@ -130,10 +130,12 @@ main(int argc, char *argv[])
 
 	printf("Done reading %d iterations!\n", _itr);
 
+	/*
 	// Read out the timer array
 	for(i = 0; i < _itr; i++) {
 		printf("time: %llu\n", timer_arr[i]);
 	}
+	*/
 	pthread_join(tid_timer, &thd_ret);
 	pthread_join(tid_recv, &thd_ret);
 
