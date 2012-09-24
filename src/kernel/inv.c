@@ -866,7 +866,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	flags = rflags;
 	switch_thread_update_flags(da, &flags);
 
-	fsave(curr->fpu);
+	fsave(&curr->fpu);
 
 	if (unlikely(flags)) {
 		thd = switch_thread_slowpath(curr, flags, curr_spd, rthd_id, da, &ret_code, 

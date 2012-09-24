@@ -17,7 +17,7 @@ struct cos_fpu {
 
 };
 
-void fsave(struct cos_fpu);
+void fsave(struct cos_fpu* );
 void frstor(struct cos_fpu);
 
 #endif
