@@ -2914,9 +2914,9 @@ void setup_thread(void)
 	sigaction(SIGSEGV, &sa, NULL);
 #endif
 
-#if (NUM_CPU > 1)
+//#if (NUM_CPU > 1)
 	set_smp_affinity();
-#endif
+//#endif
 
 #ifdef HIGHEST_PRIO
 	set_prio();

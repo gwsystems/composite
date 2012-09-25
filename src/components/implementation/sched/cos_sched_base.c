@@ -1595,6 +1595,8 @@ unsigned long sched_timestamp(void)
 int sched_create_net_brand(spdid_t spdid, unsigned short int port)
 {
 	int b_id;
+	
+//	if (port == 1234) return (int)t_0;
 
 	b_id = sched_setup_brand(spdid);
 	assert(b_id >= 0);
@@ -1658,7 +1660,9 @@ sched_init_create_threads(int boot_threads)
 				   {.c = {.type = SCHEDP_NOOP}}};
 
 	/* create the idle thread */
-	per_core_sched_base[cos_cpuid()].idle = sched_setup_thread_arg(&sp, fp_idle_loop, NULL, 1);
+	if (cos_cpuid()) per_core_sched_base[cos_cpuid()].idle = sched_setup_thread_arg(&sp, fp_idle_loop, NULL, 1);
+	else per_core_sched_base[cos_cpuid()].idle = sched_setup_thread_arg(&sp, fp_idle_loop, NULL, 1);
+//	else per_core_sched_base[cos_cpuid()].idle = sched_setup_thread_arg(&sp, fp_idle_loop_meas, NULL, 1);
 	printc("Core %ld: Idle thread has id %d with priority %s.\n", cos_cpuid(), per_core_sched_base[cos_cpuid()].idle->id, "i");
 
 	if (!boot_threads) return;

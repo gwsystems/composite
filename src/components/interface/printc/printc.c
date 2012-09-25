@@ -55,12 +55,14 @@ int __attribute__((format(printf,1,2))) printc(char *fmt, ...)
 
 	/* Stable approach below. */
 
-	/* va_start(arg_ptr, fmt); */
-	/* ret = vsnprintf(s, len, fmt, arg_ptr); */
-	/* va_end(arg_ptr); */
-	/* cos_print(s, ret); */
+#if (NUM_CPU > 1)
+	va_start(arg_ptr, fmt);
+	ret = vsnprintf(s, len, fmt, arg_ptr);
+	va_end(arg_ptr);
+	cos_print(s, ret);
 	
-	/* return 0; */
+	return 0;
+#endif
 
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, len, fmt, arg_ptr);

@@ -170,7 +170,7 @@ extern void cos_trans_reg(const struct cos_trans_fns *fns);
 extern void cos_trans_dereg(void);
 extern void cos_trans_upcall(void *brand);
 
-static void remote_brand(void *brand)
+static void xcore_brand(void *brand)
 {
 	cos_trans_upcall(brand);
 
@@ -186,11 +186,11 @@ trans_write(struct file *f, const char __user *b, size_t s, loff_t *o)
 	BUG_ON(!c);
 
 	if (!c->brand) return -EINVAL;
-	printl("trans_write\n");
+	//printl("trans_write\n");
 	if (get_cpuid() == c->cpuid) {
 		cos_trans_upcall(c->brand);
 	} else {
-		smp_call_function_single(c->cpuid, remote_brand, c->brand, 0);
+		smp_call_function_single(c->cpuid, xcore_brand, c->brand, 0);
 	}
 
 	return s;

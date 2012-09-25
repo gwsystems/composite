@@ -98,7 +98,7 @@ void cos_meas_report(void)
 	int i, cpu;
 
 	for (cpu = 0; cpu < NUM_CPU; cpu++) {
-		if (NUM_CPU > 1 && (cpu == NUM_CPU - 1)) break; // no need to report the core belongs to Linux
+		if (NUM_CPU > 1 && (cpu == LINUX_CORE)) break; // no need to report the core belongs to Linux
 		printk("\nCore %d Measurements:\n", cpu);
 		for (i = 0 ; i < COS_MEAS_MAX_SIZE ; i++) {
 			switch (per_core_meas[cpu].cos_measurements[i].type) {
@@ -135,7 +135,7 @@ void event_print(void)
 	cos_rdtscll(ts);
 	printk("\ncos: Most recent events @ current t %llu.\n", ts);
 	for (cpu = 0; cpu < NUM_CPU; cpu++) {
-		if (NUM_CPU > 1 && (cpu == NUM_CPU - 1)) break; // no need to report the core belongs to Linux
+		if (NUM_CPU > 1 && (cpu == LINUX_CORE)) break; // no need to report the core belongs to Linux
 		last = (per_core_recorded_evts[cpu].evts_head + (COS_EVTS_NUM-1)) & COS_EVTS_MASK;
 		printk("\ncos: Core %d most recent events (head %d, pre %d).\n", cpu, per_core_recorded_evts[cpu].evts_head, last);
 		for (i = per_core_recorded_evts[cpu].evts_head ; 1 ; i = (i+1) & COS_EVTS_MASK) {

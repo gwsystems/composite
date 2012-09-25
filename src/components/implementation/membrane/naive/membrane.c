@@ -36,10 +36,9 @@ cos_lock_t membrane_l;
 
 //#define NO_MEMBRAIN
 
-#define IPI_TEST
-#ifndef IPI_TEST
-#define SHMEM
-#endif
+#define CACHE_EFFECT
+//#define IPI_TEST
+//#define SHMEM
 
 struct inv_data {
 	int p1, p2, p3, p4;
@@ -51,14 +50,49 @@ volatile int t1, t2;
 volatile int brand_tid;
 volatile int global_cnt = 0;
 
+#define ITER (1024*1024/64)
+u64_t meas[NUM_CPU][0];
+
+struct cache_line {
+	struct cache_line *next;
+	int data;
+} CACHE_ALIGNED;
+struct cache_line cache[ITER];
+
 //ck_spinlock_ticket_t sl = CK_SPINLOCK_TICKET_INITIALIZER;
 int server_receive(void)
 {
 #ifdef NO_MEMBRAIN
 	return 0;
 #endif	
-	printc("Core %ld thd %d: membrane waiting...\n", cos_cpuid(), cos_get_thd_id());
 
+	printc("Core %ld thd %d: membrane waiting...\n", cos_cpuid(), cos_get_thd_id());
+#ifdef CACHE_EFFECT
+	int k;
+	assert(sizeof(struct cache_line) <= 64);
+	/* Shared memory mechanism */
+	while (1) {
+		while (inv.loaded == 0) ;
+
+		k = inv.p1;
+		struct cache_line *node = (struct cache_line *)(inv.p2);
+		int i;
+		/* assert(inv.p1 == 99); */
+		for (i = 0; i < k; i++) {
+			node->data++;
+//			if (likely(node->next > 100)) 
+			node = node->next;
+		}
+//		call();
+		//inv.ret = call();
+		inv.loaded = 0;
+		//inv.processed = 1;
+	}
+
+	return 0;
+#endif	
+	
+	int i;
 	/* IPI mechanism */
 #ifdef IPI_TEST
 	brand_tid = cos_brand_cntl(COS_BRAND_CREATE, 0, 0, cos_spd_id());
@@ -78,11 +112,13 @@ int server_receive(void)
 #endif
 
 #ifdef SHMEM
+	int k;
 	/* Shared memory mechanism */
-	while (1) { //keep spinning on shmem.
+	while (1) {
 		while (inv.loaded == 0) ;
+		k = inv.p1;
 		/* assert(inv.p1 == 99); */
-		call();
+//		call();
 		//inv.ret = call();
 		inv.loaded = 0;
 		//inv.processed = 1;
@@ -91,10 +127,9 @@ int server_receive(void)
 	return 0;
 }
 
-#define ITER (10000)
-u64_t meas[NUM_CPU][ITER];
 volatile int start[NUM_CPU] = { 0 };
-
+//#define ITER2 1000
+//unsigned long cost[ITER2];
 int call_server(int p1, int p2, int p3, int p4)
 {
 	/* ck_spinlock_ticket_lock_pb(&sl); */
@@ -102,6 +137,85 @@ int call_server(int p1, int p2, int p3, int p4)
 #ifdef NO_MEMBRAIN
 	return 0;
 #endif	
+	int i, j;
+#ifdef CACHE_EFFECT
+	unsigned long long s,e, avg, sum = 0, sum2=0;
+	assert(p1 <= ITER);
+	if (!p1) return 0;
+//	rdtscll(s);
+	/* for (i = 0; i < p1; i ++) { */
+	/* 	cache[i]++; */
+	/* } */
+//	int repeat, outlier = 0;
+//	for (repeat=0; repeat < ITER2; repeat++) {
+		struct cache_line *node = cache;
+//		rdtscll(s);
+		for (i = 0; i < p1; i++) {
+			node->data++;
+			node = node->next;
+		}
+//		rdtscll(e);
+//		cost[repeat] = (e - s);
+//		sum += cost[repeat];
+		
+		/* continue; */
+
+		/* for (i = 0; i < p1; i++) { */
+		/* 	node->data++; */
+		/* 	node = node->next; */
+		/* 	assert(node); */
+		/* } */
+		/* continue; */
+		
+
+		/* int ret = 0; */
+
+		/* inv.p1 = p1; */
+		/* inv.p2 = (int)node; */
+		/* inv.p3 = p3; */
+		/* inv.p4 = p4;  */
+		/* inv.loaded = 1; */
+
+		/* while (inv.loaded == 1) ; */
+		/* ret = inv.ret; */
+
+//	}
+	/* avg = sum / repeat; */
+
+	/* for (i = 0; i < ITER2; i++) { */
+	/* 	if (cost[i] <= 2*avg) { */
+	/* 		sum2 += cost[i]; */
+	/* 	} else */
+	/* 		outlier++; */
+	/* } */
+//	printc("avg %llu, sum %llu, sum2 %llu\n",avg,sum,sum2);
+//	printc("Core %d, calling side, cache working set size %d, avg execution time %llu w/o %d outliers\n", cos_cpuid(), p1 * 64, sum2 / (ITER2-outlier), outlier);
+	return 0;
+#endif
+
+	/* Shared memory mechanism */
+#ifdef SHMEM	
+	int ret = 0;
+	//write to shmem.
+	/* for (i = 0; i < p1; i++) { */
+	/* 	cache[i]++; */
+	/* } */
+	/* return 0; */
+
+	inv.p1 = p1;
+	inv.p2 = p2;
+	inv.p3 = p3;
+	inv.p4 = p4; 
+	//inv.processed = 0;
+	inv.loaded = 1;
+
+#ifdef SYNC_INV
+	while (inv.loaded == 1) ;
+	ret = inv.ret;
+	//reading the return value
+#endif
+	return ret;
+#endif
 
 	/* IPI mechanism */
 #ifdef IPI_TEST
@@ -116,7 +230,7 @@ int call_server(int p1, int p2, int p3, int p4)
 
 	printc("Core %ld: going to send IPIs to tid %d!\n",cos_cpuid(), brand_tid);
 	u64_t start = 0, end = 0, avg, tot = 0, dev = 0, max = 0;
-	int i, j, t;
+	int t;
 	int bid;
 	/* printc("brandtid @ %p.\n", &brand_tid); */
 	/* printc("meas from %p to %p.\n", meas, &meas[ITER-1]); */
@@ -160,23 +274,24 @@ int call_server(int p1, int p2, int p3, int p4)
 	return 0;
 #endif
 
-	/* Shared memory mechanism */
-#ifdef SHMEM	
-	int ret = 0;
-	//write to shmem.
+}
+
+int call_server_x(int p1, int p2, int p3, int p4)
+{
+	int i, j;
+#ifdef CACHE_EFFECT
+	unsigned long long s,e, avg, sum = 0, sum2=0;
+	assert(p1 <= ITER);
+
 	inv.p1 = p1;
-	inv.p2 = p2;
+	inv.p2 = (int)cache;
 	inv.p3 = p3;
-	inv.p4 = p4; 
-	//inv.processed = 0;
+	inv.p4 = p4;
 	inv.loaded = 1;
 
-#ifdef SYNC_INV
 	while (inv.loaded == 1) ;
-	ret = inv.ret;
-	//reading the return value
-#endif
-	return ret;
+
+	return 0;
 #endif
 }
 
@@ -184,6 +299,35 @@ int register_inv(void) // function, sync / async, # of params, return value...
 {
 	// might be complicated
 	return 0;
+}
+
+void init_cache(void)
+{
+	struct cache_line *l = cache, *temp;
+	int i,j, k = 1;
+	unsigned long long random;
+	l->data = 1;
+	for (i = 0; i < ITER - 1; i++) {
+		rdtscll(random);
+		random /= 4;
+		temp = &cache[random % ITER];
+
+		if (temp->data == 0) {
+			l->next = temp;
+			l = l->next;
+			l->data = 1;
+			k++;
+//			printc("%llu..%d, %d\n", random, random % ITER, k);
+		} else {
+			i--;
+			continue;
+		}
+	}
+
+	for (i = 0; i < ITER; i++) {
+		if (!cache[i].data) printc("i %d\n", i);
+	//assert(cache[i].data);
+	}
 }
 
 /**
@@ -198,9 +342,10 @@ cos_init(void *arg)
 		union sched_param sp;
 		first = 0;
 
+		init_cache();
 		LOCK_INIT();
 		sp.c.type = SCHEDP_PRIO;
-		sp.c.value = 10;
+		sp.c.value = 30;
 		if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG();
 		return;
 	}

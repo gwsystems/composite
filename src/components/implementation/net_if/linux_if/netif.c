@@ -463,12 +463,47 @@ unsigned long netif_upcall_cyc(void)
 #endif
 }
 
+#define ITER 1024*1024
+unsigned int old_t_0 = 0, meas[ITER], idx = 0;
+
+static int meas_proc(void)
+{
+	int i, j, avg, outlier = 0;
+	unsigned long long sum = 0, sum2 = 0;
+	for (i = 0; i < ITER; i++) {
+		sum += meas[i];
+	}
+	avg = sum / ITER;
+	for (i = 0; i < ITER; i++) {
+		if (meas[i] < 4 * avg)
+			sum2 += meas[i];
+		else
+			outlier++;
+	}
+	printc("avg %d\n avg %d w/o %d outliers\n", avg, (int)(sum2 / (ITER - outlier)), outlier);
+	return 0;
+}
 static int interrupt_wait(void)
 {
 	int ret;
-
+	unsigned int t_0;
+	unsigned long long t;
 	assert(wildcard_brand_id > 0);
 	if (-1 == (ret = cos_brand_wait(wildcard_brand_id))) BUG();
+	rdtscll(t);
+	t_0 = (unsigned int)sched_create_net_brand(0, 1234);
+	//assert(t_0 != old_t_0);
+	if (t_0 != old_t_0) {
+		old_t_0 = t_0;
+		printc("cost %d\n", (unsigned int)t - t_0);
+		meas[idx++] = (unsigned int)t - t_0;
+		if (idx == ITER) {
+			meas_proc();
+			idx = 0;
+		};
+	} else {
+		printc("jitter...\n");
+	}
 #ifdef UPCALL_TIMING
 	last_upcall_cyc = (u32_t)ret;
 #endif	

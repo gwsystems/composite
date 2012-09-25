@@ -36,7 +36,7 @@ struct channel_info {
 	struct cringbuf rb;
 } channels[10];
 
-void keylogger(void) 
+void read_ltoc(void) 
 {
 	char *addr, *start;
 	unsigned long i, sz;
@@ -73,15 +73,18 @@ void keylogger(void)
 		int ret, i;
 		char *p;
 		struct channel_info *info;
-//		printc("keylogger going to wait for input...\n");
+		unsigned long long *t, local_t;
+//		printc("going to wait for input...\n");
 		if (-1 == (ret = cos_brand_wait(bid))) BUG();
+		rdtscll(local_t);
 		ret = cringbuf_consume(&channels[channel].rb, buf, 512);
 		p = buf;
-		while (*p != '\0') {
-			printc("%c", *p);
+//		while (*p != '\0') {
+			t = p;
+			printc("local t %llu, start %llu, diff %llu\n", local_t, *t, local_t - *t);
 			*p = '\0';
-			p++;
-		}
+//			p++;
+//		}
 //		evt_trigger(cos_spd_id(), channels[channel].t->evtid);
 	}
 
@@ -108,7 +111,7 @@ cos_init(void *arg)
 		return;
 	}
 
-	keylogger();
+	read_ltoc();
 //	memset(all_tmem_mgr, 0, sizeof(struct tmem_mgr *) * MAX_NUM_SPDS);
 
 	return;

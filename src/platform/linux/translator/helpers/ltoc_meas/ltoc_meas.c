@@ -21,6 +21,9 @@
 
 struct cringbuf sharedbuf;
 
+#define rdtscll(val) \
+        __asm__ __volatile__("rdtsc" : "=A" (val))
+
 int main(void)
 {
 	int fd, _read = 0;
@@ -41,13 +44,19 @@ int main(void)
 		exit(-1);
 	}
 	cringbuf_init(&sharedbuf, a, MAP_SIZE);
-	
+	/* wait for user to start */
+	_read = read(0, buf, PRINT_CHUNK_SZ);
+	assert(_read >= 0);
 	while (1) {
 		int off = 0;
+		unsigned long long *p;
 
-		/* wait for user input */
-		_read = read(0, buf, PRINT_CHUNK_SZ);
-		assert(_read >= 0);
+
+		//_read = read(0, buf, PRINT_CHUNK_SZ);
+		_read = 8;
+		p = buf;
+		rdtscll(*p);
+
 		do {
 			int p;
 
