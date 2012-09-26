@@ -36,7 +36,7 @@ int main(void)
 		exit(-1);
 	}
 
-	trans_ioctl_set_channel(fd, COS_TRANS_SERVICE_TEST);
+	trans_ioctl_set_channel(fd, COS_TRANS_SERVICE_PONG);
 	trans_ioctl_set_direction(fd, COS_TRANS_DIR_LTOC);
 	a = mmap(NULL, MAP_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 	if (MAP_FAILED == a) {

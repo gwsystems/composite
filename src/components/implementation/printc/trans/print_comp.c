@@ -86,13 +86,29 @@ int print_str(int s1, int s2, int s3, int s4)
 
 #ifdef COS_PRINT_SHELL
 	assert(!print_init()); 
-	if (sharedbuf.b) {
-		int amnt;
-
-		amnt = cringbuf_produce(&sharedbuf, buf_ptr, len);
-		assert(amnt >= 0);
-		cos_trans_cntl(COS_TRANS_TRIGGER, COS_TRANS_SERVICE_PRINT, 0, 0);
+	cos_print(buf_ptr, len);
+#define ITER (100*1024)
+	unsigned long long t;
+	int i;
+	if (*buf_ptr == 'z') {
+		cos_print("start\n", 7);
+		for (i = 0; i < ITER; i++) {
+			int amnt;
+			rdtscll(t);
+			amnt = cringbuf_produce(&sharedbuf, (char *)&t, 8);
+			assert(amnt >= 0);
+			cos_trans_cntl(COS_TRANS_TRIGGER, COS_TRANS_SERVICE_PRINT, 0, 0);
+		}
+		cos_print("done\n", 6);
 	}
+
+	/* if (sharedbuf.b) { */
+	/* 	int amnt; */
+
+	/* 	amnt = cringbuf_produce(&sharedbuf, buf_ptr, len); */
+	/* 	assert(amnt >= 0); */
+	/* 	cos_trans_cntl(COS_TRANS_TRIGGER, COS_TRANS_SERVICE_PRINT, 0, 0); */
+	/* } */
 #endif
 
 #ifdef COS_PRINT_DMESG

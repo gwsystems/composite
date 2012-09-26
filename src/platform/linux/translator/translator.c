@@ -143,6 +143,7 @@ trans_mmap(struct file *f, struct vm_area_struct *vma)
 
 	BUG_ON(vma->vm_private_data);
 	vma->vm_private_data = c;
+	printk("setting channel size to %d\n",sz);
 	c->size = sz;
 
 	return 0;
@@ -204,6 +205,7 @@ static void wake_up_channel(void *c)
 {
 	struct trans_channel *tc = (struct trans_channel *)c;
 	
+	printk("wake up once...\n");
 	assert(get_cpuid() == LINUX_CORE);
 	tc->levent = 1;
 	wake_up_interruptible(&tc->e);
@@ -295,6 +297,11 @@ trans_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 	switch(cmd) {
 	case TRANS_SET_CHANNEL:
 	{
+		// QW: remove me
+		if (arg > MAX_NCHANNELS) {
+			printk("%u\n", arg);
+			return 0;
+		}
 		if (arg >= MAX_NCHANNELS || arg < 0) return -EINVAL;
 		if (channels[arg]) return -EEXIST;
 		channels[arg] = c;

@@ -1750,7 +1750,11 @@ cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, i
 	case COS_TRANS_MAP_SZ:
 	{
 		int sz = -1;
-		if (trans_fns) sz = trans_fns->map_sz(channel);
+		if (!trans_fns) printk("no trans fns...\n");
+		if (trans_fns) {
+			sz = trans_fns->map_sz(channel);
+			printk("kern sz %d", sz);
+		}
 		return sz;
 	}
 	case COS_TRANS_MAP:
@@ -1979,6 +1983,8 @@ cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
 		break;
 	case COS_HW_NET:
 		if (active_net_brands >= NUM_NET_BRANDS || !cos_net_fns) {
+			printk("active %d, num_brands %d, netfns %d\n", active_net_brands, NUM_NET_BRANDS, cos_net_fns);
+			assert(0);
 			printk("cos: Too many network brands.\n\n");
 			return -1;
 		}

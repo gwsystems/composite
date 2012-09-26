@@ -463,7 +463,7 @@ unsigned long netif_upcall_cyc(void)
 #endif
 }
 
-#define ITER 1024*1024
+#define ITER 1024
 unsigned int old_t_0 = 0, meas[ITER], idx = 0;
 
 static int meas_proc(void)
@@ -489,8 +489,10 @@ static int interrupt_wait(void)
 	unsigned int t_0;
 	unsigned long long t;
 	assert(wildcard_brand_id > 0);
+	printc("sleeping...");
 	if (-1 == (ret = cos_brand_wait(wildcard_brand_id))) BUG();
 	rdtscll(t);
+	printc("up\n");
 	t_0 = (unsigned int)sched_create_net_brand(0, 1234);
 	//assert(t_0 != old_t_0);
 	if (t_0 != old_t_0) {
@@ -542,8 +544,8 @@ int netif_event_wait(spdid_t spdid, struct cos_array *d)
 {
 	int ret_sz = 0;
 
-	if (!cos_argreg_arr_intern(d)) return -EINVAL;
-	if (d->sz < MTU) return -EINVAL;
+	/* if (!cos_argreg_arr_intern(d)) return -EINVAL; */
+	/* if (d->sz < MTU) return -EINVAL; */
 
 	interrupt_wait();
 	NET_LOCK_TAKE();
@@ -583,15 +585,12 @@ static int init(void)
 	
 	rb_init(&rb1_md_wildcard, &rb1);
 	rb_init(&rb2_md, &rb2);
-
 	/* Setup the region from which headers will be transmitted. */
 	if (cos_buff_mgmt(COS_BM_XMIT_REGION, &xmit_headers, sizeof(xmit_headers), 0)) {
 		prints("net: error setting up xmit region.");
 	}
-
 	/* Wildcard upcall */
 	if (cos_net_create_net_brand(0, &rb1_md_wildcard)) BUG();
-	
 	for (i = 0 ; i < NUM_WILDCARD_BUFFS ; i++) {
 		if(!(b = alloc_rb_buff(&rb1_md_wildcard))) {
 			prints("net: could not allocate the ring buffer.");
@@ -600,10 +599,40 @@ static int init(void)
 			prints("net: could not populate the ring with buffer");
 		}
 	}
-
 	NET_LOCK_RELEASE();
 
 	return 0;
+}
+
+void event_wait(void)
+{
+	struct cos_array *data;
+	int alloc_sz;
+	char mem[512];
+
+	data = (struct cos_array *)mem;
+	data->sz = 4096 - sizeof(int);
+	printc("waiting...\n");
+	netif_event_create(cos_spd_id());
+	while (1) {
+		if (netif_event_wait(cos_spd_id(), data)) BUG();;
+	}
+
+	return;
+	/* assert(event_thd > 0); */
+	/* if (ip_netif_create(cos_spd_id())) BUG(); */
+	/* printc("network uc %d starting...\n", cos_get_thd_id()); */
+	/* alloc_sz = sizeof(struct cos_array) + MTU; */
+	/* data = cos_argreg_alloc(alloc_sz); */
+	/* if (NULL == data) BUG(); */
+	/* while (1) { */
+	/* 	data->sz = alloc_sz; */
+	/* 	ip_wait(cos_spd_id(), data); */
+	/* 	cos_net_interrupt(data->mem, data->sz); */
+	/* } */
+	/* cos_argreg_free(data); */
+
+	/* return 0; */
 }
 
 void cos_init(void *arg)
@@ -612,9 +641,18 @@ void cos_init(void *arg)
 	
 	if (first) {
 		first = 0;
+		/* union sched_param sp; */
+		/* sp.c.type = SCHEDP_PRIO; */
+		/* sp.c.value = 20; */
+		/* if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG(); */
 		init();
+		while (1) {
+			event_wait();
+		}
+
+		return;
 	} else {
-		prints("net: not expecting more than one bootstrap.");
+//		prints("net: not expecting more than one bootstrap.");
 	}
 }
 

@@ -36,13 +36,47 @@ struct channel_info {
 	struct cringbuf rb;
 } channels[10];
 
+#define ITER (100*1024)
+unsigned int meas[ITER], idx = 0;
+
+void report(void)
+{
+	int i,j, outlier = 0;
+	unsigned long long sum = 0, sum2 = 0, dev = 0, avg;
+	for (i = 0; i < ITER; i++) {
+		sum += meas[i];
+	}
+	avg = (unsigned long)(sum / ITER);
+	printc("avg %llu\n",avg); 
+	for (i = 0 ; i < ITER ; i++) {
+		u64_t diff = (meas[i] > avg) ? 
+			meas[i] - avg : 
+			avg - meas[i];
+		dev += (diff*diff);
+	}
+	dev /= ITER;
+	printc("deviation^2 = %llu\n", dev);
+
+	for (i = 0; i < ITER; i++) {
+		if (meas[i] < 3*avg) {
+			sum2 += meas[i];
+		} else {
+			outlier++;
+			printc("outlier %u\n", meas[i]);
+		}
+	}
+	assert(ITER > outlier);
+	printc("avg %d w/o %d outliers\n", 
+	       (int)(sum2/(ITER-outlier)), outlier);
+}
+
 void read_ltoc(void) 
 {
 	char *addr, *start;
 	unsigned long i, sz;
 	unsigned short int bid;
 	int direction;
-	int channel = COS_TRANS_SERVICE_TEST;
+	int channel = COS_TRANS_SERVICE_PONG;
 	char buf[512];
 
 	direction = cos_trans_cntl(COS_TRANS_DIRECTION, channel, 0, 0);
@@ -80,13 +114,17 @@ void read_ltoc(void)
 		ret = cringbuf_consume(&channels[channel].rb, buf, 512);
 		p = buf;
 //		while (*p != '\0') {
-			t = p;
-			printc("local t %llu, start %llu, diff %llu\n", local_t, *t, local_t - *t);
-			*p = '\0';
+		t = p;
+		meas[idx++] = (local_t - *t);
+		assert(local_t > *t);
+//		printc("local t %llu, start %llu, diff %u\n", local_t, *t, meas[idx-1]);
+		*p = '\0';
 //			p++;
 //		}
-//		evt_trigger(cos_spd_id(), channels[channel].t->evtid);
+
+		if (idx == ITER) break;
 	}
+	report();
 
 
 	return;
