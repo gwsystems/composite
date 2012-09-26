@@ -21,7 +21,7 @@
 #define rdtscll(val) \
         __asm__ __volatile__("rdtsc" : "=A" (val))
 
-#define ITR 5 // # of iterations we want
+#define ITR 10 // # of iterations we want
 volatile unsigned long long stsc; // timer thread timestamp 
 volatile int done = 0; 
 unsigned long long timer_arr[ITR];
@@ -178,26 +178,26 @@ main(int argc, char *argv[])
         printf("Error starting recv_pkt thread\n");
         return -1;
     }
-    /*
+    
     if(pthread_setschedparam(tid_recv, SCHED_RR, &sp_recv) != 0) {
         perror("pthread setsched recv: ");
         return -1;
     }
     printf("receiver priority: (%d)\n", sp_recv.sched_priority);
-    */
+    
     // Set up the timer and create a thread for it
     sp_timer.sched_priority = (sched_get_priority_max(SCHED_RR) - 1);
     if(pthread_create(&tid_timer, NULL, timer_thd, NULL) != 0) {
         perror("pthread create timer: ");
         return -1;
     }
-    /*
+    
     if(pthread_setschedparam(tid_timer, SCHED_RR, &sp_timer) != 0) {
         perror("pthread setsched timer: ");
         return -1;
     }
     printf("timer priority: (%d)\n", sp_timer.sched_priority);
-    */
+    
 
     // Set up processor affinity for both threads
     CPU_ZERO(&mask);

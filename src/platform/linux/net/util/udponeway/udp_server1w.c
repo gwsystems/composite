@@ -18,7 +18,7 @@
 #define rdtscll(val) \
         __asm__ __volatile__("rdtsc" : "=A" (val))
 
-#define ITR 5 // # of iterations we want
+#define ITR 10 // # of iterations we want
 volatile  unsigned long long stsc; // timer thread timestamp
 volatile int done = 0;
 unsigned long long timer_arr[ITR];
