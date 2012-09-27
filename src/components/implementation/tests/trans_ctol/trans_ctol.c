@@ -22,11 +22,12 @@ int cos_init(void)
 		union sched_param sp;
 		first = 0;
 		sp.c.type = SCHEDP_PRIO;
-		sp.c.value = 31;
+		sp.c.value = 20;
 		if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG();
 		return 0;
 	}
-	printc("z");
+	printc("zz\n");
+
 	return 0;
 
 	printc("ctol meas initing1...\n");

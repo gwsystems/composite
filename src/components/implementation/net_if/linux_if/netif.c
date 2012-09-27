@@ -464,41 +464,54 @@ unsigned long netif_upcall_cyc(void)
 }
 
 #define ITER 1024
-unsigned int old_t_0 = 0, meas[ITER], idx = 0;
+unsigned long long old_t_0 = 0, meas[ITER], idx = 0;
 
 static int meas_proc(void)
 {
-	int i, j, avg, outlier = 0;
-	unsigned long long sum = 0, sum2 = 0;
+	int i, j, outlier = 0;
+	unsigned long long sum = 0, sum2 = 0, avg, dev = 0;
 	for (i = 0; i < ITER; i++) {
 		sum += meas[i];
 	}
 	avg = sum / ITER;
+
+	for (i = 0 ; i < ITER ; i++) {
+		u64_t diff = (meas[i] > avg) ? 
+			meas[i] - avg : 
+			avg - meas[i];
+		dev += (diff*diff);
+	}
+	dev /= ITER;
+	printc("deviation^2 = %llu\n", dev);
+
 	for (i = 0; i < ITER; i++) {
 		if (meas[i] < 4 * avg)
 			sum2 += meas[i];
 		else
 			outlier++;
 	}
-	printc("avg %d\n avg %d w/o %d outliers\n", avg, (int)(sum2 / (ITER - outlier)), outlier);
+
+	printc("avg %llu\n avg %llu w/o %d outliers\n", avg, (sum2 / (ITER - outlier)), outlier);
+
 	return 0;
 }
+
+volatile unsigned long long t_0;
+
 static int interrupt_wait(void)
 {
 	int ret;
-	unsigned int t_0;
 	unsigned long long t;
 	assert(wildcard_brand_id > 0);
-	printc("sleeping...");
+//	printc("sleeping...\n");
 	if (-1 == (ret = cos_brand_wait(wildcard_brand_id))) BUG();
 	rdtscll(t);
-	printc("up\n");
-	t_0 = (unsigned int)sched_create_net_brand(0, 1234);
-	//assert(t_0 != old_t_0);
+//	printc("up\n");
+
 	if (t_0 != old_t_0) {
 		old_t_0 = t_0;
-		printc("cost %d\n", (unsigned int)t - t_0);
-		meas[idx++] = (unsigned int)t - t_0;
+//		printc("t_0 %llu, t %llu, cost %llu\n", t_0, t, t - t_0);
+		meas[idx++] = t - t_0;
 		if (idx == ITER) {
 			meas_proc();
 			idx = 0;
@@ -637,22 +650,28 @@ void event_wait(void)
 
 void cos_init(void *arg)
 {
-	static volatile int first = 1;
+	static volatile int first = 1, second = 1;
 	
 	if (first) {
 		first = 0;
-		/* union sched_param sp; */
-		/* sp.c.type = SCHEDP_PRIO; */
-		/* sp.c.value = 20; */
-		/* if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG(); */
-		init();
-		while (1) {
-			event_wait();
-		}
+		union sched_param sp;
+		sp.c.type = SCHEDP_PRIO;
+		sp.c.value = 10;
+		if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG();
 
 		return;
-	} else {
-//		prints("net: not expecting more than one bootstrap.");
+	} else if (second) { // high prio thd
+		union sched_param sp;
+
+		second = 0;
+		init();
+
+		sp.c.type = SCHEDP_PRIO;
+		sp.c.value = 20;
+		if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG();
+		event_wait();
+	} else { // low prio thd. keep writing tsc
+		while (1) rdtscll(t_0);
 	}
 }
 

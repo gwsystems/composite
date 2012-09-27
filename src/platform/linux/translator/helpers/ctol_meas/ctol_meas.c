@@ -81,13 +81,16 @@ void set_prio(void)
 
 	return;
 }
+#define ITER 1024
+unsigned int meas[ITER];
+
 int main(int argc, char **argv)
 {
-	int fd;
+	int fd, i;
 	void *a;
 	char c;
 	int channel;
-	unsigned long long c_t;
+	unsigned long long c_t, sum = 0, avg, dev = 0;
 
 	if (argc > 1) return -1;
 	set_prio();
@@ -108,24 +111,35 @@ int main(int argc, char **argv)
 	}
 	cringbuf_init(&sharedbuf, a, MAP_SIZE);
 	
-	while (1) {
-		unsigned long long t, diff;
+	for (i = 0; i < ITER; i++) {
+		unsigned long long t, cost;
 		/* wait for an event... */
-		write(1, "00\n", 4);
 		read(fd, &c, 1);
 		rdtscll(t);
 		cringbuf_consume(&sharedbuf, (char *)&c_t, 8);
-		diff = t - c_t;
-		trans_ioctl_set_channel(fd, (unsigned long)diff);
-		write(1, "up\n", 4);
-//		trans_ioctl_set_channel(fd, (unsigned long)t);
-//		trans_ioctl_set_channel(fd, (unsigned long)c_t);
+		cost = t - c_t;
+//		trans_ioctl_set_channel(fd, (unsigned long)diff);
+//		printf("%d: s %llu, e %llu, cost %llu\n", i, c_t, t, cost);
+		meas[i] = cost;
+		sum += cost;
+//		write(1, "up\n", 4);
 
 		/* do { */
 		/* 	amnt = cringbuf_consume(&sharedbuf, buf, PRINT_CHUNK_SZ); */
 		/* 	write(1 , buf, amnt); /\* write to stdout *\/ */
 		/* } while (amnt); */
 	}
+	avg = sum / ITER;
+	for (i = 0 ; i < ITER ; i++) {
+		unsigned long long diff = (meas[i] > avg) ? 
+			meas[i] - avg : 
+			avg - meas[i];
+		dev += (diff*diff);
+	}
+	dev /= ITER;
+	printf("deviation^2 = %llu\n", dev);
+
+	printf("avg %llu\n", avg);
 
 	if (munmap(a, MAP_SIZE) < 0) {
 		perror("munmap");

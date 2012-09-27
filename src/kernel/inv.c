@@ -1983,8 +1983,6 @@ cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
 		break;
 	case COS_HW_NET:
 		if (active_net_brands >= NUM_NET_BRANDS || !cos_net_fns) {
-			printk("active %d, num_brands %d, netfns %d\n", active_net_brands, NUM_NET_BRANDS, cos_net_fns);
-			assert(0);
 			printk("cos: Too many network brands.\n\n");
 			return -1;
 		}
@@ -3265,6 +3263,7 @@ cos_syscall_print(int spdid, char *str, int len)
 	 * passed in the arg region.  Perhaps we should just check
 	 * that.
 	 */
+	if (str[0] == 'Z' && str[1] == 'Z') {printk("%u\n", (unsigned int)len);return 0;}
 	if (len < 1) return 0;
 	if (len >= MAX_LEN) len = MAX_LEN - 1;
 	memcpy(kern_buf, str, len);

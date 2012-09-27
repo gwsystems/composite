@@ -36,7 +36,7 @@ struct channel_info {
 	struct cringbuf rb;
 } channels[10];
 
-#define ITER (100*1024)
+#define ITER (1024)
 unsigned int meas[ITER], idx = 0;
 
 void report(void)
@@ -47,7 +47,7 @@ void report(void)
 		sum += meas[i];
 	}
 	avg = (unsigned long)(sum / ITER);
-	printc("avg %llu\n",avg); 
+	printc("avg %llu over %d meas\n",avg, ITER); 
 	for (i = 0 ; i < ITER ; i++) {
 		u64_t diff = (meas[i] > avg) ? 
 			meas[i] - avg : 
