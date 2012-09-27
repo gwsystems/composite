@@ -29,7 +29,6 @@ timer_thd(void *data)
 	while(1) {
 		rdtscll(stsc);
 		if(done) {
-			printf("Done reading packets!\n");
 			break;
 		}
 	}
@@ -43,7 +42,7 @@ recv_pkt(void *data)
 
 	int msg_size = atoi(arguments[2]);
 	int fdr, i = ITR, j = 0, ret;
-	unsigned long long tsc, temp;
+	unsigned long long tsc;
 	char *msg;
 	struct sockaddr_in sinput;
 
@@ -54,6 +53,7 @@ recv_pkt(void *data)
 		perror("Establishing receive socket");
 		exit(-1);
 	}
+	    printf("udp FD (%d) created\n", fdr);
 
 	sinput.sin_family      = AF_INET;
 	sinput.sin_port        = htons(atoi(arguments[1]));
@@ -64,31 +64,18 @@ recv_pkt(void *data)
 		perror("binding receive socket");
 		exit(-1);
 	}
-
-	struct sockaddr sa;
-	socklen_t len;
-
-	len = sizeof(sa);
 	
 	while(i > 0) {
-		rdtscll(tsc);
-		temp = stsc;
-		timer_arr[j] = tsc - temp;
-
-		printf("Iteration: (%d)\n", i);
-		printf("  tsc:         (%llu)\n", tsc);
-		printf("  temp's stsc: (%llu)\n", temp);
-		printf("  diff:        (%lld)\n", timer_arr[j]);
-		j += 1;
-
 		ret = read(fdr, msg, msg_size);
+		rdtscll(tsc);
+		timer_arr[j] = tsc - stsc;
+		j += 1;
 
 		if (ret != msg_size && errno != EINTR) {
 		  	printf("ret (%d) errno (%d)\n", ret, errno);
 			perror("read");
 			exit(-1);
 		} 	
-		//printf("Message received!\n");
 
 		i--;
 	}
@@ -114,10 +101,11 @@ get_statistics()
 		running_sum += timer_arr[i];
 	mean = running_sum / ITR;
 
+	printf("Done reading %d iterations!\n", ITR);
 	printf("The sum is  (%llu)\nThe mean is (%Lf)\n", running_sum, mean);
 
 	// Calculating the standard deviation
-	for(i = 1; i < ITR; i++) {
+	for(i = 0; i < ITR; i++) {
 		sdev_arr[i] = timer_arr[i] - mean;
 		running_sdevsum += (sdev_arr[i] * sdev_arr[i]);
 	}
@@ -160,24 +148,26 @@ main(int argc, char *argv[])
 		printf("Error starting recv_pkt thread\n");
 		return -1;
 	}
+	/*
 	if(pthread_setschedparam(tid_recv, SCHED_RR, &sp_recv) != 0) {
 		perror("pthread setsched recv: ");
 		return -1;
 	}
 	printf("receiver priority: (%d)\n", sp_recv.sched_priority);
-
+	*/
 	// Set up the timer and create a thread for it
 	sp_timer.sched_priority = (sched_get_priority_max(SCHED_RR) - 1);
 	if(pthread_create(&tid_timer, NULL, timer_thd, NULL) != 0) {
 		perror("pthread create timer: ");
 		return -1;
 	}
+	/*
 	if(pthread_setschedparam(tid_timer, SCHED_RR, &sp_timer) != 0) {
 		perror("pthread setsched timer: ");
 		return -1;
 	}
 	printf("timer priority: (%d)\n", sp_timer.sched_priority);
-
+	*/
 
 	// Set up processor affinity for both threads
 	CPU_ZERO(&mask);
@@ -202,8 +192,6 @@ main(int argc, char *argv[])
 	pthread_join(tid_timer, &thd_ret);
 
 	get_statistics();
-
-	printf("Done reading %d iterations!\n", ITR);
 
 	return 0;
 }
