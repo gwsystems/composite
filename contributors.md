@@ -12,7 +12,7 @@ The current primary contributors to _Composite_
 - **Qi Wang** -- PhD student at GWU working on memory scheduling and multicore support
 - **Jiguo Song** -- PhD student at GWU working on memory scheduling and fault tolerance
 - **John Wittrock** -- Undergraduate who has implemented a version of fork, and is doing multicore support
-- **Yang Yang Wu** -- Some POSIX compatibility, and multicore Hijack support
+- **Yang Yang Wu** -- Undergraduate providing some POSIX compatibility, and multicore Hijack support
 
 Significant past contributors
 -----------------------------
