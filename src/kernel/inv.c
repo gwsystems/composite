@@ -903,7 +903,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	/* success for this current thread */
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
 
-	//frstor(&(thd->fpu));
+	//frstor(thd);
 
 	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
 
