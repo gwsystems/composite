@@ -866,8 +866,6 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	flags = rflags;
 	switch_thread_update_flags(da, &flags);
 
-	fsave(&curr->fpu);
-
 	if (unlikely(flags)) {
 		thd = switch_thread_slowpath(curr, flags, curr_spd, rthd_id, da, &ret_code, 
 					     &curr_sched_flags, &thd_sched_flags);
@@ -884,6 +882,8 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		
 		if (unlikely(NULL == thd)) goto_err(ret_err, "get target");
 	}
+
+	fsave(curr);
 
 	/* If a thread is involved in a scheduling decision, we should
 	 * assume that any preemption chains that existed aren't valid
@@ -903,7 +903,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	/* success for this current thread */
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
 
-	frstor(thd->fpu);
+	//frstor(&(thd->fpu));
 
 	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
 

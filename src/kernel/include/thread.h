@@ -76,6 +76,7 @@ struct thread {
 	 * TODO: use offsetof to produce an include file at build time
 	 * to automtically generate the assembly offsets.
 	 */
+	
 	struct pt_regs regs;
 	struct cos_fpu fpu;
 

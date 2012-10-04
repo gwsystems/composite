@@ -1,3 +1,5 @@
+#include "thread.h"
+
 #ifndef FPU_H
 #define FPU_H
 
@@ -12,12 +14,10 @@ struct cos_fpu {
 
         /* 8*10 bytes for each FP-reg = 80 bytes: */
         long st_spaces[20]; /* 8 data registers */
-
-        /* Software status information [not touched by FSAVE]: */
-
+	//long empty_spaces[512];
 };
 
-void fsave(struct cos_fpu* );
-void frstor(struct cos_fpu);
+void fsave(struct thread*);
+void frstor(struct thread*);
 
 #endif
