@@ -5,22 +5,18 @@
 
 void cos_init(void *args)
 {
-	double f = 1.5, g = 2.5, h;
+	double f = 1.5, g = 2.5, h = 0;
 	int i;
-	timed_event_block(cos_spd_id(), 3);
 
-	h = f + g;
-	printc("test\n");
-	printc("%d\n", (int)h);
-	//printc("%lf\n", 0.0001);
-	for(i = 0; i<10; i++)
-	{
-		f *= 0.1;
-		//printc("%lf\n", f);
+	while(1){
+	for (i = 0 ; i < 100000 ; i++) {
+		h += f + g;
 	}
-	while (1) {
-		for (i = 0 ; i < 10000000 ; i++) ;
-		printc("%d", cos_get_thd_id());
-	}
+	
+		printc("calc by thread %d", cos_get_thd_id());
+		printc(" | h = %d\n", (int)h);
+		timed_event_block(cos_spd_id(), 5);
+}
+
 }
 

@@ -2,7 +2,7 @@
 
 void fsave(struct thread *thd)
 {
-	asm volatile("fnsave %0;" : : "m" (thd->fpu));
+	asm volatile("fsave %0;" : : "m" (thd->fpu));
 	
 }
 

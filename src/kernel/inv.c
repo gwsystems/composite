@@ -882,9 +882,15 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		
 		if (unlikely(NULL == thd)) goto_err(ret_err, "get target");
 	}
-
-	fsave(curr);
-
+/*
+	if(&curr->fpu) {
+		printk("begin save\n");
+		fsave(curr);
+		//printk("floating-points in thread %d saved\n", &curr->thread_id);
+	}
+	else
+		printk("nothing to save");
+*/
 	/* If a thread is involved in a scheduling decision, we should
 	 * assume that any preemption chains that existed aren't valid
 	 * anymore. */
@@ -902,9 +908,15 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
 	/* success for this current thread */
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
-
-	//frstor(thd);
-
+/*
+	if(&thd->fpu)
+	{
+		printk("begin restore\n");
+		frstor(thd);
+	}
+	else
+		printk("nothing to restore\n");
+*/
 	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
 
 	return &thd->regs;
