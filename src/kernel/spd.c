@@ -15,6 +15,7 @@
 #include "include/spd.h"
 #include "include/debug.h"
 #include "include/page_pool.h"
+#include "include/per_cpu.h"
 
 /* 
  * This is the layout in virtual memory of the spds.  Spd's virtual
@@ -403,7 +404,8 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 	spd->user_vaddr_cap_tbl = user_cap_tbl;
 
 	spd->upcall_entry = upcall_entry;
-	spd->sched_shared_page = NULL;
+	for (i = 0; i < NUM_CPU ; i++)
+		spd->sched_shared_page[i] = NULL;
 	
 	/* This will cause the spd to never be deallocated via garbage collection.
 	   Update: not really doing ref counting on spds. */

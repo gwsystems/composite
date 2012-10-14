@@ -38,9 +38,14 @@
 
 #include <bfd.h>
 
+#include <stdbool.h>
+//#include <ck_spinlock.h>
+//#include <pthread.h>
+#include <sys/wait.h> /* wait for children process termination */
+#include <sched.h>
+
 /* composite includes */
 #include <spd.h>
-#include <thread.h>
 #include <ipc.h>
 
 #include <cobj_format.h>
@@ -1654,7 +1659,7 @@ static int load_all_services(struct service_symbs *services)
 {
 	unsigned long service_addr = BASE_SERVICE_ADDRESS;
 
-	service_addr += DEFAULT_SERVICE_SIZE;
+//	service_addr += DEFAULT_SERVICE_SIZE;
 
 	while (services) {
 		if (load_service(services, service_addr, DEFAULT_SERVICE_SIZE)) {
@@ -2022,16 +2027,22 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 	return spd;
 }
 
+const char *SCHED_NOTIF   = "cos_sched_notifications";
+
 void make_spd_scheduler(int cntl_fd, struct service_symbs *s, struct service_symbs *p)
 {
 	vaddr_t sched_page;
 	struct spd_info *spd = s->extern_info, *parent = NULL;
-	struct cos_component_information *ci;
+//	struct cos_component_information *ci;
+	struct cos_sched_data_area *sched_page_ptr;
 
 	if (p) parent = p->extern_info;
 
-	ci = (struct cos_component_information*)get_symb_address(&s->exported, COMP_INFO);
-	sched_page = (vaddr_t)ci->cos_sched_data_area;
+//	ci = (struct cos_component_information*)get_symb_address(&s->exported, COMP_INFO);
+//	sched_page = (vaddr_t)ci->cos_sched_data_area;
+	sched_page_ptr = (struct cos_sched_data_area*)get_symb_address(&s->exported, SCHED_NOTIF);
+	/* printf("the ptr we got: %p\n",sched_page_ptr); */
+	sched_page = (vaddr_t)sched_page_ptr;
 
 	printl(PRINT_DEBUG, "Found spd notification page @ %x.  Promoting to scheduler.\n", 
 	       (unsigned int) sched_page);
@@ -2604,19 +2615,37 @@ static struct service_symbs *find_obj_by_name(struct service_symbs *s, const cha
 	return NULL;
 }
 
+void set_prio(void);
+
 #define MAX_SCHEDULERS 3
+
+void set_curr_affinity(u32_t cpu)
+{
+	cpu_set_t s;
+	CPU_ZERO(&s);
+	assert(cpu <= NUM_CPU - 1);
+	CPU_SET(cpu, &s);
+	sched_setaffinity(0, 1, &s);
+	return;
+}
+
+volatile int var;
+int (*fn)(void);
 
 static void setup_kernel(struct service_symbs *services)
 {
 	struct service_symbs /* *m, */ *s;
 	struct service_symbs *init = NULL;
 	struct spd_info *init_spd = NULL;
-
 	struct cos_thread_info thd;
-	int cntl_fd, ret;
-	int (*fn)(void);
+
+	pid_t pid;
+	pid_t children[NUM_CPU];
+	int cntl_fd = 0, i, cpuid, ret;;
 	unsigned long long start, end;
 	
+	set_curr_affinity(0);
+
 	cntl_fd = aed_open_cntl_fd();
 
 	s = services;
@@ -2700,27 +2729,67 @@ static void setup_kernel(struct service_symbs *services)
 		exit(-1);
 	}
 	thd.spd_handle = ((struct spd_info *)s->extern_info)->spd_handle;//spd0->spd_handle;
-	cos_create_thd(cntl_fd, &thd);
-
-	printl(PRINT_HIGH, "\nOK, good to go, calling component 0's main\n\n");
-	fflush(stdout);
-
-	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
-
-#define ITER 1
-#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 
 	/* This will hopefully avoid hugely annoying fsck runs */
 	sync();
 
+	/* Access comp0 to make sure it is present in the page tables */
+	var = *((int *)SERVICE_START);
+	cos_create_thd(cntl_fd, &thd);
+
+	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
+	/* We call fn to init the low level booter first! Init
+	 * function will return to here and create processes for other
+	 * cores. */
+	fn();
+	pid = getpid();
+	for (i = 1; i < NUM_CPU - 1; i++) {
+		printf("Parent(pid %d): forking for core %d.\n", getpid(), i);
+		cpuid = i;
+		pid = fork();
+		children[i] = pid;
+		if (pid == 0) break;
+		printf("Created pid %d for core %d.\n", pid, i);
+	}
+
+	if (pid == 0) { /* child process: set own affinity */ 
+		set_curr_affinity(cpuid);
+#ifdef HIGHEST_PRIO
+		set_prio();
+#endif
+		/* 
+		 * Access comp0 to make sure it is present in the page
+		 * tables
+		 */
+		var = *((int *)SERVICE_START);
+		cos_create_thd(cntl_fd, &thd);
+	} else { /* The parent should give other processes a chance to
+		  * run. They need to migrate to their cores. */
+		sleep(1);
+	}
+
+	printl(PRINT_HIGH, "\n Pid %d: OK, good to go, calling component 0's main\n\n", getpid());
+	fflush(stdout);
+
+#define ITER 1
+#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
+
 	aed_disable_syscalls(cntl_fd);
+
 	rdtscll(start);
 	ret = fn();
 	rdtscll(end);
+
 	aed_enable_syscalls(cntl_fd);
 
-	printl(PRINT_HIGH, "Invocation takes %lld, ret %x.\n", (end-start)/ITER, ret);
-	
+	if (pid > 0) {
+		int child_status;
+		while (wait(&child_status) > 0) ;
+	} else {
+		/* printf("Child %d back in cos_loader.\n", getpid()); */
+		exit(getpid());
+	}
+
 	close(cntl_fd);
 
 	return;
@@ -2827,6 +2896,14 @@ void set_prio(void)
 	return;
 }
 
+void set_smp_affinity()
+{
+	char cmd[64];
+	/* everything done is the python script. */
+	sprintf(cmd, "python set_smp_affinity.py %d %d", NUM_CPU, getpid());
+	system(cmd);
+}
+
 void setup_thread(void)
 {
 #ifdef FAULT_SIGNAL
@@ -2836,6 +2913,11 @@ void setup_thread(void)
 	sa.sa_flags = SA_SIGINFO;
 	sigaction(SIGSEGV, &sa, NULL);
 #endif
+
+//#if (NUM_CPU > 1)
+	set_smp_affinity();
+//#endif
+
 #ifdef HIGHEST_PRIO
 	set_prio();
 #endif

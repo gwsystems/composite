@@ -176,7 +176,7 @@ static inline int cos_spd_add_cap(int cntl_fd, struct cap_info *capi)
 static inline int cos_create_thd(int cntl_fd, struct cos_thread_info *thdi)
 {
  	int ret;
-
+	
 	if ((ret = ioctl(cntl_fd, AED_CREATE_THD, thdi))) {
 		perror("Could not create thread\n");
 		printf("ioctl returned %d\n", ret);

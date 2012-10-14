@@ -45,9 +45,10 @@ struct pt_regs {
 #endif
 
 #define MAX_SERVICE_DEPTH 31
-#define MAX_NUM_THREADS 40
+#define MAX_NUM_THREADS 60
 /* Stacks are 2 * page_size (expressed in words) */
 #define MAX_STACK_SZ    (PAGE_SIZE/4) /* a page */
+#define COS_STACK_SZ    (MAX_STACK_SZ*4)
 #define ALL_STACK_SZ    (MAX_NUM_THREADS*MAX_STACK_SZ)
 #define MAX_SPD_VAS_LOCATIONS 8
 
@@ -75,7 +76,7 @@ struct pt_regs {
 #define round_to_pgd_page(x)    round_to_pow2(x, PGD_SIZE)
 #define round_up_to_pgd_page(x) round_up_to_pow2(x, PGD_SIZE)
 
-#define CACHE_LINE (32)
+#define CACHE_LINE (64)
 #define CACHE_ALIGNED __attribute__ ((aligned (CACHE_LINE)))
 #define HALF_CACHE_ALIGNED __attribute__ ((aligned (CACHE_LINE/2)))
 #define PAGE_ALIGNED __attribute__ ((aligned(PAGE_SIZE)))
@@ -96,10 +97,20 @@ struct pt_regs {
 
 #define COS_NUM_ATOMIC_SECTIONS 10
 
-#define COS_MAX_MEMORY 2048
+#define COS_MAX_MEMORY 4*1024
 
 #include "../asm_ipc_defs.h"
 
 #define KERN_BASE_ADDR 0xc0000000 //CONFIG_PAGE_OFFSET
+
+#define CHAR_PER_INT sizeof(int) / sizeof(char)
+#define PARAMS_PER_INV 4
+#define CHAR_PER_INV CHAR_PER_INT * PARAMS_PER_INV
+
+#define CPUID_OFFSET_IN_THREAD_INFO 4
+#define THREAD_SIZE_LINUX 8192
+
+#define CPUID_OFFSET 1
+#define THDID_OFFSET 2
 
 #endif

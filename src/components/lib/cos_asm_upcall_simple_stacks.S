@@ -12,9 +12,8 @@
 #define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 
-
 .bss
-.align 32
+.align PAGE_SIZE
 .globl nil
 nil:
 	.rep 2048

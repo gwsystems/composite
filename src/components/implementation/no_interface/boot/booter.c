@@ -10,6 +10,8 @@
 extern struct cos_component_information cos_comp_info;
 struct cobj_header *hs[MAX_NUM_SPDS+1];
 
+struct cos_sched_data_area cos_sched_notifications[NUM_CPU];
+
 /* dependencies */
 #include <boot_deps.h>
 
@@ -348,7 +350,7 @@ boot_create_system(void)
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		if (hs[i]->id < min) min = hs[i]->id;
 	}
-	
+
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;
 		spdid_t spdid;
@@ -359,6 +361,7 @@ boot_create_system(void)
 		if ((spdid = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG();
 		//printc("spdid %d, h->id %d\n", spdid, h->id);
 		assert(spdid == h->id);
+
 		sect = cobj_sect_get(h, 0);
 		if (cos_spd_cntl(COS_SPD_LOCATION, spdid, sect->vaddr, SERVICE_SIZE)) BUG();
 
@@ -367,6 +370,7 @@ boot_create_system(void)
 		if (boot_spd_reserve_caps(h, spdid))             BUG();
 		if (cos_spd_cntl(COS_SPD_ACTIVATE, spdid, 0, 0)) BUG();
 	}
+
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;
 		h = hs[i];
@@ -375,16 +379,16 @@ boot_create_system(void)
 	}
 	
 	if (!boot_sched) return;
+
 	for (i = 0 ; boot_sched[i] != 0 ; i++) {
 		struct cobj_header *h;
 		int j;
-
 		h = NULL;
 		for (j = 0 ; hs[j] != NULL; j++) {
 			if (hs[j]->id == boot_sched[i]) h = hs[j];
-		}
-		assert(h);
+		}		
 
+		assert(h);
 		if (h->flags & COBJ_INIT_THD) boot_spd_thd(h->id);
 	}
 }
@@ -454,6 +458,7 @@ void cos_init(void)
 	int num_cobj, i;
 
 	LOCK();
+
 	boot_deps_init();
 	h         = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj  = (int)cos_comp_info.cos_poly[1];
@@ -482,6 +487,8 @@ void cos_init(void)
 
 	/* Assumes that hs have been setup with boot_find_cobjs */
 	boot_create_system();
+	printc("booter: done creating system.\n");
+
 	UNLOCK();
 	boot_deps_run();
 

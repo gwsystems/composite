@@ -16,8 +16,10 @@
 #include "include/debug.h"
 #include "include/measurement.h"
 #include "include/mmap.h"
+#include "include/per_cpu.h"
 
 #include <linux/kernel.h>
+
 
 /* 
  * These are the 1) page for the pte for the shared region and 2) the
@@ -114,18 +116,22 @@ struct inv_ret_struct {
 	int thd_id;
 	int spd_id;
 };
+
+
 /* 
  * FIXME: 1) should probably return the static capability to allow
  * isolation level isolation access from caller, 2) all return 0
  * should kill thread.
  */
+
 COS_SYSCALL vaddr_t 
-ipc_walk_static_cap(struct thread *thd, unsigned int capability, vaddr_t sp, 
+ipc_walk_static_cap(unsigned int capability, vaddr_t sp, 
 		    vaddr_t ip, struct inv_ret_struct *ret)
 {
 	struct thd_invocation_frame *curr_frame;
 	struct spd *curr_spd, *dest_spd;
 	struct invocation_cap *cap_entry;
+	struct thread *thd = core_get_curr_thd();
 
 	capability >>= 20;
 
@@ -145,7 +151,6 @@ ipc_walk_static_cap(struct thread *thd, unsigned int capability, vaddr_t sp,
 
 	/* what spd are we in (what stack frame)? */
 	curr_frame = &thd->stack_base[thd->stack_ptr];
-
 	dest_spd = cap_entry->destination;
 	curr_spd = cap_entry->owner;
 
@@ -153,7 +158,6 @@ ipc_walk_static_cap(struct thread *thd, unsigned int capability, vaddr_t sp,
 		printk("cos: Attempted use of unallocated capability.\n");
 		return 0;
 	}
-
 	/*
 	 * If the spd that owns this capability is part of a composite
 	 * spd that is the same as the composite spd that was the
@@ -179,13 +183,14 @@ ipc_walk_static_cap(struct thread *thd, unsigned int capability, vaddr_t sp,
 		 */
 		return 0;
 	}
-
 	/* now we are committing to the invocation */
 	cos_meas_event(COS_MEAS_INVOCATIONS);
 
 	open_close_spd(dest_spd->composite_spd, curr_spd->composite_spd);
+	
+	/* core_put_curr_spd(&(dest_spd->spd_info)); */
 
-	ret->thd_id = thd->thread_id;
+	ret->thd_id = thd->thread_id | (get_cpuid() << 16);
 	ret->spd_id = spd_get_index(curr_spd);
 
 	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
@@ -209,16 +214,19 @@ static struct pt_regs *thd_ret_upcall_type(struct thread *t, upcall_type_t type)
  * invocation is made because a thread is terminating.
  */
 COS_SYSCALL struct thd_invocation_frame *
-pop(struct thread *curr, struct pt_regs **regs_restore)
+pop(struct pt_regs **regs_restore)
 {
 	struct thd_invocation_frame *inv_frame;
 	struct thd_invocation_frame *curr_frame;
+
+	struct thread *curr = core_get_curr_thd();
 
 	inv_frame = thd_invocation_pop(curr);
 
 	/* At the top of the invocation stack? */
 	if (unlikely(inv_frame == NULL)) {
 		assert(!(curr->flags & THD_STATE_READY_UPCALL));
+
 		/* normal thread terminates: upcall into root
 		 * scheduler */
 		*regs_restore = thd_ret_term_upcall(curr);
@@ -248,8 +256,6 @@ pop(struct thread *curr, struct pt_regs **regs_restore)
 		return NULL;
 	}
 
-//	printk("%d: ->%d\n", thd_get_id(curr), spd_get_index(curr_frame->spd));
-
 	return inv_frame;	
 }
 
@@ -264,12 +270,14 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 	unsigned int fault_cap;
 	struct pt_regs *nregs;
 
+	/* printk("thd %d, fault addr %p, flags %d, fault num %d\n", thd_get_id(thd), fault_addr, flags, fault_num); */
 	/* corrupted ip? */
 	if (unlikely(!s)) {
 		curr_frame = thd_invstk_top(thd);
 		s = curr_frame->spd;
 	}
 	assert(fault_num < COS_FLT_MAX);
+
 	fault_cap = s->fault_handler[fault_num];
 	/* If no component catches this fault, upcall into the
 	 * scheduler with a "destroy thread" event. */
@@ -290,7 +298,7 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 	
 	/* save the faulting registers */
 	memcpy(&thd->fault_regs, regs, sizeof(struct pt_regs));
-	a = ipc_walk_static_cap(thd, fault_cap<<20, regs->sp, regs->ip, &r);
+	a = ipc_walk_static_cap(fault_cap<<20, regs->sp, regs->ip, &r);
 
 	/* setup the registers for the fault handler invocation */
 	regs->ax = r.thd_id;
@@ -312,48 +320,26 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 COS_SYSCALL int 
 cos_syscall_void(int spdid)
 {
-	printk("cos: error - %d made void system call from %d\n", thd_get_id(thd_get_current()), spdid);
+	printk("cos: error - %d made void system call from %d\n", thd_get_id(core_get_curr_thd()), spdid);
 
 	return 0;
 }
 
 extern int switch_thread_data_page(int old_thd, int new_thd);
-struct thread *ready_boot_thread(struct spd *init)
-{
-	struct shared_user_data *ud = get_shared_data();
-	struct thread *thd;
-	unsigned int tid;
-
-	assert(NULL != init);
-
-	thd = thd_alloc(init);
-	if (NULL == thd) {
-		printk("cos: Could not allocate boot thread.\n");
-		return NULL;
-	}
-	assert(thd_get_id(thd) == 1);
-	tid = thd_get_id(thd);
-	thd_set_current(thd);
-
-	switch_thread_data_page(2, tid);
-	/* thread ids start @ 1 */
-	ud->current_thread = tid;
-	ud->argument_region = (void*)((tid * PAGE_SIZE) + COS_INFO_REGION_ADDR);
-
-	return thd;
-}
 
 static inline void __switch_thread_context(struct thread *curr, struct thread *next, 
-					   struct spd_poly *cspd)
+					   struct spd_poly *cspd, struct spd_poly *nspd)
 {
 	struct shared_user_data *ud = get_shared_data();
 	unsigned int ctid, ntid;
 
-	assert(thd_get_current() != next);
+	assert(core_get_curr_thd() != next);
 
 	ctid = thd_get_id(curr);
 	ntid = thd_get_id(next);
-	thd_set_current(next);
+
+	core_put_curr_thd(next);
+	core_put_curr_spd(nspd);
 
 	switch_thread_data_page(ctid, ntid);
 	/* thread ids start @ 1, thus thd pages are offset above the data page */
@@ -361,6 +347,7 @@ static inline void __switch_thread_context(struct thread *curr, struct thread *n
 	ud->argument_region = (void*)((ntid * PAGE_SIZE) + COS_INFO_REGION_ADDR);
 
 	return;
+
 }
 
 static inline void switch_thread_context(struct thread *curr, struct thread *next)
@@ -368,11 +355,9 @@ static inline void switch_thread_context(struct thread *curr, struct thread *nex
 	struct spd_poly *nspd, *cspd;
 
 	cspd = thd_get_thd_spdpoly(curr);
-	__switch_thread_context(curr, next, cspd);
 	nspd = thd_get_thd_spdpoly(next);
+	__switch_thread_context(curr, next, cspd, nspd);
 	open_close_spd(nspd, cspd);
-
-	return;
 }
 
 void initialize_sched_info(struct thread *t, struct spd *curr_sched)
@@ -456,7 +441,7 @@ cos_syscall_create_thread(int spd_id, int a, int b, int c)
 	 * FIXME: in the future, I should really just allow the base
 	 * scheduler to create threads, i.e. when 0 == sched_depth.
 	 */
-	curr = thd_get_current();
+	curr = core_get_curr_thd();
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
 	if (NULL == curr_spd) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
@@ -464,9 +449,11 @@ cos_syscall_create_thread(int spd_id, int a, int b, int c)
 	}
 
 	if (!spd_is_scheduler(curr_spd)/* || !thd_scheduled_by(curr, curr_spd)*/) {
-/* FIXME: if initmm is the root, then the second to root should be
- * able to create threads. */
-//	if (!spd_is_root_sched(curr_spd)) {
+		/* 
+		 * FIXME: if initmm is the root, then the second to
+		 * root should be able to create threads. 
+		 */
+		//	if (!spd_is_root_sched(curr_spd)) {
 		printk("cos: non-scheduler attempted to create thread.\n");
 		return -1;
 	}
@@ -489,7 +476,7 @@ cos_syscall_create_thread(int spd_id, int a, int b, int c)
 	thd->regs.bx = a;
 	thd->regs.di = b;	
 	thd->regs.si = c;
-	thd->regs.ax = thd_get_id(thd);
+	thd->regs.ax = thd_get_id(thd) | (get_cpuid() << 16);
 
 	thd->flags |= THD_STATE_CYC_CNT;
 	initialize_sched_info(thd, curr_spd);
@@ -514,7 +501,7 @@ cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long arg2)
 	 * FIXME: in the future, I should really just allow the base
 	 * scheduler to create threads, i.e. when 0 == sched_depth.
 	 */
-	curr = thd_get_current();
+	curr = core_get_curr_thd();
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
 	if (NULL == curr_spd) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
@@ -780,15 +767,19 @@ switch_thread_get_target(unsigned short int tid, struct thread *curr,
 		goto ret_err;
 	}
 
+
 	/* We have valid threads, lets make sure we can schedule them! */
 	if (unlikely(!thd_scheduled_by(curr, curr_spd) ||
 		     !thd_scheduled_by(thd, curr_spd))) {
 		*ret_code = COS_SCHED_RET_ERROR;
+		/* printk("curr %d sched by %d, thd %d sched by %d.\n", thd_get_id(curr), spd_get_index(thd_get_sched_info(curr, curr_spd->sched_depth)->scheduler),  */
+		/*        thd_get_id(thd), spd_get_index(thd_get_sched_info(thd, curr_spd->sched_depth)->scheduler)); */
 		goto ret_err;
 	}
 
 	/* we cannot schedule to run an upcall thread that is not running */
 	if (unlikely(thd->flags & THD_STATE_READY_UPCALL)) {
+		/* printk("args: tid %u, curr thd %d, curr spd %p, \n thd id %d is upcall thd...", tid, thd_get_id(curr), curr_spd, thd_get_id(thd)); */
 		cos_meas_event(COS_MEAS_UPCALL_INACTIVE);
 		*ret_code = COS_SCHED_RET_INVAL;
 		goto ret_err;
@@ -835,6 +826,7 @@ switch_thread_update_flags(struct cos_sched_data_area *da, unsigned short int *f
  * more pleasant way to deal with this might be to pass the args in
  * registers.  see ipc.S cos_syscall_switch_thread.
  */
+
 COS_SYSCALL struct pt_regs *
 cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id, 
 			       unsigned short int rflags, long *preempt)
@@ -848,14 +840,23 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	int ret_code = COS_SCHED_RET_ERROR;
 
 	*preempt = 0;
-	curr = thd_get_current();
+	curr = core_get_curr_thd();
+	/* printk("thd %d, switch thd core %d\n", thd_get_id(curr), get_cpuid()); */
+
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
-	if (unlikely(!curr_spd)) goto ret_err;
+	if (unlikely(!curr_spd)) {
+		printk("err: wrong spd!\n");
+		goto ret_err;
+	}
 
 	assert(!(curr->flags & THD_STATE_PREEMPTED));
 
-	da = curr_spd->sched_shared_page;
-	if (unlikely(!da)) goto ret_err;
+	/* Probably should change to kern_sched_shared_page */
+	da = curr_spd->sched_shared_page[get_cpuid()];
+	if (unlikely(!da)) {
+		printk("err: no shared data area!\n");
+		goto ret_err;
+	}
 
 	/* 
 	 * So far all flags should be taken in the context of the
@@ -873,14 +874,24 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		 * thread, and its registers have been changed,
 		 * return without setting the return value */
 		if (ret_code == COS_SCHED_RET_SUCCESS && thd == curr) goto ret;
-		if (thd == curr) goto_err(ret_err, "sloooow\n");
+		if (thd == curr) 
+		{
+			printk("err: thd == curr, ret %d\n", ret_code);
+			goto_err(ret_err, "sloooow\n");
+		}
 	} else {
 		next_thd = switch_thread_parse_data_area(da, &ret_code);
-		if (unlikely(0 == next_thd)) goto_err(ret_err, "data_area\n");
+		if (unlikely(0 == next_thd)) {
+//			printk("err: data area\n");
+			goto_err(ret_err, "data_area\n");
+		}
 
 		thd = switch_thread_get_target(next_thd, curr, curr_spd, &ret_code);
-		
-		if (unlikely(NULL == thd)) goto_err(ret_err, "get target");
+
+		if (unlikely(NULL == thd)) {
+			printk("err: get target\n");
+			goto_err(ret_err, "get target");
+		}
 	}
 
 	/* If a thread is involved in a scheduling decision, we should
@@ -900,7 +911,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
 	/* success for this current thread */
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
-
+//	printk("core %d: switch %d -> %d\n", get_cpuid(), thd_get_id(curr), thd_get_id(thd));
 	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
 
 	return &thd->regs;
@@ -1018,7 +1029,7 @@ switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd
 		 * pointers should be non-NULL */
 		child = tsi->scheduler;
 		assert(child);
-		cda = child->sched_shared_page;
+		cda = child->sched_shared_page[get_cpuid()];
 		assert(cda);
 		cda->cos_evt_notif.pending_cevt = 1;
 	}
@@ -1039,7 +1050,7 @@ upcall_setup_regs(struct thread *uc, struct spd *dest,
 	r->si = arg3;
 	r->cx = option;
 	r->ip = r->dx = dest->upcall_entry;
-	r->ax = thd_get_id(uc);
+	r->ax = thd_get_id(uc) | (get_cpuid() << 16);
 }
 
 /* 
@@ -1096,8 +1107,9 @@ upcall_execute_no_vas_switch(struct thread *uc, struct thread *prev)
 	if (likely(prev && prev != uc)) {
 		struct spd_poly *nspd;
 
-		__switch_thread_context(prev, uc, NULL);
 		nspd = thd_get_thd_spdpoly(uc);
+		__switch_thread_context(prev, uc, NULL, nspd);
+
 		/* we are omitting the native_write_cr3 to switch
 		 * page tables */
 		switch_host_pg_tbls(nspd->pg_tbl);
@@ -1253,7 +1265,6 @@ static struct pt_regs *brand_execution_completion(struct thread *curr, int *pree
 
 	cos_meas_stats_end(COS_MEAS_STATS_UC_TERM_DELAY, 1);
 	cos_meas_stats_end(COS_MEAS_STATS_UC_PEND_DELAY, 0);
-
 	*preempt = 0;
 
 	/* Immediately execute a pending upcall */
@@ -1269,13 +1280,15 @@ static struct pt_regs *brand_execution_completion(struct thread *curr, int *pree
 	 * do.
 	 */
 	prev = curr->interrupted_thread;
+
 	if (NULL == prev) {
 		struct thd_sched_info *tsi, *prev_tsi;
 		struct spd *dest;
 		int i;
-
+	
 		prev_tsi = thd_get_sched_info(brand, 0);
 		assert(prev_tsi->scheduler);
+
 		for (i = 1 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
 			//tsi = scheduler_find_leaf(curr);
 			tsi = thd_get_sched_info(brand, i);
@@ -1298,7 +1311,6 @@ static struct pt_regs *brand_execution_completion(struct thread *curr, int *pree
 	}
 
 	event_record("brand completion, switch to interrupted thread", thd_get_id(curr), thd_get_id(prev));
-
 	brand_completion_switch_to(curr, prev);
 	*preempt = 1;
 	report_upcall("i", curr);
@@ -1325,10 +1337,8 @@ static struct pt_regs *brand_execution_completion(struct thread *curr, int *pree
  */
 struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
 
+unsigned long long brand_s = 0;
 //#define BRAND_UL_LATENCY
-
-
-
 extern void cos_syscall_brand_wait(int spd_id, unsigned short int bid, int *preempt);
 COS_SYSCALL struct pt_regs *
 cos_syscall_brand_wait_cont(int spd_id, unsigned short int bid, int *preempt)
@@ -1336,7 +1346,9 @@ cos_syscall_brand_wait_cont(int spd_id, unsigned short int bid, int *preempt)
 	struct thread *curr, *brand;
 	struct spd *curr_spd;
 
-	curr = thd_get_current();
+	rdtscll(brand_s);
+	curr = core_get_curr_thd();
+
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
 	if (unlikely(NULL == curr_spd)) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
@@ -1363,7 +1375,6 @@ brand_wait_err:
 	return &curr->regs;
 }
 
-
 extern void cos_syscall_brand_upcall(int spd_id, int thread_id_flags);
 COS_SYSCALL struct pt_regs *
 cos_syscall_brand_upcall_cont(int spd_id, int thread_id_flags, int arg1, int arg2)
@@ -1376,8 +1387,8 @@ cos_syscall_brand_upcall_cont(int spd_id, int thread_id_flags, int arg1, int arg
 
 	thread_id = thread_id_flags>>16;
 	flags = thread_id_flags & 0x0000FFFF;
+	curr_thd = core_get_curr_thd();
 
-	curr_thd = thd_get_current();
 	curr_spd = thd_validate_get_current_spd(curr_thd, spd_id);
 	if (unlikely(NULL == curr_spd)) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
@@ -1492,7 +1503,7 @@ cos_syscall_brand_cntl(int spd_id, int op, u32_t bid_tid, spdid_t dest)
 	bid = bid_tid >> 16;
 	tid = bid_tid & 0xFFFF;
 
-	curr_thd = thd_get_current();
+	curr_thd = core_get_curr_thd();
 	curr_spd = thd_validate_get_current_spd(curr_thd, spd_id);
 	if (NULL == curr_spd) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
@@ -1582,7 +1593,9 @@ cos_syscall_brand_cntl(int spd_id, int op, u32_t bid_tid, spdid_t dest)
 	return retid;
 }
 
-struct thread *cos_timer_brand_thd, *cos_upcall_notif_thd;
+struct thread *cos_timer_brand_thd[NUM_CPU]; CACHE_ALIGNED
+struct thread *cos_upcall_notif_thd[NUM_CPU]; CACHE_ALIGNED
+
 #define NUM_NET_BRANDS 2
 unsigned int active_net_brands = 0;
 struct cos_brand_info cos_net_brand[NUM_NET_BRANDS];
@@ -1737,7 +1750,11 @@ cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, i
 	case COS_TRANS_MAP_SZ:
 	{
 		int sz = -1;
-		if (trans_fns) sz = trans_fns->map_sz(channel);
+		if (!trans_fns) printk("no trans fns...\n");
+		if (trans_fns) {
+			sz = trans_fns->map_sz(channel);
+			printk("kern sz %d", sz);
+		}
 		return sz;
 	}
 	case COS_TRANS_MAP:
@@ -1804,10 +1821,10 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int thd_id, unsigned
 	option = (len_op & 0xFFFF);
 	len = len_op >> 16;
 
-	spd = thd_validate_get_current_spd(thd_get_current(), spd_id);
+	spd = thd_validate_get_current_spd(core_get_curr_thd(), spd_id);
 	if (!spd) {
 		printk("cos: buff mgmt -- invalid spd, %d for thd %d\n", 
-		       spd_id, thd_get_id(thd_get_current()));
+		       spd_id, thd_get_id(core_get_curr_thd()));
 		return -1;
 	}
 
@@ -1822,7 +1839,7 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int thd_id, unsigned
 	/* Transmit the data buffer */
 	case COS_BM_XMIT:
 	{
-		struct cos_net_xmit_headers *h = spd->cos_net_xmit_headers;
+		struct cos_net_xmit_headers *h = spd->cos_net_xmit_headers[get_cpuid()];
 		int gather_buffs = 0, i, tot_len = 0;
 		struct gather_item gi[XMIT_HEADERS_GATHER_LEN];
 
@@ -1880,7 +1897,7 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int thd_id, unsigned
 			return -1;
 		}
 		/* FIXME: pin page in memory */
-		spd->cos_net_xmit_headers = (struct cos_net_xmit_headers*)kaddr;
+		spd->cos_net_xmit_headers[get_cpuid()] = (struct cos_net_xmit_headers*)kaddr;
 
 		break;
 	}
@@ -1932,6 +1949,7 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int thd_id, unsigned
 	return 0;
 }
 
+extern void register_timers(void);
 /*
  * This is a bandaid currently.  This syscall should really be 
  * replaced by something a little more subtle and more closely related
@@ -1943,7 +1961,7 @@ cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
 	struct thread *curr_thd, *brand_thd;
 	struct spd *curr_spd;
 
-	curr_thd = thd_get_current();
+	curr_thd = core_get_curr_thd();
 	curr_spd = thd_validate_get_current_spd(curr_thd, spd_id);
 	if (NULL == curr_spd) {
 		printk("cos: wiring brand to hardware - component claimed in spd %d, but not\n", spd_id);
@@ -1959,7 +1977,8 @@ cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
 
 	switch (option) {
 	case COS_HW_TIMER:
-		cos_timer_brand_thd = brand_thd;
+		register_timers();
+		cos_timer_brand_thd[get_cpuid()] = brand_thd;
 		
 		break;
 	case COS_HW_NET:
@@ -1980,7 +1999,7 @@ cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
 
 		break;
 	case COS_UC_NOTIF:
-		cos_upcall_notif_thd = brand_thd;
+		cos_upcall_notif_thd[get_cpuid()] = brand_thd;
 
 		break;
 	default:
@@ -2028,7 +2047,7 @@ cos_syscall_upcall_cont(int this_spd_id, int spd_id, struct pt_regs **regs)
 	*regs = NULL;
 
 	dest = spd_get_by_index(spd_id);
-	thd = thd_get_current();
+	thd = core_get_curr_thd();
 	curr_spd = thd_validate_get_current_spd(thd, this_spd_id);
 
 	if (NULL == dest || NULL == curr_spd) {
@@ -2059,7 +2078,7 @@ cos_syscall_upcall_cont(int this_spd_id, int spd_id, struct pt_regs **regs)
 
 	cos_meas_event(COS_MEAS_UPCALLS);
 
-	return thd_get_id(thd);
+	return thd_get_id(thd) | get_cpuid() << 16;
 }
 
 
@@ -2081,11 +2100,12 @@ static int update_evt_list(struct thd_sched_info *tsi)
 	
 	assert(tsi);
 	assert(tsi->scheduler);
-	assert(tsi->scheduler->kern_sched_shared_page);
+	assert(tsi->scheduler->kern_sched_shared_page[get_cpuid()]);
 
 	sched = tsi->scheduler;
 	/* if tsi->scheduler, then all of this should follow */
-	da = sched->kern_sched_shared_page;
+	da = sched->kern_sched_shared_page[get_cpuid()];
+
 	/* 
 	 * Here we want to prevent a race condition:
 	 *
@@ -2104,7 +2124,7 @@ static int update_evt_list(struct thd_sched_info *tsi)
 	da->cos_evt_notif.pending_event = 1;
 			
 	evts = da->cos_events;
-	prev_evt = sched->prev_notification;
+	prev_evt = sched->prev_notification[get_cpuid()];
 	this_evt = tsi->notification_offset;
 	if (unlikely(prev_evt >= NUM_SCHED_EVTS ||
 		     this_evt >= NUM_SCHED_EVTS ||
@@ -2112,7 +2132,7 @@ static int update_evt_list(struct thd_sched_info *tsi)
 		printk("cos: events %d and %d out of range!\n", prev_evt, this_evt);
 		return -1;
 	}
-//	printk(">> s %d p %d t %d\n", spd_get_index(sched), prev_evt, this_evt);
+
 	/* so long as we haven't already processed this event, and it
 	 * is not part of the linked list of events, then add it */
 	if (prev_evt != this_evt && 
@@ -2126,10 +2146,10 @@ static int update_evt_list(struct thd_sched_info *tsi)
 			 */
 		}
 		COS_SCHED_EVT_NEXT(&evts[prev_evt]) = this_evt;
-		sched->prev_notification = this_evt;
+		sched->prev_notification[get_cpuid()] = this_evt;
 //		printk(">>\tp = t\n");
 	}
-	
+
 	return 0;
 }
 
@@ -2339,6 +2359,7 @@ brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 		assert(!(upcall->flags & THD_STATE_READY_UPCALL));
 		cos_meas_event(COS_MEAS_BRAND_PEND);
 		cos_meas_stats_start(COS_MEAS_STATS_UC_PEND_DELAY, 0);
+		/* FIXME: RACE */
 		brand->pending_upcall_requests++;
 
 		event_record("brand activated, but upcalls active", thd_get_id(preempted), thd_get_id(upcall));
@@ -2355,6 +2376,7 @@ brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 
 		return preempted;
 	}
+
 	assert(upcall->flags & THD_STATE_READY_UPCALL);
 
 	upcall->flags |= THD_STATE_ACTIVE_UPCALL;
@@ -2412,7 +2434,7 @@ brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 			if (s->sched_depth == 0) {
 				struct cos_sched_data_area *da;
 				
-				da = s->kern_sched_shared_page;
+				da = s->kern_sched_shared_page[get_cpuid()];
 				if (da) da->cos_evt_notif.timer = (u32_t)t;
 			} else {
 				if (-1 == (int)t) t = 0;
@@ -2465,7 +2487,7 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 	struct thread *thd;
 	struct spd *spd;
 
-	thd = thd_get_current();
+	thd = core_get_curr_thd();
 	spd = thd_validate_get_current_spd(thd, spd_id);
 	if (NULL == spd) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
@@ -2495,16 +2517,16 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 			printk("cos: attempted evt region for spd %d @ %lx.\n", spd_get_index(spd), region);
 			return -1;
 		}
-		
-		spd->sched_shared_page = (struct cos_sched_data_area *)region;
+		spd->sched_shared_page[get_cpuid()] = (struct cos_sched_data_area *)region;
 		/* We will need to access the shared_page for thread
 		 * events when the pagetable for this spd is not
 		 * mapped in.  */
-		spd->kern_sched_shared_page = (struct cos_sched_data_area *)
-			pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, region);
-		spd->prev_notification = 0;
+		spd->kern_sched_shared_page[get_cpuid()] = (struct cos_sched_data_area *)
+			pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, (unsigned long)spd->sched_shared_page[get_cpuid()]);
+		spd->prev_notification[get_cpuid()] = 0;
+
 		/* FIXME: pin the page */
-		
+		/* printk("core %u, sched shared region @%p, kern @%p\n", get_cpuid(), spd->sched_shared_page[get_cpuid()], spd->kern_sched_shared_page[get_cpuid()]);		 */
 		break;
 	}
 	case COS_SCHED_THD_EVT:
@@ -2536,7 +2558,7 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 
 		if (0 == idx) {
 			/* reset thread */
-			evts = spd->kern_sched_shared_page->cos_events;
+			evts = spd->kern_sched_shared_page[get_cpuid()]->cos_events;
 			this_evt = &evts[idx];
 			COS_SCHED_EVT_NEXT(this_evt) = 0;
 			COS_SCHED_EVT_FLAGS(this_evt) = 0;
@@ -2545,7 +2567,7 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 			tsi->thread_notifications = NULL;
 			tsi->notification_offset = 0;
 		} else {
-			evts = spd->kern_sched_shared_page->cos_events;
+			evts = spd->kern_sched_shared_page[get_cpuid()]->cos_events;
 			this_evt = &evts[idx];
 			tsi->thread_notifications = this_evt;
 			tsi->notification_offset = idx;
@@ -2575,7 +2597,7 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 			printk("Cannot promote child, exceeds sched hier depth.\n");
 			return -1;
 		}
-		if (child->parent_sched) {
+		if (child->parent_sched && child->parent_sched != spd) {
 			printk("Child scheduler already child to another scheduler.\n");
 			return -1;
 		}
@@ -2926,7 +2948,7 @@ cos_syscall_mpd_cntl(int spd_id, int operation,
 		assert(!spd_mpd_is_subordinate(prev) && !spd_mpd_is_depricated(prev));
 	} 
 
-	thd = thd_get_current();
+	thd = core_get_curr_thd();
 	assert(thd);
 	curr = thd_get_thd_spdpoly(thd);
 	/* keep track of this, as it might change during the course of this call */
@@ -3228,10 +3250,11 @@ fault_update_mpd_pgtbl(struct thread *thd, struct pt_regs *regs, vaddr_t fault_a
 	return 1;
 }
 
+#define MAX_LEN 512 /* keep consistent as in printc.h */
 COS_SYSCALL int 
 cos_syscall_print(int spdid, char *str, int len)
 {
-	static char last = '\n';
+	char kern_buf[MAX_LEN];
 	/*
 	 * FIXME: use linux functions to copy the string into local
 	 * storage to avoid faults.  ...This won't work with cos
@@ -3240,14 +3263,13 @@ cos_syscall_print(int spdid, char *str, int len)
 	 * passed in the arg region.  Perhaps we should just check
 	 * that.
 	 */
-	
-	str[len] = '\0';
-	if ('\n' == last)
-//		printk("cos,%d: %s", thd_get_id(thd_get_current()), str);
-		printk("%s", str);
-	else 
-		printk("%s", str);
-	last = str[len-1];
+	if (str[0] == 'Z' && str[1] == 'Z') {printk("%u\n", (unsigned int)len);return 0;}
+	if (len < 1) return 0;
+	if (len >= MAX_LEN) len = MAX_LEN - 1;
+	memcpy(kern_buf, str, len);
+	kern_buf[len] = '\0';
+	printk("%s", kern_buf);
+
 	return 0;
 }
 
@@ -3327,10 +3349,10 @@ extern void host_idle(void);
 COS_SYSCALL int 
 cos_syscall_idle_cont(int spdid)
 {
-	struct thread *c = thd_get_current();
+	struct thread *c = core_get_curr_thd();
 	
 	host_idle();
-	if (c != thd_get_current()) return COS_SCHED_RET_AGAIN;
+	if (c != core_get_curr_thd()) return COS_SCHED_RET_AGAIN;
 
 	return COS_SCHED_RET_SUCCESS;
 }
@@ -3519,6 +3541,25 @@ cos_syscall_vas_cntl(int id, int op_spdid, long addr, long sz)
 	return ret;
 }
 
+extern int send_IPI(int cpuid, int thdid, int wait);
+
+//volatile int kern_tsc = 0;
+
+COS_SYSCALL int 
+cos_syscall_send_ipi(int spd_id, long cpuid, int thdid, long arg)
+{
+	//struct thread *thd;
+	/* unsigned long long t; */
+	/* rdtscll(t); */
+	int wait, option;
+	option = arg & 0xFFFF;
+	wait = arg >> 16;
+	assert(wait == 0);
+
+	//thd = thd_get_by_id(thdid);
+	return send_IPI(cpuid, thdid, wait);
+}
+
 /* 
  * Composite's system call table that is indexed and invoked by ipc.S.
  * The user-level stubs are created in cos_component.h.
@@ -3545,7 +3586,7 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_vas_cntl,
 	(void*)cos_syscall_trans_cntl,
 	(void*)cos_syscall_pfn_cntl,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_send_ipi,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
@@ -3557,3 +3598,4 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void
 };
+ 

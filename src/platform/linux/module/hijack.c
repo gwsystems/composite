@@ -22,6 +22,8 @@
 #include <asm/cacheflush.h>
 /* fget */
 #include <linux/file.h>
+/* smp functions */
+#include <linux/smp.h>
 /* all page table manipulations */
 #include <asm/pgtable.h>
 /* (rd|wr)msr */
@@ -41,6 +43,8 @@
 #include "../../../kernel/include/thread.h"
 #include "../../../kernel/include/measurement.h"
 #include "../../../kernel/include/mmap.h"
+#include "../../../kernel/include/per_cpu.h"
+#include "../../../kernel/include/shared/consts.h"
 
 #include "./hw_ints.h"
 
@@ -57,7 +61,7 @@ extern void reg_save_interposition(void);
 /* 
  * This variable exists for the assembly code for temporary
  * storage...want it close to sysenter_addr for cache locality
- * purposes.
+ * purposes. -> Replaced by the per_cpu variable x86_tss.
  */
 extern unsigned long temp_esp_storage; 
 
@@ -69,7 +73,15 @@ extern unsigned long temp_esp_storage;
 pte_t *shared_region_pte;
 pgd_t *union_pgd;
 
-struct task_struct *composite_thread = NULL;
+
+struct per_core_cos_thd
+{
+	struct task_struct *cos_thd;
+} CACHE_ALIGNED;
+
+struct per_core_cos_thd cos_thd_per_core[NUM_CPU];
+
+//QW: should be per core? >>
 struct mm_struct *composite_union_mm = NULL;
 
 /* composite: should be in separate module */
@@ -104,6 +116,7 @@ unsigned long trusted_mem_size;
 
 #define MAX_ALLOC_MM 64
 struct mm_struct *guest_mms[MAX_ALLOC_MM]; 
+//QW: should be per core? <<
 
 DEFINE_PER_CPU(unsigned long, x86_tss) = { 0 };
 
@@ -119,12 +132,27 @@ load_per_core_TSS(void)
 	struct desc_struct *gdt_array = NULL;
 	unsigned long *temp_gdt_tss;
 
-	gdt_array = get_cpu_gdt_table(get_cpu());
+	gdt_array = get_cpu_gdt_table(get_cpuid());
         temp_gdt_tss = (unsigned long *)get_desc_base(&gdt_array[GDT_ENTRY_TSS]);
 	gdt_tss = (struct tss_struct *)temp_gdt_tss;
 
 	cpu_x86_tss = &get_cpu_var(x86_tss);
 	*cpu_x86_tss = (unsigned long)((void *)gdt_tss + sizeof(struct tss_struct));
+
+	/* unsigned long *p; */
+	/* int i; */
+	/* printk("size of tss: %d\n", sizeof(struct tss_struct)); */
+
+	/* printk("addr %lu of the head of tss\n", (unsigned long )((void *)gdt_tss)); */
+	/* for (i = 0; i< 26; i++) { */
+	/* 	p = (unsigned long *)((void *)gdt_tss + i); */
+	/* 	printk("TSS(%d): %lu\n", i, *p); */
+	/* } */
+	/* unsigned long *p1 =(unsigned long *)current_thread_info(); */
+	/* printk("linux thread info %p, cos_get_linux_thread_info %p\n",p1, get_Linux_thread_info()); */
+	/* printk("THREAD_SIZE %d, cpuid %d, %d\n", */
+	/*        THREAD_SIZE, *(p1+4), get_CPU_ID()); */
+	/* printk("CPU ID :%d\n", get_CPU_ID()); */
 	put_cpu_var(x86_tss);
 }
 
@@ -145,7 +173,15 @@ void get_TSS(struct pt_regs *rs)
 		/* We need to load the variable if not loaded yet. */
 	  	load_per_core_TSS();
 		rs->orig_ax = get_cpu_var(x86_tss);
+		/* Make sure the thread_info structure is at the
+		   correct location. */
+		assert(get_linux_thread_info() == (unsigned long *)current_thread_info());
+		if (offsetof(struct thread_info, cpu) != 16) {
+			printk("The linux definition of the thread info is different from the offsets that Composite assumes");
+			assert(0);
+		}
 	}
+
 	return;
 }
 
@@ -246,11 +282,13 @@ static int aed_free_mm(int mm_handle)
 	 * fast path. */
 	return 0;
 }
+
 static inline unsigned int hpage_index(unsigned long n)
 {
         unsigned int idx = n >> HPAGE_SHIFT;
         return (idx << HPAGE_SHIFT) != n ? idx + 1 : idx;
 }
+
 int spd_free_mm(struct spd *spd)
 {
 	struct mm_struct *mm;
@@ -502,6 +540,53 @@ static inline void copy_pgd_range(struct mm_struct *to_mm, struct mm_struct *fro
 #define my_load_cr3(pgdir) asm volatile("movl %0,%%cr3": :"r" (__pa(pgdir)))
 #define flush_executive(pgdir) my_load_cr3(pgdir)
 
+struct spd_poly linux_pgtbls_per_core[NUM_CPU];
+
+struct thread *ready_boot_thread(struct spd *init)
+{
+//	struct shared_user_data *ud = get_shared_data();
+	struct thread *thd;
+	unsigned int tid;
+	struct spd_poly *this_pgtbl;
+	struct thd_invocation_frame *frame;
+
+	assert(NULL != init);
+
+	thd = thd_alloc(init);
+	if (NULL == thd) {
+		printk("cos: Could not allocate boot thread.\n");
+		return NULL;
+	}
+	/* 
+	 * Create the spd_poly with a pointer to the page tables for
+	 * each Linux process to return to, so that when the separate
+	 * core's cos threads return to comp0 (thus the cos_loader and
+	 * Linux in general), we will return to the _separate_ and
+	 * correct page-tables.
+	 */
+	this_pgtbl                   = &linux_pgtbls_per_core[get_cpuid()];
+	this_pgtbl->pg_tbl           = (paddr_t)(__pa(current->mm->pgd));
+	cos_ref_set(&this_pgtbl->ref_cnt, 2);
+	frame                        = thd_invstk_top(thd);
+	assert(thd->stack_ptr == 0);
+	frame->current_composite_spd = this_pgtbl;
+	
+	assert(init->location[0].lowest_addr == SERVICE_START);
+	assert(thd_spd_in_composite(this_pgtbl, init));
+
+	tid = thd_get_id(thd);
+	core_put_curr_thd(thd);
+
+	assert(tid);
+
+//	switch_thread_data_page(2, tid);
+	/* thread ids start @ 1 */
+//	ud->current_thread = tid;
+//	ud->argument_region = (void*)((tid * PAGE_SIZE) + COS_INFO_REGION_ADDR);
+
+	return thd;
+}
+
 static int syscalls_enabled = 1;
 
 extern int virtual_namespace_alloc(struct spd *spd, unsigned long addr, unsigned int size);
@@ -511,8 +596,11 @@ void copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from,
 void copy_pgtbl(paddr_t pt_to, paddr_t pt_from);
 //extern int copy_mm(unsigned long clone_flags, struct task_struct * tsk);
 void print_valid_pgtbl_entries(paddr_t pt);
-extern struct thread *ready_boot_thread(struct spd *init);
 vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr);
+
+void save_per_core_cos_thd(void);
+
+void register_timers(void);
 
 static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -558,8 +646,8 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		 * itself. */
 		if (spd_info.lowest_addr == 0) {
 			spd->spd_info.pg_tbl         = (paddr_t)(__pa(current->mm->pgd));
-			spd->location[0].lowest_addr = 0;
-			spd->location[0].size        = 0;
+			spd->location[0].lowest_addr = SERVICE_START;
+			spd->location[0].size        = PGD_RANGE;
 			spd->composite_spd           = &spd->spd_info;
 		} else {
 			/*
@@ -661,12 +749,15 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		struct thread *thd;
 		struct spd *spd, *sched;
 
+		save_per_core_cos_thd();
+
 		if (copy_from_user(&thread_info, (void*)arg, 
 				   sizeof(struct cos_thread_info))) {
 			//printk("cos: Error copying thread_info from user.\n");
 			return -EFAULT;
 		}
 
+		printk("cos core %u: creating thread in spd %d.\n", get_cpuid(), thread_info.spd_handle);
 		spd = spd_get_by_index(thread_info.spd_handle);
 		if (!spd) {
 			printk("cos: Spd %d invalid for thread creation.\n", 
@@ -690,7 +781,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			tsi->scheduler = sched;
 			sched = sched->parent_sched;
 		}
-
+		
 		/* FIXME: need to return opaque handle, rather than
 		 * just set the current thread to be the new one. */
 
@@ -762,35 +853,39 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			sched->sched_depth = p->sched_depth + 1;
 		}
 
-//		printk("cos: promoting component %d to scheduler at depth %d, and parent %d\n",
-//		       sched_info.spd_sched_handle, sched->sched_depth, sched_info.spd_parent_handle);
+		/* Now the mapping of the shared area is built by
+		 * per_core in sched_root_init to support SMP. */
 
-		if (sched_info.sched_shared_page < sched->location[0].lowest_addr ||
-		    sched_info.sched_shared_page + PAGE_SIZE >= 
-		    sched->location[0].lowest_addr + sched->location[0].size) {
-			/* undo changes made so far */
-			sched->sched_depth = -1;
-			sched->parent_sched = NULL;
+		/* printk("cos: promoting component %d to scheduler at depth %d, and parent %d\n", */
+		/*        sched_info.spd_sched_handle, sched->sched_depth, sched_info.spd_parent_handle); */
+		/* if (sched_info.sched_shared_page < sched->location[0].lowest_addr || */
+		/*     sched_info.sched_shared_page + PAGE_SIZE >= */
+		/*     sched->location[0].lowest_addr + sched->location[0].size) { */
+		/* 	/\* undo changes made so far *\/ */
+		/* 	sched->sched_depth = -1; */
+		/* 	sched->parent_sched = NULL; */
 
-			printk("cos: could not promote spd %d to scheduler - invalid pinned page @ %x.\n",
-			       spd_get_index(sched), (unsigned int)sched_info.sched_shared_page);
-			return -EINVAL;
-		} 
+		/* 	printk("cos: could not promote spd %d to scheduler - invalid pinned page @ %x.\n", */
+		/* 	       spd_get_index(sched), (unsigned int)sched_info.sched_shared_page); */
+		/* 	return -EINVAL; */
+		/* } */
 
-		sched->sched_shared_page = (struct cos_sched_data_area *)sched_info.sched_shared_page;
-		/* We will need to access the shared_page for thread
-		 * events when the pagetable for this spd is not
-		 * mapped in.  */
-		sched->kern_sched_shared_page = (struct cos_sched_data_area *)
-			pgtbl_vaddr_to_kaddr(sched->spd_info.pg_tbl, (unsigned long)sched->sched_shared_page);
-		sched->prev_notification = 0;
+		/* sched->sched_shared_page[get_cpuid()] = (struct cos_sched_data_area *)sched_info.sched_shared_page; */
+		/* /\* We will need to access the shared_page for thread */
+		/*  * events when the pagetable for this spd is not */
+		/*  * mapped in.  *\/ */
+		/* sched->kern_sched_shared_page[get_cpuid()] = (struct cos_sched_data_area *) */
+		/* 	pgtbl_vaddr_to_kaddr(sched->spd_info.pg_tbl, (unsigned long)(sched->sched_shared_page[get_cpuid()])); */
+
+		/* printk("<<<sched shared page %p, kernel sched_shared page %p\n", sched->sched_shared_page[get_cpuid()], sched->kern_sched_shared_page[get_cpuid()]); */
+		/* sched->prev_notification[get_cpuid()] = 0; */
 			
 		return 0;
 	}
 	case AED_EMULATE_PREEMPT:
 	{
-		struct pt_regs *regs = get_user_regs_thread(composite_thread);
-		struct thread *cos_thd = thd_get_current();
+		struct pt_regs *regs = get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd);
+		struct thread *cos_thd = core_get_curr_thd();
 		//struct pt_regs *irq_regs = get_irq_regs();
 
 		memcpy(&cos_thd->regs, regs, sizeof(struct pt_regs));
@@ -813,6 +908,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	return ret;
 }
 
+//QW: should be per core? >>
 #define NFAULTS 200
 int fault_ptr = 0;
 struct fault_info {
@@ -823,6 +919,7 @@ struct fault_info {
 	int cspd_flags, cspd_master_flags;
 	unsigned long long timestamp;
 } faults[NFAULTS];
+//QW: should be per core? <<
 
 static void cos_report_fault(struct thread *t, vaddr_t fault_addr, int ecode, struct pt_regs *regs)
 {
@@ -996,7 +1093,7 @@ static unsigned long fault_addrs[NUM_BUCKETS];
 
 void hijack_syscall_monitor(int num)
 {
-	if (unlikely(!syscalls_enabled && composite_thread == current)) {
+	if (unlikely(!syscalls_enabled && cos_thd_per_core[get_cpuid()].cos_thd == current)) {
 		printk("FAILURE: making a Linux system call (#%d) in Composite.\n", num);
 	}
 }
@@ -1016,7 +1113,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	int ret = 1;
 
 	fault_addr = read_cr2();
-
+	
 	if (fault_addr > KERN_BASE_ADDR) goto linux_handler;
 
 	/* 
@@ -1032,7 +1129,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	 * spd's boundaries or there is not a linux mapping for the
 	 * address.
 	 */
-	if (composite_thread != current) goto linux_handler;
+	if (cos_thd_per_core[get_cpuid()].cos_thd != current) goto linux_handler;
 	if (fault_addr == (unsigned long)&page_fault_interposition) goto linux_handler;
 
 	curr_mm = get_task_mm(current);
@@ -1053,7 +1150,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	 * not completely initialized composite yet, but we need to
 	 * check for this.
 	 */
-	thd = thd_get_current();
+	thd = core_get_curr_thd();
 	/* This is a magical address that we are getting faults for,
 	 * but I don't know why, and it doesn't seem to interfere with
 	 * execution.  For now ffffd0b0 is being counted as an unknown
@@ -1094,7 +1191,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 
 	cos_meas_event(COS_PG_FAULT);
 	
-	if (get_user_regs_thread(composite_thread) != rs) printk("Nested page fault!\n");
+	if (get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd) != rs) printk("Nested page fault!\n");
 	if (fault_update_mpd_pgtbl(thd, rs, fault_addr)) ret = 0;
 	else ret = cos_handle_page_fault(thd, fault_addr, error_code, rs);
 
@@ -1116,11 +1213,11 @@ int main_div_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 {
 	struct thread *t;
 
-	if (composite_thread != current) return 1;
+	if (cos_thd_per_core[get_cpuid()].cos_thd != current) return 1;
 
 	printk("<<< finally >>>\n");
 
-	t = thd_get_current();
+	t = core_get_curr_thd();
 	cos_record_fault_regs(t, error_code, error_code, rs);
 
 	return 1;
@@ -1132,9 +1229,9 @@ main_reg_save_interposition(struct pt_regs *rs, unsigned int error_code)
 	struct thread *t;
 	struct spd *s;
 
-	if (unlikely(composite_thread != current)) return 1;
+	if (unlikely(cos_thd_per_core[get_cpuid()].cos_thd != current)) return 1;
 
-	t = thd_get_current();
+	t = core_get_curr_thd();
 	memcpy(&t->fault_regs, rs, sizeof(struct pt_regs));
 	/* The spd that was invoked should be the one faulting here
 	 * (must get stack) */
@@ -1467,6 +1564,14 @@ void copy_pgtbl(paddr_t pt_to, paddr_t pt_from)
 	copy_pgtbl_range_nocheck(pt_to, pt_from, 0, 0xFFFFFFFF);
 }
 
+/* We need to save cos thread for each core. This is used when switch host pg tables.*/
+void save_per_core_cos_thd(void)
+{
+	cos_thd_per_core[get_cpuid()].cos_thd = current;
+
+	return;
+}
+
 /*
  * If for some reason Linux preempts the composite thread, then when
  * it starts it back up again, it needs to know what page tables to
@@ -1475,8 +1580,11 @@ void copy_pgtbl(paddr_t pt_to, paddr_t pt_from)
 void switch_host_pg_tbls(paddr_t pt)
 {
 	struct mm_struct *mm;
+	struct task_struct *cos_thd;
+	
+	cos_thd = cos_thd_per_core[get_cpuid()].cos_thd;
 
-	BUG_ON(!composite_thread);
+	BUG_ON(!cos_thd);
 	/* 
 	 * We aren't doing reference counting here on the mm (via
 	 * get_task_mm) because we know that this mm will survive
@@ -1484,7 +1592,7 @@ void switch_host_pg_tbls(paddr_t pt)
 	 * granularity of the creation of the composite file
 	 * descriptor open/close.)
 	 */
-	mm = composite_thread->mm;
+	mm = cos_thd->mm;
 	mm->pgd = (pgd_t *)pa_to_va((void*)pt);
 
 	return;
@@ -1496,7 +1604,7 @@ void switch_host_pg_tbls(paddr_t pt)
  * Our composite emulated timer interrupt executed from a Linux
  * softirq
  */
-static struct timer_list timer;
+static struct timer_list timer[NUM_CPU]; CACHE_ALIGNED
 
 extern struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
 
@@ -1520,29 +1628,28 @@ EXPORT_SYMBOL(cos_trans_reg);
 EXPORT_SYMBOL(cos_trans_dereg);
 EXPORT_SYMBOL(cos_trans_upcall);
 
-extern struct thread *cos_timer_brand_thd;
+extern struct thread *cos_timer_brand_thd[NUM_CPU];CACHE_ALIGNED
 #define NUM_NET_BRANDS 2 /* keep consistent with inv.c */
 extern int active_net_brands;
 extern struct cos_brand_info cos_net_brand[NUM_NET_BRANDS];
 extern struct cos_net_callbacks *cos_net_fns;
 
-/* FIXME: per cpu */
-static int in_syscall = 0;
+static int in_syscall[NUM_CPU] = { 0 }; CACHE_ALIGNED
 
 int host_in_syscall(void) 
 {
-	return in_syscall;
+	return in_syscall[get_cpuid()];
 }
 
 void host_start_syscall(void)
 {
-	in_syscall = 1;
+	in_syscall[get_cpuid()] = 1;
 }
 EXPORT_SYMBOL(host_start_syscall);
 
 void host_end_syscall(void)
 {
-	in_syscall = 0;
+	in_syscall[get_cpuid()] = 0;
 }
 EXPORT_SYMBOL(host_end_syscall);
 
@@ -1584,7 +1691,7 @@ void host_idle(void)
 	set_current_state(TASK_INTERRUPTIBLE);
 	assert(IDLE_AWAKE == idle_status);
 	idle_status = IDLE_ASLEEP;
-	event_record("going into idle", thd_get_id(thd_get_current()), 0);
+	event_record("going into idle", thd_get_id(core_get_curr_thd()), 0);
 	cos_meas_event(COS_MEAS_IDLE_SLEEP);
 	sti();
 
@@ -1596,27 +1703,27 @@ void host_idle(void)
 	//assert(IDLE_WAKING == idle_status);
 	idle_status = IDLE_AWAKE;
 	cos_meas_event(COS_MEAS_IDLE_RUN);
-	event_record("coming out of idle", thd_get_id(thd_get_current()), 0);
+	event_record("coming out of idle", thd_get_id(core_get_curr_thd()), 0);
 }
 
 static void host_idle_wakeup(void)
 {
 	assert(host_in_idle());
-	if (likely(composite_thread)) {
+	if (likely(cos_thd_per_core[get_cpuid()].cos_thd)) {
 		if (IDLE_ASLEEP == idle_status) {
 			cos_meas_event(COS_MEAS_IDLE_LINUX_WAKE);
-			event_record("idle wakeup", thd_get_id(thd_get_current()), 0);
-			wake_up_process(composite_thread);
+			event_record("idle wakeup", thd_get_id(core_get_curr_thd()), 0);
+			wake_up_process(cos_thd_per_core[get_cpuid()].cos_thd);
 			idle_status = IDLE_WAKING;
 		} else {
 			cos_meas_event(COS_MEAS_IDLE_RECURSIVE_WAKE);
-			event_record("idle wakeup call while waking", thd_get_id(thd_get_current()), 0);
+			event_record("idle wakeup call while waking", thd_get_id(core_get_curr_thd()), 0);
 		}
 		assert(IDLE_WAKING == idle_status);
 	}
 }
 
-int host_can_switch_pgtbls(void) { return current == composite_thread; }
+int host_can_switch_pgtbls(void) { return current == cos_thd_per_core[get_cpuid()].cos_thd; }
 
 int host_attempt_brand(struct thread *brand)
 {
@@ -1624,16 +1731,16 @@ int host_attempt_brand(struct thread *brand)
 	unsigned long flags;
 
 	local_irq_save(flags);
-	if (likely(composite_thread)/* == current*/) {
+	if (likely(cos_thd_per_core[get_cpuid()].cos_thd)/* == current*/) {
 		struct thread *cos_current;
 
-		if (composite_thread == current) {
+		if (cos_thd_per_core[get_cpuid()].cos_thd == current) {
 			cos_meas_event(COS_MEAS_INT_COS_THD);
 		} else {
 			cos_meas_event(COS_MEAS_INT_OTHER_THD);
 		}
 
-		cos_current = thd_get_current();
+		cos_current = core_get_curr_thd();
 		/* See comment in cosnet.c:cosnet_xmit_packet */
 		if (host_in_syscall() || host_in_idle()) {
 			struct thread *next;
@@ -1677,7 +1784,7 @@ int host_attempt_brand(struct thread *brand)
 			 */
 			next = brand_next_thread(brand, cos_current, 0);
 			if (next != cos_current) {
-				assert(thd_get_current() == next);
+				assert(core_get_curr_thd() == next);
 				/* the following call isn't
 				 * necessary: if we are in a syscall,
 				 * then we can't be in an RAS */
@@ -1697,7 +1804,7 @@ int host_attempt_brand(struct thread *brand)
 			goto done;
  		}
 
-		regs = get_user_regs_thread(composite_thread);
+		regs = get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd);
 
 		/* 
 		 * If both esp and xss == 0, then the interrupt
@@ -1740,16 +1847,21 @@ int host_attempt_brand(struct thread *brand)
 					///*assert*/BUG_ON(!(next->flags & THD_STATE_ACTIVE_UPCALL));
 				}
 				thd_check_atomic_preempt(cos_current);
-				regs->bx = next->regs.bx;
-				regs->di = next->regs.di;
-				regs->si = next->regs.si;
+				
+				/* Those registers are saved in the
+				 * user space. No need to restore
+				 * here. */
+				/* regs->bx = next->regs.bx; */
+				/* regs->di = next->regs.di; */
+				/* regs->si = next->regs.si; */
+				/* regs->bp = next->regs.bp; */
+
 				regs->cx = next->regs.cx;
 				regs->ip = next->regs.ip;
 				regs->dx = next->regs.dx;
 				regs->ax = next->regs.ax;
 				regs->orig_ax = next->regs.ax;
 				regs->sp = next->regs.sp;
-				regs->bp = next->regs.bp;
 				//cos_meas_event(COS_MEAS_BRAND_UC);
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
@@ -1766,32 +1878,71 @@ done:
 	return 0;
 }
 
-static void timer_interrupt(unsigned long data)
+/* extern volatile int kern_tsc; */
+/* unsigned long long sum=0; */
+static void receive_IPI(void *thdid)
 {
-	BUG_ON(composite_thread == NULL);
-	mod_timer_pinned(&timer, jiffies+1);
+//	printk("core %d: got an ipi for thd %d\n", get_cpuid(), thd_get_id(remote_thd));
+	struct thread *thd = thd_get_by_id((int)thdid);
 
-	if (!(cos_timer_brand_thd && cos_timer_brand_thd->upcall_threads)) {
-		return;
-	}
+	if (unlikely(!thd)) return;
 
-	host_attempt_brand(cos_timer_brand_thd);
+	/* unsigned long long s,e; */
+	/* rdtscll(s); */
+	host_attempt_brand(thd);
+	/* rdtscll(e); */
+	/* sum += e - s; */
+	/* printk("cost %llu\n", e-s); */
+	/* if (cnt == 1024) printk("host brand func cost: %llu\n", sum / 1024); */
+	/* unsigned long long t; */
+	/* rdtscll(t); */
+	/* kern_tsc = (int)t; */
+
 	return;
 }
 
-static void register_timers(void)
+int send_IPI(int cpuid, int thdid, int wait)
 {
-	init_timer(&timer);
-	timer.function = timer_interrupt;
-	mod_timer_pinned(&timer, jiffies+2);
+	/* unsigned long long t, t2; */
+	/* rdtscll(t); */
+//	printk("core %d: sending an ipi to core %d and thd %d, wait %d.\n", get_cpuid(), cpuid, thdid, wait);
+	smp_call_function_single(cpuid, receive_IPI, (void *)thdid, wait);
+//	rdtscll(t2);
+
+	return 0;//(int)(t2-t);
+}
+
+static void timer_interrupt(unsigned long data)
+{
+	BUG_ON(cos_thd_per_core[get_cpuid()].cos_thd == NULL);
+	mod_timer_pinned(&timer[get_cpuid()], jiffies+1);
+
+	if (!(cos_timer_brand_thd[get_cpuid()] && cos_timer_brand_thd[get_cpuid()]->upcall_threads)) {
+		return;
+	}
+
+	host_attempt_brand(cos_timer_brand_thd[get_cpuid()]);
+	return;
+}
+
+void register_timers(void)
+{
+	assert(!timer[get_cpuid()].function);
+	init_timer(&timer[get_cpuid()]);
+	timer[get_cpuid()].function = timer_interrupt;
+	mod_timer_pinned(&timer[get_cpuid()], jiffies+2);
 	
 	return;
 }
 
 static void deregister_timers(void)
 {
-	cos_timer_brand_thd = NULL;    
-	del_timer(&timer);
+	int i;
+	for (i = 0; i < NUM_CPU; i++) {
+		cos_timer_brand_thd[i] = NULL;
+		if (timer[i].function)
+			del_timer(&timer[i]);
+	}
 
 	return;
 }
@@ -1824,7 +1975,7 @@ void switch_thread_data_page(int old_thd, int new_thd)
 	 */
 	((pte_t*)shared_region_page)[old_thd].pte_low &= ~_PAGE_PRESENT;
 	((pte_t*)shared_region_page)[new_thd].pte_low |= _PAGE_PRESENT;
-
+	
 	return;
 }
 
@@ -1871,18 +2022,23 @@ static int open_checks(void)
  * when the fd is open, we must prepare the virtual address space for
  * COS use.
  */
+
 static int aed_open(struct inode *inode, struct file *file)
 {
 	pte_t *pte = lookup_address_mm(current->mm, COS_INFO_REGION_ADDR);
 	pgd_t *pgd;
 	void* data_page;
 
-	if (composite_thread != NULL || composite_union_mm != NULL) {
-		printk("cos: Composite subsystem already used by %d.\n", composite_thread->pid);
+	if (cos_thd_per_core[get_cpuid()].cos_thd != NULL || composite_union_mm != NULL) {
+		printk("cos (CPU %d): Composite subsystem already used by %d (%p).\n", get_cpuid(), cos_thd_per_core[get_cpuid()].cos_thd->pid, cos_thd_per_core[get_cpuid()].cos_thd);
 		return -EBUSY;
 	}
+	
+	/* We assume this in one page. */
+	assert(sizeof(struct cos_component_information) <= PAGE_SIZE);
 
-	composite_thread = current;
+	save_per_core_cos_thd();
+
 	syscalls_enabled = 1;
 	composite_union_mm = get_task_mm(current);
 	union_pgd = composite_union_mm->pgd;
@@ -1968,7 +2124,9 @@ static int aed_open(struct inode *inode, struct file *file)
 	ipc_init();
 	cos_init_memory();
 
-	register_timers();
+        /* Now the timers are registered when we register timer
+	 * threads in Composite. */
+	/* register_timers(); */
 	cos_meas_init();
 	cos_net_init();
 
@@ -1982,6 +2140,7 @@ static int aed_release(struct inode *inode, struct file *file)
 	pgd_t *pgd;
 	struct thread *t;
 	struct spd *s;
+	int cpuid;
 #ifdef FAULT_DEBUG
 	int i, j, k;
 #endif
@@ -2009,7 +2168,7 @@ static int aed_release(struct inode *inode, struct file *file)
 		flush_all(current->mm->pgd);
 	}
 
-	t = thd_get_current();
+	t = core_get_curr_thd();
 	if (t) {
 		s = thd_get_thd_spd(t);
 		printk("cos: Halting Composite.  Current thread: %d in spd %d\n",
@@ -2021,13 +2180,15 @@ static int aed_release(struct inode *inode, struct file *file)
 
 	/* our garbage collection mechanism: all at once when the cos
 	 * system control fd is closed */
-//	thd_free(thd_get_current());
+//	thd_free(core_get_curr_thd());
 	thd_free_all();
  	thd_init();
 	spd_free_all();
 	ipc_init();
 	cos_shutdown_memory();
-	composite_thread = NULL;
+	for (cpuid = 0; cpuid < NUM_CPU; cpuid++) {
+		cos_thd_per_core[cpuid].cos_thd = NULL;
+	}
 
 	cos_meas_report();
 
@@ -2154,6 +2315,32 @@ static int make_proc_aed(void)
 
 	return 0;
 }
+
+static inline void hw_int_override_all(void)
+{
+	hw_int_override_sysenter(sysenter_interposition_entry);
+	hw_int_override_pagefault(page_fault_interposition);
+	hw_int_override_idt(0, div_fault_interposition, 0, 0);
+	hw_int_override_idt(0xe9, reg_save_interposition, 0, 3);
+
+	return;
+}
+static void hw_init_CPU(void)
+{
+	//update_vmalloc_regions();
+	hw_int_init();
+	hw_int_override_all();
+	return;
+}
+
+#if NUM_CPU > 1
+static void hw_init_other_cores(void *param)
+{
+	hw_int_override_all();
+	return;
+}
+#endif
+
 static int asym_exec_dom_init(void)
 {
 	printk("cos: Installing the hijack module.\n");
@@ -2163,13 +2350,14 @@ static int asym_exec_dom_init(void)
 	if (make_proc_aed())
 		return -1;
 
-	//update_vmalloc_regions();
-	hw_int_init();
-	hw_int_override_sysenter(sysenter_interposition_entry);
-	hw_int_override_pagefault(page_fault_interposition);
-	hw_int_override_idt(0, div_fault_interposition, 0, 0);
-	hw_int_override_idt(0xe9, reg_save_interposition, 0, 3);
+	hw_init_CPU();
 
+#if NUM_CPU > 1
+	/* Init all the other cores. */
+	smp_call_function(hw_init_other_cores, NULL, 1);
+#endif
+
+	/* Consistency check. We define the THD_REGS = 8 in ipc.S. */
 	BUG_ON(offsetof(struct thread, regs) != 8);
 
 	init_guest_mm_vect();
@@ -2178,9 +2366,19 @@ static int asym_exec_dom_init(void)
 	return 0;
 }
 
+#if NUM_CPU > 1
+static void hw_reset_other_cores(void *param)
+{
+	hw_int_reset();
+}
+#endif
+
 static void asym_exec_dom_exit(void)
 {
 	hw_int_reset();
+#if NUM_CPU > 1
+	smp_call_function(hw_reset_other_cores, NULL, 1);
+#endif
 	remove_proc_entry("aed", NULL);
 
 	return;

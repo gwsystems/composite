@@ -38,6 +38,10 @@
 
 #include <cos_list.h>
 #include "../../sched/cos_sched_sync.h"
+
+/* We use the the sched_data_area here only for the mem_mgr lock below. */
+struct cos_sched_data_area cos_sched_notifications[NUM_CPU];
+
 #define LOCK()   if (cos_sched_lock_take())    assert(0);
 #define UNLOCK() if (cos_sched_lock_release()) assert(0);
 
@@ -248,6 +252,7 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to)
 
 	assert(!p || p->f == f);
 	assert(dest && to);
+
 	/* no vas structure for this spd yet... */
 	if (!cv) {
 		cv = cvas_alloc(dest);
@@ -255,8 +260,8 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to)
 		assert(cv == cvas_lookup(dest));
 	}
 	assert(cv->pages);
-
 	if (cvect_lookup(cv->pages, idx)) goto collision;
+
 	cvas_ref(cv);
 	m = cslab_alloc_mapping();
 	if (!m) goto collision;
@@ -476,11 +481,22 @@ void mman_release_all(void)
 #include <sched_hier.h>
 
 int  sched_init(void)   { return 0; }
+
 extern void parent_sched_exit(void);
+
+static volatile int initialized_core[NUM_CPU] = { 0 }; /* record the cores that still depend on us */
+
 void 
 sched_exit(void)   
 {
-	mman_release_all(); 
+	int i;
+	initialized_core[cos_cpuid()] = 0;
+	if (cos_cpuid() == INIT_CORE) {
+		/* The init core waiting for all cores to exit. */
+		for (i = 0; i < NUM_CPU ; i++)
+			if (initialized_core[i]) i = 0;
+		mman_release_all(); 
+	}
 	parent_sched_exit();
 }
 
@@ -508,7 +524,13 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	switch (t) {
 	case COS_UPCALL_BOOTSTRAP:
-		mm_init(); break;
+		if (cos_cpuid() == INIT_CORE) {
+			mm_init(); 
+		} else {
+			while (initialized_core[INIT_CORE] == 0) ;
+		}
+		initialized_core[cos_cpuid()] = 1;
+		break;			
 	default:
 		BUG(); return;
 	}
