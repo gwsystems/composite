@@ -114,9 +114,14 @@ int main(int argc, char **argv)
 	for (i = 0; i < ITER; i++) {
 		unsigned long long t, cost;
 		/* wait for an event... */
+//		printf("a\n");
 		read(fd, &c, 1);
 		rdtscll(t);
+//		printf("b\n");
+
 		cringbuf_consume(&sharedbuf, (char *)&c_t, 8);
+//		t = (unsigned long) t;
+//		c_t = (unsigned long) c_t;
 		cost = t - c_t;
 //		trans_ioctl_set_channel(fd, (unsigned long)diff);
 //		printf("%d: s %llu, e %llu, cost %llu\n", i, c_t, t, cost);

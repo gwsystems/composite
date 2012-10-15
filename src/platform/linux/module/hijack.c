@@ -2333,13 +2333,11 @@ static void hw_init_CPU(void)
 	return;
 }
 
-#if NUM_CPU > 1
 static void hw_init_other_cores(void *param)
 {
 	hw_int_override_all();
 	return;
 }
-#endif
 
 static int asym_exec_dom_init(void)
 {
@@ -2352,10 +2350,8 @@ static int asym_exec_dom_init(void)
 
 	hw_init_CPU();
 
-#if NUM_CPU > 1
 	/* Init all the other cores. */
 	smp_call_function(hw_init_other_cores, NULL, 1);
-#endif
 
 	/* Consistency check. We define the THD_REGS = 8 in ipc.S. */
 	BUG_ON(offsetof(struct thread, regs) != 8);
@@ -2366,19 +2362,15 @@ static int asym_exec_dom_init(void)
 	return 0;
 }
 
-#if NUM_CPU > 1
 static void hw_reset_other_cores(void *param)
 {
 	hw_int_reset();
 }
-#endif
 
 static void asym_exec_dom_exit(void)
 {
 	hw_int_reset();
-#if NUM_CPU > 1
 	smp_call_function(hw_reset_other_cores, NULL, 1);
-#endif
 	remove_proc_entry("aed", NULL);
 
 	return;

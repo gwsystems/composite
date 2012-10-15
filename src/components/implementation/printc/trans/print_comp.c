@@ -100,12 +100,11 @@ int print_str(int s1, int s2, int s3, int s4)
 			assert(amnt >= 0);
 //			cos_print("ZZ", (unsigned int)(t1-t));
 			cos_trans_cntl(COS_TRANS_TRIGGER, COS_TRANS_SERVICE_PRINT, 0, 0);
-			rdtscll(t1);
-			sum += t1 - t;
-
-			cos_idle();
+//			rdtscll(t1);
+//			sum += t1 - t;
+//			cos_idle();
 		}
-		cos_print("ZZ", (unsigned int)(sum / ITER));
+//		cos_print("ZZ", (unsigned int)(sum / ITER));
 		cos_print("done\n", 6);
 	}
 

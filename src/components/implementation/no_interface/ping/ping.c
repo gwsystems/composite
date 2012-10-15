@@ -18,6 +18,7 @@ void cos_init(void)
 
 	for (i = 0 ; i < ITER ; i++) {
 		rdtscll(start);
+//		cos_send_ipi(i, 0, 0, 0);
 		call();
 		rdtscll(end);
 		meas[i] = end-start;

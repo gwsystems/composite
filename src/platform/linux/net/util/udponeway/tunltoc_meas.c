@@ -18,6 +18,25 @@
 #include <sched.h>
 #include <math.h>
 
+#include <sys/mman.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <string.h>
+
+#define LINUX_TEST
+#include "../../../translator/translator_ioctl.h"
+#include "../../../../../kernel/include/shared/cos_types.h"
+#include "../../../../../components/include/cringbuf.h"
+#include "../../../../../kernel/include/shared/cos_config.h"
+
+#define PROC_FILE "/proc/translator"
+#define MAP_SIZE  COS_PRINT_MEM_SZ //(4096 * 256)
+#define PRINT_CHUNK_SZ (4096*16)
+
+struct cringbuf sharedbuf;
+
 #define rdtscll(val) \
         __asm__ __volatile__("rdtsc" : "=A" (val))
 
@@ -54,6 +73,11 @@ recv_pkt(void *data)
     char *msg;
     char buf[] = "ifconfig "IFNAME" inet "IPADDR" netmask 255.255.255.0 pointopoint "P2PPEER;
     struct ifreq ifr;
+
+	int fd, _read = 0;
+	void *a;
+	char c, buf1[PRINT_CHUNK_SZ];
+
 
     msg = malloc(msg_size);
     printf("Message size is (%d)\n", msg_size);
@@ -92,22 +116,71 @@ recv_pkt(void *data)
     }
     printf("Done setting TUN. \n");
 
-    while(i > 0) {
-        ret = read(fdr, msg, msg_size);
-        rdtscll(tsc);
-//	if (tsc <= stsc) printf("wrong!!!\n");
-        timer_arr[j] = tsc - stsc;
-        j += 1;
+	fd = open(PROC_FILE, O_RDWR);
+	if (fd < 0) {
+		perror("open");
+		exit(-1);
+	}
+
+	trans_ioctl_set_channel(fd, COS_TRANS_SERVICE_PONG);
+	trans_ioctl_set_direction(fd, COS_TRANS_DIR_LTOC);
+	a = mmap(NULL, MAP_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+	if (MAP_FAILED == a) {
+		perror("mmap");
+		exit(-1);
+	}
+	cringbuf_init(&sharedbuf, a, MAP_SIZE);
+	/* wait for user to start */
+//	_read = read(0, buf1, PRINT_CHUNK_SZ);
+
+	while (i) {
+		int off = 0;
+		unsigned long long *p;
+
+		ret = read(fdr, msg, msg_size);
+		_read = 8 + 1;
+		p = buf1;
+		*p = stsc;
+		*(buf1+8) = *msg;
+//		rdtscll(*p);
+
+		do {
+			int p;
+
+			p = cringbuf_produce(&sharedbuf, buf1 + off, _read);
+			_read -= p;
+			off += p;
+			if (p) {
+				write(fd, &c, 1);
+			}
+		} while (_read);
+		j += 1;
         
-        if (ret != msg_size && errno != EINTR) {
-            printf("ret (%d) errno (%d)\n", ret, errno);
-            perror("read");
-            exit(-1);
-        }   
-        i--;
-    }
+		i--;
+	}
+
+
+/*     while(i > 0) { */
+/*         ret = read(fdr, msg, msg_size); */
+/*         rdtscll(tsc); */
+/* //	if (tsc <= stsc) printf("wrong!!!\n"); */
+/*         timer_arr[j] = tsc - stsc; */
+/*         j += 1; */
+        
+/*         if (ret != msg_size && errno != EINTR) { */
+/*             printf("ret (%d) errno (%d)\n", ret, errno); */
+/*             perror("read"); */
+/*             exit(-1); */
+/*         }    */
+/*         i--; */
+/*     } */
     done = 1;
     close(fdr);
+	if (munmap(a, MAP_SIZE) < 0) {
+		perror("munmap");
+		exit(-1);
+	}
+
     pthread_exit(NULL);
 }
 
@@ -116,7 +189,8 @@ get_statistics()
 {
     // For mean
     unsigned long long running_sum = 0, i;
-
+    printf("Done !\n");
+    return;
     // For stddev
     double running_sdevsum = 0;
     long double sdev_arr[ITR];

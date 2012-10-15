@@ -208,6 +208,7 @@ static void wake_up_channel(void *c)
 	assert(get_cpuid() == LINUX_CORE);
 	tc->levent = 1;
 	wake_up_interruptible(&tc->e);
+	schedule();
 	
 	return;
 }
