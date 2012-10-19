@@ -16,10 +16,9 @@ cp:
 	cp $(TRANS_DIR)/* $(TEST_DIR)
 
 clean:
-#	rm cos_loader /* why remove this? */
+	rm cos_loader
 	rmmod trans
 #	rmmod cnet
-	rm /dev/net/cnet
 	rmmod cos
 
 # sync to minimize possible file system corruption on crashes

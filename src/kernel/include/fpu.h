@@ -4,20 +4,21 @@
 #define FPU_H
 
 struct cos_fpu {
-        long cwd; /* FPU Control Word*/
-        long swd; /* FPU Status Word */
-        long twd; /* FPU Tag Word */
-        long fip; /* FPU IP Offset */
-        long fcs; /* FPUIP Selector */
-        long foo; /* FPU Operand Pointer Offset */
-        long fos; /* FPU Operand Pointer Selector */
+        unsigned int cwd; /* FPU Control Word*/
+        unsigned int swd; /* FPU Status Word */
+        unsigned int twd; /* FPU Tag Word */
+        unsigned int fip; /* FPU IP Offset */
+        unsigned int fcs; /* FPUIP Selector */
+        unsigned int foo; /* FPU Operand Pointer Offset */
+        unsigned int fos; /* FPU Operand Pointer Selector */
 
         /* 8*10 bytes for each FP-reg = 80 bytes: */
-        long st_spaces[20]; /* 8 data registers */
-	//long empty_spaces[512];
+        unsigned int st_space[20]; /* 8 data registers */
+	unsigned int status;
 };
 
 void fsave(struct thread*);
 void frstor(struct thread*);
+void finit();
 
 #endif

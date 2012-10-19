@@ -460,6 +460,7 @@ static inline struct spd *thd_validate_get_current_spd(struct thread *thd, unsig
 int thd_validate_spd_in_callpath(struct thread *t, struct spd *s);
 int thd_check_atomic_preempt(struct thread *thd);
 void thd_print_regs(struct thread *t);
+void thd_print_fregs(struct thread *t);
 
 static inline void thd_save_preempted_state(struct thread *thd, struct pt_regs *regs)
 {

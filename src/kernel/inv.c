@@ -866,6 +866,12 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	flags = rflags;
 	switch_thread_update_flags(da, &flags);
 
+	
+	fsave(curr);
+	//thd_print_fregs(curr);
+	//fsave(curr);
+	//thd_print_fregs(curr);
+	
 	if (unlikely(flags)) {
 		thd = switch_thread_slowpath(curr, flags, curr_spd, rthd_id, da, &ret_code, 
 					     &curr_sched_flags, &thd_sched_flags);
@@ -882,15 +888,8 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		
 		if (unlikely(NULL == thd)) goto_err(ret_err, "get target");
 	}
-/*
-	if(&curr->fpu) {
-		printk("begin save\n");
-		fsave(curr);
-		//printk("floating-points in thread %d saved\n", &curr->thread_id);
-	}
-	else
-		printk("nothing to save");
-*/
+	
+
 	/* If a thread is involved in a scheduling decision, we should
 	 * assume that any preemption chains that existed aren't valid
 	 * anymore. */
@@ -908,15 +907,23 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
 	/* success for this current thread */
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
-/*
-	if(&thd->fpu)
+
+	if(thd->fpu.cwd != 0)
 	{
-		printk("begin restore\n");
+		//printk("thd->fpu is non-empty, restore\n");
+		//thd_print_fregs(thd);
 		frstor(thd);
 	}
-	else
-		printk("nothing to restore\n");
-*/
+	else{
+		//printk("thd->fpu is empty, don't restore\n");
+		fsave(thd);
+	}
+
+	//thd_print_fregs(thd);
+	//finit();
+	//fsave(thd);
+	//frstor(thd);
+	
 	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
 
 	return &thd->regs;
@@ -3573,3 +3580,18 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void
 };
+/*
+void thd_print_fregs(struct thread *t) {
+        struct cos_fpu *r = &t->fpu;
+        struct spd *s = thd_get_thd_spd(t);
+
+        printk("cos: spd %d, thd %d w/ fpu_regs: \ncos:\t\t"
+               "cwd %10x, swd %10x, twd %10x, fip %10x, fcs %10x,\ncos:\t\t"
+               "foo %10x, fos %10x \n",
+               spd_get_index(s), thd_get_id(t), (unsigned int)r->cwd, (unsigned int)r->swd, 
+               (unsigned int)r->twd, (unsigned int)r->fip, (unsigned int)r->fcs, (unsigned int)r->foo, 
+               (unsigned int)r->fos);
+
+        return;
+}
+*/
