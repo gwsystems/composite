@@ -866,12 +866,6 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	flags = rflags;
 	switch_thread_update_flags(da, &flags);
 
-	
-	fsave(curr);
-	//thd_print_fregs(curr);
-	//fsave(curr);
-	//thd_print_fregs(curr);
-	
 	if (unlikely(flags)) {
 		thd = switch_thread_slowpath(curr, flags, curr_spd, rthd_id, da, &ret_code, 
 					     &curr_sched_flags, &thd_sched_flags);
@@ -888,7 +882,6 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		
 		if (unlikely(NULL == thd)) goto_err(ret_err, "get target");
 	}
-	
 
 	/* If a thread is involved in a scheduling decision, we should
 	 * assume that any preemption chains that existed aren't valid
@@ -905,25 +898,19 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	}
 
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
+
+	fsave(curr);
+
 	/* success for this current thread */
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
 
-	if(thd->fpu.cwd != 0)
-	{
-		//printk("thd->fpu is non-empty, restore\n");
-		//thd_print_fregs(thd);
+	if(thd->fpu.swd != NULL)
 		frstor(thd);
-	}
-	else{
-		//printk("thd->fpu is empty, don't restore\n");
+	else
 		fsave(thd);
-	}
 
-	//thd_print_fregs(thd);
-	//finit();
-	//fsave(thd);
-	//frstor(thd);
-	
+	printk("check\n");
+
 	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
 
 	return &thd->regs;
