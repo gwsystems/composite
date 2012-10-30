@@ -12,6 +12,7 @@
 #include <cos_component.h>
 #include <print.h>
 #include <cbuf.h>
+#include <cbufp.h>
 #include <cbuf_vect.h>
 #include <cos_vect.h>
 #include <cos_debug.h>
@@ -34,7 +35,8 @@ cos_lock_t cbuf_lock;
  */
 extern struct cos_component_information cos_comp_info;
 
-CBUF_VECT_CREATE_STATIC(meta_cbuf);
+CVECT_CREATE_STATIC(meta_cbuf);
+CVECT_CREATE_STATIC(meta_cbufp);
 CVECT_CREATE_STATIC(alloc_descs);
 //struct cbuf_slab_freelist alloc_freelists[N_CBUF_SLABS];
 struct cbuf_alloc_desc cbuf_alloc_freelists = {.next = &cbuf_alloc_freelists, .prev = &cbuf_alloc_freelists, .addr = NULL};
@@ -61,6 +63,7 @@ __cbuf_desc_alloc(int cbid, int size, void *addr, struct cbuf_meta *cm, int tmem
 	d->addr   = addr;
 	d->length = size;
 	d->meta   = cm;
+	d->tmem   = tmem;
 	INIT_LIST(d, next, prev);
 	//ADD_LIST(&cbuf_alloc_freelists, d, next, prev);
 	if (tmem) d->flhead = &cbuf_alloc_freelists;
@@ -114,16 +117,17 @@ __cbuf_2buf_miss(int cbid, int len, int tmem)
 	 * cbids being passed to this component if they don't already
 	 * belong to the client) should fix this.
 	 */
-	mc = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
+	mc = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid), tmem);
 	/* ...have to expand the cbuf_vect */
 	if (unlikely(!mc)) {
-		if (cbuf_vect_expand(&meta_cbuf, cbid)) BUG();
-		mc = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
+		if (cbuf_vect_expand(tmem ? &meta_cbuf : &meta_cbufp, cbid, tmem)) BUG();
+		mc = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid), tmem);
 		assert(mc);
 	}
 
 	CBUF_RELEASE();
-	ret = cbuf_c_retrieve(cos_spd_id(), cbid, len);
+	if (tmem) ret = cbuf_c_retrieve(cos_spd_id(), cbid, len);
+	else      ret = cbufp_retrieve(cos_spd_id(), cbid, len);
 	CBUF_TAKE();
 	if (unlikely(ret < 0                                   ||
 		     mc->sz < len                              ||
@@ -151,14 +155,48 @@ __cbuf_alloc_slow(int size, int *len, int tmem)
 	cnt = cbid = 0;
 	do {
 		CBUF_RELEASE();
-		cbid = cbuf_c_create(cos_spd_id(), size, cbid*-1, tmem);
+		if (tmem) {
+			cbid = cbuf_c_create(cos_spd_id(), size, cbid*-1);
+		} else {
+			int amnt, i;
+			cbuf_t cb;
+			int *cbs;
+
+			cbs  = cbuf_alloc(PAGE_SIZE, &cb);
+			assert(cbs);
+			amnt = cbufp_collect(cos_spd_id(), PAGE_SIZE, cb);
+			assert(amnt);
+			assert(cbs[0]);
+			if (amnt == 1 && cbs[0] < 0) {
+				cbid = cbufp_create(cos_spd_id(), size, cbs[0]);
+			} else {
+				cbid = cbs[0];
+			}
+			assert(cbid > 0);
+
+			/* ...add the rest back into freelists */
+			for (i = 1 ; i < amnt ; i++) {
+				struct cbuf_alloc_desc *d, *fl;
+				struct cbuf_meta *meta;
+				int idx = cbid_to_meta_idx(cbs[i]);
+				u32_t page;
+				void *data;
+
+				meta = cbuf_vect_lookup_addr(idx, tmem);
+				d    = __cbuf_alloc_lookup(meta->nfo.c.ptr);
+				assert(d && d->cbid == cbs[i]);
+				fl   = d->flhead;
+				assert(fl);
+				ADD_LIST(fl, d, next, prev);
+			}
+		}
 		CBUF_TAKE();
 		/* TODO: we will hold the lock in expand which calls
 		 * the manager...remove that */
-		if (cbid < 0 && cbuf_vect_expand(&meta_cbuf, cbid*-1) < 0) goto done;
+		if (cbid < 0 && cbuf_vect_expand(tmem ? &meta_cbuf : &meta_cbufp, cbid*-1, tmem) < 0) goto done;
 		assert(cnt++ < 10);
 	} while (cbid < 0);
-	cm   = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(cbid));
+	cm   = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid), tmem);
 	assert(cm->nfo.c.flags & CBUFM_IN_USE);
 	assert(cm->owner_nfo.thdid);
 	addr = (void*)(cm->nfo.c.ptr << PAGE_ORDER);
