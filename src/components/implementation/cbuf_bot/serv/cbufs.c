@@ -25,7 +25,7 @@ void check_val(){
 	int i;
 	printc("spd %ld\n",cos_spd_id());
 	for(i=0;i<10;i++)
-		printc("check:::i:%d %p\n",i,cbuf_vect_lookup(&meta_cbuf, i));
+		printc("check:::i:%d %p\n",i,cvect_lookup(&meta_cbuf, i));
 
 
 }
