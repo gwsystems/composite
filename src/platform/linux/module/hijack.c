@@ -54,6 +54,7 @@ extern void sysenter_interposition_entry(void);
 extern void page_fault_interposition(void);
 extern void div_fault_interposition(void);
 extern void reg_save_interposition(void);
+extern void fpu_not_available_interposition(void);
 
 /* 
  * This variable exists for the assembly code for temporary
@@ -1144,6 +1145,19 @@ main_reg_save_interposition(struct pt_regs *rs, unsigned int error_code)
 	return 0;
 }
 
+
+__attribute__((regparm(0)))
+int main_fpu_not_available_interposition(void)
+{
+	struct thread *t;
+
+	t = thd_get_current();
+	t->fpu.status = 1;
+	clr_ts();
+
+	return 1;
+}
+
 /*
  * Memory semaphore already held.
  */
@@ -1623,6 +1637,7 @@ int host_attempt_brand(struct thread *brand)
 {
 	struct pt_regs *regs = NULL;
 	unsigned long flags;
+	//struct cos_fpu *fregs = NULL;
 
 	local_irq_save(flags);
 	if (likely(composite_thread)/* == current*/) {
@@ -1699,7 +1714,7 @@ int host_attempt_brand(struct thread *brand)
  		}
 
 		regs = get_user_regs_thread(composite_thread);
-
+		//fregs = get_user_fregs_thread(composite_thread);
 		/* 
 		 * If both esp and xss == 0, then the interrupt
 		 * occured between sti; sysexit on the cos ipc/syscall
@@ -1734,14 +1749,26 @@ int host_attempt_brand(struct thread *brand)
 			/* the major work here: */
 			next = brand_next_thread(brand, cos_current, 1);
 			if (next != cos_current) {
-				//fsave(&(cos_current->fpu));
 				thd_save_preempted_state(cos_current, regs);
 				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
 					printk("cos: upcall thread %d is not set to be an active upcall.\n",
 					       thd_get_id(next));
 					///*assert*/BUG_ON(!(next->flags & THD_STATE_ACTIVE_UPCALL));
 				}
+				
+				//cos_meas_event(COS_MEAS_BRAND_UC);
+				
 				thd_check_atomic_preempt(cos_current);
+/*
+				if(cos_current->fpu.status == 1)
+				{
+					printk("saving ...\n");
+					fsave(cos_current);
+					clts();
+				}
+				else
+					printk("not using fpu.\n");
+*/
 				regs->bx = next->regs.bx;
 				regs->di = next->regs.di;
 				regs->si = next->regs.si;
@@ -1752,8 +1779,15 @@ int host_attempt_brand(struct thread *brand)
 				regs->orig_ax = next->regs.ax;
 				regs->sp = next->regs.sp;
 				regs->bp = next->regs.bp;
-				//cos_meas_event(COS_MEAS_BRAND_UC);
-				//frstor(&(next->fpu));
+/*
+				if(next->fpu.status == 1)
+				{
+					frstor(next);
+					stts();
+				}
+				else
+					printk("nothing to restore.\n");
+*/
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 
@@ -2172,6 +2206,7 @@ static int asym_exec_dom_init(void)
 	hw_int_override_pagefault(page_fault_interposition);
 	hw_int_override_idt(0, div_fault_interposition, 0, 0);
 	hw_int_override_idt(0xe9, reg_save_interposition, 0, 3);
+	hw_int_override_idt(7, fpu_not_available_interposition, 0, 0);
 
 	BUG_ON(offsetof(struct thread, regs) != 8);
 

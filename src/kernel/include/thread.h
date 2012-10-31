@@ -471,4 +471,10 @@ static inline void thd_save_preempted_state(struct thread *thd, struct pt_regs *
 	//thd_print_regs(thd);
 }
 
+/*
+static inline void thd_save_preempted_fpu_state(struct thread *thd, struct cos_fpu *fregs)
+{
+	memcpy(&thd->fpu, fregs, sizeof(struct cos_fpu));
+}
+*/
 #endif /* THREAD_H */

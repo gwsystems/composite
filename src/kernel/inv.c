@@ -899,17 +899,15 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
 
-	fsave(curr);
+	//fsave(curr);
 
 	/* success for this current thread */
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
 
-	if(thd->fpu.swd != NULL)
-		frstor(thd);
-	else
-		fsave(thd);
-
-	printk("check\n");
+	//if(thd->fpu.swd != NULL)
+		//frstor(thd);
+	//else
+		//fsave(thd);
 
 	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
 
