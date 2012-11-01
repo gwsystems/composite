@@ -1145,15 +1145,21 @@ main_reg_save_interposition(struct pt_regs *rs, unsigned int error_code)
 	return 0;
 }
 
-
-__attribute__((regparm(0)))
 int main_fpu_not_available_interposition(void)
 {
 	struct thread *t;
 
-	t = thd_get_current();
-	t->fpu.status = 1;
-	clr_ts();
+	if (composite_thread != current) {
+		printk("not current\n");
+		return 1;
+	}
+
+	//printk("exception 7 captured\n");
+	//t = thd_get_current();
+	//t->fpu.status = 1;
+	//printk("fpu.status = %d\n", t->fpu.status);
+	//clr_ts();
+	//set_ts();
 
 	return 1;
 }
@@ -1759,16 +1765,17 @@ int host_attempt_brand(struct thread *brand)
 				//cos_meas_event(COS_MEAS_BRAND_UC);
 				
 				thd_check_atomic_preempt(cos_current);
-/*
-				if(cos_current->fpu.status == 1)
-				{
+
+				if(cos_current->fpu.status == 1) {
 					printk("saving ...\n");
 					fsave(cos_current);
-					clts();
+					set_ts();
 				}
-				else
-					printk("not using fpu.\n");
-*/
+				else {
+					//printk("not using fpu.\n");
+					//printk("cos_current->fpu.status = %d\n", cos_current->fpu.status);
+				}
+
 				regs->bx = next->regs.bx;
 				regs->di = next->regs.di;
 				regs->si = next->regs.si;
@@ -1779,15 +1786,15 @@ int host_attempt_brand(struct thread *brand)
 				regs->orig_ax = next->regs.ax;
 				regs->sp = next->regs.sp;
 				regs->bp = next->regs.bp;
-/*
+
 				if(next->fpu.status == 1)
 				{
 					frstor(next);
-					stts();
+					clr_ts();
 				}
-				else
-					printk("nothing to restore.\n");
-*/
+				else {
+					//printk("nothing to restore.\n");
+				}
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 

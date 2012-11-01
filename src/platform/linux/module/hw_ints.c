@@ -9,7 +9,6 @@
 
 #include <asm/desc.h>
 #include <linux/kernel.h>
-#include "../../../kernel/include/fpu.h"
 /*
  * The Linux provided descriptor structure is crap, probably due to
  * the intel spec for descriptors being crap:
@@ -53,6 +52,7 @@ cos_set_idt_entry(unsigned int n, unsigned dpl, unsigned ints_enabled,
 	unsigned seg = __KERNEL_CS;
 
 	pack_gate(&s, type, (unsigned long)addr, dpl, ist, seg);
+
 	write_idt_entry((void*)idt_table, gate, &s);
 }
 
@@ -107,9 +107,6 @@ hw_int_init(void)
 		decode_desc_addr(&default_idt[i], (unsigned long*)&did->handler, 
 				 &did->dpl, &did->ints_enabled);
 		
-		//unsigned int cr0;
-		//cr0 = cos_read_cr0();
-
 		/* Yuck...we should simply use the array of saved handlers instead */
 		switch (i) {
 		case 0:
@@ -122,14 +119,8 @@ hw_int_init(void)
 			cos_default_reg_save_handler   = did->handler;
 			break;
 		case 7:
-			/*
-			printk("cr0: %10x\n", cr0);
-			printk("capture exception 7!\n");
-			set_ts();
-			cr0 = cos_read_cr0();
-			printk("cr0: %10x\n", cr0);
-			*/
 			cos_default_fpu_not_available_handler  = did->handler;
+			//printk("get exception 7\n");
 			break;
 		};
 	}
