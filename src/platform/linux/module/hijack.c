@@ -1153,12 +1153,9 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 	
 	if (composite_thread != current) return 1;
 
-	printk("cr0 is: %10x\n", cos_read_cr0);
 	t = thd_get_current();
-	t->fpu.status = 1;
-	printk("fpu.status = %d\n", t->fpu.status);
-	//clr_ts();
-	//set_ts();
+	if (t->fpu.status != 1)
+		t->fpu.status = 1;
 
 	return 1;
 }
@@ -1765,16 +1762,6 @@ int host_attempt_brand(struct thread *brand)
 				
 				thd_check_atomic_preempt(cos_current);
 
-				if(cos_current->fpu.status == 1) {
-					printk("saving ...\n");
-					fsave(cos_current);
-					set_ts();
-				}
-				else {
-					printk("not using fpu.\n");
-					printk("cos_current->fpu.status = %d\n", cos_current->fpu.status);
-				}
-
 				regs->bx = next->regs.bx;
 				regs->di = next->regs.di;
 				regs->si = next->regs.si;
@@ -1786,14 +1773,11 @@ int host_attempt_brand(struct thread *brand)
 				regs->sp = next->regs.sp;
 				regs->bp = next->regs.bp;
 
+				if(cos_current->fpu.status == 1)
+					fsave(cos_current);
+
 				if(next->fpu.status == 1)
-				{
 					frstor(next);
-					clr_ts();
-				}
-				else {
-					printk("nothing to restore.\n");
-				}
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 

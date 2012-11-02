@@ -174,28 +174,6 @@ ENTRY(name##_interposition)					\
 	popl %gs;						\
 	addl $4, %esp;						\
 	jmp *(cos_default_##name##_handler)	
-/*
-.data;								
-.globl cos_default_fpu_not_available_handler; 				
-cos_default_fpu_not_available_handler:					
-.long 0;							
-.text;								
-.globl fpu_not_available_interposition;	 				
-.align 16;					 		
-ENTRY(fpu_not_available_interposition)*/
-	/*pushl $0					;*/
-/*	SAVE_ALL					;
-	movl %esp, %eax					;
-	movl ORIG_EAX(%eax), %edx 			;
-	call main_fpu_not_available_interposition	;
-	test %eax, %eax					;
-	jnz 1f;
-	RESTORE_REGS					;
-	addl $4, %esp					;
-	iret;
-1:*/	/* linux path */
-/*	RESTORE_REGS					;
-	jmp *(cos_default_fpu_not_available_handler)*/
 
 /* Same as above, but this time, there is an errorcode provided by the HW */
 #define COS_CREATE_TRAP_ERRCODE(name)		 		\

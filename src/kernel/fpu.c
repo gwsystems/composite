@@ -2,7 +2,7 @@
 
 void fsave(struct thread *thd)
 {
-	asm volatile("fnsave %0; fwait " : "=m" (thd->fpu));
+	asm volatile("fsave %0" : "=m" (thd->fpu));
 }
 
 
@@ -14,10 +14,10 @@ void frstor(struct thread *thd)
 void set_ts(void)
 {
 	unsigned int val;
-	asm volatile("mov %%cr0,%0\n\t" : "=r" (val));
-	printk("%10x\n", val);
+	asm volatile("mov %%cr0,%0" : "=r" (val));
+	//printk("%10x\n", val);
 	val = val | 0x00000008;
-	printk("%10x\n", val);
+	//printk("%10x\n", val);
 	asm volatile("mov %0,%%cr0" : : "r" (val));
 }
 
