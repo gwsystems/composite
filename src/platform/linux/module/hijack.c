@@ -1145,19 +1145,18 @@ main_reg_save_interposition(struct pt_regs *rs, unsigned int error_code)
 	return 0;
 }
 
-int main_fpu_not_available_interposition(void)
+
+__attribute__((regparm(3))) int
+main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code)
 {
 	struct thread *t;
+	
+	if (composite_thread != current) return 1;
 
-	if (composite_thread != current) {
-		printk("not current\n");
-		return 1;
-	}
-
-	//printk("exception 7 captured\n");
-	//t = thd_get_current();
-	//t->fpu.status = 1;
-	//printk("fpu.status = %d\n", t->fpu.status);
+	printk("cr0 is: %10x\n", cos_read_cr0);
+	t = thd_get_current();
+	t->fpu.status = 1;
+	printk("fpu.status = %d\n", t->fpu.status);
 	//clr_ts();
 	//set_ts();
 
@@ -1772,8 +1771,8 @@ int host_attempt_brand(struct thread *brand)
 					set_ts();
 				}
 				else {
-					//printk("not using fpu.\n");
-					//printk("cos_current->fpu.status = %d\n", cos_current->fpu.status);
+					printk("not using fpu.\n");
+					printk("cos_current->fpu.status = %d\n", cos_current->fpu.status);
 				}
 
 				regs->bx = next->regs.bx;
@@ -1793,7 +1792,7 @@ int host_attempt_brand(struct thread *brand)
 					clr_ts();
 				}
 				else {
-					//printk("nothing to restore.\n");
+					printk("nothing to restore.\n");
 				}
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);

@@ -3,7 +3,6 @@
 void fsave(struct thread *thd)
 {
 	asm volatile("fnsave %0; fwait " : "=m" (thd->fpu));
-	thd->fpu.status = 1;
 }
 
 

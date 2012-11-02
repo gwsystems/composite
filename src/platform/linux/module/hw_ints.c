@@ -120,7 +120,6 @@ hw_int_init(void)
 			break;
 		case 7:
 			cos_default_fpu_not_available_handler  = did->handler;
-			//printk("get exception 7\n");
 			break;
 		};
 	}
