@@ -1,16 +1,16 @@
 #include "include/fpu.h"
 
-void fsave(struct thread *thd)
+inline void fsave(struct thread *thd)
 {
 	asm volatile("fsave %0" : "=m" (thd->fpu));
 }
 
 
-void frstor(struct thread *thd)
+inline void frstor(struct thread *thd)
 {
 	asm volatile("frstor %0 " : : "m" (thd->fpu));
 }
-
+/*
 void set_ts(void)
 {
 	unsigned int val;
@@ -32,3 +32,4 @@ unsigned int cos_read_cr0(void)
 	asm volatile("mov %%cr0,%0" : "=r" (val));
 	return val;
 }
+*/

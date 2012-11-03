@@ -17,11 +17,11 @@ struct cos_fpu {
 	unsigned int status; /* 1.USED FPU 2.NOT USED FPU */
 };
 
-void fsave(struct thread*);
-void frstor(struct thread*);
-void set_ts(void);
-void clr_ts(void);
+inline void fsave(struct thread*);
+inline void frstor(struct thread*);
+//void set_ts(void);
+//void clr_ts(void);
 
-unsigned int cos_read_cr0(void);
+//unsigned int cos_read_cr0(void);
 
 #endif

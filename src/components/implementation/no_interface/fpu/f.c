@@ -11,8 +11,9 @@ void cos_init(void *args)
 
 	while(1)
 	{
+		
 		h += f + g;
-		if((int)h < 0)
+		if((int)h < 0) // avoid the value exceeds the limit of int, make it a infinite loop 
 			h = 0;
 		printc("calc by thread %d, h = %d\n", cos_get_thd_id(), (int)h);
 	}

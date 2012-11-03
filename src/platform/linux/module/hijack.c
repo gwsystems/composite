@@ -1151,10 +1151,10 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 {
 	struct thread *t;
 	
-	if (composite_thread != current) return 1;
+	if (unlikely(composite_thread != current)) return 1;
 
 	t = thd_get_current();
-	if (t->fpu.status != 1)
+	if (unlikely(t->fpu.status != 1))
 		t->fpu.status = 1;
 
 	return 1;
@@ -1775,9 +1775,14 @@ int host_attempt_brand(struct thread *brand)
 
 				if(cos_current->fpu.status == 1)
 					fsave(cos_current);
+				else
+					printk("not using fpu, no need to save\n");
 
 				if(next->fpu.status == 1)
 					frstor(next);
+				else{
+					printk("thread id:%d\n", thd_get_id(next));
+					printk("not using fpu, no need to restore\n");}
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 
