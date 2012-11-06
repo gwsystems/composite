@@ -194,16 +194,17 @@ void thd_print_regs(struct thread *t) {
 
 void thd_print_fregs(struct thread *t) {
 	struct cos_fpu *r = &t->fpu;
-	
-	//printk("cwd: %10x\n", (unsigned int)r->cwd);
-	//printk("swd: %10x\n", (unsigned int)r->swd);
-	//printk("twd: %10x\n", (unsigned int)r->twd);
-	//printk("fip: %10x\n", (unsigned int)r->fip);
-	//printk("fcs: %10x\n", (unsigned int)r->fcs);
-	//printk("foo: %10x\n", (unsigned int)r->foo);
-	//printk("fos: %10x\n", (unsigned int)r->fos);
-	//printk("====================\n");
+
+	printk("thread %d:\n", thd_get_id(t));	
+	printk("cwd: %10x\n", (unsigned int)r->cwd);
+	printk("swd: %10x\n", (unsigned int)r->swd);
+	printk("twd: %10x\n", (unsigned int)r->twd);
+	printk("fip: %10x\n", (unsigned int)r->fip);
+	printk("fcs: %10x\n", (unsigned int)r->fcs);
+	printk("foo: %10x\n", (unsigned int)r->foo);
+	printk("fos: %10x\n", (unsigned int)r->fos);
 	printk("status: %10x\n", (unsigned int)r->status);
+	printk("====================\n");
 
 	return;
 }

@@ -9,6 +9,7 @@
 
 #include <asm/desc.h>
 #include <linux/kernel.h>
+#include "../../../kernel/include/fpu.h"
 /*
  * The Linux provided descriptor structure is crap, probably due to
  * the intel spec for descriptors being crap:

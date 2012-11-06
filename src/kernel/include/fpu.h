@@ -19,9 +19,11 @@ struct cos_fpu {
 
 inline void fsave(struct thread*);
 inline void frstor(struct thread*);
-//void set_ts(void);
-//void clr_ts(void);
+inline void set_ts(void);
+inline void clr_ts(void);
 
-//unsigned int cos_read_cr0(void);
+inline unsigned int cos_read_cr0(void);
 
+inline void clr_em(void);
+inline void set_em(void);
 #endif

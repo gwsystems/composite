@@ -1150,12 +1150,21 @@ __attribute__((regparm(3))) int
 main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code)
 {
 	struct thread *t;
-	
-	if (unlikely(composite_thread != current)) return 1;
+
+	if (composite_thread != current) return 1;
 
 	t = thd_get_current();
-	if (unlikely(t->fpu.status != 1))
+
+	printk("exception captured!, thread id = %d\n", thd_get_id(t));
+//	printk("thread->fpu.status = %d\n", t->fpu.status);
+	//printk("before: %10x\n", cos_read_cr0());
+
+	if (unlikely(t->fpu.status != 1)) {
 		t->fpu.status = 1;
+	}
+	//clr_ts();
+
+	//printk("after: %10x\n", cos_read_cr0());
 
 	return 1;
 }
@@ -1639,7 +1648,6 @@ int host_attempt_brand(struct thread *brand)
 {
 	struct pt_regs *regs = NULL;
 	unsigned long flags;
-	//struct cos_fpu *fregs = NULL;
 
 	local_irq_save(flags);
 	if (likely(composite_thread)/* == current*/) {
@@ -1652,11 +1660,16 @@ int host_attempt_brand(struct thread *brand)
 		}
 
 		cos_current = thd_get_current();
+
+
+				printk("hijack: current thread is %d\n", thd_get_id(thd_get_current()));
+				printk("hijack: cos_current(switch out) is %d\n", thd_get_id(cos_current));
+
 		/* See comment in cosnet.c:cosnet_xmit_packet */
 		if (host_in_syscall() || host_in_idle()) {
 			struct thread *next;
 
-			//next = brand_next_thread(brand, cos_current, 2);
+			//next = brand_next_thread(brand, coed_current, 2);
 			/* 
 			 * _FIXME_: Here we are kludging a problem over.
 			 * The problem is this:
@@ -1694,6 +1707,7 @@ int host_attempt_brand(struct thread *brand)
 			 * be an issue later on.
 			 */
 			next = brand_next_thread(brand, cos_current, 0);
+			
 			if (next != cos_current) {
 				assert(thd_get_current() == next);
 				/* the following call isn't
@@ -1716,7 +1730,6 @@ int host_attempt_brand(struct thread *brand)
  		}
 
 		regs = get_user_regs_thread(composite_thread);
-		//fregs = get_user_fregs_thread(composite_thread);
 		/* 
 		 * If both esp and xss == 0, then the interrupt
 		 * occured between sti; sysexit on the cos ipc/syscall
@@ -1750,6 +1763,7 @@ int host_attempt_brand(struct thread *brand)
 
 			/* the major work here: */
 			next = brand_next_thread(brand, cos_current, 1);
+			
 			if (next != cos_current) {
 				thd_save_preempted_state(cos_current, regs);
 				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
@@ -1773,16 +1787,49 @@ int host_attempt_brand(struct thread *brand)
 				regs->sp = next->regs.sp;
 				regs->bp = next->regs.bp;
 
-				if(cos_current->fpu.status == 1)
-					fsave(cos_current);
-				else
-					printk("not using fpu, no need to save\n");
+				if(cos_current->fpu.status == 1) {
+					if(next->fpu.status == 1) {
+						fsave(cos_current);
+					}
+					else
+						set_ts();
+				}
 
-				if(next->fpu.status == 1)
+				thd_print_fregs(cos_current);
+				
+				thd_print_fregs(next);
+/*
+				printk("hijack: current thread is %d\n", thd_get_id(thd_get_current()));
+				printk("hijack: cos_current(switch out) is %d\n", thd_get_id(cos_current));
+				printk("hijack: next(switch in) is %d\n", thd_get_id(next));
+*/
+
+				//printk("1. current cr0 status is: %10x\n", cos_read_cr0());
+
+				//printk("current thread is: %d\n", thd_get_id(cos_current));
+/*
+				printk("hijack: switching from thread %d to thread %d\n", thd_get_id(cos_current), thd_get_id(next));			
+	
+				if(cos_current->fpu.status == 1) {
+					printk("now saving fpu ...\n");
+					fsave(cos_current);
+					//set_ts();
+				}
+*/
+				//else
+					//printk("not using fpu, no need to save\n");
+
+			//	printk("2. current cr0 status is: %10x\n", cos_read_cr0());
+/*
+				if(next->fpu.status == 1) {
+					printk("now restoring fpu ...\n");
 					frstor(next);
-				else{
+				}
+				else {
 					printk("thread id:%d\n", thd_get_id(next));
-					printk("not using fpu, no need to restore\n");}
+					printk("not using fpu, no need to restore\n");
+				}
+*/
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 

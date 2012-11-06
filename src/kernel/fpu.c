@@ -10,26 +10,43 @@ inline void frstor(struct thread *thd)
 {
 	asm volatile("frstor %0 " : : "m" (thd->fpu));
 }
-/*
-void set_ts(void)
+
+inline void set_ts(void)
 {
 	unsigned int val;
 	asm volatile("mov %%cr0,%0" : "=r" (val));
-	//printk("%10x\n", val);
-	val = val | 0x00000008;
-	//printk("%10x\n", val);
+	asm volatile("bts $3,%0" : "=r" (val));
 	asm volatile("mov %0,%%cr0" : : "r" (val));
 }
 
-void clr_ts(void)
+inline void clr_ts(void)
 {
-	asm volatile("clts");
+	//asm volatile("clts");
+	unsigned int val;
+	asm volatile("mov %%cr0,%0" : "=r" (val));
+	asm volatile("btr $3,%0" : "=r" (val));
+	asm volatile("mov %0,%%cr0" : : "r" (val));
+
 }
 
-unsigned int cos_read_cr0(void)
+inline unsigned int cos_read_cr0(void)
 {
 	unsigned int val;
 	asm volatile("mov %%cr0,%0" : "=r" (val));
 	return val;
 }
-*/
+
+inline void set_em(void) {
+	unsigned int val;
+	asm volatile("mov %%cr0,%0" : "=r" (val));
+	asm volatile("bts $2,%0" : "=r" (val));
+	asm volatile("mov %0,%%cr0" : : "r" (val));
+}
+
+inline void clr_em(void) {
+	unsigned int val;
+	asm volatile("mov %%cr0,%0" : "=r" (val));
+	asm volatile("btr $2,%0" : "=r" (val));
+	asm volatile("mov %0,%%cr0" : : "r" (val));
+
+}
