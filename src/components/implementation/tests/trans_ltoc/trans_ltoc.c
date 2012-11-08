@@ -114,7 +114,7 @@ void read_ltoc(void)
 		ret = cringbuf_consume(&channels[channel].rb, buf, 512);
 		p = buf;
 //		while (*p != '\0') {
-		t = p;
+		t = (unsigned long long *)p;
 		meas[idx++] = (local_t - *t);
 		assert(local_t > *t);
 //		printc("local t %llu, start %llu, diff %u\n", local_t, *t, meas[idx-1]);

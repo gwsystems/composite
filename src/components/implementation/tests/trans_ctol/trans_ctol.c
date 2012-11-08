@@ -26,7 +26,7 @@ int cos_init(void)
 		if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG();
 		return 0;
 	}
-	printc("zz\n");
+	/* printc("zz\n"); */
 
 	return 0;
 

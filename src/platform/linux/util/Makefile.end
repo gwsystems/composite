@@ -4,7 +4,7 @@ init: ready_hw first
 
 ready_hw:
 	ethtool -A eth0 autoneg off rx off tx off
-#	mknod /dev/net/cnet c 10 201
+	mknod /dev/net/cnet c 10 201
 	echo 1 > /proc/sys/net/ipv4/ip_forward
 	echo "-1" > /proc/sys/kernel/sched_rt_runtime_us
 	echo "1000000000" > /proc/sys/kernel/sched_rt_period_us
@@ -18,7 +18,7 @@ cp:
 clean:
 	rm cos_loader
 	rmmod trans
-#	rmmod cnet
+	rmmod cnet
 	rmmod cos
 
 # sync to minimize possible file system corruption on crashes
@@ -26,9 +26,9 @@ build: tar
 	@sync
 	@sleep 0.1
 	nice -n -20 insmod cos.ko
-#	insmod cnet.ko
+	insmod cnet.ko
 	insmod trans.ko
-#	./cnet_user
+	./cnet_user
 	@sleep 0.1
 
 tar:

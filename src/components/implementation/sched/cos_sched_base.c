@@ -1596,8 +1596,6 @@ int sched_create_net_brand(spdid_t spdid, unsigned short int port)
 {
 	int b_id;
 	
-//	if (port == 1234) return (int)t_0;
-
 	b_id = sched_setup_brand(spdid);
 	assert(b_id >= 0);
 	if (0 > cos_brand_wire(b_id, COS_HW_NET, port)) BUG();

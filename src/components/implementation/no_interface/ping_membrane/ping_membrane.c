@@ -106,7 +106,7 @@ void cos_init(void)
 			} else
 				outlier++;
 		}
-		printc("Core %d, calling side, cache working set size %d, avg execution time %llu w/o %d outliers\n", cos_cpuid(), i * 64, sum2 / (ITER2-outlier), outlier);
+		printc("Core %ld, calling side, cache working set size %d, avg execution time %llu w/o %d outliers\n", cos_cpuid(), i * 64, sum2 / (ITER2-outlier), outlier);
 	}
 	printc("\nsamecore\n");
 	for (i = 16; i <= ITER; i*= 2) {
@@ -140,7 +140,7 @@ void cos_init(void)
 			} else
 				outlier++;
 		}
-		printc("Core %d, calling side, cache working set size %d, avg execution time %llu w/o %d outliers\n", cos_cpuid(), i * 64, sum2 / (ITER2-outlier), outlier);
+		printc("Core %ld, calling side, cache working set size %d, avg execution time %llu w/o %d outliers\n", cos_cpuid(), i * 64, sum2 / (ITER2-outlier), outlier);
 	}
 	printc("\nxcore\n");
 	for (i = 16; i <= ITER; i*= 2) {
@@ -174,7 +174,7 @@ void cos_init(void)
 			} else
 				outlier++;
 		}
-		printc("Core %d, calling side, cache working set size %d, avg execution time %llu w/o %d outliers\n", cos_cpuid(), i * 64, sum2 / (ITER2-outlier), outlier);
+		printc("Core %ld, calling side, cache working set size %d, avg execution time %llu w/o %d outliers\n", cos_cpuid(), i * 64, sum2 / (ITER2-outlier), outlier);
 	}
 
 	printc("done.\n");

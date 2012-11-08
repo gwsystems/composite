@@ -1750,11 +1750,8 @@ cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, i
 	case COS_TRANS_MAP_SZ:
 	{
 		int sz = -1;
-		if (!trans_fns) printk("no trans fns...\n");
-		if (trans_fns) {
-			sz = trans_fns->map_sz(channel);
-			printk("kern sz %d", sz);
-		}
+		if (trans_fns) sz = trans_fns->map_sz(channel);
+
 		return sz;
 	}
 	case COS_TRANS_MAP:
@@ -3263,7 +3260,6 @@ cos_syscall_print(int spdid, char *str, int len)
 	 * passed in the arg region.  Perhaps we should just check
 	 * that.
 	 */
-	if (str[0] == 'Z' && str[1] == 'Z') {printk("%u\n", (unsigned int)len);return 0;}
 	if (len < 1) return 0;
 	if (len >= MAX_LEN) len = MAX_LEN - 1;
 	memcpy(kern_buf, str, len);

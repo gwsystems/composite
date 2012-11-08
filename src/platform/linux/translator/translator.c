@@ -143,7 +143,6 @@ trans_mmap(struct file *f, struct vm_area_struct *vma)
 
 	BUG_ON(vma->vm_private_data);
 	vma->vm_private_data = c;
-	printk("setting channel size to %d\n",sz);
 	c->size = sz;
 
 	return 0;
@@ -297,7 +296,6 @@ trans_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 	switch(cmd) {
 	case TRANS_SET_CHANNEL:
 	{
-		if (arg >= MAX_NCHANNELS) printk("%lu\n",arg);
 		if (arg >= MAX_NCHANNELS || arg < 0) return -EINVAL;
 		if (channels[arg]) return -EEXIST;
 		channels[arg] = c;
