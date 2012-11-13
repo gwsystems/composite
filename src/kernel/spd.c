@@ -66,30 +66,34 @@ int virtual_namespace_free(struct spd *spd, unsigned long addr, unsigned int siz
 	return 1;
 }
 
-struct invocation_cap invocation_capabilities[MAX_STATIC_CAP];
-struct invocation_cap *inv_cap_get(int c_num)
+struct invocation_cap *inv_cap_get(struct spd *spd, int c_num)
 {
 	struct invocation_cap *cap;
 
-	assert(c_num < MAX_STATIC_CAP);
-	cap = &invocation_capabilities[c_num];
+	assert(spd != NULL && c_num < spd->ncaps);
+	cap = &spd->caps[c_num];
+	
 	if (cap->owner == CAP_FREE) return NULL;
 	return cap;
 }
 
-int cap_is_free(int cap_num)
+int cap_is_free(struct spd *spd, int cap_num)
 {
-	if (cap_num < MAX_STATIC_CAP &&
-	    invocation_capabilities[cap_num].owner == CAP_FREE) {
+	assert (spd != NULL);
+
+	if (cap_num < spd->ncaps &&
+	    spd->caps[cap_num].owner == CAP_FREE) {
 		return 1;
 	}
 	
 	return 0;
 }
 
-static inline void cap_set_free(int cap_num)
+static inline void cap_set_free(struct spd *spd, int cap_num)
 {
-	invocation_capabilities[cap_num].owner = CAP_FREE;
+	assert (spd != NULL);
+
+	spd->caps[cap_num].owner = CAP_FREE;
 }
 
 static void spd_init_capabilities(struct invocation_cap *caps)
@@ -104,50 +108,6 @@ static void spd_init_capabilities(struct invocation_cap *caps)
 	return;
 }
 
-/*
- * Returns the index of the first free entry in the
- * invocation_capabilities array, where a range of free entries size
- * "range" is based..
- *
- * FIXME: this should be really implemented as a free-list of blocks
- * of different free ranges, so that an iteration through the freelist
- * would find us an empty region, rather than an iteration through all
- * entries.
- */
-static short int spd_alloc_capability_range(int range)
-{
-	short int i, range_free = 0;
-
-	for (i = 0 ; i < MAX_STATIC_CAP ; i++) {
-		//struct invocation_cap *cap = &invocation_capabilities[i];
-
-		if (/*cap->owner == NULL*/cap_is_free(i)) {
-			range_free++;
-
-			/* 
-			 * If we have found an acceptable range, then
-			 * go through and mark ownership of all of the
-			 * entries.
-			 */
-			if (range_free >= range) {
-				int start, j;
-				start = i - range_free + 1;
-
-				for (j = start ; j <= i ; j++) {
-					struct invocation_cap *init = &invocation_capabilities[j];
-					init->owner = CAP_ALLOCATED_UNUSED;
-				}
-
-				return i-range_free+1;
-			}
-		} else {
-			range_free = 0;
-		}
-	}
-
-	return -1;
-}
-
 static inline void cap_set_usr_cap(struct usr_inv_cap *uptr, vaddr_t inv_fn, 
 				   unsigned int inv_cnt, unsigned int cap_no)
 {
@@ -160,27 +120,27 @@ static inline void cap_set_usr_cap(struct usr_inv_cap *uptr, vaddr_t inv_fn,
 	return;
 }
 
-static inline struct usr_inv_cap *cap_get_usr_cap(int cap_num)
+static inline struct usr_inv_cap *cap_get_usr_cap(struct spd *spd, int cap_num)
 {
 	struct spd *owner;
-	int ucap;
+	assert (spd != NULL);
 
-	if (cap_is_free(cap_num)) return NULL;
+	if (cap_is_free(spd, cap_num)) return NULL;
 
-	owner = invocation_capabilities[cap_num].owner;
-	ucap = cap_num - owner->cap_base;
-	assert(ucap < owner->cap_range);
-	return &owner->user_cap_tbl[ucap];
+	assert(cap_num < owner->ncaps);
+	owner = spd->caps[cap_num].owner;
+	return &owner->user_cap_tbl[cap_num];
 }
 
-static inline int cap_reset_cap_inv_cnt(int cap_num, int *inv_cnt)
+static inline int cap_reset_cap_inv_cnt(struct spd *spd, int cap_num, int *inv_cnt)
 {
 	struct usr_inv_cap *ucap;
 	struct invocation_cap *cap;
+	assert (spd != NULL);
 
-	ucap = cap_get_usr_cap(cap_num);
+	ucap = cap_get_usr_cap(spd, cap_num);
 	if (!ucap) return -1;
-	cap = &invocation_capabilities[cap_num];
+	cap = &spd->caps[cap_num];
 	switch (cap->il) {
 	case IL_SDT:
 		*inv_cnt = cap->invocation_cnt;
@@ -205,19 +165,20 @@ static inline int cap_reset_cap_inv_cnt(int cap_num, int *inv_cnt)
 /* 
  * FIXME: access control
  */
-isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int flags)
+isolation_level_t cap_change_isolation(struct spd *spd, int cap_num, isolation_level_t il, int flags)
 {
 	isolation_level_t prev;
 	struct invocation_cap *cap;
 	struct spd *owner;
 	struct usr_inv_cap *ucap;
+        assert (spd != NULL);
 
-	if (cap_num >= MAX_STATIC_CAP) {
+	if (cap_num >= spd->ncaps) {
 		printk("Attempting to change isolation level of invalid cap %d.\n", cap_num);
 		return IL_INV;
 	}
 
-	cap = &invocation_capabilities[cap_num];
+	cap = &spd->caps[cap_num];
 	prev = cap->il;
 	//if (prev == il) return prev;
 
@@ -232,8 +193,8 @@ isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int fl
 	/* Use the kernel vaddr space table if possible, but it might
 	 * not be available on initialization */
 	ucap = (NULL != owner->user_cap_tbl) ? 
-		&owner->user_cap_tbl[cap_num - owner->cap_base]:
-		&owner->user_vaddr_cap_tbl[cap_num - owner->cap_base];
+	  &owner->user_cap_tbl[cap_num] :
+	  &owner->user_vaddr_cap_tbl[cap_num];
 
 	if (flags & CAP_SAVE_REGS) {
 		/* set highest order bit to designate saving of
@@ -282,6 +243,8 @@ static void spd_init_all(struct spd *spds)
 		spds[i].spd_info.flags = SPD_FREE;
 		spds[i].composite_spd = &spds[i].spd_info;
 		spds[i].freelist_next = (i == (MAX_NUM_SPDS-1)) ? NULL : &spds[i+1];
+		spds[i].ncaps = MAX_STATIC_CAP;
+		spd_init_capabilities(spds[i].caps);
 	}
 
 	spd_freelist_head = spds;
@@ -296,7 +259,6 @@ static void spd_init_all(struct spd *spds)
 void spd_init(void)
 {
 	spd_init_all(spds);
-	spd_init_capabilities(invocation_capabilities);
 	spd_init_mpd_descriptors();
 }
 
@@ -351,8 +313,8 @@ int spd_release_cap_range(struct spd *spd)
 {
 	int i;
 
-	for (i = spd->cap_base ; i < (spd->cap_base + spd->cap_range) ; i++) {
-		cap_set_free(i);
+	for (i = 0; i < spd->ncaps ; i++) {
+		cap_set_free(spd, i);
 	}
 	return 0;
 }
@@ -361,13 +323,11 @@ int spd_reserve_cap_range(struct spd *spd, int amnt)
 {
 	int ret = 0;
 
-	if (spd->cap_range != 0) return -1;
 	/* +1 for the (dummy) 0th return cap */
-	ret = spd_alloc_capability_range(amnt+1);
+	//ret = spd_alloc_capability_range(amnt+1);
+
 	if (ret == -1) return -1;
-	
-	spd->cap_base = (unsigned short int)ret;
-	spd->cap_range = amnt+1;
+	spd->ncaps = amnt+1;
 
 	return ret;
 }
@@ -396,7 +356,7 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 		}
 	} else {
 		/* no caps allocated yet */
-		spd->cap_base = spd->cap_range = 0;
+		spd->ncaps = 0;
 	}
 	
 	spd->user_cap_tbl = NULL; //user_cap_tbl;
@@ -483,9 +443,9 @@ int spd_set_location(struct spd *spd, unsigned long lowest_addr,
 	assert(NULL == spd->user_cap_tbl);
 	
 	if (uaddr < lowest_addr 
-	    || uaddr + sizeof(struct usr_inv_cap) * spd->cap_range > lowest_addr + size
+	    || uaddr + sizeof(struct usr_inv_cap) * spd->ncaps > lowest_addr + size
 	    || !user_struct_fits_on_page((unsigned long)spd->user_vaddr_cap_tbl, 
-					 sizeof(struct usr_inv_cap) * spd->cap_range)) {
+					 sizeof(struct usr_inv_cap) * spd->ncaps)) {
 		printk("cos: user capability table @ %x does not fit into spd, or onto a single page\n", 
 		       (unsigned int)spd->user_vaddr_cap_tbl);
 		return -1;
@@ -593,13 +553,13 @@ static int spd_get_cap_off(struct spd *spd, int cap)
 
 	/* return cap */
 	cap++;
-	if (cap >= spd->cap_range) {
+	if (cap >= spd->ncaps) {
 		printd("cos: Capability out of range (valid [%d,%d), cap # %d).\n",
-		       spd->cap_base, spd->cap_range+spd->cap_base, spd->cap_base + cap);
+		       0, spd->ncaps, cap);
 		return -1;
 	}
 
-	return spd->cap_base + cap;
+	return cap;
 }
 
 static struct invocation_cap *spd_get_cap(struct spd *spd, int cap)
@@ -607,7 +567,7 @@ static struct invocation_cap *spd_get_cap(struct spd *spd, int cap)
 	int abs_cap = spd_get_cap_off(spd, cap);
 	if (-1 == abs_cap) return NULL;
 
-	return &invocation_capabilities[abs_cap];
+	return &spd->caps[abs_cap];
 }
 
 int spd_cap_set_dest(struct spd *spd, int cap, struct spd* dspd)
@@ -664,7 +624,7 @@ int spd_cap_activate(struct spd *spd, int cap)
 	c->invocation_cnt = 0;
 
 	/* +1 for return cap */
-	if (cap_change_isolation(spd->cap_base + cap + 1, IL_SDT, 0) == IL_INV) assert(0);
+	if (cap_change_isolation(spd, cap + 1, IL_SDT, 0) == IL_INV) assert(0);
 
 	return 0;
 }
@@ -694,21 +654,20 @@ unsigned int spd_add_static_cap_extended(struct spd *owner_spd, struct spd *trus
 	 * at spd allocation time.
 	 */
 	cap_offset++; 		/* +1 for the return cap at the beginning */
-	if (cap_offset >= owner_spd->cap_range ||
+	if (cap_offset >= owner_spd->ncaps ||
 	    isolation_level > MAX_ISOLATION_LVL_VAL) {
 		printd("cos: Capability out of range (valid [%d,%d), cap # %d, il %x).\n",
-		       owner_spd->cap_base, owner_spd->cap_range+owner_spd->cap_base,
-		       owner_spd->cap_base + cap_offset, isolation_level);
+		       0, owner_spd->ncaps, cap_offset, isolation_level);
 		return 0;
 	}
 
-	cap_num = owner_spd->cap_base + cap_offset;
-	new_cap = &invocation_capabilities[cap_num];
+	cap_num = cap_offset;
+	new_cap = &owner_spd->caps[cap_num];
 
 	/* If the capability is already in use, error out */
-	if (new_cap->owner != CAP_ALLOCATED_UNUSED) {
+	if (new_cap->owner != CAP_FREE) {
 		printd("cos: capability %d already in use by spd %p.\n",
-		       owner_spd->cap_base + cap_offset, new_cap->owner);
+		       cap_offset, new_cap->owner);
 		return 0;
 	}
 	
@@ -728,7 +687,7 @@ unsigned int spd_add_static_cap_extended(struct spd *owner_spd, struct spd *trus
 
 	/* and user-level representation (touching user-level pages here) */
 //	cap_set_usr_cap(cap_get_usr_cap(usr_cap_num), ST_serv_entry, 0, cap_num);
-	if (cap_change_isolation(cap_num, isolation_level, flags) == IL_INV) {
+	if (cap_change_isolation(owner_spd, cap_num, isolation_level, flags) == IL_INV) {
 		printk("Unrecognized isolation level for cap # %d.\n", cap_num);
 		return 0;
 	}
@@ -1103,16 +1062,16 @@ static void spd_chg_il_spd_to_all(struct spd *spd, struct composite_spd *cspd, i
 	unsigned short int cap_lower, cap_range;
 	int i;
 
-	if (spd->cap_range == 0) return;
+	if (spd->ncaps == 0) return;
 
 	/* ignore the first "return" capability */
-	cap_lower = spd->cap_base + 1;
-	cap_range = spd->cap_range - 1;
+	cap_lower = 1;
+	cap_range = spd->ncaps - 1;
 
 	//printk("cos: changing up to %d caps for spd %d\n", cap_range, spd_get_index(spd));
 
 	for (i = cap_lower ; i < cap_lower+cap_range ; i++) {
-		struct invocation_cap *cap = &invocation_capabilities[i];
+		struct invocation_cap *cap = &spd->caps[i];
 		struct spd *dest = cap->destination;
 
 		if (dest && dest != spd && spd_in_composite(dest, cspd)) {
@@ -1120,7 +1079,7 @@ static void spd_chg_il_spd_to_all(struct spd *spd, struct composite_spd *cspd, i
 
 			//printk("cos:\tST from %d to %d.\n", spd_get_index(spd), spd_get_index(dest));
 
-			old = cap_change_isolation(i, il, 0);
+			old = cap_change_isolation(spd, i, il, 0);
 			assert(old != il && old != IL_INV);
 		}
 	}
@@ -1144,14 +1103,14 @@ static void spd_chg_il_all_to_spd(struct composite_spd *cspd, struct spd *spd, i
 		int i;
 		
 		/* ignore the first "return" capability */
-		cap_lower = curr->cap_base + 1;
-		if (curr->cap_range <= 0) goto next; //assert(curr->cap_range > 0);
-		cap_range = curr->cap_range - 1;
+		cap_lower = 1;
+		if (curr->ncaps <= 0) goto next; //assert(curr->cap_range > 0);
+		cap_range = curr->ncaps - 1;
 
 		//printk("cos: changing up to %d caps in spd %d to spd %d\n", curr->cap_range, spd_get_index(curr), spd_get_index(spd));
 		
 		for (i = cap_lower ; i < cap_lower+cap_range ; i++) {
-			struct invocation_cap *cap = &invocation_capabilities[i];
+			struct invocation_cap *cap = &curr->caps[i];
 			struct spd *dest = cap->destination;
 			
 			if (dest && cap->owner != spd && dest == spd) {
@@ -1159,7 +1118,7 @@ static void spd_chg_il_all_to_spd(struct composite_spd *cspd, struct spd *spd, i
 				
 				//printk("cos:\tST from %d to %d.\n", spd_get_index(curr), spd_get_index(dest));
 				
-				old = cap_change_isolation(i, il, 0);
+				old = cap_change_isolation(spd, i, il, 0);
 				assert(old != il && old != IL_INV);
 			}
 		}
@@ -1179,16 +1138,16 @@ unsigned long spd_read_reset_invocation_cnt(struct spd *cspd, struct spd *sspd)
 	int i, cap_lo, cap_hi;
 	assert(cspd && sspd);
 
-	cap_lo = cspd->cap_base+1;
-	assert(cspd->cap_range > 0);
-	cap_hi = cspd->cap_range + cap_lo - 1;
+	cap_lo = 1;
+	assert(cspd->ncaps > 0);
+	cap_hi = cspd->ncaps + cap_lo - 1;
 
 	for (i = cap_lo ; i < cap_hi ; i++) {
-		struct invocation_cap *cap = &invocation_capabilities[i];
+		struct invocation_cap *cap = &cspd->caps[i];
 		assert(cap->owner == cspd);
 		if (cap->destination != sspd) continue;
 
-		if (cap_reset_cap_inv_cnt(i, &cnt)) {
+		if (cap_reset_cap_inv_cnt(cspd, i, &cnt)) {
 			printk("cos: Error reading capability %d from spd %d->%d.\n",
 			       i, spd_get_index(cspd), spd_get_index(sspd));
 			continue;

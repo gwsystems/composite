@@ -164,7 +164,6 @@ struct spd {
 	 */
 	struct spd_poly /*composite_spd*/ *composite_spd; 
 	
-	unsigned short int cap_base, cap_range;
 	/* numbered faults correspond to which capability? */
 	unsigned short int fault_handler[COS_FLT_MAX];
 	/*
@@ -196,6 +195,9 @@ struct spd {
 	struct spd *freelist_next;
 	/* Linked list of the members of a non-depricated, current composite spd */
 	struct spd *composite_member_next, *composite_member_prev;
+
+	int ncaps;
+	struct invocation_cap caps[MAX_STATIC_CAP];
 } CACHE_ALIGNED; //cache line size
 
 paddr_t spd_alloc_pgtbl(void);
@@ -236,10 +238,10 @@ unsigned int spd_add_static_cap_extended(struct spd *spd, struct spd *trusted_sp
 					 vaddr_t AT_cli_stub, vaddr_t AT_serv_stub,
 					 vaddr_t SD_cli_stub, vaddr_t SD_serv_stub,
 					 isolation_level_t isolation_level, int flags);
-isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int flags);
-int cap_is_free(int cap_num);
+isolation_level_t cap_change_isolation(struct spd *spd, int cap_num, isolation_level_t il, int flags);
+int cap_is_free(struct spd *spd, int cap_num);
 unsigned long spd_read_reset_invocation_cnt(struct spd *cspd, struct spd *sspd);
-struct invocation_cap *inv_cap_get(int c_num);
+struct invocation_cap *inv_cap_get(struct spd *spd, int c_num);
 
 static inline int spd_is_scheduler(struct spd *spd)
 {
