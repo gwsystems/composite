@@ -16,6 +16,7 @@
 #include "debug.h"
 #include "cpuid.h"
 
+#define GET_CURR_CPU get_cpuid()
 
 struct per_core_variables {
 	struct thread *curr_thd;

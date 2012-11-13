@@ -68,7 +68,7 @@ int __attribute__((format(printf,1,2))) printc(char *fmt, ...)
 	ret = vsnprintf(s, len, fmt, arg_ptr);
 	va_end(arg_ptr);
 
-	if (unlikely(ret == 0)) goto done;
+	if (ret == 0) goto done;
 
 	send_str(s, ret);
 	
@@ -82,7 +82,7 @@ int prints(char *str)
 
 	len = cos_strlen(str);
 
-	if (unlikely(len == 0)) goto done;
+	if (len == 0) goto done;
 
 	send_str(str, len);
 done:

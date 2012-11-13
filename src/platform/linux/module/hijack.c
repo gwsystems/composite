@@ -542,6 +542,7 @@ static inline void copy_pgd_range(struct mm_struct *to_mm, struct mm_struct *fro
 
 struct spd_poly linux_pgtbls_per_core[NUM_CPU];
 
+/* Create a boot thread. Used by ioctl only. */
 struct thread *ready_boot_thread(struct spd *init)
 {
 //	struct shared_user_data *ud = get_shared_data();
@@ -764,9 +765,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			       thread_info.spd_handle);
 			return -EINVAL;
 		}
-
 		thd = ready_boot_thread(spd);
-
 		spd = spd_get_by_index(thread_info.sched_handle);
 		if (!spd) {
 			printk("cos: scheduling spd %d not permitted to create thread.\n", 
@@ -774,14 +773,13 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			thd_free(thd);
 			return -EINVAL;
 		}
-
 		sched = spd;
 		for (i = spd->sched_depth ; i >= 0 ; i--) {
 			tsi = thd_get_sched_info(thd, i);
 			tsi->scheduler = sched;
 			sched = sched->parent_sched;
 		}
-		
+
 		/* FIXME: need to return opaque handle, rather than
 		 * just set the current thread to be the new one. */
 
@@ -852,33 +850,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			sched->parent_sched = p;
 			sched->sched_depth = p->sched_depth + 1;
 		}
-
-		/* Now the mapping of the shared area is built by
-		 * per_core in sched_root_init to support SMP. */
-
-		/* printk("cos: promoting component %d to scheduler at depth %d, and parent %d\n", */
-		/*        sched_info.spd_sched_handle, sched->sched_depth, sched_info.spd_parent_handle); */
-		/* if (sched_info.sched_shared_page < sched->location[0].lowest_addr || */
-		/*     sched_info.sched_shared_page + PAGE_SIZE >= */
-		/*     sched->location[0].lowest_addr + sched->location[0].size) { */
-		/* 	/\* undo changes made so far *\/ */
-		/* 	sched->sched_depth = -1; */
-		/* 	sched->parent_sched = NULL; */
-
-		/* 	printk("cos: could not promote spd %d to scheduler - invalid pinned page @ %x.\n", */
-		/* 	       spd_get_index(sched), (unsigned int)sched_info.sched_shared_page); */
-		/* 	return -EINVAL; */
-		/* } */
-
-		/* sched->sched_shared_page[get_cpuid()] = (struct cos_sched_data_area *)sched_info.sched_shared_page; */
-		/* /\* We will need to access the shared_page for thread */
-		/*  * events when the pagetable for this spd is not */
-		/*  * mapped in.  *\/ */
-		/* sched->kern_sched_shared_page[get_cpuid()] = (struct cos_sched_data_area *) */
-		/* 	pgtbl_vaddr_to_kaddr(sched->spd_info.pg_tbl, (unsigned long)(sched->sched_shared_page[get_cpuid()])); */
-
-		/* printk("<<<sched shared page %p, kernel sched_shared page %p\n", sched->sched_shared_page[get_cpuid()], sched->kern_sched_shared_page[get_cpuid()]); */
-		/* sched->prev_notification[get_cpuid()] = 0; */
 			
 		return 0;
 	}
@@ -1878,38 +1849,22 @@ done:
 	return 0;
 }
 
-/* extern volatile int kern_tsc; */
-/* unsigned long long sum=0; */
-static void receive_IPI(void *thdid)
+static void receive_ipi(void *thdid)
 {
-//	printk("core %d: got an ipi for thd %d\n", get_cpuid(), thd_get_id(remote_thd));
 	struct thread *thd = thd_get_by_id((int)thdid);
 
 	if (unlikely(!thd)) return;
 
-	/* unsigned long long s,e; */
-	/* rdtscll(s); */
 	host_attempt_brand(thd);
-	/* rdtscll(e); */
-	/* sum += e - s; */
-	/* printk("cost %llu\n", e-s); */
-	/* if (cnt == 1024) printk("host brand func cost: %llu\n", sum / 1024); */
-	/* unsigned long long t; */
-	/* rdtscll(t); */
-	/* kern_tsc = (int)t; */
 
 	return;
 }
 
-int send_IPI(int cpuid, int thdid, int wait)
+int send_ipi(int cpuid, int thdid, int wait)
 {
-	/* unsigned long long t, t2; */
-	/* rdtscll(t); */
-//	printk("core %d: sending an ipi to core %d and thd %d, wait %d.\n", get_cpuid(), cpuid, thdid, wait);
-	smp_call_function_single(cpuid, receive_IPI, (void *)thdid, wait);
-//	rdtscll(t2);
+	smp_call_function_single(cpuid, receive_ipi, (void *)thdid, wait);
 
-	return 0;//(int)(t2-t);
+	return 0;
 }
 
 static void timer_interrupt(unsigned long data)

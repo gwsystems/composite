@@ -8,6 +8,7 @@
 #include <cos_debug.h>
 
 extern struct cos_sched_data_area cos_sched_notifications[NUM_CPU];
+//PERCPU_EXTERN(struct cos_sched_data_area, cos_sched_notifications);
 
 /* Following two functions are also needed by the low-level booter to
  * provide scheduler functionality when booting the system. */

@@ -882,7 +882,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	} else {
 		next_thd = switch_thread_parse_data_area(da, &ret_code);
 		if (unlikely(0 == next_thd)) {
-//			printk("err: data area\n");
+			printk("err: data area\n");
 			goto_err(ret_err, "data_area\n");
 		}
 
@@ -1337,7 +1337,6 @@ static struct pt_regs *brand_execution_completion(struct thread *curr, int *pree
  */
 struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
 
-unsigned long long brand_s = 0;
 //#define BRAND_UL_LATENCY
 extern void cos_syscall_brand_wait(int spd_id, unsigned short int bid, int *preempt);
 COS_SYSCALL struct pt_regs *
@@ -1346,7 +1345,6 @@ cos_syscall_brand_wait_cont(int spd_id, unsigned short int bid, int *preempt)
 	struct thread *curr, *brand;
 	struct spd *curr_spd;
 
-	rdtscll(brand_s);
 	curr = core_get_curr_thd();
 
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
@@ -2356,7 +2354,8 @@ brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 		assert(!(upcall->flags & THD_STATE_READY_UPCALL));
 		cos_meas_event(COS_MEAS_BRAND_PEND);
 		cos_meas_stats_start(COS_MEAS_STATS_UC_PEND_DELAY, 0);
-		/* FIXME: RACE */
+		/* FIXME: RACE. This could be running on more than one
+		 * cores simultaneously. We need atomic increment. */
 		brand->pending_upcall_requests++;
 
 		event_record("brand activated, but upcalls active", thd_get_id(preempted), thd_get_id(upcall));
@@ -2523,7 +2522,7 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 		spd->prev_notification[get_cpuid()] = 0;
 
 		/* FIXME: pin the page */
-		/* printk("core %u, sched shared region @%p, kern @%p\n", get_cpuid(), spd->sched_shared_page[get_cpuid()], spd->kern_sched_shared_page[get_cpuid()]);		 */
+		printk("core %u, sched shared region @%p, kern @%p\n", get_cpuid(), spd->sched_shared_page[get_cpuid()], spd->kern_sched_shared_page[get_cpuid()]);
 		break;
 	}
 	case COS_SCHED_THD_EVT:
@@ -3537,23 +3536,20 @@ cos_syscall_vas_cntl(int id, int op_spdid, long addr, long sz)
 	return ret;
 }
 
-extern int send_IPI(int cpuid, int thdid, int wait);
+extern int send_ipi(int cpuid, int thdid, int wait);
 
 //volatile int kern_tsc = 0;
-
+/* The IPI calls should not be accessible from user level. This is for
+ * test purpose only. Will remove this syscall. */
 COS_SYSCALL int 
 cos_syscall_send_ipi(int spd_id, long cpuid, int thdid, long arg)
 {
-	//struct thread *thd;
-	/* unsigned long long t; */
-	/* rdtscll(t); */
 	int wait, option;
 	option = arg & 0xFFFF;
 	wait = arg >> 16;
 	assert(wait == 0);
 
-	//thd = thd_get_by_id(thdid);
-	return send_IPI(cpuid, thdid, wait);
+	return send_ipi(cpuid, thdid, wait);
 }
 
 /* 

@@ -110,6 +110,8 @@ struct pt_regs {
 #define CPUID_OFFSET_IN_THREAD_INFO 4
 #define THREAD_SIZE_LINUX 8192
 
+/* We save information on the user level stack for fast access. The
+ * offsets below are used to access CPU and thread IDs. */
 #define CPUID_OFFSET 1
 #define THDID_OFFSET 2
 

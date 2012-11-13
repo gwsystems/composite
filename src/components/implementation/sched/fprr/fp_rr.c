@@ -31,13 +31,13 @@ struct fprr_per_core {
 #endif
 } CACHE_ALIGNED;
 
-static struct fprr_per_core per_core[NUM_CPU];
+PERCPU_ATTR(static, struct fprr_per_core, fprr_state);
 
-static inline void mask_set(unsigned short int p) { per_core[cos_cpuid()].active |= 1 << p; }
-static inline void mask_unset(unsigned short int p) { per_core[cos_cpuid()].active &= ~(1 << p); }
+static inline void mask_set(unsigned short int p) { PERCPU_GET(fprr_state)->active |= 1 << p; }
+static inline void mask_unset(unsigned short int p) { PERCPU_GET(fprr_state)->active &= ~(1 << p); }
 static inline unsigned short int mask_high(void) 
 { 
-	u32_t v = per_core[cos_cpuid()].active;
+	u32_t v = PERCPU_GET(fprr_state)->active;
 	unsigned short int r = 0; 
 	/* Assume 2s compliment here.  Could instead do a check for
 	 * while (v & 1)..., but that's another op in the main loop */
@@ -56,7 +56,7 @@ static inline void fp_move_end_runnable(struct sched_thd *t)
 
 	assert(sched_thd_ready(t));
 	assert(!sched_thd_suspended(t));
-	head = &per_core[cos_cpuid()].priorities[p].runnable;
+	head = &PERCPU_GET(fprr_state)->priorities[p].runnable;
 	REM_LIST(t, prio_next, prio_prev);
 	ADD_LIST(LAST_LIST(head, prio_next, prio_prev), t, prio_next, prio_prev);
 	mask_set(p);
@@ -68,7 +68,7 @@ static inline void fp_add_start_runnable(struct sched_thd *t)
 	u16_t p = sched_get_metric(t)->priority;
 
 	assert(sched_thd_ready(t));
-	head = &per_core[cos_cpuid()].priorities[p].runnable;
+	head = &PERCPU_GET(fprr_state)->priorities[p].runnable;
 	ADD_LIST(head, t, prio_next, prio_prev);
 	mask_set(p);
 }
@@ -103,7 +103,7 @@ static struct sched_thd *fp_get_highest_prio(void)
 	struct sched_thd *t, *head;
 	u16_t p = mask_high();
 
-	head = &(per_core[cos_cpuid()].priorities[p].runnable);
+	head = &(PERCPU_GET(fprr_state)->priorities[p].runnable);
 	t = FIRST_LIST(head, prio_next, prio_prev);
 	assert(t != head);
 	assert(sched_thd_ready(t));
@@ -192,20 +192,20 @@ void timer_tick(int num_ticks)
 		struct sched_thd *t;
 
 		assert(num_ticks > 0);
-		per_core[cos_cpuid()].ticks += num_ticks;
-		for (t = FIRST_LIST(&per_core[cos_cpuid()].servers, sched_next, sched_prev) ;
-		     t != &per_core[cos_cpuid()].servers                                    ;
+		PERCPU_GET(fprr_state)->ticks += num_ticks;
+		for (t = FIRST_LIST(&PERCPU_GET(fprr_state)->servers, sched_next, sched_prev) ;
+		     t != &PERCPU_GET(fprr_state)->servers                                    ;
 		     t = FIRST_LIST(t, sched_next, sched_prev))
 		{
 			struct sched_accounting *sa = sched_get_accounting(t);
 			unsigned long T_exp = sa->T_exp, T = sa->T;
 			assert(T);
 
-			if (T_exp <= per_core[cos_cpuid()].ticks) {
-				unsigned long off = T - (per_core[cos_cpuid()].ticks % T);
+			if (T_exp <= PERCPU_GET(fprr_state)->ticks) {
+				unsigned long off = T - (PERCPU_GET(fprr_state)->ticks % T);
 
 				//printc("(%ld+%ld/%ld @ %ld)\n", sa->C_used, (unsigned long)sa->pol_cycles, T, T_exp);
-				sa->T_exp  = per_core[cos_cpuid()].ticks + off;
+				sa->T_exp  = PERCPU_GET(fprr_state)->ticks + off;
 				sa->C_used = 0;
 //				sa->pol_cycles = 0;
 				if (sched_thd_suspended(t)) {
@@ -295,7 +295,7 @@ static int fp_thread_params(struct sched_thd *t, char *p)
 		prio = sched_get_metric(c)->priority + tmp;
 		memcpy(sched_get_accounting(t), sched_get_accounting(c), sizeof(struct sched_accounting));
 #ifdef DEFERRABLE
-		if (sched_get_accounting(t)->T) ADD_LIST(&per_core[cos_cpuid()].servers, t, sched_next, sched_prev);
+		if (sched_get_accounting(t)->T) ADD_LIST(&PERCPU_GET(fprr_state)->servers, t, sched_next, sched_prev);
 #endif
 
 		if (prio > PRIO_LOWEST) prio = PRIO_LOWEST;
@@ -318,7 +318,7 @@ static int fp_thread_params(struct sched_thd *t, char *p)
 		prio = ds_parse_params(t, p);
 		if (EMPTY_LIST(t, sched_next, sched_prev) && 
 		    sched_get_accounting(t)->T) {
-			ADD_LIST(&per_core[cos_cpuid()].servers, t, sched_next, sched_prev);
+			ADD_LIST(&PERCPU_GET(fprr_state)->servers, t, sched_next, sched_prev);
 		}
 		fp_move_end_runnable(t);
 		break;
@@ -360,7 +360,7 @@ thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
 				sched_get_metric(c)->priority + ps->value;
 			memcpy(sched_get_accounting(t), sched_get_accounting(c), sizeof(struct sched_accounting));
 #ifdef DEFERRABLE
-			if (sched_get_accounting(t)->T) ADD_LIST(&per_core[cos_cpuid()].servers, t, sched_next, sched_prev);
+			if (sched_get_accounting(t)->T) ADD_LIST(&PERCPU_GET(fprr_state)->servers, t, sched_next, sched_prev);
 #endif
 			
 			if (prio > PRIO_LOWEST) prio = PRIO_LOWEST;
@@ -394,7 +394,7 @@ thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
 			sched_get_accounting(t)->T_exp = 0;
 			if (EMPTY_LIST(t, sched_next, sched_prev) && 
 			    sched_get_accounting(t)->T) {
-				ADD_LIST(&per_core[cos_cpuid()].servers, t, sched_next, sched_prev);
+				ADD_LIST(&PERCPU_GET(fprr_state)->servers, t, sched_next, sched_prev);
 			}
 			fp_move_end_runnable(t);
 			break;
@@ -431,8 +431,8 @@ void runqueue_print(void)
 	
 	printc("Core %ld: Running threads (thd, prio, ticks):\n", cos_cpuid());
 	for (i = 0 ; i < NUM_PRIOS ; i++) {
-		for (t = FIRST_LIST(&per_core[cos_cpuid()].priorities[i].runnable, prio_next, prio_prev) ; 
-		     t != &per_core[cos_cpuid()].priorities[i].runnable ;
+		for (t = FIRST_LIST(&PERCPU_GET(fprr_state)->priorities[i].runnable, prio_next, prio_prev) ; 
+		     t != &PERCPU_GET(fprr_state)->priorities[i].runnable ;
 		     t = FIRST_LIST(t, prio_next, prio_prev)) {
 			struct sched_accounting *sa = sched_get_accounting(t);
 			unsigned long diff = sa->ticks - sa->prev_ticks;
@@ -445,8 +445,8 @@ void runqueue_print(void)
 	}
 #ifdef DEFERRABLE
 	printc("Suspended threads (thd, prio, ticks):\n");
-	for (t = FIRST_LIST(&per_core[cos_cpuid()].servers, sched_next, sched_prev) ; 
-	     t != &per_core[cos_cpuid()].servers ;
+	for (t = FIRST_LIST(&PERCPU_GET(fprr_state)->servers, sched_next, sched_prev) ; 
+	     t != &PERCPU_GET(fprr_state)->servers ;
 	     t = FIRST_LIST(t, sched_next, sched_prev)) {
 		struct sched_accounting *sa = sched_get_accounting(t);
 		unsigned long diff = sa->ticks - sa->prev_ticks;
@@ -469,12 +469,12 @@ void sched_initialization(void)
 	int i;
 
 	for (i = 0 ; i < NUM_PRIOS ; i++) {
-		sched_init_thd(&per_core[cos_cpuid()].priorities[i].runnable, 0, THD_FREE);
+		sched_init_thd(&PERCPU_GET(fprr_state)->priorities[i].runnable, 0, THD_FREE);
 	}
-	per_core[cos_cpuid()].active = 0;
+	PERCPU_GET(fprr_state)->active = 0;
 #ifdef DEFERRABLE
-	sched_init_thd(&per_core[cos_cpuid()].servers, 0, THD_FREE);
-	per_core[cos_cpuid()].ticks = 0;
+	sched_init_thd(&PERCPU_GET(fprr_state)->servers, 0, THD_FREE);
+	PERCPU_GET(fprr_state)->ticks = 0;
 #endif
 	
 }

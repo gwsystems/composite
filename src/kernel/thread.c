@@ -11,9 +11,6 @@
 
 struct thread threads[MAX_NUM_THREADS];
 static struct thread *thread_freelist_head = NULL;
-/* like "current" in linux; now this is replaced by the per_cpu
- * function core_get_curr_thd() as we are supporting smp. Qi. */
-//struct thread *current_thread = NULL;
 
 /* 
  * Return the depth into the stack were we are present or -1 for

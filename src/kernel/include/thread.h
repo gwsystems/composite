@@ -222,20 +222,6 @@ static inline int thd_invstk_rem_nth(struct thread *thd, int nth)
 	return 0;
 }
 
-/* Replaced by per_core functions */
-/* extern struct thread *current_thread; */
-/* static inline struct thread *thd_get_current(void)  */
-/* { */
-/* 	return core_get_curr_thd(); */
-/* } */
-
-/* static inline void thd_set_current(struct thread *thd) */
-/* { */
-/* 	current_thread = thd; */
-
-/* 	return; */
-/* } */
-
 static inline struct spd *
 thd_curr_spd_thd(struct thread *t)
 {

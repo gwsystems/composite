@@ -39,7 +39,6 @@
 #include <bfd.h>
 
 #include <stdbool.h>
-//#include <ck_spinlock.h>
 //#include <pthread.h>
 #include <sys/wait.h> /* wait for children process termination */
 #include <sched.h>
@@ -2038,10 +2037,7 @@ void make_spd_scheduler(int cntl_fd, struct service_symbs *s, struct service_sym
 
 	if (p) parent = p->extern_info;
 
-//	ci = (struct cos_component_information*)get_symb_address(&s->exported, COMP_INFO);
-//	sched_page = (vaddr_t)ci->cos_sched_data_area;
 	sched_page_ptr = (struct cos_sched_data_area*)get_symb_address(&s->exported, SCHED_NOTIF);
-	/* printf("the ptr we got: %p\n",sched_page_ptr); */
 	sched_page = (vaddr_t)sched_page_ptr;
 
 	printl(PRINT_DEBUG, "Found spd notification page @ %x.  Promoting to scheduler.\n", 
@@ -2736,11 +2732,11 @@ static void setup_kernel(struct service_symbs *services)
 	/* Access comp0 to make sure it is present in the page tables */
 	var = *((int *)SERVICE_START);
 	cos_create_thd(cntl_fd, &thd);
-
 	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
 	/* We call fn to init the low level booter first! Init
 	 * function will return to here and create processes for other
 	 * cores. */
+	assert(fn);
 	fn();
 	pid = getpid();
 	for (i = 1; i < NUM_CPU - 1; i++) {

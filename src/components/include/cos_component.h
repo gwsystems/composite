@@ -236,6 +236,8 @@ static inline long get_stk_data(int offset)
 			 COS_STACK_SZ - offset * sizeof(u32_t));
 }
 
+#define GET_CURR_CPU cos_cpuid()
+
 static inline long cos_cpuid(void)
 {
 #if NUM_CPU == 1

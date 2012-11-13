@@ -4,6 +4,7 @@ IMPLDIR=$(CDIR)/implementation/
 INTERDIR=$(CDIR)/interface/
 LIBDIR=$(CDIR)/lib/
 MANDITORY_LIB=cos_manditory.o
+#TODO: should include ck as a sub-repository
 CINC=-I./ -I$(CDIR)/include/ -I$(SHAREDINC) -I$(CDIR)/include/ck/
 
 DIETDIR=$(CDIR)/lib/dietlibc-0.29

@@ -28,7 +28,7 @@ printc(char *fmt, ...)
 
 #ifndef assert
 /* On assert, immediately switch to the "exit" thread */
-#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); cos_switch_thread(per_core_llbooter[cos_cpuid()].alpha, 0);} } while(0)
+#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0);} } while(0)
 #endif
 
 #ifdef BOOT_DEPS_H
@@ -53,7 +53,7 @@ struct llbooter_per_core {
 	volatile int prev_thd, recover_spd;
 } __attribute__((aligned(4096))); /* Avoid the copy-on-write issue for us. */
 
-static struct llbooter_per_core per_core_llbooter[NUM_CPU];
+PERCPU(struct llbooter_per_core, llbooter);
 
 enum { /* hard-coded initialization schedule */
 	LLBOOT_SCHED = 2,
@@ -103,13 +103,13 @@ llboot_thd_done(void)
 {
 	int tid = cos_get_thd_id();
 
-	assert(per_core_llbooter[cos_cpuid()].alpha);
+	assert(PERCPU_GET(llbooter)->alpha);
 	/* 
 	 * When the initial thread is done, then all we have to do is
 	 * switch back to alpha who should reboot the system.
 	 */
-	if (tid == per_core_llbooter[cos_cpuid()].init_thd) {
-		int offset = per_core_llbooter[cos_cpuid()].sched_offset;
+	if (tid == PERCPU_GET(llbooter)->init_thd) {
+		int offset = PERCPU_GET(llbooter)->sched_offset;
 		spdid_t s = init_schedule[offset];
 
 		/* Is it done, or do we need to initialize another component? */
@@ -125,7 +125,7 @@ llboot_thd_done(void)
 				cos_pfn_cntl(COS_PFN_GRANT, s, frame_frontier, proportion);
 				comp_boot_nfo[s].memory_granted = 1;
 			}
-			per_core_llbooter[cos_cpuid()].sched_offset++;
+			PERCPU_GET(llbooter)->sched_offset++;
 			comp_boot_nfo[s].initialized = 1;
 			
 			/* printc("core %ld: booter init_thd upcalling into spdid %d.\n", cos_cpuid(), (unsigned int)s); */
@@ -137,25 +137,25 @@ llboot_thd_done(void)
 		 * no more execution left to do.  Technically, the
 		 * other components should have called
 		 * sched_exit... */
-		printc("core %ld: booter init_thd switching back to alpha %d.\n", cos_cpuid(), per_core_llbooter[cos_cpuid()].alpha);
+		printc("core %ld: booter init_thd switching back to alpha %d.\n", cos_cpuid(), PERCPU_GET(llbooter)->alpha);
 
-		while (1) cos_switch_thread(per_core_llbooter[cos_cpuid()].alpha, 0);
+		while (1) cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0);
 		BUG();
 	}
 	
 	while (1) {
-		int     pthd = per_core_llbooter[cos_cpuid()].prev_thd;
-		spdid_t rspd = per_core_llbooter[cos_cpuid()].recover_spd;
+		int     pthd = PERCPU_GET(llbooter)->prev_thd;
+		spdid_t rspd = PERCPU_GET(llbooter)->recover_spd;
 				
-		assert(tid == per_core_llbooter[cos_cpuid()].recovery_thd);
+		assert(tid == PERCPU_GET(llbooter)->recovery_thd);
 		if (rspd) {             /* need to recover a component */
 			assert(pthd);
-			per_core_llbooter[cos_cpuid()].recover_spd = 0;
+			PERCPU_GET(llbooter)->recover_spd = 0;
 			cos_upcall(rspd); /* This will escape from the loop */
 			assert(0);
 		} else {		/* ...done reinitializing...resume */
 			assert(pthd && pthd != tid);
-			per_core_llbooter[cos_cpuid()].prev_thd = 0;   /* FIXME: atomic action required... */
+			PERCPU_GET(llbooter)->prev_thd = 0;   /* FIXME: atomic action required... */
 			cos_switch_thread(pthd, 0);
 		}
 	}
@@ -181,9 +181,9 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 		assert(!cos_thd_cntl(COS_THD_INVFRM_SET_IP, tid, 1, r_ip-8));
 
 		/* switch to the recovery thread... */
-		per_core_llbooter[cos_cpuid()].recover_spd = spdid;
-		per_core_llbooter[cos_cpuid()].prev_thd = cos_get_thd_id();
-		cos_switch_thread(per_core_llbooter[cos_cpuid()].recovery_thd, 0);
+		PERCPU_GET(llbooter)->recover_spd = spdid;
+		PERCPU_GET(llbooter)->prev_thd = cos_get_thd_id();
+		cos_switch_thread(PERCPU_GET(llbooter)->recovery_thd, 0);
 		/* after the recovery thread is done, it should switch back to us. */
 		return 0;
 	}
@@ -255,15 +255,15 @@ static inline void boot_create_init_thds(void)
 
 	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)&cos_sched_notifications[cpu])) BUG();
 
-	per_core_llbooter[cpu].alpha        = cos_get_thd_id();
-	per_core_llbooter[cpu].recovery_thd = cos_create_thread((int)llboot_ret_thd, (int)0, 0);
-	assert(per_core_llbooter[cpu].recovery_thd >= 0);
-	per_core_llbooter[cpu].init_thd     = cos_create_thread((int)llboot_ret_thd, 0, 0);
+	PERCPU_GET(llbooter)->alpha        = cos_get_thd_id();
+	PERCPU_GET(llbooter)->recovery_thd = cos_create_thread((int)llboot_ret_thd, (int)0, 0);
+	assert(PERCPU_GET(llbooter)->recovery_thd >= 0);
+	PERCPU_GET(llbooter)->init_thd     = cos_create_thread((int)llboot_ret_thd, 0, 0);
 	printc("Core %ld, Low-level booter created threads:\n\t"
 	       "%d: alpha\n\t%d: recov\n\t%d: init\n",
-	       cos_cpuid(), per_core_llbooter[cpu].alpha, 
-	       per_core_llbooter[cpu].recovery_thd, per_core_llbooter[cpu].init_thd);
-	assert(per_core_llbooter[cpu].init_thd >= 0);
+	       cos_cpuid(), PERCPU_GET(llbooter)->alpha, 
+	       PERCPU_GET(llbooter)->recovery_thd, PERCPU_GET(llbooter)->init_thd);
+	assert(PERCPU_GET(llbooter)->init_thd >= 0);
 }
 
 static void
@@ -281,16 +281,16 @@ static void
 boot_deps_run(void)
 {
 	assert(cos_cpuid() == INIT_CORE);
-	assert(per_core_llbooter[cos_cpuid()].init_thd);
+	assert(PERCPU_GET(llbooter)->init_thd);
 	return; /* We return to comp0 and release other cores first. */
-	//cos_switch_thread(per_core_llbooter[cos_cpuid()].init_thd, 0);
+	//cos_switch_thread(per_core_llbooter[cos_cpuid()]->init_thd, 0);
 }
 
 static void
 boot_deps_run_all(void)
 {
-	assert(per_core_llbooter[cos_cpuid()].init_thd);
-	cos_switch_thread(per_core_llbooter[cos_cpuid()].init_thd, 0);
+	assert(PERCPU_GET(llbooter)->init_thd);
+	cos_switch_thread(PERCPU_GET(llbooter)->init_thd, 0);
 	return ;
 }
 
@@ -309,8 +309,8 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		llboot_thd_done();
 		break;
 	case COS_UPCALL_UNHANDLED_FAULT:
-		printc("Fault detected by the llboot component in thread %d: "
-		       "Major system error.\n", cos_get_thd_id());
+		printc("Core %ld: Fault detected by the llboot component in thread %d: "
+		       "Major system error.\n", cos_cpuid(), cos_get_thd_id());
 	default:
 		while (1) ;
 		return;
@@ -329,7 +329,7 @@ int  sched_init(void)
 		 * the cos_init, then return to cos_loader and boot
 		 * other cores, last call here again to run the init
 		 * core. */
-		if (!per_core_llbooter[cos_cpuid()].init_thd) cos_init();
+		if (!PERCPU_GET(llbooter)->init_thd) cos_init();
 		else boot_deps_run_all();
 	} else {
 		LOCK();
@@ -347,7 +347,7 @@ void
 sched_exit(void)
 {
 	printc("LLBooter: Core %ld called sched_exit. Switching back to alpha.\n", cos_cpuid());
-	while (1) cos_switch_thread(per_core_llbooter[cos_cpuid()].alpha, 0);	
+	while (1) cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0);	
 }
 
 int 

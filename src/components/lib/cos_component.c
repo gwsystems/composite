@@ -9,6 +9,9 @@
 
 long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
 
+/* FIXME: we want to get rid of this page, which was used for the
+ * cos_sched_data_area. But for some reason the system won't load if
+ * we remove this page. */
 char temp[4096] __attribute__((aligned(4096)));
 
 __attribute__ ((weak))
@@ -42,7 +45,6 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	{
 		static int first = 1;
 		if (first) { first = 0; __alloc_libc_initilize(); }
-//		cos_argreg_init();
 		cos_init(arg1);
 		break;
 	}

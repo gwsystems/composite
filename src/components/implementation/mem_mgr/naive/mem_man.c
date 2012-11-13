@@ -41,6 +41,8 @@
 
 /* We use the the sched_data_area here only for the mem_mgr lock below. */
 struct cos_sched_data_area cos_sched_notifications[NUM_CPU];
+//PERCPU(struct cos_sched_data_area, cos_sched_notifications);
+//PERCPU_VAR(cos_sched_notifications);
 
 #define LOCK()   if (cos_sched_lock_take())    assert(0);
 #define UNLOCK() if (cos_sched_lock_release()) assert(0);
@@ -484,17 +486,19 @@ int  sched_init(void)   { return 0; }
 
 extern void parent_sched_exit(void);
 
-static volatile int initialized_core[NUM_CPU] = { 0 }; /* record the cores that still depend on us */
+PERCPU_ATTR(static volatile, int, initialized_core); /* record the cores that still depend on us */
 
 void 
 sched_exit(void)   
 {
 	int i;
-	initialized_core[cos_cpuid()] = 0;
+
+	*PERCPU_GET(initialized_core) = 0;
 	if (cos_cpuid() == INIT_CORE) {
 		/* The init core waiting for all cores to exit. */
 		for (i = 0; i < NUM_CPU ; i++)
-			if (initialized_core[i]) i = 0;
+			if (*PERCPU_GET_TARGET(initialized_core, i)) i = 0;
+		/* Don't delete the memory until all cores exit */
 		mman_release_all(); 
 	}
 	parent_sched_exit();
@@ -525,11 +529,17 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	switch (t) {
 	case COS_UPCALL_BOOTSTRAP:
 		if (cos_cpuid() == INIT_CORE) {
+			int i;
+			for (i = 0; i < NUM_CPU; i++)
+				*PERCPU_GET_TARGET(initialized_core, i) = 0;
 			mm_init(); 
 		} else {
-			while (initialized_core[INIT_CORE] == 0) ;
+			/* Make sure that the initializing core does
+			 * the initialization before any other core
+			 * progresses */
+			while (*PERCPU_GET_TARGET(initialized_core, INIT_CORE) == 0) ;
 		}
-		initialized_core[cos_cpuid()] = 1;
+		*PERCPU_GET(initialized_core) = 1;
 		break;			
 	default:
 		BUG(); return;
