@@ -95,7 +95,8 @@ struct thread *thd_alloc(struct spd *spd)
 	thd->pending_upcall_requests = 0;
 	thd->freelist_next = NULL;
 
-	thd->fpu.status = 0;
+	thd->curr_fpu.status = 0;
+	thd->prev_fpu.status = 0;
 
 	return thd;
 }
@@ -191,7 +192,7 @@ void thd_print_regs(struct thread *t) {
 
 	return;
 }
-
+/*
 void thd_print_fregs(struct thread *t) {
 	struct cos_fpu *r = &t->fpu;
 
@@ -203,8 +204,9 @@ void thd_print_fregs(struct thread *t) {
 	printk("fcs: %10x\n", (unsigned int)r->fcs);
 	printk("foo: %10x\n", (unsigned int)r->foo);
 	printk("fos: %10x\n", (unsigned int)r->fos);
-	printk("status: %10x\n", (unsigned int)r->status);
+	//printk("status: %10x\n", (unsigned int)r->status);
 	printk("====================\n");
 
 	return;
 }
+*/

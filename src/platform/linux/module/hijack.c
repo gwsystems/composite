@@ -1155,16 +1155,39 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 
 	t = thd_get_current();
 
-	printk("exception captured!, thread id = %d\n", thd_get_id(t));
-//	printk("thread->fpu.status = %d\n", t->fpu.status);
-	//printk("before: %10x\n", cos_read_cr0());
+	print_cr0();
 
-	if (unlikely(t->fpu.status != 1)) {
-		t->fpu.status = 1;
+	if(read_cr0() == 0x8005003b) {// if FPU is diabled(0x80050033 is enable)
+		enable_fpu();
+		t->curr_fpu.status = 1;
 	}
-	//clr_ts();
+	else {
+		fsave(&(t->prev_fpu));
+	}
 
-	//printk("after: %10x\n", cos_read_cr0());
+	//printk("exception! thread %d; USED_FPU %d\n", thd_get_id(t), t->USED_FPU);
+	//printk("clear TS bit: %10x\n", cos_read_cr0());
+
+	//printk("enable_fpu\n");
+	//printk("TS bit cleard: %10x\n", cos_read_cr0());
+/*
+	printk("in exception, thd_current is\n");
+	thd_print_fregs(t);
+	if(unlikely(t->USED_FPU != 1))
+		t->USED_FPU = 1;
+	else if(t->USED_FPU == 1)
+		frstor(t);
+	else
+		;//printk("fpu.status error! %d\n", t->fpu.status);
+*/
+/*
+	if(unlikely(t->fpu.status != 1))
+		t->fpu.status = 1;
+	else if(t->fpu.status == 1)
+		;//frstor(t);
+	else
+		printk("fpu.status error! %d\n", t->fpu.status);
+*/
 
 	return 1;
 }
@@ -1648,7 +1671,7 @@ int host_attempt_brand(struct thread *brand)
 {
 	struct pt_regs *regs = NULL;
 	unsigned long flags;
-
+	
 	local_irq_save(flags);
 	if (likely(composite_thread)/* == current*/) {
 		struct thread *cos_current;
@@ -1660,10 +1683,6 @@ int host_attempt_brand(struct thread *brand)
 		}
 
 		cos_current = thd_get_current();
-
-
-				printk("hijack: current thread is %d\n", thd_get_id(thd_get_current()));
-				printk("hijack: cos_current(switch out) is %d\n", thd_get_id(cos_current));
 
 		/* See comment in cosnet.c:cosnet_xmit_packet */
 		if (host_in_syscall() || host_in_idle()) {
@@ -1787,49 +1806,19 @@ int host_attempt_brand(struct thread *brand)
 				regs->sp = next->regs.sp;
 				regs->bp = next->regs.bp;
 
-				if(cos_current->fpu.status == 1) {
-					if(next->fpu.status == 1) {
-						fsave(cos_current);
-					}
-					else
-						set_ts();
-				}
-
-				thd_print_fregs(cos_current);
-				
-				thd_print_fregs(next);
+				disable_fpu();
+				//printk("next's fpu status: %d\n", next->curr_fpu.status);
 /*
-				printk("hijack: current thread is %d\n", thd_get_id(thd_get_current()));
-				printk("hijack: cos_current(switch out) is %d\n", thd_get_id(cos_current));
-				printk("hijack: next(switch in) is %d\n", thd_get_id(next));
-*/
-
-				//printk("1. current cr0 status is: %10x\n", cos_read_cr0());
-
-				//printk("current thread is: %d\n", thd_get_id(cos_current));
-/*
-				printk("hijack: switching from thread %d to thread %d\n", thd_get_id(cos_current), thd_get_id(next));			
-	
-				if(cos_current->fpu.status == 1) {
-					printk("now saving fpu ...\n");
-					fsave(cos_current);
-					//set_ts();
+				if((cos_current->USED_FPU == 1) && (next->USED_FPU == 1)) {
+					printk("saved!\n ");
+					fsave(next);
 				}
 */
-				//else
-					//printk("not using fpu, no need to save\n");
+				//fsave(next);
+				//printk("disable_fpu\n");
 
-			//	printk("2. current cr0 status is: %10x\n", cos_read_cr0());
-/*
-				if(next->fpu.status == 1) {
-					printk("now restoring fpu ...\n");
-					frstor(next);
-				}
-				else {
-					printk("thread id:%d\n", thd_get_id(next));
-					printk("not using fpu, no need to restore\n");
-				}
-*/
+//				printk("cr0: %10x\n", cos_read_cr0());
+//				printk("hijack: cos_current %d fpu status %d\n",thd_get_id(cos_current), cos_current->USED_FPU);
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 

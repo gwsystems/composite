@@ -78,7 +78,8 @@ struct thread {
 	 */
 	
 	struct pt_regs regs;
-	struct cos_fpu fpu;
+	struct cos_fpu prev_fpu;
+	struct cos_fpu curr_fpu;
 
 	/* the first frame describes the threads protection domain */
 	struct thd_invocation_frame stack_base[MAX_SERVICE_DEPTH] HALF_CACHE_ALIGNED;
@@ -471,8 +472,4 @@ static inline void thd_save_preempted_state(struct thread *thd, struct pt_regs *
 	//thd_print_regs(thd);
 }
 
-static inline void thd_save_preempted_fpu_state(struct thread *thd, struct cos_fpu *fregs)
-{
-	memcpy(&thd->fpu, fregs, sizeof(struct cos_fpu));
-}
 #endif /* THREAD_H */

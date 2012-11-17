@@ -897,27 +897,21 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		cos_meas_event(COS_MEAS_SWITCH_COOP);
 	}
 
-	//printk("inv.c: current thread is %d\ninv.c: curr(switch out) is %d\ninv.c: thd(switch in) is %d\n", thd_get_id(thd_get_current()), thd_get_id(curr), thd_get_id(thd));
+/*
+	printk("curr: %d\n", thd_get_id(curr));
+	printk("thd: %d\n", thd_get_id(thd));
 
-	if(thd->fpu.status == 1) {
-		frstor(thd);
-		clr_ts();
+	if((curr->fpu.status == 1) && (thd->fpu.status == 1)) {
+		fsave(curr);
+		printk("saved!\n");
 	}
 	else {
+		printk("curr fpu: %d\n", curr->fpu.status);
+		printk("thd fpu: %d\n", thd->fpu.status);
 		set_ts();
 	}
-
-/*
-	printk("inv.c: switching from thread %d to thread %d\n", thd_get_id(curr), thd_get_id(thd));
-
-	if(thd->fpu.status == 1) {
-		printk("hehe, restoring..\n");
-		frstor(thd);
-		clr_ts();
-	}
-	else
-		set_ts();
 */
+
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
 
 	/* success for this current thread */
