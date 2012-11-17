@@ -126,34 +126,29 @@ ipc_walk_static_cap(struct thread *thd, unsigned int capability, vaddr_t sp,
 	struct invocation_cap *cap_entry;
 
 	capability >>= 20;
-	
-        if (unlikely(thd == NULL)) thd = thd_get_current ();
-        curr_spd = thd_curr_spd_thd (thd);
+
+	assert(thd);
+
+	curr_spd = thd_curr_spd_thd(thd);
 	
 	if (unlikely(curr_spd == NULL)) {
 		printk ("cos: couldn't find current component in thread %x.\n", (unsigned int)thd);
 		return 0;
 	}
 
-	if (unlikely(capability >= MAX_STATIC_CAP || capability >= curr_spd->ncaps)) {
+	if (unlikely(capability >= curr_spd->ncaps)) {
 		struct spd *t = virtual_namespace_query(ip);
-		printk("cos: capability %d greater than max from spd %d @ %x.\n", 
-		       capability, (t) ? spd_get_index(t): 0, (unsigned int)ip);
+		printk("cos: capability %d greater than max (%d) from spd %d @ %x.\n", 
+		       capability, curr_spd->ncaps, (t) ? spd_get_index(t): 0, (unsigned int)ip);
 		return 0;
 	}
 
 	cap_entry = &curr_spd->caps[capability];
 
-	if (unlikely(!cap_entry->owner)) {
-		printk("cos: No owner for cap %d.\n", capability);
-		return 0;
-	}
-
 	/* what spd are we in (what stack frame)? */
 	curr_frame = &thd->stack_base[thd->stack_ptr];
 
 	dest_spd = cap_entry->destination;
-	curr_spd = cap_entry->owner;
 
 	if (unlikely(!dest_spd || curr_spd == CAP_FREE || curr_spd == CAP_ALLOCATED_UNUSED)) {
 		printk("cos: Attempted use of unallocated capability.\n");
@@ -3388,16 +3383,6 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		 * dealloced, that refcnt is 0, etc... */
 		spd_free(spd);
 		break;
-	case COS_SPD_RESERVE_CAPS:
-		/* arg1 == number of caps */
-		if (spd_reserve_cap_range(spd, (int)arg1) == -1) {
-			ret = -1;
-			break;
-		}
-		break;
-	case COS_SPD_RELEASE_CAPS:
-		if (spd_release_cap_range(spd) == -1) ret = -1;
-		break;
 	case COS_SPD_LOCATION:
 		/* location already set */
 		if (spd->location[0].size ||
@@ -3431,14 +3416,15 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		struct composite_spd *cspd;
 		vaddr_t kaddr;
 
+		/* Was formerly done by COS_SPD_RESERVE_CAPS, but it has to happen somewhere */
+		spd->ncaps = (unsigned int)arg1;
+
 		/* Have we set the virtual address space, caps, cap tbl*/
 		if (!spd->user_vaddr_cap_tbl ||
-		    !spd->spd_info.pg_tbl || !spd->location[0].lowest_addr ||
-		    !spd->ncaps) {
+		    !spd->spd_info.pg_tbl || !spd->location[0].lowest_addr) {
 			printk("cos: spd_cntl -- cap tbl, location, or capability range not set (error %d).\n",
 			       !spd->user_vaddr_cap_tbl      ? 1 : 
-			       !spd->spd_info.pg_tbl         ? 2 :
-			       !spd->location[0].lowest_addr ? 3 : 4);
+			       !spd->spd_info.pg_tbl         ? 2 : 3);
 			ret = -1;
 			break;
 		}

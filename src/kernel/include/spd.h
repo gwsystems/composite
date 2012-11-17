@@ -66,10 +66,9 @@ struct usr_cap_stubs {
  */
 struct spd;
 struct invocation_cap {
-	/* the spd that can make invocations on this capability
-	 * (owner), and the spd that invocations are made to. owner ==
+	/* the spd that invocations are made to. destination ==
 	 * NULL means that this entry is free and not in use.  */
-	struct spd *owner, *destination;
+	struct spd *destination;
 	unsigned int invocation_cnt:30;
 	isolation_level_t il:2;
 	vaddr_t dest_entry_instruction;
@@ -196,7 +195,7 @@ struct spd {
 	/* Linked list of the members of a non-depricated, current composite spd */
 	struct spd *composite_member_next, *composite_member_prev;
 
-	int ncaps;
+	unsigned int ncaps;
 	struct invocation_cap caps[MAX_STATIC_CAP];
 } CACHE_ALIGNED; //cache line size
 
@@ -221,9 +220,6 @@ struct spd *spd_get_by_index(int idx);
 void spd_free_all(void);
 void spd_init(void);
 
-int spd_reserve_cap_range(struct spd *spd, int amnt);
-int spd_release_cap_range(struct spd *spd);
-
 int spd_cap_activate(struct spd *spd, int cap);
 int spd_cap_set_dest(struct spd *spd, int cap, struct spd* dspd);
 int spd_cap_set_cstub(struct spd *spd, int cap, vaddr_t fn);
@@ -241,7 +237,6 @@ unsigned int spd_add_static_cap_extended(struct spd *spd, struct spd *trusted_sp
 isolation_level_t cap_change_isolation(struct spd *spd, int cap_num, isolation_level_t il, int flags);
 int cap_is_free(struct spd *spd, int cap_num);
 unsigned long spd_read_reset_invocation_cnt(struct spd *cspd, struct spd *sspd);
-struct invocation_cap *inv_cap_get(struct spd *spd, int c_num);
 
 static inline int spd_is_scheduler(struct spd *spd)
 {
