@@ -227,12 +227,6 @@ static int boot_spd_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	return 0;
 }
 
-static int boot_spd_reserve_caps(struct cobj_header *h, spdid_t spdid)
-{
-	if (cos_spd_cntl(COS_SPD_RESERVE_CAPS, spdid, h->ncap, 0)) BUG();
-	return 0;
-}
-
 /* /\* Deactivate or activate all capabilities to an spd (i.e. call faults */
 /*  * on invocation, or use normal stubs) *\/ */
 /* static int boot_spd_caps_chg_activation(spdid_t spdid, int activate) */
@@ -364,8 +358,7 @@ boot_create_system(void)
 
 		if (boot_spd_symbs(h, spdid, &comp_info))        BUG();
 		if (boot_spd_map(h, spdid, comp_info))           BUG();
-		if (boot_spd_reserve_caps(h, spdid))             BUG();
-		if (cos_spd_cntl(COS_SPD_ACTIVATE, spdid, 0, 0)) BUG();
+		if (cos_spd_cntl(COS_SPD_ACTIVATE, spdid, h->ncap, 0)) BUG();
 	}
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;

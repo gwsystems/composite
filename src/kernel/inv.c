@@ -108,8 +108,6 @@ void print_regs(struct pt_regs *regs)
 	return;
 }
 
-extern struct invocation_cap invocation_capabilities[MAX_STATIC_CAP];
-
 struct inv_ret_struct {
 	int thd_id;
 	int spd_id;
@@ -129,25 +127,28 @@ ipc_walk_static_cap(struct thread *thd, unsigned int capability, vaddr_t sp,
 
 	capability >>= 20;
 
-	if (unlikely(capability >= MAX_STATIC_CAP)) {
+	assert(thd);
+
+	curr_spd = thd_curr_spd_thd(thd);
+	
+	if (unlikely(curr_spd == NULL)) {
+		printk ("cos: couldn't find current component in thread %x.\n", (unsigned int)thd);
+		return 0;
+	}
+
+	if (unlikely(capability >= curr_spd->ncaps)) {
 		struct spd *t = virtual_namespace_query(ip);
-		printk("cos: capability %d greater than max from spd %d @ %x.\n", 
-		       capability, (t) ? spd_get_index(t): 0, (unsigned int)ip);
+		printk("cos: capability %d greater than max (%d) from spd %d @ %x.\n", 
+		       capability, curr_spd->ncaps, (t) ? spd_get_index(t): 0, (unsigned int)ip);
 		return 0;
 	}
 
-	cap_entry = &invocation_capabilities[capability];
-
-	if (unlikely(!cap_entry->owner)) {
-		printk("cos: No owner for cap %d.\n", capability);
-		return 0;
-	}
+	cap_entry = &curr_spd->caps[capability];
 
 	/* what spd are we in (what stack frame)? */
 	curr_frame = &thd->stack_base[thd->stack_ptr];
 
 	dest_spd = cap_entry->destination;
-	curr_spd = cap_entry->owner;
 
 	if (unlikely(!dest_spd || curr_spd == CAP_FREE || curr_spd == CAP_ALLOCATED_UNUSED)) {
 		printk("cos: Attempted use of unallocated capability.\n");
@@ -1995,13 +1996,10 @@ cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
  */
 static int verify_trust(struct spd *truster, struct spd *trustee)
 {
-	unsigned short int cap_no, max_cap, i;
+	unsigned short int i;
 
-	cap_no = truster->cap_base;
-	max_cap = truster->cap_range + cap_no;
-
-	for (i = cap_no ; i < max_cap ; i++) {
-		if (invocation_capabilities[i].destination == trustee) {
+	for (i = 0 ; i < truster->ncaps ; i++) {
+		if (truster->caps[i].destination == trustee) {
 			return 0;
 		}
 	}
@@ -3385,16 +3383,6 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		 * dealloced, that refcnt is 0, etc... */
 		spd_free(spd);
 		break;
-	case COS_SPD_RESERVE_CAPS:
-		/* arg1 == number of caps */
-		if (spd_reserve_cap_range(spd, (int)arg1) == -1) {
-			ret = -1;
-			break;
-		}
-		break;
-	case COS_SPD_RELEASE_CAPS:
-		if (spd_release_cap_range(spd) == -1) ret = -1;
-		break;
 	case COS_SPD_LOCATION:
 		/* location already set */
 		if (spd->location[0].size ||
@@ -3428,22 +3416,22 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		struct composite_spd *cspd;
 		vaddr_t kaddr;
 
+		/* Was formerly done by COS_SPD_RESERVE_CAPS, but it has to happen somewhere */
+		spd->ncaps = (unsigned int)arg1;
+
 		/* Have we set the virtual address space, caps, cap tbl*/
 		if (!spd->user_vaddr_cap_tbl ||
-		    !spd->spd_info.pg_tbl || !spd->location[0].lowest_addr ||
-		    !spd->cap_base || !spd->cap_range) {
+		    !spd->spd_info.pg_tbl || !spd->location[0].lowest_addr) {
 			printk("cos: spd_cntl -- cap tbl, location, or capability range not set (error %d).\n",
 			       !spd->user_vaddr_cap_tbl      ? 1 : 
-			       !spd->spd_info.pg_tbl         ? 2 :
-			       !spd->location[0].lowest_addr ? 3 :
-			       !spd->cap_base                ? 4 : 5);
+			       !spd->spd_info.pg_tbl         ? 2 : 3);
 			ret = -1;
 			break;
 		}
 		if ((unsigned int)spd->user_vaddr_cap_tbl < spd->location[0].lowest_addr || 
-		    (unsigned int)spd->user_vaddr_cap_tbl + sizeof(struct usr_inv_cap) * spd->cap_range > 
+		    (unsigned int)spd->user_vaddr_cap_tbl + sizeof(struct usr_inv_cap) * spd->ncaps > 
 		    spd->location[0].lowest_addr + spd->location[0].size || 
-		    !user_struct_fits_on_page((unsigned int)spd->user_vaddr_cap_tbl, sizeof(struct usr_inv_cap) * spd->cap_range)) {
+		    !user_struct_fits_on_page((unsigned int)spd->user_vaddr_cap_tbl, sizeof(struct usr_inv_cap) * spd->ncaps)) {
 			printk("cos: user capability table @ %x does not fit into spd, or onto a single page\n", 
 			       (unsigned int)spd->user_vaddr_cap_tbl);
 			ret = -1;
