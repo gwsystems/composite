@@ -1157,27 +1157,25 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 
 	printk("exception!\n");
 
-	if(t->fpu.status == 1) {
+	if(t->fpu.status != 1) {
+		enable_fpu();
+		t->fpu.status = 1;
+		if(t->last_used_fpu != NULL) {
+			fsave(t->last_used_fpu);
+		}
+	}
+	else {
 		if(t->last_used_fpu != NULL) {
 			if(t == t->last_used_fpu)
 				enable_fpu();
 			else {
 				enable_fpu();
 				fsave(t->last_used_fpu);
-				thd_print_fregs(t);
 				frstor(t);
 			}
 		}
 		else
 			enable_fpu();
-	}
-	else {
-		enable_fpu();
-		t->fpu.status = 1;
-		if(t->last_used_fpu != NULL) {
-			fsave(t->last_used_fpu);
-			thd_print_fregs(t->last_used_fpu);
-		}
 	}
 
 	return 1;
