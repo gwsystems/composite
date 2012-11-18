@@ -897,6 +897,33 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		cos_meas_event(COS_MEAS_SWITCH_COOP);
 	}
 
+	if(curr->fpu.status == 1) {
+		if(thd->fpu.status == 1) {
+			printk("curr use, next use\n");
+			fsave(curr);
+			frstor(thd);
+		}
+		else {
+			disable_fpu();
+			printk("curr use, next not use\n");
+		}
+	}
+	else if(curr->fpu.status != 1) {
+		if(curr->last_used_fpu != NULL) {
+			if(curr->last_used_fpu->fpu.status == 1) {
+				if(thd->fpu.status == 1) {
+					printk("curr not use, next use\n");
+					fsave(curr->last_used_fpu);
+					frstor(thd);
+				}
+			}
+		}
+		else {
+			disable_fpu();
+			printk("curr not use, next not use\n");
+		}
+	}
+
 /*
 	printk("curr: %d\n", thd_get_id(curr));
 	printk("thd: %d\n", thd_get_id(thd));

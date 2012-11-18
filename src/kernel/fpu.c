@@ -1,14 +1,12 @@
 #include "include/fpu.h"
 
-inline void fsave(struct cos_fpu *fpu) {
-	//asm volatile("fsave %0" : "=m" (thd->fpu));
-	asm volatile("fsave %0" : "=m" (fpu));
+inline void fsave(struct thread *thd) {
+	asm volatile("fsave %0" : "=m" (thd->fpu));
 }
 
 
-inline void frstor(struct cos_fpu *fpu) {
-	//asm volatile("frstor %0 " : : "m" (thd->fpu));
-	asm volatile("frstor %0 " : : "m" (fpu));
+inline void frstor(struct thread *thd) {
+	asm volatile("frstor %0 " : : "m" (thd->fpu));
 }
 
 inline void disable_fpu(void) {

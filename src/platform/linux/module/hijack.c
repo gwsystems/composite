@@ -1155,15 +1155,24 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 
 	t = thd_get_current();
 
-	print_cr0();
+	printk("exception!\n");
 
-	if(read_cr0() == 0x8005003b) {// if FPU is diabled(0x80050033 is enable)
-		enable_fpu();
-		t->curr_fpu.status = 1;
+	enable_fpu();
+	printk("enable good!\n");
+
+	if(t->last_used_fpu != NULL) {
+		if(t->last_used_fpu->fpu.status == 1) {
+			fsave(t->last_used_fpu);
+			printk("save good!\n");
+		}
 	}
-	else {
-		fsave(&(t->prev_fpu));
+	
+	if(t->fpu.status == 1) {
+		frstor(t);
+		printk("rstore good!\n");
 	}
+
+	t->fpu.status = 1; // will a condition execute be faster than assign value?
 
 	//printk("exception! thread %d; USED_FPU %d\n", thd_get_id(t), t->USED_FPU);
 	//printk("clear TS bit: %10x\n", cos_read_cr0());
@@ -1806,8 +1815,15 @@ int host_attempt_brand(struct thread *brand)
 				regs->sp = next->regs.sp;
 				regs->bp = next->regs.bp;
 
-				disable_fpu();
-				//printk("next's fpu status: %d\n", next->curr_fpu.status);
+				if(cos_current->fpu.status == 1) {
+					next->last_used_fpu = cos_current;
+				}
+				//next->fpu = cos_current->fpu;
+
+
+				// disable_fpu();
+				//if(cos_current->fpu.status == 1)
+				//	next->last_used_fpu->fpu.status == 1;
 /*
 				if((cos_current->USED_FPU == 1) && (next->USED_FPU == 1)) {
 					printk("saved!\n ");
@@ -1815,7 +1831,6 @@ int host_attempt_brand(struct thread *brand)
 				}
 */
 				//fsave(next);
-				//printk("disable_fpu\n");
 
 //				printk("cr0: %10x\n", cos_read_cr0());
 //				printk("hijack: cos_current %d fpu status %d\n",thd_get_id(cos_current), cos_current->USED_FPU);

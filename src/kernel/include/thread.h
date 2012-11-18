@@ -78,8 +78,7 @@ struct thread {
 	 */
 	
 	struct pt_regs regs;
-	struct cos_fpu prev_fpu;
-	struct cos_fpu curr_fpu;
+	struct cos_fpu fpu;
 
 	/* the first frame describes the threads protection domain */
 	struct thd_invocation_frame stack_base[MAX_SERVICE_DEPTH] HALF_CACHE_ALIGNED;
@@ -114,6 +113,8 @@ struct thread {
 	//struct thread *upcall_thread_ready, *upcall_thread_active;
 
 	struct thread *freelist_next;
+
+	struct thread *last_used_fpu;
 } CACHE_ALIGNED;
 
 struct thread *thd_alloc(struct spd *spd);

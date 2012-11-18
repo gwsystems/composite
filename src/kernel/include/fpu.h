@@ -14,11 +14,11 @@ struct cos_fpu {
 
         /* 8*10 bytes for each FP-reg = 80 bytes: */
         unsigned int st_space[20]; /* 8 data registers */
-	unsigned int status; /* 1.USED FPU 2.NOT USED FPU */
+	int status;
 };
 
-inline void fsave(struct cos_fpu*);
-inline void frstor(struct cos_fpu*);
+inline void fsave(struct thread*);
+inline void frstor(struct thread*);
 inline void disable_fpu(void);
 inline void enable_fpu(void);
 
