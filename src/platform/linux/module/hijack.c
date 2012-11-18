@@ -1157,46 +1157,28 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 
 	printk("exception!\n");
 
-	enable_fpu();
-	printk("enable good!\n");
-
-	if(t->last_used_fpu != NULL) {
-		if(t->last_used_fpu->fpu.status == 1) {
+	if(t->fpu.status == 1) {
+		if(t->last_used_fpu != NULL) {
+			if(t == t->last_used_fpu)
+				enable_fpu();
+			else {
+				enable_fpu();
+				fsave(t->last_used_fpu);
+				thd_print_fregs(t);
+				frstor(t);
+			}
+		}
+		else
+			enable_fpu();
+	}
+	else {
+		enable_fpu();
+		t->fpu.status = 1;
+		if(t->last_used_fpu != NULL) {
 			fsave(t->last_used_fpu);
-			printk("save good!\n");
+			thd_print_fregs(t->last_used_fpu);
 		}
 	}
-	
-	if(t->fpu.status == 1) {
-		frstor(t);
-		printk("rstore good!\n");
-	}
-
-	t->fpu.status = 1; // will a condition execute be faster than assign value?
-
-	//printk("exception! thread %d; USED_FPU %d\n", thd_get_id(t), t->USED_FPU);
-	//printk("clear TS bit: %10x\n", cos_read_cr0());
-
-	//printk("enable_fpu\n");
-	//printk("TS bit cleard: %10x\n", cos_read_cr0());
-/*
-	printk("in exception, thd_current is\n");
-	thd_print_fregs(t);
-	if(unlikely(t->USED_FPU != 1))
-		t->USED_FPU = 1;
-	else if(t->USED_FPU == 1)
-		frstor(t);
-	else
-		;//printk("fpu.status error! %d\n", t->fpu.status);
-*/
-/*
-	if(unlikely(t->fpu.status != 1))
-		t->fpu.status = 1;
-	else if(t->fpu.status == 1)
-		;//frstor(t);
-	else
-		printk("fpu.status error! %d\n", t->fpu.status);
-*/
 
 	return 1;
 }
@@ -1817,23 +1799,9 @@ int host_attempt_brand(struct thread *brand)
 
 				if(cos_current->fpu.status == 1) {
 					next->last_used_fpu = cos_current;
+					if(cos_current->last_used_fpu == NULL)
+						cos_current->last_used_fpu = cos_current;
 				}
-				//next->fpu = cos_current->fpu;
-
-
-				// disable_fpu();
-				//if(cos_current->fpu.status == 1)
-				//	next->last_used_fpu->fpu.status == 1;
-/*
-				if((cos_current->USED_FPU == 1) && (next->USED_FPU == 1)) {
-					printk("saved!\n ");
-					fsave(next);
-				}
-*/
-				//fsave(next);
-
-//				printk("cr0: %10x\n", cos_read_cr0());
-//				printk("hijack: cos_current %d fpu status %d\n",thd_get_id(cos_current), cos_current->USED_FPU);
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 
