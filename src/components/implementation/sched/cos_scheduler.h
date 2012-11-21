@@ -104,7 +104,7 @@ typedef enum {
 	REVT_LAST
 } report_evt_t;
 
-extern struct cos_sched_data_area cos_sched_notifications[NUM_CPU];
+PERCPU_EXTERN(cos_sched_notifications);
 
 struct sched_accounting {
 	unsigned long C, T, C_used, T_exp;
@@ -204,12 +204,12 @@ static inline int cos_sched_pending_event(void)
 	/* struct cos_sched_events *evt; */
 
 	/* printc("pending? %d, addr %p, cpuid %ld, thd %d\n", 
-	   cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_event, 
-	   &cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_event, 
+	   PERCPU_GET(cos_sched_notifications)->cos_evt_notif.pending_event, 
+	   &PERCPU_GET(cos_sched_notifications)->cos_evt_notif.pending_event, 
 	   cos_cpuid(), cos_get_thd_id()); */
-	return cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_event;
+	return PERCPU_GET(cos_sched_notifications)->cos_evt_notif.pending_event;
 /*
-	evt = &cos_sched_notifications[cos_cpuid()].cos_events[cos_curr_evt];
+	evt = &PERCPU_GET(cos_sched_notifications)->cos_events[cos_curr_evt];
 	evt1 = COS_SCHED_EVT_FLAGS(evt) || COS_SCHED_EVT_NEXT(evt);
 	assert(!(evt0 ^ evt1));
 	return evt0;
@@ -219,18 +219,18 @@ static inline int cos_sched_pending_event(void)
 static inline void cos_sched_clear_events(void)
 {
 	/* printc("core %ld, thd %d clearing pending_event!!!!\n", cos_cpuid(), cos_get_thd_id()); */
-	cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_event = 0;
+	PERCPU_GET(cos_sched_notifications)->cos_evt_notif.pending_event = 0;
 }
 
 static inline void cos_sched_clear_cevts(void)
 {
-	cos_sched_notifications[cos_cpuid()].cos_evt_notif.pending_cevt = 0;
+	PERCPU_GET(cos_sched_notifications)->cos_evt_notif.pending_cevt = 0;
 }
 
 static inline u32_t cos_sched_timer_cyc(void)
 {
-	u32_t t = cos_sched_notifications[cos_cpuid()].cos_evt_notif.timer;
-	cos_sched_notifications[cos_cpuid()].cos_evt_notif.timer = 0;
+	u32_t t = PERCPU_GET(cos_sched_notifications)->cos_evt_notif.timer;
+	PERCPU_GET(cos_sched_notifications)->cos_evt_notif.timer = 0;
 	return t;
 }
 
@@ -447,7 +447,7 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 {
         /* This must be volatile as we must commit what we want to
 	 * write to memory immediately to be read by the kernel */
-	volatile struct cos_sched_next_thd *cos_next = &cos_sched_notifications[cos_cpuid()].cos_next;
+	volatile struct cos_sched_next_thd *cos_next = &PERCPU_GET(cos_sched_notifications)->cos_next;
 
 	cos_next->next_thd_id = thd_id;
 	cos_next->next_thd_flags = flags;
