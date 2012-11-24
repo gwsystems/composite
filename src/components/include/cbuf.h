@@ -21,8 +21,8 @@
 #include <cos_debug.h>
 #include <cbuf_c.h>
 #include <cbufp.h>
-#define cbid_to_meta_idx(cid) ((cid-1) << 1)
-#define meta_to_cbid_idx(mid) ((mid-1) >> 1)
+#define cbid_to_meta_idx(cid) ((cid) << 1)
+#define meta_to_cbid_idx(mid) ((mid) >> 1)
 #include <cbuf_vect.h>
 #include <cos_list.h>
 #include <bitmap.h>
@@ -169,12 +169,10 @@ typedef union {
 	cbuf_t v;
 	struct {
 		/* 
-		 * cbuf id, its maximum length or 0 if length is
-		 * passed using another mechanism, aggregate = 1 if
-		 * this cbuf holds an array of other cbufs, and persist =
-		 * 1 if this buffer is not transient memory.
+		 * cbuf id, aggregate = 1 if this cbuf holds an array
+		 * of other cbufs.
 		 */
-		u32_t id:20, len:10, aggregate: 1, persist: 1; 
+		u32_t aggregate: 1, id:31;
 	} __attribute__((packed)) c;
 } cbuf_unpacked_t;
 
@@ -190,13 +188,12 @@ struct cbuf_agg {
 };
 
 static inline void 
-cbuf_unpack(cbuf_t cb, u32_t *cbid, u32_t *len) 
+cbuf_unpack(cbuf_t cb, u32_t *cbid) 
 {
 	cbuf_unpacked_t cu = {0};
 	
 	cu.v  = cb;
 	*cbid = cu.c.id;
-	*len  = cu.c.len;
 	assert(!cu.c.aggregate);
 	return;
 }
@@ -205,8 +202,8 @@ static inline cbuf_t
 cbuf_cons(u32_t cbid, u32_t len) 
 {
 	cbuf_unpacked_t cu;
+	cu.v     = 0;
 	cu.c.id  = cbid;
-	cu.c.len = len;
 	return cu.v; 
 }
 
@@ -214,7 +211,7 @@ static inline cbuf_t cbuf_null(void)      { return 0; }
 static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
 
 extern struct cbuf_alloc_desc *__cbuf_alloc_slow(int size, int *len, int tmem);
-extern int __cbuf_2buf_miss(int cbid, int len, int tmem);
+extern int  __cbuf_2buf_miss(int cbid, int len, int tmem);
 extern void __cbuf_desc_free(struct cbuf_alloc_desc *d);
 extern cvect_t meta_cbuf, meta_cbufp;
 
@@ -233,14 +230,13 @@ cbuf_vect_lookup_addr(long idx, int tmem)
 static inline void * 
 __cbuf2buf(cbuf_t cb, int len, int tmem)
 {
-	int sz;
 	u32_t id;
 	struct cbuf_meta *cm;
 	union cbufm_info ci;//, ci_new;
 	void *ret = NULL;
 	long cbidx;
 	if (unlikely(!len)) return NULL;
-	cbuf_unpack(cb, &id, (u32_t*)&sz);
+	cbuf_unpack(cb, &id);
 
 	CBUF_TAKE();
 	cbidx = cbid_to_meta_idx(id);
@@ -280,7 +276,7 @@ done:
 static inline void *
 cbuf2buf(cbuf_t cb, int len) { return __cbuf2buf(cb, len, 1); }
 static inline void *
-cbufp2buf(cbuf_t cb, int len) { return __cbuf2buf(cb, len, 0); }
+cbufp2buf(cbufp_t cb, int len) { return __cbuf2buf((cbuf_t)cb, len, 0); }
 
 /* 
  * This is only called for permanent cbufs.  This is called every time
@@ -297,10 +293,10 @@ cbufp2buf(cbuf_t cb, int len) { return __cbuf2buf(cb, len, 0); }
 static inline void
 cbufp_send(cbuf_t cb, int free)
 {
-	u32_t id, sz;
+	u32_t id;
 	struct cbuf_meta *cm;
 
-	cbuf_unpack(cb, &id, &sz);
+	cbuf_unpack(cb, &id);
 
 	CBUF_TAKE();
 	cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(id), 0);
@@ -439,7 +435,7 @@ again:
 	cm->owner_nfo.thdid = cos_get_thd_id();
 	if (tmem) cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]--;
 	ret = (void*)(cm->nfo.c.ptr << PAGE_ORDER);
-	assert(cm->nfo.c.flags & CBUFM_TMEM); /* gap */
+	if (tmem) assert(cm->nfo.c.flags & CBUFM_TMEM);
 done:
 	*cb = cbuf_cons(cbid, len);
 	CBUF_RELEASE();
@@ -450,7 +446,7 @@ done:
 static inline void *
 cbuf_alloc(unsigned int sz, cbuf_t *cb) { return __cbuf_alloc(sz, cb, 1); }
 static inline void *
-cbufp_alloc(unsigned int sz, cbuf_t *cb)  { return __cbuf_alloc(sz, cb, 0); }
+cbufp_alloc(unsigned int sz, cbufp_t *cb)  { return __cbuf_alloc(sz, (cbuf_t*)cb, 0); }
 
 static inline void
 __cbuf_free(void *buf, int tmem)
@@ -458,7 +454,7 @@ __cbuf_free(void *buf, int tmem)
 	u32_t idx = ((u32_t)buf) >> PAGE_ORDER;
 	struct cbuf_alloc_desc *d, *fl;
 	struct cbuf_meta *cm;
-	int owner, relinq, cbid;
+	int owner, relinq = 0, cbid;
 
 	CBUF_TAKE();
 	d  = __cbuf_alloc_lookup(idx);

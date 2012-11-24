@@ -11,6 +11,7 @@
 #define printv(fmt,...) 
 #endif
 
+#define ITER 2000
 
 void call(void)
 {
@@ -20,18 +21,18 @@ void call(void)
 int call_buf2buf(u32_t cb, int len) 
 {
 	u64_t start = 0, end = 0;
+	u32_t id, __len;
 	char *b;
-	
+	int i;
+
 	rdtscll(start);
-	b = cbuf2buf(cb,len);
+	for (i = 0 ; i < ITER ; i++) {
+		b = cbuf2buf(cb, len);
+		assert(b);
+	}
 	rdtscll(end);
 
-        printc("cbuf2buf %llu cycs\n", end-start);
-	
-	if (!b) {
-		printc("Can not map into this spd %ld\n", cos_spd_id());
-		return cbuf_null();
-	}
+        printc("%d cbuf2buf %llu cycs\n", ITER, (end-start)/ITER);
 	memset(b, 's', len);
 	
 	return 0;
@@ -41,6 +42,13 @@ int simple_call_buf2buf(u32_t cb, int len)
 {
 	char *b;
 	b = cbuf2buf(cb,len);
+	return 0;
+}
+
+int call_cbufp2buf(u32_t cb, int len)
+{
+	char *b;
+	b = cbufp2buf(cb, len);
 	return 0;
 }
 
