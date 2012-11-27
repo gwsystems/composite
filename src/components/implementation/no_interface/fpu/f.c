@@ -12,7 +12,7 @@ void cos_init(void *args)
 	while(1)
 	{
 		c += a + b;
-		if((int)c % 1000000 == 0)
+		if(((int)c % 1000000 == 0) && (int)c != 0)
 		printc("thread %d, result = %d\n", cos_get_thd_id(), ((int)c));
 	}
 }

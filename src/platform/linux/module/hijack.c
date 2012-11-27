@@ -1157,6 +1157,10 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 
 	printk("exception!\n");
 
+	t->fpu.status = 1;
+	enable_fpu();
+	fpu_op(t);
+/*
 	if(t->fpu.status != 1) {
 		enable_fpu();
 		t->fpu.status = 1;
@@ -1177,7 +1181,7 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 		else
 			enable_fpu();
 	}
-
+*/
 	return 1;
 }
 
@@ -1795,11 +1799,13 @@ int host_attempt_brand(struct thread *brand)
 				regs->sp = next->regs.sp;
 				regs->bp = next->regs.bp;
 
+			/*
 				if(cos_current->fpu.status == 1) {
 					next->last_used_fpu = cos_current;
 					if(cos_current->last_used_fpu == NULL)
 						cos_current->last_used_fpu = cos_current;
 				}
+			*/
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 

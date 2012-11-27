@@ -3,6 +3,8 @@
 #ifndef FPU_H
 #define FPU_H
 
+extern struct thread *last_used_fpu;
+
 struct cos_fpu {
         unsigned int cwd; /* FPU Control Word*/
         unsigned int swd; /* FPU Status Word */
@@ -16,6 +18,8 @@ struct cos_fpu {
         unsigned int st_space[20]; /* 8 data registers */
 	int status;
 };
+
+void fpu_op(struct thread *thd);
 
 inline void fsave(struct thread*);
 inline void frstor(struct thread*);

@@ -896,11 +896,12 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	} else {
 		cos_meas_event(COS_MEAS_SWITCH_COOP);
 	}
-
+/*
 	if(thd->fpu.status == 1) {
 		if(curr->last_used_fpu != NULL) {
 			printk("prev %d use, next %d use\n", thd_get_id(curr->last_used_fpu), thd_get_id(thd));
 			int next_id = thd_get_id(thd);
+			printk("next_id(thd id) is: %d", next_id);
 			int last_id = thd_get_id(curr->last_used_fpu);
 			if(next_id != last_id) {
 				fsave(curr->last_used_fpu);
@@ -915,6 +916,13 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		if(curr->last_used_fpu != NULL)
 			thd->last_used_fpu = curr->last_used_fpu;
 	}
+*/
+
+	if(thd->fpu.status == 1) {
+		fpu_op(thd);
+	}
+	else
+		disable_fpu();
 
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
 
