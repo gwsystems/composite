@@ -918,9 +918,8 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	}
 */
 
-	if(thd->fpu.status == 1) {
+	if(thd->fpu.status == 1)
 		fpu_op(thd);
-	}
 	else
 		disable_fpu();
 

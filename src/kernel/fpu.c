@@ -3,15 +3,19 @@
 struct thread *last_used_fpu;
 
 void fpu_op(struct thread *thd) {
+	enable_fpu();
 	if(last_used_fpu != NULL) {
-		printk("1.last_used_fpu id is: %d\n", thd_get_id(last_used_fpu));
-		fsave(last_used_fpu);
-		if(thd->fpu.swd != 0) {
-		frstor(thd);
+		//printk("1.last_used_fpu id is: %d\n", thd_get_id(last_used_fpu));
+		if(last_used_fpu != thd) {
+			fsave(last_used_fpu);
+			if(thd->fpu.swd != 0) {
+				frstor(thd);
+			}
 		}
 	}
-	last_used_fpu = thd;
-		printk("2.last_used_fpu id is: %d\n", thd_get_id(last_used_fpu));
+	if(last_used_fpu != thd)
+		last_used_fpu = thd;
+	//printk("2.last_used_fpu id is: %d\n", thd_get_id(last_used_fpu));
 }
 
 inline void fsave(struct thread *thd) {
