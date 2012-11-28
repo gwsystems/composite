@@ -1158,7 +1158,7 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 	//printk("exception!\n");
 
 	t->fpu.status = 1;
-	fpu_op(t);
+	save_fpu(t);
 /*
 	if(t->fpu.status != 1) {
 		enable_fpu();

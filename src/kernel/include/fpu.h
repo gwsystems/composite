@@ -19,7 +19,7 @@ struct cos_fpu {
 	int status;
 };
 
-void fpu_op(struct thread *thd);
+void save_fpu(struct thread *thd);
 
 inline void fsave(struct thread*);
 inline void frstor(struct thread*);
