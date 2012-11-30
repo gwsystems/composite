@@ -16,7 +16,7 @@ struct cos_fpu {
 
         /* 8*10 bytes for each FP-reg = 80 bytes: */
         unsigned int st_space[20]; /* 8 data registers */
-	int status;
+	unsigned int status;
 };
 
 void save_fpu(struct thread *thd);

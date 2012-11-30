@@ -103,7 +103,6 @@ struct pt_regs trusted_regs;
 unsigned long trusted_mem_limit;
 unsigned long trusted_mem_size;
 
-
 #define MAX_ALLOC_MM 64
 struct mm_struct *guest_mms[MAX_ALLOC_MM]; 
 
@@ -419,6 +418,11 @@ static inline struct pt_regs* get_user_regs(void)
 static inline struct pt_regs* get_user_regs_thread(struct task_struct *thd)
 {
 	return (struct pt_regs*)((int)thd->thread.sp0 - sizeof(struct pt_regs));
+}
+
+static inline struct cos_fpu* get_user_fregs_thread(struct task_struct *thd)
+{
+	return (struct cos_fpu*) &(thd->thread.fpu.state->fsave);
 }
 
 /* copy the current user-space regs to user-level */
@@ -1155,32 +1159,13 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 
 	t = thd_get_current();
 
-	//printk("exception!\n");
-
 	t->fpu.status = 1;
-	save_fpu(t);
-/*
-	if(t->fpu.status != 1) {
-		enable_fpu();
-		t->fpu.status = 1;
-		if(t->last_used_fpu != NULL) {
-			fsave(t->last_used_fpu);
-		}
-	}
-	else {
-		if(t->last_used_fpu != NULL) {
-			if(t == t->last_used_fpu)
-				enable_fpu();
-			else {
-				enable_fpu();
-				fsave(t->last_used_fpu);
-				frstor(t);
-			}
-		}
-		else
-			enable_fpu();
-	}
-*/
+	last_used_fpu = t;
+
+	printk("exception\n");
+
+	enable_fpu();
+
 	return 1;
 }
 
@@ -1662,6 +1647,7 @@ int host_can_switch_pgtbls(void) { return current == composite_thread; }
 int host_attempt_brand(struct thread *brand)
 {
 	struct pt_regs *regs = NULL;
+	struct cos_fpu *fregs = NULL;
 	unsigned long flags;
 	
 	local_irq_save(flags);
@@ -1741,6 +1727,7 @@ int host_attempt_brand(struct thread *brand)
  		}
 
 		regs = get_user_regs_thread(composite_thread);
+		fregs = get_user_fregs_thread(composite_thread);
 		/* 
 		 * If both esp and xss == 0, then the interrupt
 		 * occured between sti; sysexit on the cos ipc/syscall
@@ -1774,9 +1761,13 @@ int host_attempt_brand(struct thread *brand)
 
 			/* the major work here: */
 			next = brand_next_thread(brand, cos_current, 1);
-			
+
 			if (next != cos_current) {
 				thd_save_preempted_state(cos_current, regs);
+				if(next->fpu.status != 1)
+					save_fpu(next);
+				else
+					disable_fpu();
 				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
 					printk("cos: upcall thread %d is not set to be an active upcall.\n",
 					       thd_get_id(next));
@@ -1797,14 +1788,6 @@ int host_attempt_brand(struct thread *brand)
 				regs->orig_ax = next->regs.ax;
 				regs->sp = next->regs.sp;
 				regs->bp = next->regs.bp;
-
-			/*
-				if(cos_current->fpu.status == 1) {
-					next->last_used_fpu = cos_current;
-					if(cos_current->last_used_fpu == NULL)
-						cos_current->last_used_fpu = cos_current;
-				}
-			*/
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 

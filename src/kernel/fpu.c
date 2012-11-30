@@ -3,18 +3,31 @@
 struct thread *last_used_fpu;
 
 void save_fpu(struct thread *thd) {
-	if(cos_read_cr0() == 0x8005003b)
-		enable_fpu();
-	if(last_used_fpu != NULL) {
-		if(last_used_fpu != thd) {
+//	if(thd->fpu.status == 1) {
+		if((last_used_fpu != NULL) && (last_used_fpu != thd)) {
+			//printk("thd %d, fpu.swd is %10x\n", thd_get_id(last_used_fpu), last_used_fpu->fpu.swd);
 			fsave(last_used_fpu);
-			if(thd->fpu.swd != NULL) {
+			if(thd->fpu.swd != 0xffff0000) {
+			//	printk("thd %d, fpu.swd is %10x\n", thd_get_id(last_used_fpu), last_used_fpu->fpu.swd);
+			//	printk("thd %d, fpu.swd is %10x\n", thd_get_id(thd), thd->fpu.swd);
+				if(cos_read_cr0() == 0x8005003b) {
+					enable_fpu();
+				}
 				frstor(thd);
 			}
+			//else
+			//	printk("thd %d, fpu.swd is %10x\n", thd_get_id(thd), thd->fpu.swd);
+			
 		}
-	}
-	if(last_used_fpu != thd)
+		//else
+		//	printk("%d\n", thd_get_id(last_used_fpu));
 		last_used_fpu = thd;
+//	}
+/*
+	else {
+		disable_fpu();
+	}
+*/
 }
 
 inline void fsave(struct thread *thd) {

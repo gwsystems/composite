@@ -96,6 +96,7 @@ struct thread *thd_alloc(struct spd *spd)
 	thd->freelist_next = NULL;
 
 	thd->fpu.status = 0;
+	thd->fpu.swd = 0;
 
 	return thd;
 }
@@ -195,14 +196,15 @@ void thd_print_regs(struct thread *t) {
 void thd_print_fregs(struct thread *t) {
 	struct cos_fpu *r = &t->fpu;
 
+	printk("====================\n");
 	printk("thread %d:\n", thd_get_id(t));	
-	printk("cwd: %10x\n", r->cwd);
+//	printk("cwd: %10x\n", r->cwd);
 	printk("swd: %10x\n", r->swd);
-	printk("twd: %10x\n", r->twd);
-	printk("fip: %10x\n", r->fip);
-	printk("fcs: %10x\n", r->fcs);
-	printk("foo: %10x\n", r->foo);
-	printk("fos: %10x\n", r->fos);
+//	printk("twd: %10x\n", r->twd);
+//	printk("fip: %10x\n", r->fip);
+//	printk("fcs: %10x\n", r->fcs);
+//	printk("foo: %10x\n", r->foo);
+//	printk("fos: %10x\n", r->fos);
 	printk("status: %d\n", r->status);
 	printk("====================\n");
 

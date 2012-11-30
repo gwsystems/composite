@@ -896,29 +896,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	} else {
 		cos_meas_event(COS_MEAS_SWITCH_COOP);
 	}
-/*
-	if(thd->fpu.status == 1) {
-		if(curr->last_used_fpu != NULL) {
-			printk("prev %d use, next %d use\n", thd_get_id(curr->last_used_fpu), thd_get_id(thd));
-			int next_id = thd_get_id(thd);
-			printk("next_id(thd id) is: %d", next_id);
-			int last_id = thd_get_id(curr->last_used_fpu);
-			if(next_id != last_id) {
-				fsave(curr->last_used_fpu);
-				frstor(thd);
-				curr->last_used_fpu = thd;
-				thd->last_used_fpu = thd;
-			}
-		}
-	}
-	else {
-		disable_fpu();
-		if(curr->last_used_fpu != NULL)
-			thd->last_used_fpu = curr->last_used_fpu;
-	}
-*/
-
-	if(thd->fpu.status == 1)
+	if(thd->fpu.status)
 		save_fpu(thd);
 	else
 		disable_fpu();
@@ -3584,18 +3562,3 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void
 };
-/*
-void thd_print_fregs(struct thread *t) {
-        struct cos_fpu *r = &t->fpu;
-        struct spd *s = thd_get_thd_spd(t);
-
-        printk("cos: spd %d, thd %d w/ fpu_regs: \ncos:\t\t"
-               "cwd %10x, swd %10x, twd %10x, fip %10x, fcs %10x,\ncos:\t\t"
-               "foo %10x, fos %10x \n",
-               spd_get_index(s), thd_get_id(t), (unsigned int)r->cwd, (unsigned int)r->swd, 
-               (unsigned int)r->twd, (unsigned int)r->fip, (unsigned int)r->fcs, (unsigned int)r->foo, 
-               (unsigned int)r->fos);
-
-        return;
-}
-*/

@@ -113,8 +113,6 @@ struct thread {
 	//struct thread *upcall_thread_ready, *upcall_thread_active;
 
 	struct thread *freelist_next;
-
-	struct thread *last_used_fpu;
 } CACHE_ALIGNED;
 
 struct thread *thd_alloc(struct spd *spd);
