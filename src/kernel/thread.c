@@ -96,7 +96,7 @@ struct thread *thd_alloc(struct spd *spd)
 	thd->freelist_next = NULL;
 
 	thd->fpu.status = 0;
-	thd->fpu.swd = 0;
+	thd->fpu.saved_fpu = 0;
 
 	return thd;
 }

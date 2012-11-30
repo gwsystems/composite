@@ -16,10 +16,9 @@ struct cos_fpu {
 
         /* 8*10 bytes for each FP-reg = 80 bytes: */
         unsigned int st_space[20]; /* 8 data registers */
-	unsigned int status;
+	int status; /* used fpu */
+	int saved_fpu;
 };
-
-void save_fpu(struct thread *thd);
 
 inline void fsave(struct thread*);
 inline void frstor(struct thread*);
@@ -27,6 +26,8 @@ inline void disable_fpu(void);
 inline void enable_fpu(void);
 
 unsigned int cos_read_cr0(void);
-void print_cr0(void);
+void save_fpu(struct thread *thd);
+int fpu_is_disabled(void);
+int thd_saved_fpu(struct thread *thd);
 
 #endif

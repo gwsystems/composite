@@ -3,37 +3,35 @@
 struct thread *last_used_fpu;
 
 void save_fpu(struct thread *thd) {
-//	if(thd->fpu.status == 1) {
-		if((last_used_fpu != NULL) && (last_used_fpu != thd)) {
-			//printk("thd %d, fpu.swd is %10x\n", thd_get_id(last_used_fpu), last_used_fpu->fpu.swd);
-			fsave(last_used_fpu);
-			if(thd->fpu.swd != 0xffff0000) {
-			//	printk("thd %d, fpu.swd is %10x\n", thd_get_id(last_used_fpu), last_used_fpu->fpu.swd);
-			//	printk("thd %d, fpu.swd is %10x\n", thd_get_id(thd), thd->fpu.swd);
-				if(cos_read_cr0() == 0x8005003b) {
-					enable_fpu();
-				}
-				frstor(thd);
-			}
-			//else
-			//	printk("thd %d, fpu.swd is %10x\n", thd_get_id(thd), thd->fpu.swd);
-			
+	if((last_used_fpu != NULL) && (last_used_fpu != thd)) {
+		fsave(last_used_fpu);
+		if(thd_saved_fpu(thd)) {
+			if(fpu_is_disabled())
+				enable_fpu();
+			frstor(thd);
 		}
-		//else
-		//	printk("%d\n", thd_get_id(last_used_fpu));
-		last_used_fpu = thd;
-//	}
-/*
-	else {
-		disable_fpu();
 	}
-*/
+	last_used_fpu = thd;
+}
+
+int fpu_is_disabled() {
+	if(cos_read_cr0() == 0x8005003b)
+		return 1;
+	else
+		return 0;
+}
+
+int thd_saved_fpu(struct thread *thd) {
+	if(thd->fpu.saved_fpu == 1)
+		return 1;
+	else
+		return 0;
 }
 
 inline void fsave(struct thread *thd) {
 	asm volatile("fsave %0" : "=m" (thd->fpu));
+	thd->fpu.saved_fpu = 1;
 }
-
 
 inline void frstor(struct thread *thd) {
 	asm volatile("frstor %0 " : : "m" (thd->fpu));
@@ -58,8 +56,4 @@ unsigned int cos_read_cr0(void) {
 	unsigned int val;
 	asm volatile("mov %%cr0,%0" : "=r" (val));
 	return val;
-}
-
-void print_cr0(void) {
-	printk("cr0: %8x\n", read_cr0());
 }
