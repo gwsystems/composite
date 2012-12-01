@@ -36,7 +36,7 @@ int save_fpu(struct thread *curr, struct thread *next) {
 } 
 
 int fpu_is_disabled() {
-	if(cos_read_cr0() == 0x8005003b)
+	if(cos_read_cr0() & FPU_DISABLED)
 		return 1;
 	else
 		return 0;

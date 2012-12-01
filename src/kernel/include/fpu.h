@@ -3,6 +3,8 @@
 #ifndef FPU_H
 #define FPU_H
 
+#define FPU_DISABLED 0x00000008
+
 extern struct thread *last_used_fpu;
 
 struct cos_fpu {
