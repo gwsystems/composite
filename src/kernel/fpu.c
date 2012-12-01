@@ -2,31 +2,38 @@
 
 struct thread *last_used_fpu;
 
-void save_fpu(struct thread *curr, struct thread *next) {
-	if(next->fpu.status) {
-		if(last_used_fpu != NULL) {
-			if(last_used_fpu == next) 
-				enable_fpu();
-			else {
-				if(fpu_is_disabled())
-					enable_fpu();
-
-				fsave(last_used_fpu);
-				if(next->fpu.saved_fpu) {
-					frstor(next);
-				}    
-				last_used_fpu = next; 
-			}    
-		} else {
-			enable_fpu();
-			last_used_fpu = next; 
-		}    
-	} else {
-		if(curr->fpu.status)
-			last_used_fpu = curr;
+int save_fpu(struct thread *curr, struct thread *next) {
+	// if next thread doesn't use fpu, then we just disable the fpu
+	if(next->fpu.status == 0) {
 		disable_fpu();
-	} 
-}
+		return 0;
+	}
+
+	// next thread uses fpu
+	// if no thread used fpu before, then we set next thread as the last_used_fpu
+	if(last_used_fpu == NULL) {
+		if(fpu_is_disabled()) enable_fpu();
+		last_used_fpu = next;
+		return 0;
+	}
+
+	// next thread uses fpu
+	// last_used_fpu exists
+	// if last_used_fpu == next, then we simply re-enable the fpu fot the thread
+	if(last_used_fpu == next) {
+		if(fpu_is_disabled()) enable_fpu();
+		return 0;
+	}
+
+	// next thread uses fpu
+	// last_used_fpu exists
+	// if last_used_fpu != next, then we save current fpu states to last_used_fpu, restore next thread's fpu state
+	if(fpu_is_disabled()) enable_fpu();
+	fsave(last_used_fpu);
+	if(next->fpu.saved_fpu) frstor(next);
+	last_used_fpu = next; 
+	return 0;
+} 
 
 int fpu_is_disabled() {
 	if(cos_read_cr0() == 0x8005003b)
