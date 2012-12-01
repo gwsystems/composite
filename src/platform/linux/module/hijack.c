@@ -419,12 +419,12 @@ static inline struct pt_regs* get_user_regs_thread(struct task_struct *thd)
 {
 	return (struct pt_regs*)((int)thd->thread.sp0 - sizeof(struct pt_regs));
 }
-
-static inline struct cos_fpu* get_user_fregs_thread(struct task_struct *thd)
+/*
+static inline struct cos_fregs* get_user_fregs_thread(struct task_struct *thd)
 {
-	return (struct cos_fpu*) &(thd->thread.fpu.state->fsave);
+	return (struct cos_fpu*)(&(thd->thread.fpu.state->fsave));
 }
-
+*/
 /* copy the current user-space regs to user-level */
 static inline int write_regs_to_user(struct pt_regs * __user user_regs_area)
 {
@@ -1158,13 +1158,11 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 	if (composite_thread != current) return 1;
 
 	t = thd_get_current();
-
 	t->fpu.status = 1;
-	last_used_fpu = t;
-
-	printk("exception\n");
-
 	enable_fpu();
+	if(last_used_fpu && last_used_fpu != t)
+		fsave(last_used_fpu);
+	last_used_fpu = t;
 
 	return 1;
 }
@@ -1647,7 +1645,7 @@ int host_can_switch_pgtbls(void) { return current == composite_thread; }
 int host_attempt_brand(struct thread *brand)
 {
 	struct pt_regs *regs = NULL;
-	struct cos_fpu *fregs = NULL;
+	//struct cos_fpu *fregs = NULL;
 	unsigned long flags;
 	
 	local_irq_save(flags);
@@ -1727,7 +1725,7 @@ int host_attempt_brand(struct thread *brand)
  		}
 
 		regs = get_user_regs_thread(composite_thread);
-		fregs = get_user_fregs_thread(composite_thread);
+		//fregs = get_user_fregs_thread(composite_thread);
 		/* 
 		 * If both esp and xss == 0, then the interrupt
 		 * occured between sti; sysexit on the cos ipc/syscall
@@ -1764,10 +1762,8 @@ int host_attempt_brand(struct thread *brand)
 
 			if (next != cos_current) {
 				thd_save_preempted_state(cos_current, regs);
-				if(next->fpu.status != 1)
-					save_fpu(next);
-				else
-					disable_fpu();
+				save_fpu(cos_current, next);
+
 				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
 					printk("cos: upcall thread %d is not set to be an active upcall.\n",
 					       thd_get_id(next));
@@ -1788,6 +1784,8 @@ int host_attempt_brand(struct thread *brand)
 				regs->orig_ax = next->regs.ax;
 				regs->sp = next->regs.sp;
 				regs->bp = next->regs.bp;
+
+				//memcpy(fregs, &cos_current->fpu, sizeof(struct cos_fpu));
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 
@@ -1799,7 +1797,7 @@ int host_attempt_brand(struct thread *brand)
 	} 
 done:
 	local_irq_restore(flags);
-		
+
 	return 0;
 }
 

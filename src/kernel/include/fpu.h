@@ -26,8 +26,7 @@ inline void disable_fpu(void);
 inline void enable_fpu(void);
 
 unsigned int cos_read_cr0(void);
-void save_fpu(struct thread *thd);
+void save_fpu(struct thread *curr, struct thread *next);
 int fpu_is_disabled(void);
-int thd_saved_fpu(struct thread *thd);
 
 #endif

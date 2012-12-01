@@ -2,27 +2,34 @@
 
 struct thread *last_used_fpu;
 
-void save_fpu(struct thread *thd) {
-	if((last_used_fpu != NULL) && (last_used_fpu != thd)) {
-		fsave(last_used_fpu);
-		if(thd_saved_fpu(thd)) {
-			if(fpu_is_disabled())
+void save_fpu(struct thread *curr, struct thread *next) {
+	if(next->fpu.status) {
+		if(last_used_fpu != NULL) {
+			if(last_used_fpu == next) 
 				enable_fpu();
-			frstor(thd);
-		}
-	}
-	last_used_fpu = thd;
+			else {
+				if(fpu_is_disabled())
+					enable_fpu();
+
+				fsave(last_used_fpu);
+				if(next->fpu.saved_fpu) {
+					frstor(next);
+				}    
+				last_used_fpu = next; 
+			}    
+		} else {
+			enable_fpu();
+			last_used_fpu = next; 
+		}    
+	} else {
+		if(curr->fpu.status)
+			last_used_fpu = curr;
+		disable_fpu();
+	} 
 }
 
 int fpu_is_disabled() {
 	if(cos_read_cr0() == 0x8005003b)
-		return 1;
-	else
-		return 0;
-}
-
-int thd_saved_fpu(struct thread *thd) {
-	if(thd->fpu.saved_fpu == 1)
 		return 1;
 	else
 		return 0;

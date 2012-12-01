@@ -896,10 +896,8 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	} else {
 		cos_meas_event(COS_MEAS_SWITCH_COOP);
 	}
-	if(thd->fpu.status)
-		save_fpu(thd);
-	else
-		disable_fpu();
+
+	save_fpu(curr, thd);
 
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
 
