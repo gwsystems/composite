@@ -18,6 +18,6 @@ void cos_init(void *arg)
 //	BUG();
 //	spin_var = *(int*)NULL;
 	printc("<<**Running!**>>\n");
-//	while (1) if (spin_var) other = 1;
+	while (1) if (spin_var) other = 1;
 	return;
 }

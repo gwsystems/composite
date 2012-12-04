@@ -27,13 +27,14 @@
 
 #include <tmem.h>
 #include <cbuf_c.h>
+#include <cvect.h>
 
 #define DEFAULT_TARGET_ALLOC MAX_NUM_MEM 
 
 COS_MAP_CREATE_STATIC(cb_ids);
 
 #define CBUF_OBJ_SZ_SHIFT 6
-#define CB_IDX(id, cbr) (id - cbr->start_id - 1)
+#define CB_IDX(id, cbr) (id - cbr->start_id)
 
 struct cos_cbuf_item *alloc_item_data_struct(void *l_addr) 
 {
@@ -82,7 +83,9 @@ err:
 	return cci;
 }
 
-//  all cbufs that created for this component
+/*
+ * all cbufs that created for this component
+ */;
 void mgr_map_client_mem(struct cos_cbuf_item *cci, struct spd_tmem_info *sti)
 {
 	char *l_addr, *d_addr;
@@ -93,7 +96,6 @@ void mgr_map_client_mem(struct cos_cbuf_item *cci, struct spd_tmem_info *sti)
 	assert(EMPTY_LIST(cci, next, prev));
 
 	d_spdid = sti->spdid;
-
 	/* TODO: multiple pages cbuf! */
 	d_addr = valloc_alloc(cos_spd_id(), sti->spdid, 1);
 	l_addr = cci->desc.addr;  //initialized in cos_init()
@@ -104,7 +106,7 @@ void mgr_map_client_mem(struct cos_cbuf_item *cci, struct spd_tmem_info *sti)
 	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)l_addr, d_spdid, (vaddr_t)d_addr))) 
 		goto err;
 	cci->desc.owner.addr = (vaddr_t)d_addr;
-	cci->parent_spdid = d_spdid;
+	cci->parent_spdid    = d_spdid;
 	assert(cci->desc.cbid == 0);
 	// add the cbuf to shared vect here? now we do it in the client.
 	// and l_addr and d_addr has been assinged
@@ -235,8 +237,8 @@ __spd_cbvect_add_range(struct spd_tmem_info *sti, long cbuf_id, vaddr_t page)
 	cbr = malloc(sizeof(struct spd_cbvect_range));
 	if (!cbr) return -1;
 
-	cbr->start_id = (cbuf_id - 1) & ~CVECT_MASK;
-	cbr->end_id = cbr->start_id + CVECT_BASE - 1;
+	cbr->start_id = (cbuf_id) & ~CVECT_MASK;
+	cbr->end_id = cbr->start_id + CVECT_BASE;
 	cbr->meta = (struct cbuf_meta*)page;
 
 	/* DOUT("spd %d  sti %p cbr->meta %p\n",sti->spdid,sti, cbr->meta); */
@@ -306,7 +308,9 @@ cbuf_c_register(spdid_t spdid, long cbid)
 	sti = get_spd_info(spdid);
 	
 	mgr_addr = (vaddr_t)alloc_page();
+	assert(mgr_addr);
 	p = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, 1);
+	assert(p);
 	if (p != (mman_alias_page(cos_spd_id(), mgr_addr, spdid, p))) {
 		valloc_free(cos_spd_id(), spdid, (void *)p, 1);
 		RELEASE();
@@ -319,10 +323,8 @@ cbuf_c_register(spdid_t spdid, long cbid)
 	return p;
 }
 
-extern struct cos_cbuf_item *cbufp_grant(struct spd_tmem_info *sti, int size);
-
 int
-cbuf_c_create(spdid_t spdid, int size, long cbid, int tmem)
+cbuf_c_create(spdid_t spdid, int size, long cbid)
 {
 	int ret = -1;
 	void *v;
@@ -350,7 +352,7 @@ cbuf_c_create(spdid_t spdid, int size, long cbid, int tmem)
 	 */
 	if (cbid) {
 		 // vector should already exist
-		v = cos_map_lookup(&cb_ids, cbid);
+		v    = cos_map_lookup(&cb_ids, cbid);
 		if (unlikely((spdid_t)(int)v != spdid)) goto err;
  	} else {
 		cbid = cos_map_add(&cb_ids, (void *)(unsigned long)spdid);
@@ -365,8 +367,7 @@ cbuf_c_create(spdid_t spdid, int size, long cbid, int tmem)
 	 * cos_map here to ensure that the new cbuf_item has the same
 	 * cbid as the entry we created above.
 	 */
-	if (tmem) cbuf_item = tmem_grant(sti);
-	else      cbuf_item = cbufp_grant(sti, size);
+	cbuf_item = tmem_grant(sti);
 	assert(cbuf_item);
 	d                   = &cbuf_item->desc;
 	d->sz               = PAGE_SIZE;
@@ -401,17 +402,11 @@ cbuf_c_create(spdid_t spdid, int size, long cbid, int tmem)
 	d->owner.meta = mc;
 
 	mc->nfo.c.ptr = d->owner.addr >> PAGE_ORDER;
-	if (tmem) {
-		mc->sz              = PAGE_SIZE;
-		mc->owner_nfo.thdid = cos_get_thd_id();
-		mc->nfo.c.flags    |= CBUFM_IN_USE | CBUFM_TOUCHED | CBUFM_OWNER | 
-			              CBUFM_TMEM   | CBUFM_WRITABLE;
-		d->flags           |= CBUF_DESC_TMEM;
-	} else {
-		mc->sz                = size;
-		mc->owner_nfo.c.nsent = mc->owner_nfo.c.nrecvd = 0;
-		mc->nfo.c.flags      |= CBUFM_IN_USE | CBUFM_OWNER | CBUFM_WRITABLE;
-	}
+	mc->sz              = PAGE_SIZE;
+	mc->owner_nfo.thdid = cos_get_thd_id();
+	mc->nfo.c.flags    |= CBUFM_IN_USE | CBUFM_TOUCHED | CBUFM_OWNER | 
+		              CBUFM_TMEM   | CBUFM_WRITABLE;
+	d->flags           |= CBUF_DESC_TMEM;
 done:
 	RELEASE();
 	return ret;
@@ -466,13 +461,12 @@ cbuf_c_delete(spdid_t spdid, int cbid)
 	int ret = 0;  /* return value not used */
 
 	TAKE();
-
 	sti = get_spd_info(spdid);
 	assert(sti);
 
 	return_tmem(sti);
-
 	RELEASE();
+
 	return ret;
 }
 

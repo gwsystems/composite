@@ -11,6 +11,7 @@
 #define   	CBUF_C_H
 
 #include <cos_component.h>
+//#include <cbufp.h>
 
 /* 
  * cbuf_c_create and cbuf_c_retrieve:
@@ -23,7 +24,7 @@
  * cbuf_c_register.  We expect that we will call this function again
  * with c to get the cbuf's address via a populated cbuf_meta.
  */
-int cbuf_c_create(spdid_t spdid, int size, long cbid, int tmem); /* return cbid */
+int cbuf_c_create(spdid_t spdid, int size, long cbid); /* return cbid */
 int cbuf_c_delete(spdid_t spdid, int cbid);
 int cbuf_c_retrieve(spdid_t spdid, int cbid, int len);
 vaddr_t cbuf_c_register(spdid_t spdid, long cbid);
@@ -43,7 +44,7 @@ int cbufmgr_set_over_quota_limit(int limit);
 int cbufmgr_set_suspension_limit(spdid_t cid, int limit);
 int cbufmgr_get_allocated(spdid_t cid);
 
-#include <cbuf_vect.h>
-#include <mem_mgr_large.h>
+/* #include <cbuf_vect.h> */
+/* #include <mem_mgr_large.h> */
 
 #endif 	    /* !CBUF_C_H */

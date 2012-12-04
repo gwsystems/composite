@@ -29,7 +29,7 @@ void cbuf_call(char c)
 	printc("\n****** MID: thread %d in spd %ld ******\n",cos_get_thd_id(), cos_spd_id());
 
 	/* cbuf_t cb = cbuf_null(); */
-	u32_t id, idx;
+	u32_t id;
 	/* u64_t start, end; */
 	int i;
 
@@ -38,8 +38,8 @@ void cbuf_call(char c)
 	for (i = 0; i < iter ; i++){
 		cbt[i] = cbuf_null();
 		mt[i] = cbuf_alloc(SZ, &cbt[i]);
-		cbuf_unpack(cbt[i], &id, &idx);
-		printc("thread %d Now @ %p, memid %x, idx %x\n", cos_get_thd_id(), mt[i], id, idx);
+		cbuf_unpack(cbt[i], &id);
+		printc("thread %d Now @ %p, memid %x\n", cos_get_thd_id(), mt[i], id);
 		assert(mt[i]);
 		memset(mt[i], c, SZ);
 	}
