@@ -148,7 +148,7 @@ static vaddr_t boot_spd_end(struct cobj_header *h)
 static int boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
 	unsigned int i;
-	vaddr_t dest_daddr;
+	vaddr_t dest_daddr, prev_map;
 
 	local_md[spdid].spdid      = spdid;
 	local_md[spdid].h          = h;
@@ -162,12 +162,18 @@ static int boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t com
 		sect       = cobj_sect_get(h, i);
 		dest_daddr = sect->vaddr;
 		left       = cobj_sect_size(h, i);
-
+		/* previous section overlaps with this one, don't remap! */
+		if (round_to_page(dest_daddr) == prev_map) {
+			left -= (prev_map + PAGE_SIZE - dest_daddr);
+			dest_daddr = prev_map + PAGE_SIZE;
+		} 
+		printc("spdid %d, section %d, starting @ %x:%x (to %x)\n", spdid, i, dest_daddr, left, dest_daddr + left);
 		while (left > 0) {
 			dsrc = cos_get_vas_page();
 			if ((vaddr_t)dsrc != __mman_get_page(cos_spd_id(), (vaddr_t)dsrc, 0)) BUG();
 			if (dest_daddr != (__mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr))) BUG();
 
+			prev_map = dest_daddr;
 			dest_daddr += PAGE_SIZE;
 			left       -= PAGE_SIZE;
 		}
@@ -177,41 +183,63 @@ static int boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t com
 	return 0;
 }
 
-static int boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
+static int boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, int first_time)
 {
 	unsigned int i;
-	char *start_page;
+	/* Where are we in the actual component's memory in the booter? */
+	char *start_addr, *prev_offset;
+	/* Where are we in the destination address space? */
+	vaddr_t prev_daddr;
 	
-	start_page = local_md[spdid].page_start;
+	start_addr = local_md[spdid].page_start;
+	prev_daddr = cobj_sect_get(h, 0)->vaddr;
+
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
 		vaddr_t dest_daddr;
 		char *lsrc, *dsrc;
-		int left, page_left;
+		int left, dest_doff;
 
 		sect       = cobj_sect_get(h, i);
+		/* virtual address in the destination address space */
 		dest_daddr = sect->vaddr;
+		/* offset from where the previous section left off? */
+		dest_doff  = dest_daddr-prev_daddr;
+		/* where we're writing to in the page array */
+		dsrc       = start_addr + dest_doff;
+		/* where we're copying from in the cobj */
 		lsrc       = cobj_sect_contents(h, i);
+		/* how much is left to copy? */
 		left       = cobj_sect_size(h, i);
-
-		while (left) {
-			/* data left on a page to copy over */
-			page_left   = (left > PAGE_SIZE) ? PAGE_SIZE : left;
-			dsrc        = start_page;
-			start_page += PAGE_SIZE;
-
+		
+		/* 
+		 * Initialize memory. 
+		 */
+		if (first_time || !(sect->flags & COBJ_SECT_INITONCE)) {
 			if (sect->flags & COBJ_SECT_ZEROS) {
-				memset(dsrc, 0, PAGE_SIZE);
+				memset(dsrc, 0, left);
 			} else {
-				memcpy(dsrc, lsrc, page_left);
-				if (page_left < PAGE_SIZE) memset(dsrc+page_left, 0, PAGE_SIZE - page_left);
+				memcpy(dsrc, lsrc, left);
 			}
+		}
+		prev_daddr  = dest_daddr + dest_doff + left;
+		start_addr += left;
+
+		/*
+		 * Initialize the component_info (CI) page
+		 */
+		/* CI must start on a page boundary: round up to a page */
+		if (dest_daddr == round_to_page(dest_daddr)) {
+			
+		}
+		while (left > 0) {
+			dsrc        = start_addr;
+			start_addr += PAGE_SIZE;
 
 			/* Check if special symbols that need
 			 * modification are in this page */
 			boot_symb_process(h, spdid, boot_spd_end(h), dsrc, dest_daddr, comp_info);
 			
-			lsrc       += PAGE_SIZE;
 			dest_daddr += PAGE_SIZE;
 			left       -= page_left;
 		}
@@ -222,7 +250,7 @@ static int boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t c
 static int boot_spd_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
 	if (boot_spd_map_memory(h, spdid, comp_info)) return -1; 
-	if (boot_spd_map_populate(h, spdid, comp_info)) return -1;
+	if (boot_spd_map_populate(h, spdid, comp_info, 1)) return -1;
 
 	return 0;
 }
@@ -408,7 +436,7 @@ failure_notif_fail(spdid_t caller, spdid_t failed)
 //	boot_spd_caps_chg_activation(failed, 0);
 	md = &local_md[failed];
 	assert(md);
-	if (boot_spd_map_populate(md->h, failed, md->comp_info)) BUG();
+	if (boot_spd_map_populate(md->h, failed, md->comp_info, 0)) BUG();
 	/* can fail if component had no boot threads: */
 	if (md->h->flags & COBJ_INIT_THD) boot_spd_thd(failed); 	
 	if (boot_spd_caps(md->h, failed)) BUG();

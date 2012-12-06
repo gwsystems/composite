@@ -12,12 +12,11 @@
 #define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 
-
-.bss
+.section .initonce
 .align 32
 .globl nil
 nil:
-	.rep 2048
+	.rep 1024
 	.long 0
 	.endr
 
@@ -28,7 +27,6 @@ cos_static_stack:
 	.endr
 .globl cos_static_stack_end
 cos_static_stack_end:
-	.long 0
 	
 .text
 .globl cos_upcall_entry

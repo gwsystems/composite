@@ -33,8 +33,8 @@
  * names, 3) thread state
  */
 
-/* Currently assume that nsect == 3, data, text, bss */
-#define COBJ_NSECT 3
+/* Currently assume that nsect == 4, data, text, bss, initonce*/
+#define COBJ_NSECT 4
 #define COBJ_NAME_SZ 64
 
 /* cobj flags */
@@ -48,10 +48,11 @@ struct cobj_header {
 } __attribute__((packed));
 
 enum {
-	COBJ_SECT_UNINIT = 0,
-	COBJ_SECT_READ   = 0x1,
-	COBJ_SECT_WRITE  = 0x2,
-	COBJ_SECT_ZEROS  = 0x8
+	COBJ_SECT_UNINIT   = 0,
+	COBJ_SECT_READ     = 0x1,
+	COBJ_SECT_WRITE    = 0x2,
+	COBJ_SECT_ZEROS    = 0x8,
+	COBJ_SECT_INITONCE = 0x10,
 };
 
 struct cobj_sect {

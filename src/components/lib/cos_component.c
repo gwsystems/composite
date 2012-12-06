@@ -7,7 +7,7 @@
 
 #include <cos_component.h>
 
-long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
+//long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
 
 /* This should only really be present in schedulers! */
 struct cos_sched_data_area cos_sched_notifications = {
