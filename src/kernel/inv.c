@@ -897,7 +897,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		cos_meas_event(COS_MEAS_SWITCH_COOP);
 	}
 
-	save_fpu(curr, thd);
+	fpu_save(curr, thd);
 
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
 
@@ -931,6 +931,7 @@ switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd
 	}
 
 	thd = switch_thread_get_target(next_thd, curr, curr_spd, ret_code);
+
 	if (unlikely(NULL == thd)) goto_err(ret_err, "get_target");
 
 	if (flags & (COS_SCHED_TAILCALL | COS_SCHED_BRAND_WAIT)) {

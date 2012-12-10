@@ -419,12 +419,7 @@ static inline struct pt_regs* get_user_regs_thread(struct task_struct *thd)
 {
 	return (struct pt_regs*)((int)thd->thread.sp0 - sizeof(struct pt_regs));
 }
-/*
-static inline struct cos_fregs* get_user_fregs_thread(struct task_struct *thd)
-{
-	return (struct cos_fpu*)(&(thd->thread.fpu.state->fsave));
-}
-*/
+
 /* copy the current user-space regs to user-level */
 static inline int write_regs_to_user(struct pt_regs * __user user_regs_area)
 {
@@ -1159,7 +1154,7 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 
 	t = thd_get_current();
 	t->fpu.status = 1;
-	enable_fpu();
+	fpu_enable();
 	// if last_used_fpu exists and is not current thread, then save curr states to it
 	if(last_used_fpu && last_used_fpu != t)
 		fsave(last_used_fpu);
@@ -1763,7 +1758,7 @@ int host_attempt_brand(struct thread *brand)
 
 			if (next != cos_current) {
 				thd_save_preempted_state(cos_current, regs);
-				save_fpu(cos_current, next);
+				fpu_save(cos_current, next);
 
 				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
 					printk("cos: upcall thread %d is not set to be an active upcall.\n",
@@ -1785,8 +1780,6 @@ int host_attempt_brand(struct thread *brand)
 				regs->orig_ax = next->regs.ax;
 				regs->sp = next->regs.sp;
 				regs->bp = next->regs.bp;
-
-				//memcpy(fregs, &cos_current->fpu, sizeof(struct cos_fpu));
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 

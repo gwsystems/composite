@@ -7,7 +7,8 @@
 
 extern struct thread *last_used_fpu;
 
-struct cos_fpu {
+struct cos_fpu
+{
         unsigned int cwd; /* FPU Control Word*/
         unsigned int swd; /* FPU Status Word */
         unsigned int twd; /* FPU Tag Word */
@@ -24,11 +25,12 @@ struct cos_fpu {
 
 inline void fsave(struct thread*);
 inline void frstor(struct thread*);
-inline void disable_fpu(void);
-inline void enable_fpu(void);
 
-unsigned int cos_read_cr0(void);
-int save_fpu(struct thread *curr, struct thread *next);
+inline void fpu_disable(void);
+inline void fpu_enable(void);
+int fpu_save(struct thread *curr, struct thread *next);
 int fpu_is_disabled(void);
+int fpu_thread_uses_fp(struct thread *thd);
+unsigned int fpu_read_cr0(void);
 
 #endif
