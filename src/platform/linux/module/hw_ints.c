@@ -137,7 +137,7 @@ void
 hw_int_override_sysenter(void *handler)
 {
 	wrmsr(MSR_IA32_SYSENTER_EIP, (int)handler, 0);
-	printk("CPU %d: Overriding sysenter handler (%p) with %p\n", 
+	printk("CPU %d: Overriding sysenter handler (%p) with %p\n",
 	       get_cpu(), cos_default_sysenter_addr, handler);
 }
 
@@ -215,8 +215,8 @@ hw_int_override_pagefault(void *handler)
 	
 	cos_set_idt_entry(14, default_idt_entry[14].dpl, default_idt_entry[14].ints_enabled, 
 			  cos_realloc_page_fault_handler, default_idt);
-	printk("CPU %d: Overriding page_fault handler (%p, dpl %d, int %d) with %p (via trampoline %p)\n", 
-	       get_cpu(), default_idt_entry[14].handler, default_idt_entry[14].dpl, 
+	printk("CPU %d: Overriding page_fault handler (%p, dpl %d, int %d) with %p (via trampoline %p)\n",
+	       get_cpu(), default_idt_entry[14].handler, default_idt_entry[14].dpl,
 	       default_idt_entry[14].ints_enabled, handler, cos_realloc_page_fault_handler);
 
 	return 0;
@@ -239,8 +239,8 @@ hw_int_override_idt(int fault_num, void *handler, int ints_enabled, int dpl)
 	 * translation from include/asm-i386/fixmap.h
 	 */
 	cos_set_idt_entry(fault_num, dpl, ints_enabled, handler, default_idt);
-	printk("CPU %d: Overriding %d IDT handler (%p, dpl %d, int %d) with %p, dpl %d, int %d\n", 
-	       get_cpu(), fault_num, default_idt_entry[fault_num].handler, default_idt_entry[fault_num].dpl, 
+	printk("CPU %d: Overriding %d IDT handler (%p, dpl %d, int %d) with %p, dpl %d, int %d\n",
+	       get_cpu(), fault_num, default_idt_entry[fault_num].handler, default_idt_entry[fault_num].dpl,
 	       default_idt_entry[fault_num].ints_enabled, handler, dpl, ints_enabled);
 
 	return 0;

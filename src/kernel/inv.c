@@ -131,7 +131,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	struct thd_invocation_frame *curr_frame;
 	struct spd *curr_spd, *dest_spd;
 	struct invocation_cap *cap_entry;
-	struct thread *thd = core_get_curr_thd();
+	struct thread *thd = core_get_curr_thd_id(get_cpuid_fast());
 
 	capability >>= 20;
 
@@ -187,10 +187,11 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	cos_meas_event(COS_MEAS_INVOCATIONS);
 
 	open_close_spd(dest_spd->composite_spd, curr_spd->composite_spd);
-	
+
+	/* Updating current spd: not used for now. */
 	/* core_put_curr_spd(&(dest_spd->spd_info)); */
 
-	ret->thd_id = thd->thread_id | (get_cpuid() << 16);
+	ret->thd_id = thd->thread_id | (get_cpuid_fast() << 16);
 	ret->spd_id = spd_get_index(curr_spd);
 
 	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
@@ -219,7 +220,7 @@ pop(struct pt_regs **regs_restore)
 	struct thd_invocation_frame *inv_frame;
 	struct thd_invocation_frame *curr_frame;
 
-	struct thread *curr = core_get_curr_thd();
+	struct thread *curr = core_get_curr_thd_id(get_cpuid_fast());
 
 	inv_frame = thd_invocation_pop(curr);
 

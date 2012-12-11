@@ -4,8 +4,8 @@
 #include "cpu_ghz.h"
 #define NUM_CPU                3
 #define INIT_CORE              0
-/* Currently Linux runs on the last core only. The code uses the
- * following macro assumes this. We might need to allocate more cores
+/* Currently Linux runs on the last core only. The code using the
+ * following macro assumes this. We might need to assign more cores
  * to Linux later. */
 #define LINUX_CORE             (NUM_CPU - 1)
 #define NUM_CPU_COS            (NUM_CPU > 1 ? NUM_CPU - 1 : 1) /* how many cores Composite owns */

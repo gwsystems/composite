@@ -23,11 +23,21 @@ get_linux_thread_info(void)
 static inline unsigned int
 get_cpuid(void)
 {
-#if NUM_CPU == 1
-	return 0;
-#endif
 	/* Linux saves the CPU_ID in the stack for fast access. */
 	return *(get_linux_thread_info() + CPUID_OFFSET_IN_THREAD_INFO);
+}
+
+/* This function is only used in the invocation path. It optimizes for
+ * the uniprocessor case. */
+static inline unsigned int
+get_cpuid_fast(void)
+{
+/* Optimize for uniprocessor! */
+#if NUM_CPU == 1
+	return 0;
+#else
+	return get_cpuid();
+#endif
 }
 
 #endif /* CPUID_H */
