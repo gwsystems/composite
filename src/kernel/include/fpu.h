@@ -5,9 +5,9 @@
 
 #define FPU_DISABLED 0x00000008
 
-extern struct thread *last_used_fpu;
+//extern struct thread *last_used_fpu;
 
-struct cos_fstate
+struct cos_fpu
 {
         u16_t cwd; /* FPU Control Word*/
         u16_t swd; /* FPU Status Word */
@@ -70,4 +70,5 @@ int fpu_is_disabled(void);
 int fpu_thread_uses_fp(struct thread *thd);
 unsigned int fpu_read_cr0(void);
 
+struct thread* fpu_get_last_used(void);
 #endif

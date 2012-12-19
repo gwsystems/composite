@@ -1,7 +1,7 @@
 #include "include/fpu.h"
 
 static int fpu_disabled = 1;
-struct thread *last_used_fpu;
+static struct thread *last_used_fpu;
 
 int
 fpu_save(struct thread *curr, struct thread *next)
@@ -115,4 +115,8 @@ fpu_read_cr0(void)
 	unsigned int val;
 	asm volatile("mov %%cr0,%0" : "=r" (val));
 	return val;
+}
+
+struct thread* fpu_get_last_used(){
+	return last_used_fpu;
 }

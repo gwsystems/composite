@@ -1155,6 +1155,7 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 	t = thd_get_current();
 	t->fpu.status = 1;
 	fpu_enable();
+	struct thread *last_used_fpu = fpu_get_last_used();
 	// if last_used_fpu exists and is not current thread, then save curr states to it
 	if(last_used_fpu && last_used_fpu != t)
 		//fsave(last_used_fpu);
