@@ -79,6 +79,7 @@ struct thread {
 	
 	struct pt_regs regs;
 	struct cos_fpu fpu;
+	struct cos_fpu_struct cos_fpu;
 
 	/* the first frame describes the threads protection domain */
 	struct thd_invocation_frame stack_base[MAX_SERVICE_DEPTH] HALF_CACHE_ALIGNED;
