@@ -32,9 +32,9 @@ __cbuf_vect_expand_rec(struct cvect_intern *vi, const long id, const int depth, 
 		long n = id >> (CVECT_SHIFT * (depth-1));
 		if (vi[n & CVECT_MASK].c.next == NULL) {
 			if (tmem) {
-				new = (struct cvect_intern *)cbuf_c_register(cos_spd_id(), id);
+				new = (struct cvect_intern *)cbuf_c_register(cos_spd_id(), meta_to_cbid_idx(id));
 			} else {
-				new = (struct cvect_intern *)cbufp_register(cos_spd_id(), id);			
+				new = (struct cvect_intern *)cbufp_register(cos_spd_id(), meta_to_cbid_idx(id));			
 			}
 			if (!new) return -1;
 			vi[n & CVECT_MASK].c.next = new;

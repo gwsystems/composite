@@ -1119,12 +1119,11 @@ int main_div_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 
 	if (composite_thread != current) return 1;
 
-	printk("<<< finally >>>\n");
-
 	t = thd_get_current();
 	cos_record_fault_regs(t, error_code, error_code, rs);
+	fault_ipc_invoke(t, rs->ip, 0, rs, COS_FLT_DIVZERO);
 
-	return 1;
+	return 0;
 }
 
 __attribute__((regparm(3))) int

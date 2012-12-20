@@ -1,7 +1,7 @@
 MAKEFLAGS=--no-print-directory -I$(PWD)
 #$(info Make flags $(MAKEFLAGS))
 
-all: kern
+all: kern cp
 comps: 
 	$(info )
 	$(info ***********************************************)

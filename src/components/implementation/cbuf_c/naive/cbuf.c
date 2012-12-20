@@ -34,7 +34,7 @@
 COS_MAP_CREATE_STATIC(cb_ids);
 
 #define CBUF_OBJ_SZ_SHIFT 6
-#define CB_IDX(id, cbr) (id - cbr->start_id - 1)
+#define CB_IDX(id, cbr) (id - cbr->start_id)
 
 struct cos_cbuf_item *alloc_item_data_struct(void *l_addr) 
 {
@@ -237,8 +237,8 @@ __spd_cbvect_add_range(struct spd_tmem_info *sti, long cbuf_id, vaddr_t page)
 	cbr = malloc(sizeof(struct spd_cbvect_range));
 	if (!cbr) return -1;
 
-	cbr->start_id = (cbuf_id - 1) & ~CVECT_MASK;
-	cbr->end_id = cbr->start_id + CVECT_BASE - 1;
+	cbr->start_id = (cbuf_id) & ~CVECT_MASK;
+	cbr->end_id = cbr->start_id + CVECT_BASE;
 	cbr->meta = (struct cbuf_meta*)page;
 
 	/* DOUT("spd %d  sti %p cbr->meta %p\n",sti->spdid,sti, cbr->meta); */
