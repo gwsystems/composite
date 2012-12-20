@@ -12,7 +12,8 @@
 #define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 
-.section .initonce
+//.section .initonce
+.section .bss
 .align 32
 .globl nil
 nil:

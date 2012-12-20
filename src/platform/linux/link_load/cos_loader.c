@@ -45,7 +45,7 @@
 
 #include <cobj_format.h>
 
-enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_HIGH;
+enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_DEBUG;
 
 #define printl(lvl,format, args...)				\
 	{							\
@@ -130,17 +130,74 @@ fault_handler_num(char *fn_name)
 #define STRIP_BIN "/usr/bin/strip"
 #define GCC_BIN "gcc"
 
-/** 
- * gabep1: the SIG_S is a section devoted to the signal handling and
- * it must be in a page on its own one page away from the rest of the
- * module 
- */
-enum {TEXT_S, RODATA_S, DATA_S, BSS_S, INITONCE_S, EH_FRAME_S, MAXSEC_S};
-
 struct sec_info {
 	asection *s;
 	int offset;
 };
+
+#define MAX_COBJ_SECT 5
+#define MAX_BOOT_SECT (MAX_COBJ_SECT+1)
+
+typedef enum {TEXT_S, RODATA_S, DATA_S, BSS_S, INITONCE_S, EH_FRAME_S, MAXSEC_S} sec_type_t;
+/* 
+ * TODO: add structure containing all information about sections, so
+ * that they can be created algorithmically, in a loop, instead of
+ * this hard-coding crap.
+ */
+struct cos_sections {
+	sec_type_t secid;
+	int cobj_flags;
+	int coalesce; 		/* should this section be output with the previous? */
+	char *sname;
+	struct sec_info srcobj, ldobj;
+};
+
+struct cos_sections section_info[MAXSEC_S] = {
+	{
+		.secid      = TEXT_S,
+		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
+		.coalesce   = 0,
+		.sname      = ".text"
+	},
+	{
+		.secid      = RODATA_S,
+		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
+		.coalesce   = 1,
+		.sname      = ".rodata"
+	},
+	{
+		.secid      = DATA_S,
+		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE,
+		.coalesce   = 0,
+		.sname      = ".data"
+	},
+	{
+		.secid      = BSS_S,
+		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_ZEROS,
+		.coalesce   = 1,
+		.sname      = ".bss"
+	},
+	{
+		.secid      = INITONCE_S,
+		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_ZEROS | COBJ_SECT_INITONCE,
+		.coalesce   = 0,
+		.sname      = ".initonce"
+	},
+	{
+		.secid      = MAXSEC_S,
+		.sname      = NULL
+	}
+};
+static struct cos_sections *
+cos_sect_get(sec_type_t id)
+{
+	int i;
+	
+	for (i = 0 ; section_info[i].secid != MAXSEC_S ; i++) {
+		if (section_info[i].secid == id) return &section_info[i];
+	}
+	return NULL;
+}
 
 unsigned long ro_start;
 unsigned long data_start;
@@ -149,9 +206,6 @@ char script[64];
 char tmp_exec[128];
 
 int spdid_inc = -1;
-
-struct sec_info srcobj[MAXSEC_S];
-struct sec_info ldobj[MAXSEC_S];
 
 #define UNDEF_SYMB_TYPE 0x1
 #define EXPORTED_SYMB_TYPE 0x2
@@ -323,29 +377,24 @@ static void print_syms(bfd *obj)
 }
 #endif
 
-static void findsections(bfd *abfd, asection *sect, PTR obj)
+static void 
+findsections(asection *sect, PTR obj, int ld)
 {
-	struct sec_info *sec_arr = obj;
+	struct cos_sections *css = obj;
+	int i;
 	
-	if(!strcmp(sect->name, ".text")){
-		sec_arr[TEXT_S].s = sect;
-	}
-	else if(!strcmp(sect->name, ".data")){
-		sec_arr[DATA_S].s = sect;
-	}
-	else if(!strcmp(sect->name, ".rodata")){
-		sec_arr[RODATA_S].s = sect;
-	}
-	else if(!strcmp(sect->name, ".bss")){
-		sec_arr[BSS_S].s = sect;
-	}
-	else if (!strcmp(sect->name, ".initonce")) {
-		sec_arr[INITONCE_S].s = sect;
-	}
-	else if (!strcmp(sect->name, ".eh_frame")) {
-		sec_arr[EH_FRAME_S].s = sect;
+	for (i = 0 ; css[i].secid != MAXSEC_S ; i++) {
+		if (!strcmp(css[i].sname, sect->name)) {
+			if (ld) css[i].ldobj.s  = sect;
+			else    css[i].srcobj.s = sect;
+			return;
+		}
 	}
 }
+static void 
+findsections_srcobj(bfd *abfd, asection *sect, PTR obj) { findsections(sect, obj, 0); }
+static void 
+findsections_ldobj(bfd *abfd, asection *sect, PTR obj) { findsections(sect, obj, 1); }
 
 static int calc_offset(int offset, asection *sect)
 {
@@ -369,13 +418,14 @@ static int calculate_mem_size(int first, int last)
 	int i;
 	
 	for (i = first; i < last; i++){
-		if(srcobj[i].s == NULL) {
+		asection *s = section_info[i].srcobj.s;
+		if (s == NULL) {
 			printl(PRINT_DEBUG, "Warning: could not find section for sectno %d.\n", i);
 			continue;
 		}
-		offset = calc_offset(offset, srcobj[i].s);
-		srcobj[i].offset = offset;
-		offset += bfd_get_section_size(srcobj[i].s);
+		offset = calc_offset(offset, s);
+		section_info[i].srcobj.offset = offset;
+		offset += bfd_get_section_size(s);
 	}
 	
 	return offset;
@@ -505,8 +555,8 @@ vaddr_t get_symb_address(struct symb_type *st, const char *symb)
 static int make_cobj_symbols(struct service_symbs *s, struct cobj_header *h);
 static int make_cobj_caps(struct service_symbs *s, struct cobj_header *h);
 
-static int load_service(struct service_symbs *ret_data, unsigned long lower_addr, 
-			unsigned long size)
+static int 
+load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned long size)
 {
 	bfd *obj, *objout;
 	void *tmp_storage;
@@ -538,8 +588,8 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 		return -1;
 	}
 	
-	for (i = 0 ; i < MAXSEC_S ; i++) srcobj[i].s = NULL;
-	bfd_map_over_sections(obj, findsections, srcobj);
+	for (i = 0 ; section_info[i].secid != MAXSEC_S ; i++) section_info[i].srcobj.s = NULL;
+	bfd_map_over_sections(obj, findsections_srcobj, section_info);
 
 	ro_start = lower_addr;
 	/* Determine the size of and allocate the text and Read-Only data area */
@@ -577,7 +627,7 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	data_start   = ro_start + ro_size;
 	/* Allocate the read-writable areas .data .bss .initonce */
 	alldata_size = calculate_mem_size(DATA_S, MAXSEC_S);
-	data_size    = bfd_sect_size(obj, srcobj[DATA_S].s);
+	data_size    = bfd_sect_size(obj, cos_sect_get(DATA_S)->srcobj.s);
 
 	printl(PRINT_DEBUG, "\tData section: %x:%x\n",
 	       (unsigned int)data_start, (unsigned int)alldata_size);
@@ -607,11 +657,11 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 		char *mem;
 		char cobj_name[COBJ_NAME_SZ], *end;
 
-		size   = ro_size_unaligned + bfd_sect_size(obj, srcobj[DATA_S].s);
+		size   = ro_size_unaligned + bfd_sect_size(obj, cos_sect_get(DATA_S)->srcobj.s);
 		nsymbs = ret_data->exported.num_symbs;
 		ncaps  = ret_data->undef.num_symbs;
 		nsects = strncmp(&service_name[5], BOOT_COMP, strlen(BOOT_COMP)) ?
-			 4 : 5; /* booter gets an extra section */
+			 3 : 4; /* booter gets an extra section */
 
 		obj_size = cobj_size_req(nsects, size, nsymbs, ncaps);
 		mem = malloc(obj_size);
@@ -649,27 +699,27 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 		return -1;
 	}
 	
-	bfd_map_over_sections(objout, findsections, &ldobj[0]);
+	bfd_map_over_sections(objout, findsections_ldobj, section_info);
 
 	/* get the text and ro sections in a buffer */
-	bfd_get_section_contents(objout, ldobj[TEXT_S].s,
-				 tmp_storage + srcobj[TEXT_S].offset, 0,
-				 bfd_sect_size(objout, srcobj[TEXT_S].s));
+	bfd_get_section_contents(objout, cos_sect_get(TEXT_S)->ldobj.s,
+				 tmp_storage + cos_sect_get(TEXT_S)->srcobj.offset, 0,
+				 bfd_sect_size(objout, cos_sect_get(TEXT_S)->srcobj.s));
 	printl(PRINT_DEBUG, "\tretreiving TEXT at offset %d of size %x.\n", 
-	       srcobj[TEXT_S].offset, (unsigned int)bfd_sect_size(objout, srcobj[TEXT_S].s));
+	       cos_sect_get(TEXT_S)->srcobj.offset, (unsigned int)bfd_sect_size(objout, cos_sect_get(TEXT_S)->srcobj.s));
 
-	if(srcobj[RODATA_S].s && ldobj[RODATA_S].s){
-		bfd_get_section_contents(objout, ldobj[RODATA_S].s,
-					 tmp_storage + srcobj[RODATA_S].offset, 0,
-					 bfd_sect_size(objout, srcobj[RODATA_S].s));
+	if(cos_sect_get(RODATA_S)->srcobj.s && cos_sect_get(RODATA_S)->ldobj.s){
+		bfd_get_section_contents(objout, cos_sect_get(RODATA_S)->ldobj.s,
+					 tmp_storage + cos_sect_get(RODATA_S)->srcobj.offset, 0,
+					 bfd_sect_size(objout, cos_sect_get(RODATA_S)->srcobj.s));
 		printl(PRINT_DEBUG, "\tretreiving RODATA at offset %d of size %x.\n", 
-		       srcobj[RODATA_S].offset, (unsigned int)bfd_sect_size(objout, srcobj[RODATA_S].s));
+		       cos_sect_get(RODATA_S)->srcobj.offset, (unsigned int)bfd_sect_size(objout, cos_sect_get(RODATA_S)->srcobj.s));
 	}
 
-	ret_data->sections[SERV_SECT_RO].offset = srcobj[TEXT_S].offset;
-	ret_data->sections[SERV_SECT_RO].size = bfd_sect_size(objout, srcobj[TEXT_S].s);
-	if (srcobj[RODATA_S].s && ldobj[RODATA_S].s) {
-		ret_data->sections[SERV_SECT_RO].size += bfd_sect_size(objout, srcobj[RODATA_S].s);
+	ret_data->sections[SERV_SECT_RO].offset = cos_sect_get(TEXT_S)->srcobj.offset;
+	ret_data->sections[SERV_SECT_RO].size = bfd_sect_size(objout, cos_sect_get(TEXT_S)->srcobj.s);
+	if (cos_sect_get(RODATA_S)->srcobj.s && cos_sect_get(RODATA_S)->ldobj.s) {
+		ret_data->sections[SERV_SECT_RO].size += bfd_sect_size(objout, cos_sect_get(RODATA_S)->srcobj.s);
 	}
 //	assert((int)round_up_to_page(ret_data->sections[SERV_SECT_RO].size) == ro_size);
 	assert(0 == ret_data->sections[SERV_SECT_RO].offset);
@@ -697,42 +747,42 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 	}
 
 	printl(PRINT_DEBUG, "\tretreiving DATA at offset %x of size %x.\n", 
-	       srcobj[DATA_S].offset, (unsigned int)bfd_sect_size(objout, srcobj[DATA_S].s));
+	       cos_sect_get(DATA_S)->srcobj.offset, (unsigned int)bfd_sect_size(objout, cos_sect_get(DATA_S)->srcobj.s));
 	printl(PRINT_DEBUG, "\tCopying data from object to %x:%x.\n", 
-	       (unsigned int)tmp_storage + srcobj[DATA_S].offset, 
-	       (unsigned int)bfd_sect_size(obj, srcobj[DATA_S].s));
+	       (unsigned int)tmp_storage + cos_sect_get(DATA_S)->srcobj.offset, 
+	       (unsigned int)bfd_sect_size(obj, cos_sect_get(DATA_S)->srcobj.s));
 
 	/* and now do the same for the data and BSS */
-	bfd_get_section_contents(objout, ldobj[DATA_S].s,
-				 tmp_storage + srcobj[DATA_S].offset, 0,
-				 bfd_sect_size(obj, srcobj[DATA_S].s));
+	bfd_get_section_contents(objout, cos_sect_get(DATA_S)->ldobj.s,
+				 tmp_storage + cos_sect_get(DATA_S)->srcobj.offset, 0,
+				 bfd_sect_size(obj, cos_sect_get(DATA_S)->srcobj.s));
 
 	printl(PRINT_DEBUG, "\tretreiving BSS at offset %x of size %x.\n", 
-	       srcobj[BSS_S].offset, (unsigned int)bfd_sect_size(objout, srcobj[BSS_S].s));
+	       cos_sect_get(BSS_S)->srcobj.offset, (unsigned int)bfd_sect_size(objout, cos_sect_get(BSS_S)->srcobj.s));
 	printl(PRINT_DEBUG, "\tZeroing out BSS from %x of size %x.\n", 
-	       (unsigned int)tmp_storage + srcobj[BSS_S].offset,
-	       (unsigned int)bfd_sect_size(obj, srcobj[BSS_S].s));
+	       (unsigned int)tmp_storage + cos_sect_get(BSS_S)->srcobj.offset,
+	       (unsigned int)bfd_sect_size(obj, cos_sect_get(BSS_S)->srcobj.s));
 
-	assert(srcobj[INITONCE_S].s);
-	printl(PRINT_DEBUG, "\tretreiving INITONCE at offset %x of size %x.\n", 
-	       srcobj[INITONCE_S].offset, 
-	       (unsigned int)bfd_sect_size(objout, srcobj[INITONCE_S].s));
-	printl(PRINT_DEBUG, "\tZeroing out INITONCE from %x of size %x.\n", 
-	       (unsigned int)tmp_storage + srcobj[INITONCE_S].offset,
-	       (unsigned int)bfd_sect_size(obj, srcobj[INITONCE_S].s));
+	/* assert(cos_sect_get(INITONCE_S)->srcobj.s); */
+	/* printl(PRINT_DEBUG, "\tretreiving INITONCE at offset %x of size %x.\n",  */
+	/*        cos_sect_get(INITONCE_S)->srcobj.offset,  */
+	/*        (unsigned int)bfd_sect_size(objout, cos_sect_get(INITONCE_S)->srcobj.s)); */
+	/* printl(PRINT_DEBUG, "\tZeroing out INITONCE from %x of size %x.\n",  */
+	/*        (unsigned int)tmp_storage + cos_sect_get(INITONCE_S)->srcobj.offset, */
+	/*        (unsigned int)bfd_sect_size(obj, cos_sect_get(INITONCE_S)->srcobj.s)); */
 
 	/* Zero bss and initonce */
-	memset(tmp_storage + srcobj[BSS_S].offset, 0,
-	       bfd_sect_size(obj, srcobj[BSS_S].s));
-	memset(tmp_storage + srcobj[INITONCE_S].offset, 0,
-	       bfd_sect_size(obj, srcobj[INITONCE_S].s));
+	memset(tmp_storage + cos_sect_get(BSS_S)->srcobj.offset, 0,
+	       bfd_sect_size(obj, cos_sect_get(BSS_S)->srcobj.s));
+	/* memset(tmp_storage + cos_sect_get(INITONCE_S)->srcobj.offset, 0, */
+	/*        bfd_sect_size(obj, cos_sect_get(INITONCE_S)->srcobj.s)); */
 
-	ret_data->sections[SERV_SECT_DATA].offset = srcobj[DATA_S].offset;
-	ret_data->sections[SERV_SECT_DATA].size = bfd_sect_size(objout, srcobj[DATA_S].s);
-	ret_data->sections[SERV_SECT_BSS].offset = srcobj[BSS_S].offset;
-	ret_data->sections[SERV_SECT_BSS].size = bfd_sect_size(objout, srcobj[BSS_S].s);
-	ret_data->sections[SERV_SECT_INITONCE].offset = srcobj[INITONCE_S].offset;
-	ret_data->sections[SERV_SECT_INITONCE].size = bfd_sect_size(objout, srcobj[INITONCE_S].s);
+	ret_data->sections[SERV_SECT_DATA].offset = cos_sect_get(DATA_S)->srcobj.offset;
+	ret_data->sections[SERV_SECT_DATA].size = bfd_sect_size(objout, cos_sect_get(DATA_S)->srcobj.s);
+	ret_data->sections[SERV_SECT_BSS].offset = cos_sect_get(BSS_S)->srcobj.offset;
+	ret_data->sections[SERV_SECT_BSS].size = bfd_sect_size(objout, cos_sect_get(BSS_S)->srcobj.s);
+	/* ret_data->sections[SERV_SECT_INITONCE].offset = cos_sect_get(INITONCE_S)->srcobj.offset; */
+	/* ret_data->sections[SERV_SECT_INITONCE].size = bfd_sect_size(objout, cos_sect_get(INITONCE_S)->srcobj.s); */
 
 //	assert((ret_data->sections[SERV_SECT_BSS].offset - ret_data->sections[SERV_SECT_DATA].offset +
 //		round_up_to_page(ret_data->sections[SERV_SECT_BSS].size)) == (unsigned int)alldata_size);
@@ -769,16 +819,16 @@ static int load_service(struct service_symbs *ret_data, unsigned long lower_addr
 		       sect_loc ? (u32_t)sect_loc-(u32_t)h : 0, 
 		       cobj_sect_size(h, 2), cobj_sect_addr(h, 2), cobj_sect_content_offset(h));
 
-		if ((ret = cobj_sect_init(h, 3, COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_ZEROS | COBJ_SECT_INITONCE, 
-					  data_start + ret_data->sections[SERV_SECT_INITONCE].offset, 
-					  ret_data->sections[SERV_SECT_INITONCE].size))) {
-			printl(PRINT_HIGH, "Could not create initonce section in cobj for %s (%d)\n", service_name, ret);
-			return -1;
-		}
- 		sect_loc = cobj_sect_contents(h, 3);
-		printl(PRINT_DEBUG, "Section @ %d, size %d, addr %x, sect start %d\n", 
-		       sect_loc ? (u32_t)sect_loc-(u32_t)h : 0, 
-		       cobj_sect_size(h, 3), cobj_sect_addr(h, 3), cobj_sect_content_offset(h));
+		/* if ((ret = cobj_sect_init(h, 3, COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_ZEROS | COBJ_SECT_INITONCE,  */
+		/* 			  data_start + ret_data->sections[SERV_SECT_INITONCE].offset,  */
+		/* 			  ret_data->sections[SERV_SECT_INITONCE].size))) { */
+		/* 	printl(PRINT_HIGH, "Could not create initonce section in cobj for %s (%d)\n", service_name, ret); */
+		/* 	return -1; */
+		/* } */
+ 		/* sect_loc = cobj_sect_contents(h, 3); */
+		/* printl(PRINT_DEBUG, "Section @ %d, size %d, addr %x, sect start %d\n",  */
+		/*        sect_loc ? (u32_t)sect_loc-(u32_t)h : 0,  */
+		/*        cobj_sect_size(h, 3), cobj_sect_addr(h, 3), cobj_sect_content_offset(h)); */
 	}
 	
 	free(tmp_storage);
@@ -2353,7 +2403,7 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 
 	/* should be loaded by llboot */
 	assert(is_booter_loaded(boot) && !is_hl_booter_loaded(boot)); 
-	assert(boot->cobj->nsect == 5); /* extra section for other components */
+	assert(boot->cobj->nsect == 4); /* extra section for other components */
 	/* Assign ids to the booter-loaded components. */
 	for (all = first ; NULL != all ; all = all->next) {
 		if (!is_hl_booter_loaded(all)) continue;
@@ -2401,7 +2451,7 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 	all_obj_sz  = all_obj_sz;
 	all_obj_sz += 3 * PAGE_SIZE; // schedule, config info, and edge info
 	h           = boot->cobj;
-	assert(h->nsect == 5);
+	assert(h->nsect == 4);
 	new_h       = malloc(h->size + all_obj_sz);
 	assert(new_h);
 	memcpy(new_h, h, h->size);
@@ -2412,14 +2462,14 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 
 		new_h->size += all_obj_sz;
 
-		s_prev = cobj_sect_get(new_h, 3);
+		s_prev = cobj_sect_get(new_h, 2);
 
-		cobj_sect_init(new_h, 4, COBJ_SECT_READ | COBJ_SECT_WRITE, 
+		cobj_sect_init(new_h, 3, COBJ_SECT_READ | COBJ_SECT_WRITE, 
 			       round_up_to_page(s_prev->vaddr + s_prev->bytes), 
 			       all_obj_sz);
 	}
-	new_sect_start  = new_end = cobj_sect_contents(new_h, 4);
-	new_vaddr_start = cobj_sect_get(new_h, 4)->vaddr;
+	new_sect_start  = new_end = cobj_sect_contents(new_h, 3);
+	new_vaddr_start = cobj_sect_get(new_h, 3)->vaddr;
 #define ADDR2VADDR(a) ((a-new_sect_start)+new_vaddr_start)
 
 	ci = (void *)cobj_vaddr_get(new_h, (u32_t)get_symb_address(&boot->exported, COMP_INFO));
@@ -2437,7 +2487,7 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 		new_end += round_up_to_cacheline(h->size);
  	}
 	assert((u32_t)(new_end - new_sect_start) + 3*PAGE_SIZE == 
-	       cobj_sect_get(new_h, 4)->bytes);
+	       cobj_sect_get(new_h, 3)->bytes);
 	
 	all = first;
 	ci->cos_poly[1] = (vaddr_t)n;
@@ -2464,8 +2514,8 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 
 	printl(PRINT_HIGH, "boot component %s:%d has new section @ %x:%x at address %x, \n\t"
 	       "with n %d, graph @ %x, config info @ %x, schedule %x, and heap %x\n",
-	       boot->obj, service_get_spdid(boot), (unsigned int)cobj_sect_get(new_h, 4)->vaddr, 
-	       (int)cobj_sect_get(new_h, 4)->bytes, (unsigned int)ci->cos_poly[0], (unsigned int)ci->cos_poly[1], 
+	       boot->obj, service_get_spdid(boot), (unsigned int)cobj_sect_get(new_h, 3)->vaddr, 
+	       (int)cobj_sect_get(new_h, 3)->bytes, (unsigned int)ci->cos_poly[0], (unsigned int)ci->cos_poly[1], 
 	       (unsigned int)ci->cos_poly[2], (unsigned int)ci->cos_poly[3], (unsigned int)ci->cos_poly[4], (unsigned int)ci->cos_heap_ptr);
 }
 

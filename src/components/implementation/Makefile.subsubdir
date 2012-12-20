@@ -40,7 +40,7 @@ TMP_STR=tmp
 INCLUDE=-I../ $(DEP_INC) $(IF_INCLUDE) $(CINC)
 LIB_LIBRARIES_PRE=$(DEP_LIB_EXIST)
 LIB_LIBRARIES=$(strip $(LIB_LIBRARIES_PRE))
-LIB_FLAGS=-L$(LIBDIR) $(DEP_LIB) -lcos_component $(LIB_LIBRARIES) $(ADDITIONAL_LIBS)
+LIB_FLAGS=-L$(LIBDIR) $(DEP_LIB) $(LIB_LIBRARIES) $(ADDITIONAL_LIBS)
 
 SOURCES=$(C_OBJS:%.o=%.c)
 #NOTE: assembly files don't have dependencies generated for them
