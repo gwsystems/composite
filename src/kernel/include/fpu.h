@@ -5,25 +5,7 @@
 
 #define FPU_DISABLED 0x00000008
 
-//extern struct thread *last_used_fpu;
-
-struct cos_fpu
-{
-        u16_t cwd; /* FPU Control Word*/
-        u16_t swd; /* FPU Status Word */
-        u16_t twd; /* FPU Tag Word */
-        u16_t fip; /* FPU IP Offset */
-        u16_t fcs; /* FPUIP Selector */
-        unsigned int foo; /* FPU Operand Pointer Offset */
-        unsigned int fos; /* FPU Operand Pointer Selector */
-
-        /* 8*10 bytes for each FP-reg = 80 bytes: */
-        unsigned int st_space[20]; /* 8 data registers */
-	int status; /* used fpu */
-	int saved_fpu;
-};
-
-struct cos_fpu_struct {
+struct cos_fpu {
 	u16_t 			  cwd; /* Control Word */
 	u16_t 			  swd; /* Status Word */
 	u16_t                     twd; /* Tag Word */
@@ -55,13 +37,13 @@ struct cos_fpu_struct {
 		u32_t             padding1[12];
 		u32_t             sw_reserved[12];
 	};
+	int status;
+	int saved_fpu;
 
 } __attribute__((aligned(16)));
 
 inline void fxsave(struct thread*);
 inline void fxrstor(struct thread*);
-inline void fsave(struct thread*);
-inline void frstor(struct thread*);
 
 inline void fpu_disable(void);
 inline void fpu_enable(void);

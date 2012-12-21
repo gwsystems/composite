@@ -35,9 +35,8 @@ fpu_save(struct thread *curr, struct thread *next)
 	// last_used_fpu exists
 	// if last_used_fpu != next, then we save current fpu states to last_used_fpu, restore next thread's fpu state
 	fpu_enable();
-	//fsave(last_used_fpu);
 	fxsave(last_used_fpu);
-	if(next->fpu.saved_fpu) fxrstor(next); //frstor(next);
+	if(next->fpu.saved_fpu) fxrstor(next);
 	last_used_fpu = next; 
 	return 0;
 }
@@ -58,27 +57,14 @@ fpu_is_disabled()
 inline void
 fxsave(struct thread *thd)
 {
-	asm volatile("fxsave %0" : "=m" (thd->cos_fpu));
-	thd->fpu.saved_fpu = 1;
-}
-
-inline void
-fsave(struct thread *thd)
-{
-	asm volatile("fsave %0" : "=m" (thd->fpu));
+	asm volatile("fxsave %0" : "=m" (thd->fpu));
 	thd->fpu.saved_fpu = 1;
 }
 
 inline void
 fxrstor(struct thread *thd)
 {
-	asm volatile("fxrstor %0 " : : "m" (thd->cos_fpu));
-}
-
-inline void
-frstor(struct thread *thd)
-{
-	asm volatile("frstor %0 " : : "m" (thd->fpu));
+	asm volatile("fxrstor %0 " : : "m" (thd->fpu));
 }
 
 inline void
