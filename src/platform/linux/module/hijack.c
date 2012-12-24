@@ -1641,9 +1641,8 @@ int host_can_switch_pgtbls(void) { return current == composite_thread; }
 int host_attempt_brand(struct thread *brand)
 {
 	struct pt_regs *regs = NULL;
-	//struct cos_fpu *fregs = NULL;
 	unsigned long flags;
-	
+
 	local_irq_save(flags);
 	if (likely(composite_thread)/* == current*/) {
 		struct thread *cos_current;
@@ -1721,7 +1720,6 @@ int host_attempt_brand(struct thread *brand)
  		}
 
 		regs = get_user_regs_thread(composite_thread);
-		//fregs = get_user_fregs_thread(composite_thread);
 		/* 
 		 * If both esp and xss == 0, then the interrupt
 		 * occured between sti; sysexit on the cos ipc/syscall
@@ -1780,6 +1778,7 @@ int host_attempt_brand(struct thread *brand)
 				regs->orig_ax = next->regs.ax;
 				regs->sp = next->regs.sp;
 				regs->bp = next->regs.bp;
+				//cos_meas_event(COS_MEAS_BRAND_UC);
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 
