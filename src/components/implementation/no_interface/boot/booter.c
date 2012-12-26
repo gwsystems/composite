@@ -109,8 +109,7 @@ boot_symb_process(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val,
 
 	assert(symb_addr == round_to_page(symb_addr));
 	ci = (struct cos_component_information*)(mem);
-//		ci->cos_heap_alloc_extent = ci->cos_heap_ptr;
-//		ci->cos_heap_allocated = heap_val;
+
 	if (!ci->cos_heap_ptr) ci->cos_heap_ptr = heap_val;
 	ci->cos_this_spd_id = spdid;
 	ci->init_string[0]  = '\0';
@@ -194,10 +193,10 @@ boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, i
 	/* Where are we in the actual component's memory in the booter? */
 	char *start_addr, *offset;
 	/* Where are we in the destination address space? */
-	vaddr_t prev_daddr;
-	
+	vaddr_t prev_daddr, init_daddr;
+
 	start_addr = local_md[spdid].page_start;
-	prev_daddr = cobj_sect_get(h, 0)->vaddr;
+	init_daddr = cobj_sect_get(h, 0)->vaddr;
 
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
@@ -208,45 +207,31 @@ boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, i
 		sect       = cobj_sect_get(h, i);
 		/* virtual address in the destination address space */
 		dest_daddr = sect->vaddr;
-		/* offset from where the previous section left off? */
-		assert(dest_daddr >= prev_daddr);
-		dest_doff  = dest_daddr - prev_daddr;
-		/* where we're writing to in the page array */
-		dsrc       = start_addr + dest_doff;
-		if (dest_doff) assert(round_to_page(dsrc) == (unsigned long)dsrc);
 		/* where we're copying from in the cobj */
 		lsrc       = cobj_sect_contents(h, i);
 		/* how much is left to copy? */
 		left       = cobj_sect_size(h, i);
 
-		/* 
-		 * Initialize memory. 
-		 */
+		/* Initialize memory. */
 		if (first_time || !(sect->flags & COBJ_SECT_INITONCE)) {
-			if (sect->flags & COBJ_SECT_ZEROS) memset(dsrc, 0, left);
-			else                               memcpy(dsrc, lsrc, left);
+			if (sect->flags & COBJ_SECT_ZEROS) {
+				memset(start_addr + (dest_daddr - init_daddr), 0, left);
+			} else {
+				memcpy(start_addr + (dest_daddr - init_daddr), lsrc, left);
+			}
 		}
-		prev_daddr  = dest_daddr + left;
-		start_addr += left + dest_doff;
 
 		/*
 		 * Initialize the component_info (CI) page (must start
 		 * on a page boundary)
 		 */
-		if (comp_info >= dest_daddr && comp_info < dest_daddr+left) { 
-			assert(dest_daddr == round_to_page(dest_daddr)); 
-			assert((unsigned long)dsrc == round_to_page(dsrc));
-			for (offset = dsrc        ; 
-			     offset < dsrc + left ; 
-			     offset += PAGE_SIZE, dest_daddr += PAGE_SIZE) { 
-				/* Check if special symbols that need
-				 * modification are in this page */
-				if (boot_symb_process(h, spdid, boot_spd_end(h), offset, dest_daddr, comp_info)) break;
-			}
+		if (comp_info >= dest_daddr && comp_info < dest_daddr+left) {
+			char *offset = start_addr + (comp_info - init_daddr);
+			assert((unsigned long)offset == round_to_page((unsigned long)offset));
+			if (!boot_symb_process(h, spdid, boot_spd_end(h), offset, comp_info, comp_info)) BUG();
 		}
 	}
-
-	return 0;
+ 	return 0;
 }
 
 static int 
@@ -264,31 +249,6 @@ boot_spd_reserve_caps(struct cobj_header *h, spdid_t spdid)
 	if (cos_spd_cntl(COS_SPD_RESERVE_CAPS, spdid, h->ncap, 0)) BUG();
 	return 0;
 }
-
-/* /\* Deactivate or activate all capabilities to an spd (i.e. call faults */
-/*  * on invocation, or use normal stubs) *\/ */
-/* static int boot_spd_caps_chg_activation(spdid_t spdid, int activate) */
-/* { */
-/* 	int i; */
-
-/* 	/\* Find all capabilities to spdid *\/ */
-/* 	for (i = 0 ; hs[i] != NULL ; i++) { */
-/* 		unsigned int j; */
-
-/* 		if (hs[i]->id == spdid) continue; */
-/* 		for (j = 0 ; j < hs[i]->ncap ; j++) { */
-/* 			struct cobj_cap *cap; */
-
-/* 			cap = cobj_cap_get(hs[i], j); */
-/* 			if (cobj_cap_undef(cap)) break; */
-
-/* 			if (cap->dest_id != spdid) continue; */
-
-/* 			cos_cap_cntl(COS_CAP_SET_SSTUB, hs[i]->id, cap->cap_off, activate ? cap->sstub : 1); */
-/* 		} */
-/* 	} */
-/* 	return 0; */
-/* } */
 
 static void
 boot_edge_create(spdid_t src, spdid_t dest)
