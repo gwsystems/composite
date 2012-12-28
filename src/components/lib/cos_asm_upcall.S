@@ -16,8 +16,7 @@
 #define IPRETURN 4
 
 #if ENABLE_STACK_MANAGER!=1
-//.section .initonce
-.section .bss
+.section .initonce
 .align 32
 nil:
 	.rep 1024
@@ -33,8 +32,7 @@ cos_static_stack:
 cos_static_stack_end:
 #endif
 
-//.section .initonce
-.section .bss
+.section .initonce
 .globl stkmgr_stack_space
 stkmgr_stack_space:
 	.rep ALL_TMP_STACKS_SZ

@@ -137,7 +137,7 @@ struct sec_info {
 	int offset;
 };
 
-typedef enum {TEXT_S, RODATA_S, DATA_S, BSS_S, INITFILE_S, MAXSEC_S} sec_type_t;
+typedef enum {TEXT_S, RODATA_S, DATA_S, BSS_S, INITONCE_S, INITFILE_S, MAXSEC_S} sec_type_t;
 /* 
  * TODO: add structure containing all information about sections, so
  * that they can be created algorithmically, in a loop, instead of
@@ -173,6 +173,11 @@ struct cos_sections section_info[MAXSEC_S+1] = {
 		.secid      = BSS_S,
 		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_ZEROS,
 		.sname      = ".bss"
+	},
+	{
+		.secid      = INITONCE_S,
+		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_ZEROS | COBJ_SECT_INITONCE,
+		.sname      = ".initonce"
 	},
 	{
 		.secid      = INITFILE_S,
