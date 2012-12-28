@@ -19,6 +19,7 @@
 #define COS_FMT_PRINT
 
 #include <cos_component.h>
+#include <cos_sched_ds.h>
 #include <cos_scheduler.h>
 #include <cos_time.h>
 #include <print.h>

@@ -73,6 +73,7 @@ typedef void (*crt_thd_fn_t)(void);
  */
 
 #include "../../sched/cos_sched_sync.h"
+#include "../../sched/cos_sched_ds.h"
 /* synchronization... */
 #define LOCK()   if (cos_sched_lock_take())    BUG();
 #define UNLOCK() if (cos_sched_lock_release()) BUG();

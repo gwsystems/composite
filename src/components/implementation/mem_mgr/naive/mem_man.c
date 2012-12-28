@@ -37,6 +37,7 @@
 #include <print.h>
 
 #include <cos_list.h>
+#include "../../sched/cos_sched_ds.h"
 #include "../../sched/cos_sched_sync.h"
 #define LOCK()   if (cos_sched_lock_take())    assert(0);
 #define UNLOCK() if (cos_sched_lock_release()) assert(0);

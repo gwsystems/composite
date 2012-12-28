@@ -9,12 +9,13 @@
 
 //long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
 
+int cos_sched_notifications __attribute__((weak));
 /* This should only really be present in schedulers! */
-struct cos_sched_data_area cos_sched_notifications = {
-	.cos_next = {.next_thd_id = 0, .next_thd_flags = 0},
-	.cos_locks = {.v = 0},
-	.cos_events = {}
-};
+/* struct cos_sched_data_area cos_sched_notifications = { */
+/* 	.cos_next = {.next_thd_id = 0, .next_thd_flags = 0}, */
+/* 	.cos_locks = {.v = 0}, */
+/* 	.cos_events = {} */
+/* }; */
 
 __attribute__ ((weak))
 void cos_init(void *arg)
@@ -102,7 +103,7 @@ struct cos_component_information cos_comp_info = {
 	.cos_heap_limit = 0,
 	.cos_stacks.freelists[0] = {.freelist = 0, .thd_id = 0},
 	.cos_upcall_entry = (vaddr_t)&cos_upcall_entry,
-	.cos_sched_data_area = &cos_sched_notifications,
+	.cos_sched_data_area = (struct cos_sched_data_area*)&cos_sched_notifications,
 	.cos_user_caps = (vaddr_t)&ST_user_caps,
 	.cos_ras = {{.start = (vaddr_t)&cos_atomic_cmpxchg, .end = (vaddr_t)&cos_atomic_cmpxchg_end}, 
 		    {.start = (vaddr_t)&cos_atomic_user1, .end = (vaddr_t)&cos_atomic_user1_end},

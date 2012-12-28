@@ -120,6 +120,26 @@ void sched_grp_make(struct sched_thd *thd, spdid_t chld_sched);
 void sched_grp_add(struct sched_thd *grp, struct sched_thd *thd);
 void sched_grp_rem(struct sched_thd *thd);
 
+extern struct cos_sched_data_area cos_sched_notifications;
+
+/*
+ * If you want to switch to a thread after an interrupt that is
+ * currently executing is finished, that thread can be set here.  This
+ * is a common case: An interrupt's execution wishes to wake up a
+ * thread, thus it calls the scheduler.  Assume the woken thread is of
+ * highest priority besides the interrupt thread.  When the interrupt
+ * completes, it should possibly consider switching to that thread
+ * instead of the one it interrupted.  This is the mechanism for
+ * telling the kernel to look at the thd_id for execution when the
+ * interrupt completes.
+ */
+static inline void cos_next_thread(unsigned short int thd_id)
+{
+	volatile struct cos_sched_next_thd *cos_next = &cos_sched_notifications.cos_next;
+
+	cos_next->next_thd_id = thd_id;
+}
+
 static inline struct sched_accounting *sched_get_accounting(struct sched_thd *thd)
 {
 	assert(!sched_thd_free(thd));

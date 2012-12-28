@@ -18,7 +18,7 @@
 
 extern long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
 
-extern struct cos_sched_data_area cos_sched_notifications;
+//gap extern struct cos_sched_data_area cos_sched_notifications;
 extern struct cos_component_information cos_comp_info;
 
 /*
@@ -204,7 +204,7 @@ static inline int cos_trans_cntl(int op, int channel, unsigned long addr, int of
 	return cos___trans_cntl(((op << 16) | (channel & 0xFFFF)), addr, off);
 }
 
-
+#ifdef NIL
 /*
  * We cannot just pass the thread id into the system call in registers
  * as the current thread of control making the switch_thread system
@@ -249,6 +249,7 @@ static inline void cos_next_thread(unsigned short int thd_id)
 
 	cos_next->next_thd_id = thd_id;
 }
+#endif
 
 static inline unsigned short int cos_get_thd_id(void)
 {
