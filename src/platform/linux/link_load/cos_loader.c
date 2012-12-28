@@ -137,7 +137,7 @@ struct sec_info {
 	int offset;
 };
 
-typedef enum {TEXT_S, RODATA_S, DATA_S, BSS_S, INITONCE_S, INITFILE_S, MAXSEC_S} sec_type_t;
+typedef enum {TEXT_S, RODATA_S, CTORS_S, DTORS_S, CRECOV_S, KMEM_S, CINFO_S, DATA_S, BSS_S, INITONCE_S, INITFILE_S, MAXSEC_S} sec_type_t;
 /* 
  * TODO: add structure containing all information about sections, so
  * that they can be created algorithmically, in a loop, instead of
@@ -147,7 +147,7 @@ struct cos_sections {
 	sec_type_t secid;
 	int cobj_flags;
 	int coalesce; 		/* should this section be output with the previous? */
-	char *sname;
+	char *sname, *ld_output;
 	struct sec_info srcobj, ldobj;
 	unsigned long start_addr, len;
 };
@@ -163,6 +163,34 @@ struct cos_sections section_info[MAXSEC_S+1] = {
 		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
 		.coalesce   = 1,
 		.sname      = ".rodata"
+	},
+	{
+		.secid      = CTORS_S,
+		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
+		.coalesce   = 1,
+		.sname      = ".ctors",
+	},
+	{
+		.secid      = DTORS_S,
+		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
+		.coalesce   = 1,
+		.sname      = ".dtors",
+	},
+	{
+		.secid      = CRECOV_S,
+		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
+		.coalesce   = 1,
+		.sname      = ".crecov",
+	},
+	{
+		.secid      = KMEM_S,
+		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE,
+		.sname      = ".kmem"
+	},
+	{
+		.secid      = CINFO_S,
+		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE,
+		.sname      = ".cinfo"
 	},
 	{
 		.secid      = DATA_S,
@@ -476,7 +504,11 @@ static int genscript(int with_addr)
 		if (with_addr && !section_info[i].coalesce) {
 			emit_address(fp, section_info[i].start_addr);
 		}
-		emit_section(fp, section_info[i].sname);
+		if (section_info[i].ld_output) {
+			fprintf(fp, "%s", section_info[i].ld_output);
+		} else {
+			emit_section(fp, section_info[i].sname);
+		}
 	}
 	if (with_addr) emit_address(fp, 0);
 	emit_section(fp, ".eh_frame");
@@ -492,7 +524,7 @@ static void run_linker(char *input_obj, char *output_exe)
 	char linker_cmd[256];
 	sprintf(linker_cmd, LINKER_BIN " -T %s -o %s %s", script, output_exe,
 		input_obj);
-	printl(PRINT_DEBUG, "%s", linker_cmd);
+	printl(PRINT_DEBUG, "%s\n", linker_cmd);
 	fflush(stdout);
 	system(linker_cmd);
 }
@@ -632,7 +664,7 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 		} else {
 			offset = round_up_to_page(offset + sect_sz);
 		}
-		printl(PRINT_DEBUG, "Sect %d, addr %lx, sz %lx, offset %x\n", 
+		printl(PRINT_DEBUG, "\tSect %d, addr %lx, sz %lx, offset %x\n", 
 		       i, csg(i)->start_addr, csg(i)->len, offset);
 	}
 
@@ -713,7 +745,7 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 	 */
 	genscript(1);
 	run_linker(service_name, tmp_exec);
-	unlink(script);
+//	unlink(script);
 	objout = bfd_openr(tmp_exec, "elf32-i386");
 	if(!objout){
 		bfd_perror("Object open failure\n");
@@ -728,7 +760,7 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 	bfd_map_over_sections(objout, findsections_ldobj, section_info);
 
 	for (i = 0 ; csg(i)->secid < MAXSEC_S ; i++) {
-		printl(PRINT_DEBUG, "\tRetreiving section %d of size %lx.\n", i, csg(i)->len);
+		printl(PRINT_DEBUG, "\tRetreiving section %d of size %lx @ %lx.\n", i, csg(i)->len, csg(i)->start_addr);
 
 		if (!is_booter_loaded(ret_data)) {
 			if (csg(i)->ldobj.s) {

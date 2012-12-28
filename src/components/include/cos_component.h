@@ -401,6 +401,48 @@ static inline void *cos_memset(void * s, char c , int count)
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
+/* 
+ * A composite constructor (deconstructor): will be executed before
+ * other component execution (after component execution).  CRECOV is a
+ * function that should be called if one of the depended-on components
+ * has failed (e.g. the function serves as a callback notification).
+ */
+#define CCTOR __attribute__((constructor))
+#define CDTOR __attribute__((destructor)) /* currently unused! */
+#define CRECOV(fnname) long crecov_##fnname##_ptr __attribute__((section(".crecov"))) = (long)fnname
+
+static inline void
+section_fnptrs_execute(long *list)
+{
+	int i;
+	typedef void (*ctors_t)(void);
+	ctors_t ctors;
+
+	ctors = (ctors_t)list[1];
+	for (i = 0 ; i < list[0] ; i++, ctors++) ctors();
+}
+
+static void 
+constructors_execute(void)
+{
+	extern long __CTOR_LIST__;
+	section_fnptrs_execute(&__CTOR_LIST__);
+}
+static void 
+destructors_execute(void)
+{
+	extern long __DTOR_LIST__;
+	section_fnptrs_execute(&__DTOR_LIST__);
+}
+static void 
+recoveryfns_execute(void)
+{
+	extern long __CRECOV_LIST__;
+	section_fnptrs_execute(&__CRECOV_LIST__);
+}
+
+
+
 /* functionality for managing the argument region */
 #define COS_ARGREG_SZ PAGE_SIZE /* must be power of 2 */
 #define COS_ARGREG_USABLE_SZ \
