@@ -47,7 +47,7 @@
 
 #include <cobj_format.h>
 
-enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_DEBUG;
+enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_HIGH;
 
 #define printl(lvl,format, args...)				\
 	{							\
@@ -137,10 +137,7 @@ struct sec_info {
 	int offset;
 };
 
-#define MAX_COBJ_SECT 5
-#define MAX_BOOT_SECT (MAX_COBJ_SECT+1)
-
-typedef enum {TEXT_S, RODATA_S, DATA_S, BSS_S, INITFILE_S, /*EH_FRAME_S,*/ MAXSEC_S} sec_type_t;
+typedef enum {TEXT_S, RODATA_S, DATA_S, BSS_S, INITFILE_S, MAXSEC_S} sec_type_t;
 /* 
  * TODO: add structure containing all information about sections, so
  * that they can be created algorithmically, in a loop, instead of
@@ -570,14 +567,7 @@ static int
 load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned long size)
 {
 	bfd *obj, *objout;
-	void *tmp_storage;
-
 	int sect_sz, offset;
-
-	int text_size, ro_size, ro_size_unaligned;
-	int alldata_size, data_size;
-	int max_sz = 0;
-	unsigned long ro_start, data_start;
 	void *ret_addr;
 	char *service_name = ret_data->obj; 
 	struct cobj_header *h;
@@ -651,7 +641,6 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 		for (i = 0 ; csg(i)->secid < MAXSEC_S ; i++) {
 			if (!csg(i)->len) continue;
 			tot_sz = round_up_to_page((csg(i)->start_addr - start_addr) + csg(i)->len);
-			printf("size %lx\n", (csg(i)->start_addr - start_addr));
 		}
 		printl(PRINT_DEBUG, "Total mmap size %lx\n", tot_sz);
 		/**
@@ -663,7 +652,7 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 				PROT_EXEC | PROT_READ | PROT_WRITE,
 				MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
 				0, 0);
-		if (MAP_FAILED == (void*)start_addr){
+		if (MAP_FAILED == (void*)ret_addr){
 			/* If you get outrageous sizes here, there is
 			 * a required section missing (such as
 			 * rodata).  Add a const. */
@@ -672,51 +661,21 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 			perror("Couldn't map text segment into address space");
 			return -1;
 		}
-	}
-	ro_start = lower_addr;
-	ro_size = csg(2)->start_addr - ro_start;
-	ro_size_unaligned = csg(1)->srcobj.s ? (csg(1)->start_addr - lower_addr) + csg(1)->len : csg(0)->len;
-	text_size = csg(0)->len;
-	
-	assert(ro_start == lower_addr);
-	assert(text_size == calculate_mem_size(TEXT_S, RODATA_S));
-	assert(csg(TEXT_S)->start_addr == lower_addr);
-	assert(csg(TEXT_S)->len == (unsigned int)text_size);
-	assert(csg(RODATA_S)->start_addr == lower_addr + text_size);
-	assert(round_up_to_page(csg(TEXT_S)->len + csg(RODATA_S)->len) == (unsigned int)ro_size);
-	assert((unsigned int)ro_size_unaligned == csg(TEXT_S)->len + csg(RODATA_S)->len); //calculate_mem_size(TEXT_S, DATA_S));
-	assert((unsigned int)ro_size == round_up_to_page(ro_size_unaligned));
-
-	data_start   = csg(2)->start_addr;
-	alldata_size = round_up_to_page((csg(3)->start_addr + csg(3)->len) - csg(2)->start_addr);
-	data_size    = csg(2)->len;
-
-	assert((unsigned int)data_size == bfd_sect_size(obj, csg(DATA_S)->srcobj.s));
-	assert(data_start == ro_start + ro_size);
-	assert((unsigned int)alldata_size == round_up_to_page(calculate_mem_size(DATA_S, MAXSEC_S)));
-	assert(csg(DATA_S)->start_addr == data_start);
-	assert(csg(DATA_S)->len == (unsigned int)data_size);
-	assert(csg(BSS_S)->start_addr == round_up_to_page(data_start + data_size));
-	assert(csg(BSS_S)->len == bfd_sect_size(obj, csg(BSS_S)->srcobj.s));
-
-	/* Create the cobj for the component if it is composite/booter-loaded */
-	if (is_booter_loaded(ret_data)) {
+	} else {
+		/* Create the cobj for the component if it is composite/booter-loaded */
 		u32_t size = 0, obj_size;
 		u32_t nsymbs, ncaps, nsects;
 		char *mem;
 		char cobj_name[COBJ_NAME_SZ], *end;
 		int i;
 
- 		assert(ro_size_unaligned + bfd_sect_size(obj, csg(DATA_S)->srcobj.s) == 
-		       csg(TEXT_S)->len + csg(RODATA_S)->len + csg(DATA_S)->len);
 		for (i = 0 ; csg(i)->secid < MAXSEC_S ; i++) {
 			if (csg(i)->cobj_flags & COBJ_SECT_ZEROS) continue;
 			size += csg(i)->len;
 		}
-		assert(size == ro_size_unaligned + bfd_sect_size(obj, csg(DATA_S)->srcobj.s));
 		nsymbs = ret_data->exported.num_symbs;
 		ncaps  = ret_data->undef.num_symbs;
-		nsects = 5;//MAXSEC_S;
+		nsects = MAXSEC_S;
 
 		obj_size = cobj_size_req(nsects, size, nsymbs, ncaps);
 		mem = malloc(obj_size);
@@ -724,8 +683,6 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 			printl(PRINT_HIGH, "could not allocate memory for composite-loaded %s.\n", service_name);
 			return -1;
 		}
-//		memset(mem, 0, obj_size);
-
 		strncpy(cobj_name, &service_name[5], COBJ_NAME_SZ);
 		end = strstr(cobj_name, ".o.");
 		if (!end) end = &cobj_name[COBJ_NAME_SZ-1];
@@ -739,18 +696,6 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 		ret_data->cobj = h;
 		assert(obj_size == h->size);
 	}
-
-	for (i = 0 ; csg(i)->secid < MAXSEC_S ; i++) max_sz += csg(i)->len;
-	/* 
-	 * Allocate local memory to hold the object data that we will
-	 * transfer into the proper mmapped region (linux-loaded), or
-	 * cobj (booter/composite-loaded).
-	 */
-	tmp_storage = malloc(max_sz); 
-	if (tmp_storage == NULL) {
-		perror("Memory allocation failed\n");
-		return -1;
-	}	
 	unlink(tmp_exec);
 	
 	/* 
@@ -778,14 +723,12 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 	bfd_map_over_sections(objout, findsections_ldobj, section_info);
 
 	for (i = 0 ; csg(i)->secid < MAXSEC_S ; i++) {
-		if (csg(i)->ldobj.s) {
-			bfd_get_section_contents(objout, csg(i)->ldobj.s, tmp_storage, 0, csg(i)->len);
-		}
-		printl(PRINT_DEBUG, "\tretreiving section %d of size %x.\n", i, csg(i)->len);
+		printl(PRINT_DEBUG, "\tRetreiving section %d of size %lx.\n", i, csg(i)->len);
 
 		if (!is_booter_loaded(ret_data)) {
-			printf(">>> TEXT to %lx, from %p, len %x\n", csg(i)->start_addr, tmp_storage, csg(i)->len);
-			memcpy((void*)csg(i)->start_addr, tmp_storage, csg(i)->len);
+			if (csg(i)->ldobj.s) {
+				bfd_get_section_contents(objout, csg(i)->ldobj.s, (char*)csg(i)->start_addr, 0, csg(i)->len);
+			}
 		} else {
 			char *sect_loc;
 
@@ -795,15 +738,15 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 			}
 			if (csg(i)->cobj_flags & COBJ_SECT_ZEROS) continue;
 			sect_loc = cobj_sect_contents(h, i);
-			printf("Section %d from %x to %x with len %x\n", i, tmp_storage, sect_loc, csg(i)->len);
 			printl(PRINT_DEBUG, "\tSection @ %d, size %d, addr %x, sect start %d\n", (u32_t)sect_loc-(u32_t)h, 
 			       cobj_sect_size(h, i), cobj_sect_addr(h, i), cobj_sect_content_offset(h));
 			assert(sect_loc);
-			memcpy(sect_loc, tmp_storage, csg(i)->len);
+			//memcpy(sect_loc, tmp_storage, csg(i)->len);
+			if (csg(i)->ldobj.s) {
+				bfd_get_section_contents(objout, csg(i)->ldobj.s, sect_loc, 0, csg(i)->len);
+			}
 		}
 	}
-
-	free(tmp_storage);
 
 	if (set_object_addresses(objout, ret_data)) {
 		printl(PRINT_DEBUG, "Could not find all object symbols.\n");
@@ -811,9 +754,9 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 	}
 
 	ret_data->lower_addr = lower_addr;
-	ret_data->size = size;
-	ret_data->allocated = alldata_size + ro_size;
-	ret_data->heap_top = (int)data_start + alldata_size;
+	ret_data->size       = size;
+	ret_data->allocated  = round_up_to_page((csg(MAXSEC_S-1)->start_addr - csg(0)->start_addr) + csg(MAXSEC_S-1)->len);
+	ret_data->heap_top   = csg(0)->start_addr + ret_data->allocated;
 	
 	if (is_booter_loaded(ret_data)) {
 		if (make_cobj_symbols(ret_data, h)) {
@@ -831,12 +774,6 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 	unlink(tmp_exec);
 
 	return 0;
-
-	/* 
-	 * FIXME: unmap sections, free memory, unlink file, close bfd
-	 * objects, etc... for the various error positions, i.e. all
-	 * return -1;s
-	 */
 }
 
 /* FIXME: should modify code to use
@@ -2432,7 +2369,7 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 
 		s_prev = cobj_sect_get(new_h, INITFILE_S);
 
-		cobj_sect_init(new_h, INITFILE_S, COBJ_SECT_READ | COBJ_SECT_WRITE, 
+		cobj_sect_init(new_h, INITFILE_S, csg(INITFILE_S)->cobj_flags, 
 			       round_up_to_page(s_prev->vaddr + s_prev->bytes), 
 			       all_obj_sz);
 	}

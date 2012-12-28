@@ -317,7 +317,9 @@ boot_find_cobjs(struct cobj_header *h, int n)
 		int j = 0, size = 0, tot = 0;
 
 		size = h->size;
+		printc("cobj %s, id %d, size %d\n", h->name, h->id, size);
 		for (j = 0 ; j < (int)h->nsect ; j++) {
+			printc("\tsection %d, size %d\n", j, cobj_sect_size(h, j));
 			tot += cobj_sect_size(h, j);
 		}
 		printc("cobj %s:%d found at %p:%x, size %x -> %x\n", 
