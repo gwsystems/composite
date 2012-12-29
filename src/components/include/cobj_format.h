@@ -53,6 +53,8 @@ enum {
 	COBJ_SECT_WRITE    = 0x2,
 	COBJ_SECT_ZEROS    = 0x8,
 	COBJ_SECT_INITONCE = 0x10,
+	COBJ_SECT_KMEM     = 0x20,
+	COBJ_SECT_CINFO    = 0x40,
 };
 
 struct cobj_sect {

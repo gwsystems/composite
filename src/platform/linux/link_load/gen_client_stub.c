@@ -81,7 +81,7 @@ full:
 */
 
 char *footer1 =
-".data\n"
+".section .kmem\n"
 ".align 4096\n"
 ".globl ST_user_caps\n"
 "ST_user_caps:\n\t"

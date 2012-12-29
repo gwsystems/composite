@@ -99,13 +99,13 @@ boot_symb_reify_16(char *mem, vaddr_t d_addr, vaddr_t symb_addr, u16_t value)
 }
 
 static int
-boot_symb_process(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val, 
-		  char *mem, vaddr_t d_addr, vaddr_t symb_addr)
+boot_process_cinfo(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val, 
+		   char *mem, vaddr_t symb_addr)
 {
 	int i;
 	struct cos_component_information *ci;
 
-	if (round_to_page(symb_addr) != d_addr) return 0;
+	//if (round_to_page(symb_addr) != d_addr) return 0;
 
 	assert(symb_addr == round_to_page(symb_addr));
 	ci = (struct cos_component_information*)(mem);
@@ -151,7 +151,7 @@ boot_spd_end(struct cobj_header *h)
 static int 
 boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
-	unsigned int i;
+	unsigned int i, use_kmem;
 	vaddr_t dest_daddr, prev_map;
 
 	local_md[spdid].spdid      = spdid;
@@ -162,8 +162,10 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		struct cobj_sect *sect;
 		char *dsrc;
 		int left;
-
+		
+		use_kmem   = 0;
 		sect       = cobj_sect_get(h, i);
+		if (sect->flags & COBJ_SECT_KMEM) use_kmem = 1;
 		dest_daddr = sect->vaddr;
 		left       = cobj_sect_size(h, i);
 		/* previous section overlaps with this one, don't remap! */
@@ -173,6 +175,9 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		} 
 		while (left > 0) {
 			dsrc = cos_get_vas_page();
+			/* TODO: if use_kmem, we should allocate
+			 * kernel-accessible memory, rather than
+			 * normal user-memory */
 			if ((vaddr_t)dsrc != __mman_get_page(cos_spd_id(), (vaddr_t)dsrc, 0)) BUG();
 			if (dest_daddr != (__mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr))) BUG();
 
@@ -221,14 +226,10 @@ boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, i
 			}
 		}
 
-		/*
-		 * Initialize the component_info (CI) page (must start
-		 * on a page boundary)
-		 */
-		if (comp_info >= dest_daddr && comp_info < dest_daddr+left) {
-			char *offset = start_addr + (comp_info - init_daddr);
-			assert((unsigned long)offset == round_to_page((unsigned long)offset));
-			if (!boot_symb_process(h, spdid, boot_spd_end(h), offset, comp_info, comp_info)) BUG();
+		if (sect->flags & COBJ_SECT_CINFO) {
+			assert(left == PAGE_SIZE);
+			assert(comp_info == dest_daddr);
+			boot_process_cinfo(h, spdid, boot_spd_end(h), start_addr + (comp_info-init_daddr), comp_info);
 		}
 	}
  	return 0;

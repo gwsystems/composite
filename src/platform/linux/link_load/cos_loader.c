@@ -137,7 +137,21 @@ struct sec_info {
 	int offset;
 };
 
-typedef enum {TEXT_S, RODATA_S, CTORS_S, DTORS_S, CRECOV_S, KMEM_S, CINFO_S, DATA_S, BSS_S, INITONCE_S, INITFILE_S, MAXSEC_S} sec_type_t;
+typedef enum {
+	TEXT_S, 
+	RODATA_S, 
+	CTORS_S, 
+	DTORS_S, 
+	CRECOV_S, 
+	KMEM_S, 
+	CINFO_S, 
+	DATA_S, 
+	BSS_S, 
+	INITONCE_S, 
+	INITFILE_S, 
+	MAXSEC_S
+} sec_type_t;
+
 /* 
  * TODO: add structure containing all information about sections, so
  * that they can be created algorithmically, in a loop, instead of
@@ -145,8 +159,7 @@ typedef enum {TEXT_S, RODATA_S, CTORS_S, DTORS_S, CRECOV_S, KMEM_S, CINFO_S, DAT
  */
 struct cos_sections {
 	sec_type_t secid;
-	int cobj_flags;
-	int coalesce; 		/* should this section be output with the previous? */
+	int cobj_flags, coalesce; 		/* should this section be output with the previous? */
 	char *sname, *ld_output;
 	struct sec_info srcobj, ldobj;
 	unsigned long start_addr, len;
@@ -184,12 +197,12 @@ struct cos_sections section_info[MAXSEC_S+1] = {
 	},
 	{
 		.secid      = KMEM_S,
-		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE,
+		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_KMEM,
 		.sname      = ".kmem"
 	},
 	{
 		.secid      = CINFO_S,
-		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE,
+		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_CINFO,
 		.sname      = ".cinfo"
 	},
 	{
