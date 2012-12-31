@@ -2,7 +2,7 @@ The _Composite_ Hardware Abstraction Layer
 ==========================================
 
 The _Composite_ Hardware Abstraction Layer, or _Hijack_ Abstraction
-Layer, (_cHAL_) is the layer that defines the platform-specific
+Layer -- _cHAL_ -- is the layer that defines the platform-specific
 functionality that requires specific implementations not only for
 different architectures (e.g. x86-32 vs. -64), but also when booting
 from the bare-metal versus using the Hijack techniques.  This file

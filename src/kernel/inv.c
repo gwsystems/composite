@@ -16,8 +16,7 @@
 #include "include/debug.h"
 #include "include/measurement.h"
 #include "include/mmap.h"
-
-#include <linux/kernel.h>
+#include "include/chal.h"
 
 /* 
  * These are the 1) page for the pte for the shared region and 2) the
@@ -43,7 +42,8 @@ static inline struct shared_user_data *get_shared_data(void)
  */
 static unsigned long cycle_cnt;
 
-void ipc_init(void)
+void 
+ipc_init(void)
 {
 	//memset(shared_region_page, 0, PAGE_SIZE);
 	memset(shared_data_page, 0, PAGE_SIZE);
@@ -52,40 +52,44 @@ void ipc_init(void)
 	return;
 }
 
-static inline void open_spd(struct spd_poly *spd)
+static inline void 
+open_spd(struct spd_poly *spd)
 {
 	printk("cos: open_spd (asymmetric trust) not supported on x86.\n");
 	
 	return;
 }
 
-extern void switch_host_pg_tbls(paddr_t pt);
-static inline void switch_pg_tbls(paddr_t new, paddr_t old)
+static inline void 
+switch_pgtbls(paddr_t new, paddr_t old)
 {
 	if (likely(old != new)) {
 		native_write_cr3(new);
-		switch_host_pg_tbls(new);
+		chal_pgtbl_switch(new);
 	}
 
 	return;
 }
 
-static inline void open_close_spd(struct spd_poly *o_spd, struct spd_poly *c_spd)
+static inline void 
+open_close_spd(struct spd_poly *o_spd, struct spd_poly *c_spd)
 {
-	switch_pg_tbls(o_spd->pg_tbl, c_spd->pg_tbl);
+	switch_pgtbls(o_spd->pg_tbl, c_spd->pg_tbl);
 
 	return;
 }
 
-static inline void open_close_spd_ret(struct spd_poly *c_spd) /*, struct spd_poly *s_spd)*/
+static inline void 
+open_close_spd_ret(struct spd_poly *c_spd)
 {
 	native_write_cr3(c_spd->pg_tbl);
-	switch_host_pg_tbls(c_spd->pg_tbl);
+	chal_pgtbl_switch(c_spd->pg_tbl);
 	
 	return;
 }
 
-static void print_stack(struct thread *thd)
+static void 
+print_stack(struct thread *thd)
 {
 	int i;
 
@@ -96,7 +100,8 @@ static void print_stack(struct thread *thd)
 	}
 }
 
-void print_regs(struct pt_regs *regs)
+void 
+print_regs(struct pt_regs *regs)
 {
 	printk("cos: EAX:%x\tEBX:%x\tECX:%x\n"
 	       "cos: EDX:%x\tESI:%x\tEDI:%x\n"
@@ -1100,7 +1105,7 @@ upcall_execute_no_vas_switch(struct thread *uc, struct thread *prev)
 		nspd = thd_get_thd_spdpoly(uc);
 		/* we are omitting the native_write_cr3 to switch
 		 * page tables */
-		switch_host_pg_tbls(nspd->pg_tbl);
+		__chal_pgtbl_switch(nspd->pg_tbl);
 	}
 	return uc;
 }
@@ -1712,7 +1717,6 @@ int cos_net_notify_drop(struct thread *brand)
 /*** Translator Interface ***/
 /****************************/
 
-extern int pgtbl_add_entry(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr); 
 extern void *va_to_pa(void *va);
 static const struct cos_trans_fns *trans_fns = NULL;
 void cos_trans_reg(const struct cos_trans_fns *fns) { trans_fns = fns; }
@@ -1754,7 +1758,7 @@ cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, i
 		sz    = trans_fns->map_sz(channel);
 		if (off > sz) return -1;
 
-		if (pgtbl_add_entry(s->spd_info.pg_tbl, addr, (paddr_t)va_to_pa(((char *)kaddr+off)))) {
+		if (chal_pgtbl_add(s->spd_info.pg_tbl, addr, (paddr_t)va_to_pa(((char *)kaddr+off)))) {
 			printk("cos: trans grant -- could not add entry to page table.\n");
 			return -1;
 		}
@@ -1782,7 +1786,6 @@ cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, i
  * Partially emulate a device here: Receive ring for holding buffers
  * to receive data into, and a synchronous call to transmit data.
  */
-extern vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr);
 extern int user_struct_fits_on_page(unsigned long addr, unsigned int size);
 /* assembly in ipc.S */
 extern int cos_syscall_buff_mgmt(void);
@@ -1812,7 +1815,7 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int thd_id, unsigned
 	}
 
 	if (unlikely(COS_BM_XMIT != option &&
-		     0 == (kaddr = pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, (unsigned long)addr)))) {
+		     0 == (kaddr = chal_pgtbl_vaddr2kaddr(spd->spd_info.pg_tbl, (unsigned long)addr)))) {
 		printk("cos: buff mgmt -- could not find kernel address for %p in spd %d\n",
 		       addr, spd_id);
 		return -1;
@@ -1848,7 +1851,7 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int thd_id, unsigned
 				 * pinned. */
 				kaddr = (vaddr_t)user_gi->data;
 			} else {
-				kaddr = pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, (unsigned long)user_gi->data);
+				kaddr = chal_pgtbl_vaddr2kaddr(spd->spd_info.pg_tbl, (unsigned long)user_gi->data);
 				if (unlikely(!kaddr)) {		    
 					printk("cos: buff mgmt -- could not find kernel address for %p in spd %d\n",
 					       user_gi->data, spd_id);
@@ -2501,7 +2504,7 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 		 * events when the pagetable for this spd is not
 		 * mapped in.  */
 		spd->kern_sched_shared_page = (struct cos_sched_data_area *)
-			pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, region);
+			chal_pgtbl_vaddr2kaddr(spd->spd_info.pg_tbl, region);
 		spd->prev_notification = 0;
 		/* FIXME: pin the page */
 		
@@ -3070,7 +3073,7 @@ cos_syscall_mpd_cntl(int spd_id, int operation,
 	 * current spd is subordinated to another spd.  If they did,
 	 * we should do something about it:
 	 */
-	switch_pg_tbls(new_pg_tbl, curr_pg_tbl);
+	switch_pgtbls(new_pg_tbl, curr_pg_tbl);
 	
 	return ret;
 }
@@ -3083,8 +3086,6 @@ cos_syscall_mpd_cntl(int spd_id, int operation,
  * or is in the current composite spd, or is a child of a fault
  * thread.
  */
-extern paddr_t pgtbl_rem_ret(paddr_t pgtbl, vaddr_t va);
-extern unsigned long __pgtbl_lookup_address(paddr_t pgtbl, unsigned long addr);
 extern void __pgtbl_or_pgd(paddr_t pgtbl, unsigned long addr, unsigned long val);
 extern void pgtbl_print_path(paddr_t pgtbl, unsigned long addr);
 
@@ -3130,7 +3131,7 @@ cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, unsigned lon
 		 * forces demand paging to not be used (explicitly
 		 * writing all of the pages itself).
 		 */
-		if (pgtbl_add_entry(spd->spd_info.pg_tbl, daddr, page)) {
+		if (chal_pgtbl_add(spd->spd_info.pg_tbl, daddr, page)) {
 			printk("cos: mmap grant into %d @ %x -- could not add entry to page table.\n", 
 			       dspd_id, (unsigned int)daddr);
 			ret = -1;
@@ -3142,7 +3143,7 @@ cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, unsigned lon
 	{
 		paddr_t pa;
 
-		if (!(pa = pgtbl_rem_ret(spd->spd_info.pg_tbl, daddr))) {
+		if (!(pa = chal_pgtbl_rem(spd->spd_info.pg_tbl, daddr))) {
 			ret = 0;
 			break;
 		}
@@ -3152,8 +3153,7 @@ cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, unsigned lon
 		break;
 	}
 	case COS_MMAP_TLBFLUSH:
-		native_write_cr3(spd->spd_info.pg_tbl);
-//		pgtbl_print_path(spd->spd_info.pg_tbl, daddr);
+		chal_pgtbl_switch(spd->spd_info.pg_tbl);
 		break;
 	default:
 		ret = -1;
@@ -3275,7 +3275,7 @@ cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
 
 	switch (option) {
 	case COS_CAP_GET_INVCNT:
-		va = pgtbl_vaddr_to_kaddr(cspd->spd_info.pg_tbl, (unsigned long)cspd->user_vaddr_cap_tbl);
+		va = chal_pgtbl_vaddr2kaddr(cspd->spd_info.pg_tbl, (unsigned long)cspd->user_vaddr_cap_tbl);
 		assert((vaddr_t)cspd->user_cap_tbl == va);
 		
 		ret = spd_read_reset_invocation_cnt(cspd, sspd);
@@ -3450,7 +3450,7 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 			break;
 		}
 		/* Is the ucap tbl mapped in? */
-		kaddr = pgtbl_vaddr_to_kaddr(spd->spd_info.pg_tbl, (vaddr_t)spd->user_vaddr_cap_tbl);
+		kaddr = chal_pgtbl_vaddr2kaddr(spd->spd_info.pg_tbl, (vaddr_t)spd->user_vaddr_cap_tbl);
 		if (0 == kaddr) {
 			ret = -1;
 			break;

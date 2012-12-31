@@ -44,6 +44,9 @@
 
 #include "./hw_ints.h"
 
+#include "pgtbl.h"
+#include "../../../kernel/include/chal.h"
+
 #include "./kconfig_checks.h"
 
 MODULE_LICENSE("GPL");
@@ -246,11 +249,7 @@ static int aed_free_mm(int mm_handle)
 	 * fast path. */
 	return 0;
 }
-static inline unsigned int hpage_index(unsigned long n)
-{
-        unsigned int idx = n >> HPAGE_SHIFT;
-        return (idx << HPAGE_SHIFT) != n ? idx + 1 : idx;
-}
+
 int spd_free_mm(struct spd *spd)
 {
 	struct mm_struct *mm;
@@ -505,14 +504,7 @@ static inline void copy_pgd_range(struct mm_struct *to_mm, struct mm_struct *fro
 static int syscalls_enabled = 1;
 
 extern int virtual_namespace_alloc(struct spd *spd, unsigned long addr, unsigned int size);
-void zero_pgtbl_range(paddr_t pt, unsigned long lower_addr, unsigned long size);
-void copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from, 
-		      unsigned long lower_addr, unsigned long size);
-void copy_pgtbl(paddr_t pt_to, paddr_t pt_from);
-//extern int copy_mm(unsigned long clone_flags, struct task_struct * tsk);
-void print_valid_pgtbl_entries(paddr_t pt);
 extern struct thread *ready_boot_thread(struct spd *init);
-vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr);
 
 static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -782,7 +774,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		 * events when the pagetable for this spd is not
 		 * mapped in.  */
 		sched->kern_sched_shared_page = (struct cos_sched_data_area *)
-			pgtbl_vaddr_to_kaddr(sched->spd_info.pg_tbl, (unsigned long)sched->sched_shared_page);
+			chal_pgtbl_vaddr2kaddr(sched->spd_info.pg_tbl, (unsigned long)sched->sched_shared_page);
 		sched->prev_notification = 0;
 			
 		return 0;
@@ -1198,297 +1190,6 @@ void *pa_to_va(void *pa)
 	return (void*)__va(pa);
 }
 
-static inline pte_t *pgtbl_lookup_address(paddr_t pgtbl, unsigned long addr)
-{
-	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pgtbl)) + pgd_index(addr);
-	pud_t *pud;
-	pmd_t *pmd;
-	if (pgd_none(*pgd)) {
-		return NULL;
-	}
-	pud = pud_offset(pgd, addr);
-	if (pud_none(*pud)) {
-		return NULL;
-	}
-	pmd = pmd_offset(pud, addr);
-	if (pmd_none(*pmd)) {
-		return NULL;
-	}
-	if (pmd_large(*pmd))
-		return (pte_t *)pmd;
-        return pte_offset_kernel(pmd, addr);
-}
-
-/* returns the page table entry */
-unsigned long
-__pgtbl_lookup_address(paddr_t pgtbl, unsigned long addr)
-{
-	pte_t *pte;
-
-	pte = pgtbl_lookup_address(pgtbl, addr);
-	if (!pte) return 0;
-	return pte->pte_low;
-}
-
-/* returns the page table entry */
-void
-__pgtbl_or_pgd(paddr_t pgtbl, unsigned long addr, unsigned long val)
-{
-	pgd_t *pt = ((pgd_t *)pa_to_va((void*)pgtbl)) + pgd_index(addr);
-
-	pt->pgd = pgd_val(*pt) | val;
-}
-
-void pgtbl_print_path(paddr_t pgtbl, unsigned long addr)
-{
-	pgd_t *pt = ((pgd_t *)pa_to_va((void*)pgtbl)) + pgd_index(addr);
-	pte_t *pe = pgtbl_lookup_address(pgtbl, addr);
-	
-	printk("cos: addr %x, pgd entry - %x, pte entry - %x\n", 
-	       (unsigned int)addr, (unsigned int)pgd_val(*pt), (unsigned int)pte_val(*pe));
-
-	return;
-}
-
-int pgtbl_add_entry(paddr_t pgtbl, unsigned long vaddr, unsigned long paddr)
-{
-	pte_t *pte = pgtbl_lookup_address(pgtbl, vaddr);
-
-	if (!pte || pte_val(*pte) & _PAGE_PRESENT) {
-		return -1;
-	}
-	/*pte_val(*pte)*/pte->pte_low = paddr | (_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
-
-	return 0;
-}
-
-/* allocate and link in a page middle directory */
-int pgtbl_add_middledir(paddr_t pt, unsigned long vaddr)
-{
-	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(vaddr);
-	unsigned long *page;
-
-	page = cos_alloc_page(); /* zeroed */
-	if (!page) return -1;
-
-	pgd->pgd = (unsigned long)va_to_pa(page) | _PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED;
-	return 0;
-}
-
-int pgtbl_rem_middledir(paddr_t pt, unsigned long vaddr)
-{
-	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(vaddr);
-	unsigned long *page;
-
-	page = (unsigned long *)pa_to_va((void*)(pgd->pgd & PTE_PFN_MASK));
-	pgd->pgd = 0;
-	cos_free_page(page);
-
-	return 0;
-}
-
-int pgtbl_rem_middledir_range(paddr_t pt, unsigned long vaddr, long size)
-{
-	unsigned long a;
-
-	for (a = vaddr ; a < vaddr + size ; a += HPAGE_SIZE) {
-		BUG_ON(pgtbl_rem_middledir(pt, a));
-	}
-	return 0;
-}
-
-int pgtbl_add_middledir_range(paddr_t pt, unsigned long vaddr, long size)
-{
-	unsigned long a;
-
-	for (a = vaddr ; a < vaddr + size ; a += HPAGE_SIZE) {
-		if (pgtbl_add_middledir(pt, a)) {
-			pgtbl_rem_middledir_range(pt, vaddr, a-vaddr);
-			return -1;
-		}
-	}
-	return 0;
-}
-
-/*
- * Remove a given virtual mapping from a page table.  Return 0 if
- * there is no present mapping, and the physical address mapped if
- * there is an existant mapping.
- */
-paddr_t pgtbl_rem_ret(paddr_t pgtbl, vaddr_t va)
-{
-	pte_t *pte = pgtbl_lookup_address(pgtbl, va);
-	paddr_t val;
-
-	if (!pte || !(pte_val(*pte) & _PAGE_PRESENT)) {
-		return 0;
-	}
-	val = (paddr_t)(pte_val(*pte) & PTE_MASK);
-	pte->pte_low = 0;
-
-	return val;
-}
-
-/* 
- * This won't work to find the translation for the argument region as
- * __va doesn't work on module-mapped memory. 
- */
-vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr)
-{
-	pte_t *pte = pgtbl_lookup_address(pgtbl, addr);
-	unsigned long kaddr;
-
-	if (!pte || !(pte_val(*pte) & _PAGE_PRESENT)) {
-		return 0;
-	}
-	
-	/*
-	 * 1) get the value in the pte
-	 * 2) map out the non-address values to get the physical address
-	 * 3) convert the physical address to the vaddr
-	 * 4) offset into that vaddr the appropriate amount from the addr arg.
-	 * 5) return value
-	 */
-
-	kaddr = (unsigned long)__va(pte_val(*pte) & PTE_MASK) + (~PAGE_MASK & addr);
-
-	return (vaddr_t)kaddr;
-}
-
-unsigned int *pgtbl_module_to_vaddr(unsigned long addr)
-{
-	return (unsigned int *)pgtbl_vaddr_to_kaddr((paddr_t)va_to_pa(current->mm->pgd), addr);
-}
-
-/*
- * Verify that the given address in the page table is present.  Return
- * 0 if present, 1 if not.  *This will check the pgd, not for the pte.*
- */
-int pgtbl_entry_absent(paddr_t pt, unsigned long addr)
-{
-	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(addr);
-
-	return !((pgd_val(*pgd)) & _PAGE_PRESENT);
-}
-
-/* Find the nth valid pgd entry */
-unsigned long get_valid_pgtbl_entry(paddr_t pt, int n)
-{
-	int i;
-
-	for (i = 1 ; i < PTRS_PER_PGD ; i++) {
-		if (!pgtbl_entry_absent(pt, i*PGDIR_SIZE)) {
-			n--;
-			if (n == 0) {
-				return i*PGDIR_SIZE;
-			}
-		}
-	}
-	return 0;
-}
-
-void print_valid_pgtbl_entries(paddr_t pt) 
-{
-	int n = 1;
-	unsigned long ret;
-	printk("cos: valid pgd addresses:\ncos: ");
-	while ((ret = get_valid_pgtbl_entry(pt, n++)) != 0) {
-		printk("%lx\t", ret);
-	}
-	printk("\ncos: %d valid addresses.\n", n-1);
-
-	return;
-}
-
-void zero_pgtbl_range(paddr_t pt, unsigned long lower_addr, unsigned long size)
-{
-	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(lower_addr);
-	unsigned int span = hpage_index(size);
-
-	if (!(pgd_val(*pgd)) & _PAGE_PRESENT) {
-		printk("cos: BUG: nothing to copy from pgd @ %x.\n", 
-		       (unsigned int)lower_addr);
-	}
-
-	/* sizeof(pgd entry) is intended */
-	memset(pgd, 0, span*sizeof(pgd_t));
-}
-
-void copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from, 
-		      unsigned long lower_addr, unsigned long size)
-{
-	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
-	pgd_t *fpgd = ((pgd_t *)pa_to_va((void*)pt_from)) + pgd_index(lower_addr);
-	unsigned int span = hpage_index(size);
-
-	if (!(pgd_val(*fpgd)) & _PAGE_PRESENT) {
-		printk("cos: BUG: nothing to copy from pgd @ %x.\n", 
-		       (unsigned int)lower_addr);
-	}
-
-	/* sizeof(pgd entry) is intended */
-	memcpy(tpgd, fpgd, span*sizeof(pgd_t));
-}
-
-void copy_pgtbl_range_nocheck(paddr_t pt_to, paddr_t pt_from, 
-			      unsigned long lower_addr, unsigned long size)
-{
-	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
-	pgd_t *fpgd = ((pgd_t *)pa_to_va((void*)pt_from)) + pgd_index(lower_addr);
-	unsigned int span = hpage_index(size);
-
-	/* sizeof(pgd entry) is intended */
-	memcpy(tpgd, fpgd, span*sizeof(pgd_t));
-}
-
-/* Copy pages non-empty in from, and empty in to */
-void copy_pgtbl_range_nonzero(paddr_t pt_to, paddr_t pt_from, 
-			      unsigned long lower_addr, unsigned long size)
-{
-	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
-	pgd_t *fpgd = ((pgd_t *)pa_to_va((void*)pt_from)) + pgd_index(lower_addr);
-	unsigned int span = hpage_index(size);
-	int i;
-
-	printk("Copying from %p:%d to %p.\n", fpgd, span, tpgd);
-
-	/* sizeof(pgd entry) is intended */
-	for (i = 0 ; i < span ; i++) {
-		if (!(pgd_val(tpgd[i]) & _PAGE_PRESENT)) {
-			if (pgd_val(fpgd[i]) & _PAGE_PRESENT) printk("\tcopying vaddr %lx.\n", lower_addr + i * HPAGE_SHIFT);
-			memcpy(&tpgd[i], &fpgd[i], sizeof(pgd_t));
-		}
-	}
-}
-
-void copy_pgtbl(paddr_t pt_to, paddr_t pt_from)
-{
-	copy_pgtbl_range_nocheck(pt_to, pt_from, 0, 0xFFFFFFFF);
-}
-
-/*
- * If for some reason Linux preempts the composite thread, then when
- * it starts it back up again, it needs to know what page tables to
- * use.  Thus update the current mm_struct.
- */
-void switch_host_pg_tbls(paddr_t pt)
-{
-	struct mm_struct *mm;
-
-	BUG_ON(!composite_thread);
-	/* 
-	 * We aren't doing reference counting here on the mm (via
-	 * get_task_mm) because we know that this mm will survive
-	 * until the module is unloaded (i.e. it is refcnted at a
-	 * granularity of the creation of the composite file
-	 * descriptor open/close.)
-	 */
-	mm = composite_thread->mm;
-	mm->pgd = (pgd_t *)pa_to_va((void*)pt);
-
-	return;
-}
-
 /***** begin timer/net handling *****/
 
 /* 
@@ -1841,9 +1542,9 @@ static int open_checks(void)
 	paddr_t modval, userval;
 	volatile vaddr_t kern_data;
 
-	kern_data = pgtbl_vaddr_to_kaddr((paddr_t)va_to_pa(current->mm->pgd), (unsigned long)shared_data_page);
+	kern_data = chal_pgtbl_vaddr2kaddr((paddr_t)va_to_pa(current->mm->pgd), (unsigned long)shared_data_page);
 	modval  = (paddr_t)va_to_pa((void *)kern_data);
-	userval = (paddr_t)va_to_pa((void *)pgtbl_vaddr_to_kaddr((paddr_t)va_to_pa(current->mm->pgd), 
+	userval = (paddr_t)va_to_pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)va_to_pa(current->mm->pgd), 
 								     (unsigned long)COS_INFO_REGION_ADDR));
 	if (modval != userval) {
 		printk("shared data page error: %x != %x\n", (unsigned int)modval, (unsigned int)userval);
@@ -1916,7 +1617,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	 * spend most of their time complaining about microkernels as
 	 * being horrible instead.
 	 */
-	shared_region_pte = (pte_t *)pgtbl_vaddr_to_kaddr((paddr_t)va_to_pa(current->mm->pgd), 
+	shared_region_pte = (pte_t *)chal_pgtbl_vaddr2kaddr((paddr_t)va_to_pa(current->mm->pgd), 
 							  (unsigned long)shared_region_page);
 	if (((unsigned long)shared_region_pte & ~PAGE_MASK) != 0) {
 		printk("Allocated page for shared region not page aligned.\n");
@@ -1925,7 +1626,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	memset(shared_region_pte, 0, PAGE_SIZE);
 
 	/* hook in the data page */
-	data_page = va_to_pa((void *)pgtbl_vaddr_to_kaddr((paddr_t)va_to_pa(current->mm->pgd), 
+	data_page = va_to_pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)va_to_pa(current->mm->pgd), 
 							   (unsigned long)shared_data_page));
 	shared_region_pte[0].pte_low = (unsigned long)(data_page) |
 		(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);

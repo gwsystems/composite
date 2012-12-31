@@ -10,8 +10,7 @@
  * gparmer@gwu.edu, 2009
  */
 
-//#include <spd.h>
-#include <linux/kernel.h>
+#include "include/chal.h"
 #include "include/spd.h"
 #include "include/debug.h"
 #include "include/page_pool.h"
@@ -471,7 +470,7 @@ int pages_identical(unsigned long *addr1, unsigned long *addr2)
  * that the user_vaddr_cap_tbl field in the spd must also be
  * initialized.
  */
-extern vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr);
+extern vaddr_t chal_pgtbl_vaddr2kaddr(paddr_t pgtbl, unsigned long addr);
 int spd_set_location(struct spd *spd, unsigned long lowest_addr, 
 		     unsigned long size, paddr_t pg_tbl)
 {
@@ -500,7 +499,7 @@ int spd_set_location(struct spd *spd, unsigned long lowest_addr,
 	 * virtual as we might need to alter this while not in the
 	 * spd's page tables (i.e. when merging protection domains).
 	 */
-	kaddr = pgtbl_vaddr_to_kaddr(pg_tbl, (unsigned long)spd->user_vaddr_cap_tbl);
+	kaddr = chal_pgtbl_vaddr2kaddr(pg_tbl, (unsigned long)spd->user_vaddr_cap_tbl);
 	if (0 == kaddr) {
 		printk("cos: could not translate the user-cap address, %x, into a kernel vaddr for spd %d.\n",
 		       (unsigned int)spd->user_vaddr_cap_tbl, spd_get_index(spd));
