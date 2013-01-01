@@ -1717,7 +1717,7 @@ int cos_net_notify_drop(struct thread *brand)
 /*** Translator Interface ***/
 /****************************/
 
-extern void *va_to_pa(void *va);
+extern void *chal_va2pa(void *va);
 static const struct cos_trans_fns *trans_fns = NULL;
 void cos_trans_reg(const struct cos_trans_fns *fns) { trans_fns = fns; }
 void cos_trans_dereg(void) { trans_fns = NULL; }
@@ -1758,7 +1758,7 @@ cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, i
 		sz    = trans_fns->map_sz(channel);
 		if (off > sz) return -1;
 
-		if (chal_pgtbl_add(s->spd_info.pg_tbl, addr, (paddr_t)va_to_pa(((char *)kaddr+off)))) {
+		if (chal_pgtbl_add(s->spd_info.pg_tbl, addr, (paddr_t)chal_va2pa(((char *)kaddr+off)))) {
 			printk("cos: trans grant -- could not add entry to page table.\n");
 			return -1;
 		}
@@ -2305,8 +2305,6 @@ brand_higher_urgency(struct thread *upcall, struct thread *prev)
 	}
 }
 
-extern int host_can_switch_pgtbls(void);
-
 /* 
  * This does NOT release the composite spd reference of the preempted
  * thread, as you might expect.
@@ -2399,7 +2397,7 @@ brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 		/* Actually setup the brand/upcall to happen here.
 		 * If we aren't in the composite thread, be careful
 		 * what state we change (e.g. page tables) */
-		if (likely(host_can_switch_pgtbls())) {
+		if (likely(chal_pgtbl_can_switch())) {
 			upcall_execute(upcall, (struct composite_spd*)thd_get_thd_spdpoly(upcall),
 				       preempted, (struct composite_spd*)thd_get_thd_spdpoly(preempted));
 		} else {
@@ -3086,9 +3084,6 @@ cos_syscall_mpd_cntl(int spd_id, int operation,
  * or is in the current composite spd, or is a child of a fault
  * thread.
  */
-extern void __pgtbl_or_pgd(paddr_t pgtbl, unsigned long addr, unsigned long val);
-extern void pgtbl_print_path(paddr_t pgtbl, unsigned long addr);
-
 COS_SYSCALL int 
 cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, unsigned long mem_id)
 {
@@ -3196,9 +3191,6 @@ cos_syscall_pfn_cntl(int spdid, long op_dspd, unsigned int mem_id, int extent)
 	return ret;
 }
 
-extern void
-copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from, 
-		 unsigned long lower_addr, unsigned long size);
 /* 
  * The problem solved here is this: Each component has a page-table
  * that defines its memory mappings.  This is updated by the
@@ -3220,10 +3212,10 @@ fault_update_mpd_pgtbl(struct thread *thd, struct pt_regs *regs, vaddr_t fault_a
 	if (origin != virtual_namespace_query(fault_addr)) return 0;
 	active = thd_get_thd_spdpoly(thd);
 
-	if ( pgtbl_entry_absent(origin->spd_info.pg_tbl, fault_addr)) return 0;
-	if (!pgtbl_entry_absent(active->pg_tbl, fault_addr)) return 0;
+	if ( chal_pgtbl_entry_absent(origin->spd_info.pg_tbl, fault_addr)) return 0;
+	if (!chal_pgtbl_entry_absent(active->pg_tbl, fault_addr)) return 0;
 
-	copy_pgtbl_range(active->pg_tbl, origin->spd_info.pg_tbl, fault_addr, HPAGE_SIZE);
+	chal_pgtbl_copy_range(active->pg_tbl, origin->spd_info.pg_tbl, fault_addr, HPAGE_SIZE);
 
 	return 1;
 }

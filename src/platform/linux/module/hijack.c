@@ -600,17 +600,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 			spd->pfn_base   = 0;
 			spd->pfn_extent = COS_MAX_MEMORY;
-/*
-			copy_pgtbl(cspd->spd_info.pg_tbl, __pa(mm->pgd));
-			cspd->spd_info.pg_tbl = __pa(mm->pgd);
-////			spd->composite_spd = &spd->spd_info;//&cspd->spd_info;
-			spd->composite_spd = &cspd->spd_info;
-*/
-#ifdef NIL
-			/* To check the integrity of the created page table: */
-			void print_valid_pgtbl_entries(paddr_t pt);
-			print_valid_pgtbl_entries(spd->composite_spd->pg_tbl);
-#endif
 		}
 
 		return spd_get_index(spd);
@@ -898,13 +887,13 @@ static int cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *re
 	curr = origin->composite_spd;
 
 	/* 2 */
-	if (unlikely(pgtbl_entry_absent(active->pg_tbl, ucap_addr))) return 0;
+	if (unlikely(chal_pgtbl_entry_absent(active->pg_tbl, ucap_addr))) return 0;
 
 	/* 3: really don't know what could cause this */
-	if (unlikely(!pgtbl_entry_absent(active->pg_tbl, fault_addr))) return 0;
+	if (unlikely(!chal_pgtbl_entry_absent(active->pg_tbl, fault_addr))) return 0;
 
 	/* 4 */
-	if (unlikely(pgtbl_entry_absent(curr->pg_tbl, fault_addr))) return 0;
+	if (unlikely(chal_pgtbl_entry_absent(curr->pg_tbl, fault_addr))) return 0;
 	
 	/* 5
 	 *
@@ -912,7 +901,7 @@ static int cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *re
 	 * a more up-to-date pd if this one is subordinate and not
 	 * consistent.
 	 */
-	copy_pgtbl_range(active->pg_tbl, curr->pg_tbl, fault_addr, HPAGE_SIZE);
+	chal_pgtbl_copy_range(active->pg_tbl, curr->pg_tbl, fault_addr, HPAGE_SIZE);
 	
 	/* 
 	 * NOTE: perhaps a better way to do this would be to look up
@@ -1161,7 +1150,7 @@ int kern_handle;
 /*
  * FIXME: error checking
  */
-void *cos_alloc_page(void)
+void *chal_alloc_page(void)
 {
 	void *page = (void*)__get_free_pages(GFP_KERNEL, 0);
 	
@@ -1170,7 +1159,7 @@ void *cos_alloc_page(void)
 	return page;
 }
 
-void cos_free_page(void *page)
+void chal_free_page(void *page)
 {
 	free_pages((unsigned long int)page, 0);
 }
@@ -1180,12 +1169,12 @@ void cos_free_page(void *page)
  * using them both in the composite world and in the Linux world.  We
  * should just use them in the composite world and be done with it.
  */
-void *va_to_pa(void *va) 
+void *chal_va2pa(void *va) 
 {
 	return (void*)__pa(va);
 }
 
-void *pa_to_va(void *pa) 
+void *chal_pa2va(void *pa) 
 {
 	return (void*)__va(pa);
 }
@@ -1315,8 +1304,6 @@ static void host_idle_wakeup(void)
 		assert(IDLE_WAKING == idle_status);
 	}
 }
-
-int host_can_switch_pgtbls(void) { return current == composite_thread; }
 
 int host_attempt_brand(struct thread *brand)
 {
@@ -1506,7 +1493,7 @@ void thd_publish_data_page(struct thread *thd, vaddr_t page)
 
 	//printk("cos: shared_region_pte is %p, page is %x.\n", shared_region_pte, page);
 	/* _PAGE_PRESENT is not set */
-	((pte_t*)shared_region_page)[id].pte_low = (vaddr_t)va_to_pa((void*)page) |
+	((pte_t*)shared_region_page)[id].pte_low = (vaddr_t)chal_va2pa((void*)page) |
 		(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
 
 	return;
@@ -1542,9 +1529,9 @@ static int open_checks(void)
 	paddr_t modval, userval;
 	volatile vaddr_t kern_data;
 
-	kern_data = chal_pgtbl_vaddr2kaddr((paddr_t)va_to_pa(current->mm->pgd), (unsigned long)shared_data_page);
-	modval  = (paddr_t)va_to_pa((void *)kern_data);
-	userval = (paddr_t)va_to_pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)va_to_pa(current->mm->pgd), 
+	kern_data = chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), (unsigned long)shared_data_page);
+	modval  = (paddr_t)chal_va2pa((void *)kern_data);
+	userval = (paddr_t)chal_va2pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), 
 								     (unsigned long)COS_INFO_REGION_ADDR));
 	if (modval != userval) {
 		printk("shared data page error: %x != %x\n", (unsigned int)modval, (unsigned int)userval);
@@ -1596,7 +1583,6 @@ static int aed_open(struct inode *inode, struct file *file)
 	kern_handle = aed_allocate_mm();
 	kern_mm = aed_get_mm(kern_handle);
 	kern_pgtbl_mapping = (vaddr_t)kern_mm->pgd;
-	//assert(!pgtbl_entry_absent(kern_pgtbl_mapping, 0xffffb0b0));
 	/*
 	 * This is really and truly crap, because of Linux.  Linux has
 	 * 4 address namespaces, it seems and I was only aware of 3.
@@ -1617,7 +1603,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	 * spend most of their time complaining about microkernels as
 	 * being horrible instead.
 	 */
-	shared_region_pte = (pte_t *)chal_pgtbl_vaddr2kaddr((paddr_t)va_to_pa(current->mm->pgd), 
+	shared_region_pte = (pte_t *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), 
 							  (unsigned long)shared_region_page);
 	if (((unsigned long)shared_region_pte & ~PAGE_MASK) != 0) {
 		printk("Allocated page for shared region not page aligned.\n");
@@ -1626,7 +1612,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	memset(shared_region_pte, 0, PAGE_SIZE);
 
 	/* hook in the data page */
-	data_page = va_to_pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)va_to_pa(current->mm->pgd), 
+	data_page = chal_va2pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), 
 							   (unsigned long)shared_data_page));
 	shared_region_pte[0].pte_low = (unsigned long)(data_page) |
 		(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
@@ -1800,38 +1786,6 @@ static int aed_release(struct inode *inode, struct file *file)
 
 	return 0;
 }
-
-/* 
- * Modules are vmalloc allocated, which means that their memory is
- * lazy faulted into page tables.  If the page fault handler is in one
- * of the un-faulted-in pages, then the machine will die (double
- * fault).  Thus, make sure the vmalloc regions are updated in all
- * page tables.
- */
-/* int nothing; */
-/* static void update_vmalloc_regions(void) */
-/* { */
-/* 	struct task_struct *t; */
-/* 	pgd_t *curr_pgd; */
-
-/* 	nothing = *(int*)&page_fault_interposition; */
-/* 	BUG_ON(!current->mm); */
-/* 	curr_pgd = current->mm->pgd; */
-
-/* 	printk("curr pgd @ %p, cpy from %x to %x.  module code sample @ %p.\n", */
-/* 	       (void*)pa_to_va((void*)curr_pgd), (unsigned int)MODULES_VADDR,  */
-/* 	       (unsigned int)MODULES_END, &page_fault_interposition); */
-/* 	list_for_each_entry(t, &init_task.tasks, tasks) { */
-/* 		struct mm_struct *amm = t->active_mm, *mm = t->mm; */
-		
-/* 		if (current->mm == amm || current->mm == mm) continue; */
-
-/* 		if (amm) copy_pgtbl_range_nonzero((paddr_t)amm->pgd, (paddr_t)curr_pgd, */
-/* 						  MODULES_VADDR, MODULES_END-MODULES_VADDR); */
-/* 		if (mm && mm != amm) copy_pgtbl_range_nonzero((paddr_t)mm->pgd, (paddr_t)curr_pgd, */
-/* 							      MODULES_VADDR, MODULES_END-MODULES_VADDR); */
-/* 	} */
-/* } */
 
 static struct file_operations proc_aed_fops = {
 	.owner          = THIS_MODULE, 

@@ -5,6 +5,7 @@
 #include <linux/kernel.h>
 
 extern struct task_struct *composite_thread;
+void *chal_pa2va(void *pa);
 
 static inline void 
 __chal_pgtbl_switch(paddr_t pt)
@@ -20,7 +21,7 @@ __chal_pgtbl_switch(paddr_t pt)
 	 * descriptor open/close.)
 	 */
 	mm = composite_thread->mm;
-	mm->pgd = (pgd_t *)pa_to_va((void*)pt);
+	mm->pgd = (pgd_t *)chal_pa2va((void*)pt);
 
 	return;
 }

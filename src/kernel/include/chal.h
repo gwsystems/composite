@@ -50,17 +50,34 @@ static inline void chal_pgtbl_switch(paddr_t pt);
 static inline void __chal_pgtbl_switch(paddr_t pt);
 
 /* Add a page to pgtbl at address. 0 on success */
-int chal_pgtbl_add(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr);
+int     chal_pgtbl_add(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr);
 /* Translate a vaddr to an addressable address via pgtbl */
 vaddr_t chal_pgtbl_vaddr2kaddr(paddr_t pgtbl, unsigned long addr);
 /* Remove mapping for a vaddr from pgtbl. != 0 if mapping doesn't exist */
 paddr_t chal_pgtbl_rem(paddr_t pgtbl, vaddr_t va);
-/* unsigned long chal_pgtbl_lookup(paddr_t pgtbl, unsigned long addr); */
-/* void chal_pgtbl_or_pgd(paddr_t pgtbl, unsigned long addr, unsigned long val); */
-/* void chal_pgtbl_print_path(paddr_t pgtbl, unsigned long addr); */
-/* void chal_pgtbl_copy_range(paddr_t pt_to, paddr_t pt_from,  */
-/* 			   unsigned long lower_addr, unsigned long size); */
-/* int chal_pgtbl_can_switch(void); */
+int     chal_pgtbl_entry_absent(paddr_t pt, unsigned long addr);
+void    chal_pgtbl_copy_range(paddr_t pt_to, paddr_t pt_from,
+			      unsigned long lower_addr, unsigned long size);
+void    chal_pgtbl_copy_range_nocheck(paddr_t pt_to, paddr_t pt_from,
+				      unsigned long lower_addr, unsigned long size);
+void    chal_pgtbl_zero_range(paddr_t pt, unsigned long lower_addr, unsigned long size);
+/* can we switch the current page tables right now? */
+int     chal_pgtbl_can_switch(void);
+
+/*********************************
+ * Address translation functions *
+ *********************************/
+
+void *chal_va2pa(void *va);
+void *chal_pa2va(void *pa);
+
+/************************************
+ * Page allocation and deallocation *
+ ************************************/
+
+void *chal_alloc_page(void);
+void chal_free_page(void *page);
+
 
 /* int switch_thread_data_page(int old_thd, int new_thd); */
 /* int host_attempt_brand(struct thread *brand); */
@@ -68,11 +85,6 @@ paddr_t chal_pgtbl_rem(paddr_t pgtbl, vaddr_t va);
 /* int user_struct_fits_on_page(unsigned long addr, unsigned int size); */
 /* int host_attempt_brand(struct thread *brand); */
 /* void host_idle(void); */
-void *va_to_pa(void *va);
-void *pa_to_va(void *pa);
-
-void *cos_alloc_page(void);
-void cos_free_page(void *page);
 
 /* int cos_syscall_idle(void); */
 /* int cos_syscall_switch_thread(void); */

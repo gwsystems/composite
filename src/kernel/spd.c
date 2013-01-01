@@ -735,14 +735,6 @@ unsigned int spd_add_static_cap_extended(struct spd *owner_spd, struct spd *trus
 	return cap_num;
 }
 
-extern void *va_to_pa(void *va);
-extern void *pa_to_va(void *pa);
-
-extern void zero_pgtbl_range(paddr_t pt, unsigned long lower_addr, unsigned long size);
-extern void copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from,
-			     unsigned long lower_addr, unsigned long size);
-extern int pgtbl_entry_absent(paddr_t pt, unsigned long addr);
-
 struct composite_spd mpd_descriptors[MAX_MPD_DESC];
 struct composite_spd *mpd_freelist;
 
@@ -790,8 +782,6 @@ short int spd_mpd_index(struct composite_spd *cspd)
 }
 
 extern vaddr_t kern_pgtbl_mapping;
-extern void copy_pgtbl_range_nocheck(paddr_t pt_to, paddr_t pt_from,
-				     unsigned long lower_addr, unsigned long size);
 
 paddr_t spd_alloc_pgtbl(void)
 {
@@ -800,7 +790,7 @@ paddr_t spd_alloc_pgtbl(void)
 
 	page = cos_get_pg_pool();
 	if (NULL == page) return 0;
-	pp = (paddr_t)va_to_pa(page);
+	pp = (paddr_t)chal_va2pa(page);
 
 	/* 
 	 * FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
@@ -813,15 +803,15 @@ paddr_t spd_alloc_pgtbl(void)
 	 *
 	 * FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
 	 */
-	copy_pgtbl_range_nocheck(pp, (paddr_t)va_to_pa((void*)kern_pgtbl_mapping), 0, 0xFFFFFFFF);
-	assert(!pgtbl_entry_absent(pp, COS_INFO_REGION_ADDR));
+	chal_pgtbl_copy_range_nocheck(pp, (paddr_t)chal_va2pa((void*)kern_pgtbl_mapping), 0, 0xFFFFFFFF);
+	assert(!chal_pgtbl_entry_absent(pp, COS_INFO_REGION_ADDR));
 
 	return pp;
 }
 
 void spd_free_pgtbl(paddr_t pa)
 {
-	cos_put_pg_pool(pa_to_va((void*)pa));
+	cos_put_pg_pool(chal_pa2va((void*)pa));
 }
 
 short int spd_alloc_mpd_desc(void)
@@ -898,7 +888,7 @@ void spd_mpd_release(struct composite_spd *cspd)
 			cspd->master_spd = NULL;
 		} else {
 			//printk("cos: releasing cspd %d.\n", spd_mpd_index(cspd));
-			cos_put_pg_pool(pa_to_va((void*)cspd->spd_info.pg_tbl));
+			cos_put_pg_pool(chal_pa2va((void*)cspd->spd_info.pg_tbl));
 			cspd->spd_info.pg_tbl = 0;
 		}
 		spd_mpd_reset_flags(cspd);
@@ -1008,7 +998,7 @@ void spd_mpd_make_subordinate(struct composite_spd *master_cspd,
 	if (1 < cos_ref_val(&slave_cspd->spd_info.ref_cnt)) {
 //		printk("cos:\tsubordinate %p to %p\n", slave_cspd, master_cspd);
 		cos_meas_event(COS_MPD_SUBORDINATE);
-		cos_put_pg_pool(pa_to_va((void*)slave_cspd->spd_info.pg_tbl));
+		cos_put_pg_pool(chal_pa2va((void*)slave_cspd->spd_info.pg_tbl));
 		spd_mpd_subordinate(slave_cspd, master_cspd);
 	} else {
 		assert(NULL == slave_cspd->members);
@@ -1044,7 +1034,7 @@ void spd_mpd_free_all(void)
 			printk("cos: warning - found unfreed composite spd, %d w/ refcnt %d\n", 
 			       spd_mpd_index(cspd), cos_ref_val(&cspd->spd_info.ref_cnt));
 			if (!spd_mpd_is_subordinate(cspd)) {
-				cos_put_pg_pool(pa_to_va((void*)cspd->spd_info.pg_tbl));
+				cos_put_pg_pool(chal_pa2va((void*)cspd->spd_info.pg_tbl));
 				cspd->spd_info.pg_tbl = 0;
 			}
 			//spd_mpd_release(cspd);
@@ -1226,7 +1216,7 @@ static inline void spd_remove_mappings(struct composite_spd *cspd, struct spd *s
 
 	for (i = 0 ; i < MAX_SPD_VAS_LOCATIONS ; i++) {
 		if (spd->location[i].size) {
-			zero_pgtbl_range(tbl, spd->location[i].lowest_addr, spd->location[i].size);
+			chal_pgtbl_zero_range(tbl, spd->location[i].lowest_addr, spd->location[i].size);
 		}
 	}
 }
@@ -1237,7 +1227,7 @@ static inline void spd_add_mappings(struct composite_spd *cspd, struct spd *spd)
 
 	for (i = 0 ; i < MAX_SPD_VAS_LOCATIONS ; i++) {
 		if (spd->location[i].size) {
-			copy_pgtbl_range(cspd->spd_info.pg_tbl, spd->spd_info.pg_tbl, 
+			chal_pgtbl_copy_range(cspd->spd_info.pg_tbl, spd->spd_info.pg_tbl, 
 					 spd->location[i].lowest_addr, spd->location[i].size);
 		}
 	}
@@ -1262,14 +1252,14 @@ int spd_composite_add_member(struct composite_spd *cspd, struct spd *spd)
 	/* verify spd is not resident in any other composite_spd */
 	assert(&spd->spd_info == spd->composite_spd);
 	/* make sure spd's mappings don't already exist in cspd (a bug) */
-	assert(pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location[0].lowest_addr));
+	assert(chal_pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location[0].lowest_addr));
 	
 	spd_add_caps(cspd, spd);
 	spd_add_mappings(cspd, spd);
 
-	if (pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location[0].lowest_addr)) {
+	if (chal_pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location[0].lowest_addr)) {
 		printk("cos: adding spd to cspd -> page tables for cspd not initialized properly.\n");
-		if (pgtbl_entry_absent(spd->spd_info.pg_tbl, spd->location[0].lowest_addr)) {
+		if (chal_pgtbl_entry_absent(spd->spd_info.pg_tbl, spd->location[0].lowest_addr)) {
 			printk("cos: adding spd to cspd -> page tables for spd not initialized properly.\n");
 		}
 		return -1;
@@ -1308,7 +1298,7 @@ int spd_composite_remove_member(struct spd *spd, int remove_mappings)
 	cspd = (struct composite_spd *)spd->composite_spd;
 	assert(!spd_mpd_is_depricated(cspd) && !spd_mpd_is_subordinate(cspd));
 	/* this spd better be present in its composite's pgtbl or bug */
-	assert(!pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location[0].lowest_addr));
+	assert(!chal_pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location[0].lowest_addr));
 
 	/* linked list remove */
 	prev = spd->composite_member_prev;
@@ -1330,7 +1320,7 @@ int spd_composite_remove_member(struct spd *spd, int remove_mappings)
 	
 	if (remove_mappings) {
 		spd_remove_mappings(cspd, spd);
-		assert(pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location[0].lowest_addr));
+		assert(chal_pgtbl_entry_absent(cspd->spd_info.pg_tbl, spd->location[0].lowest_addr));
 	}
 
 	assert(0 < cos_ref_val(&cspd->spd_info.ref_cnt));

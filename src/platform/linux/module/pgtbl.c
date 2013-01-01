@@ -7,6 +7,31 @@
 #include "../../../kernel/include/chal.h"
 #include "pgtbl.h"
 
+extern struct task_struct *composite_thread;
+int chal_pgtbl_can_switch(void) { return current == composite_thread; }
+
+static pte_t *
+pgtbl_lookup_address(paddr_t pgtbl, unsigned long addr)
+{
+	pgd_t *pgd = ((pgd_t *)chal_pa2va((void*)pgtbl)) + pgd_index(addr);
+	pud_t *pud;
+	pmd_t *pmd;
+	if (pgd_none(*pgd)) {
+		return NULL;
+	}
+	pud = pud_offset(pgd, addr);
+	if (pud_none(*pud)) {
+		return NULL;
+	}
+	pmd = pmd_offset(pud, addr);
+	if (pmd_none(*pmd)) {
+		return NULL;
+	}
+	if (pmd_large(*pmd))
+		return (pte_t *)pmd;
+        return pte_offset_kernel(pmd, addr);
+}
+
 /* 
  * Namespaces: 
  * pgtbl_*      -> hijack accessible (prototype in pgtbl.h).
@@ -16,7 +41,7 @@
 int
 chal_pgtbl_add(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr)
 {
-	pte_t *pte = __pgtbl_lookup_address(pgtbl, (unsigned long)vaddr);
+	pte_t *pte = pgtbl_lookup_address(pgtbl, (unsigned long)vaddr);
 
 	if (!pte || pte_val(*pte) & _PAGE_PRESENT) return -1;
 	pte->pte_low = ((unsigned long)paddr) | (_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
@@ -31,7 +56,7 @@ chal_pgtbl_add(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr)
 vaddr_t 
 chal_pgtbl_vaddr2kaddr(paddr_t pgtbl, unsigned long addr)
 {
-	pte_t *pte = __pgtbl_lookup_address(pgtbl, addr);
+	pte_t *pte = pgtbl_lookup_address(pgtbl, addr);
 	unsigned long kaddr;
 
 	if (!pte || !(pte_val(*pte) & _PAGE_PRESENT)) {
@@ -59,7 +84,7 @@ chal_pgtbl_vaddr2kaddr(paddr_t pgtbl, unsigned long addr)
 paddr_t
 chal_pgtbl_rem(paddr_t pgtbl, vaddr_t va)
 {
-	pte_t *pte = __pgtbl_lookup_address(pgtbl, va);
+	pte_t *pte = pgtbl_lookup_address(pgtbl, va);
 	paddr_t val;
 
 	if (!pte || !(pte_val(*pte) & _PAGE_PRESENT)) {
@@ -71,32 +96,11 @@ chal_pgtbl_rem(paddr_t pgtbl, vaddr_t va)
 	return val;
 }
 
-
-/* returns the page table entry */
-unsigned long
-pgtbl_lookup_address(paddr_t pgtbl, unsigned long addr)
-{
-	pte_t *pte;
-
-	pte = __pgtbl_lookup_address(pgtbl, addr);
-	if (!pte) return 0;
-	return pte->pte_low;
-}
-
-/* returns the page table entry */
-void
-__pgtbl_or_pgd(paddr_t pgtbl, unsigned long addr, unsigned long val)
-{
-	pgd_t *pt = ((pgd_t *)pa_to_va((void*)pgtbl)) + pgd_index(addr);
-
-	pt->pgd = pgd_val(*pt) | val;
-}
-
 void 
 pgtbl_print_path(paddr_t pgtbl, unsigned long addr)
 {
-	pgd_t *pt = ((pgd_t *)pa_to_va((void*)pgtbl)) + pgd_index(addr);
-	pte_t *pe = __pgtbl_lookup_address(pgtbl, addr);
+	pgd_t *pt = ((pgd_t *)chal_pa2va((void*)pgtbl)) + pgd_index(addr);
+	pte_t *pe = pgtbl_lookup_address(pgtbl, addr);
 	
 	printk("cos: addr %x, pgd entry - %x, pte entry - %x\n", 
 	       (unsigned int)addr, (unsigned int)pgd_val(*pt), (unsigned int)pte_val(*pe));
@@ -108,25 +112,25 @@ pgtbl_print_path(paddr_t pgtbl, unsigned long addr)
 int 
 pgtbl_add_middledir(paddr_t pt, unsigned long vaddr)
 {
-	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(vaddr);
+	pgd_t *pgd = ((pgd_t *)chal_pa2va((void*)pt)) + pgd_index(vaddr);
 	unsigned long *page;
 
-	page = cos_alloc_page(); /* zeroed */
+	page = chal_alloc_page(); /* zeroed */
 	if (!page) return -1;
 
-	pgd->pgd = (unsigned long)va_to_pa(page) | _PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED;
+	pgd->pgd = (unsigned long)chal_va2pa(page) | _PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED;
 	return 0;
 }
 
 int 
 pgtbl_rem_middledir(paddr_t pt, unsigned long vaddr)
 {
-	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(vaddr);
+	pgd_t *pgd = ((pgd_t *)chal_pa2va((void*)pt)) + pgd_index(vaddr);
 	unsigned long *page;
 
-	page = (unsigned long *)pa_to_va((void*)(pgd->pgd & PTE_PFN_MASK));
+	page = (unsigned long *)chal_pa2va((void*)(pgd->pgd & PTE_PFN_MASK));
 	pgd->pgd = 0;
-	cos_free_page(page);
+	chal_free_page(page);
 
 	return 0;
 }
@@ -159,7 +163,7 @@ pgtbl_add_middledir_range(paddr_t pt, unsigned long vaddr, long size)
 unsigned int *
 pgtbl_module_to_vaddr(unsigned long addr)
 {
-	return (unsigned int *)chal_pgtbl_vaddr2kaddr((paddr_t)va_to_pa(current->mm->pgd), addr);
+	return (unsigned int *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), addr);
 }
 
 /*
@@ -167,21 +171,21 @@ pgtbl_module_to_vaddr(unsigned long addr)
  * 0 if present, 1 if not.  *This will check the pgd, not for the pte.*
  */
 int 
-pgtbl_entry_absent(paddr_t pt, unsigned long addr)
+chal_pgtbl_entry_absent(paddr_t pt, unsigned long addr)
 {
-	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(addr);
+	pgd_t *pgd = ((pgd_t *)chal_pa2va((void*)pt)) + pgd_index(addr);
 
 	return !((pgd_val(*pgd)) & _PAGE_PRESENT);
 }
 
 /* Find the nth valid pgd entry */
-unsigned long 
+static unsigned long 
 get_valid_pgtbl_entry(paddr_t pt, int n)
 {
 	int i;
 
 	for (i = 1 ; i < PTRS_PER_PGD ; i++) {
-		if (!pgtbl_entry_absent(pt, i*PGDIR_SIZE)) {
+		if (!chal_pgtbl_entry_absent(pt, i*PGDIR_SIZE)) {
 			n--;
 			if (n == 0) {
 				return i*PGDIR_SIZE;
@@ -192,7 +196,7 @@ get_valid_pgtbl_entry(paddr_t pt, int n)
 }
 
 void 
-print_valid_pgtbl_entries(paddr_t pt) 
+pgtbl_print_valid_entries(paddr_t pt) 
 {
 	int n = 1;
 	unsigned long ret;
@@ -206,9 +210,9 @@ print_valid_pgtbl_entries(paddr_t pt)
 }
 
 void 
-zero_pgtbl_range(paddr_t pt, unsigned long lower_addr, unsigned long size)
+chal_pgtbl_zero_range(paddr_t pt, unsigned long lower_addr, unsigned long size)
 {
-	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(lower_addr);
+	pgd_t *pgd = ((pgd_t *)chal_pa2va((void*)pt)) + pgd_index(lower_addr);
 	unsigned int span = hpage_index(size);
 
 	if (!(pgd_val(*pgd)) & _PAGE_PRESENT) {
@@ -221,11 +225,11 @@ zero_pgtbl_range(paddr_t pt, unsigned long lower_addr, unsigned long size)
 }
 
 void 
-copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from, 
+chal_pgtbl_copy_range(paddr_t pt_to, paddr_t pt_from, 
 		 unsigned long lower_addr, unsigned long size)
 {
-	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
-	pgd_t *fpgd = ((pgd_t *)pa_to_va((void*)pt_from)) + pgd_index(lower_addr);
+	pgd_t *tpgd = ((pgd_t *)chal_pa2va((void*)pt_to)) + pgd_index(lower_addr);
+	pgd_t *fpgd = ((pgd_t *)chal_pa2va((void*)pt_from)) + pgd_index(lower_addr);
 	unsigned int span = hpage_index(size);
 
 	if (!(pgd_val(*fpgd)) & _PAGE_PRESENT) {
@@ -238,11 +242,11 @@ copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from,
 }
 
 void 
-copy_pgtbl_range_nocheck(paddr_t pt_to, paddr_t pt_from, 
+chal_pgtbl_copy_range_nocheck(paddr_t pt_to, paddr_t pt_from, 
 			 unsigned long lower_addr, unsigned long size)
 {
-	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
-	pgd_t *fpgd = ((pgd_t *)pa_to_va((void*)pt_from)) + pgd_index(lower_addr);
+	pgd_t *tpgd = ((pgd_t *)chal_pa2va((void*)pt_to)) + pgd_index(lower_addr);
+	pgd_t *fpgd = ((pgd_t *)chal_pa2va((void*)pt_from)) + pgd_index(lower_addr);
 	unsigned int span = hpage_index(size);
 
 	/* sizeof(pgd entry) is intended */
@@ -254,8 +258,8 @@ void
 copy_pgtbl_range_nonzero(paddr_t pt_to, paddr_t pt_from, 
 			 unsigned long lower_addr, unsigned long size)
 {
-	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
-	pgd_t *fpgd = ((pgd_t *)pa_to_va((void*)pt_from)) + pgd_index(lower_addr);
+	pgd_t *tpgd = ((pgd_t *)chal_pa2va((void*)pt_to)) + pgd_index(lower_addr);
+	pgd_t *fpgd = ((pgd_t *)chal_pa2va((void*)pt_from)) + pgd_index(lower_addr);
 	unsigned int span = hpage_index(size);
 	int i;
 
@@ -271,7 +275,7 @@ copy_pgtbl_range_nonzero(paddr_t pt_to, paddr_t pt_from,
 }
 
 void 
-copy_pgtbl(paddr_t pt_to, paddr_t pt_from)
+pgtbl_copy(paddr_t pt_to, paddr_t pt_from)
 {
-	copy_pgtbl_range_nocheck(pt_to, pt_from, 0, 0xFFFFFFFF);
+	chal_pgtbl_copy_range_nocheck(pt_to, pt_from, 0, 0xFFFFFFFF);
 }

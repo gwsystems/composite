@@ -16,6 +16,7 @@
 //#include <consts.h>
 #include "shared/cos_types.h"
 #include "shared/consts.h"
+#include "chal.h"
 
 /**
  * Service Protection Domains
@@ -372,12 +373,11 @@ int virtual_namespace_alloc(struct spd *spd, unsigned long addr, unsigned int si
  *
  * FIXME: TEST THIS!
  */
-extern int pgtbl_entry_absent(vaddr_t addr, paddr_t pg_tbl);
 static inline int spd_composite_member(struct spd *spd, struct spd_poly *poly)
 {
 	vaddr_t lowest_addr = spd->location[0].lowest_addr;
 
-	return !pgtbl_entry_absent(poly->pg_tbl, lowest_addr);
+	return !chal_pgtbl_entry_absent(poly->pg_tbl, lowest_addr);
 }
 
 #else /* ASM */
