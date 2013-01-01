@@ -1267,7 +1267,8 @@ static inline void cli(void)
 	__asm__("cli");
 }
 
-void host_idle(void)
+void 
+chal_idle(void)
 {
 	/* set state must be before in_idle=1 to avert race */
 	set_current_state(TASK_INTERRUPTIBLE);
@@ -1288,7 +1289,8 @@ void host_idle(void)
 	event_record("coming out of idle", thd_get_id(thd_get_current()), 0);
 }
 
-static void host_idle_wakeup(void)
+static void 
+host_idle_wakeup(void)
 {
 	assert(host_in_idle());
 	if (likely(composite_thread)) {

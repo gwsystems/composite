@@ -139,7 +139,7 @@ printk
 Programmatically Determining Undefined Symbols in the Kernel
 ------------------------------------------------------------
 
-`cd src/kernel/; ld *.o -o all.o 2> undef.txt; grep "undefined reference to" undef.txt | sed "s/.*\`\(.*\)'.*/\1/" | sort | uniq ; rm undef.txt`
+`cd src/kernel/; ld *.o -o all.o 2> undef.txt; grep "undefined reference to" undef.txt | sed "s/.*\<replace with backtick>\(.*\)'.*/\1/" | sort | uniq ; rm undef.txt`
 
 results in the following list of undefined functions (@
 `8d21a01302cd12e7fb32f73306d8a2a2a28b562e`):

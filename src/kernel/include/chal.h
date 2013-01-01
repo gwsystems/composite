@@ -83,8 +83,7 @@ void chal_free_page(void *page);
 /* int host_attempt_brand(struct thread *brand); */
 /* static const struct cos_trans_fns *trans_fns = NULL; */
 /* int user_struct_fits_on_page(unsigned long addr, unsigned int size); */
-/* int host_attempt_brand(struct thread *brand); */
-/* void host_idle(void); */
+void chal_idle(void);
 
 /* int cos_syscall_idle(void); */
 /* int cos_syscall_switch_thread(void); */

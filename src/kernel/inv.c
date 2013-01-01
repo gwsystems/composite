@@ -88,31 +88,6 @@ open_close_spd_ret(struct spd_poly *c_spd)
 	return;
 }
 
-static void 
-print_stack(struct thread *thd)
-{
-	int i;
-
-	printk("cos: In thd %x, stack:\n", thd_get_id(thd));
-	for (i = 0 ; i <= thd->stack_ptr ; i++) {
-		struct thd_invocation_frame *frame = &thd->stack_base[i];
-		printk("cos: \t[spd %d]\n", spd_get_index(frame->spd));
-	}
-}
-
-void 
-print_regs(struct pt_regs *regs)
-{
-	printk("cos: EAX:%x\tEBX:%x\tECX:%x\n"
-	       "cos: EDX:%x\tESI:%x\tEDI:%x\n"
-	       "cos: EIP:%x\tESP:%x\tEBP:%x\n",
-	       (unsigned int)regs->ax, (unsigned int)regs->bx, (unsigned int)regs->cx,
-	       (unsigned int)regs->dx, (unsigned int)regs->si, (unsigned int)regs->di,
-	       (unsigned int)regs->ip, (unsigned int)regs->sp, (unsigned int)regs->bp);
-
-	return;
-}
-
 extern struct invocation_cap invocation_capabilities[MAX_STATIC_CAP];
 
 struct inv_ret_struct {
@@ -176,9 +151,7 @@ ipc_walk_static_cap(struct thread *thd, unsigned int capability, vaddr_t sp,
 	if (unlikely(!thd_spd_in_composite(curr_frame->current_composite_spd, curr_spd))) {
 		printk("cos: Error, incorrect capability (Cap %d has spd %d, stk @ %d has %d).\n",
 		       capability, spd_get_index(curr_spd), thd->stack_ptr, spd_get_index(curr_frame->spd));
-		print_stack(thd);
 		/* 
-
 		 * FIXME: do something here like throw a fault to be
 		 * handled by a user-level handler
 		 */
@@ -198,8 +171,6 @@ ipc_walk_static_cap(struct thread *thd, unsigned int capability, vaddr_t sp,
 	/* add a new stack frame for the spd we are invoking (we're committed) */
 	thd_invocation_push(thd, cap_entry->destination, sp, ip);
 	cap_entry->invocation_cnt++;
-
-//	printk("%d: %d->%d\n", thd_get_id(thd), spd_get_index(curr_spd), spd_get_index(dest_spd));
 
 	return cap_entry->dest_entry_instruction;
 }
@@ -243,8 +214,6 @@ pop(struct thread *curr, struct pt_regs **regs_restore)
 	 *
 	 * This REALLY should be spd_mpd_release.
 	 */
-	//cos_ref_release(&inv_frame->current_composite_spd->ref_cnt);
-	//spd_mpd_release((struct composite_spd *)inv_frame->current_composite_spd);
 	spd_mpd_ipc_release((struct composite_spd *)inv_frame->current_composite_spd);
 
 	/* Fault caused initial invocation.  FIXME: can we get this off the common case path? */
@@ -252,8 +221,6 @@ pop(struct thread *curr, struct pt_regs **regs_restore)
 		*regs_restore = &curr->fault_regs;
 		return NULL;
 	}
-
-//	printk("%d: ->%d\n", thd_get_id(curr), spd_get_index(curr_frame->spd));
 
 	return inv_frame;	
 }
@@ -3315,13 +3282,12 @@ cos_syscall_stats(int spdid)
 }
 
 extern int cos_syscall_idle(void);
-extern void host_idle(void);
 COS_SYSCALL int 
 cos_syscall_idle_cont(int spdid)
 {
 	struct thread *c = thd_get_current();
 	
-	host_idle();
+	chal_idle();
 	if (c != thd_get_current()) return COS_SCHED_RET_AGAIN;
 
 	return COS_SCHED_RET_SUCCESS;
