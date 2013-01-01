@@ -274,7 +274,6 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	switch (t) {
 	case COS_UPCALL_CREATE:
-		cos_argreg_init();
 		((crt_thd_fn_t)arg1)();
 		break;
 	case COS_UPCALL_DESTROY:

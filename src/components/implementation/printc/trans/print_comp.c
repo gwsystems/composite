@@ -43,7 +43,8 @@ print_init(void)
 int
 print_str(char *s, unsigned int len)
 {
-	if (!COS_IN_ARGREG(s) || !COS_IN_ARGREG(s + len)) {
+//	if (!COS_IN_ARGREG(s) || !COS_IN_ARGREG(s + len)) {
+	if (1) {
 		static char foo[MAX_LEN];
 		snprintf(foo, MAX_LEN, "print argument out of bounds: %x", (unsigned int)s);
 		cos_print(foo, 0);

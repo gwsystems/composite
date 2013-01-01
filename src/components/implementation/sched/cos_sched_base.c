@@ -1676,7 +1676,6 @@ int sched_root_init(void)
 
 	print_config_info();
 
-	cos_argreg_init();
 	__sched_init();
 
 	/* switch back to this thread to terminate the system. */
@@ -1726,7 +1725,6 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		sched_init();
 		break;
 	case COS_UPCALL_CREATE:
-		cos_argreg_init();
 		((crt_thd_fn_t)arg1)(arg2);
 		break;
 	case COS_UPCALL_DESTROY:

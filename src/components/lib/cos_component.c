@@ -53,7 +53,6 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 			__alloc_libc_initilize(); 
 			constructors_execute();
 		}
-		cos_argreg_init();
 		cos_init(arg1);
 		break;
 	}
