@@ -8,10 +8,9 @@
 
 #include "include/debug.h"
 #include "include/thread.h"
+#include "include/chal.h"
 
-#include <linux/kernel.h>
-
-extern vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr);
+extern vaddr_t chal_pgtbl_vaddr2kaddr(paddr_t pgtbl, unsigned long addr);
 extern int user_struct_fits_on_page(unsigned long addr, unsigned int size);
 /* 
  * Return -1 if there is some form of error (couldn't find ring
@@ -48,7 +47,7 @@ int rb_retrieve_buff(struct thread *brand, int desired_len,
 		return -1;
 	}
 	bspd = thd_get_thd_spd(brand);
-	kaddr = pgtbl_vaddr_to_kaddr(bspd->spd_info.pg_tbl, (unsigned long)addr);
+	kaddr = chal_pgtbl_vaddr2kaddr(bspd->spd_info.pg_tbl, (unsigned long)addr);
 	if (!kaddr || !user_struct_fits_on_page(kaddr, len)) {
 		rb->packets[position].status = RB_ERR;
 		brand->rb_next = (position+1) & (RB_SIZE-1);

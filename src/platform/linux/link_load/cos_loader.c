@@ -40,11 +40,6 @@
 
 #include <bfd.h>
 
-/* composite includes */
-#include <spd.h>
-#include <thread.h>
-#include <ipc.h>
-
 #include <cobj_format.h>
 
 enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_HIGH;

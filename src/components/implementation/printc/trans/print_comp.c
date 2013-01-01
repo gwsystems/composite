@@ -11,7 +11,8 @@
 #include <cringbuf.h>
 
 struct cringbuf sharedbuf;
-static int print_init(void)
+static int 
+print_init(void)
 {
 	static int first = 1;
 	char *addr, *start;
@@ -39,7 +40,8 @@ static int print_init(void)
 	return 0;
 }
 
-int print_str(char *s, unsigned int len)
+int
+print_str(char *s, unsigned int len)
 {
 	if (!COS_IN_ARGREG(s) || !COS_IN_ARGREG(s + len)) {
 		static char foo[MAX_LEN];
@@ -62,6 +64,13 @@ int print_str(char *s, unsigned int len)
 #ifdef COS_PRINT_DMESG
 	cos_print(s, len);
 #endif
+	return 0;
+}
+
+int
+print_char(int len, int a, int b, int c)
+{
+	assert(0);
 	return 0;
 }
 

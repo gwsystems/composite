@@ -2,7 +2,7 @@ The _Composite_ Hardware Abstraction Layer
 ==========================================
 
 The _Composite_ Hardware Abstraction Layer, or _Hijack_ Abstraction
-Layer, (_cHAL_) is the layer that defines the platform-specific
+Layer -- _cHAL_ -- is the layer that defines the platform-specific
 functionality that requires specific implementations not only for
 different architectures (e.g. x86-32 vs. -64), but also when booting
 from the bare-metal versus using the Hijack techniques.  This file
@@ -139,7 +139,7 @@ printk
 Programmatically Determining Undefined Symbols in the Kernel
 ------------------------------------------------------------
 
-`cd src/kernel/; ld *.o -o all.o 2> undef.txt; grep "undefined reference to" undef.txt | sed "s/.*\`\(.*\)'.*/\1/" | sort | uniq ; rm undef.txt`
+`cd src/kernel/; ld *.o -o all.o 2> undef.txt; grep "undefined reference to" undef.txt | sed "s/.*\<replace with backtick>\(.*\)'.*/\1/" | sort | uniq ; rm undef.txt`
 
 results in the following list of undefined functions (@
 `8d21a01302cd12e7fb32f73306d8a2a2a28b562e`):
