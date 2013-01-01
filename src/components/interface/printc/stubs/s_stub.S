@@ -9,5 +9,6 @@
 
 .text	
 cos_asm_server_stub(print_str)
+cos_asm_server_stub(print_char)
 cos_asm_server_stub(print_null)
 

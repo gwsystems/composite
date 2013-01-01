@@ -45,7 +45,6 @@ static unsigned long cycle_cnt;
 void 
 ipc_init(void)
 {
-	//memset(shared_region_page, 0, PAGE_SIZE);
 	memset(shared_data_page, 0, PAGE_SIZE);
 	rdtscl(cycle_cnt);
 
@@ -3202,7 +3201,6 @@ cos_syscall_print(int spdid, char *str, int len)
 	
 	str[len] = '\0';
 	if ('\n' == last)
-//		printk("cos,%d: %s", thd_get_id(thd_get_current()), str);
 		printk("%s", str);
 	else 
 		printk("%s", str);

@@ -7,19 +7,32 @@
 #include <printc.h>
 
 static char foo[MAX_LEN];
-int print_str(char *s, unsigned int len)
+int
+print_str(char *s, unsigned int len)
 {
-//	char *ptr;
-//	int l = len;
+	char n = *((char*)NULL);
+	return (int)n;
+}
 
-	if (!COS_IN_ARGREG(s) || !COS_IN_ARGREG(s + len)) {
-		snprintf(foo, MAX_LEN, "print argument out of bounds: %x", (unsigned int)s);
-		cos_print(foo, 0);
-		return -1;
-	}
-	s[len+1] = '\0';
+union pstr {
+	int  i[4];
+	char c[16];
+};
 
-	cos_print(s, len);
+int
+print_char(int len, int a, int b, int c)
+{
+	int maxlen = sizeof(int) * 3 + 1;
+	union pstr str;
+
+	if (len > maxlen-1) return -1;
+	str.i[0] = a;
+	str.i[1] = b;
+	str.i[2] = c;
+	str.c[len] = '\0';
+
+	memcpy(foo, str.c, len+1);
+	cos_print(foo, len);
 
 	return 0;
 }
