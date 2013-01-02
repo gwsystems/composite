@@ -35,14 +35,15 @@ clean:
 
 distclean:
 	make -C dietlibc-0.29 clean
-	make -C lwip/cos clean	
-# FIXME: for some reason doing the following step will empty the
-# current Makefile. 
-#	ck/./configure
-#	make -C ck clean
+	make -C lwip/cos clean
+# keep the following commands in one line. make executes each line
+# with a new shell.
+	cd ck; ./configure; cd ..
+	make -C ck clean
 
 init: clean distclean all
 	make -C dietlibc-0.29
 	make -C lwip/cos
-	ck/./configure
+# keep the following commands in one line. Same as above.
+	cd ck; ./configure; cd ..
 	make -C ck
