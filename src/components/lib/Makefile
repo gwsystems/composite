@@ -36,8 +36,10 @@ clean:
 distclean:
 	make -C dietlibc-0.29 clean
 	make -C lwip/cos clean	
-	ck/./configure
-	make -C ck clean
+# FIXME: for some reason doing the following step will empty the
+# current Makefile. 
+#	ck/./configure
+#	make -C ck clean
 
 init: clean distclean all
 	make -C dietlibc-0.29
