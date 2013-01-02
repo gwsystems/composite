@@ -85,10 +85,8 @@ void *chal_alloc_page(void);
 void chal_free_page(void *page);
 
 
-/* int switch_thread_data_page(int old_thd, int new_thd); */
 /* int host_attempt_brand(struct thread *brand); */
 /* static const struct cos_trans_fns *trans_fns = NULL; */
-/* int user_struct_fits_on_page(unsigned long addr, unsigned int size); */
 void chal_idle(void);
 
 /* int cos_syscall_idle(void); */

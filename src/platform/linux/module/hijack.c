@@ -1501,22 +1501,6 @@ void thd_publish_data_page(struct thread *thd, vaddr_t page)
 	return;
 }
 
-void switch_thread_data_page(int old_thd, int new_thd)
-{
-	assert(0 != old_thd && 0 != new_thd);
-
-	/*
-	 * Use shared_region_page here to avoid a cache miss going
-	 * through a level of indirection for a pointer.
-	 *
-	 * unmap the current thread map in the new thread
-	 */
-	((pte_t*)shared_region_page)[old_thd].pte_low &= ~_PAGE_PRESENT;
-	((pte_t*)shared_region_page)[new_thd].pte_low |= _PAGE_PRESENT;
-
-	return;
-}
-
 static int open_checks(void)
 {
 	/* 

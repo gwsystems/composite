@@ -286,7 +286,6 @@ cos_syscall_void(int spdid)
 	return 0;
 }
 
-extern int switch_thread_data_page(int old_thd, int new_thd);
 struct thread *ready_boot_thread(struct spd *init)
 {
 	struct shared_user_data *ud = get_shared_data();
@@ -304,7 +303,6 @@ struct thread *ready_boot_thread(struct spd *init)
 	tid = thd_get_id(thd);
 	thd_set_current(thd);
 
-	switch_thread_data_page(2, tid);
 	/* thread ids start @ 1 */
 	ud->current_thread = tid;
 	ud->argument_region = (void*)((tid * PAGE_SIZE) + COS_INFO_REGION_ADDR);
@@ -324,7 +322,6 @@ static inline void __switch_thread_context(struct thread *curr, struct thread *n
 	ntid = thd_get_id(next);
 	thd_set_current(next);
 
-	switch_thread_data_page(ctid, ntid);
 	/* thread ids start @ 1, thus thd pages are offset above the data page */
 	ud->current_thread = ntid;
 	ud->argument_region = (void*)((ntid * PAGE_SIZE) + COS_INFO_REGION_ADDR);

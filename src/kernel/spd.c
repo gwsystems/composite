@@ -411,11 +411,6 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 	return NULL;
 }
 
-/* int spd_get_index(struct spd *spd) */
-/* { */
-/* 	return ((unsigned long)spd-(unsigned long)spds)/sizeof(struct spd); */
-/* } */
-
 /*
  * Does an address range fit on a single page?
  */
@@ -511,7 +506,7 @@ int spd_add_location(struct spd *spd, long base, long size)
 
 	spd->location[i].lowest_addr = base;
 	spd->location[i].size = size;
-	BUG_ON(pgtbl_add_middledir_range(spd->spd_info.pg_tbl, base, size));
+	BUG_ON(chal_pgtbl_add_middledir_range(spd->spd_info.pg_tbl, base, size));
 done:
 	return ret;
 err:
@@ -535,7 +530,7 @@ int spd_rem_location(struct spd *spd, long base, long size)
 	if (!virtual_namespace_free(spd, base, size)) goto err;
 	spd->location[i].lowest_addr = spd->location[i].size = 0;
 	
-	BUG_ON(pgtbl_rem_middledir_range(spd->spd_info.pg_tbl, base, size));
+	BUG_ON(chal_pgtbl_rem_middledir_range(spd->spd_info.pg_tbl, base, size));
 done:
 	return ret;
 err:
