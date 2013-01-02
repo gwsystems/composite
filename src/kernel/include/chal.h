@@ -84,8 +84,11 @@ void *chal_pa2va(void *pa);
 void *chal_alloc_page(void);
 void chal_free_page(void *page);
 
+/*******************
+ * Other functions *
+ *******************/
 
-/* int host_attempt_brand(struct thread *brand); */
+int chal_attempt_brand(struct thread *brand);
 /* static const struct cos_trans_fns *trans_fns = NULL; */
 void chal_idle(void);
 

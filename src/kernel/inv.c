@@ -1611,8 +1611,6 @@ void cos_net_deregister(struct cos_net_callbacks *cn_cb)
 	cos_net_fns = NULL;
 }
 
-extern int host_attempt_brand(struct thread *brand);
-
 void cos_net_prebrand(void)
 {
 	cos_meas_event(COS_MEAS_PACKET_RECEPTION);
@@ -1646,7 +1644,7 @@ int cos_net_try_brand(struct thread *t, void *data, int len)
 	*lenp = len;
 	memcpy(buff, data, len);
 	
-	host_attempt_brand(t);
+	chal_attempt_brand(t);
 	
 	return 0;
 }
@@ -1678,14 +1676,13 @@ int cos_net_notify_drop(struct thread *brand)
 /*** Translator Interface ***/
 /****************************/
 
-extern void *chal_va2pa(void *va);
 static const struct cos_trans_fns *trans_fns = NULL;
 void cos_trans_reg(const struct cos_trans_fns *fns) { trans_fns = fns; }
 void cos_trans_dereg(void) { trans_fns = NULL; }
 void cos_trans_upcall(void *brand) 
 {
 	assert(brand);
-	host_attempt_brand((struct thread *)brand);
+	chal_attempt_brand((struct thread *)brand);
 }
 
 COS_SYSCALL int
@@ -2823,11 +2820,6 @@ mpd_merge(struct composite_spd *c1, struct composite_spd *c2)
 	assert(c1 != c2);
 	other = get_spd_to_subordinate(c1, c2);
 	dest = (other == c1) ? c2 : c1;
-	/*
-	extern void print_valid_pgtbl_entries(paddr_t pt);
-	print_valid_pgtbl_entries(dest->spd_info.pg_tbl);
-	print_valid_pgtbl_entries(other->spd_info.pg_tbl);
-	*/
 
 	/* 
 	 * While there are spds in the current composite, move them to

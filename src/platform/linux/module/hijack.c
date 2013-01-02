@@ -1307,7 +1307,7 @@ host_idle_wakeup(void)
 	}
 }
 
-int host_attempt_brand(struct thread *brand)
+int chal_attempt_brand(struct thread *brand)
 {
 	struct pt_regs *regs = NULL;
 	unsigned long flags;
@@ -1464,7 +1464,7 @@ static void timer_interrupt(unsigned long data)
 		return;
 	}
 
-	host_attempt_brand(cos_timer_brand_thd);
+	chal_attempt_brand(cos_timer_brand_thd);
 	return;
 }
 

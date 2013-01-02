@@ -414,7 +414,8 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 /*
  * Does an address range fit on a single page?
  */
-int user_struct_fits_on_page(unsigned long addr, unsigned int size)
+int
+user_struct_fits_on_page(unsigned long addr, unsigned int size)
 {
 	unsigned long start, end;
 
@@ -425,7 +426,8 @@ int user_struct_fits_on_page(unsigned long addr, unsigned int size)
 	return (start == end);
 }
 
-int pages_identical(unsigned long *addr1, unsigned long *addr2)
+int
+pages_identical(unsigned long *addr1, unsigned long *addr2)
 {
 	unsigned long saved_val;
 
@@ -736,14 +738,16 @@ void spd_init_mpd_descriptors(void)
 	return;
 }
 
-struct composite_spd *spd_mpd_by_idx(short int idx)
+struct composite_spd *
+spd_mpd_by_idx(short int idx)
 {
 	if (idx >= MAX_MPD_DESC) return NULL;
 
 	return &mpd_descriptors[idx];
 }
 
-short int spd_mpd_index(struct composite_spd *cspd)
+short int
+spd_mpd_index(struct composite_spd *cspd)
 {
 	short int idx = cspd - mpd_descriptors;
 
@@ -754,7 +758,8 @@ short int spd_mpd_index(struct composite_spd *cspd)
 
 extern vaddr_t kern_pgtbl_mapping;
 
-paddr_t spd_alloc_pgtbl(void)
+paddr_t 
+spd_alloc_pgtbl(void)
 {
 	struct page_list *page;
 	paddr_t pp;
@@ -780,12 +785,14 @@ paddr_t spd_alloc_pgtbl(void)
 	return pp;
 }
 
-void spd_free_pgtbl(paddr_t pa)
+void 
+spd_free_pgtbl(paddr_t pa)
 {
 	cos_put_pg_pool(chal_pa2va((void*)pa));
 }
 
-short int spd_alloc_mpd_desc(void)
+short int 
+spd_alloc_mpd_desc(void)
 {
 	struct composite_spd *new;
 	paddr_t pgtbl;
