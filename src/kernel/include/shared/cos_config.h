@@ -2,7 +2,7 @@
 #define COS_CONFIG_H
 
 #include "cpu_ghz.h"
-#define NUM_CPU                3
+#define NUM_CPU                1
 #define INIT_CORE              0
 /* Currently Linux runs on the last core only. The code using the
  * following macro assumes this. We might need to assign more cores

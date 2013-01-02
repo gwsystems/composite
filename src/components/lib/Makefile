@@ -36,7 +36,10 @@ clean:
 distclean:
 	make -C dietlibc-0.29 clean
 	make -C lwip/cos clean	
+	make -C ck clean
 
 init: clean distclean all
 	make -C dietlibc-0.29
 	make -C lwip/cos
+	ck/./configure
+	make -C ck

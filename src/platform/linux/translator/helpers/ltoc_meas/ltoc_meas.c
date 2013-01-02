@@ -54,7 +54,7 @@ int main(void)
 
 		//_read = read(0, buf, PRINT_CHUNK_SZ);
 		_read = 8;
-		p = buf;
+		p = (unsigned long long *)buf;
 		rdtscll(*p);
 
 		do {
