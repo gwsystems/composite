@@ -61,7 +61,6 @@ static inline void
 switch_pgtbls(paddr_t new, paddr_t old)
 {
 	if (likely(old != new)) {
-		native_write_cr3(new);
 		chal_pgtbl_switch(new);
 	}
 
@@ -79,7 +78,6 @@ open_close_spd(struct spd_poly *o_spd, struct spd_poly *c_spd)
 static inline void 
 open_close_spd_ret(struct spd_poly *c_spd)
 {
-	native_write_cr3(c_spd->pg_tbl);
 	chal_pgtbl_switch(c_spd->pg_tbl);
 	
 	return;
