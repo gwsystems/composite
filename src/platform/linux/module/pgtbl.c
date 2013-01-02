@@ -110,7 +110,7 @@ pgtbl_print_path(paddr_t pgtbl, unsigned long addr)
 
 /* allocate and link in a page middle directory */
 int 
-pgtbl_add_middledir(paddr_t pt, unsigned long vaddr)
+chal_pgtbl_add_middledir(paddr_t pt, unsigned long vaddr)
 {
 	pgd_t *pgd = ((pgd_t *)chal_pa2va((void*)pt)) + pgd_index(vaddr);
 	unsigned long *page;
@@ -123,7 +123,7 @@ pgtbl_add_middledir(paddr_t pt, unsigned long vaddr)
 }
 
 int 
-pgtbl_rem_middledir(paddr_t pt, unsigned long vaddr)
+chal_pgtbl_rem_middledir(paddr_t pt, unsigned long vaddr)
 {
 	pgd_t *pgd = ((pgd_t *)chal_pa2va((void*)pt)) + pgd_index(vaddr);
 	unsigned long *page;
@@ -136,7 +136,7 @@ pgtbl_rem_middledir(paddr_t pt, unsigned long vaddr)
 }
 
 int 
-pgtbl_rem_middledir_range(paddr_t pt, unsigned long vaddr, long size)
+chal_pgtbl_rem_middledir_range(paddr_t pt, unsigned long vaddr, long size)
 {
 	unsigned long a;
 
@@ -147,7 +147,7 @@ pgtbl_rem_middledir_range(paddr_t pt, unsigned long vaddr, long size)
 }
 
 int 
-pgtbl_add_middledir_range(paddr_t pt, unsigned long vaddr, long size)
+chal_pgtbl_add_middledir_range(paddr_t pt, unsigned long vaddr, long size)
 {
 	unsigned long a;
 

@@ -118,9 +118,8 @@ static short int spd_alloc_capability_range(int range)
 	short int i, range_free = 0;
 
 	for (i = 0 ; i < MAX_STATIC_CAP ; i++) {
-		//struct invocation_cap *cap = &invocation_capabilities[i];
 
-		if (/*cap->owner == NULL*/cap_is_free(i)) {
+		if (cap_is_free(i)) {
 			range_free++;
 
 			/* 
@@ -154,7 +153,6 @@ static inline void cap_set_usr_cap(struct usr_inv_cap *uptr, vaddr_t inv_fn,
 	uptr->service_entry_inst = inv_fn;
 	uptr->invocation_count = inv_cnt;
 	uptr->cap_no = cap_no;
-	//printk("cos: writing to user-level capno %x, %x (%x)\n", cap_no, cap_no>>16, inv_fn);
 
 	return;
 }
@@ -192,10 +190,6 @@ static inline int cap_reset_cap_inv_cnt(int cap_num, int *inv_cnt)
 		ucap->invocation_count = cap->invocation_cnt = 0;
 		return -1;
 	}
-/* 	printk("cap from %d->%d: ucap inv %d, cap inv %d, entry %x, capno %d.\n", */
-/* 	       spd_get_index(cap->owner), spd_get_index(cap->destination), */
-/* 	       ucap->invocation_count, cap->invocation_cnt, */
-/* 	       (unsigned int)ucap->service_entry_inst, ucap->cap_no >> 20); */
 	ucap->invocation_count = cap->invocation_cnt = 0;
 
 	return 0;
@@ -218,16 +212,9 @@ isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int fl
 
 	cap = &invocation_capabilities[cap_num];
 	prev = cap->il;
-	//if (prev == il) return prev;
 
 	cap->il = il;
-
 	owner = cap->owner;
-
-/*  	printk("cos: change to il %s for cap %d with owner %d.\n", */
-/* 	       ((il == IL_SDT) ? "SDT" : ((il == IL_AST) ? "AST" : ((il == IL_ST) ? "ST" : "INV"))), */
-/* 	       cap_num, spd_get_index(owner)); */
-
 	/* Use the kernel vaddr space table if possible, but it might
 	 * not be available on initialization */
 	ucap = (NULL != owner->user_cap_tbl) ? 
@@ -244,17 +231,14 @@ isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int fl
 
 	switch (il) {
 	case IL_SDT:
-//		printk("cos:\tSDT w/ entry %x.\n", (unsigned int)cap->usr_stub_info.SD_serv_stub);
 		cap->dest_entry_instruction = cap->usr_stub_info.SD_serv_stub;
 		cap_set_usr_cap(ucap, cap->usr_stub_info.SD_cli_stub, 0, cap_num);
 		break;
 	case IL_AST:
-//		printk("cos:\tAST w/ entry %x.\n", (unsigned int)cap->usr_stub_info.AT_serv_stub);
 		cap->dest_entry_instruction = cap->usr_stub_info.AT_serv_stub;
 		cap_set_usr_cap(ucap, cap->usr_stub_info.AT_cli_stub, 0, cap_num);
 		break;
 	case IL_ST:
-//		printk("cos:\tST w/ entry %x.\n", (unsigned int)cap->usr_stub_info.ST_serv_entry);
 		cap->dest_entry_instruction = cap->usr_stub_info.ST_serv_entry;
 		cap_set_usr_cap(ucap, cap->usr_stub_info.ST_serv_entry, 0, cap_num);
 		break;
@@ -311,23 +295,20 @@ void spd_free(struct spd *spd)
 {
 	assert(spd);
 
-	//spd_free_mm(spd);
 	spd->spd_info.flags = SPD_FREE;
 	spd->freelist_next = spd_freelist_head;
 	spd_freelist_head = spd;
 
 	if (spd->composite_spd != &spd->spd_info) {
 		struct composite_spd *cspd = (struct composite_spd *)spd->composite_spd;
-		assert(cspd);// && !spd_mpd_is_depricated(cspd));
+		assert(cspd);
 
-		//spd_mpd_release((struct composite_spd*)spd->composite_spd);
 		spd_mpd_terminate(cspd);
 	}
 
 	return;
 }
 
-extern int spd_free_mm(struct spd *spd);
 void spd_mpd_free_all(void);
 void spd_free_all(void)
 {
@@ -335,7 +316,6 @@ void spd_free_all(void)
 	
 	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
 		if (!(spds[i].spd_info.flags & SPD_FREE)) {
-//			spd_free_mm(&spds[i]);
 			spd_free(&spds[i]);
 		}
 	}
@@ -470,7 +450,6 @@ int pages_identical(unsigned long *addr1, unsigned long *addr2)
  * that the user_vaddr_cap_tbl field in the spd must also be
  * initialized.
  */
-extern vaddr_t chal_pgtbl_vaddr2kaddr(paddr_t pgtbl, unsigned long addr);
 int spd_set_location(struct spd *spd, unsigned long lowest_addr, 
 		     unsigned long size, paddr_t pg_tbl)
 {
@@ -513,9 +492,6 @@ int spd_set_location(struct spd *spd, unsigned long lowest_addr,
 
 	return 0;
 }
-
-extern int pgtbl_add_middledir_range(paddr_t pt, unsigned long vaddr, long size);
-extern int pgtbl_rem_middledir_range(paddr_t pt, unsigned long vaddr, long size);
 
 int spd_add_location(struct spd *spd, long base, long size)
 {

@@ -9,8 +9,6 @@
  * gparmer@gwu.edu, 2009
  */
 
-//#define UPCALL_TIMING 1
-
 #include "include/ipc.h"
 #include "include/spd.h"
 #include "include/debug.h"
