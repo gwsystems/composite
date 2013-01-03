@@ -7,12 +7,14 @@
 
 #include <cos_component.h>
 
-long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
+//long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
 
 /* FIXME: we want to get rid of this page, which was used for the
  * cos_sched_data_area. But for some reason the system won't load if
  * we remove this page. */
 char temp[4096] __attribute__((aligned(4096)));
+
+int cos_sched_notifications __attribute__((weak));
 
 __attribute__ ((weak))
 void cos_init(void *arg)
@@ -44,7 +46,11 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	case COS_UPCALL_BOOTSTRAP:
 	{
 		static int first = 1;
-		if (first) { first = 0; __alloc_libc_initilize(); }
+		if (first) { 
+			first = 0; 
+			__alloc_libc_initilize(); 
+			constructors_execute();
+		}
 		cos_init(arg1);
 		break;
 	}
@@ -93,7 +99,7 @@ __attribute__((weak)) vaddr_t ST_user_caps;
  * Much of this is either initialized at load time, or passed to the
  * loader though this structure.
  */
-struct cos_component_information cos_comp_info = {
+struct cos_component_information cos_comp_info __attribute__((section(".cinfo"))) = {
 	.cos_this_spd_id = 0,
 	.cos_heap_ptr = 0,
 	.cos_heap_limit = 0,

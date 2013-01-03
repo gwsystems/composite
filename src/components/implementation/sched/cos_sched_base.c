@@ -19,6 +19,7 @@
 #define COS_FMT_PRINT
 
 #include <cos_component.h>
+#include <cos_sched_ds.h>
 #include <cos_scheduler.h>
 #include <cos_time.h>
 #include <print.h>
@@ -1790,7 +1791,7 @@ sched_init(void)
 	/* Promote us to a scheduler! */
 	if (parent_sched_child_cntl_thd(cos_spd_id())) BUG();
 
-	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)&cos_sched_notifications[cos_cpuid()])) BUG();
+	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)PERCPU_GET(cos_sched_notifications))) BUG();
 
 	/* Are we root? */
 	if (parent_sched_isroot()) sched_root_init();
@@ -1809,7 +1810,6 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		sched_init();
 		break;
 	case COS_UPCALL_CREATE:
-//		cos_argreg_init();
 		((crt_thd_fn_t)arg1)(arg2);
 		break;
 	case COS_UPCALL_DESTROY:

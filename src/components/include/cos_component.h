@@ -357,13 +357,15 @@ extern void *cos_get_vas_page(void);
 extern void cos_release_vas_page(void *p);
 
 /* only if the heap pointer is pre_addr, set it to post_addr */
-static inline void cos_set_heap_ptr_conditional(void *pre_addr, void *post_addr)
+static inline void 
+cos_set_heap_ptr_conditional(void *pre_addr, void *post_addr)
 {
 	cos_cmpxchg(&cos_comp_info.cos_heap_ptr, (long)pre_addr, (long)post_addr);
 }
 
 /* from linux source in string.h */
-static inline void *cos_memcpy(void * to, const void * from, int n)
+static inline void *
+cos_memcpy(void * to, const void * from, int n)
 {
 	int d0, d1, d2;
 	
@@ -384,7 +386,8 @@ static inline void *cos_memcpy(void * to, const void * from, int n)
 	
 }
 
-static inline void *cos_memset(void * s, char c , int count)
+static inline void *
+cos_memset(void * s, char c , int count)
 {
 	int d0, d1;
 	__asm__ __volatile__(
@@ -400,122 +403,53 @@ static inline void *cos_memset(void * s, char c , int count)
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
-/* functionality for managing the argument region */
-#define COS_ARGREG_SZ PAGE_SIZE /* must be power of 2 */
-#define COS_ARGREG_USABLE_SZ \
-	(COS_ARGREG_SZ-sizeof(struct cos_argreg_extent)-sizeof(struct pt_regs))
-#define COS_MAX_ARG_SZ COS_ARGREG_USABLE_SZ
-#define COS_IN_ARGREG(addr) \
-	((((unsigned long)(addr)) & ~(COS_ARGREG_SZ-1)) == \
-	 (unsigned int)cos_arg_region_base())
-
-/* a should be power of 2 */
-#define ALIGN(v, a) ((v+(a-1))&~(a-1))
-
-/*
- * The argument region is setup like so:
- *
- * | ..... |
- * +-------+
- * | sizeA | <- sizeof this cell + dataA, typeof(this cell) = struct cos_argreg_extent
- * +-------+
- * | ..... |
- * | dataA |
- * | ..... |
- * +-------+ 
- * | totsz | <- base extent holding total size
- * +-------+
- * | regs  | <- fault registers (struct pt_regs)
- * +-------+
+/* 
+ * A composite constructor (deconstructor): will be executed before
+ * other component execution (after component execution).  CRECOV is a
+ * function that should be called if one of the depended-on components
+ * has failed (e.g. the function serves as a callback notification).
  */
+#define CCTOR __attribute__((constructor))
+#define CDTOR __attribute__((destructor)) /* currently unused! */
+#define CRECOV(fnname) long crecov_##fnname##_ptr __attribute__((section(".crecov"))) = (long)fnname
 
-struct cos_argreg_extent {
-	unsigned int size;
-};
-
-/* Is the buffer entirely in the argument region */
-static inline int cos_argreg_buff_intern(char *buff, int sz)
+static inline void
+section_fnptrs_execute(long *list)
 {
-	return COS_IN_ARGREG(buff) && COS_IN_ARGREG(buff+sz);
+	int i;
+	typedef void (*ctors_t)(void);
+	ctors_t ctors;
+
+	ctors = (ctors_t)list[1];
+	for (i = 0 ; i < list[0] ; i++, ctors++) ctors();
+}
+
+static void 
+constructors_execute(void)
+{
+	extern long __CTOR_LIST__;
+	section_fnptrs_execute(&__CTOR_LIST__);
+}
+static void 
+destructors_execute(void)
+{
+	extern long __DTOR_LIST__;
+	section_fnptrs_execute(&__DTOR_LIST__);
+}
+static void 
+recoveryfns_execute(void)
+{
+	extern long __CRECOV_LIST__;
+	section_fnptrs_execute(&__CRECOV_LIST__);
 }
 
 #define FAIL() *(int*)NULL = 0
-
-static inline void cos_argreg_init(void)
-{
-	/* The printc implementation is replaced by the low-level
-	 * print component, which requires no shared region between
-	 * components. This shared region init function should not be
-	 * used anymore. */
-
-	/* No print if fault here... */
-/* #ifdef BUG */
-/* 		BUG(); */
-/* #else */
-/* 		FAIL(); */
-/* #endif */
-
-	struct cos_argreg_extent *ex = cos_get_arg_region();
-	
-	ex->size = sizeof(struct cos_argreg_extent) + sizeof(struct pt_regs);
-}
-
-/* allocate an argument buffer in the argument region */
-static inline void *cos_argreg_alloc(int sz)
-{
-	struct cos_argreg_extent *ex = cos_get_arg_region(), *nex, *ret;
-	int exsz = sizeof(struct cos_argreg_extent);
-
-	sz = ALIGN(sz, exsz) + exsz;
-	ret = (struct cos_argreg_extent*)(((char*)cos_arg_region_base()) + ex->size);
-	nex = (struct cos_argreg_extent*)(((char*)ret) + sz - exsz);
-	if (unlikely((ex->size + sz) > COS_ARGREG_SZ || 
-		     (unsigned int)sz > COS_MAX_ARG_SZ)) {
-		return NULL;
-	}
-	nex->size = sz;
-	ex->size += sz;
-
-	return ret;
-}
-
-static inline int cos_argreg_free(void *p)
-{
-	struct cos_argreg_extent *ex = cos_get_arg_region(), *top;
-
-	top = (struct cos_argreg_extent*)(((char*)cos_arg_region_base()) + ex->size - sizeof(struct cos_argreg_extent));
-	if (unlikely(!cos_argreg_buff_intern((char*)top, sizeof(struct cos_argreg_extent)) ||
-		     top <= ex ||
-		     top->size > COS_ARGREG_USABLE_SZ /* this could be more exact given top's location */
-		     /* || p != ((char*)top)-top->size */)) {
-#ifdef BUG
-		BUG();
-#else
-		FAIL();
-#endif
-	}
-	ex->size -= top->size;
-	top->size = 0;
-
-	return 0;
-}
-
-/* 
- * This is a useful argument to pass between components when data must
- * pass boundaries.  It is a "size" of the memory region + the memory
- * region itself.
- */
-struct cos_array {
-	int sz;
-	char mem[0];
-};
-
-static inline int cos_argreg_arr_intern(struct cos_array *ca)
-{
-	if (!cos_argreg_buff_intern((char*)ca, sizeof(struct cos_array))) return 0;
-	if (!cos_argreg_buff_intern(ca->mem, ca->sz)) return 0;
-	return 1;
-}
+static inline int cos_argreg_buff_intern(char *buff, int sz) { FAIL(); return 0; }
+static inline void cos_argreg_init(void) { FAIL(); }
+static inline void *cos_argreg_alloc(int sz) { FAIL(); return NULL; }
+static inline int cos_argreg_free(void *p) { FAIL(); return 0; };
+struct cos_array { char *mem; int sz; };
+static inline int cos_argreg_arr_intern(struct cos_array *ca) { FAIL(); return 0; }
 
 #define prevent_tail_call(ret) __asm__ ("" : "=r" (ret) : "m" (ret))
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))

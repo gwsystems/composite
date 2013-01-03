@@ -79,6 +79,7 @@ typedef void (*crt_thd_fn_t)(void);
  */
 
 #include "../../sched/cos_sched_sync.h"
+#include "../../sched/cos_sched_ds.h"
 /* synchronization... */
 #define LOCK()   if (cos_sched_lock_take())    BUG();
 #define UNLOCK() if (cos_sched_lock_release()) BUG();
@@ -251,9 +252,7 @@ comp_info_record(struct cobj_header *h, spdid_t spdid, struct cos_component_info
 
 static inline void boot_create_init_thds(void)
 {
-	int cpu = cos_cpuid();
-
-	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)&cos_sched_notifications[cpu])) BUG();
+	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)PERCPU_GET(cos_sched_notifications))) BUG();
 
 	PERCPU_GET(llbooter)->alpha        = cos_get_thd_id();
 	PERCPU_GET(llbooter)->recovery_thd = cos_create_thread((int)llboot_ret_thd, (int)0, 0);
@@ -301,9 +300,8 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	/*        cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT); */
 	switch (t) {
 	case COS_UPCALL_CREATE:
-//		cos_argreg_init();
 		llboot_ret_thd();
-//		((crt_thd_fn_t)arg1)();
+		((crt_thd_fn_t)arg1)();
 		break;
 	case COS_UPCALL_DESTROY:
 		llboot_thd_done();

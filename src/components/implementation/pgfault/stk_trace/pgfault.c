@@ -9,6 +9,7 @@
 
 #include <cos_component.h>
 #include <pgfault.h>
+#include <faults.h>
 //#include <sched.h>
 #include <print.h>
 #include <fault_regs.h>
@@ -106,7 +107,8 @@ walk_stack_all(spdid_t spdid, struct cos_regs *regs)
 	
 }
 
-int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *orig_ip)
+int
+fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *orig_ip)
 {
 	if (regs_active) BUG();
 	regs_active = 1;
@@ -123,5 +125,25 @@ int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *o
 	printc("Bombing out after fault.\n");
 	assert(0);
 
+	return 0;
+}
+
+int
+fault_div_zero_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
+{
+	if (regs_active) BUG();
+	regs_active = 1;
+	cos_regs_save(cos_get_thd_id(), spdid, fault_addr, &regs);
+	printc("Thread %d faults in spd %d @ %p\n", 
+	       cos_get_thd_id(), spdid, fault_addr);
+	cos_regs_print(&regs);
+
+	//walk_stack_all(spdid, &regs);
+	
+	/* No fault is a good fault currently.  Thus if we get _any_
+	 * fault, we bomb out here.  Look into the stack-trace, as
+	 * that is where the problem is. */
+	printc("Bombing out after fault.\n");
+	assert(0);
 	return 0;
 }

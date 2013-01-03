@@ -1,7 +1,6 @@
 #include <print.h>
-#ifndef assert
+#undef assert
 #define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); *((int *)0) = 0;} } while(0)
-#endif
 
 #include <mem_mgr.h>
 #include <sched.h>

@@ -12,10 +12,9 @@
 
 #ifndef ASM
 
-//#include <cos_types.h>
-//#include <consts.h>
 #include "shared/cos_types.h"
 #include "shared/consts.h"
+#include "chal.h"
 
 /**
  * Service Protection Domains
@@ -32,10 +31,6 @@
  * This file defines the structures and values for defining service
  * protection domains.  
  */
-
-//#define MAX_NUM_SPDS 32
-/* ~ ((pagesize - sizeof(spd))/sizeof(static_capability)) */
-//#define MAX_STATIC_CAP 1000
 
 /*
  * Static capabilities:
@@ -98,21 +93,25 @@ struct invocation_cap {
  * - The static capabilities for this service.
  */
 
-/* spd flags */
-#define SPD_COMPOSITE   0x1 // Is this spd a composite_spd?
-#define SPD_FREE        0x2 // currently unused
-#define SPD_DEPRICATED  0x4 // Must have SPD_COMPOSITE.  This spd
-                            // should no longer be used except for
-			    // thread returns.
-#define SPD_SUBORDINATE 0x8 // must be a spd_composite.  uses the page 
-                            // table of another composite spd, so if we 
-                            // delete this, do not delete the pgtbl, 
-                            // just decriment the reference count of 
-                            // the spd that has the pg_tbl (via master_spd ptr)
-#define SPD_ACTIVE      0x10 // spd is active, can have capabilities
-			     // assigned to it, and threads executed
-			     // within it...
-#define MAX_MPD_DESC    1024 // Max number of descriptors for composite spds
+typedef enum {
+	/* Is this spd a composite_spd? */
+	SPD_COMPOSITE = 0x1, 
+	/* currently unused */
+	SPD_FREE = 0x2, 
+	/* Must have SPD_COMPOSITE.  This spd should no longer be used
+         * except for thread returns. */
+	SPD_DEPRICATED = 0x4, 
+	/* must be a spd_composite.  uses the page table of another
+         * composite spd, so if we delete this, do not delete the
+         * pgtbl, just decriment the reference count of the spd that
+         * has the pg_tbl (via master_spd ptr) */
+	SPD_SUBORDINATE = 0x8, 
+	/* spd is active, can have capabilities assigned to it, and
+	 * threads executed within it... */
+	SPD_ACTIVE = 0x10, 
+	/* Max number of descriptors for composite spds */
+	MAX_MPD_DESC = 1024
+} spd_flags_t;
 
 /*
  * The spd_poly struct contains all the information that both struct
@@ -120,24 +119,22 @@ struct invocation_cap {
  * to be polymorphic with spd_poly as the "base class".
  */
 struct spd_poly {
-	unsigned int flags;
+	spd_flags_t flags;
 	atomic_t ref_cnt;
 	paddr_t pg_tbl;
 };
 
 /* 
- * A collection of Symmetrically trusted spds.
+ * A collection of spds in the same protection domain.
  *
  * Spd membership in this composite can be tested by seeing if a
  * specific spd's address range is present in the spd_info->pg_tbl
- *
- * 
  */
 struct spd;
 struct composite_spd {
 	struct spd_poly spd_info;
-	struct spd *members; // iff !(flags & (SPD_DEPRICATED|SPD_SUBORDINATE))
-	struct composite_spd *master_spd; // iff flags & SPD_SUBORDINATE
+	struct spd *members;               /* iff !(flags & (SPD_DEPRICATED|SPD_SUBORDINATE)) */
+	struct composite_spd *master_spd;  /* iff flags & SPD_SUBORDINATE */
 	struct composite_spd *next, *prev; /* flags & SPD_FREE -> next == freelist |
 					    * flags & SPD_SUBORDINATE -> list of subordinates */
 } CACHE_ALIGNED;
@@ -160,11 +157,12 @@ struct spd {
 	/* data touched on the ipc hotpath (32 bytes)*/
 	struct spd_poly spd_info;
 	struct spd_location location[MAX_SPD_VAS_LOCATIONS];
-	/* The "current" protection state of the spd, which might
-	 * point directly to spd->spd_info, or
-	 * a composite_spd->spd_info 
+	/* 
+	 * The "current" protection state of the spd, which might
+	 * point directly to spd->spd_info, or a
+	 * composite_spd->spd_info
 	 */
-	struct spd_poly /*composite_spd*/ *composite_spd; 
+	struct spd_poly *composite_spd; 
 	
 	unsigned short int cap_base, cap_range;
 	/* numbered faults correspond to which capability? */
@@ -374,12 +372,11 @@ int virtual_namespace_alloc(struct spd *spd, unsigned long addr, unsigned int si
  *
  * FIXME: TEST THIS!
  */
-extern int pgtbl_entry_absent(vaddr_t addr, paddr_t pg_tbl);
 static inline int spd_composite_member(struct spd *spd, struct spd_poly *poly)
 {
 	vaddr_t lowest_addr = spd->location[0].lowest_addr;
 
-	return !pgtbl_entry_absent(poly->pg_tbl, lowest_addr);
+	return !chal_pgtbl_entry_absent(poly->pg_tbl, lowest_addr);
 }
 
 #else /* ASM */

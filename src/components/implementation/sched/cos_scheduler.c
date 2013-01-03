@@ -18,8 +18,6 @@ int cos_use_force_sched_link(void)
 	return cos_force_sched_link;
 }
 
-PERCPU_VAR(cos_sched_notifications);
-
 struct scheduler_per_core per_core_sched[NUM_CPU];
 
 /* 

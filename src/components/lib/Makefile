@@ -1,10 +1,10 @@
 include Makefile.src Makefile.comp
 
-LIB_OBJS=cos_component.o heap.o cobj_format.o
+LIB_OBJS=heap.o cobj_format.o
 LIBS=$(LIB_OBJS:%.o=%.a)
-MANDITORY=c_stub.o cos_asm_upcall.o
+MANDITORY=c_stub.o cos_asm_upcall.o cos_component.o
 MAND=$(MANDITORY_LIB)
-SIMPLE_STACKS=c_stub.o cos_asm_upcall_simple_stacks.o
+SIMPLE_STACKS=c_stub.o cos_asm_upcall_simple_stacks.o cos_component.o
 SIMPLE_STKLIB=simple_stklib.o
 
 .PHONY: all
@@ -28,6 +28,10 @@ $(SIMPLE_STKLIB): $(SIMPLE_STACKS)
 %.o:%.S
 	$(info |     [AS]   Compiling assembly file $^ into $@)
 	@$(AS) $(ASFLAGS) $(CINC) -c -o $@ $^
+
+%.o:%.c
+	$(info |     [CC]   Compiling C file $^ into $@)
+	@$(CC) $(CFLAGS) $(CINC) -o $@ -c $^
 
 clean:
 	$(info |     [RM]   Cleaning up directory)

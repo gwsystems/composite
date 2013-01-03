@@ -49,7 +49,6 @@ void thd_init_all(struct thread *thds)
 	return;
 }
 
-extern void *va_to_pa(void *va);
 extern void thd_publish_data_page(struct thread *thd, vaddr_t page);
 
 struct thread *thd_alloc(struct spd *spd)

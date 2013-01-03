@@ -3,7 +3,9 @@
 
 #define MAX_LEN 512
 
-int print_str(int s1, int s2, int s3, int s4);
+int print_str(char *s, unsigned int len);
+int print_char(int len, int a, int b, int c);
+
 void print_null(void);
 
 #endif 	    /* !PRINT_H */

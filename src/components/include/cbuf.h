@@ -7,6 +7,11 @@
  * Author: Gabriel Parmer, gparmer@gwu.edu, 2010
  * Updated by Qi Wang and Jiguo Song, 2011
  * Updated and simplified by removing sub-page allocations, Gabe Parmer, 2012
+ * Updated to add persistent cbufs, Gabe Parmer, 2012
+ */
+
+/* 
+ * You'll require dependencies on both cbuf_c and cbufp.
  */
 
 #ifndef  CBUF_H
@@ -15,8 +20,10 @@
 #include <cos_component.h>
 #include <cos_debug.h>
 #include <cbuf_c.h>
+#include <cbufp.h>
+#define cbid_to_meta_idx(cid) ((cid) << 1)
+#define meta_to_cbid_idx(mid) ((mid) >> 1)
 #include <cbuf_vect.h>
-#include <cos_vect.h>
 #include <cos_list.h>
 #include <bitmap.h>
 #include <cos_synchronization.h>
@@ -31,8 +38,6 @@
 extern cos_lock_t cbuf_lock;
 #define CBUF_TAKE()    do { if (unlikely(cbuf_lock.lock_id == 0)) lock_static_init(&cbuf_lock); if (unlikely(lock_take_up(&cbuf_lock))) BUG(); } while(0)
 #define CBUF_RELEASE() do { if (unlikely(lock_release_up(&cbuf_lock))) BUG(); } while(0)
-//#define CBUF_TAKE()
-//#define CBUF_RELEASE()
 
 /* 
  * Naming scheme: The cbuf_* functions are transient memory
@@ -158,17 +163,16 @@ extern cos_lock_t cbuf_lock;
  * same: deallocate the allocation free-list descriptor.
  */
 
-typedef u32_t cbuf_t; /* Requirement: gcc will return this in a register */
+typedef u32_t  cbuf_t;   /* Requirement: gcc will return this in a register */
+typedef cbuf_t cbufp_t;	/* ...to differentiate in interfaces with normal cbufs */
 typedef union {
 	cbuf_t v;
 	struct {
 		/* 
-		 * cbuf id, its maximum length or 0 if length is
-		 * passed using another mechanism, aggregate = 1 if
-		 * this cbuf holds an array of other cbufs, and tmem =
-		 * 1 if this buffer is transient memory.
+		 * cbuf id, aggregate = 1 if this cbuf holds an array
+		 * of other cbufs.
 		 */
-		u32_t id:20, len:10, aggregate: 1, tmem: 1; 
+		u32_t aggregate: 1, id:31;
 	} __attribute__((packed)) c;
 } cbuf_unpacked_t;
 
@@ -177,19 +181,20 @@ struct cbuf_agg_elem {
 	cbuf_t id;
 	u32_t offset, len;
 };
+/* An aggregate of multiple cbufs. */
 struct cbuf_agg {
 	int ncbufs;
 	struct cbuf_agg_elem elem[0];
 };
 
 static inline void 
-cbuf_unpack(cbuf_t cb, u32_t *cbid, u32_t *len) 
+cbuf_unpack(cbuf_t cb, u32_t *cbid) 
 {
 	cbuf_unpacked_t cu = {0};
 	
 	cu.v  = cb;
 	*cbid = cu.c.id;
-	*len  = cu.c.len;
+	assert(!cu.c.aggregate);
 	return;
 }
 
@@ -197,8 +202,8 @@ static inline cbuf_t
 cbuf_cons(u32_t cbid, u32_t len) 
 {
 	cbuf_unpacked_t cu;
+	cu.v     = 0;
 	cu.c.id  = cbid;
-	cu.c.len = len;
 	return cu.v; 
 }
 
@@ -206,9 +211,16 @@ static inline cbuf_t cbuf_null(void)      { return 0; }
 static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
 
 extern struct cbuf_alloc_desc *__cbuf_alloc_slow(int size, int *len, int tmem);
-extern int __cbuf_2buf_miss(int cbid, int len, int tmem);
+extern int  __cbuf_2buf_miss(int cbid, int len, int tmem);
 extern void __cbuf_desc_free(struct cbuf_alloc_desc *d);
-extern cvect_t meta_cbuf;
+extern cvect_t meta_cbuf, meta_cbufp;
+
+static inline struct cbuf_meta *
+cbuf_vect_lookup_addr(long idx, int tmem)
+{
+	if (tmem) return cvect_lookup_addr(&meta_cbuf,  idx);
+	else      return cvect_lookup_addr(&meta_cbufp, idx);
+}
 
 /* 
  * Common case.  This is the most optimized path.  Every component
@@ -218,20 +230,19 @@ extern cvect_t meta_cbuf;
 static inline void * 
 __cbuf2buf(cbuf_t cb, int len, int tmem)
 {
-	int sz;
 	u32_t id;
 	struct cbuf_meta *cm;
 	union cbufm_info ci;//, ci_new;
 	void *ret = NULL;
 	long cbidx;
 	if (unlikely(!len)) return NULL;
-	cbuf_unpack(cb, &id, (u32_t*)&sz);
+	cbuf_unpack(cb, &id);
 
 	CBUF_TAKE();
 	cbidx = cbid_to_meta_idx(id);
 again:
 	do {
-		cm = cbuf_vect_lookup_addr(&meta_cbuf, cbidx);
+		cm = cbuf_vect_lookup_addr(cbidx, tmem);
 		if (unlikely(!cm || cm->nfo.v == 0)) {
 			if (__cbuf_2buf_miss(id, len, tmem)) goto done;
 			goto again;
@@ -265,7 +276,7 @@ done:
 static inline void *
 cbuf2buf(cbuf_t cb, int len) { return __cbuf2buf(cb, len, 1); }
 static inline void *
-cbufp2buf(cbuf_t cb, int len) { return __cbuf2buf(cb, len, 0); }
+cbufp2buf(cbufp_t cb, int len) { return __cbuf2buf((cbuf_t)cb, len, 0); }
 
 /* 
  * This is only called for permanent cbufs.  This is called every time
@@ -283,13 +294,12 @@ static inline void
 cbufp_send(cbuf_t cb, int free)
 {
 	u32_t id;
-	int sz;
 	struct cbuf_meta *cm;
 
-	cbuf_unpack(cb, &id, (u32_t*)&sz);
+	cbuf_unpack(cb, &id);
 
 	CBUF_TAKE();
-	cm = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(id));
+	cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(id), 0);
 
 	assert(cm && cm->nfo.v);
 	assert(cm->nfo.c.flags & CBUFM_IN_USE);
@@ -303,7 +313,7 @@ cbufp_send(cbuf_t cb, int free)
 
 extern cvect_t alloc_descs; 
 struct cbuf_alloc_desc {
-	int cbid, length;
+	int cbid, length, tmem;
 	void *addr;
 	struct cbuf_meta *meta;
 	struct cbuf_alloc_desc *next, *prev, *flhead; /* freelist */
@@ -316,7 +326,7 @@ __cbuf_alloc_lookup(int page_index) { return cvect_lookup(&alloc_descs, page_ind
 
 /* 
  * Assume that m was retrieved with 
- * m = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(d->cbid));
+ * m = cbuf_vect_lookup_addr(cbid_to_meta_idx(d->cbid), tmem);
  * This validates that the d->cbid = cbid of cbuf_meta.
  */
 static inline int
@@ -360,7 +370,7 @@ again:
 	cbid  = d->cbid;
 	assert(cbid);
 	cbidx            = cbid_to_meta_idx(cbid);
-	cm               = cbuf_vect_lookup_addr(&meta_cbuf, cbidx);
+	cm               = cbuf_vect_lookup_addr(cbidx, tmem);
 
 	mapped_in        = cbufm_is_mapped(cm);
 	already_used     = cm->nfo.c.flags & CBUFM_IN_USE;
@@ -424,7 +434,7 @@ again:
 	cm->owner_nfo.thdid = cos_get_thd_id();
 	if (tmem) cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]--;
 	ret = (void*)(cm->nfo.c.ptr << PAGE_ORDER);
-	assert(cm->nfo.c.flags & CBUFM_TMEM); /* gap */
+	if (tmem) assert(cm->nfo.c.flags & CBUFM_TMEM);
 done:
 	*cb = cbuf_cons(cbid, len);
 	CBUF_RELEASE();
@@ -435,7 +445,7 @@ done:
 static inline void *
 cbuf_alloc(unsigned int sz, cbuf_t *cb) { return __cbuf_alloc(sz, cb, 1); }
 static inline void *
-cbufp_alloc(unsigned int sz, cbuf_t *cb)  { return __cbuf_alloc(sz, cb, 0); }
+cbufp_alloc(unsigned int sz, cbufp_t *cb)  { return __cbuf_alloc(sz, (cbuf_t*)cb, 0); }
 
 static inline void
 __cbuf_free(void *buf, int tmem)
@@ -443,34 +453,49 @@ __cbuf_free(void *buf, int tmem)
 	u32_t idx = ((u32_t)buf) >> PAGE_ORDER;
 	struct cbuf_alloc_desc *d, *fl;
 	struct cbuf_meta *cm;
+	int owner, relinq = 0, cbid;
 
 	CBUF_TAKE();
 	d  = __cbuf_alloc_lookup(idx);
 	assert(d);
-	cm = cbuf_vect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(d->cbid));
+	if (unlikely(d->tmem != tmem)) goto err;
+
+	cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(d->cbid), tmem);
 	assert(!__cbuf_alloc_meta_inconsistent(d, cm));
 	assert(cm->nfo.c.flags & CBUFM_IN_USE);
+	owner = cm->nfo.c.flags & CBUFM_OWNER;
+	assert(!(tmem & !owner)); /* Shouldn't be calling free... */
 
-	if (cm->nfo.c.flags & CBUFM_OWNER) {
+	if (owner) {
 		fl = d->flhead;
 		assert(fl);
 		ADD_LIST(fl, d, next, prev);
-		/* do this last, so that we can guarantee the manager will not steal the cbuf before now... */
-		cm->nfo.c.flags &= ~CBUFM_IN_USE;
 		cm->owner_nfo.thdid = 0;
-		cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]++;
-		CBUF_RELEASE();
-		
-		/* Does the manager want the memory back? */
+	}
+	/* do this last, so that we can guarantee the manager will not steal the cbuf before now... */
+	cm->nfo.c.flags &= ~CBUFM_IN_USE;
+	if (tmem) cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]++;
+	else      relinq = cm->nfo.c.flags & CBUFM_RELINQ;
+	cbid = d->cbid;
+	CBUF_RELEASE();
+	
+	/* Does the manager want the memory back? */
+	if (tmem) {
 		if (unlikely(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF])) {
-			cbuf_c_delete(cos_spd_id(), d->cbid);
+			cbuf_c_delete(cos_spd_id(), cbid);
 			assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 			return;
-		} 
-	} else {
-		cm->nfo.c.flags &= ~CBUFM_IN_USE;
-		CBUF_RELEASE();
+		}
+	} else if (unlikely(relinq)) {
+		cbufp_delete(cos_spd_id(), cbid);
+		assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
+		return;
 	}
+	
+	return;
+err:
+	CBUF_RELEASE();
+	return;
 }
 
 static inline void

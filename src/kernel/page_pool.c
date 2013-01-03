@@ -2,11 +2,7 @@
 #include "include/measurement.h"
 #include "include/shared/cos_types.h"
 #include "include/per_cpu.h"
-
-extern void *cos_alloc_page(void);
-extern void *cos_free_page(void *page);
-extern void *va_to_pa(void *va);
-extern void *pa_to_va(void *pa);
+#include "include/chal.h"
 
 struct page_list page_list_head;
 unsigned int page_list_len = 0;
@@ -25,7 +21,7 @@ struct page_list *cos_get_pg_pool(void)
 	 * take a page out of our cache.
 	 */
 	if (NULL == page_list_head.next) {
-		page = cos_alloc_page();
+		page = chal_alloc_page();
 		if (NULL == page) return NULL;
 	} else {
 		do {
@@ -67,7 +63,7 @@ void clear_pg_pool(void)
 	pg = page_list_head.next;
 	while (pg) {
 		next = pg->next;
-		cos_free_page(pg);
+		chal_free_page(pg);
 		
 		pg = next;
 	}

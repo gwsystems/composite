@@ -6,24 +6,20 @@
  */
 
 #include "include/mmap.h"
+#include "include/chal.h"
 
 static struct cos_page cos_pages[COS_MAX_MEMORY];
-
-extern void *cos_alloc_page(void);
-extern void *cos_free_page(void *page);
-extern void *va_to_pa(void *va);
-extern void *pa_to_va(void *pa);
 
 void cos_init_memory(void) 
 {
 	int i;
 
 	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
-		void *r = cos_alloc_page();
+		void *r = chal_alloc_page();
 		if (NULL == r) {
 			printk("cos: ERROR -- could not allocate page for cos memory\n");
 		}
-		cos_pages[i].addr = (paddr_t)va_to_pa(r);
+		cos_pages[i].addr = (paddr_t)chal_va2pa(r);
 	}
 
 	return;
@@ -35,7 +31,7 @@ void cos_shutdown_memory(void)
 
 	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
 		paddr_t addr = cos_pages[i].addr;
-		cos_free_page(pa_to_va((void*)addr));
+		chal_free_page(chal_pa2va((void*)addr));
 		cos_pages[i].addr = 0;
 	}
 }
