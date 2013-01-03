@@ -16,7 +16,8 @@ cos_lock_t synth_lock;
 
 #include <stdlib.h>
 
-//#define I7 
+#define I7 
+
 #define SUSPENSION 
 #define MAXULONG (~0)
 #define TOTAL_AMNT 128		/* power of 2 */
@@ -35,7 +36,7 @@ unsigned int prop_call_ss = 10;    /* 10: %7 0: never call ss, 128: always call 
 #define NCBUF 1   // number of cbufs to create each time
 
 #define ALLOC_CBUF
-#define CBUF2BUF
+//#define CBUF2BUF
 
 //#define DEBUG_SYNTH
 

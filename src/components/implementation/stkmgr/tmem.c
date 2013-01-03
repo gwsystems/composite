@@ -1,3 +1,12 @@
+/**
+ * Copyright 2012 by The George Washington University.  All rights reserved.
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ *
+ * Author: Qi Wang, interwq@gwu.edu, 2012
+ */
+
 #include <cos_component.h>
 #include <print.h>
 #include <cos_alloc.h>
