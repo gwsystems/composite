@@ -2,13 +2,7 @@
 #define COS_CONFIG_H
 
 #include "cpu_ghz.h"
-#define NUM_CPU                3
-#define INIT_CORE              0
-/* Currently Linux runs on the last core only. The code using the
- * following macro assumes this. We might need to assign more cores
- * to Linux later. */
-#define LINUX_CORE             (NUM_CPU - 1)
-#define NUM_CPU_COS            (NUM_CPU > 1 ? NUM_CPU - 1 : 1) /* how many cores Composite owns */
+#define NUM_CPU                1
 
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 
@@ -25,6 +19,13 @@
  * using networking (cnet). 
  */
 #define LINUX_HIGHEST_PRIORITY 1 
+
+#define INIT_CORE              0 // the CPU that does initialization for Composite
+/* Currently Linux runs on the last CPU only. The code includes the
+ * following macro assumes this. We might need to assign more cores
+ * to Linux later. */
+#define LINUX_CORE             (NUM_CPU - 1)
+#define NUM_CPU_COS            (NUM_CPU > 1 ? NUM_CPU - 1 : 1) /* how many cores Composite owns */
 
 // cos kernel settings
 #define COS_PRINT_MEASUREMENTS 1
