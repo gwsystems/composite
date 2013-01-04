@@ -4,15 +4,24 @@
 #include <linux/sched.h>
 #include <linux/kernel.h>
 
-extern struct task_struct *composite_thread;
 void *chal_pa2va(void *pa);
+
+struct per_core_cos_thd
+{
+	struct task_struct *cos_thd;
+} CACHE_ALIGNED;
+
+extern struct per_core_cos_thd cos_thd_per_core[NUM_CPU];
 
 static inline void 
 __chal_pgtbl_switch(paddr_t pt)
 {
 	struct mm_struct *mm;
+	struct task_struct *cos_thd;
 
-	BUG_ON(!composite_thread);
+	cos_thd = cos_thd_per_core[get_cpuid()].cos_thd;
+
+	BUG_ON(!cos_thd);
 	/* 
 	 * We aren't doing reference counting here on the mm (via
 	 * get_task_mm) because we know that this mm will survive
@@ -20,7 +29,7 @@ __chal_pgtbl_switch(paddr_t pt)
 	 * granularity of the creation of the composite file
 	 * descriptor open/close.)
 	 */
-	mm = composite_thread->mm;
+	mm = cos_thd->mm;
 	mm->pgd = (pgd_t *)chal_pa2va((void*)pt);
 
 	return;

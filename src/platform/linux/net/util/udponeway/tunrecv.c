@@ -21,13 +21,15 @@
 #define rdtscll(val) \
         __asm__ __volatile__("rdtsc" : "=A" (val))
 
-#define ITR 5 // # of iterations we want
+#define ITR 1024 // # of iterations we want
 volatile unsigned long long stsc; // timer thread timestamp 
 volatile int done = 0; 
 unsigned long long timer_arr[ITR];
 
-#define IPADDR "196.0.0.15"
+#define IPADDR "128.164.81.57"
+//#define IPADDR "10.0.2.8"
 #define IFNAME "tun0"
+#define P2PPEER "10.0.2.8"
 
 void *
 timer_thd(void *data)
@@ -50,7 +52,7 @@ recv_pkt(void *data)
     int fdr, i = ITR, j = 0, ret;
     unsigned long long tsc;
     char *msg;
-    char buf[] = "ifconfig "IFNAME" inet "IPADDR" netmask 255.255.255.0";
+    char buf[] = "ifconfig "IFNAME" inet "IPADDR" netmask 255.255.255.0 pointopoint "P2PPEER;
     struct ifreq ifr;
 
     msg = malloc(msg_size);
@@ -84,14 +86,16 @@ recv_pkt(void *data)
     */
     
     printf("Running: %s\n", buf);
-    if(system(buf) == -1) {
+    if(system(buf) < 0) {
         perror("setting tun ipaddress: ");
         exit(-1);
     }
+    printf("Done setting TUN. \n");
 
     while(i > 0) {
         ret = read(fdr, msg, msg_size);
         rdtscll(tsc);
+//	if (tsc <= stsc) printf("wrong!!!\n");
         timer_arr[j] = tsc - stsc;
         j += 1;
         
@@ -129,13 +133,14 @@ get_statistics()
 
     // Calculating the standard deviation
     for(i = 0; i < ITR; i++) {
-        sdev_arr[i] = timer_arr[i] - mean;
-        running_sdevsum += (sdev_arr[i] * sdev_arr[i]);
+	    sdev_arr[i] = timer_arr[i] > mean ? timer_arr[i] - mean : mean - timer_arr[i];
+	    running_sdevsum += (sdev_arr[i] * sdev_arr[i]);
+//	    printf("%llu\n", timer_arr[i]);
     }
-    running_sdevsum -= (ITR - 1);
+    running_sdevsum /= (ITR);
     sdev = sqrt(running_sdevsum);
 
-    printf("The standard deviation is (%lf)\n", sdev);
+    printf("The standard deviation is (%lf), sum %lf\n", sdev, running_sdevsum);
 }
 
 int 

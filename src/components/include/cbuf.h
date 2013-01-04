@@ -424,7 +424,6 @@ again:
 		 * do _not_ deallocate the slab descriptor there to
 		 * reinforce that point.
 		 */
-
 		__cbuf_desc_free(d);
 		if (likely(!already_used)) {
 			cm->nfo.c.flags &= ~(CBUFM_IN_USE | CBUFM_TOUCHED);

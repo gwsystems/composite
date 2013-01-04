@@ -1,6 +1,6 @@
 include Makefile.src
 
-CFLAGS=-Wall -Wextra -Wno-unused-parameter -Wno-unused-function -ggdb3 -I$(KINC) 
+CFLAGS=-D__x86__ -D_GNU_SOURCE -lpthread -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -ggdb3 -I$(KINC) 
 PRODUCTS=cos_loader gen_client_stub
 
 default: $(PRODUCTS)
