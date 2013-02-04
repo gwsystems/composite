@@ -6,15 +6,17 @@ static struct thread *last_used_fpu;
 int
 fpu_save(struct thread *curr, struct thread *next)
 {
-	// if next thread doesn't use fpu, then we just disable the fpu
+	/* if next thread doesn't use fpu, then we just disable the fpu */
 	if(!fpu_thread_uses_fp(next))
 	{
 		fpu_disable();
 		return 0;
 	}
 
-	// next thread uses fpu
-	// if no thread used fpu before, then we set next thread as the last_used_fpu
+    /*
+     * next thread uses fpu
+     * if no thread used fpu before, then we set next thread as the last_used_fpu
+     */
 	if(unlikely(last_used_fpu == NULL))
 	{
 		fpu_enable();
@@ -22,18 +24,22 @@ fpu_save(struct thread *curr, struct thread *next)
 		return 0;
 	}
 
-	// next thread uses fpu
-	// last_used_fpu exists
-	// if last_used_fpu == next, then we simply re-enable the fpu for the thread
+	/*
+     * next thread uses fpu
+	 * last_used_fpu exists
+	 * if last_used_fpu == next, then we simply re-enable the fpu for the thread
+     */
 	if(last_used_fpu == next)
 	{
 		fpu_enable();
 		return 0;
 	}
 
-	// next thread uses fpu
-	// last_used_fpu exists
-	// if last_used_fpu != next, then we save current fpu states to last_used_fpu, restore next thread's fpu state
+	/*
+     * next thread uses fpu
+	 * last_used_fpu exists
+	 * if last_used_fpu != next, then we save current fpu states to last_used_fpu, restore next thread's fpu state
+     */
 	fpu_enable();
 	fxsave(last_used_fpu);
 	if(next->fpu.saved_fpu) fxrstor(next);
