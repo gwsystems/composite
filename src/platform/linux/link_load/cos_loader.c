@@ -42,7 +42,7 @@
 
 #include <cobj_format.h>
 
-enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_HIGH;
+enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_DEBUG;
 
 #define printl(lvl,format, args...)				\
 	{							\
@@ -56,6 +56,7 @@ enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_H
 #define NUM_KERN_SYMBS   1
 
 const char *COMP_INFO      = "cos_comp_info";
+const char *SCHED_NOTIF    = "cos_sched_notifications";
 const char *INIT_COMP      = "c0.o";
 char       *ROOT_SCHED     = NULL;   // this is set to the first listed scheduler (*)
 const char *INITMM         = "mm.o"; // this is set to the first listed memory manager (#)
@@ -1171,6 +1172,7 @@ static inline void add_undef_symb(struct service_symbs *ss, const char *name, in
 static void add_kernel_exports(struct service_symbs *service)
 {
 	add_kexport(service, COMP_INFO);
+	add_kexport(service, SCHED_NOTIF);
 
 	return;
 }
