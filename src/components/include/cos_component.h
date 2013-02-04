@@ -18,7 +18,6 @@
 
 extern long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
 
-//gap extern struct cos_sched_data_area cos_sched_notifications;
 extern struct cos_component_information cos_comp_info;
 
 /*
@@ -69,16 +68,27 @@ extern struct cos_component_information cos_comp_info;
  * them in this operation.  I can't clobber ebp in the clobber list,
  * so I do it manually.  This is right up there with hideous.
  */
+
 #define cos_syscall_asm \
 	__asm__ __volatile__("":::"eax", "ecx", "edx", "esi", "edi");	\
 	__asm__ __volatile__(                        \
-		"pushl %%ebp\n\t"                    \
+	        "pushl %%ebx\n\t"                    \
+	        "pushl %%ecx\n\t"                    \
+	        "pushl %%edx\n\t"                    \
+	        "pushl %%esi\n\t"                    \
+	        "pushl %%edi\n\t"                    \
+	        "pushl %%ebp\n\t"                    \
 		"movl %%esp, %%ebp\n\t"              \
 		"movl $1f, %%ecx\n\t"                \
 		"sysenter\n\t"                       \
 		"1:\n\t"                             \
 		"movl %%eax, %0\n\t"                 \
-		"popl %%ebp"                         \
+		"popl %%ebp\n\t"                     \
+		"popl %%edi\n\t"                     \
+		"popl %%esi\n\t"                     \
+		"popl %%edx\n\t"                     \
+		"popl %%ecx\n\t"                     \
+		"popl %%ebx"                         \
 		: "=a" (ret)
 #define cos_syscall_clobber			     \
 	: "memory", "cc");			     \
@@ -140,6 +150,7 @@ cos_syscall_3(17, int, __spd_cntl, int, op_spdid, long, arg1, long, arg2);
 cos_syscall_3(18, int, __vas_cntl, int, op_spdid, long, arg1, long, arg2);
 cos_syscall_3(19, int, __trans_cntl, unsigned long, op_ch, unsigned long, addr, int, off);
 cos_syscall_3(20, int, __pfn_cntl, unsigned long, op_spd, unsigned long, mem_id, int, extent);
+cos_syscall_3(21, int, __send_ipi, long, cpuid, int, thdid, long, arg);
 cos_syscall_0(31,  int, null);
 
 static inline int cos_mmap_cntl(short int op, short int flags, short int dest_spd, 
@@ -147,6 +158,11 @@ static inline int cos_mmap_cntl(short int op, short int flags, short int dest_sp
 	/* encode into 3 arguments */
 	return cos___mmap_cntl(((op<<24) | (flags << 16) | (dest_spd)), 
 			       dest_addr, mem_id);
+}
+
+static inline int cos_send_ipi(int cpuid, int thdid, unsigned short int arg1, unsigned short int arg2)
+{
+	return cos___send_ipi(cpuid, thdid, ((arg1 << 16) | (arg2 & 0xFFFF)));
 }
 
 /* 
@@ -204,58 +220,41 @@ static inline int cos_trans_cntl(int op, int channel, unsigned long addr, int of
 	return cos___trans_cntl(((op << 16) | (channel & 0xFFFF)), addr, off);
 }
 
-#ifdef NIL
-/*
- * We cannot just pass the thread id into the system call in registers
- * as the current thread of control making the switch_thread system
- * call might be preempted after deciding based on memory structures
- * which thread to run, but before the actual system call is made.
- * The preempting thread might change the current threads with high
- * priority.  When the system call ends up being executed, it is on
- * stale info, and a thread is switched to that might be actually be
- * interesting.
- *
- * Storing in memory the intended thread to switch to, allows other
- * preempting threads to update the next_thread even if a thread is
- * preempted between logic and calling switch_thread.
- */
-static inline int cos_switch_thread(unsigned short int thd_id, unsigned short int flags)
+static inline long get_stk_data(int offset)
 {
-	struct cos_sched_next_thd *cos_next = &cos_sched_notifications.cos_next;
+	unsigned long curr_stk_pointer;
 
-        /* This must be volatile as we must commit what we want to
-	 * write to memory immediately to be read by the kernel */
-	cos_next->next_thd_id = thd_id;
-	cos_next->next_thd_flags = flags;
-
-	/* kernel will read next thread information from cos_next */
-	return cos___switch_thread(thd_id, flags); 
+	asm ("movl %%esp, %0;" : "=r" (curr_stk_pointer));
+	/* 
+	 * We save the CPU_ID and thread id in the stack for fast
+	 * access.  We want to find the struct cos_stk (see the stkmgr
+	 * interface) so that we can then offset into it and get the
+	 * cpu_id.  This struct is at the _top_ of the current stack,
+	 * and cpu_id is at the top of the struct (it is a u32_t).
+	 */
+	return *(long *)((curr_stk_pointer & ~(COS_STACK_SZ - 1)) + 
+			 COS_STACK_SZ - offset * sizeof(u32_t));
 }
 
-/*
- * If you want to switch to a thread after an interrupt that is
- * currently executing is finished, that thread can be set here.  This
- * is a common case: An interrupt's execution wishes to wake up a
- * thread, thus it calls the scheduler.  Assume the woken thread is of
- * highest priority besides the interrupt thread.  When the interrupt
- * completes, it should possibly consider switching to that thread
- * instead of the one it interrupted.  This is the mechanism for
- * telling the kernel to look at the thd_id for execution when the
- * interrupt completes.
- */
-static inline void cos_next_thread(unsigned short int thd_id)
-{
-	volatile struct cos_sched_next_thd *cos_next = &cos_sched_notifications.cos_next;
+#define GET_CURR_CPU cos_cpuid()
 
-	cos_next->next_thd_id = thd_id;
-}
+static inline long cos_cpuid(void)
+{
+#if NUM_CPU == 1
+	return 0;
 #endif
+	/* 
+	 * see comments in the get_stk_data above.
+	 */
+	return get_stk_data(CPUID_OFFSET);
+}
 
 static inline unsigned short int cos_get_thd_id(void)
 {
-	struct shared_user_data *ud = (void *)COS_INFO_REGION_ADDR;
-
-	return ud->current_thread;
+	/* 
+	 * see comments in the get_stk_data above.
+	 */
+	return get_stk_data(THDID_OFFSET);
 }
 
 #define ERR_THROW(errval, label) do { ret = errval; goto label; } while (0)

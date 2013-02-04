@@ -7,8 +7,9 @@
 #include "../../../kernel/include/chal.h"
 #include "pgtbl.h"
 
-extern struct task_struct *composite_thread;
-int chal_pgtbl_can_switch(void) { return current == composite_thread; }
+extern struct per_core_cos_thd cos_thd_per_core[NUM_CPU];
+int chal_pgtbl_can_switch(void) { return current == cos_thd_per_core[get_cpuid()].cos_thd; }
+
 
 static pte_t *
 pgtbl_lookup_address(paddr_t pgtbl, unsigned long addr)

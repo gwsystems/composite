@@ -38,6 +38,7 @@ struct cos_stk {
 	struct cos_stk *next;
 	u32_t flags;
 	u32_t thdid_owner;
+	u32_t cpu_id;
 } __attribute__((packed));
 
 #define D_COS_STK_ADDR(d_addr) (d_addr + PAGE_SIZE - sizeof(struct cos_stk))
