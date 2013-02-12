@@ -2060,8 +2060,6 @@ struct spd_info *create_spd(int cos_fd, struct service_symbs *s,
 	return spd;
 }
 
-const char *SCHED_NOTIF   = "cos_sched_notifications";
-
 void make_spd_scheduler(int cntl_fd, struct service_symbs *s, struct service_symbs *p)
 {
 	vaddr_t sched_page;
