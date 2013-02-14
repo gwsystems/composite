@@ -1199,6 +1199,8 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
     if (cos_thd_per_core[get_cpuid()].cos_thd != current) return 1;
 
     t = core_get_curr_thd();
+    if(t == NULL)
+        printk("t is null\n");
 	t->fpu.status = 1;
 	fpu_enable();
 	struct thread *last_used_fpu = fpu_get_last_used();
