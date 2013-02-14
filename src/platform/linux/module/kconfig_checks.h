@@ -25,3 +25,4 @@
 #ifdef CONFIG_NO_HZ
 #error "Composite currently requires a fixed HZ (undo CONFIG_NO_HZ)"
 #endif
+

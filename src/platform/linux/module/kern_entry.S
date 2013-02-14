@@ -94,7 +94,6 @@ VM_MASK		= 0x00020000
 ALIGN
 ENTRY(sysenter_interposition_entry)
 	movl TSS_sysenter_sp0(%esp),%esp
-
 	/*
 	 * Composite invocations are indicated by the contents of %eax:
 	 * +-------------+----+--...
@@ -107,6 +106,7 @@ ENTRY(sysenter_interposition_entry)
 	 * cap_inv:	The capability to invoke
 	 * sc:	 Make a composite OS system-call
 	 */
+
 	cmpl $((1<<COS_CAPABILITY_OFFSET)-1), %eax /* 2^20-1 shift for capability invocations */
 	ja composite_call_ipc /* component invocation */
 	je composite_ret_ipc  /* component return */

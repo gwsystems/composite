@@ -18,7 +18,7 @@
 #define rdtscll(val) \
         __asm__ __volatile__("rdtsc" : "=A" (val))
 
-#define ITR 10 // # of iterations we want
+#define ITR 1024 // # of iterations we want
 volatile  unsigned long long stsc; // timer thread timestamp
 volatile int done = 0;
 unsigned long long timer_arr[ITR];
@@ -49,7 +49,7 @@ recv_pkt(void *data)
 	msg = malloc(msg_size);
 	printf("Message size is (%d)\n", msg_size);
 
-    if ((fdr = socket(PF_INET, SOCK_DGRAM, 0)) == -1) {
+	if ((fdr = socket(PF_INET, SOCK_DGRAM, 0)) == -1) {
 		perror("Establishing receive socket");
 		exit(-1);
 	}
@@ -109,7 +109,7 @@ get_statistics()
 		sdev_arr[i] = timer_arr[i] - mean;
 		running_sdevsum += (sdev_arr[i] * sdev_arr[i]);
 	}
-	running_sdevsum -= (ITR - 1);
+	running_sdevsum /= (ITR);
 	sdev = sqrt(running_sdevsum);
 
 	printf("The standard deviation is (%lf)\n", sdev);

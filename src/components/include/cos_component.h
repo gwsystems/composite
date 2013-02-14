@@ -18,7 +18,6 @@
 
 extern long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
 
-extern struct cos_sched_data_area cos_sched_notifications;
 extern struct cos_component_information cos_comp_info;
 
 /*
@@ -69,16 +68,27 @@ extern struct cos_component_information cos_comp_info;
  * them in this operation.  I can't clobber ebp in the clobber list,
  * so I do it manually.  This is right up there with hideous.
  */
+
 #define cos_syscall_asm \
 	__asm__ __volatile__("":::"eax", "ecx", "edx", "esi", "edi");	\
 	__asm__ __volatile__(                        \
-		"pushl %%ebp\n\t"                    \
+	        "pushl %%ebx\n\t"                    \
+	        "pushl %%ecx\n\t"                    \
+	        "pushl %%edx\n\t"                    \
+	        "pushl %%esi\n\t"                    \
+	        "pushl %%edi\n\t"                    \
+	        "pushl %%ebp\n\t"                    \
 		"movl %%esp, %%ebp\n\t"              \
 		"movl $1f, %%ecx\n\t"                \
 		"sysenter\n\t"                       \
 		"1:\n\t"                             \
 		"movl %%eax, %0\n\t"                 \
-		"popl %%ebp"                         \
+		"popl %%ebp\n\t"                     \
+		"popl %%edi\n\t"                     \
+		"popl %%esi\n\t"                     \
+		"popl %%edx\n\t"                     \
+		"popl %%ecx\n\t"                     \
+		"popl %%ebx"                         \
 		: "=a" (ret)
 #define cos_syscall_clobber			     \
 	: "memory", "cc");			     \
@@ -140,6 +150,7 @@ cos_syscall_3(17, int, __spd_cntl, int, op_spdid, long, arg1, long, arg2);
 cos_syscall_3(18, int, __vas_cntl, int, op_spdid, long, arg1, long, arg2);
 cos_syscall_3(19, int, __trans_cntl, unsigned long, op_ch, unsigned long, addr, int, off);
 cos_syscall_3(20, int, __pfn_cntl, unsigned long, op_spd, unsigned long, mem_id, int, extent);
+cos_syscall_3(21, int, __send_ipi, long, cpuid, int, thdid, long, arg);
 cos_syscall_0(31,  int, null);
 
 static inline int cos_mmap_cntl(short int op, short int flags, short int dest_spd, 
@@ -147,6 +158,11 @@ static inline int cos_mmap_cntl(short int op, short int flags, short int dest_sp
 	/* encode into 3 arguments */
 	return cos___mmap_cntl(((op<<24) | (flags << 16) | (dest_spd)), 
 			       dest_addr, mem_id);
+}
+
+static inline int cos_send_ipi(int cpuid, int thdid, unsigned short int arg1, unsigned short int arg2)
+{
+	return cos___send_ipi(cpuid, thdid, ((arg1 << 16) | (arg2 & 0xFFFF)));
 }
 
 /* 
@@ -204,57 +220,41 @@ static inline int cos_trans_cntl(int op, int channel, unsigned long addr, int of
 	return cos___trans_cntl(((op << 16) | (channel & 0xFFFF)), addr, off);
 }
 
-
-/*
- * We cannot just pass the thread id into the system call in registers
- * as the current thread of control making the switch_thread system
- * call might be preempted after deciding based on memory structures
- * which thread to run, but before the actual system call is made.
- * The preempting thread might change the current threads with high
- * priority.  When the system call ends up being executed, it is on
- * stale info, and a thread is switched to that might be actually be
- * interesting.
- *
- * Storing in memory the intended thread to switch to, allows other
- * preempting threads to update the next_thread even if a thread is
- * preempted between logic and calling switch_thread.
- */
-static inline int cos_switch_thread(unsigned short int thd_id, unsigned short int flags)
+static inline long get_stk_data(int offset)
 {
-	struct cos_sched_next_thd *cos_next = &cos_sched_notifications.cos_next;
+	unsigned long curr_stk_pointer;
 
-        /* This must be volatile as we must commit what we want to
-	 * write to memory immediately to be read by the kernel */
-	cos_next->next_thd_id = thd_id;
-	cos_next->next_thd_flags = flags;
-
-	/* kernel will read next thread information from cos_next */
-	return cos___switch_thread(thd_id, flags); 
+	asm ("movl %%esp, %0;" : "=r" (curr_stk_pointer));
+	/* 
+	 * We save the CPU_ID and thread id in the stack for fast
+	 * access.  We want to find the struct cos_stk (see the stkmgr
+	 * interface) so that we can then offset into it and get the
+	 * cpu_id.  This struct is at the _top_ of the current stack,
+	 * and cpu_id is at the top of the struct (it is a u32_t).
+	 */
+	return *(long *)((curr_stk_pointer & ~(COS_STACK_SZ - 1)) + 
+			 COS_STACK_SZ - offset * sizeof(u32_t));
 }
 
-/*
- * If you want to switch to a thread after an interrupt that is
- * currently executing is finished, that thread can be set here.  This
- * is a common case: An interrupt's execution wishes to wake up a
- * thread, thus it calls the scheduler.  Assume the woken thread is of
- * highest priority besides the interrupt thread.  When the interrupt
- * completes, it should possibly consider switching to that thread
- * instead of the one it interrupted.  This is the mechanism for
- * telling the kernel to look at the thd_id for execution when the
- * interrupt completes.
- */
-static inline void cos_next_thread(unsigned short int thd_id)
-{
-	volatile struct cos_sched_next_thd *cos_next = &cos_sched_notifications.cos_next;
+#define GET_CURR_CPU cos_cpuid()
 
-	cos_next->next_thd_id = thd_id;
+static inline long cos_cpuid(void)
+{
+#if NUM_CPU == 1
+	return 0;
+#endif
+	/* 
+	 * see comments in the get_stk_data above.
+	 */
+	return get_stk_data(CPUID_OFFSET);
 }
 
 static inline unsigned short int cos_get_thd_id(void)
 {
-	struct shared_user_data *ud = (void *)COS_INFO_REGION_ADDR;
-
-	return ud->current_thread;
+	/* 
+	 * see comments in the get_stk_data above.
+	 */
+	return get_stk_data(THDID_OFFSET);
 }
 
 #define ERR_THROW(errval, label) do { ret = errval; goto label; } while (0)
@@ -357,13 +357,15 @@ extern void *cos_get_vas_page(void);
 extern void cos_release_vas_page(void *p);
 
 /* only if the heap pointer is pre_addr, set it to post_addr */
-static inline void cos_set_heap_ptr_conditional(void *pre_addr, void *post_addr)
+static inline void 
+cos_set_heap_ptr_conditional(void *pre_addr, void *post_addr)
 {
 	cos_cmpxchg(&cos_comp_info.cos_heap_ptr, (long)pre_addr, (long)post_addr);
 }
 
 /* from linux source in string.h */
-static inline void *cos_memcpy(void * to, const void * from, int n)
+static inline void *
+cos_memcpy(void * to, const void * from, int n)
 {
 	int d0, d1, d2;
 	
@@ -384,7 +386,8 @@ static inline void *cos_memcpy(void * to, const void * from, int n)
 	
 }
 
-static inline void *cos_memset(void * s, char c , int count)
+static inline void *
+cos_memset(void * s, char c , int count)
 {
 	int d0, d1;
 	__asm__ __volatile__(
@@ -400,110 +403,53 @@ static inline void *cos_memset(void * s, char c , int count)
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
-/* functionality for managing the argument region */
-#define COS_ARGREG_SZ PAGE_SIZE /* must be power of 2 */
-#define COS_ARGREG_USABLE_SZ \
-	(COS_ARGREG_SZ-sizeof(struct cos_argreg_extent)-sizeof(struct pt_regs))
-#define COS_MAX_ARG_SZ COS_ARGREG_USABLE_SZ
-#define COS_IN_ARGREG(addr) \
-	((((unsigned long)(addr)) & ~(COS_ARGREG_SZ-1)) == \
-	 (unsigned int)cos_arg_region_base())
-
-/* a should be power of 2 */
-#define ALIGN(v, a) ((v+(a-1))&~(a-1))
-
-/*
- * The argument region is setup like so:
- *
- * | ..... |
- * +-------+
- * | sizeA | <- sizeof this cell + dataA, typeof(this cell) = struct cos_argreg_extent
- * +-------+
- * | ..... |
- * | dataA |
- * | ..... |
- * +-------+ 
- * | totsz | <- base extent holding total size
- * +-------+
- * | regs  | <- fault registers (struct pt_regs)
- * +-------+
+/* 
+ * A composite constructor (deconstructor): will be executed before
+ * other component execution (after component execution).  CRECOV is a
+ * function that should be called if one of the depended-on components
+ * has failed (e.g. the function serves as a callback notification).
  */
+#define CCTOR __attribute__((constructor))
+#define CDTOR __attribute__((destructor)) /* currently unused! */
+#define CRECOV(fnname) long crecov_##fnname##_ptr __attribute__((section(".crecov"))) = (long)fnname
 
-struct cos_argreg_extent {
-	unsigned int size;
-};
-
-/* Is the buffer entirely in the argument region */
-static inline int cos_argreg_buff_intern(char *buff, int sz)
+static inline void
+section_fnptrs_execute(long *list)
 {
-	return COS_IN_ARGREG(buff) && COS_IN_ARGREG(buff+sz);
+	int i;
+	typedef void (*ctors_t)(void);
+	ctors_t ctors;
+
+	ctors = (ctors_t)list[1];
+	for (i = 0 ; i < list[0] ; i++, ctors++) ctors();
 }
 
-static inline void cos_argreg_init(void)
+static void 
+constructors_execute(void)
 {
-	struct cos_argreg_extent *ex = cos_get_arg_region();
-	
-	ex->size = sizeof(struct cos_argreg_extent) + sizeof(struct pt_regs);
+	extern long __CTOR_LIST__;
+	section_fnptrs_execute(&__CTOR_LIST__);
+}
+static void 
+destructors_execute(void)
+{
+	extern long __DTOR_LIST__;
+	section_fnptrs_execute(&__DTOR_LIST__);
+}
+static void 
+recoveryfns_execute(void)
+{
+	extern long __CRECOV_LIST__;
+	section_fnptrs_execute(&__CRECOV_LIST__);
 }
 
 #define FAIL() *(int*)NULL = 0
-
-/* allocate an argument buffer in the argument region */
-static inline void *cos_argreg_alloc(int sz)
-{
-	struct cos_argreg_extent *ex = cos_get_arg_region(), *nex, *ret;
-	int exsz = sizeof(struct cos_argreg_extent);
-
-	sz = ALIGN(sz, exsz) + exsz;
-	ret = (struct cos_argreg_extent*)(((char*)cos_arg_region_base()) + ex->size);
-	nex = (struct cos_argreg_extent*)(((char*)ret) + sz - exsz);
-	if (unlikely((ex->size + sz) > COS_ARGREG_SZ || 
-		     (unsigned int)sz > COS_MAX_ARG_SZ)) {
-		return NULL;
-	}
-	nex->size = sz;
-	ex->size += sz;
-
-	return ret;
-}
-
-static inline int cos_argreg_free(void *p)
-{
-	struct cos_argreg_extent *ex = cos_get_arg_region(), *top;
-
-	top = (struct cos_argreg_extent*)(((char*)cos_arg_region_base()) + ex->size - sizeof(struct cos_argreg_extent));
-	if (unlikely(!cos_argreg_buff_intern((char*)top, sizeof(struct cos_argreg_extent)) ||
-		     top <= ex ||
-		     top->size > COS_ARGREG_USABLE_SZ /* this could be more exact given top's location */
-		     /* || p != ((char*)top)-top->size */)) {
-#ifdef BUG
-		BUG();
-#else
-		FAIL();
-#endif
-	}
-	ex->size -= top->size;
-	top->size = 0;
-
-	return 0;
-}
-
-/* 
- * This is a useful argument to pass between components when data must
- * pass boundaries.  It is a "size" of the memory region + the memory
- * region itself.
- */
-struct cos_array {
-	int sz;
-	char mem[0];
-};
-
-static inline int cos_argreg_arr_intern(struct cos_array *ca)
-{
-	if (!cos_argreg_buff_intern((char*)ca, sizeof(struct cos_array))) return 0;
-	if (!cos_argreg_buff_intern(ca->mem, ca->sz)) return 0;
-	return 1;
-}
+static inline int cos_argreg_buff_intern(char *buff, int sz) { FAIL(); return 0; }
+static inline void cos_argreg_init(void) { FAIL(); }
+static inline void *cos_argreg_alloc(int sz) { FAIL(); return NULL; }
+static inline int cos_argreg_free(void *p) { FAIL(); return 0; };
+struct cos_array { char *mem; int sz; };
+static inline int cos_argreg_arr_intern(struct cos_array *ca) { FAIL(); return 0; }
 
 #define prevent_tail_call(ret) __asm__ ("" : "=r" (ret) : "m" (ret))
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))

@@ -6,7 +6,7 @@
 #define AVG_INVC_CYCS 1000   /* for each invocation cost, for this machnes is 934 */
 volatile unsigned long kkk = 0;
 
-//#define I7
+#define I7
 //long sum = 0;
 unsigned long left(unsigned long execution_t, unsigned long const initial_exe_t, cbuf_t cbt, int len)
 {

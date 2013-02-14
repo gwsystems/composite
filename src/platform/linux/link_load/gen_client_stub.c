@@ -54,7 +54,7 @@ char *fn_string =
 "cmpl $(~0), %d(%%eax)\n\t"
 "je 1f\n\t"
 "/* Static branch prediction will go here: incriment invocation cnt */\n\t"
-"incl %d(%%eax)\n" /* why is this 4 cycles? how aren't we using the parallelism? */
+"incl %d(%%eax)\n" /* Comment out for multicore performance. FIXME: the system doesn't work after comment this out. */ 
 // The following approach works too and avoids the branch...but has the same cost.
 /*"incl %d(%%eax)\n\t" */ /* why is this 4 cycles? how aren't we using the parallelism? */
 /*"andl $0x7FFFFFFF, %d(%%eax)\n\t"*/
@@ -81,7 +81,7 @@ full:
 */
 
 char *footer1 =
-".data\n"
+".section .kmem\n"
 ".align 4096\n"
 ".globl ST_user_caps\n"
 "ST_user_caps:\n\t"

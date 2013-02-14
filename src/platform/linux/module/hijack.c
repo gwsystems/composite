@@ -22,6 +22,8 @@
 #include <asm/cacheflush.h>
 /* fget */
 #include <linux/file.h>
+/* smp functions */
+#include <linux/smp.h>
 /* all page table manipulations */
 #include <asm/pgtable.h>
 /* (rd|wr)msr */
@@ -41,9 +43,14 @@
 #include "../../../kernel/include/thread.h"
 #include "../../../kernel/include/measurement.h"
 #include "../../../kernel/include/mmap.h"
+#include "../../../kernel/include/per_cpu.h"
+#include "../../../kernel/include/shared/consts.h"
 #include "../../../kernel/include/fpu.h"
 
 #include "./hw_ints.h"
+
+#include "pgtbl.h"
+#include "../../../kernel/include/chal.h"
 
 #include "./kconfig_checks.h"
 
@@ -59,7 +66,7 @@ extern void fpu_not_available_interposition(void);
 /* 
  * This variable exists for the assembly code for temporary
  * storage...want it close to sysenter_addr for cache locality
- * purposes.
+ * purposes. -> Replaced by the per_cpu variable x86_tss.
  */
 extern unsigned long temp_esp_storage; 
 
@@ -71,7 +78,9 @@ extern unsigned long temp_esp_storage;
 pte_t *shared_region_pte;
 pgd_t *union_pgd;
 
-struct task_struct *composite_thread = NULL;
+struct per_core_cos_thd cos_thd_per_core[NUM_CPU];
+
+//QW: should be per core? >>
 struct mm_struct *composite_union_mm = NULL;
 
 /* composite: should be in separate module */
@@ -105,6 +114,7 @@ unsigned long trusted_mem_size;
 
 #define MAX_ALLOC_MM 64
 struct mm_struct *guest_mms[MAX_ALLOC_MM]; 
+//QW: should be per core? <<
 
 DEFINE_PER_CPU(unsigned long, x86_tss) = { 0 };
 
@@ -120,12 +130,27 @@ load_per_core_TSS(void)
 	struct desc_struct *gdt_array = NULL;
 	unsigned long *temp_gdt_tss;
 
-	gdt_array = get_cpu_gdt_table(get_cpu());
+	gdt_array = get_cpu_gdt_table(get_cpuid());
         temp_gdt_tss = (unsigned long *)get_desc_base(&gdt_array[GDT_ENTRY_TSS]);
 	gdt_tss = (struct tss_struct *)temp_gdt_tss;
 
 	cpu_x86_tss = &get_cpu_var(x86_tss);
 	*cpu_x86_tss = (unsigned long)((void *)gdt_tss + sizeof(struct tss_struct));
+
+	/* unsigned long *p; */
+	/* int i; */
+	/* printk("size of tss: %d\n", sizeof(struct tss_struct)); */
+
+	/* printk("addr %lu of the head of tss\n", (unsigned long )((void *)gdt_tss)); */
+	/* for (i = 0; i< 26; i++) { */
+	/* 	p = (unsigned long *)((void *)gdt_tss + i); */
+	/* 	printk("TSS(%d): %lu\n", i, *p); */
+	/* } */
+	/* unsigned long *p1 =(unsigned long *)current_thread_info(); */
+	/* printk("linux thread info %p, cos_get_linux_thread_info %p\n",p1, get_Linux_thread_info()); */
+	/* printk("THREAD_SIZE %d, cpuid %d, %d\n", */
+	/*        THREAD_SIZE, *(p1+4), get_CPU_ID()); */
+	/* printk("CPU ID :%d\n", get_CPU_ID()); */
 	put_cpu_var(x86_tss);
 }
 
@@ -146,7 +171,15 @@ void get_TSS(struct pt_regs *rs)
 		/* We need to load the variable if not loaded yet. */
 	  	load_per_core_TSS();
 		rs->orig_ax = get_cpu_var(x86_tss);
+		/* Make sure the thread_info structure is at the
+		   correct location. */
+		assert(get_linux_thread_info() == (unsigned long *)current_thread_info());
+		if (offsetof(struct thread_info, cpu) != 16) {
+			printk("The linux definition of the thread info is different from the offsets that Composite assumes");
+			assert(0);
+		}
 	}
+
 	return;
 }
 
@@ -247,11 +280,7 @@ static int aed_free_mm(int mm_handle)
 	 * fast path. */
 	return 0;
 }
-static inline unsigned int hpage_index(unsigned long n)
-{
-        unsigned int idx = n >> HPAGE_SHIFT;
-        return (idx << HPAGE_SHIFT) != n ? idx + 1 : idx;
-}
+
 int spd_free_mm(struct spd *spd)
 {
 	struct mm_struct *mm;
@@ -503,17 +532,67 @@ static inline void copy_pgd_range(struct mm_struct *to_mm, struct mm_struct *fro
 #define my_load_cr3(pgdir) asm volatile("movl %0,%%cr3": :"r" (__pa(pgdir)))
 #define flush_executive(pgdir) my_load_cr3(pgdir)
 
+struct spd_poly linux_pgtbls_per_core[NUM_CPU];
+
+/* Create a boot thread. Used by ioctl only. */
+struct thread *ready_boot_thread(struct spd *init)
+{
+//	struct shared_user_data *ud = get_shared_data();
+	struct thread *thd;
+	unsigned int tid;
+	struct spd_poly *this_pgtbl;
+	struct thd_invocation_frame *frame;
+
+	assert(NULL != init);
+
+	thd = thd_alloc(init);
+	if (NULL == thd) {
+		printk("cos: Could not allocate boot thread.\n");
+		return NULL;
+	}
+	/* 
+	 * Create the spd_poly with a pointer to the page tables for
+	 * each Linux process to return to, so that when the separate
+	 * core's cos threads return to comp0 (thus the cos_loader and
+	 * Linux in general), we will return to the _separate_ and
+	 * correct page-tables.
+	 */
+	this_pgtbl                   = &linux_pgtbls_per_core[get_cpuid()];
+	this_pgtbl->pg_tbl           = (paddr_t)(__pa(current->mm->pgd));
+	cos_ref_set(&this_pgtbl->ref_cnt, 2);
+	frame                        = thd_invstk_top(thd);
+	assert(thd->stack_ptr == 0);
+	frame->current_composite_spd = this_pgtbl;
+	
+	assert(init->location[0].lowest_addr == SERVICE_START);
+	assert(thd_spd_in_composite(this_pgtbl, init));
+
+	tid = thd_get_id(thd);
+	core_put_curr_thd(thd);
+
+	assert(tid);
+
+//	switch_thread_data_page(2, tid);
+	/* thread ids start @ 1 */
+//	ud->current_thread = tid;
+//	ud->argument_region = (void*)((tid * PAGE_SIZE) + COS_INFO_REGION_ADDR);
+
+	return thd;
+}
+
 static int syscalls_enabled = 1;
 
 extern int virtual_namespace_alloc(struct spd *spd, unsigned long addr, unsigned int size);
-void zero_pgtbl_range(paddr_t pt, unsigned long lower_addr, unsigned long size);
-void copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from, 
-		      unsigned long lower_addr, unsigned long size);
-void copy_pgtbl(paddr_t pt_to, paddr_t pt_from);
-//extern int copy_mm(unsigned long clone_flags, struct task_struct * tsk);
-void print_valid_pgtbl_entries(paddr_t pt);
-extern struct thread *ready_boot_thread(struct spd *init);
-vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr);
+
+/* We need to save cos thread for each core. This is used when switch host pg tables.*/
+void save_per_core_cos_thd(void)
+{
+        cos_thd_per_core[get_cpuid()].cos_thd = current;
+
+        return;
+}
+
+void register_timers(void);
 
 static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -559,8 +638,8 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		 * itself. */
 		if (spd_info.lowest_addr == 0) {
 			spd->spd_info.pg_tbl         = (paddr_t)(__pa(current->mm->pgd));
-			spd->location[0].lowest_addr = 0;
-			spd->location[0].size        = 0;
+			spd->location[0].lowest_addr = SERVICE_START;
+			spd->location[0].size        = PGD_RANGE;
 			spd->composite_spd           = &spd->spd_info;
 		} else {
 			/*
@@ -609,17 +688,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 			spd->pfn_base   = 0;
 			spd->pfn_extent = COS_MAX_MEMORY;
-/*
-			copy_pgtbl(cspd->spd_info.pg_tbl, __pa(mm->pgd));
-			cspd->spd_info.pg_tbl = __pa(mm->pgd);
-////			spd->composite_spd = &spd->spd_info;//&cspd->spd_info;
-			spd->composite_spd = &cspd->spd_info;
-*/
-#ifdef NIL
-			/* To check the integrity of the created page table: */
-			void print_valid_pgtbl_entries(paddr_t pt);
-			print_valid_pgtbl_entries(spd->composite_spd->pg_tbl);
-#endif
 		}
 
 		return spd_get_index(spd);
@@ -662,21 +730,22 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		struct thread *thd;
 		struct spd *spd, *sched;
 
+		save_per_core_cos_thd();
+
 		if (copy_from_user(&thread_info, (void*)arg, 
 				   sizeof(struct cos_thread_info))) {
 			//printk("cos: Error copying thread_info from user.\n");
 			return -EFAULT;
 		}
 
+		printk("cos core %u: creating thread in spd %d.\n", get_cpuid(), thread_info.spd_handle);
 		spd = spd_get_by_index(thread_info.spd_handle);
 		if (!spd) {
 			printk("cos: Spd %d invalid for thread creation.\n", 
 			       thread_info.spd_handle);
 			return -EINVAL;
 		}
-
 		thd = ready_boot_thread(spd);
-
 		spd = spd_get_by_index(thread_info.sched_handle);
 		if (!spd) {
 			printk("cos: scheduling spd %d not permitted to create thread.\n", 
@@ -684,7 +753,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			thd_free(thd);
 			return -EINVAL;
 		}
-
 		sched = spd;
 		for (i = spd->sched_depth ; i >= 0 ; i--) {
 			tsi = thd_get_sched_info(thd, i);
@@ -762,36 +830,13 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			sched->parent_sched = p;
 			sched->sched_depth = p->sched_depth + 1;
 		}
-
-//		printk("cos: promoting component %d to scheduler at depth %d, and parent %d\n",
-//		       sched_info.spd_sched_handle, sched->sched_depth, sched_info.spd_parent_handle);
-
-		if (sched_info.sched_shared_page < sched->location[0].lowest_addr ||
-		    sched_info.sched_shared_page + PAGE_SIZE >= 
-		    sched->location[0].lowest_addr + sched->location[0].size) {
-			/* undo changes made so far */
-			sched->sched_depth = -1;
-			sched->parent_sched = NULL;
-
-			printk("cos: could not promote spd %d to scheduler - invalid pinned page @ %x.\n",
-			       spd_get_index(sched), (unsigned int)sched_info.sched_shared_page);
-			return -EINVAL;
-		} 
-
-		sched->sched_shared_page = (struct cos_sched_data_area *)sched_info.sched_shared_page;
-		/* We will need to access the shared_page for thread
-		 * events when the pagetable for this spd is not
-		 * mapped in.  */
-		sched->kern_sched_shared_page = (struct cos_sched_data_area *)
-			pgtbl_vaddr_to_kaddr(sched->spd_info.pg_tbl, (unsigned long)sched->sched_shared_page);
-		sched->prev_notification = 0;
 			
 		return 0;
 	}
 	case AED_EMULATE_PREEMPT:
 	{
-		struct pt_regs *regs = get_user_regs_thread(composite_thread);
-		struct thread *cos_thd = thd_get_current();
+		struct pt_regs *regs = get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd);
+		struct thread *cos_thd = core_get_curr_thd();
 		//struct pt_regs *irq_regs = get_irq_regs();
 
 		memcpy(&cos_thd->regs, regs, sizeof(struct pt_regs));
@@ -814,6 +859,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	return ret;
 }
 
+//QW: should be per core? >>
 #define NFAULTS 200
 int fault_ptr = 0;
 struct fault_info {
@@ -824,6 +870,7 @@ struct fault_info {
 	int cspd_flags, cspd_master_flags;
 	unsigned long long timestamp;
 } faults[NFAULTS];
+//QW: should be per core? <<
 
 static void cos_report_fault(struct thread *t, vaddr_t fault_addr, int ecode, struct pt_regs *regs)
 {
@@ -907,13 +954,13 @@ static int cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *re
 	curr = origin->composite_spd;
 
 	/* 2 */
-	if (unlikely(pgtbl_entry_absent(active->pg_tbl, ucap_addr))) return 0;
+	if (unlikely(chal_pgtbl_entry_absent(active->pg_tbl, ucap_addr))) return 0;
 
 	/* 3: really don't know what could cause this */
-	if (unlikely(!pgtbl_entry_absent(active->pg_tbl, fault_addr))) return 0;
+	if (unlikely(!chal_pgtbl_entry_absent(active->pg_tbl, fault_addr))) return 0;
 
 	/* 4 */
-	if (unlikely(pgtbl_entry_absent(curr->pg_tbl, fault_addr))) return 0;
+	if (unlikely(chal_pgtbl_entry_absent(curr->pg_tbl, fault_addr))) return 0;
 	
 	/* 5
 	 *
@@ -921,7 +968,7 @@ static int cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *re
 	 * a more up-to-date pd if this one is subordinate and not
 	 * consistent.
 	 */
-	copy_pgtbl_range(active->pg_tbl, curr->pg_tbl, fault_addr, HPAGE_SIZE);
+	chal_pgtbl_copy_range(active->pg_tbl, curr->pg_tbl, fault_addr, HPAGE_SIZE);
 	
 	/* 
 	 * NOTE: perhaps a better way to do this would be to look up
@@ -997,7 +1044,7 @@ static unsigned long fault_addrs[NUM_BUCKETS];
 
 void hijack_syscall_monitor(int num)
 {
-	if (unlikely(!syscalls_enabled && composite_thread == current)) {
+	if (unlikely(!syscalls_enabled && cos_thd_per_core[get_cpuid()].cos_thd == current)) {
 		printk("FAILURE: making a Linux system call (#%d) in Composite.\n", num);
 	}
 }
@@ -1017,7 +1064,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	int ret = 1;
 
 	fault_addr = read_cr2();
-
+	
 	if (fault_addr > KERN_BASE_ADDR) goto linux_handler;
 
 	/* 
@@ -1033,7 +1080,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	 * spd's boundaries or there is not a linux mapping for the
 	 * address.
 	 */
-	if (composite_thread != current) goto linux_handler;
+	if (cos_thd_per_core[get_cpuid()].cos_thd != current) goto linux_handler;
 	if (fault_addr == (unsigned long)&page_fault_interposition) goto linux_handler;
 
 	curr_mm = get_task_mm(current);
@@ -1054,7 +1101,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	 * not completely initialized composite yet, but we need to
 	 * check for this.
 	 */
-	thd = thd_get_current();
+	thd = core_get_curr_thd();
 	/* This is a magical address that we are getting faults for,
 	 * but I don't know why, and it doesn't seem to interfere with
 	 * execution.  For now ffffd0b0 is being counted as an unknown
@@ -1095,7 +1142,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 
 	cos_meas_event(COS_PG_FAULT);
 	
-	if (get_user_regs_thread(composite_thread) != rs) printk("Nested page fault!\n");
+	if (get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd) != rs) printk("Nested page fault!\n");
 	if (fault_update_mpd_pgtbl(thd, rs, fault_addr)) ret = 0;
 	else ret = cos_handle_page_fault(thd, fault_addr, error_code, rs);
 
@@ -1117,9 +1164,9 @@ int main_div_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 {
 	struct thread *t;
 
-	if (composite_thread != current) return 1;
+	if (cos_thd_per_core[get_cpuid()].cos_thd != current) return 1;
 
-	t = thd_get_current();
+	t = core_get_curr_thd();
 	cos_record_fault_regs(t, error_code, error_code, rs);
 	fault_ipc_invoke(t, rs->ip, 0, rs, COS_FLT_DIVZERO);
 
@@ -1132,9 +1179,9 @@ main_reg_save_interposition(struct pt_regs *rs, unsigned int error_code)
 	struct thread *t;
 	struct spd *s;
 
-	if (unlikely(composite_thread != current)) return 1;
+	if (unlikely(cos_thd_per_core[get_cpuid()].cos_thd != current)) return 1;
 
-	t = thd_get_current();
+	t = core_get_curr_thd();
 	memcpy(&t->fault_regs, rs, sizeof(struct pt_regs));
 	/* The spd that was invoked should be the one faulting here
 	 * (must get stack) */
@@ -1149,9 +1196,9 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 {
 	struct thread *t;
 
-	if (composite_thread != current) return 1;
+    if (cos_thd_per_core[get_cpuid()].cos_thd != current) return 1;
 
-	t = thd_get_current();
+    t = core_get_curr_thd();
 	t->fpu.status = 1;
 	fpu_enable();
 	struct thread *last_used_fpu = fpu_get_last_used();
@@ -1190,7 +1237,7 @@ int kern_handle;
 /*
  * FIXME: error checking
  */
-void *cos_alloc_page(void)
+void *chal_alloc_page(void)
 {
 	void *page = (void*)__get_free_pages(GFP_KERNEL, 0);
 	
@@ -1199,7 +1246,7 @@ void *cos_alloc_page(void)
 	return page;
 }
 
-void cos_free_page(void *page)
+void chal_free_page(void *page)
 {
 	free_pages((unsigned long int)page, 0);
 }
@@ -1209,305 +1256,14 @@ void cos_free_page(void *page)
  * using them both in the composite world and in the Linux world.  We
  * should just use them in the composite world and be done with it.
  */
-void *va_to_pa(void *va) 
+void *chal_va2pa(void *va) 
 {
 	return (void*)__pa(va);
 }
 
-void *pa_to_va(void *pa) 
+void *chal_pa2va(void *pa) 
 {
 	return (void*)__va(pa);
-}
-
-static inline pte_t *pgtbl_lookup_address(paddr_t pgtbl, unsigned long addr)
-{
-	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pgtbl)) + pgd_index(addr);
-	pud_t *pud;
-	pmd_t *pmd;
-	if (pgd_none(*pgd)) {
-		return NULL;
-	}
-	pud = pud_offset(pgd, addr);
-	if (pud_none(*pud)) {
-		return NULL;
-	}
-	pmd = pmd_offset(pud, addr);
-	if (pmd_none(*pmd)) {
-		return NULL;
-	}
-	if (pmd_large(*pmd))
-		return (pte_t *)pmd;
-        return pte_offset_kernel(pmd, addr);
-}
-
-/* returns the page table entry */
-unsigned long
-__pgtbl_lookup_address(paddr_t pgtbl, unsigned long addr)
-{
-	pte_t *pte;
-
-	pte = pgtbl_lookup_address(pgtbl, addr);
-	if (!pte) return 0;
-	return pte->pte_low;
-}
-
-/* returns the page table entry */
-void
-__pgtbl_or_pgd(paddr_t pgtbl, unsigned long addr, unsigned long val)
-{
-	pgd_t *pt = ((pgd_t *)pa_to_va((void*)pgtbl)) + pgd_index(addr);
-
-	pt->pgd = pgd_val(*pt) | val;
-}
-
-void pgtbl_print_path(paddr_t pgtbl, unsigned long addr)
-{
-	pgd_t *pt = ((pgd_t *)pa_to_va((void*)pgtbl)) + pgd_index(addr);
-	pte_t *pe = pgtbl_lookup_address(pgtbl, addr);
-	
-	printk("cos: addr %x, pgd entry - %x, pte entry - %x\n", 
-	       (unsigned int)addr, (unsigned int)pgd_val(*pt), (unsigned int)pte_val(*pe));
-
-	return;
-}
-
-int pgtbl_add_entry(paddr_t pgtbl, unsigned long vaddr, unsigned long paddr)
-{
-	pte_t *pte = pgtbl_lookup_address(pgtbl, vaddr);
-
-	if (!pte || pte_val(*pte) & _PAGE_PRESENT) {
-		return -1;
-	}
-	/*pte_val(*pte)*/pte->pte_low = paddr | (_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
-
-	return 0;
-}
-
-/* allocate and link in a page middle directory */
-int pgtbl_add_middledir(paddr_t pt, unsigned long vaddr)
-{
-	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(vaddr);
-	unsigned long *page;
-
-	page = cos_alloc_page(); /* zeroed */
-	if (!page) return -1;
-
-	pgd->pgd = (unsigned long)va_to_pa(page) | _PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED;
-	return 0;
-}
-
-int pgtbl_rem_middledir(paddr_t pt, unsigned long vaddr)
-{
-	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(vaddr);
-	unsigned long *page;
-
-	page = (unsigned long *)pa_to_va((void*)(pgd->pgd & PTE_PFN_MASK));
-	pgd->pgd = 0;
-	cos_free_page(page);
-
-	return 0;
-}
-
-int pgtbl_rem_middledir_range(paddr_t pt, unsigned long vaddr, long size)
-{
-	unsigned long a;
-
-	for (a = vaddr ; a < vaddr + size ; a += HPAGE_SIZE) {
-		BUG_ON(pgtbl_rem_middledir(pt, a));
-	}
-	return 0;
-}
-
-int pgtbl_add_middledir_range(paddr_t pt, unsigned long vaddr, long size)
-{
-	unsigned long a;
-
-	for (a = vaddr ; a < vaddr + size ; a += HPAGE_SIZE) {
-		if (pgtbl_add_middledir(pt, a)) {
-			pgtbl_rem_middledir_range(pt, vaddr, a-vaddr);
-			return -1;
-		}
-	}
-	return 0;
-}
-
-/*
- * Remove a given virtual mapping from a page table.  Return 0 if
- * there is no present mapping, and the physical address mapped if
- * there is an existant mapping.
- */
-paddr_t pgtbl_rem_ret(paddr_t pgtbl, vaddr_t va)
-{
-	pte_t *pte = pgtbl_lookup_address(pgtbl, va);
-	paddr_t val;
-
-	if (!pte || !(pte_val(*pte) & _PAGE_PRESENT)) {
-		return 0;
-	}
-	val = (paddr_t)(pte_val(*pte) & PTE_MASK);
-	pte->pte_low = 0;
-
-	return val;
-}
-
-/* 
- * This won't work to find the translation for the argument region as
- * __va doesn't work on module-mapped memory. 
- */
-vaddr_t pgtbl_vaddr_to_kaddr(paddr_t pgtbl, unsigned long addr)
-{
-	pte_t *pte = pgtbl_lookup_address(pgtbl, addr);
-	unsigned long kaddr;
-
-	if (!pte || !(pte_val(*pte) & _PAGE_PRESENT)) {
-		return 0;
-	}
-	
-	/*
-	 * 1) get the value in the pte
-	 * 2) map out the non-address values to get the physical address
-	 * 3) convert the physical address to the vaddr
-	 * 4) offset into that vaddr the appropriate amount from the addr arg.
-	 * 5) return value
-	 */
-
-	kaddr = (unsigned long)__va(pte_val(*pte) & PTE_MASK) + (~PAGE_MASK & addr);
-
-	return (vaddr_t)kaddr;
-}
-
-unsigned int *pgtbl_module_to_vaddr(unsigned long addr)
-{
-	return (unsigned int *)pgtbl_vaddr_to_kaddr((paddr_t)va_to_pa(current->mm->pgd), addr);
-}
-
-/*
- * Verify that the given address in the page table is present.  Return
- * 0 if present, 1 if not.  *This will check the pgd, not for the pte.*
- */
-int pgtbl_entry_absent(paddr_t pt, unsigned long addr)
-{
-	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(addr);
-
-	return !((pgd_val(*pgd)) & _PAGE_PRESENT);
-}
-
-/* Find the nth valid pgd entry */
-unsigned long get_valid_pgtbl_entry(paddr_t pt, int n)
-{
-	int i;
-
-	for (i = 1 ; i < PTRS_PER_PGD ; i++) {
-		if (!pgtbl_entry_absent(pt, i*PGDIR_SIZE)) {
-			n--;
-			if (n == 0) {
-				return i*PGDIR_SIZE;
-			}
-		}
-	}
-	return 0;
-}
-
-void print_valid_pgtbl_entries(paddr_t pt) 
-{
-	int n = 1;
-	unsigned long ret;
-	printk("cos: valid pgd addresses:\ncos: ");
-	while ((ret = get_valid_pgtbl_entry(pt, n++)) != 0) {
-		printk("%lx\t", ret);
-	}
-	printk("\ncos: %d valid addresses.\n", n-1);
-
-	return;
-}
-
-void zero_pgtbl_range(paddr_t pt, unsigned long lower_addr, unsigned long size)
-{
-	pgd_t *pgd = ((pgd_t *)pa_to_va((void*)pt)) + pgd_index(lower_addr);
-	unsigned int span = hpage_index(size);
-
-	if (!(pgd_val(*pgd)) & _PAGE_PRESENT) {
-		printk("cos: BUG: nothing to copy from pgd @ %x.\n", 
-		       (unsigned int)lower_addr);
-	}
-
-	/* sizeof(pgd entry) is intended */
-	memset(pgd, 0, span*sizeof(pgd_t));
-}
-
-void copy_pgtbl_range(paddr_t pt_to, paddr_t pt_from, 
-		      unsigned long lower_addr, unsigned long size)
-{
-	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
-	pgd_t *fpgd = ((pgd_t *)pa_to_va((void*)pt_from)) + pgd_index(lower_addr);
-	unsigned int span = hpage_index(size);
-
-	if (!(pgd_val(*fpgd)) & _PAGE_PRESENT) {
-		printk("cos: BUG: nothing to copy from pgd @ %x.\n", 
-		       (unsigned int)lower_addr);
-	}
-
-	/* sizeof(pgd entry) is intended */
-	memcpy(tpgd, fpgd, span*sizeof(pgd_t));
-}
-
-void copy_pgtbl_range_nocheck(paddr_t pt_to, paddr_t pt_from, 
-			      unsigned long lower_addr, unsigned long size)
-{
-	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
-	pgd_t *fpgd = ((pgd_t *)pa_to_va((void*)pt_from)) + pgd_index(lower_addr);
-	unsigned int span = hpage_index(size);
-
-	/* sizeof(pgd entry) is intended */
-	memcpy(tpgd, fpgd, span*sizeof(pgd_t));
-}
-
-/* Copy pages non-empty in from, and empty in to */
-void copy_pgtbl_range_nonzero(paddr_t pt_to, paddr_t pt_from, 
-			      unsigned long lower_addr, unsigned long size)
-{
-	pgd_t *tpgd = ((pgd_t *)pa_to_va((void*)pt_to)) + pgd_index(lower_addr);
-	pgd_t *fpgd = ((pgd_t *)pa_to_va((void*)pt_from)) + pgd_index(lower_addr);
-	unsigned int span = hpage_index(size);
-	int i;
-
-	printk("Copying from %p:%d to %p.\n", fpgd, span, tpgd);
-
-	/* sizeof(pgd entry) is intended */
-	for (i = 0 ; i < span ; i++) {
-		if (!(pgd_val(tpgd[i]) & _PAGE_PRESENT)) {
-			if (pgd_val(fpgd[i]) & _PAGE_PRESENT) printk("\tcopying vaddr %lx.\n", lower_addr + i * HPAGE_SHIFT);
-			memcpy(&tpgd[i], &fpgd[i], sizeof(pgd_t));
-		}
-	}
-}
-
-void copy_pgtbl(paddr_t pt_to, paddr_t pt_from)
-{
-	copy_pgtbl_range_nocheck(pt_to, pt_from, 0, 0xFFFFFFFF);
-}
-
-/*
- * If for some reason Linux preempts the composite thread, then when
- * it starts it back up again, it needs to know what page tables to
- * use.  Thus update the current mm_struct.
- */
-void switch_host_pg_tbls(paddr_t pt)
-{
-	struct mm_struct *mm;
-
-	BUG_ON(!composite_thread);
-	/* 
-	 * We aren't doing reference counting here on the mm (via
-	 * get_task_mm) because we know that this mm will survive
-	 * until the module is unloaded (i.e. it is refcnted at a
-	 * granularity of the creation of the composite file
-	 * descriptor open/close.)
-	 */
-	mm = composite_thread->mm;
-	mm->pgd = (pgd_t *)pa_to_va((void*)pt);
-
-	return;
 }
 
 /***** begin timer/net handling *****/
@@ -1516,7 +1272,7 @@ void switch_host_pg_tbls(paddr_t pt)
  * Our composite emulated timer interrupt executed from a Linux
  * softirq
  */
-static struct timer_list timer;
+static struct timer_list timer[NUM_CPU]; CACHE_ALIGNED
 
 extern struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
 
@@ -1540,29 +1296,28 @@ EXPORT_SYMBOL(cos_trans_reg);
 EXPORT_SYMBOL(cos_trans_dereg);
 EXPORT_SYMBOL(cos_trans_upcall);
 
-extern struct thread *cos_timer_brand_thd;
+extern struct thread *cos_timer_brand_thd[NUM_CPU];CACHE_ALIGNED
 #define NUM_NET_BRANDS 2 /* keep consistent with inv.c */
 extern int active_net_brands;
 extern struct cos_brand_info cos_net_brand[NUM_NET_BRANDS];
 extern struct cos_net_callbacks *cos_net_fns;
 
-/* FIXME: per cpu */
-static int in_syscall = 0;
+static int in_syscall[NUM_CPU] = { 0 }; CACHE_ALIGNED
 
 int host_in_syscall(void) 
 {
-	return in_syscall;
+	return in_syscall[get_cpuid()];
 }
 
 void host_start_syscall(void)
 {
-	in_syscall = 1;
+	in_syscall[get_cpuid()] = 1;
 }
 EXPORT_SYMBOL(host_start_syscall);
 
 void host_end_syscall(void)
 {
-	in_syscall = 0;
+	in_syscall[get_cpuid()] = 0;
 }
 EXPORT_SYMBOL(host_end_syscall);
 
@@ -1598,13 +1353,14 @@ static inline void cli(void)
 	__asm__("cli");
 }
 
-void host_idle(void)
+void 
+chal_idle(void)
 {
 	/* set state must be before in_idle=1 to avert race */
 	set_current_state(TASK_INTERRUPTIBLE);
 	assert(IDLE_AWAKE == idle_status);
 	idle_status = IDLE_ASLEEP;
-	event_record("going into idle", thd_get_id(thd_get_current()), 0);
+	event_record("going into idle", thd_get_id(core_get_curr_thd()), 0);
 	cos_meas_event(COS_MEAS_IDLE_SLEEP);
 	sti();
 
@@ -1616,45 +1372,43 @@ void host_idle(void)
 	//assert(IDLE_WAKING == idle_status);
 	idle_status = IDLE_AWAKE;
 	cos_meas_event(COS_MEAS_IDLE_RUN);
-	event_record("coming out of idle", thd_get_id(thd_get_current()), 0);
+	event_record("coming out of idle", thd_get_id(core_get_curr_thd()), 0);
 }
 
-static void host_idle_wakeup(void)
+static void 
+host_idle_wakeup(void)
 {
 	assert(host_in_idle());
-	if (likely(composite_thread)) {
+	if (likely(cos_thd_per_core[get_cpuid()].cos_thd)) {
 		if (IDLE_ASLEEP == idle_status) {
 			cos_meas_event(COS_MEAS_IDLE_LINUX_WAKE);
-			event_record("idle wakeup", thd_get_id(thd_get_current()), 0);
-			wake_up_process(composite_thread);
+			event_record("idle wakeup", thd_get_id(core_get_curr_thd()), 0);
+			wake_up_process(cos_thd_per_core[get_cpuid()].cos_thd);
 			idle_status = IDLE_WAKING;
 		} else {
 			cos_meas_event(COS_MEAS_IDLE_RECURSIVE_WAKE);
-			event_record("idle wakeup call while waking", thd_get_id(thd_get_current()), 0);
+			event_record("idle wakeup call while waking", thd_get_id(core_get_curr_thd()), 0);
 		}
 		assert(IDLE_WAKING == idle_status);
 	}
 }
 
-int host_can_switch_pgtbls(void) { return current == composite_thread; }
-
-int host_attempt_brand(struct thread *brand)
+int chal_attempt_brand(struct thread *brand)
 {
 	struct pt_regs *regs = NULL;
 	unsigned long flags;
 
 	local_irq_save(flags);
-	if (likely(composite_thread)/* == current*/) {
+	if (likely(cos_thd_per_core[get_cpuid()].cos_thd)/* == current*/) {
 		struct thread *cos_current;
 
-		if (composite_thread == current) {
+		if (cos_thd_per_core[get_cpuid()].cos_thd == current) {
 			cos_meas_event(COS_MEAS_INT_COS_THD);
 		} else {
 			cos_meas_event(COS_MEAS_INT_OTHER_THD);
 		}
 
-		cos_current = thd_get_current();
-
+		cos_current = core_get_curr_thd();
 		/* See comment in cosnet.c:cosnet_xmit_packet */
 		if (host_in_syscall() || host_in_idle()) {
 			struct thread *next;
@@ -1699,7 +1453,7 @@ int host_attempt_brand(struct thread *brand)
 			next = brand_next_thread(brand, cos_current, 0);
 			
 			if (next != cos_current) {
-				assert(thd_get_current() == next);
+				assert(core_get_curr_thd() == next);
 				/* the following call isn't
 				 * necessary: if we are in a syscall,
 				 * then we can't be in an RAS */
@@ -1719,7 +1473,8 @@ int host_attempt_brand(struct thread *brand)
 			goto done;
  		}
 
-		regs = get_user_regs_thread(composite_thread);
+		regs = get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd);
+
 		/* 
 		 * If both esp and xss == 0, then the interrupt
 		 * occured between sti; sysexit on the cos ipc/syscall
@@ -1767,17 +1522,21 @@ int host_attempt_brand(struct thread *brand)
 				//cos_meas_event(COS_MEAS_BRAND_UC);
 				
 				thd_check_atomic_preempt(cos_current);
+				
+				/* Those registers are saved in the
+				 * user space. No need to restore
+				 * here. */
+				/* regs->bx = next->regs.bx; */
+				/* regs->di = next->regs.di; */
+				/* regs->si = next->regs.si; */
+				/* regs->bp = next->regs.bp; */
 
-				regs->bx = next->regs.bx;
-				regs->di = next->regs.di;
-				regs->si = next->regs.si;
 				regs->cx = next->regs.cx;
 				regs->ip = next->regs.ip;
 				regs->dx = next->regs.dx;
 				regs->ax = next->regs.ax;
 				regs->orig_ax = next->regs.ax;
 				regs->sp = next->regs.sp;
-				regs->bp = next->regs.bp;
 				//cos_meas_event(COS_MEAS_BRAND_UC);
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
@@ -1794,32 +1553,56 @@ done:
 	return 0;
 }
 
-static void timer_interrupt(unsigned long data)
+static void receive_ipi(void *thdid)
 {
-	BUG_ON(composite_thread == NULL);
-	mod_timer_pinned(&timer, jiffies+1);
+	struct thread *thd = thd_get_by_id((int)thdid);
 
-	if (!(cos_timer_brand_thd && cos_timer_brand_thd->upcall_threads)) {
-		return;
-	}
+	if (unlikely(!thd)) return;
 
-	host_attempt_brand(cos_timer_brand_thd);
+	chal_attempt_brand(thd);
+
 	return;
 }
 
-static void register_timers(void)
+int send_ipi(int cpuid, int thdid, int wait)
 {
-	init_timer(&timer);
-	timer.function = timer_interrupt;
-	mod_timer_pinned(&timer, jiffies+2);
+	smp_call_function_single(cpuid, receive_ipi, (void *)thdid, wait);
+
+	return 0;
+}
+
+static void timer_interrupt(unsigned long data)
+{
+	BUG_ON(cos_thd_per_core[get_cpuid()].cos_thd == NULL);
+	mod_timer_pinned(&timer[get_cpuid()], jiffies+1);
+
+	if (!(cos_timer_brand_thd[get_cpuid()] && cos_timer_brand_thd[get_cpuid()]->upcall_threads)) {
+		return;
+	}
+
+	chal_attempt_brand(cos_timer_brand_thd[get_cpuid()]);
+
+	return;
+}
+
+void register_timers(void)
+{
+	assert(!timer[get_cpuid()].function);
+	init_timer(&timer[get_cpuid()]);
+	timer[get_cpuid()].function = timer_interrupt;
+	mod_timer_pinned(&timer[get_cpuid()], jiffies+2);
 	
 	return;
 }
 
 static void deregister_timers(void)
 {
-	cos_timer_brand_thd = NULL;    
-	del_timer(&timer);
+	int i;
+	for (i = 0; i < NUM_CPU; i++) {
+		cos_timer_brand_thd[i] = NULL;
+		if (timer[i].function)
+			del_timer(&timer[i]);
+	}
 
 	return;
 }
@@ -1834,24 +1617,8 @@ void thd_publish_data_page(struct thread *thd, vaddr_t page)
 
 	//printk("cos: shared_region_pte is %p, page is %x.\n", shared_region_pte, page);
 	/* _PAGE_PRESENT is not set */
-	((pte_t*)shared_region_page)[id].pte_low = (vaddr_t)va_to_pa((void*)page) |
+	((pte_t*)shared_region_page)[id].pte_low = (vaddr_t)chal_va2pa((void*)page) |
 		(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
-
-	return;
-}
-
-void switch_thread_data_page(int old_thd, int new_thd)
-{
-	assert(0 != old_thd && 0 != new_thd);
-
-	/*
-	 * Use shared_region_page here to avoid a cache miss going
-	 * through a level of indirection for a pointer.
-	 *
-	 * unmap the current thread map in the new thread
-	 */
-	((pte_t*)shared_region_page)[old_thd].pte_low &= ~_PAGE_PRESENT;
-	((pte_t*)shared_region_page)[new_thd].pte_low |= _PAGE_PRESENT;
 
 	return;
 }
@@ -1870,9 +1637,9 @@ static int open_checks(void)
 	paddr_t modval, userval;
 	volatile vaddr_t kern_data;
 
-	kern_data = pgtbl_vaddr_to_kaddr((paddr_t)va_to_pa(current->mm->pgd), (unsigned long)shared_data_page);
-	modval  = (paddr_t)va_to_pa((void *)kern_data);
-	userval = (paddr_t)va_to_pa((void *)pgtbl_vaddr_to_kaddr((paddr_t)va_to_pa(current->mm->pgd), 
+	kern_data = chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), (unsigned long)shared_data_page);
+	modval  = (paddr_t)chal_va2pa((void *)kern_data);
+	userval = (paddr_t)chal_va2pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), 
 								     (unsigned long)COS_INFO_REGION_ADDR));
 	if (modval != userval) {
 		printk("shared data page error: %x != %x\n", (unsigned int)modval, (unsigned int)userval);
@@ -1899,18 +1666,23 @@ static int open_checks(void)
  * when the fd is open, we must prepare the virtual address space for
  * COS use.
  */
+
 static int aed_open(struct inode *inode, struct file *file)
 {
 	pte_t *pte = lookup_address_mm(current->mm, COS_INFO_REGION_ADDR);
 	pgd_t *pgd;
 	void* data_page;
 
-	if (composite_thread != NULL || composite_union_mm != NULL) {
-		printk("cos: Composite subsystem already used by %d.\n", composite_thread->pid);
+	if (cos_thd_per_core[get_cpuid()].cos_thd != NULL || composite_union_mm != NULL) {
+		printk("cos (CPU %d): Composite subsystem already used by %d (%p).\n", get_cpuid(), cos_thd_per_core[get_cpuid()].cos_thd->pid, cos_thd_per_core[get_cpuid()].cos_thd);
 		return -EBUSY;
 	}
+	
+	/* We assume this in one page. */
+	assert(sizeof(struct cos_component_information) <= PAGE_SIZE);
 
-	composite_thread = current;
+	save_per_core_cos_thd();
+
 	syscalls_enabled = 1;
 	composite_union_mm = get_task_mm(current);
 	union_pgd = composite_union_mm->pgd;
@@ -1924,7 +1696,6 @@ static int aed_open(struct inode *inode, struct file *file)
 	kern_handle = aed_allocate_mm();
 	kern_mm = aed_get_mm(kern_handle);
 	kern_pgtbl_mapping = (vaddr_t)kern_mm->pgd;
-	//assert(!pgtbl_entry_absent(kern_pgtbl_mapping, 0xffffb0b0));
 	/*
 	 * This is really and truly crap, because of Linux.  Linux has
 	 * 4 address namespaces, it seems and I was only aware of 3.
@@ -1945,7 +1716,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	 * spend most of their time complaining about microkernels as
 	 * being horrible instead.
 	 */
-	shared_region_pte = (pte_t *)pgtbl_vaddr_to_kaddr((paddr_t)va_to_pa(current->mm->pgd), 
+	shared_region_pte = (pte_t *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), 
 							  (unsigned long)shared_region_page);
 	if (((unsigned long)shared_region_pte & ~PAGE_MASK) != 0) {
 		printk("Allocated page for shared region not page aligned.\n");
@@ -1954,7 +1725,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	memset(shared_region_pte, 0, PAGE_SIZE);
 
 	/* hook in the data page */
-	data_page = va_to_pa((void *)pgtbl_vaddr_to_kaddr((paddr_t)va_to_pa(current->mm->pgd), 
+	data_page = chal_va2pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), 
 							   (unsigned long)shared_data_page));
 	shared_region_pte[0].pte_low = (unsigned long)(data_page) |
 		(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
@@ -1996,7 +1767,9 @@ static int aed_open(struct inode *inode, struct file *file)
 	ipc_init();
 	cos_init_memory();
 
-	register_timers();
+        /* Now the timers are registered when we register timer
+	 * threads in Composite. */
+	/* register_timers(); */
 	cos_meas_init();
 	cos_net_init();
 
@@ -2010,6 +1783,7 @@ static int aed_release(struct inode *inode, struct file *file)
 	pgd_t *pgd;
 	struct thread *t;
 	struct spd *s;
+	int cpuid;
 #ifdef FAULT_DEBUG
 	int i, j, k;
 #endif
@@ -2037,7 +1811,7 @@ static int aed_release(struct inode *inode, struct file *file)
 		flush_all(current->mm->pgd);
 	}
 
-	t = thd_get_current();
+	t = core_get_curr_thd();
 	if (t) {
 		s = thd_get_thd_spd(t);
 		printk("cos: Halting Composite.  Current thread: %d in spd %d\n",
@@ -2049,13 +1823,15 @@ static int aed_release(struct inode *inode, struct file *file)
 
 	/* our garbage collection mechanism: all at once when the cos
 	 * system control fd is closed */
-//	thd_free(thd_get_current());
+//	thd_free(core_get_curr_thd());
 	thd_free_all();
  	thd_init();
 	spd_free_all();
 	ipc_init();
 	cos_shutdown_memory();
-	composite_thread = NULL;
+	for (cpuid = 0; cpuid < NUM_CPU; cpuid++) {
+		cos_thd_per_core[cpuid].cos_thd = NULL;
+	}
 
 	cos_meas_report();
 
@@ -2129,38 +1905,6 @@ static int aed_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-/* 
- * Modules are vmalloc allocated, which means that their memory is
- * lazy faulted into page tables.  If the page fault handler is in one
- * of the un-faulted-in pages, then the machine will die (double
- * fault).  Thus, make sure the vmalloc regions are updated in all
- * page tables.
- */
-/* int nothing; */
-/* static void update_vmalloc_regions(void) */
-/* { */
-/* 	struct task_struct *t; */
-/* 	pgd_t *curr_pgd; */
-
-/* 	nothing = *(int*)&page_fault_interposition; */
-/* 	BUG_ON(!current->mm); */
-/* 	curr_pgd = current->mm->pgd; */
-
-/* 	printk("curr pgd @ %p, cpy from %x to %x.  module code sample @ %p.\n", */
-/* 	       (void*)pa_to_va((void*)curr_pgd), (unsigned int)MODULES_VADDR,  */
-/* 	       (unsigned int)MODULES_END, &page_fault_interposition); */
-/* 	list_for_each_entry(t, &init_task.tasks, tasks) { */
-/* 		struct mm_struct *amm = t->active_mm, *mm = t->mm; */
-		
-/* 		if (current->mm == amm || current->mm == mm) continue; */
-
-/* 		if (amm) copy_pgtbl_range_nonzero((paddr_t)amm->pgd, (paddr_t)curr_pgd, */
-/* 						  MODULES_VADDR, MODULES_END-MODULES_VADDR); */
-/* 		if (mm && mm != amm) copy_pgtbl_range_nonzero((paddr_t)mm->pgd, (paddr_t)curr_pgd, */
-/* 							      MODULES_VADDR, MODULES_END-MODULES_VADDR); */
-/* 	} */
-/* } */
-
 static struct file_operations proc_aed_fops = {
 	.owner          = THIS_MODULE, 
 	.unlocked_ioctl = aed_ioctl, 
@@ -2182,6 +1926,31 @@ static int make_proc_aed(void)
 
 	return 0;
 }
+
+static inline void hw_int_override_all(void)
+{
+	hw_int_override_sysenter(sysenter_interposition_entry);
+	hw_int_override_pagefault(page_fault_interposition);
+	hw_int_override_idt(0, div_fault_interposition, 0, 0);
+	hw_int_override_idt(0xe9, reg_save_interposition, 0, 3);
+	hw_int_override_idt(7, fpu_not_available_interposition, 0, 0);
+
+	return;
+}
+static void hw_init_CPU(void)
+{
+	//update_vmalloc_regions();
+	hw_int_init();
+	hw_int_override_all();
+	return;
+}
+
+static void hw_init_other_cores(void *param)
+{
+	hw_int_override_all();
+	return;
+}
+
 static int asym_exec_dom_init(void)
 {
 	printk("cos: Installing the hijack module.\n");
@@ -2191,14 +1960,13 @@ static int asym_exec_dom_init(void)
 	if (make_proc_aed())
 		return -1;
 
-	//update_vmalloc_regions();
-	hw_int_init();
-	hw_int_override_sysenter(sysenter_interposition_entry);
-	hw_int_override_pagefault(page_fault_interposition);
-	hw_int_override_idt(0, div_fault_interposition, 0, 0);
-	hw_int_override_idt(0xe9, reg_save_interposition, 0, 3);
-	hw_int_override_idt(7, fpu_not_available_interposition, 0, 0);
+	hw_init_CPU();
 
+//#if NUM_CPU > 1
+	/* Init all the other cores. */
+	smp_call_function(hw_init_other_cores, NULL, 1);
+//#endif
+	/* Consistency check. We define the THD_REGS = 8 in ipc.S. */
 	BUG_ON(offsetof(struct thread, regs) != 8);
 
 	init_guest_mm_vect();
@@ -2207,9 +1975,18 @@ static int asym_exec_dom_init(void)
 	return 0;
 }
 
+static void hw_reset_other_cores(void *param)
+{
+	hw_int_reset();
+}
+
 static void asym_exec_dom_exit(void)
 {
 	hw_int_reset();
+
+//#if NUM_CPU > 1
+	smp_call_function(hw_reset_other_cores, NULL, 1);
+//#endif
 	remove_proc_entry("aed", NULL);
 
 	return;

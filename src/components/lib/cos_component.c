@@ -7,14 +7,14 @@
 
 #include <cos_component.h>
 
-long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
+//long stkmgr_stack_space[ALL_TMP_STACKS_SZ];
 
-/* This should only really be present in schedulers! */
-struct cos_sched_data_area cos_sched_notifications = {
-	.cos_next = {.next_thd_id = 0, .next_thd_flags = 0},
-	.cos_locks = {.v = 0},
-	.cos_events = {}
-};
+/* FIXME: we want to get rid of this page, which was used for the
+ * cos_sched_data_area. But for some reason the system won't load if
+ * we remove this page. */
+char temp[4096] __attribute__((aligned(4096)));
+
+int cos_sched_notifications __attribute__((weak));
 
 __attribute__ ((weak))
 void cos_init(void *arg)
@@ -46,8 +46,11 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	case COS_UPCALL_BOOTSTRAP:
 	{
 		static int first = 1;
-		if (first) { first = 0; __alloc_libc_initilize(); }
-		cos_argreg_init();
+		if (first) { 
+			first = 0; 
+			__alloc_libc_initilize(); 
+			constructors_execute();
+		}
 		cos_init(arg1);
 		break;
 	}
@@ -64,8 +67,6 @@ int main(void)
 {
 	return 0;
 }
-
-__attribute__((weak)) vaddr_t ST_user_caps;
 
 __attribute__((weak)) 
 void *cos_get_vas_page(void)
@@ -92,17 +93,18 @@ extern const vaddr_t cos_atomic_cmpxchg, cos_atomic_cmpxchg_end,
 	cos_atomic_user4, cos_atomic_user4_end;
 extern const vaddr_t cos_upcall_entry;
 
+__attribute__((weak)) vaddr_t ST_user_caps;
+
 /* 
  * Much of this is either initialized at load time, or passed to the
  * loader though this structure.
  */
-struct cos_component_information cos_comp_info = {
+struct cos_component_information cos_comp_info __attribute__((section(".cinfo"))) = {
 	.cos_this_spd_id = 0,
 	.cos_heap_ptr = 0,
 	.cos_heap_limit = 0,
 	.cos_stacks.freelists[0] = {.freelist = 0, .thd_id = 0},
 	.cos_upcall_entry = (vaddr_t)&cos_upcall_entry,
-	.cos_sched_data_area = &cos_sched_notifications,
 	.cos_user_caps = (vaddr_t)&ST_user_caps,
 	.cos_ras = {{.start = (vaddr_t)&cos_atomic_cmpxchg, .end = (vaddr_t)&cos_atomic_cmpxchg_end}, 
 		    {.start = (vaddr_t)&cos_atomic_user1, .end = (vaddr_t)&cos_atomic_user1_end},

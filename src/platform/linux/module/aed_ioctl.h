@@ -1,36 +1,6 @@
 #ifndef AED_IOCTL_H
 #define AED_IOCTL_H
 
-/* #ifndef __KERNEL__ /\* should be in user-space library include, not here *\/ */
-
-/* /\* */
-/*  * Eventually, we will need to track floating point too to get the */
-/*  * real cost of this implementation. */
-/*  *\/ */
-/* struct pt_regs { */
-/* 	long ebx; */
-/* 	long ecx; */
-/* 	long edx; */
-/* 	long esi; */
-/* 	long edi; */
-/* 	long ebp; */
-/* 	long eax; */
-/* 	int  xds; */
-/* 	int  xes; */
-/* 	long orig_eax; */
-/* 	long eip; */
-/* 	int  xcs; */
-/* 	long eflags; */
-/* 	long esp; */
-/* 	int  xss; */
-/* }; */
-
-/* #endif */
-
-/* FIXME: not necessary, and can remove when we kill the
- * child_context, used now for pt_regs */
-#include "../../../kernel/include/thread.h"
-
 /*
  * This is the task_struct counterpart in the executive.  It contains
  * the child's register state which is copied to the kernel when
@@ -176,7 +146,7 @@ static inline int cos_spd_add_cap(int cntl_fd, struct cap_info *capi)
 static inline int cos_create_thd(int cntl_fd, struct cos_thread_info *thdi)
 {
  	int ret;
-
+	
 	if ((ret = ioctl(cntl_fd, AED_CREATE_THD, thdi))) {
 		perror("Could not create thread\n");
 		printf("ioctl returned %d\n", ret);
