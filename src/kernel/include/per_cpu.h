@@ -44,7 +44,6 @@ cos_cas(unsigned long *target, unsigned long cmp, unsigned long updated)
 static inline type                              \
 core_get_##name(void)		                \
 {                                               \
-    printk("%ul\n", per_core[get_cpuid()].name);\
 	return per_core[get_cpuid()].name;      \
 }                                               \
                                                 \

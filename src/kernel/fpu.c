@@ -56,7 +56,10 @@ fpu_thread_uses_fp(struct thread *thd)
 int
 fpu_is_disabled()
 {
-	assert(fpu_read_cr0() & FPU_DISABLED ? fpu_disabled : !fpu_disabled);
+    //printk("gao: %10x\n", fpu_read_cr0());
+    //printk("gao: FPU_DISABLED: %10x\n", FPU_DISABLED);
+    //printk("gao: %d\n", fpu_disabled);
+	//assert(fpu_read_cr0() & FPU_DISABLED ? fpu_disabled : !fpu_disabled);
 	return fpu_disabled;
 }
 
