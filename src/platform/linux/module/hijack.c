@@ -1200,7 +1200,7 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 
     t = core_get_curr_thd();
     if(t == NULL)
-        printk("t is null\n");
+        return 1;
 	t->fpu.status = 1;
 	fpu_enable();
 	struct thread *last_used_fpu = fpu_get_last_used();
