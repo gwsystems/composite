@@ -1195,6 +1195,7 @@ __attribute__((regparm(3))) int
 main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code)
 {
 	struct thread *t;
+	struct thread *last_used_fpu;
 
     if (cos_thd_per_core[get_cpuid()].cos_thd != current) return 1;
 
@@ -1203,7 +1204,7 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
         return 1;
 	t->fpu.status = 1;
 	fpu_enable();
-	struct thread *last_used_fpu = fpu_get_last_used();
+    last_used_fpu = fpu_get_last_used();
 	// if last_used_fpu exists and is not current thread, then save curr states to it
 	if(last_used_fpu && last_used_fpu != t)
 		fxsave(last_used_fpu);

@@ -47,7 +47,7 @@ fpu_save(struct thread *curr, struct thread *next)
 	return 0;
 }
 
-int
+inline int
 fpu_thread_uses_fp(struct thread *thd)
 {
 	return thd->fpu.status;
@@ -73,7 +73,7 @@ fxrstor(struct thread *thd)
 	asm volatile("fxrstor %0 " : : "m" (thd->fpu));
 }
 
-inline void
+void
 fpu_disable(void)
 {
 	unsigned int val;
@@ -87,7 +87,7 @@ fpu_disable(void)
 	fpu_disabled = 1;
 }
 
-inline void
+void
 fpu_enable(void)
 {
 	unsigned int val;
@@ -101,7 +101,7 @@ fpu_enable(void)
 	fpu_disabled = 0;
 }
 
-unsigned int
+inline unsigned int
 fpu_read_cr0(void)
 {
 	unsigned int val;
@@ -109,6 +109,8 @@ fpu_read_cr0(void)
 	return val;
 }
 
-struct thread* fpu_get_last_used(){
+inline struct thread*
+fpu_get_last_used()
+{
 	return last_used_fpu;
 }

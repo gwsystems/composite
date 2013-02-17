@@ -42,15 +42,17 @@ struct cos_fpu {
 
 } __attribute__((aligned(16)));
 
+/**
+ * these functions should not be called outside fpu.c, make them static?
+ */
 inline void fxsave(struct thread*);
 inline void fxrstor(struct thread*);
+inline int fpu_thread_uses_fp(struct thread *thd);
+inline unsigned int fpu_read_cr0(void);
+inline struct thread* fpu_get_last_used(void);
 
-inline void fpu_disable(void);
-inline void fpu_enable(void);
 int fpu_save(struct thread *curr, struct thread *next);
+void fpu_enable(void);
+void fpu_disable(void);
 int fpu_is_disabled(void);
-int fpu_thread_uses_fp(struct thread *thd);
-unsigned int fpu_read_cr0(void);
-
-struct thread* fpu_get_last_used(void);
 #endif
