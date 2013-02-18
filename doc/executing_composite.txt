@@ -59,8 +59,7 @@ A summary of terminal B (root denoted by #):
 /root/experiments/
 # make init // only done when you boot up your system (i.e. once per boot)
 # make      // will copy files from TRANS_DIR to .
-# ./print & // prints composite output to the terminal
-# sh lpp.sh // run the ping-pong program
+# sh micro_cbuf.sh // run the ping-pong program
 # fg
 <cntl-c to kill ./print, or use 'killall print'>
 
