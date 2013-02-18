@@ -46,7 +46,6 @@ $ pwd
 /home/gparmer/research/composite/src/
 $ make init // only done _once_ when you initially check out the repository
 $ make      // you _must_ check for errors in component compilation
-$ make cp   // transfer all executables to TRANS_DIR
 
 You might also need to remove all object and executable files at some
 point:
@@ -60,8 +59,8 @@ A summary of terminal B (root denoted by #):
 # make init // only done when you boot up your system (i.e. once per boot)
 # make      // will copy files from TRANS_DIR to .
 # sh micro_cbuf.sh // run the ping-pong program
-# fg
-<cntl-c to kill ./print, or use 'killall print'>
+
+See the output of the execution in $ dmesg | less.
 
 Format of the runscript:
 ------------------------
