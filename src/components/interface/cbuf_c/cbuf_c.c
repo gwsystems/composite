@@ -163,7 +163,6 @@ __cbuf_alloc_slow(int size, int *len, int tmem)
 			int amnt = 0, i;
 			cbuf_t cb;
 			int *cbs;
-
 			assert(cbid <= 0);
 			if (cbid == 0) {
 				cbs  = cbuf_alloc(PAGE_SIZE, &cb);
@@ -172,6 +171,7 @@ __cbuf_alloc_slow(int size, int *len, int tmem)
 				amnt = cbufp_collect(cos_spd_id(), PAGE_SIZE, cb);
 				if (amnt < 0) {
 					ret = NULL;
+					CBUF_TAKE();
 					goto done;
 				}
 				cbid = cbs[0];

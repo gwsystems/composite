@@ -1,5 +1,5 @@
 /**
- * Copyright 2010 by The George Washington University.  All rights reserved.
+ * Copyright 2010 by Gabriel Parmer.  All rights reserved.
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.

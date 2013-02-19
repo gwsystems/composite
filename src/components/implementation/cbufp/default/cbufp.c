@@ -88,6 +88,7 @@ struct cbufp_comp_info {
 	struct cbufp_meta_range *cbuf_metas;
 };
 
+#define printl(s) 
 cos_lock_t cbufp_lock;
 #define CBUFP_LOCK_INIT() lock_static_init(&cbufp_lock);
 #define CBUFP_TAKE()      do { if (lock_take(&cbufp_lock))    BUG(); } while(0)
@@ -165,6 +166,7 @@ cbufp_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 	void *p;
 	vaddr_t dest;
 
+	printl("cbufp_alloc_map\n");
 	assert(size == PAGE_SIZE);
 	dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, 1);
 	assert(dest);
@@ -254,6 +256,7 @@ cbufp_create(spdid_t spdid, int size, long cbid)
 	struct cbuf_meta *meta;
 	int ret = 0;
 
+	printl("cbufp_create\n");
 	if (unlikely(cbid < 0)) return 0;
 	CBUFP_TAKE();
 	cci = cbufp_comp_info_get(spdid);
@@ -330,6 +333,8 @@ cbufp_collect(spdid_t spdid, int size, long cbid)
 	struct cbufp_comp_info *cci;
 	int ret = -EINVAL;
 
+	printl("cbufp_collect\n");
+
 	buf = cbuf2buf(cbid, PAGE_SIZE);
 	if (!buf) return -1;
 
@@ -371,6 +376,7 @@ cbufp_delete(spdid_t spdid, int cbid)
 	struct cbuf_meta *meta;
 	int ret = -EINVAL;
 
+	printl("cbufp_delete\n");
 	assert(0);
 	CBUFP_TAKE();
 	cci = cbufp_comp_info_get(spdid);
@@ -401,6 +407,8 @@ cbufp_retrieve(spdid_t spdid, int cbid, int len)
 	vaddr_t dest;
 	void *page;
 	int ret = -1;
+
+	printl("cbufp_retrieve\n");
 
 	CBUFP_TAKE();
 	cci = cbufp_comp_info_get(spdid);
@@ -451,6 +459,7 @@ cbufp_register(spdid_t spdid, long cbid)
 	void *p;
 	vaddr_t dest, ret = 0;
 
+	printl("cbufp_register\n");
 	CBUFP_TAKE();
 	cci = cbufp_comp_info_get(spdid);
 	if (!cci) goto done;
