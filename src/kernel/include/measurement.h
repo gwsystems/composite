@@ -2,6 +2,7 @@
 #define MEASUREMENT_H
 
 #include "shared/cos_config.h"
+#include "cpuid.h"
 
 #ifdef COS_PRINT_MEASUREMENTS
 #define MEASUREMENTS
@@ -97,14 +98,19 @@ struct cos_meas_struct {
 	unsigned long long cnt, meas, tot, min, max;
 };
 
-extern struct cos_meas_struct cos_measurements[COS_MEAS_MAX_SIZE];
+struct per_core_meas_struct {
+	struct cos_meas_struct cos_measurements[COS_MEAS_MAX_SIZE];
+} CACHE_ALIGNED;
+
+extern struct per_core_meas_struct per_core_meas[NUM_CPU];
+
 static inline void cos_meas_event(cos_meas_t type)
 {
 	/* silent error is better here as we wish to avoid
 	 * conditionals in hotpaths to check for the return value */
 	if (type >= COS_MEAS_MAX_SIZE) return;
-	if (cos_measurements[type].type != MEAS_CNT) return;
-	cos_measurements[type].cnt++;
+	if (per_core_meas[get_cpuid()].cos_measurements[type].type != MEAS_CNT) return;
+	per_core_meas[get_cpuid()].cos_measurements[type].cnt++;
 
 	return;
 }
@@ -121,11 +127,11 @@ static inline void cos_meas_stats_start(cos_meas_t type, int overwrite)
 	unsigned long long ts;
 
 	if (type >= COS_MEAS_MAX_SIZE) return;
-	if (cos_measurements[type].type != MEAS_STATS) return;
-	if (cos_measurements[type].meas != 0 && 0 == overwrite) return;
+	if (per_core_meas[get_cpuid()].cos_measurements[type].type != MEAS_STATS) return;
+	if (per_core_meas[get_cpuid()].cos_measurements[type].meas != 0 && 0 == overwrite) return;
 
 	cos_meas_rdtscll(ts);
-	cos_measurements[type].meas = ts;
+	per_core_meas[get_cpuid()].cos_measurements[type].meas = ts;
 }
 
 /* 
@@ -139,10 +145,10 @@ static inline void cos_meas_stats_end(cos_meas_t type, int reset)
 	struct cos_meas_struct *cms;
 
 	if (type >= COS_MEAS_MAX_SIZE) return;
-	if (cos_measurements[type].type != MEAS_STATS) return;
-	if (cos_measurements[type].meas == 0) return;
+	if (per_core_meas[get_cpuid()].cos_measurements[type].type != MEAS_STATS) return;
+	if (per_core_meas[get_cpuid()].cos_measurements[type].meas == 0) return;
 
-	cms = &cos_measurements[type];
+	cms = &per_core_meas[get_cpuid()].cos_measurements[type];
 	cos_meas_rdtscll(ts);
 	diff = ts - cms->meas;
 	cms->meas = ts;
@@ -199,21 +205,25 @@ struct exec_evt {
 #define cos_rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 #endif
 
-extern struct exec_evt recorded_evts[];
-extern int evts_head;
+struct per_core_evt_record {
+	struct exec_evt recorded_evts[COS_EVTS_NUM];
+	int evts_head;
+} CACHE_ALIGNED;
+
+extern struct per_core_evt_record per_core_recorded_evts[NUM_CPU];
 
 static inline void event_record(char *msg, long a, long b)
 {
 	struct exec_evt *e;
 
-	e = &recorded_evts[evts_head];
+	e = &per_core_recorded_evts[get_cpuid()].recorded_evts[per_core_recorded_evts[get_cpuid()].evts_head];
 	e->msg = msg;
 	e->a = a;
 	e->b = b;
 	cos_rdtscll(e->timestamp);
 
-	evts_head++;
-	evts_head &= COS_EVTS_MASK;
+	per_core_recorded_evts[get_cpuid()].evts_head++;
+	per_core_recorded_evts[get_cpuid()].evts_head &= COS_EVTS_MASK;
 }
 
 void event_print(void);

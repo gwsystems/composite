@@ -37,14 +37,17 @@ C_OBJS=$(patsubst %.c,%.o,$(wildcard *.c))
 ASM_OBJS=$(patsubst %.S,%.o,$(wildcard *.S))
 OBJS=$(C_OBJS) $(ASM_OBJS) $(COMPLIB)
 TMP_STR=tmp
+TMP_STR2=tmp2
 INCLUDE=-I../ $(DEP_INC) $(IF_INCLUDE) $(CINC)
 LIB_LIBRARIES_PRE=$(DEP_LIB_EXIST)
 LIB_LIBRARIES=$(strip $(LIB_LIBRARIES_PRE))
-LIB_FLAGS=-L$(LIBDIR) $(DEP_LIB) -lcos_component $(LIB_LIBRARIES) $(ADDITIONAL_LIBS)
+LIB_FLAGS=-L$(LIBDIR) $(DEP_LIB) $(LIB_LIBRARIES) $(ADDITIONAL_LIBS)
 
 SOURCES=$(C_OBJS:%.o=%.c)
 #NOTE: assembly files don't have dependencies generated for them
 SOURCE_DEPENDENCIES=$(SOURCES:%.c=%.d)
+
+COMP_LD_SCRIPT=$(IMPLDIR)/comp.ld
 
 FNDEP_DIR=../../../cidl
 FNDEP_GEN=$(FNDEP_DIR)/comp_undef.py
@@ -70,8 +73,9 @@ $(COMPONENT): $(OBJS)
 	$(info |     [LD]   $(COMPNAME) ($@): Linking $(if $(strip $(LIB_LIBRARIES)),$(LIB_LIBRARIES)) $<)
 	@$(LD) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(IF_CLIENT_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
 #	$(info |     [DIET] Linking with dietlibc to produce $@)
-	@$(DIETCC) $(DIETCFLAGS) -Xlinker -r -o $@ $@.$(TMP_STR)
-	@rm $@.$(TMP_STR)
+	@$(DIETCC) $(DIETCFLAGS) -Xlinker -r -o $@.$(TMP_STR2) $@.$(TMP_STR)
+	@$(LD) -r -T $(COMP_LD_SCRIPT) -o $@ $@.$(TMP_STR2)
+	@rm $@.$(TMP_STR) $@.$(TMP_STR2)
 	@cp $@ c.o
 
 %.o:%.c

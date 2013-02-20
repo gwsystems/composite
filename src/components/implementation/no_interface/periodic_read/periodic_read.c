@@ -78,10 +78,11 @@ char *data_get(net_connection_t nc, long eid, int *sz)
 
 	do {
 again:
+		assert(0); 	/* below 2 comments won't compile */
 		evt_wait(cos_spd_id(), eid);
-		msg = cos_argreg_alloc(COS_MAX_ARG_SZ/2);
+//		msg = cos_argreg_alloc(COS_MAX_ARG_SZ/2);
 		assert(msg);
-		ret = net_recv(cos_spd_id(), nc, msg, COS_MAX_ARG_SZ/2);
+//		ret = net_recv(cos_spd_id(), nc, msg, COS_MAX_ARG_SZ/2);
 		if (ret < 0) {
 			cos_argreg_free(msg);
 			printc("recv: %d\n", ret);

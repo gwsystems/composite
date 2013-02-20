@@ -37,7 +37,9 @@
 #include <print.h>
 
 #include <cos_list.h>
+#include "../../sched/cos_sched_ds.h"
 #include "../../sched/cos_sched_sync.h"
+
 #define LOCK()   if (cos_sched_lock_take())    assert(0);
 #define UNLOCK() if (cos_sched_lock_release()) assert(0);
 
@@ -248,6 +250,7 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to)
 
 	assert(!p || p->f == f);
 	assert(dest && to);
+
 	/* no vas structure for this spd yet... */
 	if (!cv) {
 		cv = cvas_alloc(dest);
@@ -255,8 +258,8 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to)
 		assert(cv == cvas_lookup(dest));
 	}
 	assert(cv->pages);
-
 	if (cvect_lookup(cv->pages, idx)) goto collision;
+
 	cvas_ref(cv);
 	m = cslab_alloc_mapping();
 	if (!m) goto collision;
@@ -476,11 +479,24 @@ void mman_release_all(void)
 #include <sched_hier.h>
 
 int  sched_init(void)   { return 0; }
+
 extern void parent_sched_exit(void);
+
+PERCPU_ATTR(static volatile, int, initialized_core); /* record the cores that still depend on us */
+
 void 
 sched_exit(void)   
 {
-	mman_release_all(); 
+	int i;
+
+	*PERCPU_GET(initialized_core) = 0;
+	if (cos_cpuid() == INIT_CORE) {
+		/* The init core waiting for all cores to exit. */
+		for (i = 0; i < NUM_CPU ; i++)
+			if (*PERCPU_GET_TARGET(initialized_core, i)) i = 0;
+		/* Don't delete the memory until all cores exit */
+		mman_release_all(); 
+	}
 	parent_sched_exit();
 }
 
@@ -508,7 +524,19 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	switch (t) {
 	case COS_UPCALL_BOOTSTRAP:
-		mm_init(); break;
+		if (cos_cpuid() == INIT_CORE) {
+			int i;
+			for (i = 0; i < NUM_CPU; i++)
+				*PERCPU_GET_TARGET(initialized_core, i) = 0;
+			mm_init(); 
+		} else {
+			/* Make sure that the initializing core does
+			 * the initialization before any other core
+			 * progresses */
+			while (*PERCPU_GET_TARGET(initialized_core, INIT_CORE) == 0) ;
+		}
+		*PERCPU_GET(initialized_core) = 1;
+		break;			
 	default:
 		BUG(); return;
 	}

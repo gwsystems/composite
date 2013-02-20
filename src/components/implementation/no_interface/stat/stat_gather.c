@@ -43,7 +43,6 @@ void gather_stats(char *name, stat_fn f, stat_len_fn l)
 	printc("%s\n", name);
 	len = l(cos_spd_id());
 	if (len == 0) return;
-	assert(len > 0 && (unsigned int)len < COS_MAX_ARG_SZ);
 	ss = cos_argreg_alloc(len * sizeof(unsigned long));
 	assert(ss);
 	while (NULL != (ret = f(cos_spd_id(), ss))) {

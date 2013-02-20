@@ -5,16 +5,12 @@
  * Public License v2.
  */
 
-//#include <thread.h>
-//#include <spd.h>
 #include "include/thread.h"
 #include "include/spd.h"
 #include "include/page_pool.h"
 
 struct thread threads[MAX_NUM_THREADS];
 static struct thread *thread_freelist_head = NULL;
-/* like "current" in linux */
-struct thread *current_thread = NULL;
 
 /* 
  * Return the depth into the stack were we are present or -1 for
@@ -53,27 +49,30 @@ void thd_init_all(struct thread *thds)
 	return;
 }
 
-extern void *va_to_pa(void *va);
 extern void thd_publish_data_page(struct thread *thd, vaddr_t page);
 
 struct thread *thd_alloc(struct spd *spd)
 {
-	struct thread *thd;
+	struct thread *thd, *new_freelist_head;
 	unsigned short int id;
 	void *page;
 
-	thd = thread_freelist_head;
+	do {
+		thd = thread_freelist_head;
+		new_freelist_head = thread_freelist_head->freelist_next;
+	} while (unlikely(!cos_cas((unsigned long *)&thread_freelist_head, (unsigned long)thd, (unsigned long)new_freelist_head)));
+
 	if (thd == NULL) {
 		printk("cos: Could not create thread.\n");
 		return NULL;
 	}
-	
+
 	page = cos_get_pg_pool();
-	if (NULL == page) {
+	if (unlikely(NULL == page)) {
 		printk("cos: Could not allocate the data page for new thread.\n");
-		
+		thread_freelist_head = thd;
+		return NULL;
 	}
-	thread_freelist_head = thread_freelist_head->freelist_next;
 
 	id = thd->thread_id;
 	memset(thd, 0, sizeof(struct thread));
@@ -101,6 +100,7 @@ struct thread *thd_alloc(struct spd *spd)
 
 void thd_free(struct thread *thd)
 {
+	struct thread *old_freelist_head;
 	if (NULL == thd) return;
 
 	while (thd->stack_ptr > 0) {
@@ -121,8 +121,10 @@ void thd_free(struct thread *thd)
 		cos_put_pg_pool((struct page_list*)thd->data_region);
 	}
 
-	thd->freelist_next = thread_freelist_head;
-	thread_freelist_head = thd;
+	do {
+		old_freelist_head = thread_freelist_head;
+		thd->freelist_next = old_freelist_head;
+	} while (unlikely(!cos_cas((unsigned long *)&thread_freelist_head, (unsigned long)old_freelist_head, (unsigned long)thd)));
 
 	return;
 }
@@ -145,7 +147,7 @@ void thd_free_all(void)
 void thd_init(void)
 {
 	thd_init_all(threads);
-	current_thread = NULL;
+	/* current_thread = NULL; // Not used anymore */
 }
 
 extern int host_in_syscall(void);

@@ -57,6 +57,55 @@
 #define SCHED_CEVT_WAKE      0x2
 #define SCHED_CEVT_BLOCK     0x4
 
+typedef enum {
+	NULL_EVT = 0,
+	SWITCH_THD,
+	BRAND_ACTIVE,
+	BRAND_READY,
+	BRAND_PENDING,
+	BRAND_CYCLE,
+	SCHED_DEPENDENCY,
+	THD_BLOCK,
+	THD_WAKE,
+	COMP_TAKE,
+	COMP_TAKE_ATTEMPT,
+	COMP_TAKE_CONTENTION,
+	COMP_RELEASE,
+	TIMER_TICK,
+	TIMER_SWITCH_LOOP,
+	IDLE_SCHED,
+	IDLE_SCHED_SWITCH,
+	EVT_CMPLETE,
+	BLOCK_LOOP,
+	WAKE_LOOP,
+	TIMER_LOOP,
+	COMP_TAKE_LOOP,
+	EVT_CMPLETE_LOOP,
+	TIMEOUT_LOOP,
+	IDLE_SCHED_LOOP,
+	BLOCKED_DEP_RETRY,
+	RETRY_BLOCK,
+	BLOCKED_W_DEPENDENCY,
+	DEPENDENCY_BLOCKED_THD,
+	SCHED_TARGETTED_DEPENDENCY,
+	PARENT_BLOCK_CHILD,
+	PARENT_CHILD_EVT_OTHER,
+	PARENT_CHILD_EVT_THD,
+	PARENT_CHILD_DEACTIVATE,
+	PARENT_CHILD_RESUME,
+	PARENT_CHILD_REDUNDANT_RESUME,
+	CHILD_PROCESS_EVT_IDLE,
+	CHILD_PROCESS_EVT_PEND,
+	CHILD_EVT_BLOCK,
+	CHILD_EVT_WAKE,
+	CHILD_EVT_OTHER,
+	CHILD_SWITCH_THD,
+	CEVT_RESCHED,
+	REVT_LAST
+} report_evt_t;
+
+PERCPU_EXTERN(cos_sched_notifications);
+
 struct sched_accounting {
 	unsigned long C, T, C_used, T_exp;
 	unsigned long ticks, prev_ticks;
@@ -111,6 +160,19 @@ struct sched_crit_section {
 	struct sched_thd *holding_thd;
 };
 
+struct scheduler_per_core {
+        /**************** Scheduler Event Fns *******************/
+	volatile u8_t cos_curr_evt;
+
+        /************** critical section functions/state *************/
+	struct sched_crit_section sched_spd_crit_sections[MAX_NUM_SPDS];
+
+        /* --- Thread Management Utiliities --- */
+	struct sched_thd *sched_thd_map[SCHED_NUM_THREADS];
+	struct sched_thd sched_thds[SCHED_NUM_THREADS]; 
+	struct sched_thd *sched_map_evt_thd[NUM_SCHED_EVTS];
+} CACHE_ALIGNED;
+
 void sched_init_thd(struct sched_thd *thd, unsigned short int id, int flags);
 struct sched_thd *sched_alloc_thd(unsigned short int id);
 struct sched_thd *sched_alloc_upcall_thd(unsigned short int thd_id);
@@ -139,11 +201,15 @@ static inline struct sched_metric *sched_get_metric(struct sched_thd *thd)
 typedef void (*sched_evt_visitor_t)(struct sched_thd *t, u8_t flags, u32_t cpu_consumption);
 static inline int cos_sched_pending_event(void)
 {
-/*	struct cos_sched_events *evt;*/
+	/* struct cos_sched_events *evt; */
 
-	return cos_sched_notifications.cos_evt_notif.pending_event;
+	/* printc("pending? %d, addr %p, cpuid %ld, thd %d\n", 
+	   PERCPU_GET(cos_sched_notifications)->cos_evt_notif.pending_event, 
+	   &PERCPU_GET(cos_sched_notifications)->cos_evt_notif.pending_event, 
+	   cos_cpuid(), cos_get_thd_id()); */
+	return PERCPU_GET(cos_sched_notifications)->cos_evt_notif.pending_event;
 /*
-	evt = &cos_sched_notifications.cos_events[cos_curr_evt];
+	evt = &PERCPU_GET(cos_sched_notifications)->cos_events[cos_curr_evt];
 	evt1 = COS_SCHED_EVT_FLAGS(evt) || COS_SCHED_EVT_NEXT(evt);
 	assert(!(evt0 ^ evt1));
 	return evt0;
@@ -152,18 +218,19 @@ static inline int cos_sched_pending_event(void)
 
 static inline void cos_sched_clear_events(void)
 {
-	cos_sched_notifications.cos_evt_notif.pending_event = 0;
+	/* printc("core %ld, thd %d clearing pending_event!!!!\n", cos_cpuid(), cos_get_thd_id()); */
+	PERCPU_GET(cos_sched_notifications)->cos_evt_notif.pending_event = 0;
 }
 
 static inline void cos_sched_clear_cevts(void)
 {
-	cos_sched_notifications.cos_evt_notif.pending_cevt = 0;
+	PERCPU_GET(cos_sched_notifications)->cos_evt_notif.pending_cevt = 0;
 }
 
 static inline u32_t cos_sched_timer_cyc(void)
 {
-	u32_t t = cos_sched_notifications.cos_evt_notif.timer;
-	cos_sched_notifications.cos_evt_notif.timer = 0;
+	u32_t t = PERCPU_GET(cos_sched_notifications)->cos_evt_notif.timer;
+	PERCPU_GET(cos_sched_notifications)->cos_evt_notif.timer = 0;
 	return t;
 }
 
@@ -173,13 +240,15 @@ void cos_sched_set_evt_urgency(u8_t id, u16_t urgency);
 short int sched_alloc_event(struct sched_thd *thd);
 int sched_rem_event(struct sched_thd *thd);
 int sched_share_event(struct sched_thd *n, struct sched_thd *old);
-extern struct sched_thd *sched_map_evt_thd[NUM_SCHED_EVTS];
+
+extern struct scheduler_per_core per_core_sched[NUM_CPU];
+
 static inline struct sched_thd *sched_evt_to_thd(short int evt_id)
 {
 	assert(evt_id < NUM_SCHED_EVTS);
 	assert(evt_id != 0);
 
-	return sched_map_evt_thd[evt_id];
+	return per_core_sched[cos_cpuid()].sched_map_evt_thd[evt_id];
 }
 static inline void sched_set_thd_urgency(struct sched_thd *t, u16_t urgency)
 {
@@ -189,20 +258,16 @@ static inline void sched_set_thd_urgency(struct sched_thd *t, u16_t urgency)
 	sched_get_metric(t)->urgency = urgency;
 }
 
-
-
 /* --- Thread Id -> Sched Thread Mapping Utilities --- */
-
-extern struct sched_thd *sched_thd_map[];
 static inline struct sched_thd *sched_get_mapping(unsigned short int thd_id)
 {
 	if (thd_id >= SCHED_NUM_THREADS ||
-	    sched_thd_map[thd_id] == NULL ||
-	    (sched_thd_map[thd_id]->flags & THD_FREE)) {
+	    per_core_sched[cos_cpuid()].sched_thd_map[thd_id] == NULL ||
+	    (per_core_sched[cos_cpuid()].sched_thd_map[thd_id]->flags & THD_FREE)) {
 		return NULL;
 	}
 
-	return sched_thd_map[thd_id];
+	return per_core_sched[cos_cpuid()].sched_thd_map[thd_id];
 }
 
 static inline struct sched_thd *sched_get_current(void)
@@ -219,11 +284,11 @@ static inline struct sched_thd *sched_get_current(void)
 static inline int sched_add_mapping(unsigned short int thd_id, struct sched_thd *thd)
 {
 	if (thd_id >= SCHED_NUM_THREADS ||
-	    sched_thd_map[thd_id] != NULL) {
+	    per_core_sched[cos_cpuid()].sched_thd_map[thd_id] != NULL) {
 		return -1;
 	}
 	
-	sched_thd_map[thd_id] = thd;
+	per_core_sched[cos_cpuid()].sched_thd_map[thd_id] = thd;
 
 	return 0;
 }
@@ -232,7 +297,7 @@ static inline void sched_rem_mapping(unsigned short int thd_id)
 {
 	if (thd_id >= SCHED_NUM_THREADS) return;
 
-	sched_thd_map[thd_id] = NULL;
+	per_core_sched[cos_cpuid()].sched_thd_map[thd_id] = NULL;
 }
 
 static inline int sched_is_grp(struct sched_thd *thd)
@@ -265,14 +330,12 @@ static inline struct sched_thd *sched_get_grp(struct sched_thd *thd)
 
 /*************** critical section functions *****************/
 
-extern struct sched_crit_section sched_spd_crit_sections[MAX_NUM_SPDS];
-
 static inline void sched_crit_sect_init(void)
 {
 	int i;
 	
 	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
-		struct sched_crit_section *cs = &sched_spd_crit_sections[i];
+		struct sched_crit_section *cs = &per_core_sched[cos_cpuid()].sched_spd_crit_sections[i];
 
 		cs->holding_thd = NULL;
 	}
@@ -304,7 +367,7 @@ __sched_thd_dependency(struct sched_thd *curr)
 	assert(spdid < MAX_NUM_SPDS);
 	
 	/* We have a critical section for a spd */
-	cs = &sched_spd_crit_sections[spdid];
+	cs = &per_core_sched[cos_cpuid()].sched_spd_crit_sections[spdid];
 	if (cs->holding_thd) return cs->holding_thd;
 done:
 	/* no more dependencies! */
@@ -334,7 +397,7 @@ static inline struct sched_thd *sched_take_crit_sect(spdid_t spdid, struct sched
 	assert(spdid < MAX_NUM_SPDS);
 	assert(!sched_thd_free(curr));
 	assert(!sched_thd_blocked(curr));
-	cs = &sched_spd_crit_sections[spdid];
+	cs = &per_core_sched[cos_cpuid()].sched_spd_crit_sections[spdid];
 
 	if (cs->holding_thd) {
 		/* The second assumption here might be too restrictive in the future */
@@ -357,7 +420,7 @@ static inline int sched_release_crit_sect(spdid_t spdid, struct sched_thd *curr)
 {
 	struct sched_crit_section *cs;
 	assert(spdid < MAX_NUM_SPDS);
-	cs = &sched_spd_crit_sections[spdid];
+	cs = &per_core_sched[cos_cpuid()].sched_spd_crit_sections[spdid];
 	assert(curr);
 	assert(!sched_thd_free(curr));
 	assert(!sched_thd_blocked(curr));
@@ -384,7 +447,7 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 {
         /* This must be volatile as we must commit what we want to
 	 * write to memory immediately to be read by the kernel */
-	volatile struct cos_sched_next_thd *cos_next = &cos_sched_notifications.cos_next;
+	volatile struct cos_sched_next_thd *cos_next = &PERCPU_GET(cos_sched_notifications)->cos_next;
 
 	cos_next->next_thd_id = thd_id;
 	cos_next->next_thd_flags = flags;
@@ -392,6 +455,7 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 	cos_sched_lock_release();
 
 	/* kernel will read next thread information from cos_next */
+	/* printc("core %ld: __switch_thread, thd %u, flags %u\n", cos_cpuid(), thd_id, flags); */
 	return cos___switch_thread(thd_id, flags); 
 }
 

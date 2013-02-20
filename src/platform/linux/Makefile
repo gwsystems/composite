@@ -16,7 +16,7 @@ cp:
 # includes patched in!
 	cat $(TOP_DIR)/Makefile.src ./util/Makefile.end > $(TRANS_DIR)/Makefile
 	cp $(TOP_DIR)/Makefile.cosconfig $(TRANS_DIR)/
-	cp ./util/*.sh ./util/*.tar $(TRANS_DIR)
+	cp ./util/*.sh ./util/*.py ./util/*.tar $(TRANS_DIR)
 
 clean:
 	$(MAKE) -C module clean
