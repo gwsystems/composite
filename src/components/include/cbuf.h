@@ -291,7 +291,7 @@ cbufp2buf(cbufp_t cb, int len) { return __cbuf2buf((cbuf_t)cb, len, 0); }
  * or the component can call cbufp_free.
  */
 static inline void
-cbufp_send(cbuf_t cb, int free)
+__cbufp_send(cbuf_t cb, int free)
 {
 	u32_t id;
 	struct cbuf_meta *cm;
@@ -308,8 +308,18 @@ cbufp_send(cbuf_t cb, int free)
 
 	cm->owner_nfo.c.nsent++;
 	if (free) cm->nfo.c.flags &= ~CBUFM_IN_USE;
+	/* really should deal with this case correctly */
+	assert(!(cm->nfo.c.flags & CBUFM_RELINQ)); 
 	CBUF_RELEASE();
 }
+
+static inline void
+cbufp_send_deref(cbuf_t cb)
+{ __cbufp_send(cb, 1); }
+
+static inline void
+cbufp_send(cbuf_t cb) 
+{ __cbufp_send(cb, 0); }
 
 extern cvect_t alloc_descs; 
 struct cbuf_alloc_desc {
@@ -431,10 +441,15 @@ again:
 		goto again;
 	}
 
-	cm->owner_nfo.thdid = cos_get_thd_id();
-	if (tmem) cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]--;
+	if (tmem) {
+		cm->owner_nfo.thdid = cos_get_thd_id();
+		cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]--;
+		assert(cm->nfo.c.flags & CBUFM_TMEM);
+	} else {
+		cm->owner_nfo.c.nsent = cm->owner_nfo.c.nrecvd = 0;		
+	}
 	ret = (void*)(cm->nfo.c.ptr << PAGE_ORDER);
-	if (tmem) assert(cm->nfo.c.flags & CBUFM_TMEM);
+
 done:
 	*cb = cbuf_cons(cbid, len);
 	CBUF_RELEASE();
@@ -447,26 +462,25 @@ cbuf_alloc(unsigned int sz, cbuf_t *cb) { return __cbuf_alloc(sz, cb, 1); }
 static inline void *
 cbufp_alloc(unsigned int sz, cbufp_t *cb)  { return __cbuf_alloc(sz, (cbuf_t*)cb, 0); }
 
+/* 
+ * precondition:  cbuf lock must be taken.
+ * postcondition: cbuf lock has been released.
+ */
 static inline void
-__cbuf_free(void *buf, int tmem)
+__cbuf_done(int cbid, int tmem, struct cbuf_alloc_desc *d)
 {
-	u32_t idx = ((u32_t)buf) >> PAGE_ORDER;
-	struct cbuf_alloc_desc *d, *fl;
 	struct cbuf_meta *cm;
-	int owner, relinq = 0, cbid;
+	int owner, relinq = 0;
 
-	CBUF_TAKE();
-	d  = __cbuf_alloc_lookup(idx);
-	assert(d);
-	if (unlikely(d->tmem != tmem)) goto err;
-
-	cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(d->cbid), tmem);
-	assert(!__cbuf_alloc_meta_inconsistent(d, cm));
+	cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid), tmem);
+	assert(!d || !__cbuf_alloc_meta_inconsistent(d, cm));
 	assert(cm->nfo.c.flags & CBUFM_IN_USE);
 	owner = cm->nfo.c.flags & CBUFM_OWNER;
 	assert(!(tmem & !owner)); /* Shouldn't be calling free... */
 
-	if (owner) {
+	if (tmem && d && owner) {
+		struct cbuf_alloc_desc *fl;
+
 		fl = d->flhead;
 		assert(fl);
 		ADD_LIST(fl, d, next, prev);
@@ -476,7 +490,6 @@ __cbuf_free(void *buf, int tmem)
 	cm->nfo.c.flags &= ~CBUFM_IN_USE;
 	if (tmem) cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]++;
 	else      relinq = cm->nfo.c.flags & CBUFM_RELINQ;
-	cbid = d->cbid;
 	CBUF_RELEASE();
 	
 	/* Does the manager want the memory back? */
@@ -493,6 +506,34 @@ __cbuf_free(void *buf, int tmem)
 	}
 	
 	return;
+}
+
+static inline void
+cbufp_deref(cbufp_t cbid) 
+{ 
+	u32_t id;
+	
+	cbuf_unpack(cbid, &id);
+	CBUF_TAKE();
+	__cbuf_done((int)id, 0, NULL);
+}
+
+static inline void
+__cbuf_free(void *buf, int tmem)
+{
+	u32_t idx = ((u32_t)buf) >> PAGE_ORDER;
+	struct cbuf_alloc_desc *d;
+	int cbid;
+
+	CBUF_TAKE();
+	d  = __cbuf_alloc_lookup(idx);
+	assert(d);
+	if (unlikely(d->tmem != tmem)) goto err;
+	cbid = d->cbid;
+	/* note: lock released in function */
+	__cbuf_done(cbid, tmem, d);
+
+	return;
 err:
 	CBUF_RELEASE();
 	return;
@@ -500,8 +541,8 @@ err:
 
 static inline void
 cbuf_free(void *buf) { __cbuf_free(buf, 1); }
-static inline void
-cbufp_free(void *buf) { __cbuf_free(buf, 0); }
+// static inline void
+// cbufp_free(void *buf) { __cbuf_free(buf, 0); }
 
 /* Is it a cbuf?  If so, what's its id? */
 static inline int 

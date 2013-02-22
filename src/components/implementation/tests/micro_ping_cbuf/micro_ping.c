@@ -113,7 +113,7 @@ cbuf_tests(void)
 	return;
 }
 
-#define CBUFP_NUM 512
+#define CBUFP_NUM 256
 cbufp_t p[CBUFP_NUM];
 char *buf[CBUFP_NUM];
 
@@ -129,25 +129,29 @@ cbufp_tests(void)
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
 		
 		buf[i] = cbufp_alloc(4096, &p[i]);
+		cbufp_send(p[i]);
 		call_cbufp2buf(p[i], 4096);
 		assert(buf[i]);
 	}
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
-		cbufp_free(buf[i]);
+		cbufp_deref(p[i]);
 	}
 
 	rdtscll(start);
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
 		buf[i] = cbufp_alloc(4096, &p[i]);
+		assert(buf[i]);
 	}
 	rdtscll(end);
 	printc("CBUFP:  %d alloc %llu cycles avg\n", CBUFP_NUM, (end-start)/CBUFP_NUM);
 
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
+		cbufp_send(p[i]);
 		call_cbufp2buf(p[i], 4096);
 	}
 	rdtscll(start);
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
+		cbufp_send(p[i]);
 		call_cbufp2buf(p[i], 4096);
 	}
 	rdtscll(end);
@@ -155,7 +159,7 @@ cbufp_tests(void)
 
 	rdtscll(start);
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
-		cbufp_free(buf[i]);
+		cbufp_deref(p[i]);
 	}
 	rdtscll(end);
 	printc("CBUFP:  %d free %llu cycles avg\n", CBUFP_NUM, (end-start)/CBUFP_NUM);
@@ -163,13 +167,13 @@ cbufp_tests(void)
 	rdtscll(start);
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
 		buf[i] = cbufp_alloc(4096, &p[i]);
+		cbufp_send_deref(p[i]);
 		call_cbufp2buf(p[i], 4096);
 		assert(buf[i]);
-		cbufp_free(buf[i]);
 	}
 	rdtscll(end);
 
-	printc("CBUFP:  %d alloc-cbuf2buf-free %llu cycles avg\n", CBUFP_NUM, (end-start)/CBUFP_NUM);
+	printc("CBUFP:  %d alloc-cbuf2buf-send/free %llu cycles avg\n", CBUFP_NUM, (end-start)/CBUFP_NUM);
 }
 
 void 

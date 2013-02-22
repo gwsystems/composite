@@ -133,8 +133,9 @@ __cbuf_2buf_miss(int cbid, int len, int tmem)
 	if (unlikely(ret < 0                                   ||
 		     mc->sz < len                              ||
 		     (tmem && !(mc->nfo.c.flags & CBUFM_TMEM)) || 
-		     (!tmem && mc->nfo.c.flags & CBUFM_TMEM)))
-	    return -1;
+		     (!tmem && mc->nfo.c.flags & CBUFM_TMEM))) {
+		return -1;
+	}
 	assert(mc->nfo.c.ptr);
 	if (tmem) mc->owner_nfo.thdid = 0;
 
@@ -165,18 +166,26 @@ __cbuf_alloc_slow(int size, int *len, int tmem)
 			int *cbs;
 			assert(cbid <= 0);
 			if (cbid == 0) {
+				struct cbuf_meta *cm;
+
 				cbs  = cbuf_alloc(PAGE_SIZE, &cb);
 				assert(cbs);
 				cbs[0] = 0;
 				amnt = cbufp_collect(cos_spd_id(), PAGE_SIZE, cb);
+				CBUF_TAKE();
 				if (amnt < 0) {
 					ret = NULL;
-					CBUF_TAKE();
 					goto done;
 				}
 				cbid = cbs[0];
 
-				CBUF_TAKE();
+				/* own the cbuf we just collected */
+				if (amnt > 0) {
+					cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid), tmem);
+					assert(cm);
+					/* (should be atomic) */
+					cm->nfo.c.flags |= CBUFM_IN_USE | CBUFM_TOUCHED; 
+				}
 				/* ...add the rest back into freelists */
 				for (i = 1 ; i < amnt ; i++) {
 					struct cbuf_alloc_desc *d, *fl;

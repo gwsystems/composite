@@ -88,7 +88,7 @@ struct cbufp_comp_info {
 	struct cbufp_meta_range *cbuf_metas;
 };
 
-#define printl(s) 
+#define printl(s) //printc(s)
 cos_lock_t cbufp_lock;
 #define CBUFP_LOCK_INIT() lock_static_init(&cbufp_lock);
 #define CBUFP_TAKE()      do { if (lock_take(&cbufp_lock))    BUG(); } while(0)
@@ -160,13 +160,12 @@ cbufp_comp_info_get(spdid_t spdid)
 	return cci;
 }
 
-int
+static int
 cbufp_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 {
 	void *p;
 	vaddr_t dest;
 
-	printl("cbufp_alloc_map\n");
 	assert(size == PAGE_SIZE);
 	dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, 1);
 	assert(dest);
@@ -195,7 +194,9 @@ cbufp_referenced(struct cbufp_info *cbi)
 		struct cbuf_meta *meta = m->m;
 
 		if (meta) {
-			if (meta->nfo.c.flags & CBUFM_IN_USE) return 1;
+			if (meta->nfo.c.flags & CBUFM_IN_USE) {
+				return 1;
+			}
 			sent  += meta->owner_nfo.c.nsent;
 			recvd += meta->owner_nfo.c.nrecvd;
 		}
@@ -267,7 +268,7 @@ cbufp_create(spdid_t spdid, int size, long cbid)
 	 * be mapped in.
 	 */
 	if (!cbid) {
-		cbi = malloc(sizeof(struct cbufp_info));
+ 		cbi = malloc(sizeof(struct cbufp_info));
 		if (!cbi) goto done;
 
 		/* Allocate and map in the cbuf. */
@@ -440,6 +441,7 @@ cbufp_retrieve(spdid_t spdid, int cbid, int len)
 
 	meta->nfo.c.flags |= CBUFM_TOUCHED;
 	meta->nfo.c.ptr    = map->addr >> PAGE_ORDER;
+	meta->sz           = 4096;
 	ret                = 0;
 done:
 	CBUFP_RELEASE();
