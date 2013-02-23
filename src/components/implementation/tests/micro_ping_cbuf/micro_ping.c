@@ -127,7 +127,6 @@ cbufp_tests(void)
 	d = &cbufp_alloc_freelists;
 	assert(EMPTY_LIST(d, next, prev));
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
-		
 		buf[i] = cbufp_alloc(4096, &p[i]);
 		cbufp_send(p[i]);
 		call_cbufp2buf(p[i], 4096);
@@ -136,7 +135,6 @@ cbufp_tests(void)
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
 		cbufp_deref(p[i]);
 	}
-
 	rdtscll(start);
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
 		buf[i] = cbufp_alloc(4096, &p[i]);

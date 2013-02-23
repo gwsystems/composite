@@ -142,6 +142,66 @@ __cbuf_2buf_miss(int cbid, int len, int tmem)
 	return 0;
 }
 
+static inline int
+__cbufp_alloc_slow(int cbid, int size, int *len, int *error)
+{
+	int amnt = 0, i;
+	cbuf_t cb;
+	int *cbs;
+
+	assert(cbid <= 0);
+	if (cbid == 0) {
+		struct cbuf_meta *cm;
+
+		cbs    = cbuf_alloc(PAGE_SIZE, &cb);
+		assert(cbs);
+		cbs[0] = 0;
+		/* Do a garbage collection */
+		amnt = cbufp_collect(cos_spd_id(), PAGE_SIZE, cb);
+		if (amnt < 0) {
+			*error = 1;
+			return -1;
+		}
+
+		CBUF_TAKE();
+		cbid = cbs[0];
+		/* own the cbuf we just collected */
+		if (amnt > 0) {
+			cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid), 0);
+			assert(cm);
+			/* (should be atomic) */
+			cm->nfo.c.flags |= CBUFM_IN_USE | CBUFM_TOUCHED; 
+		}
+		/* ...add the rest back into freelists */
+		for (i = 1 ; i < amnt ; i++) {
+			struct cbuf_alloc_desc *d, *fl;
+			struct cbuf_meta *meta;
+			int idx = cbid_to_meta_idx(cbs[i]);
+			u32_t page;
+			void *data;
+
+			assert(idx > 0);
+			meta = cbuf_vect_lookup_addr(idx, 0);
+			d    = __cbuf_alloc_lookup(meta->nfo.c.ptr);
+			assert(d && d->cbid == cbs[i]);
+			fl   = d->flhead;
+			assert(fl);
+			ADD_LIST(fl, d, next, prev);
+		}
+		CBUF_RELEASE();
+		cbuf_free(cbs);
+	}
+	/* Nothing collected...allocate a new cbufp! */
+	if (amnt == 0) {
+		cbid = cbufp_create(cos_spd_id(), size, cbid*-1);
+		if (cbid == 0) assert(0);
+	} 
+	/* TODO update correctly */
+	*len = 1;
+
+	return cbid;
+}
+
 /* 
  * Precondition: cbuf lock is taken.
  */
@@ -156,63 +216,18 @@ __cbuf_alloc_slow(int size, int *len, int tmem)
 
 	cnt = cbid = 0;
 	do {
+		int error = 0;
+
 		CBUF_RELEASE();
 		if (tmem) {
 			cbid = cbuf_c_create(cos_spd_id(), size, cbid*-1);
 			*len = 0; /* tmem */
 		} else {
-			int amnt = 0, i;
-			cbuf_t cb;
-			int *cbs;
-			assert(cbid <= 0);
-			if (cbid == 0) {
-				struct cbuf_meta *cm;
-
-				cbs  = cbuf_alloc(PAGE_SIZE, &cb);
-				assert(cbs);
-				cbs[0] = 0;
-				amnt = cbufp_collect(cos_spd_id(), PAGE_SIZE, cb);
-				CBUF_TAKE();
-				if (amnt < 0) {
-					ret = NULL;
-					goto done;
-				}
-				cbid = cbs[0];
-
-				/* own the cbuf we just collected */
-				if (amnt > 0) {
-					cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid), tmem);
-					assert(cm);
-					/* (should be atomic) */
-					cm->nfo.c.flags |= CBUFM_IN_USE | CBUFM_TOUCHED; 
-				}
-				/* ...add the rest back into freelists */
-				for (i = 1 ; i < amnt ; i++) {
-					struct cbuf_alloc_desc *d, *fl;
-					struct cbuf_meta *meta;
-					int idx = cbid_to_meta_idx(cbs[i]);
-					u32_t page;
-					void *data;
-
-					assert(idx > 0);
-					meta = cbuf_vect_lookup_addr(idx, tmem);
-					d    = __cbuf_alloc_lookup(meta->nfo.c.ptr);
-					assert(d && d->cbid == cbs[i]);
-					fl   = d->flhead;
-					assert(fl);
-					ADD_LIST(fl, d, next, prev);
-				}
-				CBUF_RELEASE();
-				cbuf_free(cbs);
+			cbid = __cbufp_alloc_slow(cbid, size, len, &error);
+			if (unlikely(error)) {
+				ret = NULL;
+				goto done;
 			}
-			/* Nothing collected...allocate! */
-			if (amnt == 0) {
-				cbid = cbufp_create(cos_spd_id(), size, cbid*-1);
-				if (cbid == 0) assert(0);
-			} 
-
-			/* TODO update correctly */
-			*len = 1;
 		}
 		CBUF_TAKE();
 		/* TODO: we will hold the lock in expand, which calls
