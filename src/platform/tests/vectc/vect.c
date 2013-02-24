@@ -96,10 +96,12 @@ rand_test(void)
 	printf("\nRandom tests:\n");
 	/* Random identifiers between 0 and RANGE (2^16) (worst case) */
 	for (j = 0 ; j < 2 ; j++) {
+		cvectc_debug = 1;
 		for (i = 0 ; i < NTESTS ; i++) {
 			int id;
 			do { id = rand() % RANGE; } while (in_pairs(id));
 			ids[i]  = id;
+			printf("%x ", id);
 			assert(!cvectc_add(&static_vect, (void *)id, id));
 			if (((i+1) % OUTPUT) == 0) { cvectc_stats(); ps(); }
 		}

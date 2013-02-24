@@ -18,7 +18,7 @@
  * Should Composite run as highest priority?  Should NOT be set if
  * using networking (cnet). 
  */
-#define LINUX_HIGHEST_PRIORITY 1 
+//#define LINUX_HIGHEST_PRIORITY 1 
 
 #define INIT_CORE              0 // the CPU that does initialization for Composite
 /* Currently Linux runs on the last CPU only. The code includes the

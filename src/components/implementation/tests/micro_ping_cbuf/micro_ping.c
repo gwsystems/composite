@@ -113,17 +113,21 @@ cbuf_tests(void)
 	return;
 }
 
-#define CBUFP_NUM 600
+#define CBUFP_NUM 512
+cbufp_t p[CBUFP_NUM];
+char *buf[CBUFP_NUM];
 
 static void
 cbufp_tests(void)
 {
 	unsigned long long start, end;
-	cbufp_t p[CBUFP_NUM];
-	char *buf[CBUFP_NUM];
 	int i;
 
+	struct cbuf_alloc_desc *d;
+	d = &cbufp_alloc_freelists;
+	assert(EMPTY_LIST(d, next, prev));
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
+		
 		buf[i] = cbufp_alloc(4096, &p[i]);
 		call_cbufp2buf(p[i], 4096);
 		assert(buf[i]);

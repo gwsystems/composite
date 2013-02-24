@@ -152,7 +152,7 @@ static int
 boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
 	unsigned int i, use_kmem;
-	vaddr_t dest_daddr, prev_map;
+	vaddr_t dest_daddr, prev_map = 0;
 
 	local_md[spdid].spdid      = spdid;
 	local_md[spdid].h          = h;
