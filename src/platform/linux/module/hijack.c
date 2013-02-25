@@ -1516,9 +1516,7 @@ int chal_attempt_brand(struct thread *brand)
 
 			if (next != cos_current) {
 				thd_save_preempted_state(cos_current, regs);
-				printk("hijack: cr0: %8x\n", fpu_read_cr0());
 				fpu_save(cos_current, next);
-				printk("hijack: cr0: %8x\n", fpu_read_cr0());
 
 				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
 					printk("cos: upcall thread %d is not set to be an active upcall.\n",

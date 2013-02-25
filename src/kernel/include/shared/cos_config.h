@@ -6,7 +6,7 @@
 
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 
-#define RUNTIME                2 // seconds
+#define RUNTIME                1 // seconds
 
 // After how many seconds should schedulers print out their information?
 #define SCHED_PRINTOUT_PERIOD  29 
@@ -18,7 +18,7 @@
  * Should Composite run as highest priority?  Should NOT be set if
  * using networking (cnet). 
  */
-//#define LINUX_HIGHEST_PRIORITY 1 
+#define LINUX_HIGHEST_PRIORITY 1 
 
 #define INIT_CORE              0 // the CPU that does initialization for Composite
 /* Currently Linux runs on the last CPU only. The code includes the

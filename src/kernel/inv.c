@@ -800,7 +800,6 @@ COS_SYSCALL struct pt_regs *
 cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id, 
 			       unsigned short int rflags, long *preempt)
 {
-	printk("cr0: %8x\n", fpu_read_cr0());
 	struct thread *thd, *curr;
 	struct spd *curr_spd;
 	unsigned short int next_thd, flags;
