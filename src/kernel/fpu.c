@@ -1,4 +1,5 @@
 #include "include/fpu.h"
+#include "include/thread.h"
 
 static int fpu_disabled = 1;
 static struct thread *last_used_fpu;
@@ -25,7 +26,7 @@ fpu_save(struct thread *curr, struct thread *next)
 	}
 
 	/*
-     * next thread uses fpu
+     	 * next thread uses fpu
 	 * last_used_fpu exists
 	 * if last_used_fpu == next, then we simply re-enable the fpu for the thread
      */
@@ -56,8 +57,10 @@ fpu_thread_uses_fp(struct thread *thd)
 int
 fpu_is_disabled()
 {
-	assert(fpu_read_cr0() & FPU_DISABLED ? fpu_disabled : !fpu_disabled);
-	return fpu_disabled;
+	//assert(fpu_read_cr0() & FPU_DISABLED ? fpu_disabled : !fpu_disabled);
+	//return fpu_disabled;
+	printk("fpu_is_disabled() executed :: fpu_disabled = %d cr0: %8x\n", fpu_disabled, fpu_read_cr0());
+	return fpu_read_cr0() & FPU_DISABLED;
 }
 
 inline void
@@ -85,6 +88,7 @@ fpu_disable(void)
 	asm volatile("mov %0,%%cr0" : : "r" (val));
 
 	fpu_disabled = 1;
+	printk("fpu_disable() executed :: now fpu_disabled = %d cr0: %8x\n", fpu_disabled, fpu_read_cr0());
 }
 
 void
@@ -99,6 +103,7 @@ fpu_enable(void)
 	asm volatile("mov %0,%%cr0" : : "r" (val));
 
 	fpu_disabled = 0;
+	printk("fpu_enable() executed :: now fpu_disabled = %d cr0: %8x\n", fpu_disabled, fpu_read_cr0());
 }
 
 inline unsigned int
@@ -110,7 +115,7 @@ fpu_read_cr0(void)
 }
 
 inline struct thread*
-fpu_get_last_used()
+fpu_get_last_used(void)
 {
 	return last_used_fpu;
 }

@@ -1197,19 +1197,19 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 	struct thread *t;
 	struct thread *last_used_fpu;
 
-    if (cos_thd_per_core[get_cpuid()].cos_thd != current) return 1;
+	if (cos_thd_per_core[get_cpuid()].cos_thd != current) return 1;
 
-    t = core_get_curr_thd();
+	t = core_get_curr_thd();
 
-    if(t == NULL)
-        return 1;
+	if(t == NULL)
+		return 1;
 
     int fpu_disabled = 1;
     fpu_is_disabled();
 
 	t->fpu.status = 1;
 	fpu_enable();
-    last_used_fpu = fpu_get_last_used();
+	last_used_fpu = fpu_get_last_used();
 	// if last_used_fpu exists and is not current thread, then save curr states to it
 	if(last_used_fpu && last_used_fpu != t)
 		fxsave(last_used_fpu);
