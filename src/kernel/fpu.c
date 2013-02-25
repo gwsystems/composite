@@ -1,6 +1,6 @@
 #include "include/fpu.h"
 
-static int fpu_disabled = 0;
+static int fpu_disabled = 1;
 static struct thread *last_used_fpu;
 
 int
