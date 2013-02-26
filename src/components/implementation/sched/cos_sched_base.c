@@ -162,20 +162,20 @@ static void report_output(void)
 static void report_thd_accouting(void)
 {
 	struct sched_thd *t;
-
+	struct sched_base_per_core *sched_base = PERCPU_GET(sched_base_state);
 	runqueue_print();
 
 	if (sched_is_child()) {
-		struct sched_accounting *sa = sched_get_accounting(PERCPU_GET(sched_base_state)->timer);
+		struct sched_accounting *sa = sched_get_accounting(sched_base->timer);
 
 		printc("\nChild timer thread (thd, ticks):\n");		
-		printc("\t%d, %ld\n", PERCPU_GET(sched_base_state)->timer->id, sa->ticks - sa->prev_ticks);
+		printc("\t%d, %ld\n", sched_base->timer->id, sa->ticks - sa->prev_ticks);
 		sa->prev_ticks = sa->ticks;
 	}
 
 	printc("\nBlocked threads (thd, prio, ticks):\n");
-	for (t = FIRST_LIST(&PERCPU_GET(sched_base_state)->blocked, prio_next, prio_prev) ; 
-	     t != &PERCPU_GET(sched_base_state)->blocked ;
+	for (t = FIRST_LIST(&sched_base->blocked, prio_next, prio_prev) ; 
+	     t != &sched_base->blocked ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
 		struct sched_accounting *sa = sched_get_accounting(t);
 		unsigned long diff = sa->ticks - sa->prev_ticks;
@@ -189,8 +189,8 @@ static void report_thd_accouting(void)
 		}
 	}
 	printc("\nInactive upcalls (thd, prio, ticks):\n");
-	for (t = FIRST_LIST(&PERCPU_GET(sched_base_state)->upcall_deactive, prio_next, prio_prev) ; 
-	     t != &PERCPU_GET(sched_base_state)->upcall_deactive ;
+	for (t = FIRST_LIST(&sched_base->upcall_deactive, prio_next, prio_prev) ; 
+	     t != &sched_base->upcall_deactive ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
 		struct sched_accounting *sa = sched_get_accounting(t);
 		unsigned long diff = sa->ticks - sa->prev_ticks;
