@@ -45,6 +45,7 @@
 #include "../../../kernel/include/mmap.h"
 #include "../../../kernel/include/per_cpu.h"
 #include "../../../kernel/include/shared/consts.h"
+#include "../../../kernel/include/fpu.h"
 
 #include "./hw_ints.h"
 
@@ -60,6 +61,7 @@ extern void sysenter_interposition_entry(void);
 extern void page_fault_interposition(void);
 extern void div_fault_interposition(void);
 extern void reg_save_interposition(void);
+extern void fpu_not_available_interposition(void);
 
 /* 
  * This variable exists for the assembly code for temporary
@@ -109,7 +111,6 @@ struct pt_regs *user_level_regs;
 struct pt_regs trusted_regs;
 unsigned long trusted_mem_limit;
 unsigned long trusted_mem_size;
-
 
 #define MAX_ALLOC_MM 64
 struct mm_struct *guest_mms[MAX_ALLOC_MM]; 
@@ -1189,6 +1190,34 @@ main_reg_save_interposition(struct pt_regs *rs, unsigned int error_code)
 	return 0;
 }
 
+
+__attribute__((regparm(3))) int
+main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code)
+{
+	struct thread *t;
+	struct thread *last_used_fpu;
+
+	if (cos_thd_per_core[get_cpuid()].cos_thd != current) return 1;
+
+	t = core_get_curr_thd();
+
+	if(t == NULL)
+		return 1;
+
+    int fpu_disabled = 1;
+    fpu_is_disabled();
+
+	t->fpu.status = 1;
+	fpu_enable();
+	last_used_fpu = fpu_get_last_used();
+	// if last_used_fpu exists and is not current thread, then save curr states to it
+	if(last_used_fpu && last_used_fpu != t)
+		fxsave(last_used_fpu);
+	last_used_fpu = t;
+
+	return 1;
+}
+
 /*
  * Memory semaphore already held.
  */
@@ -1392,7 +1421,7 @@ int chal_attempt_brand(struct thread *brand)
 		if (host_in_syscall() || host_in_idle()) {
 			struct thread *next;
 
-			//next = brand_next_thread(brand, cos_current, 2);
+			//next = brand_next_thread(brand, coed_current, 2);
 			/* 
 			 * _FIXME_: Here we are kludging a problem over.
 			 * The problem is this:
@@ -1430,6 +1459,7 @@ int chal_attempt_brand(struct thread *brand)
 			 * be an issue later on.
 			 */
 			next = brand_next_thread(brand, cos_current, 0);
+			
 			if (next != cos_current) {
 				assert(core_get_curr_thd() == next);
 				/* the following call isn't
@@ -1486,13 +1516,19 @@ int chal_attempt_brand(struct thread *brand)
 
 			/* the major work here: */
 			next = brand_next_thread(brand, cos_current, 1);
+
 			if (next != cos_current) {
 				thd_save_preempted_state(cos_current, regs);
+				fpu_save(cos_current, next);
+
 				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
 					printk("cos: upcall thread %d is not set to be an active upcall.\n",
 					       thd_get_id(next));
 					///*assert*/BUG_ON(!(next->flags & THD_STATE_ACTIVE_UPCALL));
 				}
+				
+				//cos_meas_event(COS_MEAS_BRAND_UC);
+				
 				thd_check_atomic_preempt(cos_current);
 				
 				/* Those registers are saved in the
@@ -1521,7 +1557,7 @@ int chal_attempt_brand(struct thread *brand)
 	} 
 done:
 	local_irq_restore(flags);
-		
+
 	return 0;
 }
 
@@ -1905,6 +1941,7 @@ static inline void hw_int_override_all(void)
 	hw_int_override_pagefault(page_fault_interposition);
 	hw_int_override_idt(0, div_fault_interposition, 0, 0);
 	hw_int_override_idt(0xe9, reg_save_interposition, 0, 3);
+	hw_int_override_idt(7, fpu_not_available_interposition, 0, 0);
 
 	return;
 }

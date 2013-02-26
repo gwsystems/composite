@@ -868,6 +868,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	 * anymore. */
 	break_preemption_chain(curr);
 
+
 	switch_thread_context(curr, thd);
 	if (thd->flags & THD_STATE_PREEMPTED) {
 		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
@@ -877,7 +878,10 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		cos_meas_event(COS_MEAS_SWITCH_COOP);
 	}
 
+	fpu_save(curr, thd);
+
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
+
 	/* success for this current thread */
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
 //	printk("core %d: switch %d -> %d\n", get_cpuid(), thd_get_id(curr), thd_get_id(thd));
@@ -908,6 +912,7 @@ switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd
 	}
 
 	thd = switch_thread_get_target(next_thd, curr, curr_spd, ret_code);
+
 	if (unlikely(NULL == thd)) goto_err(ret_err, "get_target");
 
 	if (flags & (COS_SCHED_TAILCALL | COS_SCHED_BRAND_WAIT)) {

@@ -94,6 +94,9 @@ struct thread *thd_alloc(struct spd *spd)
 	thd->pending_upcall_requests = 0;
 	thd->freelist_next = NULL;
 
+	thd->fpu.status = 0;
+	thd->fpu.saved_fpu = 0;
+
 	return thd;
 }
 

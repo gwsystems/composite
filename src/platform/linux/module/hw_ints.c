@@ -9,7 +9,7 @@
 
 #include <asm/desc.h>
 #include <linux/kernel.h>
-
+#include "../../../kernel/include/fpu.h"
 /*
  * The Linux provided descriptor structure is crap, probably due to
  * the intel spec for descriptors being crap:
@@ -53,6 +53,7 @@ cos_set_idt_entry(unsigned int n, unsigned dpl, unsigned ints_enabled,
 	unsigned seg = __KERNEL_CS;
 
 	pack_gate(&s, type, (unsigned long)addr, dpl, ist, seg);
+
 	write_idt_entry((void*)idt_table, gate, &s);
 }
 
@@ -60,6 +61,7 @@ extern void *cos_default_page_fault_handler;
 void *cos_realloc_page_fault_handler;
 extern void *cos_default_div_fault_handler;
 extern void *cos_default_reg_save_handler;
+extern void *cos_default_fpu_not_available_handler;
 
 /* 
  * This is really just a pain in the ass.  See 5-14 (spec Figure 5-1,
@@ -105,7 +107,7 @@ hw_int_init(void)
 		struct decoded_idt_desc *did = &default_idt_entry[i];
 		decode_desc_addr(&default_idt[i], (unsigned long*)&did->handler, 
 				 &did->dpl, &did->ints_enabled);
-
+		
 		/* Yuck...we should simply use the array of saved handlers instead */
 		switch (i) {
 		case 0:
@@ -116,6 +118,9 @@ hw_int_init(void)
 			break;
 		case 0xe9:
 			cos_default_reg_save_handler   = did->handler;
+			break;
+		case 7:
+			cos_default_fpu_not_available_handler  = did->handler;
 			break;
 		};
 	}
