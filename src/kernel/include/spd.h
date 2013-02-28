@@ -61,10 +61,9 @@ struct usr_cap_stubs {
  */
 struct spd;
 struct invocation_cap {
-	/* the spd that can make invocations on this capability
-	 * (owner), and the spd that invocations are made to. owner ==
+	/* the spd that invocations are made to. destination ==
 	 * NULL means that this entry is free and not in use.  */
-	struct spd *owner, *destination;
+	struct spd *destination;
 	unsigned int invocation_cnt:30;
 	isolation_level_t il:2;
 	vaddr_t dest_entry_instruction;
@@ -164,7 +163,6 @@ struct spd {
 	 */
 	struct spd_poly *composite_spd; 
 	
-	unsigned short int cap_base, cap_range;
 	/* numbered faults correspond to which capability? */
 	unsigned short int fault_handler[COS_FLT_MAX];
 	/*
@@ -196,6 +194,9 @@ struct spd {
 	struct spd *freelist_next;
 	/* Linked list of the members of a non-depricated, current composite spd */
 	struct spd *composite_member_next, *composite_member_prev;
+
+	unsigned int ncaps;
+	struct invocation_cap caps[MAX_STATIC_CAP];
 } CACHE_ALIGNED; //cache line size
 
 paddr_t spd_alloc_pgtbl(void);
@@ -219,9 +220,6 @@ struct spd *spd_get_by_index(int idx);
 void spd_free_all(void);
 void spd_init(void);
 
-int spd_reserve_cap_range(struct spd *spd, int amnt);
-int spd_release_cap_range(struct spd *spd);
-
 int spd_cap_activate(struct spd *spd, int cap);
 int spd_cap_set_dest(struct spd *spd, int cap, struct spd* dspd);
 int spd_cap_set_cstub(struct spd *spd, int cap, vaddr_t fn);
@@ -236,10 +234,9 @@ unsigned int spd_add_static_cap_extended(struct spd *spd, struct spd *trusted_sp
 					 vaddr_t AT_cli_stub, vaddr_t AT_serv_stub,
 					 vaddr_t SD_cli_stub, vaddr_t SD_serv_stub,
 					 isolation_level_t isolation_level, int flags);
-isolation_level_t cap_change_isolation(int cap_num, isolation_level_t il, int flags);
-int cap_is_free(int cap_num);
+isolation_level_t cap_change_isolation(struct spd *spd, int cap_num, isolation_level_t il, int flags);
+int cap_is_free(struct spd *spd, int cap_num);
 unsigned long spd_read_reset_invocation_cnt(struct spd *cspd, struct spd *sspd);
-struct invocation_cap *inv_cap_get(int c_num);
 
 static inline int spd_is_scheduler(struct spd *spd)
 {
