@@ -3488,6 +3488,41 @@ cos_syscall_send_ipi(int spd_id, long cpuid, int thdid, long arg)
 	return send_ipi(cpuid, thdid, wait);
 }
 
+COS_SYSCALL struct tcap *
+cos_syscall_tcap_cntl(int op, struct tcap *tcap1, struct tcap *tcap 2, void *arg)
+{
+	switch (op) {
+	case COS_TCAP_DELEGATE:
+		struct spd *comp = arg;
+		return tcap_delegate(comp, tcap1);
+	case COS_TCAP_ACTIVATE:
+		return tcap_activate(tcap1);
+	case COS_TCAP_SPLIT:
+		struct budget *b = arg;
+		struct tcap *newtcap = malloc (sizeof(struct tcap));
+		return tcap_transfer(newtcap, tcap1, b);
+	case COS_TCAP_MERGE:
+		return tcap_transfer(tcap1, tcap2, tcap2.budget);
+	case COS_TCAP_TRANSFER:
+		struct budget *b = arg;
+		return tcap_transfer(tcap1, tcap2, b);
+	case COS_TCAP_REVOKE:
+		struct spd *comp = arg;
+		return tcap_revoke(comp, tcap1);
+	case COS_TCAP_SETPRIORITY:
+		u16_t p = (u16_t)arg;
+		if (tcap1 == NULL) printk("tcap_cntl: tried to set priority of NULL tcap.\n");
+		else tcap1->delegation.priority = p;
+		return tcap1;
+	case COS_TCAP_GETBUDGET:
+		return tcap1.budget;
+	default:
+		printk("tcap_cntl: undefined operation %d.\n");
+		return NULL;
+
+	}
+}
+
 /* 
  * Composite's system call table that is indexed and invoked by ipc.S.
  * The user-level stubs are created in cos_component.h.
@@ -3515,7 +3550,7 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_trans_cntl,
 	(void*)cos_syscall_pfn_cntl,
 	(void*)cos_syscall_send_ipi,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_tcap_cntl,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
