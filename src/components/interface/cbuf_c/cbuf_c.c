@@ -38,9 +38,8 @@ extern struct cos_component_information cos_comp_info;
 CVECT_CREATE_STATIC(meta_cbuf);
 CVECT_CREATE_STATIC(meta_cbufp);
 CVECT_CREATE_STATIC(alloc_descs);
-//struct cbuf_slab_freelist alloc_freelists[N_CBUF_SLABS];
 struct cbuf_alloc_desc cbuf_alloc_freelists = {.next = &cbuf_alloc_freelists, .prev = &cbuf_alloc_freelists, .addr = NULL};
-struct cbuf_alloc_desc cbufp_alloc_freelists = {.next = &cbufp_alloc_freelists, .prev = &cbufp_alloc_freelists, .addr = NULL};
+struct cbuf_alloc_desc cbufp_alloc_freelists[CBUFP_MAX_NSZ]; // = {{.next = &cbufp_alloc_freelists[0], .prev = &cbufp_alloc_freelists[0], .length = PAGE_SIZE, .addr = NULL}, };
 
 /*** Manage the cbuf allocation descriptors and freelists  ***/
 
@@ -67,7 +66,7 @@ __cbuf_desc_alloc(int cbid, int size, void *addr, struct cbuf_meta *cm, int tmem
 	INIT_LIST(d, next, prev);
 	//ADD_LIST(&cbuf_alloc_freelists, d, next, prev);
 	if (tmem) d->flhead = &cbuf_alloc_freelists;
-	else      d->flhead = &cbufp_alloc_freelists;
+	else      d->flhead = &cbufp_alloc_freelists[0];
 	cvect_add(&alloc_descs, d, idx);
 
 	return d;
@@ -225,6 +224,7 @@ __cbuf_alloc_slow(int size, int *len, int tmem)
 		} else {
 			cbid = __cbufp_alloc_slow(cbid, size, len, &error);
 			if (unlikely(error)) {
+				CBUF_TAKE();
 				ret = NULL;
 				goto done;
 			}
@@ -241,7 +241,8 @@ __cbuf_alloc_slow(int size, int *len, int tmem)
 	} while (cbid < 0);
 	assert(cbid);
 	cm   = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid), tmem);
-	assert(cm->nfo.c.flags & CBUFM_IN_USE);
+	assert(cm && cm->nfo.c.ptr);
+	assert(cm && cm->nfo.c.flags & CBUFM_IN_USE);
 	assert(!tmem || cm->owner_nfo.thdid);
 	addr = (void*)(cm->nfo.c.ptr << PAGE_ORDER);
 	assert(addr);
@@ -261,3 +262,15 @@ done:
 	return ret;
 }
 
+CCTOR static void
+cbuf_init(void)
+{
+	int i;
+
+	lock_static_init(&cbuf_lock);
+	for (i = 0 ; i < CBUFP_MAX_NSZ/2 ; i++) {
+		cbufp_alloc_freelists[i].next = cbufp_alloc_freelists[i].prev = &cbufp_alloc_freelists[i];
+		cbufp_alloc_freelists[i].length = PAGE_SIZE << i;
+		cbufp_alloc_freelists[i].addr   = NULL;
+	}
+}

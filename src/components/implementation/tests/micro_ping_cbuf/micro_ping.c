@@ -121,10 +121,10 @@ static void
 cbufp_tests(void)
 {
 	unsigned long long start, end;
+	struct cbuf_alloc_desc *d;
 	int i;
 
-	struct cbuf_alloc_desc *d;
-	d = &cbufp_alloc_freelists;
+	d = &cbufp_alloc_freelists[0];
 	assert(EMPTY_LIST(d, next, prev));
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
 		buf[i] = cbufp_alloc(4096, &p[i]);

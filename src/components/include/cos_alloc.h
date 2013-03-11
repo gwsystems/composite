@@ -10,6 +10,10 @@ void free(void *addr);
 void free_page(void *ptr);
 void *alloc_page(void);
 
+/* ...not to be used without mem_mgr_large */
+void *page_alloc(int npages);
+void page_free(void *ptr, int npages);
+
 #define ALLOC_DEBUG_STATS 1
 #define ALLOC_DEBUG_ALL   2
 //#define ALLOC_DEBUG ALLOC_DEBUG_STATS

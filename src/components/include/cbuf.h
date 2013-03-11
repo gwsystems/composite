@@ -39,6 +39,38 @@ extern cos_lock_t cbuf_lock;
 #define CBUF_TAKE()    do { if (unlikely(cbuf_lock.lock_id == 0)) lock_static_init(&cbuf_lock); if (unlikely(lock_take_up(&cbuf_lock))) BUG(); } while(0)
 #define CBUF_RELEASE() do { if (unlikely(lock_release_up(&cbuf_lock))) BUG(); } while(0)
 
+#define CBUFP_MAX_NSZ 64
+
+/* 
+ * The lifetime of tmem cbufs is determined by the cbuf_alloc and
+ * cbuf_free of the calling component.  The called component uses
+ * cbuf2buf to retrieve the buffer.  
+ *
+ * API for sender of transient memory cbufs:
+ *     void *cbuf_alloc(int size, cbuf_t *id)
+ *     void cbuf_free(void *)
+ * API for the receiver of transient memory cbufs:
+ *     void *cbuf2buf(cbuf_t cb, int len)
+ * 
+ * Persistent cbufs are reference counted, so their lifetime needs to
+ * be explicitly managed by calls to access and free the buffer, both
+ * in the sender and receiver.  In the sender, alloc references it,
+ * send tracks the liveness, and deref releases the buffer.
+ * send_deref both sends and dereferences it.  The receiver of the
+ * persistent cbuf references the cbuf via cbuf2buf.  The receiver
+ * must use send an d deref just as the sender if it is also going to
+ * send the buffer.
+ *
+ * API for sender of persistent cbufs:
+ *     void *cbufp_alloc(unsigned int sz, cbufp_t *cb)
+ *     void cbufp_send(cbufp_t cb)
+ *     void cbufp_deref(cbufp_t cbid) 
+ *     void cbufp_send_deref(cbufp_t cb) // combine the previous ops
+ * API for the receiver of persistent cbufs;
+ *     void *cbufp2buf(cbufp_t cb, int len)
+ *     void cbufp_deref(cbufp_t cbid) 
+ */
+
 /* 
  * Naming scheme: The cbuf_* functions are transient memory
  * allocations -- their lifetime must match an invocation.  The
@@ -314,11 +346,11 @@ __cbufp_send(cbuf_t cb, int free)
 }
 
 static inline void
-cbufp_send_deref(cbuf_t cb)
+cbufp_send_deref(cbufp_t cb)
 { __cbufp_send(cb, 1); }
 
 static inline void
-cbufp_send(cbuf_t cb) 
+cbufp_send(cbufp_t cb) 
 { __cbufp_send(cb, 0); }
 
 extern cvect_t alloc_descs; 
@@ -329,7 +361,7 @@ struct cbuf_alloc_desc {
 	struct cbuf_alloc_desc *next, *prev, *flhead; /* freelist */
 };
 extern struct cbuf_alloc_desc cbuf_alloc_freelists;
-extern struct cbuf_alloc_desc cbufp_alloc_freelists;
+extern struct cbuf_alloc_desc cbufp_alloc_freelists[];
 
 static inline struct cbuf_alloc_desc *
 __cbuf_alloc_lookup(int page_index) { return cvect_lookup(&alloc_descs, page_index); }
@@ -359,7 +391,7 @@ __cbuf_alloc(unsigned int sz, cbuf_t *cb, int tmem)
 	long cbidx;
 
 	if (tmem) fl = &cbuf_alloc_freelists;
-	else      fl = &cbufp_alloc_freelists;
+	else      fl = &cbufp_alloc_freelists[0];
 	CBUF_TAKE();
 again:
 	d = FIRST_LIST(fl, next, prev);

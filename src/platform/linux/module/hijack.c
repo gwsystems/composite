@@ -1141,7 +1141,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 
 	cos_meas_event(COS_PG_FAULT);
 	
-	if (get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd) != rs) printk("Nested page fault!\n");
+//	if (get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd) != rs) printk("Nested page fault!\n");
 	if (fault_update_mpd_pgtbl(thd, rs, fault_addr)) ret = 0;
 	else ret = cos_handle_page_fault(thd, fault_addr, error_code, rs);
 

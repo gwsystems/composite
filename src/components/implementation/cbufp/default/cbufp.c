@@ -84,7 +84,8 @@ struct cbufp_bin {
 
 struct cbufp_comp_info {
 	spdid_t spdid;
-	struct cbufp_bin cbufs;
+	int nbin;
+	struct cbufp_bin cbufs[CBUFP_MAX_NSZ];
 	struct cbufp_meta_range *cbuf_metas;
 };
 
@@ -160,21 +161,49 @@ cbufp_comp_info_get(spdid_t spdid)
 	return cci;
 }
 
+static struct cbufp_bin *
+cbufp_comp_info_bin_get(struct cbufp_comp_info *cci, int sz)
+{
+	int i;
+
+	assert(sz);
+	for (i = 0 ; i < cci->nbin ; i++) {
+		if (sz == cci->cbufs[i].size) return &cci->cbufs[i];
+	}
+	return NULL;
+}
+
+static struct cbufp_bin *
+cbufp_comp_info_bin_add(struct cbufp_comp_info *cci, int sz)
+{
+	if (sz == CBUFP_MAX_NSZ) return NULL;
+	cci->cbufs[cci->nbin].size = sz;
+	cci->nbin++;
+
+	return &cci->cbufs[cci->nbin-1];
+}
+
 static int
 cbufp_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 {
 	void *p;
 	vaddr_t dest;
+	int off;
 
 	assert(size == PAGE_SIZE);
-	dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, 1);
+	dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, size/PAGE_SIZE);
 	assert(dest);
 	p = alloc_page();
 	assert(p);
 	memset(p, 0, PAGE_SIZE);
-	if (dest != (mman_alias_page(cos_spd_id(), (vaddr_t)p, spdid, dest))) {
-		assert(0);
-		valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
+	for (off = 0 ; off < size ; off += PAGE_SIZE) {
+		vaddr_t d = dest + off;
+		if (d != 
+		    (mman_alias_page(cos_spd_id(), ((vaddr_t)p) + off, spdid, d))) {
+			assert(0);
+			/* TODO: roll back the aliases, etc... */
+			valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
+		}
 	}
 	*page  = p;
 	*daddr = dest;
@@ -194,9 +223,7 @@ cbufp_referenced(struct cbufp_info *cbi)
 		struct cbuf_meta *meta = m->m;
 
 		if (meta) {
-			if (meta->nfo.c.flags & CBUFM_IN_USE) {
-				return 1;
-			}
+			if (meta->nfo.c.flags & CBUFM_IN_USE) return 1;
 			sent  += meta->owner_nfo.c.nsent;
 			recvd += meta->owner_nfo.c.nrecvd;
 		}
@@ -231,22 +258,43 @@ cbufp_free_unmap(spdid_t spdid, struct cbufp_info *cbi)
 {
 	struct cbufp_maps *m = &cbi->owner;
 	void *ptr = cbi->mem;
-	int size;
+	int off;
 
 	if (cbufp_referenced(cbi)) return;
+	cbufp_references_clear(cbi);
+	do {
+		assert(m->m);
+		assert(!(m->m->nfo.c.flags & CBUFM_IN_USE));
+		/* TODO: fix race here with atomic instruction */
+		memset(m->m, 0, sizeof(struct cbuf_meta));
 
+		m = FIRST_LIST(m, next, prev);
+	} while (m != &cbi->owner);
+	
+	/* Unmap all of the pages from the clients */
+	for (off = 0 ; off < cbi->size ; off += PAGE_SIZE) {
+		mman_revoke_page(cos_spd_id(), (vaddr_t)ptr + off, 0);
+	}
+
+	/* 
+	 * Deallocate the virtual address in the client, and cleanup
+	 * the memory in this component
+	 */
+	m = &cbi->owner;
 	do {
 		struct cbufp_maps *next;
 
 		next = FIRST_LIST(m, next, prev);
 		REM_LIST(m, next, prev);
 		valloc_free(cos_spd_id(), m->spdid, (void*)m->addr, cbi->size/PAGE_SIZE);
+		if (m != &cbi->owner) free(m);
 		m = next;
 	} while (m != &cbi->owner);
 
-	/* TODO: iterate through the size, and free all... */
-	mman_revoke_page(cos_spd_id(), (vaddr_t)ptr, 0);
-	//free_page(ptr);
+	/* deallocate/unlink our data-structures */
+	page_free(ptr, cbi->size/PAGE_SIZE);
+	cmap_del(&cbufs, cbi->cbid);
+	free(cbi);
 }
 
 int
@@ -268,21 +316,29 @@ cbufp_create(spdid_t spdid, int size, long cbid)
 	 * be mapped in.
 	 */
 	if (!cbid) {
+		struct cbufp_bin *bin;
+
  		cbi = malloc(sizeof(struct cbufp_info));
 		if (!cbi) goto done;
 
 		/* Allocate and map in the cbuf. */
 		cbid = cmap_add(&cbufs, cbi);
 		cbi->cbid        = cbid;
+		size             = round_up_to_page(size);
 		cbi->size        = size;
 		cbi->owner.m     = NULL;
 		cbi->owner.spdid = spdid;
 		INIT_LIST(&cbi->owner, next, prev);
 		INIT_LIST(cbi, next, prev);
+
+		bin = cbufp_comp_info_bin_get(cci, size);
+		if (!bin) bin = cbufp_comp_info_bin_add(cci, size);
+		if (!bin) goto free;
+
 		if (cbufp_alloc_map(spdid, &(cbi->owner.addr), 
 				    (void**)&(cbi->mem), size)) goto free;
-		if (cci->cbufs.c) ADD_LIST(cci->cbufs.c, cbi, next, prev);
-		else              cci->cbufs.c = cbi;
+		if (bin->c) ADD_LIST(bin->c, cbi, next, prev);
+		else        bin->c = cbi;
 	} 
 	/* If the client has a cbid, then make sure we agree! */
 	else {
@@ -324,6 +380,13 @@ free:
  * mechanism.
  *
  * Collect cbufps and add them onto the component's freelist.
+ *
+ * This function is semantically complicated.  It can block if no
+ * cbufps are available, and the component is not supposed to allocate
+ * any more.  It can return no cbufps even if they are available to
+ * force the pool of cbufps to be expanded (the client will call
+ * cbufp_create in this case).  Or, the common case: it can return a
+ * number of available cbufs.
  */
 int
 cbufp_collect(spdid_t spdid, int size, long cbid)
@@ -332,6 +395,7 @@ cbufp_collect(spdid_t spdid, int size, long cbid)
 	int off = 0;
 	struct cbufp_info *cbi;
 	struct cbufp_comp_info *cci;
+	struct cbufp_bin *bin;
 	int ret = -EINVAL;
 
 	printl("cbufp_collect\n");
@@ -341,14 +405,17 @@ cbufp_collect(spdid_t spdid, int size, long cbid)
 
 	CBUFP_TAKE();
 	cci = cbufp_comp_info_get(spdid);
-	if (!cci) {
-		CBUFP_RELEASE();
-		return -ENOMEM;
-	}
+	if (!cci) ERR_THROW(-ENOMEM, done);
 
-	/* Go through all cbufs we own, and save all of them that have
-	 * no current references to them. */
-	cbi = cci->cbufs.c;
+	/* 
+	 * Go through all cbufs we own, and report all of them that
+	 * have no current references to them.  Unfortunately, this is
+	 * O(N*M), N = min(num cbufs, PAGE_SIZE/sizeof(int)), and M =
+	 * num components.
+	 */
+	bin = cbufp_comp_info_bin_get(cci, round_up_to_page(size));
+	if (!bin) ERR_THROW(0, done);
+	cbi = bin->c;
 	do {
 		if (!cbi) break;
 		if (!cbufp_referenced(cbi)) {
@@ -357,24 +424,21 @@ cbufp_collect(spdid_t spdid, int size, long cbid)
 			if (off == PAGE_SIZE/sizeof(int)) break;
 		}
 		cbi = FIRST_LIST(cbi, next, prev);
-	} while (cbi != cci->cbufs.c);
-	CBUFP_RELEASE();
-	/* nothing collected...create a new one! */
-	/* TODO: only allocate when we should, and sleep otherwise */
-	/* if (off == 0) { */
-	/* 	int r = cbufp_create(spdid, size, 0); */
-	/* 	if (r) buf[off++] = r; */
-	/* } */
+	} while (cbi != bin->c);
 	ret = off;
+done:
+	CBUFP_RELEASE();
 	return ret;
 }
 
+/* 
+ * Called by cbufp_deref.
+ */
 int
 cbufp_delete(spdid_t spdid, int cbid)
 {
 	struct cbufp_comp_info *cci;
 	struct cbufp_info *cbi;
-	struct cbuf_meta *meta;
 	int ret = -EINVAL;
 
 	printl("cbufp_delete\n");
@@ -385,21 +449,18 @@ cbufp_delete(spdid_t spdid, int cbid)
 	cbi = cmap_lookup(&cbufs, cbid);
 	if (!cbi) goto done;
 	
-	meta = cbi->owner.m;
-	if (meta) {
-		/* TODO: check if free in all components, unmap, etc... */
-		memset(meta, 0, sizeof(struct cbuf_meta));
-	}
 	cbufp_free_unmap(spdid, cbi);
-
 	ret = 0;
 done:
 	CBUFP_RELEASE();
 	return ret;
 }
 
+/* 
+ * Called by cbufp2buf to retrieve a given cbid.
+ */
 int
-cbufp_retrieve(spdid_t spdid, int cbid, int len)
+cbufp_retrieve(spdid_t spdid, int cbid, int size)
 {
 	struct cbufp_comp_info *cci;
 	struct cbufp_info *cbi;
@@ -407,23 +468,24 @@ cbufp_retrieve(spdid_t spdid, int cbid, int len)
 	struct cbufp_maps *map;
 	vaddr_t dest;
 	void *page;
-	int ret = -1;
+	int ret = -1, off;
 
 	printl("cbufp_retrieve\n");
 
 	CBUFP_TAKE();
-	cci = cbufp_comp_info_get(spdid);
+	cci        = cbufp_comp_info_get(spdid);
 	if (!cci) goto done;
-	cbi = cmap_lookup(&cbufs, cbid);
+	cbi        = cmap_lookup(&cbufs, cbid);
 	if (!cbi) goto done;
 	/* shouldn't cbuf2buf your own buffer! */
 	if (cbi->owner.spdid == spdid) goto done;
-	meta = cbufp_meta_lookup(cci, cbid);
+	meta       = cbufp_meta_lookup(cci, cbid);
 	if (!meta) goto done;
 
 	map        = malloc(sizeof(struct cbufp_maps));
 	if (!map) goto done;
-	dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, 1);
+	size       = round_up_to_page(size);
+	dest       = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, size/PAGE_SIZE);
 	if (!dest) goto free;
 
 	map->spdid = spdid;
@@ -434,14 +496,17 @@ cbufp_retrieve(spdid_t spdid, int cbid, int len)
 
 	page = cbi->mem;
 	assert(page);
-	if (dest != (mman_alias_page(cos_spd_id(), (vaddr_t)page, spdid, dest))) {
-		assert(0);
-		valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
+	for (off = 0 ; off < size ; off += PAGE_SIZE) {
+		if (dest+off != 
+		    (mman_alias_page(cos_spd_id(), ((vaddr_t)page)+off, spdid, dest+off))) {
+			assert(0);
+			valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
+		}
 	}
 
 	meta->nfo.c.flags |= CBUFM_TOUCHED;
 	meta->nfo.c.ptr    = map->addr >> PAGE_ORDER;
-	meta->sz           = 4096;
+	meta->sz           = cbi->size;
 	ret                = 0;
 done:
 	CBUFP_RELEASE();
@@ -457,7 +522,6 @@ cbufp_register(spdid_t spdid, long cbid)
 {
 	struct cbufp_comp_info  *cci;
 	struct cbufp_meta_range *cmr;
-	struct cbuf_meta *meta;
 	void *p;
 	vaddr_t dest, ret = 0;
 
@@ -466,13 +530,11 @@ cbufp_register(spdid_t spdid, long cbid)
 	cci = cbufp_comp_info_get(spdid);
 	if (!cci) goto done;
 	cmr = cbufp_meta_lookup_cmr(cci, cbid);
-	if (cmr) {
-		ret = cmr->dest;
-		goto done;
-	}
+	if (cmr) ERR_THROW(cmr->dest, done);
 
 	/* Create the mapping into the client */
 	if (cbufp_alloc_map(spdid, &dest, &p, PAGE_SIZE)) goto done;
+	assert((u32_t)p == round_to_page(p));
 	cmr = cbufp_meta_add(cci, cbid, p, dest);
 	assert(cmr);
 	ret = cmr->dest;
