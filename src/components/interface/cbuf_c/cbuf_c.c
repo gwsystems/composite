@@ -66,7 +66,7 @@ __cbuf_desc_alloc(int cbid, int size, void *addr, struct cbuf_meta *cm, int tmem
 	INIT_LIST(d, next, prev);
 	//ADD_LIST(&cbuf_alloc_freelists, d, next, prev);
 	if (tmem) d->flhead = &cbuf_alloc_freelists;
-	else      d->flhead = &cbufp_alloc_freelists[0];
+	else      d->flhead = __cbufp_freelist_get(size);
 	cvect_add(&alloc_descs, d, idx);
 
 	return d;

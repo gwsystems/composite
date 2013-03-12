@@ -69,6 +69,7 @@ extern cos_lock_t cbuf_lock;
  * API for the receiver of persistent cbufs;
  *     void *cbufp2buf(cbufp_t cb, int len)
  *     void cbufp_deref(cbufp_t cbid) 
+ * Note that receiver might take the role of the sender.
  */
 
 /* 
@@ -381,6 +382,15 @@ __cbuf_alloc_meta_inconsistent(struct cbuf_alloc_desc *d, struct cbuf_meta *m)
 			 d->meta != m /*|| length*/));
 }
 
+static inline struct cbuf_alloc_desc *
+__cbufp_freelist_get(int size)
+{
+	int order = log32up(round_up_to_page(size)) - PAGE_ORDER;
+
+	assert(order >= 0 && order < WORD_SIZE-PAGE_ORDER);
+	return &cbufp_alloc_freelists[order];
+}
+
 static inline void *
 __cbuf_alloc(unsigned int sz, cbuf_t *cb, int tmem)
 {
@@ -391,7 +401,7 @@ __cbuf_alloc(unsigned int sz, cbuf_t *cb, int tmem)
 	long cbidx;
 
 	if (tmem) fl = &cbuf_alloc_freelists;
-	else      fl = &cbufp_alloc_freelists[0];
+	else      fl = __cbufp_freelist_get(sz);
 	CBUF_TAKE();
 again:
 	d = FIRST_LIST(fl, next, prev);
