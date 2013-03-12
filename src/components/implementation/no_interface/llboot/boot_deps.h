@@ -103,14 +103,14 @@ static void
 llboot_thd_done(void)
 {
 	int tid = cos_get_thd_id();
-
-	assert(PERCPU_GET(llbooter)->alpha);
+	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
+	assert(llboot->alpha);
 	/* 
 	 * When the initial thread is done, then all we have to do is
 	 * switch back to alpha who should reboot the system.
 	 */
-	if (tid == PERCPU_GET(llbooter)->init_thd) {
-		int offset = PERCPU_GET(llbooter)->sched_offset;
+	if (tid == llboot->init_thd) {
+		int offset = llboot->sched_offset;
 		spdid_t s = init_schedule[offset];
 
 		/* Is it done, or do we need to initialize another component? */
@@ -126,7 +126,7 @@ llboot_thd_done(void)
 				cos_pfn_cntl(COS_PFN_GRANT, s, frame_frontier, proportion);
 				comp_boot_nfo[s].memory_granted = 1;
 			}
-			PERCPU_GET(llbooter)->sched_offset++;
+			llboot->sched_offset++;
 			comp_boot_nfo[s].initialized = 1;
 			
 			/* printc("core %ld: booter init_thd upcalling into spdid %d.\n", cos_cpuid(), (unsigned int)s); */
@@ -138,25 +138,25 @@ llboot_thd_done(void)
 		 * no more execution left to do.  Technically, the
 		 * other components should have called
 		 * sched_exit... */
-		printc("core %ld: booter init_thd switching back to alpha %d.\n", cos_cpuid(), PERCPU_GET(llbooter)->alpha);
+		printc("core %ld: booter init_thd switching back to alpha %d.\n", cos_cpuid(), llboot->alpha);
 
-		while (1) cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0);
+		while (1) cos_switch_thread(llboot->alpha, 0);
 		BUG();
 	}
 	
 	while (1) {
-		int     pthd = PERCPU_GET(llbooter)->prev_thd;
-		spdid_t rspd = PERCPU_GET(llbooter)->recover_spd;
+		int     pthd = llboot->prev_thd;
+		spdid_t rspd = llboot->recover_spd;
 				
-		assert(tid == PERCPU_GET(llbooter)->recovery_thd);
+		assert(tid == llboot->recovery_thd);
 		if (rspd) {             /* need to recover a component */
 			assert(pthd);
-			PERCPU_GET(llbooter)->recover_spd = 0;
+			llboot->recover_spd = 0;
 			cos_upcall(rspd); /* This will escape from the loop */
 			assert(0);
 		} else {		/* ...done reinitializing...resume */
 			assert(pthd && pthd != tid);
-			PERCPU_GET(llbooter)->prev_thd = 0;   /* FIXME: atomic action required... */
+			llboot->prev_thd = 0;   /* FIXME: atomic action required... */
 			cos_switch_thread(pthd, 0);
 		}
 	}
@@ -170,6 +170,7 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 {
 	unsigned long r_ip; 	/* the ip to return to */
 	int tid = cos_get_thd_id();
+	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
 
 	failure_notif_fail(cos_spd_id(), spdid);
 	/* no reason to save register contents... */
@@ -182,9 +183,9 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 		assert(!cos_thd_cntl(COS_THD_INVFRM_SET_IP, tid, 1, r_ip-8));
 
 		/* switch to the recovery thread... */
-		PERCPU_GET(llbooter)->recover_spd = spdid;
-		PERCPU_GET(llbooter)->prev_thd = cos_get_thd_id();
-		cos_switch_thread(PERCPU_GET(llbooter)->recovery_thd, 0);
+		llboot->recover_spd = spdid;
+		llboot->prev_thd = cos_get_thd_id();
+		cos_switch_thread(llboot->recovery_thd, 0);
 		/* after the recovery thread is done, it should switch back to us. */
 		return 0;
 	}
@@ -252,17 +253,18 @@ comp_info_record(struct cobj_header *h, spdid_t spdid, struct cos_component_info
 
 static inline void boot_create_init_thds(void)
 {
+	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
 	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)PERCPU_GET(cos_sched_notifications))) BUG();
 
-	PERCPU_GET(llbooter)->alpha        = cos_get_thd_id();
-	PERCPU_GET(llbooter)->recovery_thd = cos_create_thread((int)llboot_ret_thd, (int)0, 0);
-	assert(PERCPU_GET(llbooter)->recovery_thd >= 0);
-	PERCPU_GET(llbooter)->init_thd     = cos_create_thread((int)llboot_ret_thd, 0, 0);
+	llboot->alpha        = cos_get_thd_id();
+	llboot->recovery_thd = cos_create_thread((int)llboot_ret_thd, (int)0, 0);
+	assert(llboot->recovery_thd >= 0);
+	llboot->init_thd     = cos_create_thread((int)llboot_ret_thd, 0, 0);
 	printc("Core %ld, Low-level booter created threads:\n\t"
 	       "%d: alpha\n\t%d: recov\n\t%d: init\n",
-	       cos_cpuid(), PERCPU_GET(llbooter)->alpha, 
-	       PERCPU_GET(llbooter)->recovery_thd, PERCPU_GET(llbooter)->init_thd);
-	assert(PERCPU_GET(llbooter)->init_thd >= 0);
+	       cos_cpuid(), llboot->alpha, 
+	       llboot->recovery_thd, llboot->init_thd);
+	assert(llboot->init_thd >= 0);
 }
 
 static void

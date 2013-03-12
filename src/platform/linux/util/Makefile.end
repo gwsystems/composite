@@ -20,6 +20,7 @@ clean:
 	rmmod trans
 	rmmod cnet
 	rmmod cos
+#	rm -f /dev/net/cnet
 
 # sync to minimize possible file system corruption on crashes
 build: tar

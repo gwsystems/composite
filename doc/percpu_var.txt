@@ -1,0 +1,34 @@
+PERCPU marco usage:
+
+(both in user and kernel)
+
+definition: 
+PERCPU(type, name) //defines a cache-aligned per cpu variable, which
+can be a structure
+PERCPU_ATTR(attr, type, name) // with attribute
+
+definition of external variables: (in multiple source files)
+PERCPU_DECL: define the variable
+PERCPU_EXTERN: declare in extern files
+Please check src/kernel/include/shared/cos_types.h for details.
+
+reference:
+PERCPU_GET(name) // returns the address of the variable on the current
+cpu
+PERCPU_GET_TARGET(name, target) // returns the address of the variable
+on the TARGET cpu. It touches remote data so involves cache migration,
+which isn't free and could limit scalability.
+
+
+a simple example: 
+
+struct test {
+       int a,b;
+}
+PERCPU(struct test, percpu_var);
+ 
+int access_test() {
+    struct test *ptr = PERCPU_GET(percpu_var);
+    int a = ptr->a;
+    ptr->b = 2;
+}
