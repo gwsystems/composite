@@ -190,12 +190,13 @@ cbufp_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 	vaddr_t dest;
 	int off;
 
-	assert(size == PAGE_SIZE);
+	assert(size == (int)round_to_page(size));
+	p = page_alloc(size/PAGE_SIZE);
+	assert(p);
+	memset(p, 0, size);
+
 	dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, size/PAGE_SIZE);
 	assert(dest);
-	p = alloc_page();
-	assert(p);
-	memset(p, 0, PAGE_SIZE);
 	for (off = 0 ; off < size ; off += PAGE_SIZE) {
 		vaddr_t d = dest + off;
 		if (d != 
@@ -468,7 +469,7 @@ cbufp_retrieve(spdid_t spdid, int cbid, int size)
 	struct cbufp_maps *map;
 	vaddr_t dest;
 	void *page;
-	int ret = -1, off;
+	int ret = -EINVAL, off;
 
 	printl("cbufp_retrieve\n");
 
@@ -483,8 +484,10 @@ cbufp_retrieve(spdid_t spdid, int cbid, int size)
 	if (!meta) goto done;
 
 	map        = malloc(sizeof(struct cbufp_maps));
-	if (!map) goto done;
-	size       = round_up_to_page(size);
+	if (!map) ERR_THROW(-ENOMEM, done);
+	if (size > cbi->size) goto done;
+	assert((int)round_to_page(cbi->size) == cbi->size);
+	size       = cbi->size;
 	dest       = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, size/PAGE_SIZE);
 	if (!dest) goto free;
 

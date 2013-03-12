@@ -36,7 +36,7 @@
 #include <tmem_conf.h>
 
 extern cos_lock_t cbuf_lock;
-#define CBUF_TAKE()    do { if (unlikely(cbuf_lock.lock_id == 0)) lock_static_init(&cbuf_lock); if (unlikely(lock_take_up(&cbuf_lock))) BUG(); } while(0)
+#define CBUF_TAKE()    do { if (unlikely(lock_take_up(&cbuf_lock))) BUG(); } while(0)
 #define CBUF_RELEASE() do { if (unlikely(lock_release_up(&cbuf_lock))) BUG(); } while(0)
 
 #define CBUFP_MAX_NSZ 64
@@ -382,13 +382,31 @@ __cbuf_alloc_meta_inconsistent(struct cbuf_alloc_desc *d, struct cbuf_meta *m)
 			 d->meta != m /*|| length*/));
 }
 
+/* 
+ * Simple power-of-two allocator.  Later we can investigate going to
+ * something with more precision, or a slab.  We are currently leaving
+ * CBUFP_MAX_NSZ - (WORD_SIZE - PAGE_ORDER) = 64 - (32-12) = 44 unused
+ * sizes that could be expanded for both of these uses.
+ *
+ * TODO: it appears that the compiler is not able to statically
+ * calculate this...  This is a big problem for allocations of a fixed
+ * size where this should translate into a direct freelist access with
+ * no calculations.  Verify this and fix.
+ *
+ * precondition:  size must be a power of 2 && >= PAGE_SIZE
+ */
 static inline struct cbuf_alloc_desc *
 __cbufp_freelist_get(int size)
 {
-	int order = log32up(round_up_to_page(size)) - PAGE_ORDER;
+	int order = ones(size-1) - PAGE_ORDER;
+	struct cbuf_alloc_desc *d;
 
+	assert(pow2(size) && size >= PAGE_SIZE);
 	assert(order >= 0 && order < WORD_SIZE-PAGE_ORDER);
-	return &cbufp_alloc_freelists[order];
+	d = &cbufp_alloc_freelists[order];
+	assert(d->length == size);
+
+	return d;
 }
 
 static inline void *
@@ -400,8 +418,13 @@ __cbuf_alloc(unsigned int sz, cbuf_t *cb, int tmem)
 	struct cbuf_meta *cm;
 	long cbidx;
 
-	if (tmem) fl = &cbuf_alloc_freelists;
-	else      fl = __cbufp_freelist_get(sz);
+	if (tmem) {
+		fl = &cbuf_alloc_freelists;
+	} else {
+		/* need a size >= PAGE_ORDER, that is a power of 2 */
+		sz = nlepow2(round_up_to_page(sz));
+		fl = __cbufp_freelist_get(sz);
+	}
 	CBUF_TAKE();
 again:
 	d = FIRST_LIST(fl, next, prev);
@@ -516,6 +539,10 @@ __cbuf_done(int cbid, int tmem, struct cbuf_alloc_desc *d)
 
 	cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid), tmem);
 	assert(!d || !__cbuf_alloc_meta_inconsistent(d, cm));
+	/* 
+	 * If this assertion triggers, one possibility is that you did
+	 * not successfully map it in (cbufp2buf or cbufp_alloc).
+	 */
 	assert(cm->nfo.c.flags & CBUFM_IN_USE);
 	owner = cm->nfo.c.flags & CBUFM_OWNER;
 	assert(!(tmem & !owner)); /* Shouldn't be calling free... */
@@ -583,10 +610,13 @@ err:
 
 static inline void
 cbuf_free(void *buf) { __cbuf_free(buf, 1); }
-// static inline void
-// cbufp_free(void *buf) { __cbuf_free(buf, 0); }
 
-/* Is it a cbuf?  If so, what's its id? */
+/* 
+ * Is it a cbuf?  If so, what's its id? 
+ *
+ * This only works in the allocating component (with the freelist
+ * descriptor).
+ */
 static inline int 
 cbuf_id(void *buf)
 {

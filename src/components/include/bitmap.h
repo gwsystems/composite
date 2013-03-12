@@ -38,6 +38,20 @@ nlpow2(u32_t x)
 	return x + 1;
 }
 
+/* Is x a power of two? */
+static inline u32_t
+pow2(u32_t x)
+{
+	return (x & (x-1)) == 0;
+}
+
+/* next largest pow of 2, or identity if x is pow2 */
+static inline u32_t 
+nlepow2(u32_t x)
+{
+	return nlpow2(x) >> pow2(x);
+}
+
 /* mask out all but the least significant 1 bit */
 static inline u32_t
 ls_one(u32_t x)
@@ -70,12 +84,6 @@ log32(u32_t x)
 	x |= (x >> 8);
 	x |= (x >> 16);
 	return ones(x >> 1);
-}
-
-static inline u32_t
-pow2(u32_t x)
-{
-	return (x & (x-1)) == 0;
 }
 
 static inline u32_t

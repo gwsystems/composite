@@ -39,7 +39,7 @@ CVECT_CREATE_STATIC(meta_cbuf);
 CVECT_CREATE_STATIC(meta_cbufp);
 CVECT_CREATE_STATIC(alloc_descs);
 struct cbuf_alloc_desc cbuf_alloc_freelists = {.next = &cbuf_alloc_freelists, .prev = &cbuf_alloc_freelists, .addr = NULL};
-struct cbuf_alloc_desc cbufp_alloc_freelists[CBUFP_MAX_NSZ]; // = {{.next = &cbufp_alloc_freelists[0], .prev = &cbufp_alloc_freelists[0], .length = PAGE_SIZE, .addr = NULL}, };
+struct cbuf_alloc_desc cbufp_alloc_freelists[CBUFP_MAX_NSZ];
 
 /*** Manage the cbuf allocation descriptors and freelists  ***/
 
@@ -156,7 +156,7 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 		assert(cbs);
 		cbs[0] = 0;
 		/* Do a garbage collection */
-		amnt = cbufp_collect(cos_spd_id(), PAGE_SIZE, cb);
+		amnt = cbufp_collect(cos_spd_id(), size, cb);
 		if (amnt < 0) {
 			*error = 1;
 			return -1;

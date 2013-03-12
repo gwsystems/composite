@@ -49,6 +49,7 @@ int call_cbufp2buf(u32_t cb, int len)
 {
 	char *b;
 	b = cbufp2buf(cb, len);
+	assert(b);
 	cbufp_deref(cb);
 	return 0;
 }
