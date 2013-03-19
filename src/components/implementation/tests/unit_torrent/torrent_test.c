@@ -31,7 +31,12 @@ void cos_init(void)
 	char *data1 = "1234567890", *data2 = "asdf;lkj", *data3 = "asdf;lkj1234567890";
 	unsigned int ret1, ret2;
 
+	int a = 0, b = 0, c = 0;
+	c = treadp(cos_spd_id(), 0, &a, &b);
+
 	printc("UNIT TEST Unit tests for torrents...\n");
+
+	printc("%d %d %d\n", a, b, c);
 
 	evt1 = evt_split(cos_spd_id(), 0, 0);
 	evt2 = evt_split(cos_spd_id(), 0, 0);

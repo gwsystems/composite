@@ -56,11 +56,38 @@ CSTUB_FN_ARGS_5(int, tmerge, spdid_t, spdid, td_t, td, td_t, td_into, char *, pa
         d->len[1] = len;
 	memcpy(&d->data[0], param, len);
 
-CSTUB_ASM_3(tmerge, spdid, cb, sz)
+        CSTUB_ASM_3(tmerge, spdid, cb, sz)
 
 	cbuf_free(d);
 CSTUB_POST
 
+CSTUB_FN_ARGS_4(int, treadp, spdid_t, spdid, td_t, td, int *, off, int *, len)
+//	CSTUB_ASM_RET_PRE(*off, *len)
+	__asm__ __volatile__( \
+		"pushl %%ebp\n\t" \
+		"movl %%esp, %%ebp\n\t" \
+		"movl $1f, %%ecx\n\t" \
+		"sysenter\n\t" \
+		".align 8\n\t" \
+		"jmp 2f\n\t" \
+		".align 8\n\t" \
+		"1:\n\t" \
+		"popl %%ebp\n\t" \
+		"movl $0, %%ecx\n\t" \
+	        "movl %%esi, %%ebx\n\t" \
+	        "movl %%edi, %%edx\n\t" \
+		"jmp 3f\n\t" \
+		"2:\n\t" \
+		"popl %%ebp\n\t" \
+		"movl $1, %%ecx\n\t" \
+	        "movl %%esi, %%ebx\n\t" \
+	        "movl %%edi, %%edx\n\t" \
+		"3:" \
+	        : "=a" (ret), "=c" (fault), "=b" (*off), "=d" (*len)
+
+		: "a" (uc->cap_no), "b" (spdid), "S" (td)
+		: "edi", "memory", "cc");
+CSTUB_POST
 
 CSTUB_4(int, tread, spdid_t, td_t, int, int);
 CSTUB_4(int, twrite, spdid_t, td_t, int, int);
