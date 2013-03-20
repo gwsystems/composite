@@ -1254,7 +1254,7 @@ void *chal_pa2va(void *pa)
  * Our composite emulated timer interrupt executed from a Linux
  * softirq
  */
-static struct timer_list timer[NUM_CPU]; CACHE_ALIGNED
+static struct timer_list timer[NUM_CPU] CACHE_ALIGNED;
 
 extern struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
 
@@ -1278,13 +1278,13 @@ EXPORT_SYMBOL(cos_trans_reg);
 EXPORT_SYMBOL(cos_trans_dereg);
 EXPORT_SYMBOL(cos_trans_upcall);
 
-extern struct thread *cos_timer_brand_thd[NUM_CPU];CACHE_ALIGNED
+extern struct thread *cos_timer_brand_thd[NUM_CPU] CACHE_ALIGNED;
 #define NUM_NET_BRANDS 2 /* keep consistent with inv.c */
 extern int active_net_brands;
 extern struct cos_brand_info cos_net_brand[NUM_NET_BRANDS];
 extern struct cos_net_callbacks *cos_net_fns;
 
-static int in_syscall[NUM_CPU] = { 0 }; CACHE_ALIGNED
+static CACHE_ALIGNED int in_syscall[NUM_CPU] = { 0 };
 
 int host_in_syscall(void) 
 {
