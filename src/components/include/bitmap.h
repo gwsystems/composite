@@ -4,6 +4,7 @@
 #ifdef LINUX_TEST
 
 #define u32_t unsigned int 
+#define WORD_SIZE 32
 
 #else
 
@@ -37,15 +38,30 @@ nlpow2(u32_t x)
 	return x + 1;
 }
 
-/* least significant 1 bit */
+/* Is x a power of two? */
+static inline u32_t
+pow2(u32_t x)
+{
+	return (x & (x-1)) == 0;
+}
+
+/* next largest pow of 2, or identity if x is pow2 */
+static inline u32_t 
+nlepow2(u32_t x)
+{
+	return nlpow2(x) >> pow2(x);
+}
+
+/* mask out all but the least significant 1 bit */
 static inline u32_t
 ls_one(u32_t x)
 {
 	return (x&-x);
 }
 
+/* I have no idea what this does.  It works for powers of two. */
 static inline u32_t
-log32(u32_t x)
+_log32(u32_t x)
 {
 	u32_t y = (x & (x - 1));
 	
@@ -60,7 +76,7 @@ log32(u32_t x)
 }
 
 static inline u32_t
-log32_floor(u32_t x)
+log32(u32_t x)
 {
 	x |= (x >> 1);
 	x |= (x >> 2);
@@ -68,6 +84,12 @@ log32_floor(u32_t x)
 	x |= (x >> 8);
 	x |= (x >> 16);
 	return ones(x >> 1);
+}
+
+static inline u32_t
+log32up(u32_t x)
+{
+	return (log32(x) + 1) - pow2(x);
 }
 
 /* set bit v in x.  v is offset from 0. */
@@ -125,7 +147,7 @@ bitmap_one(u32_t *x, int max)
 
 	for (i = 0 ; i < max ; i++) {
 		if (!x[i]) continue;
-		order = log32(ls_one(x[i]));
+		order = _log32(ls_one(x[i]));
 		return (i * WORD_SIZE) + order;
 	}
 	return -1;
@@ -141,7 +163,7 @@ bitmap_one_offset(u32_t *x, int off, int max)
 	/* do we have an offset into a word? */
 	if (subword) {
 		u32_t v = x[words] >> subword;
-		if (v) return log32(ls_one(v)) + off;
+		if (v) return _log32(ls_one(v)) + off;
 		words++;
 	}
 	ret = bitmap_one(x+words, max-words);

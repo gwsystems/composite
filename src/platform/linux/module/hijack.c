@@ -768,14 +768,17 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	{
 		isolation_level_t prev_lvl;
 		struct cap_info cap_info;
+		struct spd *spd;
 
 		if (copy_from_user(&cap_info, (void*)arg, 
 				   sizeof(struct cap_info))) {
 			//printk("cos: Error copying cap_info from user.\n");
 			return -EFAULT;
 		}
+
+		spd = spd_get_by_index(cap_info.owner_spd_handle);
 		
-		if (cap_is_free(cap_info.cap_handle)) {
+		if (cap_is_free(spd, cap_info.cap_handle)) {
 			return -EINVAL;
 		}
 
@@ -783,7 +786,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -EINVAL;
 		}
 		
-		prev_lvl = cap_change_isolation(cap_info.cap_handle, cap_info.il, cap_info.flags);
+		prev_lvl = cap_change_isolation(spd, cap_info.cap_handle, cap_info.il, cap_info.flags);
 
 		return prev_lvl;
 	}
@@ -1141,7 +1144,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 
 	cos_meas_event(COS_PG_FAULT);
 	
-	if (get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd) != rs) printk("Nested page fault!\n");
+//	if (get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd) != rs) printk("Nested page fault!\n");
 	if (fault_update_mpd_pgtbl(thd, rs, fault_addr)) ret = 0;
 	else ret = cos_handle_page_fault(thd, fault_addr, error_code, rs);
 

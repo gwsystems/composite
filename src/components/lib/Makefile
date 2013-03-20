@@ -43,7 +43,7 @@ distclean:
 # keep the following commands in one line. make executes each line
 # with a new shell.
 	cd ck; ./configure; cd ..
-	make -C ck clean
+	make -C ck distclean
 
 init: clean distclean all
 	make -C dietlibc-0.29

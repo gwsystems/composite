@@ -113,63 +113,114 @@ cbuf_tests(void)
 	return;
 }
 
-#define CBUFP_NUM 512
+#define CBUFP_NUM 32
 cbufp_t p[CBUFP_NUM];
 char *buf[CBUFP_NUM];
+cbufp_t p3[CBUFP_NUM];
+char *buf3[CBUFP_NUM];
 
 static void
 cbufp_tests(void)
 {
 	unsigned long long start, end;
+	struct cbuf_alloc_desc *d;
 	int i;
 
-	struct cbuf_alloc_desc *d;
-	d = &cbufp_alloc_freelists;
+	d = &cbufp_alloc_freelists[0];
 	assert(EMPTY_LIST(d, next, prev));
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
-		
 		buf[i] = cbufp_alloc(4096, &p[i]);
+		cbufp_send(p[i]);
 		call_cbufp2buf(p[i], 4096);
 		assert(buf[i]);
+
+		buf3[i] = cbufp_alloc(4096*3, &p3[i]);
+		cbufp_send(p3[i]);
+		call_cbufp2buf(p3[i], 4096*3);
+		assert(buf3[i]);
 	}
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
-		cbufp_free(buf[i]);
+		cbufp_deref(p[i]);
+		cbufp_deref(p3[i]);
 	}
 
 	rdtscll(start);
-	for (i = 0 ; i < CBUFP_NUM ; i++) {
+	buf[0] = cbufp_alloc(4096, &p[0]);
+	assert(buf[0]);
+	
+	buf3[0] = cbufp_alloc(4096*3, &p3[0]);
+	assert(buf3[0]);
+	rdtscll(end);
+	printc("CBUFP:  garbage collection of %d cbufps: %llu cycles\n", CBUFP_NUM*2, (end-start)/2);
+
+	rdtscll(start);
+	for (i = 1 ; i < CBUFP_NUM ; i++) {
 		buf[i] = cbufp_alloc(4096, &p[i]);
+		assert(buf[i]);
+
+		buf3[i] = cbufp_alloc(4096*3, &p3[i]);
+		assert(buf3[i]);
 	}
 	rdtscll(end);
-	printc("CBUFP:  %d alloc %llu cycles avg\n", CBUFP_NUM, (end-start)/CBUFP_NUM);
+	printc("CBUFP:  %d alloc %llu cycles avg\n", (CBUFP_NUM-1)*2, (end-start)/((CBUFP_NUM-1)*2));
 
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
+		cbufp_send(p[i]);
 		call_cbufp2buf(p[i], 4096);
+
+		cbufp_send(p3[i]);
+		call_cbufp2buf(p3[i], 4096*3);
 	}
 	rdtscll(start);
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
+		cbufp_send(p[i]);
 		call_cbufp2buf(p[i], 4096);
+
+		cbufp_send(p3[i]);
+		call_cbufp2buf(p3[i], 4096*3);
 	}
 	rdtscll(end);
-	printc("CBUFP:  %d cbuf2buf %llu cycles avg\n", CBUFP_NUM, (end-start)/CBUFP_NUM);
+	printc("CBUFP:  %d cbuf2buf %llu cycles avg\n", CBUFP_NUM*2, (end-start)/(CBUFP_NUM*2));
 
 	rdtscll(start);
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
-		cbufp_free(buf[i]);
+		cbufp_deref(p[i]);
+		cbufp_deref(p3[i]);
 	}
 	rdtscll(end);
-	printc("CBUFP:  %d free %llu cycles avg\n", CBUFP_NUM, (end-start)/CBUFP_NUM);
+	printc("CBUFP:  %d free %llu cycles avg\n", CBUFP_NUM*2, (end-start)/(CBUFP_NUM*2));
 
 	rdtscll(start);
-	for (i = 0 ; i < CBUFP_NUM ; i++) {
+	for (i = 0 ; i < 1 ; i++) {
 		buf[i] = cbufp_alloc(4096, &p[i]);
+		cbufp_send_deref(p[i]);
 		call_cbufp2buf(p[i], 4096);
 		assert(buf[i]);
-		cbufp_free(buf[i]);
+
+		buf3[i] = cbufp_alloc(4096*3, &p3[i]);
+		cbufp_send_deref(p3[i]);
+		call_cbufp2buf(p3[i], 4096*3);
+		assert(buf3[i]);
 	}
 	rdtscll(end);
 
-	printc("CBUFP:  %d alloc-cbuf2buf-free %llu cycles avg\n", CBUFP_NUM, (end-start)/CBUFP_NUM);
+	printc("CBUFP:  %d UNCACHED alloc-cbuf2buf-send/free %llu cycles avg\n", 2, (end-start)/(2));
+
+	rdtscll(start);
+	for (i = 1 ; i < CBUFP_NUM ; i++) {
+		buf[i] = cbufp_alloc(4096, &p[i]);
+		cbufp_send_deref(p[i]);
+		call_cbufp2buf(p[i], 4096);
+		assert(buf[i]);
+
+		buf3[i] = cbufp_alloc(4096*3, &p3[i]);
+		cbufp_send_deref(p3[i]);
+		call_cbufp2buf(p3[i], 4096*3);
+		assert(buf3[i]);
+	}
+	rdtscll(end);
+
+	printc("CBUFP:  %d alloc-cbuf2buf-send/free %llu cycles avg\n", (CBUFP_NUM-1)*2, (end-start)/((CBUFP_NUM-1)*2));
 }
 
 void 
