@@ -1560,8 +1560,8 @@ cos_syscall_brand_cntl(int spd_id, int op, u32_t bid_tid, spdid_t dest)
 	return retid;
 }
 
-struct thread *cos_timer_brand_thd[NUM_CPU]; CACHE_ALIGNED
-struct thread *cos_upcall_notif_thd[NUM_CPU]; CACHE_ALIGNED
+struct thread *cos_timer_brand_thd[NUM_CPU] CACHE_ALIGNED;
+struct thread *cos_upcall_notif_thd[NUM_CPU] CACHE_ALIGNED;
 
 #define NUM_NET_BRANDS 2
 unsigned int active_net_brands = 0;
