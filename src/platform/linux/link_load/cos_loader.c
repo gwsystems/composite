@@ -664,9 +664,23 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 
 	/* Lets calculate and store starting addresses/alignments */
 	offset = 0;
+	sect_sz = 0;
+	assert(round_to_page(lower_addr) == lower_addr);
 	for (i = 0 ; csg(i)->secid < MAXSEC_S ; i++) {
 		csg(i)->start_addr = lower_addr + offset;
 		if (csg(i)->srcobj.s) {
+			vaddr_t align_diff;
+			
+			if (csg(i)->srcobj.s->alignment_power) {
+				align_diff          = round_up_to_pow2(csg(i)->start_addr, 
+								       1<<(csg(i)->srcobj.s->alignment_power)) - 
+					                               csg(i)->start_addr;
+				offset             += align_diff;
+				csg(i)->start_addr += align_diff;
+			}
+			printl(PRINT_DEBUG, "\t section %d, offset %d, align %x, start addr %x, align_diff %d\n", 
+			       i, offset, csg(i)->srcobj.s->alignment_power, (unsigned int)csg(i)->start_addr, (int)align_diff);
+
 			sect_sz = calculate_mem_size(i, i+1);
 			/* make sure we're following the object's
 			 * alignment constraints */

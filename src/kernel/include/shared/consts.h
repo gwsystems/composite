@@ -68,9 +68,10 @@ struct pt_regs {
 #define PGD_MASK     (~(PGD_RANGE-1))
 #define PGD_PER_PTBL 1024
 
-#define round_to_pow2(x, pow2)    (((unsigned long)(x))&(~(pow2-1)))
-#define round_up_to_pow2(x, pow2) (round_to_pow2(((unsigned long)x)+pow2-1, pow2))
-
+/* For this family of macros, do NOT pass zero as the pow2 */
+#define round_to_pow2(x, pow2)    (((unsigned long)(x))&(~((pow2)-1)))
+#define round_up_to_pow2(x, pow2) (round_to_pow2(((unsigned long)x)+(pow2)-1, (pow2)))
+ 
 #define round_to_page(x)        round_to_pow2(x, PAGE_SIZE)
 #define round_up_to_page(x)     round_up_to_pow2(x, PAGE_SIZE)
 #define round_to_pgd_page(x)    round_to_pow2(x, PGD_SIZE)

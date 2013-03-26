@@ -353,15 +353,6 @@ static inline struct spd_poly *thd_get_thd_spdpoly(struct thread *thd)
 	return frame->current_composite_spd;
 }
 
-/* static inline struct spd_poly *thd_get_current_spdpoly(void) */
-/* { */
-/* 	struct thread *thd = thd_get_current(); */
-/* 	if (NULL == thd) {  */
-/* 		return NULL; */
-/* 	} */
-/* 	return thd_get_thd_spdpoly(thd); */
-/* } */
-
 extern struct thread threads[MAX_NUM_THREADS];
 static inline struct thread *thd_get_by_id(int id)
 {
