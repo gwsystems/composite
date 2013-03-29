@@ -28,6 +28,8 @@ tcap_transfer (struct tcap *tcapdst, struct tcap *tcapsrc, struct budget *budget
 	assert (tcapsrc);
 	assert (budget);
 	// check for tcapsrc->budget >= budget, otherwise indicate error or only transfer what is there (which is right?)
+	// if (budget > tcapsrc->budget) { return ERROR; }
+	// if (budget == 0) { budget = tcapsrc->budget); }
 	tcapsrc->budget.cycles -= budget->cycles;
 	tcapdst->budget.cycles += budget->cycles;
 	return tcapdst;

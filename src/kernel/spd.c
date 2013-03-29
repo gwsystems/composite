@@ -246,7 +246,7 @@ void spd_free(struct spd *spd)
 	}
 
 	while (spd->ntcaps > 0) {
-		tcap_revoke(spd, spd->tcaps[spd->ntcaps-1]);
+		tcap_revoke(spd, &(spd->tcaps[spd->ntcaps-1]));
 		spd->ntcaps--;
 	}
 

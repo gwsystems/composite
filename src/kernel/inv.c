@@ -16,6 +16,7 @@
 #include "include/mmap.h"
 #include "include/per_cpu.h"
 #include "include/chal.h"
+#include "include/tcap.h"
 #include <linux/kernel.h>
 
 /* 
@@ -3489,35 +3490,42 @@ cos_syscall_send_ipi(int spd_id, long cpuid, int thdid, long arg)
 }
 
 COS_SYSCALL struct tcap *
-cos_syscall_tcap_cntl(int op, struct tcap *tcap1, struct tcap *tcap 2, void *arg)
+cos_syscall_tcap_cntl(int op, struct tcap *tcap1, struct tcap *tcap2, void *arg)
 {
+	struct spd *comp;
+	struct budget *b;
+	struct tcap *newtcap;
+	u16_t *p;
+
 	switch (op) {
 	case COS_TCAP_DELEGATE:
-		struct spd *comp = arg;
+		comp = arg;
 		return tcap_delegate(comp, tcap1);
 	case COS_TCAP_ACTIVATE:
 		return tcap_activate(tcap1);
 	case COS_TCAP_SPLIT:
-		struct budget *b = arg;
-		struct tcap *newtcap = malloc (sizeof(struct tcap));
+		// FIXME: no malloc in the kernel
+		b = arg;
+		newtcap = tcap2;
+		// newtcap = (struct tcap*)malloc (sizeof(struct tcap));
 		return tcap_transfer(newtcap, tcap1, b);
 	case COS_TCAP_MERGE:
-		return tcap_transfer(tcap1, tcap2, tcap2.budget);
+		return tcap_transfer(tcap1, tcap2, tcap2->budget);
 	case COS_TCAP_TRANSFER:
-		struct budget *b = arg;
+		b = arg;
 		return tcap_transfer(tcap1, tcap2, b);
 	case COS_TCAP_REVOKE:
-		struct spd *comp = arg;
+		comp = arg;
 		return tcap_revoke(comp, tcap1);
 	case COS_TCAP_SETPRIORITY:
-		u16_t p = (u16_t)arg;
+		p = (u16_t*)arg;
 		if (tcap1 == NULL) printk("tcap_cntl: tried to set priority of NULL tcap.\n");
-		else tcap1->delegation.priority = p;
+		else tcap1->delegations[0].priority = *p;
 		return tcap1;
 	case COS_TCAP_GETBUDGET:
-		return tcap1.budget;
+		//return tcap1->budget;
 	default:
-		printk("tcap_cntl: undefined operation %d.\n");
+		printk("tcap_cntl: undefined operation %d.\n", op);
 		return NULL;
 
 	}

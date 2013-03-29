@@ -12,17 +12,21 @@
 
 #include "shared/cos_types.h"
 
+#ifndef MAX_DELEGATIONS
+#define MAX_DELEGATIONS 32
+#endif
+
+struct budget {
+        s32_t cycles;
+};
+
 struct tcap {
-	struct budget budget;
+	struct budget *budget;
 	struct delegation {
 		u16_t priority;
 		struct spd *sched;
 	} delegations[MAX_DELEGATIONS];
 	u16_t ndels;
-};
-
-struct budget {
-	s32_t cycles;
 };
 
 struct tcap *tcap_delegate (struct spd *comp, struct tcap *tcap);
