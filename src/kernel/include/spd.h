@@ -15,6 +15,7 @@
 #include "shared/cos_types.h"
 #include "shared/consts.h"
 #include "chal.h"
+#include "tcap.h"
 
 /**
  * Service Protection Domains
@@ -197,6 +198,9 @@ struct spd {
 
 	unsigned int ncaps;
 	struct invocation_cap caps[MAX_STATIC_CAP];
+
+	unsigned int ntcaps;
+	struct tcap tcaps[MAX_STATIC_CAP];
 } CACHE_ALIGNED; //cache line size
 
 paddr_t spd_alloc_pgtbl(void);

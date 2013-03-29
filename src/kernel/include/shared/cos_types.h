@@ -561,4 +561,16 @@ static inline void cos_ref_release(atomic_t *rc)
 	cos_meas_event(COS_MPD_REFCNT_DEC);
 }
 
+/* operations for tcap_cntl */
+enum {
+	COS_TCAP_DELEGATE,
+	COS_TCAP_ACTIVATE,
+	COS_TCAP_SPLIT,
+	COS_TCAP_MERGE,
+	COS_TCAP_TRANSFER,
+	COS_TCAP_REVOKE,
+	COS_TCAP_SETPRIORITY,
+	COS_TCAP_GETBUDGET
+};
+
 #endif /* TYPES_H */
