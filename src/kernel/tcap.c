@@ -1,7 +1,7 @@
 #include "tcap.h"
 
 struct tcap *
-tcap_delegate (struct spd *comp, struct tcap *tcap)
+tcap_delegate(struct spd *comp, struct tcap *tcap)
 {
 	assert (tcap);
 	if (tcap->ndels >= MAX_DELEGATIONS) {
@@ -15,14 +15,14 @@ tcap_delegate (struct spd *comp, struct tcap *tcap)
 }
 
 struct tcap *
-tcap_activate (struct tcap *tcap)
+tcap_activate(struct tcap *tcap)
 {
 	// set the active tcap (in what? the current thread? current spd?)
 	return tcap;
 }
 
 struct tcap *
-tcap_transfer (struct tcap *tcapdst, struct tcap *tcapsrc, struct budget *budget)
+tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, struct budget *budget)
 {
 	assert (tcapdst);
 	assert (tcapsrc);
@@ -36,7 +36,7 @@ tcap_transfer (struct tcap *tcapdst, struct tcap *tcapsrc, struct budget *budget
 }
 
 struct tcap *
-tcap_revoke (struct spd *comp, struct tcap *tcap)
+tcap_revoke(struct spd *comp, struct tcap *tcap)
 {
 	assert (tcap);
 	assert (comp);
