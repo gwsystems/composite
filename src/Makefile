@@ -45,6 +45,9 @@ config:
 	@echo "LDIR=\$$(CODE_DIR)/linux-2.6.36/" >> Makefile.cosconfig
 	@echo "TEST_DIR=/root/experiments/" >> Makefile.cosconfig
 
+idl:
+	$(MAKE) $(MAKEFLAGS) -C components idl
+
 ltests:
 	$(MAKE) $(MAKEFLAGS) -C platform ltests
 
