@@ -27,18 +27,31 @@ struct tcap {
 	 * this capability in which case budget = this.
 	 */
 	struct tcap  *budget;
+	unsigned int  budget_epoch;
 	struct budget budget_local;
-	u16_t         ndels, priority;
+
 	unsigned int  epoch, cpuid;
+	u16_t         ndels, priority;
 
 	/* 
 	 * Which chain of temporal capabilities resulted in this
 	 * capability's access, and what access is granted? The tcap
-	 * is sched->tcaps[tcap_off].
+	 * is sched->tcaps[tcap_off].  We might want to "cache" the
+	 * priority here when we have strictly fixed priorities.
+	 *
+	 * Note that we don't simply have a struct tcap * here as that
+	 * tcap might be outdated (deallocated/reallocated).  Instead,
+	 * we record the path to access the tcap (component, and
+	 * offset), and the epoch of the "valid" tcap.  
+	 *
+	 * Why the complexity?  Revocation for capability-based
+	 * systems is difficult.  This enables revocation by simply
+	 * incrementing the epoch of a tcap.  If it is outdated, then
+	 * we assume it is of the lowest-priority.
 	 */
 	struct delegation {
 		struct spd *sched;
- 		u16_t       priority, tcap_off;
+ 		u16_t       tcap_off, epoch;
 	} delegations[MAX_DELEGATIONS];
 };
 
@@ -57,7 +70,7 @@ struct tcap_active {
 	 */
 	struct tcap *cap_active;
 	struct spd  *cap_delegater;
-	u16_t        cap_del_off;
+	u16_t        cap_del_off, cap_del_epoch;
 };
 
 struct tcap *tcap_delegate(struct spd *comp, struct tcap *tcap);
