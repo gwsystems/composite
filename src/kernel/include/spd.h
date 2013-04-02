@@ -200,7 +200,8 @@ struct spd {
 	struct invocation_cap caps[MAX_STATIC_CAP];
 
 	unsigned int ntcaps;
-	struct tcap tcaps[MAX_STATIC_CAP];
+	struct tcap *tcap_freelist;
+	struct tcap tcaps[MAX_TCAP];
 } CACHE_ALIGNED; //cache line size
 
 paddr_t spd_alloc_pgtbl(void);

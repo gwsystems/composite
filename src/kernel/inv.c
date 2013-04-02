@@ -43,6 +43,8 @@ static inline struct shared_user_data *get_shared_data(void)
  */
 static unsigned long cycle_cnt;
 
+u32_t ticks = 0;
+
 void 
 ipc_init(void)
 {
