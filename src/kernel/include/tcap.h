@@ -5,6 +5,7 @@
  * Public License v2.
  * 
  * Initial Author: Jakob Kaivo, jkaivo@gwu.edu, 2013.
+ * Additional: Gabe Parmer, gparmer@gwu.edu, 2013.
  */
 
 #ifndef TCAP_H

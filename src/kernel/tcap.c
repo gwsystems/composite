@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2013 by The George Washington University.
+ * 
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ * 
+ * Initial Author: Jakob Kaivo, jkaivo@gwu.edu, 2013.
+ * Additional: Gabe Parmer, gparmer@gwu.edu, 2013.
+ */
+
 #include "tcap.h"
 #include "thread.h"
 
