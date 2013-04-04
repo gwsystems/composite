@@ -3493,12 +3493,15 @@ cos_syscall_send_ipi(int spd_id, long cpuid, int thdid, long arg)
 	return send_ipi(cpuid, thdid, wait);
 }
 
-COS_SYSCALL struct tcap *
-cos_syscall_tcap_cntl(int op, struct tcap *tcap, void *arg1, void *arg2)
+COS_SYSCALL int
+cos_syscall_tcap_cntl(int spdid, int op, struct tcap *tcap, void *arg1, void *arg2)
 {
-	struct spd *comp;
+	return -1;
+#ifdef NIL
+	struct spd *c;
+	struct thread *t;
 	struct budget *b;
-	struct tcap *tcap2;
+	struct tcap *tcap2, ret;
 	int pooled = 0;
 	s32_t cycles = 0;
 	u32_t expiration = 0;
@@ -3506,12 +3509,13 @@ cos_syscall_tcap_cntl(int op, struct tcap *tcap, void *arg1, void *arg2)
 
 	assert(tcap);
 
+	t = core_get_curr_thd();
+	if (!t) return -1;
+	spd = thd_validate_get_current_spd(thd, spd_id);
 	switch (op & 0xff) {
 	case COS_TCAP_DELEGATE:
 		comp = arg1;
 		return tcap_delegate(comp, tcap);
-	case COS_TCAP_ACTIVATE:
-		return tcap_activate(tcap);
 	case COS_TCAP_SPLIT:
 		if ((int)arg1 == -1 && (int)arg2 == 0) {
 			pooled = 1;
@@ -3520,29 +3524,23 @@ cos_syscall_tcap_cntl(int op, struct tcap *tcap, void *arg1, void *arg2)
 			expiration = (s32_t)arg2;
 			prio = ((op & 0xff00) >> 16);
 		}
-		return tcap_split(tcap->sched, tcap, pooled, cycles, expiration, prio);
-	case COS_TCAP_MERGE:
-		tcap2 = arg1;
-		//return tcap_transfer(tcap, tcap2, tcap2->budget);
-		break;
+		ret = tcap_split(tcap->sched, tcap, pooled, cycles, expiration, prio);
+		if (!ret) return -1;
+		return tcap_id(ret);
 	case COS_TCAP_TRANSFER:
 		tcap2 = arg1;
 		b = arg2;
-		//return tcap_transfer(tcap, tcap2, b);
+		return tcap_transfer(tcap, tcap2, 0, 0, 0, 0);
 		break;
-	case COS_TCAP_REVOKE:
-		comp = arg1;
-		return tcap_revoke(comp, tcap);
-	case COS_TCAP_SETPRIORITY:
-		tcap->prio = ((op & 0xff00) >> 16);
-		return tcap;
-	case COS_TCAP_GETBUDGET:
-		//return tcap->budget;
+	case COS_TCAP_DELETE:
+		return tcap_delete(tcap->sched, tcap);
 	default:
 		printk("tcap_cntl: undefined operation %d.\n", op);
 		return NULL;
 
 	}
+	return NULL;
+#endif
 }
 
 /* 

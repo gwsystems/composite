@@ -26,7 +26,6 @@ struct tcap_ref {
 };
 
 
-
 /* A tcap's maximum rate */
 struct budget {
         s32_t cycles;		/* overrun due to tick granularity can result in cycles < 0 */
@@ -55,7 +54,7 @@ struct tcap {
 	 * tcap might be outdated (deallocated/reallocated).  Instead,
 	 * we record the path to access the tcap (component, and
 	 * offset), and the epoch of the "valid" tcap.  
-
+	 *
 	 * Why the complexity?  Revocation for capability-based
 	 * systems is difficult.  This enables revocation by simply
 	 * incrementing the epoch of a tcap.  If it is outdated, then
@@ -94,8 +93,6 @@ tcap_ref_create(struct tcap_ref *r, struct tcap *t)
 	r->epoch = t->epoch;
 }
 
-
-
 /* return 0 if budget left, 1 otherwise */
 static inline int
 tcap_consume(struct tcap *t, u32_t cycles)
@@ -125,10 +122,14 @@ tcap_remaining(struct tcap *t)
 	return b->cycles;
 }
 
-struct tcap *tcap_delegate(struct spd *comp, struct tcap *tcap);
-struct tcap *tcap_activate(struct tcap *tcap);
-struct tcap *tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, struct budget *budget);
-struct tcap *tcap_revoke  (struct spd *comp, struct tcap *tcap);
-struct tcap *tcap_split   (struct spd *c, struct tcap *t, int pooled, s32_t cycles, u32_t expiration, u16_t prio);
+int tcap_id(struct tcap *t);
+struct tcap *tcap_split(struct spd *c, struct tcap *t, int pooled, s32_t cycles, 
+			u32_t expiration, u16_t prio);
+int tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, 
+		  s32_t cycles, u32_t expiration, u16_t prio, int pooled);
+int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, struct spd *c, 
+		  int pooled, int cycles, int expiration, int prio);
+int tcap_delete(struct spd *s, struct tcap *tcap);
+int tcap_higher_prio(struct thread *activated, struct thread *curr);
 
 #endif	/* TCAP_H */
