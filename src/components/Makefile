@@ -37,3 +37,6 @@ init:
 	make $(MAKEFLAGS) -C lib init
 	make $(MAKEFLAGS) -C interface init
 	make $(MAKEFLAGS) -C implementation init
+
+idl:
+	$(MAKE) $(MAKEFLAGS) -C interface idl

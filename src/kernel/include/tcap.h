@@ -25,30 +25,6 @@ struct tcap_ref {
 	u32_t        epoch; 	
 };
 
-/* 
- * Delegaters might be deallocated and reused, so a pointer is not
- * sufficient to validate if the tcap is valid.  Epochs are maintained
- * for each "version" of a tcap, and when dereferenced, we check the
- * version.
- */
-static inline struct tcap *
-tcap_deref(struct tcap_ref *r)
-{
-	struct tcap *tc;
-
-	if (unlikely(!r->tcap)) return NULL;
-	tc = r->tcap;
-	if (unlikely(tc->epoch != r->epoch)) return NULL;
-	return tc;
-}
-
-static inline void
-tcap_ref_create(struct tcap_ref *r, struct tcap *t)
-{
-	r->tcap  = t;
-	r->epoch = t->epoch;
-}
-
 
 
 /* A tcap's maximum rate */
@@ -94,6 +70,32 @@ struct tcap {
 	struct tcap *freelist;
 };
 
+/* 
+ * Delegaters might be deallocated and reused, so a pointer is not
+ * sufficient to validate if the tcap is valid.  Epochs are maintained
+ * for each "version" of a tcap, and when dereferenced, we check the
+ * version.
+ */
+static inline struct tcap *
+tcap_deref(struct tcap_ref *r)
+{
+	struct tcap *tc;
+
+	if (unlikely(!r->tcap)) return NULL;
+	tc = r->tcap;
+	if (unlikely(tc->epoch != r->epoch)) return NULL;
+	return tc;
+}
+
+static inline void
+tcap_ref_create(struct tcap_ref *r, struct tcap *t)
+{
+	r->tcap  = t;
+	r->epoch = t->epoch;
+}
+
+
+
 /* return 0 if budget left, 1 otherwise */
 static inline int
 tcap_consume(struct tcap *t, u32_t cycles)
@@ -127,5 +129,6 @@ struct tcap *tcap_delegate(struct spd *comp, struct tcap *tcap);
 struct tcap *tcap_activate(struct tcap *tcap);
 struct tcap *tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, struct budget *budget);
 struct tcap *tcap_revoke  (struct spd *comp, struct tcap *tcap);
+struct tcap *tcap_split   (struct spd *c, struct tcap *t, int pooled, s32_t cycles, u32_t expiration, u16_t prio);
 
 #endif	/* TCAP_H */
