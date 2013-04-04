@@ -26,14 +26,18 @@
 .align 16 ;			  \
 name##_inv:                       \
         COS_ASM_GET_STACK         \
+	pushl $0;		  \
+	pushl $0;		  \
+	pushl %esp;		  \
 	pushl %ebp;		  \
 	xor %ebp, %ebp;		  \
         pushl %edi;	          \
         pushl %esi;	          \
         pushl %ebx;	          \
         call fn ; 		  \
-        addl $16, %esp;           \
-                                  \
+        addl $20, %esp;           \
+        popl %esi;		  \
+        popl %edi;		  \
         movl %eax, %ecx;          \
         movl $RET_CAP, %eax;	  \
         COS_ASM_RET_STACK         \
@@ -49,14 +53,18 @@ name##_inv:                       \
 .align 16 ;			        \
 name##_inv:                             \
         COS_ASM_GET_STACK               \
+	pushl $0;			\
+	pushl $0;			\
+	pushl %esp;			\
 	pushl %ebp;		        \
 	xor %ebp, %ebp;			\
         pushl %edi;	                \
         pushl %esi;	                \
         pushl %ecx;	                \
         call fn ; 		        \
-        addl $16, %esp;                 \
-                                        \
+        addl $20, %esp;                 \
+        popl %esi;			\
+        popl %edi;			\
         movl %eax, %ecx;                \
         movl $RET_CAP, %eax;	        \
         COS_ASM_RET_STACK		\

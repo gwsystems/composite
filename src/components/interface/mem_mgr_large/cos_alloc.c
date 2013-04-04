@@ -135,20 +135,16 @@ static inline REGPARM(1) void *do_mmap(size_t size) {
 }
 
 /* remove qualifiers to make debugging easier */
-/*static inline*/ REGPARM(2) int do_munmap(void *addr, size_t size) {
-#ifndef USE_VALLOC
-	  /* not supported and given that we can't allocate > PAGE_SIZE, this should never happen */
-	  DIE();
-#else
-	  unsigned long p;
-
-	  massert((unsigned long)addr == round_to_page((unsigned long)addr)); 
-	  for (p = (unsigned long)addr ; p < ((unsigned long)addr + size) ; p += PAGE_SIZE) {
-		  mman_release_page(cos_spd_id(), (void*)p, 0);
-	  }
-	  if (valloc_free(cos_spd_id(), cos_spd_id(), addr, round_up_to_page(size)/PAGE_SIZE)) DIE();
-#endif
-  return 0;
+/*static inline*/ REGPARM(2) int 
+do_munmap(void *addr, size_t size) {
+	unsigned long p;
+	
+	massert((unsigned long)addr == round_to_page((unsigned long)addr)); 
+	for (p = (unsigned long)addr ; p < ((unsigned long)addr + size) ; p += PAGE_SIZE) {
+		mman_release_page(cos_spd_id(), (void*)p, 0);
+	}
+	if (valloc_free(cos_spd_id(), cos_spd_id(), addr, round_up_to_page(size)/PAGE_SIZE)) DIE();
+	return 0;
 }
 #endif
 
@@ -385,6 +381,19 @@ void free_page(void *ptr)
 	page_list.next = fp;
 
 	return;
+}
+
+/* Do not use these if you are not using mem_mgr_large */
+void *
+page_alloc(int num)
+{
+	return do_mmap(PAGE_SIZE * num);
+}
+
+void 
+page_free(void *ptr, int num)
+{
+	do_munmap(ptr, PAGE_SIZE * num);
 }
 
 /* end gabep1 additions */

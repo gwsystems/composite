@@ -129,6 +129,9 @@ Washington, DC
   \composite\ and elsewhere, and from reading many more lines of code
   in a variety of code bases including Linux.
 
+  Please see the Appendix (Section~\ref{s:appendix}) for a terse
+  summary of the coding conventions in \composite.
+
   Currently, this document has organizational problems, so take your
   editor hat off for the time being.
 \end{abstract}
@@ -692,6 +695,7 @@ manipulation mechanism.
 
 
 \subsection{Exception Cases Convention 3 Justifications}
+\label{ss:exceptions}
 
 A reader wishes to distinguish between erroneous cases that are often
 not important to understand the ``main gist'' of the code (\ie\ the
@@ -1461,6 +1465,413 @@ and what modifiers to use?  Lets go through the conditions:
 
 %% \ref{s:naming}.
 
+\section{Appendix}
+\label{s:appendix}
+
+A summary of the coding rules in \composite\ follows.  I don't provide
+justifications for these rules as the previous sections cover that.
+Many of these are adapted from the BSD ({\tt man 9 style}) and Linux
+Style guides ({\tt Documentation/CodingSyle} in Linux).  Note that
+many of the rules line up with the BSD coding style well.
+
+\subsection{Comments}
+
+\begin{itemize}
+\item Do not use comments of the style
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+// comment
+      \end{lstlisting}
+    \end{minipage}
+\item Single-line comments:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+/* single-line comment */
+      \end{lstlisting}
+    \end{minipage}
+\item Multi-line comments:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+/*
+ * Multi-line comments use
+ * a structure like this
+ */
+      \end{lstlisting}
+    \end{minipage}
+\item Comments at the head of functions to explain their high-level
+  functionality, and comments that should be emphasized:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+/**
+ * Emphasized comments use a structure like this.
+ * More ``*'' entail more emphasis.
+ */
+      \end{lstlisting}
+    \end{minipage}
+\item Comments do not have to be alone on a line, and can follow code,
+  so long as this does not create too long a line.
+\item Note that in {\tt emacs}, {\tt M-;} will create an empty comment
+  for you of the single-line style.
+\end{itemize}
+
+\subsection{Indentation and Spacing}
+
+\head{Indentation.} Use an indentation level of 8 spaces.  Your code
+will get ugly if it is indented more than 3 levels.  This is
+intentional and means that you should not do that.  If your code
+indents more than 3 levels, move some of it to a (well-named)
+sub-function, or handle your error handling correctly.
+
+\head{Function spacing.} Function definitions should take the form:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+static int
+sched_block(spdid_t spdid)
+{
+        /* contents */
+}
+      \end{lstlisting}
+    \end{minipage}
+
+Return values and qualifiers/attributes are on a separate line, and
+function names are always at the same level of indentation so they are
+easy for the eye to find.
+
+Function prototypes can take a less stringent form if they can fit
+onto a single line:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+static int sched_block(spdid_t spdid);
+      \end{lstlisting}
+    \end{minipage}
+
+Please specify the name of each of the arguments, not just their
+types.
+
+\head{Conditional/loop spacing.} Spaces/newlines should be used as
+follows in conditionals that have contents of a single line, or
+multiple lines:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+if (expr0 && expr1) {
+        /* contents */
+}
+      \end{lstlisting}
+    \end{minipage}
+
+Comparably, {\tt for} loops should be formatted as:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+for (exprinit ; exprsentinel ; exprincr) {
+        /* contents */
+}
+      \end{lstlisting}
+    \end{minipage}
+
+Use a space after these keywords: {\tt if, switch, case, for, do,
+  while}, but not with {\tt sizeof, typeof, alignof,
+  \_\_attribute\_\_}.
+
+The only exception to this spacing, for both conditionals and loops is
+when the contents can fit onto the same line as the conditional or
+loop.  In that case, the following is acceptable.  This is the {\em
+  only} case where the enclosing {\tt \{} and {\tt \}} are not
+required.
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+if (expr0 && expr1) stmt;
+      \end{lstlisting}
+    \end{minipage}
+
+This is commonly used in the following scenario:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+if (expr0) stmt0;
+else       stmt1;
+      \end{lstlisting}
+    \end{minipage}
+
+If an {\tt if} branch or an {\tt else} branch is multiple lines, then
+they both must have brackets.  It is OK to use the following style
+with {\tt \} else \{} on the same line:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+if (expr0) {
+        /* contents */
+} else {
+        /* contents */
+}
+      \end{lstlisting}
+    \end{minipage}
+
+
+\head{Breaking up lines.}  If the expressions constituting the
+proposition in a conditional do not fit well on a single line, then
+break them up appropriately onto separate lines, and make sure that
+the second line is indented to match its enclosing context.  Two
+examples:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+if (some_complicated_function(a) && some_other_thing(b) &&
+    a_really_long_function_name(c)) {
+      /* contents */
+}
+      \end{lstlisting}
+    \end{minipage}
+
+or
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+if (a_really_long_function_name(some_function(a), some_other_fn(b),
+                                third_function(c))) {
+        /* contents */
+}
+      \end{lstlisting}
+    \end{minipage}
+
+\head{Aligned expressions.} As shown above, the two statements are
+vertically lined up.  Try and do this uniformly throughout your code.
+It is especially relevant for assignments.
+
+\head{Example.}  Many of the above rules can be seen below.
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+struct cbufp_bin *bin;
+
+cbi = malloc(sizeof(struct cbufp_info));
+if (!cbi) goto done;
+
+/* Allocate and map in the cbuf. */
+cbid             = cmap_add(&cbufs, cbi);
+cbi->cbid        = cbid;
+size             = round_up_to_page(size);
+cbi->size        = size;
+cbi->owner.m     = NULL;
+cbi->owner.spdid = spdid;
+INIT_LIST(&cbi->owner, next, prev);
+INIT_LIST(cbi, next, prev);
+
+bin = cbufp_comp_info_bin_get(cci, size);
+if (!bin) bin = cbufp_comp_info_bin_add(cci, size);
+if (!bin) goto free;
+
+if (bin->c) ADD_LIST(bin->c, cbi, next, prev);
+else        bin->c = cbi;
+if (cbufp_alloc_map(spdid, &(cbi->owner.addr), 
+		    (void**)&(cbi->mem), size)) goto free;
+      \end{lstlisting}
+    \end{minipage}
+
+\subsection{Error Conditions}
+
+You {\bf must} have pervasive error checking.  If you call a function,
+you should understand how it passes errors to the caller.  You should
+have a conditional after {\em every} function call that can have an
+error to check for that error.  If you do not do this, not only will
+your code never be merged, but you'll waste days of your own debugging
+time in the future.
+
+\head{Error values.} If a function cannot have any error (i.e. it does
+very little interesting including any memory allocation), then it can
+return {\tt void}.  If a function returns an {\tt int}, then any
+negative value denotes an error.  Thus conditionals checking {\tt if
+  (fn(a) < 0) ...} are common.  To provide a more descriptive error
+code, you can use a value from {\tt errno.h}, for example returning
+{\tt -ENOMEM} if memory allocation failed, or {\tt -EINVAL} if a
+passed in argument was invalid.  It is not uncommon that a calling
+function won't change its logic depending on the {\em type} of
+failure, but will need to pass that failure condition down to its
+caller.  The pattern for dealing with this is:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+if ((ret = fn(a))) return ret;
+      \end{lstlisting}
+    \end{minipage}
+
+If a function returns a pointer, then {\tt NULL} is the default return
+value.  If failure can occur for multiple reasons, then the function
+should return an {\tt int}, and the pointer should be returned in a
+function pointer argument.
+
+\head{Error handling.} If an error is encountered, you often have to
+unwind state that was created previously in the function (taking
+locks, allocating memory, etc...).  This should be dealt with using
+local gotos (equivalent to function-local exceptions in C++/Java).
+See the above code for an example.  The labels being jumped to are
+name corresponding to the action they will perform.  Above, the label
+{\tt free} will free the {\tt cbi} that has been allocated.  The
+generic label {\tt done} is used when there is no clean-up to do.
+
+Often the function must return an error value.  The pattern for this
+is that a {\tt ret} variable is created in the function of the
+appropriate return type.  The {\tt return} at the end of the function
+simply returns {\tt ret}.  For the successful path, {\tt ret} is set
+to the non-error value (e.g. {\tt 0}).  In each condition, it is set
+to the appropriate value.  For example:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+if (fn(a) < 0) {
+        ret = -EINVAL;
+        goto done;
+}
+      \end{lstlisting}
+    \end{minipage}
+
+See examples of this in the last example in
+Section~\ref{ss:exceptions}.
+
+Given this is a common pattern, you can instead use the {\tt
+  ERR\_THROW(ret\_val, label)} macro defined in {\tt cos\_component.h}.
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+if (fn(a) < 0) ERR_THROW(-EINVAL, done);
+      \end{lstlisting}
+    \end{minipage}
+
+\subsection{Macros}
+
+For multi-statement macros, wrap them in an enclosing {\tt do \{ ... \}
+  while(0)} and always align the trialing {\tt $\backslash$} as in:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+#define FOO(a, b) do {              \
+        something((a));             \
+        something_else((b));        \
+} while (0) 
+      \end{lstlisting}
+    \end{minipage}
+
+Follow all common macro guidelines and don't write complicated macros
+unless you know what you're doing.  Even then, try and avoid it.
+
+Macros are always capital.
+
+\subsection{Naming, Variables, Functions, and Types}
+
+Functions should be named in a {\tt subject\_verb} style, especially
+in inter-component interfaces.  {\tt subject} in this case is the
+namespace of the family of functions.  You have more leeway in naming
+{\tt static} functions as they are only visible in the current file.
+All functions that are intended to be used only in this file
+(e.g. helper functions) must be static.  
+
+\head{Variables.} Within a function, do not mix your declarations with
+code.  Declare all the function's variables at the head of the
+function.  If a variable is only used in an enclosing scope, then you
+can define it there.  It is important for a reader to be able to find
+type declarations easily, and this rule aids that.
+
+When a pointer is declared, the {\tt *} should bind to the variable
+name, not the type as in:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+int *foo, *bar;
+      \end{lstlisting}
+    \end{minipage}
+
+A commonly used pattern is to abbreviate the type for the name of a
+local variable.  See {\tt cbi} above in the verbose example which is a
+variable of the type {\tt struct cbuf\_info}.  Though {\tt cbi} isn't
+descriptive, it is easy to look at the header of the function, and see
+the type, and maintain an association between the two via the name.
+
+\head{Type naming and usage.} All {\tt struct}s and types should be
+defined at the top of the file or in a header file (if they are shared
+amongst files, i.e. visible across an API).  {\tt typedef}s should
+{\em only} be used when the type they are creating can be passed in a
+register, and they should be named with a trailing ``{\tt \_t}'' to
+denote ``type''.  It is important to be able to look at the type of a
+variable and understand its calling conventions.  Importantly, never
+pass a {\tt struct} or {\tt union} by value.  Always pass it by
+reference.  If the variable is a {\tt typedef}, or a primitive type,
+then you can pass by value.
+
+{\tt enum} types should have an associated {\tt typedef}, and all
+values are upper-case.  For example:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+typedef enum {ONE, TWO} enumtype_t;
+      \end{lstlisting}
+    \end{minipage}
+
+Naming in many cases is dependent on taste, so I'm not going to
+include huge numbers of rules here.
+
+\subsection{Parenthesis}
+
+If there is any ambiguity amongst the associativity of operators, just
+use parenthesis.  If there is any question if you should use them,
+then use them.
+
+\subsection{Include Files}
+
+All of your {\tt \#include}s should be at the top of the file.
+
+{\tt .h} files should include all structures that are exposed by the
+API of the compile unit, and the prototype of any functions in the
+compile unit's API.  Files that must be {\tt inline}d can be defined
+within the include file (as {\tt static inline}).  Very few functions
+require this; keep this in mind.
 
 \section{Document History}
 \label{s:hist}
@@ -1483,16 +1894,16 @@ and what modifiers to use?  Lets go through the conditions:
   (Section~\ref{s:exceptions}).
 \item \lsthead{version 0.13}, 7/12/12 -- added section on function
   visibility, location, and modifiers, Section~\ref{s:visibility}.
+\item \lsthead{version 0.2}, 3/6/13 -- added appendix section that
+  summarizes many of the coding style rules
+  (Section~\ref{s:appendix}).
 \end{itemize}
 
 \head{TODO}
 \begin{itemize}[itemsep=0pt,topsep=1pt,parsep=1pt,leftmargin=2.5em]
-\item Edit and proof-read.
-\item OO in C,
-\item header files vs. normal source files and static functions in
-  header files with -Wextra,
-\item Makefiles and the build procedure, 
-\item and again: edit and proof-read.
+\item Edit and proof-read
+\item OO in C
+\item Makefiles and the build procedure
 \end{itemize}
 
 \end{document}

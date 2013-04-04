@@ -7,7 +7,8 @@ struct __sg_tsplit_data {
 	int len[2];
 	char data[0];
 };
-td_t __sg_tsplit(spdid_t spdid, cbuf_t cbid, int len)
+td_t 
+__sg_tsplit(spdid_t spdid, cbuf_t cbid, int len)
 {
 	struct __sg_tsplit_data *d;
 
@@ -29,7 +30,8 @@ struct __sg_tmerge_data {
 	int len[2];
 	char data[0];
 };
-int __sg_tmerge(spdid_t spdid, cbuf_t cbid, int len)
+int 
+__sg_tmerge(spdid_t spdid, cbuf_t cbid, int len)
 {
 	struct __sg_tmerge_data *d;
 
@@ -41,4 +43,10 @@ int __sg_tmerge(spdid_t spdid, cbuf_t cbid, int len)
 	if (unlikely(((int)(d->len[1] + (sizeof(struct __sg_tmerge_data)))) != len)) return -1;
 
 	return tmerge(spdid, d->td, d->td_into, &d->data[0], d->len[1] - d->len[0]);
+}
+
+int 
+__sg_treadp(spdid_t spdid, int sz, int __pad0, int __pad1, int *off_len)
+{
+	return treadp(spdid, sz, &off_len[0], &off_len[1]);
 }

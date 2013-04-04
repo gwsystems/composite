@@ -71,7 +71,7 @@
  * Invariants:  2^ignore <= CVECTC_MAX_SZ.   nsubdir <= 2^__cvectc_size(d)
  */
 struct cvcdir {
-	u32_t leaf:1, ignore:6, size:6, nsubdir:18; 
+	u32_t leaf:1, ignore:7, size:6, nsubdir:18; 
 	struct cvcentry *next;
 };
 
@@ -325,6 +325,8 @@ cvcprint(struct cvcentry *e)
 	}
 }
 
+int cvectc_debug = 0;
+
 static inline int
 __cvectc_level_compress(struct cvcdir *p, u32_t id)
 {
@@ -332,6 +334,7 @@ __cvectc_level_compress(struct cvcdir *p, u32_t id)
 	struct cvcentry *e, *n, *t;
 	struct cvcleaf *l;
 
+	if (cvectc_debug) cvcprint((struct cvcentry *)p);
 	l = __cvectc_lookup_leaf((struct cvcentry *)p, id);
 	assert(__cvc_ispresent(l));
 	assert(l->id == id);
@@ -452,6 +455,7 @@ __cvectc_level_compress(struct cvcdir *p, u32_t id)
 		}
 	}
 
+	if (cvectc_debug) cvcprint((struct cvcentry *)p);
 	/* t = __cvectc_next_lvl(p, id); */
 
 	/* for (i = 0 ; i < sz ; i++) { */

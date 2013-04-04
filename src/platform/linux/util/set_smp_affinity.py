@@ -38,7 +38,8 @@ def start():
 	os.system("echo " + cos_pid + " > /dev/cpuset/cos/tasks")
 	os.system("for i in `cat /dev/cpuset/tasks`; do echo $i > /dev/cpuset/linux/tasks; done")
 
-	irq_mask = str(1 << (linux_cpu))
-	os.system("for i in `ls /proc/irq/`; do if \\[ \"$i\" != \"default_smp_affinity\" \\]; then echo " + irq_mask + " > /proc/irq/$i/smp_affinity; fi; done")
+	if os.path.exists("/proc/irq/0/smp_affinity"):
+		irq_mask = str(1 << (linux_cpu))
+		os.system("for i in `ls /proc/irq/`; do if \\[ \"$i\" != \"default_smp_affinity\" \\]; then echo " + irq_mask + " > /proc/irq/$i/smp_affinity; fi; done")
 
 start()

@@ -23,3 +23,10 @@ cp:
 
 .PHONY: init
 init: clean all
+
+#.PHONY: idl
+idl:
+	$(info |     [IDL]   Compiling interface definitions)
+	@for dir in $(INTERFACES) ; do \
+		$(MAKE) -C $$dir idl ; \
+	done

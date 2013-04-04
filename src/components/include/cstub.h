@@ -64,6 +64,28 @@
 		: "a" (uc->cap_no), "b" (first), "S" (second), "D" (third), "d" (fourth) \
 		: "memory", "cc");
 
+#define CSTUB_ASM_RET_PRE(ret1, ret2)		\
+	__asm__ __volatile__( \
+		"pushl %%ebp\n\t" \
+		"movl %%esp, %%ebp\n\t" \
+		"movl $1f, %%ecx\n\t" \
+		"sysenter\n\t" \
+		".align 8\n\t" \
+		"jmp 2f\n\t" \
+		".align 8\n\t" \
+		"1:\n\t" \
+		"popl %%ebp\n\t" \
+		"movl $0, %%ecx\n\t" \
+	        "movl %%esi, %%ebx\n\t" \
+	        "movl %%edi, %%edx\n\t" \
+		"jmp 3f\n\t" \
+		"2:\n\t" \
+		"popl %%ebp\n\t" \
+		"movl $1, %%ecx\n\t" \
+	        "movl %%esi, %%ebx\n\t" \
+	        "movl %%edi, %%edx\n\t" \
+		"3:" \
+	        : "=a" (ret), "=c" (fault), "=b" (ret1), "=d" (ret2)
 
 #define CSTUB_FN_0(type, name)						\
 	__attribute__((regparm(1))) type name##_call(struct usr_inv_cap *uc) \

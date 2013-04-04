@@ -38,6 +38,7 @@ void thd_init_all(struct thread *thds)
 {
 	int i;
 
+	memset(threads, 0, sizeof(struct thread) * MAX_NUM_THREADS);
 	for (i = 0 ; i < MAX_NUM_THREADS ; i++) {
 		/* adjust the thread id to avoid using thread 0 clear */
 		thds[i].thread_id = i+1;
