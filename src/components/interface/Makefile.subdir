@@ -6,6 +6,8 @@ S_SSTUBS=$(wildcard $(STUB_DIR)/s_*.S)
 S_STUB_OBJS=$(S_CSTUBS:%.c=%.o) $(S_SSTUBS:%.S=%.o)
 C_CSTUBS=$(wildcard $(STUB_DIR)/c_*.c)
 C_STUB_OBJS=$(C_CSTUBS:%.c=%.o)
+IDL_FILES=$(wildcard *.cidl)
+IDL_HEADERS=$(IDL_FILES:%.cidl=%.h)
 STUBS=$(ASM_STUBS) 
 IFNAME=$(lastword $(subst /, ,$(shell pwd)))
 INCLUDES= $(CINC) $(foreach I,$(INTERFACES),-I$(INTERDIR)/$(I)/)
@@ -51,3 +53,9 @@ clean:
 	@$(RM) -f a.out *.o *.a *.d *~ $(STUB_DIR)/*.o $(FNEXP_FILE)
 
 fresh: clean all
+
+%.h:%.cidl
+	$(PONY) $^ > $@
+
+idl: $(IDL_HEADERS)
+
