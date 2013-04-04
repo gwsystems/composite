@@ -1531,12 +1531,15 @@ int send_ipi(int cpuid, int thdid, int wait)
 
 static void timer_interrupt(unsigned long data)
 {
+	extern u32_t ticks;
+
 	BUG_ON(cos_thd_per_core[get_cpuid()].cos_thd == NULL);
 	mod_timer_pinned(&timer[get_cpuid()], jiffies+1);
 
 	if (!(cos_timer_brand_thd[get_cpuid()] && cos_timer_brand_thd[get_cpuid()]->upcall_threads)) {
 		return;
 	}
+	if (get_cpuid() == 0) ticks++;
 
 	chal_attempt_brand(cos_timer_brand_thd[get_cpuid()]);
 

@@ -8,34 +8,123 @@
  */
 
 #ifndef TCAP_H
-#define TCAP_H 1
+#define TCAP_H
 
 #include "shared/cos_types.h"
 
 #ifndef MAX_DELEGATIONS
-#define MAX_DELEGATIONS 32
+#define MAX_DELEGATIONS 8
 #endif
 
+#define MAX_TCAP 16
+
+struct tcap_ref {
+	struct tcap *tcap;
+	/* if the epoch in the tcap is != epoch, the reference is invalid */
+	u32_t        epoch; 	
+};
+
+/* 
+ * Delegaters might be deallocated and reused, so a pointer is not
+ * sufficient to validate if the tcap is valid.  Epochs are maintained
+ * for each "version" of a tcap, and when dereferenced, we check the
+ * version.
+ */
+static inline struct tcap *
+tcap_deref(struct tcap_ref *r)
+{
+	struct tcap *tc;
+
+	if (unlikely(!r->tcap)) return NULL;
+	tc = r->tcap;
+	if (unlikely(tc->epoch != r->epoch)) return NULL;
+	return tc;
+}
+
+static inline void
+tcap_ref_create(struct tcap_ref *r, struct tcap *t)
+{
+	r->tcap  = t;
+	r->epoch = t->epoch;
+}
+
+
+
+/* A tcap's maximum rate */
 struct budget {
-        s32_t cycles;
+        s32_t cycles;		/* overrun due to tick granularity can result in cycles < 0 */
+	u32_t expiration; 	/* absolute time (in ticks) */
 };
 
 struct tcap {
-	struct budget *budget;
-	struct delegation {
-		u16_t priority;
+	/* 
+	 * The budget might be from a shared pool in which case budget
+	 * refers to the parent tcap, or it might be segregated in
+	 * this capability in which case budget = this.
+	 */
+	struct tcap_ref budget;
+	struct budget   budget_local; /* if we have a partitioned budget */
+	u32_t           epoch;	      /* when a tcap is deallocated, epoch++ */
+	u16_t           ndelegs, prio, cpuid;
+	struct spd     *sched;
+
+	/* 
+	 * Which chain of temporal capabilities resulted in this
+	 * capability's access, and what access is granted? We might
+	 * want to "cache" the priority here when we have strictly
+	 * fixed priorities, thus "priority".
+	 *
+	 * Note that we don't simply have a struct tcap * here as that
+	 * tcap might be outdated (deallocated/reallocated).  Instead,
+	 * we record the path to access the tcap (component, and
+	 * offset), and the epoch of the "valid" tcap.  
+
+	 * Why the complexity?  Revocation for capability-based
+	 * systems is difficult.  This enables revocation by simply
+	 * incrementing the epoch of a tcap.  If it is outdated, then
+	 * we assume it is of the lowest-priority.
+	 */
+	struct tcap_delegation {
+		u16_t           prio;
+		struct tcap_ref tcap;
 		struct spd *sched;
 	} delegations[MAX_DELEGATIONS];
-	u16_t ndels;
+
+	struct tcap *freelist;
 };
 
-struct tcap *tcap_delegate (struct spd *comp, struct tcap *tcap);
+/* return 0 if budget left, 1 otherwise */
+static inline int
+tcap_consume(struct tcap *t, u32_t cycles)
+{
+	struct tcap *bc;
 
-struct tcap *tcap_activate (struct tcap *tcap);
+	assert(t);
+	bc = tcap_deref(&t->budget);
+	if (unlikely(!bc)) return 1;
+	bc->budget_local.cycles -= cycles;
 
-struct tcap *tcap_transfer (struct tcap *tcapdst, struct tcap *tcapsrc, struct budget *budget);
+	return bc->budget_local.cycles <= 0;
+}
 
-struct tcap *tcap_revoke (struct spd *comp, struct tcap *tcap);
+static inline int
+tcap_remaining(struct tcap *t)
+{
+	struct tcap *bc;
+	struct budget *b;
+	extern u32_t ticks;
 
+	bc = tcap_deref(&t->budget);
+	if (unlikely(!bc)) return 0;
+	b = &bc->budget_local;
+	if (b->cycles <= 0 || b->expiration < ticks) return 0;
 
-#endif
+	return b->cycles;
+}
+
+struct tcap *tcap_delegate(struct spd *comp, struct tcap *tcap);
+struct tcap *tcap_activate(struct tcap *tcap);
+struct tcap *tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, struct budget *budget);
+struct tcap *tcap_revoke  (struct spd *comp, struct tcap *tcap);
+
+#endif	/* TCAP_H */

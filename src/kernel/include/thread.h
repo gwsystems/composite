@@ -9,6 +9,7 @@
 #define THREAD_H
 
 #include "spd.h"
+#include "tcap.h"
 #include "debug.h"
 #include "shared/consts.h"
 #include "per_cpu.h"
@@ -81,6 +82,9 @@ struct thread {
 	/* the first frame describes the threads protection domain */
 	struct thd_invocation_frame stack_base[MAX_SERVICE_DEPTH] HALF_CACHE_ALIGNED;
 	struct pt_regs fault_regs;
+
+	/* The currently activated tcap for this thread's execution */
+	struct tcap_ref tcap_active;
 
 	void *data_region;
 	vaddr_t ul_data_page;
