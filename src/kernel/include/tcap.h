@@ -63,7 +63,7 @@ struct tcap {
 	struct tcap_delegation {
 		u16_t           prio;
 		struct tcap_ref tcap;
-		struct spd *sched;
+		struct spd     *sched;
 	} delegations[MAX_DELEGATIONS];
 
 	struct tcap *freelist;

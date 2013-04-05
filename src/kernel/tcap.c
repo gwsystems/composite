@@ -137,7 +137,7 @@ tcap_delete(struct spd *s, struct tcap *tcap)
 	assert(tcap < &s->tcaps[MAX_TCAP] && tcap >= &s->tcaps[0]);
 	/* Can't delete your persistent tcap! */
 	if (&s->tcaps[0] == tcap) return -1;
-	tcap->epoch++;
+	tcap->epoch++; 		/* now all references to the tcap are invalid */
 	tcap->freelist   = s->tcap_freelist;
 	s->tcap_freelist = tcap;
 
@@ -165,7 +165,20 @@ int tcap_higher_prio(struct thread *activated, struct thread *curr)
 	for (i = 0 ; i < a->ndelegs && i < c->ndelegs ; i++) {
 		if (i > 0 && 
 		    a->delegations[i].sched != c->delegations[i].sched) break;
-		if (!tcap_deref(&a->delegations[i].tcap)) return 0; 
+		/* 
+		 * Shouldn't require this as we're executing on this
+		 * tcap now.  There is actually a significant
+		 * performance hit for having to do this.  The memory
+		 * touched (epoch in the tcap) is on a different
+		 * cache-line, and in a different page.  This can
+		 * cause data-cache and TLB misses.
+		 *
+		 * If we don't check this now, then between the time
+		 * that we're given this tcap, and when the interrupt
+		 * arrives, the tcap can be revoked, and we won't
+		 * detect it here.
+		 */
+		//if (!tcap_deref(&a->delegations[i].tcap)) return 0; 
 		if (c->delegations[i].prio <= a->delegations[i].prio) {
 			return 0;
 		}
