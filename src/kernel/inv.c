@@ -3494,53 +3494,65 @@ cos_syscall_send_ipi(int spd_id, long cpuid, int thdid, long arg)
 }
 
 COS_SYSCALL int
-cos_syscall_tcap_cntl(int spdid, int op, struct tcap *tcap, void *arg1, void *arg2)
+cos_syscall_tcap_cntl(unsigned long spdid_op_tcap, unsigned long tcap2_prio, 
+		      unsigned long budget_exp)
 {
-	return -1;
-#ifdef NIL
+	spdid_t spdid;
 	struct spd *c;
 	struct thread *t;
-	struct budget *b;
-	struct tcap *tcap2, ret;
+	tcap_t tcsrc, tcdst;
+	struct tcap *tcapsrc, *tcapdst;
+	unsigned int res, exp;
+	u16_t prio;
 	int pooled = 0;
-	s32_t cycles = 0;
-	u32_t expiration = 0;
-	u16_t prio = 0;
+	tcap_op_t op;
 
-	assert(tcap);
+	/* demarshall arguments */
+	spdid = spdid_op_tcap >> 16;
+	op    = (spdid_op_tcap >> 8) & 0xFF;
+	tcdst = spdid_op_tcap & 0xFF;
+	tcsrc = tcap2_prio >> 16;
+	prio  = tcap2_prio & 0xFFFF;
+	res   = (budget_exp >> 16) * TCAP_RES_GRANULARITY;
+	exp   = (budget_exp & 0xFFFF);
 
-	t = core_get_curr_thd();
+	/* convert them into data-structures */
+	t     = core_get_curr_thd();
 	if (!t) return -1;
-	spd = thd_validate_get_current_spd(thd, spd_id);
-	switch (op & 0xff) {
+	c     = thd_validate_get_current_spd(t, spdid);
+	if (!c) return -1;
+	
+	tcapdst = tcap_get(c, tcdst);
+	if (!tcapdst) return -1;
+	tcapsrc = tcap_get(c, tcsrc); /* not required for some ops */
+
+	/* use them */
+	switch (op) {
+	case COS_TCAP_DELEGATE_POOL: pooled = 1;
 	case COS_TCAP_DELEGATE:
-		comp = arg1;
-		return tcap_delegate(comp, tcap);
+		if (!tcapsrc) return -1;
+		return tcap_delegate(tcapdst, tcapsrc, c, pooled, res, exp, prio);
+	case COS_TCAP_SPLIT_POOL:    pooled = 1;
 	case COS_TCAP_SPLIT:
-		if ((int)arg1 == -1 && (int)arg2 == 0) {
-			pooled = 1;
-		} else {
-			cycles = (s32_t)arg1;
-			expiration = (s32_t)arg2;
-			prio = ((op & 0xff00) >> 16);
-		}
-		ret = tcap_split(tcap->sched, tcap, pooled, cycles, expiration, prio);
-		if (!ret) return -1;
-		return tcap_id(ret);
+	{
+		struct tcap *n;
+
+		n = tcap_split(c, tcapdst, pooled, res, exp, prio);
+		if (!n) return -1;
+		return tcap_id(n);
+	}
+	case COS_TCAP_TRANSFER_POOL: pooled = 1;
 	case COS_TCAP_TRANSFER:
-		tcap2 = arg1;
-		b = arg2;
-		return tcap_transfer(tcap, tcap2, 0, 0, 0, 0);
-		break;
+		if (!tcapsrc) return -1;
+		return tcap_transfer(tcapdst, tcapsrc, res, exp, prio, pooled);
 	case COS_TCAP_DELETE:
-		return tcap_delete(tcap->sched, tcap);
+		return tcap_delete(c, tcapdst);
 	default:
 		printk("tcap_cntl: undefined operation %d.\n", op);
-		return NULL;
+		return -1;
 
 	}
-	return NULL;
-#endif
+	return -1;
 }
 
 /* 

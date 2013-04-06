@@ -13,11 +13,9 @@
 
 #include "shared/cos_types.h"
 
-#ifndef MAX_DELEGATIONS
-#define MAX_DELEGATIONS 8
+#ifndef TCAP_MAX_DELEGATIONS
+#define TCAP_MAX_DELEGATIONS 8
 #endif
-
-#define MAX_TCAP 16
 
 struct tcap_ref {
 	struct tcap *tcap;
@@ -25,12 +23,15 @@ struct tcap_ref {
 	u32_t        epoch; 	
 };
 
+#define TCAP_RES_GRANULARITY (1<<16)
 
 /* A tcap's maximum rate */
 struct budget {
         s32_t cycles;		/* overrun due to tick granularity can result in cycles < 0 */
 	u32_t expiration; 	/* absolute time (in ticks) */
 };
+
+#define TCAP_PRIO_MIN ((1<<16)-1)
 
 struct tcap {
 	/* 
@@ -41,9 +42,11 @@ struct tcap {
 	struct tcap_ref budget;
 	struct budget   budget_local; /* if we have a partitioned budget */
 	u32_t           epoch;	      /* when a tcap is deallocated, epoch++ */
-	u16_t           ndelegs, prio, cpuid;
+	u16_t           allocated, ndelegs, prio, cpuid;
 	struct spd     *sched;
-
+	/* Note that allocated and epoch are loaded on a
+	 * tcap_deref...they should be on the same cacheline */
+	
 	/* 
 	 * Which chain of temporal capabilities resulted in this
 	 * capability's access, and what access is granted? We might
@@ -64,7 +67,7 @@ struct tcap {
 		u16_t           prio;
 		struct tcap_ref tcap;
 		struct spd     *sched;
-	} delegations[MAX_DELEGATIONS];
+	} delegations[TCAP_MAX_DELEGATIONS];
 
 	struct tcap *freelist;
 };
@@ -82,7 +85,7 @@ tcap_deref(struct tcap_ref *r)
 
 	if (unlikely(!r->tcap)) return NULL;
 	tc = r->tcap;
-	if (unlikely(tc->epoch != r->epoch)) return NULL;
+	if (unlikely(!tc->allocated || tc->epoch != r->epoch)) return NULL;
 	return tc;
 }
 
@@ -122,6 +125,8 @@ tcap_remaining(struct tcap *t)
 	return b->cycles;
 }
 
+struct tcap *tcap_get(struct spd *c, tcap_t id);
+void tcap_spd_init(struct spd *c);
 int tcap_id(struct tcap *t);
 struct tcap *tcap_split(struct spd *c, struct tcap *t, int pooled, s32_t cycles, 
 			u32_t expiration, u16_t prio);

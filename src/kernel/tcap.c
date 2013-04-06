@@ -11,11 +11,40 @@
 #include "include/tcap.h"
 #include "include/thread.h"
 
+void 
+tcap_spd_init(struct spd *c)
+{
+	int i;
+	struct tcap *t;
+
+	c->tcap_freelist = &c->tcaps[1];
+	c->ntcaps        = 1;
+	for (i = 1 ; i < TCAP_MAX ; i++) {
+		t            = &c->tcaps[i];
+		t->allocated = t->ndelegs = t->epoch = t->cpuid = 0;
+		t->freelist  = &c->tcaps[i+1];
+	}
+	t           = &c->tcaps[TCAP_MAX-1];
+	t->freelist = NULL;
+}
+
 int
 tcap_id(struct tcap *t)
 {
 	assert(t && t->sched);
 	return t - t->sched->tcaps;
+}
+
+struct tcap *
+tcap_get(struct spd *c, tcap_t id)
+{
+	struct tcap *t;
+
+	assert(c);
+	if (unlikely(id >= TCAP_MAX)) return NULL;
+	t = &c->tcaps[id];
+	if (unlikely(!t->allocated))  return NULL;
+	return t;
 }
 
 /* 
@@ -79,18 +108,20 @@ tcap_split(struct spd *c, struct tcap *t, int pooled,
 	struct tcap *n;
 	assert(c && t);
 
+	if (t->cpuid != get_cpuid()) return NULL;
 	n = c->tcap_freelist;
 	if (unlikely(!n)) return NULL;
-	n->cpuid = get_cpuid();
 
 	if (unlikely(tcap_transfer(n, t, cycles, expiration, prio, pooled))) {
 		return NULL;
 	}
 
 	/* transfer successful, commit to the change */
-	c->tcap_freelist  = n->freelist;
-	n->freelist       = NULL;
-	n->ndelegs        = t->ndelegs;
+	n->allocated     = 1;
+	c->tcap_freelist = n->freelist;
+	n->freelist      = NULL;
+	n->ndelegs       = t->ndelegs;
+	n->cpuid         = get_cpuid();
 	memcpy(n->delegations, t->delegations, 
 	       sizeof(struct tcap_delegation) * t->ndelegs);
 
@@ -105,7 +136,7 @@ tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, struct spd *c,
 	int i;
 
 	assert(tcapdst && tcapsrc);
-	if (unlikely(tcapdst->ndelegs >= MAX_DELEGATIONS)) {
+	if (unlikely(tcapdst->ndelegs >= TCAP_MAX_DELEGATIONS)) {
 		printk ("tcap %x already has max number of delgations.\n", 
 			tcap_id(tcapdst));
 		return -1;
@@ -134,12 +165,16 @@ int
 tcap_delete(struct spd *s, struct tcap *tcap)
 {
 	assert(s && tcap);
-	assert(tcap < &s->tcaps[MAX_TCAP] && tcap >= &s->tcaps[0]);
+	assert(tcap < &s->tcaps[TCAP_MAX] && tcap >= &s->tcaps[0]);
 	/* Can't delete your persistent tcap! */
 	if (&s->tcaps[0] == tcap) return -1;
 	tcap->epoch++; 		/* now all references to the tcap are invalid */
 	tcap->freelist   = s->tcap_freelist;
 	s->tcap_freelist = tcap;
+	tcap->allocated  = 0;
+	memset(&tcap->budget_local, 0, sizeof(struct budget));
+	memset(tcap->delegations, 0, sizeof(struct tcap_delegation) * TCAP_MAX_DELEGATIONS);
+	tcap->ndelegs = tcap->cpuid = 0;
 
 	return 0;
 }

@@ -201,7 +201,7 @@ struct spd {
 
 	unsigned int ntcaps;
 	struct tcap *tcap_freelist;
-	struct tcap tcaps[MAX_TCAP];
+	struct tcap tcaps[TCAP_MAX];
 } CACHE_ALIGNED; //cache line size
 
 paddr_t spd_alloc_pgtbl(void);

@@ -561,17 +561,22 @@ static inline void cos_ref_release(atomic_t *rc)
 	cos_meas_event(COS_MPD_REFCNT_DEC);
 }
 
+typedef u16_t tcap_t;
 /* operations for tcap_cntl */
-enum {
+typedef enum {
 	COS_TCAP_DELEGATE,
-	COS_TCAP_ACTIVATE,
+	COS_TCAP_DELEGATE_POOL,
 	COS_TCAP_SPLIT,
-	COS_TCAP_MERGE,
+	COS_TCAP_SPLIT_POOL,
 	COS_TCAP_TRANSFER,
-	COS_TCAP_REVOKE,
+	COS_TCAP_TRANSFER_POOL,
+	COS_TCAP_DELETE,
+	/* not yet implemented */
+	COS_TCAP_MERGE,
+	COS_TCAP_ACTIVATE,
 	COS_TCAP_SETPRIORITY,
 	COS_TCAP_GETBUDGET
-};
+} tcap_op_t;
 
 
 #endif /* TYPES_H */

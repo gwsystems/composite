@@ -151,16 +151,28 @@ cos_syscall_3(18, int, __vas_cntl, int, op_spdid, long, arg1, long, arg2);
 cos_syscall_3(19, int, __trans_cntl, unsigned long, op_ch, unsigned long, addr, int, off);
 cos_syscall_3(20, int, __pfn_cntl, unsigned long, op_spd, unsigned long, mem_id, int, extent);
 cos_syscall_3(21, int, __send_ipi, long, cpuid, int, thdid, long, arg);
+cos_syscall_3(22, int, __tcap_cntl, unsigned long, spdid_op_tcap, unsigned long, tcap2_prio, unsigned long, budget_exp);
 cos_syscall_0(31,  int, null);
 
-static inline int cos_mmap_cntl(short int op, short int flags, short int dest_spd, 
-				vaddr_t dest_addr, unsigned long mem_id) {
+static inline int 
+cos_mmap_cntl(short int op, short int flags, short int dest_spd, 
+	      vaddr_t dest_addr, unsigned long mem_id) {
 	/* encode into 3 arguments */
 	return cos___mmap_cntl(((op<<24) | (flags << 16) | (dest_spd)), 
 			       dest_addr, mem_id);
 }
 
-static inline int cos_send_ipi(int cpuid, int thdid, unsigned short int arg1, unsigned short int arg2)
+static inline int
+cos_tcap_cntl(tcap_op_t op, spdid_t spdid, tcap_t tcap1, tcap_t tcap2, u16_t prio, 
+	      unsigned int reservation, unsigned int expiration)
+{
+	return cos___tcap_cntl(spdid<<16 | op << 8 | tcap1, 
+			       tcap2 << 16 | prio,
+			       reservation << 16 | expiration);
+}
+
+static inline int 
+cos_send_ipi(int cpuid, int thdid, unsigned short int arg1, unsigned short int arg2)
 {
 	return cos___send_ipi(cpuid, thdid, ((arg1 << 16) | (arg2 & 0xFFFF)));
 }

@@ -100,6 +100,8 @@ struct pt_regs {
 
 #define COS_MAX_MEMORY 4*1024
 
+#define TCAP_MAX 16
+
 #include "../asm_ipc_defs.h"
 
 #define KERN_BASE_ADDR 0xc0000000 //CONFIG_PAGE_OFFSET
