@@ -60,7 +60,6 @@ tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc,
 	struct tcap *bc;
 
 	assert (tcapdst && tcapsrc);
-
 	if (unlikely(tcapsrc->cpuid != get_cpuid() ||
 		     tcapdst->cpuid != tcapsrc->cpuid)) return -1;
 	bc = tcap_deref(&tcapsrc->budget);
@@ -106,8 +105,8 @@ tcap_split(struct spd *c, struct tcap *t, int pooled,
 	   s32_t cycles, u32_t expiration, u16_t prio)
 {
 	struct tcap *n;
-	assert(c && t);
 
+	assert(c && t);
 	if (t->cpuid != get_cpuid()) return NULL;
 	n = c->tcap_freelist;
 	if (unlikely(!n)) return NULL;
@@ -128,6 +127,32 @@ tcap_split(struct spd *c, struct tcap *t, int pooled,
 	return n;
 }
 
+/* 
+ * Which tcap should receive delegations while executing in thread t?
+ */
+int 
+tcap_receiver(struct thread *t, struct tcap *tcap)
+{
+	assert(t && tcap);
+	if (!thd_scheduled_by(t, tcap->sched)) return -1;
+	tcap_ref_create(&t->tcap_receiver, tcap);
+	return 0;
+}
+
+/* 
+ * Set thread t to be bound to tcap.  Its execution will proceed with
+ * that tcap from this point on.  This is most useful for interrupt
+ * threads.
+ */
+int 
+tcap_bind(struct thread *t, struct tcap *tcap)
+{
+	assert(t && tcap);
+	if (!thd_scheduled_by(t, tcap->sched)) return -1;
+	tcap_ref_create(&t->tcap_active, tcap);
+	return 0;
+}
+
 int
 tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, struct spd *c, 
 	      int pooled, int cycles, int expiration, int prio)
@@ -137,7 +162,7 @@ tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, struct spd *c,
 
 	assert(tcapdst && tcapsrc);
 	if (unlikely(tcapdst->ndelegs >= TCAP_MAX_DELEGATIONS)) {
-		printk ("tcap %x already has max number of delgations.\n", 
+		printk("tcap %x already has max number of delgations.\n", 
 			tcap_id(tcapdst));
 		return -1;
 	}
@@ -175,6 +200,20 @@ tcap_delete(struct spd *s, struct tcap *tcap)
 	memset(&tcap->budget_local, 0, sizeof(struct budget));
 	memset(tcap->delegations, 0, sizeof(struct tcap_delegation) * TCAP_MAX_DELEGATIONS);
 	tcap->ndelegs = tcap->cpuid = 0;
+
+	return 0;
+}
+
+int
+tcap_delete_all(struct spd *spd)
+{
+	int i;
+	
+	assert(spd);
+	for (i = 0 ; i < spd->ntcaps-1 ; i++) {
+		tcap_delete(spd, &(spd->tcaps[i]));
+	}
+	spd->ntcaps = 0;
 
 	return 0;
 }

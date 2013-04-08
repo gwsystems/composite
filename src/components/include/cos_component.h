@@ -166,9 +166,17 @@ static inline int
 cos_tcap_cntl(tcap_op_t op, spdid_t spdid, tcap_t tcap1, tcap_t tcap2, u16_t prio, 
 	      unsigned int reservation, unsigned int expiration)
 {
-	return cos___tcap_cntl(spdid<<16 | op << 8 | tcap1, 
-			       tcap2 << 16 | prio,
-			       reservation << 16 | expiration);
+	return cos___tcap_cntl((spdid << 16) | (op << 8) | tcap1, 
+			       (tcap2 << 16) | prio,
+			       (reservation << 16) | expiration);
+}
+
+/* for COS_TCAP_{BIND, RECEIVER} */
+static inline int
+cos_tcap_thd_cntl(tcap_op_t op, spdid_t spdid, tcap_t tcap, u16_t thdid)
+{
+	return cos___tcap_cntl((spdid << 16) | (op << 8) | tcap, 
+			       (thdid << 16) | 0, 0);
 }
 
 static inline int 

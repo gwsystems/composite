@@ -234,7 +234,6 @@ void spd_mpd_release(struct composite_spd *cspd);
 static void spd_mpd_terminate(struct composite_spd *cspd);
 void spd_free(struct spd *spd)
 {
-	int i;
 	assert(spd);
 
 	spd->spd_info.flags = SPD_FREE;
@@ -248,10 +247,7 @@ void spd_free(struct spd *spd)
 		spd_mpd_terminate(cspd);
 	}
 
-	for (i = 0 ; i < spd->ntcaps-1 ; i++) {
-		tcap_delete(spd, &(spd->tcaps[i]));
-	}
-	spd->ntcaps = 0;
+	tcap_delete_all(spd);
 
 	return;
 }

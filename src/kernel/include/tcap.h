@@ -93,7 +93,7 @@ static inline void
 tcap_ref_create(struct tcap_ref *r, struct tcap *t)
 {
 	r->tcap  = t;
-	r->epoch = t->epoch;
+	r->epoch = t ? t->epoch : 0;
 }
 
 /* return 0 if budget left, 1 otherwise */
@@ -117,6 +117,7 @@ tcap_remaining(struct tcap *t)
 	struct budget *b;
 	extern u32_t ticks;
 
+	assert(t);
 	bc = tcap_deref(&t->budget);
 	if (unlikely(!bc)) return 0;
 	b = &bc->budget_local;
@@ -135,6 +136,9 @@ int tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc,
 int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, struct spd *c, 
 		  int pooled, int cycles, int expiration, int prio);
 int tcap_delete(struct spd *s, struct tcap *tcap);
+int tcap_delete_all(struct spd *spd);
 int tcap_higher_prio(struct thread *activated, struct thread *curr);
+int tcap_receiver(struct thread *t, struct tcap *tcapdst);
+int tcap_bind(struct thread *t, struct tcap *tcap);
 
 #endif	/* TCAP_H */

@@ -41,7 +41,7 @@ static inline struct shared_user_data *get_shared_data(void)
  * the last measurement and is typically used to measure how long
  * brand threads execute.
  */
-static unsigned long cycle_cnt;
+static unsigned long cycle_cnt[NUM_CPU] CACHE_ALIGNED;
 
 u32_t ticks = 0;
 
@@ -50,7 +50,7 @@ ipc_init(void)
 {
 	memset(shared_data_page, 0, PAGE_SIZE);
 	memset(shared_region_page, 0, PAGE_SIZE);
-	rdtscl(cycle_cnt);
+	rdtscl(cycle_cnt[get_cpuid()]);
 
 	return;
 }
@@ -2183,10 +2183,11 @@ static void update_sched_evts(struct thread *new, int new_flags,
 	 */
 	if (likely((new->flags | prev->flags) & THD_STATE_CYC_CNT)) {
 		unsigned long last;
+		unsigned long *cc = &(cycle_cnt[get_cpuid()]);
 
-		last = cycle_cnt;
-		rdtscl(cycle_cnt);
-		elapsed = cycle_cnt - last;
+		last = *cc;
+		rdtscl(*cc);
+		elapsed = *cc - last;
 	}
 	
 	if (new_flags != COS_SCHED_EVT_NIL) {
@@ -3547,6 +3548,17 @@ cos_syscall_tcap_cntl(unsigned long spdid_op_tcap, unsigned long tcap2_prio,
 		return tcap_transfer(tcapdst, tcapsrc, res, exp, prio, pooled);
 	case COS_TCAP_DELETE:
 		return tcap_delete(c, tcapdst);
+	case COS_TCAP_BIND:
+	case COS_TCAP_RECEIVER:
+	{
+		struct thread *tdest;
+
+		tdest = thd_get_by_id((short int)tcdst);
+		if (!tdest) return -1;
+		if (op == COS_TCAP_BIND) return tcap_bind(t, tcapdst);
+		else                     return tcap_receiver(t, tcapdst);
+		/* note: we can't get here */
+	}
 	default:
 		printk("tcap_cntl: undefined operation %d.\n", op);
 		return -1;
