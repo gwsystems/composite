@@ -3531,6 +3531,8 @@ cos_syscall_tcap_cntl(unsigned long spdid_op_tcap, unsigned long tcap2_prio,
 	switch (op) {
 	case COS_TCAP_DELEGATE_POOL: pooled = 1;
 	case COS_TCAP_DELEGATE:
+		if (tcapsrc)  return -1;
+		tcapsrc = tcap_deref(&t->tcap_receiver);
 		if (!tcapsrc) return -1;
 		return tcap_delegate(tcapdst, tcapsrc, c, pooled, res, exp, prio);
 	case COS_TCAP_SPLIT_POOL:    pooled = 1;
