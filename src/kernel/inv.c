@@ -863,8 +863,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		 * thread, and its registers have been changed,
 		 * return without setting the return value */
 		if (ret_code == COS_SCHED_RET_SUCCESS && thd == curr) goto ret;
-		if (thd == curr) 
-		{
+		if (thd == curr) {
 			printk("err: thd == curr, ret %d\n", ret_code);
 			goto_err(ret_err, "sloooow\n");
 		}
@@ -2181,24 +2180,16 @@ static inline void update_thd_evt_state(struct thread *t, int flags, unsigned lo
 	return;
 }
 
-static void update_sched_evts(struct thread *new, int new_flags, 
-			      struct thread *prev, int prev_flags)
+static void 
+update_sched_evts(struct thread *new, int new_flags, 
+		  struct thread *prev, int prev_flags)
 {
 	unsigned elapsed = 0;
 
 	assert(new && prev);
 
-	/* 
-	 * - if either thread has cyc_cnt set, do rdtsc (this is
-	 *   expensive, ~80 on P4 cycles, so avoid it if possible)
-	 * - if prev has cyc_cnt set, do sched evt cycle update
-	 * - if new_flags, do sched evt flags update on new
-	 * - if prev_flags, do sched evt flags update on prev
-	 */
-	if (likely((new->flags | prev->flags) & THD_STATE_CYC_CNT)) {
-		elapsed = cyccnt_update();
-		tcap_elapsed(elapsed);
-	}
+	elapsed = cyccnt_update();
+	tcap_elapsed(elapsed);
 	
 	if (new_flags != COS_SCHED_EVT_NIL) {
 		update_thd_evt_state(new, new_flags, 0);
