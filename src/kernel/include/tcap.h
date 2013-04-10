@@ -17,6 +17,11 @@
 #define TCAP_MAX_DELEGATIONS 8
 #endif
 
+/* 
+ * This is a reference to a tcap, and the epoch tracks which
+ * "generation" of the tcap is valid for this reference.  This enables
+ * fast, and O(1) revocation (simply increase the epoch in the tcap).
+ */
 struct tcap_ref {
 	struct tcap *tcap;
 	/* if the epoch in the tcap is != epoch, the reference is invalid */
@@ -27,8 +32,8 @@ struct tcap_ref {
 
 /* A tcap's maximum rate */
 struct budget {
-        s32_t cycles;		/* overrun due to tick granularity can result in cycles < 0 */
-	u32_t expiration; 	/* absolute time (in ticks) */
+        s32_t cycles;	  /* overrun due to tick granularity can result in cycles < 0 */
+	u32_t expiration; /* absolute time (in ticks) */
 };
 
 #define TCAP_PRIO_MIN ((1<<16)-1)
@@ -44,8 +49,10 @@ struct tcap {
 	u32_t           epoch;	      /* when a tcap is deallocated, epoch++ */
 	u16_t           allocated, ndelegs, prio, cpuid;
 	struct spd     *sched;
-	/* Note that allocated and epoch are loaded on a
-	 * tcap_deref...they should be on the same cacheline */
+	/* 
+	 * Note that allocated and epoch are loaded on a
+	 * tcap_deref...they should be on the same cacheline
+	 */
 	
 	/* 
 	 * Which chain of temporal capabilities resulted in this
@@ -127,8 +134,8 @@ tcap_remaining(struct tcap *t)
 }
 
 struct tcap *tcap_get(struct spd *c, tcap_t id);
-void tcap_spd_init(struct spd *c);
-int tcap_id(struct tcap *t);
+void         tcap_spd_init(struct spd *c);
+int          tcap_id(struct tcap *t);
 struct tcap *tcap_split(struct spd *c, struct tcap *t, int pooled, s32_t cycles, 
 			u32_t expiration, u16_t prio);
 int tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, 
@@ -140,5 +147,7 @@ int tcap_delete_all(struct spd *spd);
 int tcap_higher_prio(struct thread *activated, struct thread *curr);
 int tcap_receiver(struct thread *t, struct tcap *tcapdst);
 int tcap_bind(struct thread *t, struct tcap *tcap);
+void tcap_elapsed(unsigned int cycles);
+
 
 #endif	/* TCAP_H */

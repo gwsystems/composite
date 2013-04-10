@@ -43,6 +43,20 @@ static inline struct shared_user_data *get_shared_data(void)
  */
 static unsigned long cycle_cnt[NUM_CPU] CACHE_ALIGNED;
 
+/* return the cycles elapsed */
+unsigned long 
+cyccnt_update(void)
+{
+	unsigned long last;
+	unsigned long *cc = &(cycle_cnt[get_cpuid()]);
+	
+	last = *cc;
+	rdtscl(*cc);
+
+	return (*cc - last);
+}
+
+/* updated only on core 0 */
 u32_t ticks = 0;
 
 void 
@@ -2182,12 +2196,8 @@ static void update_sched_evts(struct thread *new, int new_flags,
 	 * - if prev_flags, do sched evt flags update on prev
 	 */
 	if (likely((new->flags | prev->flags) & THD_STATE_CYC_CNT)) {
-		unsigned long last;
-		unsigned long *cc = &(cycle_cnt[get_cpuid()]);
-
-		last = *cc;
-		rdtscl(*cc);
-		elapsed = *cc - last;
+		elapsed = cyccnt_update();
+		tcap_elapsed(elapsed);
 	}
 	
 	if (new_flags != COS_SCHED_EVT_NIL) {

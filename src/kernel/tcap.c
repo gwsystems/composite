@@ -80,8 +80,8 @@ tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc,
 	if (!pooled) {
 		tcap_ref_create(&tcapdst->budget, tcapdst);
 		tcapdst->budget_local.cycles     += cycles;
-		b->cycles                        -= cycles;
 		tcapdst->budget_local.expiration  = expiration;
+		b->cycles                        -= cycles;
 	} else {
 		tcap_ref_create(&tcapdst->budget, tcapsrc);
 	}
@@ -260,4 +260,16 @@ int tcap_higher_prio(struct thread *activated, struct thread *curr)
 	if (a->sched == c->sched && c->prio <= a->prio) return 0;
 
 	return 1;
+}
+
+void
+tcap_elapsed(unsigned int cycles)
+{
+	struct thread *t;
+	struct tcap *tc;
+
+	t  = core_get_curr_thd();
+	tc = tcap_deref(&t->tcap_active);
+	assert(tc);
+	tcap_consume(tc, cycles);
 }

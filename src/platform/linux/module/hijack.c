@@ -1529,18 +1529,26 @@ int send_ipi(int cpuid, int thdid, int wait)
 	return 0;
 }
 
-static void timer_interrupt(unsigned long data)
+unsigned long cyccnt_update(void);
+void tcap_elapsed(unsigned int cycles);
+
+static void 
+timer_interrupt(unsigned long data)
 {
 	extern u32_t ticks;
+	unsigned long elapsed;
 
 	BUG_ON(cos_thd_per_core[get_cpuid()].cos_thd == NULL);
 	mod_timer_pinned(&timer[get_cpuid()], jiffies+1);
 
-	if (!(cos_timer_brand_thd[get_cpuid()] && cos_timer_brand_thd[get_cpuid()]->upcall_threads)) {
+	if (!(cos_timer_brand_thd[get_cpuid()] && 
+	      cos_timer_brand_thd[get_cpuid()]->upcall_threads)) {
 		return;
 	}
 	if (get_cpuid() == 0) ticks++;
 
+	elapsed = cyccnt_update();
+ 	tcap_elapsed(elapsed);
 	chal_attempt_brand(cos_timer_brand_thd[get_cpuid()]);
 
 	return;
