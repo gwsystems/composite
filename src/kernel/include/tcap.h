@@ -17,6 +17,8 @@
 #define TCAP_MAX_DELEGATIONS 8
 #endif
 
+#define TCAP_NACTIVATIONS 1
+
 /* 
  * This is a reference to a tcap, and the epoch tracks which
  * "generation" of the tcap is valid for this reference.  This enables
@@ -36,7 +38,7 @@ struct budget {
 	u32_t expiration; /* absolute time (in ticks) */
 };
 
-#define TCAP_PRIO_MIN ((1<<16)-1)
+#define TCAP_PRIO_MIN ((1UL<<16)-1)
 
 struct tcap {
 	/* 
@@ -146,8 +148,10 @@ int tcap_delete(struct spd *s, struct tcap *tcap);
 int tcap_delete_all(struct spd *spd);
 int tcap_higher_prio(struct thread *activated, struct thread *curr);
 int tcap_receiver(struct thread *t, struct tcap *tcapdst);
+void tcap_elapsed(struct thread *t, unsigned int cycles);
 int tcap_bind(struct thread *t, struct tcap *tcap);
-void tcap_elapsed(unsigned int cycles);
 
+int tcap_fountain(struct spd *c);
+int tcap_tick_process(void);
 
 #endif	/* TCAP_H */

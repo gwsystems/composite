@@ -741,6 +741,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		for (i = spd->sched_depth ; i >= 0 ; i--) {
 			tsi = thd_get_sched_info(thd, i);
 			tsi->scheduler = sched;
+			tcap_ref_create(&thd->tcap_active, &sched->tcaps[0]);
 			sched = sched->parent_sched;
 		}
 
@@ -1530,25 +1531,27 @@ int send_ipi(int cpuid, int thdid, int wait)
 }
 
 unsigned long cyccnt_update(void);
-void tcap_elapsed(unsigned int cycles);
+void cyccnt_tick_notification(void);
+
+void tcap_elapsed(struct thread *t, unsigned int cycles);
 
 static void 
 timer_interrupt(unsigned long data)
 {
-	extern u32_t ticks;
 	unsigned long elapsed;
-
+	struct thread *t;
+	
 	BUG_ON(cos_thd_per_core[get_cpuid()].cos_thd == NULL);
+	t = core_get_curr_thd();
 	mod_timer_pinned(&timer[get_cpuid()], jiffies+1);
 
 	if (!(cos_timer_brand_thd[get_cpuid()] && 
 	      cos_timer_brand_thd[get_cpuid()]->upcall_threads)) {
 		return;
 	}
-	if (get_cpuid() == 0) ticks++;
 
-	elapsed = cyccnt_update();
- 	tcap_elapsed(elapsed);
+	if (get_cpuid() == 0) cyccnt_tick_notification();
+	tcap_tick_process();
 	chal_attempt_brand(cos_timer_brand_thd[get_cpuid()]);
 
 	return;

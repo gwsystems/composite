@@ -23,9 +23,23 @@ tcap_spd_init(struct spd *c)
 		t            = &c->tcaps[i];
 		t->allocated = t->ndelegs = t->epoch = t->cpuid = 0;
 		t->freelist  = &c->tcaps[i+1];
+		t->sched     = c;
 	}
 	t           = &c->tcaps[TCAP_MAX-1];
 	t->freelist = NULL;
+
+	/* initialize tcap */
+	t = &c->tcaps[0];
+	tcap_ref_create(&t->budget, t);
+	t->ndelegs                 = 0;
+	t->epoch                   = 0;
+	t->budget_local.expiration = ~0;
+	t->budget_local.cycles     = INT_MAX;
+	t->cpuid                   = get_cpuid();
+	t->prio                    = TCAP_PRIO_MIN;
+	t->allocated               = 1;
+	t->sched                   = c;
+	t->freelist                = NULL;
 }
 
 int
@@ -48,10 +62,23 @@ tcap_get(struct spd *c, tcap_t id)
 }
 
 /* 
+ * Set thread t to be bound to tcap.  Its execution will proceed with
+ * that tcap from this point on.  This is most useful for interrupt
+ * threads.
+ */
+int 
+tcap_bind(struct thread *t, struct tcap *tcap)
+{
+	assert(t && tcap && tcap->sched);
+	if (!thd_scheduled_by(t, tcap->sched)) return -1;
+	tcap_ref_create(&t->tcap_active, tcap);
+	return 0;
+}
+
+/* 
  * This all makes the assumption that the first entry in the delegate
  * array for the tcap is the root capability (the fountain of time).
  */
-
 int
 tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, 
 	      s32_t cycles, u32_t expiration, u16_t prio, int pooled)
@@ -136,20 +163,6 @@ tcap_receiver(struct thread *t, struct tcap *tcap)
 	assert(t && tcap);
 	if (!thd_scheduled_by(t, tcap->sched)) return -1;
 	tcap_ref_create(&t->tcap_receiver, tcap);
-	return 0;
-}
-
-/* 
- * Set thread t to be bound to tcap.  Its execution will proceed with
- * that tcap from this point on.  This is most useful for interrupt
- * threads.
- */
-int 
-tcap_bind(struct thread *t, struct tcap *tcap)
-{
-	assert(t && tcap);
-	if (!thd_scheduled_by(t, tcap->sched)) return -1;
-	tcap_ref_create(&t->tcap_active, tcap);
 	return 0;
 }
 
@@ -263,13 +276,39 @@ int tcap_higher_prio(struct thread *activated, struct thread *curr)
 }
 
 void
-tcap_elapsed(unsigned int cycles)
+tcap_elapsed(struct thread *t, unsigned int cycles)
 {
-	struct thread *t;
 	struct tcap *tc;
 
-	t  = core_get_curr_thd();
 	tc = tcap_deref(&t->tcap_active);
+	printk("tcap_elapsed: thread %d, cycles %ld.\n", 
+	       thd_get_id(t), cycles);
 	assert(tc);
 	tcap_consume(tc, cycles);
+}
+
+static struct spd *tcap_fountain;
+
+int
+tcap_fountain(struct spd *c)
+{
+	assert(c);
+	tcap_fountain = c;
+	return 0;
+}
+
+int 
+tcap_tick_process(void)
+{
+	struct tcap *tc;
+	extern u32_t cyc_per_tick;
+	extern u32_t ticks;
+
+	if (unlikely(!tcap_fountain)) return -1;
+	c = tcap_fountain;
+	tc                          = &c->tcaps[0];
+	tc->budget_local.cycles     = cyc_per_tick;
+	tc->budget_local.expiration = ticks + 1;
+
+	return 0;
 }

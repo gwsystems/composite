@@ -28,7 +28,7 @@ printc(char *fmt, ...)
 
 #ifndef assert
 /* On assert, immediately switch to the "exit" thread */
-#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0);} } while(0)
+#define assert(node) do { int v; if (unlikely(!(node))) { debug_print("assert error in @ "); cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0); }} while(0)
 #endif
 
 #ifdef BOOT_DEPS_H
@@ -291,7 +291,9 @@ static void
 boot_deps_run_all(void)
 {
 	assert(PERCPU_GET(llbooter)->init_thd);
+	printc("switch to thread.\n");
 	cos_switch_thread(PERCPU_GET(llbooter)->init_thd, 0);
+	printc("switch returned.\n");
 	return ;
 }
 

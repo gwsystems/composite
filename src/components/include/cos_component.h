@@ -133,7 +133,7 @@ cos_syscall_clobber                                  \
 cos_syscall_0(1,  int, stats);
 cos_syscall_2(2,  int, print, char*, str, int, len);
 cos_syscall_3(3,  int, create_thread, int, a, int, b, int, c);
-cos_syscall_2(4,  int, __switch_thread, int, thd_id, int, flags);
+cos_syscall_3(4,  int, __switch_thread, int, thd_id, int, flags, unsigned long, tcap);
 cos_syscall_1(5,  int, brand_wait, int, thdid);
 cos_syscall_3(6,  int, __brand_upcall, int, thd_id_flags, long, arg1, long, arg2);
 cos_syscall_3(7,  int, __brand_cntl, int, ops, u32_t, bid_tid, spdid_t, spdid);

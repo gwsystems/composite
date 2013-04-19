@@ -36,12 +36,22 @@ static inline struct shared_user_data *get_shared_data(void)
 
 #define COS_SYSCALL __attribute__((regparm(0)))
 
+
+/* TODO: Move these functions to time.c */
+
 /* 
  * This variable tracks the number of cycles that have elapsed since
  * the last measurement and is typically used to measure how long
  * brand threads execute.
  */
 static unsigned long cycle_cnt[NUM_CPU] CACHE_ALIGNED;
+/* 
+ * These variables on only currently on core 0.  # of ticks, the cycle
+ * count of the previous tick, and the number of cycles per tick.
+ */
+u32_t ticks    = 0;
+u64_t tick_cyc = 0;
+u32_t cyc_per_tick;
 
 /* return the cycles elapsed */
 unsigned long 
@@ -56,15 +66,43 @@ cyccnt_update(void)
 	return (*cc - last);
 }
 
-/* updated only on core 0 */
-u32_t ticks = 0;
+void
+cyccnt_tick_notification(void)
+{
+	ticks++;
+	rdtscll(tick_cyc);
+}
+
+u32_t
+cyccnt_ticks(void)
+{
+	return ticks;
+}
+
+u32_t 
+cyccnt_tick_left(void)
+{
+	unsigned long long tsc, next;
+
+	rdtscll(tsc);
+	next = tick_cyc + cyc_per_tick;
+	if (next < tsc) return 0;
+	return (u32_t)(next - tsc);
+}
+
+void
+cyccnt_init(void)
+{
+	rdtscl(cycle_cnt[get_cpuid()]);
+	cyc_per_tick = CPU_GHZ * 10000000;
+}
 
 void 
 ipc_init(void)
 {
 	memset(shared_data_page, 0, PAGE_SIZE);
 	memset(shared_region_page, 0, PAGE_SIZE);
-	rdtscl(cycle_cnt[get_cpuid()]);
+	cyccnt_init();	
 
 	return;
 }
@@ -818,7 +856,8 @@ switch_thread_update_flags(struct cos_sched_data_area *da, unsigned short int *f
 
 COS_SYSCALL struct pt_regs *
 cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id, 
-			       unsigned short int rflags, long *preempt)
+			       unsigned short int rflags, 
+			       unsigned long __tcap, long *preempt)
 {
 	struct thread *thd, *curr;
 	struct spd *curr_spd;
@@ -827,11 +866,13 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		           thd_sched_flags  = COS_SCHED_EVT_NIL;
 	struct cos_sched_data_area *da;
 	int ret_code = COS_SCHED_RET_ERROR;
+	tcap_t tcid;
+	struct tcap *tc, *budget;
 
+	printk("spdid %d, rthd_id %d, rflag %x, tcap %d\n", spd_id, rthd_id, rflags, __tcap);
+	tcid     = __tcap;
 	*preempt = 0;
-	curr = core_get_curr_thd();
-	/* printk("thd %d, switch thd core %d\n", thd_get_id(curr), get_cpuid()); */
-
+	curr     = core_get_curr_thd();
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
 	if (unlikely(!curr_spd)) {
 		printk("err: wrong spd!\n");
@@ -839,6 +880,20 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	}
 
 	assert(!(curr->flags & THD_STATE_PREEMPTED));
+
+	tc = tcap_get(curr_spd, tcid);
+	if (unlikely(!tc)) {
+		printk("switch_thread err: no tcap\n");
+		goto ret_err;
+	}
+	if (tc) {budget = tcap_deref(&tc->budget);
+	if (unlikely(!budget || 
+		     budget->budget_local.cycles <= 0 ||
+		     budget->budget_local.expiration < cyccnt_ticks())) {
+		if (!budget) printk("switch_thread err: tcap can't get budget\n");
+		else printk("switch_thread err: tcap with no budget %d, or expired %ld vs %ld\n", budget->budget_local.cycles, budget->budget_local.expiration, cyccnt_ticks());
+		//goto ret_err;
+	}}
 
 	/* Probably should change to kern_sched_shared_page */
 	da = curr_spd->sched_shared_page[get_cpuid()];
@@ -897,6 +952,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	}
 
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
+	tcap_bind(thd, tc); 	/* activate the tcap */
 	/* success for this current thread */
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
 //	printk("core %d: switch %d -> %d\n", get_cpuid(), thd_get_id(curr), thd_get_id(thd));
@@ -1938,6 +1994,7 @@ cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
 {
 	struct thread *curr_thd, *brand_thd;
 	struct spd *curr_spd;
+	static int first = 1;
 
 	curr_thd = core_get_curr_thd();
 	curr_spd = thd_validate_get_current_spd(curr_thd, spd_id);
@@ -1955,8 +2012,12 @@ cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
 
 	switch (option) {
 	case COS_HW_TIMER:
-		register_timers();
+		if (first) {
+			register_timers();
+			first = 0;
+		}
 		cos_timer_brand_thd[get_cpuid()] = brand_thd;
+		tcap_fountain(curr_spd);
 		
 		break;
 	case COS_HW_NET:
@@ -2128,7 +2189,8 @@ static int update_evt_list(struct thd_sched_info *tsi)
 	return 0;
 }
 
-static inline void update_thd_evt_state(struct thread *t, int flags, unsigned long elapsed)
+static inline void 
+update_thd_evt_state(struct thread *t, int flags, unsigned long elapsed)
 {
 	int i;
 	struct thd_sched_info *tsi;
@@ -2189,7 +2251,7 @@ update_sched_evts(struct thread *new, int new_flags,
 	assert(new && prev);
 
 	elapsed = cyccnt_update();
-	tcap_elapsed(elapsed);
+	tcap_elapsed(prev, elapsed);
 	
 	if (new_flags != COS_SCHED_EVT_NIL) {
 		update_thd_evt_state(new, new_flags, 0);
