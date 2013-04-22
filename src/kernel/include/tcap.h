@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2013 by The George Washington University.
+ * Copyright (c) 2013 by The George Washington University, Jakob Kaivo
+ * and Gabe Parmer.
  * 
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
@@ -114,8 +115,9 @@ tcap_consume(struct tcap *t, u32_t cycles)
 	assert(t);
 	bc = tcap_deref(&t->budget);
 	if (unlikely(!bc)) return 1;
-	bc->budget_local.cycles -= cycles;
+	if (unlikely(bc->budget_local.cycles == INT_MAX)) return 0;
 
+	bc->budget_local.cycles -= cycles;
 	return bc->budget_local.cycles <= 0;
 }
 
@@ -151,7 +153,7 @@ int tcap_receiver(struct thread *t, struct tcap *tcapdst);
 void tcap_elapsed(struct thread *t, unsigned int cycles);
 int tcap_bind(struct thread *t, struct tcap *tcap);
 
-int tcap_fountain(struct spd *c);
+int tcap_fountain_create(struct spd *c);
 int tcap_tick_process(void);
 
 #endif	/* TCAP_H */

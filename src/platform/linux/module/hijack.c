@@ -608,7 +608,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			printk("cos: Could not allocate spd.\n");
 			return -ENOMEM;
 		}
-
 		for (i = 0 ; i < COS_NUM_ATOMIC_SECTIONS ; i++) {
 			spd->atomic_sections[i] = spd_info.atomic_regions[i];
 		}
@@ -1530,29 +1529,30 @@ int send_ipi(int cpuid, int thdid, int wait)
 	return 0;
 }
 
-unsigned long cyccnt_update(void);
-void cyccnt_tick_notification(void);
+unsigned long time_update(void);
+u32_t time_ticks(void);
+void time_tick_notification(void);
 
 void tcap_elapsed(struct thread *t, unsigned int cycles);
 
 static void 
 timer_interrupt(unsigned long data)
 {
-	unsigned long elapsed;
 	struct thread *t;
 	
 	BUG_ON(cos_thd_per_core[get_cpuid()].cos_thd == NULL);
 	t = core_get_curr_thd();
 	mod_timer_pinned(&timer[get_cpuid()], jiffies+1);
 
-	if (!(cos_timer_brand_thd[get_cpuid()] && 
-	      cos_timer_brand_thd[get_cpuid()]->upcall_threads)) {
+	if (unlikely(!(cos_timer_brand_thd[get_cpuid()] && 
+		       cos_timer_brand_thd[get_cpuid()]->upcall_threads))) {
 		return;
 	}
 
-	if (get_cpuid() == 0) cyccnt_tick_notification();
-	tcap_tick_process();
+	if (get_cpuid() == 0) time_tick_notification();
+	printk("tick <%d>\n", time_ticks());
 	chal_attempt_brand(cos_timer_brand_thd[get_cpuid()]);
+	tcap_tick_process();
 
 	return;
 }

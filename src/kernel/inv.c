@@ -55,7 +55,7 @@ u32_t cyc_per_tick;
 
 /* return the cycles elapsed */
 unsigned long 
-cyccnt_update(void)
+time_update(void)
 {
 	unsigned long last;
 	unsigned long *cc = &(cycle_cnt[get_cpuid()]);
@@ -67,20 +67,20 @@ cyccnt_update(void)
 }
 
 void
-cyccnt_tick_notification(void)
+time_tick_notification(void)
 {
 	ticks++;
 	rdtscll(tick_cyc);
 }
 
 u32_t
-cyccnt_ticks(void)
+time_ticks(void)
 {
 	return ticks;
 }
 
 u32_t 
-cyccnt_tick_left(void)
+time_tick_left(void)
 {
 	unsigned long long tsc, next;
 
@@ -91,7 +91,7 @@ cyccnt_tick_left(void)
 }
 
 void
-cyccnt_init(void)
+time_init(void)
 {
 	rdtscl(cycle_cnt[get_cpuid()]);
 	cyc_per_tick = CPU_GHZ * 10000000;
@@ -102,7 +102,7 @@ ipc_init(void)
 {
 	memset(shared_data_page, 0, PAGE_SIZE);
 	memset(shared_region_page, 0, PAGE_SIZE);
-	cyccnt_init();	
+	time_init();	
 
 	return;
 }
@@ -886,14 +886,14 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		printk("switch_thread err: no tcap\n");
 		goto ret_err;
 	}
-	if (tc) {budget = tcap_deref(&tc->budget);
+	budget = tcap_deref(&tc->budget);
 	if (unlikely(!budget || 
 		     budget->budget_local.cycles <= 0 ||
-		     budget->budget_local.expiration < cyccnt_ticks())) {
+		     budget->budget_local.expiration < time_ticks())) {
 		if (!budget) printk("switch_thread err: tcap can't get budget\n");
-		else printk("switch_thread err: tcap with no budget %d, or expired %ld vs %ld\n", budget->budget_local.cycles, budget->budget_local.expiration, cyccnt_ticks());
-		//goto ret_err;
-	}}
+		else printk("switch_thread err: tcap with no budget %d, or expired %ud vs %ud\n", budget->budget_local.cycles, budget->budget_local.expiration, time_ticks());
+		goto ret_err;
+	}
 
 	/* Probably should change to kern_sched_shared_page */
 	da = curr_spd->sched_shared_page[get_cpuid()];
@@ -2017,8 +2017,9 @@ cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
 			first = 0;
 		}
 		cos_timer_brand_thd[get_cpuid()] = brand_thd;
-		tcap_fountain(curr_spd);
-		
+		tcap_fountain_create(curr_spd);
+		tcap_tick_process();
+
 		break;
 	case COS_HW_NET:
 		if (active_net_brands >= NUM_NET_BRANDS || !cos_net_fns) {
@@ -2250,7 +2251,7 @@ update_sched_evts(struct thread *new, int new_flags,
 
 	assert(new && prev);
 
-	elapsed = cyccnt_update();
+	elapsed = time_update();
 	tcap_elapsed(prev, elapsed);
 	
 	if (new_flags != COS_SCHED_EVT_NIL) {

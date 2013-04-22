@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2013 by The George Washington University.
+ * Copyright (c) 2013 by The George Washington University, Jakob Kaivo
+ * and Gabe Parmer.
  * 
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
@@ -281,16 +282,17 @@ tcap_elapsed(struct thread *t, unsigned int cycles)
 	struct tcap *tc;
 
 	tc = tcap_deref(&t->tcap_active);
-	printk("tcap_elapsed: thread %d, cycles %ld.\n", 
-	       thd_get_id(t), cycles);
 	assert(tc);
 	tcap_consume(tc, cycles);
+	printk("tcap_elapsed: thread %d, elapsed %ld, cycles left %ld.\n", 
+	       thd_get_id(t), cycles, tc->budget_local.cycles);
 }
 
-static struct spd *tcap_fountain;
+/* TODO: percpu */
+static struct spd *tcap_fountain = NULL;
 
 int
-tcap_fountain(struct spd *c)
+tcap_fountain_create(struct spd *c)
 {
 	assert(c);
 	tcap_fountain = c;
@@ -301,12 +303,13 @@ int
 tcap_tick_process(void)
 {
 	struct tcap *tc;
+	struct spd  *c;
 	extern u32_t cyc_per_tick;
 	extern u32_t ticks;
 
 	if (unlikely(!tcap_fountain)) return -1;
-	c = tcap_fountain;
-	tc                          = &c->tcaps[0];
+	c  = tcap_fountain;
+	tc = &c->tcaps[0];
 	tc->budget_local.cycles     = cyc_per_tick;
 	tc->budget_local.expiration = ticks + 1;
 
