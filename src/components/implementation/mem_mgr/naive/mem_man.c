@@ -373,7 +373,6 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 	f = frame_alloc();
 	if (!f) goto done; 	/* -ENOMEM */
 	assert(frame_nrefs(f) == 0);
-	frame_ref(f);
 	m = mapping_crt(NULL, f, spd, addr);
 	if (!m) goto dealloc;
 	f->c.m = m;
