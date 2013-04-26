@@ -28,7 +28,7 @@ printc(char *fmt, ...)
 
 #ifndef assert
 /* On assert, immediately switch to the "exit" thread */
-#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0); }} while(0)
+#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0, 0); }} while(0)
 #endif
 
 #ifdef BOOT_DEPS_H
@@ -140,7 +140,7 @@ llboot_thd_done(void)
 		 * sched_exit... */
 		printc("core %ld: booter init_thd switching back to alpha %d.\n", cos_cpuid(), llboot->alpha);
 
-		while (1) cos_switch_thread(llboot->alpha, 0);
+		while (1) cos_switch_thread(llboot->alpha, 0, 0);
 		BUG();
 	}
 	
@@ -157,7 +157,7 @@ llboot_thd_done(void)
 		} else {		/* ...done reinitializing...resume */
 			assert(pthd && pthd != tid);
 			llboot->prev_thd = 0;   /* FIXME: atomic action required... */
-			cos_switch_thread(pthd, 0);
+			cos_switch_thread(pthd, 0, 0);
 		}
 	}
 }
@@ -185,7 +185,7 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 		/* switch to the recovery thread... */
 		llboot->recover_spd = spdid;
 		llboot->prev_thd = cos_get_thd_id();
-		cos_switch_thread(llboot->recovery_thd, 0);
+		cos_switch_thread(llboot->recovery_thd, 0, 0);
 		/* after the recovery thread is done, it should switch back to us. */
 		return 0;
 	}
@@ -290,10 +290,12 @@ boot_deps_run(void)
 static void
 boot_deps_run_all(void)
 {
+	int ret;
+
 	assert(PERCPU_GET(llbooter)->init_thd);
 	printc("switch to thread.\n");
-	cos_switch_thread(PERCPU_GET(llbooter)->init_thd, 0);
-	printc("switch returned.\n");
+	ret = cos_switch_thread(PERCPU_GET(llbooter)->init_thd, 0, 0);
+	printc("switch returned %d.\n", ret);
 	return ;
 }
 
@@ -349,7 +351,7 @@ void
 sched_exit(void)
 {
 	printc("LLBooter: Core %ld called sched_exit. Switching back to alpha.\n", cos_cpuid());
-	while (1) cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0);	
+	while (1) cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0, 0);	
 }
 
 int 

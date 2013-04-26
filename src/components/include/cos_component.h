@@ -163,12 +163,20 @@ cos_mmap_cntl(short int op, short int flags, short int dest_spd,
 }
 
 static inline int
-cos_tcap_cntl(tcap_op_t op, spdid_t spdid, tcap_t tcap1, tcap_t tcap2, u16_t prio, 
+cos_tcap_cntl(tcap_op_t op, tcap_t tcap1, tcap_t tcap2, u16_t prio, 
 	      unsigned int reservation, unsigned int expiration)
 {
-	return cos___tcap_cntl((spdid << 16) | (op << 8) | tcap1, 
-			       (tcap2 << 16) | prio,
-			       (reservation << 16) | expiration);
+	return cos___tcap_cntl((op << 16) | prio, 
+			       (tcap2 << 16) | tcap1,
+			       (reservation << 16) | (expiration & 0xFFFF));
+}
+
+static inline long cos_spd_id(void);
+static inline int 
+cos_tcap_split(tcap_t tcap, u16_t prio, unsigned int reservation, unsigned int expiration, int pooled)
+{
+	return cos_tcap_cntl(pooled ? COS_TCAP_SPLIT_POOL : COS_TCAP_SPLIT, 
+			     tcap, 0, prio, reservation, expiration);
 }
 
 /* for COS_TCAP_{BIND, RECEIVER} */

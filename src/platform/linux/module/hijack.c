@@ -1550,7 +1550,6 @@ timer_interrupt(unsigned long data)
 	}
 
 	if (get_cpuid() == 0) time_tick_notification();
-	printk("tick <%d>\n", time_ticks());
 	chal_attempt_brand(cos_timer_brand_thd[get_cpuid()]);
 	tcap_tick_process();
 
@@ -1563,7 +1562,7 @@ void register_timers(void)
 	init_timer(&timer[get_cpuid()]);
 	timer[get_cpuid()].function = timer_interrupt;
 	/* Give the timer thread at least a jiffy to initialize */
-	mod_timer_pinned(&timer[get_cpuid()], jiffies+2);
+	mod_timer_pinned(&timer[get_cpuid()], jiffies + 2);
 	
 	return;
 }

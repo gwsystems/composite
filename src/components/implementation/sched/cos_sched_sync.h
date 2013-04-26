@@ -25,17 +25,17 @@ PERCPU_EXTERN(cos_sched_notifications);
  * preempting threads to update the next_thread even if a thread is
  * preempted between logic and calling switch_thread.
  */
-static inline int cos_switch_thread(unsigned short int thd_id, unsigned short int flags)
+static inline int cos_switch_thread(unsigned short int thd_id, unsigned short int flags, tcap_t tcap)
 {
 	struct cos_sched_next_thd *cos_next = &PERCPU_GET(cos_sched_notifications)->cos_next;
 
         /* This must be volatile as we must commit what we want to
 	 * write to memory immediately to be read by the kernel */
-	cos_next->next_thd_id = thd_id;
+	cos_next->next_thd_id    = thd_id;
 	cos_next->next_thd_flags = flags;
 
 	/* kernel will read next thread information from cos_next */
-	return cos___switch_thread(thd_id, flags, 0); 
+	return cos___switch_thread(thd_id, flags, tcap); 
 }
 
 /*

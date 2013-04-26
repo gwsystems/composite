@@ -219,6 +219,8 @@ static void report_thd_accouting(void)
 #endif
 }
 
+static tcap_t tcap_timer, tcap_net, tcap_normal;
+
 static void activate_child_sched(struct sched_thd *g);
 
 static inline void fp_resume_thd(struct sched_thd *t)
@@ -424,7 +426,7 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 		report_event(SWITCH_THD);
 		timer_end(&t);
 
-		ret = cos_switch_thread_release(next->id, flags);
+		ret = cos_switch_thread_release(next->id, flags, next->tcap);
 
 		assert(ret != COS_SCHED_RET_ERROR);
 		if (COS_SCHED_RET_CEVT == ret) { report_event(CEVT_RESCHED); }
@@ -512,7 +514,7 @@ static void sched_timer_tick(void)
 		if (unlikely(PERCPU_GET(sched_base_state)->ticks >= RUNTIME_SEC*TIMER_FREQ+1)) {
 			sched_exit();
 			while (COS_SCHED_RET_SUCCESS !=
-			       cos_switch_thread_release(PERCPU_GET(sched_base_state)->init->id, COS_SCHED_BRAND_WAIT)) {
+			       cos_switch_thread_release(PERCPU_GET(sched_base_state)->init->id, COS_SCHED_BRAND_WAIT, tcap_normal)) {
 				cos_sched_lock_take();
 				if (cos_sched_pending_event()) {
 					cos_sched_clear_events();
@@ -1157,6 +1159,7 @@ sched_create_thread(spdid_t spdid, struct cos_array *data)
 	char *metric_str;
 
 	printc("WARNING: the sched_create_thread function is deprecated.  Please use sched_create_thd\n");
+	BUG();
 	
 	if (!cos_argreg_arr_intern(data)) return -1;
 	if (((char *)data->mem)[data->sz-1] != '\0') return -1;
@@ -1187,6 +1190,8 @@ sched_create_thd(spdid_t spdid, u32_t sched_param0, u32_t sched_param1, u32_t sc
 	cos_sched_lock_take();
 	curr = sched_get_current();
 	new = sched_setup_thread_arg(&sp, fp_create_spd_thd, d, 1);
+	new->tcap = tcap_normal;
+	
 	cos_sched_lock_release();
 	printc("Core %ld, sched %d: created thread %d in spdid %d (requested by %d)\n",
 	       cos_cpuid(), (unsigned int)cos_spd_id(), new->id, spdid, curr->id);
@@ -1247,12 +1252,15 @@ static int current_core_create_thread_default(spdid_t spdid, u32_t sched_param_0
 	struct sched_param_s sp[4];
 	struct sched_thd *new;
 	vaddr_t t = spdid;
+
 	sp[0] = ((union sched_param)sched_param_0).c;
 	sp[1] = ((union sched_param)sched_param_1).c;
 	sp[2] = ((union sched_param)sched_param_2).c;
 	sp[3] = (union sched_param){.c = {.type = SCHEDP_NOOP}}.c;
 	cos_sched_lock_take();
 	new = sched_setup_thread_arg(&sp, fp_create_spd_thd, (void*)t, 1);
+	if (new) new->tcap = tcap_normal;
+
 	sched_switch_thread(0, NULL_EVT);
 	printc("Core %ld, sched %d: created default thread %d in spdid %d (requested by %d from %d)\n",
 	       cos_cpuid(), (unsigned int)cos_spd_id(), new->id, spdid, sched_get_current()->id, spdid);
@@ -1620,6 +1628,8 @@ int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short
 	if (NULL == t) return -1;
 	ret = cos_brand_cntl(COS_BRAND_ADD_THD, bid, tid, 0);
 	if (0 > ret) return -1;
+	t->tcap = tcap_net;
+	cos_tcap_thd_cntl(COS_TCAP_BIND, cos_spd_id(), tcap_net, t->id);
 
 	return 0;
 }
@@ -1632,7 +1642,7 @@ void sched_exit(void)
 //	cos_switch_thread_release(PERCPU_GET(sched_base_state)->init->id, 0);
 	while (1) {
 		cos_sched_clear_events();
-		cos_switch_thread(PERCPU_GET(sched_base_state)->init->id, 0);
+		cos_switch_thread(PERCPU_GET(sched_base_state)->init->id, 0, tcap_timer);
 	}
 	BUG();
 }
@@ -1642,13 +1652,18 @@ static struct sched_thd *fp_create_timer(void)
 	int bid;
 	union sched_param sp[2] = {{.c = {.type = SCHEDP_TIMER}},
 				   {.c = {.type = SCHEDP_NOOP}}};
+	struct sched_thd *t;
 
 	bid = sched_setup_brand(cos_spd_id());
 	assert(sched_is_root());
-	PERCPU_GET(sched_base_state)->timer = sched_setup_thread_arg(&sp, fp_timer, (void*)bid, 1);
-	if (NULL == PERCPU_GET(sched_base_state)->timer) BUG();
-	if (0 > sched_add_thd_to_brand(cos_spd_id(), bid, PERCPU_GET(sched_base_state)->timer->id)) BUG();
-	printc("Core %ld: Timer thread has id %d with priority %s.\n", cos_cpuid(), PERCPU_GET(sched_base_state)->timer->id, "t");
+	t = PERCPU_GET(sched_base_state)->timer = sched_setup_thread_arg(&sp, fp_timer, (void*)bid, 1);
+	if (NULL == t) BUG();
+	if (0 > sched_add_thd_to_brand(cos_spd_id(), bid, t->id)) BUG();
+	printc("Core %ld: Timer thread has id %d with priority t.\n", 
+	       cos_cpuid(), t->id);
+	t->tcap = tcap_timer;
+	cos_tcap_thd_cntl(COS_TCAP_BIND, cos_spd_id(), tcap_timer, t->id);
+
 	cos_brand_wire(bid, COS_HW_TIMER, 0);
 
 	return PERCPU_GET(sched_base_state)->timer;
@@ -1667,6 +1682,7 @@ sched_init_create_threads(int boot_threads)
 
 	/* create the idle thread */
 	PERCPU_GET(sched_base_state)->idle = sched_setup_thread_arg(&sp, fp_idle_loop, NULL, 1);
+	PERCPU_GET(sched_base_state)->idle->tcap = tcap_normal;
 
 	printc("Core %ld: Idle thread has id %d with priority %s.\n", cos_cpuid(), PERCPU_GET(sched_base_state)->idle->id, "i");
 
@@ -1674,6 +1690,8 @@ sched_init_create_threads(int boot_threads)
 
 	sp[0].c.type = SCHEDP_INIT;
 	t = sched_setup_thread_arg(&sp, fp_create_spd_thd, (void*)(int)BOOT_SPD, 1);	
+	t->tcap = tcap_normal;
+
 	assert(t);
 	printc("Initialization thread has id %d.\n", t->id);
 }
@@ -1682,6 +1700,8 @@ sched_init_create_threads(int boot_threads)
 static void 
 __sched_init(void)
 {
+	int ret;
+
 	/* Should be done for each core. */
 	struct sched_base_per_core *sched_state = PERCPU_GET(sched_base_state);
 	sched_init_thd(&sched_state->blocked, 0, THD_FREE);
@@ -1689,6 +1709,22 @@ __sched_init(void)
 	sched_init_thd(&sched_state->graveyard, 0, THD_FREE);
 	sched_ds_init();
 	sched_initialization();
+
+	ret = cos_tcap_split(0, 0, 0, 0, 1);
+	if (ret < 0) {
+		printc("Could not split a tcap for the timer thread.\n");
+	}
+	tcap_timer = ret;
+	ret = cos_tcap_split(0, 1, 0, 0, 1);
+	if (ret < 0) {
+		printc("Could not split a tcap for the network thread.\n");
+	}
+	tcap_net = ret;
+	ret = cos_tcap_split(0, 2, 0, 0, 1);
+	if (ret < 0) {
+		printc("Could not split a tcap for normal threads.\n");
+	}
+	tcap_normal = ret;
 
 	return;
 }
@@ -1767,7 +1803,7 @@ int sched_root_init(void)
 	/* assert(initialized <= NUM_CPU); */
 
 	printc("<<<Core %ld, thread %d: sched_init done.>>>\n", cos_cpuid(), cos_get_thd_id());
-	if ((ret = cos_switch_thread(new->id, 0))) {
+	if ((ret = cos_switch_thread(new->id, 0, new->tcap))) {
 		printc("switch thread failed with %d\n", ret);
 	}
 

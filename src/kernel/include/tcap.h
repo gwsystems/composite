@@ -40,6 +40,7 @@ struct budget {
 };
 
 #define TCAP_PRIO_MIN ((1UL<<16)-1)
+#define TCAP_PRIO_MAX (0UL)
 
 struct tcap {
 	/* 

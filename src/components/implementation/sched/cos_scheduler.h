@@ -121,6 +121,7 @@ struct sched_thd {
 	unsigned short int flags, id, evt_id;
 	struct sched_accounting accounting;
 	struct sched_metric metric;
+	tcap_t tcap;
 	u16_t event;
 	struct sched_thd *prio_next,  *prio_prev, 
 		         *sched_next, *sched_prev; /* for scheduler policy use */
@@ -443,20 +444,20 @@ static inline int sched_release_crit_sect(spdid_t spdid, struct sched_thd *curr)
  * scheduler lock.
  */
 static inline int 
-cos_switch_thread_release(unsigned short int thd_id, unsigned short int flags)
+cos_switch_thread_release(unsigned short int thd_id, unsigned short int flags, tcap_t tcap)
 {
         /* This must be volatile as we must commit what we want to
 	 * write to memory immediately to be read by the kernel */
 	volatile struct cos_sched_next_thd *cos_next = &PERCPU_GET(cos_sched_notifications)->cos_next;
 
-	cos_next->next_thd_id = thd_id;
+	cos_next->next_thd_id    = thd_id;
 	cos_next->next_thd_flags = flags;
 
 	cos_sched_lock_release();
 
 	/* kernel will read next thread information from cos_next */
 	/* printc("core %ld: __switch_thread, thd %u, flags %u\n", cos_cpuid(), thd_id, flags); */
-	return cos___switch_thread(thd_id, flags, 0); 
+	return cos___switch_thread(thd_id, flags, tcap); 
 }
 
 

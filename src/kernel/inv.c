@@ -869,7 +869,6 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	tcap_t tcid;
 	struct tcap *tc, *budget;
 
-	printk("spdid %d, rthd_id %d, rflag %x, tcap %d\n", spd_id, rthd_id, rflags, __tcap);
 	tcid     = __tcap;
 	*preempt = 0;
 	curr     = core_get_curr_thd();
@@ -891,7 +890,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		     budget->budget_local.cycles <= 0 ||
 		     budget->budget_local.expiration < time_ticks())) {
 		if (!budget) printk("switch_thread err: tcap can't get budget\n");
-		else printk("switch_thread err: tcap with no budget %d, or expired %ud vs %ud\n", budget->budget_local.cycles, budget->budget_local.expiration, time_ticks());
+		else printk("switch_thread err: tcap with no budget %d, or expired %u vs %u\n", budget->budget_local.cycles, budget->budget_local.expiration, time_ticks());
 		goto ret_err;
 	}
 
@@ -2019,6 +2018,7 @@ cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
 		cos_timer_brand_thd[get_cpuid()] = brand_thd;
 		tcap_fountain_create(curr_spd);
 		tcap_tick_process();
+		curr_spd->tcaps[0].budget_local.cycles *= 2;
 
 		break;
 	case COS_HW_NET:
@@ -3559,10 +3559,9 @@ cos_syscall_send_ipi(int spd_id, long cpuid, int thdid, long arg)
 }
 
 COS_SYSCALL int
-cos_syscall_tcap_cntl(unsigned long spdid_op_tcap, unsigned long tcap2_prio, 
-		      unsigned long budget_exp)
+cos_syscall_tcap_cntl(spdid_t spdid, unsigned long op_prio, 
+		      unsigned long tcap2_tcap1, unsigned long budget_exp)
 {
-	spdid_t spdid;
 	struct spd *c;
 	struct thread *t;
 	tcap_t tcsrc, tcdst;
@@ -3573,11 +3572,10 @@ cos_syscall_tcap_cntl(unsigned long spdid_op_tcap, unsigned long tcap2_prio,
 	tcap_op_t op;
 
 	/* demarshall arguments */
-	spdid = spdid_op_tcap >> 16;
-	op    = (spdid_op_tcap >> 8) & 0xFF;
-	tcdst = spdid_op_tcap & 0xFF;
-	tcsrc = tcap2_prio >> 16;
-	prio  = tcap2_prio & 0xFFFF;
+	op    = op_prio >> 16;
+	prio  = op_prio & 0xFFFF;
+	tcdst = tcap2_tcap1 & 0xFFFF;
+	tcsrc = tcap2_tcap1 >> 16;
 	res   = (budget_exp >> 16) * TCAP_RES_GRANULARITY;
 	exp   = (budget_exp & 0xFFFF);
 
@@ -3586,7 +3584,7 @@ cos_syscall_tcap_cntl(unsigned long spdid_op_tcap, unsigned long tcap2_prio,
 	if (!t) return -1;
 	c     = thd_validate_get_current_spd(t, spdid);
 	if (!c) return -1;
-	
+
 	tcapdst = tcap_get(c, tcdst);
 	if (!tcapdst) return -1;
 	tcapsrc = tcap_get(c, tcsrc); /* not required for some ops */

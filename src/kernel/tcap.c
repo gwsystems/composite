@@ -37,7 +37,7 @@ tcap_spd_init(struct spd *c)
 	t->budget_local.expiration = ~0;
 	t->budget_local.cycles     = INT_MAX;
 	t->cpuid                   = get_cpuid();
-	t->prio                    = TCAP_PRIO_MIN;
+	t->prio                    = TCAP_PRIO_MAX;
 	t->allocated               = 1;
 	t->sched                   = c;
 	t->freelist                = NULL;
@@ -87,7 +87,7 @@ tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc,
 	struct budget *b;
 	struct tcap *bc;
 
-	assert (tcapdst && tcapsrc);
+	assert(tcapdst && tcapsrc);
 	if (unlikely(tcapsrc->cpuid != get_cpuid() ||
 		     tcapdst->cpuid != tcapsrc->cpuid)) return -1;
 	bc = tcap_deref(&tcapsrc->budget);
@@ -138,17 +138,14 @@ tcap_split(struct spd *c, struct tcap *t, int pooled,
 	if (t->cpuid != get_cpuid()) return NULL;
 	n = c->tcap_freelist;
 	if (unlikely(!n)) return NULL;
-
-	if (unlikely(tcap_transfer(n, t, cycles, expiration, prio, pooled))) {
-		return NULL;
-	}
+	n->cpuid         = get_cpuid();
+	if (unlikely(tcap_transfer(n, t, cycles, expiration, prio, pooled))) return NULL;
 
 	/* transfer successful, commit to the change */
 	n->allocated     = 1;
 	c->tcap_freelist = n->freelist;
 	n->freelist      = NULL;
 	n->ndelegs       = t->ndelegs;
-	n->cpuid         = get_cpuid();
 	memcpy(n->delegations, t->delegations, 
 	       sizeof(struct tcap_delegation) * t->ndelegs);
 
@@ -279,13 +276,13 @@ int tcap_higher_prio(struct thread *activated, struct thread *curr)
 void
 tcap_elapsed(struct thread *t, unsigned int cycles)
 {
-	struct tcap *tc;
+	struct tcap *tc, *b;
 
 	tc = tcap_deref(&t->tcap_active);
 	assert(tc);
 	tcap_consume(tc, cycles);
-	printk("tcap_elapsed: thread %d, elapsed %ld, cycles left %ld.\n", 
-	       thd_get_id(t), cycles, tc->budget_local.cycles);
+	b = tcap_deref(&tc->budget);
+	if (!b) return;
 }
 
 /* TODO: percpu */
