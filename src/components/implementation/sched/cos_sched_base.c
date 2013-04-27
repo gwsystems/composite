@@ -1392,27 +1392,29 @@ static int child_ticks_stale(struct sched_thd *t)
 }
 
 /* return 1 if the child's time is updated, 0 if not */
-static void child_ticks_update(struct sched_thd *t, struct sched_child_evt *e)
+static void 
+child_ticks_update(struct sched_thd *t, u32_t *time_elapsed)
 {
 	u64_t ts, lticks;
 
 	ts = t->tick;
 	lticks = PERCPU_GET(sched_base_state)->ticks;
 	if (lticks > ts) {
-		e->time_elapsed = lticks - ts;
+		*time_elapsed = lticks - ts;
 		t->tick = lticks;
 	}
 }
 
-int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff)
+int 
+sched_child_get_evt(spdid_t spdid, int idle, unsigned long wake_diff, cevt_t *type, 
+		    unsigned short int *tid, u32_t *time_elapsed)
 {
 	struct sched_thd *t, *et;
 	int c = 0;
 
-	if (!e) return -1;
-	e->t            = SCHED_CEVT_OTHER;
-	e->tid          = 0;
-	e->time_elapsed = 0;
+	*type         = SCHED_CEVT_OTHER;
+	*tid          = 0;
+	*time_elapsed = 0;
 	
 	cos_sched_lock_take();
 	t = sched_get_current();
@@ -1429,7 +1431,7 @@ int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsi
 		    child_ticks_stale(t)             || 
 		    !idle) {
 			t->cevt_flags &= ~SCHED_CEVT_OTHER;
-			child_ticks_update(t, e);
+			child_ticks_update(t, time_elapsed);
 			if (!idle) { report_event(PARENT_CHILD_EVT_OTHER); } 
 			goto done;
 		}
@@ -1440,7 +1442,7 @@ int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsi
 		 * data-structures need to be reacquired. */
 		deactivate_child_sched(t);
 	}
-	child_ticks_update(t, e);
+	child_ticks_update(t, time_elapsed);
 
 	/* We have a thread event (blocking or waking) */
 	et = FIRST_LIST(t, cevt_next, cevt_prev);
@@ -1450,11 +1452,11 @@ int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsi
 	if (!EMPTY_LIST(t, cevt_next, cevt_prev)) c = 1;
 
 	assert(sched_thd_member(et));
-	e->tid = et->id;
+	*tid = et->id;
 	if (sched_thd_blocked(et)) {
-		e->t = SCHED_CEVT_BLOCK;
+		*type = SCHED_CEVT_BLOCK;
 	} else if (sched_thd_ready(et) || sched_thd_dependent(et)) {
-		e->t = SCHED_CEVT_WAKE;
+		*type = SCHED_CEVT_WAKE;
 	} else {
 		printc("child thd evt with flags %x.", et->flags);
 		BUG();
@@ -1469,13 +1471,14 @@ err:
 	goto done;
 }
 
-static void sched_process_cevt(struct sched_child_evt *e)
+static void 
+sched_process_cevt(cevt_t type, unsigned short int tid, u32_t time_elapsed)
 {
 	struct sched_thd *t;
 
-	switch(e->t) {
+	switch(type) {
 	case SCHED_CEVT_WAKE:
-		t = sched_get_mapping(e->tid);
+		t = sched_get_mapping(tid);
 		assert(NULL != t);
 		assert(0 == t->wake_cnt);
 		if (sched_thd_blocked(t)) {
@@ -1485,7 +1488,7 @@ static void sched_process_cevt(struct sched_child_evt *e)
 		report_event(CHILD_EVT_WAKE);
 		break;
 	case SCHED_CEVT_BLOCK:
-		t = sched_get_mapping(e->tid);
+		t = sched_get_mapping(tid);
 		assert(NULL != t);
 		fp_pre_block(t);
 		assert(0 == t->wake_cnt);
@@ -1499,8 +1502,8 @@ static void sched_process_cevt(struct sched_child_evt *e)
 
 	/* Process timer ticks which might be 0.  Tick information
 	 * can be sent with any event. */
-	if (e->time_elapsed) {
-		u64_t te = e->time_elapsed;
+	if (time_elapsed) {
+		u64_t te = time_elapsed;
 		static u64_t prev_print = 0;
 
 		PERCPU_GET(sched_base_state)->ticks += te;
@@ -1515,19 +1518,22 @@ static void sched_process_cevt(struct sched_child_evt *e)
 	}
 }
 
-extern int parent_sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff);
+extern int 
+parent_sched_child_get_evt(spdid_t spdid, int idle, unsigned long wake_diff, cevt_t *type, 
+			   unsigned short int *tid, u32_t *time_elapsed);
 /* 
  * The thread executing in this function (the timer thread in a child
  * scheduler) is invoked in two situations: 1) when the child is idle,
  * and 2) when the parent wishes to run the child and possibly convey
  * to it events such as thread blocking or waking.
  */
-static void sched_child_evt_thd(void)
+static void 
+sched_child_evt_thd(void)
 {
-	struct sched_child_evt *e;
+	cevt_t type;
+	unsigned short int tid;
+	u32_t time_elapsed;
 
-	e = cos_argreg_alloc(sizeof(struct sched_child_evt));
-	assert(NULL != e);
 	while (1) {
 		int cont, should_idle;
 
@@ -1560,11 +1566,11 @@ static void sched_child_evt_thd(void)
 			cos_sched_clear_cevts();
 			cos_sched_lock_release();
 			/* Get events from the parent scheduler */
-			cont = parent_sched_child_get_evt(cos_spd_id(), e, should_idle, wake_diff);
+			cont = parent_sched_child_get_evt(cos_spd_id(), should_idle, wake_diff, &type, &tid, &time_elapsed);
 			cos_sched_lock_take();
 			assert(0 <= cont);
 			/* Process those events */
-			sched_process_cevt(e);
+			sched_process_cevt(type, tid, time_elapsed);
 			report_event(should_idle ? CHILD_PROCESS_EVT_IDLE : CHILD_PROCESS_EVT_PEND);
 		} while (cont);
 		
@@ -1573,7 +1579,6 @@ static void sched_child_evt_thd(void)
 		sched_switch_thread(0, NULL_EVT);
 		assert(EMPTY_LIST(PERCPU_GET(sched_base_state)->timer, prio_next, prio_prev));
 	} /* no return */
-	cos_argreg_free(e);
 }
 
 /* return the id of the brand created */

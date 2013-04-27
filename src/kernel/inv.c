@@ -2316,6 +2316,7 @@ brand_higher_urgency(struct thread *upcall, struct thread *prev)
 {
 	int d;
 	u16_t u_urg, p_urg;
+	int tcap_higher = 0;
 
 	assert(upcall->thread_brand && upcall->flags & THD_STATE_UPCALL);
 
@@ -2336,14 +2337,22 @@ brand_higher_urgency(struct thread *upcall, struct thread *prev)
 	}
 	u_urg = thd_get_depth_urg(upcall, d);
 	p_urg = thd_get_depth_urg(prev, d);
+
+	tcap_higher = tcap_higher_prio(upcall, prev);
 	/* We should not run the upcall if it doesn't have more
 	 * urgency, remember here that higher numerical values equals
 	 * less importance. */
 	if (u_urg < p_urg) {
+		if (unlikely(!tcap_higher)) {  
+			printk("TCAP WARNING: tcap not higher, but urg is for %d\n", thd_get_id(upcall));
+		}
 		update_sched_evts(upcall, COS_SCHED_EVT_BRAND_ACTIVE, 
 				  prev, COS_SCHED_EVT_NIL);
 		return 1;
 	} else {
+		if (unlikely(tcap_higher)) {  
+			printk("TCAP WARNING: tcap higher, but urg is not for %d\n", thd_get_id(upcall));
+		}
 		update_thd_evt_state(upcall, COS_SCHED_EVT_BRAND_ACTIVE, 1);
 		return 0;
 	}

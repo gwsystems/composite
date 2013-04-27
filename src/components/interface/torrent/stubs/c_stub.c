@@ -84,7 +84,6 @@ CSTUB_FN_ARGS_4(int, treadp, spdid_t, spdid, td_t, td, int *, off, int *, len)
 	        "movl %%edi, %%edx\n\t" \
 		"3:" \
 	        : "=a" (ret), "=c" (fault), "=b" (*off), "=d" (*len)
-
 		: "a" (uc->cap_no), "b" (spdid), "S" (td)
 		: "edi", "memory", "cc");
 CSTUB_POST
