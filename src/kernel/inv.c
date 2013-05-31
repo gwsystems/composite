@@ -895,7 +895,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	}
 
 	/* Probably should change to kern_sched_shared_page */
-	da = curr_spd->sched_shared_page[get_cpuid()];
+	da = curr_spd->kern_sched_shared_page[get_cpuid()];
 	if (unlikely(!da)) {
 		printk("err: no shared data area!\n");
 		goto ret_err;
@@ -1072,7 +1072,7 @@ switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd
 		 * pointers should be non-NULL */
 		child = tsi->scheduler;
 		assert(child);
-		cda = child->sched_shared_page[get_cpuid()];
+		cda = child->kern_sched_shared_page[get_cpuid()];
 		assert(cda);
 		cda->cos_evt_notif.pending_cevt = 1;
 	}
@@ -1424,8 +1424,6 @@ cos_syscall_brand_upcall_cont(int spd_id, int thread_id_flags, int arg1, int arg
 	struct spd *curr_spd;
 	short int thread_id, flags;
 
-//	static int first = 1;
-
 	thread_id = thread_id_flags>>16;
 	flags = thread_id_flags & 0x0000FFFF;
 	curr_thd = core_get_curr_thd();
@@ -1471,12 +1469,6 @@ cos_syscall_brand_upcall_cont(int spd_id, int thread_id_flags, int arg1, int arg
 		next_thd->regs.di = arg2;
 		curr_thd->regs.ax = 1;
 	}
-/* This to measure the cost of pending upcalls
-	if (unlikely(first)) {
-		brand_thd->pending_upcall_requests = 10000000;
-		first = 0;
-	}
-*/
 	return &next_thd->regs;
 
 upcall_brand_err:
@@ -2099,11 +2091,13 @@ cos_syscall_upcall_cont(int this_spd_id, int spd_id, struct pt_regs **regs)
 	 * trusts us (i.e. that the current spd is allowed to upcall
 	 * into the destination.)
 	 */
-	if (verify_trust(dest, curr_spd) && curr_spd->sched_depth != 0) {
+#ifdef NO_HIER_SCHED
+	if (verify_trust(dest, curr_spd) /*&& curr_spd->sched_depth != 0*/) {
 		printk("cos: upcall attempted from %d to %d without trust relation.\n",
 		       spd_get_index(curr_spd), spd_get_index(dest));
 		return -1;
 	}
+#endif
 
 	open_close_spd(dest->composite_spd, curr_spd->composite_spd); 
 

@@ -400,7 +400,8 @@ thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
 			break;
 #endif
 		default:
-			printc("unknown priority option\n");
+			printc("Scheduler %d, unknown thread creation option\n",
+			       (int)cos_spd_id());
 			prio = PRIO_LOW;
 		}
 		ps++;

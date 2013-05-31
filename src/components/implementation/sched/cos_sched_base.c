@@ -7,6 +7,11 @@
  * 
  * Copyright 2009, The George Washington University
  * Author: Gabriel Parmer, gparmer@gwu.edu
+ *
+ * 2012: Qi Wang added multicore support
+ * 
+ * 2013: Gabe Parmer added tcap support and reworked hierarchical
+ *       scheduling
  */
 
 #include <cos_config.h>
@@ -71,7 +76,7 @@ static inline int sched_is_root(void) { return sched_type == SCHED_ROOT; }
 static inline int sched_is_child(void) { return !sched_is_root(); } 
 
 /* What is the spdid of the booter component? */
-#define BOOT_SPD 5
+#define BOOT_SPD_OFF 3
 
 //#define FPRR_REPORT_EVTS
 
@@ -283,7 +288,10 @@ static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 			report_event(BRAND_ACTIVE);
 			fp_activate_upcall(t);
 		} else if (flags & COS_SCHED_EVT_BRAND_READY) {
-			assert(sched_get_current() != t);
+			if (sched_get_current() == t) {
+				printc("WTF in %d with thread %d.\n", cos_spd_id(), cos_get_thd_id());
+			}
+			assert(sched_get_current() != t); /* GAP: assert here */
 			report_event(BRAND_READY);
 			fp_deactivate_upcall(t);
 		} else if (flags & COS_SCHED_EVT_BRAND_PEND) {
@@ -525,6 +533,7 @@ static void sched_timer_tick(void)
 		PERCPU_GET(sched_base_state)->ticks++;
 		sched_process_wakeups();
 		timer_tick(1);
+		printc("tick %d\n", PERCPU_GET(sched_base_state)->ticks);
 		sched_switch_thread(COS_SCHED_BRAND_WAIT, TIMER_SWITCH_LOOP);
 		/* Tailcall out of the loop */
 	}
@@ -1154,25 +1163,9 @@ static struct sched_thd *sched_setup_thread_arg(void *metric_str, crt_thd_fn_t f
 int
 sched_create_thread(spdid_t spdid, struct cos_array *data)
 {
-	struct sched_thd *curr, *new;
-	void *d = (void*)(int)spdid;
-	char *metric_str;
-
 	printc("WARNING: the sched_create_thread function is deprecated.  Please use sched_create_thd\n");
 	BUG();
-	
-	if (!cos_argreg_arr_intern(data)) return -1;
-	if (((char *)data->mem)[data->sz-1] != '\0') return -1;
-
-	cos_sched_lock_take();
-	curr = sched_get_current();
-	metric_str = (char *)data->mem;
-	new = sched_setup_thread_arg((char *)metric_str, fp_create_spd_thd, d, 0);
-	cos_sched_lock_release();
-	printc("Core %ld, sched %d: created thread %d in spdid %d (requested by %d)\n",
-	       cos_cpuid(), (unsigned int)cos_spd_id(), new->id, spdid, curr->id);
-
-	return new->id;
+	assert(0);
 }
 
 int
@@ -1198,8 +1191,6 @@ sched_create_thd(spdid_t spdid, u32_t sched_param0, u32_t sched_param1, u32_t sc
 
 	return new->id;
 }
-
-#define SCHED_STR_SZ 64
 
 int 
 sched_thread_params(spdid_t spdid, u16_t thd_id, res_spec_t rs)
@@ -1569,7 +1560,7 @@ sched_child_evt_thd(void)
 			cont = parent_sched_child_get_evt(cos_spd_id(), should_idle, wake_diff, &type, &tid, &time_elapsed);
 			cos_sched_lock_take();
 			assert(0 <= cont);
-			/* Process those events */
+			/* Process that event */
 			sched_process_cevt(type, tid, time_elapsed);
 			report_event(should_idle ? CHILD_PROCESS_EVT_IDLE : CHILD_PROCESS_EVT_PEND);
 		} while (cont);
@@ -1694,7 +1685,7 @@ sched_init_create_threads(int boot_threads)
 	if (!boot_threads) return;
 
 	sp[0].c.type = SCHEDP_INIT;
-	t = sched_setup_thread_arg(&sp, fp_create_spd_thd, (void*)(int)BOOT_SPD, 1);	
+	t = sched_setup_thread_arg(&sp, fp_create_spd_thd, (void*)(int)cos_spd_id() + BOOT_SPD_OFF, 1);	
 	t->tcap = tcap_normal;
 
 	assert(t);
@@ -1751,7 +1742,7 @@ sched_child_init(void)
 	sched_set_thd_urgency(PERCPU_GET(sched_base_state)->timer, 0); /* highest urgency */
 	PERCPU_GET(sched_base_state)->timer->flags |= THD_PHANTOM;
 
-	sched_init_create_threads(0);
+	sched_init_create_threads(1);
 
 	sched_child_evt_thd();	/* doesn't return */
 
@@ -1776,6 +1767,7 @@ print_config_info(void)
 }
 
 /* Initialize the root scheduler */
+extern int parent_sched_init(void);
 volatile int initialized = 0;
 int sched_root_init(void)
 {

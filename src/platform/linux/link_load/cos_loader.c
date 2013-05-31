@@ -51,7 +51,7 @@
 
 #include <cobj_format.h>
 
-enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_HIGH;
+enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_DEBUG;
 
 #define printl(lvl,format, args...)				\
 	{							\
@@ -756,8 +756,10 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 		end = strstr(cobj_name, ".o.");
 		if (!end) end = &cobj_name[COBJ_NAME_SZ-1];
 		*end = '\0';
-		h = cobj_create(0, cobj_name, nsects, size, nsymbs, ncaps, mem, obj_size,
-				ret_data->scheduler ? COBJ_INIT_THD : 0);
+		h = cobj_create(0, cobj_name, nsects, size, nsymbs, ncaps, mem, obj_size, 
+				ret_data->scheduler && 
+				strstr(ret_data->scheduler->obj, ROOT_SCHED) ? 
+				COBJ_INIT_THD : 0);
 		if (!h) {
 			printl(PRINT_HIGH, "boot component: couldn't create cobj.\n");
 			return -1;
@@ -1322,7 +1324,7 @@ create_transparent_capabilities(struct service_symbs *service)
 //				if (symb_already_undef(service, symbs->symbs[j].name)) break;
 				if (r == TRANS_CAP_SCHED) {
 					/* This is pretty crap: We
-					 * don't want to ad a
+					 * don't want to add a
 					 * capability to a parent
 					 * scheduler if we already
 					 * have a capability
@@ -1488,8 +1490,12 @@ static int verify_dependency_soundness(struct service_symbs *services)
 static inline struct service_symbs *get_service_struct(char *name, 
 						       struct service_symbs *list)
 {
-	while (list) {
+	if (!name) {
+		printf("Could not find service %s\n", name);
 		assert(name);
+	}
+	assert(name);
+	while (list) {
 		assert(list && list->obj);
 		if (!strcmp(name, list->obj)) {
 			return list;
