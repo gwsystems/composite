@@ -295,9 +295,11 @@ boot_spd_thd(spdid_t spdid)
 	union sched_param sp = {.c = {.type = SCHEDP_RPRIO, .value = 1}};
 	union sched_param sp_coreid;
 
-	/* Round-robin not used since we may access a component that is still doing init (on another core). */
-	/* Creating default threads on cores with round-robin policy. Not used in low-level booter. */
-	/* sp_coreid.v = core_round_robin(); */
+	/* The round-robin policy is not used since we may access a
+	 * component that is still doing init (on another core). */
+	/* Creating default threads on cores with round-robin
+	 * policy. */
+	/* sp_coreid.v = init_core_policy(); */
 
 	/* All init threads on core 0. */
 	sp_coreid.c.type = SCHEDP_CORE_ID;

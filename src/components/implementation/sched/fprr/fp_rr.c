@@ -358,8 +358,8 @@ thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
 			prio = ps->value;
 			/* FIXME: When creating a thread on a remote
 			 * core, we zero the accounting instead of
-			 * copying from the original thread, which is
-			 * on a different core. */
+			 * copying from the original thread (that is
+			 * on a different core) */
 			if (sched_curr_is_IPI_handler())
 				sched_clear_accounting(t);
 			else

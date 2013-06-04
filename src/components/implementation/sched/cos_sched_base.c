@@ -1798,10 +1798,10 @@ static void IPI_handler(void *d)
 	while (1) {
 		cos_sched_lock_take();
 		/* Going to switch away */
+		/* Don't use brand_wait syscall here. *\/ */
 		sched_switch_thread(COS_SCHED_BRAND_WAIT, EVT_CMPLETE_LOOP);
-		/* ret = cos_brand_wait(sched_state->IPI_brand); /\* brand_wait doesn't work here. *\/ */
-		/* Received an IPI! */
 
+		/* Received an IPI! */
 		/* printc("Core %ld: got an IPI request!\n", cos_cpuid()); */
 		exec_IPI_fn();
 		/* printc("Core %ld: done processing IPI request!\n", cos_cpuid()); */

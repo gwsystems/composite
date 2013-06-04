@@ -7,47 +7,10 @@
 #define ITER (1024)
 u64_t meas[ITER];
 
-volatile int blocked = -1;
-
 void cos_init(void)
 {
 	u64_t start, end, avg, tot = 0, dev = 0;
 	int i, j;
-
-	static int first = 1, second = 1;
-
-
-
-
-
-	return;
-
-
-
-
-
-	if (first) {
-		union sched_param sp;
-		first = 0;
-		sp.c.type = SCHEDP_PRIO;
-		sp.c.value = 20;
-		if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG();
-
-		return;
-	}
-	/* printc("thd %d, core %d delay....\n", cos_get_thd_id(), cos_cpuid()); */
-	/* volatile int a = 10000, b = 10000, c = 1; */
-	/* for ( ; a > 0; a--) { */
-	/* 	b = 10000; */
-	/* 	for( ; b > 0; b --) { */
-	/* 		c = 0; */
-	/* 	} */
-	/* } */
-
-	printc("thd %d, core %ld going to call wakeup!\n", cos_get_thd_id(), cos_cpuid());
-	sched_wakeup(cos_spd_id(), 20);
-	printc("thd %d, core %ld called wakeup!\n", cos_get_thd_id(), cos_cpuid());
-	return;
 
 	call();			/* get stack */
 	printc("cpu %ld from ping\n",cos_cpuid());

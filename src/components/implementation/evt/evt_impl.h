@@ -88,7 +88,7 @@ static inline int __evt_trigger(struct evt *e)
 
 	assert(NULL != e);
 	
-	/* FIXME: atomic instruction. */
+	/* FIXME: need atomic instruction. */
 	e->n_received++;
 	assert(e->n_received <= e->n_wait);
 	if (e->n_received < e->n_wait) return 0;
