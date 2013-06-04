@@ -6,6 +6,16 @@
  */
 
 #include <torlib.h>
+#include <errno.h>
+
+/* Default torrent implementations */
+__attribute__((weak)) int 
+treadp(spdid_t spdid, int sz, int *off, int *len)
+{
+	return -ENOTSUP;
+}
+
+/* Utility functions */
 
 COS_MAP_CREATE_STATIC(torrents);
 struct torrent null_torrent, root_torrent;
@@ -55,4 +65,3 @@ void torlib_init(void)
 	root_torrent.td = td_root;
 	if (td_root != cos_map_add(&torrents, &root_torrent)) BUG();
 }
-

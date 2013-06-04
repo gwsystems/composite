@@ -16,6 +16,9 @@ LWIPDIR=$(LWIPBASE)/lwip-1.3.0
 LWIPOBJ=$(LWIPBASE)/cos/net_stack.o
 LWIPINC=-I$(LWIPDIR)/src/include -I$(LWIPDIR)/src/include/ipv4/ -I$(LWIPBASE)/cos/include/ 
 
+#PONY=$(CDIR)/cidl/
+PONY=/bin/echo
+
 INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/
 # FIXME: dietlibc is now compiled with fno merge constants which is
 # probably ballooning its size.  Fix this need for no merge constants

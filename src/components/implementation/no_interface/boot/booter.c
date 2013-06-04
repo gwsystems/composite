@@ -153,6 +153,7 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
 	unsigned int i, use_kmem;
 	vaddr_t dest_daddr, prev_map = 0;
+	char *dsrc;
 
 	local_md[spdid].spdid      = spdid;
 	local_md[spdid].h          = h;
@@ -160,7 +161,6 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	local_md[spdid].comp_info  = comp_info;
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
-		char *dsrc;
 		int left;
 		
 		use_kmem   = 0;
@@ -186,7 +186,7 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 			left       -= PAGE_SIZE;
 		}
 	}
-	local_md[spdid].page_end = (void*)dest_daddr;
+	local_md[spdid].page_end = dsrc + PAGE_SIZE;
 
 	return 0;
 }

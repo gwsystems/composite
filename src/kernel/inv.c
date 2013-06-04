@@ -46,6 +46,7 @@ void
 ipc_init(void)
 {
 	memset(shared_data_page, 0, PAGE_SIZE);
+	memset(shared_region_page, 0, PAGE_SIZE);
 	rdtscl(cycle_cnt);
 
 	return;
@@ -129,6 +130,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	/* what spd are we in (what stack frame)? */
 	curr_frame = &thd->stack_base[thd->stack_ptr];
 	dest_spd = cap_entry->destination;
+
 
 	if (unlikely(!dest_spd || curr_spd == CAP_FREE || curr_spd == CAP_ALLOCATED_UNUSED)) {
 		printk("cos: Attempted use of unallocated capability.\n");
@@ -269,7 +271,7 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 	
 	/* save the faulting registers */
 	memcpy(&thd->fault_regs, regs, sizeof(struct pt_regs));
-	a = ipc_walk_static_cap(fault_cap<<20, regs->sp, regs->ip, &r);
+	a = ipc_walk_static_cap(fault_cap<<20, 0, 0, &r);
 
 	/* setup the registers for the fault handler invocation */
 	regs->ax = r.thd_id;

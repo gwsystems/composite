@@ -1,4 +1,4 @@
-/**
+ /**
  * Hijack, or Asymmetric Execution Domains support for Linux
  *
  * Copyright 2007 by Boston University.
@@ -81,14 +81,6 @@ struct per_core_cos_thd cos_thd_per_core[NUM_CPU];
 //QW: should be per core? >>
 struct mm_struct *composite_union_mm = NULL;
 
-/* composite: should be in separate module */
-unsigned long jmp_addr __attribute__((aligned(32))) = 0 ;
-unsigned long stub_addr = 0;
-unsigned long saved_ip, saved_ret_ip;
-unsigned long saved_sp;
-unsigned long return_ip;
-unsigned long saved_cr3;
-
 /* 
  * These are really a per-thread resource (per CPU if we assume hijack
  * only runs one thread per CPU).  These data structures have been
@@ -98,18 +90,6 @@ unsigned long saved_cr3;
  * include extra fields).
  */
 struct mm_struct *trusted_mm = NULL;
-/* 
- * If we are in a guest's address space, currently executing in the
- * executive, we have a page fault within the executive range, and we
- * switch to the trusted mm, we need record which guest address space
- * we should be executing in with the following variable. 
- */
-struct mm_struct *current_active_guest = NULL;
-struct pt_regs *user_level_regs;
-struct pt_regs trusted_regs;
-unsigned long trusted_mem_limit;
-unsigned long trusted_mem_size;
-
 
 #define MAX_ALLOC_MM 64
 struct mm_struct *guest_mms[MAX_ALLOC_MM]; 
@@ -117,10 +97,11 @@ struct mm_struct *guest_mms[MAX_ALLOC_MM];
 
 DEFINE_PER_CPU(unsigned long, x86_tss) = { 0 };
 
-/* This function gets the TSS pointer from Linux. */
-/* We read it from Linux only once. After that, use the */
-/* get_TSS function below for efficiency. */
-
+/* 
+ * This function gets the TSS pointer from Linux.
+ * We read it from Linux only once. After that, use the
+ * get_TSS function below for efficiency. 
+ */
 static inline void 
 load_per_core_TSS(void)
 {
@@ -153,10 +134,12 @@ load_per_core_TSS(void)
 	put_cpu_var(x86_tss);
 }
 
-/* This function gets the TSS pointer of current CPU.  */
-/* We load the TSS to a per CPU variable x86_tss when  */
-/* we try getting it the first time. After that, we  */
-/* can just load it from that variable. */
+/* 
+ * This function gets the TSS pointer of current CPU.
+ * We load the TSS to a per CPU variable x86_tss when
+ * we try getting it the first time. After that, we
+ * can just load it from that variable. 
+ */
 void get_TSS(struct pt_regs *rs)
 {
 	/* We pass the esp to this function from assembly. 
@@ -270,6 +253,7 @@ static int aed_free_mm(int mm_handle)
 {
 	struct mm_struct *mm = guest_mms[mm_handle];
 
+	if (!mm) return 0;
 	mmput(mm);
 	guest_mms[mm_handle] = NULL;
 
@@ -320,7 +304,6 @@ static void remove_all_guest_mms(void)
 
 	return;
 }
-
 
 #ifdef DEBUG
 #define printkd(str,args...) printk(str, ## args)
@@ -556,7 +539,9 @@ struct thread *ready_boot_thread(struct spd *init)
 	 * Linux in general), we will return to the _separate_ and
 	 * correct page-tables.
 	 */
+	printk("setting up boot thread\n");
 	this_pgtbl                   = &linux_pgtbls_per_core[get_cpuid()];
+	assert(this_pgtbl);
 	this_pgtbl->pg_tbl           = (paddr_t)(__pa(current->mm->pgd));
 	cos_ref_set(&this_pgtbl->ref_cnt, 2);
 	frame                        = thd_invstk_top(thd);
@@ -911,8 +896,9 @@ extern unsigned int shared_region_page[1024], shared_data_page[1024];
  * Before we look for the Linux vma, lets check if we should look at
  * all, or if Composite can fix up the fault on its own.
  */
-static int cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *regs, 
-					  vaddr_t fault_addr)
+static int 
+cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *regs, 
+			       vaddr_t fault_addr)
 {
 	struct spd_poly *active = thd_get_thd_spdpoly(thd), *curr;
 	struct composite_spd *cspd;
@@ -1256,7 +1242,7 @@ void *chal_pa2va(void *pa)
  * Our composite emulated timer interrupt executed from a Linux
  * softirq
  */
-static struct timer_list timer[NUM_CPU] CACHE_ALIGNED;
+CACHE_ALIGNED static struct timer_list timer[NUM_CPU]; 
 
 extern struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
 
@@ -1280,13 +1266,10 @@ EXPORT_SYMBOL(cos_trans_reg);
 EXPORT_SYMBOL(cos_trans_dereg);
 EXPORT_SYMBOL(cos_trans_upcall);
 
-extern struct thread *cos_timer_brand_thd[NUM_CPU] CACHE_ALIGNED;
+CACHE_ALIGNED extern struct thread *cos_timer_brand_thd[NUM_CPU];
 #define NUM_NET_BRANDS 2 /* keep consistent with inv.c */
-extern int active_net_brands;
-extern struct cos_brand_info cos_net_brand[NUM_NET_BRANDS];
-extern struct cos_net_callbacks *cos_net_fns;
 
-static CACHE_ALIGNED int in_syscall[NUM_CPU] = { 0 };
+CACHE_ALIGNED static int in_syscall[NUM_CPU] = { 0 }; 
 
 int host_in_syscall(void) 
 {
@@ -1568,6 +1551,7 @@ void register_timers(void)
 	assert(!timer[get_cpuid()].function);
 	init_timer(&timer[get_cpuid()]);
 	timer[get_cpuid()].function = timer_interrupt;
+	/* Give the timer thread at least a jiffy to initialize */
 	mod_timer_pinned(&timer[get_cpuid()], jiffies+2);
 	
 	return;
@@ -1578,8 +1562,10 @@ static void deregister_timers(void)
 	int i;
 	for (i = 0; i < NUM_CPU; i++) {
 		cos_timer_brand_thd[i] = NULL;
-		if (timer[i].function)
+		if (timer[i].function) {
 			del_timer(&timer[i]);
+			timer[i].function = NULL;
+		}
 	}
 
 	return;
@@ -1638,18 +1624,39 @@ static int open_checks(void)
 	return 0;
 }
 
+static 
+void init_globals(void)
+{
+	int cpuid;
+
+	shared_region_pte  = NULL;
+	union_pgd          = NULL;
+	for (cpuid = 0; cpuid < NUM_CPU; cpuid++) {
+		cos_thd_per_core[cpuid].cos_thd = NULL;
+		per_core[cpuid].curr_thd        = NULL;
+		per_core[cpuid].curr_spd        = NULL;
+	}
+	composite_union_mm = NULL;
+	kern_mm            = NULL;
+	kern_pgtbl_mapping = 0;
+	kern_handle        = 0;
+	idle_status        = IDLE_AWAKE;
+}
+
 /*
  * Opening the aed device signals the intended use of the Composite
  * operating system along side the currently executing Linux.  Thus,
  * when the fd is open, we must prepare the virtual address space for
  * COS use.
  */
-
+static void init_guest_mm_vect(void);
 static int aed_open(struct inode *inode, struct file *file)
 {
 	pte_t *pte = lookup_address_mm(current->mm, COS_INFO_REGION_ADDR);
 	pgd_t *pgd;
 	void* data_page;
+
+	init_globals();
 
 	if (cos_thd_per_core[get_cpuid()].cos_thd != NULL || composite_union_mm != NULL) {
 		printk("cos (CPU %d): Composite subsystem already used by %d (%p).\n", get_cpuid(), cos_thd_per_core[get_cpuid()].cos_thd->pid, cos_thd_per_core[get_cpuid()].cos_thd);
@@ -1739,7 +1746,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	       COS_INFO_REGION_ADDR, COS_INFO_REGION_ADDR);
 
 	if (open_checks()) return -EFAULT;
-	
+
 	thd_init();
 	spd_init();
 	ipc_init();
@@ -1761,9 +1768,9 @@ static int aed_release(struct inode *inode, struct file *file)
 	pgd_t *pgd;
 	struct thread *t;
 	struct spd *s;
-	int cpuid;
+	int i;
 #ifdef FAULT_DEBUG
-	int i, j, k;
+	int j, k;
 #endif
 	/* 
 	 * when the aed control file descriptor is closed, lets get
@@ -1781,13 +1788,15 @@ static int aed_release(struct inode *inode, struct file *file)
 		current->mm = trusted_mm;	
 		current->active_mm = trusted_mm;
 
-		current_active_guest = NULL;
 		/* Let another process create a asym environment */
 		trusted_mm = NULL;
 
 		remove_all_guest_mms();
 		flush_all(current->mm->pgd);
+		BUG();
 	}
+	trusted_mm = NULL;
+	remove_all_guest_mms();
 
 	t = core_get_curr_thd();
 	if (t) {
@@ -1807,9 +1816,6 @@ static int aed_release(struct inode *inode, struct file *file)
 	spd_free_all();
 	ipc_init();
 	cos_shutdown_memory();
-	for (cpuid = 0; cpuid < NUM_CPU; cpuid++) {
-		cos_thd_per_core[cpuid].cos_thd = NULL;
-	}
 
 	cos_meas_report();
 
@@ -1823,6 +1829,11 @@ static int aed_release(struct inode *inode, struct file *file)
 	pgd = pgd_offset(composite_union_mm, COS_INFO_REGION_ADDR);
 	memset(pgd, 0, sizeof(int));
 
+	syscalls_enabled = 1;
+	for (i = 0 ; i < NUM_CPU ; i++) {
+		in_syscall[i] = 0;
+	}
+
 	/* 
 	 * Keep the mm_struct around till we have gotten rid of our
 	 * cos-specific mappings.  This is required as in do_exit, mm
@@ -1830,7 +1841,8 @@ static int aed_release(struct inode *inode, struct file *file)
 	 * be accessed from fd release procedures.)
 	 */
 	mmput(composite_union_mm);
-	composite_union_mm = NULL;
+
+	init_globals();
 	
 #ifdef FAULT_DEBUG
 	printk("cos: Page fault information:\n");
@@ -1875,6 +1887,7 @@ static int aed_release(struct inode *inode, struct file *file)
 				       (unsigned int)fi->regs.cs, 
 				       (unsigned int)fi->regs.ss, 
 				       (unsigned int)fi->regs.flags);
+				fi->thdid = 0; /* reset */
 			}
 		}
 		event_print();

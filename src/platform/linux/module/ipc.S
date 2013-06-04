@@ -91,6 +91,8 @@ composite_call_ipc:	/* server_inv: */
 .globl composite_ret_ipc
 .align 16
 composite_ret_ipc:	 /*ret_cap:*/
+	pushl %edi
+	pushl %esi
 	pushl %ecx /* user-level return value */
 
 	pushl $0
@@ -105,7 +107,9 @@ composite_ret_ipc:	 /*ret_cap:*/
 	movl SFRAMESP(%eax), %ecx
 	movl SFRAMEIP(%eax), %edx
 	popl %eax /* user-level ret val */
-
+	popl %esi
+	popl %edi
+	
 	RET_TO_USER_NOSEG
 
 ipc_ret_slowpath:

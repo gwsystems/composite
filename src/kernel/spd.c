@@ -198,7 +198,9 @@ static struct spd *spd_freelist_head = NULL;
 static void spd_init_all(struct spd *spds)
 {
 	int i;
-	
+
+	spd_freelist_head = NULL;
+	memset(spds, 0, sizeof(struct spd) * MAX_NUM_SPDS);
 	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
 		spds[i].spd_info.flags = SPD_FREE;
 		spds[i].composite_spd = &spds[i].spd_info;
@@ -615,6 +617,7 @@ void spd_init_mpd_descriptors(void)
 	int i;
 //	struct page_list *page;
 
+	memset(mpd_descriptors, 0, sizeof(struct composite_spd) * MAX_MPD_DESC);
 	mpd_freelist = mpd_descriptors;
 	for (i = 0 ; i < MAX_MPD_DESC ; i++) {
 		struct composite_spd *cspd = &mpd_descriptors[i];
