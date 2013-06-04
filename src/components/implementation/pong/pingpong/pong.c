@@ -110,12 +110,12 @@ void core1_high() {
 			/* printc("core %d triggering evt %d, i %d....\n", cos_cpuid(), evt, i); */
 			shared_ret = 10;
 
-			rdtscll(s);
+			/* rdtscll(s); */
 
 			evt_trigger(cos_spd_id(), evt);
  
-			rdtscll(e);
-			data[iter++] = e - s;
+			/* rdtscll(e); */
+			/* data[iter++] = e - s; */
 
 			/* printc("core %d triggerred evt %d, i %d....\n", cos_cpuid(), evt, i); */
 		}
@@ -133,7 +133,7 @@ void core0_high() {
 	delay(20);
 
 	evt = evt_create(cos_spd_id());
-	printc("core %d created evt %d....\n", cos_cpuid(), evt);
+	printc("core %ld created evt %d....\n", cos_cpuid(), evt);
 	
 	int my_ret;
 	u64_t s, e;
@@ -155,19 +155,19 @@ void core0_high() {
 
 		/* rdtscll(c0_high); */
 
-		int ret = evt_wait_n_async(cos_spd_id(), evt, n_wait); 		/* int ret = evt_wait_n(cos_spd_id(), evt, n_wait); */
+		int ret = evt_wait_n(cos_spd_id(), evt, n_wait);
 		my_ret = shared_ret;
 
-		/* rdtscll(e); */
-		/* data[i] = e - c0_tsc; */
+		rdtscll(e);
+		data[i] = e - c0_tsc;
 
 		assert(my_ret == 10);
 		/* printc("core %d up from evt_wait....\n", cos_cpuid()); */
 		i++;
 	}
-	printc("core %d test done, going to output...\n", cos_cpuid());
+	printc("core %ld test done, going to output...\n", cos_cpuid());
 	output();
-	printc("core %d output done.\n", cos_cpuid());
+	printc("core %ld output done.\n", cos_cpuid());
 }
 
 /* evt_wait first half meas */

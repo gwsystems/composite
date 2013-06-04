@@ -15,7 +15,6 @@ long evt_split(spdid_t spdid, long parent_evt, int grp);
 void evt_free(spdid_t spdid, long extern_evt);
 long evt_wait(spdid_t spdid, long extern_evt);
 long evt_wait_n(spdid_t spdid, long extern_evt, int n);
-long evt_wait_n_async(spdid_t spdid, long extern_evt, int n);
 long evt_grp_wait(spdid_t spdid);
 int evt_grp_mult_wait(spdid_t spdid, struct cos_array *data);
 int evt_trigger(spdid_t spdid, long extern_evt);

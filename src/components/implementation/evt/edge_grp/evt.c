@@ -219,12 +219,6 @@ __evt_wait(spdid_t spdid, long eid)
 	return t->eid;
 } 
 
-long evt_wait_n_async(spdid_t spdid, long extern_evt, int n)
-{
-	assert(0);
-	return -1;
-}
-
 long evt_split(spdid_t spdid, long parent, int group)
 {
 	struct evt *e;

@@ -274,6 +274,8 @@ err:
 	
 }
 
+/* volatile int bid = 0; */
+
 int __evt_wait(spdid_t spdid, long extern_evt, int n)
 {
 	struct evt *e;
@@ -295,47 +297,21 @@ int __evt_wait(spdid_t spdid, long extern_evt, int n)
 			return 0;
 		} else {
 			ACT_RECORD(ACT_SLEEP, spdid, e->extern_id, cos_get_thd_id(), 0);
+
 			if (0 > sched_block(cos_spd_id(), 0)) BUG();
+
+			/* The following approach avoids involving
+			 * scheduler. But it's ugly and unclear. */
+			/* if (!bid) { */
+			/* 	bid = cos_brand_cntl(COS_BRAND_CREATE, 0, 0, cos_spd_id()); */
+			/* 	assert(bid > 0); */
+			/* 	if (sched_add_thd_to_brand(cos_spd_id(), bid, cos_get_thd_id())) BUG(); */
+			/* 	printc("evt brand created\n"); */
+			/* } */
+			/* cos_brand_wait(bid); */
 		}
 	}
-err:
-	lock_release(&evt_lock);
-	return -1; 
-}
 
-volatile int bid = 0;
-
-int evt_wait_n_async(spdid_t spdid, long extern_evt, int n)
-{
-	struct evt *e;
-
-	while (1) {
-		int ret;
-
-		lock_take(&evt_lock);
-		e = mapping_find(extern_evt);
-		if (NULL == e) goto err;
-		if (0 > (ret = __evt_read(e))) goto err;
-		ACT_RECORD(ACT_WAIT, spdid, e->extern_id, cos_get_thd_id(), 0);
-		e->n_wait = n;
-		e->core_id = cos_cpuid();
-		if (ret == 1) e->n_received = 0;
-		lock_release(&evt_lock);
-		if (1 == ret) {
-			assert(extern_evt == e->extern_id);
-			return 0;
-		} else {
-			ACT_RECORD(ACT_SLEEP, spdid, e->extern_id, cos_get_thd_id(), 0);
-			/* if (0 > sched_block(cos_spd_id(), 0)) BUG(); */
-			if (!bid) {
-				bid = cos_brand_cntl(COS_BRAND_CREATE, 0, 0, cos_spd_id());
-				assert(bid > 0);
-				if (sched_add_thd_to_brand(cos_spd_id(), bid, cos_get_thd_id())) BUG();
-				printc("evt brand created\n");
-			}
-			cos_brand_wait(bid);
-		}
-	}
 err:
 	lock_release(&evt_lock);
 	return -1; 
@@ -371,11 +347,15 @@ int evt_trigger(spdid_t spdid, long extern_evt)
 		lock_release(&evt_lock);
 		ACT_RECORD(ACT_WAKEUP, spdid, e->extern_id, cos_get_thd_id(), ret);
 
-		if (core != cos_cpuid() && bid) {
-			cos_send_ipi(core, bid, 0, 0);
-		} else {
-			if (sched_wakeup(cos_spd_id(), ret)) BUG();
-		}
+		if (sched_wakeup(cos_spd_id(), ret)) BUG();
+
+		/* The following approach avoids involving
+		 * scheduler. But it's ugly and unclear! */
+		/* if (core != cos_cpuid() && bid) { */
+		/* 	cos_send_ipi(core, bid, 0, 0); */
+		/* } else { */
+		/* 	if (sched_wakeup(cos_spd_id(), ret)) BUG(); */
+		/* } */
 	} else {
 		lock_release(&evt_lock);
 	}
