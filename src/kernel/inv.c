@@ -852,7 +852,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	} else {
 		next_thd = switch_thread_parse_data_area(da, &ret_code);
 		if (unlikely(0 == next_thd)) {
-			printk("err: data area\n");
+			printk("core %d, err: data area\n", get_cpuid());
 			goto_err(ret_err, "data_area\n");
 		}
 
@@ -2123,6 +2123,7 @@ static inline void update_thd_evt_state(struct thread *t, int flags, unsigned lo
 		tsi = thd_get_sched_info(t, i);
 		sched = tsi->scheduler;
 		if (!sched) break;
+
 		if (likely(tsi->thread_notifications)) {
 			struct cos_sched_events *se = tsi->thread_notifications;
 			u32_t p, n;
@@ -2250,6 +2251,7 @@ brand_higher_urgency(struct thread *upcall, struct thread *prev)
 	assert(upcall->thread_brand && upcall->flags & THD_STATE_UPCALL);
 
 	d = most_common_sched_depth(upcall, prev);
+
 	/* FIXME FIXME FIXME FIXME FIXME FIXME FIXME this is a stopgap
 	 * measure.  I don't know hy these are null when we are
 	 * shutting down the system but still get a packet.  This will
@@ -2257,20 +2259,23 @@ brand_higher_urgency(struct thread *upcall, struct thread *prev)
 	 */
 	if (unlikely(!thd_get_sched_info(prev, d)->thread_notifications)) {
 		if (!thd_get_sched_info(upcall, d)->thread_notifications) {
-			printk("cos: skimping on brand metadata maintenance, and returning.\n");
+			printk("cos: core %d skimping on brand metadata maintenance, and returning.\n", get_cpuid());
 			return 0;
 		} else {
 			/* upcall has the proper structure, prev doesn't! */
 			return 1;
 		}
 	}
+
 	u_urg = thd_get_depth_urg(upcall, d);
+
 	p_urg = thd_get_depth_urg(prev, d);
+
 	/* We should not run the upcall if it doesn't have more
 	 * urgency, remember here that higher numerical values equals
 	 * less importance. */
 	if (u_urg < p_urg) {
-		update_sched_evts(upcall, COS_SCHED_EVT_BRAND_ACTIVE, 
+		update_sched_evts(upcall, COS_SCHED_EVT_BRAND_ACTIVE,
 				  prev, COS_SCHED_EVT_NIL);
 		return 1;
 	} else {
@@ -2341,11 +2346,14 @@ brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 	cos_meas_stats_start(COS_MEAS_STATS_UC_EXEC_DELAY, 1);
 	cos_meas_stats_start(COS_MEAS_STATS_UC_TERM_DELAY, 1);
 	cos_meas_stats_start(COS_MEAS_STATS_UC_PEND_DELAY, 1);
+
 	/* 
 	 * Does the upcall have a higher urgency than the currently
 	 * executing thread?
 	 */
+
 	if (brand_higher_urgency(upcall, preempted)) {
+		/* printk("core %ld, going to switch to brand thd %d, prev thd %d\n", get_cpuid(), upcall->thread_id, preempted->thread_id); */
 		if (unlikely(preempted->flags & THD_STATE_PREEMPTED)) {
 			printk("cos: WTF - preempted thread %d preempted, upcall %d.\n", 
 			       thd_get_id(preempted), thd_get_id(upcall));
@@ -2370,11 +2378,11 @@ brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 		} else {
 			upcall->interrupted_thread = NULL;
 		}
-
 		/* Actually setup the brand/upcall to happen here.
 		 * If we aren't in the composite thread, be careful
 		 * what state we change (e.g. page tables) */
 		if (likely(chal_pgtbl_can_switch())) {
+			/* printk("upcall thd %d, spd %x, prev thd %d, spd %x\n", upcall->thread_id, (void *)thd_get_thd_spdpoly(upcall), preempted->thread_id, (void *)thd_get_thd_spdpoly(preempted)); */
 			upcall_execute(upcall, (struct composite_spd*)thd_get_thd_spdpoly(upcall),
 				       preempted, (struct composite_spd*)thd_get_thd_spdpoly(preempted));
 		} else {

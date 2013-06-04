@@ -12,7 +12,7 @@
 #include <tmem.h>
 #include <mem_pool.h>
 
-//#define _DEBUG_STKMGR
+#define _DEBUG_TMEMMGR
 
 #define WHERESTR  "[file %s, line %d]: "
 #define WHEREARG  __FILE__, __LINE__
@@ -170,7 +170,7 @@ cos_init(void *arg){
 	int i;
 
 	DOUT("stk mgr running.....\n");
-	DOUT("<stkmgr>: STACK in cos_init\n");
+	DOUT("<stkmgr>: in cos_init, thd %d on core %ld\n", cos_get_thd_id(), cos_cpuid());
 	LOCK_INIT();
 
 	memset(spd_tmem_info_list, 0, sizeof(struct spd_tmem_info) * MAX_NUM_SPDS);

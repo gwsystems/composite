@@ -30,6 +30,8 @@ typedef signed int       s32_t;
 typedef signed long long s64_t;
 #endif
 
+typedef int cpuid_t; /* Don't use unsigned type. We use negative values for error cases. */
+
 /* Macro used to define per core variables */
 #define PERCPU(type, name)                              \
 	PERCPU_DECL(type, name);                        \

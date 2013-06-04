@@ -100,55 +100,55 @@ update_edge_weights(void)
 #define PERMITTED_EDGES (428571)
 //#define PERMITTED_EDGES (285714)
 
-static void 
-mpd_pol_linear(void)
-{
-	static int cnt = 0;
-	/* currently timeouts are expressed in ticks */
-	timed_event_block(cos_spd_id(), 24);
-	update_edge_weights();
+/* static void  */
+/* mpd_pol_linear(void) */
+/* { */
+/* 	static int cnt = 0; */
+/* 	/\* currently timeouts are expressed in ticks *\/ */
+/* 	timed_event_block(cos_spd_id(), 24); */
+/* 	update_edge_weights(); */
 
-	customize_overhead_to_limit((unsigned int)PERMITTED_EDGES/(unsigned int)4);
-	if (cnt == 3) { cnt = 0; mpd_report(); }
-	else cnt++;
-}
+/* 	customize_overhead_to_limit((unsigned int)PERMITTED_EDGES/(unsigned int)4); */
+/* 	if (cnt == 3) { cnt = 0; mpd_report(); } */
+/* 	else cnt++; */
+/* } */
 
-static void 
-mpd_pol_never_increase(void)
-{
-	static int cnt = 0;
-	/* currently timeouts are expressed in ticks */
-	timed_event_block(cos_spd_id(), 24);
-	update_edge_weights();
+/* static void  */
+/* mpd_pol_never_increase(void) */
+/* { */
+/* 	static int cnt = 0; */
+/* 	/\* currently timeouts are expressed in ticks *\/ */
+/* 	timed_event_block(cos_spd_id(), 24); */
+/* 	update_edge_weights(); */
 
-	remove_overhead_to_limit((unsigned int)PERMITTED_EDGES/(unsigned int)4);
-	if (cnt == 3) { cnt = 0; mpd_report(); }
-	else cnt++;
-}
+/* 	remove_overhead_to_limit((unsigned int)PERMITTED_EDGES/(unsigned int)4); */
+/* 	if (cnt == 3) { cnt = 0; mpd_report(); } */
+/* 	else cnt++; */
+/* } */
 
-static void 
-mpd_pol_dec_isolation_by_one(void)
-{
-	/* currently timeouts are expressed in ticks */
-	timed_event_block(cos_spd_id(), 98);
-	update_edge_weights();
-	remove_one_isolation_boundary();
-	mpd_report();
-}
+/* static void  */
+/* mpd_pol_dec_isolation_by_one(void) */
+/* { */
+/* 	/\* currently timeouts are expressed in ticks *\/ */
+/* 	timed_event_block(cos_spd_id(), 98); */
+/* 	update_edge_weights(); */
+/* 	remove_one_isolation_boundary(); */
+/* 	mpd_report(); */
+/* } */
 
-static void 
-mpd_pol_report(void)
-{
-	timed_event_block(cos_spd_id(), 198);
-	update_edge_weights();
-	mpd_report();
-}
+/* static void  */
+/* mpd_pol_report(void) */
+/* { */
+/* 	timed_event_block(cos_spd_id(), 198); */
+/* 	update_edge_weights(); */
+/* 	mpd_report(); */
+/* } */
 
 static void 
 mpd_loop(struct comp_graph *g)
 {
 	while (1) {
-		mpd_pol_report();
+		/* mpd_pol_report(); */
 		//mpd_pol_linear();
 		//mpd_pol_never_increase();
 		//mpd_pol_dec_isolation_by_one();
@@ -246,12 +246,11 @@ mpd_merge_selective(void)
 	int
 
 // default
-	     c0[] = {0}, c1[] = {0}, c2[] = {0}, c3[] = {0},
+	     /* c0[] = {0}, c1[] = {0}, c2[] = {0}, c3[] = {0}, */
 
 // for pp
-/*	     c0[] = {1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 0},
+	     c0[] = {2, 14, 0},
 	     c1[] = {0}, c2[] = {0}, c3[] = {0},
-*/
 
 // for ws
 /*	     c0[] = {1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 0},
@@ -320,22 +319,22 @@ static void
 mpd_init(void)
 {
 	int i;
-	for (i = 0 ; cgraph_server(i) >= 0 ; i++) {
-		graph[i].client = cgraph_client(i);
-		graph[i].server = cgraph_server(i);
-		cos_cap_cntl_spds(graph[i].client, graph[i].server, 0);	
-	}
+	/* for (i = 0 ; cgraph_server(i) >= 0 ; i++) { */
+	/* 	graph[i].client = cgraph_client(i); */
+	/* 	graph[i].server = cgraph_server(i); */
+	/* 	cos_cap_cntl_spds(graph[i].client, graph[i].server, 0);	 */
+	/* } */
 
 	mpd_pol_init();
 	create_components(graph);
 
 	/* merge all components into one protection domain */
 //	mpd_merge_all(graph);
-//	mpd_merge_selective();
+	mpd_merge_selective();
 	/* remove protection domains on a time-trigger */
 //	while (!remove_one_isolation_boundary()); /* merge all pds */
 	/* Intelligently manage pds */
-	mpd_loop(graph);
+	/* mpd_loop(graph); */
 	return;
 }
 

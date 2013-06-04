@@ -13,6 +13,8 @@
 #define PRIO_LOW     (NUM_PRIOS-2)
 #define PRIO_LOWEST  (NUM_PRIOS-1)
 #define PRIO_HIGHEST 0
+#define PRIO_SECOND_HIGHEST (PRIO_HIGHEST + 1)
+#define IPI_HANDLER_PRIO PRIO_SECOND_HIGHEST
 #define QUANTUM ((unsigned int)CYC_PER_TICK)
 
 /* runqueue */
@@ -345,24 +347,26 @@ int
 thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
 {
 	unsigned int prio = PRIO_LOWEST;
-	struct sched_thd *c;
+	struct sched_thd *c = sched_get_current();
 	
 	assert(t);
 	while (ps->type != SCHEDP_NOOP) {
 		switch (ps->type) {
 		case SCHEDP_RPRIO:
 		case SCHEDP_RLPRIO:
-			/* priority relative to current thread */
-			c = sched_get_current();
-			assert(c);
-			prio = ps->type == SCHEDP_RPRIO ? 
-				sched_get_metric(c)->priority - ps->value:
-				sched_get_metric(c)->priority + ps->value;
-			memcpy(sched_get_accounting(t), sched_get_accounting(c), sizeof(struct sched_accounting));
+			/* The relative priority has been converted to absolute priority in relative_prio_convert(). */
+			prio = ps->value;
+			/* FIXME: When creating a thread on a remote
+			 * core, we zero the accounting instead of
+			 * copying from the original thread, which is
+			 * on a different core. */
+			if (sched_curr_is_IPI_handler())
+				sched_clear_accounting(t);
+			else
+				memcpy(sched_get_accounting(t), sched_get_accounting(c), sizeof(struct sched_accounting));
 #ifdef DEFERRABLE
 			if (sched_get_accounting(t)->T) ADD_LIST(&PERCPU_GET(fprr_state)->servers, t, sched_next, sched_prev);
 #endif
-			
 			if (prio > PRIO_LOWEST) prio = PRIO_LOWEST;
 			break;
 		case SCHEDP_PRIO:
@@ -380,6 +384,12 @@ thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
 		case SCHEDP_TIMER:
 			/* timer thread */
 			prio = PRIO_HIGHEST;
+			break;
+		case SCHEDP_IPI_HANDLER:
+			prio = IPI_HANDLER_PRIO;
+			break;
+		case SCHEDP_CORE_ID:
+			assert(ps->value == cos_cpuid());
 			break;
 #ifdef DEFERRABLE
 		case SCHEDP_BUDGET:
@@ -406,6 +416,7 @@ thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
 		ps++;
 	}
 	if (sched_thd_ready(t)) fp_rem_thd(t);
+
 	fp_add_thd(t, prio);
 	
 	return 0;

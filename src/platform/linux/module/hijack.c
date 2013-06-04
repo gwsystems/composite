@@ -880,6 +880,8 @@ static void cos_report_fault(struct thread *t, vaddr_t fault_addr, int ecode, st
 	unsigned long long ts;
 	struct spd_poly *spd_poly;
 
+	if (fault_ptr >= NFAULTS-1) return;
+
 	rdtscll(ts);
 
 	fi = &faults[fault_ptr];
@@ -1480,7 +1482,7 @@ int chal_attempt_brand(struct thread *brand)
 		if (likely(!(regs->sp == 0 && regs->ss == 0))
                     /* && (regs->xcs & SEGMENT_RPL_MASK) == USER_RPL*/) {
 			struct thread *next;
- 			
+
 			if ((regs->cs & SEGMENT_RPL_MASK) == USER_RPL) {
 				cos_meas_event(COS_MEAS_INT_PREEMPT_USER);
 			} else {
@@ -1497,7 +1499,7 @@ int chal_attempt_brand(struct thread *brand)
 					///*assert*/BUG_ON(!(next->flags & THD_STATE_ACTIVE_UPCALL));
 				}
 				thd_check_atomic_preempt(cos_current);
-				
+
 				/* Those registers are saved in the
 				 * user space. No need to restore
 				 * here. */
@@ -1534,6 +1536,7 @@ static void receive_ipi(void *thdid)
 
 	if (unlikely(!thd)) return;
 
+	/* printk("core %d, got IPI for brand %d!\n", get_cpuid(), thd->thread_id); */
 	chal_attempt_brand(thd);
 
 	return;
