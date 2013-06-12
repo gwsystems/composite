@@ -32,7 +32,7 @@ void cos_init(void)
 	unsigned int ret1, ret2;
 
 	int a = 0, b = 0, c = 0;
-	c = treadp(cos_spd_id(), 0, &a, &b);
+	//c = treadp(cos_spd_id(), 0, &a, &b);
 
 	printc("UNIT TEST Unit tests for torrents...\n");
 

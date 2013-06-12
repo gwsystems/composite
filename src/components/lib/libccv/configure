@@ -1,0 +1,231 @@
+#!/usr/bin/env bash
+
+if [ "$1" = "force" ] ; then
+	rm -f config.mk
+fi
+
+contains_flag () {
+	if [ -f config.mk ]; then
+		grep -E "^$1 := " config.mk &>/dev/null;
+		return $?;
+	fi
+
+	return 1;
+}
+
+if [ `uname` == "Darwin" ] ; then
+	IS_OSX=true
+	if [ -f /usr/bin/make ] ; then
+		XCODE_COMMAND_TOOLS_INSTALLED=true
+	fi
+	echo "Using currently selected Xcode at the following path: $(xcode-select --print-path)"
+	echo "(Use xcode-select to change)"
+	echo ""
+	if contains_flag XCODE_SDK; then
+		XCODE_SDK=`grep -oE 'XCODE_SDK := [^#]+' config.mk | cut -b14-`
+	else
+		SDK_ARRAY=( $(xcodebuild -showsdks | awk '{ if ($0 ~ /-sdk/) print $NF }' | sort) )
+		echo "  Select Xcode SDK you wish to use:"
+		select SDK_CHOICE in ${SDK_ARRAY[@]}; do
+			if [ $SDK_CHOICE ] ; then
+			  XCODE_SDK=$SDK_CHOICE
+			  break;
+			fi		  
+		done
+		echo "XCODE_SDK := $SDK_CHOICE" >> config.mk
+	fi
+	
+	if contains_flag ARCH; then
+		ARCH=`grep -oE 'ARCH := [^#]+' config.mk | cut -b9-`
+	else
+		DEFAULT_ARCH=$(uname -m)
+		if [[ $XCODE_SDK == iphoneos* ]] ; then
+			DEFAULT_ARCH='armv7s'
+		fi
+	  
+		echo -ne "  Default architecture: \033[4m$DEFAULT_ARCH\033[m [Y/n] ? "
+		read -n 1 yn ; if [ ! -z $yn ] ; then echo ; fi
+		case $yn in
+		[nN]* ) read -p "  Your architecture: " CC
+				;;
+		*	  ) ARCH=$DEFAULT_ARCH
+				;;
+		esac
+		echo "ARCH := $ARCH" >> config.mk	  
+	fi
+fi
+
+if contains_flag CC; then
+	CC=`grep -oE 'CC := [^#]+' config.mk | cut -b7-`
+else
+	DEFAULT_CC='clang'
+	if [[ $IS_OSX && ! $XCODE_COMMAND_TOOLS_INSTALLED ]] ; then
+		DEFAULT_CC="xcrun $DEFAULT_CC"
+	fi
+	echo -ne "  Default compiler: \033[4m$DEFAULT_CC\033[m [Y/n] ? "
+	read -n 1 yn ; if [ ! -z $yn ] ; then echo ; fi
+	case $yn in
+	[nN]* ) read -p "  Your favorite compiler: " CC
+			;;
+	*	  ) CC=$DEFAULT_CC
+			;;
+	esac
+	echo "CC := $CC" >> config.mk
+fi
+
+if contains_flag AR; then
+	CC=`grep -oE 'AR := [^#]+' config.mk | cut -b7-`
+else
+	DEFAULT_AR='ar'
+	if [[ $IS_OSX && ! $XCODE_COMMAND_TOOLS_INSTALLED ]] ; then
+		DEFAULT_AR="xcrun $DEFAULT_AR"
+	fi
+	echo -ne "  Default archiver: \033[4m$DEFAULT_AR\033[m [Y/n] ? "
+	read -n 1 yn ; if [ ! -z $yn ] ; then echo ; fi
+	case $yn in
+	[nN]* ) read -p "  Your favorite archiver: " AR
+			;;
+	*	  ) AR=$DEFAULT_AR
+			;;
+	esac
+	echo "AR := $AR" >> config.mk
+fi
+
+if contains_flag CFLAGS && contains_flag LDFLAGS; then
+	CFLAGS=`grep -oE 'CFLAGS := [^#]+' config.mk | cut -b11-`
+	LDFLAGS=`grep -oE 'LDFLAGS := [^#]+' config.mk | cut -b12-`
+else
+	CFLAGS=""
+	LDFLAGS="-lm "
+	if [[ $ARCH ]] ; then
+		CFLAGS="$CFLAGS-arch $ARCH "
+		LDFLAGS="$LDFLAGS-arch $ARCH "
+	fi
+	if [[ $IS_OSX ]] ; then
+		XCODE_SDK_PATH=$(xcodebuild -version -sdk $XCODE_SDK Path)
+		CFLAGS="$CFLAGS-isysroot $XCODE_SDK_PATH "
+		LDFLAGS="$LDFLAGS-isysroot $XCODE_SDK_PATH "
+	fi
+	if [[ $ARCH != arm* ]] ; then
+		echo -ne "  Enable \033[4mSSE2\033[m [Y/n] ? "
+		read -n 1 yn ; if [ ! -z $yn ] ; then echo ; fi
+		case $yn in
+		[nN]* ) ;;
+		*	  ) CFLAGS="$CFLAGS-msse2 -D HAVE_SSE2 "
+				;;
+		esac
+	fi
+	echo -ne "  With \033[4mlibjpeg\033[m [Y/n] ? "
+	read -n 1 yn ; if [ ! -z $yn ] ; then echo ; fi
+	case $yn in
+	[nN]* ) ;;
+	*	  ) CFLAGS="$CFLAGS-D HAVE_LIBJPEG "
+			LDFLAGS="$LDFLAGS-ljpeg "
+			;;
+	esac
+	echo -ne "  With \033[4mlibpng\033[m [Y/n] ? "
+	read -n 1 yn ; if [ ! -z $yn ] ; then echo ; fi
+	case $yn in
+	[nN]* ) ;;
+	*	  ) CFLAGS="$CFLAGS-D HAVE_LIBPNG "
+			LDFLAGS="$LDFLAGS-lpng -lz "
+      if [[ $IS_OSX ]] ; then
+        CFLAGS="$CFLAGS-I/usr/X11/include "
+        LDFLAGS="$LDFLAGS-L/usr/X11/lib "
+      fi
+			;;
+	esac
+	echo -ne "  With \033[4mgsl\033[m [Y/n] ? "
+	read -n 1 yn ; if [ ! -z $yn ] ; then echo ; fi
+	case $yn in
+	[nN]* ) ;;
+	*	  ) CFLAGS="$CFLAGS-D HAVE_GSL "
+			LDFLAGS="$LDFLAGS-lgsl "
+			;;
+	esac
+	echo -ne "  With \033[4mfftw3\033[m [Y/n] ? "
+	read -n 1 yn ; if [ ! -z $yn ] ; then echo ; fi
+	case $yn in
+	[nN]* ) ;;
+	*	  ) CFLAGS="$CFLAGS-D HAVE_FFTW3 "
+			LDFLAGS="$LDFLAGS-lfftw3f -lfftw3 "
+			;;
+	esac
+
+	echo -ne "  With \033[4mliblinear\033[m [Y/n] ? "
+	read -n 1 yn ; if [ ! -z $yn ] ; then echo ; fi
+	case $yn in
+	[nN]* ) ;;
+	*	  ) CFLAGS="$CFLAGS-D HAVE_LIBLINEAR "
+			LDFLAGS="$LDFLAGS-llinear "
+			;;
+	esac
+	if [[ $IS_OSX ]] ; then
+		echo -ne "  With \033[4mAccelerate Framework\033[m [Y/n] ? "
+		read -n 1 yn ; if [ ! -z $yn ] ; then echo ; fi
+		case $yn in
+		[nN]* ) ;;
+		*	  ) CFLAGS="$CFLAGS-D HAVE_ACCELERATE_FRAMEWORK "
+				LDFLAGS="$LDFLAGS-framework Accelerate "
+				;;
+		esac		
+	else
+		echo -ne "  With \033[4mcblas\033[m [Y/n] ? "
+		read -n 1 yn ; if [ ! -z $yn ] ; then echo ; fi
+		case $yn in
+		[nN]* ) ;;
+		*	  ) CFLAGS="$CFLAGS-D HAVE_CBLAS "
+				LDFLAGS="$LDFLAGS-lblas "
+				;;
+		esac
+	fi
+	echo -ne "  Use \033[4mopenmp\033[m [y/N] ? "
+	read -n 1 yn ; if [ ! -z $yn ] ; then echo ; fi
+	case $yn in
+	[yY]* ) CFLAGS="$CFLAGS-D USE_OPENMP -fopenmp "
+			LDFLAGS="$LDFLAGS-lgomp "
+			;;
+	*	  ) ;;
+	esac
+	echo -ne "  Use \033[4mlibdispatch\033[m [y/N] ? "
+	read -n 1 yn ; if [ ! -z $yn ] ; then echo ; fi
+	case $yn in
+	[yY]* ) CFLAGS="$CFLAGS-D USE_DISPATCH -fblocks "
+			LDFLAGS="$LDFLAGS-ldispatch -lBlocksRuntime "
+			;;
+	*	  ) ;;
+	esac
+	echo -ne "  With \033[4mavcodec\033[m [y/N] ? "
+	read -n 1 yn ; if [ ! -z $yn ] ; then echo ; fi
+	case $yn in
+	[yY]* ) CFLAGS="$CFLAGS-D HAVE_AVCODEC "
+			LDFLAGS="$LDFLAGS-lavcodec "
+			;;
+	*	  ) ;;
+	esac
+	echo -ne "  With \033[4mavformat\033[m [y/N] ? "
+	read -n 1 yn ; if [ ! -z $yn ] ; then echo ; fi
+	case $yn in
+	[yY]* ) CFLAGS="$CFLAGS-D HAVE_AVFORMAT "
+			LDFLAGS="$LDFLAGS-lavformat "
+			;;
+	*	  ) ;;
+	esac
+	echo -ne "  With \033[4mswscale\033[m [y/N] ? "
+	read -n 1 yn ; if [ ! -z $yn ] ; then echo ; fi
+	case $yn in
+	[yY]* ) CFLAGS="$CFLAGS-D HAVE_SWSCALE "
+			LDFLAGS="$LDFLAGS-lswscale "
+			;;
+	*	  ) ;;
+	esac
+	echo "CFLAGS := $CFLAGS" >> config.mk
+	echo "LDFLAGS := $LDFLAGS" >> config.mk
+fi
+
+CFLAGS="${CFLAGS#"${CFLAGS%%[![:space:]]*}"}" # remove leading whitespaces
+CFLAGS="${CFLAGS%"${CFLAGS##*[![:space:]]}"}" # remove trailing whitespaces
+LDFLAGS="${LDFLAGS#"${LDFLAGS%%[![:space:]]*}"}"
+LDFLAGS="${LDFLAGS%"${LDFLAGS##*[![:space:]]}"}"
+
+echo -e "\n \033[1mUSE\033[m: \033[4m$CC\033[m\n \033[1mCOMPILE FLAGS\033[m: \033[4m$CFLAGS\033[m\n \033[1mLINK FLAGS\033[m: \033[4m$LDFLAGS\033[m\n"

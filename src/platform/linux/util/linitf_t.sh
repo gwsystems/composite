@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# ping pong
+# GAO: this script is not working, need to fix it, refer to lposix.sh
 
 ./cos_loader \
 "c0.o, ;*fprr.o, ;mm.o, ;print.o, ;schedconf.o, ;st.o, ;bc.o, ;boot.o,a4;cg.o,a1;initfs.o,a4;\
