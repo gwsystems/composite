@@ -931,7 +931,8 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		thd = switch_thread_get_target(next_thd, curr, curr_spd, &ret_code);
 
 		if (unlikely(NULL == thd)) {
-			printk("err: get target\n");
+			printk("err: get target curr: %d, next %d in spdid %d\n",
+			       curr ? thd_get_id(curr) : 0, next_thd, spd_get_index(curr_spd));
 			goto_err(ret_err, "get target");
 		}
 	}
@@ -2190,8 +2191,6 @@ update_thd_evt_state(struct thread *t, int flags, unsigned long elapsed)
 	int i;
 	struct thd_sched_info *tsi;
 
-	//assert(flags != COS_SCHED_EVT_NIL);
-
 	for (i = 0 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
 		struct spd *sched;
 
@@ -2247,7 +2246,7 @@ update_sched_evts(struct thread *new, int new_flags,
 
 	elapsed = time_update();
 	tcap_elapsed(prev, elapsed);
-	
+
 	if (new_flags != COS_SCHED_EVT_NIL) {
 		update_thd_evt_state(new, new_flags, 0);
 	}
@@ -2308,7 +2307,7 @@ most_common_sched_depth(struct thread *t1, struct thread *t2)
 int 
 brand_higher_urgency(struct thread *upcall, struct thread *prev)
 {
-	int d;
+	int d, uc_exec = 0;
 	u16_t u_urg, p_urg;
 	int tcap_higher = 0;
 
@@ -2323,33 +2322,39 @@ brand_higher_urgency(struct thread *upcall, struct thread *prev)
 	if (unlikely(!thd_get_sched_info(prev, d)->thread_notifications)) {
 		if (!thd_get_sched_info(upcall, d)->thread_notifications) {
 			printk("cos: skimping on brand metadata maintenance, and returning.\n");
-			return 0;
+			uc_exec = 0;
 		} else {
 			/* upcall has the proper structure, prev doesn't! */
-			return 1;
+			uc_exec = 1;
+		}
+	} else {
+		u_urg = thd_get_depth_urg(upcall, d);
+		p_urg = thd_get_depth_urg(prev, d);
+
+		tcap_higher = tcap_higher_prio(upcall, prev);
+		/* We should not run the upcall if it doesn't have more
+		 * urgency, remember here that higher numerical values equals
+		 * less importance. */
+		if (u_urg < p_urg) {
+			if (unlikely(!tcap_higher)) {  
+				printk("TCAP WARNING: tcap not higher, but urg is for %d\n", thd_get_id(upcall));
+			}
+			uc_exec = 1;
+		} else {
+			if (unlikely(tcap_higher)) {  
+				printk("TCAP WARNING: tcap higher, but urg is not for %d\n", thd_get_id(upcall));
+			}
+			uc_exec = 0;
 		}
 	}
-	u_urg = thd_get_depth_urg(upcall, d);
-	p_urg = thd_get_depth_urg(prev, d);
-
-	tcap_higher = tcap_higher_prio(upcall, prev);
-	/* We should not run the upcall if it doesn't have more
-	 * urgency, remember here that higher numerical values equals
-	 * less importance. */
-	if (u_urg < p_urg) {
-		if (unlikely(!tcap_higher)) {  
-			printk("TCAP WARNING: tcap not higher, but urg is for %d\n", thd_get_id(upcall));
-		}
+		
+	if (uc_exec) {
 		update_sched_evts(upcall, COS_SCHED_EVT_BRAND_ACTIVE, 
 				  prev, COS_SCHED_EVT_NIL);
-		return 1;
 	} else {
-		if (unlikely(tcap_higher)) {  
-			printk("TCAP WARNING: tcap higher, but urg is not for %d\n", thd_get_id(upcall));
-		}
 		update_thd_evt_state(upcall, COS_SCHED_EVT_BRAND_ACTIVE, 1);
-		return 0;
 	}
+	return uc_exec;
 }
 
 /* 

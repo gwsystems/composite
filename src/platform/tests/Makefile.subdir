@@ -4,8 +4,11 @@ INCLUDE = -I$(SHAREDINC) -I$(CDIR)/include/
 CFILES  = $(wildcard *.c)
 OFILES  = $(CFILES:%.c=%.o)
 EXEC    = $(CFILES:%.c=%)
-OPT     = -ggdb3
-CFLAGS  = -Wall -Wextra $(OPT) $(INCLUDE)
+OPT     = -O3
+CFLAGS  = -Wall -Wextra -Wno-unused-parameter $(OPT) $(INCLUDE)
+SDEPS   = $(CFILES:%.c=%.d)
+
+all: $(SDEPS) $(EXEC)
 
 $(EXEC):$(OFILES)
 	$(CC) -o $@ $<
@@ -13,5 +16,13 @@ $(EXEC):$(OFILES)
 %.o:%.c
 	$(CC) $(CFLAGS) -c -o $(@) $<
 
+%.d:%.c
+	@set -e; rm -f $@; \
+	$(CC) -M $(INCLUDE) $(CFLAGS) $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+
 clean:
-	rm -f $(OFILES) $(EXEC)
+	rm -f $(OFILES) $(EXEC) $(SDEPS)
+
+-include $(SDEPS)

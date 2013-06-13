@@ -10,8 +10,7 @@
  *
  * 2012: Qi Wang added multicore support
  * 
- * 2013: Gabe Parmer added tcap support and reworked hierarchical
- *       scheduling
+ * 2013: Gabe Parmer: tcap support and reworked hierarchical scheduling
  */
 
 #include <cos_config.h>
@@ -78,7 +77,7 @@ static inline int sched_is_child(void) { return !sched_is_root(); }
 /* What is the spdid of the booter component? */
 #define BOOT_SPD_OFF 3
 
-//#define FPRR_REPORT_EVTS
+#define FPRR_REPORT_EVTS
 
 #ifdef FPRR_REPORT_EVTS
 
@@ -288,10 +287,7 @@ static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 			report_event(BRAND_ACTIVE);
 			fp_activate_upcall(t);
 		} else if (flags & COS_SCHED_EVT_BRAND_READY) {
-			if (sched_get_current() == t) {
-				printc("WTF in %d with thread %d.\n", cos_spd_id(), cos_get_thd_id());
-			}
-			assert(sched_get_current() != t); /* GAP: assert here */
+			assert(sched_get_current() != t);
 			report_event(BRAND_READY);
 			fp_deactivate_upcall(t);
 		} else if (flags & COS_SCHED_EVT_BRAND_PEND) {
@@ -441,6 +437,8 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 		/* success, or we need to check for more child events:
 		 * exit the loop! */
 		if (likely(COS_SCHED_RET_SUCCESS == ret) || COS_SCHED_RET_CEVT == ret) break;
+		printc("sched: ret val %d\n", ret);
+		assert(0);
 
 		cos_sched_lock_take();
 		if (evt != NULL_EVT) { report_event(evt); }
@@ -1828,7 +1826,7 @@ sched_init(void)
 
 	/* Are we root? */
 	if (parent_sched_isroot()) sched_root_init();
-	else                       sched_child_init();
+ 	else                       sched_child_init();
 	return 0;
 }
 
