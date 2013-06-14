@@ -35,7 +35,8 @@ PERCPU_ATTR(static, struct fprr_per_core, fprr_state);
 
 static inline void mask_set(unsigned short int p) { PERCPU_GET(fprr_state)->active |= 1 << p; }
 static inline void mask_unset(unsigned short int p) { PERCPU_GET(fprr_state)->active &= ~(1 << p); }
-static inline unsigned short int mask_high(void) 
+static inline unsigned short int 
+mask_high(void) 
 { 
 	u32_t v = PERCPU_GET(fprr_state)->active;
 	unsigned short int r = 0; 
@@ -49,7 +50,8 @@ static inline unsigned short int mask_high(void)
 	return r;
 }
 
-static inline void fp_move_end_runnable(struct sched_thd *t)
+static inline void 
+fp_move_end_runnable(struct sched_thd *t)
 {
 	struct sched_thd *head;
 	unsigned short int p = sched_get_metric(t)->priority;
@@ -62,7 +64,8 @@ static inline void fp_move_end_runnable(struct sched_thd *t)
 	mask_set(p);
 }
 
-static inline void fp_add_start_runnable(struct sched_thd *t)
+static inline void 
+fp_add_start_runnable(struct sched_thd *t)
 {
 	struct sched_thd *head;
 	u16_t p = sched_get_metric(t)->priority;
@@ -73,7 +76,8 @@ static inline void fp_add_start_runnable(struct sched_thd *t)
 	mask_set(p);
 }
 
-static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
+static inline void 
+fp_add_thd(struct sched_thd *t, unsigned short int prio)
 {
 	assert(prio < NUM_PRIOS);
 	assert(sched_thd_ready(t));
@@ -86,7 +90,8 @@ static inline void fp_add_thd(struct sched_thd *t, unsigned short int prio)
 	return;
 }
 
-static inline void fp_rem_thd(struct sched_thd *t)
+static inline void 
+fp_rem_thd(struct sched_thd *t)
 {
 	u16_t p = sched_get_metric(t)->priority;
 
@@ -98,7 +103,8 @@ static inline void fp_rem_thd(struct sched_thd *t)
 	REM_LIST(t, prio_next, prio_prev);
 }
 
-static struct sched_thd *fp_get_highest_prio(void)
+static struct sched_thd *
+fp_get_highest_prio(void)
 {
 	struct sched_thd *t, *head;
 	u16_t p = mask_high();
@@ -113,7 +119,8 @@ static struct sched_thd *fp_get_highest_prio(void)
 	return t;
 }
 
-static struct sched_thd *fp_get_second_highest_prio(struct sched_thd *highest)
+static struct sched_thd *
+fp_get_second_highest_prio(struct sched_thd *highest)
 {
 	struct sched_thd *t;
 
@@ -124,7 +131,8 @@ static struct sched_thd *fp_get_second_highest_prio(struct sched_thd *highest)
 	return t;
 }
 
-struct sched_thd *schedule(struct sched_thd *t)
+struct sched_thd *
+schedule(struct sched_thd *t)
 {
 	struct sched_thd *n;
 
@@ -136,20 +144,23 @@ struct sched_thd *schedule(struct sched_thd *t)
 	return fp_get_second_highest_prio(n);
 }
 
-void thread_new(struct sched_thd *t)
+void 
+thread_new(struct sched_thd *t)
 {
 	assert(t);
 //	fp_add_thd(t, sched_get_metric(t)->priority);
 }
 
-void thread_remove(struct sched_thd *t)
+void 
+thread_remove(struct sched_thd *t)
 {
 	assert(t);
 	fp_rem_thd(t);
 	REM_LIST(t, sched_next, sched_prev);
 }
 
-void time_elapsed(struct sched_thd *t, u32_t processing_time)
+void 
+time_elapsed(struct sched_thd *t, u32_t processing_time)
 {
 	struct sched_accounting *sa;
 
@@ -184,7 +195,8 @@ void time_elapsed(struct sched_thd *t, u32_t processing_time)
 	}
 }
 
-void timer_tick(int num_ticks)
+void 
+timer_tick(int num_ticks)
 {
 /* see time_elapsed for time mgmt */
 #ifdef DEFERRABLE
@@ -220,7 +232,8 @@ void timer_tick(int num_ticks)
 #endif
 }
 
-void thread_block(struct sched_thd *t)
+void 
+thread_block(struct sched_thd *t)
 {
 	assert(t);
 	assert(!sched_thd_member(t));
@@ -228,7 +241,8 @@ void thread_block(struct sched_thd *t)
 	//if (!sched_thd_suspended(t)) fp_rem_thd(t);
 }
 
-void thread_wakeup(struct sched_thd *t)
+void 
+thread_wakeup(struct sched_thd *t)
 {
 	assert(t);
 	assert(!sched_thd_member(t));
@@ -279,7 +293,8 @@ ds_parse_params(struct sched_thd *t, char *s)
 }
 #endif
 
-static int fp_thread_params(struct sched_thd *t, char *p)
+static int 
+fp_thread_params(struct sched_thd *t, char *p)
 {
 	int prio, tmp;
 	char curr = p[0];
@@ -334,7 +349,8 @@ static int fp_thread_params(struct sched_thd *t, char *p)
 	return 0;
 }
 
-int thread_params_set(struct sched_thd *t, char *params)
+int 
+thread_params_set(struct sched_thd *t, char *params)
 {
 	assert(t && params);
 	return fp_thread_params(t, params);
@@ -425,7 +441,8 @@ thread_resparams_set(struct sched_thd *t, res_spec_t rs)
 	return 0;
 }
 
-void runqueue_print(void)
+void 
+runqueue_print(void)
 {
 	struct sched_thd *t;
 	int i = 0;
@@ -465,7 +482,8 @@ void runqueue_print(void)
 	printc("done printing runqueue.\n");
 }
 
-void sched_initialization(void)
+void 
+sched_initialization(void)
 {
 	int i;
 
