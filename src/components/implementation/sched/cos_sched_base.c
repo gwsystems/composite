@@ -608,10 +608,10 @@ static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, 
 	cos_send_ipi(core_id, brand, 0, 0);
 
 	if (wait) {
+		/* FIXME: should be blocking, not spinning. */
 		while (ipi_data->active) ; /* Waiting */
 		ret = ipi_data->ret;
 	} 
-
 done:
 	return ret;
 error:

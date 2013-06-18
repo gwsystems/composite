@@ -35,6 +35,13 @@ void cos_upcall_exec(void *arg)
 }
 
 __attribute__ ((weak))
+int cos_async_inv(struct usr_inv_cap *ucap, int *params) 
+{
+	return 0;
+	//return cap_v >> COS_CAPABILITY_OFFSET; /* cap id */
+}
+
+__attribute__ ((weak))
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	switch (t) {
@@ -93,6 +100,8 @@ extern const vaddr_t cos_atomic_cmpxchg, cos_atomic_cmpxchg_end,
 	cos_atomic_user4, cos_atomic_user4_end;
 extern const vaddr_t cos_upcall_entry;
 
+extern const vaddr_t cos_ainv_entry;
+
 __attribute__((weak)) vaddr_t ST_user_caps;
 
 /* 
@@ -105,6 +114,7 @@ struct cos_component_information cos_comp_info __attribute__((section(".cinfo"))
 	.cos_heap_limit = 0,
 	.cos_stacks.freelists[0] = {.freelist = 0, .thd_id = 0},
 	.cos_upcall_entry = (vaddr_t)&cos_upcall_entry,
+	.cos_async_inv_entry = (vaddr_t)&cos_ainv_entry,
 	.cos_user_caps = (vaddr_t)&ST_user_caps,
 	.cos_ras = {{.start = (vaddr_t)&cos_atomic_cmpxchg, .end = (vaddr_t)&cos_atomic_cmpxchg_end}, 
 		    {.start = (vaddr_t)&cos_atomic_user1, .end = (vaddr_t)&cos_atomic_user1_end},

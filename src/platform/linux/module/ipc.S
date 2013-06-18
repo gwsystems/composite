@@ -125,6 +125,38 @@ ipc_ret_slowpath:
 ipc_ret_err:
 	ERROR_OUT
 
+/*
+ * Register layout:
+ *
+ * eax:	which capability, see comment in kern_entry.S:asym_exec_dom_entry
+ * ecx:	ip
+ * ebp:	sp
+ * ebx,esi,edi,edx: arguments
+ */
+.globl composite_async_call
+.align 32
+composite_async_call:
+	/* set up seg reg */
+	pushl %edx
+	movl $(__KERNEL_PERCPU), %edx
+	movl %edx, %fs
+	popl %edx
+	
+	pushl %ebp /* user-sp */
+	pushl %ecx /* user-ip */
+	
+	pushl %eax /* cap */
+
+	/* invoke walk_async_cap */
+	call walk_async_cap
+
+	addl $4, %esp
+
+	popl %edx /* user-ip from above */
+	popl %ecx /* and the sp */
+
+	RET_TO_USER
+//	
 #define COS_SYSCALL_EDX 20 /* Don't forget space for the return address */
 #define COS_SYSCALL_ECX 24
 

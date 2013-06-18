@@ -17,6 +17,7 @@
 #include "include/per_cpu.h"
 #include "include/chal.h"
 #include <linux/kernel.h>
+#include <linux/slab.h>
 
 /* 
  * These are the 1) page for the pte for the shared region and 2) the
@@ -230,6 +231,52 @@ pop(struct pt_regs **regs_restore)
 	}
 
 	return inv_frame;	
+}
+
+extern int send_ipi(int cpuid, int thdid, int wait);
+
+COS_SYSCALL int
+walk_async_cap(unsigned int capability)
+{
+	struct spd *curr_spd, *dest_spd;
+	struct async_cap *cap_entry;
+	struct thread *thd = core_get_curr_thd_id(get_cpuid_fast());
+
+	int cpu, bid;
+
+	assert(capability & COS_ASYNC_CAP_FLAG);
+
+	capability &= ~COS_ASYNC_CAP_FLAG; /* remove the async flag. */
+	assert(thd);
+	curr_spd = thd_curr_spd_thd(thd);
+
+	if (unlikely(curr_spd == NULL)) {
+		printk ("cos: couldn't find current component in thread %x.\n", (unsigned int)thd);
+		goto err;
+	}
+
+	if (unlikely(capability >= MAX_NUM_ACAP)) {
+		printk("cos: capability %d greater than max.\n", capability);
+		goto err;
+	}
+
+	cap_entry = &curr_spd->acaps[capability];
+
+	cpu = cap_entry->cpu;
+	bid = cap_entry->thd_id;
+
+	printk("ep cpu %d, bid %d\n", cpu, bid);
+
+	if (unlikely(bid == 0)) {
+		printk ("cos: capability %u not wired to any thread.\n", capability);
+		goto err;
+	}
+
+//	send_ipi(cpu, bid, 0);
+
+	return 0;
+err:
+	return -1;
 }
 
 /* return 1 if the fault is handled by a component */
@@ -3278,6 +3325,14 @@ cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
 		}
 		if (spd_cap_activate(cspd, capid)) ret = -1;
 		break;
+	case COS_CAP_GET_DEST_SPD:
+		if (capid > cspd->ncaps || capid < 0) return -1;
+
+		ret = spd_get_index(cspd->caps[capid].destination);
+		break;
+	case COS_CAP_GET_SPD_NCAPS:
+		ret = cspd->ncaps;
+		break;
 	default:
 		ret = -1;
 		break;
@@ -3386,6 +3441,10 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		/* arg1 = upcall_entry address */
 		spd->upcall_entry = (vaddr_t)arg1;
 		break;
+	case COS_SPD_ASYNC_INV_ADDR:
+		/* arg1 = async_inv entry address */
+		spd->async_inv_entry = (vaddr_t)arg1;
+		break;
 	case COS_SPD_ACTIVATE:
 	{
 		struct composite_spd *cspd;
@@ -3482,8 +3541,6 @@ cos_syscall_vas_cntl(int id, int op_spdid, long addr, long sz)
 	return ret;
 }
 
-extern int send_ipi(int cpuid, int thdid, int wait);
-
 //volatile int kern_tsc = 0;
 /* The IPI calls should not be accessible from user level. This is for
  * test purpose only. Will remove this syscall. */
@@ -3498,6 +3555,149 @@ cos_syscall_send_ipi(int spd_id, long cpuid, int thdid, long arg)
 	return send_ipi(cpuid, thdid, wait);
 }
 
+static inline int alloc_acap_id(struct spd *spd){
+	int i;
+
+	/* FIXME: obviously... */
+	for (i = 1; i < MAX_NUM_ACAP; i++) {
+		if (spd->acaps[i].allocated == 0) {
+			spd->acaps[i].allocated = 1;
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+COS_SYSCALL int 
+cos_syscall_async_cap_cntl(int spd_id, int operation, 
+			   int arg_1, int arg_2)
+{
+	struct spd *cli_spd, *srv_spd;
+	int ret = 0; 
+
+	const unsigned short int arg1 =  arg_1 >> 16;
+	const unsigned short int arg2 =  arg_1 & 0xFFFF;
+	const int arg3 =  arg_2;
+
+	switch(operation) {
+	case COS_ACAP_CREATION:
+	{
+		const int cli_spd_id = arg1;
+		const int srv_spd_id = arg2;
+		/* arg3 not used */
+		
+		struct async_cap *acap;
+		int i, acap_id;
+
+		cli_spd = spd_get_by_index(cli_spd_id);
+		srv_spd = spd_get_by_index(srv_spd_id);
+
+		if (unlikely(!cli_spd || !srv_spd)) goto err_spd;
+
+		for (i = 0; i < srv_spd->ncaps; i++) {
+			if (spd_get_index(cli_spd->caps[i].destination) == srv_spd_id)
+				break; // at least has one cap from source to dest
+		}
+
+		if (i == cli_spd->ncaps) {
+			printk("cos: no any capability between comp %d and %d\n", 
+			       cli_spd_id, srv_spd_id);
+			return -1;
+		}
+
+		acap_id = alloc_acap_id(cli_spd);
+		acap = &cli_spd->acaps[acap_id];
+		acap->srv_spd_id = srv_spd_id;
+		
+		printk("acap %d (comp %d to comp %d) created.\n", 
+		       acap_id, cli_spd_id, srv_spd_id);
+
+		return acap_id;
+	}
+	case COS_ACAP_WIRE:
+	{
+		const int cli_spd_id = arg1;
+		const int acap_id = arg2;
+		const int thd_id = arg3;
+
+		struct async_cap *acap;
+		struct async_cap *srv_acap; //TODO: add a srv_async_cap type
+		struct thread *thd = thd_get_by_id(thd_id);
+		int cpu;
+
+		if (thd == NULL) goto err_thd;
+
+		cpu = thd->cpu;
+		assert(cpu >= 0 && cpu < NUM_CPU);
+		cli_spd = spd_get_by_index(cli_spd_id);
+
+		if (unlikely(!cli_spd)) goto err_spd;
+		if (unlikely(acap_id >= MAX_NUM_ACAP)) goto err_cap;
+
+		acap = &cli_spd->acaps[acap_id]; // client acap
+		srv_spd = spd_get_by_index(acap->srv_spd_id); //server comp
+		if (unlikely(!srv_spd)) goto err_srv_spd;
+
+		if (thd->srv_acap == NULL) {
+			// create a new acap on the server side
+			int new_acap_id = alloc_acap_id(srv_spd);
+			srv_acap = &cli_spd->acaps[new_acap_id];
+			srv_acap->id = new_acap_id;
+			srv_acap->thd_id = thd_id;
+		}
+		srv_acap = thd->srv_acap;
+		assert(srv_acap && srv_acap->id);
+		srv_acap->ref_cnt++; //FIXME: use atomic instruction.
+		
+		printk("acap wiring comp %d, acap id %d to thd %d, core %d.\n", 
+		       cli_spd_id, acap_id, thd, cpu);
+
+		acap->thd_id = thd_id;
+		acap->cpu = cpu;
+
+		/* printk("acap wiring done.\n", eid, thd, core); */
+		return srv_acap->id; // return server side acap id
+	}
+	case COS_ACAP_LINK:
+	{
+		const int cli_spd_id = arg1;
+		const int cap_id = arg2;
+		/* arg3 not used */
+		/* int srv_spd_id; */
+
+		cli_spd = spd_get_by_index(cli_spd_id);
+		if (unlikely(!cli_spd)) goto err_spd;
+
+		if (unlikely(cap_id > cli_spd->ncaps)) goto err_cap;
+
+		/* srv_spd = cli_spd->caps[cap_id].destination; */
+		/* srv_spd_id = spd_get_index(srv_spd); */
+
+		/* change the user level pointer to ainv stub */
+		// TODO: use cap_cntl to do this.
+		cli_spd->user_cap_tbl[cap_id].invocation_fn = cli_spd->async_inv_entry;
+
+		return 0;
+	}
+	default:
+		ret = -1;
+	}
+
+	return ret;
+err_spd:
+	printk("cos: async_cap_cntl -- source component %d not valid\n", arg1);
+	return -1;
+err_cap:
+	printk("cos: async_cap_cntl -- invalid cap id %d in spd %d\n", arg2, arg1);
+	return -1;
+err_thd:
+	printk("cos: async_cap_cntl -- invalid thd id %d\n", arg3);
+	return -1;
+err_srv_spd:
+	printk("cos: async_cap_cntl -- couldn't find server comp for acap %d\n", arg2);
+	return -1;
+}
 /* 
  * Composite's system call table that is indexed and invoked by ipc.S.
  * The user-level stubs are created in cos_component.h.
@@ -3525,7 +3725,7 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_trans_cntl,
 	(void*)cos_syscall_pfn_cntl,
 	(void*)cos_syscall_send_ipi,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_async_cap_cntl,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,

@@ -44,6 +44,8 @@ boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_in
 
 	if (cos_spd_cntl(COS_SPD_UCAP_TBL, spdid, ci->cos_user_caps, 0)) BUG();
 	if (cos_spd_cntl(COS_SPD_UPCALL_ADDR, spdid, ci->cos_upcall_entry, 0)) BUG();
+	if (cos_spd_cntl(COS_SPD_ASYNC_INV_ADDR, spdid, ci->cos_async_inv_entry, 0)) BUG();
+
 	for (i = 0 ; i < COS_NUM_ATOMIC_SECTIONS/2 ; i++) {
 		if (cos_spd_cntl(COS_SPD_ATOMIC_SECT, spdid, ci->cos_ras[i].start, i*2)) BUG();
 		if (cos_spd_cntl(COS_SPD_ATOMIC_SECT, spdid, ci->cos_ras[i].end,   (i*2)+1)) BUG();

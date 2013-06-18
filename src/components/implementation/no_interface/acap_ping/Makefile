@@ -1,8 +1,8 @@
 C_OBJS=ping.o
 ASM_OBJS=
-COMPONENT=pingp.o
+COMPONENT=acap_pingp.o
 INTERFACES=
-DEPENDENCIES=pong printc
+DEPENDENCIES=acap_pong sched printc acap_mgr
 IF_LIB=
 
 include ../../Makefile.subsubdir
