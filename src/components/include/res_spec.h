@@ -20,6 +20,8 @@ static inline res_spec_t
 resres_spec_w(s16_t alloc, s16_t window)
 { return (res_spec_t){.a = alloc, .w = window}; }
 
+#define SCHED_PARAM_MAX 5
+
 typedef enum {
 	SCHEDP_NOOP,
 	SCHEDP_PRIO,		/* fixed priority */

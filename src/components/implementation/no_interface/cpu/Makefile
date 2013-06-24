@@ -3,7 +3,7 @@ ASM_OBJS=
 COMPONENT=cpu.o
 INTERFACES=
 DEPENDENCIES=sched printc periodic_wake
-IF_LIB=
+ADDITIONAL_LIBS=-lsconf
 
 include ../../Makefile.subsubdir
 ifeq (${ENABLE_STACK_MANAGER},1)

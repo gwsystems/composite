@@ -1,6 +1,8 @@
 #ifndef __JSMN_H_
 #define __JSMN_H_
 
+#define JSMN_PARENT_LINKS
+
 /**
  * JSON type identifier. Basic types are:
  * 	o Object
@@ -63,5 +65,16 @@ void jsmn_init(jsmn_parser *parser);
  */
 jsmnerr_t jsmn_parse(jsmn_parser *parser, const char *js, 
 		jsmntok_t *tokens, unsigned int num_tokens);
+
+/**
+ * Same, but with a limited-size string that is possibly not null
+ * terminated.  (See strlcpy/strcpy_s for an opinion on this).  Also
+ * returns the # of tokens on success.  Important for non-strict
+ * objects.
+ */
+jsmnerr_t 
+jsmn_parsen(jsmn_parser *parser, const char *js, unsigned int len, 
+	    jsmntok_t *tokens, unsigned int num_tokens, 
+	    unsigned int *tokens_ret);
 
 #endif /* __JSMN_H_ */

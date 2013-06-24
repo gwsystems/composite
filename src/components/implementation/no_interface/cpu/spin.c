@@ -15,53 +15,6 @@
 
 static unsigned int period = 0, budget = 0, execution = 0, priority = 16;
 
-static char *
-parse_step(char *d)
-{
-	char *s;
-
-	if (d == '\0') return d;
-	s = strchr(d, ' ');
-	if (!s) {
-		s = d + strlen(d);
-	} else {
-		*s = '\0';
-		s++;
-	}
-
-	switch(*d) {
-	case 'p':
-		period    = atoi(++d);
-		break;
-	case 'b':
-		budget    = atoi(++d);
-		break;
-	case 'e':
-		execution = atoi(++d);
-		printc("WARNING %d: constraining execution time not implemented\n", 
-		       (int)cos_spd_id());
-		break;
-	case 'a':
-		priority  = atoi(++d);
-		break;
-	default:
-		printc("periodic spin %d: could not parse argument %s\n", 
-		       (int)cos_spd_id(), d);
-		break;
-	}
-
-	return s;
-}
-
-static void
-parse_initstr(void)
-{
-	char *c;
-
-	c = cos_init_args();
-	while ('\0' != *c) c = parse_step(c);
-}
-
 static void
 spin(int execution)
 {
@@ -92,40 +45,32 @@ execute(void)
 	}
 }
 
+#include <cos_sparams_parse.h>
+
 void 
 cos_init(void *arg)
 {
 	static int first = 1;
 
 	if (first) {
-		union sched_param sp[3];
-		int off = 0, i;
+		union sched_param sp[SCHED_PARAM_MAX];
+		int i;
 
 		first = 0;
-		parse_initstr();
-		for (i = 0 ; i < 3 ; i++) {
-			sp[i].c.type = SCHEDP_NOOP;
+		parse_sched_str(cos_init_args(), sp, SCHED_PARAM_MAX);
+		for (i = 0 ; i < SCHED_PARAM_MAX ; i++) {
+			switch (sp[i].c.type) {
+			case SCHEDP_PRIO: 
+				priority = sp[i].c.value; 
+				break;
+			case SCHEDP_WINDOW: 
+				period   = sp[i].c.value; 
+				break;
+			case SCHEDP_BUDGET: 
+				budget   = sp[i].c.value; 
+				break;
+			}
 		}
-		
-		if (priority) {
-			union sched_param *p;
-			p          = &sp[off++];
-			p->c.type  = SCHEDP_PRIO;
-			p->c.value = priority;
-		}
-		if (budget) {
-			union sched_param *p;
-			p          = &sp[off++];
-			p->c.type  = SCHEDP_BUDGET;
-			p->c.value = budget;
-		}
-		if (period) {
-			union sched_param *p;
-			p          = &sp[off++];
-			p->c.type  = SCHEDP_WINDOW;
-			p->c.value = period;
-		}
-
 		if (sched_create_thd(cos_spd_id(), sp[0].v, sp[1].v, sp[2].v) < 0) {
 			printc("spdid %d: could not create thread.\n", (int)cos_spd_id());
 		}

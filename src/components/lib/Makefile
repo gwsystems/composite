@@ -45,6 +45,7 @@ distclean:
 	cd ck; ./configure; cd ..
 	make -C ck distclean
 	make -C jsmn clean
+	make -C sconf clean
 
 init: clean distclean all
 	make -C dietlibc-0.29
@@ -53,3 +54,4 @@ init: clean distclean all
 	cd ck; ./configure; cd ..
 	make -C ck
 	make -C jsmn
+	make -C sconf

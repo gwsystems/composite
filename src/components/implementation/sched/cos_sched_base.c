@@ -1683,7 +1683,7 @@ sched_init_create_threads(int boot_threads)
 	if (!boot_threads) return;
 
 	sp[0].c.type = SCHEDP_INIT;
-	t = sched_setup_thread_arg(&sp, fp_create_spd_thd, (void*)(int)cos_spd_id() + BOOT_SPD_OFF, 1);	
+	t = sched_setup_thread_arg(&sp, fp_create_spd_thd, (void*)((int)cos_spd_id() + BOOT_SPD_OFF), 1);	
 	t->tcap = tcap_normal;
 
 	assert(t);

@@ -75,6 +75,25 @@ int test_empty() {
 	check(t[0].type == JSMN_ARRAY && t[0].start == 0 && t[0].end == 7);
 	check(t[1].type == JSMN_OBJECT && t[1].start == 1 && t[1].end == 3);
 	check(t[2].type == JSMN_OBJECT && t[2].start == 4 && t[2].end == 6);
+
+	{
+		unsigned int ntokens;
+
+		js = "[0, 1]";
+		jsmn_init(&p);
+		r = jsmn_parsen(&p, js, strlen(js)+1, t, 10, &ntokens);
+		check(r == JSMN_SUCCESS);
+		check(t[0].size == 2 && ntokens == 3);
+		check(t[0].type == JSMN_ARRAY && t[0].start == 0 && t[0].end == 6);
+
+		js = "[\"hi\", 1]";
+		jsmn_init(&p);
+		r = jsmn_parsen(&p, js, strlen(js)+1, t, 10, &ntokens);
+		check(r == JSMN_SUCCESS);
+		check(t[0].size == 2 && ntokens == 3);
+		check(t[0].type == JSMN_ARRAY && t[0].start == 0 && t[0].end == 9);
+	}
+
 	return 0;
 }
 

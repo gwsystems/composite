@@ -11,24 +11,7 @@
 #include <stdlib.h>
 
 #include <sched.h>
-
-static char *
-parse_step(char *d, int *val)
-{
-	char *s;
-
-	if (d == '\0') return d;
-	s = strchr(d, ' ');
-	if (!s) {
-		s = d + strlen(d);
-	} else {
-		*s = '\0';
-		s++;
-	}
-	*val = atoi(d);
-
-	return s;
-}
+#include <sconf/sconf.h>
 
 static int 
 boot_spd_thd(spdid_t spdid)
@@ -43,14 +26,21 @@ boot_spd_thd(spdid_t spdid)
 static void
 parse_process_initstr(void)
 {
+	int i, l;
 	char *c;
+	struct sconf sc;
+	sconftok_t ts[32];
+	sconf_ret_t r = SCONF_SUCCESS;
 
 	c = cos_init_args();
-	while ('\0' != *c) {
-		int spdid = 0;
+	l = strlen(c);
+	sconf_init(&sc, c, l, ts, 32);
+	sconf_parse(&sc);
+	for (i = 0 ; r == SCONF_SUCCESS ; i++) {
+		int spdid;
 		
-		c = parse_step(c, &spdid);
-		if (!spdid) continue;
+		r = sconf_arr_int(&sc, i, &spdid);
+		if (r != SCONF_SUCCESS) break;
 		boot_spd_thd(spdid);
 	}
 }

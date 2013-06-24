@@ -399,13 +399,12 @@ thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
 			break;
 #ifdef DEFERRABLE
 		case SCHEDP_BUDGET:
-			prio = sched_get_metric(t)->priority;
 			sched_get_accounting(t)->C = ps->value;
 			sched_get_accounting(t)->C_used = 0;
 			fp_move_end_runnable(t);
+			printc("thread %d, budget %d\n", t->id, ps->value);
 			break;
 		case SCHEDP_WINDOW:
-			prio = sched_get_metric(t)->priority;
 			sched_get_accounting(t)->T = ps->value;
 			sched_get_accounting(t)->T_exp = 0;
 			if (EMPTY_LIST(t, sched_next, sched_prev) && 
@@ -413,6 +412,7 @@ thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
 				ADD_LIST(&PERCPU_GET(fprr_state)->servers, t, sched_next, sched_prev);
 			}
 			fp_move_end_runnable(t);
+			printc("thread %d, window %d\n", t->id, ps->value);
 			break;
 #endif
 		default:
