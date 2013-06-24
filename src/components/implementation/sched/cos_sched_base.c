@@ -531,7 +531,7 @@ static void sched_timer_tick(void)
 		PERCPU_GET(sched_base_state)->ticks++;
 		sched_process_wakeups();
 		timer_tick(1);
-		printc("tick %d\n", PERCPU_GET(sched_base_state)->ticks);
+		printc("tick %d\n", (unsigned int)PERCPU_GET(sched_base_state)->ticks);
 		sched_switch_thread(COS_SCHED_BRAND_WAIT, TIMER_SWITCH_LOOP);
 		/* Tailcall out of the loop */
 	}
@@ -1206,6 +1206,27 @@ done:
 	return ret;
 }
 
+int 
+sched_thd_params(spdid_t spdid, u16_t thd_id, u32_t sched_param0, u32_t sched_param1)
+{
+	struct sched_thd *t;
+	int ret = -1;
+	struct sched_param_s sp[3];
+
+	sp[0] = ((union sched_param)sched_param0).c;
+	sp[1] = ((union sched_param)sched_param1).c;
+	sp[2] = (union sched_param){.c = {.type = SCHEDP_NOOP}}.c;
+
+	cos_sched_lock_take();
+	t = sched_get_mapping(thd_id);
+	if (!t) goto done;
+
+	ret = thread_param_set(t, sp);
+done:
+	cos_sched_lock_release();
+	return ret;
+}
+
 /* Execute a function on a remote core. Using shared memory to send
  * the event. The idle thread of the destination core detects and
  * executes the function.  */
@@ -1235,13 +1256,15 @@ static int xcore_execute_fn(int core_id, void *fn, int nparams, int *param, int 
 	return ret;
 }
 
-static int current_core_create_thread_default(spdid_t spdid, u32_t sched_param_0, 
-						    u32_t sched_param_1, u32_t sched_param_2)
+static int 
+current_core_create_thread_default(spdid_t spdid, u32_t sched_param_0, 
+				   u32_t sched_param_1, u32_t sched_param_2)
 {
 	struct sched_param_s sp[4];
 	struct sched_thd *new;
 	vaddr_t t = spdid;
 
+	printc("%d: call to create thread in spd %d\n", cos_spd_id(), spdid);
 	sp[0] = ((union sched_param)sched_param_0).c;
 	sp[1] = ((union sched_param)sched_param_1).c;
 	sp[2] = ((union sched_param)sched_param_2).c;
@@ -1555,7 +1578,9 @@ sched_child_evt_thd(void)
 			cos_sched_clear_cevts();
 			cos_sched_lock_release();
 			/* Get events from the parent scheduler */
+			printc("pre-child block\n");
 			cont = parent_sched_child_get_evt(cos_spd_id(), should_idle, wake_diff, &type, &tid, &time_elapsed);
+			printc("post-child block\n");
 			cos_sched_lock_take();
 			assert(0 <= cont);
 			/* Process that event */

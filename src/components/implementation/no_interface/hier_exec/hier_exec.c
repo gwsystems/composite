@@ -26,21 +26,27 @@ boot_spd_thd(spdid_t spdid)
 static void
 parse_process_initstr(void)
 {
-	int i, l;
+	int i;
 	char *c;
 	struct sconf sc;
 	sconftok_t ts[32];
 	sconf_ret_t r = SCONF_SUCCESS;
 
 	c = cos_init_args();
-	l = strlen(c);
-	sconf_init(&sc, c, l, ts, 32);
-	sconf_parse(&sc);
-	for (i = 0 ; r == SCONF_SUCCESS ; i++) {
+	sconf_init(&sc, c, strlen(c)+1, ts, 32);
+	if (sconf_parse(&sc) < 0) {
+		printc("%d: parsing %s unsuccessful\n", 
+		       (unsigned int)cos_spd_id(), c);
+		return;
+	}
+	for (i = 0 ; 1 ; i++) {
 		int spdid;
-		
+
+		printc("token %d->%d, type %d\n", sc.tok_start, sc.tok_end, sc.type);
 		r = sconf_arr_int(&sc, i, &spdid);
+		printc("Array parse returns %d\n", r);
 		if (r != SCONF_SUCCESS) break;
+		printc("Creating thread in %d\n", spdid);
 		boot_spd_thd(spdid);
 	}
 }
@@ -48,7 +54,9 @@ parse_process_initstr(void)
 void 
 cos_init(void *arg)
 {
+	printc("In the hierarchical execution component\n");
 	parse_process_initstr();
+	printc("Completing execution in the hierarchical execution component\n");
 
 	return;
 }
