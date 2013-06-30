@@ -9,7 +9,6 @@
 //#define MAX_ARGSZ ((int)((2<<10)-sizeof(struct cos_array)))
 #define MAX_ARGSZ ((int)(2<<10))
 
-//int __initf_read(int offset, struct cos_array *da);
 int __initf_read(int offset, int cbid, int sz);
 /* Get the size of the init file */
 int initf_size(void);

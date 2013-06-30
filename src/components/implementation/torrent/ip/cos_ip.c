@@ -148,9 +148,6 @@ done:
 	return ret;
 }
 
-__attribute__((weak)) int twmeta(spdid_t spdid, td_t td, const char *key, unsigned int klen, const char *val, unsigned int vlen);
-__attribute__((weak)) int trmeta(spdid_t spdid, td_t td, const char *key, unsigned int klen, char *retval, unsigned int max_rval_len);
-
 void cos_init(void)
 {
 	torlib_init();

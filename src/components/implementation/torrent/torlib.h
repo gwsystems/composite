@@ -10,7 +10,6 @@
 
 #include <torrent.h>
 #include <cos_map.h>
-#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 

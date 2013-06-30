@@ -16,6 +16,13 @@ static cos_lock_t fs_lock;
 #define META_FLAGS      "flags"
 #define META_EVTID      "evtid"
 
+/* Default torrent implementations */
+__attribute__((weak)) int
+treadp(spdid_t spdid, int sz, int *off, int *len)
+{
+        return -ENOTSUP;
+}
+
 COS_MAP_CREATE_STATIC(torrents);
 struct torrent null_torrent, root_torrent;
 

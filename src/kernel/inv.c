@@ -872,6 +872,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	break_preemption_chain(curr);
 
 	fpu_save(curr, thd);
+
 	switch_thread_context(curr, thd);
 
 	if (thd->flags & THD_STATE_PREEMPTED) {

@@ -1,10 +1,5 @@
 #include "include/fpu.h"
 #include "include/thread.h"
-//#include "include/per_cpu.h"
-
-//PERCPU_ATTR(static, int, fpu_disabled);
-//PERCPU_ATTR(static, struct thread*, last_used_fpu);
-//PERCPU_ATTR(static volatile, int, init_core);
 
 int
 fpu_init()
@@ -84,16 +79,17 @@ fxsave(struct thread *thd)
 inline void
 fxrstor(struct thread *thd)
 {
-        asm volatile("fxrstor %0 " : : "m" (thd->fpu));
+        asm volatile("fxrstor %0" : : "m" (thd->fpu));
 }
 
 
 inline void
 fpu_set(int status)
 {
-        unsigned long val;
+        unsigned long val, cr0;
 
-        val = status ?  (fpu_read_cr0() & ~FPU_DISABLED_MASK) : (fpu_read_cr0() | FPU_DISABLED_MASK); // ENABLE(status == 1) : DISABLE(status == 0)
+        cr0 = fpu_read_cr0();
+        val = status ?  (cr0 & ~FPU_DISABLED_MASK) : (cr0 | FPU_DISABLED_MASK); // ENABLE(status == 1) : DISABLE(status == 0)
         asm volatile("mov %0,%%cr0" : : "r" (val));
 
         return;

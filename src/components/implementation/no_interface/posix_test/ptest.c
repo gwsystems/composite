@@ -5,8 +5,7 @@
 #include <evt.h>
 #include <sys/stat.h>
 
-//#include "../../../../../ccv/lib/ccv.h"
-#include <ccv.h>
+#include "../../../lib/libccv/ccv.h"
 #include "../../../lib/dietlibc-0.29/include/cos_syscalls.h"
 
 // torrent related
