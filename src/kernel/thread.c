@@ -8,6 +8,7 @@
 #include "include/thread.h"
 #include "include/spd.h"
 #include "include/page_pool.h"
+#include "include/fpu.h"
 
 struct thread threads[MAX_NUM_THREADS];
 static struct thread *thread_freelist_head = NULL;
@@ -95,6 +96,8 @@ struct thread *thd_alloc(struct spd *spd)
 	thd->thread_brand = NULL;
 	thd->pending_upcall_requests = 0;
 	thd->freelist_next = NULL;
+
+        fpu_thread_init(thd);
 
 	return thd;
 }
