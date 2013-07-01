@@ -13,6 +13,10 @@
 #include "debug.h"
 #include "shared/consts.h"
 #include "per_cpu.h"
+#include "shared/cos_config.h"
+#ifdef FPU_ENABLED
+#include "fpu_regs.h"
+#endif
 
 #include <linux/kernel.h>
 
@@ -78,6 +82,9 @@ struct thread {
 	 * to automtically generate the assembly offsets.
 	 */
 	struct pt_regs regs;
+#ifdef FPU_ENABLED
+        struct cos_fpu fpu;
+#endif
 
 	/* the first frame describes the threads protection domain */
 	struct thd_invocation_frame stack_base[MAX_SERVICE_DEPTH] HALF_CACHE_ALIGNED;
