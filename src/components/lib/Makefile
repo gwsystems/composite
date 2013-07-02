@@ -44,6 +44,7 @@ distclean:
 # with a new shell.
 	cd ck; ./configure; cd ..
 	make -C ck distclean
+	make -C libccv clean
 
 init: clean distclean all
 	make -C dietlibc-0.29
@@ -51,3 +52,5 @@ init: clean distclean all
 # keep the following commands in one line. Same as above.
 	cd ck; ./configure; cd ..
 	make -C ck
+	make -C libccv clean
+	make -C libccv cos_libccv.a

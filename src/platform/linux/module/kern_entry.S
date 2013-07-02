@@ -171,7 +171,7 @@ ENTRY(name##_interposition)					\
 	RESTORE_REGS;						\
 	addl $4, %esp;						\
 	jmp *(cos_default_##name##_handler)	
-	
+
 /* Same as above, but this time, there is an errorcode provided by the HW */
 #define COS_CREATE_TRAP_ERRCODE(name)		 		\
 .data;								\
@@ -198,6 +198,7 @@ ENTRY(name##_interposition)					\
 COS_CREATE_TRAP_NO_ERRCODE(div_fault)
 COS_CREATE_TRAP_ERRCODE(page_fault)
 COS_CREATE_TRAP_NO_ERRCODE(reg_save)
+COS_CREATE_TRAP_ERRCODE(fpu_not_available)
 
 /* The page fault trampoline for kernel faults.  See explanation in relocate_page_fault_handler:hw_ints.c */
 .data

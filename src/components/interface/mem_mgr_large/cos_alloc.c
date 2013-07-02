@@ -98,7 +98,7 @@ static inline REGPARM(1) void *do_mmap(size_t size) {
 }
 #else 
 
-static inline REGPARM(1) void *do_mmap(size_t size) {
+REGPARM(1) void *do_mmap(size_t size) {
 	void *hp, *ret;
 	unsigned long p;
 	size_t s = round_up_to_page(size);

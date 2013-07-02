@@ -45,6 +45,7 @@
 #include "../../../kernel/include/mmap.h"
 #include "../../../kernel/include/per_cpu.h"
 #include "../../../kernel/include/shared/consts.h"
+#include "../../../kernel/include/fpu.h"
 
 #include "./hw_ints.h"
 
@@ -60,6 +61,7 @@ extern void sysenter_interposition_entry(void);
 extern void page_fault_interposition(void);
 extern void div_fault_interposition(void);
 extern void reg_save_interposition(void);
+extern void fpu_not_available_interposition(void);
 
 /* 
  * This variable exists for the assembly code for temporary
@@ -722,6 +724,8 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		}
 
+                fpu_init();
+
 		printk("cos core %u: creating thread in spd %d.\n", get_cpuid(), thread_info.spd_handle);
 		spd = spd_get_by_index(thread_info.spd_handle);
 		if (!spd) {
@@ -1178,6 +1182,29 @@ main_reg_save_interposition(struct pt_regs *rs, unsigned int error_code)
 	return 0;
 }
 
+__attribute__((regparm(3))) int
+main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code)
+{
+        struct thread *curr_thd;
+
+        if (unlikely(cos_thd_per_core[get_cpuid()].cos_thd != current)) return 1;
+
+        if (syscalls_enabled == 1) return 1;
+
+        if ((curr_thd = core_get_curr_thd()) == NULL) return 1;
+
+        assert(fpu_is_disabled());
+
+        curr_thd->fpu.status = 1;
+        fpu_enable();
+        /* if last_used_fpu exists and is not current thread, then save curr states to it */
+        if (last_used_fpu && (last_used_fpu != curr_thd))
+                fxsave(last_used_fpu);
+        last_used_fpu = curr_thd;
+
+        return 1;
+}
+
 /*
  * Memory semaphore already held.
  */
@@ -1378,7 +1405,7 @@ int chal_attempt_brand(struct thread *brand)
 		if (host_in_syscall() || host_in_idle()) {
 			struct thread *next;
 
-			//next = brand_next_thread(brand, cos_current, 2);
+			//next = brand_next_thread(brand, coed_current, 2);
 			/* 
 			 * _FIXME_: Here we are kludging a problem over.
 			 * The problem is this:
@@ -1416,6 +1443,7 @@ int chal_attempt_brand(struct thread *brand)
 			 * be an issue later on.
 			 */
 			next = brand_next_thread(brand, cos_current, 0);
+			
 			if (next != cos_current) {
 				assert(core_get_curr_thd() == next);
 				/* the following call isn't
@@ -1474,6 +1502,8 @@ int chal_attempt_brand(struct thread *brand)
 			next = brand_next_thread(brand, cos_current, 1);
 			if (next != cos_current) {
 				thd_save_preempted_state(cos_current, regs);
+                                fpu_save(cos_current, next);
+
 				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
 					printk("cos: upcall thread %d is not set to be an active upcall.\n",
 					       thd_get_id(next));
@@ -1496,6 +1526,7 @@ int chal_attempt_brand(struct thread *brand)
 				regs->orig_ax = next->regs.ax;
 				regs->sp = next->regs.sp;
 				//cos_meas_event(COS_MEAS_BRAND_UC);
+
 			}
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 
@@ -1507,7 +1538,7 @@ int chal_attempt_brand(struct thread *brand)
 	} 
 done:
 	local_irq_restore(flags);
-		
+
 	return 0;
 }
 
@@ -1921,6 +1952,7 @@ static inline void hw_int_override_all(void)
 	hw_int_override_pagefault(page_fault_interposition);
 	hw_int_override_idt(0, div_fault_interposition, 0, 0);
 	hw_int_override_idt(0xe9, reg_save_interposition, 0, 3);
+	hw_int_override_idt(7, fpu_not_available_interposition, 0, 0);
 
 	return;
 }
