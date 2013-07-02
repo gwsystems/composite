@@ -772,7 +772,7 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 		
 		u32_t params[2] = {spdid, thd_id};
 
-		ret = xcore_exec(cpu, sched_wakeup, 2, params, 0);
+		ret = xcore_exec(cpu, sched_wakeup, 2, params, 1);
 	
 		goto xcore_done;
 	}

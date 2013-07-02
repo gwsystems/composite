@@ -238,11 +238,11 @@ extern int send_ipi(int cpuid, int thdid, int wait);
 COS_SYSCALL int
 walk_async_cap(unsigned int capability)
 {
-	struct spd *curr_spd, *dest_spd;
+	struct spd *curr_spd;
 	struct async_cap *cap_entry;
-	struct thread *thd = core_get_curr_thd_id(get_cpuid_fast());
+	struct thread *thd = core_get_curr_thd_id(get_cpuid());
 
-	int cpu, bid;
+	int cpu, upcall_thd;
 
 	assert(capability & COS_ASYNC_CAP_FLAG);
 
@@ -263,16 +263,17 @@ walk_async_cap(unsigned int capability)
 	cap_entry = &curr_spd->acaps[capability];
 
 	cpu = cap_entry->cpu;
-	bid = cap_entry->thd_id;
+	upcall_thd = cap_entry->thd_id;
 
-	printk("ep cpu %d, bid %d\n", cpu, bid);
-
-	if (unlikely(bid == 0)) {
+	if (unlikely(upcall_thd == 0)) {
 		printk ("cos: capability %u not wired to any thread.\n", capability);
 		goto err;
 	}
 
-//	send_ipi(cpu, bid, 0);
+	printk("in async ipc, cap %d. sending to thd %d on core %d\n",
+	       capability, upcall_thd, cpu);
+
+//	send_ipi(cpu, upcall_thd, 0);
 
 	return 0;
 err:
@@ -895,20 +896,20 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		if (ret_code == COS_SCHED_RET_SUCCESS && thd == curr) goto ret;
 		if (thd == curr) 
 		{
-			printk("err: thd == curr, ret %d\n", ret_code);
+			/* printk("err: thd == curr, ret %d\n", ret_code); */
 			goto_err(ret_err, "sloooow\n");
 		}
 	} else {
 		next_thd = switch_thread_parse_data_area(da, &ret_code);
 		if (unlikely(0 == next_thd)) {
-			printk("core %d, err: data area\n", get_cpuid());
+			/* printk("core %d, err: data area\n", get_cpuid()); */
 			goto_err(ret_err, "data_area\n");
 		}
 
 		thd = switch_thread_get_target(next_thd, curr, curr_spd, &ret_code);
 
 		if (unlikely(NULL == thd)) {
-			printk("err: get target\n");
+			/* printk("err: get target\n"); */
 			goto_err(ret_err, "get target");
 		}
 	}
@@ -2363,7 +2364,7 @@ brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 		assert(!(upcall->flags & THD_STATE_READY_UPCALL));
 		cos_meas_event(COS_MEAS_BRAND_PEND);
 		cos_meas_stats_start(COS_MEAS_STATS_UC_PEND_DELAY, 0);
-		/* FIXME: RACE. This could be running on more than one
+		/* FIXME: RACE. This could be running on multiple
 		 * cores simultaneously. We need atomic increment. */
 		brand->pending_upcall_requests++;
 
@@ -3327,8 +3328,11 @@ cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
 		break;
 	case COS_CAP_GET_DEST_SPD:
 		if (capid > cspd->ncaps || capid < 0) return -1;
-
 		ret = spd_get_index(cspd->caps[capid].destination);
+		break;
+	case COS_CAP_GET_DEST_FN:
+		if (capid > cspd->ncaps || capid < 0) return -1;
+		ret = (int)cspd->caps[capid].usr_stub_info.ST_serv_entry;
 		break;
 	case COS_CAP_GET_SPD_NCAPS:
 		ret = cspd->ncaps;
@@ -3547,12 +3551,12 @@ cos_syscall_vas_cntl(int id, int op_spdid, long addr, long sz)
 COS_SYSCALL int 
 cos_syscall_send_ipi(int spd_id, long cpuid, int thdid, long arg)
 {
-	int wait, option;
-	option = arg & 0xFFFF;
-	wait = arg >> 16;
-	assert(wait == 0);
+	/* int wait, option; */
+	/* option = arg & 0xFFFF; */
+	/* wait = arg >> 16; */
+	/* if (unlikely(wait != 0)) printk("cos: sending IPI with wait = %d\n", wait); */
 
-	return send_ipi(cpuid, thdid, wait);
+	return send_ipi(cpuid, thdid, 0);
 }
 
 static inline int alloc_acap_id(struct spd *spd){
@@ -3568,6 +3572,13 @@ static inline int alloc_acap_id(struct spd *spd){
 
 	return -1;
 }
+extern void cos_syscall_ainv_wait(int spd_id, unsigned short int acap, int *preempt);
+
+COS_SYSCALL struct pt_regs *
+cos_syscall_ainv_wait_cont(int spd_id, int acap, int *preempt) {
+
+	return 0;
+}
 
 COS_SYSCALL int 
 cos_syscall_async_cap_cntl(int spd_id, int operation, 
@@ -3575,6 +3586,7 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 {
 	struct spd *cli_spd, *srv_spd;
 	int ret = 0; 
+	/* TODO: access control */
 
 	const unsigned short int arg1 =  arg_1 >> 16;
 	const unsigned short int arg2 =  arg_1 & 0xFFFF;
@@ -3609,6 +3621,7 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 		acap_id = alloc_acap_id(cli_spd);
 		acap = &cli_spd->acaps[acap_id];
 		acap->srv_spd_id = srv_spd_id;
+		acap->id = acap_id;
 		
 		printk("acap %d (comp %d to comp %d) created.\n", 
 		       acap_id, cli_spd_id, srv_spd_id);
@@ -3643,15 +3656,17 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 			// create a new acap on the server side
 			int new_acap_id = alloc_acap_id(srv_spd);
 			srv_acap = &cli_spd->acaps[new_acap_id];
+			thd->srv_acap = srv_acap;
 			srv_acap->id = new_acap_id;
 			srv_acap->thd_id = thd_id;
 		}
+
 		srv_acap = thd->srv_acap;
 		assert(srv_acap && srv_acap->id);
 		srv_acap->ref_cnt++; //FIXME: use atomic instruction.
 		
 		printk("acap wiring comp %d, acap id %d to thd %d, core %d.\n", 
-		       cli_spd_id, acap_id, thd, cpu);
+		       acap->srv_spd_id, acap_id, thd_id, cpu);
 
 		acap->thd_id = thd_id;
 		acap->cpu = cpu;
@@ -3680,6 +3695,16 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 
 		return 0;
 	}
+	/* case COS_ACAP_UPCALL_HANDLING: */
+	/* { */
+	/* 	const int srv_spd_id = arg1; */
+	/* 	/\* arg2 not used *\/ */
+	/* 	/\* arg3 not used *\/ */
+
+	/* 	struct thread *curr = core_get_curr_thd(); */
+	/* 	upcall_execute(curr, (struct composite_spd*)thd_get_thd_spdpoly(srv_spd), */
+	/* 		       NULL, (struct composite_spd*)thd_get_thd_spdpoly(curr)); */
+	/* } */
 	default:
 		ret = -1;
 	}
@@ -3726,7 +3751,7 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_pfn_cntl,
 	(void*)cos_syscall_send_ipi,
 	(void*)cos_syscall_async_cap_cntl,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_ainv_wait,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,

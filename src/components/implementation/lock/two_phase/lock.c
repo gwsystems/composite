@@ -255,6 +255,7 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 
 	RELEASE(spdid);
 
+	/* printc("cpu %d: thd %d going to blk waiting for lock %d", cos_cpuid(), cos_get_thd_id(), (int)lock_id); */
 	if (-1 == sched_block(spdid, thd_id)) {
 		printc("Deadlock including thdids %d -> %d in spd %d, lock id %d.\n", 
 		       cos_get_thd_id(), thd_id, spd, (int)lock_id);
@@ -341,6 +342,7 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 
 		/* Wakeup the way we were put to sleep */
 		assert(tid != cos_get_thd_id());
+		/* printc("CPU %d: %d waking up %d\n", cos_cpuid(), cos_get_thd_id(), tid); */
 		sched_wakeup(spdid, tid);
 
 		if (bt == next) break;
