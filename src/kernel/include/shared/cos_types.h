@@ -30,6 +30,8 @@ typedef signed int       s32_t;
 typedef signed long long s64_t;
 #endif
 
+typedef int cpuid_t; /* Don't use unsigned type. We use negative values for error cases. */
+
 /* Macro used to define per core variables */
 #define PERCPU(type, name)                              \
 	PERCPU_DECL(type, name);                        \
@@ -295,6 +297,7 @@ struct cos_component_information {
 	vaddr_t cos_heap_ptr, cos_heap_limit;
 	vaddr_t cos_heap_allocated, cos_heap_alloc_extent;
 	vaddr_t cos_upcall_entry;
+	vaddr_t cos_async_inv_entry;
 //	struct cos_sched_data_area *cos_sched_data_area;
 	vaddr_t cos_user_caps;
 	struct restartable_atomic_sequence cos_ras[COS_NUM_ATOMIC_SECTIONS/2];
@@ -308,6 +311,7 @@ typedef enum {
 	COS_UPCALL_BOOTSTRAP,
 	COS_UPCALL_CREATE,
 	COS_UPCALL_DESTROY,
+	COS_UPCALL_AINV_HANDLER,
 	COS_UPCALL_UNHANDLED_FAULT
 } upcall_type_t;
 
@@ -380,7 +384,8 @@ enum {
 	COS_SPD_ATOMIC_SECT,
 	COS_SPD_UCAP_TBL,
 	COS_SPD_UPCALL_ADDR,
-	COS_SPD_ACTIVATE
+	COS_SPD_ASYNC_INV_ADDR,
+	COS_SPD_ACTIVATE,
 };
 
 /* operations for cos_vas_cntl */
@@ -399,7 +404,10 @@ enum {
 	COS_CAP_SET_SERV_FN,
 	COS_CAP_ACTIVATE,
 	COS_CAP_GET_INVCNT,
-	COS_CAP_SET_FAULT
+	COS_CAP_SET_FAULT,
+	COS_CAP_GET_SPD_NCAPS,
+	COS_CAP_GET_DEST_SPD,
+	COS_CAP_GET_DEST_FN
 };
 
 enum {
@@ -441,6 +449,14 @@ enum {
 	COS_TRANS_MAP,
 	COS_TRANS_DIRECTION,
 	COS_TRANS_BRAND,
+};
+
+/* operations for cos_async_cap_cntl */
+enum {
+	COS_ACAP_CLI_CREATE = 0,
+	COS_ACAP_SRV_CREATE,
+	COS_ACAP_WIRE,
+	COS_ACAP_LINK
 };
 
 /* flags for cos_switch_thread */

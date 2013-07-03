@@ -70,3 +70,16 @@ boot_deps_init(void)
 
 static void
 boot_deps_run(void) { return; }
+
+#define FIRST_RR 0
+static u32_t created_default_thds = FIRST_RR;
+
+/* Round-robin policy */
+static u32_t init_core_policy(void) {
+	union sched_param sp;
+	sp.c.type = SCHEDP_CORE_ID;
+	sp.c.value = created_default_thds % NUM_CPU_COS;
+	created_default_thds++;
+
+	return sp.v;
+}

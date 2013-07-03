@@ -25,8 +25,6 @@ struct per_core_variables {
 
 extern struct per_core_variables per_core[NUM_CPU];
 
-typedef int cpuid_t;
-
 static inline int 
 cos_cas(unsigned long *target, unsigned long cmp, unsigned long updated)
 {

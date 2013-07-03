@@ -44,6 +44,8 @@ boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_in
 
 	if (cos_spd_cntl(COS_SPD_UCAP_TBL, spdid, ci->cos_user_caps, 0)) BUG();
 	if (cos_spd_cntl(COS_SPD_UPCALL_ADDR, spdid, ci->cos_upcall_entry, 0)) BUG();
+	if (cos_spd_cntl(COS_SPD_ASYNC_INV_ADDR, spdid, ci->cos_async_inv_entry, 0)) BUG();
+
 	for (i = 0 ; i < COS_NUM_ATOMIC_SECTIONS/2 ; i++) {
 		if (cos_spd_cntl(COS_SPD_ATOMIC_SECT, spdid, ci->cos_ras[i].start, i*2)) BUG();
 		if (cos_spd_cntl(COS_SPD_ATOMIC_SECT, spdid, ci->cos_ras[i].end,   (i*2)+1)) BUG();
@@ -293,9 +295,20 @@ static int
 boot_spd_thd(spdid_t spdid)
 {
 	union sched_param sp = {.c = {.type = SCHEDP_RPRIO, .value = 1}};
+	union sched_param sp_coreid;
+
+	/* The round-robin policy is not used since we may access a
+	 * component that is still doing init (on another core). */
+	/* Creating default threads on cores with round-robin
+	 * policy. */
+	/* sp_coreid.v = init_core_policy(); */
+
+	/* All init threads on core 0. */
+	sp_coreid.c.type = SCHEDP_CORE_ID;
+	sp_coreid.c.value = 0;
 
 	/* Create a thread IF the component requested one */
-	if ((sched_create_thread_default(spdid, sp.v, 0, 0)) < 0) return -1;
+	if ((sched_create_thread_default(spdid, sp.v, sp_coreid.v, 0)) < 0) return -1;
 	return 0;
 }
 

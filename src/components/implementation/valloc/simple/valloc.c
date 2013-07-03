@@ -21,12 +21,12 @@
 #ifdef LOCK_COMPONENT
 #include <cos_synchronization.h>
 cos_lock_t valloc_lock;
-#define LOCK()      lock_take(&valloc_lock)
-#define UNLOCK()    lock_release(&valloc_lock)
+#define LOCK()      do { int ret; ret = lock_take(&valloc_lock); if (ret) {printc("<<<%d\n", ret); BUG();} } while(0);
+#define UNLOCK()    do { if (lock_release(&valloc_lock)) BUG(); } while(0);
 #define LOCK_INIT() lock_static_init(&valloc_lock);
 #else
-#define LOCK()   if(sched_component_take(cos_spd_id())) BUG();
-#define UNLOCK() if(sched_component_release(cos_spd_id())) BUG();
+#define LOCK()   if (sched_component_take(cos_spd_id())) BUG();
+#define UNLOCK() if (sched_component_release(cos_spd_id())) BUG();
 #define LOCK_INIT()
 #endif
 
@@ -148,6 +148,7 @@ done:
 
 static void init(void)
 {
+	LOCK_INIT();
 	cos_vect_init_static(&spd_vect);
 }
 

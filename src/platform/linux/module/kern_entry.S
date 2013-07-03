@@ -106,6 +106,9 @@ ENTRY(sysenter_interposition_entry)
 	 * cap_inv:	The capability to invoke
 	 * sc:	 Make a composite OS system-call
 	 */
+	
+	cmpl $(COS_ASYNC_CAP_FLAG), %eax /* Non-static cap? */
+	ja composite_async_call /* Async invocation */
 
 	cmpl $((1<<COS_CAPABILITY_OFFSET)-1), %eax /* 2^20-1 shift for capability invocations */
 	ja composite_call_ipc /* component invocation */

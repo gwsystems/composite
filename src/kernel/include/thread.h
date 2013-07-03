@@ -106,6 +106,9 @@ struct thread {
 
 	/* End Brand & Upcall fields */
 
+	int cpu; /* set during creation */
+	struct async_cap *srv_acap;
+
 	/* flags & (THD_STATE_UPCALL|THD_STATE_BRAND) != 0: */
 	/* TODO singly linked list of upcall threads for a specific brand */
 	//struct thread *upcall_thread_ready, *upcall_thread_active;

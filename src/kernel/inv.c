@@ -17,6 +17,7 @@
 #include "include/per_cpu.h"
 #include "include/chal.h"
 #include <linux/kernel.h>
+#include <linux/slab.h>
 
 /* 
  * These are the 1) page for the pte for the shared region and 2) the
@@ -230,6 +231,63 @@ pop(struct pt_regs **regs_restore)
 	}
 
 	return inv_frame;	
+}
+
+extern int ainv_send_ipi(int cpuid, int thdid, int wait);
+extern int send_ipi(int cpuid, int thdid, int wait);
+
+static inline int __invoke_async_cap(unsigned int capability) {
+	struct spd *curr_spd;
+	struct async_cap *cap_entry;
+	struct thread *thd = core_get_curr_thd_id(get_cpuid());
+
+	int cpu, upcall_thd;
+
+	capability &= ~COS_ASYNC_CAP_FLAG; /* remove the async flag. */
+	assert(thd);
+	curr_spd = thd_curr_spd_thd(thd);
+
+	if (unlikely(curr_spd == NULL)) {
+		printk ("cos: couldn't find current component in thread %x.\n", (unsigned int)thd);
+		goto err;
+	}
+	if (unlikely(capability >= MAX_NUM_ACAP)) {
+		printk("cos: async capability %d greater than max.\n", capability);
+		goto err;
+	}
+
+	cap_entry = &curr_spd->acaps[capability];
+	if (unlikely(cap_entry->owner_thd > 0 && cap_entry->owner_thd != thd_get_id(thd))) {
+		printk("cos: thread %d tries to invoke acap %d that belongs to thread %d.\n", 
+		       thd_get_id(thd), capability, cap_entry->owner_thd);
+		goto err;
+	}
+
+	cpu = cap_entry->cpu;
+	upcall_thd = cap_entry->upcall_thd;
+	if (unlikely(upcall_thd == 0)) {
+		printk ("cos: capability %u not wired to any thread.\n", capability);
+		goto err;
+	}
+	/* printk("in async ipc, cap %d. sending to thd %d on core %d\n", */
+	/*        capability, upcall_thd, cpu); */
+	ainv_send_ipi(cpu, upcall_thd, 0);
+
+	return 0;
+err:
+	return -1;
+}
+
+COS_SYSCALL int
+walk_async_cap(unsigned int capability)
+{
+	return __invoke_async_cap(capability);
+}
+
+COS_SYSCALL int 
+cos_syscall_ainv_send(int spdid, int capability)
+{
+	return __invoke_async_cap(capability);
 }
 
 /* return 1 if the fault is handled by a component */
@@ -607,7 +665,7 @@ sched_tailcall_adjust_invstk(struct thread *t)
 	struct spd *s;
 	struct spd_poly *nspd, *cspd;
 	
-	assert(t && t->flags & THD_STATE_ACTIVE_UPCALL && t->thread_brand);
+	assert(t && t->flags & THD_STATE_ACTIVE_UPCALL && (t->thread_brand || t->srv_acap));
 	
 	tif = thd_invocation_pop(t);
 	assert(tif);
@@ -655,6 +713,10 @@ static void update_sched_evts(struct thread *new, int new_flags,
 static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, 
 						     struct composite_spd *curr);
 static struct thread *sched_tailcall_pending_upcall_thd(struct thread *uc, 
+							 struct composite_spd *curr);
+static struct pt_regs *sched_tailcall_pending_upcall_ainv(struct thread *uc, 
+						     struct composite_spd *curr);
+static struct thread *sched_tailcall_pending_upcall_thd_ainv(struct thread *uc, 
 							 struct composite_spd *curr);
 static inline void update_thd_evt_state(struct thread *t, int flags, unsigned long elapsed_cycles);
 static inline void 
@@ -848,20 +910,20 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		if (ret_code == COS_SCHED_RET_SUCCESS && thd == curr) goto ret;
 		if (thd == curr) 
 		{
-			printk("err: thd == curr, ret %d\n", ret_code);
+			/* printk("err: thd == curr, ret %d\n", ret_code); */
 			goto_err(ret_err, "sloooow\n");
 		}
 	} else {
 		next_thd = switch_thread_parse_data_area(da, &ret_code);
 		if (unlikely(0 == next_thd)) {
-			printk("err: data area\n");
+			/* printk("core %d, err: data area\n", get_cpuid()); */
 			goto_err(ret_err, "data_area\n");
 		}
 
 		thd = switch_thread_get_target(next_thd, curr, curr_spd, &ret_code);
 
 		if (unlikely(NULL == thd)) {
-			printk("err: get target\n");
+			/* printk("err: get target\n"); */
 			goto_err(ret_err, "get target");
 		}
 	}
@@ -930,8 +992,9 @@ switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd
 		    unlikely(spd_get_index(curr_spd) != sched_tailcall_adjust_invstk(curr))) 
 			goto_err(ret_err, "tailcall from incorrect spd!\n");
 		
-		assert(curr->thread_brand);
-		if (curr->thread_brand->pending_upcall_requests) {
+		assert(curr->thread_brand || curr->srv_acap);
+		/* make this compatible to both brand and acap */
+		if (curr->thread_brand && curr->thread_brand->pending_upcall_requests) {
 			//update_thd_evt_state(curr, COS_SCHED_EVT_BRAND_ACTIVE, 1);
 			//spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(curr));
 			cos_meas_event(COS_MEAS_BRAND_COMPLETION_PENDING);
@@ -939,7 +1002,14 @@ switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd
 			report_upcall("c", curr);
 			*ret_code = COS_SCHED_RET_SUCCESS;
 			return sched_tailcall_pending_upcall_thd(curr, (struct composite_spd*)curr_spd->composite_spd);
-		} 
+		} else if (curr->srv_acap && curr->srv_acap->pending_upcall){
+			cos_meas_event(COS_MEAS_BRAND_COMPLETION_PENDING);
+			event_record("switch_thread tailcall pending", thd_get_id(curr), 0);
+			report_upcall("c", curr);
+			*ret_code = COS_SCHED_RET_SUCCESS;
+			return sched_tailcall_pending_upcall_thd_ainv(curr, (struct composite_spd*)curr_spd->composite_spd);
+		}
+
 
 		curr->flags &= ~THD_STATE_ACTIVE_UPCALL;
 		curr->flags |= THD_STATE_READY_UPCALL;
@@ -1167,6 +1237,32 @@ sched_tailcall_pending_upcall_thd(struct thread *uc, struct composite_spd *curr)
 	return uc;
 }
 
+static struct thread *
+sched_tailcall_pending_upcall_thd_ainv(struct thread *uc, struct composite_spd *curr)
+{
+	struct async_cap *acap = uc->srv_acap;
+	struct composite_spd *cspd;
+
+	assert(acap && acap->pending_upcall > 0);
+	assert(uc->flags & THD_STATE_ACTIVE_UPCALL && 
+	       !(uc->flags & THD_STATE_READY_UPCALL));
+
+	acap->pending_upcall--;
+
+	cspd = (struct composite_spd*)thd_get_thd_spdpoly(uc);
+	upcall_execute(uc, cspd, NULL, curr);
+
+	cos_meas_event(COS_MEAS_BRAND_PEND_EXECUTE);
+	cos_meas_event(COS_MEAS_FINISHED_BRANDS);
+
+	/* return value is the number of pending upcalls */
+	uc->regs.ax = 0;//acap->pending_upcall_requests;
+
+	event_record("pending upcall", thd_get_id(uc), 0);
+
+	return uc;
+}
+
 /* 
  * Assumes: we are called from the thread switching syscall, with the
  * TAIL_CALL flag (i.e. we are switching away from an upcall).  Also,
@@ -1176,6 +1272,13 @@ static struct pt_regs *
 sched_tailcall_pending_upcall(struct thread *uc, struct composite_spd *curr)
 {
 	return &sched_tailcall_pending_upcall_thd(uc, curr)->regs;
+}
+
+
+static struct pt_regs *
+sched_tailcall_pending_upcall_ainv(struct thread *uc, struct composite_spd *curr)
+{
+	return &sched_tailcall_pending_upcall_thd_ainv(uc, curr)->regs;
 }
 
 /* 
@@ -2249,7 +2352,7 @@ brand_higher_urgency(struct thread *upcall, struct thread *prev)
 	int d;
 	u16_t u_urg, p_urg;
 
-	assert(upcall->thread_brand && upcall->flags & THD_STATE_UPCALL);
+	assert((upcall->thread_brand || upcall->srv_acap) && upcall->flags & THD_STATE_UPCALL);
 
 	d = most_common_sched_depth(upcall, prev);
 	/* FIXME FIXME FIXME FIXME FIXME FIXME FIXME this is a stopgap
@@ -2259,7 +2362,7 @@ brand_higher_urgency(struct thread *upcall, struct thread *prev)
 	 */
 	if (unlikely(!thd_get_sched_info(prev, d)->thread_notifications)) {
 		if (!thd_get_sched_info(upcall, d)->thread_notifications) {
-			printk("cos: skimping on brand metadata maintenance, and returning.\n");
+			printk("cos: core %d skimping on brand metadata maintenance, and returning.\n", get_cpuid());
 			return 0;
 		} else {
 			/* upcall has the proper structure, prev doesn't! */
@@ -2272,7 +2375,7 @@ brand_higher_urgency(struct thread *upcall, struct thread *prev)
 	 * urgency, remember here that higher numerical values equals
 	 * less importance. */
 	if (u_urg < p_urg) {
-		update_sched_evts(upcall, COS_SCHED_EVT_BRAND_ACTIVE, 
+		update_sched_evts(upcall, COS_SCHED_EVT_BRAND_ACTIVE,
 				  prev, COS_SCHED_EVT_NIL);
 		return 1;
 	} else {
@@ -2316,7 +2419,7 @@ brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 		assert(!(upcall->flags & THD_STATE_READY_UPCALL));
 		cos_meas_event(COS_MEAS_BRAND_PEND);
 		cos_meas_stats_start(COS_MEAS_STATS_UC_PEND_DELAY, 0);
-		/* FIXME: RACE. This could be running on more than one
+		/* FIXME: RACE. This could be running on multiple
 		 * cores simultaneously. We need atomic increment. */
 		brand->pending_upcall_requests++;
 
@@ -2348,6 +2451,9 @@ brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 	 * executing thread?
 	 */
 	if (brand_higher_urgency(upcall, preempted)) {
+		/* printk("core %ld, going to switch to brand thd %d,
+		 * prev thd %d\n", get_cpuid(), upcall->thread_id,
+		 * preempted->thread_id); */
 		if (unlikely(preempted->flags & THD_STATE_PREEMPTED)) {
 			printk("cos: WTF - preempted thread %d preempted, upcall %d.\n", 
 			       thd_get_id(preempted), thd_get_id(upcall));
@@ -2377,6 +2483,11 @@ brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 		 * If we aren't in the composite thread, be careful
 		 * what state we change (e.g. page tables) */
 		if (likely(chal_pgtbl_can_switch())) {
+			/* printk("upcall thd %d, spd %x, prev thd %d,
+			 * spd %x\n", upcall->thread_id, (void
+			 * *)thd_get_thd_spdpoly(upcall),
+			 * preempted->thread_id, (void
+			 * *)thd_get_thd_spdpoly(preempted)); */
 			upcall_execute(upcall, (struct composite_spd*)thd_get_thd_spdpoly(upcall),
 				       preempted, (struct composite_spd*)thd_get_thd_spdpoly(preempted));
 		} else {
@@ -2401,6 +2512,151 @@ brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 		}
 #else
 		upcall->regs.ax = upcall->thread_brand->pending_upcall_requests;
+#endif
+
+		if (preempted->flags & THD_STATE_ACTIVE_UPCALL && upcall->interrupted_thread) {
+			event_record("upcall activated and made immediately (preempted upcall)", 
+				     thd_get_id(preempted), thd_get_id(upcall));
+		} else if (upcall->interrupted_thread) {
+			event_record("upcall activated and made immediately (w/ preempted thd)", 
+				     thd_get_id(preempted), thd_get_id(upcall));
+		} else {
+			event_record("upcall activated and made immediately w/o preempted thd", 
+				     thd_get_id(preempted), thd_get_id(upcall));
+		}
+
+		report_upcall("u", upcall);
+		cos_meas_event(COS_MEAS_BRAND_UC);
+		cos_meas_stats_end(COS_MEAS_STATS_UC_EXEC_DELAY, 1);
+		return upcall;
+	} 
+		
+	/* 
+	 * If another upcall is what we attempted to preempt, we might
+	 * have a higher priority than the thread that upcall had
+	 * preempted.  Thus we must break its preemption chain.
+	 */
+	if (preempted->flags & THD_STATE_ACTIVE_UPCALL) break_preemption_chain(preempted);
+	
+	event_record("upcall not immediately executed (less urgent), continue previous thread", 
+		     thd_get_id(preempted), thd_get_id(upcall));
+//		printk("%d w\n", thd_get_id(upcall));
+
+	report_upcall("d", upcall);
+
+	cos_meas_event(COS_MEAS_BRAND_DELAYED);
+	return preempted;
+}
+
+struct thread *
+ainv_next_thread(struct thread *upcall, struct thread *preempted, int preempt)
+{
+	struct async_cap *acap = upcall->srv_acap;
+	assert(upcall && acap);
+
+	/* 
+	 * If the upcall is already active, the scheduler's already
+	 * know what they're doing, and has chosen to run preempted.
+	 * Don't second guess it.
+	 *
+	 * Do the same if upcall threads haven't been added to this
+	 * brand.
+	 */
+	if (upcall->flags & THD_STATE_ACTIVE_UPCALL) {
+		assert(!(upcall->flags & THD_STATE_READY_UPCALL));
+		cos_meas_event(COS_MEAS_BRAND_PEND);
+		cos_meas_stats_start(COS_MEAS_STATS_UC_PEND_DELAY, 0);
+		acap->pending_upcall++;
+
+		event_record("brand activated, but upcalls active", thd_get_id(preempted), thd_get_id(upcall));
+		/* 
+		 * This is an annoying hack to make sure we notify the
+		 * scheduler that the upcall is active.  Because
+		 * upcall notifications are edge triggered, if for
+		 * some reason the scheduler misses one of the
+		 * notifications, this can server as a reminder.
+		 */
+//		update_thd_evt_state(upcall, COS_SCHED_EVT_BRAND_PEND, 1);
+//		cos_meas_event(COS_MEAS_PENDING_HACK);
+		report_upcall("p", upcall);
+
+		return preempted;
+	}
+
+	assert(upcall->flags & THD_STATE_READY_UPCALL);
+
+	upcall->flags |= THD_STATE_ACTIVE_UPCALL;
+	upcall->flags &= ~THD_STATE_READY_UPCALL;
+
+	cos_meas_stats_start(COS_MEAS_STATS_UC_EXEC_DELAY, 1);
+	cos_meas_stats_start(COS_MEAS_STATS_UC_TERM_DELAY, 1);
+	cos_meas_stats_start(COS_MEAS_STATS_UC_PEND_DELAY, 1);
+	/* 
+	 * Does the upcall have a higher urgency than the currently
+	 * executing thread?
+	 */
+	if (brand_higher_urgency(upcall, preempted)) {
+		/* printk("core %ld, going to switch to brand thd %d,
+		 * prev thd %d\n", get_cpuid(), upcall->thread_id,
+		 * preempted->thread_id); */
+		if (unlikely(preempted->flags & THD_STATE_PREEMPTED)) {
+			printk("cos: WTF - preempted thread %d preempted, upcall %d.\n", 
+			       thd_get_id(preempted), thd_get_id(upcall));
+			return preempted;
+		}
+		if (unlikely(preempted->preempter_thread != NULL)) {
+			printk("cos: WTF - preempter thread pointer of preempted thread %d not null, upcall %d.\n",
+			       thd_get_id(preempted), thd_get_id(upcall));
+			return preempted;
+		}
+		if (likely(preempt)) {
+			assert((preempted->flags & THD_STATE_PREEMPTED) == 0);
+			assert(preempted->preempter_thread == NULL);
+
+			/* 
+			 * This dictates how the registers for
+			 * preempted are restored later.
+			 */
+			if (preempt == 1) preempted->flags |= THD_STATE_PREEMPTED;
+			preempted->preempter_thread = upcall;
+			upcall->interrupted_thread = preempted;
+		} else {
+			upcall->interrupted_thread = NULL;
+		}
+
+		/* Actually setup the brand/upcall to happen here.
+		 * If we aren't in the composite thread, be careful
+		 * what state we change (e.g. page tables) */
+		if (likely(chal_pgtbl_can_switch())) {
+			/* printk("upcall thd %d, spd %x, prev thd %d,
+			 * spd %x\n", upcall->thread_id, (void
+			 * *)thd_get_thd_spdpoly(upcall),
+			 * preempted->thread_id, (void
+			 * *)thd_get_thd_spdpoly(preempted)); */
+			upcall_execute(upcall, (struct composite_spd*)thd_get_thd_spdpoly(upcall),
+				       preempted, (struct composite_spd*)thd_get_thd_spdpoly(preempted));
+		} else {
+			upcall_execute_no_vas_switch(upcall, preempted);
+		}
+#ifdef UPCALL_TIMING
+		{
+			u64_t t;
+			struct spd *s;
+
+			rdtscll(t);
+			s = thd_get_thd_spd(upcall);
+			if (s->sched_depth == 0) {
+				struct cos_sched_data_area *da;
+				
+				da = s->kern_sched_shared_page[get_cpuid()];
+				if (da) da->cos_evt_notif.timer = (u32_t)t;
+			} else {
+				if (-1 == (int)t) t = 0;
+				upcall->regs.ax = (u32_t)t;
+			}
+		}
+#else
+		upcall->regs.ax = acap->pending_upcall;
 #endif
 
 		if (preempted->flags & THD_STATE_ACTIVE_UPCALL && upcall->interrupted_thread) {
@@ -3270,6 +3526,17 @@ cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
 		}
 		if (spd_cap_activate(cspd, capid)) ret = -1;
 		break;
+	case COS_CAP_GET_DEST_SPD:
+		if (capid > cspd->ncaps || capid < 0) return -1;
+		ret = spd_get_index(cspd->caps[capid].destination);
+		break;
+	case COS_CAP_GET_DEST_FN:
+		if (capid > cspd->ncaps || capid < 0) return -1;
+		ret = (int)cspd->caps[capid].usr_stub_info.ST_serv_entry;
+		break;
+	case COS_CAP_GET_SPD_NCAPS:
+		ret = cspd->ncaps;
+		break;
 	default:
 		ret = -1;
 		break;
@@ -3378,6 +3645,10 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		/* arg1 = upcall_entry address */
 		spd->upcall_entry = (vaddr_t)arg1;
 		break;
+	case COS_SPD_ASYNC_INV_ADDR:
+		/* arg1 = async_inv entry address */
+		spd->async_inv_entry = (vaddr_t)arg1;
+		break;
 	case COS_SPD_ACTIVATE:
 	{
 		struct composite_spd *cspd;
@@ -3474,22 +3745,310 @@ cos_syscall_vas_cntl(int id, int op_spdid, long addr, long sz)
 	return ret;
 }
 
-extern int send_ipi(int cpuid, int thdid, int wait);
-
 //volatile int kern_tsc = 0;
 /* The IPI calls should not be accessible from user level. This is for
  * test purpose only. Will remove this syscall. */
 COS_SYSCALL int 
 cos_syscall_send_ipi(int spd_id, long cpuid, int thdid, long arg)
 {
-	int wait, option;
-	option = arg & 0xFFFF;
-	wait = arg >> 16;
-	assert(wait == 0);
+	/* int wait, option; */
+	/* option = arg & 0xFFFF; */
+	/* wait = arg >> 16; */
+	/* if (unlikely(wait != 0)) printk("cos: sending IPI with wait = %d\n", wait); */
 
-	return send_ipi(cpuid, thdid, wait);
+	return send_ipi(cpuid, thdid, 0);
 }
 
+static struct pt_regs *ainv_execution_completion(struct thread *curr, int *preempt)
+{
+	struct thread *prev;
+    	struct composite_spd *cspd = (struct composite_spd *)thd_get_thd_spdpoly(curr);
+	struct async_cap *acap_entry = curr->srv_acap;
+	
+	assert(acap_entry);
+	assert((curr->flags & THD_STATE_ACTIVE_UPCALL) &&
+	       !(curr->flags & THD_STATE_READY_UPCALL));
+	assert(cspd);
+
+	cos_meas_stats_end(COS_MEAS_STATS_UC_TERM_DELAY, 1);
+	cos_meas_stats_end(COS_MEAS_STATS_UC_PEND_DELAY, 0);
+	*preempt = 0;
+
+	/* Immediately execute a pending upcall */
+	if (acap_entry->pending_upcall) {
+		event_record("brand complete, self pending upcall executed", thd_get_id(curr), 0);
+		report_upcall("c", curr);
+		return sched_tailcall_pending_upcall_ainv(curr, cspd);
+	}
+
+	/*
+	 * Has the thread we preempted had scheduling activity since?
+	 * If so, upcall into the root scheduler and ask it what to
+	 * do.
+	 */
+	prev = curr->interrupted_thread;
+
+	if (NULL == prev) {
+		struct thd_sched_info *tsi, *prev_tsi;
+		struct spd *dest;
+		int i;
+	
+		prev_tsi = thd_get_sched_info(curr, 0); // curr instead of brand?
+		assert(prev_tsi->scheduler);
+
+		for (i = 1 ; i < MAX_SCHED_HIER_DEPTH ; i++) {
+			//tsi = scheduler_find_leaf(curr);
+			tsi = thd_get_sched_info(curr, i); // curr instead of brand?
+			if (!tsi->scheduler) break;
+			prev_tsi = tsi;
+		}
+		tsi = prev_tsi;
+		assert(tsi);
+		dest = tsi->scheduler;
+
+		upcall_inv_setup(curr, dest, COS_UPCALL_BRAND_COMPLETE, 0, 0, 0);
+		upcall_execute(curr, (struct composite_spd*)dest->composite_spd, 
+			       NULL, cspd);
+
+		event_record("brand complete, upcall scheduler", thd_get_id(curr), 0);
+
+		cos_meas_event(COS_MEAS_BRAND_COMPLETION_UC);
+		//cos_meas_event(COS_MEAS_FINISHED_BRANDS);
+		return &curr->regs;
+	}
+
+	event_record("brand completion, switch to interrupted thread", thd_get_id(curr), thd_get_id(prev));
+	brand_completion_switch_to(curr, prev);
+	*preempt = 1;
+	report_upcall("i", curr);
+
+	return &prev->regs;
+}
+
+/* This function is almost identical to brand_wait except using acap
+ * instead of brand. Still keep brand_wait around for now. */
+extern void cos_syscall_ainv_wait(int spd_id, int acap, int *preempt);
+
+COS_SYSCALL struct pt_regs *
+cos_syscall_ainv_wait_cont(int spd_id, int acap, int *preempt) {
+	struct thread *curr;
+	struct spd *curr_spd;
+	struct async_cap *acap_entry;
+
+	curr = core_get_curr_thd();
+	/* printk("doing ainv wait, thd %d, acap %d (%d).\n", thd_get_id(curr), acap, acap & ~COS_ASYNC_CAP_FLAG); */
+
+	curr_spd = thd_validate_get_current_spd(curr, spd_id);
+	if (unlikely(NULL == curr_spd)) {
+		printk("cos: component claimed in spd %d, but not\n", spd_id);
+		goto ainv_wait_err;		
+	}
+	if (unlikely(acap >= MAX_NUM_ACAP)) {
+		printk("cos: capability %d greater than max.\n", acap);
+		goto ainv_wait_err;
+	}
+
+	acap_entry = &curr_spd->acaps[acap];
+	assert(acap_entry->srv_spd_id == spd_id);
+
+	/* if (unlikely(type wrong)) { */
+	/* 	printk("cos: invalid acap %d in comp %d.\n", acap, spdid); */
+	/* 	goto ainv_wait_err; */
+	/* } */
+	if (unlikely(acap_entry->upcall_thd != thd_get_id(curr)
+		     || curr->srv_acap != acap_entry)) {
+		printk("cos: specified acap %d not one associated with %d\n", acap, thd_get_id(curr));
+		goto ainv_wait_err;
+	}
+
+	return ainv_execution_completion(curr, preempt);
+ainv_wait_err:
+	curr->regs.ax = -1;
+	return &curr->regs;
+}
+
+static inline int alloc_acap_id(struct spd *spd){
+	int i;
+
+	/* FIXME: obviously... */
+	for (i = 1; i < MAX_NUM_ACAP; i++) {
+		if (spd->acaps[i].allocated == 0) {
+			spd->acaps[i].allocated = 1;
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+COS_SYSCALL int 
+cos_syscall_async_cap_cntl(int spd_id, int operation, 
+			   int arg_1, int arg_2)
+{
+	struct spd *cli_spd, *srv_spd;
+	int ret = 0; 
+	/* TODO: access control */
+
+	const unsigned short int arg1 =  arg_1 >> 16;
+	const unsigned short int arg2 =  arg_1 & 0xFFFF;
+	const int arg3 =  arg_2;
+
+	switch(operation) {
+	case COS_ACAP_CLI_CREATE:
+	{
+		const int cli_spd_id = arg1;
+		const int srv_spd_id = arg2;
+		const int owner_thd = arg3;
+		
+		struct async_cap *acap;
+		int i, acap_id;
+
+		cli_spd = spd_get_by_index(cli_spd_id);
+		srv_spd = spd_get_by_index(srv_spd_id);
+
+		if (unlikely(!cli_spd || !srv_spd)) goto err_spd;
+
+		if (cli_spd != srv_spd) {
+			for (i = 0; i < srv_spd->ncaps; i++) {
+				if (spd_get_index(cli_spd->caps[i].destination) == srv_spd_id)
+					break; // at least has one cap from source to dest
+			}
+			/* i == ncaps means no static cap from cli to srv. */
+			if (unlikely(i == cli_spd->ncaps)) {
+				printk("cos: no any capability between comp %d and %d\n", 
+				       cli_spd_id, srv_spd_id);
+				return -1;
+			}
+		}
+
+		acap_id = alloc_acap_id(cli_spd);
+		acap = &cli_spd->acaps[acap_id];
+		acap->srv_spd_id = srv_spd_id;
+		acap->id = acap_id;
+		acap->owner_thd = owner_thd;
+		
+		printk("acap %d (comp %d to comp %d) created.\n", 
+		       acap_id, cli_spd_id, srv_spd_id);
+
+		return acap_id;
+	}
+	case COS_ACAP_SRV_CREATE:
+	{
+		const int srv_spd_id = arg1;
+		const int thd_id = arg2;
+
+		/* create a new acap on the server side */
+		int new_acap_id;
+		struct async_cap *srv_acap; //TODO: add a srv_async_cap type
+		struct thread *thd = thd_get_by_id(thd_id);
+		if (unlikely(thd == NULL)) goto err_thd;
+
+		srv_spd = spd_get_by_index(srv_spd_id);
+		if (unlikely(!srv_spd)) goto err_spd;
+
+		new_acap_id = alloc_acap_id(srv_spd);
+		srv_acap = &srv_spd->acaps[new_acap_id];
+		srv_acap->id = new_acap_id;
+		srv_acap->srv_spd_id = srv_spd_id;
+		srv_acap->upcall_thd = thd_id;
+		srv_acap->pending_upcall = 0;
+		
+		thd->srv_acap = srv_acap;
+		thd->flags |= (THD_STATE_UPCALL | THD_STATE_ACTIVE_UPCALL);
+
+		return srv_acap->id; // return server side acap id
+	}
+	case COS_ACAP_WIRE:
+	{
+		const int cli_spd_id = arg1;
+		const int cli_acap_id = arg2;
+		const int thd_id = arg3;
+
+		struct async_cap *cli_acap;
+		struct async_cap *srv_acap; //TODO: add a srv_async_cap type
+		struct thread *thd = thd_get_by_id(thd_id);
+		int cpu;
+
+		if (thd == NULL) goto err_thd;
+		cpu = thd->cpu;
+		assert(cpu >= 0 && cpu < NUM_CPU);
+		srv_acap = thd->srv_acap;
+		if (unlikely(!srv_acap)) goto err_srv_thd_acap;
+		assert(srv_acap->id && srv_acap->upcall_thd == thd_id);
+
+		cli_spd = spd_get_by_index(cli_spd_id);
+		if (unlikely(!cli_spd)) goto err_spd;
+		if (unlikely(cli_acap_id >= MAX_NUM_ACAP)) goto err_cap;
+		cli_acap = &cli_spd->acaps[cli_acap_id]; // client acap
+
+		srv_spd = spd_get_by_index(cli_acap->srv_spd_id); //server comp
+		if (unlikely(!srv_spd)) goto err_srv_spd;
+
+		if (cli_acap->srv_spd_id != srv_acap->srv_spd_id) {
+			printk("Acap %d in comp %d and thd %d mismatch\n", cli_acap_id, cli_spd_id, thd_id);
+			return -1;
+		}
+		
+		printk("acap wiring comp %d, acap id %d to thd %d, core %d.\n", 
+		       cli_acap->srv_spd_id, cli_acap_id, thd_id, cpu);
+		cli_acap->upcall_thd = thd_id;
+		cli_acap->cpu = cpu;
+
+		/* printk("acap wiring done.\n", eid, thd, core); */
+		return 0;
+	}
+	case COS_ACAP_LINK:
+	{
+		const int cli_spd_id = arg1;
+		const int cap_id = arg2;
+		/* arg3 not used */
+		/* int srv_spd_id; */
+
+		cli_spd = spd_get_by_index(cli_spd_id);
+		if (unlikely(!cli_spd)) goto err_spd;
+
+		if (unlikely(cap_id > cli_spd->ncaps)) goto err_cap;
+
+		/* srv_spd = cli_spd->caps[cap_id].destination; */
+		/* srv_spd_id = spd_get_index(srv_spd); */
+
+		/* change the user level pointer to ainv stub */
+		// TODO: use cap_cntl to do this.
+		cli_spd->user_cap_tbl[cap_id].invocation_fn = cli_spd->async_inv_entry;
+
+		return 0;
+	}
+	/* case COS_ACAP_UPCALL_HANDLING: */
+	/* { */
+	/* 	const int srv_spd_id = arg1; */
+	/* 	/\* arg2 not used *\/ */
+	/* 	/\* arg3 not used *\/ */
+
+	/* 	struct thread *curr = core_get_curr_thd(); */
+	/* 	upcall_execute(curr, (struct composite_spd*)thd_get_thd_spdpoly(srv_spd), */
+	/* 		       NULL, (struct composite_spd*)thd_get_thd_spdpoly(curr)); */
+	/* } */
+	default:
+		ret = -1;
+	}
+
+	return ret;
+err_spd:
+	printk("cos: async_cap_cntl -- source component %d not valid\n", arg1);
+	return -1;
+err_cap:
+	printk("cos: async_cap_cntl -- invalid cap id %d in spd %d\n", arg2, arg1);
+	return -1;
+err_thd:
+	printk("cos: async_cap_cntl -- invalid thd id %d\n", arg2);
+	return -1;
+err_srv_spd:
+	printk("cos: async_cap_cntl -- couldn't find server comp for acap %d\n", arg2);
+	return -1;
+err_srv_thd_acap:
+	printk("cos: async_cap_cntl -- wiring to thread %d with no server acap\n", arg3);
+	return -1;
+}
 /* 
  * Composite's system call table that is indexed and invoked by ipc.S.
  * The user-level stubs are created in cos_component.h.
@@ -3516,10 +4075,10 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_vas_cntl,
 	(void*)cos_syscall_trans_cntl,
 	(void*)cos_syscall_pfn_cntl,
-	(void*)cos_syscall_send_ipi,
-	(void*)cos_syscall_void,
-	(void*)cos_syscall_void,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_send_ipi, // going to remove
+	(void*)cos_syscall_async_cap_cntl,
+	(void*)cos_syscall_ainv_wait,
+	(void*)cos_syscall_ainv_send,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,

@@ -125,6 +125,38 @@ ipc_ret_slowpath:
 ipc_ret_err:
 	ERROR_OUT
 
+/*
+ * Register layout:
+ *
+ * eax:	which capability, see comment in kern_entry.S:asym_exec_dom_entry
+ * ecx:	ip
+ * ebp:	sp
+ * ebx,esi,edi,edx: arguments
+ */
+.globl composite_async_call
+.align 32
+composite_async_call:
+	/* set up seg reg */
+	pushl %edx
+	movl $(__KERNEL_PERCPU), %edx
+	movl %edx, %fs
+	popl %edx
+	
+	pushl %ebp /* user-sp */
+	pushl %ecx /* user-ip */
+	
+	pushl %eax /* cap */
+
+	/* invoke walk_async_cap */
+	call walk_async_cap
+
+	addl $4, %esp
+
+	popl %edx /* user-ip from above */
+	popl %ecx /* and the sp */
+
+	RET_TO_USER
+//	
 #define COS_SYSCALL_EDX 20 /* Don't forget space for the return address */
 #define COS_SYSCALL_ECX 24
 
@@ -180,13 +212,6 @@ cos_syscall_brand_wait:
 	movl %ecx, PT_EDX(%eax) /* save the return address (so that sysexit will return to it) */
 	movl %ecx, PT_EIP(%eax)
 
-	/* save volatile registers, as defined by cdecl (including ebx above) */
-	/* Now the volatile registers are saved in user space.
-	movl %ebx, PT_EBX(%eax)
-	movl %esi, PT_ESI(%eax)
-	movl %edi, PT_EDI(%eax)
-	movl %ebp, PT_EBP(%eax) */
-
 	pushl $0   /* make room for ret val */
 	pushl %esp /* argument to track if the thread to return to was preempted or not */
 	pushl %ebx /* thd_id */
@@ -199,7 +224,34 @@ cos_syscall_brand_wait:
 	jne ret_from_preemption
 	/* restore registers from previous yield, regs in eax */
 	jmp 1f
+
+/**/
+.globl cos_syscall_ainv_wait
+.align 16
+cos_syscall_ainv_wait:
+	LOAD_CURR_THD_EAX;
 	
+	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
+
+	movl $0, PT_EAX(%eax)   /* return 0 when we return from this thread */
+	movl %ebp, PT_ECX(%eax) /* save the return sp, so that sysenter will jump to it */
+	movl %ebp, PT_OLDESP(%eax)
+	movl %ecx, PT_EDX(%eax) /* save the return address (so that sysexit will return to it) */
+	movl %ecx, PT_EIP(%eax)
+
+	pushl $0   /* make room for ret val */
+	pushl %esp /* argument to track if the thread to return to was preempted or not */
+	pushl %ebx /* acap */
+	pushl %edx /* this spd_id */
+	call cos_syscall_ainv_wait_cont
+	addl $12, %esp
+	popl %ebx
+
+	cmpl $0, %ebx /* was the thread preempted or not? */
+	jne ret_from_preemption
+	/* restore registers from previous yield, regs in eax */
+	jmp 1f
+
 /* FIXME: this is all superfluous: we save/restore all regs when in the 
    non-preemption case, user-level saves most of them anyway because of 
    the clobber list.  Lets just let user-level do it, and be done. */

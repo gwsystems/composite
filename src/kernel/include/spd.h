@@ -79,6 +79,23 @@ struct invocation_cap {
 
 /* end static capabilities */
 
+/* async invocation cap */
+struct async_cap {
+	// cli acap
+	int id;
+	int srv_spd_id;
+	int owner_thd;
+	int upcall_thd;
+	long cpu;
+	unsigned int ref_cnt; // remove because we have 1-to-1 mapping
+	int allocated;
+
+	// serv acap
+	/* int id; */
+	/* int srv_spd_id; */
+	/* int upcall_thd; */
+	unsigned int pending_upcall; // a 0/1 flag?
+} CACHE_ALIGNED;
 
 /*
  * The Service Protection Domain description including 
@@ -185,6 +202,7 @@ struct spd {
 	mmaps_t local_mmaps; /* mm_handle (see hijack.c) for linux compat */
 
 	vaddr_t upcall_entry;
+	vaddr_t async_inv_entry;
 	
 	vaddr_t atomic_sections[COS_NUM_ATOMIC_SECTIONS];
 	
@@ -197,6 +215,7 @@ struct spd {
 
 	unsigned int ncaps;
 	struct invocation_cap caps[MAX_STATIC_CAP];
+	struct async_cap acaps[MAX_NUM_ACAP];
 } CACHE_ALIGNED; //cache line size
 
 paddr_t spd_alloc_pgtbl(void);

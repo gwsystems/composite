@@ -78,6 +78,7 @@ struct thread *thd_alloc(struct spd *spd)
 	id = thd->thread_id;
 	memset(thd, 0, sizeof(struct thread));
 	thd->thread_id = id;
+	thd->cpu = get_cpuid();
 
 	thd->data_region = page;
 	*(int*)page = 4; /* HACK: sizeof(struct cos_argr_placekeeper) */

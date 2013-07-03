@@ -50,6 +50,8 @@
 #define sched_thd_dependent(thd)     ((thd)->flags & THD_DEPENDENCY)
 #define sched_thd_suspended(thd)     ((thd)->flags & THD_SUSPENDED)
 
+#define sched_thd_on_current_core(thd) (sched_get_thd_core(thd) == cos_cpuid())
+
 #define SCHED_NUM_THREADS MAX_NUM_THREADS
 
 /* cevt_t: */
@@ -121,6 +123,7 @@ struct sched_thd {
 	unsigned short int flags, id, evt_id;
 	struct sched_accounting accounting;
 	struct sched_metric metric;
+	cpuid_t cpuid;
 	u16_t event;
 	struct sched_thd *prio_next,  *prio_prev, 
 		         *sched_next, *sched_prev; /* for scheduler policy use */
@@ -187,6 +190,15 @@ static inline struct sched_accounting *sched_get_accounting(struct sched_thd *th
 	assert(!sched_thd_free(thd));
         
 	return &thd->accounting;
+}
+
+static inline int sched_clear_accounting(struct sched_thd *thd)
+{
+	assert(!sched_thd_free(thd));
+
+	memset(sched_get_accounting(thd), 0, sizeof(struct sched_accounting));
+
+	return 0;
 }
 
 static inline struct sched_metric *sched_get_metric(struct sched_thd *thd)
@@ -258,6 +270,30 @@ static inline void sched_set_thd_urgency(struct sched_thd *t, u16_t urgency)
 	sched_get_metric(t)->urgency = urgency;
 }
 
+struct thd_core_mapping {
+	cpuid_t thd_to_core[SCHED_NUM_THREADS];
+} CACHE_ALIGNED;
+
+struct thd_core_mapping thd_core;
+
+static inline cpuid_t sched_get_thd_core(unsigned short int thd_id) {
+	if (unlikely(thd_id >= SCHED_NUM_THREADS || thd_core.thd_to_core[thd_id] < 0)) {
+		return -1;
+	}
+	
+	return thd_core.thd_to_core[thd_id];
+}
+
+static inline int sched_set_thd_core(unsigned short int thd_id, cpuid_t cpu) {
+	if (unlikely(thd_id >= SCHED_NUM_THREADS || cpu >= NUM_CPU_COS)) {
+		return -1;
+	}
+
+	thd_core.thd_to_core[thd_id] = cpu;
+	
+	return 0;
+}
+
 /* --- Thread Id -> Sched Thread Mapping Utilities --- */
 static inline struct sched_thd *sched_get_mapping(unsigned short int thd_id)
 {
@@ -280,6 +316,8 @@ static inline struct sched_thd *sched_get_current(void)
 	
 	return thd;
 }
+
+int sched_curr_is_IPI_handler(void);
 
 static inline int sched_add_mapping(unsigned short int thd_id, struct sched_thd *thd)
 {

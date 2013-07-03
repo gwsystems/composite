@@ -57,10 +57,11 @@ struct sched_base_per_core {
 	 * scheduler.  idle is the idle thread, again only meaningful for root
 	 * schedulers.
 	 */
-	struct sched_thd *timer, *init, *idle;
+	struct sched_thd *timer, *init, *idle, *IPI_handler;
 	struct sched_thd blocked;
 	struct sched_thd upcall_deactive;
 	struct sched_thd graveyard;
+	int IPI_brand, IPI_acap;
 	long long report_evts[REVT_LAST];
 } CACHE_ALIGNED;
 
@@ -565,56 +566,56 @@ static void fp_create_spd_thd(void *d)
 }
 
 struct shared_xcore_fn_data {
-	int active;
+	volatile int active;
 	void *fn;
 	int nparams;
-	u32_t param[4];
-	int ret;
+	u32_t params[4];
+	volatile int ret;
+	int owner_tid;
 } CACHE_ALIGNED;
 
-PERCPU_ATTR(volatile, struct shared_xcore_fn_data, xcore_fn_data);
+PERCPU(struct shared_xcore_fn_data, ipi_fn_data);
 
-static int current_core_create_thread_default(spdid_t spdid, u32_t sched_param_0, 
-					      u32_t sched_param_1, u32_t sched_param_2);
+static inline int exec_fn(int (*fn)(), int nparams, u32_t *params) ;
 
-static inline int xcore_fn_check_active(int cpu) {
-	return PERCPU_GET_TARGET(xcore_fn_data, cpu)->active;
-}
-
-static inline int execute_fn_current_core() 
+static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, int wait)
 {
-	/* Currently this is only used for creating default threads
-	 * when booting up the system. */
-	volatile struct shared_xcore_fn_data *percpu_data = PERCPU_GET(xcore_fn_data);
-	assert(percpu_data->nparams <= 4);
-	assert(xcore_fn_check_active(cos_cpuid()));
+	int ret = 0, i, acap;
+	/* FIXME: we need a lock free ring buffer */
+	if (unlikely(core_id >= NUM_CPU_COS || nparams > 4 || !fn || !params)) goto error;
 
-	int (*fn)();
-	fn = percpu_data->fn;
-	switch (percpu_data->nparams)
-	{		
-	case 0:
-		percpu_data->ret = fn();
-		break;
-	case 1:
-		percpu_data->ret = fn(percpu_data->param[0]);
-		break;
-	case 2:
-		percpu_data->ret = fn(percpu_data->param[0], percpu_data->param[1]);
-		break;
-	case 3:
-		percpu_data->ret = fn(percpu_data->param[0], percpu_data->param[1], 
-						    percpu_data->param[2]);
-		break;
-	case 4:
-		percpu_data->ret = fn(percpu_data->param[0], percpu_data->param[1],
-						    percpu_data->param[2], percpu_data->param[3]);
-		break;
+	if (core_id == cos_cpuid()) {
+		ret = exec_fn(fn, nparams, params);
+		goto done;
 	}
 
-	percpu_data->active = 0;
+	struct shared_xcore_fn_data *ipi_data = PERCPU_GET_TARGET(ipi_fn_data, core_id);
 
-	return 0;
+	ipi_data->fn = fn;
+	ipi_data->nparams = nparams;
+
+	for (i = 0; i < nparams; i++) {
+		ipi_data->params[i] = params[i];
+	}
+
+	ipi_data->owner_tid = cos_get_thd_id();
+	ipi_data->active = 1;
+
+	acap = PERCPU_GET_TARGET(sched_base_state, core_id)->IPI_acap;
+
+	if (unlikely(acap <= 0)) BUG();
+	/* printc("core %d: sending ipi to core %d, acap %d\n", cos_cpuid(), core_id, acap); */
+	cos_ainv_send(acap);
+
+	if (wait) {
+		/* FIXME: should be blocking, not spinning. */
+		while (ipi_data->active) ; /* Waiting */
+		ret = ipi_data->ret;
+	} 
+done:
+	return ret;
+error:
+	return -1;
 }
 
 static void fp_idle_loop(void *d)
@@ -630,23 +631,12 @@ static void fp_idle_loop(void *d)
  			cos_sched_lock_take();
 			sched_switch_thread(0, IDLE_SCHED_SWITCH);
 		}
-		if (xcore_fn_check_active(cos_cpuid())) {
-			execute_fn_current_core();
-		}
 //		report_event(IDLE_SCHED_LOOP);
 #ifdef IDLE_TO_LINUX
 		cos_idle();
 #endif
 	}
 }
-
-/* This is only used for IPI cost measurements. */
-/* volatile unsigned long long t_0; */
-/* static void fp_idle_loop_meas(void *d) */
-/* { */
-/* 	printc("core 0 recording time stamp...\n"); */
-/* 	while (1) rdtscll(t_0); */
-/* } */
 
 extern unsigned long parent_sched_timer_stopclock(void);
 unsigned long sched_timer_stopclock(void)
@@ -770,11 +760,25 @@ static void fp_wakeup(struct sched_thd *thd, spdid_t spdid)
  */
 int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 {
+	int ret;
 	struct sched_thd *thd;
+
+	/* printc("thread %d waking up thread %d.\n", cos_get_thd_id(), thd_id); */
+	
+	if (!sched_thd_on_current_core(thd_id)) {
+		/* Cross-core wakeup */
+		cpuid_t cpu = sched_get_thd_core(thd_id);
+		if (cpu < 0) goto error_nolock;
+		
+		u32_t params[2] = {spdid, thd_id};
+
+		ret = xcore_exec(cpu, sched_wakeup, 2, params, 1);
+	
+		goto xcore_done;
+	}
 	
 	cos_sched_lock_take();
-		
-	/* printc("thread %d waking up thread %d. %d\n", cos_get_thd_id(), thd_id, 0); */
+
 	thd = sched_get_mapping(thd_id);
 	if (!thd) goto error;
 	
@@ -821,7 +825,10 @@ cleanup:
 	goto done;
 error:
 	cos_sched_lock_release();
+error_nolock:
 	return -1;
+xcore_done:
+	return ret;
 }
 
 /* decrement the wake count, do sanity checking, and record at what
@@ -870,19 +877,30 @@ static void fp_block(struct sched_thd *thd, spdid_t spdid)
  * FIXME: should verify that the blocks and wakes come from the same
  * component.  This is the externally visible function.
  */
-int sched_block(spdid_t spdid, unsigned short int dependency_thd)
+int sched_block(spdid_t spdid, unsigned short int dep_thd)
 {
 	struct sched_thd *thd, *dep = NULL;
 	int ret;
 	int first = 1;
 
 	// Added by Gabe 08/19
-	if (unlikely(dependency_thd == cos_get_thd_id())) return -EINVAL;
+	if (unlikely(dep_thd == cos_get_thd_id())) return -EINVAL;
 
 	cos_sched_lock_take();
 	thd = sched_get_current();
 	assert(thd);
 	assert(spdid);
+
+	/* We only do dependencies if the dep thread is on the current core. */
+	unsigned short int dependency_thd = dep_thd;
+	if (dep_thd) {
+		if (sched_thd_on_current_core(dep_thd)) {
+			dependency_thd = dep_thd;
+		} else {
+			printc("Core %ld, thd %d: Dependency on a remote core, dep thread %d, from spd %d.\n", cos_cpuid(), cos_get_thd_id(), dep_thd, spdid);
+			dependency_thd = 0; /* Ignore dependency if on different cores */
+		}
+	}
 
 	/* we shouldn't block while holding a component lock */
 	if (unlikely(0 != thd->ncs_held)) goto warn;
@@ -907,6 +925,12 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 	if (dependency_thd) {
 		/* printc("thd %d trying to depend on %d\n", thd->id, dependency_thd); */
 		dep = sched_get_mapping(dependency_thd);
+
+		if (!dep) {
+			printc("Dependency on non-existent thread %d.\n", dependency_thd);
+			goto unblock;
+		}
+
 		if (dep->dependency_thd) {
 			/* circular dependency... */
 			if(dep->dependency_thd->id == cos_get_thd_id()) {
@@ -917,10 +941,6 @@ int sched_block(spdid_t spdid, unsigned short int dependency_thd)
 			}
 		}
 
-		if (!dep) {
-			printc("Dependency on non-existent thread %d.\n", dependency_thd);
-			goto unblock;
-		}
 		if (sched_thd_blocked(dep)) {
 			printc("dep thd blocked already.\n");
 			goto unblock;
@@ -1078,6 +1098,7 @@ static int fp_kill_thd(struct sched_thd *t)
 	assert(t);
 	assert(!sched_thd_grp(t));
 	t->flags = THD_DYING;
+	sched_set_thd_core(t->id, -1);
 
 	thread_remove(t);
 
@@ -1118,7 +1139,7 @@ static struct sched_thd *__sched_setup_thread_no_policy(int tid)
 
 extern int parent_sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd);
 
-static struct sched_thd *sched_setup_thread_arg(void *metric_str, crt_thd_fn_t fn, void *d, int parm)
+static struct sched_thd *sched_setup_thread_arg(void *metric_str, crt_thd_fn_t fn, void *d, int param)
 {
 	int tid;
 	struct sched_thd *new;
@@ -1141,8 +1162,12 @@ static struct sched_thd *sched_setup_thread_arg(void *metric_str, crt_thd_fn_t f
 		new = __sched_setup_thread_no_policy(tid);
 	}
 	thread_new(new);
-	if (parm) thread_param_set(new,  (struct sched_param_s *)metric_str);
-	else      thread_params_set(new, (char *)metric_str);
+
+	new->cpuid = cos_cpuid(); /* no thread migration between cores */
+	sched_set_thd_core(new->id, cos_cpuid());
+
+	if (param) thread_param_set(new,  (struct sched_param_s *)metric_str);
+	else       thread_params_set(new, (char *)metric_str);
 	
 	return new;
 }
@@ -1172,16 +1197,66 @@ sched_create_thread(spdid_t spdid, struct cos_array *data)
 	return new->id;
 }
 
-int
-sched_create_thd(spdid_t spdid, u32_t sched_param0, u32_t sched_param1, u32_t sched_param2)
+#define MAX_NUM_SCHED_PARAM 3
+
+cpuid_t sched_read_param_core_id(u32_t sched_params[MAX_NUM_SCHED_PARAM]) {
+	struct sched_param_s param;
+	int i;
+	cpuid_t core_id = -1; 
+
+	for (i = 0; i < MAX_NUM_SCHED_PARAM; i++) {
+		param = ((union sched_param)sched_params[i]).c;
+		if (param.type == SCHEDP_CORE_ID) {
+			core_id = param.value;
+			break;
+		}
+	}
+
+	 /* -1 means not specified. Will create on the current core. */
+	if (core_id == -1) core_id = cos_cpuid();
+	
+	assert(core_id >= 0 && core_id < NUM_CPU_COS);
+
+	return core_id;
+}
+
+/* We may have the upcall thread (on a remote core) to create the new
+ * thread. So translate the relative priority to absolute priority
+ * before sending the request. */
+
+static int relative_prio_convert(u32_t params[MAX_NUM_SCHED_PARAM]) {
+	int i;
+	struct sched_param_s param;
+	union sched_param u;
+	for (i = 0; i < MAX_NUM_SCHED_PARAM; i++) {
+		param = ((union sched_param)params[i]).c;
+		if (param.type == SCHEDP_RPRIO || param.type == SCHEDP_RLPRIO) {
+			/* Translating here. */
+			struct sched_thd *c = sched_get_current();
+			assert(c);
+			unsigned int prio = param.type == SCHEDP_RPRIO ? 
+				sched_get_metric(c)->priority - param.value:
+				sched_get_metric(c)->priority + param.value;
+			param.value = prio;
+			u.c = param;
+			params[i] = u.v;
+			break;
+		}
+	}
+
+	return 0;
+}
+
+static inline int sched_create_thd_current_core(spdid_t spdid, u32_t sched_param_0, 
+						u32_t sched_param_1, u32_t sched_param_2)
 {
 	struct sched_param_s sp[4];
 	struct sched_thd *curr, *new;
 	void *d = (void*)(int)spdid;
 
-	sp[0] = ((union sched_param)sched_param0).c;
-	sp[1] = ((union sched_param)sched_param1).c;
-	sp[2] = ((union sched_param)sched_param2).c;
+	sp[0] = ((union sched_param)sched_param_0).c;
+	sp[1] = ((union sched_param)sched_param_1).c;
+	sp[2] = ((union sched_param)sched_param_2).c;
 	sp[3] = (union sched_param){.c = {.type = SCHEDP_NOOP}}.c;
 
 	cos_sched_lock_take();
@@ -1192,6 +1267,34 @@ sched_create_thd(spdid_t spdid, u32_t sched_param0, u32_t sched_param1, u32_t sc
 	       cos_cpuid(), (unsigned int)cos_spd_id(), new->id, spdid, curr->id);
 
 	return new->id;
+}
+
+int
+sched_create_thd(spdid_t spdid, u32_t sched_param_0, u32_t sched_param_1, u32_t sched_param_2)
+{
+	int ret;
+	u32_t sched_params[MAX_NUM_SCHED_PARAM] = {sched_param_0, sched_param_1, sched_param_2};
+
+	cpuid_t core = sched_read_param_core_id(sched_params);
+	relative_prio_convert(sched_params);
+
+	if (core != cos_cpuid()) {
+		/* Cross-core creation */
+		if (core < 0 || core >= NUM_CPU_COS) {
+			printc("ERROR: Trying to create thread on core %d\n", core);
+			goto error;
+		}
+		u32_t params[4] = {spdid, sched_params[0], sched_params[1], sched_params[2]};
+		ret = xcore_exec(core, sched_create_thd_current_core, 4, params, 1);
+	
+		goto done;
+	} else {
+		ret = sched_create_thd_current_core(spdid, sched_params[0], sched_params[1], sched_params[2]);
+	}
+done:
+	return ret;
+error:
+	return 0;
 }
 
 #define SCHED_STR_SZ 64
@@ -1209,35 +1312,6 @@ sched_thread_params(spdid_t spdid, u16_t thd_id, res_spec_t rs)
 	ret = thread_resparams_set(t, rs);
 done:
 	cos_sched_lock_release();
-	return ret;
-}
-
-/* Execute a function on a remote core. Using shared memory to send
- * the event. The idle thread of the destination core detects and
- * executes the function.  */
-
-/* Note: this facility should NOT be used in most cases as it has
- * horrible performance implications (spinning for, at worst,
- * infinity). Currently, this is used for creating default
- * threads (the next function) during initialization. */
-static int xcore_execute_fn(int core_id, void *fn, int nparams, int *param, int wait)
-{
-	int ret = 0, i;
-	
-	assert(core_id < NUM_CPU);
-	assert(nparams <= 4);
-	
-	volatile struct shared_xcore_fn_data *percpu_data = PERCPU_GET_TARGET(xcore_fn_data, core_id);
-	percpu_data->fn = fn;
-	percpu_data->nparams = nparams;
-	for (i = 0; i < nparams; i++)
-		percpu_data->param[i] = param[i];
-	percpu_data->active = 1;
-	if (wait) {
-		while (xcore_fn_check_active(core_id)) ; /* Waiting */
-		ret = percpu_data->ret;
-	} 
-
 	return ret;
 }
 
@@ -1262,24 +1336,29 @@ static int current_core_create_thread_default(spdid_t spdid, u32_t sched_param_0
 	return 0;
 }
 
-#define DEF_OFFSET 0
-int created_default_thds = DEF_OFFSET;
-
 /* Create a thread in target with the default parameters */
 int
 sched_create_thread_default(spdid_t spdid, u32_t sched_param_0, 
 			    u32_t sched_param_1, u32_t sched_param_2)
 {
-	int core_id, ret;
-	core_id = created_default_thds % (NUM_CPU > 1 ? NUM_CPU - 1 : 1);
+	int ret;
 
-	if (core_id != 0) {
-		int param[4] = {spdid, sched_param_0, sched_param_1, sched_param_2};
-		ret = xcore_execute_fn(core_id, (void *)current_core_create_thread_default, 4, param, 1);
+	u32_t sched_params[MAX_NUM_SCHED_PARAM] = {sched_param_0, sched_param_1, sched_param_2};
+
+	cpuid_t core_id = sched_read_param_core_id(sched_params);
+
+	relative_prio_convert(sched_params);
+
+	if (core_id == cos_cpuid()) {
+		ret = current_core_create_thread_default(spdid, sched_params[0], sched_params[1], sched_params[2]);
 	} else {
-		ret = current_core_create_thread_default(spdid, sched_param_0, sched_param_1, sched_param_2);
+		if (core_id < 0 || core_id >= NUM_CPU_COS) {
+			printc("ERROR: Trying to create default thread on core %d\n", core_id);
+			return -1;
+		}
+		u32_t param[4] = {spdid, sched_params[0], sched_params[1], sched_params[2]};
+		ret = xcore_exec(core_id, (void *)current_core_create_thread_default, 4, param, 1);
 	}
-	created_default_thds++;
 
 	return 0;
 }
@@ -1654,6 +1733,116 @@ static struct sched_thd *fp_create_timer(void)
 	return PERCPU_GET(sched_base_state)->timer;
 }
 
+inline int sched_curr_is_IPI_handler(void) {
+	return (sched_get_current() == PERCPU_GET(sched_base_state)->IPI_handler);
+}
+
+static inline int exec_fn(int (*fn)(), int nparams, u32_t *params) {
+	int ret;
+
+	assert(fn);
+
+	switch (nparams)
+	{		
+	case 0:
+		ret = fn();
+		break;
+	case 1:
+		ret = fn(params[0]);
+		break;
+	case 2:
+		ret = fn(params[0], params[1]);
+		break;
+	case 3:
+		ret = fn(params[0], params[1], params[2]);
+		break;
+	case 4:
+		ret = fn(params[0], params[1], params[2], params[3]);
+		break;
+	}
+	
+	return ret;
+}
+
+static inline int exec_IPI_fn() {
+	struct shared_xcore_fn_data *ipi_req;
+	ipi_req = PERCPU_GET(ipi_fn_data);
+
+	assert(ipi_req->nparams <= 4);
+	assert(ipi_req->active > 0);
+
+	ipi_req->ret = exec_fn(ipi_req->fn, ipi_req->nparams, ipi_req->params);
+
+	ipi_req->active = 0;
+
+	return ipi_req->ret;
+}
+
+static void IPI_handler(void *d)
+{
+	struct sched_base_per_core *sched_state = PERCPU_GET(sched_base_state);
+
+	/* int bid; */
+	/* bid = cos_brand_cntl(COS_BRAND_CREATE, 0, 0, cos_spd_id()); */
+
+	/* assert(sched_state->IPI_handler != NULL); */
+
+	/* sched_state->IPI_brand = bid; */
+	/* if (sched_add_thd_to_brand(cos_spd_id(), bid, sched_state->IPI_handler->id)) BUG(); */
+
+	/* printc("Core %ld: Starting IPI handling thread (thread id %d, brand id %d)\n",  */
+	/*        cos_cpuid(), cos_get_thd_id(), bid); */
+
+	int cli_acap, srv_acap, ret;
+	cli_acap = cos_async_cap_cntl(COS_ACAP_CLI_CREATE, cos_spd_id(), cos_spd_id(), 0); /* no owner to this cli_acap*/
+	srv_acap = cos_async_cap_cntl(COS_ACAP_SRV_CREATE, cos_spd_id(), cos_get_thd_id(), 0);
+
+	if (unlikely(cli_acap <= 0 || srv_acap <= 0)) {
+		printc("Scheduler %ld could not allocate acap for IPI handler %d.\n", cos_spd_id(), cos_get_thd_id());
+		BUG();
+	}
+	sched_state->IPI_acap = cli_acap;
+
+	ret = cos_async_cap_cntl(COS_ACAP_WIRE, cos_spd_id(), cli_acap, cos_get_thd_id());
+	if (ret < 0) BUG();
+
+	printc("Core %ld: Starting IPI handling thread (thread id %d, client acap %d, server acap %d)\n", 
+	       cos_cpuid(), cos_get_thd_id(), cli_acap, srv_acap);
+	while (1) {
+		cos_sched_lock_take();
+		/* Going to switch away */
+		/* Don't use brand_wait syscall here. *\/ */
+		sched_switch_thread(COS_SCHED_BRAND_WAIT, EVT_CMPLETE_LOOP);
+
+		/* Received an IPI! */
+		/* printc("Core %ld: got an IPI request!\n", cos_cpuid()); */
+		exec_IPI_fn();
+		/* printc("Core %ld: done processing IPI request!\n", cos_cpuid()); */
+	}
+
+	BUG();
+}
+
+static struct sched_thd *fp_create_IPI_handler(void)
+{
+	union sched_param sp[2] = {{.c = {.type = SCHEDP_IPI_HANDLER}},
+				   {.c = {.type = SCHEDP_NOOP}}};
+	struct sched_base_per_core *sched_state = PERCPU_GET(sched_base_state);
+
+	assert(sched_is_root());
+
+	int spdid = cos_spd_id();
+	void *d =  (void*)(int)spdid;
+
+	sched_state->IPI_handler = sched_setup_thread_arg(&sp, IPI_handler, d, 1);
+	if (sched_state->IPI_handler == NULL) BUG();
+
+	printc("Core %ld: IPI handling thread created (thread id %d).\n", 
+	       cos_cpuid(), sched_state->IPI_handler->id);
+
+	return sched_state->IPI_handler;
+}
+
 /* Iterate through the configuration and create threads for
  * components as appropriate */
 static void 
@@ -1678,6 +1867,17 @@ sched_init_create_threads(int boot_threads)
 	printc("Initialization thread has id %d.\n", t->id);
 }
 
+static void sched_init_thd_core_mapping(void)
+{
+	int i, ret;
+	for (i = 0; i < SCHED_NUM_THREADS; i++) {
+		ret = sched_set_thd_core(i, -1);
+		assert(ret == 0);
+	}
+
+	return;
+}
+
 /* Initialize data-structures */
 static void 
 __sched_init(void)
@@ -1689,6 +1889,7 @@ __sched_init(void)
 	sched_init_thd(&sched_state->graveyard, 0, THD_FREE);
 	sched_ds_init();
 	sched_initialization();
+	sched_init_thd_core_mapping();
 
 	return;
 }
@@ -1761,6 +1962,10 @@ int sched_root_init(void)
 
 	/* Create the clock tick (timer) thread */
 	fp_create_timer();
+
+	/* Create the IPI handling thread for the current core */
+	fp_create_IPI_handler();
+
 	new = schedule(NULL);
 
 	initialized = 1;
