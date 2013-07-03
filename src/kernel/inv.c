@@ -236,16 +236,12 @@ pop(struct pt_regs **regs_restore)
 extern int ainv_send_ipi(int cpuid, int thdid, int wait);
 extern int send_ipi(int cpuid, int thdid, int wait);
 
-COS_SYSCALL int
-walk_async_cap(unsigned int capability)
-{
+static inline int __invoke_async_cap(unsigned int capability) {
 	struct spd *curr_spd;
 	struct async_cap *cap_entry;
 	struct thread *thd = core_get_curr_thd_id(get_cpuid());
 
 	int cpu, upcall_thd;
-
-	assert(capability & COS_ASYNC_CAP_FLAG);
 
 	capability &= ~COS_ASYNC_CAP_FLAG; /* remove the async flag. */
 	assert(thd);
@@ -255,30 +251,43 @@ walk_async_cap(unsigned int capability)
 		printk ("cos: couldn't find current component in thread %x.\n", (unsigned int)thd);
 		goto err;
 	}
-
 	if (unlikely(capability >= MAX_NUM_ACAP)) {
-		printk("cos: capability %d greater than max.\n", capability);
+		printk("cos: async capability %d greater than max.\n", capability);
 		goto err;
 	}
 
 	cap_entry = &curr_spd->acaps[capability];
+	if (unlikely(cap_entry->owner_thd > 0 && cap_entry->owner_thd != thd_get_id(thd))) {
+		printk("cos: thread %d tries to invoke acap %d that belongs to thread %d.\n", 
+		       thd_get_id(thd), capability, cap_entry->owner_thd);
+		goto err;
+	}
 
 	cpu = cap_entry->cpu;
 	upcall_thd = cap_entry->upcall_thd;
-
 	if (unlikely(upcall_thd == 0)) {
 		printk ("cos: capability %u not wired to any thread.\n", capability);
 		goto err;
 	}
-
-	printk("in async ipc, cap %d. sending to thd %d on core %d\n",
-	       capability, upcall_thd, cpu);
-
+	/* printk("in async ipc, cap %d. sending to thd %d on core %d\n", */
+	/*        capability, upcall_thd, cpu); */
 	ainv_send_ipi(cpu, upcall_thd, 0);
 
 	return 0;
 err:
 	return -1;
+}
+
+COS_SYSCALL int
+walk_async_cap(unsigned int capability)
+{
+	return __invoke_async_cap(capability);
+}
+
+COS_SYSCALL int 
+cos_syscall_ainv_send(int spdid, int capability)
+{
+	return __invoke_async_cap(capability);
 }
 
 /* return 1 if the fault is handled by a component */
@@ -3889,7 +3898,7 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 	{
 		const int cli_spd_id = arg1;
 		const int srv_spd_id = arg2;
-		/* arg3 not used */
+		const int owner_thd = arg3;
 		
 		struct async_cap *acap;
 		int i, acap_id;
@@ -3899,21 +3908,24 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 
 		if (unlikely(!cli_spd || !srv_spd)) goto err_spd;
 
-		for (i = 0; i < srv_spd->ncaps; i++) {
-			if (spd_get_index(cli_spd->caps[i].destination) == srv_spd_id)
-				break; // at least has one cap from source to dest
-		}
-
-		if (i == cli_spd->ncaps) {
-			printk("cos: no any capability between comp %d and %d\n", 
-			       cli_spd_id, srv_spd_id);
-			return -1;
+		if (cli_spd != srv_spd) {
+			for (i = 0; i < srv_spd->ncaps; i++) {
+				if (spd_get_index(cli_spd->caps[i].destination) == srv_spd_id)
+					break; // at least has one cap from source to dest
+			}
+			/* i == ncaps means no static cap from cli to srv. */
+			if (unlikely(i == cli_spd->ncaps)) {
+				printk("cos: no any capability between comp %d and %d\n", 
+				       cli_spd_id, srv_spd_id);
+				return -1;
+			}
 		}
 
 		acap_id = alloc_acap_id(cli_spd);
 		acap = &cli_spd->acaps[acap_id];
 		acap->srv_spd_id = srv_spd_id;
 		acap->id = acap_id;
+		acap->owner_thd = owner_thd;
 		
 		printk("acap %d (comp %d to comp %d) created.\n", 
 		       acap_id, cli_spd_id, srv_spd_id);
@@ -4063,10 +4075,10 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_vas_cntl,
 	(void*)cos_syscall_trans_cntl,
 	(void*)cos_syscall_pfn_cntl,
-	(void*)cos_syscall_send_ipi,
+	(void*)cos_syscall_send_ipi, // going to remove
 	(void*)cos_syscall_async_cap_cntl,
 	(void*)cos_syscall_ainv_wait,
-	(void*)cos_syscall_void,
+	(void*)cos_syscall_ainv_send,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_void,

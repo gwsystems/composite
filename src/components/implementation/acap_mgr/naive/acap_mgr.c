@@ -266,7 +266,6 @@ int acap_cli_lookup(int spdid, int cap_id) {
 		cli_thd_info->ncaps = ci->ncaps;
 		cli_thd_info->cap_info = malloc(sizeof(struct per_cap_thd_info) * ci->ncaps);
 	}
-
 	if (unlikely(cli_thd_info == NULL || cli_thd_info->cap_info == NULL)) {
 		printc("acap mgr %ld: cannot allocate memory for thd_info structure.\n", cos_spd_id());
 		goto err;
@@ -280,10 +279,11 @@ int acap_cli_lookup(int spdid, int cap_id) {
 	 * destination cpu */
 	//also, if an acap can be used for multiple s_caps, reflect it here.
 //	lookup(thd_id, spdid, cap_id);
+// and if we want this thread use static cap, return 0
 	int cpu = 1;
 
 	/* create acap between cspd and sspd */
-	acap_id = cos_async_cap_cntl(COS_ACAP_CLI_CREATE, cspd, sspd, 0);
+	acap_id = cos_async_cap_cntl(COS_ACAP_CLI_CREATE, cspd, sspd, thd_id);
 	if (acap_id <= 0) { 
 		printc("err: async cap creation failed.");
 		goto err; 
@@ -302,7 +302,6 @@ int acap_cli_lookup(int spdid, int cap_id) {
 	cli_thd_info->cap_info[cap_id].cap_srv_thd = srv_thd_id;
 
 	int ret = 0;
-
 	ret = shared_page_setup(srv_thd_id);
 	if (ret < 0) {
 		printc("acap_mgr: ring buffer allocation error!\n");
@@ -310,8 +309,6 @@ int acap_cli_lookup(int spdid, int cap_id) {
 	}
 
 	cli_thd_info->cap_info[cap_id].acap = acap_v; /* client side acap */
-
-	/* the acap cntl returns server side acap */
 
 	srv_acap = cos_async_cap_cntl(COS_ACAP_SRV_CREATE, sspd, srv_thd_id, 0);
 	if (unlikely(srv_acap <= 0)) {
@@ -323,7 +320,8 @@ int acap_cli_lookup(int spdid, int cap_id) {
 	
 	if (sched_wakeup(cos_spd_id(), srv_thd_id)) BUG();
 
-	printc("returning acap %d (%d), thd %d\n", acap_v, acap_v & ~COS_ASYNC_CAP_FLAG, cos_get_thd_id());
+	/* printc("acap_mgr returning acap %d (%d), thd %d\n",  */
+	/*        acap_v, acap_v & ~COS_ASYNC_CAP_FLAG, cos_get_thd_id()); */
 
 	return acap_v;
 err_cap:

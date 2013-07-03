@@ -84,6 +84,7 @@ struct async_cap {
 	// cli acap
 	int id;
 	int srv_spd_id;
+	int owner_thd;
 	int upcall_thd;
 	long cpu;
 	unsigned int ref_cnt; // remove because we have 1-to-1 mapping

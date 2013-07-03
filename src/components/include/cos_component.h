@@ -153,6 +153,7 @@ cos_syscall_3(20, int, __pfn_cntl, unsigned long, op_spd, unsigned long, mem_id,
 cos_syscall_3(21, int, __send_ipi, long, cpuid, int, thdid, long, arg);
 cos_syscall_3(22, int, __async_cap_cntl, int, operation, int, arg1, long, arg2);
 cos_syscall_1(23, int, ainv_wait, int, acap_id);
+cos_syscall_1(24, int, ainv_send, int, acap_id);
 cos_syscall_0(31,  int, null);
 
 static inline int cos_mmap_cntl(short int op, short int flags, short int dest_spd, 

@@ -61,7 +61,7 @@ struct sched_base_per_core {
 	struct sched_thd blocked;
 	struct sched_thd upcall_deactive;
 	struct sched_thd graveyard;
-	int IPI_brand;
+	int IPI_brand, IPI_acap;
 	long long report_evts[REVT_LAST];
 } CACHE_ALIGNED;
 
@@ -580,7 +580,7 @@ static inline int exec_fn(int (*fn)(), int nparams, u32_t *params) ;
 
 static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, int wait)
 {
-	int ret = 0, i, brand;
+	int ret = 0, i, acap;
 	/* FIXME: we need a lock free ring buffer */
 	if (unlikely(core_id >= NUM_CPU_COS || nparams > 4 || !fn || !params)) goto error;
 
@@ -601,11 +601,11 @@ static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, 
 	ipi_data->owner_tid = cos_get_thd_id();
 	ipi_data->active = 1;
 
-	brand = PERCPU_GET_TARGET(sched_base_state, core_id)->IPI_brand;
+	acap = PERCPU_GET_TARGET(sched_base_state, core_id)->IPI_acap;
 
-	assert(brand > 0);
-	/* printc("sending ipi to core %d, brand %d\n", cpu, brand); */
-	cos_send_ipi(core_id, brand, 0, 0);
+	if (unlikely(acap <= 0)) BUG();
+	/* printc("core %d: sending ipi to core %d, acap %d\n", cos_cpuid(), core_id, acap); */
+	cos_ainv_send(acap);
 
 	if (wait) {
 		/* FIXME: should be blocking, not spinning. */
@@ -1780,21 +1780,34 @@ static inline int exec_IPI_fn() {
 
 static void IPI_handler(void *d)
 {
-	int bid;
 	struct sched_base_per_core *sched_state = PERCPU_GET(sched_base_state);
 
-	bid = cos_brand_cntl(COS_BRAND_CREATE, 0, 0, cos_spd_id());
+	/* int bid; */
+	/* bid = cos_brand_cntl(COS_BRAND_CREATE, 0, 0, cos_spd_id()); */
 
-	assert(sched_state->IPI_handler != NULL);
+	/* assert(sched_state->IPI_handler != NULL); */
 
-	sched_state->IPI_brand = bid;
-	if (sched_add_thd_to_brand(cos_spd_id(), bid, sched_state->IPI_handler->id)) BUG();
+	/* sched_state->IPI_brand = bid; */
+	/* if (sched_add_thd_to_brand(cos_spd_id(), bid, sched_state->IPI_handler->id)) BUG(); */
 
-	printc("Core %ld: Starting IPI handling thread (thread id %d, brand id %d)\n", 
-	       cos_cpuid(), cos_get_thd_id(), bid);
+	/* printc("Core %ld: Starting IPI handling thread (thread id %d, brand id %d)\n",  */
+	/*        cos_cpuid(), cos_get_thd_id(), bid); */
 
-	int ret;
+	int cli_acap, srv_acap, ret;
+	cli_acap = cos_async_cap_cntl(COS_ACAP_CLI_CREATE, cos_spd_id(), cos_spd_id(), 0); /* no owner to this cli_acap*/
+	srv_acap = cos_async_cap_cntl(COS_ACAP_SRV_CREATE, cos_spd_id(), cos_get_thd_id(), 0);
 
+	if (unlikely(cli_acap <= 0 || srv_acap <= 0)) {
+		printc("Scheduler %ld could not allocate acap for IPI handler %d.\n", cos_spd_id(), cos_get_thd_id());
+		BUG();
+	}
+	sched_state->IPI_acap = cli_acap;
+
+	ret = cos_async_cap_cntl(COS_ACAP_WIRE, cos_spd_id(), cli_acap, cos_get_thd_id());
+	if (ret < 0) BUG();
+
+	printc("Core %ld: Starting IPI handling thread (thread id %d, client acap %d, server acap %d)\n", 
+	       cos_cpuid(), cos_get_thd_id(), cli_acap, srv_acap);
 	while (1) {
 		cos_sched_lock_take();
 		/* Going to switch away */
