@@ -246,7 +246,7 @@ void *acap_cli_lookup_ring(int spdid, int cap_id) {
 /* Return the acap (value) of the current thread (for the static cap_id) on
  * the client side. Major setup done in this function. */
 int acap_cli_lookup(int spdid, int cap_id) {
-	int srv_thd_id, acap_id, acap_v, srv_acap_v, cspd, sspd;
+	int srv_thd_id, acap_id, acap_v, srv_acap, cspd, sspd;
 	struct srv_thd_info *srv_thd;
 	struct cli_thd_info *cli_thd_info;
 	struct comp_info *ci = &comp_info[spdid];
@@ -283,7 +283,7 @@ int acap_cli_lookup(int spdid, int cap_id) {
 	int cpu = 1;
 
 	/* create acap between cspd and sspd */
-	acap_id = cos_async_cap_cntl(COS_ACAP_CREATION, cspd, sspd, 0);
+	acap_id = cos_async_cap_cntl(COS_ACAP_CLI_CREATE, cspd, sspd, 0);
 	if (acap_id <= 0) { 
 		printc("err: async cap creation failed.");
 		goto err; 
@@ -312,9 +312,14 @@ int acap_cli_lookup(int spdid, int cap_id) {
 	cli_thd_info->cap_info[cap_id].acap = acap_v; /* client side acap */
 
 	/* the acap cntl returns server side acap */
-	srv_acap_v = cos_async_cap_cntl(COS_ACAP_WIRE, cspd, acap_id, srv_thd_id) | COS_ASYNC_CAP_FLAG;
-	srv_thd->srv_acap = srv_acap_v;
-	assert(srv_thd->srv_acap);
+
+	srv_acap = cos_async_cap_cntl(COS_ACAP_SRV_CREATE, sspd, srv_thd_id, 0);
+	if (unlikely(srv_acap <= 0)) {
+		printc("Server acap allocation failed for thread %d.\n", srv_thd_id);
+		goto err;
+	}
+	srv_thd->srv_acap = srv_acap;
+	ret = cos_async_cap_cntl(COS_ACAP_WIRE, cspd, acap_id, srv_thd_id);
 	
 	if (sched_wakeup(cos_spd_id(), srv_thd_id)) BUG();
 

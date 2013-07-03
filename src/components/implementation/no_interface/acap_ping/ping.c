@@ -66,7 +66,8 @@ int cos_async_inv(struct usr_inv_cap *ucap, int *params) {
 	}
 
 	if (curr_cap->static_inv == 1) {
-		// return static cap
+		/* return static cap */
+		return ucap->cap_no;
 	}
 
 	struct shared_struct *shared_struct = &curr_cap->shared_struct;
@@ -93,15 +94,31 @@ err_nomem:
 //////////////////////////////// above move to lib
 
 
+void delay(void)
+{
+	int i,j,k;
+	volatile int m = 0;
 
+	for (i = 0; i < 1000; i++)
+		for(j = 0; j < 100; j++)
+			for (k = 0; k < 100; k++)
+				m = 123;
+}
 
 void cos_init(void)
 {
 	u64_t start, end, avg, tot = 0, dev = 0;
 	int i, j;
 
-	call(111,222,333,444);			/* get stack */
 	printc("cpu %ld, thd %d from ping\n",cos_cpuid(), cos_get_thd_id());
+	call(111,222,333,444);			/* get stack */
+
+
+	printc("core %ld: spinning....\n", cos_cpuid());
+	delay();
+	printc("core %ld: after spin!\n", cos_cpuid());
+	
+	call(1111,2222,3333,4444);			/* get stack */
 	printc("Starting %d Invocations.\n", ITER);
 
 	for (i = 0 ; i < ITER ; i++) {

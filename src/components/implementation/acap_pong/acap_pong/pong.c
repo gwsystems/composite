@@ -9,10 +9,10 @@
 //volatile int f;
 //void call(void) { f = *(int*)NULL; return; }
 int call(int a, int b, int c, int d) { 
-	printc("doing call in pong with params %d %d %d %d\n", a,b,c,d);
+	printc("core %ld, spd %ld: doing call in pong with params %d %d %d %d\n", 
+	       cos_cpuid(), cos_spd_id(), a,b,c,d);
 	return a+b+c+d; 
 }
-
 
 
 /////////////////// move to lib later
@@ -93,12 +93,14 @@ int cos_ainv_handling(void) {
 
 	struct inv_data inv;
 	while (curr->stop == 0) {
-		CLEAR_SERVER_ACTIVE(shared_struct);
+		CLEAR_SERVER_ACTIVE(shared_struct); // clear active early to avoid race (and atomic instruction)
 		if (CK_RING_DEQUEUE_SPSC(inv_ring, ring, &inv) == false) {
-			//ainv_wait(acap);
+			printc("thread %d waiting on acap %d\n", cos_get_thd_id(), acap);
+			cos_ainv_wait(acap);
+			printc("thread %d up from ainv_wait\n", cos_get_thd_id());
 		} else {
 			SET_SERVER_ACTIVE(shared_struct);
-			*shared_struct->server_active = 1; /**/
+			*shared_struct->server_active = 1; /* setting us active */
 			printc("core %ld: got inv for cap %d, param %d, %d, %d, %d\n",
 			       cos_cpuid(), inv.cap, inv.params[0], inv.params[1], inv.params[2], inv.params[3]);
 			if (unlikely(inv.cap > curr->cli_ncaps || !curr->fn_mapping[inv.cap])) {

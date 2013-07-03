@@ -453,9 +453,10 @@ enum {
 
 /* operations for cos_async_cap_cntl */
 enum {
-	COS_ACAP_CREATION = 0,
-	COS_ACAP_LINK,
+	COS_ACAP_CLI_CREATE = 0,
+	COS_ACAP_SRV_CREATE,
 	COS_ACAP_WIRE,
+	COS_ACAP_LINK
 };
 
 /* flags for cos_switch_thread */
