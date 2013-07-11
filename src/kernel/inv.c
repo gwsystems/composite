@@ -18,6 +18,10 @@
 #include "include/chal.h"
 #include "include/tcap.h"
 #include <linux/kernel.h>
+#include "include/shared/cos_config.h"
+#ifdef FPU_ENABLED
+#include "include/fpu.h"
+#endif
 
 /* 
  * These are the 1) page for the pte for the shared region and 2) the
@@ -941,7 +945,9 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	 * assume that any preemption chains that existed aren't valid
 	 * anymore. */
 	break_preemption_chain(curr);
-
+#ifdef FPU_ENABLED
+        fpu_save(curr, thd);
+#endif
 	switch_thread_context(curr, thd);
 	if (thd->flags & THD_STATE_PREEMPTED) {
 		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
