@@ -14,57 +14,16 @@ int call(int a, int b, int c, int d) {
 	return a+b+c+d; 
 }
 
-
 /////////////////// move to lib later
-struct __cos_ainv_srv_thd {
-	int acap;
-	int cli_ncaps;
-	vaddr_t *fn_mapping;
-	volatile int stop;
-
-	void *shared_page;
-	struct shared_struct shared_struct;
-} CACHE_ALIGNED;
-
-struct __cos_ainv_srv_thd *__cos_ainv_thds[MAX_NUM_THREADS]; 
-
-static inline int exec_fn(int (*fn)(), int nparams, int *params) {
-	int ret;
-
-	assert(fn);
-
-	switch (nparams)
-	{		
-	case 0:
-		ret = fn();
-		break;
-	case 1:
-		ret = fn(params[0]);
-		break;
-	case 2:
-		ret = fn(params[0], params[1]);
-		break;
-	case 3:
-		ret = fn(params[0], params[1], params[2]);
-		break;
-	case 4:
-		ret = fn(params[0], params[1], params[2], params[3]);
-		break;
-	}
-	
-	return ret;
-}
-
 int cos_ainv_handling(void) {
-	struct __cos_ainv_srv_thd *curr;
+	struct __cos_ainv_srv_thd curr_data;
+	struct __cos_ainv_srv_thd *curr = &curr_data;
 	int acap, i;
 	int curr_thd_id = cos_get_thd_id();
 
-	__cos_ainv_thds[curr_thd_id] = malloc(sizeof(struct __cos_ainv_srv_thd));
-	curr = __cos_ainv_thds[curr_thd_id];
-	if (unlikely(curr == NULL)) goto err_nomem;
+	assert(curr);
 
-	printc("upcall thread %d (core %ld) waiting...\n", cos_get_thd_id(), cos_cpuid());
+	printc("upcall thread %d (core %ld) waiting in pong...\n", cos_get_thd_id(), cos_cpuid());
 	sched_block(cos_spd_id(), 0);
 	printc("upcall thread %d (core %ld) up!\n", cos_get_thd_id(), cos_cpuid());
 		
@@ -99,8 +58,7 @@ int cos_ainv_handling(void) {
 			cos_ainv_wait(acap);
 			printc("thread %d up from ainv_wait\n", cos_get_thd_id());
 		} else {
-			SET_SERVER_ACTIVE(shared_struct);
-			*shared_struct->server_active = 1; /* setting us active */
+			SET_SERVER_ACTIVE(shared_struct); /* setting us active */
 			printc("core %ld: got inv for cap %d, param %d, %d, %d, %d\n",
 			       cos_cpuid(), inv.cap, inv.params[0], inv.params[1], inv.params[2], inv.params[3]);
 			if (unlikely(inv.cap > curr->cli_ncaps || !curr->fn_mapping[inv.cap])) {
@@ -127,6 +85,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	case COS_UPCALL_AINV_HANDLER:
 	{
 		cos_ainv_handling();
+		//cos_intra_ainv_handling();
 		break;
 	}
 	/* case COS_UPCALL_BRAND_EXEC: */

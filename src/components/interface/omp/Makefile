@@ -1,5 +1,5 @@
-LIB_OBJS=acap_lib.o
+LIB_OBJS=
 LIBS=$(LIB_OBJS:%.o=%.a)
-ASM_STUBS=s_stubam.o
+ASM_STUBS=
 
 include ../Makefile.subdir
