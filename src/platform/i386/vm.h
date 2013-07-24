@@ -3,32 +3,51 @@
 
 #include "types.h"
 
-//#define PAGE_SIZE 4096
-#define PAGE_SIZE 0x1000
+#define PAGE_SIZE 4096
 
-struct page {
-    uint32_t present  : 1;  /* Page is present in memory */
-    uint32_t rw       : 1;  /* Read-only if clear, read-write if set */
-    uint32_t user     : 1;  /* Supervisor level only if clear */
-    uint32_t accessed : 1;  /* Has the page been accessed since last refresh */
-    uint32_t dirty    : 1;  /* Has the page been written too? */
-    uint32_t unused   : 7;  /* unused */
-    uint32_t frame    : 20; /* fram adress shifted right 12 bits */
-};
+/* 4kB page structure:
+0:	P	Present				0 = not present		1 = present
+1:	RW	Read/Write			0 = read only		1 = read/write
+2:	US	User/Super			0 = supervisotir only	1 = user mode
+3:	PWT	Page-level write-through	4.9
+4:	PCD	Page-level cache disable	4.9
+5:	A	Accessed			0 = not accessed	1 = accessed
+6:	D	Dirty				0 = not written		1 = written
+7:	PAT	4.9.2
+8:	G	Global				0 = local		1 = global
+9-11:	Ignored
+l12-31:	FRAME	Physical address of page
+*/
 
-typedef struct page page_t;
+#define PAGE_P		1
+#define PAGE_RW		1 << 1
+#define PAGE_US		1 << 2
+#define PAGE_PWT	1 << 3
+#define PAGE_PCD	1 << 4
+#define PAGE_A		1 << 5
+#define PAGE_D		1 << 6
+#define PAGE_PAT	1 << 7
+#define PAGE_G		1 << 8
+#define PAGE_FRAME	0xfffff000
 
-struct page_table {
-    page_t pages[1024];
-};
-
-struct page_directory {
-    struct page_table *tables[1024];
-    uint32_t tables_physical[1024];
-    uint32_t physical_addr;
-};
+/* 4MB super page structure:
+0:      P       Present                         0 = not present         1 = present
+1:      RW      Read/Write                      0 = read only           1 = read/write
+2:      US      User/Super                      0 = supervisotir only   1 = user mode
+3:      PWT     Page-level write-through        4.9
+4:      PCD     Page-level cache disable        4.9
+5:      A       Accessed                        0 = not accessed        1 = accessed
+6:      D       Dirty                           0 = not written         1 = written
+7:      PS	Page size			0 = is page table entry	1 = is 4MB super page
+8:      G       Global                          0 = local               1 = global
+9-11:   Ignored
+12:	PAT	4.9.2
+13-31:	Confusing
+*/
 
 void paging__init(size_t memory_size);
 
+void *chal_va2pa(void *address);
+void *chal_pa2va(void *address);
 
 #endif

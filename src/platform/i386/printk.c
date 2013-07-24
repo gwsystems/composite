@@ -12,6 +12,7 @@ static void (*printk_handlers[MAX_HANDLERS])(const char *);
 static unsigned num_handlers = 0;
 
 const char const * log_level_str[] = {
+    [RAW]       = "",
     [INFO]      = "INFO",
     [WARN]      = "WARN",
     [ERROR]     = "ERROR",
@@ -49,7 +50,7 @@ printk(enum log_level level, const char *fmt, ...)
     int l;
     unsigned i;
 
-    sprintf(buffer, "[%s] ", log_level_to_string(level));
+    sprintf(buffer, level == RAW ? "%s" : "[%s] ", log_level_to_string(level));
     l = strlen(buffer);
 
     va_start(args, fmt);

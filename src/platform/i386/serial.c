@@ -4,6 +4,8 @@
 #include "serial.h"
 #include "printk.h"
 
+extern int keep_kernel_running;
+
 enum serial_ports {
     SERIAL_PORT_A = 0x3F8,
     SERIAL_PORT_B = 0x2F8,
@@ -55,6 +57,9 @@ serial_handler(struct registers *r)
 	 * Fix the serial input assuming it is ascii
 	 */
 	switch (serial) {
+	case 27:
+		keep_kernel_running = 0;
+		break;
         case '\0':
             return;
             break;
@@ -68,7 +73,8 @@ serial_handler(struct registers *r)
 			break;
 	}
 
-    printk(INFO, "Serial: %d\n", serial);
+     printk(INFO, "Serial: %d\n", serial); 
+	//printk(RAW, "%c", serial);
 }
 
 void

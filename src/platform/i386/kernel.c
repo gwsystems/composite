@@ -19,8 +19,6 @@ int keep_kernel_running = 1;
 void 
 kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
 {
-    int i;
-    
     printk__init();
     printk(INFO, "Booting....\n"); 
    
@@ -47,9 +45,16 @@ kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
 
     if (mboot_magic == MULTIBOOT_EAX_MAGIC) {
         printk(INFO, "Multiboot kernel\n");
+	multiboot__print(mboot);
 
+/*
         if ((char *)mboot->cmdline != NULL)
             printk(INFO, "cmdline: %s\n", (char *)mboot->cmdline);
+	printk(INFO, "\tFlags: 0x%x\n", mboot->flags);
+	printk(INFO, "\tMemory: 0x%x:0x%x\n", mboot->mem_lower, mboot->mem_upper);
+	if (mboot->boot_device != 0) printk(INFO, "\tBoot Device: %s\n", mboot->boot_device);
+	printk(INFO, "\tModules: %d (%x)\n", mboot->mods_count, mboot->mods_addr);
+*/
         
         
         printk(INFO, "Mem Size: %d\n", mboot->mem_lower + mboot->mem_upper);
@@ -57,16 +62,10 @@ kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
         paging__init(mboot->mem_lower + mboot->mem_upper);
     }
 
-    printk(INFO, "Hello World\n");
-    printk(CRITICAL, "Hello World\n");
-    printk(WARN, "This is a multiline kernel\n");
-    for (i = 0; i < 8; i++)
-        printk(ERROR, "Hello bob %d\n", i);
-
     printk(INFO, "Enabling interrupts\n");
     asm volatile ("sti");
     
-
+#undef FORCE_PAGE_FAULT
 #ifdef FORCE_PAGE_FAULT
     printk(INFO, "Forcing page fault\n");
     uintptr_t *ptr = (uintptr_t *)0xA0000000;
@@ -76,5 +75,9 @@ kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
     while (keep_kernel_running);
 
     printk(INFO, "Shutting down...");
+    asm("mov     $0x53,%ah");
+    asm("mov     $0x07,%al");
+    asm("mov     $0x001,%bx");
+    asm("mov     $0x03,%cx");
+    asm("int     $0x15");
 }
-

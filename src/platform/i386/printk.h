@@ -2,6 +2,7 @@
 #define _PRINTK_H_
 
 enum log_level {
+    RAW,
     INFO,
     WARN,
     ERROR,

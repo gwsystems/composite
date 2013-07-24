@@ -111,12 +111,12 @@ idt__init(void)
     idt_set_gate(5, (uintptr_t)isr5, 0x08, 0x8E);
     idt_set_gate(6, (uintptr_t)isr6, 0x08, 0x8E);
     idt_set_gate(7, (uintptr_t)isr7, 0x08, 0x8E);
-    idt_set_gate(8, (uintptr_t)isr8, 0x08, 0x8E);
+    //idt_set_gate(8, (uintptr_t)isr8, 0x08, 0x8E);		// disabled to make APM halt work
     idt_set_gate(9, (uintptr_t)isr9, 0x08, 0x8E);
     idt_set_gate(10, (uintptr_t)isr10, 0x08, 0x8E);
     idt_set_gate(11, (uintptr_t)isr11, 0x08, 0x8E);
     idt_set_gate(12, (uintptr_t)isr12, 0x08, 0x8E);
-    idt_set_gate(13, (uintptr_t)isr13, 0x08, 0x8E);
+    //idt_set_gate(13, (uintptr_t)isr13, 0x08, 0x8E);		// disabled to make APM halt work
     idt_set_gate(14, (uintptr_t)isr14, 0x08, 0x8E);
     idt_set_gate(15, (uintptr_t)isr15, 0x08, 0x8E);
     idt_set_gate(16, (uintptr_t)isr16, 0x08, 0x8E);
@@ -124,7 +124,7 @@ idt__init(void)
     idt_set_gate(18, (uintptr_t)isr18, 0x08, 0x8E);
     idt_set_gate(19, (uintptr_t)isr19, 0x08, 0x8E);
     idt_set_gate(20, (uintptr_t)isr20, 0x08, 0x8E);
-    idt_set_gate(21, (uintptr_t)isr21, 0x08, 0x8E);
+    //idt_set_gate(21, (uintptr_t)isr21, 0x08, 0x8E);		// disabled to make APM halt work
     idt_set_gate(22, (uintptr_t)isr22, 0x08, 0x8E);
     idt_set_gate(23, (uintptr_t)isr23, 0x08, 0x8E);
     idt_set_gate(24, (uintptr_t)isr24, 0x08, 0x8E);

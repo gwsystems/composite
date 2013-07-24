@@ -19,8 +19,10 @@ timer_callback(struct registers *regs)
 {
     ++tick;
 
+/*
     if (tick % 100 == 0)
         printk(INFO, "Tick: %lu\n", tick);
+*/
 }
 
 void 

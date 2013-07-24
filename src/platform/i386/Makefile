@@ -48,6 +48,7 @@ OBJS += serial.o
 OBJS += ports.o
 OBJS += vtxprintf.o
 OBJS += boot_log.o
+OBJS += multiboot.o
 
 all: $(KERNEL)
 	$(E) "--[ Kernel Built"
@@ -80,3 +81,5 @@ clean:
 	$(Q) rm -f $(DEPS) $(OBJS) loader.o $(KERNEL)
 	$(E) "--[ Clean"
 
+qemu: kernel.img
+	qemu-system-i386 -nographic -kernel kernel.img -no-reboot
