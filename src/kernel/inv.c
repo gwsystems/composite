@@ -18,6 +18,8 @@
 #include "include/chal.h"
 #include "include/tcap.h"
 #include <linux/kernel.h>
+#include "include/shared/cos_config.h"
+#include "include/fpu.h"
 
 /* 
  * These are the 1) page for the pte for the shared region and 2) the
@@ -940,9 +942,11 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	/* If a thread is involved in a scheduling decision, we should
 	 * assume that any preemption chains that existed aren't valid
 	 * anymore. */
-	break_preemption_chain(curr);
+        break_preemption_chain(curr);
 
-	switch_thread_context(curr, thd);
+        fpu_save(thd);
+
+        switch_thread_context(curr, thd);
 	if (thd->flags & THD_STATE_PREEMPTED) {
 		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
 		remove_preempted_status(thd);
