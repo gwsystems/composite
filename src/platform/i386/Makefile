@@ -82,4 +82,4 @@ clean:
 	$(E) "--[ Clean"
 
 qemu: kernel.img
-	qemu-system-i386 -nographic -kernel kernel.img -no-reboot
+	qemu-system-i386 -nographic -kernel kernel.img -no-reboot -s 
