@@ -12,6 +12,7 @@
 #include <linux/linkage.h>
 #include "asym_exec_dom.h"
 #include "../../../kernel/include/asm_ipc_defs.h"
+#include "../../../kernel/include/shared/cos_config.h"
 
 #define ASM_PAGE_MASK (~(4096-1))
 	
@@ -198,6 +199,9 @@ ENTRY(name##_interposition)					\
 COS_CREATE_TRAP_NO_ERRCODE(div_fault)
 COS_CREATE_TRAP_ERRCODE(page_fault)
 COS_CREATE_TRAP_NO_ERRCODE(reg_save)
+#ifdef FPU_ENABLED
+COS_CREATE_TRAP_ERRCODE(fpu_not_available)
+#endif
 
 /* The page fault trampoline for kernel faults.  See explanation in relocate_page_fault_handler:hw_ints.c */
 .data
