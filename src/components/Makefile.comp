@@ -19,6 +19,11 @@ LWIPINC=-I$(LWIPDIR)/src/include -I$(LWIPDIR)/src/include/ipv4/ -I$(LWIPBASE)/co
 #PONY=$(CDIR)/cidl/
 PONY=/bin/echo
 
+LUABASE=$(CDIR)/lib/lua
+LUADIR=$(LUABASE)/lua-5.2.1
+LUAOBJ=$(LUABASE)/cos/lua_lang.o
+LUAINC=-I$(LUADIR)/src -I$(LUABASE)/cos/include
+
 INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/
 # FIXME: dietlibc is now compiled with fno merge constants which is
 # probably ballooning its size.  Fix this need for no merge constants
@@ -26,7 +31,7 @@ INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib
 #OPT= -ggdb3
 OPT= -O3
-CFLAGS=-D__x86__ -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable -fno-stack-protector -fno-omit-frame-pointer $(INC_PATH) $(DIETINC) $(LWIPINC) $(OPT) $(SHARED_FLAGS)
+CFLAGS=-D__x86__ -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable -fno-stack-protector -fno-omit-frame-pointer $(INC_PATH) $(DIETINC) $(LWIPINC) $(LUAINC) $(OPT) $(SHARED_FLAGS)
 DIETCFLAGS=$(CFLAGS) -Xlinker -r
 ASFLAGS=$(INC_PATH) $(SHARED_FLAGS)
 
