@@ -200,7 +200,7 @@ COS_CREATE_TRAP_NO_ERRCODE(div_fault)
 COS_CREATE_TRAP_ERRCODE(page_fault)
 COS_CREATE_TRAP_NO_ERRCODE(reg_save)
 #ifdef FPU_ENABLED
-COS_CREATE_TRAP_NO_ERRCODE(fpu_not_available)
+COS_CREATE_TRAP_ERRCODE(fpu_not_available)
 #endif
 
 /* The page fault trampoline for kernel faults.  See explanation in relocate_page_fault_handler:hw_ints.c */
