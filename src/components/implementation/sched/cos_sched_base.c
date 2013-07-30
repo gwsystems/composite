@@ -52,6 +52,7 @@ struct sched_base_per_core {
         /* When the wakeup thread (in charge of higher-level timing) should be woken */
 	volatile u64_t wakeup_time;
 	volatile u64_t child_wakeup_time;
+	u64_t policy_wakeup_time;
 	struct sched_thd *wakeup_thd;
 
         /* 
@@ -509,6 +510,7 @@ static void sched_process_wakeups(void)
 
 static void sched_timer_tick(void)
 {
+	printc("Starting timer processing\n");
 	while (1) {
 		cos_sched_lock_take();
 		report_event(TIMER_TICK);
@@ -529,9 +531,10 @@ static void sched_timer_tick(void)
 			}
 		}
 		PERCPU_GET(sched_base_state)->ticks++;
+		printc("%d; pre-wakeup and tick\n", cos_spd_id());
 		sched_process_wakeups();
-		timer_tick(1);
-		printc("tick %d\n", (unsigned int)PERCPU_GET(sched_base_state)->ticks);
+		timer_tick(1, &PERCPU_GET(sched_base_state)->policy_wakeup_time);
+		printc("%d: tick %d\n", cos_spd_id(), (unsigned int)PERCPU_GET(sched_base_state)->ticks);
 		sched_switch_thread(COS_SCHED_BRAND_WAIT, TIMER_SWITCH_LOOP);
 		/* Tailcall out of the loop */
 	}
@@ -560,6 +563,7 @@ static void fp_timer(void *d)
 	sched_state->ticks = 0;
 	sched_state->wakeup_time = 0;
 	sched_state->child_wakeup_time = 0;
+	sched_state->policy_wakeup_time = 0;
 
 	sched_timer_tick();
 	BUG();
@@ -1264,7 +1268,8 @@ current_core_create_thread_default(spdid_t spdid, u32_t sched_param_0,
 	struct sched_thd *new;
 	vaddr_t t = spdid;
 
-	printc("%d: call to create thread in spd %d\n", cos_spd_id(), spdid);
+	printc("%d: call to create thread in spd %d\n", 
+	       (unsigned int)cos_spd_id(), spdid);
 	sp[0] = ((union sched_param)sched_param_0).c;
 	sp[1] = ((union sched_param)sched_param_1).c;
 	sp[2] = ((union sched_param)sched_param_2).c;
@@ -1388,8 +1393,8 @@ int sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd)
 	assert(sched_thd_grp(st) && sched_thd_member(new));
 	if (cos_sched_cntl(COS_SCHED_GRANT_SCHED, tid, spdid)) BUG();
 
-//	printc("parent scheduler %d created thread %d for scheduler %d\n", 
-//	       (unsigned int)cos_spd_id(), tid, spdid);
+	printc("parent scheduler %d created thread %d for scheduler %d\n", 
+	       (unsigned int)cos_spd_id(), tid, spdid);
 	cos_sched_lock_release();
 	return tid;
 err:
@@ -1519,7 +1524,7 @@ sched_process_cevt(cevt_t type, unsigned short int tid, u32_t time_elapsed)
 		static u64_t prev_print = 0;
 
 		PERCPU_GET(sched_base_state)->ticks += te;
-		timer_tick(te);
+		timer_tick(te, &PERCPU_GET(sched_base_state)->policy_wakeup_time);
 		
 		report_event(TIMER_TICK);
 		if ((PERCPU_GET(sched_base_state)->ticks - prev_print) >= (CHLD_REPORT_FREQ*TIMER_FREQ)) {
@@ -1545,6 +1550,7 @@ sched_child_evt_thd(void)
 	cevt_t type;
 	unsigned short int tid;
 	u32_t time_elapsed;
+	struct sched_base_per_core *ss = PERCPU_GET(sched_base_state);
 
 	while (1) {
 		int cont, should_idle;
@@ -1554,33 +1560,38 @@ sched_child_evt_thd(void)
 			struct sched_thd *n = schedule(NULL);
 			unsigned long wake_diff = 0;
 
-			assert(n != PERCPU_GET(sched_base_state)->timer);
+			assert(n != ss->timer);
 			/* If there isn't a thread to schedule, and
 			 * there are no events, this child scheduler
 			 * should idle */
-			should_idle = (n == PERCPU_GET(sched_base_state)->idle);
+			should_idle = (n == ss->idle);
 			if (should_idle) {
 				/* locally cache the volatile value */
-				u64_t wake_tm, wt, cwt;
+				u64_t wake_tm = 0, ws[3];
+				int i;
 
 				/* check for new timeouts */
 				sched_process_wakeups();
 
-				wt = PERCPU_GET(sched_base_state)->wakeup_time;
-				cwt = PERCPU_GET(sched_base_state)->child_wakeup_time;
-				if (cwt == 0)     wake_tm = wt;
-				else if (wt == 0) wake_tm = cwt;
-				else              wake_tm = (wt < cwt) ? wt : cwt;
+				ws[0] = ss->wakeup_time;
+				ws[1] = ss->child_wakeup_time;
+				ws[2] = ss->policy_wakeup_time;
 
-				assert(!wake_tm || wake_tm >= PERCPU_GET(sched_base_state)->ticks);
-				wake_diff = wake_tm ? (unsigned long)(wake_tm - PERCPU_GET(sched_base_state)->ticks) : 0;
+				for (i = 0 ; i < 3 ; i++) {
+					if (ws[i] == 0) continue;
+					if (wake_tm == 0 ||
+					    ws[i] < wake_tm) wake_tm = ws[i];
+				}
+
+				assert(!wake_tm || wake_tm >= ss->ticks);
+				wake_diff = wake_tm ? (unsigned long)(wake_tm - ss->ticks) : 0;
 			}
 			cos_sched_clear_cevts();
 			cos_sched_lock_release();
 			/* Get events from the parent scheduler */
-			printc("pre-child block\n");
+
 			cont = parent_sched_child_get_evt(cos_spd_id(), should_idle, wake_diff, &type, &tid, &time_elapsed);
-			printc("post-child block\n");
+
 			cos_sched_lock_take();
 			assert(0 <= cont);
 			/* Process that event */
@@ -1591,7 +1602,7 @@ sched_child_evt_thd(void)
 		report_event(CHILD_SWITCH_THD);
 		/* When there are no more events, schedule */
 		sched_switch_thread(0, NULL_EVT);
-		assert(EMPTY_LIST(PERCPU_GET(sched_base_state)->timer, prio_next, prio_prev));
+		assert(EMPTY_LIST(ss->timer, prio_next, prio_prev));
 	} /* no return */
 }
 

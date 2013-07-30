@@ -34,14 +34,14 @@ execute(void)
 		}
 	}
 
+	printc("%d: execution beginning in cpu component.\n", 
+	       (unsigned int)cos_spd_id());
+
 	while (1) {
 		if (period && execution) periodic_wake_wait(cos_spd_id());
 		if (execution) {
 			spin(execution);
 		} 
-		if (!period && !execution) {
-			while (1) ;
-		}
 	}
 }
 

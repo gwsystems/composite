@@ -40,8 +40,6 @@ clean:
 distclean:
 	make -C dietlibc-0.29 clean
 	make -C lwip/cos clean
-# keep the following commands in one line. make executes each line
-# with a new shell.
 	cd ck; ./configure; cd ..
 	make -C ck distclean
 	make -C jsmn clean
@@ -50,7 +48,6 @@ distclean:
 init: clean distclean all
 	make -C dietlibc-0.29
 	make -C lwip/cos
-# keep the following commands in one line. Same as above.
 	cd ck; ./configure; cd ..
 	make -C ck
 	make -C jsmn

@@ -924,7 +924,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	} else {
 		next_thd = switch_thread_parse_data_area(da, &ret_code);
 		if (unlikely(0 == next_thd)) {
-			printk("err: data area\n");
+			printk("err: data area (err code %d)\n", ret_code);
 			goto_err(ret_err, "data_area\n");
 		}
 

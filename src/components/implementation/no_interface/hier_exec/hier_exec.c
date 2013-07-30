@@ -42,7 +42,6 @@ parse_process_initstr(void)
 	for (i = 0 ; 1 ; i++) {
 		int spdid;
 
-		printc("token %d->%d, type %d\n", sc.tok_start, sc.tok_end, sc.type);
 		r = sconf_arr_int(&sc, i, &spdid);
 		printc("Array parse returns %d\n", r);
 		if (r != SCONF_SUCCESS) break;

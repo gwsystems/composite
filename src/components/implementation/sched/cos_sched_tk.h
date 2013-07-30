@@ -28,8 +28,9 @@ void runqueue_print(void);
  * child scheduler because the parent removed you from the
  * CPU. */
 void time_elapsed(struct sched_thd *t, u32_t processing_time);
-/* passage of real-time in quantum measures */
-void timer_tick(int num_ticks);
+/* passage of real-time in quantum measures, and notification to the
+ * mechanism when a replenishment is required. */
+void timer_tick(int num_ticks, u64_t *next_replenishment);
 
 /* Which thread should we schedule next?  Return NULL if
  * there are no currently executable threads.  Ensure that the

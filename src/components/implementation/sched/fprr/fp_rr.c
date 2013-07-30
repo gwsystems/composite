@@ -196,28 +196,30 @@ time_elapsed(struct sched_thd *t, u32_t processing_time)
 }
 
 void 
-timer_tick(int num_ticks)
+timer_tick(int num_ticks, u64_t *policy_wakeup_time)
 {
 /* see time_elapsed for time mgmt */
 #ifdef DEFERRABLE
 	{
 		struct sched_thd *t;
+		struct fprr_per_core *fs = PERCPU_GET(fprr_state);
 
 		assert(num_ticks > 0);
-		PERCPU_GET(fprr_state)->ticks += num_ticks;
-		for (t = FIRST_LIST(&PERCPU_GET(fprr_state)->servers, sched_next, sched_prev) ;
-		     t != &PERCPU_GET(fprr_state)->servers                                    ;
+		fs->ticks += num_ticks;
+		if (*policy_wakeup_time <= fs->ticks) *policy_wakeup_time = 0;
+		for (t = FIRST_LIST(&fs->servers, sched_next, sched_prev) ;
+		     t != &fs->servers                                    ;
 		     t = FIRST_LIST(t, sched_next, sched_prev))
 		{
 			struct sched_accounting *sa = sched_get_accounting(t);
 			unsigned long T_exp = sa->T_exp, T = sa->T;
 			assert(T);
 
-			if (T_exp <= PERCPU_GET(fprr_state)->ticks) {
-				unsigned long off = T - (PERCPU_GET(fprr_state)->ticks % T);
+			if (T_exp <= fs->ticks) {
+				unsigned long off = T - (fs->ticks % T);
 
 				//printc("(%ld+%ld/%ld @ %ld)\n", sa->C_used, (unsigned long)sa->pol_cycles, T, T_exp);
-				sa->T_exp  = PERCPU_GET(fprr_state)->ticks + off;
+				sa->T_exp  = fs->ticks + off;
 				sa->C_used = 0;
 //				sa->pol_cycles = 0;
 				if (sched_thd_suspended(t)) {
@@ -226,6 +228,13 @@ timer_tick(int num_ticks)
 						fp_add_thd(t, sched_get_metric(t)->priority);
 					}
 				}
+			}
+
+			printc("%d: %d ticks, %d exp, %d wakeup <<<>>>\n", 
+			       cos_spd_id(), fs->ticks, sa->T_exp, *policy_wakeup_time);
+			if (*policy_wakeup_time == 0 ||
+			    sa->T_exp < *policy_wakeup_time) {
+				*policy_wakeup_time = sa->T_exp;
 			}
 		}
 	}
@@ -402,7 +411,7 @@ thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
 			sched_get_accounting(t)->C = ps->value;
 			sched_get_accounting(t)->C_used = 0;
 			fp_move_end_runnable(t);
-			printc("thread %d, budget %d\n", t->id, ps->value);
+			printc("thread %d, prio %d, budget %d\n", t->id, prio, ps->value);
 			break;
 		case SCHEDP_WINDOW:
 			sched_get_accounting(t)->T = ps->value;
@@ -412,7 +421,7 @@ thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
 				ADD_LIST(&PERCPU_GET(fprr_state)->servers, t, sched_next, sched_prev);
 			}
 			fp_move_end_runnable(t);
-			printc("thread %d, window %d\n", t->id, ps->value);
+			printc("thread %d, prio %d, window %d\n", t->id, prio, ps->value);
 			break;
 #endif
 		default:
