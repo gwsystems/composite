@@ -9,7 +9,7 @@
 
 #include <asm/desc.h>
 #include <linux/kernel.h>
-#include "../../../kernel/include/fpu.h"
+#include "../../../kernel/include/shared/cos_config.h"
 
 /*
  * The Linux provided descriptor structure is crap, probably due to

@@ -3,10 +3,13 @@
 
 #include <cos_component.h>
 #include <cos_debug.h>
+#include <cbuf_c.h>
+#include <cbuf.h>
 
-#define MAX_ARGSZ ((int)((2<<10)-sizeof(struct cos_array)))
+//#define MAX_ARGSZ ((int)((2<<10)-sizeof(struct cos_array)))
+#define MAX_ARGSZ ((int)(2<<10))
 
-int __initf_read(int offset, struct cos_array *da);
+int __initf_read(int offset, int cbid, int sz);
 /* Get the size of the init file */
 int initf_size(void);
 
@@ -15,17 +18,19 @@ int initf_size(void);
  * value of 0 specifies that there is no more to be read. */
 static int initf_read(int offset, char *buf, int req_sz)
 {
-	struct cos_array *da;
-	int ret, sz = (req_sz > MAX_ARGSZ) ? MAX_ARGSZ : req_sz;
-	
-	da = cos_argreg_alloc(sz + sizeof(struct cos_array));
-	if (!da) BUG();
-	da->sz = sz;
-	ret = __initf_read(offset, da);
-	memcpy(buf, da->mem, ret);
-	cos_argreg_free(da);
+        cbuf_t cb;
+        int ret, sz = (req_sz > MAX_ARGSZ) ? MAX_ARGSZ : req_sz;
+        //if(req_sz > MAX_ARGSZ) assert(0);
+        //int ret, sz = req_sz;
+        char *d;
 
-	return ret;
+        d = cbuf_alloc(sz, &cb);
+        if (!d) assert(0);
+        ret = __initf_read(offset, cb, sz);
+        memcpy(buf, d, ret);
+        cbuf_free(d);
+
+        return ret;
 }
 
 #endif /* !INITF_H */
