@@ -9,7 +9,6 @@
 
 #include <asm/desc.h>
 #include <linux/kernel.h>
-#include "../../../kernel/include/shared/cos_config.h"
 
 /*
  * The Linux provided descriptor structure is crap, probably due to
@@ -61,9 +60,6 @@ extern void *cos_default_page_fault_handler;
 void *cos_realloc_page_fault_handler;
 extern void *cos_default_div_fault_handler;
 extern void *cos_default_reg_save_handler;
-#ifdef FPU_ENABLED
-extern void *cos_default_fpu_not_available_handler;
-#endif
 
 /* 
  * This is really just a pain in the ass.  See 5-14 (spec Figure 5-1,
@@ -110,23 +106,18 @@ hw_int_init(void)
 		decode_desc_addr(&default_idt[i], (unsigned long*)&did->handler, 
 				 &did->dpl, &did->ints_enabled);
 
-                /* Yuck...we should simply use the array of saved handlers instead */
-                switch (i) {
-                        case 0:
-                                cos_default_div_fault_handler  = did->handler;
-                                break;
-                        case 14:
-                                cos_default_page_fault_handler = did->handler;
-                                break;
-                        case 0xe9:
-                                cos_default_reg_save_handler   = did->handler;
-                                break;
-#ifdef FPU_ENABLED
-                        case 7:
-                                cos_default_fpu_not_available_handler  = did->handler;
-                                break;
-#endif
-                };
+		/* Yuck...we should simply use the array of saved handlers instead */
+		switch (i) {
+		case 0:
+			cos_default_div_fault_handler  = did->handler;
+			break;
+		case 14:
+			cos_default_page_fault_handler = did->handler;
+			break;
+		case 0xe9:
+			cos_default_reg_save_handler   = did->handler;
+			break;
+		};
 	}
 
 	/* save the sysenter instruction address */

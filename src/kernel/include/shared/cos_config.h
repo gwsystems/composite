@@ -19,7 +19,6 @@
  * using networking (cnet). 
  */
 //#define LINUX_HIGHEST_PRIORITY 1 
-//#define FPU_ENABLED
 
 #define INIT_CORE              0 // the CPU that does initialization for Composite
 /* Currently Linux runs on the last CPU only. The code includes the
