@@ -417,11 +417,12 @@ static inline void
 section_fnptrs_execute(long *list)
 {
 	int i;
-	typedef void (*ctors_t)(void);
-	ctors_t ctors;
 
-	ctors = (ctors_t)list[1];
-	for (i = 0 ; i < list[0] ; i++, ctors++) ctors();
+	for (i = 0 ; i < list[0] ; i++) {
+		typedef void (*ctors_t)(void);
+		ctors_t ctors = (ctors_t)list[i+1];
+		ctors();
+	}
 }
 
 static void 
