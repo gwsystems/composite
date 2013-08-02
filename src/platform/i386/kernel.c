@@ -11,6 +11,7 @@
 #include "isr.h"
 #include "vm.h"
 #include "kbd.h"
+#include "user.h"
 
 void kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp);
 int keep_kernel_running = 1;
@@ -72,12 +73,14 @@ kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
     printk(INFO, "pfault %d\n", *ptr);
 #endif
 
+    user__init ();
+
     while (keep_kernel_running);
 
     printk(INFO, "Shutting down...");
-    asm("mov     $0x53,%ah");
-    asm("mov     $0x07,%al");
-    asm("mov     $0x001,%bx");
-    asm("mov     $0x03,%cx");
-    asm("int     $0x15");
+    asm("mov $0x53,%ah");
+    asm("mov $0x07,%al");
+    asm("mov $0x001,%bx");
+    asm("mov $0x03,%cx");
+    asm("int $0x15");
 }

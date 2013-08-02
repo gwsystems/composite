@@ -49,6 +49,7 @@ OBJS += ports.o
 OBJS += vtxprintf.o
 OBJS += boot_log.o
 OBJS += multiboot.o
+OBJS += user.o
 
 all: $(KERNEL)
 	$(E) "--[ Kernel Built"
@@ -61,7 +62,7 @@ $(KERNEL): $(DEPS) $(OBJS) loader.o
 
 loader.o:
 	$(E) "    AS  	" $@
-	$(Q) $(AS) -o loader.o loader.s gdt.s interrupt.s
+	$(Q) $(AS) -o loader.o loader.s gdt.s interrupt.s user.s sysenter.s
 
 $(DEPS):
 
