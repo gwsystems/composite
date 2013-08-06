@@ -295,8 +295,8 @@ wsym: ; \
 .type sym,@function; \
 .global sym; \
 sym: \
-    movl $__NR_##name,%eax; \
-    jmp cos_syscalls(,%eax,4); \
+	movl $__NR_##name,%eax; \
+	jmp __cos_syscall; \
 .Lend##sym: ; \
 .size sym,.Lend##sym-sym
 

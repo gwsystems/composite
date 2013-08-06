@@ -20,9 +20,7 @@ CCVDIR=$(CDIR)/lib/libccv
 CCVOBJ=$(CCVDIR)/cos_libccv.a
 CCVINC=-I$(CCVDIR)
 
-POSIXDIR=$(CDIR)/lib/posix
-POSIXOBJ=$(POSIXDIR)/posix.a
-POSIXINC=-I$(POSIXDIR)
+POSIX_LIB=$(CDIR)/lib/posix/posix.o
 
 #PONY=$(CDIR)/cidl/
 PONY=/bin/echo

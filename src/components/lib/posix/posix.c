@@ -1,25 +1,39 @@
-#include "posix.h"
+#include <stdio.h>
+#include <stdlib.h>
+//#include <sys/stat.h>
+#include "../../interface/torrent/torrent.h"
+#include "../../include/cos_component.h"
+#include "../../include/print.h"
+#include "../dietlibc-0.29/i386/syscalls.h"
 
-void
-posix_init(void)
+#define SYSCALLS_NUM 288
+
+extern void *do_mmap(size_t);
+extern int do_munmap(void*, size_t);
+
+typedef long (*cos_syscall_t)(long a, long b, long c, long d, long e, long f);
+cos_syscall_t cos_syscalls[SYSCALLS_NUM];
+
+__attribute__((regparm(1))) long
+__cos_syscall(int syscall_num, long a, long b, long c, long d, long e, long f)
 {
-        libc_syscall_override(cos_open, __NR_open);
-        libc_syscall_override(cos_close, __NR_close);
-        libc_syscall_override(cos_read, __NR_read);
-        libc_syscall_override(cos_write, __NR_write);
-        libc_syscall_override(cos_mmap, __NR_mmap);
-        libc_syscall_override(cos_munmap, __NR_munmap);
-        libc_syscall_override(cos_mremap, __NR_mremap);
-        libc_syscall_override(cos_lseek, __NR_lseek);
-//      libc_syscall_override(cos_fstat, __NR_fstat);
+        assert(syscall_num <= SYSCALLS_NUM);
+
+        return cos_syscalls[syscall_num](a, b, c, d, e, f);
+}
+
+static void
+libc_syscall_override(cos_syscall_t fn, int syscall_num)
+{
+        cos_syscalls[syscall_num] = fn;
+
+        return;
 }
 
 int
 cos_open(const char *pathname, int flags, int mode)
 {
         // mode param is only for O_CREAT in flags
-        printc("syscall : open(%s, %d, %o)\n", pathname, flags, mode);
-
         td_t t;
         long evt;
         evt = evt_split(cos_spd_id(), 0, 0);
@@ -37,30 +51,20 @@ cos_open(const char *pathname, int flags, int mode)
 int
 cos_close(int fd)
 {
-        printc("syscall: close(%d)\n", fd);
-
         trelease(cos_spd_id(), fd); // return void, use tor_lookup?
-
         return 0; // return -1 if failed
 }
 
 ssize_t
 cos_read(int fd, void *buf, size_t count)
 {
-        printc("syscall: read(%d, %p, %d)\n", fd, buf, count);
-
         int ret = tread_pack(cos_spd_id(), fd, buf, count);
-
-        //assert(ret < 0);
-
         return ret;
 }
 
 ssize_t
 cos_write(int fd, const void *buf, size_t count)
 {
-        printc("syscall: write(%d, %p, %d)\n", fd, buf, count);
-
         int ret = twrite_pack(cos_spd_id(), fd, buf, count);
 
         //assert(ret < 0);
@@ -75,13 +79,10 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
                 printc("parameter void *addr is not supported!\n");
                 assert(0);
         }
-
         if (fd != -1) {
                 printc("file mapping is not supported!\n");
                 assert(0);
         }
-
-        printc("syscall: old_mmap(%p, %u, %d, %d, %d, %ld)\n", addr, length, prot, flags, fd, offset);
 
         void *ret = do_mmap(length);
 
@@ -96,8 +97,6 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 int
 cos_munmap(void *start, size_t length)
 {
-        printc("syscall: munmap(%p, %u)", start, length);
-
         int ret = do_munmap(start, length);
         assert(ret == -1);
 
@@ -107,33 +106,26 @@ cos_munmap(void *start, size_t length)
 void *
 cos_mremap(void *old_address, size_t old_size, size_t new_size, int flags)
 {
-        printc("syscall: mremap(%p, %d, %d, %d)\n", old_address, old_size, new_size, flags);
-
         do_munmap(old_address, old_size);
-
         return do_mmap(new_size);
 }
 
 off_t
 cos_lseek(int fd, off_t offset, int whence)
 {
-        printc("syscall: lseek(%d, %ld, %d)\n", fd, offset, whence);
         // TODO: we can use a simpler twmeta_pack(td_t td, const char *key, const char *val)
         char val[8]; // TODO: length number need to be selected
         int ret = -1;
 
         if (whence == SEEK_SET) {
                 snprintf(val, 8, "%ld", offset);
-                printc("set offset to %s\n", val);
                 ret = twmeta(cos_spd_id(), fd, "offset", strlen("offset"), val, strlen(val));
                 assert(ret == 0);
         } else if (whence == SEEK_CUR) {
                 // return value not checked
                 char offset_curr[8];
                 trmeta(cos_spd_id(), fd, "offset", strlen("offset"), offset_curr, 8);
-                printc("curr offset is %s\n", offset_curr);
                 snprintf(val, 8, "%ld", atol(offset_curr) + offset);
-                printc("set offset to %s\n", val);
                 ret = twmeta(cos_spd_id(), fd, "offset", strlen("offset"), val, strlen(val));
                 assert(ret == 0);
         } else if (whence == SEEK_END) {
@@ -142,8 +134,8 @@ cos_lseek(int fd, off_t offset, int whence)
                 // TODO: how to get the length of the file?
         }
 
-        if (ret != -1) return atoi(val);
-        else return ret;
+        if   (ret != -1) return atoi(val);
+        else             return ret;
 }
 /*
 int
@@ -155,12 +147,32 @@ cos_fstat(int fd, struct stat *buf)
 }
 */
 int
-default_syscall()
+default_syscall(void)
 {
         int syscall_num;
         asm volatile("movl %%eax,%0" : "=r" (syscall_num));
         printc("WARNING: Component %ld calling undifined system call %d\n", cos_spd_id(), syscall_num);
-        assert(0);
 
         return 0;
+}
+
+CCTOR static void
+posix_init(void)
+{
+        int i;
+        for (i = 0; i < SYSCALLS_NUM; i++) {
+                cos_syscalls[i] = default_syscall;
+        }
+
+        libc_syscall_override((cos_syscall_t)cos_open, __NR_open);
+        libc_syscall_override((cos_syscall_t)cos_close, __NR_close);
+        libc_syscall_override((cos_syscall_t)cos_read, __NR_read);
+        libc_syscall_override((cos_syscall_t)cos_write, __NR_write);
+        libc_syscall_override((cos_syscall_t)cos_mmap, __NR_mmap);
+        libc_syscall_override((cos_syscall_t)cos_munmap, __NR_munmap);
+        libc_syscall_override((cos_syscall_t)cos_mremap, __NR_mremap);
+        libc_syscall_override((cos_syscall_t)cos_lseek, __NR_lseek);
+//      libc_syscall_override(cos_fstat, __NR_fstat);
+
+        return;
 }

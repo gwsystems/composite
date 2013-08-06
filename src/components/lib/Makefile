@@ -56,6 +56,5 @@ init: clean distclean all
 	cd ck; ./configure; cd ..
 	make -C ck
 	make -C posix clean 
-	make -C posix posix.a
 	make -C libccv clean 
 	make -C libccv cos_libccv.a

@@ -5,6 +5,6 @@
 .type	mmap,@function
 mmap:
         movl    $__NR_mmap,%eax
-        jmp     cos_syscalls(,%eax,4)
+        jmp     __cos_syscall
 .Lende3:
 .size mmap,.Lende3-mmap

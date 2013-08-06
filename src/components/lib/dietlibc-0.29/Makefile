@@ -166,7 +166,7 @@ $(OBJDIR)/%.o: %.c
 	$(CROSS)$(CC) -I. -isystem include $(CFLAGS) -c $< -o $@
 	$(COMMENT) -$(CROSS)strip -x -R .comment -R .note $@
 
-$(OBJDIR)/cos_syscalls.o: cos_syscalls.c include/cos_syscalls.h
+$(OBJDIR)/cos_syscalls.o: cos_syscalls.c
 	$(CROSS)$(CC) -I../../include -I../../../kernel/include/shared -I../../interface/cbuf_c -I../../interface/evt -I../../interface/cbufp -I. -isystem include $(CFLAGS) -c $< -o $@
 	$(COMMENT) -$(CROSS)strip -x -R .comment -R .note $@
 
