@@ -494,7 +494,10 @@ static inline int cos_switch_thread_release(unsigned short int thd_id,
 
 	/* kernel will read next thread information from cos_next */
 	/* printc("core %ld: __switch_thread, thd %u, flags %u\n", cos_cpuid(), thd_id, flags); */
-	return cos___switch_thread(thd_id, flags); 
+	printc("curr %d switching to %d\n", cos_get_thd_id(), thd_id);
+	int ret = cos___switch_thread(thd_id, flags); 
+
+	return ret;
 }
 
 

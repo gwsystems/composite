@@ -15,6 +15,7 @@
 
 #include <acap_mgr.h>
 #include <acap_mgr_intra.h>
+#include <bitmap.h>
 
 struct srv_thd_info { 
 	/* information of handling thread */
@@ -26,8 +27,11 @@ struct srv_thd_info {
 	int cli_thd;
 	int cli_cap_id;
 	
+	/* following are required by intra component parallel
+	 * execution (and openmp). */
 	int thd_num; /* thread number as in omp */
 	int parent; /* parent thread id. */
+	int nesting_level; /* the nesting level of parallel section */
 } srv_thd_info[MAX_NUM_THREADS];
 
 struct static_cap {
@@ -90,20 +94,6 @@ static int create_thd_curr_prio(int core, int spdid)
 /* 	return ret; */
 /* } */
 
-/* compute the highest power of 2 less or equal than 32-bit v */
-unsigned int get_powerOf2(unsigned int orig) {
-	unsigned int v = orig - 1;
-
-	v |= v >> 1;
-	v |= v >> 2;
-	v |= v >> 4;
-	v |= v >> 8;
-	v |= v >> 16;
-	v++;
-
-	return (v == orig) ? v : v >> 1;
-}
-
 static int shared_page_setup(int thd_id) 
 {
 	// thd_id is the upcall thread on the server side.
@@ -155,7 +145,7 @@ static int shared_page_setup(int thd_id)
 	 * from the second cache line of the page. (First cache line
 	 * is used for the server thread active flag) */
 	CK_RING_INIT(inv_ring, (CK_RING_INSTANCE(inv_ring) *)((void *)ring_mgr + CACHE_LINE), NULL, 
-		     get_powerOf2((PAGE_SIZE - CACHE_LINE) / 2 / sizeof(struct inv_data)));
+		     leqpow2((PAGE_SIZE - CACHE_LINE - sizeof(CK_RING_INSTANCE(inv_ring))) / 2 / sizeof(struct inv_data)));
 	
 	return 0;
 
@@ -196,7 +186,7 @@ int acap_srv_lookup(int spdid)
 	return __srv_lookup(spdid);
 }
 
-int acap_srv_lookup_intra(int spdid) 
+int par_srv_acap_lookup(int spdid) 
 {
 	return __srv_lookup(spdid);
 }
@@ -236,7 +226,8 @@ void *acap_srv_fn_mapping(int spdid, int cap)
 	return ci->cap[cap].srv_fn;
 }
 
-static inline void *__srv_lookup_ring(int spdid)
+static inline void *
+__srv_ring_lookup(int spdid)
 {
 	int thd_id = cos_get_thd_id();
 	struct srv_thd_info *thd = &srv_thd_info[thd_id];
@@ -246,17 +237,20 @@ static inline void *__srv_lookup_ring(int spdid)
 	return (void *)thd->srv_ring;
 }
 
-void *acap_srv_lookup_ring(int spdid) 
+void *
+par_srv_ring_lookup(int spdid)
 {
-	return __srv_lookup_ring(spdid);
+	return __srv_ring_lookup(spdid);
 }
 
-void *acap_srv_lookup_ring_intra(int spdid) 
+void *
+acap_srv_lookup_ring(int spdid) 
 {
-	return __srv_lookup_ring(spdid);
+	return __srv_ring_lookup(spdid);
 }
 
-void *acap_cli_lookup_ring(int spdid, int cap_id) 
+void *
+acap_cli_lookup_ring(int spdid, int cap_id) 
 {
 	struct comp_info *ci = &comp_info[spdid];
 	int thd_id = cos_get_thd_id();
@@ -344,7 +338,7 @@ int acap_cli_lookup(int spdid, int cap_id)
 		goto err;
 	}
 	srv_thd->srv_acap = srv_acap;
-	ret = cos_async_cap_cntl(COS_ACAP_WIRE, cspd, acap_id, srv_thd_id);
+	ret = cos_async_cap_cntl(COS_ACAP_WIRE, cspd, acap_id, sspd << 16 | srv_acap);
 	if (unlikely(ret)) goto err;
 	
 	if (sched_wakeup(cos_spd_id(), srv_thd_id)) BUG();
@@ -360,21 +354,18 @@ err:
 	return 0;
 }
 
-int ainv_init(int spdid) 
-{
-	return 0;
-}
+/* intra-comp parallel support below. */
 
-///// intra-comp below
+struct nested_par_info {
+	struct per_cap_thd_info *cap_info;
+	int wait_acap, wakeup_acap;
+};
 
 struct intra_comp {
 	int spdid;
 	int n_cpu;
 	int *cpus;
-	struct per_cap_thd_info *cap_info;
-	int wait_acap, wakeup_acap;
-	//void *fn;
-	//int n_fn /* number of parallel functions */
+	struct nested_par_info nested_par[MAX_NESTED_PAR_LEVEL]; 
 };
 
 struct thd_intra_comp {
@@ -429,7 +420,7 @@ static int intra_shared_page_setup(int thd_id, struct per_cap_thd_info *cap_info
         //intra-comp do not need return region in the ring
 
 	CK_RING_INIT(intra_inv_ring, (CK_RING_INSTANCE(intra_inv_ring) *)((void *)ring_mgr + CACHE_LINE), NULL, 
-		     get_powerOf2((PAGE_SIZE - CACHE_LINE) / sizeof(struct intra_inv_data))); 
+		     leqpow2((PAGE_SIZE - CACHE_LINE - sizeof(CK_RING_INSTANCE(intra_inv_ring))) / sizeof(struct intra_inv_data))); 
 	
 	return 0;
 
@@ -444,7 +435,8 @@ err:
 /* Return the number of acaps (which is the number of cpus in
  * addition to the current one) that the client can use. n_request
  * and fn are not used for now. */
-int ainv_intra_create(int spdid, int n_request, void *fn)
+int 
+par_create(int spdid, int n_request)
 {
 	int ncpu, curr = cos_get_thd_id(), n_acap;
 	struct thd_intra_comp *curr_thd;
@@ -477,9 +469,8 @@ int ainv_intra_create(int spdid, int n_request, void *fn)
 		/* printc("request %d, n_cpu %d\n", n_request, thd_comp->n_cpu); */
 		n_acap = thd_comp->n_cpu - 1;
 		if (n_acap > 0) {
-			thd_comp->cap_info = malloc(sizeof(struct per_cap_thd_info) * n_acap);
 			thd_comp->cpus = malloc(sizeof(int) * n_acap);
-			if (unlikely(thd_comp->cap_info == NULL || thd_comp->cpus == NULL)) goto err_mem;
+			if (unlikely(thd_comp->cpus == NULL)) goto err_mem;
 
 			int i, j = 0; //TODO: ask policy!
 			for (i = 0; i < NUM_CPU_COS; i++) {
@@ -499,11 +490,16 @@ err_mem:
 	return -1;
 }
 
-void *ainv_intra_lookup_ring(int spdid, int n, void *fn)
+void *
+par_ring_lookup(int spdid, int n, int nest_level)
 {
 	int ncpu, curr = cos_get_thd_id();
 	struct thd_intra_comp *curr_thd;
 	struct intra_comp *thd_comp;
+	struct nested_par_info *curr_par;
+
+	/* printc("ring lookup spd %d, n %d, nest %d\n", spdid, n, nest_level); */
+	if (unlikely(nest_level > MAX_NESTED_PAR_LEVEL || nest_level < 0)) goto err; 
 
 	if (unlikely(thd_intra_comp[curr] == NULL)) goto err;
 	curr_thd = thd_intra_comp[curr];
@@ -512,97 +508,86 @@ void *ainv_intra_lookup_ring(int spdid, int n, void *fn)
 	thd_comp = curr_thd->comp[spdid];
 
 	if (unlikely(thd_comp->n_cpu <= n)) goto err;
-	
-	assert(thd_comp->cap_info);
-	
-	return (void *)thd_comp->cap_info[n].cap_ring;
+	curr_par = &thd_comp->nested_par[nest_level];
+	if (unlikely(curr_par->cap_info == NULL)) goto err;
+
+	return (void *)curr_par->cap_info[n].cap_ring;
 err:
+	printc("parallel mgr: thread %d lookup ring failed.\n", cos_get_thd_id());
 	return NULL;
 }
 
-int ainv_intra_wait_acap_create(int spdid)
+/* Returns wait_acap + wakeup_acap. */
+int 
+par_get_wait_wakeup_acap(int spdid, int nest_level)
 {
 	int curr = cos_get_thd_id();
 	struct thd_intra_comp *curr_thd;
 	struct intra_comp *thd_comp;
-	int acap_id, cspd, sspd, cpu, ret;
+	int cspd, sspd, cpu, ret;
+	struct nested_par_info *curr_par;
 
 	if (unlikely(thd_intra_comp[curr] == NULL)) goto err;
 	curr_thd = thd_intra_comp[curr];
 
 	if (unlikely(curr_thd->comp[spdid] == NULL)) goto err;
 	thd_comp = curr_thd->comp[spdid];
+	assert(thd_comp && thd_comp->spdid);
+	assert(thd_comp->spdid == spdid);
 
 	/* no need to do wait if the current thread is assigned only 1 core. */
 	if (unlikely(thd_comp->n_cpu <= 1)) goto err;
-	assert(thd_comp->cap_info);
+	curr_par = &thd_comp->nested_par[nest_level];
+	assert(curr_par);
 
-	/* for now, 1 wait acap for each parent thread in a component
-	 * is sufficient. */
-	if (thd_comp->wait_acap > 0) return thd_comp->wait_acap;
-
-	assert(thd_comp && thd_comp->spdid);
+	if (curr_par->wait_acap > 0) goto done;
 	cspd = thd_comp->spdid;
 	sspd = thd_comp->spdid;
+	assert(cspd && sspd);
 
 	cpu = cos_cpuid();
 	/* create acap between cspd and sspd. No owner of this acap
 	 * since every child could be invoking it. */
-	acap_id = cos_async_cap_cntl(COS_ACAP_CLI_CREATE, cspd, sspd, 0);
-	if (acap_id <= 0) { 
+	curr_par->wakeup_acap = cos_async_cap_cntl(COS_ACAP_CLI_CREATE, cspd, sspd, 0);
+	if (unlikely(curr_par->wakeup_acap <= 0)) { 
 		printc("err: async cap creation failed.");
 		goto err; 
 	}
-	thd_comp->wakeup_acap = acap_id | COS_ASYNC_CAP_FLAG;
 
-	thd_comp->wait_acap = cos_async_cap_cntl(COS_ACAP_SRV_CREATE, sspd, curr, 0);
-	if (unlikely(thd_comp->wait_acap <= 0)) {
+	curr_par->wait_acap = cos_async_cap_cntl(COS_ACAP_SRV_CREATE, sspd, curr, 0);
+	if (unlikely(curr_par->wait_acap <= 0)) {
 		printc("Server acap allocation failed for thread %d.\n", curr);
 		goto err;
 	}
-	ret = cos_async_cap_cntl(COS_ACAP_WIRE, cspd, acap_id, curr);
+	ret = cos_async_cap_cntl(COS_ACAP_WIRE, cspd, curr_par->wakeup_acap, 
+				 sspd << 16 | curr_par->wait_acap);
 	if (unlikely(ret)) goto err;
-	
-	return thd_comp->wait_acap;
+done:
+	return curr_par->wait_acap << 16 | curr_par->wakeup_acap;
 err:
 	return 0;
 }
 
-int ainv_intra_wakeup_acap_lookup(int spdid)
-{
-	int curr = cos_get_thd_id();
-	struct thd_intra_comp *curr_thd;
-	struct intra_comp *thd_comp;
-
-	if (unlikely(thd_intra_comp[curr] == NULL)) goto err;
-	curr_thd = thd_intra_comp[curr];
-
-	if (unlikely(curr_thd->comp[spdid] == NULL)) goto err;
-	thd_comp = curr_thd->comp[spdid];
-	assert(thd_comp->cap_info);
-
-	if (unlikely(thd_comp->wait_acap == 0)) goto err;
-	assert(thd_comp->wakeup_acap);
-	
-	return thd_comp->wakeup_acap;
-err:
-	return 0;
-}
-
-static inline int intra_acap_setup(struct intra_comp *comp, int i)
+static inline int 
+intra_acap_setup(struct intra_comp *comp, int nest_level, int i)
 {
 	int acap_id, cspd, sspd, thd_id, cpu;
 	struct srv_thd_info *srv_thd;
 	int srv_acap, srv_thd_id, acap_v;
+	struct nested_par_info *par_team;
 
+	/* printc("acap setup: thd %d on core %ld, nest %d, i %d\n",  */
+	/*        cos_get_thd_id(), cos_cpuid(), nest_level, i); */
 	assert(comp && comp->spdid);
 	cspd = comp->spdid;
 	sspd = comp->spdid;
 	thd_id = cos_get_thd_id();
 
-	assert(i < comp->n_cpu);
-
+	assert(comp->cpus && i < comp->n_cpu);
 	cpu = comp->cpus[i];
+	par_team = &comp->nested_par[nest_level];
+	assert(par_team->cap_info);
+
 	/* create acap between cspd and sspd */
 	acap_id = cos_async_cap_cntl(COS_ACAP_CLI_CREATE, cspd, sspd, thd_id);
 	if (acap_id <= 0) { 
@@ -610,9 +595,14 @@ static inline int intra_acap_setup(struct intra_comp *comp, int i)
 		goto err; 
 	}
 	acap_v = acap_id | COS_ASYNC_CAP_FLAG;
+	/* client side acap. We need the acap value here instead of
+	 * the id, because client makes async inv on this acap. */
+	par_team->cap_info[i].acap = acap_v;
 
 	/* create server thd and wire. */
+	/* printc("thd %d going to create thd on cpu %d, spd %d...\n", cos_get_thd_id(), cpu, sspd); */
 	srv_thd_id = create_thd_curr_prio(cpu, sspd);
+	/* printc("thd %d: got new thd id %d\n", cos_get_thd_id(), srv_thd_id); */
 	/* printc("Created handling thread %d on cpu %d\n", srv_thd_id, cpu); */
 	srv_thd = &srv_thd_info[srv_thd_id];
 	srv_thd->cli_spd_id = cspd;
@@ -622,16 +612,15 @@ static inline int intra_acap_setup(struct intra_comp *comp, int i)
 	srv_thd->cli_cap_id = 0;
 	srv_thd->thd_num = i + 1; /* 0 is the main thread. */
 	srv_thd->parent = thd_id;
-	comp->cap_info[i].cap_srv_thd = srv_thd_id;
+	srv_thd->nesting_level = nest_level;
+	par_team->cap_info[i].cap_srv_thd = srv_thd_id;
 
 	int ret = 0;
-	ret = intra_shared_page_setup(srv_thd_id, &comp->cap_info[i]);
+	ret = intra_shared_page_setup(srv_thd_id, &par_team->cap_info[i]);
 	if (ret < 0) {
 		printc("acap_mgr: ring buffer allocation error!\n");
 		goto err;
 	}
-
-	comp->cap_info[i].acap = acap_v; /* client side acap */
 
 	srv_acap = cos_async_cap_cntl(COS_ACAP_SRV_CREATE, sspd, srv_thd_id, 0);
 	if (unlikely(srv_acap <= 0)) {
@@ -639,7 +628,7 @@ static inline int intra_acap_setup(struct intra_comp *comp, int i)
 		goto err;
 	}
 	srv_thd->srv_acap = srv_acap;
-	ret = cos_async_cap_cntl(COS_ACAP_WIRE, cspd, acap_id, srv_thd_id);
+	ret = cos_async_cap_cntl(COS_ACAP_WIRE, cspd, acap_id, sspd << 16 | srv_acap);
 	if (unlikely(ret)) goto err;
 	
 	if (sched_wakeup(cos_spd_id(), srv_thd_id)) BUG();
@@ -649,41 +638,67 @@ err:
 	return -1;
 }
 
-int ainv_intra_lookup(int spdid, int n, void *fn)
+/* Now support nested parallel. */
+int 
+par_acap_lookup(int spdid, int n, int nest_level)
 {
 	int ncpu, curr = cos_get_thd_id();
 	struct thd_intra_comp *curr_thd;
 	struct intra_comp *thd_comp;
+	struct nested_par_info *curr_par;
+	struct per_cap_thd_info *curr_cap;
 
 	if (unlikely(thd_intra_comp[curr] == NULL)) goto err;
+
 	curr_thd = thd_intra_comp[curr];
-
 	if (unlikely(curr_thd->comp[spdid] == NULL)) goto err;
+
 	thd_comp = curr_thd->comp[spdid];
+	if (unlikely(n >= (thd_comp->n_cpu - 1))) goto err;
+	if (unlikely(nest_level > MAX_NESTED_PAR_LEVEL || nest_level < 0)) goto err; 
+	curr_par = &thd_comp->nested_par[nest_level];
 
-	if (unlikely(thd_comp->n_cpu <= n)) goto err;
-	assert(thd_comp->cap_info);
-
-	if (thd_comp->cap_info[n].acap == 0) {
-		/* printc("lookup got cpu %d for idx %d\n", thd_comp->cpus[n], n); */
-		int ret = intra_acap_setup(thd_comp, n);
+	if (curr_par->cap_info == NULL) {
+		curr_par->cap_info = malloc(sizeof(struct per_cap_thd_info) * (thd_comp->n_cpu - 1));
+		if (unlikely(curr_par->cap_info == NULL)) {
+			printc("cos parallel mgr: could not allocate memory for cap struct.\n");
+			goto err;
+		}
+	}
+	    
+	if (curr_par->cap_info[n].acap == 0) {
+		int ret = intra_acap_setup(thd_comp, nest_level, n);
 		assert(ret == 0);
 	}
 
-	assert(thd_comp->cap_info[n].acap);
-	return thd_comp->cap_info[n].acap;
+	assert(curr_par->cap_info[n].acap);
+	return curr_par->cap_info[n].acap;
 err:
+	printc("parallel manager: thd %d client acap lookup failed.\n", cos_get_thd_id());
 	return -1;
 }
 
-/* Returns parent thd_id + thd_num for the current server thread. */
-int acap_srv_lookup_thd_num(int spdid) {
+/* Returns thd_num for the current server thread. */
+int par_srv_thd_num_lookup(int spdid) {
 	int acap, thd_id = cos_get_thd_id();
 	struct srv_thd_info *thd;
 	thd = &srv_thd_info[thd_id];
  	if (unlikely(thd->srv_spd_id != spdid)) goto err_spd;
 	
-	return thd->parent << 16 | thd->thd_num;
+	return thd->thd_num;
+err_spd:
+	printc("acap_mgr: upcall thread calling lookup from wrong component %d.\n", spdid);
+	return -1;
+}
+
+/* Returns the parent thread id + nesting level. */
+int par_parent_lookup(int spdid) {
+	int acap, thd_id = cos_get_thd_id();
+	struct srv_thd_info *thd;
+	thd = &srv_thd_info[thd_id];
+ 	if (unlikely(thd->srv_spd_id != spdid)) goto err_spd;
+	
+	return thd->parent << 16 | thd->nesting_level;
 err_spd:
 	printc("acap_mgr: upcall thread calling lookup from wrong component %d.\n", spdid);
 	return -1;

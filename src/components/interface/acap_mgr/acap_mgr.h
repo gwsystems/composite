@@ -2,6 +2,7 @@
 #define ACAP_MGR_H
 
 #include <acap_shared.h>
+#include <ck_ring_cos.h>
 
 int acap_cli_lookup(int spdid, int s_cap);
 void *acap_cli_lookup_ring(int spdid, int s_cap);
@@ -10,15 +11,11 @@ int acap_srv_lookup(int spdid);
 int acap_srv_ncaps(int spdid);
 void *acap_srv_fn_mapping(int spdid, int cap);
 
-#include <ck_ring_cos.h>
-
 struct inv_data {
 	int cap;
 	int params[4];
 	int return_idx;
 }; /* Q: do we want this to use a single cache line? */
-
-#define CK_RING_CONTINUOUS
 
 #ifndef __RING_DEFINED
 #define __RING_DEFINED
@@ -43,10 +40,6 @@ struct ainv_info {
 	int thdid; // owner thread
 	struct cap_info *cap[MAX_STATIC_CAP]; // static cap to acap mapping
 } CACHE_ALIGNED;
-
-#define SERVER_ACTIVE(curr)        (*curr->server_active == 1)
-#define SET_SERVER_ACTIVE(curr)    (*curr->server_active = 1)
-#define CLEAR_SERVER_ACTIVE(curr)  (*curr->server_active = 0)
 
 struct __cos_ainv_srv_thd {
 	int acap;

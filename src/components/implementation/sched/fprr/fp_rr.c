@@ -417,6 +417,7 @@ thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
 	}
 	if (sched_thd_ready(t)) fp_rem_thd(t);
 
+	printc("core %d, creating thread %d at priority %d\n", cos_cpuid(),t->id, prio);
 	fp_add_thd(t, prio);
 	
 	return 0;

@@ -9,12 +9,12 @@
 
 .text
 
-cos_asm_server_stub_spdid(ainv_intra_create)
-cos_asm_server_stub_spdid(ainv_intra_lookup)
-cos_asm_server_stub_spdid(ainv_intra_lookup_ring)
-cos_asm_server_stub_spdid(acap_srv_lookup_thd_num)
+cos_asm_server_stub_spdid(par_create)
+cos_asm_server_stub_spdid(par_acap_lookup)
+cos_asm_server_stub_spdid(par_ring_lookup)
+cos_asm_server_stub_spdid(par_get_wait_wakeup_acap)
+cos_asm_server_stub_spdid(par_srv_thd_num_lookup)
+cos_asm_server_stub_spdid(par_srv_acap_lookup)
+cos_asm_server_stub_spdid(par_srv_ring_lookup)
+cos_asm_server_stub_spdid(par_parent_lookup)
 
-cos_asm_server_stub_spdid(acap_srv_lookup_intra)
-cos_asm_server_stub_spdid(acap_srv_lookup_ring_intra)
-cos_asm_server_stub_spdid(ainv_intra_wait_acap_create)
-cos_asm_server_stub_spdid(ainv_intra_wakeup_acap_lookup)

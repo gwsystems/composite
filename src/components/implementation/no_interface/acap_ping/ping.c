@@ -5,6 +5,7 @@
 #include <acap_pong.h>
 
 #include <acap_mgr.h> 
+#include <acap_mgr_intra.h>
 #include <cos_alloc.h> 
 
 #define ITER (1024)
@@ -35,6 +36,7 @@ void cos_init(void)
 	u64_t start, end, avg, tot = 0, dev = 0;
 	int i, j;
 
+	return;
 	printc("cpu %ld, thd %d from ping\n",cos_cpuid(), cos_get_thd_id());
 //	call(111,222,333,444);			/* get stack */
 

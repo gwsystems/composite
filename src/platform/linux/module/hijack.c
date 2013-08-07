@@ -1245,7 +1245,7 @@ void *chal_pa2va(void *pa)
 CACHE_ALIGNED static struct timer_list timer[NUM_CPU]; 
 
 extern struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
-extern struct thread *ainv_next_thread(struct thread *upcall, struct thread *preempted, int preempt);
+extern struct thread *ainv_next_thread(struct async_cap *acap, struct thread *preempted, int preempt);
 
 extern void cos_net_deregister(struct cos_net_callbacks *cn_cb);
 extern void cos_net_register(struct cos_net_callbacks *cn_cb);
@@ -1361,7 +1361,7 @@ host_idle_wakeup(void)
 	}
 }
 
-int chal_attempt_ainv(struct thread *upcall)
+int chal_attempt_ainv(struct async_cap *acap)
 {
 	struct pt_regs *regs = NULL;
 	unsigned long flags;
@@ -1417,7 +1417,7 @@ int chal_attempt_ainv(struct thread *upcall)
 			 * This will sacrifice performance, which may
 			 * be an issue later on.
 			 */
-			next = ainv_next_thread(upcall, cos_current, 0);
+			next = ainv_next_thread(acap, cos_current, 0);
 			if (next != cos_current) {
 				assert(core_get_curr_thd() == next);
 				/* the following call isn't
@@ -1473,8 +1473,9 @@ int chal_attempt_ainv(struct thread *upcall)
 			}
 
 			/* the major work here: */
-			next = ainv_next_thread(upcall, cos_current, 1);
+			next = ainv_next_thread(acap, cos_current, 1);
 			if (next != cos_current) {
+				printk("hijack switching to next %d\n", next->thread_id);
 				thd_save_preempted_state(cos_current, regs);
 				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
 					printk("cos: upcall thread %d is not set to be an active upcall.\n",
@@ -1497,8 +1498,10 @@ int chal_attempt_ainv(struct thread *upcall)
 				regs->ax = next->regs.ax;
 				regs->orig_ax = next->regs.ax;
 				regs->sp = next->regs.sp;
+				printk("hijack setting regs: ip %x, sp %x\n", regs->ip, regs->sp);
 				//cos_meas_event(COS_MEAS_BRAND_UC);
-			}
+			} else 				
+				printk("hijack NO need to switch (curr %d)\n", cos_current->thread_id);
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 
 			event_record("normal (non-syscall/idle interrupting) upcall processed",
@@ -1684,20 +1687,18 @@ int send_ipi(int cpuid, int thdid, int wait)
 	return 0;
 }
 
-static void ainv_receive_ipi(void *thdid)
+static void ainv_receive_ipi(void *cap_entry)
 {
-	struct thread *thd = thd_get_by_id((int)thdid);
-
-	if (unlikely(!thd)) return;
-	/* printk("core %d, got IPI for brand %d!\n", get_cpuid(), thd->thread_id); */
-	chal_attempt_ainv(thd);
+	if (unlikely(!cap_entry)) return;
+	printk("core %d, got an IPI for upcall thd %d!\n", get_cpuid(), ((struct async_cap *)cap_entry)->upcall_thd);
+	chal_attempt_ainv((struct async_cap *)cap_entry);
 
 	return;
 }
 
-int ainv_send_ipi(int cpuid, int thdid, int wait)
+int ainv_send_ipi(int cpuid, struct async_cap *cap_entry, int wait)
 {
-	smp_call_function_single(cpuid, ainv_receive_ipi, (void *)thdid, wait);
+	smp_call_function_single(cpuid, ainv_receive_ipi, (void *)cap_entry, wait);
 
 	return 0;
 }

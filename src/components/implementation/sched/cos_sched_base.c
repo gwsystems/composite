@@ -29,6 +29,10 @@
 #include <sched.h>
 #include <sched_hier.h>
 
+#include <bitmap.h>
+#include <ck_ring.h>
+#include <ck_spinlock.h>
+
 //#define TIMER_ACTIVATE
 #include <timer.h>
 #include <errno.h>
@@ -61,7 +65,7 @@ struct sched_base_per_core {
 	struct sched_thd blocked;
 	struct sched_thd upcall_deactive;
 	struct sched_thd graveyard;
-	int IPI_brand, IPI_acap;
+	int IPI_acap;
 	long long report_evts[REVT_LAST];
 } CACHE_ALIGNED;
 
@@ -426,6 +430,8 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 		timer_end(&t);
 
 		ret = cos_switch_thread_release(next->id, flags);
+		printc("thd %d up from switch. ret %d, = success %d...\n", 
+		       cos_get_thd_id(), ret, ret ==COS_SCHED_RET_SUCCESS);
 
 		assert(ret != COS_SCHED_RET_ERROR);
 		if (COS_SCHED_RET_CEVT == ret) { report_event(CEVT_RESCHED); }
@@ -565,23 +571,41 @@ static void fp_create_spd_thd(void *d)
 	BUG();
 }
 
-struct shared_xcore_fn_data {
-	volatile int active;
+/* The ring buffer page used for cross-core communication. */
+struct xcore_ring_buffer {
+	char ring[PAGE_SIZE / sizeof(char)];
+} CACHE_ALIGNED;
+
+PERCPU(struct xcore_ring_buffer, xcore_ring_page);
+
+struct xcore_fn_data {
 	void *fn;
 	int nparams;
 	u32_t params[4];
 	volatile int ret;
-	int owner_tid;
+	volatile int finished;
 } CACHE_ALIGNED;
 
-PERCPU(struct shared_xcore_fn_data, ipi_fn_data);
+struct xcore_ring_item {
+	struct xcore_fn_data *data;
+};
+
+CK_RING(xcore_ring_item, xcore_ring);
+
+PERCPU(CK_RING_INSTANCE(xcore_ring) *, percpu_ring);
 
 static inline int exec_fn(int (*fn)(), int nparams, u32_t *params) ;
+
+ck_spinlock_ticket_t xcore_lock;
 
 static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, int wait)
 {
 	int ret = 0, i, acap;
-	/* FIXME: we need a lock free ring buffer */
+	struct xcore_ring_item item;
+	struct xcore_fn_data data;
+	unsigned long long s = 0, e;
+	item.data = &data;
+
 	if (unlikely(core_id >= NUM_CPU_COS || nparams > 4 || !fn || !params)) goto error;
 
 	if (core_id == cos_cpuid()) {
@@ -589,29 +613,53 @@ static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, 
 		goto done;
 	}
 
-	struct shared_xcore_fn_data *ipi_data = PERCPU_GET_TARGET(ipi_fn_data, core_id);
-
-	ipi_data->fn = fn;
-	ipi_data->nparams = nparams;
+	CK_RING_INSTANCE(xcore_ring) *ring = *PERCPU_GET_TARGET(percpu_ring, core_id);
+	data.fn = fn;
+	data.nparams = nparams;
 
 	for (i = 0; i < nparams; i++) {
-		ipi_data->params[i] = params[i];
+		data.params[i] = params[i];
 	}
 
-	ipi_data->owner_tid = cos_get_thd_id();
-	ipi_data->active = 1;
+	data.finished = 0;
 
-	acap = PERCPU_GET_TARGET(sched_base_state, core_id)->IPI_acap;
+	ck_spinlock_ticket_lock_pb(&xcore_lock, 1);
+	while (unlikely(!CK_RING_ENQUEUE_SPSC(xcore_ring, ring, &item))) 
+	{
+		if (unlikely(s == 0)) rdtscll(s); 
+		rdtscll(e);
+		/* detect unusual delay */
+		if (e - s > 1 << 20) {
+			printc("cos_sched_base: xcore_exec pushing into ring buffer has abnormal delay (%llu cycles).\n", e - s);
+			s = e;
+		}
+	}
+	ck_spinlock_ticket_unlock(&xcore_lock);
 
-	if (unlikely(acap <= 0)) BUG();
-	/* printc("core %d: sending ipi to core %d, acap %d\n", cos_cpuid(), core_id, acap); */
-	cos_ainv_send(acap);
+	// if (server inactive)
+	{
+		acap = PERCPU_GET_TARGET(sched_base_state, core_id)->IPI_acap;
+
+		if (unlikely(acap <= 0)) BUG();
+		printc("core %d: sending ipi to core %ld, acap %d\n", cos_cpuid(), core_id, acap);
+		cos_ainv_send(acap);
+	}
 
 	if (wait) {
-		/* FIXME: should be blocking, not spinning. */
-		while (ipi_data->active) ; /* Waiting */
-		ret = ipi_data->ret;
+		rdtscll(s); 		
+		while (data.finished == 0) 
+		{		
+			rdtscll(e);
+			/* detect unusual delay */
+			if (e - s > 1 << 20) {
+				printc("cos_sched_base: thd %d on core %ld waiting for core %d abnormal remote execution delay (%llu cycles).\n",
+				       cos_get_thd_id(), cos_cpuid(), core_id, e - s);
+				s = e;
+			}
+		}
+		ret = data.ret;
 	} 
+	printc("core %d: exec on core %ld done\n", cos_cpuid(), core_id);
 done:
 	return ret;
 error:
@@ -1259,12 +1307,13 @@ static inline int sched_create_thd_current_core(spdid_t spdid, u32_t sched_param
 	sp[2] = ((union sched_param)sched_param_2).c;
 	sp[3] = (union sched_param){.c = {.type = SCHEDP_NOOP}}.c;
 
+	/* printc("Core %ld thd %d going to create new thd...\n", cos_cpuid(), cos_get_thd_id()); */
 	cos_sched_lock_take();
 	curr = sched_get_current();
 	new = sched_setup_thread_arg(&sp, fp_create_spd_thd, d, 1);
 	cos_sched_lock_release();
-	printc("Core %ld, sched %d: created thread %d in spdid %d (requested by %d)\n",
-	       cos_cpuid(), (unsigned int)cos_spd_id(), new->id, spdid, curr->id);
+	/* printc("Core %ld, sched %d: created thread %d in spdid %d (requested by %d)\n", */
+	/*        cos_cpuid(), (unsigned int)cos_spd_id(), new->id, spdid, curr->id); */
 
 	return new->id;
 }
@@ -1280,6 +1329,7 @@ sched_create_thd(spdid_t spdid, u32_t sched_param_0, u32_t sched_param_1, u32_t 
 
 	if (core != cos_cpuid()) {
 		/* Cross-core creation */
+		/* printc("xcore create thd, curr thd %d target core %d\n", cos_get_thd_id(), core); */
 		if (core < 0 || core >= NUM_CPU_COS) {
 			printc("ERROR: Trying to create thread on core %d\n", core);
 			goto error;
@@ -1764,34 +1814,11 @@ static inline int exec_fn(int (*fn)(), int nparams, u32_t *params) {
 	return ret;
 }
 
-static inline int exec_IPI_fn() {
-	struct shared_xcore_fn_data *ipi_req;
-	ipi_req = PERCPU_GET(ipi_fn_data);
-
-	assert(ipi_req->nparams <= 4);
-	assert(ipi_req->active > 0);
-
-	ipi_req->ret = exec_fn(ipi_req->fn, ipi_req->nparams, ipi_req->params);
-
-	ipi_req->active = 0;
-
-	return ipi_req->ret;
-}
-
 static void IPI_handler(void *d)
 {
 	struct sched_base_per_core *sched_state = PERCPU_GET(sched_base_state);
-
-	/* int bid; */
-	/* bid = cos_brand_cntl(COS_BRAND_CREATE, 0, 0, cos_spd_id()); */
-
-	/* assert(sched_state->IPI_handler != NULL); */
-
-	/* sched_state->IPI_brand = bid; */
-	/* if (sched_add_thd_to_brand(cos_spd_id(), bid, sched_state->IPI_handler->id)) BUG(); */
-
-	/* printc("Core %ld: Starting IPI handling thread (thread id %d, brand id %d)\n",  */
-	/*        cos_cpuid(), cos_get_thd_id(), bid); */
+	struct xcore_ring_item ring_item;
+	struct xcore_fn_data *data;
 
 	int cli_acap, srv_acap, ret;
 	cli_acap = cos_async_cap_cntl(COS_ACAP_CLI_CREATE, cos_spd_id(), cos_spd_id(), 0); /* no owner to this cli_acap*/
@@ -1803,20 +1830,35 @@ static void IPI_handler(void *d)
 	}
 	sched_state->IPI_acap = cli_acap;
 
-	ret = cos_async_cap_cntl(COS_ACAP_WIRE, cos_spd_id(), cli_acap, cos_get_thd_id());
+	ret = cos_async_cap_cntl(COS_ACAP_WIRE, cos_spd_id(), cli_acap, cos_spd_id() << 16 | srv_acap);
 	if (ret < 0) BUG();
+
+	CK_RING_INSTANCE(xcore_ring) ring;
+	CK_RING_INIT(xcore_ring, &ring, (struct xcore_ring_item *)PERCPU_GET(xcore_ring_page)->ring, 
+		     leqpow2(PAGE_SIZE / sizeof(struct xcore_ring_item)));
+	*PERCPU_GET(percpu_ring) = &ring;
 
 	printc("Core %ld: Starting IPI handling thread (thread id %d, client acap %d, server acap %d)\n", 
 	       cos_cpuid(), cos_get_thd_id(), cli_acap, srv_acap);
 	while (1) {
 		cos_sched_lock_take();
 		/* Going to switch away */
-		/* Don't use brand_wait syscall here. *\/ */
+		/* Don't use brand_wait syscall here. */
+		printc("core %ld: ipi thread %d going to sleep...\n", cos_cpuid(), cos_get_thd_id());
 		sched_switch_thread(COS_SCHED_BRAND_WAIT, EVT_CMPLETE_LOOP);
 
 		/* Received an IPI! */
-		/* printc("Core %ld: got an IPI request!\n", cos_cpuid()); */
-		exec_IPI_fn();
+		printc("Core %ld: got an IPI request! (handler thd %d)\n", cos_cpuid(), cos_get_thd_id());
+		while (CK_RING_DEQUEUE_SPSC(xcore_ring, &ring, &ring_item) == true) {
+			data = ring_item.data;
+			assert(data->nparams <= 4);
+			assert(data->finished == 0);
+			assert(data->fn);
+			//printc("core %d executing...\n", cos_cpuid());
+			data->ret = exec_fn(data->fn, data->nparams, data->params);
+			//printc("core %d done exe.\n", cos_cpuid());
+			data->finished = 1;
+		}
 		/* printc("Core %ld: done processing IPI request!\n", cos_cpuid()); */
 	}
 
@@ -1935,6 +1977,12 @@ print_config_info(void)
 	printc("Linux runs on core %d.\n", NUM_CPU - 1);
 }
 
+static inline void 
+sched_spin_lock_init(void)
+{
+	ck_spinlock_ticket_init(&xcore_lock);
+}
+
 /* Initialize the root scheduler */
 volatile int initialized = 0;
 int sched_root_init(void)
@@ -1946,6 +1994,7 @@ int sched_root_init(void)
 		assert(!initialized);
 		assert(initialized == 0);
 		print_config_info();
+		sched_spin_lock_init();
 	} else {
 		while (initialized == 0) ;
 	}

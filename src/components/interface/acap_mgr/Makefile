@@ -1,4 +1,4 @@
-LIB_OBJS=acap_lib.o
+LIB_OBJS=ainv_lib.o
 LIBS=$(LIB_OBJS:%.o=%.a)
 ASM_STUBS=s_stubam.o
 

@@ -1,7 +1,13 @@
 #ifndef ACAP_SHARED_H
 #define ACAP_SHARED_H
 
-static inline int exec_fn(int (*fn)(), int nparams, int *params) {
+#define SERVER_ACTIVE(curr)        (*curr->server_active == 1)
+#define SET_SERVER_ACTIVE(curr)    (*curr->server_active = 1)
+#define CLEAR_SERVER_ACTIVE(curr)  (*curr->server_active = 0)
+
+static inline int 
+exec_fn(int (*fn)(), int nparams, int *params)
+{
 	int ret;
 
 	assert(fn);
