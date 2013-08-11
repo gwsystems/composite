@@ -20,8 +20,6 @@
 #include <assert.h>
 #include <alloca.h>
 
-//#include "ccv_math.h"
-
 #define CCV_PI (3.141592653589793)
 #define ccmalloc malloc
 #define cccalloc calloc
@@ -29,33 +27,33 @@
 #define ccfree free
 
 enum {
-	CCV_8U  = 0x0100,
-	CCV_32S = 0x0200,
-	CCV_32F = 0x0400,
-	CCV_64S = 0x0800,
-	CCV_64F = 0x1000,
+	CCV_8U  = 0x01000,
+	CCV_32S = 0x02000,
+	CCV_32F = 0x04000,
+	CCV_64S = 0x08000,
+	CCV_64F = 0x10000,
 };
 
 enum {
-	CCV_C1 = 0x01,
-	CCV_C2 = 0x02,
-	CCV_C3 = 0x03,
-	CCV_C4 = 0x04,
+	CCV_C1 = 0x001,
+	CCV_C2 = 0x002,
+	CCV_C3 = 0x003,
+	CCV_C4 = 0x004,
 };
 
 static const int _ccv_get_data_type_size[] = { -1, 1, 4, -1, 4, -1, -1, -1, 8, -1, -1, -1, -1, -1, -1, -1, 8 };
 
-#define CCV_GET_DATA_TYPE(x) ((x) & 0xFF00)
-#define CCV_GET_DATA_TYPE_SIZE(x) _ccv_get_data_type_size[CCV_GET_DATA_TYPE(x) >> 8]
-#define CCV_MAX_CHANNEL (0xFF)
-#define CCV_GET_CHANNEL(x) ((x) & 0xFF)
+#define CCV_GET_DATA_TYPE(x) ((x) & 0xFF000)
+#define CCV_GET_DATA_TYPE_SIZE(x) _ccv_get_data_type_size[CCV_GET_DATA_TYPE(x) >> 12]
+#define CCV_MAX_CHANNEL (0xFFF)
+#define CCV_GET_CHANNEL(x) ((x) & 0xFFF)
 #define CCV_ALL_DATA_TYPE (CCV_8U | CCV_32S | CCV_32F | CCV_64S | CCV_64F)
 
 enum {
-	CCV_MATRIX_DENSE  = 0x010000,
-	CCV_MATRIX_SPARSE = 0x020000,
-	CCV_MATRIX_CSR    = 0x040000,
-	CCV_MATRIX_CSC    = 0x080000,
+	CCV_MATRIX_DENSE  = 0x0100000,
+	CCV_MATRIX_SPARSE = 0x0200000,
+	CCV_MATRIX_CSR    = 0x0400000,
+	CCV_MATRIX_CSC    = 0x0800000,
 };
 
 enum {
@@ -92,8 +90,8 @@ typedef struct {
 } ccv_dense_matrix_t;
 
 enum {
-	CCV_SPARSE_VECTOR = 0x00100000,
-	CCV_DENSE_VECTOR  = 0x00200000,
+	CCV_SPARSE_VECTOR = 0x01000000,
+	CCV_DENSE_VECTOR  = 0x02000000,
 };
 
 typedef struct ccv_dense_vector_t {
@@ -345,6 +343,7 @@ double ccv_dot(ccv_matrix_t* a, ccv_matrix_t* b);
 double ccv_sum(ccv_matrix_t* mat, int flag);
 double ccv_variance(ccv_matrix_t* mat);
 void ccv_multiply(ccv_matrix_t* a, ccv_matrix_t* b, ccv_matrix_t** c, int type);
+void ccv_add(ccv_matrix_t* a, ccv_matrix_t* b, ccv_matrix_t** c, int type);
 void ccv_subtract(ccv_matrix_t* a, ccv_matrix_t* b, ccv_matrix_t** c, int type);
 
 enum {
@@ -809,7 +808,7 @@ extern const ccv_dpm_param_t ccv_dpm_default_params;
 
 void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, char** bgfiles, int bgnum, int negnum, const char* dir, ccv_dpm_new_param_t params);
 ccv_array_t* __attribute__((warn_unused_result)) ccv_dpm_detect_objects(ccv_dense_matrix_t* a, ccv_dpm_mixture_model_t** model, int count, ccv_dpm_param_t params);
-ccv_dpm_mixture_model_t* __attribute__((warn_unused_result)) ccv_load_dpm_mixture_model(const char* directory);
+ccv_dpm_mixture_model_t* __attribute__((warn_unused_result)) ccv_dpm_read_mixture_model(const char* directory);
 void ccv_dpm_mixture_model_free(ccv_dpm_mixture_model_t* model);
 
 /* this is open source implementation of object detection algorithm: brightness binary feature
@@ -874,10 +873,10 @@ extern const ccv_bbf_param_t ccv_bbf_default_params;
 
 void ccv_bbf_classifier_cascade_new(ccv_dense_matrix_t** posimg, int posnum, char** bgfiles, int bgnum, int negnum, ccv_size_t size, const char* dir, ccv_bbf_new_param_t params);
 ccv_array_t* __attribute__((warn_unused_result)) ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_cascade_t** cascade, int count, ccv_bbf_param_t params);
-ccv_bbf_classifier_cascade_t* __attribute__((warn_unused_result)) ccv_load_bbf_classifier_cascade(const char* directory);
+ccv_bbf_classifier_cascade_t* __attribute__((warn_unused_result)) ccv_bbf_read_classifier_cascade(const char* directory);
+void ccv_bbf_classifier_cascade_free(ccv_bbf_classifier_cascade_t* cascade);
 ccv_bbf_classifier_cascade_t* __attribute__((warn_unused_result)) ccv_bbf_classifier_cascade_read_binary(char* s);
 int ccv_bbf_classifier_cascade_write_binary(ccv_bbf_classifier_cascade_t* cascade, char* s, int slen);
-void ccv_bbf_classifier_cascade_free(ccv_bbf_classifier_cascade_t* cascade);
 
 /* Ferns classifier: this is a fern implementation that specifically used for TLD
  * see: http://cvlab.epfl.ch/alumni/oezuysal/ferns.html for more about ferns */
@@ -1006,24 +1005,33 @@ typedef struct {
 	float threshold;
 } ccv_icf_decision_tree_t;
 
+enum {
+	CCV_ICF_CLASSIFIER_TYPE_A = 0x1,
+	CCV_ICF_CLASSIFIER_TYPE_B = 0x2,
+};
+
 typedef struct {
+	int type;
 	int count;
+	int grayscale;
 	ccv_margin_t margin;
 	ccv_size_t size; // this is the size includes the margin
 	ccv_icf_decision_tree_t* weak_classifiers;
-} ccv_icf_classifier_cascade_t;
+} ccv_icf_classifier_cascade_t; // Type A, scale image
 
 typedef struct {
+	int type;
 	int count;
 	int octave;
 	int grayscale;
 	ccv_icf_classifier_cascade_t* cascade;
-} ccv_icf_multiscale_classifier_cascade_t;
+} ccv_icf_multiscale_classifier_cascade_t; // Type B, scale the classifier
 
 typedef struct {
 	int min_neighbors;
 	int flags;
 	int step_through;
+	int interval;
 	float threshold;
 } ccv_icf_param_t;
 
@@ -1031,15 +1039,13 @@ extern const ccv_icf_param_t ccv_icf_default_params;
 
 typedef struct {
 	ccv_icf_param_t detector;
-	int interval;
-	int octave;
 	int grayscale;
+	int min_dimension;
 	ccv_margin_t margin;
 	ccv_size_t size; // this is the size excludes the margin
 	int feature_size;
 	int weak_classifier;
 	int bootstrap;
-	double bootstrap_criteria;
 	float deform_angle;
 	float deform_scale;
 	float deform_shift;
@@ -1047,11 +1053,113 @@ typedef struct {
 } ccv_icf_new_param_t;
 
 void ccv_icf(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type);
-ccv_icf_multiscale_classifier_cascade_t* __attribute__((warn_unused_result)) ccv_icf_classifier_cascade_new(ccv_array_t* posfiles, int posnum, ccv_array_t* bgfiles, int negnum, const char* dir, ccv_icf_new_param_t params);
-void ccv_icf_classifier_cascade_soft(ccv_icf_multiscale_classifier_cascade_t* multiscale_cascade, ccv_array_t* posfiles, int posnum, const char* dir, ccv_icf_new_param_t params);
-ccv_array_t* __attribute__((warn_unused_result)) ccv_icf_detect_objects(ccv_dense_matrix_t* a, ccv_icf_multiscale_classifier_cascade_t** multiscale_cascade, int count, ccv_icf_param_t params);
-ccv_icf_multiscale_classifier_cascade_t* __attribute__((warn_unused_result)) ccv_icf_read_classifier_cascade(const char* directory);
-void ccv_icf_write_classifier_cascade(ccv_icf_multiscale_classifier_cascade_t* classifier, const char* directory);
-void ccv_icf_classifier_cascade_free(ccv_icf_multiscale_classifier_cascade_t* classifier);
+
+/* ICF for single scale */
+ccv_icf_classifier_cascade_t* __attribute__((warn_unused_result)) ccv_icf_classifier_cascade_new(ccv_array_t* posfiles, int posnum, ccv_array_t* bgfiles, int negnum, ccv_array_t* testfiles, const char* dir, ccv_icf_new_param_t params);
+void ccv_icf_classifier_cascade_soft(ccv_icf_classifier_cascade_t* cascade, ccv_array_t* posfiles, double acceptance);
+ccv_icf_classifier_cascade_t* __attribute__((warn_unused_result)) ccv_icf_read_classifier_cascade(const char* filename);
+void ccv_icf_write_classifier_cascade(ccv_icf_classifier_cascade_t* classifier, const char* filename);
+void ccv_icf_classifier_cascade_free(ccv_icf_classifier_cascade_t* classifier);
+
+/* ICF for multiple scale */
+ccv_icf_multiscale_classifier_cascade_t* __attribute__((warn_unused_result)) ccv_icf_multiscale_classifier_cascade_new(ccv_icf_classifier_cascade_t* cascades, int octave, int interval);
+ccv_icf_multiscale_classifier_cascade_t* __attribute__((warn_unused_result)) ccv_icf_read_multiscale_classifier_cascade(const char* directory);
+void ccv_icf_write_multiscale_classifier_cascade(ccv_icf_multiscale_classifier_cascade_t* classifier, const char* directory);
+void ccv_icf_multiscale_classifier_cascade_free(ccv_icf_multiscale_classifier_cascade_t* classifier);
+
+/* polymorph function to run ICF based detector */
+ccv_array_t* __attribute__((warn_unused_result)) ccv_icf_detect_objects(ccv_dense_matrix_t* a, void* cascade, int count, ccv_icf_param_t params);
+
+enum {
+	CCV_CONVNET_CONVOLUTIONAL = 0x01,
+	CCV_CONVNET_FULL_CONNECT = 0x02,
+	CCV_CONVNET_MAX_POOL = 0x03,
+	CCV_CONVNET_AVERAGE_POOL = 0x04,
+};
+
+typedef union {
+	struct {
+		// how many kernels
+		int count;
+		// strides
+		int strides;
+		// padding for input
+		int border;
+		// rows, cols, channels for the kernel
+		int rows;
+		int cols;
+		int channels;
+	} convolutional;
+	struct {
+		// strides
+		int strides;
+		// window size
+		int size;
+	} pool;
+	struct {
+		int count;
+	} full_connect;
+} ccv_convnet_type_t;
+
+typedef struct {
+	int type;
+	float dropout_rate;
+	float bias; // bias initialization
+	float sigma; // weight initialization with deviation from Gaussian distribution
+	struct {
+		struct {
+			int rows;
+			int cols;
+			int channels;
+		} matrix;
+		struct {
+			int count;
+		} node;
+	} input;
+	ccv_convnet_type_t output;
+} ccv_convnet_param_t;
+
+typedef struct {
+	int type;
+	float dropout_rate;
+	float* w; // weight
+	float* bias; // bias
+	size_t wnum; // the number of weights
+	ccv_convnet_type_t net; // network configuration
+} ccv_convnet_layer_t;
+
+typedef struct {
+	// this is redundant, but good to enforcing what the input should look like
+	int rows;
+	int cols;
+	int channels;
+	// count and layer of the convnet
+	int count;
+	ccv_convnet_layer_t* layers; // the layer configuration
+	ccv_dense_matrix_t** acts; // hidden layers and output layers
+	ccv_dense_matrix_t** dropouts; // the dropout for hidden layers
+} ccv_convnet_t;
+
+typedef struct {
+	int max_epoch;
+	int mini_batch;
+	double decay;
+	double learn_rate;
+	double momentum;
+} ccv_convnet_train_param_t;
+
+typedef struct {
+	int c; // class / category label
+	union {
+		ccv_dense_matrix_t* matrix;
+		ccv_file_info_t file;
+	};
+} ccv_categorized_t;
+
+ccv_convnet_t* __attribute__((warn_unused_result)) ccv_convnet_new(ccv_convnet_param_t params[], int count);
+void ccv_convnet_supervised_train(ccv_convnet_t* convnet, ccv_array_t* categorizeds, ccv_array_t* tests, ccv_convnet_train_param_t params);
+void ccv_convnet_encode(ccv_convnet_t* convnet, ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type);
+int ccv_convnet_classify(ccv_convnet_t* convnet, ccv_dense_matrix_t* a);
+void ccv_convnet_free(ccv_convnet_t* convnet);
 
 #endif

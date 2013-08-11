@@ -212,7 +212,7 @@ void ccv_canny(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, int size
 		int* dxi = dx->data.i32;
 		int* dyi = dy->data.i32;
 		int i, j;
-		int* mbuf = (int*)alloca(3 * (a->cols + 2) * sizeof(int));
+		int* mbuf = (int*)malloc(3 * (a->cols + 2) * sizeof(int));
 		memset(mbuf, 0, 3 * (a->cols + 2) * sizeof(int));
 		int* rows[3];
 		rows[0] = mbuf + 1;
@@ -231,9 +231,11 @@ void ccv_canny(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, int size
 		int** stack_bottom = stack;
 		for (i = 1; i <= a->rows; i++)
 		{
+			printf("!!!!!!!!!!!!!!\n");
 			/* the if clause should be unswitched automatically, no need to manually do so */
-			if (i == a->rows)
-				memset(rows[2], 0, sizeof(int) * a->cols);
+			if (i == a->rows) {
+				memset(rows[2], 0, sizeof(int) * a->cols);}
+
 			else
 				for (j = 0; j < a->cols; j++)
 					rows[2][j] = abs(dxi[j]) + abs(dyi[j]);
@@ -388,7 +390,7 @@ void ccv_close_outline(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type)
 int ccv_otsu(ccv_dense_matrix_t* a, double* outvar, int range)
 {
 	assert((a->type & CCV_32S) || (a->type & CCV_8U));
-	int* histogram = (int*)alloca(range * sizeof(int));
+	int* histogram = (int*)malloc(range * sizeof(int));
 	memset(histogram, 0, sizeof(int) * range);
 	int i, j;
 	unsigned char* a_ptr = a->data.u8;
@@ -446,10 +448,10 @@ void ccv_optical_flow_lucas_kanade(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b,
 	ccv_array_t* seq = *point_b = ccv_array_new(sizeof(ccv_decimal_point_with_status_t), point_a->rnum, sig);
 	ccv_object_return_if_cached(, seq);
 	seq->rnum = point_a->rnum;
-	ccv_dense_matrix_t** pyr_a = (ccv_dense_matrix_t**)alloca(sizeof(ccv_dense_matrix_t*) * level);
-	ccv_dense_matrix_t** pyr_a_dx = (ccv_dense_matrix_t**)alloca(sizeof(ccv_dense_matrix_t*) * level);
-	ccv_dense_matrix_t** pyr_a_dy = (ccv_dense_matrix_t**)alloca(sizeof(ccv_dense_matrix_t*) * level);
-	ccv_dense_matrix_t** pyr_b = (ccv_dense_matrix_t**)alloca(sizeof(ccv_dense_matrix_t*) * level);
+	ccv_dense_matrix_t** pyr_a = (ccv_dense_matrix_t**)malloc(sizeof(ccv_dense_matrix_t*) * level);
+	ccv_dense_matrix_t** pyr_a_dx = (ccv_dense_matrix_t**)malloc(sizeof(ccv_dense_matrix_t*) * level);
+	ccv_dense_matrix_t** pyr_a_dy = (ccv_dense_matrix_t**)malloc(sizeof(ccv_dense_matrix_t*) * level);
+	ccv_dense_matrix_t** pyr_b = (ccv_dense_matrix_t**)malloc(sizeof(ccv_dense_matrix_t*) * level);
 	int i, j, t, x, y;
 	/* generating image pyramid */
 	pyr_a[0] = a;
@@ -465,9 +467,9 @@ void ccv_optical_flow_lucas_kanade(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b,
 		ccv_sobel(pyr_a[i], &pyr_a_dy[i], 0, 0, 3);
 		ccv_sample_down(pyr_b[i - 1], &pyr_b[i], 0, 0, 0);
 	}
-	int* wi = (int*)alloca(sizeof(int) * win_size.width * win_size.height);
-	int* widx = (int*)alloca(sizeof(int) * win_size.width * win_size.height);
-	int* widy = (int*)alloca(sizeof(int) * win_size.width * win_size.height);
+	int* wi = (int*)malloc(sizeof(int) * win_size.width * win_size.height);
+	int* widx = (int*)malloc(sizeof(int) * win_size.width * win_size.height);
+	int* widy = (int*)malloc(sizeof(int) * win_size.width * win_size.height);
 	ccv_decimal_point_t half_win = ccv_decimal_point((win_size.width - 1) * 0.5f, (win_size.height - 1) * 0.5f);
 	const int W_BITS14 = 14, W_BITS7 = 7, W_BITS9 = 9;
 	const float FLT_SCALE = 1.0f / (1 << 25);

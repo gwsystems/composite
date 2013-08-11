@@ -58,8 +58,8 @@ void ccv_sobel(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, int dx, 
 		int fsz = ccv_max(dx, dy);
 		assert(fsz % 2 == 1);
 		int hfz = fsz / 2;
-		unsigned char* df = (unsigned char*)alloca(sizeof(double) * fsz);
-		unsigned char* gf = (unsigned char*)alloca(sizeof(double) * fsz);
+		unsigned char* df = (unsigned char*)malloc(sizeof(double) * fsz);
+		unsigned char* gf = (unsigned char*)malloc(sizeof(double) * fsz);
 		/* the sigma calculation is linear derviation of 3x3 - 0.85, 5x5 - 1.32 */
 		double sigma = ((fsz - 1) / 2) * 0.47 + 0.38;
 		double sigma2 = (2.0 * sigma * sigma);
@@ -91,7 +91,7 @@ void ccv_sobel(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, int dx, 
 			df = gf;
 			gf = tf;
 		}
-		unsigned char* buf = (unsigned char*)alloca(sizeof(double) * ch * (fsz + ccv_max(a->rows, a->cols)));
+		unsigned char* buf = (unsigned char*)malloc(sizeof(double) * ch * (fsz + ccv_max(a->rows, a->cols)));
 #define for_block(_for_get, _for_type_b, _for_set_b, _for_get_b) \
 		for (i = 0; i < a->rows; i++) \
 		{ \
@@ -144,7 +144,7 @@ void ccv_sobel(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, int dx, 
 #undef for_block
 	} else {
 		/* special case 2: 3x3 window, corresponding sigma = 0.85 */
-		unsigned char* buf = (unsigned char*)alloca(db->step);
+		unsigned char* buf = (unsigned char*)malloc(db->step);
 		if (dx > dy)
 		{
 #define for_block(_for_get, _for_set_b, _for_get_b) \
@@ -286,7 +286,7 @@ void ccv_gradient(ccv_dense_matrix_t* a, ccv_dense_matrix_t** theta, int ttype, 
 void _ccv_flip_y_self(ccv_dense_matrix_t* a)
 {
 	int i;
-	unsigned char* buffer = (unsigned char*)alloca(a->step);
+	unsigned char* buffer = (unsigned char*)malloc(a->step);
 	unsigned char* a_ptr = a->data.u8;
 	unsigned char* b_ptr = a->data.u8 + (a->rows - 1) * a->step;
 	for (i = 0; i < a->rows / 2; i++)
@@ -303,7 +303,7 @@ void _ccv_flip_x_self(ccv_dense_matrix_t* a)
 {
 	int i, j;
 	int len = CCV_GET_DATA_TYPE_SIZE(a->type) * CCV_GET_CHANNEL(a->type);
-	unsigned char* buffer = (unsigned char*)alloca(len);
+	unsigned char* buffer = (unsigned char*)malloc(len);
 	unsigned char* a_ptr = a->data.u8;
 	for (i = 0; i < a->rows; i++)
 	{
@@ -355,8 +355,8 @@ void ccv_blur(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, double si
 	ccv_object_return_if_cached(, db);
 	int fsz = ccv_max(1, (int)(4.0 * sigma + 1.0 - 1e-8)) * 2 + 1;
 	int hfz = fsz / 2;
-	unsigned char* buf = (unsigned char*)alloca(sizeof(double) * ccv_max(fsz + a->rows, (fsz + a->cols) * CCV_GET_CHANNEL(a->type)));
-	unsigned char* filter = (unsigned char*)alloca(sizeof(double) * fsz);
+	unsigned char* buf = (unsigned char*)malloc(sizeof(double) * ccv_max(fsz + a->rows, (fsz + a->cols) * CCV_GET_CHANNEL(a->type)));
+	unsigned char* filter = (unsigned char*)malloc(sizeof(double) * fsz);
 	double tw = 0;
 	int i, j, k, ch = CCV_GET_CHANNEL(a->type);
 	for (i = 0; i < fsz; i++)

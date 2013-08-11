@@ -1194,7 +1194,7 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 	double scale = pow(2., 1. / (params.interval + 1.));
 	int next = params.interval + 1;
 	int scale_upto = (int)(log((double)ccv_min(hr, wr)) / log(scale));
-	ccv_dense_matrix_t** pyr = (ccv_dense_matrix_t**)alloca((scale_upto + next * 2) * 4 * sizeof(ccv_dense_matrix_t*));
+	ccv_dense_matrix_t** pyr = (ccv_dense_matrix_t**)malloc((scale_upto + next * 2) * 4 * sizeof(ccv_dense_matrix_t*));
 	memset(pyr, 0, (scale_upto + next * 2) * 4 * sizeof(ccv_dense_matrix_t*));
 	if (params.size.height != _cascade[0]->size.height || params.size.width != _cascade[0]->size.width)
 		ccv_resample(a, &pyr[0], 0, a->rows * _cascade[0]->size.height / params.size.height, a->cols * _cascade[0]->size.width / params.size.width, CCV_INTER_AREA);
@@ -1418,7 +1418,7 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 	return result_seq2;
 }
 
-ccv_bbf_classifier_cascade_t* ccv_load_bbf_classifier_cascade(const char* directory)
+ccv_bbf_classifier_cascade_t* ccv_bbf_read_classifier_cascade(const char* directory)
 {
 	char buf[1024];
 	sprintf(buf, "%s/cascade.txt", directory);
