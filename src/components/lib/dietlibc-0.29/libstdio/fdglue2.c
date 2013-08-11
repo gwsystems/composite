@@ -27,7 +27,8 @@ err_out:
   tmp->buflen=BUFSIZE;
   {
     struct stat st;
-    fstat(fd,&st);
+    //fstat(fd,&st);
+    st.st_mode = S_IFREG|0777;
     tmp->flags=(S_ISFIFO(st.st_mode))?FDPIPE:0;
   }
   switch (mode&3) {

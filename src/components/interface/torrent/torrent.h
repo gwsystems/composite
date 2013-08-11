@@ -9,7 +9,6 @@
 #define TORRENT_H
 
 #include <cos_component.h>
-#include <cbuf_c.h>
 #include <cbuf.h>
 #include <evt.h>
 
@@ -30,6 +29,8 @@ int tmerge(spdid_t spdid, td_t td, td_t td_into, char *param, int len);
 int tread(spdid_t spdid, td_t td, int cbid, int sz);
 int treadp(spdid_t spdid, td_t td, int *off, int *sz);
 int twrite(spdid_t spdid, td_t td, int cbid, int sz);
+int trmeta(spdid_t spdid, td_t td, const char *key, unsigned int klen, char *retval, unsigned int max_rval_len);
+int twmeta(spdid_t spdid, td_t td, const char *key, unsigned int klen, const char *val, unsigned int vlen);
 
 static inline int
 tread_pack(spdid_t spdid, td_t td, char *data, int len)
@@ -42,9 +43,13 @@ tread_pack(spdid_t spdid, td_t td, char *data, int len)
 	if (!d) return -1;
 
 	ret = tread(spdid, td, cb, len);
-	memcpy(data, d, len);
-	cbuf_free(d);
-	
+        if (ret < 0) goto free;
+        if (ret > len) {
+                ret = len; /* FIXME: this is broken, and we should figure out a better solution */
+        }
+	memcpy(data, d, ret);
+free:
+	cbuf_free(d);	
 	return ret;
 }
 

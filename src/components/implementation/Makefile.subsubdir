@@ -35,7 +35,7 @@ CLIB=../complib.o
 COMPLIB=$(IF_LIB) $(wildcard $(CLIB))
 C_OBJS=$(patsubst %.c,%.o,$(wildcard *.c))
 ASM_OBJS=$(patsubst %.S,%.o,$(wildcard *.S))
-OBJS=$(C_OBJS) $(ASM_OBJS) $(COMPLIB)
+OBJS=$(C_OBJS) $(ASM_OBJS) $(COMPLIB) $(OBJLIBS)
 TMP_STR=tmp
 TMP_STR2=tmp2
 INCLUDE=-I../ $(DEP_INC) $(IF_INCLUDE) $(CINC)
@@ -70,7 +70,7 @@ fndeps:
 # then) do we want to use dietlibc's functions
 $(COMPONENT): $(OBJS) 
 #	$(info |     [LD]   $@: Loading stubs and cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
-	$(info |     [LD]   $(COMPNAME) ($@): Linking $(if $(strip $(LIB_LIBRARIES)),$(LIB_LIBRARIES)) $<)
+	$(info |     [LD]   $(COMPNAME) ($@): Linking $(if $(strip $(LIB_LIBRARIES)),$(LIB_LIBRARIES)) $^)
 	@$(LD) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(IF_CLIENT_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
 #	$(info |     [DIET] Linking with dietlibc to produce $@)
 	@$(DIETCC) $(DIETCFLAGS) -Xlinker -r -o $@.$(TMP_STR2) $@.$(TMP_STR)
