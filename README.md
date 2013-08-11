@@ -7,13 +7,13 @@ synchronization are defined as discrete user-level components.  Each
 component exports an interface used to harness its functionality, and
 components are composed together to form an executable system.
 
-Please see composite.seas.gwu.edu for publications and
+Please see http://composite.seas.gwu.edu for publications and
 more information.
 
 Research features of _Composite_
 --------------------------------
 
-See a summary of the research directions of _Composite_ at composite.seas.gwu.edu.
+See a summary of the research directions of _Composite_ at http://composite.seas.gwu.edu.
 
 Where to start -- a tour of the source code
 -------------------------------------------
