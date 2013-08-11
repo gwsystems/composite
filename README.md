@@ -7,47 +7,13 @@ synchronization are defined as discrete user-level components.  Each
 component exports an interface used to harness its functionality, and
 components are composed together to form an executable system.
 
-Please see www.seas.gwu.edu/~gparmer/composite for publications and
+Please see composite.seas.gwu.edu for publications and
 more information.
 
 Research features of _Composite_
 --------------------------------
 
-- *Component-based system construction* -- All system software, from
-  applications to the most low-level OS policies, is implemented as 
-  components.  Components interact to harness each other's functionality
-  and create an executable system.  The power of this model is that the 
-  system is customizable -- policies can be replaced given the system's
-  goals, the system software is reusable -- the same scheduler used in
-  in the kernel can be used in an application, and the system is dependable
-  -- each component can be isolated from each other so a fault or compromise
-  in one, doesn't necessarily impact the other.
- 
-- *Mutable protection domains* -- hardware protection boundaries can be
-  raised or lowered _dynamically_ and in a controlled manner to trade
-  fault isolation for performance
-
-- *Hierarchical resource management (HiRes)* -- resource management
-  decisions concerning CPU, memory, and I/O can be delegated to
-  applications so they can control their allocations.  However, even
-  malicious subsystems cannot use this power to interfere with other
-  subsystems.  In many ways this is a generalization of
-  virtualization.
-
-- *Memory scheduling* -- memory in _Composite_ is dynamically transferred
-  between protection domains in the system based on the percieved
-  impact that the additional allocation will make on predictability
-  and performance while minimizing memory usage.  In this way memory
-  is "scheduled" by allocating it over a window of time to specific
-  parts of the system.
-
-- *User-level, configurable scheduling* -- threads and interrupts are
-  scheduled by user-level components.  The _Composite_ kernel _does
-  not have a scheduler_!
-
-- *Secure bulletin board system* -- _Composite_ was used in the verifiable
-  election based on Scantegrity in Takoma Park, MD.  It provided a
-  secure webpage for verifying ballots after the election.
+See a summary of the research directions of _Composite_ at composite.seas.gwu.edu.
 
 Where to start -- a tour of the source code
 -------------------------------------------
