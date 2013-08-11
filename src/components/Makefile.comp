@@ -16,6 +16,12 @@ LWIPDIR=$(LWIPBASE)/lwip-1.3.0
 LWIPOBJ=$(LWIPBASE)/cos/net_stack.o
 LWIPINC=-I$(LWIPDIR)/src/include -I$(LWIPDIR)/src/include/ipv4/ -I$(LWIPBASE)/cos/include/ 
 
+CCVDIR=$(CDIR)/lib/libccv
+CCVOBJ=$(CCVDIR)/cos_libccv.a
+CCVINC=-I$(CCVDIR)
+
+POSIX_LIB=$(CDIR)/lib/posix/posix.o
+
 #PONY=$(CDIR)/cidl/
 PONY=/bin/echo
 

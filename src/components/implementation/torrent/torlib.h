@@ -10,6 +10,9 @@
 
 #include <torrent.h>
 #include <cos_map.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 struct torrent {
 	td_t td;

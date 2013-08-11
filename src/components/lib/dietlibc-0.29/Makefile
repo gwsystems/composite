@@ -166,6 +166,10 @@ $(OBJDIR)/%.o: %.c
 	$(CROSS)$(CC) -I. -isystem include $(CFLAGS) -c $< -o $@
 	$(COMMENT) -$(CROSS)strip -x -R .comment -R .note $@
 
+$(OBJDIR)/cos_syscalls.o: cos_syscalls.c
+	$(CROSS)$(CC) -I../../include -I../../../kernel/include/shared -I../../interface/cbuf_c -I../../interface/evt -I../../interface/cbufp -I. -isystem include $(CFLAGS) -c $< -o $@
+	$(COMMENT) -$(CROSS)strip -x -R .comment -R .note $@
+
 ifeq ($(shell $(CC) -v 2>&1 | grep "gcc version"),gcc version 4.0.0)
 SAFE_CFLAGS=$(shell echo $(CFLAGS)|sed 's/-Os/-O2/')
 SAFER_CFLAGS=$(shell echo $(CFLAGS)|sed 's/-Os/-O/')
@@ -292,8 +296,12 @@ $(OBJDIR)/dnsd: $(OBJDIR)/diet contrib/dnsd.c
 VERSION=dietlibc-$(shell head -n 1 CHANGES|sed 's/://')
 CURNAME=$(notdir $(shell pwd))
 
-$(OBJDIR)/diet: $(OBJDIR)/start.o $(OBJDIR)/dyn_start.o diet.c $(OBJDIR)/dietlibc.a $(OBJDIR)/dyn_stop.o
-	$(CROSS)$(CC) -isystem include $(CFLAGS) -nostdlib -o $@ $^ -DDIETHOME=\"$(HOME)\" -DVERSION=\"$(VERSION)\" -lgcc
+# $(OBJDIR)/diet: $(OBJDIR)/start.o $(OBJDIR)/dyn_start.o diet.c $(OBJDIR)/dietlibc.a $(OBJDIR)/dyn_stop.o
+$(OBJDIR)/diet: $(OBJDIR)/dyn_start.o diet.c $(OBJDIR)/dietlibc.a $(OBJDIR)/dyn_stop.o
+#	$(CROSS)$(CC) -isystem include $(CFLAGS) -nostdlib -o $@ $^ -DDIETHOME=\"$(HOME)\" -DVERSION=\"$(VERSION)\" -lgcc
+# NOTE: not using dietlibc.a to compile bin-i386/bin as we are going to modify the lib which will break everything compiled using it!
+# not sure about other libs listed ...
+	$(CC) -isystem include -pipe -Os -fno-omit-frame-pointer -falign-functions=1 -falign-jumps=1 -falign-loops=1 -mpreferred-stack-boundary=2 -Wall -W -Wchar-subscripts -Wmissing-prototypes -Wmissing-declarations -Wno-switch -Wno-unused -Wredundant-decls -fno-merge-constants -fno-stack-protector -o ./bin-i386/diet diet.c -DDIETHOME=\"$(HOME)\" -DVERSION=\"dietlibc-0.29\" -lgcc
 	$(CROSS)strip -R .comment -R .note $@
 
 $(OBJDIR)/diet-i: $(OBJDIR)/start.o $(OBJDIR)/dyn_start.o diet.c $(OBJDIR)/dietlibc.a $(OBJDIR)/dyn_stop.o
