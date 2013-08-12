@@ -106,7 +106,7 @@ parallel_create(void *fn, int max_par) // fn is not used for now.
 	assert(curr_thd && par_team->cap);
 
 	if (unlikely(par_team->wait_acap == 0 && curr_thd->n_acap > 0)) {
-		int ret = par_get_wait_wakeup_acap(cos_spd_id(), curr_thd->nest_level);
+		int ret = par_acap_get_barrier(cos_spd_id(), curr_thd->nest_level);
 		par_team->wait_acap = ret >> 16;
 		par_team->wakeup_acap = ret & 0xFFFF;
 		assert (par_team->wakeup_acap && par_team->wait_acap);
@@ -171,7 +171,8 @@ parallel_send(void *fn, void *data)
 			rdtscll(e);
 			/* detect unusual delay */
 			if (e - s > 1 << 20) {
-				printc("parallel execution: comp %d pushing into ring buffer has abnormal delay (%llu cycles).\n", e - s);
+				printc("parallel execution: comp %ld pushing into ring buffer has abnormal delay (%llu cycles).\n", 
+				       cos_spd_id(), e - s);
 				s = e;
 			}
 		}

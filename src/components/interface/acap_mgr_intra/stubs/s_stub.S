@@ -12,7 +12,7 @@
 cos_asm_server_stub_spdid(par_create)
 cos_asm_server_stub_spdid(par_acap_lookup)
 cos_asm_server_stub_spdid(par_ring_lookup)
-cos_asm_server_stub_spdid(par_get_wait_wakeup_acap)
+cos_asm_server_stub_spdid(par_acap_get_barrier)
 cos_asm_server_stub_spdid(par_srv_thd_num_lookup)
 cos_asm_server_stub_spdid(par_srv_acap_lookup)
 cos_asm_server_stub_spdid(par_srv_ring_lookup)

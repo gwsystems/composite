@@ -9,7 +9,7 @@
 int par_acap_lookup(int spdid, int n, int nest_level);
 int par_create(int spdid, int n_request); // called by client
 void *par_ring_lookup(int spdid, int n, int nest_level);
-int par_get_wait_wakeup_acap(int spdid, int nest_level);
+int par_acap_get_barrier(int spdid, int nest_level);
 
 int par_srv_thd_num_lookup(int spdid); // called by server
 int par_srv_acap_lookup(int spdid);

@@ -34,8 +34,8 @@ int
 GOMP_parallel_start (void *fn, void *data, unsigned int num_threads) 
 {
 	int max_par;
-	printc("core %ld, gomp start: fn %d, data %d, go parallel %u\n", 
-	       cos_cpuid(), (int)fn, (int)data, num_threads);
+	/* printc("core %ld, gomp start: fn %d, data %d, go parallel %u\n",  */
+	/*        cos_cpuid(), (int)fn, (int)data, num_threads); */
 	if (unlikely(num_threads == 1)) return 0; /* means no parallelism. */
 
 	if (likely(num_threads == 0)) max_par = NUM_CPU_COS;
@@ -121,9 +121,11 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		} else if (second){
 			second = 0;
 
-			printc("cpu %ld, thd %d calling omp main!\n", cos_cpuid(), cos_get_thd_id());
+			printc("cpu %ld, thd %d calling omp main in comp %ld!\n", 
+			       cos_cpuid(), cos_get_thd_id(), cos_spd_id());
 			main(); //
-			printc("cpu %ld, thd %d omp main done!\n", cos_cpuid(), cos_get_thd_id());
+			printc("cpu %ld, thd %d omp main done in comp %ld!\n", 
+			       cos_cpuid(), cos_get_thd_id(), cos_spd_id());
 			
 			return;
 		} else {

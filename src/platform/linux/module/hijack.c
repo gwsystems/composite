@@ -1475,7 +1475,6 @@ int chal_attempt_ainv(struct async_cap *acap)
 			/* the major work here: */
 			next = ainv_next_thread(acap, cos_current, 1);
 			if (next != cos_current) {
-				printk("hijack switching to next %d\n", next->thread_id);
 				thd_save_preempted_state(cos_current, regs);
 				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
 					printk("cos: upcall thread %d is not set to be an active upcall.\n",
@@ -1498,10 +1497,9 @@ int chal_attempt_ainv(struct async_cap *acap)
 				regs->ax = next->regs.ax;
 				regs->orig_ax = next->regs.ax;
 				regs->sp = next->regs.sp;
-				printk("hijack setting regs: ip %x, sp %x\n", regs->ip, regs->sp);
+
 				//cos_meas_event(COS_MEAS_BRAND_UC);
-			} else 				
-				printk("hijack NO need to switch (curr %d)\n", cos_current->thread_id);
+			} 
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 
 			event_record("normal (non-syscall/idle interrupting) upcall processed",
@@ -1671,11 +1669,17 @@ done:
 
 static void receive_ipi(void *thdid)
 {
+	static int nesting[2] = {0, 0};
 	struct thread *thd = thd_get_by_id((int)thdid);
 
 	if (unlikely(!thd)) return;
+
+	nesting[get_cpuid()]++;
+	if (nesting[get_cpuid()] > 1) 
+		printk("we got nested IPIs: %d!\n", nesting[get_cpuid()]);
 	/* printk("core %d, got IPI for brand %d!\n", get_cpuid(), thd->thread_id); */
 	chal_attempt_brand(thd);
+	nesting[get_cpuid()]--;
 
 	return;
 }
@@ -1690,7 +1694,8 @@ int send_ipi(int cpuid, int thdid, int wait)
 static void ainv_receive_ipi(void *cap_entry)
 {
 	if (unlikely(!cap_entry)) return;
-	printk("core %d, got an IPI for upcall thd %d!\n", get_cpuid(), ((struct async_cap *)cap_entry)->upcall_thd);
+	/* printk("core %d, got an IPI for upcall thd %d!\n",  */
+	/*        get_cpuid(), ((struct async_cap *)cap_entry)->upcall_thd); */
 	chal_attempt_ainv((struct async_cap *)cap_entry);
 
 	return;

@@ -906,8 +906,8 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		/* If we should return immediately back to this
 		 * thread, and its registers have been changed,
 		 * return without setting the return value */
-		if (thd_get_id(curr) == 15)
-			printk("curr %d, thd %d, ret %d, pending %d\n", thd_get_id(curr), thd_get_id(thd), ret_code, curr->srv_acap->pending_upcall);
+		/* if (thd_get_id(curr) == 15) */
+		/* 	printk("curr %d, thd %d, ret %d, pending %d\n", thd_get_id(curr), thd_get_id(thd), ret_code, curr->srv_acap->pending_upcall); */
 		if (ret_code == COS_SCHED_RET_SUCCESS && thd == curr) goto ret;
 
 		if (thd == curr) 
@@ -949,6 +949,8 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
 //	printk("core %d: switch %d -> %d\n", get_cpuid(), thd_get_id(curr), thd_get_id(thd));
 	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
+
+	/* printk("%d to %d switch success.\n", thd_get_id(curr), thd_get_id(thd)); */
 
 	return &thd->regs;
 ret_err:
@@ -2572,14 +2574,6 @@ ainv_next_thread(struct async_cap *acap, struct thread *preempted, int preempt)
 	 * are not currently waiting on, do the same as above. */
 	if (upcall->flags & THD_STATE_ACTIVE_UPCALL || 
 	    (upcall->srv_acap && upcall->srv_acap != acap)) {
-		printk("ainv_next_thread: upcall %d, preempted %d, not switching, active? %d\n", 
-		       upcall->thread_id, preempted->thread_id, upcall->flags&THD_STATE_ACTIVE_UPCALL);
-		if (upcall->srv_acap && upcall->srv_acap != acap) {
-			printk("active? %d ....upcall thd %d, upcall acap %d, received acap %d\n", 
-			       upcall->flags & THD_STATE_ACTIVE_UPCALL, acap->upcall_thd,
-			       upcall->srv_acap, acap);
-		}
-
 		cos_meas_event(COS_MEAS_BRAND_PEND);
 		cos_meas_stats_start(COS_MEAS_STATS_UC_PEND_DELAY, 0);
 		acap->pending_upcall++;
@@ -2611,9 +2605,7 @@ ainv_next_thread(struct async_cap *acap, struct thread *preempted, int preempt)
 	 * Does the upcall have a higher urgency than the currently
 	 * executing thread?
 	 */
-	printk("core %d, upcall %d higher than curr %d?\n", get_cpuid(), upcall->thread_id, preempted->thread_id);
 	if (brand_higher_urgency(upcall, preempted)) {
-		printk("core %d going to switch to upcall %d\n", get_cpuid(), upcall->thread_id);
 		/* printk("core %ld, going to switch to brand thd %d,
 		 * prev thd %d\n", get_cpuid(), upcall->thread_id,
 		 * preempted->thread_id); */
@@ -2693,9 +2685,6 @@ ainv_next_thread(struct async_cap *acap, struct thread *preempted, int preempt)
 		cos_meas_stats_end(COS_MEAS_STATS_UC_EXEC_DELAY, 1);
 		return upcall;
 	} 
-	else {
-		printk("core %d NOT going to switch to upcall %d\n", get_cpuid(), upcall->thread_id);
-	}
 		
 	/* 
 	 * If another upcall is what we attempted to preempt, we might
@@ -3948,8 +3937,8 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 		acap->id = acap_id;
 		acap->owner_thd = owner_thd;
 		
-		printk("thd %d: acap %d (comp %d to comp %d) created.\n", 
-		       thd_get_id(core_get_curr_thd()), acap_id, cli_spd_id, srv_spd_id);
+		/* printk("thd %d: acap %d (comp %d to comp %d) created.\n",  */
+		/*        thd_get_id(core_get_curr_thd()), acap_id, cli_spd_id, srv_spd_id); */
 
 		return acap_id;
 	}
@@ -4030,24 +4019,15 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 
 		/* srv_spd = cli_spd->caps[cap_id].destination; */
 		/* srv_spd_id = spd_get_index(srv_spd); */
-
+		
 		/* change the user level pointer to ainv stub */
 		// TODO: use cap_cntl to do this.
 		cli_spd->user_cap_tbl[cap_id].invocation_fn = cli_spd->async_inv_entry;
-
+		
 		return 0;
 	}
-	/* case COS_ACAP_UPCALL_HANDLING: */
-	/* { */
-	/* 	const int srv_spd_id = arg1; */
-	/* 	/\* arg2 not used *\/ */
-	/* 	/\* arg3 not used *\/ */
-
-	/* 	struct thread *curr = core_get_curr_thd(); */
-	/* 	upcall_execute(curr, (struct composite_spd*)thd_get_thd_spdpoly(srv_spd), */
-	/* 		       NULL, (struct composite_spd*)thd_get_thd_spdpoly(curr)); */
-	/* } */
 	default:
+		printk("cos: Unknown cos_acap_cntl option!\n");
 		ret = -1;
 	}
 

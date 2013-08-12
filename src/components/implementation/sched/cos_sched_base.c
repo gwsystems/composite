@@ -430,8 +430,6 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 		timer_end(&t);
 
 		ret = cos_switch_thread_release(next->id, flags);
-		printc("thd %d up from switch. ret %d, = success %d...\n", 
-		       cos_get_thd_id(), ret, ret ==COS_SCHED_RET_SUCCESS);
 
 		assert(ret != COS_SCHED_RET_ERROR);
 		if (COS_SCHED_RET_CEVT == ret) { report_event(CEVT_RESCHED); }
@@ -641,7 +639,7 @@ static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, 
 		acap = PERCPU_GET_TARGET(sched_base_state, core_id)->IPI_acap;
 
 		if (unlikely(acap <= 0)) BUG();
-		printc("core %d: sending ipi to core %ld, acap %d\n", cos_cpuid(), core_id, acap);
+		/* printc("core %d: sending ipi to core %ld, acap %d\n", cos_cpuid(), core_id, acap); */
 		cos_ainv_send(acap);
 	}
 
@@ -659,7 +657,6 @@ static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, 
 		}
 		ret = data.ret;
 	} 
-	printc("core %d: exec on core %ld done\n", cos_cpuid(), core_id);
 done:
 	return ret;
 error:
@@ -1844,11 +1841,9 @@ static void IPI_handler(void *d)
 		cos_sched_lock_take();
 		/* Going to switch away */
 		/* Don't use brand_wait syscall here. */
-		printc("core %ld: ipi thread %d going to sleep...\n", cos_cpuid(), cos_get_thd_id());
 		sched_switch_thread(COS_SCHED_BRAND_WAIT, EVT_CMPLETE_LOOP);
 
 		/* Received an IPI! */
-		printc("Core %ld: got an IPI request! (handler thd %d)\n", cos_cpuid(), cos_get_thd_id());
 		while (CK_RING_DEQUEUE_SPSC(xcore_ring, &ring, &ring_item) == true) {
 			data = ring_item.data;
 			assert(data->nparams <= 4);
