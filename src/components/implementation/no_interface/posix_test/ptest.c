@@ -1,6 +1,7 @@
 #include <cos_component.h>
 #include <print.h>
 #include "../../../lib/libccv/ccv.h"
+#include <stdio.h>
 
 void face_detect(void);
 
@@ -33,6 +34,8 @@ face_detect(void)
                 printc("%d %d %d %d\n", comp->rect.x, comp->rect.y, comp->rect.width, comp->rect.height);
         }
         printc("total : %d\n", seq->rnum);
+
+        printf("test\n");
         ccv_array_free(seq);
         ccv_matrix_free(image);
         ccv_bbf_classifier_cascade_free(cascade);

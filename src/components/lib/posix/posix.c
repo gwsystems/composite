@@ -34,42 +34,50 @@ int
 cos_open(const char *pathname, int flags, int mode)
 {
         // mode param is only for O_CREAT in flags
-        td_t t;
+        td_t td;
         long evt;
         evt = evt_split(cos_spd_id(), 0, 0);
         assert(evt > 0);
-        t = tsplit(cos_spd_id(), td_root, pathname, strlen(pathname), TOR_ALL, evt);
+        td = tsplit(cos_spd_id(), td_root, pathname, strlen(pathname), TOR_ALL, evt);
 
-        if (t <= 0) {
+        if (td <= 0) {
                 printc("open() failed!\n");
                 assert(0);
         }
 
-        return t;
+        return td + 3; /* fd number adjust for reserved fd 0, 1 and 2 */
 }
 
 int
 cos_close(int fd)
 {
-        trelease(cos_spd_id(), fd); // return void, use tor_lookup?
+        trelease(cos_spd_id(), fd - 3); // return void, use tor_lookup?
+
         return 0; // return -1 if failed
 }
 
 ssize_t
 cos_read(int fd, void *buf, size_t count)
 {
-        int ret = tread_pack(cos_spd_id(), fd, buf, count);
+        int ret = tread_pack(cos_spd_id(), fd - 3, buf, count);
+
         return ret;
 }
 
 ssize_t
 cos_write(int fd, const void *buf, size_t count)
 {
-        int ret = twrite_pack(cos_spd_id(), fd, buf, count);
-
-        //assert(ret < 0);
-
-        return ret;
+        if (fd == 0) {
+                printc("stdin is not supported!\n", buf);
+                return 0;
+        } else if (fd == 1 || fd == 2) {
+                printc("%s", buf);
+                return 0;
+        } else {
+                int td = fd - 3;
+                int ret = twrite_pack(cos_spd_id(), td, buf, count);
+                return ret;
+        }
 }
 
 void *
@@ -107,6 +115,7 @@ void *
 cos_mremap(void *old_address, size_t old_size, size_t new_size, int flags)
 {
         do_munmap(old_address, old_size);
+
         return do_mmap(new_size);
 }
 
@@ -116,17 +125,18 @@ cos_lseek(int fd, off_t offset, int whence)
         // TODO: we can use a simpler twmeta_pack(td_t td, const char *key, const char *val)
         char val[8]; // TODO: length number need to be selected
         int ret = -1;
+        int td = fd - 3;
 
         if (whence == SEEK_SET) {
                 snprintf(val, 8, "%ld", offset);
-                ret = twmeta(cos_spd_id(), fd, "offset", strlen("offset"), val, strlen(val));
+                ret = twmeta(cos_spd_id(), td, "offset", strlen("offset"), val, strlen(val));
                 assert(ret == 0);
         } else if (whence == SEEK_CUR) {
                 // return value not checked
                 char offset_curr[8];
-                trmeta(cos_spd_id(), fd, "offset", strlen("offset"), offset_curr, 8);
+                trmeta(cos_spd_id(), td, "offset", strlen("offset"), offset_curr, 8);
                 snprintf(val, 8, "%ld", atol(offset_curr) + offset);
-                ret = twmeta(cos_spd_id(), fd, "offset", strlen("offset"), val, strlen(val));
+                ret = twmeta(cos_spd_id(), td, "offset", strlen("offset"), val, strlen(val));
                 assert(ret == 0);
         } else if (whence == SEEK_END) {
                 printc("lseek::SEEK_END not implemented !\n");
