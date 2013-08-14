@@ -10,7 +10,7 @@
 #endif
 #endif
 
-//static __thread ccv_cache_t ccv_cache;
+
 static ccv_cache_t ccv_cache;
 
 /**
@@ -20,7 +20,6 @@ static ccv_cache_t ccv_cache;
  **/
 
 /* option to enable/disable cache */
-//static __thread int ccv_cache_opt = 0;
 static int ccv_cache_opt = 0;
 
 ccv_dense_matrix_t* ccv_dense_matrix_new(int rows, int cols, int type, void* data, uint64_t sig)
