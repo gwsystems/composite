@@ -31,16 +31,21 @@ struct tcap_ref {
 	u32_t        epoch; 	
 };
 
-#define TCAP_RES_GRANULARITY (1<<16)
-
-/* A tcap's maximum rate */
-struct budget {
-        s32_t cycles;	  /* overrun due to tick granularity can result in cycles < 0 */
-	u32_t expiration; /* absolute time (in ticks) */
+struct tcap_budget {
+	/* overrun due to tick granularity can result in cycles < 0 */
+        s64_t cycles;	
 };
 
+struct tcap_sched_info {
+	struct spd *sched;
+	u16_t prio;
+};
+
+
 #define TCAP_PRIO_MIN ((1UL<<16)-1)
-#define TCAP_PRIO_MAX (0UL)
+#define TCAP_PRIO_MAX (1UL)
+#define TCAP_PRIO_INF (0UL)
+#define TCAP_CYC_INF  LLONG_MAX
 
 struct tcap {
 	/* 
@@ -48,16 +53,10 @@ struct tcap {
 	 * refers to the parent tcap, or it might be segregated in
 	 * this capability in which case budget = this.
 	 */
-	struct tcap_ref budget;
-	struct budget   budget_local; /* if we have a partitioned budget */
-	u32_t           epoch;	      /* when a tcap is deallocated, epoch++ */
-	u16_t           allocated, ndelegs, prio, cpuid;
-	struct spd     *sched;
-	/* 
-	 * Note that allocated and epoch are loaded on a
-	 * tcap_deref...they should be on the same cacheline
-	 */
-	
+	struct tcap_ref         budget;
+	struct tcap_budget      budget_local; /* if we have a partitioned budget */
+	u32_t                   epoch;	 /* when a tcap is deallocated, epoch++ */
+	u16_t                   ndelegs, cpuid, sched_info;
 	/* 
 	 * Which chain of temporal capabilities resulted in this
 	 * capability's access, and what access is granted? We might
@@ -74,14 +73,18 @@ struct tcap {
 	 * incrementing the epoch of a tcap.  If it is outdated, then
 	 * we assume it is of the lowest-priority.
 	 */
-	struct tcap_delegation {
-		u16_t           prio;
-		struct tcap_ref tcap;
-		struct spd     *sched;
-	} delegations[TCAP_MAX_DELEGATIONS];
-
-	struct tcap *freelist;
+	struct tcap_sched_info  delegations[TCAP_MAX_DELEGATIONS];
+	struct tcap            *freelist;
 };
+
+static inline int
+tcap_is_allocated(struct tcap *t)
+{ return t->ndelegs != 0; }
+
+static inline struct tcap_sched_info *
+tcap_sched_info(struct tcap *t)
+{ return &t->delegations[t->sched_info]; }
+
 
 /* 
  * Delegaters might be deallocated and reused, so a pointer is not
@@ -96,7 +99,7 @@ tcap_deref(struct tcap_ref *r)
 
 	if (unlikely(!r->tcap)) return NULL;
 	tc = r->tcap;
-	if (unlikely(!tc->allocated || tc->epoch != r->epoch)) return NULL;
+	if (unlikely(!tcap_is_allocated(tc) || tc->epoch != r->epoch)) return NULL;
 	return tc;
 }
 
@@ -116,38 +119,34 @@ tcap_consume(struct tcap *t, u32_t cycles)
 	assert(t);
 	bc = tcap_deref(&t->budget);
 	if (unlikely(!bc)) return 1;
-	if (unlikely(bc->budget_local.cycles == INT_MAX)) return 0;
+	if (unlikely(TCAP_RES_IS_INF(bc->budget_local.cycles))) return 0;
 
 	bc->budget_local.cycles -= cycles;
 	return bc->budget_local.cycles <= 0;
 }
 
-static inline int
+static inline long long
 tcap_remaining(struct tcap *t)
 {
 	struct tcap *bc;
-	struct budget *b;
-	extern u32_t ticks;
+	struct tcap_budget *b;
 
 	assert(t);
 	bc = tcap_deref(&t->budget);
 	if (unlikely(!bc)) return 0;
 	b = &bc->budget_local;
-	if (b->cycles <= 0 || b->expiration < ticks) return 0;
+	if (unlikely(b->cycles <= 0LL)) return 0;
 
 	return b->cycles;
 }
-
+tcap_t       tcap_id(struct tcap *t);
 struct tcap *tcap_get(struct spd *c, tcap_t id);
 void         tcap_spd_init(struct spd *c);
-int          tcap_id(struct tcap *t);
-struct tcap *tcap_split(struct spd *c, struct tcap *t, int pooled, s32_t cycles, 
-			u32_t expiration, u16_t prio);
+struct tcap *tcap_split(struct tcap *t, s32_t cycles, u16_t prio, int pooled);
 int tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, 
-		  s32_t cycles, u32_t expiration, u16_t prio, int pooled);
-int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, struct spd *c, 
-		  int pooled, int cycles, int expiration, int prio);
-int tcap_delete(struct spd *s, struct tcap *tcap);
+		  s32_t cycles, u16_t prio, int pooled);
+int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc,
+		  int cycles, int prio, int pooled);
 int tcap_delete_all(struct spd *spd);
 int tcap_higher_prio(struct thread *activated, struct thread *curr);
 int tcap_receiver(struct thread *t, struct tcap *tcapdst);

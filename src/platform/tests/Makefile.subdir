@@ -1,10 +1,9 @@
-include Makefile.src
-
-INCLUDE = -I$(SHAREDINC) -I$(CDIR)/include/
+INCLUDE = -I../../../kernel/include/shared/ -I../../../components/include/
 CFILES  = $(wildcard *.c)
 OFILES  = $(CFILES:%.c=%.o)
 EXEC    = $(CFILES:%.c=%)
-OPT     = -O3
+#OPT     = -O3
+OPT     = -ggdb3
 CFLAGS  = -Wall -Wextra -Wno-unused-parameter $(OPT) $(INCLUDE)
 SDEPS   = $(CFILES:%.c=%.d)
 

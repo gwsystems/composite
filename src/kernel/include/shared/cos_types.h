@@ -561,6 +561,12 @@ static inline void cos_ref_release(atomic_t *rc)
 	cos_meas_event(COS_MPD_REFCNT_DEC);
 }
 
+#define TCAP_RES_GRAN_ORD  16
+#define TCAP_RES_PACK(r)   (round_up_to_pow2((r), 1 << TCAP_RES_GRAN_ORD))
+#define TCAP_RES_EXPAND(r) ((r) << TCAP_RES_GRAN_ORD)
+#define TCAP_RES_INF LLONG_MAX
+#define TCAP_RES_IS_INF(r) (r == TCAP_RES_INF)
+
 typedef u16_t tcap_t;
 /* operations for tcap_cntl */
 typedef enum {
@@ -570,7 +576,6 @@ typedef enum {
 	COS_TCAP_SPLIT_POOL,
 	COS_TCAP_TRANSFER,
 	COS_TCAP_TRANSFER_POOL,
-	COS_TCAP_DELETE,
 	COS_TCAP_BIND,
 	COS_TCAP_RECEIVER,
 	/* not yet implemented */

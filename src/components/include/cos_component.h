@@ -151,24 +151,20 @@ cos_syscall_3(18, int, __vas_cntl, int, op_spdid, long, arg1, long, arg2);
 cos_syscall_3(19, int, __trans_cntl, unsigned long, op_ch, unsigned long, addr, int, off);
 cos_syscall_3(20, int, __pfn_cntl, unsigned long, op_spd, unsigned long, mem_id, int, extent);
 cos_syscall_3(21, int, __send_ipi, long, cpuid, int, thdid, long, arg);
-cos_syscall_3(22, int, __tcap_cntl, unsigned long, spdid_op_tcap, unsigned long, tcap2_prio, unsigned long, budget_exp);
+cos_syscall_3(22, int, __tcap_cntl, unsigned long, op_prio, unsigned long, tcap1_tcap2, unsigned long, budget);
 cos_syscall_0(31,  int, null);
 
 static inline int 
 cos_mmap_cntl(short int op, short int flags, short int dest_spd, 
 	      vaddr_t dest_addr, unsigned long mem_id) {
 	/* encode into 3 arguments */
-	return cos___mmap_cntl(((op<<24) | (flags << 16) | (dest_spd)), 
-			       dest_addr, mem_id);
+	return cos___mmap_cntl(((op<<24) | (flags << 16) | (dest_spd)), dest_addr, mem_id);
 }
 
 static inline int
-cos_tcap_cntl(tcap_op_t op, tcap_t tcap1, tcap_t tcap2, u16_t prio, 
-	      unsigned int reservation, unsigned int expiration)
+cos_tcap_cntl(tcap_op_t op, tcap_t tcap1, tcap_t tcap2, u16_t prio, unsigned int res)
 {
-	return cos___tcap_cntl((op << 16) | prio, 
-			       (tcap2 << 16) | tcap1,
-			       (reservation << 16) | (expiration & 0xFFFF));
+	return cos___tcap_cntl((op << 16) | prio, (tcap2 << 16) | tcap1, TCAP_RES_PACK(res));
 }
 
 static inline long cos_spd_id(void);
@@ -176,7 +172,7 @@ static inline int
 cos_tcap_split(tcap_t tcap, u16_t prio, unsigned int reservation, unsigned int expiration, int pooled)
 {
 	return cos_tcap_cntl(pooled ? COS_TCAP_SPLIT_POOL : COS_TCAP_SPLIT, 
-			     tcap, 0, prio, reservation, expiration);
+			     tcap, 0, prio, reservation);
 }
 
 /* for COS_TCAP_{BIND, RECEIVER} */

@@ -867,7 +867,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	struct cos_sched_data_area *da;
 	int ret_code = COS_SCHED_RET_ERROR;
 	tcap_t tcid;
-	struct tcap *tc, *budget;
+	struct tcap *tc;
 
 	tcid     = __tcap;
 	*preempt = 0;
@@ -885,12 +885,13 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		printk("switch_thread err: no tcap\n");
 		goto ret_err;
 	}
-	budget = tcap_deref(&tc->budget);
-	if (unlikely(!budget || 
-		     budget->budget_local.cycles <= 0 ||
-		     budget->budget_local.expiration < time_ticks())) {
+	if (unlikely(!tcap_remaining(tc))) {
+		struct tcap *budget;
+
+		budget = tcap_deref(&tc->budget);
 		if (!budget) printk("switch_thread err: tcap can't get budget\n");
-		else printk("switch_thread err: tcap with no budget %d, or expired %u vs %u\n", budget->budget_local.cycles, budget->budget_local.expiration, time_ticks());
+		else printk("switch_thread err: tcap with no budget %lld\n", 
+			    budget->budget_local.cycles);
 		goto ret_err;
 	}
 
@@ -937,9 +938,11 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		}
 	}
 
-	/* If a thread is involved in a scheduling decision, we should
+	/* 
+	 * If a thread is involved in a scheduling decision, we should
 	 * assume that any preemption chains that existed aren't valid
-	 * anymore. */
+	 * anymore.
+	 */
 	break_preemption_chain(curr);
 
 	switch_thread_context(curr, thd);
@@ -952,7 +955,9 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	}
 
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
-	tcap_bind(thd, tc); 	/* activate the tcap */
+	if (tcap_bind(thd, tc)) { 	/* activate the tcap */
+		goto_err(ret_err, "Error: switch thd binding invalid tcap\n");
+	}
 	/* success for this current thread */
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
 //	printk("core %d: switch %d -> %d\n", get_cpuid(), thd_get_id(curr), thd_get_id(thd));
@@ -2237,7 +2242,7 @@ update_thd_evt_state(struct thread *t, int flags, unsigned long elapsed)
 }
 
 static void 
-update_sched_evts(struct thread *new, int new_flags, 
+update_sched_evts(struct thread *new,  int new_flags, 
 		  struct thread *prev, int prev_flags)
 {
 	unsigned elapsed = 0;
@@ -2247,12 +2252,9 @@ update_sched_evts(struct thread *new, int new_flags,
 	elapsed = time_update();
 	tcap_elapsed(prev, elapsed);
 
-	if (new_flags != COS_SCHED_EVT_NIL) {
-		update_thd_evt_state(new, new_flags, 0);
-	}
-	if (elapsed || prev_flags != COS_SCHED_EVT_NIL) {
-		update_thd_evt_state(prev, prev_flags, elapsed);
-	}
+	if (new_flags != COS_SCHED_EVT_NIL) update_thd_evt_state(new, new_flags, 0);
+	/* have to update at least the previous thread's execution time */
+	update_thd_evt_state(prev, prev_flags, elapsed);
 
 	return;
 }
@@ -3568,7 +3570,7 @@ cos_syscall_send_ipi(int spd_id, long cpuid, int thdid, long arg)
 
 COS_SYSCALL int
 cos_syscall_tcap_cntl(spdid_t spdid, unsigned long op_prio, 
-		      unsigned long tcap2_tcap1, unsigned long budget_exp)
+		      unsigned long tcap2_tcap1, unsigned long budget)
 {
 	struct spd *c;
 	struct thread *t;
@@ -3584,8 +3586,7 @@ cos_syscall_tcap_cntl(spdid_t spdid, unsigned long op_prio,
 	prio  = op_prio & 0xFFFF;
 	tcdst = tcap2_tcap1 & 0xFFFF;
 	tcsrc = tcap2_tcap1 >> 16;
-	res   = (budget_exp >> 16) * TCAP_RES_GRANULARITY;
-	exp   = (budget_exp & 0xFFFF);
+	res   = TCAP_RES_EXPAND(budget);
 
 	/* convert them into data-structures */
 	t     = core_get_curr_thd();
@@ -3604,22 +3605,20 @@ cos_syscall_tcap_cntl(spdid_t spdid, unsigned long op_prio,
 		if (tcapsrc)  return -1;
 		tcapsrc = tcap_deref(&t->tcap_receiver);
 		if (!tcapsrc) return -1;
-		return tcap_delegate(tcapdst, tcapsrc, c, pooled, res, exp, prio);
+		return tcap_delegate(tcapdst, tcapsrc, res, prio, pooled);
 	case COS_TCAP_SPLIT_POOL:    pooled = 1;
 	case COS_TCAP_SPLIT:
 	{
 		struct tcap *n;
 
-		n = tcap_split(c, tcapdst, pooled, res, exp, prio);
+		n = tcap_split(tcapdst, res, prio, pooled);
 		if (!n) return -1;
 		return tcap_id(n);
 	}
 	case COS_TCAP_TRANSFER_POOL: pooled = 1;
 	case COS_TCAP_TRANSFER:
 		if (!tcapsrc) return -1;
-		return tcap_transfer(tcapdst, tcapsrc, res, exp, prio, pooled);
-	case COS_TCAP_DELETE:
-		return tcap_delete(c, tcapdst);
+		return tcap_transfer(tcapdst, tcapsrc, res, prio, pooled);
 	case COS_TCAP_BIND:
 	case COS_TCAP_RECEIVER:
 	{

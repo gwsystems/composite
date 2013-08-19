@@ -100,7 +100,7 @@ struct pt_regs {
 
 #define COS_MAX_MEMORY 4*1024
 
-#define TCAP_MAX 16
+#define TCAP_MAX 32
 
 #include "../asm_ipc_defs.h"
 
