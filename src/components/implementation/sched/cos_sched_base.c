@@ -813,10 +813,9 @@ int sched_wakeup(spdid_t spdid, unsigned short int thd_id)
 	if (!sched_thd_on_current_core(thd_id)) {
 		/* Cross-core wakeup */
 		cpuid_t cpu = sched_get_thd_core(thd_id);
+		u32_t params[2] = {spdid, thd_id};
 		if (cpu < 0) goto error_nolock;
 		
-		u32_t params[2] = {spdid, thd_id};
-
 		ret = xcore_exec(cpu, sched_wakeup, 2, params, 1);
 	
 		goto xcore_done;
@@ -925,8 +924,8 @@ static void fp_block(struct sched_thd *thd, spdid_t spdid)
 int sched_block(spdid_t spdid, unsigned short int dep_thd)
 {
 	struct sched_thd *thd, *dep = NULL;
-	int ret;
-	int first = 1;
+	int ret, first = 1;
+	unsigned short int dependency_thd = dep_thd;
 
 	// Added by Gabe 08/19
 	if (unlikely(dep_thd == cos_get_thd_id())) return -EINVAL;
@@ -937,7 +936,6 @@ int sched_block(spdid_t spdid, unsigned short int dep_thd)
 	assert(spdid);
 
 	/* We only do dependencies if the dep thread is on the current core. */
-	unsigned short int dependency_thd = dep_thd;
 	if (dep_thd) {
 		if (sched_thd_on_current_core(dep_thd)) {
 			dependency_thd = dep_thd;
