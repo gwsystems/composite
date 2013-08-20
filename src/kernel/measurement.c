@@ -115,7 +115,7 @@ void cos_meas_report(void)
 			default:
 				printk("cos: unknown type for %d of %d", i, per_core_meas[cpu].cos_measurements[i].type);
 			}
-#if NUM_CPU_C > 1
+#if NUM_CPU_COS > 1
 			break;
 #endif
 		}
@@ -146,7 +146,7 @@ void event_print(void)
 			printk("cos:\t%d:%s (%ld, %ld) @ %lld\n", i, e->msg, e->a, e->b, e->timestamp);
 			if (i == last) break;
 		}
-#if NUM_CPU_COS
+#if NUM_CPU_COS > 1
 		break;
 #endif
 	}
