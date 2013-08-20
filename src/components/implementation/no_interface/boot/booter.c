@@ -340,6 +340,8 @@ boot_find_cobjs(struct cobj_header *h, int n)
 	       hs[n-1]->name, hs[n-1]->id, hs[n-1], cobj_sect_get(hs[n-1], 0)->vaddr);
 }
 
+#define NREGIONS 4
+
 static void 
 boot_create_system(void)
 {
@@ -354,6 +356,8 @@ boot_create_system(void)
 		spdid_t spdid;
 		struct cobj_sect *sect;
 		vaddr_t comp_info = 0;
+		long tot = 0;
+		int j;
 		
 		h = hs[i];
 		if ((spdid = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG();
@@ -363,6 +367,24 @@ boot_create_system(void)
 		sect = cobj_sect_get(h, 0);
 		if (cos_spd_cntl(COS_SPD_LOCATION, spdid, sect->vaddr, SERVICE_SIZE)) BUG();
 
+		for (j = 0 ; j < (int)h->nsect ; j++) {
+			tot += cobj_sect_size(h, j);
+		}
+
+		if (tot > SERVICE_SIZE) {
+			if (cos_vas_cntl(COS_VAS_SPD_EXPAND, h->id, sect->vaddr + SERVICE_SIZE, 
+					 (NREGIONS-1) * round_up_to_pgd_page(1))) {
+				printc("cos: booter could not expand VAS for component %d\n", h->id);
+				BUG();
+			}
+			if (hs[i + 1] != NULL) {
+				/* We only need to expand to the next 4MB
+				 * region for now. The start address of the
+				 * next component should have no overlap with
+				 * the current one. */
+				assert(cobj_sect_get(hs[i + 1], 0)->vaddr == sect->vaddr + SERVICE_SIZE * 2);
+			}
+		}
 		if (boot_spd_symbs(h, spdid, &comp_info))        BUG();
 		if (boot_spd_map(h, spdid, comp_info))           BUG();
 		if (cos_spd_cntl(COS_SPD_ACTIVATE, spdid, h->ncap, 0)) BUG();
@@ -446,8 +468,6 @@ cgraph_add(int serv, int client)
 	ndeps++;
 	return 0;
 }
-
-#define NREGIONS 4
 
 void cos_init(void)
 {

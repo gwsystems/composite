@@ -1785,7 +1785,7 @@ inline int sched_curr_is_IPI_handler(void) {
 }
 
 static inline int exec_fn(int (*fn)(), int nparams, u32_t *params) {
-	int ret;
+	int ret = -1;
 
 	assert(fn);
 
@@ -1978,20 +1978,23 @@ sched_spin_lock_init(void)
 	ck_spinlock_ticket_init(&xcore_lock);
 }
 
+extern struct cos_component_information cos_comp_info;
+#define NREGIONS 4
+
 /* Initialize the root scheduler */
-volatile int initialized = 0;
+volatile int initialized[NUM_CPU_COS];
 int sched_root_init(void)
 {
 	struct sched_thd *new;
-	int ret;
+	int ret, i;
 
 	if (cos_cpuid() == INIT_CORE) {
-		assert(!initialized);
-		assert(initialized == 0);
+		assert(initialized[INIT_CORE] == 0);
 		print_config_info();
+		/* Init the cross-core communicate spin lock. */
 		sched_spin_lock_init();
 	} else {
-		while (initialized == 0) ;
+		while (initialized[INIT_CORE] == 0) ;
 	}
 
 	/* printc("<<< CPU %ld, in root init, thd %d going to run.>>>\n", cos_cpuid(), cos_get_thd_id()); */
@@ -2002,7 +2005,7 @@ int sched_root_init(void)
 	PERCPU_GET(sched_base_state)->init = sched_alloc_thd(cos_get_thd_id());
 	assert(PERCPU_GET(sched_base_state)->init);
 
-	sched_init_create_threads(initialized == 0);
+	sched_init_create_threads(initialized[INIT_CORE] == 0);
 
 	/* Create the clock tick (timer) thread */
 	fp_create_timer();
@@ -2012,10 +2015,13 @@ int sched_root_init(void)
 
 	new = schedule(NULL);
 
-	initialized = 1;
-	/* assert(initialized <= NUM_CPU); */
-
+	initialized[cos_cpuid()] = 1;
+	for (i = 0; i < NUM_CPU_COS; i++) {
+		/* Sync to start */
+		while (initialized[i] == 0) ;
+	}
 	printc("<<<Core %ld, thread %d: sched_init done.>>>\n", cos_cpuid(), cos_get_thd_id());
+
 	if ((ret = cos_switch_thread(new->id, 0))) {
 		printc("switch thread failed with %d\n", ret);
 	}

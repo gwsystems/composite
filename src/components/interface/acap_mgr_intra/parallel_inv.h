@@ -40,7 +40,6 @@ extern struct par_thd_info *__par_thd_info[MAX_NUM_THREADS];
 /* Worker thread structures. */
 struct par_srv_thd_info {
 	int acap;
-	volatile int stop;
 	void *shared_page;
 	struct par_thd_info *parent;
 
@@ -362,7 +361,7 @@ cos_intra_ainv_handling(void)
 	thd_info.orig_num_thds = thd_info.num_thds;
 	assert(thd_info.num_thds > 1);
 
-	while (likely(curr->stop == 0)) {
+	while (1) {
 		CLEAR_SERVER_ACTIVE(shared_struct); // clear active early to avoid race (and atomic instruction)
 		/* 
 		 * If the ring buffer has no pending events for us to

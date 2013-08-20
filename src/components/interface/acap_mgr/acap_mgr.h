@@ -14,7 +14,7 @@ void *acap_srv_fn_mapping(int spdid, int cap);
 struct inv_data {
 	int cap;
 	int params[4];
-	int return_idx;
+//	int return_idx;
 }; /* Q: do we want this to use a single cache line? */
 
 #ifndef __RING_DEFINED

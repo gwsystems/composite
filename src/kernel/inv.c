@@ -19,6 +19,8 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 
+//#include "include/shared/ck/include/ck_pr.h"
+
 /* 
  * These are the 1) page for the pte for the shared region and 2) the
  * page to hold general data including cpuid, thread id, identity
@@ -906,8 +908,6 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		/* If we should return immediately back to this
 		 * thread, and its registers have been changed,
 		 * return without setting the return value */
-		/* if (thd_get_id(curr) == 15) */
-		/* 	printk("curr %d, thd %d, ret %d, pending %d\n", thd_get_id(curr), thd_get_id(thd), ret_code, curr->srv_acap->pending_upcall); */
 		if (ret_code == COS_SCHED_RET_SUCCESS && thd == curr) goto ret;
 
 		if (thd == curr) 
@@ -997,9 +997,6 @@ switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd
 			goto_err(ret_err, "tailcall from incorrect spd!\n");
 		
 		assert(curr->thread_brand || curr->srv_acap);
-		if (thd_get_id(curr) == 15 && curr->srv_acap->pending_upcall) {
-			printk("curr thd %d has pending upcall %d\n", thd_get_id(curr), curr->srv_acap->pending_upcall);
-		}
 		/* make this compatible to both brand and acap */
 		if (curr->thread_brand && curr->thread_brand->pending_upcall_requests) {
 			//update_thd_evt_state(curr, COS_SCHED_EVT_BRAND_ACTIVE, 1);
@@ -3880,11 +3877,12 @@ ainv_wait_err:
 static inline int alloc_acap_id(struct spd *spd){
 	int i;
 
-	/* FIXME: obviously... */
+	/* FIXME: We should have a freelist! */
 	for (i = 1; i < MAX_NUM_ACAP; i++) {
 		if (spd->acaps[i].allocated == 0) {
-			spd->acaps[i].allocated = 1;
-			return i;
+			if (cos_cas((unsigned long *)&(spd->acaps[i].allocated), 0, 1)) {
+				return i;
+			}
 		}
 	}
 

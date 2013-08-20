@@ -469,9 +469,14 @@ par_create(int spdid, int n_request)
 			if (unlikely(thd_comp->cpus == NULL)) goto err_mem;
 
 			int i, j = 0; //TODO: ask policy!
-			for (i = 0; i < NUM_CPU_COS; i++) {
+			/* for (i = 0; i < thd_comp->n_cpu; i++) { */
+			/* 	if (i == cos_cpuid()) continue; */
+			/* 	thd_comp->cpus[j++] = i * 4; */
+			/* 	if (j == n_acap) break; */
+			/* } */
+			for (i = 0; i < thd_comp->n_cpu; i++) {
 				if (i == cos_cpuid()) continue;
-				/* printc("core %ld thd %d: got extra cpu %d\n",  */
+				/* printc("core %ld thd %d: got cpu %d\n", */
 				/*        cos_cpuid(), cos_get_thd_id(), i); */
 				thd_comp->cpus[j++] = i;
 				if (j == n_acap) break;

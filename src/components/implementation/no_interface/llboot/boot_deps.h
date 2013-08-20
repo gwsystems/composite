@@ -366,9 +366,3 @@ sched_child_cntl_thd(spdid_t spdid)
 int 
 sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd) { BUG(); return 0; }
 
-/* No Round-robin in llbooter */
-static u32_t init_core_policy(void) {
-	union sched_param sp = {.c = {.type = SCHEDP_NOOP}};
-
-	return sp.v;
-}

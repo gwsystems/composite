@@ -137,7 +137,11 @@ typedef enum {
  */
 struct spd_poly {
 	spd_flags_t flags;
+#if NUM_CPU_COS > 1
+	atomic_t ref_cnt CACHE_ALIGNED;
+#else
 	atomic_t ref_cnt;
+#endif
 	paddr_t pg_tbl;
 };
 

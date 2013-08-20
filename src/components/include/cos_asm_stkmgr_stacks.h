@@ -14,6 +14,15 @@
 #define USE_NEW_STACKS 1
 #ifdef  USE_NEW_STACKS
 
+#if NUM_CPU_COS > 1
+/* We should avoid the lock cmpxchg by using per-core freelist. */
+#define COMP_INFO_CMPXCHG                       \
+	lock cmpxchgl %esp, cos_comp_info
+#else
+#define COMP_INFO_CMPXCHG                       \
+	cmpxchgl %esp, cos_comp_info
+#endif
+
 #define COS_ASM_GET_STACK                       \
 1:                                              \
         movl %eax, %edx;		        \
@@ -26,7 +35,7 @@
         /* We have a stack */                   \
         movl cos_comp_info, %eax;               \
         movl (%eax), %esp;                      \
-	cmpxchgl %esp, cos_comp_info;		\
+	COMP_INFO_CMPXCHG;                      \
         jnz 8b;					\
 						\
 	/* now we have the stack */		\
@@ -92,7 +101,7 @@
 9:						\
         movl cos_comp_info, %eax;               \
         movl %eax, (%esp);                      \
-	cmpxchgl %esp, cos_comp_info;		\
+	COMP_INFO_CMPXCHG;			\
 	jnz 9b;					\
 	movl %ebx, %eax;			\
 						\

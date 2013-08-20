@@ -20,7 +20,7 @@
 #define STK_PER_PAGE (PAGE_SIZE/MAX_STACK_SZ)
 #define NUM_PAGES (ALL_STACK_SZ/STK_PER_PAGE)
 
-#define DEFAULT_TARGET_ALLOC 10
+#define DEFAULT_TARGET_ALLOC 100
 
 // The total number of stacks
 struct cos_stk_item all_stk_list[MAX_NUM_MEM];

@@ -553,11 +553,37 @@ typedef unsigned int isolation_level_t;
 
 typedef struct { volatile unsigned int counter; } atomic_t;
 
+#define LOCK_PREFIX_HERE			\
+	".pushsection .smp_locks,\"a\"\n"	\
+	".balign 4\n"				\
+	".long 671f - .\n" /* offset */		\
+	".popsection\n"				\
+	"671:"
+
+#define LOCK_PREFIX LOCK_PREFIX_HERE "\n\tlock; "
+
+static inline void atomic_inc(atomic_t *v)
+{
+	asm volatile(LOCK_PREFIX "incl %0"
+		     : "+m" (v->counter));
+}
+
+static inline void atomic_dec(atomic_t *v)
+{
+	asm volatile(LOCK_PREFIX "decl %0"
+		     : "+m" (v->counter));
+}
 #endif /* __KERNEL__ */
 
 static inline void cos_ref_take(atomic_t *rc)
 {
+#if NUM_CPU_COS > 1
+	/* use atomic instructions when we have multicore. We will get
+	 * rid of this later(by using capabilities as ref counter). */
+	atomic_inc(rc);
+#else
 	rc->counter++;
+#endif
 	cos_meas_event(COS_MPD_REFCNT_INC);
 }
 
@@ -573,7 +599,13 @@ static inline unsigned int cos_ref_val(atomic_t *rc)
 
 static inline void cos_ref_release(atomic_t *rc)
 {
+#if NUM_CPU_COS > 1
+	/* same as cos_ref_take. */
+	atomic_dec(rc);
+#else
 	rc->counter--; /* assert(rc->counter != 0) */
+#endif
+	
 	cos_meas_event(COS_MPD_REFCNT_DEC);
 }
 
