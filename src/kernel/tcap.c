@@ -281,139 +281,64 @@ tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc,
 }
 
 int
-tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, 
+tcap_delegate(struct tcap *dst, struct tcap *src, 
 	      int cycles, int prio, int pooled)
 {
-	struct tcap_sched_info *td;
 	struct tcap_sched_info deleg_tmp[TCAP_MAX_DELEGATIONS];
 	int ndelegs, i, j;
 	struct spd *d;
+	int si = -1;
 
-	assert(tcapdst && tcapsrc);
-	if (unlikely(tcapdst->ndelegs >= TCAP_MAX_DELEGATIONS)) {
+	assert(dst && src);
+	if (unlikely(dst->ndelegs >= TCAP_MAX_DELEGATIONS)) {
 		printk("tcap %x already has max number of delgations.\n", 
-			tcap_id(tcapdst));
+			tcap_id(dst));
 		return -1;
 	}
-	d = tcap_sched_info(tcapdst)->sched;
-	if (d == tcap_sched_info(tcapsrc)->sched) return -1;
-	if (!prio) prio = tcap_sched_info(tcapsrc)->prio;
+	d = tcap_sched_info(dst)->sched;
+	if (d == tcap_sched_info(src)->sched) return -1;
+	if (!prio) prio = tcap_sched_info(src)->prio;
 
 	for (i = 0, j = 0, ndelegs = 0 ; 
-	     i < tcapdst->ndelegs && j < tcapsrc->ndelegs ; ndelegs++) {
+	     i < dst->ndelegs || j < src->ndelegs ; 
+	     ndelegs++) {
 		struct tcap_sched_info *s, t;
 
-		if (tcapdst->delegations[i].sched < tcapsrc->delegations[j].sched) {
-			s = &tcapdst->delegations[i++];
-		} else if (tcapdst->delegations[i].sched > tcapsrc->delegations[j].sched) {
-			s = &tcapsrc->delegations[j++];
+		if (i == dst->ndelegs) {
+			s = &src->delegations[j++];
+		} else if (j == src->ndelegs) {
+			s = &dst->delegations[i++];
+		} else if (dst->delegations[i].sched < src->delegations[j].sched) {
+			s = &dst->delegations[i++];
+		} else if (dst->delegations[i].sched > src->delegations[j].sched) {
+			s = &src->delegations[j++];
 		} else {	/* same scheduler */
-			memcpy(&t, &tcapsrc->delegations[j], sizeof(struct tcap_sched_info));
-			if (tcapdst->delegations[i].prio < tcapsrc->delegations[j].prio) {
-				t.prio = tcapsrc->delegations[j].prio;
+			assert(dst->delegations[i].sched == src->delegations[j].sched);
+			memcpy(&t, &src->delegations[j], sizeof(struct tcap_sched_info));
+			if (dst->delegations[i].prio < src->delegations[j].prio) {
+				t.prio = src->delegations[j].prio;
 			} else {
-				t.prio = tcapdst->delegations[j].prio;
+				t.prio = dst->delegations[j].prio;
 			}
 			s = &t;
 			i++;
 			j++;
 		}
-		if (s->sched == tcap_sched_info(tcapsrc)->sched) s->prio = prio;
-		if (ndelegs == TCAP_MAX_DELEGATIONS) return -1;
+
+		if (s->sched == tcap_sched_info(src)->sched) s->prio = prio;
+		if (ndelegs == TCAP_MAX_DELEGATIONS)             return -1;
 		memcpy(&deleg_tmp[ndelegs], s, sizeof(struct tcap_sched_info));
+		if (d == deleg_tmp[ndelegs].sched)               si  = ndelegs;
 	}
 
-	return 0;
-
- 	/* 
-	 * Constrain the destination capability identically to the
-	 * source capability.  Remember, given the above check, we
-	 * know that the destination capability has a subset of the
-	 * delegations of the source.
-	 */
-	ndelegs = tcapsrc->ndelegs;
-	memcpy(deleg_tmp, tcapsrc->delegations, 
-	       sizeof(struct tcap_sched_info) * ndelegs);
-
-	if (!prio) prio = tcap_sched_info(tcapsrc)->prio;
-	/* adjust current scheduler's priority */
-	for (i = 0 ; i < ndelegs && prio ; i++) {
-		if (deleg_tmp[i].sched == tcap_sched_info(tcapsrc)->sched) {
-			deleg_tmp[i].prio = prio;
-			break;
-		}
-	}
-	assert(i != ndelegs); 	/* must have source scheduler */
-	/* 
-	 * Add the delegated-to scheduler, and maintain a
-	 * scheduler-address ordering in the delegation array for O(N)
-	 * comparison in tcap_higher_prio.
-	 */
-	td = NULL;
-	for (i = 0 ; i < ndelegs ; i++) {
-		if (deleg_tmp[i].sched == d) td = &deleg_tmp[i];
-		if (deleg_tmp[i].sched > d)  break;
-	}
-//	printf("td %p @ %d, ndelegs %d\n", td, i, ndelegs);
-	/* we know we need to add the scheduler at position "i" */
-	if (!td && i == TCAP_MAX_DELEGATIONS) return -1; /* no room! */
-	/* add entry by shifting all entries up one */
-	if (!td) {
-		td = &deleg_tmp[i];
-//		printf("%d, %d\n", i, ndelegs);
-		for (j = ndelegs ; j > i ; j--) {
-//			printf("memcpy from %p:%d <- %p:%d\n", 
-//			       deleg_tmp[j].sched, deleg_tmp[j].prio, 
-//			       deleg_tmp[j-1].sched, deleg_tmp[j-1].prio);
-			memcpy(&deleg_tmp[j], &deleg_tmp[j-1], 
-			       sizeof(struct tcap_sched_info));
-		}
-		ndelegs++;
-//		printf("%d: s %p, p %d -> %p:%d\n", 
-//		       i, deleg_tmp[i].sched, deleg_tmp[i].prio,
-//		       d, tcap_sched_info(tcapdst)->prio);
-	} 
-	/* ...and add/update our destination scheduler's entry */
-	td->sched = d;
-	td->prio  = tcap_sched_info(tcapdst)->prio;
-
-	/* printf("dst %p\n", tcap_sched_info(tcapdst)->sched); */
-	/* for (i = 0 ; i < tcapdst->ndelegs ; i++) printf("\t%p:%d\n", tcapdst->delegations[i].sched, tcapdst->delegations[i].prio); */
-	/* printf("src %p\n", tcap_sched_info(tcapsrc)->sched); */
-	/* for (i = 0 ; i < ndelegs ; i++) printf("\t%p:%d\n", deleg_tmp[i].sched, deleg_tmp[i].prio); */
-
-
-	if (__tcap_legal_transfer_delegs(tcapdst->delegations, tcapdst->ndelegs, tcap_sched_info(tcapdst)->sched, 
-					 deleg_tmp, ndelegs, tcap_sched_info(tcapsrc)->sched)) return -1;
-
-//	printf("<<>>\n");
-
-	/* 
-	 * Adjust priorities in the new array of delegations such that
-	 * each entry in the destination array (from the source's
-	 * array) is adjusted given the values in the destination's
-	 * previous array (essentially taking the numerical maximum of
-	 * each).
-	 */
-	for (i = 0, j = 0 ; i < ndelegs && j < tcapdst->ndelegs ; i++) {
-		/* fast-forward the destination's array */
-		while (deleg_tmp[i].sched > tcapdst->delegations[j].sched) j++;
-		if (deleg_tmp[i].sched != tcap_sched_info(tcapsrc)->sched && 
-		    deleg_tmp[i].sched == tcapdst->delegations[j].sched) {
-			/* due to tests in legal_transfer, we know the
-			 * rhs is >= than the lhs */
-			assert(deleg_tmp[i].prio <= tcapdst->delegations[j].prio);
-			deleg_tmp[i].prio = tcapdst->delegations[j].prio;
-		}
-	}
-
-	/* commit changes (if the transfer is successful) */
-	if (__tcap_transfer(tcapdst, tcapsrc, cycles, tcap_sched_info(tcapdst)->prio, pooled)) return -1;
-	//td->prio            = prio;
-	memcpy(tcapdst->delegations, deleg_tmp, sizeof(struct tcap_sched_info) * ndelegs);
-	tcapdst->ndelegs    = ndelegs;
-	tcapdst->sched_info = td - deleg_tmp;
-
+	/* assert(!__tcap_legal_transfer_delegs(deleg_tmp, ndelegs, tcap_sched_info(dst)->sched,  */
+	/* 				     src->delegations, src->ndelegs, tcap_sched_info(src)->sched)); */
+	if (__tcap_transfer(dst, src, cycles, 0, pooled)) return -1;
+	memcpy(dst->delegations, deleg_tmp, sizeof(struct tcap_sched_info) * ndelegs);
+	dst->ndelegs    = ndelegs;
+	assert(si != -1);
+	dst->sched_info = si;
+	
 	return 0;
 }
 

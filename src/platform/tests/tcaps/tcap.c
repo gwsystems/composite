@@ -85,12 +85,6 @@ delegations_validate(struct tcap *t)
 	return 0;
 }
 
-void
-test_fuzz(void)
-{
-
-}
-
 #define LVLS 3
 
 int 
@@ -337,6 +331,7 @@ test_unit_manual(void)
 	split(2);
 	split(3);
 
+	t0a = tcap_split(tcap_get(&s0, 0), CYC_PLACEHOLDER, PRIO_MED, 0);
 	assert(!tcap_delegate(t2a, t3a, 1, 0, 0));
 	assert(!tcap_delegate(t3b, t2b, 1, 0, 0));
 	assert(!tcap_delegate(t3b, t2b, 1, 0, 0));
@@ -345,10 +340,10 @@ test_unit_manual(void)
 	assert(!tcap_delegate(t2b, t1b, 1, 0, 0));
 
 	assert(!tcap_delegate(t1a, t3b, 1, 0, 0));
-	delegations_print(t2a);
-	delegations_print(t0a);
 	assert(!tcap_delegate(t2a, t0a, 1, 0, 0));
 	assert(!tcap_delegate(t1a, t2a, 1, 0, 0));
+	
+	
 }
 
 int
@@ -358,7 +353,6 @@ main(void)
 	test_unit_matrix(0);
 	test_unit_matrix(1);
 	test_unit_matrix(2);
-	test_fuzz();
 
 	return 0;
 }
