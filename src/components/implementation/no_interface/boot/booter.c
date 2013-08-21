@@ -382,7 +382,7 @@ boot_create_system(void)
 				 * region for now. The start address of the
 				 * next component should have no overlap with
 				 * the current one. */
-				assert(cobj_sect_get(hs[i + 1], 0)->vaddr == sect->vaddr + SERVICE_SIZE * 2);
+				assert(cobj_sect_get(hs[i + 1], 0)->vaddr == sect->vaddr + SERVICE_SIZE * 4);
 			}
 		}
 		if (boot_spd_symbs(h, spdid, &comp_info))        BUG();
