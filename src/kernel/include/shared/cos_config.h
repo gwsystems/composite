@@ -19,13 +19,19 @@
  * using networking (cnet). 
  */
 #define LINUX_HIGHEST_PRIORITY 1 
+/* the CPU that does initialization for Composite */
+#define INIT_CORE              0
 
-#define INIT_CORE              0 // the CPU that does initialization for Composite
 /* Currently Linux runs on the last CPU only. The code includes the
  * following macro assumes this. We might need to assign more cores
  * to Linux later. */
 #define LINUX_CORE             (NUM_CPU - 1)
-#define NUM_CPU_COS            (NUM_CPU > 1 ? NUM_CPU - 1 : 1) /* how many cores Composite owns */
+/* # of cores assigned to Composite */
+#define NUM_CPU_COS            (NUM_CPU > 1 ? NUM_CPU - 1 : 1)
+
+/* NUM_CPU_SOCKETS defined in cpu_ghz.h. The information is used for
+ * intelligent IPI distribution. */
+#define NUM_CORE_PER_SOCKET    (NUM_CPU / NUM_CPU_SOCKETS)
 
 // cos kernel settings
 #define COS_PRINT_MEASUREMENTS 1

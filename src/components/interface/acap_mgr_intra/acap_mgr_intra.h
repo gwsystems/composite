@@ -6,6 +6,9 @@
 
 #define MAX_NESTED_PAR_LEVEL 8
 
+/* 0 means unicast. */
+#define MULTICAST 1
+
 int par_acap_lookup(int spdid, int n, int nest_level);
 int par_create(int spdid, int n_request); // called by client
 void *par_ring_lookup(int spdid, int n, int nest_level);

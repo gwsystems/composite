@@ -22,9 +22,9 @@ int delay(void) {
 }
 
 #define ITER 100
-#define LOOP 200
-unsigned long long time[ITER];
-//int core_access[NUM_CPU];
+#define LOOP 39
+unsigned long long time[ITER], time1[ITER];
+int core_access[NUM_CPU_COS];
 
 int meas(void)
 {
@@ -39,8 +39,11 @@ int meas(void)
 #pragma omp parallel for
 		for (j = 0; j < LOOP; j++)	
 		{
-			my_id = omp_get_thread_num();
-//			core_access[cos_cpuid()] = 1;
+			if (omp_get_thread_num() == 0) {
+				rdtscll(e);
+				time1[i] = e - s;
+			}
+			//core_access[cos_cpuid()] = 1;
 		}
 		rdtscll(e);
 		time[i] = e - s;
@@ -53,11 +56,15 @@ int meas(void)
 	/* } */
 	unsigned long long sum = 0;
 	for (i = 0; i < ITER; i++) {
-		printf("cost %d: %llu\n", i, time[i]);
+		printf("cost %d: %llu   half way %llu\n", i, time[i], time1[i]);
 		sum += time[i];
 	}
 	sum /= ITER;
 	printf("average %llu\n", sum);
+
+	/* for (i = 0; i < NUM_CPU_COS; i++) { */
+	/* 	printc("for core i %d, access %d\n", i, core_access[i]); */
+	/* } */
 
 	return 0;
 }

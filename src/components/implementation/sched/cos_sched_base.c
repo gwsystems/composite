@@ -594,7 +594,7 @@ PERCPU(CK_RING_INSTANCE(xcore_ring) *, percpu_ring);
 
 static inline int exec_fn(int (*fn)(), int nparams, u32_t *params) ;
 
-ck_spinlock_ticket_t xcore_lock;
+ck_spinlock_ticket_t xcore_lock = CK_SPINLOCK_TICKET_INITIALIZER;
 
 static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, int wait)
 {
@@ -627,7 +627,7 @@ static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, 
 		if (unlikely(s == 0)) rdtscll(s); 
 		rdtscll(e);
 		/* detect unusual delay */
-		if (e - s > 1 << 20) {
+		if (e - s > 1 << 30) {
 			printc("cos_sched_base: xcore_exec pushing into ring buffer has abnormal delay (%llu cycles).\n", e - s);
 			s = e;
 		}
@@ -1970,12 +1970,6 @@ print_config_info(void)
 	printc("Linux runs on core %d.\n", NUM_CPU - 1);
 }
 
-static inline void 
-sched_spin_lock_init(void)
-{
-	ck_spinlock_ticket_init(&xcore_lock);
-}
-
 extern struct cos_component_information cos_comp_info;
 #define NREGIONS 4
 
@@ -1990,7 +1984,6 @@ int sched_root_init(void)
 		assert(initialized[INIT_CORE] == 0);
 		print_config_info();
 		/* Init the cross-core communicate spin lock. */
-		sched_spin_lock_init();
 	} else {
 		while (initialized[INIT_CORE] == 0) ;
 	}

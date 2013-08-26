@@ -1,3 +1,5 @@
+#include <../../kernel/include/shared/cos_config.h>
+
 // FIXME: From consts.h
 #define THD_ID_SHARED_PAGE (1<<30)  // 1 gig
 
