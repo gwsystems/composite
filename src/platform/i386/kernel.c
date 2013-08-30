@@ -77,7 +77,7 @@ kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
 
     while (keep_kernel_running);
 
-    printk(INFO, "Shutting down...");
+    printk(INFO, "Shutting down...\n");
     asm("mov $0x53,%ah");
     asm("mov $0x07,%al");
     asm("mov $0x001,%bx");

@@ -8,21 +8,32 @@
 #define KEY_PENDING   0x64
 
 static void
-keyboard_handler(struct registers *regs)
+shutdown(void)
 {
     uint8_t good;
+    printk(INFO, "Key was <ESC>. Shutting down.");
+    good = 0x02;
+    while (good & 0x02) good = inb (0x64);
+    outb (0x64, 0xfe);
+    loop:
+    asm volatile("hlt");
+    goto loop;
+}
+
+static void
+keyboard_handler(struct registers *regs)
+{
     uint16_t scancode;
     while(inb(KEY_PENDING) & 2);
     scancode = inb(KEY_DEVICE);
     printk(INFO, "Keyboard press: %d\n", scancode);
-    if (scancode == 129) {
-      printk(INFO, "Key was <ESC>. Shutting down.");
-      good = 0x02;
-      while (good & 0x02) good = inb (0x64);
-      outb (0x64, 0xfe);
-      loop:
-      asm volatile("hlt");
-      goto loop;
+    switch (scancode) {
+      case 129:	// ESC
+        shutdown();
+	break;
+      default:
+        printk(INFO, "Key press: %d\n", scancode);
+        break;
     }
 }
 

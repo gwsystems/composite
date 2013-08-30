@@ -50,4 +50,6 @@ void paging__init(size_t memory_size);
 void *chal_va2pa(void *address);
 void *chal_pa2va(void *address);
 
+void switch_user_mode(void);
+
 #endif

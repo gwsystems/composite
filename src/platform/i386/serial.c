@@ -3,6 +3,7 @@
 #include "isr.h"
 #include "serial.h"
 #include "printk.h"
+#include "vm.h"
 
 extern int keep_kernel_running;
 
@@ -60,6 +61,9 @@ serial_handler(struct registers *r)
 	case 27:
 		keep_kernel_running = 0;
 		break;
+        case 115:
+                switch_user_mode();
+                break;
         case '\0':
             return;
             break;

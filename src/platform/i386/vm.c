@@ -6,14 +6,44 @@
 #include "vm.h"
 
 //#define KERNEL_TABLES 64	// 256 MB
-#define KERNEL_TABLES 16
+#define KERNEL_TABLES 4 
 
 extern void user_test (void);
 extern void user_test_end (void);
 
-uint32_t pagedir[1024] __attribute__((aligned(4096)));
-uint32_t kernel_pagetab[1024] __attribute__((aligned(4096)));
+uint32_t kerndir[1024] __attribute__((aligned(4096)));
+uint32_t userdir[1024] __attribute__((aligned(4096)));
+
+uint32_t kernel_pagetab[KERNEL_TABLES][1024] __attribute__((aligned(4096)));
+//uint32_t sys_pagetab[1024] __attribute__((aligned(4096)));
 uint32_t user_pagetab[1024] __attribute__((aligned(4096)));
+
+static void
+load_page_directory(uint32_t *dir)
+{
+    uint32_t d = (uint32_t)chal_va2pa(dir) | PAGE_P;
+     
+    printk (INFO, "Setting cr3 = %x (%x)\n", d, d);
+    asm volatile("mov %0, %%cr3" : : "r"(d));
+}
+
+void
+switch_user_mode(void)
+{
+  static int usermode = 0;
+  uint32_t *sent;
+  sent = (uint32_t*)0x1400000;
+  if (usermode) {
+    printk(INFO, "Switching to kernel mode\n");
+    load_page_directory(kerndir);
+    usermode = 0;
+  } else {
+    printk(INFO, "Switching to user mode\n"); 
+    load_page_directory(userdir);
+    usermode = 1;
+  }
+  printk(INFO, "Contents of address %x: %x\n", sent, *sent);
+}
 
 void *
 chal_pa2va(void *address)
@@ -27,14 +57,6 @@ chal_va2pa(void *address)
     return address;
 }
 
-static void
-load_page_directory(size_t dir)
-{
-    uint32_t d = (uint32_t)chal_va2pa(pagedir) | PAGE_P;
-     
-    printk (INFO, "Setting cr3 = %x (%x)\n", d, d);
-    asm volatile("mov %0, %%cr3" : : "r"(d));
-}
 
 static void
 page_fault(struct registers *regs)
@@ -52,6 +74,24 @@ page_fault(struct registers *regs)
 
 }
 
+static void
+map_table(uint32_t *dir, uint32_t tno, uint32_t *table, uint32_t flags)
+{
+  dir[tno] = (((uint32_t) table) & PAGE_FRAME) | flags;
+  //printk(INFO, "Setting dir[%d] to %x (from %x)\n", tno, dir[tno], table);
+}
+
+static void
+init_table(uint32_t *table, uint32_t *base, uint32_t flags)
+{
+  int i;
+  //printk(INFO, "Initializing table at %x from base %x\n", table, base);
+  for (i = 0; i < 1024; i++) {
+    table[i] = (((uint32_t) base + (4096 * i)) & PAGE_FRAME) | flags;
+    //if (i < 3) printk (INFO, "\t%x\n", table[i]);
+  } 
+}
+
 void
 paging__init(size_t memory_size)
 {
@@ -64,23 +104,29 @@ paging__init(size_t memory_size)
     register_interrupt_handler(14, &page_fault);
 
     printk(INFO, "Mapping pages to tables and directories\n");
-    for (i = 0; i < 1024; i++) {
-        pagedir[i] = ((((uint32_t) &kernel_pagetab) + (i * 4096)) & PAGE_FRAME) | PAGE_RW | (i == 0 ? PAGE_P | PAGE_G : 0) | (i < KERNEL_TABLES ? PAGE_G : PAGE_US);
-        kernel_pagetab[i] = ((4096 * (i)) & PAGE_FRAME) | PAGE_RW | PAGE_P | PAGE_G;
-	user_pagetab[i] = (((1024 * 1024 * 16) + (4096 * i)) & PAGE_FRAME) | PAGE_RW | PAGE_P | PAGE_US;	// this is horrible. I know.
-    }
 
-    pagedir[KERNEL_TABLES] = ((uint32_t)&user_pagetab & PAGE_FRAME) | PAGE_RW | PAGE_P | PAGE_US;
 
     for (i = 0; i <= KERNEL_TABLES; i++) {
-      uint32_t *t = (uint32_t *)(pagedir[i] & PAGE_FRAME);
-      printk(INFO, "pd[%d] => %x:  %x, %x, %x...\n", i, pagedir[i], t[0], t[1], t[2]);
+      //uint32_t *t;
+
+      init_table(kernel_pagetab[i], (uint32_t*) (i * 4096 * 1024), PAGE_RW | PAGE_P | PAGE_G);
+      map_table(kerndir, i, kernel_pagetab[i], PAGE_RW | PAGE_P | PAGE_G);
+      map_table(userdir, i, kernel_pagetab[i], PAGE_RW | PAGE_P | PAGE_G);
+
+      //t = (uint32_t *)(pagedir[i] & PAGE_FRAME);
+      //printk(INFO, "pd[%d] => %x:  %x, %x, %x...\n", i, pagedir[i], t[0], t[1], t[2]);
     }
+
+    //init_table(sys_pagetab, (uint32_t*) (KERNEL_TABLES * 4096 * 1024), PAGE_RW | PAGE_P);
+    map_table(kerndir, KERNEL_TABLES + 1, kernel_pagetab[0], PAGE_RW | PAGE_P);
+
+    init_table(user_pagetab, (uint32_t*) (KERNEL_TABLES * 4096 * 1024), PAGE_RW | PAGE_P | PAGE_US);
+    map_table(userdir, KERNEL_TABLES + 1, user_pagetab, PAGE_RW | PAGE_P | PAGE_US);
 
     printk(INFO, "Base user page is at %x\n", user_pagetab[0]);
 
     printk(INFO, "Loading page directory\n");
-    load_page_directory(0);
+    load_page_directory(kerndir);
 
     printk(INFO, "Enabling paging\n");
     asm volatile("mov %%cr0, %0" : "=r"(cr0));

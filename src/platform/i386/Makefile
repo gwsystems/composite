@@ -84,3 +84,7 @@ clean:
 
 qemu: kernel.img
 	qemu-system-i386 -nographic -kernel kernel.img -no-reboot -s 
+
+gdb: kernel.img
+	@echo "Start gdb in another window with "
+	qemu-system-i386 -nographic -kernel kernel.img -no-reboot -s -S
