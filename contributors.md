@@ -18,8 +18,14 @@ Significant past contributors
 -----------------------------
 
 - **Andrew Sweeney** -- Masters student at GWU that worked on the initial drafts of the stack manager
+
 - **Dave Marchevsky** -- Undergraduate student at GWU working on fault tolerance
+
 - **Tareque Hossain** -- Worked on the related `kmux` project
+
 - **John Wittrock** -- Undergraduate who has implemented a version of fork, ported _FreeRTOS_ to _Composite_, and implemented low-level component checkpointing support
+
 - **Yang Yang Wu** -- Undergraduate providing some POSIX compatibility, and multicore Hijack support
+
+- **Chris Anderson** and **Terry Knowlton** -- Masters students at GWU that provided Lua support
 
