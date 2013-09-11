@@ -53,10 +53,10 @@ struct tcap {
 	 * refers to the parent tcap, or it might be segregated in
 	 * this capability in which case budget = this.
 	 */
-	struct tcap_ref         budget;
-	struct tcap_budget      budget_local; /* if we have a partitioned budget */
-	u32_t                   epoch;	 /* when a tcap is deallocated, epoch++ */
-	u16_t                   ndelegs, cpuid, sched_info;
+	struct tcap_ref    budget;
+	struct tcap_budget budget_local; /* if we have a partitioned budget */
+	u32_t              epoch;	 /* when a tcap is deallocated, epoch++ */
+	u16_t              ndelegs, cpuid, sched_info;
 	/* 
 	 * Which chain of temporal capabilities resulted in this
 	 * capability's access, and what access is granted? We might
@@ -73,8 +73,9 @@ struct tcap {
 	 * incrementing the epoch of a tcap.  If it is outdated, then
 	 * we assume it is of the lowest-priority.
 	 */
-	struct tcap_sched_info  delegations[TCAP_MAX_DELEGATIONS];
-	struct tcap            *freelist;
+	struct tcap_sched_info delegations[TCAP_MAX_DELEGATIONS];
+	struct tcap           *next, *prev;
+	struct tcap           *freelist;
 };
 
 static inline int
@@ -110,19 +111,33 @@ tcap_ref_create(struct tcap_ref *r, struct tcap *t)
 	r->epoch = t ? t->epoch : 0;
 }
 
-/* return 0 if budget left, 1 otherwise */
+/* 
+ * Return 0 if budget left, 1 otherwise.  Consume budget from both the
+ * local and the parent budget.
+ */
 static inline int
 tcap_consume(struct tcap *t, u32_t cycles)
 {
 	struct tcap *bc;
+	int left = 0;
 
 	assert(t);
+	if (likely(!TCAP_RES_IS_INF(t->budget_local.cycles))) {
+		t->budget_local.cycles -= cycles;
+		if (t->budget_local.cycles <= 0) {
+			t->budget_local.cycles = 0;
+			left = 1;
+		}
+	}
+	
 	bc = tcap_deref(&t->budget);
-	if (unlikely(!bc)) return 1;
-	if (unlikely(TCAP_RES_IS_INF(bc->budget_local.cycles))) return 0;
+	if (unlikely(!bc)) return left;
+	if (likely(!TCAP_RES_IS_INF(bc->budget_local.cycles))) {
+		bc->budget_local.cycles -= cycles;
+		if (bc->budget_local.cycles <= 0) left = 1;
+	}
 
-	bc->budget_local.cycles -= cycles;
-	return bc->budget_local.cycles <= 0;
+	return left;
 }
 
 static inline long long
@@ -135,7 +150,6 @@ tcap_remaining(struct tcap *t)
 	bc = tcap_deref(&t->budget);
 	if (unlikely(!bc)) return 0;
 	b = &bc->budget_local;
-	if (unlikely(b->cycles <= 0LL)) return 0;
 
 	return b->cycles;
 }

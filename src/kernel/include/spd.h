@@ -199,7 +199,8 @@ struct spd {
 	unsigned int ncaps;
 	struct invocation_cap caps[MAX_STATIC_CAP];
 
-	unsigned int ntcaps;
+	struct spd *tcap_root_next, *tcap_root_prev;
+	unsigned int ntcaps, nactive_tcaps;
 	struct tcap *tcap_freelist;
 	struct tcap tcaps[TCAP_MAX];
 } CACHE_ALIGNED; //cache line size

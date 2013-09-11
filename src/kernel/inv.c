@@ -885,7 +885,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		printk("switch_thread err: no tcap\n");
 		goto ret_err;
 	}
-	if (unlikely(!tcap_remaining(tc))) {
+	if (unlikely(tcap_remaining(tc) <= 0)) {
 		struct tcap *budget;
 
 		budget = tcap_deref(&tc->budget);

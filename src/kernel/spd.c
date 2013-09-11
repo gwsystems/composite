@@ -321,6 +321,7 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 	spd->parent_sched = NULL;
 
 	spd->composite_member_next = spd->composite_member_prev = spd;
+	spd->tcap_root_next = spd->tcap_root_prev = spd;
 
 	for (i = 0 ; i < MAX_SPD_VAS_LOCATIONS ; i++) spd->location[i].size = 0;
 
