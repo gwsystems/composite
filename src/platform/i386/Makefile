@@ -86,5 +86,5 @@ qemu: kernel.img
 	qemu-system-i386 -nographic -kernel kernel.img -no-reboot -s 
 
 gdb: kernel.img
-	@echo "Start gdb in another window with "
+	@echo "Start gdb in another window"
 	qemu-system-i386 -nographic -kernel kernel.img -no-reboot -s -S

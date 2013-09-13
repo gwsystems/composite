@@ -5,6 +5,12 @@
 
 #define PAGE_SIZE 4096
 
+typedef uint32_t u32_t;
+
+typedef u32_t pte_t;		// Page Table Entry
+typedef pte_t pt_t[1024];	// Page Table
+typedef u32_t ptd_t[1024];	// Page Table Directory
+
 /* 4kB page structure:
 0:	P	Present				0 = not present		1 = present
 1:	RW	Read/Write			0 = read only		1 = read/write

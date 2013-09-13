@@ -6,20 +6,24 @@
 #include "vm.h"
 
 //#define KERNEL_TABLES 64	// 256 MB
-#define KERNEL_TABLES 4 
+#define KERNEL_TABLES 8		// 32 MB
+
+#define POSSIBLE_FRAMES 1024*1024
 
 extern void user_test (void);
 extern void user_test_end (void);
 
-uint32_t kerndir[1024] __attribute__((aligned(4096)));
-uint32_t userdir[1024] __attribute__((aligned(4096)));
+u32_t framebitmap[POSSIBLE_FRAMES/sizeof(u32_t)];
 
-uint32_t kernel_pagetab[KERNEL_TABLES][1024] __attribute__((aligned(4096)));
-//uint32_t sys_pagetab[1024] __attribute__((aligned(4096)));
-uint32_t user_pagetab[1024] __attribute__((aligned(4096)));
+ptd_t kerndir __attribute__((aligned(4096)));
+ptd_t userdir __attribute__((aligned(4096)));
+
+pt_t kernel_pagetab[KERNEL_TABLES] __attribute__((aligned(4096)));
+pt_t user_pagetab __attribute__((aligned(4096)));
+
 
 static void
-load_page_directory(uint32_t *dir)
+ptd_load(ptd_t dir)
 {
     uint32_t d = (uint32_t)chal_va2pa(dir) | PAGE_P;
      
@@ -32,14 +36,14 @@ switch_user_mode(void)
 {
   static int usermode = 0;
   uint32_t *sent;
-  sent = (uint32_t*)0x1400000;
+  sent = (uint32_t*)((KERNEL_TABLES+1)*4096*1024);
   if (usermode) {
     printk(INFO, "Switching to kernel mode\n");
-    load_page_directory(kerndir);
+    ptd_load(kerndir);
     usermode = 0;
   } else {
     printk(INFO, "Switching to user mode\n"); 
-    load_page_directory(userdir);
+    ptd_load(userdir);
     usermode = 1;
   }
   printk(INFO, "Contents of address %x: %x\n", sent, *sent);
@@ -75,11 +79,41 @@ page_fault(struct registers *regs)
 }
 
 static void
-map_table(uint32_t *dir, uint32_t tno, uint32_t *table, uint32_t flags)
+ptd_map(ptd_t dir, uint32_t tno, pt_t table, uint32_t flags)
 {
   dir[tno] = (((uint32_t) table) & PAGE_FRAME) | flags;
-  //printk(INFO, "Setting dir[%d] to %x (from %x)\n", tno, dir[tno], table);
 }
+
+static void
+ptd_init(ptd_t dir)
+{
+  int i;
+  for (i = 0; i < 1024; i++) {
+    dir[i] = 0;
+  }
+}
+
+#if 0
+static void
+pt_map(pt_t table, uint32_t eno, pte_t entry, uint32_t flags)
+{
+  table[eno] = (((uint32_t) entry) & PAGE_FRAME) | flags;
+}
+#endif
+
+
+#if 0
+static void
+ptd_copy_global(ptd_t dst, ptd_t src)
+{
+  int i = 0;
+  for (i = 0; i < 1024; i++) {
+    if (src[i] & PAGE_G) {
+      dst[i] = src[i];
+    }
+  }
+}
+#endif
 
 static void
 init_table(uint32_t *table, uint32_t *base, uint32_t flags)
@@ -96,37 +130,41 @@ void
 paging__init(size_t memory_size)
 {
     uint32_t cr0;
-    int i;
+    u32_t i;
+
     printk(INFO, "Intialize paging\n");
-    printk(INFO, "MEMORY_SIZE: %dMB\n", memory_size/1024);
+    printk(INFO, "MEMORY_SIZE: %dMB (%d page frames)\n", memory_size/1024, memory_size/4);
+
+    printk(INFO, "Adding free memory frames to bitmap\n");
+    for (i = 0; i < POSSIBLE_FRAMES/sizeof(u32_t); i++) {
+      framebitmap[i] = 0;
+    }
+    for (i = 0; i < POSSIBLE_FRAMES; i++) {
+      framebitmap[i/(sizeof(u32_t)*8)] |= (i < KERNEL_TABLES * 1024 || i > memory_size / 4) ? 0 : 1 << i % (sizeof(u32_t)*8);
+    }
 
     printk(INFO, "Registering handler\n");
     register_interrupt_handler(14, &page_fault);
 
     printk(INFO, "Mapping pages to tables and directories\n");
 
+    ptd_init(kerndir);
 
     for (i = 0; i <= KERNEL_TABLES; i++) {
-      //uint32_t *t;
-
       init_table(kernel_pagetab[i], (uint32_t*) (i * 4096 * 1024), PAGE_RW | PAGE_P | PAGE_G);
-      map_table(kerndir, i, kernel_pagetab[i], PAGE_RW | PAGE_P | PAGE_G);
-      map_table(userdir, i, kernel_pagetab[i], PAGE_RW | PAGE_P | PAGE_G);
-
-      //t = (uint32_t *)(pagedir[i] & PAGE_FRAME);
-      //printk(INFO, "pd[%d] => %x:  %x, %x, %x...\n", i, pagedir[i], t[0], t[1], t[2]);
+      ptd_map(kerndir, i, kernel_pagetab[i], PAGE_RW | PAGE_P | PAGE_G);
+      ptd_map(userdir, i, kernel_pagetab[i], PAGE_RW | PAGE_P | PAGE_G);
     }
 
-    //init_table(sys_pagetab, (uint32_t*) (KERNEL_TABLES * 4096 * 1024), PAGE_RW | PAGE_P);
-    map_table(kerndir, KERNEL_TABLES + 1, kernel_pagetab[0], PAGE_RW | PAGE_P);
+    ptd_map(kerndir, KERNEL_TABLES + 1, kernel_pagetab[0], PAGE_RW | PAGE_P);
 
     init_table(user_pagetab, (uint32_t*) (KERNEL_TABLES * 4096 * 1024), PAGE_RW | PAGE_P | PAGE_US);
-    map_table(userdir, KERNEL_TABLES + 1, user_pagetab, PAGE_RW | PAGE_P | PAGE_US);
+    ptd_map(userdir, KERNEL_TABLES + 1, user_pagetab, PAGE_RW | PAGE_P | PAGE_US);
 
     printk(INFO, "Base user page is at %x\n", user_pagetab[0]);
 
     printk(INFO, "Loading page directory\n");
-    load_page_directory(kerndir);
+    ptd_load(kerndir);
 
     printk(INFO, "Enabling paging\n");
     asm volatile("mov %%cr0, %0" : "=r"(cr0));
