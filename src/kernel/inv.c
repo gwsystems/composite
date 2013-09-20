@@ -2050,7 +2050,8 @@ cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
 /*
  * verify that truster does in fact trust trustee
  */
-static int verify_trust(struct spd *truster, struct spd *trustee)
+static int 
+verify_trust(struct spd *truster, struct spd *trustee)
 {
 	unsigned short int i;
 
@@ -3570,15 +3571,14 @@ cos_syscall_send_ipi(int spd_id, long cpuid, int thdid, long arg)
 
 COS_SYSCALL int
 cos_syscall_tcap_cntl(spdid_t spdid, unsigned long op_prio, 
-		      unsigned long tcap2_tcap1, unsigned long budget)
+		      unsigned long tcap2_tcap1, long budget)
 {
 	struct spd *c;
 	struct thread *t;
 	tcap_t tcsrc, tcdst;
 	struct tcap *tcapsrc, *tcapdst;
-	unsigned int res, exp;
+	long long res;
 	u16_t prio;
-	int pooled = 0;
 	tcap_op_t op;
 
 	/* demarshall arguments */
@@ -3600,25 +3600,22 @@ cos_syscall_tcap_cntl(spdid_t spdid, unsigned long op_prio,
 
 	/* use them */
 	switch (op) {
-	case COS_TCAP_DELEGATE_POOL: pooled = 1;
 	case COS_TCAP_DELEGATE:
 		if (tcapsrc)  return -1;
 		tcapsrc = tcap_deref(&t->tcap_receiver);
 		if (!tcapsrc) return -1;
-		return tcap_delegate(tcapdst, tcapsrc, res, prio, pooled);
-	case COS_TCAP_SPLIT_POOL:    pooled = 1;
+		return tcap_delegate(tcapdst, tcapsrc, res, prio);
 	case COS_TCAP_SPLIT:
 	{
 		struct tcap *n;
 
-		n = tcap_split(tcapdst, res, prio, pooled);
+		n = tcap_split(tcapdst, res, prio);
 		if (!n) return -1;
 		return tcap_id(n);
 	}
-	case COS_TCAP_TRANSFER_POOL: pooled = 1;
 	case COS_TCAP_TRANSFER:
 		if (!tcapsrc) return -1;
-		return tcap_transfer(tcapdst, tcapsrc, res, prio, pooled);
+		return tcap_transfer(tcapdst, tcapsrc, res, prio);
 	case COS_TCAP_BIND:
 	case COS_TCAP_RECEIVER:
 	{

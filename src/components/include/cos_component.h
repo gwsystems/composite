@@ -151,7 +151,7 @@ cos_syscall_3(18, int, __vas_cntl, int, op_spdid, long, arg1, long, arg2);
 cos_syscall_3(19, int, __trans_cntl, unsigned long, op_ch, unsigned long, addr, int, off);
 cos_syscall_3(20, int, __pfn_cntl, unsigned long, op_spd, unsigned long, mem_id, int, extent);
 cos_syscall_3(21, int, __send_ipi, long, cpuid, int, thdid, long, arg);
-cos_syscall_3(22, int, __tcap_cntl, unsigned long, op_prio, unsigned long, tcap1_tcap2, unsigned long, budget);
+cos_syscall_3(22, int, __tcap_cntl, unsigned long, op_prio, unsigned long, tcap1_tcap2, long, budget);
 cos_syscall_0(31,  int, null);
 
 static inline int 
@@ -162,7 +162,7 @@ cos_mmap_cntl(short int op, short int flags, short int dest_spd,
 }
 
 static inline int
-cos_tcap_cntl(tcap_op_t op, tcap_t tcap1, tcap_t tcap2, u16_t prio, unsigned int res)
+cos_tcap_cntl(tcap_op_t op, tcap_t tcap1, tcap_t tcap2, u16_t prio, long long res)
 {
 	return cos___tcap_cntl((op << 16) | prio, (tcap2 << 16) | tcap1, TCAP_RES_PACK(res));
 }

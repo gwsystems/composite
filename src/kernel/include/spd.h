@@ -16,6 +16,7 @@
 #include "shared/consts.h"
 #include "chal.h"
 #include "tcap.h"
+#include "clist.h"
 
 /**
  * Service Protection Domains
@@ -152,7 +153,7 @@ struct spd_location {
 };
 
 typedef int mmaps_t;
-
+struct thread;
 struct spd {
 	/* data touched on the ipc hotpath (32 bytes)*/
 	struct spd_poly spd_info;
@@ -175,9 +176,10 @@ struct spd {
 	struct usr_inv_cap *user_cap_tbl, *user_vaddr_cap_tbl;
 
 	/* if this service is a scheduler, at what depth is it, and
-	 * who's its parent? sched_depth < 0 if not schedulert */
+	 * who's its parent? sched_depth < 0 if not scheduler */
 	int sched_depth;
 	struct spd *parent_sched;
+	struct thread *timer;
 
 	struct cos_sched_data_area *sched_shared_page[NUM_CPU], *kern_sched_shared_page[NUM_CPU];
 	unsigned short int prev_notification[NUM_CPU];
@@ -199,7 +201,7 @@ struct spd {
 	unsigned int ncaps;
 	struct invocation_cap caps[MAX_STATIC_CAP];
 
-	struct spd *tcap_root_next, *tcap_root_prev;
+	struct clist tcap_root_list;
 	unsigned int ntcaps, nactive_tcaps;
 	struct tcap *tcap_freelist;
 	struct tcap tcaps[TCAP_MAX];
