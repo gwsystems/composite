@@ -8,7 +8,7 @@ endif
 
 CC := gcc -m32 
 LD := ld -m elf_i386
-AS := as --32
+AS := as --32 -g
 
 CFLAGS := -g3 -Werror -ffreestanding -nostdlib -mno-red-zone
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs 
@@ -49,7 +49,7 @@ OBJS += ports.o
 OBJS += vtxprintf.o
 OBJS += boot_log.o
 OBJS += multiboot.o
-OBJS += user.o
+#OBJS += user.o
 
 all: $(KERNEL)
 	$(E) "--[ Kernel Built"

@@ -10,8 +10,8 @@
 
 #define POSSIBLE_FRAMES 1024*1024
 
-extern void user_test (void);
-extern void user_test_end (void);
+//extern void user_test (void);
+//extern void user_test_end (void);
 
 u32_t framebitmap[POSSIBLE_FRAMES/sizeof(u32_t)];
 
@@ -175,7 +175,7 @@ paging__init(size_t memory_size)
     printk (INFO, "OK\n");
 
     // setting some stuff for testing
-    memcpy((uint32_t*)(user_pagetab[0] & PAGE_FRAME), &user_test, user_test_end - user_test);
+    //memcpy((uint32_t*)(user_pagetab[0] & PAGE_FRAME), &user_test, user_test_end - user_test);
 
     printk(INFO, "Finished\n");
 }

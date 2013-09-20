@@ -2,7 +2,7 @@
 syscall:
 	#mov %ecx,<stack pointer>
 	#mov %edx,<return address>
-	sysenter
+	#sysenter
 
 .global sysenter
 sysenter:
