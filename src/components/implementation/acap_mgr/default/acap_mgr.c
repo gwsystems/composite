@@ -17,6 +17,15 @@
 #include <acap_mgr_intra.h>
 #include <bitmap.h>
 
+//#define PAR_CREATION_SPIN
+//#define PAR_BARRIER_SPIN
+
+// multicast is better when spin is used.
+#ifndef PAR_CREATION_SPIN
+/* unicast if not defined. */
+#define MULTICAST
+#endif
+
 struct srv_thd_info { 
 	/* information of handling thread */
 	int cli_spd_id;
@@ -362,6 +371,7 @@ struct nested_par_info {
 };
 
 struct intra_comp {
+	int thdid;
 	int spdid;
 	int n_cpu, n_acap;
 	int inter_socket;  /* # of inter-socket acaps */
@@ -437,7 +447,7 @@ err:
 static inline int 
 assign_unicast(struct intra_comp *thd_comp)
 {
-	int i, j, n_acap = thd_comp->n_cpu - 1;
+	int i, j, curr_socket, assigned = 0, n_acap = thd_comp->n_cpu - 1;
 	thd_comp->n_acap = n_acap;
 
 	if (n_acap == 0) return 0;
@@ -446,14 +456,27 @@ assign_unicast(struct intra_comp *thd_comp)
 	if (unlikely(thd_comp->cpus == NULL)) return -1;
 
 	//TODO: ask policy!
-	for (i = 0; i < thd_comp->n_cpu; i++) {
-		if (i == cos_cpuid()) continue;
+	curr_socket = cos_cpuid() % NUM_CPU_SOCKETS; //get current socket
+	for (j = curr_socket; j < NUM_CPU_COS; j += NUM_CPU_SOCKETS) {// assign curr socket first
+		if (j == cos_cpuid()) continue;
 		/* printc("core %ld thd %d: got cpu %d\n", */
 		/*        cos_cpuid(), cos_get_thd_id(), i); */
-		thd_comp->cpus[j++] = i;
-		if (j == n_acap) break;
+		thd_comp->cpus[assigned++] = j;
+		if (assigned == n_acap) break;
 	}
-	assert(j == n_acap);
+	for (i = 0; i < NUM_CPU_SOCKETS; i++) { // other sockets
+		if (assigned == n_acap) break;
+		if (i == curr_socket) continue;
+		for (j = i; j < NUM_CPU_COS; j += NUM_CPU_SOCKETS) {
+			if (j == cos_cpuid()) continue;
+			/* printc("core %ld thd %d: got cpu %d\n", */
+			/*        cos_cpuid(), cos_get_thd_id(), i); */
+			thd_comp->cpus[assigned++] = j;
+			if (assigned == n_acap) break;
+		}
+	}
+	assert(assigned == n_acap);
+
 	thd_comp->inter_socket = 0;
 	thd_comp->dist_thd_idx = 0;
 
@@ -488,7 +511,7 @@ assign_multicast(struct intra_comp *thd_comp)
 	thd_comp->dist_thd_idx = 0;
 
 	curr_socket = cos_cpuid() % NUM_CPU_SOCKETS; 
-	printc("doing mc curr socket %d\n", curr_socket);
+	/* printc("doing multicasting, curr socket %d\n", curr_socket); */
 	for (i = 0; i < NUM_CPU_SOCKETS; i++) {
 		if (i == curr_socket) continue;
 
@@ -502,7 +525,7 @@ assign_multicast(struct intra_comp *thd_comp)
 	 * going to use all the cores in the current socket. */
 	for (i = curr_socket; i < NUM_CPU_COS; i += NUM_CPU_SOCKETS) {
 		if (i == cos_cpuid()) continue;
-		printc("core %ld thd %d: got local socket cpu %d\n",
+		printc("core %ld thd %d: master got local socket cpu %d\n",
 		       cos_cpuid(), cos_get_thd_id(), i);
 		thd_comp->cpus[cpu_idx++] = i;
 	}
@@ -528,7 +551,7 @@ par_create(int spdid, int n_request)
 	struct thd_intra_comp *curr_thd;
 	struct intra_comp *thd_comp;
 	
-	if (unlikely(n_request <= 0)) return 0;
+	/* if (unlikely(n_request <= 0)) return 0; */
 
 	if (thd_intra_comp[curr] == NULL) {
 		thd_intra_comp[curr] = malloc(sizeof(struct thd_intra_comp));
@@ -541,13 +564,14 @@ par_create(int spdid, int n_request)
 		curr_thd->comp[spdid] = malloc(sizeof(struct intra_comp));
 		if (unlikely(curr_thd->comp[spdid] == NULL)) goto err_mem;
 		curr_thd->comp[spdid]->spdid = spdid;
+		curr_thd->comp[spdid]->thdid = curr;
 	}
 	thd_comp = curr_thd->comp[spdid];
 
 	if (thd_comp->n_cpu == 0) {
 		// TODO: policy should make the decision here. Look up a table?
 		thd_comp->n_cpu = NUM_CPU_COS;
-#if MULTICAST > 0
+#ifdef MULTICAST
 		ret = assign_multicast(thd_comp);
 #else
 		ret = assign_unicast(thd_comp);
@@ -605,6 +629,11 @@ par_acap_get_barrier(int spdid, int nest_level)
 	int cspd, sspd, ret;
 	struct nested_par_info *curr_par;
 
+#ifdef PAR_BARRIER_SPIN
+	/* This means we want the master thread to spin on barrier
+	 * synchronization. */
+	return 0;
+#endif
 	if (unlikely(thd_intra_comp[curr] == NULL)) goto err;
 	curr_thd = thd_intra_comp[curr];
 
@@ -652,7 +681,7 @@ err:
 }
 
 static inline int 
-intra_acap_setup(struct intra_comp *comp, int nest_level, int i)
+intra_acap_setup(struct intra_comp *comp, int nest_level, int i, const int spin)
 {
 	int cli_acap, cspd, sspd, thd_id, cpu, ret;
 	struct srv_thd_info *srv_thd;
@@ -660,11 +689,11 @@ intra_acap_setup(struct intra_comp *comp, int nest_level, int i)
 	struct nested_par_info *par_team;
 
 	/* printc("acap setup: thd %d on core %ld, nest %d, i %d\n",  */
-	/*        cos_get_thd_id(), cos_cpuid(), nest_level, i); */
+	/*        thd_id, cos_cpuid(), nest_level, i); */
 	assert(comp && comp->spdid);
 	cspd = comp->spdid;
 	sspd = comp->spdid;
-	thd_id = cos_get_thd_id();
+	thd_id = comp->thdid;
 
 	assert(comp->cpus);
 	if (comp->dist_thd_idx == 0) assert(i < comp->n_cpu); // true for non-distribution thread.
@@ -673,29 +702,48 @@ intra_acap_setup(struct intra_comp *comp, int nest_level, int i)
 	par_team = &comp->nested_par[nest_level];
 	assert(par_team->cap_info);
 
-	/* create acap between cspd and sspd */
-	cli_acap = cos_async_cap_cntl(COS_ACAP_CLI_CREATE, cspd, sspd, thd_id); // setup should be one call
-	if (cli_acap <= 0) { 
-		printc("err: async cap creation failed.");
-		goto err; 
-	}
-	par_team->cap_info[i].acap = cli_acap;
-
 	/* create server thd and wire. */
-	/* printc("thd %d going to create thd on cpu %d, spd %d...\n", cos_get_thd_id(), cpu, sspd); */
+	/* printc("thd %d going to create thd on cpu %d, spd %d...\n", thd_id, cpu, sspd); */
 	srv_thd_id = create_thd_curr_prio(cpu, sspd);
-	/* printc("thd %d: got new thd id %d\n", cos_get_thd_id(), srv_thd_id); */
+	/* printc("thd %d: got new thd id %d\n", thd_id, srv_thd_id); */
 	/* printc("Created handling thread %d on cpu %d\n", srv_thd_id, cpu); */
 	srv_thd = &srv_thd_info[srv_thd_id];
 	srv_thd->cli_spd_id = cspd;
 	srv_thd->srv_spd_id = sspd;
 
+	if (!spin) {
+		/* create acap between cspd and sspd */
+		cli_acap = cos_async_cap_cntl(COS_ACAP_CLI_CREATE, cspd, sspd, thd_id); // setup should be one call
+		if (cli_acap <= 0) { 
+			printc("err: async cap creation failed.");
+			goto err; 
+		}
+		par_team->cap_info[i].acap = cli_acap;
+
+		srv_acap = cos_async_cap_cntl(COS_ACAP_SRV_CREATE, sspd, srv_thd_id, 0);
+		if (unlikely(srv_acap <= 0)) {
+			printc("Parallel mgr: Server acap allocation failed for thread %d.\n", srv_thd_id);
+			goto err;
+		}
+		srv_thd->srv_acap = srv_acap;
+		ret = cos_async_cap_cntl(COS_ACAP_WIRE, cspd, cli_acap, sspd << 16 | srv_acap);
+		if (unlikely(ret)) {
+			printc("Parallel mgr: acap wire failed for thread %d.\n", srv_thd_id);
+			goto err;
+		}
+	} else {
+		/* This means the worker thread spins to wait for job
+		 * creation. Thus no need to create acaps. */
+		par_team->cap_info[i].acap = -1;
+		srv_thd->srv_acap = -1;
+	}
+
 	/* 0 is the main thread. When we use multicast, the first n
 	 * (n=inter-socket) acaps are not for real worker
 	 * threads. Thus thd_num is not simply the index i. */
 	if (comp->dist_thd_idx > 0) {
-		/* Means current thread is the distribution thread. */
-		struct srv_thd_info *dist_thd = &srv_thd_info[cos_get_thd_id()];
+		/* Means this is the distribution thread. */
+		struct srv_thd_info *dist_thd = &srv_thd_info[thd_id];
 
 		assert(comp->inter_socket == -1 && comp->n_cpu == -1);
 		assert(nest_level == 0); //dist thread itself has no nest level
@@ -703,7 +751,7 @@ intra_acap_setup(struct intra_comp *comp, int nest_level, int i)
 		srv_thd->nesting_level = dist_thd->nesting_level;
 		srv_thd->thd_num = i + comp->dist_thd_idx * NUM_CORE_PER_SOCKET;
 		printc("dist thd %d on core %ld got srv thd %d on cpu %d, thd num %d - parent %d, nest %d\n",
-		       cos_get_thd_id(), cos_cpuid(), srv_thd_id, cpu, srv_thd->thd_num, srv_thd->parent, srv_thd->nesting_level);
+		       thd_id, cos_cpuid(), srv_thd_id, cpu, srv_thd->thd_num, srv_thd->parent, srv_thd->nesting_level);
 	} else {
 		srv_thd->parent = thd_id;
 		srv_thd->nesting_level = nest_level;
@@ -719,18 +767,6 @@ intra_acap_setup(struct intra_comp *comp, int nest_level, int i)
 		goto err;
 	}
 
-	srv_acap = cos_async_cap_cntl(COS_ACAP_SRV_CREATE, sspd, srv_thd_id, 0);
-	if (unlikely(srv_acap <= 0)) {
-		printc("Parallel mgr: Server acap allocation failed for thread %d.\n", srv_thd_id);
-		goto err;
-	}
-	srv_thd->srv_acap = srv_acap;
-	ret = cos_async_cap_cntl(COS_ACAP_WIRE, cspd, cli_acap, sspd << 16 | srv_acap);
-	if (unlikely(ret)) {
-		printc("Parallel mgr: acap wire failed for thread %d.\n", srv_thd_id);
-		goto err;
-	}
-	
 	/* Upcall thread will be blocking on initialization. */
 	if (sched_wakeup(cos_spd_id(), srv_thd_id)) BUG(); // wakeup and block should be within the same comp!!!
 	
@@ -753,6 +789,7 @@ static inline int dist_thread_create(int dist_thd_id, int spdid, int n)
 	if (unlikely(dist_thd_comps->comp[spdid] == NULL)) goto err_mem;
 	dist_thd = dist_thd_comps->comp[spdid];
 	dist_thd->spdid = spdid;
+	dist_thd->thdid = dist_thd_id;
 
 	dist_thd->dist_thd_idx = n + 1;   /* means it's the (n+1)th dist thread */
 	dist_thd->inter_socket = -1;     /* meaningless for dist thd. Sanity check only */
@@ -794,10 +831,11 @@ err_mem:
 static inline int 
 distribution_acap_setup(struct intra_comp *comp, int nest_level, int i)
 {
-	int cli_acap, cspd, sspd, thd_id, cpu, ret;
+	int cli_acap, cspd, sspd, thd_id, cpu, ret, j;
 	struct srv_thd_info *srv_thd;
 	int srv_acap, srv_thd_id;
 	struct nested_par_info *par_team;
+	struct intra_comp *dist_thd;
 
 	/* printc("acap setup: thd %d on core %ld, nest %d, i %d\n",  */
 	/*        cos_get_thd_id(), cos_cpuid(), nest_level, i); */
@@ -854,7 +892,28 @@ distribution_acap_setup(struct intra_comp *comp, int nest_level, int i)
 		printc("Parallel mgr: acap wire failed for thread %d.\n", srv_thd_id);
 		goto err;
 	}
-	
+
+	/* This should be created lazily by the dist thread
+	 * itself. However I need the priority information so that we
+	 * can create worker threads at the same prio as the
+	 * master. Dist thread has high priority. So we let the master
+	 * create those worker threads for the dist thread. */
+	dist_thd = thd_intra_comp[srv_thd_id]->comp[cspd];
+	assert(dist_thd->n_acap);
+	dist_thd->nested_par[0].cap_info = malloc(sizeof(struct per_cap_thd_info) * (dist_thd->n_acap));
+	if (dist_thd->nested_par[0].cap_info == NULL) {
+		printc("cos parallel mgr: could not allocate memory for cap struct.\n");
+		goto err;
+	}
+	for (j = 0; j < dist_thd->n_acap; j++) {
+#ifdef PAR_CREATION_SPIN
+		ret = intra_acap_setup(dist_thd, 0, j, 1);
+#else
+		ret = intra_acap_setup(dist_thd, 0, j, 0);
+#endif
+		assert(ret == 0);
+	}
+
 	/* Upcall thread will be blocking on initialization. */
 	if (sched_wakeup(cos_spd_id(), srv_thd_id)) BUG(); // wakeup and block should be within the same comp!!!
 	
@@ -897,14 +956,18 @@ par_acap_lookup(int spdid, int n, int nest_level)
 	}
 	    
 	if (curr_par->cap_info[n].acap == 0) {
-		int ret;
+		int ret = 0;
 		if (n < thd_comp->inter_socket) {
 			/* This means the master is looking for the
 			 * IPI distribution acap. */
 			assert(thd_comp->inter_socket > 0);
 			ret = distribution_acap_setup(thd_comp, nest_level, n);
 		} else {
-			ret = intra_acap_setup(thd_comp, nest_level, n);
+#ifdef PAR_CREATION_SPIN
+			ret = intra_acap_setup(thd_comp, nest_level, n, 1);
+#else
+			ret = intra_acap_setup(thd_comp, nest_level, n, 0);
+#endif
 		}
 		assert(ret == 0);
 	}

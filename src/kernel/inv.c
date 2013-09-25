@@ -18,6 +18,7 @@
 #include "include/chal.h"
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include "include/fpu.h"
 
 //#include "include/shared/ck/include/ck_pr.h"
 
@@ -936,6 +937,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	break_preemption_chain(curr);
 
 	switch_thread_context(curr, thd);
+        fpu_save(thd);
 	if (thd->flags & THD_STATE_PREEMPTED) {
 		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
 		remove_preempted_status(thd);

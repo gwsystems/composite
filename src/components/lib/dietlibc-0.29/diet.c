@@ -18,6 +18,7 @@
  *   exec
  * "sparc-linux-gcc -nostdlib -static -o t t.o /path/to/dietlibc/bin-sparc/start.o /path/to/dietlibc/bin-sparc/dietlibc.a"
 */
+#define __write2(m) write(2, m, strlen(m))
 
 static void error(const char *message) {
   __write2(message);

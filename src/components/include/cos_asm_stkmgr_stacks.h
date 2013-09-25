@@ -25,6 +25,10 @@
 	cmpxchgl %esp, cos_comp_info
 #endif
 
+/* FIXME: Here we have the ABA problem. This simple lock-free
+ * operation does not prevent ABA. A possible fix could be
+ * integrating a generation number in the lower bits of the 
+ * pointer. */
 #define COS_ASM_GET_STACK                       \
 1:                                              \
         movl %eax, %edx;		        \
@@ -35,7 +39,6 @@
         je    2f;                               \
                                                 \
         /* We have a stack */                   \
-        movl cos_comp_info, %eax;               \
         movl (%eax), %esp;                      \
 	COMP_INFO_CMPXCHG;                      \
         jnz 8b;					\
@@ -51,7 +54,8 @@
 	andl $0xffff, %eax;			\
 	pushl %eax;	/* thd id */		\
         pushl $0x03;    /* flags */             \
-        pushl $0xFACE;  /* next */              
+	subl $4, %esp;
+        /* pushl $0xFACE;  /\* next *\/               */
 
 	
 #define COS_ASM_REQUEST_STACK                   \
@@ -106,8 +110,8 @@
 	COMP_INFO_CMPXCHG;			\
 	jnz 9b;					\
 	movl %ebx, %eax;			\
-						\
-        movl $cos_comp_info, %edx; 		\
+	/* Race? cos_comp_info could change*/	\
+        movl $cos_comp_info, %edx;              \
 	movl 12(%edx), %edx;			\
         test %edx, %edx;                        \
 	je 4f;					\

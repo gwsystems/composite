@@ -1,7 +1,7 @@
 #ifndef ACAP_MGR_H
 #define ACAP_MGR_H
 
-#include <acap_shared.h>
+#include "acap_shared.h"
 #include <ck_ring_cos.h>
 
 int acap_cli_lookup(int spdid, int s_cap);

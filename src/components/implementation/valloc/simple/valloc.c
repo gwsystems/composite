@@ -21,7 +21,7 @@
 #ifdef LOCK_COMPONENT
 #include <cos_synchronization.h>
 cos_lock_t valloc_lock;
-#define LOCK()      do { int ret; ret = lock_take(&valloc_lock); if (ret) {printc("<<<%d\n", ret); BUG();} } while(0);
+#define LOCK()      do { if (lock_take(&valloc_lock))    BUG(); } while(0);
 #define UNLOCK()    do { if (lock_release(&valloc_lock)) BUG(); } while(0);
 #define LOCK_INIT() lock_static_init(&valloc_lock);
 #else

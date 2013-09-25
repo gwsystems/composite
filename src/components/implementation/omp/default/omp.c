@@ -4,6 +4,12 @@
 #include <cos_component.h>
 #include <timed_blk.h>
 #include <print.h>
+
+//#define DISABLE
+
+/* //cos specific  */
+#include <cos_alloc.h>
+#include <cos_synchronization.h>
 #define printf printc
 
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
@@ -22,7 +28,7 @@ int delay(void) {
 }
 
 #define ITER 100
-#define LOOP 39
+#define LOOP NUM_CPU_COS
 unsigned long long time[ITER], time1[ITER];
 int core_access[NUM_CPU_COS];
 
@@ -32,17 +38,32 @@ int meas(void)
 	volatile int a, b = 0;
 	int i, j, my_id;
 
+	printc("testing fpu...\n");
+	volatile float f;
+	for (i = 10; i < 1000; i++) {
+		f = i;
+		f = f / 3;
+		f = f * 3;
+		assert((int)f == i);
+
+		if (f > 10000) break;
+			/*fpu test*/
+	}
+	if (f > 10000) return 0;
+	printc("testing fpu done.\n");
+
 	for (i = 0; i < ITER; i++) {
 		if (b > 100) break;
 
 		rdtscll(s);
 #pragma omp parallel for
-		for (j = 0; j < LOOP; j++)	
+		for (j = 0; j < LOOP; j++)
 		{
 			if (omp_get_thread_num() == 0) {
 				rdtscll(e);
 				time1[i] = e - s;
 			}
+
 			//core_access[cos_cpuid()] = 1;
 		}
 		rdtscll(e);
@@ -50,17 +71,16 @@ int meas(void)
 		//timed_event_block(cos_spd_id(), 1);		//usleep(1000000);
 		delay();
 	}
-
 	/* for (i = 0; i < NUM_CPU; i++) { */
 	/* 	printf("core %d: %d\n", i, core_access[i]); */
 	/* } */
 	unsigned long long sum = 0;
 	for (i = 0; i < ITER; i++) {
-		printf("cost %d: %llu   half way %llu\n", i, time[i], time1[i]);
+		printc("cost %d: %llu   half way %llu\n", i, time[i], time1[i]);
 		sum += time[i];
 	}
 	sum /= ITER;
-	printf("average %llu\n", sum);
+	printc("average %llu\n", sum);
 
 	/* for (i = 0; i < NUM_CPU_COS; i++) { */
 	/* 	printc("for core i %d, access %d\n", i, core_access[i]); */
@@ -70,10 +90,12 @@ int meas(void)
 }
 
 int main() {
-	int nthds;
-	int i,j,k;
-	volatile int my_id;
-
+	/* int nthds; */
+	/* int i,j,k; */
+	/* volatile int my_id; */
+#ifdef DISABLE 
+	return 0;
+#endif
 	meas();
 /* #pragma omp parallel private(my_id) */
 /* 	{ */

@@ -48,7 +48,7 @@ void cos_init(void)
 	printc("Starting %d Invocations.\n", ITER);
 	
 	int params[8] = {1,2,3,4, 11, 22, 33, 44};
-	parallel_inv(test_fn, (void *)params, 2);
+	par_inv(test_fn, (void *)params, 2);
 
 	return;
 

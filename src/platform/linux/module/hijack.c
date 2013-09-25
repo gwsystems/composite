@@ -45,6 +45,8 @@
 #include "../../../kernel/include/mmap.h"
 #include "../../../kernel/include/per_cpu.h"
 #include "../../../kernel/include/shared/consts.h"
+#include "../../../kernel/include/shared/cos_config.h"
+#include "../../../kernel/include/fpu.h"
 
 #include "./hw_ints.h"
 
@@ -60,6 +62,7 @@ extern void sysenter_interposition_entry(void);
 extern void page_fault_interposition(void);
 extern void div_fault_interposition(void);
 extern void reg_save_interposition(void);
+extern void fpu_not_available_interposition(void);
 
 /* 
  * This variable exists for the assembly code for temporary
@@ -724,6 +727,9 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		/* printk("COS AED IOCTL: core %d creating thread in spd %d.\n",  */
 		/*        get_cpuid(), thread_info.spd_handle); */
+                fpu_init();
+		printk("cos core %u: creating thread in spd %d.\n", get_cpuid(), thread_info.spd_handle);
+
 		spd = spd_get_by_index(thread_info.spd_handle);
 		if (!spd) {
 			printk("cos: Spd %d invalid for thread creation.\n", 
@@ -766,7 +772,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		
 		if (cap_is_free(spd, cap_info.cap_handle)) {
 			return -EINVAL;
-		}
+		}			
 
 		if (cap_info.il > MAX_ISOLATION_LVL_VAL) {
 			return -EINVAL;
@@ -1181,6 +1187,16 @@ main_reg_save_interposition(struct pt_regs *rs, unsigned int error_code)
 	return 0;
 }
 
+__attribute__((regparm(3))) int
+main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code)
+{
+        if (unlikely(cos_thd_per_core[get_cpuid()].cos_thd != current)) return 1;
+
+        if (syscalls_enabled == 1) return 1;
+
+        return fpu_disabled_exception_handler();
+}
+	
 /*
  * Memory semaphore already held.
  */
@@ -1631,6 +1647,7 @@ int chal_attempt_brand(struct thread *brand)
 			next = brand_next_thread(brand, cos_current, 1);
 			if (next != cos_current) {
 				thd_save_preempted_state(cos_current, regs);
+                                fpu_save(next);
 				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
 					printk("cos: upcall thread %d is not set to be an active upcall.\n",
 					       thd_get_id(next));
@@ -2101,6 +2118,9 @@ static inline void hw_int_override_all(void)
 	hw_int_override_pagefault(page_fault_interposition);
 	hw_int_override_idt(0, div_fault_interposition, 0, 0);
 	hw_int_override_idt(0xe9, reg_save_interposition, 0, 3);
+#ifdef FPU_ENABLED
+        hw_int_override_idt(7, fpu_not_available_interposition, 0, 0);
+#endif
 
 	return;
 }

@@ -6,8 +6,9 @@
 #include <sched.h>
 
 #include <parallel_inv.h>
+#include <cos_synchronization.h>
 
-// printf ? 
+/* // printf ?  */
 
 int omp_get_thread_num() {
 	/* The value is not valid when nested parallel presents. */
@@ -30,11 +31,11 @@ int omp_set_nested(int enable) {
 
 /* num_threads = 0 means decided by run-time library. 1 means no
  * parallelism. > 1 means max number of threads. */
-int 
-GOMP_parallel_start (void *fn, void *data, unsigned int num_threads) 
+int
+GOMP_parallel_start (void *fn, void *data, unsigned int num_threads)
 {
 	int max_par;
-	/* printc("core %ld, gomp start: fn %d, data %d, go parallel %u\n",  */
+	/* printc("core %ld, gomp start: fn %d, data %d, go parallel %u\n", */
 	/*        cos_cpuid(), (int)fn, (int)data, num_threads); */
 	if (unlikely(num_threads == 1)) return 0; /* means no parallelism. */
 
@@ -47,30 +48,44 @@ GOMP_parallel_start (void *fn, void *data, unsigned int num_threads)
 }
 
 /* chunk_size is used for omp scheduling. Ignored here. */
-/* void  */
-/* GOMP_parallel_loop_static_start (void (*fn) (void *), void *data, */
-/* 				 unsigned num_threads, long start, long end, */
-/* 				 long incr, long chunk_size) */
-/* { */
-/* 	int max_par; */
-/* 	printc("core %ld, parallel for start: fn %d, data %d, go parallel %u\n",  */
-/* 	       cos_cpuid(), (int)fn, (int)data, num_threads); */
-/* 	if (num_threads == 1) return; /\* means no parallelism. *\/ */
+void
+GOMP_parallel_loop_static_start (void (*fn) (void *), void *data,
+				 unsigned num_threads, long start, long end,
+				 long incr, long chunk_size)
+{
+	int max_par;
+	/* printc("core %ld, parallel for start: fn %d, data %d, go parallel %u\n", */
+	/*        cos_cpuid(), (int)fn, (int)data, num_threads); */
+	if (num_threads == 1) return; /* means no parallelism. */
 
-/* 	if (num_threads == 0) */
-/* 		max_par = NUM_CPU_COS; */
-/* 	else */
-/* 		max_par = num_threads; */
-/* 	ainv_parallel_loop_start(fn, data, max_par, start, end, incr); */
+	if (num_threads == 0)
+		max_par = NUM_CPU_COS;
+	else
+		max_par = num_threads;
+	ainv_parallel_loop_start(fn, data, max_par, start, end, incr);
 
-/* 	return; */
-/* } */
+	return;
+}
 
-/* int GOMP_loop_static_next (long *istart, long *iend) */
-/* { */
-/* //	if () */
-/* 	return 0; */
-/* } */
+cos_lock_t omp_lock;
+#define LOCK()      do { if (lock_take(&omp_lock))    BUG(); } while(0);
+#define UNLOCK()    do { if (lock_release(&omp_lock)) BUG(); } while(0);
+
+void GOMP_atomic_start(void)
+{
+	LOCK();
+}
+
+void GOMP_atomic_end(void)
+{
+	UNLOCK();
+}
+
+int GOMP_loop_static_next (long *istart, long *iend)
+{
+//	if ()
+	return 0;
+}
 
 void
 GOMP_loop_end_nowait (void)
@@ -86,7 +101,7 @@ int GOMP_parallel_end() {
 	return 0;
 }
 
-int main(void);
+extern int main(void);
 
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
@@ -121,10 +136,10 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		} else if (second){
 			second = 0;
 
-			printc("cpu %ld, thd %d calling omp main in comp %ld!\n", 
+			printc("cpu %ld, thd %d calling omp main in comp %ld!\n",
 			       cos_cpuid(), cos_get_thd_id(), cos_spd_id());
 			main(); //
-			printc("cpu %ld, thd %d omp main done in comp %ld!\n", 
+			printc("cpu %ld, thd %d omp main done in comp %ld!\n",
 			       cos_cpuid(), cos_get_thd_id(), cos_spd_id());
 			
 			return;

@@ -77,11 +77,11 @@ COS_VECT_CREATE_STATIC(bthds);
 
 #if NUM_CPU_COS > 1
 ck_spinlock_ticket_t xcore_lock = CK_SPINLOCK_TICKET_INITIALIZER;
-#define TAKE(spdid) 	do { if (sched_component_take(spdid))    return -1; ck_spinlock_ticket_lock_pb(&xcore_lock, 1); } while (0)
-#define RELEASE(spdid)	do { if (sched_component_release(spdid)) return -1; ck_spinlock_ticket_unlock(&xcore_lock);     } while (0)
+#define TAKE(spdid) 	do { if (sched_component_take(spdid)) BUG(); ck_spinlock_ticket_lock_pb(&xcore_lock, 1); } while (0)
+#define RELEASE(spdid)	do { ck_spinlock_ticket_unlock(&xcore_lock); if (sched_component_release(spdid)) BUG();  } while (0)
 #else
-#define TAKE(spdid) 	do { if (sched_component_take(spdid))    return -1; } while (0)
-#define RELEASE(spdid)	do { if (sched_component_release(spdid)) return -1; } while (0)
+#define TAKE(spdid) 	do { if (sched_component_take(spdid))    BUG(); } while (0)
+#define RELEASE(spdid)	do { if (sched_component_release(spdid)) BUG(); } while (0)
 #endif
 /* 
  * FIXME: to make this predictable (avoid memory allocation in the
