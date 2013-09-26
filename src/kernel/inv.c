@@ -75,9 +75,7 @@ time_tick_notification(void)
 
 u32_t
 time_ticks(void)
-{
-	return ticks;
-}
+{ return ticks; }
 
 u32_t 
 time_tick_left(void)
@@ -1992,6 +1990,7 @@ cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
 	struct thread *curr_thd, *brand_thd;
 	struct spd *curr_spd;
 	static int first = 1;
+	int ret = 0;
 
 	curr_thd = core_get_curr_thd();
 	curr_spd = thd_validate_get_current_spd(curr_thd, spd_id);
@@ -2008,16 +2007,17 @@ cos_syscall_brand_wire(int spd_id, int thd_id, int option, int data)
 	}
 
 	switch (option) {
-	case COS_HW_TIMER:
+	case COS_HW_TIMER_ROOT:
+		ret = tcap_root(curr_spd);
+		curr_spd->timer = brand_thd;
+		assert(!ret);
 		if (first) {
 			register_timers();
 			first = 0;
 		}
-		cos_timer_brand_thd[get_cpuid()] = brand_thd;
-		tcap_fountain_create(curr_spd);
-		tcap_tick_process();
-		curr_spd->tcaps[0].budget_local.cycles *= 2;
-
+		break;
+	case COS_HW_TIMER:
+		curr_spd->timer = brand_thd;
 		break;
 	case COS_HW_NET:
 		if (active_net_brands >= NUM_NET_BRANDS || !cos_net_fns) {
@@ -3626,6 +3626,15 @@ cos_syscall_tcap_cntl(spdid_t spdid, unsigned long op_prio,
 		if (op == COS_TCAP_BIND) return tcap_bind(t, tcapdst);
 		else                     return tcap_receiver(t, tcapdst);
 		/* note: we can't get here */
+	}
+	case COS_TCAP_ROOT_DELEG:
+	{
+		struct spd *s;
+
+		s = spd_get_by_index(tcsrc); /* use var to pass spdid */
+		if (!s) return -1;
+		if (tcap_root_alloc(s, tcapdst, prio, res)) return -1;
+		break;
 	}
 	default:
 		printk("tcap_cntl: undefined operation %d.\n", op);

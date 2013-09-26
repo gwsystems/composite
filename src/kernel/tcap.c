@@ -10,9 +10,14 @@
  */
 
 #include "include/tcap.h"
+#include "include/spd.h"
+#include "include/thread.h"
 #include "include/clist.h"
 
+#ifdef LINUX_TESTS
+#undef get_cpuid
 #define get_cpuid() 0
+#endif
 
 /* Fill in default "safe" values */
 static void
@@ -445,9 +450,12 @@ tcap_tick_handler(void)
 {
 	struct spd *s;
 
-	assert(!clist_head_empty(&tcap_roots));
-	clist_head_fst_l(&tcap_roots, &s, tcap_root_list);
-	
+	do {
+		if (clist_head_empty(&tcap_roots)) return NULL;
+		clist_head_fst_l(&tcap_roots, &s, tcap_root_list);
+		if (!s->timer) tcap_root_rem(s);
+	} while (unlikely(!s->timer));
+
 	return s->timer;
 }
 
@@ -460,7 +468,7 @@ tcap_root_yield(struct spd *s)
 }
 
 /** allocate a root scheduler time */
-int
+int 
 tcap_root_alloc(struct spd *dst, struct tcap *from, int prio, int cycles)
 {
 	struct tcap *t;
@@ -477,8 +485,15 @@ tcap_root_alloc(struct spd *dst, struct tcap *from, int prio, int cycles)
 }
 
 void
-tcap_root_rem(struct spd *dst)
-{ clist_rem_l(dst, tcap_root_list); }
+tcap_root_rem(struct spd *s)
+{ 
+	struct tcap *t;
+	
+	t = tcap_get(s, 0);
+	assert(t);
+	t->budget_local.cycles = 0;
+	clist_rem_l(s, tcap_root_list); 
+}
 
 int
 tcap_root(struct spd *s)
@@ -488,6 +503,8 @@ tcap_root(struct spd *s)
 	t = tcap_get(s, 0);
 	assert(t);
 	t->budget_local.cycles = TCAP_RES_INF;
+	clist_rem_l(s, tcap_root_list);
+	clist_head_add_l(&tcap_roots, s, tcap_root_list);
 
 	return 0;
 }

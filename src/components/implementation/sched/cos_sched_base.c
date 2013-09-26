@@ -1677,14 +1677,23 @@ void sched_exit(void)
 	BUG();
 }
 
-static struct sched_thd *fp_create_timer(void)
+static int
+fp_create_timer_pretcaps(void)
 {
-	int bid;
+	int bid; 
+
+	bid = sched_setup_brand(cos_spd_id());
+	cos_brand_wire(bid, COS_HW_TIMER_ROOT, 0);
+	return bid;
+}
+
+static struct sched_thd *
+fp_create_timer(int bid)
+{
 	union sched_param sp[2] = {{.c = {.type = SCHEDP_TIMER}},
 				   {.c = {.type = SCHEDP_NOOP}}};
 	struct sched_thd *t;
 
-	bid = sched_setup_brand(cos_spd_id());
 	assert(sched_is_root());
 	t = PERCPU_GET(sched_base_state)->timer = sched_setup_thread_arg(&sp, fp_timer, (void*)bid, 1);
 	if (NULL == t) BUG();
@@ -1694,7 +1703,7 @@ static struct sched_thd *fp_create_timer(void)
 	t->tcap = tcap_timer;
 	cos_tcap_thd_cntl(COS_TCAP_BIND, cos_spd_id(), tcap_timer, t->id);
 
-	cos_brand_wire(bid, COS_HW_TIMER, 0);
+//	cos_brand_wire(bid, COS_HW_TIMER, 0);
 
 	return PERCPU_GET(sched_base_state)->timer;
 }
@@ -1740,17 +1749,17 @@ __sched_init(void)
 	sched_ds_init();
 	sched_initialization();
 
-	ret = cos_tcap_split(0, 0, 0, 0, 1);
+	ret = cos_tcap_split(0, 0, 0, 0);
 	if (ret < 0) {
 		printc("Could not split a tcap for the timer thread.\n");
 	}
 	tcap_timer = ret;
-	ret = cos_tcap_split(0, 1, 0, 0, 1);
+	ret = cos_tcap_split(0, 1, 0, 0);
 	if (ret < 0) {
 		printc("Could not split a tcap for the network thread.\n");
 	}
 	tcap_net = ret;
-	ret = cos_tcap_split(0, 2, 0, 0, 1);
+	ret = cos_tcap_split(0, 2, 0, 0);
 	if (ret < 0) {
 		printc("Could not split a tcap for normal threads.\n");
 	}
@@ -1806,7 +1815,7 @@ volatile int initialized = 0;
 int sched_root_init(void)
 {
 	struct sched_thd *new;
-	int ret;
+	int ret, bid;
 
 	if (cos_cpuid() == INIT_CORE) {
 		assert(!initialized);
@@ -1818,6 +1827,7 @@ int sched_root_init(void)
 
 	/* printc("<<< CPU %ld, in root init, thd %d going to run.>>>\n", cos_cpuid(), cos_get_thd_id()); */
 
+	bid = fp_create_timer_pretcaps();
 	__sched_init();
 
 	/* switch back to this thread to terminate the system. */
@@ -1827,7 +1837,7 @@ int sched_root_init(void)
 	sched_init_create_threads(initialized == 0);
 
 	/* Create the clock tick (timer) thread */
-	fp_create_timer();
+	fp_create_timer(bid);
 	new = schedule(NULL);
 
 	initialized = 1;

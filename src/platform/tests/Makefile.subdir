@@ -4,7 +4,7 @@ OFILES  = $(CFILES:%.c=%.o)
 EXEC    = $(CFILES:%.c=%)
 #OPT     = -O3
 OPT     = -ggdb3
-CFLAGS  = -Wall -Wextra -Wno-unused-parameter $(OPT) $(INCLUDE)
+CFLAGS  = -Wall -Wextra -Wno-unused-parameter $(OPT) $(INCLUDE) -DLINUX_TESTS
 SDEPS   = $(CFILES:%.c=%.d)
 
 all: $(SDEPS) $(EXEC)

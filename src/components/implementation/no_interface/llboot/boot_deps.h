@@ -68,6 +68,7 @@ static struct comp_boot_info comp_boot_nfo[NCOMPS];
 
 static spdid_t init_schedule[]   = {LLBOOT_MM, LLBOOT_SCHED, 0};
 static int     init_mem_access[] = {1, 0, 0};
+static int     init_mem_amnt[]   = {0, 0, 0};
 static int     nmmgrs            = 0;
 static int     frame_frontier    = 0; /* which physical frames have we used? */
 

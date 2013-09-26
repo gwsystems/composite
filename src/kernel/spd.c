@@ -247,8 +247,6 @@ void spd_free(struct spd *spd)
 		spd_mpd_terminate(cspd);
 	}
 
-	tcap_delete_all(spd);
-
 	return;
 }
 

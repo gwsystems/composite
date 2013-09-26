@@ -634,7 +634,8 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			 */
 			struct mm_struct *mm;
 			struct composite_spd *cspd;
-			
+			struct tcap *tc;
+
 			spd->local_mmaps = aed_allocate_mm();
 			if (spd->local_mmaps < 0) {
 				spd_free(spd);
@@ -671,6 +672,10 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 			spd->pfn_base   = 0;
 			spd->pfn_extent = COS_MAX_MEMORY;
+
+			tc = tcap_get(spd, 0);
+			assert(tc);
+			tc->budget_local.cycles = TCAP_RES_INF;
 		}
 
 		return spd_get_index(spd);
@@ -1358,7 +1363,8 @@ host_idle_wakeup(void)
 	}
 }
 
-int chal_attempt_brand(struct thread *brand)
+int 
+chal_attempt_brand(struct thread *brand)
 {
 	struct pt_regs *regs = NULL;
 	unsigned long flags;
@@ -1544,14 +1550,10 @@ timer_interrupt(unsigned long data)
 	t = core_get_curr_thd();
 	mod_timer_pinned(&timer[get_cpuid()], jiffies+1);
 
-	if (unlikely(!(cos_timer_brand_thd[get_cpuid()] && 
-		       cos_timer_brand_thd[get_cpuid()]->upcall_threads))) {
-		return;
-	}
-
 	if (get_cpuid() == 0) time_tick_notification();
-	chal_attempt_brand(cos_timer_brand_thd[get_cpuid()]);
-	tcap_tick_process();
+	t = tcap_tick_handler();
+	if (unlikely(!t)) return; /* booting up */
+	chal_attempt_brand(t);
 
 	return;
 }

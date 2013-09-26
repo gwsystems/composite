@@ -169,10 +169,9 @@ cos_tcap_cntl(tcap_op_t op, tcap_t tcap1, tcap_t tcap2, u16_t prio, long long re
 
 static inline long cos_spd_id(void);
 static inline int 
-cos_tcap_split(tcap_t tcap, u16_t prio, unsigned int reservation, unsigned int expiration, int pooled)
+cos_tcap_split(tcap_t tcap, u16_t prio, unsigned int reservation, unsigned int expiration)
 {
-	return cos_tcap_cntl(pooled ? COS_TCAP_SPLIT_POOL : COS_TCAP_SPLIT, 
-			     tcap, 0, prio, reservation);
+	return cos_tcap_cntl(COS_TCAP_SPLIT, tcap, 0, prio, reservation);
 }
 
 /* for COS_TCAP_{BIND, RECEIVER} */

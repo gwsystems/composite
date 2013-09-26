@@ -51,127 +51,28 @@ u32_t cyc_per_tick = CPU_GHZ * 10000000;
 #include "../../../kernel/tcap.c"
 /* Deal with it. */
 
+void
+__print_tcap(struct tcap *t)
+{
+	int i;
+
+	fprintf(stderr, "tcap (%p, %d): [", 
+		tcap_sched_info(t)->sched,
+		tcap_sched_info(t)->prio);
+	for (i = 0 ; i < t->ndelegs ; i++) {
+		fprintf(stderr, "(%p, %d)%s",
+			t->delegations[i].sched, 
+			t->delegations[i].prio,
+			i == (t->ndelegs-1) ? "" : ", ");
+	}
+	fprintf(stderr, "]\n");
+}
+
 #define CYC_PLACEHOLDER (1024LL)
 #define CYC_MIN (1LL)
 typedef enum {PRIO_HI = 1, PRIO_MED, PRIO_LO} prio_t;
 
-/* void */
-/* delegations_print(struct tcap *t) */
-/* { */
-/* 	int i; */
-/* 	printf("tcap %p for spd %p, priority %d, %d delegations:\n",  */
-/* 	       t, tcap_sched_info(t)->sched, tcap_sched_info(t)->prio, t->ndelegs); */
-/* 	for (i = 0 ; i < t->ndelegs ; i++) { */
-/* 		printf("\t%p, prio %d\n",  */
-/* 		       t->delegations[i].sched, t->delegations[i].prio); */
-/* 	} */
-/* } */
-
-/* int  */
-/* delegations_validate(struct tcap *t) */
-/* { */
-/* 	int i; */
-
-/* 	if (t->ndelegs-1 < t->sched_info) { */
-/* 		printf("tcap %p with ndelegs %d, and current sched offset %d\n",  */
-/* 		       t, t->ndelegs, t->sched_info); */
-/* 		return -1; */
-/* 	} */
-/* 	for (i = 0 ; i < t->ndelegs ; i++) { */
-/* 		if (!t->delegations[i].sched || */
-/* 		    t->delegations[i].prio > 3) { */
-/* 			printf("Invalid delegation in tcap:\n"); */
-/* 			delegations_print(t); */
-/* 			return -1; */
-/* 		} */
-/* 	} */
-/* 	return 0; */
-/* } */
-
-/* #define LVLS 3 */
-
-/* int  */
-/* _pow(int b, int e) */
-/* { */
-/* 	int i; */
-/* 	int v = b; */
-
-/* 	for (i = 1 ; i < e ; i++) v *= b; */
-
-/* 	return b; */
-/* } */
-
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
-
-/* void */
-/* test_unit_matrix(int spdoff) */
-/* { */
-/* 	struct tcap *tcs[LVLS][LVLS*LVLS*LVLS]; */
-/* 	struct thread thds[LVLS][LVLS*LVLS*LVLS]; */
-/* #define get_spd(i) (&ss[(i+spdoff)%LVLS]) */
-/* 	struct spd ss[LVLS]; */
-/* 	struct tcap *roots[LVLS]; */
-/* 	int i, j; */
-/* #define get_prio(i) (i%LVLS) */
-/* 	unsigned long long start, end; */
-/* 	unsigned long long split_tot = 0, deleg_tot = 0, highest_tot = 0, merge_tot = 0; */
-/* 	int split_cnt = 0, deleg_cnt = 0, highest_cnt = 0, merge_cnt = 1; */
-
-/* 	for (i = 0 ; i < LVLS ; i++) { */
-/* 		tcap_spd_init(get_spd(i)); */
-/* 		roots[i] = tcap_get(get_spd(i), 0); */
-/* 		assert(roots[i]); */
-/* 	} */
-
-/* 	for (i = 0 ; i < LVLS ; i++) { */
-/* 		int upper = _pow(LVLS, i+1); */
-/* 		rdtscll(start); */
-/* 		for (j = 0 ; j < upper ; j++) { */
-/* 			tcs[i][j] = tcap_split(roots[i], CYC_PLACEHOLDER, get_prio(j)); */
-/* 			assert(tcs[i][j]); */
-/* 			delegations_validate(tcs[i][j]); */
-/* 		} */
-/* 		rdtscll(end); */
-/* 		split_tot += end-start; */
-/* 		split_cnt += upper; */
-/* 	} */
-
-/* 	for (i = 1 ; i < LVLS ; i++) { */
-/* 		int upper = _pow(LVLS, i+1); */
-/* 		rdtscll(start); */
-/* 		for (j = 0 ; j < upper ; j++) { */
-/* 			//delegations_print(tcs[i-1][j/LVLS]); */
-/* 			//delegations_print(tcs[i][j]); */
-/* 			if (tcap_delegate(tcs[i][j], tcs[i-1][j/LVLS], */
-/* 					  CYC_MIN, 0)) { */
-/* 				printf("Cannot delegate from [%d][%d] \n", i-1, j/LVLS); */
-/* 				delegations_print(tcs[i-1][j/LVLS]); */
-/* 				printf("to [%d][%d]\n", i, j); */
-/* 				delegations_print(tcs[i][j]); */
-/* 				assert(0); */
-/* 			} */
-/* 			//delegations_validate(tcs[i][j]); */
-/* 		}		 */
-/* 		rdtscll(end); */
-/* 		deleg_tot += end-start; */
-/* 		deleg_cnt += upper; */
-/* 	} */
-
-/* 	for (i = 1 ; 0 && i < LVLS ; i++) { */
-/* 		int upper = _pow(LVLS, i+1); */
-/* 		rdtscll(start); */
-/* 		for (j = 0 ; j < upper ; j++) { */
-/* 			assert(!tcap_merge(tcs[i-1][j/(_pow(LVLS, i))],  */
-/* 					   tcs[i][j])); */
-/* 		}		 */
-/* 		rdtscll(end); */
-/* 		merge_tot += end-start; */
-/* 		merge_cnt += upper; */
-/* 	} */
-	
-/* 	printf("Cycle costs:  split %lld, delegate %lld, merge %lld\n",  */
-/* 	       split_tot/split_cnt, deleg_tot/deleg_cnt, merge_tot/merge_cnt); */
-/* } */
 
 /* max delegations for now */
 #define NDELEGS 6
@@ -193,19 +94,52 @@ extern int
 __tcap_higher_prio(struct tcap *a, struct tcap *c);
 
 int
-__transfer_is_legal(struct comps *cs, int *order, int off)
+__higher_prio(struct comps *cs, int *order, int off)
 {
 	int i;
 
-	for (i = 1 ; i < off ; i++) {
+	for (i = 0 ; i < off ; i++) {
 		int o = order[i];
-		printf("(%d <? %d), ", cs[o].prios[0], cs[o].prios[1]);
+
+		if (cs[o].prios[1] > cs[o].prios[0]) return 0;
 	}
-	printf("\n");
+	return 1;
+}
+
+int
+__transfer_is_legal(struct comps *cs, int *order, int n, 
+		    int off, int expected)
+{
+	int i;
+
 
 	for (i = 1 ; i < off ; i++) {
 		int o = order[i];
-		if (cs[o].prios[0] > cs[o].prios[1]) return 1;
+		if (cs[o].prios[0] > cs[o].prios[1]) {
+			if (!expected) {
+				fprintf(stderr, "transfer is legal: expected not to transfer @ %d (up to %d)\n", i, off);
+				for (i = 1 ; i < n ; i++) {
+					int o = order[i];
+					fprintf(stderr, "(%d >? %d), ", 
+					       cs[o].prios[0], cs[o].prios[1]);
+				}
+				fprintf(stderr, "\n");
+				__print_tcap(cs[order[off]].ts[0]);
+				__print_tcap(cs[order[off]].ts[1]);
+			}
+			return 1;
+		}
+	}
+	if (expected) {
+		fprintf(stderr, "transfer is not legal: expected to transfer @ %d (up to %d)\n", i, off);
+		for (i = 1 ; i < n ; i++) {
+			int o = order[i];
+			fprintf(stderr, "(%d >? %d), ", 
+			       cs[o].prios[0], cs[o].prios[1]);
+		}
+		fprintf(stderr, "\n");
+		__print_tcap(cs[order[off]].ts[0]);
+		__print_tcap(cs[order[off]].ts[1]);
 	}
 	return 0;
 }
@@ -256,28 +190,29 @@ __gen_specific(struct comps_summary *s, struct comps *cs, int *order, int n)
 }
 
 void 
-__print_specific(struct comps *cs, int *order, int n)
+__print_specific(struct comps *cs, int *order, int n, int line)
 {
 	int i, j;
 
-	printf("Error case:\n{ .prios = {\n");
+	fprintf(stderr, "Error case @ %d:\n", line);
+	fprintf(stdout, "{ .prios = {\n");
 	for (i = 0 ; i < n ; i++) {
-		printf("\t{.ps = {");
+		fprintf(stdout, "\t{.ps = {");
 		for (j = 0 ; j < NCDELEG ; j++) {
-			printf("%d%s", cs[i].prios[j], 
+			fprintf(stdout, "%d%s", cs[i].prios[j], 
 			       j == (NCDELEG-1) ? "" : ", ");
 		}
-		printf("}}%s\n", i == (n-1) ? "" : ",");
+		fprintf(stdout, "}}%s\n", i == (n-1) ? "" : ",");
 	}
 
-	printf("   },\n  .order = {");
+	fprintf(stdout, "   },\n  .order = {");
 	for (i = 0 ; i < n ; i++) {
-		printf("%d%s", order[i], i == (n-1) ? "},\n" : ", ");
+		fprintf(stdout, "%d%s", order[i], i == (n-1) ? "},\n" : ", ");
 	}
-	printf("  .n = %d\n}\n", n);
+	fprintf(stdout, "  .n = %d\n},\n", n);
 }
 
-#define tassert(p) do { if (!(p)) { __print_specific(cs, order, n); assert(p); }} while(0)
+#define tassert(p) do { int t = (int)(void*)p; if (!(t)) { __print_specific(cs, order, n, __LINE__); assert((t)); }} while(0)
 
 void
 __test_delegations(struct comps *cs, int *order, int n)
@@ -293,7 +228,7 @@ __test_delegations(struct comps *cs, int *order, int n)
 	cs[order[0]].ts[1] = tcap_split(tcap_get(r, 0), 0, 0);
 	for (i = 1 ; i < n ; i++) {
 		int o = order[i], prev = order[i-1];
-
+		
 		tassert(cs[o].chosen);
 		tcap_spd_init(&cs[o].c);
 		tcap_root_alloc(&cs[o].c, tcap_get(r, 0), 1, 0);
@@ -312,22 +247,20 @@ __test_delegations(struct comps *cs, int *order, int n)
 		}
 	}
 
-	for (i = 0 ; i < n ; i++) {	
-		int o = order[i];
+	/* for (i = 0 ; i < n ; i++) {	 */
+	/* 	int o = order[i]; */
 		
-		printf("(%d, %d)\n", cs[o].prios[0], cs[o].prios[1]);
-	}
+	/* 	printf("(%d, %d)\n", cs[o].prios[0], cs[o].prios[1]); */
+	/* } */
 
 	/* now the tests!...transfer: */
 	for (i = 1 ; i < n ; i++) {
 		int o = order[i];
 		
 		if (tcap_transfer(cs[o].ts[1], cs[o].ts[0], 0, 0)) {
-			printf("*");
-			tassert(__transfer_is_legal(cs, order, i));
+			tassert(__transfer_is_legal(cs, order, n, i, 1));
 		} else {
-			printf(".");
-			tassert(!__transfer_is_legal(cs, order, i));
+			tassert(!__transfer_is_legal(cs, order, n, i, 0));
 		}
 	}
 	/* ...and higher priority... */
@@ -335,11 +268,9 @@ __test_delegations(struct comps *cs, int *order, int n)
 		int o = order[i];
 		
 		if (__tcap_higher_prio(cs[o].ts[1], cs[o].ts[0])) {
-			printf("x");
-			tassert(__transfer_is_legal(cs, order, i));
+			tassert(__higher_prio(cs, order, i));
 		} else {
-			printf("X");
-			tassert(!__transfer_is_legal(cs, order, i));
+			tassert(!__higher_prio(cs, order, i));
 		}
 	}
 
@@ -348,34 +279,27 @@ __test_delegations(struct comps *cs, int *order, int n)
 	}
 }
 
+#define ITER 1000
+
 void
 test_fuzz_delegations(void)
 {
 	struct comps cs[NDELEGS];
 	int order[NDELEGS], i;
 	struct comps_summary tests[] = {
-		{ .prios = {
-				{.ps = {24204, 56189}},
-				{.ps = {15529, 24865}},
-				{.ps = {1912, 10889}},
-				{.ps = {57464, 5652}},
-				{.ps = {38727, 41552}},
-				{.ps = {34570, 22348}}
-			},
-		  .order = {2, 4, 5, 0, 3, 1},
-		  .n = 6
-		},
+#include "tcap_testcases.h"		
 		{ .n = 0 }
 	};
 
-	printf("Testing specific cases:\n");
 	for (i = 0 ; tests[i].n ; i++) {
 		__gen_specific(&tests[i], cs, order, tests[i].n);
 		__test_delegations(cs, order, tests[i].n);
 	}
-	printf("Fuzz testing:\n");
-	__gen_rand(cs, order, NDELEGS);
-	__test_delegations(cs, order, NDELEGS);
+	fprintf(stderr, "Fuzz testing:\n");
+	for (i = 0 ; i < ITER ; i++) {
+		__gen_rand(cs, order, NDELEGS);
+		__test_delegations(cs, order, NDELEGS);
+	}
 }
 
 void
@@ -584,9 +508,6 @@ main(void)
 	srand((unsigned int)tsc);
 	test_unit_manual();
 	test_fuzz_delegations();
-//	test_unit_matrix(0);
-//	test_unit_matrix(1);
-//	test_unit_matrix(2);
 
 	return 0;
 }

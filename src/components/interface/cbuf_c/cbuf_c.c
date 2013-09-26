@@ -156,12 +156,36 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 		assert(cbs);
 		cbs[0] = 0;
 		/* Do a garbage collection */
+		/* 
+		 * FIXME: Weird race here:
+		 *
+		 * What if we call collect multiple times from
+		 * different threads in the same component.  One
+		 * thread might add the returned cbufs onto the
+		 * free-list, but the manager will still return the
+		 * same list of cbufps to this component (as they are
+		 * all currently not referenced).  This thread will
+		 * then attempt to re-add them to the freelist, and
+		 * likely reuse some of the cbufs that might already
+		 * be used.
+		 *
+		 * Ouch.
+		 */
 		amnt = cbufp_collect(cos_spd_id(), size, cb);
 		if (amnt < 0) {
 			*error = 1;
 			return -1;
 		}
 
+		/*
+		 * FIXME: RACE HERE!!!
+		 *
+		 * Between collect and marking the cbuf to be in use,
+		 * the cbufp might have been unmapped and it might be
+		 * invalid.  The following CBUFM_IN_USE could
+		 * overwrite correct state with an incorrect state
+		 * update.
+		 */
 		CBUF_TAKE();
 		cbid = cbs[0];
 		/* own the cbuf we just collected */

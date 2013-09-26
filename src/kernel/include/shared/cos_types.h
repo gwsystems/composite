@@ -404,6 +404,7 @@ enum {
 
 enum {
 	COS_HW_TIMER,
+	COS_HW_TIMER_ROOT,
 	COS_HW_NET,
 	COS_UC_NOTIF
 };
@@ -571,13 +572,11 @@ typedef u16_t tcap_t;
 /* operations for tcap_cntl */
 typedef enum {
 	COS_TCAP_DELEGATE,
-	COS_TCAP_DELEGATE_POOL,
 	COS_TCAP_SPLIT,
-	COS_TCAP_SPLIT_POOL,
 	COS_TCAP_TRANSFER,
-	COS_TCAP_TRANSFER_POOL,
 	COS_TCAP_BIND,
 	COS_TCAP_RECEIVER,
+	COS_TCAP_ROOT_DELEG,
 	/* not yet implemented */
 	COS_TCAP_MERGE,
 	COS_TCAP_SETPRIORITY,
