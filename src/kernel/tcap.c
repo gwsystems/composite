@@ -19,6 +19,9 @@
 #define get_cpuid() 0
 #endif
 
+/* TODO: percpu */
+static struct clist_head CLIST_HEAD_STATIC_INIT(tcap_roots);
+
 /* Fill in default "safe" values */
 static void
 tcap_init(struct tcap *t, struct spd *c)
@@ -61,9 +64,9 @@ tcap_spd_init(struct spd *c)
 	c->tcap_freelist = &c->tcaps[1];
 	c->ntcaps        = 1;
 	for (i = 1 ; i < TCAP_MAX ; i++) {
-		t                         = &c->tcaps[i];
-		t->ndelegs = t->epoch     = t->cpuid = 0;
-		t->freelist               = &c->tcaps[i+1];
+		t           = &c->tcaps[i];
+		t->ndelegs  = t->epoch = t->cpuid = 0;
+		t->freelist = &c->tcaps[i+1];
 	}
 	c->tcaps[TCAP_MAX-1].freelist = NULL;
 
@@ -357,6 +360,17 @@ tcap_delegate(struct tcap *dst, struct tcap *src, s64_t cycles, int prio)
 	dst->ndelegs    = ndelegs;
 	assert(si != -1);
 	dst->sched_info = si;
+
+	/* 
+	 * If the component is not already a listed root, add it.
+	 * Otherwise add it to the front of the list (the current tcap
+	 * has permissions to execute now, so that should be
+	 * transitively granted to this scheduler.
+	 */
+	if (tcap_remaining(dst) > 0) {
+		clist_rem_l(d, tcap_root_list);
+		clist_head_add_l(&tcap_roots, d, tcap_root_list);
+	}
 	
 	return 0;
 }
@@ -428,9 +442,6 @@ tcap_higher_prio(struct thread *activated, struct thread *curr)
  * delegated to from a root.
  */
 
-/* TODO: percpu */
-static struct clist_head CLIST_HEAD_STATIC_INIT(tcap_roots);
-
 void
 tcap_elapsed(struct thread *t, unsigned int cycles)
 {
@@ -475,13 +486,7 @@ tcap_root_alloc(struct spd *dst, struct tcap *from, int prio, int cycles)
 
 	t = tcap_get(dst, 0);
 	assert(t);
-	if (tcap_delegate(t, from, cycles, prio)) return -1;
-	/* even if transferred to, we could be in deficit */
-	if (tcap_remaining(t) <= 0) return 0;
-	clist_rem_l(dst, tcap_root_list);
-	clist_head_add_l(&tcap_roots, dst, tcap_root_list);
-
-	return 0;
+	return tcap_delegate(t, from, cycles, prio);
 }
 
 void

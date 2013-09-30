@@ -980,6 +980,26 @@ switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd
 	if (flags & (COS_SCHED_SYNC_BLOCK | COS_SCHED_SYNC_UNBLOCK)) {
 		next_thd = rthd_id;
 		/* FIXME: mask out all flags that can't apply here  */
+	} else if (flags & COS_SCHED_ROOT_YIELD) {
+		struct thread *b, *u;
+		
+		tcap_root_yield(curr_spd);
+		b = tcap_tick_handler();
+		if (!b) goto ret_err;
+		u = b->upcall_threads;
+		if (!u) goto ret_err;
+
+		next_thd = thd_get_id(u);
+		if (u->flags & THD_STATE_ACTIVE_UPCALL) {
+			assert(!(u->flags & THD_STATE_READY_UPCALL));
+			cos_meas_event(COS_MEAS_BRAND_PEND);
+			b->pending_upcall_requests++;
+		} else {
+			assert(u->flags & THD_STATE_READY_UPCALL);
+			u->flags |= THD_STATE_ACTIVE_UPCALL;
+			u->flags &= ~THD_STATE_READY_UPCALL;
+			*thd_flags = COS_SCHED_EVT_BRAND_ACTIVE;
+		}
 	} else {
 		next_thd = switch_thread_parse_data_area(da, ret_code);
 		if (unlikely(!next_thd)) goto_err(ret_err, "data area\n");
@@ -1258,7 +1278,8 @@ sched_tailcall_pending_upcall(struct thread *uc, struct composite_spd *curr)
  * activations, and we wish to switch to another thread, this function
  * should do the job.
  */
-static void brand_completion_switch_to(struct thread *curr, struct thread *prev)
+static void 
+brand_completion_switch_to(struct thread *curr, struct thread *prev)
 {
 	/* 
 	 * From here on, we know that we have an interrupted thread
@@ -1301,7 +1322,8 @@ static void brand_completion_switch_to(struct thread *curr, struct thread *prev)
 			  curr, COS_SCHED_EVT_BRAND_READY);
 }
 
-static struct pt_regs *brand_execution_completion(struct thread *curr, int *preempt)
+static struct pt_regs *
+brand_execution_completion(struct thread *curr, int *preempt)
 {
 	struct thread *prev, *brand = curr->thread_brand;
     	struct composite_spd *cspd = (struct composite_spd *)thd_get_thd_spdpoly(curr);
@@ -1429,10 +1451,9 @@ cos_syscall_brand_upcall_cont(int spd_id, int thread_id_flags, int arg1, int arg
 	short int thread_id, flags;
 
 	thread_id = thread_id_flags>>16;
-	flags = thread_id_flags & 0x0000FFFF;
-	curr_thd = core_get_curr_thd();
-
-	curr_spd = thd_validate_get_current_spd(curr_thd, spd_id);
+	flags     = thread_id_flags & 0x0000FFFF;
+	curr_thd  = core_get_curr_thd();
+	curr_spd  = thd_validate_get_current_spd(curr_thd, spd_id);
 	if (unlikely(NULL == curr_spd)) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
 		goto upcall_brand_err;		
@@ -3586,7 +3607,8 @@ cos_syscall_tcap_cntl(spdid_t spdid, unsigned long op_prio,
 	prio  = op_prio & 0xFFFF;
 	tcdst = tcap2_tcap1 & 0xFFFF;
 	tcsrc = tcap2_tcap1 >> 16;
-	res   = TCAP_RES_EXPAND(budget);
+	if (budget < 0) res = TCAP_RES_INF;
+	else            res = TCAP_RES_EXPAND(budget);
 
 	/* convert them into data-structures */
 	t     = core_get_curr_thd();
@@ -3600,11 +3622,6 @@ cos_syscall_tcap_cntl(spdid_t spdid, unsigned long op_prio,
 
 	/* use them */
 	switch (op) {
-	case COS_TCAP_DELEGATE:
-		if (tcapsrc)  return -1;
-		tcapsrc = tcap_deref(&t->tcap_receiver);
-		if (!tcapsrc) return -1;
-		return tcap_delegate(tcapdst, tcapsrc, res, prio);
 	case COS_TCAP_SPLIT:
 	{
 		struct tcap *n;
@@ -3616,12 +3633,23 @@ cos_syscall_tcap_cntl(spdid_t spdid, unsigned long op_prio,
 	case COS_TCAP_TRANSFER:
 		if (!tcapsrc) return -1;
 		return tcap_transfer(tcapdst, tcapsrc, res, prio);
+	case COS_TCAP_DELEGATE:
+	{
+		struct thread *tdest;
+		struct tcap *tc;
+
+		tdest = thd_get_by_id((short int)tcsrc);
+		if (!tdest) return -1;
+		tc = tcap_deref(&tdest->tcap_receiver);
+		if (!tc) return -1;
+		return tcap_delegate(tc, tcapdst, res, prio);
+	}
 	case COS_TCAP_BIND:
 	case COS_TCAP_RECEIVER:
 	{
 		struct thread *tdest;
 
-		tdest = thd_get_by_id((short int)tcdst);
+		tdest = thd_get_by_id((short int)tcsrc);
 		if (!tdest) return -1;
 		if (op == COS_TCAP_BIND) return tcap_bind(t, tcapdst);
 		else                     return tcap_receiver(t, tcapdst);

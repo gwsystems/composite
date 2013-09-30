@@ -1659,7 +1659,7 @@ int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short
 	ret = cos_brand_cntl(COS_BRAND_ADD_THD, bid, tid, 0);
 	if (0 > ret) return -1;
 	t->tcap = tcap_net;
-	cos_tcap_thd_cntl(COS_TCAP_BIND, cos_spd_id(), tcap_net, t->id);
+	cos_tcap_thd_cntl(COS_TCAP_BIND, tcap_net, t->id, 0, 0);
 
 	return 0;
 }
@@ -1701,7 +1701,7 @@ fp_create_timer(int bid)
 	printc("Core %ld: Timer thread has id %d with priority t.\n", 
 	       cos_cpuid(), t->id);
 	t->tcap = tcap_timer;
-	cos_tcap_thd_cntl(COS_TCAP_BIND, cos_spd_id(), tcap_timer, t->id);
+	cos_tcap_thd_cntl(COS_TCAP_BIND, tcap_timer, t->id, 0, 0);
 
 //	cos_brand_wire(bid, COS_HW_TIMER, 0);
 
@@ -1749,17 +1749,17 @@ __sched_init(void)
 	sched_ds_init();
 	sched_initialization();
 
-	ret = cos_tcap_split(0, 0, 0, 0);
+	ret = cos_tcap_split(0, 0, -1);
 	if (ret < 0) {
 		printc("Could not split a tcap for the timer thread.\n");
 	}
 	tcap_timer = ret;
-	ret = cos_tcap_split(0, 1, 0, 0);
+	ret = cos_tcap_split(0, 1, -1);
 	if (ret < 0) {
 		printc("Could not split a tcap for the network thread.\n");
 	}
 	tcap_net = ret;
-	ret = cos_tcap_split(0, 2, 0, 0);
+	ret = cos_tcap_split(0, 2, -1);
 	if (ret < 0) {
 		printc("Could not split a tcap for normal threads.\n");
 	}
@@ -1775,8 +1775,15 @@ parent_sched_child_cntl_thd(spdid_t spdid);
 static void 
 sched_child_init(void)
 {
+	int bid;
+
 	/* Child scheduler */
 	sched_type = SCHED_CHILD;
+	bid = sched_setup_brand(cos_spd_id());
+	assert(bid);
+	cos_brand_wire(bid, COS_HW_TIMER, 0);
+
+	bid = fp_create_timer_pretcaps();
 	__sched_init();
 
 	/* Don't involve the scheduler policy... */
@@ -1805,7 +1812,8 @@ print_config_info(void)
 	       "CYC_PER_USEC=%lld\n",
 	       (unsigned long long)USEC_PER_TICK, 
 	       (unsigned long long)CYC_PER_USEC);
-	printc("Total number of CPUs: %d. Composite runs on core 0 - %d. ", NUM_CPU, (NUM_CPU - 2) >= 0 ? (NUM_CPU - 2) : 0);
+	printc("Total number of CPUs: %d. Composite runs on core 0 - %d. ", 
+	       NUM_CPU, (NUM_CPU - 2) >= 0 ? (NUM_CPU - 2) : 0);
 	printc("Linux runs on core %d.\n", NUM_CPU - 1);
 }
 

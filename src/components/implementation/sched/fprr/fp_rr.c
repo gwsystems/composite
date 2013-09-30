@@ -224,6 +224,8 @@ timer_tick(int num_ticks, u64_t *policy_wakeup_time)
 //				sa->pol_cycles = 0;
 				if (sched_thd_suspended(t)) {
 					t->flags &= ~THD_SUSPENDED;
+					cos_tcap_thd_cntl(COS_TCAP_DELEGATE, t->tcap, 
+							  t->id, 0, sa->C * QUANTUM);
 					if (sched_thd_ready(t)) {
 						fp_add_thd(t, sched_get_metric(t)->priority);
 					}

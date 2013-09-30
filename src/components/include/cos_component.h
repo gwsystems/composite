@@ -161,32 +161,34 @@ cos_mmap_cntl(short int op, short int flags, short int dest_spd,
 	return cos___mmap_cntl(((op<<24) | (flags << 16) | (dest_spd)), dest_addr, mem_id);
 }
 
+
 static inline int
 cos_tcap_cntl(tcap_op_t op, tcap_t tcap1, tcap_t tcap2, u16_t prio, long long res)
 {
-	return cos___tcap_cntl((op << 16) | prio, (tcap2 << 16) | tcap1, TCAP_RES_PACK(res));
+	long r;
+
+	if (res < 0) {
+		r = -1;
+	} else {
+		r = (long)TCAP_RES_PACK(res);
+		if (r < 0) return -1;
+	}
+	return cos___tcap_cntl((op << 16) | prio, (tcap2 << 16) | tcap1, r);
 }
 
-static inline long cos_spd_id(void);
 static inline int 
-cos_tcap_split(tcap_t tcap, u16_t prio, unsigned int reservation, unsigned int expiration)
-{
-	return cos_tcap_cntl(COS_TCAP_SPLIT, tcap, 0, prio, reservation);
-}
+cos_tcap_split(tcap_t tcap, u16_t prio, long long res)
+{ return cos_tcap_cntl(COS_TCAP_SPLIT, tcap, 0, prio, res); }
 
-/* for COS_TCAP_{BIND, RECEIVER} */
+/* for COS_TCAP_{BIND, RECEIVER, DELEGATE} */
 static inline int
-cos_tcap_thd_cntl(tcap_op_t op, spdid_t spdid, tcap_t tcap, u16_t thdid)
-{
-	return cos___tcap_cntl((spdid << 16) | (op << 8) | tcap, 
-			       (thdid << 16) | 0, 0);
-}
+cos_tcap_thd_cntl(tcap_op_t op, tcap_t tcap, u16_t thdid, u16_t prio, long long res)
+{ return cos_tcap_cntl(op, tcap, (tcap_t)thdid, prio, res); }
+
 
 static inline int 
 cos_send_ipi(int cpuid, int thdid, unsigned short int arg1, unsigned short int arg2)
-{
-	return cos___send_ipi(cpuid, thdid, ((arg1 << 16) | (arg2 & 0xFFFF)));
-}
+{ return cos___send_ipi(cpuid, thdid, ((arg1 << 16) | (arg2 & 0xFFFF))); }
 
 /* 
  * Physical frame number manipulations.  Which component, and what

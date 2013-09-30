@@ -1544,7 +1544,7 @@ void tcap_elapsed(struct thread *t, unsigned int cycles);
 static void 
 timer_interrupt(unsigned long data)
 {
-	struct thread *t;
+	struct thread *t, *post;
 	
 	BUG_ON(cos_thd_per_core[get_cpuid()].cos_thd == NULL);
 	t = core_get_curr_thd();
@@ -1552,8 +1552,11 @@ timer_interrupt(unsigned long data)
 
 	if (get_cpuid() == 0) time_tick_notification();
 	t = tcap_tick_handler();
-	if (unlikely(!t)) return; /* booting up */
+	if (unlikely(!t)) return;    /* only when booting up */
 	chal_attempt_brand(t);
+	post = tcap_tick_handler();  /* did the timer timeout? */
+	if (unlikely(!post)) return; /* error */
+	if (post != t) chal_attempt_brand(t);
 
 	return;
 }

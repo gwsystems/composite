@@ -4,7 +4,7 @@
 "c0.o, ;llboot.o, ;*ds.o, ;mm.o, ;print.o, ;boot.o, ;\
 \
 !mpool.o,a3;!trans.o,a6;!sm.o,a4;!l.o,a1;!te.o,a3;!e.o,a4;!stat.o,a25;\
-!buf.o,a5;!bufp.o, ;!va.o,a2;!(cpu0.o=cpu.o), 'p:6,w:10,b:7':\
+!buf.o,a5;!bufp.o, ;!va.o,a2;!(cpu0.o=cpu.o), 'p:6,w:10,b:5':\
 \
 c0.o-llboot.o;\
 ds.o-print.o|[parent_]mm.o|[faulthndlr_]llboot.o;\
