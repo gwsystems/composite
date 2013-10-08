@@ -1716,8 +1716,9 @@ static int load_all_services(struct service_symbs *services)
 		if (!sz) return -1;
 
 		service_addr += DEFAULT_SERVICE_SIZE;
-		/* note this works for the llbooter too */
-		if (strstr(services->obj, BOOT_COMP) || sz > DEFAULT_SERVICE_SIZE) {
+		/* note this works for the llbooter and root memory manager too */
+		if (strstr(services->obj, BOOT_COMP) || strstr(services->obj, INITMM)
+		    || sz > DEFAULT_SERVICE_SIZE) {
 			service_addr += 3*DEFAULT_SERVICE_SIZE;
 		}
 

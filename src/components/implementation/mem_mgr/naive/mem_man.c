@@ -110,10 +110,24 @@ frame_init(void)
 	freelist = &frames[0];
 }
 
+#define NREGIONS 4
+
+extern struct cos_component_information cos_comp_info;
+
 static inline void
 mm_init(void)
 {
 	printc("mm init as thread %d\n", cos_get_thd_id());
+
+	/* Expanding VAS. */
+	printc("mm expanding %lu MBs @ %p\n", (NREGIONS-1) * round_up_to_pgd_page(1) / 1024 / 1024, 
+	       (void *)round_up_to_pgd_page((unsigned long)&cos_comp_info.cos_poly[1]));
+	if (cos_vas_cntl(COS_VAS_SPD_EXPAND, cos_spd_id(), 
+			 round_up_to_pgd_page((unsigned long)&cos_comp_info.cos_poly[1]), 
+			 (NREGIONS-1) * round_up_to_pgd_page(1))) {
+		printc("MM could not expand VAS\n");
+		BUG();
+	}
 
 	frame_init();
 }

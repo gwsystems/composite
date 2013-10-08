@@ -99,7 +99,7 @@ struct pt_regs {
 
 #define COS_NUM_ATOMIC_SECTIONS 10
 
-#define COS_MAX_MEMORY 8*1024
+#define COS_MAX_MEMORY 128*1024
 
 #include "../asm_ipc_defs.h"
 

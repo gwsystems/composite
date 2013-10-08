@@ -14,31 +14,36 @@
 
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 
-int delay(void) {
-	int i, j;
-	volatile int mem = 0;
+/* int delay(void) { */
+/* 	int i, j; */
+/* 	volatile int mem = 0; */
 
-	for (i = 0; i < 10; i++) {
-		for (j = 0; j < 10; j++) {
-			mem++;
-		}
-	}
+/* 	for (i = 0; i < 10; i++) { */
+/* 		for (j = 0; j < 10; j++) { */
+/* 			mem++; */
+/* 		} */
+/* 	} */
 
-	return 0;
-}
+/* 	return 0; */
+/* } */
 
-#define ITER 100
-#define LOOP NUM_CPU_COS
-unsigned long long time[ITER], time1[ITER];
+#define ITER (100 * 1000)
+unsigned int time0[ITER], time1[ITER];
 int core_access[NUM_CPU_COS];
+
+struct thd_active {
+	volatile int accessed CACHE_ALIGNED;
+};
+
+volatile struct thd_active thd_active[NUM_CPU_COS] CACHE_ALIGNED;
 
 int meas(void)
 {
 	unsigned long long s, e;
 	volatile int a, b = 0;
-	int i, j, my_id;
+	int i, j, my_id, loop;
 
-	printc("testing fpu...\n");
+	/* printc("testing fpu...\n"); */
 	volatile float f;
 	for (i = 10; i < 1000; i++) {
 		f = i;
@@ -50,41 +55,61 @@ int meas(void)
 			/*fpu test*/
 	}
 	if (f > 10000) return 0;
-	printc("testing fpu done.\n");
+	/* printc("testing fpu done.\n"); */
+
+#pragma omp parallel for
+	for (i = 0; i < NUM_CPU_COS; i++) 
+		if (i == 0) loop = omp_get_num_threads();
+
 
 	for (i = 0; i < ITER; i++) {
-		if (b > 100) break;
-
 		rdtscll(s);
 #pragma omp parallel for
-		for (j = 0; j < LOOP; j++)
+		for (j = 0; j < loop; j++)
 		{
-			if (omp_get_thread_num() == 0) {
+			//assert(omp_get_thread_num() == j);
+			thd_active[j].accessed++;
+			//assert(thd_active[omp_get_thread_num()].accessed == i + 1);
+			if (j == 0) {
+				int k = 1;
+				while (k < loop) {
+					while (thd_active[k].accessed == i) ;
+					k++;
+				}
 				rdtscll(e);
 				time1[i] = e - s;
 			}
-
-			//core_access[cos_cpuid()] = 1;
 		}
+
 		rdtscll(e);
-		time[i] = e - s;
-		//timed_event_block(cos_spd_id(), 1);		//usleep(1000000);
-		delay();
+		time0[i] = e - s;
 	}
+
 	/* for (i = 0; i < NUM_CPU; i++) { */
 	/* 	printf("core %d: %d\n", i, core_access[i]); */
 	/* } */
-	unsigned long long sum = 0;
+/* #define USE_USECOND */
+/* #ifdef USE_USECOND		 */
+/* 	printc("unit is u-second!\n"); */
+/* #endif */
+	for (i = 0; i < ITER; i+=4) {
+		//do this to save the dmesg buffer. time stamp is long!
+		printc("%u %u %u %u %u %u %u %u\n", 
+		       time0[i], time1[i], time0[i+1], time1[i+1], time0[i+2], time1[i+2],time0[i+3], time1[i+3]);
+	}
+
+
+	unsigned long long sum = 0, max = 0, sum2 = 0, max2 = 0;
 	for (i = 0; i < ITER; i++) {
-		printc("cost %d: %llu   half way %llu\n", i, time[i], time1[i]);
-		sum += time[i];
+		//printc("%u \n", time0[i], time1[i]);
+		sum += time0[i];
+		sum2 += time1[i];
+		if (time0[i] > max && i > 0) max = time0[i];
+		if (time1[i] > max2 && i > 0) max2 = time1[i];
 	}
 	sum /= ITER;
-	printc("average %llu\n", sum);
-
-	/* for (i = 0; i < NUM_CPU_COS; i++) { */
-	/* 	printc("for core i %d, access %d\n", i, core_access[i]); */
-	/* } */
+	sum2 /= ITER;
+	printc("ncpus: %d, avg %llu, max %llu; avg2 %llu, max2 %llu\n", loop, sum, max, sum2, max2);
 
 	return 0;
 }
