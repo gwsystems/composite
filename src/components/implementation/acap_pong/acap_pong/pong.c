@@ -16,7 +16,7 @@ int call(int a, int b, int c, int d) {
 
 /////////////////// move to lib later
 int cos_ainv_handling(void) {
-	struct __cos_ainv_srv_thd curr_data;
+	struct __cos_ainv_srv_thd curr_data = { .stop = 0 };
 	struct __cos_ainv_srv_thd *curr = &curr_data;
 	int acap, i;
 	int curr_thd_id = cos_get_thd_id();

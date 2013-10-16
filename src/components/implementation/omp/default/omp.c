@@ -61,7 +61,6 @@ int meas(void)
 	for (i = 0; i < NUM_CPU_COS; i++) 
 		if (i == 0) loop = omp_get_num_threads();
 
-
 	for (i = 0; i < ITER; i++) {
 		rdtscll(s);
 #pragma omp parallel for
@@ -85,16 +84,9 @@ int meas(void)
 		time0[i] = e - s;
 	}
 
-	/* for (i = 0; i < NUM_CPU; i++) { */
-	/* 	printf("core %d: %d\n", i, core_access[i]); */
-	/* } */
-/* #define USE_USECOND */
-/* #ifdef USE_USECOND		 */
-/* 	printc("unit is u-second!\n"); */
-/* #endif */
 	for (i = 0; i < ITER; i+=4) {
 		//do this to save the dmesg buffer. time stamp is long!
-		printc("%u %u %u %u %u %u %u %u\n", 
+		printc("%u %u %u %u %u %u %u %u\n",
 		       time0[i], time1[i], time0[i+1], time1[i+1], time0[i+2], time1[i+2],time0[i+3], time1[i+3]);
 	}
 
@@ -121,6 +113,7 @@ int main() {
 #ifdef DISABLE 
 	return 0;
 #endif
+
 	meas();
 /* #pragma omp parallel private(my_id) */
 /* 	{ */

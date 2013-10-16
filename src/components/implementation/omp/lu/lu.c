@@ -1,7 +1,7 @@
 #include <omp.h>
 #include <stdio.h>
 
-#define SIZE 1024
+#define SIZE 96
 
 #define MEAS_ITER 100
 

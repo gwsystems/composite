@@ -447,7 +447,7 @@ cos_intra_ainv_handling(void)
 	struct nested_par_info *barrier_info;
 	struct intra_inv_data inv = { .data = 0 };
 
-	int acap, i, parent_id, nest_level, ret, barrier_acap;
+	int acap, parent_id, nest_level, ret, barrier_acap;
 	int thd_id = cos_get_thd_id();
 
 	/* printc("upcall thread %d (core %ld) waiting in spd %ld...\n",  */
@@ -504,10 +504,8 @@ cos_intra_ainv_handling(void)
 			 */
 			while (CK_RING_DEQUEUE_SPSC(intra_inv_ring, ring, &inv) == false) {
 				/* printc("thread %d waiting on acap %d\n", cos_get_thd_id(), acap); */
-				if (acap > 0) {
-					ret = cos_ainv_wait(acap); 
-					assert(ret == 0);
-				}
+				ret = cos_ainv_wait(acap); 
+				assert(ret == 0);
 				/* printc("thread %d up from ainv_wait\n", cos_get_thd_id()); */
 			}
 			SET_SERVER_ACTIVE(shared_struct); /* setting us active */

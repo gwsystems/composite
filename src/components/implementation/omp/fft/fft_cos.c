@@ -1,13 +1,13 @@
 #include <omp.h>
 #include <stdio.h>
 
-#define MEAS_ITER 100
+#define MEAS_ITER 64
 
 #define ITERS 10
 #define N 1024
 #define NCPU 39
 
-//#define DISABLE
+#define DISABLE
 
 #define COS
 
