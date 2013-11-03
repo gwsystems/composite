@@ -79,14 +79,14 @@ static int __valloc_init(spdid_t spdid)
 	if (cinfo_map(cos_spd_id(), (vaddr_t)ci, spdid)) goto err_free2;
 	hp = (void*)ci->cos_heap_ptr;
 
-	trac->spdid            = spdid;
-	trac->ci               = ci;
-	trac->map              = occ;
-	trac->extents[0].start = (void*)round_to_pgd_page(hp);
-	trac->extents[0].end   = (void*)round_up_to_pgd_page(hp);
-	trac->extents[0].map   = occ;
-	page_off = ((unsigned long)hp - (unsigned long)round_to_pgd_page(hp))/PAGE_SIZE;
-	bitmap_set_contig(&occ->pgd_occupied[0], page_off, (PGD_SIZE/PAGE_SIZE)-page_off, 1);
+        trac->spdid            = spdid;
+        trac->ci               = ci;
+        trac->map              = occ;
+        trac->extents[0].start = (void*)round_to_pgd_page(hp);
+        trac->extents[0].end   = (void*)round_up_to_pgd_page(hp);
+        trac->extents[0].map   = occ;
+        page_off = ((unsigned long)hp - (unsigned long)round_to_pgd_page(hp))/PAGE_SIZE;
+        bitmap_set_contig(&occ->pgd_occupied[0], page_off, (PGD_SIZE/PAGE_SIZE)-page_off, 1);
 
 	cos_vect_add_id(&spd_vect, trac, spdid);
 	assert(cos_vect_lookup(&spd_vect, spdid));
@@ -117,24 +117,32 @@ void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
 		    !(trac = cos_vect_lookup(&spd_vect, dest))) goto done;
 	}
 
-	int i;
-	for (i = 0; i < MAX_SPD_VAS_LOCATIONS; i++) {
-		occ = trac->extents[i].map;
-		if (occ) {
-			off = bitmap_extent_find_set(&occ->pgd_occupied[0], 0, npages, MAP_MAX);
-			if (off < 0) continue;
-			ret = ((char *)trac->extents[i].start) + (off * PAGE_SIZE);
-			goto done;
-		}
-		trac->extents[i].map = alloc_page();
-		occ = trac->extents[i].map;
-		assert(occ);
-		trac->extents[i].start = (void*)vas_mgr_expand(spdid, dest, npages * PAGE_SIZE);
-		trac->extents[i].end   = (void*)trac->extents[i].start + npages * PAGE_SIZE;
-		bitmap_set_contig(&occ->pgd_occupied[0], 0, npages, 1);
-		ret = trac->extents[i].start;
-		goto done;
-	}
+        unsigned long extent_size;
+        int i;
+        for (i = 0; i < MAX_SPD_VAS_LOCATIONS; i++) {
+                if (likely(i == 0)) extent_size = PGD_SIZE;
+                else extent_size = 1 << (i + 20); /* 2^i MB */
+
+                if (trac->extents[i].map) {
+                        if (unlikely(npages > extent_size / PAGE_SIZE)) continue;
+                        occ = trac->extents[i].map;
+                        off = bitmap_extent_find_set(&occ->pgd_occupied[0], 0, npages, MAP_MAX);
+                        if (off < 0) continue;
+                        ret = (void *)((char *)trac->extents[i].start + off * PAGE_SIZE);
+                        goto done;
+                }
+
+                trac->extents[i].map = alloc_page();
+                occ = trac->extents[i].map;
+                assert(occ);
+                trac->extents[i].start = (void*)vas_mgr_expand(spdid, dest, extent_size);
+                trac->extents[i].end = (void *)(trac->extents[i].start + extent_size);
+                bitmap_set_contig(&occ->pgd_occupied[0], 0, extent_size / PAGE_SIZE, 1);
+                if (unlikely(npages > (extent_size / PAGE_SIZE))) continue; /* requested size might larger than extents size, keep this extent and try next */
+                bitmap_set_contig(&occ->pgd_occupied[0], 0, npages, 0);
+                ret = trac->extents[i].start;
+                goto done;
+        }
 
 done:   
 	UNLOCK();
@@ -153,16 +161,16 @@ int valloc_free(spdid_t spdid, spdid_t dest, void *addr, unsigned long npages)
 	if (!trac) goto done;
 
 	int i;
-	for (i = 0; i < MAX_SPD_VAS_LOCATIONS; i++) {
-		if (addr < trac->extents[i].start || addr > trac->extents[i].end) continue; /* locate the address to be freed in which range (extents) */
-		occ = trac->extents[i].map;
-		assert(occ);
-		off = ((char *)addr - (char *)trac->extents[i].start) / PAGE_SIZE;
-		/*assert(off + npages < MAP_MAX * sizeof(u32_t));*/
-		bitmap_set_contig(&occ->pgd_occupied[0], off, npages, 0);
-		ret = 0;
-		goto done;
-	}
+        for (i = 0; i < MAX_SPD_VAS_LOCATIONS; i++) {
+                if (addr < trac->extents[i].start || addr > trac->extents[i].end) continue; /* locate the address to be freed in which range (extents) */
+                occ = trac->extents[i].map;
+                assert(occ);
+                off = ((char *)addr - (char *)trac->extents[i].start) / PAGE_SIZE;
+                assert(off + npages < MAP_MAX * sizeof(u32_t));
+                bitmap_set_contig(&occ->pgd_occupied[0], off, npages, 1);
+                ret = 0;
+                goto done;
+        }
 done:	
 	UNLOCK();
 	return ret;

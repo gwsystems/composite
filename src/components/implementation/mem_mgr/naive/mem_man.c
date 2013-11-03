@@ -384,6 +384,7 @@ done:
 	UNLOCK();
 	return ret;
 dealloc:
+	printc("dealloc %p\n", (void *)addr);
 	frame_deref(f);
 	goto done;		/* -EINVAL */
 }

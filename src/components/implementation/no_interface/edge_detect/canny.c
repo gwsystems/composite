@@ -1,6 +1,5 @@
 #include <cos_component.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include "../../../lib/libccv/ccv.h"
 
 #define X_SLICE 1
@@ -11,11 +10,9 @@ void cos_ccv_merge(ccv_dense_matrix_t* mat[], ccv_dense_matrix_t** output, int r
 void
 cos_init(void *args)
 {
-	void *test = malloc(32 * 1024 * 1024);
-	free(test);
 	printf("Edge Detection Test\n");
 
-	/*ccv_enable_default_cache();*/
+	ccv_enable_default_cache();
 	ccv_dense_matrix_t* yuv = 0;
 	ccv_read("blackbox.bmp", &yuv, CCV_IO_GRAY | CCV_IO_ANY_FILE);
 
@@ -42,7 +39,7 @@ cos_init(void *args)
 	cos_ccv_merge(canny_arr, &final_output, yuv->rows, yuv->cols, X_SLICE, Y_SLICE);
 	ccv_matrix_free(final_output);
 	ccv_matrix_free(yuv);
-	/*ccv_disable_cache();*/
+	ccv_disable_cache();
 
 	printf("done\n");
 

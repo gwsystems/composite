@@ -231,7 +231,6 @@ void ccv_canny(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, int size
 		int** stack_bottom = stack;
 		for (i = 1; i <= a->rows; i++)
 		{
-			printf("!!!!!!!!!!!!!!\n");
 			/* the if clause should be unswitched automatically, no need to manually do so */
 			if (i == a->rows) {
 				memset(rows[2], 0, sizeof(int) * a->cols);}

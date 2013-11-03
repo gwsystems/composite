@@ -67,14 +67,14 @@ vas_mgr_expand(spdid_t spd, spdid_t dest, unsigned long amnt)
 
 	loc = i;
 	nentries = amnt >> PGD_SHIFT;
-	unsigned long SERVICE_START_N = SERVICE_START + 16 * 1024 * 1024; /* add 16MB offset so we won't access the dangerous zone */ 
-	for (a = SERVICE_START_N, i = SERVICE_START_N >> PGD_SHIFT;
+	unsigned long SERVICE_START_SAFE = SERVICE_START + (1 << 24); /* add a 16M offset to not touch the dangerous zone (or use const?) */
+	for (a = SERVICE_START_SAFE, i = SERVICE_START_SAFE >> PGD_SHIFT;
 	     a < (SERVICE_END - amnt); 
 	     a += SERVICE_SIZE, i++) {
 		unsigned long s = a, s_idx = i;
 		int found = 1;
 
-		for (; i < (s_idx + nentries) ; a += SERVICE_SIZE, i++) {
+		for (; i < (s_idx + nentries); a += SERVICE_SIZE, i++) {
 			if (vas->s[i]) {
 				found = 0;
 				break;
