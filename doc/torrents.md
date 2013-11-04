@@ -19,8 +19,8 @@ int tmerge(td_t td, td_t td_into, char *param, size_t len);
 
 ssize_t tread(td_t td, cbufp_t *cb, int *off);
 ssize_t twrite(td_t td, cbufp_t cbid, int off, size_t sz);
-ssize_t treada(td_t td, agg_cbuf_t *cbvect);
-ssize_t twritea(td_t td, agg_cbuf_t *cbvect, size_t sz);
+ssize_t treadv(td_t td, agg_cbuf_t *cbvect);
+ssize_t twritev(td_t td, agg_cbuf_t *cbvect, size_t sz);
 
 td_t tcall(td_t td, char *param, size_t len, evt_t e, agg_cbuf_t *cbvect);
 
@@ -28,11 +28,11 @@ ssize_t trmeta(td_t td, const char *key, size_t klen, char *retval, size_t max_r
 int twmeta(td_t td, const char *key, size_t klen, const char *val, size_t vlen);
 ```
 
-I'll break this interface into five sections:
+I'll break this interface into four sections:
 
 - `tsplit`, `trelease`, `tmerge` are functions for manipulating torrents.  They create torrents from an existing torrent (like `accept`), release the resource (like `close`), or removing the underlying resource backing a torrent (like `unlink`).
-- `tread`, `twrite`, `treada`, and `twritea` are used to read and write to the resources backing the torrents.  The non-`*a` variants read and write `cbuf`s from the resource.  This is the equivalent of `read` and `write` in UNIX, are implemented with zero-copy.  The `*a` variants can be used to return an aggregate `cbuf` which could represent the _entire file_ (for a file-based resource) in one call.
-- `tcall` is a representative function that is a composite of other `torrent` functions.  It essentially performs the following sequence: `tsplit -> treada -> trelease`.  If at any point, the next operation is not ready (i.e. the resource is not immediately available), then the torrent is returned representing the resource.  The event will be triggered when it is available.  There are other functions that represent common composite torrent operations, but we only discuss `tcall` here.
+- `tread`, `twrite`, `treadv`, and `twritev` are used to read and write to the resources backing the torrents.  The non-`*v` variants read and write `cbuf`s from the resource.  This is the equivalent of `read` and `write` in UNIX, are implemented with zero-copy.  The `*v` variants can be used to return an aggregate `cbuf` which could represent the _entire file_ (for a file-based resource) in one call (and are closer to the UNIX `readv` system calls).
+- `tcall` is a representative function that is a composite of other `torrent` functions.  It essentially performs the following sequence: `tsplit -> treadv -> trelease`.  If at any point, the next operation is not ready (i.e. the resource is not immediately available), then the torrent is returned representing the resource.  The event will be triggered when it is available.  There are other functions that represent common composite torrent operations, but we only discuss `tcall` here.
 - `t*meta` reads or writes meta-data associated with a given torrent.  This enables the equivalent of `fstat` and `lseek`.
 
 There are two main supporting components for torrents: `cbuf`s and `evt`s.
