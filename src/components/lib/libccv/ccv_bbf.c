@@ -1415,6 +1415,8 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 	if (params.size.height != _cascade[0]->size.height || params.size.width != _cascade[0]->size.width)
 		ccv_matrix_free(pyr[0]);
 
+	free(pyr);
+
 	return result_seq2;
 }
 

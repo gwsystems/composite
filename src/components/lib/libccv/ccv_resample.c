@@ -92,6 +92,9 @@ static void _ccv_resample_area_8u(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
 			}
 		}
 	}
+        free(sum);
+        free(buf);
+        free(xofs);
 }
 
 typedef struct {
@@ -185,6 +188,9 @@ static void _ccv_resample_area(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
 	}
 	ccv_matrix_getter(a->type, ccv_matrix_setter, b->type, for_block);
 #undef for_block
+        free(sum);
+        free(buf);
+        free(xofs);
 }
 
 typedef struct {
@@ -261,6 +267,8 @@ static void _ccv_resample_cubic_float_only(ccv_dense_matrix_t* a, ccv_dense_matr
 	}
 	ccv_matrix_getter(a->type, ccv_matrix_setter_getter_float_only, b->type, for_block);
 #undef for_block
+        free(buf);
+        free(xofs);
 }
 
 static void _ccv_init_cubic_integer_coeffs(int si, int sz, float s, ccv_cubic_integer_coeffs_t* coeff)
@@ -330,6 +338,8 @@ static void _ccv_resample_cubic_integer_only(ccv_dense_matrix_t* a, ccv_dense_ma
 	}
 	ccv_matrix_getter(a->type, ccv_matrix_setter_getter_integer_only, no_8u_type, ccv_matrix_setter_integer_only, b->type, for_block);
 #undef for_block
+        free(buf);
+        free(xofs);
 }
 
 void ccv_resample(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int btype, int rows, int cols, int type)
@@ -430,6 +440,8 @@ void ccv_sample_down(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, in
 #undef x_block
 	}
 #undef for_block
+        free(tab);
+        free(buf);
 }
 
 void ccv_sample_up(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, int src_x, int src_y)
@@ -566,4 +578,6 @@ void ccv_sample_up(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, int 
 #undef G025
 	}
 #undef for_block
+        free(tab);
+        free(buf);
 }

@@ -232,9 +232,8 @@ void ccv_canny(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, int size
 		for (i = 1; i <= a->rows; i++)
 		{
 			/* the if clause should be unswitched automatically, no need to manually do so */
-			if (i == a->rows) {
-				memset(rows[2], 0, sizeof(int) * a->cols);}
-
+			if (i == a->rows)
+				memset(rows[2], 0, sizeof(int) * a->cols);
 			else
 				for (j = 0; j < a->cols; j++)
 					rows[2][j] = abs(dxi[j]) + abs(dyi[j]);
@@ -332,6 +331,7 @@ void ccv_canny(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, int size
 		ccfree(map);
 		ccv_matrix_free(dx);
 		ccv_matrix_free(dy);
+		free(mbuf);
 	} else {
 		/* general case, use all ccv facilities to deal with it */
 		ccv_dense_matrix_t* mg = 0;
@@ -428,6 +428,7 @@ int ccv_otsu(ccv_dense_matrix_t* a, double* outvar, int range)
 	}
 	if (outvar != 0)
 		*outvar = maxVar / total / total;
+	free(histogram);
 	return threshold;
 }
 
@@ -622,4 +623,11 @@ void ccv_optical_flow_lucas_kanade(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b,
 			ccv_matrix_free(b);
 		}
 	}
+        free(widy);
+        free(widx);
+        free(wi);
+        free(pyr_b);
+        free(pyr_a_dy);
+        free(pyr_a_dx);
+        free(pyr_a);
 }

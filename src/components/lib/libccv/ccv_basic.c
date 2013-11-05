@@ -142,6 +142,9 @@ void ccv_sobel(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, int dx, 
 		}
 		ccv_matrix_getter(a->type, ccv_matrix_typeof_setter_getter, db->type, for_block);
 #undef for_block
+                free(buf);
+                free(gf);
+                free(df);
 	} else {
 		/* special case 2: 3x3 window, corresponding sigma = 0.85 */
 		unsigned char* buf = (unsigned char*)malloc(db->step);
@@ -179,6 +182,7 @@ void ccv_sobel(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, int dx, 
 			}
 			ccv_matrix_getter(a->type, ccv_matrix_setter_getter, db->type, for_block);
 #undef for_block
+                        free(buf);
 		} else {
 #define for_block(_for_get, _for_set_b, _for_get_b) \
 			for (j = 0; j < a->cols; j++) \
@@ -297,6 +301,7 @@ void _ccv_flip_y_self(ccv_dense_matrix_t* a)
 		a_ptr += a->step;
 		b_ptr -= a->step;
 	}
+	free(buffer);
 }
 
 void _ccv_flip_x_self(ccv_dense_matrix_t* a)
@@ -315,6 +320,7 @@ void _ccv_flip_x_self(ccv_dense_matrix_t* a)
 		}
 		a_ptr += a->step;
 	}
+	free(buffer);
 }
 
 void ccv_flip(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int btype, int type)
@@ -423,6 +429,8 @@ void ccv_blur(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, double si
 	}
 	ccv_matrix_typeof_setter_getter(no_8u_type, ccv_matrix_setter_getter, db->type, for_block);
 #undef for_block
+	free(buf);
+	free(filter);
 }
 
 static void _ccv_rgb_to_yuv(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
