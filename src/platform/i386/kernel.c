@@ -15,7 +15,7 @@
 
 void kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp);
 int keep_kernel_running = 1;
-
+uintptr_t gdt_base;
 
 void 
 kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
@@ -30,7 +30,7 @@ kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
     printk__register_handler(&serial__puts);
 
     printk(INFO, "Enabling gdt\n");
-    gdt__init();
+    gdt_base = gdt__init();
 
     printk(INFO, "Enabling idt\n");
     idt__init();

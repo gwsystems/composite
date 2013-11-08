@@ -42,7 +42,7 @@ gdt_set_gate(int32_t num, uint32_t base, uint32_t limit, uint8_t access, uint8_t
     gdt_entries[num].access = access;
 }
 
-void
+uintptr_t
 gdt__init(void)
 {
     gdt_ptr.limit = (sizeof(struct gdt_entry) * NUM_GDT_ENTRIES) - 1;
@@ -64,5 +64,6 @@ gdt__init(void)
     gdt_set_gate(4, 0, 0xFFFFFFFF, 0xF2, 0xCF);
 
     gdt_flush((uintptr_t)&gdt_ptr);
+    return((uintptr_t)&gdt_ptr);
 }
 
