@@ -10,7 +10,7 @@ void cos_ccv_merge(ccv_dense_matrix_t* mat[], ccv_dense_matrix_t** output, int r
 void
 cos_init(void *args)
 {
-	printf("Edge Detection Test\n");
+	printc("Edge Detection Test\n");
 
 	ccv_enable_default_cache();
 	ccv_dense_matrix_t* yuv = 0;
@@ -41,7 +41,7 @@ cos_init(void *args)
 	ccv_matrix_free(yuv);
 	ccv_disable_cache();
 
-	printf("done\n");
+	printc("done\n");
 
 	return;
 }

@@ -36,6 +36,7 @@ COS_VECT_CREATE_STATIC(spd_vect);
 #define WORDS_PER_PAGE (PAGE_SIZE/sizeof(u32_t))
 #define MAP_MAX WORDS_PER_PAGE
 #define VAS_SPAN (WORDS_PER_PAGE * sizeof(u32_t) * 8)
+#define EXTENT_SIZE (32 * 1024 * 1024 / PAGE_SIZE)
 
 /* describes 2^(12+12+3 = 27) bytes */
 struct spd_vas_occupied {
@@ -117,31 +118,32 @@ void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
 		    !(trac = cos_vect_lookup(&spd_vect, dest))) goto done;
 	}
 
-        unsigned long extent_size;
-        int i;
-        for (i = 0; i < MAX_SPD_VAS_LOCATIONS; i++) {
-                if (likely(i == 0)) extent_size = PGD_SIZE;
-                else extent_size = 1 << (i + 20); /* 2^i MB */
+        if (unlikely(npages > MAP_MAX * sizeof(u32_t))) {
+                printc("valloc: cannot alloc more than %lu bytes in one time!\n", 32 * WORDS_PER_PAGE * PAGE_SIZE);
+                goto done;
+        }
 
+        unsigned long ext_size, i;
+        for (i = 0; i < MAX_SPD_VAS_LOCATIONS; i++) {
                 if (trac->extents[i].map) {
-                        if (unlikely(npages > extent_size / PAGE_SIZE)) continue;
                         occ = trac->extents[i].map;
+                        ext_size = (trac->extents[i].end - trac->extents[i].start) / PAGE_SIZE;
                         off = bitmap_extent_find_set(&occ->pgd_occupied[0], 0, npages, MAP_MAX);
                         if (off < 0) continue;
                         ret = (void *)((char *)trac->extents[i].start + off * PAGE_SIZE);
                         goto done;
                 }
 
+                if (npages > EXTENT_SIZE) ext_size = npages;
                 trac->extents[i].map = alloc_page();
                 occ = trac->extents[i].map;
                 assert(occ);
-                trac->extents[i].start = (void*)vas_mgr_expand(spdid, dest, extent_size);
-                trac->extents[i].end = (void *)(trac->extents[i].start + extent_size);
-                bitmap_set_contig(&occ->pgd_occupied[0], 0, extent_size / PAGE_SIZE, 1);
-                if (unlikely(npages > (extent_size / PAGE_SIZE))) continue; /* requested size might larger than extents size, keep this extent and try next */
+                trac->extents[i].start = (void*)vas_mgr_expand(spdid, dest, ext_size * PAGE_SIZE);
+                trac->extents[i].end = (void *)(trac->extents[i].start + ext_size * PAGE_SIZE);
+                bitmap_set_contig(&occ->pgd_occupied[0], 0, ext_size, 1);
                 bitmap_set_contig(&occ->pgd_occupied[0], 0, npages, 0);
                 ret = trac->extents[i].start;
-                goto done;
+                break;
         }
 
 done:   
