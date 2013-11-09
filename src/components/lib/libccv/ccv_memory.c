@@ -2,16 +2,9 @@
 #include "ccv_internal.h"
 #include "3rdparty/sha1/sha1.h"
 
-#ifdef __APPLE__
-#include "TargetConditionals.h"
-#if (TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR)
-// Temporary fix: __thread is not supported on iOS so define it to nothing.
 #define __thread
-#endif
-#endif
 
-
-static ccv_cache_t ccv_cache;
+static __thread ccv_cache_t ccv_cache;
 
 /**
  * For new typed cache object:
@@ -20,7 +13,7 @@ static ccv_cache_t ccv_cache;
  **/
 
 /* option to enable/disable cache */
-static int ccv_cache_opt = 0;
+static __thread int ccv_cache_opt = 0;
 
 ccv_dense_matrix_t* ccv_dense_matrix_new(int rows, int cols, int type, void* data, uint64_t sig)
 {

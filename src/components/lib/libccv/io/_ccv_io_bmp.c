@@ -58,7 +58,7 @@ static void _ccv_read_bmp_fd(FILE* in, ccv_dense_matrix_t** x, int type)
 		if (bpp == 24 && CCV_GET_CHANNEL(im->type) == CCV_C1)
 		{
 			int bufstep = (im->cols * 3 + 3) & -4;
-			unsigned char* buffer = (unsigned char*)alloca(bufstep);
+			unsigned char* buffer = (unsigned char*)malloc(bufstep);
 			for (i = 0; i < im->rows; i++)
 			{
 				(void) fread(buffer, 1, bufstep, in);
@@ -70,7 +70,7 @@ static void _ccv_read_bmp_fd(FILE* in, ccv_dense_matrix_t** x, int type)
 			}
 		} else if (bpp == 8 && CCV_GET_CHANNEL(im->type) == CCV_C3) {
 			int bufstep = (im->cols + 3) & -4;
-			unsigned char* buffer = (unsigned char*)alloca(bufstep);
+			unsigned char* buffer = (unsigned char*)malloc(bufstep);
 			for (i = 0; i < im->rows; i++)
 			{
 				(void) fread(buffer, 1, bufstep, in);
