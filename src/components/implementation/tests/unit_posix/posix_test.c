@@ -1,9 +1,11 @@
 #include <cos_component.h>
 #include <stdio.h>
 
+/* TODO: added micro benchmark */ 
+
 void
 cos_init(void *args)
 {
-        /* TODO: write new posix test cases*/ 
+/* use posix functions or system calls ?*/ 
         return;
 }

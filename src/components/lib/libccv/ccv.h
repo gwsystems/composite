@@ -1162,4 +1162,7 @@ void ccv_convnet_encode(ccv_convnet_t* convnet, ccv_dense_matrix_t* a, ccv_dense
 int ccv_convnet_classify(ccv_convnet_t* convnet, ccv_dense_matrix_t* a);
 void ccv_convnet_free(ccv_convnet_t* convnet);
 
+extern int ccinit, ccclose, ccout, ccdelete, cccleanup;
+extern int cchit, cccall;
+
 #endif

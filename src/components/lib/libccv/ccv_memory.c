@@ -17,6 +17,7 @@ static __thread int ccv_cache_opt = 0;
 
 ccv_dense_matrix_t* ccv_dense_matrix_new(int rows, int cols, int type, void* data, uint64_t sig)
 {
+	cccall++;
 	ccv_dense_matrix_t* mat;
 	if (ccv_cache_opt && sig != 0 && !data && !(type & CCV_NO_DATA_ALLOC))
 	{
@@ -24,6 +25,7 @@ ccv_dense_matrix_t* ccv_dense_matrix_new(int rows, int cols, int type, void* dat
 		mat = (ccv_dense_matrix_t*)ccv_cache_out(&ccv_cache, sig, &type);
 		if (mat)
 		{
+			cchit++;
 			assert(type == 0);
 			mat->type |= CCV_GARBAGE; // set the flag so the upper level function knows this is from recycle-bin
 			mat->refcount = 1;
@@ -212,6 +214,7 @@ void ccv_matrix_free(ccv_matrix_t* mat)
 
 ccv_array_t* ccv_array_new(int rsize, int rnum, uint64_t sig)
 {
+	cccall++;
 	ccv_array_t* array;
 	if (ccv_cache_opt && sig != 0)
 	{
@@ -219,6 +222,7 @@ ccv_array_t* ccv_array_new(int rsize, int rnum, uint64_t sig)
 		array = (ccv_array_t*)ccv_cache_out(&ccv_cache, sig, &type);
 		if (array)
 		{
+			cchit++;
 			assert(type == 1);
 			array->type |= CCV_GARBAGE;
 			array->refcount = 1;
