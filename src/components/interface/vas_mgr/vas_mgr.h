@@ -10,7 +10,7 @@
 #ifndef VAS_MGR_H
 #define VAS_MGR_H
 
-vaddr_t vas_mgr_expand(spdid_t spd, long amnt);
+vaddr_t vas_mgr_expand(spdid_t spd, spdid_t dest, unsigned long amnt);
 void    vas_mgr_contract(spdid_t spd, vaddr_t addr);
 
 #endif 	/* !VAS_MGR_H */

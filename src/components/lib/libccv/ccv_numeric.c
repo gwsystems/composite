@@ -1,6 +1,6 @@
 #include "ccv.h"
 #include "ccv_internal.h"
-//#include <complex.h>
+#include <complex.h>
 #ifdef HAVE_FFTW3
 #include <fftw3.h>
 #else

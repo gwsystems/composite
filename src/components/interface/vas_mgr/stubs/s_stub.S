@@ -7,7 +7,7 @@
  * Author: Gabriel Parmer, gparmer@gwu.edu, 2010
  */
 
-#include <cos_asm_server_stub.h>
+#include <cos_asm_server_stub_simple_stack.h>
 
 .text	
 

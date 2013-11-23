@@ -1,4 +1,4 @@
-C_OBJS=ptest.o
+C_OBJS=posix_test.o
 ASM_OBJS=
 COMPONENT=posix_t.o
 INTERFACES=

@@ -3,6 +3,7 @@
 .text
 .global mmap
 .type	mmap,@function
+.weak   mmap
 mmap:
         movl    $__NR_mmap,%eax
         jmp     __cos_syscall
