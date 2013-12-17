@@ -3,12 +3,14 @@
 
 #include "thread.h"
 
-#define ENABLE  1
-#define DISABLE 0
+#define ENABLE            1
+#define DISABLE           0
 #define FPU_DISABLED_MASK 0x8
+#define FXSR              1<<24
 
 extern int fpu_disabled;
 extern struct thread *fpu_last_used;
+extern int fpu_support_fxsr;
 
 /* fucntions called outside */
 static inline int fpu_init(void);
@@ -27,11 +29,43 @@ static inline void fxsave(struct thread*);
 static inline void fxrstor(struct thread*);
 static inline unsigned long fpu_read_cr0(void);
 static inline void fpu_set(int);
+static inline u64_t fpu_get_cpuid(void);
+static inline int fpu_check_fxsr(void);
 
 #ifdef FPU_ENABLED
+static inline u64_t
+fpu_get_cpuid(void)
+{
+        u64_t cpuid;
+
+        asm volatile("mov $1, %%eax\n\t"
+                     "cpuid\n\t"
+                     "movl %%edx, %0"
+                     : "=m" (cpuid) : : "eax", "edx");
+
+        return cpuid;
+}
+
+static inline int
+fpu_check_fxsr(void)
+{
+        u64_t cpuid;
+        int fxsr_status;
+
+        cpuid = fpu_get_cpuid();
+        fxsr_status = cpuid & FXSR; /* SSE presents if bit 25 is set, more information refer to CPUID instruction */
+
+        return fxsr_status;
+}
+
 static inline int
 fpu_init(void)
 {
+        fpu_support_fxsr = 0;
+        fpu_support_fxsr = fpu_check_fxsr();
+
+        if (fpu_support_fxsr) printk("fpu supports fxsave/fxrstor\n");
+
         fpu_set(DISABLE);
         fpu_disabled = 1;
         fpu_last_used = NULL;
@@ -147,7 +181,7 @@ static inline unsigned long
 fpu_read_cr0(void)
 {
         unsigned long val;
-        asm volatile("mov %%cr0,%0" : "=r" (val));
+        asm volatile("mov %%cr0, %0" : "=r" (val));
 
         return val;
 }
@@ -159,7 +193,7 @@ fpu_set(int status)
 
         cr0 = fpu_read_cr0();
         val = status ?  (cr0 & ~FPU_DISABLED_MASK) : (cr0 | FPU_DISABLED_MASK); // ENABLE(status == 1) : DISABLE(status == 0)
-        asm volatile("mov %0,%%cr0" : : "r" (val));
+        asm volatile("mov %0, %%cr0" : : "r" (val));
 
         return;
 }
@@ -167,7 +201,10 @@ fpu_set(int status)
 static inline void
 fxsave(struct thread *thd)
 {
-        asm volatile("fxsave %0" : "=m" (thd->fpu));
+        if (fpu_support_fxsr)
+                asm volatile("fxsave %0" : "=m" (thd->fpu));
+        else
+                asm volatile("fsave %0" : "=m" (thd->fpu));
         thd->fpu.saved_fpu = 1;
 
         return;
@@ -176,7 +213,10 @@ fxsave(struct thread *thd)
 static inline void
 fxrstor(struct thread *thd)
 {
-        asm volatile("fxrstor %0" : : "m" (thd->fpu));
+        if (fpu_support_fxsr)
+                asm volatile("fxrstor %0" : : "m" (thd->fpu));
+        else
+                asm volatile("frstor %0" : : "m" (thd->fpu));
 
         return;
 }
@@ -192,8 +232,10 @@ static inline int fpu_is_disabled(void){ return 1; }
 static inline int fpu_thread_uses_fp(struct thread *thd) { return 0; }
 static inline void fxsave(struct thread *thd) { return; }
 static inline void fxrstor(struct thread *thd) { return; }
-static inline unsigned long fpu_read_cr0(void) { return 0x0; }
+static inline unsigned long fpu_read_cr0(void) { return 0; };
 static inline void fpu_set(int status) { return; }
+static inline u64_t fpu_get_cpuid(void) { return 0; }
+static inline int fpu_check_fxsr(void) { return 0; }
 #endif
 
 #endif
