@@ -17,3 +17,4 @@ tags
 src/kernel/include/shared/cpu_ghz.h
 src/Makefile.cosconfig
 modules.order
+src/platform/i386/kernel.img

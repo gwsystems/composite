@@ -11,11 +11,11 @@
 #include "isr.h"
 #include "vm.h"
 #include "kbd.h"
+#include "tss.h"
 #include "user.h"
 
 void kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp);
 int keep_kernel_running = 1;
-uintptr_t gdt_base;
 
 void 
 kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
@@ -30,7 +30,7 @@ kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
     printk__register_handler(&serial__puts);
 
     printk(INFO, "Enabling gdt\n");
-    gdt_base = gdt__init();
+    gdt__init();
 
     printk(INFO, "Enabling idt\n");
     idt__init();
@@ -73,6 +73,7 @@ kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
     printk(INFO, "pfault %d\n", *ptr);
 #endif
 
+    tss__init ();
     user__init ();
 
     while (keep_kernel_running);
