@@ -3,6 +3,7 @@
 
 #include "types.h"
 
+#define KERNEL_TABLES 8		// 32 MB
 #define PAGE_SIZE 4096
 
 typedef uint32_t u32_t;
@@ -14,7 +15,7 @@ typedef u32_t ptd_t[1024];	// Page Table Directory
 /* 4kB page structure:
 0:	P	Present				0 = not present		1 = present
 1:	RW	Read/Write			0 = read only		1 = read/write
-2:	US	User/Super			0 = supervisotir only	1 = user mode
+2:	US	User/Super			0 = supervisor only	1 = user mode
 3:	PWT	Page-level write-through	4.9
 4:	PCD	Page-level cache disable	4.9
 5:	A	Accessed			0 = not accessed	1 = accessed
@@ -51,11 +52,15 @@ l12-31:	FRAME	Physical address of page
 13-31:	Confusing
 */
 
-void paging__init(size_t memory_size);
+void paging__init(size_t memory_size, uint32_t nmods, uint32_t *mods);
 
 void *chal_va2pa(void *address);
 void *chal_pa2va(void *address);
 
 void switch_user_mode(void);
+
+void ptd_init(ptd_t pt);
+void ptd_load(ptd_t pt);
+void ptd_copy_global(ptd_t dst, ptd_t src);
 
 #endif

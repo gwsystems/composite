@@ -15,7 +15,11 @@ int printk__register_handler(void (*handler)(const char *));
 
 #define die(fmt,...) do {               \
     printk(ERROR, fmt,##__VA_ARGS__);   \
-    asm volatile ("hlt");               \
+    asm("mov $0x53,%ah");               \
+    asm("mov $0x07,%al");               \
+    asm("mov $0x001,%bx");              \
+    asm("mov $0x03,%cx");               \
+    asm("int $0x15");                   \
 } while(0)
 
 #endif

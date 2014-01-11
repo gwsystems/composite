@@ -6,7 +6,7 @@ else
 	Q =
 endif
 
-CC := gcc -m32 
+CC := gcc -m32
 LD := ld -m elf_i386
 AS := as --32 -g
 
@@ -50,6 +50,7 @@ OBJS += vtxprintf.o
 OBJS += boot_log.o
 OBJS += multiboot.o
 OBJS += tss.o
+OBJS += task.o
 OBJS += user.o
 
 all: $(KERNEL)

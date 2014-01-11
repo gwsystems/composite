@@ -46,6 +46,14 @@ struct multiboot {
 	uintptr_t vbe_interface_len;
 } __attribute__ ((packed));
 
+typedef struct multiboot_mod_list
+{
+       uintptr_t mod_start;
+       uintptr_t mod_end;
+       uintptr_t cmdline;
+       uintptr_t pad;
+} multiboot_module_t;
+
 void multiboot__print(struct multiboot *mboot);
 
 #endif

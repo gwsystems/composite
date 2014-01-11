@@ -3,7 +3,7 @@
 #include "isr.h"
 #include "serial.h"
 #include "printk.h"
-#include "vm.h"
+#include "task.h"
 
 extern int keep_kernel_running;
 
@@ -49,21 +49,29 @@ serial__puts(const char *s)
 		serial_send(*s);
 }
 
+extern uint32_t current_task;
+
 static void
 serial_handler(struct registers *r)
 {
     char serial = serial_recv();
+    volatile char *page_fault_address = (char*) 0xff000000;
 
 	/*
 	 * Fix the serial input assuming it is ascii
 	 */
 	switch (serial) {
 	case 27:
-		keep_kernel_running = 0;
-		break;
+	  keep_kernel_running = 0;
+	  break;
         case 115:
-                switch_user_mode();
-                break;
+	  task_switch(current_task == 0 ? 1 : 0);
+	  break;
+	case 102:
+	  serial = *page_fault_address;
+	  printk(INFO, "'%c'\n", serial);
+	  serial = 102;
+	  break;
         case '\0':
             return;
             break;
