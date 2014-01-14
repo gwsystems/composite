@@ -38,7 +38,6 @@ __attribute__ ((weak))
 int cos_async_inv(struct usr_inv_cap *ucap, int *params) 
 {
 	return 0;
-	//return cap_v >> COS_CAPABILITY_OFFSET; /* cap id */
 }
 
 __attribute__ ((weak))

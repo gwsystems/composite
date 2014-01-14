@@ -377,12 +377,12 @@ boot_create_system(void)
 				printc("cos: booter could not expand VAS for component %d\n", h->id);
 				BUG();
 			}
-			if (hs[i + 1] != NULL) {
+			if (hs[i + 1] != NULL && cobj_sect_get(hs[i + 1], 0)->vaddr != sect->vaddr + SERVICE_SIZE * 4) {
 				/* We only need to expand to the next 4MB
 				 * region for now. The start address of the
 				 * next component should have no overlap with
 				 * the current one. */
-				assert(cobj_sect_get(hs[i + 1], 0)->vaddr == sect->vaddr + SERVICE_SIZE * 4);
+				BUG();
 			}
 		}
 		if (boot_spd_symbs(h, spdid, &comp_info))        BUG();
@@ -489,15 +489,24 @@ void cos_init(void)
 	boot_sched = (unsigned int *)cos_comp_info.cos_poly[4];
 
 	boot_find_cobjs(h, num_cobj);
+	
+	int nregions;
 	/* This component really might need more vas, get the next 4M region */
+	if (cos_spd_id() == 1) {
+		nregions = NREGIONS - 1; //Low-level booter
+	} else {
+		nregions = NREGIONS * 4 - 1; //Booter may need larger VAS
+	}
+
 	if (cos_vas_cntl(COS_VAS_SPD_EXPAND, cos_spd_id(), 
 			 round_up_to_pgd_page((unsigned long)&num_cobj), 
-			 (NREGIONS-1) * round_up_to_pgd_page(1))) {
+			nregions * round_up_to_pgd_page(1))) {
 		printc("Could not expand boot component to %p:%x\n",
 		       (void *)round_up_to_pgd_page((unsigned long)&num_cobj), 
-		       (unsigned int)round_up_to_pgd_page(1)*3);
+		       (unsigned int)round_up_to_pgd_page(1)*nregions);
 		BUG();
 	}
+
 	printc("h @ %p, heap ptr @ %p\n", h, cos_get_heap_ptr());
 	printc("header %p, size %d, num comps %d, new heap %p\n", 
 	       h, h->size, num_cobj, cos_get_heap_ptr());

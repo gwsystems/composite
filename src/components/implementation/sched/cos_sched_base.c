@@ -1692,16 +1692,6 @@ static void sched_child_evt_thd(void)
 	cos_argreg_free(e);
 }
 
-/* return the id of the brand created */
-static int sched_setup_brand(spdid_t spdid)
-{
-	unsigned short int b_id;
-
-	b_id = cos_brand_cntl(COS_BRAND_CREATE_HW, 0, 0, spdid);
-
-	return b_id;
-}
-
 int sched_priority(unsigned short int tid)
 {
 	struct sched_thd *t;
@@ -1724,26 +1714,15 @@ unsigned long sched_timestamp(void)
 	return (unsigned long)PERCPU_GET(sched_base_state)->ticks;
 }
 
-int sched_create_net_brand(spdid_t spdid, unsigned short int port)
+int sched_create_net_acap(spdid_t spdid, int acap_id, unsigned short int port)
 {
-	int b_id;
-	
-	b_id = sched_setup_brand(spdid);
-	assert(b_id >= 0);
-	if (0 > cos_brand_wire(b_id, COS_HW_NET, port)) BUG();
+	/* Called by the netif component to link the acap to HW_NET. */
 
-	return b_id;
-}
-
-int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short int tid)
-{
-	struct sched_thd *t;
-	int ret;
-
-	t = sched_get_mapping(tid);
-	if (NULL == t) return -1;
-	ret = cos_brand_cntl(COS_BRAND_ADD_THD, bid, tid, 0);
-	if (0 > ret) return -1;
+	if (acap_id <= 0) return -1;
+	/* This is done by the scheduler, not the netif
+	 * component. Only the scheduler should be able to make
+	 * acap_wire call. */
+	if (cos_acap_wire(spdid << 16 | acap_id, COS_HW_NET, port)) BUG();
 
 	return 0;
 }
@@ -1763,17 +1742,25 @@ void sched_exit(void)
 
 static struct sched_thd *fp_create_timer(void)
 {
-	int bid;
+	int acap, srv_acap;
+	struct sched_thd *timer_thd;
 	union sched_param sp[2] = {{.c = {.type = SCHEDP_TIMER}},
 				   {.c = {.type = SCHEDP_NOOP}}};
 
-	bid = sched_setup_brand(cos_spd_id());
 	assert(sched_is_root());
-	PERCPU_GET(sched_base_state)->timer = sched_setup_thread_arg(&sp, fp_timer, (void*)bid, 1);
-	if (NULL == PERCPU_GET(sched_base_state)->timer) BUG();
-	if (0 > sched_add_thd_to_brand(cos_spd_id(), bid, PERCPU_GET(sched_base_state)->timer->id)) BUG();
-	printc("Core %ld: Timer thread has id %d with priority %s.\n", cos_cpuid(), PERCPU_GET(sched_base_state)->timer->id, "t");
-	cos_brand_wire(bid, COS_HW_TIMER, 0);
+	timer_thd = sched_setup_thread_arg(&sp, fp_timer, 0, 1);
+	if (!timer_thd) BUG();
+	PERCPU_GET(sched_base_state)->timer = timer_thd;
+
+	acap = cos_async_cap_cntl(COS_ACAP_CREATE, cos_spd_id(), cos_spd_id(), timer_thd->id << 16 | timer_thd->id);
+	 /* cli_acap not used as the server acap is triggered by timer
+	  * interrupt. We set the owner of the cli_acap to be the
+	  * timer thread itself to prevent other threads invoking the
+	  * acap (so only timer int can trigger it). */
+	/* cli_acap = acap >> 16; */
+	srv_acap = acap & 0xFFFF;
+	cos_acap_wire(srv_acap, COS_HW_TIMER, 0);
+	printc("Core %ld: Timer thread (id %d) has srv_acap %d.\n", cos_cpuid(), PERCPU_GET(sched_base_state)->timer->id, srv_acap);
 
 	return PERCPU_GET(sched_base_state)->timer;
 }
@@ -1816,8 +1803,10 @@ static void IPI_handler(void *d)
 	struct xcore_fn_data *data;
 
 	int cli_acap, srv_acap, ret;
-	cli_acap = cos_async_cap_cntl(COS_ACAP_CLI_CREATE, cos_spd_id(), cos_spd_id(), 0); /* no owner to this cli_acap*/
-	srv_acap = cos_async_cap_cntl(COS_ACAP_SRV_CREATE, cos_spd_id(), cos_get_thd_id(), 0);
+	ret = cos_async_cap_cntl(COS_ACAP_CREATE, cos_spd_id(), cos_spd_id(), cos_get_thd_id());
+
+	cli_acap = ret >> 16;
+	srv_acap = ret & 0xFFFF;
 
 	if (unlikely(cli_acap <= 0 || srv_acap <= 0)) {
 		printc("Scheduler %ld could not allocate acap for IPI handler %d.\n", cos_spd_id(), cos_get_thd_id());
@@ -1825,7 +1814,6 @@ static void IPI_handler(void *d)
 	}
 	sched_state->IPI_acap = cli_acap;
 
-	ret = cos_async_cap_cntl(COS_ACAP_WIRE, cos_spd_id(), cli_acap, cos_spd_id() << 16 | srv_acap);
 	if (ret < 0) BUG();
 
 	CK_RING_INSTANCE(xcore_ring) ring;
@@ -1838,7 +1826,7 @@ static void IPI_handler(void *d)
 	while (1) {
 		cos_sched_lock_take();
 		/* Going to switch away */
-		/* Don't use brand_wait syscall here. */
+		/* Do not use ainv_wait syscall here. We are in the scheduler. */
 		sched_switch_thread(COS_SCHED_BRAND_WAIT, EVT_CMPLETE_LOOP);
 
 		/* Received an IPI! */

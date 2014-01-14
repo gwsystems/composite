@@ -298,17 +298,11 @@ int __evt_wait(spdid_t spdid, long extern_evt, int n)
 		} else {
 			ACT_RECORD(ACT_SLEEP, spdid, e->extern_id, cos_get_thd_id(), 0);
 
-			if (0 > sched_block(cos_spd_id(), 0)) BUG();
+			/* We can use acaps to block / wakeup, which
+			 * can avoid calling scheduler. But it's like
+			 * a hack. */
 
-			/* The following approach avoids involving
-			 * scheduler. But it's ugly and unclear. */
-			/* if (!bid) { */
-			/* 	bid = cos_brand_cntl(COS_BRAND_CREATE, 0, 0, cos_spd_id()); */
-			/* 	assert(bid > 0); */
-			/* 	if (sched_add_thd_to_brand(cos_spd_id(), bid, cos_get_thd_id())) BUG(); */
-			/* 	printc("evt brand created\n"); */
-			/* } */
-			/* cos_brand_wait(bid); */
+			if (0 > sched_block(cos_spd_id(), 0)) BUG();
 		}
 	}
 
@@ -348,14 +342,6 @@ int evt_trigger(spdid_t spdid, long extern_evt)
 		ACT_RECORD(ACT_WAKEUP, spdid, e->extern_id, cos_get_thd_id(), ret);
 
 		if (sched_wakeup(cos_spd_id(), ret)) BUG();
-
-		/* The following approach avoids involving
-		 * scheduler. But it's ugly and unclear! */
-		/* if (core != cos_cpuid() && bid) { */
-		/* 	cos_send_ipi(core, bid, 0, 0); */
-		/* } else { */
-		/* 	if (sched_wakeup(cos_spd_id(), ret)) BUG(); */
-		/* } */
 	} else {
 		lock_release(&evt_lock);
 	}

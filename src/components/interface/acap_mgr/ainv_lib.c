@@ -64,6 +64,10 @@ int cos_async_inv(struct usr_inv_cap *ucap, int *params) {
 
 	/* decide whether we should send ipi. return 0 if not. */
 	if (SERVER_ACTIVE(shared_struct)) return 0;
+	
+	/* instead of returning acap and go through inv path, why
+	 * don't we call ainv_send here? We can get rid of the branch
+	 * in the inv path (which is to detect async flag). */
 
 	return acap;
 err_nomem:

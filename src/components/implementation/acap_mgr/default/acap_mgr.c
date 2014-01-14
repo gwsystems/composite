@@ -29,10 +29,12 @@
 #endif
 
 /* master thread should be on the first core. */
-int assign[NUM_CPU_COS + 10] = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36, -1,//ten cores on socket 0
-				1, 5, 9, 13, 17, 21, 25, 29, 33, 37,
-				2, 6, 10, 14, 18, 22, 26, 30, 34, 38,
-				3, 7, 11, 15, 19, 23, 27, 31, 35, -1};
+int assign[NUM_CPU_COS + 10] = {0, 1, -1};
+
+/* int assign[NUM_CPU_COS + 10] = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36, -1,//ten cores on socket 0 */
+/* 				1, 5, 9, 13, 17, 21, 25, 29, 33, 37, */
+/* 				2, 6, 10, 14, 18, 22, 26, 30, 34, 38, */
+/* 				3, 7, 11, 15, 19, 23, 27, 31, 35, -1}; */
 
 struct srv_thd_info { 
 	/* information of handling thread */
@@ -285,7 +287,7 @@ acap_cli_lookup_ring(int spdid, int cap_id)
  * the client side. Major setup done in this function. */
 int acap_cli_lookup(int spdid, int cap_id) 
 {
-	int srv_thd_id, acap_id, acap_v, srv_acap, cspd, sspd;
+	int srv_thd_id, acap_id, acap_v, srv_acap, cspd, sspd, ret;
 	struct srv_thd_info *srv_thd;
 	struct cli_thd_info *cli_thd_info;
 	struct comp_info *ci = &comp_info[spdid];
@@ -321,15 +323,7 @@ int acap_cli_lookup(int spdid, int cap_id)
 // and if we want this thread use static cap, return 0
 	int cpu = 1;
 
-	/* create acap between cspd and sspd */
-	acap_id = cos_async_cap_cntl(COS_ACAP_CLI_CREATE, cspd, sspd, thd_id);
-	if (acap_id <= 0) { 
-		printc("err: async cap creation failed.");
-		goto err; 
-	}
-	acap_v = acap_id | COS_ASYNC_CAP_FLAG;
-
-	/* create server thd and wire. */
+	/* create server thd. */
 	srv_thd_id = create_thd_curr_prio(cpu, sspd);
 	/* printc("Created handling thread %d on cpu %d\n", srv_thd_id, cpu); */
 	srv_thd = &srv_thd_info[srv_thd_id];
@@ -340,24 +334,30 @@ int acap_cli_lookup(int spdid, int cap_id)
 	srv_thd->cli_cap_id = cap_id;
 	cli_thd_info->cap_info[cap_id].cap_srv_thd = srv_thd_id;
 
-	int ret = 0;
+	/* create acap between cspd and sspd */
+
+	ret = cos_async_cap_cntl(COS_ACAP_CREATE, cspd, sspd, srv_thd_id);
+	acap_id = ret >> 16;
+	srv_acap = ret & 0xFFFF;
+	if (acap_id <= 0) { 
+		printc("err: async cap creation failed.");
+		goto err; 
+	}
+	acap_v = acap_id | COS_ASYNC_CAP_FLAG;
+	cli_thd_info->cap_info[cap_id].acap = acap_v; /* client side acap */
+
+	if (srv_acap <= 0) {
+		printc("Server acap allocation failed for thread %d.\n", srv_thd_id);
+		goto err;
+	}
+	srv_thd->srv_acap = srv_acap;
+
 	ret = shared_page_setup(srv_thd_id);
 	if (ret < 0) {
 		printc("acap_mgr: ring buffer allocation error!\n");
 		goto err;
 	}
 
-	cli_thd_info->cap_info[cap_id].acap = acap_v; /* client side acap */
-
-	srv_acap = cos_async_cap_cntl(COS_ACAP_SRV_CREATE, sspd, srv_thd_id, 0);
-	if (unlikely(srv_acap <= 0)) {
-		printc("Server acap allocation failed for thread %d.\n", srv_thd_id);
-		goto err;
-	}
-	srv_thd->srv_acap = srv_acap;
-	ret = cos_async_cap_cntl(COS_ACAP_WIRE, cspd, acap_id, sspd << 16 | srv_acap);
-	if (unlikely(ret)) goto err;
-	
 	if (sched_wakeup(cos_spd_id(), srv_thd_id)) BUG();
 
 	/* printc("acap_mgr returning acap %d (%d), thd %d\n",  */
@@ -715,7 +715,7 @@ err:
 	return NULL;
 }
 
-/* Returns wait_acap + wakeup_acap. */
+/* Returns wakeup_acap + wait_acap. */
 int 
 par_acap_get_barrier(int spdid, int nest_level)
 {
@@ -753,21 +753,17 @@ par_acap_get_barrier(int spdid, int nest_level)
 
 	/* create acap between cspd and sspd. No owner of this acap
 	 * since every child could be invoking it. */
-	curr_par->wakeup_acap = cos_async_cap_cntl(COS_ACAP_CLI_CREATE, cspd, sspd, 0);
+	ret = cos_async_cap_cntl(COS_ACAP_CREATE, cspd, sspd, curr);
+
+	curr_par->wakeup_acap = ret >> 16;
 	if (unlikely(curr_par->wakeup_acap <= 0)) { 
 		printc("Parallel mgr: client acap creation failed.");
 		goto err; 
 	}
 
-	curr_par->wait_acap = cos_async_cap_cntl(COS_ACAP_SRV_CREATE, sspd, curr, 0);
+	curr_par->wait_acap = ret & 0xFFFF;
 	if (unlikely(curr_par->wait_acap <= 0)) {
 		printc("Parallel mgr: Server acap allocation failed for thread %d.\n", curr);
-		goto err;
-	}
-	ret = cos_async_cap_cntl(COS_ACAP_WIRE, cspd, curr_par->wakeup_acap, 
-				 sspd << 16 | curr_par->wait_acap);
-	if (unlikely(ret)) {
-		printc("Parallel mgr: acap wire failed for thread %d.\n", curr);
 		goto err;
 	}
 done:
@@ -809,24 +805,21 @@ intra_acap_setup(struct intra_comp *comp, int nest_level, int i, const int spin)
 
 	if (!spin) {
 		/* create acap between cspd and sspd */
-		cli_acap = cos_async_cap_cntl(COS_ACAP_CLI_CREATE, cspd, sspd, thd_id); // setup should be one call
+		ret = cos_async_cap_cntl(COS_ACAP_CREATE, cspd, sspd, srv_thd_id);
+
+		cli_acap = ret >> 16;
 		if (cli_acap <= 0) { 
 			printc("err: async cap creation failed.");
 			goto err; 
 		}
 		par_team->cap_info[i].acap = cli_acap;
 
-		srv_acap = cos_async_cap_cntl(COS_ACAP_SRV_CREATE, sspd, srv_thd_id, 0);
+		srv_acap = ret & 0xFFFF;
 		if (unlikely(srv_acap <= 0)) {
 			printc("Parallel mgr: Server acap allocation failed for thread %d.\n", srv_thd_id);
 			goto err;
 		}
 		srv_thd->srv_acap = srv_acap;
-		ret = cos_async_cap_cntl(COS_ACAP_WIRE, cspd, cli_acap, sspd << 16 | srv_acap);
-		if (unlikely(ret)) {
-			printc("Parallel mgr: acap wire failed for thread %d.\n", srv_thd_id);
-			goto err;
-		}
 	} else {
 		/* This means the worker thread spins to wait for job
 		 * creation. Thus no need to create acaps. */
@@ -997,15 +990,7 @@ distribution_acap_setup(struct intra_comp *comp, int nest_level, int i)
 	par_team = &comp->nested_par[nest_level];
 	assert(par_team->cap_info);
 
-	/* create acap between cspd and sspd */
-	cli_acap = cos_async_cap_cntl(COS_ACAP_CLI_CREATE, cspd, sspd, thd_id); // setup should be one call
-	if (cli_acap <= 0) { 
-		printc("err: async cap creation failed.");
-		goto err; 
-	}
-	par_team->cap_info[i].acap = cli_acap;
-
-	/* create server thd and wire. */
+	/* create server thd */
 	/* printc("thd %d going to create thd on cpu %d, spd %d...\n", cos_get_thd_id(), cpu, sspd); */
 	srv_thd_id = create_thd_prio(cpu, IPI_DIST_PRIO, sspd);
 	/* printc("thd %d: got new thd id %d\n", cos_get_thd_id(), srv_thd_id); */
@@ -1028,17 +1013,21 @@ distribution_acap_setup(struct intra_comp *comp, int nest_level, int i)
 		goto err;
 	}
 
-	srv_acap = cos_async_cap_cntl(COS_ACAP_SRV_CREATE, sspd, srv_thd_id, 0);
+	/* create acap between cspd and sspd */
+	ret = cos_async_cap_cntl(COS_ACAP_CREATE, cspd, sspd, srv_thd_id); // setup should be one call
+	cli_acap = ret >> 16;
+	if (cli_acap <= 0) { 
+		printc("err: async cap creation failed.");
+		goto err; 
+	}
+	par_team->cap_info[i].acap = cli_acap;
+
+	srv_acap = ret & 0xFFFF;
 	if (unlikely(srv_acap <= 0)) {
 		printc("Parallel mgr: Server acap allocation failed for thread %d.\n", srv_thd_id);
 		goto err;
 	}
 	srv_thd->srv_acap = srv_acap;
-	ret = cos_async_cap_cntl(COS_ACAP_WIRE, cspd, cli_acap, sspd << 16 | srv_acap);
-	if (unlikely(ret)) {
-		printc("Parallel mgr: acap wire failed for thread %d.\n", srv_thd_id);
-		goto err;
-	}
 
 	/* This should be created lazily by the dist thread
 	 * itself. However I need the priority information so that we
@@ -1186,7 +1175,7 @@ int redirect_cap_async(int cspd, int sspd)
 		cap = &(comp_info[cspd].cap[i]);
 		if (cap->srv_comp != sspd) continue;
 		printc("linking cap %d of cspd %d\n", i, cspd);
-		ret = cos_async_cap_cntl(COS_ACAP_LINK, cspd, i, 0);
+		ret = cos_async_cap_cntl(COS_ACAP_LINK_STATIC_CAP, cspd, i, 0);
 
 		if (ret < 0) { 
 			printc("err: linking cap %d to acap stub failed (comp %d).", i, cspd);

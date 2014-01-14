@@ -30,7 +30,6 @@ distclean: clean
 	$(MAKE) $(MAKEFLAGS) -C components distclean	
 
 init:
-	@cd ..; git submodule init; git submodule update; git submodule foreach git pull origin master; cd src/
 	$(MAKE) $(MAKEFLAGS) -C components init
 	$(MAKE) $(MAKEFLAGS) -C platform init
 

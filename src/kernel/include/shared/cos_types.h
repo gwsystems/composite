@@ -215,19 +215,27 @@ enum {
  * port/brand thread pair, and the callback structures for
  * communication.
  */
-struct cos_brand_info {
-	unsigned short int  brand_port;
-	struct thread      *brand;
+/* Replaced brands with acaps. Added ring_buf pointers (which were in
+ * the brand structure). */
+struct cos_net_acap_info {
+	unsigned short int  acap_port;
+	struct async_cap   *acap;
 	void               *private;
+
+	/* HACK: recv ring buffer for network packets, both user-level
+	 * and kernel-level pointers  */
+	ring_buff_t *u_rb, *k_rb;
+	int rb_next; 		/* Next address entry */
 };
+
 typedef void (*cos_net_data_completion_t)(void *data);
 struct cos_net_callbacks {
 	int (*xmit_packet)(void *headers, int hlen, struct gather_item *gi, int gather_len, int tot_len);
-	int (*create_brand)(struct cos_brand_info *bi);
-	int (*remove_brand)(struct cos_brand_info *bi);
+	int (*create_acap)(struct cos_net_acap_info *bi);
+	int (*remove_acap)(struct cos_net_acap_info *bi);
 
 	/* depricated: */
-	int (*get_packet)(struct cos_brand_info *bi, char **packet, unsigned long *len,
+	int (*get_packet)(struct cos_net_acap_info *bi, char **packet, unsigned long *len,
 			  cos_net_data_completion_t *fn, void **data, unsigned short int *port);
 };
 
@@ -237,7 +245,7 @@ struct cos_trans_fns {
 	int   (*direction)(int direction);
 	void *(*map_kaddr)(int channel);
 	int   (*map_sz)(int channel);
-	int   (*brand_created)(int channel, void *b);
+	int   (*acap_created)(int channel, void *acap);
 };
 
 /*
@@ -448,15 +456,16 @@ enum {
 	COS_TRANS_MAP_SZ,
 	COS_TRANS_MAP,
 	COS_TRANS_DIRECTION,
-	COS_TRANS_BRAND,
+	COS_TRANS_ACAP,
 };
 
 /* operations for cos_async_cap_cntl */
 enum {
-	COS_ACAP_CLI_CREATE = 0,
+	COS_ACAP_CREATE = 0,
+	COS_ACAP_CLI_CREATE,
 	COS_ACAP_SRV_CREATE,
 	COS_ACAP_WIRE,
-	COS_ACAP_LINK
+	COS_ACAP_LINK_STATIC_CAP,
 };
 
 /* flags for cos_switch_thread */

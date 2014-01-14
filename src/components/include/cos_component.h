@@ -141,7 +141,7 @@ cos_syscall_1(8,  int, upcall, int, spd_id);
 cos_syscall_3(9,  int, sched_cntl, int, operation, int, thd_id, long, option);
 cos_syscall_3(10, int, mpd_cntl, int, operation, spdid_t, composite_spd, spdid_t, composite_dest);
 cos_syscall_3(11, int, __mmap_cntl, long, op_flags_dspd, vaddr_t, daddr, unsigned long, mem_id);
-cos_syscall_3(12, int, brand_wire, long, thd_id, long, option, long, data);
+cos_syscall_3(12, int, acap_wire, long, thd_id, long, option, long, data);
 cos_syscall_3(13, long, __cap_cntl, int, option, u32_t, arg1, long, arg2);
 cos_syscall_3(14, int, __buff_mgmt, void *, addr, int, thd_id, int, len_option);
 cos_syscall_3(15, int, __thd_cntl, int, op_thdid, long, arg1, long, arg2);

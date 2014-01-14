@@ -91,9 +91,6 @@ struct async_cap {
 	int allocated;
 
 	// server acap
-	/* int id; */
-	/* int srv_spd_id; */
-	/* int upcall_thd; */
 	int upcall_thd;
 	unsigned int pending_upcall;
 } CACHE_ALIGNED;

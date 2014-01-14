@@ -116,7 +116,7 @@ void cos_meas_report(void)
 				printk("cos: unknown type for %d of %d", i, per_core_meas[cpu].cos_measurements[i].type);
 			}
 #if NUM_CPU_COS > 1
-			break;
+			if (cpu > INIT_CORE) break; //limit the output for now.
 #endif
 		}
 	}

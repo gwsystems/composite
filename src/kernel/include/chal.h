@@ -84,11 +84,16 @@ void *chal_pa2va(void *pa);
 void *chal_alloc_page(void);
 void chal_free_page(void *page);
 
+/* Per core ACAPs for timer events */
+PERCPU_DECL(struct async_cap *, cos_timer_acap);
+
 /*******************
  * Other functions *
  *******************/
 
-int chal_attempt_brand(struct thread *brand);
+int chal_attempt_ainv(struct async_cap *acap);
+//int chal_attempt_brand(struct thread *brand);
+
 /* static const struct cos_trans_fns *trans_fns = NULL; */
 void chal_idle(void);
 

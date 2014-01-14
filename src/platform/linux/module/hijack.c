@@ -1259,19 +1259,19 @@ void *chal_pa2va(void *pa)
  * Our composite emulated timer interrupt executed from a Linux
  * softirq
  */
-CACHE_ALIGNED static struct timer_list timer[NUM_CPU]; 
+PERCPU_ATTR(static, struct timer_list, timer);
 
 extern struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
 extern struct thread *ainv_next_thread(struct async_cap *acap, struct thread *preempted, int preempt);
 
 extern void cos_net_deregister(struct cos_net_callbacks *cn_cb);
 extern void cos_net_register(struct cos_net_callbacks *cn_cb);
-extern int cos_net_try_brand(struct thread *t, void *data, int len);
+extern int cos_net_try_acap(struct cos_net_acap_info *net_info, void *data, int len);
 extern void cos_net_prebrand(void);
 extern int cos_net_notify_drop(struct thread *brand);
 EXPORT_SYMBOL(cos_net_deregister);
 EXPORT_SYMBOL(cos_net_register);
-EXPORT_SYMBOL(cos_net_try_brand);
+EXPORT_SYMBOL(cos_net_try_acap);
 EXPORT_SYMBOL(cos_net_prebrand);
 EXPORT_SYMBOL(cos_net_notify_drop);
 extern void cos_net_init(void);
@@ -1284,7 +1284,6 @@ EXPORT_SYMBOL(cos_trans_reg);
 EXPORT_SYMBOL(cos_trans_dereg);
 EXPORT_SYMBOL(cos_trans_upcall);
 
-CACHE_ALIGNED extern struct thread *cos_timer_brand_thd[NUM_CPU];
 #define NUM_NET_BRANDS 2 /* keep consistent with inv.c */
 
 CACHE_ALIGNED static int in_syscall[NUM_CPU] = { 0 }; 
@@ -1719,46 +1718,57 @@ static void ainv_receive_ipi(void *cap_entry)
 	return;
 }
 
-int ainv_send_ipi(int cpuid, struct async_cap *cap_entry, int wait)
+int ainv_send_ipi(int cpuid, struct async_cap *cap_entry)
 {
-	smp_call_function_single(cpuid, ainv_receive_ipi, (void *)cap_entry, wait);
+	smp_call_function_single(cpuid, ainv_receive_ipi, (void *)cap_entry, 0);
 
 	return 0;
 }
 
+PERCPU_VAR(cos_timer_acap);
+
 static void timer_interrupt(unsigned long data)
 {
+	unsigned long t;
+	struct async_cap *acap = *PERCPU_GET(cos_timer_acap);
+	struct timer_list *curr_timer = PERCPU_GET(timer);
 	BUG_ON(cos_thd_per_core[get_cpuid()].cos_thd == NULL);
-	mod_timer_pinned(&timer[get_cpuid()], jiffies+1);
 
-	if (!(cos_timer_brand_thd[get_cpuid()] && cos_timer_brand_thd[get_cpuid()]->upcall_threads)) {
-		return;
-	}
+	t = jiffies+1;
+	/* printk("core %d before mod timer, timer %p, %u\n", get_cpuid(), curr_timer, curr_timer->expires); */
+	mod_timer_pinned(curr_timer, t);
+	/* printk("core %d mod timer ret %d, next t %u, timer %p, %u\n", get_cpuid(), ret, t, curr_timer, curr_timer->expires); */
+	if (!(acap && acap->upcall_thd)) return;
 
-	chal_attempt_brand(cos_timer_brand_thd[get_cpuid()]);
+	chal_attempt_ainv(acap);
 
 	return;
 }
 
 void register_timers(void)
 {
-	assert(!timer[get_cpuid()].function);
-	init_timer(&timer[get_cpuid()]);
-	timer[get_cpuid()].function = timer_interrupt;
+	struct timer_list *curr_timer = PERCPU_GET(timer);
+
+	assert(!curr_timer->function);
+	init_timer(curr_timer);
+	curr_timer->function = timer_interrupt;
 	/* Give the timer thread at least a jiffy to initialize */
-	mod_timer_pinned(&timer[get_cpuid()], jiffies+2);
+	mod_timer_pinned(curr_timer, jiffies+2);
 	
 	return;
 }
 
 static void deregister_timers(void)
 {
+	struct timer_list *timer_i;
+
 	int i;
 	for (i = 0; i < NUM_CPU; i++) {
-		cos_timer_brand_thd[i] = NULL;
-		if (timer[i].function) {
-			del_timer(&timer[i]);
-			timer[i].function = NULL;
+		*PERCPU_GET_TARGET(cos_timer_acap, i) = NULL;
+		timer_i = PERCPU_GET_TARGET(timer, i);
+		if (timer_i->function) {
+			del_timer(timer_i);
+			timer_i->function = NULL;
 		}
 	}
 

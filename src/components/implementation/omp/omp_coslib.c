@@ -102,26 +102,19 @@ int GOMP_parallel_end() {
 }
 
 extern int main(void);
+extern void __alloc_libc_initilize();  
 
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	switch (t) {
-	/* case COS_UPCALL_BRAND_EXEC: */
-	/* { */
-	/* 	cos_upcall_exec(arg1); */
-	/* 	break; */
-	/* } */
 	case COS_UPCALL_BOOTSTRAP:
 	{
 		static int first = 1, second = 1;
-		/* if (first) {  */
-		/* 	first = 0;  */
-		/* 	__alloc_libc_initilize();  */
-		/* 	constructors_execute(); */
-		/* } */
-		/* cos_init(arg1); */
 		if (first) {
 			first = 0;
+
+			__alloc_libc_initilize();
+			constructors_execute();
 
 			union sched_param sp;
 			int ret;

@@ -107,17 +107,16 @@ parallel_create(void *fn, int max_par) // fn and max_par are not used for now.
 		par_team->cap = malloc(sizeof(struct par_thd_info) * curr_thd->n_acap);
 		if (unlikely(par_team->cap == NULL)) goto err_nomem;
 	}
-	assert(curr_thd && par_team->cap);
 
 	if (unlikely(par_team->wait_acap == 0 && curr_thd->n_acap > 0)) {
 		int ret = par_acap_get_barrier(cos_spd_id(), curr_thd->nest_level);
 		if (ret == 0) {
 			/* This means we want the master to spin on barrier. */
-			par_team->wait_acap = -1;
 			par_team->wakeup_acap = -1;
+			par_team->wait_acap = -1;
 		} else {
-			par_team->wait_acap = ret >> 16;
-			par_team->wakeup_acap = ret & 0xFFFF;
+			par_team->wakeup_acap = ret >> 16;
+			par_team->wait_acap = ret & 0xFFFF;
 		}
 		/* printc("main thd %d has wait acap %d and wakeup acap %d\n",  */
 		/*        curr_thd_id, par_team->wait_acap, par_team->wakeup_acap); */

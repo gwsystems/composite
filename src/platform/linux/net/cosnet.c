@@ -100,22 +100,22 @@ static int debug;
 static LIST_HEAD(tun_dev_list);
 static const struct ethtool_ops tun_ethtool_ops;
 
-static inline struct cosnet_struct *cosnet_find_brand(struct tun_struct *ts, __u8 proto, __u16 dport)
+static inline struct cosnet_struct *cosnet_find_acap(struct tun_struct *ts, __u8 proto, __u16 dport)
 {
 	int i;
 	struct cosnet_struct *cn;
 
 	for (i = 0 ; i < COSNET_NUM_CHANNELS-1 ; i++) {
-		struct cos_brand_info *bi = ts->cosnet[i].brand_info;
+		struct cos_net_acap_info *ai = ts->cosnet[i].net_acap_info;
 
-		if (dport && bi && bi->brand_port == dport) {
+		if (dport && ai && ai->acap_port == dport) {
 			return &ts->cosnet[i];
 		}
 	}
 	/* The last entry is the wildcard */
 	cn = &ts->cosnet[COSNET_NUM_CHANNELS-1];
-	if (cn->brand_info && cn->brand_info->brand) {
-		assert(cn->brand_info->brand_port == 0);
+	if (cn->net_acap_info && cn->net_acap_info->acap) {
+		assert(cn->net_acap_info->acap_port == 0);
 		return cn;
 	}
 	
@@ -158,12 +158,12 @@ unsigned short int cosnet_skb_get_port(struct sk_buff *skb, __u8 *proto)
 	return dport;
 }
 
-static struct cosnet_struct *cosnet_resolve_brand(struct tun_struct *ts, struct sk_buff *skb) {
+static struct cosnet_struct *cosnet_resolve_acap(struct tun_struct *ts, struct sk_buff *skb) {
 	__u8 proto;
 	__u16 port;
 
 	port = cosnet_skb_get_port(skb, &proto);
-	return cosnet_find_brand(ts, proto, port);
+	return cosnet_find_acap(ts, proto, port);
 }
 
 static void cosnet_init_queues(struct tun_struct *ts) 
@@ -174,7 +174,7 @@ static void cosnet_init_queues(struct tun_struct *ts)
 		struct cosnet_struct *cn = &ts->cosnet[i];
 
 //		skb_queue_head_init(&cn->packet_queue);
-		cn->brand_info = NULL;
+		cn->net_acap_info = NULL;
 		cn->packet_queue = NULL;
 	}
 }
@@ -208,40 +208,40 @@ static int cosnet_queues_full(struct tun_struct *ts)
 struct tun_struct *local_ts = NULL;
 
 /* 
- * Callback from composite.  Use this to setup a brand.
+ * Callback from composite.  Use this to setup a acap.
  */
-int cosnet_create_brand(struct cos_brand_info *bi)
+int cosnet_create_acap(struct cos_net_acap_info *ai)
 {
 	int i;
 
-	if(!(local_ts && bi)) {
-		printk("cos: cannot create brand as no tun support created yet.\n");
+	if(!(local_ts && ai)) {
+		printk("cos: cannot create acap as no tun support created yet.\n");
 		return -1;
 	}
 
 	/* Wildcard entry */
-	if (bi->brand_port == 0) {
+	if (ai->acap_port == 0) {
 		struct cosnet_struct *cn = &local_ts->cosnet[COSNET_NUM_CHANNELS-1];
 
-		printk("cos: cosnet - creating wild-card brand\n");
-		cn->brand_info = bi;
+		printk("cos: cosnet - creating wild-card acap\n");
+		cn->net_acap_info = ai;
 		cn->packet_queue = kmalloc(sizeof(struct sk_buff_head), GFP_ATOMIC);
 		skb_queue_head_init(cn->packet_queue);
 		return 0;
 	}
 	for (i = 0 ; i < COSNET_NUM_CHANNELS-1 ; i++) {
-		struct cos_brand_info *bi_tmp = local_ts->cosnet[i].brand_info;
+		struct cos_net_acap_info *ai_tmp = local_ts->cosnet[i].net_acap_info;
 
-		if (bi_tmp && bi_tmp->brand && bi_tmp->brand_port == bi->brand_port) {
-			printk("cos: cosnet - re-wiring for port %d\n", bi->brand_port);
-			local_ts->cosnet[i].brand_info = bi;
+		if (ai_tmp && ai_tmp->acap && ai_tmp->acap_port == ai->acap_port) {
+			printk("cos: cosnet - re-wiring for port %d\n", ai->acap_port);
+			local_ts->cosnet[i].net_acap_info = ai;
 			local_ts->cosnet[i].packet_queue = kmalloc(sizeof(struct sk_buff_head), GFP_ATOMIC);
 			skb_queue_head_init(local_ts->cosnet[i].packet_queue);
 			return 0;
 		}
-		if (!bi_tmp) {
-			printk("cos: cosnet - create brand for port %d\n", bi->brand_port);
-			local_ts->cosnet[i].brand_info = bi;
+		if (!ai_tmp) {
+			printk("cos: cosnet - create acap for port %d\n", ai->acap_port);
+			local_ts->cosnet[i].net_acap_info = ai;
 			local_ts->cosnet[i].packet_queue = kmalloc(sizeof(struct sk_buff_head), GFP_ATOMIC);
 			skb_queue_head_init(local_ts->cosnet[i].packet_queue);
 			return 0;
@@ -251,20 +251,20 @@ int cosnet_create_brand(struct cos_brand_info *bi)
 	return -1;
 }
 
-int cosnet_remove_brand(struct cos_brand_info *bi)
+int cosnet_remove_acap(struct cos_net_acap_info *ai)
 {
 	int i;
 
-	assert(bi);
+	assert(ai);
 
 	for (i = 0 ; i < COSNET_NUM_CHANNELS ; i++) {
-		if (local_ts->cosnet[i].brand_info == bi) {
-			printk("cos: cosnet - remove brand for port %d\n", bi->brand_port);
+		if (local_ts->cosnet[i].net_acap_info == ai) {
+			printk("cos: cosnet - remove acap for port %d\n", ai->acap_port);
 			if (local_ts->cosnet[i].packet_queue) {
 				skb_queue_purge(local_ts->cosnet[i].packet_queue);
 				kfree(local_ts->cosnet[i].packet_queue);
 			}
-			local_ts->cosnet[i].brand_info = NULL;
+			local_ts->cosnet[i].net_acap_info = NULL;
 			return 0;
 		}
 	}
@@ -298,7 +298,7 @@ void cosnet_skb_completion(void *data)
  * Callback from composite.  This is a request to get an item from a
  * brand-specific packet queue.  
  */
-int cosnet_get_packet(struct cos_brand_info *bi, char **packet, unsigned long *len, 
+int cosnet_get_packet(struct cos_net_acap_info *ai, char **packet, unsigned long *len, 
 		      cos_net_data_completion_t *fn, void **data, unsigned short int *port)
 {
 	int i;
@@ -306,8 +306,8 @@ int cosnet_get_packet(struct cos_brand_info *bi, char **packet, unsigned long *l
 	assert(local_ts);
 
 	for (i = 0 ; i < COSNET_NUM_CHANNELS ; i++) {
-		struct cos_brand_info *tmp_bi = local_ts->cosnet[i].brand_info;
-		if (tmp_bi && tmp_bi->brand_port == bi->brand_port) {
+		struct cos_net_acap_info *tmp_ai = local_ts->cosnet[i].net_acap_info;
+		if (tmp_ai && tmp_ai->acap_port == ai->acap_port) {
 			struct sk_buff *skb;
 			__u8 proto;
 			//int queues_full = cosnet_queues_full(local_ts);
@@ -315,7 +315,7 @@ int cosnet_get_packet(struct cos_brand_info *bi, char **packet, unsigned long *l
 			if (!(skb = skb_dequeue(local_ts->cosnet[i].packet_queue))) {
 				/* This should NOT happen */
 				printk("cos: composite asking for packet, and none there!  "
-				       "Inconsistency between packet queue, and pending brands.\n");
+				       "Inconsistency between packet queue, and pending acaps.\n");
 				BUG();
 			}
 
@@ -453,7 +453,7 @@ static int cosnet_xmit_packet(void *headers, int hlen, struct gather_item *gi,
 }
 
 extern void cos_net_prebrand(void);
-extern int  cos_net_try_brand(struct thread *bi, void *data, int len);
+extern int  cos_net_try_acap(struct cos_net_acap_info *net_acap, void *data, int len);
 extern void cos_net_register(struct cos_net_callbacks *cn_cb);
 extern void cos_net_deregister(struct cos_net_callbacks *cn_cb);
 extern int cos_net_notify_drop(struct thread *brand);
@@ -461,8 +461,8 @@ extern int cos_net_notify_drop(struct thread *brand);
 struct cos_net_callbacks cosnet_cbs = {
 	.get_packet = cosnet_get_packet,
 	.xmit_packet  = cosnet_xmit_packet,
-	.create_brand = cosnet_create_brand,
-	.remove_brand = cosnet_remove_brand
+	.create_acap = cosnet_create_acap,
+	.remove_acap = cosnet_remove_acap
 };
 
 static int cosnet_cos_register(void)
@@ -483,10 +483,10 @@ static int cosnet_cos_deregister(void)
  * If the brand is made, and the skb is superfluous, return 1,
  * otherwise, return 0 (thus the skb needs to be queued).
  */
-static int cosnet_execute_brand(struct cos_brand_info *brand, struct sk_buff *skb)
+static int cosnet_execute_acap(struct cos_net_acap_info *net_acap, struct sk_buff *skb)
 {
-	assert(brand && skb);
-	return cos_net_try_brand(brand->brand, (void*)skb->data, skb->len);
+	assert(net_acap && skb);
+	return cos_net_try_acap(net_acap, (void*)skb->data, skb->len);
 }
 
 /* Net device detach from fd. */
@@ -538,7 +538,7 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	//goto drop;
 
 	cos_net_prebrand();
-	cosnet = cosnet_resolve_brand(tun, skb);
+	cosnet = cosnet_resolve_acap(tun, skb);
 	if (!cosnet) {
 		/* Don't count packets that arrive before or after cos runs */
 		kfree_skb(skb);
@@ -570,7 +570,7 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	   skb_queue_tail(cosnet->packet_queue, skb);
 	*/
 
-	if (cosnet_execute_brand(cosnet->brand_info, skb)) {
+	if (cosnet_execute_acap(cosnet->net_acap_info, skb)) {
 		goto drop;
 	}
 	/* end crit section here? */

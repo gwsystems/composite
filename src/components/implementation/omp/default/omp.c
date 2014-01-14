@@ -67,28 +67,28 @@ int meas(void)
 		for (j = 0; j < loop; j++)
 		{
 			//assert(omp_get_thread_num() == j);
-			thd_active[j].accessed++;
-			//assert(thd_active[omp_get_thread_num()].accessed == i + 1);
-			if (j == 0) {
-				int k = 1;
-				while (k < loop) {
-					while (thd_active[k].accessed == i) ;
-					k++;
-				}
-				rdtscll(e);
-				time1[i] = e - s;
-			}
+			/* thd_active[j].accessed++; */
+			/* //assert(thd_active[omp_get_thread_num()].accessed == i + 1); */
+			/* if (j == 0) { */
+			/* 	int k = 1; */
+			/* 	while (k < loop) { */
+			/* 		while (thd_active[k].accessed == i) ; */
+			/* 		k++; */
+			/* 	} */
+			/* 	rdtscll(e); */
+			/* 	time1[i] = e - s; */
+			/* } */
 		}
 
 		rdtscll(e);
 		time0[i] = e - s;
 	}
 
-	for (i = 0; i < ITER; i+=4) {
-		//do this to save the dmesg buffer. time stamp is long!
-		printc("%u %u %u %u %u %u %u %u\n",
-		       time0[i], time1[i], time0[i+1], time1[i+1], time0[i+2], time1[i+2],time0[i+3], time1[i+3]);
-	}
+	/* for (i = 0; i < ITER; i+=4) { */
+	/* 	//do this to save the dmesg buffer. time stamp is long! */
+	/* 	printc("%u %u %u %u %u %u %u %u\n", */
+	/* 	       time0[i], time1[i], time0[i+1], time1[i+1], time0[i+2], time1[i+2],time0[i+3], time1[i+3]); */
+	/* } */
 
 
 	unsigned long long sum = 0, max = 0, sum2 = 0, max2 = 0;

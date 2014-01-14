@@ -3,7 +3,7 @@
 #include <sched.h>
 #include <evt.h>
 
-volatile int brand_tid, evt, n_wait;
+volatile int evt, n_wait;
 
 volatile u64_t c0_tsc = 0, c1_tsc = 0, c0_high = 0, c1_high = 0;
 
@@ -72,9 +72,7 @@ void core1_high() {
 
 	create_thd(1, LOW_PRIO);
 
-	brand_tid = cos_brand_cntl(COS_BRAND_CREATE, 0, 0, cos_spd_id());
-	assert(brand_tid > 0);
-	if (sched_add_thd_to_brand(cos_spd_id(), brand_tid, cos_get_thd_id())) BUG();
+	/* Brand operations removed. Add acap creation here. */
 	int received_ipi = 0;
 
 	int param[4];
@@ -84,7 +82,7 @@ void core1_high() {
 		int ret = 0;
 		/* printc("core %ld going to wait, thd %d\n", cos_cpuid(), cos_get_thd_id()); */
 
-		if (-1 == (ret = cos_brand_wait(brand_tid))) BUG();
+		/* if (-1 == (ret = cos_ainv_wait(...))) BUG(); */
 
 		/* printc("core %ld, rec %d\n", cos_cpuid(), ++received_ipi); */
 		param[0] = shared_mem[0];
@@ -133,16 +131,14 @@ void core0_high() {
 	int my_ret;
 	u64_t s, e;
 	while (i < ITER) {
-		/* printc("core %d going to send ipi to %d....\n", cos_cpuid(), brand_tid); */
-
 		/* rdtscll(s); */
 
 		shared_mem[0] = 2;
 		shared_mem[1] = 4;
 		shared_mem[2] = 6;
 		shared_mem[3] = 8;
-		cos_send_ipi(1, brand_tid, 0, 0);
-
+		/* add async inv here. */
+		
 		/* rdtscll(e); */
 		/* data[i] = e - s; */
 

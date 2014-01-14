@@ -1593,7 +1593,6 @@ static int init(void)
 #endif
 
 	lock_static_init(&net_lock);
-	printc("netlock id %d\n", net_lock.lock_id);
 	NET_LOCK_TAKE();
 
 	torlib_init();
