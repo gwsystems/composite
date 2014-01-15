@@ -296,7 +296,7 @@ void cosnet_skb_completion(void *data)
 
 /* 
  * Callback from composite.  This is a request to get an item from a
- * brand-specific packet queue.  
+ * acap-specific packet queue.  
  */
 int cosnet_get_packet(struct cos_net_acap_info *ai, char **packet, unsigned long *len, 
 		      cos_net_data_completion_t *fn, void **data, unsigned short int *port)
@@ -452,11 +452,11 @@ static int cosnet_xmit_packet(void *headers, int hlen, struct gather_item *gi,
 	return 0;
 }
 
-extern void cos_net_prebrand(void);
+extern void cos_net_meas_packet(void);
 extern int  cos_net_try_acap(struct cos_net_acap_info *net_acap, void *data, int len);
 extern void cos_net_register(struct cos_net_callbacks *cn_cb);
 extern void cos_net_deregister(struct cos_net_callbacks *cn_cb);
-extern int cos_net_notify_drop(struct thread *brand);
+extern int cos_net_notify_drop(struct async_cap *acap);
 
 struct cos_net_callbacks cosnet_cbs = {
 	.get_packet = cosnet_get_packet,
@@ -480,7 +480,7 @@ static int cosnet_cos_deregister(void)
 }
 
 /* 
- * If the brand is made, and the skb is superfluous, return 1,
+ * If the acap is invoked, and the skb is superfluous, return 1,
  * otherwise, return 0 (thus the skb needs to be queued).
  */
 static int cosnet_execute_acap(struct cos_net_acap_info *net_acap, struct sk_buff *skb)
@@ -537,13 +537,13 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	//if (!tun->attached)
 	//goto drop;
 
-	cos_net_prebrand();
+	cos_net_meas_packet();
 	cosnet = cosnet_resolve_acap(tun, skb);
 	if (!cosnet) {
 		/* Don't count packets that arrive before or after cos runs */
 		kfree_skb(skb);
 		return 0;
-		//printk("cos: could not resolve brand for packet.\n");
+		//printk("cos: could not resolve acap for packet.\n");
 		//goto drop;
 	}
 
@@ -555,12 +555,12 @@ static int tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
 	}
 */
 	if (!cosnet->packet_queue) {
-		printk("cos: packet queue not set up for brand.\n");
+		printk("cos: packet queue not set up for acap.\n");
 		goto drop;
 	}
 	if (skb_queue_len(cosnet->packet_queue) >= COSNET_QUEUE_LEN) {
 		//printk("cos: NET->overflowing packet queue.\n");
-		//cos_net_notify_drop(cosnet->brand_info->brand);
+		//cos_net_notify_drop(cosnet->net_acap_info->acap);
 		printk("cos: WTF, kernel packet queue full...inexplicable\n");
 		goto drop;
 	}

@@ -44,11 +44,6 @@ __attribute__ ((weak))
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	switch (t) {
-	case COS_UPCALL_BRAND_EXEC:
-	{
-		cos_upcall_exec(arg1);
-		break;
-	}
 	case COS_UPCALL_BOOTSTRAP:
 	{
 		static int first = 1;

@@ -1261,30 +1261,29 @@ void *chal_pa2va(void *pa)
  */
 PERCPU_ATTR(static, struct timer_list, timer);
 
-extern struct thread *brand_next_thread(struct thread *brand, struct thread *preempted, int preempt);
 extern struct thread *ainv_next_thread(struct async_cap *acap, struct thread *preempted, int preempt);
 
 extern void cos_net_deregister(struct cos_net_callbacks *cn_cb);
 extern void cos_net_register(struct cos_net_callbacks *cn_cb);
 extern int cos_net_try_acap(struct cos_net_acap_info *net_info, void *data, int len);
-extern void cos_net_prebrand(void);
-extern int cos_net_notify_drop(struct thread *brand);
+extern void cos_net_meas_packet(void);
+extern int cos_net_notify_drop(struct async_cap *acap);
 EXPORT_SYMBOL(cos_net_deregister);
 EXPORT_SYMBOL(cos_net_register);
 EXPORT_SYMBOL(cos_net_try_acap);
-EXPORT_SYMBOL(cos_net_prebrand);
+EXPORT_SYMBOL(cos_net_meas_packet);
 EXPORT_SYMBOL(cos_net_notify_drop);
 extern void cos_net_init(void);
 extern void cos_net_finish(void);
 
 extern void cos_trans_reg(const struct cos_trans_fns *fns);
 extern void cos_trans_dereg(void);
-extern void cos_trans_upcall(void *brand);
+extern void cos_trans_upcall(void *acap);
 EXPORT_SYMBOL(cos_trans_reg);
 EXPORT_SYMBOL(cos_trans_dereg);
 EXPORT_SYMBOL(cos_trans_upcall);
 
-#define NUM_NET_BRANDS 2 /* keep consistent with inv.c */
+#define NUM_NET_ACAPS 2 /* keep consistent with inv.c */
 
 CACHE_ALIGNED static int in_syscall[NUM_CPU] = { 0 }; 
 
@@ -1443,7 +1442,7 @@ int chal_attempt_ainv(struct async_cap *acap)
 			}
 			if (host_in_syscall()) {
 				cos_meas_event(COS_MEAS_INT_PREEMPT);
-				cos_meas_event(COS_MEAS_BRAND_DELAYED_UC);
+				cos_meas_event(COS_MEAS_ACAP_DELAYED_UC);
 				event_record("xmit path lead to nested upcalls",
 					     thd_get_id(cos_current), thd_get_id(next));
 			} else if (host_in_idle()) {
@@ -1514,7 +1513,7 @@ int chal_attempt_ainv(struct async_cap *acap)
 				regs->orig_ax = next->regs.ax;
 				regs->sp = next->regs.sp;
 
-				//cos_meas_event(COS_MEAS_BRAND_UC);
+				//cos_meas_event(COS_MEAS_ACAP_UC);
 			} 
 			cos_meas_event(COS_MEAS_INT_PREEMPT);
 
@@ -1527,184 +1526,6 @@ int chal_attempt_ainv(struct async_cap *acap)
 done:
 	local_irq_restore(flags);
 		
-	return 0;
-}
-
-int chal_attempt_brand(struct thread *brand)
-{
-	struct pt_regs *regs = NULL;
-	unsigned long flags;
-
-	local_irq_save(flags);
-	if (likely(cos_thd_per_core[get_cpuid()].cos_thd)/* == current*/) {
-		struct thread *cos_current;
-
-		if (cos_thd_per_core[get_cpuid()].cos_thd == current) {
-			cos_meas_event(COS_MEAS_INT_COS_THD);
-		} else {
-			cos_meas_event(COS_MEAS_INT_OTHER_THD);
-		}
-
-		cos_current = core_get_curr_thd();
-		/* See comment in cosnet.c:cosnet_xmit_packet */
-		if (host_in_syscall() || host_in_idle()) {
-			struct thread *next;
-
-			//next = brand_next_thread(brand, cos_current, 2);
-			/* 
-			 * _FIXME_: Here we are kludging a problem over.
-			 * The problem is this:
-			 *
-			 * First, a thread xmits a packet through
-			 * buff_mgmt->cosnet_xmit_packet
-			 *
-			 * Second, when do_softirq is invoked, it
-			 * picks up another pending arrival (somehow)
-			 *
-			 * Third, this causes the upcall thread to be
-			 * executed, and we have the choice to either
-			 * mark the current thread as preempted (which
-			 * isn't necessarily wise as we haven't stored
-			 * e.g. segment registers), or to just save
-			 * ecx and edx, and don't mark it as preempted
-			 * so that switch_thread will return to it
-			 * gracefully.  In either case, the previous
-			 * thread is added to the preemption chain of
-			 * the upcall thread so that it can be
-			 * immediately switched back to.
-			 *
-			 * The problem occurs when we do use that
-			 * preemption chain and in pop(), we attempt
-			 * to return to the (assumed preempted)
-			 * previous thread in the preemption chain.
-			 * Now we are restoring _all_ registers for a
-			 * thread where only ecx and edx (and eax)
-			 * were saved.  Certainly behavior that will
-			 * lead to a wierd fault.
-			 *
-			 * So the fix is to just not set add the
-			 * xmitting thread to the preemption chain.
-			 * This will sacrifice performance, which may
-			 * be an issue later on.
-			 */
-			next = brand_next_thread(brand, cos_current, 0);
-			if (next != cos_current) {
-				assert(core_get_curr_thd() == next);
-				/* the following call isn't
-				 * necessary: if we are in a syscall,
-				 * then we can't be in an RAS */
-				thd_check_atomic_preempt(cos_current);
-			}
-			if (host_in_syscall()) {
-				cos_meas_event(COS_MEAS_INT_PREEMPT);
-				cos_meas_event(COS_MEAS_BRAND_DELAYED_UC);
-				event_record("xmit path lead to nested upcalls", 
-					     thd_get_id(cos_current), thd_get_id(next));
-			} else if (host_in_idle()) {
-				event_record("upcall causing host idle wakeup", 
-					     thd_get_id(cos_current), thd_get_id(next));
-				host_idle_wakeup();
-			}
-
-			goto done;
- 		}
-
-		regs = get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd);
-
-		/* 
-		 * If both esp and xss == 0, then the interrupt
-		 * occured between sti; sysexit on the cos ipc/syscall
-		 * return path.  If SEGMENT_RPL_MASK is not set to
-		 * USER_RPL, then we interrupted kernel-code.  These
-		 * are special cases, but we are interested in the
-		 * case where we interrupted user-level composite
-		 * code.
-		 *
-		 * I believe it is a BUG if we did NOT interrupt
-		 * user-level (keep in mind that we are now looking at
-		 * the register set at the top of the stack, not some
-		 * interrupt registers or some such.)
-		 *
-		 * UPDATE: given that we are now accepting network and
-		 * timer interrupts, these CAN interrupt each other,
-		 * thus we might interrupt kernel-level.  FIXME: make
-		 * sure that if we have interrupted kernel-level that
-		 * the regs aren't spread across the main thread
-		 * stack, and the interrupt's saved registers as well.
-		 */
-		if (likely(!(regs->sp == 0 && regs->ss == 0))
-                    /* && (regs->xcs & SEGMENT_RPL_MASK) == USER_RPL*/) {
-			struct thread *next;
-
-			if ((regs->cs & SEGMENT_RPL_MASK) == USER_RPL) {
-				cos_meas_event(COS_MEAS_INT_PREEMPT_USER);
-			} else {
-				cos_meas_event(COS_MEAS_INT_PREEMPT_KERN);
-			}
-
-			/* the major work here: */
-			next = brand_next_thread(brand, cos_current, 1);
-			if (next != cos_current) {
-				thd_save_preempted_state(cos_current, regs);
-                                fpu_save(next);
-				if (!(next->flags & THD_STATE_ACTIVE_UPCALL)) {
-					printk("cos: upcall thread %d is not set to be an active upcall.\n",
-					       thd_get_id(next));
-					///*assert*/BUG_ON(!(next->flags & THD_STATE_ACTIVE_UPCALL));
-				}
-				thd_check_atomic_preempt(cos_current);
-
-				/* Those registers are saved in the
-				 * user space. No need to restore
-				 * here. */
-				/* regs->bx = next->regs.bx; */
-				/* regs->di = next->regs.di; */
-				/* regs->si = next->regs.si; */
-				/* regs->bp = next->regs.bp; */
-
-				regs->cx = next->regs.cx;
-				regs->ip = next->regs.ip;
-				regs->dx = next->regs.dx;
-				regs->ax = next->regs.ax;
-				regs->orig_ax = next->regs.ax;
-				regs->sp = next->regs.sp;
-				//cos_meas_event(COS_MEAS_BRAND_UC);
-			}
-			cos_meas_event(COS_MEAS_INT_PREEMPT);
-
-			event_record("normal (non-syscall/idle interrupting) upcall processed", 
-				     thd_get_id(cos_current), thd_get_id(next));
-		} else {
-			cos_meas_event(COS_MEAS_INT_STI_SYSEXIT);
-		}
-	} 
-done:
-	local_irq_restore(flags);
-		
-	return 0;
-}
-
-static void receive_ipi(void *thdid)
-{
-	static int nesting[2] = {0, 0};
-	struct thread *thd = thd_get_by_id((int)thdid);
-
-	if (unlikely(!thd)) return;
-
-	nesting[get_cpuid()]++;
-	if (nesting[get_cpuid()] > 1) 
-		printk("we got nested IPIs: %d!\n", nesting[get_cpuid()]);
-	/* printk("core %d, got IPI for brand %d!\n", get_cpuid(), thd->thread_id); */
-	chal_attempt_brand(thd);
-	nesting[get_cpuid()]--;
-
-	return;
-}
-
-int send_ipi(int cpuid, int thdid, int wait)
-{
-	smp_call_function_single(cpuid, receive_ipi, (void *)thdid, wait);
-
 	return 0;
 }
 

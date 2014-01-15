@@ -51,14 +51,13 @@ struct thd_sched_info {
 };
 
 #define THD_STATE_PREEMPTED     0x1   /* Complete register info is saved in regs */
-#define THD_STATE_UPCALL        0x2   /* Thread for upcalls: ->thd_brand points to the thread who we're branded to */
+#define THD_STATE_UPCALL        0x2   /* Thread for upcalls: ->srv_acap points to the acap who we're linked to */
 #define THD_STATE_ACTIVE_UPCALL 0x4   /* Thread is in upcall execution. */
 #define THD_STATE_READY_UPCALL  0x8   /* Same as previous, but we are ready to execute */ 
-#define THD_STATE_BRAND         0x10  /* This thread is used as a brand */
-#define THD_STATE_SCHED_RETURN  0x20  /* When the sched switches to this thread, ret from ipc */
-#define THD_STATE_FAULT         0x40  /* Thread has had a (e.g. page) fault which is being serviced */
-#define THD_STATE_HW_BRAND      0x80 /* Actual hardware should be making this brand */
-#define THD_STATE_CYC_CNT       0x100 /* This thread is being cycle tracked */
+#define THD_STATE_SCHED_RETURN  0x10  /* When the sched switches to this thread, ret from ipc */
+#define THD_STATE_FAULT         0x20  /* Thread has had a (e.g. page) fault which is being serviced */
+#define THD_STATE_HW_ACAP      0x40 /* Actual hardware should be making this acap */
+#define THD_STATE_CYC_CNT       0x80 /* This thread is being cycle tracked */
 
 /**
  * The thread descriptor.  Contains all information pertaining to a
@@ -90,24 +89,19 @@ struct thread {
 
 	struct thd_sched_info sched_info[MAX_SCHED_HIER_DEPTH] CACHE_ALIGNED; 
 
-	/* Start Brand & Upcall fields: */
+	/* Start Upcall fields: */
 
 	/* flags & THD_STATE_UPCALL */
-	/* The thread who's execution we are branded to */
-	struct thread *thread_brand;
 	struct thread *interrupted_thread, *preempter_thread;
-	struct thread *upcall_threads;
 
-	/* flags & THD_STATE_BRAND */
 	unsigned long pending_upcall_requests;
 
-	/* End Brand & Upcall fields */
+	/* End Upcall fields */
 
 	int cpu; /* set during creation */
-	struct async_cap *srv_acap;
+	struct async_cap *srv_acap; /* The current acap the thread is waiting on. */
 
-	/* flags & (THD_STATE_UPCALL|THD_STATE_BRAND) != 0: */
-	/* TODO singly linked list of upcall threads for a specific brand */
+	/* flags & THD_STATE_UPCALL != 0: */
 	//struct thread *upcall_thread_ready, *upcall_thread_active;
 
 	struct thread *freelist_next;
@@ -154,7 +148,7 @@ static inline struct thd_invocation_frame *thd_invocation_pop(struct thread *cur
 
 	if (curr_thd->stack_ptr <= 0) {
 		//printd("Tried to return without invocation.\n");
-		/* FIXME: kill the thread if not a branded upcall thread */
+		/* FIXME: kill the thread if not a upcall thread */
 		return NULL; //kill the kern for now...
 	}
 

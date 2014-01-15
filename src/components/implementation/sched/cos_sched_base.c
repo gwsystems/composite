@@ -85,9 +85,9 @@ static inline int sched_is_child(void) { return !sched_is_root(); }
 static char *revt_names[] = {
 	"null event",
 	"switch threads",
-	"brand active event",
-	"brand ready event",
-	"brand pending event",
+	"acap active event",
+	"acap ready event",
+	"acap pending event",
 	"event cycle update",
 	"scheduling using a dependency",
 	"thread blocking",
@@ -278,22 +278,22 @@ static void evt_callback(struct sched_thd *t, u8_t flags, u32_t cpu_usage)
 
 	if (sched_thd_free(t) || sched_thd_dying(t)) return;
 
-	if (flags & (COS_SCHED_EVT_BRAND_ACTIVE|COS_SCHED_EVT_BRAND_READY|COS_SCHED_EVT_BRAND_PEND)) {
+	if (flags & (COS_SCHED_EVT_ACAP_ACTIVE|COS_SCHED_EVT_ACAP_READY|COS_SCHED_EVT_ACAP_PEND)) {
 		if (sched_thd_grp(t)) {
 			activate_child_sched(t);
 			t->cevt_flags |= SCHED_CEVT_OTHER;
-		} else if (flags & COS_SCHED_EVT_BRAND_ACTIVE) {
-			report_event(BRAND_ACTIVE);
+		} else if (flags & COS_SCHED_EVT_ACAP_ACTIVE) {
+			report_event(ACAP_ACTIVE);
 			fp_activate_upcall(t);
-		} else if (flags & COS_SCHED_EVT_BRAND_READY) {
+		} else if (flags & COS_SCHED_EVT_ACAP_READY) {
 			assert(sched_get_current() != t);
-			report_event(BRAND_READY);
+			report_event(ACAP_READY);
 			fp_deactivate_upcall(t);
-		} else if (flags & COS_SCHED_EVT_BRAND_PEND) {
+		} else if (flags & COS_SCHED_EVT_ACAP_PEND) {
 			BUG();
 		}
 	} else {
-		report_event(BRAND_CYCLE);
+		report_event(ACAP_CYCLE);
 	}
 	if (!sched_thd_phantom(t)) time_elapsed(t, cpu_usage);
 
@@ -313,7 +313,7 @@ static struct sched_thd *resolve_dependencies(struct sched_thd *next)
 	/* Take dependencies into account */
 	if ((dep = sched_thd_dependency(next))) {
 		assert(!sched_thd_free(dep));
-		assert(!(next->flags & (COS_SCHED_BRAND_WAIT|COS_SCHED_TAILCALL)));
+		assert(!(next->flags & (COS_SCHED_ACAP_WAIT|COS_SCHED_TAILCALL)));
 		assert(!sched_thd_blocked(dep));
 		if (sched_thd_inactive_evt(dep)) {
 			printc("Thread %d resolving dependency to %d, but the latter is waiting for an interrupt\n", next->id, dep->id);
@@ -337,7 +337,7 @@ static struct sched_thd *resolve_dependencies(struct sched_thd *next)
  * reason for this assumption is so that outer (calling) code can
  * execute instructions within the same critical sections as the code
  * that switches the thread.  flags are to be passed to
- * cos_switch_thread, and if they include tailcall, or brand wait,
+ * cos_switch_thread, and if they include tailcall, or acap wait,
  * this function will ensure that the current head isn't chosen to
  * run.  evt is the event number that will be used to increment for
  * each iteration of the loop, or if it is -1, no event will be
@@ -389,7 +389,7 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 			 * current is the highest priority thread because
 			 * current will terminate execution with the switch.
 			 */
-			if (flags & (COS_SCHED_BRAND_WAIT|COS_SCHED_TAILCALL)) {
+			if (flags & (COS_SCHED_ACAP_WAIT|COS_SCHED_TAILCALL)) {
 				/* we don't want next to be us! We are an
 				 * upcall completing execution */
 				timer_start(&tfp);
@@ -517,7 +517,7 @@ static void sched_timer_tick(void)
 		if (unlikely(PERCPU_GET(sched_base_state)->ticks >= RUNTIME_SEC*TIMER_FREQ+1)) {
 			sched_exit();
 			while (COS_SCHED_RET_SUCCESS !=
-			       cos_switch_thread_release(PERCPU_GET(sched_base_state)->init->id, COS_SCHED_BRAND_WAIT)) {
+			       cos_switch_thread_release(PERCPU_GET(sched_base_state)->init->id, COS_SCHED_ACAP_WAIT)) {
 				cos_sched_lock_take();
 				if (cos_sched_pending_event()) {
 					cos_sched_clear_events();
@@ -528,7 +528,7 @@ static void sched_timer_tick(void)
 		PERCPU_GET(sched_base_state)->ticks++;
 		sched_process_wakeups();
 		timer_tick(1);
-		sched_switch_thread(COS_SCHED_BRAND_WAIT, TIMER_SWITCH_LOOP);
+		sched_switch_thread(COS_SCHED_ACAP_WAIT, TIMER_SWITCH_LOOP);
 		/* Tailcall out of the loop */
 	}
 }
@@ -1537,7 +1537,7 @@ int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsi
 
 	/* While there are no thread events? */
 	while (EMPTY_LIST(t, cevt_next, cevt_prev)) {
-		/* A brand event has occurred, so send that event OR
+		/* A acap event has occurred, so send that event OR
 		 * the child doesn't want to idle OR the child hasn't
 		 * processed timer interrupts.  Regardless, we need to
 		 * return to the child. */
@@ -1827,7 +1827,7 @@ static void IPI_handler(void *d)
 		cos_sched_lock_take();
 		/* Going to switch away */
 		/* Do not use ainv_wait syscall here. We are in the scheduler. */
-		sched_switch_thread(COS_SCHED_BRAND_WAIT, EVT_CMPLETE_LOOP);
+		sched_switch_thread(COS_SCHED_ACAP_WAIT, EVT_CMPLETE_LOOP);
 
 		/* Received an IPI! */
 		while (CK_RING_DEQUEUE_SPSC(xcore_ring, &ring, &ring_item) == true) {
@@ -2037,9 +2037,6 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 //	printc("upcall type %d, core %ld, thd %d\n", t, cos_cpuid(), cos_get_thd_id());
 	switch (t) {
-	case COS_UPCALL_BRAND_EXEC:
-		sched_timer_tick();
-		break;
 	case COS_UPCALL_BOOTSTRAP:
 		sched_init();
 		break;
@@ -2053,7 +2050,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		printc("Unhandled fault occurred, exiting system\n");
 		sched_exit();
 		break;
-	case COS_UPCALL_BRAND_COMPLETE:
+	case COS_UPCALL_ACAP_COMPLETE:
 		fp_event_completion(sched_get_current());
 		break;
 	default:

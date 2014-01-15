@@ -68,7 +68,6 @@ attr struct __##name##_percore_decl name[NUM_CPU]
 struct shared_user_data {
 	unsigned int current_thread;
 	void *argument_region;
-	unsigned int brand_principal;
 	unsigned int current_cpu;
 };
 
@@ -84,9 +83,9 @@ struct cos_sched_next_thd {
 /* FIXME: make flags 8 bits, and use 8 bits to count # of alive upcalls */
 #define COS_SCHED_EVT_FREE         0x1
 #define COS_SCHED_EVT_EXCL         0x2
-#define COS_SCHED_EVT_BRAND_ACTIVE 0x4
-#define COS_SCHED_EVT_BRAND_READY  0x8
-#define COS_SCHED_EVT_BRAND_PEND   0x10
+#define COS_SCHED_EVT_ACAP_ACTIVE 0x4
+#define COS_SCHED_EVT_ACAP_READY  0x8
+#define COS_SCHED_EVT_ACAP_PEND   0x10
 #define COS_SCHED_EVT_NIL          0x20
 
 /* Must all fit into a word */
@@ -211,12 +210,11 @@ enum {
 };
 
 /*
- * For interoperability with the networking side.  This is the brand
- * port/brand thread pair, and the callback structures for
+ * For interoperability with the networking side.  This is the acap
+ * port/acap thread pair, and the callback structures for
  * communication.
  */
-/* Replaced brands with acaps. Added ring_buf pointers (which were in
- * the brand structure). */
+/* Added ring_buf pointers. */
 struct cos_net_acap_info {
 	unsigned short int  acap_port;
 	struct async_cap   *acap;
@@ -314,30 +312,13 @@ struct cos_component_information {
 }__attribute__((aligned(PAGE_SIZE)));
 
 typedef enum {
-	COS_UPCALL_BRAND_EXEC,
-	COS_UPCALL_BRAND_COMPLETE,
+	COS_UPCALL_ACAP_COMPLETE,
 	COS_UPCALL_BOOTSTRAP,
 	COS_UPCALL_CREATE,
 	COS_UPCALL_DESTROY,
 	COS_UPCALL_AINV_HANDLER,
 	COS_UPCALL_UNHANDLED_FAULT
 } upcall_type_t;
-
-/* operations for cos_brand_cntl and cos_brand_upcall */
-enum {
-/* cos_brand_cntl -> */
-	COS_BRAND_CREATE,
-	COS_BRAND_ADD_THD,
-	COS_BRAND_CREATE_HW,
-/* cos_brand_upcall -> */
-	COS_BRAND_TAILCALL,  /* tailcall brand to upstream spd
-			      * (don't maintain this flow of control).
-			      * Not sure if this would work with non-brand threads
-			      */
-	COS_BRAND_ASYNC,     /* async brand while maintaining control */
-	COS_BRAND_UPCALL     /* continue executing an already made
-			      * brand, redundant with tail call? */
-};
 
 /* operations for cos_thd_cntl */
 enum {
@@ -472,7 +453,7 @@ enum {
 #define COS_SCHED_TAILCALL     0x1
 #define COS_SCHED_SYNC_BLOCK   0x2
 #define COS_SCHED_SYNC_UNBLOCK 0x4
-#define COS_SCHED_BRAND_WAIT   0x80
+#define COS_SCHED_ACAP_WAIT   0x80
 #define COS_SCHED_CHILD_EVT    0x10
 
 #define COS_SCHED_RET_SUCCESS  0

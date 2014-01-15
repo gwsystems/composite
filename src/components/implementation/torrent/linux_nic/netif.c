@@ -492,7 +492,7 @@ static int interrupt_wait(void)
 }
 
 /* 
- * Currently, this only adds to the wildcard brand.
+ * Currently, this only adds to the wildcard acap.
  */
 int netif_event_create(spdid_t spdid)
 {
