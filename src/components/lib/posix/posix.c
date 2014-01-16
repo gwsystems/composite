@@ -33,7 +33,7 @@ libc_syscall_override(cos_syscall_t fn, int syscall_num)
 int
 cos_open(const char *pathname, int flags, int mode)
 {
-        // mode param is only for O_CREAT in flags
+        /*mode param is only for O_CREAT in flags*/
         td_t td;
         long evt;
         evt = evt_split(cos_spd_id(), 0, 0);
@@ -51,9 +51,9 @@ cos_open(const char *pathname, int flags, int mode)
 int
 cos_close(int fd)
 {
-        trelease(cos_spd_id(), fd - 3); // return void, use tor_lookup?
+        trelease(cos_spd_id(), fd - 3); /* return void, use tor_lookup? */
 
-        return 0; // return -1 if failed
+        return 0; /* return -1 if failed */
 }
 
 ssize_t
@@ -94,7 +94,7 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 
         void *ret = do_mmap(length);
 
-        if (ret == (void *)-1) { // return value comes from man page
+        if (ret == (void *)-1) { /* return value comes from man page */
                 printc("mmap() failed!\n");
                 assert(0);
         }
@@ -122,8 +122,8 @@ cos_mremap(void *old_address, size_t old_size, size_t new_size, int flags)
 off_t
 cos_lseek(int fd, off_t offset, int whence)
 {
-        // TODO: we can use a simpler twmeta_pack(td_t td, const char *key, const char *val)
-        char val[8]; // TODO: length number need to be selected
+        /* TODO: we can use a simpler twmeta_pack(td_t td, const char *key, const char *val) */
+        char val[8]; /* TODO: length number need to be selected */
         int ret = -1;
         int td = fd - 3;
 
@@ -132,7 +132,7 @@ cos_lseek(int fd, off_t offset, int whence)
                 ret = twmeta(cos_spd_id(), td, "offset", strlen("offset"), val, strlen(val));
                 assert(ret == 0);
         } else if (whence == SEEK_CUR) {
-                // return value not checked
+                /* TODO: return value not checked */
                 char offset_curr[8];
                 trmeta(cos_spd_id(), td, "offset", strlen("offset"), offset_curr, 8);
                 snprintf(val, 8, "%ld", atol(offset_curr) + offset);
@@ -141,21 +141,21 @@ cos_lseek(int fd, off_t offset, int whence)
         } else if (whence == SEEK_END) {
                 printc("lseek::SEEK_END not implemented !\n");
                 assert(0);
-                // TODO: how to get the length of the file?
+                /* TODO: how to get the length of the file? */
         }
 
         if   (ret != -1) return atoi(val);
         else             return ret;
 }
-/*
-int
-cos_fstat(int fd, struct stat *buf)
-{
-        printf("syscall: fstat\n");
+
+/*int*/
+/*cos_fstat(int fd, struct stat *buf)*/
+/*{*/
+        /*printf("syscall: fstat\n");*/
         
-        return 0;
-}
-*/
+        /*return 0;*/
+/*}*/
+
 int
 default_syscall(void)
 {
@@ -182,7 +182,7 @@ posix_init(void)
         libc_syscall_override((cos_syscall_t)cos_munmap, __NR_munmap);
         libc_syscall_override((cos_syscall_t)cos_mremap, __NR_mremap);
         libc_syscall_override((cos_syscall_t)cos_lseek, __NR_lseek);
-//      libc_syscall_override(cos_fstat, __NR_fstat);
+        /*libc_syscall_override(cos_fstat, __NR_fstat);*/
 
         return;
 }
