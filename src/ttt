@@ -1,0 +1,358 @@
+
+***********************************************
+************* Building Components *************
+***********************************************
+
+make  --no-print-directory -I /home/ryx/research/composite/src -C components
+components makeflag  --no-print-directory
+####### Stack Manager is Enabled #######
+make  --no-print-directory -I /home/ryx/research/composite/src -I /home/ryx/research/composite/src -I /home/ryx/research/composite/src/components -C lib
+|     [CC]   Creating library file heap.a from heap.c
+|     [CC]   Creating library file cobj_format.a from cobj_format.c
+|     [AS]   Compiling assembly file c_stub.S into c_stub.o
+|     [AS]   Compiling assembly file cos_asm_upcall.S into cos_asm_upcall.o
+|     [CC]   Compiling C file cos_component.c into cos_component.o
+|     [AS]   Compiling assembly file cos_asm_upcall_simple_stacks.S into cos_asm_upcall_simple_stacks.o
+make  --no-print-directory -I /home/ryx/research/composite/src -I /home/ryx/research/composite/src -I /home/ryx/research/composite/src/components -C interface
+***********************************************
+************[ Building interfaces ]************
+***********************************************
+rm cbuf_c.o
+rm cos_synchronization.o
+rm cos_alloc.o
+rm cos_alloc.o
+rm printc.o
+rm printt.o
+make  --no-print-directory -I /home/ryx/research/composite/src -I /home/ryx/research/composite/src -I /home/ryx/research/composite/src/components -C implementation
+***********************************************
+*********[ Building Implementations ]**********
+***********************************************
+|     [CC]   async_inv.c: Compiling
+|     [LD]   async_inv.ainv (ainv.o): Linking -lmem_mgr -lprintc -llock async_inv.o
+|     [CC]   cbufs.c: Compiling
+|     [LD]   cbuf_bot.serv (cbf_bot.o): Linking -llock -lcbuf_c -lmem_mgr_large -lprintc cbufs.o
+|     [CC]   tmem.c: Compiling
+|     [CC]   cbuf.c: Compiling
+|     [LD]   cbuf_c.naive (buf.o): Linking -lprintc -llock -lmem_mgr_large cbuf.o ../complib.o
+|     [CC]   cbuf_mid.c: Compiling
+|     [LD]   cbuf_mid.mid_level (cbf_mid.o): Linking -lcbuf_c -lmem_mgr_large -lprintc -llock cbuf_mid.o
+|     [CC]   cbufp.c: Compiling
+|     [LD]   cbufp.default (bufp.o): Linking -lcbuf_c -lprintc -llock -lmem_mgr_large cbufp.o
+|     [CC]   content_mgr.c: Compiling
+|     [LD]   content_mux.content_mgr (cm.o): Linking -lprintc -lmem_mgr_large content_mgr.o
+|     [CC]   evt.c: Compiling
+|     [LD]   evt.edge (e.o): Linking -lprintc -lmem_mgr_large -llock evt.o
+|     [CC]   evt.c: Compiling
+|     [LD]   evt.edge_grp (eg.o): Linking -lprintc -lmem_mgr_large -llock evt.o
+|     [CC]   exe_cbuf_synth_basecase.c: Compiling
+|     [LD]   exe_cbuf_synth_hier.exe_cbuf_shbc (exe_cb_sbc.o): Linking -lcbuf_c -lmem_mgr_large -lprintc exe_cbuf_synth_basecase.o
+|     [CC]   exe_cbuf_synth_hier.c: Compiling
+|     [LD]   exe_cbuf_synth_hier.exe_cbuf_shrec (exe_cb_sh.o): Linking -lcbuf_c -lprintc -lmem_mgr_large -llock exe_cbuf_synth_hier.o
+|     [CC]   exe_self_suspended.c: Compiling
+|     [LD]   exe_cbuf_synth_hier.exe_self_suspended (exe_ss.o): Linking -lcbuf_c -lprintc -lmem_mgr_large -llock exe_self_suspended.o
+|     [CC]   exe_synth_basecase.c: Compiling
+|     [LD]   exe_synth_hier.exe_shbc (exe_sbc.o): Linking  exe_synth_basecase.o
+|     [CC]   exe_synth_hier.c: Compiling
+|     [LD]   exe_synth_hier.exe_shrec (exe_sh.o): Linking -lprintc -llock exe_synth_hier.o
+|     [CC]   fd_api.c: Compiling
+|     [LD]   fd.api (fd.o): Linking -lprintc -llock -lmem_mgr_large fd_api.o
+|     [CC]   hlthd.c: Compiling
+|     [CC]   echos.c: Compiling
+|     [LD]   http.echo (echo.o): Linking -lmem_mgr_large -lprintc echos.o
+|     [CC]   https.c: Compiling
+|     [LD]   http.http (http.o): Linking -lmem_mgr_large -lprintc https.o
+|     [CC]   initf.c: Compiling
+|     [LD]   initf.simple (initfs.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock initf.o
+|     [CC]   pessimistic.c: Compiling
+|     [LD]   lock.pessimistic (plock.o): Linking -lmem_mgr -lprintc pessimistic.o
+|     [CC]   lock.c: Compiling
+|     [LD]   lock.two_phase (l.o): Linking -lmem_mgr -lprintc lock.o
+|     [CP]  Copying lua library
+PRE
+|     [CC]   lkv.c: Compiling
+|     [LD]   lua_keyval.luakv (lua_keyval.o): Linking -lprintc lkv.o /home/ryx//research//composite/src//components//lib/lua/cos/lua_lang.o
+|     [CP]  Copying lua library
+PRE
+|     [CC]   ltest.c: Compiling
+|     [LD]   lua_keyval.luatests (luatests.o): Linking -lprintc ltest.o /home/ryx//research//composite/src//components//lib/lua/cos/lua_lang.o
+|     [CC]   membrane.c: Compiling
+|     [LD]   membrane_meas.mb_meas (mb_meas.o): Linking -lmem_mgr_large -lprintc -llock membrane.o
+|     [CC]   mem_man.c: Compiling
+|     [LD]   mem_mgr.hier (mh.o): Linking -lprintc -lmem_mgr mem_man.o
+|     [CC]   mem_man.c: Compiling
+|     [AS]   cos_asm_scheduler.S: Compiling
+|     [LD]   mem_mgr.naive (mm.o): Linking -lprintc mem_man.o cos_asm_scheduler.o
+|     [CC]   mem_pool.c: Compiling
+|     [LD]   mem_pool.naive (mpool.o): Linking -lmem_mgr_large -lprintc -llock mem_pool.o
+|     [CC]   netif.c: Compiling
+|     [LD]   net_if.linux_if (if.o): Linking -lprintc -lmem_mgr_large -llock netif.o
+|     [CC]   netif.c: Compiling
+|     [LD]   net_if.linux_if_meas (ifmeas.o): Linking -lprintc -lmem_mgr_large -llock netif.o
+|     [CC]   cos_ip.c: Compiling
+|     [LD]   net_internet.ip (ip.o): Linking  cos_ip.o
+|     [CC]   port_mgr.c: Compiling
+|     [LD]   net_portns.fake_pns (port.o): Linking -llock -lprintc port_mgr.o
+|     [CP]   copying network stack from lwip
+|     [CC]   fake_net.c: Compiling
+|     [LD]   net_transport.fake (fn.o): Linking  fake_net.o
+|     [CC]   cos_net.c: Compiling
+|     [LD]   net_transport.tcp (net.o): Linking -lmem_mgr_large -lprintc -llock cos_net.o ../net_stack.o
+|     [CC]   mbox.c: Compiling
+|     [LD]   no_interface.asc_test (asc_test.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock mbox.o
+|     [CC]   blk.c: Compiling
+|     [LD]   no_interface.blk (b.o): Linking  blk.o
+|     [CC]   booter.c: Compiling
+|     [LD]   no_interface.boot (boot.o): Linking -lprintc -lmem_mgr booter.o
+|     [CC]   cbufc.c: Compiling
+|     [LD]   no_interface.cbufc_top (cbf_top.o): Linking -lprintc -lmem_mgr_large -lcbuf_c cbufc.o
+|     [CC]   persist_cgi.c: Compiling
+|     [LD]   no_interface.cgi (cgi.o): Linking -lprintc persist_cgi.o
+|     [CC]   citest.c: Compiling
+|     [LD]   no_interface.cinfo_test (cit.o): Linking -lprintc citest.o
+|     [CC]   comp0.c: Compiling
+|     [LD]   no_interface.comp0 (c0.o): Linking  comp0.o
+|     [CC]   conn_mgr.c: Compiling
+|     [LD]   no_interface.conn_mgr (conn.o): Linking -lprintc -lmem_mgr_large conn_mgr.o
+|     [CC]   spin.c: Compiling
+|     [LD]   no_interface.cpu (cpu.o): Linking -lprintc spin.o
+|     [CC]   exe_cbuf_periodic.c: Compiling
+|     [LD]   no_interface.exe_cbuf_periodic (exe_cb_pt.o): Linking -lprintc -lcbuf_c -lmem_mgr_large exe_cbuf_periodic.o
+|     [CC]   exe_periodic.c: Compiling
+|     [LD]   no_interface.exe_periodic (exe_pt.o): Linking -lprintc -lmem_mgr_large exe_periodic.o
+|     [CC]   f.c: Compiling
+|     [LD]   no_interface.fpu (fpu.o): Linking -lprintc f.o
+|     [CC]   hlthd_test.c: Compiling
+|     [LD]   no_interface.hlthd_test (hls.o): Linking -lprintc hlthd_test.o
+|     [CC]   initft.c: Compiling
+|     [LD]   no_interface.initf_test (ift.o): Linking -lprintc -lcbuf_c -llock -lmem_mgr_large initft.o
+|     [CC]   booter.c: Compiling
+|     [LD]   no_interface.llboot (llboot.o): Linking  booter.o
+|     [CC]   ltest.c: Compiling
+|     [LD]   no_interface.lock_test (lock_t.o): Linking -llock -lprintc -lmem_mgr ltest.o
+|     [CC]   mhtest.c: Compiling
+|     [LD]   no_interface.mh_test (mht.o): Linking -lprintc -lmem_mgr mhtest.o
+|     [CC]   mpd_mgr.c: Compiling
+|     [LD]   no_interface.mpd_mgr (mpd.o): Linking -lprintc -lmem_mgr_large mpd_mgr.o
+|     [CC]   rcv.c: Compiling
+|     [LD]   no_interface.net_rcv (nr.o): Linking -lprintc rcv.o
+|     [CC]   periodic.c: Compiling
+|     [LD]   no_interface.periodic (pt.o): Linking -lprintc periodic.o
+|     [CC]   periodic_read.c: Compiling
+|     [LD]   no_interface.periodic_read (pr.o): Linking -lprintc -llock -lmem_mgr_large periodic_read.o
+|     [CC]   pftest.c: Compiling
+|     [LD]   no_interface.pftest (pft.o): Linking -lprintc pftest.o
+|     [CC]   ping.c: Compiling
+|     [LD]   no_interface.ping (pingp.o): Linking -lprintc ping.o
+|     [CC]   ping_membrane.c: Compiling
+|     [LD]   no_interface.ping_membrane (ping_mb.o): Linking -lprintc ping_membrane.o
+|     [CC]   pline.c: Compiling
+|     [LD]   no_interface.pipeline (p.o): Linking -lprintc pline.o
+|     [CP]   copying cos_libccv.a from libccv
+|     [CC]   ptest.c: Compiling
+|     [LD]   no_interface.posix_test (posix_t.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock ptest.o cos_libccv.a /home/ryx//research//composite/src//components//lib/dietlibc-0.29/bin-i386/libm.a /home/ryx//research//composite/src//components//lib/posix/posix.o
+|     [CC]   sr_test.c: Compiling
+|     [LD]   no_interface.sched_recov_test (srt.o): Linking -lmem_mgr -lprintc sr_test.o
+|     [CC]   stat_gather.c: Compiling
+|     [LD]   no_interface.stat (stat.o): Linking -llock -lprintc stat_gather.o
+|     [CC]   t.c: Compiling
+|     [LD]   no_interface.test (test.o): Linking -lprintc t.o
+|     [CC]   wakeup.c: Compiling
+|     [LD]   no_interface.timed_wkup (wkup.o): Linking -lprintc wakeup.o
+|     [CC]   tmem_policy.c: Compiling
+|     [LD]   no_interface.tmem_policy (tp.o): Linking -lprintc -lcbuf_c -lmem_mgr_large tmem_policy.o
+|     [CC]   conn_mgr.c: Compiling
+|     [LD]   no_interface.torrent_sconn (stconn.o): Linking -lprintc -lmem_mgr_large -lcbuf_c -llock conn_mgr.o
+|     [CC]   conn_mgr.c: Compiling
+|     [LD]   no_interface.torrent_sconn_mt (stconnmt.o): Linking -lprintc -lmem_mgr_large -lcbuf_c -llock conn_mgr.o
+|     [CC]   valloc_test.c: Compiling
+|     [LD]   no_interface.valloc_test (vat.o): Linking -lprintc -lmem_mgr_large valloc_test.o
+|     [CC]   vas_test.c: Compiling
+|     [LD]   no_interface.vas_test (vt.o): Linking -lprintc -lmem_mgr vas_test.o
+|     [CC]   pgfault.c: Compiling
+|     [LD]   pgfault.high_level (pf.o): Linking -lprintc pgfault.o
+|     [CC]   pgfault.c: Compiling
+|     [LD]   pgfault.recov_poc (pfr.o): Linking -lprintc pgfault.o
+|     [CC]   pgfault.c: Compiling
+|     [LD]   pgfault.stk_trace (pfs.o): Linking -lprintc -lmem_mgr_large pgfault.o
+|     [CC]   pong.c: Compiling
+|     [LD]   pong.pingpong (ppong.o): Linking  pong.o
+|     [CC]   print_comp.c: Compiling
+|     [LD]   printc.linux_log (print.o): Linking  print_comp.o
+|     [CC]   print_comp.c: Compiling
+|     [LD]   printc.trans (printl.o): Linking  print_comp.o
+|     [CC]   resres.c: Compiling
+|     [LD]   resres.lenient (rr.o): Linking -lmem_mgr -llock -lprintc resres.o
+|     [CC]   cos_sched_base.c: Compiling
+|     [CC]   cos_scheduler.c: Compiling
+|     [AS]   cos_asm_scheduler.S: Compiling
+|     [CC]   deferrable.c: Compiling
+|     [LD]   sched.ds (ds.o): Linking -lprintc deferrable.o ../complib.o
+|     [CC]   fp_rr.c: Compiling
+|     [LD]   sched.fprr (fprr.o): Linking -lprintc fp_rr.o ../complib.o
+|     [CC]   skel.c: Compiling
+|     [LD]   skel.comp (skeleton.o): Linking  skel.o
+|     [CC]   static_content.c: Compiling
+|     [LD]   static_content.fake_fs (sc.o): Linking -lprintc -lmem_mgr_large static_content.o
+|     [CC]   static_content.c: Compiling
+|     [LD]   static_content.map (map.o): Linking -lprintc -lmem_mgr_large static_content.o
+|     [CC]   tmem.c: Compiling
+|     [CC]   stkmgr.c: Compiling
+|     [LD]   stkmgr.naive (sm.o): Linking -lprintc -llock -lmem_mgr_large stkmgr.o ../complib.o
+|     [CC]   synth_basecase.c: Compiling
+|     [LD]   synth_hier.shbc (sbc.o): Linking  synth_basecase.o
+|     [CC]   synth_hier.c: Compiling
+|     [LD]   synth_hier.shrec (sh.o): Linking -lprintc synth_hier.o
+|     [CC]   micro_cs.c: Compiling
+|     [LD]   tests.micro_cs (microcs.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock micro_cs.o
+|     [CC]   micro_fpu.c: Compiling
+|     [LD]   tests.micro_fpu (microfpu.o): Linking -lprintc -llock micro_fpu.o
+|     [CC]   micro_ping.c: Compiling
+|     [LD]   tests.micro_ping_cbuf (micro_pingp.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock micro_ping.o
+|     [CC]   micro_cbuf1.c: Compiling
+|     [LD]   tests.micro_PIP_cbuf1 (micbuf1.o): Linking -lprintc micro_cbuf1.o
+|     [CC]   micro_cbuf2.c: Compiling
+|     [LD]   tests.micro_PIP_cbuf2 (micbuf2.o): Linking -llock -lprintc -lmem_mgr_large micro_cbuf2.o
+|     [CC]   micro_cbuf3.c: Compiling
+|     [LD]   tests.micro_PIP_cbuf3 (micbuf3.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock micro_cbuf3.o
+|     [CC]   micro_pong.c: Compiling
+|     [LD]   tests.micro_pong_cbuf (micro_ppong.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock micro_pong.o
+|     [CC]   micro_stack.c: Compiling
+|     [LD]   tests.micro_stk (micro_stk.o): Linking -lprintc micro_stack.o
+|     [CC]   trans_ctol.c: Compiling
+|     [LD]   tests.trans_ctol (trans_ctol_meas.o): Linking -lmem_mgr_large -lprintc -llock trans_ctol.o
+|     [CC]   trans_ltoc.c: Compiling
+|     [LD]   tests.trans_ltoc (trans_ltoc_meas.o): Linking -lmem_mgr_large -lprintc -llock trans_ltoc.o
+|     [CC]   cbufc.c: Compiling
+|     [LD]   tests.unit_cbuf1 (ucbuf1.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock cbufc.o
+|     [CC]   cbufc.c: Compiling
+|     [LD]   tests.unit_cbuf2 (ucbuf2.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock cbufc.o
+|     [CC]   faults.c: Compiling
+|     [LD]   tests.unit_faults (fault_test.o): Linking -lprintc faults.o
+|     [CC]   initargs.c: Compiling
+|     [LD]   tests.unit_initargs (ia.o): Linking -lprintc -lmem_mgr_large -llock initargs.o
+|     [CC]   tar_test.c: Compiling
+|     [LD]   tests.unit_tar (tart.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock tar_test.o
+|     [CC]   torrent_test.c: Compiling
+|     [LD]   tests.unit_torrent (tt.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock torrent_test.o
+|     [CC]   trans.c: Compiling
+|     [LD]   tests.unit_translator (utrans.o): Linking -lcbuf_c -lprintt -lmem_mgr_large -llock trans.o
+|     [CC]   timed_event.c: Compiling
+|     [LD]   timed_blk.timed_evt (te.o): Linking -lprintc -lmem_mgr_large timed_event.o
+|     [CC]   torlib.c: Compiling
+|     [CC]   as_connector.c: Compiling
+|     [LD]   torrent.async_conn (tasc.o): Linking -lcbuf_c -lprintc -llock -lmem_mgr_large as_connector.o ../complib.o
+|     [CC]   https.c: Compiling
+|     [LD]   torrent.http (httpt.o): Linking -lmem_mgr_large -lprintc -lcbuf_c -llock https.o ../complib.o
+|     [CC]   cos_ip.c: Compiling
+|     [LD]   torrent.ip (tip.o): Linking -lcbuf_c -lprintc -llock -lmem_mgr_large cos_ip.o ../complib.o
+|     [CC]   netif.c: Compiling
+|     [LD]   torrent.linux_nic (tif.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock netif.o ../complib.o
+|     [CC]   persist.c: Compiling
+|     [LD]   torrent.persist (per.o): Linking -lprintc -lcbuf_c -llock -lmem_mgr_large persist.o ../complib.o
+|     [CC]   ramfs.c: Compiling
+|     [LD]   torrent.ramfs (rfs.o): Linking -lprintc -lcbuf_c -llock -lmem_mgr_large ramfs.o ../complib.o
+|     [CC]   tar.c: Compiling
+|     [LD]   torrent.tar_ro (rotar.o): Linking -lprintc -lcbuf_c -llock -lmem_mgr_large tar.o ../complib.o
+|     [CP]   copying network stack from lwip
+|     [CC]   cos_net.c: Compiling
+|     [LD]   torrent.tcp (tnet.o): Linking -lmem_mgr_large -lprintc -llock -lcbuf_c cos_net.o net_stack.o ../complib.o
+|     [CC]   translator.c: Compiling
+|     [LD]   torrent.translator (trans.o): Linking -lprintc -lcbuf_c -llock -lmem_mgr_large translator.o ../complib.o
+|     [CC]   valloc.c: Compiling
+|     [LD]   valloc.simple (va.o): Linking -lprintc -lmem_mgr -llock valloc.o
+|     [CC]   vas_mgr.c: Compiling
+|     [LD]   vas_mgr.simple (vm.o): Linking -lprintc -llock -lmem_mgr vas_mgr.o
+
+***********************************************
+******** Building Platform and Kernel *********
+***********************************************
+
+make  --no-print-directory -I /home/ryx/research/composite/src -C platform
+make -C linux
+make -C module
+make -C /home/ryx//research//linux-2.6.36/ SUBDIRS=/home/ryx/research/composite/src/platform/linux/module modules
+  AS [M]  /home/ryx/research/composite/src/platform/linux/module/kern_entry.o
+  AS [M]  /home/ryx/research/composite/src/platform/linux/module/ipc.o
+  CC [M]  /home/ryx/research/composite/src/platform/linux/module/hw_ints.o
+  CC [M]  /home/ryx/research/composite/src/platform/linux/module/hijack.o
+  CC [M]  /home/ryx/research/composite/src/platform/linux/module/pgtbl.o
+  CC [M]  /home/ryx/research/composite/src/platform/linux/module/../../../kernel/inv.o
+  CC [M]  /home/ryx/research/composite/src/platform/linux/module/../../../kernel/thread.o
+  CC [M]  /home/ryx/research/composite/src/platform/linux/module/../../../kernel/spd.o
+  CC [M]  /home/ryx/research/composite/src/platform/linux/module/../../../kernel/per_cpu.o
+  CC [M]  /home/ryx/research/composite/src/platform/linux/module/../../../kernel/measurement.o
+  CC [M]  /home/ryx/research/composite/src/platform/linux/module/../../../kernel/page_pool.o
+  CC [M]  /home/ryx/research/composite/src/platform/linux/module/../../../kernel/mmap.o
+  CC [M]  /home/ryx/research/composite/src/platform/linux/module/../../../kernel/ring_buff.o
+  CC [M]  /home/ryx/research/composite/src/platform/linux/module/../../../kernel/fpu.o
+  LD [M]  /home/ryx/research/composite/src/platform/linux/module/cos.o
+  Building modules, stage 2.
+  MODPOST 1 modules
+  CC      /home/ryx/research/composite/src/platform/linux/module/cos.mod.o
+  LD [M]  /home/ryx/research/composite/src/platform/linux/module/cos.ko
+make -C net
+make -C /home/ryx//research//linux-2.6.36/ SUBDIRS=/home/ryx/research/composite/src/platform/linux/net modules
+  CC [M]  /home/ryx/research/composite/src/platform/linux/net/cosnet.o
+  LD [M]  /home/ryx/research/composite/src/platform/linux/net/cnet.o
+  Building modules, stage 2.
+  MODPOST 1 modules
+  CC      /home/ryx/research/composite/src/platform/linux/net/cnet.mod.o
+  LD [M]  /home/ryx/research/composite/src/platform/linux/net/cnet.ko
+make -C util
+gcc -Wall  -o cnet_user.o -c cnet_user.c
+gcc -o cnet_user cnet_user.o
+gcc -Wall  -o udp_client.o -c udp_client.c
+gcc -o udp_client udp_client.o
+gcc -Wall  -o udp_server.o -c udp_server.c
+gcc -o udp_server udp_server.o
+gcc -Wall  -o tcp_server.o -c tcp_server.c
+gcc -o tcp_server tcp_server.o
+gcc -Wall  -o tcp_client.o -c tcp_client.c
+gcc -o tcp_client tcp_client.o
+make -C translator
+make -C /home/ryx//research//linux-2.6.36/ SUBDIRS=/home/ryx/research/composite/src/platform/linux/translator modules
+  CC [M]  /home/ryx/research/composite/src/platform/linux/translator/translator.o
+  LD [M]  /home/ryx/research/composite/src/platform/linux/translator/trans.o
+  Building modules, stage 2.
+  MODPOST 1 modules
+  CC      /home/ryx/research/composite/src/platform/linux/translator/trans.mod.o
+  LD [M]  /home/ryx/research/composite/src/platform/linux/translator/trans.ko
+make -C helpers 
+gcc -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -ggdb3   -c -o ctol_meas.o ctol_meas.c
+gcc -o ctol_meas ctol_meas.o
+gcc -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -ggdb3   -c -o ltoc_meas.o ltoc_meas.c
+gcc -o ltoc_meas ltoc_meas.o
+gcc -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -ggdb3   -c -o print.o print.c
+gcc -o print print.o
+gcc -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -fno-stack-protector -fno-omit-frame-pointer -ggdb3   -c -o term.o term.c
+gcc -o term term.o
+make -C link_load
+gcc -D__x86__ -D_GNU_SOURCE -lpthread -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -ggdb3 -I/home/ryx//research//composite/src//kernel/include/  -I/home/ryx//research//composite/src//components//include/ -c -o cos_loader.o cos_loader.c -I/home/ryx//research//composite/src//kernel/include/shared/
+gcc -D__x86__ -D_GNU_SOURCE -lpthread -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -ggdb3 -I/home/ryx//research//composite/src//kernel/include/  -o cos_loader cos_loader.o -L/usr/lib -lbfd -liberty -L/home/ryx//research//composite/src//components//lib/ -lcobj_format
+gcc -D__x86__ -D_GNU_SOURCE -lpthread -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -ggdb3 -I/home/ryx//research//composite/src//kernel/include/  -I/home/ryx//research//composite/src//components//include/ -c -o gen_client_stub.o gen_client_stub.c -I/home/ryx//research//composite/src//kernel/include/shared/
+gcc -D__x86__ -D_GNU_SOURCE -lpthread -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -ggdb3 -I/home/ryx//research//composite/src//kernel/include/  -o gen_client_stub gen_client_stub.o 
+make  --no-print-directory -I /home/ryx/research/composite/src -C platform cp
+make -C linux cp
+make -C module cp
+cp cos.ko /home/ryx//transfer/
+make -C net cp
+cp cnet.ko /home/ryx//transfer/
+make -C util cp
+cp cnet_user udp_client udp_server tcp_server tcp_client /home/ryx//transfer/
+make -C translator cp
+cp trans.ko /home/ryx//transfer/
+make -C helpers cp
+cp ctol_meas /home/ryx//transfer/
+cp ltoc_meas /home/ryx//transfer/
+cp print /home/ryx//transfer/
+cp term /home/ryx//transfer/
+make -C link_load cp
+cp cos_loader gen_client_stub /home/ryx//transfer/
+cat /home/ryx//research//composite/src//Makefile.src ./util/Makefile.end > /home/ryx//transfer//Makefile
+cp /home/ryx//research//composite/src//Makefile.cosconfig /home/ryx//transfer//
+cp ./util/*.sh ./util/*.py ./util/*.tar /home/ryx//transfer/
+make  --no-print-directory -I /home/ryx/research/composite/src -C components cp
+components makeflag  --no-print-directory
+####### Stack Manager is Enabled #######
+make  --no-print-directory -I /home/ryx/research/composite/src -I /home/ryx/research/composite/src -I /home/ryx/research/composite/src/components -C implementation cp
+|     [CP]   Copying all components to /home/ryx//transfer/

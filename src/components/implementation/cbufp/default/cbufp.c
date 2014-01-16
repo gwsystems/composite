@@ -200,7 +200,7 @@ cbufp_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 	for (off = 0 ; off < size ; off += PAGE_SIZE) {
 		vaddr_t d = dest + off;
 		if (d != 
-		    (mman_alias_page(cos_spd_id(), ((vaddr_t)p) + off, spdid, d))) {
+		    (mman_alias_page(cos_spd_id(), ((vaddr_t)p) + off, spdid, d, MAPPING_RW))) {
 			assert(0);
 			/* TODO: roll back the aliases, etc... */
 			valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
@@ -224,7 +224,8 @@ cbufp_referenced(struct cbufp_info *cbi)
 		struct cbuf_meta *meta = m->m;
 
 		if (meta) {
-			if (meta->nfo.c.flags & CBUFM_IN_USE) return 1;
+			/* if (meta->nfo.c.flags & CBUFM_IN_USE) return 1; */
+			if (meta->nfo.c.refcnt) return 1;
 			sent  += meta->owner_nfo.c.nsent;
 			recvd += meta->owner_nfo.c.nrecvd;
 		}
@@ -265,7 +266,8 @@ cbufp_free_unmap(spdid_t spdid, struct cbufp_info *cbi)
 	cbufp_references_clear(cbi);
 	do {
 		assert(m->m);
-		assert(!(m->m->nfo.c.flags & CBUFM_IN_USE));
+		/* assert(!(m->m->nfo.c.flags & CBUFM_IN_USE)); */
+		assert(!m->m->nfo.c.refcnt);
 		/* TODO: fix race here with atomic instruction */
 		memset(m->m, 0, sizeof(struct cbuf_meta));
 
@@ -361,9 +363,15 @@ cbufp_create(spdid_t spdid, int size, long cbid)
 	 * Update the meta with the correct addresses and flags!
 	 */
 	memset(meta, 0, sizeof(struct cbuf_meta));
-	meta->nfo.c.flags |= CBUFM_IN_USE | CBUFM_TOUCHED | 
+	/* meta->nfo.c.flags |= CBUFM_IN_USE | CBUFM_TOUCHED |  */
+	/* 	             CBUFM_OWNER  | CBUFM_WRITABLE; */
+	meta->nfo.c.flags |= CBUFM_TOUCHED | 
 		             CBUFM_OWNER  | CBUFM_WRITABLE;
 	meta->nfo.c.ptr    = cbi->owner.addr >> PAGE_ORDER;
+	meta->sz           = cbi->size >> PAGE_ORDER;
+	if(meta->nfo.c.refcnt == CBUFP_REFCNT_MAX)
+		assert(0);
+	meta->nfo.c.refcnt++;
 	ret = cbid;
 done:
 	CBUFP_RELEASE();
@@ -501,7 +509,7 @@ cbufp_retrieve(spdid_t spdid, int cbid, int size)
 	assert(page);
 	for (off = 0 ; off < size ; off += PAGE_SIZE) {
 		if (dest+off != 
-		    (mman_alias_page(cos_spd_id(), ((vaddr_t)page)+off, spdid, dest+off))) {
+		    (mman_alias_page(cos_spd_id(), ((vaddr_t)page)+off, spdid, dest+off, MAPPING_READ))) {
 			assert(0);
 			valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
 		}
@@ -509,7 +517,7 @@ cbufp_retrieve(spdid_t spdid, int cbid, int size)
 
 	meta->nfo.c.flags |= CBUFM_TOUCHED;
 	meta->nfo.c.ptr    = map->addr >> PAGE_ORDER;
-	meta->sz           = cbi->size;
+	meta->sz           = cbi->size >> PAGE_ORDER;
 	ret                = 0;
 done:
 	CBUFP_RELEASE();

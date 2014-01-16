@@ -11,14 +11,14 @@ void cos_init(void)
 	int i;
 	
 	/* establish all caches */
-	mman_get_page(cos_spd_id(), (vaddr_t)cos_get_heap_ptr(), 0);
+	mman_get_page(cos_spd_id(), (vaddr_t)cos_get_heap_ptr(), MAPPING_RW);
 	mman_release_page(cos_spd_id(), (vaddr_t)cos_get_heap_ptr(), 0);
 
 	for (i = 0 ; i < ITER ; i++) {
 		u64_t diff;
 
 		rdtscll(start);
-		mman_get_page(cos_spd_id(), (vaddr_t)cos_get_heap_ptr(), 0);
+		mman_get_page(cos_spd_id(), (vaddr_t)cos_get_heap_ptr(), MAPPING_RW);
 		rdtscll(end);
 		diff = end-start;
 		map_tot += diff;
