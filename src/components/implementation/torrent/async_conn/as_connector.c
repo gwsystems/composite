@@ -196,9 +196,9 @@ mbox_put(struct torrent *t, cbufp_t cb, int sz, int off, int ep)
 {
 	struct as_conn *ac;
 	int other_ep = !ep;
-	int ret=0;
+	int ret = 0;
 /*	struct cbuf_info *cbi;*/
-	struct cbuf_info cbi;
+	struct cbuf_info *cbi;
 
 	if (sz < 1) return -EINVAL;
 	ac  = t->data;
@@ -209,10 +209,12 @@ mbox_put(struct torrent *t, cbufp_t cb, int sz, int off, int ep)
 	cbi->cb  = cb;
 	cbi->sz  = sz;
 	cbi->off = off;*/
-	cbi.cb  = cb;
-	cbi.sz  = sz;
-	cbi.off = off;
-	if(CK_RING_ENQUEUE_SPSC(cb_buffer, &ac->cbs[ep], &cbi)) 
+	cbi = malloc(sizeof(struct cbuf_info));
+	cbi->cb  = cb;
+	cbi->sz  = sz;
+	cbi->off = off;
+	ret = CK_RING_ENQUEUE_SPSC(cb_buffer, &ac->cbs[ep], cbi);
+	if(ret == 0)
 		return -EALREADY;
 	evt_trigger(cos_spd_id(), ac->ts[other_ep]->evtid);
 

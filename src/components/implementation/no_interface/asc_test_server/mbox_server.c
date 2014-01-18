@@ -32,39 +32,59 @@ void parse_args(int *p, int *n)
 void cos_init(void *arg)
 {
         td_t t1 = td_root, cli;
-	long evt;
-	char *params1 = "foo", *params2 = "";
-	int period, num;
+	long evt1, evt2;
+	char *params1 = "foo", *params2 = "", *buf;
+	int period, num, sz, off, i, j;
+	cbufp_t cb1;
+	u64_t start = 0, end = 0, re_mbox;
 	parse_args(&period, &num);
-	evt = evt_split(cos_spd_id(), 0, 0);
-	assert(evt > 0);
-       	t1 = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_ALL | TOR_NONPERSIST, evt);
+	evt1 = evt_split(cos_spd_id(), 0, 0);
+	assert(evt1 > 0);
+	evt2 = evt_split(cos_spd_id(), 0, 0);
+	assert(evt2 > 0);
+       	t1 = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_ALL | TOR_NONPERSIST, evt1);
 	if (t1 < 1) 
 		printc("UNIT TEST FAILED: split failed %d\n", t1);
-	evt_wait(cos_spd_id(), evt);
-       	cli = tsplit(cos_spd_id(), t1, params2, strlen(params2), TOR_RW, evt);
+	evt_wait(cos_spd_id(), evt1);
+       	cli = tsplit(cos_spd_id(), t1, params2, strlen(params2), TOR_RW, evt2);
 	if (cli < 1) 
 		printc("UNIT TEST FAILED: split1 failed %d\n", cli);
 	periodic_wake_create(cos_spd_id(), period);
-	cbufp_t cb1;
-	char *buf;
-	int sz, off, i, j;
-	u64_t start, end = 0;
+	j = 100*ITER;
+	rdtscll(start);
+	for(i=0; i<j; i++) {
+//		printc("ryx: i %d\n", i);
+		while(1) {
+			cb1 = treadp(cos_spd_id(), cli, &off, &sz);
+			if((int)cb1<0)
+				evt_wait(cos_spd_id(), evt2);
+			else
+				break;
+		}
+		buf = cbufp2buf(cb1,sz);
+		cbufp_deref(cb1);
+	}
+	rdtscll(end);
+	printc("Server rcv %d times %llu\n", j, (end-start)/j);
+	re_mbox = 0;
 	for(i=0; i<ITER; i++) {
 		for(j=0; j<num; j++) {
 			while(1) {
 				cb1 = treadp(cos_spd_id(), cli, &off, &sz);
-				if((int)cb1>0)
+				if((int)cb1<0)
+					evt_wait(cos_spd_id(), evt2);
+				else
 					break;
 			}
 			buf = cbufp2buf(cb1,sz);
 			rdtscll(end);
 			start = ((u64_t *)buf)[0];
+			re_mbox = re_mbox+(end-start);
 			cbufp_deref(cb1);
-//			printc("ryx: %llu s %llu e\n", start, end);
 		}
 		periodic_wake_wait(cos_spd_id());
 	}
+	printc("Server: Period %d Num %d Mbox %llu\n", period, num, re_mbox/(num*ITER));
 done:
 	trelease(cos_spd_id(), cli);
 	trelease(cos_spd_id(), t1);
