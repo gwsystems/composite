@@ -52,15 +52,7 @@ __mbox_remove_cbufp(struct as_conn *ac)
 		struct cbuf_info cbi;
 		void *addr;
 
-/*		cbi = &ac->cbs[i];
-		if (cbi->cb == 0) continue;
-
-		addr = cbufp2buf(cbi->cb, cbi->sz);
-		assert(addr);
-		cbufp_deref(cbi->cb);*/
 		while(CK_RING_DEQUEUE_SPSC(cb_buffer, &ac->cbs[i], &cbi)) {
-//			if (cbi.cb == 0) continue;
-
 			addr = cbufp2buf(cbi.cb, cbi.sz);
 			assert(addr);
 			cbufp_deref(cbi.cb);
@@ -122,7 +114,6 @@ mbox_create_addr(spdid_t spdid, struct torrent *t, struct fsobj *parent,
 	fsc->data     = (void*)acr;
 		
 	fsc->allocated = fsc->size = 0;
-	//t->data        = fsc;
 done:
 	*_ret = ret;
 	return fsc;
@@ -169,18 +160,8 @@ mbox_create_client(struct torrent *t, struct as_conn_root *acr)
 	ac->ts[CLIENT] = t;
 	t->data = ac;
 	for (i = 0 ; i < 2 ; i++) {
-		/*void *page = malloc(MAX_ALLOC_SZ);
-		
-		if (!page) {
-			if (i == 1) free(ac->rbs[0].b);
-			ERR_THROW(-ENOMEM, free);
-		}*/
 		buffer[i] = malloc(Mbox_Buffer_Size*sizeof(struct cbuf_info));
-//		memset(buffer[i], 0, Mbox_Buffer_Size*sizeof(struct cbuf_info));
 		CK_RING_INIT(cb_buffer, &ac->cbs[i], buffer[i], Mbox_Buffer_Size);
-/*		ac->cbs[i].cb  = 0;
-		ac->cbs[i].sz  = 0;
-		ac->cbs[i].off = 0;*/
 	}
 	ADD_END_LIST(&acr->cs, ac, next, prev);
 	if (acr->t)     evt_trigger(cos_spd_id(), acr->t->evtid);
@@ -197,18 +178,11 @@ mbox_put(struct torrent *t, cbufp_t cb, int sz, int off, int ep)
 	struct as_conn *ac;
 	int other_ep = !ep;
 	int ret = 0;
-/*	struct cbuf_info *cbi;*/
 	struct cbuf_info *cbi;
 
 	if (sz < 1) return -EINVAL;
 	ac  = t->data;
 	if (ac->status) return ac->status;
-/*	cbi = &ac->cbs[ep];
-	if (cbi->cb) return -EALREADY;
-
-	cbi->cb  = cb;
-	cbi->sz  = sz;
-	cbi->off = off;*/
 	cbi = malloc(sizeof(struct cbuf_info));
 	cbi->cb  = cb;
 	cbi->sz  = sz;
@@ -225,25 +199,11 @@ static int
 mbox_get(struct torrent *t, int *sz, int *off, int ep)
 {
 	struct as_conn *ac;
-/*	struct cbuf_info *cbi;*/
 	struct cbuf_info cbi;
 	int other_ep = !ep;
 	cbufp_t cb;
 
 	ac  = t->data;
-/*	cbi = &ac->cbs[other_ep];
-
-	if (cbi->cb == 0) {
-		if (ac->status) return ac->status;
-		return -EAGAIN;
-	}
-	cb   = cbi->cb;
-	*off = cbi->off;
-	*sz  = cbi->sz;
-	cbi->cb = cbi->off = cbi->sz = 0;*/
-
-//	cbi = &ac->cbs[other_ep];
-
 	if (!CK_RING_DEQUEUE_SPSC(cb_buffer, &ac->cbs[other_ep], &cbi)) {
 		if (ac->status) return ac->status;
 		return -EAGAIN;
@@ -251,10 +211,6 @@ mbox_get(struct torrent *t, int *sz, int *off, int ep)
 	cb   = cbi.cb;
 	*off = cbi.off;
 	*sz  = cbi.sz;
-//	cbi->cb = cbi->off = cbi->sz = 0;
-
-//	evt_trigger(cos_spd_id(), ac->t[ep].evtid);
-
 	return cb;
 }
 
@@ -456,7 +412,6 @@ twritep(spdid_t spdid, td_t td, int cbid, int sz)
 	t = tor_lookup(td);
 	if (!t) ERR_THROW(-EINVAL, done);
 	assert(t->data);
-	//if (t->flags & TOR_WRITE) ERR_THROW(-EACCES, done);
 	if (!(t->flags & TOR_WRITE)) ERR_THROW(-EACCES, done);
 	ac = t->data;
 	ret = mbox_put(t, cb, sz, 0, ac->owner != spdid);

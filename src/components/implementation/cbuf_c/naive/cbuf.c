@@ -72,7 +72,6 @@ struct cos_cbuf_item *free_mem_in_local_cache(struct spd_tmem_info *sti)
 	     cci = FIRST_LIST(cci, next, prev)) {
 		struct cbuf_meta cm;
 		cm.nfo.v = cci->desc.owner.meta->nfo.v;
-		/* if (!CBUF_IN_USE(cm.nfo.c.flags)) goto done; */
 		if (!cm.nfo.c.refcnt) goto done;
 	}
 
@@ -161,7 +160,6 @@ struct cos_cbuf_item *mgr_get_client_mem(struct spd_tmem_info *sti)
 	     cci = FIRST_LIST(cci, next, prev)) {
 		struct cbuf_meta cm;
 		cm.nfo.v = cci->desc.owner.meta->nfo.v;
-		/* if (!CBUF_IN_USE(cm.nfo.c.flags)) break; */
 		if (!cm.nfo.c.refcnt) break;
 	}
 
@@ -197,7 +195,6 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_cbuf)
 
 	ret = (u32_t)cci->desc.owner.meta->owner_nfo.thdid;
 
-	/* if (!CBUF_IN_USE(cm.nfo.c.flags)) goto cache; */
 	if (!cm.nfo.c.refcnt) goto cache;
 	if (ret == cos_get_thd_id()){
 		DOUT("Try to depend on itself ....\n");
@@ -223,7 +220,6 @@ void mgr_clear_touched_flag(struct spd_tmem_info *sti)
 	     cci != &sti->tmem_list ; 
 	     cci = FIRST_LIST(cci, next, prev)) {
 		cm = cci->desc.owner.meta;
-		/* if (!CBUF_IN_USE(cm->nfo.c.flags)) { */
 		if (!cm->nfo.c.refcnt) {
 			cm->nfo.c.flags &= ~CBUFM_TOUCHED;
 		} else {
@@ -408,8 +404,6 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	mc->nfo.c.ptr = d->owner.addr >> PAGE_ORDER;
 	mc->sz              = PAGE_SIZE;
 	mc->owner_nfo.thdid = cos_get_thd_id();
-	/* mc->nfo.c.flags    |= CBUFM_IN_USE | CBUFM_TOUCHED | CBUFM_OWNER |  */
-	/* 	              CBUFM_TMEM   | CBUFM_WRITABLE; */
 	mc->nfo.c.flags    |= CBUFM_TOUCHED | CBUFM_OWNER | 
 		              CBUFM_TMEM   | CBUFM_WRITABLE;
 	if(mc->nfo.c.refcnt == CBUFP_REFCNT_MAX)
@@ -525,8 +519,6 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 		/* owners should not be cbuf2bufing their buffers. */
 		assert(!(mc->nfo.c.flags & CBUFM_OWNER));
 		mc->owner_nfo.thdid   = 0;
-		/* mc->nfo.c.flags      |= CBUFM_IN_USE | CBUFM_TOUCHED | */
-		/* 	                CBUFM_TMEM   | CBUFM_WRITABLE; */
 		mc->nfo.c.flags      |= CBUFM_TOUCHED |
 			                CBUFM_TMEM   | CBUFM_WRITABLE;
 		if(mc->nfo.c.refcnt == CBUFP_REFCNT_MAX)
@@ -534,7 +526,6 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 		mc->nfo.c.refcnt++;
 	} else {
 		mc->owner_nfo.c.nsent = mc->owner_nfo.c.nrecvd = 0;
-		/* mc->nfo.c.flags      |= CBUFM_IN_USE | CBUFM_WRITABLE; */
 		mc->nfo.c.flags      |= CBUFM_WRITABLE;
 		if(mc->nfo.c.refcnt == CBUFP_REFCNT_MAX)
 			assert(0);
@@ -578,8 +569,6 @@ cbuf_c_introspect(spdid_t spdid, int iter)
 			printc("try to find cbuf for this spd 2\n");
 			struct cbuf_meta cm;
 			cm.nfo.v = cci->desc.owner.meta->nfo.v;
-			/* if (CBUF_OWNER(cm.nfo.c.flags) &&  */
-			/*     CBUF_IN_USE(cm.nfo.c.flags)) counter++; */
 			if (CBUF_OWNER(cm.nfo.c.flags) && 
 			    cm.nfo.c.refcnt) counter++;
 		}
@@ -591,9 +580,6 @@ cbuf_c_introspect(spdid_t spdid, int iter)
 		     cci = FIRST_LIST(cci, next, prev)) {
 			struct cbuf_meta cm;
 			cm.nfo.v = cci->desc.owner.meta->nfo.v;
-			/* if (CBUF_OWNER(cm.nfo.c.flags) &&  */
-                        /*     CBUF_IN_USE(cm.nfo.c.flags) && */
-                        /*     !(--iter)) goto found; */
 			if (CBUF_OWNER(cm.nfo.c.flags) && 
                             cm.nfo.c.refcnt &&
                             !(--iter)) goto found;

@@ -11,7 +11,6 @@
 #define CBUF_META_H
 
 #define CBUF_OWNER(flags)  (flags & CBUFM_OWNER)
-#define CBUF_IN_USE(flags) (flags & CBUFM_IN_USE)
 #define LOCAL_ADDR(cci)    (cci->desc.addr)
 #define TMEM_TOUCHED(cci)  (cci->desc.owner.meta->nfo.c.flags & CBUFM_TOUCHED)
 #define TMEM_RELINQ        COMP_INFO_TMEM_CBUF
@@ -38,7 +37,6 @@ typedef enum {
 	 * cbuf.
 	 * Invariant: ptr != 0
 	 */
-/*	CBUFM_IN_USE   = 1<<2,*/
 	/* 
 	 * Has the cbuf been used?
 	 * Invariant: ptr != 0

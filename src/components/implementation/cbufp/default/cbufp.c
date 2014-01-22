@@ -224,7 +224,6 @@ cbufp_referenced(struct cbufp_info *cbi)
 		struct cbuf_meta *meta = m->m;
 
 		if (meta) {
-			/* if (meta->nfo.c.flags & CBUFM_IN_USE) return 1; */
 			if (meta->nfo.c.refcnt) return 1;
 			sent  += meta->owner_nfo.c.nsent;
 			recvd += meta->owner_nfo.c.nrecvd;
@@ -266,7 +265,6 @@ cbufp_free_unmap(spdid_t spdid, struct cbufp_info *cbi)
 	cbufp_references_clear(cbi);
 	do {
 		assert(m->m);
-		/* assert(!(m->m->nfo.c.flags & CBUFM_IN_USE)); */
 		assert(!m->m->nfo.c.refcnt);
 		/* TODO: fix race here with atomic instruction */
 		memset(m->m, 0, sizeof(struct cbuf_meta));
@@ -363,8 +361,6 @@ cbufp_create(spdid_t spdid, int size, long cbid)
 	 * Update the meta with the correct addresses and flags!
 	 */
 	memset(meta, 0, sizeof(struct cbuf_meta));
-	/* meta->nfo.c.flags |= CBUFM_IN_USE | CBUFM_TOUCHED |  */
-	/* 	             CBUFM_OWNER  | CBUFM_WRITABLE; */
 	meta->nfo.c.flags |= CBUFM_TOUCHED | 
 		             CBUFM_OWNER  | CBUFM_WRITABLE;
 	meta->nfo.c.ptr    = cbi->owner.addr >> PAGE_ORDER;
