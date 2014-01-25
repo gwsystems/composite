@@ -27,6 +27,9 @@ kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
   
   printk(INFO, "Turning on serial printk\n");
   printk__register_handler(&serial__puts);
+
+  printk(INFO, "Setting up the TSS\n");
+  tss__init ();
   
   printk(INFO, "Enabling gdt\n");
   gdt__init();
@@ -40,7 +43,7 @@ kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
   printk(INFO, "Enabling keyboard\n");
   kbd__init();
   
-  printk(INFO, "Initalizing Multiboot");
+  printk(INFO, "Initalizing Multiboot\n");
   
   if (mboot_magic == MULTIBOOT_EAX_MAGIC) {
     printk(INFO, "Multiboot kernel\n");
@@ -49,23 +52,17 @@ kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
   } else {
     die("Not started from a multiboot loader!\n");
   }
-  
+
+  printk(INFO, "Enabling virtual memory\n");
   paging__init(mboot->mem_lower + mboot->mem_upper, mboot->mods_count, (uint32_t*)mboot->mods_addr);
-  
-  tss__init ();
   
   printk(INFO, "Enabling interrupts\n");
   asm volatile ("sti");
   
-#undef FORCE_PAGE_FAULT
-#ifdef FORCE_PAGE_FAULT
-  printk(INFO, "Forcing page fault\n");
-  uintptr_t *ptr = (uintptr_t *)0xA0000000;
-  printk(INFO, "pfault %d\n", *ptr);
-#endif
-
+  printk(INFO, "Jumping to user mode\n");
   user__init ();
-  while (keep_kernel_running);
+
+  //while (keep_kernel_running);
   
   printk(INFO, "Shutting down...\n");
   asm("mov $0x53,%ah");

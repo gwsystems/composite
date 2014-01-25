@@ -3,7 +3,7 @@
 
 #include "types.h"
 
-#define KERNEL_TABLES 32
+#define KERNEL_TABLES 8
 #define PAGE_SIZE 4096
 
 typedef uint32_t u32_t;
@@ -23,13 +23,15 @@ typedef u32_t ptd_t[1024];	// Page Table Directory
 7:	PAT	4.9.2
 8:	G	Global				0 = local		1 = global
 9-11:	Ignored
-l12-31:	FRAME	Physical address of page
+12-31:	FRAME	Physical address of page
 */
 
 #define PAGE_P		1
 #define PAGE_RW		1 << 1
 #define PAGE_US		1 << 2
+#define PAGE_RSVD	1 << 3
 #define PAGE_PWT	1 << 3
+#define PAGE_ID		1 << 4
 #define PAGE_PCD	1 << 4
 #define PAGE_A		1 << 5
 #define PAGE_D		1 << 6
