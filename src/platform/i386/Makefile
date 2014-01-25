@@ -47,7 +47,6 @@ OBJS += string.o
 OBJS += serial.o
 OBJS += ports.o
 OBJS += vtxprintf.o
-OBJS += boot_log.o
 OBJS += multiboot.o
 OBJS += tss.o
 OBJS += user.o

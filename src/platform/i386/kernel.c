@@ -3,7 +3,6 @@
 #include "serial.h"
 #include "types.h"
 #include "string.h"
-#include "boot_log.h"
 #include "timer.h"
 #include "gdt.h"
 #include "ports.h"
@@ -41,8 +40,7 @@ kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
   printk(INFO, "Enabling keyboard\n");
   kbd__init();
   
-  boot_log("Initalizing Multiboot");
-  boot_log_finish(BOOT_OK);
+  printk(INFO, "Initalizing Multiboot");
   
   if (mboot_magic == MULTIBOOT_EAX_MAGIC) {
     printk(INFO, "Multiboot kernel\n");
