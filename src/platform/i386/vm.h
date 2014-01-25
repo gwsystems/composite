@@ -3,7 +3,7 @@
 
 #include "types.h"
 
-#define KERNEL_TABLES 8		// 32 MB
+#define KERNEL_TABLES 32
 #define PAGE_SIZE 4096
 
 typedef uint32_t u32_t;

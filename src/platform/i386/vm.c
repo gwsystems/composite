@@ -4,17 +4,15 @@
 #include "isr.h"
 #include "mm.h"
 #include "vm.h"
-#include "task.h"
 
 #define POSSIBLE_FRAMES 1024*1024
 
-u32_t framebitmap[POSSIBLE_FRAMES/sizeof(u32_t)];
+uint32_t *base_user_address;
+uint32_t test_function_offset;
+extern void test_user_function(void);
 
-#define kerndir tasks[0].ptd
-#define userdir tasks[1].ptd
-
-pt_t kernel_pagetab[KERNEL_TABLES] __attribute__((aligned(4096)));
-pt_t user_pagetab __attribute__((aligned(4096)));
+ptd_t kerndir __attribute__((aligned(4096)));
+pt_t kernel_pagetab[1024] __attribute__((aligned(4096)));
 
 void
 ptd_load(ptd_t dir)
@@ -109,14 +107,6 @@ paging__init(size_t memory_size, uint32_t nmods, uint32_t *mods)
     printk(INFO, "Initializing paging\n");
     printk(INFO, "MEMORY_SIZE: %dMB (%d page frames)\n", memory_size/1024, memory_size/4);
 
-    printk(INFO, "Adding free memory frames to bitmap\n");
-    for (i = 0; i < POSSIBLE_FRAMES/sizeof(u32_t); i++) {
-      framebitmap[i] = 0;
-    }
-    for (i = 0; i < POSSIBLE_FRAMES; i++) {
-      framebitmap[i/(sizeof(u32_t)*8)] |= (i < KERNEL_TABLES * 1024 || i > memory_size / 4) ? 0 : 1 << i % (sizeof(u32_t)*8);
-    }
-
     printk(INFO, "Registering page fault handler\n");
     register_interrupt_handler(14, &page_fault);
 
@@ -124,18 +114,23 @@ paging__init(size_t memory_size, uint32_t nmods, uint32_t *mods)
 
     ptd_init(kerndir);
 
-    for (i = 0; i <= KERNEL_TABLES; i++) {
-      init_table(kernel_pagetab[i], (uint32_t*) (i * 4096 * 1024), PAGE_RW | PAGE_P | PAGE_G);
-      ptd_map(kerndir, i, kernel_pagetab[i], PAGE_RW | PAGE_P | PAGE_G);
-      ptd_map(userdir, i, kernel_pagetab[i], PAGE_RW | PAGE_P | PAGE_G);
+    for (i = 0; i < (KERNEL_TABLES * 2); i++) {
+      init_table(kernel_pagetab[i], (uint32_t*) (i * 4096 * 1024), PAGE_RW | PAGE_P | 
+		(i < KERNEL_TABLES ? PAGE_G : PAGE_US));
+      ptd_map(kerndir, i, kernel_pagetab[i], PAGE_RW | PAGE_P | 
+		(i < KERNEL_TABLES ? PAGE_G : PAGE_US));
     }
 
-    ptd_map(kerndir, KERNEL_TABLES + 1, kernel_pagetab[0], PAGE_RW | PAGE_P);
+    base_user_address = (uint32_t*)((uint32_t)(&kernel_pagetab[KERNEL_TABLES+1]) & 0xfffff000);
+    test_function_offset = (uint32_t)&test_user_function & 0xfff;
 
-    init_table(user_pagetab, (uint32_t*) (KERNEL_TABLES * 4096 * 1024), PAGE_RW | PAGE_P | PAGE_US);
-    ptd_map(userdir, KERNEL_TABLES + 1, user_pagetab, PAGE_RW | PAGE_P | PAGE_US);
+    printk(INFO, "Base user page is at %x (pt %x)\n", base_user_address, kernel_pagetab[KERNEL_TABLES+1]);
+    printk(INFO, "Mapping test_user_function (0x%x) into first user page table\n", &test_user_function);
+    printk(INFO, "Offset is 0x%x\n", test_function_offset);
 
-    printk(INFO, "Base user page is at %x\n", user_pagetab[0]);
+    for (i = 0; i < 1024; i++) {
+      kernel_pagetab[KERNEL_TABLES+1][i] = (((uint32_t)test_user_function & 0xfffff000) + (i * 4096)) | PAGE_RW | PAGE_P | PAGE_US;
+    }
 
     printk(INFO, "Loading page directory\n");
     ptd_load(kerndir);

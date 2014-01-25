@@ -12,7 +12,6 @@
 #include "vm.h"
 #include "kbd.h"
 #include "tss.h"
-#include "task.h"
 #include "user.h"
 
 void kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp);
@@ -53,9 +52,7 @@ kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
     die("Not started from a multiboot loader!\n");
   }
   
-  // should these be swapped? maybe, and move the module stuff to task__init -- that seems more proper
   paging__init(mboot->mem_lower + mboot->mem_upper, mboot->mods_count, (uint32_t*)mboot->mods_addr);
-  task__init();
   
   tss__init ();
   

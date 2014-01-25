@@ -3,7 +3,6 @@
 #include "isr.h"
 #include "serial.h"
 #include "printk.h"
-#include "task.h"
 
 extern int keep_kernel_running;
 
@@ -49,8 +48,6 @@ serial__puts(const char *s)
 		serial_send(*s);
 }
 
-extern uint32_t current_task;
-
 static void
 serial_handler(struct registers *r)
 {
@@ -64,8 +61,6 @@ serial_handler(struct registers *r)
 	case 27:
 	  keep_kernel_running = 0;
 	  break;
-        case 115:
-	  task_switch(current_task == 0 ? 1 : 0);
 	  break;
 	case 102:
 	  serial = *page_fault_address;

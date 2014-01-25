@@ -50,7 +50,6 @@ OBJS += vtxprintf.o
 OBJS += boot_log.o
 OBJS += multiboot.o
 OBJS += tss.o
-OBJS += task.o
 OBJS += user.o
 
 all: $(KERNEL)
@@ -85,8 +84,8 @@ clean:
 	$(E) "--[ Clean"
 
 qemu: kernel.img
-	qemu-system-i386 -nographic -kernel kernel.img -no-reboot -s 
+	qemu-system-i386 -m 128 -nographic -kernel kernel.img -no-reboot -s 
 
 gdb: kernel.img
 	@echo "Start gdb in another window"
-	qemu-system-i386 -nographic -kernel kernel.img -no-reboot -s -S
+	qemu-system-i386 -m 128 -nographic -kernel kernel.img -no-reboot -s -S

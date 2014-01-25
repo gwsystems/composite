@@ -1,10 +1,10 @@
-.global syscall
-syscall:
-	#mov %ecx,<stack pointer>
-	#mov %edx,<return address>
-	#sysenter
+sysenter_message:
+	.asciz "Entered system mode"
 
-.global sysenter
+.global sysenter, _sysenter
 sysenter:
-	#do stuff
+_sysenter:
+	push sysenter_message
+	push $0
+	call printk
 	sysexit
