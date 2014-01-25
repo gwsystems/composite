@@ -8,7 +8,6 @@
 #define POSSIBLE_FRAMES 1024*1024
 
 uint32_t *base_user_address;
-uint32_t test_function_offset;
 extern void test_user_function(void);
 
 ptd_t kerndir __attribute__((aligned(4096)));
@@ -125,7 +124,6 @@ paging__init(size_t memory_size, uint32_t nmods, uint32_t *mods)
     }
 
     base_user_address = (uint32_t*)((uint32_t)(kernel_pagetab[KERNEL_TABLES+1][0]) & 0xfffff000);
-    test_function_offset = 0; //(uint32_t)&test_user_function & 0xfff;
 
     printk(INFO, "Base user page is at %x (pt %x)\n", base_user_address, kernel_pagetab[KERNEL_TABLES+1]);
     printk(INFO, "Copying test_user_function (0x%x) into first user page table\n", &test_user_function);

@@ -1,10 +1,20 @@
-sysenter_message:
-	.asciz "Entered system mode"
-
-.global sysenter, _sysenter
+.global sysenter
 sysenter:
-_sysenter:
-	push sysenter_message
-	push $0
-	call printk
+	pusha
+	mov 0x3fd, %dx
+	inb %dx
+        mov 0x55, %al
+        mov 0x3f8, %dx
+        outb %al, %dx
+	popa
 	sysexit
+
+.global test_user_function
+test_user_function:
+	sysenter
+	mov 0x3fd, %dx
+	inb %dx
+	mov 0x55, %al
+	mov 0x3f8, %dx
+	outb %al, %dx
+	jmp -4
