@@ -178,8 +178,8 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 			/* TODO: if use_kmem, we should allocate
 			 * kernel-accessible memory, rather than
 			 * normal user-memory */
-			if ((vaddr_t)dsrc != __mman_get_page(cos_spd_id(), (vaddr_t)dsrc, 0)) BUG();
-			if (dest_daddr != (__mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr))) BUG();
+			if ((vaddr_t)dsrc != __local_mman_get_page(cos_spd_id(), (vaddr_t)dsrc, MAPPING_RW)) BUG();
+			if (dest_daddr != (__local_mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr, MAPPING_RW))) BUG();
 
 			prev_map = dest_daddr;
 			dest_daddr += PAGE_SIZE;
@@ -371,7 +371,6 @@ boot_create_system(void)
 		for (j = 0 ; hs[j] != NULL; j++) {
 			if (hs[j]->id == boot_sched[i]) h = hs[j];
 		}		
-
 		assert(h);
 		if (h->flags & COBJ_INIT_THD) boot_spd_thd(h->id);
 	}
@@ -470,6 +469,7 @@ void cos_init(void)
 	       h, h->size, num_cobj, cos_get_heap_ptr());
 
 	/* Assumes that hs have been setup with boot_find_cobjs */
+
 	boot_create_system();
 	printc("booter: done creating system.\n");
 

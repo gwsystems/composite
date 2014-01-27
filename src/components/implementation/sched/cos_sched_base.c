@@ -423,11 +423,11 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 		assert(!sched_thd_blocked(next));
 		report_event(SWITCH_THD);
 		timer_end(&t);
-
 		ret = cos_switch_thread_release(next->id, flags);
 
 		assert(ret != COS_SCHED_RET_ERROR);
 		if (COS_SCHED_RET_CEVT == ret) { report_event(CEVT_RESCHED); }
+
 		/* success, or we need to check for more child events:
 		 * exit the loop! */
 		if (likely(COS_SCHED_RET_SUCCESS == ret) || COS_SCHED_RET_CEVT == ret) break;
@@ -1272,7 +1272,6 @@ sched_create_thread_default(spdid_t spdid, u32_t sched_param_0,
 {
 	int core_id, ret;
 	core_id = created_default_thds % (NUM_CPU > 1 ? NUM_CPU - 1 : 1);
-
 	if (core_id != 0) {
 		int param[4] = {spdid, sched_param_0, sched_param_1, sched_param_2};
 		ret = xcore_execute_fn(core_id, (void *)current_core_create_thread_default, 4, param, 1);

@@ -51,7 +51,7 @@
 
 #include <cobj_format.h>
 
-enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_HIGH;
+enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_DEBUG;
 
 #define printl(lvl,format, args...)				\
 	{							\
@@ -1059,7 +1059,8 @@ static int for_each_symb_type(bfd *obj, int symb_type, observer_t o, void *obs_d
 		    ||
 		    (symb_type & EXPORTED_SYMB_TYPE &&
 		    symbol_table[i]->flags & BSF_FUNCTION &&
-		    symbol_table[i]->flags & BSF_GLOBAL)) {
+		    ((symbol_table[i]->flags & BSF_GLOBAL) || 
+		     (symbol_table[i]->flags & BSF_WEAK)))) {
 			if ((*o)(symbol_table[i], obs_data)) {
 				return -1;
 			}

@@ -72,7 +72,7 @@ struct cos_cbuf_item *free_mem_in_local_cache(struct spd_tmem_info *sti)
 	     cci = FIRST_LIST(cci, next, prev)) {
 		struct cbuf_meta cm;
 		cm.nfo.v = cci->desc.owner.meta->nfo.v;
-		if (!CBUF_IN_USE(cm.nfo.c.flags)) goto done;
+		if (!cm.nfo.c.refcnt) goto done;
 	}
 
 	if (cci == list) goto err;
@@ -103,7 +103,7 @@ void mgr_map_client_mem(struct cos_cbuf_item *cci, struct spd_tmem_info *sti)
 	assert(d_addr && l_addr); 
 
 	/* ...map it into the requesting component */
-	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)l_addr, d_spdid, (vaddr_t)d_addr))) 
+	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)l_addr, d_spdid, (vaddr_t)d_addr, MAPPING_RW))) 
 		goto err;
 	cci->desc.owner.addr = (vaddr_t)d_addr;
 	cci->parent_spdid    = d_spdid;
@@ -160,7 +160,7 @@ struct cos_cbuf_item *mgr_get_client_mem(struct spd_tmem_info *sti)
 	     cci = FIRST_LIST(cci, next, prev)) {
 		struct cbuf_meta cm;
 		cm.nfo.v = cci->desc.owner.meta->nfo.v;
-		if (!CBUF_IN_USE(cm.nfo.c.flags)) break;
+		if (!cm.nfo.c.refcnt) break;
 	}
 
 	if (cci == list) goto err;
@@ -195,7 +195,7 @@ resolve_dependency(struct spd_tmem_info *sti, int skip_cbuf)
 
 	ret = (u32_t)cci->desc.owner.meta->owner_nfo.thdid;
 
-	if (!CBUF_IN_USE(cm.nfo.c.flags)) goto cache;
+	if (!cm.nfo.c.refcnt) goto cache;
 	if (ret == cos_get_thd_id()){
 		DOUT("Try to depend on itself ....\n");
 		goto self;
@@ -220,7 +220,7 @@ void mgr_clear_touched_flag(struct spd_tmem_info *sti)
 	     cci != &sti->tmem_list ; 
 	     cci = FIRST_LIST(cci, next, prev)) {
 		cm = cci->desc.owner.meta;
-		if (!CBUF_IN_USE(cm->nfo.c.flags)) {
+		if (!cm->nfo.c.refcnt) {
 			cm->nfo.c.flags &= ~CBUFM_TOUCHED;
 		} else {
 			assert(cm->nfo.c.flags & CBUFM_TOUCHED);
@@ -311,7 +311,7 @@ cbuf_c_register(spdid_t spdid, long cbid)
 	assert(mgr_addr);
 	p = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, 1);
 	assert(p);
-	if (p != (mman_alias_page(cos_spd_id(), mgr_addr, spdid, p))) {
+	if (p != (mman_alias_page(cos_spd_id(), mgr_addr, spdid, p, MAPPING_RW))) {
 		valloc_free(cos_spd_id(), spdid, (void *)p, 1);
 		RELEASE();
 		return -1;
@@ -404,8 +404,9 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	mc->nfo.c.ptr = d->owner.addr >> PAGE_ORDER;
 	mc->sz              = PAGE_SIZE;
 	mc->owner_nfo.thdid = cos_get_thd_id();
-	mc->nfo.c.flags    |= CBUFM_IN_USE | CBUFM_TOUCHED | CBUFM_OWNER | 
-		              CBUFM_TMEM   | CBUFM_WRITABLE;
+	mc->nfo.c.flags    |= CBUFM_TOUCHED | CBUFM_OWNER | CBUFM_TMEM   | CBUFM_WRITABLE;
+	if (mc->nfo.c.refcnt == CBUFP_REFCNT_MAX)	assert(0);
+	mc->nfo.c.refcnt++;
 	d->flags           |= CBUF_DESC_TMEM;
 done:
 	RELEASE();
@@ -504,7 +505,7 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 	if (!mc) goto err;
 
 	assert(d_addr && l_addr);
-	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)l_addr, spdid, d_addr))) {
+	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)l_addr, spdid, d_addr, MAPPING_RW))) {
 		goto err;
 	}
 
@@ -516,12 +517,13 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 		/* owners should not be cbuf2bufing their buffers. */
 		assert(!(mc->nfo.c.flags & CBUFM_OWNER));
 		mc->owner_nfo.thdid   = 0;
-		mc->nfo.c.flags      |= CBUFM_IN_USE | CBUFM_TOUCHED | 
-			                CBUFM_TMEM   | CBUFM_WRITABLE;
+		mc->nfo.c.flags      |= CBUFM_TOUCHED | CBUFM_TMEM | CBUFM_WRITABLE;
 	} else {
 		mc->owner_nfo.c.nsent = mc->owner_nfo.c.nrecvd = 0;
-		mc->nfo.c.flags      |= CBUFM_IN_USE | CBUFM_WRITABLE;
+		mc->nfo.c.flags      |= CBUFM_WRITABLE;
 	}
+	if (mc->nfo.c.refcnt == CBUFP_REFCNT_MAX)	assert(0);
+	mc->nfo.c.refcnt++;
 	mc->nfo.c.ptr = d_addr >> PAGE_ORDER;
 	mc->sz        = d->sz;
 
@@ -561,7 +563,7 @@ cbuf_c_introspect(spdid_t spdid, int iter)
 			struct cbuf_meta cm;
 			cm.nfo.v = cci->desc.owner.meta->nfo.v;
 			if (CBUF_OWNER(cm.nfo.c.flags) && 
-			    CBUF_IN_USE(cm.nfo.c.flags)) counter++;
+			    cm.nfo.c.refcnt) counter++;
 		}
 		RELEASE();
 		return counter;
@@ -572,7 +574,7 @@ cbuf_c_introspect(spdid_t spdid, int iter)
 			struct cbuf_meta cm;
 			cm.nfo.v = cci->desc.owner.meta->nfo.v;
 			if (CBUF_OWNER(cm.nfo.c.flags) && 
-                            CBUF_IN_USE(cm.nfo.c.flags) &&
+                            cm.nfo.c.refcnt &&
                             !(--iter)) goto found;
 		}
 	}

@@ -126,7 +126,7 @@ __page_get(void)
 	frame_ref(f);
 	f->nmaps  = -1; 	 /* belongs to us... */
 	f->c.addr = (vaddr_t)hp; /* ...at this address */
-	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, cos_spd_id(), (vaddr_t)hp, frame_index(f))) {
+	if (cos_mmap_cntl(COS_MMAP_GRANT, MAPPING_RW, cos_spd_id(), (vaddr_t)hp, frame_index(f))) {
 		printc("grant @ %p for frame %d\n", hp, frame_index(f));
 		BUG();
 	}
@@ -242,7 +242,7 @@ mapping_lookup(spdid_t spdid, vaddr_t addr)
 
 /* Make a child mapping */
 static struct mapping *
-mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to)
+mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to, int flags)
 {
 	struct comp_vas *cv = cvas_lookup(dest);
 	struct mapping *m = NULL;
@@ -264,7 +264,7 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to)
 	m = cslab_alloc_mapping();
 	if (!m) goto collision;
 
-	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, dest, to, frame_index(f))) {
+	if (cos_mmap_cntl(COS_MMAP_GRANT, flags, dest, to, frame_index(f))) {
 		printc("mem_man: could not grant at %x:%d\n", dest, (int)to);
 		goto no_mapping;
 	}
@@ -288,7 +288,7 @@ static struct mapping *
 __mapping_linearize_decendents(struct mapping *m)
 {
 	struct mapping *first, *last, *c, *gc;
-	
+
 	first = c = m->c;
 	m->c = NULL;
 	if (!c) return NULL;
@@ -297,11 +297,10 @@ __mapping_linearize_decendents(struct mapping *m)
 		c->p = NULL;
 		gc = c->c;
 		c->c = NULL;
-		/* add the grand-children onto the end of our list of decedents */
-		if (gc) ADD_LIST(last, gc, _s, s_);
+		if (gc) APPEND_LIST(last, gc, _s, s_);
 		c = FIRST_LIST(c, _s, s_);
 	} while (first != c);
-	
+
 	return first;
 }
 
@@ -368,12 +367,12 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 	struct frame *f;
 	struct mapping *m = NULL;
 	vaddr_t ret = -1;
-
+	
 	LOCK();
 	f = frame_alloc();
 	if (!f) goto done; 	/* -ENOMEM */
 	assert(frame_nrefs(f) == 0);
-	m = mapping_crt(NULL, f, spd, addr);
+	m = mapping_crt(NULL, f, spd, addr, flags);
 	if (!m) goto dealloc;
 	f->c.m = m;
 	assert(m->addr == addr);
@@ -384,19 +383,24 @@ done:
 	UNLOCK();
 	return ret;
 dealloc:
+	printc("mman_get_page: error\n");
 	frame_deref(f);
 	goto done;		/* -EINVAL */
 }
 
-vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr)
+vaddr_t __mman_alias_page(spdid_t s_spd, vaddr_t s_addr, u32_t d_spd_flags, vaddr_t d_addr)
 {
 	struct mapping *m, *n;
 	vaddr_t ret = 0;
+	spdid_t d_spd;
+	int flags;
 
+	d_spd = d_spd_flags >> 16;
+	flags = d_spd_flags & 0xFFFF;
 	LOCK();
 	m = mapping_lookup(s_spd, s_addr);
 	if (!m) goto done; 	/* -EINVAL */
-	n = mapping_crt(m, m->f, d_spd, d_addr);
+	n = mapping_crt(m, m->f, d_spd, d_addr, flags);
 	if (!n) goto done;
 
 	assert(n->addr  == d_addr);
