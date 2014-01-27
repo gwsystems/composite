@@ -404,10 +404,8 @@ cbuf_c_create(spdid_t spdid, int size, long cbid)
 	mc->nfo.c.ptr = d->owner.addr >> PAGE_ORDER;
 	mc->sz              = PAGE_SIZE;
 	mc->owner_nfo.thdid = cos_get_thd_id();
-	mc->nfo.c.flags    |= CBUFM_TOUCHED | CBUFM_OWNER | 
-		              CBUFM_TMEM   | CBUFM_WRITABLE;
-	if(mc->nfo.c.refcnt == CBUFP_REFCNT_MAX)
-		assert(0);
+	mc->nfo.c.flags    |= CBUFM_TOUCHED | CBUFM_OWNER | CBUFM_TMEM   | CBUFM_WRITABLE;
+	if (mc->nfo.c.refcnt == CBUFP_REFCNT_MAX)	assert(0);
 	mc->nfo.c.refcnt++;
 	d->flags           |= CBUF_DESC_TMEM;
 done:
@@ -519,18 +517,13 @@ cbuf_c_retrieve(spdid_t spdid, int cbid, int len)
 		/* owners should not be cbuf2bufing their buffers. */
 		assert(!(mc->nfo.c.flags & CBUFM_OWNER));
 		mc->owner_nfo.thdid   = 0;
-		mc->nfo.c.flags      |= CBUFM_TOUCHED |
-			                CBUFM_TMEM   | CBUFM_WRITABLE;
-		if(mc->nfo.c.refcnt == CBUFP_REFCNT_MAX)
-			assert(0);
-		mc->nfo.c.refcnt++;
+		mc->nfo.c.flags      |= CBUFM_TOUCHED | CBUFM_TMEM | CBUFM_WRITABLE;
 	} else {
 		mc->owner_nfo.c.nsent = mc->owner_nfo.c.nrecvd = 0;
 		mc->nfo.c.flags      |= CBUFM_WRITABLE;
-		if(mc->nfo.c.refcnt == CBUFP_REFCNT_MAX)
-			assert(0);
-		mc->nfo.c.refcnt++;
 	}
+	if (mc->nfo.c.refcnt == CBUFP_REFCNT_MAX)	assert(0);
+	mc->nfo.c.refcnt++;
 	mc->nfo.c.ptr = d_addr >> PAGE_ORDER;
 	mc->sz        = d->sz;
 

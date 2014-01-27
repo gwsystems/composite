@@ -297,8 +297,6 @@ __mapping_linearize_decendents(struct mapping *m)
 		c->p = NULL;
 		gc = c->c;
 		c->c = NULL;
-		/* add the grand-children onto the end of our list of decedents */
-		/* if (gc) ADD_LIST(last, gc, _s, s_); */
 		if (gc) APPEND_LIST(last, gc, _s, s_);
 		c = FIRST_LIST(c, _s, s_);
 	} while (first != c);
@@ -370,7 +368,6 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 	struct mapping *m = NULL;
 	vaddr_t ret = -1;
 	
-	//printc("mman_get_page: spd %d @ %x with flags %x\n", spd, addr, flags);
 	LOCK();
 	f = frame_alloc();
 	if (!f) goto done; 	/* -ENOMEM */
@@ -395,13 +392,11 @@ vaddr_t __mman_alias_page(spdid_t s_spd, vaddr_t s_addr, u32_t d_spd_flags, vadd
 {
 	struct mapping *m, *n;
 	vaddr_t ret = 0;
-
 	spdid_t d_spd;
 	int flags;
 
 	d_spd = d_spd_flags >> 16;
 	flags = d_spd_flags & 0xFFFF;
-
 	LOCK();
 	m = mapping_lookup(s_spd, s_addr);
 	if (!m) goto done; 	/* -EINVAL */

@@ -17,7 +17,7 @@
 #include <cos_map.h>
 #include <cringbuf.h>
 #include <ck_ring.h>
-#define Mbox_Buffer_Size 128
+#define MBOX_BUFFER_SIZE 128
 struct cbuf_info {
 	cbufp_t cb;
 	int sz, off;
@@ -160,8 +160,8 @@ mbox_create_client(struct torrent *t, struct as_conn_root *acr)
 	ac->ts[CLIENT] = t;
 	t->data = ac;
 	for (i = 0 ; i < 2 ; i++) {
-		buffer[i] = malloc(Mbox_Buffer_Size*sizeof(struct cbuf_info));
-		CK_RING_INIT(cb_buffer, &ac->cbs[i], buffer[i], Mbox_Buffer_Size);
+		buffer[i] = malloc(MBOX_BUFFER_SIZE*sizeof(struct cbuf_info));
+		CK_RING_INIT(cb_buffer, &ac->cbs[i], buffer[i], MBOX_BUFFER_SIZE);
 	}
 	ADD_END_LIST(&acr->cs, ac, next, prev);
 	if (acr->t)     evt_trigger(cos_spd_id(), acr->t->evtid);
@@ -178,16 +178,15 @@ mbox_put(struct torrent *t, cbufp_t cb, int sz, int off, int ep)
 	struct as_conn *ac;
 	int other_ep = !ep;
 	int ret = 0;
-	struct cbuf_info *cbi;
+	struct cbuf_info cbi;
 
 	if (sz < 1) return -EINVAL;
 	ac  = t->data;
 	if (ac->status) return ac->status;
-	cbi = malloc(sizeof(struct cbuf_info));
-	cbi->cb  = cb;
-	cbi->sz  = sz;
-	cbi->off = off;
-	ret = CK_RING_ENQUEUE_SPSC(cb_buffer, &ac->cbs[ep], cbi);
+	cbi.cb  = cb;
+	cbi.sz  = sz;
+	cbi.off = off;
+	ret = CK_RING_ENQUEUE_SPSC(cb_buffer, &ac->cbs[ep], &cbi);
 	if(ret == 0)
 		return -EALREADY;
 	evt_trigger(cos_spd_id(), ac->ts[other_ep]->evtid);
@@ -309,7 +308,7 @@ trelease(spdid_t spdid, td_t td)
 
 	if (t->flags & TOR_SPLIT) { 
 		struct fsobj *fsc;
-		fsc = (	struct fsobj *)t->data;
+		fsc = (struct fsobj *)t->data;
 		fsobj_rem(fsc, fsc->parent);
 		fsobj_release(fsc);
 	} else {

@@ -56,7 +56,6 @@ typedef enum {
 	 * Invariant: !TMEM && sz != 0
 	 */
 	CBUFM_RELINQ   = 1<<5,
-/*	CBUFM_MAX      = 1<<6*/
 	CBUFM_MAX      = 1<<2
 } cbufm_flags_t;
 

@@ -331,9 +331,11 @@ static void
 boot_create_system(void)
 {
 	unsigned int i, min = ~0;
+
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		if (hs[i]->id < min) min = hs[i]->id;
 	}
+
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;
 		spdid_t spdid;
