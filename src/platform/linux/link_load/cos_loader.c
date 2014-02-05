@@ -1702,7 +1702,7 @@ static void gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *servic
  * Assumes that a file exists for each service in /tmp/service.o.pid.o
  * (i.e. that gen_stubs_and_link has been called.)
  */
-static int load_all_services(struct service_symbs *services)
+static unsigned long load_all_services(struct service_symbs *services)
 {
 	unsigned long service_addr = BASE_SERVICE_ADDRESS;
 
@@ -1723,7 +1723,7 @@ static int load_all_services(struct service_symbs *services)
 		services = services->next;
 	}
 
-	return 0;
+	return service_addr;
 }
 
 static void print_kern_symbs(struct service_symbs *services)
@@ -2841,7 +2841,7 @@ static inline void print_usage(int argc, char **argv)
 	char *prog_name = argv[0];
 	int i;
 
-	printl(PRINT_HIGH, "Usage: %s <comma separated string of all "
+	printl(PRINT_HIGH, "Usage: %s [-o <output image>] <comma separated string of all "
 	       "objs:truster1-trustee1|trustee2|...;truster2-...> "
 	       "<path to gen_client_stub>\n",
 	       prog_name);
@@ -2992,11 +2992,20 @@ int main(int argc, char *argv[])
 	struct service_symbs *services;
 	char *delim = ":";
 	char *servs, *dependencies, *ndeps, *stub_gen_prog;
+	char *outfile = NULL;
+	long service_addr;
 	int ret = -1;
 
-	setup_thread();
 
 	printl(PRINT_DEBUG, "Thread scheduling parameters setup\n");
+
+	if (argc == 5 && !strcmp(argv[1], "-o")) {
+		outfile = argv[2];
+		argc -= 2;
+		argv += 2;
+	} else {
+		setup_thread();
+	}
 
 	if (argc != 3) {
 		print_usage(argc, argv);
@@ -3058,14 +3067,27 @@ int main(int argc, char *argv[])
 	}
 	
 	gen_stubs_and_link(stub_gen_prog, services);
-	if (load_all_services(services)) {
+	service_addr = load_all_services(services);
+
+	if (service_addr < 0) {
 		printl(PRINT_HIGH, "Error loading services, aborting.\n");
 		goto dealloc_exit;
 	}
 
 //	print_kern_symbs(services);
 
-	setup_kernel(services);
+	if (outfile != NULL) {
+		int out = open(outfile, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+		if (out < 0) {
+			printl(PRINT_HIGH, "Couldn't open output file.\n");
+			goto dealloc_exit;
+		}
+		write(out, (char*)BASE_SERVICE_ADDRESS, service_addr - BASE_SERVICE_ADDRESS);
+		close(out);
+		printl(PRINT_HIGH, "Load '%s' at 0x%x.\n", outfile, BASE_SERVICE_ADDRESS);
+	} else {
+		setup_kernel(services);
+	}
 
 	ret = 0;
 
