@@ -14,7 +14,8 @@
 #define LOCAL_ADDR(cci)    (cci->desc.addr)
 #define TMEM_TOUCHED(cci)  (cci->desc.owner.meta->nfo.c.flags & CBUFM_TOUCHED)
 #define TMEM_RELINQ        COMP_INFO_TMEM_CBUF
-#define CBUFP_REFCNT_MAX   (1<<7-1)
+#define CBUF_REFCNT_SZ     7
+#define CBUFP_REFCNT_MAX   (1<<CBUF_REFCNT_SZ-1)
 
 /* Shared page between the target component, and us */
 typedef	struct spd_cbvect_range shared_component_info;
@@ -41,12 +42,12 @@ typedef enum {
 	 * Has the cbuf been used?
 	 * Invariant: ptr != 0
 	 */
-	CBUFM_TOUCHED  = 1<<3,
+	CBUFM_TOUCHED  = 1<<2,
 	/* 
 	 * Is this a transient memory allocation? 
 	 * Invariant: ptr != 0, sz = 0
 	 */
-	CBUFM_TMEM     = 1<<4,
+	CBUFM_TMEM     = 1<<3,
 	/* 
 	 * Should the current cbuf be freed back to the manager when
 	 * we're done?  Normally, using tmem, we use the relinquish
@@ -55,8 +56,8 @@ typedef enum {
 	 * a buffer-to-buffer basis.
 	 * Invariant: !TMEM && sz != 0
 	 */
-	CBUFM_RELINQ   = 1<<5,
-	CBUFM_MAX      = 1<<2
+	CBUFM_RELINQ   = 1<<4,
+	CBUFM_MAX      = 1<<5
 } cbufm_flags_t;
 
 union cbufm_info {

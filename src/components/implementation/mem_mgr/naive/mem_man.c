@@ -383,7 +383,6 @@ done:
 	UNLOCK();
 	return ret;
 dealloc:
-	printc("mman_get_page: error\n");
 	frame_deref(f);
 	goto done;		/* -EINVAL */
 }

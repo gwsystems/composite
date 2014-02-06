@@ -71,10 +71,8 @@ void cos_init(void *arg)
 		for(j=0; j<num; j++) {
 			while(1) {
 				cb1 = treadp(cos_spd_id(), cli, &off, &sz);
-				if((int)cb1<0)
-					evt_wait(cos_spd_id(), evt2);
-				else
-					break;
+				if((int)cb1<0) evt_wait(cos_spd_id(), evt2);
+				else           break;
 			}
 			buf = cbufp2buf(cb1,sz);
 			rdtscll(end);

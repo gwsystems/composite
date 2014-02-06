@@ -1,6 +1,6 @@
 C_OBJS=mbox_client.o
 ASM_OBJS=
-COMPONENT=asc_test_client.o
+COMPONENT=micro_mbox_client.o
 INTERFACES=
 DEPENDENCIES=periodic_wake printc torrent sched cbufp cbuf_c evt mem_mgr_large valloc lock
 IF_LIB=

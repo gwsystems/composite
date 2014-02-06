@@ -164,7 +164,7 @@ mbox_create_client(struct torrent *t, struct as_conn_root *acr)
 		CK_RING_INIT(cb_buffer, &ac->cbs[i], buffer[i], MBOX_BUFFER_SIZE);
 	}
 	ADD_END_LIST(&acr->cs, ac, next, prev);
-	if (acr->t)     evt_trigger(cos_spd_id(), acr->t->evtid);
+	if (acr->t) evt_trigger(cos_spd_id(), acr->t->evtid);
 done:
 	return ret;
 free:
@@ -187,8 +187,7 @@ mbox_put(struct torrent *t, cbufp_t cb, int sz, int off, int ep)
 	cbi.sz  = sz;
 	cbi.off = off;
 	ret = CK_RING_ENQUEUE_SPSC(cb_buffer, &ac->cbs[ep], &cbi);
-	if(ret == 0)
-		return -EALREADY;
+	if (ret == 0) return -EALREADY;
 	evt_trigger(cos_spd_id(), ac->ts[other_ep]->evtid);
 
 	return ret;
@@ -257,7 +256,7 @@ tsplit(spdid_t spdid, td_t td, char *param,
 
 	fsc = fsobj_path2obj(param, len, t->data, &parent, &subpath);
 	if (!fsc) {
-		if (!(tflags & TOR_NONPERSIST)) goto free;
+		if (!(tflags & TOR_NONPERSIST)) ERR_THROW(-EINVAL, free);
 		fsc = mbox_create_addr(spdid,nt, parent, subpath, tflags, (int*)&ret);
 		if (!fsc) goto free; /* ret set above... */
 		nt->data = fsc;

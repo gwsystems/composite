@@ -170,8 +170,9 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 			assert(cm);
 			/* (should be atomic) */
 			cm->nfo.c.flags |= CBUFM_TOUCHED; 
-			if(cm->nfo.c.refcnt == CBUFP_REFCNT_MAX)
+			if(cm->nfo.c.refcnt == CBUFP_REFCNT_MAX) {
 				assert(0);
+			}
 			cm->nfo.c.refcnt++;
 		}
 		/* ...add the rest back into freelists */

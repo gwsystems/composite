@@ -24,7 +24,6 @@ struct fsobj root;
 
 #define MIN_DATA_SZ 256
 
-
 td_t 
 tsplit(spdid_t spdid, td_t td, char *param, 
        int len, tor_flags_t tflags, long evtid) 
