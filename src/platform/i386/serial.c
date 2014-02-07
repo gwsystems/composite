@@ -101,4 +101,3 @@ serial__init(void)
 
 	outb(SERIAL_PORT_A + 1, 0x01); /* Enable interrupts on receive */
 }
-

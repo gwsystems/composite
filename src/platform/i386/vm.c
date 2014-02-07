@@ -2,16 +2,16 @@
 #include "printk.h"
 #include "string.h"
 #include "isr.h"
-#include "mm.h"
 #include "vm.h"
 
 #define POSSIBLE_FRAMES 1024*1024
 
+uint32_t user_size;
 uint32_t *base_user_address;
-extern void test_user_function(void);
 
 ptd_t kerndir __attribute__((aligned(4096)));
 pt_t kernel_pagetab[1024] __attribute__((aligned(4096)));
+pt_t user_pagetab[1024] __attribute__((aligned(4096)));
 
 void
 ptd_load(ptd_t dir)
@@ -116,19 +116,19 @@ paging__init(size_t memory_size, uint32_t nmods, uint32_t *mods)
 
     ptd_init(kerndir);
 
-    for (i = 0; i < (KERNEL_TABLES * 2); i++) {
-      init_table(kernel_pagetab[i], (uint32_t*) (i * 4096 * 1024), PAGE_RW | PAGE_P | 
-		(i < KERNEL_TABLES ? PAGE_G : PAGE_US));
-      ptd_map(kerndir, i, kernel_pagetab[i], PAGE_RW | PAGE_P | 
-		(i < KERNEL_TABLES ? PAGE_G : PAGE_US));
+    for (i = 0; i < (uint32_t)base_user_address / (PAGE_SIZE * 1024); i++) {
+      init_table(kernel_pagetab[i], (uint32_t*) (i * 4096 * 1024), PAGE_RW | PAGE_P | PAGE_G);
+      ptd_map(kerndir, i, kernel_pagetab[i], PAGE_RW | PAGE_P | PAGE_G);
     }
 
-    base_user_address = (uint32_t*)((uint32_t)(kernel_pagetab[KERNEL_TABLES+1][0]) & 0xfffff000);
+    for (i = 0; i <= (user_size / PAGE_SIZE)+1; i++) {
+      init_table(user_pagetab[i],
+        (uint32_t*) ((uint32_t)base_user_address) + (i * 4096 * 1024),
+        PAGE_RW | PAGE_P | PAGE_US);
+      ptd_map(kerndir, (SERVICE_START >> 22) + i, user_pagetab[i], PAGE_RW | PAGE_P | PAGE_US);
+    }
 
-    printk(INFO, "Base user page is at %x (pt %x)\n", base_user_address, kernel_pagetab[KERNEL_TABLES+1]);
-    printk(INFO, "Copying test_user_function (0x%x) into first user page table\n", &test_user_function);
-
-    memcpy(base_user_address, &test_user_function, 8192);
+    printk(INFO, "Base physical address 0x%x, size 0x%x, mapping at 0x%x\n", base_user_address, user_size, SERVICE_START);
 
     printk(INFO, "Loading page directory\n");
     ptd_load(kerndir);

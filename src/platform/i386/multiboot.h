@@ -54,6 +54,6 @@ typedef struct multiboot_mod_list
        uintptr_t pad;
 } multiboot_module_t;
 
-void multiboot__print(struct multiboot *mboot);
+uint32_t multiboot__print(struct multiboot *mboot);
 
 #endif

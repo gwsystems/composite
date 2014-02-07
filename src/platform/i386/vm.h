@@ -2,9 +2,7 @@
 #define _VM_H_
 
 #include "types.h"
-
-#define KERNEL_TABLES 8
-#define PAGE_SIZE 4096
+#include "shared/consts.h"
 
 typedef uint32_t u32_t;
 

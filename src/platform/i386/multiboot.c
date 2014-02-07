@@ -1,9 +1,11 @@
 #include "printk.h"
 #include "multiboot.h"
 
-void
+uint32_t
 multiboot__print(struct multiboot *mboot)
 {
+    uint32_t top = 0;
+
     printk(INFO, "Multiboot\n"
         "\tflags: %x\n"
         "\tlow mem: %x\n"
@@ -26,6 +28,8 @@ multiboot__print(struct multiboot *mboot)
       multiboot_module_t *mod = (multiboot_module_t*)mboot->mods_addr;
       for (i = 0; i < mboot->mods_count; i++) {
 	printk(INFO, "Multiboot Module %d \"%s\" [%x:%x]\n", i, mod[i].cmdline, mod[i].mod_start, mod[i].mod_end);
+      top = mod[i].mod_end;
       }
     }
+    return top;
 }

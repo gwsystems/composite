@@ -10,7 +10,7 @@ CC := gcc -m32
 LD := ld -m elf_i386
 AS := as --32 -g
 
-CFLAGS := -g3 -Werror -ffreestanding -nostdlib -mno-red-zone
+CFLAGS := -g3 -Werror -ffreestanding -nostdlib -mno-red-zone -I../../kernel/include
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs 
 
 KERNEL := kernel.img
@@ -37,7 +37,6 @@ OBJS += kernel.o
 OBJS += gdt.o
 OBJS += isr.o
 OBJS += idt.o
-OBJS += mm.o
 OBJS += vm.o
 OBJS += vga.o
 OBJS += timer.o
@@ -60,7 +59,7 @@ $(KERNEL): $(DEPS) $(OBJS) loader.o
 	$(E) "    LINK 	" $@
 	$(Q) $(LD) -T linker.ld loader.o $(OBJS)  -o $@
 
-loader.o:
+loader.o: loader.s interrupt.s sysenter.s
 	$(E) "    AS  	" $@
 	$(Q) $(AS) -o loader.o loader.s interrupt.s sysenter.s
 
@@ -83,8 +82,8 @@ clean:
 	$(E) "--[ Clean"
 
 qemu: kernel.img
-	qemu-system-i386 -m 128 -nographic -kernel kernel.img -no-reboot -s 
+	qemu-system-i386 -m 128 -nographic -kernel kernel.img -no-reboot -s -initrd component.img
 
 gdb: kernel.img
 	@echo "Start gdb in another window"
-	qemu-system-i386 -m 128 -nographic -kernel kernel.img -no-reboot -s -S
+	qemu-system-i386 -m 128 -nographic -kernel kernel.img -no-reboot -s -S -initrd component.img

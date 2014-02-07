@@ -1,4 +1,6 @@
 MAKEFLAGS=--no-print-directory -I$(PWD)
+CFLAGS=-m32
+LDFLAGS=-m elf_i386
 #$(info Make flags $(MAKEFLAGS))
 
 all: kern cp
