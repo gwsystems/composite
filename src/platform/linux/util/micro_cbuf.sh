@@ -2,7 +2,7 @@
 
 # ping pong
 
-./cos_loader \
+./cos_loader -o micro_cbuf.img \
 "c0.o, ;llboot.o, ;*fprr.o, ;mm.o, ;print.o, ;boot.o, ;\
 \
 !mpool.o,a3;!trans.o,a6;!sm.o,a4;!l.o,a1;!te.o,a3;!e.o,a4;!stat.o,a25;!buf.o,a5;!bufp.o, ;(!po.o=micro_ppong.o), ;(!pi.o=micro_pingp.o),a9;!va.o,a2:\
