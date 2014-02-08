@@ -3077,14 +3077,21 @@ int main(int argc, char *argv[])
 //	print_kern_symbs(services);
 
 	if (outfile != NULL) {
+        	struct service_symbs *s;
 		int out = open(outfile, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+
+        	if ((s = find_obj_by_name(services, INIT_COMP)) == NULL) {
+                	fprintf(stderr, "Could not find initial component\n");
+                	exit(-1);
+        	}
+
 		if (out < 0) {
 			printl(PRINT_HIGH, "Couldn't open output file.\n");
 			goto dealloc_exit;
 		}
 		write(out, (char*)BASE_SERVICE_ADDRESS, service_addr - BASE_SERVICE_ADDRESS);
 		close(out);
-		printl(PRINT_HIGH, "Load '%s' at 0x%x.\n", outfile, BASE_SERVICE_ADDRESS);
+		printl(PRINT_HIGH, "Load '%s' at 0x%x, then jump to 0x%x.\n", outfile, BASE_SERVICE_ADDRESS, get_symb_address(&s->exported, "spd0_main"));
 	} else {
 		setup_kernel(services);
 	}
