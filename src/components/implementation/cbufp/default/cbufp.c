@@ -365,8 +365,7 @@ cbufp_create(spdid_t spdid, int size, long cbid)
 		             CBUFM_OWNER  | CBUFM_WRITABLE;
 	meta->nfo.c.ptr    = cbi->owner.addr >> PAGE_ORDER;
 	meta->sz           = cbi->size >> PAGE_ORDER;
-	if(meta->nfo.c.refcnt == CBUFP_REFCNT_MAX)
-		assert(0);
+	if (meta->nfo.c.refcnt == CBUFP_REFCNT_MAX) assert(0);
 	meta->nfo.c.refcnt++;
 	ret = cbid;
 done:

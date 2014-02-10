@@ -15,14 +15,14 @@ void parse_args(int *p, int *n)
 	char *c;
 	int i = 0, s = 0;
 	c = cos_init_args();
-	while(c[i] != ' ') {
+	while (c[i] != ' ') {
 		s = 10*s+c[i]-'0';
 		i++;
 	}
 	*p = s;
 	s = 0;
 	i++;
-	while(c[i] != '\0') {
+	while (c[i] != '\0') {
 		s = 10*s+c[i]-'0';
 		i++;
 	}
@@ -42,22 +42,23 @@ void cos_init(void *arg)
 	evt = evt_split(cos_spd_id(), 0, 0);
 	assert(evt > 0);
       	serv = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_RW, evt);
-	if (serv < 1) 
+	if (serv < 1) {
 		printc("UNIT TEST FAILED: split1 failed %d\n", serv); 
+	}
 	evt_wait(cos_spd_id(), evt);
 	printc("client split successfully\n");
-	periodic_wake_create(cos_spd_id(), period);
         sz = 4096;
 	j = 100*ITER;
+	period = 50;
+	periodic_wake_create(cos_spd_id(), period);
 	rdtscll(start);
-        for(i=1; i<=j; i++) {
+        for (i=1; i<=j; i++) {
 		d = cbufp_alloc(sz, &cb1);
 		if (!d) goto done;
 		cbufp_send(cb1);
 		rdtscll(end);
 		((u64_t *)d)[0] = end;
 		ret = twritep(cos_spd_id(), serv, cb1, sz);
-//		printc("ryx: ret %d i %d\n", ret, i);
 		cbufp_deref(cb1); 
 	}
 	rdtscll(end);
@@ -68,8 +69,8 @@ void cos_init(void *arg)
 	 * threads.
 	 */
 	re_cbuf = 0;
-        for(i=1; i<=ITER; i++) {
-                for(j=0; j<num; j++) {
+        for (i=1; i<=ITER; i++) {
+                for (j=0; j<num; j++) {
                         rdtscll(start);
                 	d = cbufp_alloc(i*sz, &cb1);
                         if (!d) goto done;
@@ -79,7 +80,6 @@ void cos_init(void *arg)
                         rdtscll(end);
                         ((u64_t *)d)[0] = end;
                         ret = twritep(cos_spd_id(), serv, cb1, i*sz);
-//			printc("ryx: cli ret %d i %d j %d\n", ret, i, j);
                 }
                 periodic_wake_wait(cos_spd_id());
         }

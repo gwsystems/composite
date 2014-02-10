@@ -17,7 +17,7 @@
 #include <cos_map.h>
 #include <cringbuf.h>
 #include <ck_ring.h>
-#define MBOX_BUFFER_SIZE 128
+#define MBOX_BUFFER_SIZE 256
 struct cbuf_info {
 	cbufp_t cb;
 	int sz, off;
@@ -48,11 +48,10 @@ __mbox_remove_cbufp(struct as_conn *ac)
 	int i;
 	
 	for (i = 0 ; i < 2 ; i++) {
-	/*	struct cbuf_info *cbi;*/
 		struct cbuf_info cbi;
 		void *addr;
 
-		while(CK_RING_DEQUEUE_SPSC(cb_buffer, &ac->cbs[i], &cbi)) {
+		while (CK_RING_DEQUEUE_SPSC(cb_buffer, &ac->cbs[i], &cbi)) {
 			addr = cbufp2buf(cbi.cb, cbi.sz);
 			assert(addr);
 			cbufp_deref(cbi.cb);
@@ -160,16 +159,12 @@ mbox_create_client(struct torrent *t, struct as_conn_root *acr)
 	ac->ts[CLIENT] = t;
 	t->data = ac;
 	for (i = 0 ; i < 2 ; i++) {
-		buffer[i] = malloc(MBOX_BUFFER_SIZE*sizeof(struct cbuf_info));
+		buffer[i] = alloc_page();
 		CK_RING_INIT(cb_buffer, &ac->cbs[i], buffer[i], MBOX_BUFFER_SIZE);
 	}
 	ADD_END_LIST(&acr->cs, ac, next, prev);
 	if (acr->t) evt_trigger(cos_spd_id(), acr->t->evtid);
-done:
 	return ret;
-free:
-	free(ac);
-	goto done;
 }
 
 static int
@@ -180,7 +175,7 @@ mbox_put(struct torrent *t, cbufp_t cb, int sz, int off, int ep)
 	int ret = 0;
 	struct cbuf_info cbi;
 
-	if (sz < 1) return -EINVAL;
+	if (sz < 1) return -EAGAIN;
 	ac  = t->data;
 	if (ac->status) return ac->status;
 	cbi.cb  = cb;
@@ -189,7 +184,6 @@ mbox_put(struct torrent *t, cbufp_t cb, int sz, int off, int ep)
 	ret = CK_RING_ENQUEUE_SPSC(cb_buffer, &ac->cbs[ep], &cbi);
 	if (ret == 0) return -EALREADY;
 	evt_trigger(cos_spd_id(), ac->ts[other_ep]->evtid);
-
 	return ret;
 }
 
@@ -265,10 +259,10 @@ tsplit(spdid_t spdid, td_t td, char *param,
 		struct as_conn_root *acr = (struct as_conn_root*)fsc->data;
 		assert(acr);
 	        if ((~fsc->flags) & tflags) ERR_THROW(-EACCES, free);
-	  /* Case 2: a client attempt to connect to a server*/
-	        if(len>0)      ret = (td_t)mbox_create_client(nt, acr);
-	  /* Case 3: a server create a connection to a client*/
-	        else           ret = (td_t)mbox_create_server(nt, acr); 
+		/* Case 2: a client attempt to connect to a server*/
+	        if (len>0)      ret = (td_t)mbox_create_client(nt, acr);
+		/* Case 3: a server create a connection to a client*/
+	        else            ret = (td_t)mbox_create_server(nt, acr); 
 	        if (ret < 0) goto free;
 	        nt->flags = tflags & TOR_RW;
 	}
@@ -331,10 +325,12 @@ trelease(spdid_t spdid, td_t td)
 		if (!other) {
 			/*struct cringbuf *rb;
 
-			rb = &ac->rbs[0];
-			free(rb->b);
-			rb = &ac->rbs[1];
-			free(rb->b);*/
+			  rb = &ac->rbs[0];
+			  free(rb->b);
+			  rb = &ac->rbs[1];
+			  free(rb->b);*/
+			free(ac->cbs[0].ring);
+			free(ac->cbs[1].ring);
 			free(ac);
 		}
 	}
@@ -405,7 +401,6 @@ twritep(spdid_t spdid, td_t td, int cbid, int sz)
 	cbufp_t cb = cbid;
 
 	if (tor_isnull(td)) return -EINVAL;
-
 	LOCK();
 	t = tor_lookup(td);
 	if (!t) ERR_THROW(-EINVAL, done);

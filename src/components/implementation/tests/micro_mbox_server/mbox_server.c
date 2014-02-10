@@ -15,14 +15,14 @@ void parse_args(int *p, int *n)
 	char *c;
 	int i = 0, s = 0;
 	c = cos_init_args();
-	while(c[i] != ' ') {
+	while (c[i] != ' ') {
 		s = 10*s+c[i]-'0';
 		i++;
 	}
 	*p = s;
 	s = 0;
 	i++;
-	while(c[i] != '\0') {
+	while (c[i] != '\0') {
 		s = 10*s+c[i]-'0';
 		i++;
 	}
@@ -43,33 +43,31 @@ void cos_init(void *arg)
 	evt2 = evt_split(cos_spd_id(), 0, 0);
 	assert(evt2 > 0);
        	t1 = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_ALL | TOR_NONPERSIST, evt1);
-	if (t1 < 1) 
+	if (t1 < 1) {
 		printc("UNIT TEST FAILED: split failed %d\n", t1);
+	}
 	evt_wait(cos_spd_id(), evt1);
        	cli = tsplit(cos_spd_id(), t1, params2, strlen(params2), TOR_RW, evt2);
-	if (cli < 1) 
+	if (cli < 1) {
 		printc("UNIT TEST FAILED: split1 failed %d\n", cli);
+	}
+	period = 100;
 	periodic_wake_create(cos_spd_id(), period);
 	j = 100*ITER;
 	rdtscll(start);
-	for(i=0; i<j; i++) {
-//		printc("ryx: i %d\n", i);
-		while(1) {
-			cb1 = treadp(cos_spd_id(), cli, &off, &sz);
-			if((int)cb1<0)
-				evt_wait(cos_spd_id(), evt2);
-			else
-				break;
-		}
+	for (i=0; i<j; i++) {
+		cb1 = treadp(cos_spd_id(), cli, &off, &sz);
+		if ((int)cb1<0) evt_wait(cos_spd_id(), evt2);
+		printc("sever %d\n", i);
 		buf = cbufp2buf(cb1,sz);
 		cbufp_deref(cb1);
 	}
 	rdtscll(end);
 	printc("Server rcv %d times %llu\n", j, (end-start)/j);
 	re_mbox = 0;
-	for(i=0; i<ITER; i++) {
-		for(j=0; j<num; j++) {
-			while(1) {
+	for (i=0; i<ITER; i++) {
+		for (j=0; j<num; j++) {
+			while (1) {
 				cb1 = treadp(cos_spd_id(), cli, &off, &sz);
 				if((int)cb1<0) evt_wait(cos_spd_id(), evt2);
 				else           break;

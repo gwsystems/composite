@@ -469,7 +469,6 @@ void cos_init(void)
 	       h, h->size, num_cobj, cos_get_heap_ptr());
 
 	/* Assumes that hs have been setup with boot_find_cobjs */
-
 	boot_create_system();
 	printc("booter: done creating system.\n");
 
