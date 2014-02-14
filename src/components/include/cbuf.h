@@ -68,6 +68,9 @@ extern cos_lock_t cbuf_lock;
  *     void cbufp_send_deref(cbufp_t cb) // combine the previous ops
  * API for the receiver of persistent cbufs;
  *     void *cbufp2buf(cbufp_t cb, int len)
+ *     TODO: add cbufp_recv(cbufp_t) which will recv++ and accessed =
+ *     1, but WON'T map the cbuf into the current component (e.g. for
+ *     the file system.
  *     void cbufp_deref(cbufp_t cbid) 
  * Note that receiver might take the role of the sender.
  */

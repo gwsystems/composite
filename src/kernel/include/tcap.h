@@ -174,5 +174,6 @@ void tcap_root_rem(struct spd *dst);
 int tcap_root_alloc(struct spd *dst, struct tcap *from, int prio, int cycles);
 void tcap_root_yield(struct spd *s);
 struct thread *tcap_tick_handler(void);
+void tcap_timer_choose(int c);
 
 #endif	/* TCAP_H */

@@ -888,8 +888,8 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 
 		budget = tcap_deref(&tc->budget);
 		if (!budget) printk("switch_thread err: tcap can't get budget\n");
-		else printk("switch_thread err: tcap with no budget %lld\n", 
-			    budget->budget_local.cycles);
+		else printk("switch_thread err: tcap %d with no budget %lld, %lld\n", 
+			    tcap_id(tc), tc->budget_local.cycles, budget->budget_local.cycles);
 		goto ret_err;
 	}
 
@@ -2356,6 +2356,9 @@ brand_higher_urgency(struct thread *upcall, struct thread *prev)
 		p_urg = thd_get_depth_urg(prev, d);
 
 		tcap_higher = tcap_higher_prio(upcall, prev);
+
+		uc_exec = tcap_higher;
+#ifdef NIL
 		/* We should not run the upcall if it doesn't have more
 		 * urgency, remember here that higher numerical values equals
 		 * less importance. */
@@ -2370,6 +2373,7 @@ brand_higher_urgency(struct thread *upcall, struct thread *prev)
 			}
 			uc_exec = 0;
 		}
+#endif
 	}
 		
 	if (uc_exec) {
@@ -2402,7 +2406,10 @@ brand_next_thread(struct thread *brand, struct thread *preempted, int preempt)
 	struct thread *upcall = brand->upcall_threads;
 
 	assert(brand->flags & (THD_STATE_BRAND|THD_STATE_HW_BRAND));
-	assert(upcall && upcall->thread_brand == brand);
+	if (!(upcall && upcall->thread_brand == brand)) {
+		printk("WARNING: brand_next_thread -- attempting brand with no upcall\n");
+		return preempted;
+	}
 
 	/* 
 	 * If the upcall is already active, the scheduler's already

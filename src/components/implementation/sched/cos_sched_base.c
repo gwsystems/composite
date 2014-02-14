@@ -62,7 +62,7 @@ struct sched_base_per_core {
 	 * scheduler.  idle is the idle thread, again only meaningful for root
 	 * schedulers.
 	 */
-	struct sched_thd *timer, *init, *idle;
+	struct sched_thd *timer, *child_timer, *init, *idle;
 	struct sched_thd blocked;
 	struct sched_thd upcall_deactive;
 	struct sched_thd graveyard;
@@ -171,10 +171,10 @@ static void report_thd_accouting(void)
 	runqueue_print();
 
 	if (sched_is_child()) {
-		struct sched_accounting *sa = sched_get_accounting(sched_base->timer);
+		struct sched_accounting *sa = sched_get_accounting(sched_base->child_timer);
 
 		printc("\nChild timer thread (thd, ticks):\n");		
-		printc("\t%d, %ld\n", sched_base->timer->id, sa->ticks - sa->prev_ticks);
+		printc("\t%d, %ld\n", sched_base->child_timer->id, sa->ticks - sa->prev_ticks);
 		sa->prev_ticks = sa->ticks;
 	}
 
@@ -239,7 +239,7 @@ static inline void fp_resume_thd(struct sched_thd *t)
 	REM_LIST(t, prio_next, prio_prev);
 	/* child threads aren't reported to the scheduler */
 	if (!sched_thd_member(t)) {
-		assert(sched_is_root() || (t != PERCPU_GET(sched_base_state)->timer && !sched_thd_phantom(t)));
+		assert(sched_is_root() || (t != PERCPU_GET(sched_base_state)->child_timer && !sched_thd_phantom(t)));
 		thread_wakeup(t);
 	} 
 	/* Is the member _not_ already on the list for the group? */
@@ -259,7 +259,7 @@ static void fp_activate_upcall(struct sched_thd *uc)
 		uc->flags &= ~THD_UC_READY;
 		uc->flags |= THD_READY;
 		REM_LIST(uc, prio_next, prio_prev); //done in move_end_runnable
-		assert(sched_is_root() || (uc != PERCPU_GET(sched_base_state)->timer && !sched_thd_phantom(uc)));
+		assert(sched_is_root() || (uc != PERCPU_GET(sched_base_state)->child_timer && !sched_thd_phantom(uc)));
 		thread_wakeup(uc);
 	}
 }
@@ -397,14 +397,14 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 				timer_start(&tfp);
 				next = schedule(current);
 				timer_end(&tfp);
-				assert(sched_is_root() || PERCPU_GET(sched_base_state)->timer != next);
+				assert(sched_is_root() || PERCPU_GET(sched_base_state)->child_timer != next);
 				assert(next != current);
 				assert(!sched_thd_member(next));
 			} else {
 				timer_start(&tfp);
 				next = schedule(NULL);
 				timer_end(&tfp);
-				assert(sched_is_root() || PERCPU_GET(sched_base_state)->timer != next);
+				assert(sched_is_root() || PERCPU_GET(sched_base_state)->child_timer != next);
 				assert(!sched_thd_member(next));
 				/* if we are the next thread and no
 				 * dependencies have been introduced (i.e. we
@@ -423,8 +423,8 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 			 * have idle threads...instead they just use
 			 * the event/timer thread */
 			/* We are in the timer/child event thread! */
-			if (current == PERCPU_GET(sched_base_state)->timer) goto done;
-			next = PERCPU_GET(sched_base_state)->timer;
+			if (current == PERCPU_GET(sched_base_state)->child_timer) goto done;
+			next = PERCPU_GET(sched_base_state)->child_timer;
 		}
 		if (sched_thd_grp(next)) flags |= COS_SCHED_CHILD_EVT;
 		assert(!sched_thd_blocked(next));
@@ -433,6 +433,10 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 
 		ret = cos_switch_thread_release(next->id, flags, next->tcap);
 
+		if (ret == COS_SCHED_RET_ERROR) {
+			printc("cos_sched_base in %d: tried to switch to %d from %d\n", 
+			       cos_spd_id(), next->id, current->id);
+		}
 		assert(ret != COS_SCHED_RET_ERROR);
 		if (COS_SCHED_RET_CEVT == ret) { report_event(CEVT_RESCHED); }
 		/* success, or we need to check for more child events:
@@ -1352,7 +1356,24 @@ static void deactivate_child_sched(struct sched_thd *t)
  */
 int sched_child_cntl_thd(spdid_t spdid)
 {
-	struct sched_thd *c;
+	struct sched_thd *c, *t;
+	struct sched_param_s sp[5];
+
+	sp[0].type  = SCHEDP_PRIO;
+	sp[0].value = 5;
+	sp[1].type  = SCHEDP_WINDOW;
+	sp[1].value = 5;
+	sp[2].type  = SCHEDP_BUDGET;
+	sp[2].value = 2;
+	sp[3].type  = SCHEDP_DEFER;
+	sp[4].type  = SCHEDP_NOOP;
+	sp[4].value = 0;
+
+	cos_sched_lock_take();
+	t = sched_get_mapping(cos_get_thd_id());
+	assert(t);
+	thread_param_set(t, sp);
+	cos_sched_lock_release();
 
 	c = sched_get_current();
 	sched_grp_make(c, spdid);
@@ -1552,6 +1573,9 @@ sched_child_evt_thd(void)
 	u32_t time_elapsed;
 	struct sched_base_per_core *ss = PERCPU_GET(sched_base_state);
 
+	assert(sched_get_current() == ss->child_timer);
+	cos_tcap_thd_cntl(COS_TCAP_BIND, 0, sched_get_current()->id, 0, 0);
+
 	while (1) {
 		int cont, should_idle;
 
@@ -1560,7 +1584,8 @@ sched_child_evt_thd(void)
 			struct sched_thd *n = schedule(NULL);
 			unsigned long wake_diff = 0;
 
-			assert(n != ss->timer);
+			//assert(n != ss->timer);
+			assert(n != ss->child_timer);
 			/* If there isn't a thread to schedule, and
 			 * there are no events, this child scheduler
 			 * should idle */
@@ -1602,7 +1627,7 @@ sched_child_evt_thd(void)
 		report_event(CHILD_SWITCH_THD);
 		/* When there are no more events, schedule */
 		sched_switch_thread(0, NULL_EVT);
-		assert(EMPTY_LIST(ss->timer, prio_next, prio_prev));
+		assert(EMPTY_LIST(ss->child_timer, prio_next, prio_prev));
 	} /* no return */
 }
 
@@ -1694,14 +1719,13 @@ fp_create_timer(int bid)
 				   {.c = {.type = SCHEDP_NOOP}}};
 	struct sched_thd *t;
 
-	assert(sched_is_root());
 	t = PERCPU_GET(sched_base_state)->timer = sched_setup_thread_arg(&sp, fp_timer, (void*)bid, 1);
 	if (NULL == t) BUG();
 	if (0 > sched_add_thd_to_brand(cos_spd_id(), bid, t->id)) BUG();
 	printc("Core %ld: Timer thread has id %d with priority t.\n", 
 	       cos_cpuid(), t->id);
 	t->tcap = tcap_timer;
-	cos_tcap_thd_cntl(COS_TCAP_BIND, tcap_timer, t->id, 0, 0);
+	cos_tcap_thd_cntl(COS_TCAP_RECEIVER, tcap_timer, t->id, 0, 0);
 
 //	cos_brand_wire(bid, COS_HW_TIMER, 0);
 
@@ -1749,11 +1773,7 @@ __sched_init(void)
 	sched_ds_init();
 	sched_initialization();
 
-	ret = cos_tcap_split(0, 0, -1);
-	if (ret < 0) {
-		printc("Could not split a tcap for the timer thread.\n");
-	}
-	tcap_timer = ret;
+	tcap_timer = 0;
 	ret = cos_tcap_split(0, 1, -1);
 	if (ret < 0) {
 		printc("Could not split a tcap for the network thread.\n");
@@ -1770,30 +1790,32 @@ __sched_init(void)
 
 extern int 
 parent_sched_child_cntl_thd(spdid_t spdid);
+extern int
+parent_sched_thd_params(spdid_t spdid, u16_t thd_id, u32_t sched_param0, u32_t sched_param1);
 
 /* Initialize the child scheduler. */
 static void 
 sched_child_init(void)
 {
 	int bid;
+	struct sched_base_per_core *ss = PERCPU_GET(sched_base_state);
+	union sched_param sp[2];
 
 	/* Child scheduler */
 	sched_type = SCHED_CHILD;
 	bid = sched_setup_brand(cos_spd_id());
 	assert(bid);
 	cos_brand_wire(bid, COS_HW_TIMER, 0);
-
-	bid = fp_create_timer_pretcaps();
 	__sched_init();
+	fp_create_timer(bid);
 
 	/* Don't involve the scheduler policy... */
-	PERCPU_GET(sched_base_state)->timer = __sched_setup_thread_no_policy(cos_get_thd_id());
-	assert(PERCPU_GET(sched_base_state)->timer);
-	sched_set_thd_urgency(PERCPU_GET(sched_base_state)->timer, 0); /* highest urgency */
-	PERCPU_GET(sched_base_state)->timer->flags |= THD_PHANTOM;
+	ss->child_timer = __sched_setup_thread_no_policy(cos_get_thd_id());
+	assert(ss->child_timer);
+	sched_set_thd_urgency(ss->child_timer, 1); /* highest urgency-1 */
+	ss->child_timer->flags |= THD_PHANTOM;
 
 	sched_init_create_threads(1);
-
 	sched_child_evt_thd();	/* doesn't return */
 
 	return;
@@ -1873,6 +1895,7 @@ sched_init(void)
 //	printc("Sched init has thread %d\n", cos_get_thd_id());
 	assert(!(PERCPU_GET(sched_base_state)->init)); // don't re-initialize. should be removed if doing recovery test. 
 
+	cos_tcap_thd_cntl(COS_TCAP_RECEIVER, 0, cos_get_thd_id(), 0, 0);
 	/* Promote us to a scheduler! */
 	if (parent_sched_child_cntl_thd(cos_spd_id())) BUG();
 

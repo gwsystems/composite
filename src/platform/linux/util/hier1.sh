@@ -4,8 +4,8 @@
 "c0.o, ;llboot.o, ;*ds.o, ;mm.o, ;print.o, ;boot.o, ;\
 \
 !mpool.o,a3;!trans.o,a6;!sm.o,a4;!l.o,a1;!te.o,a3;!e.o,a4;!stat.o,a25;\
-!buf.o,a5;!bufp.o, ;!va.o,a2;!(cpu0.o=cpu.o), 'p:6,w:10,b:4';!*(ds1.o=ds.o), 'p:5';\
-!(cpu1.o=cpu.o), 'p:4,w:20,b:5';!(cpu2.o=cpu.o), 'p:3,w:6,b:1';!he.o, '[18 19]':\
+!buf.o,a5;!bufp.o, ;!va.o,a2;!(cpu0.o=cpu.o), 'p:6,w:10,b:4';!*(ds1.o=ds.o), 'p:5,w:5,b:2';\
+!(cpu1.o=cpu.o), 'p:4,w:20,b:4';!(cpu2.o=cpu.o), 'p:3,w:5,b:1';!he.o, '[18 19]':\
 \
 c0.o-llboot.o;\
 ds.o-print.o|[parent_]mm.o|[faulthndlr_]llboot.o;\

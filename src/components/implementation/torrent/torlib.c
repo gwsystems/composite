@@ -10,7 +10,7 @@
 
 /* Default torrent implementations */
 __attribute__((weak)) int 
-treadp(spdid_t spdid, int sz, int *off, int *len)
+treadp(spdid_t spdid, int td, int *off, int *sz)
 {
 	return -ENOTSUP;
 }

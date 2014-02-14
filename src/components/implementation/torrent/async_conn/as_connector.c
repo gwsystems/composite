@@ -25,7 +25,10 @@ struct as_conn {
 	spdid_t owner;
 	int     status;
 	struct torrent *ts[2];
-	struct cringbuf rbs[2];
+	struct cbuf_info {
+		cbufp_t cb;
+		int sz, off;
+	} cbs[2];
 	struct as_conn *next, *prev;
 };
 
@@ -34,6 +37,25 @@ struct as_conn_root {
 	spdid_t owner;
 	struct as_conn cs; /* client initiated, but not yet accepted connections */
 };
+
+static void 
+__mbox_remove_cbufp(struct as_conn *ac)
+{
+	int i;
+	
+	for (i = 0 ; i < 2 ; i++) {
+		struct cbuf_info *cbi;
+		void *addr;
+		
+		cbi = &ac->cbs[i];
+		if (cbi->cb == 0) continue;
+
+		addr = cbufp2buf(cbi->cb, cbi->sz);
+		assert(addr);
+		cbufp_deref(cbi->cb);
+	}
+	
+}
 
 static void 
 free_as_conn_root(void *d)
@@ -45,6 +67,7 @@ free_as_conn_root(void *d)
 	     i != &acr->cs ;
 	     i = FIRST_LIST(i, next, prev)) {
 		i->status = -EPIPE;
+		__mbox_remove_cbufp(i);
 		evt_trigger(cos_spd_id(), i->ts[CLIENT]->evtid);
 	}
 	for (i = FIRST_LIST(&acr->cs, next, prev) ;
@@ -137,7 +160,9 @@ mbox_create_client(struct torrent *t, struct as_conn_root *acr)
 			if (i == 1) free(ac->rbs[0].b);
 			ERR_THROW(-ENOMEM, free);
 		}
-		cringbuf_init(&ac->rbs[i], page, MAX_ALLOC_SZ);
+		ac->cbs[i].cb  = 0;
+		ac->cbs[i].sz  = 0;
+		ac->cbs[i].off = 0;
 	}
 	ADD_END_LIST(&acr->cs, ac, next, prev);
 	if (acr->t) evt_trigger(cos_spd_id(), acr->t->evtid);
@@ -149,37 +174,49 @@ free:
 }
 
 static int
-mbox_put(struct torrent *t, char *buf, int amnt, int ep)
+mbox_put(struct torrent *t, cbufp_t cb, int sz, int off, int ep)
 {
 	struct as_conn *ac;
 	int other_ep = !ep;
-	struct cringbuf *rb;
 	int ret;
+	struct cbuf_info *cbi;
 
-	ac = t->data;
+	if (sz < 1) return -EINVAL;
+	ac  = t->data;
 	if (ac->status) return ac->status;
-	rb = &ac->rbs[ep];
-	if (cringbuf_empty_sz(rb) < amnt) return -EINVAL; /* FIXME: EINVAL doesn't make sense */
-	ret = cringbuf_produce(rb, buf, amnt);
+	cbi = &ac->cbs[ep];
+	if (cbi->cb) return -EALREADY;
+
+	cbi->cb  = cb;
+	cbi->sz  = sz;
+	cbi->off = off;
 	evt_trigger(cos_spd_id(), ac->ts[other_ep]->evtid);
+
 	return ret;
 }
 
 static int
-mbox_get(struct torrent *t, char *buf, int amnt, int ep)
+mbox_get(struct torrent *t, int *sz, int *off, int ep)
 {
 	struct as_conn *ac;
+	struct cbuf_info *cbi;
 	int other_ep = !ep;
-	struct cringbuf *rb;
-	int ret;
+	cbufp_t cb;
 
-	ac = t->data;
-	rb = &ac->rbs[other_ep];
-	if (cringbuf_empty(rb)) return -EAGAIN;
-	ret = cringbuf_consume(rb, buf, amnt);
-	if (ret == 0 && ac->status) return ac->status;
+	ac  = t->data;
+	cbi = &ac->cbs[other_ep];
+
+	if (cbi->cb == 0) {
+		if (ac->status) return ac->status;
+		return -EAGAIN;
+	}
+	cb   = cbi->cb;
+	*off = cbi->off;
+	*sz  = cbi->sz;
+	cbi->cb = cbi->off = cbi->sz = 0;
 //	evt_trigger(cos_spd_id(), ac->t[ep].evtid);
-	return ret;
+
+	return cb;
 }
 
 /* 
@@ -285,6 +322,7 @@ trelease(spdid_t spdid, td_t td)
 		struct as_conn *ac = t->data;
 		int other = 1; 	/* does the other torrent exist? */
 
+		/* FIXME: add calls to __mbox_remove_cbufp */
 		ac->status = -EPIPE;
 		if (ac->ts[0] == t) {
 			ac->ts[0] = NULL;
@@ -343,12 +381,36 @@ done:
 }
 
 int 
-twrite(spdid_t spdid, td_t td, int cbid, int sz)
+treadp(spdid_t spdid, td_t td, int *off, int *sz)
+{
+	cbufp_t ret;
+	struct torrent *t;
+	struct as_conn *ac;
+
+	if (tor_isnull(td)) return -EINVAL;
+
+	LOCK();
+	t = tor_lookup(td);
+	if (!t) ERR_THROW(-EINVAL, done);
+	assert(!tor_is_usrdef(td) || t->data);
+	if (!(t->flags & TOR_READ)) ERR_THROW(-EACCES, done);
+
+	ac = t->data;
+	ret = mbox_get(t, sz, off, ac->owner != spdid);
+	if (ret < 0) goto done;
+	t->offset += ret;
+done:	
+	UNLOCK();
+	return ret;
+}
+
+int 
+twritep(spdid_t spdid, td_t td, int cbid, int sz)
 {
 	int ret = -1;
 	struct torrent *t;
 	struct as_conn *ac;
-	char *buf;
+	cbufp_t cb = cbid;
 
 	if (tor_isnull(td)) return -EINVAL;
 
@@ -358,11 +420,8 @@ twrite(spdid_t spdid, td_t td, int cbid, int sz)
 	assert(t->data);
 	if (!(t->flags & TOR_WRITE)) ERR_THROW(-EACCES, done);
 
-	buf = cbuf2buf(cbid, sz);
-	if (!buf) ERR_THROW(-EINVAL, done);
-
 	ac = t->data;
-	ret = mbox_put(t, buf, sz, ac->owner != spdid);
+	ret = mbox_put(t, cb, sz, 0, ac->owner != spdid);
 	if (ret < 0) goto done;
 	t->offset += ret;
 done:	

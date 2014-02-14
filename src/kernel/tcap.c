@@ -134,11 +134,11 @@ tcap_bind(struct thread *t, struct tcap *tcap)
  * cycles to be transferred.
  */
 static inline int
-__tcap_budget_xfer(struct tcap_budget *bd, struct tcap_budget *bs, s64_t cycles)
+__tcap_budget_xfer(struct tcap_budget *bd, struct tcap_budget *bs, s64_t cycles, int pooled)
 {
 	assert(cycles >= 0);
 	if (TCAP_RES_IS_INF(cycles)) {
-		if (unlikely(!TCAP_RES_IS_INF(bs->cycles))) return -1;
+		if (unlikely(!TCAP_RES_IS_INF(bs->cycles) && !pooled)) return -1;
 		bd->cycles = TCAP_RES_INF;
 		return 0;
 	} 
@@ -162,7 +162,7 @@ __tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc,
 	if (!prio)   prio   = tcap_sched_info(tcapsrc)->prio;
 	if (!cycles) cycles = tcapsrc->budget_local.cycles;
 
-	if (unlikely(__tcap_budget_xfer(&tcapdst->budget_local, &tcapsrc->budget_local, cycles))) return -1;
+	if (unlikely(__tcap_budget_xfer(&tcapdst->budget_local, &tcapsrc->budget_local, cycles, pooled))) return -1;
 	if (pooled) {
 		/* inherit the (possibly inherited) budget */
 		memcpy(&tcapdst->budget, &tcapsrc->budget, sizeof(struct tcap_ref));
@@ -172,12 +172,12 @@ __tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc,
 		bcs = tcap_deref(&tcapsrc->budget);
 		bcd = tcap_deref(&tcapdst->budget);
 		if (unlikely(!bcs || !bcd)) goto undo_xfer;
-		if (__tcap_budget_xfer(&bcd->budget_local, &bcs->budget_local, cycles)) goto undo_xfer;
+		if (__tcap_budget_xfer(&bcd->budget_local, &bcs->budget_local, cycles, pooled)) goto undo_xfer;
 	}
 	tcap_sched_info(tcapdst)->prio = prio;
 	return 0;
 undo_xfer:
-	__tcap_budget_xfer(&tcapsrc->budget_local, &tcapdst->budget_local, cycles);
+	__tcap_budget_xfer(&tcapsrc->budget_local, &tcapdst->budget_local, cycles, pooled);
 	return -1;
 }
 
@@ -198,19 +198,19 @@ tcap_split(struct tcap *t, s64_t cycles, u16_t prio)
 
 	assert(t);
 	if (t->cpuid != get_cpuid()) return NULL;
-	c = tcap_sched_info(t)->sched;
+	c             = tcap_sched_info(t)->sched;
 	assert(c);
-	n                = c->tcap_freelist;
+	n             = c->tcap_freelist;
 	if (unlikely(!n))  return NULL;
-	b                = tcap_deref(&t->budget);
+	b             = tcap_deref(&t->budget);
 	if (unlikely(!b))  return NULL;
 	c->tcap_freelist = n->freelist;
 
 	tcap_init(n, c);
 	tcap_ref_create(&n->budget, b);
 	c->ntcaps++;
-	n->ndelegs       = t->ndelegs;
-	n->sched_info    = t->sched_info;
+	n->ndelegs    = t->ndelegs;
+	n->sched_info = t->sched_info;
 	memcpy(n->delegations, t->delegations, sizeof(struct tcap_sched_info) * t->ndelegs);
 
 	if (__tcap_transfer(n, t, cycles, prio, 1)) {
@@ -227,7 +227,7 @@ int
 tcap_receiver(struct thread *t, struct tcap *tcap)
 {
 	assert(t && tcap);
-	if (!thd_scheduled_by(t, tcap_sched_info(tcap)->sched)) return -1;
+//	if (!thd_scheduled_by(t, tcap_sched_info(tcap)->sched)) return -1;
 	tcap_ref_create(&t->tcap_receiver, tcap);
 	return 0;
 }
@@ -391,10 +391,14 @@ tcap_merge(struct tcap *dst, struct tcap *rm)
 	return 0;
 }
 
+static int timer_activation = 0;
+
 int
 __tcap_higher_prio(struct tcap *a, struct tcap *c)
 {
 	int i, j;
+
+	if (timer_activation) return 1;
 
 	for (i = 0, j = 0 ; i < a->ndelegs && j < c->ndelegs ; ) {
 		/* 
@@ -513,3 +517,11 @@ tcap_root(struct spd *s)
 
 	return 0;
 }
+
+/* 
+ * FIXME: ugly hack to ensure that the timer ticks are always chosen
+ * to execute.
+ */
+void 
+tcap_timer_choose(int c)
+{ timer_activation = c; }

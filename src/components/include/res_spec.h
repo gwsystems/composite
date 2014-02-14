@@ -36,6 +36,7 @@ typedef enum {
 	SCHEDP_IDLE, 		/* idle thread: internal use only */
 	SCHEDP_INIT, 		/* initialization threads: internal use only */
 	SCHEDP_TIMER, 		/* timer thread: internal use only */
+	SCHEDP_DEFER, 	        /* deferred-to thread */
 	SCHEDP_MAX		/* maximum value */
 } sched_param_type_t;
 

@@ -1553,10 +1553,17 @@ timer_interrupt(unsigned long data)
 	if (get_cpuid() == 0) time_tick_notification();
 	t = tcap_tick_handler();
 	if (unlikely(!t)) return;    /* only when booting up */
+	tcap_timer_choose(1);
 	chal_attempt_brand(t);
 	post = tcap_tick_handler();  /* did the timer timeout? */
-	if (unlikely(!post)) return; /* error */
-	if (post != t) chal_attempt_brand(t);
+	if (unlikely(!post)) {
+		tcap_timer_choose(0);
+		return; /* error */
+	}
+	/* FIXME: this is a hack.  We have to let the elapsed time be
+	 * factored into the scheduling decision for the next brand */
+	if (post != t) chal_attempt_brand(t); 
+	tcap_timer_choose(0);
 
 	return;
 }

@@ -224,6 +224,8 @@ timer_tick(int num_ticks, u64_t *policy_wakeup_time)
 //				sa->pol_cycles = 0;
 				if (sched_thd_suspended(t)) {
 					t->flags &= ~THD_SUSPENDED;
+					printc("sched %d granting %d to thread %d\n",
+					       cos_spd_id(), sa->C, t->id);
 					cos_tcap_thd_cntl(COS_TCAP_DELEGATE, t->tcap, 
 							  t->id, 0, sa->C * QUANTUM);
 					if (sched_thd_ready(t)) {
@@ -410,11 +412,17 @@ thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
 			break;
 #ifdef DEFERRABLE
 		case SCHEDP_BUDGET:
-			sched_get_accounting(t)->C = ps->value;
-			sched_get_accounting(t)->C_used = 0;
+		{
+			struct sched_accounting *sa = sched_get_accounting(t);
+
+			sa->C = ps->value;
+			cos_tcap_thd_cntl(COS_TCAP_DELEGATE, t->tcap, 
+					  t->id, 0, sa->C * QUANTUM);
+			sa->C_used = 0;
 			fp_move_end_runnable(t);
 			printc("thread %d, prio %d, budget %d\n", t->id, prio, ps->value);
 			break;
+		}
 		case SCHEDP_WINDOW:
 			sched_get_accounting(t)->T = ps->value;
 			sched_get_accounting(t)->T_exp = 0;
@@ -424,6 +432,12 @@ thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
 			}
 			fp_move_end_runnable(t);
 			printc("thread %d, prio %d, window %d\n", t->id, prio, ps->value);
+			break;
+		case SCHEDP_DEFER:
+			printc("sched %d child creation: granting %d to thread %d\n",
+			       cos_spd_id(), sched_get_accounting(t)->C, t->id);
+			cos_tcap_thd_cntl(COS_TCAP_DELEGATE, t->tcap, 
+					  t->id, 0, sched_get_accounting(t)->C * QUANTUM);
 			break;
 #endif
 		default:
