@@ -4,8 +4,8 @@
 ./cos_loader \
 "c0.o, ;llboot.o, ;*fprr.o, ;mm.o, ;print.o, ;boot.o, ;\
 \
-!sm.o,a1;!mpool.o, ;!buf.o, ;!bufp.o, ;!va.o, a3;!tif.o,a5;!tip.o, ;\
-!port.o, ;!l.o,a4;!te.o,a3;!tnet.o, ;!eg.o,a5;\
+!sm.o,a1;!mpool.o, ;!buf.o, ;!va.o, ;!mpd.o,a5;!tif.o,a5;!tip.o, ;!vm.o, a1;\
+!port.o, ;!l.o,a4;!te.o,a3;!tnet.o, ;!eg.o,a5;!tp.o, ;\
 !stconnmt.o, '10:10:200:/bind:0:%d/listen:255';\
 !pfs.o, ;!httpt.o,a8;!rotar.o,a7;!initfs.o,a3:\
 \
@@ -29,5 +29,8 @@ sm.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o|mpool.o;\
 mpool.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o;\
 buf.o-boot.o|sm.o|fprr.o|print.o|l.o|mm.o|va.o|mpool.o|pfs.o;\
 bufp.o-sm.o|fprr.o|print.o|l.o|mm.o|va.o|mpool.o|buf.o;\
-va.o-fprr.o|print.o|mm.o|l.o|boot.o\
+mpd.o-sm.o|boot.o|fprr.o|print.o|te.o|mm.o|va.o|pfs.o;\
+tp.o-sm.o|buf.o|print.o|stconnmt.o|te.o|fprr.o|boot.o|mm.o|va.o|mpool.o|pfs.o;\
+vm.o-fprr.o|print.o|mm.o|l.o|boot.o;\
+va.o-fprr.o|print.o|mm.o|l.o|boot.o|vm.o\
 " ./gen_client_stub

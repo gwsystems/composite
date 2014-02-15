@@ -37,7 +37,8 @@ struct vas_desc {
  * which virtual addresses are taken, we will keep this around. */
 struct spd_vas_info unknown = {.spdid = 0, };
 
-vaddr_t vas_mgr_expand(spdid_t spd, long amnt)
+vaddr_t
+vas_mgr_expand(spdid_t spd, spdid_t dest, unsigned long amnt)
 {
 	struct spd_vas_info *svi;
 	vaddr_t ret = 0;
@@ -46,52 +47,49 @@ vaddr_t vas_mgr_expand(spdid_t spd, long amnt)
 
 	amnt = round_up_to_pgd_page(amnt); 
 	LOCK();
-	svi = cos_vect_lookup(&spd_vas_map, spd);
+	svi = cos_vect_lookup(&spd_vas_map, dest);
 	if (!svi) {
 		svi = malloc(sizeof(struct spd_vas_info));
 		if (!svi) goto done;
 		memset(svi, 0, sizeof(struct spd_vas_info));
-		svi->spdid = spd;
+		svi->spdid = dest;
 		svi->vas = vas;
-		if (-1 == cos_vect_add_id(&spd_vas_map, svi, spd)) {
+		if (-1 == cos_vect_add_id(&spd_vas_map, svi, dest)) {
 			free(svi);
 			goto done;
 		}
 	}
 
-	for (i = 0 ; i < MAX_SPD_VAS_LOCATIONS ; i++) {
+	for (i = 0; i < MAX_SPD_VAS_LOCATIONS; i++) {
 		if (!svi->locations[i].size) break;
 	}
 	if (i == MAX_SPD_VAS_LOCATIONS) goto done;
 
 	loc = i;
-	nentries = amnt>>PGD_SHIFT;
-	for (a = SERVICE_START, i = SERVICE_START>>PGD_SHIFT ; 
-	     a < (SERVICE_END-amnt) ; 
+	nentries = amnt >> PGD_SHIFT;
+	unsigned long SERVICE_START_SAFE = SERVICE_START + (1 << 24); /* add a 16M offset to not touch the dangerous zone (or use const?) */
+	for (a = SERVICE_START_SAFE, i = SERVICE_START_SAFE >> PGD_SHIFT;
+	     a < (SERVICE_END - amnt); 
 	     a += SERVICE_SIZE, i++) {
 		unsigned long s = a, s_idx = i;
 		int found = 1;
-
-		printc("i=%ld, %ld\n", i, nentries);
 
 		for (; i < (s_idx + nentries) ; a += SERVICE_SIZE, i++) {
 			if (vas->s[i]) {
 				found = 0;
 				break;
 			}
-			printc("a\n");
 		}
-		printc("found %d\n", found);
-		a -= SERVICE_SIZE;
-		i--;
+
 		if (!found) continue;
 		
-		if (cos_vas_cntl(COS_VAS_SPD_EXPAND, spd, s, amnt)) {
+		if (cos_vas_cntl(COS_VAS_SPD_EXPAND, dest, s, amnt)) {
 			vas->s[s_idx] = &unknown;
 			continue;
 		}
+
 		/* success */
-		for (i = s_idx ; i < (s_idx + nentries) ; i++) vas->s[i] = svi;
+		for (i = s_idx ; i < (s_idx + nentries); i++) vas->s[i] = svi;
 		svi->locations[loc].size = amnt;
 		svi->locations[loc].base = ret = s;
 		break;

@@ -3,7 +3,7 @@
 ./cos_loader \
 "c0.o, ;*fprr.o, ;mm.o, ;boot.o, ;print.o, ;\
 \
-!l.o,a1;!va.o,a2;!mpool.o,a3;!te.o,a3;!sm.o,a4;!e.o,a4;!buf.o,a5;!tp.o,a6;!stat.o,a25;\
+!l.o,a1;!va.o,a2;!mpool.o,a3;!te.o,a3;!sm.o,a4;!e.o,a4;!buf.o,a5;!tp.o,a6;!stat.o,a25;!vm.o,a1;\
 \
 (!p0.o=exe_cb_pt.o),a10'p3 e600 s0 d120';\
 (!p1.o=exe_cb_pt.o),a11'p4 e400 s0 d120';\
@@ -37,7 +37,8 @@ sm.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o|mpool.o;\
 buf.o-boot.o|sm.o|fprr.o|print.o|l.o|mm.o|va.o|mpool.o;\
 mpool.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o;\
 tp.o-sm.o|buf.o|print.o|te.o|fprr.o|mm.o|va.o|mpool.o;\
-va.o-fprr.o|print.o|mm.o|l.o|boot.o;\
+vm.o-fprr.o|print.o|mm.o|l.o|boot.o;\
+va.o-fprr.o|print.o|mm.o|l.o|boot.o|vm.o;\
 \
 p0.o-te.o|fprr.o|print.o|sh9.o|sm.o|buf.o|va.o|mm.o;\
 p1.o-te.o|fprr.o|print.o|sh9.o|sm.o|buf.o|va.o|mm.o;\

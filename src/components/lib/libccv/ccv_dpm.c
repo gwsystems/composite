@@ -17,7 +17,7 @@ const ccv_dpm_param_t ccv_dpm_default_params = {
 	.interval = 8,
 	.min_neighbors = 1,
 	.flags = 0,
-	.threshold = 0.6,
+	.threshold = 0.6, // 0.8
 };
 
 #define CCV_DPM_WINDOW_SIZE (8)
@@ -599,15 +599,15 @@ static void _ccv_dpm_initialize_root_classifier(gsl_rng* rng, ccv_dpm_root_class
 		{
 			for (x = 0; x < cols2c; x++)
 				for (k = 0; k < 31; k++)
-					wptr[(cols - 1 - x) * 31 + _ccv_dpm_sym_lut[k]] = wptr[x * 31 + k] = linear->label[1] * linear->w[31 * rows * cols2c + 1 + (y * cols2c + x) * 31 + k] + linear->label[0] * linear->w[(y * cols2c + x) * 31 + k];
+					wptr[(cols - 1 - x) * 31 + _ccv_dpm_sym_lut[k]] = wptr[x * 31 + k] = linear->w[(y * cols2c + x) * 31 + k];
 			wptr += cols * 31;
 		}
 		// since for symmetric, lsvm only computed half features, to compensate that, we doubled the constant.
-		root_classifier->beta = (linear->label[1] * linear->w[62 * rows * cols2c + 1] + linear->label[0] * linear->w[31 * rows * cols2c]) * 2.0;
+		root_classifier->beta = linear->w[31 * rows * cols2c] * 2.0;
 	} else {
 		for (j = 0; j < 31 * rows * cols; j++)
-			root_classifier->root.w->data.f32[j] = linear->label[1] * linear->w[31 * rows * cols + 1 + j] + linear->label[0] * linear->w[j];
-		root_classifier->beta = linear->label[1] * linear->w[62 * rows * cols + 1] + linear->label[0] * linear->w[31 * rows * cols];
+			root_classifier->root.w->data.f32[j] = linear->w[j];
+		root_classifier->beta = linear->w[31 * rows * cols];
 	}
 	free_and_destroy_model(&linear);
 	free(prob.y);
@@ -1578,7 +1578,7 @@ void ccv_dpm_mixture_model_new(char** posfiles, ccv_rect_t* bboxes, int posnum, 
 	_ccv_dpm_check_params(params);
 	assert(params.negative_cache_size <= negnum && params.negative_cache_size > REGQ && params.negative_cache_size > MINI_BATCH);
 	printf("with %d positive examples and %d negative examples\n"
-		   "negative examples are collected from %d background images\n",
+		   "negative examples are are going to be collected from %d background images\n",
 		   posnum, negnum, bgnum);
 	printf("use symmetric property? %s\n", params.symmetric ? "yes" : "no");
 	printf("use color? %s\n", params.grayscale ? "no" : "yes");
@@ -2085,7 +2085,7 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a, ccv_dpm_mixture_model
 						if (f_ptr[x] + root->beta > params.threshold)
 						{
 							ccv_root_comp_t comp;
-							comp.id = c;
+							comp.id = c + 1;
 							comp.neighbors = 1;
 							comp.confidence = f_ptr[x] + root->beta;
 							comp.pnum = root->count;
@@ -2145,7 +2145,7 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a, ccv_dpm_mixture_model
 			memset(comps, 0, (ncomp + 1) * sizeof(ccv_root_comp_t));
 
 			// count number of neighbors
-			for(i = 0; i < seq->rnum; i++)
+			for (i = 0; i < seq->rnum; i++)
 			{
 				ccv_root_comp_t r1 = *(ccv_root_comp_t*)ccv_array_get(seq, i);
 				int idx = *(int*)ccv_array_get(idx_seq, i);
@@ -2163,39 +2163,65 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a, ccv_dpm_mixture_model
 			}
 
 			// calculate average bounding box
-			for(i = 0; i < ncomp; i++)
+			for (i = 0; i < ncomp; i++)
 			{
 				int n = comps[i].neighbors;
-				if(n >= params.min_neighbors)
+				if (n >= params.min_neighbors)
 					ccv_array_push(seq2, comps + i);
 			}
 
-			// filter out small object rectangles inside large object rectangles
-			for(i = 0; i < seq2->rnum; i++)
+			// filter out large object rectangles contains small object rectangles
+			for (i = 0; i < seq2->rnum; i++)
 			{
-				ccv_root_comp_t r1 = *(ccv_root_comp_t*)ccv_array_get(seq2, i);
-				int flag = 1;
-
-				for(j = 0; j < seq2->rnum; j++)
+				ccv_root_comp_t* r2 = (ccv_root_comp_t*)ccv_array_get(seq2, i);
+				int distance = (int)(ccv_min(r2->rect.width, r2->rect.height) * 0.25 + 0.5);
+				for (j = 0; j < seq2->rnum; j++)
 				{
-					ccv_root_comp_t r2 = *(ccv_root_comp_t*)ccv_array_get(seq2, j);
-					int distance = (int)(ccv_min(r2.rect.width, r2.rect.height) * 0.25 + 0.5);
-
+					ccv_root_comp_t r1 = *(ccv_root_comp_t*)ccv_array_get(seq2, j);
 					if (i != j &&
-						r1.id == r2.id &&
-						r1.rect.x >= r2.rect.x - distance &&
-						r1.rect.y >= r2.rect.y - distance &&
-						r1.rect.x + r1.rect.width <= r2.rect.x + r2.rect.width + distance &&
-						r1.rect.y + r1.rect.height <= r2.rect.y + r2.rect.height + distance &&
-						(r2.confidence > r1.confidence || r2.neighbors >= r1.neighbors))
+						abs(r1.id) == r2->id &&
+						r1.rect.x >= r2->rect.x - distance &&
+						r1.rect.y >= r2->rect.y - distance &&
+						r1.rect.x + r1.rect.width <= r2->rect.x + r2->rect.width + distance &&
+						r1.rect.y + r1.rect.height <= r2->rect.y + r2->rect.height + distance &&
+						// if r1 (the smaller one) is better, mute r2
+						(r2->confidence <= r1.confidence && r2->neighbors < r1.neighbors))
 					{
-						flag = 0;
+						r2->id = -r2->id;
 						break;
 					}
 				}
+			}
 
-				if(flag)
-					ccv_array_push(result_seq, &r1);
+			// filter out small object rectangles inside large object rectangles
+			for (i = 0; i < seq2->rnum; i++)
+			{
+				ccv_root_comp_t r1 = *(ccv_root_comp_t*)ccv_array_get(seq2, i);
+				if (r1.id > 0)
+				{
+					int flag = 1;
+
+					for (j = 0; j < seq2->rnum; j++)
+					{
+						ccv_root_comp_t r2 = *(ccv_root_comp_t*)ccv_array_get(seq2, j);
+						int distance = (int)(ccv_min(r2.rect.width, r2.rect.height) * 0.25 + 0.5);
+
+						if (i != j &&
+							r1.id == abs(r2.id) &&
+							r1.rect.x >= r2.rect.x - distance &&
+							r1.rect.y >= r2.rect.y - distance &&
+							r1.rect.x + r1.rect.width <= r2.rect.x + r2.rect.width + distance &&
+							r1.rect.y + r1.rect.height <= r2.rect.y + r2.rect.height + distance &&
+							(r2.confidence > r1.confidence || r2.neighbors >= r1.neighbors))
+						{
+							flag = 0;
+							break;
+						}
+					}
+
+					if (flag)
+						ccv_array_push(result_seq, &r1);
+				}
 			}
 			ccv_array_free(idx_seq);
 			ccfree(comps);
@@ -2250,7 +2276,7 @@ ccv_array_t* ccv_dpm_detect_objects(ccv_dense_matrix_t* a, ccv_dpm_mixture_model
 	return result_seq2;
 }
 
-ccv_dpm_mixture_model_t* ccv_load_dpm_mixture_model(const char* directory)
+ccv_dpm_mixture_model_t* ccv_dpm_read_mixture_model(const char* directory)
 {
 	FILE* r = fopen(directory, "r");
 	if (r == 0)
