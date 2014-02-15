@@ -3313,12 +3313,6 @@ static inline int alloc_acap_id(struct spd *spd){
 	return -1;
 }
 
-/* Only used by Linux smp_call_function mechanism. Not in use right
- * now. */
-void handle_ipi_single(int data) {
-	handle_ipi_acap(data >> 16, data & 0xFFFF);
-}
-
 void cos_ipi_handling(void)
 {
 	int idx, end;

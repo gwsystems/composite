@@ -85,7 +85,7 @@ pgd_t *union_pgd;
 
 struct per_core_cos_thd cos_thd_per_core[NUM_CPU];
 
-//QW: should be per core? >>
+//Should this be per core? >>
 struct mm_struct *composite_union_mm = NULL;
 
 /* 
@@ -100,7 +100,7 @@ struct mm_struct *trusted_mm = NULL;
 
 #define MAX_ALLOC_MM 64
 struct mm_struct *guest_mms[MAX_ALLOC_MM]; 
-//QW: should be per core? <<
+//Should the above be per core? <<
 
 DEFINE_PER_CPU(unsigned long, x86_tss) = { 0 };
 
@@ -857,7 +857,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	return ret;
 }
 
-//QW: should be per core? >>
 #define NFAULTS 200
 int fault_ptr = 0;
 struct fault_info {
@@ -868,7 +867,6 @@ struct fault_info {
 	int cspd_flags, cspd_master_flags;
 	unsigned long long timestamp;
 } faults[NFAULTS];
-//QW: should be per core? <<
 
 static void cos_report_fault(struct thread *t, vaddr_t fault_addr, int ecode, struct pt_regs *regs)
 {
@@ -1203,20 +1201,8 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 
 void cos_ipi_handling(void);
 
-int ipi_received = 0;
-
-volatile int ipi_meas = 0;
-
 int 
 cos_ipi_ring_enqueue(u32_t dest, u32_t data);
-
-void ipi_meas_call_single(void *cap_entry) {
-	if (get_cpuid() == 1) {
-		smp_call_function_single(0, ipi_meas_call_single, NULL, 0);
-	} else {
-		ipi_meas = 1;
-	}
-}
 
 __attribute__((regparm(3))) void
 main_ipi_handler(struct pt_regs *rs, unsigned int irq)
@@ -1561,17 +1547,6 @@ done:
 	return 0;
 }
 
-void handle_ipi_single(int data);
-
-static void ainv_receive_ipi(void *data)
-{
-	if (unlikely(!data)) return;
-
-	handle_ipi_single((int)data);
-
-	return;
-}
-
 void chal_send_ipi(int cpuid) {
 	/* lowest-level IPI sending. the __default_send function is in
 	 * arch/x86/include/asm/ipi.h */
@@ -1586,14 +1561,6 @@ void chal_send_ipi(int cpuid) {
 	/* If BIGSMP is set, use following implementation! above is a
 	 * shortcut. */
 	/* apic->send_IPI_mask(cpumask_of(cpuid), COS_IPI_VECTOR); */
-}
-
-int ainv_send_ipi(int cpuid, int spdid, int acapid)
-{
-	int data = spdid << 16 | acapid;
-	smp_call_function_single(cpuid, ainv_receive_ipi, (void *)data, 0);
-
-	return 0;
 }
 
 PERCPU_VAR(cos_timer_acap);

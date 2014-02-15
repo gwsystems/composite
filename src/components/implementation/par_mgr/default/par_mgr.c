@@ -637,6 +637,9 @@ assign_multicast_bestcase(struct intra_comp *thd_comp)
 int 
 par_create(int spdid, int n_request)
 {
+#if NUM_CPU_COS == 1
+	return 1 << 16; // n_cpu is high 16 bits.
+#endif
 	int curr = cos_get_thd_id(), n_acap, ret;
 	struct thd_intra_comp *curr_thd;
 	struct intra_comp *thd_comp;

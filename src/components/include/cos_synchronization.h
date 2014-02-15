@@ -72,9 +72,8 @@ restart:
 		if (unlikely(owner)) {
 			int ret;
 
-			//QW: restore later. make it spin for now.
-			//ret = lock_take_contention(l, &result, &prev_val, owner);
-			//if (ret < 0) return ret;
+			ret = lock_take_contention(l, &result, &prev_val, owner);
+			if (ret < 0) return ret;
 			/* try to take the lock again */
 			goto restart;
 		}

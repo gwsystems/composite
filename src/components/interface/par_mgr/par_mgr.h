@@ -15,7 +15,7 @@ struct inv_data {
 	int cap;
 	int params[4];
 //	int return_idx;
-}; /* Q: do we want this to use a single cache line? */
+};
 
 #ifndef __RING_DEFINED
 #define __RING_DEFINED

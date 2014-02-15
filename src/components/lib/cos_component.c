@@ -97,12 +97,6 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		}
 		return;
 	}
-	/* Legacy path. */
-	/* case COS_UPCALL_BOOTSTRAP: */
-	/* { */
-	/* 	cos_init(arg1); */
-	/* 	break; */
-	/* } */
 	default:
 		/* fault! */
 		*(int*)NULL = 0;

@@ -157,7 +157,7 @@ parallel_send(void *fn, void *data)
 	inv.data = data;
 	inv.fn = fn;
 
-	if (unlikely(par_team->cap[0].acap == 0)) {
+	if (unlikely(n_acap > 0 && par_team->cap[0].acap == 0)) {
 		/* Not used before for the current nesting level. Set
 		 * it up. */
 		for (i = 0; i < n_acap; i++) {

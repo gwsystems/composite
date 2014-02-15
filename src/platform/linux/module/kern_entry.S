@@ -203,7 +203,7 @@ ENTRY(name##_interposition)					\
 
 
 /* Push the irq# onto stack as the second parameter. Note that in Linux
- * interrupt handling rountine, macro BUILD_INTERRUPT push $~(irq). */
+ * interrupt handling rountine, macro BUILD_INTERRUPT pushes $~(irq). */
 #define COS_CREATE_HANDLER_NO_INTERPOSITION(name, irq)		\
 .data;								\
 .long 0;							\

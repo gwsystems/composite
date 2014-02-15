@@ -14,6 +14,9 @@ PERCPU_EXTERN(fpu_disabled);
 PERCPU_DECL(struct thread *, fpu_last_used);
 PERCPU_EXTERN(fpu_last_used);
 
+PERCPU_DECL(int, fpu_support_fxsr);
+PERCPU_EXTERN(fpu_support_fxsr);
+
 /* fucntions called outside */
 static inline int fpu_init(void);
 static inline int fpu_disabled_exception_handler(void);
@@ -63,11 +66,13 @@ fpu_check_fxsr(void)
 static inline int
 fpu_init(void)
 {
-        if (!fpu_check_fxsr()) printk("fpu doesn't support fxsave/fxrstor, use fsave/frstr instead\n");
+        *PERCPU_GET(fpu_support_fxsr) = fpu_check_fxsr();
+
+        if (!*PERCPU_GET(fpu_support_fxsr)) printk("fpu doesn't support fxsave/fxrstor, use fsave/frstr instead\n");
 
         fpu_set(DISABLE);
 	*PERCPU_GET(fpu_disabled) = 1;
-        *PERCPU_GET(fpu_last_used) = NULL;
+	*PERCPU_GET(fpu_last_used) = NULL;
 
         /* printk("fpu_init on core %d\n", get_cpuid()); */
 
@@ -103,7 +108,7 @@ fpu_save(struct thread *next)
 {
 	struct thread **last_used = PERCPU_GET(fpu_last_used);
         /* if next thread doesn't use fpu, then we just disable the fpu */
-        if (!fpu_thread_uses_fp(next)) {
+	if (!fpu_thread_uses_fp(next)) {
                 fpu_disable();
                 return 0;
         }
@@ -202,7 +207,7 @@ fpu_set(int status)
 static inline void
 fxsave(struct thread *thd)
 {
-        if (fpu_support_fxsr)
+        if (*PERCPU_GET(fpu_support_fxsr))
                 asm volatile("fxsave %0" : "=m" (thd->fpu));
         else
                 asm volatile("fsave %0" : "=m" (thd->fpu));
@@ -214,7 +219,7 @@ fxsave(struct thread *thd)
 static inline void
 fxrstor(struct thread *thd)
 {
-        if (fpu_support_fxsr)
+        if (*PERCPU_GET(fpu_support_fxsr))
                 asm volatile("fxrstor %0" : : "m" (thd->fpu));
         else
                 asm volatile("frstor %0" : : "m" (thd->fpu));

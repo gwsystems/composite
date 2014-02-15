@@ -626,14 +626,11 @@ static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, 
 	}
 	ck_spinlock_ticket_unlock(&xcore_lock);
 
-	// if (server inactive)
-	{
-		acap = PERCPU_GET_TARGET(sched_base_state, core_id)->IPI_acap;
+	acap = PERCPU_GET_TARGET(sched_base_state, core_id)->IPI_acap;
 
-		if (unlikely(acap <= 0)) BUG();
-		/* printc("core %d: sending ipi to core %ld, acap %d\n", cos_cpuid(), core_id, acap); */
-		cos_ainv_send(acap);
-	}
+	if (unlikely(acap <= 0)) BUG();
+	/* printc("core %d: sending ipi to core %ld, acap %d\n", cos_cpuid(), core_id, acap); */
+	cos_ainv_send(acap);
 
 	if (wait) {
 		rdtscll(s); 		
@@ -1320,9 +1317,12 @@ int
 sched_create_thd(spdid_t spdid, u32_t sched_param_0, u32_t sched_param_1, u32_t sched_param_2)
 {
 	int ret;
+	cpuid_t core;
 	u32_t sched_params[MAX_NUM_SCHED_PARAM] = {sched_param_0, sched_param_1, sched_param_2};
 
-	cpuid_t core = sched_read_param_core_id(sched_params);
+	if (spdid == cos_spd_id()) return -1;
+
+	core = sched_read_param_core_id(sched_params);
 	relative_prio_convert(sched_params);
 
 	if (core != cos_cpuid()) {
