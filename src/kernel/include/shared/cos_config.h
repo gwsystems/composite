@@ -2,14 +2,14 @@
 #define COS_CONFIG_H
 
 #include "cpu_ghz.h"
-#define NUM_CPU                3
+#define NUM_CPU                1
 
 #define CPU_TIMER_FREQ 100 // set in your linux .config
 
-#define RUNTIME                5 // seconds
+#define RUNTIME                3 // seconds
 
 // After how many seconds should schedulers print out their information?
-#define SCHED_PRINTOUT_PERIOD  500 
+#define SCHED_PRINTOUT_PERIOD  30
 #define COMPONENT_ASSERTIONS   1 // activate assertions in components?
 
 //#define LINUX_ON_IDLE          1 // should Linux be activated on Composite idle
