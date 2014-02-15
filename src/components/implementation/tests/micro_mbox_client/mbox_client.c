@@ -37,8 +37,17 @@ void cos_init(void *arg)
 	int period, num, ret, sz, i, j;
         u64_t start = 0, end = 0, re_cbuf;
 	cbufp_t cb1;
-	parse_args(&period, &num);
 
+	union sched_param sp;
+	static int first = 1;
+
+	if (first) {
+		first = 0;
+		sp.c.type = SCHEDP_PRIO;
+		sp.c.value = 9;
+		if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG();
+		return ;
+	}
 	evt = evt_split(cos_spd_id(), 0, 0);
 	assert(evt > 0);
       	serv = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_RW, evt);
@@ -48,11 +57,10 @@ void cos_init(void *arg)
 	evt_wait(cos_spd_id(), evt);
 	printc("client split successfully\n");
         sz = 4096;
-	j = 100*ITER;
-	period = 50;
-	periodic_wake_create(cos_spd_id(), period);
+	j = 1000*ITER;
 	rdtscll(start);
         for (i=1; i<=j; i++) {
+		if (i == j)    rdtscll(end);
 		d = cbufp_alloc(sz, &cb1);
 		if (!d) goto done;
 		cbufp_send(cb1);
@@ -61,13 +69,14 @@ void cos_init(void *arg)
 		ret = twritep(cos_spd_id(), serv, cb1, sz);
 		cbufp_deref(cb1); 
 	}
-	rdtscll(end);
-	printc("Client snd %d times %llu\n", j, (end-start)/j);
+	printc("Client snd %d times %llu\n", j-1, (end-start)/(j-1));
 	/* 
 	 * insert evt_grp_wait(...) into the code below where it makes
 	 * sense to.  Simulate if the code were executing in separate
 	 * threads.
 	 */
+	parse_args(&period, &num);
+	periodic_wake_create(cos_spd_id(), period);
 	re_cbuf = 0;
         for (i=1; i<=ITER; i++) {
                 for (j=0; j<num; j++) {

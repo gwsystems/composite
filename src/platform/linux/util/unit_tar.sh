@@ -13,7 +13,7 @@ l.o-fprr.o|mm.o|print.o;\
 te.o-sm.o|print.o|fprr.o|mm.o|va.o;\
 mm.o-print.o|[parent_]llboot.o;\
 eg.o-sm.o|fprr.o|print.o|mm.o|l.o|va.o;\
-initfs.o-fprr.o|print.o;\
+initfs.o-fprr.o|vm.o|print.o;\
 boot.o-print.o|fprr.o|mm.o|llboot.o;\
 sm.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o|mpool.o;\
 buf.o-boot.o|sm.o|fprr.o|print.o|l.o|mm.o|va.o|mpool.o;\

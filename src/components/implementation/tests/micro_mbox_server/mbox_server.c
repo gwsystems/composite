@@ -37,7 +37,16 @@ void cos_init(void *arg)
 	int period, num, sz, off, i, j;
 	cbufp_t cb1;
 	u64_t start = 0, end = 0, re_mbox;
-	parse_args(&period, &num);
+	union sched_param sp;
+	static int first = 1;
+
+	if (first) {
+		first = 0;
+		sp.c.type = SCHEDP_PRIO;
+		sp.c.value = 7;
+		if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG();
+		return ;
+	}
 	evt1 = evt_split(cos_spd_id(), 0, 0);
 	assert(evt1 > 0);
 	evt2 = evt_split(cos_spd_id(), 0, 0);
@@ -51,19 +60,21 @@ void cos_init(void *arg)
 	if (cli < 1) {
 		printc("UNIT TEST FAILED: split1 failed %d\n", cli);
 	}
-	period = 100;
-	periodic_wake_create(cos_spd_id(), period);
-	j = 100*ITER;
+	j = 1000*ITER;
 	rdtscll(start);
 	for (i=0; i<j; i++) {
-		cb1 = treadp(cos_spd_id(), cli, &off, &sz);
-		if ((int)cb1<0) evt_wait(cos_spd_id(), evt2);
-		printc("sever %d\n", i);
+		while (1) {
+			cb1 = treadp(cos_spd_id(), cli, &off, &sz);
+			if ((int)cb1<0) evt_wait(cos_spd_id(), evt2);
+			else            break;
+		}
 		buf = cbufp2buf(cb1,sz);
 		cbufp_deref(cb1);
 	}
 	rdtscll(end);
 	printc("Server rcv %d times %llu\n", j, (end-start)/j);
+	parse_args(&period, &num);
+	periodic_wake_create(cos_spd_id(), period);
 	re_mbox = 0;
 	for (i=0; i<ITER; i++) {
 		for (j=0; j<num; j++) {
