@@ -14,17 +14,17 @@ struct cos_meas_struct measurements_desc[COS_MEAS_MAX_SIZE] = {
 	{.type = MEAS_CNT, .description = "switch thread call with outdated info"},	
 	{.type = MEAS_CNT, .description = "cooperative thread switch"},
 	{.type = MEAS_CNT, .description = "thread switch to preempted thd"},
-	{.type = MEAS_CNT, .description = "interrupt with attempted brand made"},
-	{.type = MEAS_CNT, .description = "immediately executed branded upcalls"},
-	{.type = MEAS_CNT, .description = "delayed brand upcall execution (e.g. less urg)"},
-	{.type = MEAS_CNT, .description = "incriment pending brands (delay brand)"},
-	{.type = MEAS_CNT, .description = "completed brands -> upcall scheduler"},
-	{.type = MEAS_CNT, .description = "brand upcall scheduler -> exec pending"},
-	{.type = MEAS_CNT, .description = "brand upcall scheduler -> tailcall completion"},
-	{.type = MEAS_CNT, .description = "completed brands -> schedule preempted thd"},
-	{.type = MEAS_CNT, .description = "completed brands -> execute pending upcall thd"},
-	{.type = MEAS_CNT, .description = "brand should be made, but delayed due to net xmit"},
-	{.type = MEAS_CNT, .description = "branded upcalls finished"},
+	{.type = MEAS_CNT, .description = "interrupt with attempted async_inv made"},
+	{.type = MEAS_CNT, .description = "immediately executed async_inv upcalls"},
+	{.type = MEAS_CNT, .description = "delayed async_inv upcall execution (e.g. less urg)"},
+	{.type = MEAS_CNT, .description = "incriment pending async_invs (delay ainv)"},
+	{.type = MEAS_CNT, .description = "completed async_invs -> upcall scheduler"},
+	{.type = MEAS_CNT, .description = "async_inv upcall scheduler -> exec pending"},
+	{.type = MEAS_CNT, .description = "async_inv upcall scheduler -> tailcall completion"},
+	{.type = MEAS_CNT, .description = "completed async_invs -> schedule preempted thd"},
+	{.type = MEAS_CNT, .description = "completed async_invs -> execute pending upcall thd"},
+	{.type = MEAS_CNT, .description = "async_inv should be made, but delayed due to net xmit"},
+	{.type = MEAS_CNT, .description = "async_inv upcalls finished"},
 	{.type = MEAS_CNT, .description = "interrupted user-level"},
 	{.type = MEAS_CNT, .description = "interrupted kern-level"},
 	{.type = MEAS_CNT, .description = "interrupted cos thread"},
@@ -52,9 +52,9 @@ struct cos_meas_struct measurements_desc[COS_MEAS_MAX_SIZE] = {
 	{.type = MEAS_CNT, .description = "atomic lock request"},
 	{.type = MEAS_CNT, .description = "atomic unlock request"},
 	{.type = MEAS_CNT, .description = "received a network packet"},
-	{.type = MEAS_CNT, .description = "make a brand for a network packet"},
-	{.type = MEAS_CNT, .description = "network brand resulted in data being transferred"},
-	{.type = MEAS_CNT, .description = "network brand failed: ring buffer full"},
+	{.type = MEAS_CNT, .description = "make an async_inv for a network packet"},
+	{.type = MEAS_CNT, .description = "network async_inv resulted in data being transferred"},
+	{.type = MEAS_CNT, .description = "network async_inv failed: ring buffer full"},
 	{.type = MEAS_CNT, .description = "networking packet transmit"},
 	{.type = MEAS_CNT, .description = "pending notification HACK"},
 	{.type = MEAS_CNT, .description = "attempted switching to inactive upcall"},
@@ -71,8 +71,8 @@ struct cos_meas_struct measurements_desc[COS_MEAS_MAX_SIZE] = {
 	{.type = MEAS_CNT, .description = "child scheduler: attempted schedule with pending cevts"},
 	{.type = MEAS_CNT, .description = "scheduler: attempted schedule with pending event"},
 
-	{.type = MEAS_STATS, .description = "delay between a brand and when upcall is executed"},
-	{.type = MEAS_STATS, .description = "delay between a brand and when upcall is terminated"},
+	{.type = MEAS_STATS, .description = "delay between an async_inv and when upcall is executed"},
+	{.type = MEAS_STATS, .description = "delay between an async_inv and when upcall is terminated"},
 	{.type = MEAS_STATS, .description = "delay between uc term/pend and pending upcall completion"}
 };
 
@@ -115,6 +115,9 @@ void cos_meas_report(void)
 			default:
 				printk("cos: unknown type for %d of %d", i, per_core_meas[cpu].cos_measurements[i].type);
 			}
+#if NUM_CPU_COS > 1
+			if (cpu > INIT_CORE) break; //limit the output for now.
+#endif
 		}
 	}
 
@@ -143,6 +146,9 @@ void event_print(void)
 			printk("cos:\t%d:%s (%ld, %ld) @ %lld\n", i, e->msg, e->a, e->b, e->timestamp);
 			if (i == last) break;
 		}
+#if NUM_CPU_COS > 1
+		break;
+#endif
 	}
 }
 

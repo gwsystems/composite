@@ -86,6 +86,9 @@ int cos_idt_sz;
 
 void *cos_default_sysenter_addr;
 
+
+#include "cos_irq_vectors.h"
+
 void
 hw_int_init(void)
 {
@@ -148,6 +151,12 @@ hw_int_override_sysenter(void *handler)
 	wrmsr(MSR_IA32_SYSENTER_EIP, (int)handler, 0);
 	printk("CPU %d: Overriding sysenter handler (%p) with %p\n",
 	       get_cpu(), cos_default_sysenter_addr, handler);
+}
+
+void
+hw_int_cos_ipi(void *handler)
+{
+	cos_set_idt_entry(COS_IPI_VECTOR, 0, 0, handler, default_idt);
 }
 
 extern unsigned int *pgtbl_module_to_vaddr(unsigned long addr);
@@ -254,3 +263,5 @@ hw_int_override_idt(int fault_num, void *handler, int ints_enabled, int dpl)
 
 	return 0;
 }
+
+

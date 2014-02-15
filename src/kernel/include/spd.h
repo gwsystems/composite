@@ -79,6 +79,23 @@ struct invocation_cap {
 
 /* end static capabilities */
 
+/* async invocation cap */
+struct async_cap {
+	// client acap
+	int id;
+	int srv_spd_id;
+	int srv_acap_id;
+	long cpu;
+
+	int owner_thd;
+	int allocated;
+
+	// server acap
+	/* int id; */
+	/* int srv_spd_id; */
+	int upcall_thd;
+	unsigned int pending_upcall;
+} CACHE_ALIGNED;
 
 /*
  * The Service Protection Domain description including 
@@ -119,7 +136,11 @@ typedef enum {
  */
 struct spd_poly {
 	spd_flags_t flags;
+#if NUM_CPU_COS > 1
+	atomic_t ref_cnt CACHE_ALIGNED;
+#else
 	atomic_t ref_cnt;
+#endif
 	paddr_t pg_tbl;
 };
 
@@ -185,6 +206,7 @@ struct spd {
 	mmaps_t local_mmaps; /* mm_handle (see hijack.c) for linux compat */
 
 	vaddr_t upcall_entry;
+	vaddr_t async_inv_entry;
 	
 	vaddr_t atomic_sections[COS_NUM_ATOMIC_SECTIONS];
 	
@@ -197,6 +219,7 @@ struct spd {
 
 	unsigned int ncaps;
 	struct invocation_cap caps[MAX_STATIC_CAP];
+	struct async_cap acaps[MAX_NUM_ACAP];
 } CACHE_ALIGNED; //cache line size
 
 paddr_t spd_alloc_pgtbl(void);

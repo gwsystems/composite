@@ -84,18 +84,23 @@ void *chal_pa2va(void *pa);
 void *chal_alloc_page(void);
 void chal_free_page(void *page);
 
+/* Per core ACAPs for timer events */
+PERCPU_DECL(struct async_cap *, cos_timer_acap);
+
 /*******************
  * Other functions *
  *******************/
 
-int chal_attempt_brand(struct thread *brand);
+int chal_attempt_ainv(struct async_cap *acap);
+
+/* IPI sending */
+void chal_send_ipi(int cpuid);
+
 /* static const struct cos_trans_fns *trans_fns = NULL; */
 void chal_idle(void);
 
 /* int cos_syscall_idle(void); */
 /* int cos_syscall_switch_thread(void); */
-/* void cos_syscall_brand_wait(int spd_id, unsigned short int bid, int *preempt); */
-/* void cos_syscall_brand_upcall(int spd_id, int thread_id_flags); */
 /* int cos_syscall_buff_mgmt(void); */
 /* void cos_syscall_upcall(void); */
 

@@ -45,7 +45,7 @@ struct pt_regs {
 #endif
 
 #define MAX_SERVICE_DEPTH 31
-#define MAX_NUM_THREADS 60
+#define MAX_NUM_THREADS 400
 /* Stacks are 2 * page_size (expressed in words) */
 #define MAX_STACK_SZ    (PAGE_SIZE/4) /* a page */
 #define COS_STACK_SZ    (MAX_STACK_SZ*4)
@@ -59,7 +59,8 @@ struct pt_regs {
 #define MAX_SCHED_HIER_DEPTH 4
 
 #define MAX_NUM_SPDS   64
-#define MAX_STATIC_CAP 1024
+#define MAX_STATIC_CAP 256
+#define MAX_NUM_ACAP 256
 
 #define PAGE_MASK    (~(PAGE_SIZE-1))
 #define PGD_SHIFT    22
@@ -98,7 +99,7 @@ struct pt_regs {
 
 #define COS_NUM_ATOMIC_SECTIONS 10
 
-#define COS_MAX_MEMORY (64*1024)  /* vas extents now support up to 254MB */ 
+#define COS_MAX_MEMORY (128*1024) /* vas extents now support up to 254MB */ 
 
 #include "../asm_ipc_defs.h"
 

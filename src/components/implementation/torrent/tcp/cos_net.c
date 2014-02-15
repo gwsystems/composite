@@ -1582,7 +1582,9 @@ static void cos_net_create_netif_thd(void)
 	
 	sp.c.type  = SCHEDP_PRIO;
 	sp.c.value = 4;
-	if (0 > (event_thd = sched_create_thd(cos_spd_id(), sp.v, 0, 0))) BUG();
+
+	event_thd = cos_thd_create(cos_net_evt_loop, NULL, sp.v, 0, 0);
+	if (event_thd <= 0) BUG();
 }
 
 static int init(void) 
@@ -1593,7 +1595,6 @@ static int init(void)
 #endif
 
 	lock_static_init(&net_lock);
-	printc("netlock id %d\n", net_lock.lock_id);
 	NET_LOCK_TAKE();
 
 	torlib_init();
@@ -1632,8 +1633,6 @@ static int init(void)
 void cos_init(void *arg)
 {
 	static volatile int first = 1;
-
-	if (cos_get_thd_id() == event_thd) cos_net_evt_loop();
 
 	if (first) {
 		first = 0;

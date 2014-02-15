@@ -9,10 +9,12 @@
 #include <asm/asm-offsets.h>
 #include <asm/segment.h>
 #include <asm/thread_info.h>
+#include <asm/irqflags.h>	
 #include <linux/linkage.h>
 #include "asym_exec_dom.h"
 #include "../../../kernel/include/asm_ipc_defs.h"
 #include "../../../kernel/include/shared/cos_config.h"
+#include "cos_irq_vectors.h"
 
 #define ASM_PAGE_MASK (~(4096-1))
 	
@@ -108,6 +110,9 @@ ENTRY(sysenter_interposition_entry)
 	 * sc:	 Make a composite OS system-call
 	 */
 
+	cmpl $(COS_ASYNC_CAP_FLAG), %eax /* Non-static cap? */
+	ja composite_async_call /* Async invocation */
+
 	cmpl $((1<<COS_CAPABILITY_OFFSET)-1), %eax /* 2^20-1 shift for capability invocations */
 	ja composite_call_ipc /* component invocation */
 	je composite_ret_ipc  /* component return */
@@ -195,6 +200,25 @@ ENTRY(name##_interposition)					\
 1:	/* linux path */					\
 	RESTORE_REGS;						\
 	jmp *(cos_default_##name##_handler)	
+
+
+/* Push the irq# onto stack as the second parameter. Note that in Linux
+ * interrupt handling rountine, macro BUILD_INTERRUPT pushes $~(irq). */
+#define COS_CREATE_HANDLER_NO_INTERPOSITION(name, irq)		\
+.data;								\
+.long 0;							\
+.text;								\
+.globl name##_handler;		 				\
+.align 16;					 		\
+ENTRY(name##_handler)						\
+	pushl $(irq);						\
+	SAVE_ALL; 						\
+	movl %esp, %eax; 					\
+	movl ORIG_EAX(%eax), %edx;				\
+	call main_##name##_handler;				\
+	RESTORE_REGS;						\
+	addl $4, %esp;						\
+	iret;
 	
 COS_CREATE_TRAP_NO_ERRCODE(div_fault)
 COS_CREATE_TRAP_ERRCODE(page_fault)
@@ -202,6 +226,7 @@ COS_CREATE_TRAP_NO_ERRCODE(reg_save)
 #ifdef FPU_ENABLED
 COS_CREATE_TRAP_ERRCODE(fpu_not_available)
 #endif
+COS_CREATE_HANDLER_NO_INTERPOSITION(ipi, COS_IPI_VECTOR)
 
 /* The page fault trampoline for kernel faults.  See explanation in relocate_page_fault_handler:hw_ints.c */
 .data
@@ -227,3 +252,5 @@ cos_post_interpose_deref_addr_tramp: /* for the previous address */
 .globl cos_post_default_deref_addr_tramp
 cos_post_default_deref_addr_tramp:   /* for the previous address */
 	.align 4096
+
+

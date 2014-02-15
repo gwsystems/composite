@@ -9,8 +9,6 @@
 #include <cos_component.h>
 #include <print.h>
 
-#include <sched.h>
-
 int spin_var = 0, other;
 
 void cos_init(void *arg)

@@ -2,7 +2,6 @@
 #define   	SCHED_H
 
 #include <res_spec.h>
-
 int sched_wakeup(spdid_t spdid, unsigned short int thd_id);
 int sched_block(spdid_t spdid, unsigned short int dependency_thd);
 
@@ -21,10 +20,11 @@ int sched_create_thd(spdid_t spdid, u32_t sched_param0, u32_t sched_param1, u32_
 int sched_create_thread_default(spdid_t spdid, u32_t sched_param_0, u32_t sched_param_1, u32_t sched_param_2);
 int sched_thread_params(spdid_t spdid, u16_t thd_id, res_spec_t rs);
 
-int sched_create_net_brand(spdid_t spdid, unsigned short int port);
-int sched_add_thd_to_brand(spdid_t spdid, unsigned short int bid, unsigned short int tid);
+int sched_create_net_acap(spdid_t spdid, int acap_id, unsigned short int port);
 
 int sched_component_take(spdid_t spdid);
 int sched_component_release(spdid_t spdid);
+
+#include <cos_thd_creation.h>
 
 #endif 	    /* !SCHED_H */

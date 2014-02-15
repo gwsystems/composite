@@ -8,9 +8,14 @@
 #define FPU_DISABLED_MASK 0x8
 #define FXSR              1<<24
 
-extern int fpu_disabled;
-extern struct thread *fpu_last_used;
-extern int fpu_support_fxsr;
+PERCPU_DECL(int, fpu_disabled);
+PERCPU_EXTERN(fpu_disabled);
+
+PERCPU_DECL(struct thread *, fpu_last_used);
+PERCPU_EXTERN(fpu_last_used);
+
+PERCPU_DECL(int, fpu_support_fxsr);
+PERCPU_EXTERN(fpu_support_fxsr);
 
 /* fucntions called outside */
 static inline int fpu_init(void);
@@ -61,16 +66,15 @@ fpu_check_fxsr(void)
 static inline int
 fpu_init(void)
 {
-        fpu_support_fxsr = 0;
-        fpu_support_fxsr = fpu_check_fxsr();
+        *PERCPU_GET(fpu_support_fxsr) = fpu_check_fxsr();
 
-        if (!fpu_support_fxsr) printk("fpu doesn't support fxsave/fxrstor, use fsave/frstr instead\n");
+        if (!*PERCPU_GET(fpu_support_fxsr)) printk("fpu doesn't support fxsave/fxrstor, use fsave/frstr instead\n");
 
         fpu_set(DISABLE);
-        fpu_disabled = 1;
-        fpu_last_used = NULL;
+	*PERCPU_GET(fpu_disabled) = 1;
+	*PERCPU_GET(fpu_last_used) = NULL;
 
-        printk("fpu_init on core %d\n", get_cpuid());
+        /* printk("fpu_init on core %d\n", get_cpuid()); */
 
         return 0;
 }
@@ -102,8 +106,9 @@ fpu_thread_init(struct thread *thd)
 static inline int
 fpu_save(struct thread *next)
 {
+	struct thread **last_used = PERCPU_GET(fpu_last_used);
         /* if next thread doesn't use fpu, then we just disable the fpu */
-        if (!fpu_thread_uses_fp(next)) {
+	if (!fpu_thread_uses_fp(next)) {
                 fpu_disable();
                 return 0;
         }
@@ -112,9 +117,9 @@ fpu_save(struct thread *next)
          * next thread uses fpu
          * if no thread used fpu before, then we set next thread as the fpu_last_used
          */
-        if (unlikely(fpu_last_used == NULL)) {
+        if (unlikely(*last_used == NULL)) {
                 fpu_enable();
-                fpu_last_used = next;
+		*last_used = next;
                 return 0;
         }
 
@@ -123,7 +128,7 @@ fpu_save(struct thread *next)
          * fpu_last_used exists
          * if fpu_last_used == next, then we simply re-enable the fpu for the thread
          */
-        if (fpu_last_used == next) {
+        if (*last_used == next) {
                 fpu_enable();
                 return 0;
         }
@@ -134,9 +139,9 @@ fpu_save(struct thread *next)
          * if fpu_last_used != next, then we save current fpu states to fpu_last_used, restore next thread's fpu state
          */
         fpu_enable();
-        fxsave(fpu_last_used);
+        fxsave(*last_used);
         if (next->fpu.saved_fpu) fxrstor(next);
-        fpu_last_used = next;
+	*last_used = next;
 
         return 0;
 }
@@ -146,8 +151,8 @@ fpu_enable(void)
 {
         if (!fpu_is_disabled()) return;
 
-        fpu_set(ENABLE);
-        fpu_disabled = 0;
+	fpu_set(ENABLE);
+	*PERCPU_GET(fpu_disabled) = 0;
 
         return;
 }
@@ -158,7 +163,7 @@ fpu_disable(void)
         if (fpu_is_disabled()) return;
 
         fpu_set(DISABLE);
-        fpu_disabled = 1;
+	*PERCPU_GET(fpu_disabled) = 1;
 
         return;
 }
@@ -166,9 +171,10 @@ fpu_disable(void)
 static inline int
 fpu_is_disabled(void)
 {
-        assert(fpu_read_cr0() & FPU_DISABLED_MASK ? fpu_disabled : !fpu_disabled);
+	int *disabled = PERCPU_GET(fpu_disabled);
+        assert(fpu_read_cr0() & FPU_DISABLED_MASK ? *disabled : !*disabled);
 
-        return fpu_disabled;
+        return *disabled;
 }
 
 static inline int
@@ -201,7 +207,7 @@ fpu_set(int status)
 static inline void
 fxsave(struct thread *thd)
 {
-        if (fpu_support_fxsr)
+        if (*PERCPU_GET(fpu_support_fxsr))
                 asm volatile("fxsave %0" : "=m" (thd->fpu));
         else
                 asm volatile("fsave %0" : "=m" (thd->fpu));
@@ -213,7 +219,7 @@ fxsave(struct thread *thd)
 static inline void
 fxrstor(struct thread *thd)
 {
-        if (fpu_support_fxsr)
+        if (*PERCPU_GET(fpu_support_fxsr))
                 asm volatile("fxrstor %0" : : "m" (thd->fpu));
         else
                 asm volatile("frstor %0" : : "m" (thd->fpu));

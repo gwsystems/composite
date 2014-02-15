@@ -74,13 +74,15 @@ void read_ltoc(void)
 {
 	char *addr, *start;
 	unsigned long i, sz;
-	unsigned short int bid;
+	int acap, srv_acap;
 	int direction;
 	int channel = COS_TRANS_SERVICE_PONG;
 	char buf[512];
 
+	printc("Translator LtoC test\n");
 	direction = cos_trans_cntl(COS_TRANS_DIRECTION, channel, 0, 0);
 	if (direction < 0) {
+		printc("LtoC channel doesn't exist.\n");
 		channels[channel].exists = 0;
 		return;
 	}  
@@ -98,19 +100,25 @@ void read_ltoc(void)
 
 	assert(direction == COS_TRANS_DIR_LTOC);
 
-	bid = cos_brand_cntl(COS_BRAND_CREATE, 0, 0, cos_spd_id());
-	assert(bid > 0);
-	assert(!cos_trans_cntl(COS_TRANS_BRAND, channel, bid, 0));
-	if (sched_add_thd_to_brand(cos_spd_id(), bid, cos_get_thd_id())) BUG();
+	acap = cos_async_cap_cntl(COS_ACAP_CREATE, cos_spd_id(), cos_spd_id(), 
+				  cos_get_thd_id() << 16 | cos_get_thd_id());
+	assert(acap);
+	/* cli acap not used. Linux thread will be triggering the
+	 * acap. We set the cli acap owner to the current thread for
+	 * access control only.*/
+	srv_acap = acap & 0xFFFF;
+	cos_trans_cntl(COS_TRANS_ACAP, channel, srv_acap, 0);
 
+	printc("Measuring...\n");
 	while (1) {
 		int ret, i;
 		char *p;
 		struct channel_info *info;
 		unsigned long long *t, local_t;
-//		printc("going to wait for input...\n");
-		if (-1 == (ret = cos_brand_wait(bid))) BUG();
+		/* printc("going to wait for input...\n"); */
+		if ((ret = cos_ainv_wait(srv_acap)) < 0) BUG();
 		rdtscll(local_t);
+
 		ret = cringbuf_consume(&channels[channel].rb, buf, 512);
 		p = buf;
 //		while (*p != '\0') {
@@ -118,6 +126,7 @@ void read_ltoc(void)
 		meas[idx++] = (local_t - *t);
 		assert(local_t > *t);
 //		printc("local t %llu, start %llu, diff %u\n", local_t, *t, meas[idx-1]);
+//		printc("%c", *p);
 		*p = '\0';
 //			p++;
 //		}

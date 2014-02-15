@@ -169,6 +169,7 @@ long evt_create(spdid_t spdid)
 		if (NULL == e) goto err;
 	}
 	e->extern_id = mapping_create(e);
+	e->n_received = 0;
 	if (0 > e->extern_id) goto free_evt_err;
 	ret = e->extern_id;
 done:
@@ -273,8 +274,9 @@ err:
 	
 }
 
-/* Wait for a specific event */
-int evt_wait(spdid_t spdid, long extern_evt)
+/* volatile int bid = 0; */
+
+int __evt_wait(spdid_t spdid, long extern_evt, int n)
 {
 	struct evt *e;
 
@@ -286,24 +288,46 @@ int evt_wait(spdid_t spdid, long extern_evt)
 		if (NULL == e) goto err;
 		if (0 > (ret = __evt_read(e))) goto err;
 		ACT_RECORD(ACT_WAIT, spdid, e->extern_id, cos_get_thd_id(), 0);
+		e->n_wait = n;
+		e->core_id = cos_cpuid();
+		if (ret == 1) e->n_received = 0;
 		lock_release(&evt_lock);
 		if (1 == ret) {
 			assert(extern_evt == e->extern_id);
 			return 0;
 		} else {
 			ACT_RECORD(ACT_SLEEP, spdid, e->extern_id, cos_get_thd_id(), 0);
+
+			/* We can use acaps to block / wakeup, which
+			 * can avoid calling scheduler. But it's like
+			 * a hack. */
+
 			if (0 > sched_block(cos_spd_id(), 0)) BUG();
 		}
 	}
+
 err:
 	lock_release(&evt_lock);
 	return -1; 
+}
+
+/* Wait for a specific event */
+int evt_wait(spdid_t spdid, long extern_evt)
+{
+	return __evt_wait(spdid, extern_evt, 1);
+}
+
+/* Wait for a specific event */
+int evt_wait_n(spdid_t spdid, long extern_evt, int n)
+{
+	return __evt_wait(spdid, extern_evt, n);
 }
 
 int evt_trigger(spdid_t spdid, long extern_evt)
 {
 	struct evt *e;
 	int ret = 0;
+	cpuid_t core;
 
 	lock_take(&evt_lock);
 
@@ -311,10 +335,12 @@ int evt_trigger(spdid_t spdid, long extern_evt)
 	if (NULL == e) goto err;
 
 	ACT_RECORD(ACT_TRIGGER, spdid, e->extern_id, cos_get_thd_id(), 0);
+	core = e->core_id;
 	/* Trigger an event being waited for? */
 	if (0 != (ret = __evt_trigger(e))) {
 		lock_release(&evt_lock);
 		ACT_RECORD(ACT_WAKEUP, spdid, e->extern_id, cos_get_thd_id(), ret);
+
 		if (sched_wakeup(cos_spd_id(), ret)) BUG();
 	} else {
 		lock_release(&evt_lock);
