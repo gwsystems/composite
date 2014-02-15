@@ -154,9 +154,10 @@ struct sched_thd {
 	struct sched_thd *cevt_next, *cevt_prev;
 
 	/* If we have been killed, and are going to be reused, we have
-	 * to call the fp_create_spd_thd function with a specific
-	 * spdid...stored here. */
+	 * to upcall into the specified spdid...stored here. */
+	/* ... and its init_data */
 	spdid_t spdid;
+	int init_data;
 };
 
 struct sched_crit_section {

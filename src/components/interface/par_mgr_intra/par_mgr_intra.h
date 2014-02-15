@@ -1,12 +1,12 @@
-#ifndef ACAP_MGR_INTRA_H
-#define ACAP_MGR_INTRA_H
+#ifndef PAR_MGR_INTRA_H
+#define PAR_MGR_INTRA_H
 
 #include <ck_ring_cos.h>
-#include <../acap_mgr/acap_shared.h>
+#include <../par_mgr/par_shared.h>
 
 #define MAX_NESTED_PAR_LEVEL 8
 
-int par_acap_lookup(int spdid, int n, int nest_level);
+int par_acap_lookup(int spdid, int n, int nest_level, int thd_init_idx);
 int par_create(int spdid, int n_request); // called by client
 void *par_ring_lookup(int spdid, int n, int nest_level);
 int par_acap_get_barrier(int spdid, int nest_level);
@@ -28,4 +28,4 @@ struct intra_inv_data {
 CK_RING(intra_inv_data, intra_inv_ring);
 #endif
 
-#endif /* !ACAP_MGR_INTRA_H */
+#endif /* !PAR_MGR_INTRA_H */

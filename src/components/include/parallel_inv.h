@@ -1,7 +1,7 @@
 #ifndef PARALLEL_INV_H
 #define PARALLEL_INV_H
 
-#include <acap_mgr_intra.h>
+#include <par_mgr_intra.h>
 #include <ck_pr.h>
 #include <cos_alloc.h>
 #include <mem_mgr_large.h>
@@ -54,8 +54,8 @@ init_intra_shared_page(struct intra_shared_struct *curr, void *page) {
 	 * page. (First cache line is used for the server thread
 	 * active flag)*/
 	curr->server_active = (int *)page;
-	/* ring initialized by acap mgr. see comments in
-	 * alloc_share_page in acap_mgr. */
+	/* ring initialized by par mgr. see comments in
+	 * alloc_share_page in par_mgr. */
 	curr->ring = (CK_RING_INSTANCE(intra_inv_ring) *) (page + CACHE_LINE);
 }
 
@@ -136,6 +136,8 @@ err_nomem:
 	return -1;
 }
 
+int cos_intra_ainv_handling(void);
+
 static inline int
 parallel_send(void *fn, void *data)
 {
@@ -159,9 +161,12 @@ parallel_send(void *fn, void *data)
 		/* Not used before for the current nesting level. Set
 		 * it up. */
 		for (i = 0; i < n_acap; i++) {
+			int idx;
 			curr_cap = &par_team->cap[i];
 			assert(curr_cap->acap == 0);
-			curr_cap->acap = par_acap_lookup(cos_spd_id(), i, curr_nest);
+			
+			idx = cos_thd_init_alloc(&cos_intra_ainv_handling, NULL);
+			curr_cap->acap = par_acap_lookup(cos_spd_id(), i, curr_nest, idx);
 			curr_cap->shared_page = par_ring_lookup(cos_spd_id(), i, curr_nest);
 
 			assert(curr_cap && curr_cap->shared_page);
@@ -394,7 +399,16 @@ cos_multicast_distribution(struct par_srv_thd_info *curr)
 	struct intra_inv_data inv;
 	assert(ring);
 
-	while ((ret = par_acap_lookup(cos_spd_id(), n_acap, 0)) != 0) {
+
+	while (1) {
+		int idx = cos_thd_init_alloc(&cos_intra_ainv_handling, NULL);
+		ret = par_acap_lookup(cos_spd_id(), n_acap, 0, idx);
+
+		if (ret == 0) {
+			cos_thd_init_free(idx);
+			break;
+		}
+
 		curr_cap = &forward_acaps[n_acap];
 		curr_cap->acap = ret;
 		curr_cap->shared_page = par_ring_lookup(cos_spd_id(), n_acap, 0);

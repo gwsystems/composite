@@ -13,12 +13,12 @@
 #include <valloc.h>
 #include <mem_mgr_large.h>
 
-#include <acap_mgr.h>
-#include <acap_mgr_intra.h>
+#include <par_mgr.h>
+#include <par_mgr_intra.h>
 #include <bitmap.h>
 
-#define PAR_CREATION_SPIN
-#define PAR_BARRIER_SPIN
+//#define PAR_CREATION_SPIN
+//#define PAR_BARRIER_SPIN
 
 /* Use unicast for spin. */
 /* and multicast for IPI. */
@@ -81,7 +81,7 @@ struct comp_info {
 } comp_info[MAX_NUM_SPDS];
 
 
-static int create_thd_curr_prio(int core, int spdid) 
+static int create_thd_curr_prio(int core, int spdid, int thd_init_idx) 
 {
 	union sched_param sp, sp1;
 	int ret;
@@ -90,14 +90,14 @@ static int create_thd_curr_prio(int core, int spdid)
 
 	sp1.c.type = SCHEDP_CORE_ID;
 	sp1.c.value = core;
-	ret = sched_create_thd(spdid, sp.v, sp1.v, 0);
+	ret = cos_thd_create_remote(spdid, thd_init_idx, sp.v, sp1.v, 0);
 
 	if (!ret) BUG();
 
 	return ret;
 }
 
-static int create_thd_prio(int core, int prio, int spdid) {
+static int create_thd_prio(int core, int prio, int spdid, int thd_init_idx) {
 	union sched_param sp, sp1;
 	int ret;
 
@@ -106,7 +106,7 @@ static int create_thd_prio(int core, int prio, int spdid) {
 
 	sp1.c.type = SCHEDP_CORE_ID;
 	sp1.c.value = core;
-	ret = sched_create_thd(spdid, sp.v, sp1.v, 0);
+	ret = cos_thd_create_remote(spdid, thd_init_idx, sp.v, sp1.v, 0);
 
 	if (!ret) BUG();
 
@@ -131,7 +131,7 @@ static int shared_page_setup(int thd_id)
 
 	ring_mgr = (vaddr_t)alloc_page();
 	if (!ring_mgr) {
-		printc("acap_mgr: alloc ring buffer failed in mgr %ld.\n", cos_spd_id());
+		printc("par_mgr: alloc ring buffer failed in mgr %ld.\n", cos_spd_id());
 		goto err;
 	}
 
@@ -139,11 +139,11 @@ static int shared_page_setup(int thd_id)
 
 	ring_cli = (vaddr_t)valloc_alloc(cos_spd_id(), cspd, 1);
 	if (unlikely(!ring_cli)) {
-		printc("acap_mgr: vaddr alloc failed in client comp %d.\n", cspd);
+		printc("par_mgr: vaddr alloc failed in client comp %d.\n", cspd);
 		goto err_cli;
 	}
 	if (unlikely(ring_cli != mman_alias_page(cos_spd_id(), ring_mgr, cspd, ring_cli))) {
-		printc("acap_mgr: alias to client %d failed.\n", cspd);
+		printc("par_mgr: alias to client %d failed.\n", cspd);
 		goto err_cli_alias;
 	}
 	comp_info[cspd].cli_thd_info[cos_get_thd_id()]->cap_info[thd->cli_cap_id].cap_ring = ring_cli;
@@ -151,10 +151,10 @@ static int shared_page_setup(int thd_id)
 	ring_srv = (vaddr_t)valloc_alloc(cos_spd_id(), sspd, 1);
 	if (unlikely(!ring_srv)) {
 		goto err_srv;
-		printc("acap_mgr: vaddr alloc failed in server comp  %d.\n", sspd);
+		printc("par_mgr: vaddr alloc failed in server comp  %d.\n", sspd);
 	}
 	if (unlikely(ring_srv != mman_alias_page(cos_spd_id(), ring_mgr, sspd, ring_srv))) {
-		printc("acap_mgr: alias to server %d failed.\n", sspd);
+		printc("par_mgr: alias to server %d failed.\n", sspd);
 		goto err_srv_alias;
 	}
 	srv_thd_info[thd_id].srv_ring = ring_srv;
@@ -195,7 +195,7 @@ static inline int __srv_lookup(int spdid)
 	
 	return acap;
 err_spd:
-	printc("acap_mgr: upcall thread calling lookup from wrong component %d.\n", spdid);
+	printc("par_mgr: upcall thread calling lookup from wrong component %d.\n", spdid);
 	return -1;
 }
 
@@ -225,7 +225,7 @@ int acap_srv_ncaps(int spdid)
 	
 	return ncaps;
 err_spd:
-	printc("acap_mgr: upcall thread calling lookup from wrong component %d.\n", spdid);
+	printc("par_mgr: upcall thread calling lookup from wrong component %d.\n", spdid);
 	return -1;
 }
 
@@ -285,7 +285,7 @@ acap_cli_lookup_ring(int spdid, int cap_id)
 
 /* Return the acap (value) of the current thread (for the static cap_id) on
  * the client side. Major setup done in this function. */
-int acap_cli_lookup(int spdid, int cap_id) 
+int acap_cli_lookup(int spdid, int cap_id, int thd_init_idx) 
 {
 	int srv_thd_id, acap_id, acap_v, srv_acap, cspd, sspd, ret;
 	struct srv_thd_info *srv_thd;
@@ -324,7 +324,7 @@ int acap_cli_lookup(int spdid, int cap_id)
 	int cpu = 1;
 
 	/* create server thd. */
-	srv_thd_id = create_thd_curr_prio(cpu, sspd);
+	srv_thd_id = create_thd_curr_prio(cpu, sspd, thd_init_idx);
 	/* printc("Created handling thread %d on cpu %d\n", srv_thd_id, cpu); */
 	srv_thd = &srv_thd_info[srv_thd_id];
 	srv_thd->cli_spd_id = cspd;
@@ -354,18 +354,18 @@ int acap_cli_lookup(int spdid, int cap_id)
 
 	ret = shared_page_setup(srv_thd_id);
 	if (ret < 0) {
-		printc("acap_mgr: ring buffer allocation error!\n");
+		printc("par_mgr: ring buffer allocation error!\n");
 		goto err;
 	}
 
 	if (sched_wakeup(cos_spd_id(), srv_thd_id)) BUG();
 
-	/* printc("acap_mgr returning acap %d (%d), thd %d\n",  */
+	/* printc("par_mgr returning acap %d (%d), thd %d\n",  */
 	/*        acap_v, acap_v & ~COS_ASYNC_CAP_FLAG, cos_get_thd_id()); */
 
 	return acap_v;
 err_cap:
-	printc("acap_mgr: thread %d calling lookup for non-existing cap %d in component %d.\n",
+	printc("par_mgr: thread %d calling lookup for non-existing cap %d in component %d.\n",
 	       thd_id, cap_id, spdid);
 err:
 	return 0;
@@ -412,7 +412,7 @@ intra_shared_page_setup(int thd_id, struct per_cap_thd_info *cap_info)
 
 	ring_mgr = (vaddr_t)alloc_page();
 	if (!ring_mgr) {
-		printc("acap_mgr: alloc ring buffer failed in mgr %ld.\n", cos_spd_id());
+		printc("par_mgr: alloc ring buffer failed in mgr %ld.\n", cos_spd_id());
 		goto err;
 	}
 
@@ -420,11 +420,11 @@ intra_shared_page_setup(int thd_id, struct per_cap_thd_info *cap_info)
 
 	ring_cli = (vaddr_t)valloc_alloc(cos_spd_id(), cspd, 1);
 	if (unlikely(!ring_cli)) {
-		printc("acap_mgr: vaddr alloc failed in client comp %d.\n", cspd);
+		printc("par_mgr: vaddr alloc failed in client comp %d.\n", cspd);
 		goto err_cli;
 	}
 	if (unlikely(ring_cli != mman_alias_page(cos_spd_id(), ring_mgr, cspd, ring_cli))) {
-		printc("acap_mgr: alias to client %d failed.\n", cspd);
+		printc("par_mgr: alias to client %d failed.\n", cspd);
 		goto err_cli_alias;
 	}
 	cap_info->cap_ring = ring_cli;
@@ -569,7 +569,7 @@ assign_multicast(struct intra_comp *thd_comp)
 
 	return 0;
 err_mem:
-	printc("acap_mgr %ld: Cannot allocate memory for thd %d multicast structure.\n", cos_spd_id(), cos_get_thd_id());
+	printc("par_mgr %ld: Cannot allocate memory for thd %d multicast structure.\n", cos_spd_id(), cos_get_thd_id());
 	return -1;
 }
 
@@ -663,7 +663,7 @@ par_create(int spdid, int n_request)
 		int ncpu = 0;
 		assert(assign[0] == cos_cpuid()); // master thread should be on the first core!
 		while (assign[ncpu] >= 0) ncpu++;
-		printc("OMP getting %d cores\n", ncpu);
+		printc("par_mgr: OMP thread %d getting %d cores\n", curr, ncpu);
 		assert(ncpu <= NUM_CPU_COS);
 		thd_comp->n_cpu = ncpu;
 		assert(ncpu);
@@ -683,7 +683,7 @@ par_create(int spdid, int n_request)
 
 	return ret;
 err_mem:
-	printc("acap_mgr %ld: Cannot allocate memory for thd %d.\n", cos_spd_id(), curr);
+	printc("par_mgr %ld: Cannot allocate memory for thd %d.\n", cos_spd_id(), curr);
 	return -1;
 }
 
@@ -745,6 +745,7 @@ par_acap_get_barrier(int spdid, int nest_level)
 
 	if (curr_par->wait_acap > 0) {
 		assert(curr_par->wakeup_acap > 0);
+		ret = curr_par->wakeup_acap << 16 | curr_par->wait_acap;
 		goto done;
 	}
 	cspd = thd_comp->spdid;
@@ -767,13 +768,13 @@ par_acap_get_barrier(int spdid, int nest_level)
 		goto err;
 	}
 done:
-	return curr_par->wait_acap << 16 | curr_par->wakeup_acap;
+	return ret;
 err:
 	return 0;
 }
 
 static inline int 
-intra_acap_setup(struct intra_comp *comp, int nest_level, int i, const int spin)
+intra_acap_setup(struct intra_comp *comp, int nest_level, int i, const int spin, int thd_init_idx)
 {
 	int cli_acap, cspd, sspd, thd_id, cpu, ret, j;
 	struct srv_thd_info *srv_thd;
@@ -796,7 +797,7 @@ intra_acap_setup(struct intra_comp *comp, int nest_level, int i, const int spin)
 
 	/* create server thd and wire. */
 	/* printc("thd %d going to create thd on cpu %d, spd %d...\n", thd_id, cpu, sspd); */
-	srv_thd_id = create_thd_curr_prio(cpu, sspd);
+	srv_thd_id = create_thd_curr_prio(cpu, sspd, thd_init_idx);
 	/* printc("thd %d: got new thd id %d\n", thd_id, srv_thd_id); */
 	/* printc("Created handling thread %d on cpu %d\n", srv_thd_id, cpu); */
 	srv_thd = &srv_thd_info[srv_thd_id];
@@ -910,7 +911,7 @@ static inline int dist_thread_create(int dist_thd_id, int spdid, int n)
 
 	return 0;
 err_mem:
-	printc("acap_mgr %ld: Cannot allocate memory for thd %d.\n", cos_spd_id(), cos_get_thd_id());
+	printc("par_mgr %ld: Cannot allocate memory for thd %d.\n", cos_spd_id(), cos_get_thd_id());
 	return -1;
 }
 
@@ -962,14 +963,14 @@ static inline int dist_thread_create_bestcase(int dist_thd_id, int spdid, int n)
 
 	return 0;
 err_mem:
-	printc("acap_mgr %ld: Cannot allocate memory for thd %d.\n", cos_spd_id(), cos_get_thd_id());
+	printc("par_mgr %ld: Cannot allocate memory for thd %d.\n", cos_spd_id(), cos_get_thd_id());
 	return -1;
 }
 
 #define IPI_DIST_PRIO 2
 
 static inline int 
-distribution_acap_setup(struct intra_comp *comp, int nest_level, int i)
+distribution_acap_setup(struct intra_comp *comp, int nest_level, int i, int thd_init_idx)
 {
 	int cli_acap, cspd, sspd, thd_id, cpu, ret, j;
 	struct srv_thd_info *srv_thd;
@@ -992,7 +993,7 @@ distribution_acap_setup(struct intra_comp *comp, int nest_level, int i)
 
 	/* create server thd */
 	/* printc("thd %d going to create thd on cpu %d, spd %d...\n", cos_get_thd_id(), cpu, sspd); */
-	srv_thd_id = create_thd_prio(cpu, IPI_DIST_PRIO, sspd);
+	srv_thd_id = create_thd_prio(cpu, IPI_DIST_PRIO, sspd, thd_init_idx);
 	/* printc("thd %d: got new thd id %d\n", cos_get_thd_id(), srv_thd_id); */
 	printc("Created distribution thread %d on cpu %d @ prio %d\n", srv_thd_id, cpu, IPI_DIST_PRIO);
 	srv_thd = &srv_thd_info[srv_thd_id];
@@ -1043,9 +1044,9 @@ distribution_acap_setup(struct intra_comp *comp, int nest_level, int i)
 	}
 	for (j = 0; j < dist_thd->n_acap; j++) {
 #ifdef PAR_CREATION_SPIN
-		ret = intra_acap_setup(dist_thd, 0, j, 1);
+		ret = intra_acap_setup(dist_thd, 0, j, 1, thd_init_idx);
 #else
-		ret = intra_acap_setup(dist_thd, 0, j, 0);
+		ret = intra_acap_setup(dist_thd, 0, j, 0, thd_init_idx);
 #endif
 		assert(ret == 0);
 	}
@@ -1060,7 +1061,7 @@ err:
 
 /* Now support nested parallel. */
 int 
-par_acap_lookup(int spdid, int n, int nest_level)
+par_acap_lookup(int spdid, int n, int nest_level, int thd_init_idx)
 {
 	int ncpu, curr = cos_get_thd_id();
 	struct thd_intra_comp *curr_thd;
@@ -1097,12 +1098,12 @@ par_acap_lookup(int spdid, int n, int nest_level)
 			/* This means the master is looking for the
 			 * IPI distribution acap. */
 			assert(thd_comp->inter_socket > 0);
-			ret = distribution_acap_setup(thd_comp, nest_level, n);
+			ret = distribution_acap_setup(thd_comp, nest_level, n, thd_init_idx);
 		} else {
 #ifdef PAR_CREATION_SPIN
-			ret = intra_acap_setup(thd_comp, nest_level, n, 1);
+			ret = intra_acap_setup(thd_comp, nest_level, n, 1, thd_init_idx);
 #else
-			ret = intra_acap_setup(thd_comp, nest_level, n, 0);
+			ret = intra_acap_setup(thd_comp, nest_level, n, 0, thd_init_idx);
 #endif
 		}
 		assert(ret == 0);
@@ -1125,7 +1126,7 @@ int par_srv_thd_num_lookup(int spdid) {
 	
 	return thd->thd_num;
 err_spd:
-	printc("acap_mgr: upcall thread calling lookup from wrong component %d.\n", spdid);
+	printc("par_mgr: upcall thread calling lookup from wrong component %d.\n", spdid);
 	return -1;
 }
 
@@ -1148,7 +1149,7 @@ int par_parent_lookup(int spdid) {
 	
 	return thd->parent << 16 | thd->nesting_level;
 err_spd:
-	printc("acap_mgr: upcall thread calling lookup from wrong component %d.\n", spdid);
+	printc("par_mgr: upcall thread calling lookup from wrong component %d.\n", spdid);
 	return -1;
 }
 
@@ -1221,11 +1222,11 @@ done:
 	/* printc("init comp %d (ncaps %d)done\n", cspd, ncaps); */
 	return 0;
 err:
-	printc("acap_mgr: cannot allocate memory for acap mapping structure.");
+	printc("par_mgr: cannot allocate memory for acap mapping structure.");
 	return -1;
 }
 
-static inline int init_acap_mgr (void) 
+static inline int init_par_mgr (void) 
 {
 	int i;
 	
@@ -1245,15 +1246,14 @@ void cos_init(void)
 	struct srv_thd_info *srv_thd;
 	int srv_spd;
 
-	printc("ACAP mgr init: thd %d, core %ld\n", cos_get_thd_id(), cos_cpuid());
-	init_acap_mgr();
-#define PING_SPDID 9
-#define PONG_SPDID 8
-	int cspd = PING_SPDID, sspd = PONG_SPDID;
+	/* printc("PAR_mgr init: thd %d, core %ld\n", cos_get_thd_id(), cos_cpuid()); */
+	init_par_mgr();
+/* #define PING_SPDID 9 */
+/* #define PONG_SPDID 8 */
+/* 	int cspd = PING_SPDID, sspd = PONG_SPDID; */
+	/* redirect_cap_async(cspd, sspd); */
 
-	redirect_cap_async(cspd, sspd);
-
-	printc("ACAP mgr init done. thd %d, core %ld\n", cos_get_thd_id(), cos_cpuid());
+	printc("PAR_mgr init done. thd %d, core %ld\n", cos_get_thd_id(), cos_cpuid());
 
 	return;
 }

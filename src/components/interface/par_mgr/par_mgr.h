@@ -1,10 +1,10 @@
-#ifndef ACAP_MGR_H
-#define ACAP_MGR_H
+#ifndef PAR_MGR_H
+#define PAR_MGR_H
 
-#include "acap_shared.h"
+#include "par_shared.h"
 #include <ck_ring_cos.h>
 
-int acap_cli_lookup(int spdid, int s_cap);
+int acap_cli_lookup(int spdid, int s_cap, int thd_init_idx);
 void *acap_cli_lookup_ring(int spdid, int s_cap);
 void *acap_srv_lookup_ring(int spdid);
 int acap_srv_lookup(int spdid);
@@ -57,9 +57,9 @@ static void init_shared_page(struct shared_struct *curr, void *page) {
 	 * active flag)*/
 	curr->server_active = (int *)page;
 	/* ring initialized by acap mgr. see comments in
-	 * alloc_share_page in acap_mgr. */
+	 * alloc_share_page in par_mgr. */
 	curr->ring = (CK_RING_INSTANCE(inv_ring) *) (page + CACHE_LINE);
 	curr->ret_map =  page + PAGE_SIZE / 2;
 }
 
-#endif /* !ACAP_MGR_H */
+#endif /* !PAR_MGR_H */

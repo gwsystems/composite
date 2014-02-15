@@ -4,8 +4,8 @@
 #include <sched.h>
 #include <acap_pong.h>
 
-#include <acap_mgr.h> 
-#include <acap_mgr_intra.h>
+#include <par_mgr.h> 
+#include <par_mgr_intra.h>
 #include <cos_alloc.h> 
 
 #define ITER (1024)
@@ -99,12 +99,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	static int init = 0;
 	switch (t) {
-	case COS_UPCALL_AINV_HANDLER:
-	{
-		cos_intra_ainv_handling();
-		break;
-	}
-	case COS_UPCALL_BOOTSTRAP:
+	case COS_UPCALL_THD_CREATE:
 	{
 		if (init == 0) {//  add a sched type!
 			init = 1;

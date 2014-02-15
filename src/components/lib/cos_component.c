@@ -41,20 +41,68 @@ int cos_async_inv(struct usr_inv_cap *ucap, int *params)
 }
 
 __attribute__ ((weak))
+int cos_thd_entry_static(u32_t idx)
+{
+	*(int*)NULL = 0;
+
+	return 0;
+}
+
+/* 
+ * Cos thread creation data structures.
+ */
+struct __thd_init_data __thd_init_data[COS_THD_INIT_REGION_SIZE] CACHE_ALIGNED;
+
+static void cos_thd_entry_exec(u32_t idx) {
+	void (*fn)(void *);
+	void *data;
+
+	fn   = __thd_init_data[idx].fn;
+	data = __thd_init_data[idx].data;
+	/* and release the entry... might need a barrier here. */
+	__thd_init_data[idx].data = NULL;
+	__thd_init_data[idx].fn = NULL;
+
+	(fn)(data);
+}
+
+__attribute__ ((weak))
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
-	switch (t) {
-	case COS_UPCALL_BOOTSTRAP:
-	{
-		static int first = 1;
-		if (first) { 
-			first = 0; 
-			__alloc_libc_initilize(); 
-			constructors_execute();
-		}
-		cos_init(arg1);
-		break;
+	static int first = 1;
+	if (first) { 
+		first = 0; 
+		__alloc_libc_initilize(); 
+		constructors_execute();
 	}
+
+	switch (t) {
+	case COS_UPCALL_THD_CREATE:
+	/* New thread creation method passes in this type. */
+	{
+		/* A new thread is created in this comp. */
+		if (arg1 == 0) {
+			/* arg1 is the thread init data. 0 means
+			 * bootstrap. */
+			cos_init(NULL);
+		} else {
+			u32_t idx = (int)arg1 - 1;
+			if (idx >= COS_THD_INIT_REGION_SIZE) {
+				/* This means static defined entry */
+				cos_thd_entry_static(idx - COS_THD_INIT_REGION_SIZE);
+			} else {
+				/* Execute dynamic allocated entry. */
+				cos_thd_entry_exec(idx);
+			}
+		}
+		return;
+	}
+	/* Legacy path. */
+	/* case COS_UPCALL_BOOTSTRAP: */
+	/* { */
+	/* 	cos_init(arg1); */
+	/* 	break; */
+	/* } */
 	default:
 		/* fault! */
 		*(int*)NULL = 0;

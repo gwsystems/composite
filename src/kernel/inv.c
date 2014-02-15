@@ -19,8 +19,7 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include "include/fpu.h"
-
-//#include "include/shared/ck/include/ck_pr.h"
+#include "include/ipi.h"
 
 /* 
  * These are the 1) page for the pte for the shared region and 2) the
@@ -237,8 +236,6 @@ pop(struct pt_regs **regs_restore)
 	return inv_frame;	
 }
 
-extern int ainv_send_ipi(int cpuid, struct async_cap *cap_entry);
-
 static inline int __invoke_async_cap(unsigned int capability) {
 	struct spd *curr_spd;
 	struct async_cap *cap_entry;
@@ -266,13 +263,15 @@ static inline int __invoke_async_cap(unsigned int capability) {
 	}
 
 	cpu = cap_entry->cpu;
-	if (unlikely(cap_entry->srv_acap == NULL)) {
-		printk ("cos: capability %u not wired to any acap.\n", capability);
+	if (unlikely(cap_entry->srv_acap_id == 0 || cap_entry->srv_spd_id == 0)) {
+		printk ("cos: capability %u not wired to any acap. (spd %d, acap %d)\n", 
+			capability, cap_entry->srv_spd_id, cap_entry->srv_acap_id);
 		goto err;
 	}
-	/* printk("in async ipc, cap %d. sending to thd %d on core %d\n", */
-	/*        capability, upcall_thd, cpu); */
-	ainv_send_ipi(cpu, cap_entry->srv_acap);
+	/* printk("in async ipc, acap %d sending to acap %d (spd %d) on core %d\n", */
+	/*        capability, cap_entry->srv_acap_id, cap_entry->srv_spd_id, cpu); */
+
+	cos_send_ipi(cpu, cap_entry->srv_spd_id, cap_entry->srv_acap_id);
 
 	return 0;
 err:
@@ -429,10 +428,11 @@ void initialize_sched_info(struct thread *t, struct spd *curr_sched)
  * user-level.
  */
 COS_SYSCALL int 
-cos_syscall_create_thread(int spd_id, int a, int b, int c)
+cos_syscall_create_thread(int spd_id, int dest_spd_id, int a, int b)
 {
+	/* This upcalls into the dest_spd directly. */
 	struct thread *thd, *curr;
-	struct spd *curr_spd;
+	struct spd *sched_spd, *dest_spd;
 
 	/*
 	 * Lets make sure that the current spd is a scheduler and has
@@ -443,23 +443,29 @@ cos_syscall_create_thread(int spd_id, int a, int b, int c)
 	 * scheduler to create threads, i.e. when 0 == sched_depth.
 	 */
 	curr = core_get_curr_thd();
-	curr_spd = thd_validate_get_current_spd(curr, spd_id);
-	if (NULL == curr_spd) {
+	sched_spd = thd_validate_get_current_spd(curr, spd_id);
+	if (NULL == sched_spd) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
 		return -1;
 	}
 
-	if (!spd_is_scheduler(curr_spd)/* || !thd_scheduled_by(curr, curr_spd)*/) {
+	if (!spd_is_scheduler(sched_spd)/* || !thd_scheduled_by(curr, sched_spd)*/) {
 		/* 
 		 * FIXME: if initmm is the root, then the second to
 		 * root should be able to create threads. 
 		 */
-		//	if (!spd_is_root_sched(curr_spd)) {
+		//	if (!spd_is_root_sched(sched_spd)) {
 		printk("cos: non-scheduler attempted to create thread.\n");
 		return -1;
 	}
 
-	thd = thd_alloc(curr_spd);
+	dest_spd = spd_get_by_index(dest_spd_id);
+	if (NULL == dest_spd) {
+		printk("cos: requesting non-existed component %d\n", dest_spd_id);
+		return -1;
+	}
+
+	thd = thd_alloc(dest_spd);
 	if (thd == NULL) {
 		printk("cos: Could not allocate thread\n");
 		return -1;
@@ -467,20 +473,20 @@ cos_syscall_create_thread(int spd_id, int a, int b, int c)
 
 	/* FIXME: switch to using upcall_setup here */
 	thd->stack_ptr = 0;
-	thd->stack_base[0].current_composite_spd = curr_spd->composite_spd;
-	thd->stack_base[0].spd = curr_spd;
+	thd->stack_base[0].current_composite_spd = dest_spd->composite_spd;
+	thd->stack_base[0].spd = dest_spd;
 	/* FIXME: do this lazily */
-	spd_mpd_ipc_take((struct composite_spd *)curr_spd->composite_spd);
+	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
 
-	thd->regs.cx = COS_UPCALL_CREATE;
-	thd->regs.dx = curr_spd->upcall_entry;
+	thd->regs.cx = COS_UPCALL_THD_CREATE;
+	thd->regs.dx = dest_spd->upcall_entry;
 	thd->regs.bx = a;
 	thd->regs.di = b;	
-	thd->regs.si = c;
+	thd->regs.si = 0;
 	thd->regs.ax = thd_get_id(thd) | (get_cpuid() << 16);
 
 	thd->flags |= THD_STATE_CYC_CNT;
-	initialize_sched_info(thd, curr_spd);
+	initialize_sched_info(thd, sched_spd);
 	
 	return thd_get_id(thd);
 }
@@ -1689,9 +1695,11 @@ static int verify_trust(struct spd *truster, struct spd *trustee)
  * NOT performance sensitive: used to kick start spds and give them
  * active entities (threads).
  */
+/* init_data is the index in the data array for thread init. 0 means
+ * to bootstrap. */
 extern void cos_syscall_upcall(void);
 COS_SYSCALL int 
-cos_syscall_upcall_cont(int this_spd_id, int spd_id, struct pt_regs **regs)
+cos_syscall_upcall_cont(int this_spd_id, int spd_id, int init_data, struct pt_regs **regs)
 {
 	struct spd *dest, *curr_spd;
 	struct thread *thd;
@@ -1726,7 +1734,7 @@ cos_syscall_upcall_cont(int this_spd_id, int spd_id, struct pt_regs **regs)
 	spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(thd));//curr_spd->composite_spd);
 	//spd_mpd_ipc_take((struct composite_spd *)dest->composite_spd);
 
-	upcall_setup(thd, dest, COS_UPCALL_BOOTSTRAP, 0, 0, 0);
+	upcall_setup(thd, dest, COS_UPCALL_THD_CREATE, init_data, 0, 0);
 	*regs = &thd->regs;
 
 	cos_meas_event(COS_MEAS_UPCALLS);
@@ -2008,6 +2016,7 @@ ainv_next_thread(struct async_cap *acap, struct thread *preempted, int preempt)
 	 */
 	/* Added by Qi: Or if we receive an event for an acap that we
 	 * are not currently waiting on, do the same as above. */
+
 	if (upcall->flags & THD_STATE_ACTIVE_UPCALL || 
 	    (upcall->srv_acap && upcall->srv_acap != acap)) {
 		cos_meas_event(COS_MEAS_ACAP_PEND);
@@ -3277,7 +3286,8 @@ cos_syscall_ainv_wait_cont(int spd_id, int acap, int *preempt) {
 	/* 	goto ainv_wait_err; */
 	/* } */
 	if (unlikely(acap_entry->upcall_thd != thd_get_id(curr))) {
-		printk("cos: specified acap %d not one associated with %d\n", acap, thd_get_id(curr));
+		printk("cos: specified acap %d not one associated with %d (upcall_thd %d, spd %d)\n", 
+		       acap, thd_get_id(curr), acap_entry->upcall_thd, acap_entry->srv_spd_id);
 		goto ainv_wait_err;
 	}
 	curr->srv_acap = acap_entry;
@@ -3301,6 +3311,44 @@ static inline int alloc_acap_id(struct spd *spd){
 	}
 
 	return -1;
+}
+
+/* Only used by Linux smp_call_function mechanism. Not in use right
+ * now. */
+void handle_ipi_single(int data) {
+	handle_ipi_acap(data >> 16, data & 0xFFFF);
+}
+
+void cos_ipi_handling(void)
+{
+	int idx, end;
+	struct IPI_receiving_rings *receiver_rings;
+	struct xcore_ring *ring;
+
+	receiver_rings = &IPI_dest[get_cpuid()];
+
+	/* We need to scan the entire buffer once. */
+	idx = receiver_rings->start;
+	end = receiver_rings->start - 1; //end is int type. could be -1. 
+	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
+
+	// scan the first half
+	for (; idx < NUM_CPU; idx++) {
+		ring = &receiver_rings->IPI_source[idx];
+		if (ring->sender.tail != ring->receiver.head) {
+			process_ring(ring);
+		}
+	}
+
+	//scan the second half
+	for (idx = 0; idx <= end; idx++) {
+		ring = &receiver_rings->IPI_source[idx];
+		if (ring->sender.tail != ring->receiver.head) {
+			process_ring(ring);
+		}
+	}
+
+	return;
 }
 
 COS_SYSCALL int 
@@ -3379,10 +3427,11 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 		core_id = upcall_thd->cpu;
 		assert(core_id >= 0 && core_id < NUM_CPU);
 
-		/* printk("acap wiring comp %d, acap id %d to thd %d, core %d.\n",  */
-		/*        cli_acap->srv_spd_id, cli_acap_id, thd_id, cpu); */
 		cli_acap->cpu = core_id;
-		cli_acap->srv_acap = srv_acap;
+		cli_acap->srv_acap_id = srv_acap_id;
+
+		/* printk("acap create: comp %d, acap %d->%d, thd %d, core %d.\n", */
+		/*        cli_acap->srv_spd_id, cli_acap_id, srv_acap_id, upcall_thd_id, core_id); */
 
 		return cli_acap_id << 16 | srv_acap_id;
 	}
@@ -3482,7 +3531,7 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 		/* printk("acap wiring comp %d, acap id %d to thd %d, core %d.\n",  */
 		/*        cli_acap->srv_spd_id, cli_acap_id, thd_id, cpu); */
 		cli_acap->cpu = cpu;
-		cli_acap->srv_acap = srv_acap;
+		cli_acap->srv_acap_id = srv_acap_id;
 
 		/* printk("acap wiring done.\n", eid, thd, core); */
 		return 0;

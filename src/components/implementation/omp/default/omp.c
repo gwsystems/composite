@@ -27,7 +27,7 @@
 /* 	return 0; */
 /* } */
 
-#define ITER (100 * 1000)
+#define ITER (1 * 1000)
 unsigned int time0[ITER], time1[ITER];
 int core_access[NUM_CPU_COS];
 
@@ -96,6 +96,7 @@ int meas(void)
 		//printc("%u \n", time0[i], time1[i]);
 		sum += time0[i];
 		sum2 += time1[i];
+		printc("%d:%u\n", i, time0[i]);
 		if (time0[i] > max && i > 0) max = time0[i];
 		if (time1[i] > max2 && i > 0) max2 = time1[i];
 	}

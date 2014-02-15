@@ -20,6 +20,8 @@
 #include <linux/errno.h>
 /* global_flush_tlb */
 #include <asm/cacheflush.h>
+#include <asm/apic.h>
+#include <asm/ipi.h>
 /* fget */
 #include <linux/file.h>
 /* smp functions */
@@ -49,6 +51,7 @@
 #include "../../../kernel/include/fpu.h"
 
 #include "./hw_ints.h"
+#include "cos_irq_vectors.h"
 
 #include "pgtbl.h"
 #include "../../../kernel/include/chal.h"
@@ -63,6 +66,7 @@ extern void page_fault_interposition(void);
 extern void div_fault_interposition(void);
 extern void reg_save_interposition(void);
 extern void fpu_not_available_interposition(void);
+extern void ipi_handler(void);
 
 /* 
  * This variable exists for the assembly code for temporary
@@ -542,7 +546,7 @@ struct thread *ready_boot_thread(struct spd *init)
 	 * Linux in general), we will return to the _separate_ and
 	 * correct page-tables.
 	 */
-	printk("setting up boot thread\n");
+	printk("Setting up boot thread on core %d\n", get_cpuid());
 	this_pgtbl                   = &linux_pgtbls_per_core[get_cpuid()];
 	assert(this_pgtbl);
 	this_pgtbl->pg_tbl           = (paddr_t)(__pa(current->mm->pgd));
@@ -1196,6 +1200,34 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 
         return fpu_disabled_exception_handler();
 }
+
+void cos_ipi_handling(void);
+
+int ipi_received = 0;
+
+volatile int ipi_meas = 0;
+
+int 
+cos_ipi_ring_enqueue(u32_t dest, u32_t data);
+
+void ipi_meas_call_single(void *cap_entry) {
+	if (get_cpuid() == 1) {
+		smp_call_function_single(0, ipi_meas_call_single, NULL, 0);
+	} else {
+		ipi_meas = 1;
+	}
+}
+
+__attribute__((regparm(3))) void
+main_ipi_handler(struct pt_regs *rs, unsigned int irq)
+{
+	/* ack the ipi first. */
+	ack_APIC_irq();
+
+	cos_ipi_handling();
+
+        return;
+}
 	
 /*
  * Memory semaphore already held.
@@ -1529,19 +1561,37 @@ done:
 	return 0;
 }
 
-static void ainv_receive_ipi(void *cap_entry)
+void handle_ipi_single(int data);
+
+static void ainv_receive_ipi(void *data)
 {
-	if (unlikely(!cap_entry)) return;
-	/* printk("core %d, got an IPI for upcall thd %d!\n",  */
-	/*        get_cpuid(), ((struct async_cap *)cap_entry)->upcall_thd); */
-	chal_attempt_ainv((struct async_cap *)cap_entry);
+	if (unlikely(!data)) return;
+
+	handle_ipi_single((int)data);
 
 	return;
 }
 
-int ainv_send_ipi(int cpuid, struct async_cap *cap_entry)
+void chal_send_ipi(int cpuid) {
+	/* lowest-level IPI sending. the __default_send function is in
+	 * arch/x86/include/asm/ipi.h */
+
+	unsigned int cpu;
+	cpu = cpumask_next((unsigned int)-1, cpumask_of(cpuid));
+
+	__default_send_IPI_dest_field(
+		apic->cpu_to_logical_apicid(cpu), COS_IPI_VECTOR,
+		apic->dest_logical);
+
+	/* If BIGSMP is set, use following implementation! above is a
+	 * shortcut. */
+	/* apic->send_IPI_mask(cpumask_of(cpuid), COS_IPI_VECTOR); */
+}
+
+int ainv_send_ipi(int cpuid, int spdid, int acapid)
 {
-	smp_call_function_single(cpuid, ainv_receive_ipi, (void *)cap_entry, 0);
+	int data = spdid << 16 | acapid;
+	smp_call_function_single(cpuid, ainv_receive_ipi, (void *)data, 0);
 
 	return 0;
 }
@@ -1952,6 +2002,8 @@ static inline void hw_int_override_all(void)
 #ifdef FPU_ENABLED
         hw_int_override_idt(7, fpu_not_available_interposition, 0, 0);
 #endif
+	printk("cos: core %d enabling Composite IPI IRQ vector %x.\n", get_cpuid(), COS_IPI_VECTOR);
+	hw_int_cos_ipi(ipi_handler);
 
 	return;
 }
@@ -1971,7 +2023,7 @@ static void hw_init_other_cores(void *param)
 
 static int asym_exec_dom_init(void)
 {
-	printk("cos: Installing the hijack module.\n");
+	printk("cos (core %d): Installing the hijack module.\n", get_cpuid());
 	/* pt_regs in this linux version has changed... */
 	BUG_ON(sizeof(struct pt_regs) != (17*sizeof(long)));
 
@@ -1984,6 +2036,7 @@ static int asym_exec_dom_init(void)
 	/* Init all the other cores. */
 	smp_call_function(hw_init_other_cores, NULL, 1);
 //#endif
+
 	/* Consistency check. We define the THD_REGS = 8 in ipc.S. */
 	BUG_ON(offsetof(struct thread, regs) != 8);
 

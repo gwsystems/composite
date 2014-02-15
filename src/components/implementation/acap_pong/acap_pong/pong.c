@@ -2,7 +2,7 @@
 #include <print.h>
 #include <acap_pong.h>
 
-#include <acap_mgr.h>
+#include <par_mgr.h>
 #include <cos_alloc.h>
 #include <sched.h>
 
@@ -82,13 +82,7 @@ err_nomem:
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	switch (t) {
-	case COS_UPCALL_AINV_HANDLER:
-	{
-		cos_ainv_handling();
-		//cos_intra_ainv_handling();
-		break;
-	}
-	case COS_UPCALL_BOOTSTRAP:
+	case COS_UPCALL_THD_CREATE:
 	{
 		cos_ainv_handling();
 		break;

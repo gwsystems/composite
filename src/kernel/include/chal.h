@@ -93,6 +93,9 @@ PERCPU_DECL(struct async_cap *, cos_timer_acap);
 
 int chal_attempt_ainv(struct async_cap *acap);
 
+/* IPI sending */
+void chal_send_ipi(int cpuid);
+
 /* static const struct cos_trans_fns *trans_fns = NULL; */
 void chal_idle(void);
 

@@ -2,7 +2,7 @@ C_OBJS=omp_jacobi.o
 ASM_OBJS=
 COMPONENT=cos_jacobi.o
 INTERFACES=omp
-DEPENDENCIES=mem_mgr_large sched valloc printc acap_mgr_intra timed_blk lock
+DEPENDENCIES=mem_mgr_large sched valloc printc par_mgr_intra timed_blk lock
 IF_LIB=../complib.o /usr/lib/libm.a
 
 include ../../Makefile.subsubdir

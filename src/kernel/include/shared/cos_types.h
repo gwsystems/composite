@@ -313,10 +313,8 @@ struct cos_component_information {
 
 typedef enum {
 	COS_UPCALL_ACAP_COMPLETE,
-	COS_UPCALL_BOOTSTRAP,
-	COS_UPCALL_CREATE,
+	COS_UPCALL_THD_CREATE,
 	COS_UPCALL_DESTROY,
-	COS_UPCALL_AINV_HANDLER,
 	COS_UPCALL_UNHANDLED_FAULT
 } upcall_type_t;
 
@@ -598,5 +596,10 @@ static inline void cos_ref_release(atomic_t *rc)
 	
 	cos_meas_event(COS_MPD_REFCNT_DEC);
 }
+
+// The init_data is integrated in the sched_param struct. We have 8 bits
+#define COS_THD_INIT_REGION_SIZE (((NUM_CPU*8) > (1<<8)) ? (1<<8) : (NUM_CPU*8))
+// Static entries are after the dynamic allocated entries
+#define COS_STATIC_THD_ENTRY(i) ((i + COS_THD_INIT_REGION_SIZE + 1))
 
 #endif /* TYPES_H */

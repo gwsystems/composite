@@ -117,7 +117,7 @@ extern struct cos_component_information cos_comp_info;
 static inline void
 mm_init(void)
 {
-	printc("mm init as thread %d\n", cos_get_thd_id());
+	printc("core %ld: mm init as thread %d\n", cos_cpuid(), cos_get_thd_id());
 
 	/* Expanding VAS. */
 	printc("mm expanding %lu MBs @ %p\n", (NREGIONS-1) * round_up_to_pgd_page(1) / 1024 / 1024, 
@@ -130,6 +130,7 @@ mm_init(void)
 	}
 
 	frame_init();
+	printc("core %ld: mm init done\n", cos_cpuid());
 }
 
 /*************************************/
@@ -544,7 +545,7 @@ sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd) { BUG(); return 0; }
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	switch (t) {
-	case COS_UPCALL_BOOTSTRAP:
+	case COS_UPCALL_THD_CREATE:
 		if (cos_cpuid() == INIT_CORE) {
 			int i;
 			for (i = 0; i < NUM_CPU; i++)

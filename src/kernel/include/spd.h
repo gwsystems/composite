@@ -84,13 +84,15 @@ struct async_cap {
 	// client acap
 	int id;
 	int srv_spd_id;
-	int owner_thd;
+	int srv_acap_id;
 	long cpu;
-	struct async_cap *srv_acap;
-	unsigned int ref_cnt; // remove because we have 1-to-1 mapping
+
+	int owner_thd;
 	int allocated;
 
 	// server acap
+	/* int id; */
+	/* int srv_spd_id; */
 	int upcall_thd;
 	unsigned int pending_upcall;
 } CACHE_ALIGNED;

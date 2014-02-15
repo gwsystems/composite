@@ -1,9 +1,18 @@
 #include <cos_component.h>
 #include <print.h>
 #include <cos_alloc.h>
-#include <acap_mgr.h>
+#include <par_mgr.h>
+#include <sched.h>
 
 struct ainv_info *thd_ainv[MAX_NUM_THREADS]; // TODO: replace with cvect 
+
+int cos_thd_entry_static(u32_t idx)
+{
+	printc("No implementation yet.\n");
+	BUG();
+
+	return 0;
+}
 
 int cos_async_inv(struct usr_inv_cap *ucap, int *params) {
 	int cap_id = ucap->cap_no >> COS_CAPABILITY_OFFSET;
@@ -31,7 +40,7 @@ int cos_async_inv(struct usr_inv_cap *ucap, int *params) {
 	acap = curr_cap->acap;
 	if (unlikely(acap == 0 && curr_cap->static_inv == 0)) {
 		// call acap mgr
-		acap = acap_cli_lookup(cos_spd_id(), cap_id);
+		acap = acap_cli_lookup(cos_spd_id(), cap_id, COS_STATIC_THD_ENTRY(0));
 		/* printc("Client acap lookup %d\n", acap); */
 		if (acap != 0) {
 			curr_cap->acap = acap;

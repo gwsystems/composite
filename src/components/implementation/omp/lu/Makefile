@@ -2,7 +2,7 @@ C_OBJS=omp_lu.o
 ASM_OBJS=
 COMPONENT=cos_lu.o
 INTERFACES=omp
-DEPENDENCIES=mem_mgr_large sched valloc printc acap_mgr_intra timed_blk lock
+DEPENDENCIES=mem_mgr_large sched valloc printc par_mgr_intra timed_blk lock
 IF_LIB=../complib.o
 
 include ../../Makefile.subsubdir

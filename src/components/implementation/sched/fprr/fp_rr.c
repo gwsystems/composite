@@ -410,11 +410,12 @@ thread_param_set(struct sched_thd *t, struct sched_param_s *ps)
 			break;
 #endif
 		default:
-			printc("unknown priority option\n");
+			printc("fprr: core %ld received unknown priority option\n", cos_cpuid());
 			prio = PRIO_LOW;
 		}
 		ps++;
 	}
+	/* printc("fprr: cpu %d has new thd %d @ prio %d\n", cos_cpuid(), t->id, prio); */
 	if (sched_thd_ready(t)) fp_rem_thd(t);
 
 	fp_add_thd(t, prio);

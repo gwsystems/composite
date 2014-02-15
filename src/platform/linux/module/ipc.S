@@ -341,10 +341,11 @@ cos_syscall_idle:
 cos_syscall_upcall:
 	pushl $0
 	pushl %esp
+	pushl %esi
 	pushl %ebx /* spd_id to upcall to */
 	pushl %edx /* this spd_id */
 	call cos_syscall_upcall_cont
-	addl $12, %esp
+	addl $16, %esp
 	popl %ebx  /* regs */
 
 	cmpl $-1, %eax
@@ -354,6 +355,10 @@ cos_syscall_upcall:
 	movl %ecx, (COS_SYSCALL_EDX)(%esp)
 	movl PT_ECX(%ebx), %ecx
 	movl %ecx, (COS_SYSCALL_ECX)(%esp)
+	/* Pass upcall arguments. */
+	movl PT_ESI(%ebx), %esi
+	movl PT_EDI(%ebx), %edi
+	movl PT_EBX(%ebx), %ebx
 	/* movl %ebx, (COS_SYSCALL_EDX)(%esp)*/
 	/* eax remains as the thread id + cpuid */
 upcall_err:	

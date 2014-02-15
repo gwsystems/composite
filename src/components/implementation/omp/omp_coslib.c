@@ -8,8 +8,6 @@
 #include <parallel_inv.h>
 #include <cos_synchronization.h>
 
-/* // printf ?  */
-
 int omp_get_thread_num() {
 	/* The value is not valid when nested parallel presents. */
 	return ainv_get_thd_num();
@@ -102,51 +100,16 @@ int GOMP_parallel_end() {
 }
 
 extern int main(void);
-extern void __alloc_libc_initilize();  
 
-void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
-{
-	switch (t) {
-	case COS_UPCALL_BOOTSTRAP:
-	{
-		static int first = 1, second = 1;
-		if (first) {
-			first = 0;
+void cos_init() {
+	union sched_param sp;
+	int ret;
 
-			__alloc_libc_initilize();
-			constructors_execute();
+	sp.c.type = SCHEDP_PRIO;
+	sp.c.value = 10;
 
-			union sched_param sp;
-			int ret;
+	ret = cos_thd_create(main, NULL, sp.v, 0, 0);
+	if (!ret) BUG();
 
-			sp.c.type = SCHEDP_PRIO;
-			sp.c.value = 10;
-
-			ret = sched_create_thd(cos_spd_id(), sp.v, 0, 0);
-			if (!ret) BUG();
-
-			return;
-		} else if (second){
-			second = 0;
-
-			printc("cpu %ld, thd %d calling omp main in comp %ld!\n",
-			       cos_cpuid(), cos_get_thd_id(), cos_spd_id());
-			main(); //
-			printc("cpu %ld, thd %d omp main done in comp %ld!\n",
-			       cos_cpuid(), cos_get_thd_id(), cos_spd_id());
-			
-			return;
-		} else {
-			cos_intra_ainv_handling();
-			return;
-		}
-		break;
-	}
-	default:
-		/* fault! */
-		*(int*)NULL = 0;
-		return;
-	}
 	return;
 }
-
