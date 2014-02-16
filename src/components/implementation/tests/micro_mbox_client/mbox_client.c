@@ -9,7 +9,7 @@
 #include <evt.h>
 #include <torrent.h>
 #include <periodic_wake.h>
-#define ITER 10
+#define  ITER 10
 void parse_args(int *p, int *n)
 {
 	char *c;
@@ -31,11 +31,11 @@ void parse_args(int *p, int *n)
 }
 void cos_init(void *arg)
 {
-        td_t t1, serv;
+	td_t t1, serv;
 	long evt;
 	char *params1 = "foo", *params2 = "", *d;
 	int period, num, ret, sz, i, j;
-        u64_t start = 0, end = 0, re_cbuf;
+	u64_t start = 0, end = 0, re_cbuf;
 	cbufp_t cb1;
 
 	union sched_param sp;
@@ -50,16 +50,16 @@ void cos_init(void *arg)
 	}
 	evt = evt_split(cos_spd_id(), 0, 0);
 	assert(evt > 0);
-      	serv = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_RW, evt);
+	serv = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_RW, evt);
 	if (serv < 1) {
 		printc("UNIT TEST FAILED: split1 failed %d\n", serv); 
 	}
 	evt_wait(cos_spd_id(), evt);
 	printc("client split successfully\n");
-        sz = 4096;
+	sz = 4096;
 	j = 1000*ITER;
 	rdtscll(start);
-        for (i=1; i<=j; i++) {
+	for (i=1; i<=j; i++) {
 		if (i == j)    rdtscll(end);
 		d = cbufp_alloc(sz, &cb1);
 		if (!d) goto done;
@@ -78,20 +78,20 @@ void cos_init(void *arg)
 	parse_args(&period, &num);
 	periodic_wake_create(cos_spd_id(), period);
 	re_cbuf = 0;
-        for (i=1; i<=ITER; i++) {
-                for (j=0; j<num; j++) {
-                        rdtscll(start);
-                	d = cbufp_alloc(i*sz, &cb1);
-                        if (!d) goto done;
-                        cbufp_send_deref(cb1);
-                        rdtscll(end);
+	for (i=1; i<=ITER; i++) {
+		for (j=0; j<num; j++) {
+			rdtscll(start);
+			d = cbufp_alloc(i*sz, &cb1);
+			if (!d) goto done;
+			cbufp_send_deref(cb1);
+			rdtscll(end);
 			re_cbuf = re_cbuf+(end-start);
-                        rdtscll(end);
-                        ((u64_t *)d)[0] = end;
-                        ret = twritep(cos_spd_id(), serv, cb1, i*sz);
-                }
-                periodic_wake_wait(cos_spd_id());
-        }
+			rdtscll(end);
+			((u64_t *)d)[0] = end;
+			ret = twritep(cos_spd_id(), serv, cb1, i*sz);
+		}
+		periodic_wake_wait(cos_spd_id());
+	}
 	printc("Client: Period %d Num %d Cbuf %llu\n", period, num, re_cbuf/(num*ITER));
 done:
 	trelease(cos_spd_id(), serv);

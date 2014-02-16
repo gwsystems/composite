@@ -1,3 +1,5 @@
+#!/bin/sh
+
 ./cos_loader \
 "c0.o, ;llboot.o, ;*fprr.o, ;mm.o, ;print.o, ;boot.o, ;\
 \

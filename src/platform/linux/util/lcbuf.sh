@@ -5,7 +5,7 @@
 ./cos_loader \
 "c0.o, ;*fprr.o, ;mm.o, ;print.o, ;schedconf.o, ;st.o, ;bc.o, ;boot.o,a4;cg.o,a1;\
 \
-!mpool.o,a2;!smn.o,a2;!va.o,a1;!l.o,a8;!te.o,a3;!e.o,a3;!stat.o,a25;!tp.o,a4;!buf.o,a2;\
+!mpool.o,a2;!smn.o,a2;!va.o,a1;!l.o,a8;!te.o,a3;!e.o,a3;!stat.o,a25;!tp.o,a4;!buf.o,a2;!vm.o,a1\
 \
 (!top0.o=cbf_top.o),a10;\
 (!top1.o=cbf_top.o),a10;\
@@ -30,7 +30,8 @@ st.o-print.o;\
 schedconf.o-print.o;\
 bc.o-print.o;\
 boot.o-print.o|fprr.o|mm.o|cg.o;\
-va.o-print.o|fprr.o|mm.o|boot.o;\
+vm.o-print.o|fprr.o|mm.o|boot.o;\
+va.o-print.o|fprr.o|mm.o|boot.o|vm.o;\
 smn.o-print.o|fprr.o|mm.o|boot.o|va.o|mpool.o;\
 mpool.o-print.o|fprr.o|mm.o|boot.o|va.o;\
 buf.o-fprr.o|print.o|l.o|mm.o|boot.o|va.o|mpool.o;\

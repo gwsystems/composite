@@ -3,7 +3,7 @@
 ./cos_loader \
 "c0.o, ;llboot.o, ;*fprr.o, ;mm.o, ;print.o, ;boot.o, ;\
 \
-!l.o,a1;!va.o,a2;!vm.o,a1;!mpool.o,a3;!te.o,a3;!sm.o,a4;!e.o,a4;!buf.o,a5;!bufp.o, ;!tp.o,a6;!ucbuf1.o,a10;!ucbuf2.o, ;!stat.o,a25:\
+!l.o,a1;!va.o,a2;!mpool.o,a3;!te.o,a3;!sm.o,a4;!e.o,a4;!buf.o,a5;!bufp.o, ;!tp.o,a6;!ucbuf1.o,a10;!ucbuf2.o, ;!stat.o,a25;!vm.o,a1:\
 \
 c0.o-llboot.o;\
 fprr.o-print.o|[parent_]mm.o|[faulthndlr_]llboot.o;\

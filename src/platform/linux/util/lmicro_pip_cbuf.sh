@@ -22,9 +22,10 @@ mpool.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o;\
 tp.o-sm.o|buf.o|print.o|te.o|fprr.o|mm.o|va.o|mpool.o;\
 vm.o-fprr.o|print.o|mm.o|l.o|boot.o;\
 va.o-fprr.o|print.o|mm.o|l.o|boot.o|vm.o;\
+bufp.o-sm.o|fprr.o|print.o|l.o|mm.o|va.o|mpool.o|buf.o;\
 trans.o-sm.o|fprr.o|l.o|buf.o|bufp.o|mm.o|va.o|e.o|print.o;\
 \
 top.o-sm.o|fprr.o|mid.o|print.o;\
 mid.o-fprr.o|print.o|bot.o;\
-bot.o-fprr.o|print.o|buf.o|va.o|l.o|mm.o\
+bot.o-fprr.o|print.o|buf.o|bufp.o|va.o|l.o|mm.o|sm.o\
 " ./gen_client_stub

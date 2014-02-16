@@ -31,7 +31,7 @@ void parse_args(int *p, int *n)
 }
 void cos_init(void *arg)
 {
-        td_t t1 = td_root, cli;
+	td_t t1 = td_root, cli;
 	long evt1, evt2;
 	char *params1 = "foo", *params2 = "", *buf;
 	int period, num, sz, off, i, j;
@@ -51,12 +51,12 @@ void cos_init(void *arg)
 	assert(evt1 > 0);
 	evt2 = evt_split(cos_spd_id(), 0, 0);
 	assert(evt2 > 0);
-       	t1 = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_ALL | TOR_NONPERSIST, evt1);
+	t1 = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_ALL | TOR_NONPERSIST, evt1);
 	if (t1 < 1) {
 		printc("UNIT TEST FAILED: split failed %d\n", t1);
 	}
 	evt_wait(cos_spd_id(), evt1);
-       	cli = tsplit(cos_spd_id(), t1, params2, strlen(params2), TOR_RW, evt2);
+	cli = tsplit(cos_spd_id(), t1, params2, strlen(params2), TOR_RW, evt2);
 	if (cli < 1) {
 		printc("UNIT TEST FAILED: split1 failed %d\n", cli);
 	}
