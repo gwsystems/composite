@@ -10,7 +10,7 @@ void cos_init(void)
 	a = vas_mgr_expand(cos_spd_id(), cos_spd_id(), SERVICE_SIZE*2);
 	printc("vas expand @ %x.\n", (unsigned int)a);
 	if (a == 0) return;
-	t = mman_get_page(cos_spd_id(), a+SERVICE_SIZE, 0);
+	t = mman_get_page(cos_spd_id(), a+SERVICE_SIZE, MAPPING_RW);
 	printc("mapped page %x, target %x\n", 
 	       (unsigned int)t, (unsigned int)(a+SERVICE_SIZE));
 	if (t != a+SERVICE_SIZE) printc("vas ERROR\n");
