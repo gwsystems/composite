@@ -484,6 +484,11 @@ enum {
 };
 
 enum {
+	MAPPING_READ  = 0,
+	MAPPING_RW    = 1
+};
+
+enum {
 	COS_MMAP_GRANT,
 	COS_MMAP_REVOKE,
 	COS_MMAP_TLBFLUSH

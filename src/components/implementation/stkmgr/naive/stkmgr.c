@@ -98,7 +98,7 @@ mgr_map_client_mem(struct cos_stk_item *csi, struct spd_tmem_info *info)
 	csi->stk->flags = 0xDEADBEEF;
 	csi->stk->next = (void *)0xDEADBEEF;
 	stk_addr = (vaddr_t)(csi->hptr);
-	if(unlikely(d_addr != mman_alias_page(cos_spd_id(), stk_addr, d_spdid, d_addr))){
+	if (unlikely(d_addr != mman_alias_page(cos_spd_id(), stk_addr, d_spdid, d_addr, MAPPING_RW))){
 		printc("<stkmgr>: Unable to map stack into component");
 		BUG();
 	}
@@ -553,7 +553,7 @@ stkmgr_stack_introspect(spdid_t d_spdid, vaddr_t d_addr,
 	si = stkmgr_get_spds_stk_item(get_spd_info(s_spdid), s_addr);
 	if (!si) goto err;
 	
-	if(d_addr != mman_alias_page(cos_spd_id(), (vaddr_t)si->hptr, d_spdid, d_addr)){
+	if (d_addr != mman_alias_page(cos_spd_id(), (vaddr_t)si->hptr, d_spdid, d_addr, MAPPING_RW)){
 		printc("<stkmgr>: Unable to map stack into component during introspection\n");
 		BUG();
 	}

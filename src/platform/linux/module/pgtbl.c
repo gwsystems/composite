@@ -40,12 +40,14 @@ pgtbl_lookup_address(paddr_t pgtbl, unsigned long addr)
  */
 
 int
-chal_pgtbl_add(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr)
+chal_pgtbl_add(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr, int flags)
 {
 	pte_t *pte = pgtbl_lookup_address(pgtbl, (unsigned long)vaddr);
+	unsigned long kflags = _PAGE_PRESENT | _PAGE_USER | _PAGE_ACCESSED;
 
+	if (flags == MAPPING_RW) kflags |= _PAGE_RW;
 	if (!pte || pte_val(*pte) & _PAGE_PRESENT) return -1;
-	pte->pte_low = ((unsigned long)paddr) | (_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
+	pte->pte_low = ((unsigned long)paddr) | kflags;
 
 	return 0;
 }
