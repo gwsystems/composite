@@ -17,9 +17,15 @@ char temp[4096] __attribute__((aligned(4096)));
 int cos_sched_notifications __attribute__((weak));
 
 __attribute__ ((weak))
+int main(void)
+{
+	return 0;
+}
+
+__attribute__ ((weak))
 void cos_init(void *arg)
 {
-	return;
+	main();
 }
 
 __attribute__ ((weak))
@@ -103,12 +109,6 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		return;
 	}
 	return;
-}
-
-__attribute__ ((weak))
-int main(void)
-{
-	return 0;
 }
 
 __attribute__((weak)) 

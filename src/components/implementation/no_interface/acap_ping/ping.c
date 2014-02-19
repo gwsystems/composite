@@ -5,13 +5,12 @@
 #include <acap_pong.h>
 
 #include <par_mgr.h> 
-#include <par_mgr_intra.h>
 #include <cos_alloc.h> 
 
 #define ITER (1024)
 u64_t meas[ITER];
 
-#include <parallel_inv.h>
+#include <parlib.h>
 
 void delay(void)
 {

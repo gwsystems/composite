@@ -1,3 +1,3 @@
-INTERFACES=par_mgr par_mgr_intra
+INTERFACES=par_mgr
 
 include ../Makefile.subdir

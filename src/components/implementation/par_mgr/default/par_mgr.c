@@ -14,7 +14,6 @@
 #include <mem_mgr_large.h>
 
 #include <par_mgr.h>
-#include <par_mgr_intra.h>
 #include <bitmap.h>
 
 //#define PAR_CREATION_SPIN
@@ -85,7 +84,7 @@ static int create_thd_curr_prio(int core, int spdid, int thd_init_idx)
 {
 	union sched_param sp, sp1;
 	int ret;
-	sp.c.type = SCHEDP_RPRIO;
+	sp.c.type = SCHEDP_RPRIO; // same priority as the parent
 	sp.c.value = 0;
 
 	sp1.c.type = SCHEDP_CORE_ID;
@@ -385,7 +384,7 @@ struct intra_comp {
 	int inter_socket;  /* # of inter-socket acaps */
 	int dist_thd_idx;   /* > 0 if current is a distribution thd */
 	int *cpus;
-	struct nested_par_info nested_par[MAX_NESTED_PAR_LEVEL]; 
+	struct nested_par_info nested_par[MAX_OMP_NESTED_PAR_LEVEL]; 
 };
 
 struct thd_intra_comp {
@@ -440,7 +439,7 @@ intra_shared_page_setup(int thd_id, struct per_cap_thd_info *cap_info)
         //intra-comp do not need return region in the ring
 
 	CK_RING_INIT(intra_inv_ring, (CK_RING_INSTANCE(intra_inv_ring) *)((void *)ring_mgr + CACHE_LINE), NULL, 
-		     leqpow2((PAGE_SIZE - CACHE_LINE - sizeof(CK_RING_INSTANCE(intra_inv_ring))) / sizeof(struct intra_inv_data))); 
+		     leqpow2((PAGE_SIZE - CACHE_LINE - sizeof(CK_RING_INSTANCE(intra_inv_ring))) / sizeof(struct __intra_inv_data))); 
 	
 	return 0;
 
@@ -699,7 +698,7 @@ par_ring_lookup(int spdid, int n, int nest_level)
 	struct nested_par_info *curr_par;
 
 	/* printc("ring lookup spd %d, n %d, nest %d\n", spdid, n, nest_level); */
-	if (unlikely(nest_level >= MAX_NESTED_PAR_LEVEL || nest_level < 0)) goto err; 
+	if (unlikely(nest_level >= MAX_OMP_NESTED_PAR_LEVEL || nest_level < 0)) goto err; 
 
 	if (unlikely(thd_intra_comp[curr] == NULL)) goto err;
 	curr_thd = thd_intra_comp[curr];
@@ -1076,7 +1075,7 @@ par_acap_lookup(int spdid, int n, int nest_level, int thd_init_idx)
 	curr_thd = thd_intra_comp[curr];
 
 	if (unlikely(curr_thd->comp[spdid] == NULL)) goto err;
-	if (unlikely(nest_level > MAX_NESTED_PAR_LEVEL || nest_level < 0)) goto err; 
+	if (unlikely(nest_level > MAX_OMP_NESTED_PAR_LEVEL || nest_level < 0)) goto err; 
 
 	thd_comp = curr_thd->comp[spdid];
 	if (unlikely(n > thd_comp->n_acap)) goto err;

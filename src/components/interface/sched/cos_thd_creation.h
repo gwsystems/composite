@@ -3,7 +3,7 @@
 
 #include <cos_types.h>
 #include <res_spec.h>
-#include <sched.h>
+#include "sched.h"
 #include <print.h>
 #include <cos_debug.h>
 

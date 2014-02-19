@@ -10,22 +10,12 @@
 /* //cos specific  */
 #include <cos_alloc.h>
 #include <cos_synchronization.h>
+#include <parlib.h>
+#include <mem_mgr_large.h>
+
 #define printf printc
 
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
-
-/* int delay(void) { */
-/* 	int i, j; */
-/* 	volatile int mem = 0; */
-
-/* 	for (i = 0; i < 10; i++) { */
-/* 		for (j = 0; j < 10; j++) { */
-/* 			mem++; */
-/* 		} */
-/* 	} */
-
-/* 	return 0; */
-/* } */
 
 #define ITER (1 * 1000)
 unsigned int time0[ITER], time1[ITER];
@@ -43,7 +33,12 @@ int meas(void)
 	volatile int a, b = 0;
 	int i, j, my_id, loop;
 
-	/* printc("testing fpu...\n"); */
+	if (NUM_CPU_COS == 1) {
+		printc("Par test but Composite only has 1 cpu. No parallel execution can be done.\n");
+		printc("NUM_CPU needs to be greater than 2 to enable parallel execution in Composite.\n");
+	}
+
+	printc("testing fpu...\n");
 	volatile float f;
 	for (i = 10; i < 1000; i++) {
 		f = i;
@@ -55,7 +50,7 @@ int meas(void)
 			/*fpu test*/
 	}
 	if (f > 10000) return 0;
-	/* printc("testing fpu done.\n"); */
+	printc("testing fpu done.\n");
 
 #pragma omp parallel for
 	for (i = 0; i < NUM_CPU_COS; i++) 
@@ -82,6 +77,8 @@ int meas(void)
 
 		rdtscll(e);
 		time0[i] = e - s;
+		/* volatile int mem = 100000; */
+		/* while (mem-- > 0) ; */
 	}
 
 	/* for (i = 0; i < ITER; i+=4) { */

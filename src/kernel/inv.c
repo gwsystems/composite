@@ -3224,7 +3224,7 @@ static struct pt_regs *ainv_execution_completion(struct thread *curr, int *preem
 		struct thd_sched_info *tsi, *prev_tsi;
 		struct spd *dest;
 		int i;
-	
+
 		prev_tsi = thd_get_sched_info(curr, 0);
 		assert(prev_tsi->scheduler);
 

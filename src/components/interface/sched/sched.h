@@ -25,6 +25,6 @@ int sched_create_net_acap(spdid_t spdid, int acap_id, unsigned short int port);
 int sched_component_take(spdid_t spdid);
 int sched_component_release(spdid_t spdid);
 
-#include <cos_thd_creation.h>
+#include "cos_thd_creation.h"
 
 #endif 	    /* !SCHED_H */

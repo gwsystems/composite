@@ -1,10 +1,11 @@
-#ifndef PARALLEL_INV_H
-#define PARALLEL_INV_H
+#ifndef PARLIB_H
+#define PARLIB_H
 
-#include <par_mgr_intra.h>
 #include <ck_pr.h>
 #include <cos_alloc.h>
-#include <mem_mgr_large.h>
+#include "../interface/par_mgr/par_mgr.h"
+#include "../interface/sched/cos_thd_creation.h"
+#include "cos_synchronization.h"
 
 /* Structure of the ring buffer page. */
 struct intra_shared_struct {
@@ -34,7 +35,7 @@ struct par_thd_info {
 	int n_acap;     /* 0 means sequentially. Equals n_cpu - 1 */
 
 	int nest_level; /* nesting level of the current thread. */
-	struct nested_par_info nested_par[MAX_NESTED_PAR_LEVEL];
+	struct nested_par_info nested_par[MAX_OMP_NESTED_PAR_LEVEL];
 };
 
 extern struct par_thd_info *__par_thd_info[MAX_NUM_THREADS];
@@ -146,7 +147,7 @@ parallel_send(void *fn, void *data)
 	struct nested_par_info *par_team;
 	struct par_cap_info *curr_cap;
 	struct intra_shared_struct *shared_struct;
-	struct intra_inv_data inv;
+	struct __intra_inv_data inv;
 	unsigned long long s, e;
 
 	int curr_nest = curr_thd->nest_level - 1;;
@@ -183,8 +184,7 @@ parallel_send(void *fn, void *data)
 		/* printc("thd %d on core %ld pushing fn %d, data %d in the ring.\n", */
 		/*        cos_get_thd_id(), cos_cpuid(), (int)inv.fn, (int)inv.data); */
 		/* Write to the ring buffer. Spin when buffer is full. */
-		while (unlikely(!CK_RING_ENQUEUE_SPSC(intra_inv_ring, shared_struct->ring, &inv)))
-		{
+		while (unlikely(!CK_RING_ENQUEUE_SPSC(intra_inv_ring, shared_struct->ring, &inv))) {
 			if (s == 0) rdtscll(s);
 			rdtscll(e);
 			/* detect unusual delay */
@@ -220,7 +220,7 @@ ainv_parallel_start(void *fn, void *data, int max_par)
 	return 0;
 }
 
-int
+static inline int
 ainv_parallel_end(void)
 {
 	int curr_thd_id = cos_get_thd_id(), nest, wait_acap, ret;
@@ -350,13 +350,13 @@ ainv_get_max_thds(void)
 }
 
 static inline int
-multicast_send(struct par_cap_info acaps[], int n_acap, struct intra_inv_data *orig_inv)
+multicast_send(struct par_cap_info acaps[], int n_acap, struct __intra_inv_data *orig_inv)
 {
 	int i;
 	struct par_cap_info *curr_cap;
 	struct intra_shared_struct *shared_struct;
 	unsigned long long s, e;
-	struct intra_inv_data inv = *orig_inv;
+	struct __intra_inv_data inv = *orig_inv;
 
 	for (i = n_acap - 1; i >= 0; i--) { // sending to other cores
 		curr_cap = &acaps[i];
@@ -368,8 +368,7 @@ multicast_send(struct par_cap_info acaps[], int n_acap, struct intra_inv_data *o
 		/*        cos_get_thd_id(), cos_cpuid(), (int)inv.fn, (int)inv.data); */
 		/* Write to the ring buffer. Spin when buffer is full. */
 
-		while (unlikely(!CK_RING_ENQUEUE_SPSC(intra_inv_ring, shared_struct->ring, &inv)))
-		{
+		while (unlikely(!CK_RING_ENQUEUE_SPSC(intra_inv_ring, shared_struct->ring, &inv))) {
 			if (s == 0) rdtscll(s);
 			rdtscll(e);
 			/* detect unusual delay */
@@ -396,7 +395,7 @@ cos_multicast_distribution(struct par_srv_thd_info *curr)
 	struct par_cap_info forward_acaps[NUM_CORE_PER_SOCKET], *curr_cap;
 	struct intra_shared_struct *shared_struct = &curr->intra_shared_struct;
 	CK_RING_INSTANCE(intra_inv_ring) *ring = shared_struct->ring;
-	struct intra_inv_data inv;
+	struct __intra_inv_data inv;
 	assert(ring);
 
 
@@ -449,108 +448,7 @@ cos_multicast_distribution(struct par_srv_thd_info *curr)
 	return 0;
 }
 
-int
-cos_intra_ainv_handling(void)
-{
-	struct par_srv_thd_info curr_data;
-	struct par_srv_thd_info *curr = &curr_data;
-	/* for worker thread, we access thread number from this structure. */
-	struct par_thd_info thd_info;
-	struct intra_shared_struct *shared_struct;
-	struct nested_par_info *barrier_info;
-	struct intra_inv_data inv = { .data = 0 };
+int cos_intra_ainv_handling(void);
 
-	int acap, parent_id, nest_level, ret, barrier_acap;
-	int thd_id = cos_get_thd_id();
-
-	/* printc("upcall thread %d (core %ld) waiting in spd %ld...\n",  */
-	/*        cos_get_thd_id(), cos_cpuid(), cos_spd_id()); */
-	ret = sched_block(cos_spd_id(), 0);
-	assert(ret == 0);
-	/* printc("upcall thread %d (core %ld) up!\n", cos_get_thd_id(), cos_cpuid()); */
-
-	curr->acap = par_srv_acap_lookup(cos_spd_id());
-	acap = curr->acap;
-	/* printc("server %ld, upcall thd %d has acap %d.\n",  */
-	/*        cos_spd_id(), thd_id, acap); */
-
-	curr->shared_page = par_srv_ring_lookup(cos_spd_id());
-	init_intra_shared_page(&curr->intra_shared_struct, curr->shared_page);
-	assert(curr->shared_page);
-	shared_struct = &curr->intra_shared_struct;
-	CK_RING_INSTANCE(intra_inv_ring) *ring = shared_struct->ring;
-	assert(ring);
-
-	ret = par_parent_lookup(cos_spd_id());
-	if (ret == 0) {
-		/* This means the current thread is for multicast IPI
-		 * distribution. */
-		cos_multicast_distribution(curr);
-		return 0;
-	}
-
-	parent_id = ret >> 16;
-	nest_level = ret & 0xFFFF;
-	curr->parent = __par_thd_info[parent_id];
-	assert(curr->parent);
-	barrier_info = &curr->parent->nested_par[nest_level];
-	assert(barrier_info);
-	barrier_acap = barrier_info->wakeup_acap;
-
-	__par_thd_info[thd_id] = &thd_info;
-	thd_info.n_cpu = 0; /* means the current thread has no parallel yet. */
-	/* save the thd num on stack for efficiency. */
-	thd_info.thd_num = par_srv_thd_num_lookup(cos_spd_id());
-	thd_info.orig_thd_num = thd_info.thd_num;
-	thd_info.num_thds = curr->parent->n_cpu;
-	thd_info.orig_num_thds = thd_info.num_thds;
-	assert(thd_info.num_thds > 1);
-	SET_SERVER_ACTIVE(shared_struct); /* setting us active */
-
-	while (1) {
-		if (acap > 0) {
-			CLEAR_SERVER_ACTIVE(shared_struct); // clear active early to avoid race (and atomic instruction)
-			/*
-			 * If the ring buffer has no pending events for us to
-			 * act on, then we should wait for the next event
-			 * notification.
-			 */
-			while (CK_RING_DEQUEUE_SPSC(intra_inv_ring, ring, &inv) == false) {
-				/* printc("thread %d waiting on acap %d\n", cos_get_thd_id(), acap); */
-				ret = cos_ainv_wait(acap); 
-				assert(ret == 0);
-				/* printc("thread %d up from ainv_wait\n", cos_get_thd_id()); */
-			}
-			SET_SERVER_ACTIVE(shared_struct); /* setting us active */
-		} else {
-			while (CK_RING_DEQUEUE_SPSC(intra_inv_ring, ring, &inv) == false) ;
-		}
-		/* printc("core %ld, thd %d (thd num %d): got inv for data %d, fn %d\n", */
-		/*        cos_cpuid(), cos_get_thd_id(), ainv_get_thd_num(), (int)inv.data, (int)inv.fn); */
-		if (unlikely(!inv.fn)) {
-			printc("Server thread %d in comp %ld: terminating.\n",
-			       cos_get_thd_id(), cos_spd_id());
-			__par_thd_info[thd_id] = NULL;
-			break;
-		}
-
-		exec_fn(inv.fn, 1, (int *)&inv.data);
-		
-		ret = ck_pr_faa_32(&barrier_info->finished, 1); //fetch and incr
-		/* printc("worker thd %d on core %ld got bar %d\n", */
-		/*        cos_get_thd_id(), cos_cpuid(), ret); */
-
-		/* barrier_acap < 0 means the master will be spinning
-		 * for the synchronization. */
-		if (barrier_acap > 0 && (ret == curr->parent->n_cpu - 1)) {
-			/* printc("thd %d on core %ld sending to wakeup acap %d\n",  */
-			/*        cos_get_thd_id(), cos_cpuid(), barrier_info->wakeup_acap); */
-			cos_ainv_send(barrier_acap);
-		}
-	}
-
-	return 0;
-}
-
-#endif /* PARALLEL_INV_H */
+#endif /* PARLIB_H */
 
