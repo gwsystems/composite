@@ -343,29 +343,7 @@ done:
 int 
 tread(spdid_t spdid, td_t td, int cbid, int sz)
 {
-	int ret = -1;
-	struct torrent *t;
-	struct as_conn *ac;
-	char *buf;
-
-	if (tor_isnull(td)) return -EINVAL;
-
-	LOCK();
-	t = tor_lookup(td);
-	if (!t) ERR_THROW(-EINVAL, done);
-	assert(!tor_is_usrdef(td) || t->data);
-	if (!(t->flags & TOR_READ)) ERR_THROW(-EACCES, done);
-
-	buf = cbuf2buf(cbid, sz);
-	if (!buf) ERR_THROW(-EINVAL, done);
-	
-	ac = t->data;
-	ret = mbox_get(t, buf, sz, ac->owner != spdid);
-	if (ret < 0) goto done;
-	t->offset += ret;
-done:	
-	UNLOCK();
-	return ret;
+	return -ENOTSUP;
 }
 
 int 
@@ -385,7 +363,7 @@ treadp(spdid_t spdid, td_t td, int *off, int *sz)
 
 	ac = t->data;
 	ret = mbox_get(t, sz, off, ac->owner != spdid);
-	if (ret < 0) goto done;
+	if ((int)ret < 0) goto done;
 	t->offset += ret;
 done:	
 	UNLOCK();
