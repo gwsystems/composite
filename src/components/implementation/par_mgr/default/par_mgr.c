@@ -141,7 +141,7 @@ static int shared_page_setup(int thd_id)
 		printc("par_mgr: vaddr alloc failed in client comp %d.\n", cspd);
 		goto err_cli;
 	}
-	if (unlikely(ring_cli != mman_alias_page(cos_spd_id(), ring_mgr, cspd, ring_cli))) {
+	if (unlikely(ring_cli != mman_alias_page(cos_spd_id(), ring_mgr, cspd, ring_cli, MAPPING_RW))) {
 		printc("par_mgr: alias to client %d failed.\n", cspd);
 		goto err_cli_alias;
 	}
@@ -152,7 +152,7 @@ static int shared_page_setup(int thd_id)
 		goto err_srv;
 		printc("par_mgr: vaddr alloc failed in server comp  %d.\n", sspd);
 	}
-	if (unlikely(ring_srv != mman_alias_page(cos_spd_id(), ring_mgr, sspd, ring_srv))) {
+	if (unlikely(ring_srv != mman_alias_page(cos_spd_id(), ring_mgr, sspd, ring_srv, MAPPING_RW))) {
 		printc("par_mgr: alias to server %d failed.\n", sspd);
 		goto err_srv_alias;
 	}
@@ -422,7 +422,7 @@ intra_shared_page_setup(int thd_id, struct per_cap_thd_info *cap_info)
 		printc("par_mgr: vaddr alloc failed in client comp %d.\n", cspd);
 		goto err_cli;
 	}
-	if (unlikely(ring_cli != mman_alias_page(cos_spd_id(), ring_mgr, cspd, ring_cli))) {
+	if (unlikely(ring_cli != mman_alias_page(cos_spd_id(), ring_mgr, cspd, ring_cli, MAPPING_RW))) {
 		printc("par_mgr: alias to client %d failed.\n", cspd);
 		goto err_cli_alias;
 	}

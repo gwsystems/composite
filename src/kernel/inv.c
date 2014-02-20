@@ -1421,7 +1421,7 @@ cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, i
 		sz    = trans_fns->map_sz(channel);
 		if (off > sz) return -1;
 
-		if (chal_pgtbl_add(s->spd_info.pg_tbl, addr, (paddr_t)chal_va2pa(((char *)kaddr+off)))) {
+		if (chal_pgtbl_add(s->spd_info.pg_tbl, addr, (paddr_t)chal_va2pa(((char *)kaddr+off)), MAPPING_RW)) {
 			printk("cos: trans grant -- could not add entry to page table.\n");
 			return -1;
 		}
@@ -2802,7 +2802,7 @@ cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, unsigned lon
 		 * forces demand paging to not be used (explicitly
 		 * writing all of the pages itself).
 		 */
-		if (chal_pgtbl_add(spd->spd_info.pg_tbl, daddr, page)) {
+		if (chal_pgtbl_add(spd->spd_info.pg_tbl, daddr, page, flags)) {
 			printk("cos: mmap grant into %d @ %x -- could not add entry to page table.\n", 
 			       dspd_id, (unsigned int)daddr);
 			ret = -1;

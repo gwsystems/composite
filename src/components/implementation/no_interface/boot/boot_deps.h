@@ -20,8 +20,8 @@
 #define __sched_create_thread_default sched_create_thread_default
 
 /* memory operations... */
-#define __mman_get_page   mman_get_page
-#define __mman_alias_page mman_alias_page
+#define __local_mman_get_page   mman_get_page
+#define __local_mman_alias_page mman_alias_page
 
 #include <cinfo.h>
 #include <cos_vect.h>
@@ -36,7 +36,7 @@ cinfo_map(spdid_t spdid, vaddr_t map_addr, spdid_t target)
 	cinfo_addr = (vaddr_t)cos_vect_lookup(&spd_info_addresses, target);
 	if (0 == cinfo_addr) return -1;
 	if (map_addr != 
-	    (__mman_alias_page(cos_spd_id(), cinfo_addr, spdid, map_addr))) {
+	    (__local_mman_alias_page(cos_spd_id(), cinfo_addr, spdid, map_addr, MAPPING_RW))) {
 		return -1;
 	}
 

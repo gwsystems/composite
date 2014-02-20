@@ -222,22 +222,22 @@ static inline int
 __vpage2frame(vaddr_t addr) { return (addr - init_hp) / PAGE_SIZE; }
 
 static vaddr_t
-__mman_get_page(spdid_t spd, vaddr_t addr, int flags)
+__local_mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 {
-	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, cos_spd_id(), addr, frame_frontier++)) BUG();
+	if (cos_mmap_cntl(COS_MMAP_GRANT, flags, cos_spd_id(), addr, frame_frontier++)) BUG();
 	if (!init_hp) init_hp = addr;
 	return addr;
 }
 
 static vaddr_t
-__mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr)
+__local_mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr, int flags)
 {
 	int fp;
 
 	assert(init_hp);
 	fp = __vpage2frame(s_addr);
 	assert(fp >= 0);
-	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, d_spd, d_addr, fp)) BUG();
+	if (cos_mmap_cntl(COS_MMAP_GRANT, flags, d_spd, d_addr, fp)) BUG();
 	return d_addr;
 }
 

@@ -428,7 +428,6 @@ static int sched_switch_thread_target(int flags, report_evt_t evt, struct sched_
 		assert(!sched_thd_blocked(next));
 		report_event(SWITCH_THD);
 		timer_end(&t);
-
 		ret = cos_switch_thread_release(next->id, flags);
 
 		assert(ret != COS_SCHED_RET_ERROR);

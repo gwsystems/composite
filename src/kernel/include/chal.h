@@ -50,7 +50,7 @@ static inline void chal_pgtbl_switch(paddr_t pt);
 static inline void __chal_pgtbl_switch(paddr_t pt);
 
 /* Add a page to pgtbl at address. 0 on success */
-int     chal_pgtbl_add(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr);
+int     chal_pgtbl_add(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr, int flags);
 /* Translate a vaddr to an addressable address via pgtbl */
 vaddr_t chal_pgtbl_vaddr2kaddr(paddr_t pgtbl, unsigned long addr);
 /* Remove mapping for a vaddr from pgtbl. != 0 if mapping doesn't exist */

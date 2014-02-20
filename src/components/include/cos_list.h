@@ -16,6 +16,12 @@
 	(head)->next = (new);			  \
 	(new)->next->prev = (new); } while (0)
 
+#define APPEND_LIST(last, head, next, prev) do {  \
+	(last)->next->prev = (head)->prev;	  \
+	(head)->prev->next = (last)->next;	  \
+	(last)->next = (head);			  \
+	(head)->prev = (last); } while (0)
+
 #define REM_LIST(obj, next, prev) do {		  \
 	(obj)->next->prev = (obj)->prev;	  \
 	(obj)->prev->next = (obj)->next;	  \
