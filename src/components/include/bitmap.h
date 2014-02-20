@@ -45,6 +45,13 @@ pow2(u32_t x)
 	return (x & (x-1)) == 0;
 }
 
+static inline int 
+__power_2(const u32_t v)
+{
+	u32_t smallest_set_bit = (v & -v); /* Assume 2's complement */
+	return (v > 1 && smallest_set_bit == v);
+}
+
 /* next largest pow of 2, or identity if x is pow2 */
 static inline u32_t 
 nlepow2(u32_t x)
