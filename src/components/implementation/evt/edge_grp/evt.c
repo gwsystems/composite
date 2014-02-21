@@ -244,6 +244,11 @@ void evt_free(spdid_t spdid, long evt_id)
 	return; // ret;
 }
 
+long evt_wait_n(spdid_t spdid, long evt_id, int n) {
+	assert(0);
+	return -1;
+}
+
 long evt_wait(spdid_t spdid, long evt_id)
 {
 	long ret;

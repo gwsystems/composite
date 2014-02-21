@@ -40,8 +40,16 @@
 #include "../../sched/cos_sched_ds.h"
 #include "../../sched/cos_sched_sync.h"
 
+#if NUM_CPU_COS > 1
+#include <ck_spinlock.h>
+ck_spinlock_ticket_t xcore_lock = CK_SPINLOCK_TICKET_INITIALIZER;
+
+#define LOCK()   do { if (cos_sched_lock_take())   assert(0); ck_spinlock_ticket_lock_pb(&xcore_lock, 1); } while (0)
+#define UNLOCK() do { ck_spinlock_ticket_unlock(&xcore_lock); if (cos_sched_lock_release()) assert(0);    } while (0)
+#else
 #define LOCK()   if (cos_sched_lock_take())    assert(0);
 #define UNLOCK() if (cos_sched_lock_release()) assert(0);
+#endif
 
 #include <mem_mgr.h>
 
@@ -102,12 +110,27 @@ frame_init(void)
 	freelist = &frames[0];
 }
 
+#define NREGIONS 4
+
+extern struct cos_component_information cos_comp_info;
+
 static inline void
 mm_init(void)
 {
-	printc("mm init as thread %d\n", cos_get_thd_id());
+	printc("core %ld: mm init as thread %d\n", cos_cpuid(), cos_get_thd_id());
+
+	/* Expanding VAS. */
+	printc("mm expanding %lu MBs @ %p\n", (NREGIONS-1) * round_up_to_pgd_page(1) / 1024 / 1024, 
+	       (void *)round_up_to_pgd_page((unsigned long)&cos_comp_info.cos_poly[1]));
+	if (cos_vas_cntl(COS_VAS_SPD_EXPAND, cos_spd_id(), 
+			 round_up_to_pgd_page((unsigned long)&cos_comp_info.cos_poly[1]), 
+			 (NREGIONS-1) * round_up_to_pgd_page(1))) {
+		printc("MM could not expand VAS\n");
+		BUG();
+	}
 
 	frame_init();
+	printc("core %ld: mm init done\n", cos_cpuid());
 }
 
 /*************************************/
@@ -525,7 +548,7 @@ sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd) { BUG(); return 0; }
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	switch (t) {
-	case COS_UPCALL_BOOTSTRAP:
+	case COS_UPCALL_THD_CREATE:
 		if (cos_cpuid() == INIT_CORE) {
 			int i;
 			for (i = 0; i < NUM_CPU; i++)

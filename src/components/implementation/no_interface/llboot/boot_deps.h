@@ -130,7 +130,7 @@ llboot_thd_done(void)
 			comp_boot_nfo[s].initialized = 1;
 			
 			/* printc("core %ld: booter init_thd upcalling into spdid %d.\n", cos_cpuid(), (unsigned int)s); */
-			cos_upcall(s); /* initialize the component! */
+			cos_upcall(s, 0); /* initialize the component! */
 			BUG();
 		}
 		/* Done initializing; reboot!  If we are here, then
@@ -152,7 +152,7 @@ llboot_thd_done(void)
 		if (rspd) {             /* need to recover a component */
 			assert(pthd);
 			llboot->recover_spd = 0;
-			cos_upcall(rspd); /* This will escape from the loop */
+			cos_upcall(rspd, 0); /* This will escape from the loop */
 			assert(0);
 		} else {		/* ...done reinitializing...resume */
 			assert(pthd && pthd != tid);
@@ -194,7 +194,7 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 	 * it to restart the component!  This might even be the
 	 * initial thread.
 	 */
-	cos_upcall(spdid); 	/* FIXME: give back stack... */
+	cos_upcall(spdid, 0); 	/* FIXME: give back stack... */
 	BUG();
 
 	return 0;
@@ -257,9 +257,9 @@ static inline void boot_create_init_thds(void)
 	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)PERCPU_GET(cos_sched_notifications))) BUG();
 
 	llboot->alpha        = cos_get_thd_id();
-	llboot->recovery_thd = cos_create_thread((int)llboot_ret_thd, (int)0, 0);
+	llboot->recovery_thd = cos_create_thread(cos_spd_id(), 0, 0);
 	assert(llboot->recovery_thd >= 0);
-	llboot->init_thd     = cos_create_thread((int)llboot_ret_thd, 0, 0);
+	llboot->init_thd     = cos_create_thread(cos_spd_id(), 0, 0);
 	printc("Core %ld, Low-level booter created threads:\n\t"
 	       "%d: alpha\n\t%d: recov\n\t%d: init\n",
 	       cos_cpuid(), llboot->alpha, 
@@ -299,11 +299,10 @@ void
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	/* printc("core %ld: <<cos_upcall_fn as %d (type %d, CREATE=%d, DESTROY=%d, FAULT=%d)>>\n", */
-	/*        cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT); */
+	/*        cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_THD_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT); */
 	switch (t) {
-	case COS_UPCALL_CREATE:
+	case COS_UPCALL_THD_CREATE:
 		llboot_ret_thd();
-		((crt_thd_fn_t)arg1)();
 		break;
 	case COS_UPCALL_DESTROY:
 		llboot_thd_done();
@@ -312,7 +311,8 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		printc("Core %ld: Fault detected by the llboot component in thread %d: "
 		       "Major system error.\n", cos_cpuid(), cos_get_thd_id());
 	default:
-		while (1) ;
+		printc("Core %ld: thread %d in llboot receives undefined upcall.\n", 
+		       cos_cpuid(), cos_get_thd_id());
 		return;
 	}
 
@@ -365,3 +365,4 @@ sched_child_cntl_thd(spdid_t spdid)
 
 int 
 sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd) { BUG(); return 0; }
+

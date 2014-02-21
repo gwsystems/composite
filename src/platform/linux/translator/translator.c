@@ -22,7 +22,7 @@
 struct trans_channel {
 	char *mem; 		/* kernel address */
 	unsigned long size;
-	void *brand;
+	void *acap;
 	int cpuid;
 	int direction;
 
@@ -168,16 +168,14 @@ trans_read(struct file *f, char __user *b, size_t s, loff_t *o)
 
 extern void cos_trans_reg(const struct cos_trans_fns *fns);
 extern void cos_trans_dereg(void);
-extern void cos_trans_upcall(void *brand);
+extern void cos_trans_upcall(void *acap);
 
-static void xcore_brand(void *brand)
+static void xcore_trans_upcall(void *acap)
 {
-	cos_trans_upcall(brand);
+	cos_trans_upcall(acap);
 
 	return;
 }
-
-
 
 static ssize_t
 trans_write(struct file *f, const char __user *b, size_t s, loff_t *o)
@@ -185,12 +183,12 @@ trans_write(struct file *f, const char __user *b, size_t s, loff_t *o)
 	struct trans_channel *c = f->private_data;
 	BUG_ON(!c);
 
-	if (!c->brand) return -EINVAL;
-	//printl("trans_write\n");
+	if (!c->acap) return -EINVAL;
+
 	if (get_cpuid() == c->cpuid) {
-		cos_trans_upcall(c->brand);
+		cos_trans_upcall(c->acap);
 	} else {
-		smp_call_function_single(c->cpuid, xcore_brand, c->brand, 0);
+		smp_call_function_single(c->cpuid, xcore_trans_upcall, c->acap, 0);
 	}
 
 	return s;
@@ -264,7 +262,7 @@ void *trans_cos_map_kaddr(int channel)
 	return c->mem;
 }
 
-int trans_cos_brand_created(int channel, void *b)
+int trans_cos_acap_created(int channel, void *acap)
 {
 	struct trans_channel *c;
 
@@ -272,7 +270,7 @@ int trans_cos_brand_created(int channel, void *b)
 	c = channels[channel];
 	if (!c) return -1;
 
-	c->brand = b;
+	c->acap = acap;
 	c->cpuid = get_cpuid();
 
 	return 0;
@@ -283,7 +281,7 @@ const struct cos_trans_fns trans_fns = {
 	.direction     = trans_cos_direction,
 	.map_kaddr     = trans_cos_map_kaddr,
 	.map_sz        = trans_cos_map_sz,
-	.brand_created = trans_cos_brand_created,
+	.acap_created  = trans_cos_acap_created,
 };
 
 static long

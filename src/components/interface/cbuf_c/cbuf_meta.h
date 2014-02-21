@@ -15,7 +15,7 @@
 #define TMEM_TOUCHED(cci)  (cci->desc.owner.meta->nfo.c.flags & CBUFM_TOUCHED)
 #define TMEM_RELINQ        COMP_INFO_TMEM_CBUF
 #define CBUF_REFCNT_SZ     7
-#define CBUFP_REFCNT_MAX   (1<<CBUF_REFCNT_SZ-1)
+#define CBUFP_REFCNT_MAX   ((1<<CBUF_REFCNT_SZ)-1)
 
 /* Shared page between the target component, and us */
 typedef	struct spd_cbvect_range shared_component_info;
@@ -57,7 +57,7 @@ typedef enum {
 	 * Invariant: !TMEM && sz != 0
 	 */
 	CBUFM_RELINQ   = 1<<4,
-	CBUFM_MAX      = 1<<5
+//	CBUFM_MAX      = 1<<5
 } cbufm_flags_t;
 
 union cbufm_info {

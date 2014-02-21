@@ -651,28 +651,6 @@ static void start_timer_thread(void)
 	}
 }
 
-/* void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3) */
-/* { */
-/* 	static int first = 1; */
-
-/* 	switch (t) { */
-/* 	case COS_UPCALL_BOOTSTRAP: */
-/* 		if (first) { */
-/* 			start_timer_thread(); */
-/* 			first = 0; */
-/* 		} else { */
-/* 			printc("timed_event component received too many bootstrap threads."); */
-/* 		} */
-/* 		break; */
-/* 	default: */
-/* 		printc("wf_text: cos_upcall_fn error - type %x, arg1 %d, arg2 %d",  */
-/* 		      (unsigned int)t, (unsigned int)arg1, (unsigned int)arg2); */
-/* 		BUG(); */
-/* 		return; */
-/* 	} */
-/* 	BUG(); */
-/* 	return; */
-/* } */
 void cos_init()
 {
 	union sched_param sp;
@@ -691,9 +669,9 @@ void cos_init()
 		sp.c.type = SCHEDP_PRIO;
 		sp.c.value = 3;
 
-		if (sched_create_thd(cos_spd_id(), sp.v, 0, 0) == 0) BUG();
+		if (cos_thd_create(start_timer_thread, NULL, sp.v, 0, 0) <= 0) BUG();
 	} else {
-		start_timer_thread();
+		printc("timed_event component received too many bootstrap threads.");
 	}
 }
 

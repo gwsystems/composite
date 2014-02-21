@@ -1,5 +1,5 @@
 #include "include/fpu.h"
 
-int fpu_disabled;
-struct thread *fpu_last_used;
-int fpu_support_fxsr;
+PERCPU_VAR(fpu_disabled);
+PERCPU_VAR(fpu_last_used);
+PERCPU_VAR(fpu_support_fxsr);

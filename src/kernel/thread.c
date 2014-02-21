@@ -58,50 +58,50 @@ extern void thd_publish_data_page(struct thread *thd, vaddr_t page);
 struct
 thread *thd_alloc(struct spd *spd)
 {
-        struct thread *thd, *new_freelist_head;
-        unsigned short int id;
-        void *page;
+	struct thread *thd, *new_freelist_head;
+	unsigned short int id;
+	void *page;
 
-        do {
-                thd = thread_freelist_head;
-                new_freelist_head = thread_freelist_head->freelist_next;
-        } while (unlikely(!cos_cas((unsigned long *)&thread_freelist_head, (unsigned long)thd, (unsigned long)new_freelist_head)));
+	do {
+		thd = thread_freelist_head;
+		new_freelist_head = thread_freelist_head->freelist_next;
+	} while (unlikely(!cos_cas((unsigned long *)&thread_freelist_head, (unsigned long)thd, (unsigned long)new_freelist_head)));
 
-        if (thd == NULL) {
-                printk("cos: Could not create thread.\n");
-                return NULL;
-        }
+	if (thd == NULL) {
+		printk("cos: Could not create thread.\n");
+		return NULL;
+	}
 
-        page = cos_get_pg_pool();
-        if (unlikely(NULL == page)) {
-                printk("cos: Could not allocate the data page for new thread.\n");
-                thread_freelist_head = thd;
-                return NULL;
-        }
+	page = cos_get_pg_pool();
+	if (unlikely(NULL == page)) {
+		printk("cos: Could not allocate the data page for new thread.\n");
+		thread_freelist_head = thd;
+		return NULL;
+	}
 
-        id = thd->thread_id;
-        memset(thd, 0, sizeof(struct thread));
-        thd->thread_id = id;
+	id = thd->thread_id;
+	memset(thd, 0, sizeof(struct thread));
+	thd->thread_id = id;
+	thd->cpu = get_cpuid();
 
-        thd->data_region = page;
-        *(int*)page = 4; /* HACK: sizeof(struct cos_argr_placekeeper) */
-        thd->ul_data_page = COS_INFO_REGION_ADDR + (PAGE_SIZE * id);
-        thd_publish_data_page(thd, (vaddr_t)page);
+	thd->data_region = page;
+	*(int*)page = 4; /* HACK: sizeof(struct cos_argr_placekeeper) */
+	thd->ul_data_page = COS_INFO_REGION_ADDR + (PAGE_SIZE * id);
+	thd_publish_data_page(thd, (vaddr_t)page);
 
-        /* Initialization */
-        thd->stack_ptr = -1;
-        /* establish this thread's base spd */
-        thd_invocation_push(thd, spd, 0, 0);
+	/* Initialization */
+	thd->stack_ptr = -1;
+	/* establish this thread's base spd */
+	thd_invocation_push(thd, spd, 0, 0);
 
-        thd->flags = 0;
+	thd->flags = 0;
 
-        thd->thread_brand = NULL;
-        thd->pending_upcall_requests = 0;
-        thd->freelist_next = NULL;
+	thd->pending_upcall_requests = 0;
+	thd->freelist_next = NULL;
 
         fpu_thread_init(thd);
 
-        return thd;
+	return thd;
 }
 
 void

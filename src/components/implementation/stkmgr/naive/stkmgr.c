@@ -12,7 +12,7 @@
 #include <tmem.h>
 #include <mem_pool.h>
 
-//#define _DEBUG_STKMGR
+//#define _DEBUG_TMEMMGR
 
 #define WHERESTR  "[file %s, line %d]: "
 #define WHEREARG  __FILE__, __LINE__
@@ -20,7 +20,7 @@
 #define STK_PER_PAGE (PAGE_SIZE/MAX_STACK_SZ)
 #define NUM_PAGES (ALL_STACK_SZ/STK_PER_PAGE)
 
-#define DEFAULT_TARGET_ALLOC 10
+#define DEFAULT_TARGET_ALLOC 80
 
 // The total number of stacks
 struct cos_stk_item all_stk_list[MAX_NUM_MEM];
@@ -170,7 +170,7 @@ cos_init(void *arg){
 	int i;
 
 	DOUT("stk mgr running.....\n");
-	DOUT("<stkmgr>: STACK in cos_init\n");
+	DOUT("<stkmgr>: in cos_init, thd %d on core %ld\n", cos_get_thd_id(), cos_cpuid());
 	LOCK_INIT();
 
 	memset(spd_tmem_info_list, 0, sizeof(struct spd_tmem_info) * MAX_NUM_SPDS);

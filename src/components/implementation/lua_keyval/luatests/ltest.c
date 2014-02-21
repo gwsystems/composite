@@ -16,7 +16,7 @@ cos_init(void)
 	// Testing executing a string of Lua
 	// returns a value which pushes it onto the stack, then
 	// prints it
-	luaL_dostring(L, "return 'Our printed string'");
+	int ret_dostring = luaL_dostring(L, "return 'Our printed string'");
 	const char *str = lua_tostring(L, -1);
 	printc("Lua returned value is %s\n", str);
 
@@ -53,7 +53,7 @@ cos_init(void)
 		lua_getglobal(L,"linked_list");
 		lua_pushnumber(L,40000);
 		lua_pcall(L,1,0,0);
-		char *str = lua_tostring(L,-1);
+		char *str = (char *)lua_tostring(L,-1);
 		printc("Lua string is %s\n", str); 
 		printc("garbage %d\n", lua_gc(L, LUA_GCCOUNT,0));
 	

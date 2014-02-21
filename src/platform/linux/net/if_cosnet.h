@@ -39,7 +39,7 @@
 //#define COSNET_QUEUE_LEN 1000
 
 struct cosnet_struct {
-	struct cos_brand_info   *brand_info;
+	struct cos_net_acap_info   *net_acap_info;
 	struct sk_buff_head	*packet_queue;
 };
 

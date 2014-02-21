@@ -70,3 +70,4 @@ boot_deps_init(void)
 
 static void
 boot_deps_run(void) { return; }
+

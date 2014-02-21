@@ -1,3 +1,5 @@
+#include <../../kernel/include/shared/cos_config.h>
+
 // FIXME: From consts.h
 #define THD_ID_SHARED_PAGE (1<<30)  // 1 gig
 
@@ -14,6 +16,19 @@
 #define USE_NEW_STACKS 1
 #ifdef  USE_NEW_STACKS
 
+#if NUM_CPU_COS > 1
+/* We should avoid the lock cmpxchg by using per-core freelist. */
+#define COMP_INFO_CMPXCHG                       \
+	lock cmpxchgl %esp, cos_comp_info
+#else
+#define COMP_INFO_CMPXCHG                       \
+	cmpxchgl %esp, cos_comp_info
+#endif
+
+/* FIXME: Here we have the ABA problem. This simple lock-free
+ * operation does not prevent ABA. A possible fix could be
+ * integrating a generation number in the lower bits of the 
+ * pointer. */
 #define COS_ASM_GET_STACK                       \
 1:                                              \
         movl %eax, %edx;		        \
@@ -24,9 +39,8 @@
         je    2f;                               \
                                                 \
         /* We have a stack */                   \
-        movl cos_comp_info, %eax;               \
         movl (%eax), %esp;                      \
-	cmpxchgl %esp, cos_comp_info;		\
+	COMP_INFO_CMPXCHG;                      \
         jnz 8b;					\
 						\
 	/* now we have the stack */		\
@@ -40,7 +54,8 @@
 	andl $0xffff, %eax;			\
 	pushl %eax;	/* thd id */		\
         pushl $0x03;    /* flags */             \
-        pushl $0xFACE;  /* next */              
+	subl $4, %esp;
+        /* pushl $0xFACE;  /\* next *\/               */
 
 	
 #define COS_ASM_REQUEST_STACK                   \
@@ -92,11 +107,11 @@
 9:						\
         movl cos_comp_info, %eax;               \
         movl %eax, (%esp);                      \
-	cmpxchgl %esp, cos_comp_info;		\
+	COMP_INFO_CMPXCHG;			\
 	jnz 9b;					\
 	movl %ebx, %eax;			\
-						\
-        movl $cos_comp_info, %edx; 		\
+	/* Race? cos_comp_info could change*/	\
+        movl $cos_comp_info, %edx;              \
 	movl 12(%edx), %edx;			\
         test %edx, %edx;                        \
 	je 4f;					\
