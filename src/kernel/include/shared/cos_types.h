@@ -30,6 +30,8 @@ typedef signed int       s32_t;
 typedef signed long long s64_t;
 #endif
 
+typedef int cpuid_t; /* Don't use unsigned type. We use negative values for error cases. */
+
 /* Macro used to define per core variables */
 #define PERCPU(type, name)                              \
 	PERCPU_DECL(type, name);                        \
@@ -66,7 +68,6 @@ attr struct __##name##_percore_decl name[NUM_CPU]
 struct shared_user_data {
 	unsigned int current_thread;
 	void *argument_region;
-	unsigned int brand_principal;
 	unsigned int current_cpu;
 };
 
@@ -82,9 +83,9 @@ struct cos_sched_next_thd {
 /* FIXME: make flags 8 bits, and use 8 bits to count # of alive upcalls */
 #define COS_SCHED_EVT_FREE         0x1
 #define COS_SCHED_EVT_EXCL         0x2
-#define COS_SCHED_EVT_BRAND_ACTIVE 0x4
-#define COS_SCHED_EVT_BRAND_READY  0x8
-#define COS_SCHED_EVT_BRAND_PEND   0x10
+#define COS_SCHED_EVT_ACAP_ACTIVE 0x4
+#define COS_SCHED_EVT_ACAP_READY  0x8
+#define COS_SCHED_EVT_ACAP_PEND   0x10
 #define COS_SCHED_EVT_NIL          0x20
 
 /* Must all fit into a word */
@@ -209,23 +210,30 @@ enum {
 };
 
 /*
- * For interoperability with the networking side.  This is the brand
- * port/brand thread pair, and the callback structures for
+ * For interoperability with the networking side.  This is the acap
+ * port/acap thread pair, and the callback structures for
  * communication.
  */
-struct cos_brand_info {
-	unsigned short int  brand_port;
-	struct thread      *brand;
+/* Added ring_buf pointers. */
+struct cos_net_acap_info {
+	unsigned short int  acap_port;
+	struct async_cap   *acap;
 	void               *private;
+
+	/* HACK: recv ring buffer for network packets, both user-level
+	 * and kernel-level pointers  */
+	ring_buff_t *u_rb, *k_rb;
+	int rb_next; 		/* Next address entry */
 };
+
 typedef void (*cos_net_data_completion_t)(void *data);
 struct cos_net_callbacks {
 	int (*xmit_packet)(void *headers, int hlen, struct gather_item *gi, int gather_len, int tot_len);
-	int (*create_brand)(struct cos_brand_info *bi);
-	int (*remove_brand)(struct cos_brand_info *bi);
+	int (*create_acap)(struct cos_net_acap_info *bi);
+	int (*remove_acap)(struct cos_net_acap_info *bi);
 
 	/* depricated: */
-	int (*get_packet)(struct cos_brand_info *bi, char **packet, unsigned long *len,
+	int (*get_packet)(struct cos_net_acap_info *bi, char **packet, unsigned long *len,
 			  cos_net_data_completion_t *fn, void **data, unsigned short int *port);
 };
 
@@ -235,7 +243,7 @@ struct cos_trans_fns {
 	int   (*direction)(int direction);
 	void *(*map_kaddr)(int channel);
 	int   (*map_sz)(int channel);
-	int   (*brand_created)(int channel, void *b);
+	int   (*acap_created)(int channel, void *acap);
 };
 
 /*
@@ -295,6 +303,7 @@ struct cos_component_information {
 	vaddr_t cos_heap_ptr, cos_heap_limit;
 	vaddr_t cos_heap_allocated, cos_heap_alloc_extent;
 	vaddr_t cos_upcall_entry;
+	vaddr_t cos_async_inv_entry;
 //	struct cos_sched_data_area *cos_sched_data_area;
 	vaddr_t cos_user_caps;
 	struct restartable_atomic_sequence cos_ras[COS_NUM_ATOMIC_SECTIONS/2];
@@ -303,29 +312,11 @@ struct cos_component_information {
 }__attribute__((aligned(PAGE_SIZE)));
 
 typedef enum {
-	COS_UPCALL_BRAND_EXEC,
-	COS_UPCALL_BRAND_COMPLETE,
-	COS_UPCALL_BOOTSTRAP,
-	COS_UPCALL_CREATE,
+	COS_UPCALL_ACAP_COMPLETE,
+	COS_UPCALL_THD_CREATE,
 	COS_UPCALL_DESTROY,
 	COS_UPCALL_UNHANDLED_FAULT
 } upcall_type_t;
-
-/* operations for cos_brand_cntl and cos_brand_upcall */
-enum {
-/* cos_brand_cntl -> */
-	COS_BRAND_CREATE,
-	COS_BRAND_ADD_THD,
-	COS_BRAND_CREATE_HW,
-/* cos_brand_upcall -> */
-	COS_BRAND_TAILCALL,  /* tailcall brand to upstream spd
-			      * (don't maintain this flow of control).
-			      * Not sure if this would work with non-brand threads
-			      */
-	COS_BRAND_ASYNC,     /* async brand while maintaining control */
-	COS_BRAND_UPCALL     /* continue executing an already made
-			      * brand, redundant with tail call? */
-};
 
 /* operations for cos_thd_cntl */
 enum {
@@ -380,7 +371,8 @@ enum {
 	COS_SPD_ATOMIC_SECT,
 	COS_SPD_UCAP_TBL,
 	COS_SPD_UPCALL_ADDR,
-	COS_SPD_ACTIVATE
+	COS_SPD_ASYNC_INV_ADDR,
+	COS_SPD_ACTIVATE,
 };
 
 /* operations for cos_vas_cntl */
@@ -399,7 +391,10 @@ enum {
 	COS_CAP_SET_SERV_FN,
 	COS_CAP_ACTIVATE,
 	COS_CAP_GET_INVCNT,
-	COS_CAP_SET_FAULT
+	COS_CAP_SET_FAULT,
+	COS_CAP_GET_SPD_NCAPS,
+	COS_CAP_GET_DEST_SPD,
+	COS_CAP_GET_DEST_FN
 };
 
 enum {
@@ -440,14 +435,23 @@ enum {
 	COS_TRANS_MAP_SZ,
 	COS_TRANS_MAP,
 	COS_TRANS_DIRECTION,
-	COS_TRANS_BRAND,
+	COS_TRANS_ACAP,
+};
+
+/* operations for cos_async_cap_cntl */
+enum {
+	COS_ACAP_CREATE = 0,
+	COS_ACAP_CLI_CREATE,
+	COS_ACAP_SRV_CREATE,
+	COS_ACAP_WIRE,
+	COS_ACAP_LINK_STATIC_CAP,
 };
 
 /* flags for cos_switch_thread */
 #define COS_SCHED_TAILCALL     0x1
 #define COS_SCHED_SYNC_BLOCK   0x2
 #define COS_SCHED_SYNC_UNBLOCK 0x4
-#define COS_SCHED_BRAND_WAIT   0x80
+#define COS_SCHED_ACAP_WAIT   0x80
 #define COS_SCHED_CHILD_EVT    0x10
 
 #define COS_SCHED_RET_SUCCESS  0
@@ -481,6 +485,11 @@ enum {
 				 * it */
 	COS_MPD_UPDATE		/* if possible, get rid of a stale pd
 				 * for the current thread. */
+};
+
+enum {
+	MAPPING_READ  = 0,
+	MAPPING_RW    = 1
 };
 
 enum {
@@ -537,11 +546,37 @@ typedef unsigned int isolation_level_t;
 
 typedef struct { volatile unsigned int counter; } atomic_t;
 
+#define LOCK_PREFIX_HERE			\
+	".pushsection .smp_locks,\"a\"\n"	\
+	".balign 4\n"				\
+	".long 671f - .\n" /* offset */		\
+	".popsection\n"				\
+	"671:"
+
+#define LOCK_PREFIX LOCK_PREFIX_HERE "\n\tlock; "
+
+static inline void atomic_inc(atomic_t *v)
+{
+	asm volatile(LOCK_PREFIX "incl %0"
+		     : "+m" (v->counter));
+}
+
+static inline void atomic_dec(atomic_t *v)
+{
+	asm volatile(LOCK_PREFIX "decl %0"
+		     : "+m" (v->counter));
+}
 #endif /* __KERNEL__ */
 
 static inline void cos_ref_take(atomic_t *rc)
 {
+#if NUM_CPU_COS > 1
+	/* use atomic instructions when we have multicore. We will get
+	 * rid of this later(by using capabilities as ref counter). */
+	atomic_inc(rc);
+#else
 	rc->counter++;
+#endif
 	cos_meas_event(COS_MPD_REFCNT_INC);
 }
 
@@ -557,8 +592,19 @@ static inline unsigned int cos_ref_val(atomic_t *rc)
 
 static inline void cos_ref_release(atomic_t *rc)
 {
+#if NUM_CPU_COS > 1
+	/* same as cos_ref_take. */
+	atomic_dec(rc);
+#else
 	rc->counter--; /* assert(rc->counter != 0) */
+#endif
+	
 	cos_meas_event(COS_MPD_REFCNT_DEC);
 }
+
+// The init_data is integrated in the sched_param struct. We have 8 bits
+#define COS_THD_INIT_REGION_SIZE (((NUM_CPU*8) > (1<<8)) ? (1<<8) : (NUM_CPU*8))
+// Static entries are after the dynamic allocated entries
+#define COS_STATIC_THD_ENTRY(i) ((i + COS_THD_INIT_REGION_SIZE + 1))
 
 #endif /* TYPES_H */

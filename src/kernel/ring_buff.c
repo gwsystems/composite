@@ -20,7 +20,7 @@ extern int user_struct_fits_on_page(unsigned long addr, unsigned int size);
  *
  * See cos_types.h for a description of the structure of the buffer.
  */
-int rb_retrieve_buff(struct thread *brand, int desired_len, 
+int rb_retrieve_buff(struct cos_net_acap_info *net_acap, int desired_len, 
 		     void **found_buf, int *found_len)
 {
 	ring_buff_t *rb;
@@ -30,12 +30,12 @@ int rb_retrieve_buff(struct thread *brand, int desired_len,
 	unsigned short int status, len;
 	struct spd *bspd;
 	
-	assert(brand);
-	rb = brand->k_rb;
+	assert(net_acap);
+	rb = net_acap->k_rb;
 	if (!rb) {
 		return -1;
 	}
-	position = brand->rb_next;
+	position = net_acap->rb_next;
 	addr     = rb->packets[position].ptr;
 	len      = rb->packets[position].len;
 	status   = rb->packets[position].status;
@@ -46,11 +46,13 @@ int rb_retrieve_buff(struct thread *brand, int desired_len,
 		printk("ring_buff: length of user buffer not sufficient.\n");
 		return -1;
 	}
-	bspd = thd_get_thd_spd(brand);
+	assert(net_acap->acap);
+	bspd = spd_get_by_index(net_acap->acap->srv_spd_id);
+	assert(bspd);
 	kaddr = chal_pgtbl_vaddr2kaddr(bspd->spd_info.pg_tbl, (unsigned long)addr);
 	if (!kaddr || !user_struct_fits_on_page(kaddr, len)) {
 		rb->packets[position].status = RB_ERR;
-		brand->rb_next = (position+1) & (RB_SIZE-1);
+		net_acap->rb_next = (position+1) & (RB_SIZE-1);
 		printk("ring_buff: user buffer either not in memory, or not page_aligned.\n");
 		return -1;
 	}
@@ -61,19 +63,19 @@ int rb_retrieve_buff(struct thread *brand, int desired_len,
 	*found_len = len;
 	
 	rb->packets[position].status = RB_USED;
-	brand->rb_next = (position+1) & (RB_SIZE-1);
+	net_acap->rb_next = (position+1) & (RB_SIZE-1);
 
 	return 0;
 }
 
-/* Pass in the brand who's rinb buffer is to get setup, and the user
+/* Pass in the net_info struct who's rinb buffer is to get setup, and the user
  * and kernel pointers to it */
-int rb_setup(struct thread *brand, ring_buff_t *user_rb, ring_buff_t *kern_rb)
+int rb_setup(struct cos_net_acap_info *net_acap, ring_buff_t *user_rb, ring_buff_t *kern_rb)
 {
-	assert(brand && user_rb && kern_rb);
-	brand->u_rb = user_rb;
-	brand->k_rb = kern_rb;
-	brand->rb_next = 0;
+	assert(net_acap && user_rb && kern_rb);
+	net_acap->u_rb = user_rb;
+	net_acap->k_rb = kern_rb;
+	net_acap->rb_next = 0;
 	
 	return 0;
 }

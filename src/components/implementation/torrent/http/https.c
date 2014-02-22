@@ -624,7 +624,7 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 			}
 			local_resp_sz = ret;
 		}
-		
+
 		/* no more data */
 		if (local_resp_sz == 0) {
 			cbuf_free(local_resp);

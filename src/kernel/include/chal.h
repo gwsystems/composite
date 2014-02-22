@@ -50,7 +50,7 @@ static inline void chal_pgtbl_switch(paddr_t pt);
 static inline void __chal_pgtbl_switch(paddr_t pt);
 
 /* Add a page to pgtbl at address. 0 on success */
-int     chal_pgtbl_add(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr);
+int     chal_pgtbl_add(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr, int flags);
 /* Translate a vaddr to an addressable address via pgtbl */
 vaddr_t chal_pgtbl_vaddr2kaddr(paddr_t pgtbl, unsigned long addr);
 /* Remove mapping for a vaddr from pgtbl. != 0 if mapping doesn't exist */
@@ -84,18 +84,23 @@ void *chal_pa2va(void *pa);
 void *chal_alloc_page(void);
 void chal_free_page(void *page);
 
+/* Per core ACAPs for timer events */
+PERCPU_DECL(struct async_cap *, cos_timer_acap);
+
 /*******************
  * Other functions *
  *******************/
 
-int chal_attempt_brand(struct thread *brand);
+int chal_attempt_ainv(struct async_cap *acap);
+
+/* IPI sending */
+void chal_send_ipi(int cpuid);
+
 /* static const struct cos_trans_fns *trans_fns = NULL; */
 void chal_idle(void);
 
 /* int cos_syscall_idle(void); */
 /* int cos_syscall_switch_thread(void); */
-/* void cos_syscall_brand_wait(int spd_id, unsigned short int bid, int *preempt); */
-/* void cos_syscall_brand_upcall(int spd_id, int thread_id_flags); */
 /* int cos_syscall_buff_mgmt(void); */
 /* void cos_syscall_upcall(void); */
 

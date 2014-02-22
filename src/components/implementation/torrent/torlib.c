@@ -22,6 +22,11 @@ treadp(spdid_t spdid, int sz, int *off, int *len)
 {
         return -ENOTSUP;
 }
+__attribute__((weak)) int
+twritep(spdid_t spdid, td_t td, int cbid, int sz)
+{
+        return -ENOTSUP;
+}
 
 COS_MAP_CREATE_STATIC(torrents);
 struct torrent null_torrent, root_torrent;

@@ -126,7 +126,7 @@ void * mempool_get_mem(spdid_t d_spdid, int pages)
 		goto err1;
 	}
 
-	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)page->l_addr, d_spdid, (vaddr_t)mgr_addr))) 
+	if (unlikely(!mman_alias_page(cos_spd_id(), (vaddr_t)page->l_addr, d_spdid, (vaddr_t)mgr_addr, MAPPING_RW))) 
 		goto err2;
 
         /* cos_vect_add_id(cos_vect *v, void *val, long id) */

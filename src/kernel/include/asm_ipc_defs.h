@@ -20,7 +20,9 @@
 #define CAPNUM 12
 
 /* offsets into syscall integer */
-#define COS_CAPABILITY_OFFSET 20 /* bits 20->32 */
+#define COS_ASYNC_CAP_FLAG_BIT 32 /* async cap flag -> 32 */
+#define COS_ASYNC_CAP_FLAG (1<<(COS_ASYNC_CAP_FLAG_BIT-1))
+#define COS_CAPABILITY_OFFSET 20 /* bits 20->31 */
 #define COS_SYSCALL_OFFSET 15	 /* bits 15->20 */
 
 //#define RET_CAP (INV_CAP_OFFSET-1)

@@ -285,8 +285,10 @@ again:
 
 	if (!tmem) {
 		if (unlikely(cm->nfo.c.flags & CBUFM_TMEM)) goto done;
-		if (unlikely(len > cm->sz)) goto done;
-		cm->nfo.c.flags |= CBUFM_IN_USE;
+		if (unlikely((len >> PAGE_ORDER) > cm->sz)) goto done;
+		if(cm->nfo.c.refcnt == CBUFP_REFCNT_MAX)
+			assert(0);
+		cm->nfo.c.refcnt++;
 		assert(cm->owner_nfo.c.nrecvd < TMEM_SENDRECV_MAX);
 		cm->owner_nfo.c.nrecvd++;
 	} else {
@@ -335,12 +337,12 @@ __cbufp_send(cbuf_t cb, int free)
 	cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(id), 0);
 
 	assert(cm && cm->nfo.v);
-	assert(cm->nfo.c.flags & CBUFM_IN_USE);
+	assert(cm->nfo.c.refcnt);
 	assert(!(cm->nfo.c.flags & CBUFM_TMEM));
 	assert(cm->owner_nfo.c.nsent < TMEM_SENDRECV_MAX);
 
 	cm->owner_nfo.c.nsent++;
-	if (free) cm->nfo.c.flags &= ~CBUFM_IN_USE;
+	if (free) cm->nfo.c.refcnt--;
 	/* really should deal with this case correctly */
 	assert(!(cm->nfo.c.flags & CBUFM_RELINQ)); 
 	CBUF_RELEASE();
@@ -377,7 +379,7 @@ __cbuf_alloc_meta_inconsistent(struct cbuf_alloc_desc *d, struct cbuf_meta *m)
 {
 	assert(d && m && d->addr);
 	/* we don't want the manager changing this under us */
-	assert(m->nfo.c.flags & CBUFM_IN_USE);
+	assert(m->nfo.c.refcnt);
 	return (unlikely((unsigned long)d->addr >> PAGE_SHIFT != m->nfo.c.ptr ||
 			 d->meta != m /*|| length*/));
 }
@@ -448,10 +450,13 @@ again:
 	cm               = cbuf_vect_lookup_addr(cbidx, tmem);
 
 	mapped_in        = cbufm_is_mapped(cm);
-	already_used     = cm->nfo.c.flags & CBUFM_IN_USE;
-	flags            = CBUFM_IN_USE | CBUFM_TOUCHED; /* should be atomic */
+	already_used     = cm->nfo.c.refcnt;
+	flags            = CBUFM_TOUCHED;
 	if (tmem) flags |= CBUFM_TMEM;
 	cm->nfo.c.flags |= flags;
+	if(cm->nfo.c.refcnt == CBUFP_REFCNT_MAX)
+		assert(0);
+	cm->nfo.c.refcnt++;
 
 	/* 
 	 * Now that IN_USE is set, we know the manager will not rip
@@ -501,7 +506,8 @@ again:
 		 */
 		__cbuf_desc_free(d);
 		if (likely(!already_used)) {
-			cm->nfo.c.flags &= ~(CBUFM_IN_USE | CBUFM_TOUCHED);
+			cm->nfo.c.flags &= ~CBUFM_TOUCHED;
+			cm->nfo.c.refcnt--;
 		}
 		goto again;
 	}
@@ -514,11 +520,9 @@ again:
 		cm->owner_nfo.c.nsent = cm->owner_nfo.c.nrecvd = 0;		
 	}
 	ret = (void*)(cm->nfo.c.ptr << PAGE_ORDER);
-
 done:
 	*cb = cbuf_cons(cbid, len);
 	CBUF_RELEASE();
-
 	return ret;
 }
 
@@ -543,7 +547,7 @@ __cbuf_done(int cbid, int tmem, struct cbuf_alloc_desc *d)
 	 * If this assertion triggers, one possibility is that you did
 	 * not successfully map it in (cbufp2buf or cbufp_alloc).
 	 */
-	assert(cm->nfo.c.flags & CBUFM_IN_USE);
+	assert(cm->nfo.c.refcnt);
 	owner = cm->nfo.c.flags & CBUFM_OWNER;
 	assert(!(tmem & !owner)); /* Shouldn't be calling free... */
 
@@ -556,7 +560,7 @@ __cbuf_done(int cbid, int tmem, struct cbuf_alloc_desc *d)
 		cm->owner_nfo.thdid = 0;
 	}
 	/* do this last, so that we can guarantee the manager will not steal the cbuf before now... */
-	cm->nfo.c.flags &= ~CBUFM_IN_USE;
+	cm->nfo.c.refcnt--;
 	if (tmem) cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]++;
 	else      relinq = cm->nfo.c.flags & CBUFM_RELINQ;
 	CBUF_RELEASE();

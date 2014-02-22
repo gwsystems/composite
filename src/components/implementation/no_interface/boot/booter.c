@@ -44,6 +44,8 @@ boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_in
 
 	if (cos_spd_cntl(COS_SPD_UCAP_TBL, spdid, ci->cos_user_caps, 0)) BUG();
 	if (cos_spd_cntl(COS_SPD_UPCALL_ADDR, spdid, ci->cos_upcall_entry, 0)) BUG();
+	if (cos_spd_cntl(COS_SPD_ASYNC_INV_ADDR, spdid, ci->cos_async_inv_entry, 0)) BUG();
+
 	for (i = 0 ; i < COS_NUM_ATOMIC_SECTIONS/2 ; i++) {
 		if (cos_spd_cntl(COS_SPD_ATOMIC_SECT, spdid, ci->cos_ras[i].start, i*2)) BUG();
 		if (cos_spd_cntl(COS_SPD_ATOMIC_SECT, spdid, ci->cos_ras[i].end,   (i*2)+1)) BUG();
@@ -178,8 +180,8 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 			/* TODO: if use_kmem, we should allocate
 			 * kernel-accessible memory, rather than
 			 * normal user-memory */
-			if ((vaddr_t)dsrc != __mman_get_page(cos_spd_id(), (vaddr_t)dsrc, 0)) BUG();
-			if (dest_daddr != (__mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr))) BUG();
+			if ((vaddr_t)dsrc != __local_mman_get_page(cos_spd_id(), (vaddr_t)dsrc, MAPPING_RW)) BUG();
+			if (dest_daddr != (__local_mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr, MAPPING_RW))) BUG();
 
 			prev_map = dest_daddr;
 			dest_daddr += PAGE_SIZE;
@@ -293,9 +295,14 @@ static int
 boot_spd_thd(spdid_t spdid)
 {
 	union sched_param sp = {.c = {.type = SCHEDP_RPRIO, .value = 1}};
+	union sched_param sp_coreid;
+
+	/* All init threads on core 0. */
+	sp_coreid.c.type = SCHEDP_CORE_ID;
+	sp_coreid.c.value = 0;
 
 	/* Create a thread IF the component requested one */
-	if ((sched_create_thread_default(spdid, sp.v, 0, 0)) < 0) return -1;
+	if ((sched_create_thread_default(spdid, sp.v, sp_coreid.v, 0)) < 0) return -1;
 	return 0;
 }
 
@@ -327,6 +334,8 @@ boot_find_cobjs(struct cobj_header *h, int n)
 	       hs[n-1]->name, hs[n-1]->id, hs[n-1], cobj_sect_get(hs[n-1], 0)->vaddr);
 }
 
+#define NREGIONS 4
+
 static void 
 boot_create_system(void)
 {
@@ -341,6 +350,8 @@ boot_create_system(void)
 		spdid_t spdid;
 		struct cobj_sect *sect;
 		vaddr_t comp_info = 0;
+		long tot = 0;
+		int j;
 		
 		h = hs[i];
 		if ((spdid = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG();
@@ -350,6 +361,24 @@ boot_create_system(void)
 		sect = cobj_sect_get(h, 0);
 		if (cos_spd_cntl(COS_SPD_LOCATION, spdid, sect->vaddr, SERVICE_SIZE)) BUG();
 
+		for (j = 0 ; j < (int)h->nsect ; j++) {
+			tot += cobj_sect_size(h, j);
+		}
+
+		if (tot > SERVICE_SIZE) {
+			if (cos_vas_cntl(COS_VAS_SPD_EXPAND, h->id, sect->vaddr + SERVICE_SIZE, 
+					 (NREGIONS-1) * round_up_to_pgd_page(1))) {
+				printc("cos: booter could not expand VAS for component %d\n", h->id);
+				BUG();
+			}
+			if (hs[i + 1] != NULL && cobj_sect_get(hs[i + 1], 0)->vaddr != sect->vaddr + SERVICE_SIZE * 4) {
+				/* We only need to expand to the next 4MB
+				 * region for now. The start address of the
+				 * next component should have no overlap with
+				 * the current one. */
+				BUG();
+			}
+		}
 		if (boot_spd_symbs(h, spdid, &comp_info))        BUG();
 		if (boot_spd_map(h, spdid, comp_info))           BUG();
 		if (cos_spd_cntl(COS_SPD_ACTIVATE, spdid, h->ncap, 0)) BUG();
@@ -371,7 +400,6 @@ boot_create_system(void)
 		for (j = 0 ; hs[j] != NULL; j++) {
 			if (hs[j]->id == boot_sched[i]) h = hs[j];
 		}		
-
 		assert(h);
 		if (h->flags & COBJ_INIT_THD) boot_spd_thd(h->id);
 	}
@@ -434,8 +462,6 @@ cgraph_add(int serv, int client)
 	return 0;
 }
 
-#define NREGIONS 4
-
 void cos_init(void)
 {
 	struct cobj_header *h;
@@ -456,15 +482,24 @@ void cos_init(void)
 	boot_sched = (unsigned int *)cos_comp_info.cos_poly[4];
 
 	boot_find_cobjs(h, num_cobj);
+	
+	int nregions;
 	/* This component really might need more vas, get the next 4M region */
+	if (cos_spd_id() == 1) {
+		nregions = NREGIONS - 1; //Low-level booter
+	} else {
+		nregions = NREGIONS * 4 - 1; //Booter may need larger VAS
+	}
+
 	if (cos_vas_cntl(COS_VAS_SPD_EXPAND, cos_spd_id(), 
 			 round_up_to_pgd_page((unsigned long)&num_cobj), 
-			 (NREGIONS-1) * round_up_to_pgd_page(1))) {
+			nregions * round_up_to_pgd_page(1))) {
 		printc("Could not expand boot component to %p:%x\n",
 		       (void *)round_up_to_pgd_page((unsigned long)&num_cobj), 
-		       (unsigned int)round_up_to_pgd_page(1)*3);
+		       (unsigned int)round_up_to_pgd_page(1)*nregions);
 		BUG();
 	}
+
 	printc("h @ %p, heap ptr @ %p\n", h, cos_get_heap_ptr());
 	printc("header %p, size %d, num comps %d, new heap %p\n", 
 	       h, h->size, num_cobj, cos_get_heap_ptr());

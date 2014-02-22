@@ -115,7 +115,7 @@ static inline REGPARM(1) void *do_mmap(size_t size) {
 	for (p = (unsigned long)hp ; 
 	     p < (unsigned long)hp + s ; 
 	     p += PAGE_SIZE) {
-		ret = (void*)mman_get_page(cos_spd_id(), (void*)p, 0);
+		ret = (void*)mman_get_page(cos_spd_id(), (void*)p, MAPPING_RW);
 		if (unlikely(!ret)) {
 			for (p -= PAGE_SIZE ; hp <= (void*)p ; p -= PAGE_SIZE) {
 				mman_release_page(cos_spd_id(), (void*)p, 0);

@@ -130,7 +130,7 @@ __cbuf_2buf_miss(int cbid, int len, int tmem)
 	else      ret = cbufp_retrieve(cos_spd_id(), cbid, len);
 	CBUF_TAKE();
 	if (unlikely(ret < 0                                   ||
-		     mc->sz < len                              ||
+		     mc->sz < (len >> PAGE_ORDER)              ||
 		     (tmem && !(mc->nfo.c.flags & CBUFM_TMEM)) || 
 		     (!tmem && mc->nfo.c.flags & CBUFM_TMEM))) {
 		return -1;
@@ -169,7 +169,11 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 			cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid), 0);
 			assert(cm);
 			/* (should be atomic) */
-			cm->nfo.c.flags |= CBUFM_IN_USE | CBUFM_TOUCHED; 
+			cm->nfo.c.flags |= CBUFM_TOUCHED; 
+			if(cm->nfo.c.refcnt == CBUFP_REFCNT_MAX) {
+				assert(0);
+			}
+			cm->nfo.c.refcnt++;
 		}
 		/* ...add the rest back into freelists */
 		for (i = 1 ; i < amnt ; i++) {
@@ -242,7 +246,7 @@ __cbuf_alloc_slow(int size, int *len, int tmem)
 	assert(cbid);
 	cm   = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid), tmem);
 	assert(cm && cm->nfo.c.ptr);
-	assert(cm && cm->nfo.c.flags & CBUFM_IN_USE);
+	assert(cm && cm->nfo.c.refcnt);
 	assert(!tmem || cm->owner_nfo.thdid);
 	addr = (void*)(cm->nfo.c.ptr << PAGE_ORDER);
 	assert(addr);

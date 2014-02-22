@@ -158,7 +158,7 @@ static int channel_init(int channel)
 {
 	char *addr, *start;
 	unsigned long i, sz;
-	unsigned short int bid;
+	int acap, srv_acap;
 	int direction;
 
 	direction = cos_trans_cntl(COS_TRANS_DIRECTION, channel, 0, 0);
@@ -179,18 +179,22 @@ static int channel_init(int channel)
 	cringbuf_init(&channels[channel].rb, start, sz);
 
 	if (direction == COS_TRANS_DIR_LTOC) {
-		bid = cos_brand_cntl(COS_BRAND_CREATE, 0, 0, cos_spd_id());
-		assert(bid > 0);
-		assert(!cos_trans_cntl(COS_TRANS_BRAND, channel, bid, 0));
-		if (sched_add_thd_to_brand(cos_spd_id(), bid, cos_get_thd_id())) BUG();
+		acap = cos_async_cap_cntl(COS_ACAP_CREATE, cos_spd_id(), cos_spd_id(), 
+					  cos_get_thd_id() << 16 | cos_get_thd_id());
+		assert(acap);
+		/* cli acap not used. Linux thread will be triggering the
+		 * acap. We set the cli acap owner to the current thread for
+		 * access control only.*/
+		srv_acap = acap & 0xFFFF;
+		cos_trans_cntl(COS_TRANS_ACAP, channel, srv_acap, 0);
+
 		while (1) {
 			int ret;
-			if (-1 == (ret = cos_brand_wait(bid))) BUG();
+			if (-1 == (ret = cos_ainv_wait(srv_acap))) BUG();
 			assert(channels[channel].t);
 			evt_trigger(cos_spd_id(), channels[channel].t->evtid);
 		}
 	}
-
 
 	return 0;
 }

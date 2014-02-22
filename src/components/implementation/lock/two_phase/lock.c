@@ -18,6 +18,7 @@
 #include <cos_vect.h>
 
 #include <lock.h>
+#include <ck_spinlock.h>
 
 #include <sched.h>
 
@@ -74,9 +75,14 @@ static volatile unsigned long long generation = 0;
 /* Datastructure of blocked thread structures */
 COS_VECT_CREATE_STATIC(bthds);
 
-#define TAKE(spdid) 	do { if (sched_component_take(spdid))    return -1; } while (0)
-#define RELEASE(spdid)	do { if (sched_component_release(spdid)) return -1; } while (0)
-
+#if NUM_CPU_COS > 1
+ck_spinlock_ticket_t xcore_lock = CK_SPINLOCK_TICKET_INITIALIZER;
+#define TAKE(spdid) 	do { if (sched_component_take(spdid)) BUG(); ck_spinlock_ticket_lock_pb(&xcore_lock, 1); } while (0)
+#define RELEASE(spdid)	do { ck_spinlock_ticket_unlock(&xcore_lock); if (sched_component_release(spdid)) BUG();  } while (0)
+#else
+#define TAKE(spdid) 	do { if (sched_component_take(spdid))    BUG(); } while (0)
+#define RELEASE(spdid)	do { if (sched_component_release(spdid)) BUG(); } while (0)
+#endif
 /* 
  * FIXME: to make this predictable (avoid memory allocation in the
  * must-be-predictable case, we should really cos_vect_add_id when we
@@ -255,6 +261,7 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 
 	RELEASE(spdid);
 
+	/* printc("cpu %ld: thd %d going to blk waiting for lock %d\n", cos_cpuid(), cos_get_thd_id(), (int)lock_id); */
 	if (-1 == sched_block(spdid, thd_id)) {
 		printc("Deadlock including thdids %d -> %d in spd %d, lock id %d.\n", 
 		       cos_get_thd_id(), thd_id, spd, (int)lock_id);
@@ -262,6 +269,7 @@ int lock_component_take(spdid_t spd, unsigned long lock_id, unsigned short int t
 		assert(0);
 		if (-1 == sched_block(spdid, 0)) assert(0);
 	}
+
 	if (!EMPTY_LIST(&blocked_desc, next, prev)) BUG();
 	/* 
 	 * OK, this seems ridiculous but here is the rational: Assume
@@ -341,6 +349,7 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 
 		/* Wakeup the way we were put to sleep */
 		assert(tid != cos_get_thd_id());
+		/* printc("CPU %ld: %d waking up %d for lock %d\n", cos_cpuid(), cos_get_thd_id(), tid, lock_id); */
 		sched_wakeup(spdid, tid);
 
 		if (bt == next) break;

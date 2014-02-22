@@ -57,10 +57,6 @@ struct spd_tmem_info {
 	unsigned int relinquish_mark;
 	unsigned int wake_up_epoch;
 
-	unsigned int ss_counter; /* Self-suspension counter */
-	/* if ss_counter > 0, at most ss_max items can be over-quota allocated */
-	unsigned int ss_max; 
-
 	/* Measurements */
 	unsigned int nthd_blks[MAX_NUM_THREADS];
 	u64_t        thd_blk_start[MAX_NUM_THREADS];
@@ -77,6 +73,10 @@ struct spd_tmem_info {
 	tmem_item tmem_list;
 
 	struct blocked_thd bthd_list;
+
+	unsigned int ss_counter; /* Self-suspension counter */
+	/* if ss_counter > 0, at most ss_max items can be over-quota allocated */
+	unsigned int ss_max; 
 
 	/* 
 	 * To be used by the managers as they see fit.  Currently only

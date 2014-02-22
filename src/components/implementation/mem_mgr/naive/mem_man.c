@@ -40,8 +40,16 @@
 #include "../../sched/cos_sched_ds.h"
 #include "../../sched/cos_sched_sync.h"
 
+#if NUM_CPU_COS > 1
+#include <ck_spinlock.h>
+ck_spinlock_ticket_t xcore_lock = CK_SPINLOCK_TICKET_INITIALIZER;
+
+#define LOCK()   do { if (cos_sched_lock_take())   assert(0); ck_spinlock_ticket_lock_pb(&xcore_lock, 1); } while (0)
+#define UNLOCK() do { ck_spinlock_ticket_unlock(&xcore_lock); if (cos_sched_lock_release()) assert(0);    } while (0)
+#else
 #define LOCK()   if (cos_sched_lock_take())    assert(0);
 #define UNLOCK() if (cos_sched_lock_release()) assert(0);
+#endif
 
 #include <mem_mgr.h>
 
@@ -102,12 +110,27 @@ frame_init(void)
 	freelist = &frames[0];
 }
 
+#define NREGIONS 4
+
+extern struct cos_component_information cos_comp_info;
+
 static inline void
 mm_init(void)
 {
-	printc("mm init as thread %d\n", cos_get_thd_id());
+	printc("core %ld: mm init as thread %d\n", cos_cpuid(), cos_get_thd_id());
+
+	/* Expanding VAS. */
+	printc("mm expanding %lu MBs @ %p\n", (NREGIONS-1) * round_up_to_pgd_page(1) / 1024 / 1024, 
+	       (void *)round_up_to_pgd_page((unsigned long)&cos_comp_info.cos_poly[1]));
+	if (cos_vas_cntl(COS_VAS_SPD_EXPAND, cos_spd_id(), 
+			 round_up_to_pgd_page((unsigned long)&cos_comp_info.cos_poly[1]), 
+			 (NREGIONS-1) * round_up_to_pgd_page(1))) {
+		printc("MM could not expand VAS\n");
+		BUG();
+	}
 
 	frame_init();
+	printc("core %ld: mm init done\n", cos_cpuid());
 }
 
 /*************************************/
@@ -126,7 +149,7 @@ __page_get(void)
 	frame_ref(f);
 	f->nmaps  = -1; 	 /* belongs to us... */
 	f->c.addr = (vaddr_t)hp; /* ...at this address */
-	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, cos_spd_id(), (vaddr_t)hp, frame_index(f))) {
+	if (cos_mmap_cntl(COS_MMAP_GRANT, MAPPING_RW, cos_spd_id(), (vaddr_t)hp, frame_index(f))) {
 		printc("grant @ %p for frame %d\n", hp, frame_index(f));
 		BUG();
 	}
@@ -242,7 +265,7 @@ mapping_lookup(spdid_t spdid, vaddr_t addr)
 
 /* Make a child mapping */
 static struct mapping *
-mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to)
+mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to, int flags)
 {
 	struct comp_vas *cv = cvas_lookup(dest);
 	struct mapping *m = NULL;
@@ -264,7 +287,7 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to)
 	m = cslab_alloc_mapping();
 	if (!m) goto collision;
 
-	if (cos_mmap_cntl(COS_MMAP_GRANT, 0, dest, to, frame_index(f))) {
+	if (cos_mmap_cntl(COS_MMAP_GRANT, flags, dest, to, frame_index(f))) {
 		printc("mem_man: could not grant at %x:%d\n", dest, (int)to);
 		goto no_mapping;
 	}
@@ -288,7 +311,7 @@ static struct mapping *
 __mapping_linearize_decendents(struct mapping *m)
 {
 	struct mapping *first, *last, *c, *gc;
-	
+
 	first = c = m->c;
 	m->c = NULL;
 	if (!c) return NULL;
@@ -297,11 +320,10 @@ __mapping_linearize_decendents(struct mapping *m)
 		c->p = NULL;
 		gc = c->c;
 		c->c = NULL;
-		/* add the grand-children onto the end of our list of decedents */
-		if (gc) ADD_LIST(last, gc, _s, s_);
+		if (gc) APPEND_LIST(last, gc, _s, s_);
 		c = FIRST_LIST(c, _s, s_);
 	} while (first != c);
-	
+
 	return first;
 }
 
@@ -368,12 +390,12 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 	struct frame *f;
 	struct mapping *m = NULL;
 	vaddr_t ret = -1;
-
+	
 	LOCK();
 	f = frame_alloc();
 	if (!f) goto done; 	/* -ENOMEM */
 	assert(frame_nrefs(f) == 0);
-	m = mapping_crt(NULL, f, spd, addr);
+	m = mapping_crt(NULL, f, spd, addr, flags);
 	if (!m) goto dealloc;
 	f->c.m = m;
 	assert(m->addr == addr);
@@ -388,15 +410,19 @@ dealloc:
 	goto done;		/* -EINVAL */
 }
 
-vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr)
+vaddr_t __mman_alias_page(spdid_t s_spd, vaddr_t s_addr, u32_t d_spd_flags, vaddr_t d_addr)
 {
 	struct mapping *m, *n;
 	vaddr_t ret = 0;
+	spdid_t d_spd;
+	int flags;
 
+	d_spd = d_spd_flags >> 16;
+	flags = d_spd_flags & 0xFFFF;
 	LOCK();
 	m = mapping_lookup(s_spd, s_addr);
 	if (!m) goto done; 	/* -EINVAL */
-	n = mapping_crt(m, m->f, d_spd, d_addr);
+	n = mapping_crt(m, m->f, d_spd, d_addr, flags);
 	if (!n) goto done;
 
 	assert(n->addr  == d_addr);
@@ -522,7 +548,7 @@ sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd) { BUG(); return 0; }
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	switch (t) {
-	case COS_UPCALL_BOOTSTRAP:
+	case COS_UPCALL_THD_CREATE:
 		if (cos_cpuid() == INIT_CORE) {
 			int i;
 			for (i = 0; i < NUM_CPU; i++)
