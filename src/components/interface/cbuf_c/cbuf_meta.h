@@ -14,8 +14,9 @@
 #define LOCAL_ADDR(cci)    (cci->desc.addr)
 #define TMEM_TOUCHED(cci)  (cci->desc.owner.meta->nfo.c.flags & CBUFM_TOUCHED)
 #define TMEM_RELINQ        COMP_INFO_TMEM_CBUF
-#define CBUF_REFCNT_SZ     7
-#define CBUFP_REFCNT_MAX   ((1<<CBUF_REFCNT_SZ)-1)
+#define CBUFM_REFCNT_SZ     7
+#define CBUFM_FLAGS_SZ      5
+#define CBUFP_REFCNT_MAX   ((1<<CBUFM_REFCNT_SZ)-1)
 
 /* Shared page between the target component, and us */
 typedef	struct spd_cbvect_range shared_component_info;
@@ -56,16 +57,15 @@ typedef enum {
 	 * a buffer-to-buffer basis.
 	 * Invariant: !TMEM && sz != 0
 	 */
-	CBUFM_RELINQ   = 1<<4,
-//	CBUFM_MAX      = 1<<5
+	CBUFM_RELINQ   = 1<<4
 } cbufm_flags_t;
 
 union cbufm_info {
 	u32_t v;      /* value, for atomic manipulation */
 	struct {
 		u32_t         ptr  :20; /* page pointer */
-		u32_t         refcnt:7;
-		cbufm_flags_t flags: 5;
+		u32_t         refcnt:CBUFM_REFCNT_SZ;
+		cbufm_flags_t flags: CBUFM_FLAGS_SZ;
 	} __attribute__((packed)) c;
 };
 
