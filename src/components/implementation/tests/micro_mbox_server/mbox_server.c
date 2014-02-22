@@ -92,7 +92,6 @@ void cos_init(void *arg)
 		periodic_wake_wait(cos_spd_id());
 	}
 	printc("Server: Period %d Num %d Mbox %llu\n", period, num, re_mbox/(num*ITER));
-done:
 	trelease(cos_spd_id(), cli);
 	trelease(cos_spd_id(), t1);
 	printc("server UNIT TEST PASSED: split->release\n");
