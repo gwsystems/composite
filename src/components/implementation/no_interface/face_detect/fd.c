@@ -1,23 +1,13 @@
 #include <cos_component.h>
 #include <stdio.h>
-#include "../../../lib/libccv/ccv.h"
+/*#include "../../../lib/libccv/ccv.h"*/
 
 #define X_SLICE 5
 #define Y_SLICE 7
 
-int ccinit, ccclose, cccleanup, ccdelete, ccout;
-int cchit, cccall;
-
 void
 cos_init(void)
 {
-        ccinit = 0;
-        ccclose = 0;
-        cccleanup = 0;
-        ccdelete = 0;
-        ccout = 0;
-        cchit = 0;
-        cccall = 0;
         printc("Face Detection Test\n");
 
         ccv_enable_default_cache();
@@ -49,7 +39,6 @@ cos_init(void)
         ccv_disable_cache();
 
         printc("done\n");
-	printc("ccv_init:    %d\n""ccv_close:   %d\nccv_cleanup: %d\nccv_delete:  %d\nccv_out:     %d\nccv_hit:    %d\nccv_call: %d\n", ccinit, ccclose, cccleanup, ccdelete, ccout, cchit, cccall);
 
 	return;
 }
