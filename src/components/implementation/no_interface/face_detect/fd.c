@@ -1,9 +1,9 @@
 #include <cos_component.h>
 #include <stdio.h>
-/*#include "../../../lib/libccv/ccv.h"*/
+#include "../../../lib/libccv/ccv.h"
 
-#define X_SLICE 5
-#define Y_SLICE 7
+#define X_SLICE 1
+#define Y_SLICE 1
 
 void
 cos_init(void)
