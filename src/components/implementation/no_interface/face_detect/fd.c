@@ -1,6 +1,7 @@
 #include <cos_component.h>
 #include <stdio.h>
 #include "../../../lib/libccv/ccv.h"
+#include <print.h>
 
 #define X_SLICE 5
 #define Y_SLICE 7

@@ -1,6 +1,7 @@
 #include <cos_component.h>
 #include <stdio.h>
 #include "../../../lib/libccv/ccv.h"
+#include <print.h>
 
 #define CCV_CACHE_STAT
 #define X_SLICE 1
