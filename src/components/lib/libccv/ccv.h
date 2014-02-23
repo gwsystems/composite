@@ -6,7 +6,7 @@
 #ifndef GUARD_ccv_h
 #define GUARD_ccv_h
 
-#include <unistd.h>
+/*#include <unistd.h>*/
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
