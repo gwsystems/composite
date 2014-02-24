@@ -67,7 +67,7 @@ __kvt_set(struct ert *v, long id, void *val, ERT_CONST_PARAMS)
 	
 	vi = __ert_lookup(v, id, depth, &accum, ERT_CONST_ARGS);
 	if (unlikely(!vi)) return -1;
-	setfn(vi, val, 1);
+	vi->next = setfn(val, &accum, 1);
 
 	return 0;
 }
@@ -88,6 +88,7 @@ static inline int
 kvt_add(struct ert *v, unsigned long id, void *val, ERT_CONST_PARAMS)
 {
 	void *p;
+	unsigned long accum;
 
 	assert(v);
 	assert(val != initval);
@@ -95,7 +96,7 @@ kvt_add(struct ert *v, unsigned long id, void *val, ERT_CONST_PARAMS)
 	assert(last_sz == sizeof(int*));
 	if (unlikely(kvt_lkupp(v, id, ERT_CONST_ARGS))) return 1;
 	if (__kvt_set(v, id, val, ERT_CONST_ARGS)) {
-		if (__ert_expand(v, id, depth, NULL, ERT_CONST_ARGS)) return 1;
+		if (__ert_expand(v, id, depth, &accum, NULL, ERT_CONST_ARGS)) return 1;
 		if (__kvt_set(v, id, val, ERT_CONST_ARGS))            return 1;
 	}
 	p = kvt_lkupp(v, id, ERT_CONST_ARGS);

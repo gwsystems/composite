@@ -27,7 +27,7 @@ typedef int  (*ert_isnull_fn_t)(struct ert_intern *, unsigned long *accum, int i
 /* set values to their initial value (often "null") */
 typedef void *(*ert_initval_fn_t)(struct ert_intern *, int isleaf);
 /* set a value in an internal structure/value */
-typedef void (*ert_set_fn_t)(struct ert_intern *, void *accum, int isleaf);
+typedef void *(*ert_set_fn_t)(void *val, unsigned long *accum, int isleaf);
 /* allocate an internal or leaf structure */
 typedef void *(*ert_alloc_fn_t)(void *data, int sz, int leaf);
 /* ... and free it */
@@ -47,7 +47,7 @@ static int
 ert_defisnull(struct ert_intern *a, unsigned long *accum, int isleaf) 
 { (void)accum; (void)isleaf; return a == NULL; }
 static void *ert_definitfn(struct ert_intern *a, int isleaf) { (void)a; (void)isleaf; return NULL; }
-static void ert_defset(struct ert_intern *a, void *v, int isleaf) { (void)isleaf; a->next = v; }
+static void *ert_defset(void *v, unsigned long *accum, int isleaf) { (void)isleaf; (void)accum; return v; }
 static void *ert_definitval = NULL;
 
 #define ERT_CONST_PARAMS                                             \
@@ -77,14 +77,14 @@ static struct name##_ert *name##_alloc(void *memctxt)                   \
 { return (struct name##_ert*)ert_alloc(memctxt, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
 static inline void *name##_lkup(struct name##_ert *v, unsigned long id)	\
 { unsigned long a; return __ert_lookup((struct ert*)v, id, depth, &a, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
-static inline void *name##_lkupa(struct name##_ert *v, unsigned long id, unsigned long *agg)  \
-{ return __ert_lookup((struct ert*)v, id, depth, agg, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
-static inline void *name##_lkupan(struct name##_ert *v, unsigned long id, int dlimit, unsigned long *agg) \
-{ return __ert_lookup((struct ert*)v, id, dlimit, agg, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
-static inline int name##_expandn(struct name##_ert *v, unsigned long id, u32_t dlimit, void *memctxt) \
-{ return __ert_expand((struct ert*)v, id, dlimit, memctxt, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
-static inline int name##_expand(struct name##_ert *v, unsigned long id, void * memctxt) \
-{ return __ert_expand((struct ert*)v, id, depth, memctxt, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
+static inline void *name##_lkupa(struct name##_ert *v, unsigned long id, unsigned long *accum)  \
+{ return __ert_lookup((struct ert*)v, id, depth, accum, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
+static inline void *name##_lkupan(struct name##_ert *v, unsigned long id, int dlimit, unsigned long *accum) \
+{ return __ert_lookup((struct ert*)v, id, dlimit, accum, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
+static inline int name##_expandn(struct name##_ert *v, unsigned long id, u32_t dlimit, unsigned long *accum, void *memctxt) \
+{ return __ert_expand((struct ert*)v, id, dlimit, accum, memctxt, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
+static inline int name##_expand(struct name##_ert *v, unsigned long id, unsigned long *accum, void *memctxt) \
+{ return __ert_expand((struct ert*)v, id, depth, accum, memctxt, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
 static inline unsigned long name##_maxid(void)				\
 { return __ert_maxid(depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); }
 
@@ -177,7 +177,8 @@ __ert_lookup(struct ert *v, unsigned long id, u32_t dlimit, unsigned long *accum
 
 	assert(v);
 	assert(id < __ert_maxid(ERT_CONST_ARGS));
-	r.next = v->vect;
+	//r.next = getfn(v->vect, accum, 0);
+	r.next = v->vect; 	/* simply gets the address of the vector */
 	n      = &r;
 	limit  = dlimit < depth ? dlimit : depth;
 	for (i = 0 ; i < limit ; i++) {
@@ -196,26 +197,26 @@ __ert_lookup(struct ert *v, unsigned long id, u32_t dlimit, unsigned long *accum
  * expanded here.
  */
 static inline int
-__ert_expand(struct ert *v, unsigned long id, u32_t dlimit, void *memctxt, ERT_CONST_PARAMS)
+__ert_expand(struct ert *v, unsigned long id, u32_t dlimit, unsigned long *accum, void *memctxt, ERT_CONST_PARAMS)
 {
 	struct ert_intern r, *n, *new;
-	unsigned long accum = 0;
 	u32_t i, limit;
 
 	assert(v);
 	assert(id < __ert_maxid(ERT_CONST_ARGS));
+	//r.next = getfn(v->vect, accum, 0);
 	r.next = v->vect;
 	n      = &r;
 	limit  = dlimit < depth ? dlimit : depth; 
 	for (i = 0 ; i < limit-1 ; i++) {
-		n = __ert_walk(n, id, &accum, depth-i, ERT_CONST_ARGS);
-		if (!isnullfn(n->next, &accum, 0)) continue;
+		n = __ert_walk(n, id, accum, depth-i, ERT_CONST_ARGS);
+		if (!isnullfn(n->next, accum, 0)) continue;
 		
 		if (i+2 < depth) new = allocfn(memctxt, (1<<order) * sizeof(int*), 0);
 		else             new = allocfn(memctxt, (1<<last_order) * last_sz, 1);
 		if (unlikely(!new)) return -1;
 		__ert_init(new, i+2 >= depth, ERT_CONST_ARGS);
-		setfn(n, new, 0);
+		n->next = setfn(new, accum, 0);
 	}
 	return 0;
 }
