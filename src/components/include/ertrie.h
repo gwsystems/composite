@@ -69,7 +69,10 @@ static void *ert_definitval = NULL;
  * The informal goal of this is to ensure that the lookup code
  * generated is on the order of 10-20 instructions, depending on
  * depth.  In terms of (hot-cache) performance, we're shooting for
- * ~5*depth cycles (if L1 is 5 cycles to access).
+ * ~5*depth cycles (if L1 is 5 cycles to access).  For cold caches,
+ * we're looking for ~500*depth cycles (if memory accesses are 500
+ * cycles).  When there is parallel contention (writes), the cost
+ * should be comparable to the latter case.
  */
 #define ERT_CREATE(name, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn) \
 struct name##_ert { struct ert t; };				        \
@@ -130,6 +133,7 @@ static struct ert *
 ert_alloc(void *memctxt, ERT_CONST_PARAMS)
 {
 	struct ert *v;
+	unsigned long accum;
 	
 	/* Make sure the id size can be represented on our system */
 	assert(((order * (depth-1)) + last_order) < (sizeof(unsigned long)*8));
@@ -139,7 +143,7 @@ ert_alloc(void *memctxt, ERT_CONST_PARAMS)
 	if (NULL == v) return NULL;
 	__ert_init(v->vect, depth == 1, ERT_CONST_ARGS);
 
-	return v;
+	return setfn(v, &accum, depth == 1);
 }
 
 static inline struct ert_intern *
@@ -177,8 +181,8 @@ __ert_lookup(struct ert *v, unsigned long id, u32_t dlimit, unsigned long *accum
 
 	assert(v);
 	assert(id < __ert_maxid(ERT_CONST_ARGS));
-	//r.next = getfn(v->vect, accum, 0);
-	r.next = v->vect; 	/* simply gets the address of the vector */
+	/* simply gets the address of the vector */
+	r.next = getfn(v->vect, accum, 0);
 	n      = &r;
 	limit  = dlimit < depth ? dlimit : depth;
 	for (i = 0 ; i < limit ; i++) {
@@ -204,8 +208,7 @@ __ert_expand(struct ert *v, unsigned long id, u32_t dlimit, unsigned long *accum
 
 	assert(v);
 	assert(id < __ert_maxid(ERT_CONST_ARGS));
-	//r.next = getfn(v->vect, accum, 0);
-	r.next = v->vect;
+	r.next = getfn(v->vect, accum, 0);
 	n      = &r;
 	limit  = dlimit < depth ? dlimit : depth; 
 	for (i = 0 ; i < limit-1 ; i++) {
