@@ -731,7 +731,11 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		/* printk("COS AED IOCTL: core %d creating thread in spd %d.\n",  */
 		/*        get_cpuid(), thread_info.spd_handle); */
-                fpu_init();
+		if (fpu_init() < 0) {
+			printk("cos: FPU init failed.\n");
+			return -EFAULT;
+		}
+
 		printk("cos core %u: creating thread in spd %d.\n", get_cpuid(), thread_info.spd_handle);
 
 		spd = spd_get_by_index(thread_info.spd_handle);
