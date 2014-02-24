@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-//#include <sys/stat.h>
 #include "../../interface/torrent/torrent.h"
 #include "../../include/cos_component.h"
 #include "../../include/print.h"
@@ -38,7 +37,7 @@ cos_open(const char *pathname, int flags, int mode)
         long evt;
         evt = evt_split(cos_spd_id(), 0, 0);
         assert(evt > 0);
-        td = tsplit(cos_spd_id(), td_root, pathname, strlen(pathname), TOR_ALL, evt);
+        td = tsplit(cos_spd_id(), td_root, (char *)pathname, strlen(pathname), TOR_ALL, evt);
 
         if (td <= 0) {
                 printc("open() failed!\n");
@@ -68,14 +67,14 @@ ssize_t
 cos_write(int fd, const void *buf, size_t count)
 {
         if (fd == 0) {
-                printc("stdin is not supported!\n", buf);
+                printc("stdin is not supported!\n");
                 return 0;
         } else if (fd == 1 || fd == 2) {
-                printc("%s", buf);
+                printc("%s", (char *)buf);
                 return 0;
         } else {
                 int td = fd - 3;
-                int ret = twrite_pack(cos_spd_id(), td, buf, count);
+                int ret = twrite_pack(cos_spd_id(), td, (char *)buf, count);
                 return ret;
         }
 }
@@ -171,7 +170,7 @@ posix_init(void)
 {
         int i;
         for (i = 0; i < SYSCALLS_NUM; i++) {
-                cos_syscalls[i] = default_syscall;
+                cos_syscalls[i] = (cos_syscall_t)default_syscall;
         }
 
         libc_syscall_override((cos_syscall_t)cos_open, __NR_open);
@@ -182,7 +181,6 @@ posix_init(void)
         libc_syscall_override((cos_syscall_t)cos_munmap, __NR_munmap);
         libc_syscall_override((cos_syscall_t)cos_mremap, __NR_mremap);
         libc_syscall_override((cos_syscall_t)cos_lseek, __NR_lseek);
-        /*libc_syscall_override(cos_fstat, __NR_fstat);*/
 
         return;
 }
