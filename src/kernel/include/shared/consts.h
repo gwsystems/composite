@@ -45,7 +45,7 @@ struct pt_regs {
 #endif
 
 #define MAX_SERVICE_DEPTH 31
-#define MAX_NUM_THREADS 400
+#define MAX_NUM_THREADS 200
 /* Stacks are 2 * page_size (expressed in words) */
 #define MAX_STACK_SZ    (PAGE_SIZE/4) /* a page */
 #define COS_STACK_SZ    (MAX_STACK_SZ*4)
@@ -105,9 +105,9 @@ struct pt_regs {
 
 #define KERN_BASE_ADDR 0xc0000000 //CONFIG_PAGE_OFFSET
 
-#define CHAR_PER_INT sizeof(int) / sizeof(char)
+#define CHAR_PER_INT (sizeof(int) / sizeof(char))
 #define PARAMS_PER_INV 4
-#define CHAR_PER_INV CHAR_PER_INT * PARAMS_PER_INV
+#define CHAR_PER_INV (CHAR_PER_INT * PARAMS_PER_INV)
 
 #define CPUID_OFFSET_IN_THREAD_INFO 4
 #define THREAD_SIZE_LINUX 8192

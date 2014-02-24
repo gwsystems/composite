@@ -38,8 +38,31 @@ def start():
 	os.system("echo " + cos_pid + " > /dev/cpuset/cos/tasks")
 	os.system("for i in `cat /dev/cpuset/tasks`; do echo $i > /dev/cpuset/linux/tasks; done")
 
-	if os.path.exists("/proc/irq/0/smp_affinity"):
-		irq_mask = str(1 << (linux_cpu))
-		os.system("for i in `ls /proc/irq/`; do if \\[ \"$i\" != \"default_smp_affinity\" \\]; then echo " + irq_mask + " > /proc/irq/$i/smp_affinity; fi; done")
+        if os.path.exists("/proc/irq/0/smp_affinity"):
+                irq_mask = hex((1 << (linux_cpu)))[2:]
+                l = len(irq_mask)
+                if irq_mask[l-1] == 'L': # remove the L at the end
+                        assert(l > 2)
+                        irq_mask = irq_mask[:l-1]
+                else:
+                        irq_mask = irq_mask[:l]
+
+                # then we need to add comma in the string!
+                l = len(irq_mask)
+                # determine how many commas we need
+                if l % 8 == 0:
+                        k = l / 8 - 1
+                else:
+                        k = l / 8
+
+                for i in range(0, k):
+                        mask = irq_mask[l-8:l]
+                        mask = ',' + mask
+                        assert (l > 8)
+                        l -= 8;
+                mask = irq_mask[:l] + mask
+                # finally we got the correct format
+                os.system("echo " + mask + " > /proc/irq/default_smp_affinity;")
+                os.system("for i in `ls /proc/irq/`; do if \\[ \"$i\" != \"default_smp_affinity\" \\]; then echo " + mask + " > /proc/irq/$i/smp_affinity; fi; done")
 
 start()
