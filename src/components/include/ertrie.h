@@ -72,31 +72,41 @@ static void *ert_definitval = NULL;
  * ~5*depth cycles (if L1 is 5 cycles to access).
  */
 #define ERT_CREATE(name, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn) \
-static struct ert *name##_alloc(void *memctxt)			       \
-{ return ert_alloc(memctxt, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
-static inline void *name##_lkup(struct ert *v, unsigned long id)	\
-{ unsigned long a; return __ert_lookup(v, id, depth, &a, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
-static inline void *name##_lkupa(struct ert *v, unsigned long id, unsigned long *agg)  \
-{ return __ert_lookup(v, id, depth, agg, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
-static inline void *name##_lkupan(struct ert *v, unsigned long id, int dlimit, unsigned long *agg) \
-{ return __ert_lookup(v, id, dlimit, agg, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
-static inline int name##_expandn(struct ert *v, unsigned long id, u32_t dlimit, void *memctxt) \
-{ return __ert_expand(v, id, dlimit, memctxt, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
-static inline int name##_expand(struct ert *v, unsigned long id, void * memctxt) \
-{ return __ert_expand(v, id, depth, memctxt, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
-static inline unsigned long name##_maxid(void) { return (unsigned long)(1<<((order * (depth-1)) + last_order)); }
+struct name##_ert { struct ert t; };				        \
+static struct name##_ert *name##_alloc(void *memctxt)                   \
+{ return (struct name##_ert*)ert_alloc(memctxt, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
+static inline void *name##_lkup(struct name##_ert *v, unsigned long id)	\
+{ unsigned long a; return __ert_lookup((struct ert*)v, id, depth, &a, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
+static inline void *name##_lkupa(struct name##_ert *v, unsigned long id, unsigned long *agg)  \
+{ return __ert_lookup((struct ert*)v, id, depth, agg, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
+static inline void *name##_lkupan(struct name##_ert *v, unsigned long id, int dlimit, unsigned long *agg) \
+{ return __ert_lookup((struct ert*)v, id, dlimit, agg, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
+static inline int name##_expandn(struct name##_ert *v, unsigned long id, u32_t dlimit, void *memctxt) \
+{ return __ert_expand((struct ert*)v, id, dlimit, memctxt, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
+static inline int name##_expand(struct name##_ert *v, unsigned long id, void * memctxt) \
+{ return __ert_expand((struct ert*)v, id, depth, memctxt, depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
+static inline unsigned long name##_maxid(void)				\
+{ return __ert_maxid(depth, order, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); }
+
 
 #define ERT_CREATE_DEF(name, depth, order, last_order, last_sz, allocfn, freefn)	\
 ERT_CREATE(name, depth, order, last_order, last_sz, ert_definitval, ert_definitfn, ert_defget, ert_defisnull, ert_defset, allocfn, freefn)
 
-#define ERT_MAX_ID ((unsigned long)(1<<((order * (depth-1)) + last_order)))
+static inline unsigned long
+__ert_maxid(ERT_CONST_PARAMS)
+{ 
+	ERT_CONSTS_DEWARN;
+	unsigned long off    = (unsigned long)(((order * (depth-1)) + last_order));
+	unsigned long maxoff = (sizeof(int*)*8);
+	return (off > maxoff) ? 1<<maxoff : 1<<off; 
+}
 
 /* 
  * Initialize a level in the ertrie.  lvl is either an internal level,
  * lvl > 1, or a leaf level in the tree in which case embedded leaf
  * structs require a different initialization.
  */
-static void
+static inline void
 __ert_init(struct ert_intern *vi, int isleaf, ERT_CONST_PARAMS)
 {
 	int i, base, sz;
@@ -123,10 +133,11 @@ ert_alloc(void *memctxt, ERT_CONST_PARAMS)
 	
 	/* Make sure the id size can be represented on our system */
 	assert(((order * (depth-1)) + last_order) < (sizeof(unsigned long)*8));
-	assert(depth > 1);
-	v = allocfn(memctxt, (1<<order) * sizeof(int*), 0);
+	assert(depth >= 1);
+	if (depth > 1) v = allocfn(memctxt, (1<<order) * sizeof(int*), 0);
+	else           v = allocfn(memctxt, (1<<last_order) * last_sz, 0);
 	if (NULL == v) return NULL;
-	__ert_init(v->vect, depth <= 1, ERT_CONST_ARGS);
+	__ert_init(v->vect, depth == 1, ERT_CONST_ARGS);
 
 	return v;
 }
@@ -165,7 +176,7 @@ __ert_lookup(struct ert *v, unsigned long id, u32_t dlimit, unsigned long *accum
 	u32_t i, limit;
 
 	assert(v);
-	assert(id < ERT_MAX_ID);
+	assert(id < __ert_maxid(ERT_CONST_ARGS));
 	r.next = v->vect;
 	n      = &r;
 	limit  = dlimit < depth ? dlimit : depth;
@@ -177,13 +188,14 @@ __ert_lookup(struct ert *v, unsigned long id, u32_t dlimit, unsigned long *accum
 }
 
 /* 
- * Expand the data-structure up to some depth limit.  This will call
- * the initialization routines for that level, and hook it into the
- * overall trie.  If you want to control the costs of memory
- * allocation and initialization, then you should use dlimit to ensure
- * that multiple levels of the trie are not expanded here.
+ * Expand the data-structure up to and including some depth limit
+ * (dlimit).  This will call the initialization routines for that
+ * level, and hook it into the overall trie.  If you want to control
+ * the costs of memory allocation and initialization, then you should
+ * use dlimit to ensure that multiple levels of the trie are not
+ * expanded here.
  */
-static int
+static inline int
 __ert_expand(struct ert *v, unsigned long id, u32_t dlimit, void *memctxt, ERT_CONST_PARAMS)
 {
 	struct ert_intern r, *n, *new;
@@ -191,7 +203,7 @@ __ert_expand(struct ert *v, unsigned long id, u32_t dlimit, void *memctxt, ERT_C
 	u32_t i, limit;
 
 	assert(v);
-	assert(id < ERT_MAX_ID);
+	assert(id < __ert_maxid(ERT_CONST_ARGS));
 	r.next = v->vect;
 	n      = &r;
 	limit  = dlimit < depth ? dlimit : depth; 

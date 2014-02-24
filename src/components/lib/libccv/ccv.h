@@ -6,7 +6,7 @@
 #ifndef GUARD_ccv_h
 #define GUARD_ccv_h
 
-#include <unistd.h>
+/*#include <unistd.h>*/
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -391,6 +391,10 @@ void ccv_zero(ccv_matrix_t* mat);
 void ccv_shift(ccv_matrix_t* a, ccv_matrix_t** b, int type, int lr, int rr);
 int ccv_any_nan(ccv_matrix_t *a);
 
+// 32-bit float to 16-bit float
+void ccv_float_to_half_precision(float* f, uint16_t* h, size_t len);
+void ccv_half_precision_to_float(uint16_t* h, float* f, size_t len);
+
 /* basic data structures ccv_util.c */
 
 typedef struct {
@@ -520,7 +524,7 @@ void ccv_contour_free(ccv_contour_t* contour);
 
 void ccv_invert(ccv_matrix_t* a, ccv_matrix_t** b, int type);
 void ccv_solve(ccv_matrix_t* a, ccv_matrix_t* b, ccv_matrix_t** d, int type);
-void ccv_eigen(ccv_matrix_t* a, ccv_matrix_t* b, ccv_matrix_t** d, int type);
+void ccv_eigen(ccv_dense_matrix_t* a, ccv_dense_matrix_t** vector, ccv_dense_matrix_t** lambda, int type, double epsilon);
 
 typedef struct {
 	double interp;
@@ -844,7 +848,7 @@ typedef struct {
 
 enum {
 	CCV_BBF_GENETIC_OPT = 0x01,
-	CCV_BBF_FLOAT_OPT = 0x02
+	CCV_BBF_FLOAT_OPT = 0x02,
 };
 
 typedef struct {
@@ -1070,11 +1074,15 @@ void ccv_icf_multiscale_classifier_cascade_free(ccv_icf_multiscale_classifier_ca
 /* polymorph function to run ICF based detector */
 ccv_array_t* __attribute__((warn_unused_result)) ccv_icf_detect_objects(ccv_dense_matrix_t* a, void* cascade, int count, ccv_icf_param_t params);
 
+/* ConvNet: Convolutional Neural Networks
+ */
+
 enum {
 	CCV_CONVNET_CONVOLUTIONAL = 0x01,
 	CCV_CONVNET_FULL_CONNECT = 0x02,
 	CCV_CONVNET_MAX_POOL = 0x03,
 	CCV_CONVNET_AVERAGE_POOL = 0x04,
+	CCV_CONVNET_LOCAL_RESPONSE_NORM = 0x05,
 };
 
 typedef union {
@@ -1095,74 +1103,132 @@ typedef union {
 		int strides;
 		// window size
 		int size;
+		// padding for input
+		int border;
 	} pool;
+	struct {
+		// cross map size
+		int size;
+		// coeffs for a[i] / (kappa + alpha * sum(a, i - size / 2, i + size / 2))^beta
+		float kappa;
+		float alpha;
+		float beta;
+	} rnorm;
 	struct {
 		int count;
 	} full_connect;
 } ccv_convnet_type_t;
 
 typedef struct {
-	int type;
-	float dropout_rate;
-	float bias; // bias initialization
-	float sigma; // weight initialization with deviation from Gaussian distribution
 	struct {
-		struct {
-			int rows;
-			int cols;
-			int channels;
-		} matrix;
-		struct {
-			int count;
-		} node;
-	} input;
-	ccv_convnet_type_t output;
-} ccv_convnet_param_t;
+		int rows;
+		int cols;
+		int channels;
+	} matrix;
+	struct {
+		int count;
+	} node;
+} ccv_convnet_input_t;
 
 typedef struct {
 	int type;
-	float dropout_rate;
+	float bias; // bias initialization
+	float sigma; // weight initialization with deviation from Gaussian distribution
+	ccv_convnet_input_t input;
+	ccv_convnet_type_t output;
+} ccv_convnet_layer_param_t;
+
+typedef struct {
+	int type;
 	float* w; // weight
 	float* bias; // bias
 	size_t wnum; // the number of weights
+	ccv_convnet_input_t input; // the input requirement
 	ccv_convnet_type_t net; // network configuration
+	void* reserved;
 } ccv_convnet_layer_t;
 
 typedef struct {
+	int use_cwc_accel; // use "ccv with cuda" acceleration
 	// this is redundant, but good to enforcing what the input should look like
+	ccv_size_t input;
 	int rows;
 	int cols;
 	int channels;
 	// count and layer of the convnet
 	int count;
+	ccv_dense_matrix_t* mean_activity; // mean activity to subtract from
 	ccv_convnet_layer_t* layers; // the layer configuration
+	// these can be reused and we don't need to reallocate memory
+	ccv_dense_matrix_t** denoms; // denominators
 	ccv_dense_matrix_t** acts; // hidden layers and output layers
-	ccv_dense_matrix_t** dropouts; // the dropout for hidden layers
+	ccv_dense_matrix_t** dors; // the dropout for hidden layers
+	void* reserved;
 } ccv_convnet_t;
+
+typedef struct {
+	float decay;
+	float learn_rate;
+	float momentum;
+} ccv_convnet_layer_sgd_param_t;
+
+typedef struct {
+	// the dropout rate, I find that dor is better looking than dropout_rate,
+	// and drop out is happened on the input neuron (so that when the network
+	// is used in real-world, I simply need to multiply its weights to 1 - dor
+	// to get the real one)
+	float dor;
+	ccv_convnet_layer_sgd_param_t w;
+	ccv_convnet_layer_sgd_param_t bias;
+} ccv_convnet_layer_train_param_t;
 
 typedef struct {
 	int max_epoch;
 	int mini_batch;
-	double decay;
-	double learn_rate;
-	double momentum;
+	int iterations;
+	int symmetric;
+	float color_gain; // the gaussian value for color variations
+	ccv_convnet_layer_train_param_t* layer_params;
 } ccv_convnet_train_param_t;
+
+enum {
+	CCV_CATEGORIZED_DENSE_MATRIX = 0x01,
+	CCV_CATEGORIZED_FILE = 0x02,
+};
 
 typedef struct {
 	int c; // class / category label
+	int type;
 	union {
 		ccv_dense_matrix_t* matrix;
 		ccv_file_info_t file;
 	};
 } ccv_categorized_t;
 
-ccv_convnet_t* __attribute__((warn_unused_result)) ccv_convnet_new(ccv_convnet_param_t params[], int count);
-void ccv_convnet_supervised_train(ccv_convnet_t* convnet, ccv_array_t* categorizeds, ccv_array_t* tests, ccv_convnet_train_param_t params);
-void ccv_convnet_encode(ccv_convnet_t* convnet, ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type);
-int ccv_convnet_classify(ccv_convnet_t* convnet, ccv_dense_matrix_t* a);
-void ccv_convnet_free(ccv_convnet_t* convnet);
+inline static ccv_categorized_t ccv_categorized(int c, ccv_dense_matrix_t* matrix, ccv_file_info_t* file)
+{
+	assert((matrix && !file) || (!matrix && file));
+	ccv_categorized_t categorized;
+	categorized.c = c;
+	if (matrix)
+		categorized.type = CCV_CATEGORIZED_DENSE_MATRIX, categorized.matrix = matrix;
+	else
+		categorized.type = CCV_CATEGORIZED_FILE, categorized.file = *file;
+	return categorized;
+}
 
-extern int ccinit, ccclose, ccout, ccdelete, cccleanup;
-extern int cchit, cccall;
+typedef struct {
+	int half_precision;
+} ccv_convnet_write_param_t;
+
+ccv_convnet_t* __attribute__((warn_unused_result)) ccv_convnet_new(int use_cwc_accel, ccv_size_t input, ccv_convnet_layer_param_t params[], int count);
+int ccv_convnet_verify(ccv_convnet_t* convnet, int output);
+void ccv_convnet_supervised_train(ccv_convnet_t* convnet, ccv_array_t* categorizeds, ccv_array_t* tests, const char* filename, ccv_convnet_train_param_t params);
+void ccv_convnet_encode(ccv_convnet_t* convnet, ccv_dense_matrix_t** a, ccv_dense_matrix_t** b, int batch);
+void ccv_convnet_classify(ccv_convnet_t* convnet, ccv_dense_matrix_t** a, int* labels, int batch);
+ccv_convnet_t* __attribute__((warn_unused_result)) ccv_convnet_read(int use_cwc_accel, const char* filename);
+void ccv_convnet_write(ccv_convnet_t* convnet, const char* filename, ccv_convnet_write_param_t params);
+void ccv_convnet_compact(ccv_convnet_t* convnet); // remove unused resources
+void ccv_convnet_free(ccv_convnet_t* convnet);
 
 #endif

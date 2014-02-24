@@ -453,7 +453,8 @@ static void _ccv_icf_read_classifier_cascade_state(const char* directory, ccv_ic
 			state->example_state[i].rate = rate;
 		}
 		fclose(r);
-	}
+	} else
+		state->example_state = 0;
 	snprintf(filename, 1024, "%s/precomputed", directory);
 	r = fopen(filename, "rb");
 	if (r)
@@ -462,7 +463,8 @@ static void _ccv_icf_read_classifier_cascade_state(const char* directory, ccv_ic
 		state->precomputed = (uint8_t*)ccmalloc(sizeof(uint8_t) * state->params.feature_size * step);
 		fread(state->precomputed, 1, step * state->params.feature_size, r);
 		fclose(r);
-	}
+	} else
+		state->precomputed = 0;
 	snprintf(filename, 1024, "%s/cascade", directory);
 	state->classifier = ccv_icf_read_classifier_cascade(filename);
 	if (!state->classifier)
@@ -521,7 +523,7 @@ static uint8_t* _ccv_icf_precompute_features(ccv_icf_feature_t* features, int fe
 	size_t step = (3 * (positives->rnum + negatives->rnum) + 3) & -4;
 	uint8_t* precomputed = (uint8_t*)ccmalloc(sizeof(uint8_t) * feature_size * step);
 	ccv_icf_value_index_t* sortkv = (ccv_icf_value_index_t*)ccmalloc(sizeof(ccv_icf_value_index_t) * (positives->rnum + negatives->rnum));
-	printf(" - precompute features using %luM memory temporarily\n", (sizeof(float) * (positives->rnum + negatives->rnum) * feature_size + sizeof(uint8_t) * feature_size * step) / (1024 * 1024));
+	printf(" - precompute features using %uM memory temporarily\n", (uint32_t)((sizeof(float) * (positives->rnum + negatives->rnum) * feature_size + sizeof(uint8_t) * feature_size * step) / (1024 * 1024)));
 	float* featval = (float*)ccmalloc(sizeof(float) * feature_size * (positives->rnum + negatives->rnum));
 	ccv_disable_cache(); // clean up cache so we have enough space to run it
 #ifdef USE_DISPATCH
@@ -584,7 +586,7 @@ static uint8_t* _ccv_icf_precompute_features(ccv_icf_feature_t* features, int fe
 	}
 	ccfree(featval);
 	ccfree(sortkv);
-	printf("\n - features are precomputed on examples and will occupy %luM memory\n", (uint64_t)(feature_size * step) / (1024 * 1024));
+	printf("\n - features are precomputed on examples and will occupy %uM memory\n", (uint32_t)((feature_size * step) / (1024 * 1024)));
 	return precomputed;
 }
 
@@ -1071,7 +1073,7 @@ static void _ccv_icf_bootstrap_negatives(ccv_icf_classifier_cascade_t* cascade, 
 				continue;
 #endif
 			}
-			FLUSH(" - bootstrap negatives %d%% (%d / %d) [%lu / %d] %s", (i + 1) * 100 / negnum, i + 1, negnum, j + 1, bgfiles->rnum, spread ? "" : "without statistic balancing");
+			FLUSH(" - bootstrap negatives %d%% (%d / %d) [%u / %d] %s", (i + 1) * 100 / negnum, i + 1, negnum, (uint32_t)(j + 1), bgfiles->rnum, spread ? "" : "without statistic balancing");
 #ifdef USE_DISPATCH
 			gsl_rng* crng = gsl_rng_alloc(gsl_rng_default);
 			gsl_rng_set(crng, gsl_rng_get(rng));
@@ -1413,11 +1415,9 @@ ccv_icf_classifier_cascade_t* ccv_icf_classifier_cascade_new(ccv_array_t* posfil
 	for (z.bootstrap = 0; z.bootstrap <= params.bootstrap; z.bootstrap++)
 	{
 		z.example_state = (ccv_icf_example_state_t*)ccmalloc(sizeof(ccv_icf_example_state_t) * (z.negatives->rnum + z.positives->rnum));
+		memset(z.example_state, 0, sizeof(ccv_icf_example_state_t) * (z.negatives->rnum + z.positives->rnum));
 		for (z.i = 0; z.i < z.positives->rnum + z.negatives->rnum; z.i++)
-		{
 			z.example_state[z.i].weight = (z.i < z.positives->rnum) ? 0.5 / z.positives->rnum : 0.5 / z.negatives->rnum;
-			z.example_state[z.i].rate = 0;
-		}
 		z.x.example_state = 0;
 		ccv_function_state_resume(_ccv_icf_write_classifier_cascade_state, z, dir);
 		z.precomputed = _ccv_icf_precompute_features(z.features, params.feature_size, z.positives, z.negatives);
@@ -1525,8 +1525,10 @@ ccv_icf_classifier_cascade_t* ccv_icf_classifier_cascade_new(ccv_array_t* posfil
 			ccv_function_state_resume(_ccv_icf_write_classifier_cascade_state, z, dir);
 		}
 	}
-	ccfree(z.precomputed);
-	ccfree(z.example_state);
+	if (z.precomputed)
+		ccfree(z.precomputed);
+	if (z.example_state)
+		ccfree(z.example_state);
 	ccfree(z.features);
 	ccv_array_free(z.positives);
 	ccv_array_free(z.negatives);

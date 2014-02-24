@@ -29,14 +29,14 @@
 
 #define KVT_CREATE(name, depth, order, last_order, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn) \
 ERT_CREATE(name, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, freefn) \
-static void name##_free(struct ert *v)					\
-{ kvt_free(v, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
-static inline void *name##_lkupp(struct ert *v, unsigned long id)	\
-{ return kvt_lkupp(v, id, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
-static inline int name##_add(struct ert *v, long id, void *val)		\
-{ return kvt_add(v, id, val, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
-static inline int name##_del(struct ert *v, long id)			\
-{ return kvt_del(v, id, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); }
+static void name##_free(struct name##_ert *v)					\
+{ kvt_free((struct ert*)v, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
+static inline void *name##_lkupp(struct name##_ert *v, unsigned long id)	\
+{ return kvt_lkupp((struct ert*)v, id, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
+static inline int name##_add(struct name##_ert *v, long id, void *val)		\
+{ return kvt_add((struct ert*)v, id, val, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
+static inline int name##_del(struct name##_ert *v, long id)			\
+{ return kvt_del((struct ert*)v, id, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); }
 
 #define KVT_CREATE_DEF(name, depth, order, last_order, allocfn, freefn)	\
 KVT_CREATE(name, depth, order, last_order, ert_definitval, ert_definitfn, ert_defget, ert_defisnull, ert_defset, allocfn, freefn)
@@ -91,7 +91,7 @@ kvt_add(struct ert *v, unsigned long id, void *val, ERT_CONST_PARAMS)
 
 	assert(v);
 	assert(val != initval);
-	assert(id < ERT_MAX_ID);
+	assert(id < __ert_maxid(ERT_CONST_ARGS));
 	assert(last_sz == sizeof(int*));
 	if (unlikely(kvt_lkupp(v, id, ERT_CONST_ARGS))) return 1;
 	if (__kvt_set(v, id, val, ERT_CONST_ARGS)) {
@@ -114,7 +114,7 @@ static inline int
 kvt_del(struct ert *v, unsigned long id, ERT_CONST_PARAMS)
 {
 	assert(v);
-	assert(id < ERT_MAX_ID);
+	assert(id < __ert_maxid(ERT_CONST_ARGS));
 	assert(last_sz == sizeof(int*));
 	if (__kvt_set(v, id, initval, ERT_CONST_ARGS)) return 1;
 	assert(!kvt_lkupp(v, id, ERT_CONST_ARGS));

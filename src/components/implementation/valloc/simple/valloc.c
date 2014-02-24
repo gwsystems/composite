@@ -119,11 +119,11 @@ void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
 	}
 
         if (unlikely(npages > MAP_MAX * sizeof(u32_t))) {
-                printc("valloc: cannot alloc more than %lu bytes in one time!\n", 32 * WORDS_PER_PAGE * PAGE_SIZE);
+                printc("valloc: cannot alloc more than %u bytes in one time!\n", 32 * WORDS_PER_PAGE * PAGE_SIZE);
                 goto done;
         }
 
-        unsigned long ext_size, i;
+        unsigned long ext_size = 0, i;
         for (i = 0; i < MAX_SPD_VAS_LOCATIONS; i++) {
                 if (trac->extents[i].map) {
                         occ = trac->extents[i].map;

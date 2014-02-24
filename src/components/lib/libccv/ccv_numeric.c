@@ -16,8 +16,105 @@ void ccv_solve(ccv_matrix_t* a, ccv_matrix_t* b, ccv_matrix_t** d, int type)
 {
 }
 
-void ccv_eigen(ccv_matrix_t* a, ccv_matrix_t* b, ccv_matrix_t** d, int type)
+void ccv_eigen(ccv_dense_matrix_t* a, ccv_dense_matrix_t** vector, ccv_dense_matrix_t** lambda, int type, double epsilon)
 {
+	ccv_declare_derived_signature(vsig, a->sig != 0, ccv_sign_with_literal("ccv_eigen(vector)"), a->sig, CCV_EOF_SIGN);
+	ccv_declare_derived_signature(lsig, a->sig != 0, ccv_sign_with_literal("ccv_eigen(lambda)"), a->sig, CCV_EOF_SIGN);
+	assert(CCV_GET_CHANNEL(a->type) == 1);
+	type = (type == 0) ? CCV_GET_DATA_TYPE(a->type) | CCV_C1 : CCV_GET_DATA_TYPE(type) | CCV_C1;
+	// as of now, this function only support real symmetric matrix
+	ccv_dense_matrix_t* dvector = *vector = ccv_dense_matrix_renew(*vector, a->rows, a->cols, CCV_32F | CCV_64F | CCV_C1, type, vsig);
+	ccv_dense_matrix_t* dlambda = *lambda = ccv_dense_matrix_renew(*lambda, 1, a->cols, CCV_32F | CCV_64F | CCV_C1, type, lsig);
+	assert(CCV_GET_DATA_TYPE(dvector->type) == CCV_GET_DATA_TYPE(dlambda->type));
+	ccv_object_return_if_cached(, dvector, dlambda);
+	double* ja = (double*)ccmalloc(sizeof(double) * a->rows * a->cols);
+	int i, j;
+	unsigned char* aptr = a->data.u8;
+	assert(a->rows > 0 && a->cols > 0);
+#define for_block(_, _for_get) \
+	for (i = 0; i < a->rows; i++) \
+	{ \
+		for (j = 0; j < a->cols; j++) \
+			ja[i * a->cols + j] = _for_get(aptr, j, 0); \
+		aptr += a->step; \
+	}
+	ccv_matrix_getter(a->type, for_block);
+#undef for_block
+	ccv_zero(dvector);
+	ccv_zero(dlambda);
+	unsigned char* dvptr = dvector->data.u8;
+#define for_block(_, _for_set) \
+	for (i = 0; i < a->cols; i++) \
+		_for_set(dvptr, i * a->cols + i, 1, 0);
+	ccv_matrix_setter(dvector->type, for_block);
+#undef for_block
+	double accuracy = 0;
+	for (i = 0; i < a->rows * a->cols; i++)
+		accuracy += ja[i];
+	accuracy = sqrt(2 * accuracy);
+	int p, q;
+	unsigned char* dlptr = dlambda->data.u8;
+	int flag = 1;
+	assert(a->rows == a->cols);
+#define for_block(_, _for_set, _for_get) \
+	do { \
+		if (!flag) \
+			accuracy = accuracy * 0.5; \
+		flag = 0; \
+		for (p = 0; p < a->rows; p++) \
+		{ \
+			for (q = p + 1; q < a->cols; q++) \
+				if (fabs(ja[p * a->cols + q]) > accuracy) \
+				{ \
+					double x = -ja[p * a->cols + q]; \
+					double y = (ja[q * a->cols + q] - ja[p * a->cols + p]) * 0.5; \
+					double omega = (x == 0 && y == 0) ? 1 : x / sqrt(x * x + y * y); \
+					if (y < 0) \
+						omega = -omega; \
+					double sn = 1.0 + sqrt(1.0 - omega * omega); \
+					sn = omega / sqrt(2 * sn); \
+					double cn = sqrt(1.0 - sn * sn); \
+					double fpp = ja[p * a->cols + p]; \
+					double fpq = ja[p * a->cols + q]; \
+					double fqq = ja[q * a->cols + q]; \
+					ja[p * a->cols + p] = fpp * cn * cn + fqq * sn * sn + fpq * omega; \
+					ja[q * a->cols + q] = fpp * sn * sn + fqq * cn * cn - fpq * omega; \
+					ja[p * a->cols + q] = ja[q * a->cols + p] = 0; \
+					for (i = 0; i < a->cols; i++) \
+						if (i != q && i != p) \
+						{ \
+							fpp = ja[p * a->cols + i]; \
+							fqq = ja[q * a->cols + i]; \
+							ja[p * a->cols + i] = fpp * cn + fqq * sn; \
+							ja[q * a->cols + i] = -fpp * sn + fqq * cn; \
+						} \
+					for (i = 0; i < a->rows; i++) \
+						if (i != q && i != p) \
+						{ \
+							fpp = ja[i * a->cols + p]; \
+							fqq = ja[i * a->cols + q]; \
+							ja[i * a->cols + p] = fpp * cn + fqq * sn; \
+							ja[i * a->cols + q] = -fpp * sn + fqq * cn; \
+						} \
+					for (i = 0; i < a->cols; i++) \
+					{ \
+						fpp = _for_get(dvptr, p * a->cols + i, 0); \
+						fqq = _for_get(dvptr, q * a->cols + i, 0); \
+						_for_set(dvptr, p * a->cols + i, fpp * cn + fqq * sn, 0); \
+						_for_set(dvptr, q * a->cols + i, -fpp * sn + fqq * cn, 0); \
+					} \
+					for (i = 0; i < a->cols; i++) \
+						_for_set(dlptr, i, ja[i * a->cols + i], 0); \
+					flag = 1; \
+					break; \
+				} \
+			if (flag) \
+				break; \
+		} \
+	} while (accuracy > epsilon);
+	ccv_matrix_setter_getter(dvector->type, for_block);
+#undef for_block
+	ccfree(ja);
 }
 
 void ccv_minimize(ccv_dense_matrix_t* x, int length, double red, ccv_minimize_f func, ccv_minimize_param_t params, void* data)
@@ -1008,17 +1105,18 @@ void ccv_distance_transform(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int t
 				_for_type_b s; \
 				for (;;) \
 				{ \
-					assert(k >= 0 && k < ccv_max(db->rows, db->cols) + 1); \
+					assert(k >= 0 && k < ccv_max(db->rows, db->cols)); \
 					s = ((SGN _for_get_a(a_ptr, j, 0) + _dxx * j * j - _dx * j) - (SGN _for_get_a(a_ptr, v[k], 0) + _dxx * v[k] * v[k] - _dx * v[k])) / (2.0 * _dxx * (j - v[k])); \
 					if (s > z[k]) break; \
 					--k; \
 				} \
 				++k; \
-				assert(k >= 0 && k < ccv_max(db->rows, db->cols) + 1); \
+				assert(k >= 0 && k < ccv_max(db->rows, db->cols)); \
 				v[k] = j; \
 				z[k] = s; \
 				z[k + 1] = (_for_type_b)_for_max; \
 			} \
+			assert(z[k + 1] >= a->cols - 1); \
 			k = 0; \
 			if (mx) \
 			{ \
@@ -1026,7 +1124,7 @@ void ccv_distance_transform(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int t
 				{ \
 					while (z[k + 1] < j) \
 					{ \
-						assert(k >= 0 && k < ccv_max(db->rows, db->cols)); \
+						assert(k >= 0 && k < ccv_max(db->rows, db->cols) - 1); \
 						++k; \
 					} \
 					_for_set_b(b_ptr, j, _dx * (j - v[k]) + _dxx * (j - v[k]) * (j - v[k]) SGN _for_get_a(a_ptr, v[k], 0), 0); \
@@ -1037,7 +1135,10 @@ void ccv_distance_transform(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int t
 				for (j = 0; j < a->cols; j++) \
 				{ \
 					while (z[k + 1] < j) \
+					{ \
+						assert(k >= 0 && k < ccv_max(db->rows, db->cols) - 1); \
 						++k; \
+					} \
 					_for_set_b(b_ptr, j, _dx * (j - v[k]) + _dxx * (j - v[k]) * (j - v[k]) SGN _for_get_a(a_ptr, v[k], 0), 0); \
 				} \
 			} \
@@ -1074,17 +1175,18 @@ void ccv_distance_transform(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int t
 				_for_type_b s; \
 				for (;;) \
 				{ \
-					assert(k >= 0 && k < ccv_max(db->rows, db->cols) + 1); \
+					assert(k >= 0 && k < ccv_max(db->rows, db->cols)); \
 					s = ((_for_get_b(c_ptr, i, 0) + _dyy * i * i - _dy * i) - (_for_get_b(c_ptr, v[k], 0) + _dyy * v[k] * v[k] - _dy * v[k])) / (2.0 * _dyy * (i - v[k])); \
 					if (s > z[k]) break; \
 					--k; \
 				} \
 				++k; \
-				assert(k >= 0 && k < ccv_max(db->rows, db->cols) + 1); \
+				assert(k >= 0 && k < ccv_max(db->rows, db->cols)); \
 				v[k] = i; \
 				z[k] = s; \
 				z[k + 1] = (_for_type_b)_for_max; \
 			} \
+			assert(z[k + 1] >= db->rows - 1); \
 			k = 0; \
 			if (my) \
 			{ \
@@ -1092,7 +1194,7 @@ void ccv_distance_transform(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int t
 				{ \
 					while (z[k + 1] < i) \
 					{ \
-						assert(k >= 0 && k < ccv_max(db->rows, db->cols)); \
+						assert(k >= 0 && k < ccv_max(db->rows, db->cols) - 1); \
 						++k; \
 					} \
 					_for_set_b(b_ptr + i * db->step, j, _dy * (i - v[k]) + _dyy * (i - v[k]) * (i - v[k]) + _for_get_b(c_ptr, v[k], 0), 0); \
@@ -1103,7 +1205,10 @@ void ccv_distance_transform(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int t
 				for (i = 0; i < db->rows; i++) \
 				{ \
 					while (z[k + 1] < i) \
+					{ \
+						assert(k >= 0 && k < ccv_max(db->rows, db->cols) - 1); \
 						++k; \
+					} \
 					_for_set_b(b_ptr + i * db->step, j, _dy * (i - v[k]) + _dyy * (i - v[k]) * (i - v[k]) + _for_get_b(c_ptr, v[k], 0), 0); \
 				} \
 			} \

@@ -6,15 +6,13 @@
 #define CCV_GET_TERMINAL_SIZE(x) ((x) & 0xFFFFFFFF)
 #define CCV_SET_TERMINAL_TYPE(x, y, z) (((uint64_t)(x) << 60) | ((uint64_t)(y) << 32) | (z))
 
-
 void ccv_cache_init(ccv_cache_t* cache, size_t up, int cache_types, ccv_cache_index_free_f ffree, ...)
 {
-	ccinit++;
-	assert(cache_types > 0 && cache_types <= 16);
 	cache->rnum = 0;
 	cache->age = 0;
 	cache->up = up;
 	cache->size = 0;
+	assert(cache_types > 0 && cache_types <= 16);
 	va_list arguments;
 	va_start(arguments, ffree);
 	int i;
@@ -311,7 +309,6 @@ int ccv_cache_put(ccv_cache_t* cache, uint64_t sign, void* x, uint32_t size, uin
 
 static void _ccv_cache_cleanup(ccv_cache_index_t* branch)
 {
-	cccleanup++;
 	int leaf = branch->terminal.off & 0x1;
 	if (!leaf)
 	{
@@ -346,7 +343,6 @@ static void _ccv_cache_cleanup_and_free(ccv_cache_index_t* branch, ccv_cache_ind
 
 void* ccv_cache_out(ccv_cache_t* cache, uint64_t sign, uint8_t* type)
 {
-	ccout++;
 	if (!bits_in_16bits_init)
 		precomputed_16bits();
 	if (cache->rnum == 0)
@@ -432,7 +428,6 @@ void* ccv_cache_out(ccv_cache_t* cache, uint64_t sign, uint8_t* type)
 
 int ccv_cache_delete(ccv_cache_t* cache, uint64_t sign)
 {
-	ccdelete++;
 	uint8_t type = 0;
 	void* result = ccv_cache_out(cache, sign, &type);
 	if (result != 0)
@@ -446,7 +441,6 @@ int ccv_cache_delete(ccv_cache_t* cache, uint64_t sign)
 
 void ccv_cache_cleanup(ccv_cache_t* cache)
 {
-	cccleanup++;
 	if (cache->rnum > 0)
 	{
 		_ccv_cache_cleanup_and_free(&cache->origin, cache->ffree);
@@ -459,7 +453,6 @@ void ccv_cache_cleanup(ccv_cache_t* cache)
 
 void ccv_cache_close(ccv_cache_t* cache)
 {
-	ccclose++;
 	// for radix-tree based cache, close/cleanup are the same (it is not the same for cuckoo based one,
 	// because for cuckoo based one, it will free up space in close whereas only cleanup space in cleanup
 	ccv_cache_cleanup(cache);

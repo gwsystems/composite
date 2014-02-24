@@ -55,6 +55,7 @@ def start():
                 else:
                         k = l / 8
 
+		mask = ""
                 for i in range(0, k):
                         mask = irq_mask[l-8:l]
                         mask = ',' + mask
@@ -64,5 +65,7 @@ def start():
                 # finally we got the correct format
                 os.system("echo " + mask + " > /proc/irq/default_smp_affinity;")
                 os.system("for i in `ls /proc/irq/`; do if \\[ \"$i\" != \"default_smp_affinity\" \\]; then echo " + mask + " > /proc/irq/$i/smp_affinity; fi; done")
+
+        os.system("echo Setting CPU affinity done.")
 
 start()
