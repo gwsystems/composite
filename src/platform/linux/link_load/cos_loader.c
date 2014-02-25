@@ -1718,7 +1718,7 @@ static int load_all_services(struct service_symbs *services)
 
 		service_addr += DEFAULT_SERVICE_SIZE;
 		/* note this works for the llbooter and root memory manager too */
-		if (strstr(services->obj, BOOT_COMP)) { // Booter needs larger VAS
+		if (strstr(services->obj, BOOT_COMP) || strstr(services->obj, LLBOOT_COMP)) { // Booter needs larger VAS
 			service_addr += 15*DEFAULT_SERVICE_SIZE;
 		} else if (strstr(services->obj, INITMM) || sz > DEFAULT_SERVICE_SIZE) {
 			service_addr += 3*DEFAULT_SERVICE_SIZE;

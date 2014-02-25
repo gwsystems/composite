@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <print.h>
 #include "../../../lib/libccv/ccv.h"
+#include <print.h>
 
 #define CCV_CACHE_STAT
 #define X_SLICE 1

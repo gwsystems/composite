@@ -105,9 +105,9 @@ struct pt_regs {
 
 #define KERN_BASE_ADDR 0xc0000000 //CONFIG_PAGE_OFFSET
 
-#define CHAR_PER_INT sizeof(int) / sizeof(char)
+#define CHAR_PER_INT (sizeof(int) / sizeof(char))
 #define PARAMS_PER_INV 4
-#define CHAR_PER_INV CHAR_PER_INT * PARAMS_PER_INV
+#define CHAR_PER_INV (CHAR_PER_INT * PARAMS_PER_INV)
 
 #define CPUID_OFFSET_IN_THREAD_INFO 4
 #define THREAD_SIZE_LINUX 8192
