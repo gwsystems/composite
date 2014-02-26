@@ -390,7 +390,7 @@ boot_create_system(void)
 
 		if (boot_spd_caps(h, h->id)) BUG();
 	}
-	
+
 	if (!boot_sched) return;
 
 	for (i = 0 ; boot_sched[i] != 0 ; i++) {
@@ -485,11 +485,7 @@ void cos_init(void)
 	
 	int nregions;
 	/* This component really might need more vas, get the next 4M region */
-	if (cos_spd_id() == 1) {
-		nregions = NREGIONS - 1; //Low-level booter
-	} else {
-		nregions = NREGIONS * 4 - 1; //Booter may need larger VAS
-	}
+	nregions = NREGIONS * 4 - 1; //Booter (including llboot) may need larger VAS
 
 	if (cos_vas_cntl(COS_VAS_SPD_EXPAND, cos_spd_id(), 
 			 round_up_to_pgd_page((unsigned long)&num_cobj), 

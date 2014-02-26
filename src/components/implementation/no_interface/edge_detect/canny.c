@@ -1,27 +1,21 @@
 #include <cos_component.h>
 #include <stdio.h>
+#include <print.h>
 #include "../../../lib/libccv/ccv.h"
+#include <print.h>
 
 #define CCV_CACHE_STAT
 #define X_SLICE 1
 #define Y_SLICE 1
 
 void cos_ccv_merge(ccv_dense_matrix_t* mat[], ccv_dense_matrix_t** output, int rows, int cols, int x, int y);
-int ccinit, ccclose, cccleanup, ccdelete, ccout;
-int cchit, cccall;
 
 void
 cos_init(void *args)
 {
-	ccinit = 0;
-	ccclose = 0;
-	cccleanup = 0;
-	ccdelete = 0;
-	ccout = 0;
-
 	printc("Edge Detection Test\n");
 
-	ccv_enable_cache(10240);
+	ccv_disable_cache();
 	ccv_dense_matrix_t* yuv = 0;
 	ccv_read("blackbox.bmp", &yuv, CCV_IO_GRAY | CCV_IO_ANY_FILE);
 
@@ -48,11 +42,9 @@ cos_init(void *args)
 	cos_ccv_merge(canny_arr, &final_output, yuv->rows, yuv->cols, X_SLICE, Y_SLICE);
 	ccv_matrix_free(final_output);
 	ccv_matrix_free(yuv);
-	ccv_disable_cache();
 
 
 	printc("done\n");
-	printc("ccv_init:    %d\nccv_close:   %d\nccv_cleanup: %d\nccv_delete:  %d\nccv_out:     %d\nccv_hit: %d\nccv_call: %d\n", ccinit, ccclose, cccleanup, ccdelete, ccout, cchit, cccall);
 
 	return;
 }

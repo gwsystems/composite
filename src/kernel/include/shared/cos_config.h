@@ -18,10 +18,12 @@
  * Should Composite run as highest priority?  Should NOT be set if
  * using networking (cnet). 
  */
-#define LINUX_HIGHEST_PRIORITY 1 
+#define LINUX_HIGHEST_PRIORITY 1
 /* the CPU that does initialization for Composite */
 #define INIT_CORE              0
+
 #define FPU_ENABLED
+#define FPU_SUPPORT_FXSR       1   /* >0 : CPU supports FXSR. */
 
 /* Currently Linux runs on the last CPU only. The code includes the
  * following macro assumes this. We might need to assign more cores

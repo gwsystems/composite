@@ -14,9 +14,6 @@ PERCPU_EXTERN(fpu_disabled);
 PERCPU_DECL(struct thread *, fpu_last_used);
 PERCPU_EXTERN(fpu_last_used);
 
-PERCPU_DECL(int, fpu_support_fxsr);
-PERCPU_EXTERN(fpu_support_fxsr);
-
 /* fucntions called outside */
 static inline int fpu_init(void);
 static inline int fpu_disabled_exception_handler(void);
@@ -34,36 +31,36 @@ static inline void fxsave(struct thread*);
 static inline void fxrstor(struct thread*);
 static inline unsigned long fpu_read_cr0(void);
 static inline void fpu_set(int);
-static inline int fpu_get_cpuid(void);
+static inline int fpu_get_info(void);
 static inline int fpu_check_fxsr(void);
 
 #ifdef FPU_ENABLED
 static inline int
-fpu_get_cpuid(void)
+fpu_get_info(void)
 {
-        int cpuid;
+        int cpu_info;
 
         asm volatile("mov $1, %%eax\n\t"
                      "cpuid\n\t"
                      "movl %%edx, %0"
-                     : "=m" (cpuid) 
+                     : "=m" (cpu_info) 
 		     : 
 		     : "eax", "ebx", "ecx", "edx");
 
-	/* printk("cpu %d cpuid_edx %x\n", get_cpuid(), cpuid); */
+	/* printk("cpu %d cpuid_edx %x\n", get_cpuid(), cpu_info); */
 
-        return cpuid;
+        return cpu_info;
 }
 
 static inline int
 fpu_check_fxsr(void)
 {
-        int cpuid;
+        int cpu_info;
         int fxsr_status;
-
-        cpuid = fpu_get_cpuid();
+	
+	cpu_info = fpu_get_info();
 	/* fxsr is the 25th bit (start from bit 1) in EDX. So FXSR is 1<<24. */
-        fxsr_status = ((cpuid & FXSR) != 0) ? 1 : 0 ;
+        fxsr_status = ((cpu_info & FXSR) != 0) ? 1 : 0 ;
 
         return fxsr_status;
 }
@@ -71,9 +68,14 @@ fpu_check_fxsr(void)
 static inline int
 fpu_init(void)
 {
-        *PERCPU_GET(fpu_support_fxsr) = fpu_check_fxsr();
+	int fxsr = fpu_check_fxsr();
 
-        if (!*PERCPU_GET(fpu_support_fxsr)) printk("Core %d: fpu doesn't support fxsave/fxrstor, use fsave/frstr instead\n", get_cpuid());
+#if FPU_SUPPORT_FXSR > 0
+	if (fxsr == 0) {
+		printk("Core %d: FPU doesn't support fxsave/fxrstor. Need to use fsave/frstr instead. Check FPU_SUPPORT_FXSR in cos_config.\n", get_cpuid());
+		return -1;
+	}
+#endif
 
         fpu_set(DISABLE);
 	*PERCPU_GET(fpu_disabled) = 1;
@@ -212,10 +214,11 @@ fpu_set(int status)
 static inline void
 fxsave(struct thread *thd)
 {
-        if (*PERCPU_GET(fpu_support_fxsr))
-                asm volatile("fxsave %0" : "=m" (thd->fpu));
-        else
-                asm volatile("fsave %0" : "=m" (thd->fpu));
+#if FPU_SUPPORT_FXSR > 0
+	asm volatile("fxsave %0" : "=m" (thd->fpu));
+#else
+	asm volatile("fsave %0" : "=m" (thd->fpu));
+#endif
         thd->fpu.saved_fpu = 1;
 
         return;
@@ -224,11 +227,11 @@ fxsave(struct thread *thd)
 static inline void
 fxrstor(struct thread *thd)
 {
-        if (*PERCPU_GET(fpu_support_fxsr))
-                asm volatile("fxrstor %0" : : "m" (thd->fpu));
-        else
-                asm volatile("frstor %0" : : "m" (thd->fpu));
-
+#if FPU_SUPPORT_FXSR > 0
+	asm volatile("fxrstor %0" : : "m" (thd->fpu));
+#else
+	asm volatile("frstor %0" : : "m" (thd->fpu));
+#endif
         return;
 }
 #else
@@ -245,7 +248,7 @@ static inline void fxsave(struct thread *thd) { return; }
 static inline void fxrstor(struct thread *thd) { return; }
 static inline unsigned long fpu_read_cr0(void) { return 0; };
 static inline void fpu_set(int status) { return; }
-static inline int fpu_get_cpuid(void) { return 0; }
+static inline int fpu_get_info(void) { return 0; }
 static inline int fpu_check_fxsr(void) { return 0; }
 #endif
 

@@ -23,6 +23,7 @@ double ccv_normalize(ccv_matrix_t* a, ccv_matrix_t** b, int btype, int flag)
 	ccv_declare_derived_signature(sig, da->sig != 0, ccv_sign_with_format(20, "ccv_normalize(%d)", flag), da->sig, CCV_EOF_SIGN);
 	btype = (btype == 0) ? CCV_GET_DATA_TYPE(da->type) | CCV_C1 : CCV_GET_DATA_TYPE(btype) | CCV_C1;
 	ccv_dense_matrix_t* db = *b = ccv_dense_matrix_renew(*b, da->rows, da->cols, CCV_ALL_DATA_TYPE | CCV_C1, btype, sig);
+	assert(db);
 	ccv_object_return_if_cached(db->tag.f64, db);
 	double sum = 0, inv;
 	int i, j;
@@ -218,7 +219,7 @@ void ccv_add(ccv_matrix_t* a, ccv_matrix_t* b, ccv_matrix_t** c, int type)
 {
 	ccv_dense_matrix_t* da = ccv_get_dense_matrix(a);
 	ccv_dense_matrix_t* db = ccv_get_dense_matrix(b);
-	assert(da->rows == db->rows && da->cols == db->cols && CCV_GET_DATA_TYPE(da->type) == CCV_GET_DATA_TYPE(db->type) && CCV_GET_CHANNEL(da->type) == CCV_GET_CHANNEL(db->type));
+	assert(da->rows == db->rows && da->cols == db->cols && CCV_GET_CHANNEL(da->type) == CCV_GET_CHANNEL(db->type));
 	ccv_declare_derived_signature(sig, da->sig != 0 && db->sig != 0, ccv_sign_with_literal("ccv_add"), da->sig, db->sig, CCV_EOF_SIGN);
 	int no_8u_type = (da->type & CCV_8U) ? CCV_32S : da->type;
 	type = (type == 0) ? CCV_GET_DATA_TYPE(no_8u_type) | CCV_GET_CHANNEL(da->type) : CCV_GET_DATA_TYPE(type) | CCV_GET_CHANNEL(da->type);
@@ -228,16 +229,16 @@ void ccv_add(ccv_matrix_t* a, ccv_matrix_t* b, ccv_matrix_t** c, int type)
 	unsigned char* aptr = da->data.u8;
 	unsigned char* bptr = db->data.u8;
 	unsigned char* cptr = dc->data.u8;
-#define for_block(_for_get, _for_set) \
+#define for_block(_for_get_a, _for_get_b, _for_set) \
 	for (i = 0; i < da->rows; i++) \
 	{ \
 		for (j = 0; j < da->cols * ch; j++) \
-			_for_set(cptr, j, _for_get(aptr, j, 0) + _for_get(bptr, j, 0), 0); \
+			_for_set(cptr, j, _for_get_a(aptr, j, 0) + _for_get_b(bptr, j, 0), 0); \
 		aptr += da->step; \
 		bptr += db->step; \
 		cptr += dc->step; \
 	}
-	ccv_matrix_getter(da->type, ccv_matrix_setter, dc->type, for_block);
+	ccv_matrix_getter_a(da->type, ccv_matrix_getter_b, db->type, ccv_matrix_setter, dc->type, for_block);
 #undef for_block
 }
 
