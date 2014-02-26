@@ -26,17 +26,18 @@
  * conform to this format.  The only functions from ertrie.h that are
  * still just as useful are dsname_alloc and dsname_maxid.
  */
+typedef void (*kv_free_fn_t)(void *data, void *mem, int sz, int leaf);
 
 #define KVT_CREATE(name, depth, order, last_order, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn) \
-ERT_CREATE(name, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, freefn) \
+ERT_CREATE(name, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn) \
 static void name##_free(struct name##_ert *v)					\
 { kvt_free((struct ert*)v, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
 static inline void *name##_lkupp(struct name##_ert *v, unsigned long id)	\
-{ return kvt_lkupp((struct ert*)v, id, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
+{ return kvt_lkupp((struct ert*)v, id, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn); } \
 static inline int name##_add(struct name##_ert *v, long id, void *val)		\
-{ return kvt_add((struct ert*)v, id, val, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
+{ return kvt_add((struct ert*)v, id, val, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn); } \
 static inline int name##_del(struct name##_ert *v, long id)			\
-{ return kvt_del((struct ert*)v, id, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); }
+{ return kvt_del((struct ert*)v, id, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn); }
 
 #define KVT_CREATE_DEF(name, depth, order, last_order, allocfn, freefn)	\
 KVT_CREATE(name, depth, order, last_order, ert_definitval, ert_definitfn, ert_defget, ert_defisnull, ert_defset, allocfn, freefn)
@@ -87,7 +88,6 @@ __kvt_set(struct ert *v, long id, void *val, ERT_CONST_PARAMS)
 static inline int
 kvt_add(struct ert *v, unsigned long id, void *val, ERT_CONST_PARAMS)
 {
-	void *p;
 	unsigned long accum;
 
 	assert(v);
@@ -99,8 +99,7 @@ kvt_add(struct ert *v, unsigned long id, void *val, ERT_CONST_PARAMS)
 		if (__ert_expand(v, id, depth, &accum, NULL, ERT_CONST_ARGS)) return 1;
 		if (__kvt_set(v, id, val, ERT_CONST_ARGS))            return 1;
 	}
-	p = kvt_lkupp(v, id, ERT_CONST_ARGS);
-	assert(p == val);
+	assert(val == kvt_lkupp(v, id, ERT_CONST_ARGS));
 
 	return 0;
 }
@@ -124,7 +123,7 @@ kvt_del(struct ert *v, unsigned long id, ERT_CONST_PARAMS)
 }
 
 static inline void 
-__kvt_free_rec(struct ert_intern *vi, u32_t lvl, ERT_CONST_PARAMS)
+__kvt_free_rec(struct ert_intern *vi, u32_t lvl, ERT_CONST_PARAMS, kv_free_fn_t freefn)
 {
 	int i, sz;
 	unsigned long accum = 0;
@@ -133,7 +132,7 @@ __kvt_free_rec(struct ert_intern *vi, u32_t lvl, ERT_CONST_PARAMS)
 	if (lvl > 1) {
 		for (i = 0 ; i < (1<<order) ; i++) {
 			if (isnullfn(vi[i].next, &accum, 0)) continue;
-			__kvt_free_rec(vi[i].next, lvl-1, ERT_CONST_ARGS);
+			__kvt_free_rec(vi[i].next, lvl-1, ERT_CONST_ARGS, freefn);
 		}
 	}
 	if (lvl > 1) sz = 1<<order * sizeof(int*);
@@ -147,10 +146,10 @@ __kvt_free_rec(struct ert_intern *vi, u32_t lvl, ERT_CONST_PARAMS)
  * there are not values stored in the tree.
  */
 static void 
-kvt_free(struct ert *v, ERT_CONST_PARAMS)
+kvt_free(struct ert *v, ERT_CONST_PARAMS, kv_free_fn_t freefn)
 {
 	assert(v);
-	__kvt_free_rec(v->vect, depth, ERT_CONST_ARGS);
+	__kvt_free_rec(v->vect, depth, ERT_CONST_ARGS, freefn);
 }
 
 

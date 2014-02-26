@@ -53,17 +53,24 @@ KVT_CREATE_DEF(unit,  2, 12, 8, unit_allocfn, unit_freefn);
 KVT_CREATE_DEF(unit2, 3, 6, 12, unit_allocfn, unit_freefn);
 KVT_CREATE_DEF(unit3, 4, 5, 5, unit_allocfn, unit_freefn);
 
-ERT_CREATE_DEF(unit4, 3, 8, 4, 64, unit_allocfn, unit_freefn);
-ERT_CREATE_DEF(unit5, 1, 0, 14, 32, unit_allocfn, unit_freefn);
+ERT_CREATE_DEF(unit4, 3, 8, 4, 64, unit_allocfn);
+ERT_CREATE_DEF(unit5, 1, 0, 14, 32, unit_allocfn);
 
 /* 
  * I separate this out so that we can easily confirm that the compiler
  * is doing the proper optimizations. 
  */
 void *
-do_lookups(struct pair *ps, struct unit_ert *v)
+do_lookups(struct pair *ps, struct unit3_ert *v)
 {
-	return unit_lkupp(v, ps->id);
+	void *r;
+	unsigned long id = ps->id;
+	assert(v);
+	assert(id < unit3_maxid());
+	__asm__("nop; nop; nop");
+	r = unit3_lkupp(v, id);
+	__asm__("nop; nop; nop");
+	return r;
 }
 
 void *
