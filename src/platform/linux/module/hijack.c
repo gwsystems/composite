@@ -67,6 +67,7 @@ extern void div_fault_interposition(void);
 extern void reg_save_interposition(void);
 extern void fpu_not_available_interposition(void);
 extern void ipi_handler(void);
+extern void timer_interposition(void);
 
 /* 
  * This variable exists for the assembly code for temporary
@@ -1569,6 +1570,22 @@ void chal_send_ipi(int cpuid) {
 
 PERCPU_VAR(cos_timer_acap);
 
+__attribute__((regparm(3))) 
+int main_timer_interposition(struct pt_regs *rs) 
+{
+	struct async_cap *acap = *PERCPU_GET(cos_timer_acap);
+
+	if (!(acap && acap->upcall_thd)) goto LINUX_HANDLER;
+
+	ack_APIC_irq();
+
+	chal_attempt_ainv(acap);
+
+//	return 0;
+LINUX_HANDLER:
+	return 1; 
+}
+
 static void timer_interrupt(unsigned long data)
 {
 	unsigned long t;
@@ -1577,12 +1594,15 @@ static void timer_interrupt(unsigned long data)
 	BUG_ON(cos_thd_per_core[get_cpuid()].cos_thd == NULL);
 
 	t = jiffies+1;
+	/* unsigned long long s; */
+	/* rdtscll(s); */
+//	printk("kern cpu %d @ %llu\n", get_cpuid(), s);
 	/* printk("core %d before mod timer, timer %p, %u\n", get_cpuid(), curr_timer, curr_timer->expires); */
-	mod_timer_pinned(curr_timer, t);
+//	mod_timer_pinned(curr_timer, t);
 	/* printk("core %d mod timer ret %d, next t %u, timer %p, %u\n", get_cpuid(), ret, t, curr_timer, curr_timer->expires); */
 	if (!(acap && acap->upcall_thd)) return;
 
-	chal_attempt_ainv(acap);
+//	chal_attempt_ainv(acap);
 
 	return;
 }
@@ -1591,11 +1611,11 @@ void register_timers(void)
 {
 	struct timer_list *curr_timer = PERCPU_GET(timer);
 
-	assert(!curr_timer->function);
-	init_timer(curr_timer);
-	curr_timer->function = timer_interrupt;
-	/* Give the timer thread at least a jiffy to initialize */
-	mod_timer_pinned(curr_timer, jiffies+2);
+	/* assert(!curr_timer->function); */
+	/* init_timer(curr_timer); */
+	/* curr_timer->function = timer_interrupt; */
+	/* /\* Give the timer thread at least a jiffy to initialize *\/ */
+	/* mod_timer_pinned(curr_timer, jiffies+2); */
 	
 	return;
 }
@@ -1969,20 +1989,23 @@ static inline void hw_int_override_all(void)
 	hw_int_override_sysenter(sysenter_interposition_entry);
 	hw_int_override_pagefault(page_fault_interposition);
 	hw_int_override_idt(0, div_fault_interposition, 0, 0);
-	hw_int_override_idt(0xe9, reg_save_interposition, 0, 3);
+	hw_int_override_idt(COS_REG_SAVE_VECTOR, reg_save_interposition, 0, 3);
 #ifdef FPU_ENABLED
         hw_int_override_idt(7, fpu_not_available_interposition, 0, 0);
 #endif
-	printk("cos: core %d enabling Composite IPI IRQ vector %x.\n", get_cpuid(), COS_IPI_VECTOR);
 	hw_int_cos_ipi(ipi_handler);
+	hw_int_override_timer(timer_interposition);
 
 	return;
 }
+
 static void hw_init_CPU(void)
 {
 	//update_vmalloc_regions();
 	hw_int_init();
+
 	hw_int_override_all();
+
 	return;
 }
 
@@ -2003,10 +2026,8 @@ static int asym_exec_dom_init(void)
 
 	hw_init_CPU();
 
-//#if NUM_CPU > 1
 	/* Init all the other cores. */
 	smp_call_function(hw_init_other_cores, NULL, 1);
-//#endif
 
 	/* Consistency check. We define the THD_REGS = 8 in ipc.S. */
 	BUG_ON(offsetof(struct thread, regs) != 8);
@@ -2026,9 +2047,8 @@ static void asym_exec_dom_exit(void)
 {
 	hw_int_reset();
 
-//#if NUM_CPU > 1
 	smp_call_function(hw_reset_other_cores, NULL, 1);
-//#endif
+
 	remove_proc_entry("aed", NULL);
 
 	return;

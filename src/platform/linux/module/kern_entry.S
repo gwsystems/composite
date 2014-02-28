@@ -223,6 +223,7 @@ ENTRY(name##_handler)						\
 COS_CREATE_TRAP_NO_ERRCODE(div_fault)
 COS_CREATE_TRAP_ERRCODE(page_fault)
 COS_CREATE_TRAP_NO_ERRCODE(reg_save)
+COS_CREATE_TRAP_NO_ERRCODE(timer)
 #ifdef FPU_ENABLED
 COS_CREATE_TRAP_ERRCODE(fpu_not_available)
 #endif

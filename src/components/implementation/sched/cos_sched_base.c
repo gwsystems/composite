@@ -505,6 +505,8 @@ static void sched_process_wakeups(void)
 
 static void sched_timer_tick(void)
 {
+	//QW: to remove
+	int *detector = 0x44bf0000;
 	while (1) {
 		cos_sched_lock_take();
 		report_event(TIMER_TICK);
@@ -527,6 +529,12 @@ static void sched_timer_tick(void)
 		PERCPU_GET(sched_base_state)->ticks++;
 		sched_process_wakeups();
 		timer_tick(1);
+
+		/* unsigned long long ss; */
+		/* rdtscll(ss); */
+//		printc("timer on core %d @ %llu\n", cos_cpuid(), ss);
+		ck_pr_store_int(&detector[cos_cpuid()*8], 1);
+
 		sched_switch_thread(COS_SCHED_ACAP_WAIT, TIMER_SWITCH_LOOP);
 		/* Tailcall out of the loop */
 	}

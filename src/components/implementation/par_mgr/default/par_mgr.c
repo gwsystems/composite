@@ -16,24 +16,28 @@
 #include <par_mgr.h>
 #include <bitmap.h>
 
-//#define PAR_CREATION_SPIN
-//#define PAR_BARRIER_SPIN
+#define SPIN
+
+#ifdef SPIN
+#define PAR_CREATION_SPIN
+#define PAR_BARRIER_SPIN
+#endif
 
 /* Use unicast for spin. */
 /* and multicast for IPI. */
-#ifdef PAR_CREATION_SPIN
+#ifdef SPIN
 #undef MULTICAST
 #else
 #define MULTICAST
 #endif
 
-/* master thread should be on the first core. */
-int assign[NUM_CPU_COS + 10] = {0, 1, -1};
+/* Assumption: master thread should be on the first core in the array. */
+//int assign[NUM_CPU_COS + 10] = {0, 1, -1};
 
-/* int assign[NUM_CPU_COS + 10] = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36, -1,//ten cores on socket 0 */
-/* 				1, 5, 9, 13, 17, 21, 25, 29, 33, 37, */
-/* 				2, 6, 10, 14, 18, 22, 26, 30, 34, 38, */
-/* 				3, 7, 11, 15, 19, 23, 27, 31, 35, -1}; */
+int assign[50] = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36,
+ 				1, 5, 9, 13, 17, 21, 25, 29, 33, 37,
+				2, 6, 10, 14, 18, 22, 26, 30, 34, 38,
+				3, 7, 11, 15, 19, 23, 27, 31, 35, -1};
 
 struct srv_thd_info { 
 	/* information of handling thread */
