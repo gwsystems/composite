@@ -1571,17 +1571,23 @@ void chal_send_ipi(int cpuid) {
 PERCPU_VAR(cos_timer_acap);
 
 __attribute__((regparm(3))) 
-int main_timer_interposition(struct pt_regs *rs) 
+int main_timer_interposition(struct pt_regs *rs, unsigned int error_code) 
 {
 	struct async_cap *acap = *PERCPU_GET(cos_timer_acap);
 
 	if (!(acap && acap->upcall_thd)) goto LINUX_HANDLER;
 
-	ack_APIC_irq();
+	/* FIXME: Right now we are jumping back to the Linux timer
+	 * handler (which will do the ack()). Linux will freeze if we
+	 * don't do this. We should find a way to get rid of this,
+	 * possibly by using tickless kernel, which probably could
+	 * survive timer hijacking. */
+
+	/* ack_APIC_irq(); */
 
 	chal_attempt_ainv(acap);
 
-//	return 0;
+	/* return 0; */
 LINUX_HANDLER:
 	return 1; 
 }

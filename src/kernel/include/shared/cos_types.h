@@ -607,4 +607,9 @@ static inline void cos_ref_release(atomic_t *rc)
 // Static entries are after the dynamic allocated entries
 #define COS_STATIC_THD_ENTRY(i) ((i + COS_THD_INIT_REGION_SIZE + 1))
 
+static inline void cos_mem_fence(void)
+{
+	__asm__ __volatile__("mfence" ::: "memory");
+}
+
 #endif /* TYPES_H */

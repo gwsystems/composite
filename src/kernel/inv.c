@@ -1626,6 +1626,12 @@ cos_syscall_acap_wire(int spd_id, int spd_acap_id, int option, int data)
 
 	switch (option) {
 	case COS_HW_TIMER:
+		if (spd_acap_id == 0) {
+			/* Disable cos timer acap */
+			*PERCPU_GET(cos_timer_acap) = NULL;
+			break;
+		}
+
 		acap = &curr_spd->acaps[spd_acap_id & 0xFFFF];
 		if (unlikely(!acap)) {
 			printk("cos: wiring to a non-existing acap %d. \n", spd_acap_id & 0xFFFF);

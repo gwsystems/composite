@@ -516,6 +516,8 @@ static void sched_timer_tick(void)
 		}
 		/* are we done running? */
 		if (unlikely(PERCPU_GET(sched_base_state)->ticks >= RUNTIME_SEC*TIMER_FREQ+1)) {
+			cos_acap_wire(0, COS_HW_TIMER, 0); // disable cos timer
+
 			sched_exit();
 			while (COS_SCHED_RET_SUCCESS !=
 			       cos_switch_thread_release(PERCPU_GET(sched_base_state)->init->id, COS_SCHED_ACAP_WAIT)) {
