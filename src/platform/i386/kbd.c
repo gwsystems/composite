@@ -1,4 +1,4 @@
-#include "types.h"
+#include "shared/cos_types.h"
 #include "ports.h"
 #include "isr.h"
 #include "printk.h"
@@ -10,7 +10,7 @@
 static void
 shutdown(void)
 {
-    uint8_t good;
+    u8_t good;
     printk(INFO, "Key was <ESC>. Shutting down.");
     good = 0x02;
     while (good & 0x02) good = inb (0x64);
@@ -23,7 +23,7 @@ shutdown(void)
 static void
 keyboard_handler(struct registers *regs)
 {
-    uint16_t scancode;
+    u16_t scancode;
     while(inb(KEY_PENDING) & 2);
     scancode = inb(KEY_DEVICE);
     printk(INFO, "Keyboard press: %d\n", scancode);

@@ -1,6 +1,6 @@
 #include "printk.h"
 #include "isr.h"
-#include "types.h"
+#include "shared/cos_types.h"
 #include "ports.h"
 #include "timer.h"
 
@@ -26,9 +26,9 @@ timer_callback(struct registers *regs)
 }
 
 void 
-timer__init(uint32_t frequency)
+timer__init(u32_t frequency)
 {
-    int32_t divisor;
+    u32_t divisor;
 
     printk(INFO, "Initalizing timer\n");
     register_interrupt_handler(IRQ0, &timer_callback);

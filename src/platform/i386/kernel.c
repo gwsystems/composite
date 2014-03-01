@@ -1,7 +1,7 @@
 #include "multiboot.h"
 #include "printk.h"
 #include "serial.h"
-#include "types.h"
+#include "shared/cos_types.h"
 #include "string.h"
 #include "timer.h"
 #include "gdt.h"
@@ -14,8 +14,8 @@
 #include "user.h"
 
 void kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp);
-extern uint32_t user_size;
-extern uint32_t *base_user_address;
+extern u32_t user_size;
+extern u32_t *base_user_address;
 int keep_kernel_running = 1;
 
 void 
@@ -50,14 +50,14 @@ kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
   if (mboot_magic == MULTIBOOT_EAX_MAGIC) {
     printk(INFO, "Multiboot kernel\n");
     printk(INFO, "Mem Size: %d\n", mboot->mem_lower + mboot->mem_upper);
-    base_user_address = (uint32_t*)(mboot->mods_addr + 0x1000);
-    user_size = multiboot__print(mboot) - (uint32_t)base_user_address;
+    base_user_address = (u32_t*)(mboot->mods_addr + 0x1000);
+    user_size = multiboot__print(mboot) - (u32_t)base_user_address;
   } else {
     die("Not started from a multiboot loader!\n");
   }
 
   printk(INFO, "Enabling virtual memory\n");
-  paging__init(mboot->mem_lower + mboot->mem_upper, mboot->mods_count, (uint32_t*)mboot->mods_addr);
+  paging__init(mboot->mem_lower + mboot->mem_upper, mboot->mods_count, (u32_t*)mboot->mods_addr);
   
   printk(INFO, "Enabling interrupts\n");
   asm volatile ("sti");

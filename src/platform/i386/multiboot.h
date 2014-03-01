@@ -3,7 +3,7 @@
 #ifndef _MULTIBOOT_H_
 #define _MULTIBOOT_H_
 
-#include "types.h"
+#include "shared/cos_types.h"
 
 #define MULTIBOOT_MAGIC        0x1BADB002
 #define MULTIBOOT_EAX_MAGIC    0x2BADB002
@@ -54,6 +54,6 @@ typedef struct multiboot_mod_list
        uintptr_t pad;
 } multiboot_module_t;
 
-uint32_t multiboot__print(struct multiboot *mboot);
+u32_t multiboot__print(struct multiboot *mboot);
 
 #endif

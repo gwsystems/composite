@@ -1,10 +1,8 @@
 #ifndef _VM_H_
 #define _VM_H_
 
-#include "types.h"
+#include "shared/cos_types.h"
 #include "shared/consts.h"
-
-typedef uint32_t u32_t;
 
 typedef u32_t pte_t;		// Page Table Entry
 typedef pte_t pt_t[1024];	// Page Table
@@ -52,7 +50,7 @@ typedef u32_t ptd_t[1024];	// Page Table Directory
 13-31:	Confusing
 */
 
-void paging__init(size_t memory_size, uint32_t nmods, uint32_t *mods);
+void paging__init(size_t memory_size, u32_t nmods, u32_t *mods);
 
 void *chal_va2pa(void *address);
 void *chal_pa2va(void *address);

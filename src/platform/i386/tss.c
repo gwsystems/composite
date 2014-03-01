@@ -21,7 +21,7 @@ static inline void *pg_round_down (const void *va) {
 static inline void *
 running_thread (void)
 {
-  uint32_t *esp;
+  u32_t *esp;
 
   /* Copy the CPU's stack pointer into `esp', and then round that
      down to the start of a page.  Because `struct thread' is
@@ -78,5 +78,5 @@ void
 tss_update (void) 
 {
   //ASSERT (tss != NULL);
-  tss.esp0 = (uint8_t *) thread_current () + PGSIZE;
+  tss.esp0 = (u8_t *) thread_current () + PGSIZE;
 }

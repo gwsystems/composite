@@ -1,7 +1,7 @@
 /* Based on code from Pintos. See LICENSE.pintos for licensing information */
 
 #include "gdt.h"
-#include "types.h"
+#include "shared/cos_types.h"
 #include "tss.h"
 
 /* The Global Descriptor Table (GDT).
@@ -22,20 +22,20 @@
    For more information on the GDT as used here, refer to
    [IA32-v3a] 3.2 "Using Segments" through 3.5 "System Descriptor
    Types". */
-static uint64_t gdt[SEL_CNT];
+static u64_t gdt[SEL_CNT];
 
 /* GDT helpers. */
-static uint64_t make_code_desc (int dpl);
-static uint64_t make_data_desc (int dpl);
-static uint64_t make_tss_desc (void *laddr);
-static uint64_t make_gdtr_operand (uint16_t limit, void *base);
+static u64_t make_code_desc (int dpl);
+static u64_t make_data_desc (int dpl);
+static u64_t make_tss_desc (void *laddr);
+static u64_t make_gdtr_operand (u16_t limit, void *base);
 
 /* Sets up a proper GDT.  The bootstrap loader's GDT didn't
    include user-mode selectors or a TSS, but we need both now. */
 void
 gdt__init (void)
 {
-  uint64_t gdtr_operand;
+  u64_t gdtr_operand;
 
   /* Initialize GDT. */
   gdt[SEL_NULL / sizeof *gdt] = 0;
@@ -78,15 +78,15 @@ enum seg_granularity
    DPL==3 means that user processes can use the segment and
    DPL==0 means that only the kernel can use the segment.  See
    [IA32-v3a] 4.5 "Privilege Levels" for further discussion. */
-static uint64_t
-make_seg_desc (uint32_t base,
-               uint32_t limit,
+static u64_t
+make_seg_desc (u32_t base,
+               u32_t limit,
                enum seg_class class,
                int type,
                int dpl,
                enum seg_granularity granularity)
 {
-  uint32_t e0, e1;
+  u32_t e0, e1;
 
   //ASSERT (limit <= 0xfffff);
   //ASSERT (class == CLS_SYSTEM || class == CLS_CODE_DATA);
@@ -107,12 +107,12 @@ make_seg_desc (uint32_t base,
         | (granularity << 23)        /* Byte/page granularity. */
         | (base & 0xff000000));      /* Base 31:24. */
 
-  return e0 | ((uint64_t) e1 << 32);
+  return e0 | ((u64_t) e1 << 32);
 }
 
 /* Returns a descriptor for a readable code segment with base at
    0, a limit of 4 GB, and the given DPL. */
-static uint64_t
+static u64_t
 make_code_desc (int dpl)
 {
   return make_seg_desc (0, 0xfffff, CLS_CODE_DATA, 10, dpl, GRAN_PAGE);
@@ -120,7 +120,7 @@ make_code_desc (int dpl)
 
 /* Returns a descriptor for a writable data segment with base at
    0, a limit of 4 GB, and the given DPL. */
-static uint64_t
+static u64_t
 make_data_desc (int dpl)
 {
   return make_seg_desc (0, 0xfffff, CLS_CODE_DATA, 2, dpl, GRAN_PAGE);
@@ -130,17 +130,17 @@ make_data_desc (int dpl)
    Segment with its base at the given linear address, a limit of
    0x67 bytes (the size of a 32-bit TSS), and a DPL of 0.
    See [IA32-v3a] 6.2.2 "TSS Descriptor". */
-static uint64_t
+static u64_t
 make_tss_desc (void *laddr)
 {
-  return make_seg_desc ((uint32_t) laddr, 0x67, CLS_SYSTEM, 9, 0, GRAN_BYTE);
+  return make_seg_desc ((u32_t) laddr, 0x67, CLS_SYSTEM, 9, 0, GRAN_BYTE);
 }
 
 
 /* Returns a descriptor that yields the given LIMIT and BASE when
    used as an operand for the LGDT instruction. */
-static uint64_t
-make_gdtr_operand (uint16_t limit, void *base)
+static u64_t
+make_gdtr_operand (u16_t limit, void *base)
 {
-  return limit | ((uint64_t) (uint32_t) base << 16);
+  return limit | ((u64_t) (u32_t) base << 16);
 }
