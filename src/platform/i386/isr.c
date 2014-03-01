@@ -1,4 +1,4 @@
-#include "types.h"
+#include "shared/cos_types.h"
 #include "printk.h"
 #include "macro.h"
 #include "serial.h"
@@ -59,7 +59,7 @@ irq_handler(struct registers regs)
  * Register an interrupt handler
  */
 void
-register_interrupt_handler(uint16_t n, isr_t handler)
+register_interrupt_handler(u16_t n, isr_t handler)
 {
     if (handler == NULL)
         die("Attempting to register NULL handler\n");

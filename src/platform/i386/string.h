@@ -2,7 +2,7 @@
 #define _STRING_H_
 
 #include "vtxprintf.h"
-#include "types.h"
+#include "shared/cos_types.h"
 
 void *memcpy(void *dst, const void *src, size_t count);
 void *memset(void *dst, int c, size_t count);

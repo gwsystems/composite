@@ -1,6 +1,6 @@
 #include "string.h"
 #include "ports.h"
-#include "types.h"
+#include "shared/cos_types.h"
 #include "vga.h"
 #include "macro.h"
 #include "printk.h"

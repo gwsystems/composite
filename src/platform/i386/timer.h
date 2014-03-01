@@ -1,8 +1,10 @@
 #ifndef _TIMER_H_
 #define _TIMER_H_
 
-#include "types.h"
+#include "shared/cos_types.h"
 
-void timer__init(uint32_t frequency);
+typedef long clock_t;
+
+void timer__init(u32_t frequency);
 
 #endif

@@ -1,7 +1,7 @@
 #ifndef _ISR_H_
 #define _ISR_H_
 
-#include "types.h"
+#include "shared/cos_types.h"
 
 struct registers {
    uintptr_t ds;
@@ -60,6 +60,6 @@ extern void irq15(void);
 
 typedef void (*isr_t)(struct registers *);
 
-void register_interrupt_handler(uint16_t n, isr_t handler);
+void register_interrupt_handler(u16_t n, isr_t handler);
 
 #endif

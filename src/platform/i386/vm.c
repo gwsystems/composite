@@ -1,4 +1,4 @@
-#include "types.h"
+#include "shared/cos_types.h"
 #include "printk.h"
 #include "string.h"
 #include "isr.h"
@@ -6,8 +6,8 @@
 
 #define POSSIBLE_FRAMES 1024*1024
 
-uint32_t user_size;
-uint32_t *base_user_address;
+u32_t user_size;
+u32_t *base_user_address;
 
 ptd_t kerndir __attribute__((aligned(4096)));
 pt_t kernel_pagetab[1024] __attribute__((aligned(4096)));
@@ -16,7 +16,7 @@ pt_t user_pagetab[1024] __attribute__((aligned(4096)));
 void
 ptd_load(ptd_t dir)
 {
-    uint32_t d = (uint32_t)chal_va2pa(dir) | PAGE_P;
+    u32_t d = (u32_t)chal_va2pa(dir) | PAGE_P;
      
     printk (INFO, "Setting cr3 = %x (%x)\n", d, d);
     asm volatile("mov %0, %%cr3" : : "r"(d));
@@ -25,7 +25,12 @@ ptd_load(ptd_t dir)
 void *
 chal_pa2va(void *address)
 {
-    return address;
+    pt_t *table = (pt_t*) &kerndir[(u32_t)address >> 22];
+    pte_t page;
+    if (!((u32_t)*table & PAGE_P)) return 0;
+    page = (pte_t)table[((u32_t)address >> 12) & 0x0fff];
+    if (!(page & PAGE_P)) return 0;
+    return (void*)((page & PAGE_FRAME) + ((u32_t)page & 0x0fff));
 }
 
 void *
@@ -55,9 +60,9 @@ page_fault(struct registers *regs)
 }
 
 static void
-ptd_map(ptd_t dir, uint32_t tno, pt_t table, uint32_t flags)
+ptd_map(ptd_t dir, u32_t tno, pt_t table, u32_t flags)
 {
-  dir[tno] = (((uint32_t) table) & PAGE_FRAME) | flags;
+  dir[tno] = (((u32_t) table) & PAGE_FRAME) | flags;
 }
 
 void
@@ -71,9 +76,9 @@ ptd_init(ptd_t dir)
 
 #if 0
 static void
-pt_map(pt_t table, uint32_t eno, pte_t entry, uint32_t flags)
+pt_map(pt_t table, u32_t eno, pte_t entry, u32_t flags)
 {
-  table[eno] = (((uint32_t) entry) & PAGE_FRAME) | flags;
+  table[eno] = (((u32_t) entry) & PAGE_FRAME) | flags;
 }
 #endif
 
@@ -90,20 +95,20 @@ ptd_copy_global(ptd_t dst, ptd_t src)
 }
 
 static void
-init_table(uint32_t *table, uint32_t *base, uint32_t flags)
+init_table(u32_t *table, u32_t *base, u32_t flags)
 {
   int i;
   //printk(INFO, "Initializing table at %x from base %x\n", table, base);
   for (i = 0; i < 1024; i++) {
-    table[i] = (((uint32_t) base + (4096 * i)) & PAGE_FRAME) | flags;
+    table[i] = (((u32_t) base + (4096 * i)) & PAGE_FRAME) | flags;
     //if (i < 3) printk (INFO, "\t%x\n", table[i]);
   } 
 }
 
 void
-paging__init(size_t memory_size, uint32_t nmods, uint32_t *mods)
+paging__init(size_t memory_size, u32_t nmods, u32_t *mods)
 {
-    uint32_t cr0;
+    u32_t cr0;
     u32_t i;
 
     printk(INFO, "Initializing paging\n");
@@ -116,14 +121,14 @@ paging__init(size_t memory_size, uint32_t nmods, uint32_t *mods)
 
     ptd_init(kerndir);
 
-    for (i = 0; i < (uint32_t)base_user_address / (PAGE_SIZE * 1024); i++) {
-      init_table(kernel_pagetab[i], (uint32_t*) (i * 4096 * 1024), PAGE_RW | PAGE_P | PAGE_G);
+    for (i = 0; i < (u32_t)base_user_address / (PAGE_SIZE * 1024); i++) {
+      init_table(kernel_pagetab[i], (u32_t*) (i * 4096 * 1024), PAGE_RW | PAGE_P | PAGE_G);
       ptd_map(kerndir, i, kernel_pagetab[i], PAGE_RW | PAGE_P | PAGE_G);
     }
 
     for (i = 0; i <= (user_size / PAGE_SIZE)+1; i++) {
       init_table(user_pagetab[i],
-        (uint32_t*) ((uint32_t)base_user_address) + (i * 4096 * 1024),
+        (u32_t*) ((u32_t)base_user_address) + (i * 4096 * 1024),
         PAGE_RW | PAGE_P | PAGE_US);
       ptd_map(kerndir, (SERVICE_START >> 22) + i, user_pagetab[i], PAGE_RW | PAGE_P | PAGE_US);
     }

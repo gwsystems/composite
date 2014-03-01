@@ -1,4 +1,4 @@
-#include "types.h"
+#include "shared/cos_types.h"
 #include "string.h"
 #include "idt.h"
 #include "isr.h"
@@ -33,16 +33,16 @@
 
 
 struct idt_entry {
-    uint16_t base_lo;   // Lower 16 bits of address to jump too after int
-    uint16_t sel;       // Kernel segment selector
-    uint8_t zero;       // Must always be zero
-    uint8_t flags;      // flags
-    uint16_t base_hi;   // Upper 16 bits of addres to jump too
+    u16_t base_lo;   // Lower 16 bits of address to jump too after int
+    u16_t sel;       // Kernel segment selector
+    u8_t zero;       // Must always be zero
+    u8_t flags;      // flags
+    u16_t base_hi;   // Upper 16 bits of addres to jump too
 } __attribute__((packed));
 
-/* FIXME: Look at intel spec should this be a uintptr_t or uint32_t ?? */
+/* FIXME: Look at intel spec should this be a uintptr_t or u32_t ?? */
 struct idt_ptr {
-    uint16_t limit;
+    u16_t limit;
     uintptr_t base;     // Addres of first element
 } __attribute__((packed));
 
@@ -55,7 +55,7 @@ struct idt_entry idt_entries[NUM_IDT_ENTRIES];
 struct idt_ptr idt_ptr;
 
 static void
-idt_set_gate(uint8_t num, uintptr_t base, uint16_t sel, uint8_t flags)
+idt_set_gate(u8_t num, uintptr_t base, u16_t sel, u8_t flags)
 {
     idt_entries[num].base_lo = base & 0xFFFF;
     idt_entries[num].base_hi = (base >> 16) & 0xFFFF;
@@ -72,8 +72,8 @@ idt_set_gate(uint8_t num, uintptr_t base, uint16_t sel, uint8_t flags)
 static inline void
 remap_irq_table(void)
 {
-    uint8_t pic1_mask;
-    uint8_t pic2_mask;
+    u8_t pic1_mask;
+    u8_t pic2_mask;
 
     // Save masks
     pic1_mask = inb(PIC1_DATA); 

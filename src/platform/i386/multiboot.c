@@ -1,10 +1,10 @@
 #include "printk.h"
 #include "multiboot.h"
 
-uint32_t
+u32_t
 multiboot__print(struct multiboot *mboot)
 {
-    uint32_t top = 0;
+    u32_t top = 0;
 
     printk(INFO, "Multiboot\n"
         "\tflags: %x\n"

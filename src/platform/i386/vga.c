@@ -33,20 +33,20 @@ enum vga_colors {
     WHITE
 };
 
-static uint16_t *video_mem = (uint16_t *)VIDEO_MEM;
-static uint8_t cursor_x;
-static uint8_t cursor_y;
+static u16_t *video_mem = (u16_t *)VIDEO_MEM;
+static u8_t cursor_x;
+static u8_t cursor_y;
 
-static inline uint8_t 
-gen_color(uint8_t forground, uint8_t background)
+static inline u8_t 
+gen_color(u8_t forground, u8_t background)
 {
     return (background << 4) | (forground & 0x0F);
 }
 
 static void
-update_cursor(uint8_t row, uint8_t col)
+update_cursor(u8_t row, u8_t col)
 {
-    uint16_t pos = row * COLUMNS + col;
+    u16_t pos = row * COLUMNS + col;
     
     outb(VGA_CTL_REG, 0x0E);
     outb(VGA_DATA_REG, pos >> 8);
@@ -57,7 +57,7 @@ update_cursor(uint8_t row, uint8_t col)
 static void
 scroll(void)
 {
-    uint16_t blank = ((uint8_t)' ') | gen_color(WHITE, BLACK);
+    u16_t blank = ((u8_t)' ') | gen_color(WHITE, BLACK);
     unsigned i;
 
     if (cursor_y < LINES)
@@ -73,9 +73,9 @@ scroll(void)
 void
 vga__putch(char c)
 {
-    uint8_t color = gen_color(LIGHT_GREY, BLACK);
-    uint16_t attribute = color << 8;
-    uint16_t *location;
+    u8_t color = gen_color(LIGHT_GREY, BLACK);
+    u16_t attribute = color << 8;
+    u16_t *location;
 
     if (c == BACKSPACE && cursor_x)
         cursor_x--;
@@ -112,8 +112,8 @@ vga__puts(const char *s)
 void
 vga__clear(void)
 {
-    uint8_t color = gen_color(WHITE, BLACK);
-    uint16_t blank = ((uint8_t)' ') | color << 8;
+    u8_t color = gen_color(WHITE, BLACK);
+    u16_t blank = ((u8_t)' ') | color << 8;
     wmemset(video_mem, blank, COLUMNS*LINES);
 }
 
