@@ -2995,6 +2995,10 @@ int main(int argc, char *argv[])
 	char *outfile = NULL;
 	long service_addr;
 	int ret = -1;
+	struct {
+		u32_t address;
+		u32_t padding[(PAGE_SIZE / sizeof(u32_t)) - 1];
+	} boot_info;
 
 
 	printl(PRINT_DEBUG, "Thread scheduling parameters setup\n");
@@ -3089,9 +3093,11 @@ int main(int argc, char *argv[])
 			printl(PRINT_HIGH, "Couldn't open output file.\n");
 			goto dealloc_exit;
 		}
+
+		boot_info.address = (u32_t) get_symb_address(&s->exported, "cos_upcall_entry");
+		write(out, &boot_info, sizeof(boot_info));
 		write(out, (char*)BASE_SERVICE_ADDRESS, service_addr - BASE_SERVICE_ADDRESS);
 		close(out);
-		printl(PRINT_HIGH, "Load '%s' at 0x%x, then jump to 0x%x.\n", outfile, BASE_SERVICE_ADDRESS, get_symb_address(&s->exported, "spd0_main"));
 	} else {
 		setup_kernel(services);
 	}
