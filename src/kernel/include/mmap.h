@@ -15,7 +15,7 @@ struct cos_page {
 	paddr_t addr;
 };
 
-void cos_init_memory(void);
+int cos_init_memory(void);
 void cos_shutdown_memory(void);
 static inline unsigned int cos_max_mem_caps(void)
 {

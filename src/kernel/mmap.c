@@ -10,7 +10,7 @@
 
 static struct cos_page cos_pages[COS_MAX_MEMORY];
 
-void cos_init_memory(void) 
+int cos_init_memory(void) 
 {
 	int i;
 
@@ -18,11 +18,12 @@ void cos_init_memory(void)
 		void *r = chal_alloc_page();
 		if (NULL == r) {
 			printk("cos: ERROR -- could not allocate page for cos memory\n");
+			return -1;
 		}
 		cos_pages[i].addr = (paddr_t)chal_va2pa(r);
 	}
 
-	return;
+	return 0;
 }
 
 void cos_shutdown_memory(void)
