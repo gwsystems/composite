@@ -1767,7 +1767,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	thd_init();
 	spd_init();
 	ipc_init();
-	cos_init_memory();
+	if (cos_init_memory()) return -EFAULT;
 
 	cos_meas_init();
 	cos_net_init();
