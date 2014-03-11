@@ -68,9 +68,9 @@ fpu_check_fxsr(void)
 static inline int
 fpu_init(void)
 {
+#if FPU_SUPPORT_FXSR > 0
 	int fxsr = fpu_check_fxsr();
 
-#if FPU_SUPPORT_FXSR > 0
 	if (fxsr == 0) {
 		printk("Core %d: FPU doesn't support fxsave/fxrstor. Need to use fsave/frstr instead. Check FPU_SUPPORT_FXSR in cos_config.\n", get_cpuid());
 		return -1;
