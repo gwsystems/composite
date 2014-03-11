@@ -535,7 +535,7 @@ static void sched_timer_tick(void)
 		/* unsigned long long ss; */
 		/* rdtscll(ss); */
 //		printc("timer on core %d @ %llu\n", cos_cpuid(), ss);
-		ck_pr_store_int(&detector[cos_cpuid()*8], 1);
+		ck_pr_store_int(&detector[cos_cpuid()*16], 1);
 
 		sched_switch_thread(COS_SCHED_ACAP_WAIT, TIMER_SWITCH_LOOP);
 		/* Tailcall out of the loop */
@@ -560,11 +560,24 @@ typedef void (*crt_thd_fn_t)(void *data);
 
 static void fp_timer(void *d)
 {
-	printc("Core %ld: Starting timer thread (thread id %d)\n", cos_cpuid(), cos_get_thd_id());
+	int acap, srv_acap, tid;
 	struct sched_base_per_core *sched_state = PERCPU_GET(sched_base_state);
+
 	sched_state->ticks = 0;
 	sched_state->wakeup_time = 0;
 	sched_state->child_wakeup_time = 0;
+
+	tid = cos_get_thd_id();
+	acap = cos_async_cap_cntl(COS_ACAP_CREATE, cos_spd_id(), cos_spd_id(), tid << 16 | tid);
+	 /* cli_acap not used as the server acap is triggered by timer
+	  * interrupt. We set the owner of the cli_acap to be the
+	  * timer thread itself to prevent other threads invoking the
+	  * acap (so only timer int can trigger it). */
+	/* cli_acap = acap >> 16; */
+	srv_acap = acap & 0xFFFF;
+	cos_acap_wire(srv_acap, COS_HW_TIMER, 0);
+
+	printc("Core %ld: Starting timer thread (id %d) with acap %d.\n", cos_cpuid(), tid, srv_acap);
 
 	sched_timer_tick();
 	BUG();
@@ -1754,7 +1767,6 @@ void sched_exit(void)
 
 static struct sched_thd *fp_create_timer(void)
 {
-	int acap, srv_acap;
 	struct sched_thd *timer_thd;
 	union sched_param sp[2] = {{.c = {.type = SCHEDP_TIMER}},
 				   {.c = {.type = SCHEDP_NOOP}}};
@@ -1764,17 +1776,7 @@ static struct sched_thd *fp_create_timer(void)
 	if (!timer_thd) BUG();
 	PERCPU_GET(sched_base_state)->timer = timer_thd;
 
-	acap = cos_async_cap_cntl(COS_ACAP_CREATE, cos_spd_id(), cos_spd_id(), timer_thd->id << 16 | timer_thd->id);
-	 /* cli_acap not used as the server acap is triggered by timer
-	  * interrupt. We set the owner of the cli_acap to be the
-	  * timer thread itself to prevent other threads invoking the
-	  * acap (so only timer int can trigger it). */
-	/* cli_acap = acap >> 16; */
-	srv_acap = acap & 0xFFFF;
-	cos_acap_wire(srv_acap, COS_HW_TIMER, 0);
-	printc("Core %ld: Timer thread (id %d) has srv_acap %d.\n", cos_cpuid(), PERCPU_GET(sched_base_state)->timer->id, srv_acap);
-
-	return PERCPU_GET(sched_base_state)->timer;
+	return timer_thd;
 }
 
 inline int sched_curr_is_IPI_handler(void) {

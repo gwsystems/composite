@@ -584,8 +584,6 @@ void save_per_core_cos_thd(void)
         return;
 }
 
-void register_timers(void);
-
 static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
@@ -1282,8 +1280,6 @@ void *chal_pa2va(void *pa)
  * Our composite emulated timer interrupt executed from a Linux
  * softirq
  */
-PERCPU_ATTR(static, struct timer_list, timer);
-
 extern struct thread *ainv_next_thread(struct async_cap *acap, struct thread *preempted, int preempt);
 
 extern void cos_net_deregister(struct cos_net_callbacks *cn_cb);
@@ -1592,57 +1588,6 @@ LINUX_HANDLER:
 	return 1; 
 }
 
-static void timer_interrupt(unsigned long data)
-{
-	unsigned long t;
-	struct async_cap *acap = *PERCPU_GET(cos_timer_acap);
-	struct timer_list *curr_timer = PERCPU_GET(timer);
-	BUG_ON(cos_thd_per_core[get_cpuid()].cos_thd == NULL);
-
-	t = jiffies+1;
-	/* unsigned long long s; */
-	/* rdtscll(s); */
-//	printk("kern cpu %d @ %llu\n", get_cpuid(), s);
-	/* printk("core %d before mod timer, timer %p, %u\n", get_cpuid(), curr_timer, curr_timer->expires); */
-//	mod_timer_pinned(curr_timer, t);
-	/* printk("core %d mod timer ret %d, next t %u, timer %p, %u\n", get_cpuid(), ret, t, curr_timer, curr_timer->expires); */
-	if (!(acap && acap->upcall_thd)) return;
-
-//	chal_attempt_ainv(acap);
-
-	return;
-}
-
-void register_timers(void)
-{
-	struct timer_list *curr_timer = PERCPU_GET(timer);
-
-	/* assert(!curr_timer->function); */
-	/* init_timer(curr_timer); */
-	/* curr_timer->function = timer_interrupt; */
-	/* /\* Give the timer thread at least a jiffy to initialize *\/ */
-	/* mod_timer_pinned(curr_timer, jiffies+2); */
-	
-	return;
-}
-
-static void deregister_timers(void)
-{
-	struct timer_list *timer_i;
-
-	int i;
-	for (i = 0; i < NUM_CPU; i++) {
-		*PERCPU_GET_TARGET(cos_timer_acap, i) = NULL;
-		timer_i = PERCPU_GET_TARGET(timer, i);
-		if (timer_i->function) {
-			del_timer(timer_i);
-			timer_i->function = NULL;
-		}
-	}
-
-	return;
-}
-
 /***** end timer handling *****/
 
 void thd_publish_data_page(struct thread *thd, vaddr_t page)
@@ -1824,9 +1769,6 @@ static int aed_open(struct inode *inode, struct file *file)
 	ipc_init();
 	cos_init_memory();
 
-        /* Now the timers are registered when we register timer
-	 * threads in Composite. */
-	/* register_timers(); */
 	cos_meas_init();
 	cos_net_init();
 
@@ -1877,7 +1819,6 @@ static int aed_release(struct inode *inode, struct file *file)
 		       thd_get_id(t), spd_get_index(s));
 	}
 
-	deregister_timers();
 	cos_net_finish();
 
 	/* our garbage collection mechanism: all at once when the cos

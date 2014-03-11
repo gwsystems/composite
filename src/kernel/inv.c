@@ -1604,7 +1604,6 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 	return 0;
 }
 
-extern void register_timers(void);
 /*
  * This is a bandaid currently.  This syscall should really be 
  * replaced by something a little more subtle and more closely related
@@ -1638,7 +1637,8 @@ cos_syscall_acap_wire(int spd_id, int spd_acap_id, int option, int data)
 			return -1;
 		}
 
-		register_timers();
+		/* After setting this, the cos timer handler will be
+		 * effective. */
 		*PERCPU_GET(cos_timer_acap) = acap;
 		
 		break;
