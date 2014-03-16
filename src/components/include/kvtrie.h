@@ -28,50 +28,22 @@
  */
 typedef void (*kv_free_fn_t)(void *data, void *mem, int sz, int leaf);
 
-#define KVT_CREATE(name, depth, order, last_order, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn) \
-ERT_CREATE(name, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn) \
+#define KVT_CREATE(name, depth, order, last_order, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn, setleaffn, getleaffn) \
+ERT_CREATE(name, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn) \
 static void name##_free(struct name##_ert *v)					\
-{ kvt_free((struct ert*)v, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, freefn); } \
-static inline void *name##_lkupp(struct name##_ert *v, unsigned long id)	\
-{ return kvt_lkupp((struct ert*)v, id, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn); } \
+{ __kvt_free((struct ert*)v, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, freefn); } \
+static inline void *name##_lkupp(struct name##_ert *v, unsigned long id) \
+{									\
+	unsigned long accum;						\
+	return __ert_lookup((struct ert*)v, id, depth+1, &accum, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn); \
+}									\
 static inline int name##_add(struct name##_ert *v, long id, void *val)		\
-{ return kvt_add((struct ert*)v, id, val, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn); } \
+{ return __kvt_add((struct ert*)v, id, val, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn); } \
 static inline int name##_del(struct name##_ert *v, long id)			\
-{ return kvt_del((struct ert*)v, id, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn); }
+{ return __kvt_del((struct ert*)v, id, depth, order, last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn); }
 
 #define KVT_CREATE_DEF(name, depth, order, last_order, allocfn, freefn)	\
-KVT_CREATE(name, depth, order, last_order, ert_definitval, ert_definitfn, ert_defget, ert_defisnull, ert_defset, allocfn, freefn)
-
-/* 
- * Lookup a value that is pointed to by the trie (p = ptr).  Only use
- * this function if the last_sz == sizeof a pointer.  This is enforced
- * via an assertion.  It doesn't make sense to dereference the pointer
- * in the last level of the tree if it isn't a pointer.
- */
-static inline void *
-kvt_lkupp(struct ert *v, unsigned long id, ERT_CONST_PARAMS)
-{
-	struct ert_intern *vi;
-	unsigned long accum;
-
-	assert(last_sz == sizeof(int*));
-	vi = __ert_lookup(v, id, depth, &accum, ERT_CONST_ARGS);
-	if (unlikely(!vi)) return NULL;
-	return getfn(vi->next, &accum, 1);
-}
-
-static inline int 
-__kvt_set(struct ert *v, long id, void *val, ERT_CONST_PARAMS)
-{
-	struct ert_intern *vi;
-	unsigned long accum = 0;
-	
-	vi = __ert_lookup(v, id, depth, &accum, ERT_CONST_ARGS);
-	if (unlikely(!vi)) return -1;
-	vi->next = setfn(val, &accum, 1);
-
-	return 0;
-}
+	KVT_CREATE(name, depth, order, last_order, ert_definitval, ert_definitfn, ert_defget, ert_defisnull, ert_defset, allocfn, freefn, ert_defsetleaf, ert_defgetleaf)
 
 /* 
  * This function will try to find an empty slot specifically for the
@@ -86,22 +58,20 @@ __kvt_set(struct ert *v, long id, void *val, ERT_CONST_PARAMS)
  * not be set in the structure.
  */
 static inline int
-kvt_add(struct ert *v, unsigned long id, void *val, ERT_CONST_PARAMS)
+__kvt_add(struct ert *v, unsigned long id, void *val, ERT_CONST_PARAMS)
 {
 	unsigned long accum;
+	int ret;
 
 	assert(v);
 	assert(val != initval);
 	assert(id < __ert_maxid(ERT_CONST_ARGS));
 	assert(last_sz == sizeof(int*));
-	if (unlikely(kvt_lkupp(v, id, ERT_CONST_ARGS))) return 1;
-	if (__kvt_set(v, id, val, ERT_CONST_ARGS)) {
-		if (__ert_expand(v, id, depth, &accum, NULL, ERT_CONST_ARGS)) return 1;
-		if (__kvt_set(v, id, val, ERT_CONST_ARGS))            return 1;
-	}
-	assert(val == kvt_lkupp(v, id, ERT_CONST_ARGS));
-
-	return 0;
+	if (unlikely(__ert_lookup(v, id, depth+1, &accum, ERT_CONST_ARGS))) return 1;
+	ret = __ert_expand(v, id, depth+1, &accum, NULL, val, ERT_CONST_ARGS);
+	assert(val == __ert_lookup(v, id, depth+1, &accum, ERT_CONST_ARGS));
+	
+	return ret;
 }
 
 /* 
@@ -111,13 +81,16 @@ kvt_add(struct ert *v, unsigned long id, void *val, ERT_CONST_PARAMS)
  * not already used in the trie), we return 1.
  */
 static inline int 
-kvt_del(struct ert *v, unsigned long id, ERT_CONST_PARAMS)
+__kvt_del(struct ert *v, unsigned long id, ERT_CONST_PARAMS)
 {
+	unsigned long accum = 0;
+	int ret;
+
 	assert(v);
 	assert(id < __ert_maxid(ERT_CONST_ARGS));
 	assert(last_sz == sizeof(int*));
-	if (__kvt_set(v, id, initval, ERT_CONST_ARGS)) return 1;
-	assert(!kvt_lkupp(v, id, ERT_CONST_ARGS));
+	ret = __ert_expand(v, id, depth+1, &accum, NULL, initval, ERT_CONST_ARGS);
+	assert(!__ert_lookup(v, id, depth+1, &accum, ERT_CONST_ARGS));
 
 	return 0;
 }
@@ -135,8 +108,8 @@ __kvt_free_rec(struct ert_intern *vi, u32_t lvl, ERT_CONST_PARAMS, kv_free_fn_t 
 			__kvt_free_rec(vi[i].next, lvl-1, ERT_CONST_ARGS, freefn);
 		}
 	}
-	if (lvl > 1) sz = 1<<order * sizeof(int*);
-	else         sz = 1<<last_order * last_sz;
+	if (lvl > 1) sz = (1<<order) * sizeof(int*);
+	else         sz = (1<<last_order) * last_sz;
 	freefn(NULL, vi, sz, lvl <= 1); 
 }
 
@@ -146,7 +119,7 @@ __kvt_free_rec(struct ert_intern *vi, u32_t lvl, ERT_CONST_PARAMS, kv_free_fn_t 
  * there are not values stored in the tree.
  */
 static void 
-kvt_free(struct ert *v, ERT_CONST_PARAMS, kv_free_fn_t freefn)
+__kvt_free(struct ert *v, ERT_CONST_PARAMS, kv_free_fn_t freefn)
 {
 	assert(v);
 	__kvt_free_rec(v->vect, depth, ERT_CONST_ARGS, freefn);

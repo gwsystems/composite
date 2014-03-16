@@ -27,26 +27,31 @@ int in_pairs(struct pair *ps, int len, long id)
 int alloc_cnt = 0;
 #include <sys/mman.h>
 static void *
-unit_allocfn(void *d, int sz, int leaf) 
+unit_allocfn(void *d, int sz, int last_lvl) 
 { 
 	int *mem = d;
-	(void)d; (void)leaf;
+	void *r;
+	(void)d; (void)last_lvl;
 	alloc_cnt++;
 	if (mem) {
 		assert(*mem == 0);
 		*mem = 1;
 	}
-	return malloc(sz);
-	//return mmap(NULL, sz, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	//return malloc(sz);
+	r = mmap(NULL, sz, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	printf("]]] Alloc %p: %x\n", r, sz);
+	return r;//mmap(NULL, sz, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 }
 
 static void 
-unit_freefn(void *d, void *m, int sz, int leaf) 
+unit_freefn(void *d, void *m, int sz, int last_lvl) 
 { 
-	(void)d; (void)leaf; (void)sz;
+	(void)d; (void)last_lvl; (void)sz;
 	alloc_cnt--;
-	free(m);
-	//munmap(m, sz);
+	//free(m);
+	printf("]]] Free %p: %x\n", m, sz);
+	munmap(m, sz);
+	printf("lkadsjflaksjfd\n");
 }
 
 KVT_CREATE_DEF(unit,  2, 12, 8, unit_allocfn, unit_freefn);
@@ -98,8 +103,8 @@ typedef void *(*lkupan_fn_t)(struct ert *v, unsigned long id, int dlimit, unsign
 typedef int (*expandn_fn_t)(struct ert *v, unsigned long id, u32_t dlimit, unsigned long *accum, void *memctxt);
 typedef int (*expand_fn_t)(struct ert *v, unsigned long id, unsigned long *accum, void *memctxt);
 
-void 
-kv_test(int max, alloc_fn_t a, free_fn_t f, lkupp_fn_t lp, add_fn_t add, del_fn_t d, 
+void
+kv_test(int max, alloc_fn_t a, free_fn_t f, lkupp_fn_t lp, add_fn_t add, del_fn_t d,
 	lkup_fn_t l, lkupa_fn_t la, lkupan_fn_t lan, expandn_fn_t en, expand_fn_t e)
 {
 	(void)l; (void)la; (void)lan; (void)en; (void)e;
@@ -109,27 +114,35 @@ kv_test(int max, alloc_fn_t a, free_fn_t f, lkupp_fn_t lp, add_fn_t add, del_fn_
 
 	dyn_vect = (struct ert *)a(NULL);
 	assert(dyn_vect);
+	printf(">>> Add and lookup\n");
 	for (i = 0 ; i < NTESTS ; i++) {
 		do {
 			pairs[i].id = rand() % max;
 		} while (in_pairs(pairs, i-1, pairs[i].id));
 		pairs[i].val = malloc(10);
+		*(unsigned int*)pairs[i].val = 0xDEADBEEF;
+		printf("val %p\n", pairs[i].val);
 		assert(!add(dyn_vect, pairs[i].id, pairs[i].val));
 		assert(lp(dyn_vect, pairs[i].id) == pairs[i].val);
 	}
+	printf(">>> Lookups\n");
 	for (i = 0 ; i < NTESTS ; i++) {
 		assert(lp(dyn_vect, pairs[i].id) == pairs[i].val);
 	}
+	printf(">>> Frees\n");
 	for (i = 0 ; i < NTESTS ; i++) {
 		free(pairs[i].val);
 		assert(!d(dyn_vect, pairs[i].id));
 		pairs[i].id  = 0;
 		pairs[i].val = NULL;
 	}
+	printf(">>> Free all\n");
 	f(dyn_vect);
 }
 
-void ert_test(int max, int depth, alloc_fn_t a, lkup_fn_t l, lkupa_fn_t la, lkupan_fn_t lan, expandn_fn_t en, expand_fn_t e)
+void
+ert_test(int max, int depth, alloc_fn_t a, lkup_fn_t l, lkupa_fn_t la, 
+	 lkupan_fn_t lan, expandn_fn_t en, expand_fn_t e)
 {
 	(void)l; (void)la; (void)lan; (void)e;
 	struct pair pairs[NTESTS];
