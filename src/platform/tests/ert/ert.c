@@ -39,7 +39,6 @@ unit_allocfn(void *d, int sz, int last_lvl)
 	}
 	//return malloc(sz);
 	r = mmap(NULL, sz, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	printf("]]] Alloc %p: %x\n", r, sz);
 	return r;//mmap(NULL, sz, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 }
 
@@ -49,9 +48,7 @@ unit_freefn(void *d, void *m, int sz, int last_lvl)
 	(void)d; (void)last_lvl; (void)sz;
 	alloc_cnt--;
 	//free(m);
-	printf("]]] Free %p: %x\n", m, sz);
 	munmap(m, sz);
-	printf("lkadsjflaksjfd\n");
 }
 
 KVT_CREATE_DEF(unit,  2, 12, 8, unit_allocfn, unit_freefn);
@@ -114,29 +111,24 @@ kv_test(int max, alloc_fn_t a, free_fn_t f, lkupp_fn_t lp, add_fn_t add, del_fn_
 
 	dyn_vect = (struct ert *)a(NULL);
 	assert(dyn_vect);
-	printf(">>> Add and lookup\n");
 	for (i = 0 ; i < NTESTS ; i++) {
 		do {
 			pairs[i].id = rand() % max;
 		} while (in_pairs(pairs, i-1, pairs[i].id));
 		pairs[i].val = malloc(10);
 		*(unsigned int*)pairs[i].val = 0xDEADBEEF;
-		printf("val %p\n", pairs[i].val);
 		assert(!add(dyn_vect, pairs[i].id, pairs[i].val));
 		assert(lp(dyn_vect, pairs[i].id) == pairs[i].val);
 	}
-	printf(">>> Lookups\n");
 	for (i = 0 ; i < NTESTS ; i++) {
 		assert(lp(dyn_vect, pairs[i].id) == pairs[i].val);
 	}
-	printf(">>> Frees\n");
 	for (i = 0 ; i < NTESTS ; i++) {
 		free(pairs[i].val);
 		assert(!d(dyn_vect, pairs[i].id));
 		pairs[i].id  = 0;
 		pairs[i].val = NULL;
 	}
-	printf(">>> Free all\n");
 	f(dyn_vect);
 }
 

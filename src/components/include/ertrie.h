@@ -35,7 +35,7 @@ typedef struct ert_intern *(*ert_get_fn_t)(struct ert_intern *, unsigned long *a
 /* check if the value in the internal structure is "null" */
 typedef int  (*ert_isnull_fn_t)(struct ert_intern *, unsigned long *accum, int isleaf);
 /* set values to their initial value (often "null") */
-typedef void *(*ert_initval_fn_t)(struct ert_intern *, int isleaf);
+typedef void (*ert_initval_fn_t)(struct ert_intern *, int isleaf);
 /* set a value in an internal structure/value */
 typedef void (*ert_set_fn_t)(struct ert_intern *e, void *val, unsigned long *accum, int isleaf);
 /* allocate an internal or leaf structure */
@@ -58,8 +58,8 @@ static void ert_defset(struct ert_intern *a, void *v, unsigned long *accum, int 
 static void ert_defsetleaf(struct ert_intern *a, void *data) { a->next = data; } /* assume leaf items are ptrs */
 static int 
 ert_defisnull(struct ert_intern *a, unsigned long *accum, int isleaf) 
-{ (void)accum; (void)isleaf; return a == NULL; }
-static void *ert_definitfn(struct ert_intern *a, int isleaf) { (void)a; (void)isleaf; return NULL; }
+{ (void)accum; (void)isleaf; return a->next == NULL; }
+static void ert_definitfn(struct ert_intern *a, int isleaf) { (void)a; (void)isleaf; a->next = NULL; }
 static void *ert_definitval = NULL;
 
 #define ERT_CONST_PARAMS                                             \
@@ -141,7 +141,7 @@ __ert_init(struct ert_intern *vi, int isleaf, ERT_CONST_PARAMS)
 	}
 	for (i = 0 ; i < base ; i++) {
 		struct ert_intern *t = (void*)(((char*)vi) + (sz * i));
-		t->next = initfn(t, isleaf);
+		initfn(t, isleaf);
 	}
 }
 
@@ -212,7 +212,7 @@ __ert_lookup(struct ert *v, unsigned long id, u32_t dlimit, unsigned long *accum
 	n      = &r;
 	limit  = dlimit < depth ? dlimit : depth;
 	for (i = 0 ; i < limit ; i++) {
-		if (unlikely(isnullfn(n->next, accum, 0))) return NULL;
+		if (unlikely(isnullfn(n, accum, 0))) return NULL;
 		n = __ert_walk(n, id, accum, depth-i, ERT_CONST_ARGS);
 	}
 	if (dlimit == depth+1) n = getleaffn(n, accum);
@@ -247,7 +247,7 @@ __ert_expand(struct ert *v, unsigned long id, u32_t dlimit, unsigned long *accum
 	limit  = dlimit < depth ? dlimit : depth;
 	for (i = 0 ; i < limit-1 ; i++) {
 		n = __ert_walk(n, id, accum, depth-i, ERT_CONST_ARGS);
-		if (!isnullfn(n->next, accum, 0)) continue;
+		if (!isnullfn(n, accum, 0)) continue;
 		
 		if (i+2 < depth) new = allocfn(memctxt, (1<<order) * sizeof(int*), 0);
 		else             new = allocfn(memctxt, (1<<last_order) * last_sz, 1);

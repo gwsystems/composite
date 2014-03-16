@@ -104,7 +104,7 @@ __kvt_free_rec(struct ert_intern *vi, u32_t lvl, ERT_CONST_PARAMS, kv_free_fn_t 
 	assert(vi);
 	if (lvl > 1) {
 		for (i = 0 ; i < (1<<order) ; i++) {
-			if (isnullfn(vi[i].next, &accum, 0)) continue;
+			if (isnullfn(&vi[i], &accum, 0)) continue;
 			__kvt_free_rec(vi[i].next, lvl-1, ERT_CONST_ARGS, freefn);
 		}
 	}
