@@ -16,7 +16,6 @@
  * TODO:
  * - change the accum variable to be void *, and be named load_info,
  *   and memctxt to be named store_info.
- * - enable multiple sizes of internal nodes
  */
 
 /* Internal node in the trie */
@@ -251,7 +250,8 @@ __ert_expand(struct ert *v, unsigned long id, u32_t dlimit, unsigned long *accum
 	for (i = 0 ; i < limit-1 ; i++) {
 		n = __ert_walk(n, id, accum, depth-i, ERT_CONST_ARGS);
 		if (!isnullfn(n, accum, 0)) continue;
-		
+
+		/* expand via memory allocation */
 		if (i+2 < depth) new = allocfn(memctxt, (1<<order) * intern_sz,    0);
 		else             new = allocfn(memctxt, (1<<last_order) * last_sz, 1);
 		if (unlikely(!new)) return -1;
