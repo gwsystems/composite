@@ -156,7 +156,7 @@ ert_alloc(void *memctxt, ERT_CONST_PARAMS)
 	/* Make sure the id size can be represented on our system */
 	assert(((order * (depth-1)) + last_order) < (sizeof(unsigned long)*8));
 	assert(depth >= 1);
-	if (depth > 1) v = allocfn(memctxt, (1<<order) * intern_sz, 0);
+	if (depth > 1) v = allocfn(memctxt, (1<<order) * intern_sz,    0);
 	else           v = allocfn(memctxt, (1<<last_order) * last_sz, 1);
 	if (NULL == v) return NULL;
 	__ert_init(v->vect, depth == 1, ERT_CONST_ARGS);
@@ -168,17 +168,19 @@ ert_alloc(void *memctxt, ERT_CONST_PARAMS)
 static inline struct ert_intern *
 __ert_walk(struct ert_intern *vi, unsigned long id, unsigned long *accum, u32_t lvl, ERT_CONST_PARAMS)
 {
+	u32_t last_off;
 #define ERT_M(id, o) ((id) & ((1<<(o))-1)) // Mask out order number of bits
 	ERT_CONSTS_DEWARN;
 
 	vi = getfn(vi, accum, 0);
 	if (lvl-1 == 0) {
 		/* offset into the last level, leaf node */
-		u32_t last_off = ERT_M(id, last_order) * last_sz;
-		return (struct ert_intern *)(((char *)vi) + last_off);
+		last_off = ERT_M(id, last_order) * last_sz;
+	} else {
+		/* calculate the offset in an internal node */
+		last_off = ERT_M((id >> ((order * (lvl-2)) + last_order)), order) * intern_sz;
 	}
-	/* calculate the offset in an internal node */
-	return &vi[ERT_M((id >> ((order * (lvl-2)) + last_order)), order)];
+	return (struct ert_intern *)(((char *)vi) + last_off);
 }
 
 /* 
@@ -250,7 +252,7 @@ __ert_expand(struct ert *v, unsigned long id, u32_t dlimit, unsigned long *accum
 		n = __ert_walk(n, id, accum, depth-i, ERT_CONST_ARGS);
 		if (!isnullfn(n, accum, 0)) continue;
 		
-		if (i+2 < depth) new = allocfn(memctxt, (1<<order) * intern_sz, 0);
+		if (i+2 < depth) new = allocfn(memctxt, (1<<order) * intern_sz,    0);
 		else             new = allocfn(memctxt, (1<<last_order) * last_sz, 1);
 		if (unlikely(!new)) return -1;
 		__ert_init(new, i+2 >= depth, ERT_CONST_ARGS);
