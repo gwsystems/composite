@@ -28,22 +28,54 @@
  */
 typedef void (*kv_free_fn_t)(void *data, void *mem, int sz, int leaf);
 
-#define KVT_CREATE(name, depth, order, last_order, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn, setleaffn, getleaffn) \
-ERT_CREATE(name, depth, order, sizeof(int*), last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn) \
+#define __KVT_CREATE(name, depth, order, last_order, initval, initfn, getfn, isnullfn, setfn, allocfn, freefn, setleaffn, getleaffn, resolvefn) \
+ERT_CREATE(name, name##_ert, depth, order, sizeof(int*), last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn) \
 static void name##_free(struct name##_ert *v)					\
-{ __kvt_free((struct ert*)v, depth, order, sizeof(int*), last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, freefn); } \
+{ __kvt_free((struct ert*)v, depth, order, sizeof(int*), last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn, freefn); } \
 static inline void *name##_lkupp(struct name##_ert *v, unsigned long id) \
 {									\
 	unsigned long accum;						\
-	return __ert_lookup((struct ert*)v, id, depth+1, &accum, depth, order, sizeof(int*), last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn); \
+	return __ert_lookup((struct ert*)v, id, 0, depth+1, &accum, depth, order, sizeof(int*), last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn); \
 }									\
 static inline int name##_add(struct name##_ert *v, long id, void *val)		\
-{ return __kvt_add((struct ert*)v, id, val, depth, order, sizeof(int*), last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn); } \
+{ return __kvt_add((struct ert*)v, id, val, depth, order, sizeof(int*), last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn); } \
 static inline int name##_del(struct name##_ert *v, long id)			\
-{ return __kvt_del((struct ert*)v, id, depth, order, sizeof(int*), last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn); }
+{ return __kvt_del((struct ert*)v, id, depth, order, sizeof(int*), last_order, sizeof(int*), initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn); }
 
-#define KVT_CREATE_DEF(name, depth, order, last_order, allocfn, freefn)	\
-KVT_CREATE(name, depth, order, last_order, NULL, ert_definitfn, ert_defget, ert_defisnull, ert_defset, allocfn, freefn, ert_defsetleaf, ert_defgetleaf)
+#define KVT_CREATE(name, depth, order, last_order, allocfn, freefn)	\
+__KVT_CREATE(name, depth, order, last_order, NULL, ert_definit, ert_defget, ert_defisnull, ert_defset, allocfn, freefn, ert_defsetleaf, ert_defgetleaf, ert_defresolve)
+
+#define KVT_ROUND(a, sz) (((unsigned long)a) & (~(sz-1)))
+static int
+ert_nonull_isnull(struct ert_intern *a, void *accum, int isleaf)
+{
+	(void)isleaf;
+	if (!accum) return a->next == NULL; /* optimized away in lookup path */
+	return 0; 		            /* no conditional! */
+}
+
+struct ert_intern test_sink[1<<9] = { {.next = test_sink}, };
+
+/*
+ * The allocfn and freefn MUST align the nodes on their natural size
+ * boundary (i.e. page nodes must be aligned on a page).
+ */
+#define KVT_CREATE_ALIGNED(name, depth, order, last_order, allocfn, freefn)	\
+struct ert_intern name##_sink[1<<order] = { {.next = name##_sink}, }; \
+static void							\
+name##_nonull_initfn(struct ert_intern *a, int leaf) \
+{									\
+	if (leaf) a->next = NULL;                                   \
+	else      a->next = name##_sink;   \
+}								 \
+static struct int							\
+name##_nonull_resolve(struct ert_intern *a, void *accum, int leaf, u32_t order, u32_t sz) \
+{									\
+	(void)leaf;  \
+	if (!accum) return 1;						\
+	return KVT_ROUND(*a, ((1<<order)*sz)) != KVT_ROUND(name##_sink, ((1<<order)*sz)) \
+} \
+__KVT_CREATE(name, depth, order, last_order, NULL, name##_nonnull_initfn, ert_defget, ert_defisnull, ert_defset, allocfn, freefn, ert_defsetleaf, ert_defgetleaf, name##_nonnull_resolve)
 
 /* 
  * This function will try to find an empty slot specifically for the
@@ -60,16 +92,15 @@ KVT_CREATE(name, depth, order, last_order, NULL, ert_definitfn, ert_defget, ert_
 static inline int
 __kvt_add(struct ert *v, unsigned long id, void *val, ERT_CONST_PARAMS)
 {
-	unsigned long accum;
 	int ret;
 
 	assert(v);
 	assert(val != initval);
 	assert(id < __ert_maxid(ERT_CONST_ARGS));
 	assert(last_sz == sizeof(int*));
-	if (unlikely(__ert_lookup(v, id, depth+1, &accum, ERT_CONST_ARGS))) return 1;
-	ret = __ert_expand(v, id, depth+1, &accum, NULL, val, ERT_CONST_ARGS);
-	assert(val == __ert_lookup(v, id, depth+1, &accum, ERT_CONST_ARGS));
+	if (unlikely(__ert_lookup(v, id, 0, depth+1, NULL, ERT_CONST_ARGS))) return 1;
+	ret = __ert_expand(v, id, 0, depth+1, NULL, NULL, val, ERT_CONST_ARGS);
+	assert(val == __ert_lookup(v, id, 0, depth+1, NULL, ERT_CONST_ARGS));
 	
 	return ret;
 }
@@ -83,14 +114,13 @@ __kvt_add(struct ert *v, unsigned long id, void *val, ERT_CONST_PARAMS)
 static inline int 
 __kvt_del(struct ert *v, unsigned long id, ERT_CONST_PARAMS)
 {
-	unsigned long accum = 0;
 	int ret;
 
 	assert(v);
 	assert(id < __ert_maxid(ERT_CONST_ARGS));
 	assert(last_sz == sizeof(int*));
-	ret = __ert_expand(v, id, depth+1, &accum, NULL, initval, ERT_CONST_ARGS);
-	assert(!__ert_lookup(v, id, depth+1, &accum, ERT_CONST_ARGS));
+	ret = __ert_expand(v, id, 0, depth+1, NULL, NULL, initval, ERT_CONST_ARGS);
+	assert(!__ert_lookup(v, id, 0, depth+1, NULL, ERT_CONST_ARGS));
 
 	return 0;
 }
@@ -99,13 +129,12 @@ static inline void
 __kvt_free_rec(struct ert_intern *vi, u32_t lvl, ERT_CONST_PARAMS, kv_free_fn_t freefn)
 {
 	int i, sz;
-	unsigned long accum = 0;
 	
 	assert(vi);
 	if (lvl > 1) {
 		for (i = 0 ; i < (1<<order) ; i++) {
-			if (isnullfn(&vi[i], &accum, 0)) continue;
-			__kvt_free_rec(getfn(&vi[i], &accum, 0), lvl-1, ERT_CONST_ARGS, freefn);
+			if (isnullfn(&vi[i], NULL, 0)) continue;
+			__kvt_free_rec(getfn(&vi[i], NULL, 0), lvl-1, ERT_CONST_ARGS, freefn);
 		}
 	}
 	if (lvl > 1) sz = (1<<order) * intern_sz;

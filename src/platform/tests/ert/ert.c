@@ -3,11 +3,14 @@
 #include <malloc.h>
 #include <assert.h>
 
+typedef unsigned char      u8_t;
 typedef unsigned short int u16_t;
-typedef unsigned int u32_t;
+typedef unsigned int       u32_t;
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 #define LINUX_TEST
 #include <kvtrie.h>
+#define CAPTBL_ALLOCFN ct_alloc
+#include <captbl.h>
 
 #define NTESTS (4096)
 
@@ -51,9 +54,9 @@ unit_freefn(void *d, void *m, int sz, int last_lvl)
 	munmap(m, sz);
 }
 
-KVT_CREATE_DEF(unit,  2, 12, 8, unit_allocfn, unit_freefn);
-KVT_CREATE_DEF(unit2, 3, 6, 12, unit_allocfn, unit_freefn);
-KVT_CREATE_DEF(unit3, 4, 5, 5, unit_allocfn, unit_freefn);
+KVT_CREATE(unit,  2, 12, 8, unit_allocfn, unit_freefn);
+KVT_CREATE(unit2, 3, 6, 12, unit_allocfn, unit_freefn);
+KVT_CREATE(unit3, 4, 5, 5, unit_allocfn, unit_freefn);
 
 ERT_CREATE_DEF(unit4, 3, 8, 4, 64, unit_allocfn);
 ERT_CREATE_DEF(unit5, 1, 0, 14, 32, unit_allocfn);
@@ -175,6 +178,33 @@ ert_test(int max, int depth, alloc_fn_t a, lkup_fn_t l, lkupa_fn_t la,
 	}
 }
 
+void *do_captbllkups(struct captbl *ct, unsigned long id)
+{
+	void *r;
+
+	__asm__("nop; nop; nop");
+	r = captbl_lkup(ct, id);
+	__asm__("nop; nop; nop");
+	return r;
+}
+
+void 
+ct_test(void)
+{
+	struct captbl *ct;
+	char *p = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	int ret;
+	struct cap_poly *c;
+
+	assert(p);
+	ct = captbl_alloc(p);
+	assert(ct);
+	ret = captbl_expand(ct, 0, p+(PAGE_SIZE/2));
+	assert(!ret);
+	c = captbl_lkup(ct, 0);
+	assert(c && c == (void*)(p+(PAGE_SIZE/2)));
+}
+
 int 
 main(void)
 {
@@ -198,5 +228,9 @@ main(void)
 		 (lkupan_fn_t)unit5_lkupan, (expandn_fn_t)unit5_expandn, (expand_fn_t)unit5_expand);
 	printf("\tSUCCESS\n");
 
+	printf("captbl tests:\n");
+	ct_test();
+	printf("\tSUCCESS\n");
+	
 	return 0;
 }
