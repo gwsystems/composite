@@ -2057,9 +2057,7 @@ ainv_next_thread(struct async_cap *acap, struct thread *preempted, int preempt)
 	 * executing thread?
 	 */
 	if (ainv_higher_urgency(upcall, preempted)) {
-		/* printk("core %ld, going to switch to upcall thd %d,
-		 * prev thd %d\n", get_cpuid(), upcall->thread_id,
-		 * preempted->thread_id); */
+		/* printk("core %ld, going to switch to upcall thd %d, prev thd %d\n", get_cpuid(), upcall->thread_id, preempted->thread_id); */
 		if (unlikely(preempted->flags & THD_STATE_PREEMPTED)) {
 			printk("cos: WTF - preempted thread %d preempted, upcall %d.\n", 
 			       thd_get_id(preempted), thd_get_id(upcall));
@@ -2136,7 +2134,7 @@ ainv_next_thread(struct async_cap *acap, struct thread *preempted, int preempt)
 		cos_meas_stats_end(COS_MEAS_STATS_UC_EXEC_DELAY, 1);
 		return upcall;
 	} 
-		
+
 	/* 
 	 * If another upcall is what we attempted to preempt, we might
 	 * have a higher priority than the thread that upcall had
@@ -3351,6 +3349,117 @@ void cos_ipi_handling(void)
 	return;
 }
 
+static inline void sti(void)
+{
+	__asm__("sti");
+}
+
+static inline void cli(void)
+{
+	__asm__("cli");
+}
+
+unsigned long long tsc_start(void)
+{
+	unsigned long cycles_high, cycles_low; 
+	asm volatile ("mov $0, %%eax\n\t"
+		      "CPUID\n\t"
+		      "RDTSC\n\t"
+		      "mov %%edx, %0\n\t"
+		      "mov %%eax, %1\n\t": "=r" (cycles_high), "=r" (cycles_low) :: 
+		      "%eax", "%ebx", "%ecx", "%edx");
+
+	return ((unsigned long long)cycles_high << 32) | cycles_low;
+}
+
+unsigned long long rdtsc(void)
+{
+	unsigned long cycles_high, cycles_low; 
+
+	asm volatile ("RDTSCP\n\t" 
+		      "mov %%edx, %0\n\t" 
+		      "mov %%eax, %1\n\t": "=r" (cycles_high), "=r" (cycles_low) : : "%eax", "%edx"); 
+
+	return ((unsigned long long)cycles_high << 32 | cycles_low);
+}
+
+int delay(int cycles) {
+	unsigned long long s,e;
+	volatile int mem = 0;
+
+	s = rdtsc();
+	while (1) {
+		e = rdtsc();
+		if (e - s > cycles) return 0; // x us
+		mem++;
+	}
+
+	return 0;
+}
+
+#define CK_CC_IMM "i"
+
+#define CK_PR_LOAD(S, M, T, C, I)				\
+	static T					\
+	ck_pr_load_##S(const M *target)				\
+	{							\
+		T r;						\
+		__asm__ __volatile__(I " %1, %0"		\
+					: "=q" (r)		\
+					: "m"  (*(C *)target)	\
+					: "memory");		\
+		return (r);					\
+	}
+
+#define CK_PR_LOAD_S(S, T, I) CK_PR_LOAD(S, T, T, T, I)
+
+//CK_PR_LOAD_S(uint, unsigned int, "movl")
+CK_PR_LOAD_S(int, int, "movl")
+
+
+#define CK_PR_STORE(S, M, T, C, I)				\
+	static void				\
+	ck_pr_store_##S(M *target, T v)				\
+	{							\
+		__asm__ __volatile__(I " %1, %0"		\
+					: "=m" (*(C *)target)	\
+					: CK_CC_IMM "q" (v)	\
+					: "memory");		\
+		return;						\
+	}
+
+#define CK_PR_STORE_S(S, T, I) CK_PR_STORE(S, T, T, T, I)
+
+//CK_PR_STORE_S(uint, unsigned int, "movl")
+CK_PR_STORE_S(int, int, "movl")
+
+volatile int cpu;
+
+volatile unsigned long long core0_e, corex_e[NUM_CPU];
+int core0_received, corex_received;
+
+//#define USE_IPI
+
+int core0_high(void)
+{
+	ck_pr_store_int(&core0_received, 1);
+	cos_mem_fence();
+	return 0;
+}
+
+int corex_high(void)
+{
+	ck_pr_store_int(&corex_received, 1);
+	cos_mem_fence();
+	return 0;
+}
+
+int ipi_meas = 0;
+//QW: to remove
+int core_access[NUM_CPU];
+#define ITER (128)
+volatile unsigned long long corex_last;
+
 COS_SYSCALL int 
 cos_syscall_async_cap_cntl(int spd_id, int operation, 
 			   int arg_1, int arg_2)
@@ -3364,6 +3473,228 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 	const int arg3 =  arg_2;
 
 	switch(operation) {
+	case 9999: // QW: to remove
+	{
+		// this is used to measure the round trip IPI cost, which can help us to calibrate TSC between cores
+		ck_pr_store_int(&core_access[get_cpuid()], 1);
+		ipi_meas = 1;
+		cos_mem_fence();
+
+		while (ck_pr_load_int(&core_access[0]) == 0) ;
+		while (ck_pr_load_int(&core_access[arg3]) == 0) ;
+
+		sti();
+
+		unsigned long long s0;
+		volatile unsigned long results[ITER];
+		int j;
+		//both cores get here.
+		if (get_cpuid() == 0) {
+			cpu = arg3;
+
+			for (j = 0; j < 10; j++) {
+				core0_e = 0;
+				cos_mem_fence();
+
+				s0 = tsc_start();
+#ifdef USE_IPI
+				chal_send_ipi(cpu);
+#else
+				ck_pr_store_int(&corex_received, 1);
+				cos_mem_fence();
+#endif
+				while (ck_pr_load_int(&core0_received) == 0) {
+					unsigned long long e = tsc_start();
+					if (e - s0 > 1000000) {
+						printk("not receiving!!1\n");
+						ipi_meas = 0;
+						cos_mem_fence();
+
+						return 0;
+					}
+				}
+				core0_e = tsc_start();
+				ck_pr_store_int(&core0_received, 0);
+
+				results[j]= core0_e - s0;
+#ifdef USE_IPI
+				chal_send_ipi(cpu);
+#else
+				ck_pr_store_int(&corex_received, 1);
+				cos_mem_fence();
+#endif
+				cos_mem_fence();
+				delay(100000);
+			}
+			//warm up.
+			for (j = 0; j < ITER; j++) {
+				core0_e = 0;
+				cos_mem_fence();
+
+				s0 = tsc_start();
+#ifdef USE_IPI
+				chal_send_ipi(cpu);
+#else
+				ck_pr_store_int(&corex_received, 1);
+				cos_mem_fence();
+#endif
+				while (ck_pr_load_int(&core0_received) == 0) {
+					unsigned long long e = tsc_start();
+					if (e - s0 > 1000000) {
+						printk("not receiving!!2\n");
+						ipi_meas = 0;
+						cos_mem_fence();
+
+						return 0;
+					}
+				}
+				core0_e = tsc_start();
+				ck_pr_store_int(&core0_received, 0);
+				results[j]= core0_e - s0;
+#ifdef USE_IPI
+				chal_send_ipi(cpu);
+#else
+				ck_pr_store_int(&corex_received, 1);
+				cos_mem_fence();
+#endif
+				cos_mem_fence();
+				delay(100000);
+			}
+
+			unsigned long long sum = 0, max = 0, min = 9999999;
+			for (j = 0; j < ITER; j++) {
+				if (results[j] < min) min = results[j];
+				if (results[j] > max) max = results[j];
+				sum += results[j];
+			}
+//			printk("core 0 to %d, round trip avg %llu max-min %d\n", cpu, sum/ITER, max-min);
+
+			cos_mem_fence();
+			ipi_meas = 0;
+			cos_mem_fence();
+
+//			if (max - min > 150) ret = 9999;
+//			else ret = sum/ITER;
+			ret = sum/ITER;
+
+			while (corex_last == 0) {
+				cos_mem_fence();
+			}
+			
+			int diff = (long long)corex_last - (long long)s0;
+			corex_last = 0;
+			cos_mem_fence();
+
+//			printk("core 0 sees the diff %d, skew %d\n", diff, diff - ret/2);
+			ret = diff-ret/2;
+		} else {
+			int curr = get_cpuid();
+			cos_mem_fence();
+
+			for (j = 0; j < 10; j++) {
+				corex_e[curr] = 0;
+				cos_mem_fence();
+
+				s0 = tsc_start();
+				while (ck_pr_load_int(&corex_received) == 0) {
+					unsigned long long e = tsc_start();
+					if (e - s0 > 1000000) {
+						printk("not receiving!!3\n");
+						ipi_meas = 0;
+						cos_mem_fence();
+
+						return 0;
+					}
+				}
+				corex_e[curr] = 0;
+				ck_pr_store_int(&corex_received, 0);
+				s0 = tsc_start();
+#ifdef USE_IPI
+				chal_send_ipi(0);
+#else
+				ck_pr_store_int(&core0_received, 1);
+				cos_mem_fence();
+#endif
+
+				while (ck_pr_load_int(&corex_received) == 0) {
+					unsigned long long e = tsc_start();
+					if (e - s0 > 1000000) {
+						printk("not receiving!!4\n");
+						ipi_meas = 0;
+						cos_mem_fence();
+
+						return 0;
+					}
+				}
+				corex_e[curr] = tsc_start();
+				ck_pr_store_int(&corex_received, 0);
+
+				results[j]= corex_e[curr] - s0;
+			}
+			//warm up
+			for (j = 0; j < ITER; j++) {
+				corex_e[curr] = 0;
+				cos_mem_fence();
+
+				s0 = tsc_start();
+				while (ck_pr_load_int(&corex_received) == 0) {
+					unsigned long long e = tsc_start();
+					if (e - s0 > 1000000) {
+						printk("not receiving!!5\n");
+						ipi_meas = 0;
+						cos_mem_fence();
+
+						return 0;
+					}
+				}
+
+				corex_e[curr] = 0;
+				ck_pr_store_int(&corex_received, 0);
+				s0 = tsc_start();
+#ifdef USE_IPI
+				chal_send_ipi(0);
+#else
+				ck_pr_store_int(&core0_received, 1);
+				cos_mem_fence();
+#endif
+
+				while (ck_pr_load_int(&corex_received) == 0) {
+					unsigned long long e = tsc_start();
+					if (e - s0 > 1000000) {
+						printk("not receiving!!6\n");
+						ipi_meas = 0;
+						cos_mem_fence();
+
+						return 0;
+					}
+				}
+				corex_e[curr] = tsc_start();
+				ck_pr_store_int(&corex_received, 0);
+
+				results[j]= corex_e[curr] - s0;
+			}
+			corex_last = s0;
+			cos_mem_fence();
+
+			unsigned long long sum = 0, max = 0, min = 9999999;
+			for (j = 0; j < ITER; j++) {
+				if (results[j] < min) min = results[j];
+				if (results[j] > max) max = results[j];
+				sum += results[j];
+			}
+//			printk("core %d to 0, round trip avg %llu max-min %d\n", cpu, sum/ITER, max-min);
+
+//			if (max - min > 150) ret = 9999;
+//			else ret = sum/ITER;
+			ret = sum/ITER;
+		}
+
+		cli();
+		ck_pr_store_int(&core_access[get_cpuid()], 0);
+		cos_mem_fence();
+
+		return ret;
+	}
 	case COS_ACAP_CREATE:
 	{
 		/* This consolidates cli_create, srv_create and the wiring. */

@@ -1204,6 +1204,10 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 
 void cos_ipi_handling(void);
 
+extern int ipi_meas;
+extern int core0_high();
+extern int corex_high();
+
 int 
 cos_ipi_ring_enqueue(u32_t dest, u32_t data);
 
@@ -1212,6 +1216,13 @@ main_ipi_handler(struct pt_regs *rs, unsigned int irq)
 {
 	/* ack the ipi first. */
 	ack_APIC_irq();
+	
+	if (ipi_meas > 0) {
+		if (get_cpuid() == 0) core0_high();
+		else corex_high();
+
+		return;
+	}
 
 	cos_ipi_handling();
 
@@ -1572,6 +1583,8 @@ int main_timer_interposition(struct pt_regs *rs, unsigned int error_code)
 	struct async_cap *acap = *PERCPU_GET(cos_timer_acap);
 
 	if (!(acap && acap->upcall_thd)) goto LINUX_HANDLER;
+
+	if (ipi_meas) goto LINUX_HANDLER;
 
 	/* FIXME: Right now we are jumping back to the Linux timer
 	 * handler (which will do the ack()). Linux will freeze if we

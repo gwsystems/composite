@@ -1160,6 +1160,7 @@ static int fp_kill_thd(struct sched_thd *t)
 	REM_LIST(t, prio_next, prio_prev);
 	REM_LIST(t, next, prev);
 	ADD_LIST(&PERCPU_GET(sched_base_state)->graveyard, t, prio_next, prio_prev);
+	sched_rem_event(t);
 
 	sched_switch_thread(0, NULL_EVT);
 
@@ -1213,6 +1214,7 @@ static struct sched_thd *sched_setup_thread_arg(int dest_spd_id, void *metric_st
 		sched_init_thd(new, new->id, THD_READY);
 		new->spdid = (spdid_t)dest_spd_id;
 		new->init_data = (int)fn;
+		if (0 > sched_alloc_event(new)) BUG();
 	} else {
 		tid = (sched_is_root())                       ?
 			cos_create_thread(dest_spd_id, (int)fn, (int)d) :
