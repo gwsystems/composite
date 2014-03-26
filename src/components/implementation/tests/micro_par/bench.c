@@ -13,11 +13,11 @@
 #include <parlib.h>
 #include <mem_mgr_large.h>
 
-#define ITER (1*1000)//*1000)
+#define ITER (1*1000*1000)
 
 #define GAP_US (3)
 /////////////////////////////////////////////////////////////////////////////
-#define ENABLE_TDMA
+//#define ENABLE_TDMA
 #define TDMA_SLOT             ((int)(5 * 1000 * CPU_GHZ))
 #define TDMA_CORES_PER_SLOT   (1)
 
@@ -33,10 +33,10 @@
 #endif
 #define TDMA_WINDOW           ((int)(TDMA_SLOT * TDMA_NUM_SLOTS))
 ////////////////////////////////////////////////////////////////////////////
-#define ENABLE_RATE_LIMIT
+//#define ENABLE_RATE_LIMIT
 
 #ifndef ENABLE_TDMA
-#define READER_CORE (0)
+#define READER_CORE (-1)
 #else
 // TDMA all cores writing
 #define READER_CORE (-1)
@@ -507,10 +507,76 @@ static inline int meas_op(int (*op)(int cpu, unsigned long long tsc), char *name
 	return 0;
 }
 
+
+static inline int meas_ptregs(int cpu, unsigned long long tsc) 
+{
+
+/* struct pt_regs { */
+/*         long bx; */
+/*         long cx; */
+/*         long dx; */
+/*         long si; */
+/*         long di; */
+/*         long bp; */
+/*         long ax; */
+/*         long ds; */
+/*         long es; */
+/*         long fs; */
+/*         long gs; */
+/*         long orig_ax; */
+/*         long ip; */
+/*         long cs; */
+/*         long flags; */
+/*         long sp; */
+/*         long ss; */
+/* }; */
+
+//	struct pt_regs regs;
+	
+	asm volatile ("subl $4, %%esp\n\t" // skip ss
+		      "pushl %%ecx\n\t"    // user-esp
+		      "subl $8, %%esp\n\t" // skip flags, cs
+		      "pushl %%edx\n\t"    // user-eip
+		      "subl $20, %%esp\n\t"// skip flags, cs
+		      "pushl %%eax;\n\t"
+		      "pushl %%ebp;\n\t"
+		      "pushl %%edi;\n\t"
+		      "pushl %%esi;\n\t"
+		      "pushl %%edx;\n\t"
+		      "pushl %%ecx;\n\t"
+		      "pushl %%ebx;\n\t" // push done.
+		      "popl %%ebx;\n\t"
+		      "popl %%ecx;\n\t"
+		      "popl %%edx;\n\t"
+		      "popl %%esi;\n\t"
+		      "popl %%edi;\n\t"
+		      "popl %%ebp;\n\t"
+		      "popl %%eax;\n\t"
+		      "addl $20, %%esp\n\t"
+		      "popl %%edx;\n\t"
+		      "addl $8, %%esp\n\t"
+		      "popl %%ecx;\n\t"
+		      "addl $4, %%esp\n\t"
+		      :
+		);
+
+	return 0;
+}
+
 static inline void go_par(int ncores) {
 	int j;
 
 	printc("Parallel benchmark: measuring %d cores, rate_gap %d\n", ncores, rate_gap);
+
+#pragma omp parallel for
+	for (j = 0; j < ncores; j++)
+	{
+		// per core below!
+		assert(j == omp_get_thread_num());
+		meas_op(meas_ptregs, "ptregs", 0);
+	}
+
+	return;
 
 	if (rate_gap == 0) {
 #pragma omp parallel for
@@ -768,7 +834,6 @@ int meas(void)
 //	tsc_calibrate();
 
 	tsc_calibrate_kern();
-	return 0;
 
 #pragma omp parallel for
 	for (i = 0; i < NUM_CPU_COS; i++) 
@@ -780,8 +845,8 @@ int meas(void)
 
 //	for (i = 0; i < 7; i++) {
 //		gap = rates[i] * (CPU_GHZ*1000);
-	{       gap = GAP_US * (CPU_GHZ*1000);
-//	{       gap = 0;
+//	{       gap = GAP_US * (CPU_GHZ*1000);
+	{       gap = 0;
 
 #ifndef ENABLE_RATE_LIMIT 
 		// no rate_limit!

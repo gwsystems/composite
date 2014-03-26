@@ -12,6 +12,7 @@ def start():
 		sys.exit(1)
 
         os.system("echo -1 > /proc/sys/kernel/sched_rt_runtime_us")
+        os.system("echo \"ENABLED=0\" > /etc/default/irqbalance")
         os.system("echo Setting CPU affinity... This could take several seconds for the first run after boot.")
 
 	if not(os.path.isdir("/dev/cpuset")):
