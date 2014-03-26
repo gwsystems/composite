@@ -568,15 +568,13 @@ static inline void go_par(int ncores) {
 
 	printc("Parallel benchmark: measuring %d cores, rate_gap %d\n", ncores, rate_gap);
 
-#pragma omp parallel for
-	for (j = 0; j < ncores; j++)
-	{
-		// per core below!
-		assert(j == omp_get_thread_num());
-		meas_op(meas_ptregs, "ptregs", 0);
-	}
-
-	return;
+/* #pragma omp parallel for */
+/* 	for (j = 0; j < ncores; j++) */
+/* 	{ */
+/* 		// per core below! */
+/* 		assert(j == omp_get_thread_num()); */
+/* 		meas_op(meas_ptregs, "ptregs", 0); */
+/* 	} */
 
 	if (rate_gap == 0) {
 #pragma omp parallel for
@@ -834,6 +832,12 @@ int meas(void)
 //	tsc_calibrate();
 
 	tsc_calibrate_kern();
+
+	meas_op(meas_ptregs, "ptregs", 0);
+	meas_op(null_op, "rdtsc_cost", 0);
+
+	// not doing tests for now.
+	return 0;
 
 #pragma omp parallel for
 	for (i = 0; i < NUM_CPU_COS; i++) 
