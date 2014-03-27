@@ -2,7 +2,7 @@ C_OBJS=pong.o
 ASM_OBJS=
 COMPONENT=ppong.o
 INTERFACES=pong
-DEPENDENCIES=sched
+DEPENDENCIES=sched printc
 IF_LIB=
 
 include ../../Makefile.subsubdir

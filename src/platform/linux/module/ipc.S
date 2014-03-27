@@ -65,12 +65,13 @@ kernel_ipc_syscall:
 	pushl %esi;	\
 	pushl %edx;	\
 	pushl %ecx;	\
-	pushl %ebx;
+	pushl %ebx
 
+/* When returning to user: ecx => sp, edx => ip.
+ * (thus no need to restore original ecx and edx) */
 #define RESTORE_REGS_PT	\
 	popl %ebx;	\
-	popl %ecx;	\
-	popl %edx;	\
+	addl $8, %esp;	\
 	popl %esi;	\
 	popl %edi;	\
 	popl %ebp;	\
@@ -79,7 +80,7 @@ kernel_ipc_syscall:
 	popl %edx;	\
 	addl $8, %esp;  \
 	popl %ecx;     	\
-	addl $4, %esp;
+	addl $4, %esp
 
 /*
  * Register layout:
@@ -95,13 +96,9 @@ composite_call_ipc:	/* server_inv: */
 	SAVE_ALL_PT
 
 	pushl %esp /* pt_regs */
-	/* invoke ipc_walk_static_cap */
 	pushl %eax /* cap */
+	/* invoke ipc_walk_static_cap */
 	call ipc_walk_static_cap
-
-	/* %eax = handler fn in server */
-	cmpl $0, %eax /* error? */
-	jz composite_call_err
 	addl $8, %esp
 
 	RESTORE_REGS_PT

@@ -12,6 +12,7 @@
 #include <cos_synchronization.h>
 #include <parlib.h>
 #include <mem_mgr_large.h>
+#include <acap_pong.h>
 
 #define ITER (1*1000*1000)
 
@@ -816,13 +817,29 @@ int tsc_calibrate_kern(void)
 	return 0;
 }
 
+#define PP_ITER 1024
+int ping_pong(void)
+{
+	int i;
+	unsigned long long s,e;
+	s = tsc_start();
+	for (i = 0; i < PP_ITER; i++) {
+		call(0, 0, 0, 0);
+	}
+	e = tsc_start();
+
+	printc("pingpong avg %llu\n",(e-s)/PP_ITER);
+	
+	return 0;
+}
+
 int meas(void)
 {
 	int i, j, omp_cores;
 	int gap = 0;
 	
 	printc("Parallel benchmark in component %ld. ITER %llu\n", cos_spd_id(), (unsigned long long)ITER);
-	mman_alias_page(cos_spd_id(), 10, 10, 9999, MAPPING_RW);
+	mman_alias_page(cos_spd_id(), 1234, 7890, 9999, MAPPING_RW);
 
 #ifdef ENABLE_TDMA
 	printc("TDMA window %d cycles, each slot %d cycles, num_slots %d, drift %d cycles.\n",
@@ -832,10 +849,11 @@ int meas(void)
 //	tsc_calibrate();
 
 	tsc_calibrate_kern();
-
+	ping_pong();
+	
 	meas_op(meas_ptregs, "ptregs", 0);
 	meas_op(null_op, "rdtsc_cost", 0);
-
+	
 	// not doing tests for now.
 	return 0;
 

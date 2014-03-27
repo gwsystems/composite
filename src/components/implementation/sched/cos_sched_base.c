@@ -2034,7 +2034,7 @@ extern int parent_sched_isroot(void);
 int
 sched_init(void)
 {
-//	printc("Sched init has thread %d\n", cos_get_thd_id());
+	/* printc("Sched init has thread %d, spd %d\n", cos_get_thd_id(), cos_spd_id()); */
 	assert(!(PERCPU_GET(sched_base_state)->init)); // don't re-initialize. should be removed if doing recovery test. 
 
 	/* Promote us to a scheduler! */

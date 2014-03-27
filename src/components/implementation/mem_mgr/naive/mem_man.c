@@ -421,6 +421,7 @@ vaddr_t __mman_alias_page(spdid_t s_spd, vaddr_t s_addr, u32_t d_spd_flags, vadd
 
 	//QW: to remove
 	if (d_addr == 9999) {
+		printc("params: %d, %d, %d, %d\n", s_spd, s_addr, d_spd_flags>>16, d_addr);
 		LOCK();
 		if (cos_mmap_cntl(COS_MMAP_GRANT, MAPPING_RW, 14, 0x4c3f0000, 128000)) {
 			printc("9999 failed >>>>>>>>>>>>>>>>\n");
@@ -551,7 +552,7 @@ extern int parent_sched_child_cntl_thd(spdid_t spdid);
 
 int 
 sched_child_cntl_thd(spdid_t spdid) 
-{ 
+{
 	if (parent_sched_child_cntl_thd(cos_spd_id())) BUG();
 	if (cos_sched_cntl(COS_SCHED_PROMOTE_CHLD, 0, spdid)) BUG();
 	if (cos_sched_cntl(COS_SCHED_GRANT_SCHED, cos_get_thd_id(), spdid)) BUG();

@@ -147,11 +147,7 @@ llboot_thd_done(void)
 	while (1) {
 		int     pthd = llboot->prev_thd;
 		spdid_t rspd = llboot->recover_spd;
-			
-		if (tid != llboot->recover_spd) {
-			printc("bug here!\n");
-			while (1) cos_switch_thread(llboot->alpha, 0);
-		}
+
 		assert(tid == llboot->recovery_thd);
 		if (rspd) {             /* need to recover a component */
 			assert(pthd);
@@ -315,8 +311,8 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		printc("Core %ld: Fault detected by the llboot component in thread %d: "
 		       "Major system error.\n", cos_cpuid(), cos_get_thd_id());
 	default:
-		printc("Core %ld: thread %d in llboot receives undefined upcall.\n", 
-		       cos_cpuid(), cos_get_thd_id());
+		printc("Core %ld: thread %d in llboot receives undefined upcall. Params: %d, %p, %p, %p\n", 
+		       cos_cpuid(), cos_get_thd_id(), t, arg1, arg2, arg3);
 		return;
 	}
 
@@ -327,7 +323,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 
 void cos_init(void);
 int  sched_init(void)   
-{ 
+{
 	if (cos_cpuid() == INIT_CORE) {
 		/* The init core will call this function twice: first do
 		 * the cos_init, then return to cos_loader and boot

@@ -110,9 +110,9 @@ ipc_walk_static_cap(unsigned int capability, struct pt_regs *regs)
 	struct spd *curr_spd, *dest_spd;
 	struct invocation_cap *cap_entry;
 	struct thread *thd = core_get_curr_thd_id(get_cpuid_fast());
-	vaddr_t ip, sp;
-	ip = regs->cx;
-	sp = regs->bp;
+	vaddr_t orig_ip, orig_sp;
+	orig_ip = regs->cx;
+	orig_sp = regs->bp;
 
 	capability >>= 20;
 
@@ -122,14 +122,14 @@ ipc_walk_static_cap(unsigned int capability, struct pt_regs *regs)
 	
 	if (unlikely(curr_spd == NULL)) {
 		printk ("cos: couldn't find current component in thread %x.\n", (unsigned int)thd);
-		return 0;
+		goto err;
 	}
 
 	if (unlikely(capability >= curr_spd->ncaps)) {
-		struct spd *t = virtual_namespace_query(ip);
+		struct spd *t = virtual_namespace_query(orig_ip);
 		printk("cos: capability %d greater than max (%d) from spd %d @ %x.\n", 
-		       capability, curr_spd->ncaps, (t) ? spd_get_index(t): 0, (unsigned int)ip);
-		return 0;
+		       capability, curr_spd->ncaps, (t) ? spd_get_index(t): 0, (unsigned int)orig_ip);
+		goto err;
 	}
 
 	cap_entry = &curr_spd->caps[capability];
@@ -141,7 +141,7 @@ ipc_walk_static_cap(unsigned int capability, struct pt_regs *regs)
 
 	if (unlikely(!dest_spd || curr_spd == CAP_FREE || curr_spd == CAP_ALLOCATED_UNUSED)) {
 		printk("cos: Attempted use of unallocated capability.\n");
-		return 0;
+		goto err;
 	}
 	/*
 	 * If the spd that owns this capability is part of a composite
@@ -164,7 +164,7 @@ ipc_walk_static_cap(unsigned int capability, struct pt_regs *regs)
 		 * FIXME: do something here like throw a fault to be
 		 * handled by a user-level handler
 		 */
-		return 0;
+		goto err;
 	}
 	/* now we are committing to the invocation */
 	cos_meas_event(COS_MEAS_INVOCATIONS);
@@ -175,18 +175,24 @@ ipc_walk_static_cap(unsigned int capability, struct pt_regs *regs)
 	/* core_put_curr_spd(&(dest_spd->spd_info)); */
 
 	regs->ax = thd->thread_id | (get_cpuid_fast() << 16);
-	regs->cx = spd_get_index(curr_spd);
+	regs->sp = spd_get_index(curr_spd);
 
 	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
 
 	/* add a new stack frame for the spd we are invoking (we're committed) */
-	thd_invocation_push(thd, cap_entry->destination, sp, ip);
+	thd_invocation_push(thd, cap_entry->destination, orig_sp, orig_ip);
 	cap_entry->invocation_cnt++;
 
 	/* .. */
 	regs->bp = regs->dx;
 
-	return regs->dx = cap_entry->dest_entry_instruction;
+	return regs->ip = cap_entry->dest_entry_instruction;
+err:
+	regs->ax = -1;
+	regs->ip = orig_ip;
+	regs->sp = orig_sp;
+
+	return 0;
 }
 
 static struct pt_regs *thd_ret_term_upcall(struct thread *t);
@@ -335,7 +341,7 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 	a = ipc_walk_static_cap(fault_cap<<20, regs);
 
 	/* setup the registers for the fault handler invocation */
-	regs->bx = regs->cx;
+	regs->bx = regs->cx = regs->sp;
 	regs->sp = 0;
 	/* arguments (including bx above) */
 	regs->si = fault_addr;
@@ -2261,6 +2267,10 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 
 		if (sched_lvl >= MAX_SCHED_HIER_DEPTH) {
 			printk("Cannot promote child, exceeds sched hier depth.\n");
+			return -1;
+		}
+		if (!child) {
+			printk("Couldn't find child scheduler.\n");
 			return -1;
 		}
 		if (child->parent_sched && child->parent_sched != spd) {
