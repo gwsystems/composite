@@ -117,7 +117,8 @@ static inline int name##_expandn(struct structname *v, unsigned long id, u32_t d
 static inline int name##_expand(struct structname *v, unsigned long id, void *accum, void *memctxt, void *data) \
 { return __ert_expand((struct ert*)v, id, 0, depth, accum, memctxt, data, depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn); } \
 static inline unsigned long name##_maxid(void)				\
-{ return __ert_maxid(depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn); }
+{ return __ert_maxid(depth, order, intern_sz, last_order, last_sz, initval, initfn, getfn, isnullfn, setfn, allocfn, setleaffn, getleaffn, resolvefn); } \
+static inline u32_t name##_maxdepth(void) { return (u32_t)depth; }
 
 
 #define ERT_CREATE_DEF(name, depth, order, last_order, last_sz, allocfn) \
