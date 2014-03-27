@@ -28,6 +28,7 @@
 	/* \
 	 * cap#    -> eax \
 	 * sp      -> ebp \
+	 * ip      -> ecx \
 	 * 1st arg -> ebx \
 	 * 2nd arg -> esi \
 	 * 3rd arg -> edi \

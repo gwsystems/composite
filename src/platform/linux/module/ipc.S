@@ -53,6 +53,34 @@ kernel_ipc_syscall:
 	cmpl $0, %eax /* do we have a return capability */
 	jz composite_ret_ipc
 
+#define SAVE_ALL_PT 	\
+	subl $4, %esp;  \
+	pushl %ecx;     \
+	subl $8, %esp;  \
+	pushl %edx;  	\
+	subl $20, %esp; \
+	pushl %eax;	\
+	pushl %ebp;	\
+	pushl %edi;	\
+	pushl %esi;	\
+	pushl %edx;	\
+	pushl %ecx;	\
+	pushl %ebx;
+
+#define RESTORE_REGS_PT	\
+	popl %ebx;	\
+	popl %ecx;	\
+	popl %edx;	\
+	popl %esi;	\
+	popl %edi;	\
+	popl %ebp;	\
+	popl %eax;	\
+	addl $20, %esp; \
+	popl %edx;	\
+	addl $8, %esp;  \
+	popl %ecx;     	\
+	addl $4, %esp;
+
 /*
  * Register layout:
  *
@@ -64,28 +92,19 @@ kernel_ipc_syscall:
 .globl composite_call_ipc
 .align 32
 composite_call_ipc:	/* server_inv: */
-	pushl %edx /* cdecl makes it legal to use edx in called fn: save it */
-	/* room for the thdid and spdid */
-	subl $8, %esp
-	pushl %esp
+	SAVE_ALL_PT
+
+	pushl %esp /* pt_regs */
 	/* invoke ipc_walk_static_cap */
-	pushl %ecx /* ip */
-	pushl %ebp /* sp */
 	pushl %eax /* cap */
 	call ipc_walk_static_cap
+
 	/* %eax = handler fn in server */
 	cmpl $0, %eax /* error? */
 	jz composite_call_err
-	
-	addl $16, %esp
-	movl %eax, %edx
+	addl $8, %esp
 
-	/* thd and spdid */
-	popl %eax
-	popl %ecx
-
-	popl %ebp /* 4th argument */
-
+	RESTORE_REGS_PT
 	RET_TO_USER_NOSEG
 		
 .globl composite_ret_ipc

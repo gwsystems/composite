@@ -147,7 +147,11 @@ llboot_thd_done(void)
 	while (1) {
 		int     pthd = llboot->prev_thd;
 		spdid_t rspd = llboot->recover_spd;
-				
+			
+		if (tid != llboot->recover_spd) {
+			printc("bug here!\n");
+			while (1) cos_switch_thread(llboot->alpha, 0);
+		}
 		assert(tid == llboot->recovery_thd);
 		if (rspd) {             /* need to recover a component */
 			assert(pthd);

@@ -104,13 +104,15 @@ struct inv_ret_struct {
  */
 
 COS_SYSCALL vaddr_t 
-ipc_walk_static_cap(unsigned int capability, vaddr_t sp, 
-		    vaddr_t ip, struct inv_ret_struct *ret)
+ipc_walk_static_cap(unsigned int capability, struct pt_regs *regs)
 {
 	struct thd_invocation_frame *curr_frame;
 	struct spd *curr_spd, *dest_spd;
 	struct invocation_cap *cap_entry;
 	struct thread *thd = core_get_curr_thd_id(get_cpuid_fast());
+	vaddr_t ip, sp;
+	ip = regs->cx;
+	sp = regs->bp;
 
 	capability >>= 20;
 
@@ -172,8 +174,8 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	/* Updating current spd: not used for now. */
 	/* core_put_curr_spd(&(dest_spd->spd_info)); */
 
-	ret->thd_id = thd->thread_id | (get_cpuid_fast() << 16);
-	ret->spd_id = spd_get_index(curr_spd);
+	regs->ax = thd->thread_id | (get_cpuid_fast() << 16);
+	regs->cx = spd_get_index(curr_spd);
 
 	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
 
@@ -181,7 +183,10 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	thd_invocation_push(thd, cap_entry->destination, sp, ip);
 	cap_entry->invocation_cnt++;
 
-	return cap_entry->dest_entry_instruction;
+	/* .. */
+	regs->bp = regs->dx;
+
+	return regs->dx = cap_entry->dest_entry_instruction;
 }
 
 static struct pt_regs *thd_ret_term_upcall(struct thread *t);
@@ -296,11 +301,9 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 {
 	struct spd *s = virtual_namespace_query(regs->ip);
 	struct thd_invocation_frame *curr_frame;
-	struct inv_ret_struct r;
 	vaddr_t a;
 	unsigned int fault_cap;
 	struct pt_regs *nregs;
-
 	/* printk("thd %d, fault addr %p, flags %d, fault num %d\n", thd_get_id(thd), fault_addr, flags, fault_num); */
 	/* corrupted ip? */
 	if (unlikely(!s)) {
@@ -329,11 +332,10 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 	
 	/* save the faulting registers */
 	memcpy(&thd->fault_regs, regs, sizeof(struct pt_regs));
-	a = ipc_walk_static_cap(fault_cap<<20, 0, 0, &r);
+	a = ipc_walk_static_cap(fault_cap<<20, regs);
 
 	/* setup the registers for the fault handler invocation */
-	regs->ax = r.thd_id;
-	regs->bx = regs->cx = r.spd_id;
+	regs->bx = regs->cx;
 	regs->sp = 0;
 	/* arguments (including bx above) */
 	regs->si = fault_addr;
