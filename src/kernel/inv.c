@@ -96,6 +96,31 @@ struct inv_ret_struct {
 	int spd_id;
 };
 
+static inline void
+user_regs_set(struct pt_regs *regs, unsigned long ret, unsigned long sp, unsigned long ip)
+{
+	regs->ax = ret;
+	regs->cx = sp;
+	regs->dx = ip;
+}
+
+static inline unsigned long
+user_regs_get_sp(struct pt_regs *regs)
+{
+	return regs->bp;
+}
+
+static inline unsigned long
+user_regs_get_ip(struct pt_regs *regs)
+{
+	return regs->cx;
+}
+
+static inline unsigned long
+user_regs_get_ax(struct pt_regs *regs)
+{
+	return regs->ax;
+}
 
 /* 
  * FIXME: 1) should probably return the static capability to allow
@@ -103,7 +128,7 @@ struct inv_ret_struct {
  * should kill thread.
  */
 
-COS_SYSCALL vaddr_t 
+COS_SYSCALL void
 ipc_walk_static_cap(struct pt_regs *regs)
 {
 	struct thd_invocation_frame *curr_frame;
@@ -113,10 +138,9 @@ ipc_walk_static_cap(struct pt_regs *regs)
 	vaddr_t orig_ip, orig_sp;
 	unsigned int capability;
 
-	capability = regs->ax >> 20;
-
-	orig_sp = regs->bp;
-	orig_ip = regs->cx;
+	capability = user_regs_get_ax(regs) >> 20;
+	orig_sp    = user_regs_get_sp(regs);
+	orig_ip    = user_regs_get_ip(regs);
 
 	assert(thd);
 
@@ -176,28 +200,29 @@ ipc_walk_static_cap(struct pt_regs *regs)
 	/* Updating current spd: not used for now. */
 	/* core_put_curr_spd(&(dest_spd->spd_info)); */
 
-	regs->ax = thd->thread_id | (get_cpuid_fast() << 16);
-	regs->cx = spd_get_index(curr_spd);
-
 	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
 
 	/* add a new stack frame for the spd we are invoking (we're committed) */
 	thd_invocation_push(thd, cap_entry->destination, orig_sp, orig_ip);
 	cap_entry->invocation_cnt++;
 
+	/* fix me!!! */
 	regs->bp = regs->dx;
 
-	return regs->dx = cap_entry->dest_entry_instruction;
+	user_regs_set(regs, thd->thread_id | (get_cpuid_fast() << 16) /*eax*/,
+		      spd_get_index(curr_spd) /*spdid, no sp*/, cap_entry->dest_entry_instruction /*ip*/);
+
+	return;
 err:
 	regs->ax = -1;
 	regs->cx = orig_sp;
 	regs->dx = orig_ip;
 
-	return 0;
+	return;
 }
 
 static inline void
-copy_reg_general(struct pt_regs *from, struct pt_regs *to)
+copy_gp_regs(struct pt_regs *from, struct pt_regs *to)
 {
 	to->ax = from->ax;
 	to->bx = from->bx;
@@ -206,6 +231,12 @@ copy_reg_general(struct pt_regs *from, struct pt_regs *to)
 	to->si = from->si;
 	to->di = from->di;
 	to->bp = from->bp;
+}
+
+static inline unsigned long
+user_regs_get_inv_ret(struct pt_regs *regs){
+	/* cx holds the return value on invocation return path. */
+	return regs->cx;
 }
 
 static struct pt_regs *thd_ret_term_upcall(struct thread *t);
@@ -232,7 +263,7 @@ pop(struct pt_regs *regs)
 
 		/* normal thread terminates: upcall into root
 		 * scheduler */
-		copy_reg_general(thd_ret_term_upcall(curr), regs);
+		copy_gp_regs(thd_ret_term_upcall(curr), regs);
 
 		return;
 	}
@@ -253,13 +284,11 @@ pop(struct pt_regs *regs)
 
 	/* Fault caused initial invocation.  FIXME: can we get this off the common case path? */
 	if (unlikely(inv_frame->ip == 0)) {
-		copy_reg_general(&curr->fault_regs, regs);
+		copy_gp_regs(&curr->fault_regs, regs);
 		return;
 	}
 
-	regs->ax = regs->cx; /* cx holds the return value. */
-	regs->cx = inv_frame->sp;
-	regs->dx = inv_frame->ip;
+	user_regs_set(regs, user_regs_get_inv_ret(regs), inv_frame->sp, inv_frame->ip);
 
 	return;
 }
@@ -324,7 +353,6 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 {
 	struct spd *s = virtual_namespace_query(regs->ip);
 	struct thd_invocation_frame *curr_frame;
-	vaddr_t a;
 	unsigned int fault_cap;
 	struct pt_regs *nregs;
 	/* printk("thd %d, fault addr %p, flags %d, fault num %d\n", thd_get_id(thd), fault_addr, flags, fault_num); */
@@ -356,10 +384,10 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 	/* save the faulting registers */
 	memcpy(&thd->fault_regs, regs, sizeof(struct pt_regs));
 	regs->ax = fault_cap<<20;
-	a = ipc_walk_static_cap(regs);
+	ipc_walk_static_cap(regs);
 
 	/* setup the registers for the fault handler invocation */
-	regs->bx = regs->cx = regs->sp;
+	regs->bx = regs->cx; // cx = spdid
 	regs->sp = 0;
 	/* arguments (including bx above) */
 	regs->si = fault_addr;
@@ -367,7 +395,7 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 	regs->bp = regs->ip;
 
 	/* page fault handler address */
-	regs->dx = regs->ip = a;
+	regs->ip = regs->dx;
 
 	return 1;
 }

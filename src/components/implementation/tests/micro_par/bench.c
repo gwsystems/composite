@@ -14,7 +14,7 @@
 #include <mem_mgr_large.h>
 #include <acap_pong.h>
 
-#define ITER (1*1000*1000)
+#define ITER (1*1000)//*1000)
 
 #define GAP_US (3)
 /////////////////////////////////////////////////////////////////////////////
@@ -34,7 +34,7 @@
 #endif
 #define TDMA_WINDOW           ((int)(TDMA_SLOT * TDMA_NUM_SLOTS))
 ////////////////////////////////////////////////////////////////////////////
-//#define ENABLE_RATE_LIMIT
+#define ENABLE_RATE_LIMIT
 
 #ifndef ENABLE_TDMA
 #define READER_CORE (-1)
@@ -114,11 +114,12 @@ struct thd_active thd_active[NUM_CPU] CACHE_ALIGNED;
 
 unsigned int reader_view[NUM_CPU_COS];
 
-int cpu_assign[40] = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36,
-		      1, 5, 9, 13, 17, 21, 25, 29, 33, 37,
-		      2, 6, 10, 14, 18, 22, 26, 30, 34, 38,
-		      3, 7, 11, 15, 19, 23, 27, 31, 35, -1};
+/* int cpu_assign[40] = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36, */
+/* 		      1, 5, 9, 13, 17, 21, 25, 29, 33, 37, */
+/* 		      2, 6, 10, 14, 18, 22, 26, 30, 34, 38, */
+/* 		      3, 7, 11, 15, 19, 23, 27, 31, 35, -1}; */
 
+int cpu_assign[40] = {0, 1, -1};
 volatile int n_cores;
 volatile int rate_gap;
 
@@ -323,7 +324,6 @@ static inline int meas_op(int (*op)(int cpu, unsigned long long tsc), char *name
 	ck_pr_store_int(&shared_mem.mem, 0);
 
 	meas_sync_start();
-
 	unsigned long long sum = 0, max = 0, maxss[10], sum2 = 0, find_max = 0, read_cnt = 0;
 	unsigned long long s,e;
 	int if_detected = 0, ret;
@@ -412,7 +412,6 @@ static inline int meas_op(int (*op)(int cpu, unsigned long long tsc), char *name
 		}
 #endif
 	}
-
 	e0 = tsc_start();
 	sum2 = e0 - s0;
 
@@ -441,9 +440,7 @@ static inline int meas_op(int (*op)(int cpu, unsigned long long tsc), char *name
 
 	ck_pr_store_int(&(thd_active[cos_cpuid()].avg), (int)(sum/ITER));
 	ck_pr_store_int(&(thd_active[cos_cpuid()].max), (int)max);
-
 	meas_sync_end();
-
 	if (cpu == 0) {
 		int i;
 		int avg, max = 0, curr_max, cnt = 0, cnt2 = 0;
@@ -849,14 +846,12 @@ int meas(void)
 
 //	tsc_calibrate();
 
-	tsc_calibrate_kern();
+//	tsc_calibrate_kern();
 	ping_pong();
 	
 	meas_op(meas_ptregs, "ptregs", 0);
 	meas_op(null_op, "rdtsc_cost", 0);
 	
-	// not doing tests for now.
-	return 0;
 
 #pragma omp parallel for
 	for (i = 0; i < NUM_CPU_COS; i++) 

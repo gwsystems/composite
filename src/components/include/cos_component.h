@@ -130,6 +130,15 @@ cos_syscall_asm                                      \
 cos_syscall_clobber                                  \
 }
 
+#define cos_syscall_4(num, rtype, name, type0, name0, type1, name1, type2, name2, type3, name3) \
+static inline rtype cos_##name(type0 name0, type1 name1, type2 name2, type3 name3) \
+{                                                    \
+	rtype ret;                                   \
+cos_syscall_asm                                      \
+		: "a" (num<<COS_SYSCALL_OFFSET), "b" (name0), "S" (name1), "D" (name2), "d" (name3), \
+cos_syscall_clobber                                  \
+}
+
 cos_syscall_0(1,  int, stats);
 cos_syscall_2(2,  int, print, char*, str, int, len);
 cos_syscall_3(3,  int, create_thread, int, dest_spd_id, int, a, int, b);
