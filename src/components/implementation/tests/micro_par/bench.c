@@ -820,11 +820,12 @@ int tsc_calibrate_kern(void)
 #define PP_ITER 1024
 int ping_pong(void)
 {
-	int i;
+	int i, ret;
 	unsigned long long s,e;
 	s = tsc_start();
 	for (i = 0; i < PP_ITER; i++) {
-		call(i, i*2, i*i, i*10);
+		ret = call(i, i*2, i*i, i*10);
+		printc("%d: ret %d\n", i, ret);
 	}
 	e = tsc_start();
 

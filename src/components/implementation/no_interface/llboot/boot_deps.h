@@ -148,6 +148,11 @@ llboot_thd_done(void)
 		int     pthd = llboot->prev_thd;
 		spdid_t rspd = llboot->recover_spd;
 
+		if (tid != llboot->recovery_thd) {
+			printf("spinning here...\n");
+			while (1) ;
+			return;
+		}
 		assert(tid == llboot->recovery_thd);
 		if (rspd) {             /* need to recover a component */
 			assert(pthd);
@@ -313,6 +318,8 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	default:
 		printc("Core %ld: thread %d in llboot receives undefined upcall. Params: %d, %p, %p, %p\n", 
 		       cos_cpuid(), cos_get_thd_id(), t, arg1, arg2, arg3);
+		while (1);
+
 		return;
 	}
 

@@ -115,8 +115,6 @@ ipc_walk_static_cap(struct pt_regs *regs)
 
 	capability = regs->ax >> 20;
 
-	/* orig_sp = regs->cx; */
-	/* orig_ip = regs->dx; */
 	orig_sp = regs->bp;
 	orig_ip = regs->cx;
 
@@ -198,6 +196,18 @@ err:
 	return 0;
 }
 
+static inline void
+copy_reg_general(struct pt_regs *from, struct pt_regs *to)
+{
+	to->ax = from->ax;
+	to->bx = from->bx;
+	to->cx = from->cx;
+	to->dx = from->dx;
+	to->si = from->si;
+	to->di = from->di;
+	to->bp = from->bp;
+}
+
 static struct pt_regs *thd_ret_term_upcall(struct thread *t);
 static struct pt_regs *thd_ret_upcall_type(struct thread *t, upcall_type_t type);
 /*
@@ -206,8 +216,8 @@ static struct pt_regs *thd_ret_upcall_type(struct thread *t, upcall_type_t type)
  * This is complicated by the fact that we may return when no
  * invocation is made because a thread is terminating.
  */
-COS_SYSCALL struct thd_invocation_frame *
-pop(struct pt_regs **regs_restore)
+COS_SYSCALL void
+pop(struct pt_regs *regs)
 {
 	struct thd_invocation_frame *inv_frame;
 	struct thd_invocation_frame *curr_frame;
@@ -222,9 +232,9 @@ pop(struct pt_regs **regs_restore)
 
 		/* normal thread terminates: upcall into root
 		 * scheduler */
-		*regs_restore = thd_ret_term_upcall(curr);
+		copy_reg_general(thd_ret_term_upcall(curr), regs);
 
-		return NULL;
+		return;
 	}
 	
 	curr_frame = thd_invstk_top(curr);
@@ -243,11 +253,15 @@ pop(struct pt_regs **regs_restore)
 
 	/* Fault caused initial invocation.  FIXME: can we get this off the common case path? */
 	if (unlikely(inv_frame->ip == 0)) {
-		*regs_restore = &curr->fault_regs;
-		return NULL;
+		copy_reg_general(&curr->fault_regs, regs);
+		return;
 	}
 
-	return inv_frame;	
+	regs->ax = regs->cx; /* cx holds the return value. */
+	regs->cx = inv_frame->sp;
+	regs->dx = inv_frame->ip;
+
+	return;
 }
 
 static inline int __invoke_async_cap(unsigned int capability) {

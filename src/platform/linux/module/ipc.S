@@ -106,39 +106,14 @@ composite_call_ipc:	/* server_inv: */
 .globl composite_ret_ipc
 .align 16
 composite_ret_ipc:	 /*ret_cap:*/
-	pushl %edi
-	pushl %esi
-	pushl %ecx /* user-level return value */
+	SAVE_ALL_PT
 
-	pushl $0
-	pushl %esp /* ptr to space we just made for return val */
+	pushl %esp
 	call pop
-	cmpl $0, %eax /* error? */
-	jz ipc_ret_slowpath
-	addl $8, %esp
-
-	/* eax contains ptr to invocation_frame */
-	/* FIXME: this is brain-damaged, should allocate ret area on stack instead of messing with invocation stack frame... Saved for now by the non-preemption thing and fact that thread is only modified one one core at a time. */
-	movl SFRAMESP(%eax), %ecx
-	movl SFRAMEIP(%eax), %edx
-	popl %eax /* user-level ret val */
-	popl %esi
-	popl %edi
-	
-	RET_TO_USER_NOSEG
-
-ipc_ret_slowpath:
 	addl $4, %esp
-	popl %eax /* regs to restore */
-
-	cmpl $0, %eax
-	ja ret_from_preemption
-		
-/* global so that can see it in error reports if we crash */
-.globl ipc_ret_err 
-.align 16
-ipc_ret_err:
-	ERROR_OUT
+	
+	RESTORE_REGS_PT
+	RET_TO_USER_NOSEG
 
 /*
  * Register layout:
