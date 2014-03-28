@@ -53,12 +53,16 @@ kernel_ipc_syscall:
 	cmpl $0, %eax /* do we have a return capability */
 	jz composite_ret_ipc
 
+
+	//do we need to save ip and sp in pt_regs?
+	;; subl $4, %esp;  \
+	;; pushl %ecx;     \
+	;; subl $8, %esp;  \
+	;; pushl %edx;  	\
+	;; subl $20, %esp; \
+
 #define SAVE_ALL_PT 	\
-	subl $4, %esp;  \
-	pushl %ecx;     \
-	subl $8, %esp;  \
-	pushl %edx;  	\
-	subl $20, %esp; \
+	subl $40, %esp; \
 	pushl %eax;	\
 	pushl %ebp;	\
 	pushl %edi;	\
@@ -67,20 +71,16 @@ kernel_ipc_syscall:
 	pushl %ecx;	\
 	pushl %ebx
 
-/* When returning to user: ecx => sp, edx => ip.
- * (thus no need to restore original ecx and edx) */
+/* When return to user: ecx => sp, edx => ip. */
 #define RESTORE_REGS_PT	\
 	popl %ebx;	\
-	addl $8, %esp;	\
+	popl %ecx;	\
+	popl %edx;	\
 	popl %esi;	\
 	popl %edi;	\
 	popl %ebp;	\
 	popl %eax;	\
-	addl $20, %esp; \
-	popl %edx;	\
-	addl $8, %esp;  \
-	popl %ecx;     	\
-	addl $4, %esp
+	addl $40, %esp
 
 /*
  * Register layout:
@@ -96,10 +96,9 @@ composite_call_ipc:	/* server_inv: */
 	SAVE_ALL_PT
 
 	pushl %esp /* pt_regs */
-	pushl %eax /* cap */
 	/* invoke ipc_walk_static_cap */
 	call ipc_walk_static_cap
-	addl $8, %esp
+	addl $4, %esp
 
 	RESTORE_REGS_PT
 	RET_TO_USER_NOSEG

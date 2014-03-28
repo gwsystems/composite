@@ -9,8 +9,8 @@
 //volatile int f;
 //void call(void) { f = *(int*)NULL; return; }
 int call(int a, int b, int c, int d) { 
-	/* printc("core %ld, spd %ld: doing call in pong with params %d %d %d %d\n",  */
-	/*        cos_cpuid(), cos_spd_id(), a,b,c,d); */
+	printc("core %ld, spd %ld: doing call in pong with params %d %d %d %d\n",
+	       cos_cpuid(), cos_spd_id(), a,b,c,d);
 	return 0;//a+b+c+d; 
 }
 

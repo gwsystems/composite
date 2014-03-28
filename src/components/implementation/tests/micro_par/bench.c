@@ -824,7 +824,7 @@ int ping_pong(void)
 	unsigned long long s,e;
 	s = tsc_start();
 	for (i = 0; i < PP_ITER; i++) {
-		call(0, 0, 0, 0);
+		call(i, i*2, i*i, i*10);
 	}
 	e = tsc_start();
 

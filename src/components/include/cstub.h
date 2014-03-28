@@ -1,6 +1,10 @@
 #ifndef CSTUB_H
 #define CSTUB_H
 
+		/* "movl %%esp, %%ecx\n\t" \ */
+		/* "movl %%edx, %%ebp\n\t" \ */
+		/* "movl $1f, %%edx\n\t" \ */
+
 #define CSTUB_ASM_PRE(name) \
 	__asm__ __volatile__( \
 		"pushl %%ebp\n\t" \
@@ -27,12 +31,16 @@
                         \
 	/* \
 	 * cap#    -> eax \
-	 * sp      -> ebp \
-	 * ip      -> ecx \
+	 * sp      -> ecx \
+	 * ip      -> edx \
 	 * 1st arg -> ebx \
 	 * 2nd arg -> esi \
 	 * 3rd arg -> edi \
-	 * 4th arg -> edx \
+	 * 4th arg -> ebp \
+	 *
+	 * the CSTUB_ASM define has edx as the 4th input operand, as
+	 * ebp is not allowed to use as input in inline assembly. We
+	 * swap ebp and edx in ASM_PRE above.
 	 */
 
 #define CSTUB_POST \

@@ -104,17 +104,21 @@ struct inv_ret_struct {
  */
 
 COS_SYSCALL vaddr_t 
-ipc_walk_static_cap(unsigned int capability, struct pt_regs *regs)
+ipc_walk_static_cap(struct pt_regs *regs)
 {
 	struct thd_invocation_frame *curr_frame;
 	struct spd *curr_spd, *dest_spd;
 	struct invocation_cap *cap_entry;
 	struct thread *thd = core_get_curr_thd_id(get_cpuid_fast());
 	vaddr_t orig_ip, orig_sp;
-	orig_ip = regs->cx;
-	orig_sp = regs->bp;
+	unsigned int capability;
 
-	capability >>= 20;
+	capability = regs->ax >> 20;
+
+	/* orig_sp = regs->cx; */
+	/* orig_ip = regs->dx; */
+	orig_sp = regs->bp;
+	orig_ip = regs->cx;
 
 	assert(thd);
 
@@ -175,7 +179,7 @@ ipc_walk_static_cap(unsigned int capability, struct pt_regs *regs)
 	/* core_put_curr_spd(&(dest_spd->spd_info)); */
 
 	regs->ax = thd->thread_id | (get_cpuid_fast() << 16);
-	regs->sp = spd_get_index(curr_spd);
+	regs->cx = spd_get_index(curr_spd);
 
 	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
 
@@ -183,14 +187,13 @@ ipc_walk_static_cap(unsigned int capability, struct pt_regs *regs)
 	thd_invocation_push(thd, cap_entry->destination, orig_sp, orig_ip);
 	cap_entry->invocation_cnt++;
 
-	/* .. */
 	regs->bp = regs->dx;
 
-	return regs->ip = cap_entry->dest_entry_instruction;
+	return regs->dx = cap_entry->dest_entry_instruction;
 err:
 	regs->ax = -1;
-	regs->ip = orig_ip;
-	regs->sp = orig_sp;
+	regs->cx = orig_sp;
+	regs->dx = orig_ip;
 
 	return 0;
 }
@@ -338,7 +341,8 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 	
 	/* save the faulting registers */
 	memcpy(&thd->fault_regs, regs, sizeof(struct pt_regs));
-	a = ipc_walk_static_cap(fault_cap<<20, regs);
+	regs->ax = fault_cap<<20;
+	a = ipc_walk_static_cap(regs);
 
 	/* setup the registers for the fault handler invocation */
 	regs->bx = regs->cx = regs->sp;
