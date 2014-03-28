@@ -61,25 +61,25 @@ kernel_ipc_syscall:
 	;; pushl %edx;  	\
 	;; subl $20, %esp; \
 
-#define SAVE_ALL_PT 	\
-	subl $40, %esp; \
-	pushl %eax;	\
-	pushl %ebp;	\
-	pushl %edi;	\
-	pushl %esi;	\
-	pushl %edx;	\
-	pushl %ecx;	\
+#define SAVE_REGS_GENERAL 	\
+	subl $40, %esp; 	\
+	pushl %eax;		\
+	pushl %ebp;		\
+	pushl %edi;		\
+	pushl %esi;		\
+	pushl %edx;		\
+	pushl %ecx;		\
 	pushl %ebx
 
 /* When return to user: ecx => sp, edx => ip. */
-#define RESTORE_REGS_PT	\
-	popl %ebx;	\
-	popl %ecx;	\
-	popl %edx;	\
-	popl %esi;	\
-	popl %edi;	\
-	popl %ebp;	\
-	popl %eax;	\
+#define RESTORE_REGS_GENERAL	\
+	popl %ebx;		\
+	popl %ecx;		\
+	popl %edx;		\
+	popl %esi;		\
+	popl %edi;		\
+	popl %ebp;		\
+	popl %eax;		\
 	addl $40, %esp
 
 /*
@@ -93,26 +93,26 @@ kernel_ipc_syscall:
 .globl composite_call_ipc
 .align 32
 composite_call_ipc:	/* server_inv: */
-	SAVE_ALL_PT
+	SAVE_REGS_GENERAL
 
 	pushl %esp /* pt_regs */
 	/* invoke ipc_walk_static_cap */
 	call ipc_walk_static_cap
 	addl $4, %esp
 
-	RESTORE_REGS_PT
+	RESTORE_REGS_GENERAL
 	RET_TO_USER_NOSEG
 		
 .globl composite_ret_ipc
 .align 16
 composite_ret_ipc:	 /*ret_cap:*/
-	SAVE_ALL_PT
+	SAVE_REGS_GENERAL
 
 	pushl %esp
 	call pop
 	addl $4, %esp
 	
-	RESTORE_REGS_PT
+	RESTORE_REGS_GENERAL
 	RET_TO_USER_NOSEG
 
 /*
