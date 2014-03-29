@@ -11,6 +11,7 @@
 #ifndef CAPTBL_H
 #define CAPTBL_H
 
+#include <errno.h>
 #include <ertrie.h>
 #ifndef PAGE_SIZE
 #define PAGE_SIZE 4096
@@ -39,8 +40,27 @@ typedef enum {
 	CAP_SZ_16B = 0,
 	CAP_SZ_32B = 1,
 	CAP_SZ_64B = 2,
-	CAP_SZ_OFF = 4,
+	CAP_SZ_ERR = 3,
 } cap_sz_t;
+/* the shift offset for the *_SZ_* values */
+#define	CAP_SZ_OFF   4 
+/* The allowed amap bits of each size */
+#define	CAP_MASK_16B ((1<<4)-1)
+#define	CAP_MASK_32B (1 | (1<<2))
+#define	CAP_MASK_64B 1
+
+static inline cap_sz_t
+__captbl_cap2sz(cap_t c)
+{
+	switch (c) {
+	case CAP_THD:        return CAP_SZ_16B;
+	case CAP_SCOMM:      return CAP_SZ_32B;
+	case CAP_ASCOMM_SND: return CAP_SZ_32B;
+	case CAP_ASCOMM_RCV: return CAP_SZ_32B;
+	default:	     return CAP_SZ_ERR;
+	}
+}
+
 typedef enum {
 	CAP_FLAG_RO    = 1,
 	CAP_FLAG_LOCAL = 1<<1,
@@ -88,7 +108,7 @@ __captbl_allocfn(void *d, int sz, int last_lvl)
 #define CT_MSK(v, o) ((unsigned long)(v) & ~((1<<(o))-1))
 
 static void 
-ert_definit(struct ert_intern *a, int leaf)
+__captbl_init(struct ert_intern *a, int leaf)
 { 
 	(void)a;
 	struct cap_header *p;
@@ -106,29 +126,57 @@ ert_definit(struct ert_intern *a, int leaf)
 
 static inline void *
 __captbl_getleaf(struct ert_intern *a, void *accum)
-{ 
+{
 	(void)accum;
-	struct cap_header *p = (struct cap_header *)CT_MSK(a, CACHELINE_ORDER);
-	struct cap_header *c = (struct cap_header *)CT_MSK(a, p->size + CAP_SZ_OFF);
+	unsigned long off, mask;
+	struct cap_header *h = (struct cap_header *)CT_MSK(a, CACHELINE_ORDER);
+	struct cap_header *c = (struct cap_header *)CT_MSK(a, h->size + CAP_SZ_OFF);
 	/* 
 	 * We could do error checking here to make sure that a == c,
 	 * if we didn't want to avoid the extra branches:
 	 * if (unlikely(a == (void*)c)) return NULL;
 	 */
-	
+
+	/* 
+	 * This requires explanation.  We want to avoid a conditional
+	 * to check if this slot in the allocation map for the cache
+	 * line is free or not.
+	 */
+	off  = (struct cap_min*)c - (struct cap_min*)h; /* ptr math */
+	mask = (h->amap & (1<<off)) >> off;		/* 0 or 1, depending */
+	mask--;						/* 0 or 0xFFFF... */
+	c = (struct cap_header *)((unsigned long)c & ~mask); /* NULL, or the address */
+
 	return c; 
 }
 
 static inline void __captbl_setleaf(struct ert_intern *a, void *data)
 { (void)a; (void)data; assert(0); }
 
+#define CT_DEFINITVAL NULL
 ERT_CREATE(__captbl, captbl, CAPTBL_DEPTH,				\
 	   9 /* PAGE_SIZE/(2*(CAPTBL_DEPTH-1)*CAPTBL_INTERNSZ) */, CAPTBL_INTERNSZ, \
 	   7 /*PAGE_SIZE/(2*CAPTBL_LEAFSZ) */, CAPTBL_LEAFSZ, \
-	   NULL, __captbl_init, ert_defget, ert_defisnull, ert_defset,  \
+	   CT_DEFINITVAL, __captbl_init, ert_defget, ert_defisnull, ert_defset,  \
 	   __captbl_allocfn, __captbl_setleaf, __captbl_getleaf, ert_defresolve); 
 
 static struct captbl *captbl_alloc(void *mem) { return __captbl_alloc(&mem); }
+
+static inline int
+__captbl_header_validate(struct cap_header *h, cap_sz_t sz)
+{ 
+	cap_sz_t mask;
+	/* compiler should optimize away the branches here */
+	switch (sz) {
+	case CAP_SZ_16B: mask = CAP_MASK_16B; break; 
+	case CAP_SZ_32B: mask = CAP_MASK_32B; break; 
+	case CAP_SZ_64B: mask = CAP_MASK_64B; break;
+	default:         mask = 0;            break;
+	}
+
+	if (unlikely(sz != h->size)) return 1;
+	return h->amap & ~mask;
+}
 
 /* 
  * This function is the fast-path used for capability lookup in the
@@ -143,39 +191,45 @@ captbl_lkup(struct captbl *t, unsigned long cap)
 
 static inline int
 __captbl_store(unsigned long *addr, unsigned long new, unsigned long old)
-{ (void)old; *addr = new; return 0; }
-#define CTSTORE(a, n, o) __captbl_store((unsigned long *)a, (unsigned long)n, (unsigned long)o)
+{ (void)old; if (*addr != old) return -1; *addr = new; return 0; }
+#define CTSTORE(a, n, o) __captbl_store((unsigned long *)a, *(unsigned long *)n, *(unsigned long *)o)
 #define cos_throw(label, errno) { ret = (errno); goto label; }
 
 static inline struct cap_header *
-captbl_add(struct captbl *t, unsigned long cap, cap_sz_t sz, int *retval)
+captbl_add(struct captbl *t, unsigned long cap, cap_t type, int *retval)
 { 
 	struct cap_header *p, *h;
 	struct cap_header l, o;
 	int ret = 0, off;
-	unsigned int mask = 0;
+	cap_sz_t sz = __captbl_cap2sz(type);
 
+	if (unlikely(sz == CAP_SZ_ERR)) cos_throw(err, -EINVAL);
 	if (unlikely(cap >= __captbl_maxid())) cos_throw(err, -EINVAL);
 	p = __captbl_lkupan(t, cap, CAPTBL_DEPTH, NULL); 
 	if (unlikely(!p)) cos_throw(err, -EPERM);
 	h = (struct cap_header *)CT_MSK(p, CACHELINE_ORDER);
 	l = o = *h;
-	off = (struct cap_min*)p - (struct cap_min*)h; /* ptr math */
-
 	if (unlikely(l.flags & CAP_FLAG_RO)) cos_throw(err, -EPERM);
-	assert(off >= 0);
-	if (unlikely(l.amap & (1<<off))) cos_throw(err, -EEXIST);
-	if (unlikely(l.size < sz || (l.amap && (l.size != sz)))) cos_throw(err, -EEXIST);
 
+	off = (struct cap_min*)p - (struct cap_min*)h; /* ptr math */
+	assert(off >= 0 && off < CAP_HEAD_AMAP_SZ);
+	/* already allocated? */
+	if (unlikely(l.amap & (1<<off))) cos_throw(err, -EEXIST);
+	if (unlikely((l.amap && (l.size != sz)) || 
+		     l.size < sz)) cos_throw(err, -EEXIST);
 	l.amap |= 1<<off;
 	if (l.size != sz) {
 		assert(l.size > sz);
 		l.size = sz;
 	}
-	if (CTSTORE(h, o, l)) cos_throw(err, EEXIST); /* commit */
-	assert(p->type == CAP_FREE);
+	if (unlikely(__captbl_header_validate(&l, sz))) cos_throw(err, -EINVAL);
+
+	if (p == h) l.type = type;
+	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
+	if (p != h) p->type = type;
 	
 	assert(p == __captbl_lkupan(t, cap, CAPTBL_DEPTH+1, NULL));
+	*retval = ret;
 	return p;
 err:
 	*retval = ret;
@@ -188,60 +242,75 @@ captbl_del(struct captbl *t, unsigned long cap)
 	struct cap_header *p, *h;
 	struct cap_header l, o;
 	int ret = 0, off;
-	unsigned int mask = 0;
 
 	if (unlikely(cap >= __captbl_maxid())) cos_throw(err, -EINVAL);
 	p = __captbl_lkupan(t, cap, CAPTBL_DEPTH, NULL); 
 	if (unlikely(!p)) cos_throw(err, -EPERM);
-	if (p != __captbl_getleaf(p, NULL)) cos_throw(err, -EINVAL);
+	if (p != __captbl_getleaf((void*)p, NULL)) cos_throw(err, -EINVAL);
 
-	h = (struct cap_header *)CT_MSK(p, CACHELINE_ORDER);
-	l = o = *h;
+	h   = (struct cap_header *)CT_MSK(p, CACHELINE_ORDER);
 	off = (struct cap_min*)p - (struct cap_min*)h;
+	assert(off >= 0 && off < CAP_HEAD_AMAP_SZ);
+	l = o = *h;
 
 	/* Do we want RO to prevent deletions? */
 	if (unlikely(l.flags & CAP_FLAG_RO)) cos_throw(err, -EPERM);
-	assert(off >= 0);
-	if (unlikely(!(l.amap & (1<<off)) || l.type == CAP_FREE)) cos_throw(err, -ENOENT);
+	if (unlikely(!(l.amap & (1<<off)))) cos_throw(err, -ENOENT);
 
+	/* new map, removing the current allocation */
 	l.amap &= (~(1<<off)) & ((1<<CAP_HEAD_AMAP_SZ)-1);
 	if (l.amap == 0) l.size = CAP_SZ_64B; /* no active allocations... */
-	if (CTSTORE(h, o, l)) cos_throw(err, -EEXIST); /* commit */
-	if (p != h) p->type = CAP_FREE;
+	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
+	/* 
+	 * Note: we do not set p->type = CAP_FREE...ground truth for
+	 * this is in the amap.
+	 */
 err:
 	return ret;
 }
 
+static inline u32_t captbl_maxdepth(void) { return __captbl_maxdepth(); }
+
+/* 
+ * Extend a capability table up to a depth using the memory passed in
+ * via memctxt.  Returns a negative value on error, a positive value
+ * if the table is extended, but the depth specified was too deep
+ * (requiring more memory), and zero on unqualified success.
+ */
 static inline int
-captbl_expand(struct captbl *t, unsigned long cap, void *memctxt)
+captbl_expand(struct captbl *t, unsigned long cap, u32_t depth, void *memctxt)
 {
 	int ret;
 
-	if (unlikely(cap > __captbl_maxid())) return -EINVAL;
-	ret = __captbl_expand(t, cap, NULL, &memctxt, NULL);
-	if (unlikely(ret)) return -EPERM;
-	if (memctxt)       return -EEXIST;
+	if (unlikely(cap > __captbl_maxid() ||
+		     depth > captbl_maxdepth())) return -EINVAL;
+	ret = __captbl_expandn(t, cap, depth, NULL, &memctxt, NULL);
+	if (unlikely(memctxt)) return -EEXIST;
+	if (unlikely(ret))     return 1; /* extended successfully, but incorrect depth value */
 
 	return 0;
 }
 
 /* 
- * Shrink down the capability tree to the specified depth along the
- * path to the specified capability number.
+ * Prune off part of the capability tree at the specified depth along
+ * the path to the specified capability number.  depth == 1 will prune
+ * off all but the root.
  */
 static void *
-captbl_shrink(struct captbl *t, unsigned long cap, u32_t depth)
+captbl_prune(struct captbl *t, unsigned long cap, u32_t depth, int *retval)
 {
-	void **intern, *p;
-	int ret;
+	void **intern, *p, *new;
+	int ret = 0;
 
 	if (unlikely(cap   >= __captbl_maxid() || 
-		     depth >= __captbl_maxdepth())) return -EINVAL;
+		     depth >= captbl_maxdepth())) cos_throw(err, -EINVAL);
 	intern = __captbl_lkupan(t, cap, depth, NULL); 
-	if (unlikely(!intern)) return -EPERM;
+	if (unlikely(!intern)) cos_throw(err, -EPERM);
 	p = *intern;
-	if (CTSTORE(*intern, p, NULL)) cos_throw(err, -EEXIST); /* commit */
-
+	new = CT_DEFINITVAL;
+	if (CTSTORE(*intern, &new, &p)) cos_throw(err, -EEXIST); /* commit */
+err:
+	*retval = ret;
 	return p;
 }
 

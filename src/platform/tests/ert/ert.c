@@ -193,16 +193,81 @@ ct_test(void)
 {
 	struct captbl *ct;
 	char *p = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	char *p1 = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	int ret;
-	struct cap_poly *c;
+	struct cap_header *c;
 
 	assert(p);
 	ct = captbl_alloc(p);
 	assert(ct);
-	ret = captbl_expand(ct, 0, p+(PAGE_SIZE/2));
+	ret = captbl_expand(ct, 0, captbl_maxdepth(), p+(PAGE_SIZE/2));
 	assert(!ret);
 	c = captbl_lkup(ct, 0);
+	assert(!c);
+	c = captbl_add(ct, 0, CAP_THD, &ret);
+	assert(c && ret == 0 && c == (void*)(p+(PAGE_SIZE/2)));
+	c++;
+	*(int*)c = 1;
+	c = captbl_lkup(ct, 0);
 	assert(c && c == (void*)(p+(PAGE_SIZE/2)));
+	c++;
+	assert(*(int*)c == 1);
+	c = captbl_add(ct, 1, CAP_SCOMM, &ret);
+	assert(!c && ret != 0);
+	ret = captbl_del(ct, 0);
+	assert(!ret);
+	assert(!captbl_lkup(ct, 0));
+	c = captbl_add(ct, 2, CAP_SCOMM, &ret);
+	assert(c && ret == 0);
+	assert(c == captbl_lkup(ct, 2));
+	c = captbl_add(ct, 0, CAP_SCOMM, &ret);
+	assert(c && ret == 0);
+	assert(c == captbl_lkup(ct, 0));
+	c = captbl_add(ct, 1, CAP_THD, &ret);
+	assert(!c && ret != 0);
+
+	/* test another cache line in the same last-level lookup table */
+	c = captbl_add(ct, 4, CAP_THD, &ret);
+	assert(c && ret == 0);
+	assert(c == captbl_lkup(ct, 4));
+	c = captbl_add(ct, 4, CAP_THD, &ret);
+	assert(!c && ret != 0);
+	c = captbl_add(ct, 6, CAP_SCOMM, &ret);
+	assert(!c && ret != 0);
+	ret = captbl_del(ct, 4);
+	assert(!ret);
+	assert(!captbl_lkup(ct, 4));
+	assert(!captbl_lkup(ct, 6));
+	c = captbl_add(ct, 6, CAP_SCOMM, &ret);
+	assert(c && ret == 0);
+	assert(c == captbl_lkup(ct, 6));
+	c++;
+	*(int*)c = 1;
+	c = captbl_lkup(ct, 6);
+	assert(c);
+	c++;
+	assert(*(int*)c == 1);
+	c = captbl_add(ct, 4, CAP_SCOMM, &ret);
+	assert(c && ret == 0);
+
+	/* test upper-level lookup failure */
+	c = captbl_add(ct, 1<<9, CAP_SCOMM, &ret);
+	assert(!c && ret != 0);
+	c = captbl_add(ct, 1<<30, CAP_SCOMM, &ret);
+	assert(!c && ret != 0);
+	ret = captbl_expand(ct, (1<<9) + 20, captbl_maxdepth(), p1);
+	assert(!ret);
+	c = captbl_add(ct, 1<<9, CAP_SCOMM, &ret);
+	assert(c && ret == 0);
+
+	ret = captbl_expand(ct, (1<<9) * 4 + 3, captbl_maxdepth(), p1+(PAGE_SIZE/2));
+	assert(!ret);
+	c = captbl_add(ct, (1<<9)*4+60, CAP_SCOMM, &ret);
+	assert(c && ret == 0);
+	assert(c == captbl_lkup(ct, (1<<9)*4+60));
+	ret = captbl_del(ct, (1<<9)*4+60);
+	assert(!ret);
+	assert(c);
 }
 
 int 
