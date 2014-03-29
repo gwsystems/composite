@@ -381,40 +381,12 @@ upcall_err:
 .globl composite_make_syscall
 .align 16
 composite_make_syscall:
-	pushl %ebp /* user-sp */
-	pushl %ecx /* user-ip */
+	SAVE_REGS_GENERAL
 	
-	/* arguments -- changing layout here requires changing COS_SYSCALL_E(C|D)X */
-	pushl %edi
-	pushl %esi
-	pushl %ebx
-	pushl %edx
+	pushl %esp
 	shr $COS_SYSCALL_OFFSET, %eax /* impossible for value to be greater than the max allowed here because of filtering in kern_entry.S */
 	call *cos_syscall_tbl(,%eax,4)
-	addl $16, %esp /* esi, edi, and ebx not trashed because of cdecl conventions, and edx's value doesn't really matter here */
-
-	popl %edx /* user-ip from above */
-	popl %ecx /* and the sp */
-
-	RET_TO_USER
-
-.align 16
-composite_call_err:	
-	addl $4, %esp
-	movl $-1, %eax
-	popl %ecx
-	/* perhaps more appropriate to trap to exception handler */
-	popl %edx
-	popl %ebp
 	addl $4, %esp
 
+	RESTORE_REGS_GENERAL
 	RET_TO_USER
-	
-/* global so that can see it in error reports if we crash */
-.globl composite_ret_err 
-.align 16
-composite_ret_err:
-	/* should invoke fault handler, but for now, kill our thread
-	by causing error (remember that pop just returned 0 in eax) */
-	/*	sti*/
-	ERROR_OUT

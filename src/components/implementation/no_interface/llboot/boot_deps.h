@@ -292,10 +292,14 @@ boot_deps_run(void)
 	//cos_switch_thread(per_core_llbooter[cos_cpuid()]->init_thd, 0);
 }
 
+void 
+cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3);
+
 static void
 boot_deps_run_all(void)
 {
 	assert(PERCPU_GET(llbooter)->init_thd);
+	printc("switching thread... upcall %p\n", &cos_upcall_fn);
 	cos_switch_thread(PERCPU_GET(llbooter)->init_thd, 0);
 	return ;
 }
@@ -303,8 +307,8 @@ boot_deps_run_all(void)
 void 
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
-	/* printc("core %ld: <<cos_upcall_fn thd %d (type %d, CREATE=%d, DESTROY=%d, FAULT=%d)>>\n", */
-	/*        cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_THD_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT); */
+	printc("core %ld: <<cos_upcall_fn thd %d (type %d, CREATE=%d, DESTROY=%d, FAULT=%d)>>\n",
+	       cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_THD_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT);
 	switch (t) {
 	case COS_UPCALL_THD_CREATE:
 		llboot_ret_thd();
