@@ -100,8 +100,8 @@ static inline void
 user_regs_set(struct pt_regs *regs, unsigned long ret, unsigned long sp, unsigned long ip)
 {
 	regs->ax = ret;
-	regs->cx = sp;
-	regs->dx = ip;
+	regs->sp = regs->cx = sp;
+	regs->ip = regs->dx = ip;
 }
 
 static inline unsigned long
@@ -818,7 +818,7 @@ remove_preempted_status(struct thread *thd)
 	thd->flags &= ~THD_STATE_PREEMPTED;
 }
 
-extern int cos_syscall_switch_thread(void);
+//extern int cos_syscall_switch_thread(void);
 static void update_sched_evts(struct thread *new, int new_flags, 
 		       struct thread *prev, int prev_flags);
 static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, 
@@ -1064,6 +1064,120 @@ ret_err:
 ret:
 	return &curr->regs;
 }
+
+COS_SYSCALL struct pt_regs *
+cos_syscall_switch_thread(struct pt_regs *regs)
+{
+	int spd_id;
+	unsigned short int rthd_id, rflags;
+//	long *preempt;
+
+	struct thread *thd, *curr;
+	struct spd *curr_spd;
+	unsigned short int next_thd, flags;
+	unsigned short int curr_sched_flags = COS_SCHED_EVT_NIL,
+		           thd_sched_flags  = COS_SCHED_EVT_NIL;
+	struct cos_sched_data_area *da;
+	int ret_code = COS_SCHED_RET_ERROR;
+
+	rthd_id = user_regs_get_arg1(regs);
+	rflags  = user_regs_get_arg2(regs);
+//	preempt = user_regs_get_arg3(regs);
+	spd_id  = user_regs_get_arg4(regs);
+
+//	*preempt = 0;
+	curr = core_get_curr_thd();
+
+	/* Save registers and return ip&sp */
+	copy_gp_regs(regs, &curr->regs);
+	user_regs_set(&curr->regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
+
+	curr_spd = thd_validate_get_current_spd(curr, spd_id);
+	if (unlikely(!curr_spd)) {
+		printk("cos_switch_thread: spd error!\n");
+		goto ret_err;
+	}
+
+	assert(!(curr->flags & THD_STATE_PREEMPTED));
+
+	/* Probably should change to kern_sched_shared_page */
+	da = curr_spd->sched_shared_page[get_cpuid()];
+	if (unlikely(!da)) {
+		printk("cos_switch_thread: no shared data area!\n");
+		goto ret_err;
+	}
+
+	/* 
+	 * So far all flags should be taken in the context of the
+	 * actual invoking thread (they effect the thread switching
+	 * _from_ rather than the thread to switch _to_) in which case
+	 * we would want to use the sched_page flags.
+	 */
+	flags = rflags;
+	switch_thread_update_flags(da, &flags);
+
+	if (unlikely(flags)) {
+		thd = switch_thread_slowpath(curr, flags, curr_spd, rthd_id, da, &ret_code, 
+					     &curr_sched_flags, &thd_sched_flags);
+		/* If we should return immediately back to this
+		 * thread, and its registers have been changed,
+		 * return without setting the return value */
+		if (ret_code == COS_SCHED_RET_SUCCESS && thd == curr) goto done;
+
+		if (thd == curr) 
+		{
+			/* printk("err: thd == curr, ret %d\n", ret_code); */
+			goto_err(done, "sloooow\n");
+		}
+	} else {
+		next_thd = switch_thread_parse_data_area(da, &ret_code);
+		if (unlikely(0 == next_thd)) {
+			/* printk("core %d, err: data area\n", get_cpuid()); */
+			goto_err(done, "data_area\n");
+		}
+
+		thd = switch_thread_get_target(next_thd, curr, curr_spd, &ret_code);
+
+		if (unlikely(NULL == thd)) {
+			/* printk("err: get target\n"); */
+			goto_err(done, "get target");
+		}
+	}
+
+	/* If a thread is involved in a scheduling decision, we should
+	 * assume that any preemption chains that existed aren't valid
+	 * anymore. */
+	break_preemption_chain(curr);
+
+	switch_thread_context(curr, thd);
+        fpu_save(thd);
+	if (thd->flags & THD_STATE_PREEMPTED) {
+		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
+		remove_preempted_status(thd);
+//		*preempt = 1;
+	} else {
+		cos_meas_event(COS_MEAS_SWITCH_COOP);
+	}
+
+	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
+	/* success for this current thread */
+	curr->regs.ax = COS_SCHED_RET_SUCCESS;
+//	printk("core %d: switch %d -> %d\n", get_cpuid(), thd_get_id(curr), thd_get_id(thd));
+	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
+
+	printk("%d regs:  ax %d, cx %p, dx %p, bx %d di %d si %d. \n",  thd_get_id(thd), thd->regs.ax, thd->regs.cx, thd->regs.dx, thd->regs.bx, thd->regs.di, thd->regs.si);
+
+	copy_gp_regs(&thd->regs, regs);
+
+	return;
+ret_err:
+	ret_code = COS_SCHED_RET_ERROR;
+done:
+	user_regs_set(regs, ret_code, user_regs_get_sp(regs), user_regs_get_ip(regs));
+
+	return;
+}
+
 
 static struct thread *
 switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd *curr_spd, 
@@ -1866,7 +1980,7 @@ static int verify_trust(struct spd *truster, struct spd *trustee)
  */
 /* init_data is the index in the data array for thread init. 0 means
  * to bootstrap. */
-extern void cos_syscall_upcall(void);
+//extern void cos_syscall_upcall(void);
 COS_SYSCALL int 
 cos_syscall_upcall_cont(int this_spd_id, int spd_id, int init_data, struct pt_regs **regs)
 {
@@ -1911,6 +2025,58 @@ cos_syscall_upcall_cont(int this_spd_id, int spd_id, int init_data, struct pt_re
 	return thd_get_id(thd) | get_cpuid() << 16;
 }
 
+COS_SYSCALL void
+cos_syscall_upcall(struct pt_regs *regs)
+{
+	int this_spd_id, spd_id, init_data;
+	struct spd *dest, *curr_spd;
+	struct thread *thd;
+
+	spd_id      = user_regs_get_arg1(regs);
+	init_data   = user_regs_get_arg2(regs);
+	this_spd_id = user_regs_get_arg4(regs);
+
+	assert(regs);
+
+	dest = spd_get_by_index(spd_id);
+	thd = core_get_curr_thd();
+	curr_spd = thd_validate_get_current_spd(thd, this_spd_id);
+
+	if (NULL == dest || NULL == curr_spd) {
+		printk("cos: upcall attempt failed - dest_spd = %d, curr_spd = %d.\n",
+		       dest     ? spd_get_index(dest)     : 0, 
+		       curr_spd ? spd_get_index(curr_spd) : 0);
+		goto err;
+	}
+
+	/*
+	 * Check that we are upcalling into a service that explicitly
+	 * trusts us (i.e. that the current spd is allowed to upcall
+	 * into the destination.)
+	 */
+	if (verify_trust(dest, curr_spd) && curr_spd->sched_depth != 0) {
+		printk("cos: upcall attempted from %d to %d without trust relation.\n",
+		       spd_get_index(curr_spd), spd_get_index(dest));
+		goto err;
+	}
+
+	open_close_spd(dest->composite_spd, curr_spd->composite_spd); 
+
+	spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(thd));//curr_spd->composite_spd);
+	//spd_mpd_ipc_take((struct composite_spd *)dest->composite_spd);
+
+	upcall_setup(thd, dest, COS_UPCALL_THD_CREATE, init_data, 0, 0);
+	/* Registers (ax, ip, sp, etc) for the upcall thd are setup above. */
+	copy_gp_regs(&thd->regs, regs);
+
+	cos_meas_event(COS_MEAS_UPCALLS);
+
+	return;
+err:
+	user_regs_set(regs, -1, user_regs_get_sp(regs), user_regs_get_ip(regs));
+
+	return;
+}
 
 /****************** begin event notification functions ******************/
 
@@ -3544,7 +3710,7 @@ static struct pt_regs *ainv_execution_completion(struct thread *curr, int *preem
 	return &prev->regs;
 }
 
-extern void cos_syscall_ainv_wait(int spd_id, int acap, int *preempt);
+//extern void cos_syscall_ainv_wait(int spd_id, int acap, int *preempt);
 
 COS_SYSCALL struct pt_regs *
 cos_syscall_ainv_wait_cont(int spd_id, int acap, int *preempt) {
@@ -3583,6 +3749,57 @@ cos_syscall_ainv_wait_cont(int spd_id, int acap, int *preempt) {
 ainv_wait_err:
 	curr->regs.ax = -1;
 	return &curr->regs;
+}
+
+COS_SYSCALL void
+cos_syscall_ainv_wait(struct pt_regs *regs)
+{
+	int spd_id, acap;
+	int preempt;
+	
+	struct thread *curr;
+	struct spd *curr_spd;
+	struct async_cap *acap_entry;
+	
+	spd_id = user_regs_get_arg4(regs);
+	acap   = user_regs_get_arg1(regs);
+
+	curr = core_get_curr_thd();
+	copy_gp_regs(regs, &curr->regs);
+	user_regs_set(&curr->regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
+	/* printk("doing ainv wait, thd %d, acap %d (%d).\n", thd_get_id(curr), acap, acap & ~COS_ASYNC_CAP_FLAG); */
+
+	curr_spd = thd_validate_get_current_spd(curr, spd_id);
+	if (unlikely(NULL == curr_spd)) {
+		printk("cos: component claimed in spd %d, but not\n", spd_id);
+		goto ainv_wait_err;		
+	}
+	if (unlikely(acap >= MAX_NUM_ACAP)) {
+		printk("cos: capability %d greater than max.\n", acap);
+		goto ainv_wait_err;
+	}
+
+	acap_entry = &curr_spd->acaps[acap];
+	assert(acap_entry->srv_spd_id == spd_id);
+
+	/* if (unlikely(type wrong)) { */
+	/* 	printk("cos: invalid acap %d in comp %d.\n", acap, spdid); */
+	/* 	goto ainv_wait_err; */
+	/* } */
+	if (unlikely(acap_entry->upcall_thd != thd_get_id(curr))) {
+		printk("cos: specified acap %d not one associated with %d (upcall_thd %d, spd %d)\n", 
+		       acap, thd_get_id(curr), acap_entry->upcall_thd, acap_entry->srv_spd_id);
+		goto ainv_wait_err;
+	}
+	curr->srv_acap = acap_entry;
+
+	copy_gp_regs(ainv_execution_completion(curr, &preempt), regs);
+
+	return;
+ainv_wait_err:
+	user_regs_set(&curr->regs, -1, user_regs_get_sp(regs), user_regs_get_ip(regs));
+
+	return;
 }
 
 static inline int alloc_acap_id(struct spd *spd){

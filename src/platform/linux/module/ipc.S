@@ -150,9 +150,9 @@ composite_async_call:
 #define COS_SYSCALL_EDX 20 /* Don't forget space for the return address */
 #define COS_SYSCALL_ECX 24
 
-.globl cos_syscall_ainv_wait
+.globl cos_syscall_ainv_wait_old
 .align 16
-cos_syscall_ainv_wait:
+cos_syscall_ainv_wait_old:
 	LOAD_CURR_THD_EAX;
 	
 	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
@@ -179,10 +179,12 @@ cos_syscall_ainv_wait:
 /* FIXME: this is all superfluous: we save/restore all regs when in the 
    non-preemption case, user-level saves most of them anyway because of 
    the clobber list.  Lets just let user-level do it, and be done. */
-.globl cos_syscall_switch_thread
+.globl cos_syscall_switch_thread_old
 .align 16
-cos_syscall_switch_thread:
+cos_syscall_switch_thread_old:
 	/* can use edx to pass in conditional for if we should save regs or not and term thread */
+
+	///////////////////////////////
 	LOAD_CURR_THD_EAX;
 	
 	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
@@ -198,12 +200,15 @@ cos_syscall_switch_thread:
 	movl %esi, PT_ESI(%eax)
 	movl %edi, PT_EDI(%eax)
 	movl %ebp, PT_EBP(%eax)
+	/////////////////////////////////////
 
 	pushl $0   /* make room for ret val */
 	pushl %esp /* argument to track if the thread to return to was preempted or not */
 	pushl %esi /* flags */
 	pushl %ebx /* thd_id */
 	pushl %edx /* this spd_id */
+
+	/////////////////////////////////////////
 	call cos_syscall_switch_thread_cont
 	addl $16, %esp
 	popl %ebx
@@ -326,9 +331,9 @@ cos_syscall_idle:
 	jne   cos_syscall_interrupted
 	ret
 	
-.globl cos_syscall_upcall
+.globl cos_syscall_upcall_old
 .align 16
-cos_syscall_upcall:
+cos_syscall_upcall_old:
 	pushl $0
 	pushl %esp
 	pushl %esi

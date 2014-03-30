@@ -129,7 +129,7 @@ llboot_thd_done(void)
 			llboot->sched_offset++;
 			comp_boot_nfo[s].initialized = 1;
 			
-			/* printc("core %ld: booter init_thd upcalling into spdid %d.\n", cos_cpuid(), (unsigned int)s); */
+			printc("core %ld: booter init_thd upcalling into spdid %d.\n", cos_cpuid(), (unsigned int)s);
 			cos_upcall(s, 0); /* initialize the component! */
 			BUG();
 		}
@@ -319,6 +319,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	case COS_UPCALL_UNHANDLED_FAULT:
 		printc("Core %ld: Fault detected by the llboot component in thread %d: "
 		       "Major system error.\n", cos_cpuid(), cos_get_thd_id());
+		break;
 	default:
 		printc("Core %ld: thread %d in llboot receives undefined upcall. Params: %d, %p, %p, %p\n", 
 		       cos_cpuid(), cos_get_thd_id(), t, arg1, arg2, arg3);
