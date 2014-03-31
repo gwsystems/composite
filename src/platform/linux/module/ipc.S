@@ -5,6 +5,7 @@
  * Public License v2.
  *
  * Initial Author: Gabriel Parmer, gabep1@cs.bu.edu, 2007
+ * Modified by: Qi Wang, interwq@gwu.edu, 2014
  */
 
 /* push a known value onto the stack, so that we can tell, if we get
@@ -53,12 +54,6 @@
 kernel_ipc_syscall:
 	cmpl $0, %eax /* do we have a return capability */
 	jz composite_ret_ipc
-
-	;; subl $4, %esp;  \
-	;; pushl %ecx;     \
-	;; subl $8, %esp;  \
-	;; pushl %edx;  	\
-	;; subl $20, %esp; \
 
 #define SAVE_REGS_GENERAL 	\
 	subl $40, %esp; 	\
@@ -140,10 +135,7 @@ composite_async_call:
 	RESTORE_REGS_GENERAL
 	RET_TO_USER
 
-#define COS_SYSCALL_EDX 20 /* Don't forget space for the return address */
-#define COS_SYSCALL_ECX 24
-
-#define SP_RET_OFFSET 4
+#define SP_RET_OFFSET 4 /* space reserved for call/ret */
 .globl cos_syscall_ainv_wait
 .align 16
 cos_syscall_ainv_wait:
