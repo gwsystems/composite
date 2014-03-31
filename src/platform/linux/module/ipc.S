@@ -194,49 +194,7 @@ ret_from_preemption:
 	
 	iret	
 
-cos_syscall_interrupted:
-	/* store the return value into the previous thread */
-	addl  $THD_REGS, %ebx
-	movl  %eax, PT_EAX(%ebx)
 
-	/* get the regs of the new thread, load 'em up, and start 'er flying */
-	LOAD_CURR_THD_EAX;
-	
-	addl $THD_REGS, %eax
-	movl PT_EBX(%eax), %ebx
-	movl PT_ECX(%eax), %ecx
-	movl PT_EDX(%eax), %edx
-	movl PT_ESI(%eax), %esi
-	movl PT_EDI(%eax), %edi
-	movl PT_EBP(%eax), %ebp
-	movl PT_EAX(%eax), %eax
-
-	movl %edx, (COS_SYSCALL_EDX)(%esp)
-	movl %ecx, (COS_SYSCALL_ECX)(%esp)
-	ret
-
-.globl cos_syscall_idle
-.align 16
-cos_syscall_idle:
-	LOAD_CURR_THD_EAX;
-	
-	pushl %eax              /* save the current thread */
-	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
-	movl %ebp, PT_ECX(%eax) /* save the return sp, so that sysenter will jump to it */
-	movl %ecx, PT_EDX(%eax) /* save the return address (so that sysexit will return to it) */
-	
-	pushl %edx
-	call  cos_syscall_idle_cont
-	addl  $4, %esp
-	popl  %ebx              /* retrieve saved thread */
-	
-	pushl %eax
-	LOAD_CURR_THD_EAX;
-	cmpl %eax, %ebx
-	popl %eax
-	jne   cos_syscall_interrupted
-	ret
-	
 /*
  * Register Layout (from cos_component.h):
  * eax:	syscall offset, see kern_entry.S: asym_exec_dom_entry

@@ -159,7 +159,7 @@ ipc_walk_static_cap(struct pt_regs *regs)
 
 	if (unlikely(capability >= curr_spd->ncaps)) {
 		struct spd *t = virtual_namespace_query(orig_ip);
-		printk("cos: capability %d greater than max (%d) from spd %d @ %x.\n", 
+		printk("cos: capability %d greater than max (%d) from spd %d @ %x.\n",
 		       capability, curr_spd->ncaps, (t) ? spd_get_index(t): 0, (unsigned int)orig_ip);
 		goto err;
 	}
@@ -3309,17 +3309,28 @@ cos_syscall_stats(struct pt_regs *regs)
 	return;
 }
 
-extern int cos_syscall_idle(void);
-COS_SYSCALL int 
-cos_syscall_idle_cont(int spdid)
+COS_SYSCALL void
+cos_syscall_idle(struct pt_regs *regs)
 {
-	struct thread *c = core_get_curr_thd();
+	int ret;
+	struct thread *prev = core_get_curr_thd();
+
+	copy_gp_regs(regs, &prev->regs);
+	user_regs_set(&prev->regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
 	
-	if (c != core_get_curr_thd()) return COS_SCHED_RET_AGAIN;
+	if (prev != core_get_curr_thd()) {
+		ret = COS_SCHED_RET_AGAIN;
+		goto done;
+	}
 
 	chal_idle();
 
-	return COS_SCHED_RET_SUCCESS;
+	ret = COS_SCHED_RET_SUCCESS;
+done:
+	user_regs_set_ret(&prev->regs, ret);
+	copy_gp_regs(&(core_get_curr_thd()->regs), regs);
+
+	return;
 }
 
 COS_SYSCALL void

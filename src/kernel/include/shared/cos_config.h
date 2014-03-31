@@ -2,7 +2,7 @@
 #define COS_CONFIG_H
 
 #include "cpu_ghz.h"
-#define NUM_CPU                3
+#define NUM_CPU                1
 
 #define CPU_TIMER_FREQ         100 // set in your linux .config
 
@@ -12,17 +12,18 @@
 #define SCHED_PRINTOUT_PERIOD  100000
 #define COMPONENT_ASSERTIONS   1 // activate assertions in components?
 
+/* Not to be used when NUM_CPU > 2 or FPU enabled. */
 //#define LINUX_ON_IDLE          1 // should Linux be activated on Composite idle
 
 /* 
  * Should Composite run as highest priority?  Should NOT be set if
  * using networking (cnet). 
  */
-#define LINUX_HIGHEST_PRIORITY 1
+//#define LINUX_HIGHEST_PRIORITY 1
 /* the CPU that does initialization for Composite */
 #define INIT_CORE              0
 
-#define FPU_ENABLED
+//#define FPU_ENABLED
 #define FPU_SUPPORT_FXSR       1   /* >0 : CPU supports FXSR. */
 
 /* Currently Linux runs on the last CPU only. The code includes the
