@@ -565,7 +565,8 @@ sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd) { BUG(); return 0; }
 
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
-	printc("cpu %d: thd %d doing mem_mgr init. args %d, %p, %p, %p\n", cos_cpuid(), cos_get_thd_id(), t, arg1, arg2, arg3);
+	/* printc("cpu %d: thd %d doing mem_mgr init. args %d, %p, %p, %p\n",  */
+	/*        cos_cpuid(), cos_get_thd_id(), t, arg1, arg2, arg3); */
 	switch (t) {
 	case COS_UPCALL_THD_CREATE:
 		if (cos_cpuid() == INIT_CORE) {

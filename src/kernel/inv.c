@@ -128,6 +128,19 @@ user_regs_get_cap(struct pt_regs *regs)
 	return regs->ax;
 }
 
+static inline void
+ipc_args_set(struct pt_regs *regs)
+{
+	/* IPC calling side has 4 args (in order): bx, si, di, dx */
+	/* IPC server side receives 4 args: bx, si, di, bp */
+	/* So we need to pass the 4th argument. */
+
+	/* regs->bx = regs->bx; */
+	/* regs->si = regs->si; */
+	/* regs->di = regs->di; */
+	regs->bp = regs->dx;
+}
+
 /* 
  * FIXME: 1) should probably return the static capability to allow
  * isolation level isolation access from caller, 2) all return 0
@@ -213,7 +226,7 @@ ipc_walk_static_cap(struct pt_regs *regs)
 	cap_entry->invocation_cnt++;
 
 	/* fix me!!! */
-	regs->bp = regs->dx;
+	ipc_args_set(regs);
 
 	user_regs_set(regs, thd->thread_id | (get_cpuid_fast() << 16) /*eax*/,
 		      spd_get_index(curr_spd) /*spdid, no sp*/, cap_entry->dest_entry_instruction /*ip*/);
@@ -3608,11 +3621,11 @@ cos_syscall_ainv_wait_cont(struct pt_regs *regs)
 {
 	int spd_id, acap;
 	int preempt = 0;
-	
+
 	struct thread *curr;
 	struct spd *curr_spd;
 	struct async_cap *acap_entry;
-	
+
 	spd_id = user_regs_get_arg4(regs);
 	acap   = user_regs_get_arg1(regs);
 
