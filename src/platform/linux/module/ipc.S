@@ -54,8 +54,6 @@ kernel_ipc_syscall:
 	cmpl $0, %eax /* do we have a return capability */
 	jz composite_ret_ipc
 
-
-	//do we need to save ip and sp in pt_regs?
 	;; subl $4, %esp;  \
 	;; pushl %ecx;     \
 	;; subl $8, %esp;  \
@@ -64,18 +62,6 @@ kernel_ipc_syscall:
 
 #define SAVE_REGS_GENERAL 	\
 	subl $40, %esp; 	\
-	pushl %eax;		\
-	pushl %ebp;		\
-	pushl %edi;		\
-	pushl %esi;		\
-	pushl %edx;		\
-	pushl %ecx;		\
-	pushl %ebx
-
-#define SAVE_REGS_SEG 		\
-	subl $8, %esp; 		\
-	pushfl;			\
-	subl $28, %esp;		\
 	pushl %eax;		\
 	pushl %ebp;		\
 	pushl %edi;		\
@@ -94,23 +80,6 @@ kernel_ipc_syscall:
 	popl %ebp;		\
 	popl %eax;		\
 	addl $40, %esp
-
-#define RESTORE_REGS_SEG	\
-	popl %ebx;		\
-	popl %ecx;		\
-	popl %edx;		\
-	popl %esi;		\
-	popl %edi;		\
-	popl %ebp;		\
-	popl %eax;		\
-	addl $28, %esp;		\
-	popfl;			\
-	addl $8, %esp
-
-//	movl $(__USER_DS), %eax;\
-//	movl %eax, %ds;		\
-//	movl $(__USER_CS), %eax;\
-//	movl %eax, %cs;		\
 
 /*
  * Register layout:
@@ -170,7 +139,7 @@ composite_async_call:
 
 	RESTORE_REGS_GENERAL
 	RET_TO_USER
-//	
+
 #define COS_SYSCALL_EDX 20 /* Don't forget space for the return address */
 #define COS_SYSCALL_ECX 24
 
@@ -225,38 +194,6 @@ ret_from_preemption:
 	
 	iret	
 
-	
-.align 4
-.globl cos_syscall_buff_mgmt
-cos_syscall_buff_mgmt:
-	LOAD_CURR_THD_EAX;
-	
-	pushl %eax              /* save the current thread */
-	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
-	movl %ebp, PT_ECX(%eax) /* save the return sp, so that sysenter will jump to it */
-	movl %ecx, PT_EDX(%eax) /* save the return address (so that sysexit will return to it) */
-	
-	/* still need to pass arguments */
-	pushl %edi
-	pushl %esi
-	pushl %ebx
-	pushl %edx
-	call  cos_syscall_buff_mgmt_cont
-	addl  $16, %esp
-	popl  %ebx              /* retrieve saved thread */
-
-	pushl %eax
-	LOAD_CURR_THD_EAX;
-	cmpl %eax, %ebx
-	popl %eax
-	jne   cos_syscall_interrupted
-	
-	ret
-/* 
- * This is horrible: when we are in buff_mgmt transmitting packets, 
- * we can generate softirqs, in which case we might need to switch 
- * threads here.  See the comment in cosnet_xmit_packet.
- */
 cos_syscall_interrupted:
 	/* store the return value into the previous thread */
 	addl  $THD_REGS, %ebx
@@ -277,7 +214,6 @@ cos_syscall_interrupted:
 	movl %edx, (COS_SYSCALL_EDX)(%esp)
 	movl %ecx, (COS_SYSCALL_ECX)(%esp)
 	ret
-/* end cos_syscall_buff_mgmt */
 
 .globl cos_syscall_idle
 .align 16

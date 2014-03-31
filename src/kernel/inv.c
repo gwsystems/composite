@@ -104,6 +104,12 @@ user_regs_set(struct pt_regs *regs, unsigned long ret, unsigned long sp, unsigne
 	regs->ip = regs->dx = ip;
 }
 
+static inline void
+user_regs_set_ret(struct pt_regs *regs, unsigned long ret)
+{
+	regs->ax = ret;
+}
+
 static inline unsigned long
 user_regs_get_sp(struct pt_regs *regs)
 {
@@ -117,7 +123,7 @@ user_regs_get_ip(struct pt_regs *regs)
 }
 
 static inline unsigned long
-user_regs_get_ax(struct pt_regs *regs)
+user_regs_get_cap(struct pt_regs *regs)
 {
 	return regs->ax;
 }
@@ -138,7 +144,7 @@ ipc_walk_static_cap(struct pt_regs *regs)
 	vaddr_t orig_ip, orig_sp;
 	unsigned int capability;
 
-	capability = user_regs_get_ax(regs) >> 20;
+	capability = user_regs_get_cap(regs) >> 20;
 	orig_sp    = user_regs_get_sp(regs);
 	orig_ip    = user_regs_get_ip(regs);
 
@@ -431,9 +437,11 @@ COS_SYSCALL void
 walk_async_cap(struct pt_regs *regs)
 {
 	unsigned int capability = user_regs_get_arg1(regs);
+	int ret;
 
-	user_regs_set(regs, __invoke_async_cap(capability), 
-		      user_regs_get_sp(regs), user_regs_get_ip(regs));
+	ret = __invoke_async_cap(capability);
+
+	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
 	return;
 }
@@ -1621,11 +1629,14 @@ cos_syscall_trans_cntl(struct pt_regs *regs)
  * to receive data into, and a synchronous call to transmit data.
  */
 extern int user_struct_fits_on_page(unsigned long addr, unsigned int size);
-/* assembly in ipc.S */
-extern int cos_syscall_buff_mgmt(void);
-COS_SYSCALL int 
-cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigned int len_op)
+
+COS_SYSCALL void
+cos_syscall_buff_mgmt(struct pt_regs *regs)
 {
+	int spd_id;
+	void *addr;
+	unsigned int acap_id, len_op;
+
 	/* 
 	 * FIXME: To do this right, we would need to either 1) pin the
 	 * buffer's pages into memory, or 2) interact closely with the
@@ -1637,6 +1648,16 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 	struct spd *spd;
 	vaddr_t kaddr = 0;
 	unsigned short int option, len;
+	struct thread *curr, *prev = core_get_curr_thd();
+	int ret;
+
+	addr    = (void *)user_regs_get_arg1(regs);
+	acap_id = user_regs_get_arg2(regs);
+	len_op  = user_regs_get_arg3(regs);
+	spd_id  = user_regs_get_arg4(regs);
+
+	copy_gp_regs(regs, &prev->regs);
+	user_regs_set(&prev->regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
 	option = (len_op & 0xFFFF);
 	len = len_op >> 16;
@@ -1645,14 +1666,14 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 	if (!spd) {
 		printk("cos: buff mgmt -- invalid spd, %d for thd %d\n", 
 		       spd_id, thd_get_id(core_get_curr_thd()));
-		return -1;
+		goto err;
 	}
 
 	if (unlikely(COS_BM_XMIT != option &&
 		     0 == (kaddr = chal_pgtbl_vaddr2kaddr(spd->spd_info.pg_tbl, (unsigned long)addr)))) {
 		printk("cos: buff mgmt -- could not find kernel address for %p in spd %d\n",
 		       addr, spd_id);
-		return -1;
+		goto err;
 	}
 	
 	switch(option) {
@@ -1663,11 +1684,11 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 		int gather_buffs = 0, i, tot_len = 0;
 		struct gather_item gi[XMIT_HEADERS_GATHER_LEN];
 
-		if (unlikely(NULL == h)) return -1;
+		if (unlikely(NULL == h)) goto err;
 		gather_buffs = h->gather_len;
 		if (unlikely(gather_buffs > XMIT_HEADERS_GATHER_LEN)) {
 			printk("cos buff mgmt -- gather list length %d too large.", gather_buffs);
-			return -1;
+			goto err;
 		}
 		/* Check that each of the buffers in the gather list are legal */
 		for (i = 0 ; i < gather_buffs ; i++) {
@@ -1676,7 +1697,7 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 
 			if (unlikely(!user_struct_fits_on_page((unsigned long)user_gi->data, user_gi->len))) {
 				printk("cos: buff mgmt -- buffer address  %p does not fit onto page\n", user_gi->data);
-				return -1;
+				goto err;
 			}
 			if ((void*)((unsigned int)(user_gi->data) & PAGE_MASK) == 
 			    get_shared_data()->argument_region) {
@@ -1689,7 +1710,7 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 				if (unlikely(!kaddr)) {		    
 					printk("cos: buff mgmt -- could not find kernel address for %p in spd %d\n",
 					       user_gi->data, spd_id);
-					return -1;
+					goto err;
 				}
 			}
 
@@ -1700,7 +1721,8 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 		/* Transmit! */
 		if (likely(cos_net_fns && cos_net_fns->xmit_packet && h)) {
 			cos_meas_event(COS_MEAS_PACKET_XMIT);
-			return cos_net_fns->xmit_packet(h->headers, h->len, gi, gather_buffs, tot_len);
+			ret = cos_net_fns->xmit_packet(h->headers, h->len, gi, gather_buffs, tot_len);
+			goto done;
 		}
 		break;
 	}
@@ -1709,12 +1731,12 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 		if (len != sizeof(struct cos_net_xmit_headers)) {
 			printk("cos: buff mgmt -- xmit header region of length %d, expected %d.\n",
 			       len, sizeof(struct cos_net_xmit_headers));
-			return -1;
+			goto err;
 		}
 		if (!user_struct_fits_on_page((unsigned long)addr, len)) {
 			printk("cos: buff mgmt -- xmit headers address %p w/ len %d does not fit onto page\n", 
 			       addr, len);
-			return -1;
+			goto err;
 		}
 		/* FIXME: pin page in memory */
 		spd->cos_net_xmit_headers[get_cpuid()] = (struct cos_net_xmit_headers*)kaddr;
@@ -1733,17 +1755,17 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 		 */
 		if ((unsigned long)addr & ~PAGE_MASK || len != PAGE_SIZE) {
 			printk("cos: buff mgmt -- recv ring @ %p (%d) not on page boundary.\n", addr, len);
-			return -1;
+			goto err;
 		}
 		acap = &spd->acaps[acap_id];
 		if (!acap->upcall_thd) {
 			printk("cos: buff mgmt could not find acap %d.\n", acap_id);
-			return -1;
+			goto err;
 		}
 /* needed?  Validate step done above...
 		if (thd_get_thd_spd(b) != spd) {
 			printk("cos: buff mgmt trying to set buffer for acap not in curr spd");
-			return -1;
+			goto err;
 		}
 */
 		/* find the cos_net_acap struct */ 
@@ -1754,15 +1776,32 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 		if (i == active_net_acaps || /* Didn't find the net_acap struct */
 		    rb_setup(&cos_net_acap[i], (ring_buff_t*)addr, (ring_buff_t*)kaddr)) {
 			printk("cos: buff mgmt -- could not setup the ring buffer.\n");
-			return -1;
+			goto err;
 		}
 		break;
 	}
 	default:
 		printk("cos: buff mgmt -- unknown option %d.\n", option);
-		return -1;
+		goto err;
 	}
-	return 0;
+
+	ret = 0;
+done:
+	user_regs_set_ret(&prev->regs, ret);
+
+	/* thread switch might happen in this call. */
+/*
+ * This is horrible: when we are in buff_mgmt transmitting packets,
+ * we can generate softirqs, in which case we might need to switch
+ * threads here.  See the comment in cosnet_xmit_packet.
+ */
+	curr = core_get_curr_thd();
+	copy_gp_regs(&curr->regs, regs);
+
+	return;
+err:
+	ret = -1;
+	goto done;
 }
 
 /*
