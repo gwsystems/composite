@@ -16,7 +16,8 @@
 #define RET_TO_USER_NOSEG \
 	pushl $0; \
 	pushl $0; \
-	sti ; sysexit
+	sti; 	  \
+	sysexit
 
 //#define RET_TO_USER RET_TO_USER_NOSEG
 #define RET_TO_USER \
@@ -71,6 +72,18 @@ kernel_ipc_syscall:
 	pushl %ecx;		\
 	pushl %ebx
 
+#define SAVE_REGS_SEG 		\
+	subl $8, %esp; 		\
+	pushfl;			\
+	subl $28, %esp;		\
+	pushl %eax;		\
+	pushl %ebp;		\
+	pushl %edi;		\
+	pushl %esi;		\
+	pushl %edx;		\
+	pushl %ecx;		\
+	pushl %ebx
+
 /* When return to user: ecx => sp, edx => ip. */
 #define RESTORE_REGS_GENERAL	\
 	popl %ebx;		\
@@ -81,6 +94,23 @@ kernel_ipc_syscall:
 	popl %ebp;		\
 	popl %eax;		\
 	addl $40, %esp
+
+#define RESTORE_REGS_SEG	\
+	popl %ebx;		\
+	popl %ecx;		\
+	popl %edx;		\
+	popl %esi;		\
+	popl %edi;		\
+	popl %ebp;		\
+	popl %eax;		\
+	addl $28, %esp;		\
+	popfl;			\
+	addl $8, %esp
+
+//	movl $(__USER_DS), %eax;\
+//	movl %eax, %ds;		\
+//	movl $(__USER_CS), %eax;\
+//	movl %eax, %cs;		\
 
 /*
  * Register layout:
@@ -131,105 +161,45 @@ composite_async_call:
 	movl $(__KERNEL_PERCPU), %edx
 	movl %edx, %fs
 	popl %edx
-	
-	pushl %ebp /* user-sp */
-	pushl %ecx /* user-ip */
-	
-	pushl %eax /* cap */
 
+	SAVE_REGS_GENERAL
+	pushl %esp
 	/* invoke walk_async_cap */
 	call walk_async_cap
-
 	addl $4, %esp
 
-	popl %edx /* user-ip from above */
-	popl %ecx /* and the sp */
-
+	RESTORE_REGS_GENERAL
 	RET_TO_USER
 //	
 #define COS_SYSCALL_EDX 20 /* Don't forget space for the return address */
 #define COS_SYSCALL_ECX 24
 
-.globl cos_syscall_ainv_wait_old
+#define SP_RET_OFFSET 4
+.globl cos_syscall_ainv_wait
 .align 16
-cos_syscall_ainv_wait_old:
-	LOAD_CURR_THD_EAX;
-	
-	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
-
-	movl $0, PT_EAX(%eax)   /* return 0 when we return from this thread */
-	movl %ebp, PT_ECX(%eax) /* save the return sp, so that sysenter will jump to it */
-	movl %ebp, PT_OLDESP(%eax)
-	movl %ecx, PT_EDX(%eax) /* save the return address (so that sysexit will return to it) */
-	movl %ecx, PT_EIP(%eax)
-
-	pushl $0   /* make room for ret val */
-	pushl %esp /* argument to track if the thread to return to was preempted or not */
-	pushl %ebx /* acap */
-	pushl %edx /* this spd_id */
+cos_syscall_ainv_wait:
+	movl SP_RET_OFFSET(%esp), %eax
+	pushl %eax
 	call cos_syscall_ainv_wait_cont
-	addl $12, %esp
-	popl %ebx
+	addl $4, %esp
 
-	cmpl $0, %ebx /* was the thread preempted or not? */
-	jne ret_from_preemption
-	/* restore registers from previous yield, regs in eax */
-	jmp 1f
+	testl %eax, %eax
+	jne ret_from_preemption_getregs
 
-/* FIXME: this is all superfluous: we save/restore all regs when in the 
-   non-preemption case, user-level saves most of them anyway because of 
-   the clobber list.  Lets just let user-level do it, and be done. */
-.globl cos_syscall_switch_thread_old
-.align 16
-cos_syscall_switch_thread_old:
-	/* can use edx to pass in conditional for if we should save regs or not and term thread */
-
-	///////////////////////////////
-	LOAD_CURR_THD_EAX;
-	
-	addl $THD_REGS, %eax    /* offsetof(struct thread, regs) */
-
-	movl $0, PT_EAX(%eax)   /* return 0 when we return from this thread */
-	movl %ebx, PT_EBX(%eax)
-	movl %ebp, PT_ECX(%eax) /* save the return sp, so that sysenter will jump to it */
-	movl %ebp, PT_OLDESP(%eax)
-	movl %ecx, PT_EDX(%eax) /* save the return address (so that sysexit will return to it) */
-	movl %ecx, PT_EIP(%eax)
-
-	/* save volatile registers, as defined by cdecl (including ebx above) */
-	movl %esi, PT_ESI(%eax)
-	movl %edi, PT_EDI(%eax)
-	movl %ebp, PT_EBP(%eax)
-	/////////////////////////////////////
-
-	pushl $0   /* make room for ret val */
-	pushl %esp /* argument to track if the thread to return to was preempted or not */
-	pushl %esi /* flags */
-	pushl %ebx /* thd_id */
-	pushl %edx /* this spd_id */
-
-	/////////////////////////////////////////
-	call cos_syscall_switch_thread_cont
-	addl $16, %esp
-	popl %ebx
-
-	cmpl $0, %ebx /* was the thread preempted or not? */
-	jne ret_from_preemption
-1:	
-	/* restore registers from previous yield, regs in eax */
-	movl PT_EBX(%eax), %ebx
-	movl PT_ECX(%eax), %ecx
-	movl PT_EDX(%eax), %edx
-	movl PT_ESI(%eax), %esi
-	movl PT_EDI(%eax), %edi
-	movl PT_EBP(%eax), %ebp
-	movl PT_EAX(%eax), %eax
-
-	movl %edx, (COS_SYSCALL_EDX)(%esp)
-	movl %ecx, (COS_SYSCALL_ECX)(%esp)
 	ret
-	
-	RET_TO_USER
+
+.globl cos_syscall_switch_thread
+.align 16
+cos_syscall_switch_thread:
+	movl SP_RET_OFFSET(%esp), %eax
+	pushl %eax
+	call cos_syscall_switch_thread_cont
+	addl $4, %esp
+
+	testl %eax, %eax
+	jne ret_from_preemption_getregs
+
+	ret
 
 .align 4
 ret_from_preemption_getregs:
@@ -330,48 +300,6 @@ cos_syscall_idle:
 	popl %eax
 	jne   cos_syscall_interrupted
 	ret
-	
-.globl cos_syscall_upcall_old
-.align 16
-cos_syscall_upcall_old:
-	pushl $0
-	pushl %esp
-	pushl %esi
-	pushl %ebx /* spd_id to upcall to */
-	pushl %edx /* this spd_id */
-	call cos_syscall_upcall_cont
-	addl $16, %esp
-	popl %ebx  /* regs */
-
-	cmpl $-1, %eax
-	je   upcall_err
-
-	movl PT_EDX(%ebx), %ecx
-	movl %ecx, (COS_SYSCALL_EDX)(%esp)
-	movl PT_ECX(%ebx), %ecx
-	movl %ecx, (COS_SYSCALL_ECX)(%esp)
-	/* Pass upcall arguments. */
-	movl PT_ESI(%ebx), %esi
-	movl PT_EDI(%ebx), %edi
-	movl PT_EBX(%ebx), %ebx
-	/* movl %ebx, (COS_SYSCALL_EDX)(%esp)*/
-	/* eax remains as the thread id + cpuid */
-upcall_err:	
-	ret
-
-	; 	pushl $0
-; 	pushl %esp
-; 	pushl %ebx /* spd_id to upcall to */
-; 	pushl %edx /* this spd_id */
-; 	call cos_syscall_upcall_cont
-; 	addl $12, %esp
-	
-; 	popl %ebx
-; 	movl %ebx, (COS_SYSCALL_EDX)(%esp)
-; 	/* eax remains as the thread id */
-	
-; 	ret
-
 	
 /*
  * Register Layout (from cos_component.h):

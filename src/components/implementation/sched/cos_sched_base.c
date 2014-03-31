@@ -532,9 +532,6 @@ static void sched_timer_tick(void)
 		sched_process_wakeups();
 		timer_tick(1);
 
-		/* unsigned long long ss; */
-		/* rdtscll(ss); */
-//		printc("timer on core %d @ %llu\n", cos_cpuid(), ss);
 		ck_pr_store_int(&detector[cos_cpuid()*16], 1);
 
 		sched_switch_thread(COS_SCHED_ACAP_WAIT, TIMER_SWITCH_LOOP);
