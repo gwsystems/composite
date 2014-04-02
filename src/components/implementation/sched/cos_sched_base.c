@@ -1306,19 +1306,16 @@ static int relative_prio_convert(u32_t params[MAX_NUM_SCHED_PARAM]) {
 	return 0;
 }
 
-static inline int sched_create_thd_current_core(spdid_t spdid, u32_t sched_param_0, 
+static inline int sched_create_thd_current_core(u32_t init_data_spdid, u32_t sched_param_0, 
 						u32_t sched_param_1, u32_t sched_param_2)
 {
 	struct sched_param_s sp[4];
 	struct sched_thd *curr, *new;
-	int init_data;
-	union sched_param param0;
 
-	param0.v = sched_param_0;
-	init_data = param0.c.init_data;
-	param0.c.init_data = 0; // clear to avoid misunderstanding
-	
-	sp[0] = param0.c;
+	int init_data = init_data_spdid >> 16;
+	spdid_t spdid = init_data_spdid & 0xFFFF;
+
+	sp[0] = ((union sched_param)sched_param_0).c;
 	sp[1] = ((union sched_param)sched_param_1).c;
 	sp[2] = ((union sched_param)sched_param_2).c;
 	sp[3] = (union sched_param){.c = {.type = SCHEDP_NOOP}}.c;
@@ -1335,13 +1332,13 @@ static inline int sched_create_thd_current_core(spdid_t spdid, u32_t sched_param
 }
 
 int
-sched_create_thd(spdid_t spdid, u32_t sched_param_0, u32_t sched_param_1, u32_t sched_param_2)
+sched_create_thd(u32_t init_data_spdid, u32_t sched_param_0, u32_t sched_param_1, u32_t sched_param_2)
 {
 	int ret;
 	cpuid_t core;
 	u32_t sched_params[MAX_NUM_SCHED_PARAM] = {sched_param_0, sched_param_1, sched_param_2};
 
-	if (spdid == cos_spd_id()) return -1;
+	if ((int)(init_data_spdid & 0xFFFF) == cos_spd_id()) return -1;
 
 	core = sched_read_param_core_id(sched_params);
 	relative_prio_convert(sched_params);
@@ -1353,12 +1350,12 @@ sched_create_thd(spdid_t spdid, u32_t sched_param_0, u32_t sched_param_1, u32_t 
 			printc("ERROR: Trying to create thread on core %d\n", core);
 			goto error;
 		}
-		u32_t params[4] = {spdid, sched_params[0], sched_params[1], sched_params[2]};
+		u32_t params[4] = {init_data_spdid, sched_params[0], sched_params[1], sched_params[2]};
 		ret = xcore_exec(core, sched_create_thd_current_core, 4, params, 1);
 	
 		goto done;
 	} else {
-		ret = sched_create_thd_current_core(spdid, sched_params[0], sched_params[1], sched_params[2]);
+		ret = sched_create_thd_current_core(init_data_spdid, sched_params[0], sched_params[1], sched_params[2]);
 	}
 done:
 	return ret;

@@ -225,7 +225,6 @@ ipc_walk_static_cap(struct pt_regs *regs)
 	thd_invocation_push(thd, cap_entry->destination, orig_sp, orig_ip);
 	cap_entry->invocation_cnt++;
 
-	/* fix me!!! */
 	ipc_args_set(regs);
 
 	user_regs_set(regs, thd->thread_id | (get_cpuid_fast() << 16) /*eax*/,
@@ -430,7 +429,6 @@ user_regs_get_arg3(struct pt_regs *regs)
 static inline int
 user_regs_get_arg4(struct pt_regs *regs)
 {
-	//QW: fix me!!! unify this!!!
 	return regs->dx;
 }
 
@@ -556,7 +554,7 @@ cos_syscall_create_thread(struct pt_regs *regs)
 	a           = user_regs_get_arg2(regs);
 	b           = user_regs_get_arg3(regs);
 	spd_id      = user_regs_get_arg4(regs);
-	/* printk("cpu %d creating thread params curr spd %d, dest spd %d, a %d, b %d\n",  */
+	/* printk("cpu %d creating thread params curr spd %d, dest spd %d, a %d, b %d\n", */
 	/*        get_cpuid(), spd_id, dest_spd_id, a, b); */
 
 	/*
@@ -614,7 +612,7 @@ cos_syscall_create_thread(struct pt_regs *regs)
 	initialize_sched_info(thd, sched_spd);
 	
 	ret = thd_get_id(thd);
-	/* printk("cpu %d new thd %d, ax%lu, cx%lu, dx%lu, bx%lu, di%lu, si %lu\n", get_cpuid(), ret,  */
+	/* printk("cpu %d new thd %d in spd %d, ax%lu, cx%lu, dx%lu, bx%lu, di%lu, si %lu\n", get_cpuid(), ret, spd_get_index(dest_spd), */
 	/*        thd->regs.ax, thd->regs.cx,thd->regs.dx,thd->regs.bx,thd->regs.di, thd->regs.si); */
 done:
 	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
@@ -1078,12 +1076,12 @@ cos_syscall_switch_thread_cont(struct pt_regs *regs)
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
 	/* success for this current thread */
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
-//	printk("core %d: switch %d -> %d\n", get_cpuid(), thd_get_id(curr), thd_get_id(thd));
 	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
 
 	copy_gp_regs(&thd->regs, regs);
 
-	/* printk("%d regs:  ax %lu, cx %lu, dx %lu, bx %lu di %lu si %lu. \n",   */
+	/* printk("core %d: switch %d -> %d\n", get_cpuid(), thd_get_id(curr), thd_get_id(thd)); */
+	/* printk("%d regs:  ax %lu, cx %lu, dx %lu, bx %lu di %lu si %lu. \n", */
 	/*        thd_get_id(thd), thd->regs.ax, thd->regs.cx, thd->regs.dx, thd->regs.bx, thd->regs.di, thd->regs.si); */
 
 	return preempt;
