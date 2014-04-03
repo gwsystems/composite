@@ -228,13 +228,12 @@ ipc_walk_static_cap(struct pt_regs *regs)
 	ipc_args_set(regs);
 
 	user_regs_set(regs, thd->thread_id | (get_cpuid_fast() << 16) /*eax*/,
-		      spd_get_index(curr_spd) /*spdid, no sp*/, cap_entry->dest_entry_instruction /*ip*/);
+		      spd_get_index(curr_spd) /*spdid, no sp needed*/, cap_entry->dest_entry_instruction /*ip*/);
 
 	return;
 err:
-	regs->ax = -1;
-	regs->cx = orig_sp;
-	regs->dx = orig_ip;
+	user_regs_set(regs, -1,
+		      orig_sp, orig_ip);
 
 	return;
 }
