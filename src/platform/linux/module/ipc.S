@@ -14,19 +14,11 @@
    get an interrupt, this makes the stack look like if user-level
    were preempted (in terms of register contents) */
 
-#define RET_TO_USER_NOSEG \
+#define RET_TO_USER \
 	pushl $0; \
 	pushl $0; \
 	sti; 	  \
 	sysexit
-
-//#define RET_TO_USER RET_TO_USER_NOSEG
-#define RET_TO_USER \
-	pushl %edx		;\
-	movl $(__USER_DS), %edx ;\
-	movl %edx, %fs		;\
-	popl %edx		;\
-	RET_TO_USER_NOSEG
 
 /* null ptr deref */
 #define ERROR_OUT \
@@ -75,30 +67,10 @@ kernel_ipc_syscall:
 	popl %eax;		\
 	addl $40, %esp
 
-#define KERN_PRINT_ENABLED
-
-#ifdef KERN_PRINT_ENABLED
-/* set up seg reg, which is needed for printk */
-#define SEG_REG_SETUP 			\
-	pushl %edx;			\
-	movl $(__KERNEL_PERCPU), %edx;	\
-	movl %edx, %fs;			\
-	popl %edx
-#else
-#define SEG_REG_SETUP 
-#endif
-
 /* Composite sysenter entry. */
 .globl composite_sysenter_entry
 .align 32
 composite_sysenter_entry:
-	pushl %edx
-	movl $(__KERNEL_PERCPU), %edx
-	movl %edx, %fs
-	popl %edx
-
-//	SEG_REG_SETUP
-	
 	/* Use pt_regs as input */
 	SAVE_REGS_GENERAL
 

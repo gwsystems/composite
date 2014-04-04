@@ -4331,15 +4331,14 @@ void *cos_syscall_tbl[COS_MAX_NUM_SYSCALL] = {
 #define COS_INV_OFFSET ((1<<COS_CAPABILITY_OFFSET) - 1)
 
 static inline void
-fs_setup(unsigned long seg) {
+fs_reg_setup(unsigned long seg) {
 	asm volatile ("movl %%ebx, %%fs\n\t"
 		      : : "b" (seg)
 		      : "memory");
 }
 
 /* We don't need to setup fs for invocation and return path. Only
- * enable this when debugging invocation and return path (we need fs
- * to use printk). */
+ * enable this when doing printk (which requires fs) for debugging. */
 //#define ENABLE_KERNEL_PRINT
 
 COS_SYSCALL int
@@ -4365,7 +4364,7 @@ composite_sysenter_dispatcher(struct pt_regs *regs) {
 			int syscall_id;
 			COS_SYSCALL int (*cos_syscall)(struct pt_regs *);
 
-			fs_setup(__KERNEL_PERCPU);
+			fs_reg_setup(__KERNEL_PERCPU);
 
 			syscall_id = ax >> COS_SYSCALL_OFFSET;
 			assert(syscall_id < COS_MAX_NUM_SYSCALL);
@@ -4376,7 +4375,7 @@ composite_sysenter_dispatcher(struct pt_regs *regs) {
 			 * thread was preempted. */
 			preempted = cos_syscall(regs);
 
-			fs_setup(__USER_DS);
+			fs_reg_setup(__USER_DS);
 		} else {
 			assert(ax < 0);
 			/* ax < 0: highest bit of ax is the flag for async cap for now. */
