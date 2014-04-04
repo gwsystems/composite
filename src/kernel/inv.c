@@ -147,7 +147,7 @@ ipc_args_set(struct pt_regs *regs)
  * should kill thread.
  */
 
-COS_SYSCALL void
+static inline void
 ipc_walk_static_cap(struct pt_regs *regs)
 {
 	struct thd_invocation_frame *curr_frame;
@@ -229,6 +229,7 @@ ipc_walk_static_cap(struct pt_regs *regs)
 
 	user_regs_set(regs, thd->thread_id | (get_cpuid_fast() << 16) /*eax*/,
 		      spd_get_index(curr_spd) /*spdid, no sp needed*/, cap_entry->dest_entry_instruction /*ip*/);
+	/* printk("inv %d to %d\n", spd_get_index(curr_spd), spd_get_index(dest_spd)); */
 
 	return;
 err:
@@ -264,7 +265,7 @@ static struct pt_regs *thd_ret_upcall_type(struct thread *t, upcall_type_t type)
  * This is complicated by the fact that we may return when no
  * invocation is made because a thread is terminating.
  */
-COS_SYSCALL void
+static inline void
 pop(struct pt_regs *regs)
 {
 	struct thd_invocation_frame *inv_frame;
@@ -431,7 +432,7 @@ user_regs_get_arg4(struct pt_regs *regs)
 	return regs->dx;
 }
 
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_void(struct pt_regs *regs)
 {
 	int spdid = spd_get_index(thd_get_thd_spd(core_get_curr_thd()));
@@ -440,13 +441,13 @@ cos_syscall_void(struct pt_regs *regs)
 
 	user_regs_set(regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 }
 
-COS_SYSCALL void
+static inline void
 walk_async_cap(struct pt_regs *regs)
 {
-	unsigned int capability = user_regs_get_arg1(regs);
+	unsigned int capability = user_regs_get_cap(regs);
 	int ret;
 
 	ret = __invoke_async_cap(capability);
@@ -456,8 +457,8 @@ walk_async_cap(struct pt_regs *regs)
 	return;
 }
 
-COS_SYSCALL void
-cos_syscall_ainv_send(struct pt_regs *regs)
+COS_SYSCALL int
+cos_syscall_asend(struct pt_regs *regs)
 {
 	int ret, capability = user_regs_get_arg1(regs);
 
@@ -465,7 +466,7 @@ cos_syscall_ainv_send(struct pt_regs *regs)
 
 	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 }
 
 
@@ -540,7 +541,7 @@ void initialize_sched_info(struct thread *t, struct spd *curr_sched)
  * to the fn and stack to be used anyway, which can be assigned at
  * user-level.
  */
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_create_thread(struct pt_regs *regs)
 {
 	int spd_id, dest_spd_id, a, b;
@@ -616,10 +617,10 @@ cos_syscall_create_thread(struct pt_regs *regs)
 done:
 	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 }
 
-COS_SYSCALL void 
+COS_SYSCALL int 
 cos_syscall_thd_cntl(struct pt_regs *regs)
 {
 	int spd_id, op_thdid;
@@ -778,7 +779,7 @@ cos_syscall_thd_cntl(struct pt_regs *regs)
 done:
 	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 }
 
 /* 
@@ -841,7 +842,6 @@ remove_preempted_status(struct thread *thd)
 	thd->flags &= ~THD_STATE_PREEMPTED;
 }
 
-extern int cos_syscall_switch_thread(void);
 static void update_sched_evts(struct thread *new, int new_flags, 
 		       struct thread *prev, int prev_flags);
 static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, 
@@ -981,7 +981,7 @@ switch_thread_update_flags(struct cos_sched_data_area *da, unsigned short int *f
 #endif
 
 COS_SYSCALL int
-cos_syscall_switch_thread_cont(struct pt_regs *regs)
+cos_syscall_switch_thread(struct pt_regs *regs)
 {
 	int spd_id;
 	unsigned short int rthd_id, rflags;
@@ -1550,7 +1550,7 @@ void cos_trans_upcall(struct async_cap *acap)
 	chal_attempt_ainv(acap);
 }
 
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_trans_cntl(struct pt_regs *regs)
 {
 	spdid_t spdid;
@@ -1631,7 +1631,7 @@ cos_syscall_trans_cntl(struct pt_regs *regs)
 	}
 	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 }
 
 /* 
@@ -1640,7 +1640,7 @@ cos_syscall_trans_cntl(struct pt_regs *regs)
  */
 extern int user_struct_fits_on_page(unsigned long addr, unsigned int size);
 
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_buff_mgmt(struct pt_regs *regs)
 {
 	int spd_id;
@@ -1808,7 +1808,7 @@ done:
 	curr = core_get_curr_thd();
 	copy_gp_regs(&curr->regs, regs);
 
-	return;
+	return 0;
 err:
 	ret = -1;
 	goto done;
@@ -1820,7 +1820,7 @@ err:
  * to the APIC and timer hardware, rather than the device in general.
  */
 
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_acap_wire(struct pt_regs *regs)
 {
 	int spd_id, spd_acap_id, option, data;
@@ -1896,7 +1896,7 @@ cos_syscall_acap_wire(struct pt_regs *regs)
 done:
 	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 }
 
 /*
@@ -1915,7 +1915,7 @@ static int verify_trust(struct spd *truster, struct spd *trustee)
 	return -1;
 }
 
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_upcall(struct pt_regs *regs)
 {
 	int this_spd_id, spd_id, init_data;
@@ -1961,11 +1961,11 @@ cos_syscall_upcall(struct pt_regs *regs)
 
 	cos_meas_event(COS_MEAS_UPCALLS);
 
-	return;
+	return 0;
 err:
 	user_regs_set(regs, -1, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 }
 
 /****************** begin event notification functions ******************/
@@ -2373,7 +2373,7 @@ ainv_next_thread(struct async_cap *acap, struct thread *preempted, int preempt)
 
 /************** end functions for parsing async set urgencies ************/
 
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_sched_cntl(struct pt_regs *regs)
 {
 	int spd_id, operation, thd_id, option;
@@ -2576,7 +2576,7 @@ cos_syscall_sched_cntl(struct pt_regs *regs)
 done:
 	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 }
 	
 /*
@@ -2826,7 +2826,7 @@ mpd_merge(struct composite_spd *c1, struct composite_spd *c2)
  * and the meaning here is "the composite protection domain that this
  * spd is part of".
  */
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_mpd_cntl(struct pt_regs *regs)
 {
 	int spd_id, operation;
@@ -3006,7 +3006,7 @@ cos_syscall_mpd_cntl(struct pt_regs *regs)
 done:
 	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 }
 
 /*
@@ -3017,7 +3017,7 @@ done:
  * or is in the current composite spd, or is a child of a fault
  * thread.
  */
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_mmap_cntl(struct pt_regs *regs)
 {
 	int spdid;
@@ -3102,10 +3102,10 @@ cos_syscall_mmap_cntl(struct pt_regs *regs)
 done:
 	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 }
 
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_pfn_cntl(struct pt_regs *regs)
 {
 	int spdid;
@@ -3151,7 +3151,7 @@ cos_syscall_pfn_cntl(struct pt_regs *regs)
 done:
 	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 }
 
 /* 
@@ -3184,7 +3184,7 @@ fault_update_mpd_pgtbl(struct thread *thd, struct pt_regs *regs, vaddr_t fault_a
 }
 
 #define MAX_LEN 512 /* keep consistent as in printc.h */
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_print(struct pt_regs *regs)
 {
 	int spdid;
@@ -3213,10 +3213,10 @@ cos_syscall_print(struct pt_regs *regs)
 done:
 	user_regs_set(regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 }
 
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_cap_cntl(struct pt_regs *regs)
 {
 	int spdid;
@@ -3304,11 +3304,11 @@ cos_syscall_cap_cntl(struct pt_regs *regs)
 done:
 	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 }
 
 
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_stats(struct pt_regs *regs)
 {
 	cos_meas_report();
@@ -3316,10 +3316,10 @@ cos_syscall_stats(struct pt_regs *regs)
 
 	user_regs_set(regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 }
 
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_idle(struct pt_regs *regs)
 {
 	int ret;
@@ -3340,10 +3340,10 @@ done:
 	user_regs_set_ret(&prev->regs, ret);
 	copy_gp_regs(&(core_get_curr_thd()->regs), regs);
 
-	return;
+	return 0;
 }
 
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_spd_cntl(struct pt_regs *regs)
 {
 	int id, op_spdid, arg1, arg2;
@@ -3495,11 +3495,11 @@ cos_syscall_spd_cntl(struct pt_regs *regs)
 done:
 	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 }
 
 
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_vas_cntl(struct pt_regs *regs)
 {
 	int id, op_spdid;
@@ -3542,7 +3542,7 @@ cos_syscall_vas_cntl(struct pt_regs *regs)
 done:
 	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 }
 
 static struct pt_regs *ainv_execution_completion(struct thread *curr, int *preempt)
@@ -3611,10 +3611,8 @@ static struct pt_regs *ainv_execution_completion(struct thread *curr, int *preem
 	return &prev->regs;
 }
 
-extern void cos_syscall_ainv_wait(int spd_id, int acap, int *preempt);
-
 COS_SYSCALL int
-cos_syscall_ainv_wait_cont(struct pt_regs *regs)
+cos_syscall_areceive(struct pt_regs *regs)
 {
 	int spd_id, acap;
 	int preempt = 0;
@@ -3634,11 +3632,11 @@ cos_syscall_ainv_wait_cont(struct pt_regs *regs)
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
 	if (unlikely(NULL == curr_spd)) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
-		goto ainv_wait_err;		
+		goto areceive_err;		
 	}
 	if (unlikely(acap >= MAX_NUM_ACAP)) {
 		printk("cos: capability %d greater than max.\n", acap);
-		goto ainv_wait_err;
+		goto areceive_err;
 	}
 
 	acap_entry = &curr_spd->acaps[acap];
@@ -3646,19 +3644,19 @@ cos_syscall_ainv_wait_cont(struct pt_regs *regs)
 
 	/* if (unlikely(type wrong)) { */
 	/* 	printk("cos: invalid acap %d in comp %d.\n", acap, spdid); */
-	/* 	goto ainv_wait_err; */
+	/* 	goto areceive_err; */
 	/* } */
 	if (unlikely(acap_entry->upcall_thd != thd_get_id(curr))) {
 		printk("cos: specified acap %d not one associated with %d (upcall_thd %d, spd %d)\n", 
 		       acap, thd_get_id(curr), acap_entry->upcall_thd, acap_entry->srv_spd_id);
-		goto ainv_wait_err;
+		goto areceive_err;
 	}
 	curr->srv_acap = acap_entry;
 
 	copy_gp_regs(ainv_execution_completion(curr, &preempt), regs);
 
 	return preempt;
-ainv_wait_err:
+areceive_err:
 	user_regs_set(&curr->regs, -1, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
 	return preempt;
@@ -3822,7 +3820,7 @@ int core_access[NUM_CPU];
 #define ITER (128)
 volatile unsigned long long corex_last;
 
-COS_SYSCALL void
+COS_SYSCALL int
 cos_syscall_async_cap_cntl(struct pt_regs *regs)
 {
 	int spd_id, operation, arg_1, arg_2;
@@ -4274,7 +4272,7 @@ cos_syscall_async_cap_cntl(struct pt_regs *regs)
 done:
 	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return;
+	return 0;
 err_spd:
 	printk("cos: async_cap_cntl -- source component %d not valid\n", arg1);
 	ret = -1;
@@ -4293,19 +4291,20 @@ err_srv_spd:
 	goto done;
 }
 
+#define COS_MAX_NUM_SYSCALL 32
 /* 
  * Composite's system call table that is indexed and invoked by ipc.S.
  * The user-level stubs are created in cos_component.h.
  */
-void *cos_syscall_tbl[32] = {
+void *cos_syscall_tbl[COS_MAX_NUM_SYSCALL] = {
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_stats,
 	(void*)cos_syscall_print,
 	(void*)cos_syscall_create_thread,
 	(void*)cos_syscall_switch_thread,
 	(void*)cos_syscall_async_cap_cntl,
-	(void*)cos_syscall_ainv_wait,
-	(void*)cos_syscall_ainv_send,
+	(void*)cos_syscall_areceive,
+	(void*)cos_syscall_asend,
 	(void*)cos_syscall_upcall,
 	(void*)cos_syscall_sched_cntl,
 	(void*)cos_syscall_mpd_cntl,
@@ -4329,3 +4328,61 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_void
 };
  
+#define COS_INV_OFFSET ((1<<COS_CAPABILITY_OFFSET) - 1)
+
+static inline void
+fs_setup(unsigned long seg) {
+	asm volatile ("movl %%ebx, %%fs\n\t"
+		      : : "b" (seg)
+		      : "memory");
+}
+
+/* We don't need to setup fs for invocation and return path. Only
+ * enable this when debugging invocation and return path (we need fs
+ * to use printk). */
+//#define ENABLE_KERNEL_PRINT
+
+COS_SYSCALL int
+composite_sysenter_dispatcher(struct pt_regs *regs) {
+	int ax, preempted = 0;
+
+#ifdef ENABLE_KERNEL_PRINT
+	fs_setup(__KERNEL_PERCPU);
+#endif
+	ax = user_regs_get_cap(regs);
+
+	/* IPC and return paths are performance critical. */
+	if (ax > COS_INV_OFFSET) {
+		/* IPC */
+		ipc_walk_static_cap(regs);
+	} else if (ax == COS_INV_OFFSET) {
+		/* IPC return */
+		pop(regs);
+	} else {
+		/* Non-IPC cases. */
+		if (ax >= 0) {
+			/* Composite syscall. All system calls take pt_regs as input.  */
+			int syscall_id;
+			COS_SYSCALL int (*cos_syscall)(struct pt_regs *);
+
+			fs_setup(__KERNEL_PERCPU);
+
+			syscall_id = ax >> COS_SYSCALL_OFFSET;
+			assert(syscall_id < COS_MAX_NUM_SYSCALL);
+			cos_syscall = cos_syscall_tbl[syscall_id];
+
+			/* We may switch thread in syscalls (switch_thread and
+			 * ainv_receive). preempted is 1 when the target
+			 * thread was preempted. */
+			preempted = cos_syscall(regs);
+
+			fs_setup(__USER_DS);
+		} else {
+			assert(ax < 0);
+			/* ax < 0: highest bit of ax is the flag for async cap for now. */
+			walk_async_cap(regs);
+		}
+	}
+
+	return preempted;
+}

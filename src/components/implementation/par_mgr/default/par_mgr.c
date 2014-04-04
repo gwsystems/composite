@@ -42,7 +42,7 @@ struct srv_thd_info {
 	/* information of handling thread */
 	int cli_spd_id;
 	int srv_spd_id;
-	int srv_acap; /* the server side acap that we do ainv_wait on. */
+	int srv_acap; /* the server side acap that we do areceive on. */
 	vaddr_t srv_ring;
 	vaddr_t mgr_ring;
 	int cli_thd;

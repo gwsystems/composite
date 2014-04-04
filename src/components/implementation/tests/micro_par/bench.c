@@ -48,11 +48,11 @@
 unsigned long long tsc_start(void)
 {
 	unsigned long cycles_high, cycles_low; 
-	asm volatile ("mov $0, %%eax\n\t"
+	asm volatile ("movl $0, %%eax\n\t"
 		      "CPUID\n\t"
 		      "RDTSC\n\t"
-		      "mov %%edx, %0\n\t"
-		      "mov %%eax, %1\n\t": "=r" (cycles_high), "=r" (cycles_low) :: 
+		      "movl %%edx, %0\n\t"
+		      "movl %%eax, %1\n\t": "=r" (cycles_high), "=r" (cycles_low) :: 
 		      "%eax", "%ebx", "%ecx", "%edx");
 
 	return ((unsigned long long)cycles_high << 32) | cycles_low;
@@ -63,9 +63,9 @@ unsigned long long tsc_end(void)
 	/* This RDTSCP doesn't prevent memory re-ordering!. */
 	unsigned long cycles_high1, cycles_low1; 
 	asm volatile("RDTSCP\n\t"
-		     "mov %%edx, %0\n\t"
-		     "mov %%eax, %1\n\t"
-		     "mov $0, %%eax\n\t"
+		     "movl %%edx, %0\n\t"
+		     "movl %%eax, %1\n\t"
+		     "movl $0, %%eax\n\t"
 		     "CPUID\n\t": "=r" (cycles_high1), "=r" (cycles_low1):: 
 		     "%eax", "%ebx", "%ecx", "%edx");
 
@@ -77,8 +77,8 @@ unsigned long long rdtsc(void)
 	unsigned long cycles_high, cycles_low; 
 
 	asm volatile ("RDTSCP\n\t" 
-		      "mov %%edx, %0\n\t" 
-		      "mov %%eax, %1\n\t": "=r" (cycles_high), "=r" (cycles_low) : : "%eax", "%edx"); 
+		      "movl %%edx, %0\n\t" 
+		      "movl %%eax, %1\n\t": "=r" (cycles_high), "=r" (cycles_low) : : "%eax", "%edx"); 
 
 	return ((unsigned long long)cycles_high << 32 | cycles_low);
 }
@@ -635,13 +635,13 @@ int core0_high(void){
 
 	while (1) {
 //		printc("core %d high thd %d, going to wait on acap %d\n", cos_cpuid(), cos_get_thd_id(), srv_acap);
-		ret = cos_ainv_wait(srv_acap);
+		ret = cos_areceive(srv_acap);
 //		printc("core 0 received high\n");
 		core0_e = tsc_start();
 
 //		printc("core 0 sending high\n");
 		assert(acap_corex_high[calib_cpu]);
-		cos_ainv_send(acap_corex_high[calib_cpu]);
+		cos_asend(acap_corex_high[calib_cpu]);
 	}
 
 	return 0;
@@ -664,7 +664,7 @@ int corex_low(void) {
 	unsigned long long s0;
 	while (1) {
 //		printc("core %d low thd %d, going to wait on acap %d\n", cos_cpuid(), cos_get_thd_id(), srv_acap);
-		ret = cos_ainv_wait(srv_acap);
+		ret = cos_areceive(srv_acap);
 
 //		printc("core 1 received 1st\n");
 
@@ -674,7 +674,7 @@ int corex_low(void) {
 		s0 = tsc_start();
 
 //		printc("core 1 sending 1st\n");
-		cos_ainv_send(acap_core0);
+		cos_asend(acap_core0);
 		while (corex_e[cpu] == 0);
 		results[cnt++] = corex_e[cpu] - s0;
 //		printc("core %d, round trip %llu\n", cpu, diff);
@@ -700,7 +700,7 @@ int corex_high(void) {
 	
 	while (1) {
 //		printc("core %d high thd %d, going to wait on acap %d\n", cos_cpuid(), cos_get_thd_id(), srv_acap);
-		ret = cos_ainv_wait(srv_acap);
+		ret = cos_areceive(srv_acap);
 //		printc("core 1 high received\n");
 		corex_e[cpu] = tsc_start();
 	}
@@ -754,7 +754,7 @@ int tsc_calibrate(void)
 
 			s0 = tsc_start();
 //			printc("core 0 sending 1st\n");
-			cos_ainv_send(acap_corex[i]);
+			cos_asend(acap_corex[i]);
 			while (core0_e == 0);
 			results[j]= core0_e - s0;
 //			printc("core 0, round trip %llu\n", diff);

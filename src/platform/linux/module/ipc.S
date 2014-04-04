@@ -52,8 +52,7 @@
 .text
 
 kernel_ipc_syscall:
-	cmpl $0, %eax /* do we have a return capability */
-	jz composite_ret_ipc
+	ERROR_OUT
 
 #define SAVE_REGS_GENERAL 	\
 	subl $40, %esp; 	\
@@ -76,98 +75,49 @@ kernel_ipc_syscall:
 	popl %eax;		\
 	addl $40, %esp
 
-/*
- * Register layout:
- *
- * eax:	which capability, see comment in kern_entry.S:asym_exec_dom_entry
- * ecx:	ip
- * ebp:	sp
- * ebx,esi,edi,edx: arguments
- */
-.globl composite_call_ipc
+#define KERN_PRINT_ENABLED
+
+#ifdef KERN_PRINT_ENABLED
+/* set up seg reg, which is needed for printk */
+#define SEG_REG_SETUP 			\
+	pushl %edx;			\
+	movl $(__KERNEL_PERCPU), %edx;	\
+	movl %edx, %fs;			\
+	popl %edx
+#else
+#define SEG_REG_SETUP 
+#endif
+
+/* Composite sysenter entry. */
+.globl composite_sysenter_entry
 .align 32
-composite_call_ipc:	/* server_inv: */
-	SAVE_REGS_GENERAL
-
-	pushl %esp /* pt_regs */
-	/* invoke ipc_walk_static_cap */
-	call ipc_walk_static_cap
-	addl $4, %esp
-
-	RESTORE_REGS_GENERAL
-	RET_TO_USER_NOSEG
-		
-.globl composite_ret_ipc
-.align 16
-composite_ret_ipc:	 /*ret_cap:*/
-	SAVE_REGS_GENERAL
-
-	pushl %esp
-	call pop
-	addl $4, %esp
-	
-	RESTORE_REGS_GENERAL
-	RET_TO_USER_NOSEG
-
-/*
- * Register layout:
- *
- * eax:	which capability, see comment in kern_entry.S:asym_exec_dom_entry
- * ecx:	ip
- * ebp:	sp
- * ebx,esi,edi,edx: arguments
- */
-.globl composite_async_call
-.align 32
-composite_async_call:
-	/* set up seg reg */
+composite_sysenter_entry:
 	pushl %edx
 	movl $(__KERNEL_PERCPU), %edx
 	movl %edx, %fs
 	popl %edx
 
+//	SEG_REG_SETUP
+	
+	/* Use pt_regs as input */
 	SAVE_REGS_GENERAL
-	pushl %esp
-	/* invoke walk_async_cap */
-	call walk_async_cap
+
+	pushl %esp /* pt_reg */
+	call composite_sysenter_dispatcher
 	addl $4, %esp
+
+	testl %eax, %eax
+	jne ret_from_preemption
 
 	RESTORE_REGS_GENERAL
 	RET_TO_USER
 
-#define SP_RET_OFFSET 4 /* space reserved for call/ret */
-.globl cos_syscall_ainv_wait
-.align 16
-cos_syscall_ainv_wait:
-	movl SP_RET_OFFSET(%esp), %eax
-	pushl %eax
-	call cos_syscall_ainv_wait_cont
-	addl $4, %esp
-
-	testl %eax, %eax
-	jne ret_from_preemption_getregs
-
-	ret
-
-.globl cos_syscall_switch_thread
-.align 16
-cos_syscall_switch_thread:
-	movl SP_RET_OFFSET(%esp), %eax
-	pushl %eax
-	call cos_syscall_switch_thread_cont
-	addl $4, %esp
-
-	testl %eax, %eax
-	jne ret_from_preemption_getregs
-
-	ret
 
 .align 4
-ret_from_preemption_getregs:
+ret_from_preemption:
 	LOAD_CURR_THD_EAX;
 	
 	addl $THD_REGS, %eax /* offsetof(struct thread, regs) */
-ret_from_preemption:
 	/* restore from preemption */
 	movl PT_EBX(%eax), %ebx
 	movl PT_ECX(%eax), %ecx
@@ -185,27 +135,3 @@ ret_from_preemption:
 	movl PT_EAX(%eax), %eax				
 	
 	iret	
-
-
-/*
- * Register Layout (from cos_component.h):
- * eax:	syscall offset, see kern_entry.S: asym_exec_dom_entry
- * edx:	current declared spd id
- * ebx:	first arg
- * esi:	second arg
- * edi:	third arg
- * ecx:	ret ip
- * ebp:	ret esp
- */	
-.globl composite_make_syscall
-.align 16
-composite_make_syscall:
-	SAVE_REGS_GENERAL
-	
-	pushl %esp
-	shr $COS_SYSCALL_OFFSET, %eax /* impossible for value to be greater than the max allowed here because of filtering in kern_entry.S */
-	call *cos_syscall_tbl(,%eax,4)
-	addl $4, %esp
-
-	RESTORE_REGS_GENERAL
-	RET_TO_USER

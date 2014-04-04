@@ -514,7 +514,7 @@ static int interrupt_wait(void)
 	unsigned long long t;
 	assert(wildcard_acap_id > 0);
 //	printc("sleeping...\n");
-	if (-1 == (ret = cos_ainv_wait(wildcard_acap_id))) BUG();
+	if (-1 == (ret = cos_areceive(wildcard_acap_id))) BUG();
 	rdtscll(t);
 //	printc("up\n");
 

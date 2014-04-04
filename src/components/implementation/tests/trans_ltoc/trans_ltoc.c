@@ -116,7 +116,7 @@ void read_ltoc(void)
 		struct channel_info *info;
 		unsigned long long *t, local_t;
 		/* printc("going to wait for input...\n"); */
-		if ((ret = cos_ainv_wait(srv_acap)) < 0) BUG();
+		if ((ret = cos_areceive(srv_acap)) < 0) BUG();
 		rdtscll(local_t);
 
 		ret = cringbuf_consume(&channels[channel].rb, buf, 512);

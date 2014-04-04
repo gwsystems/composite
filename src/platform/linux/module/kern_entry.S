@@ -96,7 +96,6 @@ VM_MASK		= 0x00020000
 .text
 ALIGN
 ENTRY(sysenter_interposition_entry)
-	movl TSS_sysenter_sp0(%esp),%esp
 	/*
 	 * Composite invocations are indicated by the contents of %eax:
 	 * +-------------+----+--...
@@ -110,22 +109,21 @@ ENTRY(sysenter_interposition_entry)
 	 * sc:	 Make a composite OS system-call
 	 */
 
-	cmpl $(COS_ASYNC_CAP_FLAG), %eax /* Non-static cap? */
-	ja composite_async_call /* Async invocation */
+	cmpl $(1<<COS_SYSCALL_OFFSET), %eax
+	jb linux_syscall
 
-	cmpl $((1<<COS_CAPABILITY_OFFSET)-1), %eax /* 2^20-1 shift for capability invocations */
-	ja composite_call_ipc /* component invocation */
-	je composite_ret_ipc  /* component return */
+	movl TSS_sysenter_sp0(%esp),%esp
+	jmp composite_sysenter_entry
 
-	cmpl $((1<<COS_SYSCALL_OFFSET)-1), %eax /* composite syscall */
-	ja cos_syscall_thunk
+linux_syscall:
+	movl TSS_sysenter_sp0(%esp),%esp
 
 	SAVE_ALL
 	pushl %eax
 	call hijack_syscall_monitor
 	addl $4, %esp
 	RESTORE_REGS
-normal_syscall:
+
 	/* We reserve the position in the stack to get the TSS. */
 	/* see the comments of get_TSS in hijack.c */	
 	pushl $0
@@ -137,14 +135,6 @@ normal_syscall:
 	jmp  *(cos_default_sysenter_addr) /* sti will happen in syscall path */
 
 	/* never get to here on syscall...*/
-
-/* cos system calls might call linux functions, so we need fs */
-cos_syscall_thunk:
-	pushl %edx
-	movl $(__KERNEL_PERCPU), %edx
-	movl %edx, %fs
-	popl %edx
-	jmp composite_make_syscall
 
 /*
  * Trap will cause this handler to trigger.  The stack

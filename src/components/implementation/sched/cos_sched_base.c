@@ -649,7 +649,7 @@ static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, 
 
 	if (unlikely(acap <= 0)) BUG();
 	/* printc("core %d: sending ipi to core %ld, acap %d\n", cos_cpuid(), core_id, acap); */
-	cos_ainv_send(acap);
+	cos_asend(acap);
 
 	if (wait) {
 		rdtscll(s); 		
@@ -1836,7 +1836,7 @@ static void IPI_handler(void *d)
 	while (1) {
 		cos_sched_lock_take();
 		/* Going to switch away */
-		/* Do not use ainv_wait syscall here. We are in the scheduler. */
+		/* Do not use areceive syscall here. We are in the scheduler. */
 		sched_switch_thread(COS_SCHED_ACAP_WAIT, EVT_CMPLETE_LOOP);
 
 		/* Received an IPI! */
