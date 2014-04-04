@@ -4346,7 +4346,7 @@ composite_sysenter_dispatcher(struct pt_regs *regs) {
 	int ax, preempted = 0;
 
 #ifdef ENABLE_KERNEL_PRINT
-	fs_setup(__KERNEL_PERCPU);
+	fs_reg_setup(__KERNEL_PERCPU);
 #endif
 	ax = user_regs_get_cap(regs);
 
