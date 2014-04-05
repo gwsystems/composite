@@ -145,10 +145,14 @@ hw_int_init(void)
 
 /* reset hardware entry points  */
 void
-hw_int_reset(void)
+hw_int_reset(int tss)
 {
 	memcpy((void*)default_idt, saved_idt, default_idt_desc.idt_limit);
 	wrmsr(MSR_IA32_SYSENTER_EIP, (int)cos_default_sysenter_addr, 0);
+	/* Linux has esp points to TSS struct. */
+	wrmsr(MSR_IA32_SYSENTER_ESP, tss, 0);
+
+	printk("CPU %d: hw entries reset done.\n", get_cpu());
 }
 
 void

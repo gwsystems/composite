@@ -584,6 +584,21 @@ void save_per_core_cos_thd(void)
         return;
 }
 
+static inline void hw_int_override_all(void)
+{
+	hw_int_override_sysenter(sysenter_interposition_entry);
+	hw_int_override_pagefault(page_fault_interposition);
+	hw_int_override_idt(0, div_fault_interposition, 0, 0);
+	hw_int_override_idt(COS_REG_SAVE_VECTOR, reg_save_interposition, 0, 3);
+#ifdef FPU_ENABLED
+        hw_int_override_idt(7, fpu_not_available_interposition, 0, 0);
+#endif
+	hw_int_cos_ipi(ipi_handler);
+	hw_int_override_timer(timer_interposition);
+
+	return;
+}
+
 static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
@@ -758,6 +773,8 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			sched = sched->parent_sched;
 		}
 
+		hw_int_override_all();
+
 		/* FIXME: need to return opaque handle, rather than
 		 * just set the current thread to be the new one. */
 
@@ -852,6 +869,13 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		return 0;
 	case AED_ENABLE_SYSCALLS:
 		syscalls_enabled = 1;
+		return 0;
+	case AED_RESTORE_HW_ENTRY:
+		/* Per-cpu TSS should be done already. Do it anyway to
+		 * be safe. */
+		load_per_core_TSS();
+		hw_int_reset((int)get_cpu_var(x86_tss));
+
 		return 0;
 	default: 
 		ret = -EINVAL;
@@ -1158,8 +1182,8 @@ linux_handler:
 }
 
 /*
- * This function will be called upon a hardware page fault.  Return 0
- * if you want the linux page fault to be run, !0 otherwise.
+ * This function will be called upon a hardware div fault.  Return 0
+ * if you want the linux fault handler to be run, !0 otherwise.
  */
 __attribute__((regparm(3))) 
 int main_div_fault_interposition(struct pt_regs *rs, unsigned int error_code)
@@ -1944,34 +1968,11 @@ static int make_proc_aed(void)
 	return 0;
 }
 
-static inline void hw_int_override_all(void)
-{
-	hw_int_override_sysenter(sysenter_interposition_entry);
-	hw_int_override_pagefault(page_fault_interposition);
-	hw_int_override_idt(0, div_fault_interposition, 0, 0);
-	hw_int_override_idt(COS_REG_SAVE_VECTOR, reg_save_interposition, 0, 3);
-#ifdef FPU_ENABLED
-        hw_int_override_idt(7, fpu_not_available_interposition, 0, 0);
-#endif
-	hw_int_cos_ipi(ipi_handler);
-	hw_int_override_timer(timer_interposition);
-
-	return;
-}
-
 static void hw_init_CPU(void)
 {
 	//update_vmalloc_regions();
 	hw_int_init();
 
-	hw_int_override_all();
-
-	return;
-}
-
-static void hw_init_other_cores(void *param)
-{
-	hw_int_override_all();
 	return;
 }
 
@@ -1986,9 +1987,6 @@ static int asym_exec_dom_init(void)
 
 	hw_init_CPU();
 
-	/* Init all the other cores. */
-	smp_call_function(hw_init_other_cores, NULL, 1);
-
 	/* Consistency check. We define the THD_REGS = 8 in ipc.S. */
 	BUG_ON(offsetof(struct thread, regs) != 8);
 
@@ -1998,17 +1996,8 @@ static int asym_exec_dom_init(void)
 	return 0;
 }
 
-static void hw_reset_other_cores(void *param)
-{
-	hw_int_reset();
-}
-
 static void asym_exec_dom_exit(void)
 {
-	hw_int_reset();
-
-	smp_call_function(hw_reset_other_cores, NULL, 1);
-
 	remove_proc_entry("aed", NULL);
 
 	return;

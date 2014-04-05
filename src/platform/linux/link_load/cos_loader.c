@@ -2811,6 +2811,7 @@ static void setup_kernel(struct service_symbs *services)
 		 * Access comp0 to make sure it is present in the page
 		 * tables
 		 */
+		sleep(1);
 		var = *((int *)SERVICE_START);
 		ret = cos_create_thd(cntl_fd, &thd);
 		assert(ret == 0);
@@ -2833,6 +2834,7 @@ static void setup_kernel(struct service_symbs *services)
 
 	aed_enable_syscalls(cntl_fd);
 
+	cos_restore_hw_entry(cntl_fd);
 	if (pid > 0) {
 		int child_status;
 		while (wait(&child_status) > 0) ;
@@ -2965,9 +2967,7 @@ void setup_thread(void)
 	sigaction(SIGSEGV, &sa, NULL);
 #endif
 
-//#if (NUM_CPU > 1)
 	set_smp_affinity();
-//#endif
 
 #ifdef HIGHEST_PRIO
 	set_prio();

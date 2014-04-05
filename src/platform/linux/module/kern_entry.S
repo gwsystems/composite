@@ -108,7 +108,6 @@ ENTRY(sysenter_interposition_entry)
 	 * cap_inv:	The capability to invoke
 	 * sc:	 Make a composite OS system-call
 	 */
-
 	cmpl $(1<<COS_SYSCALL_OFFSET), %eax
 	jb linux_syscall
 
