@@ -49,6 +49,8 @@
 #include "../../../kernel/include/shared/consts.h"
 #include "../../../kernel/include/shared/cos_config.h"
 #include "../../../kernel/include/fpu.h"
+#include "../../../kernel/include/cpuid.h"
+#include "../../../kernel/include/asm_ipc_defs.h"
 
 #include "./hw_ints.h"
 #include "cos_irq_vectors.h"
@@ -163,7 +165,7 @@ void get_TSS(struct pt_regs *rs)
 		rs->orig_ax = get_cpu_var(x86_tss);
 		/* Make sure the thread_info structure is at the
 		   correct location. */
-		assert(get_linux_thread_info() == (unsigned long *)current_thread_info());
+		assert(get_linux_thread_info() == (void *)current_thread_info());
 		if (offsetof(struct thread_info, cpu) != 16) {
 			printk("The linux definition of the thread info is different from the offsets that Composite assumes");
 			assert(0);
@@ -586,7 +588,8 @@ void save_per_core_cos_thd(void)
 
 static inline void hw_int_override_all(void)
 {
-	hw_int_override_sysenter(sysenter_interposition_entry);
+	load_per_core_TSS();
+	hw_int_override_sysenter(sysenter_interposition_entry, (void *)get_cpu_var(x86_tss));
 	hw_int_override_pagefault(page_fault_interposition);
 	hw_int_override_idt(0, div_fault_interposition, 0, 0);
 	hw_int_override_idt(COS_REG_SAVE_VECTOR, reg_save_interposition, 0, 3);
@@ -597,6 +600,12 @@ static inline void hw_int_override_all(void)
 	hw_int_override_timer(timer_interposition);
 
 	return;
+}
+
+static void hw_reset()
+{
+	load_per_core_TSS();
+	hw_int_reset(get_cpu_var(x86_tss));
 }
 
 static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
@@ -871,12 +880,18 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		syscalls_enabled = 1;
 		return 0;
 	case AED_RESTORE_HW_ENTRY:
-		/* Per-cpu TSS should be done already. Do it anyway to
-		 * be safe. */
-		load_per_core_TSS();
-		hw_int_reset((int)get_cpu_var(x86_tss));
+	{
+		struct cos_cpu_local_info *cos_info;
+
+		cos_info = cos_cpu_local_info();
+		if (cos_info->overflow_check != 0xDEADBEEF) {
+			/* Should never happen. */
+			printk("Warning: kernel stack overflow detected (detector %x)!\n", (unsigned int)cos_info->overflow_check);
+		}
+		hw_reset();
 
 		return 0;
+	}
 	default: 
 		ret = -EINVAL;
 	}
@@ -1720,6 +1735,15 @@ static int aed_open(struct inode *inode, struct file *file)
 	/* We assume this in one page. */
 	assert(sizeof(struct cos_component_information) <= PAGE_SIZE);
 
+
+	/* Sanity check. These defines should match info from Linux. */
+	if ((THREAD_SIZE != THREAD_SIZE_LINUX) || 
+	    (CPUID_OFFSET_IN_THREAD_INFO != offsetof(struct thread_info, cpu)) ||
+	    (LINUX_THREAD_INFO_RESERVE < sizeof(struct thread_info))) {
+		printk("cos: Please check THREAD_SIZE in Linux or thread_info struct.\n");
+		return -EFAULT;
+	}
+
 	save_per_core_cos_thd();
 
 	syscalls_enabled = 1;
@@ -1813,7 +1837,6 @@ static int aed_open(struct inode *inode, struct file *file)
 }
 
 //extern void event_print(void);
-
 static int aed_release(struct inode *inode, struct file *file)
 {
 	pgd_t *pgd;
@@ -1942,6 +1965,10 @@ static int aed_release(struct inode *inode, struct file *file)
 		}
 		event_print();
 	}
+
+	/* Redundant, but needed when exit with Ctrl-C */
+	hw_reset();
+	smp_call_function(hw_reset, NULL, 1);
 
 	return 0;
 }

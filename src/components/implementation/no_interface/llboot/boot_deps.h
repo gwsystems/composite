@@ -284,7 +284,6 @@ boot_deps_run(void)
 	assert(cos_cpuid() == INIT_CORE);
 	assert(PERCPU_GET(llbooter)->init_thd);
 	return; /* We return to comp0 and release other cores first. */
-	//cos_switch_thread(per_core_llbooter[cos_cpuid()]->init_thd, 0);
 }
 
 static void
@@ -324,9 +323,11 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 #include <sched_hier.h>
 
 void cos_init(void);
-int  sched_init(void)   
+int sched_init(void)   
 {
 	if (cos_cpuid() == INIT_CORE) {
+		/* We can't do shared memory in LLBooter. It uses
+		 * Linux allocated memory. Thus the following. */
 		/* The init core will call this function twice: first do
 		 * the cos_init, then return to cos_loader and boot
 		 * other cores, last call here again to run the init

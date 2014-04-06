@@ -9,7 +9,10 @@
 
 #include <asm/desc.h>
 #include <linux/kernel.h>
+#include <linux/sched.h>
 #include "../../../kernel/include/shared/cos_config.h"
+#include "../../../kernel/include/asm_ipc_defs.h"
+#include "../../../kernel/include/cpuid.h"
 
 /*
  * The Linux provided descriptor structure is crap, probably due to
@@ -145,22 +148,37 @@ hw_int_init(void)
 
 /* reset hardware entry points  */
 void
-hw_int_reset(int tss)
+hw_int_reset(void *tss)
 {
 	memcpy((void*)default_idt, saved_idt, default_idt_desc.idt_limit);
 	wrmsr(MSR_IA32_SYSENTER_EIP, (int)cos_default_sysenter_addr, 0);
 	/* Linux has esp points to TSS struct. */
-	wrmsr(MSR_IA32_SYSENTER_ESP, tss, 0);
-
-	printk("CPU %d: hw entries reset done.\n", get_cpu());
+	wrmsr(MSR_IA32_SYSENTER_ESP, (int)tss, 0);
 }
 
 void
-hw_int_override_sysenter(void *handler)
+hw_int_override_sysenter(void *handler, void *tss_end)
 {
+	struct tss_struct *tss;
+	struct cos_cpu_local_info *cos_info;
+	unsigned long *sp0;
+
+	cos_info = cos_cpu_local_info();
+	/* Store the tss_end in cos info struct. */
+	cos_info->orig_sysenter_esp = tss_end;
+	/* value to detect stack overflow */
+	cos_info->overflow_check = 0xDEADBEEF;
+
+	tss = tss_end - sizeof(struct tss_struct);
+	sp0 = (unsigned long *)tss->x86_tss.sp0;
+
 	wrmsr(MSR_IA32_SYSENTER_EIP, (int)handler, 0);
-	printk("CPU %d: Overriding sysenter handler (%p) with %p\n",
-	       get_cpu(), cos_default_sysenter_addr, handler);
+	wrmsr(MSR_IA32_SYSENTER_ESP, (int)sp0, 0);
+	/* Now we have sysenter_esp points to actual sp0. No need to
+	 * touch TSS page on Composite path! */
+
+	printk("CPU %d: Overriding sysenter handler (%p) with %p, and sysenter_esp %p with sp0 %p\n",
+	       get_cpu(), cos_default_sysenter_addr, handler, tss_end, sp0);
 }
 
 void

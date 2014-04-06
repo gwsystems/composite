@@ -2792,6 +2792,7 @@ static void setup_kernel(struct service_symbs *services)
 	 * cores. */
 	assert(fn);
 	fn();
+
 	pid = getpid();
 	for (i = 1; i < NUM_CPU_COS; i++) {
 		printf("Parent(pid %d): forking for core %d.\n", getpid(), i);
@@ -2802,22 +2803,21 @@ static void setup_kernel(struct service_symbs *services)
 		printf("Created pid %d for core %d.\n", pid, i);
 	}
 
-	if (pid == 0) { /* child process: set own affinity */ 
+	if (pid) {
+                /* Parent process should give other processes a chance
+		 * to run. They need to migrate to their cores. */
+		sleep(1);
+	} else { /* child process: set own affinity first */ 
 		set_curr_affinity(cpuid);
 #ifdef HIGHEST_PRIO
 		set_prio();
 #endif
-		/* 
-		 * Access comp0 to make sure it is present in the page
-		 * tables
-		 */
+		/* Access comp0 to make sure it presents in page
+		 * table */
 		sleep(1);
 		var = *((int *)SERVICE_START);
 		ret = cos_create_thd(cntl_fd, &thd);
 		assert(ret == 0);
-	} else { /* The parent should give other processes a chance to
-		  * run. They need to migrate to their cores. */
-		sleep(1);
 	}
 
 	printl(PRINT_HIGH, "\n Pid %d: OK, good to go, calling component 0's main\n\n", getpid());

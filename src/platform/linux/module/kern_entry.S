@@ -111,10 +111,16 @@ ENTRY(sysenter_interposition_entry)
 	cmpl $(1<<COS_SYSCALL_OFFSET), %eax
 	jb linux_syscall
 
-	movl TSS_sysenter_sp0(%esp),%esp
 	jmp composite_sysenter_entry
 
 linux_syscall:
+	/* Restore TSS, then get correct sp0. */
+	/* First get TSS from cos_cpu_local_info */
+	andl $(LINUX_INFO_PAGE_MASK), %esp
+	/* Space reserved for Linux thread info struct. */
+	addl $(LINUX_THREAD_INFO_RESERVE), %esp
+	movl (%esp), %esp
+	/* getting sp0 from TSS */
 	movl TSS_sysenter_sp0(%esp),%esp
 
 	SAVE_ALL
