@@ -128,38 +128,6 @@ VM_MASK		= 0x00020000
 //cos_temp_esp_storage:	
 //	.long 0
 
-.text
-ALIGN
-ENTRY(sysenter_interposition_entry)
-	/*
-	 * Composite invocations are indicated by the contents of %eax:
-	 * +-------------+----+--...
-	 * |   cap_inv   | sc | normal OS (linux) syscalls
-	 * +-------------+----+--...
-	 * 32            |    COS_SYSCALL_OFFSET
-	 *               COS_CAPABILITY_OFFSET
- 	 *	
-	 * Where each character represents a bit.
-	 * cap_inv:	The capability to invoke
-	 * sc:	 Make a composite OS system-call
-	 */
-	cmpl $(1<<COS_SYSCALL_OFFSET), %eax
-	jb linux_syscall
-
-	/* Composite entry */
-	/* Use pt_regs as input */
-	SAVE_REGS_GENERAL
-
-	pushl %esp /* pt_reg */
-	call composite_sysenter_dispatcher
-	addl $4, %esp
-
-	testl %eax, %eax
-	jne ret_from_preemption
-
-	RESTORE_REGS_GENERAL
-	RET_TO_USER
-
 /* Loads current thread structure to eax register. ECD and EDX can be
  * clobbered, as per the calling convention. */
 #define LOAD_CURR_THD_EAX \
@@ -171,7 +139,8 @@ ENTRY(sysenter_interposition_entry)
 
 #define THD_REGS 8 /* offsetof(struct thread, regs) */
 
-.align 4
+.align 16
+.globl ret_from_preemption
 ret_from_preemption:
 	LOAD_CURR_THD_EAX
 
@@ -194,6 +163,8 @@ ret_from_preemption:
 
 	iret
 
+.align 16
+.globl linux_syscall
 linux_syscall:
 	/* Restore TSS, then get correct sp0. */
 	/* First get TSS from cos_cpu_local_info */

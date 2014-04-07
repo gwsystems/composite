@@ -1735,7 +1735,6 @@ static int aed_open(struct inode *inode, struct file *file)
 	/* We assume this in one page. */
 	assert(sizeof(struct cos_component_information) <= PAGE_SIZE);
 
-
 	/* Sanity check. These defines should match info from Linux. */
 	if ((THREAD_SIZE != THREAD_SIZE_LINUX) || 
 	    (CPUID_OFFSET_IN_THREAD_INFO != offsetof(struct thread_info, cpu)) ||

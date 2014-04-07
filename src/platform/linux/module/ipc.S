@@ -8,13 +8,8 @@
  * Modified by: Qi Wang, interwq@gwu.edu, 2014
  */
 
-/* null ptr deref */
-#define ERROR_OUT \
-	movl $0, %eax ; \
-	movl (%eax), %eax
+/* To optimize IPC performance, we put sysenter entry, dispatcher and
+ * IPC path in a single page. Now we have everything declared in
+ * inv.c as inline asm. */
 
 .text
-
-kernel_ipc_syscall:
-	ERROR_OUT
-

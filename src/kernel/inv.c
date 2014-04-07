@@ -45,6 +45,10 @@ static inline struct shared_user_data *get_shared_data(void)
  */
 PERCPU_ATTR(static, unsigned long, cycle_cnt);
 
+//void sysenter_interposition_entry(void);
+//COS_SYSCALL int
+//composite_sysenter_dispatcher(struct pt_regs *regs);
+
 void 
 ipc_init(void)
 {
@@ -53,6 +57,9 @@ ipc_init(void)
 	memset(shared_region_page, 0, PAGE_SIZE);
 	rdtscl(tsc);
 	*PERCPU_GET(cycle_cnt) = tsc;
+
+	/* printk("Composite sysenter_interposition@%p, sysenter dispatcher@%p\n",  */
+	/*        &sysenter_interposition_entry, &composite_sysenter_dispatcher); */
 
 	return;
 }
@@ -4337,14 +4344,14 @@ fs_reg_setup(unsigned long seg) {
 		      : "memory");
 }
 
+static inline COS_SYSCALL int
+composite_sysenter_dispatcher(struct pt_regs *regs)
+{
+	/* Composite entry takes pt_regs as input */
+	int ax, preempted = 0;
 /* We don't need to setup fs for invocation and return path. Only
  * enable this when doing printk (which requires fs) for debugging. */
 //#define ENABLE_KERNEL_PRINT
-
-COS_SYSCALL int
-composite_sysenter_dispatcher(struct pt_regs *regs) {
-	int ax, preempted = 0;
-
 #ifdef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
 #endif
@@ -4385,3 +4392,7 @@ composite_sysenter_dispatcher(struct pt_regs *regs) {
 
 	return preempted;
 }
+
+/* inline asm from ipc.h */
+COS_SYSENTER_ENTRY;
+/* cos sysenter entry */
