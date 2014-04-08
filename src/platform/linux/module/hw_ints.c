@@ -161,7 +161,7 @@ hw_int_override_sysenter(void *handler, void *tss_end)
 {
 	struct tss_struct *tss;
 	struct cos_cpu_local_info *cos_info;
-	unsigned long *sp0;
+	void *sp0;
 
 	cos_info = cos_cpu_local_info();
 	/* Store the tss_end in cos info struct. */
@@ -170,7 +170,8 @@ hw_int_override_sysenter(void *handler, void *tss_end)
 	cos_info->overflow_check = 0xDEADBEEF;
 
 	tss = tss_end - sizeof(struct tss_struct);
-	sp0 = (unsigned long *)tss->x86_tss.sp0;
+	/* We only uses 1 page stack. No need to touch 2 pages. */
+	sp0 = (void *)tss->x86_tss.sp0 - PAGE_SIZE;
 
 	wrmsr(MSR_IA32_SYSENTER_EIP, (int)handler, 0);
 	wrmsr(MSR_IA32_SYSENTER_ESP, (int)sp0, 0);
