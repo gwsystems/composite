@@ -46,38 +46,29 @@ void ipc_init(void);
 	"pushl $0\n\t" \
 	"pushl $0\n\t" \
 	"sti\n\t"      \
-	"sysexit"
+	"sysexit\n\t"
 
 /* Since gcc doesn't suppport __attribute__((naked)) on x86, we have
  * to write the entire function in top-level asm to avoid generating
  * prologue (which corrupts ebp). */
 
-/*
- * Composite invocations are indicated by the contents of %eax:
- * +-------------+----+--...
- * |   cap_inv   | sc | normal OS (linux) syscalls
- * +-------------+----+--...
- * 32            |    COS_SYSCALL_OFFSET
- *               COS_CAPABILITY_OFFSET
- *	
- * Where each character represents a bit.
- * cap_inv:	The capability to invoke
- * sc:	 Make a composite OS system-call
- */
 #define COS_SYSENTER_ENTRY					\
 	asm(".globl sysenter_interposition_entry;\n\t"		\
+	    ".section ipc_entry, \"ax\"\n\t"			\
 	    ".align 4096;\n\t"					\
 	    "sysenter_interposition_entry:\n\t"			\
 	    "cmpl $(1<<"STR(COS_SYSCALL_OFFSET)"), %eax\n\t"	\
 	    "jb linux_syscall\n\t"				\
 	    SAVE_REGS_ASM					\
 	    "pushl %esp\n\t"					\
-	    "call composite_sysenter_dispatcher\n\t"		\
+	    "call composite_sysenter_handler\n\t"		\
 	    "addl $4, %esp\n\t"					\
 	    "testl %eax, %eax\n\t"				\
 	    "jne ret_from_preemption\n\t"			\
 	    RESTORE_REGS_ASM					\
-	    RET_TO_USER)
+	    RET_TO_USER						\
+            ".text")
+)
 
 /* Composite sysenter entry */
 

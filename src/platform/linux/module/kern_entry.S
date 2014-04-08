@@ -114,20 +114,6 @@ VM_MASK		= 0x00020000
 	sti; 	  \
 	sysexit
 
-/* 
- * This is all information that is needed within this file, and
- * external to this file.  It is here, so that it is easier to
- * concurrently use hijack modules and composite modules.
- */
-.data
-.align 16
-//.globl cos_sysenter_addr
-//cos_sysenter_addr:	
-//	.long 0
-//.globl cos_temp_esp_storage
-//cos_temp_esp_storage:	
-//	.long 0
-
 /* Loads current thread structure to eax register. ECD and EDX can be
  * clobbered, as per the calling convention. */
 #define LOAD_CURR_THD_EAX \
@@ -138,6 +124,38 @@ VM_MASK		= 0x00020000
 	popl %ecx
 
 #define THD_REGS 8 /* offsetof(struct thread, regs) */
+
+/*
+ * Composite invocations are indicated by the contents of %eax:
+ * +-------------+----+--...
+ * |   cap_inv   | sc | normal OS (linux) syscalls
+ * +-------------+----+--...
+ * 32            |    COS_SYSCALL_OFFSET
+ *               COS_CAPABILITY_OFFSET
+ *	
+ * Where each character represents a bit.
+ * cap_inv:	The capability to invoke
+ * sc:	 Make a composite OS system-call
+ */
+.globl sysenter_interposition_entry
+.section ipc_entry, "ax"
+.align 4096
+sysenter_interposition_entry:
+	cmpl $(1<<COS_SYSCALL_OFFSET), %eax
+	jb linux_syscall
+	/* Composite entry */
+	/* Use pt_regs as input */
+	SAVE_REGS_GENERAL
+
+	pushl %esp /* pt_reg */
+	call composite_sysenter_handler
+	addl $4, %esp
+
+	testl %eax, %eax
+	jne ret_from_preemption
+
+	RESTORE_REGS_GENERAL
+	RET_TO_USER
 
 .align 16
 .globl ret_from_preemption
@@ -190,7 +208,7 @@ linux_syscall:
 	RESTORE_REGS
 	popl %esp
 	jmp  *(cos_default_sysenter_addr) /* sti will happen in syscall path */
-
+.text
 	/* never get to here on syscall...*/
 
 /*

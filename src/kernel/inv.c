@@ -43,11 +43,12 @@ static inline struct shared_user_data *get_shared_data(void)
  * the last measurement and is typically used to measure how long
  * upcall threads execute.
  */
+
 PERCPU_ATTR(static, unsigned long, cycle_cnt);
 
-//void sysenter_interposition_entry(void);
-//COS_SYSCALL int
-//composite_sysenter_dispatcher(struct pt_regs *regs);
+void sysenter_interposition_entry(void);
+COS_SYSCALL int
+composite_sysenter_handler(struct pt_regs *regs);
 
 void 
 ipc_init(void)
@@ -58,8 +59,9 @@ ipc_init(void)
 	rdtscl(tsc);
 	*PERCPU_GET(cycle_cnt) = tsc;
 
-	/* printk("Composite sysenter_interposition@%p, sysenter dispatcher@%p\n",  */
-	/*        &sysenter_interposition_entry, &composite_sysenter_dispatcher); */
+	if (((unsigned long)&sysenter_interposition_entry >> PAGE_ORDER) != ((unsigned long)&composite_sysenter_handler >> PAGE_ORDER))
+		printk("Warning: Composite sysenter_interposition (%p) and sysenter handler (%p) are NOT in the same page!\n",
+		       &sysenter_interposition_entry, &composite_sysenter_handler);
 
 	return;
 }
@@ -4344,8 +4346,8 @@ fs_reg_setup(unsigned long seg) {
 		      : "memory");
 }
 
-static inline COS_SYSCALL int
-composite_sysenter_dispatcher(struct pt_regs *regs)
+__attribute__((section("ipc_entry"))) COS_SYSCALL int
+composite_sysenter_handler(struct pt_regs *regs)
 {
 	/* Composite entry takes pt_regs as input */
 	int ax, preempted = 0;
@@ -4358,10 +4360,10 @@ composite_sysenter_dispatcher(struct pt_regs *regs)
 	ax = user_regs_get_cap(regs);
 
 	/* IPC and return paths are performance critical. */
-	if (ax > COS_INV_OFFSET) {
+	if (likely(ax > COS_INV_OFFSET)) {
 		/* IPC */
 		ipc_walk_static_cap(regs);
-	} else if (ax == COS_INV_OFFSET) {
+	} else if (likely(ax == COS_INV_OFFSET)) {
 		/* IPC return */
 		pop(regs);
 	} else {
@@ -4393,6 +4395,3 @@ composite_sysenter_dispatcher(struct pt_regs *regs)
 	return preempted;
 }
 
-/* inline asm from ipc.h */
-COS_SYSENTER_ENTRY;
-/* cos sysenter entry */
