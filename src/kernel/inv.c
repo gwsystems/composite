@@ -4342,11 +4342,10 @@ void *cos_syscall_tbl[COS_MAX_NUM_SYSCALL] = {
 static inline void
 fs_reg_setup(unsigned long seg) {
 	asm volatile ("movl %%ebx, %%fs\n\t"
-		      : : "b" (seg)
-		      : "memory");
+		      : : "b" (seg));
 }
 
-__attribute__((section("ipc_entry"))) COS_SYSCALL int
+__attribute__((section("__ipc_entry"))) COS_SYSCALL int
 composite_sysenter_handler(struct pt_regs *regs)
 {
 	/* Composite entry takes pt_regs as input */

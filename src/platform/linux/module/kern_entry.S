@@ -125,6 +125,7 @@ VM_MASK		= 0x00020000
 
 #define THD_REGS 8 /* offsetof(struct thread, regs) */
 
+.section __ipc_entry, "ax"
 /*
  * Composite invocations are indicated by the contents of %eax:
  * +-------------+----+--...
@@ -138,7 +139,6 @@ VM_MASK		= 0x00020000
  * sc:	 Make a composite OS system-call
  */
 .globl sysenter_interposition_entry
-.section ipc_entry, "ax"
 .align 4096
 sysenter_interposition_entry:
 	cmpl $(1<<COS_SYSCALL_OFFSET), %eax
@@ -158,7 +158,6 @@ sysenter_interposition_entry:
 	RET_TO_USER
 
 .align 16
-.globl ret_from_preemption
 ret_from_preemption:
 	LOAD_CURR_THD_EAX
 
@@ -182,7 +181,6 @@ ret_from_preemption:
 	iret
 
 .align 16
-.globl linux_syscall
 linux_syscall:
 	/* Restore TSS, then get correct sp0. */
 	/* First get TSS from cos_cpu_local_info */
@@ -208,8 +206,9 @@ linux_syscall:
 	RESTORE_REGS
 	popl %esp
 	jmp  *(cos_default_sysenter_addr) /* sti will happen in syscall path */
-.text
 	/* never get to here on syscall...*/
+
+.text	/* __ipc_entry section done. */
 
 /*
  * Trap will cause this handler to trigger.  The stack

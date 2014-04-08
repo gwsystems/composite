@@ -602,7 +602,7 @@ static inline void hw_int_override_all(void)
 	return;
 }
 
-static void hw_reset()
+static void hw_reset(void *data)
 {
 	load_per_core_TSS();
 	hw_int_reset(get_cpu_var(x86_tss));
@@ -888,7 +888,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			/* Should never happen. */
 			printk("Warning: kernel stack overflow detected (detector %x)!\n", (unsigned int)cos_info->overflow_check);
 		}
-		hw_reset();
+		hw_reset(NULL);
 
 		return 0;
 	}
@@ -1966,7 +1966,7 @@ static int aed_release(struct inode *inode, struct file *file)
 	}
 
 	/* Redundant, but needed when exit with Ctrl-C */
-	hw_reset();
+	hw_reset(NULL);
 	smp_call_function(hw_reset, NULL, 1);
 
 	return 0;
