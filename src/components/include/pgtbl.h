@@ -27,14 +27,15 @@ enum {
 	PGTBL_SUPER        = 1<<6, 	/* super-page (4MB on x86-32) */
 	PGTBL_GLOBAL       = 1<<7,
 	PGTBL_COSFRAME     = 1<<8,
-	PGTBL_INTERN_DEF   = PGTBL_PRESENT  | PGTBL_WRITABLE | PGTBL_USER | 
-	                     PGTBL_ACCESSED | PGTBL_MODIFIED,
+	PGTBL_INTERN_DEF   = PGTBL_PRESENT|PGTBL_WRITABLE|PGTBL_USER| 
+	                     PGTBL_ACCESSED|PGTBL_MODIFIED,
 };
 
 #define PGTBL_PAGEIDX_SHIFT (12)
 #define PGTBL_FLAG_MASK     ((1<<PGTBL_PAGEIDX_SHIFT)-1)
 #define PGTBL_FRAME_MASK    (~PGTBL_FLAG_MASK)
 #define PGTBL_DEPTH         2
+#define PGTBL_ORD           10
 
 /* TODO: replace with proper translations */
 static inline void *chal_pa2va(void *p) { return (char*)~(unsigned long)p; }
@@ -79,7 +80,7 @@ static void __pgtbl_set(struct ert_intern *a, void *v, void *accum, int isleaf)
 static inline void *__pgtbl_getleaf(struct ert_intern *a, void *accum)
 { return __pgtbl_get(a, accum, 1); }
 
-ERT_CREATE(__pgtbl, pgtbl, PGTBL_DEPTH, 10, 4, 10, 4, NULL,		\
+ERT_CREATE(__pgtbl, pgtbl, PGTBL_DEPTH, PGTBL_ORD, 4, PGTBL_ORD, 4, NULL, \
 	   __pgtbl_init, __pgtbl_get, __pgtbl_isnull, __pgtbl_set,	\
 	   __pgtbl_a, __pgtbl_setleaf, __pgtbl_getleaf, ert_defresolve);
 
@@ -88,6 +89,15 @@ typedef struct pgtbl * pgtbl_t;
 
 static pgtbl_t pgtbl_alloc(void *page) 
 { return __pgtbl_alloc(&page); }
+
+static void
+pgtbl_init_pte(void *pte)
+{
+	int i;
+	unsigned long *vals = pte;
+
+	for (i = 0 ; i < 1<<PGTBL_ORD ; i++) vals[i] = 0;
+}
 
 static int 
 pgtbl_intern_expand(pgtbl_t pt, void *addr, void *pte, u32_t flags)

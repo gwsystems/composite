@@ -295,6 +295,8 @@ pgt_test(void)
 	
 	pt = pgtbl_alloc(p1);
 	assert(pt);
+	pgtbl_init_pte(p2);
+	pgtbl_intern_expand(pt, (void*)(1<<24), p2, PGTBL_INTERN_DEF);
 }
 
 int 
