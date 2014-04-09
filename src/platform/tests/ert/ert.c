@@ -11,6 +11,7 @@ typedef unsigned int       u32_t;
 #include <kvtrie.h>
 #define CAPTBL_ALLOCFN ct_alloc
 #include <captbl.h>
+#include <pgtbl.h>
 
 #define NTESTS (4096)
 
@@ -284,6 +285,18 @@ ct_test(void)
 	assert(c);
 }
 
+void
+pgt_test(void)
+{
+	char *p1 = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	char *p2 = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	char *p3 = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	pgtbl_t pt;
+	
+	pt = pgtbl_alloc(p1);
+	assert(pt);
+}
+
 int 
 main(void)
 {
@@ -309,6 +322,10 @@ main(void)
 
 	printf("captbl tests:\n");
 	ct_test();
+	printf("\tSUCCESS\n");
+
+	printf("pgtbl tests:\n");
+	pgt_test();
 	printf("\tSUCCESS\n");
 	
 	return 0;

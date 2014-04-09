@@ -171,7 +171,7 @@ __captbl_getleaf(struct ert_intern *a, void *accum)
 }
 
 static inline void __captbl_setleaf(struct ert_intern *a, void *v)
-{ (void)a; (void)data; assert(0); }
+{ (void)a; (void)v; assert(0); }
 
 #define CT_DEFINITVAL NULL
 ERT_CREATE(__captbl, captbl, CAPTBL_DEPTH,				\
