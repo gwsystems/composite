@@ -21,15 +21,20 @@
 #define CACHELINE_ORDER 6
 #endif
 
-#define CAPTBL_DEPTH    2
-#define CAPTBL_INTERNSZ sizeof(int*)
-#define CAPTBL_LEAFSZ   sizeof(struct cap_min)
+#define CAPTBL_DEPTH      2
+#define CAPTBL_INTERNSZ   (sizeof(int*))
+#define CAPTBL_INTERN_ORD 9 /* log(PAGE_SIZE/(2*(CAPTBL_DEPTH-1)*CAPTBL_INTERNSZ)) */
+#define CAPTBL_LEAFSZ     (sizeof(struct cap_min))
+#define CAPTBL_LEAF_ORD   7 /* log(PAGE_SIZE/(2*CAPTBL_LEAFSZ)) */
 typedef enum {
 	CAP_FREE = 0,
-	CAP_SCOMM,		/* synchronous communication */
-	CAP_ASCOMM_SND,		/* async communication; sender */
-	CAP_ASCOMM_RCV,         /* async communication; receiver */
+	CAP_SINV,		/* synchronous communication -- invoke */
+	CAP_SRET,		/* synchronous communication -- return */
+	CAP_ASND,		/* async communication; sender */
+	CAP_ARCV,               /* async communication; receiver */
 	CAP_THD,                /* thread */
+	CAP_CAPTBL,             /* capability table */
+	CAP_PGTBL,              /* page-table */
 } cap_t;
 /* 
  * The values in this enum are the order of the size of the
@@ -49,27 +54,30 @@ typedef enum {
 #define	CAP_MASK_32B (1 | (1<<2))
 #define	CAP_MASK_64B 1
 
+/* a function instead of a struct to enable inlining + constant prop */
 static inline cap_sz_t
 __captbl_cap2sz(cap_t c)
 {
 	switch (c) {
-	case CAP_THD:        return CAP_SZ_16B;
-	case CAP_SCOMM:      return CAP_SZ_32B;
-	case CAP_ASCOMM_SND: return CAP_SZ_32B;
-	case CAP_ASCOMM_RCV: return CAP_SZ_32B;
-	default:	     return CAP_SZ_ERR;
+	case CAP_THD:  return CAP_SZ_16B;
+	case CAP_SRET: return CAP_SZ_16B;
+	case CAP_SINV: return CAP_SZ_32B;
+	case CAP_ASND: return CAP_SZ_32B;
+	case CAP_ARCV: return CAP_SZ_32B;
+	default:       return CAP_SZ_ERR;
 	}
 }
 
 typedef enum {
 	CAP_FLAG_RO    = 1,
 	CAP_FLAG_LOCAL = 1<<1,
+	CAP_FLAG_RCU   = 1<<2,
 } cap_flags_t;
 
-#define CAP_HEAD_SZ_SZ    2
-#define CAP_HEAD_FLAGS_SZ 2
 #define CAP_HEAD_AMAP_SZ  4
-#define CAP_HEAD_TYPE_SZ  8
+#define CAP_HEAD_SZ_SZ    2
+#define CAP_HEAD_FLAGS_SZ 3
+#define CAP_HEAD_TYPE_SZ  7
 
 /* 
  * This is the header for each capability.  Includes information about
@@ -81,9 +89,9 @@ struct cap_header {
 	 * Size is only populated on cache-line-aligned entries.
 	 * Applies to all caps in that cache-line 
 	 */
+	u8_t        amap  : CAP_HEAD_AMAP_SZ; 	/* allocation map */
 	cap_sz_t    size  : CAP_HEAD_SZ_SZ; 	
 	cap_flags_t flags : CAP_HEAD_FLAGS_SZ;
-	u8_t        amap  : CAP_HEAD_AMAP_SZ; 	/* allocation map */
 	cap_t       type  : CAP_HEAD_TYPE_SZ;
 	u16_t       poly;
 } __attribute__((packed));
@@ -110,21 +118,33 @@ __captbl_allocfn(void *d, int sz, int last_lvl)
 static void 
 __captbl_init(struct ert_intern *a, int leaf)
 { 
-	(void)a;
-	struct cap_header *p;
-	
+	if (leaf) return;
+	a->next = NULL; 
+}
+
+static void
+captbl_init(void *node, int leaf)
+{
+	int i;
+
 	if (!leaf) {
-		a->next = NULL; 
+		for (i = 0 ; i < 1<<CAPTBL_INTERN_ORD ; i++) {
+			struct ert_intern *a;
+			a = (struct ert_intern *)(((char *)node) + (i * CAPTBL_INTERNSZ));
+			a->next = NULL; 
+		}
 	} else {
-		p        = (struct cap_header *)a;
-		p->size  = CAP_SZ_64B;
-		p->type  = CAP_FREE;
-		p->amap  = 0;
-		p->flags = 0;
+		for (i = 0 ; i < 1<<CAPTBL_LEAF_ORD ; i++) {
+			struct cap_header *p = &(((struct cap_min*)node)[i].h);
+			p->size  = CAP_SZ_64B;
+			p->type  = CAP_FREE;
+			p->amap  = 0;
+			p->flags = 0;
+		}
 	}
 }
 
-static inline void *
+static inline CFORCEINLINE void *
 __captbl_getleaf(struct ert_intern *a, void *accum)
 {
 	(void)accum;
@@ -150,14 +170,14 @@ __captbl_getleaf(struct ert_intern *a, void *accum)
 	return c; 
 }
 
-static inline void __captbl_setleaf(struct ert_intern *a, void *data)
+static inline void __captbl_setleaf(struct ert_intern *a, void *v)
 { (void)a; (void)data; assert(0); }
 
 #define CT_DEFINITVAL NULL
 ERT_CREATE(__captbl, captbl, CAPTBL_DEPTH,				\
-	   9 /* PAGE_SIZE/(2*(CAPTBL_DEPTH-1)*CAPTBL_INTERNSZ) */, CAPTBL_INTERNSZ, \
-	   7 /*PAGE_SIZE/(2*CAPTBL_LEAFSZ) */, CAPTBL_LEAFSZ, \
-	   CT_DEFINITVAL, __captbl_init, ert_defget, ert_defisnull, ert_defset,  \
+	   CAPTBL_INTERN_ORD, CAPTBL_INTERNSZ,				\
+	   CAPTBL_LEAF_ORD, CAPTBL_LEAFSZ,				\
+	   CT_DEFINITVAL, __captbl_init, ert_defget, ert_defisnull, ert_defset,	\
 	   __captbl_allocfn, __captbl_setleaf, __captbl_getleaf, ert_defresolve); 
 
 static struct captbl *captbl_alloc(void *mem) { return __captbl_alloc(&mem); }
@@ -191,7 +211,7 @@ captbl_lkup(struct captbl *t, unsigned long cap)
 
 static inline int
 __captbl_store(unsigned long *addr, unsigned long new, unsigned long old)
-{ (void)old; if (*addr != old) return -1; *addr = new; return 0; }
+{ if (*addr != old) return -1; *addr = new; return 0; }
 #define CTSTORE(a, n, o) __captbl_store((unsigned long *)a, *(unsigned long *)n, *(unsigned long *)o)
 #define cos_throw(label, errno) { ret = (errno); goto label; }
 
@@ -308,10 +328,13 @@ captbl_prune(struct captbl *t, unsigned long cap, u32_t depth, int *retval)
 	if (unlikely(!intern)) cos_throw(err, -EPERM);
 	p = *intern;
 	new = CT_DEFINITVAL;
-	if (CTSTORE(*intern, &new, &p)) cos_throw(err, -EEXIST); /* commit */
-err:
+	if (CTSTORE(intern, &new, &p)) cos_throw(err, -EEXIST); /* commit */
+done:
 	*retval = ret;
 	return p;
+err:
+	p = NULL;
+	goto done;
 }
 
 #endif /* CAPTBL_H */
