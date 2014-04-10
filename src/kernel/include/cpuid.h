@@ -10,21 +10,42 @@
 #define CPUID_H
 
 #include "shared/consts.h"
+#include "asm_ipc_defs.h"
+
+struct cos_cpu_local_info {
+	/* orig_sysenter_esp should be the first variable here. The
+	 * sysenter interposition path gets tss from it. */
+	unsigned long *orig_sysenter_esp; /* Points to the end of the tss struct in Linux. */
+	/* info saved in kernel stack for fast access. */
+	unsigned long cpuid;
+	unsigned long *curr_thd;
+	unsigned long epoch;
+	/* Since this struct resides at the lowest address of the
+	 * kernel stack page (along with thread_info struct of
+	 * Linux), we store 0xDEADBEEF to detect overflow. */
+	unsigned long overflow_check;
+};
 
 /* TODO: put this in platform specific directory */
-static inline unsigned long *
+static inline void *
 get_linux_thread_info(void)
 {
 	unsigned long curr_stk_pointer;
 	asm ("movl %%esp, %0;" : "=r" (curr_stk_pointer));
-	return (unsigned long *)(curr_stk_pointer & ~(THREAD_SIZE_LINUX - 1));
+	return (void *)(curr_stk_pointer & LINUX_INFO_PAGE_MASK);
 }
 
 static inline unsigned int
 get_cpuid(void)
 {
 	/* Linux saves the CPU_ID in the stack for fast access. */
-	return *(get_linux_thread_info() + CPUID_OFFSET_IN_THREAD_INFO);
+	return *(unsigned long *)(get_linux_thread_info() + CPUID_OFFSET_IN_THREAD_INFO);
+}
+
+static inline struct cos_cpu_local_info *
+cos_cpu_local_info(void)
+{
+	return (struct cos_cpu_local_info *)(get_linux_thread_info() + LINUX_THREAD_INFO_RESERVE);
 }
 
 /* This function is only used in the invocation path. It optimizes for

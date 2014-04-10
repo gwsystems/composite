@@ -483,7 +483,7 @@ static int interrupt_wait(void)
 	int ret;
 
 	assert(wildcard_acap_id > 0);
-	if (-1 == (ret = cos_ainv_wait(wildcard_acap_id))) BUG();
+	if (-1 == (ret = cos_areceive(wildcard_acap_id))) BUG();
 
 #ifdef UPCALL_TIMING
 	last_upcall_cyc = (u32_t)ret;

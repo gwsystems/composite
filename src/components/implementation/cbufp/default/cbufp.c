@@ -504,7 +504,7 @@ cbufp_retrieve(spdid_t spdid, int cbid, int size)
 	assert(page);
 	for (off = 0 ; off < size ; off += PAGE_SIZE) {
 		if (dest+off != 
-		    (mman_alias_page(cos_spd_id(), ((vaddr_t)page)+off, spdid, dest+off, MAPPING_READ))) {
+		    (mman_alias_page(cos_spd_id(), ((vaddr_t)page)+off, spdid, dest+off, MAPPING_RO))) {
 			assert(0);
 			valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
 		}

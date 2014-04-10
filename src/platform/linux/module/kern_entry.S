@@ -2,6 +2,8 @@
  * Copyright 2008 by Gabriel Parmer, gabep1@cs.bu.edu.  All rights
  * reserved.
  *
+ * Modified by: Qi Wang, interwq@gwu.edu, 2014
+ *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  */
@@ -79,53 +81,122 @@ VM_MASK		= 0x00020000
 	popl %fs;       \
 	addl $4, %esp
 
-/* 
- * This is all information that is needed within this file, and
- * external to this file.  It is here, so that it is easier to
- * concurrently use hijack modules and composite modules.
+/* Composite pt_regs save/restore */
+#define SAVE_REGS_GENERAL 	\
+	subl $40, %esp; 	\
+	pushl %eax;		\
+	pushl %ebp;		\
+	pushl %edi;		\
+	pushl %esi;		\
+	pushl %edx;		\
+	pushl %ecx;		\
+	pushl %ebx
+
+/* When return to user: ecx => sp, edx => ip. */
+#define RESTORE_REGS_GENERAL	\
+	popl %ebx;		\
+	popl %ecx;		\
+	popl %edx;		\
+	popl %esi;		\
+	popl %edi;		\
+	popl %ebp;		\
+	popl %eax;		\
+	addl $40, %esp
+
+/* push a known value onto the stack, so that we can tell, if we get
+   an interrupt after the sti, that we are in a composite IPC
+   call. See comment in hijack.c:get_user_regs.  Essentially, if we 
+   get an interrupt, this makes the stack look like if user-level
+   were preempted (in terms of register contents) */
+#define RET_TO_USER \
+	pushl $0; \
+	pushl $0; \
+	sti; 	  \
+	sysexit
+
+/* Loads current thread structure to eax register. ECD and EDX can be
+ * clobbered, as per the calling convention. */
+#define LOAD_CURR_THD_EAX \
+	pushl %ecx		   ;\
+	pushl %edx		   ;\
+	call core_get_curr_thd_asm ;\
+	popl %edx		   ;\
+	popl %ecx
+
+#define THD_REGS 8 /* offsetof(struct thread, regs) */
+
+.section __ipc_entry, "ax"
+/*
+ * Composite invocations are indicated by the contents of %eax:
+ * +-------------+----+--...
+ * |   cap_inv   | sc | normal OS (linux) syscalls
+ * +-------------+----+--...
+ * 32            |    COS_SYSCALL_OFFSET
+ *               COS_CAPABILITY_OFFSET
+ *	
+ * Where each character represents a bit.
+ * cap_inv:	The capability to invoke
+ * sc:	 Make a composite OS system-call
  */
-.data
+.globl sysenter_interposition_entry
+.align 4096
+sysenter_interposition_entry:
+	cmpl $(1<<COS_SYSCALL_OFFSET), %eax
+	jb linux_syscall
+	/* Composite entry */
+	/* Use pt_regs as input */
+	SAVE_REGS_GENERAL
+
+	pushl %esp /* pt_reg */
+	call composite_sysenter_handler
+	addl $4, %esp
+
+	testl %eax, %eax
+	jne ret_from_preemption
+
+	RESTORE_REGS_GENERAL
+	RET_TO_USER
+
 .align 16
-//.globl cos_sysenter_addr
-//cos_sysenter_addr:	
-//	.long 0
-//.globl cos_temp_esp_storage
-//cos_temp_esp_storage:	
-//	.long 0
+ret_from_preemption:
+	LOAD_CURR_THD_EAX
 
-.text
-ALIGN
-ENTRY(sysenter_interposition_entry)
+	addl $THD_REGS, %eax /* offsetof(struct thread, regs) */
+	/* restore from preemption */
+	movl PT_EBX(%eax), %ebx
+	movl PT_ECX(%eax), %ecx
+	movl PT_EDX(%eax), %edx
+	movl PT_ESI(%eax), %esi
+	movl PT_EDI(%eax), %edi
+	movl PT_EBP(%eax), %ebp
+
+	pushl $(__USER_DS)
+	pushl PT_OLDESP(%eax)
+	pushl PT_EFLAGS(%eax)
+	pushl $(__USER_CS)
+	pushl PT_EIP(%eax)
+
+	movl PT_EAX(%eax), %eax
+
+	iret
+
+.align 16
+linux_syscall:
+	/* Restore TSS, then get correct sp0. */
+	/* First get TSS from cos_cpu_local_info */
+	andl $(LINUX_INFO_PAGE_MASK), %esp
+	/* Space reserved for Linux thread info struct. */
+	addl $(LINUX_THREAD_INFO_RESERVE), %esp
+	movl (%esp), %esp
+	/* getting sp0 from TSS */
 	movl TSS_sysenter_sp0(%esp),%esp
-	/*
-	 * Composite invocations are indicated by the contents of %eax:
-	 * +-------------+----+--...
-	 * |   cap_inv   | sc | normal OS (linux) syscalls
-	 * +-------------+----+--...
-	 * 32            |    COS_SYSCALL_OFFSET
-	 *               COS_CAPABILITY_OFFSET
- 	 *	
-	 * Where each character represents a bit.
-	 * cap_inv:	The capability to invoke
-	 * sc:	 Make a composite OS system-call
-	 */
-
-	cmpl $(COS_ASYNC_CAP_FLAG), %eax /* Non-static cap? */
-	ja composite_async_call /* Async invocation */
-
-	cmpl $((1<<COS_CAPABILITY_OFFSET)-1), %eax /* 2^20-1 shift for capability invocations */
-	ja composite_call_ipc /* component invocation */
-	je composite_ret_ipc  /* component return */
-
-	cmpl $((1<<COS_SYSCALL_OFFSET)-1), %eax /* composite syscall */
-	ja cos_syscall_thunk
 
 	SAVE_ALL
 	pushl %eax
 	call hijack_syscall_monitor
 	addl $4, %esp
 	RESTORE_REGS
-normal_syscall:
+
 	/* We reserve the position in the stack to get the TSS. */
 	/* see the comments of get_TSS in hijack.c */	
 	pushl $0
@@ -135,16 +206,9 @@ normal_syscall:
 	RESTORE_REGS
 	popl %esp
 	jmp  *(cos_default_sysenter_addr) /* sti will happen in syscall path */
-
 	/* never get to here on syscall...*/
 
-/* cos system calls might call linux functions, so we need fs */
-cos_syscall_thunk:
-	pushl %edx
-	movl $(__KERNEL_PERCPU), %edx
-	movl %edx, %fs
-	popl %edx
-	jmp composite_make_syscall
+.text	/* __ipc_entry section done. */
 
 /*
  * Trap will cause this handler to trigger.  The stack
@@ -223,6 +287,7 @@ ENTRY(name##_handler)						\
 COS_CREATE_TRAP_NO_ERRCODE(div_fault)
 COS_CREATE_TRAP_ERRCODE(page_fault)
 COS_CREATE_TRAP_NO_ERRCODE(reg_save)
+COS_CREATE_TRAP_NO_ERRCODE(timer)
 #ifdef FPU_ENABLED
 COS_CREATE_TRAP_ERRCODE(fpu_not_available)
 #endif

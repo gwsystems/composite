@@ -27,3 +27,9 @@
 
 //#define RET_CAP (INV_CAP_OFFSET-1)
 
+/* We have sanity checks of the following defines when loading
+ * Composite kernel module. */
+#define CPUID_OFFSET_IN_THREAD_INFO (16)
+#define THREAD_SIZE_LINUX           (4096*2)
+#define LINUX_THREAD_INFO_RESERVE   (64*2)
+#define LINUX_INFO_PAGE_MASK        (~(THREAD_SIZE_LINUX - 1))

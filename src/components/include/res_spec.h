@@ -40,11 +40,9 @@ typedef enum {
 } sched_param_type_t;
 
 #define SCHED_PARAM_TYPE_BITS 8
-#define SCHED_PARAM_INIT_DATA_BITS 8
 struct sched_param_s {
 	sched_param_type_t type:(SCHED_PARAM_TYPE_BITS);
-	unsigned int init_data:(SCHED_PARAM_INIT_DATA_BITS);
-	unsigned int value:(32 - SCHED_PARAM_TYPE_BITS - SCHED_PARAM_INIT_DATA_BITS);
+	unsigned int value:(32 - SCHED_PARAM_TYPE_BITS);
 } __attribute__((packed));
 
 union sched_param {

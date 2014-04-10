@@ -24,6 +24,8 @@
  * that is significant (2 pages per component in the common case).
  * See cvectc.h for an alternative that trades (some) speed for memory
  * usage.
+ *
+ * Modified by Qi Wang, interwq@gwu.edu, 2014
  */
 
 /* 
@@ -66,10 +68,24 @@ struct frame {
 		vaddr_t addr;	    /* nmaps = -1: local mapping */
 		struct frame *free; /* nmaps = 0 : no mapping */
 	} c;
-} frames[COS_MAX_MEMORY];
-struct frame *freelist;
+} all_frames[COS_MAX_MEMORY + COS_KERNEL_MEMORY];
 
-static inline int  frame_index(struct frame *f) { return f-frames; }
+/* all_frames: user frames + kernel frames */
+
+static struct frame *frames      = all_frames;
+static struct frame *kern_frames = all_frames + COS_MAX_MEMORY;
+
+struct frame *freelist;
+struct frame *kern_freelist;
+
+#define IS_USER_FRAME(f) ((f < kern_frames))
+
+static inline int  frame_index(struct frame *f) {
+	if (IS_USER_FRAME(f))
+		return f-frames; 
+	else
+		return f-kern_frames;
+}
 static inline int  frame_nrefs(struct frame *f) { return f->nmaps; }
 static inline void frame_ref(struct frame *f)   { f->nmaps++; }
 
@@ -86,15 +102,62 @@ frame_alloc(void)
 	return f;
 }
 
+static inline struct frame *
+kern_frame_alloc(void)
+{
+	struct frame *f = kern_freelist;
+
+	if (!f) return NULL;
+	kern_freelist = f->c.free;
+	f->nmaps = 0;
+	f->c.m   = NULL;
+
+	return f;
+}
+
 static inline void 
 frame_deref(struct frame *f)
 { 
 	assert(f->nmaps > 0);
 	f->nmaps--; 
 	if (f->nmaps == 0) {
-		f->c.free = freelist;
-		freelist  = f;
+		if (IS_USER_FRAME(f)) {
+			f->c.free = freelist;
+			freelist  = f;
+		} else {
+			f->c.free = kern_freelist;
+			kern_freelist  = f;
+		}
 	}
+}
+
+static void *init_vas = 0;
+static int max_npages, max_npages_kern;
+static void
+init_frames(void)
+{
+	int i;
+	max_npages = cos_pfn_cntl(COS_PFN_MAX_MEM, 0, 0, 0);
+	max_npages_kern = cos_pfn_cntl(COS_PFN_MAX_MEM_KERN, 0, 0, 0);
+
+	if (!init_vas) init_vas = cos_get_vas_page();
+
+	/* zero out all frames: map in, mem_set, unmap. */
+	for (i = 0 ; i < max_npages ; i++) {
+		if (cos_mmap_cntl(COS_MMAP_GRANT, MAPPING_RW, cos_spd_id(), (vaddr_t)init_vas, i)) {
+			goto err;
+		}
+		memset(init_vas, 0, PAGE_SIZE);
+		if (i != cos_mmap_cntl(COS_MMAP_REVOKE, 0, cos_spd_id(), (vaddr_t)init_vas, 0)) {
+			goto err;
+		}
+		cos_mmap_cntl(COS_MMAP_TLBFLUSH, 0, cos_spd_id(), 0, 0);
+	}
+
+	return;
+err:
+	BUG();
+	return;
 }
 
 static void
@@ -102,12 +165,23 @@ frame_init(void)
 {
 	int i;
 
-	for (i = 0 ; i < COS_MAX_MEMORY-1 ; i++) {
+	init_frames();
+
+	/* User frames. */
+	for (i = 0 ; i < max_npages-1 ; i++) {
 		frames[i].c.free = &frames[i+1];
 		frames[i].nmaps  = 0;
 	}
-	frames[COS_MAX_MEMORY-1].c.free = NULL;
+	frames[max_npages-1].c.free = NULL;
 	freelist = &frames[0];
+
+	/* Next, kernel frames. */
+	for (i = 0 ; i < max_npages_kern-1 ; i++) {
+		kern_frames[i].c.free = &kern_frames[i+1];
+		kern_frames[i].nmaps  = 0;
+	}
+	kern_frames[max_npages_kern-1].c.free = NULL;
+	kern_freelist = &kern_frames[0];
 }
 
 #define NREGIONS 4
@@ -130,6 +204,12 @@ mm_init(void)
 	}
 
 	frame_init();
+
+	//QW: to remove 
+	/* if (cos_mmap_cntl(COS_MMAP_GRANT, MAPPING_RW, 2, 0x44bf0000, 64000)) { */
+	/* 	printc("9998 failed >>>>>>>>>>>>>>>>\n"); */
+	/* } */
+
 	printc("core %ld: mm init done\n", cos_cpuid());
 }
 
@@ -137,8 +217,6 @@ mm_init(void)
 /*** Memory allocation shenanigans ***/
 /*************************************/
 
-static inline struct frame *frame_alloc(void);
-static inline int frame_index(struct frame *f);
 static inline void *
 __page_get(void)
 {
@@ -273,7 +351,6 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to, int fl
 
 	assert(!p || p->f == f);
 	assert(dest && to);
-
 	/* no vas structure for this spd yet... */
 	if (!cv) {
 		cv = cvas_alloc(dest);
@@ -392,8 +469,12 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 	vaddr_t ret = -1;
 	
 	LOCK();
-	f = frame_alloc();
+	if (flags & MAPPING_KMEM)
+		f = kern_frame_alloc();
+	else
+		f = frame_alloc();
 	if (!f) goto done; 	/* -ENOMEM */
+
 	assert(frame_nrefs(f) == 0);
 	m = mapping_crt(NULL, f, spd, addr, flags);
 	if (!m) goto dealloc;
@@ -412,6 +493,18 @@ dealloc:
 
 vaddr_t __mman_alias_page(spdid_t s_spd, vaddr_t s_addr, u32_t d_spd_flags, vaddr_t d_addr)
 {
+
+	//QW: to remove
+	if (d_addr == 9999) {
+		printc("params: %d, %d, %d, %d\n", s_spd, s_addr, d_spd_flags>>16, d_addr);
+		LOCK();
+		if (cos_mmap_cntl(COS_MMAP_GRANT, MAPPING_RW, 14, 0x4c3f0000, 64000)) {
+			printc("9999 failed >>>>>>>>>>>>>>>>\n");
+		}
+		UNLOCK();
+		return 1;
+	}
+
 	struct mapping *m, *n;
 	vaddr_t ret = 0;
 	spdid_t d_spd;
@@ -476,7 +569,7 @@ void mman_release_all(void)
 
 	LOCK();
 	/* kill all mappings in other components */
-	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
+	for (i = 0 ; i < max_npages ; i++) {
 		struct frame *f = &frames[i];
 		struct mapping *m;
 
@@ -486,7 +579,7 @@ void mman_release_all(void)
 		mapping_del(m);
 	}
 	/* kill local mappings */
-	/* for (i = 0 ; i < COS_MAX_MEMORY ; i++) { */
+	/* for (i = 0 ; i < max_npages ; i++) { */
 	/* 	struct frame *f = &frames[i]; */
 	/*      int idx; */
 
@@ -512,15 +605,20 @@ PERCPU_ATTR(static volatile, int, initialized_core); /* record the cores that st
 void 
 sched_exit(void)   
 {
-	int i;
-
-	*PERCPU_GET(initialized_core) = 0;
 	if (cos_cpuid() == INIT_CORE) {
+		int i;
 		/* The init core waiting for all cores to exit. */
 		for (i = 0; i < NUM_CPU ; i++)
 			if (*PERCPU_GET_TARGET(initialized_core, i)) i = 0;
 		/* Don't delete the memory until all cores exit */
 		mman_release_all(); 
+		*PERCPU_GET(initialized_core) = 0;
+	} else {
+		/* No one should exit before all cores are done. We'll
+		 * disable hw interposition once exit. */
+		*PERCPU_GET(initialized_core) = 0;
+
+		while (*PERCPU_GET_TARGET(initialized_core, 0)) ;
 	}
 	parent_sched_exit();
 }
@@ -534,7 +632,7 @@ extern int parent_sched_child_cntl_thd(spdid_t spdid);
 
 int 
 sched_child_cntl_thd(spdid_t spdid) 
-{ 
+{
 	if (parent_sched_child_cntl_thd(cos_spd_id())) BUG();
 	if (cos_sched_cntl(COS_SCHED_PROMOTE_CHLD, 0, spdid)) BUG();
 	if (cos_sched_cntl(COS_SCHED_GRANT_SCHED, cos_get_thd_id(), spdid)) BUG();
@@ -547,6 +645,8 @@ sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd) { BUG(); return 0; }
 
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
+	/* printc("cpu %ld: thd %d in mem_mgr init. args %d, %p, %p, %p\n", */
+	/*        cos_cpuid(), cos_get_thd_id(), t, arg1, arg2, arg3); */
 	switch (t) {
 	case COS_UPCALL_THD_CREATE:
 		if (cos_cpuid() == INIT_CORE) {

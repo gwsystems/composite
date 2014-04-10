@@ -85,6 +85,7 @@ struct spd_sched_info {
 #define AED_EMULATE_PREEMPT _IOR(0, 17, unsigned long)
 #define AED_DISABLE_SYSCALLS _IO(0,19)
 #define AED_ENABLE_SYSCALLS  _IO(0,20)
+#define AED_RESTORE_HW_ENTRY _IO(0,21)
 
 #ifndef __KERNEL__
 
@@ -150,6 +151,19 @@ static inline int cos_create_thd(int cntl_fd, struct cos_thread_info *thdi)
 	if ((ret = ioctl(cntl_fd, AED_CREATE_THD, thdi))) {
 		perror("Could not create thread\n");
 		printf("ioctl returned %d\n", ret);
+		exit(-1);
+	}
+
+	return ret;
+}
+
+static inline int cos_restore_hw_entry(int cntl_fd)
+{
+	int ret;
+
+	if ((ret = ioctl(cntl_fd, AED_RESTORE_HW_ENTRY, 0)) == -1) {
+		perror("ioctl to restore hw entries: ");
+		printf("\nIoctl returned %d.\n", ret);
 		exit(-1);
 	}
 

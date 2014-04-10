@@ -488,8 +488,9 @@ enum {
 };
 
 enum {
-	MAPPING_READ  = 0,
-	MAPPING_RW    = 1
+	MAPPING_RO    = 0,
+	MAPPING_RW    = 1 << 0,
+	MAPPING_KMEM  = 1 << 1
 };
 
 enum {
@@ -500,7 +501,9 @@ enum {
 
 enum {
 	COS_PFN_GRANT,
-	COS_PFN_MAX_MEM
+	COS_PFN_GRANT_KERN,
+	COS_PFN_MAX_MEM,
+	COS_PFN_MAX_MEM_KERN
 };
 
 /* 
@@ -602,9 +605,14 @@ static inline void cos_ref_release(atomic_t *rc)
 	cos_meas_event(COS_MPD_REFCNT_DEC);
 }
 
-// The init_data is integrated in the sched_param struct. We have 8 bits
-#define COS_THD_INIT_REGION_SIZE (((NUM_CPU*8) > (1<<8)) ? (1<<8) : (NUM_CPU*8))
+// ncpu * 16 (or max 256) entries. can be increased if necessary. 
+#define COS_THD_INIT_REGION_SIZE (((NUM_CPU*16) > (1<<8)) ? (1<<8) : (NUM_CPU*16))
 // Static entries are after the dynamic allocated entries
 #define COS_STATIC_THD_ENTRY(i) ((i + COS_THD_INIT_REGION_SIZE + 1))
+
+static inline void cos_mem_fence(void)
+{
+	__asm__ __volatile__("mfence" ::: "memory");
+}
 
 #endif /* TYPES_H */

@@ -84,16 +84,6 @@ cos_thd_init_free(int idx) {
 	return;
 }
 
-static inline void 
-init_data_integration(u32_t *param, int idx) {
-	/* Integrate init data to the param. */
-	union sched_param param0;
-
-	param0.v = *param;
-	param0.c.init_data = idx;
-	*param = param0.v;
-}
-
 /* Create a thread in a remote component. This requires an init data
  * entry from that component. Some client thread should alloc the data
  * entry (using cos_thd_init_alloc above) and pass in the index of the
@@ -106,8 +96,7 @@ cos_thd_create_remote(spdid_t spdid, int idx,
 
 	if (spdid == cos_spd_id() || idx >= COS_THD_INIT_REGION_SIZE || idx <= 0) return 0;
 
-	init_data_integration(&sched_param0, idx);
-	ret = sched_create_thd(spdid, sched_param0, sched_param1, sched_param2);
+	ret = sched_create_thd(idx << 16 | spdid, sched_param0, sched_param1, sched_param2);
 
 	return ret;
 }
@@ -124,8 +113,7 @@ cos_thd_create(void *fn, void *data, u32_t sched_param0, u32_t sched_param1, u32
 	idx = __init_data_alloc(fn, data);
 	assert(idx);
 
-	init_data_integration(&sched_param0, idx);
-	ret = sched_create_thd(spdid, sched_param0, sched_param1, sched_param2);
+	ret = sched_create_thd(idx << 16 | spdid, sched_param0, sched_param1, sched_param2);
 
 	return ret;
 }

@@ -505,6 +505,9 @@ static void sched_process_wakeups(void)
 
 static void sched_timer_tick(void)
 {
+	//QW: to remove
+	int *detector = 0x44bf0000;
+
 	while (1) {
 		cos_sched_lock_take();
 		report_event(TIMER_TICK);
@@ -512,8 +515,10 @@ static void sched_timer_tick(void)
 			report_thd_accouting();
 			//cos_stats();
 		}
+
 		/* are we done running? */
 		if (unlikely(PERCPU_GET(sched_base_state)->ticks >= RUNTIME_SEC*TIMER_FREQ+1)) {
+			cos_acap_wire(0, COS_HW_TIMER, 0); // disable cos timer
 			sched_exit();
 			while (COS_SCHED_RET_SUCCESS !=
 			       cos_switch_thread_release(PERCPU_GET(sched_base_state)->init->id, COS_SCHED_ACAP_WAIT)) {
@@ -527,6 +532,9 @@ static void sched_timer_tick(void)
 		PERCPU_GET(sched_base_state)->ticks++;
 		sched_process_wakeups();
 		timer_tick(1);
+
+//		ck_pr_store_int(&detector[cos_cpuid()*16], 1);
+
 		sched_switch_thread(COS_SCHED_ACAP_WAIT, TIMER_SWITCH_LOOP);
 		/* Tailcall out of the loop */
 	}
@@ -550,11 +558,24 @@ typedef void (*crt_thd_fn_t)(void *data);
 
 static void fp_timer(void *d)
 {
-	printc("Core %ld: Starting timer thread (thread id %d)\n", cos_cpuid(), cos_get_thd_id());
+	int acap, srv_acap, tid;
 	struct sched_base_per_core *sched_state = PERCPU_GET(sched_base_state);
+
 	sched_state->ticks = 0;
 	sched_state->wakeup_time = 0;
 	sched_state->child_wakeup_time = 0;
+
+	tid = cos_get_thd_id();
+	acap = cos_async_cap_cntl(COS_ACAP_CREATE, cos_spd_id(), cos_spd_id(), tid << 16 | tid);
+	 /* cli_acap not used as the server acap is triggered by timer
+	  * interrupt. We set the owner of the cli_acap to be the
+	  * timer thread itself to prevent other threads invoking the
+	  * acap (so only timer int can trigger it). */
+	/* cli_acap = acap >> 16; */
+	srv_acap = acap & 0xFFFF;
+	cos_acap_wire(srv_acap, COS_HW_TIMER, 0);
+
+	printc("Core %ld: Starting timer thread (id %d) with acap %d.\n", cos_cpuid(), tid, srv_acap);
 
 	sched_timer_tick();
 	BUG();
@@ -618,7 +639,7 @@ static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, 
 		if (unlikely(s == 0)) rdtscll(s); 
 		rdtscll(e);
 		/* detect unusual delay */
-		if (e - s > 1 << 30) {
+		if ((e - s) > (1 << 30)) {
 			printc("cos_sched_base: xcore_exec pushing into ring buffer has abnormal delay (%llu cycles).\n", e - s);
 			s = e;
 		}
@@ -629,7 +650,7 @@ static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, 
 
 	if (unlikely(acap <= 0)) BUG();
 	/* printc("core %d: sending ipi to core %ld, acap %d\n", cos_cpuid(), core_id, acap); */
-	cos_ainv_send(acap);
+	cos_asend(acap);
 
 	if (wait) {
 		rdtscll(s); 		
@@ -637,7 +658,7 @@ static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, 
 		{		
 			rdtscll(e);
 			/* detect unusual delay */
-			if (e - s > 1 << 20) {
+			if ((e - s) > (1 << 30)) {
 				printc("cos_sched_base: thd %d on core %ld waiting for core %d abnormal remote execution delay (%llu cycles).\n",
 				       cos_get_thd_id(), cos_cpuid(), core_id, e - s);
 				s = e;
@@ -1137,6 +1158,7 @@ static int fp_kill_thd(struct sched_thd *t)
 	REM_LIST(t, prio_next, prio_prev);
 	REM_LIST(t, next, prev);
 	ADD_LIST(&PERCPU_GET(sched_base_state)->graveyard, t, prio_next, prio_prev);
+	sched_rem_event(t);
 
 	sched_switch_thread(0, NULL_EVT);
 
@@ -1190,6 +1212,7 @@ static struct sched_thd *sched_setup_thread_arg(int dest_spd_id, void *metric_st
 		sched_init_thd(new, new->id, THD_READY);
 		new->spdid = (spdid_t)dest_spd_id;
 		new->init_data = (int)fn;
+		if (0 > sched_alloc_event(new)) BUG();
 	} else {
 		tid = (sched_is_root())                       ?
 			cos_create_thread(dest_spd_id, (int)fn, (int)d) :
@@ -1284,19 +1307,16 @@ static int relative_prio_convert(u32_t params[MAX_NUM_SCHED_PARAM]) {
 	return 0;
 }
 
-static inline int sched_create_thd_current_core(spdid_t spdid, u32_t sched_param_0, 
+static inline int sched_create_thd_current_core(u32_t init_data_spdid, u32_t sched_param_0, 
 						u32_t sched_param_1, u32_t sched_param_2)
 {
 	struct sched_param_s sp[4];
 	struct sched_thd *curr, *new;
-	int init_data;
-	union sched_param param0;
 
-	param0.v = sched_param_0;
-	init_data = param0.c.init_data;
-	param0.c.init_data = 0; // clear to avoid misunderstanding
-	
-	sp[0] = param0.c;
+	int init_data = init_data_spdid >> 16;
+	spdid_t spdid = init_data_spdid & 0xFFFF;
+
+	sp[0] = ((union sched_param)sched_param_0).c;
 	sp[1] = ((union sched_param)sched_param_1).c;
 	sp[2] = ((union sched_param)sched_param_2).c;
 	sp[3] = (union sched_param){.c = {.type = SCHEDP_NOOP}}.c;
@@ -1313,13 +1333,13 @@ static inline int sched_create_thd_current_core(spdid_t spdid, u32_t sched_param
 }
 
 int
-sched_create_thd(spdid_t spdid, u32_t sched_param_0, u32_t sched_param_1, u32_t sched_param_2)
+sched_create_thd(u32_t init_data_spdid, u32_t sched_param_0, u32_t sched_param_1, u32_t sched_param_2)
 {
 	int ret;
 	cpuid_t core;
 	u32_t sched_params[MAX_NUM_SCHED_PARAM] = {sched_param_0, sched_param_1, sched_param_2};
 
-	if (spdid == cos_spd_id()) return -1;
+	if ((int)(init_data_spdid & 0xFFFF) == cos_spd_id()) return -1;
 
 	core = sched_read_param_core_id(sched_params);
 	relative_prio_convert(sched_params);
@@ -1331,12 +1351,12 @@ sched_create_thd(spdid_t spdid, u32_t sched_param_0, u32_t sched_param_1, u32_t 
 			printc("ERROR: Trying to create thread on core %d\n", core);
 			goto error;
 		}
-		u32_t params[4] = {spdid, sched_params[0], sched_params[1], sched_params[2]};
+		u32_t params[4] = {init_data_spdid, sched_params[0], sched_params[1], sched_params[2]};
 		ret = xcore_exec(core, sched_create_thd_current_core, 4, params, 1);
 	
 		goto done;
 	} else {
-		ret = sched_create_thd_current_core(spdid, sched_params[0], sched_params[1], sched_params[2]);
+		ret = sched_create_thd_current_core(init_data_spdid, sched_params[0], sched_params[1], sched_params[2]);
 	}
 done:
 	return ret;
@@ -1744,7 +1764,6 @@ void sched_exit(void)
 
 static struct sched_thd *fp_create_timer(void)
 {
-	int acap, srv_acap;
 	struct sched_thd *timer_thd;
 	union sched_param sp[2] = {{.c = {.type = SCHEDP_TIMER}},
 				   {.c = {.type = SCHEDP_NOOP}}};
@@ -1754,17 +1773,7 @@ static struct sched_thd *fp_create_timer(void)
 	if (!timer_thd) BUG();
 	PERCPU_GET(sched_base_state)->timer = timer_thd;
 
-	acap = cos_async_cap_cntl(COS_ACAP_CREATE, cos_spd_id(), cos_spd_id(), timer_thd->id << 16 | timer_thd->id);
-	 /* cli_acap not used as the server acap is triggered by timer
-	  * interrupt. We set the owner of the cli_acap to be the
-	  * timer thread itself to prevent other threads invoking the
-	  * acap (so only timer int can trigger it). */
-	/* cli_acap = acap >> 16; */
-	srv_acap = acap & 0xFFFF;
-	cos_acap_wire(srv_acap, COS_HW_TIMER, 0);
-	printc("Core %ld: Timer thread (id %d) has srv_acap %d.\n", cos_cpuid(), PERCPU_GET(sched_base_state)->timer->id, srv_acap);
-
-	return PERCPU_GET(sched_base_state)->timer;
+	return timer_thd;
 }
 
 inline int sched_curr_is_IPI_handler(void) {
@@ -1828,7 +1837,7 @@ static void IPI_handler(void *d)
 	while (1) {
 		cos_sched_lock_take();
 		/* Going to switch away */
-		/* Do not use ainv_wait syscall here. We are in the scheduler. */
+		/* Do not use areceive syscall here. We are in the scheduler. */
 		sched_switch_thread(COS_SCHED_ACAP_WAIT, EVT_CMPLETE_LOOP);
 
 		/* Received an IPI! */
@@ -2020,7 +2029,7 @@ extern int parent_sched_isroot(void);
 int
 sched_init(void)
 {
-//	printc("Sched init has thread %d\n", cos_get_thd_id());
+	/* printc("Sched init has thread %d, spd %d\n", cos_get_thd_id(), cos_spd_id()); */
 	assert(!(PERCPU_GET(sched_base_state)->init)); // don't re-initialize. should be removed if doing recovery test. 
 
 	/* Promote us to a scheduler! */

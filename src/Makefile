@@ -1,4 +1,4 @@
-MAKEFLAGS=--no-print-directory -I$(PWD)
+MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
 #$(info Make flags $(MAKEFLAGS))
 
 all: kern cp

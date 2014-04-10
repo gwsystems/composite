@@ -200,7 +200,7 @@ parallel_send(void *fn, void *data)
 		/* acap < 0 means the worker thread will be
 		 * spinning. */
 		assert(curr_cap->acap > 0);
-		cos_ainv_send(curr_cap->acap);
+		cos_asend(curr_cap->acap);
 	}
 
 	return 0;
@@ -245,7 +245,7 @@ ainv_parallel_end(void)
 			if (wait_acap > 0) {
 				/* printc("core %ld thd %d waiting on acap %d\n", */
 				/*        cos_cpuid(), cos_get_thd_id(), wait_acap); */
-				ret = cos_ainv_wait(wait_acap);
+				ret = cos_areceive(wait_acap);
 				assert(ret == 0);
 			} else {
 				assert(wait_acap == -1);
@@ -382,7 +382,7 @@ multicast_send(struct par_cap_info acaps[], int n_acap, struct __intra_inv_data 
 		/* decide if need to send ipi. */
 		if (SERVER_ACTIVE(shared_struct) || curr_cap->acap < 0) continue;
 		assert(curr_cap->acap > 0);
-		cos_ainv_send(curr_cap->acap);
+		cos_asend(curr_cap->acap);
 	}
 
 	return 0;
@@ -427,9 +427,9 @@ cos_multicast_distribution(struct par_srv_thd_info *curr)
 		 */
 		while (CK_RING_DEQUEUE_SPSC(intra_inv_ring, ring, &inv) == false) {
 			/* printc("thread %d waiting on acap %d\n", cos_get_thd_id(), acap); */
-			ret = cos_ainv_wait(acap);
+			ret = cos_areceive(acap);
 			assert(ret == 0);
-			/* printc("thread %d up from ainv_wait\n", cos_get_thd_id()); */
+			/* printc("thread %d up from areceive\n", cos_get_thd_id()); */
 		}
 
 		SET_SERVER_ACTIVE(shared_struct); /* setting us active */

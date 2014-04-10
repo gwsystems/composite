@@ -190,7 +190,7 @@ static int channel_init(int channel)
 
 		while (1) {
 			int ret;
-			if (-1 == (ret = cos_ainv_wait(srv_acap))) BUG();
+			if (-1 == (ret = cos_areceive(srv_acap))) BUG();
 			assert(channels[channel].t);
 			evt_trigger(cos_spd_id(), channels[channel].t->evtid);
 		}

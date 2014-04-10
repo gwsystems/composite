@@ -211,6 +211,7 @@ struct spd {
 	vaddr_t atomic_sections[COS_NUM_ATOMIC_SECTIONS];
 	
 	unsigned int pfn_base, pfn_extent;
+	unsigned int kern_pfn_base, kern_pfn_extent;
 
 	/* should be a union to not waste space */
 	struct spd *freelist_next;

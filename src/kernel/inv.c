@@ -43,7 +43,12 @@ static inline struct shared_user_data *get_shared_data(void)
  * the last measurement and is typically used to measure how long
  * upcall threads execute.
  */
+
 PERCPU_ATTR(static, unsigned long, cycle_cnt);
+
+void sysenter_interposition_entry(void);
+COS_SYSCALL int
+composite_sysenter_handler(struct pt_regs *regs);
 
 void 
 ipc_init(void)
@@ -53,6 +58,10 @@ ipc_init(void)
 	memset(shared_region_page, 0, PAGE_SIZE);
 	rdtscl(tsc);
 	*PERCPU_GET(cycle_cnt) = tsc;
+
+	if (((unsigned long)&sysenter_interposition_entry >> PAGE_ORDER) != ((unsigned long)&composite_sysenter_handler >> PAGE_ORDER))
+		printk("Warning: Composite sysenter_interposition (%p) and sysenter handler (%p) are NOT in the same page!\n",
+		       &sysenter_interposition_entry, &composite_sysenter_handler);
 
 	return;
 }
@@ -96,6 +105,50 @@ struct inv_ret_struct {
 	int spd_id;
 };
 
+static inline void
+user_regs_set(struct pt_regs *regs, unsigned long ret, unsigned long sp, unsigned long ip)
+{
+	regs->ax = ret;
+	regs->sp = regs->cx = sp;
+	regs->ip = regs->dx = ip;
+}
+
+static inline void
+user_regs_set_ret(struct pt_regs *regs, unsigned long ret)
+{
+	regs->ax = ret;
+}
+
+static inline unsigned long
+user_regs_get_sp(struct pt_regs *regs)
+{
+	return regs->bp;
+}
+
+static inline unsigned long
+user_regs_get_ip(struct pt_regs *regs)
+{
+	return regs->cx;
+}
+
+static inline unsigned long
+user_regs_get_cap(struct pt_regs *regs)
+{
+	return regs->ax;
+}
+
+static inline void
+ipc_args_set(struct pt_regs *regs)
+{
+	/* IPC calling side has 4 args (in order): bx, si, di, dx */
+	/* IPC server side receives 4 args: bx, si, di, bp */
+	/* So we need to pass the 4th argument. */
+
+	/* regs->bx = regs->bx; */
+	/* regs->si = regs->si; */
+	/* regs->di = regs->di; */
+	regs->bp = regs->dx;
+}
 
 /* 
  * FIXME: 1) should probably return the static capability to allow
@@ -103,16 +156,19 @@ struct inv_ret_struct {
  * should kill thread.
  */
 
-COS_SYSCALL vaddr_t 
-ipc_walk_static_cap(unsigned int capability, vaddr_t sp, 
-		    vaddr_t ip, struct inv_ret_struct *ret)
+static inline void
+ipc_walk_static_cap(struct pt_regs *regs)
 {
 	struct thd_invocation_frame *curr_frame;
 	struct spd *curr_spd, *dest_spd;
 	struct invocation_cap *cap_entry;
 	struct thread *thd = core_get_curr_thd_id(get_cpuid_fast());
+	vaddr_t orig_ip, orig_sp;
+	unsigned int capability;
 
-	capability >>= 20;
+	capability = user_regs_get_cap(regs) >> 20;
+	orig_sp    = user_regs_get_sp(regs);
+	orig_ip    = user_regs_get_ip(regs);
 
 	assert(thd);
 
@@ -120,14 +176,14 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	
 	if (unlikely(curr_spd == NULL)) {
 		printk ("cos: couldn't find current component in thread %x.\n", (unsigned int)thd);
-		return 0;
+		goto err;
 	}
 
 	if (unlikely(capability >= curr_spd->ncaps)) {
-		struct spd *t = virtual_namespace_query(ip);
-		printk("cos: capability %d greater than max (%d) from spd %d @ %x.\n", 
-		       capability, curr_spd->ncaps, (t) ? spd_get_index(t): 0, (unsigned int)ip);
-		return 0;
+		struct spd *t = virtual_namespace_query(orig_ip);
+		printk("cos: capability %d greater than max (%d) from spd %d @ %x.\n",
+		       capability, curr_spd->ncaps, (t) ? spd_get_index(t): 0, (unsigned int)orig_ip);
+		goto err;
 	}
 
 	cap_entry = &curr_spd->caps[capability];
@@ -139,7 +195,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 
 	if (unlikely(!dest_spd || curr_spd == CAP_FREE || curr_spd == CAP_ALLOCATED_UNUSED)) {
 		printk("cos: Attempted use of unallocated capability.\n");
-		return 0;
+		goto err;
 	}
 	/*
 	 * If the spd that owns this capability is part of a composite
@@ -162,7 +218,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 		 * FIXME: do something here like throw a fault to be
 		 * handled by a user-level handler
 		 */
-		return 0;
+		goto err;
 	}
 	/* now we are committing to the invocation */
 	cos_meas_event(COS_MEAS_INVOCATIONS);
@@ -172,16 +228,42 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	/* Updating current spd: not used for now. */
 	/* core_put_curr_spd(&(dest_spd->spd_info)); */
 
-	ret->thd_id = thd->thread_id | (get_cpuid_fast() << 16);
-	ret->spd_id = spd_get_index(curr_spd);
-
 	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
 
 	/* add a new stack frame for the spd we are invoking (we're committed) */
-	thd_invocation_push(thd, cap_entry->destination, sp, ip);
+	thd_invocation_push(thd, cap_entry->destination, orig_sp, orig_ip);
 	cap_entry->invocation_cnt++;
 
-	return cap_entry->dest_entry_instruction;
+	ipc_args_set(regs);
+
+	user_regs_set(regs, thd->thread_id | (get_cpuid_fast() << 16) /*eax*/,
+		      spd_get_index(curr_spd) /*spdid, no sp needed*/, cap_entry->dest_entry_instruction /*ip*/);
+	/* printk("inv %d to %d\n", spd_get_index(curr_spd), spd_get_index(dest_spd)); */
+
+	return;
+err:
+	user_regs_set(regs, -1,
+		      orig_sp, orig_ip);
+
+	return;
+}
+
+static inline void
+copy_gp_regs(struct pt_regs *from, struct pt_regs *to)
+{
+	to->ax = from->ax;
+	to->bx = from->bx;
+	to->cx = from->cx;
+	to->dx = from->dx;
+	to->si = from->si;
+	to->di = from->di;
+	to->bp = from->bp;
+}
+
+static inline unsigned long
+user_regs_get_inv_ret(struct pt_regs *regs){
+	/* cx holds the return value on invocation return path. */
+	return regs->cx;
 }
 
 static struct pt_regs *thd_ret_term_upcall(struct thread *t);
@@ -192,8 +274,8 @@ static struct pt_regs *thd_ret_upcall_type(struct thread *t, upcall_type_t type)
  * This is complicated by the fact that we may return when no
  * invocation is made because a thread is terminating.
  */
-COS_SYSCALL struct thd_invocation_frame *
-pop(struct pt_regs **regs_restore)
+static inline void
+pop(struct pt_regs *regs)
 {
 	struct thd_invocation_frame *inv_frame;
 	struct thd_invocation_frame *curr_frame;
@@ -208,9 +290,9 @@ pop(struct pt_regs **regs_restore)
 
 		/* normal thread terminates: upcall into root
 		 * scheduler */
-		*regs_restore = thd_ret_term_upcall(curr);
+		copy_gp_regs(thd_ret_term_upcall(curr), regs);
 
-		return NULL;
+		return;
 	}
 	
 	curr_frame = thd_invstk_top(curr);
@@ -229,11 +311,13 @@ pop(struct pt_regs **regs_restore)
 
 	/* Fault caused initial invocation.  FIXME: can we get this off the common case path? */
 	if (unlikely(inv_frame->ip == 0)) {
-		*regs_restore = &curr->fault_regs;
-		return NULL;
+		copy_gp_regs(&curr->fault_regs, regs);
+		return;
 	}
 
-	return inv_frame;	
+	user_regs_set(regs, user_regs_get_inv_ret(regs), inv_frame->sp, inv_frame->ip);
+
+	return;
 }
 
 static inline int __invoke_async_cap(unsigned int capability) {
@@ -278,29 +362,14 @@ err:
 	return -1;
 }
 
-COS_SYSCALL int
-walk_async_cap(unsigned int capability)
-{
-	return __invoke_async_cap(capability);
-}
-
-COS_SYSCALL int 
-cos_syscall_ainv_send(int spdid, int capability)
-{
-	return __invoke_async_cap(capability);
-}
-
 /* return 1 if the fault is handled by a component */
 int 
 fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num)
 {
 	struct spd *s = virtual_namespace_query(regs->ip);
 	struct thd_invocation_frame *curr_frame;
-	struct inv_ret_struct r;
-	vaddr_t a;
 	unsigned int fault_cap;
 	struct pt_regs *nregs;
-
 	/* printk("thd %d, fault addr %p, flags %d, fault num %d\n", thd_get_id(thd), fault_addr, flags, fault_num); */
 	/* corrupted ip? */
 	if (unlikely(!s)) {
@@ -329,11 +398,11 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 	
 	/* save the faulting registers */
 	memcpy(&thd->fault_regs, regs, sizeof(struct pt_regs));
-	a = ipc_walk_static_cap(fault_cap<<20, 0, 0, &r);
+	regs->ax = fault_cap<<20;
+	ipc_walk_static_cap(regs);
 
 	/* setup the registers for the fault handler invocation */
-	regs->ax = r.thd_id;
-	regs->bx = regs->cx = r.spd_id;
+	regs->bx = regs->cx; // cx = spdid
 	regs->sp = 0;
 	/* arguments (including bx above) */
 	regs->si = fault_addr;
@@ -341,20 +410,74 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 	regs->bp = regs->ip;
 
 	/* page fault handler address */
-	regs->dx = regs->ip = a;
+	regs->ip = regs->dx;
 
 	return 1;
 }
 
 /********** Composite system calls **********/
 
-COS_SYSCALL int 
-cos_syscall_void(int spdid)
+static inline int
+user_regs_get_arg1(struct pt_regs *regs)
 {
+	return regs->bx;
+}
+
+static inline int
+user_regs_get_arg2(struct pt_regs *regs)
+{
+	return regs->si;
+}
+
+static inline int
+user_regs_get_arg3(struct pt_regs *regs)
+{
+	return regs->di;
+}
+
+static inline int
+user_regs_get_arg4(struct pt_regs *regs)
+{
+	return regs->dx;
+}
+
+COS_SYSCALL int
+cos_syscall_void(struct pt_regs *regs)
+{
+	int spdid = spd_get_index(thd_get_thd_spd(core_get_curr_thd()));
+
 	printk("cos: error - %d made void system call from %d\n", thd_get_id(core_get_curr_thd()), spdid);
+
+	user_regs_set(regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
 	return 0;
 }
+
+static inline void
+walk_async_cap(struct pt_regs *regs)
+{
+	unsigned int capability = user_regs_get_cap(regs);
+	int ret;
+
+	ret = __invoke_async_cap(capability);
+
+	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
+
+	return;
+}
+
+COS_SYSCALL int
+cos_syscall_asend(struct pt_regs *regs)
+{
+	int ret, capability = user_regs_get_arg1(regs);
+
+	ret = __invoke_async_cap(capability);
+
+	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
+
+	return 0;
+}
+
 
 extern int switch_thread_data_page(int old_thd, int new_thd);
 
@@ -427,12 +550,21 @@ void initialize_sched_info(struct thread *t, struct spd *curr_sched)
  * to the fn and stack to be used anyway, which can be assigned at
  * user-level.
  */
-COS_SYSCALL int 
-cos_syscall_create_thread(int spd_id, int dest_spd_id, int a, int b)
+COS_SYSCALL int
+cos_syscall_create_thread(struct pt_regs *regs)
 {
+	int spd_id, dest_spd_id, a, b;
 	/* This upcalls into the dest_spd directly. */
 	struct thread *thd, *curr;
 	struct spd *sched_spd, *dest_spd;
+	int ret = -1;
+
+	dest_spd_id = user_regs_get_arg1(regs);
+	a           = user_regs_get_arg2(regs);
+	b           = user_regs_get_arg3(regs);
+	spd_id      = user_regs_get_arg4(regs);
+	/* printk("cpu %d creating thread params curr spd %d, dest spd %d, a %d, b %d\n", */
+	/*        get_cpuid(), spd_id, dest_spd_id, a, b); */
 
 	/*
 	 * Lets make sure that the current spd is a scheduler and has
@@ -446,7 +578,7 @@ cos_syscall_create_thread(int spd_id, int dest_spd_id, int a, int b)
 	sched_spd = thd_validate_get_current_spd(curr, spd_id);
 	if (NULL == sched_spd) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
-		return -1;
+		goto done;
 	}
 
 	if (!spd_is_scheduler(sched_spd)/* || !thd_scheduled_by(curr, sched_spd)*/) {
@@ -456,19 +588,19 @@ cos_syscall_create_thread(int spd_id, int dest_spd_id, int a, int b)
 		 */
 		//	if (!spd_is_root_sched(sched_spd)) {
 		printk("cos: non-scheduler attempted to create thread.\n");
-		return -1;
+		goto done;
 	}
 
 	dest_spd = spd_get_by_index(dest_spd_id);
 	if (NULL == dest_spd) {
 		printk("cos: requesting non-existed component %d\n", dest_spd_id);
-		return -1;
+		goto done;
 	}
 
 	thd = thd_alloc(dest_spd);
 	if (thd == NULL) {
 		printk("cos: Could not allocate thread\n");
-		return -1;
+		goto done;
 	}
 
 	/* FIXME: switch to using upcall_setup here */
@@ -488,15 +620,29 @@ cos_syscall_create_thread(int spd_id, int dest_spd_id, int a, int b)
 	thd->flags |= THD_STATE_CYC_CNT;
 	initialize_sched_info(thd, sched_spd);
 	
-	return thd_get_id(thd);
+	ret = thd_get_id(thd);
+	/* printk("cpu %d new thd %d in spd %d, ax%lu, cx%lu, dx%lu, bx%lu, di%lu, si %lu\n", get_cpuid(), ret, spd_get_index(dest_spd), */
+	/*        thd->regs.ax, thd->regs.cx,thd->regs.dx,thd->regs.bx,thd->regs.di, thd->regs.si); */
+done:
+	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
+
+	return 0;
 }
 
 COS_SYSCALL int 
-cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long arg2)
+cos_syscall_thd_cntl(struct pt_regs *regs)
 {
+	int spd_id, op_thdid;
+	long arg1, arg2;
 	struct thread *thd, *curr;
 	struct spd *curr_spd;
 	short int op, thdid;
+	int ret = -1;
+
+	op_thdid    = user_regs_get_arg1(regs);
+	arg1        = user_regs_get_arg2(regs);
+	arg2        = user_regs_get_arg3(regs);
+	spd_id      = user_regs_get_arg4(regs);
 
 	op = op_thdid >> 16;
 	thdid = op_thdid & 0xFFFF;
@@ -512,14 +658,14 @@ cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long arg2)
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
 	if (NULL == curr_spd) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
-		return -1;
+		goto done;
 	}
 	
 	thd = thd_get_by_id(thdid);
 	/* FIXME: finer grained access control required */
 /*	if (!spd_is_scheduler(curr_spd) || !thd_scheduled_by(thd, curr_spd)) {
 		printk("cos: non-scheduler attempted to manipulate thread.\n");
-		return -1;
+		goto done;
 	}
 */
 	
@@ -531,18 +677,23 @@ cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long arg2)
 		struct thd_invocation_frame *tif;
 
 		tif = thd_invstk_nth(thd, frame_offset);
-		if (NULL == tif) return 0;
-		i_spd = tif->spd;
-		return spd_get_index(i_spd);
+		if (NULL == tif) {
+			ret = 0; 
+		} else {
+			i_spd = tif->spd;
+			ret = spd_get_index(i_spd);
+		}
+		break;
 	}
 	case COS_THD_INV_FRAME_REM:
 	{
 		int frame_offset = arg1;
 
-		if (thd == curr && frame_offset < 1)       return -1;
-		if (thd_invstk_rem_nth(thd, frame_offset)) return -1;
+		if (thd == curr && frame_offset < 1)       break;
+		if (thd_invstk_rem_nth(thd, frame_offset)) break;
 
-		return 0;
+		ret = 0;
+		break;
 	}
 	case COS_THD_INV_SPD:
 	{
@@ -550,39 +701,49 @@ cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long arg2)
 		int i;
 
 		for (i = 0 ; (tif = thd_invstk_nth(thd, i)) ; i++) {
-			if (arg1 == spd_get_index(tif->spd)) return i;
+			if (arg1 == spd_get_index(tif->spd)) {
+				ret = i;
+				goto done;
+			}
 		}
-		return -1;
+
+		break;
 	}
 	case COS_THD_INVFRM_IP:
 	{
 		int frame_offset = arg1;
 
-		return thd_get_frame_ip(thd, frame_offset);
+		ret = thd_get_frame_ip(thd, frame_offset);
+		break;
 	}
 	case COS_THD_INVFRM_SET_IP:
 	{
 		int frame_offset = arg1;
 
-		return thd_set_frame_ip(thd, frame_offset, arg2);
+		ret = thd_set_frame_ip(thd, frame_offset, arg2);
+		break;
 	}
 	case COS_THD_INVFRM_SP:
 	{
 		int frame_offset = arg1;
 
-		return thd_get_frame_sp(thd, frame_offset);
+		ret = thd_get_frame_sp(thd, frame_offset);
+		break;
 	}
 	case COS_THD_INVFRM_SET_SP:
 	{
 		int frame_offset = arg1;
 
-		return thd_set_frame_sp(thd, frame_offset, arg2);
+		ret = thd_set_frame_sp(thd, frame_offset, arg2);
+		break;
 	}
 #define __GET_REG(name)							\
 	{								\
-		if (arg1) return thd->fault_regs. name ;		\
-		if (!(thd->flags & THD_STATE_PREEMPTED)) return 0;	\
-		return thd->regs. name ;				\
+		if (arg1) ret = thd->fault_regs. name ;			\
+		else if (!(thd->flags & THD_STATE_PREEMPTED)) ret = 0;	\
+		else ret = thd->regs.name;				\
+									\
+		break;							\
 	}
 	case COS_THD_GET_IP: __GET_REG(ip);
 	case COS_THD_GET_SP: __GET_REG(sp);
@@ -595,10 +756,11 @@ cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long arg2)
 	case COS_THD_GET_6:  __GET_REG(si);
 #define __SET_REG(name)							\
 	{							        \
+		ret = 0;						\
 		if (arg2) thd->fault_regs. name = arg1;			\
 		else if ((thd->flags & THD_STATE_PREEMPTED)) thd->regs. name = arg1; \
-		else return -1;						\
-		return 0;						\
+		else ret = -1;						\
+		break;							\
 	}
 	case COS_THD_SET_IP: __SET_REG(ip);
 	case COS_THD_SET_SP: __SET_REG(sp);
@@ -614,13 +776,18 @@ cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long arg2)
 		/* FIXME: all flags should NOT be part of the ABI.
 		 * Filter out relevant ones (upcall, acap,
 		 * preempted) */
-		return thd->flags;
+		ret = thd->flags;
+		break;
 	}
 	default:
 		printk("cos: undefined operation %d for thread %d from scheduler %d.\n",
 		       op, thdid, spd_id);
-		return -1;
+		break;
 	}
+
+done:
+	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
+
 	return 0;
 }
 
@@ -684,7 +851,6 @@ remove_preempted_status(struct thread *thd)
 	thd->flags &= ~THD_STATE_PREEMPTED;
 }
 
-extern int cos_syscall_switch_thread(void);
 static void update_sched_evts(struct thread *new, int new_flags, 
 		       struct thread *prev, int prev_flags);
 static struct pt_regs *sched_tailcall_pending_upcall(struct thread *uc, 
@@ -823,21 +989,13 @@ switch_thread_update_flags(struct cos_sched_data_area *da, unsigned short int *f
 #define goto_err(label, format, args...) goto label
 #endif
 
-/*
- * The arguments are horrible as we are interfacing w/ assembly and 1)
- * we need to return two values, the regs to restore, and if the next
- * thread was preempted or not (totally different return sequences),
- * 2) all syscalls provide as the first argument the spd_id of the spd
- * making the syscalls.  We need this info, and it is on the stack,
- * but (1) interferes with that as it pushes values onto the stack.  A
- * more pleasant way to deal with this might be to pass the args in
- * registers.  see ipc.S cos_syscall_switch_thread.
- */
-
-COS_SYSCALL struct pt_regs *
-cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id, 
-			       unsigned short int rflags, long *preempt)
+COS_SYSCALL int
+cos_syscall_switch_thread(struct pt_regs *regs)
 {
+	int spd_id;
+	unsigned short int rthd_id, rflags;
+	int preempt = 0;
+
 	struct thread *thd, *curr;
 	struct spd *curr_spd;
 	unsigned short int next_thd, flags;
@@ -846,13 +1004,19 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	struct cos_sched_data_area *da;
 	int ret_code = COS_SCHED_RET_ERROR;
 
-	*preempt = 0;
+	rthd_id = user_regs_get_arg1(regs);
+	rflags  = user_regs_get_arg2(regs);
+	spd_id  = user_regs_get_arg4(regs);
+
 	curr = core_get_curr_thd();
-	/* printk("thd %d, switch thd core %d\n", thd_get_id(curr), get_cpuid()); */
+
+	/* Save registers and return ip&sp */
+	copy_gp_regs(regs, &curr->regs);
+	user_regs_set(&curr->regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
 	if (unlikely(!curr_spd)) {
-		printk("err: wrong spd!\n");
+		printk("cos_switch_thread: spd error!\n");
 		goto ret_err;
 	}
 
@@ -861,7 +1025,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	/* Probably should change to kern_sched_shared_page */
 	da = curr_spd->sched_shared_page[get_cpuid()];
 	if (unlikely(!da)) {
-		printk("err: no shared data area!\n");
+		printk("cos_switch_thread: no shared data area!\n");
 		goto ret_err;
 	}
 
@@ -880,25 +1044,25 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 		/* If we should return immediately back to this
 		 * thread, and its registers have been changed,
 		 * return without setting the return value */
-		if (ret_code == COS_SCHED_RET_SUCCESS && thd == curr) goto ret;
+		if (ret_code == COS_SCHED_RET_SUCCESS && thd == curr) goto done;
 
 		if (thd == curr) 
 		{
 			/* printk("err: thd == curr, ret %d\n", ret_code); */
-			goto_err(ret_err, "sloooow\n");
+			goto_err(done, "sloooow\n");
 		}
 	} else {
 		next_thd = switch_thread_parse_data_area(da, &ret_code);
 		if (unlikely(0 == next_thd)) {
 			/* printk("core %d, err: data area\n", get_cpuid()); */
-			goto_err(ret_err, "data_area\n");
+			goto_err(done, "data_area\n");
 		}
 
 		thd = switch_thread_get_target(next_thd, curr, curr_spd, &ret_code);
 
 		if (unlikely(NULL == thd)) {
 			/* printk("err: get target\n"); */
-			goto_err(ret_err, "get target");
+			goto_err(done, "get target");
 		}
 	}
 
@@ -912,7 +1076,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	if (thd->flags & THD_STATE_PREEMPTED) {
 		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
 		remove_preempted_status(thd);
-		*preempt = 1;
+		preempt = 1;
 	} else {
 		cos_meas_event(COS_MEAS_SWITCH_COOP);
 	}
@@ -920,17 +1084,23 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
 	/* success for this current thread */
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
-//	printk("core %d: switch %d -> %d\n", get_cpuid(), thd_get_id(curr), thd_get_id(thd));
 	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
 
-	/* printk("%d to %d switch success.\n", thd_get_id(curr), thd_get_id(thd)); */
+	copy_gp_regs(&thd->regs, regs);
 
-	return &thd->regs;
+	/* printk("core %d: switch %d -> %d\n", get_cpuid(), thd_get_id(curr), thd_get_id(thd)); */
+	/* printk("%d regs:  ax %lu, cx %lu, dx %lu, bx %lu di %lu si %lu. \n", */
+	/*        thd_get_id(thd), thd->regs.ax, thd->regs.cx, thd->regs.dx, thd->regs.bx, thd->regs.di, thd->regs.si); */
+
+	return preempt;
 ret_err:
-	curr->regs.ax = ret_code;
-ret:
-	return &curr->regs;
+	ret_code = COS_SCHED_RET_ERROR;
+done:
+	user_regs_set(regs, ret_code, user_regs_get_sp(regs), user_regs_get_ip(regs));
+
+	return preempt;
 }
+
 
 static struct thread *
 switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd *curr_spd, 
@@ -1390,22 +1560,35 @@ void cos_trans_upcall(struct async_cap *acap)
 }
 
 COS_SYSCALL int
-cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, int off)
+cos_syscall_trans_cntl(struct pt_regs *regs)
 {
+	spdid_t spdid;
+	unsigned long op_ch, addr; 
+	int off;
 	int op, channel;
+	int ret = -1;
+
+	op_ch = user_regs_get_arg1(regs);
+	addr  = user_regs_get_arg2(regs);
+	off   = user_regs_get_arg3(regs);
+	spdid = user_regs_get_arg4(regs);
 
 	op = op_ch >> 16;
 	channel = op_ch & 0xFFFF;
 
 	switch (op) {
 	case COS_TRANS_TRIGGER:
-		if (trans_fns) return trans_fns->levt(channel);
+		if (trans_fns) {
+			ret = trans_fns->levt(channel);
+			break;
+		}
 	case COS_TRANS_MAP_SZ:
 	{
 		int sz = -1;
 		if (trans_fns) sz = trans_fns->map_sz(channel);
 
-		return sz;
+		ret = sz;
+		break;
 	}
 	case COS_TRANS_MAP:
 	{
@@ -1414,23 +1597,25 @@ cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, i
 		struct spd *s;
 
 		s = spd_get_by_index(spdid);
-		if (!s) return -1;
-		if (!trans_fns) return -1;
+		if (!s) break;
+		if (!trans_fns) break;
 		kaddr = (unsigned long)trans_fns->map_kaddr(channel);
-		if (!kaddr) return -1;
+		if (!kaddr) break;
 		sz    = trans_fns->map_sz(channel);
-		if (off > sz) return -1;
+		if (off > sz) break;
 
 		if (chal_pgtbl_add(s->spd_info.pg_tbl, addr, (paddr_t)chal_va2pa(((char *)kaddr+off)), MAPPING_RW)) {
 			printk("cos: trans grant -- could not add entry to page table.\n");
-			return -1;
+			break;
 		}
-		return 0;
+		ret = 0;
+		break;
 	}
 	case COS_TRANS_DIRECTION:
 	{
-		if (trans_fns) return trans_fns->direction(channel);
-		else return -1;
+		if (trans_fns) ret = trans_fns->direction(channel);
+
+		break;
 	}
 	case COS_TRANS_ACAP:
 	{
@@ -1441,18 +1626,21 @@ cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, i
 		spd = spd_get_by_index(spdid);
 		if (unlikely(!spd || acap_id >= MAX_NUM_ACAP)) {
 			printk("cos: trans_cntl in spd %d w/ invalid acap id %d\n", spdid, acap_id);
-			return -1;
+			break;
 		}
 		acap = &spd->acaps[acap_id]; // client acap
-		if (!acap->upcall_thd) return -1;
-		if (!trans_fns) return -1;
+		if (!acap->upcall_thd) break;
+		if (!trans_fns) break;
 
-		if (trans_fns->acap_created(channel, acap)) return -1;
+		if (trans_fns->acap_created(channel, acap)) break;
 
-		return 0;
+		ret = 0;
+		break;
 	}
 	}
-	return -1;
+	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
+
+	return 0;
 }
 
 /* 
@@ -1460,11 +1648,14 @@ cos_syscall_trans_cntl(spdid_t spdid, unsigned long op_ch, unsigned long addr, i
  * to receive data into, and a synchronous call to transmit data.
  */
 extern int user_struct_fits_on_page(unsigned long addr, unsigned int size);
-/* assembly in ipc.S */
-extern int cos_syscall_buff_mgmt(void);
-COS_SYSCALL int 
-cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigned int len_op)
+
+COS_SYSCALL int
+cos_syscall_buff_mgmt(struct pt_regs *regs)
 {
+	int spd_id;
+	void *addr;
+	unsigned int acap_id, len_op;
+
 	/* 
 	 * FIXME: To do this right, we would need to either 1) pin the
 	 * buffer's pages into memory, or 2) interact closely with the
@@ -1476,6 +1667,16 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 	struct spd *spd;
 	vaddr_t kaddr = 0;
 	unsigned short int option, len;
+	struct thread *curr, *prev = core_get_curr_thd();
+	int ret;
+
+	addr    = (void *)user_regs_get_arg1(regs);
+	acap_id = user_regs_get_arg2(regs);
+	len_op  = user_regs_get_arg3(regs);
+	spd_id  = user_regs_get_arg4(regs);
+
+	copy_gp_regs(regs, &prev->regs);
+	user_regs_set(&prev->regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
 	option = (len_op & 0xFFFF);
 	len = len_op >> 16;
@@ -1484,14 +1685,14 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 	if (!spd) {
 		printk("cos: buff mgmt -- invalid spd, %d for thd %d\n", 
 		       spd_id, thd_get_id(core_get_curr_thd()));
-		return -1;
+		goto err;
 	}
 
 	if (unlikely(COS_BM_XMIT != option &&
 		     0 == (kaddr = chal_pgtbl_vaddr2kaddr(spd->spd_info.pg_tbl, (unsigned long)addr)))) {
 		printk("cos: buff mgmt -- could not find kernel address for %p in spd %d\n",
 		       addr, spd_id);
-		return -1;
+		goto err;
 	}
 	
 	switch(option) {
@@ -1502,11 +1703,11 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 		int gather_buffs = 0, i, tot_len = 0;
 		struct gather_item gi[XMIT_HEADERS_GATHER_LEN];
 
-		if (unlikely(NULL == h)) return -1;
+		if (unlikely(NULL == h)) goto err;
 		gather_buffs = h->gather_len;
 		if (unlikely(gather_buffs > XMIT_HEADERS_GATHER_LEN)) {
 			printk("cos buff mgmt -- gather list length %d too large.", gather_buffs);
-			return -1;
+			goto err;
 		}
 		/* Check that each of the buffers in the gather list are legal */
 		for (i = 0 ; i < gather_buffs ; i++) {
@@ -1515,7 +1716,7 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 
 			if (unlikely(!user_struct_fits_on_page((unsigned long)user_gi->data, user_gi->len))) {
 				printk("cos: buff mgmt -- buffer address  %p does not fit onto page\n", user_gi->data);
-				return -1;
+				goto err;
 			}
 			if ((void*)((unsigned int)(user_gi->data) & PAGE_MASK) == 
 			    get_shared_data()->argument_region) {
@@ -1528,7 +1729,7 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 				if (unlikely(!kaddr)) {		    
 					printk("cos: buff mgmt -- could not find kernel address for %p in spd %d\n",
 					       user_gi->data, spd_id);
-					return -1;
+					goto err;
 				}
 			}
 
@@ -1539,7 +1740,8 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 		/* Transmit! */
 		if (likely(cos_net_fns && cos_net_fns->xmit_packet && h)) {
 			cos_meas_event(COS_MEAS_PACKET_XMIT);
-			return cos_net_fns->xmit_packet(h->headers, h->len, gi, gather_buffs, tot_len);
+			ret = cos_net_fns->xmit_packet(h->headers, h->len, gi, gather_buffs, tot_len);
+			goto done;
 		}
 		break;
 	}
@@ -1548,12 +1750,12 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 		if (len != sizeof(struct cos_net_xmit_headers)) {
 			printk("cos: buff mgmt -- xmit header region of length %d, expected %d.\n",
 			       len, sizeof(struct cos_net_xmit_headers));
-			return -1;
+			goto err;
 		}
 		if (!user_struct_fits_on_page((unsigned long)addr, len)) {
 			printk("cos: buff mgmt -- xmit headers address %p w/ len %d does not fit onto page\n", 
 			       addr, len);
-			return -1;
+			goto err;
 		}
 		/* FIXME: pin page in memory */
 		spd->cos_net_xmit_headers[get_cpuid()] = (struct cos_net_xmit_headers*)kaddr;
@@ -1572,17 +1774,17 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 		 */
 		if ((unsigned long)addr & ~PAGE_MASK || len != PAGE_SIZE) {
 			printk("cos: buff mgmt -- recv ring @ %p (%d) not on page boundary.\n", addr, len);
-			return -1;
+			goto err;
 		}
 		acap = &spd->acaps[acap_id];
 		if (!acap->upcall_thd) {
 			printk("cos: buff mgmt could not find acap %d.\n", acap_id);
-			return -1;
+			goto err;
 		}
 /* needed?  Validate step done above...
 		if (thd_get_thd_spd(b) != spd) {
 			printk("cos: buff mgmt trying to set buffer for acap not in curr spd");
-			return -1;
+			goto err;
 		}
 */
 		/* find the cos_net_acap struct */ 
@@ -1593,64 +1795,96 @@ cos_syscall_buff_mgmt_cont(int spd_id, void *addr, unsigned int acap_id, unsigne
 		if (i == active_net_acaps || /* Didn't find the net_acap struct */
 		    rb_setup(&cos_net_acap[i], (ring_buff_t*)addr, (ring_buff_t*)kaddr)) {
 			printk("cos: buff mgmt -- could not setup the ring buffer.\n");
-			return -1;
+			goto err;
 		}
 		break;
 	}
 	default:
 		printk("cos: buff mgmt -- unknown option %d.\n", option);
-		return -1;
+		goto err;
 	}
+
+	ret = 0;
+done:
+	user_regs_set_ret(&prev->regs, ret);
+
+	/* thread switch might happen in this call. */
+/*
+ * This is horrible: when we are in buff_mgmt transmitting packets,
+ * we can generate softirqs, in which case we might need to switch
+ * threads here.  See the comment in cosnet_xmit_packet.
+ */
+	curr = core_get_curr_thd();
+	copy_gp_regs(&curr->regs, regs);
+
 	return 0;
+err:
+	ret = -1;
+	goto done;
 }
 
-extern void register_timers(void);
 /*
  * This is a bandaid currently.  This syscall should really be 
  * replaced by something a little more subtle and more closely related
  * to the APIC and timer hardware, rather than the device in general.
  */
-COS_SYSCALL int 
-cos_syscall_acap_wire(int spd_id, int spd_acap_id, int option, int data)
+
+COS_SYSCALL int
+cos_syscall_acap_wire(struct pt_regs *regs)
 {
+	int spd_id, spd_acap_id, option, data;
 	struct thread *curr_thd;
 	struct spd *curr_spd, *net_spd;
 	struct async_cap *acap;
+	int ret = -1;
+
+	spd_acap_id = user_regs_get_arg1(regs);
+	option      = user_regs_get_arg2(regs);
+	data        = user_regs_get_arg3(regs);
+	spd_id      = user_regs_get_arg4(regs);
 
 	curr_thd = core_get_curr_thd();
 	curr_spd = thd_validate_get_current_spd(curr_thd, spd_id);
 	if (NULL == curr_spd) {
 		printk("cos: wiring acap to hardware - component claimed in spd %d, but not\n", spd_id);
-		return -1;		
+		goto done;
 	}
 
 	switch (option) {
 	case COS_HW_TIMER:
+		if (spd_acap_id == 0) {
+			/* Disable cos timer acap */
+			*PERCPU_GET(cos_timer_acap) = NULL;
+			ret = 0;
+			break;
+		}
+
 		acap = &curr_spd->acaps[spd_acap_id & 0xFFFF];
 		if (unlikely(!acap)) {
 			printk("cos: wiring to a non-existing acap %d. \n", spd_acap_id & 0xFFFF);
-			return -1;
+			break;
 		}
 
-		register_timers();
+		/* After setting this, the cos timer handler will be
+		 * effective. */
 		*PERCPU_GET(cos_timer_acap) = acap;
-		
+		ret = 0;
+
 		break;
 	case COS_HW_NET:
-
 		net_spd = spd_get_by_index(spd_acap_id >> 16);
 		if (!net_spd) {
 			printk("cos: can't find spd %d when wiring acap.\n", spd_acap_id >> 16);
-			return -1;
+			break;
 		}
 		acap = &net_spd->acaps[spd_acap_id & 0xFFFF];
 		if (!acap->upcall_thd) {
 			printk("cos: wiring to acap %d w/o upcall thread.\n", acap->id);
-			return -1;
+			break;
 		}
 		if (active_net_acaps >= NUM_NET_ACAPS || !cos_net_fns) {
 			printk("cos: Too many network acaps.\n\n");
-			return -1;
+			break;
 		}
 
 		cos_net_acap[active_net_acaps].acap_port = (unsigned short int)data;
@@ -1659,14 +1893,17 @@ cos_syscall_acap_wire(int spd_id, int spd_acap_id, int option, int data)
 		    !cos_net_fns->create_acap || 
 		    cos_net_fns->create_acap(&cos_net_acap[active_net_acaps])) {
 			printk("cos: could not create acap in networking subsystem\n");
-			return -1;
+			break;
 		}
 		active_net_acaps++;
+		ret = 0;
 
 		break;
 	default:
-		return -1;
+		break;
 	}
+done:
+	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
 	return 0;
 }
@@ -1687,25 +1924,18 @@ static int verify_trust(struct spd *truster, struct spd *trustee)
 	return -1;
 }
 
-/* 
- * I HATE this call...do away with it if possible.  But we need some
- * way to jump-start processes, let schedulers keep track of their
- * threads, and be notified when threads die.
- *
- * NOT performance sensitive: used to kick start spds and give them
- * active entities (threads).
- */
-/* init_data is the index in the data array for thread init. 0 means
- * to bootstrap. */
-extern void cos_syscall_upcall(void);
-COS_SYSCALL int 
-cos_syscall_upcall_cont(int this_spd_id, int spd_id, int init_data, struct pt_regs **regs)
+COS_SYSCALL int
+cos_syscall_upcall(struct pt_regs *regs)
 {
+	int this_spd_id, spd_id, init_data;
 	struct spd *dest, *curr_spd;
 	struct thread *thd;
 
+	spd_id      = user_regs_get_arg1(regs);
+	init_data   = user_regs_get_arg2(regs);
+	this_spd_id = user_regs_get_arg4(regs);
+
 	assert(regs);
-	*regs = NULL;
 
 	dest = spd_get_by_index(spd_id);
 	thd = core_get_curr_thd();
@@ -1715,7 +1945,7 @@ cos_syscall_upcall_cont(int this_spd_id, int spd_id, int init_data, struct pt_re
 		printk("cos: upcall attempt failed - dest_spd = %d, curr_spd = %d.\n",
 		       dest     ? spd_get_index(dest)     : 0, 
 		       curr_spd ? spd_get_index(curr_spd) : 0);
-		return -1;
+		goto err;
 	}
 
 	/*
@@ -1726,7 +1956,7 @@ cos_syscall_upcall_cont(int this_spd_id, int spd_id, int init_data, struct pt_re
 	if (verify_trust(dest, curr_spd) && curr_spd->sched_depth != 0) {
 		printk("cos: upcall attempted from %d to %d without trust relation.\n",
 		       spd_get_index(curr_spd), spd_get_index(dest));
-		return -1;
+		goto err;
 	}
 
 	open_close_spd(dest->composite_spd, curr_spd->composite_spd); 
@@ -1735,13 +1965,17 @@ cos_syscall_upcall_cont(int this_spd_id, int spd_id, int init_data, struct pt_re
 	//spd_mpd_ipc_take((struct composite_spd *)dest->composite_spd);
 
 	upcall_setup(thd, dest, COS_UPCALL_THD_CREATE, init_data, 0, 0);
-	*regs = &thd->regs;
+	/* Registers (ax, ip, sp, etc) for the upcall thd are setup above. */
+	copy_gp_regs(&thd->regs, regs);
 
 	cos_meas_event(COS_MEAS_UPCALLS);
 
-	return thd_get_id(thd) | get_cpuid() << 16;
-}
+	return 0;
+err:
+	user_regs_set(regs, -1, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
+	return 0;
+}
 
 /****************** begin event notification functions ******************/
 
@@ -2051,9 +2285,7 @@ ainv_next_thread(struct async_cap *acap, struct thread *preempted, int preempt)
 	 * executing thread?
 	 */
 	if (ainv_higher_urgency(upcall, preempted)) {
-		/* printk("core %ld, going to switch to upcall thd %d,
-		 * prev thd %d\n", get_cpuid(), upcall->thread_id,
-		 * preempted->thread_id); */
+		/* printk("core %ld, going to switch to upcall thd %d, prev thd %d\n", get_cpuid(), upcall->thread_id, preempted->thread_id); */
 		if (unlikely(preempted->flags & THD_STATE_PREEMPTED)) {
 			printk("cos: WTF - preempted thread %d preempted, upcall %d.\n", 
 			       thd_get_id(preempted), thd_get_id(upcall));
@@ -2130,7 +2362,7 @@ ainv_next_thread(struct async_cap *acap, struct thread *preempted, int preempt)
 		cos_meas_stats_end(COS_MEAS_STATS_UC_EXEC_DELAY, 1);
 		return upcall;
 	} 
-		
+
 	/* 
 	 * If another upcall is what we attempted to preempt, we might
 	 * have a higher priority than the thread that upcall had
@@ -2150,29 +2382,36 @@ ainv_next_thread(struct async_cap *acap, struct thread *preempted, int preempt)
 
 /************** end functions for parsing async set urgencies ************/
 
-COS_SYSCALL int 
-cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
+COS_SYSCALL int
+cos_syscall_sched_cntl(struct pt_regs *regs)
 {
+	int spd_id, operation, thd_id, option;
 	struct thread *thd;
 	struct spd *spd;
+	int ret = -1;
+
+	operation = user_regs_get_arg1(regs);
+	thd_id    = user_regs_get_arg2(regs);
+	option    = user_regs_get_arg3(regs);
+	spd_id    = user_regs_get_arg4(regs);
 
 	thd = core_get_curr_thd();
 	spd = thd_validate_get_current_spd(thd, spd_id);
 	if (NULL == spd) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
-		return -1;
+		goto done;
 	}
 
 	if (spd->sched_depth < 0) {
 		printk("cos: spd %d called sched_cntl, but not a scheduler.\n", spd_id);
-		return -1;
+		goto done;
 	}
 /* Is this necessary??
 	tsi = thd_get_sched_info(thd, spd->sched_depth);
 	if (tsi->scheduler != spd) {
 		printk("cos: spd %d @ depth %d attempting sched_cntl not a scheduler of thd %d (%x != %x).\n",
 		       spd_get_index(spd), spd->sched_depth, thd_get_id(thd), (unsigned int)tsi->scheduler, (unsigned int)spd);
-		return -1;
+		goto done;
 	}
 */
 
@@ -2184,7 +2423,7 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 		if (region < spd->location[0].lowest_addr ||
 		    region + PAGE_SIZE >= spd->location[0].lowest_addr + spd->location[0].size) {
 			printk("cos: attempted evt region for spd %d @ %lx.\n", spd_get_index(spd), region);
-			return -1;
+			break;
 		}
 		spd->sched_shared_page[get_cpuid()] = (struct cos_sched_data_area *)region;
 		/* We will need to access the shared_page for thread
@@ -2196,6 +2435,8 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 
 		/* FIXME: pin the page */
 		printk("core %u, sched shared region @%p, kern @%p\n", get_cpuid(), spd->sched_shared_page[get_cpuid()], spd->kern_sched_shared_page[get_cpuid()]);
+		ret = 0;
+
 		break;
 	}
 	case COS_SCHED_THD_EVT:
@@ -2209,20 +2450,20 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 		if (!thd) {
 			printk("cos: thd id %d passed into register event %d invalid.\n",
 			       (unsigned int)thd_id, (unsigned int)idx);
-			return -1;
+			break;
 		}
 		
 		tsi = thd_get_sched_info(thd, spd->sched_depth);
 		if (tsi->scheduler != spd) {
 			printk("cos: spd %d not the scheduler of %d to associate evt %d.\n",
 			       spd_get_index(spd), (unsigned int)thd_id, (unsigned int)idx);
-			return -1;
+			break;
 		}
 
 		if (idx >= NUM_SCHED_EVTS) {
 			printk("cos: invalid thd evt index %d for scheduler %d\n", 
 			       (unsigned int)idx, (unsigned int)spd_id);
-			return -1;
+			break;
 		}
 
 		if (0 == idx) {
@@ -2244,8 +2485,9 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 			//COS_SCHED_EVT_FLAGS(this_evt) = 0;
 			//this_evt->cpu_consumption = 0;
 		}
-		
 		//print_thd_sched_structs(thd);
+		ret = 0;
+
 		break;
 	}
 	case COS_SCHED_PROMOTE_CHLD:
@@ -2255,18 +2497,27 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 
 		if (sched_lvl >= MAX_SCHED_HIER_DEPTH) {
 			printk("Cannot promote child, exceeds sched hier depth.\n");
-			return -1;
+			break;
+		}
+		if (!child) {
+			printk("Couldn't find child scheduler.\n");
+			break;
 		}
 		if (child->parent_sched && child->parent_sched != spd) {
 			printk("Child scheduler already child to another scheduler.\n");
-			return -1;
+			break;
 		}
 		child->parent_sched = spd;
 		child->sched_depth = sched_lvl;
+		ret = 0;
+
 		break;
 	}
 	case COS_SCHED_PROMOTE_ROOT:
+	{
+		ret = 0;
 		break;
+	}
 	case COS_SCHED_GRANT_SCHED:
 	case COS_SCHED_REVOKE_SCHED:
 	{
@@ -2289,7 +2540,7 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 		    !thd_scheduled_by(target_thd, spd)) {
 			printk("cos: Could not give privs for sched %d to thd %d from sched %d.\n",
 			       (unsigned int)option, (unsigned int)thd_id, (unsigned int)spd_id);
-			return -1;
+			break;
 		}
 		
 		child_tsi = thd_get_sched_info(target_thd, child->sched_depth);
@@ -2299,7 +2550,7 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 		} else if (COS_SCHED_REVOKE_SCHED == operation) {
 			if (child_tsi->scheduler != child) {
 				printk("cos: cannot remove privs when they aren't had\n");
-				return -1;
+				break;
 			}
 
 			child_tsi->scheduler = NULL;
@@ -2323,13 +2574,17 @@ cos_syscall_sched_cntl(int spd_id, int operation, int thd_id, long option)
 		 * instead make an upcall into the scheduler.
 		 */
 		break_preemption_chain(thd);
+		ret = 0;
+
 		break;
 	}
 	default:
 		printk("cos: cos_sched_cntl illegal operation %d.\n", operation);
-		return -1;
+		break;
 	}
-	
+done:
+	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
+
 	return 0;
 }
 	
@@ -2580,10 +2835,12 @@ mpd_merge(struct composite_spd *c1, struct composite_spd *c2)
  * and the meaning here is "the composite protection domain that this
  * spd is part of".
  */
-COS_SYSCALL int 
-cos_syscall_mpd_cntl(int spd_id, int operation, 
-				     spdid_t spd1, spdid_t spd2)
+COS_SYSCALL int
+cos_syscall_mpd_cntl(struct pt_regs *regs)
 {
+	int spd_id, operation;
+	spdid_t spd1, spd2;
+
 	int ret = 0; 
 	struct composite_spd *prev = NULL;
 	struct spd *from = NULL;
@@ -2591,11 +2848,17 @@ cos_syscall_mpd_cntl(int spd_id, int operation,
 	struct spd_poly *curr;
 	struct thread *thd;
 
+	operation = user_regs_get_arg1(regs);
+	spd1      = user_regs_get_arg2(regs);
+	spd2      = user_regs_get_arg3(regs);
+	spd_id    = user_regs_get_arg4(regs);
+
 	if (spd1) {
 		from = spd_get_by_index(spd1);
 		if (0 == from) {
 			printk("cos: mpd_cntl -- first composite spd %d not valid\n", spd1);
-			return -1;
+			ret = -1;
+			goto done;
 		}
 		prev = (struct composite_spd *)from->composite_spd;
 		assert(prev);
@@ -2633,7 +2896,8 @@ cos_syscall_mpd_cntl(int spd_id, int operation,
 		assert(spd_composite_num_members(prev) > 0);
 		if (trans_cspd != prev) {
 			printk("cos: mpd_cntl -- spd %d not in claimed composite for %d\n", spd2, spd1);
-			return -1;
+			ret = -1;
+			goto done;
 		}
 		/*
 		 * It is not correct to split a spd out of a composite
@@ -2748,8 +3012,10 @@ cos_syscall_mpd_cntl(int spd_id, int operation,
 	 * we should do something about it:
 	 */
 	switch_pgtbls(new_pg_tbl, curr_pg_tbl);
-	
-	return ret;
+done:
+	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
+
+	return 0;
 }
 
 /*
@@ -2760,40 +3026,69 @@ cos_syscall_mpd_cntl(int spd_id, int operation,
  * or is in the current composite spd, or is a child of a fault
  * thread.
  */
-COS_SYSCALL int 
-cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, unsigned long mem_id)
+COS_SYSCALL int
+cos_syscall_mmap_cntl(struct pt_regs *regs)
 {
+	int spdid;
+	long op_flags_dspd;
+	vaddr_t daddr;
+	unsigned long mem_id;
+
 	short int op, flags, dspd_id;
 	paddr_t page;
 	int ret = 0;
 	struct spd *spd, *this_spd;
 	
+	op_flags_dspd = (long)user_regs_get_arg1(regs);
+	daddr         = (vaddr_t)user_regs_get_arg2(regs);
+	mem_id        = (unsigned long)user_regs_get_arg3(regs);
+	spdid        = user_regs_get_arg4(regs);
+
 	/* decode arguments */
 	op       = op_flags_dspd>>24;
 	flags    = op_flags_dspd>>16 & 0x000000FF;
 	dspd_id  = op_flags_dspd & 0x0000FFFF;
 	this_spd = spd_get_by_index(spdid);
 	spd      = spd_get_by_index(dspd_id);
-	if (!this_spd || !spd || virtual_namespace_query(daddr) != spd) {
+
+	if (!this_spd || !spd || (virtual_namespace_query(daddr) != spd && op != COS_MMAP_TLBFLUSH)) {
 		printk("cos: invalid mmap cntl call for spd %d for spd %d @ vaddr %x\n",
 		       spdid, dspd_id, (unsigned int)daddr);
-		return -1;
+		ret = -1;
+		goto done;
 	}
 
 	switch(op) {
 	case COS_MMAP_GRANT:
-		mem_id += this_spd->pfn_base;
-		if (mem_id < this_spd->pfn_base || /* <- check for overflow? */
-		    mem_id >= (this_spd->pfn_base + this_spd->pfn_extent)) {
-			printk("Accessing physical frame outside of allowed range (%d outside of [%d, %d).\n",
-			       (int)mem_id, this_spd->pfn_base, 
-			       this_spd->pfn_base + this_spd->pfn_extent);
-			return -EINVAL;
+	{
+		if (flags & MAPPING_KMEM) { /* Kernel memory */
+			mem_id += this_spd->kern_pfn_base;
+			if (mem_id < this_spd->kern_pfn_base || /* <- check for overflow? */
+			    mem_id >= (this_spd->kern_pfn_base + this_spd->kern_pfn_extent)) {
+				printk("Accessing kernel physical frame outside of allowed range (%d outside of [%d, %d).\n",
+				       (int)mem_id, this_spd->kern_pfn_base, 
+				       this_spd->kern_pfn_base + this_spd->kern_pfn_extent);
+				ret = -EINVAL;
+				goto done;
+			}
+			page = cos_access_kernel_page(mem_id);
+		} else { /* User memory*/
+			mem_id += this_spd->pfn_base;
+			if (mem_id < this_spd->pfn_base || /* <- check for overflow? */
+			    mem_id >= (this_spd->pfn_base + this_spd->pfn_extent)) {
+				printk("Accessing physical frame outside of allowed range (%d outside of [%d, %d).\n",
+				       (int)mem_id, this_spd->pfn_base, 
+				       this_spd->pfn_base + this_spd->pfn_extent);
+				ret = -EINVAL;
+				goto done;
+			}
+			page = cos_access_page(mem_id);
 		}
-		page = cos_access_page(mem_id);
+
 		if (0 == page) {
 			printk("cos: mmap grant -- could not get a physical page.\n");
-			return -EINVAL;
+			ret = -EINVAL;
+			goto done;
 		}
 		/*
 		 * Demand paging could mess this up as the entry might
@@ -2810,15 +3105,20 @@ cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, unsigned lon
 		}
 		cos_meas_event(COS_MAP_GRANT);
 		break;
+	}
 	case COS_MMAP_REVOKE:
 	{
 		paddr_t pa;
-
 		if (!(pa = chal_pgtbl_rem(spd->spd_info.pg_tbl, daddr))) {
 			ret = 0;
 			break;
 		}
-		ret = cos_paddr_to_cap(pa) - this_spd->pfn_base;
+
+		if (flags & MAPPING_KMEM) { /* User memory*/
+			ret = cos_kernel_paddr_to_cap(pa) - this_spd->kern_pfn_base;
+		} else {
+			ret = cos_paddr_to_cap(pa) - this_spd->pfn_base;
+		}
 		cos_meas_event(COS_MAP_REVOKE);
 
 		break;
@@ -2829,24 +3129,39 @@ cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, unsigned lon
 	default:
 		ret = -1;
 	}
+done:
+	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return ret;
+	return 0;
 }
 
-COS_SYSCALL int 
-cos_syscall_pfn_cntl(int spdid, long op_dspd, unsigned int mem_id, int extent)
+COS_SYSCALL int
+cos_syscall_pfn_cntl(struct pt_regs *regs)
 {
+	int spdid;
+	long op_dspd;
+	unsigned int mem_id;
+	int extent;
+
 	struct spd *spd, *dspd;
 	spdid_t dspdid;
 	unsigned int end;
 	int op, ret = 0;
+
+	op_dspd = (long)user_regs_get_arg1(regs);
+	mem_id  = (unsigned int)user_regs_get_arg2(regs);
+	extent  = user_regs_get_arg3(regs);
+	spdid   = user_regs_get_arg4(regs);
 
 	op     = op_dspd >> 16;
 	dspdid = 0xFFFF & op_dspd;
 	spd    = spd_get_by_index(spdid);
 	dspd   = spd_get_by_index(dspdid);
 
-	if (!spd || !dspd) return -1;
+	if (!spd || !dspd) {
+		ret = -1;
+		goto done;
+	}
 	end = mem_id + extent;
 	/* Do we own the physical page number range? */
 	/* FIXME: permission check */
@@ -2858,13 +3173,22 @@ cos_syscall_pfn_cntl(int spdid, long op_dspd, unsigned int mem_id, int extent)
 		dspd->pfn_base   = mem_id;
 		dspd->pfn_extent = extent;
 		break;
+	case COS_PFN_GRANT_KERN:
+		dspd->kern_pfn_base   = mem_id;
+		dspd->kern_pfn_extent = extent;
+		break;
 	case COS_PFN_MAX_MEM:
 		ret = spd->pfn_extent;
 		break;
-	default: return -1;
+	case COS_PFN_MAX_MEM_KERN:
+		ret = spd->kern_pfn_extent;
+		break;
+	default: ret = -1;
 	}
+done:
+	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return ret;
+	return 0;
 }
 
 /* 
@@ -2897,10 +3221,18 @@ fault_update_mpd_pgtbl(struct thread *thd, struct pt_regs *regs, vaddr_t fault_a
 }
 
 #define MAX_LEN 512 /* keep consistent as in printc.h */
-COS_SYSCALL int 
-cos_syscall_print(int spdid, char *str, int len)
+COS_SYSCALL int
+cos_syscall_print(struct pt_regs *regs)
 {
+	int spdid;
+	char *str; 
+	int len;
 	char kern_buf[MAX_LEN];
+
+	str     = (char *)user_regs_get_arg1(regs);
+	len     = user_regs_get_arg2(regs);
+	spdid   = user_regs_get_arg4(regs);
+
 	/*
 	 * FIXME: use linux functions to copy the string into local
 	 * storage to avoid faults.  ...This won't work with cos
@@ -2909,18 +3241,26 @@ cos_syscall_print(int spdid, char *str, int len)
 	 * passed in the arg region.  Perhaps we should just check
 	 * that.
 	 */
-	if (len < 1) return 0;
+	if (len < 1) goto done;
 	if (len >= MAX_LEN) len = MAX_LEN - 1;
 	memcpy(kern_buf, str, len);
 	kern_buf[len] = '\0';
 	printk("%s", kern_buf);
 
+done:
+	user_regs_set(regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
+
 	return 0;
 }
 
-COS_SYSCALL long 
-cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
+COS_SYSCALL int
+cos_syscall_cap_cntl(struct pt_regs *regs)
 {
+	int spdid;
+	int option;
+	u32_t arg1;
+	long arg2;
+
 	vaddr_t va;
 	u16_t capid;
 	int ret = 0;
@@ -2929,13 +3269,24 @@ cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
 
 	/* TODO: access control */
 
+	option = user_regs_get_arg1(regs);
+	arg1   = user_regs_get_arg2(regs);
+	arg2   = user_regs_get_arg3(regs);
+	spdid  = user_regs_get_arg4(regs);
+
 	cspdid = arg1 >> 16;
 	cspd = spd_get_by_index(cspdid);
-	if (!cspd) return -1;
+	if (!cspd) {
+		ret = -1;
+		goto done;
+	}
 	if (option == COS_CAP_GET_INVCNT) {
 		sspdid = 0xFFFF & arg1;
 		sspd = spd_get_by_index(sspdid);
-		if (!sspd) return -1;
+		if (!sspd) {
+			ret = -1;
+			goto done;
+		}
 	} else {
 		capid =  0xFFFF & arg1;
 	}
@@ -2973,12 +3324,12 @@ cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
 		if (spd_cap_activate(cspd, capid)) ret = -1;
 		break;
 	case COS_CAP_GET_DEST_SPD:
-		if (capid > cspd->ncaps || capid < 0) return -1;
-		ret = spd_get_index(cspd->caps[capid].destination);
+		if (capid > cspd->ncaps || capid < 0) ret = -1;
+		else ret = spd_get_index(cspd->caps[capid].destination);
 		break;
 	case COS_CAP_GET_DEST_FN:
-		if (capid > cspd->ncaps || capid < 0) return -1;
-		ret = (int)cspd->caps[capid].usr_stub_info.ST_serv_entry;
+		if (capid > cspd->ncaps || capid < 0) ret = -1;
+		else ret = (int)cspd->caps[capid].usr_stub_info.ST_serv_entry;
 		break;
 	case COS_CAP_GET_SPD_NCAPS:
 		ret = cspd->ncaps;
@@ -2987,46 +3338,71 @@ cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
 		ret = -1;
 		break;
 	};
-
-	return ret;
-}
-
-COS_SYSCALL int 
-cos_syscall_stats(int spdid)
-{
-	cos_meas_report();
-	cos_meas_init();
+done:
+	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
 	return 0;
 }
 
-extern int cos_syscall_idle(void);
-COS_SYSCALL int 
-cos_syscall_idle_cont(int spdid)
+
+COS_SYSCALL int
+cos_syscall_stats(struct pt_regs *regs)
 {
-	struct thread *c = core_get_curr_thd();
+	cos_meas_report();
+	cos_meas_init();
+
+	user_regs_set(regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
+
+	return 0;
+}
+
+COS_SYSCALL int
+cos_syscall_idle(struct pt_regs *regs)
+{
+	int ret;
+	struct thread *prev = core_get_curr_thd();
+
+	copy_gp_regs(regs, &prev->regs);
+	user_regs_set(&prev->regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
 	
-	if (c != core_get_curr_thd()) return COS_SCHED_RET_AGAIN;
+	if (prev != core_get_curr_thd()) {
+		ret = COS_SCHED_RET_AGAIN;
+		goto done;
+	}
 
 	chal_idle();
 
-	return COS_SCHED_RET_SUCCESS;
+	ret = COS_SCHED_RET_SUCCESS;
+done:
+	user_regs_set_ret(&prev->regs, ret);
+	copy_gp_regs(&(core_get_curr_thd()->regs), regs);
+
+	return 0;
 }
 
-COS_SYSCALL int 
-cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
+COS_SYSCALL int
+cos_syscall_spd_cntl(struct pt_regs *regs)
 {
+	int id, op_spdid, arg1, arg2;
 	struct spd *spd;
 	short int op;
 	spdid_t spd_id;
 	int ret = 0;
+
+	op_spdid = user_regs_get_arg1(regs);
+	arg1     = user_regs_get_arg2(regs);
+	arg2     = user_regs_get_arg3(regs);
+	id       = user_regs_get_arg4(regs);
 
 	op = op_spdid >> 16;
 	spd_id = op_spdid & 0xFFFF;
 	
 	if (COS_SPD_CREATE != op) {
 		spd = spd_get_by_index(spd_id);
-		if (!spd) return  -1;
+		if (!spd) {
+			ret = -1;
+			goto done;
+		}
 	}
 
 	switch (op) {
@@ -3153,23 +3529,36 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 	default:
 		ret = -1;
 	}
-	
-	return ret;
+done:
+	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
+
+	return 0;
 }
 
-COS_SYSCALL int 
-cos_syscall_vas_cntl(int id, int op_spdid, long addr, long sz)
+
+COS_SYSCALL int
+cos_syscall_vas_cntl(struct pt_regs *regs)
 {
+	int id, op_spdid;
+	long addr, sz;
+
 	int ret = 0;
 	short int op;
 	spdid_t spd_id;
 	struct spd *spd;
 
+	op_spdid = user_regs_get_arg1(regs);
+	addr     = (long)user_regs_get_arg2(regs);
+	sz       = (long)user_regs_get_arg3(regs);
+	id       = user_regs_get_arg4(regs);
+
 	op = op_spdid >> 16;
 	spd_id = op_spdid & 0xFFFF;
 	spd = spd_get_by_index(spd_id);
-	if (!spd) return -1;
-	if (!sz)  return -1;
+	if (!spd || !sz) {
+		ret = -1;
+		goto done;
+	}
 
 	switch(op) {
 	case COS_VAS_CREATE: 	/* new vas */
@@ -3187,8 +3576,10 @@ cos_syscall_vas_cntl(int id, int op_spdid, long addr, long sz)
 		if (spd_rem_location(spd, addr, sz)) ret = -1;
 		break;
 	}
+done:
+	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return ret;
+	return 0;
 }
 
 static struct pt_regs *ainv_execution_completion(struct thread *curr, int *preempt)
@@ -3257,25 +3648,32 @@ static struct pt_regs *ainv_execution_completion(struct thread *curr, int *preem
 	return &prev->regs;
 }
 
-extern void cos_syscall_ainv_wait(int spd_id, int acap, int *preempt);
+COS_SYSCALL int
+cos_syscall_areceive(struct pt_regs *regs)
+{
+	int spd_id, acap;
+	int preempt = 0;
 
-COS_SYSCALL struct pt_regs *
-cos_syscall_ainv_wait_cont(int spd_id, int acap, int *preempt) {
 	struct thread *curr;
 	struct spd *curr_spd;
 	struct async_cap *acap_entry;
 
+	spd_id = user_regs_get_arg4(regs);
+	acap   = user_regs_get_arg1(regs);
+
 	curr = core_get_curr_thd();
+	copy_gp_regs(regs, &curr->regs);
+	user_regs_set(&curr->regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
 	/* printk("doing ainv wait, thd %d, acap %d (%d).\n", thd_get_id(curr), acap, acap & ~COS_ASYNC_CAP_FLAG); */
 
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
 	if (unlikely(NULL == curr_spd)) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
-		goto ainv_wait_err;		
+		goto areceive_err;		
 	}
 	if (unlikely(acap >= MAX_NUM_ACAP)) {
 		printk("cos: capability %d greater than max.\n", acap);
-		goto ainv_wait_err;
+		goto areceive_err;
 	}
 
 	acap_entry = &curr_spd->acaps[acap];
@@ -3283,19 +3681,22 @@ cos_syscall_ainv_wait_cont(int spd_id, int acap, int *preempt) {
 
 	/* if (unlikely(type wrong)) { */
 	/* 	printk("cos: invalid acap %d in comp %d.\n", acap, spdid); */
-	/* 	goto ainv_wait_err; */
+	/* 	goto areceive_err; */
 	/* } */
 	if (unlikely(acap_entry->upcall_thd != thd_get_id(curr))) {
 		printk("cos: specified acap %d not one associated with %d (upcall_thd %d, spd %d)\n", 
 		       acap, thd_get_id(curr), acap_entry->upcall_thd, acap_entry->srv_spd_id);
-		goto ainv_wait_err;
+		goto areceive_err;
 	}
 	curr->srv_acap = acap_entry;
 
-	return ainv_execution_completion(curr, preempt);
-ainv_wait_err:
-	curr->regs.ax = -1;
-	return &curr->regs;
+	copy_gp_regs(ainv_execution_completion(curr, &preempt), regs);
+
+	return preempt;
+areceive_err:
+	user_regs_set(&curr->regs, -1, user_regs_get_sp(regs), user_regs_get_ip(regs));
+
+	return preempt;
 }
 
 static inline int alloc_acap_id(struct spd *spd){
@@ -3345,19 +3746,362 @@ void cos_ipi_handling(void)
 	return;
 }
 
-COS_SYSCALL int 
-cos_syscall_async_cap_cntl(int spd_id, int operation, 
-			   int arg_1, int arg_2)
+static inline void sti(void)
 {
+	__asm__("sti");
+}
+
+static inline void cli(void)
+{
+	__asm__("cli");
+}
+
+unsigned long long tsc_start(void)
+{
+	unsigned long cycles_high, cycles_low; 
+	asm volatile ("mov $0, %%eax\n\t"
+		      "CPUID\n\t"
+		      "RDTSC\n\t"
+		      "mov %%edx, %0\n\t"
+		      "mov %%eax, %1\n\t": "=r" (cycles_high), "=r" (cycles_low) :: 
+		      "%eax", "%ebx", "%ecx", "%edx");
+
+	return ((unsigned long long)cycles_high << 32) | cycles_low;
+}
+
+unsigned long long rdtsc(void)
+{
+	unsigned long cycles_high, cycles_low; 
+
+	asm volatile ("RDTSCP\n\t" 
+		      "mov %%edx, %0\n\t" 
+		      "mov %%eax, %1\n\t": "=r" (cycles_high), "=r" (cycles_low) : : "%eax", "%edx"); 
+
+	return ((unsigned long long)cycles_high << 32 | cycles_low);
+}
+
+int delay(int cycles) {
+	unsigned long long s,e;
+	volatile int mem = 0;
+
+	s = rdtsc();
+	while (1) {
+		e = rdtsc();
+		if (e - s > cycles) return 0; // x us
+		mem++;
+	}
+
+	return 0;
+}
+
+#define CK_CC_IMM "i"
+
+#define CK_PR_LOAD(S, M, T, C, I)				\
+	static T					\
+	ck_pr_load_##S(const M *target)				\
+	{							\
+		T r;						\
+		__asm__ __volatile__(I " %1, %0"		\
+					: "=q" (r)		\
+					: "m"  (*(C *)target)	\
+					: "memory");		\
+		return (r);					\
+	}
+
+#define CK_PR_LOAD_S(S, T, I) CK_PR_LOAD(S, T, T, T, I)
+
+//CK_PR_LOAD_S(uint, unsigned int, "movl")
+CK_PR_LOAD_S(int, int, "movl")
+
+
+#define CK_PR_STORE(S, M, T, C, I)				\
+	static void				\
+	ck_pr_store_##S(M *target, T v)				\
+	{							\
+		__asm__ __volatile__(I " %1, %0"		\
+					: "=m" (*(C *)target)	\
+					: CK_CC_IMM "q" (v)	\
+					: "memory");		\
+		return;						\
+	}
+
+#define CK_PR_STORE_S(S, T, I) CK_PR_STORE(S, T, T, T, I)
+
+//CK_PR_STORE_S(uint, unsigned int, "movl")
+CK_PR_STORE_S(int, int, "movl")
+
+volatile int cpu;
+
+volatile unsigned long long core0_e, corex_e[NUM_CPU];
+int core0_received, corex_received;
+
+//#define USE_IPI
+
+int core0_high(void)
+{
+	ck_pr_store_int(&core0_received, 1);
+	cos_mem_fence();
+	return 0;
+}
+
+int corex_high(void)
+{
+	ck_pr_store_int(&corex_received, 1);
+	cos_mem_fence();
+	return 0;
+}
+
+int ipi_meas = 0;
+//QW: to remove
+int core_access[NUM_CPU];
+#define ITER (128)
+volatile unsigned long long corex_last;
+
+COS_SYSCALL int
+cos_syscall_async_cap_cntl(struct pt_regs *regs)
+{
+	int spd_id, operation, arg_1, arg_2;
+
 	struct spd *cli_spd, *srv_spd;
 	int ret = 0; 
+	unsigned short int arg1;
+	unsigned short int arg2;
+	int arg3;
+
 	/* TODO: access control */
 
-	const unsigned short int arg1 =  arg_1 >> 16;
-	const unsigned short int arg2 =  arg_1 & 0xFFFF;
-	const int arg3 =  arg_2;
+	operation = user_regs_get_arg1(regs);
+	arg_1     = user_regs_get_arg2(regs);
+	arg_2     = user_regs_get_arg3(regs);
+	spd_id    = user_regs_get_arg4(regs);
+
+	arg1 = arg_1 >> 16;
+	arg2 = arg_1 & 0xFFFF;
+	arg3 = arg_2;
 
 	switch(operation) {
+	case 9999: // QW: to remove
+	{
+		// this is used to measure the round trip IPI cost, which can help us to calibrate TSC between cores
+		ck_pr_store_int(&core_access[get_cpuid()], 1);
+		ipi_meas = 1;
+		cos_mem_fence();
+
+		while (ck_pr_load_int(&core_access[0]) == 0) ;
+		while (ck_pr_load_int(&core_access[arg3]) == 0) ;
+
+		sti();
+
+		unsigned long long s0;
+		volatile unsigned long results[ITER];
+		int j;
+		//both cores get here.
+		if (get_cpuid() == 0) {
+			cpu = arg3;
+
+			for (j = 0; j < 10; j++) {
+				core0_e = 0;
+				cos_mem_fence();
+
+				s0 = tsc_start();
+#ifdef USE_IPI
+				chal_send_ipi(cpu);
+#else
+				ck_pr_store_int(&corex_received, 1);
+				cos_mem_fence();
+#endif
+				while (ck_pr_load_int(&core0_received) == 0) {
+					unsigned long long e = tsc_start();
+					if (e - s0 > 1000000) {
+						printk("not receiving!!1\n");
+						ipi_meas = 0;
+						cos_mem_fence();
+
+						goto done;
+					}
+				}
+				core0_e = tsc_start();
+				ck_pr_store_int(&core0_received, 0);
+
+				results[j]= core0_e - s0;
+#ifdef USE_IPI
+				chal_send_ipi(cpu);
+#else
+				ck_pr_store_int(&corex_received, 1);
+				cos_mem_fence();
+#endif
+				cos_mem_fence();
+				delay(100000);
+			}
+			//warm up.
+			for (j = 0; j < ITER; j++) {
+				core0_e = 0;
+				cos_mem_fence();
+
+				s0 = tsc_start();
+#ifdef USE_IPI
+				chal_send_ipi(cpu);
+#else
+				ck_pr_store_int(&corex_received, 1);
+				cos_mem_fence();
+#endif
+				while (ck_pr_load_int(&core0_received) == 0) {
+					unsigned long long e = tsc_start();
+					if (e - s0 > 1000000) {
+						printk("not receiving!!2\n");
+						ipi_meas = 0;
+						cos_mem_fence();
+
+						goto done;
+					}
+				}
+				core0_e = tsc_start();
+				ck_pr_store_int(&core0_received, 0);
+				results[j]= core0_e - s0;
+#ifdef USE_IPI
+				chal_send_ipi(cpu);
+#else
+				ck_pr_store_int(&corex_received, 1);
+				cos_mem_fence();
+#endif
+				cos_mem_fence();
+				delay(100000);
+			}
+
+			unsigned long long sum = 0, max = 0, min = 9999999;
+			for (j = 0; j < ITER; j++) {
+				if (results[j] < min) min = results[j];
+				if (results[j] > max) max = results[j];
+				sum += results[j];
+			}
+//			printk("core 0 to %d, round trip avg %llu max-min %d\n", cpu, sum/ITER, max-min);
+
+			cos_mem_fence();
+			ipi_meas = 0;
+			cos_mem_fence();
+
+//			if (max - min > 150) ret = 9999;
+//			else ret = sum/ITER;
+			ret = sum/ITER;
+
+			while (corex_last == 0) {
+				cos_mem_fence();
+			}
+			
+			int diff = (long long)corex_last - (long long)s0;
+			corex_last = 0;
+			cos_mem_fence();
+
+//			printk("core 0 sees the diff %d, skew %d\n", diff, diff - ret/2);
+			ret = diff-ret/2;
+		} else {
+			int curr = get_cpuid();
+			cos_mem_fence();
+
+			for (j = 0; j < 10; j++) {
+				corex_e[curr] = 0;
+				cos_mem_fence();
+
+				s0 = tsc_start();
+				while (ck_pr_load_int(&corex_received) == 0) {
+					unsigned long long e = tsc_start();
+					if (e - s0 > 1000000) {
+						printk("not receiving!!3\n");
+						ipi_meas = 0;
+						cos_mem_fence();
+
+						goto done;
+					}
+				}
+				corex_e[curr] = 0;
+				ck_pr_store_int(&corex_received, 0);
+				s0 = tsc_start();
+#ifdef USE_IPI
+				chal_send_ipi(0);
+#else
+				ck_pr_store_int(&core0_received, 1);
+				cos_mem_fence();
+#endif
+
+				while (ck_pr_load_int(&corex_received) == 0) {
+					unsigned long long e = tsc_start();
+					if (e - s0 > 1000000) {
+						printk("not receiving!!4\n");
+						ipi_meas = 0;
+						cos_mem_fence();
+
+						goto done;
+					}
+				}
+				corex_e[curr] = tsc_start();
+				ck_pr_store_int(&corex_received, 0);
+
+				results[j]= corex_e[curr] - s0;
+			}
+			//warm up
+			for (j = 0; j < ITER; j++) {
+				corex_e[curr] = 0;
+				cos_mem_fence();
+
+				s0 = tsc_start();
+				while (ck_pr_load_int(&corex_received) == 0) {
+					unsigned long long e = tsc_start();
+					if (e - s0 > 1000000) {
+						printk("not receiving!!5\n");
+						ipi_meas = 0;
+						cos_mem_fence();
+
+						goto done;
+					}
+				}
+
+				corex_e[curr] = 0;
+				ck_pr_store_int(&corex_received, 0);
+				s0 = tsc_start();
+#ifdef USE_IPI
+				chal_send_ipi(0);
+#else
+				ck_pr_store_int(&core0_received, 1);
+				cos_mem_fence();
+#endif
+
+				while (ck_pr_load_int(&corex_received) == 0) {
+					unsigned long long e = tsc_start();
+					if (e - s0 > 1000000) {
+						printk("not receiving!!6\n");
+						ipi_meas = 0;
+						cos_mem_fence();
+
+						goto done;
+					}
+				}
+				corex_e[curr] = tsc_start();
+				ck_pr_store_int(&corex_received, 0);
+
+				results[j]= corex_e[curr] - s0;
+			}
+			corex_last = s0;
+			cos_mem_fence();
+
+			unsigned long long sum = 0, max = 0, min = 9999999;
+			for (j = 0; j < ITER; j++) {
+				if (results[j] < min) min = results[j];
+				if (results[j] > max) max = results[j];
+				sum += results[j];
+			}
+//			printk("core %d to 0, round trip avg %llu max-min %d\n", cpu, sum/ITER, max-min);
+
+//			if (max - min > 150) ret = 9999;
+//			else ret = sum/ITER;
+			ret = sum/ITER;
+		}
+
+		cli();
+		ck_pr_store_int(&core_access[get_cpuid()], 0);
+		cos_mem_fence();
+
+		break;
+	}
 	case COS_ACAP_CREATE:
 	{
 		/* This consolidates cli_create, srv_create and the wiring. */
@@ -3394,7 +4138,8 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 			if (unlikely(i == cli_spd->ncaps)) {
 				printk("cos: no any capability between comp %d and %d\n", 
 				       cli_spd_id, srv_spd_id);
-				return -1;
+				ret = -1;
+				break;
 			}
 		}
 
@@ -3427,7 +4172,8 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 		/* printk("acap create: comp %d, acap %d->%d, thd %d, core %d.\n", */
 		/*        cli_acap->srv_spd_id, cli_acap_id, srv_acap_id, upcall_thd_id, core_id); */
 
-		return cli_acap_id << 16 | srv_acap_id;
+		ret = cli_acap_id << 16 | srv_acap_id;
+		break;
 	}
 	case COS_ACAP_CLI_CREATE:
 	{
@@ -3452,7 +4198,8 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 			if (unlikely(i == cli_spd->ncaps)) {
 				printk("cos: no any capability between comp %d and %d\n", 
 				       cli_spd_id, srv_spd_id);
-				return -1;
+				ret = -1;
+				break;
 			}
 		}
 
@@ -3465,7 +4212,8 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 		/* printk("thd %d: acap %d (comp %d to comp %d) created.\n",  */
 		/*        thd_get_id(core_get_curr_thd()), acap_id, cli_spd_id, srv_spd_id); */
 
-		return acap_id;
+		ret = acap_id;
+		break;
 	}
 	case COS_ACAP_SRV_CREATE:
 	{
@@ -3491,7 +4239,8 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 		
 		thd->flags |= (THD_STATE_UPCALL | THD_STATE_ACTIVE_UPCALL);
 
-		return srv_acap->id; // return server side acap id
+		ret = srv_acap->id; // return server side acap id
+		break;
 	}
 	case COS_ACAP_WIRE:
 	{
@@ -3528,7 +4277,8 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 		cli_acap->srv_acap_id = srv_acap_id;
 
 		/* printk("acap wiring done.\n", eid, thd, core); */
-		return 0;
+		ret = 0;
+		break;
 	}
 	case COS_ACAP_LINK_STATIC_CAP:
 	{
@@ -3549,40 +4299,49 @@ cos_syscall_async_cap_cntl(int spd_id, int operation,
 		// TODO: use cap_cntl to do this.
 		cli_spd->user_cap_tbl[cap_id].invocation_fn = cli_spd->async_inv_entry;
 		
-		return 0;
+		ret = 0;
+		break;
 	}
 	default:
 		printk("cos: Unknown cos_acap_cntl option!\n");
 		ret = -1;
 	}
+done:
+	user_regs_set(regs, ret, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
-	return ret;
+	return 0;
 err_spd:
 	printk("cos: async_cap_cntl -- source component %d not valid\n", arg1);
-	return -1;
+	ret = -1;
+	goto done;
 err_cap:
 	printk("cos: async_cap_cntl -- invalid cap id %d in spd %d\n", arg2, arg1);
-	return -1;
+	ret = -1;
+	goto done;
 err_thd:
 	printk("cos: async_cap_cntl -- invalid thd id %d\n", arg2);
-	return -1;
+	ret = -1;
+	goto done;
 err_srv_spd:
 	printk("cos: async_cap_cntl -- couldn't find server comp for acap %d\n", arg2);
-	return -1;
+	ret = -1;
+	goto done;
 }
+
+#define COS_MAX_NUM_SYSCALL 32
 /* 
  * Composite's system call table that is indexed and invoked by ipc.S.
  * The user-level stubs are created in cos_component.h.
  */
-void *cos_syscall_tbl[32] = {
+void *cos_syscall_tbl[COS_MAX_NUM_SYSCALL] = {
 	(void*)cos_syscall_void,
 	(void*)cos_syscall_stats,
 	(void*)cos_syscall_print,
 	(void*)cos_syscall_create_thread,
 	(void*)cos_syscall_switch_thread,
 	(void*)cos_syscall_async_cap_cntl,
-	(void*)cos_syscall_ainv_wait,
-	(void*)cos_syscall_ainv_send,
+	(void*)cos_syscall_areceive,
+	(void*)cos_syscall_asend,
 	(void*)cos_syscall_upcall,
 	(void*)cos_syscall_sched_cntl,
 	(void*)cos_syscall_mpd_cntl,
@@ -3606,3 +4365,60 @@ void *cos_syscall_tbl[32] = {
 	(void*)cos_syscall_void
 };
  
+#define COS_INV_OFFSET ((1<<COS_CAPABILITY_OFFSET) - 1)
+
+static inline void
+fs_reg_setup(unsigned long seg) {
+	asm volatile ("movl %%ebx, %%fs\n\t"
+		      : : "b" (seg));
+}
+
+__attribute__((section("__ipc_entry"))) COS_SYSCALL int
+composite_sysenter_handler(struct pt_regs *regs)
+{
+	/* Composite entry takes pt_regs as input */
+	int ax, preempted = 0;
+/* We don't need to setup fs for invocation and return path. Only
+ * enable this when doing printk (which requires fs) for debugging. */
+//#define ENABLE_KERNEL_PRINT
+#ifdef ENABLE_KERNEL_PRINT
+	fs_reg_setup(__KERNEL_PERCPU);
+#endif
+	ax = user_regs_get_cap(regs);
+
+	/* IPC and return paths are performance critical. */
+	if (likely(ax > COS_INV_OFFSET)) {
+		/* IPC */
+		ipc_walk_static_cap(regs);
+	} else if (likely(ax == COS_INV_OFFSET)) {
+		/* IPC return */
+		pop(regs);
+	} else {
+		/* Non-IPC cases. */
+		if (ax >= 0) {
+			/* Composite syscall. All system calls take pt_regs as input.  */
+			int syscall_id;
+			COS_SYSCALL int (*cos_syscall)(struct pt_regs *);
+
+			fs_reg_setup(__KERNEL_PERCPU);
+
+			syscall_id = ax >> COS_SYSCALL_OFFSET;
+			assert(syscall_id < COS_MAX_NUM_SYSCALL);
+			cos_syscall = cos_syscall_tbl[syscall_id];
+
+			/* We may switch thread in syscalls (switch_thread and
+			 * ainv_receive). preempted is 1 when the target
+			 * thread was preempted. */
+			preempted = cos_syscall(regs);
+
+			fs_reg_setup(__USER_DS);
+		} else {
+			assert(ax < 0);
+			/* ax < 0: highest bit of ax is the flag for async cap for now. */
+			walk_async_cap(regs);
+		}
+	}
+
+	return preempted;
+}
+

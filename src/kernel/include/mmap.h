@@ -15,7 +15,7 @@ struct cos_page {
 	paddr_t addr;
 };
 
-void cos_init_memory(void);
+int cos_init_memory(void);
 void cos_shutdown_memory(void);
 static inline unsigned int cos_max_mem_caps(void)
 {
@@ -23,5 +23,8 @@ static inline unsigned int cos_max_mem_caps(void)
 }
 paddr_t cos_access_page(unsigned long cap_no);
 int cos_paddr_to_cap(paddr_t pa);
+
+paddr_t cos_access_kernel_page(unsigned long cap_no);
+int cos_kernel_paddr_to_cap(paddr_t pa);
 
 #endif

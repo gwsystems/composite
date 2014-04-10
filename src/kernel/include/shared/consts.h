@@ -45,7 +45,7 @@ struct pt_regs {
 #endif
 
 #define MAX_SERVICE_DEPTH 31
-#define MAX_NUM_THREADS 128
+#define MAX_NUM_THREADS 300
 /* Stacks are 2 * page_size (expressed in words) */
 #define MAX_STACK_SZ    (PAGE_SIZE/4) /* a page */
 #define COS_STACK_SZ    (MAX_STACK_SZ*4)
@@ -99,18 +99,13 @@ struct pt_regs {
 
 #define COS_NUM_ATOMIC_SECTIONS 10
 
-#define COS_MAX_MEMORY (128*1024) /* vas extents now support up to 254MB */ 
+/* # of pages */
+#define COS_MAX_MEMORY    (64*1024) /* vas extents now support up to 254MB */ 
+#define COS_KERNEL_MEMORY (1*1024)   /* kernel memory */ 
 
 #include "../asm_ipc_defs.h"
 
 #define KERN_BASE_ADDR 0xc0000000 //CONFIG_PAGE_OFFSET
-
-#define CHAR_PER_INT (sizeof(int) / sizeof(char))
-#define PARAMS_PER_INV 4
-#define CHAR_PER_INV (CHAR_PER_INT * PARAMS_PER_INV)
-
-#define CPUID_OFFSET_IN_THREAD_INFO 4
-#define THREAD_SIZE_LINUX 8192
 
 /* We save information on the user level stack for fast access. The
  * offsets below are used to access CPU and thread IDs. */

@@ -172,9 +172,9 @@ cos_intra_ainv_handling(void)
 			 */
 			while (CK_RING_DEQUEUE_SPSC(intra_inv_ring, ring, &inv) == false) {
 				/* printc("thread %d waiting on acap %d\n", cos_get_thd_id(), acap); */
-				ret = cos_ainv_wait(acap); 
+				ret = cos_areceive(acap); 
 				assert(ret == 0);
-				/* printc("thread %d up from ainv_wait\n", cos_get_thd_id()); */
+				/* printc("thread %d up from areceive\n", cos_get_thd_id()); */
 			}
 			SET_SERVER_ACTIVE(shared_struct); /* setting us active */
 		} else {
@@ -200,7 +200,7 @@ cos_intra_ainv_handling(void)
 		if (barrier_acap > 0 && (ret == curr->parent->n_cpu - 1)) {
 			/* printc("thd %d on core %ld sending to wakeup acap %d\n",  */
 			/*        cos_get_thd_id(), cos_cpuid(), barrier_info->wakeup_acap); */
-			cos_ainv_send(barrier_acap);
+			cos_asend(barrier_acap);
 		}
 	}
 
@@ -281,7 +281,7 @@ int cos_async_inv(struct usr_inv_cap *ucap, int *params) {
 	if (SERVER_ACTIVE(shared_struct)) return 0;
 	
 	/* instead of returning acap and go through inv path, why
-	 * don't we call ainv_send here? We can get rid of the branch
+	 * don't we call asend here? We can get rid of the branch
 	 * in the inv path (which is to detect async flag). */
 
 	return acap;

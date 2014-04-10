@@ -48,11 +48,6 @@ struct IPI_receiving_rings {
 
 struct IPI_receiving_rings IPI_dest[NUM_CPU];
 
-static inline void cos_mem_fence(void)
-{
-	__asm__ __volatile__("mfence" ::: "memory");
-}
-
 static inline int 
 cos_ipi_ring_enqueue(u32_t dest, u32_t data) {
 	struct xcore_ring *ring = &IPI_dest[dest].IPI_source[get_cpuid()];

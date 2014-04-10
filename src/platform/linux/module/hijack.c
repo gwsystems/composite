@@ -49,6 +49,8 @@
 #include "../../../kernel/include/shared/consts.h"
 #include "../../../kernel/include/shared/cos_config.h"
 #include "../../../kernel/include/fpu.h"
+#include "../../../kernel/include/cpuid.h"
+#include "../../../kernel/include/asm_ipc_defs.h"
 
 #include "./hw_ints.h"
 #include "cos_irq_vectors.h"
@@ -67,6 +69,7 @@ extern void div_fault_interposition(void);
 extern void reg_save_interposition(void);
 extern void fpu_not_available_interposition(void);
 extern void ipi_handler(void);
+extern void timer_interposition(void);
 
 /* 
  * This variable exists for the assembly code for temporary
@@ -162,7 +165,7 @@ void get_TSS(struct pt_regs *rs)
 		rs->orig_ax = get_cpu_var(x86_tss);
 		/* Make sure the thread_info structure is at the
 		   correct location. */
-		assert(get_linux_thread_info() == (unsigned long *)current_thread_info());
+		assert(get_linux_thread_info() == (void *)current_thread_info());
 		if (offsetof(struct thread_info, cpu) != 16) {
 			printk("The linux definition of the thread info is different from the offsets that Composite assumes");
 			assert(0);
@@ -583,7 +586,27 @@ void save_per_core_cos_thd(void)
         return;
 }
 
-void register_timers(void);
+static inline void hw_int_override_all(void)
+{
+	load_per_core_TSS();
+	hw_int_override_sysenter(sysenter_interposition_entry, (void *)get_cpu_var(x86_tss));
+	hw_int_override_pagefault(page_fault_interposition);
+	hw_int_override_idt(0, div_fault_interposition, 0, 0);
+	hw_int_override_idt(COS_REG_SAVE_VECTOR, reg_save_interposition, 0, 3);
+#ifdef FPU_ENABLED
+        hw_int_override_idt(7, fpu_not_available_interposition, 0, 0);
+#endif
+	hw_int_cos_ipi(ipi_handler);
+	hw_int_override_timer(timer_interposition);
+
+	return;
+}
+
+static void hw_reset(void *data)
+{
+	load_per_core_TSS();
+	hw_int_reset(get_cpu_var(x86_tss));
+}
 
 static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -677,8 +700,10 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				return -1;
 			}
 
-			spd->pfn_base   = 0;
-			spd->pfn_extent = COS_MAX_MEMORY;
+			spd->pfn_base        = 0;
+			spd->pfn_extent      = COS_MAX_MEMORY;
+			spd->kern_pfn_base   = 0;
+			spd->kern_pfn_extent = COS_KERNEL_MEMORY;
 		}
 
 		return spd_get_index(spd);
@@ -758,6 +783,8 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			tsi->scheduler = sched;
 			sched = sched->parent_sched;
 		}
+
+		hw_int_override_all();
 
 		/* FIXME: need to return opaque handle, rather than
 		 * just set the current thread to be the new one. */
@@ -854,6 +881,19 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case AED_ENABLE_SYSCALLS:
 		syscalls_enabled = 1;
 		return 0;
+	case AED_RESTORE_HW_ENTRY:
+	{
+		struct cos_cpu_local_info *cos_info;
+
+		cos_info = cos_cpu_local_info();
+		if (cos_info->overflow_check != 0xDEADBEEF) {
+			/* Should never happen. */
+			printk("Warning: kernel stack overflow detected (detector %x)!\n", (unsigned int)cos_info->overflow_check);
+		}
+		hw_reset(NULL);
+
+		return 0;
+	}
 	default: 
 		ret = -EINVAL;
 	}
@@ -1159,8 +1199,8 @@ linux_handler:
 }
 
 /*
- * This function will be called upon a hardware page fault.  Return 0
- * if you want the linux page fault to be run, !0 otherwise.
+ * This function will be called upon a hardware div fault.  Return 0
+ * if you want the linux fault handler to be run, !0 otherwise.
  */
 __attribute__((regparm(3))) 
 int main_div_fault_interposition(struct pt_regs *rs, unsigned int error_code)
@@ -1205,6 +1245,10 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 
 void cos_ipi_handling(void);
 
+extern int ipi_meas;
+extern int core0_high();
+extern int corex_high();
+
 int 
 cos_ipi_ring_enqueue(u32_t dest, u32_t data);
 
@@ -1213,6 +1257,13 @@ main_ipi_handler(struct pt_regs *rs, unsigned int irq)
 {
 	/* ack the ipi first. */
 	ack_APIC_irq();
+	
+	if (ipi_meas > 0) {
+		if (get_cpuid() == 0) core0_high();
+		else corex_high();
+
+		return;
+	}
 
 	cos_ipi_handling();
 
@@ -1281,8 +1332,6 @@ void *chal_pa2va(void *pa)
  * Our composite emulated timer interrupt executed from a Linux
  * softirq
  */
-PERCPU_ATTR(static, struct timer_list, timer);
-
 extern struct thread *ainv_next_thread(struct async_cap *acap, struct thread *preempted, int preempt);
 
 extern void cos_net_deregister(struct cos_net_callbacks *cn_cb);
@@ -1569,52 +1618,27 @@ void chal_send_ipi(int cpuid) {
 
 PERCPU_VAR(cos_timer_acap);
 
-static void timer_interrupt(unsigned long data)
+__attribute__((regparm(3))) 
+int main_timer_interposition(struct pt_regs *rs, unsigned int error_code) 
 {
-	unsigned long t;
 	struct async_cap *acap = *PERCPU_GET(cos_timer_acap);
-	struct timer_list *curr_timer = PERCPU_GET(timer);
-	BUG_ON(cos_thd_per_core[get_cpuid()].cos_thd == NULL);
 
-	t = jiffies+1;
-	/* printk("core %d before mod timer, timer %p, %u\n", get_cpuid(), curr_timer, curr_timer->expires); */
-	mod_timer_pinned(curr_timer, t);
-	/* printk("core %d mod timer ret %d, next t %u, timer %p, %u\n", get_cpuid(), ret, t, curr_timer, curr_timer->expires); */
-	if (!(acap && acap->upcall_thd)) return;
+	if (!(acap && acap->upcall_thd)) goto LINUX_HANDLER;
+//	if (ipi_meas) goto LINUX_HANDLER;
+
+	/* FIXME: Right now we are jumping back to the Linux timer
+	 * handler (which will do the ack()). Linux will freeze if we
+	 * don't do this. We should find a way to get rid of this,
+	 * possibly by using tickless kernel, which probably could
+	 * survive timer hijacking. */
+
+	/* ack_APIC_irq(); */
 
 	chal_attempt_ainv(acap);
 
-	return;
-}
-
-void register_timers(void)
-{
-	struct timer_list *curr_timer = PERCPU_GET(timer);
-
-	assert(!curr_timer->function);
-	init_timer(curr_timer);
-	curr_timer->function = timer_interrupt;
-	/* Give the timer thread at least a jiffy to initialize */
-	mod_timer_pinned(curr_timer, jiffies+2);
-	
-	return;
-}
-
-static void deregister_timers(void)
-{
-	struct timer_list *timer_i;
-
-	int i;
-	for (i = 0; i < NUM_CPU; i++) {
-		*PERCPU_GET_TARGET(cos_timer_acap, i) = NULL;
-		timer_i = PERCPU_GET_TARGET(timer, i);
-		if (timer_i->function) {
-			del_timer(timer_i);
-			timer_i->function = NULL;
-		}
-	}
-
-	return;
+	/* return 0; */
+LINUX_HANDLER:
+	return 1; 
 }
 
 /***** end timer handling *****/
@@ -1712,6 +1736,14 @@ static int aed_open(struct inode *inode, struct file *file)
 	/* We assume this in one page. */
 	assert(sizeof(struct cos_component_information) <= PAGE_SIZE);
 
+	/* Sanity check. These defines should match info from Linux. */
+	if ((THREAD_SIZE != THREAD_SIZE_LINUX) || 
+	    (CPUID_OFFSET_IN_THREAD_INFO != offsetof(struct thread_info, cpu)) ||
+	    (LINUX_THREAD_INFO_RESERVE < sizeof(struct thread_info))) {
+		printk("cos: Please check THREAD_SIZE in Linux or thread_info struct.\n");
+		return -EFAULT;
+	}
+
 	save_per_core_cos_thd();
 
 	syscalls_enabled = 1;
@@ -1796,11 +1828,8 @@ static int aed_open(struct inode *inode, struct file *file)
 	thd_init();
 	spd_init();
 	ipc_init();
-	cos_init_memory();
+	if (cos_init_memory()) return -EFAULT;
 
-        /* Now the timers are registered when we register timer
-	 * threads in Composite. */
-	/* register_timers(); */
 	cos_meas_init();
 	cos_net_init();
 
@@ -1808,7 +1837,6 @@ static int aed_open(struct inode *inode, struct file *file)
 }
 
 //extern void event_print(void);
-
 static int aed_release(struct inode *inode, struct file *file)
 {
 	pgd_t *pgd;
@@ -1851,7 +1879,6 @@ static int aed_release(struct inode *inode, struct file *file)
 		       thd_get_id(t), spd_get_index(s));
 	}
 
-	deregister_timers();
 	cos_net_finish();
 
 	/* our garbage collection mechanism: all at once when the cos
@@ -1939,6 +1966,10 @@ static int aed_release(struct inode *inode, struct file *file)
 		event_print();
 	}
 
+	/* Redundant, but needed when exit with Ctrl-C */
+	hw_reset(NULL);
+	smp_call_function(hw_reset, NULL, 1);
+
 	return 0;
 }
 
@@ -1964,31 +1995,11 @@ static int make_proc_aed(void)
 	return 0;
 }
 
-static inline void hw_int_override_all(void)
-{
-	hw_int_override_sysenter(sysenter_interposition_entry);
-	hw_int_override_pagefault(page_fault_interposition);
-	hw_int_override_idt(0, div_fault_interposition, 0, 0);
-	hw_int_override_idt(0xe9, reg_save_interposition, 0, 3);
-#ifdef FPU_ENABLED
-        hw_int_override_idt(7, fpu_not_available_interposition, 0, 0);
-#endif
-	printk("cos: core %d enabling Composite IPI IRQ vector %x.\n", get_cpuid(), COS_IPI_VECTOR);
-	hw_int_cos_ipi(ipi_handler);
-
-	return;
-}
 static void hw_init_CPU(void)
 {
 	//update_vmalloc_regions();
 	hw_int_init();
-	hw_int_override_all();
-	return;
-}
 
-static void hw_init_other_cores(void *param)
-{
-	hw_int_override_all();
 	return;
 }
 
@@ -2003,11 +2014,6 @@ static int asym_exec_dom_init(void)
 
 	hw_init_CPU();
 
-//#if NUM_CPU > 1
-	/* Init all the other cores. */
-	smp_call_function(hw_init_other_cores, NULL, 1);
-//#endif
-
 	/* Consistency check. We define the THD_REGS = 8 in ipc.S. */
 	BUG_ON(offsetof(struct thread, regs) != 8);
 
@@ -2017,18 +2023,8 @@ static int asym_exec_dom_init(void)
 	return 0;
 }
 
-static void hw_reset_other_cores(void *param)
-{
-	hw_int_reset();
-}
-
 static void asym_exec_dom_exit(void)
 {
-	hw_int_reset();
-
-//#if NUM_CPU > 1
-	smp_call_function(hw_reset_other_cores, NULL, 1);
-//#endif
 	remove_proc_entry("aed", NULL);
 
 	return;

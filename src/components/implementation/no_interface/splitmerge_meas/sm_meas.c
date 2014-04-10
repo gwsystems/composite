@@ -82,7 +82,7 @@ void core1_high() {
 		int ret = 0;
 		/* printc("core %ld going to wait, thd %d\n", cos_cpuid(), cos_get_thd_id()); */
 
-		/* if (-1 == (ret = cos_ainv_wait(...))) BUG(); */
+		/* if (-1 == (ret = cos_areceive(...))) BUG(); */
 
 		/* printc("core %ld, rec %d\n", cos_cpuid(), ++received_ipi); */
 		param[0] = shared_mem[0];
