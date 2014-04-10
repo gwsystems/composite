@@ -10,7 +10,6 @@
 #include "include/shared/cos_config.h"
 
 //#define USE_LINUX_MEM
-
 #ifdef USE_LINUX_MEM
 static struct cos_page cos_pages[COS_MAX_MEMORY];
 #endif
@@ -58,12 +57,6 @@ void cos_shutdown_memory(void)
 	}
 }
 
-/*
- * This would be O(1) in the real implementation as there is a 1-1
- * correspondence between phys pages and memory capabilities, but in
- * our Linux implementation, this is not so.  The least we could do is
- * keep the page sorted by physaddr and do a binary search here.
- */
 int cos_paddr_to_cap(paddr_t pa)
 {
 #ifdef USE_LINUX_MEM

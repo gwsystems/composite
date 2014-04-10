@@ -19,13 +19,13 @@
  * Should Composite run as highest priority?  Should NOT be set if
  * using networking (cnet). 
  */
-//#define LINUX_HIGHEST_PRIORITY 1
-/* the CPU that does initialization for Composite */
-#define INIT_CORE              0
+#define LINUX_HIGHEST_PRIORITY 1
 
-//#define FPU_ENABLED
+#define FPU_ENABLED
 #define FPU_SUPPORT_FXSR       1   /* >0 : CPU supports FXSR. */
 
+/* the CPU that does initialization for Composite */
+#define INIT_CORE              0
 /* Currently Linux runs on the last CPU only. The code includes the
  * following macro assumes this. We might need to assign more cores
  * to Linux later. */
@@ -33,7 +33,8 @@
 /* # of cores assigned to Composite */
 #define NUM_CPU_COS            (NUM_CPU > 1 ? NUM_CPU - 1 : 1)
 
-#define COS_MEM_START          (0x40000000)  // using physical memory above 1 GB
+/* Composite user memory uses physical memory above this. */
+#define COS_MEM_START          (0x40000000)  // 1 GB
 
 /* NUM_CPU_SOCKETS defined in cpu_ghz.h. The information is used for
  * intelligent IPI distribution. */
