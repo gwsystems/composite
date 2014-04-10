@@ -69,14 +69,14 @@ static struct ert_intern *ert_defget(struct ert_intern *a, void *accum, int leaf
 { (void)accum; (void)leaf; return a->next; }
 static void *ert_defgetleaf(struct ert_intern *a, void *accum)
 { (void)accum;  return a->next; }
+static int ert_defisnull(struct ert_intern *a, void *accum, int leaf)
+{ (void)accum; (void)leaf; return a->next == NULL; }
 static int ert_defresolve(struct ert_intern *a, void *accum, int leaf, u32_t order, u32_t sz)
 { (void)a; (void)accum; (void)leaf; (void)order; (void)sz; return 1; }
 static void ert_defset(struct ert_intern *a, void *v, void *accum, int leaf)
 { (void)leaf; (void)accum; a->next = v; }
 static void ert_defsetleaf(struct ert_intern *a, void *data)
 { a->next = data; }
-static int  ert_defisnull(struct ert_intern *a, void *accum, int leaf)
-{ (void)accum; (void)leaf; return a->next == NULL; }
 static void ert_definit(struct ert_intern *a, int leaf)
 { (void)a; (void)leaf; a->next = NULL; }
 
@@ -281,6 +281,8 @@ __ert_expand(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *
 	}
 	if (dlimit == depth+1) {
 		n = __ert_walk(n, id, accum, depth-i, ERT_CONST_ARGS);
+		/* don't overwrite a value, unless we want to set it to the initval */
+		if (data != initval && !isnullfn(n, accum, 0)) return 1;
 		setleaffn(n, data);
 	}
 	return 0;
