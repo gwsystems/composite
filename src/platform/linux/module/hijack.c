@@ -700,8 +700,10 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				return -1;
 			}
 
-			spd->pfn_base   = 0;
-			spd->pfn_extent = COS_MAX_MEMORY;
+			spd->pfn_base        = 0;
+			spd->pfn_extent      = COS_MAX_MEMORY;
+			spd->kern_pfn_base   = 0;
+			spd->kern_pfn_extent = COS_KERNEL_MEMORY;
 		}
 
 		return spd_get_index(spd);

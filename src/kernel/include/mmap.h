@@ -24,4 +24,7 @@ static inline unsigned int cos_max_mem_caps(void)
 paddr_t cos_access_page(unsigned long cap_no);
 int cos_paddr_to_cap(paddr_t pa);
 
+paddr_t cos_access_kernel_page(unsigned long cap_no);
+int cos_kernel_paddr_to_cap(paddr_t pa);
+
 #endif

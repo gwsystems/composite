@@ -488,8 +488,9 @@ enum {
 };
 
 enum {
-	MAPPING_READ  = 0,
-	MAPPING_RW    = 1
+	MAPPING_RO    = 0,
+	MAPPING_RW    = 1 << 0,
+	MAPPING_KMEM  = 1 << 1
 };
 
 enum {
@@ -500,7 +501,9 @@ enum {
 
 enum {
 	COS_PFN_GRANT,
-	COS_PFN_MAX_MEM
+	COS_PFN_GRANT_KERN,
+	COS_PFN_MAX_MEM,
+	COS_PFN_MAX_MEM_KERN
 };
 
 /* 

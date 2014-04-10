@@ -99,15 +99,13 @@ struct pt_regs {
 
 #define COS_NUM_ATOMIC_SECTIONS 10
 
-#define COS_MAX_MEMORY (128*1024) /* vas extents now support up to 254MB */ 
+/* # of pages */
+#define COS_MAX_MEMORY    (64*1024) /* vas extents now support up to 254MB */ 
+#define COS_KERNEL_MEMORY (1*1024)   /* kernel memory */ 
 
 #include "../asm_ipc_defs.h"
 
 #define KERN_BASE_ADDR 0xc0000000 //CONFIG_PAGE_OFFSET
-
-#define CHAR_PER_INT (sizeof(int) / sizeof(char))
-#define PARAMS_PER_INV 4
-#define CHAR_PER_INV (CHAR_PER_INT * PARAMS_PER_INV)
 
 /* We save information on the user level stack for fast access. The
  * offsets below are used to access CPU and thread IDs. */

@@ -66,10 +66,11 @@ struct comp_boot_info {
 #define NCOMPS 6 	/* comp0, us, and the four other components */
 static struct comp_boot_info comp_boot_nfo[NCOMPS];
 
-static spdid_t init_schedule[]   = {LLBOOT_MM, LLBOOT_SCHED, 0};
-static int     init_mem_access[] = {1, 0, 0};
-static int     nmmgrs            = 0;
-static int     frame_frontier    = 0; /* which physical frames have we used? */
+static spdid_t init_schedule[]     = {LLBOOT_MM, LLBOOT_SCHED, 0};
+static int     init_mem_access[]   = {1, 0, 0};
+static int     nmmgrs              = 0;
+static int     frame_frontier      = 0; /* which physical frames have we used? */
+static int     kern_frame_frontier = 0; /* used physical frames for kernel */
 
 typedef void (*crt_thd_fn_t)(void);
 
@@ -124,6 +125,11 @@ llboot_thd_done(void)
 				max_pfn = cos_pfn_cntl(COS_PFN_MAX_MEM, 0, 0, 0);
 				proportion = (max_pfn - frame_frontier)/nmmgrs;
 				cos_pfn_cntl(COS_PFN_GRANT, s, frame_frontier, proportion);
+				/* kernel mem */
+				max_pfn = cos_pfn_cntl(COS_PFN_MAX_MEM_KERN, 0, 0, 0);
+				proportion = (max_pfn - kern_frame_frontier)/nmmgrs;
+				cos_pfn_cntl(COS_PFN_GRANT_KERN, s, kern_frame_frontier, proportion);
+
 				comp_boot_nfo[s].memory_granted = 1;
 			}
 			llboot->sched_offset++;
@@ -203,6 +209,7 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 /* memory operations... */
 
 static vaddr_t init_hp = 0; 		/* initial heap pointer */
+
 /* 
  * Assumptions about the memory management functions: 
  * - we only get single-page-increasing virtual addresses to map into.
@@ -224,20 +231,32 @@ __vpage2frame(vaddr_t addr) { return (addr - init_hp) / PAGE_SIZE; }
 static vaddr_t
 __local_mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 {
-	if (cos_mmap_cntl(COS_MMAP_GRANT, flags, cos_spd_id(), addr, frame_frontier++)) BUG();
-	if (!init_hp) init_hp = addr;
+	int frame_id;
+
+	if (flags & MAPPING_KMEM) {
+		frame_id = kern_frame_frontier++;
+	} else {
+		frame_id = frame_frontier++;
+	}
+
+	if (cos_mmap_cntl(COS_MMAP_GRANT, flags, cos_spd_id(), addr, frame_id)) BUG();
+
 	return addr;
 }
 
 static vaddr_t
 __local_mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr, int flags)
 {
-	int fp;
+	int frame_id;
 
-	assert(init_hp);
-	fp = __vpage2frame(s_addr);
-	assert(fp >= 0);
-	if (cos_mmap_cntl(COS_MMAP_GRANT, flags, d_spd, d_addr, fp)) BUG();
+	if (flags & MAPPING_KMEM) {
+		frame_id = kern_frame_frontier - 1;
+	} else {
+		frame_id = frame_frontier - 1;
+	}
+
+	if (cos_mmap_cntl(COS_MMAP_GRANT, flags, d_spd, d_addr, frame_id)) BUG();
+
 	return d_addr;
 }
 
@@ -271,6 +290,7 @@ static void
 boot_deps_init(void)
 {
 	int i;
+
 	boot_create_init_thds();
 
 	/* How many memory managers are there? */

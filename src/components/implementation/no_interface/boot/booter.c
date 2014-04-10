@@ -153,9 +153,10 @@ boot_spd_end(struct cobj_header *h)
 static int 
 boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
-	unsigned int i, use_kmem;
+	unsigned int i;
 	vaddr_t dest_daddr, prev_map = 0;
 	char *dsrc;
+	int flag;
 
 	local_md[spdid].spdid      = spdid;
 	local_md[spdid].h          = h;
@@ -165,9 +166,12 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		struct cobj_sect *sect;
 		int left;
 		
-		use_kmem   = 0;
-		sect       = cobj_sect_get(h, i);
-		if (sect->flags & COBJ_SECT_KMEM) use_kmem = 1;
+		sect = cobj_sect_get(h, i);
+		flag = MAPPING_RW;
+		if (sect->flags & COBJ_SECT_KMEM) {
+			flag |= MAPPING_KMEM;
+		}
+
 		dest_daddr = sect->vaddr;
 		left       = cobj_sect_size(h, i);
 		/* previous section overlaps with this one, don't remap! */
@@ -177,11 +181,12 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		} 
 		while (left > 0) {
 			dsrc = cos_get_vas_page();
-			/* TODO: if use_kmem, we should allocate
+			/* TODO: if use kmem, we should allocate
 			 * kernel-accessible memory, rather than
 			 * normal user-memory */
-			if ((vaddr_t)dsrc != __local_mman_get_page(cos_spd_id(), (vaddr_t)dsrc, MAPPING_RW)) BUG();
-			if (dest_daddr != (__local_mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr, MAPPING_RW))) BUG();
+
+			if ((vaddr_t)dsrc != __local_mman_get_page(cos_spd_id(), (vaddr_t)dsrc, flag)) BUG();
+			if (dest_daddr != __local_mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr, flag)) BUG();
 
 			prev_map = dest_daddr;
 			dest_daddr += PAGE_SIZE;
@@ -234,6 +239,7 @@ boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, i
 			boot_process_cinfo(h, spdid, boot_spd_end(h), start_addr + (comp_info-init_daddr), comp_info);
 		}
 	}
+
  	return 0;
 }
 
@@ -355,12 +361,11 @@ boot_create_system(void)
 		
 		h = hs[i];
 		if ((spdid = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG();
-		//printc("spdid %d, h->id %d\n", spdid, h->id);
+		/* printc("spdid %d, h->id %d\n", spdid, h->id); */
 		assert(spdid == h->id);
 
 		sect = cobj_sect_get(h, 0);
 		if (cos_spd_cntl(COS_SPD_LOCATION, spdid, sect->vaddr, SERVICE_SIZE)) BUG();
-
 		for (j = 0 ; j < (int)h->nsect ; j++) {
 			tot += cobj_sect_size(h, j);
 		}

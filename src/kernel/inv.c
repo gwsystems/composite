@@ -3050,7 +3050,8 @@ cos_syscall_mmap_cntl(struct pt_regs *regs)
 	dspd_id  = op_flags_dspd & 0x0000FFFF;
 	this_spd = spd_get_by_index(spdid);
 	spd      = spd_get_by_index(dspd_id);
-	if (!this_spd || !spd || virtual_namespace_query(daddr) != spd) {
+
+	if (!this_spd || !spd || (virtual_namespace_query(daddr) != spd && op != COS_MMAP_TLBFLUSH)) {
 		printk("cos: invalid mmap cntl call for spd %d for spd %d @ vaddr %x\n",
 		       spdid, dspd_id, (unsigned int)daddr);
 		ret = -1;
@@ -3059,16 +3060,31 @@ cos_syscall_mmap_cntl(struct pt_regs *regs)
 
 	switch(op) {
 	case COS_MMAP_GRANT:
-		mem_id += this_spd->pfn_base;
-		if (mem_id < this_spd->pfn_base || /* <- check for overflow? */
-		    mem_id >= (this_spd->pfn_base + this_spd->pfn_extent)) {
-			printk("Accessing physical frame outside of allowed range (%d outside of [%d, %d).\n",
-			       (int)mem_id, this_spd->pfn_base, 
-			       this_spd->pfn_base + this_spd->pfn_extent);
-			ret = -EINVAL;
-			goto done;
+	{
+		if (flags & MAPPING_KMEM) { /* Kernel memory */
+			mem_id += this_spd->kern_pfn_base;
+			if (mem_id < this_spd->kern_pfn_base || /* <- check for overflow? */
+			    mem_id >= (this_spd->kern_pfn_base + this_spd->kern_pfn_extent)) {
+				printk("Accessing kernel physical frame outside of allowed range (%d outside of [%d, %d).\n",
+				       (int)mem_id, this_spd->kern_pfn_base, 
+				       this_spd->kern_pfn_base + this_spd->kern_pfn_extent);
+				ret = -EINVAL;
+				goto done;
+			}
+			page = cos_access_kernel_page(mem_id);
+		} else { /* User memory*/
+			mem_id += this_spd->pfn_base;
+			if (mem_id < this_spd->pfn_base || /* <- check for overflow? */
+			    mem_id >= (this_spd->pfn_base + this_spd->pfn_extent)) {
+				printk("Accessing physical frame outside of allowed range (%d outside of [%d, %d).\n",
+				       (int)mem_id, this_spd->pfn_base, 
+				       this_spd->pfn_base + this_spd->pfn_extent);
+				ret = -EINVAL;
+				goto done;
+			}
+			page = cos_access_page(mem_id);
 		}
-		page = cos_access_page(mem_id);
+
 		if (0 == page) {
 			printk("cos: mmap grant -- could not get a physical page.\n");
 			ret = -EINVAL;
@@ -3089,15 +3105,20 @@ cos_syscall_mmap_cntl(struct pt_regs *regs)
 		}
 		cos_meas_event(COS_MAP_GRANT);
 		break;
+	}
 	case COS_MMAP_REVOKE:
 	{
 		paddr_t pa;
-
 		if (!(pa = chal_pgtbl_rem(spd->spd_info.pg_tbl, daddr))) {
 			ret = 0;
 			break;
 		}
-		ret = cos_paddr_to_cap(pa) - this_spd->pfn_base;
+
+		if (flags & MAPPING_KMEM) { /* User memory*/
+			ret = cos_kernel_paddr_to_cap(pa) - this_spd->kern_pfn_base;
+		} else {
+			ret = cos_paddr_to_cap(pa) - this_spd->pfn_base;
+		}
 		cos_meas_event(COS_MAP_REVOKE);
 
 		break;
@@ -3152,8 +3173,15 @@ cos_syscall_pfn_cntl(struct pt_regs *regs)
 		dspd->pfn_base   = mem_id;
 		dspd->pfn_extent = extent;
 		break;
+	case COS_PFN_GRANT_KERN:
+		dspd->kern_pfn_base   = mem_id;
+		dspd->kern_pfn_extent = extent;
+		break;
 	case COS_PFN_MAX_MEM:
 		ret = spd->pfn_extent;
+		break;
+	case COS_PFN_MAX_MEM_KERN:
+		ret = spd->kern_pfn_extent;
 		break;
 	default: ret = -1;
 	}
