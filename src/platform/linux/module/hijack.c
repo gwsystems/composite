@@ -1624,8 +1624,7 @@ int main_timer_interposition(struct pt_regs *rs, unsigned int error_code)
 	struct async_cap *acap = *PERCPU_GET(cos_timer_acap);
 
 	if (!(acap && acap->upcall_thd)) goto LINUX_HANDLER;
-
-	if (ipi_meas) goto LINUX_HANDLER;
+//	if (ipi_meas) goto LINUX_HANDLER;
 
 	/* FIXME: Right now we are jumping back to the Linux timer
 	 * handler (which will do the ack()). Linux will freeze if we

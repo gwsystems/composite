@@ -507,6 +507,7 @@ static void sched_timer_tick(void)
 {
 	//QW: to remove
 	int *detector = 0x44bf0000;
+
 	while (1) {
 		cos_sched_lock_take();
 		report_event(TIMER_TICK);
@@ -514,10 +515,10 @@ static void sched_timer_tick(void)
 			report_thd_accouting();
 			//cos_stats();
 		}
+
 		/* are we done running? */
 		if (unlikely(PERCPU_GET(sched_base_state)->ticks >= RUNTIME_SEC*TIMER_FREQ+1)) {
 			cos_acap_wire(0, COS_HW_TIMER, 0); // disable cos timer
-
 			sched_exit();
 			while (COS_SCHED_RET_SUCCESS !=
 			       cos_switch_thread_release(PERCPU_GET(sched_base_state)->init->id, COS_SCHED_ACAP_WAIT)) {
@@ -532,7 +533,7 @@ static void sched_timer_tick(void)
 		sched_process_wakeups();
 		timer_tick(1);
 
-		ck_pr_store_int(&detector[cos_cpuid()*16], 1);
+//		ck_pr_store_int(&detector[cos_cpuid()*16], 1);
 
 		sched_switch_thread(COS_SCHED_ACAP_WAIT, TIMER_SWITCH_LOOP);
 		/* Tailcall out of the loop */
@@ -638,7 +639,7 @@ static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, 
 		if (unlikely(s == 0)) rdtscll(s); 
 		rdtscll(e);
 		/* detect unusual delay */
-		if (e - s > 1 << 30) {
+		if ((e - s) > (1 << 30)) {
 			printc("cos_sched_base: xcore_exec pushing into ring buffer has abnormal delay (%llu cycles).\n", e - s);
 			s = e;
 		}
@@ -657,7 +658,7 @@ static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, 
 		{		
 			rdtscll(e);
 			/* detect unusual delay */
-			if (e - s > 1 << 20) {
+			if ((e - s) > (1 << 30)) {
 				printc("cos_sched_base: thd %d on core %ld waiting for core %d abnormal remote execution delay (%llu cycles).\n",
 				       cos_get_thd_id(), cos_cpuid(), core_id, e - s);
 				s = e;

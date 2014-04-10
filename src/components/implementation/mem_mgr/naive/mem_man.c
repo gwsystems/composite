@@ -206,9 +206,9 @@ mm_init(void)
 	frame_init();
 
 	//QW: to remove 
-	if (cos_mmap_cntl(COS_MMAP_GRANT, MAPPING_RW, 2, 0x44bf0000, 64000)) {
-		printc("9998 failed >>>>>>>>>>>>>>>>\n");
-	}
+	/* if (cos_mmap_cntl(COS_MMAP_GRANT, MAPPING_RW, 2, 0x44bf0000, 64000)) { */
+	/* 	printc("9998 failed >>>>>>>>>>>>>>>>\n"); */
+	/* } */
 
 	printc("core %ld: mm init done\n", cos_cpuid());
 }
@@ -605,15 +605,20 @@ PERCPU_ATTR(static volatile, int, initialized_core); /* record the cores that st
 void 
 sched_exit(void)   
 {
-	int i;
-
-	*PERCPU_GET(initialized_core) = 0;
 	if (cos_cpuid() == INIT_CORE) {
+		int i;
 		/* The init core waiting for all cores to exit. */
 		for (i = 0; i < NUM_CPU ; i++)
 			if (*PERCPU_GET_TARGET(initialized_core, i)) i = 0;
 		/* Don't delete the memory until all cores exit */
 		mman_release_all(); 
+		*PERCPU_GET(initialized_core) = 0;
+	} else {
+		/* No one should exit before all cores are done. We'll
+		 * disable hw interposition once exit. */
+		*PERCPU_GET(initialized_core) = 0;
+
+		while (*PERCPU_GET_TARGET(initialized_core, 0)) ;
 	}
 	parent_sched_exit();
 }
