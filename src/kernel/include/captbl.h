@@ -68,6 +68,8 @@ __captbl_cap2sz(cap_t c)
 	default:       return CAP_SZ_ERR;
 	}
 }
+static inline int __captbl_cap2bytes(cap_t c)
+{ return 1<<(__captbl_cap2sz(c)+CAP_SZ_OFF); }
 
 typedef enum {
 	CAP_FLAG_RO    = 1,
@@ -100,6 +102,13 @@ struct cap_header {
 struct cap_min {
 	struct cap_header h;
 	char padding[(4*sizeof(int))-sizeof(struct cap_header)];
+};
+
+/* Capability structure to a capability table */
+struct cap_captbl {
+	struct cap_header h;
+	struct captbl *captbl;
+	int lvl; 		/* what level are the captbl nodes at? */
 };
 
 static void *

@@ -15,6 +15,7 @@
  */
 
 #include <ertrie.h>
+#include <captbl.h>
 
 enum {
 	PGTBL_PRESENT      = 1,
@@ -88,6 +89,13 @@ ERT_CREATE(__pgtbl, pgtbl, PGTBL_DEPTH, PGTBL_ORD, sizeof(int*), PGTBL_ORD, size
 
 /* make it an opaque type...not to be touched */
 typedef struct pgtbl * pgtbl_t; 
+
+/* Capability structure */
+struct cap_pgtbl {
+	struct cap_header h;
+	struct pgtbl *pgtbl;
+	int lvl; 		/* what level are the pgtbl nodes at? */
+};
 
 static pgtbl_t pgtbl_alloc(void *page) 
 { return __pgtbl_alloc(&page); }
