@@ -401,6 +401,8 @@ cos_memset(void * s, char c , int count)
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
+#define CFORCEINLINE __attribute__((always_inline))
+
 /* 
  * A composite constructor (deconstructor): will be executed before
  * other component execution (after component execution).  CRECOV is a
