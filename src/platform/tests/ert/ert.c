@@ -292,11 +292,56 @@ pgt_test(void)
 	char *p2 = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	char *p3 = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	pgtbl_t pt;
+	u32_t flags = 0;
 	
 	pt = pgtbl_alloc(p1);
 	assert(pt);
+
 	pgtbl_init_pte(p2);
-	pgtbl_intern_expand(pt, (void*)(1<<24), p2, PGTBL_INTERN_DEF);
+	/* In the real system, we want to memcpy the appropriate kernel page entries into the page table here. */
+	assert(!pgtbl_intern_expand(pt, (void *)(1<<24), p2, PGTBL_INTERN_DEF));
+	assert(!pgtbl_mapping_add(pt, (void *)((1<<24)), (void *)0xADEAD000, PGTBL_PRESENT | PGTBL_USER | PGTBL_WRITABLE));
+	flags = 0;
+	assert((void *)0xADEAD000 == pgtbl_translate(pt, (void *)((1<<24)), &flags));
+	assert(flags == (PGTBL_PRESENT | PGTBL_USER | PGTBL_WRITABLE));
+
+	/* detect conflicts? */
+	pgtbl_init_pte(p3);
+	assert(pgtbl_intern_expand(pt, (void *)(1<<24), p3, PGTBL_INTERN_DEF));
+	assert(pgtbl_mapping_add(pt, (void *)((1<<24)), (void *)0xBDEAD000, PGTBL_PRESENT | PGTBL_USER));
+	flags = 0;
+	assert((void *)0xADEAD000 == pgtbl_translate(pt, (void *)((1<<24)), &flags));
+	assert(flags == (PGTBL_PRESENT | PGTBL_USER | PGTBL_WRITABLE));
+
+	/* add second entry with the other "present" flags value */
+	assert(!pgtbl_translate(pt, (void *)((1<<27)), &flags));
+	assert(!pgtbl_intern_expand(pt, (void *)(1<<27), p3, PGTBL_INTERN_DEF));
+	assert(!pgtbl_mapping_add(pt, (void *)((1<<27)), (void *)0xCDEAD000, PGTBL_COSFRAME));
+	flags = 0;
+	assert((void *)0xCDEAD000 == pgtbl_translate(pt, (void *)((1<<27)), &flags));
+	assert(flags == PGTBL_COSFRAME);
+
+	/* remove mappings? */
+	assert(pgtbl_intern_prune(pt, (void*)(1<<25)));
+	assert(!pgtbl_mapping_del(pt, (void*)(1<<27)));
+	flags = 0;
+	assert(NULL == pgtbl_translate(pt, (void *)((1<<27)), &flags));
+	assert(flags == 0);
+	assert(p3 == pgtbl_intern_prune(pt, (void*)(1<<27)));
+	assert(!pgtbl_translate(pt, (void *)((1<<27)), &flags));
+
+	/* move mapping */
+	assert(p2 == pgtbl_intern_prune(pt, (void*)(1<<24)));
+	assert(!pgtbl_translate(pt, (void *)((1<<24)), &flags));
+	assert(!pgtbl_intern_expand(pt, (void *)(1<<26), p2, PGTBL_INTERN_DEF));
+	flags = 0;
+	assert((void *)0xADEAD000 == pgtbl_translate(pt, (void *)((1<<26)), &flags));
+	assert(flags == (PGTBL_PRESENT | PGTBL_USER | PGTBL_WRITABLE));
+
+	assert(!pgtbl_mapping_del(pt, (void*)(1<<26)));
+	assert(NULL == pgtbl_translate(pt, (void *)((1<<26)), &flags));
+	assert(p2 == pgtbl_intern_prune(pt, (void*)(1<<26)));
+	assert(NULL == pgtbl_translate(pt, (void *)((1<<26)), &flags));
 }
 
 int 

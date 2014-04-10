@@ -58,6 +58,7 @@ typedef enum {
 static inline cap_sz_t
 __captbl_cap2sz(cap_t c)
 {
+	/* TODO: optimize for invocation and return */
 	switch (c) {
 	case CAP_THD:  return CAP_SZ_16B;
 	case CAP_SRET: return CAP_SZ_16B;
