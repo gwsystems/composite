@@ -197,4 +197,6 @@ static void *
 pgtbl_translate(pgtbl_t pt, void *addr, u32_t *flags)
 { return __pgtbl_lkupan(pt, (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH+1, flags); }
 
+static pgtbl_t pgtbl_create(void *page) { return pgtbl_alloc(page); }
+
 #endif /* PGTBL_H */

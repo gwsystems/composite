@@ -38,10 +38,10 @@ ERT_CREATE(__ltbl, ltbl, 1, 0, LTBL_ENTS, sizeof(ltbl_entry_t), 0,	\
 	ert_definit, ert_defget, __ltbl_isnull, ert_defset,	\
 	__ltbl_allocfn, __ltbl_setleaf, ert_defgetleaf, ert_defresolve); 
 
-void ltbl_expire(struct liveness_data *ld)
+static inline void ltbl_expire(struct liveness_data *ld)
 { __ltbl_expandn(__liveness_tbl, ld->id, __ltbl_maxdepth()+1, NULL, NULL, NULL); }
 
-int 
+static inline int 
 ltbl_isalive(struct liveness_data *ld)
 { 
 	ltbl_entry_t epoch;
@@ -51,7 +51,7 @@ ltbl_isalive(struct liveness_data *ld)
 	return 1;
 }
 
-void
+static inline void
 ltbl_get(u32_t id, struct liveness_data *ld)
 {
 	assert(id < LTBL_NENTS);
@@ -59,12 +59,6 @@ ltbl_get(u32_t id, struct liveness_data *ld)
 	ld->id = id;
 }
 
-
-void
-ltbl_init(void)
-{
-	int i;
-	for (i = 0 ; i < ; i++) __liveness_tbl[i] = 0;
-}
+void ltbl_init(void);
 
 #endif /* LIVENESS_TBL_H */

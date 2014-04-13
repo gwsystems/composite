@@ -15,6 +15,12 @@ struct invstk_entry {
 	unsigned long sp, ip; 	/* to return to */
 };
 
+/* TODO: replace with existing thread struct */
+struct thread {
+	int invstk_top;
+	struct invstk_entry invstk[32] HALF_CACHE_ALIGNED;
+};
+
 struct cap_thd {
 	struct cap_header h;
 	struct thread *t;
