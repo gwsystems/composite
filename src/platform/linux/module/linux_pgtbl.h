@@ -1,5 +1,5 @@
-#ifndef PGTBL_H
-#define PGTBL_H
+#ifndef LINUX_PGTBL_H
+#define LINUX_PGTBL_H
 
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -8,4 +8,4 @@
 
 void pgtbl_print_valid_entries(paddr_t pt);
 
-#endif	/* PGTBL_H */
+#endif	/* LINUX_PGTBL_H */
