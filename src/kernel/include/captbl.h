@@ -11,8 +11,8 @@
 #ifndef CAPTBL_H
 #define CAPTBL_H
 
-#include <errno.h>
-#include <ertrie.h>
+//#include <errno.h>
+#include "ertrie.h"
 #ifndef PAGE_SIZE
 #define PAGE_SIZE 4096
 #endif
@@ -26,6 +26,7 @@
 #define CAPTBL_INTERN_ORD 9 /* log(PAGE_SIZE/(2*(CAPTBL_DEPTH-1)*CAPTBL_INTERNSZ)) */
 #define CAPTBL_LEAFSZ     (sizeof(struct cap_min))
 #define CAPTBL_LEAF_ORD   7 /* log(PAGE_SIZE/(2*CAPTBL_LEAFSZ)) */
+
 typedef enum {
 	CAP_FREE = 0,
 	CAP_SINV,		/* synchronous communication -- invoke */
@@ -60,14 +61,15 @@ __captbl_cap2sz(cap_t c)
 {
 	/* TODO: optimize for invocation and return */
 	switch (c) {
-	case CAP_THD:  return CAP_SZ_16B;
-	case CAP_SRET: return CAP_SZ_16B;
-	case CAP_SINV: return CAP_SZ_32B;
-	case CAP_ASND: return CAP_SZ_32B;
-	case CAP_ARCV: return CAP_SZ_32B;
-	default:       return CAP_SZ_ERR;
+	case CAP_CAPTBL: case CAP_THD:   
+	case CAP_PGTBL:  case CAP_SRET: return CAP_SZ_16B;
+	case CAP_SINV:                  return CAP_SZ_32B;
+	case CAP_ASND:   case CAP_ARCV: return CAP_SZ_64B;
+	default:                        return CAP_SZ_ERR;
 	}
 }
+static inline int __captbl_cap2bytes(cap_t c)
+{ return 1<<(__captbl_cap2sz(c)+CAP_SZ_OFF); }
 
 typedef enum {
 	CAP_FLAG_RO    = 1,
@@ -100,6 +102,13 @@ struct cap_header {
 struct cap_min {
 	struct cap_header h;
 	char padding[(4*sizeof(int))-sizeof(struct cap_header)];
+};
+
+/* Capability structure to a capability table */
+struct cap_captbl {
+	struct cap_header h;
+	struct captbl *captbl;
+	u32_t lvl; 		/* what level are the captbl nodes at? */
 };
 
 static void *
@@ -179,9 +188,9 @@ ERT_CREATE(__captbl, captbl, CAPTBL_DEPTH,				\
 	   CAPTBL_INTERN_ORD, CAPTBL_INTERNSZ,				\
 	   CAPTBL_LEAF_ORD, CAPTBL_LEAFSZ,				\
 	   CT_DEFINITVAL, __captbl_init, ert_defget, ert_defisnull, ert_defset,	\
-	   __captbl_allocfn, __captbl_setleaf, __captbl_getleaf, ert_defresolve); 
+	   __captbl_allocfn, __captbl_setleaf, __captbl_getleaf, ert_defresolve);
 
-static struct captbl *captbl_alloc(void *mem) { return __captbl_alloc(&mem); }
+static struct captbl *captbl_alloc(void *page) { return __captbl_alloc(&page); }
 
 static inline int
 __captbl_header_validate(struct cap_header *h, cap_sz_t sz)
@@ -245,8 +254,11 @@ captbl_add(struct captbl *t, unsigned long cap, cap_t type, int *retval)
 	}
 	if (unlikely(__captbl_header_validate(&l, sz))) cos_throw(err, -EINVAL);
 
+	/* FIXME: we should _not_ do this here.  This should be done
+	 * in step 3 of the protocol for setting capabilities, not 1 */
 	if (p == h) l.type = type;
 	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
+	/* FIXME: same as above */
 	if (p != h) p->type = type;
 	
 	assert(p == __captbl_lkupan(t, cap, CAPTBL_DEPTH+1, NULL));
@@ -256,7 +268,23 @@ err:
 	*retval = ret;
 	return NULL;
 }
+
+static inline int
+captbl_activate(struct captbl *t, unsigned long cap, struct captbl *toadd, u32_t lvl)
+{
+	struct cap_captbl *ct;
+	int ret;
 	
+	assert(toadd && lvl <= __captbl_maxdepth());
+	ct = (struct cap_captbl *)captbl_add(t, cap, CAP_CAPTBL, &ret);
+	if (!ct) return ret;
+	ct->captbl = toadd;
+	ct->captbl = lvl;
+	ct->h.type = CAP_CAPTBL; /* commit the activation */
+
+	return 0;
+}
+
 static inline int
 captbl_del(struct captbl *t, unsigned long cap)
 {
@@ -278,6 +306,8 @@ captbl_del(struct captbl *t, unsigned long cap)
 	if (unlikely(l.flags & CAP_FLAG_RO)) cos_throw(err, -EPERM);
 	if (unlikely(!(l.amap & (1<<off)))) cos_throw(err, -ENOENT);
 
+	/* FIXME: must remove the type of the deleted cap */
+
 	/* new map, removing the current allocation */
 	l.amap &= (~(1<<off)) & ((1<<CAP_HEAD_AMAP_SZ)-1);
 	if (l.amap == 0) l.size = CAP_SZ_64B; /* no active allocations... */
@@ -289,6 +319,10 @@ captbl_del(struct captbl *t, unsigned long cap)
 err:
 	return ret;
 }
+
+static inline int
+captbl_dactivate(struct captbl *t, unsigned long cap)
+{ return captbl_del(t, cap); }
 
 static inline u32_t captbl_maxdepth(void) { return __captbl_maxdepth(); }
 
@@ -337,5 +371,29 @@ err:
 	p = NULL;
 	goto done;
 }
+
+static struct captbl *
+captbl_create(void *page)
+{
+	struct captbl *ct;
+	struct cap_header *c;
+
+	assert(page);
+	ct = captbl_alloc(page);
+	assert(ct);
+	/* 
+	 * replace hard-coded sizes with calculations based on captbl
+	 * depth, and intern and leaf sizes/orders
+	 */
+	captbl_init(&((char*)page)[PAGE_SIZE/2], 1);
+	ret = captbl_expand(ct, 0, captbl_maxdepth(), &((char*)page)[PAGE_SIZE/2]);
+	assert(!ret);
+	c = captbl_add(ct, 0, CAP_SRET, &ret);
+	assert(c && ret == 0 && c == &((char*)page)[PAGE_SIZE/2]);
+
+	return ct;
+}
+
+static void cap_init(void) { return; }
 
 #endif /* CAPTBL_H */

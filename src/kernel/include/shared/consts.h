@@ -79,8 +79,8 @@ struct pt_regs {
 #define round_up_to_pgd_page(x) round_up_to_pow2(x, PGD_SIZE)
 
 #define CACHE_LINE (64)
-#define CACHE_ALIGNED __attribute__ ((aligned (CACHE_LINE)))
-#define HALF_CACHE_ALIGNED __attribute__ ((aligned (CACHE_LINE/2)))
+#define CACHE_ALIGNED __attribute__ ((aligned(CACHE_LINE)))
+#define HALF_CACHE_ALIGNED __attribute__ ((aligned(CACHE_LINE/2)))
 #define PAGE_ALIGNED __attribute__ ((aligned(PAGE_SIZE)))
 #define WORD_SIZE 32
 

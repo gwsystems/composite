@@ -16,6 +16,7 @@
 
 #include "ertrie.h"
 #include "per_cpu.h"
+//#include "captbl.h"
 
 enum {
 	PGTBL_PRESENT      = 1,
@@ -96,6 +97,13 @@ ERT_CREATE(__pgtbl, pgtbl, PGTBL_DEPTH, PGTBL_ORD, sizeof(int*), PGTBL_ORD, size
 
 /* make it an opaque type...not to be touched */
 typedef struct pgtbl * pgtbl_t; 
+
+/* Capability structure */
+/* struct cap_pgtbl { */
+/* 	struct cap_header h; */
+/* 	struct pgtbl *pgtbl; */
+/* 	int lvl; 		/\* what level are the pgtbl nodes at? *\/ */
+/* }; */
 
 static pgtbl_t pgtbl_alloc(void *page) 
 { return __pgtbl_alloc(&page); }
@@ -225,5 +233,7 @@ pgtbl_lookup(pgtbl_t pt, u32_t addr, u32_t *flags)
 	if (*flags & PGTBL_PRESENT) return (paddr_t)ret;
 	else                        return (paddr_t)NULL;
 }
+
+static pgtbl_t pgtbl_create(void *page) { return pgtbl_alloc(page); }
 
 #endif /* PGTBL_H */
