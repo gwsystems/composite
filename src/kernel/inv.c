@@ -4380,7 +4380,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 	int ax, preempted = 0;
 /* We don't need to setup fs for invocation and return path. Only
  * enable this when doing printk (which requires fs) for debugging. */
-//#define ENABLE_KERNEL_PRINT
+#define ENABLE_KERNEL_PRINT
 #ifdef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
 #endif

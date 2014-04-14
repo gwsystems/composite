@@ -86,7 +86,8 @@ static inline int __pgtbl_setleaf(struct ert_intern *a, void *v)
 static void __pgtbl_set(struct ert_intern *a, void *v, void *accum, int isleaf) 
 { 
 	(void)accum; assert(!isleaf);
-	a->next = (void*)((u32_t)chal_va2pa((void*)((u32_t)v & PGTBL_FRAME_MASK)) | PGTBL_INTERN_DEF); 
+	if (v) a->next = (void*)((u32_t)chal_va2pa((void*)((u32_t)v & PGTBL_FRAME_MASK)) | PGTBL_INTERN_DEF); 
+	else   a->next = NULL;
 }
 static inline void *__pgtbl_getleaf(struct ert_intern *a, void *accum)
 { if (unlikely(!a)) return NULL; return __pgtbl_get(a, accum, 1); }
