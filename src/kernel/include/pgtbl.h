@@ -77,9 +77,9 @@ static inline int __pgtbl_setleaf(struct ert_intern *a, void *v)
 	u32_t old, new;
 
 	old = (u32_t)(a->next);
-	new = (u32_t)((u32_t)((u32_t)v & PGTBL_FRAME_MASK) | ((u32_t)v & PGTBL_FLAG_MASK));
+	new = (u32_t)(((u32_t)v & PGTBL_FRAME_MASK) | ((u32_t)v & PGTBL_FLAG_MASK));
 
-	if (cos_cas((unsigned long *)&(a->next), old, new)) return 0;
+	if (cos_cas((unsigned long *)a, old, new)) return 0;
 	else return -1;
 }
 /* Note:  We're just using pre-defined default flags for internal (pgd) entries */
@@ -186,20 +186,28 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 			       PGTBL_DEPTH+1, &accum, &pte, (void*)(page | flags));
 }
 
+/* This function updates flags of an existing mapping. */
 static int
-pgtbl_mapping_mod(pgtbl_t pt, void *addr, u32_t flags, u32_t *prevflags)
+pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags)
 {
-	unsigned long accum;
-	void *page;
+	struct ert_intern *pte;
+	u32_t orig_v, accum = 0;
 	
 	assert(pt && prevflags);
-	assert((PGTBL_FLAG_MASK & (u32_t)addr) == 0);
+	assert((PGTBL_FLAG_MASK & addr) == 0);
 	assert((PGTBL_FRAME_MASK & flags) == 0);
 
-	*prevflags = 0;
-	page = __pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH+1, prevflags);
-	if (!page) return -ENOENT;
-	__pgtbl_set(page, &flags, &accum, 1);
+	/* get the pte */
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
+						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	if (__pgtbl_isnull(pte, 0, 0)) return -ENOENT;
+
+	orig_v = (u32_t)(pte->next);
+	/* accum contains flags from pgd as well, so don't use it to
+	 * get prevflags. */
+	*prevflags = orig_v & PGTBL_FLAG_MASK;
+	/* and update the flags. */
+	__pgtbl_setleaf(pte, (void *)((orig_v & PGTBL_FRAME_MASK) | ((u32_t)flags & PGTBL_FLAG_MASK)));
 
 	return 0;
 }
