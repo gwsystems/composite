@@ -11,8 +11,8 @@
 #ifndef CAPTBL_H
 #define CAPTBL_H
 
-#include <errno.h>
-#include <ertrie.h>
+//#include <errno.h>
+#include "ertrie.h"
 #ifndef PAGE_SIZE
 #define PAGE_SIZE 4096
 #endif
@@ -26,6 +26,7 @@
 #define CAPTBL_INTERN_ORD 9 /* log(PAGE_SIZE/(2*(CAPTBL_DEPTH-1)*CAPTBL_INTERNSZ)) */
 #define CAPTBL_LEAFSZ     (sizeof(struct cap_min))
 #define CAPTBL_LEAF_ORD   7 /* log(PAGE_SIZE/(2*CAPTBL_LEAFSZ)) */
+
 typedef enum {
 	CAP_FREE = 0,
 	CAP_SINV,		/* synchronous communication -- invoke */

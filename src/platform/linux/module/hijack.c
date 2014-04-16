@@ -55,8 +55,10 @@
 #include "./hw_ints.h"
 #include "cos_irq_vectors.h"
 
-#include "pgtbl.h"
+#include "linux_pgtbl.h"
+
 #include "../../../kernel/include/chal.h"
+#include "../../../kernel/include/pgtbl.h"
 
 #include "./kconfig_checks.h"
 
@@ -510,7 +512,7 @@ static inline void copy_pgd_range(struct mm_struct *to_mm, struct mm_struct *fro
 	unsigned int span = hpage_index(size);
 
 #ifdef NIL
-	if (!(pgd_val(*fpgd) & _PAGE_PRESENT)) {
+	if (!(pgd_val(*fpgd) & PGTBL_PRESENT)) {
 		printk("cos: BUG: nothing to copy in mm %p's pgd @ %x.\n", 
 		       from_mm, (unsigned int)lower_addr);
 	}
@@ -1650,9 +1652,9 @@ void thd_publish_data_page(struct thread *thd, vaddr_t page)
 	//assert(0 != id && 0 == (page & ~PAGE_MASK));
 
 	//printk("cos: shared_region_pte is %p, page is %x.\n", shared_region_pte, page);
-	/* _PAGE_PRESENT is not set */
+	/* PGTBL_PRESENT is not set */
 	((pte_t*)shared_region_page)[id].pte_low = (vaddr_t)chal_va2pa((void*)page) |
-		(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
+		(PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_USER | PGTBL_ACCESSED);
 
 	return;
 }
@@ -1791,12 +1793,12 @@ static int aed_open(struct inode *inode, struct file *file)
 	data_page = chal_va2pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), 
 							   (unsigned long)shared_data_page));
 	shared_region_pte[0].pte_low = (unsigned long)(data_page) |
-		(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
+		(PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_USER | PGTBL_ACCESSED);
 	/* hook up the actual virtual memory pages to the pte
 	 * protection mapping equivalent to PAGE_SHARED */
 /*	for (i = 0 ; i < MAX_NUM_THREADS+1 ; i++) { 
 		shared_region_pte[i].pte_low = (unsigned long)(__pa(pages_ptr+(PAGE_SIZE*i))) | 
-			(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | _PAGE_ACCESSED);
+			(PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_USER | PGTBL_ACCESSED);
 	}
 */
 

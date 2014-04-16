@@ -8,11 +8,7 @@
 #ifndef ERTRIE_H
 #define ERTRIE_H
 
-#ifndef LINUX_TEST
-#include <cos_component.h>
-#else 
 #define CFORCEINLINE __attribute__((always_inline))
-#endif
 
 /* 
  * TODO:
@@ -46,7 +42,7 @@ typedef void (*ert_set_fn_t)(struct ert_intern *e, void *val, void *accum, int i
 /* allocate an internal or leaf structure */
 typedef void *(*ert_alloc_fn_t)(void *data, int sz, int last_lvl);
 /* if we you extending the leaf level, this is called to set the leaf entry */
-typedef void (*ert_setleaf_fn_t)(struct ert_intern *entry, void *data);
+typedef int (*ert_setleaf_fn_t)(struct ert_intern *entry, void *data);
 typedef void *(*ert_getleaf_fn_t)(struct ert_intern *entry, void *accum);
 
 #define ERT_CONST_PARAMS						\
@@ -283,7 +279,8 @@ __ert_expand(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *
 		n = __ert_walk(n, id, accum, depth-i, ERT_CONST_ARGS);
 		/* don't overwrite a value, unless we want to set it to the initval */
 		if (data != initval && !isnullfn(n, accum, 0)) return 1;
-		setleaffn(n, data);
+		/* return -1 if CAS fails */
+		if (setleaffn(n, data)) return -1;
 	}
 	return 0;
 }

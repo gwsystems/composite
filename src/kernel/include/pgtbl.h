@@ -14,8 +14,9 @@
  * specific case.
  */
 
-#include <ertrie.h>
-#include <captbl.h>
+#include "ertrie.h"
+#include "per_cpu.h"
+//#include "captbl.h"
 
 enum {
 	PGTBL_PRESENT      = 1,
@@ -37,8 +38,6 @@ enum {
 #define PGTBL_FRAME_MASK    (~PGTBL_FLAG_MASK)
 #define PGTBL_DEPTH         2
 #define PGTBL_ORD           10
-static inline void *chal_pa2va(void *p) { return (char*)((~(u32_t)p) & PGTBL_FRAME_MASK); }
-static inline void *chal_va2pa(void *v) { return (char*)((~(u32_t)v) & PGTBL_FRAME_MASK); }
 
 /* 
  * Use the passed in page, but make sure that we only use the passed
@@ -59,10 +58,11 @@ __pgtbl_a(void *d, int sz, int leaf)
 static struct ert_intern *
 __pgtbl_get(struct ert_intern *a, void *accum, int isleaf)
 { 
-	(void)isleaf;
 	/* don't use | here as we only want the pte flags */
 	*(u32_t*)accum = (((u32_t)a->next) & PGTBL_FLAG_MASK); 
-	return chal_pa2va((void*)((((u32_t)a->next) & PGTBL_FRAME_MASK))); 
+	if (!isleaf) return chal_pa2va((void*)((((u32_t)a->next) & PGTBL_FRAME_MASK))); 
+	/* return pa when it's leaf */
+	else         return (struct ert_intern *)(((u32_t)a->next) & PGTBL_FRAME_MASK);
 }
 static int __pgtbl_isnull(struct ert_intern *a, void *accum, int isleaf) 
 { (void)isleaf; (void)accum; return !(((u32_t)(a->next)) & (PGTBL_PRESENT|PGTBL_COSFRAME)); }
@@ -71,14 +71,23 @@ static void __pgtbl_init(struct ert_intern *a, int isleaf)
 	if (isleaf) return; 
 	a->next = NULL;
 }
-/* TODO: cas */
-static inline void __pgtbl_setleaf(struct ert_intern *a, void *v)
-{ a->next = (void*)((u32_t)chal_va2pa((void*)((u32_t)v & PGTBL_FRAME_MASK)) | ((u32_t)v & PGTBL_FLAG_MASK)); }
+
+static inline int __pgtbl_setleaf(struct ert_intern *a, void *v)
+{
+	u32_t old, new;
+
+	old = (u32_t)(a->next);
+	new = (u32_t)(((u32_t)v & PGTBL_FRAME_MASK) | ((u32_t)v & PGTBL_FLAG_MASK));
+
+	if (cos_cas((unsigned long *)a, old, new)) return 0;
+	else return -1;
+}
 /* Note:  We're just using pre-defined default flags for internal (pgd) entries */
 static void __pgtbl_set(struct ert_intern *a, void *v, void *accum, int isleaf) 
 { 
 	(void)accum; assert(!isleaf);
-	a->next = (void*)((u32_t)chal_va2pa((void*)((u32_t)v & PGTBL_FRAME_MASK)) | PGTBL_INTERN_DEF); 
+	if (v) a->next = (void*)((u32_t)chal_va2pa((void*)((u32_t)v & PGTBL_FRAME_MASK)) | PGTBL_INTERN_DEF); 
+	else   a->next = NULL;
 }
 static inline void *__pgtbl_getleaf(struct ert_intern *a, void *accum)
 { if (unlikely(!a)) return NULL; return __pgtbl_get(a, accum, 1); }
@@ -91,11 +100,11 @@ ERT_CREATE(__pgtbl, pgtbl, PGTBL_DEPTH, PGTBL_ORD, sizeof(int*), PGTBL_ORD, size
 typedef struct pgtbl * pgtbl_t; 
 
 /* Capability structure */
-struct cap_pgtbl {
-	struct cap_header h;
-	struct pgtbl *pgtbl;
-	int lvl; 		/* what level are the pgtbl nodes at? */
-};
+/* struct cap_pgtbl { */
+/* 	struct cap_header h; */
+/* 	struct pgtbl *pgtbl; */
+/* 	int lvl; 		/\* what level are the pgtbl nodes at? *\/ */
+/* }; */
 
 static pgtbl_t pgtbl_alloc(void *page) 
 { return __pgtbl_alloc(&page); }
@@ -110,7 +119,7 @@ pgtbl_init_pte(void *pte)
 }
 
 static int 
-pgtbl_intern_expand(pgtbl_t pt, void *addr, void *pte, u32_t flags)
+pgtbl_intern_expand(pgtbl_t pt, u32_t addr, void *pte, u32_t flags)
 {
 	unsigned long accum = (unsigned long)flags;
 	int ret;
@@ -122,7 +131,7 @@ pgtbl_intern_expand(pgtbl_t pt, void *addr, void *pte, u32_t flags)
 	assert((PGTBL_FRAME_MASK & flags) == 0);
 
 	if (!pte) return -EINVAL;
-	ret = __pgtbl_expandn(pt, (unsigned long)((u32_t)addr >> PGTBL_PAGEIDX_SHIFT), 
+	ret = __pgtbl_expandn(pt, (unsigned long)(addr >> PGTBL_PAGEIDX_SHIFT), 
 			      PGTBL_DEPTH, &accum, &pte, NULL);
 	if (!ret && pte) return -EEXIST; /* no need to expand */
 	assert(!(ret && !pte));		 /* error and used memory??? */
@@ -131,7 +140,7 @@ pgtbl_intern_expand(pgtbl_t pt, void *addr, void *pte, u32_t flags)
 }
 
 static void *
-pgtbl_intern_prune(pgtbl_t pt, void *addr)
+pgtbl_intern_prune(pgtbl_t pt, u32_t addr)
 {
 	unsigned long accum = 0, *pgd;
 	void *page;
@@ -139,7 +148,7 @@ pgtbl_intern_prune(pgtbl_t pt, void *addr)
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & (u32_t)addr) == 0);
 
-	pgd = __pgtbl_lkupan(pt, (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, 1, &accum);
+	pgd = __pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, 1, &accum);
 	if (!pgd) return NULL;
 	page = __pgtbl_get((struct ert_intern *)pgd, &accum, 0);
 	accum = 0;
@@ -148,54 +157,91 @@ pgtbl_intern_prune(pgtbl_t pt, void *addr)
 	return page;
 }
 
+static void *
+pgtbl_get_pgd(pgtbl_t pt, u32_t addr)
+{
+	unsigned long accum = 0;
+
+	assert(pt);
+	return __pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, 1, &accum);
+}
+
 static int
-pgtbl_mapping_add(pgtbl_t pt, void *addr, void *page, u32_t flags)
+pgtbl_check_pgd_absent(pgtbl_t pt, u32_t addr)
+{
+	return __pgtbl_isnull(pgtbl_get_pgd(pt, (u32_t)addr), 0, 0);
+}
+
+static int
+pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {
 	unsigned long accum = 0, *pte = NULL;
 
 	assert(pt);
-	assert((PGTBL_FLAG_MASK & (u32_t)addr) == 0);
-	assert((PGTBL_FLAG_MASK & (u32_t)page) == 0);
+	assert((PGTBL_FLAG_MASK & addr) == 0);
+	assert((PGTBL_FLAG_MASK & page) == 0);
 	assert((PGTBL_FRAME_MASK & flags) == 0);
 
-	return __pgtbl_expandn(pt, (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, 
-			       PGTBL_DEPTH+1, &accum, &pte, (void*)((u32_t)page | flags));
+	return __pgtbl_expandn(pt, addr >> PGTBL_PAGEIDX_SHIFT, 
+			       PGTBL_DEPTH+1, &accum, &pte, (void*)(page | flags));
 }
 
+/* This function updates flags of an existing mapping. */
 static int
-pgtbl_mapping_mod(pgtbl_t pt, void *addr, u32_t flags, u32_t *prevflags)
+pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags)
 {
-	unsigned long accum;
-	void *page;
+	struct ert_intern *pte;
+	u32_t orig_v, accum = 0;
 	
 	assert(pt && prevflags);
-	assert((PGTBL_FLAG_MASK & (u32_t)addr) == 0);
+	assert((PGTBL_FLAG_MASK & addr) == 0);
 	assert((PGTBL_FRAME_MASK & flags) == 0);
 
-	*prevflags = 0;
-	page = __pgtbl_lkupan(pt, (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH+1, prevflags);
-	if (!page) return -ENOENT;
-	__pgtbl_set(page, &flags, &accum, 1);
+	/* get the pte */
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
+						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	if (__pgtbl_isnull(pte, 0, 0)) return -ENOENT;
+
+	orig_v = (u32_t)(pte->next);
+	/* accum contains flags from pgd as well, so don't use it to
+	 * get prevflags. */
+	*prevflags = orig_v & PGTBL_FLAG_MASK;
+	/* and update the flags. */
+	__pgtbl_setleaf(pte, (void *)((orig_v & PGTBL_FRAME_MASK) | ((u32_t)flags & PGTBL_FLAG_MASK)));
 
 	return 0;
 }
 
 static int
-pgtbl_mapping_del(pgtbl_t pt, void *addr)
+pgtbl_mapping_del(pgtbl_t pt, u32_t addr)
 {
 	unsigned long accum = 0, *pte = NULL;
 
 	assert(pt);
-	assert((PGTBL_FLAG_MASK & (u32_t)addr) == 0);
+	assert((PGTBL_FLAG_MASK & addr) == 0);
 
-	return __pgtbl_expandn(pt, (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, 
+	return __pgtbl_expandn(pt, addr >> PGTBL_PAGEIDX_SHIFT, 
 			       PGTBL_DEPTH+1, &accum, &pte, NULL);
 }
 
 /* vaddr -> kaddr */
-static void *
-pgtbl_translate(pgtbl_t pt, void *addr, u32_t *flags)
-{ return __pgtbl_lkupan(pt, (u32_t)addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH+1, flags); }
+static vaddr_t
+pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
+{ 
+	void *ret = __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | PGTBL_PRESENT), 
+				    addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH+1, flags); 
+	if (*flags & PGTBL_PRESENT) return (vaddr_t)chal_pa2va(ret);
+	else                        return (vaddr_t)NULL;
+}
+
+static paddr_t
+pgtbl_lookup(pgtbl_t pt, u32_t addr, u32_t *flags)
+{ 
+	void * ret = __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | PGTBL_PRESENT), 
+				    addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH+1, flags); 
+	if (*flags & PGTBL_PRESENT) return (paddr_t)ret;
+	else                        return (paddr_t)NULL;
+}
 
 static pgtbl_t pgtbl_create(void *page) { return pgtbl_alloc(page); }
 

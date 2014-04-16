@@ -20,7 +20,7 @@ Shell commands prefixed by `$` are normal user commands, and those prefixed by `
    
 6. `$ make ; make modules`
 
-7. `$ make install; make modules_install ; mkinitramfs -o /boot/initrd.img-2.6.36 2.6.36 ; update-grub` 
+7. `# make install; make modules_install ; mkinitramfs -o /boot/initrd.img-2.6.36 2.6.36 ; update-grub` 
 
    Make sure that you edit `/etc/default/grub` before updating grub.
 
