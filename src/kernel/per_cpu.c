@@ -9,7 +9,7 @@
 
 #include "include/per_cpu.h"
 #include "include/thread.h"
-struct per_core_variables per_core[NUM_CPU];
+/* struct per_core_variables per_core[NUM_CPU]; */
 
 #define COS_SYSCALL __attribute__((regparm(0)))
 

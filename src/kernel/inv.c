@@ -251,13 +251,15 @@ err:
 static inline void
 copy_gp_regs(struct pt_regs *from, struct pt_regs *to)
 {
-	to->ax = from->ax;
-	to->bx = from->bx;
-	to->cx = from->cx;
-	to->dx = from->dx;
-	to->si = from->si;
-	to->di = from->di;
-	to->bp = from->bp;
+#define COPY_REG(reg) to->reg = from->reg
+	COPY_REG(ax);
+	COPY_REG(bx);
+	COPY_REG(cx);
+	COPY_REG(dx);
+	COPY_REG(si);
+	COPY_REG(di);
+	COPY_REG(bp);
+#undef COPY_REG
 }
 
 static inline unsigned long

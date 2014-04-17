@@ -1703,8 +1703,6 @@ void init_globals(void)
 	union_pgd          = NULL;
 	for (cpuid = 0; cpuid < NUM_CPU; cpuid++) {
 		cos_thd_per_core[cpuid].cos_thd = NULL;
-		per_core[cpuid].curr_thd        = NULL;
-		per_core[cpuid].curr_spd        = NULL;
 	}
 	composite_union_mm = NULL;
 	kern_mm            = NULL;

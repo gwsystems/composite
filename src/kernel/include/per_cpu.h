@@ -43,7 +43,7 @@ struct per_core_variables {
 	struct spd_poly *curr_spd;
 } CACHE_ALIGNED;
 
-extern struct per_core_variables per_core[NUM_CPU];
+/* extern struct per_core_variables per_core[NUM_CPU]; */
 
 #define CREATE_PERCPU_VAR_FNS(type, name)	\
 static inline type                              \

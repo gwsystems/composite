@@ -317,5 +317,3 @@ cos_post_interpose_deref_addr_tramp: /* for the previous address */
 .globl cos_post_default_deref_addr_tramp
 cos_post_default_deref_addr_tramp:   /* for the previous address */
 	.align 4096
-
-
