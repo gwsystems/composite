@@ -168,10 +168,6 @@ void get_TSS(struct pt_regs *rs)
 		/* Make sure the thread_info structure is at the
 		   correct location. */
 		assert(get_linux_thread_info() == (void *)current_thread_info());
-		if (offsetof(struct thread_info, cpu) != 16) {
-			printk("The linux definition of the thread info is different from the offsets that Composite assumes");
-			assert(0);
-		}
 	}
 
 	return;
@@ -564,7 +560,7 @@ struct thread *ready_boot_thread(struct spd *init)
 	assert(thd_spd_in_composite(this_pgtbl, init));
 
 	tid = thd_get_id(thd);
-	core_put_curr_thd(thd);
+	cos_put_curr_thd(thd);
 
 	assert(tid);
 
@@ -748,6 +744,8 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		struct thread *thd;
 		struct spd *spd, *sched;
 
+		cos_kern_stk_init();
+
 		save_per_core_cos_thd();
 
 		if (copy_from_user(&thread_info, (void*)arg, 
@@ -867,7 +865,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case AED_EMULATE_PREEMPT:
 	{
 		struct pt_regs *regs = get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd);
-		struct thread *cos_thd = core_get_curr_thd();
+		struct thread *cos_thd = cos_get_curr_thd();
 		//struct pt_regs *irq_regs = get_irq_regs();
 
 		memcpy(&cos_thd->regs, regs, sizeof(struct pt_regs));
@@ -1146,7 +1144,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	 * not completely initialized composite yet, but we need to
 	 * check for this.
 	 */
-	thd = core_get_curr_thd();
+	thd = cos_get_curr_thd();
 	/* This is a magical address that we are getting faults for,
 	 * but I don't know why, and it doesn't seem to interfere with
 	 * execution.  For now ffffd0b0 is being counted as an unknown
@@ -1211,7 +1209,7 @@ int main_div_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 
 	if (cos_thd_per_core[get_cpuid()].cos_thd != current) return 1;
 
-	t = core_get_curr_thd();
+	t = cos_get_curr_thd();
 	cos_record_fault_regs(t, error_code, error_code, rs);
 	fault_ipc_invoke(t, rs->ip, 0, rs, COS_FLT_DIVZERO);
 
@@ -1226,7 +1224,7 @@ main_reg_save_interposition(struct pt_regs *rs, unsigned int error_code)
 
 	if (unlikely(cos_thd_per_core[get_cpuid()].cos_thd != current)) return 1;
 
-	t = core_get_curr_thd();
+	t = cos_get_curr_thd();
 	memcpy(&t->fault_regs, rs, sizeof(struct pt_regs));
 	/* The spd that was invoked should be the one faulting here
 	 * (must get stack) */
@@ -1416,7 +1414,7 @@ chal_idle(void)
 	set_current_state(TASK_INTERRUPTIBLE);
 	assert(IDLE_AWAKE == idle_status);
 	idle_status = IDLE_ASLEEP;
-	event_record("going into idle", thd_get_id(core_get_curr_thd()), 0);
+	event_record("going into idle", thd_get_id(cos_get_curr_thd()), 0);
 	cos_meas_event(COS_MEAS_IDLE_SLEEP);
 	sti();
 
@@ -1428,7 +1426,7 @@ chal_idle(void)
 	//assert(IDLE_WAKING == idle_status);
 	idle_status = IDLE_AWAKE;
 	cos_meas_event(COS_MEAS_IDLE_RUN);
-	event_record("coming out of idle", thd_get_id(core_get_curr_thd()), 0);
+	event_record("coming out of idle", thd_get_id(cos_get_curr_thd()), 0);
 }
 
 static void 
@@ -1438,12 +1436,12 @@ host_idle_wakeup(void)
 	if (likely(cos_thd_per_core[get_cpuid()].cos_thd)) {
 		if (IDLE_ASLEEP == idle_status) {
 			cos_meas_event(COS_MEAS_IDLE_LINUX_WAKE);
-			event_record("idle wakeup", thd_get_id(core_get_curr_thd()), 0);
+			event_record("idle wakeup", thd_get_id(cos_get_curr_thd()), 0);
 			wake_up_process(cos_thd_per_core[get_cpuid()].cos_thd);
 			idle_status = IDLE_WAKING;
 		} else {
 			cos_meas_event(COS_MEAS_IDLE_RECURSIVE_WAKE);
-			event_record("idle wakeup call while waking", thd_get_id(core_get_curr_thd()), 0);
+			event_record("idle wakeup call while waking", thd_get_id(cos_get_curr_thd()), 0);
 		}
 		assert(IDLE_WAKING == idle_status);
 	}
@@ -1464,7 +1462,7 @@ int chal_attempt_ainv(struct async_cap *acap)
 			cos_meas_event(COS_MEAS_INT_OTHER_THD);
 		}
 
-		cos_current = core_get_curr_thd();
+		cos_current = cos_get_curr_thd();
 		/* See comment in cosnet.c:cosnet_xmit_packet */
 		if (host_in_syscall() || host_in_idle()) {
 			struct thread *next;
@@ -1507,7 +1505,7 @@ int chal_attempt_ainv(struct async_cap *acap)
 			 */
 			next = ainv_next_thread(acap, cos_current, 0);
 			if (next != cos_current) {
-				assert(core_get_curr_thd() == next);
+				assert(cos_get_curr_thd() == next);
 				/* the following call isn't
 				 * necessary: if we are in a syscall,
 				 * then we can't be in an RAS */
@@ -1730,6 +1728,8 @@ static int aed_open(struct inode *inode, struct file *file)
 
 	init_globals();
 
+	cos_kern_stk_init();
+
 	if (cos_thd_per_core[get_cpuid()].cos_thd != NULL || composite_union_mm != NULL) {
 		printk("cos (CPU %d): Composite subsystem already used by %d (%p).\n", get_cpuid(), cos_thd_per_core[get_cpuid()].cos_thd->pid, cos_thd_per_core[get_cpuid()].cos_thd);
 		return -EBUSY;
@@ -1874,7 +1874,7 @@ static int aed_release(struct inode *inode, struct file *file)
 	trusted_mm = NULL;
 	remove_all_guest_mms();
 
-	t = core_get_curr_thd();
+	t = cos_get_curr_thd();
 	if (t) {
 		s = thd_get_thd_spd(t);
 		printk("cos: Halting Composite.  Current thread: %d in spd %d\n",
@@ -1885,7 +1885,7 @@ static int aed_release(struct inode *inode, struct file *file)
 
 	/* our garbage collection mechanism: all at once when the cos
 	 * system control fd is closed */
-//	thd_free(core_get_curr_thd());
+//	thd_free(cos_get_curr_thd());
 	thd_free_all();
  	thd_init();
 	spd_free_all();

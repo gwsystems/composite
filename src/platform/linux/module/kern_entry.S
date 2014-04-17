@@ -119,7 +119,7 @@ VM_MASK		= 0x00020000
 #define LOAD_CURR_THD_EAX \
 	pushl %ecx		   ;\
 	pushl %edx		   ;\
-	call core_get_curr_thd_asm ;\
+	call cos_get_curr_thd_asm  ;\
 	popl %edx		   ;\
 	popl %ecx
 
