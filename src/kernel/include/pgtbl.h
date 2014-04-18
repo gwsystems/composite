@@ -245,4 +245,8 @@ pgtbl_lookup(pgtbl_t pt, u32_t addr, u32_t *flags)
 
 static pgtbl_t pgtbl_create(void *page) { return pgtbl_alloc(page); }
 
+
+
+static void pgtbl_init(void) { return; }
+
 #endif /* PGTBL_H */
