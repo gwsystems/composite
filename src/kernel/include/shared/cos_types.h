@@ -270,7 +270,8 @@ struct usr_inv_cap {
 
 #define COMP_INFO_POLY_NUM 10
 #define COMP_INFO_INIT_STR_LEN 128
-#define COMP_INFO_STACK_FREELISTS 1
+/* For multicore system, we should have 1 freelist per core. */
+#define COMP_INFO_STACK_FREELISTS 1//NUM_CPU_COS
 
 enum {
 	COMP_INFO_TMEM_STK = 0,
@@ -281,11 +282,14 @@ enum {
 /* Each stack freelist is associated with a thread id that can be used
  * by the assembly entry routines into a component to decide which
  * freelist to use. */
+struct stack_fl {
+	vaddr_t freelist;
+	unsigned long thd_id;
+	char __padding[CACHE_LINE - sizeof(vaddr_t) - sizeof(unsigned long)];
+} __attribute__((packed));
+
 struct cos_stack_freelists {
-	struct stack_fl {
-		vaddr_t freelist;
-		unsigned long thd_id;
-	} freelists[COMP_INFO_STACK_FREELISTS];
+	struct stack_fl freelists[COMP_INFO_STACK_FREELISTS];
 };
 
 /* move this to the stack manager assembly file, and use the ASM_... to access the relinquish variable */
