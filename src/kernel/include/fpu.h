@@ -91,7 +91,7 @@ fpu_disabled_exception_handler(void)
 {
         struct thread *curr_thd;
 
-        if ((curr_thd = core_get_curr_thd()) == NULL) return 1;
+        if ((curr_thd = cos_get_curr_thd()) == NULL) return 1;
 
         assert(fpu_is_disabled());
 

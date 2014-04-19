@@ -231,7 +231,7 @@ thd_curr_spd_thd(struct thread *t)
 
 static inline struct spd *thd_curr_spd_noprint(void)
 {
-	return thd_curr_spd_thd(core_get_curr_thd());
+	return thd_curr_spd_thd(cos_get_curr_thd());
 }
 
 static inline vaddr_t thd_get_frame_ip(struct thread *thd, int frame_offset)

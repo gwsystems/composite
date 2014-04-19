@@ -1,7 +1,7 @@
 include Makefile.src
 
 obj-m := cos.o
-cos-objs := kern_entry.o ipc.o hw_ints.o hijack.o pgtbl.o ../../../kernel/inv.o ../../../kernel/thread.o ../../../kernel/spd.o ../../../kernel/per_cpu.o ../../../kernel/measurement.o ../../../kernel/page_pool.o ../../../kernel/mmap.o ../../../kernel/ring_buff.o ../../../kernel/fpu.o
+cos-objs := kern_entry.o hw_ints.o hijack.o pgtbl.o ../../../kernel/inv.o ../../../kernel/thread.o ../../../kernel/spd.o ../../../kernel/per_cpu.o ../../../kernel/measurement.o ../../../kernel/page_pool.o ../../../kernel/mmap.o ../../../kernel/ring_buff.o ../../../kernel/fpu.o
 
 default: module
 

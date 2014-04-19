@@ -157,18 +157,27 @@ hw_int_reset(void *tss)
 }
 
 void
+cos_kern_stk_init(void)
+{
+	struct cos_cpu_local_info *cos_info;
+	struct thread_info *linux_thread_info = (struct thread_info *)get_linux_thread_info();
+
+	cos_info = cos_cpu_local_info();
+	/* No Linux thread/process migration allowed. */
+	cos_info->cpuid = linux_thread_info->cpu;
+	/* value to detect stack overflow */
+	cos_info->overflow_check = 0xDEADBEEF;
+}
+
+void
 hw_int_override_sysenter(void *handler, void *tss_end)
 {
 	struct tss_struct *tss;
-	struct cos_cpu_local_info *cos_info;
+	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	void *sp0;
 
-	cos_info = cos_cpu_local_info();
 	/* Store the tss_end in cos info struct. */
 	cos_info->orig_sysenter_esp = tss_end;
-	/* value to detect stack overflow */
-	cos_info->overflow_check = 0xDEADBEEF;
-
 	tss = tss_end - sizeof(struct tss_struct);
 	/* We only uses 1 page stack. No need to touch 2 pages. */
 	sp0 = (void *)tss->x86_tss.sp0 - PAGE_SIZE;

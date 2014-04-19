@@ -162,7 +162,7 @@ ipc_walk_static_cap(struct pt_regs *regs)
 	struct thd_invocation_frame *curr_frame;
 	struct spd *curr_spd, *dest_spd;
 	struct invocation_cap *cap_entry;
-	struct thread *thd = core_get_curr_thd_id(get_cpuid_fast());
+	struct thread *thd = cos_get_curr_thd();
 	vaddr_t orig_ip, orig_sp;
 	unsigned int capability;
 
@@ -251,13 +251,15 @@ err:
 static inline void
 copy_gp_regs(struct pt_regs *from, struct pt_regs *to)
 {
-	to->ax = from->ax;
-	to->bx = from->bx;
-	to->cx = from->cx;
-	to->dx = from->dx;
-	to->si = from->si;
-	to->di = from->di;
-	to->bp = from->bp;
+#define COPY_REG(reg) to->reg = from->reg
+	COPY_REG(ax);
+	COPY_REG(bx);
+	COPY_REG(cx);
+	COPY_REG(dx);
+	COPY_REG(si);
+	COPY_REG(di);
+	COPY_REG(bp);
+#undef COPY_REG
 }
 
 static inline unsigned long
@@ -280,7 +282,7 @@ pop(struct pt_regs *regs)
 	struct thd_invocation_frame *inv_frame;
 	struct thd_invocation_frame *curr_frame;
 
-	struct thread *curr = core_get_curr_thd_id(get_cpuid_fast());
+	struct thread *curr = cos_get_curr_thd();
 
 	inv_frame = thd_invocation_pop(curr);
 
@@ -323,7 +325,7 @@ pop(struct pt_regs *regs)
 static inline int __invoke_async_cap(unsigned int capability) {
 	struct spd *curr_spd;
 	struct async_cap *cap_entry;
-	struct thread *thd = core_get_curr_thd_id(get_cpuid());
+	struct thread *thd = cos_get_curr_thd();
 	int cpu;
 
 	capability &= ~COS_ASYNC_CAP_FLAG; /* remove the async flag. */
@@ -444,9 +446,9 @@ user_regs_get_arg4(struct pt_regs *regs)
 COS_SYSCALL int
 cos_syscall_void(struct pt_regs *regs)
 {
-	int spdid = spd_get_index(thd_get_thd_spd(core_get_curr_thd()));
+	int spdid = spd_get_index(thd_get_thd_spd(cos_get_curr_thd()));
 
-	printk("cos: error - %d made void system call from %d\n", thd_get_id(core_get_curr_thd()), spdid);
+	printk("cos: error - %d made void system call from %d\n", thd_get_id(cos_get_curr_thd()), spdid);
 
 	user_regs_set(regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
 
@@ -487,13 +489,13 @@ static inline void __switch_thread_context(struct thread *curr, struct thread *n
 	struct shared_user_data *ud = get_shared_data();
 	unsigned int ctid, ntid;
 
-	assert(core_get_curr_thd() != next);
+	assert(cos_get_curr_thd() != next);
 
 	ctid = thd_get_id(curr);
 	ntid = thd_get_id(next);
 
-	core_put_curr_thd(next);
-	core_put_curr_spd(nspd);
+	cos_put_curr_thd(next);
+	/* core_put_curr_spd(nspd); */
 
 	/* thread ids start @ 1, thus thd pages are offset above the data page */
 	ud->current_thread = ntid;
@@ -574,7 +576,7 @@ cos_syscall_create_thread(struct pt_regs *regs)
 	 * FIXME: in the future, I should really just allow the base
 	 * scheduler to create threads, i.e. when 0 == sched_depth.
 	 */
-	curr = core_get_curr_thd();
+	curr = cos_get_curr_thd();
 	sched_spd = thd_validate_get_current_spd(curr, spd_id);
 	if (NULL == sched_spd) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
@@ -654,7 +656,7 @@ cos_syscall_thd_cntl(struct pt_regs *regs)
 	 * FIXME: in the future, I should really just allow the base
 	 * scheduler to create threads, i.e. when 0 == sched_depth.
 	 */
-	curr = core_get_curr_thd();
+	curr = cos_get_curr_thd();
 	curr_spd = thd_validate_get_current_spd(curr, spd_id);
 	if (NULL == curr_spd) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
@@ -1008,7 +1010,7 @@ cos_syscall_switch_thread(struct pt_regs *regs)
 	rflags  = user_regs_get_arg2(regs);
 	spd_id  = user_regs_get_arg4(regs);
 
-	curr = core_get_curr_thd();
+	curr = cos_get_curr_thd();
 
 	/* Save registers and return ip&sp */
 	copy_gp_regs(regs, &curr->regs);
@@ -1667,7 +1669,7 @@ cos_syscall_buff_mgmt(struct pt_regs *regs)
 	struct spd *spd;
 	vaddr_t kaddr = 0;
 	unsigned short int option, len;
-	struct thread *curr, *prev = core_get_curr_thd();
+	struct thread *curr, *prev = cos_get_curr_thd();
 	int ret;
 
 	addr    = (void *)user_regs_get_arg1(regs);
@@ -1681,10 +1683,10 @@ cos_syscall_buff_mgmt(struct pt_regs *regs)
 	option = (len_op & 0xFFFF);
 	len = len_op >> 16;
 
-	spd = thd_validate_get_current_spd(core_get_curr_thd(), spd_id);
+	spd = thd_validate_get_current_spd(cos_get_curr_thd(), spd_id);
 	if (!spd) {
 		printk("cos: buff mgmt -- invalid spd, %d for thd %d\n", 
-		       spd_id, thd_get_id(core_get_curr_thd()));
+		       spd_id, thd_get_id(cos_get_curr_thd()));
 		goto err;
 	}
 
@@ -1814,7 +1816,7 @@ done:
  * we can generate softirqs, in which case we might need to switch
  * threads here.  See the comment in cosnet_xmit_packet.
  */
-	curr = core_get_curr_thd();
+	curr = cos_get_curr_thd();
 	copy_gp_regs(&curr->regs, regs);
 
 	return 0;
@@ -1843,7 +1845,7 @@ cos_syscall_acap_wire(struct pt_regs *regs)
 	data        = user_regs_get_arg3(regs);
 	spd_id      = user_regs_get_arg4(regs);
 
-	curr_thd = core_get_curr_thd();
+	curr_thd = cos_get_curr_thd();
 	curr_spd = thd_validate_get_current_spd(curr_thd, spd_id);
 	if (NULL == curr_spd) {
 		printk("cos: wiring acap to hardware - component claimed in spd %d, but not\n", spd_id);
@@ -1938,7 +1940,7 @@ cos_syscall_upcall(struct pt_regs *regs)
 	assert(regs);
 
 	dest = spd_get_by_index(spd_id);
-	thd = core_get_curr_thd();
+	thd = cos_get_curr_thd();
 	curr_spd = thd_validate_get_current_spd(thd, this_spd_id);
 
 	if (NULL == dest || NULL == curr_spd) {
@@ -2395,7 +2397,7 @@ cos_syscall_sched_cntl(struct pt_regs *regs)
 	option    = user_regs_get_arg3(regs);
 	spd_id    = user_regs_get_arg4(regs);
 
-	thd = core_get_curr_thd();
+	thd = cos_get_curr_thd();
 	spd = thd_validate_get_current_spd(thd, spd_id);
 	if (NULL == spd) {
 		printk("cos: component claimed in spd %d, but not\n", spd_id);
@@ -2866,7 +2868,7 @@ cos_syscall_mpd_cntl(struct pt_regs *regs)
 		assert(!spd_mpd_is_subordinate(prev) && !spd_mpd_is_depricated(prev));
 	} 
 
-	thd = core_get_curr_thd();
+	thd = cos_get_curr_thd();
 	assert(thd);
 	curr = thd_get_thd_spdpoly(thd);
 	/* keep track of this, as it might change during the course of this call */
@@ -3360,12 +3362,12 @@ COS_SYSCALL int
 cos_syscall_idle(struct pt_regs *regs)
 {
 	int ret;
-	struct thread *prev = core_get_curr_thd();
+	struct thread *prev = cos_get_curr_thd();
 
 	copy_gp_regs(regs, &prev->regs);
 	user_regs_set(&prev->regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
 	
-	if (prev != core_get_curr_thd()) {
+	if (prev != cos_get_curr_thd()) {
 		ret = COS_SCHED_RET_AGAIN;
 		goto done;
 	}
@@ -3375,7 +3377,7 @@ cos_syscall_idle(struct pt_regs *regs)
 	ret = COS_SCHED_RET_SUCCESS;
 done:
 	user_regs_set_ret(&prev->regs, ret);
-	copy_gp_regs(&(core_get_curr_thd()->regs), regs);
+	copy_gp_regs(&(cos_get_curr_thd()->regs), regs);
 
 	return 0;
 }
@@ -3661,7 +3663,7 @@ cos_syscall_areceive(struct pt_regs *regs)
 	spd_id = user_regs_get_arg4(regs);
 	acap   = user_regs_get_arg1(regs);
 
-	curr = core_get_curr_thd();
+	curr = cos_get_curr_thd();
 	copy_gp_regs(regs, &curr->regs);
 	user_regs_set(&curr->regs, 0, user_regs_get_sp(regs), user_regs_get_ip(regs));
 	/* printk("doing ainv wait, thd %d, acap %d (%d).\n", thd_get_id(curr), acap, acap & ~COS_ASYNC_CAP_FLAG); */
@@ -4210,7 +4212,7 @@ cos_syscall_async_cap_cntl(struct pt_regs *regs)
 		acap->owner_thd = owner_thd;
 		
 		/* printk("thd %d: acap %d (comp %d to comp %d) created.\n",  */
-		/*        thd_get_id(core_get_curr_thd()), acap_id, cli_spd_id, srv_spd_id); */
+		/*        thd_get_id(cos_get_curr_thd()), acap_id, cli_spd_id, srv_spd_id); */
 
 		ret = acap_id;
 		break;
