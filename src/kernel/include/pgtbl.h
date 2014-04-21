@@ -16,7 +16,7 @@
 
 #include "ertrie.h"
 #include "per_cpu.h"
-//#include "captbl.h"
+#include "captbl.h"
 
 enum {
 	PGTBL_PRESENT      = 1,
@@ -99,12 +99,12 @@ ERT_CREATE(__pgtbl, pgtbl, PGTBL_DEPTH, PGTBL_ORD, sizeof(int*), PGTBL_ORD, size
 /* make it an opaque type...not to be touched */
 typedef struct pgtbl * pgtbl_t; 
 
-/* Capability structure */
-/* struct cap_pgtbl { */
-/* 	struct cap_header h; */
-/* 	struct pgtbl *pgtbl; */
-/* 	int lvl; 		/\* what level are the pgtbl nodes at? *\/ */
-/* }; */
+/* identical to the capability structure */
+struct cap_pgtbl {
+	struct cap_header h;
+	pgtbl_t pgtbl;
+	u32_t lvl; 		/* what level are the pgtbl nodes at? */
+};
 
 static pgtbl_t pgtbl_alloc(void *page) 
 { return __pgtbl_alloc(&page); }
@@ -172,6 +172,10 @@ pgtbl_check_pgd_absent(pgtbl_t pt, u32_t addr)
 	return __pgtbl_isnull(pgtbl_get_pgd(pt, (u32_t)addr), 0, 0);
 }
 
+/* 
+ * FIXME: need to change this to _not_ add over an already non-null
+ * entry.
+ */
 static int
 pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {
@@ -224,16 +228,6 @@ pgtbl_mapping_del(pgtbl_t pt, u32_t addr)
 			       PGTBL_DEPTH+1, &accum, &pte, NULL);
 }
 
-/* vaddr -> kaddr */
-static vaddr_t
-pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
-{ 
-	void *ret = __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | PGTBL_PRESENT), 
-				    addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH+1, flags); 
-	if (*flags & PGTBL_PRESENT) return (vaddr_t)chal_pa2va(ret);
-	else                        return (vaddr_t)NULL;
-}
-
 static paddr_t
 pgtbl_lookup(pgtbl_t pt, u32_t addr, u32_t *flags)
 { 
@@ -243,9 +237,16 @@ pgtbl_lookup(pgtbl_t pt, u32_t addr, u32_t *flags)
 	else                        return (paddr_t)NULL;
 }
 
+/* vaddr -> kaddr */
+static vaddr_t
+pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
+{ 
+	paddr_t p = pgtbl_lookup(pt, addr, flags);
+	if (!p) return NULL;
+	return (vaddr_t)chal_pa2va(p);
+}
+
 static pgtbl_t pgtbl_create(void *page) { return pgtbl_alloc(page); }
-
-
 
 static void pgtbl_init(void) { return; }
 
