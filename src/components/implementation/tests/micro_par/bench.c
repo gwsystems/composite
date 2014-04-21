@@ -708,37 +708,37 @@ static inline void go_par(int ncores) {
 #endif
 
 #ifdef DS_MEAS
-/* #pragma omp parallel for */
-/* 	for (j = 0; j < ncores; j++) */
-/* 	{ */
-/* 		// per core below! */
-/* 		assert(j == omp_get_thread_num()); */
-/* 		meas_op(meas_spinlock, "spinlock", rate_gap); */
-/* 	} */
+#pragma omp parallel for
+	for (j = 0; j < ncores; j++)
+	{
+		// per core below!
+		assert(j == omp_get_thread_num());
+		meas_op(meas_spinlock, "spinlock", rate_gap);
+	}
 
-/* #pragma omp parallel for */
-/* 	for (j = 0; j < ncores; j++) */
-/* 	{ */
-/* 		// per core below! */
-/* 		assert(j == omp_get_thread_num()); */
-/* 		meas_op(meas_ticketlock, "ticketlock", rate_gap); */
-/* 	} */
+#pragma omp parallel for
+	for (j = 0; j < ncores; j++)
+	{
+		// per core below!
+		assert(j == omp_get_thread_num());
+		meas_op(meas_ticketlock, "ticketlock", rate_gap);
+	}
 
-/* #pragma omp parallel for */
-/* 	for (j = 0; j < ncores; j++) */
-/* 	{ */
-/* 		// per core below! */
-/* 		assert(j == omp_get_thread_num()); */
-/* 		meas_op(meas_list, "list", rate_gap); */
-/* 	} */
+#pragma omp parallel for
+	for (j = 0; j < ncores; j++)
+	{
+		// per core below!
+		assert(j == omp_get_thread_num());
+		meas_op(meas_list, "list", rate_gap);
+	}
 
-/* #pragma omp parallel for */
-/* 	for (j = 0; j < ncores; j++) */
-/* 	{ */
-/* 		// per core below! */
-/* 		assert(j == omp_get_thread_num()); */
-/* 		meas_op(meas_stack, "stack", rate_gap); */
-/* 	} */
+#pragma omp parallel for
+	for (j = 0; j < ncores; j++)
+	{
+		// per core below!
+		assert(j == omp_get_thread_num());
+		meas_op(meas_stack, "stack", rate_gap);
+	}
 
 ////////////////////////////////////////
 #endif

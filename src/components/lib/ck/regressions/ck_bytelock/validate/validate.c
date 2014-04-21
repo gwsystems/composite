@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2013 Samy Al Bahra.
+ * Copyright 2011-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -64,6 +64,9 @@ thread(void *null)
                 perror("ERROR: Could not affine thread");
                 exit(EXIT_FAILURE);
         }
+
+	if (context->tid == (unsigned int)nthr - 1)
+		context->tid = sizeof(lock.readers) + 1;
 
 	while (i--) {
 		ck_bytelock_write_lock(&lock, context->tid);

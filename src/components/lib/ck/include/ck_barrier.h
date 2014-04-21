@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2013 Samy Al Bahra.
+ * Copyright 2011-2014 Samy Al Bahra.
  * Copyright 2011 David Joseph.
  * All rights reserved.
  *
@@ -121,6 +121,7 @@ typedef struct ck_barrier_tournament_round ck_barrier_tournament_round_t;
 
 struct ck_barrier_tournament {
 	unsigned int tid;
+	unsigned int size;
 	struct ck_barrier_tournament_round **rounds;
 };
 typedef struct ck_barrier_tournament ck_barrier_tournament_t;
