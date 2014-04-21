@@ -503,6 +503,8 @@ static void sched_process_wakeups(void)
 	PERCPU_GET(sched_base_state)->child_wakeup_time = lowest_child;
 }
 
+static int exit_system = 0;
+
 static void sched_timer_tick(void)
 {
 	//QW: to remove
@@ -517,7 +519,7 @@ static void sched_timer_tick(void)
 		}
 
 		/* are we done running? */
-		if (unlikely(PERCPU_GET(sched_base_state)->ticks >= RUNTIME_SEC*TIMER_FREQ+1)) {
+		if (unlikely(PERCPU_GET(sched_base_state)->ticks >= RUNTIME_SEC*TIMER_FREQ+1 || exit_system)) {
 			cos_acap_wire(0, COS_HW_TIMER, 0); // disable cos timer
 			sched_exit();
 			while (COS_SCHED_RET_SUCCESS !=
@@ -533,7 +535,7 @@ static void sched_timer_tick(void)
 		sched_process_wakeups();
 		timer_tick(1);
 
-//		ck_pr_store_int(&detector[cos_cpuid()*16], 1);
+		ck_pr_store_int(&detector[cos_cpuid()*16], 1);
 
 		sched_switch_thread(COS_SCHED_ACAP_WAIT, TIMER_SWITCH_LOOP);
 		/* Tailcall out of the loop */
@@ -935,6 +937,12 @@ int sched_block(spdid_t spdid, unsigned short int dep_thd)
 	struct sched_thd *thd, *dep = NULL;
 	int ret, first = 1;
 	unsigned short int dependency_thd = dep_thd;
+
+	//QW: to remove
+	if (dep_thd == 999) {
+		exit_system = 1;
+		return 0;
+	}
 
 	// Added by Gabe 08/19
 	if (unlikely(dep_thd == cos_get_thd_id())) return -EINVAL;

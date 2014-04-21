@@ -14,7 +14,10 @@
 #include <mem_mgr_large.h>
 #include <acap_pong.h>
 
-#define ITER (1*1000)//*1000)
+#define ITER (1*1000*1000)
+
+//#define CACHELINE_MEAS
+#define DS_MEAS
 
 #define GAP_US (3)
 /////////////////////////////////////////////////////////////////////////////
@@ -114,12 +117,12 @@ struct thd_active thd_active[NUM_CPU] CACHE_ALIGNED;
 
 unsigned int reader_view[NUM_CPU_COS];
 
-/* int cpu_assign[40] = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36, */
-/* 		      1, 5, 9, 13, 17, 21, 25, 29, 33, 37, */
-/* 		      2, 6, 10, 14, 18, 22, 26, 30, 34, 38, */
-/* 		      3, 7, 11, 15, 19, 23, 27, 31, 35, -1}; */
+int cpu_assign[40] = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36,
+		      1, 5, 9, 13, 17, 21, 25, 29, 33, 37,
+		      2, 6, 10, 14, 18, 22, 26, 30, 34, 38,
+		      3, 7, 11, 15, 19, 23, 27, 31, 35, -1};
 
-int cpu_assign[40] = {0, 1, -1};
+//int cpu_assign[40] = {0, 1, -1};
 volatile int n_cores;
 volatile int rate_gap;
 
@@ -299,6 +302,104 @@ static inline int meas_interference(int cpu, unsigned long long tsc) {
 	return 0;
 }
 
+/*************************************************************/
+// higher level data structures next.
+////////////////////////////////////////////////
+
+///////////////spin lock and ticket lock!
+#include <ck_spinlock.h>
+ck_spinlock_cas_t spinlock = CK_SPINLOCK_CAS_INITIALIZER;
+static inline int meas_spinlock(int cpu, unsigned long long tsc) {
+	ck_spinlock_cas_lock(&spinlock);
+	ck_spinlock_cas_unlock(&spinlock);
+	// lock take then release
+	return 0;
+}
+
+ck_spinlock_ticket_t ticketlock = CK_SPINLOCK_TICKET_INITIALIZER;
+static inline int meas_ticketlock(int cpu, unsigned long long tsc) {
+	// lock take then release
+	ck_spinlock_ticket_lock(&ticketlock);
+	ck_spinlock_ticket_unlock(&ticketlock);
+	return 0;
+}
+
+///////////////list!
+#include <ck_queue.h>
+struct test {
+	int value;
+	CK_LIST_ENTRY(test) list_entry;
+	char __pad[CACHE_LINE - sizeof(int) - sizeof(CK_LIST_ENTRY(test))];
+} CACHE_ALIGNED;
+static CK_LIST_HEAD(test_list, test) head = CK_LIST_HEAD_INITIALIZER(head);
+
+struct test list_items[NUM_CPU] CACHE_ALIGNED;
+
+static inline int meas_list(int cpu, unsigned long long tsc) {
+	struct test *a = &list_items[cpu];
+//	a->value = cpu;
+	//insert!
+	ck_spinlock_ticket_lock(&ticketlock);
+	CK_LIST_INSERT_HEAD(&head, a, list_entry);
+	ck_spinlock_ticket_unlock(&ticketlock);
+	//and remove.
+	ck_spinlock_ticket_lock(&ticketlock);
+	CK_LIST_REMOVE(a, list_entry);
+	ck_spinlock_ticket_unlock(&ticketlock);
+	return 0;
+}
+
+
+///////////////hash table!
+#include <ck_ht.h>
+//#include "ht.h"
+
+/* static inline void meas_hashtable(int cpu, unsigned long long tsc) { */
+/* 	table_insert(cpu); */
+/* 	table_get(cpu); */
+/* 	table_remove(cpu); */
+/* } */
+
+//////////////////////
+#include <ck_stack.h>
+struct entry {
+	int value;
+	ck_stack_entry_t next;
+	char __pad[CACHE_LINE - sizeof(int) - sizeof(ck_stack_entry_t)];
+} CACHE_ALIGNED;
+
+static ck_stack_t stack CACHE_ALIGNED;
+
+CK_STACK_CONTAINER(struct entry, next, getvalue)
+
+ck_stack_entry_t stk_items[NUM_CPU] CACHE_ALIGNED;
+
+static inline int meas_stack(int cpu, unsigned long long tsc) {
+	ck_stack_entry_t *item = &stk_items[cpu];
+	struct entry *entry = NULL;
+
+	ck_stack_push_upmc(&stack, item);
+
+	ck_stack_entry_t *ref = NULL;
+	while (ck_stack_trypop_upmc(&stack, &ref) == false) ;
+
+		/* while (ck_stack_trypop_upmc(&stack, &ref) == false) */
+		/* 	ck_pr_stall(); */
+		/* assert(ref); */
+		/* entry = getvalue(ref); */
+
+	assert(ref);
+//	entry = getvalue(ref);
+
+	// not supported
+	/* ref = ck_stack_pop_mpmc(&stack); */
+	/* assert(ref); */
+	/* entry = getvalue(ref); */
+	return 0;
+}
+/////////////////////
+/////////////////////////////////////////////////////////////////
+
 static inline int meas_op(int (*op)(int cpu, unsigned long long tsc), char *name, unsigned long long gap) {
 	//every core calls here!
 	volatile int timer_if;
@@ -307,6 +408,7 @@ static inline int meas_op(int (*op)(int cpu, unsigned long long tsc), char *name
 	int cpu = cos_cpuid();
 
 	unsigned int socket = (unsigned int)(cpu % NUM_CPU_SOCKETS), slot;
+#ifdef ENABLE_TDMA
 #if TDMA_CORES_PER_SLOT <= NUM_CORE_PER_SOCKET
 	slot = (socket * TDMA_SOCKET_NSLOT) + (cpu/NUM_CPU_SOCKETS) / TDMA_CORES_PER_SLOT;
 #else
@@ -316,13 +418,12 @@ static inline int meas_op(int (*op)(int cpu, unsigned long long tsc), char *name
 	}
 	slot = socket / TDMA_NUM_SLOTS;
 #endif
-
+#endif
 	/* printc("cpu %d: slot %d\n", cpu, slot); */
 #ifndef ENABLE_RATE_LIMIT 
 	assert(gap == 0);
 #endif
 	ck_pr_store_int(&shared_mem.mem, 0);
-
 	meas_sync_start();
 	unsigned long long sum = 0, max = 0, maxss[10], sum2 = 0, find_max = 0, read_cnt = 0;
 	unsigned long long s,e;
@@ -370,7 +471,7 @@ static inline int meas_op(int (*op)(int cpu, unsigned long long tsc), char *name
 			if_detected++;
 			ck_pr_store_int(&(detector[cpu*16]), 0);
 			find_max = 0;
-			delay(100);
+			delay(50);
 			continue;
 		}
 
@@ -420,7 +521,7 @@ static inline int meas_op(int (*op)(int cpu, unsigned long long tsc), char *name
 	/* } */
 
 #ifndef ENABLE_TDMA
-	if ((read_sum == 0 && ((sum2 - sum)/ITER - gap) > 2000)) {
+	if (read_sum == 0 && (((sum2 - sum)/ITER - gap) > 2000) && (((sum2 - sum)/ITER - gap) > (sum / ITER / 2))) {
 		printc("\n\n\n\n !!!!!!!!!!!!%s cpu %ld ------------------- per op overhead %llu\n\n\n\n\n",
 		       name, cos_cpuid(), (sum2-sum)/ITER - gap);
 //		BUG();
@@ -566,24 +667,16 @@ static inline void go_par(int ncores) {
 
 	printc("Parallel benchmark: measuring %d cores, rate_gap %d\n", ncores, rate_gap);
 
+/* 	if (rate_gap == 0) { */
 /* #pragma omp parallel for */
-/* 	for (j = 0; j < ncores; j++) */
-/* 	{ */
-/* 		// per core below! */
-/* 		assert(j == omp_get_thread_num()); */
-/* 		meas_op(meas_ptregs, "ptregs", 0); */
+/* 		for (j = 0; j < ncores; j++) */
+/* 		{ */
+/* 			// per core below! */
+/* 			assert(j == omp_get_thread_num()); */
+/* 			meas_op(null_op, "rdtsc_cost", rate_gap); */
+/* 		} */
 /* 	} */
-
-	if (rate_gap == 0) {
-#pragma omp parallel for
-		for (j = 0; j < ncores; j++)
-		{
-			// per core below!
-			assert(j == omp_get_thread_num());
-			meas_op(null_op, "rdtsc_cost", rate_gap);
-		}
-	}
-
+#ifdef CACHELINE_MEAS
 #pragma omp parallel for
 	for (j = 0; j < ncores; j++)
 	{
@@ -612,6 +705,43 @@ static inline void go_par(int ncores) {
 		if (cos_cpuid() > READER_CORE)  meas_op(meas_cas, "cas", rate_gap);
 		else                            meas_op(meas_cas_reader, "cas", rate_gap);
 	}
+#endif
+
+#ifdef DS_MEAS
+/* #pragma omp parallel for */
+/* 	for (j = 0; j < ncores; j++) */
+/* 	{ */
+/* 		// per core below! */
+/* 		assert(j == omp_get_thread_num()); */
+/* 		meas_op(meas_spinlock, "spinlock", rate_gap); */
+/* 	} */
+
+/* #pragma omp parallel for */
+/* 	for (j = 0; j < ncores; j++) */
+/* 	{ */
+/* 		// per core below! */
+/* 		assert(j == omp_get_thread_num()); */
+/* 		meas_op(meas_ticketlock, "ticketlock", rate_gap); */
+/* 	} */
+
+/* #pragma omp parallel for */
+/* 	for (j = 0; j < ncores; j++) */
+/* 	{ */
+/* 		// per core below! */
+/* 		assert(j == omp_get_thread_num()); */
+/* 		meas_op(meas_list, "list", rate_gap); */
+/* 	} */
+
+/* #pragma omp parallel for */
+/* 	for (j = 0; j < ncores; j++) */
+/* 	{ */
+/* 		// per core below! */
+/* 		assert(j == omp_get_thread_num()); */
+/* 		meas_op(meas_stack, "stack", rate_gap); */
+/* 	} */
+
+////////////////////////////////////////
+#endif
 
 	printc("Parallel benchmark: %d cores done\n", ncores);
 
@@ -844,12 +974,11 @@ int meas(void)
 	       (int)TDMA_WINDOW, (int)TDMA_SLOT, (int)TDMA_NUM_SLOTS, (int)TDMA_DRIFT);
 #endif
 
+	/* No need to calibrate tsc. They are pretty synced. */
 //	tsc_calibrate();
-
 //	tsc_calibrate_kern();
-	ping_pong();
-	
-	meas_op(meas_ptregs, "ptregs", 0);
+//	ping_pong();
+//	meas_op(meas_ptregs, "ptregs", 0);
 	meas_op(null_op, "rdtsc_cost", 0);
 	
 
@@ -880,16 +1009,19 @@ int meas(void)
 		/* 	n_cores = k; */
 		/* 	go_par(n_cores); */
 		/* } */
+
+		n_cores = 1;
+		go_par(n_cores);
+
 		/* n_cores = 10; */
 		/* go_par(n_cores); */
-
-		n_cores = omp_cores;
-		go_par(n_cores);
 	}
 
 	/* rate_gap = 0; */
 	/* n_cores = 1; */
 	/* go_par(n_cores); */
+
+	sched_block(cos_spd_id(), 999); //call to exit...
 
 	return 0;
 }
