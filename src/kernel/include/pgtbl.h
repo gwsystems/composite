@@ -15,7 +15,7 @@
  */
 
 #include "ertrie.h"
-#include "per_cpu.h"
+#include "shared/util.h"
 #include "captbl.h"
 
 enum {
@@ -242,8 +242,8 @@ static vaddr_t
 pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
 { 
 	paddr_t p = pgtbl_lookup(pt, addr, flags);
-	if (!p) return NULL;
-	return (vaddr_t)chal_pa2va(p);
+	if (!p) return (vaddr_t)NULL;
+	return (vaddr_t)chal_pa2va((void*)p);
 }
 
 static pgtbl_t pgtbl_create(void *page) { return pgtbl_alloc(page); }

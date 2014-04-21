@@ -12,6 +12,7 @@
 #include "shared/cos_config.h"
 #include "shared/consts.h"
 #include "shared/cos_types.h"
+#include "shared/util.h"
 #include "spd.h"
 #include "debug.h"
 #include "cpuid.h"
@@ -73,23 +74,5 @@ core_put_##name##_id(cpuid_t core, type val)    \
 /* Not used for now. */
 //CREATE_PERCPU_VAR_FNS(struct thread *, curr_thd); /* core_get/put_curr_thd */
 //CREATE_PERCPU_VAR_FNS(struct spd_poly *, curr_spd); /* core_get/put_curr_spd */
-
-/* 
- * Return values:
- * 0 on failure due to contention (*target != old)
- * 1 otherwise (*target == old -> *target = updated)
- */
-static inline int 
-cos_cas(unsigned long *target, unsigned long old, unsigned long updated)
-{
-	char z;
-	__asm__ __volatile__("lock cmpxchgl %2, %0; setz %1"
-			     : "+m" (*target),
-			       "=a" (z)
-			     : "q"  (updated),
-			       "a"  (cmp)
-			     : "memory", "cc");
-	return (int)z;
-}
 
 #endif /* PER_CPU_H */

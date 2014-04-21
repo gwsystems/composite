@@ -34,6 +34,7 @@ typedef enum {
 	CAP_ASND,		/* async communication; sender */
 	CAP_ARCV,               /* async communication; receiver */
 	CAP_THD,                /* thread */
+	CAP_COMP,               /* component */
 	CAP_CAPTBL,             /* capability table */
 	CAP_PGTBL,              /* page-table */
 } cap_t;
@@ -63,12 +64,12 @@ __captbl_cap2sz(cap_t c)
 	switch (c) {
 	case CAP_CAPTBL: case CAP_THD:   
 	case CAP_PGTBL:  case CAP_SRET: return CAP_SZ_16B;
-	case CAP_SINV:                  return CAP_SZ_32B;
+	case CAP_SINV:   case CAP_COMP: return CAP_SZ_32B;
 	case CAP_ASND:   case CAP_ARCV: return CAP_SZ_64B;
 	default:                        return CAP_SZ_ERR;
 	}
 }
-static inline int __captbl_cap2bytes(cap_t c)
+static inline unsigned long __captbl_cap2bytes(cap_t c)
 { return 1<<(__captbl_cap2sz(c)+CAP_SZ_OFF); }
 
 typedef enum {
@@ -88,6 +89,7 @@ typedef enum {
  * capabilities in a cache-line, and the type of the capability.
  */
 struct cap_header {
+	u16_t       poly;
 	/* 
 	 * Size is only populated on cache-line-aligned entries.
 	 * Applies to all caps in that cache-line 
@@ -96,7 +98,6 @@ struct cap_header {
 	cap_sz_t    size  : CAP_HEAD_SZ_SZ; 	
 	cap_flags_t flags : CAP_HEAD_FLAGS_SZ;
 	cap_t       type  : CAP_HEAD_TYPE_SZ;
-	u16_t       poly;
 	u8_t        post[0];
 } __attribute__((packed));
 
@@ -181,15 +182,14 @@ __captbl_getleaf(struct ert_intern *a, void *accum)
 	return c; 
 }
 
-static inline void __captbl_setleaf(struct ert_intern *a, void *v)
-{ (void)a; (void)v; assert(0); }
+static inline int __captbl_setleaf(struct ert_intern *a, void *v)
+{ (void)a; (void)v; assert(0); return -1; }
 
 #define CT_DEFINITVAL NULL
-ERT_CREATE(__captbl, captbl, CAPTBL_DEPTH,				\
-	   CAPTBL_INTERN_ORD, CAPTBL_INTERNSZ,				\
-	   CAPTBL_LEAF_ORD, CAPTBL_LEAFSZ,				\
-	   CT_DEFINITVAL, __captbl_init, ert_defget, ert_defisnull, ert_defset,	\
-	   __captbl_allocfn, __captbl_setleaf, __captbl_getleaf, ert_defresolve);
+ERT_CREATE(__captbl, captbl, CAPTBL_DEPTH, CAPTBL_INTERN_ORD, CAPTBL_INTERNSZ,
+	   CAPTBL_LEAF_ORD, CAPTBL_LEAFSZ, CT_DEFINITVAL, __captbl_init, ert_defget,
+	   ert_defisnull, ert_defset, __captbl_allocfn, __captbl_setleaf,
+	   __captbl_getleaf, ert_defresolve);
 
 static struct captbl *captbl_alloc(void *page) { return __captbl_alloc(&page); }
 
@@ -221,7 +221,7 @@ captbl_lkup_lvl(struct captbl *t, unsigned long cap, u32_t lvl)
  * invocation path.
  */
 static inline struct cap_header *captbl_lkup(struct captbl *t, unsigned long cap)
-{ return captbl_lkup_lvl(t, cap, CAPTBL_DEPTH+1, NULL); }
+{ return captbl_lkup_lvl(t, cap, CAPTBL_DEPTH+1); }
 
 static inline int
 __captbl_store(unsigned long *addr, unsigned long new, unsigned long old)
@@ -359,6 +359,7 @@ captbl_create(void *page)
 {
 	struct captbl *ct;
 	struct cap_header *c;
+	int ret;
 
 	assert(page);
 	ct = captbl_alloc(page);
@@ -371,13 +372,13 @@ captbl_create(void *page)
 	ret = captbl_expand(ct, 0, captbl_maxdepth(), &((char*)page)[PAGE_SIZE/2]);
 	assert(!ret);
 	c = captbl_add(ct, 0, CAP_SRET, &ret);
-	assert(c && ret == 0 && c == &((char*)page)[PAGE_SIZE/2]);
+	assert(c && ret == 0 && (char*)c == &((char*)page)[PAGE_SIZE/2]);
 
 	return ct;
 }
 
 int captbl_activate_captbl(struct captbl *t, unsigned long cap, unsigned long capin, struct captbl *toadd, u32_t lvl);
 int captbl_deactivate_captbl(struct captbl *t, unsigned long cap, unsigned long capin);
-void cap_init(void);
+static void cap_init(void) {};
 
 #endif /* CAPTBL_H */

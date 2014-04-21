@@ -71,8 +71,8 @@ static int ert_defresolve(struct ert_intern *a, void *accum, int leaf, u32_t ord
 { (void)a; (void)accum; (void)leaf; (void)order; (void)sz; return 1; }
 static void ert_defset(struct ert_intern *a, void *v, void *accum, int leaf)
 { (void)leaf; (void)accum; a->next = v; }
-static void ert_defsetleaf(struct ert_intern *a, void *data)
-{ a->next = data; }
+static int ert_defsetleaf(struct ert_intern *a, void *data)
+{ a->next = data; return 0; }
 static void ert_definit(struct ert_intern *a, int leaf)
 { (void)a; (void)leaf; a->next = NULL; }
 
@@ -127,8 +127,8 @@ __ert_maxid(ERT_CONST_PARAMS)
 { 
 	ERT_CONSTS_DEWARN;
 	unsigned long off    = (unsigned long)(((order * (depth-1)) + last_order));
-	unsigned long maxoff = (sizeof(int*)*8); /* 8 bits per byte */
-	return (off > maxoff) ? 1<<maxoff : 1<<off; 
+	unsigned long maxoff = (unsigned long)(sizeof(int*)*8); /* 8 bits per byte */
+	return (off > maxoff) ? ((unsigned long)1)<<maxoff : ((unsigned long)1)<<off; 
 }
 
 /* 

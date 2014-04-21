@@ -13,12 +13,12 @@
 struct invstk_entry {
 	struct comp_info comp_info;
 	unsigned long sp, ip; 	/* to return to */
-};
+} HALF_CACHE_ALIGNED;
 
 /* TODO: replace with existing thread struct */
 struct thread {
 	int invstk_top;
-	struct invstk_entry invstk[32] HALF_CACHE_ALIGNED;
+	struct invstk_entry invstk[32];
 };
 
 struct cap_thd {
@@ -28,6 +28,6 @@ struct cap_thd {
 } __attribute__((packed));
 
 void thd_init(void)
-{ assert(sizeof(struct cap_comp) <= __captbl_cap2bytes(CAP_THD)); }
+{ assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD)); }
 
-#ifndef /* THREAD_H */
+#endif /* THREAD_H */

@@ -8,10 +8,13 @@
 #ifndef COMPONENT_H
 #define COMPONENT_H
 
+#include <liveness_tbl.h>
+#include <captbl.h>
+
 struct comp_info {
 	struct liveness_data liveness;
 	pgtbl_t pgtbl;
-	captbl_t captbl;
+	struct captbl *captbl;
 	struct cos_sched_data_area *comp_nfo;
 } __attribute__((packed));
 
@@ -24,4 +27,4 @@ struct cap_comp {
 void comp_init(void)
 { assert(sizeof(struct cap_comp) <= __captbl_cap2bytes(CAP_COMP)); }
 
-#ifndef /* COMPONENT_H */
+#endif /* COMPONENT_H */
