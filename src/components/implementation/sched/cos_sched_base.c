@@ -503,6 +503,8 @@ static void sched_process_wakeups(void)
 	PERCPU_GET(sched_base_state)->child_wakeup_time = lowest_child;
 }
 
+static int exit_system = 0;
+
 static void sched_timer_tick(void)
 {
 	//QW: to remove
@@ -517,7 +519,7 @@ static void sched_timer_tick(void)
 		}
 
 		/* are we done running? */
-		if (unlikely(PERCPU_GET(sched_base_state)->ticks >= RUNTIME_SEC*TIMER_FREQ+1)) {
+		if (unlikely(PERCPU_GET(sched_base_state)->ticks >= RUNTIME_SEC*TIMER_FREQ+1 || exit_system)) {
 			cos_acap_wire(0, COS_HW_TIMER, 0); // disable cos timer
 			sched_exit();
 			while (COS_SCHED_RET_SUCCESS !=
@@ -533,7 +535,7 @@ static void sched_timer_tick(void)
 		sched_process_wakeups();
 		timer_tick(1);
 
-//		ck_pr_store_int(&detector[cos_cpuid()*16], 1);
+		ck_pr_store_int(&detector[cos_cpuid()*16], 1);
 
 		sched_switch_thread(COS_SCHED_ACAP_WAIT, TIMER_SWITCH_LOOP);
 		/* Tailcall out of the loop */
@@ -584,7 +586,7 @@ static void fp_timer(void *d)
 /* The ring buffer page used for cross-core communication. */
 struct xcore_ring_buffer {
 	char ring[PAGE_SIZE / sizeof(char)];
-} CACHE_ALIGNED;
+} PAGE_ALIGNED;
 
 PERCPU(struct xcore_ring_buffer, xcore_ring_page);
 
@@ -600,9 +602,9 @@ struct xcore_ring_item {
 	struct xcore_fn_data *data;
 };
 
-CK_RING(xcore_ring_item, xcore_ring);
+CK_RING_PROTOTYPE(xcore_ring, xcore_ring_item);
 
-PERCPU(CK_RING_INSTANCE(xcore_ring) *, percpu_ring);
+PERCPU(struct ck_ring, percpu_ring);
 
 static inline int exec_fn(int (*fn)(), int nparams, u32_t *params) ;
 
@@ -623,7 +625,8 @@ static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, 
 		goto done;
 	}
 
-	CK_RING_INSTANCE(xcore_ring) *ring = *PERCPU_GET_TARGET(percpu_ring, core_id);
+	struct ck_ring *ring = PERCPU_GET_TARGET(percpu_ring, core_id);
+	void *target_buffer  = PERCPU_GET_TARGET(xcore_ring_page, core_id);
 	data.fn = fn;
 	data.nparams = nparams;
 
@@ -634,7 +637,7 @@ static inline int xcore_exec(int core_id, void *fn, int nparams, u32_t *params, 
 	data.finished = 0;
 
 	ck_spinlock_ticket_lock_pb(&xcore_lock, 1);
-	while (unlikely(!CK_RING_ENQUEUE_SPSC(xcore_ring, ring, &item))) 
+	while (unlikely(!CK_RING_ENQUEUE_SPSC(xcore_ring, ring, (struct xcore_ring_item *)target_buffer, &item))) 
 	{
 		if (unlikely(s == 0)) rdtscll(s); 
 		rdtscll(e);
@@ -935,6 +938,12 @@ int sched_block(spdid_t spdid, unsigned short int dep_thd)
 	struct sched_thd *thd, *dep = NULL;
 	int ret, first = 1;
 	unsigned short int dependency_thd = dep_thd;
+
+	//QW: to remove
+	if (dep_thd == 999) {
+		exit_system = 1;
+		return 0;
+	}
 
 	// Added by Gabe 08/19
 	if (unlikely(dep_thd == cos_get_thd_id())) return -EINVAL;
@@ -1812,8 +1821,10 @@ static void IPI_handler(void *d)
 	struct sched_base_per_core *sched_state = PERCPU_GET(sched_base_state);
 	struct xcore_ring_item ring_item;
 	struct xcore_fn_data *data;
-
 	int cli_acap, srv_acap, ret;
+	struct ck_ring *ring = PERCPU_GET(percpu_ring);
+	void *ring_buf = PERCPU_GET(xcore_ring_page);
+
 	ret = cos_async_cap_cntl(COS_ACAP_CREATE, cos_spd_id(), cos_spd_id(), cos_get_thd_id());
 
 	cli_acap = ret >> 16;
@@ -1827,10 +1838,7 @@ static void IPI_handler(void *d)
 
 	if (ret < 0) BUG();
 
-	CK_RING_INSTANCE(xcore_ring) ring;
-	CK_RING_INIT(xcore_ring, &ring, (struct xcore_ring_item *)PERCPU_GET(xcore_ring_page)->ring, 
-		     leqpow2(PAGE_SIZE / sizeof(struct xcore_ring_item)));
-	*PERCPU_GET(percpu_ring) = &ring;
+	ck_ring_init(ring, leqpow2(PAGE_SIZE / sizeof(struct xcore_ring_item)));
 
 	printc("Core %ld: Starting IPI handling thread (thread id %d, client acap %d, server acap %d)\n", 
 	       cos_cpuid(), cos_get_thd_id(), cli_acap, srv_acap);
@@ -1841,7 +1849,7 @@ static void IPI_handler(void *d)
 		sched_switch_thread(COS_SCHED_ACAP_WAIT, EVT_CMPLETE_LOOP);
 
 		/* Received an IPI! */
-		while (CK_RING_DEQUEUE_SPSC(xcore_ring, &ring, &ring_item) == true) {
+		while (CK_RING_DEQUEUE_SPSC(xcore_ring, ring, (struct xcore_ring_item *)ring_buf, &ring_item) == true) {
 			data = ring_item.data;
 			assert(data->nparams <= 4);
 			assert(data->finished == 0);
