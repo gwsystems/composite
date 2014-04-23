@@ -157,6 +157,7 @@ pgtbl_intern_prune(pgtbl_t pt, u32_t addr)
 	return page;
 }
 
+/* FIXME:  these pgd functions should be replaced with lookup_lvl functions (see below) */
 static void *
 pgtbl_get_pgd(pgtbl_t pt, u32_t addr)
 {
@@ -228,13 +229,28 @@ pgtbl_mapping_del(pgtbl_t pt, u32_t addr)
 			       PGTBL_DEPTH+1, &accum, &pte, NULL);
 }
 
+static unsigned long *
+pgtbl_lkup_lvl(pgtbl_t pt, u32_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
+{
+	void *ret;
+	
+	ret = __pgtbl_lkupani((pgtbl_t)((unsigned long)pt | PGTBL_PRESENT), 
+			      addr >> PGTBL_PAGEIDX_SHIFT, start_lvl, end_lvl, flags);
+	if (__pgtbl_isnull(ret, NULL, 0)) return NULL;
+	return chal_pa2va(ret);
+}
+
+static unsigned long *pgtbl_lkup(pgtbl_t pg, u32_t addr, u32_t *flags) 
+{ return pgtbl_lkup_lvl((pgtbl_t)((unsigned long)pt | PGTBL_PRESENT), addr, flags, 0, PGTBL_DEPTH+1); }
+
+/* FIXME: remove this function.  Why do we need a paddr lookup??? */
 static paddr_t
 pgtbl_lookup(pgtbl_t pt, u32_t addr, u32_t *flags)
 { 
-	void * ret = __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | PGTBL_PRESENT), 
-				    addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH+1, flags); 
-	if (*flags & PGTBL_PRESENT) return (paddr_t)ret;
-	else                        return (paddr_t)NULL;
+	void *ret = __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | PGTBL_PRESENT), 
+				   addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH+1, flags); 
+	if (*flags & PGTBL_PRESENT) return (paddr_t)ret; /* FIXME: use __pgtbl_isnull instead */
+	return (paddr_t)NULL;
 }
 
 /* vaddr -> kaddr */
@@ -243,7 +259,7 @@ pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
 { 
 	paddr_t p = pgtbl_lookup(pt, addr, flags);
 	if (!p) return (vaddr_t)NULL;
-	return (vaddr_t)chal_pa2va((void*)p);
+	return (vaddr_t)chal_pa2va((void*)(p & PGTBL_FRAME_MASK));
 }
 
 static pgtbl_t pgtbl_create(void *page) { return pgtbl_alloc(page); }

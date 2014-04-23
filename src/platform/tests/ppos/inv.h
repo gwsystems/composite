@@ -34,6 +34,25 @@ struct cap_arcv {
 	u32_t thd_capid, thd_epoch;
 } __attribute__((packed));
 
+static int 
+sinv_activate(struct captbl *t, unsigned long comp_cap, unsigned long cap, unsigned long capin)
+{
+	struct cap_thd *sinvc;
+	struct cap_comp *compc;
+	int ret;
+
+	compc = (struct cap_comp *)captbl_lkup(t, comp_cap);
+	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
+	
+	sinvc = (struct cap_thd *)__cap_capactivate_pre(t, cap, capin, CAP_SINV, &ret);
+	if (!sinvc) return ret;
+	memcpy(&sinvc->comp_info, &compc->info, sizeof(struct comp_info));
+	__cap_capactivate_post(sinvc, CAP_SINV, compc->h.poly);
+}
+
+static int sinv_deactivate(struct captbl *t, unsigned long cap, unsigned long capin)
+{ return cap_capdeactivate(t, cap, capin, CAP_SINV); }
+
 void inv_init(void)
 { 
 	assert(sizeof(struct cap_sinv) <= __captbl_cap2bytes(CAP_SINV)); 

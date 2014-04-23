@@ -67,7 +67,7 @@ kern_boot_comp(void)
 	assert(sys_maxmem <= 1<<10); /* need another pte otherwise */
 	for (i = 0 ; i < sys_maxmem ; i++) {
  		if (pgtbl_mapping_add(pt, ((1<<30) + (PAGE_SIZE * i)), 
-				      (i + PAGE_SIZE), PGTBL_COSFRAME)) assert(0);
+				      (i * PAGE_SIZE), PGTBL_COSFRAME)) assert(0);
 	}
 }
 

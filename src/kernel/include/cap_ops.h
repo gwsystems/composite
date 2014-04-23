@@ -4,6 +4,11 @@
 #include "captbl.h"
 #include "pgtbl.h"
 
+/* 
+ * Capability-table, capability operations for activation and
+ * deactivation.
+ */
+
 static inline struct cap_header *
 __cap_capactivate_pre(struct captbl *t, unsigned long cap, unsigned long capin, cap_t type, int *retval)
 {
@@ -49,6 +54,11 @@ cap_capdeactivate(struct captbl *t, unsigned long cap, unsigned long capin, cap_
 	return captbl_del(ct->captbl, capin, type); 
 }
 
+/* 
+ * Page-table-based capability operations for activation and
+ * deactivation.
+ */
+
 static inline int
 cap_memactivate(struct captbl *t, unsigned long cap, unsigned long capin, u32_t page, u32_t flags)
 {
@@ -71,32 +81,80 @@ cap_memdeactivate(struct captbl *t, unsigned long cap, unsigned long addr)
 	return pgtbl_mapping_del(pt->pgtbl, addr);
 }
 
-/* static inline int */
-/* cap_cons(struct captbl *t, unsigned long capto, unsigned long capsub, unsigned long expandid) */
-/* { */
-/* 	struct cap_captbl *ctto, *ctsub; */
-/* 	u32_t depth; */
-/* 	cap_t captbl_type; */
+/*  
+ * Construction and deconstruction of the capability and page tables
+ * from separate capabilities at different levels.
+ */
 
-/* 	if (unlikely(capto == capsub)) return -EINVAL; */
-/* 	ctto = (struct cap_captbl *)captbl_lkup(t, capto); */
-/* 	if (unlikely(!ctto))           return -ENOENT; */
-/* 	captbl_type = ctto->h.type;  */
-/* 	if (unlikely(captbl_type != CAP_CAPTBL &&  */
-/* 		     captbl_type != CAP_PGTBL)) return -EINVAL; */
-/* 	ctsub = (struct cap_captbl *)captbl_lkup(t, capsub); */
-/* 	if (unlikely(!ctsub)) return -ENOENT; */
-/* 	if (unlikely(ctsub->h.type != captbl_type)) return -EINVAL; */
-/* 	depth = ctsub->lvl; */
-/* 	if (depth == 0) return -EINVAL; /\* subtree must not have a root *\/ */
+static inline int
+cap_cons(struct captbl *t, unsigned long capto, unsigned long capsub, unsigned long expandid)
+{
+	struct cap_captbl *ctto, *ctsub;
+	struct cap_captbl **intern;
+	u32_t depth;
+	cap_t cap_type;
 
-	
-/* } */
+	if (unlikely(capto == capsub)) return -EINVAL;
+	ctto = (struct cap_captbl *)captbl_lkup(t, capto);
+	if (unlikely(!ctto))           return -ENOENT;
+	cap_type = ctto->h.type;
+	if (unlikely(cap_type != CAP_CAPTBL && cap_type != CAP_PGTBL)) return -EINVAL;
+	ctsub = (struct cap_captbl *)captbl_lkup(t, capsub);
+	if (unlikely(!ctsub)) return -ENOENT;
+	if (unlikely(ctsub->h.type != cap_type)) return -EINVAL;
+	depth = ctsub->lvl;
+	if (depth == 0) return -EINVAL; /* subtree must not have a root */
+
+	if (cap_type == CAP_CAPTBL) {
+		intern = captbl_lkup_lvl(ctto, expandid, ctto->lvl, ctsub->lvl);
+	} else {
+		intern = pgtbl_lkup_lvl(ctto, expandid, ctto->lvl, ctsub->lvl);
+	}
+	if (!intern) return -ENOENT;
+	if (*intern != NULL) return -EPERM; /* FIXME: should use tbl-specific isnull */
+	/* FIXME: should be cos_cas */
+	*intern = ctsub->captbl; /* commit */
+
+	return 0;
+}
+
+/* 
+ * FIXME: Next version will probably need to provide the capability to
+ * the inner node of the captbl/pgtbl so that we can maintain proper
+ * reference counting.
+ */
+static inline int
+cap_decons(struct captbl *t, unsigned long cap, unsigned long pruneid, unsigned long lvl)
+{
+	struct cap_header *head;
+	unsigned long **intern;
+	u32_t depth;
+
+	head = (struct cap_header *)captbl_lkup(t, cap);
+	if (unlikely(!head)) return -ENOENT;
+	if (head->type == CAP_CAPTBL) {
+		struct cap_captbl *ct = (struct cap_captbl *)head;
+		if (lvl <= ct->lvl) return -EINVAL;
+		intern = captbl_lkup_lvl(ct->captbl, pruneid, ct->lvl, lvl);
+	} else if (head->type == CAP_PGTBL) {
+		struct cap_pgtbl *pt = (struct cap_pgtbl *)head;
+		if (lvl <= pt->lvl) return -EINVAL;
+		intern = pgtbl_lkup_lvl(pt->pgtbl, pruneid, pt->lvl, lvl);
+	} else {
+		return -EINVAL;
+	}
+	if (!intern) return -ENOENT;
+	if (*intern == NULL) return 0; /* return an error here? */
+	/* FIXME: should be cos_cas */
+	*intern = NULL; /* commit */
+
+	return 0;
+}
 
 /* 
  * Copy a capability from a location in one captbl/pgtbl to a location
- * in the other.  TODO: should limit the types of capabilities this
- * works on.
+ * in the other.  Fundamental operation used to delegate capabilities.
+ * TODO: should limit the types of capabilities this works on.
  */
 static inline int
 cap_cpy(struct captbl *t, unsigned long cap_to, unsigned long capin_to, 
@@ -104,24 +162,39 @@ cap_cpy(struct captbl *t, unsigned long cap_to, unsigned long capin_to,
 {
 	struct cap_header *ctto, *ctfrom;
 	int sz, ret;
-	cap_t captbl_type;
+	unsigned long flags;
+	cap_t cap_type;
 	
 	ctfrom = captbl_lkup(t, cap_from);
 	if (unlikely(!ctfrom)) return -ENOENT;
-	captbl_type = ctfrom->type; 
-	if (unlikely(captbl_type != CAP_CAPTBL && 
-		     captbl_type != CAP_PGTBL)) return -EINVAL;
-	ctfrom = captbl_lkup(((struct cap_captbl *)ctfrom)->captbl, capin_from);
-	if (unlikely(!ctfrom))              return -ENOENT;
-	if (unlikely(ctfrom->type != type)) return -EINVAL;
+	cap_type = ctfrom->type; 
 
-	sz = __captbl_cap2sz(type);
-	ctto = __cap_capactivate_pre(t, cap_to, capin_to, type, &ret);
-	if (!ctto) return -EINVAL;
-	memcpy(ctto->post, ctfrom->post, sz - sizeof(struct cap_header));
-	__cap_capactivate_post(ctto, type, 0);
+	if (cap_type == CAP_CAPTBL) {
+		ctfrom = captbl_lkup(((struct cap_captbl *)ctfrom)->captbl, capin_from);
+		if (unlikely(!ctfrom))              return -ENOENT;
+		if (unlikely(ctfrom->type != type)) return -EINVAL;
 
-	return 0;
+		sz = __captbl_cap2sz(type);
+		ctto = __cap_capactivate_pre(t, cap_to, capin_to, type, &ret);
+		if (!ctto) return -EINVAL;
+		memcpy(ctto->post, ctfrom->post, sz - sizeof(struct cap_header));
+		__cap_capactivate_post(ctto, type, ctfrom->h.poly);
+	} else if (cap_type == CAP_PGTBL) {
+		unsigned long *f, *t;
+
+		ctto = captbl_lkup(t, cap_to);
+		if (unlikely(!ctto)) return -ENOENT;
+		if (unlikely(ctto->type != cap_type)) return -EINVAL;
+
+		f = pgtbl_lkup(ctfrom->pgtbl, capin_from, &flags);
+		if (!f) return -ENOENT;
+		
+		/* TODO: validate the type is appropriate given the value of *flags */
+		ret = pgtbl_mapping_add(ctto->pgtbl, capin_to, *f & PGTBL_FRAME_MASK, flags);
+	} else {
+		ret = -EINVAL;
+	}
+	return ret;
 }
 
 #endif	/* CAP_OPS */

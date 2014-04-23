@@ -37,6 +37,8 @@ typedef enum {
 	CAP_COMP,               /* component */
 	CAP_CAPTBL,             /* capability table */
 	CAP_PGTBL,              /* page-table */
+	CAP_FRAME, 		/* untyped frame within a page-table */
+	CAP_VM, 		/* mapped virtual memory within a page-table */
 } cap_t;
 /* 
  * The values in this enum are the order of the size of the
@@ -209,11 +211,11 @@ __captbl_header_validate(struct cap_header *h, cap_sz_t sz)
 	return h->amap & ~mask;
 }
 
-static inline struct cap_header *
-captbl_lkup_lvl(struct captbl *t, unsigned long cap, u32_t lvl)
+static inline void *
+captbl_lkup_lvl(struct captbl *t, unsigned long cap, u32_t start_lvl, u32_t end_lvl)
 { 
 	if (unlikely(cap >= __captbl_maxid())) return NULL;
-	return __captbl_lkupan(t, cap, lvl, NULL); 
+	return __captbl_lkupani(t, cap, start_lvl, end_lvl, NULL); 
 }
 
 /* 
@@ -221,7 +223,7 @@ captbl_lkup_lvl(struct captbl *t, unsigned long cap, u32_t lvl)
  * invocation path.
  */
 static inline struct cap_header *captbl_lkup(struct captbl *t, unsigned long cap)
-{ return captbl_lkup_lvl(t, cap, CAPTBL_DEPTH+1); }
+{ return captbl_lkup_lvl(t, cap, 0, CAPTBL_DEPTH+1); }
 
 static inline int
 __captbl_store(unsigned long *addr, unsigned long new, unsigned long old)
