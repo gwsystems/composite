@@ -316,6 +316,13 @@ static inline int meas_spinlock(int cpu, unsigned long long tsc) {
 	return 0;
 }
 
+static inline int meas_spinlock_eb(int cpu, unsigned long long tsc) {
+	ck_spinlock_cas_lock_eb(&spinlock);
+	ck_spinlock_cas_unlock(&spinlock);
+	// lock take then release
+	return 0;
+}
+
 ck_spinlock_ticket_t ticketlock = CK_SPINLOCK_TICKET_INITIALIZER;
 static inline int meas_ticketlock(int cpu, unsigned long long tsc) {
 	// lock take then release
@@ -323,6 +330,24 @@ static inline int meas_ticketlock(int cpu, unsigned long long tsc) {
 	ck_spinlock_ticket_unlock(&ticketlock);
 	return 0;
 }
+
+static inline int meas_ticketlock_eb(int cpu, unsigned long long tsc) {
+	// lock take then release
+	ck_spinlock_ticket_lock_pb(&ticketlock, 0);
+	ck_spinlock_ticket_unlock(&ticketlock);
+	return 0;
+}
+
+static ck_spinlock_mcs_t CK_CC_CACHELINE mcs_lock = CK_SPINLOCK_MCS_INITIALIZER;
+static inline int meas_mcslock(int cpu, unsigned long long tsc) {
+        ck_spinlock_mcs_context_t node CACHE_ALIGNED;
+
+        ck_spinlock_mcs_lock(&mcs_lock, &node);
+        ck_spinlock_mcs_unlock(&mcs_lock, &node);
+
+        return 0;
+}
+
 
 ///////////////list!
 #include <ck_queue.h>
@@ -521,7 +546,7 @@ static inline int meas_op(int (*op)(int cpu, unsigned long long tsc), char *name
 	/* } */
 
 #ifndef ENABLE_TDMA
-	if (read_sum == 0 && (((sum2 - sum)/ITER - gap) > 2000) && (((sum2 - sum)/ITER - gap) > (sum / ITER / 2))) {
+	if (read_sum == 0 && (((sum2 - sum)/ITER - gap) > 2000) && (((sum2 - sum)/ITER - gap) > (sum / ITER * 2))) {
 		printc("\n\n\n\n !!!!!!!!!!!!%s cpu %ld ------------------- per op overhead %llu\n\n\n\n\n",
 		       name, cos_cpuid(), (sum2-sum)/ITER - gap);
 //		BUG();
@@ -722,6 +747,30 @@ static inline void go_par(int ncores) {
 		// per core below!
 		assert(j == omp_get_thread_num());
 		meas_op(meas_ticketlock, "ticketlock", rate_gap);
+	}
+
+#pragma omp parallel for
+	for (j = 0; j < ncores; j++)
+	{
+		// per core below!
+		assert(j == omp_get_thread_num());
+		meas_op(meas_spinlock_eb, "spinlock_backoff", rate_gap);
+	}
+
+#pragma omp parallel for
+	for (j = 0; j < ncores; j++)
+	{
+		// per core below!
+		assert(j == omp_get_thread_num());
+		meas_op(meas_ticketlock_eb, "ticketlock_backoff", rate_gap);
+	}
+
+#pragma omp parallel for
+	for (j = 0; j < ncores; j++)
+	{
+		// per core below!
+		assert(j == omp_get_thread_num());
+		meas_op(meas_mcslock, "mcs_lock", rate_gap);
 	}
 
 #pragma omp parallel for
@@ -965,7 +1014,7 @@ int meas(void)
 {
 	int i, j, omp_cores;
 	int gap = 0;
-	
+
 	printc("Parallel benchmark in component %ld. ITER %llu\n", cos_spd_id(), (unsigned long long)ITER);
 	mman_alias_page(cos_spd_id(), 1234, 7890, 9999, MAPPING_RW);
 
@@ -1004,17 +1053,17 @@ int meas(void)
 #endif
 		rate_gap = gap;
 
-		/* int k; */
-		/* for (k = 5; k < omp_cores; k+=5) { */
-		/* 	n_cores = k; */
-		/* 	go_par(n_cores); */
-		/* } */
-
 		n_cores = 1;
 		go_par(n_cores);
 
-		/* n_cores = 10; */
-		/* go_par(n_cores); */
+		int k;
+		for (k = 5; k < omp_cores; k+=5) {
+			n_cores = k;
+			go_par(n_cores);
+		}
+
+		n_cores = omp_cores;
+		go_par(n_cores);
 	}
 
 	/* rate_gap = 0; */
