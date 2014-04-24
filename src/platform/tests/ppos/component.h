@@ -24,6 +24,32 @@ struct cap_comp {
 	struct comp_info info;
 } __attribute__((packed));
 
+static int 
+comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, capid_t pgtbl_cap, 
+	      livenessid_t lid, vaddr_t entry_addr, struct cos_sched_data_area *sa)
+{
+	struct cap_comp   *compc;
+	struct cap_pgtbl  *ptc;
+	struct cap_captbl *ctc;
+	int ret;
+
+	ctc = (struct cap_captbl *)captbl_lkup(t, captbl_cap);
+	if (unlikely(!ctc || ctc->h.type != CAP_CAPTBL || ctc->lvl > 0)) return -EINVAL;
+	ptc = (struct cap_pgtbl *)captbl_lkup(t, pgtbl_cap);
+	if (unlikely(!ptc || ptc->h.type != CAP_PGTBL || ptc->lvl > 0)) return -EINVAL;
+	
+	compc = (struct cap_comp *)__cap_capactivate_pre(t, cap, capin, CAP_COMP, &ret);
+	if (!compc) return ret;
+	compc->entry_addr  = entry_addr;
+	compc->info.pgtbl  = ptc->pgtbl;
+	compc->info.captbl = ctc->captbl;
+	ltbl_get(lid, &compc->info.liveness);
+	__cap_capactivate_post(sinvc, CAP_COMP, compc->h.poly);
+}
+
+static int comp_deactivate(struct captbl *t, capid_t cap, capid_t capin)
+{ return cap_capdeactivate(t, cap, capin, CAP_COMP); }
+
 void comp_init(void)
 { assert(sizeof(struct cap_comp) <= __captbl_cap2bytes(CAP_COMP)); }
 

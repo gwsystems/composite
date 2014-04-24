@@ -15,10 +15,11 @@
 #define LTBL_ENTS    4096
 typedef u64_t        ltbl_entry_t;
 #define LTBL_ENT_SZ  sizeof(ltbl_entry_t)
+typedef u32_t livenessid_t;
 
 struct liveness_data {
 	ltbl_entry_t epoch;
-	u32_t id;
+	livenessid_t id;
 } __attribute__((packed));
 
 /* 
@@ -58,7 +59,7 @@ struct liveness_data {
 /* } */
 
 /* static inline void */
-/* ltbl_get(u32_t id, struct liveness_data *ld) */
+/* ltbl_get(livenessid_t id, struct liveness_data *ld) */
 /* { */
 /* 	assert(id < LTBL_NENTS); */
 /* 	ld->epoch = (ltbl_entry_t)__ltbl_lkupan(__liveness_tbl, id, __ltbl_maxdepth()+1, NULL); */
