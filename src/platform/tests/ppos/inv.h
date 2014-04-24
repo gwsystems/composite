@@ -19,7 +19,8 @@ struct cap_sinv {
 
 struct cap_asnd {
 	struct cap_header h;
-	u32_t cpuid, arcv_capid, epoch; /* identify reciever */
+	u32_t cpuid;
+	u32_t arcv_cpuid, arcv_capid, epoch; /* identify reciever */
 	struct comp_info comp_info;
 
 	/* deferrable server to rate-limit IPIs */
@@ -30,12 +31,41 @@ struct cap_asnd {
 struct cap_arcv {
 	struct cap_header h;
 	struct comp_info comp_info;
-	u32_t pending, cpuid;
+	u32_t pending, cpuid, epoch;
 	u32_t thd_capid, thd_epoch;
 } __attribute__((packed));
 
+static int
+asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, capid_t rcv_cap, u32_t budget, u32_t period)
+{
+	struct cap_asnd *asndc;
+	struct cap_comp *compc;
+	struct cap_arcv *arcvc;
+	int ret;
+
+	compc = (struct cap_comp *)captbl_lkup(t, comp_cap);
+	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
+	arcvc = (struct cap_arcv *)captbl_lkup(t, rcv_cap);
+	if (unlikely(!arcvc || arcvc->h.type != CAP_ARCV)) return -EINVAL;
+	
+	asndc = (struct cap_thd *)__cap_capactivate_pre(t, cap, capin, CAP_ASND, &ret);
+	if (!asndc) return ret;
+	memcpy(&asndc->comp_info, &compc->info, sizeof(struct comp_info));
+	asndc->arcv_epoch     = arcvc->epoch;
+	asndc->arcv_cpuid     = arcvc->cpuid;
+	asndc->arcv_capid     = rcv_cap;
+	asndc->period         = period;
+	asndc->budget         = budget;
+	asndc->replenish_amnt = budget;
+	rdtscll(asndc->replenish_time);
+	__cap_capactivate_post(asndc, CAP_ASND, 0);
+}
+
+static int asnd_deactivate(struct captbl *t, unsigned long cap, unsigned long capin)
+{ return cap_capdeactivate(t, cap, capin, CAP_ASND); }
+
 static int 
-sinv_activate(struct captbl *t, unsigned long comp_cap, unsigned long cap, unsigned long capin)
+sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, unsigned long entry_addr)
 {
 	struct cap_thd *sinvc;
 	struct cap_comp *compc;
@@ -47,6 +77,7 @@ sinv_activate(struct captbl *t, unsigned long comp_cap, unsigned long cap, unsig
 	sinvc = (struct cap_thd *)__cap_capactivate_pre(t, cap, capin, CAP_SINV, &ret);
 	if (!sinvc) return ret;
 	memcpy(&sinvc->comp_info, &compc->info, sizeof(struct comp_info));
+	sinvc->entry_addr = entry_addr;
 	__cap_capactivate_post(sinvc, CAP_SINV, compc->h.poly);
 }
 

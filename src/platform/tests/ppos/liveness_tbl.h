@@ -21,6 +21,11 @@ struct liveness_data {
 	u32_t id;
 } __attribute__((packed));
 
+/* 
+ * TODO: Add the rdtsc for liveness and quiescence into the actual
+ * liveness table entries themselves.
+ */
+
 /* extern LTBL_ENT_TYPE __liveness_tbl[LTBL_ENTS]; */
 /* /\*  */
 /*  * You should use the static pointer to the table instead of the one */

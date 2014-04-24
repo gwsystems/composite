@@ -40,6 +40,8 @@ typedef enum {
 	CAP_FRAME, 		/* untyped frame within a page-table */
 	CAP_VM, 		/* mapped virtual memory within a page-table */
 } cap_t;
+typedef unsigned long capid_t;
+
 /* 
  * The values in this enum are the order of the size of the
  * capabilities in this cacheline, offset by CAP_SZ_OFF (to compress
@@ -212,7 +214,7 @@ __captbl_header_validate(struct cap_header *h, cap_sz_t sz)
 }
 
 static inline void *
-captbl_lkup_lvl(struct captbl *t, unsigned long cap, u32_t start_lvl, u32_t end_lvl)
+captbl_lkup_lvl(struct captbl *t, capid_t cap, u32_t start_lvl, u32_t end_lvl)
 { 
 	if (unlikely(cap >= __captbl_maxid())) return NULL;
 	return __captbl_lkupani(t, cap, start_lvl, end_lvl, NULL); 
@@ -222,7 +224,7 @@ captbl_lkup_lvl(struct captbl *t, unsigned long cap, u32_t start_lvl, u32_t end_
  * This function is the fast-path used for capability lookup in the
  * invocation path.
  */
-static inline struct cap_header *captbl_lkup(struct captbl *t, unsigned long cap)
+static inline struct cap_header *captbl_lkup(struct captbl *t, capid_t cap)
 { return captbl_lkup_lvl(t, cap, 0, CAPTBL_DEPTH+1); }
 
 static inline int
@@ -232,7 +234,7 @@ __captbl_store(unsigned long *addr, unsigned long new, unsigned long old)
 #define cos_throw(label, errno) { ret = (errno); goto label; }
 
 static inline struct cap_header *
-captbl_add(struct captbl *t, unsigned long cap, cap_t type, int *retval)
+captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 { 
 	struct cap_header *p, *h;
 	struct cap_header l, o;
@@ -276,7 +278,7 @@ err:
 }
 
 static inline int
-captbl_del(struct captbl *t, unsigned long cap, cap_t type)
+captbl_del(struct captbl *t, capid_t cap, cap_t type)
 {
 	struct cap_header *p, *h;
 	struct cap_header l, o;
@@ -317,7 +319,7 @@ static inline u32_t captbl_maxdepth(void) { return __captbl_maxdepth(); }
  * (requiring more memory), and zero on unqualified success.
  */
 static inline int
-captbl_expand(struct captbl *t, unsigned long cap, u32_t depth, void *memctxt)
+captbl_expand(struct captbl *t, capid_t cap, u32_t depth, void *memctxt)
 {
 	int ret;
 
@@ -336,7 +338,7 @@ captbl_expand(struct captbl *t, unsigned long cap, u32_t depth, void *memctxt)
  * off all but the root.
  */
 static void *
-captbl_prune(struct captbl *t, unsigned long cap, u32_t depth, int *retval)
+captbl_prune(struct captbl *t, capid_t cap, u32_t depth, int *retval)
 {
 	void **intern, *p, *new;
 	int ret = 0;
@@ -379,8 +381,8 @@ captbl_create(void *page)
 	return ct;
 }
 
-int captbl_activate_captbl(struct captbl *t, unsigned long cap, unsigned long capin, struct captbl *toadd, u32_t lvl);
-int captbl_deactivate_captbl(struct captbl *t, unsigned long cap, unsigned long capin);
+int captbl_activate_captbl(struct captbl *t, capid_t cap, capid_t capin, struct captbl *toadd, u32_t lvl);
+int captbl_deactivate_captbl(struct captbl *t, capid_t cap, capid_t  capin);
 static void cap_init(void) {};
 
 #endif /* CAPTBL_H */

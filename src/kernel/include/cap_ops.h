@@ -10,7 +10,7 @@
  */
 
 static inline struct cap_header *
-__cap_capactivate_pre(struct captbl *t, unsigned long cap, unsigned long capin, cap_t type, int *retval)
+__cap_capactivate_pre(struct captbl *t, capid_t cap, capid_t capin, cap_t type, int *retval)
 {
 	struct cap_captbl *ct;
 	struct cap_header *h = NULL;
@@ -28,7 +28,6 @@ err:
 static inline void
 __cap_capactivate_post(struct cap_header *h, cap_t type, u16_t poly)
 {
-	(void)poly;
 	/* 
 	 * FIXME: should be atomic on a word including the amap and
 	 * poly, mostly likely atomic add on the type/poly (they are
@@ -40,10 +39,11 @@ __cap_capactivate_post(struct cap_header *h, cap_t type, u16_t poly)
 	 * before finally activating the cap.
 	 */
 	h->type = type;
+	h->poly = poly;
 }
 
 static inline int
-cap_capdeactivate(struct captbl *t, unsigned long cap, unsigned long capin, cap_t type)
+cap_capdeactivate(struct captbl *t, capid_t cap, capid_t capin, cap_t type)
 { 
 	struct cap_captbl *ct;
 	
@@ -60,7 +60,7 @@ cap_capdeactivate(struct captbl *t, unsigned long cap, unsigned long capin, cap_
  */
 
 static inline int
-cap_memactivate(struct captbl *t, unsigned long cap, unsigned long capin, u32_t page, u32_t flags)
+cap_memactivate(struct captbl *t, capid_t cap, capid_t capin, u32_t page, u32_t flags)
 {
 	struct cap_pgtbl *pt;
 	
@@ -70,7 +70,7 @@ cap_memactivate(struct captbl *t, unsigned long cap, unsigned long capin, u32_t 
 }
 
 static inline int
-cap_memdeactivate(struct captbl *t, unsigned long cap, unsigned long addr)
+cap_memdeactivate(struct captbl *t, capid_t cap, unsigned long addr)
 {
 	struct cap_pgtbl *pt;
 	
@@ -83,11 +83,12 @@ cap_memdeactivate(struct captbl *t, unsigned long cap, unsigned long addr)
 
 /*  
  * Construction and deconstruction of the capability and page tables
- * from separate capabilities at different levels.
+ * from separate capability/page-table trees that are subtrees for
+ * different levels.
  */
 
 static inline int
-cap_cons(struct captbl *t, unsigned long capto, unsigned long capsub, unsigned long expandid)
+cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 {
 	struct cap_captbl *ctto, *ctsub;
 	struct cap_captbl **intern;
@@ -124,7 +125,7 @@ cap_cons(struct captbl *t, unsigned long capto, unsigned long capsub, unsigned l
  * reference counting.
  */
 static inline int
-cap_decons(struct captbl *t, unsigned long cap, unsigned long pruneid, unsigned long lvl)
+cap_decons(struct captbl *t, capid_t cap, capid_t pruneid, unsigned long lvl)
 {
 	struct cap_header *head;
 	unsigned long **intern;
@@ -157,8 +158,8 @@ cap_decons(struct captbl *t, unsigned long cap, unsigned long pruneid, unsigned 
  * TODO: should limit the types of capabilities this works on.
  */
 static inline int
-cap_cpy(struct captbl *t, unsigned long cap_to, unsigned long capin_to, 
-	unsigned long cap_from, unsigned long capin_from, cap_t type)
+cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, 
+	capid_t cap_from, capdid_t capin_from, cap_t type)
 {
 	struct cap_header *ctto, *ctfrom;
 	int sz, ret;
