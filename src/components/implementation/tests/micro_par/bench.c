@@ -13,6 +13,7 @@
 #include <parlib.h>
 #include <mem_mgr_large.h>
 #include <acap_pong.h>
+#include <heap.h>
 
 #define ITER (1*1000*1000)
 
@@ -348,6 +349,31 @@ static inline int meas_mcslock(int cpu, unsigned long long tsc) {
         return 0;
 }
 
+/////////////////heap!
+struct hentry {
+	int index, value;
+};
+
+int c(void *a, void *b) { return ((struct hentry*)a)->value >= ((struct hentry*)b)->value; }
+void u(void *e, int pos) { ((struct hentry*)e)->index = pos; }
+
+static struct hentry es[NUM_CPU_COS];
+struct heap *h;
+
+static inline int meas_heap_mcs(int cpu, unsigned long long tsc) {
+        ck_spinlock_mcs_context_t node CACHE_ALIGNED;
+
+        ck_spinlock_mcs_lock(&mcs_lock, &node);
+	es[cpu].value = (int)tsc;
+	heap_add(h, &es[cpu]);
+        ck_spinlock_mcs_unlock(&mcs_lock, &node);
+
+        ck_spinlock_mcs_lock(&mcs_lock, &node);
+	heap_remove(h, es[cpu].index);
+        ck_spinlock_mcs_unlock(&mcs_lock, &node);
+
+        return 0;
+}
 
 ///////////////list!
 #include <ck_queue.h>
@@ -778,6 +804,14 @@ static inline void go_par(int ncores) {
 	{
 		// per core below!
 		assert(j == omp_get_thread_num());
+		meas_op(meas_heap_mcs, "heap_mcs", rate_gap);
+	}
+
+#pragma omp parallel for
+	for (j = 0; j < ncores; j++)
+	{
+		// per core below!
+		assert(j == omp_get_thread_num());
 		meas_op(meas_list, "list", rate_gap);
 	}
 
@@ -1010,6 +1044,21 @@ int ping_pong(void)
 	return 0;
 }
 
+static inline void
+struct_init(void)
+{
+	int i;
+
+	h = heap_alloc(NUM_CPU_COS, c, u);
+	assert(h);
+
+	for (i = 0 ; i < NUM_CPU_COS ; i++) {
+		es[i].value = i;
+//		assert(!heap_add(h, &es[i]));
+	}
+
+}
+
 int meas(void)
 {
 	int i, j, omp_cores;
@@ -1017,6 +1066,8 @@ int meas(void)
 
 	printc("Parallel benchmark in component %ld. ITER %llu\n", cos_spd_id(), (unsigned long long)ITER);
 	mman_alias_page(cos_spd_id(), 1234, 7890, 9999, MAPPING_RW);
+
+	struct_init();
 
 #ifdef ENABLE_TDMA
 	printc("TDMA window %d cycles, each slot %d cycles, num_slots %d, drift %d cycles.\n",
