@@ -229,7 +229,7 @@ pgtbl_mapping_del(pgtbl_t pt, u32_t addr)
 			       PGTBL_DEPTH+1, &accum, &pte, NULL);
 }
 
-static unsigned long *
+static void *
 pgtbl_lkup_lvl(pgtbl_t pt, u32_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
 {
 	void *ret;
@@ -240,7 +240,7 @@ pgtbl_lkup_lvl(pgtbl_t pt, u32_t addr, u32_t *flags, u32_t start_lvl, u32_t end_
 	return chal_pa2va(ret);
 }
 
-static unsigned long *pgtbl_lkup(pgtbl_t pg, u32_t addr, u32_t *flags) 
+static unsigned long *pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags) 
 { return pgtbl_lkup_lvl((pgtbl_t)((unsigned long)pt | PGTBL_PRESENT), addr, flags, 0, PGTBL_DEPTH+1); }
 
 /* FIXME: remove this function.  Why do we need a paddr lookup??? */
@@ -263,7 +263,8 @@ pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
 }
 
 static pgtbl_t pgtbl_create(void *page) { return pgtbl_alloc(page); }
-
+int pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
+int pgtbl_deactivate(struct captbl *t, unsigned long cap, unsigned long capin);
 static void pgtbl_init(void) { return; }
 
 #endif /* PGTBL_H */

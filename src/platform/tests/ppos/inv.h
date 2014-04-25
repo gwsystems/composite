@@ -17,10 +17,15 @@ struct cap_sinv {
 	vaddr_t entry_addr;
 } __attribute__((packed));
 
+struct cap_sret {
+	struct cap_header h;
+	/* no other information needed */
+} __attribute__((packed));
+
 struct cap_asnd {
 	struct cap_header h;
 	u32_t cpuid;
-	u32_t arcv_cpuid, arcv_capid, epoch; /* identify reciever */
+	u32_t arcv_cpuid, arcv_capid, arcv_epoch; /* identify reciever */
 	struct comp_info comp_info;
 
 	/* deferrable server to rate-limit IPIs */
@@ -32,7 +37,8 @@ struct cap_arcv {
 	struct cap_header h;
 	struct comp_info comp_info;
 	u32_t pending, cpuid, epoch;
-	u32_t thd_capid, thd_epoch;
+	u32_t thd_epoch;
+	struct thread *thd;
 } __attribute__((packed));
 
 static int 
@@ -49,11 +55,29 @@ sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, va
 	if (!sinvc) return ret;
 	memcpy(&sinvc->comp_info, &compc->info, sizeof(struct comp_info));
 	sinvc->entry_addr = entry_addr;
-	__cap_capactivate_post(sinvc, CAP_SINV, compc->h.poly);
+	__cap_capactivate_post(&sinvc->h, CAP_SINV, compc->h.poly);
+
+	return 0;
 }
 
 static int sinv_deactivate(struct captbl *t, capid_t cap, capid_t capin)
 { return cap_capdeactivate(t, cap, capin, CAP_SINV); }
+
+static int 
+sret_activate(struct captbl *t, capid_t cap, capid_t capin)
+{
+	struct cap_sret *sretc;
+	int ret;
+
+	sretc = (struct cap_sret *)__cap_capactivate_pre(t, cap, capin, CAP_SRET, &ret);
+	if (!sretc) return ret;
+	__cap_capactivate_post(&sretc->h, CAP_SRET, 0);
+
+	return 0;
+}
+
+static int sret_deactivate(struct captbl *t, capid_t cap, capid_t capin)
+{ return cap_capdeactivate(t, cap, capin, CAP_SRET); }
 
 static int
 asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, capid_t rcv_cap, u32_t budget, u32_t period)
@@ -77,8 +101,10 @@ asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	asndc->period         = period;
 	asndc->budget         = budget;
 	asndc->replenish_amnt = budget;
-	rdtscll(asndc->replenish_time);
-	__cap_capactivate_post(asndc, CAP_ASND, 0);
+	//FIXME:  add rdtscll(asndc->replenish_time);
+	__cap_capactivate_post(&asndc->h, CAP_ASND, 0);
+
+	return 0;
 }
 
 static int asnd_deactivate(struct captbl *t, capid_t cap, capid_t capin)
@@ -100,8 +126,10 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap)
 	arcvc->pending = 0;
 	arcvc->cpuid   = 0; 	/* FIXME: get the real cpuid */
 	arcvc->epoch   = 0; 	/* FIXME: get the real epoch */
-	arcvc->thd     = NULL;
-	__cap_capactivate_post(arcvc, CAP_ARCV, 0);
+	arcvc->thd     = NULL;	/* FIXME: populate the thread */
+	__cap_capactivate_post(&arcvc->h, CAP_ARCV, 0);
+	
+	return 0;
 }
 
 static int arcv_deactivate(struct captbl *t, capid_t cap, capid_t capin)
@@ -114,4 +142,4 @@ void inv_init(void)
 	assert(sizeof(struct cap_arcv) <= __captbl_cap2bytes(CAP_ARCV)); 
 }
 
-#ifndef /* INV_H */
+#endif /* INV_H */

@@ -381,8 +381,9 @@ captbl_create(void *page)
 	return ct;
 }
 
-int captbl_activate_captbl(struct captbl *t, capid_t cap, capid_t capin, struct captbl *toadd, u32_t lvl);
-int captbl_deactivate_captbl(struct captbl *t, capid_t cap, capid_t  capin);
-static void cap_init(void) {};
+int captbl_activate(struct captbl *t, capid_t cap, capid_t capin, struct captbl *toadd, u32_t lvl);
+int captbl_deactivate(struct captbl *t, capid_t cap, capid_t  capin);
+int captbl_activate_boot(struct captbl *t, unsigned long cap);
+static void cap_init(void) {}
 
 #endif /* CAPTBL_H */

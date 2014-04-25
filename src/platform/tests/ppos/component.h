@@ -40,11 +40,14 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	
 	compc = (struct cap_comp *)__cap_capactivate_pre(t, cap, capin, CAP_COMP, &ret);
 	if (!compc) return ret;
-	compc->entry_addr  = entry_addr;
-	compc->info.pgtbl  = ptc->pgtbl;
-	compc->info.captbl = ctc->captbl;
+	compc->entry_addr    = entry_addr;
+	compc->info.pgtbl    = ptc->pgtbl;
+	compc->info.captbl   = ctc->captbl;
+	compc->info.comp_nfo = sa;
 	ltbl_get(lid, &compc->info.liveness);
-	__cap_capactivate_post(sinvc, CAP_COMP, compc->h.poly);
+	__cap_capactivate_post(&compc->h, CAP_COMP, 0);
+
+	return 0;
 }
 
 static int comp_deactivate(struct captbl *t, capid_t cap, capid_t capin)

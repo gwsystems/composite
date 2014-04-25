@@ -65,7 +65,8 @@ cap_memactivate(struct captbl *t, capid_t cap, capid_t capin, u32_t page, u32_t 
 	struct cap_pgtbl *pt;
 	
 	pt = (struct cap_pgtbl *)captbl_lkup(t, cap);
-	if (unlikely(!pt || pt->h.type != CAP_PGTBL)) return -EINVAL;
+	if (unlikely(!pt)) return -ENOENT;
+	if (unlikely(pt->h.type != CAP_PGTBL)) return -EINVAL;
 	return pgtbl_mapping_add(pt->pgtbl, capin, page, flags);
 }
 
@@ -90,15 +91,19 @@ cap_memdeactivate(struct captbl *t, capid_t cap, unsigned long addr)
 static inline int
 cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 {
-	struct cap_captbl *ctto, *ctsub;
-	struct cap_captbl **intern;
+	/* 
+	 * Note: here we're relying on the fact that cap_captbl has an
+	 * identical layout to cap_pgtbl.
+	 */
+	struct cap_captbl *ct, *ctsub;
+	unsigned long *intern;
 	u32_t depth;
 	cap_t cap_type;
 
 	if (unlikely(capto == capsub)) return -EINVAL;
-	ctto = (struct cap_captbl *)captbl_lkup(t, capto);
-	if (unlikely(!ctto))           return -ENOENT;
-	cap_type = ctto->h.type;
+	ct = (struct cap_captbl *)captbl_lkup(t, capto);
+	if (unlikely(!ct))             return -ENOENT;
+	cap_type = ct->h.type;
 	if (unlikely(cap_type != CAP_CAPTBL && cap_type != CAP_PGTBL)) return -EINVAL;
 	ctsub = (struct cap_captbl *)captbl_lkup(t, capsub);
 	if (unlikely(!ctsub)) return -ENOENT;
@@ -106,15 +111,17 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 	depth = ctsub->lvl;
 	if (depth == 0) return -EINVAL; /* subtree must not have a root */
 
+	assert(ct->captbl);
 	if (cap_type == CAP_CAPTBL) {
-		intern = captbl_lkup_lvl(ctto, expandid, ctto->lvl, ctsub->lvl);
+		intern = captbl_lkup_lvl(ct->captbl, expandid, ct->lvl, ctsub->lvl);
 	} else {
-		intern = pgtbl_lkup_lvl(ctto, expandid, ctto->lvl, ctsub->lvl);
+		u32_t flags;
+		intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, ctsub->lvl);
 	}
 	if (!intern) return -ENOENT;
-	if (*intern != NULL) return -EPERM; /* FIXME: should use tbl-specific isnull */
+	if (*intern != 0) return -EPERM; /* FIXME: should use tbl-specific isnull */
 	/* FIXME: should be cos_cas */
-	*intern = ctsub->captbl; /* commit */
+	*intern = (unsigned long)ctsub->captbl; /* commit */
 
 	return 0;
 }
@@ -128,8 +135,7 @@ static inline int
 cap_decons(struct captbl *t, capid_t cap, capid_t pruneid, unsigned long lvl)
 {
 	struct cap_header *head;
-	unsigned long **intern;
-	u32_t depth;
+	unsigned long *intern;
 
 	head = (struct cap_header *)captbl_lkup(t, cap);
 	if (unlikely(!head)) return -ENOENT;
@@ -139,15 +145,16 @@ cap_decons(struct captbl *t, capid_t cap, capid_t pruneid, unsigned long lvl)
 		intern = captbl_lkup_lvl(ct->captbl, pruneid, ct->lvl, lvl);
 	} else if (head->type == CAP_PGTBL) {
 		struct cap_pgtbl *pt = (struct cap_pgtbl *)head;
+		u32_t flags;
 		if (lvl <= pt->lvl) return -EINVAL;
-		intern = pgtbl_lkup_lvl(pt->pgtbl, pruneid, pt->lvl, lvl);
+		intern = pgtbl_lkup_lvl(pt->pgtbl, pruneid, &flags, pt->lvl, lvl);
 	} else {
 		return -EINVAL;
 	}
 	if (!intern) return -ENOENT;
-	if (*intern == NULL) return 0; /* return an error here? */
+	if (*intern == 0) return 0; /* return an error here? */
 	/* FIXME: should be cos_cas */
-	*intern = NULL; /* commit */
+	*intern = 0; /* commit; note that 0 is "no entry" in both pgtbl and captbl */
 
 	return 0;
 }
@@ -159,11 +166,10 @@ cap_decons(struct captbl *t, capid_t cap, capid_t pruneid, unsigned long lvl)
  */
 static inline int
 cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, 
-	capid_t cap_from, capdid_t capin_from, cap_t type)
+	capid_t cap_from, capid_t capin_from, cap_t type)
 {
 	struct cap_header *ctto, *ctfrom;
 	int sz, ret;
-	unsigned long flags;
 	cap_t cap_type;
 	
 	ctfrom = captbl_lkup(t, cap_from);
@@ -179,19 +185,21 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 		ctto = __cap_capactivate_pre(t, cap_to, capin_to, type, &ret);
 		if (!ctto) return -EINVAL;
 		memcpy(ctto->post, ctfrom->post, sz - sizeof(struct cap_header));
-		__cap_capactivate_post(ctto, type, ctfrom->h.poly);
+		__cap_capactivate_post(ctto, type, ctfrom->poly);
 	} else if (cap_type == CAP_PGTBL) {
-		unsigned long *f, *t;
+		unsigned long *f;
+		u32_t flags;
 
 		ctto = captbl_lkup(t, cap_to);
 		if (unlikely(!ctto)) return -ENOENT;
 		if (unlikely(ctto->type != cap_type)) return -EINVAL;
 
-		f = pgtbl_lkup(ctfrom->pgtbl, capin_from, &flags);
+		f = pgtbl_lkup(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
 		if (!f) return -ENOENT;
 		
 		/* TODO: validate the type is appropriate given the value of *flags */
-		ret = pgtbl_mapping_add(ctto->pgtbl, capin_to, *f & PGTBL_FRAME_MASK, flags);
+		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, 
+					capin_to, *f & PGTBL_FRAME_MASK, flags);
 	} else {
 		ret = -EINVAL;
 	}
