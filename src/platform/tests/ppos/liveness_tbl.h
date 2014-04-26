@@ -19,7 +19,6 @@ struct liveness_entry {
 	u64_t epoch, free_timestamp;
 };
 typedef struct liveness_entry ltbl_entry_t;
-#define LTBL_ENT_SZ  sizeof(struct livenss_entry)
 typedef u32_t livenessid_t;
 
 struct liveness_data {
@@ -50,7 +49,7 @@ static void *__ltbl_getleaf(struct ert_intern *a, void *accum)
 ERT_CREATE(__ltbl, ltbl, 1, 0, sizeof(int), LTBL_ENT_ORDER,		\
 	   sizeof(struct liveness_entry), 0, ert_definit,		\
 	   ert_defget, __ltbl_isnull, ert_defset, __ltbl_allocfn,	\
-	   __ltbl_setleaf, ert_defgetleaf, ert_defresolve);
+	   __ltbl_setleaf, __ltbl_getleaf, ert_defresolve);
 
 extern struct liveness_entry __liveness_tbl[LTBL_ENTS];
 #define LTBL_REF() ((struct ltbl *)__liveness_tbl)
@@ -99,8 +98,11 @@ ltbl_isfreeable(struct liveness_data *ld)
 static inline int
 ltbl_get(livenessid_t id, struct liveness_data *ld)
 {
+	u64_t *e;
 	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
-	ld->epoch = *(u64_t*)__ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth()+1, NULL);
+	e = (u64_t*)__ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth()+1, NULL);
+	assert(e);
+	ld->epoch = *e;
 	ld->id = id;
 	return 0;
 }

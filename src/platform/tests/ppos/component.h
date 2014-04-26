@@ -31,7 +31,7 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	struct cap_comp   *compc;
 	struct cap_pgtbl  *ptc;
 	struct cap_captbl *ctc;
-	int ret;
+	int ret = 0;
 
 	ctc = (struct cap_captbl *)captbl_lkup(t, captbl_cap);
 	if (unlikely(!ctc || ctc->h.type != CAP_CAPTBL || ctc->lvl > 0)) return -EINVAL;

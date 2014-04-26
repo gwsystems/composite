@@ -233,6 +233,8 @@ __captbl_store(unsigned long *addr, unsigned long new, unsigned long old)
 #define CTSTORE(a, n, o) __captbl_store((unsigned long *)a, *(unsigned long *)n, *(unsigned long *)o)
 #define cos_throw(label, errno) { ret = (errno); goto label; }
 
+#include <stdio.h>
+
 static inline struct cap_header *
 captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 { 
@@ -362,7 +364,6 @@ static struct captbl *
 captbl_create(void *page)
 {
 	struct captbl *ct;
-	struct cap_header *c;
 	int ret;
 
 	assert(page);
@@ -375,8 +376,6 @@ captbl_create(void *page)
 	captbl_init(&((char*)page)[PAGE_SIZE/2], 1);
 	ret = captbl_expand(ct, 0, captbl_maxdepth(), &((char*)page)[PAGE_SIZE/2]);
 	assert(!ret);
-	c = captbl_add(ct, 0, CAP_SRET, &ret);
-	assert(c && ret == 0 && (char*)c == &((char*)page)[PAGE_SIZE/2]);
 
 	return ct;
 }
