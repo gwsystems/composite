@@ -1,10 +1,16 @@
 #include <liveness_tbl.h>
 
-LTBL_ENT_TYPE __liveness_tbl[LTBL_ENTS];
+struct liveness_entry __liveness_tbl[LTBL_ENTS];
 
 void
 ltbl_init(void)
 {
 	int i;
-	for (i = 0 ; i < ; i++) __liveness_tbl[i] = 0;
+	u64_t tsc;
+	/* FIXME: rdtscll(tsc); */
+	tsc = 0;
+	for (i = 0 ; i < LTBL_ENTS ; i++) {
+		__liveness_tbl[i].epoch = 0;
+		__liveness_tbl[i].free_timestamp = tsc;
+	}
 }

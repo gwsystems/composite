@@ -34,9 +34,14 @@ typedef enum {
 	CAP_ASND,		/* async communication; sender */
 	CAP_ARCV,               /* async communication; receiver */
 	CAP_THD,                /* thread */
+	CAP_COMP,               /* component */
 	CAP_CAPTBL,             /* capability table */
 	CAP_PGTBL,              /* page-table */
+	CAP_FRAME, 		/* untyped frame within a page-table */
+	CAP_VM, 		/* mapped virtual memory within a page-table */
 } cap_t;
+typedef unsigned long capid_t;
+
 /* 
  * The values in this enum are the order of the size of the
  * capabilities in this cacheline, offset by CAP_SZ_OFF (to compress
@@ -63,12 +68,12 @@ __captbl_cap2sz(cap_t c)
 	switch (c) {
 	case CAP_CAPTBL: case CAP_THD:   
 	case CAP_PGTBL:  case CAP_SRET: return CAP_SZ_16B;
-	case CAP_SINV:                  return CAP_SZ_32B;
+	case CAP_SINV:   case CAP_COMP: return CAP_SZ_32B;
 	case CAP_ASND:   case CAP_ARCV: return CAP_SZ_64B;
 	default:                        return CAP_SZ_ERR;
 	}
 }
-static inline int __captbl_cap2bytes(cap_t c)
+static inline unsigned long __captbl_cap2bytes(cap_t c)
 { return 1<<(__captbl_cap2sz(c)+CAP_SZ_OFF); }
 
 typedef enum {
@@ -88,6 +93,7 @@ typedef enum {
  * capabilities in a cache-line, and the type of the capability.
  */
 struct cap_header {
+	u16_t       poly;
 	/* 
 	 * Size is only populated on cache-line-aligned entries.
 	 * Applies to all caps in that cache-line 
@@ -96,7 +102,6 @@ struct cap_header {
 	cap_sz_t    size  : CAP_HEAD_SZ_SZ; 	
 	cap_flags_t flags : CAP_HEAD_FLAGS_SZ;
 	cap_t       type  : CAP_HEAD_TYPE_SZ;
-	u16_t       poly;
 	u8_t        post[0];
 } __attribute__((packed));
 
@@ -181,15 +186,14 @@ __captbl_getleaf(struct ert_intern *a, void *accum)
 	return c; 
 }
 
-static inline void __captbl_setleaf(struct ert_intern *a, void *v)
-{ (void)a; (void)v; assert(0); }
+static inline int __captbl_setleaf(struct ert_intern *a, void *v)
+{ (void)a; (void)v; assert(0); return -1; }
 
 #define CT_DEFINITVAL NULL
-ERT_CREATE(__captbl, captbl, CAPTBL_DEPTH,				\
-	   CAPTBL_INTERN_ORD, CAPTBL_INTERNSZ,				\
-	   CAPTBL_LEAF_ORD, CAPTBL_LEAFSZ,				\
-	   CT_DEFINITVAL, __captbl_init, ert_defget, ert_defisnull, ert_defset,	\
-	   __captbl_allocfn, __captbl_setleaf, __captbl_getleaf, ert_defresolve);
+ERT_CREATE(__captbl, captbl, CAPTBL_DEPTH, CAPTBL_INTERN_ORD, CAPTBL_INTERNSZ,
+	   CAPTBL_LEAF_ORD, CAPTBL_LEAFSZ, CT_DEFINITVAL, __captbl_init, ert_defget,
+	   ert_defisnull, ert_defset, __captbl_allocfn, __captbl_setleaf,
+	   __captbl_getleaf, ert_defresolve);
 
 static struct captbl *captbl_alloc(void *page) { return __captbl_alloc(&page); }
 
@@ -209,16 +213,19 @@ __captbl_header_validate(struct cap_header *h, cap_sz_t sz)
 	return h->amap & ~mask;
 }
 
+static inline void *
+captbl_lkup_lvl(struct captbl *t, capid_t cap, u32_t start_lvl, u32_t end_lvl)
+{ 
+	if (unlikely(cap >= __captbl_maxid())) return NULL;
+	return __captbl_lkupani(t, cap, start_lvl, end_lvl, NULL); 
+}
+
 /* 
  * This function is the fast-path used for capability lookup in the
  * invocation path.
  */
-static inline struct cap_header *
-captbl_lkup(struct captbl *t, unsigned long cap)
-{ 
-	if (unlikely(cap >= __captbl_maxid())) return NULL;
-	return __captbl_lkupan(t, cap, CAPTBL_DEPTH+1, NULL); 
-}
+static inline struct cap_header *captbl_lkup(struct captbl *t, capid_t cap)
+{ return captbl_lkup_lvl(t, cap, 0, CAPTBL_DEPTH+1); }
 
 static inline int
 __captbl_store(unsigned long *addr, unsigned long new, unsigned long old)
@@ -226,8 +233,10 @@ __captbl_store(unsigned long *addr, unsigned long new, unsigned long old)
 #define CTSTORE(a, n, o) __captbl_store((unsigned long *)a, *(unsigned long *)n, *(unsigned long *)o)
 #define cos_throw(label, errno) { ret = (errno); goto label; }
 
+#include <stdio.h>
+
 static inline struct cap_header *
-captbl_add(struct captbl *t, unsigned long cap, cap_t type, int *retval)
+captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 { 
 	struct cap_header *p, *h;
 	struct cap_header l, o;
@@ -271,7 +280,7 @@ err:
 }
 
 static inline int
-captbl_del(struct captbl *t, unsigned long cap, cap_t type)
+captbl_del(struct captbl *t, capid_t cap, cap_t type)
 {
 	struct cap_header *p, *h;
 	struct cap_header l, o;
@@ -292,16 +301,13 @@ captbl_del(struct captbl *t, unsigned long cap, cap_t type)
 	if (unlikely(l.flags & CAP_FLAG_RO)) cos_throw(err, -EPERM);
 	if (unlikely(!(l.amap & (1<<off)))) cos_throw(err, -ENOENT);
 
-	/* FIXME: must remove the type of the deleted cap */
-
+	if (h == p) l.type  = CAP_FREE;
+	else        p->type = CAP_FREE;
+	/* FIXME: store barrier on non-x86 */
 	/* new map, removing the current allocation */
 	l.amap &= (~(1<<off)) & ((1<<CAP_HEAD_AMAP_SZ)-1);
 	if (l.amap == 0) l.size = CAP_SZ_64B; /* no active allocations... */
 	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
-	/* 
-	 * Note: we do not set p->type = CAP_FREE...ground truth for
-	 * this is in the amap.
-	 */
 err:
 	return ret;
 }
@@ -315,7 +321,7 @@ static inline u32_t captbl_maxdepth(void) { return __captbl_maxdepth(); }
  * (requiring more memory), and zero on unqualified success.
  */
 static inline int
-captbl_expand(struct captbl *t, unsigned long cap, u32_t depth, void *memctxt)
+captbl_expand(struct captbl *t, capid_t cap, u32_t depth, void *memctxt)
 {
 	int ret;
 
@@ -334,7 +340,7 @@ captbl_expand(struct captbl *t, unsigned long cap, u32_t depth, void *memctxt)
  * off all but the root.
  */
 static void *
-captbl_prune(struct captbl *t, unsigned long cap, u32_t depth, int *retval)
+captbl_prune(struct captbl *t, capid_t cap, u32_t depth, int *retval)
 {
 	void **intern, *p, *new;
 	int ret = 0;
@@ -358,7 +364,7 @@ static struct captbl *
 captbl_create(void *page)
 {
 	struct captbl *ct;
-	struct cap_header *c;
+	int ret;
 
 	assert(page);
 	ct = captbl_alloc(page);
@@ -370,86 +376,13 @@ captbl_create(void *page)
 	captbl_init(&((char*)page)[PAGE_SIZE/2], 1);
 	ret = captbl_expand(ct, 0, captbl_maxdepth(), &((char*)page)[PAGE_SIZE/2]);
 	assert(!ret);
-	c = captbl_add(ct, 0, CAP_SRET, &ret);
-	assert(c && ret == 0 && c == &((char*)page)[PAGE_SIZE/2]);
 
 	return ct;
 }
 
-static inline struct cap_captbl *
-__captbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, cap_t type, int *ret)
-{
-	struct cap_captbl *ct;
-	int ret;
-	
-	assert(toadd && lvl <= __captbl_maxdepth());
-	ct = captbl_lkup(t, cap);
-	if (unlikely(!ct)) return NULL;
-	if (unlikely(ct->type != CAP_CAPTBL)) return NULL;
-	return (struct cap_captbl *)captbl_add(ct, capin, type, ret);
-}
-
-static inline int
-__captbl_deactivate(struct captbl *t, unsigned long cap, unsigned long capin, cap_t type)
-{ 
-	struct cap_captbl *ct;
-	int ret;
-	
-	assert(toadd && lvl <= __captbl_maxdepth());
-	ct = captbl_lkup(t, cap);
-	if (unlikely(!ct)) return -ENOENT;
-	if (unlikely(ct->type != CAP_CAPTBL)) return -EINVAL;
-	return captbl_del(ct, capin, type); 
-}
-
-static inline int
-captbl_deactivate_captbl(struct captbl *t, unsigned long cap, unsigned long capin)
-{ return __captbl_deactivate(t, cap, capin, CAP_CAPTBL); }
-
-static inline int
-captbl_copy(struct captbl *t, unsigned long cap_to, unsigned long capin_to, 
-	    unsigned long cap_from, unsigned long capin_from, cap_t type)
-{
-	struct cap_captbl *ctto, *ctfrom;
-	int ret, sz;
-	
-	ctto = captbl_lkup(t, cap_to);
-	if (unlikely(!ctto)) return -ENOENT;
-	if (unlikely(ctto->h.type != CAP_CAPTBL)) return -EINVAL;
-	if (cap_to == cap_from) {
-		ctfrom = captbl_lkup(t, cap_from);
-		if (unlikely(!ctfrom)) return -ENOENT;
-		if (unlikely(ctfrom->h.type != CAP_CAPTBL)) return -EINVAL;
-	} else {
-		ctfrom = ctto;
-	}
-
-	ctfrom = captbl_lkup(ctfrom, capin_from);
-	if (unlikely(!ctfrom)) return -ENOENT;
-	if (unlikely(ctfrom->h.type != type)) return -EINVAL;
-	ctto = captbl_lkup(ctto, capin_to);
-	if (unlikely(!ctto)) return -ENOENT;
-	if (unlikely(ctto->h.type != type)) return -EINVAL;
-
-	sz = __captbl_cap2sz(type);
-	memcpy(ctto->h.post, ctfrom->h.post, sz - sizeof(struct cap_header));
-}
-
-static inline int
-captbl_activate_captbl(struct captbl *t, unsigned long cap, unsigned long capin, struct captbl *toadd, u32_t lvl)
-{
-	struct cap_captbl *ct;
-	int ret;
-	
-	ct = __captbl_activate(t, cap, capin, CAP_CAPTBL, &ret);
-	if (!ct) return ret;
-	ct->captbl = toadd;
-	ct->captbl = lvl;
-	ct->h.type = CAP_CAPTBL; /* commit the activation */
-
-	return 0;
-}
-
-static void cap_init(void) { return; }
+int captbl_activate(struct captbl *t, capid_t cap, capid_t capin, struct captbl *toadd, u32_t lvl);
+int captbl_deactivate(struct captbl *t, capid_t cap, capid_t  capin);
+int captbl_activate_boot(struct captbl *t, unsigned long cap);
+static void cap_init(void) {}
 
 #endif /* CAPTBL_H */
