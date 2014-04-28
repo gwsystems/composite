@@ -77,16 +77,20 @@ kern_boot_comp(void)
 	/* add the component's virtual memory at 4MB (1<<22) using "physical memory" starting at 0xADEAD000 */
 	for (i = 0 ; i < sys_llbooter_sz ; i++) {
 		u32_t addr = 0xADEAD000 + i*PAGE_SIZE;
+		u32_t flags;
 		assert(!cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
-					(1<<22) + i*PAGE_SIZE, 
-					addr, PGTBL_USER));
-		//assert(addr == pgtbl_lkup(ct->captbl));
+					BOOT_MEM_VM_BASE + i*PAGE_SIZE, 
+					addr, PGTBL_USER_DEF));
+		assert(addr == (u32_t)pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
 	}
 	/* add the system's physical memory at address 1GB */
 	for (i = 0 ; i < sys_maxmem ; i++) {
+		u32_t addr = i*PAGE_SIZE;
+		u32_t flags;
 		assert(!cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
-					(1<<30) + i*PAGE_SIZE, 
-					i*PAGE_SIZE, PGTBL_COSFRAME));
+					BOOT_MEM_PM_BASE + i*PAGE_SIZE, 
+					addr, PGTBL_COSFRAME));
+		assert(addr == (u32_t)pgtbl_lkup(pt, BOOT_MEM_PM_BASE+i*PAGE_SIZE, &flags));
 	}
 }
 

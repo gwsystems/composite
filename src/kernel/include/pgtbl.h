@@ -76,7 +76,7 @@ __pgtbl_setleaf(struct ert_intern *a, void *v)
 	u32_t old, new;
 
 	old = (u32_t)(a->next);
-	new = (u32_t)v;
+	new = (u32_t)chal_va2pa(v);
 
 	if (!cos_cas((unsigned long *)a, old, new)) return -1;
 	return 0;
