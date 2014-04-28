@@ -17,8 +17,9 @@ typedef signed long long s64_t;
 typedef unsigned long vaddr_t;
 typedef unsigned long paddr_t;
 
-static void *chal_va2pa(void *va) { return va; }
-static void *chal_pa2va(void *pa) { return pa; }
+#define PAVAOFF ((1<<30) * 3)
+static void *chal_va2pa(void *va) { return (void *)((u32_t)va - PAVAOFF); }
+static void *chal_pa2va(void *pa) { return (void *)((u32_t)pa + PAVAOFF); }
 
 #define HALF_CACHE_ALIGNED __attribute__((aligned(32)))
 #define CACHE_ALIGNED __attribute__((aligned(64)))

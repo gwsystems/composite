@@ -106,7 +106,7 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 	cap_type = ct->h.type;
 	if (unlikely(cap_type != CAP_CAPTBL && cap_type != CAP_PGTBL)) return -EINVAL;
 	ctsub = (struct cap_captbl *)captbl_lkup(t, capsub);
-	if (unlikely(!ctsub)) return -ENOENT;
+	if (unlikely(!ctsub))                    return -ENOENT;
 	if (unlikely(ctsub->h.type != cap_type)) return -EINVAL;
 	depth = ctsub->lvl;
 	if (depth == 0) return -EINVAL; /* subtree must not have a root */
@@ -114,14 +114,22 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 	assert(ct->captbl);
 	if (cap_type == CAP_CAPTBL) {
 		intern = captbl_lkup_lvl(ct->captbl, expandid, ct->lvl, ctsub->lvl);
+		if (!intern)      return -ENOENT;
+		if (*intern != 0) return -EPERM;
+		/* FIXME: should be cos_cas */
+		*intern = (unsigned long)ctsub->captbl; /* commit */
 	} else {
-		u32_t flags;
-		intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, ctsub->lvl);
+		u32_t flags = 0;
+		intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, depth);
+		if (!intern)                return -ENOENT;
+		if (pgtbl_ispresent(*intern)) return -EPERM;
+		/* 
+		 * FIXME: need a return value from _set on write
+		 * failure; assume ert_intern is essentially a long *.
+		 */
+		__pgtbl_set((struct ert_intern *)intern, 
+			    ((struct cap_pgtbl *)ctsub)->pgtbl, NULL, 0);
 	}
-	if (!intern) return -ENOENT;
-	if (*intern != 0) return -EPERM; /* FIXME: should use tbl-specific isnull */
-	/* FIXME: should be cos_cas */
-	*intern = (unsigned long)ctsub->captbl; /* commit */
 
 	return 0;
 }
