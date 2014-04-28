@@ -375,6 +375,19 @@ static inline int meas_heap_mcs(int cpu, unsigned long long tsc) {
         return 0;
 }
 
+static inline int meas_heap_ticket(int cpu, unsigned long long tsc) {
+	ck_spinlock_ticket_lock(&ticketlock);
+	es[cpu].value = (int)tsc;
+	heap_add(h, &es[cpu]);
+	ck_spinlock_ticket_unlock(&ticketlock);
+
+	ck_spinlock_ticket_lock(&ticketlock);
+	heap_remove(h, es[cpu].index);
+	ck_spinlock_ticket_unlock(&ticketlock);
+
+        return 0;
+}
+
 ///////////////list!
 #include <ck_queue.h>
 struct test {
@@ -400,6 +413,23 @@ static inline int meas_list(int cpu, unsigned long long tsc) {
 	return 0;
 }
 
+static inline int meas_list_mcs(int cpu, unsigned long long tsc) {
+        ck_spinlock_mcs_context_t node CACHE_ALIGNED;
+
+	struct test *a = &list_items[cpu];
+//	a->value = cpu;
+	//insert!
+        ck_spinlock_mcs_lock(&mcs_lock, &node);
+	CK_LIST_INSERT_HEAD(&head, a, list_entry);
+        ck_spinlock_mcs_unlock(&mcs_lock, &node);
+
+	//and remove.
+        ck_spinlock_mcs_lock(&mcs_lock, &node);
+	CK_LIST_REMOVE(a, list_entry);
+        ck_spinlock_mcs_unlock(&mcs_lock, &node);
+
+	return 0;
+}
 
 ///////////////hash table!
 #include <ck_ht.h>
@@ -804,6 +834,14 @@ static inline void go_par(int ncores) {
 	{
 		// per core below!
 		assert(j == omp_get_thread_num());
+		meas_op(meas_heap_ticket, "heap_ticket", rate_gap);
+	}
+
+#pragma omp parallel for
+	for (j = 0; j < ncores; j++)
+	{
+		// per core below!
+		assert(j == omp_get_thread_num());
 		meas_op(meas_heap_mcs, "heap_mcs", rate_gap);
 	}
 
@@ -813,6 +851,13 @@ static inline void go_par(int ncores) {
 		// per core below!
 		assert(j == omp_get_thread_num());
 		meas_op(meas_list, "list", rate_gap);
+	}
+#pragma omp parallel for
+	for (j = 0; j < ncores; j++)
+	{
+		// per core below!
+		assert(j == omp_get_thread_num());
+		meas_op(meas_list_mcs, "list_mcs", rate_gap);
 	}
 
 #pragma omp parallel for
