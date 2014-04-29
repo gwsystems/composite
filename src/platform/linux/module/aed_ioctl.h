@@ -86,6 +86,8 @@ struct spd_sched_info {
 #define AED_DISABLE_SYSCALLS _IO(0,19)
 #define AED_ENABLE_SYSCALLS  _IO(0,20)
 #define AED_RESTORE_HW_ENTRY _IO(0,21)
+#define AED_INIT_BOOT       _IOR(0, 22, unsigned long)
+
 
 #ifndef __KERNEL__
 
@@ -124,6 +126,19 @@ static inline int cos_create_spd(int cntl_fd, struct spd_info *spdi)
 
 	if ((ret = ioctl(cntl_fd, AED_CREATE_SPD, spdi)) < 0) {
 		perror("Could not create spd\n");
+		printf("ioctl returned %d\n", ret);
+		exit(-1);
+	}
+
+	return ret;
+}
+
+static inline int cos_init_booter(int cntl_fd, struct spd_info *spdi)
+{
+	int ret;
+
+	if ((ret = ioctl(cntl_fd, AED_INIT_BOOT, spdi)) < 0) {
+		perror("Could not initialize llbooter\n");
 		printf("ioctl returned %d\n", ret);
 		exit(-1);
 	}

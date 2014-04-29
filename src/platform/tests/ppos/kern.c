@@ -81,7 +81,7 @@ kern_boot_comp(void)
 		assert(!cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
 					BOOT_MEM_VM_BASE + i*PAGE_SIZE, 
 					addr, PGTBL_USER_DEF));
-		assert(addr == (u32_t)pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
+		assert(chal_pa2va(addr) == (u32_t)pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
 	}
 	/* add the system's physical memory at address 1GB */
 	for (i = 0 ; i < sys_maxmem ; i++) {
@@ -90,7 +90,7 @@ kern_boot_comp(void)
 		assert(!cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
 					BOOT_MEM_PM_BASE + i*PAGE_SIZE, 
 					addr, PGTBL_COSFRAME));
-		assert(addr == (u32_t)pgtbl_lkup(pt, BOOT_MEM_PM_BASE+i*PAGE_SIZE, &flags));
+		assert(chal_pa2va(addr) == (u32_t)pgtbl_lkup(pt, BOOT_MEM_PM_BASE+i*PAGE_SIZE, &flags));
 	}
 }
 
