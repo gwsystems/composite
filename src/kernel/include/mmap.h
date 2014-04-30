@@ -12,7 +12,8 @@
 #include "shared/consts.h"
 
 struct cos_page {
-	paddr_t addr;
+	/* paddr_t addr; */
+	//need ref_cnt for each frame here.
 };
 
 int cos_init_memory(void);

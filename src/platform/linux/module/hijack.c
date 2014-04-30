@@ -59,6 +59,10 @@
 
 #include "../../../kernel/include/chal.h"
 #include "../../../kernel/include/pgtbl.h"
+#include "../../../kernel/include/captbl.h"
+#include "../../../kernel/include/cap_ops.h"
+#include "../../../kernel/include/component.h"
+#include "../../../kernel/include/inv.h"
 
 #include "./kconfig_checks.h"
 
@@ -606,11 +610,95 @@ static void hw_reset(void *data)
 	hw_int_reset(get_cpu_var(x86_tss));
 }
 
+u8_t boot_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
+u8_t boot_comp_pgd[PAGE_SIZE]    PAGE_ALIGNED;
+u8_t boot_comp_pte_vm[PAGE_SIZE] PAGE_ALIGNED;
+u8_t boot_comp_pte_pm[PAGE_SIZE] PAGE_ALIGNED;
+
+unsigned long sys_maxmem      = 1<<10; /* 4M of physical memory (2^10 pages) */
+unsigned long sys_llbooter_sz = 10;    /* how many pages is the llbooter? */
+
+enum {
+	BOOT_CAPTBL_SRET = 0, 
+	BOOT_CAPTBL_SELF_CT = 1, 
+	BOOT_CAPTBL_SELF_PT = 2, 
+	BOOT_CAPTBL_SELF_COMP = 4, 
+	BOOT_CAPTBL_BOOTVM_PTE = 8, 
+	BOOT_CAPTBL_PHYSM_PTE = 9, 
+};
+
+enum {
+	BOOT_MEM_VM_BASE = 1<<22,
+	BOOT_MEM_PM_BASE = 1<<30,
+};
+
+static int
+kern_boot_comp(void)
+{
+	int ret;
+	struct captbl *ct;
+	pgtbl_t pt;
+	unsigned int i;
+
+	ct = captbl_create(boot_comp_captbl);
+	assert(ct);
+	pt = pgtbl_create(boot_comp_pgd);
+	assert(pt);
+	pgtbl_init_pte(boot_comp_pte_vm);
+	pgtbl_init_pte(boot_comp_pte_pm);
+
+	if (captbl_activate_boot(ct, BOOT_CAPTBL_SELF_CT)) cos_throw(err, -1);
+	if (sret_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SRET)) cos_throw(err, -1);
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, pt, 0)) cos_throw(err, -1);
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_BOOTVM_PTE, (pgtbl_t)boot_comp_pte_vm, 1)) cos_throw(err, -1);
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_PHYSM_PTE, (pgtbl_t)boot_comp_pte_pm, 1)) cos_throw(err, -1);
+	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, 
+			  BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0, 0x37337, NULL)) cos_throw(err, -1);
+
+	/* construct the page tables */
+	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, BOOT_MEM_VM_BASE)) cos_throw(err, -1);
+	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_PHYSM_PTE, BOOT_MEM_PM_BASE)) cos_throw(err, -1);
+
+	/* add the component's virtual memory at 4MB (1<<22) using "physical memory" starting at 0xADEAD000 */
+	for (i = 0 ; i < sys_llbooter_sz ; i++) {
+		u32_t addr = 0xADEAD000 + i*PAGE_SIZE;
+		u32_t flags;
+		if (cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
+				    BOOT_MEM_VM_BASE + i*PAGE_SIZE, 
+				    addr, PGTBL_USER_DEF)) cos_throw(err, -1);
+		assert(chal_pa2va(addr) == (u32_t)pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
+	}
+	/* add the system's physical memory at address 1GB */
+	for (i = 0 ; i < sys_maxmem ; i++) {
+		u32_t addr = COS_MEM_START + i*PAGE_SIZE;
+		u32_t flags;
+		if (cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
+				    BOOT_MEM_PM_BASE + i*PAGE_SIZE, 
+				    addr, PGTBL_COSFRAME)) cos_throw(err, -1);
+		assert(chal_pa2va(addr) == (u32_t)pgtbl_lkup(pt, BOOT_MEM_PM_BASE+i*PAGE_SIZE, &flags));
+	}
+	return 0;
+err:
+	printk("Activating data-structure failed.\n");
+	return ret;
+}
+
 static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
 
 	switch(cmd) {
+	case AED_INIT_BOOT:
+	{
+		cap_init();
+		ltbl_init();
+		comp_init();
+		thd_init();
+		inv_init();
+		if (kern_boot_comp()) return -1;
+
+		return 0;
+	}
 	case AED_CREATE_SPD:
 	{
 		struct spd_info spd_info;
@@ -734,7 +822,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 						     cap_info.ST_serv_entry, cap_info.AT_cli_stub, cap_info.AT_serv_stub,
 						     cap_info.SD_cli_stub, cap_info.SD_serv_stub, cap_info.il, cap_info.flags);
 		return cap_no;
-
 	}
 	case AED_CREATE_THD:
 	{
@@ -1306,9 +1393,25 @@ void *chal_alloc_page(void)
 	return page;
 }
 
+void *chal_alloc_kern_mem(int order)
+{
+	void *page = (void*)__get_free_pages(GFP_KERNEL, order);
+
+	if (!page) return NULL;
+
+	memset(page, 0, PAGE_SIZE * (1<<order));
+
+	return page;
+}
+
 void chal_free_page(void *page)
 {
 	free_pages((unsigned long int)page, 0);
+}
+
+void chal_free_kern_mem(void *mem, int order)
+{
+	free_pages((unsigned long int)mem, order);
 }
 
 /*
