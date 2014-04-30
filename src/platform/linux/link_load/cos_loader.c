@@ -1695,6 +1695,7 @@ static void gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *servic
 	return;
 }
 
+static u32_t llboot_mem;
 /*
  * Load into the current address space all of the services.  
  *
@@ -1710,11 +1711,11 @@ static int load_all_services(struct service_symbs *services)
 	unsigned long service_addr = BASE_SERVICE_ADDRESS;
 	long sz;
 
-//	service_addr += DEFAULT_SERVICE_SIZE;
-
 	while (services) {
 		sz = load_service(services, service_addr, DEFAULT_SERVICE_SIZE);
 		if (!sz) return -1;
+
+		if (strstr(services->obj, LLBOOT_COMP)) llboot_mem = sz;
 
 		service_addr += DEFAULT_SERVICE_SIZE;
 		/* note this works for the llbooter and root memory manager too */
@@ -2710,6 +2711,11 @@ static void setup_kernel(struct service_symbs *services)
 			} else {
 				t_spd = create_spd(cntl_fd, t, t->lower_addr, t->size);
 			}
+			if (strstr(s->obj, LLBOOT_COMP)) {
+				t_spd->mem_size = llboot_mem;
+				cos_init_booter(cntl_fd, t_spd);
+			}
+
 			if (!t_spd) {
 				fprintf(stderr, "\tCould not find service object.\n");
 				exit(-1);
@@ -2755,8 +2761,8 @@ static void setup_kernel(struct service_symbs *services)
 	if ((s = find_obj_by_name(services, LLBOOT_COMP))) {
 		make_spd_llboot(s, services);
 		make_spd_scheduler(cntl_fd, s, NULL);
-		cos_init_booter(cntl_fd);
 	} 
+
 	fflush(stdout);
 	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;
 

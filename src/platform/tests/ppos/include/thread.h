@@ -11,7 +11,6 @@
 #include "component.h"
 #include <cap_ops.h>
 
-typedef u16_t thdid_t;
 #define THD_INVSTK_MAXSZ 32
 
 struct invstk_entry {

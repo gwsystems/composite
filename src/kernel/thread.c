@@ -156,7 +156,7 @@ void
 thd_init(void)
 {
         thd_init_all(threads);
-        /* current_thread = NULL; // Not used anymore */
+	assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD)); 
 }
 
 extern int host_in_syscall(void);

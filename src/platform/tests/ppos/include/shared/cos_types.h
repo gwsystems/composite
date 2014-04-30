@@ -19,6 +19,8 @@ typedef signed short int s16_t;
 typedef signed int       s32_t;
 typedef signed long long s64_t;
 
+typedef u16_t thdid_t;
+
 typedef unsigned long vaddr_t;
 typedef unsigned long paddr_t;
 

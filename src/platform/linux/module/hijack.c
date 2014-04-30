@@ -690,6 +690,16 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	switch(cmd) {
 	case AED_INIT_BOOT:
 	{
+		struct spd_info spd_info;
+		int i;
+		if (copy_from_user(&spd_info, (void*)arg, 
+				   sizeof(struct spd_info))) {
+			printk("cos: Error copying spd_info from user.\n");
+			return -EFAULT;
+		}
+		
+//		printk("addr %x, sz %d, %d\n", spd_info.lowest_addr, spd_info.size, spd_info.mem_size);
+
 		cap_init();
 		ltbl_init();
 		comp_init();

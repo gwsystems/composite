@@ -50,6 +50,7 @@ struct spd_info {
 	vaddr_t ucap_tbl;
 	unsigned long lowest_addr;
 	unsigned long size;
+	unsigned long mem_size;
 	vaddr_t upcall_entry;
 	vaddr_t atomic_regions[10];
 };
@@ -133,11 +134,11 @@ static inline int cos_create_spd(int cntl_fd, struct spd_info *spdi)
 	return ret;
 }
 
-static inline int cos_init_booter(int cntl_fd)
+static inline int cos_init_booter(int cntl_fd, struct spd_info *spdi)
 {
 	int ret;
 
-	if ((ret = ioctl(cntl_fd, AED_INIT_BOOT, 0)) < 0) {
+	if ((ret = ioctl(cntl_fd, AED_INIT_BOOT, spdi)) < 0) {
 		perror("Could not initialize llbooter\n");
 		printf("ioctl returned %d\n", ret);
 		exit(-1);
