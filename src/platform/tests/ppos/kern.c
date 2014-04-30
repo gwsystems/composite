@@ -23,6 +23,9 @@ u8_t thdinit[PAGE_SIZE]          PAGE_ALIGNED;
 unsigned long sys_maxmem      = 1<<10; /* 4M of physical memory (2^10 pages) */
 unsigned long sys_llbooter_sz = 10;    /* how many pages is the llbooter? */
 
+struct thread *__thd_current;
+unsigned long  __cr3_contents;
+
 /* 
  * Initial captbl setup:  
  * 0 = sret, 
@@ -64,6 +67,7 @@ enum {
 void
 kern_boot_comp(void)
 {
+	struct pt_regs regs;
 	struct captbl *ct, *ct0;
 	pgtbl_t pt, pt0 = 0;
 	unsigned int i;
@@ -126,9 +130,22 @@ kern_boot_comp(void)
 	assert(!sinv_activate(ct, BOOT_CAPTBL_COMP0_CT, 0, BOOT_CAPTBL_SELF_COMP, 0xADD44343));
 
 	/* 
-	 * Create a thread in comp0
+	 * Create a thread in comp0.
 	 */
 	assert(!thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD, thd, BOOT_CAPTBL_COMP0_COMP));
+	thd_current_update(thd);
+
+	/* 
+	 * Synchronous invocation!
+	 */
+	regs.ax = 0;		/* sinv */
+	syscall_handler(&regs);
+	assert(thd->invstk_top > 0);
+	assert(__cr3_contents);
+	regs.ax = 0; 		/* sret */
+	syscall_handler(&regs);
+	assert(thd->invstk_top == 0);
+	assert(!__cr3_contents);
 }
 
 void 

@@ -6,6 +6,9 @@
 #ifndef unlikely
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 #endif
+#ifndef likely
+#define likely(x)     __builtin_expect(!!(x), 1)
+#endif
 
 typedef unsigned char      u8_t;
 typedef unsigned short int u16_t;
@@ -26,6 +29,10 @@ static void *chal_pa2va(void *pa) { return (void *)((u32_t)pa + PAVAOFF); }
 #define HALF_CACHE_ALIGNED __attribute__((aligned(32)))
 #define CACHE_ALIGNED __attribute__((aligned(64)))
 #define PAGE_ALIGNED __attribute__((aligned(4096)))
+
+struct pt_regs {
+	unsigned long ax, bx, cx, dx, bp, sp, ip;
+};
 
 #include <stdlib.h>
 #include <assert.h>

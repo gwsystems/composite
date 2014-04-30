@@ -12,6 +12,7 @@
 #include <cap_ops.h>
 
 typedef u16_t thdid_t;
+#define THD_INVSTK_MAXSZ 32
 
 struct invstk_entry {
 	struct comp_info comp_info;
@@ -23,7 +24,7 @@ struct thread {
 	thdid_t tid;
 	int refcnt, invstk_top;
 	struct comp_info comp_info; /* which scheduler to notify of events? FIXME: ignored for now */
-	struct invstk_entry invstk[32];
+	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
 	/* gp and fp registers */
 };
 
@@ -63,6 +64,54 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 
 static int thd_deactivate(struct captbl *t, unsigned long cap, unsigned long capin)
 { return cap_capdeactivate(t, cap, capin, CAP_THD); }
+
+extern struct thread *__thd_current;
+static inline struct thread *thd_current(void) 
+{ return __thd_current; }
+
+static inline void thd_current_update(struct thread *thd)
+{ __thd_current = thd; }
+
+static inline struct comp_info *
+thd_invstk_current(struct thread *thd, unsigned long *ip, unsigned long *sp)
+{
+	struct invstk_entry *curr;
+
+	/* 
+	 * TODO: will be worth caching the invocation stack top along
+	 * with the current thread pointer to avoid the invstk_top
+	 * cacheline access.
+	 */
+	curr = &thd->invstk[thd->invstk_top];
+	*ip = curr->ip;
+	*sp = curr->sp;
+	return &curr->comp_info;
+}
+
+static inline int
+thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsigned long sp)
+{
+	struct invstk_entry *top, *prev;
+
+	prev = &thd->invstk[thd->invstk_top];
+	top  = &thd->invstk[thd->invstk_top+1];
+	if (unlikely(thd->invstk_top >= THD_INVSTK_MAXSZ)) return -1;
+	thd->invstk_top++;
+	prev->ip = ip;
+	prev->sp = sp;
+	memcpy(&top->comp_info, ci, sizeof(struct comp_info));
+	top->ip  = top->sp = 0;
+
+	return 0;
+}
+
+static inline struct comp_info *
+thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp)
+{
+	if (unlikely(thd->invstk_top == 0)) return NULL;
+	thd->invstk_top--;
+	return thd_invstk_current(thd, ip, sp);
+}
 
 void thd_init(void)
 { assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD)); }

@@ -282,6 +282,10 @@ pgtbl_lookup(pgtbl_t pt, u32_t addr, u32_t *flags)
 	return (paddr_t)chal_va2pa(ret);
 }
 
+extern unsigned long __cr3_contents;
+static void pgtbl_update(pgtbl_t pt)
+{ __cr3_contents = (unsigned long)pt; }
+
 /* vaddr -> kaddr */
 static vaddr_t pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
 { return (vaddr_t)pgtbl_lkup(pt, addr, flags); }
