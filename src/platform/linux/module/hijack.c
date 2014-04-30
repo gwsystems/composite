@@ -698,7 +698,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		}
 		
-//		printk("addr %x, sz %d, %d\n", spd_info.lowest_addr, spd_info.size, spd_info.mem_size);
+		printk("addr %x, sz %d\n", spd_info.lowest_addr, spd_info.mem_size);
 
 		cap_init();
 		ltbl_init();

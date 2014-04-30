@@ -345,6 +345,8 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 void cos_init(void);
 int sched_init(void)   
 {
+	printc("in llboot\n");
+	return 0;
 	if (cos_cpuid() == INIT_CORE) {
 		/* We can't do shared memory in LLBooter. It uses
 		 * Linux allocated memory. Thus the following. */
