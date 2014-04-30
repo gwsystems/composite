@@ -8,8 +8,8 @@
 #ifndef COMPONENT_H
 #define COMPONENT_H
 
-#include <liveness_tbl.h>
-#include <captbl.h>
+#include "liveness_tbl.h"
+#include "captbl.h"
 
 struct comp_info {
 	struct liveness_data liveness;

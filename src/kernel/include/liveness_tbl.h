@@ -10,8 +10,8 @@
 #ifndef LIVENESS_TBL_H
 #define LIVENESS_TBL_H
 
-#include "include/shared/cos_types.h"
-#include <ertrie.h>
+#include "shared/cos_types.h"
+#include "ertrie.h"
 
 #define LTBL_ENT_ORDER 10
 #define LTBL_ENTS (1<<10)

@@ -52,7 +52,9 @@ struct usr_cap_stubs {
 	vaddr_t AT_cli_stub, AT_serv_stub;
 };
 
+#ifndef CAP_FREE
 #define CAP_FREE NULL
+#endif
 #define CAP_ALLOCATED_UNUSED ((void*)1)
 
 /* 

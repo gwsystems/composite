@@ -27,6 +27,10 @@
 #define CAPTBL_LEAFSZ     (sizeof(struct cap_min))
 #define CAPTBL_LEAF_ORD   7 /* log(PAGE_SIZE/(2*CAPTBL_LEAFSZ)) */
 
+#ifdef CAP_FREE
+#undef CAP_FREE
+#endif
+
 typedef enum {
 	CAP_FREE = 0,
 	CAP_SINV,		/* synchronous communication -- invoke */
@@ -40,6 +44,7 @@ typedef enum {
 	CAP_FRAME, 		/* untyped frame within a page-table */
 	CAP_VM, 		/* mapped virtual memory within a page-table */
 } cap_t;
+
 typedef unsigned long capid_t;
 
 /* 
@@ -233,7 +238,7 @@ __captbl_store(unsigned long *addr, unsigned long new, unsigned long old)
 #define CTSTORE(a, n, o) __captbl_store((unsigned long *)a, *(unsigned long *)n, *(unsigned long *)o)
 #define cos_throw(label, errno) { ret = (errno); goto label; }
 
-#include <stdio.h>
+//#include <stdio.h>
 
 static inline struct cap_header *
 captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)

@@ -22,7 +22,7 @@ struct cbuf_info {
 	cbufp_t cb;
 	int sz, off;
 };
-CK_RING(cbuf_info, cb_buffer);
+CK_RING_PROTOTYPE(cb_buffer, cbuf_info);
 enum {
 	SERV   = 0,
 	CLIENT = 1
@@ -32,7 +32,8 @@ struct as_conn {
 	spdid_t owner;
 	int     status;
 	struct torrent *ts[2];
-	CK_RING_INSTANCE(cb_buffer) cbs[2];
+	struct ck_ring cbs[2];
+	struct cbuf_info *buffer[2];
 	struct as_conn *next, *prev;
 };
 
@@ -51,7 +52,7 @@ __mbox_remove_cbufp(struct as_conn *ac)
 		struct cbuf_info cbi;
 		void *addr;
 
-		while (CK_RING_DEQUEUE_SPSC(cb_buffer, &ac->cbs[i], &cbi)) {
+		while (CK_RING_DEQUEUE_SPSC(cb_buffer, &ac->cbs[i], ac->buffer[i],&cbi)) {
 			addr = cbufp2buf(cbi.cb, cbi.sz);
 			assert(addr);
 			cbufp_deref(cbi.cb);
@@ -148,7 +149,6 @@ static int
 mbox_create_client(struct torrent *t, struct as_conn_root *acr)
 {
 	struct as_conn *ac;
-	struct cbuf_info *buffer[2];
 	int i, ret = 0;
 	assert(!t->data);
 	
@@ -159,8 +159,9 @@ mbox_create_client(struct torrent *t, struct as_conn_root *acr)
 	ac->ts[CLIENT] = t;
 	t->data = ac;
 	for (i = 0 ; i < 2 ; i++) {
-		buffer[i] = alloc_page();
-		CK_RING_INIT(cb_buffer, &ac->cbs[i], buffer[i], MBOX_BUFFER_SIZE);
+		ac->buffer[i] = alloc_page();
+		ck_ring_init(&ac->cbs[i], leqpow2(PAGE_SIZE / sizeof(struct cbuf_info)));
+
 	}
 	ADD_END_LIST(&acr->cs, ac, next, prev);
 	if (acr->t) evt_trigger(cos_spd_id(), acr->t->evtid);
@@ -181,7 +182,7 @@ mbox_put(struct torrent *t, cbufp_t cb, int sz, int off, int ep)
 	cbi.cb  = cb;
 	cbi.sz  = sz;
 	cbi.off = off;
-	ret = CK_RING_ENQUEUE_SPSC(cb_buffer, &ac->cbs[ep], &cbi);
+	ret = CK_RING_ENQUEUE_SPSC(cb_buffer, &ac->cbs[ep], ac->buffer[ep], &cbi);
 	if (ret == 0) return -EALREADY;
 	evt_trigger(cos_spd_id(), ac->ts[other_ep]->evtid);
 	return ret;
@@ -196,7 +197,7 @@ mbox_get(struct torrent *t, int *sz, int *off, int ep)
 	cbufp_t cb;
 
 	ac  = t->data;
-	if (!CK_RING_DEQUEUE_SPSC(cb_buffer, &ac->cbs[other_ep], &cbi)) {
+	if (!CK_RING_DEQUEUE_SPSC(cb_buffer, &ac->cbs[other_ep], ac->buffer[ep], &cbi)) {
 		if (ac->status) return ac->status;
 		return -EAGAIN;
 	}
@@ -329,8 +330,8 @@ trelease(spdid_t spdid, td_t td)
 			  free(rb->b);
 			  rb = &ac->rbs[1];
 			  free(rb->b);*/
-			free(ac->cbs[0].ring);
-			free(ac->cbs[1].ring);
+			free(ac->buffer[0]);
+			free(ac->buffer[1]);
 			free(ac);
 		}
 	}

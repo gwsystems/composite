@@ -8,7 +8,7 @@
 #ifndef INV_H
 #define INV_H
 
-#include <component.h>
+#include "component.h"
 
 /* Note: h.poly is the u16_t that is passed up to the component as spdid (in the current code) */
 struct cap_sinv {

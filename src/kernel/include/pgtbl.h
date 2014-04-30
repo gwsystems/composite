@@ -12,6 +12,10 @@
 #include "shared/util.h"
 #include "captbl.h"
 
+#ifndef LINUX_TEST
+#include "chal.h"
+#endif
+
 enum {
 	PGTBL_PRESENT      = 1,
 	PGTBL_WRITABLE     = 1<<1,
@@ -69,6 +73,12 @@ __pgtbl_init(struct ert_intern *a, int isleaf)
 	a->next = NULL;
 }
 
+/* We only need to do mapping_add at boot time to add all physical
+ * memory to the pgtbl of llboot. After that, we only need to do copy
+ * from llboot pgtbl to other pgtbls. Thus, when adding to pgtbl, we
+ * use physical addresses; when doing copy, we don't need to worry
+ * about PA. */
+
 /* v should include the desired flags */
 static inline int 
 __pgtbl_setleaf(struct ert_intern *a, void *v)
@@ -76,7 +86,7 @@ __pgtbl_setleaf(struct ert_intern *a, void *v)
 	u32_t old, new;
 
 	old = (u32_t)(a->next);
-	new = (u32_t)chal_va2pa(v);
+	new = (u32_t)(v);
 
 	if (!cos_cas((unsigned long *)a, old, new)) return -1;
 	return 0;
@@ -253,6 +263,14 @@ pgtbl_lkup(pgtbl_t pt, u32_t addr, u32_t *flags)
 			     addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH+1, flags);
 	if (!pgtbl_ispresent(*flags)) return NULL;
 	return ret;
+}
+
+/* Return the pointer of the pte.  */
+static unsigned long *
+pgtbl_lkup_pte(pgtbl_t pt, u32_t addr, u32_t *flags) 
+{
+	return __pgtbl_lkupan((pgtbl_t)((unsigned long)pt | PGTBL_PRESENT), 
+			      addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, flags);
 }
 
 /* FIXME: remove this function.  Why do we need a paddr lookup??? */

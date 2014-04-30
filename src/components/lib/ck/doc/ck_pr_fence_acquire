@@ -1,5 +1,5 @@
 .\"
-.\" Copyright 2012-2013 Samy Al Bahra.
+.\" Copyright 2014 Samy Al Bahra.
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -24,34 +24,49 @@
 .\" SUCH DAMAGE.
 .\"
 .\"
-.Dd April 22, 2012
-.Dt CK_BITMAP_SET_MPMC 3
+.Dd January 2, 2014
+.Dt CK_PR_FENCE_ACQUIRE 3
 .Sh NAME
-.Nm ck_bitmap_set_mpmc
-.Nd set the bit at the specified index
+.Nm ck_pr_fence_acquire
+.Nd enforce acquire semantics
 .Sh LIBRARY
 Concurrency Kit (libck, \-lck)
 .Sh SYNOPSIS
-.In ck_bitmap.h
+.In ck_pr.h
 .Ft void
-.Fn ck_bitmap_set_mpmc "ck_bitmap_t *bitmap" "unsigned int n"
+.Fn ck_pr_fence_acquire void
 .Sh DESCRIPTION
-The
-.Fn ck_bitmap_set_mpmc
-sets the bit at offset specified by the argument
-.Fa n
-to
-.Dv 1 .
+This function enforces the partial ordering of any loads prior
+to invocation with respect to any following stores, loads and
+atomic operations. It is typically used to implement critical
+sections.
 .Sh RETURN VALUES
 This function has no return value.
 .Sh SEE ALSO
-.Xr ck_bitmap_base 3 ,
-.Xr ck_bitmap_size 3 ,
-.Xr ck_bitmap_init 3 ,
-.Xr ck_bitmap_reset_mpmc 3 ,
-.Xr ck_bitmap_clear 3 ,
-.Xr ck_bitmap_test 3 ,
-.Xr ck_bitmap_bits 3 ,
-.Xr ck_bitmap_buffer 3
+.Xr ck_pr_stall 3 ,
+.Xr ck_pr_fence_atomic 3 ,
+.Xr ck_pr_fence_atomic_store 3 ,
+.Xr ck_pr_fence_atomic_load 3 ,
+.Xr ck_pr_fence_release 3 ,
+.Xr ck_pr_fence_store 3 ,
+.Xr ck_pr_fence_memory 3 ,
+.Xr ck_pr_barrier 3 ,
+.Xr ck_pr_fas 3 ,
+.Xr ck_pr_load 3 ,
+.Xr ck_pr_store 3 ,
+.Xr ck_pr_faa 3 ,
+.Xr ck_pr_inc 3 ,
+.Xr ck_pr_dec 3 ,
+.Xr ck_pr_neg 3 , 
+.Xr ck_pr_not 3 ,
+.Xr ck_pr_add 3 ,
+.Xr ck_pr_sub 3 ,
+.Xr ck_pr_and 3 ,
+.Xr ck_pr_or 3 ,
+.Xr ck_pr_xor 3 ,
+.Xr ck_pr_cas 3 ,
+.Xr ck_pr_btc 3 ,
+.Xr ck_pr_bts 3 ,
+.Xr ck_pr_btr 3
 .Pp
 Additional information available at http://concurrencykit.org/
