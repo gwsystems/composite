@@ -9,6 +9,7 @@ DIR=array	\
     fifo	\
     hp		\
     hs		\
+    rhs		\
     ht		\
     pflock	\
     pr		\
@@ -17,7 +18,8 @@ DIR=array	\
     rwlock	\
     sequence	\
     spinlock	\
-    stack
+    stack	\
+    tflock
 
 .PHONY: all clean check
 
@@ -40,6 +42,8 @@ all:
 	$(MAKE) -C ./ck_pr/benchmark all
 	$(MAKE) -C ./ck_hs/benchmark all
 	$(MAKE) -C ./ck_hs/validate all
+	$(MAKE) -C ./ck_rhs/benchmark all
+	$(MAKE) -C ./ck_rhs/validate all
 	$(MAKE) -C ./ck_barrier/validate all
 	$(MAKE) -C ./ck_barrier/benchmark all
 	$(MAKE) -C ./ck_bytelock/validate all
@@ -55,6 +59,8 @@ all:
 	$(MAKE) -C ./ck_ring/benchmark all
 	$(MAKE) -C ./ck_rwlock/validate all
 	$(MAKE) -C ./ck_rwlock/benchmark all
+	$(MAKE) -C ./ck_tflock/validate all
+	$(MAKE) -C ./ck_tflock/benchmark all
 	$(MAKE) -C ./ck_pflock/validate all
 	$(MAKE) -C ./ck_pflock/benchmark all
 	$(MAKE) -C ./ck_hp/validate all
@@ -64,6 +70,8 @@ clean:
 	$(MAKE) -C ./ck_array/validate clean
 	$(MAKE) -C ./ck_pflock/validate clean
 	$(MAKE) -C ./ck_pflock/benchmark clean
+	$(MAKE) -C ./ck_tflock/validate clean
+	$(MAKE) -C ./ck_tflock/benchmark clean
 	$(MAKE) -C ./ck_rwcohort/validate clean
 	$(MAKE) -C ./ck_rwcohort/benchmark clean
 	$(MAKE) -C ./ck_backoff/validate clean
@@ -76,6 +84,8 @@ clean:
 	$(MAKE) -C ./ck_ht/benchmark clean
 	$(MAKE) -C ./ck_hs/validate clean
 	$(MAKE) -C ./ck_hs/benchmark clean
+	$(MAKE) -C ./ck_rhs/validate clean
+	$(MAKE) -C ./ck_rhs/benchmark clean
 	$(MAKE) -C ./ck_brlock/benchmark clean
 	$(MAKE) -C ./ck_spinlock/validate clean
 	$(MAKE) -C ./ck_spinlock/benchmark clean

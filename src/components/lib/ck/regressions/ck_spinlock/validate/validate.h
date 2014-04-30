@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2013 Samy Al Bahra.
+ * Copyright 2011-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -63,8 +63,9 @@ thread(void *null CK_CC_UNUSED)
 #endif
 	unsigned int i = ITERATE;
 	unsigned int j;
+	unsigned int core;
 
-        if (aff_iterate(&a)) {
+        if (aff_iterate_core(&a, &core)) {
                 perror("ERROR: Could not affine thread");
                 exit(EXIT_FAILURE);
         }

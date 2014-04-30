@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2013 Samy Al Bahra.
+ * Copyright 2011-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -144,6 +144,8 @@ main(int argc, char *argv[])
 	assert(thread);
 
 	for (i = 0; i < nthr; i++) {
+		ck_fifo_spsc_entry_t *garbage;
+
 		context[i].tid = i;
 		if (i == 0) {
 			context[i].previous = nthr - 1;
@@ -157,6 +159,12 @@ main(int argc, char *argv[])
 		}
 
 		ck_fifo_spsc_init(fifo + i, malloc(sizeof(ck_fifo_spsc_entry_t)));
+		ck_fifo_spsc_deinit(fifo + i, &garbage);
+		if (garbage == NULL)
+			ck_error("ERROR: Expected non-NULL stub node on deinit.\n");
+
+		free(garbage);
+		ck_fifo_spsc_init(fifo + i, malloc(sizeof(ck_fifo_spsc_entry_t)));
 		r = pthread_create(thread + i, NULL, test, context + i);
 		assert(r == 0);
 	}
@@ -166,3 +174,4 @@ main(int argc, char *argv[])
 
 	return (0);
 }
+

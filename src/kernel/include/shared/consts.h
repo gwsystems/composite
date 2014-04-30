@@ -100,8 +100,9 @@ struct pt_regs {
 #define COS_NUM_ATOMIC_SECTIONS 10
 
 /* # of pages */
-#define COS_MAX_MEMORY    (64*1024)  /* vas extents now support up to 254MB */ 
-#define COS_KERNEL_MEMORY (1*1024)   /* kernel memory */ 
+#define COS_MAX_MEMORY    (64*1024)  /* # of pages. vas extents now support up to 254MB */ 
+#define KERN_MEM_ORDER    (9)        /* should be fine when <= 10 */
+#define COS_KERNEL_MEMORY (1 << KERN_MEM_ORDER)   /* 2^n pages kernel memory */
 
 #include "../asm_ipc_defs.h"
 

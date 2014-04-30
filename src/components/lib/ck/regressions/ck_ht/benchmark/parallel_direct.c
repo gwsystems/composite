@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2013 Samy Al Bahra.
+ * Copyright 2012-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -280,6 +280,7 @@ main(int argc, char *argv[])
 	if (argc < 2) {
 		fprintf(stderr, "Usage: parallel <#entries> [<interval length> <initial size> <readers>\n"
 		    " <probability of replacement> <probability of deletion> <epoch threshold>]\n");
+		exit(EXIT_FAILURE);
 	}
 
 	if (argc >= 3)

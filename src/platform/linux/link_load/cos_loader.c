@@ -2755,6 +2755,7 @@ static void setup_kernel(struct service_symbs *services)
 	if ((s = find_obj_by_name(services, LLBOOT_COMP))) {
 		make_spd_llboot(s, services);
 		make_spd_scheduler(cntl_fd, s, NULL);
+		cos_init_booter(cntl_fd);
 	} 
 	fflush(stdout);
 	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;

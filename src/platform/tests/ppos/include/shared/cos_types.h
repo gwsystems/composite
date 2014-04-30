@@ -1,6 +1,8 @@
 #ifndef COS_TYPES_T
 #define COS_TYPES_T
 
+#define LINUX_TEST
+
 #ifndef unlikely
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 #endif

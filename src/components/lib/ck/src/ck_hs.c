@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2013 Samy Al Bahra.
+ * Copyright 2012-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -76,7 +76,8 @@
 
 enum ck_hs_probe_behavior {
 	CK_HS_PROBE = 0,	/* Default behavior. */
-	CK_HS_PROBE_TOMBSTONE	/* Short-circuit on tombstone. */
+	CK_HS_PROBE_TOMBSTONE,	/* Short-circuit on tombstone. */
+	CK_HS_PROBE_INSERT	/* Short-circuit on probe bound if tombstone found. */
 };
 
 struct ck_hs_map {
@@ -305,7 +306,6 @@ ck_hs_grow(struct ck_hs *hs,
 
 restart:
 	map = hs->map;
-
 	if (map->capacity > capacity)
 		return false;
 
@@ -390,7 +390,7 @@ ck_hs_map_probe(struct ck_hs *hs,
 	void **bucket, **cursor, *k;
 	const void *compare;
 	void **pr = NULL;
-	unsigned long offset, j, i, probes;
+	unsigned long offset, j, i, probes, opl;
 
 #ifdef CK_HS_PP
 	/* If we are storing object pointers, then we may leverage pointer packing. */
@@ -410,6 +410,10 @@ ck_hs_map_probe(struct ck_hs *hs,
 	*object = NULL;
 	i = probes = 0;
 
+	opl = probe_limit;
+	if (behavior == CK_HS_PROBE_INSERT)
+		probe_limit = ck_hs_map_bound_get(map, h);
+
 	for (;;) {
 		bucket = (void **)((uintptr_t)&map->entries[offset] & ~(CK_MD_CACHELINE - 1));
 
@@ -417,8 +421,16 @@ ck_hs_map_probe(struct ck_hs *hs,
 			cursor = bucket + ((j + offset) & (CK_HS_PROBE_L1 - 1));
 
 			if (probes++ == probe_limit) {
-				k = CK_HS_EMPTY;
-				goto leave;
+				if (probe_limit == opl || pr != NULL) {
+					k = CK_HS_EMPTY;
+					goto leave;
+				}
+
+				/*
+				 * If no eligible slot has been found yet, continue probe
+				 * sequence with original probe limit.
+				 */
+				probe_limit = opl;
 			}
 
 			k = ck_pr_load_ptr(cursor);
@@ -498,18 +510,33 @@ ck_hs_marshal(unsigned int mode, const void *key, unsigned long h)
 bool
 ck_hs_gc(struct ck_hs *hs, unsigned long cycles, unsigned long seed)
 {
-	unsigned long size, i;
+	unsigned long size = 0;
+	unsigned long i;
 	struct ck_hs_map *map = hs->map;
-	unsigned int maximum = map->probe_maximum;
+	unsigned int maximum;
 	CK_HS_WORD *bounds = NULL;
 
-	if (cycles == 0 && map->probe_bound != NULL) {
-		size = sizeof(CK_HS_WORD) * map->capacity;
-		bounds = hs->m->malloc(size);
-		if (bounds == NULL)
-			return false;
+	if (map->n_entries == 0) {
+		ck_pr_store_uint(&map->probe_maximum, 0);
+		if (map->probe_bound != NULL)
+			memset(map->probe_bound, 0, sizeof(CK_HS_WORD) * map->capacity);
 
-		memset(bounds, 0, size);
+		return true;
+	}
+
+	if (cycles == 0) {
+		maximum = 0;
+
+		if (map->probe_bound != NULL) {
+			size = sizeof(CK_HS_WORD) * map->capacity;
+			bounds = hs->m->malloc(size);
+			if (bounds == NULL)
+				return false;
+
+			memset(bounds, 0, size);
+		}
+	} else {
+		maximum = map->probe_maximum;
 	}
 
 	for (i = 0; i < map->capacity; i++) {
@@ -541,30 +568,32 @@ ck_hs_gc(struct ck_hs *hs, unsigned long cycles, unsigned long seed)
 		}
 
 		if (cycles == 0) {
+			if (n_probes > maximum)
+				maximum = n_probes;
+
 			if (n_probes > CK_HS_WORD_MAX)
 				n_probes = CK_HS_WORD_MAX;
 
 			if (bounds != NULL && n_probes > bounds[offset])
 				bounds[offset] = n_probes;
-
-			if (n_probes > maximum)
-				maximum = n_probes;
 		} else if (--cycles == 0)
 			break;
 	}
 
-	if (bounds != NULL) { 
-		for (i = 0; i < map->capacity; i++) {
-			if (bounds[i] == 0 && map->probe_bound[i] != 0)
-				continue;
+	/*
+	 * The following only apply to garbage collection involving
+	 * a full scan of all entries.
+	 */
+	if (maximum != map->probe_maximum)
+		ck_pr_store_uint(&map->probe_maximum, maximum);
 
+	if (bounds != NULL) { 
+		for (i = 0; i < map->capacity; i++)
 			CK_HS_STORE(&map->probe_bound[i], bounds[i]);
-		}
 
 		hs->m->free(bounds, size, false);
 	}
 
-	ck_pr_store_uint(&map->probe_maximum, maximum);
 	return true;
 }
 
@@ -579,7 +608,8 @@ ck_hs_fas(struct ck_hs *hs,
 	struct ck_hs_map *map = hs->map;
 
 	*previous = NULL;
-	slot = ck_hs_map_probe(hs, map, &n_probes, &first, h, key, &object, map->probe_maximum, CK_HS_PROBE);
+	slot = ck_hs_map_probe(hs, map, &n_probes, &first, h, key, &object,
+	    ck_hs_map_bound_get(map, h), CK_HS_PROBE);
 
 	/* Replacement semantics presume existence. */
 	if (object == NULL)
@@ -615,7 +645,7 @@ ck_hs_set(struct ck_hs *hs,
 restart:
 	map = hs->map;
 
-	slot = ck_hs_map_probe(hs, map, &n_probes, &first, h, key, &object, map->probe_limit, CK_HS_PROBE);
+	slot = ck_hs_map_probe(hs, map, &n_probes, &first, h, key, &object, map->probe_limit, CK_HS_PROBE_INSERT);
 	if (slot == NULL && first == NULL) {
 		if (ck_hs_grow(hs, map->capacity << 1) == false)
 			return false;
@@ -711,7 +741,7 @@ ck_hs_put(struct ck_hs *hs,
     const void *key)
 {
 
-	return ck_hs_put_internal(hs, h, key, CK_HS_PROBE);
+	return ck_hs_put_internal(hs, h, key, CK_HS_PROBE_INSERT);
 }
 
 bool

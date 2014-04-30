@@ -1,6 +1,6 @@
 #include "include/shared/cos_types.h"
-#include <captbl.h>
-#include <cap_ops.h>
+#include "include/captbl.h"
+#include "include/cap_ops.h"
 
 /* 
  * Add the capability table to itself at cap.  This should really only
