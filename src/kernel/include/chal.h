@@ -82,7 +82,10 @@ void *chal_pa2va(void *pa);
  ************************************/
 
 void *chal_alloc_page(void);
+void *chal_alloc_kern_mem(int order);
 void chal_free_page(void *page);
+void chal_free_kern_mem(void *mem, int order);
+
 
 /* Per core ACAPs for timer events */
 PERCPU_DECL(struct async_cap *, cos_timer_acap);

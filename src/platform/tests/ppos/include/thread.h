@@ -8,7 +8,7 @@
 #ifndef THREAD_H
 #define THREAD_H
 
-#include <component.h>
+#include "component.h"
 #include <cap_ops.h>
 
 typedef u16_t thdid_t;

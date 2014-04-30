@@ -133,11 +133,11 @@ static inline int cos_create_spd(int cntl_fd, struct spd_info *spdi)
 	return ret;
 }
 
-static inline int cos_init_booter(int cntl_fd, struct spd_info *spdi)
+static inline int cos_init_booter(int cntl_fd)
 {
 	int ret;
 
-	if ((ret = ioctl(cntl_fd, AED_INIT_BOOT, spdi)) < 0) {
+	if ((ret = ioctl(cntl_fd, AED_INIT_BOOT, 0)) < 0) {
 		perror("Could not initialize llbooter\n");
 		printf("ioctl returned %d\n", ret);
 		exit(-1);

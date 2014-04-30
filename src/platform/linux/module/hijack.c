@@ -1393,9 +1393,25 @@ void *chal_alloc_page(void)
 	return page;
 }
 
+void *chal_alloc_kern_mem(int order)
+{
+	void *page = (void*)__get_free_pages(GFP_KERNEL, order);
+
+	if (!page) return NULL;
+
+	memset(page, 0, PAGE_SIZE * (1<<order));
+
+	return page;
+}
+
 void chal_free_page(void *page)
 {
 	free_pages((unsigned long int)page, 0);
+}
+
+void chal_free_kern_mem(void *mem, int order)
+{
+	free_pages((unsigned long int)mem, order);
 }
 
 /*

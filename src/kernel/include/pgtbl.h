@@ -11,7 +11,10 @@
 #include "ertrie.h"
 #include "shared/util.h"
 #include "captbl.h"
+
+#ifndef LINUX_TEST
 #include "chal.h"
+#endif
 
 enum {
 	PGTBL_PRESENT      = 1,
