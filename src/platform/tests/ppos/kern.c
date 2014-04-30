@@ -13,10 +13,12 @@
 #include <component.h>
 #include <inv.h>
 
+u8_t c0_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 u8_t boot_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 u8_t boot_comp_pgd[PAGE_SIZE]    PAGE_ALIGNED;
 u8_t boot_comp_pte_vm[PAGE_SIZE] PAGE_ALIGNED;
 u8_t boot_comp_pte_pm[PAGE_SIZE] PAGE_ALIGNED;
+u8_t thdinit[PAGE_SIZE]          PAGE_ALIGNED;
 
 unsigned long sys_maxmem      = 1<<10; /* 4M of physical memory (2^10 pages) */
 unsigned long sys_llbooter_sz = 10;    /* how many pages is the llbooter? */
@@ -26,11 +28,16 @@ unsigned long sys_llbooter_sz = 10;    /* how many pages is the llbooter? */
  * 0 = sret, 
  * 1 = this captbl, 
  * 2 = our pgtbl root,
- * 3 = empty
+ * 3 = initial thread,
  * 4-5 = our component,
- * 6-7 = empty
+ * 6-7 = nil,
  * 8 = vm pte for booter
  * 9 = vm pte for physical memory
+ * 10-11 = nil,
+ * 12 = comp0 captbl, 
+ * 13 = comp0 pgtbl root,
+ * 14-15 = nil,
+ * 16-17 = comp0 component,
  * 
  * Initial pgtbl setup (addresses):
  * 4MB-> = boot component VM
@@ -40,9 +47,14 @@ enum {
 	BOOT_CAPTBL_SRET = 0, 
 	BOOT_CAPTBL_SELF_CT = 1, 
 	BOOT_CAPTBL_SELF_PT = 2, 
+	BOOT_CAPTBL_SELF_INITTHD = 3, 
 	BOOT_CAPTBL_SELF_COMP = 4, 
 	BOOT_CAPTBL_BOOTVM_PTE = 8, 
 	BOOT_CAPTBL_PHYSM_PTE = 9, 
+
+	BOOT_CAPTBL_COMP0_CT = 12,
+	BOOT_CAPTBL_COMP0_PT = 13,  
+	BOOT_CAPTBL_COMP0_COMP = 16, 
 };
 enum {
 	BOOT_MEM_VM_BASE = 1<<22,
@@ -52,10 +64,12 @@ enum {
 void
 kern_boot_comp(void)
 {
-	struct captbl *ct;
-	pgtbl_t pt;
+	struct captbl *ct, *ct0;
+	pgtbl_t pt, pt0 = 0;
 	unsigned int i;
+	struct thread *thd = (struct thread *)thdinit;
 
+	/* llbooter's captbl */
 	ct = captbl_create(boot_comp_captbl);
 	assert(ct);
 	pt = pgtbl_create(boot_comp_pgd);
@@ -92,6 +106,29 @@ kern_boot_comp(void)
 					addr, PGTBL_COSFRAME));
 		assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_PM_BASE+i*PAGE_SIZE, &flags));
 	}
+
+	/* comp0's data, culminated in a static invocation capability to the llbooter */
+	ct0 = captbl_create(c0_comp_captbl);
+	assert(ct0);
+	assert(!captbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_CT, ct0, 0));
+	/* pt0 should be replaced with page tables from the Linux cos_loader */
+	assert(!pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_PT, pt0, 0));
+	assert(!comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_COMP, 
+			      BOOT_CAPTBL_COMP0_CT, BOOT_CAPTBL_COMP0_PT, 0, 0x37337, NULL));
+
+	/* 
+	 * Only capability for the comp0 is 0: the synchronous
+	 * invocation capability.  
+	 *
+	 * Replace 0xADD44343 with the actual entry-point in the
+	 * llbooter!
+	 */
+	assert(!sinv_activate(ct, BOOT_CAPTBL_COMP0_CT, 0, BOOT_CAPTBL_SELF_COMP, 0xADD44343));
+
+	/* 
+	 * Create a thread in comp0
+	 */
+	assert(!thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD, thd, BOOT_CAPTBL_COMP0_COMP));
 }
 
 void 
