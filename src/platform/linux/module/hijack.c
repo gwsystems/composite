@@ -610,39 +610,85 @@ static void hw_reset(void *data)
 	hw_int_reset(get_cpu_var(x86_tss));
 }
 
+struct thread *__thd_current;
+unsigned long  __cr3_contents;
+
+u8_t thdinit[PAGE_SIZE]          PAGE_ALIGNED;
 u8_t boot_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 u8_t boot_comp_pgd[PAGE_SIZE]    PAGE_ALIGNED;
 u8_t boot_comp_pte_vm[PAGE_SIZE] PAGE_ALIGNED;
 u8_t boot_comp_pte_pm[PAGE_SIZE] PAGE_ALIGNED;
+u8_t c0_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 
 unsigned long sys_maxmem      = 1<<10; /* 4M of physical memory (2^10 pages) */
-unsigned long sys_llbooter_sz = 10;    /* how many pages is the llbooter? */
+unsigned long sys_llbooter_sz;    /* how many pages is the llbooter? */
+
+/* 
+ * Initial captbl setup:  
+ * 0 = sret, 
+ * 1 = this captbl, 
+ * 2 = our pgtbl root,
+ * 3 = initial thread,
+ * 4-5 = our component,
+ * 6-7 = nil,
+ * 8 = vm pte for booter
+ * 9 = vm pte for physical memory
+ * 10-11 = nil,
+ * 12 = comp0 captbl, 
+ * 13 = comp0 pgtbl root,
+ * 14-15 = nil,
+ * 16-17 = comp0 component,
+ * 
+ * Initial pgtbl setup (addresses):
+ * 4MB-> = boot component VM
+ * 1GB-> = system physical memory
+ */
 
 enum {
 	BOOT_CAPTBL_SRET = 0, 
 	BOOT_CAPTBL_SELF_CT = 1, 
 	BOOT_CAPTBL_SELF_PT = 2, 
+	BOOT_CAPTBL_SELF_INITTHD = 3, 
 	BOOT_CAPTBL_SELF_COMP = 4, 
 	BOOT_CAPTBL_BOOTVM_PTE = 8, 
 	BOOT_CAPTBL_PHYSM_PTE = 9, 
+
+	BOOT_CAPTBL_COMP0_CT = 12,
+	BOOT_CAPTBL_COMP0_PT = 13,  
+	BOOT_CAPTBL_COMP0_COMP = 16, 
 };
 
 enum {
-	BOOT_MEM_VM_BASE = 1<<22,
-	BOOT_MEM_PM_BASE = 1<<30,
+	BOOT_MEM_VM_BASE = 0x40800000,//1<<22,
+	BOOT_MEM_PM_BASE = 0x80000000,//1<<30,
 };
 
+static void *cos_kmem;
+paddr_t linux_pgd;
+vaddr_t boot_sinv_entry;
+
 static int
-kern_boot_comp(void)
+kern_boot_comp(struct spd_info *spd_info)
 {
 	int ret;
-	struct captbl *ct;
-	pgtbl_t pt;
+	struct captbl *ct, *ct0;
+	pgtbl_t pt, pt0;
 	unsigned int i;
+	struct pt_regs regs;
+	struct thread *thd = (struct thread *)thdinit;
 
 	ct = captbl_create(boot_comp_captbl);
 	assert(ct);
 	pt = pgtbl_create(boot_comp_pgd);
+
+	//TODO: add this to pgtbl_create code.
+	/* Copying the kernel part of the pgd. */
+#define KERNEL_PGD_REGION_OFFSET  (PAGE_SIZE - PAGE_SIZE/4)
+#define KERNEL_PGD_REGION_SIZE    (PAGE_SIZE/4)
+	memcpy(boot_comp_pgd + KERNEL_PGD_REGION_OFFSET, linux_pgd + KERNEL_PGD_REGION_OFFSET, KERNEL_PGD_REGION_SIZE);
+
+	printk("our pgd %x (%x), pte %x (%x)\n", boot_comp_pgd, __pa(boot_comp_pgd), boot_comp_pte_vm, __pa(boot_comp_pte_vm));
+
 	assert(pt);
 	pgtbl_init_pte(boot_comp_pte_vm);
 	pgtbl_init_pte(boot_comp_pte_pm);
@@ -652,22 +698,21 @@ kern_boot_comp(void)
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, pt, 0)) cos_throw(err, -1);
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_BOOTVM_PTE, (pgtbl_t)boot_comp_pte_vm, 1)) cos_throw(err, -1);
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_PHYSM_PTE, (pgtbl_t)boot_comp_pte_pm, 1)) cos_throw(err, -1);
-	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, 
-			  BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0, 0x37337, NULL)) cos_throw(err, -1);
 
 	/* construct the page tables */
 	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, BOOT_MEM_VM_BASE)) cos_throw(err, -1);
 	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_PHYSM_PTE, BOOT_MEM_PM_BASE)) cos_throw(err, -1);
 
-	/* add the component's virtual memory at 4MB (1<<22) using "physical memory" starting at 0xADEAD000 */
-	for (i = 0 ; i < sys_llbooter_sz ; i++) {
-		u32_t addr = 0xADEAD000 + i*PAGE_SIZE;
+	/* add the component's virtual memory at 4MB (1<<22) using "physical memory" starting at cos_kmem */
+	for (i = 0 ; i < sys_llbooter_sz; i++) {
+		u32_t addr = chal_va2pa(cos_kmem) + i*PAGE_SIZE;
 		u32_t flags;
 		if (cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
 				    BOOT_MEM_VM_BASE + i*PAGE_SIZE, 
 				    addr, PGTBL_USER_DEF)) cos_throw(err, -1);
 		assert(chal_pa2va(addr) == (u32_t)pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
 	}
+
 	/* add the system's physical memory at address 1GB */
 	for (i = 0 ; i < sys_maxmem ; i++) {
 		u32_t addr = COS_MEM_START + i*PAGE_SIZE;
@@ -677,6 +722,33 @@ kern_boot_comp(void)
 				    addr, PGTBL_COSFRAME)) cos_throw(err, -1);
 		assert(chal_pa2va(addr) == (u32_t)pgtbl_lkup(pt, BOOT_MEM_PM_BASE+i*PAGE_SIZE, &flags));
 	}
+
+	/* comp0's data, culminated in a static invocation capability to the llbooter */
+	ct0 = captbl_create(c0_comp_captbl);
+	assert(ct0);
+	if (captbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_CT, ct0, 0)) cos_throw(err, -1);
+	pt0 = current->mm->pgd;
+	assert(pt0);
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_PT, pt0, 0)) cos_throw(err, -1);
+
+	assert(spd_info->upcall_entry);
+	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, 
+			  BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0, spd_info->upcall_entry, NULL)) cos_throw(err, -1);
+	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_COMP, 
+			  BOOT_CAPTBL_COMP0_CT, BOOT_CAPTBL_COMP0_PT, 0, NULL, NULL)) cos_throw(err, -1);
+	/* 
+	 * Only capability for the comp0 is 0: the synchronous
+	 * invocation capability.  
+	 */
+	assert(boot_sinv_entry);
+	assert(!sinv_activate(ct, BOOT_CAPTBL_COMP0_CT, 0, BOOT_CAPTBL_SELF_COMP, boot_sinv_entry));
+
+	/* 
+	 * Create a thread in comp0.
+	 */
+	assert(!thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD, thd, BOOT_CAPTBL_COMP0_COMP));
+	thd_current_update(thd);
+
 	return 0;
 err:
 	printk("Activating data-structure failed.\n");
@@ -698,14 +770,32 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		}
 		
+		linux_pgd = current->mm->pgd;
+
 		printk("addr %x, sz %d\n", spd_info.lowest_addr, spd_info.mem_size);
+		sys_llbooter_sz = spd_info.mem_size / PAGE_SIZE;
+		if (spd_info.mem_size % PAGE_SIZE) sys_llbooter_sz++;
+
+		assert(cos_kmem);
+		if (copy_from_user(cos_kmem, (void*)spd_info.lowest_addr, spd_info.mem_size)) {
+			printk("cos: Error copying spd_info from user.\n");
+			return -EFAULT;
+		}
 
 		cap_init();
 		ltbl_init();
 		comp_init();
 		thd_init();
 		inv_init();
-		if (kern_boot_comp()) return -1;
+		if (kern_boot_comp(&spd_info)) return -1;
+
+		char *mem = __va(*((u32_t *)(boot_comp_pte_vm)));
+		mem = (char *)((u32_t)mem & ~(PAGE_SIZE-1));
+		//printk("kmem %x pa %x, start mem %x\n", cos_kmem, __pa(cos_kmem), mem);
+		for (i = 0; i < spd_info.mem_size; i++) {
+			if (*(mem + i) != *((char*)(spd_info.lowest_addr) + i))
+				printk("Wrong!!!! %d: %x %x\n", i, *(mem + i), *((char*)(spd_info.lowest_addr) + i));
+		}
 
 		return 0;
 	}
@@ -777,8 +867,12 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			}
 			assert(spd == virtual_namespace_query(spd_info.lowest_addr+PAGE_SIZE));
 
+			printk("upcall %x, copy addr %x\n", spd_info.upcall_entry, spd_info.lowest_addr);
+			u32_t *tbl = mm->pgd;
+			//printk("tbl:256 %x, 257 %x, 258 %x\n", *(tbl+256), *(tbl+257), *(tbl+258));
 			copy_pgd_range(mm, current->mm, spd_info.lowest_addr, spd_info.size);
-			copy_pgd_range(mm, current->mm, COS_INFO_REGION_ADDR, PGD_RANGE);
+			//copy_pgd_range(mm, current->mm, COS_INFO_REGION_ADDR, PGD_RANGE);
+			//printk("after tbl:256 %x, 257 %x, 258 %x\n", *(tbl+256), *(tbl+257), *(tbl+258));
 
 			cspd = spd_alloc_mpd();
 			if (!cspd) {
@@ -831,6 +925,12 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		cap_no = spd_add_static_cap_extended(owner, dest, cap_info.rel_offset, 
 						     cap_info.ST_serv_entry, cap_info.AT_cli_stub, cap_info.AT_serv_stub,
 						     cap_info.SD_cli_stub, cap_info.SD_serv_stub, cap_info.il, cap_info.flags);
+		if (spd_get_index(owner) == 0 && spd_get_index(dest) == 1 && cap_no == 1) {
+			//printk("cap %d, boot addr stub %x\n", cap_no, cap_info.SD_serv_stub);
+			// cap 2 is fault_handler.
+			boot_sinv_entry = cap_info.SD_serv_stub;
+		}
+
 		return cap_no;
 	}
 	case AED_CREATE_THD:
@@ -1410,6 +1510,7 @@ void *chal_alloc_kern_mem(int order)
 	if (!page) return NULL;
 
 	memset(page, 0, PAGE_SIZE * (1<<order));
+	cos_kmem = page;
 
 	return page;
 }
@@ -1421,6 +1522,7 @@ void chal_free_page(void *page)
 
 void chal_free_kern_mem(void *mem, int order)
 {
+	assert(mem && mem == cos_kmem);
 	free_pages((unsigned long int)mem, order);
 }
 

@@ -87,6 +87,7 @@ switch_pgtbls(paddr_t new, paddr_t old)
 static inline void 
 open_close_spd(struct spd_poly *o_spd, struct spd_poly *c_spd)
 {
+	printk("dest %x from curr pgtbl %x\n", o_spd->pg_tbl, c_spd->pg_tbl);
 	switch_pgtbls(o_spd->pg_tbl, c_spd->pg_tbl);
 
 	return;
@@ -156,6 +157,11 @@ ipc_args_set(struct pt_regs *regs)
  * should kill thread.
  */
 
+extern u8_t boot_comp_pgd[PAGE_SIZE] PAGE_ALIGNED;
+extern u8_t boot_comp_pte_vm[PAGE_SIZE] PAGE_ALIGNED;
+extern paddr_t linux_pgd;
+
+
 static inline void
 ipc_walk_static_cap(struct pt_regs *regs)
 {
@@ -169,6 +175,36 @@ ipc_walk_static_cap(struct pt_regs *regs)
 	capability = user_regs_get_cap(regs) >> 20;
 	orig_sp    = user_regs_get_sp(regs);
 	orig_ip    = user_regs_get_ip(regs);
+
+	struct spd *spd1 = spd_get_by_index(1);
+	if (spd1->composite_spd->pg_tbl != chal_va2pa(boot_comp_pgd)) {
+		assert(boot_comp_pgd);
+		printk("old %x, new %x\n", spd1->composite_spd->pg_tbl, chal_va2pa(boot_comp_pgd));
+		u32_t *my, *curr, *orig;
+		int i;
+		curr = chal_pa2va(spd1->composite_spd->pg_tbl);
+		my = boot_comp_pgd;
+		orig = linux_pgd;
+		printk("pgds@ %x, %x, %x\n", curr, my, orig);
+		for (i = 0; i < PAGE_SIZE / sizeof(u32_t); i++) {
+			if (*(curr+i) == *(my+i)) continue;
+
+			if (i >= 768 && (*(curr+i) == *(my+i)) && (*(my+i) == *(orig+i))) continue;
+			printk("%d: %x, %x, %x\n", i, *(curr+i), *(my+i), *(orig+i));
+		}
+
+		u32_t *curr_pte = __va(*(curr+258) & ~(PAGE_SIZE - 1));
+		u32_t *my_pte = boot_comp_pte_vm;
+		printk("next pte @ %x, %x!\n", curr_pte, my_pte);
+		for (i = 0; i < PAGE_SIZE / sizeof(u32_t); i++) {
+			if ((*(curr_pte+i) == 0) && (*(my_pte+i) == 0)) continue;
+			if (*(curr_pte+i) && (*(my_pte+i) == 0)) {
+				printk("%d: %x %x\n", i, *(curr_pte+i), *(my_pte+i));
+			}
+		}		
+//		spd1->composite_spd->pg_tbl = chal_va2pa(boot_comp_pgd);
+	}
+
 
 	assert(thd);
 
@@ -235,6 +271,7 @@ ipc_walk_static_cap(struct pt_regs *regs)
 	cap_entry->invocation_cnt++;
 
 	ipc_args_set(regs);
+	printk("dest addr %x\n", cap_entry->dest_entry_instruction);
 
 	user_regs_set(regs, thd->thread_id | (get_cpuid_fast() << 16) /*eax*/,
 		      spd_get_index(curr_spd) /*spdid, no sp needed*/, cap_entry->dest_entry_instruction /*ip*/);

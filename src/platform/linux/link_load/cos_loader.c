@@ -1852,6 +1852,7 @@ int create_invocation_cap(struct spd_info *from_spd, struct service_symbs *from_
 			break;
 		}
 	}
+
 	if (i == st->num_symbs) {
 		printl(PRINT_DEBUG, "Could not find the undefined symbol %s in %s.\n", 
 		       server_fn, from_obj->obj);
@@ -2686,7 +2687,7 @@ static void setup_kernel(struct service_symbs *services)
 {
 	struct service_symbs /* *m, */ *s;
 	struct service_symbs *init = NULL;
-	struct spd_info *init_spd = NULL;
+	struct spd_info *init_spd = NULL, *llboot_spd;
 	struct cos_thread_info thd;
 
 	pid_t pid;
@@ -2712,8 +2713,7 @@ static void setup_kernel(struct service_symbs *services)
 				t_spd = create_spd(cntl_fd, t, t->lower_addr, t->size);
 			}
 			if (strstr(s->obj, LLBOOT_COMP)) {
-				t_spd->mem_size = llboot_mem;
-				cos_init_booter(cntl_fd, t_spd);
+				llboot_spd = t_spd;
 			}
 
 			if (!t_spd) {
@@ -2731,25 +2731,16 @@ static void setup_kernel(struct service_symbs *services)
 				fprintf(stderr, "\tCould not find all stubs.\n");
 				exit(-1);
 			}
+			if (strstr(s->obj, LLBOOT_COMP)) {
+				assert(llboot_mem);
+				llboot_spd->mem_size = llboot_mem;
+				cos_init_booter(cntl_fd, llboot_spd);
+			}
 		} 
 
 		s = s->next;
 	}
 	printl(PRINT_DEBUG, "\n");
-
-	/* if ((m = find_obj_by_name(services, INITMM)) == NULL) { */
-	/* 	fprintf(stderr, "Could not find initial memory manager %s\n", INITMM); */
-	/* 	exit(-1); */
-	/* } */
-	/* make_spd_scheduler(cntl_fd, m, NULL); */
-	/* assert(!is_booter_loaded(m)); */
-	/* if ((s = find_obj_by_name(services, ROOT_SCHED)) == NULL) { */
-	/* 	fprintf(stderr, "Could not find root scheduler %s\n", ROOT_SCHED); */
-	/* 	exit(-1); */
-	/* } */
-	/* make_spd_scheduler(cntl_fd, s, m); */
-	/* assert(!is_booter_loaded(s)); */
-	/* thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle; */
 
 	spd_assign_ids(services);
 
@@ -2799,6 +2790,11 @@ static void setup_kernel(struct service_symbs *services)
 	 * cores. */
 	assert(fn);
 	fn();
+
+	close(cntl_fd);
+
+	return;
+
 
 	pid = getpid();
 	for (i = 1; i < NUM_CPU_COS; i++) {
