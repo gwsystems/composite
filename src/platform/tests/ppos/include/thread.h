@@ -23,15 +23,16 @@ struct invstk_entry {
 struct thread {
 	thdid_t tid;
 	int refcnt, invstk_top;
+	cpuid_t cpuid;
 	struct comp_info comp_info; /* which scheduler to notify of events? FIXME: ignored for now */
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
-	/* gp and fp registers */
+	/* TODO: gp and fp registers */
 };
 
 struct cap_thd {
 	struct cap_header h;
 	struct thread *t;
-	u32_t cpuid;
+	cpuid_t cpuid;
 } __attribute__((packed));
 
 static int 
@@ -53,6 +54,11 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->tid          = 0; /* FIXME: need correct value */
 	thd->refcnt       = 0;
 	thd->invstk_top   = 0;
+	
+	/* FIXME: 
+	 * add thd->regs.ip = compc->entry_addr
+	 * add parameters for the upcall and threadid/coreid/spdid etc...
+	 */
 
 	/* initialize the capability */
 	tc->t     = thd;

@@ -194,9 +194,13 @@ __captbl_getleaf(struct ert_intern *a, void *accum)
 static inline int __captbl_setleaf(struct ert_intern *a, void *v)
 { (void)a; (void)v; assert(0); return -1; }
 
+static inline CFORCEINLINE struct ert_intern *
+__captbl_get(struct ert_intern *a, void *accum, int leaf)
+{ (void)accum; (void)leaf; return a->next; }
+
 #define CT_DEFINITVAL NULL
 ERT_CREATE(__captbl, captbl, CAPTBL_DEPTH, CAPTBL_INTERN_ORD, CAPTBL_INTERNSZ,
-	   CAPTBL_LEAF_ORD, CAPTBL_LEAFSZ, CT_DEFINITVAL, __captbl_init, ert_defget,
+	   CAPTBL_LEAF_ORD, CAPTBL_LEAFSZ, CT_DEFINITVAL, __captbl_init, __captbl_get,
 	   ert_defisnull, ert_defset, __captbl_allocfn, __captbl_setleaf,
 	   __captbl_getleaf, ert_defresolve);
 
@@ -347,7 +351,7 @@ captbl_expand(struct captbl *t, capid_t cap, u32_t depth, void *memctxt)
 static void *
 captbl_prune(struct captbl *t, capid_t cap, u32_t depth, int *retval)
 {
-	void **intern, *p, *new;
+	unsigned long *intern, p, new;
 	int ret = 0;
 
 	if (unlikely(cap   >= __captbl_maxid() || 
@@ -355,13 +359,13 @@ captbl_prune(struct captbl *t, capid_t cap, u32_t depth, int *retval)
 	intern = __captbl_lkupan(t, cap, depth, NULL); 
 	if (unlikely(!intern)) cos_throw(err, -EPERM);
 	p = *intern;
-	new = CT_DEFINITVAL;
+	new = (unsigned long)CT_DEFINITVAL;
 	if (CTSTORE(intern, &new, &p)) cos_throw(err, -EEXIST); /* commit */
 done:
 	*retval = ret;
-	return p;
+	return (void *)p;
 err:
-	p = NULL;
+	p = (unsigned long)NULL;
 	goto done;
 }
 
