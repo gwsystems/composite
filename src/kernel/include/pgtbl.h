@@ -284,7 +284,12 @@ pgtbl_lookup(pgtbl_t pt, u32_t addr, u32_t *flags)
 
 extern unsigned long __cr3_contents;
 static void pgtbl_update(pgtbl_t pt)
-{ __cr3_contents = (unsigned long)pt; }
+{ 
+	__cr3_contents = (unsigned long)pt; 
+#ifndef LINUX_TEST
+	chal_pgtbl_switch(pt);
+#endif
+}
 
 /* vaddr -> kaddr */
 static vaddr_t pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)

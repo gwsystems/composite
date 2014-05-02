@@ -166,6 +166,7 @@ static int thd_deactivate(struct captbl *t, unsigned long cap, unsigned long cap
 extern struct thread *__thd_current;
 static inline struct thread *thd_current(void) 
 { return __thd_current; }
+//{ return cos_get_curr_thd(); }
 
 static inline void thd_current_update(struct thread *thd)
 { __thd_current = thd; }

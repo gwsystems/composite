@@ -21,6 +21,13 @@
 #include "include/fpu.h"
 #include "include/ipi.h"
 
+#include "include/pgtbl.h"
+#include "include/captbl.h"
+#include "include/cap_ops.h"
+#include "include/component.h"
+#include "include/inv.h"
+
+
 /* 
  * These are the 1) page for the pte for the shared region and 2) the
  * page to hold general data including cpuid, thread id, identity
@@ -96,6 +103,7 @@ open_close_spd(struct spd_poly *o_spd, struct spd_poly *c_spd)
 static inline void 
 open_close_spd_ret(struct spd_poly *c_spd)
 {
+	printk("ret to pgtbl %x\n", c_spd->pg_tbl);
 	chal_pgtbl_switch(c_spd->pg_tbl);
 	
 	return;
@@ -176,9 +184,9 @@ ipc_walk_static_cap(struct pt_regs *regs)
 	orig_sp    = user_regs_get_sp(regs);
 	orig_ip    = user_regs_get_ip(regs);
 
+	printk("old ipc path!\n");
 	struct spd *spd1 = spd_get_by_index(1);
-	if (spd1->composite_spd->pg_tbl != chal_va2pa(boot_comp_pgd)) {
-		assert(boot_comp_pgd);
+	if (0 && spd1->composite_spd->pg_tbl != chal_va2pa(boot_comp_pgd)) {
 		printk("old %x, new %x\n", spd1->composite_spd->pg_tbl, chal_va2pa(boot_comp_pgd));
 		u32_t *my, *curr, *orig;
 		int i;
@@ -333,7 +341,7 @@ pop(struct pt_regs *regs)
 
 		return;
 	}
-	
+
 	curr_frame = thd_invstk_top(curr);
 	/* for now just assume we always close the server spd */
 	open_close_spd_ret(curr_frame->current_composite_spd);
@@ -4412,6 +4420,57 @@ fs_reg_setup(unsigned long seg) {
 		      : : "b" (seg));
 }
 
+static inline void new_handler(struct pt_regs *regs)
+{
+	struct cap_header *ch;
+	struct comp_info *ci;
+	struct thread *thd;
+	capid_t cap;
+	unsigned long ip, sp;
+/* We don't need to setup fs for invocation and return path. Only
+ * enable this when doing printk (which requires fs) for debugging. */
+#define ENABLE_KERNEL_PRINT
+#ifdef ENABLE_KERNEL_PRINT
+	fs_reg_setup(__KERNEL_PERCPU);
+#endif
+	printk("in sysenter!\n");
+	thd = thd_current();
+	ci  = thd_invstk_current(thd, &ip, &sp);
+	assert(ci && ci->captbl);
+	/* TODO: check liveness map */
+	cap = 0;//regs->ax; 	/* FIXME */
+	ch  = captbl_lkup(ci->captbl, cap);
+	if (unlikely(!ch)) {
+		regs->ax = -ENOENT;
+		return;
+	}
+
+	/* fastpath: invocation and return */
+	if (likely(ch->type == CAP_SINV)) {
+		printk(">>>>>>>>>>inv!\n");
+		sinv_call(thd, (struct cap_sinv *)ch, regs);
+		printk("inv done!\n");
+		return;
+	} else if (likely(ch->type == CAP_SRET)) {
+		printk(">>>>>>>>>>>ret!\n");
+		sret_ret(thd, regs);
+		printk("ret done!\n");
+		return;
+	}
+	printk("ERROR!!!!!\n");
+
+	/* slowpath: other capability operations */
+	switch(ch->type) {
+	case CAP_ASND:
+	case CAP_ARCV:
+	case CAP_COMP:
+	case CAP_THD:
+	default:
+		__userregs_setret(regs, -ENOENT);
+	}
+	return 0;
+}
+
 __attribute__((section("__ipc_entry"))) COS_SYSCALL int
 composite_sysenter_handler(struct pt_regs *regs)
 {
@@ -4423,15 +4482,31 @@ composite_sysenter_handler(struct pt_regs *regs)
 #ifdef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
 #endif
+	new_handler(regs);
+	return 0;
+
 	ax = user_regs_get_cap(regs);
+	printk("in old syscall handler ax %x!\n", ax);
 
 	/* IPC and return paths are performance critical. */
 	if (likely(ax > COS_INV_OFFSET)) {
+		printk("inv!\n");
+		struct pt_regs temp;
+		memcpy(&temp, regs, sizeof(struct pt_regs));
+		new_handler(&temp);
 		/* IPC */
 		ipc_walk_static_cap(regs);
+		
+		printk("-ip %x, sp %x; ip %x, sp %x\n", regs->ip, regs->sp, temp.ip, temp.sp);
 	} else if (likely(ax == COS_INV_OFFSET)) {
+		printk("ret!\n");
+		struct pt_regs temp;
+		memcpy(&temp, regs, sizeof(struct pt_regs));
+		new_handler(&temp);
 		/* IPC return */
 		pop(regs);
+		printk("-ip %x, sp %x; ip %x, sp %x\n", regs->ip, regs->sp, temp.ip, temp.sp);
+
 	} else {
 		/* Non-IPC cases. */
 		if (ax >= 0) {

@@ -319,6 +319,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	/* printc("core %ld: <<cos_upcall_fn thd %d (type %d, CREATE=%d, DESTROY=%d, FAULT=%d)>>\n", */
 	/*        cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_THD_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT); */
+	while (1);
 	switch (t) {
 	case COS_UPCALL_THD_CREATE:
 		llboot_ret_thd();
@@ -346,6 +347,33 @@ void cos_init(void);
 int sched_init(void)   
 {
 	printc("in llboot %d, h %x\n", cos_spd_id(), cos_get_heap_ptr());
+//	return 0;
+
+	int ret;
+	u32_t cap_no = ((1<<COS_CAPABILITY_OFFSET)-1);
+        long fault = 0;
+
+	__asm__ __volatile__( \
+		"pushl %%ebp\n\t" \
+		"movl %%esp, %%ebp\n\t" \
+		"movl $1f, %%ecx\n\t" \
+		"sysenter\n\t" \
+		".align 8\n\t" \
+		"jmp 2f\n\t" \
+		".align 8\n\t" \
+		"1:\n\t" \
+		"popl %%ebp\n\t" \
+		"movl $0, %%ecx\n\t" \
+		"jmp 3f\n\t" \
+		"2:\n\t" \
+		"popl %%ebp\n\t" \
+		"movl $1, %%ecx\n\t" \
+		"3:" \
+		: "=a" (ret), "=c" (fault)
+                : "a" (cap_no) \
+		: "ebx", "edx", "esi", "edi", "memory", "cc");
+
+//	printc("in llboot %d, h %x\n", cos_spd_id(), cos_get_heap_ptr());
 	return 0;
 	if (cos_cpuid() == INIT_CORE) {
 		/* We can't do shared memory in LLBooter. It uses

@@ -193,7 +193,34 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs)
 		__userregs_set(regs, -1, sp, ip);
 		return;
 	}
+
+
+	/* struct spd *spd1 = spd_get_by_index(1); */
+	/* if (0) { */
+	/* 	printk("old %x, new %x\n", spd1->composite_spd->pg_tbl, sinvc->comp_info.pgtbl); */
+	/* 	u32_t *my, *curr; */
+	/* 	int i; */
+	/* 	curr = chal_pa2va(spd1->composite_spd->pg_tbl); */
+	/* 	my = chal_pa2va(sinvc->comp_info.pgtbl); */
+	/* 	printk("pgds@ %x, %x\n", curr, my); */
+	/* 	for (i = 0; i < PAGE_SIZE / sizeof(u32_t); i++) { */
+	/* 		if (*(curr+i) == *(my+i)) continue; */
+	/* 		printk("%d: %x, %x\n", i, *(curr+i), *(my+i)); */
+	/* 	} */
+	/* 	u32_t *curr_pte = __va(*(curr+258) & ~(PAGE_SIZE - 1)); */
+	/* 	u32_t *my_pte =  __va(*(my+258) & ~(PAGE_SIZE - 1)); */
+	/* 	printk("next pte @ %x, %x!\n", curr_pte, my_pte); */
+	/* 	for (i = 0; i < PAGE_SIZE / sizeof(u32_t); i++) { */
+	/* 		if ((*(curr_pte+i) == 0) && (*(my_pte+i) == 0)) continue; */
+	/* 		if (*(curr_pte+i) && (*(my_pte+i) == 0)) { */
+	/* 			printk("%d: %x %x\n", i, *(curr_pte+i), *(my_pte+i)); */
+	/* 		} */
+	/* 	}		 */
+	/* } */
+
+	/* printk("pgtbl to new %x\n", sinvc->comp_info.pgtbl); */
 	pgtbl_update(sinvc->comp_info.pgtbl);
+
 	__userregs_sinvupdate(regs);
 	__userregs_set(regs, thd->tid | 0/*(get_cpuid_fast() << 16)*/, 
 		       sinvc->h.poly /* calling component id */, sinvc->entry_addr);
@@ -204,7 +231,7 @@ sret_ret(struct thread *thd, struct pt_regs *regs)
 {
 	struct comp_info *ci;
 	unsigned long ip, sp;
-	
+
 	ci = thd_invstk_pop(thd, &ip, &sp);
 	if (unlikely(!ci)) {
 		__userregs_set(regs, 0xDEADDEAD, 0, 0);
@@ -256,7 +283,7 @@ syscall_handler(struct pt_regs *regs)
 	return;
 }
 
-void inv_init(void)
+static void inv_init(void)
 { 
 	assert(sizeof(struct cap_sinv) <= __captbl_cap2bytes(CAP_SINV)); 
 	assert(sizeof(struct cap_asnd) <= __captbl_cap2bytes(CAP_ASND)); 
