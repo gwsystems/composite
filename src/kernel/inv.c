@@ -4429,11 +4429,10 @@ static inline void new_handler(struct pt_regs *regs)
 	unsigned long ip, sp;
 /* We don't need to setup fs for invocation and return path. Only
  * enable this when doing printk (which requires fs) for debugging. */
-#define ENABLE_KERNEL_PRINT
+//#define ENABLE_KERNEL_PRINT
 #ifdef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
 #endif
-	printk("in sysenter!\n");
 	thd = thd_current();
 	ci  = thd_invstk_current(thd, &ip, &sp);
 	assert(ci && ci->captbl);
@@ -4447,14 +4446,10 @@ static inline void new_handler(struct pt_regs *regs)
 
 	/* fastpath: invocation and return */
 	if (likely(ch->type == CAP_SINV)) {
-		printk(">>>>>>>>>>inv!\n");
 		sinv_call(thd, (struct cap_sinv *)ch, regs);
-		printk("inv done!\n");
 		return;
 	} else if (likely(ch->type == CAP_SRET)) {
-		printk(">>>>>>>>>>>ret!\n");
 		sret_ret(thd, regs);
-		printk("ret done!\n");
 		return;
 	}
 	printk("ERROR!!!!!\n");
@@ -4468,7 +4463,7 @@ static inline void new_handler(struct pt_regs *regs)
 	default:
 		__userregs_setret(regs, -ENOENT);
 	}
-	return 0;
+	return;
 }
 
 __attribute__((section("__ipc_entry"))) COS_SYSCALL int

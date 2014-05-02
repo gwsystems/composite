@@ -2739,10 +2739,6 @@ static void setup_kernel(struct service_symbs *services)
 	}
 	printl(PRINT_DEBUG, "\n");
 
-	assert(llboot_mem);
-	llboot_spd->mem_size = llboot_mem;
-	cos_init_booter(cntl_fd, llboot_spd);
-
 	spd_assign_ids(services);
 
 	if ((s = find_obj_by_name(services, BOOT_COMP))) {
@@ -2757,9 +2753,7 @@ static void setup_kernel(struct service_symbs *services)
 		make_spd_scheduler(cntl_fd, s, NULL);
 
 		npages = s->mem_size / PAGE_SIZE;
-		printf("mem size %x\n", s->mem_size);
 		if (s->mem_size % PAGE_SIZE) npages++;
-		printf("npages %x, start%x\n", npages, SERVICE_START);
 		for (i = 0; i < 10; i++)
 			var = *((int *)SERVICE_START + i*PAGE_SIZE);
 	} 
@@ -2782,6 +2776,10 @@ static void setup_kernel(struct service_symbs *services)
 	ret = cos_create_thd(cntl_fd, &thd);
 	assert(ret == 0);
 
+	assert(llboot_mem);
+	llboot_spd->mem_size = llboot_mem;
+	cos_init_booter(cntl_fd, llboot_spd);
+
 	/* We call fn to init the low level booter first! Init
 	 * function will return to here and create processes for other
 	 * cores. */
@@ -2789,6 +2787,15 @@ static void setup_kernel(struct service_symbs *services)
 //	printl(PRINT_HIGH, "\n Pid %d: OK, good to go, calling component 0's main\n\n", getpid());
 
 	fn();
+
+#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
+
+	rdtscll(start);
+	for (i = 0; i < 4096; i++) {
+		fn();
+	}
+	rdtscll(end);
+	printf("avg cost %llu\n", (end-start)/4096);
 
 	close(cntl_fd);
 
@@ -2825,8 +2832,6 @@ static void setup_kernel(struct service_symbs *services)
 	fflush(stdout);
 
 #define ITER 1
-#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
-
 	aed_disable_syscalls(cntl_fd);
 
 	rdtscll(start);

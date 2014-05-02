@@ -165,11 +165,18 @@ static int thd_deactivate(struct captbl *t, unsigned long cap, unsigned long cap
 
 extern struct thread *__thd_current;
 static inline struct thread *thd_current(void) 
+#ifdef LINUX_TEST
 { return __thd_current; }
-//{ return cos_get_curr_thd(); }
+#else
+{ return cos_get_curr_thd(); }
+#endif
 
 static inline void thd_current_update(struct thread *thd)
+#ifdef LINUX_TEST
 { __thd_current = thd; }
+#else
+{ return cos_put_curr_thd(thd); }
+#endif
 
 static inline struct comp_info *
 thd_invstk_current(struct thread *thd, unsigned long *ip, unsigned long *sp)
