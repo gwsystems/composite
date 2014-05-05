@@ -12,6 +12,37 @@
 #include <cos_types.h>
 #include <errno.h>
 
+/* temporary */
+static inline int call_cap(u32_t cap_no)
+{
+        long fault = 0;
+	int ret;
+
+	cap_no += (1<<COS_CAPABILITY_OFFSET);
+
+	__asm__ __volatile__( \
+		"pushl %%ebp\n\t" \
+		"movl %%esp, %%ebp\n\t" \
+		"movl $1f, %%ecx\n\t" \
+		"sysenter\n\t" \
+		".align 8\n\t" \
+		"jmp 2f\n\t" \
+		".align 8\n\t" \
+		"1:\n\t" \
+		"popl %%ebp\n\t" \
+		"movl $0, %%ecx\n\t" \
+		"jmp 3f\n\t" \
+		"2:\n\t" \
+		"popl %%ebp\n\t" \
+		"movl $1, %%ecx\n\t" \
+		"3:" \
+		: "=a" (ret), "=c" (fault)
+                : "a" (cap_no) \
+		: "ebx", "edx", "esi", "edi", "memory", "cc");
+
+	return ret;
+}
+
 /**
  * FIXME: Please remove this since it is no longer needed
  */

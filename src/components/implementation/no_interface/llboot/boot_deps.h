@@ -346,29 +346,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 void cos_init(void);
 int sched_init(void)   
 {
-	int ret;
-	u32_t cap_no = ((1<<COS_CAPABILITY_OFFSET));
-        long fault = 0;
-
-	__asm__ __volatile__( \
-		"pushl %%ebp\n\t" \
-		"movl %%esp, %%ebp\n\t" \
-		"movl $1f, %%ecx\n\t" \
-		"sysenter\n\t" \
-		".align 8\n\t" \
-		"jmp 2f\n\t" \
-		".align 8\n\t" \
-		"1:\n\t" \
-		"popl %%ebp\n\t" \
-		"movl $0, %%ecx\n\t" \
-		"jmp 3f\n\t" \
-		"2:\n\t" \
-		"popl %%ebp\n\t" \
-		"movl $1, %%ecx\n\t" \
-		"3:" \
-		: "=a" (ret), "=c" (fault)
-                : "a" (cap_no) \
-		: "ebx", "edx", "esi", "edi", "memory", "cc");
+	call_cap(0);
 
 //	printc("in llboot %d, h %x\n", cos_spd_id(), cos_get_heap_ptr());
 	return 0;

@@ -10,6 +10,8 @@
 #include "include/thd.h"
 #include "include/call_convention.h"
 
+#define COS_DEFAULT_RET_CAP 0
+
 #ifdef LINUX_TEST
 int
 syscall_handler(struct pt_regs *regs)
@@ -42,26 +44,29 @@ composite_sysenter_handler(struct pt_regs *regs)
 #ifdef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
 #endif
-
+	cap = __userregs_getcap(regs);
 	thd = thd_current();
+
+	if (likely(cap == COS_DEFAULT_RET_CAP)) {
+		/* fast path: invocation return */
+		sret_ret(thd, regs);
+		return 0;
+	}
+
 	ci  = thd_invstk_current(thd, &ip, &sp);
 	assert(ci && ci->captbl);
 	/* TODO: check liveness map */
-	cap = __userregs_getcap(regs);
 	ch  = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
 		ret = -ENOENT;
 		goto done;
 	}
 
-	/* fastpath: invocation and return */
+	/* fastpath: invocation */
 	if (likely(ch->type == CAP_SINV)) {
 		sinv_call(thd, (struct cap_sinv *)ch, regs);
 		return 0;
-	} else if (likely(ch->type == CAP_SRET)) {
-		sret_ret(thd, regs);
-		return 0;
-	}
+	} 
 
 	op = __userregs_getop(regs);
 	/* slowpath: other capability operations */
@@ -147,6 +152,11 @@ composite_sysenter_handler(struct pt_regs *regs)
 		case CAPTBL_OP_MAPPING_RETYPE:
 		default: goto err;
 		}
+	case CAP_SRET: 
+	{
+		sret_ret(thd, regs);
+		return 0;
+	}
 	default:
 	err:
 		ret = -ENOENT;

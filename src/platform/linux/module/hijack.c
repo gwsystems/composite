@@ -751,11 +751,11 @@ kern_boot_comp(struct spd_info *spd_info)
 	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_COMP, 
 			  BOOT_CAPTBL_COMP0_CT, BOOT_CAPTBL_COMP0_PT, 0, NULL, NULL)) cos_throw(err, -1);
 	/* 
-	 * Only capability for the comp0 is 0: the synchronous
+	 * Only capability for the comp0 is 2: the synchronous
 	 * invocation capability.  
 	 */
 	assert(boot_sinv_entry);
-	assert(!sinv_activate(ct, BOOT_CAPTBL_COMP0_CT, 0, BOOT_CAPTBL_SELF_COMP, boot_sinv_entry));
+	if (sinv_activate(ct, BOOT_CAPTBL_COMP0_CT, 2, BOOT_CAPTBL_SELF_COMP, boot_sinv_entry)) cos_throw(err, -1);
 
 	/* 
 	 * Create a thread in comp0.
