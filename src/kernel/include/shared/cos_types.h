@@ -18,6 +18,8 @@
 
 #include "../debug.h"
 
+#define PRINT_CAP_TEMP (2 << 15)
+
 #ifndef COS_BASE_TYPES
 #define COS_BASE_TYPES
 typedef unsigned char      u8_t;

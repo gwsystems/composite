@@ -348,6 +348,18 @@ int sched_init(void)
 {
 	call_cap(0);
 
+	if (cos_cpuid() == INIT_CORE) {
+		cos_init();
+//		if (!PERCPU_GET(llbooter)->init_thd) cos_init();
+//		else boot_deps_run_all();
+	} else {
+		LOCK();
+		boot_create_init_thds();
+		UNLOCK();
+		boot_deps_run_all();
+		/* printc("core %ld, alpha: exiting system.\n", cos_cpuid()); */
+	}
+
 //	printc("in llboot %d, h %x\n", cos_spd_id(), cos_get_heap_ptr());
 	return 0;
 

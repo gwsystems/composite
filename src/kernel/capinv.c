@@ -28,6 +28,28 @@ fs_reg_setup(unsigned long seg) {
 }
 
 #define ENABLE_KERNEL_PRINT
+#define MAX_LEN 512
+
+static inline int printfn(struct pt_regs *regs) 
+{
+	char *str; 
+	int len;
+	char kern_buf[MAX_LEN];
+
+	str     = (char *)__userregs_get1(regs);
+	len     = __userregs_get2(regs);
+
+	if (len < 1) goto done;
+	if (len >= MAX_LEN) len = MAX_LEN - 1;
+	memcpy(kern_buf, str, len);
+	kern_buf[len] = '\0';
+	printk("%s", kern_buf);
+done:
+	__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
+
+	return 0;
+}
+
 
 __attribute__((section("__ipc_entry"))) COS_SYSCALL int
 composite_sysenter_handler(struct pt_regs *regs)
@@ -53,9 +75,17 @@ composite_sysenter_handler(struct pt_regs *regs)
 		return 0;
 	}
 
+#ifndef LINUX_TEST
+	if (regs->ax == PRINT_CAP_TEMP) {
+		printfn(regs);
+		return 0;
+	}
+#endif
+
 	ci  = thd_invstk_current(thd, &ip, &sp);
 	assert(ci && ci->captbl);
 	/* TODO: check liveness map */
+
 	ch  = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
 		ret = -ENOENT;
@@ -67,6 +97,11 @@ composite_sysenter_handler(struct pt_regs *regs)
 		sinv_call(thd, (struct cap_sinv *)ch, regs);
 		return 0;
 	} 
+
+	if (cap > 2) {
+		printk("calling cap %x!!!, print %x\n", cap, PRINT_CAP_TEMP);
+		return 0;
+	}
 
 	op = __userregs_getop(regs);
 	/* slowpath: other capability operations */

@@ -467,10 +467,63 @@ cgraph_add(int serv, int client)
 	return 0;
 }
 
+void boot_init(void)
+{
+	struct cobj_header *h;
+	int num_cobj, i;
+
+	printc("test print %x\n", h);
+	h         = (struct cobj_header *)cos_comp_info.cos_poly[0];
+	num_cobj  = (int)cos_comp_info.cos_poly[1];
+
+	deps      = (struct deps *)cos_comp_info.cos_poly[2];
+	for (i = 0 ; deps[i].server ; i++) ;
+	ndeps     = i;
+
+	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
+	init_args++; 
+
+	boot_sched = (unsigned int *)cos_comp_info.cos_poly[4];
+
+
+	return;
+
+	boot_find_cobjs(h, num_cobj);
+	
+	int nregions;
+	/* This component really might need more vas, get the next 4M region */
+	nregions = NREGIONS * 4 - 1; //Booter (including llboot) may need larger VAS
+
+	if (cos_vas_cntl(COS_VAS_SPD_EXPAND, cos_spd_id(), 
+			 round_up_to_pgd_page((unsigned long)&num_cobj), 
+			nregions * round_up_to_pgd_page(1))) {
+		printc("Could not expand boot component to %p:%x\n",
+		       (void *)round_up_to_pgd_page((unsigned long)&num_cobj), 
+		       (unsigned int)round_up_to_pgd_page(1)*nregions);
+		BUG();
+	}
+
+	printc("h @ %p, heap ptr @ %p\n", h, cos_get_heap_ptr());
+	printc("header %p, size %d, num comps %d, new heap %p\n", 
+	       h, h->size, num_cobj, cos_get_heap_ptr());
+
+	/* Assumes that hs have been setup with boot_find_cobjs */
+	boot_create_system();
+	printc("booter: done creating system.\n");
+
+	UNLOCK();
+	boot_deps_run();
+
+
+}
+
 void cos_init(void)
 {
 	struct cobj_header *h;
 	int num_cobj, i;
+
+	boot_init();
+	return;
 
 	LOCK();
 

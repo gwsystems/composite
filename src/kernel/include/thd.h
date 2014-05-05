@@ -145,7 +145,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 
 	/* initialize the capability */
 	tc->t     = thd;
-	tc->cpuid = 0; 		/* FIXME: add the proper call to get the cpuid */
+	tc->cpuid = get_cpuid();
 	__cap_capactivate_post(&tc->h, CAP_THD, 0);
 
 	return 0;
