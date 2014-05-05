@@ -230,7 +230,8 @@ pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags)
 	 */
 	*prevflags = orig_v & PGTBL_FLAG_MASK;
 	/* and update the flags. */
-	__pgtbl_setleaf(pte, (void *)((orig_v & PGTBL_FRAME_MASK) | ((u32_t)flags & PGTBL_FLAG_MASK)));
+	if (!cos_cas((unsigned long *)pte, orig_v,
+		     (orig_v & PGTBL_FRAME_MASK) | ((u32_t)flags & PGTBL_FLAG_MASK))) return -1;
 
 	return 0;
 }
@@ -245,6 +246,29 @@ pgtbl_mapping_del(pgtbl_t pt, u32_t addr)
 
 	return __pgtbl_expandn(pt, addr >> PGTBL_PAGEIDX_SHIFT, 
 			       PGTBL_DEPTH+1, &accum, &pte, NULL);
+}
+
+static int
+pgtbl_mapping_extract(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
+{
+	struct ert_intern *pte;
+	u32_t orig_v, accum = 0;
+	
+	assert(pt);
+	assert((PGTBL_FLAG_MASK & addr) == 0);
+
+	/* get the pte */
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
+						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	if (unlikely(__pgtbl_isnull(pte, 0, 0))) return -ENOENT;
+
+	orig_v = (u32_t)(pte->next);
+	*kern_addr = (unsigned long)chal_pa2va(orig_v & PGTBL_FRAME_MASK);
+	if (unlikely(!*kern_addr)) return -EINVAL; /* cannot retype a non-kernel accessible page */
+	if (unlikely(!(accum & PGTBL_COSFRAME))) return -EINVAL; /* can't retype non-frames */
+	if (unlikely(!cos_cas((unsigned long *)pte, orig_v, 0))); return -1; /* FIXME: error code for write conflicts */
+
+	return 0;
 }
 
 static void *pgtbl_lkup_lvl(pgtbl_t pt, u32_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
@@ -293,7 +317,8 @@ static void pgtbl_update(pgtbl_t pt)
 }
 
 /* vaddr -> kaddr */
-static vaddr_t pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
+static vaddr_t 
+pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
 { return (vaddr_t)pgtbl_lkup(pt, addr, flags); }
 
 static pgtbl_t pgtbl_create(void *page) { return pgtbl_alloc(page); }

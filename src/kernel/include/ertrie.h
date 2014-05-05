@@ -8,6 +8,8 @@
 #ifndef ERTRIE_H
 #define ERTRIE_H
 
+#include "shared/cos_types.h"
+
 #define CFORCEINLINE __attribute__((always_inline))
 
 /* 
@@ -61,13 +63,17 @@ typedef void *(*ert_getleaf_fn_t)(struct ert_intern *entry, void *accum);
  * structure), and setting values in internal and leaf nodes being
  * done with straightforward stores.
  */
-static struct ert_intern *ert_defget(struct ert_intern *a, void *accum, int leaf)
+static inline CFORCEINLINE struct ert_intern *
+ert_defget(struct ert_intern *a, void *accum, int leaf)
 { (void)accum; (void)leaf; return a->next; }
-static void *ert_defgetleaf(struct ert_intern *a, void *accum)
+static inline void *
+ert_defgetleaf(struct ert_intern *a, void *accum)
 { (void)accum;  return a->next; }
-static int ert_defisnull(struct ert_intern *a, void *accum, int leaf)
+static inline int 
+ert_defisnull(struct ert_intern *a, void *accum, int leaf)
 { (void)accum; (void)leaf; return a->next == NULL; }
-static int ert_defresolve(struct ert_intern *a, void *accum, int leaf, u32_t order, u32_t sz)
+static int 
+ert_defresolve(struct ert_intern *a, void *accum, int leaf, u32_t order, u32_t sz)
 { (void)a; (void)accum; (void)leaf; (void)order; (void)sz; return 1; }
 static void ert_defset(struct ert_intern *a, void *v, void *accum, int leaf)
 { (void)leaf; (void)accum; a->next = v; }

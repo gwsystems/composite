@@ -9,7 +9,7 @@
 #include <captbl.h>
 #include <pgtbl.h>
 #include <cap_ops.h>
-#include "include/thread.h"
+#include "include/thd.h"
 #include <component.h>
 #include <inv.h>
 
@@ -63,6 +63,8 @@ enum {
 	BOOT_MEM_VM_BASE = 1<<22,
 	BOOT_MEM_PM_BASE = 1<<30,
 };
+
+int syscall_handler(struct pt_regs *regs);
 
 void
 kern_boot_comp(void)

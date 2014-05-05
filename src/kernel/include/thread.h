@@ -17,31 +17,17 @@
 
 #include <linux/kernel.h>
 
-#include "component.h"
-#include "cap_ops.h"
+/* Thread header file for new kernel. */
+#include "thd.h"
 
-#define THD_INVSTK_MAXSZ 32
-
-struct invstk_entry {
-	struct comp_info comp_info;
-	unsigned long sp, ip; 	/* to return to */
-} HALF_CACHE_ALIGNED;
-
-/* TODO: replace with existing thread struct */
-
+#ifndef THD_STRUCT
+#define THD_STRUCT
 /* 
  * There are 4 thread descriptors per page: the thread_t is 16 bytes,
  * each stack frame is the same, and we define MAX_SERVICE_DEPTH to be
  * 31, making a total of 512 bytes.  We then reserve 512 bytes for
  * kernel stack usage.
  */
-
-/*
-#if (PAGE_SIZE % THREAD_SIZE != 0)
-#error "Page size must be multiple of thread size."
-#endif
-*/
-
 struct thd_invocation_frame {
 	struct spd_poly *current_composite_spd;
 	/*
@@ -61,15 +47,6 @@ struct thd_sched_info {
 	struct cos_sched_events *thread_notifications;
 	int notification_offset;
 };
-
-#define THD_STATE_PREEMPTED     0x1   /* Complete register info is saved in regs */
-#define THD_STATE_UPCALL        0x2   /* Thread for upcalls: ->srv_acap points to the acap who we're linked to */
-#define THD_STATE_ACTIVE_UPCALL 0x4   /* Thread is in upcall execution. */
-#define THD_STATE_READY_UPCALL  0x8   /* Same as previous, but we are ready to execute */ 
-#define THD_STATE_SCHED_RETURN  0x10  /* When the sched switches to this thread, ret from ipc */
-#define THD_STATE_FAULT         0x20  /* Thread has had a (e.g. page) fault which is being serviced */
-#define THD_STATE_HW_ACAP      0x40 /* Actual hardware should be making this acap */
-#define THD_STATE_CYC_CNT       0x80 /* This thread is being cycle tracked */
 
 /**
  * The thread descriptor.  Contains all information pertaining to a
@@ -121,111 +98,28 @@ struct thread {
 //////
 	thdid_t tid;
 	int refcnt, invstk_top;
+	cpuid_t cpuid;
 	struct comp_info comp_info; /* which scheduler to notify of events? FIXME: ignored for now */
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
-	/* gp and fp registers */
+	/* TODO: gp and fp registers */
 } CACHE_ALIGNED;
-
-struct cap_thd {
-	struct cap_header h;
-	struct thread *t;
-	u32_t cpuid;
-} __attribute__((packed));
-
-static int 
-thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap)
-{
-	struct cap_thd *tc;
-	struct cap_comp *compc;
-	int ret;
-
-	compc = (struct cap_comp *)captbl_lkup(t, compcap);
-	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
-
-	tc = (struct cap_thd *)__cap_capactivate_pre(t, cap, capin, CAP_THD, &ret);
-	if (!tc) return ret;
-
-	/* initialize the thread */
-	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
-	thd->invstk[0].ip = thd->invstk[0].sp = 0;
-	thd->tid          = 0; /* FIXME: need correct value */
-	thd->refcnt       = 0;
-	thd->invstk_top   = 0;
-
-	/* initialize the capability */
-	tc->t     = thd;
-	tc->cpuid = 0; 		/* FIXME: add the proper call to get the cpuid */
-	__cap_capactivate_post(&tc->h, CAP_THD, 0);
-
-	return 0;
-}
-
-static int thd_deactivate(struct captbl *t, unsigned long cap, unsigned long capin)
-{ return cap_capdeactivate(t, cap, capin, CAP_THD); }
-
-extern struct thread *__thd_current;
-static inline struct thread *thd_current(void) 
-#ifdef LINUX_TEST
-{ return __thd_current; }
-#else
-{ return cos_get_curr_thd(); }
 #endif
 
-static inline void thd_current_update(struct thread *thd)
-#ifdef LINUX_TEST
-{ __thd_current = thd; }
-#else
-{ return cos_put_curr_thd(thd); }
+/*
+#if (PAGE_SIZE % THREAD_SIZE != 0)
+#error "Page size must be multiple of thread size."
 #endif
+*/
 
-static inline struct comp_info *
-thd_invstk_current(struct thread *thd, unsigned long *ip, unsigned long *sp)
-{
-	struct invstk_entry *curr;
+#define THD_STATE_PREEMPTED     0x1   /* Complete register info is saved in regs */
+#define THD_STATE_UPCALL        0x2   /* Thread for upcalls: ->srv_acap points to the acap who we're linked to */
+#define THD_STATE_ACTIVE_UPCALL 0x4   /* Thread is in upcall execution. */
+#define THD_STATE_READY_UPCALL  0x8   /* Same as previous, but we are ready to execute */ 
+#define THD_STATE_SCHED_RETURN  0x10  /* When the sched switches to this thread, ret from ipc */
+#define THD_STATE_FAULT         0x20  /* Thread has had a (e.g. page) fault which is being serviced */
+#define THD_STATE_HW_ACAP      0x40 /* Actual hardware should be making this acap */
+#define THD_STATE_CYC_CNT       0x80 /* This thread is being cycle tracked */
 
-	/* 
-	 * TODO: will be worth caching the invocation stack top along
-	 * with the current thread pointer to avoid the invstk_top
-	 * cacheline access.
-	 */
-	curr = &thd->invstk[thd->invstk_top];
-	*ip = curr->ip;
-	*sp = curr->sp;
-	return &curr->comp_info;
-}
-
-static inline int
-thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsigned long sp)
-{
-	struct invstk_entry *top, *prev;
-
-	prev = &thd->invstk[thd->invstk_top];
-	top  = &thd->invstk[thd->invstk_top+1];
-	if (unlikely(thd->invstk_top >= THD_INVSTK_MAXSZ)) return -1;
-	thd->invstk_top++;
-	prev->ip = ip;
-	prev->sp = sp;
-	memcpy(&top->comp_info, ci, sizeof(struct comp_info));
-	top->ip  = top->sp = 0;
-
-	return 0;
-}
-
-static inline struct comp_info *
-thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp)
-{
-	if (unlikely(thd->invstk_top == 0)) return NULL;
-	thd->invstk_top--;
-	return thd_invstk_current(thd, ip, sp);
-}
-
-/* void thd_init(void) */
-/* { assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD)); } */
-
-
-//////////////////////////////
-// to do: remove old code!
-//////////////////////////////
 struct thread *thd_alloc(struct spd *spd);
 void thd_free(struct thread *thd);
 void thd_free_all(void);

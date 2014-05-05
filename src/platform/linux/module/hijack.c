@@ -699,7 +699,7 @@ kern_boot_comp(struct spd_info *spd_info)
 #define KERNEL_PGD_REGION_SIZE    (PAGE_SIZE/4)
 	memcpy(boot_comp_pgd + KERNEL_PGD_REGION_OFFSET, linux_pgd + KERNEL_PGD_REGION_OFFSET, KERNEL_PGD_REGION_SIZE);
 
-	/* printk("pt %x, our pgd %x (%x), pte %x (%x)\n", pt, boot_comp_pgd, __pa(boot_comp_pgd), boot_comp_pte_vm, __pa(boot_comp_pte_vm)); */
+//	printk("pt %x, our pgd %x (%x), pte %x (%x)\n", pt, boot_comp_pgd, __pa(boot_comp_pgd), boot_comp_pte_vm, __pa(boot_comp_pte_vm));
 
 	assert(pt);
 	pgtbl_init_pte(boot_comp_pte_vm);
@@ -792,6 +792,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		comp_init();
 		thd_init();
 		inv_init();
+
 		if (kern_boot_comp(&spd_info)) return -1;
 
 		assert(cos_kmem);

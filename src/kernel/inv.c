@@ -4466,6 +4466,9 @@ static inline void new_handler(struct pt_regs *regs)
 	return;
 }
 
+//#define USE_LEGACY_KERN
+
+#ifdef USE_LEGACY_KERN
 __attribute__((section("__ipc_entry"))) COS_SYSCALL int
 composite_sysenter_handler(struct pt_regs *regs)
 {
@@ -4477,9 +4480,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 #ifdef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
 #endif
-	new_handler(regs);
-	return 0;
-
 	ax = user_regs_get_cap(regs);
 	printk("in old syscall handler ax %x!\n", ax);
 
@@ -4530,4 +4530,4 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 	return preempted;
 }
-
+#endif

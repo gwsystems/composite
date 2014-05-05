@@ -2784,18 +2784,19 @@ static void setup_kernel(struct service_symbs *services)
 	 * function will return to here and create processes for other
 	 * cores. */
 	assert(fn);
-//	printl(PRINT_HIGH, "\n Pid %d: OK, good to go, calling component 0's main\n\n", getpid());
+	//printl(PRINT_HIGH, "\n Pid %d: OK, good to go, calling component 0's main\n\n", getpid());
 
 	fn();
 
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
+#define ITER 4
 
 	rdtscll(start);
-	for (i = 0; i < 4096; i++) {
+	for (i = 0; i < ITER; i++) {
 		fn();
 	}
 	rdtscll(end);
-	printf("avg cost %llu\n", (end-start)/4096);
+	printf("avg cost %llu\n", (end-start)/ITER);
 
 	close(cntl_fd);
 
@@ -2831,7 +2832,6 @@ static void setup_kernel(struct service_symbs *services)
 	printl(PRINT_HIGH, "\n Pid %d: OK, good to go, calling component 0's main\n\n", getpid());
 	fflush(stdout);
 
-#define ITER 1
 	aed_disable_syscalls(cntl_fd);
 
 	rdtscll(start);

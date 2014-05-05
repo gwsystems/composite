@@ -346,11 +346,8 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 void cos_init(void);
 int sched_init(void)   
 {
-	printc("in llboot %d, h %x\n", cos_spd_id(), cos_get_heap_ptr());
-//	return 0;
-
 	int ret;
-	u32_t cap_no = ((1<<COS_CAPABILITY_OFFSET)-1);
+	u32_t cap_no = ((1<<COS_CAPABILITY_OFFSET));
         long fault = 0;
 
 	__asm__ __volatile__( \
@@ -375,6 +372,7 @@ int sched_init(void)
 
 //	printc("in llboot %d, h %x\n", cos_spd_id(), cos_get_heap_ptr());
 	return 0;
+
 	if (cos_cpuid() == INIT_CORE) {
 		/* We can't do shared memory in LLBooter. It uses
 		 * Linux allocated memory. Thus the following. */

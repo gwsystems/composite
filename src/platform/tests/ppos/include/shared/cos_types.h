@@ -20,6 +20,7 @@ typedef signed int       s32_t;
 typedef signed long long s64_t;
 
 typedef u16_t thdid_t;
+typedef int cpuid_t;
 
 typedef unsigned long vaddr_t;
 typedef unsigned long paddr_t;
@@ -33,7 +34,7 @@ static void *chal_pa2va(void *pa) { return (void *)((u32_t)pa + PAVAOFF); }
 #define PAGE_ALIGNED __attribute__((aligned(4096)))
 
 struct pt_regs {
-	unsigned long ax, bx, cx, dx, bp, sp, ip;
+	unsigned long ax, bx, cx, dx, bp, sp, ip, si, di;
 };
 
 #include <stdlib.h>
