@@ -3,6 +3,8 @@
 
 #define LINUX_TEST
 
+static inline int get_cpuid_fast(void) { return 0; }
+
 #ifndef unlikely
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 #endif

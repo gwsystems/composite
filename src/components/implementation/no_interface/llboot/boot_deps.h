@@ -346,8 +346,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 void cos_init(void);
 int sched_init(void)   
 {
-	call_cap(0);
-
+	printc("core %d in llboot\n");
 	if (cos_cpuid() == INIT_CORE) {
 		cos_init();
 //		if (!PERCPU_GET(llbooter)->init_thd) cos_init();
@@ -359,6 +358,8 @@ int sched_init(void)
 		boot_deps_run_all();
 		/* printc("core %ld, alpha: exiting system.\n", cos_cpuid()); */
 	}
+
+	call_cap(0);
 
 //	printc("in llboot %d, h %x\n", cos_spd_id(), cos_get_heap_ptr());
 	return 0;

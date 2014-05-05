@@ -134,7 +134,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	/* initialize the thread */
 	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
 	thd->invstk[0].ip = thd->invstk[0].sp = 0;
-	thd->tid          = 0; /* FIXME: need correct value */
+	thd->tid          = 1; /* FIXME: need correct value */
 	thd->refcnt       = 0;
 	thd->invstk_top   = 0;
 	

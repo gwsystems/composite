@@ -187,7 +187,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs)
 	pgtbl_update(sinvc->comp_info.pgtbl);
 
 	__userregs_sinvupdate(regs);
-	__userregs_set(regs, thd->tid | 0/*(get_cpuid_fast() << 16)*/, 
+	__userregs_set(regs, thd->tid | (get_cpuid_fast() << 16), 
 		       sinvc->h.poly /* calling component id */, sinvc->entry_addr);
 }
 
