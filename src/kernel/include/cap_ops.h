@@ -67,6 +67,7 @@ cap_memactivate(struct captbl *t, capid_t cap, capid_t capin, u32_t page, u32_t 
 	pt = (struct cap_pgtbl *)captbl_lkup(t, cap);
 	if (unlikely(!pt)) return -ENOENT;
 	if (unlikely(pt->h.type != CAP_PGTBL)) return -EINVAL;
+
 	return pgtbl_mapping_add(pt->pgtbl, capin, page, flags);
 }
 
@@ -90,6 +91,7 @@ cap_mem_retype2kern(struct captbl *t, capid_t cap, unsigned long addr, unsigned 
 
 	assert(t);
 	pgtblc = captbl_lkup(t, cap);
+
 	if (unlikely(!pgtblc)) return -ENOENT;
 	if (unlikely(pgtblc->h.type != CAP_PGTBL || pgtblc->lvl != 0)) return -EINVAL;
 	if ((ret = pgtbl_mapping_extract(pgtblc->pgtbl, addr, (unsigned long *)kern_addr))) return ret;

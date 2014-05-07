@@ -19,7 +19,7 @@ __userregs_getip(struct pt_regs *regs)
 { return regs->cx; }
 static inline capid_t 
 __userregs_getcap(struct pt_regs *regs)
-{ return regs->ax - (1<<COS_CAPABILITY_OFFSET); }
+{ return (regs->ax >> COS_CAPABILITY_OFFSET) - 1; }
 static inline u32_t
 __userregs_getop(struct pt_regs *regs)
 { return regs->ax & ((1<<COS_CAPABILITY_OFFSET) - 1); }

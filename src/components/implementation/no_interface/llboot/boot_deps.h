@@ -208,7 +208,15 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 
 /* memory operations... */
 
+/* Not used. */
 static vaddr_t init_hp = 0; 		/* initial heap pointer */
+/* 
+ * Virtual address to frame calculation...assume the first address
+ * passed in is the start of the heap, and they only increase by a
+ * page from there.
+ */
+static inline int
+__vpage2frame(vaddr_t addr) { return (addr - init_hp) / PAGE_SIZE; }
 
 /* 
  * Assumptions about the memory management functions: 
@@ -220,13 +228,20 @@ static vaddr_t init_hp = 0; 		/* initial heap pointer */
  * by a page, and the free function is made empty.
  */
 
-/* 
- * Virtual address to frame calculation...assume the first address
- * passed in is the start of the heap, and they only increase by a
- * page from there.
- */
-static inline int
-__vpage2frame(vaddr_t addr) { return (addr - init_hp) / PAGE_SIZE; }
+static vaddr_t kmem_heap = BOOT_MEM_KM_BASE;
+
+vaddr_t get_kmem_cap(void) {
+	vaddr_t ret = kmem_heap;
+	kmem_heap += PAGE_SIZE;
+
+	return ret;
+}
+
+static u64_t liv_id_heap = BOOT_LIVENESS_ID_BASE;
+
+u64_t get_liv_id(void) {
+	return liv_id_heap++;
+}
 
 static vaddr_t
 __local_mman_get_page(spdid_t spd, vaddr_t addr, int flags)
@@ -298,11 +313,46 @@ boot_deps_init(void)
 	assert(nmmgrs > 0);
 }
 
+static inline void
+boot_comp_thds_init(void)
+{
+	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
+
+	llboot->alpha        = BOOT_CAPTBL_SELF_INITTHD;
+
+	return;
+
+	llboot->recovery_thd = cos_create_thread(cos_spd_id(), 0, 0);
+	assert(llboot->recovery_thd >= 0);
+	llboot->init_thd     = cos_create_thread(cos_spd_id(), 0, 0);
+	printc("Core %ld, Low-level booter created threads:\n\t"
+	       "%d: alpha\n\t%d: recov\n\t%d: init\n",
+	       cos_cpuid(), llboot->alpha, 
+	       llboot->recovery_thd, llboot->init_thd);
+	assert(llboot->init_thd >= 0);
+}
+
+static inline void
+boot_comp_deps_init(void)
+{
+	int i;	
+
+	boot_comp_thds_init();
+
+	/* How many memory managers are there? */
+	for (i = 0 ; init_schedule[i] ; i++) nmmgrs += init_mem_access[i];
+	assert(nmmgrs > 0);
+}
+
 static void
 boot_deps_run(void)
 {
+	printc("cpuid %d thd %d\n", cos_cpuid(), cos_get_thd_id());
 	assert(cos_cpuid() == INIT_CORE);
+
+	return;
 	assert(PERCPU_GET(llbooter)->init_thd);
+
 	return; /* We return to comp0 and release other cores first. */
 }
 
@@ -346,7 +396,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 void cos_init(void);
 int sched_init(void)   
 {
-	printc("core %d in llboot\n");
+	printc("core %ld in llboot\n", cos_cpuid());
 	if (cos_cpuid() == INIT_CORE) {
 		cos_init();
 //		if (!PERCPU_GET(llbooter)->init_thd) cos_init();
@@ -359,7 +409,7 @@ int sched_init(void)
 		/* printc("core %ld, alpha: exiting system.\n", cos_cpuid()); */
 	}
 
-	call_cap(0);
+	call_cap(0, 0, 0, 0, 0);
 
 //	printc("in llboot %d, h %x\n", cos_spd_id(), cos_get_heap_ptr());
 	return 0;

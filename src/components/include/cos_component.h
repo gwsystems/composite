@@ -13,12 +13,13 @@
 #include <errno.h>
 
 /* temporary */
-static inline int call_cap(u32_t cap_no)
+static inline int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 {
         long fault = 0;
 	int ret;
 
-	cap_no += (1<<COS_CAPABILITY_OFFSET);
+	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
+	cap_no += op;
 
 	__asm__ __volatile__( \
 		"pushl %%ebp\n\t" \
@@ -37,10 +38,20 @@ static inline int call_cap(u32_t cap_no)
 		"movl $1, %%ecx\n\t" \
 		"3:" \
 		: "=a" (ret), "=c" (fault)
-                : "a" (cap_no) \
-		: "ebx", "edx", "esi", "edi", "memory", "cc");
+		: "a" (cap_no), "b" (arg1), "S" (arg2), "D" (arg3), "d" (arg4) \
+		: "memory", "cc");
 
 	return ret;
+}
+
+static inline int call_cap(u32_t cap_no, int arg1, int arg2, int arg3, int arg4)
+{
+	return call_cap_asm(cap_no, 0, arg1, arg2, arg3, arg4);
+}
+
+static inline int call_cap_op(u32_t cap_no, u32_t op_code,int arg1, int arg2, int arg3, int arg4)
+{
+	return call_cap_asm(cap_no, op_code, arg1, arg2, arg3, arg4);
 }
 
 /**
