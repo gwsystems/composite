@@ -19,7 +19,7 @@ __userregs_getip(struct pt_regs *regs)
 { return regs->cx; }
 static inline capid_t 
 __userregs_getcap(struct pt_regs *regs)
-{ return regs->ax - (1<<COS_CAPABILITY_OFFSET); }
+{ return (regs->ax >> COS_CAPABILITY_OFFSET) - 1; }
 static inline u32_t
 __userregs_getop(struct pt_regs *regs)
 { return regs->ax & ((1<<COS_CAPABILITY_OFFSET) - 1); }
@@ -57,5 +57,19 @@ __userregs_get3(struct pt_regs *regs)
 static inline int
 __userregs_get4(struct pt_regs *regs)
 { return regs->dx; }
+
+static inline void
+copy_gp_regs(struct pt_regs *from, struct pt_regs *to)
+{
+#define COPY_REG(reg) to->reg = from->reg
+	COPY_REG(ax);
+	COPY_REG(bx);
+	COPY_REG(cx);
+	COPY_REG(dx);
+	COPY_REG(si);
+	COPY_REG(di);
+	COPY_REG(bp);
+#undef COPY_REG
+}
 
 #endif	/* CALL_CONVENTION_H */

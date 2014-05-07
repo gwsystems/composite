@@ -1,5 +1,5 @@
 /**
- * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ * Copyright 2014 by Gabriel Parmer, gparmer@gwu.edu
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
@@ -29,6 +29,125 @@ typedef signed short int s16_t;
 typedef signed int       s32_t;
 typedef signed long long s64_t;
 #endif
+
+#define PRINT_CAP_TEMP (2 << 15)
+/* 
+ * Initial captbl setup:  
+ * 0 = sret, 
+ * 1 = this captbl, 
+ * 2 = our pgtbl root,
+ * 3 = initial thread,
+ * 4-5 = our component,
+ * 6-7 = nil,
+ * 8 = vm pte for booter
+ * 9 = vm pte for physical memory
+ * 10-11 = nil,
+ * 12 = comp0 captbl, 
+ * 13 = comp0 pgtbl root,
+ * 14-15 = nil,
+ * 16-17 = comp0 component,
+ * 
+ * Initial pgtbl setup (addresses):
+ * 1GB+8MB-> = boot component VM
+ * 1.5GB-> = kernel memory
+ * 2GB-> = system physical memory
+ */
+enum {
+	BOOT_CAPTBL_SRET = 0, 
+	BOOT_CAPTBL_SELF_CT = 1, 
+	BOOT_CAPTBL_SELF_PT = 2, 
+	BOOT_CAPTBL_SELF_INITTHD = 3, 
+	BOOT_CAPTBL_SELF_COMP = 4, 
+	BOOT_CAPTBL_BOOTVM_PTE = 8, 
+	BOOT_CAPTBL_PHYSM_PTE = 9, 
+	BOOT_CAPTBL_KM_PTE = 10, 
+
+	BOOT_CAPTBL_COMP0_CT = 12,
+	BOOT_CAPTBL_COMP0_PT = 13,  
+	BOOT_CAPTBL_COMP0_COMP = 16, 
+	BOOT_CAPTBL_FREE = 20, 
+};
+
+enum {
+	BOOT_MEM_VM_BASE = 0x40800000,//@ 1G + 8M
+	BOOT_MEM_KM_BASE = 0x60000000,//@ 1.5 GB
+	BOOT_MEM_PM_BASE = 0x80000000,//@ 2 GB
+};
+
+#define BOOT_LIVENESS_ID_BASE 1
+
+typedef enum {
+	CAPTBL_OP_CPY,
+	CAPTBL_OP_CONS,
+	CAPTBL_OP_DECONS,
+	CAPTBL_OP_THDACTIVATE,
+	CAPTBL_OP_THDDEACTIVATE,
+	CAPTBL_OP_COMPACTIVATE,
+	CAPTBL_OP_COMPDEACTIVATE,
+	CAPTBL_OP_SINVACTIVATE,
+	CAPTBL_OP_SINVDEACTIVATE,
+	CAPTBL_OP_SRETACTIVATE,
+	CAPTBL_OP_SRETDEACTIVATE,
+	CAPTBL_OP_ASNDACTIVATE,
+	CAPTBL_OP_ASNDDEACTIVATE,
+	CAPTBL_OP_ARCVACTIVATE,
+	CAPTBL_OP_ARCVDEACTIVATE,
+	CAPTBL_OP_MAPPING_CONS,
+	CAPTBL_OP_MAPPING_DECONS,
+	CAPTBL_OP_MAPPING_MOD,
+	CAPTBL_OP_MAPPING_RETYPE,
+	CAPTBL_OP_PGDACTIVATE,
+	CAPTBL_OP_PTEACTIVATE,
+	CAPTBL_OP_CAPTBLACTIVATE,
+} syscall_op_t;
+
+typedef enum {
+	CAP_FREE = 0,
+	CAP_SINV,		/* synchronous communication -- invoke */
+	CAP_SRET,		/* synchronous communication -- return */
+	CAP_ASND,		/* async communication; sender */
+	CAP_ARCV,               /* async communication; receiver */
+	CAP_THD,                /* thread */
+	CAP_COMP,               /* component */
+	CAP_CAPTBL,             /* capability table */
+	CAP_PGTBL,              /* page-table */
+	CAP_FRAME, 		/* untyped frame within a page-table */
+	CAP_VM, 		/* mapped virtual memory within a page-table */
+} cap_t;
+
+typedef unsigned long capid_t;
+
+/* 
+ * The values in this enum are the order of the size of the
+ * capabilities in this cacheline, offset by CAP_SZ_OFF (to compress
+ * memory).
+ */
+typedef enum {
+	CAP_SZ_16B = 0,
+	CAP_SZ_32B = 1,
+	CAP_SZ_64B = 2,
+	CAP_SZ_ERR = 3,
+} cap_sz_t;
+/* the shift offset for the *_SZ_* values */
+#define	CAP_SZ_OFF   4 
+/* The allowed amap bits of each size */
+#define	CAP_MASK_16B ((1<<4)-1)
+#define	CAP_MASK_32B (1 | (1<<2))
+#define	CAP_MASK_64B 1
+
+#define CAP16B_IDSZ (1<<(CAP_SZ_16B))
+#define CAP32B_IDSZ (1<<(CAP_SZ_32B))
+#define CAP64B_IDSZ (1<<(CAP_SZ_64B))
+#define CAPMAX_ENTRY_SZ CAP64B_IDSZ
+
+enum {
+	/* cap 2-3 used for pp test cases for now */
+	SCHED_CAPTBL_ALPHA_THD = 4, 
+	SCHED_CAPTBL_INIT_THD  = 5,
+	SCHED_CAPTBL_LAST, 
+	/* round up to a new entry. */
+	SCHED_CAPTBL_FREE = round_up_to_pow2(SCHED_CAPTBL_LAST, CAPMAX_ENTRY_SZ)
+};
 
 typedef int cpuid_t; /* Don't use unsigned type. We use negative values for error cases. */
 

@@ -67,6 +67,7 @@ cap_memactivate(struct captbl *t, capid_t cap, capid_t capin, u32_t page, u32_t 
 	pt = (struct cap_pgtbl *)captbl_lkup(t, cap);
 	if (unlikely(!pt)) return -ENOENT;
 	if (unlikely(pt->h.type != CAP_PGTBL)) return -EINVAL;
+
 	return pgtbl_mapping_add(pt->pgtbl, capin, page, flags);
 }
 
@@ -90,6 +91,7 @@ cap_mem_retype2kern(struct captbl *t, capid_t cap, unsigned long addr, unsigned 
 
 	assert(t);
 	pgtblc = captbl_lkup(t, cap);
+
 	if (unlikely(!pgtblc)) return -ENOENT;
 	if (unlikely(pgtblc->h.type != CAP_PGTBL || pgtblc->lvl != 0)) return -EINVAL;
 	if ((ret = pgtbl_mapping_extract(pgtblc->pgtbl, addr, (unsigned long *)kern_addr))) return ret;
@@ -189,24 +191,30 @@ cap_decons(struct captbl *t, capid_t cap, capid_t pruneid, unsigned long lvl)
  */
 static inline int
 cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, 
-	capid_t cap_from, capid_t capin_from, cap_t type)
+	capid_t cap_from, capid_t capin_from)
 {
 	struct cap_header *ctto, *ctfrom;
 	int sz, ret;
 	cap_t cap_type;
 	
+	/* printk("copy from captbl %d, cap %d to captbl %d, cap %d\n",  */
+	/*        cap_from, capin_from, cap_to, capin_to); */
 	ctfrom = captbl_lkup(t, cap_from);
 	if (unlikely(!ctfrom)) return -ENOENT;
 	cap_type = ctfrom->type; 
 
 	if (cap_type == CAP_CAPTBL) {
-		ctfrom = captbl_lkup(((struct cap_captbl *)ctfrom)->captbl, capin_from);
-		if (unlikely(!ctfrom))              return -ENOENT;
-		if (unlikely(ctfrom->type != type)) return -EINVAL;
+		cap_t type;
 
-		sz = __captbl_cap2sz(type);
+		ctfrom = captbl_lkup(((struct cap_captbl *)ctfrom)->captbl, capin_from);
+		if (unlikely(!ctfrom)) return -ENOENT;
+
+		type = ctfrom->type;
+		sz = __captbl_cap2bytes(type);
+
 		ctto = __cap_capactivate_pre(t, cap_to, capin_to, type, &ret);
 		if (!ctto) return -EINVAL;
+
 		memcpy(ctto->post, ctfrom->post, sz - sizeof(struct cap_header));
 		__cap_capactivate_post(ctto, type, ctfrom->poly);
 	} else if (cap_type == CAP_PGTBL) {
@@ -226,6 +234,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 	} else {
 		ret = -EINVAL;
 	}
+
 	return ret;
 }
 

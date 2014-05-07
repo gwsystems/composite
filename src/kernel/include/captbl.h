@@ -33,40 +33,6 @@
 #undef CAP_FREE
 #endif
 
-typedef enum {
-	CAP_FREE = 0,
-	CAP_SINV,		/* synchronous communication -- invoke */
-	CAP_SRET,		/* synchronous communication -- return */
-	CAP_ASND,		/* async communication; sender */
-	CAP_ARCV,               /* async communication; receiver */
-	CAP_THD,                /* thread */
-	CAP_COMP,               /* component */
-	CAP_CAPTBL,             /* capability table */
-	CAP_PGTBL,              /* page-table */
-	CAP_FRAME, 		/* untyped frame within a page-table */
-	CAP_VM, 		/* mapped virtual memory within a page-table */
-} cap_t;
-
-typedef unsigned long capid_t;
-
-/* 
- * The values in this enum are the order of the size of the
- * capabilities in this cacheline, offset by CAP_SZ_OFF (to compress
- * memory).
- */
-typedef enum {
-	CAP_SZ_16B = 0,
-	CAP_SZ_32B = 1,
-	CAP_SZ_64B = 2,
-	CAP_SZ_ERR = 3,
-} cap_sz_t;
-/* the shift offset for the *_SZ_* values */
-#define	CAP_SZ_OFF   4 
-/* The allowed amap bits of each size */
-#define	CAP_MASK_16B ((1<<4)-1)
-#define	CAP_MASK_32B (1 | (1<<2))
-#define	CAP_MASK_64B 1
-
 /* a function instead of a struct to enable inlining + constant prop */
 static inline cap_sz_t
 __captbl_cap2sz(cap_t c)

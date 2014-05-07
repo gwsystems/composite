@@ -264,9 +264,10 @@ pgtbl_mapping_extract(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 
 	orig_v = (u32_t)(pte->next);
 	*kern_addr = (unsigned long)chal_pa2va(orig_v & PGTBL_FRAME_MASK);
+
 	if (unlikely(!*kern_addr)) return -EINVAL; /* cannot retype a non-kernel accessible page */
-	if (unlikely(!(accum & PGTBL_COSFRAME))) return -EINVAL; /* can't retype non-frames */
-	if (unlikely(!cos_cas((unsigned long *)pte, orig_v, 0))); return -1; /* FIXME: error code for write conflicts */
+	if (unlikely(!(orig_v & PGTBL_COSFRAME))) return -EINVAL; /* can't retype non-frames */
+	if (unlikely(!cos_cas((unsigned long *)pte, orig_v, 0))) return -1; /* FIXME: error code for write conflicts */
 
 	return 0;
 }
@@ -321,7 +322,16 @@ static vaddr_t
 pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
 { return (vaddr_t)pgtbl_lkup(pt, addr, flags); }
 
-static pgtbl_t pgtbl_create(void *page) { return pgtbl_alloc(page); }
+#define KERNEL_PGD_REGION_OFFSET  (PAGE_SIZE - PAGE_SIZE/4)
+#define KERNEL_PGD_REGION_SIZE    (PAGE_SIZE/4)
+
+static pgtbl_t pgtbl_create(void *page, void *curr_pgtbl) {
+	pgtbl_t ret = pgtbl_alloc(page); 
+	/* Copying the kernel part of the pgd. */
+	memcpy(page + KERNEL_PGD_REGION_OFFSET, (void *)chal_pa2va(curr_pgtbl) + KERNEL_PGD_REGION_OFFSET, KERNEL_PGD_REGION_SIZE);
+
+	return ret;
+}
 int pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
 int pgtbl_deactivate(struct captbl *t, unsigned long cap, unsigned long capin);
 static void pgtbl_init(void) { return; }

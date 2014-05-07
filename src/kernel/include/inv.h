@@ -43,28 +43,6 @@ struct cap_arcv {
 	struct thread *thd;
 } __attribute__((packed));
 
-typedef enum {
-	CAPTBL_OP_CPY,
-	CAPTBL_OP_CONS,
-	CAPTBL_OP_DECONS,
-	CAPTBL_OP_THDACTIVATE,
-	CAPTBL_OP_THDDEACTIVATE,
-	CAPTBL_OP_COMPACTIVATE,
-	CAPTBL_OP_COMPDEACTIVATE,
-	CAPTBL_OP_SINVACTIVATE,
-	CAPTBL_OP_SINVDEACTIVATE,
-	CAPTBL_OP_SRETACTIVATE,
-	CAPTBL_OP_SRETDEACTIVATE,
-	CAPTBL_OP_ASNDACTIVATE,
-	CAPTBL_OP_ASNDDEACTIVATE,
-	CAPTBL_OP_ARCVACTIVATE,
-	CAPTBL_OP_ARCVDEACTIVATE,
-	CAPTBL_OP_MAPPING_CONS,
-	CAPTBL_OP_MAPPING_DECONS,
-	CAPTBL_OP_MAPPING_MOD,
-	CAPTBL_OP_MAPPING_RETYPE,
-} syscall_op_t;
-
 static int 
 sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, vaddr_t entry_addr)
 {
@@ -187,7 +165,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs)
 	pgtbl_update(sinvc->comp_info.pgtbl);
 
 	__userregs_sinvupdate(regs);
-	__userregs_set(regs, thd->tid | 0/*(get_cpuid_fast() << 16)*/, 
+	__userregs_set(regs, thd->tid | (get_cpuid_fast() << 16),
 		       sinvc->h.poly /* calling component id */, sinvc->entry_addr);
 }
 

@@ -118,6 +118,22 @@ struct cap_thd {
 	cpuid_t cpuid;
 } __attribute__((packed));
 
+static void thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int arg2, int arg3)
+{
+	struct pt_regs *r = &thd->regs;
+
+	r->cx = option;
+
+	r->bx = arg1;
+	r->di = arg2;
+	r->si = arg3;
+
+	r->ip = r->dx = entry_addr;
+	r->ax = thd->tid | (get_cpuid() << 16); // thd id + cpu id
+
+	return;
+}
+
 static int 
 thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap)
 {
@@ -134,18 +150,16 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	/* initialize the thread */
 	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
 	thd->invstk[0].ip = thd->invstk[0].sp = 0;
-	thd->tid          = 0; /* FIXME: need correct value */
+	thd->tid          = 1; /* FIXME: need correct value */
 	thd->refcnt       = 0;
 	thd->invstk_top   = 0;
 	
-	/* FIXME: 
-	 * add thd->regs.ip = compc->entry_addr
-	 * add parameters for the upcall and threadid/coreid/spdid etc...
-	 */
+	thd_upcall_setup(thd, compc->entry_addr, 
+			 COS_UPCALL_THD_CREATE, 0, 0, 0);
 
 	/* initialize the capability */
 	tc->t     = thd;
-	tc->cpuid = 0; 		/* FIXME: add the proper call to get the cpuid */
+	tc->cpuid = get_cpuid();
 	__cap_capactivate_post(&tc->h, CAP_THD, 0);
 
 	return 0;

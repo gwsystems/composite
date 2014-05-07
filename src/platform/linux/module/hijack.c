@@ -616,58 +616,17 @@ u8_t thdinit[PAGE_SIZE]          PAGE_ALIGNED;
 u8_t boot_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 u8_t c0_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 
-/* u8_t boot_comp_pgd[PAGE_SIZE]    PAGE_ALIGNED; */
-/* u8_t boot_comp_pte_vm[PAGE_SIZE] PAGE_ALIGNED; */
-/* u8_t boot_comp_pte_pm[PAGE_SIZE] PAGE_ALIGNED; */
 u8_t *boot_comp_pgd;
 u8_t *boot_comp_pte_vm;
+u8_t *boot_comp_pte_km;
 u8_t *boot_comp_pte_pm;
 
 unsigned long sys_maxmem      = 1<<10; /* 4M of physical memory (2^10 pages) */
 
-/* 
- * Initial captbl setup:  
- * 0 = sret, 
- * 1 = this captbl, 
- * 2 = our pgtbl root,
- * 3 = initial thread,
- * 4-5 = our component,
- * 6-7 = nil,
- * 8 = vm pte for booter
- * 9 = vm pte for physical memory
- * 10-11 = nil,
- * 12 = comp0 captbl, 
- * 13 = comp0 pgtbl root,
- * 14-15 = nil,
- * 16-17 = comp0 component,
- * 
- * Initial pgtbl setup (addresses):
- * 4MB-> = boot component VM
- * 1GB-> = system physical memory
- */
-
-enum {
-	BOOT_CAPTBL_SRET = 0, 
-	BOOT_CAPTBL_SELF_CT = 1, 
-	BOOT_CAPTBL_SELF_PT = 2, 
-	BOOT_CAPTBL_SELF_INITTHD = 3, 
-	BOOT_CAPTBL_SELF_COMP = 4, 
-	BOOT_CAPTBL_BOOTVM_PTE = 8, 
-	BOOT_CAPTBL_PHYSM_PTE = 9, 
-
-	BOOT_CAPTBL_COMP0_CT = 12,
-	BOOT_CAPTBL_COMP0_PT = 13,  
-	BOOT_CAPTBL_COMP0_COMP = 16, 
-};
-
-enum {
-	BOOT_MEM_VM_BASE = 0x40800000,//1<<22,
-	BOOT_MEM_PM_BASE = 0x80000000,//1<<30,
-};
-
 static void *cos_kmem, *cos_kmem_base;
 paddr_t linux_pgd;
 vaddr_t boot_sinv_entry;
+unsigned long sys_llbooter_sz;    /* how many pages is the llbooter? */
 
 struct thread *__thd_current;
 
@@ -680,7 +639,6 @@ kern_boot_comp(struct spd_info *spd_info)
 	unsigned int i;
 	struct pt_regs regs;
 	struct thread *thd = (struct thread *)thdinit;
-	unsigned long sys_llbooter_sz;    /* how many pages is the llbooter? */
 
 	ct = captbl_create(boot_comp_captbl);
 	assert(ct);
@@ -688,31 +646,28 @@ kern_boot_comp(struct spd_info *spd_info)
 	boot_comp_pgd = cos_kmem_base;
 	boot_comp_pte_vm = cos_kmem_base + PAGE_SIZE;
 	boot_comp_pte_pm = cos_kmem_base + 2 * PAGE_SIZE;
+	boot_comp_pte_km = cos_kmem_base + 3 * PAGE_SIZE;
 
-	cos_kmem += 3*PAGE_SIZE;
+	cos_kmem += 4*PAGE_SIZE;
 
-	pt = pgtbl_create(boot_comp_pgd);
-
-	//TODO: add this to pgtbl_create code.
-	/* Copying the kernel part of the pgd. */
-#define KERNEL_PGD_REGION_OFFSET  (PAGE_SIZE - PAGE_SIZE/4)
-#define KERNEL_PGD_REGION_SIZE    (PAGE_SIZE/4)
-	memcpy(boot_comp_pgd + KERNEL_PGD_REGION_OFFSET, linux_pgd + KERNEL_PGD_REGION_OFFSET, KERNEL_PGD_REGION_SIZE);
+	pt = pgtbl_create(boot_comp_pgd, chal_va2pa(linux_pgd));
 
 //	printk("pt %x, our pgd %x (%x), pte %x (%x)\n", pt, boot_comp_pgd, __pa(boot_comp_pgd), boot_comp_pte_vm, __pa(boot_comp_pte_vm));
-
 	assert(pt);
 	pgtbl_init_pte(boot_comp_pte_vm);
 	pgtbl_init_pte(boot_comp_pte_pm);
+	pgtbl_init_pte(boot_comp_pte_km);
 
 	if (captbl_activate_boot(ct, BOOT_CAPTBL_SELF_CT)) cos_throw(err, -1);
 	if (sret_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SRET)) cos_throw(err, -1);
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, pt, 0)) cos_throw(err, -1);
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_BOOTVM_PTE, (pgtbl_t)boot_comp_pte_vm, 1)) cos_throw(err, -1);
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_KM_PTE, (pgtbl_t)boot_comp_pte_km, 1)) cos_throw(err, -1);
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_PHYSM_PTE, (pgtbl_t)boot_comp_pte_pm, 1)) cos_throw(err, -1);
 
 	/* construct the page tables */
 	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, BOOT_MEM_VM_BASE)) cos_throw(err, -1);
+	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_KM_PTE, BOOT_MEM_KM_BASE)) cos_throw(err, -1);
 	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_PHYSM_PTE, BOOT_MEM_PM_BASE)) cos_throw(err, -1);
 
 	sys_llbooter_sz = spd_info->mem_size / PAGE_SIZE;
@@ -726,8 +681,20 @@ kern_boot_comp(struct spd_info *spd_info)
 				    addr, PGTBL_USER_DEF)) cos_throw(err, -1);
 		assert(chal_pa2va(addr) == (u32_t)pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
 	}
+	cos_kmem += sys_llbooter_sz*PAGE_SIZE;
 
-	/* add the system's physical memory at address 1GB */
+	/* add the remaining kernel memory @ 1.5GB*/
+	/* printk("mapping from kmem %x\n", cos_kmem); */
+	for (i = 0; i < (COS_KERNEL_MEMORY - (cos_kmem - cos_kmem_base)/PAGE_SIZE); i++) {
+		u32_t addr = chal_va2pa(cos_kmem) + i*PAGE_SIZE;
+		u32_t flags;
+		if (cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
+				    BOOT_MEM_KM_BASE + i*PAGE_SIZE, 
+				    addr, PGTBL_COSFRAME | PGTBL_USER_DEF)) cos_throw(err, -1); /* FIXME: shouldn't be accessible */
+		assert(chal_pa2va(addr) == (u32_t)pgtbl_lkup(pt, BOOT_MEM_KM_BASE+i*PAGE_SIZE, &flags));
+	}
+
+	/* add the system's physical memory at address 2GB */
 	for (i = 0 ; i < sys_maxmem ; i++) {
 		u32_t addr = COS_MEM_START + i*PAGE_SIZE;
 		u32_t flags;
@@ -796,7 +763,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		if (kern_boot_comp(&spd_info)) return -1;
 
 		assert(cos_kmem);
-		if (copy_from_user(cos_kmem, (void*)spd_info.lowest_addr, spd_info.mem_size)) {
+		if (copy_from_user(cos_kmem - sys_llbooter_sz*PAGE_SIZE, (void*)spd_info.lowest_addr, spd_info.mem_size)) {
 			printk("cos: Error copying spd_info from user.\n");
 			return -EFAULT;
 		}
@@ -1548,6 +1515,8 @@ void *chal_va2pa(void *va)
 
 void *chal_pa2va(void *pa) 
 {
+	if (pa >= COS_MEM_START) return NULL;
+
 	return (void*)__va(pa);
 }
 

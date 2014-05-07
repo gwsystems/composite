@@ -293,20 +293,6 @@ err:
 	return;
 }
 
-static inline void
-copy_gp_regs(struct pt_regs *from, struct pt_regs *to)
-{
-#define COPY_REG(reg) to->reg = from->reg
-	COPY_REG(ax);
-	COPY_REG(bx);
-	COPY_REG(cx);
-	COPY_REG(dx);
-	COPY_REG(si);
-	COPY_REG(di);
-	COPY_REG(bp);
-#undef COPY_REG
-}
-
 static inline unsigned long
 user_regs_get_inv_ret(struct pt_regs *regs){
 	/* cx holds the return value on invocation return path. */

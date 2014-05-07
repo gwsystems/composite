@@ -2591,6 +2591,7 @@ make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
 
 	ci->cos_poly[3] = ((unsigned int)*heap_ptr);
 	make_spd_config_comp(boot, all);
+	llboot_mem = (unsigned int)*heap_ptr - boot->lower_addr;
 }
 
 static void format_config_info(struct service_symbs *ss, struct component_init_str *data)
@@ -2751,11 +2752,6 @@ static void setup_kernel(struct service_symbs *services)
 
 		make_spd_llboot(s, services);
 		make_spd_scheduler(cntl_fd, s, NULL);
-
-		npages = s->mem_size / PAGE_SIZE;
-		if (s->mem_size % PAGE_SIZE) npages++;
-		for (i = 0; i < 10; i++)
-			var = *((int *)SERVICE_START + i*PAGE_SIZE);
 	} 
 
 	fflush(stdout);
@@ -2766,6 +2762,7 @@ static void setup_kernel(struct service_symbs *services)
 		exit(-1);
 	}
 	thd.spd_handle = ((struct spd_info *)s->extern_info)->spd_handle;//spd0->spd_handle;
+	var = *((int *)SERVICE_START);
 
 	/* This will hopefully avoid hugely annoying fsck runs */
 	sync();
@@ -2786,10 +2783,8 @@ static void setup_kernel(struct service_symbs *services)
 	assert(fn);
 	//printl(PRINT_HIGH, "\n Pid %d: OK, good to go, calling component 0's main\n\n", getpid());
 
-	fn();
-
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
-#define ITER 4
+#define ITER 1
 
 	rdtscll(start);
 	for (i = 0; i < ITER; i++) {
