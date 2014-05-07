@@ -231,7 +231,9 @@ __vpage2frame(vaddr_t addr) { return (addr - init_hp) / PAGE_SIZE; }
 static vaddr_t kmem_heap = BOOT_MEM_KM_BASE;
 
 vaddr_t get_kmem_cap(void) {
-	vaddr_t ret = kmem_heap;
+	vaddr_t ret;
+
+	ret = kmem_heap;
 	kmem_heap += PAGE_SIZE;
 
 	return ret;
@@ -240,7 +242,10 @@ vaddr_t get_kmem_cap(void) {
 static u64_t liv_id_heap = BOOT_LIVENESS_ID_BASE;
 
 u64_t get_liv_id(void) {
-	return liv_id_heap++;
+	u64_t ret;
+	ret = liv_id_heap++;
+	
+	return ret;
 }
 
 static vaddr_t
@@ -368,35 +373,54 @@ struct comp_cap_info comp_cap_info[MAX_NUM_SPDS+1];
 
 #define BOOT_INIT_SCHED_COMP 2
 
+capid_t per_core_thd_cap[NUM_CPU_COS];
+vaddr_t per_core_thd_mem[NUM_CPU_COS];
+
 static inline void
 boot_comp_thds_init(void)
 {
 	struct comp_cap_info *cc = &comp_cap_info[BOOT_INIT_SCHED_COMP];
 	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
-	capid_t thd_alpha, thd_sched;
+	capid_t thd_alpha, thd_schedinit;
 	int ret;
 
-	llboot->alpha        = BOOT_CAPTBL_SELF_INITTHD;
-	llboot->init_thd     = alloc_capid(CAP_THD);
-	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, llboot->init_thd, 
-			BOOT_CAPTBL_SELF_PT, get_kmem_cap(), cc->comp_cap)) BUG();
+	/* We reserve 2 caps for each core in the captbl of scheduler */
+	thd_alpha     = SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid();
+	thd_schedinit = SCHED_CAPTBL_INITTHD_BASE  + cos_cpuid();
+	assert(thd_schedinit <= SCHED_CAPTBL_LAST);
 
-	printc("Core %ld, Low-level booter created threads:\n\t"
-	       "Cap %d: alpha\n Cap %d: init\n",
+	llboot->alpha        = BOOT_CAPTBL_SELF_INITTHD_BASE + cos_cpuid();
+	llboot->init_thd     = per_core_thd_cap[cos_cpuid()];
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, llboot->init_thd, 
+			BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()], cc->comp_cap)) BUG();
+
+	printc("Core %ld, Low-level booter created threads:\n"
+	       "\tCap %d: alpha\n\tCap %d: init\n",
 	       cos_cpuid(), llboot->alpha, llboot->init_thd);
 	assert(llboot->init_thd >= 0);
 
 	/* Scheduler should have access to the init thread and alpha
 	 * thread. Grant caps by copying. */
-	assert(cc->cap_frontier <= SCHED_CAPTBL_ALPHA_THD);
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, BOOT_CAPTBL_SELF_CT, 
-			llboot->init_thd, cc->captbl_cap, SCHED_CAPTBL_INIT_THD)) BUG();
+			llboot->init_thd, cc->captbl_cap, thd_schedinit)) BUG();
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, BOOT_CAPTBL_SELF_CT, 
-			llboot->alpha, cc->captbl_cap, SCHED_CAPTBL_ALPHA_THD))   BUG();
-
-	cc->cap_frontier = SCHED_CAPTBL_FREE;
+			llboot->alpha, cc->captbl_cap, thd_alpha))    BUG();
 
 	return;
+}
+
+static inline void 
+alloc_per_core_thd(void)
+{
+	int i;
+
+	/* Only the init core does the resource allocation. Thus no
+	 * lock needed. */
+	for (i = 0; i < NUM_CPU_COS; i++) {
+		per_core_thd_cap[i] = alloc_capid(CAP_THD);
+		per_core_thd_mem[i] = get_kmem_cap();
+		assert(per_core_thd_cap[i] && per_core_thd_mem[i]);
+	}
 }
 
 static inline void
@@ -404,6 +428,7 @@ boot_comp_deps_init(void)
 {
 	int i;	
 
+	alloc_per_core_thd();
 	boot_comp_thds_init();
 
 	/* How many memory managers are there? */
@@ -463,7 +488,7 @@ void comp_deps_run_all(void)
 {
 	/* switch to the init thd in the scheduler. */
 	if (cap_switch_thd(PERCPU_GET(llbooter)->init_thd)) BUG();
-	printc("core %ld: booter init_thd switching back to alpha %d.\n", cos_cpuid(), PERCPU_GET(llbooter)->alpha);
+	/* printc("Core %ld: booter init_thd switching back to alpha thd (cap %d).\n", cos_cpuid(), PERCPU_GET(llbooter)->alpha); */
 
 	return;
 }
@@ -473,42 +498,22 @@ void cos_init(void);
 int sched_init(void)   
 {
 	printc("core %ld in llboot\n", cos_cpuid());
+
+	assert(cos_cpuid() < NUM_CPU_COS);
 	if (cos_cpuid() == INIT_CORE) {
-		cos_init();
-		comp_deps_run_all();
-		call_cap(0, 0, 0, 0, 0);
-
-//		if (!PERCPU_GET(llbooter)->init_thd) cos_init();
-//		else boot_deps_run_all();
-	} else {
-		LOCK();
-		boot_create_init_thds();
-		UNLOCK();
-		boot_deps_run_all();
-		/* printc("core %ld, alpha: exiting system.\n", cos_cpuid()); */
-	}
-
-//	printc("in llboot %d, h %x\n", cos_spd_id(), cos_get_heap_ptr());
-	return 0;
-
-	if (cos_cpuid() == INIT_CORE) {
-		/* We can't do shared memory in LLBooter. It uses
-		 * Linux allocated memory. Thus the following. */
-		/* The init core will call this function twice: first do
-		 * the cos_init, then return to cos_loader and boot
-		 * other cores, last call here again to run the init
-		 * core. */
 		if (!PERCPU_GET(llbooter)->init_thd) cos_init();
-		else boot_deps_run_all();
+		else comp_deps_run_all();
 	} else {
 		LOCK();
-		boot_create_init_thds();
+		boot_comp_thds_init();
 		UNLOCK();
-		boot_deps_run_all();
-		/* printc("core %ld, alpha: exiting system.\n", cos_cpuid()); */
+		comp_deps_run_all();
 	}
 
-	return 0; 
+	printc("Core %d: exiting system from low-level booter.\n", cos_spd_id());
+	call_cap(0, 0, 0, 0, 0);
+
+	return 0;
 }
 
 int  sched_isroot(void) { return 1; }

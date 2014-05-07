@@ -2777,26 +2777,11 @@ static void setup_kernel(struct service_symbs *services)
 	llboot_spd->mem_size = llboot_mem;
 	cos_init_booter(cntl_fd, llboot_spd);
 
+	assert(fn);
 	/* We call fn to init the low level booter first! Init
 	 * function will return to here and create processes for other
 	 * cores. */
-	assert(fn);
-	//printl(PRINT_HIGH, "\n Pid %d: OK, good to go, calling component 0's main\n\n", getpid());
-
-#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
-#define ITER 1
-
-	rdtscll(start);
-	for (i = 0; i < ITER; i++) {
-		fn();
-	}
-	rdtscll(end);
-	printf("avg cost %llu\n", (end-start)/ITER);
-
-	close(cntl_fd);
-
-	return;
-
+	fn();
 
 	pid = getpid();
 	for (i = 1; i < NUM_CPU_COS; i++) {
@@ -2817,10 +2802,10 @@ static void setup_kernel(struct service_symbs *services)
 #ifdef HIGHEST_PRIO
 		set_prio();
 #endif
-		/* Access comp0 to make sure it presents in page
-		 * table */
 		sleep(1);
 		ret = cos_create_thd(cntl_fd, &thd);
+		assert(ret == 0);
+		ret = cos_create_init_thd(cntl_fd);
 		assert(ret == 0);
 	}
 
@@ -2829,6 +2814,7 @@ static void setup_kernel(struct service_symbs *services)
 
 	aed_disable_syscalls(cntl_fd);
 
+#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 	rdtscll(start);
 	ret = fn();
 	rdtscll(end);
@@ -2836,11 +2822,11 @@ static void setup_kernel(struct service_symbs *services)
 	aed_enable_syscalls(cntl_fd);
 
 	cos_restore_hw_entry(cntl_fd);
+
 	if (pid > 0) {
 		int child_status;
 		while (wait(&child_status) > 0) ;
 	} else {
-		/* printf("Child %d back in cos_loader.\n", getpid()); */
 		exit(getpid());
 	}
 

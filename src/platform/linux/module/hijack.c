@@ -612,7 +612,9 @@ static void hw_reset(void *data)
 
 unsigned long  __cr3_contents;
 
-u8_t thdinit[PAGE_SIZE]          PAGE_ALIGNED;
+#define THD_SIZE (PAGE_SIZE/4)
+
+u8_t init_thds[THD_SIZE * NUM_CPU_COS] PAGE_ALIGNED;
 u8_t boot_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 u8_t c0_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 
@@ -630,6 +632,13 @@ unsigned long sys_llbooter_sz;    /* how many pages is the llbooter? */
 
 struct thread *__thd_current;
 
+struct captbl *boot_captbl;
+
+/* We need global thread name space as we use thd_id to access simple
+ * stack. When we have low-level per comp stack free-list, we don't
+ * have to use global thread id name space.*/
+u32_t free_thd_id = 1;
+
 static int
 kern_boot_comp(struct spd_info *spd_info)
 {
@@ -638,10 +647,11 @@ kern_boot_comp(struct spd_info *spd_info)
 	pgtbl_t pt, pt0;
 	unsigned int i;
 	struct pt_regs regs;
-	struct thread *thd = (struct thread *)thdinit;
+	struct thread *thd = (struct thread *)init_thds;
 
 	ct = captbl_create(boot_comp_captbl);
 	assert(ct);
+	boot_captbl = ct;
 
 	boot_comp_pgd = cos_kmem_base;
 	boot_comp_pte_vm = cos_kmem_base + PAGE_SIZE;
@@ -727,10 +737,8 @@ kern_boot_comp(struct spd_info *spd_info)
 	/* 
 	 * Create a thread in comp0.
 	 */
-	assert(!thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD, thd, BOOT_CAPTBL_COMP0_COMP));
+	if (thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE, thd, BOOT_CAPTBL_COMP0_COMP)) cos_throw(err, -1);
 	thd_current_update(thd);
-
-//	thd->thread_id = 123;
 
 	return 0;
 err:
@@ -743,6 +751,25 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	int ret = 0;
 
 	switch(cmd) {
+	case AED_INIT_BOOT_THD:
+	{
+		struct thread *thd = (struct thread *)(init_thds + get_cpuid()*THD_SIZE);
+		assert(get_cpuid() < NUM_CPU_COS);
+		assert(get_cpuid() != INIT_CORE)
+		/* 
+		 * Create a thread in comp0.
+		 */
+		if (thd_activate(boot_captbl, BOOT_CAPTBL_SELF_CT, 
+				 BOOT_CAPTBL_SELF_INITTHD_BASE + get_cpuid(), 
+				 thd, BOOT_CAPTBL_COMP0_COMP)) return -EFAULT;
+		thd_current_update(thd);
+		/* Comp0 has only 1 pgtbl, which points to the process
+		 * of the init core. Here we update the inv_stk of the
+		 * init thread of current core. */
+		thd->invstk[0].comp_info.pgtbl = chal_va2pa(current->mm->pgd);
+
+		return 0;
+	}
 	case AED_INIT_BOOT:
 	{
 		struct spd_info spd_info;
@@ -846,10 +873,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			}
 			assert(spd == virtual_namespace_query(spd_info.lowest_addr+PAGE_SIZE));
 
-			printk("mm pgd %x, upcall %x, copy addr %x\n", mm->pgd, spd_info.upcall_entry, spd_info.lowest_addr);
-
 			copy_pgd_range(mm, current->mm, spd_info.lowest_addr, spd_info.size);
-			//copy_pgd_range(mm, current->mm, COS_INFO_REGION_ADDR, PGD_RANGE);
 
 			cspd = spd_alloc_mpd();
 			if (!cspd) {
@@ -1138,7 +1162,7 @@ cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *regs,
 	 * page-tables, then there is no fixing up to do, and we
 	 * should just return.  Check for this case.
 	 */
-	assert(active);
+	if (!active) return 0;
 	cspd = (struct composite_spd *)active;
 	assert(cspd);
 	if (!(spd_mpd_is_depricated(cspd) ||
@@ -1261,7 +1285,6 @@ static unsigned long fault_addrs[NUM_BUCKETS];
 
 void hijack_syscall_monitor(int num)
 {
-	printk("linux syscall %d!\n", num);
 	if (unlikely(!syscalls_enabled && cos_thd_per_core[get_cpuid()].cos_thd == current)) {
 		printk("FAILURE: making a Linux system call (#%d) in Composite.\n", num);
 	}
@@ -1282,7 +1305,7 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	int ret = 1;
 
 	fault_addr = read_cr2();
-	printk("in page_fault_interposition @ addr %x!\n", fault_addr);
+	/* printk("in page_fault_interposition @ addr %x!\n", fault_addr); */
 	
 	if (fault_addr > KERN_BASE_ADDR) goto linux_handler;
 

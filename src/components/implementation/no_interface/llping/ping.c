@@ -61,7 +61,7 @@ printc(char *fmt, ...)
 /* 	return; */
 /* } */
 
-#define ITER (1024*1024)
+#define ITER (1024)//*1024)
 //u64_t meas[ITER];
 
 void cos_init(void)
@@ -81,7 +81,7 @@ void cos_init(void)
 
 	printc("core %ld: pingpong done, avg %llu\n", cos_cpuid(), (e-s)/ITER);
 
-	cap_switch_thd(SCHED_CAPTBL_ALPHA_THD);
+	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
 
 	call();
 

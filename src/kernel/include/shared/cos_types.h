@@ -31,48 +31,6 @@ typedef signed long long s64_t;
 #endif
 
 #define PRINT_CAP_TEMP (2 << 15)
-/* 
- * Initial captbl setup:  
- * 0 = sret, 
- * 1 = this captbl, 
- * 2 = our pgtbl root,
- * 3 = initial thread,
- * 4-5 = our component,
- * 6-7 = nil,
- * 8 = vm pte for booter
- * 9 = vm pte for physical memory
- * 10-11 = nil,
- * 12 = comp0 captbl, 
- * 13 = comp0 pgtbl root,
- * 14-15 = nil,
- * 16-17 = comp0 component,
- * 
- * Initial pgtbl setup (addresses):
- * 1GB+8MB-> = boot component VM
- * 1.5GB-> = kernel memory
- * 2GB-> = system physical memory
- */
-enum {
-	BOOT_CAPTBL_SRET = 0, 
-	BOOT_CAPTBL_SELF_CT = 1, 
-	BOOT_CAPTBL_SELF_PT = 2, 
-	BOOT_CAPTBL_SELF_INITTHD = 3, 
-	BOOT_CAPTBL_SELF_COMP = 4, 
-	BOOT_CAPTBL_BOOTVM_PTE = 8, 
-	BOOT_CAPTBL_PHYSM_PTE = 9, 
-	BOOT_CAPTBL_KM_PTE = 10, 
-
-	BOOT_CAPTBL_COMP0_CT = 12,
-	BOOT_CAPTBL_COMP0_PT = 13,  
-	BOOT_CAPTBL_COMP0_COMP = 16, 
-	BOOT_CAPTBL_FREE = 20, 
-};
-
-enum {
-	BOOT_MEM_VM_BASE = 0x40800000,//@ 1G + 8M
-	BOOT_MEM_KM_BASE = 0x60000000,//@ 1.5 GB
-	BOOT_MEM_PM_BASE = 0x80000000,//@ 2 GB
-};
 
 #define BOOT_LIVENESS_ID_BASE 1
 
@@ -140,11 +98,58 @@ typedef enum {
 #define CAP64B_IDSZ (1<<(CAP_SZ_64B))
 #define CAPMAX_ENTRY_SZ CAP64B_IDSZ
 
+/* 
+ * Initial captbl setup:  
+ * 0 = sret, 
+ * 1 = this captbl, 
+ * 2 = our pgtbl root,
+ * 3 = nil,
+ * 4-5 = our component,
+ * 6-7 = nil,
+ * 8 = vm pte for booter
+ * 9 = vm pte for physical memory
+ * 10-11 = nil,
+ * 12 = comp0 captbl, 
+ * 13 = comp0 pgtbl root,
+ * 14-15 = nil,
+ * 16-17 = comp0 component,
+ * 20~(20+NCPU) = per core alpha thd
+ * 
+ * Initial pgtbl setup (addresses):
+ * 1GB+8MB-> = boot component VM
+ * 1.5GB-> = kernel memory
+ * 2GB-> = system physical memory
+ */
+enum {
+	BOOT_CAPTBL_SRET = 0, 
+	BOOT_CAPTBL_SELF_CT = 1, 
+	BOOT_CAPTBL_SELF_PT = 2, 
+	BOOT_CAPTBL_SELF_COMP = 4, 
+	BOOT_CAPTBL_BOOTVM_PTE = 8, 
+	BOOT_CAPTBL_PHYSM_PTE = 9, 
+	BOOT_CAPTBL_KM_PTE = 10, 
+
+	BOOT_CAPTBL_COMP0_CT = 12,
+	BOOT_CAPTBL_COMP0_PT = 13,  
+	BOOT_CAPTBL_COMP0_COMP = 16, 
+	BOOT_CAPTBL_SELF_INITTHD_BASE = 20, 
+	BOOT_CAPTBL_LAST_CAP = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS,
+	/* round up to next entry */
+	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
+};
+
+enum {
+	BOOT_MEM_VM_BASE = 0x40800000,//@ 1G + 8M
+	BOOT_MEM_KM_BASE = 0x60000000,//@ 1.5 GB
+	BOOT_MEM_PM_BASE = 0x80000000,//@ 2 GB
+};
+
 enum {
 	/* cap 2-3 used for pp test cases for now */
-	SCHED_CAPTBL_ALPHA_THD = 4, 
-	SCHED_CAPTBL_INIT_THD  = 5,
-	SCHED_CAPTBL_LAST, 
+	SCHED_CAPTBL_ALPHATHD_BASE = 4, 
+	/* we have 2 thd caps (init and alpha thds) for each core. */
+	SCHED_CAPTBL_INITTHD_BASE  = SCHED_CAPTBL_ALPHATHD_BASE + NUM_CPU_COS,
+	SCHED_CAPTBL_LAST = SCHED_CAPTBL_INITTHD_BASE + NUM_CPU_COS,
 	/* round up to a new entry. */
 	SCHED_CAPTBL_FREE = round_up_to_pow2(SCHED_CAPTBL_LAST, CAPMAX_ENTRY_SZ)
 };

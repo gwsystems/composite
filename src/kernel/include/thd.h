@@ -134,6 +134,22 @@ static void thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, i
 	return;
 }
 
+/* We need global thread name space as we use thd_id to access simple
+ * stacks. When we have low-level per comp stack free-list, we don't
+ * have to use global thread id name space.*/
+extern u32_t free_thd_id;
+static u32_t
+alloc_thd_id(void)
+{
+	u32_t old, new;
+        do {
+		old = free_thd_id;
+		new = free_thd_id + 1;
+        } while (unlikely(!cos_cas((unsigned long *)&free_thd_id, (unsigned long)old, (unsigned long)new)));
+
+	return old;
+}
+
 static int 
 thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap)
 {
@@ -150,7 +166,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	/* initialize the thread */
 	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
 	thd->invstk[0].ip = thd->invstk[0].sp = 0;
-	thd->tid          = 1; /* FIXME: need correct value */
+	thd->tid          = alloc_thd_id();
 	thd->refcnt       = 0;
 	thd->invstk_top   = 0;
 	
@@ -159,7 +175,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 
 	/* initialize the capability */
 	tc->t     = thd;
-	tc->cpuid = get_cpuid();
+	thd->cpuid = tc->cpuid = get_cpuid();
 	__cap_capactivate_post(&tc->h, CAP_THD, 0);
 
 	return 0;
