@@ -47,8 +47,9 @@ composite_sysenter_handler(struct pt_regs *regs)
 	cap = __userregs_getcap(regs);
 	thd = thd_current();
 
+	/* fast path: invocation return */
 	if (likely(cap == COS_DEFAULT_RET_CAP)) {
-		/* fast path: invocation return */
+		/* No need to lookup captbl */
 		sret_ret(thd, regs);
 		return 0;
 	}
@@ -66,7 +67,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 	if (likely(ch->type == CAP_SINV)) {
 		sinv_call(thd, (struct cap_sinv *)ch, regs);
 		return 0;
-	} 
+	}
 
 	op = __userregs_getop(regs);
 	/* slowpath: other capability operations */
