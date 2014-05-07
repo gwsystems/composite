@@ -21,12 +21,6 @@ struct cobj_header *hs[MAX_NUM_SPDS+1];
 
 /* local meta-data to track the components */
 struct spd_local_md {
-	capid_t captbl_cap;
-	capid_t pgtbl_cap;
-	capid_t comp_cap;
-	vaddr_t addr_start;
-	vaddr_t upcall_entry;
-
 	// old format
 	spdid_t spdid;
 	vaddr_t comp_info;
@@ -474,51 +468,6 @@ cgraph_add(int serv, int client)
 	return 0;
 }
 
-/* a function instead of a struct to enable inlining + constant prop */
-static inline cap_sz_t
-__captbl_cap2sz(cap_t c)
-{
-	/* TODO: optimize for invocation and return */
-	switch (c) {
-	case CAP_CAPTBL: case CAP_THD:   
-	case CAP_PGTBL:  case CAP_SRET: return CAP_SZ_16B;
-	case CAP_SINV:   case CAP_COMP: return CAP_SZ_32B;
-	case CAP_ASND:   case CAP_ARCV: return CAP_SZ_64B;
-	default:                        return CAP_SZ_ERR;
-	}
-}
-
-static inline unsigned long captbl_idsize(cap_t c)
-{ return 1<<__captbl_cap2sz(c); }
-
-#define CAP16B_SZ (1<<(CAP_SZ_16B))
-#define CAP32B_SZ (1<<(CAP_SZ_32B))
-
-#define CAP_ID_16B_FREE BOOT_CAPTBL_FREE;            // goes up
-#define CAP_ID_32B_FREE (PAGE_SIZE/16/2 - CAP32B_SZ) // goes down
-
-capid_t capid_16b_free = CAP_ID_16B_FREE;
-capid_t capid_32b_free = CAP_ID_32B_FREE;
-
-capid_t alloc_capid(cap_t cap)
-{
-	capid_t ret;
-	
-	if (captbl_idsize(cap) == CAP16B_SZ)      {
-		ret = capid_16b_free;
-		capid_16b_free += CAP16B_SZ;
-	} else if (captbl_idsize(cap) == CAP32B_SZ) {
-		ret = capid_32b_free;
-		capid_32b_free -= CAP32B_SZ;
-	} else {
-		ret = 0;
-		BUG();
-	}
-	assert(ret);
-
-	return ret;
-}
-
 static int 
 boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
@@ -526,8 +475,8 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	vaddr_t dest_daddr, prev_map = 0;
 	char *dsrc;
 	int flag;
-	capid_t captbl_cap = local_md[spdid].captbl_cap;
-	capid_t pgtbl_cap  = local_md[spdid].pgtbl_cap;
+	capid_t captbl_cap = comp_cap_info[spdid].captbl_cap;
+	capid_t pgtbl_cap  = comp_cap_info[spdid].pgtbl_cap;
 
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
@@ -603,7 +552,7 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 			assert(comp_info == dest_daddr);
 			boot_process_cinfo(h, spdid, boot_spd_end(h), start_addr + (comp_info-init_daddr), comp_info);
 			ci = (struct cos_component_information*)(start_addr + (comp_info-init_daddr));
-			local_md[h->id].upcall_entry = ci->cos_upcall_entry;
+			comp_cap_info[h->id].upcall_entry = ci->cos_upcall_entry;
 		}
 	}
 
@@ -637,10 +586,13 @@ static int boot_comp_caps(struct cobj_header *h, spdid_t comp_id)
 
 		/* printc("cap from comp %d to %d, cap %d  %x activate\n",  */
 		/*        comp_id, cap->dest_id, sinv_cap, cap->sstub); */
-		if (call_cap_op(local_md[comp_id].captbl_cap, CAPTBL_OP_SINVACTIVATE,
-				sinv_cap, local_md[cap->dest_id].comp_cap, cap->sstub, 0)) BUG();
-		sinv_cap += CAP32B_SZ;
+		if (call_cap_op(comp_cap_info[comp_id].captbl_cap, CAPTBL_OP_SINVACTIVATE,
+				sinv_cap, comp_cap_info[cap->dest_id].comp_cap, cap->sstub, 0)) BUG();
+		sinv_cap += captbl_idsize(CAP_SINV);
 	}
+
+	/* round to a new entry */
+	comp_cap_info[comp_id].cap_frontier = round_up_to_pow2(sinv_cap, CAPMAX_ENTRY_SZ);
 
 	return 0;
 }
@@ -693,16 +645,16 @@ boot_create_cap_system(void)
 		/* Construct pgtbl */
 		if (call_cap_op(pgtbl_cap, CAPTBL_OP_CONS, pte_cap, sect->vaddr, 0, 0)) BUG();
 
-		local_md[spdid].captbl_cap  = captbl_cap;
-		local_md[spdid].pgtbl_cap   = pgtbl_cap;
-		local_md[spdid].comp_cap   = comp_cap;
-		local_md[spdid].addr_start  = sect->vaddr;
+		comp_cap_info[spdid].captbl_cap  = captbl_cap;
+		comp_cap_info[spdid].pgtbl_cap   = pgtbl_cap;
+		comp_cap_info[spdid].comp_cap   = comp_cap;
+		comp_cap_info[spdid].addr_start  = sect->vaddr;
 
 		if (boot_spd_symbs(h, spdid, &comp_info))   BUG();
 		if (boot_comp_map(h, spdid, comp_info))     BUG();
 
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_COMPACTIVATE,
-				comp_cap, (captbl_cap<<16) | pgtbl_cap, get_liv_id(), local_md[spdid].upcall_entry)) BUG();
+				comp_cap, (captbl_cap<<16) | pgtbl_cap, get_liv_id(), comp_cap_info[spdid].upcall_entry)) BUG();
 
 		/* printc("Comp %d (%s) activated @ %x, size %ld!\n", h->id, h->name, sect->vaddr, tot); */
 	}

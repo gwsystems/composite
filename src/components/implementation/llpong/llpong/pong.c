@@ -1,3 +1,6 @@
 #include <cos_component.h>
 
-void call(void) { return; }
+void call(void) { 
+	call_cap(0,0,0,0,0);
+	return; 
+}

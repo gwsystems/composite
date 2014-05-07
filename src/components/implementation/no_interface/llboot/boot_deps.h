@@ -313,23 +313,90 @@ boot_deps_init(void)
 	assert(nmmgrs > 0);
 }
 
+/* a function instead of a struct to enable inlining + constant prop */
+static inline cap_sz_t
+__captbl_cap2sz(cap_t c)
+{
+	/* TODO: optimize for invocation and return */
+	switch (c) {
+	case CAP_CAPTBL: case CAP_THD:   
+	case CAP_PGTBL:  case CAP_SRET: return CAP_SZ_16B;
+	case CAP_SINV:   case CAP_COMP: return CAP_SZ_32B;
+	case CAP_ASND:   case CAP_ARCV: return CAP_SZ_64B;
+	default:                        return CAP_SZ_ERR;
+	}
+}
+
+static inline unsigned long captbl_idsize(cap_t c)
+{ return 1<<__captbl_cap2sz(c); }
+
+#define CAP_ID_16B_FREE BOOT_CAPTBL_FREE;            // goes up
+#define CAP_ID_32B_FREE (PAGE_SIZE/16/2 - CAP32B_IDSZ) // goes down
+
+capid_t capid_16b_free = CAP_ID_16B_FREE;
+capid_t capid_32b_free = CAP_ID_32B_FREE;
+
+capid_t alloc_capid(cap_t cap)
+{
+	capid_t ret;
+	
+	if (captbl_idsize(cap) == CAP16B_IDSZ)      {
+		ret = capid_16b_free;
+		capid_16b_free += CAP16B_IDSZ;
+	} else if (captbl_idsize(cap) == CAP32B_IDSZ) {
+		ret = capid_32b_free;
+		capid_32b_free -= CAP32B_IDSZ;
+	} else {
+		ret = 0;
+		BUG();
+	}
+	assert(ret);
+
+	return ret;
+}
+
+struct comp_cap_info {
+	capid_t captbl_cap;
+	capid_t pgtbl_cap;
+	capid_t comp_cap;
+	capid_t cap_frontier;
+	vaddr_t addr_start;
+	vaddr_t upcall_entry;
+};
+
+struct comp_cap_info comp_cap_info[MAX_NUM_SPDS+1];
+
+#define BOOT_INIT_SCHED_COMP 2
+
 static inline void
 boot_comp_thds_init(void)
 {
+	struct comp_cap_info *cc = &comp_cap_info[BOOT_INIT_SCHED_COMP];
 	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
+	capid_t thd_alpha, thd_sched;
+	int ret;
 
 	llboot->alpha        = BOOT_CAPTBL_SELF_INITTHD;
+	llboot->init_thd     = alloc_capid(CAP_THD);
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, llboot->init_thd, 
+			BOOT_CAPTBL_SELF_PT, get_kmem_cap(), cc->comp_cap)) BUG();
+
+	printc("Core %ld, Low-level booter created threads:\n\t"
+	       "Cap %d: alpha\n Cap %d: init\n",
+	       cos_cpuid(), llboot->alpha, llboot->init_thd);
+	assert(llboot->init_thd >= 0);
+
+	/* Scheduler should have access to the init thread and alpha
+	 * thread. Grant caps by copying. */
+	assert(cc->cap_frontier <= SCHED_CAPTBL_ALPHA_THD);
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, BOOT_CAPTBL_SELF_CT, 
+			llboot->init_thd, cc->captbl_cap, SCHED_CAPTBL_INIT_THD)) BUG();
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, BOOT_CAPTBL_SELF_CT, 
+			llboot->alpha, cc->captbl_cap, SCHED_CAPTBL_ALPHA_THD))   BUG();
+
+	cc->cap_frontier = SCHED_CAPTBL_FREE;
 
 	return;
-
-	llboot->recovery_thd = cos_create_thread(cos_spd_id(), 0, 0);
-	assert(llboot->recovery_thd >= 0);
-	llboot->init_thd     = cos_create_thread(cos_spd_id(), 0, 0);
-	printc("Core %ld, Low-level booter created threads:\n\t"
-	       "%d: alpha\n\t%d: recov\n\t%d: init\n",
-	       cos_cpuid(), llboot->alpha, 
-	       llboot->recovery_thd, llboot->init_thd);
-	assert(llboot->init_thd >= 0);
 }
 
 static inline void
@@ -347,7 +414,6 @@ boot_comp_deps_init(void)
 static void
 boot_deps_run(void)
 {
-	printc("cpuid %d thd %d\n", cos_cpuid(), cos_get_thd_id());
 	assert(cos_cpuid() == INIT_CORE);
 
 	return;
@@ -393,12 +459,25 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 
 #include <sched_hier.h>
 
+void comp_deps_run_all(void)
+{
+	/* switch to the init thd in the scheduler. */
+	if (cap_switch_thd(PERCPU_GET(llbooter)->init_thd)) BUG();
+	printc("core %ld: booter init_thd switching back to alpha %d.\n", cos_cpuid(), PERCPU_GET(llbooter)->alpha);
+
+	return;
+}
+
+
 void cos_init(void);
 int sched_init(void)   
 {
 	printc("core %ld in llboot\n", cos_cpuid());
 	if (cos_cpuid() == INIT_CORE) {
 		cos_init();
+		comp_deps_run_all();
+		call_cap(0, 0, 0, 0, 0);
+
 //		if (!PERCPU_GET(llbooter)->init_thd) cos_init();
 //		else boot_deps_run_all();
 	} else {
@@ -408,8 +487,6 @@ int sched_init(void)
 		boot_deps_run_all();
 		/* printc("core %ld, alpha: exiting system.\n", cos_cpuid()); */
 	}
-
-	call_cap(0, 0, 0, 0, 0);
 
 //	printc("in llboot %d, h %x\n", cos_spd_id(), cos_get_heap_ptr());
 	return 0;

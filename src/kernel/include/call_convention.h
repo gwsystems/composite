@@ -58,4 +58,18 @@ static inline int
 __userregs_get4(struct pt_regs *regs)
 { return regs->dx; }
 
+static inline void
+copy_gp_regs(struct pt_regs *from, struct pt_regs *to)
+{
+#define COPY_REG(reg) to->reg = from->reg
+	COPY_REG(ax);
+	COPY_REG(bx);
+	COPY_REG(cx);
+	COPY_REG(dx);
+	COPY_REG(si);
+	COPY_REG(di);
+	COPY_REG(bp);
+#undef COPY_REG
+}
+
 #endif	/* CALL_CONVENTION_H */

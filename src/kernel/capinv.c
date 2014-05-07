@@ -68,12 +68,15 @@ composite_sysenter_handler(struct pt_regs *regs)
 	fs_reg_setup(__KERNEL_PERCPU);
 #endif
 	if (regs->ax == PRINT_CAP_TEMP) {
+		fs_reg_setup(__KERNEL_PERCPU);
 		printfn(regs);
 		return 0;
 	}
 #endif
 	cap = __userregs_getcap(regs);
 	thd = thd_current();
+	/* printk("calling cap %d: %x, %x, %x, %x\n", */
+	/*        cap, __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
 
 	if (likely(cap == COS_DEFAULT_RET_CAP)) {
 		/* fast path: invocation return */
@@ -102,7 +105,11 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 	/* printk("calling cap %d, op %d: %x, %x, %x, %x\n", */
 	/*        cap, op, __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
-
+#ifndef LINUX_TEST
+#ifndef ENABLE_KERNEL_PRINT
+	fs_reg_setup(__KERNEL_PERCPU);
+#endif
+#endif
 	/* slowpath: other capability operations */
 	switch(ch->type) {
 	case CAP_ASND: 		/* FIXME: add asynchronous sending */
@@ -113,9 +120,38 @@ composite_sysenter_handler(struct pt_regs *regs)
 	{
 		break;
 	}
-	case CAP_THD: 		/* FIXME: add thread dispatch */
+	case CAP_THD:
 	{
-		break;
+		struct cap_thd *ct = (struct cap_thd *)ch;
+		struct thread *next = ct->t;
+		struct comp_info *next_ci = &(next->invstk[next->invstk_top].comp_info);
+
+		if (ct->cpuid != get_cpuid()) cos_throw(err, EINVAL);
+		assert(ct->cpuid == next->cpuid);
+
+		// TODO: check liveness tbl
+		copy_gp_regs(regs, &thd->regs);
+		__userregs_set(&thd->regs, COS_SCHED_RET_SUCCESS, __userregs_getsp(regs), __userregs_getip(regs));
+
+		/* printk("switching to thd %d cap %d, pgtbl %x; ip %x\n", next->tid, cap, next_ci->pgtbl, next->regs.dx); */
+		
+		thd_current_update(next);
+		pgtbl_update(next_ci->pgtbl);
+
+		/* fpu_save(thd); */
+		/* if (thd->flags & THD_STATE_PREEMPTED) { */
+		/* 	cos_meas_event(COS_MEAS_SWITCH_PREEMPT); */
+		/* 	remove_preempted_status(thd); */
+		/* 	preempt = 1; */
+		/* } else { */
+		/* 	cos_meas_event(COS_MEAS_SWITCH_COOP); */
+		/* } */
+
+		/* update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags); */
+		/* event_record("switch_thread", thd_get_id(thd), thd_get_id(next)); */
+		copy_gp_regs(&next->regs, regs);
+		
+		return 0;
 	}
 	case CAP_CAPTBL:
 	{
@@ -242,6 +278,16 @@ composite_sysenter_handler(struct pt_regs *regs)
 			break;
 
 		case CAPTBL_OP_CPY:
+		{
+			capid_t from_captbl = capin;
+			capid_t from_cap    = __userregs_get2(regs);
+			capid_t dest_captbl = __userregs_get3(regs);
+			capid_t dest_cap    = __userregs_get4(regs);
+
+			ret = cap_cpy(ct, dest_captbl, dest_cap, 
+				      from_captbl, from_cap);
+			break;
+		}
 		case CAPTBL_OP_CONS:
 		case CAPTBL_OP_DECONS:
 		default: goto err;

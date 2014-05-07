@@ -1,9 +1,47 @@
 #include <cos_component.h>
+#include <cos_debug.h>
 
 #include <pong.h>
 
-#define ITER (1024)
-u64_t meas[ITER];
+#include <stdio.h>
+#include <string.h>
+
+int
+prints(char *str)
+{
+	/* int left; */
+	/* char *off; */
+	/* const int maxsend = sizeof(int) * 3; */
+
+	/* if (!str) return -1; */
+	/* for (left = cos_strlen(str), off = str ;  */
+	/*      left > 0 ;  */
+	/*      left -= maxsend, off += maxsend) { */
+	/* 	int *args; */
+	/* 	int l = left < maxsend ? left : maxsend; */
+	/* 	char tmp[maxsend]; */
+
+	/* 	cos_memcpy(tmp, off, l); */
+	/* 	args = (int*)tmp; */
+	/* 	print_char(l, args[0], args[1], args[2]); */
+	/* }  */
+	return 0;
+}
+
+int __attribute__((format(printf,1,2))) 
+printc(char *fmt, ...)
+{
+	char s[128];
+	va_list arg_ptr;
+	int ret, len = 128;
+
+	va_start(arg_ptr, fmt);
+	ret = vsnprintf(s, len, fmt, arg_ptr);
+	va_end(arg_ptr);
+	cos_print(s, ret);
+
+	return ret;
+}
 
 /* void delay(void) */
 /* { */
@@ -23,14 +61,35 @@ u64_t meas[ITER];
 /* 	return; */
 /* } */
 
+#define ITER (1024*1024)
+//u64_t meas[ITER];
+
 void cos_init(void)
 {
-	u64_t start, end, avg, tot = 0, dev = 0;
-	int i, j;
+	int i;
+	u64_t s, e;
+
+	printc("core %ld: gonna doing pingpong\n", cos_cpuid());
+	
+	call_cap(2, 0, 0, 0, 0);
+
+	rdtscll(s);
+	for (i = 0; i < ITER; i++) {
+		call_cap(2, 0, 0, 0, 0);
+	}
+	rdtscll(e);
+
+	printc("core %ld: pingpong done, avg %llu\n", cos_cpuid(), (e-s)/ITER);
+
+	cap_switch_thd(SCHED_CAPTBL_ALPHA_THD);
 
 	call();
 
 	return;
+	/* u64_t start, end, avg, tot = 0, dev = 0; */
+	/* int i, j; */
+
+
 /* 	printc("cpu %ld, thd %d from ping\n",cos_cpuid(), cos_get_thd_id()); */
 /* //	call(111,222,333,444);			/\* get stack *\/ */
 
@@ -87,27 +146,4 @@ void cos_init(void)
 
 /* //	printc("%d invocations took %lld\n", ITER, end-start); */
 /* 	return; */
-}
-
-void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
-{
-	static int init = 0;
-	switch (t) {
-	case COS_UPCALL_THD_CREATE:
-	{
-		if (init == 0) {//  add a sched type!
-			init = 1;
-			cos_init();
-		} else {
-			/* cos_intra_ainv_handling(); */
-		}
-		break;
-	}
-	default:
-		/* fault! */
-		//*(int*)NULL = 0;
-		/* printc("\n upcall type t %d\n", t); */
-		return;
-	}
-	return;
 }

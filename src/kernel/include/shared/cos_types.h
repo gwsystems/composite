@@ -135,6 +135,20 @@ typedef enum {
 #define	CAP_MASK_32B (1 | (1<<2))
 #define	CAP_MASK_64B 1
 
+#define CAP16B_IDSZ (1<<(CAP_SZ_16B))
+#define CAP32B_IDSZ (1<<(CAP_SZ_32B))
+#define CAP64B_IDSZ (1<<(CAP_SZ_64B))
+#define CAPMAX_ENTRY_SZ CAP64B_IDSZ
+
+enum {
+	/* cap 2-3 used for pp test cases for now */
+	SCHED_CAPTBL_ALPHA_THD = 4, 
+	SCHED_CAPTBL_INIT_THD  = 5,
+	SCHED_CAPTBL_LAST, 
+	/* round up to a new entry. */
+	SCHED_CAPTBL_FREE = round_up_to_pow2(SCHED_CAPTBL_LAST, CAPMAX_ENTRY_SZ)
+};
+
 typedef int cpuid_t; /* Don't use unsigned type. We use negative values for error cases. */
 
 /* Macro used to define per core variables */

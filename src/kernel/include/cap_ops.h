@@ -191,24 +191,30 @@ cap_decons(struct captbl *t, capid_t cap, capid_t pruneid, unsigned long lvl)
  */
 static inline int
 cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, 
-	capid_t cap_from, capid_t capin_from, cap_t type)
+	capid_t cap_from, capid_t capin_from)
 {
 	struct cap_header *ctto, *ctfrom;
 	int sz, ret;
 	cap_t cap_type;
 	
+	/* printk("copy from captbl %d, cap %d to captbl %d, cap %d\n",  */
+	/*        cap_from, capin_from, cap_to, capin_to); */
 	ctfrom = captbl_lkup(t, cap_from);
 	if (unlikely(!ctfrom)) return -ENOENT;
 	cap_type = ctfrom->type; 
 
 	if (cap_type == CAP_CAPTBL) {
-		ctfrom = captbl_lkup(((struct cap_captbl *)ctfrom)->captbl, capin_from);
-		if (unlikely(!ctfrom))              return -ENOENT;
-		if (unlikely(ctfrom->type != type)) return -EINVAL;
+		cap_t type;
 
-		sz = __captbl_cap2sz(type);
+		ctfrom = captbl_lkup(((struct cap_captbl *)ctfrom)->captbl, capin_from);
+		if (unlikely(!ctfrom)) return -ENOENT;
+
+		type = ctfrom->type;
+		sz = __captbl_cap2bytes(type);
+
 		ctto = __cap_capactivate_pre(t, cap_to, capin_to, type, &ret);
 		if (!ctto) return -EINVAL;
+
 		memcpy(ctto->post, ctfrom->post, sz - sizeof(struct cap_header));
 		__cap_capactivate_post(ctto, type, ctfrom->poly);
 	} else if (cap_type == CAP_PGTBL) {
@@ -228,6 +234,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 	} else {
 		ret = -EINVAL;
 	}
+
 	return ret;
 }
 
