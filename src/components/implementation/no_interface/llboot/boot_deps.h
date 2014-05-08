@@ -318,23 +318,6 @@ boot_deps_init(void)
 	assert(nmmgrs > 0);
 }
 
-/* a function instead of a struct to enable inlining + constant prop */
-static inline cap_sz_t
-__captbl_cap2sz(cap_t c)
-{
-	/* TODO: optimize for invocation and return */
-	switch (c) {
-	case CAP_CAPTBL: case CAP_THD:   
-	case CAP_PGTBL:  case CAP_SRET: return CAP_SZ_16B;
-	case CAP_SINV:   case CAP_COMP: return CAP_SZ_32B;
-	case CAP_ASND:   case CAP_ARCV: return CAP_SZ_64B;
-	default:                        return CAP_SZ_ERR;
-	}
-}
-
-static inline unsigned long captbl_idsize(cap_t c)
-{ return 1<<__captbl_cap2sz(c); }
-
 #define CAP_ID_16B_FREE BOOT_CAPTBL_FREE;            // goes up
 #define CAP_ID_32B_FREE (PAGE_SIZE/16/2 - CAP32B_IDSZ) // goes down
 
@@ -377,12 +360,35 @@ capid_t per_core_thd_cap[NUM_CPU_COS];
 vaddr_t per_core_thd_mem[NUM_CPU_COS];
 
 static inline void
+acap_test(void)
+{
+	int ret;
+	/* asnd and arcv tests! */
+	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
+	struct comp_cap_info *pong = &comp_cap_info[2];
+	struct comp_cap_info *ping = &comp_cap_info[3];
+
+
+	//use the same cap id in ping and pong for simplicity. 
+	capid_t async_test_cap = SCHED_CAPTBL_FREE + captbl_idsize(CAP_ARCV)*cos_cpuid();
+
+	if (call_cap_op(pong->captbl_cap, CAPTBL_OP_ARCVACTIVATE, async_test_cap, 
+			      llboot->init_thd, pong->comp_cap, 0)) BUG();
+
+	if (call_cap_op(ping->captbl_cap, CAPTBL_OP_ASNDACTIVATE, async_test_cap, 
+			      pong->captbl_cap, async_test_cap, 0)) BUG();
+
+	printc("asnd/arcv caps created on core %d\n", cos_cpuid());
+
+	return;
+}
+
+static inline void
 boot_comp_thds_init(void)
 {
-	struct comp_cap_info *cc = &comp_cap_info[BOOT_INIT_SCHED_COMP];
+	struct comp_cap_info *sched_comp = &comp_cap_info[BOOT_INIT_SCHED_COMP];
 	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
 	capid_t thd_alpha, thd_schedinit;
-	int ret;
 
 	/* We reserve 2 caps for each core in the captbl of scheduler */
 	thd_alpha     = SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid();
@@ -392,7 +398,7 @@ boot_comp_thds_init(void)
 	llboot->alpha        = BOOT_CAPTBL_SELF_INITTHD_BASE + cos_cpuid();
 	llboot->init_thd     = per_core_thd_cap[cos_cpuid()];
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, llboot->init_thd, 
-			BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()], cc->comp_cap)) BUG();
+			BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()], sched_comp->comp_cap)) BUG();
 
 	printc("Core %ld, Low-level booter created threads:\n"
 	       "\tCap %d: alpha\n\tCap %d: init\n",
@@ -402,11 +408,9 @@ boot_comp_thds_init(void)
 	/* Scheduler should have access to the init thread and alpha
 	 * thread. Grant caps by copying. */
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, BOOT_CAPTBL_SELF_CT, 
-			llboot->init_thd, cc->captbl_cap, thd_schedinit)) BUG();
+			llboot->init_thd, sched_comp->captbl_cap, thd_schedinit)) BUG();
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, BOOT_CAPTBL_SELF_CT, 
-			llboot->alpha, cc->captbl_cap, thd_alpha))    BUG();
-
-	return;
+			llboot->alpha, sched_comp->captbl_cap, thd_alpha))        BUG();
 }
 
 static inline void 
@@ -414,8 +418,8 @@ alloc_per_core_thd(void)
 {
 	int i;
 
-	/* Only the init core does the resource allocation. Thus no
-	 * lock needed. */
+	/* Only the init core does the resource allocation here. Thus
+	 * no locking needed. */
 	for (i = 0; i < NUM_CPU_COS; i++) {
 		per_core_thd_cap[i] = alloc_capid(CAP_THD);
 		per_core_thd_mem[i] = get_kmem_cap();
@@ -486,6 +490,8 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 
 void comp_deps_run_all(void)
 {
+	acap_test();
+
 	/* switch to the init thd in the scheduler. */
 	if (cap_switch_thd(PERCPU_GET(llbooter)->init_thd)) BUG();
 	/* printc("Core %ld: booter init_thd switching back to alpha thd (cap %d).\n", cos_cpuid(), PERCPU_GET(llbooter)->alpha); */

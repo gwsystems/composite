@@ -98,6 +98,23 @@ typedef enum {
 #define CAP64B_IDSZ (1<<(CAP_SZ_64B))
 #define CAPMAX_ENTRY_SZ CAP64B_IDSZ
 
+/* a function instead of a struct to enable inlining + constant prop */
+static inline cap_sz_t
+__captbl_cap2sz(cap_t c)
+{
+	/* TODO: optimize for invocation and return */
+	switch (c) {
+	case CAP_CAPTBL: case CAP_THD:   
+	case CAP_PGTBL:  case CAP_SRET: return CAP_SZ_16B;
+	case CAP_SINV:   case CAP_COMP: return CAP_SZ_32B;
+	case CAP_ASND:   case CAP_ARCV: return CAP_SZ_64B;
+	default:                        return CAP_SZ_ERR;
+	}
+}
+
+static inline unsigned long captbl_idsize(cap_t c)
+{ return 1<<__captbl_cap2sz(c); }
+
 /* 
  * Initial captbl setup:  
  * 0 = sret, 
@@ -148,8 +165,8 @@ enum {
 	/* cap 2-3 used for pp test cases for now */
 	SCHED_CAPTBL_ALPHATHD_BASE = 4, 
 	/* we have 2 thd caps (init and alpha thds) for each core. */
-	SCHED_CAPTBL_INITTHD_BASE  = SCHED_CAPTBL_ALPHATHD_BASE + NUM_CPU_COS,
-	SCHED_CAPTBL_LAST = SCHED_CAPTBL_INITTHD_BASE + NUM_CPU_COS,
+	SCHED_CAPTBL_INITTHD_BASE  = SCHED_CAPTBL_ALPHATHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
+	SCHED_CAPTBL_LAST = SCHED_CAPTBL_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
 	/* round up to a new entry. */
 	SCHED_CAPTBL_FREE = round_up_to_pow2(SCHED_CAPTBL_LAST, CAPMAX_ENTRY_SZ)
 };

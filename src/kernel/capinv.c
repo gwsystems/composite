@@ -12,6 +12,15 @@
 
 #define COS_DEFAULT_RET_CAP 0
 
+static inline void
+fs_reg_setup(unsigned long seg) {
+#ifdef LINUX_TEST
+	return;
+#endif
+	asm volatile ("movl %%ebx, %%fs\n\t"
+		      : : "b" (seg));
+}
+
 #ifdef LINUX_TEST
 int
 syscall_handler(struct pt_regs *regs)
@@ -20,12 +29,6 @@ syscall_handler(struct pt_regs *regs)
 #ifndef COS_SYSCALL
 #define COS_SYSCALL __attribute__((regparm(0)))
 #endif
-
-static inline void
-fs_reg_setup(unsigned long seg) {
-	asm volatile ("movl %%ebx, %%fs\n\t"
-		      : : "b" (seg));
-}
 
 #define ENABLE_KERNEL_PRINT
 #define MAX_LEN 512
@@ -63,10 +66,10 @@ composite_sysenter_handler(struct pt_regs *regs)
 	syscall_op_t op;
 	int ret = 0;
 
-#ifndef LINUX_TEST
 #ifdef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
 #endif
+#ifndef LINUX_TEST
 	if (regs->ax == PRINT_CAP_TEMP) {
 		fs_reg_setup(__KERNEL_PERCPU);
 		printfn(regs);
@@ -106,15 +109,21 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 	/* printk("calling cap %d, op %d: %x, %x, %x, %x\n", */
 	/*        cap, op, __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
-#ifndef LINUX_TEST
 #ifndef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
 #endif
-#endif
 	/* slowpath: other capability operations */
 	switch(ch->type) {
-	case CAP_ASND: 		/* FIXME: add asynchronous sending */
+	case CAP_ASND:
 	{
+		int curr_cpu = get_cpuid();
+		struct cap_asnd *asnd = (struct cap_asnd *)ch;
+		
+		if (asnd->cpuid != curr_cpu) {
+			/* Cross core: sending IPI */
+		}
+		
+		
 		break;
 	}
 	case CAP_ARCV: 		/* FIXME: add asynchronous receive */
@@ -123,12 +132,12 @@ composite_sysenter_handler(struct pt_regs *regs)
 	}
 	case CAP_THD:
 	{
-		struct cap_thd *ct = (struct cap_thd *)ch;
-		struct thread *next = ct->t;
+		struct cap_thd *thd_cap = (struct cap_thd *)ch;
+		struct thread *next = thd_cap->t;
 		struct comp_info *next_ci = &(next->invstk[next->invstk_top].comp_info);
 
-		if (ct->cpuid != get_cpuid()) cos_throw(err, EINVAL);
-		assert(ct->cpuid == next->cpuid);
+		if (thd_cap->cpuid != get_cpuid()) cos_throw(err, EINVAL);
+		assert(thd_cap->cpuid == next->cpuid);
 
 		// TODO: check liveness tbl
 		copy_gp_regs(regs, &thd->regs);
@@ -265,15 +274,31 @@ composite_sysenter_handler(struct pt_regs *regs)
 			ret = sinv_deactivate(ct, cap, capin);
 			break;
 		case CAPTBL_OP_SRETACTIVATE:
+			break;
 		case CAPTBL_OP_SRETDEACTIVATE:
 			ret = sret_deactivate(ct, cap, capin);
 			break;
 
 		case CAPTBL_OP_ASNDACTIVATE:
+		{
+			capid_t rcv_captbl = __userregs_get2(regs);
+			capid_t rcv_cap    = __userregs_get3(regs);
+			ret = asnd_activate(ct, cap, capin, rcv_captbl, rcv_cap, 0, 0);
+
+			break;
+		}
 		case CAPTBL_OP_ASNDDEACTIVATE:
 			ret = asnd_deactivate(ct, cap, capin);
 			break;
 		case CAPTBL_OP_ARCVACTIVATE:
+		{
+			capid_t thd_cap  = __userregs_get2(regs);
+			capid_t comp_cap = __userregs_get3(regs);
+
+			ret = arcv_activate(ct, cap, capin, comp_cap, thd_cap);
+			
+			break;
+		}
 		case CAPTBL_OP_ARCVDEACTIVATE:
 			ret = arcv_deactivate(ct, cap, capin);
 			break;
@@ -306,7 +331,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 			vaddr_t pte_cap   = __userregs_get1(regs);
 			vaddr_t cons_addr = __userregs_get2(regs);
 
-			
 			ret = cap_cons(ct, pt, pte_cap, cons_addr);
 			break;
 		}

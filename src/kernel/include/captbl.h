@@ -33,19 +33,6 @@
 #undef CAP_FREE
 #endif
 
-/* a function instead of a struct to enable inlining + constant prop */
-static inline cap_sz_t
-__captbl_cap2sz(cap_t c)
-{
-	/* TODO: optimize for invocation and return */
-	switch (c) {
-	case CAP_CAPTBL: case CAP_THD:   
-	case CAP_PGTBL:  case CAP_SRET: return CAP_SZ_16B;
-	case CAP_SINV:   case CAP_COMP: return CAP_SZ_32B;
-	case CAP_ASND:   case CAP_ARCV: return CAP_SZ_64B;
-	default:                        return CAP_SZ_ERR;
-	}
-}
 static inline unsigned long __captbl_cap2bytes(cap_t c)
 { return 1<<(__captbl_cap2sz(c)+CAP_SZ_OFF); }
 

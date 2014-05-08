@@ -82,13 +82,17 @@ static int sret_deactivate(struct captbl *t, capid_t cap, capid_t capin)
 { return cap_capdeactivate(t, cap, capin, CAP_SRET); }
 
 static int
-asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_cap, u32_t budget, u32_t period)
+asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, capid_t rcv_cap, u32_t budget, u32_t period)
 {
+	struct cap_captbl *rcv_ct;
 	struct cap_asnd *asndc;
 	struct cap_arcv *arcvc;
 	int ret;
 
-	arcvc = (struct cap_arcv *)captbl_lkup(t, rcv_cap);
+	rcv_ct = (struct cap_captbl *)captbl_lkup(t, rcv_captbl);
+	if (unlikely(!rcv_ct || rcv_ct->h.type != CAP_CAPTBL)) return -EINVAL;
+
+	arcvc = (struct cap_arcv *)captbl_lkup(rcv_ct->captbl, rcv_cap);
 	if (unlikely(!arcvc || arcvc->h.type != CAP_ARCV)) return -EINVAL;
 	
 	asndc = (struct cap_asnd *)__cap_capactivate_pre(t, cap, capin, CAP_ASND, &ret);
@@ -119,17 +123,21 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 
 	compc = (struct cap_comp *)captbl_lkup(t, comp_cap);
 	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
+
 	thdc = (struct cap_thd *)captbl_lkup(t, thd_cap);
 	if (unlikely(!thdc || thdc->h.type != CAP_THD)) return -EINVAL;
-	if (thdc->cpuid != get_cpuid()) return -EINVAL;
+	/* if (thdc->cpuid != get_cpuid()) return -EINVAL; */
 
 	arcvc = (struct cap_arcv *)__cap_capactivate_pre(t, cap, capin, CAP_ARCV, &ret);
 	if (!arcvc) return ret;
+
 	memcpy(&arcvc->comp_info, &compc->info, sizeof(struct comp_info));
-	arcvc->pending = 0;
-	arcvc->cpuid   = get_cpuid();
-	arcvc->epoch   = 0; 	  /* FIXME: get the real epoch */
-	arcvc->thd     = thdc->t; /* FIXME: do reference counting for the thread here */
+
+	arcvc->pending   = 0;
+	arcvc->cpuid     = thdc->t->cpuid;
+	arcvc->epoch     = 0; 	  /* FIXME: get the real epoch */
+	arcvc->thd       = thdc->t; /* FIXME: do reference counting for the thread here */
+	arcvc->thd_epoch = 0; 	  /* FIXME: get the real epoch */
 	__cap_capactivate_post(&arcvc->h, CAP_ARCV, 0);
 	
 	return 0;
