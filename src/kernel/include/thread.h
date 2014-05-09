@@ -101,6 +101,7 @@ struct thread {
 	cpuid_t cpuid;
 	struct comp_info comp_info; /* which scheduler to notify of events? FIXME: ignored for now */
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
+	capid_t arcv_cap; /* the acap id we are waiting on */
 	/* TODO: gp and fp registers */
 } CACHE_ALIGNED;
 #endif

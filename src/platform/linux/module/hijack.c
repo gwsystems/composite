@@ -1441,6 +1441,7 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 }
 
 void cos_ipi_handling(void);
+void cos_cap_ipi_handling(void);
 
 extern int ipi_meas;
 extern int core0_high();
@@ -1455,14 +1456,17 @@ main_ipi_handler(struct pt_regs *rs, unsigned int irq)
 	/* ack the ipi first. */
 	ack_APIC_irq();
 	
-	if (ipi_meas > 0) {
-		if (get_cpuid() == 0) core0_high();
-		else corex_high();
+	/* if (ipi_meas > 0) { */
+	/* 	if (get_cpuid() == 0) core0_high(); */
+	/* 	else corex_high(); */
 
-		return;
-	}
+	/* 	return; */
+	/* } */
 
-	cos_ipi_handling();
+	printk("core %d rec ipi. irq %u!\n", irq);
+
+	cos_cap_ipi_handling();
+//	cos_ipi_handling();
 
         return;
 }
@@ -1662,6 +1666,31 @@ host_idle_wakeup(void)
 		}
 		assert(IDLE_WAKING == idle_status);
 	}
+}
+
+int chal_attempt_arcv(struct cap_arcv *arcv) 
+{
+	struct pt_regs *regs = NULL;
+	unsigned long flags;
+	struct thread *thd;
+
+	local_irq_save(flags);
+
+	thd = arcv->thd;
+	if (thd->flags & THD_STATE_ACTIVE_UPCALL) {
+		/* handling thread is active. */
+		arcv->pending++; 
+		return 0;
+	}
+	
+	/* FIXME: we always switch to upcall currently. */
+
+//	assert(thd->flags & THD_STATE_READY_UPCALL);
+
+done:
+	local_irq_restore(flags);
+		
+	return 0;
 }
 
 int chal_attempt_ainv(struct async_cap *acap)

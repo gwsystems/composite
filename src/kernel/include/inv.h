@@ -26,8 +26,8 @@ struct cap_sret {
 
 struct cap_asnd {
 	struct cap_header h;
-	u32_t cpuid;
-	u32_t arcv_cpuid, arcv_capid, arcv_epoch; /* identify reciever */
+	u32_t cpuid; /* may not need this. */
+	u32_t arcv_cpuid, arcv_capid, arcv_epoch; /* identify receiver */
 	struct comp_info comp_info;
 
 	/* deferrable server to rate-limit IPIs */
@@ -98,6 +98,7 @@ asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, 
 	asndc = (struct cap_asnd *)__cap_capactivate_pre(t, cap, capin, CAP_ASND, &ret);
 	if (!asndc) return ret;
 	memcpy(&asndc->comp_info, &arcvc->comp_info, sizeof(struct comp_info));
+	asndc->cpuid          = get_cpuid();
 	asndc->arcv_epoch     = arcvc->epoch;
 	asndc->arcv_cpuid     = arcvc->cpuid;
 	asndc->arcv_capid     = rcv_cap;

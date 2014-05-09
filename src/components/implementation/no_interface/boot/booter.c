@@ -636,9 +636,15 @@ boot_create_cap_system(void)
 		/* Captbl */
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE,
 				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), captbl_cap, 0)) BUG();
+
+		/* Expand it! */
+#define CAPTBL_INIT_SZ (PAGE_SIZE/2/16)
+		if (call_cap_op(captbl_cap, CAPTBL_OP_CONS, CAPTBL_INIT_SZ,
+				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), 0))             BUG();
+
 		/* PGD */
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGDACTIVATE,
-				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), pgtbl_cap, 0))    BUG();
+				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), pgtbl_cap, 0))  BUG();
 		/* PTE */
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PTEACTIVATE,
 				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), pte_cap, 0))    BUG();

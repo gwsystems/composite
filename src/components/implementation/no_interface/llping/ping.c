@@ -61,7 +61,7 @@ printc(char *fmt, ...)
 /* 	return; */
 /* } */
 
-#define ITER (1024)//*1024)
+#define ITER (1024*1024)
 //u64_t meas[ITER];
 
 void cos_init(void)
@@ -69,17 +69,25 @@ void cos_init(void)
 	int i;
 	u64_t s, e;
 
-	printc("core %ld: gonna doing pingpong\n", cos_cpuid());
+	if (cos_cpuid() == INIT_CORE) {
+		printc("core %ld: sending ipi\n", cos_cpuid());
+		rdtscll(s);
+		call_cap(SCHED_CAPTBL_FREE + captbl_idsize(CAP_ASND)*cos_cpuid(), 0, 0, 0, 0);
+		rdtscll(e);
+		printc("core %ld: ipi done, avg %llu\n", cos_cpuid(), (e-s));
+	} else {
+		printc("core %ld: doing pingpong\n", cos_cpuid());
 	
-	call_cap(2, 0, 0, 0, 0);
-
-	rdtscll(s);
-	for (i = 0; i < ITER; i++) {
 		call_cap(2, 0, 0, 0, 0);
-	}
-	rdtscll(e);
 
-	printc("core %ld: pingpong done, avg %llu\n", cos_cpuid(), (e-s)/ITER);
+		rdtscll(s);
+		for (i = 0; i < ITER; i++) {
+			call_cap(2, 0, 0, 0, 0);
+		}
+		rdtscll(e);
+
+		printc("core %ld: pingpong done, avg %llu\n", cos_cpuid(), (e-s)/ITER);
+	}
 
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
 

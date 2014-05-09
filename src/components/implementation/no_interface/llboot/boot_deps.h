@@ -365,12 +365,13 @@ acap_test(void)
 	int ret;
 	/* asnd and arcv tests! */
 	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
-	struct comp_cap_info *pong = &comp_cap_info[2];
-	struct comp_cap_info *ping = &comp_cap_info[3];
-
+	struct comp_cap_info *ping = &comp_cap_info[2];
+	struct comp_cap_info *pong = &comp_cap_info[3];
 
 	//use the same cap id in ping and pong for simplicity. 
-	capid_t async_test_cap = SCHED_CAPTBL_FREE + captbl_idsize(CAP_ARCV)*cos_cpuid();
+	capid_t async_sndthd_cap = SCHED_CAPTBL_FREE + captbl_idsize(CAP_THD)*cos_cpuid();
+	capid_t async_rcvthd_cap = SCHED_CAPTBL_FREE + (NUM_CPU_COS + cos_cpuid()) * captbl_idsize(CAP_THD);
+	capid_t async_test_cap   = round_up_to_pow2(SCHED_CAPTBL_FREE + (NUM_CPU_COS*2) * captbl_idsize(CAP_THD), CAPMAX_ENTRY_SZ) + captbl_idsize(CAP_ARCV)*cos_cpuid();
 
 	if (call_cap_op(pong->captbl_cap, CAPTBL_OP_ARCVACTIVATE, async_test_cap, 
 			      llboot->init_thd, pong->comp_cap, 0)) BUG();
@@ -378,7 +379,7 @@ acap_test(void)
 	if (call_cap_op(ping->captbl_cap, CAPTBL_OP_ASNDACTIVATE, async_test_cap, 
 			      pong->captbl_cap, async_test_cap, 0)) BUG();
 
-	printc("asnd/arcv caps created on core %d\n", cos_cpuid());
+	printc("asnd/arcv %d caps created on core %d\n", async_test_cap, cos_cpuid());
 
 	return;
 }

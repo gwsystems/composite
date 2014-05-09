@@ -9,6 +9,7 @@
 #include "include/inv.h"
 #include "include/thd.h"
 #include "include/call_convention.h"
+#include "include/ipi_cap.h"
 
 #define COS_DEFAULT_RET_CAP 0
 
@@ -39,6 +40,8 @@ static inline int printfn(struct pt_regs *regs)
 	int len;
 	char kern_buf[MAX_LEN];
 
+	fs_reg_setup(__KERNEL_PERCPU);
+
 	str     = (char *)__userregs_get1(regs);
 	len     = __userregs_get2(regs);
 
@@ -51,6 +54,35 @@ done:
 	__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 
 	return 0;
+}
+
+static int
+cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next) 
+{
+	int preempt = 0;
+	struct comp_info *next_ci = &(next->invstk[next->invstk_top].comp_info);
+
+	copy_gp_regs(regs, &curr->regs);
+	__userregs_set(&curr->regs, COS_SCHED_RET_SUCCESS, __userregs_getsp(regs), __userregs_getip(regs));
+
+	/* printk("switching to thd %d cap %d, pgtbl %x; ip %x\n", next->tid, cap, next_ci->pgtbl, next->regs.dx); */
+		
+	thd_current_update(next);
+	pgtbl_update(next_ci->pgtbl);
+
+	/* fpu_save(thd); */
+	if (next->flags & THD_STATE_PREEMPTED) {
+		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
+		/* remove_preempted_status(thd); */
+		next->flags &= ~THD_STATE_PREEMPTED;
+		preempt = 1;
+	}
+
+	/* update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags); */
+	/* event_record("switch_thread", thd_get_id(thd), thd_get_id(next)); */
+	copy_gp_regs(&next->regs, regs);
+
+	return preempt;
 }
 
 __attribute__((section("__ipc_entry"))) COS_SYSCALL int
@@ -71,7 +103,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 #endif
 #ifndef LINUX_TEST
 	if (regs->ax == PRINT_CAP_TEMP) {
-		fs_reg_setup(__KERNEL_PERCPU);
 		printfn(regs);
 		return 0;
 	}
@@ -118,50 +149,61 @@ composite_sysenter_handler(struct pt_regs *regs)
 	{
 		int curr_cpu = get_cpuid();
 		struct cap_asnd *asnd = (struct cap_asnd *)ch;
-		
-		if (asnd->cpuid != curr_cpu) {
+
+		assert(asnd->arcv_capid);
+
+		if (asnd->arcv_cpuid != curr_cpu) {
 			/* Cross core: sending IPI */
+			ret = cos_cap_send_ipi(asnd->arcv_cpuid, asnd);
+		} else {
+			printk("not implemented yet.\n");
+			ret = -1;
 		}
-		
-		
+				
 		break;
 	}
-	case CAP_ARCV: 		/* FIXME: add asynchronous receive */
+	case CAP_ARCV:
 	{
+		struct cap_arcv *arcv = (struct cap_arcv *)ch;
+
+		/*FIXME: add epoch checking!*/
+		if (arcv->thd != thd) cos_throw(err, EINVAL);
+
+		/* Sanity checks */
+		assert(arcv->cpuid == get_cpuid());
+		assert(arcv->comp_info.pgtbl = ci->pgtbl);
+		assert(arcv->comp_info.captbl = ci->captbl);
+
+		if (arcv->pending) {
+			ret = 0;
+			break;
+		}
+		
+		if (thd->interrupted_thread == NULL) {
+			/* FIXME: handle this case by upcalling into scheduler. */
+			ret = -1;
+			printk("fixmefixmefixme!!!\n");
+		} else {
+			thd->arcv_cap = cap;
+			thd->flags &= !THD_STATE_ACTIVE_UPCALL;
+			thd->flags |= THD_STATE_READY_UPCALL;
+			
+			return cap_switch_thd(regs, thd, thd->interrupted_thread);
+		}
+		
 		break;
 	}
 	case CAP_THD:
 	{
 		struct cap_thd *thd_cap = (struct cap_thd *)ch;
 		struct thread *next = thd_cap->t;
-		struct comp_info *next_ci = &(next->invstk[next->invstk_top].comp_info);
 
 		if (thd_cap->cpuid != get_cpuid()) cos_throw(err, EINVAL);
 		assert(thd_cap->cpuid == next->cpuid);
 
 		// TODO: check liveness tbl
-		copy_gp_regs(regs, &thd->regs);
-		__userregs_set(&thd->regs, COS_SCHED_RET_SUCCESS, __userregs_getsp(regs), __userregs_getip(regs));
-
-		/* printk("switching to thd %d cap %d, pgtbl %x; ip %x\n", next->tid, cap, next_ci->pgtbl, next->regs.dx); */
 		
-		thd_current_update(next);
-		pgtbl_update(next_ci->pgtbl);
-
-		/* fpu_save(thd); */
-		/* if (thd->flags & THD_STATE_PREEMPTED) { */
-		/* 	cos_meas_event(COS_MEAS_SWITCH_PREEMPT); */
-		/* 	remove_preempted_status(thd); */
-		/* 	preempt = 1; */
-		/* } else { */
-		/* 	cos_meas_event(COS_MEAS_SWITCH_COOP); */
-		/* } */
-
-		/* update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags); */
-		/* event_record("switch_thread", thd_get_id(thd), thd_get_id(next)); */
-		copy_gp_regs(&next->regs, regs);
-		
-		return 0;
+		return cap_switch_thd(regs, thd, next);
 	}
 	case CAP_CAPTBL:
 	{
@@ -315,6 +357,31 @@ composite_sysenter_handler(struct pt_regs *regs)
 			break;
 		}
 		case CAPTBL_OP_CONS:
+		{
+			capid_t target      = cap;
+			capid_t target_id   = capin;
+			capid_t pgtbl_cap   = __userregs_get2(regs);
+			capid_t pgtbl_addr  = __userregs_get3(regs);
+			void *captbl_mem;
+			struct cap_captbl *target_ct;
+
+			ret = cap_mem_retype2kern(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&captbl_mem);
+			if (unlikely(ret)) cos_throw(err, ret);
+
+			target_ct = (struct cap_captbl *)captbl_lkup(ct, target);
+			if (target_ct->h.type != CAP_CAPTBL) cos_throw(err, EINVAL);
+
+			captbl_init(captbl_mem, 1);
+			ret = captbl_expand(target_ct->captbl, target_id, captbl_maxdepth(), captbl_mem);
+			assert(!ret);
+
+			captbl_init(&((char*)captbl_mem)[PAGE_SIZE/2], 1);
+			ret = captbl_expand(target_ct->captbl, target_id + (PAGE_SIZE/2/CAPTBL_LEAFSZ), 
+					    captbl_maxdepth(), &((char*)captbl_mem)[PAGE_SIZE/2]);
+			assert(!ret);
+
+			break;
+		}
 		case CAPTBL_OP_DECONS:
 		default: goto err;
 		}
@@ -372,4 +439,36 @@ done:
 	__userregs_set(regs, ret, __userregs_getsp(regs), __userregs_getip(regs));
 
 	return 0;
+}
+
+void cos_cap_ipi_handling(void)
+{
+	int idx, end;
+	struct IPI_receiving_rings *receiver_rings;
+	struct xcore_ring *ring;
+
+	receiver_rings = &IPI_cap_dest[get_cpuid()];
+
+	/* We need to scan the entire buffer once. */
+	idx = receiver_rings->start;
+	end = receiver_rings->start - 1; //end is int type. could be -1. 
+	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
+
+	// scan the first half
+	for (; idx < NUM_CPU; idx++) {
+		ring = &receiver_rings->IPI_source[idx];
+		if (ring->sender != ring->receiver) {
+			process_ring(ring);
+		}
+	}
+
+	//scan the second half
+	for (idx = 0; idx <= end; idx++) {
+		ring = &receiver_rings->IPI_source[idx];
+		if (ring->sender != ring->receiver) {
+			process_ring(ring);
+		}
+	}
+
+	return;
 }
