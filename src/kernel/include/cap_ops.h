@@ -201,6 +201,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 	/*        cap_from, capin_from, cap_to, capin_to); */
 	ctfrom = captbl_lkup(t, cap_from);
 	if (unlikely(!ctfrom)) return -ENOENT;
+
 	cap_type = ctfrom->type; 
 
 	if (cap_type == CAP_CAPTBL) {
@@ -232,6 +233,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, 
 					capin_to, *f & PGTBL_FRAME_MASK, flags);
 	} else {
+		printk("unknown type of OP_CPY!\n");
 		ret = -EINVAL;
 	}
 

@@ -111,6 +111,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 	/* printk("calling cap %d: %x, %x, %x, %x\n", */
 	/*        cap, __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
 
+	// remove likely?
 	/* fast path: invocation return */
 	if (likely(cap == COS_DEFAULT_RET_CAP)) {
 		/* No need to lookup captbl */

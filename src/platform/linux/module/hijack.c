@@ -748,6 +748,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	switch(cmd) {
 	case AED_INIT_BOOT_THD:
 	{
+		u64_t s,e;
 		struct thread *thd = (struct thread *)(init_thds + get_cpuid()*THD_SIZE);
 		assert(get_cpuid() < NUM_CPU_COS);
 
@@ -757,9 +758,14 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		/* 
 		 * Create a thread in comp0.
 		 */
-		if (thd_activate(boot_captbl, BOOT_CAPTBL_SELF_CT, 
-				 BOOT_CAPTBL_SELF_INITTHD_BASE + get_cpuid(), 
-				 thd, BOOT_CAPTBL_COMP0_COMP)) return -EFAULT;
+		rdtscll(s);
+		while (thd_activate(boot_captbl, BOOT_CAPTBL_SELF_CT, 
+				    BOOT_CAPTBL_SELF_INITTHD_BASE + get_cpuid(), 
+				    thd, BOOT_CAPTBL_COMP0_COMP)) {
+			/* CAS could fail on init. */
+			rdtscll(e);
+			if ((e-s) > (1<<30)) return -EFAULT;
+		}
 		thd_current_update(thd);
 
 		/* Comp0 has only 1 pgtbl, which points to the process

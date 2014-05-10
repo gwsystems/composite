@@ -54,6 +54,8 @@ cos_ipi_ring_dequeue(struct xcore_ring *ring, struct ipi_cap_data *ret) {
 	memcpy(ret, &ring->ring[ring->receiver], sizeof(struct ipi_cap_data));
 
 	ring->receiver = (ring->receiver + 1) & IPI_RING_MASK;
+	
+	cos_mem_fence();
 
 	return 1;
 }

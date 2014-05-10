@@ -13,6 +13,7 @@
 
 //#include <errno.h>
 #include "ertrie.h"
+#include "shared/util.h"
 
 #ifdef LINUX_TEST
 #define PAGE_SIZE 4096
@@ -193,7 +194,11 @@ static inline struct cap_header *captbl_lkup(struct captbl *t, capid_t cap)
 
 static inline int
 __captbl_store(unsigned long *addr, unsigned long new, unsigned long old)
-{ if (*addr != old) return -1; *addr = new; return 0; }
+{ 
+	if (!cos_cas(addr, old, new)) return -1;
+
+	return 0; 
+}
 #define CTSTORE(a, n, o) __captbl_store((unsigned long *)a, *(unsigned long *)n, *(unsigned long *)o)
 #define cos_throw(label, errno) { ret = (errno); goto label; }
 
@@ -234,9 +239,10 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
 	/* FIXME: same as above */
 	if (p != h) p->type = type;
-	
+
 	assert(p == __captbl_lkupan(t, cap, CAPTBL_DEPTH+1, NULL));
 	*retval = ret;
+
 	return p;
 err:
 	*retval = ret;

@@ -362,7 +362,7 @@ vaddr_t per_core_rcvthd_mem[NUM_CPU_COS];
 
 // only needed for ppos test
 #include <ck_spinlock.h>
-ck_spinlock_ticket_t xcore_lock = CK_SPINLOCK_TICKET_INITIALIZER;
+ck_spinlock_ticket_t init_lock = CK_SPINLOCK_TICKET_INITIALIZER;
 
 static inline void
 acap_test(void)
@@ -382,7 +382,7 @@ acap_test(void)
 	capid_t pong_thd_cap;
 
 	/* lock to avoid cas failure. */
-	ck_spinlock_ticket_lock(&xcore_lock);
+	ck_spinlock_ticket_lock(&init_lock);
 	thd_mem = get_kmem_cap();
 	pong_thd_cap = alloc_capid(CAP_THD);
 
@@ -395,14 +395,14 @@ acap_test(void)
 			BOOT_CAPTBL_SELF_PT, thd_mem, pong->comp_cap)) BUG();
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, BOOT_CAPTBL_SELF_CT, 
 			pong_thd_cap, ping->captbl_cap, async_rcvthd_cap)) BUG();
-///////////////////
+
 	if (call_cap_op(pong->captbl_cap, CAPTBL_OP_ARCVACTIVATE, async_test_cap, 
 			      pong_thd_cap, pong->comp_cap, 0)) BUG();
 
 	if (call_cap_op(ping->captbl_cap, CAPTBL_OP_ASNDACTIVATE, async_test_cap, 
 			      pong->captbl_cap, async_test_cap, 0)) BUG();
 
-	ck_spinlock_ticket_unlock(&xcore_lock);
+	ck_spinlock_ticket_unlock(&init_lock);
 
 	/* printc("asnd/arcv %d caps created on core %ld\n", async_test_cap, cos_cpuid()); */
 
@@ -422,15 +422,11 @@ boot_comp_thds_init(void)
 	assert(thd_alpha && thd_schedinit);
 	assert(thd_schedinit <= SCHED_CAPTBL_LAST);
 
+	ck_spinlock_ticket_lock(&init_lock);
 	llboot->alpha        = BOOT_CAPTBL_SELF_INITTHD_BASE + cos_cpuid();
 	llboot->init_thd     = per_core_thd_cap[cos_cpuid()];
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, llboot->init_thd, 
 			BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()], sched_comp->comp_cap)) BUG();
-
-	printc("Core %ld, Low-level booter created threads:\n"
-	       "\tCap %d: alpha\n\tCap %d: init\n",
-	       cos_cpuid(), llboot->alpha, llboot->init_thd);
-	assert(llboot->init_thd >= 0);
 
 	/* Scheduler should have access to the init thread and alpha
 	 * thread. Grant caps by copying. */
@@ -438,6 +434,12 @@ boot_comp_thds_init(void)
 			llboot->init_thd, sched_comp->captbl_cap, thd_schedinit)) BUG();
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, BOOT_CAPTBL_SELF_CT, 
 			llboot->alpha, sched_comp->captbl_cap, thd_alpha))        BUG();
+	ck_spinlock_ticket_unlock(&init_lock);
+
+	printc("Core %ld, Low-level booter created threads:\n"
+	       "\tCap %d: alpha\n\tCap %d: init\n",
+	       cos_cpuid(), llboot->alpha, llboot->init_thd);
+	assert(llboot->init_thd >= 0);
 }
 
 static inline void 
