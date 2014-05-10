@@ -112,15 +112,6 @@ struct thread {
 #endif
 */
 
-#define THD_STATE_PREEMPTED     0x1   /* Complete register info is saved in regs */
-#define THD_STATE_UPCALL        0x2   /* Thread for upcalls: ->srv_acap points to the acap who we're linked to */
-#define THD_STATE_ACTIVE_UPCALL 0x4   /* Thread is in upcall execution. */
-#define THD_STATE_READY_UPCALL  0x8   /* Same as previous, but we are ready to execute */ 
-#define THD_STATE_SCHED_RETURN  0x10  /* When the sched switches to this thread, ret from ipc */
-#define THD_STATE_FAULT         0x20  /* Thread has had a (e.g. page) fault which is being serviced */
-#define THD_STATE_HW_ACAP      0x40 /* Actual hardware should be making this acap */
-#define THD_STATE_CYC_CNT       0x80 /* This thread is being cycle tracked */
-
 struct thread *thd_alloc(struct spd *spd);
 void thd_free(struct thread *thd);
 void thd_free_all(void);

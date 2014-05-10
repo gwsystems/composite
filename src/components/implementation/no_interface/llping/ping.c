@@ -61,32 +61,61 @@ printc(char *fmt, ...)
 /* 	return; */
 /* } */
 
-#define ITER (1024*1024)
+#define ITER (1024)
 //u64_t meas[ITER];
+
+void pingpong(void)
+{
+	int i;
+	u64_t s, e;
+
+	printc("core %ld: doing pingpong\n", cos_cpuid());
+	
+	call_cap(2, 0, 0, 0, 0);
+
+	rdtscll(s);
+	for (i = 0; i < ITER; i++) {
+		call_cap(2, 0, 0, 0, 0);
+	}
+	rdtscll(e);
+
+	printc("core %ld: pingpong done, avg %llu\n", cos_cpuid(), (e-s)/ITER);
+
+	return;
+}
+
+volatile int arcv_ready[NUM_CPU];
+#define SPINTIME (1000000000L)
 
 void cos_init(void)
 {
 	int i;
 	u64_t s, e;
 
+	//init rcv thd first.
 	if (cos_cpuid() == INIT_CORE) {
+		while (arcv_ready[1] == 0) ;
 		printc("core %ld: sending ipi\n", cos_cpuid());
 		rdtscll(s);
-		call_cap(SCHED_CAPTBL_FREE + captbl_idsize(CAP_ASND)*cos_cpuid(), 0, 0, 0, 0);
-		rdtscll(e);
-		printc("core %ld: ipi done, avg %llu\n", cos_cpuid(), (e-s));
-	} else {
-		printc("core %ld: doing pingpong\n", cos_cpuid());
-	
-		call_cap(2, 0, 0, 0, 0);
-
-		rdtscll(s);
-		for (i = 0; i < ITER; i++) {
-			call_cap(2, 0, 0, 0, 0);
+		for (i = 0; i<ITER; i++) {
+			call_cap(ACAP_BASE + captbl_idsize(CAP_ASND)*1, 0, 0, 0, 0);
+//			printc("core %ld: ipi ping delay\n", cos_cpuid());
+//			printc("core %ld: ipi ping delay2\n", cos_cpuid());
 		}
 		rdtscll(e);
+		printc("core %ld: ipi done, avg %llu\n", cos_cpuid(), (e-s)/ITER);
+	} else {
+		printc("core %ld: thd %d switching to pong thd\n", cos_cpuid(), cos_get_thd_id());
+		cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid());
+		printc("core %ld: thd %d back in ping\n", cos_cpuid(), cos_get_thd_id());
 
-		printc("core %ld: pingpong done, avg %llu\n", cos_cpuid(), (e-s)/ITER);
+		arcv_ready[cos_cpuid()] = 1;
+		rdtscll(s);
+		while (1) {
+			rdtscll(e);
+			if ((e-s) > SPINTIME) break;
+		}
+		printc("core %ld: exiting from ping\n", cos_cpuid());
 	}
 
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());

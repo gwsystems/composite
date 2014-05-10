@@ -18,6 +18,15 @@ struct invstk_entry {
 
 #define THD_INVSTK_MAXSZ 32
 
+#define THD_STATE_PREEMPTED     0x1   /* Complete register info is saved in regs */
+#define THD_STATE_UPCALL        0x2   /* Thread for upcalls: ->srv_acap points to the acap who we're linked to */
+#define THD_STATE_ACTIVE_UPCALL 0x4   /* Thread is in upcall execution. */
+#define THD_STATE_READY_UPCALL  0x8   /* Same as previous, but we are ready to execute */ 
+#define THD_STATE_SCHED_RETURN  0x10  /* When the sched switches to this thread, ret from ipc */
+#define THD_STATE_FAULT         0x20  /* Thread has had a (e.g. page) fault which is being serviced */
+#define THD_STATE_HW_ACAP      0x40 /* Actual hardware should be making this acap */
+#define THD_STATE_CYC_CNT       0x80 /* This thread is being cycle tracked */
+
 #ifdef LINUX_TEST
 
 struct thread {
@@ -222,6 +231,15 @@ thd_invstk_current(struct thread *thd, unsigned long *ip, unsigned long *sp)
 	return &curr->comp_info;
 }
 
+static inline pgtbl_t
+thd_current_pgtbl(struct thread *thd)
+{
+	struct invstk_entry *curr;
+
+	curr = &thd->invstk[thd->invstk_top];
+	return curr->comp_info.pgtbl;
+}
+
 static inline int
 thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsigned long sp)
 {
@@ -246,5 +264,14 @@ thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp)
 	thd->invstk_top--;
 	return thd_invstk_current(thd, ip, sp);
 }
+
+static inline void thd_preemption_state_update(struct thread *curr, struct thread *next, struct pt_regs *regs)
+{
+	curr->flags |= THD_STATE_PREEMPTED;
+	curr->preempter_thread = next;
+	next->interrupted_thread = curr;
+	memcpy(&curr->regs, regs, sizeof(struct pt_regs));
+}
+
 
 #endif /* THD_H */

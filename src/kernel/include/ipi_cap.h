@@ -51,7 +51,6 @@ cos_ipi_ring_dequeue(struct xcore_ring *ring, struct ipi_cap_data *ret) {
 	/* printk("core %d ring : %x, sender %d, receiver %d\n", get_cpuid(), ring, ring->sender.tail, ring->receiver.head); */
 
 	if (ring->sender == ring->receiver) return 0;
-
 	memcpy(ret, &ring->ring[ring->receiver], sizeof(struct ipi_cap_data));
 
 	ring->receiver = (ring->receiver + 1) & IPI_RING_MASK;
@@ -59,15 +58,14 @@ cos_ipi_ring_dequeue(struct xcore_ring *ring, struct ipi_cap_data *ret) {
 	return 1;
 }
 
-static inline void handle_ipi_acap(struct ipi_cap_data *data)
+static inline void handle_ipi_arcv(struct ipi_cap_data *data)
 {
-	struct comp_info *ci  = &data->comp_info;
+	struct comp_info *ci = &data->comp_info;
 	struct cap_arcv *arcv;
 	/* FIXME: check epoch and liveness! */
 
 	assert(ci->captbl);
 	arcv = (struct cap_arcv *)captbl_lkup(ci->captbl, data->arcv_capid);
-
 	if (unlikely(arcv->h.type != CAP_ARCV)) {
 		printk("cos: IPI handling received invalid arcv cap %d\n", data->arcv_capid);
 		return;
@@ -77,14 +75,14 @@ static inline void handle_ipi_acap(struct ipi_cap_data *data)
 	/*        get_cpuid(), acap_id, acap, acap->upcall_thd, spd_id); */
 
 	/* Activate the associated thread. */
-	chal_attempt_ainv(arcv);
+	chal_attempt_arcv(arcv);
 }
 
 static inline void process_ring(struct xcore_ring *ring) {
 	struct ipi_cap_data data;
 
 	while ((cos_ipi_ring_dequeue(ring, &data)) != 0) {
-		handle_ipi_acap(&data);
+		handle_ipi_arcv(&data);
 	}
 }
 
@@ -105,6 +103,7 @@ cos_ipi_ring_enqueue(u32_t dest, struct cap_asnd *asnd) {
 	memcpy(&data->comp_info, &asnd->comp_info, sizeof(struct comp_info));
 
 	ring->sender = delta;
+
 	/* Memory fence */
 	cos_mem_fence();
 

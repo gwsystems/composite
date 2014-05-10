@@ -86,14 +86,15 @@ void *chal_alloc_kern_mem(int order);
 void chal_free_page(void *page);
 void chal_free_kern_mem(void *mem, int order);
 
-
 /* Per core ACAPs for timer events */
 PERCPU_DECL(struct async_cap *, cos_timer_acap);
+PERCPU_DECL(struct cap_arcv *, cos_timer_arcv);
 
 /*******************
  * Other functions *
  *******************/
 
+int chal_attempt_arcv(struct cap_arcv *arcv);
 int chal_attempt_ainv(struct async_cap *acap);
 
 /* IPI sending */

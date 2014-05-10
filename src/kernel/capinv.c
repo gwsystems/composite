@@ -65,8 +65,6 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next)
 	copy_gp_regs(regs, &curr->regs);
 	__userregs_set(&curr->regs, COS_SCHED_RET_SUCCESS, __userregs_getsp(regs), __userregs_getip(regs));
 
-	/* printk("switching to thd %d cap %d, pgtbl %x; ip %x\n", next->tid, cap, next_ci->pgtbl, next->regs.dx); */
-		
 	thd_current_update(next);
 	pgtbl_update(next_ci->pgtbl);
 
@@ -77,7 +75,8 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next)
 		next->flags &= ~THD_STATE_PREEMPTED;
 		preempt = 1;
 	}
-
+//	printk("Core %d: switching from %d to thd %d, preempted %d\n", get_cpuid(), curr->tid, next->tid, preempt);
+		
 	/* update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags); */
 	/* event_record("switch_thread", thd_get_id(thd), thd_get_id(next)); */
 	copy_gp_regs(&next->regs, regs);
@@ -125,6 +124,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 	ch  = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
+		printk("cos: cap %d not found!\n", cap);
 		ret = -ENOENT;
 		goto done;
 	}
@@ -155,9 +155,20 @@ composite_sysenter_handler(struct pt_regs *regs)
 		if (asnd->arcv_cpuid != curr_cpu) {
 			/* Cross core: sending IPI */
 			ret = cos_cap_send_ipi(asnd->arcv_cpuid, asnd);
+			/* printk("sending ipi to cpu %d. ret %d\n", asnd->arcv_cpuid, ret); */
 		} else {
-			printk("not implemented yet.\n");
-			ret = -1;
+			struct cap_arcv *arcv;
+
+			printk("NOT tested yet.\n");
+
+			//FIXME: check liveness!
+			arcv = (struct cap_arcv *)captbl_lkup(asnd->comp_info.captbl, asnd->arcv_capid);
+			if (unlikely(arcv->h.type != CAP_ARCV)) {
+				printk("cos: IPI handling received invalid arcv cap %d\n", asnd->arcv_capid);
+				cos_throw(err, EINVAL);
+			}
+			
+			return cap_switch_thd(regs, thd, arcv->thd);
 		}
 				
 		break;
@@ -167,7 +178,10 @@ composite_sysenter_handler(struct pt_regs *regs)
 		struct cap_arcv *arcv = (struct cap_arcv *)ch;
 
 		/*FIXME: add epoch checking!*/
-		if (arcv->thd != thd) cos_throw(err, EINVAL);
+
+		if (arcv->thd != thd) {
+			cos_throw(err, EINVAL);
+		}
 
 		/* Sanity checks */
 		assert(arcv->cpuid == get_cpuid());
@@ -175,7 +189,9 @@ composite_sysenter_handler(struct pt_regs *regs)
 		assert(arcv->comp_info.captbl = ci->captbl);
 
 		if (arcv->pending) {
+			arcv->pending--;
 			ret = 0;
+
 			break;
 		}
 		
@@ -202,7 +218,10 @@ composite_sysenter_handler(struct pt_regs *regs)
 		assert(thd_cap->cpuid == next->cpuid);
 
 		// TODO: check liveness tbl
-		
+	
+		// QW: hack!!! for ppos test only. remove!
+		next->interrupted_thread = thd;
+
 		return cap_switch_thd(regs, thd, next);
 	}
 	case CAP_CAPTBL:
@@ -277,6 +296,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 			ret = cap_mem_retype2kern(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd);
 			if (unlikely(ret)) cos_throw(err, ret);
+
 			ret = thd_activate(ct, cap, capin, thd, compcap);
 			/* ret is returned by the overall function */
 			break;

@@ -2775,7 +2775,14 @@ static void setup_kernel(struct service_symbs *services)
 
 	assert(llboot_mem);
 	llboot_spd->mem_size = llboot_mem;
-	cos_init_booter(cntl_fd, llboot_spd);
+	if (cos_init_booter(cntl_fd, llboot_spd)) {
+		printf("Boot component init failed!\n");
+		exit(-1);
+	}
+	if  (cos_create_init_thd(cntl_fd)) {
+		printf("Creating init threads failed!\n");
+		exit(-1);
+	}
 
 	assert(fn);
 	/* We call fn to init the low level booter first! Init

@@ -358,6 +358,11 @@ struct comp_cap_info comp_cap_info[MAX_NUM_SPDS+1];
 
 capid_t per_core_thd_cap[NUM_CPU_COS];
 vaddr_t per_core_thd_mem[NUM_CPU_COS];
+vaddr_t per_core_rcvthd_mem[NUM_CPU_COS];
+
+// only needed for ppos test
+#include <ck_spinlock.h>
+ck_spinlock_ticket_t xcore_lock = CK_SPINLOCK_TICKET_INITIALIZER;
 
 static inline void
 acap_test(void)
@@ -369,17 +374,37 @@ acap_test(void)
 	struct comp_cap_info *pong = &comp_cap_info[3];
 
 	//use the same cap id in ping and pong for simplicity. 
-	capid_t async_sndthd_cap = SCHED_CAPTBL_FREE + captbl_idsize(CAP_THD)*cos_cpuid();
-	capid_t async_rcvthd_cap = SCHED_CAPTBL_FREE + (NUM_CPU_COS + cos_cpuid()) * captbl_idsize(CAP_THD);
-	capid_t async_test_cap   = round_up_to_pow2(SCHED_CAPTBL_FREE + (NUM_CPU_COS*2) * captbl_idsize(CAP_THD), CAPMAX_ENTRY_SZ) + captbl_idsize(CAP_ARCV)*cos_cpuid();
+	capid_t async_sndthd_cap = SND_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid();
+	capid_t async_rcvthd_cap = RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid();
+	capid_t async_test_cap   = ACAP_BASE + captbl_idsize(CAP_ARCV)*cos_cpuid();
 
+	vaddr_t thd_mem;
+	capid_t pong_thd_cap;
+
+	/* lock to avoid cas failure. */
+	ck_spinlock_ticket_lock(&xcore_lock);
+	thd_mem = get_kmem_cap();
+	pong_thd_cap = alloc_capid(CAP_THD);
+
+	// grant alpha thd to pong as well
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, BOOT_CAPTBL_SELF_CT, 
+			llboot->alpha, pong->captbl_cap, SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()))        BUG();
+
+	// create rcv thd in pong. and copy it to ping's captbl.
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, pong_thd_cap, 
+			BOOT_CAPTBL_SELF_PT, thd_mem, pong->comp_cap)) BUG();
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, BOOT_CAPTBL_SELF_CT, 
+			pong_thd_cap, ping->captbl_cap, async_rcvthd_cap)) BUG();
+///////////////////
 	if (call_cap_op(pong->captbl_cap, CAPTBL_OP_ARCVACTIVATE, async_test_cap, 
-			      llboot->init_thd, pong->comp_cap, 0)) BUG();
+			      pong_thd_cap, pong->comp_cap, 0)) BUG();
 
 	if (call_cap_op(ping->captbl_cap, CAPTBL_OP_ASNDACTIVATE, async_test_cap, 
 			      pong->captbl_cap, async_test_cap, 0)) BUG();
 
-	printc("asnd/arcv %d caps created on core %d\n", async_test_cap, cos_cpuid());
+	ck_spinlock_ticket_unlock(&xcore_lock);
+
+	/* printc("asnd/arcv %d caps created on core %ld\n", async_test_cap, cos_cpuid()); */
 
 	return;
 }
@@ -394,6 +419,7 @@ boot_comp_thds_init(void)
 	/* We reserve 2 caps for each core in the captbl of scheduler */
 	thd_alpha     = SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid();
 	thd_schedinit = SCHED_CAPTBL_INITTHD_BASE  + cos_cpuid();
+	assert(thd_alpha && thd_schedinit);
 	assert(thd_schedinit <= SCHED_CAPTBL_LAST);
 
 	llboot->alpha        = BOOT_CAPTBL_SELF_INITTHD_BASE + cos_cpuid();
@@ -493,15 +519,16 @@ void comp_deps_run_all(void)
 {
 	acap_test();
 
+	printc("Core %ld: low-level booter switching to init thread (cap %d).\n", cos_cpuid(), PERCPU_GET(llbooter)->init_thd);
 	/* switch to the init thd in the scheduler. */
 	if (cap_switch_thd(PERCPU_GET(llbooter)->init_thd)) BUG();
-	/* printc("Core %ld: booter init_thd switching back to alpha thd (cap %d).\n", cos_cpuid(), PERCPU_GET(llbooter)->alpha); */
+	printc("Core %ld: exiting system from low-level booter.\n", cos_cpuid());
 
 	return;
 }
 
-
 void cos_init(void);
+
 int sched_init(void)   
 {
 	printc("core %ld in llboot\n", cos_cpuid());
@@ -517,7 +544,6 @@ int sched_init(void)
 		comp_deps_run_all();
 	}
 
-	printc("Core %d: exiting system from low-level booter.\n", cos_spd_id());
 	call_cap(0, 0, 0, 0, 0);
 
 	return 0;

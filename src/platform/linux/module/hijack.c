@@ -63,6 +63,7 @@
 #include "../../../kernel/include/cap_ops.h"
 #include "../../../kernel/include/component.h"
 #include "../../../kernel/include/inv.h"
+#include "../../../kernel/include/thd.h"
 
 #include "./kconfig_checks.h"
 
@@ -710,7 +711,7 @@ kern_boot_comp(struct spd_info *spd_info)
 		u32_t flags;
 		if (cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
 				    BOOT_MEM_PM_BASE + i*PAGE_SIZE, 
-				    addr, PGTBL_COSFRAME)) cos_throw(err, -1);
+				    addr, PGTBL_COSFRAME | PGTBL_USER_DEF)) cos_throw(err, -1);
 		assert(chal_pa2va(addr) == (u32_t)pgtbl_lkup(pt, BOOT_MEM_PM_BASE+i*PAGE_SIZE, &flags));
 	}
 
@@ -734,12 +735,6 @@ kern_boot_comp(struct spd_info *spd_info)
 	assert(boot_sinv_entry);
 	if (sinv_activate(ct, BOOT_CAPTBL_COMP0_CT, 2, BOOT_CAPTBL_SELF_COMP, boot_sinv_entry)) cos_throw(err, -1);
 
-	/* 
-	 * Create a thread in comp0.
-	 */
-	if (thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE, thd, BOOT_CAPTBL_COMP0_COMP)) cos_throw(err, -1);
-	thd_current_update(thd);
-
 	return 0;
 err:
 	printk("Activating data-structure failed.\n");
@@ -755,7 +750,10 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	{
 		struct thread *thd = (struct thread *)(init_thds + get_cpuid()*THD_SIZE);
 		assert(get_cpuid() < NUM_CPU_COS);
-		assert(get_cpuid() != INIT_CORE)
+
+		cos_kern_stk_init();
+		save_per_core_cos_thd();
+
 		/* 
 		 * Create a thread in comp0.
 		 */
@@ -763,10 +761,13 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				 BOOT_CAPTBL_SELF_INITTHD_BASE + get_cpuid(), 
 				 thd, BOOT_CAPTBL_COMP0_COMP)) return -EFAULT;
 		thd_current_update(thd);
+
 		/* Comp0 has only 1 pgtbl, which points to the process
 		 * of the init core. Here we update the inv_stk of the
 		 * init thread of current core. */
 		thd->invstk[0].comp_info.pgtbl = chal_va2pa(current->mm->pgd);
+
+		hw_int_override_all();
 
 		return 0;
 	}
@@ -982,7 +983,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			sched = sched->parent_sched;
 		}
 
-		hw_int_override_all();
+		/* hw_int_override_all(); */
 
 		/* FIXME: need to return opaque handle, rather than
 		 * just set the current thread to be the new one. */
@@ -1463,7 +1464,7 @@ main_ipi_handler(struct pt_regs *rs, unsigned int irq)
 	/* 	return; */
 	/* } */
 
-	printk("core %d rec ipi. irq %u!\n", irq);
+	/* printk("core %d rec ipi. irq %u!\n", get_cpuid(), irq); */
 
 	cos_cap_ipi_handling();
 //	cos_ipi_handling();
@@ -1668,31 +1669,6 @@ host_idle_wakeup(void)
 	}
 }
 
-int chal_attempt_arcv(struct cap_arcv *arcv) 
-{
-	struct pt_regs *regs = NULL;
-	unsigned long flags;
-	struct thread *thd;
-
-	local_irq_save(flags);
-
-	thd = arcv->thd;
-	if (thd->flags & THD_STATE_ACTIVE_UPCALL) {
-		/* handling thread is active. */
-		arcv->pending++; 
-		return 0;
-	}
-	
-	/* FIXME: we always switch to upcall currently. */
-
-//	assert(thd->flags & THD_STATE_READY_UPCALL);
-
-done:
-	local_irq_restore(flags);
-		
-	return 0;
-}
-
 int chal_attempt_ainv(struct async_cap *acap)
 {
 	struct pt_regs *regs = NULL;
@@ -1839,6 +1815,70 @@ int chal_attempt_ainv(struct async_cap *acap)
 		} else {
 			cos_meas_event(COS_MEAS_INT_STI_SYSEXIT);
 		}
+	}
+done:
+	local_irq_restore(flags);
+		
+	return 0;
+}
+
+int chal_attempt_arcv(struct cap_arcv *arcv)
+{
+	struct pt_regs *regs = NULL;
+	unsigned long flags;
+	struct thread *thd;
+
+	local_irq_save(flags);
+
+	if (likely(cos_thd_per_core[get_cpuid()].cos_thd)) {
+		thd = arcv->thd;
+		if (thd->flags & THD_STATE_ACTIVE_UPCALL) {
+			/* handling thread is active. */
+			arcv->pending++; 
+			goto done;
+		}
+
+		struct thread *cos_current = thd_current();
+
+		if (cos_thd_per_core[get_cpuid()].cos_thd == current) {
+			cos_meas_event(COS_MEAS_INT_COS_THD);
+		} else {
+			cos_meas_event(COS_MEAS_INT_OTHER_THD);
+		}
+
+		regs = get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd);
+
+		if (likely(!(regs->sp == 0 && regs->ss == 0))) {
+			/* FIXME: we always switch to upcall currently. */
+			struct thread *next = arcv->thd; //FIXME: get the highest prio thread.
+
+			if (next != cos_current) {
+				if (likely(chal_pgtbl_can_switch())) {
+					chal_pgtbl_switch(thd_current_pgtbl(next));
+				} else {
+					/* we are omitting the native_write_cr3 to switch
+					 * page tables */
+					__chal_pgtbl_switch(thd_current_pgtbl(next));
+				}
+
+				thd_preemption_state_update(cos_current, next, regs);
+
+				next->flags |= THD_STATE_ACTIVE_UPCALL;
+				next->flags &= ~THD_STATE_READY_UPCALL;
+
+				copy_gp_regs(&next->regs, regs);
+
+				/* and additional regs */
+				regs->ip = next->regs.ip;
+				regs->sp = next->regs.sp;
+				regs->orig_ax = next->regs.ax;
+
+				thd_current_update(next);
+				//cos_meas_event(COS_MEAS_ACAP_UC);
+			} 
+
+		}
+
 	}
 done:
 	local_irq_restore(flags);
