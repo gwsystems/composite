@@ -290,6 +290,8 @@ composite_sysenter_handler(struct pt_regs *regs)
 		}
 		case CAPTBL_OP_THDACTIVATE:
 		{
+			capid_t thd_cap    = __userregs_get1(regs) & 0xFFFF;
+			int init_data      = __userregs_get1(regs) >> 16;
 			capid_t pgtbl_cap  = __userregs_get2(regs);
 			capid_t pgtbl_addr = __userregs_get3(regs);
 			capid_t compcap    = __userregs_get4(regs);
@@ -298,7 +300,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			ret = cap_mem_retype2kern(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd);
 			if (unlikely(ret)) cos_throw(err, ret);
 
-			ret = thd_activate(ct, cap, capin, thd, compcap);
+			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data);
 			/* ret is returned by the overall function */
 
 			break;

@@ -51,7 +51,9 @@ void call(void) {
 void cos_init(void) {
 	int ret;
 	int rcv = 0;
-	printc("rcv thd %d in pong\n", cos_get_thd_id());
+	int target = cos_cpuid() - SND_RCV_OFFSET;
+
+//	printc("core %d: rcv thd %d in pong, reply target %d\n", cos_cpuid(), cos_get_thd_id(), target);
 
 	while (1) {
 		ret = call_cap(ACAP_BASE + captbl_idsize(CAP_ARCV)*cos_cpuid(),0,0,0,0);
@@ -63,7 +65,11 @@ void cos_init(void) {
 			ret = cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
 		}
 		rcv++;
-		if (rcv % 1024 == 0) printc("core %ld: pong rcv %d ipis!\n", cos_cpuid(), rcv);
+//		if (rcv % 1024 == 0) printc("core %ld: pong rcv %d ipis!\n", cos_cpuid(), rcv);
+		
+		assert(target >= 0);
+		ret = call_cap(ACAP_BASE + captbl_idsize(CAP_ASND)*target, 0, 0, 0, 0);
+//		printc("core %d replied to target %d, ret %d\n", cos_cpuid(), target, ret);
 	}
 
 	return; 

@@ -403,19 +403,38 @@ acap_test(void)
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
 			llboot->alpha, pong->captbl_cap, SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid(), 0)) BUG();
 
-	// create rcv thd in pong. and copy it to ping's captbl.
-	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, pong_thd_cap, 
-			BOOT_CAPTBL_SELF_PT, thd_mem, pong->comp_cap)) BUG();
+	if (cos_cpuid() < (NUM_CPU_COS/2)) { // sending core
+		// create rcv thd in ping. and copy it to ping's captbl.
+		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, pong_thd_cap,
+				BOOT_CAPTBL_SELF_PT, thd_mem, ping->comp_cap)) BUG();
 
-	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-			pong_thd_cap, ping->captbl_cap, async_rcvthd_cap, 0)) BUG();
+		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
+				pong_thd_cap, ping->captbl_cap, async_rcvthd_cap, 0)) BUG();
 
-	// create asnd / arcv caps!
-	if (call_cap_op(pong->captbl_cap, CAPTBL_OP_ARCVACTIVATE, async_test_cap, 
-			      pong_thd_cap, pong->comp_cap, 0)) BUG();
+		// create asnd / arcv caps!
+		if (call_cap_op(ping->captbl_cap, CAPTBL_OP_ARCVACTIVATE, async_test_cap, 
+				pong_thd_cap, ping->comp_cap, 0)) BUG();
 
-	if (call_cap_op(ping->captbl_cap, CAPTBL_OP_ASNDACTIVATE, async_test_cap, 
-			      pong->captbl_cap, async_test_cap, 0)) BUG();
+		if (call_cap_op(pong->captbl_cap, CAPTBL_OP_ASNDACTIVATE, async_test_cap, 
+				ping->captbl_cap, async_test_cap, 0)) BUG();
+
+	} else { // receiving core
+
+		// create rcv thd in pong. and copy it to ping's captbl.
+		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, pong_thd_cap,
+				BOOT_CAPTBL_SELF_PT, thd_mem, pong->comp_cap)) BUG();
+
+		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
+				pong_thd_cap, ping->captbl_cap, async_rcvthd_cap, 0)) BUG();
+
+		// create asnd / arcv caps!
+		if (call_cap_op(pong->captbl_cap, CAPTBL_OP_ARCVACTIVATE, async_test_cap, 
+				pong_thd_cap, pong->comp_cap, 0)) BUG();
+
+		if (call_cap_op(ping->captbl_cap, CAPTBL_OP_ASNDACTIVATE, async_test_cap,
+				pong->captbl_cap, async_test_cap, 0)) BUG();
+
+	}
 
 	ck_spinlock_ticket_unlock(&init_lock);
 
@@ -552,11 +571,15 @@ void sync_all(int id)
 	return;
 }
 
+int snd_rcv_order[NUM_CPU];
 void comp_deps_run_all(void)
 {
 	sync_all(0);
 
+	//serialize the init order
+	if (cos_cpuid() > 0) while (ck_pr_load_int(&snd_rcv_order[cos_cpuid()-1]) == 0) ;
 	acap_test();
+	ck_pr_store_int(&snd_rcv_order[cos_cpuid()], 1);
 
 	printc("Core %ld: low-level booter switching to init thread (cap %d).\n", cos_cpuid(), PERCPU_GET(llbooter)->init_thd);
 	/* switch to the init thd in the scheduler. */

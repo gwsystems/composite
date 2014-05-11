@@ -61,7 +61,7 @@ printc(char *fmt, ...)
 /* 	return; */
 /* } */
 
-#define ITER (1024*1024)
+#define ITER (1024)//*1024)
 //u64_t meas[ITER];
 
 void pingpong(void)
@@ -89,31 +89,71 @@ int arcv_ready[NUM_CPU];
 
 #include <ck_pr.h>
 
+struct record_per_core {
+	int rcv;
+	int snd_thd_created;
+	char _pad[CACHE_LINE-sizeof(int)*2];
+}CACHE_ALIGNED;
+
+struct record_per_core received[NUM_CPU];
+
+void rcv_thd(void)
+{
+	int ret;
+
+	struct record_per_core *curr_rcv = &received[cos_cpuid()];
+//	printc("core %ld: rcv thd %d ready in ping!\n", cos_cpuid(), cos_get_thd_id());
+
+	while (1) {
+		ret = call_cap(ACAP_BASE + captbl_idsize(CAP_ARCV)*cos_cpuid(),0,0,0,0);
+//		printc("core %ld: rcv thd %d back in pong, ret %d!\n", cos_cpuid(), cos_get_thd_id(), ret);
+		if (ret) {
+			printc("ERROR: arcv ret %d", ret);
+			printc("rcv thd %d switching back to alpha %d!\n", 
+			       cos_get_thd_id(), SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
+			ret = cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
+		}
+		ck_pr_store_int(&curr_rcv->rcv, curr_rcv->rcv + 1);
+
+//		if (curr_rcv->rcv % 1024 == 0) printc("core %ld: pong rcv %d ipis!\n", cos_cpuid(), curr_rcv->rcv);
+	}
+}
+
 void cos_init(void)
 {
 	int i;
 	u64_t s, e;
 
+	if (received[cos_cpuid()].snd_thd_created) {
+		rcv_thd();
+		BUG();
+		return;
+	}
+	received[cos_cpuid()].snd_thd_created = 1;
+
+	cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid());
+//	printc("core %ld: thd %d ready to receive\n", cos_cpuid(), cos_get_thd_id());
+
 #define PER_OP_COST_EST 5000
-#define SND_RCV_OFFSET (NUM_CPU/2)
 	//init rcv thd first.
-//	if (cos_cpuid() < (NUM_CPU_COS/2)) {
-	if (cos_cpuid() == 0) {
+	if (cos_cpuid() < (NUM_CPU_COS/2)) {
+//	if (cos_cpuid() == 0) {
+		struct record_per_core *curr_rcv = &received[cos_cpuid()];
+		int last = 0;
 		int target = SND_RCV_OFFSET + cos_cpuid();
 
 		while (ck_pr_load_int(&arcv_ready[target]) == 0) ;
-		printc("core %ld: start sending ipi\n", cos_cpuid());
+//		printc("core %ld: start sending ipi\n", cos_cpuid());
 		rdtscll(s);
 		for (i = 0; i<ITER; i++) {
+			last = ck_pr_load_int(&curr_rcv->rcv);
 			call_cap(ACAP_BASE + captbl_idsize(CAP_ASND)*target, 0, 0, 0, 0);
+			while (ck_pr_load_int(&curr_rcv->rcv) == last) ;
 		}
 		rdtscll(e);
 		printc("core %ld: ipi done, avg %llu\n", cos_cpuid(), (e-s)/ITER);
 	} else {
 //		printc("core %ld: thd %d switching to pong thd\n", cos_cpuid(), cos_get_thd_id());
-		cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid());
-		printc("core %ld: thd %d ready to receive\n", cos_cpuid(), cos_get_thd_id());
-
 		arcv_ready[cos_cpuid()] = 1;
 		////////////////////////
 		int i;

@@ -175,6 +175,8 @@ enum {
 #define SND_THD_CAP_BASE SCHED_CAPTBL_FREE
 #define RCV_THD_CAP_BASE (SND_THD_CAP_BASE + (NUM_CPU_COS * captbl_idsize(CAP_THD)))
 #define ACAP_BASE (round_up_to_pow2(RCV_THD_CAP_BASE + (NUM_CPU_COS) * captbl_idsize(CAP_THD), CAPMAX_ENTRY_SZ))
+#define SND_RCV_OFFSET (NUM_CPU/2)
+/////remove above
 
 typedef int cpuid_t; /* Don't use unsigned type. We use negative values for error cases. */
 

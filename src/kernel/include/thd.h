@@ -161,7 +161,7 @@ alloc_thd_id(void)
 }
 
 static int 
-thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap)
+thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, int init_data)
 {
 	struct cap_thd *tc;
 	struct cap_comp *compc;
@@ -182,7 +182,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	assert(thd->tid <= MAX_NUM_THREADS);
 	
 	thd_upcall_setup(thd, compc->entry_addr, 
-			 COS_UPCALL_THD_CREATE, 0, 0, 0);
+			 COS_UPCALL_THD_CREATE, init_data, 0, 0);
 
 	/* initialize the capability */
 	tc->t     = thd;

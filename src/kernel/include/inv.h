@@ -139,6 +139,8 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	arcvc->epoch     = 0; 	  /* FIXME: get the real epoch */
 	arcvc->thd       = thdc->t; /* FIXME: do reference counting for the thread here */
 	arcvc->thd_epoch = 0; 	  /* FIXME: get the real epoch */
+
+	thdc->t->flags |=  THD_STATE_ACTIVE_UPCALL;
 	__cap_capactivate_post(&arcvc->h, CAP_ARCV, 0);
 	
 	return 0;

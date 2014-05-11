@@ -772,7 +772,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		rdtscll(s);
 		while (thd_activate(boot_captbl, BOOT_CAPTBL_SELF_CT, 
 				    BOOT_CAPTBL_SELF_INITTHD_BASE + get_cpuid(), 
-				    thd, BOOT_CAPTBL_COMP0_COMP)) {
+				    thd, BOOT_CAPTBL_COMP0_COMP, 0)) {
 			/* CAS could fail on init. */
 			rdtscll(e);
 			if ((e-s) > (1<<30)) return -EFAULT;
