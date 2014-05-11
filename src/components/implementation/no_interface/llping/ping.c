@@ -84,27 +84,30 @@ void pingpong(void)
 	return;
 }
 
-volatile int arcv_ready[NUM_CPU];
+int arcv_ready[NUM_CPU];
 #define SPINTIME (1000000000L)
+
+#include <ck_pr.h>
 
 void cos_init(void)
 {
 	int i;
 	u64_t s, e;
 
+#define SND_RCV_OFFSET (NUM_CPU/2)
 	//init rcv thd first.
-	if (cos_cpuid() == INIT_CORE) {
-		while (arcv_ready[1] == 0) ;
+	if (cos_cpuid() < (NUM_CPU_COS/2)) {
+		int target = SND_RCV_OFFSET + cos_cpuid();
+
+		while (ck_pr_load_int(&arcv_ready[target]) == 0) ;
 		printc("core %ld: sending ipi\n", cos_cpuid());
 		rdtscll(s);
 		for (i = 0; i<ITER; i++) {
-			call_cap(ACAP_BASE + captbl_idsize(CAP_ASND)*1, 0, 0, 0, 0);
-//			printc("core %ld: ipi ping delay\n", cos_cpuid());
-//			printc("core %ld: ipi ping delay2\n", cos_cpuid());
+			call_cap(ACAP_BASE + captbl_idsize(CAP_ASND)*target, 0, 0, 0, 0);
 		}
 		rdtscll(e);
 		printc("core %ld: ipi done, avg %llu\n", cos_cpuid(), (e-s)/ITER);
-	} else if (cos_cpuid() == 1){
+	} else {
 		printc("core %ld: thd %d switching to pong thd\n", cos_cpuid(), cos_get_thd_id());
 		cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid());
 		printc("core %ld: thd %d back in ping\n", cos_cpuid(), cos_get_thd_id());
@@ -116,8 +119,6 @@ void cos_init(void)
 			if ((e-s) > SPINTIME) break;
 		}
 		printc("core %ld: exiting from ping\n", cos_cpuid());
-	} else {
-		pingpong();
 	}
 
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());

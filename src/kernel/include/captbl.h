@@ -237,6 +237,7 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 	 * in step 3 of the protocol for setting capabilities, not 1 */
 	if (p == h) l.type = type;
 	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
+
 	/* FIXME: same as above */
 	if (p != h) p->type = type;
 

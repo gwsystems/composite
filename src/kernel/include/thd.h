@@ -179,6 +179,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->tid          = alloc_thd_id();
 	thd->refcnt       = 0;
 	thd->invstk_top   = 0;
+	assert(thd->tid <= MAX_NUM_THREADS);
 	
 	thd_upcall_setup(thd, compc->entry_addr, 
 			 COS_UPCALL_THD_CREATE, 0, 0, 0);

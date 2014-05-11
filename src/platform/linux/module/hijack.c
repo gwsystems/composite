@@ -616,7 +616,8 @@ unsigned long  __cr3_contents;
 #define THD_SIZE (PAGE_SIZE/4)
 
 u8_t init_thds[THD_SIZE * NUM_CPU_COS] PAGE_ALIGNED;
-u8_t boot_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
+/* Need 2 pages for llboot captbl. */
+u8_t boot_comp_captbl[PAGE_SIZE*2] PAGE_ALIGNED; 
 u8_t c0_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 
 u8_t *boot_comp_pgd;
@@ -652,6 +653,14 @@ kern_boot_comp(struct spd_info *spd_info)
 
 	ct = captbl_create(boot_comp_captbl);
 	assert(ct);
+	/* expand the captbl to use 2 pages. */
+	captbl_init(boot_comp_captbl + PAGE_SIZE, 1);
+	ret = captbl_expand(ct, PAGE_SIZE/2/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE);
+	assert(!ret);
+	captbl_init(boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2, 1);
+	ret = captbl_expand(ct, PAGE_SIZE/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2);
+	assert(!ret);
+
 	boot_captbl = ct;
 
 	boot_comp_pgd = cos_kmem_base;

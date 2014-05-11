@@ -329,8 +329,9 @@ boot_deps_init(void)
 	assert(nmmgrs > 0);
 }
 
+/* We use 2 pages for captbl of llboot. */
 #define CAP_ID_16B_FREE BOOT_CAPTBL_FREE;            // goes up
-#define CAP_ID_32B_FREE (PAGE_SIZE/16/2 - CAP32B_IDSZ) // goes down
+#define CAP_ID_32B_FREE ((PAGE_SIZE+PAGE_SIZE/2)/16 - CAP32B_IDSZ) // goes down
 
 capid_t capid_16b_free = CAP_ID_16B_FREE;
 capid_t capid_32b_free = CAP_ID_32B_FREE;
@@ -350,6 +351,7 @@ capid_t alloc_capid(cap_t cap)
 		BUG();
 	}
 	assert(ret);
+	assert(capid_32b_free >= capid_16b_free);
 
 	return ret;
 }
@@ -404,9 +406,11 @@ acap_test(void)
 	// create rcv thd in pong. and copy it to ping's captbl.
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, pong_thd_cap, 
 			BOOT_CAPTBL_SELF_PT, thd_mem, pong->comp_cap)) BUG();
+
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
 			pong_thd_cap, ping->captbl_cap, async_rcvthd_cap, 0)) BUG();
 
+	// create asnd / arcv caps!
 	if (call_cap_op(pong->captbl_cap, CAPTBL_OP_ARCVACTIVATE, async_test_cap, 
 			      pong_thd_cap, pong->comp_cap, 0)) BUG();
 
@@ -527,37 +531,39 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 }
 
 #include <sched_hier.h>
+#include <ck_pr.h>
 
-volatile int core_ready[NUM_CPU];
-void comp_deps_run_all(void)
+int core_ready[NUM_CPU];
+void sync_all(int id)
 {
-	acap_test();
-
-	/* Sync before start. */
+	/* Sync all cores. */
 	if (cos_cpuid() == INIT_CORE) {
 		int i;
-		for (i = 0; i < NUM_CPU_COS; i++)
-			while (core_ready[i] == 0) ;
-		core_ready[cos_cpuid()] = 1;
+		for (i = 0; i < NUM_CPU_COS; i++) {
+			if (i == INIT_CORE) continue;
+			while (ck_pr_load_int(&core_ready[i]) == id) ;
+		}
+		ck_pr_store_int(&core_ready[cos_cpuid()], id + 1);
 	} else {
-		core_ready[cos_cpuid()] = 1;
-		while (core_ready[INIT_CORE] == 0) ;
+		ck_pr_store_int(&core_ready[cos_cpuid()], id + 1);
+		while (ck_pr_load_int(&core_ready[INIT_CORE]) == id) ;
 	}
+
+	return;
+}
+
+void comp_deps_run_all(void)
+{
+	sync_all(0);
+
+	acap_test();
 
 	printc("Core %ld: low-level booter switching to init thread (cap %d).\n", cos_cpuid(), PERCPU_GET(llbooter)->init_thd);
 	/* switch to the init thd in the scheduler. */
 	if (cap_switch_thd(PERCPU_GET(llbooter)->init_thd)) BUG();
-
-	if (cos_cpuid() == INIT_CORE) {
-		int i;
-		for (i = 0; i < NUM_CPU_COS; i++)
-			while (core_ready[i] == 1) ;
-		core_ready[cos_cpuid()]++;
-	} else {
-		core_ready[cos_cpuid()]++;
-		while (core_ready[INIT_CORE] == 1) ;
-	}
 	printc("Core %ld: exiting system from low-level booter.\n", cos_cpuid());
+
+	sync_all(1);
 
 	return;
 }
@@ -566,8 +572,6 @@ void cos_init(void);
 
 int sched_init(void)   
 {
-	printc("core %ld in llboot\n", cos_cpuid());
-
 	assert(cos_cpuid() < NUM_CPU_COS);
 	if (cos_cpuid() == INIT_CORE) {
 		if (!PERCPU_GET(llbooter)->init_thd) cos_init();
