@@ -581,7 +581,42 @@ void comp_deps_run_all(void)
 	acap_test();
 	ck_pr_store_int(&snd_rcv_order[cos_cpuid()], 1);
 
-	printc("Core %ld: low-level booter switching to init thread (cap %d).\n", cos_cpuid(), PERCPU_GET(llbooter)->init_thd);
+//#define IF_CORE_ENABLE
+#ifdef IF_CORE_ENABLE
+	if (cos_cpuid() == NUM_CPU_COS-1) {
+		/* perform interference! */
+		struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
+		struct comp_cap_info *ping = &comp_cap_info[2];
+		struct comp_cap_info *pong = &comp_cap_info[3];
+		capid_t if_cap = IF_CAP_BASE + cos_cpuid()*captbl_idsize(CAP_THD);
+
+		u64_t s,e;
+		printc("core %d interfering @ capid %d...\n", cos_cpuid(), if_cap);
+		rdtscll(s);
+		while (1) {
+			if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
+					llboot->init_thd, ping->captbl_cap, if_cap, 0)) {
+				printc("failed...1\n");
+				break;
+			}
+			if (call_cap_op(ping->captbl_cap, CAPTBL_OP_THDDEACTIVATE,
+					if_cap, 0, 0, 0)) {
+				printc("failed...2\n");
+				break;
+			}
+			rdtscll(e);
+			if ((e-s)/(2000*1000*1000) > RUNTIME) break;
+		}
+		printc("Core %ld: interference done. exiting system.\n", cos_cpuid());
+
+		sync_all(1);
+		return;
+
+	} 
+#endif
+
+	printc("Core %ld: low-level booter switching to init thread (cap %d).\n", 
+	       cos_cpuid(), PERCPU_GET(llbooter)->init_thd);
 	/* switch to the init thd in the scheduler. */
 	if (cap_switch_thd(PERCPU_GET(llbooter)->init_thd)) BUG();
 	printc("Core %ld: exiting system from low-level booter.\n", cos_cpuid());

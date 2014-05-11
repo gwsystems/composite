@@ -311,7 +311,8 @@ extern unsigned long __cr3_contents;
 static void pgtbl_update(pgtbl_t pt)
 { 
 #ifndef LINUX_TEST
-	chal_pgtbl_switch(pt);
+	native_write_cr3(pt);
+//	chal_pgtbl_switch(pt);
 #else
 	__cr3_contents = (unsigned long)pt; 
 #endif

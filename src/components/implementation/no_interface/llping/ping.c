@@ -61,7 +61,7 @@ printc(char *fmt, ...)
 /* 	return; */
 /* } */
 
-#define ITER (1024)//*1024)
+#define ITER (1024*1024)
 //u64_t meas[ITER];
 
 void pingpong(void)
@@ -134,8 +134,10 @@ void cos_init(void)
 	cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid());
 //	printc("core %ld: thd %d ready to receive\n", cos_cpuid(), cos_get_thd_id());
 
-#define PER_OP_COST_EST 5000
 	//init rcv thd first.
+	if (1){//cos_cpuid() == 0) {
+		pingpong();
+	} else
 	if (cos_cpuid() < (NUM_CPU_COS/2)) {
 //	if (cos_cpuid() == 0) {
 		struct record_per_core *curr_rcv = &received[cos_cpuid()];
@@ -156,19 +158,10 @@ void cos_init(void)
 //		printc("core %ld: thd %d switching to pong thd\n", cos_cpuid(), cos_get_thd_id());
 		arcv_ready[cos_cpuid()] = 1;
 		////////////////////////
-		int i;
-		for (i = 0; i < ITER; i++) {
-			rdtscll(s);
-			while (1) {
-				rdtscll(e);
-				if ((e-s) > PER_OP_COST_EST) break;
-			}
-		}
-		////////////
 		rdtscll(s);
 		while (1) {
 			rdtscll(e);
-			if ((e-s) > SPINTIME) break;
+			if ((e-s)/(2000*1000*1000) > RUNTIME) break;
 		}
 		printc("core %ld: exiting from ping\n", cos_cpuid());
 	}

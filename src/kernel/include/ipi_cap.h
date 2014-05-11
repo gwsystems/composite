@@ -69,7 +69,7 @@ static inline void handle_ipi_arcv(struct ipi_cap_data *data)
 	assert(ci->captbl);
 	arcv = (struct cap_arcv *)captbl_lkup(ci->captbl, data->arcv_capid);
 	if (unlikely(arcv->h.type != CAP_ARCV)) {
-		printk("cos: IPI handling received invalid arcv cap %d\n", data->arcv_capid);
+		printk("cos: IPI handling received invalid arcv cap %d\n", (int)data->arcv_capid);
 		return;
 	}
 

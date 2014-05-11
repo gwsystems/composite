@@ -13,6 +13,8 @@
 
 #define COS_DEFAULT_RET_CAP 0
 
+#define ENABLE_KERNEL_PRINT
+
 static inline void
 fs_reg_setup(unsigned long seg) {
 #ifdef LINUX_TEST
@@ -31,11 +33,14 @@ syscall_handler(struct pt_regs *regs)
 #define COS_SYSCALL __attribute__((regparm(0)))
 #endif
 
-#define ENABLE_KERNEL_PRINT
 #define MAX_LEN 512
 
 static inline int printfn(struct pt_regs *regs) 
 {
+#ifdef LINUX_TEST
+	__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
+	return 0;
+#endif
 	char *str; 
 	int len;
 	char kern_buf[MAX_LEN];
@@ -98,24 +103,23 @@ composite_sysenter_handler(struct pt_regs *regs)
 	int ret = 0;
 
 #ifdef ENABLE_KERNEL_PRINT
-	fs_reg_setup(__KERNEL_PERCPU);
-#endif
-#ifndef LINUX_TEST
-	if (regs->ax == PRINT_CAP_TEMP) {
-		printfn(regs);
-		return 0;
-	}
+//	fs_reg_setup(__KERNEL_PERCPU);
 #endif
 	cap = __userregs_getcap(regs);
 	thd = thd_current();
 	/* printk("calling cap %d: %x, %x, %x, %x\n", */
 	/*        cap, __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
 
-	// remove likely?
 	/* fast path: invocation return */
-	if (likely(cap == COS_DEFAULT_RET_CAP)) {
+	if (cap == COS_DEFAULT_RET_CAP) {
 		/* No need to lookup captbl */
 		sret_ret(thd, regs);
+		return 0;
+	}
+
+	/* FIXME: use a cap for print */
+	if (unlikely(regs->ax == PRINT_CAP_TEMP)) {
+		printfn(regs);
 		return 0;
 	}
 
@@ -136,18 +140,25 @@ composite_sysenter_handler(struct pt_regs *regs)
 		return 0;
 	}
 
-	op = __userregs_getop(regs);
-	ct  = ci->captbl; 
-
 	/* printk("calling cap %d, op %d: %x, %x, %x, %x\n", */
 	/*        cap, op, __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
-#ifndef ENABLE_KERNEL_PRINT
-	fs_reg_setup(__KERNEL_PERCPU);
-#endif
-	/* slowpath: other capability operations */
-	switch(ch->type) {
-	case CAP_ASND:
-	{
+
+	/* Some less common cases: thread dispatch, asnd and arcv
+	 * operations. */
+	if (ch->type == CAP_THD) {
+		struct cap_thd *thd_cap = (struct cap_thd *)ch;
+		struct thread *next = thd_cap->t;
+
+		if (thd_cap->cpuid != get_cpuid()) cos_throw(err, EINVAL);
+		assert(thd_cap->cpuid == next->cpuid);
+
+		// TODO: check liveness tbl
+	
+		// QW: hack!!! for ppos test only. remove!
+		next->interrupted_thread = thd;
+
+		return cap_switch_thd(regs, thd, next);
+	} else if (ch->type == CAP_ASND) {
 		int curr_cpu = get_cpuid();
 		struct cap_asnd *asnd = (struct cap_asnd *)ch;
 
@@ -172,10 +183,8 @@ composite_sysenter_handler(struct pt_regs *regs)
 			return cap_switch_thd(regs, thd, arcv->thd);
 		}
 				
-		break;
-	}
-	case CAP_ARCV:
-	{
+		goto done;
+	} else if (ch->type == CAP_ARCV) {
 		struct cap_arcv *arcv = (struct cap_arcv *)ch;
 
 		/*FIXME: add epoch checking!*/
@@ -193,7 +202,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			arcv->pending--;
 			ret = 0;
 
-			break;
+			goto done;
 		}
 		
 		if (thd->interrupted_thread == NULL) {
@@ -208,23 +217,16 @@ composite_sysenter_handler(struct pt_regs *regs)
 			return cap_switch_thd(regs, thd, thd->interrupted_thread);
 		}
 		
-		break;
+		goto done;
 	}
-	case CAP_THD:
-	{
-		struct cap_thd *thd_cap = (struct cap_thd *)ch;
-		struct thread *next = thd_cap->t;
 
-		if (thd_cap->cpuid != get_cpuid()) cos_throw(err, EINVAL);
-		assert(thd_cap->cpuid == next->cpuid);
+	fs_reg_setup(__KERNEL_PERCPU);
+	/* slowpath: other capability operations, most of which
+	 * involve writing. */
+	op = __userregs_getop(regs);
+	ct  = ci->captbl; 
 
-		// TODO: check liveness tbl
-	
-		// QW: hack!!! for ppos test only. remove!
-		next->interrupted_thread = thd;
-
-		return cap_switch_thd(regs, thd, next);
-	}
+	switch(ch->type) {
 	case CAP_CAPTBL:
 	{
 		capid_t capin =  __userregs_get1(regs);
@@ -311,6 +313,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			 * location in a pagetable as COSFRAME
 			 */
 			ret = thd_deactivate(ct, cap, capin);
+
 			break;
 		case CAPTBL_OP_COMPACTIVATE:
 		{
@@ -422,7 +425,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 			vaddr_t source_addr = __userregs_get1(regs);
 			capid_t dest_pt     = __userregs_get2(regs);
 			vaddr_t dest_addr   = __userregs_get3(regs);
-			vaddr_t pa;
 
 			ret = cap_cpy(ct, dest_pt, dest_addr, source_pt, source_addr);
 

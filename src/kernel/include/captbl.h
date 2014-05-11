@@ -259,9 +259,10 @@ captbl_del(struct captbl *t, capid_t cap, cap_t type)
 
 	if (unlikely(cap >= __captbl_maxid())) cos_throw(err, -EINVAL);
 	p = __captbl_lkupan(t, cap, CAPTBL_DEPTH, NULL); 
+
 	if (unlikely(!p)) cos_throw(err, -EPERM);
 	if (p != __captbl_getleaf((void*)p, NULL)) cos_throw(err, -EINVAL);
-	if (p->type == type) cos_throw(err, -EINVAL);
+	if (p->type != type) cos_throw(err, -EINVAL);
 
 	h   = (struct cap_header *)CT_MSK(p, CACHELINE_ORDER);
 	off = (struct cap_min*)p - (struct cap_min*)h;
