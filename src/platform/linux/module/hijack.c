@@ -624,7 +624,7 @@ u8_t *boot_comp_pte_vm;
 u8_t *boot_comp_pte_km;
 u8_t *boot_comp_pte_pm;
 
-unsigned long sys_maxmem      = 1<<10; /* 4M of physical memory (2^10 pages) */
+unsigned long sys_maxmem = 1<<10; /* 4M of physical memory (2^10 pages) */
 
 static void *cos_kmem, *cos_kmem_base;
 paddr_t linux_pgd;
@@ -709,6 +709,8 @@ kern_boot_comp(struct spd_info *spd_info)
 	for (i = 0 ; i < sys_maxmem ; i++) {
 		u32_t addr = COS_MEM_START + i*PAGE_SIZE;
 		u32_t flags;
+		
+		/* Make the memory accessible so we can populate memory without retyping. */
 		if (cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
 				    BOOT_MEM_PM_BASE + i*PAGE_SIZE, 
 				    addr, PGTBL_COSFRAME | PGTBL_USER_DEF)) cos_throw(err, -1);
