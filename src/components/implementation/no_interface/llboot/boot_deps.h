@@ -581,8 +581,8 @@ void comp_deps_run_all(void)
 	acap_test();
 	ck_pr_store_int(&snd_rcv_order[cos_cpuid()], 1);
 
-//#define IF_CORE_ENABLE
-#ifdef IF_CORE_ENABLE
+//#define INTERFERE_CORE_ENABLE
+#ifdef INTERFERE_CORE_ENABLE
 	if (cos_cpuid() == NUM_CPU_COS-1) {
 		/* perform interference! */
 		struct llbooter_per_core *llboot = PERCPU_GET(llbooter);

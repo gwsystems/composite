@@ -165,7 +165,6 @@ cos_kern_stk_init(void)
 	cos_info = cos_cpu_local_info();
 	/* No Linux thread/process migration allowed. */
 	cos_info->cpuid = linux_thread_info->cpu;
-	cos_info->invstk_top = 0;
 	/* value to detect stack overflow */
 	cos_info->overflow_check = 0xDEADBEEF;
 }

@@ -216,28 +216,19 @@ static inline struct thread *thd_current(void)
 static inline void thd_current_update(struct thread *next, struct thread *prev)
 {  
 	/* commit the cached data */
-	prev->invstk_top = cos_cpu_local_info()->invstk_top;
-	cos_cpu_local_info()->invstk_top = next->invstk_top;
+	/* prev->invstk_top = cos_cpu_local_info()->invstk_top; */
+	/* cos_cpu_local_info()->invstk_top = next->invstk_top; */
 
 	cos_put_curr_thd(next);
 }
 #endif
-
-static inline int curr_invstk_inc(void) 
-{ return cos_cpu_local_info()->invstk_top++; }
-
-static inline int curr_invstk_dec(void) 
-{ return cos_cpu_local_info()->invstk_top--; }
-
-static inline int curr_invstk_top(void) 
-{ return cos_cpu_local_info()->invstk_top; }
 
 static inline struct comp_info *
 thd_invstk_current(struct thread *thd, unsigned long *ip, unsigned long *sp)
 {
 	struct invstk_entry *curr;
 
-	curr = &thd->invstk[curr_invstk_top()];
+	curr = &thd->invstk[thd->invstk_top];
 	*ip = curr->ip;
 	*sp = curr->sp;
 	return &curr->comp_info;
@@ -248,7 +239,7 @@ thd_current_pgtbl(struct thread *thd)
 {
 	struct invstk_entry *curr;
 
-	curr = &thd->invstk[curr_invstk_top()];
+	curr = &thd->invstk[thd->invstk_top];
 	return curr->comp_info.pgtbl;
 }
 
@@ -257,10 +248,10 @@ thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsi
 {
 	struct invstk_entry *top, *prev;
 
-	prev = &thd->invstk[curr_invstk_top()];
-	top  = &thd->invstk[curr_invstk_top()+1];
-	if (unlikely(curr_invstk_top() >= THD_INVSTK_MAXSZ)) return -1;
-	curr_invstk_inc();
+	prev = &thd->invstk[thd->invstk_top];
+	top  = &thd->invstk[thd->invstk_top+1];
+	if (unlikely(thd->invstk_top >= THD_INVSTK_MAXSZ)) return -1;
+	thd->invstk_top++;
 	prev->ip = ip;
 	prev->sp = sp;
 	memcpy(&top->comp_info, ci, sizeof(struct comp_info));
@@ -272,8 +263,8 @@ thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsi
 static inline struct comp_info *
 thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp)
 {
-	if (unlikely(curr_invstk_top() == 0)) return NULL;
-	curr_invstk_dec();
+	if (unlikely(thd->invstk_top == 0)) return NULL;
+	thd->invstk_top--;
 	return thd_invstk_current(thd, ip, sp);
 }
 
