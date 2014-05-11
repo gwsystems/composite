@@ -496,11 +496,10 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 			dest_daddr = prev_map + PAGE_SIZE;
 		} 
 		while (left > 0) {
-			//FIXME: use user mem instead of kmem!
-			// flag contains MAPPING_KMEM
-			vaddr_t addr = get_kmem_cap();
-			if (call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MAPPING_CONS,
-					addr, pgtbl_cap, dest_daddr, 0xBEEF)) BUG();
+			//FIXME: use kmem if (flag & MAPPING_KMEM)
+			vaddr_t addr = get_pmem_cap();
+			if (call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY,
+					addr, pgtbl_cap, dest_daddr, 0)) BUG();
 
 			prev_map = dest_daddr;
 			dest_daddr += PAGE_SIZE;
@@ -521,7 +520,7 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 	vaddr_t prev_daddr, init_daddr;
 	struct cos_component_information *ci;
 
-	start_addr = (char *)kmem_heap;
+	start_addr = (char *)pmem_heap;
 	init_daddr = cobj_sect_get(h, 0)->vaddr;
 
 	for (i = 0 ; i < h->nsect ; i++) {

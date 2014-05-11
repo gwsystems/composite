@@ -239,6 +239,17 @@ vaddr_t get_kmem_cap(void) {
 	return ret;
 }
 
+static vaddr_t pmem_heap = BOOT_MEM_PM_BASE;
+
+vaddr_t get_pmem_cap(void) {
+	vaddr_t ret;
+
+	ret = pmem_heap;
+	pmem_heap += PAGE_SIZE;
+
+	return ret;
+}
+
 static u64_t liv_id_heap = BOOT_LIVENESS_ID_BASE;
 
 u64_t get_liv_id(void) {
@@ -387,17 +398,14 @@ acap_test(void)
 	pong_thd_cap = alloc_capid(CAP_THD);
 
 	// grant alpha thd to pong as well
-	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, BOOT_CAPTBL_SELF_CT, 
-			llboot->alpha, pong->captbl_cap, SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()))        BUG();
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
+			llboot->alpha, pong->captbl_cap, SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid(), 0)) BUG();
 
 	// create rcv thd in pong. and copy it to ping's captbl.
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, pong_thd_cap, 
-			BOOT_CAPTBL_SELF_PT, thd_mem, pong->comp_cap)) {
-		printc("mem %x failed\n", thd_mem);
-		BUG();
-	}
-	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, BOOT_CAPTBL_SELF_CT, 
-			pong_thd_cap, ping->captbl_cap, async_rcvthd_cap)) BUG();
+			BOOT_CAPTBL_SELF_PT, thd_mem, pong->comp_cap)) BUG();
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
+			pong_thd_cap, ping->captbl_cap, async_rcvthd_cap, 0)) BUG();
 
 	if (call_cap_op(pong->captbl_cap, CAPTBL_OP_ARCVACTIVATE, async_test_cap, 
 			      pong_thd_cap, pong->comp_cap, 0)) BUG();
@@ -433,10 +441,10 @@ boot_comp_thds_init(void)
 
 	/* Scheduler should have access to the init thread and alpha
 	 * thread. Grant caps by copying. */
-	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, BOOT_CAPTBL_SELF_CT, 
-			llboot->init_thd, sched_comp->captbl_cap, thd_schedinit)) BUG();
-	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, BOOT_CAPTBL_SELF_CT, 
-			llboot->alpha, sched_comp->captbl_cap, thd_alpha))        BUG();
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
+			llboot->init_thd, sched_comp->captbl_cap, thd_schedinit, 0)) BUG();
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
+			llboot->alpha, sched_comp->captbl_cap, thd_alpha, 0))        BUG();
 	ck_spinlock_ticket_unlock(&init_lock);
 
 	printc("Core %ld, Low-level booter created threads:\n"

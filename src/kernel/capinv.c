@@ -379,10 +379,10 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 		case CAPTBL_OP_CPY:
 		{
-			capid_t from_captbl = capin;
-			capid_t from_cap    = __userregs_get2(regs);
-			capid_t dest_captbl = __userregs_get3(regs);
-			capid_t dest_cap    = __userregs_get4(regs);
+			capid_t from_captbl = cap;
+			capid_t from_cap    = __userregs_get1(regs);
+			capid_t dest_captbl = __userregs_get2(regs);
+			capid_t dest_cap    = __userregs_get3(regs);
 
 			ret = cap_cpy(ct, dest_captbl, dest_cap, 
 				      from_captbl, from_cap);
@@ -425,6 +425,17 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 		switch (op) {
 		case CAPTBL_OP_CPY:
+		{
+			capid_t source_pt   = pt;
+			vaddr_t source_addr = __userregs_get1(regs);
+			capid_t dest_pt     = __userregs_get2(regs);
+			vaddr_t dest_addr   = __userregs_get3(regs);
+			vaddr_t pa;
+
+			ret = cap_cpy(ct, dest_pt, dest_addr, source_pt, source_addr);
+
+			break;
+		}
 		case CAPTBL_OP_CONS:
 		{
 			vaddr_t pte_cap   = __userregs_get1(regs);
@@ -436,19 +447,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 		case CAPTBL_OP_DECONS:
 		case CAPTBL_OP_MAPPING_CONS:
 		{
-			vaddr_t source_addr = __userregs_get1(regs);
-			capid_t dest_pt     = __userregs_get2(regs);
-			vaddr_t dest_addr   = __userregs_get3(regs);
-			vaddr_t mem_addr;
-
-			/* Fixme.... */
-			ret = cap_mem_retype2kern(ct, pt, source_addr, (unsigned long *)&mem_addr);
-			if (unlikely(ret)) cos_throw(err, ret);
-			assert(mem_addr);
-
-			ret = cap_memactivate(ct, dest_pt, dest_addr, 
-					      chal_va2pa(mem_addr), PGTBL_USER_DEF);
-
 			break;
 		}
 		case CAPTBL_OP_MAPPING_DECONS:
