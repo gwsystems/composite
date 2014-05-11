@@ -104,7 +104,7 @@ void cos_init(void)
 		}
 		rdtscll(e);
 		printc("core %ld: ipi done, avg %llu\n", cos_cpuid(), (e-s)/ITER);
-	} else {
+	} else if (cos_cpuid() == 1){
 		printc("core %ld: thd %d switching to pong thd\n", cos_cpuid(), cos_get_thd_id());
 		cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid());
 		printc("core %ld: thd %d back in ping\n", cos_cpuid(), cos_get_thd_id());
@@ -116,6 +116,8 @@ void cos_init(void)
 			if ((e-s) > SPINTIME) break;
 		}
 		printc("core %ld: exiting from ping\n", cos_cpuid());
+	} else {
+		pingpong();
 	}
 
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());

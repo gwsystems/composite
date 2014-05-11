@@ -2748,8 +2748,6 @@ static void setup_kernel(struct service_symbs *services)
 	fflush(stdout);
 
 	if ((s = find_obj_by_name(services, LLBOOT_COMP))) {
-		int npages;
-
 		make_spd_llboot(s, services);
 		make_spd_scheduler(cntl_fd, s, NULL);
 	} 

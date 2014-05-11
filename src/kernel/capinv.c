@@ -296,9 +296,20 @@ composite_sysenter_handler(struct pt_regs *regs)
 			struct thread *thd;
 
 			ret = cap_mem_retype2kern(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd);
-			if (unlikely(ret)) cos_throw(err, ret);
+			if (unlikely(ret)) {
+				printk("calling cap %d, op %d: %x, %x, %x, %x\n",
+				       cap, op, __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs));
+
+				printk("ret %d when retyping!\n", ret);
+				cos_throw(err, ret);
+			}
 
 			ret = thd_activate(ct, cap, capin, thd, compcap);
+			if (ret) {
+				printk("calling cap %d, op %d: %x, %x, %x, %x\n",
+				       cap, op, __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs));
+				printk("ret %d when act thd\n", ret);
+			}
 			/* ret is returned by the overall function */
 			break;
 		}

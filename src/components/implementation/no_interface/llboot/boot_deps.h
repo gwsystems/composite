@@ -392,7 +392,10 @@ acap_test(void)
 
 	// create rcv thd in pong. and copy it to ping's captbl.
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, pong_thd_cap, 
-			BOOT_CAPTBL_SELF_PT, thd_mem, pong->comp_cap)) BUG();
+			BOOT_CAPTBL_SELF_PT, thd_mem, pong->comp_cap)) {
+		printc("mem %x failed\n", thd_mem);
+		BUG();
+	}
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, BOOT_CAPTBL_SELF_CT, 
 			pong_thd_cap, ping->captbl_cap, async_rcvthd_cap)) BUG();
 
@@ -517,13 +520,35 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 
 #include <sched_hier.h>
 
+volatile int core_ready[NUM_CPU];
 void comp_deps_run_all(void)
 {
 	acap_test();
 
+	/* Sync before start. */
+	if (cos_cpuid() == INIT_CORE) {
+		int i;
+		for (i = 0; i < NUM_CPU_COS; i++)
+			while (core_ready[i] == 0) ;
+		core_ready[cos_cpuid()] = 1;
+	} else {
+		core_ready[cos_cpuid()] = 1;
+		while (core_ready[INIT_CORE] == 0) ;
+	}
+
 	printc("Core %ld: low-level booter switching to init thread (cap %d).\n", cos_cpuid(), PERCPU_GET(llbooter)->init_thd);
 	/* switch to the init thd in the scheduler. */
 	if (cap_switch_thd(PERCPU_GET(llbooter)->init_thd)) BUG();
+
+	if (cos_cpuid() == INIT_CORE) {
+		int i;
+		for (i = 0; i < NUM_CPU_COS; i++)
+			while (core_ready[i] == 1) ;
+		core_ready[cos_cpuid()]++;
+	} else {
+		core_ready[cos_cpuid()]++;
+		while (core_ready[INIT_CORE] == 1) ;
+	}
 	printc("Core %ld: exiting system from low-level booter.\n", cos_cpuid());
 
 	return;
