@@ -70,7 +70,7 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next)
 	copy_gp_regs(regs, &curr->regs);
 	__userregs_set(&curr->regs, COS_SCHED_RET_SUCCESS, __userregs_getsp(regs), __userregs_getip(regs));
 
-	thd_current_update(next);
+	thd_current_update(next, curr);
 	pgtbl_update(next_ci->pgtbl);
 
 	/* fpu_save(thd); */

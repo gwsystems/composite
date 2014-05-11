@@ -135,7 +135,7 @@ kern_boot_comp(void)
 	 * Create a thread in comp0.
 	 */
 	assert(!thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD, thd, BOOT_CAPTBL_COMP0_COMP));
-	thd_current_update(thd);
+	thd_current_update(thd, NULL);
 
 	/* 
 	 * Synchronous invocation!
