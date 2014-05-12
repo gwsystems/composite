@@ -308,11 +308,19 @@ pgtbl_lookup(pgtbl_t pt, u32_t addr, u32_t *flags)
 }
 
 extern unsigned long __cr3_contents;
+
+#define UPDATE_LINUX_MM_STRUCT
+
 static void pgtbl_update(pgtbl_t pt)
 { 
 #ifndef LINUX_TEST
+
+#ifdef UPDATE_LINUX_MM_STRUCT
+	chal_pgtbl_switch(pt);
+#else
 	native_write_cr3(pt);
-//	chal_pgtbl_switch(pt);
+#endif
+
 #else
 	__cr3_contents = (unsigned long)pt; 
 #endif
