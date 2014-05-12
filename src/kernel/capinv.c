@@ -13,7 +13,7 @@
 
 #define COS_DEFAULT_RET_CAP 0
 
-#define ENABLE_KERNEL_PRINT
+//#define ENABLE_KERNEL_PRINT
 
 static inline void
 fs_reg_setup(unsigned long seg) {
@@ -103,7 +103,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 	int ret = 0;
 
 #ifdef ENABLE_KERNEL_PRINT
-//	fs_reg_setup(__KERNEL_PERCPU);
+	fs_reg_setup(__KERNEL_PERCPU);
 #endif
 	cap = __userregs_getcap(regs);
 	thd = thd_current();
