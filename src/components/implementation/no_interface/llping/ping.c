@@ -135,9 +135,9 @@ void cos_init(void)
 //	printc("core %ld: thd %d ready to receive\n", cos_cpuid(), cos_get_thd_id());
 
 	//init rcv thd first.
-	if (1){//cos_cpuid() == 0) {
-		pingpong();
-	} else
+	/* if (cos_cpuid() == 0) { */
+	/* 	pingpong(); */
+	/* } else */
 	if (cos_cpuid() < (NUM_CPU_COS/2)) {
 //	if (cos_cpuid() == 0) {
 		struct record_per_core *curr_rcv = &received[cos_cpuid()];

@@ -619,9 +619,9 @@ void comp_deps_run_all(void)
 	       cos_cpuid(), PERCPU_GET(llbooter)->init_thd);
 	/* switch to the init thd in the scheduler. */
 	if (cap_switch_thd(PERCPU_GET(llbooter)->init_thd)) BUG();
-	printc("Core %ld: exiting system from low-level booter.\n", cos_cpuid());
 
 	sync_all(1);
+	printc("Core %ld: exiting system from low-level booter.\n", cos_cpuid());
 
 	return;
 }

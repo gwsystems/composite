@@ -2894,8 +2894,8 @@ static void call_getrlimit(int id, char *name)
 		perror("getrlimit: "); printl(PRINT_HIGH, "\n");
 		exit(-1);
 	}		
-	printl(PRINT_HIGH, "rlimit for %s is %d:%d (inf %d)\n", 
-	       name, (int)rl.rlim_cur, (int)rl.rlim_max, (int)RLIM_INFINITY);
+	/* printl(PRINT_HIGH, "rlimit for %s is %d:%d (inf %d)\n",  */
+	/*        name, (int)rl.rlim_cur, (int)rl.rlim_max, (int)RLIM_INFINITY); */
 }
 
 static void call_setrlimit(int id, rlim_t c, rlim_t m)
