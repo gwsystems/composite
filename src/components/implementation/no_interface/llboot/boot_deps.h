@@ -396,6 +396,19 @@ acap_test(void)
 
 	/* lock to avoid cas failure. */
 	ck_spinlock_ticket_lock(&init_lock);
+
+	if (cos_cpuid() == INIT_CORE) {
+		capid_t shmem = get_pmem_cap();
+		int ret;
+		//map this to ping and pong
+		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, 
+				  shmem, ping->pgtbl_cap, ping->addr_start + 0x400000 - PAGE_SIZE, 0);
+		if (ret) ("map shmem to ping failed! ret %d\n", ret);
+		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, 
+				  shmem, pong->pgtbl_cap, pong->addr_start + 0x400000 - PAGE_SIZE, 0);
+		if (ret) ("map shmem to pong failed! ret %d\n", ret);
+	}
+
 	thd_mem = get_kmem_cap();
 	pong_thd_cap = alloc_capid(CAP_THD);
 
@@ -555,6 +568,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 int core_ready[NUM_CPU];
 void sync_all(int id)
 {
+
 	/* Sync all cores. */
 	if (cos_cpuid() == INIT_CORE) {
 		int i;
@@ -571,13 +585,14 @@ void sync_all(int id)
 	return;
 }
 
+/* for ppos tests only */
+//dont need this?
 int snd_rcv_order[NUM_CPU];
-void comp_deps_run_all(void)
+void run_ppos_test(void)
 {
-	sync_all(0);
-
 	//serialize the init order
-	if (cos_cpuid() > 0) while (ck_pr_load_int(&snd_rcv_order[cos_cpuid()-1]) == 0) ;
+	if (cos_cpuid() != INIT_CORE) 
+		while (ck_pr_load_int(&snd_rcv_order[cos_cpuid()-1]) == 0) ;
 	acap_test();
 	ck_pr_store_int(&snd_rcv_order[cos_cpuid()], 1);
 
@@ -614,13 +629,20 @@ void comp_deps_run_all(void)
 
 	} 
 #endif
+}
+
+void comp_deps_run_all(void)
+{
+	sync_all(0);
+
+	run_ppos_test();
 
 	printc("Core %ld: low-level booter switching to init thread (cap %d).\n", 
 	       cos_cpuid(), PERCPU_GET(llbooter)->init_thd);
 	/* switch to the init thd in the scheduler. */
 	if (cap_switch_thd(PERCPU_GET(llbooter)->init_thd)) BUG();
-
 	sync_all(1);
+
 	printc("Core %ld: exiting system from low-level booter.\n", cos_cpuid());
 
 	return;

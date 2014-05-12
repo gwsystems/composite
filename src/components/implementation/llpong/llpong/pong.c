@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include <pong.h>
+#include <ck_pr.h>
 
 int
 prints(char *str)
@@ -48,15 +49,25 @@ void call(void) {
 	return; 
 }
 
+char *shmem = 0x45000000-PAGE_SIZE;
+
 void cos_init(void) {
 	int ret;
 	int rcv = 0;
 	int target = cos_cpuid() - SND_RCV_OFFSET;
 
 //	printc("core %d: rcv thd %d in pong, reply target %d\n", cos_cpuid(), cos_get_thd_id(), target);
+	u64_t *ping_shmem = &shmem[cos_cpuid() * CACHE_LINE];
+	u64_t *pong_shmem = &shmem[(NUM_CPU+cos_cpuid()) * CACHE_LINE];
+	u64_t e;
 
 	while (1) {
 		ret = call_cap(ACAP_BASE + captbl_idsize(CAP_ARCV)*cos_cpuid(),0,0,0,0);
+
+		rdtscll(e);
+//		ck_pr_store_uint(pong_shmem, e);
+		*pong_shmem = e;
+
 //		printc("core %ld: rcv thd %d back in pong, ret %d!\n", cos_cpuid(), cos_get_thd_id(), ret);
 		if (ret) {
 			printc("ERROR: arcv ret %d", ret);
@@ -68,7 +79,9 @@ void cos_init(void) {
 //		if (rcv % 1024 == 0) printc("core %ld: pong rcv %d ipis!\n", cos_cpuid(), rcv);
 		
 		assert(target >= 0);
-		ret = call_cap(ACAP_BASE + captbl_idsize(CAP_ASND)*target, 0, 0, 0, 0);
+		/* reply if doing round-trip */
+//		ret = call_cap(ACAP_BASE + captbl_idsize(CAP_ASND)*target, 0, 0, 0, 0);
+
 //		printc("core %d replied to target %d, ret %d\n", cos_cpuid(), target, ret);
 	}
 

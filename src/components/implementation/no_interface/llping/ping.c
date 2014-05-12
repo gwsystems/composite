@@ -61,7 +61,7 @@ printc(char *fmt, ...)
 /* 	return; */
 /* } */
 
-#define ITER (1024*1024)
+#define ITER (1024)//*1024)
 //u64_t meas[ITER];
 
 void pingpong(void)
@@ -119,10 +119,13 @@ void rcv_thd(void)
 	}
 }
 
+char *shmem = 0x44c00000-PAGE_SIZE;
+
 void cos_init(void)
 {
 	int i;
 	u64_t s, e;
+	u64_t *ping_shmem = &shmem[cos_cpuid() * CACHE_LINE];
 
 	if (received[cos_cpuid()].snd_thd_created) {
 		rcv_thd();
@@ -143,17 +146,28 @@ void cos_init(void)
 		struct record_per_core *curr_rcv = &received[cos_cpuid()];
 		int last = 0;
 		int target = SND_RCV_OFFSET + cos_cpuid();
+		u64_t s1, e1;
+		volatile u64_t *pong_shmem = &shmem[(NUM_CPU+target) * CACHE_LINE];
+		u64_t sum = 0, sum2 = 0;
 
 		while (ck_pr_load_int(&arcv_ready[target]) == 0) ;
 //		printc("core %ld: start sending ipi\n", cos_cpuid());
 		rdtscll(s);
 		for (i = 0; i<ITER; i++) {
-			last = ck_pr_load_int(&curr_rcv->rcv);
+//			last = ck_pr_load_int(&curr_rcv->rcv);
+			*pong_shmem = 0;
+			rdtscll(s1);
 			call_cap(ACAP_BASE + captbl_idsize(CAP_ASND)*target, 0, 0, 0, 0);
-			while (ck_pr_load_int(&curr_rcv->rcv) == last) ;
+			while (*pong_shmem == 0) ;
+//			while (ck_pr_load_int(&curr_rcv->rcv) == last) ;
+			rdtscll(e1);
+			sum2 += e1-s1;
+			sum += *pong_shmem - s1;
+//			printc("i %d: pong %llu, %llu\n", i, e1, e1 - s1);
 		}
 		rdtscll(e);
-		printc("core %ld: ipi done, avg %llu\n", cos_cpuid(), (e-s)/ITER);
+		printc("core %ld: ipi avg ( %llu, %llu ): %llu\n", cos_cpuid(), (e-s)/ITER, sum2/ITER, sum/ITER);
+
 	} else {
 //		printc("core %ld: thd %d switching to pong thd\n", cos_cpuid(), cos_get_thd_id());
 		arcv_ready[cos_cpuid()] = 1;
