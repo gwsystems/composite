@@ -403,10 +403,10 @@ acap_test(void)
 		//map this to ping and pong
 		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, 
 				  shmem, ping->pgtbl_cap, ping->addr_start + 0x400000 - PAGE_SIZE, 0);
-		if (ret) ("map shmem to ping failed! ret %d\n", ret);
+		if (ret) printc("map shmem to ping failed! ret %d\n", ret);
 		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, 
 				  shmem, pong->pgtbl_cap, pong->addr_start + 0x400000 - PAGE_SIZE, 0);
-		if (ret) ("map shmem to pong failed! ret %d\n", ret);
+		if (ret) printc("map shmem to pong failed! ret %d\n", ret);
 	}
 
 	thd_mem = get_kmem_cap();
@@ -565,36 +565,67 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 #include <sched_hier.h>
 #include <ck_pr.h>
 
-int core_ready[NUM_CPU];
-void sync_all(int id)
+int synced_nthd = 0;
+void sync_all()
 {
+	int ret;
 
-	/* Sync all cores. */
-	if (cos_cpuid() == INIT_CORE) {
-		int i;
-		for (i = 0; i < NUM_CPU_COS; i++) {
-			if (i == INIT_CORE) continue;
-			while (ck_pr_load_int(&core_ready[i]) == id) ;
-		}
-		ck_pr_store_int(&core_ready[cos_cpuid()], id + 1);
-	} else {
-		ck_pr_store_int(&core_ready[cos_cpuid()], id + 1);
-		while (ck_pr_load_int(&core_ready[INIT_CORE]) == id) ;
-	}
-
+	ret = ck_pr_faa_int(&synced_nthd, 1);
+	ret = (ret/NUM_CPU_COS + 1)*NUM_CPU_COS;
+	while (ck_pr_load_int(&synced_nthd) < ret) ;
+	
 	return;
 }
 
 /* for ppos tests only */
 //dont need this?
 int snd_rcv_order[NUM_CPU];
-void run_ppos_test(void)
+int run_ppos_test(void)
 {
+	int ret;
 	//serialize the init order
 	if (cos_cpuid() != INIT_CORE) 
 		while (ck_pr_load_int(&snd_rcv_order[cos_cpuid()-1]) == 0) ;
 	acap_test();
 	ck_pr_store_int(&snd_rcv_order[cos_cpuid()], 1);
+
+	//and sync
+	sync_all(); 
+
+#define MEM_OP
+#ifdef MEM_OP
+	if (cos_cpuid() != INIT_CORE && cos_cpuid() != INIT_CORE+SND_RCV_OFFSET) {
+//	if (1){
+		u64_t s,e;
+		struct comp_cap_info *ping = &comp_cap_info[2];
+		struct comp_cap_info *pong = &comp_cap_info[3];
+
+		capid_t pmem = ping->addr_start + PAGE_SIZE;
+		vaddr_t to_addr = ping->addr_start + 0x400000 - NUM_CPU*(PAGE_SIZE*16) + cos_cpuid()*PAGE_SIZE*16;
+		int i, ret;
+#define ITER (10*1024*1024)
+		rdtscll(s);
+		for (i = 0; i < ITER; i++) {
+			ret = call_cap_op(ping->pgtbl_cap, CAPTBL_OP_CPY,
+					  pmem, ping->pgtbl_cap, to_addr, 0);
+			/* if (ret) { */
+			/* 	printc("ret %d ...on core %d\n", ret, cos_cpuid()); */
+			/* 	continue; */
+			/* } */
+			assert(!ret);
+			ret = call_cap_op(ping->pgtbl_cap, CAPTBL_OP_MAPPING_DECONS,
+					  to_addr, 0, 0, 0);
+			/* if (ret) { */
+			/* 	printc("decons failed on core %d, ret %d\n", cos_cpuid(), ret); */
+			/* 	continue; */
+			/* } */
+			assert(!ret);
+		}
+		rdtscll(e);
+		printc("mem_op done on core %d, avg %llu\n", cos_cpuid(), (e-s)/ITER);
+		return 1;
+	}
+#endif
 
 //#define INTERFERE_CORE_ENABLE
 #ifdef INTERFERE_CORE_ENABLE
@@ -624,25 +655,23 @@ void run_ppos_test(void)
 		}
 		printc("Core %ld: interference done. exiting system.\n", cos_cpuid());
 
-		sync_all(1);
-		return;
-
+		return 1;
 	} 
 #endif
+	return 0;
 }
 
 void comp_deps_run_all(void)
 {
-	sync_all(0);
-
-	run_ppos_test();
+	sync_all();
+	if (run_ppos_test()) goto done;
 
 	printc("Core %ld: low-level booter switching to init thread (cap %d).\n", 
 	       cos_cpuid(), PERCPU_GET(llbooter)->init_thd);
 	/* switch to the init thd in the scheduler. */
 	if (cap_switch_thd(PERCPU_GET(llbooter)->init_thd)) BUG();
-	sync_all(1);
-
+done:
+	sync_all();
 	printc("Core %ld: exiting system from low-level booter.\n", cos_cpuid());
 
 	return;

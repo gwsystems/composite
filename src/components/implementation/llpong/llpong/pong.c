@@ -57,8 +57,7 @@ void cos_init(void) {
 	int target = cos_cpuid() - SND_RCV_OFFSET;
 
 //	printc("core %d: rcv thd %d in pong, reply target %d\n", cos_cpuid(), cos_get_thd_id(), target);
-	u64_t *ping_shmem = &shmem[cos_cpuid() * CACHE_LINE];
-	u64_t *pong_shmem = &shmem[(NUM_CPU+cos_cpuid()) * CACHE_LINE];
+	u64_t *pong_shmem = &shmem[(cos_cpuid()) * CACHE_LINE];
 	u64_t e;
 
 	while (1) {

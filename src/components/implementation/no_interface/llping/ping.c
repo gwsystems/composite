@@ -9,22 +9,6 @@
 int
 prints(char *str)
 {
-	/* int left; */
-	/* char *off; */
-	/* const int maxsend = sizeof(int) * 3; */
-
-	/* if (!str) return -1; */
-	/* for (left = cos_strlen(str), off = str ;  */
-	/*      left > 0 ;  */
-	/*      left -= maxsend, off += maxsend) { */
-	/* 	int *args; */
-	/* 	int l = left < maxsend ? left : maxsend; */
-	/* 	char tmp[maxsend]; */
-
-	/* 	cos_memcpy(tmp, off, l); */
-	/* 	args = (int*)tmp; */
-	/* 	print_char(l, args[0], args[1], args[2]); */
-	/* }  */
 	return 0;
 }
 
@@ -43,26 +27,7 @@ printc(char *fmt, ...)
 	return ret;
 }
 
-/* void delay(void) */
-/* { */
-/* 	int i,j,k; */
-/* 	volatile int m = 0; */
-
-/* 	for (i = 0; i < 1000; i++) */
-/* 		for(j = 0; j < 100; j++) */
-/* 			for (k = 0; k < 100; k++) */
-/* 				m = 123; */
-/* } */
-
-/* void test_fn(int *data) { */
-/* 	printc("Working fn: core %ld, thd %d (thd num %d), data0 %d\n", */
-/* 	       cos_cpuid(), cos_get_thd_id(), ainv_get_thd_num(), *(data + 4*ainv_get_thd_num())); */
-	
-/* 	return; */
-/* } */
-
-#define ITER (1024)//*1024)
-//u64_t meas[ITER];
+#define ITER (1024*1024)
 
 void pingpong(void)
 {
@@ -85,7 +50,6 @@ void pingpong(void)
 }
 
 int arcv_ready[NUM_CPU];
-#define SPINTIME (1000000000L)
 
 #include <ck_pr.h>
 
@@ -100,13 +64,11 @@ struct record_per_core received[NUM_CPU];
 void rcv_thd(void)
 {
 	int ret;
-
 	struct record_per_core *curr_rcv = &received[cos_cpuid()];
 //	printc("core %ld: rcv thd %d ready in ping!\n", cos_cpuid(), cos_get_thd_id());
 
 	while (1) {
 		ret = call_cap(ACAP_BASE + captbl_idsize(CAP_ARCV)*cos_cpuid(),0,0,0,0);
-//		printc("core %ld: rcv thd %d back in pong, ret %d!\n", cos_cpuid(), cos_get_thd_id(), ret);
 		if (ret) {
 			printc("ERROR: arcv ret %d", ret);
 			printc("rcv thd %d switching back to alpha %d!\n", 
@@ -114,8 +76,6 @@ void rcv_thd(void)
 			ret = cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
 		}
 		ck_pr_store_int(&curr_rcv->rcv, curr_rcv->rcv + 1);
-
-//		if (curr_rcv->rcv % 1024 == 0) printc("core %ld: pong rcv %d ipis!\n", cos_cpuid(), curr_rcv->rcv);
 	}
 }
 
@@ -125,7 +85,6 @@ void cos_init(void)
 {
 	int i;
 	u64_t s, e;
-	u64_t *ping_shmem = &shmem[cos_cpuid() * CACHE_LINE];
 
 	if (received[cos_cpuid()].snd_thd_created) {
 		rcv_thd();
@@ -135,19 +94,19 @@ void cos_init(void)
 	received[cos_cpuid()].snd_thd_created = 1;
 
 	cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid());
-//	printc("core %ld: thd %d ready to receive\n", cos_cpuid(), cos_get_thd_id());
 
 	//init rcv thd first.
 	/* if (cos_cpuid() == 0) { */
+	/* if (1) { */
 	/* 	pingpong(); */
 	/* } else */
-	if (cos_cpuid() < (NUM_CPU_COS/2)) {
-//	if (cos_cpuid() == 0) {
+//	if (cos_cpuid() <= (NUM_CPU_COS-1 - SND_RCV_OFFSET)) {
+	if (cos_cpuid() == 0) {
 		struct record_per_core *curr_rcv = &received[cos_cpuid()];
 		int last = 0;
 		int target = SND_RCV_OFFSET + cos_cpuid();
 		u64_t s1, e1;
-		volatile u64_t *pong_shmem = &shmem[(NUM_CPU+target) * CACHE_LINE];
+		volatile u64_t *pong_shmem = &shmem[(target) * CACHE_LINE];
 		u64_t sum = 0, sum2 = 0;
 
 		while (ck_pr_load_int(&arcv_ready[target]) == 0) ;
@@ -162,18 +121,25 @@ void cos_init(void)
 //			while (ck_pr_load_int(&curr_rcv->rcv) == last) ;
 			rdtscll(e1);
 			sum2 += e1-s1;
-			sum += *pong_shmem - s1;
-//			printc("i %d: pong %llu, %llu\n", i, e1, e1 - s1);
+			e1 = *pong_shmem;
+			if (unlikely(e1 < s1)) {
+				printc("e1 %llu < s1 %llu\n", e1, s1);
+				i--;
+				continue;
+			} else {
+				sum += e1 - s1;
+			}
 		}
 		rdtscll(e);
 		printc("core %ld: ipi avg ( %llu, %llu ): %llu\n", cos_cpuid(), (e-s)/ITER, sum2/ITER, sum/ITER);
-
 	} else {
 //		printc("core %ld: thd %d switching to pong thd\n", cos_cpuid(), cos_get_thd_id());
 		arcv_ready[cos_cpuid()] = 1;
 		////////////////////////
 		rdtscll(s);
 		while (1) {
+			//do op here to measure response time.
+			//call_cap(2, 0, 0, 0, 0);
 			rdtscll(e);
 			if ((e-s)/(2000*1000*1000) > RUNTIME) break;
 		}

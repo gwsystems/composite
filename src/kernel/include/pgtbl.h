@@ -189,10 +189,6 @@ static int
 pgtbl_check_pgd_absent(pgtbl_t pt, u32_t addr)
 { return __pgtbl_isnull(pgtbl_get_pgd(pt, (u32_t)addr), 0, 0); }
 
-/* 
- * FIXME: need to change this to _not_ add over an already non-null
- * entry.
- */
 static int
 pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {

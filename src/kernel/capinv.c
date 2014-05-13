@@ -444,6 +444,14 @@ composite_sysenter_handler(struct pt_regs *regs)
 			break;
 		}
 		case CAPTBL_OP_MAPPING_DECONS:
+		{
+			vaddr_t addr = __userregs_get1(regs);
+
+			if (((struct cap_pgtbl *)ch)->lvl) cos_throw(err, EINVAL);
+			ret = pgtbl_mapping_del(((struct cap_pgtbl *)ch)->pgtbl, addr);
+			
+			break;
+		}
 		case CAPTBL_OP_MAPPING_MOD:
 		case CAPTBL_OP_MAPPING_RETYPE:
 		default: goto err;
