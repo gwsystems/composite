@@ -22,18 +22,48 @@ printc(char *fmt, ...)
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, len, fmt, arg_ptr);
 	va_end(arg_ptr);
-	cos_print(s, ret);
+	ret = cos_print(s, ret);
 
 	return ret;
 }
 
 #define ITER (1024*1024)
 
+unsigned long long tsc_start(void)
+{
+	unsigned long cycles_high, cycles_low; 
+	asm volatile ("movl $0, %%eax\n\t"
+		      "CPUID\n\t"
+		      "RDTSC\n\t"
+		      "movl %%edx, %0\n\t"
+		      "movl %%eax, %1\n\t": "=r" (cycles_high), "=r" (cycles_low) :: 
+		      "%eax", "%ebx", "%ecx", "%edx");
+
+	return ((unsigned long long)cycles_high << 32) | cycles_low;
+}
+
+#include <ck_pr.h>
+#define N_SYNC_CPU (NUM_CPU_COS)
+int synced_nthd = 0;
+void sync_all()
+{
+	int ret;
+
+	ret = ck_pr_faa_int(&synced_nthd, 1);
+	ret = (ret/N_SYNC_CPU + 1)*N_SYNC_CPU;
+	while (ck_pr_load_int(&synced_nthd) < ret) ;
+	
+	return;
+}
+
+int all_exit = 0;
+//#define MEAS_AVG
 void pingpong(void)
 {
 	int i;
 	u64_t s, e;
 
+#ifdef MEAS_AVG
 	printc("core %ld: doing pingpong\n", cos_cpuid());
 	
 	call_cap(2, 0, 0, 0, 0);
@@ -45,6 +75,33 @@ void pingpong(void)
 	rdtscll(e);
 
 	printc("core %ld: pingpong done, avg %llu\n", cos_cpuid(), (e-s)/ITER);
+#else
+	u64_t sum = 0, max = 0;
+	volatile u32_t last_tick = printc("FLUSH!!"), curr_tick;
+	printc("core %ld: doing pingpong w/ flush @tick %u!\n", cos_cpuid(), last_tick);
+	
+	for (i = 0; i < ITER; i++) {
+		s = tsc_start();
+//		rdtscll(s);
+		call_cap(2, 0, 0, 0, 0);
+//		e = tsc_start();
+		rdtscll(e);
+//		if (e-s > 20000) printc("large: %llu @ %llu\n", e-s, e);
+		curr_tick = printc("FLUSH!!");
+		if (unlikely(curr_tick != last_tick)) {
+//			printc("timer detected @ %llu, %d, %d, (cost %llu)\n", e, last_tick, curr_tick, e-s);
+			if (last_tick+1 != curr_tick) printc("tick diff > 1: %u, %u\n", last_tick,curr_tick);
+			last_tick = curr_tick;
+			if (i >= 2) i -= 2;//discard recent runs
+			else i = 0;
+			continue;
+		}
+		sum += e-s;
+		if (max < e-s) max = e-s;
+	}
+	printc("core %ld: @tick %u pingpong done, avg %llu, max %llu\n", cos_cpuid(), curr_tick, (sum)/ITER, max);
+	ck_pr_store_int(&all_exit, 1);
+#endif
 
 	return;
 }
@@ -96,12 +153,14 @@ void cos_init(void)
 	cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid());
 
 	//init rcv thd first.
-	/* if (cos_cpuid() == 0) { */
-	/* if (1) { */
-	/* 	pingpong(); */
-	/* } else */
-//	if (cos_cpuid() <= (NUM_CPU_COS-1 - SND_RCV_OFFSET)) {
 	if (cos_cpuid() == 0) {
+//	if (1) {
+		pingpong();
+		goto done;
+	} 
+//	else {	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()); }
+//	if (cos_cpuid() <= (NUM_CPU_COS-1 - SND_RCV_OFFSET)) {
+	if (0){//(cos_cpuid() == 0) {
 		struct record_per_core *curr_rcv = &received[cos_cpuid()];
 		int last = 0;
 		int target = SND_RCV_OFFSET + cos_cpuid();
@@ -135,17 +194,19 @@ void cos_init(void)
 	} else {
 //		printc("core %ld: thd %d switching to pong thd\n", cos_cpuid(), cos_get_thd_id());
 		arcv_ready[cos_cpuid()] = 1;
+		printc("core %ld: doing operations as interference\n", cos_cpuid());
 		////////////////////////
 		rdtscll(s);
 		while (1) {
 			//do op here to measure response time.
-			//call_cap(2, 0, 0, 0, 0);
-			rdtscll(e);
-			if ((e-s)/(2000*1000*1000) > RUNTIME) break;
+			call_cap(2, 0, 0, 0, 0);
+//			rdtscll(e);
+//			if ((e-s)/(2000*1000*1000) > RUNTIME) break;
+			if (ck_pr_load_int(&all_exit)) break;
 		}
-		printc("core %ld: exiting from ping\n", cos_cpuid());
+		printc("core %ld: interference done. exiting from ping\n", cos_cpuid());
 	}
-
+done:
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
 
 	call();

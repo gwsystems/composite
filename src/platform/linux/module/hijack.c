@@ -1925,10 +1925,19 @@ void chal_send_ipi(int cpuid) {
 
 PERCPU_VAR(cos_timer_acap);
 
+char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
+
 __attribute__((regparm(3))) 
 int main_timer_interposition(struct pt_regs *rs, unsigned int error_code) 
 {
 	struct async_cap *acap = *PERCPU_GET(cos_timer_acap);
+
+	u32_t *ticks = (u32_t *)&timer_detector[get_cpuid() * CACHE_LINE];
+	u32_t last_tick = *ticks;
+	//cos_cas(ticks, last_tick, last_tick+1);
+	*ticks = last_tick+1;
+	cos_mem_fence();
+//	if (get_cpuid() == 0) printk("tick now %u\n", *ticks);
 
 	if (!(acap && acap->upcall_thd)) goto LINUX_HANDLER;
 //	if (ipi_meas) goto LINUX_HANDLER;

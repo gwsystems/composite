@@ -35,6 +35,8 @@ syscall_handler(struct pt_regs *regs)
 
 #define MAX_LEN 512
 
+extern char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
+
 static inline int printfn(struct pt_regs *regs) 
 {
 #ifdef LINUX_TEST
@@ -53,6 +55,22 @@ static inline int printfn(struct pt_regs *regs)
 	if (len < 1) goto done;
 	if (len >= MAX_LEN) len = MAX_LEN - 1;
 	memcpy(kern_buf, str, len);
+
+	if (len >= 6) { //well, hack to flush tlb and cache...
+		if (kern_buf[0] == 'F' && kern_buf[1] == 'L' && kern_buf[2] == 'U' &&
+		    kern_buf[3] == 'S' && kern_buf[4] == 'H' && kern_buf[5] == '!') {
+			chal_flush_cache();
+			chal_flush_tlb_global();
+			u32_t *ticks = (u32_t *)&timer_detector[get_cpuid() * CACHE_LINE];
+//			printk("inv ticks %u\n", *ticks);
+
+			__userregs_set(regs, *ticks, 
+				       __userregs_getsp(regs), __userregs_getip(regs));
+
+			return 0;
+		}
+	}
+	
 	kern_buf[len] = '\0';
 	printk("%s", kern_buf);
 done:

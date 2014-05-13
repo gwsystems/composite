@@ -592,9 +592,10 @@ int run_ppos_test(void)
 	//and sync
 	sync_all(); 
 
-#define MEM_OP
+//#define MEM_OP
 #ifdef MEM_OP
 	if (cos_cpuid() != INIT_CORE && cos_cpuid() != INIT_CORE+SND_RCV_OFFSET) {
+//	if (cos_cpuid() != INIT_CORE) {
 //	if (1){
 		u64_t s,e;
 		struct comp_cap_info *ping = &comp_cap_info[2];
