@@ -75,6 +75,7 @@ void pingpong(void)
 	rdtscll(e);
 
 	printc("core %ld: pingpong done, avg %llu\n", cos_cpuid(), (e-s)/ITER);
+	ck_pr_store_int(&all_exit, 1);
 #else
 	u64_t sum = 0, max = 0;
 	volatile u32_t last_tick = printc("FLUSH!!"), curr_tick;
