@@ -27,7 +27,7 @@ printc(char *fmt, ...)
 	return ret;
 }
 
-#define ITER (100*1000)//(1024*1024)//
+#define ITER (100*1000)//(1024*1024)
 
 unsigned long long tsc_start(void)
 {
@@ -57,7 +57,7 @@ void sync_all()
 }
 
 int all_exit = 0;
-//#define MEAS_AVG
+#define MEAS_AVG
 void pingpong(void)
 {
 	int i;

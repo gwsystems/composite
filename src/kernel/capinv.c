@@ -22,9 +22,6 @@ fs_reg_setup(unsigned long seg) {
 #ifdef LINUX_TEST
 	return;
 #endif
-	/* Optimize for benchmark! */
-	return;
-
 	asm volatile ("movl %%ebx, %%fs\n\t"
 		      : : "b" (seg));
 }
@@ -52,8 +49,7 @@ static inline int printfn(struct pt_regs *regs)
 	int len;
 	char kern_buf[MAX_LEN];
 
-	asm volatile ("movl %%ebx, %%fs\n\t"
-		      : : "b" (__KERNEL_PERCPU));
+	fs_reg_setup(__KERNEL_PERCPU);
 
 	str     = (char *)__userregs_get1(regs);
 	len     = __userregs_get2(regs);
@@ -161,15 +157,11 @@ composite_sysenter_handler(struct pt_regs *regs)
 	}
 
 	ci  = thd_invstk_current(thd, &ip, &sp, cos_info);
-	assert(ci && ci->captbl);
+	//assert(ci && ci->captbl);
 
 	/* We don't check liveness of current component because it's
 	 * guaranteed by component quiescence period, which is at
 	 * timer tick granularity.*/
-	/* if (unlikely(!ltbl_isalive(&ci->liveness))) { */
-	/* 	ret = -EFAULT; */
-	/* 	goto done; */
-	/* } */
 
 	ch  = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
@@ -194,7 +186,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 		struct thread *next = thd_cap->t;
 
 		if (thd_cap->cpuid != get_cpuid()) cos_throw(err, EINVAL);
-		assert(thd_cap->cpuid == next->cpuid);
+		//assert(thd_cap->cpuid == next->cpuid);
 
 		// QW: hack!!! for ppos test only. remove!
 		next->interrupted_thread = thd;
@@ -204,7 +196,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 		int curr_cpu = get_cpuid();
 		struct cap_asnd *asnd = (struct cap_asnd *)ch;
 
-		assert(asnd->arcv_capid);
+		//assert(asnd->arcv_capid);
 
 		if (asnd->arcv_cpuid != curr_cpu) {
 			/* Cross core: sending IPI */
