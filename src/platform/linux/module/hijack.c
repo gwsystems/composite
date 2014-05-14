@@ -777,7 +777,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			rdtscll(e);
 			if ((e-s) > (1<<30)) return -EFAULT;
 		}
-		thd_current_update(thd, thd);
+		thd_current_update(thd, thd, cos_cpu_local_info());
 
 		/* Comp0 has only 1 pgtbl, which points to the process
 		 * of the init core. Here we update the inv_stk of the
@@ -1844,6 +1844,7 @@ int chal_attempt_arcv(struct cap_arcv *arcv)
 	struct pt_regs *regs = NULL;
 	unsigned long flags;
 	struct thread *thd;
+	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 
 	local_irq_save(flags);
 
@@ -1855,7 +1856,7 @@ int chal_attempt_arcv(struct cap_arcv *arcv)
 			goto done;
 		}
 
-		struct thread *cos_current = thd_current();
+		struct thread *cos_current = thd_current(cos_info);
 
 		if (cos_thd_per_core[get_cpuid()].cos_thd == current) {
 			cos_meas_event(COS_MEAS_INT_COS_THD);
@@ -1894,7 +1895,7 @@ int chal_attempt_arcv(struct cap_arcv *arcv)
 				regs->sp = next->regs.sp;
 				regs->orig_ax = next->regs.ax;
 
-				thd_current_update(next, cos_current);
+				thd_current_update(next, cos_current, cos_info);
 				//cos_meas_event(COS_MEAS_ACAP_UC);
 			} 
 

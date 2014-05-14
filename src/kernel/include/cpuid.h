@@ -23,7 +23,7 @@ struct cos_cpu_local_info {
 	/* cache the stk_top index to save a cacheline access on
 	 * inv/ret. Could use a struct here if need to cache multiple
 	 * things. (e.g. captbl, etc) */
-	/* int invstk_top;  *//* caching this doesn't help. */
+	int invstk_top;
 	unsigned long epoch;
 	/***********************************************/
 	/* Since this struct resides at the lowest address of the

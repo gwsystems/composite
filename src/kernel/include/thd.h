@@ -10,6 +10,7 @@
 
 #include "component.h"
 #include "cap_ops.h"
+#include "cpuid.h"
 
 struct invstk_entry {
 	struct comp_info comp_info;
@@ -210,48 +211,67 @@ static inline void thd_current_update(struct thread *thd, struct thread *ignore)
 /* void thd_init(void) */
 /* { assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD)); } */
 
-static inline struct thread *thd_current(void) 
-{ return cos_get_curr_thd(); }
+static inline struct thread *thd_current(struct cos_cpu_local_info *cos_info) 
+{ return (struct thread *)(cos_info->curr_thd); }
 
-static inline void thd_current_update(struct thread *next, struct thread *prev)
-{  
+static inline void thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
+{
 	/* commit the cached data */
-	/* prev->invstk_top = cos_cpu_local_info()->invstk_top; */
-	/* cos_cpu_local_info()->invstk_top = next->invstk_top; */
+	prev->invstk_top = cos_info->invstk_top;
+	cos_info->invstk_top = next->invstk_top;
 
-	cos_put_curr_thd(next);
+	cos_info->curr_thd = (void *)next;
 }
 #endif
 
-static inline struct comp_info *
-thd_invstk_current(struct thread *thd, unsigned long *ip, unsigned long *sp)
+static inline int curr_invstk_inc(struct cos_cpu_local_info *cos_info)
 {
+	return cos_info->invstk_top++;
+}
+
+static inline int curr_invstk_dec(struct cos_cpu_local_info *cos_info)
+{
+	return cos_info->invstk_top--;
+}
+
+static inline int curr_invstk_top(struct cos_cpu_local_info *cos_info)
+{
+	return cos_info->invstk_top;
+}
+
+static inline struct comp_info *
+thd_invstk_current(struct thread *curr_thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
+{
+	/* curr_thd should be the current thread! We are using cached invstk_top. */
 	struct invstk_entry *curr;
 
-	curr = &thd->invstk[thd->invstk_top];
+	curr = &curr_thd->invstk[curr_invstk_top(cos_info)];
 	*ip = curr->ip;
 	*sp = curr->sp;
+
 	return &curr->comp_info;
 }
 
 static inline pgtbl_t
 thd_current_pgtbl(struct thread *thd)
 {
-	struct invstk_entry *curr;
+	struct invstk_entry *curr_entry;
 
-	curr = &thd->invstk[thd->invstk_top];
-	return curr->comp_info.pgtbl;
+	/* don't use the cached invstk_top here. We need the stack
+	 * pointer of the specified thread. */
+	curr_entry = &thd->invstk[thd->invstk_top];
+	return curr_entry->comp_info.pgtbl;
 }
 
 static inline int
-thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsigned long sp)
+thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsigned long sp, struct cos_cpu_local_info *cos_info)
 {
 	struct invstk_entry *top, *prev;
 
-	prev = &thd->invstk[thd->invstk_top];
-	top  = &thd->invstk[thd->invstk_top+1];
-	if (unlikely(thd->invstk_top >= THD_INVSTK_MAXSZ)) return -1;
-	thd->invstk_top++;
+	prev = &thd->invstk[curr_invstk_top(cos_info)];
+	top  = &thd->invstk[curr_invstk_top(cos_info)+1];
+	if (unlikely(curr_invstk_top(cos_info) >= THD_INVSTK_MAXSZ)) return -1;
+	curr_invstk_inc(cos_info);
 	prev->ip = ip;
 	prev->sp = sp;
 	memcpy(&top->comp_info, ci, sizeof(struct comp_info));
@@ -261,11 +281,11 @@ thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsi
 }
 
 static inline struct comp_info *
-thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp)
+thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, struct cos_cpu_local_info *cos_info)
 {
-	if (unlikely(thd->invstk_top == 0)) return NULL;
-	thd->invstk_top--;
-	return thd_invstk_current(thd, ip, sp);
+	if (unlikely(curr_invstk_top(cos_info) == 0)) return NULL;
+	curr_invstk_dec(cos_info);
+	return thd_invstk_current(thd, ip, sp, cos_info);
 }
 
 static inline void thd_preemption_state_update(struct thread *curr, struct thread *next, struct pt_regs *regs)

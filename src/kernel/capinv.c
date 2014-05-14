@@ -11,6 +11,7 @@
 #include "include/call_convention.h"
 #include "include/ipi_cap.h"
 #include "include/liveness_tbl.h"
+#include "include/cpuid.h"
 
 #define COS_DEFAULT_RET_CAP 0
 
@@ -81,7 +82,7 @@ done:
 }
 
 static int
-cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next) 
+cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, struct cos_cpu_local_info *cos_info) 
 {
 	int preempt = 0;
 	struct comp_info *next_ci = &(next->invstk[next->invstk_top].comp_info);
@@ -96,7 +97,7 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next)
 	copy_gp_regs(regs, &curr->regs);
 	__userregs_set(&curr->regs, COS_SCHED_RET_SUCCESS, __userregs_getsp(regs), __userregs_getip(regs));
 
-	thd_current_update(next, curr);
+	thd_current_update(next, curr, cos_info);
 
 	pgtbl_update(next_ci->pgtbl);
 
@@ -127,20 +128,25 @@ composite_sysenter_handler(struct pt_regs *regs)
 	capid_t cap;
 	unsigned long ip, sp;
 	syscall_op_t op;
+	/* We lookup this struct (which is on stack) only once, and
+	 * pass it into other functions to avoid unnecessary
+	 * lookup. */
+	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	int ret = 0;
 
 #ifdef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
 #endif
 	cap = __userregs_getcap(regs);
-	thd = thd_current();
+
+	thd = thd_current(cos_info);
 	/* printk("calling cap %d: %x, %x, %x, %x\n", */
 	/*        cap, __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
 
 	/* fast path: invocation return */
 	if (cap == COS_DEFAULT_RET_CAP) {
 		/* No need to lookup captbl */
-		sret_ret(thd, regs);
+		sret_ret(thd, regs, cos_info);
 		return 0;
 	}
 
@@ -150,7 +156,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 		return 0;
 	}
 
-	ci  = thd_invstk_current(thd, &ip, &sp);
+	ci  = thd_invstk_current(thd, &ip, &sp, cos_info);
 	assert(ci && ci->captbl);
 	if (unlikely(!ltbl_isalive(&ci->liveness))) {
 		printk("cos: comp (liveness %d) doesn't exist!\n", ci->liveness.id);
@@ -168,7 +174,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 	/* fastpath: invocation */
 	if (likely(ch->type == CAP_SINV)) {
-		sinv_call(thd, (struct cap_sinv *)ch, regs);
+		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info);
 		return 0;
 	}
 
@@ -187,7 +193,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 		// QW: hack!!! for ppos test only. remove!
 		next->interrupted_thread = thd;
 
-		return cap_switch_thd(regs, thd, next);
+		return cap_switch_thd(regs, thd, next, cos_info);
 	} else if (ch->type == CAP_ASND) {
 		int curr_cpu = get_cpuid();
 		struct cap_asnd *asnd = (struct cap_asnd *)ch;
@@ -214,7 +220,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 				cos_throw(err, EINVAL);
 			}
 			
-			return cap_switch_thd(regs, thd, arcv->thd);
+			return cap_switch_thd(regs, thd, arcv->thd, cos_info);
 		}
 				
 		goto done;
@@ -248,7 +254,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			thd->flags &= !THD_STATE_ACTIVE_UPCALL;
 			thd->flags |= THD_STATE_READY_UPCALL;
 			
-			return cap_switch_thd(regs, thd, thd->interrupted_thread);
+			return cap_switch_thd(regs, thd, thd->interrupted_thread, cos_info);
 		}
 		
 		goto done;
@@ -494,7 +500,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 	}
 	case CAP_SRET: 
 	{
-		sret_ret(thd, regs);
+		sret_ret(thd, regs, cos_info);
 		return 0;
 	}
 	default:

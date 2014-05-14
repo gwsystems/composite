@@ -161,7 +161,7 @@ static int arcv_deactivate(struct captbl *t, capid_t cap, capid_t capin)
  */
 
 static inline void
-sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs)
+sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, struct cos_cpu_local_info *cos_info)
 {
 	unsigned long ip, sp;
 
@@ -175,7 +175,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs)
 		return;
 	}
 
-	if (unlikely(thd_invstk_push(thd, &sinvc->comp_info, ip, sp))) {
+	if (unlikely(thd_invstk_push(thd, &sinvc->comp_info, ip, sp, cos_info))) {
 		__userregs_set(regs, -1, sp, ip);
 		return;
 	}
@@ -189,12 +189,12 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs)
 }
 
 static inline void
-sret_ret(struct thread *thd, struct pt_regs *regs)
+sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *cos_info)
 {
 	struct comp_info *ci;
 	unsigned long ip, sp;
 
-	ci = thd_invstk_pop(thd, &ip, &sp);
+	ci = thd_invstk_pop(thd, &ip, &sp, cos_info);
 	if (unlikely(!ci)) {
 		__userregs_set(regs, 0xDEADDEAD, 0, 0);
 		return;
