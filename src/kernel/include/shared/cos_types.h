@@ -32,7 +32,7 @@ typedef signed long long s64_t;
 
 #define PRINT_CAP_TEMP (2 << 15)
 
-#define BOOT_LIVENESS_ID_BASE 1
+#define BOOT_LIVENESS_ID_BASE 2
 
 typedef enum {
 	CAPTBL_OP_CPY,

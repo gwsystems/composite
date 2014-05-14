@@ -57,7 +57,7 @@ void sync_all()
 }
 
 int all_exit = 0;
-//#define MEAS_AVG
+#define MEAS_AVG
 void pingpong(void)
 {
 	int i;

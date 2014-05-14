@@ -4406,52 +4406,6 @@ fs_reg_setup(unsigned long seg) {
 		      : : "b" (seg));
 }
 
-static inline void new_handler(struct pt_regs *regs)
-{
-	struct cap_header *ch;
-	struct comp_info *ci;
-	struct thread *thd;
-	capid_t cap;
-	unsigned long ip, sp;
-/* We don't need to setup fs for invocation and return path. Only
- * enable this when doing printk (which requires fs) for debugging. */
-//#define ENABLE_KERNEL_PRINT
-#ifdef ENABLE_KERNEL_PRINT
-	fs_reg_setup(__KERNEL_PERCPU);
-#endif
-	thd = thd_current();
-	ci  = thd_invstk_current(thd, &ip, &sp);
-	assert(ci && ci->captbl);
-	/* TODO: check liveness map */
-	cap = 0;//regs->ax; 	/* FIXME */
-	ch  = captbl_lkup(ci->captbl, cap);
-	if (unlikely(!ch)) {
-		regs->ax = -ENOENT;
-		return;
-	}
-
-	/* fastpath: invocation and return */
-	if (likely(ch->type == CAP_SINV)) {
-		sinv_call(thd, (struct cap_sinv *)ch, regs);
-		return;
-	} else if (likely(ch->type == CAP_SRET)) {
-		sret_ret(thd, regs);
-		return;
-	}
-	printk("ERROR!!!!!\n");
-
-	/* slowpath: other capability operations */
-	switch(ch->type) {
-	case CAP_ASND:
-	case CAP_ARCV:
-	case CAP_COMP:
-	case CAP_THD:
-	default:
-		__userregs_setret(regs, -ENOENT);
-	}
-	return;
-}
-
 //#define USE_LEGACY_KERN
 
 #ifdef USE_LEGACY_KERN

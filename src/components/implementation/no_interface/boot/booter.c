@@ -612,6 +612,13 @@ boot_create_cap_system(void)
 		vaddr_t comp_info = 0;
 		long tot = 0;
 		int j;
+		/* cap tbl, pgtbl for new component */
+		capid_t comp_cap;
+		capid_t captbl_cap;
+		capid_t pgtbl_cap;
+		capid_t pte_cap;
+
+		u64_t lid = get_liv_id();
 		
 		h = hs[i];
 		spdid = h->id;
@@ -627,10 +634,10 @@ boot_create_cap_system(void)
 			BUG();
 		}
 		/* create cap tbl, pgtbl for new component */
-		capid_t comp_cap   = alloc_capid(CAP_COMP);
-		capid_t captbl_cap = alloc_capid(CAP_CAPTBL);
-		capid_t pgtbl_cap  = alloc_capid(CAP_PGTBL);
-		capid_t pte_cap    = alloc_capid(CAP_PGTBL);
+		comp_cap   = alloc_capid(CAP_COMP);
+		captbl_cap = alloc_capid(CAP_CAPTBL);
+		pgtbl_cap  = alloc_capid(CAP_PGTBL);
+		pte_cap    = alloc_capid(CAP_PGTBL);
 
 		/* Captbl */
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE,
@@ -659,7 +666,7 @@ boot_create_cap_system(void)
 		if (boot_comp_map(h, spdid, comp_info))     BUG();
 
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_COMPACTIVATE,
-				comp_cap, (captbl_cap<<16) | pgtbl_cap, get_liv_id(), comp_cap_info[spdid].upcall_entry)) BUG();
+				comp_cap, (captbl_cap<<16) | pgtbl_cap, lid, comp_cap_info[spdid].upcall_entry)) BUG();
 
 		/* printc("Comp %d (%s) activated @ %x, size %ld!\n", h->id, h->name, sect->vaddr, tot); */
 	}

@@ -10,10 +10,11 @@
 #include "include/thd.h"
 #include "include/call_convention.h"
 #include "include/ipi_cap.h"
+#include "include/liveness_tbl.h"
 
 #define COS_DEFAULT_RET_CAP 0
 
-//#define ENABLE_KERNEL_PRINT
+#define ENABLE_KERNEL_PRINT
 
 static inline void
 fs_reg_setup(unsigned long seg) {
@@ -85,10 +86,18 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next)
 	int preempt = 0;
 	struct comp_info *next_ci = &(next->invstk[next->invstk_top].comp_info);
 
+	if (unlikely(!ltbl_isalive(&next_ci->liveness))) {
+		printk("cos: comp (liveness %d) doesn't exist!\n", next_ci->liveness.id);
+		//FIXME: add fault handling here.
+		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
+		return preempt;
+	}
+	
 	copy_gp_regs(regs, &curr->regs);
 	__userregs_set(&curr->regs, COS_SCHED_RET_SUCCESS, __userregs_getsp(regs), __userregs_getip(regs));
 
 	thd_current_update(next, curr);
+
 	pgtbl_update(next_ci->pgtbl);
 
 	/* fpu_save(thd); */
@@ -143,7 +152,12 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 	ci  = thd_invstk_current(thd, &ip, &sp);
 	assert(ci && ci->captbl);
-	/* TODO: check liveness map */
+	if (unlikely(!ltbl_isalive(&ci->liveness))) {
+		printk("cos: comp (liveness %d) doesn't exist!\n", ci->liveness.id);
+		//FIXME: add fault handling here.
+		ret = -EFAULT;
+		goto done;
+	}
 
 	ch  = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
@@ -170,8 +184,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 		if (thd_cap->cpuid != get_cpuid()) cos_throw(err, EINVAL);
 		assert(thd_cap->cpuid == next->cpuid);
 
-		// TODO: check liveness tbl
-	
 		// QW: hack!!! for ppos test only. remove!
 		next->interrupted_thread = thd;
 
@@ -191,7 +203,11 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 			printk("NOT tested yet.\n");
 
-			//FIXME: check liveness!
+			if (unlikely(!ltbl_isalive(&(asnd->comp_info.liveness)))) {
+				// fault handle? 
+				cos_throw(err, -EFAULT);
+			}
+
 			arcv = (struct cap_arcv *)captbl_lkup(asnd->comp_info.captbl, asnd->arcv_capid);
 			if (unlikely(arcv->h.type != CAP_ARCV)) {
 				printk("cos: IPI handling received invalid arcv cap %d\n", asnd->arcv_capid);

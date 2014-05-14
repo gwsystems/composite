@@ -167,7 +167,14 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs)
 
 	ip = __userregs_getip(regs);
 	sp = __userregs_getsp(regs);
-	/* FIXME: check liveness */
+
+	if (unlikely(!ltbl_isalive(&(sinvc->comp_info.liveness)))) {
+		printk("cos: sinv comp (liveness %d) doesn't exist!\n", sinvc->comp_info.liveness.id);
+		//FIXME: add fault handling here.
+		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
+		return;
+	}
+
 	if (unlikely(thd_invstk_push(thd, &sinvc->comp_info, ip, sp))) {
 		__userregs_set(regs, -1, sp, ip);
 		return;
@@ -178,6 +185,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs)
 	__userregs_sinvupdate(regs);
 	__userregs_set(regs, thd->tid | (get_cpuid_fast() << 16),
 		       sinvc->h.poly /* calling component id */, sinvc->entry_addr);
+	return;
 }
 
 static inline void
@@ -191,7 +199,14 @@ sret_ret(struct thread *thd, struct pt_regs *regs)
 		__userregs_set(regs, 0xDEADDEAD, 0, 0);
 		return;
 	}
-	/* FIXME: check liveness */
+
+	if (unlikely(!ltbl_isalive(&ci->liveness))) {
+		printk("cos: ret comp (liveness %d) doesn't exist!\n", ci->liveness.id);
+		//FIXME: add fault handling here.
+		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
+		return;
+	}
+
 	pgtbl_update(ci->pgtbl);
 	__userregs_set(regs, __userregs_getinvret(regs), sp, ip);
 }
