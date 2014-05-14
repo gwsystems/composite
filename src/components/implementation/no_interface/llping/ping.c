@@ -27,7 +27,7 @@ printc(char *fmt, ...)
 	return ret;
 }
 
-#define ITER (1024*1024)
+#define ITER (100*1000)//(1024*1024)
 
 unsigned long long tsc_start(void)
 {
@@ -78,13 +78,11 @@ void pingpong(void)
 #else
 	u64_t sum = 0, max = 0;
 	volatile u32_t last_tick = printc("FLUSH!!"), curr_tick;
+
 	printc("core %ld: doing pingpong w/ flush @tick %u!\n", cos_cpuid(), last_tick);
-	
 	for (i = 0; i < ITER; i++) {
 		s = tsc_start();
-//		rdtscll(s);
 		call_cap(2, 0, 0, 0, 0);
-//		e = tsc_start();
 		rdtscll(e);
 //		if (e-s > 20000) printc("large: %llu @ %llu\n", e-s, e);
 		curr_tick = printc("FLUSH!!");
@@ -92,8 +90,7 @@ void pingpong(void)
 //			printc("timer detected @ %llu, %d, %d, (cost %llu)\n", e, last_tick, curr_tick, e-s);
 			if (last_tick+1 != curr_tick) printc("tick diff > 1: %u, %u\n", last_tick,curr_tick);
 			last_tick = curr_tick;
-			if (i >= 2) i -= 2;//discard recent runs
-			else i = 0;
+			i--;
 			continue;
 		}
 		sum += e-s;
