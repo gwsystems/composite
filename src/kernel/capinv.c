@@ -15,13 +15,16 @@
 
 #define COS_DEFAULT_RET_CAP 0
 
-#define ENABLE_KERNEL_PRINT
+//#define ENABLE_KERNEL_PRINT
 
 static inline void
 fs_reg_setup(unsigned long seg) {
 #ifdef LINUX_TEST
 	return;
 #endif
+	/* Optimize for benchmark! */
+	return;
+
 	asm volatile ("movl %%ebx, %%fs\n\t"
 		      : : "b" (seg));
 }
@@ -49,7 +52,8 @@ static inline int printfn(struct pt_regs *regs)
 	int len;
 	char kern_buf[MAX_LEN];
 
-	fs_reg_setup(__KERNEL_PERCPU);
+	asm volatile ("movl %%ebx, %%fs\n\t"
+		      : : "b" (__KERNEL_PERCPU));
 
 	str     = (char *)__userregs_get1(regs);
 	len     = __userregs_get2(regs);
@@ -158,12 +162,14 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 	ci  = thd_invstk_current(thd, &ip, &sp, cos_info);
 	assert(ci && ci->captbl);
-	if (unlikely(!ltbl_isalive(&ci->liveness))) {
-		printk("cos: comp (liveness %d) doesn't exist!\n", ci->liveness.id);
-		//FIXME: add fault handling here.
-		ret = -EFAULT;
-		goto done;
-	}
+
+	/* We don't check liveness of current component because it's
+	 * guaranteed by component quiescence period, which is at
+	 * timer tick granularity.*/
+	/* if (unlikely(!ltbl_isalive(&ci->liveness))) { */
+	/* 	ret = -EFAULT; */
+	/* 	goto done; */
+	/* } */
 
 	ch  = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {

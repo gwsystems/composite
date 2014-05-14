@@ -27,7 +27,7 @@ printc(char *fmt, ...)
 	return ret;
 }
 
-#define ITER (100*1000)//(1024*1024)
+#define ITER (100*1000)//(1024*1024)//
 
 unsigned long long tsc_start(void)
 {
@@ -57,7 +57,7 @@ void sync_all()
 }
 
 int all_exit = 0;
-#define MEAS_AVG
+//#define MEAS_AVG
 void pingpong(void)
 {
 	int i;
@@ -156,7 +156,7 @@ void cos_init(void)
 		pingpong();
 		goto done;
 	} 
-//	else {	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()); }
+//	else {	goto done; }
 //	if (cos_cpuid() <= (NUM_CPU_COS-1 - SND_RCV_OFFSET)) {
 	if (0){//(cos_cpuid() == 0) {
 		struct record_per_core *curr_rcv = &received[cos_cpuid()];
