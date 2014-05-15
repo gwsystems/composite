@@ -329,7 +329,19 @@ boot_deps_init(void)
 	assert(nmmgrs > 0);
 }
 
-/* We use 2 pages for captbl of llboot. */
+static void
+boot_deps_run_all(void)
+{
+	assert(PERCPU_GET(llbooter)->init_thd);
+	cos_switch_thread(PERCPU_GET(llbooter)->init_thd, 0);
+	return ;
+}
+
+/*********************************************/
+/* Functions using new cap operations below. */
+/*********************************************/
+
+/* We have 2 pages for the captbl of llboot. */
 #define CAP_ID_16B_FREE BOOT_CAPTBL_FREE;            // goes up
 #define CAP_ID_32B_FREE ((PAGE_SIZE+PAGE_SIZE/2)/16 - CAP32B_IDSZ) // goes down
 
@@ -347,6 +359,7 @@ capid_t alloc_capid(cap_t cap)
 		ret = capid_32b_free;
 		capid_32b_free -= CAP32B_IDSZ;
 	} else {
+		/* No 64b caps needed for llboot. */
 		ret = 0;
 		BUG();
 	}
@@ -367,16 +380,24 @@ struct comp_cap_info {
 
 struct comp_cap_info comp_cap_info[MAX_NUM_SPDS+1];
 
-#define BOOT_INIT_SCHED_COMP 2
-
-capid_t per_core_thd_cap[NUM_CPU_COS];
-vaddr_t per_core_thd_mem[NUM_CPU_COS];
-vaddr_t per_core_rcvthd_mem[NUM_CPU_COS];
-
-// only needed for ppos test
 #include <ck_spinlock.h>
+#include <ck_pr.h>
+/* Needed to avoid cas failure. */
 ck_spinlock_ticket_t init_lock = CK_SPINLOCK_TICKET_INITIALIZER;
 
+int synced_nthd = 0;
+void sync_all()
+{
+	int ret;
+
+	ret = ck_pr_faa_int(&synced_nthd, 1);
+	ret = (ret/NUM_CPU_COS + 1)*NUM_CPU_COS;
+	while (ck_pr_load_int(&synced_nthd) < ret) ;
+	
+	return;
+}
+
+// PPOS test code below
 static inline void
 acap_test(void)
 {
@@ -456,129 +477,7 @@ acap_test(void)
 	return;
 }
 
-static inline void
-boot_comp_thds_init(void)
-{
-	struct comp_cap_info *sched_comp = &comp_cap_info[BOOT_INIT_SCHED_COMP];
-	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
-	capid_t thd_alpha, thd_schedinit;
-
-	/* We reserve 2 caps for each core in the captbl of scheduler */
-	thd_alpha     = SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid();
-	thd_schedinit = SCHED_CAPTBL_INITTHD_BASE  + cos_cpuid();
-	assert(thd_alpha && thd_schedinit);
-	assert(thd_schedinit <= SCHED_CAPTBL_LAST);
-
-	ck_spinlock_ticket_lock(&init_lock);
-	llboot->alpha        = BOOT_CAPTBL_SELF_INITTHD_BASE + cos_cpuid();
-	llboot->init_thd     = per_core_thd_cap[cos_cpuid()];
-	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, llboot->init_thd, 
-			BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()], sched_comp->comp_cap)) BUG();
-
-	/* Scheduler should have access to the init thread and alpha
-	 * thread. Grant caps by copying. */
-	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-			llboot->init_thd, sched_comp->captbl_cap, thd_schedinit, 0)) BUG();
-	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-			llboot->alpha, sched_comp->captbl_cap, thd_alpha, 0))        BUG();
-	ck_spinlock_ticket_unlock(&init_lock);
-
-	printc("Core %ld, Low-level booter created threads:\n"
-	       "\tCap %d: alpha\n\tCap %d: init\n",
-	       cos_cpuid(), llboot->alpha, llboot->init_thd);
-	assert(llboot->init_thd >= 0);
-}
-
-static inline void 
-alloc_per_core_thd(void)
-{
-	int i;
-
-	/* Only the init core does the resource allocation here. Thus
-	 * no locking needed. */
-	for (i = 0; i < NUM_CPU_COS; i++) {
-		per_core_thd_cap[i] = alloc_capid(CAP_THD);
-		per_core_thd_mem[i] = get_kmem_cap();
-		assert(per_core_thd_cap[i] && per_core_thd_mem[i]);
-	}
-}
-
-static inline void
-boot_comp_deps_init(void)
-{
-	int i;	
-
-	alloc_per_core_thd();
-	boot_comp_thds_init();
-
-	/* How many memory managers are there? */
-	for (i = 0 ; init_schedule[i] ; i++) nmmgrs += init_mem_access[i];
-	assert(nmmgrs > 0);
-}
-
-static void
-boot_deps_run(void)
-{
-	assert(cos_cpuid() == INIT_CORE);
-
-	return;
-	assert(PERCPU_GET(llbooter)->init_thd);
-
-	return; /* We return to comp0 and release other cores first. */
-}
-
-static void
-boot_deps_run_all(void)
-{
-	assert(PERCPU_GET(llbooter)->init_thd);
-	cos_switch_thread(PERCPU_GET(llbooter)->init_thd, 0);
-	return ;
-}
-
-void 
-cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
-{
-	/* printc("core %ld: <<cos_upcall_fn thd %d (type %d, CREATE=%d, DESTROY=%d, FAULT=%d)>>\n", */
-	/*        cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_THD_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT); */
-	while (1);
-	switch (t) {
-	case COS_UPCALL_THD_CREATE:
-		llboot_ret_thd();
-		break;
-	case COS_UPCALL_DESTROY:
-		llboot_thd_done();
-		break;
-	case COS_UPCALL_UNHANDLED_FAULT:
-		printc("Core %ld: Fault detected by the llboot component in thread %d: "
-		       "Major system error.\n", cos_cpuid(), cos_get_thd_id());
-		break;
-	default:
-		printc("Core %ld: thread %d in llboot receives undefined upcall. Params: %d, %p, %p, %p\n", 
-		       cos_cpuid(), cos_get_thd_id(), t, arg1, arg2, arg3);
-
-		return;
-	}
-
-	return;
-}
-
-#include <sched_hier.h>
-#include <ck_pr.h>
-
-int synced_nthd = 0;
-void sync_all()
-{
-	int ret;
-
-	ret = ck_pr_faa_int(&synced_nthd, 1);
-	ret = (ret/NUM_CPU_COS + 1)*NUM_CPU_COS;
-	while (ck_pr_load_int(&synced_nthd) < ret) ;
-	
-	return;
-}
-
 /* for ppos tests only */
-//dont need this?
 int snd_rcv_order[NUM_CPU];
 int run_ppos_test(void)
 {
@@ -662,9 +561,116 @@ int run_ppos_test(void)
 	return 0;
 }
 
+//PPOS test code done.
+
+capid_t per_core_thd_cap[NUM_CPU_COS];
+vaddr_t per_core_thd_mem[NUM_CPU_COS];
+
+#define BOOT_INIT_SCHED_COMP 2
+
+static inline void
+boot_comp_thds_init(void)
+{
+	struct comp_cap_info *sched_comp = &comp_cap_info[BOOT_INIT_SCHED_COMP];
+	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
+	capid_t thd_alpha, thd_schedinit;
+
+	/* We reserve 2 caps for each core in the captbl of scheduler */
+	thd_alpha     = SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid();
+	thd_schedinit = SCHED_CAPTBL_INITTHD_BASE  + cos_cpuid();
+	assert(thd_alpha && thd_schedinit);
+	assert(thd_schedinit <= SCHED_CAPTBL_LAST);
+
+	ck_spinlock_ticket_lock(&init_lock);
+	llboot->alpha        = BOOT_CAPTBL_SELF_INITTHD_BASE + cos_cpuid();
+	llboot->init_thd     = per_core_thd_cap[cos_cpuid()];
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, llboot->init_thd, 
+			BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()], sched_comp->comp_cap)) BUG();
+
+	/* Scheduler should have access to the init thread and alpha
+	 * thread. Grant caps by copying. */
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
+			llboot->init_thd, sched_comp->captbl_cap, thd_schedinit, 0)) BUG();
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
+			llboot->alpha, sched_comp->captbl_cap, thd_alpha, 0))        BUG();
+	ck_spinlock_ticket_unlock(&init_lock);
+
+	printc("Core %ld, Low-level booter created threads:\n"
+	       "\tCap %d: alpha\n\tCap %d: init\n",
+	       cos_cpuid(), llboot->alpha, llboot->init_thd);
+	assert(llboot->init_thd >= 0);
+}
+
+static inline void 
+alloc_per_core_thd(void)
+{
+	int i;
+
+	/* Only the init core does the resource allocation here. Thus
+	 * no locking needed. */
+	for (i = 0; i < NUM_CPU_COS; i++) {
+		per_core_thd_cap[i] = alloc_capid(CAP_THD);
+		per_core_thd_mem[i] = get_kmem_cap();
+		assert(per_core_thd_cap[i] && per_core_thd_mem[i]);
+	}
+}
+
+static inline void
+boot_comp_deps_init(void)
+{
+	int i;	
+
+	alloc_per_core_thd();
+	boot_comp_thds_init();
+
+	/* How many memory managers are there? */
+	for (i = 0 ; init_schedule[i] ; i++) nmmgrs += init_mem_access[i];
+	assert(nmmgrs > 0);
+}
+
+static void
+boot_deps_run(void)
+{
+	assert(cos_cpuid() == INIT_CORE);
+	assert(PERCPU_GET(llbooter)->init_thd);
+
+	return; /* We return to comp0 and release other cores first. */
+}
+
+void 
+cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
+{
+	/* printc("core %ld: <<cos_upcall_fn thd %d (type %d, CREATE=%d, DESTROY=%d, FAULT=%d)>>\n", */
+	/*        cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_THD_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT); */
+	while (1);
+	switch (t) {
+	case COS_UPCALL_THD_CREATE:
+		llboot_ret_thd();
+		break;
+	case COS_UPCALL_DESTROY:
+		llboot_thd_done();
+		break;
+	case COS_UPCALL_UNHANDLED_FAULT:
+		printc("Core %ld: Fault detected by the llboot component in thread %d: "
+		       "Major system error.\n", cos_cpuid(), cos_get_thd_id());
+		break;
+	default:
+		printc("Core %ld: thread %d in llboot receives undefined upcall. Params: %d, %p, %p, %p\n", 
+		       cos_cpuid(), cos_get_thd_id(), t, arg1, arg2, arg3);
+
+		return;
+	}
+
+	return;
+}
+
+#include <sched_hier.h>
+
 void comp_deps_run_all(void)
 {
 	sync_all();
+
+	/* PPOS test only. */
 	if (run_ppos_test()) goto done;
 
 	printc("Core %ld: low-level booter switching to init thread (cap %d).\n", 
@@ -692,7 +698,8 @@ int sched_init(void)
 		UNLOCK();
 		comp_deps_run_all();
 	}
-
+	
+	/* calling return cap */
 	call_cap(0, 0, 0, 0, 0);
 
 	return 0;

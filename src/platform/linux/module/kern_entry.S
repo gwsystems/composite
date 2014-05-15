@@ -18,8 +18,6 @@
 #include "../../../kernel/include/shared/cos_config.h"
 #include "cos_irq_vectors.h"
 
-#define ASM_PAGE_MASK (~(4096-1))
-	
 /* from entry.S */	
 EBX		= 0x00
 ECX		= 0x04

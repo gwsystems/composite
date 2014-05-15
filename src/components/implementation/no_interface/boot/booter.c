@@ -182,9 +182,6 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		} 
 		while (left > 0) {
 			dsrc = cos_get_vas_page();
-			/* TODO: if use kmem, we should allocate
-			 * kernel-accessible memory, rather than
-			 * normal user-memory */
 
 			if ((vaddr_t)dsrc != __local_mman_get_page(cos_spd_id(), (vaddr_t)dsrc, flag)) BUG();
 			if (dest_daddr != __local_mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr, flag)) BUG();
@@ -468,6 +465,10 @@ cgraph_add(int serv, int client)
 	return 0;
 }
 
+/****************************************************/
+/* Functions using new kernel cap operations below. */
+/****************************************************/
+
 static int 
 boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
@@ -497,6 +498,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		} 
 		while (left > 0) {
 			//FIXME: use kmem if (flag & MAPPING_KMEM)
+
 			vaddr_t addr = get_pmem_cap();
 			if (call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY,
 					addr, pgtbl_cap, dest_daddr, 0)) BUG();
@@ -561,7 +563,10 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 static int 
 boot_comp_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
-	/* all free kmem mapped in to llboot (@BOOT_MEM_KM_BASE) by default. */
+	// FIXME: we should map those memory into booter first, then populate. 
+
+	/* all free memory mapped into llboot (@BOOT_MEM_KM_ /
+	 * _PM_BASE) by default. */
 	if (boot_comp_map_populate(h, spdid, comp_info, 1)) return -1;
 	if (boot_comp_map_memory(h, spdid, comp_info)) return -1; 
 
@@ -681,20 +686,9 @@ boot_create_cap_system(void)
 	boot_comp_deps_init();
 
 	return;
-
-	/* for (i = 0 ; boot_sched[i] != 0 ; i++) { */
-	/* 	struct cobj_header *h; */
-	/* 	int j; */
-	/* 	h = NULL; */
-	/* 	for (j = 0 ; hs[j] != NULL; j++) { */
-	/* 		if (hs[j]->id == boot_sched[i]) h = hs[j]; */
-	/* 	}		 */
-	/* 	assert(h); */
-	/* 	if (h->flags & COBJ_INIT_THD) boot_spd_thd(h->id); */
-	/* } */
 }
 
-void boot_init(void)
+void cos_init(void)
 {
 	struct cobj_header *h;
 	int num_cobj, i;
@@ -719,57 +713,6 @@ void boot_init(void)
 	printc("header %p, size %d, num comps %d, new heap %p\n", 
 	       h, h->size, num_cobj, cos_get_heap_ptr());
 	boot_create_cap_system();
-	printc("booter: done creating system.\n");
-
-	UNLOCK();
-	boot_deps_run();
-
-	return;
-}
-
-void cos_init(void)
-{
-	struct cobj_header *h;
-	int num_cobj, i;
-
-	boot_init();
-	return;
-
-	LOCK();
-
-	boot_deps_init();
-	h         = (struct cobj_header *)cos_comp_info.cos_poly[0];
-	num_cobj  = (int)cos_comp_info.cos_poly[1];
-
-	deps      = (struct deps *)cos_comp_info.cos_poly[2];
-	for (i = 0 ; deps[i].server ; i++) ;
-	ndeps     = i;
-	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
-	init_args++; 
-
-	boot_sched = (unsigned int *)cos_comp_info.cos_poly[4];
-
-	boot_find_cobjs(h, num_cobj);
-	
-	int nregions;
-	/* This component really might need more vas, get the next 4M region */
-	nregions = NREGIONS * 4 - 1; //Booter (including llboot) may need larger VAS
-
-	if (cos_vas_cntl(COS_VAS_SPD_EXPAND, cos_spd_id(), 
-			 round_up_to_pgd_page((unsigned long)&num_cobj), 
-			nregions * round_up_to_pgd_page(1))) {
-		printc("Could not expand boot component to %p:%x\n",
-		       (void *)round_up_to_pgd_page((unsigned long)&num_cobj), 
-		       (unsigned int)round_up_to_pgd_page(1)*nregions);
-		BUG();
-	}
-
-	printc("h @ %p, heap ptr @ %p\n", h, cos_get_heap_ptr());
-	printc("header %p, size %d, num comps %d, new heap %p\n", 
-	       h, h->size, num_cobj, cos_get_heap_ptr());
-
-	/* Assumes that hs have been setup with boot_find_cobjs */
-	boot_create_system();
 	printc("booter: done creating system.\n");
 
 	UNLOCK();
