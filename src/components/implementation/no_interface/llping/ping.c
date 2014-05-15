@@ -189,7 +189,7 @@ void cos_init(void)
 		}
 		rdtscll(e);
 		printc("core %ld: ipi avg ( %llu, %llu ): %llu\n", cos_cpuid(), (e-s)/ITER, sum2/ITER, sum/ITER);
-	} else {
+	} else {//if (cos_cpuid() % 4 <= 1) {
 //		printc("core %ld: thd %d switching to pong thd\n", cos_cpuid(), cos_get_thd_id());
 		arcv_ready[cos_cpuid()] = 1;
 		printc("core %ld: doing operations as interference\n", cos_cpuid());

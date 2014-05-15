@@ -594,9 +594,9 @@ int run_ppos_test(void)
 
 //#define MEM_OP
 #ifdef MEM_OP
-	if (cos_cpuid() != INIT_CORE && cos_cpuid() != INIT_CORE+SND_RCV_OFFSET) {
+//	if (cos_cpuid() != INIT_CORE && cos_cpuid() != INIT_CORE+SND_RCV_OFFSET) {
 //	if (cos_cpuid() != INIT_CORE) {
-//	if (1){
+	if (1){
 		u64_t s,e;
 		struct comp_cap_info *ping = &comp_cap_info[2];
 		struct comp_cap_info *pong = &comp_cap_info[3];
@@ -604,7 +604,7 @@ int run_ppos_test(void)
 		capid_t pmem = ping->addr_start + PAGE_SIZE;
 		vaddr_t to_addr = ping->addr_start + 0x400000 - NUM_CPU*(PAGE_SIZE*16) + cos_cpuid()*PAGE_SIZE*16;
 		int i, ret;
-#define ITER (10*1024*1024)
+#define ITER (100*1000)//(10*1024*1024)
 		rdtscll(s);
 		for (i = 0; i < ITER; i++) {
 			ret = call_cap_op(ping->pgtbl_cap, CAPTBL_OP_CPY,
