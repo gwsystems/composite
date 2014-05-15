@@ -43,8 +43,6 @@ static inline struct shared_user_data *get_shared_data(void)
 	return (struct shared_user_data*)shared_data_page;
 }
 
-#define COS_SYSCALL __attribute__((regparm(0)))
-
 /* 
  * This variable tracks the number of cycles that have elapsed since
  * the last measurement and is typically used to measure how long

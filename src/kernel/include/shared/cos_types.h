@@ -214,6 +214,8 @@ attr struct __##name##_percore_decl name[NUM_CPU]
 
 #include "../measurement.h"
 
+#define COS_SYSCALL __attribute__((regparm(0)))
+
 struct shared_user_data {
 	unsigned int current_thread;
 	void *argument_region;

@@ -15,8 +15,6 @@
 
 #define COS_DEFAULT_RET_CAP 0
 
-//#define ENABLE_KERNEL_PRINT
-
 static inline void
 fs_reg_setup(unsigned long seg) {
 #ifdef LINUX_TEST
@@ -29,16 +27,12 @@ fs_reg_setup(unsigned long seg) {
 #ifdef LINUX_TEST
 int
 syscall_handler(struct pt_regs *regs)
-#else
 
-#ifndef COS_SYSCALL
-#define COS_SYSCALL __attribute__((regparm(0)))
-#endif
+#else
 
 #define MAX_LEN 512
 
 extern char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
-
 static inline int printfn(struct pt_regs *regs) 
 {
 #ifdef LINUX_TEST
@@ -117,6 +111,8 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	return preempt;
 }
 
+#define ENABLE_KERNEL_PRINT
+
 __attribute__((section("__ipc_entry"))) COS_SYSCALL int
 composite_sysenter_handler(struct pt_regs *regs)
 #endif
@@ -137,11 +133,12 @@ composite_sysenter_handler(struct pt_regs *regs)
 #ifdef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
 #endif
+	/* printk("calling cap %d: %x, %x, %x, %x\n", */
+	/*        cap, __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
+
 	cap = __userregs_getcap(regs);
 
 	thd = thd_current(cos_info);
-	/* printk("calling cap %d: %x, %x, %x, %x\n", */
-	/*        cap, __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
 
 	/* fast path: invocation return */
 	if (cap == COS_DEFAULT_RET_CAP) {
@@ -157,7 +154,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 	}
 
 	ci  = thd_invstk_current(thd, &ip, &sp, cos_info);
-	//assert(ci && ci->captbl);
+	assert(ci && ci->captbl);
 
 	/* We don't check liveness of current component because it's
 	 * guaranteed by component quiescence period, which is at
@@ -176,9 +173,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 		return 0;
 	}
 
-	/* printk("calling cap %d, op %d: %x, %x, %x, %x\n", */
-	/*        cap, op, __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
-
 	/* Some less common cases: thread dispatch, asnd and arcv
 	 * operations. */
 	if (ch->type == CAP_THD) {
@@ -186,7 +180,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 		struct thread *next = thd_cap->t;
 
 		if (thd_cap->cpuid != get_cpuid()) cos_throw(err, EINVAL);
-		//assert(thd_cap->cpuid == next->cpuid);
+		assert(thd_cap->cpuid == next->cpuid);
 
 		// QW: hack!!! for ppos test only. remove!
 		next->interrupted_thread = thd;
@@ -196,7 +190,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 		int curr_cpu = get_cpuid();
 		struct cap_asnd *asnd = (struct cap_asnd *)ch;
 
-		//assert(asnd->arcv_capid);
+		assert(asnd->arcv_capid);
 
 		if (asnd->arcv_cpuid != curr_cpu) {
 			/* Cross core: sending IPI */
@@ -244,9 +238,11 @@ composite_sysenter_handler(struct pt_regs *regs)
 		}
 		
 		if (thd->interrupted_thread == NULL) {
-			/* FIXME: handle this case by upcalling into scheduler. */
+			/* FIXME: handle this case by upcalling into
+			 * scheduler, or switch to a scheduling
+			 * thread. */
 			ret = -1;
-			printk("fixmefixmefixme!!!\n");
+			printk("ERROR: not implemented yet!\n");
 		} else {
 			thd->arcv_cap = cap;
 			thd->flags &= !THD_STATE_ACTIVE_UPCALL;
@@ -259,10 +255,11 @@ composite_sysenter_handler(struct pt_regs *regs)
 	}
 
 	fs_reg_setup(__KERNEL_PERCPU);
+
 	/* slowpath: other capability operations, most of which
 	 * involve writing. */
 	op = __userregs_getop(regs);
-	ct  = ci->captbl; 
+	ct = ci->captbl; 
 
 	switch(ch->type) {
 	case CAP_CAPTBL:
@@ -361,8 +358,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 			vaddr_t entry_addr = __userregs_get4(regs);
 
 			ret = comp_activate(ct, cap, capin, captbl_cap, pgtbl_cap, lid, entry_addr, NULL);
-			/* printk("ret %d, comp act @ cap %x, ct cap %x, pt cap %x, lid %x, entry %x\n",  */
-			/*        ret, comp_cap, captbl_cap, pgtbl_cap, lid, entry_addr); */
 			break;
 		}
 		case CAPTBL_OP_COMPDEACTIVATE:
@@ -385,11 +380,11 @@ composite_sysenter_handler(struct pt_regs *regs)
 		case CAPTBL_OP_SRETDEACTIVATE:
 			ret = sret_deactivate(ct, cap, capin);
 			break;
-
 		case CAPTBL_OP_ASNDACTIVATE:
 		{
 			capid_t rcv_captbl = __userregs_get2(regs);
 			capid_t rcv_cap    = __userregs_get3(regs);
+
 			ret = asnd_activate(ct, cap, capin, rcv_captbl, rcv_cap, 0, 0);
 
 			break;
@@ -426,11 +421,13 @@ composite_sysenter_handler(struct pt_regs *regs)
 			capid_t target      = cap;
 			capid_t target_id   = capin;
 			capid_t pgtbl_cap   = __userregs_get2(regs);
-			capid_t pgtbl_addr  = __userregs_get3(regs);
+			capid_t page_addr  = __userregs_get3(regs);
 			void *captbl_mem;
 			struct cap_captbl *target_ct;
-
-			ret = cap_mem_retype2kern(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&captbl_mem);
+			
+			/* We are doing expanding here. */
+			
+			ret = cap_mem_retype2kern(ct, pgtbl_cap, page_addr, (unsigned long *)&captbl_mem);
 			if (unlikely(ret)) cos_throw(err, ret);
 
 			target_ct = (struct cap_captbl *)captbl_lkup(ct, target);
@@ -438,12 +435,11 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 			captbl_init(captbl_mem, 1);
 			ret = captbl_expand(target_ct->captbl, target_id, captbl_maxdepth(), captbl_mem);
-			assert(!ret);
+			if (ret) cos_throw(err, ret);
 
 			captbl_init(&((char*)captbl_mem)[PAGE_SIZE/2], 1);
 			ret = captbl_expand(target_ct->captbl, target_id + (PAGE_SIZE/2/CAPTBL_LEAFSZ), 
 					    captbl_maxdepth(), &((char*)captbl_mem)[PAGE_SIZE/2]);
-			assert(!ret);
 
 			break;
 		}
@@ -474,6 +470,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			vaddr_t cons_addr = __userregs_get2(regs);
 
 			ret = cap_cons(ct, pt, pte_cap, cons_addr);
+
 			break;
 		}
 		case CAPTBL_OP_DECONS:
@@ -496,8 +493,10 @@ composite_sysenter_handler(struct pt_regs *regs)
 		}
 		break;
 	}
-	case CAP_SRET: 
+	case CAP_SRET:
 	{
+		/* We usually don't have sret cap as we have default
+		 * return cap.*/
 		sret_ret(thd, regs, cos_info);
 		return 0;
 	}
@@ -524,7 +523,7 @@ void cos_cap_ipi_handling(void)
 	end = receiver_rings->start - 1; //end is int type. could be -1. 
 	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
 
-	// scan the first half
+	/* scan the first half */
 	for (; idx < NUM_CPU; idx++) {
 		ring = &receiver_rings->IPI_source[idx];
 		if (ring->sender != ring->receiver) {
@@ -532,7 +531,7 @@ void cos_cap_ipi_handling(void)
 		}
 	}
 
-	//scan the second half
+	/* and scan the second half */
 	for (idx = 0; idx <= end; idx++) {
 		ring = &receiver_rings->IPI_source[idx];
 		if (ring->sender != ring->receiver) {
