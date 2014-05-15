@@ -94,30 +94,7 @@ cap_mem_retype2kern(struct captbl *t, capid_t cap, unsigned long addr, unsigned 
 
 	if (unlikely(!pgtblc)) return -ENOENT;
 	if (unlikely(pgtblc->h.type != CAP_PGTBL || pgtblc->lvl != 0)) return -EINVAL;
-	if ((ret = pgtbl_mapping_extract(pgtblc->pgtbl, addr, (unsigned long *)kern_addr))) {
-		printk("extract failed. ret %d\n", ret);
-		return ret;
-	}
-
-	return 0;
-}
-
-/* Retype to user memory. */
-static inline int
-cap_mem_retype(struct captbl *t, capid_t cap, unsigned long addr, unsigned long *pa)
-{
-	int ret;
-	struct cap_pgtbl *pgtblc;
-
-	assert(t);
-	pgtblc = captbl_lkup(t, cap);
-
-	if (unlikely(!pgtblc)) return -ENOENT;
-	if (unlikely(pgtblc->h.type != CAP_PGTBL || pgtblc->lvl != 0)) return -EINVAL;
-	if ((ret = pgtbl_mapping_extract(pgtblc->pgtbl, addr, (unsigned long *)pa))) {
-		printk("extract failed. ret %d\n", ret);
-		return ret;
-	}
+	if ((ret = pgtbl_mapping_extract(pgtblc->pgtbl, addr, (unsigned long *)kern_addr))) return ret;
 
 	return 0;
 }
@@ -253,7 +230,6 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 		if (!f) return -ENOENT;
 		
 		/* TODO: validate the type is appropriate given the value of *flags */
-		/* printk("adding mem %x @ addr %x\n", *f, capin_to); */
 		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, 
 					capin_to, *f & PGTBL_FRAME_MASK, flags);
 	} else {

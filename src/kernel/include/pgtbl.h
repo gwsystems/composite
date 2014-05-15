@@ -305,10 +305,14 @@ pgtbl_lookup(pgtbl_t pt, u32_t addr, u32_t *flags)
 
 extern unsigned long __cr3_contents;
 
+// this helps debugging.
+#define UPDATE_LINUX_MM_STRUCT
+
 /* If Composite is running at the highest priority, then we don't need
  * to touch the mm_struct. Also, don't set this when we want return to
  * Linux on idle.*/
 #ifndef LINUX_HIGHEST_PRIORITY
+#undef UPDATE_LINUX_MM_STRUCT
 #define UPDATE_LINUX_MM_STRUCT
 #endif
 #ifdef LINUX_ON_IDLE

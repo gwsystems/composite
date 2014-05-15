@@ -611,8 +611,6 @@ static void hw_reset(void *data)
 	hw_int_reset(get_cpu_var(x86_tss));
 }
 
-unsigned long  __cr3_contents;
-
 #define THD_SIZE (PAGE_SIZE/4)
 
 u8_t init_thds[THD_SIZE * NUM_CPU_COS] PAGE_ALIGNED;
@@ -818,7 +816,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		//printk("kmem %x pa %x, start mem %x\n", cos_kmem, __pa(cos_kmem), mem);
 		for (i = 0; i < spd_info.mem_size; i++) {
 			if (*(mem + i) != *((char*)(spd_info.lowest_addr) + i))
-				printk("Wrong!!!! %d: %x %x\n", i, *(mem + i), *((char*)(spd_info.lowest_addr) + i));
+				printk("Mismatch: %d: %x %x\n", i, *(mem + i), *((char*)(spd_info.lowest_addr) + i));
 		}
 
 		return 0;
@@ -944,6 +942,8 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		cap_no = spd_add_static_cap_extended(owner, dest, cap_info.rel_offset, 
 						     cap_info.ST_serv_entry, cap_info.AT_cli_stub, cap_info.AT_serv_stub,
 						     cap_info.SD_cli_stub, cap_info.SD_serv_stub, cap_info.il, cap_info.flags);
+
+		/* FIXME: we need to get sched_init entry of llboot. */
 		if (spd_get_index(owner) == 0 && spd_get_index(dest) == 1 && cap_no == 1) {
 			//printk("cap %d, boot addr stub %x\n", cap_no, cap_info.SD_serv_stub);
 			// cap 2 is fault_handler.
@@ -1175,6 +1175,9 @@ cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *regs,
 	struct spd *origin;
 	struct pt_regs *regs_save;
 	
+	/* FIXME: the Composite path doesn't work right now. This
+	 * still accesses spd struct. */
+
 	/* 
 	 * If we are in the most up-to-date version of the
 	 * page-tables, then there is no fixing up to do, and we
@@ -1323,7 +1326,6 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	int ret = 1;
 
 	fault_addr = read_cr2();
-	/* printk("in page_fault_interposition @ addr %x!\n", fault_addr); */
 	
 	if (fault_addr > KERN_BASE_ADDR) goto linux_handler;
 
@@ -1461,10 +1463,6 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 void cos_ipi_handling(void);
 void cos_cap_ipi_handling(void);
 
-extern int ipi_meas;
-extern int core0_high();
-extern int corex_high();
-
 int 
 cos_ipi_ring_enqueue(u32_t dest, u32_t data);
 
@@ -1474,15 +1472,6 @@ main_ipi_handler(struct pt_regs *rs, unsigned int irq)
 	/* ack the ipi first. */
 	ack_APIC_irq();
 	
-	/* if (ipi_meas > 0) { */
-	/* 	if (get_cpuid() == 0) core0_high(); */
-	/* 	else corex_high(); */
-
-	/* 	return; */
-	/* } */
-
-	/* printk("core %d rec ipi. irq %u!\n", get_cpuid(), irq); */
-
 	cos_cap_ipi_handling();
 //	cos_ipi_handling();
 
@@ -1926,6 +1915,7 @@ void chal_send_ipi(int cpuid) {
 
 PERCPU_VAR(cos_timer_acap);
 
+/* hack to detect timer interrupt. */
 char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 
 __attribute__((regparm(3))) 
@@ -1935,13 +1925,11 @@ int main_timer_interposition(struct pt_regs *rs, unsigned int error_code)
 
 	u32_t *ticks = (u32_t *)&timer_detector[get_cpuid() * CACHE_LINE];
 	u32_t last_tick = *ticks;
-	//cos_cas(ticks, last_tick, last_tick+1);
+
 	*ticks = last_tick+1;
 	cos_mem_fence();
-//	if (get_cpuid() == 0) printk("tick now %u\n", *ticks);
 
 	if (!(acap && acap->upcall_thd)) goto LINUX_HANDLER;
-//	if (ipi_meas) goto LINUX_HANDLER;
 
 	/* FIXME: Right now we are jumping back to the Linux timer
 	 * handler (which will do the ack()). Linux will freeze if we

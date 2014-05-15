@@ -92,7 +92,6 @@ switch_pgtbls(paddr_t new, paddr_t old)
 static inline void 
 open_close_spd(struct spd_poly *o_spd, struct spd_poly *c_spd)
 {
-	printk("dest %x from curr pgtbl %x\n", o_spd->pg_tbl, c_spd->pg_tbl);
 	switch_pgtbls(o_spd->pg_tbl, c_spd->pg_tbl);
 
 	return;
@@ -101,7 +100,6 @@ open_close_spd(struct spd_poly *o_spd, struct spd_poly *c_spd)
 static inline void 
 open_close_spd_ret(struct spd_poly *c_spd)
 {
-	printk("ret to pgtbl %x\n", c_spd->pg_tbl);
 	chal_pgtbl_switch(c_spd->pg_tbl);
 	
 	return;
@@ -163,11 +161,6 @@ ipc_args_set(struct pt_regs *regs)
  * should kill thread.
  */
 
-extern u8_t boot_comp_pgd[PAGE_SIZE] PAGE_ALIGNED;
-extern u8_t boot_comp_pte_vm[PAGE_SIZE] PAGE_ALIGNED;
-extern paddr_t linux_pgd;
-
-
 static inline void
 ipc_walk_static_cap(struct pt_regs *regs)
 {
@@ -181,36 +174,6 @@ ipc_walk_static_cap(struct pt_regs *regs)
 	capability = user_regs_get_cap(regs) >> 20;
 	orig_sp    = user_regs_get_sp(regs);
 	orig_ip    = user_regs_get_ip(regs);
-
-	printk("old ipc path!\n");
-	struct spd *spd1 = spd_get_by_index(1);
-	if (0 && spd1->composite_spd->pg_tbl != chal_va2pa(boot_comp_pgd)) {
-		printk("old %x, new %x\n", spd1->composite_spd->pg_tbl, chal_va2pa(boot_comp_pgd));
-		u32_t *my, *curr, *orig;
-		int i;
-		curr = chal_pa2va(spd1->composite_spd->pg_tbl);
-		my = boot_comp_pgd;
-		orig = linux_pgd;
-		printk("pgds@ %x, %x, %x\n", curr, my, orig);
-		for (i = 0; i < PAGE_SIZE / sizeof(u32_t); i++) {
-			if (*(curr+i) == *(my+i)) continue;
-
-			if (i >= 768 && (*(curr+i) == *(my+i)) && (*(my+i) == *(orig+i))) continue;
-			printk("%d: %x, %x, %x\n", i, *(curr+i), *(my+i), *(orig+i));
-		}
-
-		u32_t *curr_pte = __va(*(curr+258) & ~(PAGE_SIZE - 1));
-		u32_t *my_pte = boot_comp_pte_vm;
-		printk("next pte @ %x, %x!\n", curr_pte, my_pte);
-		for (i = 0; i < PAGE_SIZE / sizeof(u32_t); i++) {
-			if ((*(curr_pte+i) == 0) && (*(my_pte+i) == 0)) continue;
-			if (*(curr_pte+i) && (*(my_pte+i) == 0)) {
-				printk("%d: %x %x\n", i, *(curr_pte+i), *(my_pte+i));
-			}
-		}		
-//		spd1->composite_spd->pg_tbl = chal_va2pa(boot_comp_pgd);
-	}
-
 
 	assert(thd);
 
@@ -277,7 +240,6 @@ ipc_walk_static_cap(struct pt_regs *regs)
 	cap_entry->invocation_cnt++;
 
 	ipc_args_set(regs);
-	printk("dest addr %x\n", cap_entry->dest_entry_instruction);
 
 	user_regs_set(regs, thd->thread_id | (get_cpuid_fast() << 16) /*eax*/,
 		      spd_get_index(curr_spd) /*spdid, no sp needed*/, cap_entry->dest_entry_instruction /*ip*/);
@@ -4396,76 +4358,3 @@ void *cos_syscall_tbl[COS_MAX_NUM_SYSCALL] = {
 	(void*)cos_syscall_void
 };
  
-#define COS_INV_OFFSET ((1<<COS_CAPABILITY_OFFSET) - 1)
-
-static inline void
-fs_reg_setup(unsigned long seg) {
-	asm volatile ("movl %%ebx, %%fs\n\t"
-		      : : "b" (seg));
-}
-
-//#define USE_LEGACY_KERN
-
-#ifdef USE_LEGACY_KERN
-__attribute__((section("__ipc_entry"))) COS_SYSCALL int
-composite_sysenter_handler(struct pt_regs *regs)
-{
-	/* Composite entry takes pt_regs as input */
-	int ax, preempted = 0;
-/* We don't need to setup fs for invocation and return path. Only
- * enable this when doing printk (which requires fs) for debugging. */
-#define ENABLE_KERNEL_PRINT
-#ifdef ENABLE_KERNEL_PRINT
-	fs_reg_setup(__KERNEL_PERCPU);
-#endif
-	ax = user_regs_get_cap(regs);
-	printk("in old syscall handler ax %x!\n", ax);
-
-	/* IPC and return paths are performance critical. */
-	if (likely(ax > COS_INV_OFFSET)) {
-		printk("inv!\n");
-		struct pt_regs temp;
-		memcpy(&temp, regs, sizeof(struct pt_regs));
-		new_handler(&temp);
-		/* IPC */
-		ipc_walk_static_cap(regs);
-		
-		printk("-ip %x, sp %x; ip %x, sp %x\n", regs->ip, regs->sp, temp.ip, temp.sp);
-	} else if (likely(ax == COS_INV_OFFSET)) {
-		printk("ret!\n");
-		struct pt_regs temp;
-		memcpy(&temp, regs, sizeof(struct pt_regs));
-		new_handler(&temp);
-		/* IPC return */
-		pop(regs);
-		printk("-ip %x, sp %x; ip %x, sp %x\n", regs->ip, regs->sp, temp.ip, temp.sp);
-
-	} else {
-		/* Non-IPC cases. */
-		if (ax >= 0) {
-			/* Composite syscall. All system calls take pt_regs as input.  */
-			int syscall_id;
-			COS_SYSCALL int (*cos_syscall)(struct pt_regs *);
-
-			fs_reg_setup(__KERNEL_PERCPU);
-
-			syscall_id = ax >> COS_SYSCALL_OFFSET;
-			assert(syscall_id < COS_MAX_NUM_SYSCALL);
-			cos_syscall = cos_syscall_tbl[syscall_id];
-
-			/* We may switch thread in syscalls (switch_thread and
-			 * ainv_receive). preempted is 1 when the target
-			 * thread was preempted. */
-			preempted = cos_syscall(regs);
-
-			fs_reg_setup(__USER_DS);
-		} else {
-			assert(ax < 0);
-			/* ax < 0: highest bit of ax is the flag for async cap for now. */
-			walk_async_cap(regs);
-		}
-	}
-
-	return preempted;
-}
-#endif

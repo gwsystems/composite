@@ -318,18 +318,6 @@ static inline void boot_create_init_thds(void)
 }
 
 static void
-boot_deps_init(void)
-{
-	int i;
-
-	boot_create_init_thds();
-
-	/* How many memory managers are there? */
-	for (i = 0 ; init_schedule[i] ; i++) nmmgrs += init_mem_access[i];
-	assert(nmmgrs > 0);
-}
-
-static void
 boot_deps_run_all(void)
 {
 	assert(PERCPU_GET(llbooter)->init_thd);
@@ -640,9 +628,9 @@ boot_deps_run(void)
 void 
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
-	/* printc("core %ld: <<cos_upcall_fn thd %d (type %d, CREATE=%d, DESTROY=%d, FAULT=%d)>>\n", */
-	/*        cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_THD_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT); */
-	while (1);
+	printc("core %ld: <<cos_upcall_fn thd %d (type %d, CREATE=%d, DESTROY=%d, FAULT=%d)>>\n",
+	       cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_THD_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT);
+
 	switch (t) {
 	case COS_UPCALL_THD_CREATE:
 		llboot_ret_thd();

@@ -11,6 +11,7 @@
 #include "component.h"
 #include "cap_ops.h"
 #include "cpuid.h"
+#include "fpu_regs.h"
 
 struct invstk_entry {
 	struct comp_info comp_info;
@@ -40,9 +41,7 @@ struct thread {
 };
 
 #else
-#include "thread.h"
-#ifndef THD_STRUCT
-#define THD_STRUCT
+
 struct thd_invocation_frame {
 	struct spd_poly *current_composite_spd;
 	/*
@@ -119,7 +118,6 @@ struct thread {
 	capid_t arcv_cap; /* the acap id we are waiting on */
 	/* TODO: gp and fp registers */
 } CACHE_ALIGNED;
-#endif
 
 #endif
 
