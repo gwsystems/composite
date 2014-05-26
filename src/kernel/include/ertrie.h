@@ -131,9 +131,10 @@ ERT_CREATE(name, name##_ert, depth, order, sizeof(int*), last_order, last_sz, NU
 static inline unsigned long
 __ert_maxid(ERT_CONST_PARAMS)
 { 
-	ERT_CONSTS_DEWARN;
 	unsigned long off    = (unsigned long)(((order * (depth-1)) + last_order));
 	unsigned long maxoff = (unsigned long)(sizeof(int*)*8); /* 8 bits per byte */
+	ERT_CONSTS_DEWARN;
+
 	return (off > maxoff) ? ((unsigned long)1)<<maxoff : ((unsigned long)1)<<off; 
 }
 

@@ -11,13 +11,9 @@
 #ifndef CAPTBL_H
 #define CAPTBL_H
 
-//#include <errno.h>
+#include "shared/cos_types.h"
 #include "ertrie.h"
 #include "shared/util.h"
-
-#ifdef LINUX_TEST
-#define PAGE_SIZE 4096
-#endif
 
 #ifndef CACHELINE_SIZE
 #define CACHELINE_SIZE  64
@@ -81,9 +77,12 @@ struct cap_captbl {
 static void *
 __captbl_allocfn(void *d, int sz, int last_lvl)
 {
-	(void)last_lvl;
 	void **mem = d; 	/* really a pointer to a pointer */
 	void *m    = *mem;
+
+	/* dewarn */
+	(void)last_lvl;
+
 	assert(sz <= PAGE_SIZE/2);
 	*mem = NULL;		/* NULL so we don't do mult allocs */
 
@@ -124,10 +123,13 @@ captbl_init(void *node, int leaf)
 static inline CFORCEINLINE void *
 __captbl_getleaf(struct ert_intern *a, void *accum)
 {
-	(void)accum;
 	unsigned long off, mask;
 	struct cap_header *h = (struct cap_header *)CT_MSK(a, CACHELINE_ORDER);
 	struct cap_header *c = (struct cap_header *)CT_MSK(a, h->size + CAP_SZ_OFF);
+
+	/* dewarn */
+	(void)accum;
+
 	/* 
 	 * We could do error checking here to make sure that a == c,
 	 * if we didn't want to avoid the extra branches:

@@ -5,6 +5,7 @@
  * Public License v2.
  */
 
+#include "include/shared/cos_types.h"
 #include "include/captbl.h"
 #include "include/inv.h"
 #include "include/thd.h"
@@ -15,30 +16,36 @@
 
 #define COS_DEFAULT_RET_CAP 0
 
-static inline void
-fs_reg_setup(unsigned long seg) {
 #ifdef LINUX_TEST
-	return;
-#endif
-	asm volatile ("movl %%ebx, %%fs\n\t"
-		      : : "b" (seg));
+
+#include <stdio.h>
+
+static inline int printfn(struct pt_regs *regs) {
+	__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
+	return 0;
 }
 
-#ifdef LINUX_TEST
+static inline void
+fs_reg_setup(unsigned long seg) {
+	(void)seg;
+	return;
+}
+
 int
 syscall_handler(struct pt_regs *regs)
 
 #else
 
-#define MAX_LEN 512
+static inline void
+fs_reg_setup(unsigned long seg) {
+	asm volatile ("movl %%ebx, %%fs\n\t"
+		      : : "b" (seg));
+}
 
+#define MAX_LEN 512
 extern char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 static inline int printfn(struct pt_regs *regs) 
 {
-#ifdef LINUX_TEST
-	__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
-	return 0;
-#endif
 	char *str; 
 	int len;
 	char kern_buf[MAX_LEN];
@@ -55,9 +62,10 @@ static inline int printfn(struct pt_regs *regs)
 	if (len >= 6) { //well, hack to flush tlb and cache...
 		if (kern_buf[0] == 'F' && kern_buf[1] == 'L' && kern_buf[2] == 'U' &&
 		    kern_buf[3] == 'S' && kern_buf[4] == 'H' && kern_buf[5] == '!') {
+			u32_t *ticks;
 			chal_flush_cache();
 			chal_flush_tlb_global();
-			u32_t *ticks = (u32_t *)&timer_detector[get_cpuid() * CACHE_LINE];
+			ticks = (u32_t *)&timer_detector[get_cpuid() * CACHE_LINE];
 //			printk("inv ticks %u\n", *ticks);
 
 			__userregs_set(regs, *ticks, 
@@ -73,6 +81,38 @@ done:
 	__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 
 	return 0;
+}
+
+void cos_cap_ipi_handling(void)
+{
+	int idx, end;
+	struct IPI_receiving_rings *receiver_rings;
+	struct xcore_ring *ring;
+
+	receiver_rings = &IPI_cap_dest[get_cpuid()];
+
+	/* We need to scan the entire buffer once. */
+	idx = receiver_rings->start;
+	end = receiver_rings->start - 1; //end is int type. could be -1. 
+	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
+
+	/* scan the first half */
+	for (; idx < NUM_CPU; idx++) {
+		ring = &receiver_rings->IPI_source[idx];
+		if (ring->sender != ring->receiver) {
+			process_ring(ring);
+		}
+	}
+
+	/* and scan the second half */
+	for (idx = 0; idx <= end; idx++) {
+		ring = &receiver_rings->IPI_source[idx];
+		if (ring->sender != ring->receiver) {
+			process_ring(ring);
+		}
+	}
+
+	return;
 }
 
 static int
@@ -162,7 +202,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 	ch  = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
-		printk("cos: cap %d not found!\n", cap);
+		printk("cos: cap %d not found!\n", (int)cap);
 		ret = -ENOENT;
 		goto done;
 	}
@@ -282,7 +322,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			if (unlikely(ret)) cos_throw(err, ret);
 			assert(kmem_addr);
 
-			newct = captbl_create(kmem_addr);
+			newct = captbl_create((void *)kmem_addr);
 			assert(newct);
 			ret = captbl_activate(ct, cap, newcaptbl_cap, newct, 0);
 
@@ -295,7 +335,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 			capid_t newpgd_cap = __userregs_get3(regs);
 			vaddr_t kmem_addr  = 0;
 			pgtbl_t new_pt, curr_pt;
-			struct cap_pgtbl *pt;
 
 			ret = cap_mem_retype2kern(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr);
 			if (unlikely(ret)) cos_throw(err, ret);
@@ -304,7 +343,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			curr_pt = ((struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap))->pgtbl;
 			assert(curr_pt);
 
-			new_pt = pgtbl_create(kmem_addr, curr_pt);
+			new_pt = pgtbl_create((void *)kmem_addr, curr_pt);
 			ret = pgtbl_activate(ct, cap, newpgd_cap, new_pt, 0);
 
 			break;
@@ -320,7 +359,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			if (unlikely(ret)) cos_throw(err, ret);
 			assert(kmem_addr);
 
-			pgtbl_init_pte(kmem_addr);
+			pgtbl_init_pte((void *)kmem_addr);
 			ret = pgtbl_activate(ct, cap, newpte_cap, (pgtbl_t)kmem_addr, 1);
 
 			break;
@@ -510,34 +549,3 @@ done:
 	return 0;
 }
 
-void cos_cap_ipi_handling(void)
-{
-	int idx, end;
-	struct IPI_receiving_rings *receiver_rings;
-	struct xcore_ring *ring;
-
-	receiver_rings = &IPI_cap_dest[get_cpuid()];
-
-	/* We need to scan the entire buffer once. */
-	idx = receiver_rings->start;
-	end = receiver_rings->start - 1; //end is int type. could be -1. 
-	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
-
-	/* scan the first half */
-	for (; idx < NUM_CPU; idx++) {
-		ring = &receiver_rings->IPI_source[idx];
-		if (ring->sender != ring->receiver) {
-			process_ring(ring);
-		}
-	}
-
-	/* and scan the second half */
-	for (idx = 0; idx <= end; idx++) {
-		ring = &receiver_rings->IPI_source[idx];
-		if (ring->sender != ring->receiver) {
-			process_ring(ring);
-		}
-	}
-
-	return;
-}

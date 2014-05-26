@@ -10,8 +10,8 @@
 
 #include "component.h"
 #include "cap_ops.h"
-#include "cpuid.h"
 #include "fpu_regs.h"
+#include "cpuid.h"
 
 struct invstk_entry {
 	struct comp_info comp_info;
@@ -31,13 +31,18 @@ struct invstk_entry {
 
 #ifdef LINUX_TEST
 
+//used for tests only
 struct thread {
 	thdid_t tid;
 	int refcnt, invstk_top;
 	cpuid_t cpuid;
 	struct comp_info comp_info; /* which scheduler to notify of events? FIXME: ignored for now */
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
-	/* TODO: gp and fp registers */
+////////////////
+        struct pt_regs regs;
+	unsigned short int thread_id, cpu_id, flags;
+	struct thread *interrupted_thread, *preempter_thread;
+	capid_t arcv_cap; /* the acap id we are waiting on */
 };
 
 #else
@@ -199,10 +204,10 @@ static void thd_init(void)
 { assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD)); }
 
 extern struct thread *__thd_current;
-static inline struct thread *thd_current(void) 
-{ return __thd_current; }
+static inline struct thread *thd_current(void *ignore) 
+{ (void)ignore; return __thd_current; }
 static inline void thd_current_update(struct thread *thd, struct thread *ignore)
-{ __thd_current = thd; }
+{ (void)ignore; __thd_current = thd; }
 
 #else
 

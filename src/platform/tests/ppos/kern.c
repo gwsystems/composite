@@ -6,12 +6,16 @@
 #include <string.h>
 
 #include "include/shared/cos_types.h"
-#include <captbl.h>
-#include <pgtbl.h>
-#include <cap_ops.h>
+
+#include "captbl.h"
+#include "pgtbl.h"
+#include "cap_ops.h"
 #include "include/thd.h"
-#include <component.h>
-#include <inv.h>
+#include "include/cpuid.h"
+#include "component.h"
+#include "inv.h"
+
+u32_t free_thd_id;
 
 u8_t c0_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 u8_t boot_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
@@ -25,6 +29,13 @@ unsigned long sys_llbooter_sz = 10;    /* how many pages is the llbooter? */
 
 struct thread *__thd_current;
 unsigned long  __cr3_contents;
+
+int printfn(struct pt_regs *regs) 
+{
+	(void)(regs);
+	return 0;
+}
+
 
 /* 
  * Initial captbl setup:  
@@ -46,23 +57,23 @@ unsigned long  __cr3_contents;
  * 4MB-> = boot component VM
  * 1GB-> = system physical memory
  */
-enum {
-	BOOT_CAPTBL_SRET = 0, 
-	BOOT_CAPTBL_SELF_CT = 1, 
-	BOOT_CAPTBL_SELF_PT = 2, 
-	BOOT_CAPTBL_SELF_INITTHD = 3, 
-	BOOT_CAPTBL_SELF_COMP = 4, 
-	BOOT_CAPTBL_BOOTVM_PTE = 8, 
-	BOOT_CAPTBL_PHYSM_PTE = 9, 
+/* enum { */
+/* 	BOOT_CAPTBL_SRET = 0,  */
+/* 	BOOT_CAPTBL_SELF_CT = 1,  */
+/* 	BOOT_CAPTBL_SELF_PT = 2,  */
+/* 	BOOT_CAPTBL_SELF_INITTHD = 3,  */
+/* 	BOOT_CAPTBL_SELF_COMP = 4,  */
+/* 	BOOT_CAPTBL_BOOTVM_PTE = 8,  */
+/* 	BOOT_CAPTBL_PHYSM_PTE = 9,  */
 
-	BOOT_CAPTBL_COMP0_CT = 12,
-	BOOT_CAPTBL_COMP0_PT = 13,  
-	BOOT_CAPTBL_COMP0_COMP = 16, 
-};
-enum {
-	BOOT_MEM_VM_BASE = 1<<22,
-	BOOT_MEM_PM_BASE = 1<<30,
-};
+/* 	BOOT_CAPTBL_COMP0_CT = 12, */
+/* 	BOOT_CAPTBL_COMP0_PT = 13,   */
+/* 	BOOT_CAPTBL_COMP0_COMP = 16,  */
+/* }; */
+/* enum { */
+/* 	BOOT_MEM_VM_BASE = 1<<22, */
+/* 	BOOT_MEM_PM_BASE = 1<<30, */
+/* }; */
 
 int syscall_handler(struct pt_regs *regs);
 
@@ -78,7 +89,7 @@ kern_boot_comp(void)
 	/* llbooter's captbl */
 	ct = captbl_create(boot_comp_captbl);
 	assert(ct);
-	pt = pgtbl_create(boot_comp_pgd);
+	pt = pgtbl_create(boot_comp_pgd, boot_comp_pgd);
 	assert(pt);
 	pgtbl_init_pte(boot_comp_pte_vm);
 	pgtbl_init_pte(boot_comp_pte_pm);
@@ -90,7 +101,6 @@ kern_boot_comp(void)
 	assert(!pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_PHYSM_PTE, (pgtbl_t)boot_comp_pte_pm, 1));
 	assert(!comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, 
 			      BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0, 0x37337, NULL));
-
 	/* construct the page tables */
 	assert(!cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, BOOT_MEM_VM_BASE));
 	assert(!cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_PHYSM_PTE, BOOT_MEM_PM_BASE));
@@ -134,20 +144,24 @@ kern_boot_comp(void)
 	/* 
 	 * Create a thread in comp0.
 	 */
-	assert(!thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD, thd, BOOT_CAPTBL_COMP0_COMP));
+	assert(!thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE, thd, BOOT_CAPTBL_COMP0_COMP, 0));
 	thd_current_update(thd, NULL);
 
 	/* 
 	 * Synchronous invocation!
 	 */
-	regs.ax = 0;		/* sinv */
+	u32_t cap_no = 1;
+	u32_t ret_cap = 0;
+	u32_t orig_cr3 = __cr3_contents;
+	regs.ax = (cap_no + 1) << COS_CAPABILITY_OFFSET;		/* sinv */
 	syscall_handler(&regs);
-	assert(thd->invstk_top > 0);
-	assert(__cr3_contents);
-	regs.ax = 0; 		/* sret */
+	assert(cos_cpu_local_info()->invstk_top > 0); /* we cache invstk_top on kernel stk */
+	assert(__cr3_contents != orig_cr3);
+	regs.ax = (ret_cap + 1) << COS_CAPABILITY_OFFSET;		/* sret */
 	syscall_handler(&regs);
-	assert(thd->invstk_top == 0);
-	assert(!__cr3_contents);
+	assert(cos_cpu_local_info()->invstk_top == 0);
+	assert(__cr3_contents == orig_cr3);
+	printf("Test passed!\n");
 }
 
 void 

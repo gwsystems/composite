@@ -626,7 +626,7 @@ u8_t *boot_comp_pte_pm;
 unsigned long sys_maxmem = 1<<10; /* 4M of physical memory (2^10 pages) */
 
 static void *cos_kmem, *cos_kmem_base;
-paddr_t linux_pgd;
+void *linux_pgd;
 vaddr_t boot_sinv_entry;
 unsigned long sys_llbooter_sz;    /* how many pages is the llbooter? */
 
@@ -646,8 +646,6 @@ kern_boot_comp(struct spd_info *spd_info)
 	struct captbl *ct, *ct0;
 	pgtbl_t pt, pt0;
 	unsigned int i;
-	struct pt_regs regs;
-	struct thread *thd = (struct thread *)init_thds;
 
 	ct = captbl_create(boot_comp_captbl);
 	assert(ct);
@@ -692,24 +690,24 @@ kern_boot_comp(struct spd_info *spd_info)
 	if (spd_info->mem_size % PAGE_SIZE) sys_llbooter_sz++;
 	/* add the component's virtual memory at 4MB (1<<22) using "physical memory" starting at cos_kmem */
 	for (i = 0 ; i < sys_llbooter_sz; i++) {
-		u32_t addr = chal_va2pa(cos_kmem) + i*PAGE_SIZE;
+		u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
 		u32_t flags;
 		if (cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
 				    BOOT_MEM_VM_BASE + i*PAGE_SIZE, 
 				    addr, PGTBL_USER_DEF)) cos_throw(err, -1);
-		assert(chal_pa2va(addr) == (u32_t)pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
+		assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
 	}
 	cos_kmem += sys_llbooter_sz*PAGE_SIZE;
 
 	/* add the remaining kernel memory @ 1.5GB*/
 	/* printk("mapping from kmem %x\n", cos_kmem); */
 	for (i = 0; i < (COS_KERNEL_MEMORY - (cos_kmem - cos_kmem_base)/PAGE_SIZE); i++) {
-		u32_t addr = chal_va2pa(cos_kmem) + i*PAGE_SIZE;
+		u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
 		u32_t flags;
 		if (cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
 				    BOOT_MEM_KM_BASE + i*PAGE_SIZE, 
 				    addr, PGTBL_COSFRAME | PGTBL_USER_DEF)) cos_throw(err, -1); /* FIXME: shouldn't be accessible */
-		assert(chal_pa2va(addr) == (u32_t)pgtbl_lkup(pt, BOOT_MEM_KM_BASE+i*PAGE_SIZE, &flags));
+		assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_KM_BASE+i*PAGE_SIZE, &flags));
 	}
 
 	/* add the system's physical memory at address 2GB */
@@ -721,7 +719,7 @@ kern_boot_comp(struct spd_info *spd_info)
 		if (cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
 				    BOOT_MEM_PM_BASE + i*PAGE_SIZE, 
 				    addr, PGTBL_COSFRAME | PGTBL_USER_DEF)) cos_throw(err, -1);
-		assert(chal_pa2va(addr) == (u32_t)pgtbl_lkup(pt, BOOT_MEM_PM_BASE+i*PAGE_SIZE, &flags));
+		assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_PM_BASE+i*PAGE_SIZE, &flags));
 	}
 
 	/* comp0's data, culminated in a static invocation capability to the llbooter */
@@ -736,7 +734,7 @@ kern_boot_comp(struct spd_info *spd_info)
 	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, 
 			  BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0, spd_info->upcall_entry, NULL)) cos_throw(err, -1);
 	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_COMP, 
-			  BOOT_CAPTBL_COMP0_CT, BOOT_CAPTBL_COMP0_PT, 0, NULL, NULL)) cos_throw(err, -1);
+			  BOOT_CAPTBL_COMP0_CT, BOOT_CAPTBL_COMP0_PT, 0, 0, NULL)) cos_throw(err, -1);
 	/* 
 	 * Only capability for the comp0 is 2: the synchronous
 	 * invocation capability.  
@@ -790,6 +788,8 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	{
 		struct spd_info spd_info;
 		int i;
+		char *mem;
+
 		if (copy_from_user(&spd_info, (void*)arg, 
 				   sizeof(struct spd_info))) {
 			printk("cos: Error copying spd_info from user.\n");
@@ -811,7 +811,9 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		}
 
-		char *mem = __va(*((u32_t *)(boot_comp_pte_vm)));
+		/* sanity check */
+		mem = __va(*((u32_t *)(boot_comp_pte_vm)));
+
 		mem = (char *)((u32_t)mem & ~(PAGE_SIZE-1));
 		//printk("kmem %x pa %x, start mem %x\n", cos_kmem, __pa(cos_kmem), mem);
 		for (i = 0; i < spd_info.mem_size; i++) {
@@ -1549,7 +1551,7 @@ void *chal_va2pa(void *va)
 
 void *chal_pa2va(void *pa) 
 {
-	if (pa >= COS_MEM_START) return NULL;
+	if ((paddr_t)pa >= COS_MEM_START) return NULL;
 
 	return (void*)__va(pa);
 }
@@ -1834,6 +1836,7 @@ int chal_attempt_arcv(struct cap_arcv *arcv)
 	unsigned long flags;
 	struct thread *thd;
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
+	struct thread *cos_current;
 
 	local_irq_save(flags);
 
@@ -1845,7 +1848,7 @@ int chal_attempt_arcv(struct cap_arcv *arcv)
 			goto done;
 		}
 
-		struct thread *cos_current = thd_current(cos_info);
+		cos_current = thd_current(cos_info);
 
 		if (cos_thd_per_core[get_cpuid()].cos_thd == current) {
 			cos_meas_event(COS_MEAS_INT_COS_THD);
@@ -1862,14 +1865,14 @@ int chal_attempt_arcv(struct cap_arcv *arcv)
 			if (next != cos_current) {
 				if (likely(chal_pgtbl_can_switch())) {
 #ifdef UPDATE_LINUX_MM_STRUCT
-					chal_pgtbl_switch(thd_current_pgtbl(next));
+					chal_pgtbl_switch((paddr_t)thd_current_pgtbl(next));
 #else
 					native_write_cr3(thd_current_pgtbl(next));
 #endif
 				} else {
 					/* we are omitting the native_write_cr3 to switch
 					 * page tables */
-					__chal_pgtbl_switch(thd_current_pgtbl(next));
+					__chal_pgtbl_switch((paddr_t)thd_current_pgtbl(next));
 				}
 
 				thd_preemption_state_update(cos_current, next, regs);

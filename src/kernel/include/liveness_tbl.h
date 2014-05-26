@@ -38,7 +38,7 @@ struct liveness_data {
  * compiler can statically determine it.
  */
 static void *__ltbl_allocfn(void *d, int sz, int last_lvl)
-{ (void)d; (void)sz; (void)last_lvl; assert(0); }
+{ (void)d; (void)sz; (void)last_lvl; assert(0); return 0; }
 static int __ltbl_isnull(struct ert_intern *a, void *accum, int leaf)
 { (void)accum; (void)leaf; (void)a; return 0; }
 static int __ltbl_setleaf(struct ert_intern *a, void *data)
@@ -46,7 +46,8 @@ static int __ltbl_setleaf(struct ert_intern *a, void *data)
 	u64_t old;
 	(void)data; 
 	old = ((struct liveness_entry *)a)->epoch; 
-	if (!cos_cas(&(((struct liveness_entry *)a)->epoch), old, old + 1)) return -1;
+	/* FIXME: we need to support 64 bits */
+	if (!cos_cas((unsigned long *)&(((struct liveness_entry *)a)->epoch), old, old + 1)) return -1;
 
 	return 0;
 }

@@ -8,6 +8,10 @@
 #ifndef INV_H
 #define INV_H
 
+#ifdef LINUX_TEST
+#include <stdio.h>
+#endif
+
 #include "component.h"
 #include "thd.h"
 #include "call_convention.h"
@@ -26,8 +30,8 @@ struct cap_sret {
 
 struct cap_asnd {
 	struct cap_header h;
-	u32_t cpuid; /* may not need this. */
-	u32_t arcv_cpuid, arcv_capid, arcv_epoch; /* identify receiver */
+	cpuid_t cpuid, arcv_cpuid; /* may not need cpuid */
+	u32_t arcv_capid, arcv_epoch; /* identify receiver */
 	struct comp_info comp_info;
 
 	/* deferrable server to rate-limit IPIs */
@@ -38,8 +42,9 @@ struct cap_asnd {
 struct cap_arcv {
 	struct cap_header h;
 	struct comp_info comp_info;
-	u32_t pending, cpuid, epoch;
+	u32_t pending, epoch;
 	u32_t thd_epoch;
+	cpuid_t cpuid;
 	struct thread *thd;
 } __attribute__((packed));
 
@@ -185,6 +190,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 	__userregs_sinvupdate(regs);
 	__userregs_set(regs, thd->tid | (get_cpuid_fast() << 16),
 		       sinvc->h.poly /* calling component id */, sinvc->entry_addr);
+
 	return;
 }
 

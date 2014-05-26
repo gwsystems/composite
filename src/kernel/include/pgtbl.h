@@ -259,7 +259,7 @@ pgtbl_mapping_extract(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 	if (unlikely(__pgtbl_isnull(pte, 0, 0))) return -ENOENT;
 
 	orig_v = (u32_t)(pte->next);
-	*kern_addr = (unsigned long)chal_pa2va(orig_v & PGTBL_FRAME_MASK);
+	*kern_addr = (unsigned long)chal_pa2va((void *)(orig_v & PGTBL_FRAME_MASK));
 
 	if (unlikely(!*kern_addr)) return -EINVAL; /* cannot retype a non-kernel accessible page */
 	if (unlikely(!(orig_v & PGTBL_COSFRAME))) return -EINVAL; /* can't retype non-frames */
@@ -325,7 +325,7 @@ static void pgtbl_update(pgtbl_t pt)
 #ifndef LINUX_TEST
 
 #ifdef UPDATE_LINUX_MM_STRUCT
-	chal_pgtbl_switch(pt);
+	chal_pgtbl_switch((paddr_t)pt);
 #else
 	native_write_cr3(pt);
 #endif

@@ -92,9 +92,11 @@ static inline int
 cos_ipi_ring_enqueue(u32_t dest, struct cap_asnd *asnd) {
 	struct xcore_ring *ring = &IPI_cap_dest[dest].IPI_source[get_cpuid()];
 	u32_t tail = ring->sender;
-	u32_t delta = (tail + 1) & IPI_RING_MASK;
-	struct ipi_cap_data *data = &ring->ring[tail];
+	u32_t delta;
+	struct ipi_cap_data *data;
 
+	delta = (tail + 1) & IPI_RING_MASK;
+	data = &ring->ring[tail];
 	if (unlikely(delta == ring->receiver)) {
 		/* printk("cos: IPI ring buffer full (from core %d to %d)\n", get_cpuid(), dest); */
 		return -1;
