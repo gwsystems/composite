@@ -306,6 +306,7 @@ struct service_section {
 struct service_symbs {
 	char *obj, *init_str;
 	unsigned long lower_addr, size, allocated, heap_top;
+	unsigned long mem_size; /* memory used */
 	
 	struct service_section sections[SERV_SECT_NUM];
 
@@ -1695,6 +1696,7 @@ static void gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *servic
 	return;
 }
 
+static u32_t llboot_mem;
 /*
  * Load into the current address space all of the services.  
  *
@@ -1710,11 +1712,11 @@ static int load_all_services(struct service_symbs *services)
 	unsigned long service_addr = BASE_SERVICE_ADDRESS;
 	long sz;
 
-//	service_addr += DEFAULT_SERVICE_SIZE;
-
 	while (services) {
-		sz = load_service(services, service_addr, DEFAULT_SERVICE_SIZE);
+		sz = services->mem_size = load_service(services, service_addr, DEFAULT_SERVICE_SIZE);
 		if (!sz) return -1;
+
+		if (strstr(services->obj, LLBOOT_COMP)) llboot_mem = sz;
 
 		service_addr += DEFAULT_SERVICE_SIZE;
 		/* note this works for the llbooter and root memory manager too */
@@ -1851,6 +1853,7 @@ int create_invocation_cap(struct spd_info *from_spd, struct service_symbs *from_
 			break;
 		}
 	}
+
 	if (i == st->num_symbs) {
 		printl(PRINT_DEBUG, "Could not find the undefined symbol %s in %s.\n", 
 		       server_fn, from_obj->obj);
@@ -2588,6 +2591,7 @@ make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
 
 	ci->cos_poly[3] = ((unsigned int)*heap_ptr);
 	make_spd_config_comp(boot, all);
+	llboot_mem = (unsigned int)*heap_ptr - boot->lower_addr;
 }
 
 static void format_config_info(struct service_symbs *ss, struct component_init_str *data)
@@ -2685,7 +2689,7 @@ static void setup_kernel(struct service_symbs *services)
 {
 	struct service_symbs /* *m, */ *s;
 	struct service_symbs *init = NULL;
-	struct spd_info *init_spd = NULL;
+	struct spd_info *init_spd = NULL, *llboot_spd;
 	struct cos_thread_info thd;
 
 	pid_t pid;
@@ -2710,6 +2714,10 @@ static void setup_kernel(struct service_symbs *services)
 			} else {
 				t_spd = create_spd(cntl_fd, t, t->lower_addr, t->size);
 			}
+			if (strstr(s->obj, LLBOOT_COMP)) {
+				llboot_spd = t_spd;
+			}
+
 			if (!t_spd) {
 				fprintf(stderr, "\tCould not find service object.\n");
 				exit(-1);
@@ -2725,25 +2733,12 @@ static void setup_kernel(struct service_symbs *services)
 				fprintf(stderr, "\tCould not find all stubs.\n");
 				exit(-1);
 			}
+
 		} 
 
 		s = s->next;
 	}
 	printl(PRINT_DEBUG, "\n");
-
-	/* if ((m = find_obj_by_name(services, INITMM)) == NULL) { */
-	/* 	fprintf(stderr, "Could not find initial memory manager %s\n", INITMM); */
-	/* 	exit(-1); */
-	/* } */
-	/* make_spd_scheduler(cntl_fd, m, NULL); */
-	/* assert(!is_booter_loaded(m)); */
-	/* if ((s = find_obj_by_name(services, ROOT_SCHED)) == NULL) { */
-	/* 	fprintf(stderr, "Could not find root scheduler %s\n", ROOT_SCHED); */
-	/* 	exit(-1); */
-	/* } */
-	/* make_spd_scheduler(cntl_fd, s, m); */
-	/* assert(!is_booter_loaded(s)); */
-	/* thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle; */
 
 	spd_assign_ids(services);
 
@@ -2755,43 +2750,42 @@ static void setup_kernel(struct service_symbs *services)
 	if ((s = find_obj_by_name(services, LLBOOT_COMP))) {
 		make_spd_llboot(s, services);
 		make_spd_scheduler(cntl_fd, s, NULL);
-		cos_init_booter(cntl_fd);
 	} 
+
 	fflush(stdout);
 	thd.sched_handle = ((struct spd_info *)s->extern_info)->spd_handle;
-
-	/* if ((s = find_obj_by_name(services, MPD_MGR))) { */
-	/* 	make_spd_mpd_mgr(s, services); */
-	/* } */
-	/* fflush(stdout); */
-
-	/* if ((s = find_obj_by_name(services, INIT_FILE))) { */
-	/* 	make_spd_init_file(s, INIT_FILE_NAME); */
-	/* } */
-	/* fflush(stdout); */
-
-	/* if ((s = find_obj_by_name(services, CONFIG_COMP))) { */
-	/* 	make_spd_config_comp(s, services); */
-	/* } */
 
 	if ((s = find_obj_by_name(services, INIT_COMP)) == NULL) {
 		fprintf(stderr, "Could not find initial component\n");
 		exit(-1);
 	}
 	thd.spd_handle = ((struct spd_info *)s->extern_info)->spd_handle;//spd0->spd_handle;
+	var = *((int *)SERVICE_START);
 
 	/* This will hopefully avoid hugely annoying fsck runs */
 	sync();
 
 	/* Access comp0 to make sure it is present in the page tables */
-	var = *((int *)SERVICE_START);
+	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
+
 	ret = cos_create_thd(cntl_fd, &thd);
 	assert(ret == 0);
-	fn = (int (*)(void))get_symb_address(&s->exported, "spd0_main");
+
+	assert(llboot_mem);
+	llboot_spd->mem_size = llboot_mem;
+	if (cos_init_booter(cntl_fd, llboot_spd)) {
+		printf("Boot component init failed!\n");
+		exit(-1);
+	}
+	if  (cos_create_init_thd(cntl_fd)) {
+		printf("Creating init threads failed!\n");
+		exit(-1);
+	}
+
+	assert(fn);
 	/* We call fn to init the low level booter first! Init
 	 * function will return to here and create processes for other
 	 * cores. */
-	assert(fn);
 	fn();
 
 	pid = getpid();
@@ -2813,22 +2807,19 @@ static void setup_kernel(struct service_symbs *services)
 #ifdef HIGHEST_PRIO
 		set_prio();
 #endif
-		/* Access comp0 to make sure it presents in page
-		 * table */
 		sleep(1);
-		var = *((int *)SERVICE_START);
 		ret = cos_create_thd(cntl_fd, &thd);
+		assert(ret == 0);
+		ret = cos_create_init_thd(cntl_fd);
 		assert(ret == 0);
 	}
 
 	printl(PRINT_HIGH, "\n Pid %d: OK, good to go, calling component 0's main\n\n", getpid());
 	fflush(stdout);
 
-#define ITER 1
-#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
-
 	aed_disable_syscalls(cntl_fd);
 
+#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 	rdtscll(start);
 	ret = fn();
 	rdtscll(end);
@@ -2836,11 +2827,11 @@ static void setup_kernel(struct service_symbs *services)
 	aed_enable_syscalls(cntl_fd);
 
 	cos_restore_hw_entry(cntl_fd);
+
 	if (pid > 0) {
 		int child_status;
 		while (wait(&child_status) > 0) ;
 	} else {
-		/* printf("Child %d back in cos_loader.\n", getpid()); */
 		exit(getpid());
 	}
 
@@ -2903,8 +2894,8 @@ static void call_getrlimit(int id, char *name)
 		perror("getrlimit: "); printl(PRINT_HIGH, "\n");
 		exit(-1);
 	}		
-	printl(PRINT_HIGH, "rlimit for %s is %d:%d (inf %d)\n", 
-	       name, (int)rl.rlim_cur, (int)rl.rlim_max, (int)RLIM_INFINITY);
+	/* printl(PRINT_HIGH, "rlimit for %s is %d:%d (inf %d)\n",  */
+	/*        name, (int)rl.rlim_cur, (int)rl.rlim_max, (int)RLIM_INFINITY); */
 }
 
 static void call_setrlimit(int id, rlim_t c, rlim_t m)

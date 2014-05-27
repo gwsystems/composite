@@ -21,6 +21,13 @@
 #include "include/fpu.h"
 #include "include/ipi.h"
 
+#include "include/pgtbl.h"
+#include "include/captbl.h"
+#include "include/cap_ops.h"
+#include "include/component.h"
+#include "include/inv.h"
+
+
 /* 
  * These are the 1) page for the pte for the shared region and 2) the
  * page to hold general data including cpuid, thread id, identity
@@ -35,8 +42,6 @@ static inline struct shared_user_data *get_shared_data(void)
 {
 	return (struct shared_user_data*)shared_data_page;
 }
-
-#define COS_SYSCALL __attribute__((regparm(0)))
 
 /* 
  * This variable tracks the number of cycles that have elapsed since
@@ -248,20 +253,6 @@ err:
 	return;
 }
 
-static inline void
-copy_gp_regs(struct pt_regs *from, struct pt_regs *to)
-{
-#define COPY_REG(reg) to->reg = from->reg
-	COPY_REG(ax);
-	COPY_REG(bx);
-	COPY_REG(cx);
-	COPY_REG(dx);
-	COPY_REG(si);
-	COPY_REG(di);
-	COPY_REG(bp);
-#undef COPY_REG
-}
-
 static inline unsigned long
 user_regs_get_inv_ret(struct pt_regs *regs){
 	/* cx holds the return value on invocation return path. */
@@ -296,7 +287,7 @@ pop(struct pt_regs *regs)
 
 		return;
 	}
-	
+
 	curr_frame = thd_invstk_top(curr);
 	/* for now just assume we always close the server spd */
 	open_close_spd_ret(curr_frame->current_composite_spd);
@@ -3813,7 +3804,7 @@ int delay(int cycles) {
 #define CK_PR_LOAD_S(S, T, I) CK_PR_LOAD(S, T, T, T, I)
 
 //CK_PR_LOAD_S(uint, unsigned int, "movl")
-CK_PR_LOAD_S(int, int, "movl")
+//CK_PR_LOAD_S(int, int, "movl")
 
 
 #define CK_PR_STORE(S, M, T, C, I)				\
@@ -3882,228 +3873,228 @@ cos_syscall_async_cap_cntl(struct pt_regs *regs)
 	arg3 = arg_2;
 
 	switch(operation) {
-	case 9999: // QW: to remove
-	{
-		// this is used to measure the round trip IPI cost, which can help us to calibrate TSC between cores
-		ck_pr_store_int(&core_access[get_cpuid()], 1);
-		ipi_meas = 1;
-		cos_mem_fence();
+/* 	case 9999: // QW: to remove */
+/* 	{ */
+/* 		// this is used to measure the round trip IPI cost, which can help us to calibrate TSC between cores */
+/* 		ck_pr_store_int(&core_access[get_cpuid()], 1); */
+/* 		ipi_meas = 1; */
+/* 		cos_mem_fence(); */
 
-		while (ck_pr_load_int(&core_access[0]) == 0) ;
-		while (ck_pr_load_int(&core_access[arg3]) == 0) ;
+/* 		while (ck_pr_load_int(&core_access[0]) == 0) ; */
+/* 		while (ck_pr_load_int(&core_access[arg3]) == 0) ; */
 
-		sti();
+/* 		sti(); */
 
-		unsigned long long s0;
-		volatile unsigned long results[ITER];
-		int j;
-		//both cores get here.
-		if (get_cpuid() == 0) {
-			cpu = arg3;
+/* 		unsigned long long s0; */
+/* 		volatile unsigned long results[ITER]; */
+/* 		int j; */
+/* 		//both cores get here. */
+/* 		if (get_cpuid() == 0) { */
+/* 			cpu = arg3; */
 
-			for (j = 0; j < 10; j++) {
-				core0_e = 0;
-				cos_mem_fence();
+/* 			for (j = 0; j < 10; j++) { */
+/* 				core0_e = 0; */
+/* 				cos_mem_fence(); */
 
-				s0 = tsc_start();
-#ifdef USE_IPI
-				chal_send_ipi(cpu);
-#else
-				ck_pr_store_int(&corex_received, 1);
-				cos_mem_fence();
-#endif
-				while (ck_pr_load_int(&core0_received) == 0) {
-					unsigned long long e = tsc_start();
-					if (e - s0 > 1000000) {
-						printk("not receiving!!1\n");
-						ipi_meas = 0;
-						cos_mem_fence();
+/* 				s0 = tsc_start(); */
+/* #ifdef USE_IPI */
+/* 				chal_send_ipi(cpu); */
+/* #else */
+/* 				ck_pr_store_int(&corex_received, 1); */
+/* 				cos_mem_fence(); */
+/* #endif */
+/* 				while (ck_pr_load_int(&core0_received) == 0) { */
+/* 					unsigned long long e = tsc_start(); */
+/* 					if (e - s0 > 1000000) { */
+/* 						printk("not receiving!!1\n"); */
+/* 						ipi_meas = 0; */
+/* 						cos_mem_fence(); */
 
-						goto done;
-					}
-				}
-				core0_e = tsc_start();
-				ck_pr_store_int(&core0_received, 0);
+/* 						goto done; */
+/* 					} */
+/* 				} */
+/* 				core0_e = tsc_start(); */
+/* 				ck_pr_store_int(&core0_received, 0); */
 
-				results[j]= core0_e - s0;
-#ifdef USE_IPI
-				chal_send_ipi(cpu);
-#else
-				ck_pr_store_int(&corex_received, 1);
-				cos_mem_fence();
-#endif
-				cos_mem_fence();
-				delay(100000);
-			}
-			//warm up.
-			for (j = 0; j < ITER; j++) {
-				core0_e = 0;
-				cos_mem_fence();
+/* 				results[j]= core0_e - s0; */
+/* #ifdef USE_IPI */
+/* 				chal_send_ipi(cpu); */
+/* #else */
+/* 				ck_pr_store_int(&corex_received, 1); */
+/* 				cos_mem_fence(); */
+/* #endif */
+/* 				cos_mem_fence(); */
+/* 				delay(100000); */
+/* 			} */
+/* 			//warm up. */
+/* 			for (j = 0; j < ITER; j++) { */
+/* 				core0_e = 0; */
+/* 				cos_mem_fence(); */
 
-				s0 = tsc_start();
-#ifdef USE_IPI
-				chal_send_ipi(cpu);
-#else
-				ck_pr_store_int(&corex_received, 1);
-				cos_mem_fence();
-#endif
-				while (ck_pr_load_int(&core0_received) == 0) {
-					unsigned long long e = tsc_start();
-					if (e - s0 > 1000000) {
-						printk("not receiving!!2\n");
-						ipi_meas = 0;
-						cos_mem_fence();
+/* 				s0 = tsc_start(); */
+/* #ifdef USE_IPI */
+/* 				chal_send_ipi(cpu); */
+/* #else */
+/* 				ck_pr_store_int(&corex_received, 1); */
+/* 				cos_mem_fence(); */
+/* #endif */
+/* 				while (ck_pr_load_int(&core0_received) == 0) { */
+/* 					unsigned long long e = tsc_start(); */
+/* 					if (e - s0 > 1000000) { */
+/* 						printk("not receiving!!2\n"); */
+/* 						ipi_meas = 0; */
+/* 						cos_mem_fence(); */
 
-						goto done;
-					}
-				}
-				core0_e = tsc_start();
-				ck_pr_store_int(&core0_received, 0);
-				results[j]= core0_e - s0;
-#ifdef USE_IPI
-				chal_send_ipi(cpu);
-#else
-				ck_pr_store_int(&corex_received, 1);
-				cos_mem_fence();
-#endif
-				cos_mem_fence();
-				delay(100000);
-			}
+/* 						goto done; */
+/* 					} */
+/* 				} */
+/* 				core0_e = tsc_start(); */
+/* 				ck_pr_store_int(&core0_received, 0); */
+/* 				results[j]= core0_e - s0; */
+/* #ifdef USE_IPI */
+/* 				chal_send_ipi(cpu); */
+/* #else */
+/* 				ck_pr_store_int(&corex_received, 1); */
+/* 				cos_mem_fence(); */
+/* #endif */
+/* 				cos_mem_fence(); */
+/* 				delay(100000); */
+/* 			} */
 
-			unsigned long long sum = 0, max = 0, min = 9999999;
-			for (j = 0; j < ITER; j++) {
-				if (results[j] < min) min = results[j];
-				if (results[j] > max) max = results[j];
-				sum += results[j];
-			}
-//			printk("core 0 to %d, round trip avg %llu max-min %d\n", cpu, sum/ITER, max-min);
+/* 			unsigned long long sum = 0, max = 0, min = 9999999; */
+/* 			for (j = 0; j < ITER; j++) { */
+/* 				if (results[j] < min) min = results[j]; */
+/* 				if (results[j] > max) max = results[j]; */
+/* 				sum += results[j]; */
+/* 			} */
+/* //			printk("core 0 to %d, round trip avg %llu max-min %d\n", cpu, sum/ITER, max-min); */
 
-			cos_mem_fence();
-			ipi_meas = 0;
-			cos_mem_fence();
+/* 			cos_mem_fence(); */
+/* 			ipi_meas = 0; */
+/* 			cos_mem_fence(); */
 
-//			if (max - min > 150) ret = 9999;
-//			else ret = sum/ITER;
-			ret = sum/ITER;
+/* //			if (max - min > 150) ret = 9999; */
+/* //			else ret = sum/ITER; */
+/* 			ret = sum/ITER; */
 
-			while (corex_last == 0) {
-				cos_mem_fence();
-			}
+/* 			while (corex_last == 0) { */
+/* 				cos_mem_fence(); */
+/* 			} */
 			
-			int diff = (long long)corex_last - (long long)s0;
-			corex_last = 0;
-			cos_mem_fence();
+/* 			int diff = (long long)corex_last - (long long)s0; */
+/* 			corex_last = 0; */
+/* 			cos_mem_fence(); */
 
-//			printk("core 0 sees the diff %d, skew %d\n", diff, diff - ret/2);
-			ret = diff-ret/2;
-		} else {
-			int curr = get_cpuid();
-			cos_mem_fence();
+/* //			printk("core 0 sees the diff %d, skew %d\n", diff, diff - ret/2); */
+/* 			ret = diff-ret/2; */
+/* 		} else { */
+/* 			int curr = get_cpuid(); */
+/* 			cos_mem_fence(); */
 
-			for (j = 0; j < 10; j++) {
-				corex_e[curr] = 0;
-				cos_mem_fence();
+/* 			for (j = 0; j < 10; j++) { */
+/* 				corex_e[curr] = 0; */
+/* 				cos_mem_fence(); */
 
-				s0 = tsc_start();
-				while (ck_pr_load_int(&corex_received) == 0) {
-					unsigned long long e = tsc_start();
-					if (e - s0 > 1000000) {
-						printk("not receiving!!3\n");
-						ipi_meas = 0;
-						cos_mem_fence();
+/* 				s0 = tsc_start(); */
+/* 				while (ck_pr_load_int(&corex_received) == 0) { */
+/* 					unsigned long long e = tsc_start(); */
+/* 					if (e - s0 > 1000000) { */
+/* 						printk("not receiving!!3\n"); */
+/* 						ipi_meas = 0; */
+/* 						cos_mem_fence(); */
 
-						goto done;
-					}
-				}
-				corex_e[curr] = 0;
-				ck_pr_store_int(&corex_received, 0);
-				s0 = tsc_start();
-#ifdef USE_IPI
-				chal_send_ipi(0);
-#else
-				ck_pr_store_int(&core0_received, 1);
-				cos_mem_fence();
-#endif
+/* 						goto done; */
+/* 					} */
+/* 				} */
+/* 				corex_e[curr] = 0; */
+/* 				ck_pr_store_int(&corex_received, 0); */
+/* 				s0 = tsc_start(); */
+/* #ifdef USE_IPI */
+/* 				chal_send_ipi(0); */
+/* #else */
+/* 				ck_pr_store_int(&core0_received, 1); */
+/* 				cos_mem_fence(); */
+/* #endif */
 
-				while (ck_pr_load_int(&corex_received) == 0) {
-					unsigned long long e = tsc_start();
-					if (e - s0 > 1000000) {
-						printk("not receiving!!4\n");
-						ipi_meas = 0;
-						cos_mem_fence();
+/* 				while (ck_pr_load_int(&corex_received) == 0) { */
+/* 					unsigned long long e = tsc_start(); */
+/* 					if (e - s0 > 1000000) { */
+/* 						printk("not receiving!!4\n"); */
+/* 						ipi_meas = 0; */
+/* 						cos_mem_fence(); */
 
-						goto done;
-					}
-				}
-				corex_e[curr] = tsc_start();
-				ck_pr_store_int(&corex_received, 0);
+/* 						goto done; */
+/* 					} */
+/* 				} */
+/* 				corex_e[curr] = tsc_start(); */
+/* 				ck_pr_store_int(&corex_received, 0); */
 
-				results[j]= corex_e[curr] - s0;
-			}
-			//warm up
-			for (j = 0; j < ITER; j++) {
-				corex_e[curr] = 0;
-				cos_mem_fence();
+/* 				results[j]= corex_e[curr] - s0; */
+/* 			} */
+/* 			//warm up */
+/* 			for (j = 0; j < ITER; j++) { */
+/* 				corex_e[curr] = 0; */
+/* 				cos_mem_fence(); */
 
-				s0 = tsc_start();
-				while (ck_pr_load_int(&corex_received) == 0) {
-					unsigned long long e = tsc_start();
-					if (e - s0 > 1000000) {
-						printk("not receiving!!5\n");
-						ipi_meas = 0;
-						cos_mem_fence();
+/* 				s0 = tsc_start(); */
+/* 				while (ck_pr_load_int(&corex_received) == 0) { */
+/* 					unsigned long long e = tsc_start(); */
+/* 					if (e - s0 > 1000000) { */
+/* 						printk("not receiving!!5\n"); */
+/* 						ipi_meas = 0; */
+/* 						cos_mem_fence(); */
 
-						goto done;
-					}
-				}
+/* 						goto done; */
+/* 					} */
+/* 				} */
 
-				corex_e[curr] = 0;
-				ck_pr_store_int(&corex_received, 0);
-				s0 = tsc_start();
-#ifdef USE_IPI
-				chal_send_ipi(0);
-#else
-				ck_pr_store_int(&core0_received, 1);
-				cos_mem_fence();
-#endif
+/* 				corex_e[curr] = 0; */
+/* 				ck_pr_store_int(&corex_received, 0); */
+/* 				s0 = tsc_start(); */
+/* #ifdef USE_IPI */
+/* 				chal_send_ipi(0); */
+/* #else */
+/* 				ck_pr_store_int(&core0_received, 1); */
+/* 				cos_mem_fence(); */
+/* #endif */
 
-				while (ck_pr_load_int(&corex_received) == 0) {
-					unsigned long long e = tsc_start();
-					if (e - s0 > 1000000) {
-						printk("not receiving!!6\n");
-						ipi_meas = 0;
-						cos_mem_fence();
+/* 				while (ck_pr_load_int(&corex_received) == 0) { */
+/* 					unsigned long long e = tsc_start(); */
+/* 					if (e - s0 > 1000000) { */
+/* 						printk("not receiving!!6\n"); */
+/* 						ipi_meas = 0; */
+/* 						cos_mem_fence(); */
 
-						goto done;
-					}
-				}
-				corex_e[curr] = tsc_start();
-				ck_pr_store_int(&corex_received, 0);
+/* 						goto done; */
+/* 					} */
+/* 				} */
+/* 				corex_e[curr] = tsc_start(); */
+/* 				ck_pr_store_int(&corex_received, 0); */
 
-				results[j]= corex_e[curr] - s0;
-			}
-			corex_last = s0;
-			cos_mem_fence();
+/* 				results[j]= corex_e[curr] - s0; */
+/* 			} */
+/* 			corex_last = s0; */
+/* 			cos_mem_fence(); */
 
-			unsigned long long sum = 0, max = 0, min = 9999999;
-			for (j = 0; j < ITER; j++) {
-				if (results[j] < min) min = results[j];
-				if (results[j] > max) max = results[j];
-				sum += results[j];
-			}
-//			printk("core %d to 0, round trip avg %llu max-min %d\n", cpu, sum/ITER, max-min);
+/* 			unsigned long long sum = 0, max = 0, min = 9999999; */
+/* 			for (j = 0; j < ITER; j++) { */
+/* 				if (results[j] < min) min = results[j]; */
+/* 				if (results[j] > max) max = results[j]; */
+/* 				sum += results[j]; */
+/* 			} */
+/* //			printk("core %d to 0, round trip avg %llu max-min %d\n", cpu, sum/ITER, max-min); */
 
-//			if (max - min > 150) ret = 9999;
-//			else ret = sum/ITER;
-			ret = sum/ITER;
-		}
+/* //			if (max - min > 150) ret = 9999; */
+/* //			else ret = sum/ITER; */
+/* 			ret = sum/ITER; */
+/* 		} */
 
-		cli();
-		ck_pr_store_int(&core_access[get_cpuid()], 0);
-		cos_mem_fence();
+/* 		cli(); */
+/* 		ck_pr_store_int(&core_access[get_cpuid()], 0); */
+/* 		cos_mem_fence(); */
 
-		break;
-	}
+/* 		break; */
+/* 	} */
 	case COS_ACAP_CREATE:
 	{
 		/* This consolidates cli_create, srv_create and the wiring. */
@@ -4367,60 +4358,3 @@ void *cos_syscall_tbl[COS_MAX_NUM_SYSCALL] = {
 	(void*)cos_syscall_void
 };
  
-#define COS_INV_OFFSET ((1<<COS_CAPABILITY_OFFSET) - 1)
-
-static inline void
-fs_reg_setup(unsigned long seg) {
-	asm volatile ("movl %%ebx, %%fs\n\t"
-		      : : "b" (seg));
-}
-
-__attribute__((section("__ipc_entry"))) COS_SYSCALL int
-composite_sysenter_handler(struct pt_regs *regs)
-{
-	/* Composite entry takes pt_regs as input */
-	int ax, preempted = 0;
-/* We don't need to setup fs for invocation and return path. Only
- * enable this when doing printk (which requires fs) for debugging. */
-#define ENABLE_KERNEL_PRINT
-#ifdef ENABLE_KERNEL_PRINT
-	fs_reg_setup(__KERNEL_PERCPU);
-#endif
-	ax = user_regs_get_cap(regs);
-
-	/* IPC and return paths are performance critical. */
-	if (likely(ax > COS_INV_OFFSET)) {
-		/* IPC */
-		ipc_walk_static_cap(regs);
-	} else if (likely(ax == COS_INV_OFFSET)) {
-		/* IPC return */
-		pop(regs);
-	} else {
-		/* Non-IPC cases. */
-		if (ax >= 0) {
-			/* Composite syscall. All system calls take pt_regs as input.  */
-			int syscall_id;
-			COS_SYSCALL int (*cos_syscall)(struct pt_regs *);
-
-			fs_reg_setup(__KERNEL_PERCPU);
-
-			syscall_id = ax >> COS_SYSCALL_OFFSET;
-			assert(syscall_id < COS_MAX_NUM_SYSCALL);
-			cos_syscall = cos_syscall_tbl[syscall_id];
-
-			/* We may switch thread in syscalls (switch_thread and
-			 * ainv_receive). preempted is 1 when the target
-			 * thread was preempted. */
-			preempted = cos_syscall(regs);
-
-			fs_reg_setup(__USER_DS);
-		} else {
-			assert(ax < 0);
-			/* ax < 0: highest bit of ax is the flag for async cap for now. */
-			walk_async_cap(regs);
-		}
-	}
-
-	return preempted;
-}
-

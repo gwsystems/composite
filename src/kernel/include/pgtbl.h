@@ -28,7 +28,7 @@ enum {
 	PGTBL_GLOBAL       = 1<<8,
 	PGTBL_COSFRAME     = 1<<9,
 	PGTBL_USER_DEF     = PGTBL_PRESENT|PGTBL_USER|PGTBL_ACCESSED|
-	                     PGTBL_MODIFIED,
+	                     PGTBL_MODIFIED|PGTBL_WRITABLE,
 	PGTBL_INTERN_DEF   = PGTBL_PRESENT|PGTBL_WRITABLE|PGTBL_USER| 
 	                     PGTBL_ACCESSED|PGTBL_MODIFIED,
 };
@@ -189,10 +189,6 @@ static int
 pgtbl_check_pgd_absent(pgtbl_t pt, u32_t addr)
 { return __pgtbl_isnull(pgtbl_get_pgd(pt, (u32_t)addr), 0, 0); }
 
-/* 
- * FIXME: need to change this to _not_ add over an already non-null
- * entry.
- */
 static int
 pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {
@@ -256,7 +252,6 @@ pgtbl_mapping_extract(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 	
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & addr) == 0);
-	assert((PGTBL_FRAME_MASK & flags) == 0);
 
 	/* get the pte */
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
@@ -264,10 +259,11 @@ pgtbl_mapping_extract(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 	if (unlikely(__pgtbl_isnull(pte, 0, 0))) return -ENOENT;
 
 	orig_v = (u32_t)(pte->next);
-	*kern_addr = (unsigned long)chal_pa2va(orig_v & PGTBL_FRAME_MASK);
+	*kern_addr = (unsigned long)chal_pa2va((void *)(orig_v & PGTBL_FRAME_MASK));
+
 	if (unlikely(!*kern_addr)) return -EINVAL; /* cannot retype a non-kernel accessible page */
-	if (unlikely(!(accum & PGTBL_COSFRAME))) return -EINVAL; /* can't retype non-frames */
-	if (unlikely(!cos_cas((unsigned long *)pte, orig_v, 0))); return -1; /* FIXME: error code for write conflicts */
+	if (unlikely(!(orig_v & PGTBL_COSFRAME))) return -EINVAL; /* can't retype non-frames */
+	if (unlikely(!cos_cas((unsigned long *)pte, orig_v, 0))) return -1; /* FIXME: error code for write conflicts */
 
 	return 0;
 }
@@ -308,15 +304,52 @@ pgtbl_lookup(pgtbl_t pt, u32_t addr, u32_t *flags)
 }
 
 extern unsigned long __cr3_contents;
+
+// this helps debugging.
+#define UPDATE_LINUX_MM_STRUCT
+
+/* If Composite is running at the highest priority, then we don't need
+ * to touch the mm_struct. Also, don't set this when we want return to
+ * Linux on idle.*/
+#ifndef LINUX_HIGHEST_PRIORITY
+#undef UPDATE_LINUX_MM_STRUCT
+#define UPDATE_LINUX_MM_STRUCT
+#endif
+#ifdef LINUX_ON_IDLE
+#undef UPDATE_LINUX_MM_STRUCT
+#define UPDATE_LINUX_MM_STRUCT
+#endif
+
 static void pgtbl_update(pgtbl_t pt)
-{ __cr3_contents = (unsigned long)pt; }
+{ 
+#ifndef LINUX_TEST
+
+#ifdef UPDATE_LINUX_MM_STRUCT
+	chal_pgtbl_switch((paddr_t)pt);
+#else
+	native_write_cr3(pt);
+#endif
+
+#else
+	__cr3_contents = (unsigned long)pt; 
+#endif
+}
 
 /* vaddr -> kaddr */
 static vaddr_t 
 pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
 { return (vaddr_t)pgtbl_lkup(pt, addr, flags); }
 
-static pgtbl_t pgtbl_create(void *page) { return pgtbl_alloc(page); }
+#define KERNEL_PGD_REGION_OFFSET  (PAGE_SIZE - PAGE_SIZE/4)
+#define KERNEL_PGD_REGION_SIZE    (PAGE_SIZE/4)
+
+static pgtbl_t pgtbl_create(void *page, void *curr_pgtbl) {
+	pgtbl_t ret = pgtbl_alloc(page); 
+	/* Copying the kernel part of the pgd. */
+	memcpy(page + KERNEL_PGD_REGION_OFFSET, (void *)chal_pa2va(curr_pgtbl) + KERNEL_PGD_REGION_OFFSET, KERNEL_PGD_REGION_SIZE);
+
+	return ret;
+}
 int pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
 int pgtbl_deactivate(struct captbl *t, unsigned long cap, unsigned long capin);
 static void pgtbl_init(void) { return; }

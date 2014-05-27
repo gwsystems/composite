@@ -8,7 +8,12 @@
 #ifndef INV_H
 #define INV_H
 
+#ifdef LINUX_TEST
+#include <stdio.h>
+#endif
+
 #include "component.h"
+#include "thd.h"
 #include "call_convention.h"
 
 /* Note: h.poly is the u16_t that is passed up to the component as spdid (in the current code) */
@@ -25,8 +30,8 @@ struct cap_sret {
 
 struct cap_asnd {
 	struct cap_header h;
-	u32_t cpuid;
-	u32_t arcv_cpuid, arcv_capid, arcv_epoch; /* identify reciever */
+	cpuid_t cpuid, arcv_cpuid; /* may not need cpuid */
+	u32_t arcv_capid, arcv_epoch; /* identify receiver */
 	struct comp_info comp_info;
 
 	/* deferrable server to rate-limit IPIs */
@@ -37,32 +42,11 @@ struct cap_asnd {
 struct cap_arcv {
 	struct cap_header h;
 	struct comp_info comp_info;
-	u32_t pending, cpuid, epoch;
+	u32_t pending, epoch;
 	u32_t thd_epoch;
+	cpuid_t cpuid;
 	struct thread *thd;
 } __attribute__((packed));
-
-typedef enum {
-	CAPTBL_OP_CPY,
-	CAPTBL_OP_CONS,
-	CAPTBL_OP_DECONS,
-	CAPTBL_OP_THDACTIVATE,
-	CAPTBL_OP_THDDEACTIVATE,
-	CAPTBL_OP_COMPACTIVATE,
-	CAPTBL_OP_COMPDEACTIVATE,
-	CAPTBL_OP_SINVACTIVATE,
-	CAPTBL_OP_SINVDEACTIVATE,
-	CAPTBL_OP_SRETACTIVATE,
-	CAPTBL_OP_SRETDEACTIVATE,
-	CAPTBL_OP_ASNDACTIVATE,
-	CAPTBL_OP_ASNDDEACTIVATE,
-	CAPTBL_OP_ARCVACTIVATE,
-	CAPTBL_OP_ARCVDEACTIVATE,
-	CAPTBL_OP_MAPPING_CONS,
-	CAPTBL_OP_MAPPING_DECONS,
-	CAPTBL_OP_MAPPING_MOD,
-	CAPTBL_OP_MAPPING_RETYPE,
-} syscall_op_t;
 
 static int 
 sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, vaddr_t entry_addr)
@@ -103,18 +87,23 @@ static int sret_deactivate(struct captbl *t, capid_t cap, capid_t capin)
 { return cap_capdeactivate(t, cap, capin, CAP_SRET); }
 
 static int
-asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_cap, u32_t budget, u32_t period)
+asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, capid_t rcv_cap, u32_t budget, u32_t period)
 {
+	struct cap_captbl *rcv_ct;
 	struct cap_asnd *asndc;
 	struct cap_arcv *arcvc;
 	int ret;
 
-	arcvc = (struct cap_arcv *)captbl_lkup(t, rcv_cap);
+	rcv_ct = (struct cap_captbl *)captbl_lkup(t, rcv_captbl);
+	if (unlikely(!rcv_ct || rcv_ct->h.type != CAP_CAPTBL)) return -EINVAL;
+
+	arcvc = (struct cap_arcv *)captbl_lkup(rcv_ct->captbl, rcv_cap);
 	if (unlikely(!arcvc || arcvc->h.type != CAP_ARCV)) return -EINVAL;
 	
 	asndc = (struct cap_asnd *)__cap_capactivate_pre(t, cap, capin, CAP_ASND, &ret);
 	if (!asndc) return ret;
 	memcpy(&asndc->comp_info, &arcvc->comp_info, sizeof(struct comp_info));
+	asndc->cpuid          = get_cpuid();
 	asndc->arcv_epoch     = arcvc->epoch;
 	asndc->arcv_cpuid     = arcvc->cpuid;
 	asndc->arcv_capid     = rcv_cap;
@@ -140,17 +129,23 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 
 	compc = (struct cap_comp *)captbl_lkup(t, comp_cap);
 	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
+
 	thdc = (struct cap_thd *)captbl_lkup(t, thd_cap);
 	if (unlikely(!thdc || thdc->h.type != CAP_THD)) return -EINVAL;
-	if (thdc->cpuid != get_cpuid()) return -EINVAL;
+	/* if (thdc->cpuid != get_cpuid()) return -EINVAL; */
 
 	arcvc = (struct cap_arcv *)__cap_capactivate_pre(t, cap, capin, CAP_ARCV, &ret);
 	if (!arcvc) return ret;
+
 	memcpy(&arcvc->comp_info, &compc->info, sizeof(struct comp_info));
-	arcvc->pending = 0;
-	arcvc->cpuid   = get_cpuid();
-	arcvc->epoch   = 0; 	  /* FIXME: get the real epoch */
-	arcvc->thd     = thdc->t; /* FIXME: do reference counting for the thread here */
+
+	arcvc->pending   = 0;
+	arcvc->cpuid     = thdc->t->cpuid;
+	arcvc->epoch     = 0; 	  /* FIXME: get the real epoch */
+	arcvc->thd       = thdc->t; /* FIXME: do reference counting for the thread here */
+	arcvc->thd_epoch = 0; 	  /* FIXME: get the real epoch */
+
+	thdc->t->flags |=  THD_STATE_ACTIVE_UPCALL;
 	__cap_capactivate_post(&arcvc->h, CAP_ARCV, 0);
 	
 	return 0;
@@ -171,40 +166,58 @@ static int arcv_deactivate(struct captbl *t, capid_t cap, capid_t capin)
  */
 
 static inline void
-sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs)
+sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, struct cos_cpu_local_info *cos_info)
 {
 	unsigned long ip, sp;
 
 	ip = __userregs_getip(regs);
 	sp = __userregs_getsp(regs);
-	/* FIXME: check liveness */
-	if (unlikely(thd_invstk_push(thd, &sinvc->comp_info, ip, sp))) {
+
+	if (unlikely(!ltbl_isalive(&(sinvc->comp_info.liveness)))) {
+		printk("cos: sinv comp (liveness %d) doesn't exist!\n", sinvc->comp_info.liveness.id);
+		//FIXME: add fault handling here.
+		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
+		return;
+	}
+
+	if (unlikely(thd_invstk_push(thd, &sinvc->comp_info, ip, sp, cos_info))) {
 		__userregs_set(regs, -1, sp, ip);
 		return;
 	}
+
 	pgtbl_update(sinvc->comp_info.pgtbl);
+
 	__userregs_sinvupdate(regs);
-	__userregs_set(regs, thd->tid | 0/*(get_cpuid_fast() << 16)*/, 
+	__userregs_set(regs, thd->tid | (get_cpuid_fast() << 16),
 		       sinvc->h.poly /* calling component id */, sinvc->entry_addr);
+
+	return;
 }
 
 static inline void
-sret_ret(struct thread *thd, struct pt_regs *regs)
+sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *cos_info)
 {
 	struct comp_info *ci;
 	unsigned long ip, sp;
-	
-	ci = thd_invstk_pop(thd, &ip, &sp);
+
+	ci = thd_invstk_pop(thd, &ip, &sp, cos_info);
 	if (unlikely(!ci)) {
 		__userregs_set(regs, 0xDEADDEAD, 0, 0);
 		return;
 	}
-	/* FIXME: check liveness */
+
+	if (unlikely(!ltbl_isalive(&ci->liveness))) {
+		printk("cos: ret comp (liveness %d) doesn't exist!\n", ci->liveness.id);
+		//FIXME: add fault handling here.
+		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
+		return;
+	}
+
 	pgtbl_update(ci->pgtbl);
 	__userregs_set(regs, __userregs_getinvret(regs), sp, ip);
 }
 
-void inv_init(void)
+static void inv_init(void)
 { 
 	assert(sizeof(struct cap_sinv) <= __captbl_cap2bytes(CAP_SINV)); 
 	assert(sizeof(struct cap_asnd) <= __captbl_cap2bytes(CAP_ASND)); 

@@ -11,11 +11,10 @@
 #ifndef CAPTBL_H
 #define CAPTBL_H
 
-//#include <errno.h>
+#include "shared/cos_types.h"
 #include "ertrie.h"
-#ifndef PAGE_SIZE
-#define PAGE_SIZE 4096
-#endif
+#include "shared/util.h"
+
 #ifndef CACHELINE_SIZE
 #define CACHELINE_SIZE  64
 #define CACHELINE_ORDER 6
@@ -31,53 +30,6 @@
 #undef CAP_FREE
 #endif
 
-typedef enum {
-	CAP_FREE = 0,
-	CAP_SINV,		/* synchronous communication -- invoke */
-	CAP_SRET,		/* synchronous communication -- return */
-	CAP_ASND,		/* async communication; sender */
-	CAP_ARCV,               /* async communication; receiver */
-	CAP_THD,                /* thread */
-	CAP_COMP,               /* component */
-	CAP_CAPTBL,             /* capability table */
-	CAP_PGTBL,              /* page-table */
-	CAP_FRAME, 		/* untyped frame within a page-table */
-	CAP_VM, 		/* mapped virtual memory within a page-table */
-} cap_t;
-
-typedef unsigned long capid_t;
-
-/* 
- * The values in this enum are the order of the size of the
- * capabilities in this cacheline, offset by CAP_SZ_OFF (to compress
- * memory).
- */
-typedef enum {
-	CAP_SZ_16B = 0,
-	CAP_SZ_32B = 1,
-	CAP_SZ_64B = 2,
-	CAP_SZ_ERR = 3,
-} cap_sz_t;
-/* the shift offset for the *_SZ_* values */
-#define	CAP_SZ_OFF   4 
-/* The allowed amap bits of each size */
-#define	CAP_MASK_16B ((1<<4)-1)
-#define	CAP_MASK_32B (1 | (1<<2))
-#define	CAP_MASK_64B 1
-
-/* a function instead of a struct to enable inlining + constant prop */
-static inline cap_sz_t
-__captbl_cap2sz(cap_t c)
-{
-	/* TODO: optimize for invocation and return */
-	switch (c) {
-	case CAP_CAPTBL: case CAP_THD:   
-	case CAP_PGTBL:  case CAP_SRET: return CAP_SZ_16B;
-	case CAP_SINV:   case CAP_COMP: return CAP_SZ_32B;
-	case CAP_ASND:   case CAP_ARCV: return CAP_SZ_64B;
-	default:                        return CAP_SZ_ERR;
-	}
-}
 static inline unsigned long __captbl_cap2bytes(cap_t c)
 { return 1<<(__captbl_cap2sz(c)+CAP_SZ_OFF); }
 
@@ -125,9 +77,12 @@ struct cap_captbl {
 static void *
 __captbl_allocfn(void *d, int sz, int last_lvl)
 {
-	(void)last_lvl;
 	void **mem = d; 	/* really a pointer to a pointer */
 	void *m    = *mem;
+
+	/* dewarn */
+	(void)last_lvl;
+
 	assert(sz <= PAGE_SIZE/2);
 	*mem = NULL;		/* NULL so we don't do mult allocs */
 
@@ -168,10 +123,13 @@ captbl_init(void *node, int leaf)
 static inline CFORCEINLINE void *
 __captbl_getleaf(struct ert_intern *a, void *accum)
 {
-	(void)accum;
 	unsigned long off, mask;
 	struct cap_header *h = (struct cap_header *)CT_MSK(a, CACHELINE_ORDER);
 	struct cap_header *c = (struct cap_header *)CT_MSK(a, h->size + CAP_SZ_OFF);
+
+	/* dewarn */
+	(void)accum;
+
 	/* 
 	 * We could do error checking here to make sure that a == c,
 	 * if we didn't want to avoid the extra branches:
@@ -238,7 +196,11 @@ static inline struct cap_header *captbl_lkup(struct captbl *t, capid_t cap)
 
 static inline int
 __captbl_store(unsigned long *addr, unsigned long new, unsigned long old)
-{ if (*addr != old) return -1; *addr = new; return 0; }
+{ 
+	if (!cos_cas(addr, old, new)) return -1;
+
+	return 0; 
+}
 #define CTSTORE(a, n, o) __captbl_store((unsigned long *)a, *(unsigned long *)n, *(unsigned long *)o)
 #define cos_throw(label, errno) { ret = (errno); goto label; }
 
@@ -277,11 +239,13 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 	 * in step 3 of the protocol for setting capabilities, not 1 */
 	if (p == h) l.type = type;
 	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
+
 	/* FIXME: same as above */
 	if (p != h) p->type = type;
-	
+
 	assert(p == __captbl_lkupan(t, cap, CAPTBL_DEPTH+1, NULL));
 	*retval = ret;
+
 	return p;
 err:
 	*retval = ret;
@@ -297,9 +261,10 @@ captbl_del(struct captbl *t, capid_t cap, cap_t type)
 
 	if (unlikely(cap >= __captbl_maxid())) cos_throw(err, -EINVAL);
 	p = __captbl_lkupan(t, cap, CAPTBL_DEPTH, NULL); 
+
 	if (unlikely(!p)) cos_throw(err, -EPERM);
 	if (p != __captbl_getleaf((void*)p, NULL)) cos_throw(err, -EINVAL);
-	if (p->type == type) cos_throw(err, -EINVAL);
+	if (p->type != type) cos_throw(err, -EINVAL);
 
 	h   = (struct cap_header *)CT_MSK(p, CACHELINE_ORDER);
 	off = (struct cap_min*)p - (struct cap_min*)h;

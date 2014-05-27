@@ -17,95 +17,14 @@
 
 #include <linux/kernel.h>
 
-/* 
- * There are 4 thread descriptors per page: the thread_t is 16 bytes,
- * each stack frame is the same, and we define MAX_SERVICE_DEPTH to be
- * 31, making a total of 512 bytes.  We then reserve 512 bytes for
- * kernel stack usage.
- */
+/* Thread header file for new kernel. */
+#include "thd.h"
 
 /*
 #if (PAGE_SIZE % THREAD_SIZE != 0)
 #error "Page size must be multiple of thread size."
 #endif
 */
-
-struct thd_invocation_frame {
-	struct spd_poly *current_composite_spd;
-	/*
-	 * sp and ip are literally the sp and ip that the kernel sets
-	 * on return to user-level.
-	 */
-	struct spd *spd;
-	vaddr_t sp, ip;
-}; //HALF_CACHE_ALIGNED;
-
-/* 
- * The scheduler at a specific hierarchical depth and the shared data
- * structure between it and this thread.
- */
-struct thd_sched_info {
-	struct spd *scheduler;
-	struct cos_sched_events *thread_notifications;
-	int notification_offset;
-};
-
-#define THD_STATE_PREEMPTED     0x1   /* Complete register info is saved in regs */
-#define THD_STATE_UPCALL        0x2   /* Thread for upcalls: ->srv_acap points to the acap who we're linked to */
-#define THD_STATE_ACTIVE_UPCALL 0x4   /* Thread is in upcall execution. */
-#define THD_STATE_READY_UPCALL  0x8   /* Same as previous, but we are ready to execute */ 
-#define THD_STATE_SCHED_RETURN  0x10  /* When the sched switches to this thread, ret from ipc */
-#define THD_STATE_FAULT         0x20  /* Thread has had a (e.g. page) fault which is being serviced */
-#define THD_STATE_HW_ACAP      0x40 /* Actual hardware should be making this acap */
-#define THD_STATE_CYC_CNT       0x80 /* This thread is being cycle tracked */
-
-/**
- * The thread descriptor.  Contains all information pertaining to a
- * thread including its address space, capabilities to services, and
- * the kernel invocation stack of execution through components.  
- */
-struct thread {
-	short int stack_ptr;
-	unsigned short int thread_id, cpu_id, flags;
-
-	/* 
-	 * Watch your alignments here!!!
-	 *
-	 * changes in the alignment of this struct must also be
-	 * reflected in the alignment of regs in struct thread in
-	 * ipc.S.  Would love to put this at the bottom of the struct.
-	 * TODO: use offsetof to produce an include file at build time
-	 * to automtically generate the assembly offsets.
-	 */
-        struct pt_regs regs;
-        struct cos_fpu fpu;
-
-	/* the first frame describes the threads protection domain */
-	struct thd_invocation_frame stack_base[MAX_SERVICE_DEPTH] HALF_CACHE_ALIGNED;
-	struct pt_regs fault_regs;
-
-	void *data_region;
-	vaddr_t ul_data_page;
-
-	struct thd_sched_info sched_info[MAX_SCHED_HIER_DEPTH] CACHE_ALIGNED; 
-
-	/* Start Upcall fields: */
-
-	/* flags & THD_STATE_UPCALL */
-	struct thread *interrupted_thread, *preempter_thread;
-
-	unsigned long pending_upcall_requests;
-
-	/* End Upcall fields */
-
-	int cpu; /* set during creation */
-	struct async_cap *srv_acap; /* The current acap the thread is waiting on. */
-
-	/* flags & THD_STATE_UPCALL != 0: */
-	//struct thread *upcall_thread_ready, *upcall_thread_active;
-
-	struct thread *freelist_next;
-} CACHE_ALIGNED;
 
 struct thread *thd_alloc(struct spd *spd);
 void thd_free(struct thread *thd);

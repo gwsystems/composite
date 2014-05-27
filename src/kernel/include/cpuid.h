@@ -20,6 +20,10 @@ struct cos_cpu_local_info {
 	/* info saved in kernel stack for fast access. */
 	unsigned long cpuid;
 	void *curr_thd;
+	/* cache the stk_top index to save a cacheline access on
+	 * inv/ret. Could use a struct here if need to cache multiple
+	 * things. (e.g. captbl, etc) */
+	int invstk_top;
 	unsigned long epoch;
 	/***********************************************/
 	/* Since this struct resides at the lowest address of the
@@ -37,13 +41,24 @@ get_linux_thread_info(void)
 	return (void *)(curr_stk_pointer & LINUX_INFO_PAGE_MASK);
 }
 
+#ifndef LINUX_TEST
 static inline struct cos_cpu_local_info *
 cos_cpu_local_info(void)
 {
 	return (struct cos_cpu_local_info *)(get_linux_thread_info() + LINUX_THREAD_INFO_RESERVE);
 }
+#else
 
-static inline unsigned int
+//LINUX user space test case. 
+struct cos_cpu_local_info local_info;
+static inline struct cos_cpu_local_info *
+cos_cpu_local_info(void)
+{
+	return &local_info;
+}
+#endif
+
+static inline int
 get_cpuid(void)
 {
 	/* Here, we get cpuid info from linux structure instead of Cos

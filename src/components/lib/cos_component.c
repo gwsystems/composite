@@ -87,9 +87,10 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	/* New thread creation method passes in this type. */
 	{
 		/* A new thread is created in this comp. */
+
+		/* arg1 is the thread init data. 0 means
+		 * bootstrap. */
 		if (arg1 == 0) {
-			/* arg1 is the thread init data. 0 means
-			 * bootstrap. */
 			cos_init(NULL);
 		} else {
 			u32_t idx = (int)arg1 - 1;

@@ -63,6 +63,7 @@
 #include "../../../kernel/include/cap_ops.h"
 #include "../../../kernel/include/component.h"
 #include "../../../kernel/include/inv.h"
+#include "../../../kernel/include/thd.h"
 
 #include "./kconfig_checks.h"
 
@@ -610,73 +611,137 @@ static void hw_reset(void *data)
 	hw_int_reset(get_cpu_var(x86_tss));
 }
 
-u8_t boot_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
-u8_t boot_comp_pgd[PAGE_SIZE]    PAGE_ALIGNED;
-u8_t boot_comp_pte_vm[PAGE_SIZE] PAGE_ALIGNED;
-u8_t boot_comp_pte_pm[PAGE_SIZE] PAGE_ALIGNED;
+#define THD_SIZE (PAGE_SIZE/4)
 
-unsigned long sys_maxmem      = 1<<10; /* 4M of physical memory (2^10 pages) */
-unsigned long sys_llbooter_sz = 10;    /* how many pages is the llbooter? */
+u8_t init_thds[THD_SIZE * NUM_CPU_COS] PAGE_ALIGNED;
+/* Need 2 pages for llboot captbl. */
+u8_t boot_comp_captbl[PAGE_SIZE*2] PAGE_ALIGNED; 
+u8_t c0_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 
-enum {
-	BOOT_CAPTBL_SRET = 0, 
-	BOOT_CAPTBL_SELF_CT = 1, 
-	BOOT_CAPTBL_SELF_PT = 2, 
-	BOOT_CAPTBL_SELF_COMP = 4, 
-	BOOT_CAPTBL_BOOTVM_PTE = 8, 
-	BOOT_CAPTBL_PHYSM_PTE = 9, 
-};
+u8_t *boot_comp_pgd;
+u8_t *boot_comp_pte_vm;
+u8_t *boot_comp_pte_km;
+u8_t *boot_comp_pte_pm;
 
-enum {
-	BOOT_MEM_VM_BASE = 1<<22,
-	BOOT_MEM_PM_BASE = 1<<30,
-};
+unsigned long sys_maxmem = 1<<10; /* 4M of physical memory (2^10 pages) */
+
+static void *cos_kmem, *cos_kmem_base;
+void *linux_pgd;
+vaddr_t boot_sinv_entry;
+unsigned long sys_llbooter_sz;    /* how many pages is the llbooter? */
+
+struct thread *__thd_current;
+
+struct captbl *boot_captbl;
+
+/* We need global thread name space as we use thd_id to access simple
+ * stack. When we have low-level per comp stack free-list, we don't
+ * have to use global thread id name space.*/
+u32_t free_thd_id = 1;
 
 static int
-kern_boot_comp(void)
+kern_boot_comp(struct spd_info *spd_info)
 {
 	int ret;
-	struct captbl *ct;
-	pgtbl_t pt;
+	struct captbl *ct, *ct0;
+	pgtbl_t pt, pt0;
 	unsigned int i;
 
 	ct = captbl_create(boot_comp_captbl);
 	assert(ct);
-	pt = pgtbl_create(boot_comp_pgd);
+	/* expand the captbl to use 2 pages. */
+	captbl_init(boot_comp_captbl + PAGE_SIZE, 1);
+	ret = captbl_expand(ct, PAGE_SIZE/2/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE);
+	assert(!ret);
+	captbl_init(boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2, 1);
+	ret = captbl_expand(ct, PAGE_SIZE/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2);
+	assert(!ret);
+
+	boot_captbl = ct;
+
+	boot_comp_pgd = cos_kmem_base;
+	boot_comp_pte_vm = cos_kmem_base + PAGE_SIZE;
+	boot_comp_pte_pm = cos_kmem_base + 2 * PAGE_SIZE;
+	boot_comp_pte_km = cos_kmem_base + 3 * PAGE_SIZE;
+
+	cos_kmem += 4*PAGE_SIZE;
+
+	pt = pgtbl_create(boot_comp_pgd, chal_va2pa(linux_pgd));
+
+//	printk("pt %x, our pgd %x (%x), pte %x (%x)\n", pt, boot_comp_pgd, __pa(boot_comp_pgd), boot_comp_pte_vm, __pa(boot_comp_pte_vm));
 	assert(pt);
 	pgtbl_init_pte(boot_comp_pte_vm);
 	pgtbl_init_pte(boot_comp_pte_pm);
+	pgtbl_init_pte(boot_comp_pte_km);
 
 	if (captbl_activate_boot(ct, BOOT_CAPTBL_SELF_CT)) cos_throw(err, -1);
 	if (sret_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SRET)) cos_throw(err, -1);
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, pt, 0)) cos_throw(err, -1);
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_BOOTVM_PTE, (pgtbl_t)boot_comp_pte_vm, 1)) cos_throw(err, -1);
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_KM_PTE, (pgtbl_t)boot_comp_pte_km, 1)) cos_throw(err, -1);
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_PHYSM_PTE, (pgtbl_t)boot_comp_pte_pm, 1)) cos_throw(err, -1);
-	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, 
-			  BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0, 0x37337, NULL)) cos_throw(err, -1);
 
 	/* construct the page tables */
 	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, BOOT_MEM_VM_BASE)) cos_throw(err, -1);
+	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_KM_PTE, BOOT_MEM_KM_BASE)) cos_throw(err, -1);
 	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_PHYSM_PTE, BOOT_MEM_PM_BASE)) cos_throw(err, -1);
 
-	/* add the component's virtual memory at 4MB (1<<22) using "physical memory" starting at 0xADEAD000 */
-	for (i = 0 ; i < sys_llbooter_sz ; i++) {
-		u32_t addr = 0xADEAD000 + i*PAGE_SIZE;
+	sys_llbooter_sz = spd_info->mem_size / PAGE_SIZE;
+	if (spd_info->mem_size % PAGE_SIZE) sys_llbooter_sz++;
+	/* add the component's virtual memory at 4MB (1<<22) using "physical memory" starting at cos_kmem */
+	for (i = 0 ; i < sys_llbooter_sz; i++) {
+		u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
 		u32_t flags;
 		if (cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
 				    BOOT_MEM_VM_BASE + i*PAGE_SIZE, 
 				    addr, PGTBL_USER_DEF)) cos_throw(err, -1);
-		assert(chal_pa2va(addr) == (u32_t)pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
+		assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
 	}
-	/* add the system's physical memory at address 1GB */
+	cos_kmem += sys_llbooter_sz*PAGE_SIZE;
+
+	/* add the remaining kernel memory @ 1.5GB*/
+	/* printk("mapping from kmem %x\n", cos_kmem); */
+	for (i = 0; i < (COS_KERNEL_MEMORY - (cos_kmem - cos_kmem_base)/PAGE_SIZE); i++) {
+		u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
+		u32_t flags;
+		if (cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
+				    BOOT_MEM_KM_BASE + i*PAGE_SIZE, 
+				    addr, PGTBL_COSFRAME | PGTBL_USER_DEF)) cos_throw(err, -1); /* FIXME: shouldn't be accessible */
+		assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_KM_BASE+i*PAGE_SIZE, &flags));
+	}
+
+	/* add the system's physical memory at address 2GB */
 	for (i = 0 ; i < sys_maxmem ; i++) {
 		u32_t addr = COS_MEM_START + i*PAGE_SIZE;
 		u32_t flags;
+		
+		/* Make the memory accessible so we can populate memory without retyping. */
 		if (cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
 				    BOOT_MEM_PM_BASE + i*PAGE_SIZE, 
-				    addr, PGTBL_COSFRAME)) cos_throw(err, -1);
-		assert(chal_pa2va(addr) == (u32_t)pgtbl_lkup(pt, BOOT_MEM_PM_BASE+i*PAGE_SIZE, &flags));
+				    addr, PGTBL_COSFRAME | PGTBL_USER_DEF)) cos_throw(err, -1);
+		assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_PM_BASE+i*PAGE_SIZE, &flags));
 	}
+
+	/* comp0's data, culminated in a static invocation capability to the llbooter */
+	ct0 = captbl_create(c0_comp_captbl);
+	assert(ct0);
+	if (captbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_CT, ct0, 0)) cos_throw(err, -1);
+	pt0 = chal_va2pa(current->mm->pgd);
+	assert(pt0);
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_PT, pt0, 0)) cos_throw(err, -1);
+
+	assert(spd_info->upcall_entry);
+	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, 
+			  BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, 0, spd_info->upcall_entry, NULL)) cos_throw(err, -1);
+	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_COMP, 
+			  BOOT_CAPTBL_COMP0_CT, BOOT_CAPTBL_COMP0_PT, 0, 0, NULL)) cos_throw(err, -1);
+	/* 
+	 * Only capability for the comp0 is 2: the synchronous
+	 * invocation capability.  
+	 */
+	assert(boot_sinv_entry);
+	if (sinv_activate(ct, BOOT_CAPTBL_COMP0_CT, 2, BOOT_CAPTBL_SELF_COMP, boot_sinv_entry)) cos_throw(err, -1);
+
 	return 0;
 err:
 	printk("Activating data-structure failed.\n");
@@ -688,14 +753,73 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	int ret = 0;
 
 	switch(cmd) {
+	case AED_INIT_BOOT_THD:
+	{
+		u64_t s,e;
+		struct thread *thd = (struct thread *)(init_thds + get_cpuid()*THD_SIZE);
+		assert(get_cpuid() < NUM_CPU_COS);
+
+		cos_kern_stk_init();
+		save_per_core_cos_thd();
+
+		/* 
+		 * Create a thread in comp0.
+		 */
+		rdtscll(s);
+		while (thd_activate(boot_captbl, BOOT_CAPTBL_SELF_CT, 
+				    BOOT_CAPTBL_SELF_INITTHD_BASE + get_cpuid(), 
+				    thd, BOOT_CAPTBL_COMP0_COMP, 0)) {
+			/* CAS could fail on init. */
+			rdtscll(e);
+			if ((e-s) > (1<<30)) return -EFAULT;
+		}
+		thd_current_update(thd, thd, cos_cpu_local_info());
+
+		/* Comp0 has only 1 pgtbl, which points to the process
+		 * of the init core. Here we update the inv_stk of the
+		 * init thread of current core. */
+		thd->invstk[0].comp_info.pgtbl = chal_va2pa(current->mm->pgd);
+
+		hw_int_override_all();
+
+		return 0;
+	}
 	case AED_INIT_BOOT:
 	{
+		struct spd_info spd_info;
+		int i;
+		char *mem;
+
+		if (copy_from_user(&spd_info, (void*)arg, 
+				   sizeof(struct spd_info))) {
+			printk("cos: Error copying spd_info from user.\n");
+			return -EFAULT;
+		}
+		linux_pgd = current->mm->pgd;
+
 		cap_init();
 		ltbl_init();
 		comp_init();
 		thd_init();
 		inv_init();
-		if (kern_boot_comp()) return -1;
+
+		if (kern_boot_comp(&spd_info)) return -1;
+
+		assert(cos_kmem);
+		if (copy_from_user(cos_kmem - sys_llbooter_sz*PAGE_SIZE, (void*)spd_info.lowest_addr, spd_info.mem_size)) {
+			printk("cos: Error copying spd_info from user.\n");
+			return -EFAULT;
+		}
+
+		/* sanity check */
+		mem = __va(*((u32_t *)(boot_comp_pte_vm)));
+
+		mem = (char *)((u32_t)mem & ~(PAGE_SIZE-1));
+		//printk("kmem %x pa %x, start mem %x\n", cos_kmem, __pa(cos_kmem), mem);
+		for (i = 0; i < spd_info.mem_size; i++) {
+			if (*(mem + i) != *((char*)(spd_info.lowest_addr) + i))
+				printk("Mismatch: %d: %x %x\n", i, *(mem + i), *((char*)(spd_info.lowest_addr) + i));
+		}
 
 		return 0;
 	}
@@ -768,7 +892,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			assert(spd == virtual_namespace_query(spd_info.lowest_addr+PAGE_SIZE));
 
 			copy_pgd_range(mm, current->mm, spd_info.lowest_addr, spd_info.size);
-			copy_pgd_range(mm, current->mm, COS_INFO_REGION_ADDR, PGD_RANGE);
 
 			cspd = spd_alloc_mpd();
 			if (!cspd) {
@@ -821,6 +944,14 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		cap_no = spd_add_static_cap_extended(owner, dest, cap_info.rel_offset, 
 						     cap_info.ST_serv_entry, cap_info.AT_cli_stub, cap_info.AT_serv_stub,
 						     cap_info.SD_cli_stub, cap_info.SD_serv_stub, cap_info.il, cap_info.flags);
+
+		/* FIXME: we need to get sched_init entry of llboot. */
+		if (spd_get_index(owner) == 0 && spd_get_index(dest) == 1 && cap_no == 1) {
+			//printk("cap %d, boot addr stub %x\n", cap_no, cap_info.SD_serv_stub);
+			// cap 2 is fault_handler.
+			boot_sinv_entry = cap_info.SD_serv_stub;
+		}
+
 		return cap_no;
 	}
 	case AED_CREATE_THD:
@@ -871,7 +1002,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			sched = sched->parent_sched;
 		}
 
-		hw_int_override_all();
+		/* hw_int_override_all(); */
 
 		/* FIXME: need to return opaque handle, rather than
 		 * just set the current thread to be the new one. */
@@ -1046,12 +1177,15 @@ cos_prelinux_handle_page_fault(struct thread *thd, struct pt_regs *regs,
 	struct spd *origin;
 	struct pt_regs *regs_save;
 	
+	/* FIXME: the Composite path doesn't work right now. This
+	 * still accesses spd struct. */
+
 	/* 
 	 * If we are in the most up-to-date version of the
 	 * page-tables, then there is no fixing up to do, and we
 	 * should just return.  Check for this case.
 	 */
-	assert(active);
+	if (!active) return 0;
 	cspd = (struct composite_spd *)active;
 	assert(cspd);
 	if (!(spd_mpd_is_depricated(cspd) ||
@@ -1175,7 +1309,7 @@ static unsigned long fault_addrs[NUM_BUCKETS];
 void hijack_syscall_monitor(int num)
 {
 	if (unlikely(!syscalls_enabled && cos_thd_per_core[get_cpuid()].cos_thd == current)) {
-		printk("FAILURE: making a Linux system call (#%d) in Composite.\n", num);
+		printk("FAILURE: core %d making a Linux system call (#%d) in Composite.\n", get_cpuid(), num);
 	}
 }
 
@@ -1210,10 +1344,11 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	 * spd's boundaries or there is not a linux mapping for the
 	 * address.
 	 */
+	
 	if (cos_thd_per_core[get_cpuid()].cos_thd != current) goto linux_handler;
 	if (fault_addr == (unsigned long)&page_fault_interposition) goto linux_handler;
-
 	curr_mm = get_task_mm(current);
+
 	if (!down_read_trylock(&curr_mm->mmap_sem)) {
 		/* 
 		 * The semaphore can only be taken while code is
@@ -1247,7 +1382,6 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 		cos_meas_event(COS_UNKNOWN_FAULT);
 		goto linux_handler_release;
 	}
-
 #ifdef FAULT_DEBUG
 	fault_addrs[BUCKET_HASH(fault_addr)]++;
 #endif
@@ -1256,7 +1390,6 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 		ret = 0;
 		goto linux_handler_release;
 	}
-
 	vma = find_vma(curr_mm, fault_addr);
 	if (vma && vma->vm_start <= fault_addr) {
 		/* let the linux fault handler deal with it */
@@ -1269,7 +1402,6 @@ int main_page_fault_interposition(struct pt_regs *rs, unsigned int error_code)
 	 */
 	up_read(&curr_mm->mmap_sem);
 	mmput(curr_mm);
-
 	cos_meas_event(COS_PG_FAULT);
 	
 //	if (get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd) != rs) printk("Nested page fault!\n");
@@ -1331,10 +1463,7 @@ main_fpu_not_available_interposition(struct pt_regs *rs, unsigned int error_code
 }
 
 void cos_ipi_handling(void);
-
-extern int ipi_meas;
-extern int core0_high();
-extern int corex_high();
+void cos_cap_ipi_handling(void);
 
 int 
 cos_ipi_ring_enqueue(u32_t dest, u32_t data);
@@ -1345,14 +1474,8 @@ main_ipi_handler(struct pt_regs *rs, unsigned int irq)
 	/* ack the ipi first. */
 	ack_APIC_irq();
 	
-	if (ipi_meas > 0) {
-		if (get_cpuid() == 0) core0_high();
-		else corex_high();
-
-		return;
-	}
-
-	cos_ipi_handling();
+	cos_cap_ipi_handling();
+//	cos_ipi_handling();
 
         return;
 }
@@ -1400,6 +1523,7 @@ void *chal_alloc_kern_mem(int order)
 	if (!page) return NULL;
 
 	memset(page, 0, PAGE_SIZE * (1<<order));
+	cos_kmem_base = cos_kmem = page;
 
 	return page;
 }
@@ -1411,6 +1535,7 @@ void chal_free_page(void *page)
 
 void chal_free_kern_mem(void *mem, int order)
 {
+	assert(mem && (mem == cos_kmem_base));
 	free_pages((unsigned long int)mem, order);
 }
 
@@ -1426,6 +1551,8 @@ void *chal_va2pa(void *va)
 
 void *chal_pa2va(void *pa) 
 {
+	if ((paddr_t)pa >= COS_MEM_START) return NULL;
+
 	return (void*)__va(pa);
 }
 
@@ -1703,6 +1830,76 @@ done:
 	return 0;
 }
 
+int chal_attempt_arcv(struct cap_arcv *arcv)
+{
+	struct pt_regs *regs = NULL;
+	unsigned long flags;
+	struct thread *thd;
+	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
+	struct thread *cos_current;
+
+	local_irq_save(flags);
+
+	if (likely(cos_thd_per_core[get_cpuid()].cos_thd)) {
+		thd = arcv->thd;
+		if (thd->flags & THD_STATE_ACTIVE_UPCALL) {
+			/* handling thread is active. */
+			arcv->pending++; 
+			goto done;
+		}
+
+		cos_current = thd_current(cos_info);
+
+		if (cos_thd_per_core[get_cpuid()].cos_thd == current) {
+			cos_meas_event(COS_MEAS_INT_COS_THD);
+		} else {
+			cos_meas_event(COS_MEAS_INT_OTHER_THD);
+		}
+
+		regs = get_user_regs_thread(cos_thd_per_core[get_cpuid()].cos_thd);
+
+		if (likely(!(regs->sp == 0 && regs->ss == 0))) {
+			/* FIXME: we always switch to upcall currently. */
+			struct thread *next = arcv->thd; //FIXME: get the highest prio thread.
+
+			if (next != cos_current) {
+				if (likely(chal_pgtbl_can_switch())) {
+#ifdef UPDATE_LINUX_MM_STRUCT
+					chal_pgtbl_switch((paddr_t)thd_current_pgtbl(next));
+#else
+					native_write_cr3(thd_current_pgtbl(next));
+#endif
+				} else {
+					/* we are omitting the native_write_cr3 to switch
+					 * page tables */
+					__chal_pgtbl_switch((paddr_t)thd_current_pgtbl(next));
+				}
+
+				thd_preemption_state_update(cos_current, next, regs);
+
+				next->flags |= THD_STATE_ACTIVE_UPCALL;
+				next->flags &= ~THD_STATE_READY_UPCALL;
+
+				copy_gp_regs(&next->regs, regs);
+
+				/* and additional regs */
+				regs->ip = next->regs.ip;
+				regs->sp = next->regs.sp;
+				regs->orig_ax = next->regs.ax;
+
+				thd_current_update(next, cos_current, cos_info);
+				//cos_meas_event(COS_MEAS_ACAP_UC);
+			} 
+
+		}
+
+	}
+done:
+	local_irq_restore(flags);
+		
+	return 0;
+}
+
 void chal_send_ipi(int cpuid) {
 	/* lowest-level IPI sending. the __default_send function is in
 	 * arch/x86/include/asm/ipi.h */
@@ -1721,13 +1918,21 @@ void chal_send_ipi(int cpuid) {
 
 PERCPU_VAR(cos_timer_acap);
 
+/* hack to detect timer interrupt. */
+char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
+
 __attribute__((regparm(3))) 
 int main_timer_interposition(struct pt_regs *rs, unsigned int error_code) 
 {
 	struct async_cap *acap = *PERCPU_GET(cos_timer_acap);
 
+	u32_t *ticks = (u32_t *)&timer_detector[get_cpuid() * CACHE_LINE];
+	u32_t last_tick = *ticks;
+
+	*ticks = last_tick+1;
+	cos_mem_fence();
+
 	if (!(acap && acap->upcall_thd)) goto LINUX_HANDLER;
-//	if (ipi_meas) goto LINUX_HANDLER;
 
 	/* FIXME: Right now we are jumping back to the Linux timer
 	 * handler (which will do the ack()). Linux will freeze if we

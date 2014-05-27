@@ -17,8 +17,14 @@ static paddr_t kmem_start_pa;
 
 int cos_init_memory(void) 
 {
+	int first_try = 1;
+again:
 	kmem_start = chal_alloc_kern_mem(KERN_MEM_ORDER);
 	if (!kmem_start) {
+		if (first_try) {
+			first_try = 0;
+			goto again;
+		}
 		printk("cos: ERROR -- could not allocate page for cos kernel memory\n");
 		return -1;
 	}

@@ -10,6 +10,8 @@
 
 #include "liveness_tbl.h"
 #include "captbl.h"
+#include "pgtbl.h"
+#include "cap_ops.h"
 
 struct comp_info {
 	struct liveness_data liveness;
@@ -37,9 +39,9 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	if (unlikely(!ctc || ctc->h.type != CAP_CAPTBL || ctc->lvl > 0)) return -EINVAL;
 	ptc = (struct cap_pgtbl *)captbl_lkup(t, pgtbl_cap);
 	if (unlikely(!ptc || ptc->h.type != CAP_PGTBL || ptc->lvl > 0)) return -EINVAL;
-	
 	compc = (struct cap_comp *)__cap_capactivate_pre(t, cap, capin, CAP_COMP, &ret);
 	if (!compc) return ret;
+
 	compc->entry_addr    = entry_addr;
 	compc->info.pgtbl    = ptc->pgtbl;
 	compc->info.captbl   = ctc->captbl;
@@ -53,7 +55,7 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 static int comp_deactivate(struct captbl *t, capid_t cap, capid_t capin)
 { return cap_capdeactivate(t, cap, capin, CAP_COMP); }
 
-void comp_init(void)
+static void comp_init(void)
 { assert(sizeof(struct cap_comp) <= __captbl_cap2bytes(CAP_COMP)); }
 
 #endif /* COMPONENT_H */

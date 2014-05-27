@@ -54,4 +54,30 @@ hpage_index(unsigned long n)
         return (idx << HPAGE_SHIFT) != n ? idx + 1 : idx;
 }
 
+/* This flushes all levels of cache of the current logical CPU. */
+static inline void
+chal_flush_cache(void)
+{
+	asm volatile("wbinvd": : :"memory");
+}
+
+static inline void
+chal_flush_tlb_global(void)
+{
+	unsigned long orig_cr4;
+
+	orig_cr4 = native_read_cr4();
+	/* Unset PGE (Page Global Enabled) bit, then restore cr4. This
+	 * will flush TLB. */
+	native_write_cr4(orig_cr4 & ~X86_CR4_PGE);
+	native_write_cr4(orig_cr4);
+}
+
+/* This won't flush global TLB (pinned with PGE) entries. */
+static inline void
+chal_flush_tlb(void)
+{
+	native_write_cr3(native_read_cr3());
+}
+
 #endif	/* CHAL_PLAT_H */

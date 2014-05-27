@@ -18,8 +18,6 @@
 #include "../../../kernel/include/shared/cos_config.h"
 #include "cos_irq_vectors.h"
 
-#define ASM_PAGE_MASK (~(4096-1))
-	
 /* from entry.S */	
 EBX		= 0x00
 ECX		= 0x04
@@ -123,8 +121,7 @@ VM_MASK		= 0x00020000
 	popl %edx		   ;\
 	popl %ecx
 
-#define THD_REGS 8 /* offsetof(struct thread, regs) */
-
+/* The entire IPC path should be in __ipc_entry section. */
 .section __ipc_entry, "ax"
 /*
  * Composite invocations are indicated by the contents of %eax:
@@ -157,6 +154,8 @@ sysenter_interposition_entry:
 	RESTORE_REGS_GENERAL
 	RET_TO_USER
 
+#define THD_REGS 8 /* offsetof(struct thread, regs) */
+
 .align 16
 ret_from_preemption:
 	LOAD_CURR_THD_EAX
@@ -179,6 +178,9 @@ ret_from_preemption:
 	movl PT_EAX(%eax), %eax
 
 	iret
+
+	/* __ipc_entry section done. */	
+.text
 
 .align 16
 linux_syscall:
@@ -207,8 +209,6 @@ linux_syscall:
 	popl %esp
 	jmp  *(cos_default_sysenter_addr) /* sti will happen in syscall path */
 	/* never get to here on syscall...*/
-
-.text	/* __ipc_entry section done. */
 
 /*
  * Trap will cause this handler to trigger.  The stack
