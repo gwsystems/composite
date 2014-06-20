@@ -99,8 +99,8 @@ $(COMPONENT): $(OBJS)
 .PHONY: cp
 cp:
 #	$(info |     [CP]   Copying $(COMPONENT) to $(TRANS_DIR))
-	@cp $(COMPONENT) $(TRANS_DIR)
-	@cp c.o $(TRANS_DIR)/$(COMPNAME).o
+	-@cp $(COMPONENT) $(TRANS_DIR)
+	-@cp c.o $(TRANS_DIR)/$(COMPNAME).o
 
 .PHONY: clean
 clean:
