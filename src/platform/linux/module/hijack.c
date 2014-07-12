@@ -1048,7 +1048,7 @@ static unsigned long fault_addrs[NUM_BUCKETS];
 void hijack_syscall_monitor(int num)
 {
 	if (unlikely(!syscalls_enabled && cos_thd_per_core[get_cpuid()].cos_thd == current)) {
-		printk("FAILURE: making a Linux system call (#%d) in Composite.\n", num);
+		printk("Warning: making a Linux system call (#%d) in Composite. Ignore once.\n", num);
 	}
 }
 
