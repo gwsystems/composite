@@ -38,7 +38,7 @@ int __attribute__((format(printf,1,2))) printc(char *fmt, ...)
 	ret = vsnprintf(s, 4096, fmt, arg_ptr);
 	va_end(arg_ptr);
 	print_twrite(cos_spd_id(), tor, cb, ret);
-	cbuf_free(s);
+	cbuf_free(cb);
 
 	return ret;
 }

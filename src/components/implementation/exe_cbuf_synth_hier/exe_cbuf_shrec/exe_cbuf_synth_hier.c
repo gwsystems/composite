@@ -250,7 +250,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 			timed_event_block(cos_spd_id(), 2);
 			DOUTs("I am back :)\n");
 			for (i = 0; i < NCBUF ; i++){
-				cbuf_free(mt[i]);
+				cbuf_free(cbt[i]);
 			}
 		}
 		if (exe_time_left == 0) return 0;
@@ -261,12 +261,14 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 			rdtscll(t);
 			val = (int)(t & (TOTAL_AMNT-1));
 			if (val >= cbuf_l_to_r) {
+				int tmem;
 				cbt[i] = cbuf_null();
 				rdtscll(start);
 				mt[i] = cbuf_alloc(len, &cbt[i]);
 				rdtscll(end);
-				cbuf_unpack(cbt[i], &id);
+				cbuf_unpack(cbt[i], &id, &tmem);
 				DOUTs("alloc cbid done !%ld\n", id);
+				assert(tmem == 1);
 				memset(mt[i], 'a', len);
 				get[i] = 1;
 				mark = 1;
@@ -300,7 +302,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 			if (get[i] == 1){
 				get[i] = 0;
 				rdtscll(start);
-				cbuf_free(mt[i]);
+				cbuf_free(cbt[i]);
 				rdtscll(end);
 			}
 		}
@@ -328,6 +330,6 @@ void cos_init()
 	void *mt;
 	cbt = cbuf_null();
 	mt = cbuf_alloc(4095, &cbt);
-	cbuf_free(mt);
+	cbuf_free(cbt);
 	printc("Component %ld: stack and cbuf pre_alloacated.\n", cos_spd_id());
 }

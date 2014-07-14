@@ -26,7 +26,7 @@ initf_read(int offset, char *buf, int req_sz)
         if (!d) assert(0);
         ret = __initf_read(offset, cb, sz);
         memcpy(buf, d, ret);
-        cbuf_free(d);
+        cbuf_free(cb);
 
         return ret;
 }
