@@ -202,10 +202,10 @@ typedef union {
 	cbuf_t v;
 	struct {
 		/* 
-		 * cbuf id, aggregate = 1 if this cbuf holds an array
-		 * of other cbufs.
+		 * cbuf id, aggregate = 1 if this cbuf holds an array of other
+		 * cbufs, tm = 1 if this cbuf is transient (non-persistent)
 		 */
-		u32_t aggregate: 1, id:31;
+		u32_t aggregate: 1, tm: 1, id:30;
 	} __attribute__((packed)) c;
 } cbuf_unpacked_t;
 
@@ -221,22 +221,24 @@ struct cbuf_agg {
 };
 
 static inline void 
-cbuf_unpack(cbuf_t cb, u32_t *cbid) 
+cbuf_unpack(cbuf_t cb, u32_t *cbid, int *tmem) 
 {
 	cbuf_unpacked_t cu = {0};
 	
 	cu.v  = cb;
 	*cbid = cu.c.id;
+	*tmem = cu.c.tm;
 	assert(!cu.c.aggregate);
 	return;
 }
 
 static inline cbuf_t 
-cbuf_cons(u32_t cbid, u32_t len) 
+cbuf_cons(u32_t cbid, u32_t len, int tmem)
 {
 	cbuf_unpacked_t cu;
 	cu.v     = 0;
 	cu.c.id  = cbid;
+	cu.c.tm  = tmem;
 	return cu.v; 
 }
 
@@ -268,8 +270,11 @@ __cbuf2buf(cbuf_t cb, int len, int tmem)
 	union cbufm_info ci;//, ci_new;
 	void *ret = NULL;
 	long cbidx;
+	int t;
+
 	if (unlikely(!len)) return NULL;
-	cbuf_unpack(cb, &id);
+	cbuf_unpack(cb, &id, &t);
+	assert(t == tmem);
 
 	CBUF_TAKE();
 	cbidx = cbid_to_meta_idx(id);
@@ -330,8 +335,10 @@ __cbufp_send(cbuf_t cb, int free)
 {
 	u32_t id;
 	struct cbuf_meta *cm;
+	int tmem;
 
-	cbuf_unpack(cb, &id);
+	cbuf_unpack(cb, &id, &tmem);
+	assert(tmem == 0);
 
 	CBUF_TAKE();
 	cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(id), 0);
@@ -521,7 +528,7 @@ again:
 	}
 	ret = (void*)(cm->nfo.c.ptr << PAGE_ORDER);
 done:
-	*cb = cbuf_cons(cbid, len);
+	*cb = cbuf_cons(cbid, len, tmem);
 	CBUF_RELEASE();
 	return ret;
 }
@@ -536,23 +543,26 @@ cbufp_alloc(unsigned int sz, cbufp_t *cb)  { return __cbuf_alloc(sz, (cbuf_t*)cb
  * postcondition: cbuf lock has been released.
  */
 static inline void
-__cbuf_done(int cbid, int tmem, struct cbuf_alloc_desc *d)
+__cbuf_done(int cbid, int tmem)
 {
 	struct cbuf_meta *cm;
 	int owner, relinq = 0;
 
+	CBUF_TAKE();
 	cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid), tmem);
-	assert(!d || !__cbuf_alloc_meta_inconsistent(d, cm));
 	/* 
 	 * If this assertion triggers, one possibility is that you did
 	 * not successfully map it in (cbufp2buf or cbufp_alloc).
 	 */
 	assert(cm->nfo.c.refcnt);
 	owner = cm->nfo.c.flags & CBUFM_OWNER;
-	assert(!(tmem & !owner)); /* Shouldn't be calling free... */
 
-	if (tmem && d && owner) {
+	if (tmem) {
+		assert(owner); /* Shouldn't be calling free... */
+		struct cbuf_alloc_desc *d = __cbuf_alloc_lookup(cm->nfo.c.ptr);
 		struct cbuf_alloc_desc *fl;
+
+		assert(d && !__cbuf_alloc_meta_inconsistent(d, cm));
 
 		fl = d->flhead;
 		assert(fl);
@@ -585,35 +595,22 @@ static inline void
 cbufp_deref(cbufp_t cbid) 
 { 
 	u32_t id;
+	int tmem;
 	
-	cbuf_unpack(cbid, &id);
-	CBUF_TAKE();
-	__cbuf_done((int)id, 0, NULL);
+	cbuf_unpack(cbid, &id, &tmem);
+	assert(tmem == 0);
+	__cbuf_done((int)id, 0);
 }
 
 static inline void
-__cbuf_free(void *buf, int tmem)
+cbuf_free(cbuf_t cb)
 {
-	u32_t idx = ((u32_t)buf) >> PAGE_ORDER;
-	struct cbuf_alloc_desc *d;
-	int cbid;
-
-	CBUF_TAKE();
-	d  = __cbuf_alloc_lookup(idx);
-	assert(d);
-	if (unlikely(d->tmem != tmem)) goto err;
-	cbid = d->cbid;
-	/* note: lock released in function */
-	__cbuf_done(cbid, tmem, d);
-
-	return;
-err:
-	CBUF_RELEASE();
-	return;
+	u32_t id;
+	int tmem;
+	cbuf_unpack(cb, &id, &tmem);
+	assert(tmem == 1);
+	__cbuf_done((int)id, 1);
 }
-
-static inline void
-cbuf_free(void *buf) { __cbuf_free(buf, 1); }
 
 /* 
  * Is it a cbuf?  If so, what's its id? 
