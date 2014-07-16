@@ -45,7 +45,7 @@ void call_cbuf3(int low, int high)
 	}
 
 	printv("thd %d freeing cbufs\n", cos_get_thd_id());
-	cbuf_free(mt);
+	cbuf_free(cbt);
 	printv("thd %d freed cbufs\n", cos_get_thd_id());
 
 	return; 

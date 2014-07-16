@@ -29,7 +29,7 @@ CSTUB_FN_ARGS_6(td_t, tsplit, spdid_t, spdid, td_t, tid, char *, param, int, len
 
 CSTUB_ASM_3(tsplit, spdid, cb, sz)
 
-	cbuf_free(d);
+	cbuf_free(cb);
 CSTUB_POST
 
 
@@ -58,7 +58,7 @@ CSTUB_FN_ARGS_5(int, tmerge, spdid_t, spdid, td_t, td, td_t, td_into, char *, pa
 
 CSTUB_ASM_3(tmerge, spdid, cb, sz)
 
-	cbuf_free(d);
+	cbuf_free(cb);
 CSTUB_POST
 
 CSTUB_FN_ARGS_4(int, treadp, spdid_t, spdid, td_t, td, int *, off, int *, len)
@@ -116,12 +116,12 @@ CSTUB_ASM_3(trmeta, spdid, cb, sz)
 
         if (ret >= 0) {
                 if ((unsigned int)ret > retval_len) { // as ret >= 0, cast it to unsigned int to omit compiler warning
-                        cbuf_free(d);
+                        cbuf_free(cb);
                         return -EIO;
                 }
                 memcpy(retval, &d->data[klen + 1], ret + 1);
         }
-        cbuf_free(d);
+        cbuf_free(cb);
 CSTUB_POST
 
 
@@ -149,5 +149,5 @@ CSTUB_FN_ARGS_6(int, twmeta, spdid_t, spdid, td_t, td, const char *, key, unsign
 
 CSTUB_ASM_3(twmeta, spdid, cb, sz)
 
-        cbuf_free(d);
+        cbuf_free(cb);
 CSTUB_POST

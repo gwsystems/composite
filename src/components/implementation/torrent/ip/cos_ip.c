@@ -112,7 +112,7 @@ twrite(spdid_t spdid, td_t td, int cbid, int sz)
 	assert(nbuf);
 	memcpy(nbuf, buf, sz);
 	ret = parent_twrite(cos_spd_id(), ntd, ncbid, sz);
-	cbuf_free(nbuf);
+	cbuf_free(ncbid);
 done:
 	return ret;
 }
@@ -143,7 +143,7 @@ tread(spdid_t spdid, td_t td, int cbid, int sz)
 	if (ret < 0) goto free;
 	memcpy(buf, nbuf, ret);
 free:
-	cbuf_free(nbuf);
+	cbuf_free(ncbid);
 done:
 	return ret;
 }

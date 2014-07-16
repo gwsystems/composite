@@ -1,8 +1,40 @@
 #ifndef CSTUB_H
 #define CSTUB_H
 
-#define CSTUB_ASM_PRE(name) \
-	__asm__ __volatile__( \
+#define CSTUB_ASM_PRE() \
+	__asm__ __volatile__(
+
+#define CSTUB_ASM_SAVE_1() \
+		"push %3\n\t"
+
+#define CSTUB_ASM_SAVE_2() \
+		CSTUB_ASM_SAVE_1() \
+		"pushl %4\n\t"
+
+#define CSTUB_ASM_SAVE_3() \
+		CSTUB_ASM_SAVE_2() \
+		"pushl %5\n\t"
+
+#define CSTUB_ASM_SAVE_4() \
+		CSTUB_ASM_SAVE_3() \
+		"pushl %6\n\t"
+
+#define CSTUB_ASM_RESTORE_1() \
+		"pop %3\n\t"
+
+#define CSTUB_ASM_RESTORE_2() \
+		"popl %4\n\t" \
+		CSTUB_ASM_RESTORE_1()
+
+#define CSTUB_ASM_RESTORE_3() \
+		"popl %5\n\t" \
+		CSTUB_ASM_RESTORE_2()
+
+#define CSTUB_ASM_RESTORE_4() \
+		"popl %6\n\t" \
+		CSTUB_ASM_RESTORE_3()
+
+#define CSTUB_ASM_BODY(name) \
 		"pushl %%ebp\n\t" \
 		"movl %%esp, %%ebp\n\t" \
 		"movl $1f, %%ecx\n\t" \
@@ -17,7 +49,9 @@
 		"2:\n\t" \
 		"popl %%ebp\n\t" \
 		"movl $1, %%ecx\n\t" \
-		"3:" \
+		"3:"
+
+#define CSTUB_ASM_INPUTS() \
 		: "=a" (ret), "=c" (fault)
 
 #define CSTUB_PRE(type, name)			\
@@ -40,27 +74,45 @@
 }
 
 #define CSTUB_ASM_0(name) \
-        	CSTUB_ASM_PRE(name)	   \
+        	CSTUB_ASM_PRE()	   \
+        	CSTUB_ASM_BODY(name)	   \
+		CSTUB_ASM_INPUTS() \
                 : "a" (uc->cap_no) \
 		: "ebx", "edx", "esi", "edi", "memory", "cc");
 
 #define CSTUB_ASM_1(name, first)		   \
-        	CSTUB_ASM_PRE(name)	   \
+        	CSTUB_ASM_PRE()	   \
+		CSTUB_ASM_SAVE_1() \
+        	CSTUB_ASM_BODY(name)	   \
+		CSTUB_ASM_RESTORE_1() \
+		CSTUB_ASM_INPUTS() \
 		: "a" (uc->cap_no), "b" (first)		\
 		: "edx", "esi", "edi", "memory", "cc");
 
 #define CSTUB_ASM_2(name, first, second)   \
-        	CSTUB_ASM_PRE(name)	   \
+        	CSTUB_ASM_PRE()	   \
+		CSTUB_ASM_SAVE_2() \
+        	CSTUB_ASM_BODY(name)	   \
+		CSTUB_ASM_RESTORE_2() \
+		CSTUB_ASM_INPUTS() \
 		: "a" (uc->cap_no), "b" (first), "S" (second)	\
 		: "edx", "edi", "memory", "cc");
 
 #define CSTUB_ASM_3(name, first, second, third)	\
-        	CSTUB_ASM_PRE(name)	   \
+        	CSTUB_ASM_PRE()	   \
+		CSTUB_ASM_SAVE_3() \
+        	CSTUB_ASM_BODY(name)	   \
+		CSTUB_ASM_RESTORE_3() \
+		CSTUB_ASM_INPUTS() \
 		: "a" (uc->cap_no), "b" (first), "S" (second), "D" (third) \
 		: "edx", "memory", "cc");
 
 #define CSTUB_ASM_4(name, first, second, third, fourth)	\
-        	CSTUB_ASM_PRE(name)	   \
+        	CSTUB_ASM_PRE()	   \
+		CSTUB_ASM_SAVE_4() \
+        	CSTUB_ASM_BODY(name)	   \
+		CSTUB_ASM_RESTORE_4() \
+		CSTUB_ASM_INPUTS() \
 		: "a" (uc->cap_no), "b" (first), "S" (second), "D" (third), "d" (fourth) \
 		: "memory", "cc");
 
