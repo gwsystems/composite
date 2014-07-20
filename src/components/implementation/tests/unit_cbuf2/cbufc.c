@@ -14,5 +14,5 @@ void unit_cbuf(cbuf_t cbuf, int sz)
 	c[0] = '*';
 
 	addr = cbuf_alloc(sz, &cb);
-	cbuf_free(addr);
+	cbuf_free(cb);
 }

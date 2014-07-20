@@ -1277,7 +1277,7 @@ static int cos_net_evt_loop(void)
 		assert(sz > 0);
 		cos_net_interrupt(data, sz);
 		assert(lock_contested(&net_lock) != cos_get_thd_id());
-		cbuf_free(data);
+		cbuf_free(cb);
 	}
 
 	return 0;
@@ -1327,7 +1327,7 @@ static err_t cos_net_stack_send(struct netif *ni, struct pbuf *p, struct ip_addr
 		printc("<<transmit returns %d -> %d>>\n", sz, tot_len);
 	}
 	assert(sz > 0);
-	cbuf_free(buff);
+	cbuf_free(cb);
 	
 	/* cannot deallocate packets here as we might need to
 	 * retransmit them. */

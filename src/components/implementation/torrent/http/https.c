@@ -618,7 +618,7 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 
 			ret = server_tread(cos_spd_id(), r->content_id, cb, sz);
 			if (ret < 0) {
-				cbuf_free(local_resp);
+				cbuf_free(cb);
 				printc("https get reply returning %d.\n", ret);
 				return ret;
 			}
@@ -627,7 +627,7 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 
 		/* no more data */
 		if (local_resp_sz == 0) {
-			cbuf_free(local_resp);
+			cbuf_free(cb);
 			break;
 		}
 
@@ -642,7 +642,7 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 				assert(save);
 				assert(local_resp);
 				memcpy(save, local_resp, local_resp_sz);
-				cbuf_free(local_resp);
+				cbuf_free(cb);
 				local_resp = NULL;
 
 				r->resp.resp = save;
@@ -650,7 +650,7 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 			}
 			if (0 == used) {
 				printc("https: could not allocate either header or response of sz %d:%s\n", local_resp_sz, local_resp);
-				if (local_resp) cbuf_free(local_resp);
+				if (local_resp) cbuf_free(cb);
 				return -ENOMEM;
 			}
 			break;
@@ -659,7 +659,7 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 		memcpy(resp+used+consumed, local_resp, local_resp_sz);
 		
 		assert(local_resp);
-		cbuf_free(local_resp);
+		cbuf_free(cb);
 		local_resp = NULL;
 
 		used += local_resp_sz + consumed;

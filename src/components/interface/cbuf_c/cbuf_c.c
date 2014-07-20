@@ -192,7 +192,7 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 			ADD_LIST(fl, d, next, prev);
 		}
 		CBUF_RELEASE();
-		cbuf_free(cbs);
+		cbuf_free(cb);
 	}
 	/* Nothing collected...allocate a new cbufp! */
 	if (amnt == 0) {

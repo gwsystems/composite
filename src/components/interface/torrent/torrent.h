@@ -51,7 +51,7 @@ tread_pack(spdid_t spdid, td_t td, char *data, int len)
         }
 	memcpy(data, d, ret);
 free:
-	cbuf_free(d);	
+	cbuf_free(cb);
 	return ret;
 }
 
@@ -67,7 +67,7 @@ twrite_pack(spdid_t spdid, td_t td, char *data, int len)
 
 	memcpy(d, data, len);
 	ret = twrite(spdid, td, cb, len);
-	cbuf_free(d);
+	cbuf_free(cb);
 	
 	return ret;
 }

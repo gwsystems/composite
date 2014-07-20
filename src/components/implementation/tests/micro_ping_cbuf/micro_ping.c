@@ -49,7 +49,7 @@ cbuf_tests(void)
 	}
 
 	for (i = 0; i < NCBUF ; i++){
-		cbuf_free(mt[i]);
+		cbuf_free(cbt[i]);
 	}
 	printc(" Done! >>>\n");
 
@@ -75,7 +75,7 @@ cbuf_tests(void)
 	printc("\n<<< CBUF_FREE MICRO-BENCHMARK TEST >>>\n");
 	rdtscll(start);
 	for (i = 0; i < NCBUF ; i++){
-		cbuf_free(mt[i]);                
+		cbuf_free(cbt[i]);                
 	}
 	rdtscll(end);
 	printc("%d free_cbuf %llu cycs avg\n", NCBUF, (end-start)/NCBUF);
@@ -103,7 +103,7 @@ cbuf_tests(void)
 	for (i = 0; i < ITER ; i++){
 		mt[0] = cbuf_alloc(sz[0], &cbt[0]);
 		simple_call_buf2buf(cbt[0], sz[0]);
-		cbuf_free(mt[0]);
+		cbuf_free(cbt[0]);
 	}
 	rdtscll(end);
 	printc("%d alloc-cbuf2buf-free %llu cycles avg\n", ITER, (end-start)/ITER);

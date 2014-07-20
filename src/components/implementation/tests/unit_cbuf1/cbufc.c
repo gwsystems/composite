@@ -29,7 +29,7 @@ void cos_init(void)
 		bufs[i] = cbuf_alloc(sz, &cbs[i]);
 		printv("UNIT TEST alloc %d -> %p\n", sz, bufs[i]);
 		assert(bufs[i]);
-		cbuf_free(bufs[i]);
+		cbuf_free(cbs[i]);
 		printv("UNIT TEST free %p\n", bufs[i]);
 	}
 	printc("UNIT TEST PASSED: alloc->dealloc\n");
@@ -40,7 +40,7 @@ void cos_init(void)
 		assert(bufs[i]);
 	}
 	for (i = 0 ; i < MAX_CBUFS ; i++) {
-		cbuf_free(bufs[i]);
+		cbuf_free(cbs[i]);
 		printv("UNIT TEST free %p\n", bufs[i]);
 	}
 	printc("UNIT TEST PASSED: N alloc -> N dealloc\n");
@@ -65,7 +65,7 @@ void cos_init(void)
 	}
 	printc("UNIT TEST PASSED: N cached cbuf2buf\n");
 	for (i = 0 ; i < MAX_CBUFS ; i++) {
-		cbuf_free(bufs[i]);
+		cbuf_free(cbs[i]);
 		printv("UNIT TEST free %p\n", bufs[i]);
 	}
 	printc("UNIT TEST PASSED: N deallocs\n");
