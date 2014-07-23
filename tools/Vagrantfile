@@ -1,0 +1,19 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+VAGRANTFILE_API_VERSION = "2"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  config.vm.box = "composite"
+  config.vm.box_url = "http://128.164.201.103/composite.box"
+  config.vm.box_download_checksum = "34989bf2c322eea8eac7b2f81a585816fa576314014091388703acd5ec85f4b0"
+  config.vm.box_download_checksum_type = "sha256"
+
+  config.vm.network "private_network",  ip: "192.168.56.205"
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.name = "composite_fedora_14"
+    vb.cpus = 1 # Higher is better
+    vb.customize ["modifyvm", :id, "--memory", "1024"]
+  end
+end
