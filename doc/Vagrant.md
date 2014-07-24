@@ -2,13 +2,15 @@
 Get Started
 -----------
 
-1. Install vagrant, if you have not already. Prefer to use the latest version from http://www.vagrantup.com/downloads. The virtual machine was created and tested with version 1.6.3.
+1. Install virtualbox.
 
-2. Run `$ vagrant up` in the tools directory, or copy the Vagrantfile somewhere else and run vagrant from there.
+2. Install vagrant, if you have not already. Prefer to use the latest version from http://www.vagrantup.com/downloads. The virtual machine was created and tested with version 1.6.3.
 
-3. Run `$ vagrant ssh`. Read Vagrant documentation for more commands.
+3. Run `$ vagrant up` in the tools directory, or copy the Vagrantfile somewhere else and run vagrant from there.
 
-4. Start hacking from step #8 of the Composite Installation and Usage Summary!
+4. Run `$ vagrant ssh`. Read Vagrant documentation for more commands.
+
+5. Start hacking from step #8 of the Composite Installation and Usage Summary!
 
 Notes
 -----
