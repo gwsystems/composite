@@ -9,9 +9,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.box_download_checksum = "34989bf2c322eea8eac7b2f81a585816fa576314014091388703acd5ec85f4b0"
   config.vm.box_download_checksum_type = "sha256"
 
-  config.vm.network "private_network",  ip: "192.168.56.205"
-  config.ssh.host = "192.168.56.205"
-  config.ssh.port = 22
+  config.vm.network "private_network",  type: "dhcp"
 
   config.vm.provider "virtualbox" do |vb|
     vb.name = "composite_fedora_14"

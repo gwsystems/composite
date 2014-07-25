@@ -6,11 +6,13 @@ Get Started
 
 2. Install vagrant, if you have not already. Prefer to use the latest version from http://www.vagrantup.com/downloads. The virtual machine was created and tested with version 1.6.3.
 
-3. Run `$ vagrant up` in the tools directory, or copy the Vagrantfile somewhere else and run vagrant from there.
+3. Run `$ VBoxManage hostonlyif create` to work-around a Vagrant bug related to dhcp: https://github.com/mitchellh/vagrant/issues/3083
 
-4. Run `$ vagrant ssh`. Read Vagrant documentation for more commands.
+4. Run `$ vagrant up` in the tools directory, or copy the Vagrantfile somewhere else and run vagrant from there.
 
-5. Start hacking from step #8 of the Composite Installation and Usage Summary!
+5. Run `$ vagrant ssh`. Read Vagrant documentation for more commands.
+
+6. Start hacking from step #8 of the Composite Installation and Usage Summary!
 
 Notes
 -----
