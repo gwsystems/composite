@@ -11,8 +11,10 @@ The files in this directory follow:
   the source code.  This is where to look for to find files of a
   specific type (kernel, component, platform, etc..).
 
-- setting_up_on_new_system.txt: If you aren't using the provided VM,
+- setting_up_on_new_system.txt: If you aren't using a provided VM or vagrant,
   you will need to read this to set up Composite on your system.
+
+- Vagrant.md: How to use Vagrant and VirtualBox for Composite development.
 
 - terminology.txt: The source code is out of date compared to the
   terminology used in papers and conversationally.  This file provides
