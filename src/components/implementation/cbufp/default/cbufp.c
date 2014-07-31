@@ -145,6 +145,14 @@ cbufp_meta_add(struct cbufp_comp_info *comp, u32_t cbid, struct cbuf_meta *m, va
 	return cmr;
 }
 
+static void
+cbufp_comp_info_init(spdid_t spdid, struct cbufp_comp_info *cci)
+{
+	memset(cci, 0, sizeof(*cci));
+	cci->spdid = spdid;
+	cvect_add(&components, cci, spdid);
+}
+
 static struct cbufp_comp_info *
 cbufp_comp_info_get(spdid_t spdid)
 {
@@ -152,11 +160,9 @@ cbufp_comp_info_get(spdid_t spdid)
 
 	cci = cvect_lookup(&components, spdid);
 	if (!cci) {
-		cci = malloc(sizeof(struct cbufp_comp_info));
+		cci = malloc(sizeof(*cci));
 		if (!cci) return NULL;
-		memset(cci, 0, sizeof(struct cbufp_comp_info));
-		cci->spdid = spdid;
-		cvect_add(&components, cci, spdid);
+		cbufp_comp_info_init(spdid, cci);
 	}
 	return cci;
 }
@@ -271,7 +277,7 @@ cbufp_free_unmap(spdid_t spdid, struct cbufp_info *cbi)
 
 		m = FIRST_LIST(m, next, prev);
 	} while (m != &cbi->owner);
-	
+
 	/* Unmap all of the pages from the clients */
 	for (off = 0 ; off < cbi->size ; off += PAGE_SIZE) {
 		mman_revoke_page(cos_spd_id(), (vaddr_t)ptr + off, 0);
