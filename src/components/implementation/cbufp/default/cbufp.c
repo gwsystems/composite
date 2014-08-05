@@ -193,11 +193,28 @@ cbufp_comp_info_bin_add(struct cbufp_comp_info *cci, int sz)
 }
 
 static int
+cbufp_map(spdid_t spdid, vaddr_t daddr, void *page, int size, int flags)
+{
+	int off;
+	assert(size == (int)round_to_page(size));
+	assert(daddr);
+	assert(page);
+	for (off = 0 ; off < size ; off += PAGE_SIZE) {
+		vaddr_t d = daddr + off;
+		if (d != (mman_alias_page(cos_spd_id(), ((vaddr_t)page) + off,
+						spdid, d, flags))) {
+			assert(0); /* TODO: roll back the aliases, etc... */
+		}
+	}
+	return 0;
+}
+
+static int
 cbufp_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 {
 	void *p;
 	vaddr_t dest;
-	int off;
+	int ret;
 
 	assert(size == (int)round_to_page(size));
 	p = page_alloc(size/PAGE_SIZE);
@@ -206,19 +223,13 @@ cbufp_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 
 	dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, size/PAGE_SIZE);
 	assert(dest);
-	for (off = 0 ; off < size ; off += PAGE_SIZE) {
-		vaddr_t d = dest + off;
-		if (d != 
-		    (mman_alias_page(cos_spd_id(), ((vaddr_t)p) + off, spdid, d, MAPPING_RW))) {
-			assert(0);
-			/* TODO: roll back the aliases, etc... */
-			valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
-		}
-	}
+
+	ret = cbufp_map(spdid, dest, p, size, MAPPING_RW);
+	if (ret) valloc_free(cos_spd_id(), spdid, (void *)daddr, 1);
 	*page  = p;
 	*daddr = dest;
 
-	return 0;
+	return ret;
 }
 
 /* Do any components have a reference to the cbuf? */
@@ -546,13 +557,8 @@ cbufp_retrieve(spdid_t spdid, int cbid, int size)
 
 	page = cbi->mem;
 	assert(page);
-	for (off = 0 ; off < size ; off += PAGE_SIZE) {
-		if (dest+off != 
-		    (mman_alias_page(cos_spd_id(), ((vaddr_t)page)+off, spdid, dest+off, MAPPING_READ))) {
-			assert(0);
-			valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
-		}
-	}
+	if (cbufp_map(spdid, dest, page, size, MAPPING_READ))
+		valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
 
 	meta->nfo.c.flags |= CBUFM_TOUCHED;
 	meta->nfo.c.ptr    = map->addr >> PAGE_ORDER;
