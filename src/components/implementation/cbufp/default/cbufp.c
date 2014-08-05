@@ -398,6 +398,58 @@ free:
 	goto done;
 }
 
+vaddr_t
+cbufp_map_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags)
+{
+	vaddr_t ret = (vaddr_t)NULL;
+	struct cbufp_info *cbi;
+	u32_t id;
+	int tmem;
+	
+	cbuf_unpack(cbid, &id, &tmem);
+	assert(tmem == 0);
+	CBUFP_TAKE();
+	cbi = cmap_lookup(&cbufs, id);
+	assert(cbi);
+	if (unlikely(!cbi)) goto done;
+	assert(cbi->owner.spdid == s_spd);
+	//if (!d_addr) d_addr = (vaddr_t)valloc_alloc_at(s_spd, d_spd, cbi->size);
+	if (cbufp_map(d_spd, d_addr, cbi->mem, cbi->size, flags)) goto done;
+	ret = d_addr;
+	/* do not add d_spd to the meta list because the cbufp is not
+	 * accessible directly. The s_spd must maintain the necessary info
+	 * about the cbufp and its mapping in d_spd. */
+done:
+	CBUFP_RELEASE();
+	return ret;
+}
+
+int
+cbufp_unmap_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr)
+{
+	struct cbufp_info *cbi;
+	int off;
+	int ret = 0;
+	u32_t id;
+	int tmem;
+	
+	cbuf_unpack(cbid, &id, &tmem);
+	assert(tmem == 0);
+
+	assert(d_addr);
+	CBUFP_TAKE();
+	cbi = cmap_lookup(&cbufs, id);
+	if (unlikely(!cbi)) ERR_THROW(-EINVAL, done);
+	if (unlikely(cbi->owner.spdid != s_spd)) ERR_THROW(-EINVAL, done);
+	assert(cbi->size == (int)round_to_page(cbi->size));
+	/* unmap pages in only the d_spd client */
+	for (off = 0 ; off < cbi->size ; off += PAGE_SIZE)
+		mman_release_page(d_spd, d_addr + off, 0);
+done:
+	CBUFP_RELEASE();
+	return ret;
+}
+
 /*
  * Allocate and map the garbage-collection list used for cbufp_collect()
  */

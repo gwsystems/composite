@@ -12,3 +12,5 @@
 cos_asm_server_stub(unit_cbufp2buf)
 cos_asm_server_stub(unit_cbufp_alloc)
 cos_asm_server_stub(unit_cbufp_deref)
+cos_asm_server_stub(unit_cbufp_map_at)
+cos_asm_server_stub(unit_cbufp_unmap_at)
