@@ -11,7 +11,7 @@
 #define   	CBUFP_H
 
 #include <cos_component.h>
-#include <ck_ring.h>
+#include <ck_ring_cos.h>
 /* 
  * These are more or less identical to the counterparts in cbuf_c.h,
  * so have a look at the documentation there.

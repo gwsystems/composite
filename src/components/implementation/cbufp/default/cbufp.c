@@ -394,7 +394,6 @@ vaddr_t
 cbufp_map_collect(spdid_t spdid)
 {
 	struct cbufp_comp_info *cci;
-	struct cbufp_shared_page *csp;
 	vaddr_t ret = (vaddr_t)NULL;
 
 	printl("cbufp_map_collect\n");
@@ -415,10 +414,9 @@ cbufp_map_collect(spdid_t spdid)
 		goto done;
 	ret = cci->dest_csp;
 
-	/* use the mapped page to initialize the ck_ring */
-	csp = (struct cbufp_shared_page*)ret;
-	assert(csp->ring.size == 0);
-	CK_RING_INIT(cbufp_ring, &csp->ring, csp->buffer, CSP_BUFFER_SIZE);
+	/* initialize a continuous ck ring */
+	assert(cci->csp->ring.size == 0);
+	CK_RING_INIT(cbufp_ring, &cci->csp->ring, NULL, CSP_BUFFER_SIZE);
 
 done:
 	CBUFP_RELEASE();
