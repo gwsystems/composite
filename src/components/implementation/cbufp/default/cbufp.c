@@ -410,8 +410,7 @@ cbufp_map_collect(spdid_t spdid)
 
 	assert(sizeof(struct cbufp_shared_page) <= PAGE_SIZE);
 	/* alloc/map is leaked. Where should it be freed/unmapped? */
-	if (cbufp_alloc_map(spdid, &cci->dest_csp, (void**)&cci->csp, PAGE_SIZE))
-		goto done;
+	if (cbufp_alloc_map(spdid, &cci->dest_csp, (void**)&cci->csp, PAGE_SIZE)) goto done;
 	ret = cci->dest_csp;
 
 	/* initialize a continuous ck ring */
@@ -470,8 +469,7 @@ cbufp_collect(spdid_t spdid, int size)
 		if (!cbufp_referenced(cbi)) {
 			struct cbufp_ring_element el = { .cbid = cbi->cbid };
 			cbufp_references_clear(cbi);
-			if (!CK_RING_ENQUEUE_SPSC(cbufp_ring, &csp->ring, &el))
-				break;
+			if (!CK_RING_ENQUEUE_SPSC(cbufp_ring, &csp->ring, &el)) break;
 			if (++ret == CSP_BUFFER_SIZE) break;
 		}
 		cbi = FIRST_LIST(cbi, next, prev);

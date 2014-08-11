@@ -145,15 +145,13 @@ static inline int
 __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 {
 	int amnt = 0, i;
+	static struct cbufp_shared_page *csp = NULL;
 
 	assert(cbid <= 0);
 	if (cbid == 0) {
 		struct cbuf_meta *cm;
-		struct cbufp_shared_page *csp;
 		struct cbufp_ring_element el;
-
-		/* TODO: remember the csp for subsequent calls to collect */
-		csp = (struct cbufp_shared_page*)cbufp_map_collect(cos_spd_id());
+		if (!csp) csp = (struct cbufp_shared_page*)cbufp_map_collect(cos_spd_id());
 		/* Do a garbage collection */
 		amnt = cbufp_collect(cos_spd_id(), size);
 		if (amnt < 0) {
@@ -182,14 +180,13 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 			}
 		}
 		/* ...add the rest back into freelists */
-		for (i = 1; i < amnt; i++) {
+		for (i = 1 ; i < amnt ; i++) {
 			struct cbuf_alloc_desc *d, *fl;
 			struct cbuf_meta *meta;
 			int idx;
 			int cb;
 
-			if (!CK_RING_DEQUEUE_SPSC(cbufp_ring, &csp->ring, &el))
-				break;
+			if (!CK_RING_DEQUEUE_SPSC(cbufp_ring, &csp->ring, &el)) break;
 			cb = el.cbid;
 			idx = cbid_to_meta_idx(cb);
 
