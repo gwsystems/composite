@@ -260,7 +260,8 @@ cbuf_vect_lookup_addr(long idx, int tmem)
 /* 
  * Common case.  This is the most optimized path.  Every component
  * that wishes to access a cbuf created by another component must use
- * this function to map the cbuf_t to the actual buffer.
+ * this function to map the cbuf_t to the actual buffer. This function
+ * returns an error (NULL) if called by the owner of the cbuf_t.
  */
 static inline void * 
 __cbuf2buf(cbuf_t cb, int len, int tmem)
@@ -287,6 +288,8 @@ again:
 		}
 	} while (unlikely(!cm->nfo.v));
 	ci.v = cm->nfo.v;
+	/* shouldn't cbuf2buf your own buffer! */
+	if (unlikely(CBUF_OWNER(cm->nfo.c.flags))) goto done;
 
 	if (!tmem) {
 		if (unlikely(cm->nfo.c.flags & CBUFM_TMEM)) goto done;

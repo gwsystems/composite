@@ -116,12 +116,17 @@ cbufp_tests()
 		int sz = MAX_CBUFP_SZ;
 		cbs[i] = unit_cbufp_alloc(sz);
 		szs[i] = sz;
-		unit_cbufp2buf(cbs[i], sz);
+		bufs[i] = cbufp2buf(cbs[i], sz);
+		assert(bufs[i]);
+		cbufp_send_deref(cbs[i]);
+		unit_cbufp2buf(cbs[i], sz); /* error path test */
 	}
 	printc("UNIT TEST PASSED: N alloc + cbufp2buf\n");
 
 	for (i = 0 ; i < MAX_CBUFPS ; i++) {
-		unit_cbufp2buf(cbs[i], szs[i]);
+		bufs[i] = cbufp2buf(cbs[i], sz);
+		assert(bufs[i]);
+		cbufp_deref(cbs[i]);
 	}
 	printc("UNIT TEST PASSED: N cached cbufp2buf\n");
 

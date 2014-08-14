@@ -7,12 +7,7 @@
 void unit_cbufp2buf(cbufp_t cbuf, int sz)
 {
 	char *c = cbufp2buf(cbuf, sz);
-
-	assert(c);
-	assert(c[0] == '_' || c[0] == '*');
-	if (c[0] == '_') c[0] = '*';
-	else c[0] = '_';
-	cbufp_deref(cbuf);
+	assert(!c);
 }
 
 cbufp_t unit_cbufp_alloc(int sz)
