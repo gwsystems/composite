@@ -23,6 +23,7 @@
  * The main data-structures tracked in this component.
  * 
  * cbufp_comp_info is the per-component data-structure that tracks the
+ * page shared with the component to return garbage-collected cbufs, the
  * cbufs allocated to the component, and the data-structures for
  * tracking where the cbuf_metas are associated with the cbufs.
  * 
@@ -84,6 +85,8 @@ struct cbufp_bin {
 
 struct cbufp_comp_info {
 	spdid_t spdid;
+	struct cbufp_shared_page *csp;
+	vaddr_t dest_csp;
 	int nbin;
 	struct cbufp_bin cbufs[CBUFP_MAX_NSZ];
 	struct cbufp_meta_range *cbuf_metas;
@@ -145,6 +148,14 @@ cbufp_meta_add(struct cbufp_comp_info *comp, u32_t cbid, struct cbuf_meta *m, va
 	return cmr;
 }
 
+static void
+cbufp_comp_info_init(spdid_t spdid, struct cbufp_comp_info *cci)
+{
+	memset(cci, 0, sizeof(*cci));
+	cci->spdid = spdid;
+	cvect_add(&components, cci, spdid);
+}
+
 static struct cbufp_comp_info *
 cbufp_comp_info_get(spdid_t spdid)
 {
@@ -152,11 +163,9 @@ cbufp_comp_info_get(spdid_t spdid)
 
 	cci = cvect_lookup(&components, spdid);
 	if (!cci) {
-		cci = malloc(sizeof(struct cbufp_comp_info));
+		cci = malloc(sizeof(*cci));
 		if (!cci) return NULL;
-		memset(cci, 0, sizeof(struct cbufp_comp_info));
-		cci->spdid = spdid;
-		cvect_add(&components, cci, spdid);
+		cbufp_comp_info_init(spdid, cci);
 	}
 	return cci;
 }
@@ -271,7 +280,7 @@ cbufp_free_unmap(spdid_t spdid, struct cbufp_info *cbi)
 
 		m = FIRST_LIST(m, next, prev);
 	} while (m != &cbi->owner);
-	
+
 	/* Unmap all of the pages from the clients */
 	for (off = 0 ; off < cbi->size ; off += PAGE_SIZE) {
 		mman_revoke_page(cos_spd_id(), (vaddr_t)ptr + off, 0);
@@ -379,6 +388,41 @@ free:
 }
 
 /*
+ * Allocate and map the garbage-collection list used for cbufp_collect()
+ */
+vaddr_t
+cbufp_map_collect(spdid_t spdid)
+{
+	struct cbufp_comp_info *cci;
+	vaddr_t ret = (vaddr_t)NULL;
+
+	printl("cbufp_map_collect\n");
+
+	CBUFP_TAKE();
+	cci = cbufp_comp_info_get(spdid);
+	if (unlikely(!cci)) goto done;
+
+	/* if the mapped page exists already, just return it. */
+	if (cci->dest_csp) {
+		ret = cci->dest_csp;
+		goto done;
+	}
+
+	assert(sizeof(struct cbufp_shared_page) <= PAGE_SIZE);
+	/* alloc/map is leaked. Where should it be freed/unmapped? */
+	if (cbufp_alloc_map(spdid, &cci->dest_csp, (void**)&cci->csp, PAGE_SIZE)) goto done;
+	ret = cci->dest_csp;
+
+	/* initialize a continuous ck ring */
+	assert(cci->csp->ring.size == 0);
+	CK_RING_INIT(cbufp_ring, &cci->csp->ring, NULL, CSP_BUFFER_SIZE);
+
+done:
+	CBUFP_RELEASE();
+	return ret;
+}
+
+/*
  * For a certain principal, collect any unreferenced persistent cbufs
  * so that they can be reused.  This is the garbage-collection
  * mechanism.
@@ -393,23 +437,23 @@ free:
  * number of available cbufs.
  */
 int
-cbufp_collect(spdid_t spdid, int size, long cbid)
+cbufp_collect(spdid_t spdid, int size)
 {
-	long *buf;
-	int off = 0;
 	struct cbufp_info *cbi;
 	struct cbufp_comp_info *cci;
+	struct cbufp_shared_page *csp;
 	struct cbufp_bin *bin;
-	int ret = -EINVAL;
+	int ret = 0;
 
 	printl("cbufp_collect\n");
 
-	buf = cbuf2buf(cbid, PAGE_SIZE);
-	if (!buf) return -1;
-
 	CBUFP_TAKE();
 	cci = cbufp_comp_info_get(spdid);
-	if (!cci) ERR_THROW(-ENOMEM, done);
+	if (unlikely(!cci)) ERR_THROW(-ENOMEM, done);
+	csp = cci->csp;
+	if (unlikely(!csp)) ERR_THROW(-EINVAL, done);
+
+	assert(csp->ring.size == CSP_BUFFER_SIZE);
 
 	/* 
 	 * Go through all cbufs we own, and report all of them that
@@ -423,13 +467,13 @@ cbufp_collect(spdid_t spdid, int size, long cbid)
 	do {
 		if (!cbi) break;
 		if (!cbufp_referenced(cbi)) {
+			struct cbufp_ring_element el = { .cbid = cbi->cbid };
 			cbufp_references_clear(cbi);
-			buf[off++] = cbi->cbid;
-			if (off == PAGE_SIZE/sizeof(int)) break;
+			if (!CK_RING_ENQUEUE_SPSC(cbufp_ring, &csp->ring, &el)) break;
+			if (++ret == CSP_BUFFER_SIZE) break;
 		}
 		cbi = FIRST_LIST(cbi, next, prev);
 	} while (cbi != bin->c);
-	ret = off;
 done:
 	CBUFP_RELEASE();
 	return ret;
