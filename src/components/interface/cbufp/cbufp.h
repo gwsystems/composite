@@ -52,7 +52,7 @@ CK_RING(cbufp_ring_element, cbufp_ring);
 
 struct cbufp_shared_page {
 	CK_RING_INSTANCE(cbufp_ring) ring;
-#define CSP_BUFFER_SIZE (((PAGE_SIZE-sizeof(CK_RING_INSTANCE(cbufp_ring)))>>1)/sizeof(struct cbufp_ring_element))
+#define CSP_BUFFER_SIZE ((PAGE_SIZE>>1)/sizeof(struct cbufp_ring_element))
 	struct cbufp_ring_element buffer[CSP_BUFFER_SIZE];
 };
 
