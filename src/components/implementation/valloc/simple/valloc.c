@@ -103,6 +103,11 @@ err_free1:
 	goto done;
 }
 
+int valloc_alloc_at(spdid_t spdid, spdid_t dest, vaddr_t d_addr, unsigned long npages)
+{
+
+}
+
 void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
 {
 	void *ret = NULL;

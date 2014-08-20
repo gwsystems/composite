@@ -135,6 +135,36 @@ void vas_mgr_contract(spdid_t spd, vaddr_t addr)
 	BUG();
 }
 
+int
+vas_mgr_take(spdid_t spd, spdid_t dest, vaddr_t d_addr, unsigned long amnt)
+{
+	struct spd_vas_info *svi;
+	vaddr_t ret = 0;
+	int loc;
+	unsigned long s_idx, i, nentries;
+	unsigned long start, end, size;
+
+	amnt = round_up_to_pgd_page(amnt);
+	LOCK();
+	svi = vas_get_svi(dest);
+	if (!svi) goto done;
+	if ((loc = vas_first_free_svi_location(svi)) < 0) goto done;
+
+	nentries = amnt >> PGD_SHIFT;
+	start = (unsigned long)d_addr;
+	end = start + amnt;
+	size = amnt;
+	ret = __vas_mgr_expand(spd, dest, start, end, size, amnt, nentries, &s_idx);
+	if (ret != 0) {
+		for (i = s_idx ; i < (s_idx + nentries); i++) vas->s[i] = svi;
+		svi->locations[loc].size = amnt;
+		svi->locations[loc].base = ret;
+	}
+done:
+	UNLOCK();
+	return ret;
+}
+
 static void init(void)
 {
 	int i;

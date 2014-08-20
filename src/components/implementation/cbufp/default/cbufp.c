@@ -413,8 +413,8 @@ cbufp_map_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr, int fla
 	assert(cbi);
 	if (unlikely(!cbi)) goto done;
 	assert(cbi->owner.spdid == s_spd);
-	//if (!d_addr) d_addr = (vaddr_t)valloc_alloc_at(s_spd, d_spd, cbi->size);
-	if (cbufp_map(d_spd, d_addr, cbi->mem, cbi->size, flags)) goto done;
+	//if (valloc_alloc_at(s_spd, d_spd, d_addr, cbi->size)) goto done;
+	if (cbufp_map(d_spd, d_addr, cbi->mem, cbi->size, flags)) goto free;
 	ret = d_addr;
 	/* do not add d_spd to the meta list because the cbufp is not
 	 * accessible directly. The s_spd must maintain the necessary info
@@ -422,6 +422,9 @@ cbufp_map_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr, int fla
 done:
 	CBUFP_RELEASE();
 	return ret;
+free:
+	//valloc_free(s_spd, d_spd, d_addr, cbi->size);
+	goto done;
 }
 
 int
