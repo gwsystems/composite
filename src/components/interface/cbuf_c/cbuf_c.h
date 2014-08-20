@@ -11,7 +11,8 @@
 #define   	CBUF_C_H
 
 #include <cos_component.h>
-//#include <cbufp.h>
+
+typedef u32_t cbuf_t; /* should match cbufp_t, and fit in a register */
 
 /* 
  * cbuf_c_create and cbuf_c_retrieve:

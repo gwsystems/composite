@@ -196,8 +196,6 @@ extern cos_lock_t cbuf_lock;
  * same: deallocate the allocation free-list descriptor.
  */
 
-typedef u32_t  cbuf_t;   /* Requirement: gcc will return this in a register */
-typedef cbuf_t cbufp_t;	/* ...to differentiate in interfaces with normal cbufs */
 typedef union {
 	cbuf_t v;
 	struct {

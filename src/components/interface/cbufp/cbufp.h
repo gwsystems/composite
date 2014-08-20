@@ -12,6 +12,9 @@
 
 #include <cos_component.h>
 #include <ck_ring_cos.h>
+
+typedef u32_t cbufp_t; /* should match cbuf_t, and fit in a register */
+
 /* 
  * These are more or less identical to the counterparts in cbuf_c.h,
  * so have a look at the documentation there.
