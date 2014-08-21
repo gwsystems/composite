@@ -103,9 +103,57 @@ err_free1:
 	goto done;
 }
 
-int valloc_alloc_at(spdid_t spdid, spdid_t dest, vaddr_t d_addr, unsigned long npages)
-{
 
+int valloc_alloc_at(spdid_t spdid, spdid_t dest, void *addr, unsigned long npages)
+{
+	int ret = -1;
+	struct spd_vas_tracker *trac;
+	struct spd_vas_occupied *occ;
+	unsigned long off;
+
+	LOCK();
+	trac = cos_vect_lookup(&spd_vect, dest);
+	if (!trac) {
+		if (__valloc_init(dest) ||
+		    !(trac = cos_vect_lookup(&spd_vect, dest))) goto done;
+	}
+
+	if (unlikely(npages > MAP_MAX * sizeof(u32_t))) {
+		printc("valloc: cannot alloc more than %u bytes in one time!\n", 32 * WORDS_PER_PAGE * PAGE_SIZE);
+		goto done;
+	}
+
+	int i = 0;
+	while (trac->extents[i].map) {
+		if (addr < trac->extents[i].start || addr > trac->extents[i].end) {
+			if (++i == MAX_SPD_VAS_LOCATIONS) goto done;
+			continue;
+		}
+		/* the address is in the range of an existing extent */
+		occ = trac->extents[i].map;
+		off = ((char*)addr - (char*)trac->extents[i].start) / PAGE_SIZE;
+		assert(off + npages < MAP_MAX * sizeof(u32_t));
+		ret = bitmap_extent_set_at(&occ->pgd_occupied[0], off, npages, MAP_MAX);
+		goto done;
+	}
+	unsigned long ext_size;
+	if (npages > EXTENT_SIZE) ext_size = npages * PAGE_SIZE;
+	else ext_size = (trac->extents[0].end - trac->extents[0].start);
+	trac->extents[i].map = alloc_page();
+	occ = trac->extents[i].map;
+	assert(occ);
+	if (vas_mgr_take(spdid, dest, (vaddr_t)addr, ext_size) == 0) goto free;
+	trac->extents[i].start = addr;
+	trac->extents[i].end = (void *)((uintptr_t)addr + ext_size);
+	bitmap_set_contig(&occ->pgd_occupied[0], 0, ext_size / PAGE_SIZE, 1);
+	bitmap_set_contig(&occ->pgd_occupied[0], 0, npages, 0);
+	ret = 0;
+done:
+	UNLOCK();
+	return ret;
+free:
+	free_page(trac->extents[i].map);
+	goto done;
 }
 
 void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
