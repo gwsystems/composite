@@ -124,6 +124,7 @@ cbufp_tests()
 	printc("UNIT TEST PASSED: N alloc + cbufp2buf\n");
 
 	for (i = 0 ; i < MAX_CBUFPS ; i++) {
+		int sz = MAX_CBUFP_SZ;
 		bufs[i] = cbufp2buf(cbs[i], sz);
 		assert(bufs[i]);
 		cbufp_deref(cbs[i]);
