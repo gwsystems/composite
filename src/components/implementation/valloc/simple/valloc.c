@@ -123,11 +123,12 @@ void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
                 goto done;
         }
 
-        unsigned long ext_size = 0, i;
+        unsigned long ext_size = (trac->extents[0].end - trac->extents[0].start)/ PAGE_SIZE;
+	unsigned long i;
+
         for (i = 0; i < MAX_SPD_VAS_LOCATIONS; i++) {
                 if (trac->extents[i].map) {
                         occ = trac->extents[i].map;
-                        ext_size = (trac->extents[i].end - trac->extents[i].start) / PAGE_SIZE;
                         off = bitmap_extent_find_set(&occ->pgd_occupied[0], 0, npages, MAP_MAX);
                         if (off < 0) continue;
                         ret = (void *)((char *)trac->extents[i].start + off * PAGE_SIZE);
