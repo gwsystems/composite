@@ -162,17 +162,17 @@ int valloc_free(spdid_t spdid, spdid_t dest, void *addr, unsigned long npages)
 	trac = cos_vect_lookup(&spd_vect, dest);
 	if (!trac) goto done;
 
-	int i;
-        for (i = 0; i < MAX_SPD_VAS_LOCATIONS; i++) {
-                if (addr < trac->extents[i].start || addr > trac->extents[i].end) continue; /* locate the address to be freed in which range (extents) */
-                occ = trac->extents[i].map;
-                assert(occ);
-                off = ((char *)addr - (char *)trac->extents[i].start) / PAGE_SIZE;
-                assert(off + npages < MAP_MAX * sizeof(u32_t));
-                bitmap_set_contig(&occ->pgd_occupied[0], off, npages, 1);
-                ret = 0;
-                goto done;
-        }
+	int i = 0;
+	/* locate the address to be freed in which range (extents) */
+	while (addr < trac->extents[i].start || addr > trac->extents[i].end) {
+		if (++i == MAX_SPD_VAS_LOCATIONS) goto done;
+	}
+	occ = trac->extents[i].map;
+	assert(occ);
+	off = ((char *)addr - (char *)trac->extents[i].start) / PAGE_SIZE;
+	assert(off + npages < MAP_MAX * sizeof(u32_t));
+	bitmap_set_contig(&occ->pgd_occupied[0], off, npages, 1);
+	ret = 0;
 done:	
 	UNLOCK();
 	return ret;
