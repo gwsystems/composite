@@ -413,7 +413,7 @@ cbufp_map_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr, int fla
 	assert(cbi);
 	if (unlikely(!cbi)) goto done;
 	assert(cbi->owner.spdid == s_spd);
-	//if (valloc_alloc_at(s_spd, d_spd, d_addr, cbi->size)) goto done;
+	if (valloc_alloc_at(s_spd, d_spd, (void*)d_addr, cbi->size/PAGE_SIZE)) goto done;
 	if (cbufp_map(d_spd, d_addr, cbi->mem, cbi->size, flags)) goto free;
 	ret = d_addr;
 	/* do not add d_spd to the meta list because the cbufp is not
@@ -435,6 +435,7 @@ cbufp_unmap_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr)
 	int ret = 0;
 	u32_t id;
 	int tmem;
+	int err;
 	
 	cbuf_unpack(cbid, &id, &tmem);
 	assert(tmem == 0);
@@ -448,6 +449,9 @@ cbufp_unmap_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr)
 	/* unmap pages in only the d_spd client */
 	for (off = 0 ; off < cbi->size ; off += PAGE_SIZE)
 		mman_release_page(d_spd, d_addr + off, 0);
+	err = valloc_free(s_spd, d_spd, (void*)d_addr, cbi->size/PAGE_SIZE);
+	if (unlikely(err)) ERR_THROW(-EFAULT, done);
+	assert(!err);
 done:
 	CBUFP_RELEASE();
 	return ret;

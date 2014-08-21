@@ -118,8 +118,9 @@ cbufp_tests()
 	for (i = 0 ; i < MAX_CBUFPS ; i++) {
 		spdid_t myspd = cos_spd_id();
 		int err = 0;
-		bufs[i] = (char*)valloc_alloc(myspd, myspd, sz/PAGE_SIZE);
-		assert(bufs[i]);
+		/* Assume this component only uses 1 pgd, and there is
+		 * unallocated memory at the end for MAX_CBUFPS pages */
+		bufs[i] = (char*)(round_up_to_pgd_page(cbufp_tests) - (i+1)*PAGE_SIZE);
 		cbs[i] = unit_cbufp_alloc(sz);
 		assert(cbs[i]);
 		err = unit_cbufp_map_at(cbs[i], sz, myspd, (vaddr_t)bufs[i]);
@@ -133,7 +134,6 @@ cbufp_tests()
 		int err = 0;
 		err = unit_cbufp_unmap_at(cbs[i], sz, myspd, (vaddr_t)bufs[i]);
 		assert(!err);
-		valloc_free(myspd, myspd, bufs[i], sz/PAGE_SIZE);
 		bufs[i] = cbufp2buf(cbs[i], sz); /* clear send cnt */
 		assert(bufs[i]);
 		cbufp_deref(cbs[i]);
