@@ -118,36 +118,35 @@ void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
 		    !(trac = cos_vect_lookup(&spd_vect, dest))) goto done;
 	}
 
-        if (unlikely(npages > MAP_MAX * sizeof(u32_t))) {
-                printc("valloc: cannot alloc more than %u bytes in one time!\n", 32 * WORDS_PER_PAGE * PAGE_SIZE);
-                goto done;
-        }
+	if (unlikely(npages > MAP_MAX * sizeof(u32_t))) {
+		printc("valloc: cannot alloc more than %u bytes in one time!\n", 32 * WORDS_PER_PAGE * PAGE_SIZE);
+		goto done;
+	}
 
-        unsigned long ext_size = (trac->extents[0].end - trac->extents[0].start)/ PAGE_SIZE;
-	unsigned long i;
-
-        for (i = 0; i < MAX_SPD_VAS_LOCATIONS; i++) {
-                if (trac->extents[i].map) {
-                        occ = trac->extents[i].map;
-                        off = bitmap_extent_find_set(&occ->pgd_occupied[0], 0, npages, MAP_MAX);
-                        if (off < 0) continue;
-                        ret = (void *)((char *)trac->extents[i].start + off * PAGE_SIZE);
-                        goto done;
-                }
-
-                if (npages > EXTENT_SIZE) ext_size = npages;
-                trac->extents[i].map = alloc_page();
-                occ = trac->extents[i].map;
-                assert(occ);
-                trac->extents[i].start = (void*)vas_mgr_expand(spdid, dest, ext_size * PAGE_SIZE);
-                trac->extents[i].end = (void *)(trac->extents[i].start + ext_size * PAGE_SIZE);
-                bitmap_set_contig(&occ->pgd_occupied[0], 0, ext_size, 1);
-                bitmap_set_contig(&occ->pgd_occupied[0], 0, npages, 0);
-                ret = trac->extents[i].start;
-                break;
-        }
-
-done:   
+	int i = 0;
+	while (trac->extents[i].map) {
+		occ = trac->extents[i].map;
+		off = bitmap_extent_find_set(&occ->pgd_occupied[0], 0, npages, MAP_MAX);
+		if (off < 0) {
+			if (++i == MAX_SPD_VAS_LOCATIONS) goto done;
+			continue;
+		}
+		ret = (void *)((char *)trac->extents[i].start + off * PAGE_SIZE);
+		goto done;
+	}
+	
+	unsigned long ext_size;
+	if (npages > EXTENT_SIZE) ext_size = npages; /* Does this work? */
+	else ext_size = (trac->extents[0].end - trac->extents[0].start) / PAGE_SIZE;
+	trac->extents[i].map = alloc_page();
+	occ = trac->extents[i].map;
+	assert(occ);
+	trac->extents[i].start = (void*)vas_mgr_expand(spdid, dest, ext_size * PAGE_SIZE);
+	trac->extents[i].end = (void *)(trac->extents[i].start + ext_size * PAGE_SIZE);
+	bitmap_set_contig(&occ->pgd_occupied[0], 0, ext_size, 1);
+	bitmap_set_contig(&occ->pgd_occupied[0], 0, npages, 0);
+	ret = trac->extents[i].start;
+done:
 	UNLOCK();
 	return ret;
 }
