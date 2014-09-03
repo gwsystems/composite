@@ -13,111 +13,19 @@
 #include "debug.h"
 #include "shared/consts.h"
 #include "per_cpu.h"
+#include "shared/cos_config.h"
+#include "fpu_regs.h"
 
 #include <linux/kernel.h>
 
-/* 
- * There are 4 thread descriptors per page: the thread_t is 16 bytes,
- * each stack frame is the same, and we define MAX_SERVICE_DEPTH to be
- * 31, making a total of 512 bytes.  We then reserve 512 bytes for
- * kernel stack usage.
- */
+/* Thread header file for new kernel. */
+#include "thd.h"
 
 /*
 #if (PAGE_SIZE % THREAD_SIZE != 0)
 #error "Page size must be multiple of thread size."
 #endif
 */
-
-struct thd_invocation_frame {
-	struct spd_poly *current_composite_spd;
-	/*
-	 * sp and ip are literally the sp and ip that the kernel sets
-	 * on return to user-level.
-	 */
-	struct spd *spd;
-	vaddr_t sp, ip;
-}; //HALF_CACHE_ALIGNED;
-
-/* 
- * The scheduler at a specific hierarchical depth and the shared data
- * structure between it and this thread.
- */
-struct thd_sched_info {
-	struct spd *scheduler;
-	struct cos_sched_events *thread_notifications;
-	int notification_offset;
-};
-
-#define THD_STATE_PREEMPTED     0x1   /* Complete register info is saved in regs */
-#define THD_STATE_UPCALL        0x2   /* Thread for upcalls: ->thd_brand points to the thread who we're branded to */
-#define THD_STATE_ACTIVE_UPCALL 0x4   /* Thread is in upcall execution. */
-#define THD_STATE_READY_UPCALL  0x8   /* Same as previous, but we are ready to execute */ 
-#define THD_STATE_BRAND         0x10  /* This thread is used as a brand */
-#define THD_STATE_SCHED_RETURN  0x20  /* When the sched switches to this thread, ret from ipc */
-#define THD_STATE_FAULT         0x40  /* Thread has had a (e.g. page) fault which is being serviced */
-#define THD_STATE_HW_BRAND      0x80 /* Actual hardware should be making this brand */
-#define THD_STATE_CYC_CNT       0x100 /* This thread is being cycle tracked */
-
-/**
- * The thread descriptor.  Contains all information pertaining to a
- * thread including its address space, capabilities to services, and
- * the kernel invocation stack of execution through components.  
- */
-struct thread {
-	short int stack_ptr;
-	unsigned short int thread_id, cpu_id, flags;
-
-	/* 
-	 * Watch your alignments here!!!
-	 *
-	 * changes in the alignment of this struct must also be
-	 * reflected in the alignment of regs in struct thread in
-	 * ipc.S.  Would love to put this at the bottom of the struct.
-	 * TODO: use offsetof to produce an include file at build time
-	 * to automtically generate the assembly offsets.
-	 */
-	struct pt_regs regs;
-
-	/* the first frame describes the threads protection domain */
-	struct thd_invocation_frame stack_base[MAX_SERVICE_DEPTH] HALF_CACHE_ALIGNED;
-	struct pt_regs fault_regs;
-
-	/* The currently activated tcap for this thread's execution */
-	struct tcap_ref tcap_active;
-	/* The tcap configured to receive delegations for this thread */
-	struct tcap_ref tcap_receiver;
-
-	void *data_region;
-	vaddr_t ul_data_page;
-
-	struct thd_sched_info sched_info[MAX_SCHED_HIER_DEPTH] CACHE_ALIGNED; 
-
-	/* Start Brand & Upcall fields: */
-
-	/* flags & THD_STATE_UPCALL */
-	/* The thread who's execution we are branded to */
-	struct thread *thread_brand;
-	struct thread *interrupted_thread, *preempter_thread;
-	struct thread *upcall_threads;
-
-	/* flags & THD_STATE_BRAND */
-	unsigned long pending_upcall_requests;
-
-	/* HACK: recv ring buffer for network packets, both user-level
-	 * and kernel-level pointers
-	 */
-	ring_buff_t *u_rb, *k_rb;
-	int rb_next; 		/* Next address entry */
-
-	/* End Brand & Upcall fields */
-
-	/* flags & (THD_STATE_UPCALL|THD_STATE_BRAND) != 0: */
-	/* TODO singly linked list of upcall threads for a specific brand */
-	//struct thread *upcall_thread_ready, *upcall_thread_active;
-
-	struct thread *freelist_next;
-} CACHE_ALIGNED;
 
 struct thread *thd_alloc(struct spd *spd);
 void thd_free(struct thread *thd);
@@ -160,7 +68,7 @@ static inline struct thd_invocation_frame *thd_invocation_pop(struct thread *cur
 
 	if (curr_thd->stack_ptr <= 0) {
 		//printd("Tried to return without invocation.\n");
-		/* FIXME: kill the thread if not a branded upcall thread */
+		/* FIXME: kill the thread if not a upcall thread */
 		return NULL; //kill the kern for now...
 	}
 
@@ -243,7 +151,7 @@ thd_curr_spd_thd(struct thread *t)
 
 static inline struct spd *thd_curr_spd_noprint(void)
 {
-	return thd_curr_spd_thd(core_get_curr_thd());
+	return thd_curr_spd_thd(cos_get_curr_thd());
 }
 
 static inline vaddr_t thd_get_frame_ip(struct thread *thd, int frame_offset)

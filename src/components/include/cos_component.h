@@ -12,6 +12,54 @@
 #include <cos_types.h>
 #include <errno.h>
 
+/* temporary */
+static inline int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
+{
+        long fault = 0;
+	int ret;
+
+	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
+	cap_no += op;
+
+	__asm__ __volatile__("":::"ecx", "edx");
+	__asm__ __volatile__( \
+		"pushl %%ebp\n\t" \
+		"movl %%esp, %%ebp\n\t" \
+		"movl $1f, %%ecx\n\t" \
+		"sysenter\n\t" \
+		".align 8\n\t" \
+		"jmp 2f\n\t" \
+		".align 8\n\t" \
+		"1:\n\t" \
+		"popl %%ebp\n\t" \
+		"movl $0, %%ecx\n\t" \
+		"jmp 3f\n\t" \
+		"2:\n\t" \
+		"popl %%ebp\n\t" \
+		"movl $1, %%ecx\n\t" \
+		"3:" \
+		: "=a" (ret), "=c" (fault)
+		: "a" (cap_no), "b" (arg1), "S" (arg2), "D" (arg3), "d" (arg4) \
+		: "memory", "cc");
+
+	return ret;
+}
+
+static inline int cap_switch_thd(u32_t cap_no) 
+{
+	return call_cap_asm(cap_no, 0, 0, 0, 0, 0);
+}
+
+static inline int call_cap(u32_t cap_no, int arg1, int arg2, int arg3, int arg4)
+{
+	return call_cap_asm(cap_no, 0, arg1, arg2, arg3, arg4);
+}
+
+static inline int call_cap_op(u32_t cap_no, u32_t op_code,int arg1, int arg2, int arg3, int arg4)
+{
+	return call_cap_asm(cap_no, op_code, arg1, arg2, arg3, arg4);
+}
+
 /**
  * FIXME: Please remove this since it is no longer needed
  */
@@ -130,18 +178,27 @@ cos_syscall_asm                                      \
 cos_syscall_clobber                                  \
 }
 
+#define cos_syscall_4(num, rtype, name, type0, name0, type1, name1, type2, name2, type3, name3) \
+static inline rtype cos_##name(type0 name0, type1 name1, type2 name2, type3 name3) \
+{                                                    \
+	rtype ret;                                   \
+cos_syscall_asm                                      \
+		: "a" (num<<COS_SYSCALL_OFFSET), "b" (name0), "S" (name1), "D" (name2), "d" (name3), \
+cos_syscall_clobber                                  \
+}
+
 cos_syscall_0(1,  int, stats);
 cos_syscall_2(2,  int, print, char*, str, int, len);
-cos_syscall_3(3,  int, create_thread, int, a, int, b, int, c);
-cos_syscall_3(4,  int, __switch_thread, int, thd_id, int, flags, unsigned long, tcap);
-cos_syscall_1(5,  int, brand_wait, int, thdid);
-cos_syscall_3(6,  int, __brand_upcall, int, thd_id_flags, long, arg1, long, arg2);
-cos_syscall_3(7,  int, __brand_cntl, int, ops, u32_t, bid_tid, spdid_t, spdid);
-cos_syscall_1(8,  int, upcall, int, spd_id);
+cos_syscall_3(3,  int, create_thread, int, dest_spd_id, int, a, int, b);
+cos_syscall_2(4,  int, __switch_thread, int, thd_id, int, flags);
+cos_syscall_3(5, int, __async_cap_cntl, int, operation, int, arg1, long, arg2);
+cos_syscall_1(6, int, areceive, int, acap_id);
+cos_syscall_1(7, int, asend, int, acap_id);
+cos_syscall_2(8,  int, upcall, int, spd_id, int, init_data);
 cos_syscall_3(9,  int, sched_cntl, int, operation, int, thd_id, long, option);
 cos_syscall_3(10, int, mpd_cntl, int, operation, spdid_t, composite_spd, spdid_t, composite_dest);
 cos_syscall_3(11, int, __mmap_cntl, long, op_flags_dspd, vaddr_t, daddr, unsigned long, mem_id);
-cos_syscall_3(12, int, brand_wire, long, thd_id, long, option, long, data);
+cos_syscall_3(12, int, acap_wire, long, thd_id, long, option, long, data);
 cos_syscall_3(13, long, __cap_cntl, int, option, u32_t, arg1, long, arg2);
 cos_syscall_3(14, int, __buff_mgmt, void *, addr, int, thd_id, int, len_option);
 cos_syscall_3(15, int, __thd_cntl, int, op_thdid, long, arg1, long, arg2);
@@ -150,8 +207,6 @@ cos_syscall_3(17, int, __spd_cntl, int, op_spdid, long, arg1, long, arg2);
 cos_syscall_3(18, int, __vas_cntl, int, op_spdid, long, arg1, long, arg2);
 cos_syscall_3(19, int, __trans_cntl, unsigned long, op_ch, unsigned long, addr, int, off);
 cos_syscall_3(20, int, __pfn_cntl, unsigned long, op_spd, unsigned long, mem_id, int, extent);
-cos_syscall_3(21, int, __send_ipi, long, cpuid, int, thdid, long, arg);
-cos_syscall_3(22, int, __tcap_cntl, unsigned long, spdid_op_tcap, unsigned long, tcap2_prio, unsigned long, budget_exp);
 cos_syscall_0(31,  int, null);
 
 static inline int 
@@ -162,35 +217,9 @@ cos_mmap_cntl(short int op, short int flags, short int dest_spd,
 			       dest_addr, mem_id);
 }
 
-static inline int
-cos_tcap_cntl(tcap_op_t op, tcap_t tcap1, tcap_t tcap2, u16_t prio, 
-	      unsigned int reservation, unsigned int expiration)
+static inline int cos_async_cap_cntl(int operation, unsigned short int arg1, unsigned short int arg2, int arg3)
 {
-	return cos___tcap_cntl((op << 16) | prio, 
-			       (tcap2 << 16) | tcap1,
-			       (reservation << 16) | (expiration & 0xFFFF));
-}
-
-static inline long cos_spd_id(void);
-static inline int 
-cos_tcap_split(tcap_t tcap, u16_t prio, unsigned int reservation, unsigned int expiration, int pooled)
-{
-	return cos_tcap_cntl(pooled ? COS_TCAP_SPLIT_POOL : COS_TCAP_SPLIT, 
-			     tcap, 0, prio, reservation, expiration);
-}
-
-/* for COS_TCAP_{BIND, RECEIVER} */
-static inline int
-cos_tcap_thd_cntl(tcap_op_t op, spdid_t spdid, tcap_t tcap, u16_t thdid)
-{
-	return cos___tcap_cntl((spdid << 16) | (op << 8) | tcap, 
-			       (thdid << 16) | 0, 0);
-}
-
-static inline int 
-cos_send_ipi(int cpuid, int thdid, unsigned short int arg1, unsigned short int arg2)
-{
-	return cos___send_ipi(cpuid, thdid, ((arg1 << 16) | (arg2 & 0xFFFF)));
+	return cos___async_cap_cntl(operation, ((arg1 << 16) | (arg2 & 0xFFFF)), arg3);
 }
 
 /* 
@@ -203,19 +232,9 @@ cos_pfn_cntl(short int op, int dest_spd, unsigned int mem_id, int extent) {
 	return cos___pfn_cntl(((op<<16) | (dest_spd)), mem_id, extent);
 }
 
-static inline int cos_brand_upcall(short int thd_id, short int flags, long arg1, long arg2)
-{
-	return cos___brand_upcall(((thd_id << 16) | (flags & 0xFFFF)), arg1, arg2);
-}
-
 static inline int cos_buff_mgmt(unsigned short int op, void *addr, unsigned short int len, short int thd_id)
 {
 	return cos___buff_mgmt(addr, thd_id, ((len << 16) | (op & 0xFFFF)));
-}
-
-static inline int cos_brand_cntl(int ops, unsigned short int bid, unsigned short int tid, spdid_t spdid)
-{
-	return cos___brand_cntl(ops, bid << 16 | tid, spdid);
 }
 
 static inline int cos_thd_cntl(short int op, short int thd_id, long arg1, long arg2)
@@ -431,6 +450,8 @@ cos_memset(void * s, char c , int count)
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
+#define CFORCEINLINE __attribute__((always_inline))
+
 /* 
  * A composite constructor (deconstructor): will be executed before
  * other component execution (after component execution).  CRECOV is a
@@ -445,11 +466,12 @@ static inline void
 section_fnptrs_execute(long *list)
 {
 	int i;
-	typedef void (*ctors_t)(void);
-	ctors_t ctors;
 
-	ctors = (ctors_t)list[1];
-	for (i = 0 ; i < list[0] ; i++, ctors++) ctors();
+	for (i = 0 ; i < list[0] ; i++) {
+		typedef void (*ctors_t)(void);
+		ctors_t ctors = (ctors_t)list[i+1];
+		ctors();
+	}
 }
 
 static void 
@@ -486,5 +508,10 @@ static inline int cos_argreg_arr_intern(struct cos_array *ca) { FAIL(); return 0
 #define STRX(x) #x
 #define STR(x) STRX(x)
 #endif
+
+struct __thd_init_data {
+	void *fn;
+	void *data;
+};
 
 #endif

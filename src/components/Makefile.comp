@@ -16,8 +16,19 @@ LWIPDIR=$(LWIPBASE)/lwip-1.3.0
 LWIPOBJ=$(LWIPBASE)/cos/net_stack.o
 LWIPINC=-I$(LWIPDIR)/src/include -I$(LWIPDIR)/src/include/ipv4/ -I$(LWIPBASE)/cos/include/ 
 
+CCVDIR=$(CDIR)/lib/libccv
+CCVOBJ=$(CCVDIR)/cos_libccv.a
+CCVINC=-I$(CCVDIR)
+
+POSIX_LIB=$(CDIR)/lib/posix/posix.o
+
 #PONY=$(CDIR)/cidl/
 PONY=/bin/echo
+
+LUABASE=$(CDIR)/lib/lua
+LUADIR=$(LUABASE)/lua-5.2.1
+LUAOBJ=$(LUABASE)/cos/lua_lang.o
+LUAINC=-I$(LUADIR)/src -I$(LUABASE)/cos/include
 
 INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/
 # FIXME: dietlibc is now compiled with fno merge constants which is
@@ -26,7 +37,7 @@ INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib
 #OPT= -ggdb3
 OPT= -O3
-CFLAGS=-D__x86__ -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable -fno-stack-protector -fno-omit-frame-pointer $(INC_PATH) $(DIETINC) $(LWIPINC) $(OPT) $(SHARED_FLAGS)
+CFLAGS=-D__x86__ -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable -fno-stack-protector -fno-omit-frame-pointer $(INC_PATH) $(DIETINC) $(LWIPINC) $(LUAINC) $(OPT) $(SHARED_FLAGS)
 DIETCFLAGS=$(CFLAGS) -Xlinker -r
 ASFLAGS=$(INC_PATH) $(SHARED_FLAGS)
 

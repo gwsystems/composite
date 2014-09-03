@@ -9,13 +9,11 @@
 
 #include "include/per_cpu.h"
 #include "include/thread.h"
-struct per_core_variables per_core[NUM_CPU];
-
-#define COS_SYSCALL __attribute__((regparm(0)))
+/* struct per_core_variables per_core[NUM_CPU]; */
 
 /* We need to access the current thread from ASM. Used in ipc.S */
 COS_SYSCALL __attribute__((cdecl)) struct thread *
-core_get_curr_thd_asm(void)
+cos_get_curr_thd_asm(void)
 {
-	return core_get_curr_thd();
+	return cos_get_curr_thd();
 }

@@ -1,7 +1,6 @@
 #include <cos_component.h>
 #include <print.h>
 
-#include <sched.h>
 #include <pong.h>
  
 #define ITER (1024)
@@ -13,7 +12,7 @@ void cos_init(void)
 	int i, j;
 
 	call();			/* get stack */
-	printc("cpu %ld from ping\n",cos_cpuid());
+	printc("cpu %ld, thd %d from ping\n",cos_cpuid(), cos_get_thd_id());
 	printc("Starting %d Invocations.\n", ITER);
 
 	for (i = 0 ; i < ITER ; i++) {
@@ -43,7 +42,7 @@ void cos_init(void)
 	}
 	dev /= ITER;
 	printc("deviation^2 = %lld\n", dev);
-	
+
 //	printc("%d invocations took %lld\n", ITER, end-start);
 	return;
 }

@@ -38,11 +38,34 @@ nlpow2(u32_t x)
 	return x + 1;
 }
 
+/* compute the highest power of 2 less or equal than 32-bit v */
+static inline u32_t 
+leqpow2(u32_t orig) 
+{
+	u32_t v = orig - 1;
+
+	v |= v >> 1;
+	v |= v >> 2;
+	v |= v >> 4;
+	v |= v >> 8;
+	v |= v >> 16;
+	v++;
+
+	return (v == orig) ? v : v >> 1;
+}
+
 /* Is x a power of two? */
 static inline u32_t
 pow2(u32_t x)
 {
 	return (x & (x-1)) == 0;
+}
+
+static inline int 
+__power_2(const u32_t v)
+{
+	u32_t smallest_set_bit = (v & -v); /* Assume 2's complement */
+	return (v > 1 && smallest_set_bit == v);
 }
 
 /* next largest pow of 2, or identity if x is pow2 */

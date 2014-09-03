@@ -1,5 +1,5 @@
 C_OBJS=booter.o
-ASM_OBJS=
+ASM_OBJS=init.o
 COMPONENT=boot.o
 INTERFACES=cinfo failure_notif cgraph
 DEPENDENCIES=sched printc mem_mgr

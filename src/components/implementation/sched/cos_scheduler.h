@@ -50,6 +50,8 @@
 #define sched_thd_dependent(thd)     ((thd)->flags & THD_DEPENDENCY)
 #define sched_thd_suspended(thd)     ((thd)->flags & THD_SUSPENDED)
 
+#define sched_thd_on_current_core(thd) (sched_get_thd_core(thd) == cos_cpuid())
+
 #define SCHED_NUM_THREADS MAX_NUM_THREADS
 
 /* cevt_t: */
@@ -60,10 +62,10 @@
 typedef enum {
 	NULL_EVT = 0,
 	SWITCH_THD,
-	BRAND_ACTIVE,
-	BRAND_READY,
-	BRAND_PENDING,
-	BRAND_CYCLE,
+	ACAP_ACTIVE,
+	ACAP_READY,
+	ACAP_PENDING,
+	ACAP_CYCLE,
 	SCHED_DEPENDENCY,
 	THD_BLOCK,
 	THD_WAKE,
@@ -121,7 +123,7 @@ struct sched_thd {
 	unsigned short int flags, id, evt_id;
 	struct sched_accounting accounting;
 	struct sched_metric metric;
-	tcap_t tcap;
+	cpuid_t cpuid;
 	u16_t event;
 	struct sched_thd *prio_next,  *prio_prev, 
 		         *sched_next, *sched_prev; /* for scheduler policy use */
@@ -152,9 +154,10 @@ struct sched_thd {
 	struct sched_thd *cevt_next, *cevt_prev;
 
 	/* If we have been killed, and are going to be reused, we have
-	 * to call the fp_create_spd_thd function with a specific
-	 * spdid...stored here. */
+	 * to upcall into the specified spdid...stored here. */
+	/* ... and its init_data */
 	spdid_t spdid;
+	int init_data;
 };
 
 struct sched_crit_section {
@@ -188,6 +191,15 @@ static inline struct sched_accounting *sched_get_accounting(struct sched_thd *th
 	assert(!sched_thd_free(thd));
         
 	return &thd->accounting;
+}
+
+static inline int sched_clear_accounting(struct sched_thd *thd)
+{
+	assert(!sched_thd_free(thd));
+
+	memset(sched_get_accounting(thd), 0, sizeof(struct sched_accounting));
+
+	return 0;
 }
 
 static inline struct sched_metric *sched_get_metric(struct sched_thd *thd)
@@ -255,8 +267,35 @@ static inline void sched_set_thd_urgency(struct sched_thd *t, u16_t urgency)
 {
 	if (t->evt_id) {
 		cos_sched_set_evt_urgency(t->evt_id, urgency);
+	} else {
+		/* Maybe assert here? */
+		printc("Warning: core %ld, scheduler setting thread (id %d) urgency without event id\n", cos_cpuid(), t->id);
 	}
 	sched_get_metric(t)->urgency = urgency;
+}
+
+struct thd_core_mapping {
+	cpuid_t thd_to_core[SCHED_NUM_THREADS];
+} CACHE_ALIGNED;
+
+struct thd_core_mapping thd_core;
+
+static inline cpuid_t sched_get_thd_core(unsigned short int thd_id) {
+	if (unlikely(thd_id >= SCHED_NUM_THREADS || thd_core.thd_to_core[thd_id] < 0)) {
+		return -1;
+	}
+	
+	return thd_core.thd_to_core[thd_id];
+}
+
+static inline int sched_set_thd_core(unsigned short int thd_id, cpuid_t cpu) {
+	if (unlikely(thd_id >= SCHED_NUM_THREADS || cpu >= NUM_CPU_COS)) {
+		return -1;
+	}
+
+	thd_core.thd_to_core[thd_id] = cpu;
+	
+	return 0;
 }
 
 /* --- Thread Id -> Sched Thread Mapping Utilities --- */
@@ -281,6 +320,8 @@ static inline struct sched_thd *sched_get_current(void)
 	
 	return thd;
 }
+
+int sched_curr_is_IPI_handler(void);
 
 static inline int sched_add_mapping(unsigned short int thd_id, struct sched_thd *thd)
 {
@@ -457,7 +498,9 @@ cos_switch_thread_release(unsigned short int thd_id, unsigned short int flags, t
 
 	/* kernel will read next thread information from cos_next */
 	/* printc("core %ld: __switch_thread, thd %u, flags %u\n", cos_cpuid(), thd_id, flags); */
-	return cos___switch_thread(thd_id, flags, tcap); 
+	int ret = cos___switch_thread(thd_id, flags); 
+
+	return ret;
 }
 
 

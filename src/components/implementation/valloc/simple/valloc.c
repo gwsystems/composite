@@ -21,12 +21,12 @@
 #ifdef LOCK_COMPONENT
 #include <cos_synchronization.h>
 cos_lock_t valloc_lock;
-#define LOCK()      lock_take(&valloc_lock)
-#define UNLOCK()    lock_release(&valloc_lock)
+#define LOCK()      do { if (lock_take(&valloc_lock))    BUG(); } while(0);
+#define UNLOCK()    do { if (lock_release(&valloc_lock)) BUG(); } while(0);
 #define LOCK_INIT() lock_static_init(&valloc_lock);
 #else
-#define LOCK()   if(sched_component_take(cos_spd_id())) BUG();
-#define UNLOCK() if(sched_component_release(cos_spd_id())) BUG();
+#define LOCK()   if (sched_component_take(cos_spd_id())) BUG();
+#define UNLOCK() if (sched_component_release(cos_spd_id())) BUG();
 #define LOCK_INIT()
 #endif
 
@@ -36,6 +36,7 @@ COS_VECT_CREATE_STATIC(spd_vect);
 #define WORDS_PER_PAGE (PAGE_SIZE/sizeof(u32_t))
 #define MAP_MAX WORDS_PER_PAGE
 #define VAS_SPAN (WORDS_PER_PAGE * sizeof(u32_t) * 8)
+#define EXTENT_SIZE (32 * 1024 * 1024 / PAGE_SIZE)
 
 /* describes 2^(12+12+3 = 27) bytes */
 struct spd_vas_occupied {
@@ -48,6 +49,7 @@ struct spd_vas_occupied {
 
 struct vas_extent {
 	void *start, *end;
+	struct spd_vas_occupied *map;
 };
 
 struct spd_vas_tracker {
@@ -78,13 +80,14 @@ static int __valloc_init(spdid_t spdid)
 	if (cinfo_map(cos_spd_id(), (vaddr_t)ci, spdid)) goto err_free2;
 	hp = (void*)ci->cos_heap_ptr;
 
-	trac->spdid            = spdid;
-	trac->ci               = ci;
-	trac->map              = occ;
-	trac->extents[0].start = (void*)round_to_pgd_page(hp);
-	trac->extents[0].end   = (void*)round_up_to_pgd_page(hp);
-	page_off = ((unsigned long)hp - (unsigned long)round_to_pgd_page(hp))/PAGE_SIZE;
-	bitmap_set_contig(&occ->pgd_occupied[0], page_off, (PGD_SIZE/PAGE_SIZE)-page_off, 1);
+        trac->spdid            = spdid;
+        trac->ci               = ci;
+        trac->map              = occ;
+        trac->extents[0].start = (void*)round_to_pgd_page(hp);
+        trac->extents[0].end   = (void*)round_up_to_pgd_page(hp);
+        trac->extents[0].map   = occ;
+        page_off = ((unsigned long)hp - (unsigned long)round_to_pgd_page(hp))/PAGE_SIZE;
+        bitmap_set_contig(&occ->pgd_occupied[0], page_off, (PGD_SIZE/PAGE_SIZE)-page_off, 1);
 
 	cos_vect_add_id(&spd_vect, trac, spdid);
 	assert(cos_vect_lookup(&spd_vect, spdid));
@@ -115,11 +118,34 @@ void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
 		    !(trac = cos_vect_lookup(&spd_vect, dest))) goto done;
 	}
 
-	occ = trac->map;
-	assert(occ);
-	off = bitmap_extent_find_set(&occ->pgd_occupied[0], 0, npages, MAP_MAX);
-	if (off < 0) goto done;
-	ret = ((char *)trac->extents[0].start) + (off * PAGE_SIZE);
+        if (unlikely(npages > MAP_MAX * sizeof(u32_t))) {
+                printc("valloc: cannot alloc more than %u bytes in one time!\n", 32 * WORDS_PER_PAGE * PAGE_SIZE);
+                goto done;
+        }
+
+        unsigned long ext_size = 0, i;
+        for (i = 0; i < MAX_SPD_VAS_LOCATIONS; i++) {
+                if (trac->extents[i].map) {
+                        occ = trac->extents[i].map;
+                        ext_size = (trac->extents[i].end - trac->extents[i].start) / PAGE_SIZE;
+                        off = bitmap_extent_find_set(&occ->pgd_occupied[0], 0, npages, MAP_MAX);
+                        if (off < 0) continue;
+                        ret = (void *)((char *)trac->extents[i].start + off * PAGE_SIZE);
+                        goto done;
+                }
+
+                if (npages > EXTENT_SIZE) ext_size = npages;
+                trac->extents[i].map = alloc_page();
+                occ = trac->extents[i].map;
+                assert(occ);
+                trac->extents[i].start = (void*)vas_mgr_expand(spdid, dest, ext_size * PAGE_SIZE);
+                trac->extents[i].end = (void *)(trac->extents[i].start + ext_size * PAGE_SIZE);
+                bitmap_set_contig(&occ->pgd_occupied[0], 0, ext_size, 1);
+                bitmap_set_contig(&occ->pgd_occupied[0], 0, npages, 0);
+                ret = trac->extents[i].start;
+                break;
+        }
+
 done:   
 	UNLOCK();
 	return ret;
@@ -135,12 +161,18 @@ int valloc_free(spdid_t spdid, spdid_t dest, void *addr, unsigned long npages)
 	LOCK();
 	trac = cos_vect_lookup(&spd_vect, dest);
 	if (!trac) goto done;
-	occ = trac->map;
-	assert(occ);
-	off = ((char *)addr - (char *)trac->extents[0].start)/PAGE_SIZE;
-	assert(off+npages < MAP_MAX*sizeof(u32_t));
-	bitmap_set_contig(&occ->pgd_occupied[0], off, npages, 1);
-	ret = 0;
+
+	int i;
+        for (i = 0; i < MAX_SPD_VAS_LOCATIONS; i++) {
+                if (addr < trac->extents[i].start || addr > trac->extents[i].end) continue; /* locate the address to be freed in which range (extents) */
+                occ = trac->extents[i].map;
+                assert(occ);
+                off = ((char *)addr - (char *)trac->extents[i].start) / PAGE_SIZE;
+                assert(off + npages < MAP_MAX * sizeof(u32_t));
+                bitmap_set_contig(&occ->pgd_occupied[0], off, npages, 1);
+                ret = 0;
+                goto done;
+        }
 done:	
 	UNLOCK();
 	return ret;
@@ -148,6 +180,7 @@ done:
 
 static void init(void)
 {
+	LOCK_INIT();
 	cos_vect_init_static(&spd_vect);
 }
 

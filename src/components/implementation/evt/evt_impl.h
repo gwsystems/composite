@@ -43,6 +43,9 @@ struct evt {
 	evt_status_t status;
 	int prio;
 	long extern_id;
+	int n_wait;
+	cpuid_t core_id;
+	volatile int n_received; 
 	struct evt_grp *grp;
 	struct evt *next, *prev;
 };
@@ -84,6 +87,12 @@ static inline int __evt_trigger(struct evt *e)
 	evt_grp_status_t gs;
 
 	assert(NULL != e);
+	
+	/* FIXME: need atomic instruction. */
+	e->n_received++;
+	assert(e->n_received <= e->n_wait);
+	if (e->n_received < e->n_wait) return 0;
+
 	g = e->grp;
 	assert(g);
 	gs = g->status;

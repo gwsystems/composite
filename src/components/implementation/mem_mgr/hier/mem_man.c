@@ -40,7 +40,7 @@ static inline long cell_index(struct mem_cell *c)
 }
 
 extern void parent_mman_revoke_page(spdid_t spd, vaddr_t addr, int flags);
-extern vaddr_t parent_mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr);
+extern vaddr_t parent___mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr);
 extern vaddr_t parent_mman_get_page(spdid_t spd, vaddr_t addr, int flags);
 
 static inline struct mem_cell *
@@ -55,7 +55,7 @@ find_unused(void)
 
 		if (!cells[i].local_addr) {
 			char *hp = cos_get_vas_page();
-			if (!parent_mman_get_page(cos_spd_id(), (vaddr_t)hp, 0)) {
+			if (!parent_mman_get_page(cos_spd_id(), (vaddr_t)hp, MAPPING_RW)) {
 				return NULL;
 			}
 			cells[i].local_addr = hp;
@@ -104,7 +104,7 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 #ifdef ZERO_OUT
 	memset(c->local_addr, 0, 4096);
 #endif
-	if (!parent_mman_alias_page(cos_spd_id(), (vaddr_t)c->local_addr, spd, addr)) {
+	if (!parent___mman_alias_page(cos_spd_id(), (vaddr_t)c->local_addr, spd, addr)) {
 		printc("mh: could not grant page @ %x to spd %d\n", 
 		       (unsigned int)addr, (unsigned int)spd);
 		c->map[0].owner_spd = 0;
@@ -121,7 +121,7 @@ err:
  * Make an alias to a page in a source spd @ a source address to a
  * destination spd/addr
  */
-vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr)
+vaddr_t __mman_alias_page(spdid_t s_spd, vaddr_t s_addr, u32_t d_spd, vaddr_t d_addr)
 {
 	int alias = -1, i;
 	struct mem_cell *c;
@@ -134,7 +134,7 @@ vaddr_t mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_
 	for (i = alias+1 ; i < MAX_ALIASES ; i++) {
 		if (base[i].owner_spd != 0 || base[i].addr != 0) continue;
 
-		if (!parent_mman_alias_page(cos_spd_id(), (vaddr_t)c->local_addr, d_spd, d_addr)) {
+		if (!parent___mman_alias_page(cos_spd_id(), (vaddr_t)c->local_addr, d_spd, d_addr)) {
 			printc("mh: could not alias page @ %x to spd %d from %x(%d)\n", 
 			       (unsigned int)d_addr, (unsigned int)d_spd, (unsigned int)s_addr, (unsigned int)s_spd);
 			goto err;

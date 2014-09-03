@@ -83,7 +83,7 @@ typedef struct {
 } rb_meta_t;
 static rb_meta_t rb1_md_wildcard, rb2_md;
 static ring_buff_t rb1, rb2;
-static unsigned short int wildcard_brand_id;
+static int wildcard_acap_id;
 
 //cos_lock_t tmap_lock;
 struct thd_map {
@@ -331,11 +331,19 @@ static void release_rb_buff(rb_meta_t *r, void *b)
 
 #include <sched.h>
 
-static int cos_net_create_net_brand(unsigned short int port, rb_meta_t *rbm)
+static int cos_net_create_net_acap(unsigned short int port, rb_meta_t *rbm)
 {
-	wildcard_brand_id = sched_create_net_brand(cos_spd_id(), port);
-	assert(wildcard_brand_id > 0);
-	if (cos_buff_mgmt(COS_BM_RECV_RING, rb1.packets, sizeof(rb1.packets), wildcard_brand_id)) {
+	int acap;
+
+	acap = cos_async_cap_cntl(COS_ACAP_CREATE, cos_spd_id(), cos_spd_id(), cos_get_thd_id());
+	assert(acap);
+	/* cli acap not used. The server acap will be triggered by
+	 * network driver. */
+	wildcard_acap_id = acap & 0xFFFF;
+	assert(wildcard_acap_id > 0);
+
+	if (sched_create_net_acap(cos_spd_id(), wildcard_acap_id, port)) return -1;
+	if (cos_buff_mgmt(COS_BM_RECV_RING, rb1.packets, sizeof(rb1.packets), wildcard_acap_id)) {
 		prints("net: could not setup recv ring.\n");
 		return -1;
 	}
@@ -467,8 +475,8 @@ static int interrupt_wait(void)
 {
 	int ret;
 
-	assert(wildcard_brand_id > 0);
-	if (-1 == (ret = cos_brand_wait(wildcard_brand_id))) BUG();
+	assert(wildcard_acap_id > 0);
+	if (-1 == (ret = cos_areceive(wildcard_acap_id))) BUG();
 #ifdef UPCALL_TIMING
 	last_upcall_cyc = (u32_t)ret;
 #endif	
@@ -476,25 +484,27 @@ static int interrupt_wait(void)
 }
 
 /* 
- * Currently, this only adds to the wildcard brand.
+ * Currently, this only adds to the wildcard acap.
  */
 int netif_event_create(spdid_t spdid)
 {
 	unsigned short int ucid = cos_get_thd_id();
 
-	assert(wildcard_brand_id > 0);
 	NET_LOCK_TAKE();
-	if (sched_add_thd_to_brand(cos_spd_id(), wildcard_brand_id, ucid)) BUG();
+
+	/* Wildcard upcall */
+	if (cos_net_create_net_acap(0, &rb1_md_wildcard)) BUG();
+	assert(wildcard_acap_id > 0);
 	add_thd_map(ucid, /*0 wildcard port ,*/ &rb1_md_wildcard);
 	NET_LOCK_RELEASE();
-	printc("created net uc %d associated with brand %d\n", ucid, wildcard_brand_id);
+	printc("created net uc %d associated with acap %d\n", ucid, wildcard_acap_id);
 
 	return 0;
 }
 
 int netif_event_release(spdid_t spdid)
 {
-	assert(wildcard_brand_id > 0);
+	assert(wildcard_acap_id > 0);
 	
 	NET_LOCK_TAKE();
 	rem_thd_map(cos_get_thd_id());
@@ -554,9 +564,6 @@ static int init(void)
 		prints("net: error setting up xmit region.");
 	}
 
-	/* Wildcard upcall */
-	if (cos_net_create_net_brand(0, &rb1_md_wildcard)) BUG();
-	
 	for (i = 0 ; i < NUM_WILDCARD_BUFFS ; i++) {
 		if(!(b = alloc_rb_buff(&rb1_md_wildcard))) {
 			prints("net: could not allocate the ring buffer.");

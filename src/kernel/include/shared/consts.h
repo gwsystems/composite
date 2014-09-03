@@ -45,7 +45,7 @@ struct pt_regs {
 #endif
 
 #define MAX_SERVICE_DEPTH 31
-#define MAX_NUM_THREADS 60
+#define MAX_NUM_THREADS 120
 /* Stacks are 2 * page_size (expressed in words) */
 #define MAX_STACK_SZ    (PAGE_SIZE/4) /* a page */
 #define COS_STACK_SZ    (MAX_STACK_SZ*4)
@@ -59,7 +59,8 @@ struct pt_regs {
 #define MAX_SCHED_HIER_DEPTH 4
 
 #define MAX_NUM_SPDS   64
-#define MAX_STATIC_CAP 1024
+#define MAX_STATIC_CAP 256
+#define MAX_NUM_ACAP 256
 
 #define PAGE_MASK    (~(PAGE_SIZE-1))
 #define PGD_SHIFT    22
@@ -78,8 +79,8 @@ struct pt_regs {
 #define round_up_to_pgd_page(x) round_up_to_pow2(x, PGD_SIZE)
 
 #define CACHE_LINE (64)
-#define CACHE_ALIGNED __attribute__ ((aligned (CACHE_LINE)))
-#define HALF_CACHE_ALIGNED __attribute__ ((aligned (CACHE_LINE/2)))
+#define CACHE_ALIGNED __attribute__ ((aligned(CACHE_LINE)))
+#define HALF_CACHE_ALIGNED __attribute__ ((aligned(CACHE_LINE/2)))
 #define PAGE_ALIGNED __attribute__ ((aligned(PAGE_SIZE)))
 #define WORD_SIZE 32
 
@@ -98,20 +99,16 @@ struct pt_regs {
 
 #define COS_NUM_ATOMIC_SECTIONS 10
 
-#define COS_MAX_MEMORY 4*1024
+/* # of pages */
+#define COS_MAX_MEMORY    (64*1024)  /* # of pages. vas extents now support up to 254MB */ 
+#define KERN_MEM_ORDER    (10)        /* should be fine when <= 10 */
+#define COS_KERNEL_MEMORY (1 << KERN_MEM_ORDER)   /* 2^n pages kernel memory */
 
 #define TCAP_MAX 16
 
 #include "../asm_ipc_defs.h"
 
 #define KERN_BASE_ADDR 0xc0000000 //CONFIG_PAGE_OFFSET
-
-#define CHAR_PER_INT sizeof(int) / sizeof(char)
-#define PARAMS_PER_INV 4
-#define CHAR_PER_INV CHAR_PER_INT * PARAMS_PER_INV
-
-#define CPUID_OFFSET_IN_THREAD_INFO 4
-#define THREAD_SIZE_LINUX 8192
 
 /* We save information on the user level stack for fast access. The
  * offsets below are used to access CPU and thread IDs. */

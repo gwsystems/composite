@@ -1,5 +1,5 @@
 /**
- * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
+ * Copyright 2014 by Gabriel Parmer, gparmer@gwu.edu
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
@@ -31,6 +31,157 @@ typedef signed long long s64_t;
 typedef unsigned long uintptr_t;
 typedef unsigned long size_t;
 #endif
+
+#define PRINT_CAP_TEMP (2 << 15)
+
+#define BOOT_LIVENESS_ID_BASE 2
+
+typedef enum {
+	CAPTBL_OP_CPY,
+	CAPTBL_OP_CONS,
+	CAPTBL_OP_DECONS,
+	CAPTBL_OP_THDACTIVATE,
+	CAPTBL_OP_THDDEACTIVATE,
+	CAPTBL_OP_COMPACTIVATE,
+	CAPTBL_OP_COMPDEACTIVATE,
+	CAPTBL_OP_SINVACTIVATE,
+	CAPTBL_OP_SINVDEACTIVATE,
+	CAPTBL_OP_SRETACTIVATE,
+	CAPTBL_OP_SRETDEACTIVATE,
+	CAPTBL_OP_ASNDACTIVATE,
+	CAPTBL_OP_ASNDDEACTIVATE,
+	CAPTBL_OP_ARCVACTIVATE,
+	CAPTBL_OP_ARCVDEACTIVATE,
+	CAPTBL_OP_MAPPING_CONS,
+	CAPTBL_OP_MAPPING_DECONS,
+	CAPTBL_OP_MAPPING_MOD,
+	CAPTBL_OP_MAPPING_RETYPE,
+	CAPTBL_OP_PGDACTIVATE,
+	CAPTBL_OP_PTEACTIVATE,
+	CAPTBL_OP_CAPTBLACTIVATE,
+} syscall_op_t;
+
+typedef enum {
+	CAP_FREE = 0,
+	CAP_SINV,		/* synchronous communication -- invoke */
+	CAP_SRET,		/* synchronous communication -- return */
+	CAP_ASND,		/* async communication; sender */
+	CAP_ARCV,               /* async communication; receiver */
+	CAP_THD,                /* thread */
+	CAP_COMP,               /* component */
+	CAP_CAPTBL,             /* capability table */
+	CAP_PGTBL,              /* page-table */
+	CAP_FRAME, 		/* untyped frame within a page-table */
+	CAP_VM, 		/* mapped virtual memory within a page-table */
+} cap_t;
+
+typedef unsigned long capid_t;
+
+/* 
+ * The values in this enum are the order of the size of the
+ * capabilities in this cacheline, offset by CAP_SZ_OFF (to compress
+ * memory).
+ */
+typedef enum {
+	CAP_SZ_16B = 0,
+	CAP_SZ_32B = 1,
+	CAP_SZ_64B = 2,
+	CAP_SZ_ERR = 3,
+} cap_sz_t;
+/* the shift offset for the *_SZ_* values */
+#define	CAP_SZ_OFF   4 
+/* The allowed amap bits of each size */
+#define	CAP_MASK_16B ((1<<4)-1)
+#define	CAP_MASK_32B (1 | (1<<2))
+#define	CAP_MASK_64B 1
+
+#define CAP16B_IDSZ (1<<(CAP_SZ_16B))
+#define CAP32B_IDSZ (1<<(CAP_SZ_32B))
+#define CAP64B_IDSZ (1<<(CAP_SZ_64B))
+#define CAPMAX_ENTRY_SZ CAP64B_IDSZ
+
+/* a function instead of a struct to enable inlining + constant prop */
+static inline cap_sz_t
+__captbl_cap2sz(cap_t c)
+{
+	/* TODO: optimize for invocation and return */
+	switch (c) {
+	case CAP_CAPTBL: case CAP_THD:   
+	case CAP_PGTBL:  case CAP_SRET: return CAP_SZ_16B;
+	case CAP_SINV:   case CAP_COMP: return CAP_SZ_32B;
+	case CAP_ASND:   case CAP_ARCV: return CAP_SZ_64B;
+	default:                        return CAP_SZ_ERR;
+	}
+}
+
+static inline unsigned long captbl_idsize(cap_t c)
+{ return 1<<__captbl_cap2sz(c); }
+
+/* 
+ * Initial captbl setup:  
+ * 0 = sret, 
+ * 1 = this captbl, 
+ * 2 = our pgtbl root,
+ * 3 = nil,
+ * 4-5 = our component,
+ * 6-7 = nil,
+ * 8 = vm pte for booter
+ * 9 = vm pte for physical memory
+ * 10-11 = nil,
+ * 12 = comp0 captbl, 
+ * 13 = comp0 pgtbl root,
+ * 14-15 = nil,
+ * 16-17 = comp0 component,
+ * 20~(20+NCPU) = per core alpha thd
+ * 
+ * Initial pgtbl setup (addresses):
+ * 1GB+8MB-> = boot component VM
+ * 1.5GB-> = kernel memory
+ * 2GB-> = system physical memory
+ */
+enum {
+	BOOT_CAPTBL_SRET = 0, 
+	BOOT_CAPTBL_SELF_CT = 1, 
+	BOOT_CAPTBL_SELF_PT = 2, 
+	BOOT_CAPTBL_SELF_COMP = 4, 
+	BOOT_CAPTBL_BOOTVM_PTE = 8, 
+	BOOT_CAPTBL_PHYSM_PTE = 9, 
+	BOOT_CAPTBL_KM_PTE = 10, 
+
+	BOOT_CAPTBL_COMP0_CT = 12,
+	BOOT_CAPTBL_COMP0_PT = 13,  
+	BOOT_CAPTBL_COMP0_COMP = 16, 
+	BOOT_CAPTBL_SELF_INITTHD_BASE = 20, 
+	BOOT_CAPTBL_LAST_CAP = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS,
+	/* round up to next entry */
+	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
+};
+
+enum {
+	BOOT_MEM_VM_BASE = 0x40800000,//@ 1G + 8M
+	BOOT_MEM_KM_BASE = 0x60000000,//@ 1.5 GB
+	BOOT_MEM_PM_BASE = 0x80000000,//@ 2 GB
+};
+
+enum {
+	/* cap 2-3 used for pp test cases for now */
+	SCHED_CAPTBL_ALPHATHD_BASE = 4, 
+	/* we have 2 thd caps (init and alpha thds) for each core. */
+	SCHED_CAPTBL_INITTHD_BASE  = SCHED_CAPTBL_ALPHATHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
+	SCHED_CAPTBL_LAST = SCHED_CAPTBL_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
+	/* round up to a new entry. */
+	SCHED_CAPTBL_FREE = round_up_to_pow2(SCHED_CAPTBL_LAST, CAPMAX_ENTRY_SZ)
+};
+
+// QW: for ppos test only. remove.
+#define SND_THD_CAP_BASE SCHED_CAPTBL_FREE
+#define RCV_THD_CAP_BASE (SND_THD_CAP_BASE + (NUM_CPU_COS * captbl_idsize(CAP_THD)))
+#define ACAP_BASE (round_up_to_pow2(RCV_THD_CAP_BASE + (NUM_CPU_COS) * captbl_idsize(CAP_THD), CAPMAX_ENTRY_SZ))
+#define IF_CAP_BASE (round_up_to_pow2(ACAP_BASE + (NUM_CPU) * captbl_idsize(CAP_ARCV), CAPMAX_ENTRY_SZ))
+#define SND_RCV_OFFSET (NUM_CPU/2)
+/////remove above
+
+typedef int cpuid_t; /* Don't use unsigned type. We use negative values for error cases. */
 
 /* Macro used to define per core variables */
 #define PERCPU(type, name)                              \
@@ -65,10 +216,11 @@ attr struct __##name##_percore_decl name[NUM_CPU]
 
 #include "../measurement.h"
 
+#define COS_SYSCALL __attribute__((regparm(0)))
+
 struct shared_user_data {
 	unsigned int current_thread;
 	void *argument_region;
-	unsigned int brand_principal;
 	unsigned int current_cpu;
 };
 
@@ -84,9 +236,9 @@ struct cos_sched_next_thd {
 /* FIXME: make flags 8 bits, and use 8 bits to count # of alive upcalls */
 #define COS_SCHED_EVT_FREE         0x1
 #define COS_SCHED_EVT_EXCL         0x2
-#define COS_SCHED_EVT_BRAND_ACTIVE 0x4
-#define COS_SCHED_EVT_BRAND_READY  0x8
-#define COS_SCHED_EVT_BRAND_PEND   0x10
+#define COS_SCHED_EVT_ACAP_ACTIVE 0x4
+#define COS_SCHED_EVT_ACAP_READY  0x8
+#define COS_SCHED_EVT_ACAP_PEND   0x10
 #define COS_SCHED_EVT_NIL          0x20
 
 /* Must all fit into a word */
@@ -211,23 +363,30 @@ enum {
 };
 
 /*
- * For interoperability with the networking side.  This is the brand
- * port/brand thread pair, and the callback structures for
+ * For interoperability with the networking side.  This is the acap
+ * port/acap thread pair, and the callback structures for
  * communication.
  */
-struct cos_brand_info {
-	unsigned short int  brand_port;
-	struct thread      *brand;
+/* Added ring_buf pointers. */
+struct cos_net_acap_info {
+	unsigned short int  acap_port;
+	struct async_cap   *acap;
 	void               *private;
+
+	/* HACK: recv ring buffer for network packets, both user-level
+	 * and kernel-level pointers  */
+	ring_buff_t *u_rb, *k_rb;
+	int rb_next; 		/* Next address entry */
 };
+
 typedef void (*cos_net_data_completion_t)(void *data);
 struct cos_net_callbacks {
 	int (*xmit_packet)(void *headers, int hlen, struct gather_item *gi, int gather_len, int tot_len);
-	int (*create_brand)(struct cos_brand_info *bi);
-	int (*remove_brand)(struct cos_brand_info *bi);
+	int (*create_acap)(struct cos_net_acap_info *bi);
+	int (*remove_acap)(struct cos_net_acap_info *bi);
 
 	/* depricated: */
-	int (*get_packet)(struct cos_brand_info *bi, char **packet, unsigned long *len,
+	int (*get_packet)(struct cos_net_acap_info *bi, char **packet, unsigned long *len,
 			  cos_net_data_completion_t *fn, void **data, unsigned short int *port);
 };
 
@@ -237,7 +396,7 @@ struct cos_trans_fns {
 	int   (*direction)(int direction);
 	void *(*map_kaddr)(int channel);
 	int   (*map_sz)(int channel);
-	int   (*brand_created)(int channel, void *b);
+	int   (*acap_created)(int channel, void *acap);
 };
 
 /*
@@ -264,7 +423,8 @@ struct usr_inv_cap {
 
 #define COMP_INFO_POLY_NUM 10
 #define COMP_INFO_INIT_STR_LEN 128
-#define COMP_INFO_STACK_FREELISTS 1
+/* For multicore system, we should have 1 freelist per core. */
+#define COMP_INFO_STACK_FREELISTS 1//NUM_CPU_COS
 
 enum {
 	COMP_INFO_TMEM_STK = 0,
@@ -275,11 +435,14 @@ enum {
 /* Each stack freelist is associated with a thread id that can be used
  * by the assembly entry routines into a component to decide which
  * freelist to use. */
+struct stack_fl {
+	vaddr_t freelist;
+	unsigned long thd_id;
+	char __padding[CACHE_LINE - sizeof(vaddr_t) - sizeof(unsigned long)];
+} __attribute__((packed));
+
 struct cos_stack_freelists {
-	struct stack_fl {
-		vaddr_t freelist;
-		unsigned long thd_id;
-	} freelists[COMP_INFO_STACK_FREELISTS];
+	struct stack_fl freelists[COMP_INFO_STACK_FREELISTS];
 };
 
 /* move this to the stack manager assembly file, and use the ASM_... to access the relinquish variable */
@@ -297,6 +460,7 @@ struct cos_component_information {
 	vaddr_t cos_heap_ptr, cos_heap_limit;
 	vaddr_t cos_heap_allocated, cos_heap_alloc_extent;
 	vaddr_t cos_upcall_entry;
+	vaddr_t cos_async_inv_entry;
 //	struct cos_sched_data_area *cos_sched_data_area;
 	vaddr_t cos_user_caps;
 	struct restartable_atomic_sequence cos_ras[COS_NUM_ATOMIC_SECTIONS/2];
@@ -305,29 +469,11 @@ struct cos_component_information {
 }__attribute__((aligned(PAGE_SIZE)));
 
 typedef enum {
-	COS_UPCALL_BRAND_EXEC,
-	COS_UPCALL_BRAND_COMPLETE,
-	COS_UPCALL_BOOTSTRAP,
-	COS_UPCALL_CREATE,
+	COS_UPCALL_ACAP_COMPLETE,
+	COS_UPCALL_THD_CREATE,
 	COS_UPCALL_DESTROY,
 	COS_UPCALL_UNHANDLED_FAULT
 } upcall_type_t;
-
-/* operations for cos_brand_cntl and cos_brand_upcall */
-enum {
-/* cos_brand_cntl -> */
-	COS_BRAND_CREATE,
-	COS_BRAND_ADD_THD,
-	COS_BRAND_CREATE_HW,
-/* cos_brand_upcall -> */
-	COS_BRAND_TAILCALL,  /* tailcall brand to upstream spd
-			      * (don't maintain this flow of control).
-			      * Not sure if this would work with non-brand threads
-			      */
-	COS_BRAND_ASYNC,     /* async brand while maintaining control */
-	COS_BRAND_UPCALL     /* continue executing an already made
-			      * brand, redundant with tail call? */
-};
 
 /* operations for cos_thd_cntl */
 enum {
@@ -382,7 +528,8 @@ enum {
 	COS_SPD_ATOMIC_SECT,
 	COS_SPD_UCAP_TBL,
 	COS_SPD_UPCALL_ADDR,
-	COS_SPD_ACTIVATE
+	COS_SPD_ASYNC_INV_ADDR,
+	COS_SPD_ACTIVATE,
 };
 
 /* operations for cos_vas_cntl */
@@ -401,7 +548,10 @@ enum {
 	COS_CAP_SET_SERV_FN,
 	COS_CAP_ACTIVATE,
 	COS_CAP_GET_INVCNT,
-	COS_CAP_SET_FAULT
+	COS_CAP_SET_FAULT,
+	COS_CAP_GET_SPD_NCAPS,
+	COS_CAP_GET_DEST_SPD,
+	COS_CAP_GET_DEST_FN
 };
 
 enum {
@@ -442,14 +592,23 @@ enum {
 	COS_TRANS_MAP_SZ,
 	COS_TRANS_MAP,
 	COS_TRANS_DIRECTION,
-	COS_TRANS_BRAND,
+	COS_TRANS_ACAP,
+};
+
+/* operations for cos_async_cap_cntl */
+enum {
+	COS_ACAP_CREATE = 0,
+	COS_ACAP_CLI_CREATE,
+	COS_ACAP_SRV_CREATE,
+	COS_ACAP_WIRE,
+	COS_ACAP_LINK_STATIC_CAP,
 };
 
 /* flags for cos_switch_thread */
 #define COS_SCHED_TAILCALL     0x1
 #define COS_SCHED_SYNC_BLOCK   0x2
 #define COS_SCHED_SYNC_UNBLOCK 0x4
-#define COS_SCHED_BRAND_WAIT   0x80
+#define COS_SCHED_ACAP_WAIT   0x80
 #define COS_SCHED_CHILD_EVT    0x10
 
 #define COS_SCHED_RET_SUCCESS  0
@@ -486,6 +645,12 @@ enum {
 };
 
 enum {
+	MAPPING_RO    = 0,
+	MAPPING_RW    = 1 << 0,
+	MAPPING_KMEM  = 1 << 1
+};
+
+enum {
 	COS_MMAP_GRANT,
 	COS_MMAP_REVOKE,
 	COS_MMAP_TLBFLUSH
@@ -493,7 +658,9 @@ enum {
 
 enum {
 	COS_PFN_GRANT,
-	COS_PFN_MAX_MEM
+	COS_PFN_GRANT_KERN,
+	COS_PFN_MAX_MEM,
+	COS_PFN_MAX_MEM_KERN
 };
 
 /* 
@@ -539,11 +706,37 @@ typedef unsigned int isolation_level_t;
 
 typedef struct { volatile unsigned int counter; } atomic_t;
 
+#define LOCK_PREFIX_HERE			\
+	".pushsection .smp_locks,\"a\"\n"	\
+	".balign 4\n"				\
+	".long 671f - .\n" /* offset */		\
+	".popsection\n"				\
+	"671:"
+
+#define LOCK_PREFIX LOCK_PREFIX_HERE "\n\tlock; "
+
+static inline void atomic_inc(atomic_t *v)
+{
+	asm volatile(LOCK_PREFIX "incl %0"
+		     : "+m" (v->counter));
+}
+
+static inline void atomic_dec(atomic_t *v)
+{
+	asm volatile(LOCK_PREFIX "decl %0"
+		     : "+m" (v->counter));
+}
 #endif /* __KERNEL__ */
 
 static inline void cos_ref_take(atomic_t *rc)
 {
+#if NUM_CPU_COS > 1
+	/* use atomic instructions when we have multicore. We will get
+	 * rid of this later(by using capabilities as ref counter). */
+	atomic_inc(rc);
+#else
 	rc->counter++;
+#endif
 	cos_meas_event(COS_MPD_REFCNT_INC);
 }
 
@@ -559,27 +752,24 @@ static inline unsigned int cos_ref_val(atomic_t *rc)
 
 static inline void cos_ref_release(atomic_t *rc)
 {
+#if NUM_CPU_COS > 1
+	/* same as cos_ref_take. */
+	atomic_dec(rc);
+#else
 	rc->counter--; /* assert(rc->counter != 0) */
+#endif
+	
 	cos_meas_event(COS_MPD_REFCNT_DEC);
 }
 
-typedef u16_t tcap_t;
-/* operations for tcap_cntl */
-typedef enum {
-	COS_TCAP_DELEGATE,
-	COS_TCAP_DELEGATE_POOL,
-	COS_TCAP_SPLIT,
-	COS_TCAP_SPLIT_POOL,
-	COS_TCAP_TRANSFER,
-	COS_TCAP_TRANSFER_POOL,
-	COS_TCAP_DELETE,
-	COS_TCAP_BIND,
-	COS_TCAP_RECEIVER,
-	/* not yet implemented */
-	COS_TCAP_MERGE,
-	COS_TCAP_SETPRIORITY,
-	COS_TCAP_GETBUDGET
-} tcap_op_t;
+// ncpu * 16 (or max 256) entries. can be increased if necessary. 
+#define COS_THD_INIT_REGION_SIZE (((NUM_CPU*16) > (1<<8)) ? (1<<8) : (NUM_CPU*16))
+// Static entries are after the dynamic allocated entries
+#define COS_STATIC_THD_ENTRY(i) ((i + COS_THD_INIT_REGION_SIZE + 1))
 
+static inline void cos_mem_fence(void)
+{
+	__asm__ __volatile__("mfence" ::: "memory");
+}
 
 #endif /* TYPES_H */

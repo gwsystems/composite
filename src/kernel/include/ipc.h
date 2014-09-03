@@ -1,6 +1,11 @@
-/* 
- * Author: Gabriel Parmer
- * License: GPLv2
+/**
+ * Copyright 2007 by Boston University.
+ *
+ * Redistribution of this file is permitted under the GNU General
+ * Public License v2.
+ *
+ * Authors: Gabriel Parmer, gabep1@cs.bu.edu, 2007
+ *          Qi Wang, interwq@gwu.edu,         2014
  */
 
 #ifndef IPC_H
@@ -8,9 +13,8 @@
 
 #include "thread.h"
 #include "spd.h"
+#include "asm_ipc_defs.h"
 
-//int ipc_invoke_spd(int capability, ...);
 void ipc_init(void);
-//void ipc_set_current_spd(struct spd *spd);
 
 #endif

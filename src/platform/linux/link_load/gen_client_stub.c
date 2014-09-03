@@ -49,12 +49,14 @@ char *fn_string =
 /*"cmpl $0, %d(%%eax)\n\t"*/
 /*"jne 1f\n\t"*/
 /* static branch predict will go here */
+/* Comment out the inv cnt for multicore performance. */ 
 /* invocation count inc */
-"/* If we would overflow the invocation count, don't count */\n\t"
-"cmpl $(~0), %d(%%eax)\n\t"
-"je 1f\n\t"
-"/* Static branch prediction will go here: incriment invocation cnt */\n\t"
-"incl %d(%%eax)\n" /* Comment out for multicore performance. FIXME: the system doesn't work after comment this out. */ 
+/* If we would overflow the invocation count, don't count */
+/* "cmpl $(~0), %d(%%eax)\n\t" */
+/* "je 1f\n\t" */
+/* "/\* Static branch prediction will go here: incriment invocation cnt *\/\n\t" */
+/* "incl %d(%%eax)\n" */
+/* Inv cnt removed for multicore performance. */ 
 // The following approach works too and avoids the branch...but has the same cost.
 /*"incl %d(%%eax)\n\t" */ /* why is this 4 cycles? how aren't we using the parallelism? */
 /*"andl $0x7FFFFFFF, %d(%%eax)\n\t"*/
@@ -130,7 +132,7 @@ static inline void create_stanza(char *output, int len, char *fn_name, int cap_n
 
 	sprintf(ucap_name, "%s"UCAP_EXT, fn_name);
 	ret = snprintf(output, len, fn_string, fn_name, fn_name, 
-		       ucap_name/*cap_num*SIZEOFUSERCAP*/, INVOCATIONCNT, INVOCATIONCNT, /*ENTRYFN,*/ INVFN);
+		       ucap_name/*cap_num*SIZEOFUSERCAP*/, /* INVOCATIONCNT, INVOCATIONCNT, */ /*ENTRYFN,*/ INVFN);
 
 	if (ret == len) {
 		fprintf(stderr, "Function name %s too long: string overrun.\n", fn_name);

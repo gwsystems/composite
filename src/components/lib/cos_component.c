@@ -17,9 +17,15 @@ char temp[4096] __attribute__((aligned(4096)));
 int cos_sched_notifications __attribute__((weak));
 
 __attribute__ ((weak))
+int main(void)
+{
+	return 0;
+}
+
+__attribute__ ((weak))
 void cos_init(void *arg)
 {
-	return;
+	main();
 }
 
 __attribute__ ((weak))
@@ -35,24 +41,68 @@ void cos_upcall_exec(void *arg)
 }
 
 __attribute__ ((weak))
+int cos_async_inv(struct usr_inv_cap *ucap, int *params) 
+{
+	return 0;
+}
+
+__attribute__ ((weak))
+int cos_thd_entry_static(u32_t idx)
+{
+	*(int*)NULL = 0;
+
+	return 0;
+}
+
+/* 
+ * Cos thread creation data structures.
+ */
+struct __thd_init_data __thd_init_data[COS_THD_INIT_REGION_SIZE] CACHE_ALIGNED;
+
+static void cos_thd_entry_exec(u32_t idx) {
+	void (*fn)(void *);
+	void *data;
+
+	fn   = __thd_init_data[idx].fn;
+	data = __thd_init_data[idx].data;
+	/* and release the entry... might need a barrier here. */
+	__thd_init_data[idx].data = NULL;
+	__thd_init_data[idx].fn = NULL;
+
+	(fn)(data);
+}
+
+__attribute__ ((weak))
 void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
-	switch (t) {
-	case COS_UPCALL_BRAND_EXEC:
-	{
-		cos_upcall_exec(arg1);
-		break;
+	static int first = 1;
+	if (first) { 
+		first = 0; 
+		__alloc_libc_initilize(); 
+		constructors_execute();
 	}
-	case COS_UPCALL_BOOTSTRAP:
+
+	switch (t) {
+	case COS_UPCALL_THD_CREATE:
+	/* New thread creation method passes in this type. */
 	{
-		static int first = 1;
-		if (first) { 
-			first = 0; 
-			__alloc_libc_initilize(); 
-			constructors_execute();
+		/* A new thread is created in this comp. */
+
+		/* arg1 is the thread init data. 0 means
+		 * bootstrap. */
+		if (arg1 == 0) {
+			cos_init(NULL);
+		} else {
+			u32_t idx = (int)arg1 - 1;
+			if (idx >= COS_THD_INIT_REGION_SIZE) {
+				/* This means static defined entry */
+				cos_thd_entry_static(idx - COS_THD_INIT_REGION_SIZE);
+			} else {
+				/* Execute dynamic allocated entry. */
+				cos_thd_entry_exec(idx);
+			}
 		}
-		cos_init(arg1);
-		break;
+		return;
 	}
 	default:
 		/* fault! */
@@ -60,12 +110,6 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		return;
 	}
 	return;
-}
-
-__attribute__ ((weak))
-int main(void)
-{
-	return 0;
 }
 
 __attribute__((weak)) 
@@ -93,6 +137,8 @@ extern const vaddr_t cos_atomic_cmpxchg, cos_atomic_cmpxchg_end,
 	cos_atomic_user4, cos_atomic_user4_end;
 extern const vaddr_t cos_upcall_entry;
 
+extern const vaddr_t cos_ainv_entry;
+
 __attribute__((weak)) vaddr_t ST_user_caps;
 
 /* 
@@ -105,6 +151,7 @@ struct cos_component_information cos_comp_info __attribute__((section(".cinfo"))
 	.cos_heap_limit = 0,
 	.cos_stacks.freelists[0] = {.freelist = 0, .thd_id = 0},
 	.cos_upcall_entry = (vaddr_t)&cos_upcall_entry,
+	.cos_async_inv_entry = (vaddr_t)&cos_ainv_entry,
 	.cos_user_caps = (vaddr_t)&ST_user_caps,
 	.cos_ras = {{.start = (vaddr_t)&cos_atomic_cmpxchg, .end = (vaddr_t)&cos_atomic_cmpxchg_end}, 
 		    {.start = (vaddr_t)&cos_atomic_user1, .end = (vaddr_t)&cos_atomic_user1_end},

@@ -7,60 +7,68 @@
 
 #include "include/mmap.h"
 #include "include/chal.h"
+#include "include/shared/cos_config.h"
 
-static struct cos_page cos_pages[COS_MAX_MEMORY];
+// not used for now. 
+/* static struct cos_page cos_pages[COS_MAX_MEMORY]; */
+/* static struct cos_page cos_kernel_pages[COS_KERNEL_MEMORY]; */
+static void *kmem_start;
+static paddr_t kmem_start_pa;
 
-void cos_init_memory(void) 
+int cos_init_memory(void) 
 {
-	int i;
-
-	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
-		void *r = chal_alloc_page();
-		if (NULL == r) {
-			printk("cos: ERROR -- could not allocate page for cos memory\n");
+	int first_try = 1;
+again:
+	kmem_start = chal_alloc_kern_mem(KERN_MEM_ORDER);
+	if (!kmem_start) {
+		if (first_try) {
+			first_try = 0;
+			goto again;
 		}
-		cos_pages[i].addr = (paddr_t)chal_va2pa(r);
+		printk("cos: ERROR -- could not allocate page for cos kernel memory\n");
+		return -1;
 	}
 
-	return;
+	kmem_start_pa = (paddr_t)chal_va2pa(kmem_start);
+
+	return 0;
 }
 
 void cos_shutdown_memory(void)
 {
-	int i;
-
-	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
-		paddr_t addr = cos_pages[i].addr;
-		chal_free_page(chal_pa2va((void*)addr));
-		cos_pages[i].addr = 0;
-	}
+	chal_free_kern_mem(kmem_start, KERN_MEM_ORDER);
 }
 
-/*
- * This would be O(1) in the real implementation as there is a 1-1
- * correspondence between phys pages and memory capabilities, but in
- * our Linux implementation, this is not so.  The least we could do is
- * keep the page sorted by physaddr and do a binary search here.
- */
 int cos_paddr_to_cap(paddr_t pa)
 {
-	int i;
+	assert(pa >= COS_MEM_START && pa < (COS_MEM_START + COS_MAX_MEMORY*PAGE_SIZE));
+	return ((pa - COS_MEM_START) / (PAGE_SIZE));
+}
 
-	for (i = 0 ; i < COS_MAX_MEMORY ; i++) {
-		if (cos_pages[i].addr == pa) {
-			return i;
-		}
-	}
-
-	return 0;
+int cos_kernel_paddr_to_cap(paddr_t pa)
+{
+	assert(pa >= kmem_start_pa && pa < (kmem_start_pa + COS_KERNEL_MEMORY*PAGE_SIZE));
+	return ((pa - kmem_start_pa) / (PAGE_SIZE));
 }   
 
 paddr_t cos_access_page(unsigned long cap_no)
 {
 	paddr_t addr;
 
-	if (cap_no > COS_MAX_MEMORY) return 0;
-	addr = cos_pages[cap_no].addr;
+	if (cap_no >= COS_MAX_MEMORY) return 0;
+
+	addr = COS_MEM_START + cap_no * PAGE_SIZE;
+	assert(addr);
+
+	return addr;
+}
+
+paddr_t cos_access_kernel_page(unsigned long cap_no)
+{
+	paddr_t addr;
+
+	if (cap_no > COS_KERNEL_MEMORY) return 0;
+	addr = kmem_start_pa + cap_no * PAGE_SIZE;
 	assert(addr);
 
 	return addr;

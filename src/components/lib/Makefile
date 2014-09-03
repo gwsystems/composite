@@ -2,9 +2,9 @@ include Makefile.src Makefile.comp
 
 LIB_OBJS=heap.o cobj_format.o
 LIBS=$(LIB_OBJS:%.o=%.a)
-MANDITORY=c_stub.o cos_asm_upcall.o cos_component.o
+MANDITORY=c_stub.o cos_asm_upcall.o cos_asm_ainv.o cos_component.o
 MAND=$(MANDITORY_LIB)
-SIMPLE_STACKS=c_stub.o cos_asm_upcall_simple_stacks.o cos_component.o
+SIMPLE_STACKS=c_stub.o cos_asm_upcall_simple_stacks.o cos_asm_ainv.o cos_component.o
 SIMPLE_STKLIB=simple_stklib.o
 
 .PHONY: all
@@ -40,14 +40,21 @@ clean:
 distclean:
 	make -C dietlibc-0.29 clean
 	make -C lwip/cos clean
+	make -C lua/cos clean
 # keep the following commands in one line. make executes each line
 # with a new shell.
 	cd ck; ./configure; cd ..
 	make -C ck distclean
+	make -C posix clean
+	make -C libccv clean
 
 init: clean distclean all
 	make -C dietlibc-0.29
 	make -C lwip/cos
+	make -C lua/cos
 # keep the following commands in one line. Same as above.
 	cd ck; ./configure; cd ..
 	make -C ck
+	make -C posix clean 
+	make -C libccv clean 
+	make -C libccv cos_libccv.a

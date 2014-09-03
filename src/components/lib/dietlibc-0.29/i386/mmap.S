@@ -3,12 +3,9 @@
 .text
 .global mmap
 .type	mmap,@function
+.weak   mmap
 mmap:
-	mov	$__NR_mmap,%al
-	lea	0x4(%esp,1),%edx
-	push	%edx
-	call	__unified_syscall
-	pop	%ecx
-	ret
+        movl    $__NR_mmap,%eax
+        jmp     __cos_syscall
 .Lende3:
 .size mmap,.Lende3-mmap

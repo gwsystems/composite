@@ -2,30 +2,43 @@
 #define COS_CONFIG_H
 
 #include "cpu_ghz.h"
-#define NUM_CPU                1
+#define NUM_CPU                4
 
-#define CPU_TIMER_FREQ 100 // set in your linux .config
+#define CPU_TIMER_FREQ         100 // set in your linux .config
 
-#define RUNTIME                2 // seconds
+#define RUNTIME                3 // seconds
 
 // After how many seconds should schedulers print out their information?
-#define SCHED_PRINTOUT_PERIOD  29 
+#define SCHED_PRINTOUT_PERIOD  100000
 #define COMPONENT_ASSERTIONS   1 // activate assertions in components?
 
+/* Should not set when NUM_CPU > 2 or FPU enabled. */
 //#define LINUX_ON_IDLE          1 // should Linux be activated on Composite idle
 
 /* 
  * Should Composite run as highest priority?  Should NOT be set if
  * using networking (cnet). 
  */
-//#define LINUX_HIGHEST_PRIORITY 1 
+#define LINUX_HIGHEST_PRIORITY 1
 
-#define INIT_CORE              0 // the CPU that does initialization for Composite
+//#define FPU_ENABLED
+#define FPU_SUPPORT_FXSR       1   /* >0 : CPU supports FXSR. */
+
+/* the CPU that does initialization for Composite */
+#define INIT_CORE              0
 /* Currently Linux runs on the last CPU only. The code includes the
  * following macro assumes this. We might need to assign more cores
  * to Linux later. */
 #define LINUX_CORE             (NUM_CPU - 1)
-#define NUM_CPU_COS            (NUM_CPU > 1 ? NUM_CPU - 1 : 1) /* how many cores Composite owns */
+/* # of cores assigned to Composite */
+#define NUM_CPU_COS            (NUM_CPU > 1 ? NUM_CPU - 1 : 1)
+
+/* Composite user memory uses physical memory above this. */
+#define COS_MEM_START          (0x40000000)  // 1 GB
+
+/* NUM_CPU_SOCKETS defined in cpu_ghz.h. The information is used for
+ * intelligent IPI distribution. */
+#define NUM_CORE_PER_SOCKET    (NUM_CPU / NUM_CPU_SOCKETS)
 
 // cos kernel settings
 #define COS_PRINT_MEASUREMENTS 1

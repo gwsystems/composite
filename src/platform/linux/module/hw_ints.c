@@ -9,6 +9,10 @@
 
 #include <asm/desc.h>
 #include <linux/kernel.h>
+#include <linux/sched.h>
+#include "../../../kernel/include/shared/cos_config.h"
+#include "../../../kernel/include/asm_ipc_defs.h"
+#include "../../../kernel/include/cpuid.h"
 
 /*
  * The Linux provided descriptor structure is crap, probably due to
@@ -60,6 +64,10 @@ extern void *cos_default_page_fault_handler;
 void *cos_realloc_page_fault_handler;
 extern void *cos_default_div_fault_handler;
 extern void *cos_default_reg_save_handler;
+extern void *cos_default_timer_handler;
+#ifdef FPU_ENABLED
+extern void *cos_default_fpu_not_available_handler;
+#endif
 
 /* 
  * This is really just a pain in the ass.  See 5-14 (spec Figure 5-1,
@@ -81,6 +89,11 @@ struct cos_desc_struct saved_idt[256] __attribute__((aligned(PAGE_SIZE)));
 int cos_idt_sz;
 
 void *cos_default_sysenter_addr;
+
+#include "cos_irq_vectors.h"
+
+extern void ipi_handler(void);
+extern void reg_save_interposition(void);
 
 void
 hw_int_init(void)
@@ -114,9 +127,17 @@ hw_int_init(void)
 		case 14:
 			cos_default_page_fault_handler = did->handler;
 			break;
-		case 0xe9:
+		case COS_REG_SAVE_VECTOR:
 			cos_default_reg_save_handler   = did->handler;
 			break;
+		case LOCAL_TIMER_VECTOR:
+			cos_default_timer_handler      = did->handler;
+			break;
+#ifdef FPU_ENABLED
+                case 7:
+                        cos_default_fpu_not_available_handler = did->handler;
+                        break;
+#endif
 		};
 	}
 
@@ -127,18 +148,65 @@ hw_int_init(void)
 
 /* reset hardware entry points  */
 void
-hw_int_reset(void)
+hw_int_reset(void *tss)
 {
 	memcpy((void*)default_idt, saved_idt, default_idt_desc.idt_limit);
 	wrmsr(MSR_IA32_SYSENTER_EIP, (int)cos_default_sysenter_addr, 0);
+	/* Linux has esp points to TSS struct. */
+	wrmsr(MSR_IA32_SYSENTER_ESP, (int)tss, 0);
 }
 
 void
-hw_int_override_sysenter(void *handler)
+cos_kern_stk_init(void)
 {
+	struct cos_cpu_local_info *cos_info;
+	struct thread_info *linux_thread_info = (struct thread_info *)get_linux_thread_info();
+
+	cos_info = cos_cpu_local_info();
+	/* No Linux thread/process migration allowed. */
+	cos_info->cpuid = linux_thread_info->cpu;
+	/* Init the cached data */
+	cos_info->invstk_top = 0;
+	/* value to detect stack overflow */
+	cos_info->overflow_check = 0xDEADBEEF;
+}
+
+void
+hw_int_override_sysenter(void *handler, void *tss_end)
+{
+	struct tss_struct *tss;
+	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
+	void *sp0;
+
+	/* Store the tss_end in cos info struct. */
+	cos_info->orig_sysenter_esp = tss_end;
+	tss = tss_end - sizeof(struct tss_struct);
+	/* We only uses 1 page stack. No need to touch 2 pages. */
+	sp0 = (void *)tss->x86_tss.sp0 - PAGE_SIZE;
+
 	wrmsr(MSR_IA32_SYSENTER_EIP, (int)handler, 0);
-	printk("CPU %d: Overriding sysenter handler (%p) with %p\n",
-	       get_cpu(), cos_default_sysenter_addr, handler);
+	wrmsr(MSR_IA32_SYSENTER_ESP, (int)sp0, 0);
+	/* Now we have sysenter_esp points to actual sp0. No need to
+	 * touch TSS page on Composite path! */
+
+	printk("CPU %d: Overriding sysenter handler (%p) with %p, and sysenter_esp %p with sp0 %p\n",
+	       get_cpu(), cos_default_sysenter_addr, handler, tss_end, sp0);
+}
+
+void
+hw_int_override_timer(void *handler)
+{
+	printk("CPU %d: Overriding timer interrupt handler (%p) with %p\n",
+	       get_cpu(), cos_default_timer_handler, handler);
+
+	cos_set_idt_entry(LOCAL_TIMER_VECTOR, 0, 0, handler, default_idt);
+}
+
+void
+hw_int_cos_ipi(void *handler)
+{
+	printk("cos: core %d enabling Composite IPI IRQ vector %x.\n", get_cpu(), COS_IPI_VECTOR);
+	cos_set_idt_entry(COS_IPI_VECTOR, 0, 0, handler, default_idt);
 }
 
 extern unsigned int *pgtbl_module_to_vaddr(unsigned long addr);
@@ -245,3 +313,5 @@ hw_int_override_idt(int fault_num, void *handler, int ints_enabled, int dpl)
 
 	return 0;
 }
+
+

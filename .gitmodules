@@ -1,3 +1,0 @@
-[submodule "src/components/lib/ck"]
-	path = src/components/lib/ck
-	url = git://concurrencykit.org/ck.git

@@ -51,7 +51,6 @@ int main(void)
 		int off = 0;
 		unsigned long long *p;
 
-
 		//_read = read(0, buf, PRINT_CHUNK_SZ);
 		_read = 8;
 		p = (unsigned long long *)buf;

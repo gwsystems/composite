@@ -50,6 +50,7 @@ struct spd_info {
 	vaddr_t ucap_tbl;
 	unsigned long lowest_addr;
 	unsigned long size;
+	unsigned long mem_size;
 	vaddr_t upcall_entry;
 	vaddr_t atomic_regions[10];
 };
@@ -85,6 +86,10 @@ struct spd_sched_info {
 #define AED_EMULATE_PREEMPT _IOR(0, 17, unsigned long)
 #define AED_DISABLE_SYSCALLS _IO(0,19)
 #define AED_ENABLE_SYSCALLS  _IO(0,20)
+#define AED_RESTORE_HW_ENTRY _IO(0,21)
+#define AED_INIT_BOOT       _IOR(0, 22, unsigned long)
+#define AED_INIT_BOOT_THD    _IO(0, 23)
+
 
 #ifndef __KERNEL__
 
@@ -130,6 +135,32 @@ static inline int cos_create_spd(int cntl_fd, struct spd_info *spdi)
 	return ret;
 }
 
+static inline int cos_init_booter(int cntl_fd, struct spd_info *spdi)
+{
+	int ret;
+
+	if ((ret = ioctl(cntl_fd, AED_INIT_BOOT, spdi)) < 0) {
+		perror("Could not initialize llbooter\n");
+		printf("ioctl returned %d\n", ret);
+		exit(-1);
+	}
+
+	return ret;
+}
+
+static inline int cos_create_init_thd(int cntl_fd)
+{
+	int ret;
+
+	if ((ret = ioctl(cntl_fd, AED_INIT_BOOT_THD, 0)) < 0) {
+		perror("Could not create init thread for llbooter\n");
+		printf("ioctl returned %d\n", ret);
+		exit(-1);
+	}
+
+	return ret;
+}
+
 static inline int cos_spd_add_cap(int cntl_fd, struct cap_info *capi)
 {
  	int ret;
@@ -150,6 +181,19 @@ static inline int cos_create_thd(int cntl_fd, struct cos_thread_info *thdi)
 	if ((ret = ioctl(cntl_fd, AED_CREATE_THD, thdi))) {
 		perror("Could not create thread\n");
 		printf("ioctl returned %d\n", ret);
+		exit(-1);
+	}
+
+	return ret;
+}
+
+static inline int cos_restore_hw_entry(int cntl_fd)
+{
+	int ret;
+
+	if ((ret = ioctl(cntl_fd, AED_RESTORE_HW_ENTRY, 0)) == -1) {
+		perror("ioctl to restore hw entries: ");
+		printf("\nIoctl returned %d.\n", ret);
 		exit(-1);
 	}
 

@@ -7,7 +7,7 @@
 "c0.o, ;*ds.o, ;mm.o, ;mh.o, ;print.o, ;boot.o,a2;schedconf.o, ;cg.o,a1;bc.o, ;st.o, ;\
 \
 !sm.o,a1;!mpd.o,a5;!stat.o,a25;!cm.o,a7;!if.o,a5;!ip.o, ;\
-!port.o, ;!l.o,a4;!te.o,a3;!net.o,d6c2t2;!e.o,a5;!fd.o,a8;!conn.o,a9;!va.o,a2;!echo.o,a8:\
+!port.o, ;!l.o,a4;!te.o,a3;!net.o,d6c2t2;!e.o,a5;!fd.o,a8;!conn.o,a9;!va.o,a2;!echo.o,a8;!vm.o,a1:\
 \
 c0.o-ds.o;\
 ds.o-print.o|mh.o|st.o|schedconf.o|[parent_]bc.o;\
@@ -27,7 +27,8 @@ port.o-sm.o|l.o;\
 cm.o-sm.o|print.o|mh.o|echo.o|[alt_]echo.o|ds.o|va.o;\
 if.o-sm.o|print.o|mh.o|l.o|ds.o|va.o;\
 schedconf.o-print.o;\
-va.o-ds.o|print.o|mm.o|l.o|boot.o;\
+vm.o-ds.o|print.o|mm.o|l.o|boot.o;\
+va.o-ds.o|print.o|mm.o|l.o|boot.o|vm.o;\
 boot.o-print.o|ds.o|mm.o|cg.o;\
 sm.o-va.o|print.o|ds.o|mm.o|boot.o|va.o|l.o;\
 mpd.o-sm.o|cg.o|ds.o|print.o|te.o|mh.o|va.o;\

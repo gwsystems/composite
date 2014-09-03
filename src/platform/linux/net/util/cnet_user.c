@@ -15,7 +15,7 @@
 #define ETHCNET "cnet0"
 /* ip address of host */
 //#define IPADDR  "10.0.2.9"
-#define IPADDR  "128.197.11.194"
+#define IPADDR  "128.164.157.248"
 #define P2PPEER "10.0.2.8"
 
 int main(void) {
