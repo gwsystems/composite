@@ -104,8 +104,6 @@ struct pt_regs {
 #define KERN_MEM_ORDER    (10)        /* should be fine when <= 10 */
 #define COS_KERNEL_MEMORY (1 << KERN_MEM_ORDER)   /* 2^n pages kernel memory */
 
-#define TCAP_MAX 16
-
 #include "../asm_ipc_defs.h"
 
 #define KERN_BASE_ADDR 0xc0000000 //CONFIG_PAGE_OFFSET

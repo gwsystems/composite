@@ -1729,6 +1729,7 @@ sched_child_evt_thd(void)
 		sched_switch_thread(0, NULL_EVT);
 		assert(EMPTY_LIST(PERCPU_GET(sched_base_state)->timer, prio_next, prio_prev));
 	} /* no return */
+	cos_argreg_free(e);
 }
 
 int sched_priority(unsigned short int tid)
@@ -1785,6 +1786,100 @@ static struct sched_thd *fp_create_timer(void)
 	union sched_param sp[2] = {{.c = {.type = SCHEDP_TIMER}},
 				   {.c = {.type = SCHEDP_NOOP}}};
 	struct sched_thd *t;
+
+	assert(sched_is_root());
+	timer_thd = sched_setup_thread_arg(cos_spd_id(), &sp, fp_timer, 0, 1);
+	if (!timer_thd) BUG();
+	PERCPU_GET(sched_base_state)->timer = timer_thd;
+
+	return timer_thd;
+}
+
+inline int sched_curr_is_IPI_handler(void) {
+	return (sched_get_current() == PERCPU_GET(sched_base_state)->IPI_handler);
+}
+
+static inline int exec_fn(int (*fn)(), int nparams, u32_t *params) {
+	int ret = -1;
+
+	assert(fn);
+
+	switch (nparams)
+	{		
+	case 0:
+		ret = fn();
+		break;
+	case 1:
+		ret = fn(params[0]);
+		break;
+	case 2:
+		ret = fn(params[0], params[1]);
+		break;
+	case 3:
+		ret = fn(params[0], params[1], params[2]);
+		break;
+	case 4:
+		ret = fn(params[0], params[1], params[2], params[3]);
+		break;
+	}
+	
+	return ret;
+}
+
+static void IPI_handler(void *d)
+{
+	struct sched_base_per_core *sched_state = PERCPU_GET(sched_base_state);
+	struct xcore_ring_item ring_item;
+	struct xcore_fn_data *data;
+	int cli_acap, srv_acap, ret;
+	struct ck_ring *ring = PERCPU_GET(percpu_ring);
+	void *ring_buf = PERCPU_GET(xcore_ring_page);
+
+	ret = cos_async_cap_cntl(COS_ACAP_CREATE, cos_spd_id(), cos_spd_id(), cos_get_thd_id());
+
+	cli_acap = ret >> 16;
+	srv_acap = ret & 0xFFFF;
+
+	if (unlikely(cli_acap <= 0 || srv_acap <= 0)) {
+		printc("Scheduler %ld could not allocate acap for IPI handler %d.\n", cos_spd_id(), cos_get_thd_id());
+		BUG();
+	}
+	sched_state->IPI_acap = cli_acap;
+
+	if (ret < 0) BUG();
+
+	ck_ring_init(ring, leqpow2(PAGE_SIZE / sizeof(struct xcore_ring_item)));
+
+	printc("Core %ld: Starting IPI handling thread (thread id %d, client acap %d, server acap %d)\n", 
+	       cos_cpuid(), cos_get_thd_id(), cli_acap, srv_acap);
+	while (1) {
+		cos_sched_lock_take();
+		/* Going to switch away */
+		/* Do not use areceive syscall here. We are in the scheduler. */
+		sched_switch_thread(COS_SCHED_ACAP_WAIT, EVT_CMPLETE_LOOP);
+
+		/* Received an IPI! */
+		while (CK_RING_DEQUEUE_SPSC(xcore_ring, ring, (struct xcore_ring_item *)ring_buf, &ring_item) == true) {
+			data = ring_item.data;
+			assert(data->nparams <= 4);
+			assert(data->finished == 0);
+			assert(data->fn);
+			//printc("core %d executing...\n", cos_cpuid());
+			data->ret = exec_fn(data->fn, data->nparams, data->params);
+			//printc("core %d done exe.\n", cos_cpuid());
+			data->finished = 1;
+		}
+		/* printc("Core %ld: done processing IPI request!\n", cos_cpuid()); */
+	}
+
+	BUG();
+}
+
+static struct sched_thd *fp_create_IPI_handler(void)
+{
+	union sched_param sp[2] = {{.c = {.type = SCHEDP_IPI_HANDLER}},
+				   {.c = {.type = SCHEDP_NOOP}}};
+	struct sched_base_per_core *sched_state = PERCPU_GET(sched_base_state);
 
 	assert(sched_is_root());
 	timer_thd = sched_setup_thread_arg(cos_spd_id(), &sp, fp_timer, 0, 1);
@@ -1942,22 +2037,6 @@ __sched_init(void)
 	sched_ds_init();
 	sched_initialization();
 	sched_init_thd_core_mapping();
-
-	ret = cos_tcap_split(0, 0, 0, 0, 1);
-	if (ret < 0) {
-		printc("Could not split a tcap for the timer thread.\n");
-	}
-	tcap_timer = ret;
-	ret = cos_tcap_split(0, 1, 0, 0, 1);
-	if (ret < 0) {
-		printc("Could not split a tcap for the network thread.\n");
-	}
-	tcap_net = ret;
-	ret = cos_tcap_split(0, 2, 0, 0, 1);
-	if (ret < 0) {
-		printc("Could not split a tcap for normal threads.\n");
-	}
-	tcap_normal = ret;
 
 	return;
 }

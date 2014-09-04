@@ -4345,7 +4345,6 @@ err_srv_spd:
 }
 
 #define COS_MAX_NUM_SYSCALL 32
-
 /* 
  * Composite's system call table that is indexed and invoked by ipc.S.
  * The user-level stubs are created in cos_component.h.

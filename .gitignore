@@ -17,8 +17,4 @@ tags
 src/kernel/include/shared/cpu_ghz.h
 src/Makefile.cosconfig
 modules.order
-<<<<<<< HEAD
-src/platform/i386/kernel.img
-=======
 .depend
->>>>>>> 294fff5aa666f1f9fc0d89848adf9fd90bbbaac4
