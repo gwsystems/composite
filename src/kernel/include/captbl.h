@@ -64,7 +64,8 @@ struct cap_header {
 
 struct cap_min {
 	struct cap_header h;
-	char padding[(4*sizeof(int))-sizeof(struct cap_header)];
+	/* 1/4 of a cacheline minimal */
+	char padding[(CACHELINE_SIZE/4) - sizeof(struct cap_header)];
 };
 
 /* Capability structure to a capability table */
@@ -72,6 +73,10 @@ struct cap_captbl {
 	struct cap_header h;
 	struct captbl *captbl;
 	u32_t lvl; 		/* what level are the captbl nodes at? */
+        /* Next is the time stamp counter to track when previous
+	 * deactivation happened. Used to determine whether quiescence
+	 * has achieved. */
+//	u64_t deact_tsc;
 };
 
 static void *
@@ -357,6 +362,9 @@ captbl_create(void *page)
 int captbl_activate(struct captbl *t, capid_t cap, capid_t capin, struct captbl *toadd, u32_t lvl);
 int captbl_deactivate(struct captbl *t, capid_t cap, capid_t  capin);
 int captbl_activate_boot(struct captbl *t, unsigned long cap);
-static void cap_init(void) {}
+
+static void cap_init(void) {
+	assert(sizeof(struct cap_captbl) <= __captbl_cap2bytes(CAP_CAPTBL));
+}
 
 #endif /* CAPTBL_H */

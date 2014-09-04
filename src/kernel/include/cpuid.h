@@ -61,6 +61,7 @@ cos_cpu_local_info(void)
 static inline int
 get_cpuid(void)
 {
+#if NUM_CPU > 1
 	/* Here, we get cpuid info from linux structure instead of Cos
 	 * structure. This enables linux tasks to get the correct
 	 * cpuid with this function, which is useful when doing
@@ -68,18 +69,9 @@ get_cpuid(void)
 
 	/* We save the CPU_ID in the stack for fast access. */
 	return *(unsigned long *)(get_linux_thread_info() + CPUID_OFFSET_IN_THREAD_INFO);
-}
-
-/* This function is only used in the invocation path. It optimizes for
- * the uniprocessor case. */
-static inline unsigned int
-get_cpuid_fast(void)
-{
-/* Optimize for uniprocessor! */
-#if NUM_CPU == 1
+#else 
+	/* Optimize for the uniprocessor case. */
 	return 0;
-#else
-	return get_cpuid();
 #endif
 }
 

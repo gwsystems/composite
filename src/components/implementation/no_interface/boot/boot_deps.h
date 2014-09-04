@@ -1,4 +1,5 @@
 #include <print.h>
+
 #undef assert
 #define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); *((int *)0) = 0;} } while(0)
 
@@ -72,4 +73,3 @@ boot_deps_init(void)
 
 static void
 boot_deps_run(void) { return; }
-

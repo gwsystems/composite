@@ -3,8 +3,6 @@
 
 #define LINUX_TEST
 
-//static inline int get_cpuid_fast(void) { return 0; }
-
 #define PAVAOFF 0//((1<<30) * 3)
 static void *chal_va2pa(void *va) { return (void *)((unsigned long)va - PAVAOFF); }
 static void *chal_pa2va(void *pa) { return (void *)((unsigned long)pa + PAVAOFF); }
