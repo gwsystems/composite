@@ -1,4 +1,4 @@
-CC := ../dietlibc-0.29/bin-i386/diet gcc 
+CC := ../dietlibc-0.33/bin-i386/diet gcc 
 AR := ar
 CFLAGS := -Wall -nostdinc -nostdlib -fno-stack-protector
 

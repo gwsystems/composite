@@ -6,7 +6,7 @@ LIBDIR=$(CDIR)/lib/
 MANDITORY_LIB=cos_manditory.o
 CINC=-I./ -I$(CDIR)/include/ -I$(SHAREDINC) -I$(CDIR)/lib/ck/include
 
-DIETDIR=$(CDIR)/lib/dietlibc-0.29
+DIETDIR=$(CDIR)/lib/dietlibc-0.33
 DIETBIN=$(DIETDIR)/bin-i386/diet
 DIETCC=$(DIETBIN) $(CC)
 DIETINC=-I$(DIETDIR)/include
@@ -37,7 +37,8 @@ INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib
 #OPT= -ggdb3
 OPT= -O3
-CFLAGS=-D__x86__ -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable -fno-stack-protector -fno-omit-frame-pointer $(INC_PATH) $(DIETINC) $(LWIPINC) $(LUAINC) $(OPT) $(SHARED_FLAGS)
+CFLAGS=-m32 -D__x86__ -Wall -Wextra -Wno-unused -fno-stack-protector -fno-omit-frame-pointer $(INC_PATH) $(DIETINC) $(LWIPINC) $(LUAINC) $(OPT) $(SHARED_FLAGS)
+LDFLAGS=-m elf_i386
 DIETCFLAGS=$(CFLAGS) -Xlinker -r
 ASFLAGS=$(INC_PATH) $(SHARED_FLAGS)
 

@@ -3,7 +3,7 @@
 #include "../../interface/torrent/torrent.h"
 #include "../../include/cos_component.h"
 #include "../../include/print.h"
-#include "../dietlibc-0.29/i386/syscalls.h"
+#include "../dietlibc-0.33/i386/syscalls.h"
 
 #define SYSCALLS_NUM 288
 
