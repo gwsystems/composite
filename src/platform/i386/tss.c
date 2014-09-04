@@ -13,7 +13,7 @@
 #define PGMASK  BITMASK(PGSHIFT, PGBITS)   /* Page offset bits (0:12). */
 
 static inline void *pg_round_down (const void *va) {
-  return (void *) ((uintptr_t) va & ~PGMASK);
+  return (void *) ((u32_t) va & ~PGMASK);
 }
 
 

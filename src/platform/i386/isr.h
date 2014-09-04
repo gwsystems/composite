@@ -4,22 +4,22 @@
 #include "shared/cos_types.h"
 
 struct registers {
-   uintptr_t ds;
-   uintptr_t edi;
-   uintptr_t esi;
-   uintptr_t ebp;
-   uintptr_t esp;
-   uintptr_t ebx;
-   uintptr_t edx;
-   uintptr_t ecx;
-   uintptr_t eax;
-   uintptr_t int_no;
-   uintptr_t err_code;
-   uintptr_t eip;
-   uintptr_t cs;
-   uintptr_t eflags;
-   uintptr_t useresp;
-   uintptr_t ss;
+   u32_t ds;
+   u32_t edi;
+   u32_t esi;
+   u32_t ebp;
+   u32_t esp;
+   u32_t ebx;
+   u32_t edx;
+   u32_t ecx;
+   u32_t eax;
+   u32_t int_no;
+   u32_t err_code;
+   u32_t eip;
+   u32_t cs;
+   u32_t eflags;
+   u32_t useresp;
+   u32_t ss;
 };
 
 enum IRQS {

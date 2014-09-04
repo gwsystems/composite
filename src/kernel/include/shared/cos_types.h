@@ -28,8 +28,8 @@ typedef signed char      s8_t;
 typedef signed short int s16_t;
 typedef signed int       s32_t;
 typedef signed long long s64_t;
-typedef unsigned long uintptr_t;
-typedef unsigned long size_t;
+//typedef unsigned long uintptr_t;
+//typedef unsigned long size_t;
 #endif
 
 #define PRINT_CAP_TEMP (2 << 15)

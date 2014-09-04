@@ -1,10 +1,4 @@
-ifeq ($(strip $(V)),)
-	E= @echo
-	Q= @
-else
-	E = @\#
-	Q =
-endif
+include Makefile.src
 
 CC := gcc -m32
 LD := ld -m elf_i386
@@ -51,39 +45,32 @@ OBJS += tss.o
 OBJS += user.o
 
 all: $(KERNEL)
-	$(E) "--[ Kernel Built"
 
 DEPS :=$(patsubst %.o, %.d, $(OBJS))
 
 $(KERNEL): $(DEPS) $(OBJS) loader.o
-	$(E) "    LINK 	" $@
-	$(Q) $(LD) -T linker.ld loader.o $(OBJS)  -o $@
+	$(LD) -T linker.ld loader.o $(OBJS)  -o $@
 
 loader.o: loader.s interrupt.s sysenter.s
-	$(E) "    AS  	" $@
-	$(Q) $(AS) -o loader.o loader.s interrupt.s sysenter.s
+	$(AS) -o loader.o loader.s interrupt.s sysenter.s
 
-$(DEPS):
+#$(DEPS):
 
 %.d: %.c
-	$(Q) $(CC) -M -MT $(patsubst %.d, %.o, $@) $(CFLAGS) $(LDFLAGS) $< -o $@
+	$(CC) -M -MT $(patsubst %.d, %.o, $@) $(CFLAGS) $(LDFLAGS) $< -o $@
 
-$(OBJS):
+#$(OBJS):
 
-%.o: %.c
-	$(E) "    CC 		" $@
-	$(Q) $(CC) -c $(CFLAGS) $(LDFLAGS) $< -o $@
-
-
-floppy: $(KERNEL)
+#%.o: %.c
+#	$(CC) -c $(CFLAGS) $(LDFLAGS) $< -o $@
 
 clean:
-	$(Q) rm -f $(DEPS) $(OBJS) loader.o $(KERNEL)
-	$(E) "--[ Clean"
+	rm -f $(DEPS) $(OBJS) loader.o $(KERNEL)
 
-qemu: kernel.img
-	qemu-system-i386 -m 128 -nographic -kernel kernel.img -no-reboot -s -initrd component.img
-
-gdb: kernel.img
+gdb: $(KERNEL)
 	@echo "Start gdb in another window"
-	qemu-system-i386 -m 128 -nographic -kernel kernel.img -no-reboot -s -S -initrd component.img
+	#qemu-system-i386 -m 128 -nographic -kernel $(KERNEL) -no-reboot -s -initrd component.img
+	qemu-system-i386 -m 128 -nographic -kernel $(KERNEL) -no-reboot -s -S -initrd component.img
+
+cp: $(KERNEL)
+	cp -f $(KERNEL) qemu.sh $(TRANS_DIR)

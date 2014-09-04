@@ -13,13 +13,13 @@
 #include "tss.h"
 #include "user.h"
 
-void kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp);
+void kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp);
 extern u32_t user_size;
 extern u32_t *base_user_address;
 int keep_kernel_running = 1;
 
 void 
-kmain(struct multiboot *mboot, uintptr_t mboot_magic, uintptr_t esp)
+kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 {
   printk__init();
   printk(INFO, "Booting....\n"); 

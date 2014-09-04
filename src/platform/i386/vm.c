@@ -43,7 +43,7 @@ chal_va2pa(void *address)
 static void
 page_fault(struct registers *regs)
 {
-    uintptr_t fault_addr, cs, eip = 0;
+    u32_t fault_addr, cs, eip = 0;
     
     asm volatile("mov %%cr2, %0" : "=r" (fault_addr));
     //asm volatile("mov %%eip, %0" : "=r" (eip));
