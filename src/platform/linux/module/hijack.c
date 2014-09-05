@@ -134,20 +134,6 @@ load_per_core_TSS(void)
 	cpu_x86_tss = &get_cpu_var(x86_tss);
 	*cpu_x86_tss = (unsigned long)((void *)gdt_tss + sizeof(struct tss_struct));
 
-	/* unsigned long *p; */
-	/* int i; */
-	/* printk("size of tss: %d\n", sizeof(struct tss_struct)); */
-
-	/* printk("addr %lu of the head of tss\n", (unsigned long )((void *)gdt_tss)); */
-	/* for (i = 0; i< 26; i++) { */
-	/* 	p = (unsigned long *)((void *)gdt_tss + i); */
-	/* 	printk("TSS(%d): %lu\n", i, *p); */
-	/* } */
-	/* unsigned long *p1 =(unsigned long *)current_thread_info(); */
-	/* printk("linux thread info %p, cos_get_linux_thread_info %p\n",p1, get_Linux_thread_info()); */
-	/* printk("THREAD_SIZE %d, cpuid %d, %d\n", */
-	/*        THREAD_SIZE, *(p1+4), get_CPU_ID()); */
-	/* printk("CPU ID :%d\n", get_CPU_ID()); */
 	put_cpu_var(x86_tss);
 }
 
@@ -649,6 +635,7 @@ kern_boot_comp(struct spd_info *spd_info)
 
 	ct = captbl_create(boot_comp_captbl);
 	assert(ct);
+
 	/* expand the captbl to use 2 pages. */
 	captbl_init(boot_comp_captbl + PAGE_SIZE, 1);
 	ret = captbl_expand(ct, PAGE_SIZE/2/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE);

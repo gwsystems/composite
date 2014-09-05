@@ -6,7 +6,7 @@ cos-objs := kern_entry.o hw_ints.o hijack.o pgtbl.o ../../../kernel/inv.o ../../
 default: module
 
 module: 
-	$(MAKE) -C $(LDIR) SUBDIRS=$(shell pwd) modules
+	$(MAKE) -W -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -C $(LDIR) SUBDIRS=$(shell pwd) modules
 
 cp:
 	cp cos.ko $(TRANS_DIR)

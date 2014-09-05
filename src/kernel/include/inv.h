@@ -188,7 +188,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 	pgtbl_update(sinvc->comp_info.pgtbl);
 
 	__userregs_sinvupdate(regs);
-	__userregs_set(regs, thd->tid | (get_cpuid_fast() << 16),
+	__userregs_set(regs, thd->tid | (get_cpuid() << 16),
 		       sinvc->h.poly /* calling component id */, sinvc->entry_addr);
 
 	return;
@@ -220,6 +220,7 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 static void inv_init(void)
 { 
 	assert(sizeof(struct cap_sinv) <= __captbl_cap2bytes(CAP_SINV)); 
+	assert(sizeof(struct cap_sret) <= __captbl_cap2bytes(CAP_SRET)); 
 	assert(sizeof(struct cap_asnd) <= __captbl_cap2bytes(CAP_ASND)); 
 	assert(sizeof(struct cap_arcv) <= __captbl_cap2bytes(CAP_ARCV)); 
 }

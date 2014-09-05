@@ -49,7 +49,7 @@ void call(void) {
 	return; 
 }
 
-char *shmem = 0x45000000-PAGE_SIZE;
+char *shmem = (char *)(0x45000000-PAGE_SIZE);
 
 void cos_init(void) {
 	int ret;
@@ -57,7 +57,7 @@ void cos_init(void) {
 	int target = cos_cpuid() - SND_RCV_OFFSET;
 
 //	printc("core %d: rcv thd %d in pong, reply target %d\n", cos_cpuid(), cos_get_thd_id(), target);
-	u64_t *pong_shmem = &shmem[(cos_cpuid()) * CACHE_LINE];
+	u64_t *pong_shmem = (u64_t *)&shmem[(cos_cpuid()) * CACHE_LINE];
 	u64_t e;
 
 	while (1) {
@@ -70,7 +70,7 @@ void cos_init(void) {
 //		printc("core %ld: rcv thd %d back in pong, ret %d!\n", cos_cpuid(), cos_get_thd_id(), ret);
 		if (ret) {
 			printc("ERROR: arcv ret %d", ret);
-			printc("rcv thd %d switching back to alpha %d!\n", 
+			printc("rcv thd %d switching back to alpha %ld!\n", 
 			       cos_get_thd_id(), SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
 			ret = cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
 		}

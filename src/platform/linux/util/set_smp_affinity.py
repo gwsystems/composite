@@ -7,7 +7,7 @@ except:
         print "Warning: Missing params for SMP affinity setting. Check the python script."; sys.exit(1);
                                  
 def start():
-	if ncpus < 1:
+	if int(ncpus) < 1:
 	        print "Warning: SMP affinity not setting correctly. Check the number of CPUs in config." 
 		sys.exit(1)
 
@@ -29,7 +29,7 @@ def start():
 	os.system("echo " + str(linux_cpu) + " > /dev/cpuset/linux/cpuset.cpus")
 	os.system("echo 0 > /dev/cpuset/linux/cpuset.mems")
 
-	if ncpus > 1:
+	if int(ncpus) > 1:
 		cos_cpu = int(ncpus) - 2
 	else:
 		cos_cpu = 0

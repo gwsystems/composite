@@ -313,5 +313,3 @@ hw_int_override_idt(int fault_num, void *handler, int ints_enabled, int dpl)
 
 	return 0;
 }
-
-

@@ -352,6 +352,10 @@ static pgtbl_t pgtbl_create(void *page, void *curr_pgtbl) {
 }
 int pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
 int pgtbl_deactivate(struct captbl *t, unsigned long cap, unsigned long capin);
-static void pgtbl_init(void) { return; }
+static void pgtbl_init(void) { 
+	assert(sizeof(struct cap_pgtbl) <= __captbl_cap2bytes(CAP_PGTBL));
+
+	return; 
+}
 
 #endif /* PGTBL_H */
