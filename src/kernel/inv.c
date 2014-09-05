@@ -3846,7 +3846,7 @@ int corex_high(void)
 
 int ipi_meas = 0;
 //QW: to remove
-int core_access[NUM_CPU];
+/* int core_access[NUM_CPU]; */
 #define ITER (128)
 volatile unsigned long long corex_last;
 

@@ -193,7 +193,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 		return 0;
 	}
 
-	ci  = thd_invstk_current(thd, &ip, &sp, cos_info);
+	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
 	assert(ci && ci->captbl);
 
 	/* We don't check liveness of current component because it's
