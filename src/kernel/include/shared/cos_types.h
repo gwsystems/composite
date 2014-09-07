@@ -28,8 +28,6 @@ typedef signed char      s8_t;
 typedef signed short int s16_t;
 typedef signed int       s32_t;
 typedef signed long long s64_t;
-//typedef unsigned long uintptr_t;
-//typedef unsigned long size_t;
 #endif
 
 #define PRINT_CAP_TEMP (2 << 15)
@@ -410,6 +408,7 @@ typedef unsigned int page_index_t;
 
 typedef unsigned short int spdid_t;
 typedef unsigned short int thdid_t;
+typedef unsigned short int tcap_t;
 
 struct restartable_atomic_sequence {
 	vaddr_t start, end;

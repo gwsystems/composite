@@ -321,7 +321,7 @@ static void
 boot_deps_run_all(void)
 {
 	assert(PERCPU_GET(llbooter)->init_thd);
-	cos_switch_thread(PERCPU_GET(llbooter)->init_thd, 0);
+	cos_switch_thread(PERCPU_GET(llbooter)->init_thd, 0, 0);
 	return ;
 }
 
@@ -389,14 +389,14 @@ void sync_all()
 static inline void
 acap_test(void)
 {
-	int ret;
+	/* int ret; */
 	/* asnd and arcv tests! */
 	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
 	struct comp_cap_info *ping = &comp_cap_info[2];
 	struct comp_cap_info *pong = &comp_cap_info[3];
 
 	//use the same cap id in ping and pong for simplicity. 
-	capid_t async_sndthd_cap = SND_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid();
+	/* capid_t async_sndthd_cap = SND_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid(); */
 	capid_t async_rcvthd_cap = RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid();
 	capid_t async_test_cap   = ACAP_BASE + captbl_idsize(CAP_ARCV)*cos_cpuid();
 
@@ -469,7 +469,7 @@ acap_test(void)
 int snd_rcv_order[NUM_CPU];
 int run_ppos_test(void)
 {
-	int ret;
+	/* int ret; */
 	//serialize the init order
 	if (cos_cpuid() != INIT_CORE) 
 		while (ck_pr_load_int(&snd_rcv_order[cos_cpuid()-1]) == 0) ;

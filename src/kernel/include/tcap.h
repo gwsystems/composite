@@ -13,6 +13,7 @@
 #define TCAP_H
 
 #include "shared/cos_types.h"
+#include "thd.h"
 
 #ifndef TCAP_MAX_DELEGATIONS
 #define TCAP_MAX_DELEGATIONS 8

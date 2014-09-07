@@ -64,7 +64,7 @@ void pingpong(void)
 	u64_t s, e;
 
 #ifdef MEAS_AVG
-	printc("core %ld: doing pingpong\n", cos_cpuid());
+	printc("core %ld: doing pingpong IPC test\n", cos_cpuid());
 	
 	call_cap(2, 0, 0, 0, 0);
 
@@ -74,7 +74,7 @@ void pingpong(void)
 	}
 	rdtscll(e);
 
-	printc("core %ld: pingpong done, avg %llu\n", cos_cpuid(), (e-s)/ITER);
+	printc("\n core %ld: %d IPCs done, avg cost %llu cycles\n\n", cos_cpuid(), ITER, (e-s)/ITER);
 	ck_pr_store_int(&all_exit, 1);
 #else
 	u64_t sum = 0, max = 0;
@@ -126,7 +126,7 @@ void rcv_thd(void)
 		ret = call_cap(ACAP_BASE + captbl_idsize(CAP_ARCV)*cos_cpuid(),0,0,0,0);
 		if (ret) {
 			printc("ERROR: arcv ret %d", ret);
-			printc("rcv thd %d switching back to alpha %d!\n", 
+			printc("rcv thd %d switching back to alpha %ld!\n", 
 			       cos_get_thd_id(), SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
 			ret = cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
 		}
@@ -134,7 +134,7 @@ void rcv_thd(void)
 	}
 }
 
-char *shmem = 0x44c00000-PAGE_SIZE;
+char *shmem = (char *)(0x44c00000-PAGE_SIZE);
 
 void cos_init(void)
 {
@@ -155,15 +155,15 @@ void cos_init(void)
 //	if (1) {
 		pingpong();
 		goto done;
-	} 
+	}
 //	else {	goto done; }
 //	if (cos_cpuid() <= (NUM_CPU_COS-1 - SND_RCV_OFFSET)) {
-	if (0){//(cos_cpuid() == 0) {
-		struct record_per_core *curr_rcv = &received[cos_cpuid()];
-		int last = 0;
+	if (0) {//(cos_cpuid() == 0) {
+		/* struct record_per_core *curr_rcv = &received[cos_cpuid()]; */
+		/* int last = 0; */
 		int target = SND_RCV_OFFSET + cos_cpuid();
 		u64_t s1, e1;
-		volatile u64_t *pong_shmem = &shmem[(target) * CACHE_LINE];
+		volatile u64_t *pong_shmem = (u64_t *)&shmem[(target) * CACHE_LINE];
 		u64_t sum = 0, sum2 = 0;
 
 		while (ck_pr_load_int(&arcv_ready[target]) == 0) ;

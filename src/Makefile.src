@@ -21,7 +21,7 @@ NET_DIR=$(TOP_DIR)/platform/linux/net/
 
 # tools
 MAKE=make
-CC=gcc -m32
+CC=gcc -m32 -Wno-unused-function
 AR=ar
 LD=ld -m elf_i386
 AS=$(CC)

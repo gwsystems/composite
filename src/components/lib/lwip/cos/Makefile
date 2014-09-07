@@ -40,7 +40,8 @@ CC=gcc
 #ARCH=openbsd
 #gap: CFLAGS=-g -Wall -pedantic -D$(ARCH) -DIPv4 -Os -fpack-struct -DLWIP_DEBUG
 OPT=-O3 #-ggdb3
-CFLAGS=-Wall -DIPv4 -nostdinc -nostdlib $(OPT)
+CFLAGS=-m32 -Wall -DIPv4 -nostdinc -nostdlib $(OPT)
+LDFLAGS=-m elf_i386
 ARFLAGS=rs
 
 #Set this to where you have the lwip core module checked out from CVS
@@ -99,7 +100,7 @@ include .depend
 	$(CCDEP) $(CFLAGS) -MM $^ > .depend || rm -f .depend
 
 $(OUTPUT_OBJ): $(LWIPOBJS)
-	ld -r -o $@ $^
+	ld -m elf_i386 -r -o $@ $^
 
 %.o:
 	$(CC) $(CFLAGS) -c $(<:.o=.c)

@@ -242,7 +242,7 @@ ipc_walk_static_cap(struct pt_regs *regs)
 
 	ipc_args_set(regs);
 
-	user_regs_set(regs, thd->thread_id | (get_cpuid_fast() << 16) /*eax*/,
+	user_regs_set(regs, thd->thread_id | (get_cpuid() << 16) /*eax*/,
 		      spd_get_index(curr_spd) /*spdid, no sp needed*/, cap_entry->dest_entry_instruction /*ip*/);
 	/* printk("inv %d to %d\n", spd_get_index(curr_spd), spd_get_index(dest_spd)); */
 
@@ -3869,7 +3869,7 @@ int corex_high(void)
 
 int ipi_meas = 0;
 //QW: to remove
-int core_access[NUM_CPU];
+/* int core_access[NUM_CPU]; */
 #define ITER (128)
 volatile unsigned long long corex_last;
 

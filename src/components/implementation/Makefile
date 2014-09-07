@@ -1,5 +1,6 @@
 include Makefile.src Makefile.comp
-SUBDIRS=$(wildcard */)
+#SUBDIRS=$(wildcard */)
+SUBDIRS=no_interface/comp0 no_interface/llboot no_interface/llping llpong
 MAKEFLAGS=-I$(shell pwd)
 
 .PHONY: all

@@ -541,7 +541,7 @@ static int genscript(int with_addr)
 static void run_linker(char *input_obj, char *output_exe)
 {
 	char linker_cmd[256];
-	sprintf(linker_cmd, LINKER_BIN " -T %s -o %s %s", script, output_exe,
+	sprintf(linker_cmd, LINKER_BIN " -m elf_i386 -T %s -o %s %s", script, output_exe,
 		input_obj);
 	printl(PRINT_DEBUG, "%s\n", linker_cmd);
 	fflush(stdout);
@@ -1671,12 +1671,12 @@ static void gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *servic
 		system(tmp_str);
 
 		/* compile the stub */
-		sprintf(tmp_str, GCC_BIN " -c -o %s_stub.o %s_stub.S", 
+		sprintf(tmp_str, GCC_BIN " -m32 -c -o %s_stub.o %s_stub.S", 
 			tmp_name, tmp_name);
 		system(tmp_str);
 
 		/* link the stub to the service */
-		sprintf(tmp_str, LINKER_BIN " -r -o %s.o %s %s_stub.o", 
+		sprintf(tmp_str, LINKER_BIN " -m elf_i386 -r -o %s.o %s %s_stub.o", 
 			tmp_name, orig_name, tmp_name);
 		system(tmp_str);
 
@@ -2693,7 +2693,7 @@ static void setup_kernel(struct service_symbs *services)
 	struct cos_thread_info thd;
 
 	pid_t pid;
-	pid_t children[NUM_CPU];
+	/* pid_t children[NUM_CPU]; */
 	int cntl_fd = 0, i, cpuid, ret;
 	unsigned long long start, end;
 	
@@ -2793,7 +2793,7 @@ static void setup_kernel(struct service_symbs *services)
 		printf("Parent(pid %d): forking for core %d.\n", getpid(), i);
 		cpuid = i;
 		pid = fork();
-		children[i] = pid;
+		/* children[i] = pid; */
 		if (pid == 0) break;
 		printf("Created pid %d for core %d.\n", pid, i);
 	}
@@ -2996,7 +2996,7 @@ int main(int argc, char *argv[])
 	char *servs, *dependencies, *ndeps, *stub_gen_prog;
 	char *outfile = NULL;
 	long service_addr;
-	int ret = -1;
+	/* int ret = -1; */
 	struct {
 		u32_t address;
 		u32_t padding[(PAGE_SIZE / sizeof(u32_t)) - 1];
@@ -3104,7 +3104,7 @@ int main(int argc, char *argv[])
 		setup_kernel(services);
 	}
 
-	ret = 0;
+	/* ret = 0; */
 
  dealloc_exit:
 	while (services) {
