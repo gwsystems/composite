@@ -54,23 +54,11 @@ $(KERNEL): $(DEPS) $(OBJS) loader.o
 loader.o: loader.s interrupt.s sysenter.s
 	$(AS) -o loader.o loader.s interrupt.s sysenter.s
 
-#$(DEPS):
-
 %.d: %.c
 	$(CC) -M -MT $(patsubst %.d, %.o, $@) $(CFLAGS) $(LDFLAGS) $< -o $@
 
-#$(OBJS):
-
-#%.o: %.c
-#	$(CC) -c $(CFLAGS) $(LDFLAGS) $< -o $@
-
 clean:
-	rm -f $(DEPS) $(OBJS) loader.o $(KERNEL)
-
-gdb: $(KERNEL)
-	@echo "Start gdb in another window"
-	#qemu-system-i386 -m 128 -nographic -kernel $(KERNEL) -no-reboot -s -initrd component.img
-	qemu-system-i386 -m 128 -nographic -kernel $(KERNEL) -no-reboot -s -S -initrd component.img
+	rm -f *.d *.o $(KERNEL)
 
 cp: $(KERNEL)
-	cp -f $(KERNEL) qemu.sh $(TRANS_DIR)
+	cp -f $(KERNEL) .gdbinit qemu.sh qemu-g.sh $(TRANS_DIR)
