@@ -199,14 +199,12 @@ composite_sysenter_handler(struct pt_regs *regs)
 	/* We don't check liveness of current component because it's
 	 * guaranteed by component quiescence period, which is at
 	 * timer tick granularity.*/
-
 	ch  = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
 		printk("cos: cap %d not found!\n", (int)cap);
 		ret = -ENOENT;
 		goto done;
 	}
-
 	/* fastpath: invocation */
 	if (likely(ch->type == CAP_SINV)) {
 		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info);

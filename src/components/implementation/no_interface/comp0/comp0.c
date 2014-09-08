@@ -7,7 +7,7 @@ volatile int mem = 0;
 
 int spd0_main(void)
 {
-	call_cap(2, 0, 0, 0, 0);
+	call_cap(4, 0, 0, 0, 0);
 
 	if (mem) sched_init(); // we need to link the cap!
 

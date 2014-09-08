@@ -329,30 +329,39 @@ boot_deps_run_all(void)
 /* Functions using new cap operations below. */
 /*********************************************/
 
-/* We have 2 pages for the captbl of llboot. */
-#define CAP_ID_16B_FREE BOOT_CAPTBL_FREE;            // goes up
-#define CAP_ID_32B_FREE ((PAGE_SIZE+PAGE_SIZE/2)/16 - CAP32B_IDSZ) // goes down
+/* We have 2 pages for the captbl of llboot: 1/2 page for the top
+ * level, 1+1/2 pages for the second level. */
+#define CAP_ID_32B_FREE BOOT_CAPTBL_FREE;            // goes up
+#define CAP_ID_64B_FREE ((PAGE_SIZE + PAGE_SIZE/2)/32 - CAP64B_IDSZ) // goes down
 
-capid_t capid_16b_free = CAP_ID_16B_FREE;
 capid_t capid_32b_free = CAP_ID_32B_FREE;
+capid_t capid_64b_free = CAP_ID_64B_FREE;
 
 capid_t alloc_capid(cap_t cap)
 {
 	capid_t ret;
 	
-	if (captbl_idsize(cap) == CAP16B_IDSZ)      {
-		ret = capid_16b_free;
-		capid_16b_free += CAP16B_IDSZ;
-	} else if (captbl_idsize(cap) == CAP32B_IDSZ) {
+	if (captbl_idsize(cap) == CAP32B_IDSZ) {
 		ret = capid_32b_free;
-		capid_32b_free -= CAP32B_IDSZ;
+		capid_32b_free += CAP32B_IDSZ;
+	} else if (captbl_idsize(cap) == CAP64B_IDSZ) {
+		ret = capid_64b_free;
+		capid_64b_free -= CAP64B_IDSZ;
+	} else if (captbl_idsize(cap) == CAP16B_IDSZ) {
+		/* uncommon case: only sret is 16B, and we usually use
+		 * cap 0 for sret. */
+		if (capid_32b_free % CAPMAX_ENTRY_SZ) {
+			capid_32b_free = round_up_to_pow2(capid_32b_free, CAPMAX_ENTRY_SZ);
+		}
+
+		ret = capid_32b_free;
+		capid_32b_free += CAPMAX_ENTRY_SZ;
 	} else {
-		/* No 64b caps needed for llboot. */
 		ret = 0;
 		BUG();
 	}
 	assert(ret);
-	assert(capid_32b_free >= capid_16b_free);
+	assert(capid_64b_free >= capid_32b_free);
 
 	return ret;
 }
@@ -423,7 +432,7 @@ acap_test(void)
 
 	// grant alpha thd to pong as well
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-			llboot->alpha, pong->captbl_cap, SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid(), 0)) BUG();
+			llboot->alpha, pong->captbl_cap, SCHED_CAPTBL_ALPHATHD_BASE + captbl_idsize(CAP_THD)*cos_cpuid(), 0)) BUG();
 
 	if (cos_cpuid() < (NUM_CPU_COS/2)) { // sending core
 		// create rcv thd in ping. and copy it to ping's captbl.
@@ -564,13 +573,13 @@ boot_comp_thds_init(void)
 	capid_t thd_alpha, thd_schedinit;
 
 	/* We reserve 2 caps for each core in the captbl of scheduler */
-	thd_alpha     = SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid();
-	thd_schedinit = SCHED_CAPTBL_INITTHD_BASE  + cos_cpuid();
+	thd_alpha     = SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid() * captbl_idsize(CAP_THD);
+	thd_schedinit = SCHED_CAPTBL_INITTHD_BASE  + cos_cpuid() * captbl_idsize(CAP_THD);
 	assert(thd_alpha && thd_schedinit);
 	assert(thd_schedinit <= SCHED_CAPTBL_LAST);
 
 	ck_spinlock_ticket_lock(&init_lock);
-	llboot->alpha        = BOOT_CAPTBL_SELF_INITTHD_BASE + cos_cpuid();
+	llboot->alpha        = BOOT_CAPTBL_SELF_INITTHD_BASE + cos_cpuid() * captbl_idsize(CAP_THD);
 	llboot->init_thd     = per_core_thd_cap[cos_cpuid()];
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, llboot->init_thd, 
 			BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()], sched_comp->comp_cap)) BUG();

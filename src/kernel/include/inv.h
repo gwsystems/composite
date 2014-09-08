@@ -36,7 +36,8 @@ struct cap_asnd {
 
 	/* deferrable server to rate-limit IPIs */
 	u32_t budget, period, replenish_amnt;
-	u64_t replenish_time; 	   /* time of last replenishment */
+	/* Following not used for now. */
+	/* u64_t replenish_time; 	   /\* time of last replenishment *\/ */
 } __attribute__((packed));
 
 struct cap_arcv {

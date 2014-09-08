@@ -60,6 +60,10 @@ struct cap_header {
 	cap_flags_t flags : CAP_HEAD_FLAGS_SZ;
 	cap_t       type  : CAP_HEAD_TYPE_SZ;
 	u8_t        post[0];
+        /* Next is the time stamp counter to track when previous
+	 * deactivation happened. Used to determine whether quiescence
+	 * has achieved. */
+	u64_t deact_tsc;
 } __attribute__((packed));
 
 struct cap_min {
@@ -73,10 +77,6 @@ struct cap_captbl {
 	struct cap_header h;
 	struct captbl *captbl;
 	u32_t lvl; 		/* what level are the captbl nodes at? */
-        /* Next is the time stamp counter to track when previous
-	 * deactivation happened. Used to determine whether quiescence
-	 * has achieved. */
-//	u64_t deact_tsc;
 };
 
 static void *

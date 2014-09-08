@@ -581,14 +581,16 @@ static int boot_comp_caps(struct cobj_header *h, spdid_t comp_id)
 {
 	struct cobj_cap *cap;
 	unsigned int i;
-	u32_t sinv_cap = 2; //0 is default return cap
+	/* FIXME: We need cap allocation and management for llboot
+	 * loaded components. */
+	u32_t sinv_cap = 4; //0 is default return cap
 
 	for (i = 0 ; i < h->ncap ; i++) {
 		cap = cobj_cap_get(h, i);
 
 		if (cobj_cap_undef(cap)) break;
 
-		/* printc("cap from comp %d to %d, cap %d  %x activate\n",  */
+		/* printc("cap from comp %d to %d, cap %d  %x activate\n", */
 		/*        comp_id, cap->dest_id, sinv_cap, cap->sstub); */
 		if (call_cap_op(comp_cap_info[comp_id].captbl_cap, CAPTBL_OP_SINVACTIVATE,
 				sinv_cap, comp_cap_info[cap->dest_id].comp_cap, cap->sstub, 0)) BUG();

@@ -197,7 +197,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 	int sz, ret;
 	cap_t cap_type;
 	
-	/* printk("copy from captbl %d, cap %d to captbl %d, cap %d\n",  */
+	/* printk("copy from captbl %d, cap %d to captbl %d, cap %d\n", */
 	/*        cap_from, capin_from, cap_to, capin_to); */
 	ctfrom = captbl_lkup(t, cap_from);
 	if (unlikely(!ctfrom)) return -ENOENT;
