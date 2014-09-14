@@ -10,14 +10,11 @@ if ! [ -r $1 ]; then
 fi
   
 TMPSCRIPT=/tmp/cos-rs-$$.sh
-TMPIMAGE=cos-image-$$.img
 
-
-sed -e "s/^\.\/cos_loader/\.\/cos_loader -o $TMPIMAGE/" $1 > $TMPSCRIPT
-sh $TMPSCRIPT
+sed -e "s/^\.\/cos_loader/\.\/cos_loader -q/" $1 > $TMPSCRIPT
+MODULES=$(sh $TMPSCRIPT | awk '/^creating module/ { print $3; }' | tr '\n' ' ')
 rm $TMPSCRIPT
 
-qemu-system-i386 -m 128 -nographic -kernel kernel.img -no-reboot -s -initrd $TMPIMAGE
+qemu-system-i386 -m 128 -nographic -kernel kernel.img -no-reboot -s -initrd "$(echo $MODULES | tr ' ' ',')"
 
-rm $TMPIMAGE
-
+#rm -f $MODULES

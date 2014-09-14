@@ -2,15 +2,15 @@ include Makefile.src
 
 default:
 	$(MAKE) -C i386
-	$(MAKE) -C linux
+	$(MAKE) -C loader
 
 cp:
 	$(MAKE) -C i386 cp
-	$(MAKE) -C linux cp
+	$(MAKE) -C loader cp
 
 clean:
 	$(MAKE) -C i386 clean
-	$(MAKE) -C linux clean
+	$(MAKE) -C loader clean
 
 init: clean default
 

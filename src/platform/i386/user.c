@@ -13,7 +13,7 @@ extern u32_t user_size;
 extern u32_t *base_user_address;
 
 //#define BASE_ADDRESS base_user_address
-#define BASE_ADDRESS SERVICE_START
+#define BASE_ADDRESS 0x40402000
 
 static inline void
 writemsr(u32_t reg, u32_t low, u32_t high)
@@ -26,7 +26,8 @@ u32_t user_mode_stack;
 void
 user__init(void)
 {
-  u32_t user_mode_stack = (u32_t)BASE_ADDRESS + user_size + MAX_STACK_SZ;
+  //u32_t user_mode_stack = (u32_t)BASE_ADDRESS + user_size + MAX_STACK_SZ;
+  u32_t user_mode_stack = BASE_ADDRESS - 1;
 
   writemsr(IA32_SYSENTER_CS, SEL_KCSEG, 0);
   writemsr(IA32_SYSENTER_ESP, (u32_t)tss_get()->esp0, 0);
