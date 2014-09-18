@@ -26,8 +26,7 @@ u32_t user_mode_stack;
 void
 user__init(void)
 {
-  //u32_t user_mode_stack = (u32_t)BASE_ADDRESS + user_size + MAX_STACK_SZ;
-  u32_t user_mode_stack = BASE_ADDRESS - 1;
+  u32_t user_mode_stack = (u32_t)BASE_ADDRESS + user_size + MAX_STACK_SZ;
 
   writemsr(IA32_SYSENTER_CS, SEL_KCSEG, 0);
   writemsr(IA32_SYSENTER_ESP, (u32_t)tss_get()->esp0, 0);

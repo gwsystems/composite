@@ -2,7 +2,7 @@ include Makefile.src
 
 CC=gcc
 LD=ld
-CFLAGS=-D__x86__ -D_GNU_SOURCE -lpthread -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -ggdb3 -I$(KINC) 
+CFLAGS=-D__x86__ -D_GNU_SOURCE -lpthread -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-pointer-to-int-cast -ggdb3 -I$(KINC) 
 LDFLAGS=""
 PRODUCTS=cos_loader gen_client_stub
 
@@ -14,7 +14,7 @@ default: $(PRODUCTS)
 gen_client_stub: gen_client_stub.o
 	$(CC) $(CFLAGS) -o $@ $< 
 
-cos_loader: cos_loader.o globals.o $(CDIR)/lib/cobj_format.c
+cos_loader: main.o deserialize.o globals.o freesymbs.o genstubs.o loadall.o printobjs.o prepsymbs.o vdc.o vds.o $(CDIR)/lib/cobj_format.c
 	$(CC) $(CFLAGS) -o $@ $^ -L/usr/lib -lbfd -I$(CDIR)/include -I$(SHAREDINC)
 
 cp:

@@ -6,21 +6,6 @@
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
- *
- * Linker and loader for the Composite system: takes a collection of
- * services with their trust relationships explicitly expressed,
- * dynamically generates their stub code to connect them, communicates
- * capability information info with the runtime system, creates the
- * user-level static capability structures, and loads the services
- * into the current address space which will be used as a template for
- * the run-time system for creating each service protection domain
- * (ie. copying the entries in the pgd to new address spaces.  
- *
- * This is trusted code, and any mistakes here compromise the entire
- * system.  Essentially, control flow is restricted/created here.
- *
- * Going by the man pages, I think I might be going to hell for using
- * strtok so much.  Suffice to say, don't multithread this program.
  */
 
 #include "cl_types.h"
@@ -137,10 +122,6 @@ struct cos_sections section_info[MAXSEC_S+1] = {
 	}
 };
 
-char script[64];
-char tmp_exec[128];
 int spdid_inc = -1;
 u32_t llboot_mem;
 volatile int var;
-extern vaddr_t SS_ipc_client_marshal;
-extern vaddr_t DS_ipc_client_marshal;

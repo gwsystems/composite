@@ -26,11 +26,10 @@
 #include "cl_types.h"
 #include "cl_macros.h"
 #include "cl_globals.h"
+#include "cl_inline.h"
 
 #include <cos_config.h>
-#ifdef LINUX_HIGHEST_PRIORITY
-#define HIGHEST_PRIO 1
-#endif
+#include <cobj_format.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -41,105 +40,20 @@
 #include <assert.h>
 #include <sys/mman.h>
 #include <signal.h>
+#include <libgen.h>
+#include <unistd.h>
 
 #include <bfd.h>
 
-//#include <stdbool.h>
-//#include <pthread.h>
-#include <sys/wait.h> /* wait for children process termination */
-#include <sched.h>
+int service_get_spdid(struct service_symbs *ss);
 
-/* composite includes */
-//#include <spd.h>
-//#include <ipc.h>
-
-#include <cobj_format.h>
-
-enum { LINUX, QEMU} boot_method = LINUX;
-
-static inline int
-fault_handler_num(char *fn_name)
-{
-        int i;
-
-        for (i = 0 ; i < COS_FLT_MAX ; i++) {
-                if (!strcmp(cos_flt_handlers[i], fn_name)) return i;
-        }
-        return -1;
-}
-
-
-static struct cos_sections *
-cos_sect_get(sec_type_t id)
-{
-	int i;
-	static int first = 1;
-
-	assert(id <= MAXSEC_S);
-	if (first) {
-		for (i = 0 ; section_info[i].secid != MAXSEC_S ; i++) {
-			assert(section_info[i].secid == (unsigned int)i);
-		}
-	}
-	return &section_info[id];
-}
-static struct cos_sections *csg(sec_type_t id) { return cos_sect_get(id); }
-
-static int service_get_spdid(struct service_symbs *ss);
-static int is_booter_loaded(struct service_symbs *s)
-{
-	return (!(strstr(s->obj, INIT_COMP) || strstr(s->obj, LLBOOT_COMP)));
-//	return s->is_composite_loaded;
-}
-
-static int is_hl_booter_loaded(struct service_symbs *s)
+int is_hl_booter_loaded(struct service_symbs *s)
 {
 	return s->is_composite_loaded;
 }
 
-static inline trans_cap_t
-is_transparent_capability(struct symb *s, int *fltn) {
-	char *n = s->name;
-	*fltn = 0;
-
-	if (s->modifier_offset) {
-		printf("%s -> %s.\n", n, n+s->modifier_offset);
-	}
-	if (!strcmp(n, SCHED_CREATE_FN)) return TRANS_CAP_SCHED;
-	if (-1 != (*fltn = fault_handler_num(n + s->modifier_offset)))  return TRANS_CAP_FAULT;
-	return TRANS_CAP_NIL;
-}
-
-static unsigned long getsym(bfd *obj, char* symbol)
-{
-	long storage_needed;
-	asymbol **symbol_table;
-	long number_of_symbols;
-	int i;
-	
-	storage_needed = bfd_get_symtab_upper_bound (obj);
-	
-	if (storage_needed <= 0){
-		printl(PRINT_DEBUG, "no symbols in object file\n");
-		exit(-1);
-	}
-	
-	symbol_table = (asymbol **) malloc (storage_needed);
-	number_of_symbols = bfd_canonicalize_symtab(obj, symbol_table);
-
-	//notes: symbol_table[i]->flags & (BSF_FUNCTION | BSF_GLOBAL)
-	for (i = 0; i < number_of_symbols; i++) {
-		if(!strcmp(symbol, symbol_table[i]->name)){
-			return symbol_table[i]->section->vma + symbol_table[i]->value;
-		} 
-	}
-
-	printl(PRINT_DEBUG, "Unable to find symbol named %s\n", symbol);
-	return 0;
-}
-
 #ifdef DEBUG
-static void print_syms(bfd *obj)
+void print_syms(bfd *obj)
 {
 	long storage_needed;
 	asymbol **symbol_table;
@@ -180,720 +94,12 @@ static void print_syms(bfd *obj)
 }
 #endif
 
-static void 
-findsections(asection *sect, PTR obj, int ld)
-{
-	struct cos_sections *css = obj;
-	int i;
-
-	for (i = 0 ; css[i].secid < MAXSEC_S ; i++) {
-		if (!strcmp(css[i].sname, sect->name)) {
-			if (ld) css[i].ldobj.s  = sect;
-			else    css[i].srcobj.s = sect;
-			return;
-		} 
-	}
-}
-static void findsections_srcobj(bfd *abfd, asection *sect, PTR obj) { findsections(sect, obj, 0); }
-static void findsections_ldobj(bfd *abfd, asection *sect, PTR obj) { findsections(sect, obj, 1); }
-
-static int calc_offset(int offset, asection *sect)
-{
-	int align;
-	
-	if (!sect) return offset;
-	align = (1 << sect->alignment_power) - 1;
-	
-	if (offset & align) {
-		offset -= offset & align;
-		offset += align + 1;
-	}
-
-	return offset;
-}
-
-static int calculate_mem_size(int first, int last) 
-{
-	int offset = 0;
-	int i;
-	
-	for (i = first; i < last; i++){
-		asection *s = section_info[i].srcobj.s;
-
-		if (s == NULL) {
-			printl(PRINT_DEBUG, "Warning: could not find section for sectno %d @ %p.\n", 
-			       i, &(section_info[i].srcobj.s));
-			continue;
-		}
-		offset = calc_offset(offset, s);
-		section_info[i].srcobj.offset = offset;
-		offset += bfd_get_section_size(s);
-	}
-	
-	return offset;
-}
-
-static void emit_address(FILE *fp, unsigned long addr)
-{
-	fprintf(fp, ". = 0x%x;\n", (unsigned int)addr);
-}
-
-static void emit_section(FILE *fp, char *sec)
-{
-	/*
-	 * The kleene star after the section will collapse
-	 * .rodata.str1.x for all x into the only case we deal with
-	 * which is .rodata
-	 */
-//	fprintf(fp, ".%s : { *(.%s*) }\n", sec, sec);
-	fprintf(fp, "%s : { *(%s*) }\n", sec, sec);
-}
-
-/* Look at sections and determine sizes of the text and
- * and data portions of the object file once loaded */
-
-static int genscript(int with_addr)
-{
-	FILE *fp;
-	static unsigned int cnt = 0;
-	int i;
-	
-	sprintf(script, "/tmp/loader_script.%d", getpid());
-	sprintf(tmp_exec, "/tmp/loader_exec.%d.%d.%d", with_addr, getpid(), cnt);
-	cnt++;
-
-	fp = fopen(script, "w");
-	if(fp == NULL){
-		perror("fopen failed");
-		exit(-1);
-	}
-	
-	fprintf(fp, "SECTIONS\n{\n");
-
-	for (i = 0 ; section_info[i].secid != MAXSEC_S ; i++) {
-		if (with_addr && !section_info[i].coalesce) {
-			emit_address(fp, section_info[i].start_addr);
-		}
-		if (section_info[i].ld_output) {
-			fprintf(fp, "%s", section_info[i].ld_output);
-		} else {
-			emit_section(fp, section_info[i].sname);
-		}
-	}
-	if (with_addr) emit_address(fp, 0);
-	emit_section(fp, ".eh_frame");
-	
-	fprintf(fp, "}\n");
-	fclose(fp);
-
-	return 0;
-}
-
-static void run_linker(char *input_obj, char *output_exe)
-{
-	char linker_cmd[256];
-	sprintf(linker_cmd, LINKER_BIN " -m elf_i386 -T %s -o %s %s", script, output_exe,
-		input_obj);
-	printl(PRINT_DEBUG, "%s\n", linker_cmd);
-	fflush(stdout);
-	system(linker_cmd);
-}
-
-int set_object_addresses(bfd *obj, struct service_symbs *obj_data)
-{
-	struct symb_type *st = &obj_data->exported;
-	int i;
-
-/* debug:
-	unsigned int *retaddr;
-	char **blah;
-	typedef int (*fn_t)(void);
-	fn_t fn;
-	char *str = "hi, this is";
-
-	if ((retaddr = (unsigned int*)getsym(obj, "ret")))
-		printl(PRINT_DEBUG, "ret %x is %d.\n", (unsigned int)retaddr, *retaddr);
-	if ((retaddr = (unsigned int*)getsym(obj, "blah")))
-		printl(PRINT_DEBUG, "blah %x is %d.\n", (unsigned int)retaddr, *retaddr);
-	if ((retaddr = (unsigned int*)getsym(obj, "zero")))
-		printl(PRINT_DEBUG, "zero %x is %d.\n", (unsigned int)retaddr, *retaddr);
-	if ((blah = (char**)getsym(obj, "str")))
-		printl(PRINT_DEBUG, "str %x is %s.\n", (unsigned int)blah, *blah);
-	if ((retaddr = (unsigned int*)getsym(obj, "other")))
-		printl(PRINT_DEBUG, "other %x is %d.\n", (unsigned int)retaddr, *retaddr);
-	if ((fn = (fn_t)getsym(obj, "foo")))
-		printl(PRINT_DEBUG, "retval from foo: %d (%d).\n", fn(), (int)*str);
-*/
-	for (i = 0 ; i < st->num_symbs ; i++) {
-		char *symb = st->symbs[i].name;
-		unsigned long addr = getsym(obj, symb);
-/*
-		printl(PRINT_DEBUG, "Symbol %s at address 0x%x.\n", symb, 
-		       (unsigned int)addr);
-*/
-		if (addr == 0) {
-			printl(PRINT_DEBUG, "Symbol %s has invalid address.\n", symb);
-			return -1;
-		}
-
-		st->symbs[i].addr = addr;
-	}
-	
-	return 0;
-}
-
-vaddr_t get_symb_address(struct symb_type *st, const char *symb)
-{
-	int i;
-
-	for (i = 0 ; i < st->num_symbs ; i++ ) {
-		if (!strcmp(st->symbs[i].name, symb)) {
-			return st->symbs[i].addr;
-		}
-	}
-	return 0;
-}
-
-static void
-section_info_init(struct cos_sections *cs)
-{
-	int i;
-
-	for (i = 0 ; cs[i].secid != MAXSEC_S ; i++) {
-		cs[i].srcobj.s = cs[i].ldobj.s = NULL;
-		cs[i].srcobj.offset = cs[i].ldobj.offset = 0;
-	}
-}
-
-static int make_cobj_symbols(struct service_symbs *s, struct cobj_header *h);
-static int make_cobj_caps(struct service_symbs *s, struct cobj_header *h);
-
-static int 
-load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned long size)
-{
-	bfd *obj, *objout;
-	int sect_sz, offset, tot_static_mem = 0;
-	void *ret_addr;
-	char *service_name = ret_data->obj; 
-	struct cobj_header *h;
-	int i;
-
-	section_info_init(&section_info[0]);
-	if (!service_name) {
-		printl(PRINT_DEBUG, "Invalid path to executive.\n");
-		return -1;
-	}
-
-	printl(PRINT_NORMAL, "Processing object %s:\n", service_name);
-
-	/* 
-	 * First Phase: We need to learn about the object.  We need to
-	 * get the addresses of each section that we care about,
-	 * figure out proper alignments, and lengths of each section.
-	 * This data will later be used to link the object into those
-	 * locations.
-	 */
-	genscript(0);
-	run_linker(service_name, tmp_exec);
-	
-	obj = bfd_openr(tmp_exec, "elf32-i386");
-	if(!obj){
-		bfd_perror("object open failure");
-		return -1;
-	}
-	if(!bfd_check_format(obj, bfd_object)){
-		printl(PRINT_DEBUG, "Not an object file!\n");
-		return -1;
-	}
-	/* 
-	 * Initialize some section info (note that only sizes of
-	 * sections are relevant now, as we haven't yet linked in
-	 * their proper addresses.
-	 */
-	bfd_map_over_sections(obj, findsections_srcobj, section_info);
-
-	/* Lets calculate and store starting addresses/alignments */
-	offset = 0;
-	sect_sz = 0;
-	assert(round_to_page(lower_addr) == lower_addr);
-	for (i = 0 ; csg(i)->secid < MAXSEC_S ; i++) {
-		csg(i)->start_addr = lower_addr + offset;
-		if (csg(i)->srcobj.s) {
-			vaddr_t align_diff;
-			
-			if (csg(i)->srcobj.s->alignment_power) {
-				align_diff          = round_up_to_pow2(csg(i)->start_addr, 
-								       1<<(csg(i)->srcobj.s->alignment_power)) - 
-					                               csg(i)->start_addr;
-				offset             += align_diff;
-				csg(i)->start_addr += align_diff;
-			}
-			printl(PRINT_DEBUG, "\t section %d, offset %d, align %x, start addr %x, align_diff %d\n", 
-			       i, offset, csg(i)->srcobj.s->alignment_power, (unsigned int)csg(i)->start_addr, (int)align_diff);
-
-			sect_sz = calculate_mem_size(i, i+1);
-			/* make sure we're following the object's
-			 * alignment constraints */
-			assert(!(csg(i)->start_addr & 
-				 ((1 << csg(i)->srcobj.s->alignment_power)-1)));
-		} else {
-			sect_sz = 0;
-		}
-		csg(i)->len        = sect_sz;
-
-		if (csg(i+1)->coalesce) {
-			offset += sect_sz;
-		} else {
-			offset = round_up_to_page(offset + sect_sz);
-		}
-		printl(PRINT_DEBUG, "\tSect %d, addr %lx, sz %lx, offset %x\n", 
-		       i, csg(i)->start_addr, csg(i)->len, offset);
-	}
-
-	/* Allocate memory for any components that are Linux-loaded */
-	if (!is_booter_loaded(ret_data)) {
-		unsigned long tot_sz = 0;
-		unsigned long start_addr = csg(0)->start_addr;
-
-		assert(start_addr);
-		/* Amount of required memory is the last section's end, minus the start */
-		for (i = 0 ; csg(i)->secid < MAXSEC_S ; i++) {
-			if (!csg(i)->len) continue;
-			tot_sz = round_up_to_page((csg(i)->start_addr - start_addr) + csg(i)->len);
-		}
-		printl(PRINT_DEBUG, "Total mmap size %lx\n", tot_sz);
-		/**
-		 * FIXME: needing PROT_WRITE is daft, should write to
-		 * file, then map in ro
-		 */
-		assert(tot_sz);
-		tot_static_mem = tot_sz;
-		ret_addr = mmap((void*)start_addr, tot_sz,
-				PROT_EXEC | PROT_READ | PROT_WRITE,
-				MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS,
-				0, 0);
-		if (MAP_FAILED == (void*)ret_addr){
-			/* If you get outrageous sizes here, there is
-			 * a required section missing (such as
-			 * rodata).  Add a const. */
-			printl(PRINT_DEBUG, "Error mapping 0x%x(0x%x)\n",
-			       (unsigned int)start_addr, (unsigned int)tot_sz);
-			perror("Couldn't map text segment into address space");
-			return -1;
-		}
-	} else {
-		/* Create the cobj for the component if it is composite/booter-loaded */
-		u32_t size = 0, obj_size;
-		u32_t nsymbs, ncaps, nsects;
-		char *mem;
-		char cobj_name[COBJ_NAME_SZ], *end;
-		int i;
-
-		for (i = 0 ; csg(i)->secid < MAXSEC_S ; i++) {
-			tot_static_mem += csg(i)->len;
-			if (csg(i)->cobj_flags & COBJ_SECT_ZEROS) continue;
-			size += csg(i)->len;
-		}
-		nsymbs = ret_data->exported.num_symbs;
-		ncaps  = ret_data->undef.num_symbs;
-		nsects = MAXSEC_S;
-
-		obj_size = cobj_size_req(nsects, size, nsymbs, ncaps);
-		mem = malloc(obj_size);
-		if (!mem) {
-			printl(PRINT_HIGH, "could not allocate memory for composite-loaded %s.\n", service_name);
-			return -1;
-		}
-		strncpy(cobj_name, &service_name[5], COBJ_NAME_SZ);
-		end = strstr(cobj_name, ".o.");
-		if (!end) end = &cobj_name[COBJ_NAME_SZ-1];
-		*end = '\0';
-		h = cobj_create(0, cobj_name, nsects, size, nsymbs, ncaps, mem, obj_size,
-				ret_data->scheduler ? COBJ_INIT_THD : 0);
-		if (!h) {
-			printl(PRINT_HIGH, "boot component: couldn't create cobj.\n");
-			return -1;
-		}
-		ret_data->cobj = h;
-		assert(obj_size == h->size);
-	}
-	unlink(tmp_exec);
-	
-	/* 
-	 * Second Phase: Now we know the memory layout of the object,
-	 * and have the destination memory for the object's data to be
-	 * placed into (either mmaped -- Linux loaded, or cobj -- for
-	 * composite/booter-loaded).  Lets link it into the proper
-	 * addresses, and copy the resulting object data into the
-	 * proper memory locations.
-	 */
-	genscript(1);
-	run_linker(service_name, tmp_exec);
-//	unlink(script);
-	objout = bfd_openr(tmp_exec, "elf32-i386");
-	if(!objout){
-		bfd_perror("Object open failure\n");
-		return -1;
-	}
-	if(!bfd_check_format(objout, bfd_object)){
-		printl(PRINT_DEBUG, "Not an object file!\n");
-		return -1;
-	}
-
-	/* Now create the linked objects... */
-	bfd_map_over_sections(objout, findsections_ldobj, section_info);
-
-	for (i = 0 ; csg(i)->secid < MAXSEC_S ; i++) {
-		printl(PRINT_DEBUG, "\tRetreiving section %d of size %lx @ %lx.\n", i, csg(i)->len, csg(i)->start_addr);
-
-		if (!is_booter_loaded(ret_data)) {
-			if (csg(i)->ldobj.s) {
-				bfd_get_section_contents(objout, csg(i)->ldobj.s, (char*)csg(i)->start_addr, 0, csg(i)->len);
-			}
-		} else {
-			char *sect_loc;
-
-			if (cobj_sect_init(h, i, csg(i)->cobj_flags, csg(i)->start_addr, csg(i)->len)) {
-				printl(PRINT_HIGH, "Could not create section %d in cobj for %s\n", i, service_name);
-				return -1;
-			}
-			if (csg(i)->cobj_flags & COBJ_SECT_ZEROS) continue;
-			sect_loc = cobj_sect_contents(h, i);
-			printl(PRINT_DEBUG, "\tSection @ %d, size %d, addr %x, sect start %d\n", (u32_t)sect_loc-(u32_t)h, 
-			       cobj_sect_size(h, i), cobj_sect_addr(h, i), cobj_sect_content_offset(h));
-			assert(sect_loc);
-			//memcpy(sect_loc, tmp_storage, csg(i)->len);
-			if (csg(i)->ldobj.s) {
-				bfd_get_section_contents(objout, csg(i)->ldobj.s, sect_loc, 0, csg(i)->len);
-			}
-		}
-	}
-
-	if (set_object_addresses(objout, ret_data)) {
-		printl(PRINT_DEBUG, "Could not find all object symbols.\n");
-		return -1;
-	}
-
-	ret_data->lower_addr = lower_addr;
-	ret_data->size       = size;
-	ret_data->allocated  = round_up_to_page((csg(MAXSEC_S-1)->start_addr - csg(0)->start_addr) + csg(MAXSEC_S-1)->len);
-	ret_data->heap_top   = csg(0)->start_addr + ret_data->allocated;
-	
-	if (is_booter_loaded(ret_data)) {
-		if (make_cobj_symbols(ret_data, h)) {
-			printl(PRINT_HIGH, "Could not create symbols in cobj for %s\n", service_name);
-			return -1;
-		}
-	}
-
-
-	bfd_close(obj);
-	bfd_close(objout);
-
-	printl(PRINT_NORMAL, "Object %s processed as %s with script %s.\n", 
-	       service_name, tmp_exec, script);
-	if (boot_method == QEMU) {
-		char module_addr[9];
-		sprintf(module_addr, "%08x", ret_data->lower_addr);
-		rename(tmp_exec, module_addr);
-		printl(PRINT_HIGH, "creating module %s\n", module_addr);
-	} else {
-		unlink(tmp_exec);
-	}
-
-	return tot_static_mem;
-}
-
-/* FIXME: should modify code to use
-static struct service_symbs *get_dependency_by_index(struct service_symbs *s,
-						     int index)
-{
-	if (index >= s->num_dependencies) {
-		return NULL;
-	}
-
-	return s->dependencies[index].dep;
-}
-*/
-static int __add_service_dependency(struct service_symbs *s, struct service_symbs *dep, 
-				    char *modifier, int mod_len)
-{
-	struct dependency *d;
-
-	if (!s || !dep || s->num_dependencies == MAX_TRUSTED) {
-		return -1;
-	}
-	if (!is_booter_loaded(s) && is_booter_loaded(dep)) {
-		printl(PRINT_HIGH, "Error: Non-Composite-loaded component dependent on composite loaded component.\n");
-		return -1;
-	}
-
-	d = &s->dependencies[s->num_dependencies];
-	d->dep = dep;
-	d->modifier = modifier;
-	d->mod_len = mod_len;
-	d->resolved = 0;
-	s->num_dependencies++;
-
-	return 0;
-}
-
-static int add_service_dependency(struct service_symbs *s, 
-				  struct service_symbs *dep)
-{
-	return __add_service_dependency(s, dep, NULL, 0);
-}
-
-static int add_modified_service_dependency(struct service_symbs *s,
-					   struct service_symbs *dep, 
-					   char *modifier, int mod_len)
-{
-	char *new_mod;
-
-	assert(modifier);
-	new_mod = malloc(mod_len+1);
-	assert(new_mod);
-	memcpy(new_mod, modifier, mod_len);
-	new_mod[mod_len] = '\0';
-
-	return __add_service_dependency(s, dep, new_mod, mod_len);
-}
-
-static int initialize_service_symbs(struct service_symbs *str)
-{
-	memset(str, 0, sizeof(struct service_symbs));
-	str->exported.parent = str;
-	str->undef.parent = str;
-	str->next = NULL;
-	str->exported.num_symbs = str->undef.num_symbs = 0;
-	str->num_dependencies = 0;
-	str->depth = -1;
-
-	return 0;
-}
-
-static void parse_component_traits(char *name, struct component_traits *t, int *off)
-{
-	switch(name[*off]) {
-	case '*': {
-		t->sched = 1;
-		if (!ROOT_SCHED) {
-			char *r = malloc(strlen(name+1)+1);
-			strcpy(r, name+1);
-			ROOT_SCHED = r;
-		}
-		break;
-	}
-	case '!': t->composite_loaded = 1; break;
-	default: /* base case */ return;
-	}
-	(*off)++;
-	parse_component_traits(name, t, off);
-	
-	return;
-}
-
-static struct service_symbs *alloc_service_symbs(char *obj)
-{
-	struct service_symbs *str;
-	char *obj_name = malloc(strlen(obj)+1), *cpy, *orig, *pos;
-	const char lassign = '(', *rassign = ")", *assign = "=";
-	struct component_traits t = {.sched = 0, .composite_loaded = 0};
-	int off = 0;
-
-	parse_component_traits(obj, &t, &off);
-	assert(obj_name);
-	/* Do we have a value assignment (a component copy)?  Syntax
-	 * is (newval=oldval),... */
-	if (obj[off] == lassign) {
-		char copy_cmd[256];
-		int ret;
-		
-		off++;
-		parse_component_traits(obj, &t, &off);
-
-		cpy = strtok_r(obj+off, assign, &pos);
-		orig = strtok_r(pos, rassign, &pos);
-		sprintf(copy_cmd, "cp %s %s", orig, cpy);
-		ret = system(copy_cmd);
-		assert(-1 != ret);
-		obj = cpy;
-		off = 0;
-	}
-	printl(PRINT_DEBUG, "Processed object %s (%s%s)\n", obj, t.sched ? "scheduler " : "", 
-	       t.composite_loaded ? "booted" : "");
-	str = malloc(sizeof(struct service_symbs));
-	if (!str || initialize_service_symbs(str)) {
-		return NULL;
-	}
-
-	strcpy(obj_name, &obj[off]);
-	str->obj = obj_name;
-
-	str->is_scheduler = t.sched;
-	str->scheduler = NULL;
-	str->is_composite_loaded = t.composite_loaded;
-	str->already_loaded = 0;
-
-	return str;
-}
-
-static void free_symbs(struct symb_type *st)
-{
-	int i;
-
-	for (i = 0 ; i < st->num_symbs ; i++) {
-		free(st->symbs[i].name);
-	}
-}
-
-static void free_service_symbs(struct service_symbs *str)
-{
-	free(str->obj);
-	free_symbs(&str->exported);
-	free_symbs(&str->undef);
-	free(str);
-
-	return;
-}
-
-static int obs_serialize(asymbol *symb, void *data)
-{
-	struct symb_type *symbs = data;
-	char *name;
-
-	/* So that we can later add into the exported symbols the user
-         * capability table
-	 */
-	if (symbs->num_symbs >= MAX_SYMBOLS-NUM_KERN_SYMBS) {
-		printl(PRINT_DEBUG, "Have exceeded the number of allowed "
-		       "symbols for object %s.\n", symbs->parent->obj);
-		return -1;
-	}
-
-	/* Ignore main */
-	if (!strcmp("main", symb->name)) {
-		return 0;
-	}
-
-	name = malloc(strlen(symb->name) + 1);
-	strcpy(name, symb->name);
-	
-	symbs->symbs[symbs->num_symbs].name = name;
-	symbs->symbs[symbs->num_symbs].addr = 0;
-	symbs->num_symbs++;
-
-	return 0;
-}
-
-static int for_each_symb_type(bfd *obj, int symb_type, observer_t o, void *obs_data)
-{
-	long storage_needed;
-	asymbol **symbol_table;
-	long number_of_symbols;
-	int i;
-	
-	storage_needed = bfd_get_symtab_upper_bound(obj);
-	
-	if (storage_needed <= 0){
-		printl(PRINT_DEBUG, "no symbols in object file\n");
-		exit(-1);
-	}
-	
-	symbol_table = (asymbol **) malloc (storage_needed);
-	number_of_symbols = bfd_canonicalize_symtab(obj, symbol_table);
-
-	for (i = 0; i < number_of_symbols; i++) {
-		/* 
-		 * Invoke the observer if we are interested in a type,
-		 * and the symbol is of that type where type is either
-		 * undefined or exported, currently
-		 */
-		if ((symb_type & UNDEF_SYMB_TYPE &&
-		    bfd_is_und_section(symbol_table[i]->section)) 
-		    ||
-		    (symb_type & EXPORTED_SYMB_TYPE &&
-		    symbol_table[i]->flags & BSF_FUNCTION &&
-		    ((symbol_table[i]->flags & BSF_GLOBAL) || 
-		     (symbol_table[i]->flags & BSF_WEAK)))) {
-			if ((*o)(symbol_table[i], obs_data)) {
-				return -1;
-			}
-		}
-	}
-
-	free(symbol_table);
-
-	return 0;
-}
-
-/*
- * Fill in the symbols of service_symbs for the object passed in as
- * the tmp_exec
- */
-static int obj_serialize_symbols(char *tmp_exec, int symb_type, struct service_symbs *str) 
-{
- 	bfd *obj; 
-	struct symb_type *st;
-
-	obj = bfd_openr(tmp_exec, "elf32-i386");
-	if(!obj){
-		printl(PRINT_HIGH, "Attempting to open %s\n", str->obj);
-		bfd_perror("Object open failure");
-		return -1;
-	}
-	
-	if(!bfd_check_format(obj, bfd_object)){
-		printl(PRINT_DEBUG, "Not an object file!\n");
-		return -1;
-	}
-	
-	if (symb_type == UNDEF_SYMB_TYPE) {
-		st = &str->undef;
-	} else if (symb_type == EXPORTED_SYMB_TYPE) {
-		st = &str->exported;
-	} else {
-		printl(PRINT_HIGH, "attempt to view unknown symbol type\n");
-		exit(-1);
-	}
-	for_each_symb_type(obj, symb_type, obs_serialize, st);
-
-	bfd_close(obj);
-
-	return 0;
-}
-
-static inline void print_symbs(struct symb_type *st)
-{
-	int i;
-
-	for (i = 0 ; i < st->num_symbs ; i++) {
-		printl(PRINT_DEBUG, "%s, ", st->symbs[i].name);
-	}
-
-	return;
-}
-
-static void print_objs_symbs(struct service_symbs *str)
-{
-	if (print_lvl < PRINT_DEBUG) return;
-	while (str) {
-		printl(PRINT_DEBUG, "Service %s:\n\tExported functions: ", str->obj);
-		print_symbs(&str->exported);
-		printl(PRINT_DEBUG, "\n\tUndefined: ");
-		print_symbs(&str->undef);
-		printl(PRINT_DEBUG, "\n\n");
-
-		str = str->next;
-	}
-
-	return;
-}
+int make_cobj_caps(struct service_symbs *s, struct cobj_header *h);
 
 /*
  * Has this service already been processed?
  */
-static inline int service_processed(char *obj_name, struct service_symbs *services)
+inline int service_processed(char *obj_name, struct service_symbs *services)
 {
 	while (services) {
 		if (!strcmp(services->obj, obj_name)) {
@@ -905,7 +111,7 @@ static inline int service_processed(char *obj_name, struct service_symbs *servic
 	return 0;
 }
 
-static int
+int
 symb_already_undef(struct service_symbs *ss, const char *name)
 {
 	int i;
@@ -917,576 +123,8 @@ symb_already_undef(struct service_symbs *ss, const char *name)
 	return 0;
 }
 
-static inline void 
-__add_symb(const char *name, struct symb_type *exp_undef, int mod_len)
-{
-	exp_undef->symbs[exp_undef->num_symbs].name = malloc(strlen(name)+1);
-	exp_undef->symbs[exp_undef->num_symbs].modifier_offset = mod_len;
-	strcpy(exp_undef->symbs[exp_undef->num_symbs].name, name);
-	exp_undef->num_symbs++;
-	assert(exp_undef->num_symbs <= MAX_SYMBOLS);
-}
 
-static inline void add_kexport(struct service_symbs *ss, const char *name)
-{
-	struct symb_type *ex = &ss->exported;
-	__add_symb(name, ex, 0);
-	return;
-}
-
-static inline void add_undef_symb(struct service_symbs *ss, const char *name, int mod_len)
-{
-	struct symb_type *ud = &ss->undef;
-	__add_symb(name, ud, mod_len);
-	return;
-}
-
-/* 
- * Assume that these are added LAST.  The last NUM_KERN_SYMBS are
- * ignored for most purposes so they must be the actual kern_syms.
- *
- * The kernel needs to know where a few symbols are, add them:
- * user_caps, cos_sched_notifications
- */
-static void add_kernel_exports(struct service_symbs *service)
-{
-	add_kexport(service, COMP_INFO);
-	add_kexport(service, SCHED_NOTIF);
-
-	return;
-}
-
-/* 
- * Obtain the list of undefined and exported symbols for a collection
- * of services.
- *
- * services is an array of comma delimited addresses to the services
- * we wish to get the symbol information for.  Note that all ',' in
- * the services string are replaced with '\0', and that this function
- * is not thread-safe due to use of strtok.
- *
- * Returns a linked list struct service_symbs data structure with the
- * arrays within each service_symbs filled in to reflect the symbols
- * within that service.
- */
-static struct service_symbs *prepare_service_symbs(char *services)
-{
-	struct service_symbs *str, *first;
-	const char *init_delim = ",", *serv_delim = ";";
-	char *tok, *init_str;
-	int len;
-	
-	printl(PRINT_DEBUG, "Prepare the list of components.\n");
-	
-	tok = strtok(services, init_delim);
-	first = str = alloc_service_symbs(tok);
-	init_str = strtok(NULL, serv_delim);
-	len = strlen(init_str)+1;
-	str->init_str = malloc(len);
-	assert(str->init_str);
-	memcpy(str->init_str, init_str, len);
-
-	do {
-		if (obj_serialize_symbols(str->obj, EXPORTED_SYMB_TYPE, str) ||
-		    obj_serialize_symbols(str->obj, UNDEF_SYMB_TYPE, str)) {
-			printl(PRINT_DEBUG, "Could not operate on object %s: error.\n", tok);
-			return NULL;
-		}
-		add_kernel_exports(str);
-		tok = strtok(NULL, init_delim);
-		if (tok) {
-			str->next = alloc_service_symbs(tok);
-			str = str->next;
-
-			init_str = strtok(NULL, serv_delim);
-			len = strlen(init_str)+1;
-			str->init_str = malloc(len);
-			assert(str->init_str);
-			memcpy(str->init_str, init_str, len);
-		}
-	} while (tok);
-		
-	return first;
-}
-
-
-/*
- * Find the exporter for a specific symbol from amongst a list of
- * exporters.
- */
-static inline 
-struct service_symbs *find_symbol_exporter_mark_resolved(struct symb *s, 
-							 struct dependency *exporters,
-							 int num_exporters, struct symb **exported)
-{
-	int i,j;
-
-	for (i = 0 ; i < num_exporters ; i++) {
-		struct dependency *exporter;
-		struct symb_type *exp_symbs;
-
-		exporter = &exporters[i];
-		exp_symbs = &exporter->dep->exported;
-
-		for (j = 0 ; j < exp_symbs->num_symbs ; j++) {
-			if (!strcmp(s->name, exp_symbs->symbs[j].name)) {
-				*exported = &exp_symbs->symbs[j];
-				exporters[i].resolved = 1;
-				return exporters[i].dep;
-			}
-			if (exporter->modifier && 
-			    !strncmp(s->name, exporter->modifier, exporter->mod_len) && 
-			    !strcmp(s->name + exporter->mod_len, exp_symbs->symbs[j].name)) {
-				*exported = &exp_symbs->symbs[j];
-				exporters[i].resolved = 1;
-				return exporters[i].dep;
-			}
-		}
-	}
-
-	return NULL;
-}
-
-static int 
-create_transparent_capabilities(struct service_symbs *service)
-{
-	int i, j, fault_found[COS_FLT_MAX], other_found = 0;
-	struct dependency *dep = service->dependencies;
-	
-	memset(fault_found, 0, sizeof(int) * COS_FLT_MAX);
-
-	for (i = 0 ; i < service->num_dependencies ; i++) {
-		struct symb_type *symbs = &dep[i].dep->exported;
-		char *modifier = dep[i].modifier;
-		int mod_len    = dep[i].mod_len;
-
-		for (j = 0 ; j < symbs->num_symbs ; j++) {
-			trans_cap_t r;
-			int fltn;
-
-			r = is_transparent_capability(&symbs->symbs[j], &fltn);
-			switch (r) {
-			case TRANS_CAP_FAULT: 
-				if (fault_found[fltn]) break;
-				fault_found[fltn] = 1;
-			case TRANS_CAP_SCHED: 
-			{
-				struct symb_type *st;
-				struct symb *s;
-				char mod_name[256]; /* arbitrary value... */
-
-//				if (symb_already_undef(service, symbs->symbs[j].name)) break;
-				if (r == TRANS_CAP_SCHED) {
-					/* This is pretty crap: We
-					 * don't want to ad a
-					 * capability to a parent
-					 * scheduler if we already
-					 * have a capability
-					 * established, but we _do_
-					 * want to create a capability
-					 * for other special
-					 * symbols. */
-					if (dep[i].resolved) continue;
-					if (other_found) break;
-					other_found = 1;
-				}
-
-				assert(strlen(symbs->symbs[j].name) + mod_len < 256);
-				strncpy(mod_name, modifier, mod_len);
-				mod_name[mod_len] = '\0';
-				strcat(mod_name, symbs->symbs[j].name);
-
-				add_undef_symb(service, mod_name, mod_len);
-				st = &service->undef;
-				s = &st->symbs[st->num_symbs-1];
-				s->exporter = dep[i].dep;
-				s->exported_symb = &symbs->symbs[j];
-
-				//service->obj, s->exporter->obj, s->exported_symb->name);
-			
-				dep[i].resolved = 1;
-				break;
-			}
-			case TRANS_CAP_NIL: break;
-			}
-		}
-		if (!dep[i].resolved) {
-			printl(PRINT_HIGH, "Warning: dependency %s-%s "
-			       "is not creating a capability.\n", 
-			       service->obj, dep[i].dep->obj);
-		}
-	}
-
-	return 0;
-}
-
-/*
- * Verify that all symbols can be resolved by the present dependency
- * relations.
- *
- * Assumptions: All exported and undefined symbols are defined for
- * each service (prepare_service_symbs has been called), and that the
- * tree of services has been established designating the dependents of
- * each service (process_dependencies has been called).
- */
-static int verify_dependency_completeness(struct service_symbs *services)
-{
-	struct service_symbs *start = services;
-	int ret = 0;
-	int i;
-
-	/* for each of the services... */
-	for (; services ; services = services->next) {
-		struct symb_type *undef_symbs = &services->undef;
-
-		/* ...go through each of its undefined symbols... */
-		for (i = 0 ; i < undef_symbs->num_symbs ; i++) {
-			struct symb *symb = &undef_symbs->symbs[i];
-			struct symb *exp_symb;
-			struct service_symbs *exporter;
-
-			/* 
-			 * ...and make sure they are matched to an
-			 * exported function in a service we are
-			 * dependent on.
-			 */
-			exporter = find_symbol_exporter_mark_resolved(symb, services->dependencies, 
-								      services->num_dependencies, &exp_symb);
-			if (!exporter) {
-				printl(PRINT_HIGH, "Could not find exporter of symbol %s in service %s.\n",
-				       symb->name, services->obj);
-
-				ret = -1;
-				goto exit;
-			} else {
-				symb->exporter = exporter;
-				symb->exported_symb = exp_symb;
-			}
-			/* if (exporter->is_scheduler) { */
-			/* 	if (NULL == services->scheduler) { */
-			/* 		services->scheduler = exporter; */
-			/* 		//printl(PRINT_HIGH, "%s has scheduler %s.\n", services->obj, exporter->obj); */
-			/* 	} else if (exporter != services->scheduler) { */
-			/* 		printl(PRINT_HIGH, "Service %s is dependent on more than one scheduler (at least %s and %s).  Error.\n", services->obj, exporter->obj, services->scheduler->obj); */
-			/* 		ret = -1; */
-			/* 		goto exit; */
-			/* 	} */
-			/* } */
-		}
-	}
-
-	for (services = start ; services ; services = services->next) {
-		create_transparent_capabilities(services);
-	}
- exit:
-	return ret;
-}
-
-static int rec_verify_dag(struct service_symbs *services,
-			  int current_depth, int max_depth)
-{
-	int i;
-
-	/* cycle */
-	if (current_depth > max_depth) {
-		return -1;
-	}
-
-	if (current_depth > services->depth) {
-		services->depth = current_depth;
-	}
-
-	for (i = 0 ; i < services->num_dependencies ; i++) {
-		struct service_symbs *d = services->dependencies[i].dep;
-
-		if (rec_verify_dag(d, current_depth+1, max_depth)) {
-			printl(PRINT_HIGH, "Component %s found in cycle\n", d->obj);
-			return -1;
-		}
-	}
-
-	return 0;
-}
-
-/*
- * FIXME: does not check for disjoint graphs at this time.
- *
- * The only soundness we can really check here is that services are
- * arranged in a DAG, i.e. that no cycles exist.  O(N^2*E).
- *
- * Assumptions: All exported and undefined symbols are defined for
- * each service (prepare_service_symbs has been called), and that the
- * tree of services has been established designating the dependents of
- * each service (process_dependencies has been called).
- */
-static int verify_dependency_soundness(struct service_symbs *services)
-{
-	struct service_symbs *tmp_s = services;
-	int cnt = 0;
-
-	while (tmp_s) {
-		cnt++;
-		tmp_s = tmp_s->next;
-	}
-
-	while (services) {
-		if (rec_verify_dag(services, 0, cnt)) {
-			printl(PRINT_DEBUG, "Cycle found in dependencies.  Not linking.\n");
-			return -1;
-		}
-
-		services = services->next;
-	}
-
-	return 0;
-}
-
-static inline struct service_symbs *get_service_struct(char *name, 
-						       struct service_symbs *list)
-{
-	while (list) {
-		assert(name);
-		assert(list && list->obj);
-		if (!strcmp(name, list->obj)) {
-			return list;
-		}
-
-		list = list->next;
-	}
-
-	return NULL;
-}
-
-/*
- * Add to the service_symbs structures the dependents.
- * 
- * deps is formatted as "sa-sb|sc|...|sn;sd-se|sf|...;...", or a list
- * of "service" hyphen "dependencies...".  In the above example, sa
- * depends on functions within sb, sc, and sn.
- */
-static int deserialize_dependencies(char *deps, struct service_symbs *services)
-{
-	char *next, *current;
-	char *serial = "-";
-	char *parallel = "|";
-	char inter_dep = ';';
-	char open_modifier = '[';
-	char close_modifier = ']';
-
-	if (!deps) return -1;
-	next = current = deps;
-
-	/* go through each dependent-trusted|... relation */
-	while (current) {
-		struct service_symbs *s, *dep;
-		char *tmp;
-
-		next = strchr(current, inter_dep);
-		if (next) {
-			*next = '\0';
-			next++;
-		}
-		/* the dependent */
-		tmp = strtok(current, serial);
-		s = get_service_struct(tmp, services);
-		if (!s) {
-			printl(PRINT_HIGH, "Could not find service %s.\n", tmp);
-			return -1;
-		}
-
-		/* go through the | invoked services */
-		tmp = strtok(NULL, parallel);
-		while (tmp) {
-			char *mod = NULL;
-			/* modifier! */
-			if (tmp[0] == open_modifier) {
-				mod = tmp+1;
-				tmp = strchr(tmp, close_modifier);
-				if (!tmp) {
-					printl(PRINT_HIGH, "Could not find closing modifier ] in %s\n", mod);
-					return -1;
-				}
-				*tmp = '\0';
-				tmp++;
-				assert(mod);
-				assert(tmp);
-			}
-			dep = get_service_struct(tmp, services);
-			if (!dep) {
-				printl(PRINT_HIGH, "Could not find service %s.\n", tmp);
-				return -1;
-			} 
-			if (dep == s) {
-				printl(PRINT_HIGH, "Reflexive relations not allowed (for %s).\n", 
-				       s->obj);
-				return -1;
-			}
-
-			if (!is_booter_loaded(s) && is_booter_loaded(dep)) {
-				printl(PRINT_HIGH, "Error: Non-Composite-loaded component %s dependent "
-				       "on composite loaded component %s.\n", s->obj, dep->obj);
-				return -1;
-			}
-
-			if (mod) add_modified_service_dependency(s, dep, mod, strlen(mod));
-			else add_service_dependency(s, dep);
-
-			if (dep->is_scheduler) {
-				if (NULL == s->scheduler) {
-					s->scheduler = dep;
-				} else if (dep != s->scheduler) {
-					printl(PRINT_HIGH, "Service %s is dependent on more than "
-					       "one scheduler (at least %s and %s).  Error.\n", 
-					       s->obj, dep->obj, s->scheduler->obj);
-					return -1;
-				}
-			}
-
-			tmp = strtok(NULL, parallel);
-		} 
-
-		current = next;
-	}
-
-	return 0;
-}
-
-static char *strip_prepended_path(char *name)
-{
-	char *tmp;
-
-	tmp = strrchr(name, '/');
-
-	if (!tmp) {
-		return name;
-	} else {
-		return tmp+1;
-	}
-}
-
-/*
- * Produces a number of object files in /tmp named objname.o.pid.o
- * with no external dependencies.
- *
- * gen_stub_prog is the address to the client stub generation prog
- * st_object is the address of the symmetric trust object.
- *
- * This is kind of a big hack.
- */
-static void
-gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *services)
-{
-	int pid = getpid();
-	char tmp_str[2048];
-
-	while (services) {
-		int i;
-		struct symb_type *symbs = &services->undef;
-		char dest[256];
-		char tmp_name[256];
-		char *obj_name, *orig_name, *str;
-
-		orig_name = services->obj;
-		obj_name = strip_prepended_path(services->obj);
-		sprintf(tmp_name, "/tmp/%s.%d", obj_name, pid);
-		
-/*		if (symbs->num_symbs == 0) {
-			sprintf(tmp_str, "cp %s %s.o", 
-				orig_name, tmp_name);
-			system(tmp_str);
-
-			str = malloc(strlen(tmp_name)+3);
-			strcpy(str, tmp_name);
-			strcat(str, ".o");
-			free(services->obj);
-			services->obj = str;
-
-			services = services->next;
-			continue;
-		}
-*/
-		/* make the command line for an invoke the stub generator */
-		strcpy(tmp_str, gen_stub_prog);
-
-		if (symbs->num_symbs > 0) {
-			strcat(tmp_str, " ");
-			strcat(tmp_str, symbs->symbs[0].name);
-		}
-		for (i = 1 ; i < symbs->num_symbs ; i++) {
-			strcat(tmp_str, ",");
-			strcat(tmp_str, symbs->symbs[i].name);
-		}
-
-		/* invoke the stub generator */
-		sprintf(dest, " > %s_stub.S", tmp_name);
-		strcat(tmp_str, dest);
-		printl(PRINT_DEBUG, "%s\n", tmp_str);
-		system(tmp_str);
-
-		/* compile the stub */
-		sprintf(tmp_str, GCC_BIN " -m32 -c -o %s_stub.o %s_stub.S", 
-			tmp_name, tmp_name);
-		system(tmp_str);
-
-		/* link the stub to the service */
-		sprintf(tmp_str, LINKER_BIN " -m elf_i386 -r -o %s.o %s %s_stub.o", 
-			tmp_name, orig_name, tmp_name);
-		system(tmp_str);
-
-		/* Make service names reflect their new linked versions */
-		str = malloc(strlen(tmp_name)+3);
-		strcpy(str, tmp_name);
-		strcat(str, ".o");
-		free(services->obj);
-		services->obj = str;
-		
-		sprintf(tmp_str, "rm %s_stub.o %s_stub.S", tmp_name, tmp_name);
-		system(tmp_str);
-
-		services = services->next;
-	}
-
-	return;
-}
-
-/*
- * Load into the current address space all of the services.  
- *
- * FIXME: Load intelligently, from the most trusted to the least in
- * some order instead of randomly.  This will be important when we do
- * dynamically loading.
- *
- * Assumes that a file exists for each service in /tmp/service.o.pid.o
- * (i.e. that gen_stubs_and_link has been called.)
- */
-static unsigned long
-load_all_services(struct service_symbs *services)
-{
-	unsigned long service_addr = BASE_SERVICE_ADDRESS;
-	long sz;
-
-	while (services) {
-		sz = services->mem_size = load_service(services, service_addr, DEFAULT_SERVICE_SIZE);
-		if (!sz) return -1;
-
-		if (strstr(services->obj, LLBOOT_COMP)) llboot_mem = sz;
-
-		service_addr += DEFAULT_SERVICE_SIZE;
-		/* note this works for the llbooter and root memory manager too */
-		if (strstr(services->obj, BOOT_COMP) || strstr(services->obj, LLBOOT_COMP)) { // Booter needs larger VAS
-			service_addr += 15*DEFAULT_SERVICE_SIZE;
-		} else if (strstr(services->obj, INITMM) || sz > DEFAULT_SERVICE_SIZE) {
-			service_addr += 3*DEFAULT_SERVICE_SIZE;
-		}
-
-		printl(PRINT_DEBUG, "\n");
-		services = services->next;
-	}
-
-	return service_addr;
-}
-
-static void print_kern_symbs(struct service_symbs *services)
+void print_kern_symbs(struct service_symbs *services)
 {
 	const char *u_tbl = COMP_INFO;
 
@@ -1649,7 +287,7 @@ int create_invocation_cap(struct spd_info *from_spd, struct service_symbs *from_
 	return 0;
 }
 
-static struct symb *spd_contains_symb(struct service_symbs *s, char *name) 
+struct symb *spd_contains_symb(struct service_symbs *s, char *name) 
 {
 	int i, client_stub;
 	struct symb_type *symbs = &s->exported; 
@@ -1679,7 +317,7 @@ static struct symb *spd_contains_symb(struct service_symbs *s, char *name)
 	return NULL;
 }
 
-static int cap_get_info(struct service_symbs *service, struct cap_ret_info *cri, struct symb *symb)
+int cap_get_info(struct service_symbs *service, struct cap_ret_info *cri, struct symb *symb)
 {
 	struct symb *exp_symb = symb->exported_symb;
 	struct service_symbs *exporter = symb->exporter;
@@ -1738,7 +376,7 @@ static int cap_get_info(struct service_symbs *service, struct cap_ret_info *cri,
 	return 0;
 }
 
-static int create_spd_capabilities(struct service_symbs *service/*, struct spd_info *si*/, int cntl_fd)
+int create_spd_capabilities(struct service_symbs *service/*, struct spd_info *si*/, int cntl_fd)
 {
 	int i;
 	struct symb_type *undef_symbs = &service->undef;
@@ -1849,7 +487,7 @@ void make_spd_scheduler(int cntl_fd, struct service_symbs *s, struct service_sym
 	return;
 }
 
-static int service_get_spdid(struct service_symbs *ss)
+int service_get_spdid(struct service_symbs *ss)
 {
 	if (is_booter_loaded(ss)) { 
 		return (int)ss->cobj->id;
@@ -1859,7 +497,7 @@ static int service_get_spdid(struct service_symbs *ss)
 	}
 }
 
-static int serialize_spd_graph(struct comp_graph *g, int sz, struct service_symbs *ss)
+int serialize_spd_graph(struct comp_graph *g, int sz, struct service_symbs *ss)
 {
 	struct comp_graph *edge;
 	int g_frontier = 0;
@@ -1916,7 +554,7 @@ int **get_heap_ptr(struct service_symbs *ss)
  * the topology of the component graph.  Progress the heap pointer a
  * page, and serialize the component graph into that page.
  */
-static void make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all)
+void make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all)
 {
 	int **heap_ptr, *heap_ptr_val;
 	struct comp_graph *g;
@@ -1944,7 +582,7 @@ static void make_spd_mpd_mgr(struct service_symbs *mm, struct service_symbs *all
 	serialize_spd_graph(g, PAGE_SIZE/sizeof(struct comp_graph), all);
 }
 
-static void make_spd_init_file(struct service_symbs *ic, const char *fname)
+void make_spd_init_file(struct service_symbs *ic, const char *fname)
 {
 	int fd = open(fname, O_RDWR);
 	struct stat b;
@@ -2002,36 +640,7 @@ static void make_spd_init_file(struct service_symbs *ic, const char *fname)
 	ci->cos_poly[1] = real_sz;
 }
 
-static int make_cobj_symbols(struct service_symbs *s, struct cobj_header *h)
-{
-	u32_t addr;
-	u32_t symb_offset = 0;
-	int i;
-
-	struct name_type_map { 
-		const char *name; 
-		u32_t type;
-	};
-	struct name_type_map map[] = {
-		{.name = COMP_INFO, .type = COBJ_SYMB_COMP_INFO},
-		{.name = NULL, .type = 0} 
-	};
-
-	/* Create the sumbols */
-	printl(PRINT_DEBUG, "%s loaded by Composite -- Symbols:\n", s->obj);
-	for (i = 0 ; map[i].name != NULL ; i++) {
-		addr = (u32_t)get_symb_address(&s->exported, map[i].name);
-		printl(PRINT_DEBUG, "\taddr %x, nsymb %d\n", addr, i);
-		if (addr && cobj_symb_init(h, symb_offset++, map[i].type, addr)) {
-			printl(PRINT_HIGH, "boot component: couldn't create cobj symb for %s (%d).\n", map[i].name, i);
-			return -1;
-		}
-	}
-
-	return 0;
-}
-
-static int make_cobj_caps(struct service_symbs *s, struct cobj_header *h)
+int make_cobj_caps(struct service_symbs *s, struct cobj_header *h)
 {
 	int i;
 	struct symb_type *undef_symbs = &s->undef;
@@ -2062,17 +671,17 @@ static int make_cobj_caps(struct service_symbs *s, struct cobj_header *h)
 	return 0;
 }
 
-static struct service_symbs *find_obj_by_name(struct service_symbs *s, const char *n);
+struct service_symbs *find_obj_by_name(struct service_symbs *s, const char *n);
 
-static void make_spd_config_comp(struct service_symbs *c, struct service_symbs *all);
+void make_spd_config_comp(struct service_symbs *c, struct service_symbs *all);
 
-static int 
+int 
 spd_already_loaded(struct service_symbs *c)
 {
 	return c->already_loaded || !is_hl_booter_loaded(c);
 }
 
-static void 
+void 
 make_spd_boot_schedule(struct service_symbs *comp, struct service_symbs **sched, 
 		       unsigned int *off)
 {
@@ -2094,9 +703,9 @@ make_spd_boot_schedule(struct service_symbs *comp, struct service_symbs **sched,
 	printl(PRINT_HIGH, "\t%d: %s\n", *off, comp->obj);
 }
 
-static void format_config_info(struct service_symbs *ss, struct component_init_str *data);
+void format_config_info(struct service_symbs *ss, struct component_init_str *data);
 
-static void 
+void 
 make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 {
 	int n = 0, cnt = 0, tot_sz = 0;
@@ -2180,7 +789,7 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 
 		s_prev = cobj_sect_get(new_h, INITFILE_S);
 
-		cobj_sect_init(new_h, INITFILE_S, csg(INITFILE_S)->cobj_flags, 
+		cobj_sect_init(new_h, INITFILE_S, cos_sect_get(INITFILE_S)->cobj_flags, 
 			       round_up_to_page(s_prev->vaddr + s_prev->bytes), 
 			       all_obj_sz);
 	}
@@ -2235,7 +844,7 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 	       (unsigned int)ci->cos_poly[2], (unsigned int)ci->cos_poly[3], (unsigned int)ci->cos_poly[4], (unsigned int)ci->cos_heap_ptr);
 }
 
-static void
+void
 spd_assign_ids(struct service_symbs *all)
 {
 	struct cobj_header *h;
@@ -2251,7 +860,7 @@ spd_assign_ids(struct service_symbs *all)
 	}
 }
 
-static void 
+void 
 make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
 {
 	volatile int **heap_ptr;
@@ -2326,7 +935,7 @@ make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
 	llboot_mem = (unsigned int)*heap_ptr - boot->lower_addr;
 }
 
-static void format_config_info(struct service_symbs *ss, struct component_init_str *data)
+void format_config_info(struct service_symbs *ss, struct component_init_str *data)
 {
 	int i; 
 
@@ -2360,7 +969,7 @@ static void format_config_info(struct service_symbs *ss, struct component_init_s
 	data[i].spdid = 0;
 }
 
-static void make_spd_config_comp(struct service_symbs *c, struct service_symbs *all)
+void make_spd_config_comp(struct service_symbs *c, struct service_symbs *all)
 {
 	int **heap_ptr, *heap_ptr_val;
 	struct component_init_str *info;
@@ -2384,7 +993,7 @@ static void make_spd_config_comp(struct service_symbs *c, struct service_symbs *
 	format_config_info(all, info);
 }
 
-static struct service_symbs *find_obj_by_name(struct service_symbs *s, const char *n)
+struct service_symbs *find_obj_by_name(struct service_symbs *s, const char *n)
 {
 	while (s) {
 		if (!strncmp(&s->obj[5], n, strlen(n))) {
@@ -2397,24 +1006,9 @@ static struct service_symbs *find_obj_by_name(struct service_symbs *s, const cha
 	return NULL;
 }
 
-void set_prio(void);
-
-void set_curr_affinity(u32_t cpu)
-{
-	int ret;
-	cpu_set_t s;
-	CPU_ZERO(&s);
-	assert(cpu <= NUM_CPU - 1);
-	CPU_SET(cpu, &s);
-	ret = sched_setaffinity(0, sizeof(cpu_set_t), &s);
-	assert(ret == 0);
-
-	return;
-}
-
 int (*fn)(void);
 
-static void setup_kernel(struct service_symbs *services)
+void setup_kernel(struct service_symbs *services)
 {
 	struct service_symbs /* *m, */ *s;
 	struct service_symbs *init = NULL;
@@ -2423,10 +1017,12 @@ static void setup_kernel(struct service_symbs *services)
 
 	pid_t pid;
 	/* pid_t children[NUM_CPU]; */
-	int cntl_fd = 0, i, cpuid, ret;
+	int cntl_fd = 0, i, /* cpuid, */ ret;
 	unsigned long long start, end;
 	
+#ifdef __LINUX_COS
 	set_curr_affinity(0);
+#endif
 
 	cntl_fd = aed_open_cntl_fd();
 
@@ -2520,7 +1116,7 @@ static void setup_kernel(struct service_symbs *services)
 	pid = getpid();
 	for (i = 1; i < NUM_CPU_COS; i++) {
 		printf("Parent(pid %d): forking for core %d.\n", getpid(), i);
-		cpuid = i;
+		/* cpuid = i; */
 		pid = fork();
 		/* children[i] = pid; */
 		if (pid == 0) break;
@@ -2532,9 +1128,11 @@ static void setup_kernel(struct service_symbs *services)
 		 * to run. They need to migrate to their cores. */
 		sleep(1);
 	} else { /* child process: set own affinity first */ 
+#ifdef __LINUX_COS
 		set_curr_affinity(cpuid);
 #ifdef HIGHEST_PRIO
 		set_prio();
+#endif
 #endif
 		sleep(1);
 		ret = cos_create_thd(cntl_fd, &thd);
@@ -2567,258 +1165,3 @@ static void setup_kernel(struct service_symbs *services)
 
 	return;
 }
-
-static inline void print_usage(int argc, char **argv)
-{
-	char *prog_name = argv[0];
-	int i;
-
-	printl(PRINT_HIGH, "Usage: %s [-q] <comma separated string of all "
-	       "objs:truster1-trustee1|trustee2|...;truster2-...> "
-	       "<path to gen_client_stub>\n",
-	       prog_name);
-
-	printl(PRINT_HIGH, "\nYou gave:");
-	for (i = 0 ; i < argc ; i++) {
-		printl(PRINT_HIGH, " %s", argv[i]);
-	}
-	printl(PRINT_HIGH, "\n");
-	
-	return;
-}
-
-#include <sys/ucontext.h>
-#ifdef FAULT_SIGNAL
-void segv_handler(int signo, siginfo_t *si, void *context) {
-	ucontext_t *uc = context;
-	struct sigcontext *sc = (struct sigcontext *)&uc->uc_mcontext;
-
-	printl(PRINT_HIGH, "Segfault: Faulting address %p, ip: %lx\n", si->si_addr, sc->eip);
-	exit(-1);
-}
-#endif
-
-#ifdef ALRM_SIGNAL
-void alrm_handler(int signo, siginfo_t *si, void *context) {
-	printl(PRINT_HIGH, "Alarm! Time to exit!\n");
-	exit(-1);
-}
-#endif
-
-
-#include <sched.h>
-#include <sys/time.h>
-#include <sys/resource.h>
-static void call_getrlimit(int id, char *name)
-{
-	struct rlimit rl;
-
-	if (getrlimit(id, &rl)) {
-		perror("getrlimit: "); printl(PRINT_HIGH, "\n");
-		exit(-1);
-	}		
-	/* printl(PRINT_HIGH, "rlimit for %s is %d:%d (inf %d)\n",  */
-	/*        name, (int)rl.rlim_cur, (int)rl.rlim_max, (int)RLIM_INFINITY); */
-}
-
-static void call_setrlimit(int id, rlim_t c, rlim_t m)
-{
-	struct rlimit rl;
-
-	rl.rlim_cur = c;
-	rl.rlim_max = m;
-	if (setrlimit(id, &rl)) {
-		perror("getrlimit: "); printl(PRINT_HIGH, "\n");
-		exit(-1);
-	}		
-}
-
-void set_prio(void)
-{
-	struct sched_param sp;
-
-	call_getrlimit(RLIMIT_CPU, "CPU");
-#ifdef RLIMIT_RTTIME
-	call_getrlimit(RLIMIT_RTTIME, "RTTIME");
-#endif
-	call_getrlimit(RLIMIT_RTPRIO, "RTPRIO");
-	call_setrlimit(RLIMIT_RTPRIO, RLIM_INFINITY, RLIM_INFINITY);
-	call_getrlimit(RLIMIT_RTPRIO, "RTPRIO");	
-	call_getrlimit(RLIMIT_NICE, "NICE");
-
-	if (sched_getparam(0, &sp) < 0) {
-		perror("getparam: ");
-		printl(PRINT_HIGH, "\n");
-	}
-	sp.sched_priority = sched_get_priority_max(SCHED_RR);
-	if (sched_setscheduler(0, SCHED_RR, &sp) < 0) {
-		perror("setscheduler: "); printl(PRINT_HIGH, "\n");
-		exit(-1);
-	}
-	if (sched_getparam(0, &sp) < 0) {
-		perror("getparam: ");
-		printl(PRINT_HIGH, "\n");
-	}
-	assert(sp.sched_priority == sched_get_priority_max(SCHED_RR));
-
-	return;
-}
-
-void set_smp_affinity()
-{
-	char cmd[64];
-	/* everything done is the python script. */
-	sprintf(cmd, "python set_smp_affinity.py %d %d", NUM_CPU, getpid());
-	system(cmd);
-}
-
-void setup_thread(void)
-{
-#ifdef FAULT_SIGNAL
-	struct sigaction sa;
-
-	sa.sa_sigaction = segv_handler;
-	sa.sa_flags = SA_SIGINFO;
-	sigaction(SIGSEGV, &sa, NULL);
-#endif
-
-	set_smp_affinity();
-
-#ifdef HIGHEST_PRIO
-	set_prio();
-#endif
-#ifdef ALRM_SIGNAL
-	//printf("pid %d\n", getpid()); getchar();
-	{
-		struct sigaction saa;
-
-		saa.sa_sigaction = alrm_handler;
-		saa.sa_flags = SA_SIGINFO;
-		sigaction(SIGALRM, &saa, NULL);
-		alarm(30);
-	}
-	while (1) ;
-#endif
-
-}
-
-/*
- * Format of the input string is as such:
- * 
- * "s1,s2,s3,...,sn:s2-s3|...|sm;s3-si|...|sj"
- *
- * Where the pre-: comma-separated list is simply a list of all
- * involved services.  Post-: is a list of truster (before -) ->
- * trustee (all trustees separated by '|'s) relations separated by
- * ';'s.
- */
-int
-main(int argc, char *argv[])
-{
-	struct service_symbs *services;
-	char *delim = ":";
-	char *servs, *dependencies, *ndeps, *stub_gen_prog;
-	long service_addr;
-	/* int ret = -1; */
-	struct {
-		u32_t address;
-		u32_t padding[(PAGE_SIZE / sizeof(u32_t)) - 1];
-	} boot_info;
-
-
-	printl(PRINT_DEBUG, "Thread scheduling parameters setup\n");
-
-	if (argc == 4 && !strcmp(argv[1], "-q")) {
-		boot_method = QEMU;
-		argc--;
-		argv++;
-	} else {
-		setup_thread();
-	}
-
-	if (argc != 3) {
-		print_usage(argc, argv);
-		goto exit;
-	}
-
-	stub_gen_prog = argv[2];
-
-	/* 
-	 * NOTE: because strtok is used in prepare_service_symbs, we
-	 * cannot use it relating to the command line args before AND
-	 * after that invocation
-	 */
-	if (!strstr(argv[1], delim)) {
-	printl(PRINT_HIGH, "No %s separating the component list from the dependencies\n", delim);
-		goto exit;
-	}
-
-	/* find the last : */
-	servs = strtok(argv[1], delim);
-	while ((ndeps = strtok(NULL, delim))) {
-		dependencies = ndeps;
-		*(ndeps-1) = ':';
-	}
-	*(dependencies-1) = '\0';
-	//printf("comps: %s\ndeps: %s\n", servs, dependencies);
-
-	if (!servs) {
-		print_usage(argc, argv);
-		goto exit;
-	}
-
-	bfd_init();
-
-	services = prepare_service_symbs(servs);
-
-	print_objs_symbs(services);
-
-//	printl(PRINT_DEBUG, "Loading at %x:%d.\n", BASE_SERVICE_ADDRESS, DEFAULT_SERVICE_SIZE);
-
-	if (!dependencies) {
-		printl(PRINT_HIGH, "No dependencies given, not proceeding.\n");
-		goto dealloc_exit;
-	}
-	
-	if (deserialize_dependencies(dependencies, services)) {
-		printl(PRINT_HIGH, "Error processing dependencies.\n");
-		goto dealloc_exit;
-	}
-
-	if (verify_dependency_completeness(services)) {
-		printl(PRINT_HIGH, "Unresolved symbols, not linking.\n");
-		goto dealloc_exit;
-	}
-
-	if (verify_dependency_soundness(services)) {
-		printl(PRINT_HIGH, "Services arranged in an invalid configuration, not linking.\n");
-		goto dealloc_exit;
-	}
-	
-	gen_stubs_and_link(stub_gen_prog, services);
-	service_addr = load_all_services(services);
-
-	if (service_addr < 0) {
-		printl(PRINT_HIGH, "Error loading services, aborting.\n");
-		goto dealloc_exit;
-	}
-
-//	print_kern_symbs(services);
-
-	if (boot_method != QEMU) {
-		setup_kernel(services);
-	}
-
-	/* ret = 0; */
-
- dealloc_exit:
-	while (services) {
-		struct service_symbs *next = services->next;
-		free_service_symbs(services);
-		services = next;
-	}
-	/* FIXME: new goto label to dealloc spds */
- exit:
-	return 0;
-}
-
