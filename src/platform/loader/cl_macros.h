@@ -51,10 +51,6 @@
 
 #define MAX_SCHEDULERS 3
 
-#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
-
 #define STUB_PROG_LEN 128
-
-//#define FAULT_SIGNAL
 
 #endif

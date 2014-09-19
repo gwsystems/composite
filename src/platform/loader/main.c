@@ -31,13 +31,11 @@
 #include <string.h>
 
 int deserialize_dependencies(char *deps, struct service_symbs *services);
-void free_service_symbs(struct service_symbs *str);
 void gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *services);
 unsigned long load_all_services(struct service_symbs *services);
 void print_objs_symbs(struct service_symbs *str);
 struct service_symbs *prepare_service_symbs(char *services);
-void setup_kernel(struct service_symbs *services);
-void setup_thread(void);
+void output_image(struct service_symbs *services);
 int verify_dependency_completeness(struct service_symbs *services);
 int verify_dependency_soundness(struct service_symbs *services);
 
@@ -63,13 +61,8 @@ main(int argc, char *argv[])
 		printl(PRINT_HIGH, "Usage: %s [-q] <comma separated string of all "
                "objs:truster1-trustee1|trustee2|...;truster2-...> "
                "<path to gen_client_stub>\n", argv[0]);
-		goto exit;
+		return 1;
 	}
-
-#ifdef __COS_LINUX
-	printl(PRINT_DEBUG, "Thread scheduling parameters setup\n");
-	setup_thread();
-#endif
 
 	stub_gen_prog = argv[2];
 
@@ -79,8 +72,8 @@ main(int argc, char *argv[])
 	 * after that invocation
 	 */
 	if (!strstr(argv[1], delim)) {
-	printl(PRINT_HIGH, "No %s separating the component list from the dependencies\n", delim);
-		goto exit;
+		printl(PRINT_HIGH, "No %s separating the component list from the dependencies\n", delim);
+		return 1;
 	}
 
 	/* find the last : */
@@ -93,9 +86,8 @@ main(int argc, char *argv[])
 	//printf("comps: %s\ndeps: %s\n", servs, dependencies);
 
 	if (!servs) {
-		//print_usage(argc, argv);
-		printl(PRINT_HIGH, "Couldn't find servs\n");
-		goto exit;
+		printl(PRINT_HIGH, "You must specify at least one service.\n");
+		return 1;
 	}
 
 	bfd_init();
@@ -104,26 +96,24 @@ main(int argc, char *argv[])
 
 	print_objs_symbs(services);
 
-//	printl(PRINT_DEBUG, "Loading at %x:%d.\n", BASE_SERVICE_ADDRESS, DEFAULT_SERVICE_SIZE);
-
 	if (!dependencies) {
 		printl(PRINT_HIGH, "No dependencies given, not proceeding.\n");
-		goto dealloc_exit;
+		return 1;
 	}
 	
 	if (deserialize_dependencies(dependencies, services)) {
 		printl(PRINT_HIGH, "Error processing dependencies.\n");
-		goto dealloc_exit;
+		return 1;
 	}
 
 	if (verify_dependency_completeness(services)) {
 		printl(PRINT_HIGH, "Unresolved symbols, not linking.\n");
-		goto dealloc_exit;
+		return 1;
 	}
 
 	if (verify_dependency_soundness(services)) {
 		printl(PRINT_HIGH, "Services arranged in an invalid configuration, not linking.\n");
-		goto dealloc_exit;
+		return 1;
 	}
 	
 	gen_stubs_and_link(stub_gen_prog, services);
@@ -131,25 +121,13 @@ main(int argc, char *argv[])
 
 	if (service_addr < 0) {
 		printl(PRINT_HIGH, "Error loading services, aborting.\n");
-		goto dealloc_exit;
+		return 1;
 	}
 
-//	print_kern_symbs(services);
+	printf("Service address: %08x\n", service_addr);
 
-#ifdef __COS_LINUX
-		setup_kernel(services);
-#endif
+	output_image(services);
 
-	/* ret = 0; */
-
- dealloc_exit:
-	while (services) {
-		struct service_symbs *next = services->next;
-		free_service_symbs(services);
-		services = next;
-	}
-	/* FIXME: new goto label to dealloc spds */
- exit:
 	return 0;
 }
 
