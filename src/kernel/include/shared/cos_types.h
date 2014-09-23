@@ -53,9 +53,10 @@ typedef enum {
 	CAPTBL_OP_MAPPING_CONS,
 	CAPTBL_OP_MAPPING_DECONS,
 	CAPTBL_OP_MAPPING_MOD,
-	CAPTBL_OP_MAPPING_RETYPE,
-	CAPTBL_OP_PGDACTIVATE,
-	CAPTBL_OP_PTEACTIVATE,
+	CAPTBL_OP_MAPPING_RETYPE2USER,
+	CAPTBL_OP_MAPPING_RETYPE2KERN,
+	CAPTBL_OP_MAPPING_RETYPE2FRAME,
+	CAPTBL_OP_PGTBLACTIVATE,
 	CAPTBL_OP_CAPTBLACTIVATE,
 } syscall_op_t;
 
@@ -71,9 +72,12 @@ typedef enum {
 	CAP_PGTBL,              /* page-table */
 	CAP_FRAME, 		/* untyped frame within a page-table */
 	CAP_VM, 		/* mapped virtual memory within a page-table */
+	CAP_QUIESCENCE,         /* when deactivating, set to track quiescence state */
 } cap_t;
 
 typedef unsigned long capid_t;
+
+#define QUIESCENCE_CHECK(curr, past, quiescence_period)  (((curr) - (past)) > (quiescence_period))
 
 /* 
  * The values in this enum are the order of the size of the
@@ -109,9 +113,9 @@ __captbl_cap2sz(cap_t c)
 	case CAP_THD:
 	case CAP_CAPTBL:
 	case CAP_PGTBL:
-		return CAP_SZ_32B;
 	case CAP_SINV:
 	case CAP_COMP:
+		return CAP_SZ_32B;
 	case CAP_ASND:
 	case CAP_ARCV:
 		return CAP_SZ_64B;

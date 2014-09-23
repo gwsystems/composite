@@ -8,6 +8,10 @@
 
 #define RUNTIME                3 // seconds
 
+/* The kernel quiescence period = WCET in Kernel + WCET of a CAS. */
+#define KERN_QUIESCENCE_PERIOD_US 50
+#define KERN_QUIESCENCE_CYCLES (KERN_QUIESCENCE_PERIOD_US * 2400)
+
 // After how many seconds should schedulers print out their information?
 #define SCHED_PRINTOUT_PERIOD  100000
 #define COMPONENT_ASSERTIONS   1 // activate assertions in components?

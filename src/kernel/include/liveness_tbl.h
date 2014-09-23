@@ -16,9 +16,21 @@
 
 #define LTBL_ENT_ORDER 10
 #define LTBL_ENTS (1<<10)
+
+ /* We use high 20 bits in the epoch to store the frame id in the page
+  * table. Left 44 bits for epoch. */
+#define LTBL_POLY_LENGTH  (20)
+#define LTBL_EPOCH_LENGTH (64-LTBL_POLY_LENGTH)
+#define LTBL_EPOCH_MASK   (((u64_t)1<<LTBL_EPOCH_LENGTH) - 1)
+#define LTBL_POLY_MASK    (~LTBL_EPOCH_MASK)
+
 struct liveness_entry {
-	u64_t epoch, free_timestamp;
-};
+	u64_t epoch;
+	/* Here we store the timestamp of the deactivation call, so
+	 * that we can support flexible quiescence period. */
+	u64_t deact_timestamp;
+} __attribute__((packed));
+
 typedef struct liveness_entry ltbl_entry_t;
 typedef u32_t livenessid_t;
 
@@ -72,18 +84,21 @@ ltbl_isalive(struct liveness_data *ld)
 	return 1;
 }
 
+/* Increment epoch, and update timestamp. */
 static inline int
 ltbl_expire(struct liveness_data *ld)
 {
 	struct liveness_entry *ent;
+	u64_t old_v;
 
 	ent = __ltbl_lkupan(LTBL_REF(), ld->id, __ltbl_maxdepth(), NULL);
-	ent->epoch++;
-	/* FIXME: add the following */
-	/* rdtscll(ts); */
-	/* if (ent->free_timestamp > ts) return -EAGAIN; */
-	/* ent->free_timestamp = ts + QUIESCE_PERIOD;  */
-	/* return 0; */
+	old_v = ent->epoch;
+	ent->epoch = (old_v & LTBL_POLY_MASK) | (((old_v & LTBL_POLY_MASK) + 1) & LTBL_EPOCH_MASK);
+
+	cos_inst_bar();
+
+	rdtscll(ent->deact_timestamp);
+
 	return 0;
 }
 
@@ -92,15 +107,17 @@ ltbl_expire(struct liveness_data *ld)
  * memory reclaimed)?
  */
 static inline int
-ltbl_isfreeable(struct liveness_data *ld)
+ltbl_isfreeable(struct liveness_data *ld, u64_t quiescence_period)
 {
-	(void)ld;
-	/* struct liveness_entry *ent; */
-	/* ent = __ltbl_lkupan(__liveness_tbl, ld->id, __ltbl_maxdepth(), NULL); */
-	/* rdtscll(ts); */
-	/* if (ent->free_timestamp < ts) return 1; */
-	/* return 0; */
-	return 1;
+	struct liveness_entry *ent;
+	u64_t ts;
+
+	ent = __ltbl_lkupan(LTBL_REF(), ld->id, __ltbl_maxdepth(), NULL);
+	rdtscll(ts);
+
+	if (ent->deact_timestamp + quiescence_period < ts) return 1;
+
+	return 0;
 }
 
 static inline int
@@ -108,10 +125,77 @@ ltbl_get(livenessid_t id, struct liveness_data *ld)
 {
 	u64_t *e;
 	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
+
 	e = (u64_t*)__ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth()+1, NULL);
 	assert(e);
+	
 	ld->epoch = *e;
 	ld->id = id;
+
+	return 0;
+}
+
+static inline u64_t
+ltbl_get_timestamp(livenessid_t id)
+{
+	struct liveness_entry *ent;
+
+	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
+	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth()+1, NULL);
+	assert(ent);
+
+	return ent->deact_timestamp;
+}
+
+static inline int
+ltbl_poly_update(livenessid_t id, u32_t poly)
+{
+	struct liveness_entry *ent;
+
+	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
+	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth(), NULL);
+
+	/* If we have info stored in this liveness entry, do not allow
+	 * the update. */
+	if (unlikely(ent->epoch & LTBL_POLY_MASK)) return -EPERM;
+
+	/* FIXME: atomic op? */
+//	ent->poly = poly;
+	rdtscll(ent->deact_timestamp);
+	
+	return 0;
+}
+
+static inline int
+ltbl_poly_clear(livenessid_t id)
+{
+	struct liveness_entry *ent;
+
+	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
+	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth(), NULL);
+
+	/* FIXME: atomic op? */
+//	ent->poly = 0;
+//	rdtscll(ent->deact_timestamp);
+	
+	return 0;
+}
+
+static inline int
+ltbl_timestamp_update(livenessid_t id)
+{
+	struct liveness_entry *ent;
+
+	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
+
+	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth(), NULL);
+
+	/* Barrier here to ensure tsc is taken after store
+	 * instruction (avoid out-of-order execution). */
+	cos_inst_bar();
+
+	rdtscll(ent->deact_timestamp);
+
 	return 0;
 }
 

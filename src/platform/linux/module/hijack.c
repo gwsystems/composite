@@ -64,6 +64,7 @@
 #include "../../../kernel/include/component.h"
 #include "../../../kernel/include/inv.h"
 #include "../../../kernel/include/thd.h"
+#include "../../../kernel/include/retype_tbl.h"
 
 #include "./kconfig_checks.h"
 
@@ -609,7 +610,7 @@ u8_t *boot_comp_pte_vm;
 u8_t *boot_comp_pte_km;
 u8_t *boot_comp_pte_pm;
 
-unsigned long sys_maxmem = 1<<10; /* 4M of physical memory (2^10 pages) */
+unsigned long sys_maxmem = COS_MAX_MEMORY; /* # of physical pages available */
 
 static void *cos_kmem, *cos_kmem_base;
 void *linux_pgd;
@@ -789,6 +790,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		cap_init();
 		ltbl_init();
+		retype_tbl_init();
 		comp_init();
 		thd_init();
 		inv_init();
@@ -1911,13 +1913,23 @@ PERCPU_VAR(cos_timer_acap);
 /* hack to detect timer interrupt. */
 char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 
+struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
+
 __attribute__((regparm(3))) 
 int main_timer_interposition(struct pt_regs *rs, unsigned int error_code) 
 {
 	struct async_cap *acap = *PERCPU_GET(cos_timer_acap);
+	int curr_cpu = get_cpuid();
 
-	u32_t *ticks = (u32_t *)&timer_detector[get_cpuid() * CACHE_LINE];
+	u32_t *ticks = (u32_t *)&timer_detector[curr_cpu * CACHE_LINE];
 	u32_t last_tick = *ticks;
+	
+	/* TLB quiescence period. */
+	chal_flush_tlb();
+
+	/* Update timestamps for tlb flushes. */
+	rdtscll(tlb_quiescence[curr_cpu].last_periodic_flush);
+	tlb_quiescence[curr_cpu].last_mandatory_flush = tlb_quiescence[curr_cpu].last_periodic_flush;
 
 	*ticks = last_tick+1;
 	cos_mem_fence();

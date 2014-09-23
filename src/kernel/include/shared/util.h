@@ -1,6 +1,7 @@
 #ifndef UTIL_H
 #define UTIL_H
 
+#define CAS_SUCCESS 0
 /* 
  * Return values:
  * 0 on failure due to contention (*target != old)
@@ -17,6 +18,20 @@ cos_cas(unsigned long *target, unsigned long old, unsigned long updated)
 			       "a"  (old)
 			     : "memory", "cc");
 	return (int)z;
+}
+
+/* x86 cpuid instruction barrier. */
+static inline void
+cos_inst_bar(void)
+{
+	int eax, edx, code = 0;
+	
+	asm volatile("cpuid"
+		     :"=a"(eax),"=d"(edx)
+		     :"a"(code)
+		     :"ecx","ebx");
+
+	return;
 }
 
 #endif

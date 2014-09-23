@@ -656,11 +656,11 @@ boot_create_cap_system(void)
 				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), 0))             BUG();
 
 		/* PGD */
-		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGDACTIVATE,
+		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
 				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), pgtbl_cap, 0))  BUG();
 		/* PTE */
-		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PTEACTIVATE,
-				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), pte_cap, 0))    BUG();
+		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
+				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), pte_cap, 1))    BUG();
 		/* Construct pgtbl */
 		if (call_cap_op(pgtbl_cap, CAPTBL_OP_CONS, pte_cap, sect->vaddr, 0, 0)) BUG();
 

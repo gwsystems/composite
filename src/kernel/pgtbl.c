@@ -13,10 +13,10 @@ pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t
 	if (!unlikely(pt)) return ret;
 	pt->pgtbl = pgtbl;
 	pt->lvl = lvl;
-	__cap_capactivate_post(&pt->h, CAP_PGTBL, 0);
+	__cap_capactivate_post(&pt->h, CAP_PGTBL);
 
 	return 0;
 }
 
-int pgtbl_deactivate(struct captbl *t, unsigned long cap, unsigned long capin)
-{ return cap_capdeactivate(t, cap, capin, CAP_PGTBL); }
+int pgtbl_deactivate(struct cap_captbl *t, unsigned long capin, livenessid_t lid)
+{ return cap_capdeactivate(t, capin, CAP_PGTBL, lid); }
