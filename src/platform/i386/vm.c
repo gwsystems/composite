@@ -9,6 +9,7 @@
 
 u32_t user_size;
 u32_t *base_user_address;
+u32_t user_entry_point;
 
 ptd_t kerndir __attribute__((aligned(4096)));
 pt_t kernel_pagetab[1024] __attribute__((aligned(4096)));
@@ -128,6 +129,7 @@ init_table(u32_t *table, u32_t *base, u32_t flags)
 void
 paging__init(size_t memory_size, u32_t nmods, u32_t *mods)
 {
+    char *cmdline;
     u32_t cr0;
     u32_t i;
 
@@ -153,9 +155,13 @@ paging__init(size_t memory_size, u32_t nmods, u32_t *mods)
       u32_t module_address = 0;
 
       for (i = 0; i < nmods; i++) {
+	cmdline = (char*)mod[i].cmdline;
         printk(INFO, "Multiboot Module %d \"%s\" [%x:%x]\n", i, mod[i].cmdline, mod[i].mod_start, mod[i].mod_end);
-	module_address = hextol((const char *)mod[i].cmdline);
+	module_address = hextol(cmdline);
 	printk(INFO, "Mapping module to 0x%08x\n", module_address);
+	if (cmdline[8] == '-') {
+		user_entry_point = hextol(&cmdline[9]);
+	}
         for (j = 0; j <= (user_size / PAGE_SIZE)+1; j++) {
           init_table(user_pagetab[j],
             (u32_t*) ((u32_t)base_user_address) + (i * 4096 * 1024),

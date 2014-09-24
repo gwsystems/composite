@@ -14,6 +14,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <assert.h>
+#include <libgen.h>
 
 /*
  * Produces a number of object files in /tmp named objname.o.pid.o
