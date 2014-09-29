@@ -137,9 +137,9 @@ typedef struct pgtbl * pgtbl_t;
 struct cap_pgtbl {
 	struct cap_header h;
 	pgtbl_t pgtbl;
-	u32_t lvl; 		/* what level are the pgtbl nodes at? */
-	struct cap_header *p;   /* if !null, points to parent cap */
-	u32_t ref_cnt;          /* # of direct children (created by cap_cpy) */
+	u32_t lvl; 		    /* what level are the pgtbl nodes at? */
+	struct cap_pgtbl *parent;  /* if !null, points to parent cap */
+	u32_t refcnt;               /* # of direct children (created by cap_cpy) */
 };
 
 static pgtbl_t pgtbl_alloc(void *page) 
@@ -448,11 +448,17 @@ static pgtbl_t pgtbl_create(void *page, void *curr_pgtbl) {
 	return ret;
 }
 int pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
-int pgtbl_deactivate(struct cap_captbl *t, unsigned long capin, livenessid_t lid);
+int pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
+		     livenessid_t lid, livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr);
+
 static void pgtbl_init(void) { 
 	assert(sizeof(struct cap_pgtbl) <= __captbl_cap2bytes(CAP_PGTBL));
 
 	return; 
 }
+
+int kmem_deact_pre(struct captbl *ct, capid_t pgtbl_cap, capid_t cosframe_addr, livenessid_t kmem_lid, 
+		   void *obj_vaddr, unsigned long **p_pte, unsigned long *v);
+int kmem_deact_post(unsigned long *pte, unsigned long old_v, livenessid_t kmem_lid);
 
 #endif /* PGTBL_H */

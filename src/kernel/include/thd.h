@@ -13,6 +13,7 @@
 #include "fpu_regs.h"
 #include "cpuid.h"
 #include "pgtbl.h"
+#include "retype_tbl.h"
 
 struct invstk_entry {
 	struct comp_info comp_info;
@@ -156,9 +157,8 @@ extern u32_t free_thd_id;
 static u32_t
 alloc_thd_id(void)
 {
-/* FIXME: get rid of the cas loop. */
-
 	u32_t old, new;
+        /* FIXME: get rid of this. */
         do {
 		old = free_thd_id;
 		new = free_thd_id + 1;
@@ -199,14 +199,12 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	return 0;
 }
 
-static int thd_deactivate(struct cap_captbl *dest_ct, struct captbl *ct, unsigned long capin, livenessid_t lid,
+static int thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin, livenessid_t lid,
 			  livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr)
 {
 	struct cap_header *thd_header;
 	struct thread *thd;
-	struct cap_pgtbl *cap_pt;
-	unsigned long old_v = 0, *pte = NULL, pa;
-	u32_t flags;
+	unsigned long old_v = 0, *pte = NULL;
 	int ret;
 
 	thd_header = captbl_lkup(dest_ct->captbl, capin);
@@ -219,26 +217,14 @@ static int thd_deactivate(struct cap_captbl *dest_ct, struct captbl *ct, unsigne
 		/* Last reference. Require pgtbl and
 		 * cos_frame cap to release the kmem
 		 * page. */
-		if (!pgtbl_cap || !cosframe_addr || !kmem_lid) 
-			cos_throw(err, -EINVAL);
-
-		cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap);
-		if (cap_pt->h.type != CAP_PGTBL) cos_throw(err, -EINVAL);
-
-		/* get the pte to the cos frame. */
-		pte = pgtbl_lkup_pte(cap_pt->pgtbl, cosframe_addr, &flags);
-		old_v = *pte;
-
-		pa = old_v & PGTBL_FRAME_MASK;
-		if ((void *)chal_pa2va((void *)pa) != thd || !(flags & PGTBL_COSKMEM)) cos_throw(err, -EINVAL);
-		assert(flags & PGTBL_COSFRAME);
-
-		if (ltbl_poly_update(kmem_lid, pa)) cos_throw(err, -EINVAL);
+		ret = kmem_deact_pre(ct, pgtbl_cap, cosframe_addr, kmem_lid, 
+				     (void *)thd, &pte, &old_v);
+		if (ret) cos_throw(err, ret);
 	} else {
 		/* more reference exists. just sanity
 		 * checks. */
 		assert(thd->refcnt > 1);
-		if (pgtbl_cap || cosframe_addr) {
+		if (pgtbl_cap || cosframe_addr || kmem_lid) {
 			/* we pass in the pgtbl cap and frame addr,
 			 * but ref_cnt is > 1. We'll ignore the two
 			 * parameters as we won't be able to release
@@ -257,18 +243,7 @@ static int thd_deactivate(struct cap_captbl *dest_ct, struct captbl *ct, unsigne
 		if (thd->refcnt == 0) {
 			/* move the kmem for the thread to a location
 			 * in a pagetable as COSFRAME */
-			u32_t new_v;
-
-			new_v = (lid << PGTBL_PAGEIDX_SHIFT) | PGTBL_QUIESCENCE | flags;
-			/* We did poly_update already. */
-			ret = ltbl_timestamp_update(kmem_lid);
-			assert(ret == 0);
-
-			/* set quiescence */			
-			if (cos_cas(pte, old_v, new_v) != CAS_SUCCESS) {
-				ltbl_poly_clear(kmem_lid);
-				cos_throw(err, -ECASFAIL);
-			}
+			kmem_deact_post(pte, old_v, kmem_lid);
 		}
 	}
 

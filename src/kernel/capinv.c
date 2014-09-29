@@ -154,13 +154,21 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 			struct thread *thd = ((struct cap_thd *)ctfrom)->t;
 
 			thd->refcnt++;
-			printk("thd ref cnt %d\n",thd->refcnt);
 		} else if (type == CAP_CAPTBL) {
+			struct cap_captbl *parent = (struct cap_captbl *)ctfrom;
+			struct cap_captbl *child  = (struct cap_captbl *)ctto;
 
+			cos_faa(&(parent->refcnt), 1);
+			child->refcnt = 1;
+			child->parent = parent;
 		} else if (type == CAP_PGTBL) {
+			struct cap_pgtbl *parent = (struct cap_pgtbl *)ctfrom;
+			struct cap_pgtbl *child  = (struct cap_pgtbl *)ctto;
 
+			cos_faa(&(parent->refcnt), 1);
+			child->refcnt = 1;
+			child->parent = parent;
 		}
-
 		__cap_capactivate_post(ctto, type);
 	} else if (cap_type == CAP_PGTBL) {
 		unsigned long *f;
@@ -396,6 +404,17 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 			break;
 		}
+		case CAPTBL_OP_CAPTBLDEACTIVATE:
+		{
+			livenessid_t lid      = __userregs_get2(regs) & 0xFFFF;
+			livenessid_t kmem_lid = __userregs_get2(regs) >> 16;
+			capid_t pgtbl_cap     = __userregs_get3(regs);
+			capid_t cosframe_addr = __userregs_get4(regs);
+
+			ret = captbl_deactivate(ct, op_cap, capin, lid, kmem_lid, pgtbl_cap, cosframe_addr);
+			
+			break;
+		}
 		case CAPTBL_OP_PGTBLACTIVATE:
 		{
 			capid_t pgtbl_cap  = __userregs_get1(regs);
@@ -459,7 +478,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			capid_t pgtbl_cap     = __userregs_get3(regs);
 			capid_t cosframe_addr = __userregs_get4(regs);
 
-			ret = thd_deactivate(op_cap, ct, capin, lid, kmem_lid, pgtbl_cap, cosframe_addr);
+			ret = thd_deactivate(ct, op_cap, capin, lid, kmem_lid, pgtbl_cap, cosframe_addr);
 
 			break;
 		}

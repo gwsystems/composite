@@ -76,9 +76,9 @@ struct cap_min {
 struct cap_captbl {
 	struct cap_header h;
 	struct captbl *captbl;
-	u32_t lvl; 		/* what level are the captbl nodes at? */
-	struct cap_header *p;   /* if !null, points to parent cap */
-	u32_t ref_cnt;          /* # of direct children (created by cap_cpy) */
+	u32_t lvl; 		     /* what level are the captbl nodes at? */
+	struct cap_captbl *parent;   /* if !null, points to parent cap */
+	u32_t refcnt;                /* # of direct children (created by cap_cpy) */
 };
 
 static void *
@@ -416,7 +416,8 @@ captbl_create(void *page)
 }
 
 int captbl_activate(struct captbl *t, capid_t cap, capid_t capin, struct captbl *toadd, u32_t lvl);
-int captbl_deactivate(struct cap_captbl *t, capid_t  capin, livenessid_t lid);
+int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
+		      livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr);
 int captbl_activate_boot(struct captbl *t, unsigned long cap);
 
 static void cap_init(void) {

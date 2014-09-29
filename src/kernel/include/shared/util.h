@@ -20,6 +20,18 @@ cos_cas(unsigned long *target, unsigned long old, unsigned long updated)
 	return (int)z;
 }
 
+/* Fetch-and-add implementation on x86. It returns the original value
+ * before xaddl. */
+static inline int 
+cos_faa(int *var, int value)
+{
+	asm volatile("lock xaddl %%eax, %2;"
+		     :"=a" (value)            //Output
+		     :"a" (value), "m" (*var) //Input
+		     :"memory");
+	return value;
+}
+
 /* x86 cpuid instruction barrier. */
 static inline void
 cos_inst_bar(void)

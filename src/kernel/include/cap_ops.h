@@ -26,7 +26,7 @@ err:
 }
 
 /* commit the activation */
-static inline void
+static inline int
 __cap_capactivate_post(struct cap_header *h, cap_t type)
 {
 	/* 
@@ -39,7 +39,16 @@ __cap_capactivate_post(struct cap_header *h, cap_t type)
 	 * the modifications to the capability body are committed
 	 * before finally activating the cap.
 	 */
-	h->type = type;
+	u32_t old_v, new_v;
+	struct cap_header *local;
+
+	cos_mem_fence();
+	new_v = old_v = *((u32_t *)h);
+	
+	local = (struct cap_header *)&new_v;
+	local->type = type;
+	
+	return cos_cas((unsigned long *)h, old_v, new_v);
 }
 
 static inline int
@@ -113,6 +122,7 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 	unsigned long *intern;
 	u32_t depth;
 	cap_t cap_type;
+	int ret = 0;
 
 	if (unlikely(capto == capsub)) return -EINVAL;
 	ct = (struct cap_captbl *)captbl_lkup(t, capto);
@@ -130,22 +140,22 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 		intern = captbl_lkup_lvl(ct->captbl, expandid, ct->lvl, ctsub->lvl);
 		if (!intern)      return -ENOENT;
 		if (*intern != 0) return -EPERM;
-		/* FIXME: should be cos_cas */
-		*intern = (unsigned long)ctsub->captbl; /* commit */
+
+		ret = cos_cas(intern, 0, (unsigned long)ctsub->captbl); /* commit */
+		if (!ret) cos_faa(&(ctsub->refcnt), 1);
 	} else {
 		u32_t flags = 0;
 		intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, depth);
 		if (!intern)                return -ENOENT;
 		if (pgtbl_ispresent(*intern)) return -EPERM;
-		/* 
-		 * FIXME: need a return value from _set on write
-		 * failure; assume ert_intern is essentially a long *.
-		 */
-		__pgtbl_set((struct ert_intern *)intern, 
-			    ((struct cap_pgtbl *)ctsub)->pgtbl, NULL, 0);
+
+		ret = __pgtbl_set((struct ert_intern *)intern, 
+				  ((struct cap_pgtbl *)ctsub)->pgtbl, NULL, 0);
+
+		if (!ret) cos_faa(&(((struct cap_pgtbl *)ctsub)->refcnt), 1);
 	}
 
-	return 0;
+	return ret;
 }
 
 /* 
@@ -154,13 +164,19 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
  * reference counting.
  */
 static inline int
-cap_decons(struct captbl *t, capid_t cap, capid_t pruneid, unsigned long lvl)
+cap_decons(struct captbl *t, capid_t cap, capid_t pruneid, capid_t capsub, unsigned long lvl)
 {
-	struct cap_header *head;
+	/* capsub is the cap_cap for sub level to be pruned. We need
+	 * to decrement ref_cnt correctly for the kernel page. */
+	struct cap_header *head, *sub;
 	unsigned long *intern;
+	int ret;
 
 	head = (struct cap_header *)captbl_lkup(t, cap);
-	if (unlikely(!head)) return -ENOENT;
+	sub  = (struct cap_header *)captbl_lkup(t, cap);
+	if (unlikely(!head || !sub)) return -ENOENT;
+	if (unlikely(head->type != sub->type)) return -EPERM;
+
 	if (head->type == CAP_CAPTBL) {
 		struct cap_captbl *ct = (struct cap_captbl *)head;
 		if (lvl <= ct->lvl) return -EINVAL;
@@ -176,9 +192,20 @@ cap_decons(struct captbl *t, capid_t cap, capid_t pruneid, unsigned long lvl)
 	if (!intern) return -ENOENT;
 	if (*intern == 0) return 0; /* return an error here? */
 	/* FIXME: should be cos_cas */
-	*intern = 0; /* commit; note that 0 is "no entry" in both pgtbl and captbl */
+	ret = cos_cas(intern, *intern, 0); /* commit; note that 0 is "no entry" in both pgtbl and captbl */
 
-	return 0;
+	if (!ret) {
+		/* decrement the refcnt */
+		if (head->type == CAP_CAPTBL) {
+			struct cap_captbl *ct = (struct cap_captbl *)sub;
+			cos_faa(&(ct->refcnt), -1);
+		} else {
+			struct cap_pgtbl *pt = (struct cap_pgtbl *)sub;
+			cos_faa(&(pt->refcnt), -1);
+		}
+	}
+
+	return ret;
 }
 
 #endif	/* CAP_OPS */

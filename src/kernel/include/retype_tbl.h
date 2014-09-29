@@ -21,10 +21,10 @@
 #define MEM_SET_SIZE   (MEM_SET_NPAGES * PAGE_SIZE)
 
 typedef enum {
-	MEM_UNTYPED  = 0, /* untyped physical frames. */
-	MEM_USER     = 1,
-	MEM_KERN     = 2,
-	MEM_RETYPING = 3, /* ongoing retyping operation */
+	RETYPETBL_UNTYPED  = 0, /* untyped physical frames. */
+	RETYPETBL_USER     = 1,
+	RETYPETBL_KERN     = 2,
+	RETYPETBL_RETYPING = 3, /* ongoing retyping operation */
 } mem_type_t;
 
 #define RETYPE_ENT_TYPE_SZ    4
@@ -44,6 +44,7 @@ struct retype_entry {
 		} __attribute__((packed));
 		u32_t v;
 	} refcnt_atom;
+	u32_t      __pad;   /* let's make the size power of 2. */
 	/* the timestamp of when the last unmapped happened. Used to
 	 * track TLB quiescence when retype */
 	u64_t      last_unmap;
@@ -149,9 +150,9 @@ mod_mem_type(void *pa, const mem_type_t type)
 	
 	old_type = glb_retype_info->type;
 	/* only can retype untyped mem sets. */
-	if (unlikely(old_type != MEM_UNTYPED)) return -EPERM;
+	if (unlikely(old_type != RETYPETBL_UNTYPED)) return -EPERM;
 
-	ret = retypetbl_cas(&(glb_retype_info->type), old_type, MEM_RETYPING);
+	ret = retypetbl_cas(&(glb_retype_info->type), old_type, RETYPETBL_RETYPING);
 	if (ret != CAS_SUCCESS) return ret;
 
 	/* Set the retyping flag successfully. Now nobody else can
@@ -163,7 +164,7 @@ mod_mem_type(void *pa, const mem_type_t type)
 	cos_mem_fence();
 
 	/* Now commit the change to the global entry. */
-	ret = retypetbl_cas(&(glb_retype_info->type), MEM_RETYPING, type);
+	ret = retypetbl_cas(&(glb_retype_info->type), RETYPETBL_RETYPING, type);
 	assert(ret == CAS_SUCCESS);
 
 	return 0;
@@ -172,13 +173,13 @@ mod_mem_type(void *pa, const mem_type_t type)
 static int
 retypetbl_retype2user(void *pa)
 {
-	return mod_mem_type(pa, MEM_USER);
+	return mod_mem_type(pa, RETYPETBL_USER);
 }
 
 static int
 retypetbl_retype2kern(void *pa)
 {
-	return mod_mem_type(pa, MEM_KERN);
+	return mod_mem_type(pa, RETYPETBL_KERN);
 }
 
 static int
@@ -200,24 +201,22 @@ retypetbl_retype2frame(void *pa)
 
 	old_type = glb_retype_info->type;
 	/* only can retype untyped mem sets. */
-	if (unlikely(old_type != MEM_USER && old_type != MEM_KERN)) return -EPERM;
+	if (unlikely(old_type != RETYPETBL_USER && old_type != RETYPETBL_KERN)) return -EPERM;
 
 	/* lock down the memory set we are going to retype. */
-	ret = retypetbl_cas(&(glb_retype_info->type), old_type, MEM_RETYPING);
-
+	ret = retypetbl_cas(&(glb_retype_info->type), old_type, RETYPETBL_RETYPING);
 	if (ret != CAS_SUCCESS) return ret;
 
 	for (ref_sum = 0, cpu = 0; cpu < NUM_CPU; cpu++) {
 		/* Keep in mind that, ref_cnt on each core could be
 		 * negative. */
 		old_v = local_u.v = retype_tbl[cpu].mem_set[idx].refcnt_atom.v;
-		assert(local_u.type == old_type || local_u.type == MEM_RETYPING);
+		assert(local_u.type == old_type || local_u.type == RETYPETBL_RETYPING);
 
 		ref_sum += local_u.ref_cnt;
-		local_u.type = MEM_RETYPING;
+		local_u.type = RETYPETBL_RETYPING;
 
 		ret = retypetbl_cas(&(retype_tbl[cpu].mem_set[idx].refcnt_atom.v), old_v, local_u.v);
-
 		if (ret != CAS_SUCCESS) cos_throw(restore_all, -ECASFAIL);
 
 		/* for tlb quiescence check */
@@ -239,17 +238,17 @@ retypetbl_retype2frame(void *pa)
 	/* we already locked all entries. feel free to change here. */
 	for (cpu = 0; cpu < NUM_CPU; cpu++) {
 		retype_tbl[cpu].mem_set[idx].refcnt_atom.ref_cnt = 0;
-		retype_tbl[cpu].mem_set[idx].refcnt_atom.type    = MEM_UNTYPED;
+		retype_tbl[cpu].mem_set[idx].refcnt_atom.type    = RETYPETBL_UNTYPED;
 	}
 	cos_mem_fence();
 
 	/* and commit to the global entry. */
-	ret = retypetbl_cas(&(glb_retype_info->type), MEM_RETYPING, MEM_UNTYPED);
+	ret = retypetbl_cas(&(glb_retype_info->type), RETYPETBL_RETYPING, RETYPETBL_UNTYPED);
 	assert(ret == CAS_SUCCESS);
 
 	return 0;
 restore_all:
-	/* Some thing went wrong: CAS, TLB quiescence or ref_sum
+	/* Something went wrong: CAS, TLB quiescence or ref_sum
 	 * non-zero. Clean-up here.*/
 
 	/* restore per-core retype entries. (is this necessary?) */
@@ -265,7 +264,7 @@ restore_all:
 	{
 		/* Restore the global entry to old type before return:
 		 * only us can change it. */
-		int ret_local = retypetbl_cas(&(glb_retype_info->type), MEM_RETYPING, old_type);
+		int ret_local = retypetbl_cas(&(glb_retype_info->type), RETYPETBL_RETYPING, old_type);
 		assert(ret_local == CAS_SUCCESS);
 	}
 
