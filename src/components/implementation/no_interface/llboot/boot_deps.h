@@ -698,8 +698,10 @@ done:
 		assert(ret == 0);
 		printc(">>> act / deact quiescence_check passed w/ liveness id %d.\n", lid);
 
-		if (ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDDEACTIVATE,
-				      PERCPU_GET(llbooter)->init_thd, lid, BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()])) {
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDDEACTIVATE,
+				  PERCPU_GET(llbooter)->init_thd, lid, BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()]);
+		if (ret) {
+			printc(">>>>>>>>>>>>> thd deact ret %d FAILD w/ liveness id %d.\n", ret, lid);
 		}
 		printc(">>> thd deact ret %d w/ liveness id %d.\n", ret, lid);
 	}

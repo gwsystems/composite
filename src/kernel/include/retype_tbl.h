@@ -15,10 +15,7 @@
 #include "cpuid.h"
 #include "pgtbl.h"
 
-/* how many pages in a collection. Should consider cacheline
- * size. Multiple of 16 on x86. */
-#define MEM_SET_NPAGES (32)
-#define MEM_SET_SIZE   (MEM_SET_NPAGES * PAGE_SIZE)
+#define RETYPE_MEM_NPAGES_SIZE   (RETYPE_MEM_NPAGES * PAGE_SIZE)
 
 typedef enum {
 	RETYPETBL_UNTYPED  = 0, /* untyped physical frames. */
@@ -50,8 +47,13 @@ struct retype_entry {
 	u64_t      last_unmap;
 } __attribute__((packed));
 
+/* When getting kernel memory through Linux, the retype table is
+ * partitioned into two parts for kmem and user memory. */
 /* # of mem_sets in total. +1 to be safe. */
-#define N_MEM_SETS    (COS_MAX_MEMORY / MEM_SET_NPAGES + 1)
+#define N_USER_MEM_SETS (COS_MAX_MEMORY/RETYPE_MEM_NPAGES + 1)
+#define N_KERN_MEM_SETS (COS_KERNEL_MEMORY/RETYPE_MEM_NPAGES + 1)
+
+#define N_MEM_SETS    (N_USER_MEM_SETS + N_KERN_MEM_SETS)
 #define N_MEM_SETS_SZ (sizeof(struct retype_entry) * N_MEM_SETS)
 
 /* per-cpu retype_info. Each core update this locally when doing
@@ -72,10 +74,16 @@ struct retype_info_glb {
 
 extern struct retype_info_glb glb_retype_tbl[N_MEM_SETS];
 
+extern paddr_t kmem_start_pa;
+#define COS_KMEM_BOUND (kmem_start_pa + PAGE_SIZE * COS_KERNEL_MEMORY)
+
 /* physical address boundary check */
-#define PA_BOUNDARY_CHECK() do { if (unlikely(((u32_t)pa < COS_MEM_START) || ((u32_t)pa > COS_MEM_BOUND))) return -EINVAL; } while (0)
+#define PA_BOUNDARY_CHECK() do { if (unlikely(!(((u32_t)pa >= COS_MEM_START) && ((u32_t)pa < COS_MEM_BOUND)) && \
+					      !(((u32_t)pa >= kmem_start_pa) && ((u32_t)pa < COS_KMEM_BOUND)))) return -EINVAL; } while (0)
+
 /* get the index of the memory set. */
-#define GET_MEM_IDX(pa) (((u32_t)(pa) - COS_MEM_START) % MEM_SET_SIZE)
+#define GET_MEM_IDX(pa) (((u32_t)pa >= COS_MEM_START) ? (((u32_t)(pa) - COS_MEM_START) / RETYPE_MEM_NPAGES_SIZE) \
+			 : (((u32_t)(pa) - kmem_start_pa) / RETYPE_MEM_NPAGES_SIZE + N_USER_MEM_SETS))
 /* get the memory set struct of the current cpu */
 #define GET_RETYPE_ENTRY(idx) ((&(retype_tbl[get_cpuid()].mem_set[idx])))
 /* get the global memory set struct (used for retyping only). */
@@ -118,6 +126,7 @@ mod_ref_cnt(void *pa, const int op, const mem_type_t type)
 		local_u.ref_cnt = local_u.ref_cnt - 1;
 		rdtscll(retype_entry->last_unmap);
 	}
+	cos_mem_fence();
 
 	return retypetbl_cas(&(retype_entry->refcnt_atom.v), old_v, local_u.v);
 }
@@ -134,7 +143,7 @@ retypetbl_deref(void *pa, const mem_type_t type)
 	return mod_ref_cnt(pa, 0, type);
 }
 
-static int
+static inline int
 mod_mem_type(void *pa, const mem_type_t type)
 {
 	int i, ret;
@@ -147,13 +156,17 @@ mod_mem_type(void *pa, const mem_type_t type)
 	assert(idx < N_MEM_SETS);
 
 	glb_retype_info = GET_GLB_RETYPE_ENTRY(idx);
-	
 	old_type = glb_retype_info->type;
+
 	/* only can retype untyped mem sets. */
-	if (unlikely(old_type != RETYPETBL_UNTYPED)) return -EPERM;
+	if (unlikely(old_type != RETYPETBL_UNTYPED)) {
+		if (old_type == type) return -EEXIST;
+		else                  return -EPERM;
+	}
 
 	ret = retypetbl_cas(&(glb_retype_info->type), old_type, RETYPETBL_RETYPING);
 	if (ret != CAS_SUCCESS) return ret;
+	cos_mem_fence();
 
 	/* Set the retyping flag successfully. Now nobody else can
 	 * change this memory set. Update the per-core retype entries
@@ -171,26 +184,51 @@ mod_mem_type(void *pa, const mem_type_t type)
 }
 
 static int
-retypetbl_retype2user(void *pa)
+retypetbl_retype2user(struct cap_pgtbl *cp, vaddr_t vaddr)
 {
+	void *pa;
+	u32_t flags;
+	unsigned long *pte;
+
+	pte = pgtbl_lkup_pte(cp->pgtbl, vaddr, &flags);
+	if (!pte) return -EINVAL;
+	pa = (void *)(*pte & PGTBL_FRAME_MASK);
+
 	return mod_mem_type(pa, RETYPETBL_USER);
 }
 
 static int
-retypetbl_retype2kern(void *pa)
+retypetbl_retype2kern(struct cap_pgtbl *cp, vaddr_t vaddr)
 {
+	void *pa;
+	u32_t flags;
+	unsigned long *pte;
+
+	pte = pgtbl_lkup_pte(cp->pgtbl, vaddr, &flags);
+
+	if (!pte) return -EINVAL;
+	pa = (void *)(*pte & PGTBL_FRAME_MASK);
+
 	return mod_mem_type(pa, RETYPETBL_KERN);
 }
 
 static int
-retypetbl_retype2frame(void *pa)
+retypetbl_retype2frame(struct cap_pgtbl *cp, vaddr_t vaddr)
 {
+	void *pa;
+	u32_t flags;
+	unsigned long *pte;
+
 	struct retype_info_glb *glb_retype_info;
 	union refcnt_atom local_u;
 	u32_t old_v, idx, cpu;
 	u64_t last_unmap;
 	int ret, ref_sum;
 	mem_type_t old_type;
+
+	pte = pgtbl_lkup_pte(cp->pgtbl, vaddr, &flags);
+	if (!pte) return -EINVAL;
+	pa = (void *)(*pte & PGTBL_FRAME_MASK);
 
 	PA_BOUNDARY_CHECK();
 
@@ -207,6 +245,7 @@ retypetbl_retype2frame(void *pa)
 	ret = retypetbl_cas(&(glb_retype_info->type), old_type, RETYPETBL_RETYPING);
 	if (ret != CAS_SUCCESS) return ret;
 
+	last_unmap = 0;
 	for (ref_sum = 0, cpu = 0; cpu < NUM_CPU; cpu++) {
 		/* Keep in mind that, ref_cnt on each core could be
 		 * negative. */
@@ -231,6 +270,7 @@ retypetbl_retype2frame(void *pa)
 	 * to make sure TLB quiescence has been achieved after the
 	 * last unmapping of any pages in this memory set. */
 	if (!tlb_quiescence_check(last_unmap)) cos_throw(restore_all, -EQUIESCENCE);
+	cos_mem_fence();
 
 	/**************************/
 	/**** Legit to retype! ****/

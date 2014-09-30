@@ -339,7 +339,7 @@ pgtbl_mapping_del_direct(pgtbl_t pt, u32_t addr)
 }
 
 static int
-pgtbl_mapping_extract(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
+pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 {
 	struct ert_intern *pte;
 	u32_t orig_v, accum = 0;
@@ -356,7 +356,8 @@ pgtbl_mapping_extract(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 	*kern_addr = (unsigned long)chal_pa2va((void *)(orig_v & PGTBL_FRAME_MASK));
 
 	if (unlikely(!*kern_addr)) return -EINVAL; /* cannot retype a non-kernel accessible page */
-	if (unlikely(!(orig_v & PGTBL_COSFRAME))) return -EINVAL; /* can't retype non-frames */
+	if (unlikely(!(orig_v & PGTBL_COSFRAME))) return -EINVAL; /* can't activate non-frames */
+	if (unlikely(orig_v & PGTBL_COSKMEM)) return -EEXIST; /* can't re-activate kmem frames */
 
 	/* We keep the cos_frame entry, but mark it as COSKMEM so that
 	 * we won't use it for other kernel objects. */

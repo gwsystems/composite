@@ -90,7 +90,7 @@ cap_memdeactivate(struct captbl *t, capid_t cap, unsigned long addr, livenessid_
 }
 
 static inline int
-cap_mem_retype2kern(struct captbl *t, capid_t cap, unsigned long addr, unsigned long *kern_addr)
+cap_kmem_activate(struct captbl *t, capid_t cap, unsigned long addr, unsigned long *kern_addr)
 {
 	int ret;
 	struct cap_pgtbl *pgtblc;
@@ -100,7 +100,7 @@ cap_mem_retype2kern(struct captbl *t, capid_t cap, unsigned long addr, unsigned 
 
 	if (unlikely(!pgtblc)) return -ENOENT;
 	if (unlikely(pgtblc->h.type != CAP_PGTBL || pgtblc->lvl != 0)) return -EINVAL;
-	if ((ret = pgtbl_mapping_extract(pgtblc->pgtbl, addr, (unsigned long *)kern_addr))) return ret;
+	if ((ret = pgtbl_kmem_act(pgtblc->pgtbl, addr, (unsigned long *)kern_addr))) return ret;
 
 	return 0;
 }

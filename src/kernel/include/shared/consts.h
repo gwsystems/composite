@@ -107,6 +107,10 @@ struct pt_regs {
 #define KERN_MEM_ORDER    (10)        /* should be fine when <= 10 */
 #define COS_KERNEL_MEMORY (1 << KERN_MEM_ORDER)   /* 2^n pages kernel memory */
 
+/* how many pages in a collection. Should consider cacheline
+ * size. Multiple of 16 on x86. */
+#define RETYPE_MEM_NPAGES        (32)
+
 #include "../asm_ipc_defs.h"
 
 #define KERN_BASE_ADDR 0xc0000000 //CONFIG_PAGE_OFFSET

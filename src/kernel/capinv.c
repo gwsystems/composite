@@ -394,7 +394,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			vaddr_t kmem_addr = 0;
 			struct captbl *newct;
 			
-			ret = cap_mem_retype2kern(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr);
+			ret = cap_kmem_activate(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr);
 			if (unlikely(ret)) cos_throw(err, ret);
 			assert(kmem_addr);
 
@@ -406,6 +406,10 @@ composite_sysenter_handler(struct pt_regs *regs)
 		}
 		case CAPTBL_OP_CAPTBLDEACTIVATE:
 		{
+			/* TODO: use two different cases for
+			 * deactivation w/ and w/o kmem
+			 * deactivation. */
+
 			livenessid_t lid      = __userregs_get2(regs) & 0xFFFF;
 			livenessid_t kmem_lid = __userregs_get2(regs) >> 16;
 			capid_t pgtbl_cap     = __userregs_get3(regs);
@@ -425,7 +429,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			vaddr_t kmem_addr  = 0;
 			pgtbl_t new_pt, curr_pt;
 
-			ret = cap_mem_retype2kern(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr);
+			ret = cap_kmem_activate(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr);
 			if (unlikely(ret)) cos_throw(err, ret);
 			assert(kmem_addr);
 
@@ -454,6 +458,20 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 			break;
 		}
+		case CAPTBL_OP_PGTBLDEACTIVATE:
+		{
+			/* TODO: use two different cases for
+			 * deactivation w/ and w/o kmem
+			 * deactivation. */
+			livenessid_t lid      = __userregs_get2(regs) & 0xFFFF;
+			livenessid_t kmem_lid = __userregs_get2(regs) >> 16;
+			capid_t pgtbl_cap     = __userregs_get3(regs);
+			capid_t cosframe_addr = __userregs_get4(regs);
+
+			ret = pgtbl_deactivate(ct, op_cap, capin, lid, kmem_lid, pgtbl_cap, cosframe_addr);
+			
+			break;
+		}
 		case CAPTBL_OP_THDACTIVATE:
 		{
 			capid_t thd_cap    = __userregs_get1(regs) & 0xFFFF;
@@ -463,7 +481,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			capid_t compcap    = __userregs_get4(regs);
 			struct thread *thd;
 
-			ret = cap_mem_retype2kern(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd);
+			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd);
 			if (unlikely(ret)) cos_throw(err, ret);
 
 			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data);
@@ -582,7 +600,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			
 			/* Fixme: We are doing expanding here. */
 			
-			ret = cap_mem_retype2kern(ct, pgtbl_cap, page_addr, (unsigned long *)&captbl_mem);
+			ret = cap_kmem_activate(ct, pgtbl_cap, page_addr, (unsigned long *)&captbl_mem);
 			if (unlikely(ret)) cos_throw(err, ret);
 
 			target_ct = (struct cap_captbl *)captbl_lkup(ct, target);
@@ -648,18 +666,27 @@ composite_sysenter_handler(struct pt_regs *regs)
 			
 			break;
 		}
-		case CAPTBL_OP_MAPPING_RETYPE2USER:
+		case CAPTBL_OP_MEM_RETYPE2USER:
 		{
-			//vaddr_t addr      = __userregs_get1(regs);
+			vaddr_t frame_addr = __userregs_get1(regs);
+			
+			ret = retypetbl_retype2user((struct cap_pgtbl *)ch, frame_addr);
 
 			break;
 		}
-		case CAPTBL_OP_MAPPING_RETYPE2KERN:
+		case CAPTBL_OP_MEM_RETYPE2KERN:
 		{
+			vaddr_t frame_addr = __userregs_get1(regs);
+			ret = retypetbl_retype2kern((struct cap_pgtbl *)ch, frame_addr);
+
 			break;
 		}
-		case CAPTBL_OP_MAPPING_RETYPE2FRAME:
+		case CAPTBL_OP_MEM_RETYPE2FRAME:
 		{
+			vaddr_t frame_addr = __userregs_get1(regs);
+			
+			ret = retypetbl_retype2frame((struct cap_pgtbl *)ch, frame_addr);
+
 			break;
 		}
 		case CAPTBL_OP_MAPPING_MOD:
@@ -671,8 +698,8 @@ composite_sysenter_handler(struct pt_regs *regs)
 	}
 	case CAP_SRET:
 	{
-		/* We usually don't have sret cap as we have default
-		 * return cap.*/
+		/* We usually don't have sret cap as we have 0 as the
+		 * default return cap.*/
 		sret_ret(thd, regs, cos_info);
 		return 0;
 	}
