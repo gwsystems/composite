@@ -4,7 +4,7 @@ CC=gcc
 LD=ld
 CFLAGS=-D__x86__ -D_GNU_SOURCE -lpthread -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -Wno-format -ggdb3 -I$(KINC) 
 LDFLAGS=""
-PRODUCTS=cos_loader gen_client_stub
+PRODUCTS=cos_linker gen_client_stub
 
 default: $(PRODUCTS)
 
@@ -14,11 +14,11 @@ default: $(PRODUCTS)
 gen_client_stub: gen_client_stub.o
 	$(CC) $(CFLAGS) -o $@ $< 
 
-cos_loader: main.o deserialize.o globals.o genstubs.o loadall.o printobjs.o output.o prepsymbs.o vdc.o vds.o $(CDIR)/lib/cobj_format.c
+cos_linker: main.o deserialize.o globals.o genstubs.o loadall.o printobjs.o output.o prepsymbs.o vdc.o vds.o $(CDIR)/lib/cobj_format.c
 	$(CC) $(CFLAGS) -o $@ $^ -L/usr/lib -lbfd -I$(CDIR)/include -I$(SHAREDINC)
 
 cp:
-	cp cos_loader gen_client_stub $(TRANS_DIR)
+	cp cos_linker gen_client_stub $(TRANS_DIR)
 
 clean:
 	rm -f *~ *.o *.a $(PRODUCTS)

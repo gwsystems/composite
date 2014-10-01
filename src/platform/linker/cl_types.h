@@ -148,6 +148,25 @@ struct component_traits {
         int sched, composite_loaded;
 };
 
+struct spd_info {
+        int spd_handle, num_caps;
+        vaddr_t ucap_tbl;
+        unsigned long lowest_addr;
+        unsigned long size;
+        unsigned long mem_size;
+        vaddr_t upcall_entry;
+        vaddr_t atomic_regions[10];
+};
+
+struct cap_info {
+        int cap_handle, rel_offset;
+        int owner_spd_handle, dest_spd_handle;
+        isolation_level_t il;
+        int flags;
+        vaddr_t ST_serv_entry;
+        vaddr_t SD_cli_stub, SD_serv_stub;
+        vaddr_t AT_cli_stub, AT_serv_stub;
+};
 
 
 #endif

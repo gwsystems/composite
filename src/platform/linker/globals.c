@@ -11,7 +11,7 @@
 #include "cl_types.h"
 #include "cl_macros.h"
 
-enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_DEBUG;
+enum {PRINT_NONE = 0, PRINT_HIGH, PRINT_NORMAL, PRINT_DEBUG} print_lvl = PRINT_HIGH;
 
 const char *COMP_INFO      = "cos_comp_info";
 const char *SCHED_NOTIF    = "cos_sched_notifications";
