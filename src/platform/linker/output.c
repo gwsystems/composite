@@ -25,13 +25,9 @@
 #include <unistd.h>
 #include <assert.h>
 #include <sys/mman.h>
-#include <signal.h>
-#include <libgen.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
-
-#include <bfd.h>
 
 int
 cos_spd_add_cap(struct cap_info *capi)

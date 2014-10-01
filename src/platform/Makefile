@@ -2,15 +2,15 @@ include Makefile.src
 
 default:
 	$(MAKE) -C i386
-	$(MAKE) -C loader
+	$(MAKE) -C linker
 
 cp:
 	$(MAKE) -C i386 cp
-	$(MAKE) -C loader cp
+	$(MAKE) -C linker cp
 
 clean:
 	$(MAKE) -C i386 clean
-	$(MAKE) -C loader clean
+	$(MAKE) -C linker clean
 
 init: clean default
 
