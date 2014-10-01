@@ -12,6 +12,10 @@
 
 #define CFORCEINLINE __attribute__((always_inline))
 
+#ifndef unlikely
+#define unlikely(x)     __builtin_expect(!!(x), 0)
+#endif
+
 /* 
  * TODO:
  * - change the accum variable to be void *, and be named load_info,

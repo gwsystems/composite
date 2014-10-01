@@ -6,182 +6,139 @@
 #include "vm.h"
 
 #define POSSIBLE_FRAMES 1024*1024
+#define USER_STACK_SIZE (PAGE_SIZE * 4)
 
 u32_t user_size;
-u32_t *base_user_address;
+u32_t base_user_address;
 u32_t user_entry_point;
+u32_t user_stack_address;
 
-ptd_t kerndir __attribute__((aligned(4096)));
-pt_t kernel_pagetab[1024] __attribute__((aligned(4096)));
-pt_t user_pagetab[1024] __attribute__((aligned(4096)));
+pgtbl_t pgtbl;
 
 static int
 xdtoi(char c)
 {
-    if ('0' <= c && c <= '9') return c - '0';
-    if ('a' <= c && c <= 'f') return c - 'a' + 10;
-    if ('A' <= c && c <= 'F') return c - 'A' + 10;
-    return 0;
+	if ('0' <= c && c <= '9') return c - '0';
+	if ('a' <= c && c <= 'f') return c - 'a' + 10;
+	if ('A' <= c && c <= 'F') return c - 'A' + 10;
+	return 0;
 }
 
 static u32_t
 hextol(const char *s)
 {
-    int i;
-    int r = 0;
-    for (i = 0; i < 8; i++)
-        r = (r * 0x10) + xdtoi(s[i]);
-    return r;
-}
-
-void
-ptd_load(ptd_t dir)
-{
-    u32_t d = (u32_t)chal_va2pa(dir) | PAGE_P;
-     
-    printk (INFO, "Setting cr3 = %x (%x)\n", d, d);
-    asm volatile("mov %0, %%cr3" : : "r"(d));
+	int i, r = 0;
+	for (i = 0; i < 8; i++)
+		r = (r * 0x10) + xdtoi(s[i]);
+	return r;
 }
 
 void *
 chal_pa2va(void *address)
 {
-    pt_t *table = (pt_t*) &kerndir[(u32_t)address >> 22];
-    pte_t page;
-    if (!((u32_t)*table & PAGE_P)) return 0;
-    page = (pte_t)table[((u32_t)address >> 12) & 0x0fff];
-    if (!(page & PAGE_P)) return 0;
-    return (void*)((page & PAGE_FRAME) + ((u32_t)page & 0x0fff));
+	return address;
+#if 0
+	pt_t *table = (pt_t*) &pgtbl[(u32_t)address >> 22];
+	pte_t page;
+
+	if (!((u32_t)*table & PGTBL_PRESENT)) return 0;
+
+	page = (pte_t)table[((u32_t)address >> 12) & 0x0fff];
+
+	if (!(page & PGTBL_PRESENT)) return 0;
+
+	return (void*)((page & PGTBL_FRAME_MASK) + ((u32_t)page & 0x0fff));
+#endif
 }
 
 void *
 chal_va2pa(void *address)
 {
-    return address;
+	return address;
 }
-
 
 static void
 page_fault(struct registers *regs)
 {
-    u32_t fault_addr, cs, eip = 0;
+	u32_t fault_addr, cs, eip = 0;
     
-    asm volatile("mov %%cr2, %0" : "=r" (fault_addr));
-    //asm volatile("mov %%eip, %0" : "=r" (eip));
-    asm volatile("mov %%cs, %0" : "=r" (cs));
+	asm volatile("mov %%cr2, %0" : "=r" (fault_addr));
+	asm volatile("mov %%cs, %0" : "=r" (cs));
 
-    die("Page Fault (%s%s%s%s) at 0x%x, eip 0x%x, cs 0x%x\n",
-        !(regs->err_code & PAGE_P) ? "not-present " : "",
-        regs->err_code & PAGE_RW ? "read-only " : "read-fault ",
-        regs->err_code & PAGE_US ? "user-mode " : "system ",
-        regs->err_code & PAGE_RSVD ? "reserved " : "",
-        regs->err_code & PAGE_ID ? "instruction-fetch " : "",
-        fault_addr, eip, cs);
-
-}
-
-static void
-ptd_map(ptd_t dir, u32_t tno, pt_t table, u32_t flags)
-{
-  dir[tno] = (((u32_t) table) & PAGE_FRAME) | flags;
+	die("Page Fault (%s%s%s%s) at 0x%x, eip 0x%x, cs 0x%x\n",
+		!(regs->err_code & PGTBL_PRESENT) ? "not-present " : "",
+		regs->err_code & PGTBL_WRITABLE ? "read-only " : "read-fault ",
+		regs->err_code & PGTBL_USER ? "user-mode " : "system ",
+		regs->err_code & PGTBL_WT ? "reserved " : "",
+		regs->err_code & PGTBL_NOCACHE ? "instruction-fetch " : "",
+		fault_addr, eip, cs);
 }
 
 void
-ptd_init(ptd_t dir)
+paging__init(u32_t memory_size, u32_t nmods, u32_t *mods)
 {
-  int i;
-  for (i = 0; i < 1024; i++) {
-    dir[i] = 0;
-  }
-}
+	char *cmdline;
+	u32_t cr0;
+	u32_t i;
+	u32_t user_stack_physical;
+	u32_t pgdir[1024] __attribute__((aligned(4096)));
 
-#if 0
-static void
-pt_map(pt_t table, u32_t eno, pte_t entry, u32_t flags)
-{
-  table[eno] = (((u32_t) entry) & PAGE_FRAME) | flags;
-}
-#endif
+	printk(INFO, "Initializing paging\n");
+	printk(INFO, "MEMORY_SIZE: %dMB (%d page frames)\n", memory_size/1024, memory_size/4);
 
+	printk(INFO, "Registering page fault handler\n");
+	register_interrupt_handler(14, &page_fault);
 
-void
-ptd_copy_global(ptd_t dst, ptd_t src)
-{
-  int i = 0;
-  for (i = 0; i < 1024; i++) {
-    if (src[i] & PAGE_G) {
-      dst[i] = src[i];
-    }
-  }
-}
+	printk(INFO, "Allocating page table\n");
+	pgtbl = pgtbl_alloc(pgdir);
+	printk(INFO, "Allocated at 0x%08x\n", pgtbl);
 
-static void
-init_table(u32_t *table, u32_t *base, u32_t flags)
-{
-  int i;
-  //printk(INFO, "Initializing table at %x from base %x\n", table, base);
-  for (i = 0; i < 1024; i++) {
-    table[i] = (((u32_t) base + (4096 * i)) & PAGE_FRAME) | flags;
-    //if (i < 3) printk (INFO, "\t%x\n", table[i]);
-  } 
-}
-
-void
-paging__init(size_t memory_size, u32_t nmods, u32_t *mods)
-{
-    char *cmdline;
-    u32_t cr0;
-    u32_t i;
-
-    printk(INFO, "Initializing paging\n");
-    printk(INFO, "MEMORY_SIZE: %dMB (%d page frames)\n", memory_size/1024, memory_size/4);
-
-    printk(INFO, "Registering page fault handler\n");
-    register_interrupt_handler(14, &page_fault);
-
-    printk(INFO, "Mapping pages to tables and directories\n");
-
-    ptd_init(kerndir);
-
-    for (i = 0; i < (u32_t)base_user_address / (PAGE_SIZE * 1024); i++) {
-      init_table(kernel_pagetab[i], (u32_t*) (i * 4096 * 1024), PAGE_RW | PAGE_P | PAGE_G);
-      ptd_map(kerndir, i, kernel_pagetab[i], PAGE_RW | PAGE_P | PAGE_G);
-    }
-
-    if (nmods > 0) {
-      //unsigned int i = 0;
-      unsigned int j = 0;
-      multiboot_module_t *mod = (multiboot_module_t*)mods;
-      u32_t module_address = 0;
-
-      for (i = 0; i < nmods; i++) {
-	cmdline = (char*)mod[i].cmdline;
-        printk(INFO, "Multiboot Module %d \"%s\" [%x:%x]\n", i, mod[i].cmdline, mod[i].mod_start, mod[i].mod_end);
-	module_address = hextol(cmdline);
-	printk(INFO, "Mapping module to 0x%08x\n", module_address);
-	if (cmdline[8] == '-') {
-		user_entry_point = hextol(&cmdline[9]);
+	for (i = 0; i < base_user_address / (PAGE_SIZE); i++) {
+		//printk(DEBUG, "Mapping physical address %08x to virtual %08x\n",  i * 4096,  i * 4096);
+		pgtbl_mapping_add(pgtbl, i * 4096, i * 4096, PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_GLOBAL);
 	}
-        for (j = 0; j <= (user_size / PAGE_SIZE)+1; j++) {
-          init_table(user_pagetab[j],
-            (u32_t*) ((u32_t)base_user_address) + (i * 4096 * 1024),
-            PAGE_RW | PAGE_P | PAGE_US);
-          ptd_map(kerndir, module_address + j, user_pagetab[j], PAGE_RW | PAGE_P | PAGE_US);
-          //top = mod[i].mod_end;
-        }
-      }
-    }
 
-    //printk(INFO, "Base physical address 0x%x, size 0x%x, mapping at 0x%x\n", base_user_address, user_size, SERVICE_START);
+	if (nmods > 0) {
+		unsigned int j = 0;
+		multiboot_module_t *mod = (multiboot_module_t*)mods;
+		u32_t module_address = 0;
 
-    printk(INFO, "Loading page directory\n");
-    ptd_load(kerndir);
+		for (i = 0; i < nmods; i++) {
+			cmdline = (char*)mod[i].cmdline;
+			module_address = hextol(cmdline);
+			printk(INFO, "Mapping multiboot Module %d \"%s\" [%x:%x] to 0x%08x\n",
+				i, mod[i].cmdline, mod[i].mod_start, mod[i].mod_end, module_address);
 
-    printk(INFO, "Enabling paging\n");
-    asm volatile("mov %%cr0, %0" : "=r"(cr0));
-    cr0 |= 0x80000000;
-    asm volatile("mov %0, %%cr0" : : "r"(cr0));
-    printk (INFO, "OK\n");
+			if (cmdline[8] == '-') {
+				user_entry_point = hextol(&cmdline[9]);
+			}
 
-    printk(INFO, "Finished\n");
+			for (j = 0; j <= (user_size / (PAGE_SIZE))+1; j++) {
+				//printk(DEBUG, "Mapping physical address %08x to virtual %08x\n", mod[i].mod_start + (j * 4096), module_address + (j * 4096));
+				pgtbl_mapping_add(pgtbl, module_address + (j * 4096), mod[i].mod_start + (j * 4096), PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_USER);
+			}
+		}
+		user_stack_physical = base_user_address + user_size + (PAGE_SIZE*2) + USER_STACK_SIZE;
+		user_stack_address = 0x7fff0000;
+	}
+
+	printk(INFO, "Reserving a user-space stack at v:0x%08x, p:0x%08x\n", user_stack_address, user_stack_physical);
+	for (i = 0; i < USER_STACK_SIZE / PAGE_SIZE; i++) {
+		//printk(DEBUG, "Mapping physical address %08x to virtual %08x\n", user_stack_physical - USER_STACK_SIZE + i * PAGE_SIZE, user_stack_address - USER_STACK_SIZE + i * PAGE_SIZE);
+		pgtbl_mapping_add(pgtbl,
+			user_stack_physical - USER_STACK_SIZE + i * PAGE_SIZE,
+			user_stack_address - USER_STACK_SIZE + i * PAGE_SIZE,
+			PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_USER);
+	}
+
+	printk(INFO, "Loading page directory\n");
+	pgtbl_update(pgtbl);
+
+	printk(INFO, "Enabling paging\n");
+	asm volatile("mov %%cr0, %0" : "=r"(cr0));
+	cr0 |= 0x80000000;
+	asm volatile("mov %0, %%cr0" : : "r"(cr0));
+	printk(INFO, "OK\n");
+
+	printk(INFO, "Finished\n");
 }

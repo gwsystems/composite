@@ -3,6 +3,7 @@
 
 enum log_level {
     RAW,
+    DEBUG,
     INFO,
     WARN,
     ERROR,

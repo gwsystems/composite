@@ -4,7 +4,7 @@ CC := gcc -m32
 LD := ld -m elf_i386
 AS := as --32 -g
 
-CFLAGS := -g3 -Werror -ffreestanding -nostdlib -mno-red-zone -I../../kernel/include
+CFLAGS := -g3 -Werror -ffreestanding -Wno-unused -nostdlib -mno-red-zone -I../../kernel/include -DNDEBUG
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs 
 
 KERNEL := kernel.img

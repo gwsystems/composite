@@ -1,11 +1,14 @@
 #ifndef CHAL_PLAT_H
 #define CHAL_PLAT_H
 
+#if 0
 #include <linux/sched.h>
 #include <linux/kernel.h>
+#endif
 
-void *chal_pa2va(void *pa);
+//void *chal_pa2va(void *pa);
 
+#if 0
 struct per_core_cos_thd
 {
 	struct task_struct *cos_thd;
@@ -34,6 +37,7 @@ __chal_pgtbl_switch(paddr_t pt)
 
 	return;
 }
+#endif
 
 /*
  * If for some reason Linux preempts the composite thread, then when
@@ -43,10 +47,16 @@ __chal_pgtbl_switch(paddr_t pt)
 static inline void 
 chal_pgtbl_switch(paddr_t pt)
 {
+#if 0
 	native_write_cr3(pt);
 	__chal_pgtbl_switch(pt);
+#else
+	u32_t d = (u32_t)chal_va2pa((void*)pt); /*PGTBL_PRESENT;*/
+	asm volatile("mov %0, %%cr3" : : "r"(d));
+#endif
 }
 
+#if 0
 static inline unsigned int 
 hpage_index(unsigned long n)
 {
@@ -79,5 +89,6 @@ chal_flush_tlb(void)
 {
 	native_write_cr3(native_read_cr3());
 }
+#endif
 
 #endif	/* CHAL_PLAT_H */

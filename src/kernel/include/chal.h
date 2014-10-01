@@ -40,14 +40,14 @@
  * 
  * This function must be specified in the chal_plat.h file.
  */
-static inline void chal_pgtbl_switch(paddr_t pt);
+//static inline void chal_pgtbl_switch(paddr_t pt);
 /* 
  * Switch any backing data-structures for the "current" page-table,
  * but _not_ the actual loaded page-tables.
  * 
  * This function must be specified in the chal_plat.h file.
  */
-static inline void __chal_pgtbl_switch(paddr_t pt);
+//static inline void __chal_pgtbl_switch(paddr_t pt);
 
 /* Add a page to pgtbl at address. 0 on success */
 int     chal_pgtbl_add(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr, int flags);

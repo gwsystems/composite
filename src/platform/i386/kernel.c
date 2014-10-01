@@ -15,7 +15,7 @@
 
 void kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp);
 extern u32_t user_size;
-extern u32_t *base_user_address;
+extern u32_t base_user_address;
 int keep_kernel_running = 1;
 
 void 
@@ -50,8 +50,8 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
   if (mboot_magic == MULTIBOOT_EAX_MAGIC) {
     printk(INFO, "Multiboot kernel\n");
     printk(INFO, "Mem Size: %d\n", mboot->mem_lower + mboot->mem_upper);
-    base_user_address = (u32_t*)(mboot->mods_addr + 0x1000);
-    user_size = multiboot__print(mboot) - (u32_t)base_user_address;
+    base_user_address = (u32_t)(mboot->mods_addr + 0x1000);
+    user_size = multiboot__print(mboot) - base_user_address;
   } else {
     die("Not started from a multiboot loader!\n");
   }
