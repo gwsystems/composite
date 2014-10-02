@@ -14,7 +14,7 @@
 #include "shared/cos_types.h"
 #include "ertrie.h"
 #include "shared/util.h"
-#include "errno.h"
+//#include "errno.h"
 
 #ifndef CACHELINE_SIZE
 #define CACHELINE_SIZE  64

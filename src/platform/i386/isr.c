@@ -1,7 +1,6 @@
 #include "shared/cos_types.h"
-#include "printk.h"
-#include "serial.h"
-#include "ports.h"
+#include "kernel.h"
+#include "io.h"
 #include "isr.h"
 
 #define NUM_INTERRUPT_HANDLERS 256

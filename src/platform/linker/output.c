@@ -830,7 +830,7 @@ output_image(struct service_symbs *services)
 	image_base = s->lower_addr;
 	printl(PRINT_DEBUG, "Image base is 0x%08x\n", image_base);
 	
-	entry_point = get_symb_address(&s->exported, "sched_init");
+	entry_point = get_symb_address(&s->exported, "sched_init_inv");
 	printl(PRINT_DEBUG, "Entry point is at 0x%08x\n", entry_point);
 
         sprintf(image_filename, "%08x-%08x", image_base, entry_point);

@@ -1,6 +1,5 @@
 #include "string.h"
 #include "vtxprintf.h"
-#include "serial.h"
 
 void *
 memcpy(void *dst, const void *src, size_t count)
@@ -24,28 +23,6 @@ memset(void *dst, int c, size_t count)
     return dst;
 }
 
-void *
-wmemset(void *dst, int c, size_t count)
-{
-    unsigned short *tmp = (unsigned short *)dst;
-
-    for (; count != 0; count--)
-        *tmp++ = c;
-
-    return dst;
-}
-
-size_t 
-strlen(const char *str)
-{
-    size_t ret;
-
-    for (ret = 0; *str != '\0'; str++)
-        ret++;
-
-    return ret;
-}
-
 size_t 
 strnlen(const char *str, size_t max)
 {
@@ -54,15 +31,6 @@ strnlen(const char *str, size_t max)
         ret++;
 
     return ret;
-}
-
-int 
-strcmp(const char *s1, const char *s2)
-{
-    while (*s1 && *s2 && *s1 == *s2)
-        s1++, s2++;
-    
-    return *s1 - *s2;
 }
 
 static char *str_buf;

@@ -1,9 +1,7 @@
-#include "shared/cos_types.h"
+#include "kernel.h"
 #include "string.h"
-#include "idt.h"
 #include "isr.h"
-#include "printk.h"
-#include "ports.h"
+#include "io.h"
 
 /* Information taken from: http://wiki.osdev.org/PIC */
 /* FIXME:  Remove magic numbers and replace with this */
@@ -30,8 +28,6 @@
 #define ICW4_SFNM       0x10        /* Special fully nested (not) */
 #define ICW1_ICW4       0x01 
 
-
-
 struct idt_entry {
     u16_t base_lo;   // Lower 16 bits of address to jump too after int
     u16_t sel;       // Kernel segment selector
@@ -49,6 +45,39 @@ struct idt_ptr {
 #define NUM_IDT_ENTRIES 256
 
 extern void idt_flush(u32_t);
+
+extern void isr0(void);
+extern void isr1(void);
+extern void isr2(void);
+extern void isr3(void);
+extern void isr4(void);
+extern void isr5(void);
+extern void isr6(void);
+extern void isr7(void);
+extern void isr8(void);
+extern void isr9(void);
+extern void isr10(void);
+extern void isr11(void);
+extern void isr12(void);
+extern void isr13(void);
+extern void isr14(void);
+extern void isr15(void);
+extern void isr16(void);
+extern void isr17(void);
+extern void isr18(void);
+extern void isr19(void);
+extern void isr20(void);
+extern void isr21(void);
+extern void isr22(void);
+extern void isr23(void);
+extern void isr24(void);
+extern void isr25(void);
+extern void isr26(void);
+extern void isr27(void);
+extern void isr28(void);
+extern void isr29(void);
+extern void isr30(void);
+extern void isr31(void);
 
 struct idt_entry idt_entries[NUM_IDT_ENTRIES];
 struct idt_ptr idt_ptr;
@@ -81,7 +110,7 @@ remap_irq_table(void)
 #endif
 
 void 
-idt__init(void)
+idt_init(void)
 {
     idt_ptr.limit = (sizeof(struct idt_entry) * NUM_IDT_ENTRIES) - 1;
     idt_ptr.base  = (u32_t)&idt_entries;

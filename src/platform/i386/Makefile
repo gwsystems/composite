@@ -4,7 +4,7 @@ CC := gcc -m32
 LD := ld -m elf_i386
 AS := as --32 -g
 
-CFLAGS := -g3 -Werror -ffreestanding -Wno-unused -nostdlib -mno-red-zone -I../../kernel/include -DNDEBUG
+CFLAGS := -g3 -Werror -ffreestanding -Wno-unused -nostdlib -mno-red-zone -I../../kernel/include
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs 
 
 KERNEL := kernel.img
@@ -32,17 +32,14 @@ OBJS += gdt.o
 OBJS += isr.o
 OBJS += idt.o
 OBJS += vm.o
-OBJS += vga.o
-OBJS += timer.o
 OBJS += printk.o
-OBJS += kbd.o
 OBJS += string.o
-OBJS += serial.o
-OBJS += ports.o
 OBJS += vtxprintf.o
-OBJS += multiboot.o
 OBJS += tss.o
 OBJS += user.o
+OBJS += serial.o
+OBJS += timer.o
+#OBJS += console.o
 
 all: $(KERNEL)
 

@@ -1,8 +1,9 @@
-#include "printk.h"
+#define ENABLE_TIMER
+
 #include "isr.h"
 #include "shared/cos_types.h"
-#include "ports.h"
-#include "timer.h"
+#include "io.h"
+#include "kernel.h"
 
 #define PIT_A       0x40
 #define PIT_B       0x41
@@ -12,7 +13,7 @@
 #define PIT_MASK    0xFF
 #define PIT_SCALE   1193180
 
-static clock_t tick = 0;
+static long tick = 0;
 
 static void
 timer_callback(struct registers *regs)
@@ -26,12 +27,12 @@ timer_callback(struct registers *regs)
 }
 
 void 
-timer__init(u32_t frequency)
+timer_init(u32_t frequency)
 {
     u32_t divisor;
 
-    printk(INFO, "Initalizing timer\n");
-    register_interrupt_handler(IRQ0, &timer_callback);
+    printk(INFO, "Enabling timer\n");
+    register_interrupt_handler(IRQ0, timer_callback);
 
     divisor = PIT_SCALE / frequency;
     

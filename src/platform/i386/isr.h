@@ -1,5 +1,5 @@
-#ifndef _ISR_H_
-#define _ISR_H_
+#ifndef ISR_H
+#define ISR_H
 
 #include "shared/cos_types.h"
 
@@ -62,4 +62,4 @@ typedef void (*isr_t)(struct registers *);
 
 void register_interrupt_handler(u16_t n, isr_t handler);
 
-#endif
+#endif /* ISR_H */

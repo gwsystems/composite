@@ -1,19 +1,27 @@
-#include "shared/cos_types.h"
+/* error numbers required by eitre.h (included by pgtbl.h) */
+#define EINVAL	22
+#define EPERM	1
+#define EEXIST	17
+#define ENOENT	2
+
+#include "string.h"
+#include "assert.h"
+#include <pgtbl.h>
+
 #include "multiboot.h"
-#include "printk.h"
+#include "kernel.h"
 #include "string.h"
 #include "isr.h"
-#include "vm.h"
 
 #define POSSIBLE_FRAMES 1024*1024
-#define USER_STACK_SIZE (PAGE_SIZE * 4)
+#define USER_STACK_SIZE PAGE_SIZE
 
-u32_t user_size;
-u32_t base_user_address;
 u32_t user_entry_point;
 u32_t user_stack_address;
 
 pgtbl_t pgtbl;
+static u32_t pgdir[1024] __attribute__((aligned(4096)));
+static u32_t pte[1024][1024] __attribute__((aligned(4096)));
 
 static int
 xdtoi(char c)
@@ -37,18 +45,6 @@ void *
 chal_pa2va(void *address)
 {
 	return address;
-#if 0
-	pt_t *table = (pt_t*) &pgtbl[(u32_t)address >> 22];
-	pte_t page;
-
-	if (!((u32_t)*table & PGTBL_PRESENT)) return 0;
-
-	page = (pte_t)table[((u32_t)address >> 12) & 0x0fff];
-
-	if (!(page & PGTBL_PRESENT)) return 0;
-
-	return (void*)((page & PGTBL_FRAME_MASK) + ((u32_t)page & 0x0fff));
-#endif
 }
 
 void *
@@ -75,25 +71,27 @@ page_fault(struct registers *regs)
 }
 
 void
-paging__init(u32_t memory_size, u32_t nmods, u32_t *mods)
+paging_init(u32_t memory_size, u32_t nmods, u32_t *mods)
 {
 	char *cmdline;
 	u32_t cr0;
 	u32_t i;
 	u32_t user_stack_physical;
-	u32_t pgdir[1024] __attribute__((aligned(4096)));
 
 	printk(INFO, "Initializing paging\n");
 	printk(INFO, "MEMORY_SIZE: %dMB (%d page frames)\n", memory_size/1024, memory_size/4);
 
 	printk(INFO, "Registering page fault handler\n");
-	register_interrupt_handler(14, &page_fault);
+	register_interrupt_handler(14, page_fault);
 
-	printk(INFO, "Allocating page table\n");
+	printk(INFO, "Allocating page table from 0x%08x\n", pgdir);
 	pgtbl = pgtbl_alloc(pgdir);
+	for (i = 0; i < 1024; i++) {
+		pgtbl_intern_expand(pgtbl, i * PAGE_SIZE * 1024, &pte[i], PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_GLOBAL);
+	}
 	printk(INFO, "Allocated at 0x%08x\n", pgtbl);
 
-	for (i = 0; i < base_user_address / (PAGE_SIZE); i++) {
+	for (i = 0; i < (u32_t)mods / (PAGE_SIZE); i++) {
 		//printk(DEBUG, "Mapping physical address %08x to virtual %08x\n",  i * 4096,  i * 4096);
 		pgtbl_mapping_add(pgtbl, i * 4096, i * 4096, PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_GLOBAL);
 	}
@@ -113,21 +111,24 @@ paging__init(u32_t memory_size, u32_t nmods, u32_t *mods)
 				user_entry_point = hextol(&cmdline[9]);
 			}
 
-			for (j = 0; j <= (user_size / (PAGE_SIZE))+1; j++) {
+			for (j = 0; j <= ((mod[i].mod_end - mod[i].mod_start) / (PAGE_SIZE))+1; j++) {
 				//printk(DEBUG, "Mapping physical address %08x to virtual %08x\n", mod[i].mod_start + (j * 4096), module_address + (j * 4096));
 				pgtbl_mapping_add(pgtbl, module_address + (j * 4096), mod[i].mod_start + (j * 4096), PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_USER);
 			}
+			if (mod[i].mod_end > user_stack_physical) {
+				user_stack_physical = mod[i].mod_end;
+			}
 		}
-		user_stack_physical = base_user_address + user_size + (PAGE_SIZE*2) + USER_STACK_SIZE;
+		user_stack_physical = (user_stack_physical + USER_STACK_SIZE + PAGE_SIZE) & PGTBL_FRAME_MASK;
 		user_stack_address = 0x7fff0000;
 	}
 
 	printk(INFO, "Reserving a user-space stack at v:0x%08x, p:0x%08x\n", user_stack_address, user_stack_physical);
-	for (i = 0; i < USER_STACK_SIZE / PAGE_SIZE; i++) {
+	for (i = 0; i < (USER_STACK_SIZE / PAGE_SIZE); i++) {
 		//printk(DEBUG, "Mapping physical address %08x to virtual %08x\n", user_stack_physical - USER_STACK_SIZE + i * PAGE_SIZE, user_stack_address - USER_STACK_SIZE + i * PAGE_SIZE);
 		pgtbl_mapping_add(pgtbl,
-			user_stack_physical - USER_STACK_SIZE + i * PAGE_SIZE,
-			user_stack_address - USER_STACK_SIZE + i * PAGE_SIZE,
+			user_stack_physical - USER_STACK_SIZE + (i * PAGE_SIZE),
+			user_stack_address - USER_STACK_SIZE + (i * PAGE_SIZE),
 			PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_USER);
 	}
 

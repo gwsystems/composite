@@ -1,27 +1,8 @@
 /* Based on code from Pintos. See LICENSE.pintos for licensing information */
 
-#include "gdt.h"
-#include "shared/cos_types.h"
+#include "kernel.h"
 #include "tss.h"
 
-/* The Global Descriptor Table (GDT).
-
-   The GDT, an x86-specific structure, defines segments that can
-   potentially be used by all processes in a system, subject to
-   their permissions.  There is also a per-process Local
-   Descriptor Table (LDT) but that is not used by modern
-   operating systems.
-
-   Each entry in the GDT, which is known by its byte offset in
-   the table, identifies a segment.  For our purposes only three
-   types of segments are of interest: code, data, and TSS or
-   Task-State Segment descriptors.  The former two types are
-   exactly what they sound like.  The TSS is used primarily for
-   stack switching on interrupts.
-
-   For more information on the GDT as used here, refer to
-   [IA32-v3a] 3.2 "Using Segments" through 3.5 "System Descriptor
-   Types". */
 static u64_t gdt[SEL_CNT];
 
 /* GDT helpers. */
@@ -33,7 +14,7 @@ static u64_t make_gdtr_operand (u16_t limit, void *base);
 /* Sets up a proper GDT.  The bootstrap loader's GDT didn't
    include user-mode selectors or a TSS, but we need both now. */
 void
-gdt__init (void)
+gdt_init (void)
 {
   u64_t gdtr_operand;
 
@@ -43,7 +24,7 @@ gdt__init (void)
   gdt[SEL_KDSEG / sizeof *gdt] = make_data_desc (0);
   gdt[SEL_UCSEG / sizeof *gdt] = make_code_desc (3);
   gdt[SEL_UDSEG / sizeof *gdt] = make_data_desc (3);
-  gdt[SEL_TSS / sizeof *gdt] = make_tss_desc (tss_get ());
+  gdt[SEL_TSS / sizeof *gdt] = make_tss_desc (&tss);
 
   /* Load GDTR, TR.  See [IA32-v3a] 2.4.1 "Global Descriptor
      Table Register (GDTR)", 2.4.4 "Task Register (TR)", and
@@ -52,7 +33,7 @@ gdt__init (void)
   asm volatile ("lgdt %0" : : "m" (gdtr_operand));
   asm volatile ("ltr %w0" : : "q" (SEL_TSS));
 }
-
+
 /* System segment or code/data segment? */
 enum seg_class
   {
@@ -135,7 +116,6 @@ make_tss_desc (void *laddr)
 {
   return make_seg_desc ((u32_t) laddr, 0x67, CLS_SYSTEM, 9, 0, GRAN_BYTE);
 }
-
 
 /* Returns a descriptor that yields the given LIMIT and BASE when
    used as an operand for the LGDT instruction. */

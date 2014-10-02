@@ -1,10 +1,12 @@
-#include "ports.h"
+#ifndef IO_H
+#define IO_H
+
 #include "shared/cos_types.h"
 
 /**
  * Write byte to specific port
  */
-__inline__ void 
+static inline void 
 outb(u16_t port, u8_t value)
 {
     __asm__ __volatile__("outb %1, %0" : : "dN" (port), "a" (value));
@@ -13,7 +15,7 @@ outb(u16_t port, u8_t value)
 /**
  * Read byte from port
  */
-__inline__ u8_t 
+static inline u8_t 
 inb(u16_t port)
 {
     u8_t ret;
@@ -28,7 +30,7 @@ inb(u16_t port)
 /**
  * Read word (16 bit value) from port
  */
-__inline__ u16_t
+static inline u16_t
 inw(u16_t port)
 {
     u16_t ret;
@@ -39,7 +41,7 @@ inw(u16_t port)
     return ret;
 }
 
-__inline__ void
+static inline void
 io_wait(void)
 {
     /* Port 0x80 is being used for 'checkpoints' during POST,
@@ -50,3 +52,5 @@ io_wait(void)
             : : "a"(0) );
 }
 
+
+#endif /* IO_H */

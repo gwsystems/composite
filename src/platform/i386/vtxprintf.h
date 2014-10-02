@@ -17,8 +17,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef __CONSOLE_VTXPRINTF_H
-#define __CONSOLE_VTXPRINTF_H
+#ifndef VTXPRINTF_H
+#define VTXPRINTF_H
 
 /* With GCC we use -nostdinc -ffreestanding to keep out system includes.
  * Unfortunately this also gets us rid of the _compiler_ includes, like
@@ -36,4 +36,4 @@ typedef __builtin_va_list	va_list;
 
 int vtxprintf(void (*tx_byte)(unsigned char byte), const char *fmt, va_list args);
 
-#endif
+#endif /* VTXPRINTF_H */

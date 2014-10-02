@@ -1,11 +1,19 @@
-#include "ports.h"
+#define ENABLE_CONSOLE
+
+#include "shared/cos_types.h"
+
+#include "io.h"
 #include "string.h"
-#include "vga.h"
+#include "isr.h"
+#include "kernel.h"
 
 #define VIDEO_MEM 0xb8000
 
 #define VGA_CTL_REG  0x3D4
 #define VGA_DATA_REG 0x3D5
+
+#define KEY_DEVICE    0x60
+#define KEY_PENDING   0x64
 
 #define COLUMNS 80
 #define LINES 25
@@ -32,6 +40,8 @@ enum vga_colors {
     LIGHT_BROWN,
     WHITE
 };
+
+void *wmemset(void *dst, int c, size_t count);
 
 static u16_t *video_mem = (u16_t *)VIDEO_MEM;
 static u8_t cursor_x;
@@ -115,5 +125,35 @@ vga__clear(void)
     u8_t color = gen_color(WHITE, BLACK);
     u16_t blank = ((u8_t)' ') | color << 8;
     wmemset(video_mem, blank, COLUMNS*LINES);
+}
+
+static void
+keyboard_handler(struct registers *regs)
+{
+	u16_t scancode;
+	while(inb(KEY_PENDING) & 2) {
+		/* wait for keypress to be ready */
+	}
+	scancode = inb(KEY_DEVICE);
+	printk(INFO, "Keyboard press: %d\n", scancode);
+}
+
+void
+console_init(void)
+{ 
+	vga__clear();
+	printk_register_handler(vga__puts);
+	register_interrupt_handler(IRQ1, keyboard_handler);
+}
+
+void *
+wmemset(void *dst, int c, size_t count)
+{
+    unsigned short *tmp = (unsigned short *)dst;
+
+    for (; count != 0; count--)
+        *tmp++ = c;
+
+    return dst;
 }
 

@@ -1,7 +1,5 @@
-/* vim: tabstop=4 shiftwidth=4 noexpandtab
- */
-#ifndef _MULTIBOOT_H_
-#define _MULTIBOOT_H_
+#ifndef MULTIBOOT_H
+#define MULTIBOOT_H
 
 #include "shared/cos_types.h"
 
@@ -54,6 +52,4 @@ typedef struct multiboot_mod_list
        u32_t pad;
 } multiboot_module_t;
 
-u32_t multiboot__print(struct multiboot *mboot);
-
-#endif
+#endif /* MULTIBOOT_H */
