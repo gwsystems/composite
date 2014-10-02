@@ -110,6 +110,7 @@ struct pt_regs {
 /* how many pages in a collection. Should consider cacheline
  * size. Multiple of 16 on x86. */
 #define RETYPE_MEM_NPAGES        (32)
+#define RETYPE_MEM_SIZE          (RETYPE_MEM_NPAGES * PAGE_SIZE)
 
 #include "../asm_ipc_defs.h"
 

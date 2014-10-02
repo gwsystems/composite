@@ -56,7 +56,7 @@ kmem_deact_post(unsigned long *pte, unsigned long old_v, livenessid_t kmem_lid)
 		cos_throw(err, -ECASFAIL);
 	}
 
-	ret = retypetbl_deref((void *)(old_v & PGTBL_FRAME_MASK), RETYPETBL_KERN);
+	ret = retypetbl_deref((void *)(old_v & PGTBL_FRAME_MASK));
 	if (ret) {
 		/* FIXME: handle this case? */
 		cos_cas(pte, new_v, old_v);
@@ -67,6 +67,31 @@ kmem_deact_post(unsigned long *pte, unsigned long old_v, livenessid_t kmem_lid)
 	return 0;
 err:
 	return ret;
+}
+
+int 
+tlb_quiescence_check(u64_t unmap_time)
+{
+	int i, quiescent = 1;
+
+	/* Did timer interrupt (which does tlb flush
+	 * periodically) happen after unmap? The periodic
+	 * flush happens on all cpus, thus only need to check
+	 * the time stamp of the current core for that case
+	 * (assuming consistent time stamp counters). */
+	if (unmap_time > tlb_quiescence[get_cpuid()].last_periodic_flush) {
+		/* If no periodic flush done yet, did the
+		 * mandatory flush happen on all cores? */
+		for (i = 0; i < NUM_CPU_COS; i++) {
+			if (unmap_time > tlb_quiescence[i].last_mandatory_flush) {
+				/* no go */
+				quiescent = 0;
+				break;
+			}
+		}
+	}
+
+	return quiescent;
 }
 
 int

@@ -500,8 +500,9 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, va
 		} 
 		while (left > 0) {
 			//FIXME: use kmem if (flag & MAPPING_KMEM)
-
 			vaddr_t addr = get_pmem_cap();
+
+			if (!addr) BUG();
 			if (call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY,
 					addr, pgtbl_cap, dest_daddr, 0)) BUG();
 
@@ -627,8 +628,8 @@ static void init_cosframes(void)
 		}
 		kmem_cap += (RETYPE_MEM_NPAGES*PAGE_SIZE);
 	}
-	
 
+	
 }
 
 static void 

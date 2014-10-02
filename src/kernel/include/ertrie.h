@@ -286,8 +286,8 @@ __ert_expand(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *
 		n = __ert_walk(n, id, accum, depth-i, ERT_CONST_ARGS);
 		/* don't overwrite a value, unless we want to set it to the initval */
 		if (data != initval && !isnullfn(n, accum, 0)) return 1;
-		/* return -1 if CAS fails */
-		if (setleaffn(n, data)) return -1;
+
+		if (setleaffn(n, data)) return -ECASFAIL;
 	}
 	return 0;
 }

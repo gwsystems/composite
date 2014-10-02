@@ -60,35 +60,6 @@ cap_capdeactivate(struct cap_captbl *ct, capid_t capin, cap_t type, livenessid_t
 	return captbl_del(ct->captbl, capin, type, lid); 
 }
 
-/* 
- * Page-table-based capability operations for activation and
- * deactivation.
- */
-
-static inline int
-cap_memactivate(struct captbl *t, capid_t cap, capid_t capin, u32_t page, u32_t flags)
-{
-	struct cap_pgtbl *pt;
-	
-	pt = (struct cap_pgtbl *)captbl_lkup(t, cap);
-	if (unlikely(!pt)) return -ENOENT;
-	if (unlikely(pt->h.type != CAP_PGTBL)) return -EINVAL;
-
-	return pgtbl_mapping_add(pt->pgtbl, capin, page, flags);
-}
-
-static inline int
-cap_memdeactivate(struct captbl *t, capid_t cap, unsigned long addr, livenessid_t lid)
-{
-	struct cap_pgtbl *pt;
-	
-	assert(t);
-	pt = (struct cap_pgtbl *)captbl_lkup(t, cap);
-	if (unlikely(!pt)) return -ENOENT;
-	if (unlikely(pt->h.type != CAP_PGTBL)) return -EINVAL;
-	return pgtbl_mapping_del(pt->pgtbl, addr, lid);
-}
-
 static inline int
 cap_kmem_activate(struct captbl *t, capid_t cap, unsigned long addr, unsigned long *kern_addr)
 {

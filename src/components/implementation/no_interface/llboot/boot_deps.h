@@ -242,13 +242,28 @@ vaddr_t get_kmem_cap(void) {
 
 static vaddr_t pmem_heap = BOOT_MEM_PM_BASE;
 
+/* Only called by the init core. No lock / atomic op required. */
 vaddr_t get_pmem_cap(void) {
-	vaddr_t ret;
+	int ret;
+	vaddr_t heap_vaddr;
 
-	ret = pmem_heap;
+	if (pmem_heap % RETYPE_MEM_SIZE == 0) {
+		/* Retype this region as user memory before use. */
+		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2USER,
+				  pmem_heap, 0, 0, 0);
+
+		if (ret) return 0;
+	}
+
+	heap_vaddr = (vaddr_t)cos_get_heap_ptr();
+	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_ACTIVATE,
+			  pmem_heap, BOOT_CAPTBL_SELF_PT, heap_vaddr, 0);
+	if (ret) return 0;
+
 	pmem_heap += PAGE_SIZE;
+	cos_set_heap_ptr((void *)(heap_vaddr + PAGE_SIZE));
 
-	return ret;
+	return heap_vaddr;
 }
 
 static u32_t liv_id_heap = BOOT_LIVENESS_ID_BASE;
@@ -264,33 +279,35 @@ u64_t get_liv_id(void) {
 static vaddr_t
 __local_mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 {
-	int frame_id;
+	return 0;
+	/* int frame_id; */
 
-	if (flags & MAPPING_KMEM) {
-		frame_id = kern_frame_frontier++;
-	} else {
-		frame_id = frame_frontier++;
-	}
+	/* if (flags & MAPPING_KMEM) { */
+	/* 	frame_id = kern_frame_frontier++; */
+	/* } else { */
+	/* 	frame_id = frame_frontier++; */
+	/* } */
 
-	if (cos_mmap_cntl(COS_MMAP_GRANT, flags, cos_spd_id(), addr, frame_id)) BUG();
+	/* if (cos_mmap_cntl(COS_MMAP_GRANT, flags, cos_spd_id(), addr, frame_id)) BUG(); */
 
-	return addr;
+	/* return addr; */
 }
 
 static vaddr_t
 __local_mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr, int flags)
 {
-	int frame_id;
+	return 0;
+	/* int frame_id; */
 
-	if (flags & MAPPING_KMEM) {
-		frame_id = kern_frame_frontier - 1;
-	} else {
-		frame_id = frame_frontier - 1;
-	}
+	/* if (flags & MAPPING_KMEM) { */
+	/* 	frame_id = kern_frame_frontier - 1; */
+	/* } else { */
+	/* 	frame_id = frame_frontier - 1; */
+	/* } */
 
-	if (cos_mmap_cntl(COS_MMAP_GRANT, flags, d_spd, d_addr, frame_id)) BUG();
+	/* if (cos_mmap_cntl(COS_MMAP_GRANT, flags, d_spd, d_addr, frame_id)) BUG(); */
 
-	return d_addr;
+	/* return d_addr; */
 }
 
 static int boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci);

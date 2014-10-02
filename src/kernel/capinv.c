@@ -171,7 +171,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 		}
 		__cap_capactivate_post(ctto, type);
 	} else if (cap_type == CAP_PGTBL) {
-		unsigned long *f;
+		unsigned long *f, old_v;
 		u32_t flags;
 
 		ctto = captbl_lkup(t, cap_to);
@@ -180,10 +180,14 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 
 		f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
 		if (!f) return -ENOENT;
+		old_v = *f;
+
+		/* Cannot copy frame, or kernel entry. */
+		if ((old_v & PGTBL_COSFRAME) || !(old_v & PGTBL_USER)) return -EPERM;
 		
 		/* TODO: validate the type is appropriate given the value of *flags */
 		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, 
-					capin_to, *f & PGTBL_FRAME_MASK, flags);
+					capin_to, old_v & PGTBL_FRAME_MASK, flags);
 	} else {
 		ret = -EINVAL;
 	}
@@ -293,7 +297,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 		struct cap_thd *thd_cap = (struct cap_thd *)ch;
 		struct thread *next = thd_cap->t;
 
-		if (thd_cap->cpuid != get_cpuid()) cos_throw(err, EINVAL);
+		if (thd_cap->cpuid != get_cpuid()) cos_throw(err, -EINVAL);
 		assert(thd_cap->cpuid == next->cpuid);
 
 		// QW: hack!!! for ppos test only. remove!
@@ -323,7 +327,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			arcv = (struct cap_arcv *)captbl_lkup(asnd->comp_info.captbl, asnd->arcv_capid);
 			if (unlikely(arcv->h.type != CAP_ARCV)) {
 				printk("cos: IPI handling received invalid arcv cap %d\n", asnd->arcv_capid);
-				cos_throw(err, EINVAL);
+				cos_throw(err, -EINVAL);
 			}
 			
 			return cap_switch_thd(regs, thd, arcv->thd, cos_info);
@@ -336,7 +340,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 		/*FIXME: add epoch checking!*/
 
 		if (arcv->thd != thd) {
-			cos_throw(err, EINVAL);
+			cos_throw(err, -EINVAL);
 		}
 
 		/* Sanity checks */
@@ -604,7 +608,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			if (unlikely(ret)) cos_throw(err, ret);
 
 			target_ct = (struct cap_captbl *)captbl_lkup(ct, target);
-			if (target_ct->h.type != CAP_CAPTBL) cos_throw(err, EINVAL);
+			if (target_ct->h.type != CAP_CAPTBL) cos_throw(err, -EINVAL);
 
 			captbl_init(captbl_mem, 1);
 			ret = captbl_expand(target_ct->captbl, target_id, captbl_maxdepth(), captbl_mem);
@@ -651,47 +655,76 @@ composite_sysenter_handler(struct pt_regs *regs)
 			//TODO: pgtbl decons
 			break;
 		}
-		case CAPTBL_OP_MAPPING_CONS:
-		{
-			break;
-		}
+		/* case CAPTBL_OP_MAPPING_CONS: */
+		/* { */
+		/* 	break; */
+		/* } */
 		case CAPTBL_OP_MAPPING_DECONS:
 		{
 			vaddr_t addr      = __userregs_get1(regs);
 			livenessid_t lid  = __userregs_get2(regs);
 
-			if (((struct cap_pgtbl *)ch)->lvl) cos_throw(err, EINVAL);
+			if (((struct cap_pgtbl *)ch)->lvl) cos_throw(err, -EINVAL);
 			
 			ret = pgtbl_mapping_del(((struct cap_pgtbl *)ch)->pgtbl, addr, lid);
 			
 			break;
 		}
+		case CAPTBL_OP_MEM_ACTIVATE:
+		{
+			capid_t frame_cap = __userregs_get1(regs);
+			capid_t dest_pt   = __userregs_get2(regs);
+			vaddr_t vaddr     = __userregs_get3(regs);
+			
+			ret = cap_memactivate(ct, (struct cap_pgtbl *)ch, frame_cap, dest_pt, vaddr);
+
+			break;
+		}
 		case CAPTBL_OP_MEM_RETYPE2USER:
 		{
 			vaddr_t frame_addr = __userregs_get1(regs);
-			
-			ret = retypetbl_retype2user((struct cap_pgtbl *)ch, frame_addr);
+
+			u32_t flags;
+			unsigned long *pte;
+
+			pte = pgtbl_lkup_pte(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &flags);
+			if (!pte) cos_throw(err, -EINVAL);
+
+			ret = retypetbl_retype2user((void *)(*pte & PGTBL_FRAME_MASK));
 
 			break;
 		}
 		case CAPTBL_OP_MEM_RETYPE2KERN:
 		{
 			vaddr_t frame_addr = __userregs_get1(regs);
-			ret = retypetbl_retype2kern((struct cap_pgtbl *)ch, frame_addr);
+
+			u32_t flags;
+			unsigned long *pte;
+
+			pte = pgtbl_lkup_pte(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &flags);
+			if (!pte) cos_throw(err, -EINVAL);
+
+			ret = retypetbl_retype2kern((void *)(*pte & PGTBL_FRAME_MASK));
 
 			break;
 		}
 		case CAPTBL_OP_MEM_RETYPE2FRAME:
 		{
 			vaddr_t frame_addr = __userregs_get1(regs);
-			
-			ret = retypetbl_retype2frame((struct cap_pgtbl *)ch, frame_addr);
+
+			u32_t flags;
+			unsigned long *pte;
+
+			pte = pgtbl_lkup_pte(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &flags);
+			if (!pte) cos_throw(err, -EINVAL);
+
+			ret = retypetbl_retype2frame((void *)(*pte & PGTBL_FRAME_MASK));
 
 			break;
 		}
-		case CAPTBL_OP_MAPPING_MOD:
-		{
-		}
+		/* case CAPTBL_OP_MAPPING_MOD: */
+		/* { */
+		/* } */
 		default: goto err;
 		}
 		break;
@@ -705,7 +738,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 	}
 	default:
 	err:
-		ret = -ENOENT;
+		if (ret == 0) ret = -ENOENT;
 	}
 done:
 	__userregs_set(regs, ret, __userregs_getsp(regs), __userregs_getip(regs));
