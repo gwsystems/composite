@@ -71,8 +71,8 @@ void cos_init(void) {
 		if (ret) {
 			printc("ERROR: arcv ret %d", ret);
 			printc("rcv thd %d switching back to alpha %ld!\n", 
-			       cos_get_thd_id(), SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
-			ret = cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
+			       cos_get_thd_id(), SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
+			ret = cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
 		}
 		rcv++;
 //		if (rcv % 1024 == 0) printc("core %ld: pong rcv %d ipis!\n", cos_cpuid(), rcv);

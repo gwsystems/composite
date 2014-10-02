@@ -64,6 +64,7 @@
 #include "../../../kernel/include/component.h"
 #include "../../../kernel/include/inv.h"
 #include "../../../kernel/include/thd.h"
+#include "../../../kernel/include/retype_tbl.h"
 
 #include "./kconfig_checks.h"
 
@@ -609,7 +610,7 @@ u8_t *boot_comp_pte_vm;
 u8_t *boot_comp_pte_km;
 u8_t *boot_comp_pte_pm;
 
-unsigned long sys_maxmem = 1<<10; /* 4M of physical memory (2^10 pages) */
+unsigned long sys_maxmem = COS_MAX_MEMORY; /* # of physical pages available */
 
 static void *cos_kmem, *cos_kmem_base;
 void *linux_pgd;
@@ -637,6 +638,7 @@ kern_boot_comp(struct spd_info *spd_info)
 	assert(ct);
 
 	/* expand the captbl to use 2 pages. */
+
 	captbl_init(boot_comp_captbl + PAGE_SIZE, 1);
 	ret = captbl_expand(ct, PAGE_SIZE/2/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE);
 	assert(!ret);
@@ -723,11 +725,12 @@ kern_boot_comp(struct spd_info *spd_info)
 	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_COMP, 
 			  BOOT_CAPTBL_COMP0_CT, BOOT_CAPTBL_COMP0_PT, 0, 0, NULL)) cos_throw(err, -1);
 	/* 
-	 * Only capability for the comp0 is 2: the synchronous
+	 * Only capability for the comp0 is 4: the synchronous
 	 * invocation capability.  
 	 */
 	assert(boot_sinv_entry);
-	if (sinv_activate(ct, BOOT_CAPTBL_COMP0_CT, 2, BOOT_CAPTBL_SELF_COMP, boot_sinv_entry)) cos_throw(err, -1);
+
+	if (sinv_activate(ct, BOOT_CAPTBL_COMP0_CT, 4, BOOT_CAPTBL_SELF_COMP, boot_sinv_entry)) cos_throw(err, -1);
 
 	return 0;
 err:
@@ -754,12 +757,13 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		 */
 		rdtscll(s);
 		while (thd_activate(boot_captbl, BOOT_CAPTBL_SELF_CT, 
-				    BOOT_CAPTBL_SELF_INITTHD_BASE + get_cpuid(), 
+				    BOOT_CAPTBL_SELF_INITTHD_BASE + get_cpuid() * captbl_idsize(CAP_THD), 
 				    thd, BOOT_CAPTBL_COMP0_COMP, 0)) {
 			/* CAS could fail on init. */
 			rdtscll(e);
 			if ((e-s) > (1<<30)) return -EFAULT;
 		}
+
 		thd_current_update(thd, thd, cos_cpu_local_info());
 
 		/* Comp0 has only 1 pgtbl, which points to the process
@@ -786,6 +790,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		cap_init();
 		ltbl_init();
+		retype_tbl_init();
 		comp_init();
 		thd_init();
 		inv_init();
@@ -1908,13 +1913,23 @@ PERCPU_VAR(cos_timer_acap);
 /* hack to detect timer interrupt. */
 char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 
+struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
+
 __attribute__((regparm(3))) 
 int main_timer_interposition(struct pt_regs *rs, unsigned int error_code) 
 {
 	struct async_cap *acap = *PERCPU_GET(cos_timer_acap);
+	int curr_cpu = get_cpuid();
 
-	u32_t *ticks = (u32_t *)&timer_detector[get_cpuid() * CACHE_LINE];
+	u32_t *ticks = (u32_t *)&timer_detector[curr_cpu * CACHE_LINE];
 	u32_t last_tick = *ticks;
+	
+	/* TLB quiescence period. */
+	chal_flush_tlb();
+
+	/* Update timestamps for tlb flushes. */
+	rdtscll(tlb_quiescence[curr_cpu].last_periodic_flush);
+	tlb_quiescence[curr_cpu].last_mandatory_flush = tlb_quiescence[curr_cpu].last_periodic_flush;
 
 	*ticks = last_tick+1;
 	cos_mem_fence();

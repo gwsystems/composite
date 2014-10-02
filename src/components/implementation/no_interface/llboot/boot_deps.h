@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <ck_pr.h>
 
 static int 
 prints(char *s)
@@ -250,11 +251,12 @@ vaddr_t get_pmem_cap(void) {
 	return ret;
 }
 
-static u64_t liv_id_heap = BOOT_LIVENESS_ID_BASE;
+static u32_t liv_id_heap = BOOT_LIVENESS_ID_BASE;
 
 u64_t get_liv_id(void) {
 	u64_t ret;
-	ret = liv_id_heap++;
+	/* atomic fetch and add */
+	ret = ck_pr_faa_uint(&liv_id_heap, 1);
 	
 	return ret;
 }
@@ -329,30 +331,36 @@ boot_deps_run_all(void)
 /* Functions using new cap operations below. */
 /*********************************************/
 
-/* We have 2 pages for the captbl of llboot. */
-#define CAP_ID_16B_FREE BOOT_CAPTBL_FREE;            // goes up
-#define CAP_ID_32B_FREE ((PAGE_SIZE+PAGE_SIZE/2)/16 - CAP32B_IDSZ) // goes down
+/* We have 2 pages for the captbl of llboot: 1/2 page for the top
+ * level, 1+1/2 pages for the second level. */
+#define CAP_ID_32B_FREE BOOT_CAPTBL_FREE;            // goes up
+#define CAP_ID_64B_FREE ((PAGE_SIZE + PAGE_SIZE/2)/32 - CAP64B_IDSZ) // goes down
 
-capid_t capid_16b_free = CAP_ID_16B_FREE;
+//capid_t capid_16b_free = CAP_ID_32B_FREE;
 capid_t capid_32b_free = CAP_ID_32B_FREE;
+capid_t capid_64b_free = CAP_ID_64B_FREE;
 
+/* allocate a new capid in the booter. */
 capid_t alloc_capid(cap_t cap)
 {
 	capid_t ret;
 	
-	if (captbl_idsize(cap) == CAP16B_IDSZ)      {
-		ret = capid_16b_free;
-		capid_16b_free += CAP16B_IDSZ;
-	} else if (captbl_idsize(cap) == CAP32B_IDSZ) {
+	if (captbl_idsize(cap) == CAP32B_IDSZ) {
 		ret = capid_32b_free;
-		capid_32b_free -= CAP32B_IDSZ;
+		capid_32b_free += CAP32B_IDSZ;
+	} else if (captbl_idsize(cap) == CAP64B_IDSZ 
+		   || captbl_idsize(cap) == CAP16B_IDSZ) {
+		/* 16B is the uncommon case. Only the sret is 16 bytes
+		 * now. Use an entire cacheline for it as well. */
+
+		ret = capid_64b_free;
+		capid_64b_free -= CAP64B_IDSZ;
 	} else {
-		/* No 64b caps needed for llboot. */
 		ret = 0;
 		BUG();
 	}
 	assert(ret);
-	assert(capid_32b_free >= capid_16b_free);
+	assert(capid_64b_free >= capid_32b_free);
 
 	return ret;
 }
@@ -423,7 +431,7 @@ acap_test(void)
 
 	// grant alpha thd to pong as well
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-			llboot->alpha, pong->captbl_cap, SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid(), 0)) BUG();
+			llboot->alpha, pong->captbl_cap, SCHED_CAPTBL_ALPHATHD_BASE + captbl_idsize(CAP_THD)*cos_cpuid(), 0)) BUG();
 
 	if (cos_cpuid() < (NUM_CPU_COS/2)) { // sending core
 		// create rcv thd in ping. and copy it to ping's captbl.
@@ -491,6 +499,8 @@ int run_ppos_test(void)
 		capid_t pmem = ping->addr_start + PAGE_SIZE;
 		vaddr_t to_addr = ping->addr_start + 0x400000 - NUM_CPU*(PAGE_SIZE*16) + cos_cpuid()*PAGE_SIZE*16;
 		int i, ret;
+		u32_t liv_id = get_liv_id();
+
 #define ITER (100*1000)//(10*1024*1024)
 		rdtscll(s);
 		for (i = 0; i < ITER; i++) {
@@ -502,7 +512,7 @@ int run_ppos_test(void)
 			/* } */
 			assert(!ret);
 			ret = call_cap_op(ping->pgtbl_cap, CAPTBL_OP_MAPPING_DECONS,
-					  to_addr, 0, 0, 0);
+					  to_addr, liv_id, 0, 0);
 			/* if (ret) { */
 			/* 	printc("decons failed on core %d, ret %d\n", cos_cpuid(), ret); */
 			/* 	continue; */
@@ -564,13 +574,13 @@ boot_comp_thds_init(void)
 	capid_t thd_alpha, thd_schedinit;
 
 	/* We reserve 2 caps for each core in the captbl of scheduler */
-	thd_alpha     = SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid();
-	thd_schedinit = SCHED_CAPTBL_INITTHD_BASE  + cos_cpuid();
+	thd_alpha     = SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid() * captbl_idsize(CAP_THD);
+	thd_schedinit = SCHED_CAPTBL_INITTHD_BASE  + cos_cpuid() * captbl_idsize(CAP_THD);
 	assert(thd_alpha && thd_schedinit);
 	assert(thd_schedinit <= SCHED_CAPTBL_LAST);
 
 	ck_spinlock_ticket_lock(&init_lock);
-	llboot->alpha        = BOOT_CAPTBL_SELF_INITTHD_BASE + cos_cpuid();
+	llboot->alpha        = BOOT_CAPTBL_SELF_INITTHD_BASE + cos_cpuid() * captbl_idsize(CAP_THD);
 	llboot->init_thd     = per_core_thd_cap[cos_cpuid()];
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, llboot->init_thd, 
 			BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()], sched_comp->comp_cap)) BUG();
@@ -666,6 +676,36 @@ void comp_deps_run_all(void)
 	/* switch to the init thd in the scheduler. */
 	if (cap_switch_thd(PERCPU_GET(llbooter)->init_thd)) BUG();
 done:
+	//QW: to remove
+	if (cos_cpuid() == 0) {
+		int lid = get_liv_id();
+		int ret = call_cap_op(comp_cap_info[BOOT_INIT_SCHED_COMP].captbl_cap, CAPTBL_OP_SINVDEACTIVATE,
+				      4, lid, 0, 0);
+		assert(ret == 0);
+		ret = call_cap_op(comp_cap_info[BOOT_INIT_SCHED_COMP].captbl_cap, CAPTBL_OP_SINVACTIVATE,
+				      4, comp_cap_info[3].comp_cap, 222, 0);
+		assert(ret == -EQUIESCENCE);
+
+		u64_t s,e;
+		rdtscll(s);
+		while (1) {
+			rdtscll(e);
+			if (QUIESCENCE_CHECK(e, s, KERN_QUIESCENCE_CYCLES)) break;
+		}
+
+		ret = call_cap_op(comp_cap_info[BOOT_INIT_SCHED_COMP].captbl_cap, CAPTBL_OP_SINVACTIVATE,
+				      4, comp_cap_info[3].comp_cap, 222, 0);
+		assert(ret == 0);
+		printc(">>> act / deact quiescence_check passed w/ liveness id %d.\n", lid);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDDEACTIVATE,
+				  PERCPU_GET(llbooter)->init_thd, lid, BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()]);
+		if (ret) {
+			printc(">>>>>>>>>>>>> thd deact ret %d FAILD w/ liveness id %d.\n", ret, lid);
+		}
+		printc(">>> thd deact ret %d w/ liveness id %d.\n", ret, lid);
+	}
+
 	sync_all();
 	printc("Core %ld: exiting system from low-level booter.\n", cos_cpuid());
 

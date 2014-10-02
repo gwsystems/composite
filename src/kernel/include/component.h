@@ -47,13 +47,13 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	compc->info.captbl   = ctc->captbl;
 	compc->info.comp_nfo = sa;
 	ltbl_get(lid, &compc->info.liveness);
-	__cap_capactivate_post(&compc->h, CAP_COMP, 0);
+	__cap_capactivate_post(&compc->h, CAP_COMP);
 
 	return 0;
 }
 
-static int comp_deactivate(struct captbl *t, capid_t cap, capid_t capin)
-{ return cap_capdeactivate(t, cap, capin, CAP_COMP); }
+static int comp_deactivate(struct cap_captbl *ct, capid_t capin, livenessid_t lid)
+{ return cap_capdeactivate(ct, capin, CAP_COMP, lid); }
 
 static void comp_init(void)
 { assert(sizeof(struct cap_comp) <= __captbl_cap2bytes(CAP_COMP)); }

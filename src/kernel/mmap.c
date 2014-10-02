@@ -13,7 +13,7 @@
 /* static struct cos_page cos_pages[COS_MAX_MEMORY]; */
 /* static struct cos_page cos_kernel_pages[COS_KERNEL_MEMORY]; */
 static void *kmem_start;
-static paddr_t kmem_start_pa;
+paddr_t kmem_start_pa;
 
 int cos_init_memory(void) 
 {

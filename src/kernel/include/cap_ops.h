@@ -3,6 +3,7 @@
 
 #include "captbl.h"
 #include "pgtbl.h"
+#include "liveness_tbl.h"
 
 /* 
  * Capability-table, capability operations for activation and
@@ -25,8 +26,8 @@ err:
 }
 
 /* commit the activation */
-static inline void
-__cap_capactivate_post(struct cap_header *h, cap_t type, u16_t poly)
+static inline int
+__cap_capactivate_post(struct cap_header *h, cap_t type)
 {
 	/* 
 	 * FIXME: should be atomic on a word including the amap and
@@ -38,20 +39,25 @@ __cap_capactivate_post(struct cap_header *h, cap_t type, u16_t poly)
 	 * the modifications to the capability body are committed
 	 * before finally activating the cap.
 	 */
-	h->type = type;
-	h->poly = poly;
+	u32_t old_v, new_v;
+	struct cap_header *local;
+
+	cos_mem_fence();
+	new_v = old_v = *((u32_t *)h);
+	
+	local = (struct cap_header *)&new_v;
+	local->type = type;
+	
+	return cos_cas((unsigned long *)h, old_v, new_v);
 }
 
 static inline int
-cap_capdeactivate(struct captbl *t, capid_t cap, capid_t capin, cap_t type)
+cap_capdeactivate(struct cap_captbl *ct, capid_t capin, cap_t type, livenessid_t lid)
 { 
-	struct cap_captbl *ct;
-	
-	assert(t);
-	ct = (struct cap_captbl *)captbl_lkup(t, cap);
 	if (unlikely(!ct)) return -ENOENT;
 	if (unlikely(ct->h.type != CAP_CAPTBL)) return -EINVAL;
-	return captbl_del(ct->captbl, capin, type); 
+
+	return captbl_del(ct->captbl, capin, type, lid); 
 }
 
 /* 
@@ -72,7 +78,7 @@ cap_memactivate(struct captbl *t, capid_t cap, capid_t capin, u32_t page, u32_t 
 }
 
 static inline int
-cap_memdeactivate(struct captbl *t, capid_t cap, unsigned long addr)
+cap_memdeactivate(struct captbl *t, capid_t cap, unsigned long addr, livenessid_t lid)
 {
 	struct cap_pgtbl *pt;
 	
@@ -80,11 +86,11 @@ cap_memdeactivate(struct captbl *t, capid_t cap, unsigned long addr)
 	pt = (struct cap_pgtbl *)captbl_lkup(t, cap);
 	if (unlikely(!pt)) return -ENOENT;
 	if (unlikely(pt->h.type != CAP_PGTBL)) return -EINVAL;
-	return pgtbl_mapping_del(pt->pgtbl, addr);
+	return pgtbl_mapping_del(pt->pgtbl, addr, lid);
 }
 
 static inline int
-cap_mem_retype2kern(struct captbl *t, capid_t cap, unsigned long addr, unsigned long *kern_addr)
+cap_kmem_activate(struct captbl *t, capid_t cap, unsigned long addr, unsigned long *kern_addr)
 {
 	int ret;
 	struct cap_pgtbl *pgtblc;
@@ -94,7 +100,7 @@ cap_mem_retype2kern(struct captbl *t, capid_t cap, unsigned long addr, unsigned 
 
 	if (unlikely(!pgtblc)) return -ENOENT;
 	if (unlikely(pgtblc->h.type != CAP_PGTBL || pgtblc->lvl != 0)) return -EINVAL;
-	if ((ret = pgtbl_mapping_extract(pgtblc->pgtbl, addr, (unsigned long *)kern_addr))) return ret;
+	if ((ret = pgtbl_kmem_act(pgtblc->pgtbl, addr, (unsigned long *)kern_addr))) return ret;
 
 	return 0;
 }
@@ -116,6 +122,7 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 	unsigned long *intern;
 	u32_t depth;
 	cap_t cap_type;
+	int ret = 0;
 
 	if (unlikely(capto == capsub)) return -EINVAL;
 	ct = (struct cap_captbl *)captbl_lkup(t, capto);
@@ -133,22 +140,22 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 		intern = captbl_lkup_lvl(ct->captbl, expandid, ct->lvl, ctsub->lvl);
 		if (!intern)      return -ENOENT;
 		if (*intern != 0) return -EPERM;
-		/* FIXME: should be cos_cas */
-		*intern = (unsigned long)ctsub->captbl; /* commit */
+
+		ret = cos_cas(intern, 0, (unsigned long)ctsub->captbl); /* commit */
+		if (!ret) cos_faa(&(ctsub->refcnt), 1);
 	} else {
 		u32_t flags = 0;
 		intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, depth);
 		if (!intern)                return -ENOENT;
 		if (pgtbl_ispresent(*intern)) return -EPERM;
-		/* 
-		 * FIXME: need a return value from _set on write
-		 * failure; assume ert_intern is essentially a long *.
-		 */
-		__pgtbl_set((struct ert_intern *)intern, 
-			    ((struct cap_pgtbl *)ctsub)->pgtbl, NULL, 0);
+
+		ret = __pgtbl_set((struct ert_intern *)intern, 
+				  ((struct cap_pgtbl *)ctsub)->pgtbl, NULL, 0);
+
+		if (!ret) cos_faa(&(((struct cap_pgtbl *)ctsub)->refcnt), 1);
 	}
 
-	return 0;
+	return ret;
 }
 
 /* 
@@ -157,13 +164,19 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
  * reference counting.
  */
 static inline int
-cap_decons(struct captbl *t, capid_t cap, capid_t pruneid, unsigned long lvl)
+cap_decons(struct captbl *t, capid_t cap, capid_t pruneid, capid_t capsub, unsigned long lvl)
 {
-	struct cap_header *head;
+	/* capsub is the cap_cap for sub level to be pruned. We need
+	 * to decrement ref_cnt correctly for the kernel page. */
+	struct cap_header *head, *sub;
 	unsigned long *intern;
+	int ret;
 
 	head = (struct cap_header *)captbl_lkup(t, cap);
-	if (unlikely(!head)) return -ENOENT;
+	sub  = (struct cap_header *)captbl_lkup(t, cap);
+	if (unlikely(!head || !sub)) return -ENOENT;
+	if (unlikely(head->type != sub->type)) return -EPERM;
+
 	if (head->type == CAP_CAPTBL) {
 		struct cap_captbl *ct = (struct cap_captbl *)head;
 		if (lvl <= ct->lvl) return -EINVAL;
@@ -179,61 +192,17 @@ cap_decons(struct captbl *t, capid_t cap, capid_t pruneid, unsigned long lvl)
 	if (!intern) return -ENOENT;
 	if (*intern == 0) return 0; /* return an error here? */
 	/* FIXME: should be cos_cas */
-	*intern = 0; /* commit; note that 0 is "no entry" in both pgtbl and captbl */
+	ret = cos_cas(intern, *intern, 0); /* commit; note that 0 is "no entry" in both pgtbl and captbl */
 
-	return 0;
-}
-
-/* 
- * Copy a capability from a location in one captbl/pgtbl to a location
- * in the other.  Fundamental operation used to delegate capabilities.
- * TODO: should limit the types of capabilities this works on.
- */
-static inline int
-cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, 
-	capid_t cap_from, capid_t capin_from)
-{
-	struct cap_header *ctto, *ctfrom;
-	int sz, ret;
-	cap_t cap_type;
-	
-	/* printk("copy from captbl %d, cap %d to captbl %d, cap %d\n",  */
-	/*        cap_from, capin_from, cap_to, capin_to); */
-	ctfrom = captbl_lkup(t, cap_from);
-	if (unlikely(!ctfrom)) return -ENOENT;
-
-	cap_type = ctfrom->type; 
-
-	if (cap_type == CAP_CAPTBL) {
-		cap_t type;
-
-		ctfrom = captbl_lkup(((struct cap_captbl *)ctfrom)->captbl, capin_from);
-		if (unlikely(!ctfrom)) return -ENOENT;
-
-		type = ctfrom->type;
-		sz = __captbl_cap2bytes(type);
-
-		ctto = __cap_capactivate_pre(t, cap_to, capin_to, type, &ret);
-		if (!ctto) return -EINVAL;
-
-		memcpy(ctto->post, ctfrom->post, sz - sizeof(struct cap_header));
-		__cap_capactivate_post(ctto, type, ctfrom->poly);
-	} else if (cap_type == CAP_PGTBL) {
-		unsigned long *f;
-		u32_t flags;
-
-		ctto = captbl_lkup(t, cap_to);
-		if (unlikely(!ctto)) return -ENOENT;
-		if (unlikely(ctto->type != cap_type)) return -EINVAL;
-
-		f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
-		if (!f) return -ENOENT;
-		
-		/* TODO: validate the type is appropriate given the value of *flags */
-		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, 
-					capin_to, *f & PGTBL_FRAME_MASK, flags);
-	} else {
-		ret = -EINVAL;
+	if (!ret) {
+		/* decrement the refcnt */
+		if (head->type == CAP_CAPTBL) {
+			struct cap_captbl *ct = (struct cap_captbl *)sub;
+			cos_faa(&(ct->refcnt), -1);
+		} else {
+			struct cap_pgtbl *pt = (struct cap_pgtbl *)sub;
+			cos_faa(&(pt->refcnt), -1);
+		}
 	}
 
 	return ret;

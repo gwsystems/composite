@@ -13,6 +13,8 @@
 #ifndef CONSTS_H
 #define CONSTS_H
 
+#include "cos_errno.h"
+
 #ifndef __ASM__
 #ifdef __KERNEL__
 #include <linux/thread_info.h> /* for PAGE_SIZE */
@@ -100,9 +102,14 @@ struct pt_regs {
 #define COS_NUM_ATOMIC_SECTIONS 10
 
 /* # of pages */
-#define COS_MAX_MEMORY    (64*1024)  /* # of pages. vas extents now support up to 254MB */ 
+#define COS_MAX_MEMORY    (1024)  /* # of pages. vas extents now support up to 254MB */ 
+#define COS_MEM_BOUND     (COS_MEM_START + COS_MAX_MEMORY*PAGE_SIZE) /* highest physical address */
 #define KERN_MEM_ORDER    (10)        /* should be fine when <= 10 */
 #define COS_KERNEL_MEMORY (1 << KERN_MEM_ORDER)   /* 2^n pages kernel memory */
+
+/* how many pages in a collection. Should consider cacheline
+ * size. Multiple of 16 on x86. */
+#define RETYPE_MEM_NPAGES        (32)
 
 #include "../asm_ipc_defs.h"
 

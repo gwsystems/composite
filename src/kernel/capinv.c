@@ -115,6 +115,82 @@ void cos_cap_ipi_handling(void)
 	return;
 }
 
+/* 
+ * Copy a capability from a location in one captbl/pgtbl to a location
+ * in the other.  Fundamental operation used to delegate capabilities.
+ * TODO: should limit the types of capabilities this works on.
+ */
+static inline int
+cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, 
+	capid_t cap_from, capid_t capin_from)
+{
+	struct cap_header *ctto, *ctfrom;
+	int sz, ret;
+	cap_t cap_type;
+	
+	/* printk("copy from captbl %d, cap %d to captbl %d, cap %d\n", */
+	/*        cap_from, capin_from, cap_to, capin_to); */
+	ctfrom = captbl_lkup(t, cap_from);
+	if (unlikely(!ctfrom)) return -ENOENT;
+
+	cap_type = ctfrom->type; 
+
+	if (cap_type == CAP_CAPTBL) {
+		cap_t type;
+
+		ctfrom = captbl_lkup(((struct cap_captbl *)ctfrom)->captbl, capin_from);
+		if (unlikely(!ctfrom)) return -ENOENT;
+
+		type = ctfrom->type;
+		sz   = __captbl_cap2bytes(type);
+
+		ctto = __cap_capactivate_pre(t, cap_to, capin_to, type, &ret);
+		if (!ctto) return -EINVAL;
+
+		memcpy(ctto->post, ctfrom->post, sz - sizeof(struct cap_header));
+
+		if (type == CAP_THD) {
+			/* thd is per-core. refcnt in thd struct. */
+			struct thread *thd = ((struct cap_thd *)ctfrom)->t;
+
+			thd->refcnt++;
+		} else if (type == CAP_CAPTBL) {
+			struct cap_captbl *parent = (struct cap_captbl *)ctfrom;
+			struct cap_captbl *child  = (struct cap_captbl *)ctto;
+
+			cos_faa(&(parent->refcnt), 1);
+			child->refcnt = 1;
+			child->parent = parent;
+		} else if (type == CAP_PGTBL) {
+			struct cap_pgtbl *parent = (struct cap_pgtbl *)ctfrom;
+			struct cap_pgtbl *child  = (struct cap_pgtbl *)ctto;
+
+			cos_faa(&(parent->refcnt), 1);
+			child->refcnt = 1;
+			child->parent = parent;
+		}
+		__cap_capactivate_post(ctto, type);
+	} else if (cap_type == CAP_PGTBL) {
+		unsigned long *f;
+		u32_t flags;
+
+		ctto = captbl_lkup(t, cap_to);
+		if (unlikely(!ctto)) return -ENOENT;
+		if (unlikely(ctto->type != cap_type)) return -EINVAL;
+
+		f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
+		if (!f) return -ENOENT;
+		
+		/* TODO: validate the type is appropriate given the value of *flags */
+		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, 
+					capin_to, *f & PGTBL_FRAME_MASK, flags);
+	} else {
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
 static int
 cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, struct cos_cpu_local_info *cos_info) 
 {
@@ -199,14 +275,12 @@ composite_sysenter_handler(struct pt_regs *regs)
 	/* We don't check liveness of current component because it's
 	 * guaranteed by component quiescence period, which is at
 	 * timer tick granularity.*/
-
-	ch  = captbl_lkup(ci->captbl, cap);
+	ch = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
 		printk("cos: cap %d not found!\n", (int)cap);
 		ret = -ENOENT;
 		goto done;
 	}
-
 	/* fastpath: invocation */
 	if (likely(ch->type == CAP_SINV)) {
 		sinv_call(thd, (struct cap_sinv *)ch, regs, cos_info);
@@ -304,7 +378,9 @@ composite_sysenter_handler(struct pt_regs *regs)
 	switch(ch->type) {
 	case CAP_CAPTBL:
 	{
-		capid_t capin =  __userregs_get1(regs);
+		capid_t capin = __userregs_get1(regs);
+		struct cap_captbl *op_cap = (struct cap_captbl *)ch;
+
 		/* 
 		 * FIXME: make sure that the lvl of the pgtbl makes
 		 * sense for the op.
@@ -318,7 +394,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			vaddr_t kmem_addr = 0;
 			struct captbl *newct;
 			
-			ret = cap_mem_retype2kern(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr);
+			ret = cap_kmem_activate(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr);
 			if (unlikely(ret)) cos_throw(err, ret);
 			assert(kmem_addr);
 
@@ -328,40 +404,72 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 			break;
 		}
-		case CAPTBL_OP_PGDACTIVATE:
+		case CAPTBL_OP_CAPTBLDEACTIVATE:
+		{
+			/* TODO: use two different cases for
+			 * deactivation w/ and w/o kmem
+			 * deactivation. */
+
+			livenessid_t lid      = __userregs_get2(regs) & 0xFFFF;
+			livenessid_t kmem_lid = __userregs_get2(regs) >> 16;
+			capid_t pgtbl_cap     = __userregs_get3(regs);
+			capid_t cosframe_addr = __userregs_get4(regs);
+
+			ret = captbl_deactivate(ct, op_cap, capin, lid, kmem_lid, pgtbl_cap, cosframe_addr);
+			
+			break;
+		}
+		case CAPTBL_OP_PGTBLACTIVATE:
 		{
 			capid_t pgtbl_cap  = __userregs_get1(regs);
 			vaddr_t kmem_cap   = __userregs_get2(regs);
-			capid_t newpgd_cap = __userregs_get3(regs);
+			capid_t pt_entry   = __userregs_get3(regs);
+			capid_t pgtbl_lvl  = __userregs_get4(regs);
+
 			vaddr_t kmem_addr  = 0;
 			pgtbl_t new_pt, curr_pt;
 
-			ret = cap_mem_retype2kern(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr);
+			ret = cap_kmem_activate(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr);
 			if (unlikely(ret)) cos_throw(err, ret);
 			assert(kmem_addr);
 
-			curr_pt = ((struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap))->pgtbl;
-			assert(curr_pt);
+			if (pgtbl_lvl == 0) {
+				/* PGD */
+				struct cap_pgtbl *cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap);
+				if (cap_pt->h.type != CAP_PGTBL) {
+					ret = -EINVAL;
+					break;
+				}
 
-			new_pt = pgtbl_create((void *)kmem_addr, curr_pt);
-			ret = pgtbl_activate(ct, cap, newpgd_cap, new_pt, 0);
+				curr_pt = cap_pt->pgtbl;
+				assert(curr_pt);
+
+				new_pt = pgtbl_create((void *)kmem_addr, curr_pt);
+				ret = pgtbl_activate(ct, cap, pt_entry, new_pt, 0);
+			} else if (pgtbl_lvl == 1) {
+				/* PTE */
+				pgtbl_init_pte((void *)kmem_addr);
+				ret = pgtbl_activate(ct, cap, pt_entry, (pgtbl_t)kmem_addr, 1);
+			} else {
+				/* Not supported yet. */
+				printk("cos: warning - PGTBL level greater than 2 not supported yet. \n");
+				ret = -1;
+			}
 
 			break;
 		}
-		case CAPTBL_OP_PTEACTIVATE:
+		case CAPTBL_OP_PGTBLDEACTIVATE:
 		{
-			capid_t pgtbl_cap  = __userregs_get1(regs);
-			vaddr_t kmem_cap   = __userregs_get2(regs);
-			capid_t newpte_cap = __userregs_get3(regs);
-			vaddr_t kmem_addr  = 0;
+			/* TODO: use two different cases for
+			 * deactivation w/ and w/o kmem
+			 * deactivation. */
+			livenessid_t lid      = __userregs_get2(regs) & 0xFFFF;
+			livenessid_t kmem_lid = __userregs_get2(regs) >> 16;
+			capid_t pgtbl_cap     = __userregs_get3(regs);
+			capid_t cosframe_addr = __userregs_get4(regs);
 
-			ret = cap_mem_retype2kern(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr);
-			if (unlikely(ret)) cos_throw(err, ret);
-			assert(kmem_addr);
-
-			pgtbl_init_pte((void *)kmem_addr);
-			ret = pgtbl_activate(ct, cap, newpte_cap, (pgtbl_t)kmem_addr, 1);
-
+			ret = pgtbl_deactivate(ct, op_cap, capin, lid, kmem_lid, pgtbl_cap, cosframe_addr);
+			
 			break;
 		}
 		case CAPTBL_OP_THDACTIVATE:
@@ -373,7 +481,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			capid_t compcap    = __userregs_get4(regs);
 			struct thread *thd;
 
-			ret = cap_mem_retype2kern(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd);
+			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&thd);
 			if (unlikely(ret)) cos_throw(err, ret);
 
 			ret = thd_activate(ct, cap, thd_cap, thd, compcap, init_data);
@@ -382,13 +490,16 @@ composite_sysenter_handler(struct pt_regs *regs)
 			break;
 		}
 		case CAPTBL_OP_THDDEACTIVATE:
-			/* 
-			 * FIXME: move the thread capability to a
-			 * location in a pagetable as COSFRAME
-			 */
-			ret = thd_deactivate(ct, cap, capin);
+		{
+			livenessid_t lid      = __userregs_get2(regs) & 0xFFFF;
+			livenessid_t kmem_lid = __userregs_get2(regs) >> 16;
+			capid_t pgtbl_cap     = __userregs_get3(regs);
+			capid_t cosframe_addr = __userregs_get4(regs);
+
+			ret = thd_deactivate(ct, op_cap, capin, lid, kmem_lid, pgtbl_cap, cosframe_addr);
 
 			break;
+		}
 		case CAPTBL_OP_COMPACTIVATE:
 		{
 			capid_t captbl_cap = __userregs_get2(regs) >> 16;
@@ -400,8 +511,12 @@ composite_sysenter_handler(struct pt_regs *regs)
 			break;
 		}
 		case CAPTBL_OP_COMPDEACTIVATE:
-			ret = comp_deactivate(ct, cap, capin);
+		{
+			livenessid_t lid  = __userregs_get2(regs);
+
+			ret = comp_deactivate(op_cap, capin, lid);
 			break;
+		}
 		case CAPTBL_OP_SINVACTIVATE:
 		{
 			capid_t dest_comp_cap = __userregs_get2(regs);
@@ -412,13 +527,24 @@ composite_sysenter_handler(struct pt_regs *regs)
 			break;
 		}
 		case CAPTBL_OP_SINVDEACTIVATE:
-			ret = sinv_deactivate(ct, cap, capin);
+		{
+			livenessid_t lid  = __userregs_get2(regs);
+
+			ret = sinv_deactivate(op_cap, capin, lid);
 			break;
+		}
 		case CAPTBL_OP_SRETACTIVATE:
+		{
+			printk("Error: No activation for SRET implementation yet!\n");
 			break;
+		}
 		case CAPTBL_OP_SRETDEACTIVATE:
-			ret = sret_deactivate(ct, cap, capin);
+		{
+			livenessid_t lid  = __userregs_get2(regs);
+			
+			ret = sret_deactivate(op_cap, capin, lid);
 			break;
+		}
 		case CAPTBL_OP_ASNDACTIVATE:
 		{
 			capid_t rcv_captbl = __userregs_get2(regs);
@@ -429,8 +555,12 @@ composite_sysenter_handler(struct pt_regs *regs)
 			break;
 		}
 		case CAPTBL_OP_ASNDDEACTIVATE:
-			ret = asnd_deactivate(ct, cap, capin);
+		{
+			livenessid_t lid  = __userregs_get2(regs);
+
+			ret = asnd_deactivate(op_cap, capin, lid);
 			break;
+		}
 		case CAPTBL_OP_ARCVACTIVATE:
 		{
 			capid_t thd_cap  = __userregs_get2(regs);
@@ -441,9 +571,13 @@ composite_sysenter_handler(struct pt_regs *regs)
 			break;
 		}
 		case CAPTBL_OP_ARCVDEACTIVATE:
-			ret = arcv_deactivate(ct, cap, capin);
-			break;
+		{
+			livenessid_t lid  = __userregs_get2(regs);
 
+			ret = arcv_deactivate(op_cap, capin, lid);
+
+			break;
+		}
 		case CAPTBL_OP_CPY:
 		{
 			capid_t from_captbl = cap;
@@ -460,13 +594,13 @@ composite_sysenter_handler(struct pt_regs *regs)
 			capid_t target      = cap;
 			capid_t target_id   = capin;
 			capid_t pgtbl_cap   = __userregs_get2(regs);
-			capid_t page_addr  = __userregs_get3(regs);
+			capid_t page_addr   = __userregs_get3(regs);
 			void *captbl_mem;
 			struct cap_captbl *target_ct;
 			
-			/* We are doing expanding here. */
+			/* Fixme: We are doing expanding here. */
 			
-			ret = cap_mem_retype2kern(ct, pgtbl_cap, page_addr, (unsigned long *)&captbl_mem);
+			ret = cap_kmem_activate(ct, pgtbl_cap, page_addr, (unsigned long *)&captbl_mem);
 			if (unlikely(ret)) cos_throw(err, ret);
 
 			target_ct = (struct cap_captbl *)captbl_lkup(ct, target);
@@ -513,29 +647,59 @@ composite_sysenter_handler(struct pt_regs *regs)
 			break;
 		}
 		case CAPTBL_OP_DECONS:
+		{
+			//TODO: pgtbl decons
+			break;
+		}
 		case CAPTBL_OP_MAPPING_CONS:
 		{
 			break;
 		}
 		case CAPTBL_OP_MAPPING_DECONS:
 		{
-			vaddr_t addr = __userregs_get1(regs);
+			vaddr_t addr      = __userregs_get1(regs);
+			livenessid_t lid  = __userregs_get2(regs);
 
 			if (((struct cap_pgtbl *)ch)->lvl) cos_throw(err, EINVAL);
-			ret = pgtbl_mapping_del(((struct cap_pgtbl *)ch)->pgtbl, addr);
+			
+			ret = pgtbl_mapping_del(((struct cap_pgtbl *)ch)->pgtbl, addr, lid);
 			
 			break;
 		}
+		case CAPTBL_OP_MEM_RETYPE2USER:
+		{
+			vaddr_t frame_addr = __userregs_get1(regs);
+			
+			ret = retypetbl_retype2user((struct cap_pgtbl *)ch, frame_addr);
+
+			break;
+		}
+		case CAPTBL_OP_MEM_RETYPE2KERN:
+		{
+			vaddr_t frame_addr = __userregs_get1(regs);
+			ret = retypetbl_retype2kern((struct cap_pgtbl *)ch, frame_addr);
+
+			break;
+		}
+		case CAPTBL_OP_MEM_RETYPE2FRAME:
+		{
+			vaddr_t frame_addr = __userregs_get1(regs);
+			
+			ret = retypetbl_retype2frame((struct cap_pgtbl *)ch, frame_addr);
+
+			break;
+		}
 		case CAPTBL_OP_MAPPING_MOD:
-		case CAPTBL_OP_MAPPING_RETYPE:
+		{
+		}
 		default: goto err;
 		}
 		break;
 	}
 	case CAP_SRET:
 	{
-		/* We usually don't have sret cap as we have default
-		 * return cap.*/
+		/* We usually don't have sret cap as we have 0 as the
+		 * default return cap.*/
 		sret_ret(thd, regs, cos_info);
 		return 0;
 	}

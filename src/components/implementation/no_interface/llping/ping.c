@@ -66,11 +66,11 @@ void pingpong(void)
 #ifdef MEAS_AVG
 	printc("core %ld: doing pingpong IPC test\n", cos_cpuid());
 	
-	call_cap(2, 0, 0, 0, 0);
+	call_cap(4, 0, 0, 0, 0);
 
 	rdtscll(s);
 	for (i = 0; i < ITER; i++) {
-		call_cap(2, 0, 0, 0, 0);
+		call_cap(4, 0, 0, 0, 0);
 	}
 	rdtscll(e);
 
@@ -83,7 +83,7 @@ void pingpong(void)
 	printc("core %ld: doing pingpong w/ flush @tick %u!\n", cos_cpuid(), last_tick);
 	for (i = 0; i < ITER; i++) {
 		s = tsc_start();
-		call_cap(2, 0, 0, 0, 0);
+		call_cap(4, 0, 0, 0, 0);
 		rdtscll(e);
 //		if (e-s > 20000) printc("large: %llu @ %llu\n", e-s, e);
 		curr_tick = printc("FLUSH!!");
@@ -127,8 +127,8 @@ void rcv_thd(void)
 		if (ret) {
 			printc("ERROR: arcv ret %d", ret);
 			printc("rcv thd %d switching back to alpha %ld!\n", 
-			       cos_get_thd_id(), SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
-			ret = cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
+			       cos_get_thd_id(), SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
+			ret = cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
 		}
 		ck_pr_store_int(&curr_rcv->rcv, curr_rcv->rcv + 1);
 	}
@@ -197,7 +197,7 @@ void cos_init(void)
 		rdtscll(s);
 		while (1) {
 			//do op here to measure response time.
-			call_cap(2, 0, 0, 0, 0);
+			call_cap(4, 0, 0, 0, 0);
 //			rdtscll(e);
 //			if ((e-s)/(2000*1000*1000) > RUNTIME) break;
 			if (ck_pr_load_int(&all_exit)) break;
@@ -205,7 +205,7 @@ void cos_init(void)
 		printc("core %ld: interference done. exiting from ping\n", cos_cpuid());
 	}
 done:
-	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
+	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
 
 	call();
 

@@ -470,7 +470,7 @@ cgraph_add(int serv, int client)
 /****************************************************/
 
 static int 
-boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
+boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, vaddr_t *comp_mapping_start)
 {
 	unsigned int i;
 	vaddr_t dest_daddr, prev_map = 0;
@@ -478,6 +478,8 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	int flag;
 	/* capid_t captbl_cap = comp_cap_info[spdid].captbl_cap; */
 	capid_t pgtbl_cap  = comp_cap_info[spdid].pgtbl_cap;
+
+	*comp_mapping_start = (vaddr_t)pmem_heap;
 
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
@@ -513,7 +515,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 }
 
 static int 
-boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, int first_time)
+boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, int first_time, vaddr_t comp_mapping_start)
 {
 	unsigned int i;
 	/* Where are we in the actual component's memory in the booter? */
@@ -522,7 +524,7 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 	vaddr_t /* prev_daddr, */ init_daddr;
 	struct cos_component_information *ci;
 
-	start_addr = (char *)pmem_heap;
+	start_addr = (char *)comp_mapping_start;
 	init_daddr = cobj_sect_get(h, 0)->vaddr;
 
 	for (i = 0 ; i < h->nsect ; i++) {
@@ -540,7 +542,8 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 		left       = cobj_sect_size(h, i);
 
 		/* Initialize memory. */
-		if (first_time || !(sect->flags & COBJ_SECT_INITONCE)) {
+		if (!(sect->flags & COBJ_SECT_KMEM) && 
+		    (first_time || !(sect->flags & COBJ_SECT_INITONCE))) {
 			if (sect->flags & COBJ_SECT_ZEROS) {
 				memset(start_addr + (dest_daddr - init_daddr), 0, left);
 			} else {
@@ -563,12 +566,11 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 static int 
 boot_comp_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
-	// FIXME: we should map those memory into booter first, then populate. 
-
+	vaddr_t comp_mapping_start;
 	/* all free memory mapped into llboot (@BOOT_MEM_KM_ /
 	 * _PM_BASE) by default. */
-	if (boot_comp_map_populate(h, spdid, comp_info, 1)) return -1;
-	if (boot_comp_map_memory(h, spdid, comp_info)) return -1; 
+	if (boot_comp_map_memory(h, spdid, comp_info, &comp_mapping_start)) return -1; 
+	if (boot_comp_map_populate(h, spdid, comp_info, 1, comp_mapping_start)) return -1;
 
 	return 0;
 }
@@ -581,14 +583,16 @@ static int boot_comp_caps(struct cobj_header *h, spdid_t comp_id)
 {
 	struct cobj_cap *cap;
 	unsigned int i;
-	u32_t sinv_cap = 2; //0 is default return cap
+	/* FIXME: We need cap allocation and management for llboot
+	 * loaded components. */
+	u32_t sinv_cap = 4; //0 is default return cap
 
 	for (i = 0 ; i < h->ncap ; i++) {
 		cap = cobj_cap_get(h, i);
 
 		if (cobj_cap_undef(cap)) break;
 
-		/* printc("cap from comp %d to %d, cap %d  %x activate\n",  */
+		/* printc("cap from comp %d to %d, cap %d  %x activate\n", */
 		/*        comp_id, cap->dest_id, sinv_cap, cap->sstub); */
 		if (call_cap_op(comp_cap_info[comp_id].captbl_cap, CAPTBL_OP_SINVACTIVATE,
 				sinv_cap, comp_cap_info[cap->dest_id].comp_cap, cap->sstub, 0)) BUG();
@@ -599,6 +603,32 @@ static int boot_comp_caps(struct cobj_header *h, spdid_t comp_id)
 	comp_cap_info[comp_id].cap_frontier = round_up_to_pow2(sinv_cap, CAPMAX_ENTRY_SZ);
 
 	return 0;
+}
+
+static int n_kern_memsets = 0;
+
+static void init_cosframes(void)
+{
+	int i, n_kmem_sets = COS_KERNEL_MEMORY / RETYPE_MEM_NPAGES + 1;
+	vaddr_t kmem_cap = BOOT_MEM_KM_BASE;
+	int ret;
+
+	for (i = 0; i < n_kmem_sets; i++) {
+		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2KERN,
+				  kmem_cap, 0, 0, 0);
+		if (ret) {
+			/* llboot used some kmem already. Those used
+			 * kmem pages are not mapped as cos_frame in
+			 * our PGTBL. So we won't be able to retype
+			 * all kmem frames. */
+			n_kern_memsets = i;
+
+			break;
+		}
+		kmem_cap += (RETYPE_MEM_NPAGES*PAGE_SIZE);
+	}
+	
+
 }
 
 static void 
@@ -654,11 +684,11 @@ boot_create_cap_system(void)
 				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), 0))             BUG();
 
 		/* PGD */
-		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGDACTIVATE,
+		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
 				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), pgtbl_cap, 0))  BUG();
 		/* PTE */
-		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PTEACTIVATE,
-				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), pte_cap, 0))    BUG();
+		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
+				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), pte_cap, 1))    BUG();
 		/* Construct pgtbl */
 		if (call_cap_op(pgtbl_cap, CAPTBL_OP_CONS, pte_cap, sect->vaddr, 0, 0)) BUG();
 
@@ -712,6 +742,8 @@ void cos_init(void)
 	printc("h @ %p, heap ptr @ %p\n", h, cos_get_heap_ptr());
 	printc("header %p, size %d, num comps %d, new heap %p\n", 
 	       h, h->size, num_cobj, cos_get_heap_ptr());
+
+	init_cosframes();
 	boot_create_cap_system();
 	printc("booter: done creating system.\n");
 

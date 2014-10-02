@@ -59,7 +59,7 @@ chal_pgtbl_rem(paddr_t pgtbl, vaddr_t va)
 	paddr_t page = pgtbl_lookup((pgtbl_t)pgtbl, va, &flags);
 	if (!page) return 0;
 
-	ret = pgtbl_mapping_del((pgtbl_t)pgtbl, (u32_t)va);
+	ret = pgtbl_mapping_del_direct((pgtbl_t)pgtbl, (u32_t)va);
 	if (ret) return 0;
 
 	return page;

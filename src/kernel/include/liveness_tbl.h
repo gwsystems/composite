@@ -16,9 +16,17 @@
 
 #define LTBL_ENT_ORDER 10
 #define LTBL_ENTS (1<<10)
+
+/* We need 64-bit for each of the field in liveness entry. */
 struct liveness_entry {
-	u64_t epoch, free_timestamp;
-};
+	u64_t epoch;
+	/* Here we store the timestamp of the deactivation call, so
+	 * that we can support flexible quiescence period. */
+	u64_t deact_timestamp;
+	u64_t poly;   /* we store frame addr here for kmem quiescence */
+	u64_t __poly; /* not used for now. work as padding */
+} __attribute__((packed));
+
 typedef struct liveness_entry ltbl_entry_t;
 typedef u32_t livenessid_t;
 
@@ -43,11 +51,15 @@ static int __ltbl_isnull(struct ert_intern *a, void *accum, int leaf)
 { (void)accum; (void)leaf; (void)a; return 0; }
 static int __ltbl_setleaf(struct ert_intern *a, void *data)
 { 
-	u64_t old;
+	u64_t old, new, *ptr;
 	(void)data; 
-	old = ((struct liveness_entry *)a)->epoch; 
-	/* FIXME: we need to support 64 bits */
-	if (!cos_cas((unsigned long *)&(((struct liveness_entry *)a)->epoch), old, old + 1)) return -1;
+
+	ptr = &(((struct liveness_entry *)a)->epoch);
+	old = *ptr;
+	new = old + 1;
+
+	/*FIXME: 64-bit op*/
+	if (!cos_cas((unsigned long *)ptr, (unsigned long)old, (unsigned long)new)) return -ECASFAIL;
 
 	return 0;
 }
@@ -72,18 +84,22 @@ ltbl_isalive(struct liveness_data *ld)
 	return 1;
 }
 
+/* Increment epoch, and update timestamp. */
 static inline int
 ltbl_expire(struct liveness_data *ld)
 {
 	struct liveness_entry *ent;
+	u64_t old_v;
 
 	ent = __ltbl_lkupan(LTBL_REF(), ld->id, __ltbl_maxdepth(), NULL);
-	ent->epoch++;
-	/* FIXME: add the following */
-	/* rdtscll(ts); */
-	/* if (ent->free_timestamp > ts) return -EAGAIN; */
-	/* ent->free_timestamp = ts + QUIESCE_PERIOD;  */
-	/* return 0; */
+	old_v = ent->epoch;
+
+	rdtscll(ent->deact_timestamp);
+	cos_inst_bar();
+
+	//FIXME: 64-bit op
+	if (!cos_cas((unsigned long *)&ent->epoch, (unsigned long)old_v, (unsigned long)(old_v + 1))) return -ECASFAIL;
+
 	return 0;
 }
 
@@ -92,15 +108,17 @@ ltbl_expire(struct liveness_data *ld)
  * memory reclaimed)?
  */
 static inline int
-ltbl_isfreeable(struct liveness_data *ld)
+ltbl_isfreeable(struct liveness_data *ld, u64_t quiescence_period)
 {
-	(void)ld;
-	/* struct liveness_entry *ent; */
-	/* ent = __ltbl_lkupan(__liveness_tbl, ld->id, __ltbl_maxdepth(), NULL); */
-	/* rdtscll(ts); */
-	/* if (ent->free_timestamp < ts) return 1; */
-	/* return 0; */
-	return 1;
+	struct liveness_entry *ent;
+	u64_t ts;
+
+	ent = __ltbl_lkupan(LTBL_REF(), ld->id, __ltbl_maxdepth(), NULL);
+	rdtscll(ts);
+
+	if (ent->deact_timestamp + quiescence_period < ts) return 1;
+
+	return 0;
 }
 
 static inline int
@@ -108,10 +126,79 @@ ltbl_get(livenessid_t id, struct liveness_data *ld)
 {
 	u64_t *e;
 	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
+
 	e = (u64_t*)__ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth()+1, NULL);
 	assert(e);
+	
 	ld->epoch = *e;
 	ld->id = id;
+
+	return 0;
+}
+
+static inline u64_t
+ltbl_get_timestamp(livenessid_t id)
+{
+	struct liveness_entry *ent;
+
+	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
+	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth()+1, NULL);
+	assert(ent);
+
+	return ent->deact_timestamp;
+}
+
+/* write to the poly, and update the timestamp */
+static inline int
+ltbl_poly_update(livenessid_t id, u32_t poly)
+{
+	struct liveness_entry *ent;
+
+	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
+	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth(), NULL);
+
+	/* If we have info stored in this liveness entry, do not allow
+	 * the update. */
+	if (unlikely(ent->poly)) return -EPERM;
+
+	rdtscll(ent->deact_timestamp);
+	cos_inst_bar();
+
+	cos_cas((unsigned long *)&ent->poly, 0, poly);
+	
+	return 0;
+}
+
+static inline int
+ltbl_poly_clear(livenessid_t id)
+{
+	struct liveness_entry *ent;
+	u32_t old_v;
+
+	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
+	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth(), NULL);
+
+	old_v = (u32_t)ent->poly;
+	cos_cas((unsigned long *)&ent->poly, old_v, 0);
+	
+	return 0;
+}
+
+static inline int
+ltbl_timestamp_update(livenessid_t id)
+{
+	struct liveness_entry *ent;
+
+	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
+
+	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth(), NULL);
+
+	/* Barrier here to ensure tsc is taken after store
+	 * instruction (avoid out-of-order execution). */
+	cos_inst_bar();
+
+	rdtscll(ent->deact_timestamp);
+
 	return 0;
 }
 

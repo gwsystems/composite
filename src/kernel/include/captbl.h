@@ -13,6 +13,7 @@
 
 #include "shared/cos_types.h"
 #include "ertrie.h"
+#include "liveness_tbl.h"
 #include "shared/util.h"
 //#include "errno.h"
 
@@ -51,7 +52,9 @@ typedef enum {
  * capabilities in a cache-line, and the type of the capability.
  */
 struct cap_header {
-	u16_t       poly;
+        /* When we deactivate a cap entry, we set the liveness_id and
+	 * change the type to quiescence. */
+	u16_t       liveness_id;
 	/* 
 	 * Size is only populated on cache-line-aligned entries.
 	 * Applies to all caps in that cache-line 
@@ -60,6 +63,7 @@ struct cap_header {
 	cap_sz_t    size  : CAP_HEAD_SZ_SZ; 	
 	cap_flags_t flags : CAP_HEAD_FLAGS_SZ;
 	cap_t       type  : CAP_HEAD_TYPE_SZ;
+
 	u8_t        post[0];
 } __attribute__((packed));
 
@@ -73,11 +77,9 @@ struct cap_min {
 struct cap_captbl {
 	struct cap_header h;
 	struct captbl *captbl;
-	u32_t lvl; 		/* what level are the captbl nodes at? */
-        /* Next is the time stamp counter to track when previous
-	 * deactivation happened. Used to determine whether quiescence
-	 * has achieved. */
-//	u64_t deact_tsc;
+	u32_t lvl; 		     /* what level are the captbl nodes at? */
+	struct cap_captbl *parent;   /* if !null, points to parent cap */
+	u32_t refcnt;                /* # of direct children (created by cap_cpy) */
 };
 
 static void *
@@ -217,6 +219,7 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 { 
 	struct cap_header *p, *h;
 	struct cap_header l, o;
+	u64_t curr_ts, past_ts;
 	int ret = 0, off;
 	cap_sz_t sz = __captbl_cap2sz(type);
 
@@ -232,13 +235,50 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 	assert(off >= 0 && off < CAP_HEAD_AMAP_SZ);
 	/* already allocated? */
 	if (unlikely(l.amap & (1<<off))) cos_throw(err, -EEXIST);
-	if (unlikely((l.amap && (l.size != sz)) || 
-		     l.size < sz)) cos_throw(err, -EEXIST);
+	if (unlikely((l.amap && (l.size != sz)))) cos_throw(err, -EEXIST);
+
 	l.amap |= 1<<off;
-	if (l.size != sz) {
-		assert(l.size > sz);
-		l.size = sz;
+
+	/* Quiescence check: either check the entire cacheline if
+	 * needed, or a single entry. */
+	if (l.type == CAP_QUIESCENCE && l.size != sz) {
+		/* The entire cacheline has been deactivated
+		 * before. We need to make sure all entries in the
+		 * cacheline has reached quiescence before re-size. */
+		int i, n_ent;
+		struct cap_header *header_i;
+
+		rdtscll(curr_ts);
+		header_i = h;
+		n_ent = CACHELINE_SIZE / l.size;
+
+		for (i = 0; i < n_ent; i++) {
+			assert((void *)header_i < ((void *)h + CACHELINE_SIZE));
+			
+			/* non_zero liv_id means deactivation happened. */
+			if (header_i->liveness_id) {
+				past_ts = ltbl_get_timestamp(header_i->liveness_id);
+				/* quiescence period for cap entries
+				 * is the worst-case in kernel
+				 * execution time. */
+				if (!QUIESCENCE_CHECK(curr_ts, past_ts, KERN_QUIESCENCE_CYCLES)) cos_throw(err, -EQUIESCENCE);
+			}
+
+			header_i = (void *)header_i + l.size; /* get next header */
+		}
+	} else {
+		/* check only the current single entry */
+		if (p->liveness_id) {
+			/* means a deactivation on this cap entry happened
+			 * before. */
+			rdtscll(curr_ts);
+			past_ts = ltbl_get_timestamp(p->liveness_id);
+
+			if (!QUIESCENCE_CHECK(curr_ts, past_ts, KERN_QUIESCENCE_CYCLES)) cos_throw(err, -EQUIESCENCE);
+		}
 	}
+
+	if (l.size != sz) l.size = sz;
 	if (unlikely(__captbl_header_validate(&l, sz))) cos_throw(err, -EINVAL);
 
 	/* FIXME: we should _not_ do this here.  This should be done
@@ -259,7 +299,7 @@ err:
 }
 
 static inline int
-captbl_del(struct captbl *t, capid_t cap, cap_t type)
+captbl_del(struct captbl *t, capid_t cap, cap_t type, livenessid_t lid)
 {
 	struct cap_header *p, *h;
 	struct cap_header l, o;
@@ -281,12 +321,28 @@ captbl_del(struct captbl *t, capid_t cap, cap_t type)
 	if (unlikely(l.flags & CAP_FLAG_RO)) cos_throw(err, -EPERM);
 	if (unlikely(!(l.amap & (1<<off)))) cos_throw(err, -ENOENT);
 
-	if (h == p) l.type  = CAP_FREE;
-	else        p->type = CAP_FREE;
+	if (h == p) {
+		l.type  = CAP_FREE;
+		l.liveness_id = lid;
+	} else {
+		p->type = CAP_FREE;
+		p->liveness_id = lid;
+	}
+
 	/* FIXME: store barrier on non-x86 */
 	/* new map, removing the current allocation */
 	l.amap &= (~(1<<off)) & ((1<<CAP_HEAD_AMAP_SZ)-1);
-	if (l.amap == 0) l.size = CAP_SZ_64B; /* no active allocations... */
+	if (l.amap == 0) {
+		/* no active allocations... */
+		/* we can't change l.size yet. still need it to check
+		 * quiescence. */
+		l.type = CAP_QUIESCENCE;
+	}
+
+	/* Update timestamp first. */
+	ret = ltbl_timestamp_update(lid);
+	if (unlikely(ret)) cos_throw(err, ret);
+
 	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
 err:
 	return ret;
@@ -361,7 +417,8 @@ captbl_create(void *page)
 }
 
 int captbl_activate(struct captbl *t, capid_t cap, capid_t capin, struct captbl *toadd, u32_t lvl);
-int captbl_deactivate(struct captbl *t, capid_t cap, capid_t  capin);
+int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
+		      livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr);
 int captbl_activate_boot(struct captbl *t, unsigned long cap);
 
 static void cap_init(void) {
