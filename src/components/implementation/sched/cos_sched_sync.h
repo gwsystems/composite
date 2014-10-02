@@ -35,7 +35,7 @@ static inline int cos_switch_thread(unsigned short int thd_id, unsigned short in
 	cos_next->next_thd_flags = flags;
 
 	/* kernel will read next thread information from cos_next */
-	return cos___switch_thread(thd_id, flags, tcap); 
+	return cos___switch_thread(thd_id, flags);
 }
 
 /*
@@ -84,7 +84,7 @@ static inline int cos_sched_lock_take(void)
 		if (unlikely(owner)) {
 			/* If another thread holds the lock, notify
 			 * kernel to switch */
-			if (cos___switch_thread(owner, COS_SCHED_SYNC_BLOCK, 0) == -1) return -1;
+			if (cos___switch_thread(owner, COS_SCHED_SYNC_BLOCK) == -1) return -1;
 		}
 		/* If we are now the owner, we're done.  If not, try
 		 * to take the lock again! */
@@ -105,7 +105,7 @@ static inline int cos_sched_lock_release(void)
 		queued_thd    = p.c.queued_thd;
 	} while (unlikely(!cos_cas((unsigned long *)&l->v, p.v, 0)));
 	/* If a thread is contending the lock. */
-	if (queued_thd) return cos___switch_thread(queued_thd, COS_SCHED_SYNC_UNBLOCK, 0);
+	if (queued_thd) return cos___switch_thread(queued_thd, COS_SCHED_SYNC_UNBLOCK);
 	
 	return 0;
 

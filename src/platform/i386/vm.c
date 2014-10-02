@@ -19,6 +19,9 @@
 u32_t user_entry_point;
 u32_t user_stack_address;
 
+struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
+struct liveness_entry __liveness_tbl[LTBL_ENTS];
+
 pgtbl_t pgtbl;
 static u32_t pgdir[1024] __attribute__((aligned(4096)));
 static u32_t pte[1024][1024] __attribute__((aligned(4096)));
