@@ -46,16 +46,23 @@ all: $(KERNEL)
 DEPS :=$(patsubst %.o, %.d, $(OBJS))
 
 $(KERNEL): $(DEPS) $(OBJS) loader.o
-	$(LD) -T linker.ld loader.o $(OBJS)  -o $@
+	$(info |     [LD]   Linking $@)
+	@$(LD) -T linker.ld loader.o $(OBJS)  -o $@
 
 loader.o: loader.s interrupt.s sysenter.s
-	$(AS) -o loader.o loader.s interrupt.s sysenter.s
+	$(info |     [AS]   Assembling $@)
+	@$(AS) -o loader.o loader.s interrupt.s sysenter.s
 
 %.d: %.c
-	$(CC) -M -MT $(patsubst %.d, %.o, $@) $(CFLAGS) $(LDFLAGS) $< -o $@
+	@$(CC) -M -MT $(patsubst %.d, %.o, $@) $(CFLAGS) $(LDFLAGS) $< -o $@
+
+%.o: %.c
+	$(info |     [CC]   Compiling $@)
+	@$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.d *.o $(KERNEL)
+	@rm -f *.d *.o $(KERNEL)
 
 cp: $(KERNEL)
-	cp -f $(KERNEL) .gdbinit qemu.sh qemu-g.sh $(TRANS_DIR)
+	$(info |     [CP]   Copying native booter to $(TRANS_DIR))
+	@cp -f $(KERNEL) .gdbinit qemu.sh qemu-g.sh $(TRANS_DIR)
