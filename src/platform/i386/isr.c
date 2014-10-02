@@ -65,7 +65,7 @@ register_interrupt_handler(u16_t n, isr_t handler)
     if (n >= (sizeof(interrupt_handlers) / sizeof(interrupt_handlers[0])))
         die("Attempting to register handler bigger than array\n");
 
-    printk(INFO, "Registering handler %d\n", n);
+    //printk(INFO, "Registering handler %d\n", n);
     interrupt_handlers[n] = handler;
 }
 

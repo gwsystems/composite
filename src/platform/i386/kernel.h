@@ -28,9 +28,8 @@ enum log_level {
 };
 
 #ifdef ENABLE_CONSOLE
-void vga__clear(void);
-void vga__putch(char c);
-void vga__puts(const char *s);
+void vga_clear(void);
+void vga_puts(const char *s);
 void console_init(void);
 #endif
 

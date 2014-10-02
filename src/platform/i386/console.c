@@ -1,7 +1,5 @@
 #define ENABLE_CONSOLE
 
-#include "shared/cos_types.h"
-
 #include "io.h"
 #include "string.h"
 #include "isr.h"
@@ -41,11 +39,18 @@ enum vga_colors {
     WHITE
 };
 
-void *wmemset(void *dst, int c, size_t count);
-
 static u16_t *video_mem = (u16_t *)VIDEO_MEM;
 static u8_t cursor_x;
 static u8_t cursor_y;
+
+static void
+wmemset(void *dst, int c, size_t count)
+{
+    unsigned short *tmp = (unsigned short *)dst;
+
+    for (; count != 0; count--)
+        *tmp++ = c;
+}
 
 static inline u8_t 
 gen_color(u8_t forground, u8_t background)
@@ -80,8 +85,8 @@ scroll(void)
     cursor_y = LINES - 1;
 }
 
-void
-vga__putch(char c)
+static void
+vga_putch(char c)
 {
     u8_t color = gen_color(LIGHT_GREY, BLACK);
     u16_t attribute = color << 8;
@@ -112,15 +117,15 @@ vga__putch(char c)
 }
 
 void
-vga__puts(const char *s)
+vga_puts(const char *s)
 {
     for (; *s != '\0'; s++)
-        vga__putch(*s);
+        vga_putch(*s);
 
 }
 
 void
-vga__clear(void)
+vga_clear(void)
 {
     u8_t color = gen_color(WHITE, BLACK);
     u16_t blank = ((u8_t)' ') | color << 8;
@@ -141,19 +146,7 @@ keyboard_handler(struct registers *regs)
 void
 console_init(void)
 { 
-	vga__clear();
-	printk_register_handler(vga__puts);
+	vga_clear();
+	printk_register_handler(vga_puts);
 	register_interrupt_handler(IRQ1, keyboard_handler);
 }
-
-void *
-wmemset(void *dst, int c, size_t count)
-{
-    unsigned short *tmp = (unsigned short *)dst;
-
-    for (; count != 0; count--)
-        *tmp++ = c;
-
-    return dst;
-}
-

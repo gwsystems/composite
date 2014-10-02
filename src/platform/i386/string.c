@@ -1,6 +1,8 @@
 #include "string.h"
 #include "vtxprintf.h"
 
+static char *str_buf;
+
 void *
 memcpy(void *dst, const void *src, size_t count)
 {
@@ -33,8 +35,8 @@ strnlen(const char *str, size_t max)
     return ret;
 }
 
-static char *str_buf;
-static void str_tx_byte(unsigned char byte)
+static void
+str_tx_byte(unsigned char byte)
 {
 	*str_buf = byte;
 	str_buf++;
@@ -63,4 +65,3 @@ sprintf(char *buf, const char *fmt, ...)
 
 	return i;
 }
-

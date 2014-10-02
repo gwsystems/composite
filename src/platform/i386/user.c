@@ -22,7 +22,7 @@ user_init(void)
 	writemsr(IA32_SYSENTER_ESP, (u32_t)tss.esp0, 0);
 	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_interposition_entry, 0);
 
-	printk (INFO, "About to jump to 0x%x with stack at 0x%x\n", user_entry_point, user_stack_address);
+	printk (INFO, "Jumping to user mode at 0x%x with stack at 0x%x\n", user_entry_point, user_stack_address);
 
 	__asm__("sti");
 	__asm__("sysexit" : : "c"(user_stack_address), "d"(user_entry_point));

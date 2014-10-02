@@ -1,7 +1,6 @@
 #define ENABLE_TIMER
 
 #include "isr.h"
-#include "shared/cos_types.h"
 #include "io.h"
 #include "kernel.h"
 
@@ -29,16 +28,12 @@ timer_callback(struct registers *regs)
 void 
 timer_init(u32_t frequency)
 {
-    u32_t divisor;
+    u32_t divisor = PIT_SCALE / frequency;
 
     printk(INFO, "Enabling timer\n");
     register_interrupt_handler(IRQ0, timer_callback);
-
-    divisor = PIT_SCALE / frequency;
     
     outb(PIT_CONTROL, PIT_SET);
-
     outb(PIT_A, divisor & PIT_MASK);
     outb(PIT_A, (divisor >> 8) & PIT_MASK);
 }
-

@@ -74,28 +74,23 @@ void
 paging_init(u32_t memory_size, u32_t nmods, u32_t *mods)
 {
 	char *cmdline;
-	u32_t cr0;
-	u32_t i;
-	u32_t user_stack_physical;
+	u32_t cr0, i, user_stack_physical = 0;
 
-	printk(INFO, "Initializing paging\n");
-	printk(INFO, "MEMORY_SIZE: %dMB (%d page frames)\n", memory_size/1024, memory_size/4);
-
-	printk(INFO, "Registering page fault handler\n");
+	printk(INFO, "Initializing virtual memory (physical memory: %dMB / %d frames)\n", memory_size/1024, memory_size/4);
 	register_interrupt_handler(14, page_fault);
 
-	printk(INFO, "Allocating page table from 0x%08x\n", pgdir);
+	/* Allocate the Page Directory and initialize all Page Tables */
 	pgtbl = pgtbl_alloc(pgdir);
 	for (i = 0; i < 1024; i++) {
 		pgtbl_intern_expand(pgtbl, i * PAGE_SIZE * 1024, &pte[i], PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_GLOBAL);
 	}
-	printk(INFO, "Allocated at 0x%08x\n", pgtbl);
 
+	/* Identity map the kernel */
 	for (i = 0; i < (u32_t)mods / (PAGE_SIZE); i++) {
-		//printk(DEBUG, "Mapping physical address %08x to virtual %08x\n",  i * 4096,  i * 4096);
 		pgtbl_mapping_add(pgtbl, i * 4096, i * 4096, PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_GLOBAL);
 	}
 
+	/* Map user modules into userspace */
 	if (nmods > 0) {
 		unsigned int j = 0;
 		multiboot_module_t *mod = (multiboot_module_t*)mods;
@@ -112,7 +107,6 @@ paging_init(u32_t memory_size, u32_t nmods, u32_t *mods)
 			}
 
 			for (j = 0; j <= ((mod[i].mod_end - mod[i].mod_start) / (PAGE_SIZE))+1; j++) {
-				//printk(DEBUG, "Mapping physical address %08x to virtual %08x\n", mod[i].mod_start + (j * 4096), module_address + (j * 4096));
 				pgtbl_mapping_add(pgtbl, module_address + (j * 4096), mod[i].mod_start + (j * 4096), PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_USER);
 			}
 			if (mod[i].mod_end > user_stack_physical) {
@@ -125,21 +119,15 @@ paging_init(u32_t memory_size, u32_t nmods, u32_t *mods)
 
 	printk(INFO, "Reserving a user-space stack at v:0x%08x, p:0x%08x\n", user_stack_address, user_stack_physical);
 	for (i = 0; i < (USER_STACK_SIZE / PAGE_SIZE); i++) {
-		//printk(DEBUG, "Mapping physical address %08x to virtual %08x\n", user_stack_physical - USER_STACK_SIZE + i * PAGE_SIZE, user_stack_address - USER_STACK_SIZE + i * PAGE_SIZE);
 		pgtbl_mapping_add(pgtbl,
 			user_stack_physical - USER_STACK_SIZE + (i * PAGE_SIZE),
 			user_stack_address - USER_STACK_SIZE + (i * PAGE_SIZE),
 			PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_USER);
 	}
 
-	printk(INFO, "Loading page directory\n");
-	pgtbl_update(pgtbl);
-
 	printk(INFO, "Enabling paging\n");
+	pgtbl_update(pgtbl);
 	asm volatile("mov %%cr0, %0" : "=r"(cr0));
 	cr0 |= 0x80000000;
 	asm volatile("mov %0, %%cr0" : : "r"(cr0));
-	printk(INFO, "OK\n");
-
-	printk(INFO, "Finished\n");
 }
