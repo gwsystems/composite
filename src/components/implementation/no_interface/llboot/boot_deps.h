@@ -262,6 +262,7 @@ vaddr_t get_pmem_cap(void) {
 
 	pmem_heap += PAGE_SIZE;
 	cos_set_heap_ptr((void *)(heap_vaddr + PAGE_SIZE));
+	/* printc("heap_vaddr %x, npages %d\n", heap_vaddr, (heap_vaddr - BOOT_MEM_VM_BASE)/PAGE_SIZE); */
 
 	return heap_vaddr;
 }
@@ -715,8 +716,13 @@ done:
 		assert(ret == 0);
 		printc(">>> act / deact quiescence_check passed w/ liveness id %d.\n", lid);
 
-		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDDEACTIVATE,
-				  PERCPU_GET(llbooter)->init_thd, lid, BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()]);
+		ret = call_cap_op(comp_cap_info[BOOT_INIT_SCHED_COMP].captbl_cap, CAPTBL_OP_THDDEACTIVATE, 
+				  SCHED_CAPTBL_INITTHD_BASE + cos_cpuid() * captbl_idsize(CAP_THD),
+				  lid << 16 | lid, BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()]);
+		printc("deact 1 ret %d\n", ret);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDDEACTIVATE, PERCPU_GET(llbooter)->init_thd, 
+				  lid << 16 | lid, BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()]);
 		if (ret) {
 			printc(">>>>>>>>>>>>> thd deact ret %d FAILD w/ liveness id %d.\n", ret, lid);
 		}

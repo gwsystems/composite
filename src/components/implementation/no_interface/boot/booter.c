@@ -650,7 +650,7 @@ boot_create_cap_system(void)
 		int j;
 		/* cap tbl, pgtbl for new component */
 		capid_t comp_cap;
-		capid_t captbl_cap;
+		capid_t captbl_cap, captbl_cap2;
 		capid_t pgtbl_cap;
 		capid_t pte_cap;
 
@@ -670,19 +670,24 @@ boot_create_cap_system(void)
 			BUG();
 		}
 		/* create cap tbl, pgtbl for new component */
-		comp_cap   = alloc_capid(CAP_COMP);
-		captbl_cap = alloc_capid(CAP_CAPTBL);
-		pgtbl_cap  = alloc_capid(CAP_PGTBL);
-		pte_cap    = alloc_capid(CAP_PGTBL);
+		comp_cap    = alloc_capid(CAP_COMP);
+		captbl_cap  = alloc_capid(CAP_CAPTBL);
+		captbl_cap2 = alloc_capid(CAP_CAPTBL);
+
+		pgtbl_cap   = alloc_capid(CAP_PGTBL);
+		pte_cap     = alloc_capid(CAP_PGTBL);
 
 		/* Captbl */
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE,
 				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), captbl_cap, 0)) BUG();
+		/* Another page for the captbl. */
+		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE,
+				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), captbl_cap2, 1)) BUG();
 
-		/* Expand it! */
 #define CAPTBL_INIT_SZ (PAGE_SIZE/2/16)
-		if (call_cap_op(captbl_cap, CAPTBL_OP_CONS, CAPTBL_INIT_SZ,
-				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), 0))             BUG();
+		/* Captbl expand */
+		if (call_cap_op(captbl_cap, CAPTBL_OP_CONS, 
+				CAPTBL_INIT_SZ, captbl_cap2, 0, 0))             BUG();
 
 		/* PGD */
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,

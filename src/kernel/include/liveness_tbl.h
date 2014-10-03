@@ -137,7 +137,7 @@ ltbl_get(livenessid_t id, struct liveness_data *ld)
 }
 
 static inline u64_t
-ltbl_get_timestamp(livenessid_t id)
+ltbl_get_timestamp(livenessid_t id, u64_t *ts)
 {
 	struct liveness_entry *ent;
 
@@ -145,7 +145,23 @@ ltbl_get_timestamp(livenessid_t id)
 	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth()+1, NULL);
 	assert(ent);
 
-	return ent->deact_timestamp;
+	*ts = ent->deact_timestamp;
+
+	return 0;
+}
+
+static inline u64_t
+ltbl_get_poly(livenessid_t id, u64_t *poly)
+{
+	struct liveness_entry *ent;
+
+	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
+	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth()+1, NULL);
+	assert(ent);
+
+	*poly = ent->poly;
+
+	return 0;
 }
 
 /* write to the poly, and update the timestamp */
@@ -177,11 +193,9 @@ ltbl_poly_clear(livenessid_t id)
 
 	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
 	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth(), NULL);
-
 	old_v = (u32_t)ent->poly;
-	cos_cas((unsigned long *)&ent->poly, old_v, 0);
-	
-	return 0;
+
+	return cos_cas((unsigned long *)&ent->poly, old_v, 0);
 }
 
 static inline int

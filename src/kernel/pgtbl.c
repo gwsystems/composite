@@ -69,6 +69,55 @@ err:
 	return ret;
 }
 
+int
+pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
+{
+	struct ert_intern *pte;
+	u32_t orig_v, new_v, accum = 0;
+	
+	assert(pt);
+	assert((PGTBL_FLAG_MASK & addr) == 0);
+
+	/* get the pte */
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
+						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	if (unlikely(__pgtbl_isnull(pte, 0, 0))) return -ENOENT;
+
+	orig_v = (u32_t)(pte->next);
+	if (unlikely(!(orig_v & PGTBL_COSFRAME))) return -EINVAL; /* can't activate non-frames */
+	if (unlikely(orig_v & PGTBL_COSKMEM)) return -EEXIST; /* can't re-activate kmem frames */
+
+	if (orig_v & PGTBL_QUIESCENCE) {
+		u64_t poly;
+		u32_t frame;
+
+		if (ltbl_get_poly(orig_v & PGTBL_FRAME_MASK, &poly)) return -EFAULT;
+		frame = (u32_t)poly; /* cast */
+		*kern_addr = (unsigned long)chal_pa2va((void *)(frame));
+		new_v = frame | (orig_v & PGTBL_FLAG_MASK) | PGTBL_COSKMEM;
+	} else {
+		*kern_addr = (unsigned long)chal_pa2va((void *)(orig_v & PGTBL_FRAME_MASK));
+		new_v = orig_v | PGTBL_COSKMEM;
+	}
+
+	if (unlikely(!*kern_addr)) return -EINVAL; /* cannot retype a non-kernel accessible page */
+
+	if (unlikely(retypetbl_ref((void *)(orig_v & PGTBL_FRAME_MASK)))) return -EFAULT;
+	/* We keep the cos_frame entry, but mark it as COSKMEM so that
+	 * we won't use it for other kernel objects. */
+	if (unlikely(!cos_cas((unsigned long *)pte, orig_v, new_v))) {
+		/* restore the ref cnt. */
+		retypetbl_deref((void *)(orig_v & PGTBL_FRAME_MASK));
+		return -ECASFAIL;
+	}
+
+	/* Now we can remove the kmem frame stored in the poly of the
+	 * ltbl entry. */
+	if (orig_v & PGTBL_QUIESCENCE) ltbl_poly_clear(orig_v & PGTBL_FRAME_MASK);
+
+	return 0;
+}
+
 int 
 tlb_quiescence_check(u64_t unmap_time)
 {
@@ -109,7 +158,8 @@ pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t
 	return 0;
 }
 
-int pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
+int
+pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
 		     livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr)
 { 
 	struct cap_header *deact_header;

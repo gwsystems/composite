@@ -395,6 +395,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			capid_t pgtbl_cap      = __userregs_get1(regs);
 			vaddr_t kmem_cap       = __userregs_get2(regs);
 			capid_t newcaptbl_cap  = __userregs_get3(regs);
+			int     captbl_lvl     = __userregs_get4(regs);
 			vaddr_t kmem_addr = 0;
 			struct captbl *newct;
 			
@@ -404,7 +405,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 			newct = captbl_create((void *)kmem_addr);
 			assert(newct);
-			ret = captbl_activate(ct, cap, newcaptbl_cap, newct, 0);
+			ret = captbl_activate(ct, cap, newcaptbl_cap, newct, captbl_lvl);
 
 			break;
 		}
@@ -595,28 +596,10 @@ composite_sysenter_handler(struct pt_regs *regs)
 		}
 		case CAPTBL_OP_CONS:
 		{
-			capid_t target      = cap;
-			capid_t target_id   = capin;
-			capid_t pgtbl_cap   = __userregs_get2(regs);
-			capid_t page_addr   = __userregs_get3(regs);
-			void *captbl_mem;
-			struct cap_captbl *target_ct;
-			
-			/* Fixme: We are doing expanding here. */
-			
-			ret = cap_kmem_activate(ct, pgtbl_cap, page_addr, (unsigned long *)&captbl_mem);
-			if (unlikely(ret)) cos_throw(err, ret);
+			capid_t target        = cap;
+			capid_t cons_capid    = __userregs_get2(regs);
 
-			target_ct = (struct cap_captbl *)captbl_lkup(ct, target);
-			if (target_ct->h.type != CAP_CAPTBL) cos_throw(err, -EINVAL);
-
-			captbl_init(captbl_mem, 1);
-			ret = captbl_expand(target_ct->captbl, target_id, captbl_maxdepth(), captbl_mem);
-			if (ret) cos_throw(err, ret);
-
-			captbl_init(&((char*)captbl_mem)[PAGE_SIZE/2], 1);
-			ret = captbl_expand(target_ct->captbl, target_id + (PAGE_SIZE/2/CAPTBL_LEAFSZ), 
-					    captbl_maxdepth(), &((char*)captbl_mem)[PAGE_SIZE/2]);
+			ret = captbl_cons(ct,target, capin, cons_capid);
 
 			break;
 		}

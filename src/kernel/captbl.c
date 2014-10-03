@@ -30,7 +30,8 @@ captbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, struct
 	int ret;
 	
 	ct = (struct cap_captbl *)__cap_capactivate_pre(t, cap, capin, CAP_CAPTBL, &ret);
-	if (!unlikely(ct)) return ret;
+	if (!unlikely(ct)) return -1;
+
 	ct->captbl = toadd;
 	ct->lvl    = lvl;
 	ct->refcnt = 1;
@@ -101,6 +102,47 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 		cos_throw(err, ret);
 	}
 
+	return 0;
+err:
+	return ret;
+}
+
+int
+captbl_cons(struct captbl *ct, capid_t target, capid_t cons_addr, capid_t cons_capid)
+{
+	int ret;
+	void *captbl_mem;
+	struct cap_captbl *target_ct, *cons_cap;
+			
+	target_ct = (struct cap_captbl *)captbl_lkup(ct, target);
+	if (target_ct->h.type != CAP_CAPTBL || target_ct->lvl != 0) cos_throw(err, -EINVAL);
+
+	cons_cap = (struct cap_captbl *)captbl_lkup(ct, cons_capid);
+	if (cons_cap->h.type != CAP_CAPTBL || cons_cap->lvl != 1) cos_throw(err, -EINVAL);
+
+	captbl_mem = (void *)cons_cap->captbl;
+
+	cos_faa(&cons_cap->refcnt, 1);
+	/* FIXME: we are expanding the entire page to
+	 * two of the locations. Do we want separate
+	 * calls for them? */
+	captbl_init(captbl_mem, 1);
+	ret = captbl_expand(target_ct->captbl, cons_addr, captbl_maxdepth(), captbl_mem);
+	if (ret) {
+		cos_faa(&cons_cap->refcnt, -1);
+		cos_throw(err, ret);
+	}
+
+	captbl_init(&((char*)captbl_mem)[PAGE_SIZE/2], 1);
+	ret = captbl_expand(target_ct->captbl, cons_addr + (PAGE_SIZE/2/CAPTBL_LEAFSZ), 
+			    captbl_maxdepth(), &((char*)captbl_mem)[PAGE_SIZE/2]);
+	if (ret) {
+		/* Rewind. */
+		captbl_expand(target_ct->captbl, cons_addr, captbl_maxdepth(), NULL);
+		cos_faa(&cons_cap->refcnt, -1);
+		cos_throw(err, ret);
+	}
+	
 	return 0;
 err:
 	return ret;

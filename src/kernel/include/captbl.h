@@ -256,7 +256,7 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 			
 			/* non_zero liv_id means deactivation happened. */
 			if (header_i->liveness_id) {
-				past_ts = ltbl_get_timestamp(header_i->liveness_id);
+				if (ltbl_get_timestamp(header_i->liveness_id, &past_ts)) cos_throw(err, -EFAULT);
 				/* quiescence period for cap entries
 				 * is the worst-case in kernel
 				 * execution time. */
@@ -271,7 +271,7 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 			/* means a deactivation on this cap entry happened
 			 * before. */
 			rdtscll(curr_ts);
-			past_ts = ltbl_get_timestamp(p->liveness_id);
+			if (ltbl_get_timestamp(p->liveness_id, &past_ts)) cos_throw(err, -EFAULT);
 
 			if (!QUIESCENCE_CHECK(curr_ts, past_ts, KERN_QUIESCENCE_CYCLES)) cos_throw(err, -EQUIESCENCE);
 		}
@@ -419,6 +419,8 @@ int captbl_activate(struct captbl *t, capid_t cap, capid_t capin, struct captbl 
 int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
 		      livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr);
 int captbl_activate_boot(struct captbl *t, unsigned long cap);
+
+int captbl_cons(struct captbl *ct, capid_t target, capid_t cons_addr, capid_t cons_capid);
 
 static void cap_init(void) {
 	assert(sizeof(struct cap_captbl) <= __captbl_cap2bytes(CAP_CAPTBL));

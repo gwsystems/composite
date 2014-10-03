@@ -248,7 +248,8 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
 						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
 	orig_v = (u32_t)(pte->next);
-	if (orig_v & PGTBL_PRESENT) return -EEXIST;
+	if (orig_v & PGTBL_PRESENT)  return -EEXIST;
+	if (orig_v & PGTBL_COSFRAME) return -EPERM;
 	
 	/* Quiescence check */
 	if (orig_v & PGTBL_QUIESCENCE) {
@@ -256,9 +257,11 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 		 * make sure that all cores have done tlb flush before
 		 * creating new mapping. */
 		livenessid_t lid = orig_v >> PGTBL_PAGEIDX_SHIFT;
+		u64_t ts;
 		assert(lid < LTBL_ENTS);
 
-		if (!tlb_quiescence_check(ltbl_get_timestamp(lid)))
+		if (ltbl_get_timestamp(lid, &ts)) return -EFAULT;
+		if (!tlb_quiescence_check(ts))
 			return -EQUIESCENCE;
 	}
 
@@ -374,39 +377,6 @@ pgtbl_mapping_del_direct(pgtbl_t pt, u32_t addr)
 	
 	return __pgtbl_expandn(pt, addr >> PGTBL_PAGEIDX_SHIFT, 
 			       PGTBL_DEPTH+1, &accum, &pte, NULL);
-}
-
-static int
-pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
-{
-	struct ert_intern *pte;
-	u32_t orig_v, accum = 0;
-	
-	assert(pt);
-	assert((PGTBL_FLAG_MASK & addr) == 0);
-
-	/* get the pte */
-	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
-						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
-	if (unlikely(__pgtbl_isnull(pte, 0, 0))) return -ENOENT;
-
-	orig_v = (u32_t)(pte->next);
-	*kern_addr = (unsigned long)chal_pa2va((void *)(orig_v & PGTBL_FRAME_MASK));
-
-	if (unlikely(!*kern_addr)) return -EINVAL; /* cannot retype a non-kernel accessible page */
-	if (unlikely(!(orig_v & PGTBL_COSFRAME))) return -EINVAL; /* can't activate non-frames */
-	if (unlikely(orig_v & PGTBL_COSKMEM)) return -EEXIST; /* can't re-activate kmem frames */
-
-	if (unlikely(retypetbl_ref((void *)(orig_v & PGTBL_FRAME_MASK)))) return -EFAULT;
-	/* We keep the cos_frame entry, but mark it as COSKMEM so that
-	 * we won't use it for other kernel objects. */
-	if (unlikely(!cos_cas((unsigned long *)pte, orig_v, orig_v | PGTBL_COSKMEM))) {
-		/* restore the ref cnt. */
-		retypetbl_deref((void *)(orig_v & PGTBL_FRAME_MASK));
-		return -ECASFAIL;
-	}
-
-	return 0;
 }
 
 static void *pgtbl_lkup_lvl(pgtbl_t pt, u32_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
@@ -528,5 +498,6 @@ static void pgtbl_init(void) {
 int kmem_deact_pre(struct captbl *ct, capid_t pgtbl_cap, capid_t cosframe_addr, livenessid_t kmem_lid, 
 		   void *obj_vaddr, unsigned long **p_pte, unsigned long *v);
 int kmem_deact_post(unsigned long *pte, unsigned long old_v, livenessid_t kmem_lid);
+int pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr);
 
 #endif /* PGTBL_H */
