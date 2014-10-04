@@ -384,8 +384,12 @@ capid_t alloc_capid(cap_t cap)
 }
 
 struct comp_cap_info {
-	capid_t captbl_cap;
-	capid_t pgtbl_cap;
+	/* By default 2 pages for the captbl of each comp: half page
+	 * 1st level, and 1.5 pages 2nd level */
+	capid_t captbl_cap[2];
+	capid_t pgtbl_cap[2];
+#define COMP_N_KMEM 4 /* 4 pages of kmem per component by default. */
+	vaddr_t kmem[COMP_N_KMEM];
 	capid_t comp_cap;
 	capid_t cap_frontier;
 	vaddr_t addr_start;
@@ -437,10 +441,10 @@ acap_test(void)
 		int ret;
 		//map this to ping and pong
 		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, 
-				  shmem, ping->pgtbl_cap, ping->addr_start + 0x400000 - PAGE_SIZE, 0);
+				  shmem, ping->pgtbl_cap[0], ping->addr_start + 0x400000 - PAGE_SIZE, 0);
 		if (ret) printc("map shmem to ping failed! ret %d\n", ret);
 		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, 
-				  shmem, pong->pgtbl_cap, pong->addr_start + 0x400000 - PAGE_SIZE, 0);
+				  shmem, pong->pgtbl_cap[0], pong->addr_start + 0x400000 - PAGE_SIZE, 0);
 		if (ret) printc("map shmem to pong failed! ret %d\n", ret);
 	}
 
@@ -448,8 +452,8 @@ acap_test(void)
 	pong_thd_cap = alloc_capid(CAP_THD);
 
 	// grant alpha thd to pong as well
-	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-			llboot->alpha, pong->captbl_cap, SCHED_CAPTBL_ALPHATHD_BASE + captbl_idsize(CAP_THD)*cos_cpuid(), 0)) BUG();
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, llboot->alpha, 
+			pong->captbl_cap[0], SCHED_CAPTBL_ALPHATHD_BASE + captbl_idsize(CAP_THD)*cos_cpuid(), 0)) BUG();
 
 	if (cos_cpuid() < (NUM_CPU_COS/2)) { // sending core
 		// create rcv thd in ping. and copy it to ping's captbl.
@@ -457,14 +461,14 @@ acap_test(void)
 				BOOT_CAPTBL_SELF_PT, thd_mem, ping->comp_cap)) BUG();
 
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-				pong_thd_cap, ping->captbl_cap, async_rcvthd_cap, 0)) BUG();
+				pong_thd_cap, ping->captbl_cap[0], async_rcvthd_cap, 0)) BUG();
 
 		// create asnd / arcv caps!
-		if (call_cap_op(ping->captbl_cap, CAPTBL_OP_ARCVACTIVATE, async_test_cap, 
+		if (call_cap_op(ping->captbl_cap[0], CAPTBL_OP_ARCVACTIVATE, async_test_cap, 
 				pong_thd_cap, ping->comp_cap, 0)) BUG();
 
-		if (call_cap_op(pong->captbl_cap, CAPTBL_OP_ASNDACTIVATE, async_test_cap, 
-				ping->captbl_cap, async_test_cap, 0)) BUG();
+		if (call_cap_op(pong->captbl_cap[0], CAPTBL_OP_ASNDACTIVATE, async_test_cap, 
+				ping->captbl_cap[0], async_test_cap, 0)) BUG();
 
 	} else { // receiving core
 
@@ -473,14 +477,14 @@ acap_test(void)
 				BOOT_CAPTBL_SELF_PT, thd_mem, pong->comp_cap)) BUG();
 
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-				pong_thd_cap, ping->captbl_cap, async_rcvthd_cap, 0)) BUG();
+				pong_thd_cap, ping->captbl_cap[0], async_rcvthd_cap, 0)) BUG();
 
 		// create asnd / arcv caps!
-		if (call_cap_op(pong->captbl_cap, CAPTBL_OP_ARCVACTIVATE, async_test_cap, 
+		if (call_cap_op(pong->captbl_cap[0], CAPTBL_OP_ARCVACTIVATE, async_test_cap, 
 				pong_thd_cap, pong->comp_cap, 0)) BUG();
 
-		if (call_cap_op(ping->captbl_cap, CAPTBL_OP_ASNDACTIVATE, async_test_cap,
-				pong->captbl_cap, async_test_cap, 0)) BUG();
+		if (call_cap_op(ping->captbl_cap[0], CAPTBL_OP_ASNDACTIVATE, async_test_cap,
+				pong->captbl_cap[0], async_test_cap, 0)) BUG();
 
 	}
 
@@ -522,14 +526,14 @@ int run_ppos_test(void)
 #define ITER (100*1000)//(10*1024*1024)
 		rdtscll(s);
 		for (i = 0; i < ITER; i++) {
-			ret = call_cap_op(ping->pgtbl_cap, CAPTBL_OP_CPY,
-					  pmem, ping->pgtbl_cap, to_addr, 0);
+			ret = call_cap_op(ping->pgtbl_cap[0], CAPTBL_OP_CPY,
+					  pmem, ping->pgtbl_cap[0], to_addr, 0);
 			/* if (ret) { */
 			/* 	printc("ret %d ...on core %d\n", ret, cos_cpuid()); */
 			/* 	continue; */
 			/* } */
 			assert(!ret);
-			ret = call_cap_op(ping->pgtbl_cap, CAPTBL_OP_MAPPING_DECONS,
+			ret = call_cap_op(ping->pgtbl_cap[0], CAPTBL_OP_MAPPING_DECONS,
 					  to_addr, liv_id, 0, 0);
 			/* if (ret) { */
 			/* 	printc("decons failed on core %d, ret %d\n", cos_cpuid(), ret); */
@@ -557,11 +561,11 @@ int run_ppos_test(void)
 		rdtscll(s);
 		while (1) {
 			if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-					llboot->init_thd, ping->captbl_cap, if_cap, 0)) {
+					llboot->init_thd, ping->captbl_cap[0], if_cap, 0)) {
 				printc("failed...1\n");
 				break;
 			}
-			if (call_cap_op(ping->captbl_cap, CAPTBL_OP_THDDEACTIVATE,
+			if (call_cap_op(ping->captbl_cap[0], CAPTBL_OP_THDDEACTIVATE,
 					if_cap, 0, 0, 0)) {
 				printc("failed...2\n");
 				break;
@@ -606,9 +610,9 @@ boot_comp_thds_init(void)
 	/* Scheduler should have access to the init thread and alpha
 	 * thread. Grant caps by copying. */
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-			llboot->init_thd, sched_comp->captbl_cap, thd_schedinit, 0)) BUG();
+			llboot->init_thd, sched_comp->captbl_cap[0], thd_schedinit, 0)) BUG();
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-			llboot->alpha, sched_comp->captbl_cap, thd_alpha, 0))        BUG();
+			llboot->alpha, sched_comp->captbl_cap[0], thd_alpha, 0))        BUG();
 	ck_spinlock_ticket_unlock(&init_lock);
 
 	printc("Core %ld, Low-level booter created threads:\n"
@@ -696,11 +700,12 @@ void comp_deps_run_all(void)
 done:
 	//QW: to remove
 	if (cos_cpuid() == 0) {
+		struct comp_cap_info *comp = &comp_cap_info[BOOT_INIT_SCHED_COMP];
 		int lid = get_liv_id();
-		int ret = call_cap_op(comp_cap_info[BOOT_INIT_SCHED_COMP].captbl_cap, CAPTBL_OP_SINVDEACTIVATE,
+		int ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_SINVDEACTIVATE,
 				      4, lid, 0, 0);
 		assert(ret == 0);
-		ret = call_cap_op(comp_cap_info[BOOT_INIT_SCHED_COMP].captbl_cap, CAPTBL_OP_SINVACTIVATE,
+		ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_SINVACTIVATE,
 				      4, comp_cap_info[3].comp_cap, 222, 0);
 		assert(ret == -EQUIESCENCE);
 
@@ -711,12 +716,12 @@ done:
 			if (QUIESCENCE_CHECK(e, s, KERN_QUIESCENCE_CYCLES)) break;
 		}
 
-		ret = call_cap_op(comp_cap_info[BOOT_INIT_SCHED_COMP].captbl_cap, CAPTBL_OP_SINVACTIVATE,
+		ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_SINVACTIVATE,
 				      4, comp_cap_info[3].comp_cap, 222, 0);
 		assert(ret == 0);
 		printc(">>> act / deact quiescence_check passed w/ liveness id %d.\n", lid);
 
-		ret = call_cap_op(comp_cap_info[BOOT_INIT_SCHED_COMP].captbl_cap, CAPTBL_OP_THDDEACTIVATE, 
+		ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_THDDEACTIVATE, 
 				  SCHED_CAPTBL_INITTHD_BASE + cos_cpuid() * captbl_idsize(CAP_THD),
 				  lid << 16 | lid, BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()]);
 		printc("deact 1 ret %d\n", ret);
@@ -727,6 +732,18 @@ done:
 			printc(">>>>>>>>>>>>> thd deact ret %d FAILD w/ liveness id %d.\n", ret, lid);
 		}
 		printc(">>> thd deact ret %d w/ liveness id %d.\n", ret, lid);
+
+#define CAPTBL_INIT_SZ (PAGE_SIZE/2/16)
+		ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_DECONS,
+				  comp->captbl_cap[1], CAPTBL_INIT_SZ, 1, 0); //BUG();
+		printc("decons ret %d\n", ret);
+
+		/* ret = call_cap_op(comp->captbl_cap, CAPTBL_OP_DECONS,  */
+		/* 		  , */
+		/* 		  lid << 16 | lid, BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()]); */
+		/* ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLDEACTIVATE, ,  */
+		/* 		  lid << 16 | lid, BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()]); */
+
 	}
 
 	sync_all();

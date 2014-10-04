@@ -90,9 +90,7 @@ extern paddr_t kmem_start_pa;
 
 static inline int
 retypetbl_cas(u32_t *a, u32_t old, u32_t new) {
-	if (!cos_cas((unsigned long *)a, old, new)) return -ECASFAIL;
-
-	return 0;
+	return cos_cas((unsigned long *)a, old, new);
 }
 
 int retypetbl_retype2user(void *pa);

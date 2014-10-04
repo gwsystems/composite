@@ -180,7 +180,7 @@ ltbl_poly_update(livenessid_t id, u32_t poly)
 	rdtscll(ent->deact_timestamp);
 	cos_inst_bar();
 
-	cos_cas((unsigned long *)&ent->poly, 0, poly);
+	if (cos_cas((unsigned long *)&ent->poly, 0, poly) != CAS_SUCCESS) return -ECASFAIL;
 	
 	return 0;
 }
@@ -195,7 +195,9 @@ ltbl_poly_clear(livenessid_t id)
 	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth(), NULL);
 	old_v = (u32_t)ent->poly;
 
-	return cos_cas((unsigned long *)&ent->poly, old_v, 0);
+	if (cos_cas((unsigned long *)&ent->poly, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
+
+	return 0;
 }
 
 static inline int

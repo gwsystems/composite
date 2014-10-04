@@ -1,7 +1,7 @@
 #ifndef UTIL_H
 #define UTIL_H
 
-#define CAS_SUCCESS 0
+#define CAS_SUCCESS 1
 /* 
  * Return values:
  * 0 on failure due to contention (*target != old)

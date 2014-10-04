@@ -647,7 +647,6 @@ kern_boot_comp(struct spd_info *spd_info)
 	captbl_init(boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2, 1);
 	ret = captbl_expand(ct, PAGE_SIZE/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2);
 	assert(!ret);
-
 	boot_captbl = ct;
 
 	kmem_base_pa = chal_va2pa(cos_kmem_base);
@@ -691,13 +690,15 @@ kern_boot_comp(struct spd_info *spd_info)
 		if ((addr - (u32_t)kmem_base_pa) % RETYPE_MEM_SIZE == 0) {
 			ret = retypetbl_retype2kern((void *)addr);
 			if (ret) {
-				printk("Retype paddr %x failed. ret %d\n", addr, ret);
+				printk("Retype paddr %x failed when loading llbooter. ret %d\n", addr, ret);
  				cos_throw(err, -1);
 			}
 		}
 
-		if (pgtbl_mapping_add(pt, BOOT_MEM_VM_BASE + i*PAGE_SIZE, 
-				      addr, PGTBL_USER_DEF)) cos_throw(err, -1);
+		if (pgtbl_mapping_add(pt, BOOT_MEM_VM_BASE + i*PAGE_SIZE, addr, PGTBL_USER_DEF)) {
+			printk("Mapping llbooter %x failed!\n", addr);
+			cos_throw(err, -1);
+		} 
 		assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
 	}
 

@@ -85,8 +85,7 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_CAPTBL, lid); 
 	
 	if (ret == 0) {
-		ret = cos_cas((unsigned long *)&deact_cap->refcnt, 1, 0);
-		if (ret != CAS_SUCCESS) {
+		if (cos_cas((unsigned long *)&deact_cap->refcnt, 1, 0) != CAS_SUCCESS) {
 			cos_throw(err, -ECASFAIL);
 		}
 
@@ -108,20 +107,17 @@ err:
 }
 
 int
-captbl_cons(struct captbl *ct, capid_t target, capid_t cons_addr, capid_t cons_capid)
+captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t cons_addr)
 {
 	int ret;
 	void *captbl_mem;
-	struct cap_captbl *target_ct, *cons_cap;
 			
-	target_ct = (struct cap_captbl *)captbl_lkup(ct, target);
 	if (target_ct->h.type != CAP_CAPTBL || target_ct->lvl != 0) cos_throw(err, -EINVAL);
-
-	cons_cap = (struct cap_captbl *)captbl_lkup(ct, cons_capid);
 	if (cons_cap->h.type != CAP_CAPTBL || cons_cap->lvl != 1) cos_throw(err, -EINVAL);
 
 	captbl_mem = (void *)cons_cap->captbl;
 
+	/* increment refcnt */
 	cos_faa(&cons_cap->refcnt, 1);
 	/* FIXME: we are expanding the entire page to
 	 * two of the locations. Do we want separate

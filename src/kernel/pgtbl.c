@@ -105,7 +105,7 @@ pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 	if (unlikely(retypetbl_ref((void *)(orig_v & PGTBL_FRAME_MASK)))) return -EFAULT;
 	/* We keep the cos_frame entry, but mark it as COSKMEM so that
 	 * we won't use it for other kernel objects. */
-	if (unlikely(!cos_cas((unsigned long *)pte, orig_v, new_v))) {
+	if (unlikely(cos_cas((unsigned long *)pte, orig_v, new_v) != CAS_SUCCESS)) {
 		/* restore the ref cnt. */
 		retypetbl_deref((void *)(orig_v & PGTBL_FRAME_MASK));
 		return -ECASFAIL;
@@ -202,8 +202,7 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_PGTBL, lid);
 
 	if (ret == 0) {
-		ret = cos_cas((unsigned long *)&deact_cap->refcnt, 1, 0);
-		if (ret != CAS_SUCCESS) {
+		if (cos_cas((unsigned long *)&deact_cap->refcnt, 1, 0) != CAS_SUCCESS) {
 			cos_throw(err, -ECASFAIL);
 		}
 

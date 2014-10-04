@@ -250,7 +250,7 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	orig_v = (u32_t)(pte->next);
 	if (orig_v & PGTBL_PRESENT)  return -EEXIST;
 	if (orig_v & PGTBL_COSFRAME) return -EPERM;
-	
+
 	/* Quiescence check */
 	if (orig_v & PGTBL_QUIESCENCE) {
 		/* An unmap happened at this vaddr before. We need to

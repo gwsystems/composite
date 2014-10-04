@@ -420,7 +420,7 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 		      livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr);
 int captbl_activate_boot(struct captbl *t, unsigned long cap);
 
-int captbl_cons(struct captbl *ct, capid_t target, capid_t cons_addr, capid_t cons_capid);
+int captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t cons_addr);
 
 static void cap_init(void) {
 	assert(sizeof(struct cap_captbl) <= __captbl_cap2bytes(CAP_CAPTBL));

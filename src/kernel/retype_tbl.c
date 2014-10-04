@@ -30,7 +30,6 @@ mod_ref_cnt(void *pa, const int op)
 	local_u.v = retype_entry->refcnt_atom.v;
 	/* only allow to ref user or kernel typed memory set */
 	if (unlikely((local_u.type != RETYPETBL_USER) && (local_u.type != RETYPETBL_KERN))) return -EPERM;
-
 	old_v = local_u.v;
 	if (local_u.ref_cnt == RETYPE_REFCNT_MAX) return -EOVERFLOW;
 
@@ -39,10 +38,12 @@ mod_ref_cnt(void *pa, const int op)
 	} else {
 		local_u.ref_cnt = local_u.ref_cnt - 1;
 		rdtscll(retype_entry->last_unmap);
+		cos_inst_bar();
 	}
 	cos_mem_fence();
+	if (retypetbl_cas(&(retype_entry->refcnt_atom.v), old_v, local_u.v) != CAS_SUCCESS) return -ECASFAIL;
 
-	return retypetbl_cas(&(retype_entry->refcnt_atom.v), old_v, local_u.v);
+	return 0;
 }
 
 int
@@ -78,8 +79,8 @@ mod_mem_type(void *pa, const mem_type_t type)
 		else                  return -EPERM;
 	}
 
-	ret = retypetbl_cas(&(glb_retype_info->type), old_type, RETYPETBL_RETYPING);
-	if (ret != CAS_SUCCESS) return ret;
+	ret = retypetbl_cas(&(glb_retype_info->type), RETYPETBL_UNTYPED, RETYPETBL_RETYPING);
+	if (ret != CAS_SUCCESS) return -ECASFAIL;
 	cos_mem_fence();
 
 	/* Set the retyping flag successfully. Now nobody else can

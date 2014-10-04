@@ -48,7 +48,9 @@ __cap_capactivate_post(struct cap_header *h, cap_t type)
 	local = (struct cap_header *)&new_v;
 	local->type = type;
 	
-	return cos_cas((unsigned long *)h, old_v, new_v);
+	if (unlikely(!cos_cas((unsigned long *)h, old_v, new_v))) return -ECASFAIL;
+
+	return 0;
 }
 
 static inline int
@@ -108,22 +110,20 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 
 	assert(ct->captbl);
 	if (cap_type == CAP_CAPTBL) {
-		intern = captbl_lkup_lvl(ct->captbl, expandid, ct->lvl, ctsub->lvl);
-		if (!intern)      return -ENOENT;
-		if (*intern != 0) return -EPERM;
-
-		ret = cos_cas(intern, 0, (unsigned long)ctsub->captbl); /* commit */
-		if (!ret) cos_faa(&(ctsub->refcnt), 1);
+		ret = captbl_cons(ct, ctsub, expandid);
 	} else {
 		u32_t flags = 0;
 		intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, depth);
 		if (!intern)                return -ENOENT;
 		if (pgtbl_ispresent(*intern)) return -EPERM;
 
+		cos_faa(&(((struct cap_pgtbl *)ctsub)->refcnt), 1);
 		ret = __pgtbl_set((struct ert_intern *)intern, 
 				  ((struct cap_pgtbl *)ctsub)->pgtbl, NULL, 0);
 
-		if (!ret) cos_faa(&(((struct cap_pgtbl *)ctsub)->refcnt), 1);
+		if (ret) {
+			cos_faa(&(((struct cap_pgtbl *)ctsub)->refcnt), -1);
+		}
 	}
 
 	return ret;
@@ -135,13 +135,12 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
  * reference counting.
  */
 static inline int
-cap_decons(struct captbl *t, capid_t cap, capid_t pruneid, capid_t capsub, unsigned long lvl)
+cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsigned long lvl)
 {
 	/* capsub is the cap_cap for sub level to be pruned. We need
 	 * to decrement ref_cnt correctly for the kernel page. */
 	struct cap_header *head, *sub;
 	unsigned long *intern;
-	int ret;
 
 	head = (struct cap_header *)captbl_lkup(t, cap);
 	sub  = (struct cap_header *)captbl_lkup(t, cap);
@@ -150,6 +149,7 @@ cap_decons(struct captbl *t, capid_t cap, capid_t pruneid, capid_t capsub, unsig
 
 	if (head->type == CAP_CAPTBL) {
 		struct cap_captbl *ct = (struct cap_captbl *)head;
+
 		if (lvl <= ct->lvl) return -EINVAL;
 		intern = captbl_lkup_lvl(ct->captbl, pruneid, ct->lvl, lvl);
 	} else if (head->type == CAP_PGTBL) {
@@ -160,23 +160,23 @@ cap_decons(struct captbl *t, capid_t cap, capid_t pruneid, capid_t capsub, unsig
 	} else {
 		return -EINVAL;
 	}
+
 	if (!intern) return -ENOENT;
 	if (*intern == 0) return 0; /* return an error here? */
 	/* FIXME: should be cos_cas */
-	ret = cos_cas(intern, *intern, 0); /* commit; note that 0 is "no entry" in both pgtbl and captbl */
+	/* commit; note that 0 is "no entry" in both pgtbl and captbl */
+	if (cos_cas(intern, *intern, 0) != CAS_SUCCESS) return -ECASFAIL;
 
-	if (!ret) {
-		/* decrement the refcnt */
-		if (head->type == CAP_CAPTBL) {
-			struct cap_captbl *ct = (struct cap_captbl *)sub;
-			cos_faa(&(ct->refcnt), -1);
-		} else {
-			struct cap_pgtbl *pt = (struct cap_pgtbl *)sub;
-			cos_faa(&(pt->refcnt), -1);
-		}
+	/* decrement the refcnt */
+	if (head->type == CAP_CAPTBL) {
+		struct cap_captbl *ct = (struct cap_captbl *)sub;
+		cos_faa(&(ct->refcnt), -1);
+	} else {
+		struct cap_pgtbl *pt = (struct cap_pgtbl *)sub;
+		cos_faa(&(pt->refcnt), -1);
 	}
 
-	return ret;
+	return 0;
 }
 
 #endif	/* CAP_OPS */

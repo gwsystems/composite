@@ -157,14 +157,8 @@ extern u32_t free_thd_id;
 static u32_t
 alloc_thd_id(void)
 {
-	u32_t old, new;
-        /* FIXME: get rid of this. */
-        do {
-		old = free_thd_id;
-		new = free_thd_id + 1;
-        } while (unlikely(!cos_cas((unsigned long *)&free_thd_id, (unsigned long)old, (unsigned long)new)));
-
-	return old;
+        /* FIXME: thd id address space management. */
+	return cos_faa(&free_thd_id, 1);
 }
 
 static int 

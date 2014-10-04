@@ -241,7 +241,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 	struct comp_info *ci;
 	struct captbl *ct;
 	struct thread *thd;
-	capid_t cap;
+	capid_t cap, capin;
 	unsigned long ip, sp;
 	syscall_op_t op;
 	/* We lookup this struct (which is on stack) only once, and
@@ -378,11 +378,11 @@ composite_sysenter_handler(struct pt_regs *regs)
 	 * involve writing. */
 	op = __userregs_getop(regs);
 	ct = ci->captbl; 
+	capin = __userregs_get1(regs);
 
 	switch(ch->type) {
 	case CAP_CAPTBL:
 	{
-		capid_t capin = __userregs_get1(regs);
 		struct cap_captbl *op_cap = (struct cap_captbl *)ch;
 
 		/* 
@@ -596,14 +596,21 @@ composite_sysenter_handler(struct pt_regs *regs)
 		}
 		case CAPTBL_OP_CONS:
 		{
-			capid_t target        = cap;
-			capid_t cons_capid    = __userregs_get2(regs);
+			capid_t cons_addr = __userregs_get2(regs);
 
-			ret = captbl_cons(ct,target, capin, cons_capid);
+			ret = cap_cons(ct, cap, capin, cons_addr);
 
 			break;
 		}
 		case CAPTBL_OP_DECONS:
+		{
+			capid_t decons_addr = __userregs_get2(regs);
+			capid_t lvl         = __userregs_get3(regs);
+
+			ret = cap_decons(ct, cap, capin, decons_addr, lvl);
+
+			break;
+		}
 		default: goto err;
 		}
 		break;
@@ -635,7 +642,11 @@ composite_sysenter_handler(struct pt_regs *regs)
 		}
 		case CAPTBL_OP_DECONS:
 		{
-			//TODO: pgtbl decons
+			capid_t decons_addr = __userregs_get2(regs);
+			capid_t lvl         = __userregs_get3(regs);
+
+			ret = cap_decons(ct, cap, capin, decons_addr, lvl);
+
 			break;
 		}
 		/* case CAPTBL_OP_MAPPING_CONS: */
