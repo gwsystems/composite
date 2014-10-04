@@ -392,9 +392,9 @@ composite_sysenter_handler(struct pt_regs *regs)
 		switch(op) {
 		case CAPTBL_OP_CAPTBLACTIVATE:
 		{
-			capid_t pgtbl_cap      = __userregs_get1(regs);
-			vaddr_t kmem_cap       = __userregs_get2(regs);
-			capid_t newcaptbl_cap  = __userregs_get3(regs);
+			capid_t newcaptbl_cap  = __userregs_get1(regs);
+			capid_t pgtbl_cap      = __userregs_get2(regs);
+			vaddr_t kmem_cap       = __userregs_get3(regs);
 			int     captbl_lvl     = __userregs_get4(regs);
 			vaddr_t kmem_addr = 0;
 			struct captbl *newct;
@@ -426,9 +426,9 @@ composite_sysenter_handler(struct pt_regs *regs)
 		}
 		case CAPTBL_OP_PGTBLACTIVATE:
 		{
-			capid_t pgtbl_cap  = __userregs_get1(regs);
-			vaddr_t kmem_cap   = __userregs_get2(regs);
-			capid_t pt_entry   = __userregs_get3(regs);
+			capid_t pt_entry   = __userregs_get1(regs);
+			capid_t pgtbl_cap  = __userregs_get2(regs);
+			vaddr_t kmem_cap   = __userregs_get3(regs);
 			capid_t pgtbl_lvl  = __userregs_get4(regs);
 
 			vaddr_t kmem_addr  = 0;

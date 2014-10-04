@@ -18,7 +18,6 @@ kmem_deact_pre(struct captbl *ct, capid_t pgtbl_cap, capid_t cosframe_addr, live
 	assert(ct);
 	if (!pgtbl_cap || !cosframe_addr || !kmem_lid)
 		cos_throw(err, -EINVAL);
-
 	cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap);
 	if (cap_pt->h.type != CAP_PGTBL) cos_throw(err, -EINVAL);
 
@@ -31,7 +30,8 @@ kmem_deact_pre(struct captbl *ct, capid_t pgtbl_cap, capid_t cosframe_addr, live
 	    || !(old_v & PGTBL_COSKMEM) || (old_v & PGTBL_QUIESCENCE)) cos_throw(err, -EINVAL);
 	assert(old_v & PGTBL_COSFRAME);
 
-	if (ltbl_poly_update(kmem_lid, pa)) cos_throw(err, -EINVAL);
+	ret = ltbl_poly_update(kmem_lid, pa);
+	if (ret) cos_throw(err, ret);
 
 	return 0;
 err:
@@ -85,24 +85,31 @@ pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 
 	orig_v = (u32_t)(pte->next);
 	if (unlikely(!(orig_v & PGTBL_COSFRAME))) return -EINVAL; /* can't activate non-frames */
-	if (unlikely(orig_v & PGTBL_COSKMEM)) return -EEXIST; /* can't re-activate kmem frames */
 
 	if (orig_v & PGTBL_QUIESCENCE) {
-		u64_t poly;
-		u32_t frame;
+		u64_t poly, ts, curr;
+		u32_t frame, lid;
 
-		if (ltbl_get_poly(orig_v & PGTBL_FRAME_MASK, &poly)) return -EFAULT;
+		rdtscll(curr);
+		lid = orig_v >> PGTBL_PAGEIDX_SHIFT;
+
+		if (ltbl_get_timestamp(lid, &ts)) return -EFAULT;
+		if (!QUIESCENCE_CHECK(curr, ts, KERN_QUIESCENCE_CYCLES)) return -EQUIESCENCE;
+		if (ltbl_get_poly(lid, &poly)) return -EFAULT;
+
 		frame = (u32_t)poly; /* cast */
 		*kern_addr = (unsigned long)chal_pa2va((void *)(frame));
 		new_v = frame | (orig_v & PGTBL_FLAG_MASK) | PGTBL_COSKMEM;
 	} else {
+		if (unlikely(orig_v & PGTBL_COSKMEM)) return -EEXIST; /* can't re-activate kmem frames */
+
 		*kern_addr = (unsigned long)chal_pa2va((void *)(orig_v & PGTBL_FRAME_MASK));
 		new_v = orig_v | PGTBL_COSKMEM;
 	}
 
 	if (unlikely(!*kern_addr)) return -EINVAL; /* cannot retype a non-kernel accessible page */
+	if (unlikely(retypetbl_ref((void *)(new_v & PGTBL_FRAME_MASK)))) return -EFAULT;
 
-	if (unlikely(retypetbl_ref((void *)(orig_v & PGTBL_FRAME_MASK)))) return -EFAULT;
 	/* We keep the cos_frame entry, but mark it as COSKMEM so that
 	 * we won't use it for other kernel objects. */
 	if (unlikely(cos_cas((unsigned long *)pte, orig_v, new_v) != CAS_SUCCESS)) {
@@ -151,8 +158,11 @@ pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t
 	
 	pt = (struct cap_pgtbl *)__cap_capactivate_pre(t, cap, capin, CAP_PGTBL, &ret);
 	if (!unlikely(pt)) return ret;
-	pt->pgtbl = pgtbl;
-	pt->lvl = lvl;
+	pt->pgtbl  = pgtbl;
+
+	pt->refcnt = 1;
+	pt->parent = NULL; /* new cap has no parent. only copied cap has. */
+	pt->lvl    = lvl;
 	__cap_capactivate_post(&pt->h, CAP_PGTBL);
 
 	return 0;
@@ -200,22 +210,21 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 	}
 
 	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_PGTBL, lid);
+	if (ret) cos_throw(err, ret);
 
-	if (ret == 0) {
-		if (cos_cas((unsigned long *)&deact_cap->refcnt, 1, 0) != CAS_SUCCESS) {
-			cos_throw(err, -ECASFAIL);
-		}
+	if (cos_cas((unsigned long *)&deact_cap->refcnt, 1, 0) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
-		/* deactivation success. We should either release the
-		 * page, or decrement parent cnt. */
-		if (parent == NULL) { 
-			/* move the kmem to COSFRAME */
-			kmem_deact_post(pte, old_v, kmem_lid);
-		} else {
-			cos_faa(&parent->refcnt, -1);
+	/* deactivation success. We should either release the
+	 * page, or decrement parent cnt. */
+	if (parent == NULL) { 
+		/* move the kmem to COSFRAME */
+		ret = kmem_deact_post(pte, old_v, kmem_lid);
+		if (ret) {
+			cos_faa(&deact_cap->refcnt, 1);
+			cos_throw(err, ret);
 		}
 	} else {
-		cos_throw(err, ret);
+		cos_faa(&parent->refcnt, -1);
 	}
 
 	return 0;

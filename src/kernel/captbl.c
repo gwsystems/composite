@@ -19,6 +19,8 @@ captbl_activate_boot(struct captbl *t, unsigned long cap)
 	ctc->captbl = t; 	/* reference ourself! */
 	ctc->lvl    = 0;
 	ctc->h.type = CAP_CAPTBL;
+	ctc->refcnt = 1;
+	ctc->parent = NULL;
 
 	return 0;
 }
@@ -83,22 +85,17 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 	}
 
 	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_CAPTBL, lid); 
-	
-	if (ret == 0) {
-		if (cos_cas((unsigned long *)&deact_cap->refcnt, 1, 0) != CAS_SUCCESS) {
-			cos_throw(err, -ECASFAIL);
-		}
+	if (ret) cos_throw(err, ret);
 
-		/* deactivation success. We should either release the
-		 * page, or decrement parent cnt. */
-		if (parent == NULL) { 
-			/* move the kmem to COSFRAME */
-			kmem_deact_post(pte, old_v, kmem_lid);
-		} else {
-			cos_faa(&parent->refcnt, -1);
-		}
+	if (cos_cas((unsigned long *)&deact_cap->refcnt, 1, 0) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
+
+	/* deactivation success. We should either release the
+	 * page, or decrement parent cnt. */
+	if (parent == NULL) { 
+		/* move the kmem to COSFRAME */
+		kmem_deact_post(pte, old_v, kmem_lid);
 	} else {
-		cos_throw(err, ret);
+		cos_faa(&parent->refcnt, -1);
 	}
 
 	return 0;

@@ -683,20 +683,20 @@ boot_create_cap_system(void)
 		kmem_id = 0;
 		/* Captbl */
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE,
-				BOOT_CAPTBL_SELF_PT, comp_cap_info[spdid].kmem[kmem_id++], captbl_cap, 0)) BUG();
+				captbl_cap, BOOT_CAPTBL_SELF_PT, comp_cap_info[spdid].kmem[kmem_id++],  0)) BUG();
 		/* Another page for the captbl. */
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE,
-				BOOT_CAPTBL_SELF_PT, comp_cap_info[spdid].kmem[kmem_id++], captbl_cap2, 1)) BUG();
+				captbl_cap2, BOOT_CAPTBL_SELF_PT, comp_cap_info[spdid].kmem[kmem_id++], 1)) BUG();
 
 		/* Captbl expand */
 		if (call_cap_op(captbl_cap, CAPTBL_OP_CONS, 
 				captbl_cap2, CAPTBL_INIT_SZ, 0, 0)) BUG();
 		/* PGD */
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
-				BOOT_CAPTBL_SELF_PT, comp_cap_info[spdid].kmem[kmem_id++], pgtbl_cap, 0))  BUG();
+				pgtbl_cap, BOOT_CAPTBL_SELF_PT, comp_cap_info[spdid].kmem[kmem_id++], 0))  BUG();
 		/* PTE */
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
-				BOOT_CAPTBL_SELF_PT, comp_cap_info[spdid].kmem[kmem_id++], pte_cap, 1))    BUG();
+				pte_cap, BOOT_CAPTBL_SELF_PT, comp_cap_info[spdid].kmem[kmem_id++], 1))    BUG();
 		assert(kmem_id == COMP_N_KMEM);
 
 		/* Construct pgtbl */

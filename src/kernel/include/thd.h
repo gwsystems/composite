@@ -229,16 +229,14 @@ static int thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigne
 	}
 
 	ret = cap_capdeactivate(dest_ct, capin, CAP_THD, lid); 
-			
-	if (ret == 0) {
-		thd->refcnt--;
+	if (ret) cos_throw(err, ret);
 
-		/* deactivation success */
-		if (thd->refcnt == 0) {
-			/* move the kmem for the thread to a location
-			 * in a pagetable as COSFRAME */
-			kmem_deact_post(pte, old_v, kmem_lid);
-		}
+	thd->refcnt--;
+	/* deactivation success */
+	if (thd->refcnt == 0) {
+		/* move the kmem for the thread to a location
+		 * in a pagetable as COSFRAME */
+		kmem_deact_post(pte, old_v, kmem_lid);
 	}
 
 	return 0;

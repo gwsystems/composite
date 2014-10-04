@@ -686,6 +686,17 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 
 #include <sched_hier.h>
 
+static void
+quiescence_wait(void)
+{
+	u64_t s,e;
+	rdtscll(s);
+	while (1) {
+		rdtscll(e);
+		if (QUIESCENCE_CHECK(e, s, KERN_QUIESCENCE_CYCLES)) break;
+	}
+}
+
 void comp_deps_run_all(void)
 {
 	sync_all();
@@ -708,42 +719,62 @@ done:
 		ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_SINVACTIVATE,
 				      4, comp_cap_info[3].comp_cap, 222, 0);
 		assert(ret == -EQUIESCENCE);
-
-		u64_t s,e;
-		rdtscll(s);
-		while (1) {
-			rdtscll(e);
-			if (QUIESCENCE_CHECK(e, s, KERN_QUIESCENCE_CYCLES)) break;
-		}
-
+		quiescence_wait();
 		ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_SINVACTIVATE,
 				      4, comp_cap_info[3].comp_cap, 222, 0);
 		assert(ret == 0);
 		printc(">>> act / deact quiescence_check passed w/ liveness id %d.\n", lid);
 
 		ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_THDDEACTIVATE, 
-				  SCHED_CAPTBL_INITTHD_BASE + cos_cpuid() * captbl_idsize(CAP_THD),
-				  lid << 16 | lid, BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()]);
+				  SCHED_CAPTBL_INITTHD_BASE + cos_cpuid() * captbl_idsize(CAP_THD), 0, 0, 0);
 		printc("deact 1 ret %d\n", ret);
 
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDDEACTIVATE, PERCPU_GET(llbooter)->init_thd, 
 				  lid << 16 | lid, BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()]);
-		if (ret) {
-			printc(">>>>>>>>>>>>> thd deact ret %d FAILD w/ liveness id %d.\n", ret, lid);
-		}
+		if (ret) printc(">>>>>>>>>>>>> thd deact ret %d FAILD w/ liveness id %d.\n", ret, lid);
 		printc(">>> thd deact ret %d w/ liveness id %d.\n", ret, lid);
 
+		/* CAPTBL decons + deact */
+		lid = get_liv_id();
 #define CAPTBL_INIT_SZ (PAGE_SIZE/2/16)
 		ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_DECONS,
-				  comp->captbl_cap[1], CAPTBL_INIT_SZ, 1, 0); //BUG();
-		printc("decons ret %d\n", ret);
+				  comp->captbl_cap[1], CAPTBL_INIT_SZ, 1, 0);
+		if (ret) printc(">>>>>>>>>>>>> captbl decons ret %d FAILD.\n", ret);
+		printc(">>> Captbl decons ret %d\n", ret);
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLDEACTIVATE, 
+				  comp->captbl_cap[1],
+				  lid << 16 | lid, BOOT_CAPTBL_SELF_PT, comp->kmem[1]);
+		if (ret) printc(">>>>>>>>>>>>> captbl deact ret %d FAILD.\n", ret);
+		printc(">>> Captbl deact ret %d\n", ret);
 
-		/* ret = call_cap_op(comp->captbl_cap, CAPTBL_OP_DECONS,  */
-		/* 		  , */
-		/* 		  lid << 16 | lid, BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()]); */
-		/* ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLDEACTIVATE, ,  */
-		/* 		  lid << 16 | lid, BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()]); */
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE, 
+				  comp->captbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[1], 1);
+		assert(ret == -EQUIESCENCE);
+		quiescence_wait();
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE, 
+				  comp->captbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[1], 1);
+		printc(">>> CAPTBL re-act after quiescence ret %d\n", ret);
 
+		//////////////////////////
+		/* PGTBL decons + deact */
+		lid = get_liv_id();
+		ret = call_cap_op(comp->pgtbl_cap[0], CAPTBL_OP_DECONS,
+				  comp->pgtbl_cap[1], comp->addr_start, 1, 0);
+		if (ret) printc(">>>>>>>>>>>>> pgtbl decons ret %d FAILD.\n", ret);
+		printc(">>> PGTBL decons ret %d\n", ret);
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLDEACTIVATE, 
+				  comp->pgtbl_cap[1],
+				  lid << 16 | lid, BOOT_CAPTBL_SELF_PT, comp->kmem[3]);
+		if (ret) printc(">>>>>>>>>>>>> pgtbl deact ret %d FAILD.\n", ret);
+		printc(">>> PGTBL deact ret %d\n", ret);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE, 
+				  comp->pgtbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[3], 1);
+		assert(ret == -EQUIESCENCE);
+		quiescence_wait();
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE, 
+				  comp->pgtbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[3], 1);
+		printc(">>> PGTBL re-act after quiescence ret %d\n", ret);
 	}
 
 	sync_all();

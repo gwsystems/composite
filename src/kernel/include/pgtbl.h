@@ -117,9 +117,7 @@ __pgtbl_update_leaf(struct ert_intern *a, void *v, u32_t old)
 {
 	u32_t new;
 
-	old = (u32_t)(a->next);
 	new = (u32_t)(v);
-
 	if (!cos_cas((unsigned long *)a, old, new)) return -ECASFAIL;
 
 	return 0;

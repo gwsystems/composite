@@ -143,7 +143,7 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 	unsigned long *intern;
 
 	head = (struct cap_header *)captbl_lkup(t, cap);
-	sub  = (struct cap_header *)captbl_lkup(t, cap);
+	sub  = (struct cap_header *)captbl_lkup(t, capsub);
 	if (unlikely(!head || !sub)) return -ENOENT;
 	if (unlikely(head->type != sub->type)) return -EPERM;
 

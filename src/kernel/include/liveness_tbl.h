@@ -136,7 +136,7 @@ ltbl_get(livenessid_t id, struct liveness_data *ld)
 	return 0;
 }
 
-static inline u64_t
+static inline int
 ltbl_get_timestamp(livenessid_t id, u64_t *ts)
 {
 	struct liveness_entry *ent;
