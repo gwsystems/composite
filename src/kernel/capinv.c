@@ -415,10 +415,10 @@ composite_sysenter_handler(struct pt_regs *regs)
 			 * deactivation w/ and w/o kmem
 			 * deactivation. */
 
-			livenessid_t lid      = __userregs_get2(regs) & 0xFFFF;
-			livenessid_t kmem_lid = __userregs_get2(regs) >> 16;
-			capid_t pgtbl_cap     = __userregs_get3(regs);
-			capid_t cosframe_addr = __userregs_get4(regs);
+			capid_t pgtbl_cap     = __userregs_get2(regs);
+			capid_t cosframe_addr = __userregs_get3(regs);
+			livenessid_t lid      = __userregs_get4(regs) & 0xFFFF;
+			livenessid_t kmem_lid = __userregs_get4(regs) >> 16;
 
 			ret = captbl_deactivate(ct, op_cap, capin, lid, kmem_lid, pgtbl_cap, cosframe_addr);
 			
@@ -468,10 +468,10 @@ composite_sysenter_handler(struct pt_regs *regs)
 			/* TODO: use two different cases for
 			 * deactivation w/ and w/o kmem
 			 * deactivation. */
-			livenessid_t lid      = __userregs_get2(regs) & 0xFFFF;
-			livenessid_t kmem_lid = __userregs_get2(regs) >> 16;
-			capid_t pgtbl_cap     = __userregs_get3(regs);
-			capid_t cosframe_addr = __userregs_get4(regs);
+			capid_t pgtbl_cap     = __userregs_get2(regs);
+			capid_t cosframe_addr = __userregs_get3(regs);
+			livenessid_t lid      = __userregs_get4(regs) & 0xFFFF;
+			livenessid_t kmem_lid = __userregs_get4(regs) >> 16;
 
 			ret = pgtbl_deactivate(ct, op_cap, capin, lid, kmem_lid, pgtbl_cap, cosframe_addr);
 			
@@ -496,10 +496,10 @@ composite_sysenter_handler(struct pt_regs *regs)
 		}
 		case CAPTBL_OP_THDDEACTIVATE:
 		{
-			livenessid_t lid      = __userregs_get2(regs) & 0xFFFF;
-			livenessid_t kmem_lid = __userregs_get2(regs) >> 16;
-			capid_t pgtbl_cap     = __userregs_get3(regs);
-			capid_t cosframe_addr = __userregs_get4(regs);
+			capid_t pgtbl_cap     = __userregs_get2(regs);
+			capid_t cosframe_addr = __userregs_get3(regs);
+			livenessid_t lid      = __userregs_get4(regs) & 0xFFFF;
+			livenessid_t kmem_lid = __userregs_get4(regs) >> 16;
 
 			ret = thd_deactivate(ct, op_cap, capin, lid, kmem_lid, pgtbl_cap, cosframe_addr);
 
@@ -649,11 +649,19 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 			break;
 		}
-		/* case CAPTBL_OP_MAPPING_CONS: */
-		/* { */
-		/* 	break; */
-		/* } */
-		case CAPTBL_OP_MAPPING_DECONS:
+		case CAPTBL_OP_MEMACTIVATE:
+		{
+			/* This takes cosframe as input and constructs
+			 * mapping in pgtbl. */
+			capid_t frame_cap = __userregs_get1(regs);
+			capid_t dest_pt   = __userregs_get2(regs);
+			vaddr_t vaddr     = __userregs_get3(regs);
+
+			ret = cap_memactivate(ct, (struct cap_pgtbl *)ch, frame_cap, dest_pt, vaddr);
+
+			break;
+		}
+		case CAPTBL_OP_MEMDEACTIVATE:
 		{
 			vaddr_t addr      = __userregs_get1(regs);
 			livenessid_t lid  = __userregs_get2(regs);
@@ -664,55 +672,39 @@ composite_sysenter_handler(struct pt_regs *regs)
 			
 			break;
 		}
-		case CAPTBL_OP_MEM_ACTIVATE:
-		{
-			capid_t frame_cap = __userregs_get1(regs);
-			capid_t dest_pt   = __userregs_get2(regs);
-			vaddr_t vaddr     = __userregs_get3(regs);
-			
-			ret = cap_memactivate(ct, (struct cap_pgtbl *)ch, frame_cap, dest_pt, vaddr);
-
-			break;
-		}
 		case CAPTBL_OP_MEM_RETYPE2USER:
 		{
 			vaddr_t frame_addr = __userregs_get1(regs);
+			paddr_t frame;
 
-			u32_t flags;
-			unsigned long *pte;
+			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
+			if (ret) cos_throw(err, ret);
 
-			pte = pgtbl_lkup_pte(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &flags);
-			if (!pte) cos_throw(err, -EINVAL);
-
-			ret = retypetbl_retype2user((void *)(*pte & PGTBL_FRAME_MASK));
+			ret = retypetbl_retype2user((void *)frame);
 
 			break;
 		}
 		case CAPTBL_OP_MEM_RETYPE2KERN:
 		{
 			vaddr_t frame_addr = __userregs_get1(regs);
+			paddr_t frame;
 
-			u32_t flags;
-			unsigned long *pte;
+			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
+			if (ret) cos_throw(err, ret);
 
-			pte = pgtbl_lkup_pte(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &flags);
-			if (!pte) cos_throw(err, -EINVAL);
-
-			ret = retypetbl_retype2kern((void *)(*pte & PGTBL_FRAME_MASK));
+			ret = retypetbl_retype2kern((void *)frame);
 
 			break;
 		}
 		case CAPTBL_OP_MEM_RETYPE2FRAME:
 		{
 			vaddr_t frame_addr = __userregs_get1(regs);
+			paddr_t frame;
 
-			u32_t flags;
-			unsigned long *pte;
+			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
+			if (ret) cos_throw(err, ret);
 
-			pte = pgtbl_lkup_pte(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &flags);
-			if (!pte) cos_throw(err, -EINVAL);
-
-			ret = retypetbl_retype2frame((void *)(*pte & PGTBL_FRAME_MASK));
+			ret = retypetbl_retype2frame((void *)frame);
 
 			break;
 		}

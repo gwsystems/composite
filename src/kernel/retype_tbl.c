@@ -7,6 +7,7 @@
  */
 
 #include "include/retype_tbl.h"
+#include "include/chal.h"
 #include "include/shared/cos_types.h"
 
 struct retype_info     retype_tbl[NUM_CPU]        CACHE_ALIGNED;
@@ -14,7 +15,7 @@ struct retype_info_glb glb_retype_tbl[N_MEM_SETS] CACHE_ALIGNED;
 
 /* called to increment or decrement the refcnt. */
 static inline int
-mod_ref_cnt(void *pa, const int op) 
+mod_ref_cnt(void *pa, const int op, const int type_check) 
 {
 	u32_t idx, old_v;
 	struct retype_entry *retype_entry;
@@ -27,10 +28,11 @@ mod_ref_cnt(void *pa, const int op)
 
 	retype_entry = GET_RETYPE_ENTRY(idx);
 	
-	local_u.v = retype_entry->refcnt_atom.v;
+	old_v = local_u.v = retype_entry->refcnt_atom.v;
 	/* only allow to ref user or kernel typed memory set */
 	if (unlikely((local_u.type != RETYPETBL_USER) && (local_u.type != RETYPETBL_KERN))) return -EPERM;
-	old_v = local_u.v;
+	/* Do type check if type passed in. */
+	if (type_check >= 0 && type_check != local_u.type) return -EPERM;
 	if (local_u.ref_cnt == RETYPE_REFCNT_MAX) return -EOVERFLOW;
 
 	if (op) {
@@ -41,21 +43,29 @@ mod_ref_cnt(void *pa, const int op)
 		cos_inst_bar();
 	}
 	cos_mem_fence();
+
 	if (retypetbl_cas(&(retype_entry->refcnt_atom.v), old_v, local_u.v) != CAS_SUCCESS) return -ECASFAIL;
 
 	return 0;
 }
 
+/* This only does reference for kernel typed memory. */
+int
+retypetbl_kern_ref(void *pa)
+{
+	return mod_ref_cnt(pa, 1, RETYPETBL_KERN);
+}
+
 int
 retypetbl_ref(void *pa)
 {
-	return mod_ref_cnt(pa, 1);
+	return mod_ref_cnt(pa, 1, -1);
 }
 
 int
 retypetbl_deref(void *pa)
 {
-	return mod_ref_cnt(pa, 0);
+	return mod_ref_cnt(pa, 0, -1);
 }
 
 static inline int
@@ -78,6 +88,10 @@ mod_mem_type(void *pa, const mem_type_t type)
 		if (old_type == type) return -EEXIST;
 		else                  return -EPERM;
 	}
+
+	/* Kernel memory needs to be kernel accessible: pa2va returns
+	 * null if it's not. */
+	if (type == RETYPETBL_KERN && chal_pa2va(pa) == NULL) return -EINVAL;
 
 	ret = retypetbl_cas(&(glb_retype_info->type), RETYPETBL_UNTYPED, RETYPETBL_RETYPING);
 	if (ret != CAS_SUCCESS) return -ECASFAIL;
@@ -118,9 +132,9 @@ retypetbl_retype2frame(void *pa)
 {
 	struct retype_info_glb *glb_retype_info;
 	union refcnt_atom local_u;
-	u32_t old_v, idx, cpu;
+	u32_t old_v, idx;
 	u64_t last_unmap;
-	int ret, ref_sum;
+	int cpu, ret, ref_sum;
 	mem_type_t old_type;
 
 	PA_BOUNDARY_CHECK();
@@ -129,7 +143,6 @@ retypetbl_retype2frame(void *pa)
 	assert(idx < N_MEM_SETS);
 
 	glb_retype_info = GET_GLB_RETYPE_ENTRY(idx);
-
 	old_type = glb_retype_info->type;
 	/* only can retype untyped mem sets. */
 	if (unlikely(old_type != RETYPETBL_USER && old_type != RETYPETBL_KERN)) return -EPERM;
@@ -145,19 +158,17 @@ retypetbl_retype2frame(void *pa)
 		old_v = local_u.v = retype_tbl[cpu].mem_set[idx].refcnt_atom.v;
 		assert(local_u.type == old_type || local_u.type == RETYPETBL_RETYPING);
 
-		ref_sum += local_u.ref_cnt;
 		local_u.type = RETYPETBL_RETYPING;
-
 		ret = retypetbl_cas(&(retype_tbl[cpu].mem_set[idx].refcnt_atom.v), old_v, local_u.v);
 		if (ret != CAS_SUCCESS) cos_throw(restore_all, -ECASFAIL);
 
+		ref_sum += local_u.ref_cnt;
 		/* for tlb quiescence check */
 		if (last_unmap < retype_tbl[cpu].mem_set[idx].last_unmap)
 			last_unmap = retype_tbl[cpu].mem_set[idx].last_unmap;
 	}
-
 	/* only can retype when there's no more mapping */
-	if (ref_sum != 0) cos_throw(restore_all, -ECASFAIL);
+	if (ref_sum != 0) cos_throw(restore_all, -EINVAL);
 
 	/* before retype any type of memory back to untyped, we need
 	 * to make sure TLB quiescence has been achieved after the
@@ -187,10 +198,9 @@ restore_all:
 	/* restore per-core retype entries. (is this necessary?) */
 	/* cpu is the one we tried to modify but fail. So we need to
 	 * restore [0, cpu-1]. */
-	for (cpu -= 1; cpu >= 0; cpu--) {
+	for (cpu--; cpu >= 0; cpu--) {
 		old_v = local_u.v = retype_tbl[cpu].mem_set[idx].refcnt_atom.v;
 		local_u.type = old_type;
-
 		retypetbl_cas(&(retype_tbl[cpu].mem_set[idx].refcnt_atom.v), old_v, local_u.v);
 	}
 	/* and global entry. */

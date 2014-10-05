@@ -231,6 +231,8 @@ extern struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
 
 int tlb_quiescence_check(u64_t unmap_time);
 
+/* this works on both kmem and regular user memory: the retypetbl_ref
+ * works on both. */
 static int
 pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {
@@ -412,6 +414,52 @@ pgtbl_lookup(pgtbl_t pt, u32_t addr, u32_t *flags)
 	return (paddr_t)chal_va2pa(ret);
 }
 
+static int
+get_quiescent_frame(u32_t orig_v, u32_t *frame)
+{
+	u64_t poly, ts, curr;
+	u32_t lid;
+
+	rdtscll(curr);
+	lid = orig_v >> PGTBL_PAGEIDX_SHIFT;
+	assert(orig_v & PGTBL_QUIESCENCE);
+
+	if (ltbl_get_timestamp(lid, &ts) || ltbl_get_poly(lid, &poly)) return -EFAULT;
+	if (!QUIESCENCE_CHECK(curr, ts, KERN_QUIESCENCE_CYCLES)) return -EQUIESCENCE;
+
+	*frame = (u32_t)poly; /* cast */
+
+	return 0;
+}
+
+static int
+pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe)
+{
+	int ret;
+	u32_t flags, frame;
+	unsigned long *pte;
+	paddr_t v;
+
+	pte = pgtbl_lkup_pte(pt, frame_addr, &flags);
+	if (!pte) return -EINVAL;
+	
+	v = *pte;
+	if (!(v & PGTBL_COSFRAME)) return -EINVAL;
+
+	/* if quiescence is set, we have the frame stored in the poly
+	 * of the liveness entry. */
+	if (v & PGTBL_QUIESCENCE) {
+		ret = get_quiescent_frame(v, &frame);
+		if (ret) return ret;
+	} else {
+		frame = v & PGTBL_FRAME_MASK;
+	}
+
+	*cosframe = frame;
+
+	return 0;
+}
+
 extern unsigned long __cr3_contents;
 
 // this helps debugging.
@@ -463,36 +511,13 @@ int pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgt
 int pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
 		     livenessid_t lid, livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr);
 
-static inline int
-cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr)
-{
-	unsigned long *pte, cosframe;
-	struct cap_header *dest_pt_h;
-	u32_t flags;
-	int ret;
-
-	if (pt->lvl) return -EINVAL;
-
-	dest_pt_h = captbl_lkup(ct, dest_pt);
-	if (dest_pt_h->type != CAP_PGTBL) return -EINVAL;
-
-	pte = pgtbl_lkup_pte(pt->pgtbl, frame_cap, &flags);
-	if (!pte) return -EINVAL;
-	cosframe = *pte;
-
-	if (!(cosframe & PGTBL_COSFRAME) || (cosframe & PGTBL_COSKMEM)) return -EPERM;
-
-	ret = pgtbl_mapping_add(((struct cap_pgtbl *)dest_pt_h)->pgtbl, vaddr, 
-				cosframe & PGTBL_FRAME_MASK, PGTBL_USER_DEF);
-	return ret;
-}
-
 static void pgtbl_init(void) { 
 	assert(sizeof(struct cap_pgtbl) <= __captbl_cap2bytes(CAP_PGTBL));
 
 	return; 
 }
 
+int cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr);
 int kmem_deact_pre(struct captbl *ct, capid_t pgtbl_cap, capid_t cosframe_addr, livenessid_t kmem_lid, 
 		   void *obj_vaddr, unsigned long **p_pte, unsigned long *v);
 int kmem_deact_post(unsigned long *pte, unsigned long old_v, livenessid_t kmem_lid);

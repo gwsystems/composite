@@ -256,7 +256,7 @@ vaddr_t get_pmem_cap(void) {
 	}
 
 	heap_vaddr = (vaddr_t)cos_get_heap_ptr();
-	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_ACTIVATE,
+	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEMACTIVATE,
 			  pmem_heap, BOOT_CAPTBL_SELF_PT, heap_vaddr, 0);
 	if (ret) return 0;
 
@@ -533,7 +533,7 @@ int run_ppos_test(void)
 			/* 	continue; */
 			/* } */
 			assert(!ret);
-			ret = call_cap_op(ping->pgtbl_cap[0], CAPTBL_OP_MAPPING_DECONS,
+			ret = call_cap_op(ping->pgtbl_cap[0], CAPTBL_OP_MEMDEACTIVATE,
 					  to_addr, liv_id, 0, 0);
 			/* if (ret) { */
 			/* 	printc("decons failed on core %d, ret %d\n", cos_cpuid(), ret); */
@@ -697,6 +697,18 @@ quiescence_wait(void)
 	}
 }
 
+#define TLB_QUIESCENCE_CYCLES (2400 * 1000 * 10)
+static void
+tlb_quiescence_wait(void)
+{
+	u64_t s,e;
+	rdtscll(s);
+	while (1) {
+		rdtscll(e);
+		if (QUIESCENCE_CHECK(e, s, TLB_QUIESCENCE_CYCLES)) break;
+	}
+}
+
 void comp_deps_run_all(void)
 {
 	sync_all();
@@ -730,7 +742,7 @@ done:
 		printc("deact 1 ret %d\n", ret);
 
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDDEACTIVATE, PERCPU_GET(llbooter)->init_thd, 
-				  lid << 16 | lid, BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()]);
+				  BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()], lid << 16 | lid);
 		if (ret) printc(">>>>>>>>>>>>> thd deact ret %d FAILD w/ liveness id %d.\n", ret, lid);
 		printc(">>> thd deact ret %d w/ liveness id %d.\n", ret, lid);
 
@@ -742,8 +754,7 @@ done:
 		if (ret) printc(">>>>>>>>>>>>> captbl decons ret %d FAILD.\n", ret);
 		printc(">>> Captbl decons ret %d\n", ret);
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLDEACTIVATE, 
-				  comp->captbl_cap[1],
-				  lid << 16 | lid, BOOT_CAPTBL_SELF_PT, comp->kmem[1]);
+				  comp->captbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[1], lid << 16 | lid);
 		if (ret) printc(">>>>>>>>>>>>> captbl deact ret %d FAILD.\n", ret);
 		printc(">>> Captbl deact ret %d\n", ret);
 
@@ -763,8 +774,7 @@ done:
 		if (ret) printc(">>>>>>>>>>>>> pgtbl decons ret %d FAILD.\n", ret);
 		printc(">>> PGTBL decons ret %d\n", ret);
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLDEACTIVATE, 
-				  comp->pgtbl_cap[1],
-				  lid << 16 | lid, BOOT_CAPTBL_SELF_PT, comp->kmem[3]);
+				  comp->pgtbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[3], lid << 16 | lid);
 		if (ret) printc(">>>>>>>>>>>>> pgtbl deact ret %d FAILD.\n", ret);
 		printc(">>> PGTBL deact ret %d\n", ret);
 
@@ -775,6 +785,88 @@ done:
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE, 
 				  comp->pgtbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[3], 1);
 		printc(">>> PGTBL re-act after quiescence ret %d\n", ret);
+
+		//////////////////////////////////
+		/* Some additional retype tests */
+		//////////////////////////////////
+
+		vaddr_t next_memregion = pmem_heap + (RETYPE_MEM_SIZE - pmem_heap % RETYPE_MEM_SIZE);
+		vaddr_t heapptr = (vaddr_t)cos_get_heap_ptr();
+		/* Retype this region as user memory before use. */
+		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2USER,
+				  next_memregion, 0, 0, 0);
+		if (ret) printc(">>>>>>>>>> RETYPE2USER failed: %d\n", ret);
+		printc(">>> RETYPE2USER ret %d. \n", ret);
+		// retype2kern test
+		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2KERN,
+				  next_memregion, 0, 0, 0);
+		assert(ret == -EPERM);
+		// activate a page, i.e. map in a physical page to our heap.
+		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEMACTIVATE,
+				  next_memregion, BOOT_CAPTBL_SELF_PT, heapptr, 0);
+		if (ret) printc(">>>>>>>>>> MEM_ACTVATE failed: %d\n", ret);
+		printc(">>> Memory activation ret %d\n", ret);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEMDEACTIVATE,
+				  heapptr, lid, 0, 0);
+		if (ret) printc(">>>>>>>>>> MEM deact failed: %d\n", ret);
+		printc(">>> Memory deactivation ret %d\n", ret);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2FRAME,
+				  next_memregion, 0, 0, 0);
+		assert(ret == -EQUIESCENCE);
+		quiescence_wait();
+		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2FRAME,
+				  next_memregion, 0, 0, 0);
+		assert(ret == -EQUIESCENCE);
+		tlb_quiescence_wait();
+		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2FRAME,
+				  next_memregion, 0, 0, 0);
+		if (ret) printc(">>>>>>>>>> Retype2Frame failed: %d\n", ret);
+		printc(">>> Retype2Frame ret %d\n", ret);
+
+		// following should fail.
+		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2KERN,
+				  next_memregion, 0, 0, 0);
+		assert(ret);
+
+		//////////////////////
+		/* retype2kern test */
+		//////////////////////
+
+		int thd_cap = alloc_capid(CAP_THD);
+		vaddr_t kmemregion = kmem_heap + (RETYPE_MEM_SIZE - kmem_heap % RETYPE_MEM_SIZE);
+		assert(kmemregion % RETYPE_MEM_SIZE == 0);
+		lid = get_liv_id();
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDDEACTIVATE, PERCPU_GET(llbooter)->init_thd, 
+				  BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()], lid << 16 | lid);
+
+		// we retyped all kmem already.
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, thd_cap,
+				  BOOT_CAPTBL_SELF_PT, kmemregion, comp->comp_cap);
+		printc(">>> Thd act ret %d\n", ret);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDDEACTIVATE, thd_cap,
+				  BOOT_CAPTBL_SELF_PT, kmemregion, lid << 16 | lid);
+		printc(">>> Thd deact ret %d\n", ret);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2FRAME,
+				  kmemregion, 0, 0, 0);
+		assert(ret == -EQUIESCENCE);
+
+		tlb_quiescence_wait();
+		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2FRAME,
+				  kmemregion, 0, 0, 0);
+		printc(">>> Kmem Retype2Frame after quiescence ret %d\n", ret);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2KERN,
+				  kmemregion, 0, 0, 0);
+		printc(">>> Retype2Kern ret %d\n", ret);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, thd_cap,
+				  BOOT_CAPTBL_SELF_PT, kmemregion, comp->comp_cap);
+		printc(">>> thdact ret %d\n", ret);
 	}
 
 	sync_all();

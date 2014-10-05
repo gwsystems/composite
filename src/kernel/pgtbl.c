@@ -44,7 +44,9 @@ kmem_deact_post(unsigned long *pte, unsigned long old_v, livenessid_t kmem_lid)
 	int ret;
 	u32_t new_v;
 
-	new_v = (kmem_lid << PGTBL_PAGEIDX_SHIFT) | PGTBL_QUIESCENCE | (old_v & PGTBL_FLAG_MASK);
+	/* Set liveness id and quiescence bit; unset coskmem bit. */
+	new_v = (kmem_lid << PGTBL_PAGEIDX_SHIFT) | PGTBL_QUIESCENCE | 
+		(old_v & PGTBL_FLAG_MASK & ~PGTBL_COSKMEM);
 
 	/* We did poly_update already. */
 	ret = ltbl_timestamp_update(kmem_lid);
@@ -72,6 +74,7 @@ err:
 int
 pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 {
+	int ret;
 	struct ert_intern *pte;
 	u32_t orig_v, new_v, accum = 0;
 	
@@ -87,17 +90,11 @@ pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 	if (unlikely(!(orig_v & PGTBL_COSFRAME))) return -EINVAL; /* can't activate non-frames */
 
 	if (orig_v & PGTBL_QUIESCENCE) {
-		u64_t poly, ts, curr;
-		u32_t frame, lid;
+		u32_t frame;
 
-		rdtscll(curr);
-		lid = orig_v >> PGTBL_PAGEIDX_SHIFT;
+		ret = get_quiescent_frame(orig_v, &frame);
+		if (ret) return ret;
 
-		if (ltbl_get_timestamp(lid, &ts)) return -EFAULT;
-		if (!QUIESCENCE_CHECK(curr, ts, KERN_QUIESCENCE_CYCLES)) return -EQUIESCENCE;
-		if (ltbl_get_poly(lid, &poly)) return -EFAULT;
-
-		frame = (u32_t)poly; /* cast */
 		*kern_addr = (unsigned long)chal_pa2va((void *)(frame));
 		new_v = frame | (orig_v & PGTBL_FLAG_MASK) | PGTBL_COSKMEM;
 	} else {
@@ -107,8 +104,10 @@ pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 		new_v = orig_v | PGTBL_COSKMEM;
 	}
 
+	/* pa2va (value in *kern_addr) will return NULL if the page is
+	 * not kernel accessible */
 	if (unlikely(!*kern_addr)) return -EINVAL; /* cannot retype a non-kernel accessible page */
-	if (unlikely(retypetbl_ref((void *)(new_v & PGTBL_FRAME_MASK)))) return -EFAULT;
+	if (unlikely(retypetbl_kern_ref((void *)(new_v & PGTBL_FRAME_MASK)))) return -EFAULT;
 
 	/* We keep the cos_frame entry, but mark it as COSKMEM so that
 	 * we won't use it for other kernel objects. */
@@ -120,7 +119,8 @@ pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 
 	/* Now we can remove the kmem frame stored in the poly of the
 	 * ltbl entry. */
-	if (orig_v & PGTBL_QUIESCENCE) ltbl_poly_clear(orig_v & PGTBL_FRAME_MASK);
+	if (orig_v & PGTBL_QUIESCENCE) 
+		ltbl_poly_clear(orig_v >> PGTBL_PAGEIDX_SHIFT);
 
 	return 0;
 }
@@ -148,6 +148,47 @@ tlb_quiescence_check(u64_t unmap_time)
 	}
 
 	return quiescent;
+}
+
+int
+cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr)
+{
+	unsigned long *pte, cosframe, orig_v;
+	struct cap_header *dest_pt_h;
+	u32_t flags;
+	int ret;
+
+	if (pt->lvl) return -EINVAL;
+
+	dest_pt_h = captbl_lkup(ct, dest_pt);
+	if (dest_pt_h->type != CAP_PGTBL) return -EINVAL;
+
+	pte = pgtbl_lkup_pte(pt->pgtbl, frame_cap, &flags);
+	if (!pte) return -EINVAL;
+	orig_v = *pte;
+
+	if (!(orig_v & PGTBL_COSFRAME) || (orig_v & PGTBL_COSKMEM)) return -EPERM;
+
+	if (orig_v & PGTBL_QUIESCENCE) {
+		u32_t frame;
+		/* This frame was used as kmem, and was waiting for quiescence. */
+		ret = get_quiescent_frame(orig_v, &frame);
+		if (ret) return ret;
+		assert(frame);
+		assert(!(frame & PGTBL_FLAG_MASK));
+		cosframe = frame;
+	} else {
+		cosframe = orig_v & PGTBL_FRAME_MASK;
+	}
+
+	ret = pgtbl_mapping_add(((struct cap_pgtbl *)dest_pt_h)->pgtbl, vaddr, 
+				cosframe, PGTBL_USER_DEF);
+	if (!ret && (orig_v & PGTBL_QUIESCENCE)) {
+		/* Now we can clear the poly. */
+		ltbl_poly_clear(orig_v >> PGTBL_PAGEIDX_SHIFT);
+	}
+
+	return ret;
 }
 
 int

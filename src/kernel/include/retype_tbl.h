@@ -99,6 +99,7 @@ int retypetbl_retype2frame(void *pa);
 
 void retype_tbl_init(void);
 int retypetbl_ref(void *pa);
+int retypetbl_kern_ref(void *pa);
 int retypetbl_deref(void *pa);
 
 #endif /* RETYPE_TBL_H */
