@@ -153,8 +153,8 @@ struct cap_pgtbl {
 	struct cap_header h;
 	pgtbl_t pgtbl;
 	u32_t lvl; 		    /* what level are the pgtbl nodes at? */
-	struct cap_pgtbl *parent;  /* if !null, points to parent cap */
-	u32_t refcnt;               /* # of direct children (created by cap_cpy) */
+	struct cap_pgtbl *parent;   /* if !null, points to parent cap */
+	u32_t refcnt;               /* # of direct children (created by cap_cpy, or cons) */
 };
 
 static pgtbl_t pgtbl_alloc(void *page) 

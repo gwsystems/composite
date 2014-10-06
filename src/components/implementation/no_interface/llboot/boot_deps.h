@@ -866,7 +866,7 @@ done:
 
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, thd_cap,
 				  BOOT_CAPTBL_SELF_PT, kmemregion, comp->comp_cap);
-		printc(">>> thdact ret %d\n", ret);
+		printc(">>> React thd ret %d\n", ret);
 	}
 
 	sync_all();
