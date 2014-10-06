@@ -201,7 +201,7 @@ pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t
 	if (!unlikely(pt)) return ret;
 	pt->pgtbl  = pgtbl;
 
-	pt->refcnt = 1;
+	pt->refcnt_flags = 1;
 	pt->parent = NULL; /* new cap has no parent. only copied cap has. */
 	pt->lvl    = lvl;
 	__cap_capactivate_post(&pt->h, CAP_PGTBL);
@@ -216,17 +216,19 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 	struct cap_header *deact_header;
 	struct cap_pgtbl *deact_cap, *parent;
 
-	unsigned long old_v = 0, *pte = NULL;
+	unsigned long l, old_v = 0, *pte = NULL;
 	int ret;
 
 	deact_header = captbl_lkup(dest_ct_cap->captbl, capin);
 	if (!deact_header || deact_header->type != CAP_PGTBL) cos_throw(err, -EINVAL);
 
 	deact_cap = (struct cap_pgtbl *)deact_header;
-	assert(deact_cap->refcnt);
-	parent   = deact_cap->parent;
+	parent    = deact_cap->parent;
 
-	if (deact_cap->refcnt != 1) {
+	l = deact_cap->refcnt_flags;
+	assert(l & CAP_REFCNT_MAX);
+
+	if ((l & CAP_REFCNT_MAX) != 1) {
 		/* We need to deact children first! */
 		cos_throw(err, -EINVAL);
 	}
@@ -246,14 +248,14 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 			 * parameters as we won't be able to release
 			 * the memory. */
 			printk("cos: deactivating pgtbl but not able to release kmem page (%p) yet (ref_cnt %d).\n", 
-			       (void *)cosframe_addr, deact_cap->refcnt);
+			       (void *)cosframe_addr, l & CAP_REFCNT_MAX);
 		}
 	}
 
 	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_PGTBL, lid);
 	if (ret) cos_throw(err, ret);
 
-	if (cos_cas((unsigned long *)&deact_cap->refcnt, 1, 0) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
+	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, 0) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
 	/* deactivation success. We should either release the
 	 * page, or decrement parent cnt. */
@@ -261,11 +263,11 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 		/* move the kmem to COSFRAME */
 		ret = kmem_deact_post(pte, old_v, kmem_lid);
 		if (ret) {
-			cos_faa(&deact_cap->refcnt, 1);
+			cos_faa((int *)&deact_cap->refcnt_flags, 1);
 			cos_throw(err, ret);
 		}
 	} else {
-		cos_faa(&parent->refcnt, -1);
+		cos_faa(&parent->refcnt_flags, -1);
 	}
 
 	return 0;

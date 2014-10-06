@@ -72,14 +72,20 @@ struct cap_min {
 	char padding[(CACHELINE_SIZE/4) - sizeof(struct cap_header)];
 };
 
+/* the 2 higher bits in refcnt are flags. */
+#define CAP_MEM_REFCNT_SZ   30 /* 32 - 2 bits for flags */
+#define CAP_REFCNT_MAX      ((1<<CAP_MEM_REFCNT_SZ) - 1)
+#define CAP_MEM_FROZEN_FLAG (1 << (CAP_MEM_REFCNT_SZ))
+#define CAP_MEM_SCAN_FLAG   (1 << (CAP_MEM_REFCNT_SZ + 1))
+
 /* Capability structure to a capability table */
 struct cap_captbl {
 	struct cap_header h;
+	u32_t refcnt_flags;          /* includes refcnt and flags */
 	struct captbl *captbl;
 	u32_t lvl; 		     /* what level are the captbl nodes at? */
 	struct cap_captbl *parent;   /* if !null, points to parent cap */
-	u32_t refcnt;                /* # of direct children (created by cap_cpy) */
-};
+} __attribute__((packed));
 
 static void *
 __captbl_allocfn(void *d, int sz, int last_lvl)

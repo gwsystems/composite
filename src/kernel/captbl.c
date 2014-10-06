@@ -16,11 +16,11 @@ captbl_activate_boot(struct captbl *t, unsigned long cap)
 
 	ctc = (struct cap_captbl *)captbl_add(t, cap, CAP_CAPTBL, &ret);
 	if (!ctc) return ret;
-	ctc->captbl = t; 	/* reference ourself! */
-	ctc->lvl    = 0;
-	ctc->h.type = CAP_CAPTBL;
-	ctc->refcnt = 1;
-	ctc->parent = NULL;
+	ctc->captbl       = t; 	/* reference ourself! */
+	ctc->lvl          = 0;
+	ctc->h.type       = CAP_CAPTBL;
+	ctc->refcnt_flags = 1;
+	ctc->parent       = NULL;
 
 	return 0;
 }
@@ -34,10 +34,10 @@ captbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, struct
 	ct = (struct cap_captbl *)__cap_capactivate_pre(t, cap, capin, CAP_CAPTBL, &ret);
 	if (!unlikely(ct)) return -1;
 
-	ct->captbl = toadd;
-	ct->lvl    = lvl;
-	ct->refcnt = 1;
-	ct->parent = NULL; /* new cap has no parent. only copied cap has. */
+	ct->captbl       = toadd;
+	ct->lvl          = lvl;
+	ct->refcnt_flags = 1;
+	ct->parent       = NULL; /* new cap has no parent. only copied cap has. */
 
 	__cap_capactivate_post(&ct->h, CAP_CAPTBL);
 
@@ -50,17 +50,18 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 	struct cap_header *deact_header;
 	struct cap_captbl *deact_cap, *parent;
 
-	unsigned long old_v = 0, *pte = NULL;
+	unsigned long l, old_v = 0, *pte = NULL;
 	int ret;
 
 	deact_header = captbl_lkup(dest_ct_cap->captbl, capin);
 	if (!deact_header || deact_header->type != CAP_CAPTBL) cos_throw(err, -EINVAL);
 
 	deact_cap = (struct cap_captbl *)deact_header;
-	assert(deact_cap->refcnt);
+	assert(deact_cap->refcnt_flags & CAP_REFCNT_MAX);
 	parent   = deact_cap->parent;
 
-	if (deact_cap->refcnt != 1) {
+	l = deact_cap->refcnt_flags;
+	if ((l & CAP_REFCNT_MAX) != 1) {
 		/* We need to deact children first! */
 		cos_throw(err, -EINVAL);
 	}
@@ -80,22 +81,26 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 			 * parameters as we won't be able to release
 			 * the memory. */
 			printk("cos: deactivating captbl but not able to release kmem page (%p) yet (ref_cnt %d).\n", 
-			       (void *)cosframe_addr, deact_cap->refcnt);
+			       (void *)cosframe_addr, (int)l);
 		}
 	}
 
 	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_CAPTBL, lid); 
 	if (ret) cos_throw(err, ret);
 
-	if (cos_cas((unsigned long *)&deact_cap->refcnt, 1, 0) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
+	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, l - 1) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
 	/* deactivation success. We should either release the
 	 * page, or decrement parent cnt. */
 	if (parent == NULL) { 
 		/* move the kmem to COSFRAME */
-		kmem_deact_post(pte, old_v, kmem_lid);
+		ret = kmem_deact_post(pte, old_v, kmem_lid);
+		if (ret) {
+			cos_faa((int *)&deact_cap->refcnt_flags, 1);
+			cos_throw(err, ret);
+		}
 	} else {
-		cos_faa(&parent->refcnt, -1);
+		cos_faa(&parent->refcnt_flags, -1);
 	}
 
 	return 0;
@@ -107,6 +112,7 @@ int
 captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t cons_addr)
 {
 	int ret;
+	u32_t l;
 	void *captbl_mem;
 			
 	if (target_ct->h.type != CAP_CAPTBL || target_ct->lvl != 0) cos_throw(err, -EINVAL);
@@ -114,15 +120,20 @@ captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t c
 
 	captbl_mem = (void *)cons_cap->captbl;
 
+	l = cons_cap->refcnt_flags;
+	if ((l & CAP_MEM_FROZEN_FLAG) || (target_ct->refcnt_flags & CAP_MEM_FROZEN_FLAG)) cos_throw(err, -EINVAL);
+	if ((l & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) cos_throw(err, -EOVERFLOW);
+
 	/* increment refcnt */
-	cos_faa(&cons_cap->refcnt, 1);
+	cos_cas((unsigned long *)&(cons_cap->refcnt_flags), l, l+1);
+
 	/* FIXME: we are expanding the entire page to
 	 * two of the locations. Do we want separate
 	 * calls for them? */
 	captbl_init(captbl_mem, 1);
 	ret = captbl_expand(target_ct->captbl, cons_addr, captbl_maxdepth(), captbl_mem);
 	if (ret) {
-		cos_faa(&cons_cap->refcnt, -1);
+		cos_faa(&cons_cap->refcnt_flags, -1);
 		cos_throw(err, ret);
 	}
 
@@ -132,7 +143,7 @@ captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t c
 	if (ret) {
 		/* Rewind. */
 		captbl_expand(target_ct->captbl, cons_addr, captbl_maxdepth(), NULL);
-		cos_faa(&cons_cap->refcnt, -1);
+		cos_faa(&cons_cap->refcnt_flags, -1);
 		cos_throw(err, ret);
 	}
 	

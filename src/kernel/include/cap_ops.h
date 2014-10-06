@@ -112,17 +112,25 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 	if (cap_type == CAP_CAPTBL) {
 		ret = captbl_cons(ct, ctsub, expandid);
 	} else {
-		u32_t flags = 0;
+		u32_t flags = 0, old_v, refcnt_flags;
+
 		intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, depth);
 		if (!intern)                return -ENOENT;
 		if (pgtbl_ispresent(*intern)) return -EPERM;
 
-		cos_faa(&(((struct cap_pgtbl *)ctsub)->refcnt), 1);
+		old_v = refcnt_flags = ((struct cap_pgtbl *)ctsub)->refcnt_flags;
+		if (refcnt_flags & CAP_MEM_FROZEN_FLAG) return -EINVAL;
+		if ((refcnt_flags & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) return -EOVERFLOW;
+
+		refcnt_flags++;
+		ret = cos_cas((unsigned long *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), old_v, refcnt_flags);
+		if (ret != CAS_SUCCESS) return -ECASFAIL;
+
 		ret = __pgtbl_set((struct ert_intern *)intern, 
 				  ((struct cap_pgtbl *)ctsub)->pgtbl, NULL, 0);
-
 		if (ret) {
-			cos_faa(&(((struct cap_pgtbl *)ctsub)->refcnt), -1);
+			/* decrement to restore the refcnt on failure. */
+			cos_faa((int *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), -1);
 		}
 	}
 
@@ -170,10 +178,18 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 	/* decrement the refcnt */
 	if (head->type == CAP_CAPTBL) {
 		struct cap_captbl *ct = (struct cap_captbl *)sub;
-		cos_faa(&(ct->refcnt), -1);
+		u32_t old_v, l;
+
+		old_v = l = ct->refcnt_flags;
+		if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
+		cos_cas((unsigned long *)&(ct->refcnt_flags), old_v, l - 1);
 	} else {
 		struct cap_pgtbl *pt = (struct cap_pgtbl *)sub;
-		cos_faa(&(pt->refcnt), -1);
+		u32_t old_v, l;
+
+		old_v = l = pt->refcnt_flags;
+		if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
+		cos_cas((unsigned long *)&(pt->refcnt_flags), old_v, l - 1);
 	}
 
 	return 0;

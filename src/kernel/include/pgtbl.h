@@ -151,11 +151,11 @@ typedef struct pgtbl * pgtbl_t;
 /* identical to the capability structure */
 struct cap_pgtbl {
 	struct cap_header h;
+	u32_t refcnt_flags;          /* includes refcnt and flags */
 	pgtbl_t pgtbl;
-	u32_t lvl; 		    /* what level are the pgtbl nodes at? */
-	struct cap_pgtbl *parent;   /* if !null, points to parent cap */
-	u32_t refcnt;               /* # of direct children (created by cap_cpy, or cons) */
-};
+	u32_t lvl; 		     /* what level are the pgtbl nodes at? */
+	struct cap_pgtbl *parent;    /* if !null, points to parent cap */
+} __attribute__((packed));
 
 static pgtbl_t pgtbl_alloc(void *page) 
 { return (pgtbl_t)((unsigned long)__pgtbl_alloc(&page) & PGTBL_FRAME_MASK); }

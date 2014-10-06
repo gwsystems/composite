@@ -136,6 +136,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 	cap_type = ctfrom->type; 
 
 	if (cap_type == CAP_CAPTBL) {
+		u32_t old_v, l;
 		cap_t type;
 
 		ctfrom = captbl_lkup(((struct cap_captbl *)ctfrom)->captbl, capin_from);
@@ -158,15 +159,25 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 			struct cap_captbl *parent = (struct cap_captbl *)ctfrom;
 			struct cap_captbl *child  = (struct cap_captbl *)ctto;
 
-			cos_faa(&(parent->refcnt), 1);
-			child->refcnt = 1;
+			old_v = l = parent->refcnt_flags;
+			if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
+			if ((l & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) return -EOVERFLOW;
+
+			cos_cas((unsigned long *)&(parent->refcnt_flags), old_v, l + 1);
+
+			child->refcnt_flags = 1;
 			child->parent = parent;
 		} else if (type == CAP_PGTBL) {
 			struct cap_pgtbl *parent = (struct cap_pgtbl *)ctfrom;
 			struct cap_pgtbl *child  = (struct cap_pgtbl *)ctto;
 
-			cos_faa(&(parent->refcnt), 1);
-			child->refcnt = 1;
+			old_v = l = parent->refcnt_flags;
+			if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
+			if ((l & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) return -EOVERFLOW;
+
+			cos_cas((unsigned long *)&(parent->refcnt_flags), old_v, l + 1);
+
+			child->refcnt_flags = 1;
 			child->parent = parent;
 		}
 		__cap_capactivate_post(ctto, type);
