@@ -5,6 +5,34 @@
 #include "include/liveness_tbl.h"
 #include "include/retype_tbl.h"
 
+int
+cap_kmem_freeze(struct captbl *t, capid_t target_cap)
+{
+	struct cap_header *ch;
+	u32_t l;
+	int ret;
+	
+	ch = captbl_lkup(t, target_cap);
+
+	if (ch->type == CAP_CAPTBL) {
+		struct cap_captbl *ct = (struct cap_captbl *)ch;
+		l = ct->refcnt_flags;
+
+		if ((l & CAP_REFCNT_MAX > 1 || l & CAP_MEM_FROZEN_FLAG)) return -EINVAL;
+		ret = cos_cas(&ct->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
+	} else if (ch->type == CAP_PGTBL) {
+		struct cap_pgtbl *pt = (struct cap_pgtbl *)ch;
+		l = pt->refcnt_flags;
+
+		if ((l & CAP_REFCNT_MAX > 1 || l & CAP_MEM_FROZEN_FLAG)) return -EINVAL;
+		ret = cos_cas(&pt->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
+	} else {
+		return -EINVAL;
+	}
+	
+	return 0;
+}
+
 /* The deact_pre / _post are used by kernel object deactivation:
  * cap_captbl, cap_pgtbl and thd. */
 int 

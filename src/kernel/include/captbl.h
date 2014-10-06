@@ -85,6 +85,7 @@ struct cap_captbl {
 	struct captbl *captbl;
 	u32_t lvl; 		     /* what level are the captbl nodes at? */
 	struct cap_captbl *parent;   /* if !null, points to parent cap */
+	u64_t frozen_ts;             /* */
 } __attribute__((packed));
 
 static void *

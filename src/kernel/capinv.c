@@ -514,7 +514,13 @@ composite_sysenter_handler(struct pt_regs *regs)
 			livenessid_t kmem_lid = __userregs_get4(regs) >> 16;
 
 			ret = thd_deactivate(ct, op_cap, capin, lid, kmem_lid, pgtbl_cap, cosframe_addr);
+			break;
+		}
+		case CAPTBL_OP_KMEM_FREEZE:
+		{
+			capid_t freeze_cap     = __userregs_get2(regs);
 
+			ret = cap_kmem_freeze(op_cap->captbl, freeze_cap);
 			break;
 		}
 		case CAPTBL_OP_COMPACTIVATE:
@@ -540,7 +546,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 			vaddr_t entry_addr    = __userregs_get3(regs);
 			
 			ret = sinv_activate(ct, cap, capin, dest_comp_cap, entry_addr);
-
 			break;
 		}
 		case CAPTBL_OP_SINVDEACTIVATE:
@@ -568,7 +573,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 			capid_t rcv_cap    = __userregs_get3(regs);
 
 			ret = asnd_activate(ct, cap, capin, rcv_captbl, rcv_cap, 0, 0);
-
 			break;
 		}
 		case CAPTBL_OP_ASNDDEACTIVATE:
@@ -584,7 +588,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 			capid_t comp_cap = __userregs_get3(regs);
 
 			ret = arcv_activate(ct, cap, capin, comp_cap, thd_cap);
-			
 			break;
 		}
 		case CAPTBL_OP_ARCVDEACTIVATE:
@@ -592,7 +595,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 			livenessid_t lid  = __userregs_get2(regs);
 
 			ret = arcv_deactivate(op_cap, capin, lid);
-
 			break;
 		}
 		case CAPTBL_OP_CPY:
@@ -611,7 +613,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 			capid_t cons_addr = __userregs_get2(regs);
 
 			ret = cap_cons(ct, cap, capin, cons_addr);
-
 			break;
 		}
 		case CAPTBL_OP_DECONS:

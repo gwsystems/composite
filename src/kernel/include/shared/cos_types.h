@@ -60,6 +60,10 @@ typedef enum {
 	CAPTBL_OP_PGTBLDEACTIVATE,
 	CAPTBL_OP_CAPTBLACTIVATE,
 	CAPTBL_OP_CAPTBLDEACTIVATE,
+	CAPTBL_OP_KMEM_FREEZE,
+	CAPTBL_OP_CAPTBLDEACTIVATE_ROOT,
+	CAPTBL_OP_PGTBLDEACTIVATE_ROOT,
+	CAPTBL_OP_THDDEACTIVATE_ROOT,
 } syscall_op_t;
 
 typedef enum {
@@ -112,12 +116,12 @@ __captbl_cap2sz(cap_t c)
 	switch (c) {
 	case CAP_SRET:
 		return CAP_SZ_16B;
+	case CAP_SINV:
 	case CAP_THD:
 	case CAP_CAPTBL:
 	case CAP_PGTBL:
-	case CAP_SINV:
-	case CAP_COMP:
 		return CAP_SZ_32B;
+	case CAP_COMP:
 	case CAP_ASND:
 	case CAP_ARCV:
 		return CAP_SZ_64B;
@@ -130,7 +134,7 @@ static inline unsigned long captbl_idsize(cap_t c)
 { return 1<<__captbl_cap2sz(c); }
 
 /* 
- * Initial captbl setup:  
+ * LLBooter initial captbl setup:  
  * 0 = sret, 
  * 1-3 = nil,
  * 4-5 = this captbl, 

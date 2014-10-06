@@ -518,6 +518,7 @@ static void pgtbl_init(void) {
 }
 
 int cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr);
+int cap_kmem_freeze(struct captbl *t, capid_t target_cap);
 int kmem_deact_pre(struct captbl *ct, capid_t pgtbl_cap, capid_t cosframe_addr, livenessid_t kmem_lid, 
 		   void *obj_vaddr, unsigned long **p_pte, unsigned long *v);
 int kmem_deact_post(unsigned long *pte, unsigned long old_v, livenessid_t kmem_lid);
