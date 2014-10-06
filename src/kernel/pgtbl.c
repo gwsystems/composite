@@ -158,7 +158,7 @@ cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capi
 	u32_t flags;
 	int ret;
 
-	if (pt->lvl) return -EINVAL;
+	if (unlikely(pt->lvl || (pt->refcnt_flags & CAP_MEM_FROZEN_FLAG))) return -EINVAL;
 
 	dest_pt_h = captbl_lkup(ct, dest_pt);
 	if (dest_pt_h->type != CAP_PGTBL) return -EINVAL;

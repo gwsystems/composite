@@ -19,6 +19,8 @@ __cap_capactivate_pre(struct captbl *t, capid_t cap, capid_t capin, cap_t type, 
 	
 	ct = (struct cap_captbl *)captbl_lkup(t, cap);
 	if (unlikely(!ct || ct->h.type != CAP_CAPTBL)) cos_throw(err, -EINVAL);
+	if (unlikely(ct->refcnt_flags & CAP_MEM_FROZEN_FLAG)) cos_throw(err, -EINVAL);
+
 	h = captbl_add(ct->captbl, capin, type, &ret);
 err:
 	*retval = ret;
@@ -105,6 +107,7 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 	ctsub = (struct cap_captbl *)captbl_lkup(t, capsub);
 	if (unlikely(!ctsub))                    return -ENOENT;
 	if (unlikely(ctsub->h.type != cap_type)) return -EINVAL;
+
 	depth = ctsub->lvl;
 	if (depth == 0) return -EINVAL; /* subtree must not have a root */
 

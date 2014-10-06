@@ -188,6 +188,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 		ctto = captbl_lkup(t, cap_to);
 		if (unlikely(!ctto)) return -ENOENT;
 		if (unlikely(ctto->type != cap_type)) return -EINVAL;
+		if (unlikely(((struct cap_pgtbl *)ctto)->refcnt_flags & CAP_MEM_FROZEN_FLAG)) return -EINVAL;
 
 		f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
 		if (!f) return -ENOENT;
