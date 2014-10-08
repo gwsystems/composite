@@ -193,6 +193,7 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 		old_v = l = pt->refcnt_flags;
 		if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 		cos_cas((unsigned long *)&(pt->refcnt_flags), old_v, l - 1);
+		printk("ref cnt %p %d -> %d\n", &(pt->refcnt_flags), old_v, l-1);
 	}
 
 	return 0;
@@ -205,23 +206,33 @@ cap_kmem_freeze(struct captbl *t, capid_t target_cap)
 	u32_t l;
 	int ret;
 	
+	printk("a\n");
 	ch = captbl_lkup(t, target_cap);
-
+	if (!ch) return -EINVAL;
+	printk("b\n");
 	/* Only memory for captbl and pgtbl needs to be frozen before
 	 * deactivation. */
 	if (ch->type == CAP_CAPTBL) {
 		struct cap_captbl *ct = (struct cap_captbl *)ch;
  		l = ct->refcnt_flags;
-		if ((l & CAP_REFCNT_MAX) > 1 || l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
+		printk("c\n");
 
+		if ((l & CAP_REFCNT_MAX) > 1 || l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
+		printk("d\n");
+
+		rdtscll(ct->frozen_ts);
 		ret = cos_cas((unsigned long *)&ct->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
+
 	} else if (ch->type == CAP_PGTBL) {
 		struct cap_pgtbl *pt = (struct cap_pgtbl *)ch;
 		l = pt->refcnt_flags;
 		if ((l & CAP_REFCNT_MAX) > 1 || l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 
+		rdtscll(pt->frozen_ts);
 		ret = cos_cas((unsigned long *)&pt->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
+		printk("e %d: %p, %x -> %x\n", ret, &pt->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
 	} else {
+		printk("%d type\n", ch->type);
 		return -EINVAL;
 	}
 	

@@ -45,13 +45,12 @@ captbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, struct
 }
 
 int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
-		      livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr)
+		      livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
 {
 	struct cap_header *deact_header;
 	struct cap_captbl *deact_cap, *parent;
 
 	unsigned long l, old_v = 0, *pte = NULL;
-	u64_t curr;
 	int ret;
 
 	deact_header = captbl_lkup(dest_ct_cap->captbl, capin);
@@ -68,35 +67,16 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 
 	parent = deact_cap->parent;
 	if (parent == NULL) {
+		if (!root) cos_throw(err, -EINVAL);
 		/* Last reference to the captbl page. Require pgtbl
 		 * and cos_frame cap to release the kmem page. */
-
-		/* Require freeze memory and wait for quiescence
-		 * first! */
-		if (!(l & CAP_MEM_FROZEN_FLAG)) {
-			cos_throw(err, -EQUIESCENCE);
-		}
-		/* Quiescence check! */
-		if (deact_cap->lvl == 0) {
-			/* top level has tlb quiescence period (due to
-			 * the optimization to avoid current_component
-			 * lookup on invocation path). */
-			if (!tlb_quiescence_check(deact_cap->frozen_ts)) return -EQUIESCENCE;
-		} else {
-			/* other levels have kernel quiescence period. */
-			rdtscll(curr);
-			if (QUIESCENCE_CHECK(curr, deact_cap->frozen_ts, KERN_QUIESCENCE_CYCLES)) return -EQUIESCENCE;
-		}
-
-		/**************************************************/
-		/* When gets here, we know quiescence has passed. */
-		/**************************************************/
 
 		ret = kmem_deact_pre(deact_header, t, pgtbl_cap, 
 				     cosframe_addr, &pte, &old_v);
 		if (ret) cos_throw(err, ret);
 	} else {
 		/* more reference exists. Sanity check. */
+		if (root) cos_throw(err, -EINVAL);
 		assert (!pgtbl_cap && !cosframe_addr);
 	}
 

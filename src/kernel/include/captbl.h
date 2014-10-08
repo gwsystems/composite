@@ -85,7 +85,7 @@ struct cap_captbl {
 	struct captbl *captbl;
 	u32_t lvl; 		     /* what level are the captbl nodes at? */
 	struct cap_captbl *parent;   /* if !null, points to parent cap */
-	u64_t frozen_ts;             /* */
+	u64_t frozen_ts;             /* timestamp when frozen is set. */
 } __attribute__((packed));
 
 static void *
@@ -323,32 +323,29 @@ captbl_del(struct captbl *t, capid_t cap, cap_t type, livenessid_t lid)
 	struct cap_header *p, *h;
 	struct cap_header l, o;
 	int ret = 0, off;
-
-	printk("a\n");
+	printk("1\n");
 	if (unlikely(cap >= __captbl_maxid())) cos_throw(err, -EINVAL);
 	p = __captbl_lkupan(t, cap, CAPTBL_DEPTH, NULL); 
-	printk("b\n");
+	printk("2\n");
 	if (unlikely(!p)) cos_throw(err, -EPERM);
-	printk("c\n");
 	if (p != __captbl_getleaf((void*)p, NULL)) cos_throw(err, -EINVAL);
-	printk("d\n");
+	printk("22\n");
 	if (p->type != type) cos_throw(err, -EINVAL);
-
+	printk("3\n");
 	h   = (struct cap_header *)CT_MSK(p, CACHELINE_ORDER);
 	off = (struct cap_min*)p - (struct cap_min*)h;
 	assert(off >= 0 && off < CAP_HEAD_AMAP_SZ);
 	l = o = *h;
 
 	/* Do we want RO to prevent deletions? */
-	printk("e\n");
 	if (unlikely(l.flags & CAP_FLAG_RO)) cos_throw(err, -EPERM);
-	printk("f\n");
 	if (unlikely(!(l.amap & (1<<off)))) cos_throw(err, -ENOENT);
-	printk("g\n");
+	printk("4 %d\n", lid);
 	/* Update timestamp first. */
 	ret = ltbl_timestamp_update(lid);
+	printk("5 ret %d\n", ret);
 	if (unlikely(ret)) cos_throw(err, ret);
-	printk("h\n");
+
 	if (h == p) {
 		l.liveness_id = lid;
 		l.type  = CAP_QUIESCENCE;
@@ -367,7 +364,7 @@ captbl_del(struct captbl *t, capid_t cap, cap_t type, livenessid_t lid)
 		l.type = CAP_QUIESCENCE;
 	}
 
-	printk("k\n");
+	printk("66\n");
 	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
 err:
 	return ret;
@@ -443,7 +440,7 @@ captbl_create(void *page)
 
 int captbl_activate(struct captbl *t, capid_t cap, capid_t capin, struct captbl *toadd, u32_t lvl);
 int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
-		      livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr);
+		      livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
 int captbl_activate_boot(struct captbl *t, unsigned long cap);
 
 int captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t cons_addr);

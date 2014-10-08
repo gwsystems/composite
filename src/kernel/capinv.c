@@ -123,60 +123,126 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap,
 {
 	struct cap_pgtbl *cap_pt;
 	u32_t flags, old_v, pa;
+	u64_t curr;
 	int ret;
 
+	printk("1\n");
 	assert(ct && ch);
-	if (!pgtbl_cap || !cosframe_addr)
-		cos_throw(err, -EINVAL);
+	if (!pgtbl_cap || !cosframe_addr) cos_throw(err, -EINVAL);
 
+	printk("2\n");
 	cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap);
 	if (cap_pt->h.type != CAP_PGTBL) cos_throw(err, -EINVAL);
-
+	printk("3\n");
 	/* get the pte to the cos frame. */
 	*p_pte = pgtbl_lkup_pte(cap_pt->pgtbl, cosframe_addr, &flags);
 	if (!p_pte) cos_throw(err, -EINVAL);
 	old_v = *v = **p_pte;
-
+	printk("4\n");
 	pa = old_v & PGTBL_FRAME_MASK;
 	if (!(old_v & PGTBL_COSKMEM)) cos_throw(err, -EINVAL);
 	assert(!(old_v & PGTBL_QUIESCENCE));
-
+	printk("5\n");
 	/* Scan the page to make sure there's nothing left. */
 	if (ch->type == CAP_CAPTBL) {
-		struct cap_captbl *ct = (struct cap_captbl *)ch;
-		void *page = ct->captbl;
+		struct cap_captbl *deact_cap = (struct cap_captbl *)ch;
+		void *page = deact_cap->captbl;
+		u32_t l = deact_cap->refcnt_flags;
 
 		if ((void *)chal_pa2va((void *)pa) != page) cos_throw(err, -EINVAL);
+
+		/* Require freeze memory and wait for quiescence
+		 * first! */
+		if (!(l & CAP_MEM_FROZEN_FLAG)) {
+			cos_throw(err, -EQUIESCENCE);
+		}
+		/* Quiescence check! */
+		if (deact_cap->lvl == 0) {
+			/* top level has tlb quiescence period (due to
+			 * the optimization to avoid current_component
+			 * lookup on invocation path). */
+			if (!tlb_quiescence_check(deact_cap->frozen_ts)) return -EQUIESCENCE;
+		} else {
+			/* other levels have kernel quiescence period. */
+			rdtscll(curr);
+			if (!QUIESCENCE_CHECK(curr, deact_cap->frozen_ts, KERN_QUIESCENCE_CYCLES)) return -EQUIESCENCE;
+		}
 		
-		if (ct->lvl < CAPTBL_DEPTH - 1) {
+		/* set the scan flag to avoid concurrent scanning. */
+		if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, l | CAP_MEM_SCAN_FLAG) != CAS_SUCCESS) return -ECASFAIL;
+		/**************************************************/
+		/* When gets here, we know quiescence has passed. and
+		 * we are holding the scan lock. */
+		/**************************************************/
+		if (deact_cap->lvl < CAPTBL_DEPTH - 1) {
 			ret = kmem_page_scan(page);
 		} else {
-			ret = captbl_kmem_scan(ct);
+			ret = captbl_kmem_scan(deact_cap);
 		}
 
-		if (ret) cos_throw(err, ret);
+		if (ret) {
+			/* unset scan and frozen bits. */
+			cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG, 
+				l & ~(CAP_MEM_FROZEN_FLAG | CAP_MEM_SCAN_FLAG));
+			cos_throw(err, ret);
+		}
+		cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG, l);
 	} else if (ch->type == CAP_PGTBL) {
-		struct cap_pgtbl *pt = (struct cap_pgtbl *)ch;
-		void *page = pt->pgtbl;
+		struct cap_pgtbl *deact_cap = (struct cap_pgtbl *)ch;
+		void *page = deact_cap->pgtbl;
+		u32_t l = deact_cap->refcnt_flags;
 
+		printk("a\n");
 		if ((void *)chal_pa2va((void *)pa) != page) cos_throw(err, -EINVAL);
+		printk("b\n");
+		/* Require freeze memory and wait for quiescence
+		 * first! */
+		if (!(l & CAP_MEM_FROZEN_FLAG)) {
+			cos_throw(err, -EQUIESCENCE);
+		}
+		printk("c\n");
+		/* Quiescence check! */
+		if (deact_cap->lvl == 0) {
+			/* top level has tlb quiescence period. */
+			if (!tlb_quiescence_check(deact_cap->frozen_ts)) return -EQUIESCENCE;
+		} else {
+			/* other levels have kernel quiescence
+			 * period. (but the mapping scan will ensure
+			 * tlb quiescence implicitly). */
+			printk("d\n");
+			rdtscll(curr);
+			if (!QUIESCENCE_CHECK(curr, deact_cap->frozen_ts, KERN_QUIESCENCE_CYCLES)) return -EQUIESCENCE;
+		}
+		printk("e\n");
 
-		if (pt->lvl < PGTBL_DEPTH - 1) {
+		/* set the scan flag to avoid concurrent scanning. */
+		if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, l | CAP_MEM_SCAN_FLAG) != CAS_SUCCESS) return -ECASFAIL;
+		printk("f\n");
+
+		if (deact_cap->lvl < PGTBL_DEPTH - 1) {
 			ret = kmem_page_scan(page);
 		} else {
-			ret = pgtbl_mapping_scan(pt);
+			ret = pgtbl_mapping_scan(deact_cap);
 		}
+		printk("g %d\n", ret);
 
-		if (ret) cos_throw(err, ret);
+		if (ret) {
+			/* unset scan and frozen bits. */
+			cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG, 
+				l & ~(CAP_MEM_FROZEN_FLAG | CAP_MEM_SCAN_FLAG));
+			cos_throw(err, ret);
+		}
+		cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG, l);
 	} else {
 		/* currently only captbl and pgtbl pages need to be
 		 * scanned before deactivation. */
 		struct cap_thd *tc = (struct cap_thd *)ch;
+		printk("thd .....\n");
 		if ((void *)chal_pa2va((void *)pa) != (void *)(tc->t)) cos_throw(err, -EINVAL);
 
 		assert(ch->type == CAP_THD);
 	}
-
+	printk("deact pre ret 0\n");
 	return 0;
 err:
 	printk("kmem deact pre error return %d\n", ret);
@@ -190,16 +256,17 @@ kmem_deact_post(unsigned long *pte, unsigned long old_v)
 {
 	int ret;
 	u32_t new_v;
-
+	printk("a\n");
 	/* Unset coskmem bit. Release the kmem frame. */
 	new_v = old_v & ~PGTBL_COSKMEM;
 	if (cos_cas(pte, old_v, new_v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
-
+	printk("b\n");
 	ret = retypetbl_deref((void *)(old_v & PGTBL_FRAME_MASK));
 	if (ret) {
+		printk("c\n");
 		/* FIXME: handle this case? */
 		cos_cas(pte, new_v, old_v);
-		cos_throw(err, -ECASFAIL);
+		cos_throw(err, ret);
 	}
 
 	return 0;
@@ -515,15 +582,19 @@ composite_sysenter_handler(struct pt_regs *regs)
 		}
 		case CAPTBL_OP_CAPTBLDEACTIVATE:
 		{
-			/* TODO: use two different cases for
-			 * deactivation w/ and w/o kmem
-			 * deactivation. */
+			livenessid_t lid      = __userregs_get2(regs);
 
-			capid_t pgtbl_cap     = __userregs_get2(regs);
-			capid_t cosframe_addr = __userregs_get3(regs);
-			livenessid_t lid      = __userregs_get4(regs);
+			ret = captbl_deactivate(ct, op_cap, capin, lid, 0, 0, 0);
+			
+			break;
+		}
+		case CAPTBL_OP_CAPTBLDEACTIVATE_ROOT:
+		{
+			livenessid_t lid      = __userregs_get2(regs);
+			capid_t pgtbl_cap     = __userregs_get3(regs);
+			capid_t cosframe_addr = __userregs_get4(regs);
 
-			ret = captbl_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr);
+			ret = captbl_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr, 1);
 			
 			break;
 		}
@@ -568,14 +639,19 @@ composite_sysenter_handler(struct pt_regs *regs)
 		}
 		case CAPTBL_OP_PGTBLDEACTIVATE:
 		{
-			/* TODO: use two different cases for
-			 * deactivation w/ and w/o kmem
-			 * deactivation. */
-			capid_t pgtbl_cap     = __userregs_get2(regs);
-			capid_t cosframe_addr = __userregs_get3(regs);
-			livenessid_t lid      = __userregs_get4(regs);
+			livenessid_t lid      = __userregs_get2(regs);
 
-			ret = pgtbl_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr);
+			ret = pgtbl_deactivate(ct, op_cap, capin, lid, 0, 0, 0);
+			
+			break;
+		}
+		case CAPTBL_OP_PGTBLDEACTIVATE_ROOT:
+		{
+			livenessid_t lid      = __userregs_get2(regs);
+			capid_t pgtbl_cap     = __userregs_get3(regs);
+			capid_t cosframe_addr = __userregs_get4(regs);
+
+			ret = pgtbl_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr, 1);
 			
 			break;
 		}
@@ -598,16 +674,24 @@ composite_sysenter_handler(struct pt_regs *regs)
 		}
 		case CAPTBL_OP_THDDEACTIVATE:
 		{
-			capid_t pgtbl_cap     = __userregs_get2(regs);
-			capid_t cosframe_addr = __userregs_get3(regs);
-			livenessid_t lid      = __userregs_get4(regs);
+			livenessid_t lid      = __userregs_get2(regs);
 
-			ret = thd_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr);
+			ret = thd_deactivate(ct, op_cap, capin, lid, 0, 0, 0);
+			break;
+		}
+		case CAPTBL_OP_THDDEACTIVATE_ROOT:
+		{
+			livenessid_t lid      = __userregs_get2(regs);
+			capid_t pgtbl_cap     = __userregs_get3(regs);
+			capid_t cosframe_addr = __userregs_get4(regs);
+
+			printk("got lid %u\n", lid);
+			ret = thd_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr, 1);
 			break;
 		}
 		case CAPTBL_OP_CAPKMEM_FREEZE:
 		{
-			capid_t freeze_cap     = __userregs_get2(regs);
+			capid_t freeze_cap     = capin;
 
 			ret = cap_kmem_freeze(op_cap->captbl, freeze_cap);
 			break;

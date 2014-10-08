@@ -88,25 +88,11 @@ cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capi
 
 	if (!(orig_v & PGTBL_COSFRAME) || (orig_v & PGTBL_COSKMEM)) return -EPERM;
 
-	if (orig_v & PGTBL_QUIESCENCE) {
-		u32_t frame;
-		/* This frame was used as kmem, and was waiting for quiescence. */
-		ret = get_quiescent_frame(orig_v, &frame);
-		if (ret) return ret;
-		assert(frame);
-		assert(!(frame & PGTBL_FLAG_MASK));
-		cosframe = frame;
-	} else {
-		cosframe = orig_v & PGTBL_FRAME_MASK;
-	}
+	assert(!(orig_v & PGTBL_QUIESCENCE));
+	cosframe = orig_v & PGTBL_FRAME_MASK;
 
 	ret = pgtbl_mapping_add(((struct cap_pgtbl *)dest_pt_h)->pgtbl, vaddr, 
 				cosframe, PGTBL_USER_DEF);
-	if (!ret && (orig_v & PGTBL_QUIESCENCE)) {
-		/* Now we can clear the poly. */
-		ltbl_poly_clear(orig_v >> PGTBL_PAGEIDX_SHIFT);
-	}
-
 	return ret;
 }
 
@@ -130,7 +116,7 @@ pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t
 
 int
 pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
-		 livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr)
+		 livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
 { 
 	struct cap_header *deact_header;
 	struct cap_pgtbl *deact_cap, *parent;
@@ -138,11 +124,12 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 	unsigned long l, old_v = 0, *pte = NULL;
 	int ret;
 
+	printk("1 capin %d\n", capin);
 	deact_header = captbl_lkup(dest_ct_cap->captbl, capin);
 	if (!deact_header || deact_header->type != CAP_PGTBL) cos_throw(err, -EINVAL);
-
 	deact_cap = (struct cap_pgtbl *)deact_header;
 	parent    = deact_cap->parent;
+	printk("2 %p, %x\n", &(deact_cap->refcnt_flags), deact_cap->refcnt_flags);
 
 	l = deact_cap->refcnt_flags;
 	assert(l & CAP_REFCNT_MAX);
@@ -151,37 +138,35 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 		/* We need to deact children first! */
 		cos_throw(err, -EINVAL);
 	}
-
+	printk("3 parent %p, root %d\n", parent, root);
 	if (parent == NULL) {
+		if (!root) cos_throw(err, -EINVAL);
 		/* Last reference to the captbl page. Require pgtbl
 		 * and cos_frame cap to release the kmem page. */
-
+		printk("4\n");
 		ret = kmem_deact_pre(deact_header, t, pgtbl_cap, 
 				     cosframe_addr, &pte, &old_v);
 		if (ret) cos_throw(err, ret);
 	} else {
-		/* more reference exists. just sanity
-		 * checks. */
-		if (pgtbl_cap || cosframe_addr) {
-			/* we pass in the pgtbl cap and frame addr,
-			 * but ref_cnt is > 1. We'll ignore the two
-			 * parameters as we won't be able to release
-			 * the memory. */
-			printk("cos: deactivating pgtbl but not able to release kmem page (%p) yet (ref_cnt %d).\n", 
-			       (void *)cosframe_addr, (int)l);
-		}
+		/* more reference exists. */
+		if (root) cos_throw(err, -EINVAL);
+		assert(!pgtbl_cap && !cosframe_addr);
 	}
 
+	printk("5\n");
 	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_PGTBL, lid);
+	printk("6\n");
 	if (ret) cos_throw(err, ret);
-
+	printk("7 %x %x\n", deact_cap->refcnt_flags, l);
 	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, 0) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
-
+	printk("8\n");
 	/* deactivation success. We should either release the
 	 * page, or decrement parent cnt. */
 	if (parent == NULL) { 
+		printk("9\n");
 		/* move the kmem to COSFRAME */
 		ret = kmem_deact_post(pte, old_v);
+		printk("10\n");
 		if (ret) {
 			cos_faa((int *)&deact_cap->refcnt_flags, 1);
 			cos_throw(err, ret);

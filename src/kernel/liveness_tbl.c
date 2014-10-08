@@ -10,7 +10,5 @@ ltbl_init(void)
 	for (i = 0 ; i < LTBL_ENTS ; i++) {
 		__liveness_tbl[i].epoch = 0;
 		__liveness_tbl[i].deact_timestamp = 0;
-		__liveness_tbl[i].poly = 0;
-		__liveness_tbl[i].__poly = 0;
 	}
 }

@@ -155,6 +155,7 @@ struct cap_pgtbl {
 	pgtbl_t pgtbl;
 	u32_t lvl; 		     /* what level are the pgtbl nodes at? */
 	struct cap_pgtbl *parent;    /* if !null, points to parent cap */
+	u64_t frozen_ts;             /* timestamp when frozen is set. */
 } __attribute__((packed));
 
 static pgtbl_t pgtbl_alloc(void *page) 
@@ -415,28 +416,9 @@ pgtbl_lookup(pgtbl_t pt, u32_t addr, u32_t *flags)
 }
 
 static int
-get_quiescent_frame(u32_t orig_v, u32_t *frame)
-{
-	u64_t poly, ts, curr;
-	u32_t lid;
-
-	rdtscll(curr);
-	lid = orig_v >> PGTBL_PAGEIDX_SHIFT;
-	assert(orig_v & PGTBL_QUIESCENCE);
-
-	if (ltbl_get_timestamp(lid, &ts) || ltbl_get_poly(lid, &poly)) return -EFAULT;
-	if (!QUIESCENCE_CHECK(curr, ts, KERN_QUIESCENCE_CYCLES)) return -EQUIESCENCE;
-
-	*frame = (u32_t)poly; /* cast */
-
-	return 0;
-}
-
-static int
 pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe)
 {
-	int ret;
-	u32_t flags, frame;
+	u32_t flags;
 	unsigned long *pte;
 	paddr_t v;
 
@@ -446,16 +428,7 @@ pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe)
 	v = *pte;
 	if (!(v & PGTBL_COSFRAME)) return -EINVAL;
 
-	/* if quiescence is set, we have the frame stored in the poly
-	 * of the liveness entry. */
-	if (v & PGTBL_QUIESCENCE) {
-		ret = get_quiescent_frame(v, &frame);
-		if (ret) return ret;
-	} else {
-		frame = v & PGTBL_FRAME_MASK;
-	}
-
-	*cosframe = frame;
+	*cosframe = v & PGTBL_FRAME_MASK;
 
 	return 0;
 }
@@ -509,7 +482,7 @@ static pgtbl_t pgtbl_create(void *page, void *curr_pgtbl) {
 }
 int pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
 int pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
-		     livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr);
+		     livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
 
 static int 
 pgtbl_mapping_scan(struct cap_pgtbl *pt)
