@@ -6,144 +6,8 @@
 #include "include/retype_tbl.h"
 
 int
-cap_kmem_freeze(struct captbl *t, capid_t target_cap)
-{
-	struct cap_header *ch;
-	u32_t l;
-	int ret;
-	
-	ch = captbl_lkup(t, target_cap);
-
-	/* Only memory for captbl and pgtbl needs to be frozen before
-	 * deactivation. */
-	if (ch->type == CAP_CAPTBL) {
-		struct cap_captbl *ct = (struct cap_captbl *)ch;
- 		l = ct->refcnt_flags;
-		if ((l & CAP_REFCNT_MAX) > 1 || l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
-
-		ret = cos_cas((unsigned long *)&ct->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
-	} else if (ch->type == CAP_PGTBL) {
-		struct cap_pgtbl *pt = (struct cap_pgtbl *)ch;
-		l = pt->refcnt_flags;
-		if ((l & CAP_REFCNT_MAX) > 1 || l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
-
-		ret = cos_cas((unsigned long *)&pt->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
-	} else {
-		return -EINVAL;
-	}
-	
-	return 0;
-}
-
-static int 
-kmem_page_scan(void *obj_vaddr) 
-{
-	/* For non-leaf level captbl / pgtbl. entries are all pointers
-	 * in these cases. */
-	int i;
-	void *addr = obj_vaddr;
-			
-	for (i = 0; i < PAGE_SIZE / sizeof(void *); i++) {
-		if (*(unsigned long *)addr != 0) return -EINVAL;
-		addr++;
-	}
-
-	return 0;
-}
-
-/* The deact_pre / _post are used by kernel object deactivation:
- * cap_captbl, cap_pgtbl and thd. */
-int 
-kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, 
-	       capid_t cosframe_addr, unsigned long **p_pte, unsigned long *v)
-{
-	struct cap_pgtbl *cap_pt;
-	u32_t flags, old_v, pa;
-	int ret;
-
-	assert(ct && ch);
-	if (!pgtbl_cap || !cosframe_addr)
-		cos_throw(err, -EINVAL);
-
-	cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap);
-	if (cap_pt->h.type != CAP_PGTBL) cos_throw(err, -EINVAL);
-
-	/* get the pte to the cos frame. */
-	*p_pte = pgtbl_lkup_pte(cap_pt->pgtbl, cosframe_addr, &flags);
-	old_v = *v = **p_pte;
-
-	pa = old_v & PGTBL_FRAME_MASK;
-	if (!(old_v & PGTBL_COSKMEM) || (old_v & PGTBL_QUIESCENCE)) cos_throw(err, -EINVAL);
-	assert(old_v & PGTBL_COSFRAME);
-
-	/* Scan the page to make sure there's nothing left. */
-	if (ch->type == CAP_CAPTBL) {
-		struct cap_captbl *ct = (struct cap_captbl *)ch;
-		void *page = ct->captbl;
-
-		if ((void *)chal_pa2va((void *)pa) != page) cos_throw(err, -EINVAL);
-		
-		if (ct->lvl < CAPTBL_DEPTH - 1) {
-			ret = kmem_page_scan(page);
-		} else {
-			ret = captbl_kmem_scan(page);
-		}
-
-		if (ret) cos_throw(err, ret);
-	} else if (ch->type == CAP_PGTBL) {
-		struct cap_pgtbl *pt = (struct cap_pgtbl *)ch;
-		void *page = pt->pgtbl;
-
-		if ((void *)chal_pa2va((void *)pa) != page) cos_throw(err, -EINVAL);
-
-		if (pt->lvl < PGTBL_DEPTH - 1) {
-			ret = kmem_page_scan(page);
-		} else {
-			ret = pgtbl_mapping_sacn(page);
-		}
-
-		if (ret) cos_throw(err, ret);
-	} else {
-		/* currently only captbl and pgtbl pages need to be
-		 * scanned before deactivation. */
-		struct cap_thd *tc = (struct cap_pgtbl *)ch;
-		if ((void *)chal_pa2va((void *)pa) != (void *)(tc->t)) cos_throw(err, -EINVAL);
-
-		assert(ch->type == CAP_THD);
-	}
-
-	return 0;
-err:
-	return ret;
-}
-
-/* Updates the pte, deref the frame. */
-int 
-kmem_deact_post(unsigned long *pte, unsigned long old_v)
-{
-	int ret;
-	u32_t new_v;
-
-	/* Unset coskmem bit. Release the kmem frame. */
-	new_v = old_v & ~PGTBL_COSKMEM;
-	if (cos_cas(pte, old_v, new_v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
-
-	ret = retypetbl_deref((void *)(old_v & PGTBL_FRAME_MASK));
-	if (ret) {
-		/* FIXME: handle this case? */
-		cos_cas(pte, new_v, old_v);
-		cos_throw(err, -ECASFAIL);
-	}
-
-	return 0;
-err:
-	return ret;
-}
-
-int
 pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 {
-	int ret;
 	struct ert_intern *pte;
 	u32_t orig_v, new_v, accum = 0;
 	
@@ -157,21 +21,11 @@ pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 
 	orig_v = (u32_t)(pte->next);
 	if (unlikely(!(orig_v & PGTBL_COSFRAME))) return -EINVAL; /* can't activate non-frames */
+	if (unlikely(orig_v & PGTBL_COSKMEM)) return -EEXIST; /* can't re-activate kmem frames */
+	assert(!(orig_v & PGTBL_QUIESCENCE));
 
-	if (orig_v & PGTBL_QUIESCENCE) {
-		u32_t frame;
-
-		ret = get_quiescent_frame(orig_v, &frame);
-		if (ret) return ret;
-
-		*kern_addr = (unsigned long)chal_pa2va((void *)(frame));
-		new_v = frame | (orig_v & PGTBL_FLAG_MASK) | PGTBL_COSKMEM;
-	} else {
-		if (unlikely(orig_v & PGTBL_COSKMEM)) return -EEXIST; /* can't re-activate kmem frames */
-
-		*kern_addr = (unsigned long)chal_pa2va((void *)(orig_v & PGTBL_FRAME_MASK));
-		new_v = orig_v | PGTBL_COSKMEM;
-	}
+	*kern_addr = (unsigned long)chal_pa2va((void *)(orig_v & PGTBL_FRAME_MASK));
+	new_v = orig_v | PGTBL_COSKMEM;
 
 	/* pa2va (value in *kern_addr) will return NULL if the page is
 	 * not kernel accessible */
@@ -185,11 +39,6 @@ pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 		retypetbl_deref((void *)(orig_v & PGTBL_FRAME_MASK));
 		return -ECASFAIL;
 	}
-
-	/* Now we can remove the kmem frame stored in the poly of the
-	 * ltbl entry. */
-	if (orig_v & PGTBL_QUIESCENCE) 
-		ltbl_poly_clear(orig_v >> PGTBL_PAGEIDX_SHIFT);
 
 	return 0;
 }
@@ -306,13 +155,14 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 	if (parent == NULL) {
 		/* Last reference to the captbl page. Require pgtbl
 		 * and cos_frame cap to release the kmem page. */
+
 		ret = kmem_deact_pre(deact_header, t, pgtbl_cap, 
-				     (void *)(deact_cap->pgtbl), &pte, &old_v);
+				     cosframe_addr, &pte, &old_v);
 		if (ret) cos_throw(err, ret);
 	} else {
 		/* more reference exists. just sanity
 		 * checks. */
-		if (pgtbl_cap || cosframe_addr || kmem_lid) {
+		if (pgtbl_cap || cosframe_addr) {
 			/* we pass in the pgtbl cap and frame addr,
 			 * but ref_cnt is > 1. We'll ignore the two
 			 * parameters as we won't be able to release
@@ -331,7 +181,7 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 	 * page, or decrement parent cnt. */
 	if (parent == NULL) { 
 		/* move the kmem to COSFRAME */
-		ret = kmem_deact_post(pte, old_v, kmem_lid);
+		ret = kmem_deact_post(pte, old_v);
 		if (ret) {
 			cos_faa((int *)&deact_cap->refcnt_flags, 1);
 			cos_throw(err, ret);

@@ -115,6 +115,98 @@ void cos_cap_ipi_handling(void)
 	return;
 }
 
+/* The deact_pre / _post are used by kernel object deactivation:
+ * cap_captbl, cap_pgtbl and thd. */
+int 
+kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, 
+	       capid_t cosframe_addr, unsigned long **p_pte, unsigned long *v)
+{
+	struct cap_pgtbl *cap_pt;
+	u32_t flags, old_v, pa;
+	int ret;
+
+	assert(ct && ch);
+	if (!pgtbl_cap || !cosframe_addr)
+		cos_throw(err, -EINVAL);
+
+	cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap);
+	if (cap_pt->h.type != CAP_PGTBL) cos_throw(err, -EINVAL);
+
+	/* get the pte to the cos frame. */
+	*p_pte = pgtbl_lkup_pte(cap_pt->pgtbl, cosframe_addr, &flags);
+	if (!p_pte) cos_throw(err, -EINVAL);
+	old_v = *v = **p_pte;
+
+	pa = old_v & PGTBL_FRAME_MASK;
+	if (!(old_v & PGTBL_COSKMEM)) cos_throw(err, -EINVAL);
+	assert(!(old_v & PGTBL_QUIESCENCE));
+
+	/* Scan the page to make sure there's nothing left. */
+	if (ch->type == CAP_CAPTBL) {
+		struct cap_captbl *ct = (struct cap_captbl *)ch;
+		void *page = ct->captbl;
+
+		if ((void *)chal_pa2va((void *)pa) != page) cos_throw(err, -EINVAL);
+		
+		if (ct->lvl < CAPTBL_DEPTH - 1) {
+			ret = kmem_page_scan(page);
+		} else {
+			ret = captbl_kmem_scan(ct);
+		}
+
+		if (ret) cos_throw(err, ret);
+	} else if (ch->type == CAP_PGTBL) {
+		struct cap_pgtbl *pt = (struct cap_pgtbl *)ch;
+		void *page = pt->pgtbl;
+
+		if ((void *)chal_pa2va((void *)pa) != page) cos_throw(err, -EINVAL);
+
+		if (pt->lvl < PGTBL_DEPTH - 1) {
+			ret = kmem_page_scan(page);
+		} else {
+			ret = pgtbl_mapping_scan(pt);
+		}
+
+		if (ret) cos_throw(err, ret);
+	} else {
+		/* currently only captbl and pgtbl pages need to be
+		 * scanned before deactivation. */
+		struct cap_thd *tc = (struct cap_thd *)ch;
+		if ((void *)chal_pa2va((void *)pa) != (void *)(tc->t)) cos_throw(err, -EINVAL);
+
+		assert(ch->type == CAP_THD);
+	}
+
+	return 0;
+err:
+	printk("kmem deact pre error return %d\n", ret);
+
+	return ret;
+}
+
+/* Updates the pte, deref the frame. */
+int 
+kmem_deact_post(unsigned long *pte, unsigned long old_v)
+{
+	int ret;
+	u32_t new_v;
+
+	/* Unset coskmem bit. Release the kmem frame. */
+	new_v = old_v & ~PGTBL_COSKMEM;
+	if (cos_cas(pte, old_v, new_v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
+
+	ret = retypetbl_deref((void *)(old_v & PGTBL_FRAME_MASK));
+	if (ret) {
+		/* FIXME: handle this case? */
+		cos_cas(pte, new_v, old_v);
+		cos_throw(err, -ECASFAIL);
+	}
+
+	return 0;
+err:
+	return ret;
+}
+
 /* 
  * Copy a capability from a location in one captbl/pgtbl to a location
  * in the other.  Fundamental operation used to delegate capabilities.

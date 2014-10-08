@@ -198,4 +198,54 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 	return 0;
 }
 
+static int
+cap_kmem_freeze(struct captbl *t, capid_t target_cap)
+{
+	struct cap_header *ch;
+	u32_t l;
+	int ret;
+	
+	ch = captbl_lkup(t, target_cap);
+
+	/* Only memory for captbl and pgtbl needs to be frozen before
+	 * deactivation. */
+	if (ch->type == CAP_CAPTBL) {
+		struct cap_captbl *ct = (struct cap_captbl *)ch;
+ 		l = ct->refcnt_flags;
+		if ((l & CAP_REFCNT_MAX) > 1 || l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
+
+		ret = cos_cas((unsigned long *)&ct->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
+	} else if (ch->type == CAP_PGTBL) {
+		struct cap_pgtbl *pt = (struct cap_pgtbl *)ch;
+		l = pt->refcnt_flags;
+		if ((l & CAP_REFCNT_MAX) > 1 || l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
+
+		ret = cos_cas((unsigned long *)&pt->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
+	} else {
+		return -EINVAL;
+	}
+	
+	return 0;
+}
+
+static int 
+kmem_page_scan(void *obj_vaddr) 
+{
+	/* For non-leaf level captbl / pgtbl. entries are all pointers
+	 * in these cases. */
+	int i;
+	void *addr = obj_vaddr;
+			
+	for (i = 0; i < PAGE_SIZE / sizeof(void *); i++) {
+		if (*(unsigned long *)addr != 0) return -EINVAL;
+		addr++;
+	}
+
+	return 0;
+}
+
+int kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, 
+	       capid_t cosframe_addr, unsigned long **p_pte, unsigned long *v);
+int kmem_deact_post(unsigned long *pte, unsigned long old_v);
+
 #endif	/* CAP_OPS */

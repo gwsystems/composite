@@ -511,6 +511,35 @@ int pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgt
 int pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
 		     livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr);
 
+static int 
+pgtbl_mapping_scan(struct cap_pgtbl *pt)
+{
+	int i, pte, *page;
+	livenessid_t lid;
+	u64_t past_ts;
+
+	/* This scans the leaf level of the pgtbl and verifies
+	 * quiescence. */
+	if (pt->lvl != PGTBL_DEPTH - 1) return -EINVAL;
+
+	page = (int *)(pt->pgtbl);
+	assert(page);
+
+	for (i = 0; i < PAGE_SIZE / sizeof(int *); i++) {
+		pte = *(page + i);
+		if (pte & PGTBL_PRESENT || pte & PGTBL_COSFRAME) return -EINVAL;
+		
+		if (pte & PGTBL_QUIESCENCE) {
+			lid = pte >> PGTBL_PAGEIDX_SHIFT;
+
+			if (ltbl_get_timestamp(lid, &past_ts)) return -EFAULT;
+			if (!tlb_quiescence_check(past_ts)) return -EQUIESCENCE;
+		}
+	}
+	
+	return 0;
+}
+
 static void pgtbl_init(void) { 
 	assert(sizeof(struct cap_pgtbl) <= __captbl_cap2bytes(CAP_PGTBL));
 
@@ -518,10 +547,6 @@ static void pgtbl_init(void) {
 }
 
 int cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr);
-int cap_kmem_freeze(struct captbl *t, capid_t target_cap);
-int kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, 
-		   capid_t cosframe_addr, unsigned long **p_pte, unsigned long *v);
-int kmem_deact_post(unsigned long *pte, unsigned long old_v);
 int pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr);
 
 #endif /* PGTBL_H */

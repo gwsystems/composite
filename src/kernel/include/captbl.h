@@ -248,7 +248,6 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 	/* Quiescence check: either check the entire cacheline if
 	 * needed, or a single entry. */
 
-	/* FIXME: when can we change size? */
 	if (l.type == CAP_QUIESCENCE && l.size != sz) {
 		/* FIXME: when false sharing happens, other cores
 		 * could already changed the size and type of the
@@ -306,7 +305,7 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 	/* FIXME: same as above */
 	if (p != h) {
 		p->type = type;
-		p->liveness_id = 0
+		p->liveness_id = 0;
 	}
 
 	assert(p == __captbl_lkupan(t, cap, CAPTBL_DEPTH+1, NULL));
@@ -325,11 +324,14 @@ captbl_del(struct captbl *t, capid_t cap, cap_t type, livenessid_t lid)
 	struct cap_header l, o;
 	int ret = 0, off;
 
+	printk("a\n");
 	if (unlikely(cap >= __captbl_maxid())) cos_throw(err, -EINVAL);
 	p = __captbl_lkupan(t, cap, CAPTBL_DEPTH, NULL); 
-
+	printk("b\n");
 	if (unlikely(!p)) cos_throw(err, -EPERM);
+	printk("c\n");
 	if (p != __captbl_getleaf((void*)p, NULL)) cos_throw(err, -EINVAL);
+	printk("d\n");
 	if (p->type != type) cos_throw(err, -EINVAL);
 
 	h   = (struct cap_header *)CT_MSK(p, CACHELINE_ORDER);
@@ -338,18 +340,24 @@ captbl_del(struct captbl *t, capid_t cap, cap_t type, livenessid_t lid)
 	l = o = *h;
 
 	/* Do we want RO to prevent deletions? */
+	printk("e\n");
 	if (unlikely(l.flags & CAP_FLAG_RO)) cos_throw(err, -EPERM);
+	printk("f\n");
 	if (unlikely(!(l.amap & (1<<off)))) cos_throw(err, -ENOENT);
-
+	printk("g\n");
+	/* Update timestamp first. */
+	ret = ltbl_timestamp_update(lid);
+	if (unlikely(ret)) cos_throw(err, ret);
+	printk("h\n");
 	if (h == p) {
-		l.type  = CAP_FREE;
 		l.liveness_id = lid;
+		l.type  = CAP_QUIESCENCE;
 	} else {
-		p->type = CAP_FREE;
 		p->liveness_id = lid;
+		p->type = CAP_QUIESCENCE;
 	}
+	cos_mem_fence();
 
-	/* FIXME: store barrier on non-x86 */
 	/* new map, removing the current allocation */
 	l.amap &= (~(1<<off)) & ((1<<CAP_HEAD_AMAP_SZ)-1);
 	if (l.amap == 0) {
@@ -359,10 +367,7 @@ captbl_del(struct captbl *t, capid_t cap, cap_t type, livenessid_t lid)
 		l.type = CAP_QUIESCENCE;
 	}
 
-	/* Update timestamp first. */
-	ret = ltbl_timestamp_update(lid);
-	if (unlikely(ret)) cos_throw(err, ret);
-
+	printk("k\n");
 	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
 err:
 	return ret;
@@ -442,6 +447,7 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 int captbl_activate_boot(struct captbl *t, unsigned long cap);
 
 int captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t cons_addr);
+int captbl_kmem_scan (struct cap_captbl *cap);
 
 static void cap_init(void) {
 	assert(sizeof(struct cap_captbl) <= __captbl_cap2bytes(CAP_CAPTBL));

@@ -93,7 +93,7 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 		/**************************************************/
 
 		ret = kmem_deact_pre(deact_header, t, pgtbl_cap, 
-				     (void *)(deact_cap->captbl), &pte, &old_v);
+				     cosframe_addr, &pte, &old_v);
 		if (ret) cos_throw(err, ret);
 	} else {
 		/* more reference exists. Sanity check. */
@@ -167,41 +167,47 @@ err:
 	return ret;
 }
 
-int captbl_kmem_scan (struct cap_captbl *cap) {
-	int i;
-	struct captbl *ct = cap->captbl;
+int 
+captbl_kmem_scan (struct cap_captbl *cap) 
+{
 	/* This scans the leaf level of the captbl. We need to go
 	 * through all cap entries and verify quiescence. */
+
+	int i, ret;
+	u64_t curr_ts, past_ts;
+	struct captbl *ct = cap->captbl;
 	assert (cap->lvl == CAPTBL_DEPTH - 1);
 
 	/* going through each cacheline. */
 	for (i = 0; i < PAGE_SIZE / CACHELINE_SIZE; i++) {
 		int j, n_ent, ent_size;
-		struct cap_header *h, l;
+		struct cap_header *h, *header_i, l;
 
 		/* header of this cacheline. */
 		h = captbl_lkup_lvl(ct, i*(CACHELINE_SIZE/CAPTBL_LEAFSZ), CAPTBL_DEPTH-1, CAPTBL_DEPTH);
 		l = *h;
-		/* ent_size = 1<<(l.size+CAP_SZ_OFF); */
+		
+		if (unlikely(l.amap)) cos_throw(err, -EINVAL);
+		ent_size = 1<<(l.size+CAP_SZ_OFF);
 
-		/* rdtscll(curr_ts); */
-		/* header_i = h; */
-		/* n_ent = CACHELINE_SIZE / ent_size; */
-		/* for (j = 0; i < n_ent; i++) { */
-		/* 	assert((void *)header_i < ((void *)h + CACHELINE_SIZE)); */
+		rdtscll(curr_ts);
+		header_i = h;
+		n_ent = CACHELINE_SIZE / ent_size;
+
+		for (j = 0; j < n_ent; j++) {
+			assert((void *)header_i < ((void *)h + CACHELINE_SIZE));
 			
-		/* 	/\* non_zero liv_id means deactivation happened. *\/ */
-		/* 	if (header_i->liveness_id) { */
-		/* 		if (ltbl_get_timestamp(header_i->liveness_id, &past_ts)) cos_throw(err, -EFAULT); */
-		/* 		/\* quiescence period for cap entries */
-		/* 		 * is the worst-case in kernel */
-		/* 		 * execution time. *\/ */
-		/* 		if (!QUIESCENCE_CHECK(curr_ts, past_ts, KERN_QUIESCENCE_CYCLES)) cos_throw(err, -EQUIESCENCE); */
-		/* 	} */
+			/* non_zero liv_id means deactivation happened. */
+			if (header_i->liveness_id) {
+				if (ltbl_get_timestamp(header_i->liveness_id, &past_ts)) cos_throw(err, -EFAULT);
+				if (!QUIESCENCE_CHECK(curr_ts, past_ts, KERN_QUIESCENCE_CYCLES)) cos_throw(err, -EQUIESCENCE);
+			}
 
-		/* 	header_i = (void *)header_i + ent_size; /\* get next header *\/ */
-		/* } */
-
+			header_i = (void *)header_i + ent_size; /* get next header */
+		}
 	}
 
+	return 0;
+err: 
+	return ret;
 }

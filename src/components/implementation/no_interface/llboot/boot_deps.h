@@ -742,7 +742,7 @@ done:
 		printc("deact 1 ret %d\n", ret);
 
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDDEACTIVATE, PERCPU_GET(llbooter)->init_thd, 
-				  BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()], lid << 16 | lid);
+				  BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()], lid);
 		if (ret) printc(">>>>>>>>>>>>> thd deact ret %d FAILD w/ liveness id %d.\n", ret, lid);
 		printc(">>> thd deact ret %d w/ liveness id %d.\n", ret, lid);
 
@@ -753,14 +753,24 @@ done:
 				  comp->captbl_cap[1], CAPTBL_INIT_SZ, 1, 0);
 		if (ret) printc(">>>>>>>>>>>>> captbl decons ret %d FAILD.\n", ret);
 		printc(">>> Captbl decons ret %d\n", ret);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPKMEM_FREEZE, 
+				  comp->captbl_cap[1], 0, 0, 0);
+		if (ret) printc(">>>>>>>>>>>>> captbl kmem freeze ret %d FAILD.\n", ret);
+		printc(">>> captbl kmem freeze ret %d.\n", ret);
+
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLDEACTIVATE, 
-				  comp->captbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[1], lid << 16 | lid);
+				  comp->captbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[1], lid);
+		printc(">>> Captbl deact ret %d\n", ret);
+		
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLDEACTIVATE, 
+				  comp->captbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[1], lid);
+		quiescence_wait();
 		if (ret) printc(">>>>>>>>>>>>> captbl deact ret %d FAILD.\n", ret);
 		printc(">>> Captbl deact ret %d\n", ret);
 
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE, 
 				  comp->captbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[1], 1);
-		assert(ret == -EQUIESCENCE);
 		quiescence_wait();
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE, 
 				  comp->captbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[1], 1);
@@ -774,7 +784,7 @@ done:
 		if (ret) printc(">>>>>>>>>>>>> pgtbl decons ret %d FAILD.\n", ret);
 		printc(">>> PGTBL decons ret %d\n", ret);
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLDEACTIVATE, 
-				  comp->pgtbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[3], lid << 16 | lid);
+				  comp->pgtbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[3], lid);
 		if (ret) printc(">>>>>>>>>>>>> pgtbl deact ret %d FAILD.\n", ret);
 		printc(">>> PGTBL deact ret %d\n", ret);
 
@@ -840,7 +850,7 @@ done:
 		lid = get_liv_id();
 
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDDEACTIVATE, PERCPU_GET(llbooter)->init_thd, 
-				  BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()], lid << 16 | lid);
+				  BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()], lid);
 
 		// we retyped all kmem already.
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, thd_cap,
@@ -848,7 +858,7 @@ done:
 		printc(">>> Thd act ret %d\n", ret);
 
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDDEACTIVATE, thd_cap,
-				  BOOT_CAPTBL_SELF_PT, kmemregion, lid << 16 | lid);
+				  BOOT_CAPTBL_SELF_PT, kmemregion, lid);
 		printc(">>> Thd deact ret %d\n", ret);
 
 		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2FRAME,

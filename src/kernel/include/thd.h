@@ -228,9 +228,11 @@ static int thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigne
 		}
 	}
 
+	printk("1 lid %d\n", lid);
 	ret = cap_capdeactivate(dest_ct, capin, CAP_THD, lid); 
+	printk("2\n");
 	if (ret) cos_throw(err, ret);
-
+	printk("3\n");
 	thd->refcnt--;
 	/* deactivation success */
 	if (thd->refcnt == 0) {
