@@ -14,18 +14,20 @@ cap_kmem_freeze(struct captbl *t, capid_t target_cap)
 	
 	ch = captbl_lkup(t, target_cap);
 
+	/* Only memory for captbl and pgtbl needs to be frozen before
+	 * deactivation. */
 	if (ch->type == CAP_CAPTBL) {
 		struct cap_captbl *ct = (struct cap_captbl *)ch;
-		l = ct->refcnt_flags;
+ 		l = ct->refcnt_flags;
+		if ((l & CAP_REFCNT_MAX) > 1 || l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 
-		if ((l & CAP_REFCNT_MAX > 1 || l & CAP_MEM_FROZEN_FLAG)) return -EINVAL;
-		ret = cos_cas(&ct->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
+		ret = cos_cas((unsigned long *)&ct->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
 	} else if (ch->type == CAP_PGTBL) {
 		struct cap_pgtbl *pt = (struct cap_pgtbl *)ch;
 		l = pt->refcnt_flags;
+		if ((l & CAP_REFCNT_MAX) > 1 || l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 
-		if ((l & CAP_REFCNT_MAX > 1 || l & CAP_MEM_FROZEN_FLAG)) return -EINVAL;
-		ret = cos_cas(&pt->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
+		ret = cos_cas((unsigned long *)&pt->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
 	} else {
 		return -EINVAL;
 	}
@@ -33,19 +35,36 @@ cap_kmem_freeze(struct captbl *t, capid_t target_cap)
 	return 0;
 }
 
+static int 
+kmem_page_scan(void *obj_vaddr) 
+{
+	/* For non-leaf level captbl / pgtbl. entries are all pointers
+	 * in these cases. */
+	int i;
+	void *addr = obj_vaddr;
+			
+	for (i = 0; i < PAGE_SIZE / sizeof(void *); i++) {
+		if (*(unsigned long *)addr != 0) return -EINVAL;
+		addr++;
+	}
+
+	return 0;
+}
+
 /* The deact_pre / _post are used by kernel object deactivation:
  * cap_captbl, cap_pgtbl and thd. */
 int 
-kmem_deact_pre(struct captbl *ct, capid_t pgtbl_cap, capid_t cosframe_addr, livenessid_t kmem_lid, void *obj_vaddr,
-	       unsigned long **p_pte, unsigned long *v)
+kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, 
+	       capid_t cosframe_addr, unsigned long **p_pte, unsigned long *v)
 {
 	struct cap_pgtbl *cap_pt;
 	u32_t flags, old_v, pa;
 	int ret;
 
-	assert(ct);
-	if (!pgtbl_cap || !cosframe_addr || !kmem_lid)
+	assert(ct && ch);
+	if (!pgtbl_cap || !cosframe_addr)
 		cos_throw(err, -EINVAL);
+
 	cap_pt = (struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap);
 	if (cap_pt->h.type != CAP_PGTBL) cos_throw(err, -EINVAL);
 
@@ -54,43 +73,65 @@ kmem_deact_pre(struct captbl *ct, capid_t pgtbl_cap, capid_t cosframe_addr, live
 	old_v = *v = **p_pte;
 
 	pa = old_v & PGTBL_FRAME_MASK;
-	if (((void *)chal_pa2va((void *)pa) != (void *)obj_vaddr) 
-	    || !(old_v & PGTBL_COSKMEM) || (old_v & PGTBL_QUIESCENCE)) cos_throw(err, -EINVAL);
+	if (!(old_v & PGTBL_COSKMEM) || (old_v & PGTBL_QUIESCENCE)) cos_throw(err, -EINVAL);
 	assert(old_v & PGTBL_COSFRAME);
 
-	ret = ltbl_poly_update(kmem_lid, pa);
-	if (ret) cos_throw(err, ret);
+	/* Scan the page to make sure there's nothing left. */
+	if (ch->type == CAP_CAPTBL) {
+		struct cap_captbl *ct = (struct cap_captbl *)ch;
+		void *page = ct->captbl;
+
+		if ((void *)chal_pa2va((void *)pa) != page) cos_throw(err, -EINVAL);
+		
+		if (ct->lvl < CAPTBL_DEPTH - 1) {
+			ret = kmem_page_scan(page);
+		} else {
+			ret = captbl_kmem_scan(page);
+		}
+
+		if (ret) cos_throw(err, ret);
+	} else if (ch->type == CAP_PGTBL) {
+		struct cap_pgtbl *pt = (struct cap_pgtbl *)ch;
+		void *page = pt->pgtbl;
+
+		if ((void *)chal_pa2va((void *)pa) != page) cos_throw(err, -EINVAL);
+
+		if (pt->lvl < PGTBL_DEPTH - 1) {
+			ret = kmem_page_scan(page);
+		} else {
+			ret = pgtbl_mapping_sacn(page);
+		}
+
+		if (ret) cos_throw(err, ret);
+	} else {
+		/* currently only captbl and pgtbl pages need to be
+		 * scanned before deactivation. */
+		struct cap_thd *tc = (struct cap_pgtbl *)ch;
+		if ((void *)chal_pa2va((void *)pa) != (void *)(tc->t)) cos_throw(err, -EINVAL);
+
+		assert(ch->type == CAP_THD);
+	}
 
 	return 0;
 err:
 	return ret;
 }
 
+/* Updates the pte, deref the frame. */
 int 
-kmem_deact_post(unsigned long *pte, unsigned long old_v, livenessid_t kmem_lid)
+kmem_deact_post(unsigned long *pte, unsigned long old_v)
 {
 	int ret;
 	u32_t new_v;
 
-	/* Set liveness id and quiescence bit; unset coskmem bit. */
-	new_v = (kmem_lid << PGTBL_PAGEIDX_SHIFT) | PGTBL_QUIESCENCE | 
-		(old_v & PGTBL_FLAG_MASK & ~PGTBL_COSKMEM);
-
-	/* We did poly_update already. */
-	ret = ltbl_timestamp_update(kmem_lid);
-	assert(ret == 0);
-
-	/* set quiescence of the physical frame */
-	if (cos_cas(pte, old_v, new_v) != CAS_SUCCESS) {
-		ltbl_poly_clear(kmem_lid);
-		cos_throw(err, -ECASFAIL);
-	}
+	/* Unset coskmem bit. Release the kmem frame. */
+	new_v = old_v & ~PGTBL_COSKMEM;
+	if (cos_cas(pte, old_v, new_v) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
 	ret = retypetbl_deref((void *)(old_v & PGTBL_FRAME_MASK));
 	if (ret) {
 		/* FIXME: handle this case? */
 		cos_cas(pte, new_v, old_v);
-		ltbl_poly_clear(kmem_lid);
 		cos_throw(err, -ECASFAIL);
 	}
 
@@ -153,8 +194,9 @@ pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 	return 0;
 }
 
+/* Return 1 if quiescent past since input timestamp. 0 if not. */
 int 
-tlb_quiescence_check(u64_t unmap_time)
+tlb_quiescence_check(u64_t timestamp)
 {
 	int i, quiescent = 1;
 
@@ -163,11 +205,11 @@ tlb_quiescence_check(u64_t unmap_time)
 	 * flush happens on all cpus, thus only need to check
 	 * the time stamp of the current core for that case
 	 * (assuming consistent time stamp counters). */
-	if (unmap_time > tlb_quiescence[get_cpuid()].last_periodic_flush) {
+	if (timestamp > tlb_quiescence[get_cpuid()].last_periodic_flush) {
 		/* If no periodic flush done yet, did the
 		 * mandatory flush happen on all cores? */
 		for (i = 0; i < NUM_CPU_COS; i++) {
-			if (unmap_time > tlb_quiescence[i].last_mandatory_flush) {
+			if (timestamp > tlb_quiescence[i].last_mandatory_flush) {
 				/* no go */
 				quiescent = 0;
 				break;
@@ -238,8 +280,8 @@ pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t
 }
 
 int
-pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
-		     livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr)
+pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
+		 livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr)
 { 
 	struct cap_header *deact_header;
 	struct cap_pgtbl *deact_cap, *parent;
@@ -264,7 +306,7 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 	if (parent == NULL) {
 		/* Last reference to the captbl page. Require pgtbl
 		 * and cos_frame cap to release the kmem page. */
-		ret = kmem_deact_pre(t, pgtbl_cap, cosframe_addr, kmem_lid, 
+		ret = kmem_deact_pre(deact_header, t, pgtbl_cap, 
 				     (void *)(deact_cap->pgtbl), &pte, &old_v);
 		if (ret) cos_throw(err, ret);
 	} else {
@@ -276,7 +318,7 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 			 * parameters as we won't be able to release
 			 * the memory. */
 			printk("cos: deactivating pgtbl but not able to release kmem page (%p) yet (ref_cnt %d).\n", 
-			       (void *)cosframe_addr, l & CAP_REFCNT_MAX);
+			       (void *)cosframe_addr, (int)l);
 		}
 	}
 

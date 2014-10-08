@@ -247,17 +247,25 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 
 	/* Quiescence check: either check the entire cacheline if
 	 * needed, or a single entry. */
+
+	/* FIXME: when can we change size? */
 	if (l.type == CAP_QUIESCENCE && l.size != sz) {
+		/* FIXME: when false sharing happens, other cores
+		 * could already changed the size and type of the
+		 * cacheline. */
+
 		/* The entire cacheline has been deactivated
 		 * before. We need to make sure all entries in the
 		 * cacheline has reached quiescence before re-size. */
-		int i, n_ent;
+		int i, n_ent, ent_size;
 		struct cap_header *header_i;
+
+		assert(l.size);
+		ent_size = 1<<(l.size+CAP_SZ_OFF);
 
 		rdtscll(curr_ts);
 		header_i = h;
-		n_ent = CACHELINE_SIZE / l.size;
-
+		n_ent = CACHELINE_SIZE / ent_size;
 		for (i = 0; i < n_ent; i++) {
 			assert((void *)header_i < ((void *)h + CACHELINE_SIZE));
 			
@@ -270,7 +278,7 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 				if (!QUIESCENCE_CHECK(curr_ts, past_ts, KERN_QUIESCENCE_CYCLES)) cos_throw(err, -EQUIESCENCE);
 			}
 
-			header_i = (void *)header_i + l.size; /* get next header */
+			header_i = (void *)header_i + ent_size; /* get next header */
 		}
 	} else {
 		/* check only the current single entry */
@@ -289,11 +297,17 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 
 	/* FIXME: we should _not_ do this here.  This should be done
 	 * in step 3 of the protocol for setting capabilities, not 1 */
-	if (p == h) l.type = type;
+	if (p == h) {
+		l.type = type;
+		l.liveness_id = 0;
+	}
 	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
 
 	/* FIXME: same as above */
-	if (p != h) p->type = type;
+	if (p != h) {
+		p->type = type;
+		p->liveness_id = 0
+	}
 
 	assert(p == __captbl_lkupan(t, cap, CAPTBL_DEPTH+1, NULL));
 	*retval = ret;
@@ -423,8 +437,8 @@ captbl_create(void *page)
 }
 
 int captbl_activate(struct captbl *t, capid_t cap, capid_t capin, struct captbl *toadd, u32_t lvl);
-int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
-		      livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr);
+int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
+		      livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr);
 int captbl_activate_boot(struct captbl *t, unsigned long cap);
 
 int captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t cons_addr);

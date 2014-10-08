@@ -429,10 +429,9 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 			capid_t pgtbl_cap     = __userregs_get2(regs);
 			capid_t cosframe_addr = __userregs_get3(regs);
-			livenessid_t lid      = __userregs_get4(regs) & 0xFFFF;
-			livenessid_t kmem_lid = __userregs_get4(regs) >> 16;
+			livenessid_t lid      = __userregs_get4(regs);
 
-			ret = captbl_deactivate(ct, op_cap, capin, lid, kmem_lid, pgtbl_cap, cosframe_addr);
+			ret = captbl_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr);
 			
 			break;
 		}
@@ -482,10 +481,9 @@ composite_sysenter_handler(struct pt_regs *regs)
 			 * deactivation. */
 			capid_t pgtbl_cap     = __userregs_get2(regs);
 			capid_t cosframe_addr = __userregs_get3(regs);
-			livenessid_t lid      = __userregs_get4(regs) & 0xFFFF;
-			livenessid_t kmem_lid = __userregs_get4(regs) >> 16;
+			livenessid_t lid      = __userregs_get4(regs);
 
-			ret = pgtbl_deactivate(ct, op_cap, capin, lid, kmem_lid, pgtbl_cap, cosframe_addr);
+			ret = pgtbl_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr);
 			
 			break;
 		}
@@ -510,13 +508,12 @@ composite_sysenter_handler(struct pt_regs *regs)
 		{
 			capid_t pgtbl_cap     = __userregs_get2(regs);
 			capid_t cosframe_addr = __userregs_get3(regs);
-			livenessid_t lid      = __userregs_get4(regs) & 0xFFFF;
-			livenessid_t kmem_lid = __userregs_get4(regs) >> 16;
+			livenessid_t lid      = __userregs_get4(regs);
 
-			ret = thd_deactivate(ct, op_cap, capin, lid, kmem_lid, pgtbl_cap, cosframe_addr);
+			ret = thd_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr);
 			break;
 		}
-		case CAPTBL_OP_KMEM_FREEZE:
+		case CAPTBL_OP_CAPKMEM_FREEZE:
 		{
 			capid_t freeze_cap     = __userregs_get2(regs);
 

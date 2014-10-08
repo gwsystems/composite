@@ -44,13 +44,14 @@ captbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, struct
 	return 0;
 }
 
-int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
-		      livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr)
+int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
+		      livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr)
 {
 	struct cap_header *deact_header;
 	struct cap_captbl *deact_cap, *parent;
 
 	unsigned long l, old_v = 0, *pte = NULL;
+	u64_t curr;
 	int ret;
 
 	deact_header = captbl_lkup(dest_ct_cap->captbl, capin);
@@ -58,7 +59,6 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 
 	deact_cap = (struct cap_captbl *)deact_header;
 	assert(deact_cap->refcnt_flags & CAP_REFCNT_MAX);
-	parent   = deact_cap->parent;
 
 	l = deact_cap->refcnt_flags;
 	if ((l & CAP_REFCNT_MAX) != 1) {
@@ -66,23 +66,38 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 		cos_throw(err, -EINVAL);
 	}
 
+	parent = deact_cap->parent;
 	if (parent == NULL) {
 		/* Last reference to the captbl page. Require pgtbl
 		 * and cos_frame cap to release the kmem page. */
-		ret = kmem_deact_pre(t, pgtbl_cap, cosframe_addr, kmem_lid, 
+
+		/* Require freeze memory and wait for quiescence
+		 * first! */
+		if (!(l & CAP_MEM_FROZEN_FLAG)) {
+			cos_throw(err, -EQUIESCENCE);
+		}
+		/* Quiescence check! */
+		if (deact_cap->lvl == 0) {
+			/* top level has tlb quiescence period (due to
+			 * the optimization to avoid current_component
+			 * lookup on invocation path). */
+			if (!tlb_quiescence_check(deact_cap->frozen_ts)) return -EQUIESCENCE;
+		} else {
+			/* other levels have kernel quiescence period. */
+			rdtscll(curr);
+			if (QUIESCENCE_CHECK(curr, deact_cap->frozen_ts, KERN_QUIESCENCE_CYCLES)) return -EQUIESCENCE;
+		}
+
+		/**************************************************/
+		/* When gets here, we know quiescence has passed. */
+		/**************************************************/
+
+		ret = kmem_deact_pre(deact_header, t, pgtbl_cap, 
 				     (void *)(deact_cap->captbl), &pte, &old_v);
 		if (ret) cos_throw(err, ret);
 	} else {
-		/* more reference exists. just sanity
-		 * checks. */
-		if (pgtbl_cap || cosframe_addr || kmem_lid) {
-			/* we pass in the pgtbl cap and frame addr,
-			 * but ref_cnt is > 1. We'll ignore the two
-			 * parameters as we won't be able to release
-			 * the memory. */
-			printk("cos: deactivating captbl but not able to release kmem page (%p) yet (ref_cnt %d).\n", 
-			       (void *)cosframe_addr, (int)l);
-		}
+		/* more reference exists. Sanity check. */
+		assert (!pgtbl_cap && !cosframe_addr);
 	}
 
 	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_CAPTBL, lid); 
@@ -94,7 +109,7 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 	 * page, or decrement parent cnt. */
 	if (parent == NULL) { 
 		/* move the kmem to COSFRAME */
-		ret = kmem_deact_post(pte, old_v, kmem_lid);
+		ret = kmem_deact_post(pte, old_v);
 		if (ret) {
 			cos_faa((int *)&deact_cap->refcnt_flags, 1);
 			cos_throw(err, ret);
@@ -150,4 +165,43 @@ captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t c
 	return 0;
 err:
 	return ret;
+}
+
+int captbl_kmem_scan (struct cap_captbl *cap) {
+	int i;
+	struct captbl *ct = cap->captbl;
+	/* This scans the leaf level of the captbl. We need to go
+	 * through all cap entries and verify quiescence. */
+	assert (cap->lvl == CAPTBL_DEPTH - 1);
+
+	/* going through each cacheline. */
+	for (i = 0; i < PAGE_SIZE / CACHELINE_SIZE; i++) {
+		int j, n_ent, ent_size;
+		struct cap_header *h, l;
+
+		/* header of this cacheline. */
+		h = captbl_lkup_lvl(ct, i*(CACHELINE_SIZE/CAPTBL_LEAFSZ), CAPTBL_DEPTH-1, CAPTBL_DEPTH);
+		l = *h;
+		/* ent_size = 1<<(l.size+CAP_SZ_OFF); */
+
+		/* rdtscll(curr_ts); */
+		/* header_i = h; */
+		/* n_ent = CACHELINE_SIZE / ent_size; */
+		/* for (j = 0; i < n_ent; i++) { */
+		/* 	assert((void *)header_i < ((void *)h + CACHELINE_SIZE)); */
+			
+		/* 	/\* non_zero liv_id means deactivation happened. *\/ */
+		/* 	if (header_i->liveness_id) { */
+		/* 		if (ltbl_get_timestamp(header_i->liveness_id, &past_ts)) cos_throw(err, -EFAULT); */
+		/* 		/\* quiescence period for cap entries */
+		/* 		 * is the worst-case in kernel */
+		/* 		 * execution time. *\/ */
+		/* 		if (!QUIESCENCE_CHECK(curr_ts, past_ts, KERN_QUIESCENCE_CYCLES)) cos_throw(err, -EQUIESCENCE); */
+		/* 	} */
+
+		/* 	header_i = (void *)header_i + ent_size; /\* get next header *\/ */
+		/* } */
+
+	}
+
 }

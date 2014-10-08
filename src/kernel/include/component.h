@@ -63,7 +63,7 @@ comp_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t captbl_cap, 
 	compc->info.captbl   = ctc->captbl;
 	compc->info.comp_nfo = sa;
 	compc->pgd           = ptc;
-	compc->ct_top        = ptc;
+	compc->ct_top        = ctc;
 	ltbl_get(lid, &compc->info.liveness);
 	__cap_capactivate_post(&compc->h, CAP_COMP);
 

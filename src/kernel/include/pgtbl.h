@@ -229,7 +229,7 @@ pgtbl_check_pgd_absent(pgtbl_t pt, u32_t addr)
 
 extern struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
 
-int tlb_quiescence_check(u64_t unmap_time);
+int tlb_quiescence_check(u64_t timestamp);
 
 /* this works on both kmem and regular user memory: the retypetbl_ref
  * works on both. */
@@ -509,7 +509,7 @@ static pgtbl_t pgtbl_create(void *page, void *curr_pgtbl) {
 }
 int pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
 int pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
-		     livenessid_t lid, livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr);
+		     livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr);
 
 static void pgtbl_init(void) { 
 	assert(sizeof(struct cap_pgtbl) <= __captbl_cap2bytes(CAP_PGTBL));
@@ -519,9 +519,9 @@ static void pgtbl_init(void) {
 
 int cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr);
 int cap_kmem_freeze(struct captbl *t, capid_t target_cap);
-int kmem_deact_pre(struct captbl *ct, capid_t pgtbl_cap, capid_t cosframe_addr, livenessid_t kmem_lid, 
-		   void *obj_vaddr, unsigned long **p_pte, unsigned long *v);
-int kmem_deact_post(unsigned long *pte, unsigned long old_v, livenessid_t kmem_lid);
+int kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, 
+		   capid_t cosframe_addr, unsigned long **p_pte, unsigned long *v);
+int kmem_deact_post(unsigned long *pte, unsigned long old_v);
 int pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr);
 
 #endif /* PGTBL_H */

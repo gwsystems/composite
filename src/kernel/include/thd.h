@@ -193,8 +193,8 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	return 0;
 }
 
-static int thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin, livenessid_t lid,
-			  livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr)
+static int thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin, 
+			  livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr)
 {
 	struct cap_header *thd_header;
 	struct thread *thd;
@@ -211,14 +211,14 @@ static int thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigne
 		/* Last reference. Require pgtbl and
 		 * cos_frame cap to release the kmem
 		 * page. */
-		ret = kmem_deact_pre(ct, pgtbl_cap, cosframe_addr, kmem_lid, 
-				     (void *)thd, &pte, &old_v);
+		ret = kmem_deact_pre(thd_header, ct, pgtbl_cap, 
+				     cosframe_addr, &pte, &old_v);
 		if (ret) cos_throw(err, ret);
 	} else {
 		/* more reference exists. just sanity
 		 * checks. */
 		assert(thd->refcnt > 1);
-		if (pgtbl_cap || cosframe_addr || kmem_lid) {
+		if (pgtbl_cap || cosframe_addr) {
 			/* we pass in the pgtbl cap and frame addr,
 			 * but ref_cnt is > 1. We'll ignore the two
 			 * parameters as we won't be able to release
@@ -236,7 +236,7 @@ static int thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigne
 	if (thd->refcnt == 0) {
 		/* move the kmem for the thread to a location
 		 * in a pagetable as COSFRAME */
-		kmem_deact_post(pte, old_v, kmem_lid);
+		kmem_deact_post(pte, old_v);
 	}
 
 	return 0;
