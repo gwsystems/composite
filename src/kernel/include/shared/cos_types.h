@@ -153,6 +153,7 @@ static inline unsigned long captbl_idsize(cap_t c)
  * 1.5GB-> = kernel memory
  * 2GB-> = system physical memory
  */
+#define BOOT_CAPTBL_NPAGES 5
 enum {
 	BOOT_CAPTBL_SRET = 0, 
 	BOOT_CAPTBL_SELF_CT = 4,

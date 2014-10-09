@@ -353,7 +353,7 @@ boot_deps_run_all(void)
 /* We have 2 pages for the captbl of llboot: 1/2 page for the top
  * level, 1+1/2 pages for the second level. */
 #define CAP_ID_32B_FREE BOOT_CAPTBL_FREE;            // goes up
-#define CAP_ID_64B_FREE ((PAGE_SIZE + PAGE_SIZE/2)/32 - CAP64B_IDSZ) // goes down
+#define CAP_ID_64B_FREE ((PAGE_SIZE*BOOT_CAPTBL_NPAGES - PAGE_SIZE/2)/32 - CAP64B_IDSZ) // goes down
 
 //capid_t capid_16b_free = CAP_ID_32B_FREE;
 capid_t capid_32b_free = CAP_ID_32B_FREE;
@@ -387,9 +387,9 @@ capid_t alloc_capid(cap_t cap)
 struct comp_cap_info {
 	/* By default 2 pages for the captbl of each comp: half page
 	 * 1st level, and 1.5 pages 2nd level */
-	capid_t captbl_cap[2];
+	capid_t captbl_cap[BOOT_CAPTBL_NPAGES];
 	capid_t pgtbl_cap[2];
-#define COMP_N_KMEM 4 /* 4 pages of kmem per component by default. */
+#define COMP_N_KMEM (BOOT_CAPTBL_NPAGES + 2) /* kmem pages per component. */
 	vaddr_t kmem[COMP_N_KMEM];
 	capid_t comp_cap;
 	capid_t cap_frontier;
@@ -710,6 +710,7 @@ tlb_quiescence_wait(void)
 	}
 }
 
+#define CAPTBL_LEAFSZ  16
 #define CAPTBL_INIT_SZ (PAGE_SIZE/2/16)
 
 void captbl_test(void)
@@ -747,19 +748,19 @@ void captbl_test(void)
 	printc(">>> captbl act ret %d\n", ret);
 
 	ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_CONS, 
-			  ct_id, 1024, 0, 0);
+			  ct_id, 4096, 0, 0);
 	printc(">>> captbl cons ret %d\n", ret);
 
 	ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_SINVACTIVATE,
-			  1032, comp_cap_info[3].comp_cap, 222, 0);
+			  4100, comp_cap_info[3].comp_cap, 222, 0);
 	printc(">>> captbl sinv ret %d\n", ret);
 
 	ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_SINVDEACTIVATE,
-			  1032, lid, 0, 0);
+			  4100, lid, 0, 0);
 	printc(">>> captbl sinv deact ret %d\n", ret);
 	
 	ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_DECONS,
-			  ct_id, 1024, 1, 0);
+			  ct_id, 4096, 1, 0);
 	printc(">>> captbl decons ret %d\n", ret);
 
 	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPKMEM_FREEZE, 
@@ -786,7 +787,7 @@ void captbl_test(void)
 
 	///////////// Failure case test next.
 	ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_SINVACTIVATE,
-			  (PAGE_SIZE / 2 * 3 / 16 - 4), comp_cap_info[3].comp_cap, 222, 0);
+			  (PAGE_SIZE*4 / 16 - 4), comp_cap_info[3].comp_cap, 222, 0);
 	if (ret) printc(">>>>>>>>>>>>> sinv act ret %d FAILED.\n", ret);
 	ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_DECONS,
 			  comp->captbl_cap[1], CAPTBL_INIT_SZ, 1, 0);
@@ -834,19 +835,20 @@ void pgtbl_test(void)
 	printc(">>> PGTBL mem freeze ret %d\n", ret);
 
 	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLDEACTIVATE_ROOT, 
-			  comp->pgtbl_cap[1], lid, BOOT_CAPTBL_SELF_PT, comp->kmem[3]);
+			  comp->pgtbl_cap[1], lid, BOOT_CAPTBL_SELF_PT, comp->kmem[COMP_N_KMEM-1]);
 	assert(ret == -EQUIESCENCE);
 	tlb_quiescence_wait();
 
 	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLDEACTIVATE_ROOT, 
-			  comp->pgtbl_cap[1], lid, BOOT_CAPTBL_SELF_PT, comp->kmem[3]);
+			  comp->pgtbl_cap[1], lid, BOOT_CAPTBL_SELF_PT, comp->kmem[COMP_N_KMEM-1]);
 	if (ret) printc(">>>>>>>>>>>>> pgtbl deact ret %d FAILED.\n", ret);
 	printc(">>> PGTBL deact after quiescence ret %d\n", ret);
 
 	quiescence_wait();
 	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE, 
-			  comp->pgtbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[3], 1);
+			  comp->pgtbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[COMP_N_KMEM-1], 1);
 	printc(">>> PGTBL re-act after quiescence ret %d\n", ret);
+	printc("PGTBL tests done.\n");
 }
 
 void retype_test(void)
@@ -933,6 +935,7 @@ void retype_test(void)
 	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, thd_cap,
 			  BOOT_CAPTBL_SELF_PT, kmemregion, comp->comp_cap);
 	printc(">>> React thd ret %d\n", ret);
+	printc("RETYPE TBL tests done.\n");
 }
 
 void comp_deps_run_all(void)
@@ -947,12 +950,16 @@ void comp_deps_run_all(void)
 	/* switch to the init thd in the scheduler. */
 	if (cap_switch_thd(PERCPU_GET(llbooter)->init_thd)) BUG();
 done:
+
+#define API_TEST
+#ifdef API_TEST
 	//QW: to remove
 	if (cos_cpuid() == 0) {
 		captbl_test();
 		pgtbl_test();
 		retype_test();
 	}
+#endif
 
 	sync_all();
 	printc("Core %ld: exiting system from low-level booter.\n", cos_cpuid());

@@ -27,7 +27,7 @@ printc(char *fmt, ...)
 	return ret;
 }
 
-#define ITER (100*1000)//(1024*1024)
+#define ITER (1024*1024)//(100*1000)
 
 unsigned long long tsc_start(void)
 {
@@ -159,7 +159,7 @@ void cos_init(void)
 #if NUM_CPU > 2
 //	else {	goto done; }
 //	if (cos_cpuid() <= (NUM_CPU_COS-1 - SND_RCV_OFFSET)) {
-	if (0) {//(cos_cpuid() == 0) {
+	if (0) {//cos_cpuid() == 0) {
 		struct record_per_core *curr_rcv = &received[cos_cpuid()];
 		int last = 0;
 		int target = SND_RCV_OFFSET + cos_cpuid();
@@ -199,8 +199,8 @@ void cos_init(void)
 		while (1) {
 			//do op here to measure response time.
 			call_cap(4, 0, 0, 0, 0);
-//			rdtscll(e);
-//			if ((e-s)/(2000*1000*1000) > RUNTIME) break;
+			rdtscll(e);
+			if ((e-s)/(2000*1000*1000) > RUNTIME) break;
 			if (ck_pr_load_int(&all_exit)) break;
 		}
 		printc("core %ld: exiting from ping\n", cos_cpuid());

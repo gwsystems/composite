@@ -601,8 +601,8 @@ static void hw_reset(void *data)
 #define THD_SIZE (PAGE_SIZE/4)
 
 u8_t init_thds[THD_SIZE * NUM_CPU_COS] PAGE_ALIGNED;
-/* Need 2 pages for llboot captbl. */
-u8_t boot_comp_captbl[PAGE_SIZE*2] PAGE_ALIGNED; 
+/* Reserve 5 pages for llboot captbl. */
+u8_t boot_comp_captbl[PAGE_SIZE*BOOT_CAPTBL_NPAGES] PAGE_ALIGNED; 
 u8_t c0_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 
 u8_t *boot_comp_pgd;
@@ -640,13 +640,14 @@ kern_boot_comp(struct spd_info *spd_info)
 	assert(ct);
 
 	/* expand the captbl to use 2 pages. */
-
-	captbl_init(boot_comp_captbl + PAGE_SIZE, 1);
-	ret = captbl_expand(ct, PAGE_SIZE/2/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE);
-	assert(!ret);
-	captbl_init(boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2, 1);
-	ret = captbl_expand(ct, PAGE_SIZE/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2);
-	assert(!ret);
+	for (i = 1; i < BOOT_CAPTBL_NPAGES; i++) { 
+		captbl_init(boot_comp_captbl + i * PAGE_SIZE, 1);
+		ret = captbl_expand(ct, (PAGE_SIZE*i - PAGE_SIZE/2)/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE*i);
+		assert(!ret);
+		captbl_init(boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2, 1);
+		ret = captbl_expand(ct, (PAGE_SIZE*i)/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE*i + PAGE_SIZE/2);
+		assert(!ret);
+	}
 	boot_captbl = ct;
 
 	kmem_base_pa = chal_va2pa(cos_kmem_base);
