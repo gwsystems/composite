@@ -40,7 +40,7 @@ typedef int (*ert_resolve_fn_t)(struct ert_intern *a, void *accum, int leaf, u32
 /* set values to their initial value (often "null") */
 typedef void (*ert_initval_fn_t)(struct ert_intern *, int isleaf);
 /* set a value in an internal structure/value */
-typedef void (*ert_set_fn_t)(struct ert_intern *e, void *val, void *accum, int isleaf);
+typedef int (*ert_set_fn_t)(struct ert_intern *e, void *val, void *accum, int isleaf);
 /* allocate an internal or leaf structure */
 typedef void *(*ert_alloc_fn_t)(void *data, int sz, int last_lvl);
 /* if we you extending the leaf level, this is called to set the leaf entry */
@@ -75,8 +75,8 @@ ert_defisnull(struct ert_intern *a, void *accum, int leaf)
 static int 
 ert_defresolve(struct ert_intern *a, void *accum, int leaf, u32_t order, u32_t sz)
 { (void)a; (void)accum; (void)leaf; (void)order; (void)sz; return 1; }
-static void ert_defset(struct ert_intern *a, void *v, void *accum, int leaf)
-{ (void)leaf; (void)accum; a->next = v; }
+static int ert_defset(struct ert_intern *a, void *v, void *accum, int leaf)
+{ (void)leaf; (void)accum; a->next = v; return 0; }
 static int ert_defsetleaf(struct ert_intern *a, void *data)
 { a->next = data; return 0; }
 static void ert_definit(struct ert_intern *a, int leaf)
@@ -286,8 +286,8 @@ __ert_expand(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *
 		n = __ert_walk(n, id, accum, depth-i, ERT_CONST_ARGS);
 		/* don't overwrite a value, unless we want to set it to the initval */
 		if (data != initval && !isnullfn(n, accum, 0)) return 1;
-		/* return -1 if CAS fails */
-		if (setleaffn(n, data)) return -1;
+
+		if (setleaffn(n, data)) return -ECASFAIL;
 	}
 	return 0;
 }

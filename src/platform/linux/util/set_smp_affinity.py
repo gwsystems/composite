@@ -5,12 +5,12 @@ try:
 	cos_pid = sys.argv[2]
 except:
         print "Warning: Missing params for SMP affinity setting. Check the python script."; sys.exit(1);
-                                 
+            
+# Note: This currently ignores NUMA (cpuset.mems) setting: only NUMA node 0 is used.
 def start():
-	if ncpus < 1:
+	if int(ncpus) < 1:
 	        print "Warning: SMP affinity not setting correctly. Check the number of CPUs in config." 
 		sys.exit(1)
-
         os.system("echo -1 > /proc/sys/kernel/sched_rt_runtime_us")
         os.system("echo \"ENABLED=0\" > /etc/default/irqbalance")
         os.system("echo Setting CPU affinity... This could take several seconds for the first run after boot.")
@@ -29,14 +29,16 @@ def start():
 	os.system("echo " + str(linux_cpu) + " > /dev/cpuset/linux/cpuset.cpus")
 	os.system("echo 0 > /dev/cpuset/linux/cpuset.mems")
 
-	if ncpus > 1:
+	if int(ncpus) > 1:
 		cos_cpu = int(ncpus) - 2
 	else:
 		cos_cpu = 0
 	os.system("echo 0-" + str(cos_cpu) +  " > /dev/cpuset/cos/cpuset.cpus")
 	os.system("echo 0 > /dev/cpuset/cos/cpuset.mems")
-
 	os.system("echo " + cos_pid + " > /dev/cpuset/cos/tasks")
+	# The following command takes quite a few seconds. It tries to
+	# migrate all Linux tasks (except non-migratable tasks) to the
+	# Linux core.
 	os.system("for i in `cat /dev/cpuset/tasks`; do echo $i > /dev/cpuset/linux/tasks; done")
 
         if os.path.exists("/proc/irq/0/smp_affinity"):

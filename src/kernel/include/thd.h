@@ -12,6 +12,8 @@
 #include "cap_ops.h"
 #include "fpu_regs.h"
 #include "cpuid.h"
+#include "pgtbl.h"
+#include "retype_tbl.h"
 
 struct invstk_entry {
 	struct comp_info comp_info;
@@ -155,13 +157,8 @@ extern u32_t free_thd_id;
 static u32_t
 alloc_thd_id(void)
 {
-	u32_t old, new;
-        do {
-		old = free_thd_id;
-		new = free_thd_id + 1;
-        } while (unlikely(!cos_cas((unsigned long *)&free_thd_id, (unsigned long)old, (unsigned long)new)));
-
-	return old;
+        /* FIXME: thd id address space management. */
+	return cos_faa(&free_thd_id, 1);
 }
 
 static int 
@@ -181,7 +178,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
 	thd->invstk[0].ip = thd->invstk[0].sp = 0;
 	thd->tid          = alloc_thd_id();
-	thd->refcnt       = 0;
+	thd->refcnt       = 1;
 	thd->invstk_top   = 0;
 	assert(thd->tid <= MAX_NUM_THREADS);
 	
@@ -191,13 +188,64 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	/* initialize the capability */
 	tc->t     = thd;
 	thd->cpuid = tc->cpuid = get_cpuid();
-	__cap_capactivate_post(&tc->h, CAP_THD, 0);
+	__cap_capactivate_post(&tc->h, CAP_THD);
 
 	return 0;
 }
 
-static int thd_deactivate(struct captbl *t, unsigned long cap, unsigned long capin)
-{ return cap_capdeactivate(t, cap, capin, CAP_THD); }
+static int thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin, 
+			  livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
+{
+	struct cap_header *thd_header;
+	struct thread *thd;
+	unsigned long old_v = 0, *pte = NULL;
+	int ret;
+
+	thd_header = captbl_lkup(dest_ct->captbl, capin);
+	if (!thd_header || thd_header->type != CAP_THD) cos_throw(err, -EINVAL);
+
+	thd = ((struct cap_thd *)thd_header)->t;
+	assert(thd->refcnt);
+
+	if (thd->refcnt == 1) {
+		if (!root) cos_throw(err, -EINVAL);
+		/* Last reference. Require pgtbl and
+		 * cos_frame cap to release the kmem
+		 * page. */
+		ret = kmem_deact_pre(thd_header, ct, pgtbl_cap, 
+				     cosframe_addr, &pte, &old_v);
+		if (ret) cos_throw(err, ret);
+	} else {
+		/* more reference exists. */
+		if (root) cos_throw(err, -EINVAL);
+		assert(thd->refcnt > 1);
+		if (pgtbl_cap || cosframe_addr) {
+			/* we pass in the pgtbl cap and frame addr,
+			 * but ref_cnt is > 1. We'll ignore the two
+			 * parameters as we won't be able to release
+			 * the memory. */
+			printk("cos: deactivating thread but not able to release kmem page (%p) yet (ref_cnt %d).\n", 
+			       (void *)cosframe_addr, thd->refcnt);
+		}
+	}
+
+	ret = cap_capdeactivate(dest_ct, capin, CAP_THD, lid); 
+
+	if (ret) cos_throw(err, ret);
+
+	thd->refcnt--;
+	/* deactivation success */
+	if (thd->refcnt == 0) {
+		/* move the kmem for the thread to a location
+		 * in a pagetable as COSFRAME */
+		ret = kmem_deact_post(pte, old_v);
+		if (ret) cos_throw(err, ret);
+	}
+
+	return 0;
+err:
+	return ret;
+}
 
 #ifdef LINUX_TEST
 static void thd_init(void)

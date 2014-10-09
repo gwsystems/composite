@@ -507,9 +507,6 @@ static int exit_system = 0;
 
 static void sched_timer_tick(void)
 {
-	//QW: to remove
-	int *detector = (int *)0x44bf0000;
-
 	while (1) {
 		cos_sched_lock_take();
 		report_event(TIMER_TICK);
@@ -534,8 +531,6 @@ static void sched_timer_tick(void)
 		PERCPU_GET(sched_base_state)->ticks++;
 		sched_process_wakeups();
 		timer_tick(1);
-
-		ck_pr_store_int(&detector[cos_cpuid()*16], 1);
 
 		sched_switch_thread(COS_SCHED_ACAP_WAIT, TIMER_SWITCH_LOOP);
 		/* Tailcall out of the loop */
@@ -938,12 +933,6 @@ int sched_block(spdid_t spdid, unsigned short int dep_thd)
 	struct sched_thd *thd, *dep = NULL;
 	int ret, first = 1;
 	unsigned short int dependency_thd = dep_thd;
-
-	//QW: to remove
-	if (dep_thd == 999) {
-		exit_system = 1;
-		return 0;
-	}
 
 	// Added by Gabe 08/19
 	if (unlikely(dep_thd == cos_get_thd_id())) return -EINVAL;

@@ -64,17 +64,17 @@ void pingpong(void)
 	u64_t s, e;
 
 #ifdef MEAS_AVG
-	printc("core %ld: doing pingpong\n", cos_cpuid());
+	printc("core %ld: doing pingpong IPC test\n", cos_cpuid());
 	
-	call_cap(2, 0, 0, 0, 0);
+	call_cap(4, 0, 0, 0, 0);
 
 	rdtscll(s);
 	for (i = 0; i < ITER; i++) {
-		call_cap(2, 0, 0, 0, 0);
+		call_cap(4, 0, 0, 0, 0);
 	}
 	rdtscll(e);
 
-	printc("core %ld: pingpong done, avg cost %llu\n", cos_cpuid(), (e-s)/ITER);
+	printc("\n core %ld: %d IPCs done, avg cost %llu cycles\n\n", cos_cpuid(), ITER, (e-s)/ITER);
 	ck_pr_store_int(&all_exit, 1);
 #else
 	u64_t sum = 0, max = 0;
@@ -83,7 +83,7 @@ void pingpong(void)
 	printc("core %ld: doing pingpong w/ flush @tick %u!\n", cos_cpuid(), last_tick);
 	for (i = 0; i < ITER; i++) {
 		s = tsc_start();
-		call_cap(2, 0, 0, 0, 0);
+		call_cap(4, 0, 0, 0, 0);
 		rdtscll(e);
 //		if (e-s > 20000) printc("large: %llu @ %llu\n", e-s, e);
 		curr_tick = printc("FLUSH!!");
@@ -127,8 +127,8 @@ void rcv_thd(void)
 		if (ret) {
 			printc("ERROR: arcv ret %d", ret);
 			printc("rcv thd %d switching back to alpha %ld!\n", 
-			       cos_get_thd_id(), SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
-			ret = cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
+			       cos_get_thd_id(), SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
+			ret = cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
 		}
 		ck_pr_store_int(&curr_rcv->rcv, curr_rcv->rcv + 1);
 	}
@@ -154,12 +154,12 @@ void cos_init(void)
 	if (cos_cpuid() == 0) {
 //	if (1) {
 		pingpong();
+		goto done;
 	}
-	goto done;
-#if NUM_CPU_COS >= 2 
+#if NUM_CPU > 2
 //	else {	goto done; }
 //	if (cos_cpuid() <= (NUM_CPU_COS-1 - SND_RCV_OFFSET)) {
-	if (cos_cpuid() == 0) {
+	if (0) {//(cos_cpuid() == 0) {
 		struct record_per_core *curr_rcv = &received[cos_cpuid()];
 		int last = 0;
 		int target = SND_RCV_OFFSET + cos_cpuid();
@@ -198,16 +198,16 @@ void cos_init(void)
 		rdtscll(s);
 		while (1) {
 			//do op here to measure response time.
-			//call_cap(2, 0, 0, 0, 0);
-			rdtscll(e);
-			if ((e-s)/(2000*1000*1000) > RUNTIME) break;
-//			if (ck_pr_load_int(&all_exit)) break;
+			call_cap(4, 0, 0, 0, 0);
+//			rdtscll(e);
+//			if ((e-s)/(2000*1000*1000) > RUNTIME) break;
+			if (ck_pr_load_int(&all_exit)) break;
 		}
 		printc("core %ld: exiting from ping\n", cos_cpuid());
 	}
 #endif
 done:
-	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
+	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
 
 	call();
 

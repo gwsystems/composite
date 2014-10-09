@@ -50,13 +50,20 @@ typedef enum {
 	CAPTBL_OP_ASNDDEACTIVATE,
 	CAPTBL_OP_ARCVACTIVATE,
 	CAPTBL_OP_ARCVDEACTIVATE,
-	CAPTBL_OP_MAPPING_CONS,
-	CAPTBL_OP_MAPPING_DECONS,
-	CAPTBL_OP_MAPPING_MOD,
-	CAPTBL_OP_MAPPING_RETYPE,
-	CAPTBL_OP_PGDACTIVATE,
-	CAPTBL_OP_PTEACTIVATE,
+	CAPTBL_OP_MEMACTIVATE,
+	CAPTBL_OP_MEMDEACTIVATE,
+	/* CAPTBL_OP_MAPPING_MOD, */
+	CAPTBL_OP_MEM_RETYPE2USER,
+	CAPTBL_OP_MEM_RETYPE2KERN,
+	CAPTBL_OP_MEM_RETYPE2FRAME,
+	CAPTBL_OP_PGTBLACTIVATE,
+	CAPTBL_OP_PGTBLDEACTIVATE,
 	CAPTBL_OP_CAPTBLACTIVATE,
+	CAPTBL_OP_CAPTBLDEACTIVATE,
+	CAPTBL_OP_CAPKMEM_FREEZE,
+	CAPTBL_OP_CAPTBLDEACTIVATE_ROOT,
+	CAPTBL_OP_PGTBLDEACTIVATE_ROOT,
+	CAPTBL_OP_THDDEACTIVATE_ROOT,
 } syscall_op_t;
 
 typedef enum {
@@ -71,9 +78,12 @@ typedef enum {
 	CAP_PGTBL,              /* page-table */
 	CAP_FRAME, 		/* untyped frame within a page-table */
 	CAP_VM, 		/* mapped virtual memory within a page-table */
+	CAP_QUIESCENCE,         /* when deactivating, set to track quiescence state */
 } cap_t;
 
 typedef unsigned long capid_t;
+
+#define QUIESCENCE_CHECK(curr, past, quiescence_period)  (((curr) - (past)) > (quiescence_period))
 
 /* 
  * The values in this enum are the order of the size of the
@@ -104,11 +114,19 @@ __captbl_cap2sz(cap_t c)
 {
 	/* TODO: optimize for invocation and return */
 	switch (c) {
-	case CAP_CAPTBL: case CAP_THD:   
-	case CAP_PGTBL:  case CAP_SRET: return CAP_SZ_16B;
-	case CAP_SINV:   case CAP_COMP: return CAP_SZ_32B;
-	case CAP_ASND:   case CAP_ARCV: return CAP_SZ_64B;
-	default:                        return CAP_SZ_ERR;
+	case CAP_SRET:
+		return CAP_SZ_16B;
+	case CAP_SINV:
+	case CAP_THD:
+	case CAP_CAPTBL:
+	case CAP_PGTBL:
+		return CAP_SZ_32B;
+	case CAP_COMP:
+	case CAP_ASND:
+	case CAP_ARCV:
+		return CAP_SZ_64B;
+	default:
+		return CAP_SZ_ERR;
 	}
 }
 
@@ -116,21 +134,19 @@ static inline unsigned long captbl_idsize(cap_t c)
 { return 1<<__captbl_cap2sz(c); }
 
 /* 
- * Initial captbl setup:  
+ * LLBooter initial captbl setup:  
  * 0 = sret, 
- * 1 = this captbl, 
- * 2 = our pgtbl root,
- * 3 = nil,
- * 4-5 = our component,
- * 6-7 = nil,
- * 8 = vm pte for booter
- * 9 = vm pte for physical memory
- * 10-11 = nil,
- * 12 = comp0 captbl, 
- * 13 = comp0 pgtbl root,
- * 14-15 = nil,
- * 16-17 = comp0 component,
- * 20~(20+NCPU) = per core alpha thd
+ * 1-3 = nil,
+ * 4-5 = this captbl, 
+ * 6-7 = our pgtbl root,
+ * 8-11 = our component,
+ * 12-13 = vm pte for booter
+ * 14-15 = vm pte for physical memory
+ * 16-17 = km pte
+ * 18-19 = comp0 captbl, 
+ * 20-21 = comp0 pgtbl root,
+ * 24-27 = comp0 component,
+ * 28~(20+2*NCPU) = per core alpha thd
  * 
  * Initial pgtbl setup (addresses):
  * 1GB+8MB-> = boot component VM
@@ -139,18 +155,18 @@ static inline unsigned long captbl_idsize(cap_t c)
  */
 enum {
 	BOOT_CAPTBL_SRET = 0, 
-	BOOT_CAPTBL_SELF_CT = 1, 
-	BOOT_CAPTBL_SELF_PT = 2, 
-	BOOT_CAPTBL_SELF_COMP = 4, 
-	BOOT_CAPTBL_BOOTVM_PTE = 8, 
-	BOOT_CAPTBL_PHYSM_PTE = 9, 
-	BOOT_CAPTBL_KM_PTE = 10, 
+	BOOT_CAPTBL_SELF_CT = 4,
+	BOOT_CAPTBL_SELF_PT = 6, 
+	BOOT_CAPTBL_SELF_COMP = 8, 
+	BOOT_CAPTBL_BOOTVM_PTE = 12, 
+	BOOT_CAPTBL_PHYSM_PTE = 14, 
+	BOOT_CAPTBL_KM_PTE = 16,
 
-	BOOT_CAPTBL_COMP0_CT = 12,
-	BOOT_CAPTBL_COMP0_PT = 13,  
-	BOOT_CAPTBL_COMP0_COMP = 16, 
-	BOOT_CAPTBL_SELF_INITTHD_BASE = 20, 
-	BOOT_CAPTBL_LAST_CAP = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS,
+	BOOT_CAPTBL_COMP0_CT = 18,
+	BOOT_CAPTBL_COMP0_PT = 20,  
+	BOOT_CAPTBL_COMP0_COMP = 24, 
+	BOOT_CAPTBL_SELF_INITTHD_BASE = 28,
+	BOOT_CAPTBL_LAST_CAP = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS*CAP32B_IDSZ,
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
@@ -162,11 +178,11 @@ enum {
 };
 
 enum {
-	/* cap 2-3 used for pp test cases for now */
-	SCHED_CAPTBL_ALPHATHD_BASE = 4, 
+	/* cap 0-3 reserved for sret. 4-7 is the sinv cap. FIXME: make this general. */
+	SCHED_CAPTBL_ALPHATHD_BASE = 8,
 	/* we have 2 thd caps (init and alpha thds) for each core. */
-	SCHED_CAPTBL_INITTHD_BASE  = SCHED_CAPTBL_ALPHATHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
-	SCHED_CAPTBL_LAST = SCHED_CAPTBL_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
+	SCHED_CAPTBL_INITTHD_BASE  = SCHED_CAPTBL_ALPHATHD_BASE + NUM_CPU_COS*CAP32B_IDSZ,
+	SCHED_CAPTBL_LAST = SCHED_CAPTBL_INITTHD_BASE + NUM_CPU_COS*CAP32B_IDSZ,
 	/* round up to a new entry. */
 	SCHED_CAPTBL_FREE = round_up_to_pow2(SCHED_CAPTBL_LAST, CAPMAX_ENTRY_SZ)
 };
