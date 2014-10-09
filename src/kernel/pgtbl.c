@@ -6,11 +6,11 @@
 #include "include/retype_tbl.h"
 
 int
-pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
+pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte_ret)
 {
 	struct ert_intern *pte;
 	u32_t orig_v, new_v, accum = 0;
-	
+
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & addr) == 0);
 
@@ -39,6 +39,9 @@ pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
 		retypetbl_deref((void *)(orig_v & PGTBL_FRAME_MASK));
 		return -ECASFAIL;
 	}
+	/* Return the pte ptr, so that we can release the page if the
+	 * kobj activation failed later. */
+	*pte_ret = (unsigned long *)pte;
 
 	return 0;
 }
@@ -103,7 +106,7 @@ pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t
 	int ret;
 	
 	pt = (struct cap_pgtbl *)__cap_capactivate_pre(t, cap, capin, CAP_PGTBL, &ret);
-	if (!unlikely(pt)) return ret;
+	if (unlikely(!pt)) return ret;
 	pt->pgtbl  = pgtbl;
 
 	pt->refcnt_flags = 1;
@@ -124,12 +127,10 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 	unsigned long l, old_v = 0, *pte = NULL;
 	int ret;
 
-	printk("1 capin %d\n", capin);
 	deact_header = captbl_lkup(dest_ct_cap->captbl, capin);
 	if (!deact_header || deact_header->type != CAP_PGTBL) cos_throw(err, -EINVAL);
 	deact_cap = (struct cap_pgtbl *)deact_header;
 	parent    = deact_cap->parent;
-	printk("2 %p, %x\n", &(deact_cap->refcnt_flags), deact_cap->refcnt_flags);
 
 	l = deact_cap->refcnt_flags;
 	assert(l & CAP_REFCNT_MAX);
@@ -138,12 +139,11 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 		/* We need to deact children first! */
 		cos_throw(err, -EINVAL);
 	}
-	printk("3 parent %p, root %d\n", parent, root);
+
 	if (parent == NULL) {
 		if (!root) cos_throw(err, -EINVAL);
 		/* Last reference to the captbl page. Require pgtbl
 		 * and cos_frame cap to release the kmem page. */
-		printk("4\n");
 		ret = kmem_deact_pre(deact_header, t, pgtbl_cap, 
 				     cosframe_addr, &pte, &old_v);
 		if (ret) cos_throw(err, ret);
@@ -153,20 +153,16 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 		assert(!pgtbl_cap && !cosframe_addr);
 	}
 
-	printk("5\n");
 	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_PGTBL, lid);
-	printk("6\n");
 	if (ret) cos_throw(err, ret);
-	printk("7 %x %x\n", deact_cap->refcnt_flags, l);
-	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, 0) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
-	printk("8\n");
+
+	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
+
 	/* deactivation success. We should either release the
 	 * page, or decrement parent cnt. */
 	if (parent == NULL) { 
-		printk("9\n");
 		/* move the kmem to COSFRAME */
 		ret = kmem_deact_post(pte, old_v);
-		printk("10\n");
 		if (ret) {
 			cos_faa((int *)&deact_cap->refcnt_flags, 1);
 			cos_throw(err, ret);

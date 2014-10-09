@@ -65,7 +65,7 @@ cap_capdeactivate(struct cap_captbl *ct, capid_t capin, cap_t type, livenessid_t
 }
 
 static inline int
-cap_kmem_activate(struct captbl *t, capid_t cap, unsigned long addr, unsigned long *kern_addr)
+cap_kmem_activate(struct captbl *t, capid_t cap, unsigned long addr, unsigned long *kern_addr, unsigned long **pte_ret)
 {
 	int ret;
 	struct cap_pgtbl *pgtblc;
@@ -75,7 +75,7 @@ cap_kmem_activate(struct captbl *t, capid_t cap, unsigned long addr, unsigned lo
 
 	if (unlikely(!pgtblc)) return -ENOENT;
 	if (unlikely(pgtblc->h.type != CAP_PGTBL || pgtblc->lvl != 0)) return -EINVAL;
-	if ((ret = pgtbl_kmem_act(pgtblc->pgtbl, addr, (unsigned long *)kern_addr))) return ret;
+	if ((ret = pgtbl_kmem_act(pgtblc->pgtbl, addr, (unsigned long *)kern_addr, pte_ret))) return ret;
 
 	return 0;
 }
@@ -193,7 +193,6 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 		old_v = l = pt->refcnt_flags;
 		if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
 		cos_cas((unsigned long *)&(pt->refcnt_flags), old_v, l - 1);
-		printk("ref cnt %p %d -> %d\n", &(pt->refcnt_flags), old_v, l-1);
 	}
 
 	return 0;
@@ -206,19 +205,16 @@ cap_kmem_freeze(struct captbl *t, capid_t target_cap)
 	u32_t l;
 	int ret;
 	
-	printk("a\n");
 	ch = captbl_lkup(t, target_cap);
 	if (!ch) return -EINVAL;
-	printk("b\n");
+
 	/* Only memory for captbl and pgtbl needs to be frozen before
 	 * deactivation. */
 	if (ch->type == CAP_CAPTBL) {
 		struct cap_captbl *ct = (struct cap_captbl *)ch;
  		l = ct->refcnt_flags;
-		printk("c\n");
 
 		if ((l & CAP_REFCNT_MAX) > 1 || l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
-		printk("d\n");
 
 		rdtscll(ct->frozen_ts);
 		ret = cos_cas((unsigned long *)&ct->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
@@ -230,9 +226,7 @@ cap_kmem_freeze(struct captbl *t, capid_t target_cap)
 
 		rdtscll(pt->frozen_ts);
 		ret = cos_cas((unsigned long *)&pt->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
-		printk("e %d: %p, %x -> %x\n", ret, &pt->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
 	} else {
-		printk("%d type\n", ch->type);
 		return -EINVAL;
 	}
 	
@@ -240,14 +234,14 @@ cap_kmem_freeze(struct captbl *t, capid_t target_cap)
 }
 
 static int 
-kmem_page_scan(void *obj_vaddr) 
+kmem_page_scan(void *obj_vaddr, const int size) 
 {
 	/* For non-leaf level captbl / pgtbl. entries are all pointers
 	 * in these cases. */
 	int i;
 	void *addr = obj_vaddr;
 			
-	for (i = 0; i < PAGE_SIZE / sizeof(void *); i++) {
+	for (i = 0; i < size / sizeof(void *); i++) {
 		if (*(unsigned long *)addr != 0) return -EINVAL;
 		addr++;
 	}

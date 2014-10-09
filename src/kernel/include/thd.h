@@ -201,7 +201,6 @@ static int thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigne
 	unsigned long old_v = 0, *pte = NULL;
 	int ret;
 
-	printk(">>>> lid %d\n", lid);
 	thd_header = captbl_lkup(dest_ct->captbl, capin);
 	if (!thd_header || thd_header->type != CAP_THD) cos_throw(err, -EINVAL);
 
@@ -231,16 +230,12 @@ static int thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigne
 	}
 
 	ret = cap_capdeactivate(dest_ct, capin, CAP_THD, lid); 
-	printk("aa %d\n", ret);
 
 	if (ret) cos_throw(err, ret);
-	printk("bb\n");
 
 	thd->refcnt--;
-
 	/* deactivation success */
 	if (thd->refcnt == 0) {
-		printk("cc\n");
 		/* move the kmem for the thread to a location
 		 * in a pagetable as COSFRAME */
 		ret = kmem_deact_post(pte, old_v);

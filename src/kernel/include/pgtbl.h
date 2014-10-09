@@ -520,6 +520,6 @@ static void pgtbl_init(void) {
 }
 
 int cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr);
-int pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr);
+int pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte);
 
 #endif /* PGTBL_H */

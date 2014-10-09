@@ -130,6 +130,7 @@ captbl_init(void *node, int leaf)
 			p->type  = CAP_FREE;
 			p->amap  = 0;
 			p->flags = 0;
+			p->liveness_id = 0;
 		}
 	}
 }
@@ -231,8 +232,10 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 
 	if (unlikely(sz == CAP_SZ_ERR)) cos_throw(err, -EINVAL);
 	if (unlikely(cap >= __captbl_maxid())) cos_throw(err, -EINVAL);
+
 	p = __captbl_lkupan(t, cap, CAPTBL_DEPTH, NULL); 
 	if (unlikely(!p)) cos_throw(err, -EPERM);
+
 	h = (struct cap_header *)CT_MSK(p, CACHELINE_ORDER);
 	l = o = *h;
 	if (unlikely(l.flags & CAP_FLAG_RO)) cos_throw(err, -EPERM);
@@ -247,7 +250,6 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 
 	/* Quiescence check: either check the entire cacheline if
 	 * needed, or a single entry. */
-
 	if (l.type == CAP_QUIESCENCE && l.size != sz) {
 		/* FIXME: when false sharing happens, other cores
 		 * could already changed the size and type of the
@@ -258,7 +260,6 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 		 * cacheline has reached quiescence before re-size. */
 		int i, n_ent, ent_size;
 		struct cap_header *header_i;
-
 		assert(l.size);
 		ent_size = 1<<(l.size+CAP_SZ_OFF);
 
@@ -269,7 +270,7 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 			assert((void *)header_i < ((void *)h + CACHELINE_SIZE));
 			
 			/* non_zero liv_id means deactivation happened. */
-			if (header_i->liveness_id) {
+			if (header_i->liveness_id && header_i->type == CAP_QUIESCENCE) {
 				if (ltbl_get_timestamp(header_i->liveness_id, &past_ts)) cos_throw(err, -EFAULT);
 				/* quiescence period for cap entries
 				 * is the worst-case in kernel
@@ -281,12 +282,13 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 		}
 	} else {
 		/* check only the current single entry */
-		if (p->liveness_id) {
+		if (p->liveness_id && p->type == CAP_QUIESCENCE) {
 			/* means a deactivation on this cap entry happened
 			 * before. */
 			rdtscll(curr_ts);
-			if (ltbl_get_timestamp(p->liveness_id, &past_ts)) cos_throw(err, -EFAULT);
-
+			if (ltbl_get_timestamp(p->liveness_id, &past_ts)) {
+				cos_throw(err, -EFAULT);
+			}
 			if (!QUIESCENCE_CHECK(curr_ts, past_ts, KERN_QUIESCENCE_CYCLES)) cos_throw(err, -EQUIESCENCE);
 		}
 	}
@@ -323,15 +325,14 @@ captbl_del(struct captbl *t, capid_t cap, cap_t type, livenessid_t lid)
 	struct cap_header *p, *h;
 	struct cap_header l, o;
 	int ret = 0, off;
-	printk("1\n");
+
 	if (unlikely(cap >= __captbl_maxid())) cos_throw(err, -EINVAL);
 	p = __captbl_lkupan(t, cap, CAPTBL_DEPTH, NULL); 
-	printk("2\n");
+
 	if (unlikely(!p)) cos_throw(err, -EPERM);
 	if (p != __captbl_getleaf((void*)p, NULL)) cos_throw(err, -EINVAL);
-	printk("22\n");
 	if (p->type != type) cos_throw(err, -EINVAL);
-	printk("3\n");
+
 	h   = (struct cap_header *)CT_MSK(p, CACHELINE_ORDER);
 	off = (struct cap_min*)p - (struct cap_min*)h;
 	assert(off >= 0 && off < CAP_HEAD_AMAP_SZ);
@@ -340,10 +341,10 @@ captbl_del(struct captbl *t, capid_t cap, cap_t type, livenessid_t lid)
 	/* Do we want RO to prevent deletions? */
 	if (unlikely(l.flags & CAP_FLAG_RO)) cos_throw(err, -EPERM);
 	if (unlikely(!(l.amap & (1<<off)))) cos_throw(err, -ENOENT);
-	printk("4 %d\n", lid);
+
 	/* Update timestamp first. */
 	ret = ltbl_timestamp_update(lid);
-	printk("5 ret %d\n", ret);
+
 	if (unlikely(ret)) cos_throw(err, ret);
 
 	if (h == p) {
@@ -364,7 +365,6 @@ captbl_del(struct captbl *t, capid_t cap, cap_t type, livenessid_t lid)
 		l.type = CAP_QUIESCENCE;
 	}
 
-	printk("66\n");
 	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
 err:
 	return ret;
