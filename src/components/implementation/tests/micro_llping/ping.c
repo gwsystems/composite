@@ -74,7 +74,7 @@ void pingpong(void)
 	}
 	rdtscll(e);
 
-	printc("core %ld: pingpong done, avg %llu\n", cos_cpuid(), (e-s)/ITER);
+	printc("core %ld: pingpong done, avg cost %llu\n", cos_cpuid(), (e-s)/ITER);
 	ck_pr_store_int(&all_exit, 1);
 #else
 	u64_t sum = 0, max = 0;
@@ -120,13 +120,13 @@ void rcv_thd(void)
 {
 	int ret;
 	struct record_per_core *curr_rcv = &received[cos_cpuid()];
-//	printc("core %ld: rcv thd %d ready in ping!\n", cos_cpuid(), cos_get_thd_id());
+	printc("core %ld: rcv thd %d ready in ping!\n", cos_cpuid(), cos_get_thd_id());
 
 	while (1) {
 		ret = call_cap(ACAP_BASE + captbl_idsize(CAP_ARCV)*cos_cpuid(),0,0,0,0);
 		if (ret) {
 			printc("ERROR: arcv ret %d", ret);
-			printc("rcv thd %d switching back to alpha %d!\n", 
+			printc("rcv thd %d switching back to alpha %ld!\n", 
 			       cos_get_thd_id(), SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
 			ret = cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
 		}
@@ -134,7 +134,7 @@ void rcv_thd(void)
 	}
 }
 
-char *shmem = 0x44c00000-PAGE_SIZE;
+char *shmem = (char *)(0x44c00000-PAGE_SIZE);
 
 void cos_init(void)
 {
@@ -154,16 +154,17 @@ void cos_init(void)
 	if (cos_cpuid() == 0) {
 //	if (1) {
 		pingpong();
-		goto done;
-	} 
+	}
+	goto done;
+#if NUM_CPU_COS >= 2 
 //	else {	goto done; }
 //	if (cos_cpuid() <= (NUM_CPU_COS-1 - SND_RCV_OFFSET)) {
-	if (0){//(cos_cpuid() == 0) {
+	if (cos_cpuid() == 0) {
 		struct record_per_core *curr_rcv = &received[cos_cpuid()];
 		int last = 0;
 		int target = SND_RCV_OFFSET + cos_cpuid();
 		u64_t s1, e1;
-		volatile u64_t *pong_shmem = &shmem[(target) * CACHE_LINE];
+		volatile u64_t *pong_shmem = (u64_t *)&shmem[(target) * CACHE_LINE];
 		u64_t sum = 0, sum2 = 0;
 
 		while (ck_pr_load_int(&arcv_ready[target]) == 0) ;
@@ -192,18 +193,19 @@ void cos_init(void)
 	} else {//if (cos_cpuid() % 4 <= 1) {
 //		printc("core %ld: thd %d switching to pong thd\n", cos_cpuid(), cos_get_thd_id());
 		arcv_ready[cos_cpuid()] = 1;
-		printc("core %ld: doing operations as interference\n", cos_cpuid());
+		//printc("core %ld: doing operations as interference\n", cos_cpuid());
 		////////////////////////
 		rdtscll(s);
 		while (1) {
 			//do op here to measure response time.
-			call_cap(2, 0, 0, 0, 0);
-//			rdtscll(e);
-//			if ((e-s)/(2000*1000*1000) > RUNTIME) break;
-			if (ck_pr_load_int(&all_exit)) break;
+			//call_cap(2, 0, 0, 0, 0);
+			rdtscll(e);
+			if ((e-s)/(2000*1000*1000) > RUNTIME) break;
+//			if (ck_pr_load_int(&all_exit)) break;
 		}
-		printc("core %ld: interference done. exiting from ping\n", cos_cpuid());
+		printc("core %ld: exiting from ping\n", cos_cpuid());
 	}
+#endif
 done:
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid());
 

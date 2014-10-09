@@ -508,7 +508,7 @@ static int exit_system = 0;
 static void sched_timer_tick(void)
 {
 	//QW: to remove
-	int *detector = 0x44bf0000;
+	int *detector = (int *)0x44bf0000;
 
 	while (1) {
 		cos_sched_lock_take();
