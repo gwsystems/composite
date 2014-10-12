@@ -61,7 +61,7 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 
 //	assert(deact_cap->refcnt_flags & CAP_REFCNT_MAX);
 	if (unlikely(!(l & CAP_REFCNT_MAX))) {
-		printk("refcnt flags %x\n", (unsigned int)l);
+		printk("ERROR: >>>>>>>>>>> refcnt flags %x\n", (unsigned int)l);
 		cos_throw(err, -EFAULT);
 	}
 

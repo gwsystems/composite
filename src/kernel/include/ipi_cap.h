@@ -44,7 +44,7 @@ struct IPI_receiving_rings {
 	char _pad[CACHE_LINE - sizeof(u32_t)];
 } CACHE_ALIGNED __attribute__((packed));
 
-struct IPI_receiving_rings IPI_cap_dest[NUM_CPU];
+struct IPI_receiving_rings IPI_cap_dest[NUM_CPU] CACHE_ALIGNED;
 
 static inline u32_t 
 cos_ipi_ring_dequeue(struct xcore_ring *ring, struct ipi_cap_data *ret) {
@@ -104,6 +104,8 @@ cos_ipi_ring_enqueue(u32_t dest, struct cap_asnd *asnd) {
 
 	data->arcv_capid = asnd->arcv_capid;
 	data->arcv_epoch = asnd->arcv_epoch;
+	/* printk("core %d writing to %p %p %p %p\n",  */
+	/*        get_cpuid(), ring, &ring->sender, &ring->receiver, &data->comp_info); */
 	memcpy(&data->comp_info, &asnd->comp_info, sizeof(struct comp_info));
 
 	ring->sender = delta;

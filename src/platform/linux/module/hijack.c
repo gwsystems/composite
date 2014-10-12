@@ -1490,14 +1490,25 @@ void cos_cap_ipi_handling(void);
 int 
 cos_ipi_ring_enqueue(u32_t dest, u32_t data);
 
+u64_t sum = 0, ii = 0;
 __attribute__((regparm(3))) void
 main_ipi_handler(struct pt_regs *rs, unsigned int irq)
 {
 	/* ack the ipi first. */
 	ack_APIC_irq();
 	
+	u64_t s,e;
+	rdtscll(s);
 	cos_cap_ipi_handling();
-//	cos_ipi_handling();
+	rdtscll(e);
+	/* if (get_cpuid() == 20) { */
+	/* 	ii++; */
+	/* 	sum += (e-s); */
+	/* 	if (ii % (1024*1024) == 0) { */
+	/* 		printk(".......................rcv cost %d\n", sum / (1024*1024)); */
+	/* 		sum = 0; */
+	/* 	} */
+	/* } */
 
         return;
 }

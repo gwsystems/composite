@@ -19,18 +19,15 @@
 #ifdef LINUX_TEST
 
 #include <stdio.h>
-
 static inline int printfn(struct pt_regs *regs) {
 	__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 	return 0;
 }
-
 static inline void
 fs_reg_setup(unsigned long seg) {
 	(void)seg;
 	return;
 }
-
 int
 syscall_handler(struct pt_regs *regs)
 
@@ -63,8 +60,8 @@ static inline int printfn(struct pt_regs *regs)
 		if (kern_buf[0] == 'F' && kern_buf[1] == 'L' && kern_buf[2] == 'U' &&
 		    kern_buf[3] == 'S' && kern_buf[4] == 'H' && kern_buf[5] == '!') {
 			u32_t *ticks;
-			chal_flush_cache();
-			chal_flush_tlb_global();
+//			chal_flush_cache();
+//			chal_flush_tlb_global();
 			ticks = (u32_t *)&timer_detector[get_cpuid() * CACHE_LINE];
 //			printk("inv ticks %u\n", *ticks);
 
@@ -248,7 +245,7 @@ err:
 	return ret;
 }
 
-/* Updates the pte, deref the frame. */
+/* Updates the pte, deref the frame and zero out the page. */
 int 
 kmem_deact_post(unsigned long *pte, unsigned long old_v)
 {
@@ -265,6 +262,8 @@ kmem_deact_post(unsigned long *pte, unsigned long old_v)
 		cos_cas(pte, new_v, old_v);
 		cos_throw(err, ret);
 	}
+	/* zero out the page to avoid info leaking. */
+	memset(chal_pa2va((void *)(old_v & PGTBL_FRAME_MASK)), 0, PAGE_SIZE);
 
 	return 0;
 err:
@@ -369,20 +368,24 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	int preempt = 0;
 	struct comp_info *next_ci = &(next->invstk[next->invstk_top].comp_info);
 
+	if (get_cpuid() == 19) printk("a_\n");
+
+	assert(next_ci && curr && next);
 	if (unlikely(!ltbl_isalive(&next_ci->liveness))) {
 		printk("cos: comp (liveness %d) doesn't exist!\n", next_ci->liveness.id);
 		//FIXME: add fault handling here.
 		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
 		return preempt;
 	}
-	
+	if (get_cpuid() == 19) printk("b_\n");
 	copy_gp_regs(regs, &curr->regs);
+	if (get_cpuid() == 19) printk("c_\n");
 	__userregs_set(&curr->regs, COS_SCHED_RET_SUCCESS, __userregs_getsp(regs), __userregs_getip(regs));
-
+	if (get_cpuid() == 19) printk("d_\n");
 	thd_current_update(next, curr, cos_info);
-
+	if (get_cpuid() == 19) printk("e_\n");
 	pgtbl_update(next_ci->pgtbl);
-
+	if (get_cpuid() == 19) printk("f_\n");
 	/* fpu_save(thd); */
 	if (next->flags & THD_STATE_PREEMPTED) {
 		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
@@ -390,12 +393,16 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 		next->flags &= ~THD_STATE_PREEMPTED;
 		preempt = 1;
 	}
-//	printk("Core %d: switching from %d to thd %d, preempted %d\n", get_cpuid(), curr->tid, next->tid, preempt);
+	if (get_cpuid() == 19) {printk("g_\n");
+		printk("Core %d: switching from %d to thd %d, preempted %d\n", get_cpuid(), curr->tid, next->tid, preempt);}
 		
 	/* update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags); */
 	/* event_record("switch_thread", thd_get_id(thd), thd_get_id(next)); */
 	copy_gp_regs(&next->regs, regs);
-
+	if (get_cpuid() == 19) {
+		printk("h_ %d\n", preempt);
+		printk("%x %x, a %x b %x c %x d %x D %x S %x\n", regs->ip, regs->sp, regs->ax, regs->bx, regs->cx, regs->dx, regs->di, regs->si);
+	}
 	return preempt;
 }
 
@@ -464,13 +471,15 @@ composite_sysenter_handler(struct pt_regs *regs)
 	if (ch->type == CAP_THD) {
 		struct cap_thd *thd_cap = (struct cap_thd *)ch;
 		struct thread *next = thd_cap->t;
+		
+		if (get_cpuid() == 19) printk("aa_\n");
 
 		if (thd_cap->cpuid != get_cpuid()) cos_throw(err, -EINVAL);
 		assert(thd_cap->cpuid == next->cpuid);
 
 		// QW: hack!!! for ppos test only. remove!
 		next->interrupted_thread = thd;
-
+		if (get_cpuid() == 19) printk("ab_\n");
 		return cap_switch_thd(regs, thd, next, cos_info);
 	} else if (ch->type == CAP_ASND) {
 		int curr_cpu = get_cpuid();

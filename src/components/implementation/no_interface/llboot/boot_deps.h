@@ -426,7 +426,6 @@ acap_test(void)
 	struct comp_cap_info *ping = &comp_cap_info[2];
 	struct comp_cap_info *pong = &comp_cap_info[3];
 
-	//use the same cap id in ping and pong for simplicity. 
 	capid_t async_sndthd_cap = SND_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid();
 	capid_t async_rcvthd_cap = RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid();
 	capid_t async_test_cap   = ACAP_BASE + captbl_idsize(CAP_ARCV)*cos_cpuid();
@@ -438,6 +437,7 @@ acap_test(void)
 	ck_spinlock_ticket_lock(&init_lock);
 
 	if (cos_cpuid() == INIT_CORE) {
+		/* Create shmem between ping and pong. */
 		capid_t shmem = get_pmem_cap();
 		int ret;
 		//map this to ping and pong
@@ -457,6 +457,7 @@ acap_test(void)
 			pong->captbl_cap[0], SCHED_CAPTBL_ALPHATHD_BASE + captbl_idsize(CAP_THD)*cos_cpuid(), 0)) BUG();
 
 	if (cos_cpuid() < (NUM_CPU_COS/2)) { // sending core
+//	if (cos_cpuid()%4 == 0) { // sending core
 		// create rcv thd in ping. and copy it to ping's captbl.
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, pong_thd_cap,
 				BOOT_CAPTBL_SELF_PT, thd_mem, ping->comp_cap)) BUG();
