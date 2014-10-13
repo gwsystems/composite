@@ -368,8 +368,6 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	int preempt = 0;
 	struct comp_info *next_ci = &(next->invstk[next->invstk_top].comp_info);
 
-	if (get_cpuid() == 19) printk("a_\n");
-
 	assert(next_ci && curr && next);
 	if (unlikely(!ltbl_isalive(&next_ci->liveness))) {
 		printk("cos: comp (liveness %d) doesn't exist!\n", next_ci->liveness.id);
@@ -377,15 +375,13 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
 		return preempt;
 	}
-	if (get_cpuid() == 19) printk("b_\n");
+
 	copy_gp_regs(regs, &curr->regs);
-	if (get_cpuid() == 19) printk("c_\n");
 	__userregs_set(&curr->regs, COS_SCHED_RET_SUCCESS, __userregs_getsp(regs), __userregs_getip(regs));
-	if (get_cpuid() == 19) printk("d_\n");
+
 	thd_current_update(next, curr, cos_info);
-	if (get_cpuid() == 19) printk("e_\n");
 	pgtbl_update(next_ci->pgtbl);
-	if (get_cpuid() == 19) printk("f_\n");
+
 	/* fpu_save(thd); */
 	if (next->flags & THD_STATE_PREEMPTED) {
 		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
@@ -393,16 +389,11 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 		next->flags &= ~THD_STATE_PREEMPTED;
 		preempt = 1;
 	}
-	if (get_cpuid() == 19) {printk("g_\n");
-		printk("Core %d: switching from %d to thd %d, preempted %d\n", get_cpuid(), curr->tid, next->tid, preempt);}
 		
 	/* update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags); */
 	/* event_record("switch_thread", thd_get_id(thd), thd_get_id(next)); */
 	copy_gp_regs(&next->regs, regs);
-	if (get_cpuid() == 19) {
-		printk("h_ %d\n", preempt);
-		printk("%x %x, a %x b %x c %x d %x D %x S %x\n", regs->ip, regs->sp, regs->ax, regs->bx, regs->cx, regs->dx, regs->di, regs->si);
-	}
+
 	return preempt;
 }
 
@@ -472,14 +463,12 @@ composite_sysenter_handler(struct pt_regs *regs)
 		struct cap_thd *thd_cap = (struct cap_thd *)ch;
 		struct thread *next = thd_cap->t;
 		
-		if (get_cpuid() == 19) printk("aa_\n");
-
 		if (thd_cap->cpuid != get_cpuid()) cos_throw(err, -EINVAL);
 		assert(thd_cap->cpuid == next->cpuid);
 
 		// QW: hack!!! for ppos test only. remove!
 		next->interrupted_thread = thd;
-		if (get_cpuid() == 19) printk("ab_\n");
+
 		return cap_switch_thd(regs, thd, next, cos_info);
 	} else if (ch->type == CAP_ASND) {
 		int curr_cpu = get_cpuid();

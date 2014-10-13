@@ -156,29 +156,26 @@ void cos_init(void)
 	u64_t s, e;
 
 	if (received[cos_cpuid()].snd_thd_created) {
-		if (cos_cpuid() == 19) printc("AA %d\n", cos_cpuid());
-
 		rcv_thd();
 		BUG();
 		return;
 	}
 	received[cos_cpuid()].snd_thd_created = 1;
-	if (cos_cpuid() == 19) printc("BB %d\n", cos_cpuid());
 
 	cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid());
 
 	//init rcv thd first.
 
-	/* if (cos_cpuid() == 0) { */
-	/* 	pingpong(); */
-	/* 	goto done; */
-	/* } */
+	if (cos_cpuid() == 0) {
+		pingpong();
+		goto done;
+	}
 
 #if NUM_CPU > 2
 //	else {	goto done; }
 //	if (cos_cpuid() <= (NUM_CPU_COS-1 - SND_RCV_OFFSET)  && (cos_cpuid() % 4 == 0)) {
-//	if (0) {
-	if (cos_cpuid() == 0) {
+	if (0) {
+//	if (cos_cpuid() == 0) {
 //	if ((cos_cpuid() % 4 == 0)) {
 		struct record_per_core *curr_rcv = &received[cos_cpuid()];
 		int last = 0;

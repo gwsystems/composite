@@ -456,7 +456,7 @@ acap_test(void)
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, llboot->alpha, 
 			pong->captbl_cap[0], SCHED_CAPTBL_ALPHATHD_BASE + captbl_idsize(CAP_THD)*cos_cpuid(), 0)) BUG();
 
-	if (cos_cpuid() < (NUM_CPU_COS/2)) { // sending core
+	if (cos_cpuid() < (NUM_CPU_COS - SND_RCV_OFFSET)) { // sending core
 //	if (cos_cpuid()%4 == 0) { // sending core
 		// create rcv thd in ping. and copy it to ping's captbl.
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, pong_thd_cap,
@@ -473,7 +473,6 @@ acap_test(void)
 				ping->captbl_cap[0], async_test_cap, 0)) BUG();
 
 	} else { // receiving core
-
 		// create rcv thd in pong. and copy it to ping's captbl.
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, pong_thd_cap,
 				BOOT_CAPTBL_SELF_PT, thd_mem, pong->comp_cap)) BUG();
@@ -955,7 +954,7 @@ done:
 #define API_TEST
 #ifdef API_TEST
 	//QW: to remove
-	if (cos_cpuid() == 0) {
+	if (0) {//cos_cpuid() == 0) {
 		captbl_test();
 		pgtbl_test();
 		retype_test();
