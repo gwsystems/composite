@@ -55,20 +55,31 @@ void cos_init(void) {
 	int ret;
 	int rcv = 0;
 	int target = cos_cpuid() - SND_RCV_OFFSET;
+	assert(target >= 0);
 
 //	printc("core %d: rcv thd %d in pong, reply target %d\n", cos_cpuid(), cos_get_thd_id(), target);
 	u64_t *pong_shmem = (u64_t *)&shmem[(cos_cpuid()) * CACHE_LINE];
 	u64_t e;
+	int last_tick, curr_tick;
 
+	last_tick = printc("FLUSH!!");
 	while (1) {
 		ret = call_cap(ACAP_BASE + captbl_idsize(CAP_ARCV)*cos_cpuid(),0,0,0,0);
 
 		rdtscll(e);
+		curr_tick = printc("FLUSH!!");
+		if (unlikely(curr_tick != last_tick)) {
+//			printc("timer detected @ %llu, %d, %d, (cost %llu)\n", e, last_tick, curr_tick, e-s);
+//			if (last_tick+1 != curr_tick) printc("PONG tick diff > 1: %u, %u\n", last_tick,curr_tick);
+			last_tick = curr_tick;
+			*pong_shmem = 1; // ping will drop this measurement
+		} else {
 //		ck_pr_store_uint(pong_shmem, e);
-		*pong_shmem = e;
+			*pong_shmem = e;
+		}
 
 //		printc("core %ld: rcv thd %d back in pong, ret %d!\n", cos_cpuid(), cos_get_thd_id(), ret);
-		if (ret) {
+		if (unlikely(ret)) {
 			printc("ERROR: arcv ret %d", ret);
 			printc("rcv thd %d switching back to alpha %ld!\n", 
 			       cos_get_thd_id(), SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
@@ -77,7 +88,6 @@ void cos_init(void) {
 		rcv++;
 //		if (rcv % 1024 == 0) printc("core %ld: pong rcv %d ipis!\n", cos_cpuid(), rcv);
 		
-		assert(target >= 0);
 		/* reply if doing round-trip */
 //		ret = call_cap(ACAP_BASE + captbl_idsize(CAP_ASND)*target, 0, 0, 0, 0);
 

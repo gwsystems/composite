@@ -601,8 +601,8 @@ static void hw_reset(void *data)
 #define THD_SIZE (PAGE_SIZE/4)
 
 u8_t init_thds[THD_SIZE * NUM_CPU_COS] PAGE_ALIGNED;
-/* Need 2 pages for llboot captbl. */
-u8_t boot_comp_captbl[PAGE_SIZE*2] PAGE_ALIGNED; 
+/* Reserve 5 pages for llboot captbl. */
+u8_t boot_comp_captbl[PAGE_SIZE*BOOT_CAPTBL_NPAGES] PAGE_ALIGNED; 
 u8_t c0_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 
 u8_t *boot_comp_pgd;
@@ -640,13 +640,14 @@ kern_boot_comp(struct spd_info *spd_info)
 	assert(ct);
 
 	/* expand the captbl to use 2 pages. */
-
-	captbl_init(boot_comp_captbl + PAGE_SIZE, 1);
-	ret = captbl_expand(ct, PAGE_SIZE/2/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE);
-	assert(!ret);
-	captbl_init(boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2, 1);
-	ret = captbl_expand(ct, PAGE_SIZE/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2);
-	assert(!ret);
+	for (i = 1; i < BOOT_CAPTBL_NPAGES; i++) { 
+		captbl_init(boot_comp_captbl + i * PAGE_SIZE, 1);
+		ret = captbl_expand(ct, (PAGE_SIZE*i - PAGE_SIZE/2)/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE*i);
+		assert(!ret);
+		captbl_init(boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2, 1);
+		ret = captbl_expand(ct, (PAGE_SIZE*i)/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE*i + PAGE_SIZE/2);
+		assert(!ret);
+	}
 	boot_captbl = ct;
 
 	kmem_base_pa = chal_va2pa(cos_kmem_base);
@@ -1487,14 +1488,25 @@ void cos_cap_ipi_handling(void);
 int 
 cos_ipi_ring_enqueue(u32_t dest, u32_t data);
 
+u64_t sum = 0, ii = 0;
 __attribute__((regparm(3))) void
 main_ipi_handler(struct pt_regs *rs, unsigned int irq)
 {
 	/* ack the ipi first. */
 	ack_APIC_irq();
 	
+	u64_t s,e;
+	rdtscll(s);
 	cos_cap_ipi_handling();
-//	cos_ipi_handling();
+	rdtscll(e);
+	/* if (get_cpuid() == 20) { */
+	/* 	ii++; */
+	/* 	sum += (e-s); */
+	/* 	if (ii % (1024*1024) == 0) { */
+	/* 		printk(".......................rcv cost %d\n", sum / (1024*1024)); */
+	/* 		sum = 0; */
+	/* 	} */
+	/* } */
 
         return;
 }

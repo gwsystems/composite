@@ -44,7 +44,10 @@ static inline void
 chal_pgtbl_switch(paddr_t pt)
 {
 	native_write_cr3(pt);
+//#define HOST_PGTBL_UPDATE
+#ifdef HOST_PGTBL_UPDATE
 	__chal_pgtbl_switch(pt);
+#endif
 }
 
 static inline unsigned int 

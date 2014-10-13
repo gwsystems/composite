@@ -2,7 +2,7 @@
 #define COS_CONFIG_H
 
 #include "cpu_ghz.h"
-#define NUM_CPU                3
+#define NUM_CPU                40
 
 #define CPU_TIMER_FREQ         100 // set in your linux .config
 
@@ -10,7 +10,7 @@
 
 /* The kernel quiescence period = WCET in Kernel + WCET of a CAS. */
 #define KERN_QUIESCENCE_PERIOD_US 50
-#define KERN_QUIESCENCE_CYCLES (KERN_QUIESCENCE_PERIOD_US * 2400)
+#define KERN_QUIESCENCE_CYCLES (KERN_QUIESCENCE_PERIOD_US * 2000)
 
 // After how many seconds should schedulers print out their information?
 #define SCHED_PRINTOUT_PERIOD  100000

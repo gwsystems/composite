@@ -57,9 +57,14 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 	if (!deact_header || deact_header->type != CAP_CAPTBL) cos_throw(err, -EINVAL);
 
 	deact_cap = (struct cap_captbl *)deact_header;
-	assert(deact_cap->refcnt_flags & CAP_REFCNT_MAX);
-
 	l = deact_cap->refcnt_flags;
+
+//	assert(deact_cap->refcnt_flags & CAP_REFCNT_MAX);
+	if (unlikely(!(l & CAP_REFCNT_MAX))) {
+		printk("ERROR: >>>>>>>>>>> refcnt flags %x\n", (unsigned int)l);
+		cos_throw(err, -EFAULT);
+	}
+
 	if ((l & CAP_REFCNT_MAX) != 1) {
 		/* We need to deact children first! */
 		cos_throw(err, -EINVAL);
