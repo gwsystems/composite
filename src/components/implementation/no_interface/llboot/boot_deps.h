@@ -955,7 +955,7 @@ done:
 #define API_TEST
 #ifdef API_TEST
 	//QW: to remove
-	if (cos_cpuid() == 0) {
+	if (0) {//cos_cpuid() == 0) {
 		captbl_test();
 		pgtbl_test();
 		retype_test();

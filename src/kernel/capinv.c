@@ -393,8 +393,6 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 		next->flags &= ~THD_STATE_PREEMPTED;
 		preempt = 1;
 	}
-	if (get_cpuid() == 19) {printk("g_\n");
-		printk("Core %d: switching from %d to thd %d, preempted %d\n", get_cpuid(), curr->tid, next->tid, preempt);}
 		
 	/* update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags); */
 	/* event_record("switch_thread", thd_get_id(thd), thd_get_id(next)); */
@@ -519,7 +517,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 		if (arcv->thd != thd) {
 			cos_throw(err, -EINVAL);
 		}
-
 		/* Sanity checks */
 		assert(arcv->cpuid == get_cpuid());
 		assert(arcv->comp_info.pgtbl = ci->pgtbl);
@@ -531,7 +528,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 			goto done;
 		}
-		
 		if (thd->interrupted_thread == NULL) {
 			/* FIXME: handle this case by upcalling into
 			 * scheduler, or switch to a scheduling
