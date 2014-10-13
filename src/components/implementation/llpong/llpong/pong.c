@@ -55,7 +55,6 @@ void cos_init(void) {
 	int ret;
 	int rcv = 0;
 	int target = cos_cpuid() - SND_RCV_OFFSET;
-	assert(target >= 0);
 
 //	printc("core %d: rcv thd %d in pong, reply target %d\n", cos_cpuid(), cos_get_thd_id(), target);
 	u64_t *pong_shmem = (u64_t *)&shmem[(cos_cpuid()) * CACHE_LINE];
@@ -89,8 +88,8 @@ void cos_init(void) {
 //		if (rcv % 1024 == 0) printc("core %ld: pong rcv %d ipis!\n", cos_cpuid(), rcv);
 		
 		/* reply if doing round-trip */
+//		assert(target >= 0);
 //		ret = call_cap(ACAP_BASE + captbl_idsize(CAP_ASND)*target, 0, 0, 0, 0);
-
 //		printc("core %d replied to target %d, ret %d\n", cos_cpuid(), target, ret);
 	}
 

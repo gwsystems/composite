@@ -187,7 +187,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 			 COS_UPCALL_THD_CREATE, init_data, 0, 0);
 
 	/* initialize the capability */
-	tc->t     = thd;
+	tc->t      = thd;
 	thd->cpuid = tc->cpuid = get_cpuid();
 	__cap_capactivate_post(&tc->h, CAP_THD);
 

@@ -1024,8 +1024,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			sched = sched->parent_sched;
 		}
 
-		/* hw_int_override_all(); */
-
 		/* FIXME: need to return opaque handle, rather than
 		 * just set the current thread to be the new one. */
 
@@ -2197,6 +2195,7 @@ static int aed_release(struct inode *inode, struct file *file)
 #ifdef FAULT_DEBUG
 	int j, k;
 #endif
+
 	/* 
 	 * when the aed control file descriptor is closed, lets get
 	 * rid of all resources the aed environment was using, but
@@ -2267,7 +2266,7 @@ static int aed_release(struct inode *inode, struct file *file)
 	mmput(composite_union_mm);
 
 	init_globals();
-	
+
 #ifdef FAULT_DEBUG
 	printk("cos: Page fault information:\n");
 	printk("cos: Number of buckets %d, bucket mask %x.\n", 
@@ -2281,7 +2280,6 @@ static int aed_release(struct inode *inode, struct file *file)
 		printk("\n");
 	}
 #endif
-
 	{
 		int i;
 		printk("\ncos: Faults:\n");
