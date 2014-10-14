@@ -115,9 +115,9 @@ __captbl_cap2sz(cap_t c)
 	/* TODO: optimize for invocation and return */
 	switch (c) {
 	case CAP_SRET:
+	case CAP_THD:
 		return CAP_SZ_16B;
 	case CAP_SINV:
-	case CAP_THD:
 	case CAP_CAPTBL:
 	case CAP_PGTBL:
 		return CAP_SZ_32B;
@@ -182,14 +182,16 @@ enum {
 	/* cap 0-3 reserved for sret. 4-7 is the sinv cap. FIXME: make this general. */
 	SCHED_CAPTBL_ALPHATHD_BASE = 8,
 	/* we have 2 thd caps (init and alpha thds) for each core. */
-	SCHED_CAPTBL_INITTHD_BASE  = SCHED_CAPTBL_ALPHATHD_BASE + NUM_CPU_COS*CAP32B_IDSZ,
-	SCHED_CAPTBL_LAST = SCHED_CAPTBL_INITTHD_BASE + NUM_CPU_COS*CAP32B_IDSZ,
+	SCHED_CAPTBL_INITTHD_BASE  = SCHED_CAPTBL_ALPHATHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
+	SCHED_CAPTBL_LAST = SCHED_CAPTBL_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
 	/* round up to a new entry. */
 	SCHED_CAPTBL_FREE = round_up_to_pow2(SCHED_CAPTBL_LAST, CAPMAX_ENTRY_SZ)
 };
 
 // QW: for ppos test only. remove.
-#define SND_THD_CAP_BASE SCHED_CAPTBL_FREE
+#define PING_CAPTBL (SCHED_CAPTBL_FREE)
+#define PING_PGTBL  (SCHED_CAPTBL_FREE + CAP32B_IDSZ)
+#define SND_THD_CAP_BASE (SCHED_CAPTBL_FREE + CAPMAX_ENTRY_SZ)
 #define RCV_THD_CAP_BASE (SND_THD_CAP_BASE + (NUM_CPU_COS * captbl_idsize(CAP_THD)))
 #define ACAP_BASE (round_up_to_pow2(RCV_THD_CAP_BASE + (NUM_CPU_COS) * captbl_idsize(CAP_THD), CAPMAX_ENTRY_SZ))
 #define IF_CAP_BASE (round_up_to_pow2(ACAP_BASE + (NUM_CPU) * captbl_idsize(CAP_ARCV), CAPMAX_ENTRY_SZ))
