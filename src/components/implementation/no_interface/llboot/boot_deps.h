@@ -456,8 +456,8 @@ acap_test(void)
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, llboot->alpha, 
 			pong->captbl_cap[0], SCHED_CAPTBL_ALPHATHD_BASE + captbl_idsize(CAP_THD)*cos_cpuid(), 0)) BUG();
 
-	if (cos_cpuid() < (NUM_CPU_COS - SND_RCV_OFFSET)) { // sending core
-//	if (cos_cpuid()%4 == 0) { // sending core
+//	if (cos_cpuid() < (NUM_CPU_COS - SND_RCV_OFFSET)) { // sending core
+	if (cos_cpuid()%4 == 0 || cos_cpuid()%4 == 2) { // sending core
 		// create rcv thd in ping. and copy it to ping's captbl.
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, pong_thd_cap,
 				BOOT_CAPTBL_SELF_PT, thd_mem, ping->comp_cap)) BUG();
@@ -486,7 +486,6 @@ acap_test(void)
 
 		if (call_cap_op(ping->captbl_cap[0], CAPTBL_OP_ASNDACTIVATE, async_test_cap,
 				pong->captbl_cap[0], async_test_cap, 0)) BUG();
-
 	}
 
 	ck_spinlock_ticket_unlock(&init_lock);

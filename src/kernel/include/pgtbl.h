@@ -436,7 +436,7 @@ pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe)
 extern unsigned long __cr3_contents;
 
 // this helps debugging.
-#define UPDATE_LINUX_MM_STRUCT
+// #define UPDATE_LINUX_MM_STRUCT
 
 /* If Composite is running at the highest priority, then we don't need
  * to touch the mm_struct. Also, don't set this when we want return to
@@ -457,7 +457,7 @@ static void pgtbl_update(pgtbl_t pt)
 #ifdef UPDATE_LINUX_MM_STRUCT
 	chal_pgtbl_switch((paddr_t)pt);
 #else
-	native_write_cr3(pt);
+	native_write_cr3((unsigned long)pt);
 #endif
 
 #else

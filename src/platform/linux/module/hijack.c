@@ -1899,7 +1899,7 @@ int chal_attempt_arcv(struct cap_arcv *arcv)
 #ifdef UPDATE_LINUX_MM_STRUCT
 					chal_pgtbl_switch((paddr_t)thd_current_pgtbl(next));
 #else
-					native_write_cr3(thd_current_pgtbl(next));
+					native_write_cr3((unsigned long)thd_current_pgtbl(next));
 #endif
 				} else {
 					/* we are omitting the native_write_cr3 to switch
@@ -1971,7 +1971,7 @@ int main_timer_interposition(struct pt_regs *rs, unsigned int error_code)
 	rdtscll(tlb_quiescence[curr_cpu].last_periodic_flush);
 	tlb_quiescence[curr_cpu].last_mandatory_flush = tlb_quiescence[curr_cpu].last_periodic_flush;
 
-	*ticks = last_tick+1;
+	cos_faa(ticks, 1);
 	cos_mem_fence();
 
 	if (!(acap && acap->upcall_thd)) goto LINUX_HANDLER;

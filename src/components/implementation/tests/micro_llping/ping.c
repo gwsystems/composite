@@ -27,20 +27,34 @@ printc(char *fmt, ...)
 	return ret;
 }
 
-#define ITER (10)//24*1024)//(100*1000)
-
 unsigned long long tsc_start(void)
 {
 	unsigned long cycles_high, cycles_low; 
 	asm volatile ("movl $0, %%eax\n\t"
 		      "CPUID\n\t"
-		      "RDTSC\n\t"
+		      "RDTSCP\n\t"
 		      "movl %%edx, %0\n\t"
 		      "movl %%eax, %1\n\t": "=r" (cycles_high), "=r" (cycles_low) :: 
 		      "%eax", "%ebx", "%ecx", "%edx");
 
 	return ((unsigned long long)cycles_high << 32) | cycles_low;
 }
+
+int delay(unsigned long cycles) {
+	unsigned long long s,e;
+	volatile int mem = 0;
+
+	s = tsc_start();
+	while (1) {
+		e = tsc_start();
+		if (e - s > cycles) return 0; // x us
+		mem++;
+	}
+
+	return 0;
+}
+
+#define ITER (1000*1000)//(100*1000)
 
 #include <ck_pr.h>
 #define N_SYNC_CPU (NUM_CPU_COS)
@@ -133,6 +147,7 @@ void rcv_thd(void)
 {
 	int ret;
 	struct record_per_core *curr_rcv = &received[cos_cpuid()];
+
 //	printc("core %ld: rcv thd %d ready in ping!\n", cos_cpuid(), cos_get_thd_id());
 
 	while (1) {
@@ -152,7 +167,7 @@ char *shmem = (char *)(0x44c00000-PAGE_SIZE);
 void cos_init(void)
 {
 	int i;
-	int curr_tick, last_tick;
+	volatile int curr_tick, last_tick;
 	u64_t s, e;
 
 	if (received[cos_cpuid()].snd_thd_created) {
@@ -166,17 +181,16 @@ void cos_init(void)
 
 	//init rcv thd first.
 
-	if (cos_cpuid() == 0) {
-		pingpong();
-		goto done;
-	}
+	/* if (cos_cpuid() == 0) { */
+	/* 	pingpong(); */
+	/* 	goto done; */
+	/* } */
 
 #if NUM_CPU > 2
 //	else {	goto done; }
-//	if (cos_cpuid() <= (NUM_CPU_COS-1 - SND_RCV_OFFSET)  && (cos_cpuid() % 4 == 0)) {
-	if (0) {
+//	if (cos_cpuid() < (NUM_CPU_COS - SND_RCV_OFFSET)  && (cos_cpuid() % 4 == 0)) {
+	if ((cos_cpuid()%4 == 0 || cos_cpuid()%4 == 2) && (cos_cpuid()+SND_RCV_OFFSET < NUM_CPU_COS)) { // sending core
 //	if (cos_cpuid() == 0) {
-//	if ((cos_cpuid() % 4 == 0)) {
 		struct record_per_core *curr_rcv = &received[cos_cpuid()];
 		int last = 0;
 		int target = SND_RCV_OFFSET + cos_cpuid();
@@ -186,30 +200,38 @@ void cos_init(void)
 		u32_t avg;
 		int diff;
 
-		avg = 3050;
+		avg = 18122;//6366;//3050;
 		while (ck_pr_load_int(&arcv_ready[target]) == 0) ;
 //		printc("core %ld: start sending ipi\n", cos_cpuid());
-		last_tick = printc("FLUSH!!");
 		rdtscll(s);
 		for (i = 0; i<ITER; i++) {
 //			last = ck_pr_load_int(&curr_rcv->rcv);
 			*pong_shmem = 0;
-			rdtscll(s1);
+			cos_inst_bar();
+			last_tick = printc("FLUSH!!");
+			cos_inst_bar();
+			s1 = tsc_start();
 			call_cap(ACAP_BASE + captbl_idsize(CAP_ASND)*target, 0, 0, 0, 0);
 			/* rdtscll(e1); */
 			/* sum2 += e1-s1; */
 
-			while (*pong_shmem == 0) ;
+			cos_inst_bar();
+
+			e1 = 0;
+			while (e1 == 0) { e1 = *pong_shmem; }
 //			while (ck_pr_load_int(&curr_rcv->rcv) == last) ;
 //			rdtscll(e1);
 //			sum2 += e1-s1;
-			e1 = *pong_shmem;
 
+			e = tsc_start();
+			cos_inst_bar();
 			curr_tick = printc("FLUSH!!");
+			cos_inst_bar();
 			if (unlikely(curr_tick != last_tick)) {
-//			printc("timer detected @ %llu, %d, %d, (cost %llu)\n", e, last_tick, curr_tick, e-s);
-//				if (last_tick+1 != curr_tick) printc("tick diff > 1: %u, %u\n", last_tick,curr_tick);
-				last_tick = curr_tick;
+				delay(10000);
+//				printc("PING: timer detected @ %llu, %d, %d\n", e, last_tick, curr_tick);
+				//if (last_tick+1 != curr_tick) printc("tick diff > 1: %u, %u\n", last_tick,curr_tick);
+//				last_tick = curr_tick;
 				i--;
 				continue;
 			}
@@ -219,7 +241,11 @@ void cos_init(void)
 				i--;
 				continue;
 			} else {
-				diff = e1-s1;
+				diff = e1 < e? e1-s1 : e-s1;
+				if (diff>50000) {
+					printc("cpu %d curr_tick %d\n", cos_cpuid(), curr_tick);
+					i--; continue;
+				}
 
 				if (diff > max) max = diff;
 
@@ -227,6 +253,9 @@ void cos_init(void)
 				diff -= avg;
 				stddev += diff*diff;
 			}
+			/* wait for receiving side to get ready. */
+			/* last = arcv_ready[target]; */
+			/* while (ck_pr_load_int(&arcv_ready[target]) == last) ; */
 		}
 		rdtscll(e);
 //		printc("core %ld: ipi avg ( %llu, %llu ): %llu\n", cos_cpuid(), (e-s)/ITER, sum2/ITER, sum/ITER);
@@ -243,6 +272,7 @@ void cos_init(void)
 //			call_cap(4, 0, 0, 0, 0);
 //			rdtscll(e);
 //			if ((e-s)/(2000*1000*1000) > RUNTIME) break;
+
 			if (ck_pr_load_int(&all_exit)) break;
 		}
 		printc("core %ld: exiting from ping\n", cos_cpuid());

@@ -59,13 +59,16 @@ static inline int printfn(struct pt_regs *regs)
 	if (len >= 6) { //well, hack to flush tlb and cache...
 		if (kern_buf[0] == 'F' && kern_buf[1] == 'L' && kern_buf[2] == 'U' &&
 		    kern_buf[3] == 'S' && kern_buf[4] == 'H' && kern_buf[5] == '!') {
-			u32_t *ticks;
+			u32_t ticks;
 //			chal_flush_cache();
 //			chal_flush_tlb_global();
-			ticks = (u32_t *)&timer_detector[get_cpuid() * CACHE_LINE];
+			ticks = *(u32_t *)&timer_detector[get_cpuid() * CACHE_LINE];
+			/* if (get_cpuid() == 20 && ticks % 100 == 0)  */
+			/* 	printk("@%p, %d\n", &timer_detector[get_cpuid() * CACHE_LINE], ticks); */
+
 //			printk("inv ticks %u\n", *ticks);
 
-			__userregs_set(regs, *ticks, 
+			__userregs_set(regs, ticks, 
 				       __userregs_getsp(regs), __userregs_getip(regs));
 
 			return 0;

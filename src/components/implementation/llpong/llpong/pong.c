@@ -7,6 +7,19 @@
 #include <pong.h>
 #include <ck_pr.h>
 
+unsigned long long tsc_start(void)
+{
+	unsigned long cycles_high, cycles_low; 
+	asm volatile ("movl $0, %%eax\n\t"
+		      "CPUID\n\t"
+		      "RDTSCP\n\t"
+		      "movl %%edx, %0\n\t"
+		      "movl %%eax, %1\n\t": "=r" (cycles_high), "=r" (cycles_low) :: 
+		      "%eax", "%ebx", "%ecx", "%edx");
+
+	return ((unsigned long long)cycles_high << 32) | cycles_low;
+}
+
 int
 prints(char *str)
 {
@@ -39,9 +52,8 @@ printc(char *fmt, ...)
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, len, fmt, arg_ptr);
 	va_end(arg_ptr);
-	cos_print(s, ret);
 
-	return ret;
+	return cos_print(s, ret);
 }
 
 void call(void) { 
@@ -51,26 +63,45 @@ void call(void) {
 
 char *shmem = (char *)(0x45000000-PAGE_SIZE);
 
+int delay(unsigned long cycles) {
+	unsigned long long s,e;
+	volatile int mem = 0;
+
+	s = tsc_start();
+	while (1) {
+		e = tsc_start();
+		if (e - s > cycles) return 0; // x us
+		mem++;
+	}
+
+	return 0;
+}
+
 void cos_init(void) {
 	int ret;
 	int rcv = 0;
 	int target = cos_cpuid() - SND_RCV_OFFSET;
 
-//	printc("core %d: rcv thd %d in pong, reply target %d\n", cos_cpuid(), cos_get_thd_id(), target);
 	u64_t *pong_shmem = (u64_t *)&shmem[(cos_cpuid()) * CACHE_LINE];
 	u64_t e;
-	int last_tick, curr_tick;
+	volatile int last_tick, curr_tick;
 
-	last_tick = printc("FLUSH!!");
+//	printc(">>> core %d: rcv thd %d in pong, reply target %d\n", cos_cpuid(), cos_get_thd_id(), target);
+
 	while (1) {
+		cos_inst_bar();
+		last_tick = printc("FLUSH!!");
+		cos_inst_bar();
 		ret = call_cap(ACAP_BASE + captbl_idsize(CAP_ARCV)*cos_cpuid(),0,0,0,0);
-
-		rdtscll(e);
+		e = tsc_start();
+		cos_inst_bar();
 		curr_tick = printc("FLUSH!!");
+		cos_inst_bar();
 		if (unlikely(curr_tick != last_tick)) {
-//			printc("timer detected @ %llu, %d, %d, (cost %llu)\n", e, last_tick, curr_tick, e-s);
-//			if (last_tick+1 != curr_tick) printc("PONG tick diff > 1: %u, %u\n", last_tick,curr_tick);
-			last_tick = curr_tick;
+			delay(10000);
+//			printc("PONG cpu %ld, timer detected @ %llu, %d, %d\n", cos_cpuid(), e, last_tick, curr_tick);
+			//if (last_tick+1 != curr_tick) printc("PONG tick diff > 1: %u, %u\n", last_tick,curr_tick);
+//			last_tick = curr_tick;
 			*pong_shmem = 1; // ping will drop this measurement
 		} else {
 //		ck_pr_store_uint(pong_shmem, e);
@@ -78,14 +109,14 @@ void cos_init(void) {
 		}
 
 //		printc("core %ld: rcv thd %d back in pong, ret %d!\n", cos_cpuid(), cos_get_thd_id(), ret);
-		if (unlikely(ret)) {
-			printc("ERROR: arcv ret %d", ret);
-			printc("rcv thd %d switching back to alpha %ld!\n", 
-			       cos_get_thd_id(), SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
-			ret = cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
-		}
-		rcv++;
-//		if (rcv % 1024 == 0) printc("core %ld: pong rcv %d ipis!\n", cos_cpuid(), rcv);
+		/* if (unlikely(ret)) { */
+		/* 	printc("ERROR: arcv ret %d", ret); */
+		/* 	printc("rcv thd %d switching back to alpha %ld!\n",  */
+		/* 	       cos_get_thd_id(), SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD)); */
+		/* 	ret = cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD)); */
+		/* } */
+		/* rcv++; */
+//		if (rcv % 1000000 == 0) printc("core %ld: pong rcv %d ipis!\n", cos_cpuid(), rcv);
 		
 		/* reply if doing round-trip */
 //		assert(target >= 0);
