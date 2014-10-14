@@ -508,7 +508,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 		if (arcv->thd != thd) {
 			cos_throw(err, -EINVAL);
 		}
-
 		/* Sanity checks */
 		assert(arcv->cpuid == get_cpuid());
 		assert(arcv->comp_info.pgtbl = ci->pgtbl);
@@ -520,7 +519,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 			goto done;
 		}
-		
 		if (thd->interrupted_thread == NULL) {
 			/* FIXME: handle this case by upcalling into
 			 * scheduler, or switch to a scheduling
