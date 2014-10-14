@@ -448,6 +448,15 @@ acap_test(void)
 		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, 
 				  shmem, pong->pgtbl_cap[0], pong->addr_start + 0x400000 - PAGE_SIZE, 0);
 		if (ret) printc("map shmem to pong failed! ret %d\n", ret);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
+				  ping->captbl_cap[0], ping->captbl_cap[0], PING_CAPTBL, 0);
+		if (ret) printc("grant captbl to ping failed! ret %d\n", ret);
+		else printc("done nicely\n");
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
+				  ping->pgtbl_cap[0], ping->captbl_cap[0], PING_PGTBL, 0);
+		if (ret) printc("grant pgtbl to ping failed! ret %d\n", ret);
+		else printc("done nicely\n");
 	}
 
 	thd_mem = get_kmem_cap();
