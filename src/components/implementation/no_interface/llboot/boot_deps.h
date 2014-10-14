@@ -362,6 +362,7 @@ capid_t capid_64b_free = CAP_ID_64B_FREE;
 /* allocate a new capid in the booter. */
 capid_t alloc_capid(cap_t cap)
 {
+	/* FIXME: an proper allocation method for 16, 32 and 64B caps. */
 	capid_t ret;
 	
 	if (captbl_idsize(cap) == CAP32B_IDSZ) {
