@@ -87,7 +87,18 @@ void cos_init(void) {
 	volatile int last_tick, curr_tick;
 
 //	printc(">>> core %d: rcv thd %d in pong, reply target %d\n", cos_cpuid(), cos_get_thd_id(), target);
-
+#define THD_SWITCH
+#ifdef THD_SWITCH
+	int thd_cap = SND_THD_CAP_BASE + cos_cpuid()*captbl_idsize(CAP_THD);
+	while (1) {
+//		printc("PONG: core %ld switching to thd %d\n", cos_cpuid(), thd_cap);
+		ret = cap_switch_thd(thd_cap);
+		*pong_shmem = tsc_start();
+		if (unlikely(ret)) {
+			printc("PONG: thd switch failed\n!");
+		}
+	}
+#else
 	while (1) {
 		cos_inst_bar();
 		last_tick = printc("FLUSH!!");
@@ -123,6 +134,6 @@ void cos_init(void) {
 //		ret = call_cap(ACAP_BASE + captbl_idsize(CAP_ASND)*target, 0, 0, 0, 0);
 //		printc("core %d replied to target %d, ret %d\n", cos_cpuid(), target, ret);
 	}
-
+#endif
 	return; 
 }

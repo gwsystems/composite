@@ -137,7 +137,7 @@ void pingpong(void)
 	avg = (e-s)/ITER;
 	printc("\n core %ld: %d IPCs done, avg cost %llu cycles (no interrupt filtering)\n\n", cos_cpuid(), ITER, avg);
 
-	ck_pr_store_int(&all_exit, 1);
+	if (cos_cpuid() == 0) ck_pr_store_int(&all_exit, 1);
 
 	return;
 }
@@ -318,7 +318,7 @@ void cap_test(void)
 	printc("core %ld: @tick %u cap map/unmap done, avg %llu, max %llu, stddev^2 %llu\n", 
 	       cos_cpuid(), curr_tick, avg2, max, stddev_sum);
 
-	ck_pr_store_int(&all_exit, 1);
+	if (cos_cpuid() == 0) ck_pr_store_int(&all_exit, 1);
 
 	return;
 }
@@ -349,10 +349,10 @@ void mem_test(void)
 	sum = 0;
 	/////////////////
 	/* printc("core %ld: doing pingpong w/ flush @tick %u!\n", cos_cpuid(), last_tick); */
+	curr_tick = last_tick = printc("FLUSH!!");
 
 	n_loops = ITER/1024;
 	if (ITER % 1024) printc(">>>>>>>>>>>>>>>>ITER (%d) should be multiple of 1024!\n", ITER);
-
 	for (ii = 0; ii < n_loops; ii++) {
 //		printc("i %d\n", ii);
 		last_tick = printc("FLUSH!!");
@@ -441,7 +441,68 @@ void mem_test(void)
 	printc("core %ld: @tick %u MEM map/unmap: avg %llu, max %llu, stddev^2 %llu; avg %llu, max %llu stddev^2 %llu. filtered %lu out of %d\n", cos_cpuid(), curr_tick, avg2, max, stddev_sum, 
 	       avg2_unmap, max_unmap, stddev_sum_unmap, filter_out+filter_out_b, 2*ITER);
 
-	ck_pr_store_int(&all_exit, 1);
+	if (cos_cpuid() == 0) ck_pr_store_int(&all_exit, 1);
+
+	return;
+}
+
+void thd_test(void)
+{
+	int i, curr_cpu, my_cap, ret, ret1;
+	long long diff;
+	u64_t s, e, avg, avg2;
+	u64_t sum = 0, max = 0, stddev_sum = 0;
+	volatile u32_t last_tick, curr_tick;
+	volatile u64_t *pong_shmem;
+
+	curr_cpu = cos_cpuid();
+	pong_shmem = (u64_t *)&shmem[(curr_cpu) * CACHE_LINE];
+	my_cap = RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid();
+
+	printc("core %d: doing thd switch test @ cap %d\n", curr_cpu, my_cap);
+	
+	avg = 463; /* on the 40-core server.*/
+
+	sum = 0;
+
+	/////////////////
+	last_tick = printc("FLUSH!!");
+	/* printc("core %ld: doing pingpong w/ flush @tick %u!\n", cos_cpuid(), last_tick); */
+	for (i = 0; i < ITER; i++) {
+//		printc("PING: core %d switching to thd %d\n", cos_cpuid(), my_cap);
+
+		s = tsc_start();
+		ret = cap_switch_thd(my_cap);
+		e = *pong_shmem;
+
+		if (unlikely(ret)) printc("ACT/DEACT failed on core %d>>>>>>>>>>>>>> %d\n", curr_cpu, ret);
+
+		curr_tick = printc("FLUSH!!");
+		if (unlikely(curr_tick != last_tick)) {
+//			printc("timer detected @ %llu, %d, %d, (cost %llu)\n", e, last_tick, curr_tick, e-s);
+//			if (last_tick+1 != curr_tick) printc("tick diff > 1: %u, %u\n", last_tick,curr_tick);
+			last_tick = curr_tick;
+			i--;
+			continue;
+		}
+
+		diff = e-s;
+		sum += diff;
+
+		diff = (diff-avg);
+		stddev_sum += (diff*diff);
+
+		if (max < e-s) max = e-s;
+	}
+	avg2 = sum /ITER;
+	stddev_sum /= ITER;
+	if (avg != avg2) 
+		printc(">>>>Warning: assumed average overhead not consistent with the measured number %llu, %llu\n", avg, avg2);
+
+	printc("core %ld: @tick %u thd_switch done, avg %llu, max %llu, stddev^2 %llu\n", 
+	       cos_cpuid(), curr_tick, avg2, max, stddev_sum);
+
+	if (cos_cpuid() == 0) ck_pr_store_int(&all_exit, 1);
 
 	return;
 }
@@ -470,12 +531,13 @@ void cos_init(void)
 //	else {	goto done; }
 //	if (cos_cpuid() < (NUM_CPU_COS - SND_RCV_OFFSET)  && (cos_cpuid() % 4 == 0)) {
 //	if ((cos_cpuid()%4 == 0 || cos_cpuid()%4 == 2) && (cos_cpuid()+SND_RCV_OFFSET < NUM_CPU_COS)) { // sending core
-//	if (cos_cpuid() % 4 <= 1) {
-	if (1) {
+	if (cos_cpuid()%4 <= 1) {
+//	if (1) {
 		/* IPI - ASND/ARCV */
 //		ipi_test();
-		cap_test();
+//		cap_test();
 //		mem_test();
+		thd_test();
 	} else { //if ((cos_cpuid() % 4 <= 1)
 //		printc("core %ld: thd %d switching to pong thd\n", cos_cpuid(), cos_get_thd_id());
 		arcv_ready[cos_cpuid()] = 1;
