@@ -167,7 +167,7 @@ pgtbl_init_pte(void *pte)
 	int i;
 	unsigned long *vals = pte;
 
-	for (i = 0 ; i < 1<<PGTBL_ORD ; i++) vals[i] = 0;
+	for (i = 0 ; i < (1<<PGTBL_ORD) ; i++) vals[i] = 0;
 }
 
 static int 
@@ -240,7 +240,7 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	int ret;
 	struct ert_intern *pte;
 	u32_t orig_v, accum = 0;
-	
+
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & page) == 0);
 	assert((PGTBL_FRAME_MASK & flags) == 0);
@@ -249,6 +249,7 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
 						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
 	orig_v = (u32_t)(pte->next);
+
 	if (orig_v & PGTBL_PRESENT)  return -EEXIST;
 	if (orig_v & PGTBL_COSFRAME) return -EPERM;
 
@@ -262,8 +263,7 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 		assert(lid < LTBL_ENTS);
 
 		if (ltbl_get_timestamp(lid, &ts)) return -EFAULT;
-		if (!tlb_quiescence_check(ts))
-			return -EQUIESCENCE;
+		if (!tlb_quiescence_check(ts))    return -EQUIESCENCE;
 	}
 
 	/* ref cnt on the frame. */

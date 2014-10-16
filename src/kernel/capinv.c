@@ -347,14 +347,12 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 		if (unlikely(!ctto)) return -ENOENT;
 		if (unlikely(ctto->type != cap_type)) return -EINVAL;
 		if (unlikely(((struct cap_pgtbl *)ctto)->refcnt_flags & CAP_MEM_FROZEN_FLAG)) return -EINVAL;
-
 		f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
 		if (!f) return -ENOENT;
 		old_v = *f;
 
 		/* Cannot copy frame, or kernel entry. */
 		if ((old_v & PGTBL_COSFRAME) || !(old_v & PGTBL_USER)) return -EPERM;
-		
 		/* TODO: validate the type is appropriate given the value of *flags */
 		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, 
 					capin_to, old_v & PGTBL_FRAME_MASK, flags);
@@ -572,9 +570,15 @@ composite_sysenter_handler(struct pt_regs *regs)
 			if (unlikely(ret)) cos_throw(err, ret);
 			assert(kmem_addr && pte);
 
-			newct = captbl_create((void *)kmem_addr);
-			assert(newct);
-			ret = captbl_activate(ct, cap, newcaptbl_cap, newct, captbl_lvl);
+			if (captbl_lvl == 0) {
+				newct = captbl_create((void *)kmem_addr);
+				assert(newct);
+			} else {
+				captbl_init(kmem_addr, 1);
+				captbl_init(kmem_addr+PAGE_SIZE/2, 1);
+			}
+
+			ret = captbl_activate(ct, cap, newcaptbl_cap, (struct captbl *)kmem_addr, captbl_lvl);
 
 			if (ret) {
 				/* Release the kmem page. We are the only one

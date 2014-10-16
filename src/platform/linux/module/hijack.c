@@ -639,7 +639,7 @@ kern_boot_comp(struct spd_info *spd_info)
 	ct = captbl_create(boot_comp_captbl);
 	assert(ct);
 
-	/* expand the captbl to use 2 pages. */
+	/* expand the captbl to use multiple pages. */
 	for (i = 1; i < BOOT_CAPTBL_NPAGES; i++) { 
 		captbl_init(boot_comp_captbl + i * PAGE_SIZE, 1);
 		ret = captbl_expand(ct, (PAGE_SIZE*i - PAGE_SIZE/2)/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE*i);
@@ -1962,7 +1962,6 @@ int main_timer_interposition(struct pt_regs *rs, unsigned int error_code)
 	int curr_cpu = get_cpuid();
 
 	u32_t *ticks = (u32_t *)&timer_detector[curr_cpu * CACHE_LINE];
-	u32_t last_tick = *ticks;
 	
 	/* TLB quiescence period. */
 	chal_flush_tlb();

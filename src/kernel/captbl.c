@@ -114,10 +114,9 @@ captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t c
 	int ret;
 	u32_t l;
 	void *captbl_mem;
-			
+
 	if (target_ct->h.type != CAP_CAPTBL || target_ct->lvl != 0) cos_throw(err, -EINVAL);
 	if (cons_cap->h.type != CAP_CAPTBL || cons_cap->lvl != 1) cos_throw(err, -EINVAL);
-
 	captbl_mem = (void *)cons_cap->captbl;
 
 	l = cons_cap->refcnt_flags;
@@ -130,14 +129,12 @@ captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t c
 	/* FIXME: we are expanding the entire page to
 	 * two of the locations. Do we want separate
 	 * calls for them? */
-	captbl_init(captbl_mem, 1);
 	ret = captbl_expand(target_ct->captbl, cons_addr, captbl_maxdepth(), captbl_mem);
 	if (ret) {
 		cos_faa(&cons_cap->refcnt_flags, -1);
 		cos_throw(err, ret);
 	}
 
-	captbl_init(&((char*)captbl_mem)[PAGE_SIZE/2], 1);
 	ret = captbl_expand(target_ct->captbl, cons_addr + (PAGE_SIZE/2/CAPTBL_LEAFSZ), 
 			    captbl_maxdepth(), &((char*)captbl_mem)[PAGE_SIZE/2]);
 	if (ret) {

@@ -606,8 +606,6 @@ static int boot_comp_caps(struct cobj_header *h, spdid_t comp_id)
 	return 0;
 }
 
-static int n_kern_memsets = 0;
-
 static void init_cosframes(void)
 {
 	int i, n_kmem_sets = COS_KERNEL_MEMORY / RETYPE_MEM_NPAGES + 1;

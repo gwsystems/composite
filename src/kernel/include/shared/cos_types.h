@@ -189,12 +189,13 @@ enum {
 };
 
 // QW: for ppos test only. remove.
-#define PING_CAPTBL (SCHED_CAPTBL_FREE)
-#define PING_PGTBL  (SCHED_CAPTBL_FREE + CAP32B_IDSZ)
-#define SND_THD_CAP_BASE (SCHED_CAPTBL_FREE + CAPMAX_ENTRY_SZ)
+#define PING_CAPTBL   (SCHED_CAPTBL_FREE)
+#define PING_PGTBL    (SCHED_CAPTBL_FREE + CAP32B_IDSZ)
+#define PING_COMPCAP  (SCHED_CAPTBL_FREE + CAP64B_IDSZ)
+#define SND_THD_CAP_BASE (PING_COMPCAP + CAPMAX_ENTRY_SZ)
 #define RCV_THD_CAP_BASE (SND_THD_CAP_BASE + (NUM_CPU_COS * captbl_idsize(CAP_THD)))
 #define ACAP_BASE (round_up_to_pow2(RCV_THD_CAP_BASE + (NUM_CPU_COS) * captbl_idsize(CAP_THD), CAPMAX_ENTRY_SZ))
-#define IF_CAP_BASE (round_up_to_pow2(ACAP_BASE + (NUM_CPU) * captbl_idsize(CAP_ARCV), CAPMAX_ENTRY_SZ))
+#define PING_CAP_FREE (round_up_to_pow2(ACAP_BASE + (NUM_CPU) * captbl_idsize(CAP_ARCV), CAPMAX_ENTRY_SZ))
 #define SND_RCV_OFFSET 1//(NUM_CPU/2)
 /////remove above
 

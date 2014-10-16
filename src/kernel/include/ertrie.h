@@ -278,6 +278,7 @@ __ert_expand(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *
 		/* expand via memory allocation */
 		if (i+2 < depth) new = allocfn(memctxt, (1<<order) * intern_sz, 0);
 		else             new = allocfn(memctxt, (1<<last_order) * last_sz, 1);
+
 		if (unlikely(!new)) return -1;
 		__ert_init(new, i+2 >= depth, ERT_CONST_ARGS);
 		setfn(n, new, accum, 0);

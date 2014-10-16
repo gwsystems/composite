@@ -383,7 +383,7 @@ captbl_expand(struct captbl *t, capid_t cap, u32_t depth, void *memctxt)
 {
 	int ret;
 
-	if (unlikely(cap > __captbl_maxid() ||
+	if (unlikely(cap >= __captbl_maxid() ||
 		     depth > captbl_maxdepth())) return -EINVAL;
 	ret = __captbl_expandn(t, cap, depth, NULL, &memctxt, NULL);
 	if (unlikely(memctxt)) return -EEXIST;
@@ -431,6 +431,7 @@ captbl_create(void *page)
 	 * replace hard-coded sizes with calculations based on captbl
 	 * depth, and intern and leaf sizes/orders
 	 */
+	captbl_init(page, 0);
 	captbl_init(&((char*)page)[PAGE_SIZE/2], 1);
 	ret = captbl_expand(ct, 0, captbl_maxdepth(), &((char*)page)[PAGE_SIZE/2]);
 	assert(!ret);

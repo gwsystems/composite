@@ -230,12 +230,16 @@ __vpage2frame(vaddr_t addr) { return (addr - init_hp) / PAGE_SIZE; }
  */
 
 static vaddr_t kmem_heap = BOOT_MEM_KM_BASE;
+static unsigned long n_kern_memsets = 0;
 
 vaddr_t get_kmem_cap(void) {
 	vaddr_t ret;
 
 	ret = kmem_heap;
 	kmem_heap += PAGE_SIZE;
+
+	if (unlikely(kmem_heap >= BOOT_MEM_KM_BASE + PAGE_SIZE * RETYPE_MEM_NPAGES * n_kern_memsets))
+		return 0;
 
 	return ret;
 }
@@ -353,7 +357,7 @@ boot_deps_run_all(void)
 /* We have 2 pages for the captbl of llboot: 1/2 page for the top
  * level, 1+1/2 pages for the second level. */
 #define CAP_ID_32B_FREE BOOT_CAPTBL_FREE;            // goes up
-#define CAP_ID_64B_FREE ((PAGE_SIZE*BOOT_CAPTBL_NPAGES - PAGE_SIZE/2)/32 - CAP64B_IDSZ) // goes down
+#define CAP_ID_64B_FREE ((PAGE_SIZE*BOOT_CAPTBL_NPAGES - PAGE_SIZE/2)/16 - CAP64B_IDSZ) // goes down
 
 //capid_t capid_16b_free = CAP_ID_32B_FREE;
 capid_t capid_32b_free = CAP_ID_32B_FREE;
@@ -417,6 +421,9 @@ void sync_all()
 	return;
 }
 
+#define CAPTBL_LEAFSZ  16
+#define CAPTBL_INIT_SZ (PAGE_SIZE/2/16)
+
 // PPOS test code below
 static inline void
 acap_test(void)
@@ -431,8 +438,8 @@ acap_test(void)
 	capid_t async_rcvthd_cap = RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid();
 	capid_t async_test_cap   = ACAP_BASE + captbl_idsize(CAP_ARCV)*cos_cpuid();
 
-	vaddr_t thd_mem;
-	capid_t pong_thd_cap;
+	vaddr_t thd_mem, pte_mem, captest_mem;
+	capid_t pong_thd_cap, pte_cap, captest_cap;
 
 	/* lock to avoid cas failure. */
 	ck_spinlock_ticket_lock(&init_lock);
@@ -444,23 +451,54 @@ acap_test(void)
 		//map this to ping and pong
 		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, 
 				  shmem, ping->pgtbl_cap[0], ping->addr_start + 0x400000 - PAGE_SIZE, 0);
-		if (ret) printc("map shmem to ping failed! ret %d\n", ret);
+		if (ret) printc("map shmem to ping failed >>>>>>>>>>>>> ret %d\n", ret);
 		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, 
 				  shmem, pong->pgtbl_cap[0], pong->addr_start + 0x400000 - PAGE_SIZE, 0);
-		if (ret) printc("map shmem to pong failed! ret %d\n", ret);
+		if (ret) printc("map shmem to pong failed >>>>>>>>>>>>> ret %d\n", ret);
 
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
 				  ping->captbl_cap[0], ping->captbl_cap[0], PING_CAPTBL, 0);
-		if (ret) printc("grant captbl to ping failed! ret %d\n", ret);
-		else printc("done nicely\n");
+		if (ret) printc("grant captbl to ping failed >>>>>>>>>>>>> ret %d\n", ret);
+
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
 				  ping->pgtbl_cap[0], ping->captbl_cap[0], PING_PGTBL, 0);
-		if (ret) printc("grant pgtbl to ping failed! ret %d\n", ret);
-		else printc("done nicely\n");
+		if (ret) printc("grant pgtbl to ping failed >>>>>>>>>>>>> ret %d\n", ret);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
+				  ping->comp_cap, ping->captbl_cap[0], PING_COMPCAP, 0);
+		if (ret) printc("grant comp cap to ping failed >>>>>>>>>>>>> ret %d\n", ret);
 	}
 
 	thd_mem = get_kmem_cap();
 	pong_thd_cap = alloc_capid(CAP_THD);
+
+	{
+		/* get each core a separate pte so that they can do
+		 * memory map/unmap test (and have enough VAS). */
+		pte_mem = get_kmem_cap();
+		pte_cap = alloc_capid(CAP_PGTBL);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE, 
+				  pte_cap, BOOT_CAPTBL_SELF_PT, pte_mem, 1);
+		if (ret) printc(">>>> pte activation failed!!!! %d\n", ret);
+
+		ret = call_cap_op(ping->pgtbl_cap[0], CAPTBL_OP_CONS, pte_cap, 0x80000000 - (1+cos_cpuid())*0x400000, 0, 0);
+
+		if (ret) printc(">>>> pte cons failed!!!! %d\n", ret);
+
+		/* do the same for captbl act/deact test to avoid
+		 * interference from prefetcher. */
+		captest_mem = get_kmem_cap();
+		captest_cap = alloc_capid(CAP_PGTBL);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE,
+				  captest_cap, BOOT_CAPTBL_SELF_PT, captest_mem, 1);
+		if (ret) printc(">>>> captbl activation failed!!!! %d\n", ret);
+
+		ret = call_cap_op(ping->captbl_cap[0], CAPTBL_OP_CONS, captest_cap,
+				  PAGE_SIZE/2/CAPTBL_LEAFSZ*510 - cos_cpuid()*PAGE_SIZE/CAPTBL_LEAFSZ, 0, 0);
+		if (ret) printc(">>>> captbl cons failed!!!! %d\n", ret);
+	}
 
 	// grant alpha thd to pong as well
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, llboot->alpha, 
@@ -564,7 +602,7 @@ int run_ppos_test(void)
 		struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
 		struct comp_cap_info *ping = &comp_cap_info[2];
 		struct comp_cap_info *pong = &comp_cap_info[3];
-		capid_t if_cap = IF_CAP_BASE + cos_cpuid()*captbl_idsize(CAP_THD);
+		capid_t if_cap = PING_CAP_FREE + cos_cpuid()*captbl_idsize(CAP_THD);
 
 		u64_t s,e;
 		printc("core %d interfering @ capid %d...\n", cos_cpuid(), if_cap);
@@ -707,7 +745,6 @@ quiescence_wait(void)
 	}
 }
 
-#define TLB_QUIESCENCE_CYCLES (2400 * 1000 * 10)
 static void
 tlb_quiescence_wait(void)
 {
@@ -718,9 +755,6 @@ tlb_quiescence_wait(void)
 		if (QUIESCENCE_CHECK(e, s, TLB_QUIESCENCE_CYCLES)) break;
 	}
 }
-
-#define CAPTBL_LEAFSZ  16
-#define CAPTBL_INIT_SZ (PAGE_SIZE/2/16)
 
 void captbl_test(void)
 {
