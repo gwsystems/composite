@@ -60,8 +60,10 @@ static inline int printfn(struct pt_regs *regs)
 		if (kern_buf[0] == 'F' && kern_buf[1] == 'L' && kern_buf[2] == 'U' &&
 		    kern_buf[3] == 'S' && kern_buf[4] == 'H' && kern_buf[5] == '!') {
 			u32_t ticks;
-//			chal_flush_cache();
-//			chal_flush_tlb_global();
+			/* if (get_cpuid() == 0) { */
+			/* 	chal_flush_cache(); */
+			/* 	chal_flush_tlb_global(); */
+			/* } */
 			ticks = *(u32_t *)&timer_detector[get_cpuid() * CACHE_LINE];
 			/* if (get_cpuid() == 20 && ticks % 100 == 0)  */
 			/* 	printk("@%p, %d\n", &timer_detector[get_cpuid() * CACHE_LINE], ticks); */
@@ -574,8 +576,8 @@ composite_sysenter_handler(struct pt_regs *regs)
 				newct = captbl_create((void *)kmem_addr);
 				assert(newct);
 			} else {
-				captbl_init(kmem_addr, 1);
-				captbl_init(kmem_addr+PAGE_SIZE/2, 1);
+				captbl_init((void *)kmem_addr, 1);
+				captbl_init((void *)(kmem_addr+PAGE_SIZE/2), 1);
 			}
 
 			ret = captbl_activate(ct, cap, newcaptbl_cap, (struct captbl *)kmem_addr, captbl_lvl);

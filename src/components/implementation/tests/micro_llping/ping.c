@@ -267,8 +267,14 @@ void cap_test(void)
 	curr_cpu = cos_cpuid();
 
 #define CAPTBL_LEAFSZ  16
+
+//#define FALSE_SHARING
+#ifdef FALSE_SHARING
+	my_cap = PAGE_SIZE/2/CAPTBL_LEAFSZ*510;
+#else	
 	/* no false sharing. different pages to avoid prefetching */
 	my_cap = PAGE_SIZE/2/CAPTBL_LEAFSZ*510 - curr_cpu*PAGE_SIZE/CAPTBL_LEAFSZ;
+#endif
 	lid = 64 + 4*curr_cpu;
 
 	printc("core %d: doing cap map/unmap test @ cap %d, lid %d\n", curr_cpu, my_cap, lid);
@@ -285,14 +291,19 @@ void cap_test(void)
 		ret = call_cap_op(PING_CAPTBL, CAPTBL_OP_SINVACTIVATE,
 				  my_cap, PING_COMPCAP, 123, 0);
 		rdtscll(e);
-
+		///////////////
+		/* last_tick = printc("FLUSH!!"); */
+		/* s = tsc_start(); */
 		ret1 = call_cap_op(PING_CAPTBL, CAPTBL_OP_SINVDEACTIVATE,
 				  my_cap, lid, 0, 0);
+		/* rdtscll(e); */
 
 //		if (e-s > 20000) printc("large: %llu @ %llu\n", e-s, e);
 		delay(KERN_QUIESCENCE_CYCLES);
 
+#ifndef FALSE_SHARING
 		if (unlikely(ret || ret1)) printc("ACT/DEACT failed on core %d>>>>>>>>>>>>>> %d, %d\n", curr_cpu, ret, ret1);
+#endif
 
 		curr_tick = printc("FLUSH!!");
 		if (unlikely(curr_tick != last_tick)) {
@@ -335,16 +346,21 @@ void mem_test(void)
 	volatile u32_t last_tick, curr_tick, tlb_tick;
 	int lid;
 
-//#ifdef MEAS_AVG
 	curr_cpu = cos_cpuid();
+
+#define FALSE_SHARING
+#ifdef FALSE_SHARING
+	start_vaddr = 0x80000000 - 0x400000; /* NOTE: WITH FALSE SHARING! */
+#else
 	start_vaddr = 0x80000000 - (1+cos_cpuid())*0x400000; /* no false sharing. */
+#endif
 	lid = 64 + 4*curr_cpu;
 
 //	printc("core %d: doing MEM map/unmap test\n", curr_cpu);
 	
 	//avg = 516;//1360; /* on the 40-core server.*/
-	avg = 422;//1360; /* on the 40-core server.*/
-	avg_unmap = 481; 
+	avg = 1500;//1360; /* on the 40-core server.*/
+	avg_unmap = 1300; 
 
 	sum = 0;
 	/////////////////
@@ -363,11 +379,12 @@ void mem_test(void)
 					  PING_MEM_START, PING_PGTBL, my_vaddr, 0);
 			rdtscll(e);
 
+#ifndef FALSE_SHARING
 			if (unlikely(ret)) {
 				printc("ACT failed on core %d>>>>>>>>>>>>>> %d, %d, %x\n", curr_cpu, ret, j, (unsigned int)my_vaddr);
 				break;
 			}
-
+#endif
 			curr_tick = printc("FLUSH!!");
 			if (unlikely(curr_tick != last_tick)) {
 //			if (last_tick+1 != curr_tick) printc("tick diff > 1: %u, %u\n", last_tick,curr_tick);
@@ -392,17 +409,17 @@ void mem_test(void)
 			ret1 = call_cap_op(PING_PGTBL, CAPTBL_OP_MEMDEACTIVATE,
 					   my_vaddr, lid, 0, 0);
 			rdtscll(e);
-
+#ifndef FALSE_SHARING
 			if (unlikely(ret1)) {
 				printc("mem DEACT failed on core %d>>>>>>>>>>>>>> %d, %d, %x\n", curr_cpu, ret1, j, (unsigned int)my_vaddr);
 				break;
 			}
-
+#endif
 			curr_tick = printc("FLUSH!!");
 			if (unlikely(curr_tick != last_tick)) {
 //			if (last_tick+1 != curr_tick) printc("tick diff > 1: %u, %u\n", last_tick,curr_tick);
 				last_tick = curr_tick;
-				filter_out++;
+				filter_out_b++;
 				delay(KERN_QUIESCENCE_CYCLES);
 			} else {
 				diff = e-s;
@@ -438,8 +455,110 @@ void mem_test(void)
 		printc(">>>>Warning: assumed average overhead of unmap not consistent with the measured number %llu, %llu\n", avg_unmap, avg2_unmap);
 
 
-	printc("core %ld: @tick %u MEM map/unmap: avg %llu, max %llu, stddev^2 %llu; avg %llu, max %llu stddev^2 %llu. filtered %lu out of %d\n", cos_cpuid(), curr_tick, avg2, max, stddev_sum, 
-	       avg2_unmap, max_unmap, stddev_sum_unmap, filter_out+filter_out_b, 2*ITER);
+	if (filter_out+filter_out_b > 10) printc("cpu %ld filtered %lu out of %d\n", cos_cpuid(), filter_out+filter_out_b, 2*ITER);
+
+	printc("core %ld: @tick %u MEM map/unmap: avg %llu, max %llu, stddev^2 %llu; avg %llu, max %llu stddev^2 %llu\n", 
+	       cos_cpuid(), curr_tick, avg2, max, stddev_sum, avg2_unmap, max_unmap, stddev_sum_unmap);
+
+	if (cos_cpuid() == 0) ck_pr_store_int(&all_exit, 1);
+
+	return;
+}
+
+void cons_decons_test(void)
+{
+	int i, curr_cpu, ret, ret1;
+	long long diff;
+	u64_t s, e, avg, avg_decons, avg2, avg2_decons;
+	u64_t sum = 0, max = 0, stddev_sum = 0, sum_decons = 0, stddev_sum_decons = 0, max_decons = 0;
+	volatile u32_t last_tick, curr_tick;
+
+//#ifdef MEAS_AVG
+	curr_cpu = cos_cpuid();
+
+//	printc("core %d: doing MEM map/decons test\n", curr_cpu);
+	
+	//avg = 516;//1360; /* on the 40-core server.*/
+	avg = 337;//1360; /* on the 40-core server.*/
+	avg_decons = 328; 
+
+	sum = 0;
+	/////////////////
+	/* printc("core %ld: doing pingpong w/ flush @tick %u!\n", cos_cpuid(), last_tick); */
+	curr_tick = last_tick = printc("FLUSH!!");
+
+	last_tick = printc("FLUSH!!");
+	for (i = 0; i < ITER; i++) {
+		s = tsc_start();
+#define CONS_TEST_ADDR (PING_MEM_START + 0x4000000)
+		ret = call_cap_op(PING_PGTBL, CAPTBL_OP_CONS,
+				  PING_PGTBL2, CONS_TEST_ADDR, 0, 0);
+		rdtscll(e);
+
+		/* if (unlikely(ret)) { */
+		/* 	printc("CONS failed on core %d>>>>>>>>>>>>>> %d, %d\n", curr_cpu, ret, i); */
+		/* 	break; */
+		/* } else printc("CONS ret %d\n", ret); */
+
+		curr_tick = printc("FLUSH!!");
+		if (unlikely(curr_tick != last_tick)) {
+//			if (last_tick+1 != curr_tick) printc("tick diff > 1: %u, %u\n", last_tick,curr_tick);
+			ret1 = call_cap_op(PING_PGTBL, CAPTBL_OP_DECONS,
+					   PING_PGTBL2, CONS_TEST_ADDR, 1, 0);
+			last_tick = curr_tick;
+			delay(KERN_QUIESCENCE_CYCLES);
+			i--;
+			continue;
+		} else {
+			diff = e-s;
+			sum += diff;
+
+			diff = (diff-avg);
+			stddev_sum += (diff*diff);
+
+			if (max < e-s) max = e-s;
+		}
+
+		s = tsc_start();
+		ret1 = call_cap_op(PING_PGTBL, CAPTBL_OP_DECONS,
+				   PING_PGTBL2, CONS_TEST_ADDR, 1, 0);
+		rdtscll(e);
+
+		/* if (unlikely(ret1)) { */
+		/* 	printc("DECONS failed on core %d>>>>>>>>>>>>>> %d, %d\n", curr_cpu, ret1, i); */
+		/* 	break; */
+		/* } else printc("DECONS ret %d\n", ret); */
+
+		curr_tick = printc("FLUSH!!");
+		if (unlikely(curr_tick != last_tick)) {
+//			if (last_tick+1 != curr_tick) printc("tick diff > 1: %u, %u\n", last_tick,curr_tick);
+			last_tick = curr_tick;
+			i--;
+			continue;
+		} else {
+			diff = e-s;
+			sum_decons += diff;
+
+			diff = (diff-avg_decons);
+			stddev_sum_decons += (diff*diff);
+
+			if (max_decons < e-s) max_decons = e-s;
+		}
+
+	}
+
+	avg2 = sum / (ITER);
+	avg2_decons = sum_decons/(ITER);
+	stddev_sum /= (ITER);
+	stddev_sum_decons /= (ITER);
+	if (avg != avg2) 
+		printc(">>>>Warning: assumed average overhead of cons not consistent with the measured number %llu, %llu\n", avg, avg2);
+	if (avg_decons != avg2_decons) 
+		printc(">>>>Warning: assumed average overhead of decons not consistent with the measured number %llu, %llu\n", avg_decons, avg2_decons);
+
+
+	printc("core %ld: @tick %u pgtbl cons/decons: avg %llu, max %llu, stddev^2 %llu; avg %llu, max %llu stddev^2 %llu. \n", cos_cpuid(), curr_tick, avg2, max, stddev_sum, 
+	       avg2_decons, max_decons, stddev_sum_decons);
 
 	if (cos_cpuid() == 0) ck_pr_store_int(&all_exit, 1);
 
@@ -507,6 +626,71 @@ void thd_test(void)
 	return;
 }
 
+void wcet_test(void)
+{
+	int i, curr_cpu, my_cap, ret = 0, ret1;
+	long long diff;
+	u64_t s, e, avg, avg2;
+	u64_t sum = 0, max = 0, stddev_sum = 0;
+	volatile u32_t last_tick, curr_tick;
+	volatile u64_t *pong_shmem;
+
+	curr_cpu = cos_cpuid();
+	pong_shmem = (u64_t *)&shmem[(curr_cpu) * CACHE_LINE];
+	my_cap = RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid();
+
+	printc("core %d: doing thd switch test @ cap %d\n", curr_cpu, my_cap);
+	
+	avg = 463; /* on the 40-core server.*/
+
+	sum = 0;
+
+	/////////////////
+	last_tick = printc("FLUSH!!");
+	/* printc("core %ld: doing pingpong w/ flush @tick %u!\n", cos_cpuid(), last_tick); */
+	for (i = 0; i < ITER; i++) {
+//		printc("PING: core %d switching to thd %d\n", cos_cpuid(), my_cap);
+
+		s = tsc_start();
+
+		/* ret = cap_switch_thd(my_cap); */
+		/* e = *pong_shmem; */
+
+		call_cap(4, 0, 0, 0, 0);
+		rdtscll(e);
+
+		if (unlikely(ret)) printc("ACT/DEACT failed on core %d>>>>>>>>>>>>>> %d\n", curr_cpu, ret);
+
+		curr_tick = printc("FLUSH!!");
+		if (unlikely(curr_tick != last_tick)) {
+//			printc("timer detected @ %llu, %d, %d, (cost %llu)\n", e, last_tick, curr_tick, e-s);
+//			if (last_tick+1 != curr_tick) printc("tick diff > 1: %u, %u\n", last_tick,curr_tick);
+			last_tick = curr_tick;
+			i--;
+			continue;
+		}
+
+		diff = e-s;
+		sum += diff;
+
+		diff = (diff-avg);
+		stddev_sum += (diff*diff);
+
+		if (max < e-s) max = e-s;
+	}
+	avg2 = sum /ITER;
+	stddev_sum /= ITER;
+	if (avg != avg2) 
+		printc(">>>>Warning: assumed average overhead not consistent with the measured number %llu, %llu\n", avg, avg2);
+
+	printc("core %ld: @tick %u thd_switch done, avg %llu, max %llu, stddev^2 %llu\n", 
+	       cos_cpuid(), curr_tick, avg2, max, stddev_sum);
+
+	if (cos_cpuid() == 0) ck_pr_store_int(&all_exit, 1);
+
+	return;
+}
+
 void cos_init(void)
 {
 //	u64_t s, e;
@@ -536,8 +720,10 @@ void cos_init(void)
 		/* IPI - ASND/ARCV */
 //		ipi_test();
 //		cap_test();
-//		mem_test();
-		thd_test();
+		mem_test();
+//		thd_test();
+//		wcet_test();
+//		cons_decons_test();
 	} else { //if ((cos_cpuid() % 4 <= 1)
 //		printc("core %ld: thd %d switching to pong thd\n", cos_cpuid(), cos_get_thd_id());
 		arcv_ready[cos_cpuid()] = 1;

@@ -115,11 +115,12 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 	if (cap_type == CAP_CAPTBL) {
 		ret = captbl_cons(ct, ctsub, expandid);
 	} else {
-		u32_t flags = 0, old_v, refcnt_flags;
+		u32_t flags = 0, old_pte, new_pte, old_v, refcnt_flags;
 
 		intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, depth);
 		if (!intern)                return -ENOENT;
-		if (pgtbl_ispresent(*intern)) return -EPERM;
+		old_pte = *intern;
+		if (pgtbl_ispresent(old_pte)) return -EPERM;
 
 		old_v = refcnt_flags = ((struct cap_pgtbl *)ctsub)->refcnt_flags;
 		if (refcnt_flags & CAP_MEM_FROZEN_FLAG) return -EINVAL;
@@ -129,11 +130,16 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 		ret = cos_cas((unsigned long *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), old_v, refcnt_flags);
 		if (ret != CAS_SUCCESS) return -ECASFAIL;
 
-		ret = __pgtbl_set((struct ert_intern *)intern, 
-				  ((struct cap_pgtbl *)ctsub)->pgtbl, NULL, 0);
-		if (ret) {
+		new_pte = (u32_t)chal_va2pa((void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK)) | PGTBL_INTERN_DEF;
+
+		ret = cos_cas(intern, old_pte, new_pte);
+
+		if (ret != CAS_SUCCESS) {
 			/* decrement to restore the refcnt on failure. */
 			cos_faa((int *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), -1);
+			return -ECASFAIL;
+		} else {
+			ret = 0;
 		}
 	}
 
@@ -151,7 +157,7 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 	/* capsub is the cap_cap for sub level to be pruned. We need
 	 * to decrement ref_cnt correctly for the kernel page. */
 	struct cap_header *head, *sub;
-	unsigned long *intern;
+	unsigned long *intern, old_v;
 
 	head = (struct cap_header *)captbl_lkup(t, cap);
 	sub  = (struct cap_header *)captbl_lkup(t, capsub);
@@ -173,10 +179,11 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 	}
 
 	if (!intern) return -ENOENT;
-	if (*intern == 0) return 0; /* return an error here? */
-	/* FIXME: should be cos_cas */
+	old_v = *intern;
+
+	if (old_v == 0) return 0; /* return an error here? */
 	/* commit; note that 0 is "no entry" in both pgtbl and captbl */
-	if (cos_cas(intern, *intern, 0) != CAS_SUCCESS) return -ECASFAIL;
+	if (cos_cas(intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
 
 	/* decrement the refcnt */
 	if (head->type == CAP_CAPTBL) {
@@ -185,14 +192,14 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 
 		old_v = l = ct->refcnt_flags;
 		if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
-		cos_cas((unsigned long *)&(ct->refcnt_flags), old_v, l - 1);
+		cos_faa(&(ct->refcnt_flags), -1);
 	} else {
 		struct cap_pgtbl *pt = (struct cap_pgtbl *)sub;
 		u32_t old_v, l;
 
 		old_v = l = pt->refcnt_flags;
 		if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
-		cos_cas((unsigned long *)&(pt->refcnt_flags), old_v, l - 1);
+		cos_faa(&(pt->refcnt_flags), -1);
 	}
 
 	return 0;

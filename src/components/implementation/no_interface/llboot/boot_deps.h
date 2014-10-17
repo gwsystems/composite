@@ -465,6 +465,10 @@ acap_test(void)
 		if (ret) printc("grant pgtbl to ping failed >>>>>>>>>>>>> ret %d\n", ret);
 
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
+				  ping->pgtbl_cap[1], ping->captbl_cap[0], PING_PGTBL2, 0);
+		if (ret) printc("grant pgtbl pte to ping failed >>>>>>>>>>>>> ret %d\n", ret);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
 				  ping->comp_cap, ping->captbl_cap[0], PING_COMPCAP, 0);
 		if (ret) printc("grant comp cap to ping failed >>>>>>>>>>>>> ret %d\n", ret);
 	}
