@@ -823,6 +823,8 @@ composite_sysenter_handler(struct pt_regs *regs)
 			capid_t decons_addr = __userregs_get2(regs);
 			capid_t lvl         = __userregs_get3(regs);
 
+			/* FIXME: adding liveness id here. */
+
 			ret = cap_decons(ct, cap, capin, decons_addr, lvl);
 
 			break;

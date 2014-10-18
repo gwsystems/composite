@@ -268,7 +268,7 @@ void cap_test(void)
 
 #define CAPTBL_LEAFSZ  16
 
-//#define FALSE_SHARING
+#define FALSE_SHARING
 #ifdef FALSE_SHARING
 	my_cap = PAGE_SIZE/2/CAPTBL_LEAFSZ*510;
 #else	
@@ -348,7 +348,7 @@ void mem_test(void)
 
 	curr_cpu = cos_cpuid();
 
-#define FALSE_SHARING
+//#define FALSE_SHARING
 #ifdef FALSE_SHARING
 	start_vaddr = 0x80000000 - 0x400000; /* NOTE: WITH FALSE SHARING! */
 #else
@@ -359,8 +359,8 @@ void mem_test(void)
 //	printc("core %d: doing MEM map/unmap test\n", curr_cpu);
 	
 	//avg = 516;//1360; /* on the 40-core server.*/
-	avg = 1500;//1360; /* on the 40-core server.*/
-	avg_unmap = 1300; 
+	avg = 563;//1360; /* on the 40-core server.*/
+	avg_unmap = 600; 
 
 	sum = 0;
 	/////////////////
@@ -715,12 +715,12 @@ void cos_init(void)
 //	else {	goto done; }
 //	if (cos_cpuid() < (NUM_CPU_COS - SND_RCV_OFFSET)  && (cos_cpuid() % 4 == 0)) {
 //	if ((cos_cpuid()%4 == 0 || cos_cpuid()%4 == 2) && (cos_cpuid()+SND_RCV_OFFSET < NUM_CPU_COS)) { // sending core
-	if (cos_cpuid()%4 <= 1) {
+	if (cos_cpuid()%4 <= 0) {
 //	if (1) {
 		/* IPI - ASND/ARCV */
 //		ipi_test();
-//		cap_test();
-		mem_test();
+		cap_test();
+//		mem_test();
 //		thd_test();
 //		wcet_test();
 //		cons_decons_test();
