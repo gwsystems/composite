@@ -475,6 +475,11 @@ acap_test(void)
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
 				  BOOT_CAPTBL_SELF_PT, ping->captbl_cap[0], PING_ROOTPGTBL, 0);
 		if (ret) printc("grant root pgtbl to ping failed >>>>>>>>>>>>> ret %d\n", ret);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
+				  ping->captbl_cap[1], ping->captbl_cap[0], PING_CAPTBL2, 0);
+		if (ret) printc("grant captbl2 to ping failed >>>>>>>>>>>>> ret %d\n", ret);
+
 	}
 
 	thd_mem = get_kmem_cap();

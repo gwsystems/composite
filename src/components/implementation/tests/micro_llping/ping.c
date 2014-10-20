@@ -742,6 +742,107 @@ void cons_decons_test(void)
 	return;
 }
 
+void captbl_cons_test(void)
+{
+	int i, curr_cpu, ret, ret1;
+	long long diff;
+	u64_t s, e, avg, avg_decons, avg2, avg2_decons;
+	u64_t sum = 0, max = 0, stddev_sum = 0, sum_decons = 0, stddev_sum_decons = 0, max_decons = 0;
+	volatile u32_t last_tick, curr_tick;
+
+//#ifdef MEAS_AVG
+	curr_cpu = cos_cpuid();
+
+//	printc("core %d: doing MEM map/decons test\n", curr_cpu);
+	
+	//avg = 516;//1360; /* on the 40-core server.*/
+	avg = 62518;//1360; /* on the 40-core server.*/
+	avg_decons = 48878; 
+
+	sum = 0;
+	/////////////////
+	/* printc("core %ld: doing pingpong w/ flush @tick %u!\n", cos_cpuid(), last_tick); */
+	curr_tick = last_tick = printc("FLUSH!!");
+
+	last_tick = printc("FLUSH!!");
+	for (i = 0; i < ITER; i++) {
+		s = tsc_start();
+#define CONS_TEST_CAP (PAGE_SIZE/2/CAPTBL_LEAFSZ*100)
+		ret = call_cap_op(PING_CAPTBL, CAPTBL_OP_CONS,
+				  PING_CAPTBL2, CONS_TEST_CAP, 0, 0);
+		rdtscll(e);
+
+		/* if (unlikely(ret)) { */
+		/* 	printc("CONS failed on core %d>>>>>>>>>>>>>> %d, %d\n", curr_cpu, ret, i); */
+		/* 	break; */
+		/* } //else printc("CONS ret %d\n", ret); */
+
+		curr_tick = printc("FLUSH!!");
+		if (unlikely(curr_tick != last_tick)) {
+//			if (last_tick+1 != curr_tick) printc("tick diff > 1: %u, %u\n", last_tick,curr_tick);
+			ret1 = call_cap_op(PING_CAPTBL, CAPTBL_OP_DECONS,
+					   PING_CAPTBL2, CONS_TEST_CAP, 1, 0);
+
+			last_tick = curr_tick;
+			delay(KERN_QUIESCENCE_CYCLES);
+			i--;
+			continue;
+		} else {
+			diff = e-s;
+			sum += diff;
+
+			diff = (diff-avg);
+			stddev_sum += (diff*diff);
+
+			if (max < e-s) max = e-s;
+		}
+
+		s = tsc_start();
+		ret1 = call_cap_op(PING_CAPTBL, CAPTBL_OP_DECONS,
+				   PING_CAPTBL2, CONS_TEST_CAP, 1, 0);
+		rdtscll(e);
+
+		/* if (unlikely(ret1)) { */
+		/* 	printc("DECONS failed on core %d>>>>>>>>>>>>>> %d, %d\n", curr_cpu, ret1, i); */
+		/* 	break; */
+		/* } //else printc("DECONS ret %d\n", ret1); */
+
+		curr_tick = printc("FLUSH!!");
+		if (unlikely(curr_tick != last_tick)) {
+//			if (last_tick+1 != curr_tick) printc("tick diff > 1: %u, %u\n", last_tick,curr_tick);
+			last_tick = curr_tick;
+			i--;
+			continue;
+		} else {
+			diff = e-s;
+			sum_decons += diff;
+
+			diff = (diff-avg_decons);
+			stddev_sum_decons += (diff*diff);
+
+			if (max_decons < e-s) max_decons = e-s;
+		}
+
+	}
+
+	avg2 = sum / (ITER);
+	avg2_decons = sum_decons/(ITER);
+	stddev_sum /= (ITER);
+	stddev_sum_decons /= (ITER);
+	if (avg != avg2) 
+		printc(">>>>Warning: assumed average overhead of cons not consistent with the measured number %llu, %llu\n", avg, avg2);
+	if (avg_decons != avg2_decons) 
+		printc(">>>>Warning: assumed average overhead of decons not consistent with the measured number %llu, %llu\n", avg_decons, avg2_decons);
+
+
+	printc("core %ld: @tick %u pgtbl cons/decons: avg %llu, max %llu, stddev^2 %llu; avg %llu, max %llu stddev^2 %llu. \n", cos_cpuid(), curr_tick, avg2, max, stddev_sum, 
+	       avg2_decons, max_decons, stddev_sum_decons);
+
+	if (cos_cpuid() == 0) ck_pr_store_int(&all_exit, 1);
+
+	return;
+}
+
 void retype_test(void)
 {
 	int i, curr_cpu, ret, ret1, n_valid = 0, n_valid_2 = 0;
@@ -1134,8 +1235,8 @@ void cos_init(void)
 //	else {	goto done; }
 //	if (cos_cpuid() < (NUM_CPU_COS - SND_RCV_OFFSET)  && (cos_cpuid() % 4 == 0)) {
 //	if ((cos_cpuid()%4 == 0 || cos_cpuid()%4 == 2) && (cos_cpuid()+SND_RCV_OFFSET < NUM_CPU_COS)) { // sending core
-//	if (cos_cpuid()%4 <= 1) {
-	if (1) {
+	if (cos_cpuid() <= 0) {
+//	if (1) {
 		/* IPI - ASND/ARCV */
 //		ipi_test();
 //		cap_test();
@@ -1144,8 +1245,9 @@ void cos_init(void)
 //		wcet_test();
 //		cons_decons_test();
 //		retype_test();
-		kobj_test();
+//		kobj_test();
 //		response_test();
+		captbl_cons_test();
 	} else { //if ((cos_cpuid() % 4 <= 1)
 //		printc("core %ld: thd %d switching to pong thd\n", cos_cpuid(), cos_get_thd_id());
 		//printc("core %ld: doing operations as interference\n", cos_cpuid());

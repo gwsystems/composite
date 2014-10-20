@@ -118,13 +118,12 @@ captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t c
 	if (target_ct->h.type != CAP_CAPTBL || target_ct->lvl != 0) cos_throw(err, -EINVAL);
 	if (cons_cap->h.type != CAP_CAPTBL || cons_cap->lvl != 1) cos_throw(err, -EINVAL);
 	captbl_mem = (void *)cons_cap->captbl;
-
 	l = cons_cap->refcnt_flags;
 	if ((l & CAP_MEM_FROZEN_FLAG) || (target_ct->refcnt_flags & CAP_MEM_FROZEN_FLAG)) cos_throw(err, -EINVAL);
 	if ((l & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) cos_throw(err, -EOVERFLOW);
 
 	/* increment refcnt */
-	cos_cas((unsigned long *)&(cons_cap->refcnt_flags), l, l+1);
+	if (cos_cas((unsigned long *)&(cons_cap->refcnt_flags), l, l+1) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
 	/* FIXME: we are expanding the entire page to
 	 * two of the locations. Do we want separate

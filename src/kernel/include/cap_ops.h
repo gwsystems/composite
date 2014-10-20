@@ -121,6 +121,7 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 	if (cap_type == CAP_CAPTBL) {
 		ret = captbl_cons(ct, ctsub, expandid);
 	} else {
+		/* FIXME: we need to ensure TLB quiescence for pgtbl cons/decons! */
 		u32_t flags = 0, old_pte, new_pte, old_v, refcnt_flags;
 
 		intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, depth);
@@ -190,6 +191,19 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 	if (old_v == 0) return 0; /* return an error here? */
 	/* commit; note that 0 is "no entry" in both pgtbl and captbl */
 	if (cos_cas(intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
+
+	if (head->type == CAP_CAPTBL) {
+		/* FIXME: we are removing two half pages for captbl. */
+		struct cap_captbl *ct = (struct cap_captbl *)head;
+
+		intern = captbl_lkup_lvl(ct->captbl, pruneid+(PAGE_SIZE/2/CAPTBL_LEAFSZ), ct->lvl, lvl);
+		if (!intern) return -ENOENT;
+
+		old_v = *intern;
+		if (old_v == 0) return 0; /* return an error here? */
+		/* commit; note that 0 is "no entry" in both pgtbl and captbl */
+		if (cos_cas(intern, old_v, 0) != CAS_SUCCESS) return -ECASFAIL;
+	}
 
 	/* decrement the refcnt */
 	if (head->type == CAP_CAPTBL) {
