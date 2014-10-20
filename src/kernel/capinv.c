@@ -60,10 +60,10 @@ static inline int printfn(struct pt_regs *regs)
 		if (kern_buf[0] == 'F' && kern_buf[1] == 'L' && kern_buf[2] == 'U' &&
 		    kern_buf[3] == 'S' && kern_buf[4] == 'H' && kern_buf[5] == '!') {
 			u32_t ticks;
-			/* if (get_cpuid() == 0) { */
-			/* 	chal_flush_cache(); */
-			/* 	chal_flush_tlb_global(); */
-			/* } */
+			if (get_cpuid() == SND_RCV_OFFSET && len >= 10) {
+				chal_flush_cache();
+				chal_flush_tlb_global();
+			}
 			ticks = *(u32_t *)&timer_detector[get_cpuid() * CACHE_LINE];
 			/* if (get_cpuid() == 20 && ticks % 100 == 0)  */
 			/* 	printk("@%p, %d\n", &timer_detector[get_cpuid() * CACHE_LINE], ticks); */
@@ -587,6 +587,8 @@ composite_sysenter_handler(struct pt_regs *regs)
 				 * has access to it. */
 				unsigned long old = *pte;
 				assert(old & PGTBL_COSKMEM);
+
+				retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
 				*pte = old & ~PGTBL_COSKMEM;
 			}
 
@@ -653,6 +655,8 @@ composite_sysenter_handler(struct pt_regs *regs)
 				 * has access to it. */
 				unsigned long old = *pte;
 				assert(old & PGTBL_COSKMEM);
+
+				retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
 				*pte = old & ~PGTBL_COSKMEM;
 			}
 
@@ -698,6 +702,8 @@ composite_sysenter_handler(struct pt_regs *regs)
 				 * has access to it. */
 				unsigned long old = *pte;
 				assert(old & PGTBL_COSKMEM);
+
+				retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
 				*pte = old & ~PGTBL_COSKMEM;
 			}
 
@@ -896,7 +902,10 @@ composite_sysenter_handler(struct pt_regs *regs)
 			paddr_t frame;
 
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
-			if (ret) cos_throw(err, ret);
+			if (ret) {
+				printk("not getting frame\n.");
+				cos_throw(err, ret);
+			}
 
 			ret = retypetbl_retype2user((void *)frame);
 

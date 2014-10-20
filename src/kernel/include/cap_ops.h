@@ -41,16 +41,22 @@ __cap_capactivate_post(struct cap_header *h, cap_t type)
 	 * the modifications to the capability body are committed
 	 * before finally activating the cap.
 	 */
-	u32_t old_v, new_v;
-	struct cap_header *local;
+
+	/* u32_t old_v, new_v; */
+	/* struct cap_header *local; */
 
 	cos_mem_fence();
+
+	/* FIXME: the following is done in captbl_add now, which is
+	 * wrong. */
+/*
 	new_v = old_v = *((u32_t *)h);
 	
 	local = (struct cap_header *)&new_v;
 	local->type = type;
 	
 	if (unlikely(!cos_cas((unsigned long *)h, old_v, new_v))) return -ECASFAIL;
+*/
 
 	return 0;
 }
@@ -75,7 +81,7 @@ cap_kmem_activate(struct captbl *t, capid_t cap, unsigned long addr, unsigned lo
 
 	if (unlikely(!pgtblc)) return -ENOENT;
 	if (unlikely(pgtblc->h.type != CAP_PGTBL || pgtblc->lvl != 0)) return -EINVAL;
-	if ((ret = pgtbl_kmem_act(pgtblc->pgtbl, addr, (unsigned long *)kern_addr, pte_ret))) return ret;
+	if ((ret = pgtbl_kmem_act(pgtblc->pgtbl, addr & PGTBL_FRAME_MASK, (unsigned long *)kern_addr, pte_ret))) return ret;
 
 	return 0;
 }
@@ -225,7 +231,7 @@ cap_kmem_freeze(struct captbl *t, capid_t target_cap)
 
 		rdtscll(ct->frozen_ts);
 		ret = cos_cas((unsigned long *)&ct->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
-
+		if (ret != CAS_SUCCESS) return -ECASFAIL;
 	} else if (ch->type == CAP_PGTBL) {
 		struct cap_pgtbl *pt = (struct cap_pgtbl *)ch;
 		l = pt->refcnt_flags;
@@ -233,6 +239,7 @@ cap_kmem_freeze(struct captbl *t, capid_t target_cap)
 
 		rdtscll(pt->frozen_ts);
 		ret = cos_cas((unsigned long *)&pt->refcnt_flags, l, l | CAP_MEM_FROZEN_FLAG);
+		if (ret != CAS_SUCCESS) return -ECASFAIL;
 	} else {
 		return -EINVAL;
 	}

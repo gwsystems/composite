@@ -471,6 +471,10 @@ acap_test(void)
 		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
 				  ping->comp_cap, ping->captbl_cap[0], PING_COMPCAP, 0);
 		if (ret) printc("grant comp cap to ping failed >>>>>>>>>>>>> ret %d\n", ret);
+
+		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
+				  BOOT_CAPTBL_SELF_PT, ping->captbl_cap[0], PING_ROOTPGTBL, 0);
+		if (ret) printc("grant root pgtbl to ping failed >>>>>>>>>>>>> ret %d\n", ret);
 	}
 
 	thd_mem = get_kmem_cap();
@@ -510,7 +514,7 @@ acap_test(void)
 
 //	if (cos_cpuid() < (NUM_CPU_COS - SND_RCV_OFFSET)) { // sending core
 //	if (cos_cpuid()%4 == 0 || cos_cpuid()%4 == 2) { // sending core
-	if (0) {
+	if (cos_cpuid() == 0) {
 		// create rcv thd in ping. and copy it to ping's captbl.
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, pong_thd_cap,
 				BOOT_CAPTBL_SELF_PT, thd_mem, ping->comp_cap)) BUG();
@@ -539,13 +543,11 @@ acap_test(void)
 
 		if (call_cap_op(ping->captbl_cap[0], CAPTBL_OP_ASNDACTIVATE, async_test_cap,
 				pong->captbl_cap[0], async_test_cap, 0)) BUG();
-
 	}
 
 	/* copy init thd cap to pong. */
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
 			llboot->init_thd, pong->captbl_cap[0], async_sndthd_cap, 0)) BUG();
-
 
 	ck_spinlock_ticket_unlock(&init_lock);
 
@@ -562,81 +564,15 @@ int run_ppos_test(void)
 	//serialize the init order
 	if (cos_cpuid() != INIT_CORE) 
 		while (ck_pr_load_int(&snd_rcv_order[cos_cpuid()-1]) == 0) ;
+
+	/* setting up test environment. */
 	acap_test();
+
 	ck_pr_store_int(&snd_rcv_order[cos_cpuid()], 1);
 
 	//and sync
 	sync_all(); 
 
-//#define MEM_OP
-#ifdef MEM_OP
-//	if (cos_cpuid() != INIT_CORE && cos_cpuid() != INIT_CORE+SND_RCV_OFFSET) {
-//	if (cos_cpuid() != INIT_CORE) {
-	if (1){
-		u64_t s,e;
-		struct comp_cap_info *ping = &comp_cap_info[2];
-		struct comp_cap_info *pong = &comp_cap_info[3];
-
-		capid_t pmem = ping->addr_start + PAGE_SIZE;
-		vaddr_t to_addr = ping->addr_start + 0x400000 - NUM_CPU*(PAGE_SIZE*16) + cos_cpuid()*PAGE_SIZE*16;
-		int i, ret;
-		u32_t liv_id = get_liv_id();
-
-#define ITER (100*1000)//(10*1024*1024)
-		rdtscll(s);
-		for (i = 0; i < ITER; i++) {
-			ret = call_cap_op(ping->pgtbl_cap[0], CAPTBL_OP_CPY,
-					  pmem, ping->pgtbl_cap[0], to_addr, 0);
-			/* if (ret) { */
-			/* 	printc("ret %d ...on core %d\n", ret, cos_cpuid()); */
-			/* 	continue; */
-			/* } */
-			assert(!ret);
-			ret = call_cap_op(ping->pgtbl_cap[0], CAPTBL_OP_MEMDEACTIVATE,
-					  to_addr, liv_id, 0, 0);
-			/* if (ret) { */
-			/* 	printc("decons failed on core %d, ret %d\n", cos_cpuid(), ret); */
-			/* 	continue; */
-			/* } */
-			assert(!ret);
-		}
-		rdtscll(e);
-		printc("mem_op done on core %d, avg %llu\n", cos_cpuid(), (e-s)/ITER);
-		return 1;
-	}
-#endif
-
-//#define INTERFERE_CORE_ENABLE
-#ifdef INTERFERE_CORE_ENABLE
-	if (cos_cpuid() == NUM_CPU_COS-1) {
-		/* perform interference! */
-		struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
-		struct comp_cap_info *ping = &comp_cap_info[2];
-		struct comp_cap_info *pong = &comp_cap_info[3];
-		capid_t if_cap = PING_CAP_FREE + cos_cpuid()*captbl_idsize(CAP_THD);
-
-		u64_t s,e;
-		printc("core %d interfering @ capid %d...\n", cos_cpuid(), if_cap);
-		rdtscll(s);
-		while (1) {
-			if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-					llboot->init_thd, ping->captbl_cap[0], if_cap, 0)) {
-				printc("failed...1\n");
-				break;
-			}
-			if (call_cap_op(ping->captbl_cap[0], CAPTBL_OP_THDDEACTIVATE,
-					if_cap, 1, 0, 0)) {
-				printc("failed...2\n");
-				break;
-			}
-			rdtscll(e);
-			if ((e-s)/(2000*1000*1000) > RUNTIME) break;
-		}
-		printc("Core %ld: interference done. exiting system.\n", cos_cpuid());
-
-		return 1;
-	} 
-#endif
 	return 0;
 }
 

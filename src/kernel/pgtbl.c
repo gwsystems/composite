@@ -153,9 +153,6 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 		assert(!pgtbl_cap && !cosframe_addr);
 	}
 
-	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_PGTBL, lid);
-	if (ret) cos_throw(err, ret);
-
 	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
 	/* deactivation success. We should either release the
@@ -170,6 +167,10 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 	} else {
 		cos_faa(&parent->refcnt_flags, -1);
 	}
+
+	/* FIXME: this should be before the kmem_deact_post */
+	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_PGTBL, lid);
+	if (ret) cos_throw(err, ret);
 
 	return 0;
 err:

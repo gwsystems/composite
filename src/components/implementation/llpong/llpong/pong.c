@@ -87,7 +87,7 @@ void cos_init(void) {
 	volatile int last_tick, curr_tick;
 
 //	printc(">>> core %d: rcv thd %d in pong, reply target %d\n", cos_cpuid(), cos_get_thd_id(), target);
-#define THD_SWITCH
+//#define THD_SWITCH
 #ifdef THD_SWITCH
 	int thd_cap = SND_THD_CAP_BASE + cos_cpuid()*captbl_idsize(CAP_THD);
 	while (1) {
@@ -99,20 +99,24 @@ void cos_init(void) {
 		}
 	}
 #else
+
+	last_tick = printc("FLUSH!!");
 	while (1) {
-		cos_inst_bar();
-		last_tick = printc("FLUSH!!");
-		cos_inst_bar();
 		ret = call_cap(ACAP_BASE + captbl_idsize(CAP_ARCV)*cos_cpuid(),0,0,0,0);
 		e = tsc_start();
 		cos_inst_bar();
 		curr_tick = printc("FLUSH!!");
 		cos_inst_bar();
+//		printc("cpu %d in pong\n", cos_cpuid());
+
+		/* rcv++; */
+		/* if (rcv % 1024 == 0) printc("core %ld: pong rcv %d ipis!\n", cos_cpuid(), rcv); */
+
 		if (unlikely(curr_tick != last_tick)) {
 			delay(10000);
 //			printc("PONG cpu %ld, timer detected @ %llu, %d, %d\n", cos_cpuid(), e, last_tick, curr_tick);
 			//if (last_tick+1 != curr_tick) printc("PONG tick diff > 1: %u, %u\n", last_tick,curr_tick);
-//			last_tick = curr_tick;
+			last_tick = curr_tick;
 			*pong_shmem = 1; // ping will drop this measurement
 		} else {
 //		ck_pr_store_uint(pong_shmem, e);
@@ -126,8 +130,6 @@ void cos_init(void) {
 		/* 	       cos_get_thd_id(), SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD)); */
 		/* 	ret = cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD)); */
 		/* } */
-		/* rcv++; */
-//		if (rcv % 1000000 == 0) printc("core %ld: pong rcv %d ipis!\n", cos_cpuid(), rcv);
 		
 		/* reply if doing round-trip */
 //		assert(target >= 0);

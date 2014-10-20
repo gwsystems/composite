@@ -310,7 +310,8 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 		p->liveness_id = 0;
 	}
 
-	assert(p == __captbl_lkupan(t, cap, CAPTBL_DEPTH+1, NULL));
+	/* FIXME: same as above! */
+//	assert(p == __captbl_lkupan(t, cap, CAPTBL_DEPTH+1, NULL));
 	*retval = ret;
 
 	return p;
