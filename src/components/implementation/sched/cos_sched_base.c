@@ -224,8 +224,6 @@ static void report_thd_accouting(void)
 #endif
 }
 
-static tcap_t tcap_timer, tcap_net, tcap_normal;
-
 static void activate_child_sched(struct sched_thd *g);
 
 static inline void fp_resume_thd(struct sched_thd *t)
@@ -509,9 +507,6 @@ static int exit_system = 0;
 
 static void sched_timer_tick(void)
 {
-	//QW: to remove
-	int *detector = 0x44bf0000;
-
 	while (1) {
 		cos_sched_lock_take();
 		report_event(TIMER_TICK);
@@ -536,8 +531,6 @@ static void sched_timer_tick(void)
 		PERCPU_GET(sched_base_state)->ticks++;
 		sched_process_wakeups();
 		timer_tick(1);
-
-		ck_pr_store_int(&detector[cos_cpuid()*16], 1);
 
 		sched_switch_thread(COS_SCHED_ACAP_WAIT, TIMER_SWITCH_LOOP);
 		/* Tailcall out of the loop */
@@ -941,12 +934,6 @@ int sched_block(spdid_t spdid, unsigned short int dep_thd)
 	int ret, first = 1;
 	unsigned short int dependency_thd = dep_thd;
 
-	//QW: to remove
-	if (dep_thd == 999) {
-		exit_system = 1;
-		return 0;
-	}
-
 	// Added by Gabe 08/19
 	if (unlikely(dep_thd == cos_get_thd_id())) return -EINVAL;
 
@@ -1252,7 +1239,6 @@ sched_create_thread(spdid_t spdid, struct cos_array *data)
 	char *metric_str;
 
 	printc("WARNING: the sched_create_thread function is deprecated.  Please use sched_create_thd\n");
-	BUG();
 	
 	if (spdid == cos_spd_id()) return -1;
 	if (!cos_argreg_arr_intern(data)) return -1;
@@ -1542,29 +1528,27 @@ static int child_ticks_stale(struct sched_thd *t)
 }
 
 /* return 1 if the child's time is updated, 0 if not */
-static void 
-child_ticks_update(struct sched_thd *t, u32_t *time_elapsed)
+static void child_ticks_update(struct sched_thd *t, struct sched_child_evt *e)
 {
 	u64_t ts, lticks;
 
 	ts = t->tick;
 	lticks = PERCPU_GET(sched_base_state)->ticks;
 	if (lticks > ts) {
-		*time_elapsed = lticks - ts;
+		e->time_elapsed = lticks - ts;
 		t->tick = lticks;
 	}
 }
 
-int 
-sched_child_get_evt(spdid_t spdid, int idle, unsigned long wake_diff, cevt_t *type, 
-		    unsigned short int *tid, u32_t *time_elapsed)
+int sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff)
 {
 	struct sched_thd *t, *et;
 	int c = 0;
 
-	*type         = SCHED_CEVT_OTHER;
-	*tid          = 0;
-	*time_elapsed = 0;
+	if (!e) return -1;
+	e->t            = SCHED_CEVT_OTHER;
+	e->tid          = 0;
+	e->time_elapsed = 0;
 	
 	cos_sched_lock_take();
 	t = sched_get_current();
@@ -1581,7 +1565,7 @@ sched_child_get_evt(spdid_t spdid, int idle, unsigned long wake_diff, cevt_t *ty
 		    child_ticks_stale(t)             || 
 		    !idle) {
 			t->cevt_flags &= ~SCHED_CEVT_OTHER;
-			child_ticks_update(t, time_elapsed);
+			child_ticks_update(t, e);
 			if (!idle) { report_event(PARENT_CHILD_EVT_OTHER); } 
 			goto done;
 		}
@@ -1592,7 +1576,7 @@ sched_child_get_evt(spdid_t spdid, int idle, unsigned long wake_diff, cevt_t *ty
 		 * data-structures need to be reacquired. */
 		deactivate_child_sched(t);
 	}
-	child_ticks_update(t, time_elapsed);
+	child_ticks_update(t, e);
 
 	/* We have a thread event (blocking or waking) */
 	et = FIRST_LIST(t, cevt_next, cevt_prev);
@@ -1602,11 +1586,11 @@ sched_child_get_evt(spdid_t spdid, int idle, unsigned long wake_diff, cevt_t *ty
 	if (!EMPTY_LIST(t, cevt_next, cevt_prev)) c = 1;
 
 	assert(sched_thd_member(et));
-	*tid = et->id;
+	e->tid = et->id;
 	if (sched_thd_blocked(et)) {
-		*type = SCHED_CEVT_BLOCK;
+		e->t = SCHED_CEVT_BLOCK;
 	} else if (sched_thd_ready(et) || sched_thd_dependent(et)) {
-		*type = SCHED_CEVT_WAKE;
+		e->t = SCHED_CEVT_WAKE;
 	} else {
 		printc("child thd evt with flags %x.", et->flags);
 		BUG();
@@ -1621,14 +1605,13 @@ err:
 	goto done;
 }
 
-static void 
-sched_process_cevt(cevt_t type, unsigned short int tid, u32_t time_elapsed)
+static void sched_process_cevt(struct sched_child_evt *e)
 {
 	struct sched_thd *t;
 
-	switch(type) {
+	switch(e->t) {
 	case SCHED_CEVT_WAKE:
-		t = sched_get_mapping(tid);
+		t = sched_get_mapping(e->tid);
 		assert(NULL != t);
 		assert(0 == t->wake_cnt);
 		if (sched_thd_blocked(t)) {
@@ -1638,7 +1621,7 @@ sched_process_cevt(cevt_t type, unsigned short int tid, u32_t time_elapsed)
 		report_event(CHILD_EVT_WAKE);
 		break;
 	case SCHED_CEVT_BLOCK:
-		t = sched_get_mapping(tid);
+		t = sched_get_mapping(e->tid);
 		assert(NULL != t);
 		fp_pre_block(t);
 		assert(0 == t->wake_cnt);
@@ -1652,8 +1635,8 @@ sched_process_cevt(cevt_t type, unsigned short int tid, u32_t time_elapsed)
 
 	/* Process timer ticks which might be 0.  Tick information
 	 * can be sent with any event. */
-	if (time_elapsed) {
-		u64_t te = time_elapsed;
+	if (e->time_elapsed) {
+		u64_t te = e->time_elapsed;
 		static u64_t prev_print = 0;
 
 		PERCPU_GET(sched_base_state)->ticks += te;
@@ -1668,22 +1651,19 @@ sched_process_cevt(cevt_t type, unsigned short int tid, u32_t time_elapsed)
 	}
 }
 
-extern int 
-parent_sched_child_get_evt(spdid_t spdid, int idle, unsigned long wake_diff, cevt_t *type, 
-			   unsigned short int *tid, u32_t *time_elapsed);
+extern int parent_sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff);
 /* 
  * The thread executing in this function (the timer thread in a child
  * scheduler) is invoked in two situations: 1) when the child is idle,
  * and 2) when the parent wishes to run the child and possibly convey
  * to it events such as thread blocking or waking.
  */
-static void 
-sched_child_evt_thd(void)
+static void sched_child_evt_thd(void)
 {
-	cevt_t type;
-	unsigned short int tid;
-	u32_t time_elapsed;
+	struct sched_child_evt *e;
 
+	e = cos_argreg_alloc(sizeof(struct sched_child_evt));
+	assert(NULL != e);
 	while (1) {
 		int cont, should_idle;
 
@@ -1716,11 +1696,11 @@ sched_child_evt_thd(void)
 			cos_sched_clear_cevts();
 			cos_sched_lock_release();
 			/* Get events from the parent scheduler */
-			cont = parent_sched_child_get_evt(cos_spd_id(), should_idle, wake_diff, &type, &tid, &time_elapsed);
+			cont = parent_sched_child_get_evt(cos_spd_id(), e, should_idle, wake_diff);
 			cos_sched_lock_take();
 			assert(0 <= cont);
 			/* Process those events */
-			sched_process_cevt(type, tid, time_elapsed);
+			sched_process_cevt(e);
 			report_event(should_idle ? CHILD_PROCESS_EVT_IDLE : CHILD_PROCESS_EVT_PEND);
 		} while (cont);
 		
@@ -1775,7 +1755,7 @@ void sched_exit(void)
 //	cos_switch_thread_release(PERCPU_GET(sched_base_state)->init->id, 0);
 	while (1) {
 		cos_sched_clear_events();
-		cos_switch_thread(PERCPU_GET(sched_base_state)->init->id, 0, tcap_timer);
+		cos_switch_thread(PERCPU_GET(sched_base_state)->init->id, 0);
 	}
 	BUG();
 }
@@ -1785,101 +1765,6 @@ static struct sched_thd *fp_create_timer(void)
 	struct sched_thd *timer_thd;
 	union sched_param sp[2] = {{.c = {.type = SCHEDP_TIMER}},
 				   {.c = {.type = SCHEDP_NOOP}}};
-	struct sched_thd *t;
-
-	assert(sched_is_root());
-	timer_thd = sched_setup_thread_arg(cos_spd_id(), &sp, fp_timer, 0, 1);
-	if (!timer_thd) BUG();
-	PERCPU_GET(sched_base_state)->timer = timer_thd;
-
-	return timer_thd;
-}
-
-inline int sched_curr_is_IPI_handler(void) {
-	return (sched_get_current() == PERCPU_GET(sched_base_state)->IPI_handler);
-}
-
-static inline int exec_fn(int (*fn)(), int nparams, u32_t *params) {
-	int ret = -1;
-
-	assert(fn);
-
-	switch (nparams)
-	{		
-	case 0:
-		ret = fn();
-		break;
-	case 1:
-		ret = fn(params[0]);
-		break;
-	case 2:
-		ret = fn(params[0], params[1]);
-		break;
-	case 3:
-		ret = fn(params[0], params[1], params[2]);
-		break;
-	case 4:
-		ret = fn(params[0], params[1], params[2], params[3]);
-		break;
-	}
-	
-	return ret;
-}
-
-static void IPI_handler(void *d)
-{
-	struct sched_base_per_core *sched_state = PERCPU_GET(sched_base_state);
-	struct xcore_ring_item ring_item;
-	struct xcore_fn_data *data;
-	int cli_acap, srv_acap, ret;
-	struct ck_ring *ring = PERCPU_GET(percpu_ring);
-	void *ring_buf = PERCPU_GET(xcore_ring_page);
-
-	ret = cos_async_cap_cntl(COS_ACAP_CREATE, cos_spd_id(), cos_spd_id(), cos_get_thd_id());
-
-	cli_acap = ret >> 16;
-	srv_acap = ret & 0xFFFF;
-
-	if (unlikely(cli_acap <= 0 || srv_acap <= 0)) {
-		printc("Scheduler %ld could not allocate acap for IPI handler %d.\n", cos_spd_id(), cos_get_thd_id());
-		BUG();
-	}
-	sched_state->IPI_acap = cli_acap;
-
-	if (ret < 0) BUG();
-
-	ck_ring_init(ring, leqpow2(PAGE_SIZE / sizeof(struct xcore_ring_item)));
-
-	printc("Core %ld: Starting IPI handling thread (thread id %d, client acap %d, server acap %d)\n", 
-	       cos_cpuid(), cos_get_thd_id(), cli_acap, srv_acap);
-	while (1) {
-		cos_sched_lock_take();
-		/* Going to switch away */
-		/* Do not use areceive syscall here. We are in the scheduler. */
-		sched_switch_thread(COS_SCHED_ACAP_WAIT, EVT_CMPLETE_LOOP);
-
-		/* Received an IPI! */
-		while (CK_RING_DEQUEUE_SPSC(xcore_ring, ring, (struct xcore_ring_item *)ring_buf, &ring_item) == true) {
-			data = ring_item.data;
-			assert(data->nparams <= 4);
-			assert(data->finished == 0);
-			assert(data->fn);
-			//printc("core %d executing...\n", cos_cpuid());
-			data->ret = exec_fn(data->fn, data->nparams, data->params);
-			//printc("core %d done exe.\n", cos_cpuid());
-			data->finished = 1;
-		}
-		/* printc("Core %ld: done processing IPI request!\n", cos_cpuid()); */
-	}
-
-	BUG();
-}
-
-static struct sched_thd *fp_create_IPI_handler(void)
-{
-	union sched_param sp[2] = {{.c = {.type = SCHEDP_IPI_HANDLER}},
-				   {.c = {.type = SCHEDP_NOOP}}};
-	struct sched_base_per_core *sched_state = PERCPU_GET(sched_base_state);
 
 	assert(sched_is_root());
 	timer_thd = sched_setup_thread_arg(cos_spd_id(), &sp, fp_timer, 0, 1);
@@ -2027,8 +1912,6 @@ static void sched_init_thd_core_mapping(void)
 static void 
 __sched_init(void)
 {
-	int ret;
-
 	/* Should be done for each core. */
 	struct sched_base_per_core *sched_state = PERCPU_GET(sched_base_state);
 	sched_init_thd(&sched_state->blocked, 0, THD_FREE);

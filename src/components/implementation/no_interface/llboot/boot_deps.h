@@ -29,7 +29,7 @@ printc(char *fmt, ...)
 
 #ifndef assert
 /* On assert, immediately switch to the "exit" thread */
-#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0, 0); }} while(0)
+#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0);} } while(0)
 #endif
 
 #ifdef BOOT_DEPS_H
@@ -147,7 +147,7 @@ llboot_thd_done(void)
 		 * sched_exit... */
 		printc("core %ld: booter init_thd switching back to alpha %d.\n", cos_cpuid(), llboot->alpha);
 
-		while (1) cos_switch_thread(llboot->alpha, 0, 0);
+		while (1) cos_switch_thread(llboot->alpha, 0);
 		BUG();
 	}
 	
@@ -164,7 +164,7 @@ llboot_thd_done(void)
 		} else {		/* ...done reinitializing...resume */
 			assert(pthd && pthd != tid);
 			llboot->prev_thd = 0;   /* FIXME: atomic action required... */
-			cos_switch_thread(pthd, 0, 0);
+			cos_switch_thread(pthd, 0);
 		}
 	}
 }
@@ -192,7 +192,7 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 		/* switch to the recovery thread... */
 		llboot->recover_spd = spdid;
 		llboot->prev_thd = cos_get_thd_id();
-		cos_switch_thread(llboot->recovery_thd, 0, 0);
+		cos_switch_thread(llboot->recovery_thd, 0);
 		/* after the recovery thread is done, it should switch back to us. */
 		return 0;
 	}
@@ -346,7 +346,7 @@ static void
 boot_deps_run_all(void)
 {
 	assert(PERCPU_GET(llbooter)->init_thd);
-	cos_switch_thread(PERCPU_GET(llbooter)->init_thd, 0, 0);
+	cos_switch_thread(PERCPU_GET(llbooter)->init_thd, 0);
 	return ;
 }
 
@@ -428,7 +428,7 @@ void sync_all()
 static inline void
 acap_test(void)
 {
-	/* int ret; */
+	int ret;
 	/* asnd and arcv tests! */
 	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
 	struct comp_cap_info *ping = &comp_cap_info[2];
@@ -565,7 +565,7 @@ acap_test(void)
 int snd_rcv_order[NUM_CPU];
 int run_ppos_test(void)
 {
-	/* int ret; */
+	int ret;
 	//serialize the init order
 	if (cos_cpuid() != INIT_CORE) 
 		while (ck_pr_load_int(&snd_rcv_order[cos_cpuid()-1]) == 0) ;
@@ -987,12 +987,12 @@ void
 sched_exit(void)
 {
 	printc("LLBooter: Core %ld called sched_exit. Switching back to alpha.\n", cos_cpuid());
-	while (1) cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0, 0);	
+	while (1) cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0);	
 }
 
 int 
-sched_child_get_evt(spdid_t spdid, int idle, unsigned long wake_diff, cevt_t *type, 
-		    unsigned short int *tid, u32_t *time_elapsed) { BUG(); return 0; }
+sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff) 
+{ BUG(); return 0; }
 
 int 
 sched_child_cntl_thd(spdid_t spdid) 

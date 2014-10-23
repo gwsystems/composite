@@ -16,7 +16,6 @@
 #include "include/mmap.h"
 #include "include/per_cpu.h"
 #include "include/chal.h"
-#include "include/tcap.h"
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include "include/fpu.h"
@@ -997,8 +996,6 @@ cos_syscall_switch_thread(struct pt_regs *regs)
 		           thd_sched_flags  = COS_SCHED_EVT_NIL;
 	struct cos_sched_data_area *da;
 	int ret_code = COS_SCHED_RET_ERROR;
-	tcap_t tcid;
-	struct tcap *tc, *budget;
 
 	rthd_id = user_regs_get_arg1(regs);
 	rflags  = user_regs_get_arg2(regs);
@@ -1017,20 +1014,6 @@ cos_syscall_switch_thread(struct pt_regs *regs)
 	}
 
 	assert(!(curr->flags & THD_STATE_PREEMPTED));
-
-	tc = tcap_get(curr_spd, tcid);
-	if (unlikely(!tc)) {
-		printk("switch_thread err: no tcap\n");
-		goto ret_err;
-	}
-	budget = tcap_deref(&tc->budget);
-	if (unlikely(!budget || 
-		     budget->budget_local.cycles <= 0 ||
-		     budget->budget_local.expiration < time_ticks())) {
-		if (!budget) printk("switch_thread err: tcap can't get budget\n");
-		else printk("switch_thread err: tcap with no budget %d, or expired %u vs %u\n", budget->budget_local.cycles, budget->budget_local.expiration, time_ticks());
-		goto ret_err;
-	}
 
 	/* Probably should change to kern_sched_shared_page */
 	da = curr_spd->sched_shared_page[get_cpuid()];
@@ -1092,7 +1075,6 @@ cos_syscall_switch_thread(struct pt_regs *regs)
 	}
 
 	update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags);
-	tcap_bind(thd, tc); 	/* activate the tcap */
 	/* success for this current thread */
 	curr->regs.ax = COS_SCHED_RET_SUCCESS;
 	event_record("switch_thread", thd_get_id(curr), thd_get_id(thd));
@@ -2059,8 +2041,7 @@ static int update_evt_list(struct thd_sched_info *tsi)
 	return 0;
 }
 
-static inline void 
-update_thd_evt_state(struct thread *t, int flags, unsigned long elapsed)
+static inline void update_thd_evt_state(struct thread *t, int flags, unsigned long elapsed)
 {
 	int i;
 	struct thd_sched_info *tsi;
@@ -2112,9 +2093,8 @@ update_thd_evt_state(struct thread *t, int flags, unsigned long elapsed)
 	return;
 }
 
-static void 
-update_sched_evts(struct thread *new, int new_flags, 
-		  struct thread *prev, int prev_flags)
+static void update_sched_evts(struct thread *new, int new_flags, 
+			      struct thread *prev, int prev_flags)
 {
 	unsigned elapsed = 0;
 
@@ -2198,7 +2178,6 @@ ainv_higher_urgency(struct thread *upcall, struct thread *prev)
 {
 	int d;
 	u16_t u_urg, p_urg;
-	int tcap_higher = 0;
 
 	assert(upcall->srv_acap && upcall->flags & THD_STATE_UPCALL);
 
@@ -2219,8 +2198,6 @@ ainv_higher_urgency(struct thread *upcall, struct thread *prev)
 	}
 	u_urg = thd_get_depth_urg(upcall, d);
 	p_urg = thd_get_depth_urg(prev, d);
-
-	tcap_higher = tcap_higher_prio(upcall, prev);
 	/* We should not run the upcall if it doesn't have more
 	 * urgency, remember here that higher numerical values equals
 	 * less importance. */

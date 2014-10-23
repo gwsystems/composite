@@ -247,8 +247,6 @@ void spd_free(struct spd *spd)
 		spd_mpd_terminate(cspd);
 	}
 
-	tcap_delete_all(spd);
-
 	return;
 }
 
@@ -294,8 +292,6 @@ struct spd *spd_alloc(unsigned short int num_caps, struct usr_inv_cap *user_cap_
 		spd->ncaps = 0;
 	}
 	
-	tcap_spd_init(spd);
-
 	spd->user_cap_tbl = NULL; //user_cap_tbl;
 	spd->user_vaddr_cap_tbl = user_cap_tbl;
 

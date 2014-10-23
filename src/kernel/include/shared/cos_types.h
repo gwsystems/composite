@@ -431,7 +431,6 @@ typedef unsigned int page_index_t;
 
 typedef unsigned short int spdid_t;
 typedef unsigned short int thdid_t;
-typedef unsigned short int tcap_t;
 
 struct restartable_atomic_sequence {
 	vaddr_t start, end;

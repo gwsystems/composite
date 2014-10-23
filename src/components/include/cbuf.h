@@ -265,7 +265,7 @@ __cbuf2buf(cbuf_t cb, int len, int tmem)
 {
 	u32_t id;
 	struct cbuf_meta *cm;
-	/* union cbufm_info ci;//, ci_new; */
+	union cbufm_info ci;//, ci_new;
 	void *ret = NULL;
 	long cbidx;
 	if (unlikely(!len)) return NULL;
@@ -281,7 +281,7 @@ again:
 			goto again;
 		}
 	} while (unlikely(!cm->nfo.v));
-	/* ci.v = cm->nfo.v; */
+	ci.v = cm->nfo.v;
 
 	if (!tmem) {
 		if (unlikely(cm->nfo.c.flags & CBUFM_TMEM)) goto done;

@@ -8,31 +8,30 @@ comps:
 	$(info ************* Building Components *************)
 	$(info ***********************************************)
 	$(info )
-	@$(MAKE) $(MAKEFLAGS) -C components
-
+	$(MAKE) $(MAKEFLAGS) -C components
 kern: comps
 	$(info )
 	$(info ***********************************************)
 	$(info ******** Building Platform and Kernel *********)
 	$(info ***********************************************)
 	$(info )
-	@$(MAKE) $(MAKEFLAGS) -C platform
+	$(MAKE) $(MAKEFLAGS) -C platform
 
 cp:
-	@$(MAKE) $(MAKEFLAGS) -C platform cp
-	@$(MAKE) $(MAKEFLAGS) -C components cp
+	$(MAKE) $(MAKEFLAGS) -C platform cp
+	$(MAKE) $(MAKEFLAGS) -C components cp
 
 clean:
-	@$(MAKE) $(MAKEFLAGS) -C platform clean
-	@$(MAKE) $(MAKEFLAGS) -C components clean
+	$(MAKE) $(MAKEFLAGS) -C platform clean
+	$(MAKE) $(MAKEFLAGS) -C components clean
 
 
 distclean: clean
-	@$(MAKE) $(MAKEFLAGS) -C components distclean	
+	$(MAKE) $(MAKEFLAGS) -C components distclean	
 
 init:
-	@$(MAKE) $(MAKEFLAGS) -C components init
-	@$(MAKE) $(MAKEFLAGS) -C platform init
+	$(MAKE) $(MAKEFLAGS) -C components init
+	$(MAKE) $(MAKEFLAGS) -C platform init
 
 config:
 	@echo "Configuring the system with clock speed and directory structure."
@@ -47,10 +46,10 @@ config:
 	@echo "TEST_DIR=/root/experiments/" >> Makefile.cosconfig
 
 idl:
-	@$(MAKE) $(MAKEFLAGS) -C components idl
+	$(MAKE) $(MAKEFLAGS) -C components idl
 
 ltests:
-	@$(MAKE) $(MAKEFLAGS) -C platform ltests
+	$(MAKE) $(MAKEFLAGS) -C platform ltests
 
 cltests:
-	@$(MAKE) $(MAKEFLAGS) -C platform cltests
+	$(MAKE) $(MAKEFLAGS) -C platform cltests

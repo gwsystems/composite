@@ -15,7 +15,6 @@
 #include "shared/cos_types.h"
 #include "shared/consts.h"
 #include "chal.h"
-#include "tcap.h"
 
 /**
  * Service Protection Domains

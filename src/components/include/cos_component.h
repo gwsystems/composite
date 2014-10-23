@@ -210,9 +210,8 @@ cos_syscall_3(19, int, __trans_cntl, unsigned long, op_ch, unsigned long, addr, 
 cos_syscall_3(20, int, __pfn_cntl, unsigned long, op_spd, unsigned long, mem_id, int, extent);
 cos_syscall_0(31,  int, null);
 
-static inline int 
-cos_mmap_cntl(short int op, short int flags, short int dest_spd, 
-	      vaddr_t dest_addr, unsigned long mem_id) {
+static inline int cos_mmap_cntl(short int op, short int flags, short int dest_spd, 
+				vaddr_t dest_addr, unsigned long mem_id) {
 	/* encode into 3 arguments */
 	return cos___mmap_cntl(((op<<24) | (flags << 16) | (dest_spd)), 
 			       dest_addr, mem_id);

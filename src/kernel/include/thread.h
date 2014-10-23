@@ -9,7 +9,6 @@
 #define THREAD_H
 
 #include "spd.h"
-#include "tcap.h"
 #include "debug.h"
 #include "shared/consts.h"
 #include "per_cpu.h"
@@ -268,8 +267,7 @@ static inline struct spd_poly *thd_get_thd_spdpoly(struct thread *thd)
 }
 
 extern struct thread threads[MAX_NUM_THREADS];
-static inline struct thread *
-thd_get_by_id(int id)
+static inline struct thread *thd_get_by_id(int id)
 {
 	/* Thread 0 is reserved. */
 	int adjusted = id-1;
@@ -280,16 +278,16 @@ thd_get_by_id(int id)
 	return &threads[adjusted];
 }
 
-static inline struct thd_sched_info *
-thd_get_sched_info(struct thread *thd, unsigned short int depth)
+static inline struct thd_sched_info *thd_get_sched_info(struct thread *thd, 
+							unsigned short int depth)
 {
 	assert(depth < MAX_SCHED_HIER_DEPTH);
 
 	return &thd->sched_info[depth];
 }
 
-static inline unsigned short int 
-thd_get_depth_urg(struct thread *t, unsigned short int depth)
+static inline unsigned short int thd_get_depth_urg(struct thread *t,
+						   unsigned short int depth)
 {
 	struct thd_sched_info *tsi;
 	struct spd *sched;
@@ -307,8 +305,7 @@ static inline struct spd *thd_get_depth_sched(struct thread *t, unsigned short i
 	return thd_get_sched_info(t, d)->scheduler;
 }
 
-static inline int 
-thd_scheduled_by(struct thread *thd, struct spd *spd) 
+static inline int thd_scheduled_by(struct thread *thd, struct spd *spd) 
 {
 	return thd_get_sched_info(thd, spd->sched_depth)->scheduler == spd;
 }

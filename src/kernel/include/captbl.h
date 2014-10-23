@@ -15,7 +15,6 @@
 #include "ertrie.h"
 #include "liveness_tbl.h"
 #include "shared/util.h"
-//#include "errno.h"
 
 #ifndef CACHELINE_SIZE
 #define CACHELINE_SIZE  64

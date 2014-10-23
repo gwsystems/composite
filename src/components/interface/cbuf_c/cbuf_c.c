@@ -105,7 +105,7 @@ __cbuf_2buf_miss(int cbid, int len, int tmem)
 {
 	struct cbuf_meta *mc;
 	int ret;
-	/* void *h; */
+	void *h;
 
 	/* 
 	 * FIXME: This can lead to a DOS where the client passes all
@@ -180,8 +180,8 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 			struct cbuf_alloc_desc *d, *fl;
 			struct cbuf_meta *meta;
 			int idx = cbid_to_meta_idx(cbs[i]);
-			/* u32_t page; */
-			/* void *data; */
+			u32_t page;
+			void *data;
 
 			assert(idx > 0);
 			meta = cbuf_vect_lookup_addr(idx, 0);

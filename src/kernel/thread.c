@@ -81,7 +81,6 @@ thread *thd_alloc(struct spd *spd)
 
 	id = thd->thread_id;
 	memset(thd, 0, sizeof(struct thread));
-	/* this memset will set the budget to have 0 cycles/exp */
 	thd->thread_id = id;
 	thd->cpu = get_cpuid();
 

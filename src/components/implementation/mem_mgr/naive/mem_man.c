@@ -205,11 +205,6 @@ mm_init(void)
 
 	frame_init();
 
-	//QW: to remove 
-	if (cos_mmap_cntl(COS_MMAP_GRANT, MAPPING_RW, 2, 0x44bf0000, 63000)) {
-		printc("9998 failed >>>>>>>>>>>>>>>>\n");
-	}
-
 	printc("core %ld: mm init done\n", cos_cpuid());
 }
 
@@ -493,18 +488,6 @@ dealloc:
 
 vaddr_t __mman_alias_page(spdid_t s_spd, vaddr_t s_addr, u32_t d_spd_flags, vaddr_t d_addr)
 {
-
-	//QW: to remove
-	if (d_addr == 9999) {
-		printc("params: %d, %d, %d, %d\n", s_spd, s_addr, d_spd_flags>>16, d_addr);
-		LOCK();
-		if (cos_mmap_cntl(COS_MMAP_GRANT, MAPPING_RW, 14, 0x4c3f0000, 63000)) {
-			printc("9999 failed >>>>>>>>>>>>>>>>\n");
-		}
-		UNLOCK();
-		return 1;
-	}
-
 	struct mapping *m, *n;
 	vaddr_t ret = 0;
 	spdid_t d_spd;
@@ -626,8 +609,7 @@ sched_exit(void)
 int sched_isroot(void) { return 1; }
 
 int 
-sched_child_get_evt(spdid_t spdid, int idle, unsigned long wake_diff, cevt_t *type, 
-		    unsigned short int *tid, u32_t *time_elapsed) { BUG(); return 0; }
+sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff) { BUG(); return 0; }
 
 extern int parent_sched_child_cntl_thd(spdid_t spdid);
 

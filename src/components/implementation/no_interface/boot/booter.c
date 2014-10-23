@@ -201,9 +201,9 @@ boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, i
 {
 	unsigned int i;
 	/* Where are we in the actual component's memory in the booter? */
-	char *start_addr /*, *offset */;
+	char *start_addr, *offset;
 	/* Where are we in the destination address space? */
-	vaddr_t /* prev_daddr, */ init_daddr;
+	vaddr_t prev_daddr, init_daddr;
 
 	start_addr = local_md[spdid].page_start;
 	init_daddr = cobj_sect_get(h, 0)->vaddr;
@@ -211,8 +211,8 @@ boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, i
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
 		vaddr_t dest_daddr;
-		char *lsrc /*, *dsrc */;
-		int left /*, dest_doff */;
+		char *lsrc, *dsrc;
+		int left, dest_doff;
 
 		sect       = cobj_sect_get(h, i);
 		/* virtual address in the destination address space */
@@ -474,7 +474,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, va
 {
 	unsigned int i;
 	vaddr_t dest_daddr, prev_map = 0;
-	/* char *dsrc; */
+	char *dsrc;
 	int flag;
 	capid_t captbl_cap = comp_cap_info[spdid].captbl_cap[0];
 	capid_t pgtbl_cap  = comp_cap_info[spdid].pgtbl_cap[0];
@@ -520,9 +520,9 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 {
 	unsigned int i;
 	/* Where are we in the actual component's memory in the booter? */
-	char *start_addr/* , *offset */;
+	char *start_addr, *offset;
 	/* Where are we in the destination address space? */
-	vaddr_t /* prev_daddr, */ init_daddr;
+	vaddr_t prev_daddr, init_daddr;
 	struct cos_component_information *ci;
 
 	start_addr = (char *)comp_mapping_start;
@@ -531,8 +531,8 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
 		vaddr_t dest_daddr;
-		char *lsrc /* , *dsrc */;
-		int left /* , dest_doff */;
+		char *lsrc, *dsrc;
+		int left, dest_doff;
 
 		sect       = cobj_sect_get(h, i);
 		/* virtual address in the destination address space */
