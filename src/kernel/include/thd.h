@@ -157,14 +157,9 @@ extern u32_t free_thd_id;
 static u32_t
 alloc_thd_id(void)
 {
-	u32_t old, new;
-        /* FIXME: get rid of this. */
-        do {
-		old = free_thd_id;
-		new = free_thd_id + 1;
-        } while (unlikely(!cos_cas((unsigned long *)&free_thd_id, (unsigned long)old, (unsigned long)new)));
-
-	return old;
+        /* FIXME: thd id address space management. */
+	if (unlikely(free_thd_id >= MAX_NUM_THREADS)) assert(0);
+	return cos_faa(&free_thd_id, 1);
 }
 
 static int 
@@ -192,15 +187,15 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 			 COS_UPCALL_THD_CREATE, init_data, 0, 0);
 
 	/* initialize the capability */
-	tc->t     = thd;
+	tc->t      = thd;
 	thd->cpuid = tc->cpuid = get_cpuid();
 	__cap_capactivate_post(&tc->h, CAP_THD);
 
 	return 0;
 }
 
-static int thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin, livenessid_t lid,
-			  livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr)
+static int thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin, 
+			  livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
 {
 	struct cap_header *thd_header;
 	struct thread *thd;
@@ -214,17 +209,18 @@ static int thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigne
 	assert(thd->refcnt);
 
 	if (thd->refcnt == 1) {
+		if (!root) cos_throw(err, -EINVAL);
 		/* Last reference. Require pgtbl and
 		 * cos_frame cap to release the kmem
 		 * page. */
-		ret = kmem_deact_pre(ct, pgtbl_cap, cosframe_addr, kmem_lid, 
-				     (void *)thd, &pte, &old_v);
+		ret = kmem_deact_pre(thd_header, ct, pgtbl_cap, 
+				     cosframe_addr, &pte, &old_v);
 		if (ret) cos_throw(err, ret);
 	} else {
-		/* more reference exists. just sanity
-		 * checks. */
+		/* more reference exists. */
+		if (root) cos_throw(err, -EINVAL);
 		assert(thd->refcnt > 1);
-		if (pgtbl_cap || cosframe_addr || kmem_lid) {
+		if (pgtbl_cap || cosframe_addr) {
 			/* we pass in the pgtbl cap and frame addr,
 			 * but ref_cnt is > 1. We'll ignore the two
 			 * parameters as we won't be able to release
@@ -235,16 +231,16 @@ static int thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigne
 	}
 
 	ret = cap_capdeactivate(dest_ct, capin, CAP_THD, lid); 
-			
-	if (ret == 0) {
-		thd->refcnt--;
 
-		/* deactivation success */
-		if (thd->refcnt == 0) {
-			/* move the kmem for the thread to a location
-			 * in a pagetable as COSFRAME */
-			kmem_deact_post(pte, old_v, kmem_lid);
-		}
+	if (ret) cos_throw(err, ret);
+
+	thd->refcnt--;
+	/* deactivation success */
+	if (thd->refcnt == 0) {
+		/* move the kmem for the thread to a location
+		 * in a pagetable as COSFRAME */
+		ret = kmem_deact_post(pte, old_v);
+		if (ret) cos_throw(err, ret);
 	}
 
 	return 0;

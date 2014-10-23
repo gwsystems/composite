@@ -601,8 +601,8 @@ static void hw_reset(void *data)
 #define THD_SIZE (PAGE_SIZE/4)
 
 u8_t init_thds[THD_SIZE * NUM_CPU_COS] PAGE_ALIGNED;
-/* Need 2 pages for llboot captbl. */
-u8_t boot_comp_captbl[PAGE_SIZE*2] PAGE_ALIGNED; 
+/* Reserve 5 pages for llboot captbl. */
+u8_t boot_comp_captbl[PAGE_SIZE*BOOT_CAPTBL_NPAGES] PAGE_ALIGNED; 
 u8_t c0_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 
 u8_t *boot_comp_pgd;
@@ -610,12 +610,13 @@ u8_t *boot_comp_pte_vm;
 u8_t *boot_comp_pte_km;
 u8_t *boot_comp_pte_pm;
 
-unsigned long sys_maxmem = COS_MAX_MEMORY; /* # of physical pages available */
+#define N_PHYMEM_PAGES COS_MAX_MEMORY /* # of physical pages available */
 
 static void *cos_kmem, *cos_kmem_base;
 void *linux_pgd;
 vaddr_t boot_sinv_entry;
 unsigned long sys_llbooter_sz;    /* how many pages is the llbooter? */
+void *llbooter_kern_mapping;
 
 struct thread *__thd_current;
 
@@ -633,20 +634,25 @@ kern_boot_comp(struct spd_info *spd_info)
 	struct captbl *ct, *ct0;
 	pgtbl_t pt, pt0;
 	unsigned int i;
+	void *kmem_base_pa;
 
 	ct = captbl_create(boot_comp_captbl);
 	assert(ct);
 
-	/* expand the captbl to use 2 pages. */
-
-	captbl_init(boot_comp_captbl + PAGE_SIZE, 1);
-	ret = captbl_expand(ct, PAGE_SIZE/2/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE);
-	assert(!ret);
-	captbl_init(boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2, 1);
-	ret = captbl_expand(ct, PAGE_SIZE/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2);
-	assert(!ret);
-
+	/* expand the captbl to use multiple pages. */
+	for (i = 1; i < BOOT_CAPTBL_NPAGES; i++) { 
+		captbl_init(boot_comp_captbl + i * PAGE_SIZE, 1);
+		ret = captbl_expand(ct, (PAGE_SIZE*i - PAGE_SIZE/2)/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE*i);
+		assert(!ret);
+		captbl_init(boot_comp_captbl + PAGE_SIZE + PAGE_SIZE/2, 1);
+		ret = captbl_expand(ct, (PAGE_SIZE*i)/CAPTBL_LEAFSZ, captbl_maxdepth(), boot_comp_captbl + PAGE_SIZE*i + PAGE_SIZE/2);
+		assert(!ret);
+	}
 	boot_captbl = ct;
+
+	kmem_base_pa = chal_va2pa(cos_kmem_base);
+	ret = retypetbl_retype2kern(kmem_base_pa);
+	assert(ret == 0);
 
 	boot_comp_pgd = cos_kmem_base;
 	boot_comp_pte_vm = cos_kmem_base + PAGE_SIZE;
@@ -677,37 +683,59 @@ kern_boot_comp(struct spd_info *spd_info)
 
 	sys_llbooter_sz = spd_info->mem_size / PAGE_SIZE;
 	if (spd_info->mem_size % PAGE_SIZE) sys_llbooter_sz++;
+
 	/* add the component's virtual memory at 4MB (1<<22) using "physical memory" starting at cos_kmem */
 	for (i = 0 ; i < sys_llbooter_sz; i++) {
 		u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
 		u32_t flags;
-		if (cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
-				    BOOT_MEM_VM_BASE + i*PAGE_SIZE, 
-				    addr, PGTBL_USER_DEF)) cos_throw(err, -1);
+		if ((addr - (u32_t)kmem_base_pa) % RETYPE_MEM_SIZE == 0) {
+			ret = retypetbl_retype2kern((void *)addr);
+			if (ret) {
+				printk("Retype paddr %x failed when loading llbooter. ret %d\n", addr, ret);
+ 				cos_throw(err, -1);
+			}
+		}
+
+		if (pgtbl_mapping_add(pt, BOOT_MEM_VM_BASE + i*PAGE_SIZE, addr, PGTBL_USER_DEF)) {
+			printk("Mapping llbooter %x failed!\n", addr);
+			cos_throw(err, -1);
+		} 
 		assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
 	}
+
+	llbooter_kern_mapping = cos_kmem;
 	cos_kmem += sys_llbooter_sz*PAGE_SIZE;
+
+	/* Round to the next memory retype region. Adjust based on
+	 * offset from cos_kmem_base*/
+	if ((cos_kmem - cos_kmem_base) % RETYPE_MEM_SIZE != 0)
+		cos_kmem += (RETYPE_MEM_SIZE - (cos_kmem - cos_kmem_base) % RETYPE_MEM_SIZE);
 
 	/* add the remaining kernel memory @ 1.5GB*/
 	/* printk("mapping from kmem %x\n", cos_kmem); */
 	for (i = 0; i < (COS_KERNEL_MEMORY - (cos_kmem - cos_kmem_base)/PAGE_SIZE); i++) {
 		u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
 		u32_t flags;
-		if (cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
-				    BOOT_MEM_KM_BASE + i*PAGE_SIZE, 
-				    addr, PGTBL_COSFRAME | PGTBL_USER_DEF)) cos_throw(err, -1); /* FIXME: shouldn't be accessible */
+
+		if (pgtbl_cosframe_add(pt, BOOT_MEM_KM_BASE + i*PAGE_SIZE, 
+				      addr, PGTBL_COSFRAME | PGTBL_USER_DEF)) cos_throw(err, -1); /* FIXME: shouldn't be accessible */
 		assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_KM_BASE+i*PAGE_SIZE, &flags));
 	}
 
+	if (COS_MEM_START % RETYPE_MEM_SIZE != 0) {
+		printk("Physical memory start address (%d) not aligned by retype_memory size (%lu).",
+		       COS_MEM_START, RETYPE_MEM_SIZE);
+		cos_throw(err, -1);
+	}
+
 	/* add the system's physical memory at address 2GB */
-	for (i = 0 ; i < sys_maxmem ; i++) {
+	for (i = 0 ; i < N_PHYMEM_PAGES ; i++) {
 		u32_t addr = COS_MEM_START + i*PAGE_SIZE;
 		u32_t flags;
 		
 		/* Make the memory accessible so we can populate memory without retyping. */
-		if (cap_memactivate(ct, BOOT_CAPTBL_SELF_PT, 
-				    BOOT_MEM_PM_BASE + i*PAGE_SIZE, 
-				    addr, PGTBL_COSFRAME | PGTBL_USER_DEF)) cos_throw(err, -1);
+		if (pgtbl_cosframe_add(pt, BOOT_MEM_PM_BASE + i*PAGE_SIZE, 
+				      addr, PGTBL_COSFRAME | PGTBL_USER_DEF)) cos_throw(err, -1);
 		assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_PM_BASE+i*PAGE_SIZE, &flags));
 	}
 
@@ -797,8 +825,8 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		if (kern_boot_comp(&spd_info)) return -1;
 
-		assert(cos_kmem);
-		if (copy_from_user(cos_kmem - sys_llbooter_sz*PAGE_SIZE, (void*)spd_info.lowest_addr, spd_info.mem_size)) {
+		assert(llbooter_kern_mapping);
+		if (copy_from_user(llbooter_kern_mapping, (void*)spd_info.lowest_addr, spd_info.mem_size)) {
 			printk("cos: Error copying spd_info from user.\n");
 			return -EFAULT;
 		}
@@ -809,8 +837,10 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		mem = (char *)((u32_t)mem & ~(PAGE_SIZE-1));
 		//printk("kmem %x pa %x, start mem %x\n", cos_kmem, __pa(cos_kmem), mem);
 		for (i = 0; i < spd_info.mem_size; i++) {
-			if (*(mem + i) != *((char*)(spd_info.lowest_addr) + i))
+			if (*(mem + i) != *((char*)(spd_info.lowest_addr) + i)) {
 				printk("Mismatch: %d: %x %x\n", i, *(mem + i), *((char*)(spd_info.lowest_addr) + i));
+				return -EFAULT;
+			}
 		}
 
 		return 0;
@@ -993,8 +1023,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			tcap_ref_create(&thd->tcap_active, &sched->tcaps[0]);
 			sched = sched->parent_sched;
 		}
-
-		/* hw_int_override_all(); */
 
 		/* FIXME: need to return opaque handle, rather than
 		 * just set the current thread to be the new one. */
@@ -1300,7 +1328,7 @@ static unsigned long fault_addrs[NUM_BUCKETS];
 
 void hijack_syscall_monitor(int num)
 {
-	if (unlikely(!syscalls_enabled && cos_thd_per_core[get_cpuid()].cos_thd == current)) {
+	if (unlikely(!syscalls_enabled && cos_thd_per_core[get_cpuid()].cos_thd == current && num != 54)) {
 		printk("FAILURE: core %d making a Linux system call (#%d) in Composite.\n", get_cpuid(), num);
 	}
 }
@@ -1460,14 +1488,26 @@ void cos_cap_ipi_handling(void);
 int 
 cos_ipi_ring_enqueue(u32_t dest, u32_t data);
 
+u64_t sum = 0, ii = 0;
 __attribute__((regparm(3))) void
 main_ipi_handler(struct pt_regs *rs, unsigned int irq)
 {
+	u64_t s,e;
+
 	/* ack the ipi first. */
 	ack_APIC_irq();
 	
+	rdtscll(s);
 	cos_cap_ipi_handling();
-//	cos_ipi_handling();
+	rdtscll(e);
+	/* if (get_cpuid() == 20) { */
+	/* 	ii++; */
+	/* 	sum += (e-s); */
+	/* 	if (ii % (1024*1024) == 0) { */
+	/* 		printk(".......................rcv cost %d\n", sum / (1024*1024)); */
+	/* 		sum = 0; */
+	/* 	} */
+	/* } */
 
         return;
 }
@@ -1859,7 +1899,7 @@ int chal_attempt_arcv(struct cap_arcv *arcv)
 #ifdef UPDATE_LINUX_MM_STRUCT
 					chal_pgtbl_switch((paddr_t)thd_current_pgtbl(next));
 #else
-					native_write_cr3(thd_current_pgtbl(next));
+					native_write_cr3((unsigned long)thd_current_pgtbl(next));
 #endif
 				} else {
 					/* we are omitting the native_write_cr3 to switch
@@ -1922,7 +1962,6 @@ int main_timer_interposition(struct pt_regs *rs, unsigned int error_code)
 	int curr_cpu = get_cpuid();
 
 	u32_t *ticks = (u32_t *)&timer_detector[curr_cpu * CACHE_LINE];
-	u32_t last_tick = *ticks;
 	
 	/* TLB quiescence period. */
 	chal_flush_tlb();
@@ -1931,7 +1970,7 @@ int main_timer_interposition(struct pt_regs *rs, unsigned int error_code)
 	rdtscll(tlb_quiescence[curr_cpu].last_periodic_flush);
 	tlb_quiescence[curr_cpu].last_mandatory_flush = tlb_quiescence[curr_cpu].last_periodic_flush;
 
-	*ticks = last_tick+1;
+	cos_faa(ticks, 1);
 	cos_mem_fence();
 
 	if (!(acap && acap->upcall_thd)) goto LINUX_HANDLER;
@@ -2156,6 +2195,7 @@ static int aed_release(struct inode *inode, struct file *file)
 #ifdef FAULT_DEBUG
 	int j, k;
 #endif
+
 	/* 
 	 * when the aed control file descriptor is closed, lets get
 	 * rid of all resources the aed environment was using, but
@@ -2226,7 +2266,7 @@ static int aed_release(struct inode *inode, struct file *file)
 	mmput(composite_union_mm);
 
 	init_globals();
-	
+
 #ifdef FAULT_DEBUG
 	printk("cos: Page fault information:\n");
 	printk("cos: Number of buckets %d, bucket mask %x.\n", 
@@ -2240,7 +2280,6 @@ static int aed_release(struct inode *inode, struct file *file)
 		printk("\n");
 	}
 #endif
-
 	{
 		int i;
 		printk("\ncos: Faults:\n");

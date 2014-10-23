@@ -11,6 +11,7 @@
 #include "ertrie.h"
 #include "shared/util.h"
 #include "captbl.h"
+#include "retype_tbl.h"
 #include "liveness_tbl.h"
 
 #ifndef LINUX_TEST
@@ -99,11 +100,24 @@ __pgtbl_init(struct ert_intern *a, int isleaf)
 static inline int 
 __pgtbl_setleaf(struct ert_intern *a, void *v)
 {
-	u32_t old, new;
+	u32_t new, old;
 
 	old = (u32_t)(a->next);
 	new = (u32_t)(v);
 
+	if (!cos_cas((unsigned long *)a, old, new)) return -ECASFAIL;
+
+	return 0;
+}
+
+/* This takes an input parameter as the old value of the mapping. Only
+ * update when the existing value matches. */
+static inline int 
+__pgtbl_update_leaf(struct ert_intern *a, void *v, u32_t old)
+{
+	u32_t new;
+
+	new = (u32_t)(v);
 	if (!cos_cas((unsigned long *)a, old, new)) return -ECASFAIL;
 
 	return 0;
@@ -123,6 +137,7 @@ __pgtbl_set(struct ert_intern *a, void *v, void *accum, int isleaf)
 
 	return 0;
 }
+
 static inline void *__pgtbl_getleaf(struct ert_intern *a, void *accum)
 { if (unlikely(!a)) return NULL; return __pgtbl_get(a, accum, 1); }
 
@@ -136,11 +151,12 @@ typedef struct pgtbl * pgtbl_t;
 /* identical to the capability structure */
 struct cap_pgtbl {
 	struct cap_header h;
+	u32_t refcnt_flags;          /* includes refcnt and flags */
 	pgtbl_t pgtbl;
-	u32_t lvl; 		    /* what level are the pgtbl nodes at? */
-	struct cap_pgtbl *parent;  /* if !null, points to parent cap */
-	u32_t refcnt;               /* # of direct children (created by cap_cpy) */
-};
+	u32_t lvl; 		     /* what level are the pgtbl nodes at? */
+	struct cap_pgtbl *parent;    /* if !null, points to parent cap */
+	u64_t frozen_ts;             /* timestamp when frozen is set. */
+} __attribute__((packed));
 
 static pgtbl_t pgtbl_alloc(void *page) 
 { return (pgtbl_t)((unsigned long)__pgtbl_alloc(&page) & PGTBL_FRAME_MASK); }
@@ -151,7 +167,7 @@ pgtbl_init_pte(void *pte)
 	int i;
 	unsigned long *vals = pte;
 
-	for (i = 0 ; i < 1<<PGTBL_ORD ; i++) vals[i] = 0;
+	for (i = 0 ; i < (1<<PGTBL_ORD) ; i++) vals[i] = 0;
 }
 
 static int 
@@ -214,37 +230,17 @@ pgtbl_check_pgd_absent(pgtbl_t pt, u32_t addr)
 
 extern struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
 
-static int 
-tlb_quiescence_check(u64_t unmap_time)
-{
-	int i, quiescent = 1;
+int tlb_quiescence_check(u64_t timestamp);
 
-	/* Did timer interrupt (which does tlb flush
-	 * periodically) happen after unmap? The periodic
-	 * flush happens on all cpus, thus only need to check
-	 * the time stamp of the current core for that case
-	 * (assuming consistent time stamp counters). */
-	if (unmap_time > tlb_quiescence[get_cpuid()].last_periodic_flush) {
-		/* If no periodic flush done yet, did the
-		 * mandatory flush happen on all cores? */
-		for (i = 0; i < NUM_CPU_COS; i++) {
-			if (unmap_time > tlb_quiescence[i].last_mandatory_flush) {
-				/* no go */
-				quiescent = 0;
-				break;
-			}
-		}
-	}
-
-	return quiescent;
-}
-
+/* this works on both kmem and regular user memory: the retypetbl_ref
+ * works on both. */
 static int
 pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {
+	int ret;
 	struct ert_intern *pte;
 	u32_t orig_v, accum = 0;
-	
+
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & page) == 0);
 	assert((PGTBL_FRAME_MASK & flags) == 0);
@@ -254,27 +250,63 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
 	orig_v = (u32_t)(pte->next);
 
-	if (orig_v & PGTBL_PRESENT) return -EEXIST;
-	
+	if (orig_v & PGTBL_PRESENT)  return -EEXIST;
+	if (orig_v & PGTBL_COSFRAME) return -EPERM;
+
 	/* Quiescence check */
 	if (orig_v & PGTBL_QUIESCENCE) {
 		/* An unmap happened at this vaddr before. We need to
 		 * make sure that all cores have done tlb flush before
 		 * creating new mapping. */
 		livenessid_t lid = orig_v >> PGTBL_PAGEIDX_SHIFT;
+		u64_t ts;
 		assert(lid < LTBL_ENTS);
 
-		if (!tlb_quiescence_check(ltbl_get_timestamp(lid)))
-			return -EQUIESCENCE;
+		if (ltbl_get_timestamp(lid, &ts)) return -EFAULT;
+		if (!tlb_quiescence_check(ts))    return -EQUIESCENCE;
 	}
 
-	return __pgtbl_setleaf(pte, (void *)(page | flags));
+	/* ref cnt on the frame. */
+	ret = retypetbl_ref((void *)page);
+	if (ret) return ret;	
+
+	ret = __pgtbl_update_leaf(pte, (void *)(page | flags), orig_v);
+	if (ret) {
+		/* restore the ref cnt. */
+		retypetbl_deref((void *)page);
+	}
+
+	return ret;
+}
+
+/* This function is only used by the booting code to add cos frames to
+ * the pgtbl. It ignores the retype tbl (as we are adding untyped
+ * frames). */
+static int
+pgtbl_cosframe_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
+{
+	struct ert_intern *pte;
+	u32_t orig_v, accum = 0;
+
+	assert(pt);
+	assert((PGTBL_FLAG_MASK & page) == 0);
+	assert((PGTBL_FRAME_MASK & flags) == 0);
+
+	/* get the pte */
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
+						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	orig_v = (u32_t)(pte->next);
+	assert (orig_v == 0);
+	
+	return __pgtbl_update_leaf(pte, (void *)(page | flags), 0);
 }
 
 /* This function updates flags of an existing mapping. */
 static int
 pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags)
 {
+        /* Not used for now. TODO: add retypetbl_ref / _deref */
+
 	struct ert_intern *pte;
 	u32_t orig_v, accum = 0;
 	
@@ -295,7 +327,7 @@ pgtbl_mapping_mod(pgtbl_t pt, u32_t addr, u32_t flags, u32_t *prevflags)
 	*prevflags = orig_v & PGTBL_FLAG_MASK;
 
 	/* and update the flags. */
-	return __pgtbl_setleaf(pte, (void *)((orig_v & PGTBL_FRAME_MASK) | ((u32_t)flags & PGTBL_FLAG_MASK)));
+	return __pgtbl_update_leaf(pte, (void *)((orig_v & PGTBL_FRAME_MASK) | ((u32_t)flags & PGTBL_FLAG_MASK)), orig_v);
 }
 
 /* When we remove a mapping, we need to link the vas to a liv_id,
@@ -304,7 +336,8 @@ static int
 pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
 {
 	int ret;
-	unsigned long accum = 0, *pte = NULL;
+	struct ert_intern *pte;
+	unsigned long orig_v, accum = 0;
 
 	assert(pt);
 	assert((PGTBL_FLAG_MASK & addr) == 0);
@@ -316,10 +349,19 @@ pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
 	ret = ltbl_timestamp_update(liv_id);
 	if (unlikely(ret)) goto done;
 
-	/* Remove the mapping, set as unmapped, and store the liveness
-	 * id in frame bits. */
-	ret = __pgtbl_expandn(pt, addr >> PGTBL_PAGEIDX_SHIFT, 
-			      PGTBL_DEPTH+1, &accum, &pte, (void *)((liv_id<<PGTBL_PAGEIDX_SHIFT) | PGTBL_QUIESCENCE));
+	/* get the pte */
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
+						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	orig_v = (u32_t)(pte->next);
+	if (!(orig_v & PGTBL_PRESENT)) return -EEXIST;
+	if (orig_v & PGTBL_COSFRAME)   return -EPERM;
+
+	ret = __pgtbl_update_leaf(pte, (void *)((liv_id<<PGTBL_PAGEIDX_SHIFT) | PGTBL_QUIESCENCE), orig_v);
+	if (ret) cos_throw(done, ret);
+
+	/* decrement ref cnt on the frame. */
+	ret = retypetbl_deref((void *)(orig_v & PGTBL_FRAME_MASK));
+	if (ret) cos_throw(done, ret);
 done:
 	return ret;
 }
@@ -336,34 +378,6 @@ pgtbl_mapping_del_direct(pgtbl_t pt, u32_t addr)
 	
 	return __pgtbl_expandn(pt, addr >> PGTBL_PAGEIDX_SHIFT, 
 			       PGTBL_DEPTH+1, &accum, &pte, NULL);
-}
-
-static int
-pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr)
-{
-	struct ert_intern *pte;
-	u32_t orig_v, accum = 0;
-	
-	assert(pt);
-	assert((PGTBL_FLAG_MASK & addr) == 0);
-
-	/* get the pte */
-	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
-						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
-	if (unlikely(__pgtbl_isnull(pte, 0, 0))) return -ENOENT;
-
-	orig_v = (u32_t)(pte->next);
-	*kern_addr = (unsigned long)chal_pa2va((void *)(orig_v & PGTBL_FRAME_MASK));
-
-	if (unlikely(!*kern_addr)) return -EINVAL; /* cannot retype a non-kernel accessible page */
-	if (unlikely(!(orig_v & PGTBL_COSFRAME))) return -EINVAL; /* can't activate non-frames */
-	if (unlikely(orig_v & PGTBL_COSKMEM)) return -EEXIST; /* can't re-activate kmem frames */
-
-	/* We keep the cos_frame entry, but mark it as COSKMEM so that
-	 * we won't use it for other kernel objects. */
-	if (unlikely(!cos_cas((unsigned long *)pte, orig_v, orig_v | PGTBL_COSKMEM))) return -ECASFAIL;
-
-	return 0;
 }
 
 static void *pgtbl_lkup_lvl(pgtbl_t pt, u32_t addr, u32_t *flags, u32_t start_lvl, u32_t end_lvl)
@@ -401,10 +415,28 @@ pgtbl_lookup(pgtbl_t pt, u32_t addr, u32_t *flags)
 	return (paddr_t)chal_va2pa(ret);
 }
 
+static int
+pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe)
+{
+	u32_t flags;
+	unsigned long *pte;
+	paddr_t v;
+
+	pte = pgtbl_lkup_pte(pt, frame_addr, &flags);
+	if (!pte) return -EINVAL;
+	
+	v = *pte;
+	if (!(v & PGTBL_COSFRAME)) return -EINVAL;
+
+	*cosframe = v & PGTBL_FRAME_MASK;
+
+	return 0;
+}
+
 extern unsigned long __cr3_contents;
 
 // this helps debugging.
-#define UPDATE_LINUX_MM_STRUCT
+// #define UPDATE_LINUX_MM_STRUCT
 
 /* If Composite is running at the highest priority, then we don't need
  * to touch the mm_struct. Also, don't set this when we want return to
@@ -425,7 +457,7 @@ static void pgtbl_update(pgtbl_t pt)
 #ifdef UPDATE_LINUX_MM_STRUCT
 	chal_pgtbl_switch((paddr_t)pt);
 #else
-	native_write_cr3(pt);
+	native_write_cr3((unsigned long)pt);
 #endif
 
 #else
@@ -450,7 +482,36 @@ static pgtbl_t pgtbl_create(void *page, void *curr_pgtbl) {
 }
 int pgtbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, pgtbl_t pgtbl, u32_t lvl);
 int pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
-		     livenessid_t lid, livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr);
+		     livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
+
+static int 
+pgtbl_mapping_scan(struct cap_pgtbl *pt)
+{
+	int i, pte, *page;
+	livenessid_t lid;
+	u64_t past_ts;
+
+	/* This scans the leaf level of the pgtbl and verifies
+	 * quiescence. */
+	if (pt->lvl != PGTBL_DEPTH - 1) return -EINVAL;
+
+	page = (int *)(pt->pgtbl);
+	assert(page);
+
+	for (i = 0; i < PAGE_SIZE / sizeof(int *); i++) {
+		pte = *(page + i);
+		if (pte & PGTBL_PRESENT || pte & PGTBL_COSFRAME) return -EINVAL;
+		
+		if (pte & PGTBL_QUIESCENCE) {
+			lid = pte >> PGTBL_PAGEIDX_SHIFT;
+
+			if (ltbl_get_timestamp(lid, &past_ts)) return -EFAULT;
+			if (!tlb_quiescence_check(past_ts)) return -EQUIESCENCE;
+		}
+	}
+	
+	return 0;
+}
 
 static void pgtbl_init(void) { 
 	assert(sizeof(struct cap_pgtbl) <= __captbl_cap2bytes(CAP_PGTBL));
@@ -458,8 +519,7 @@ static void pgtbl_init(void) {
 	return; 
 }
 
-int kmem_deact_pre(struct captbl *ct, capid_t pgtbl_cap, capid_t cosframe_addr, livenessid_t kmem_lid, 
-		   void *obj_vaddr, unsigned long **p_pte, unsigned long *v);
-int kmem_deact_post(unsigned long *pte, unsigned long old_v, livenessid_t kmem_lid);
+int cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capid_t dest_pt, vaddr_t vaddr);
+int pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long **pte);
 
 #endif /* PGTBL_H */

@@ -73,14 +73,21 @@ struct cap_min {
 	char padding[(CACHELINE_SIZE/4) - sizeof(struct cap_header)];
 };
 
+/* the 2 higher bits in refcnt are flags. */
+#define CAP_MEM_REFCNT_SZ   30 /* 32 - 2 bits for flags */
+#define CAP_REFCNT_MAX      ((1<<CAP_MEM_REFCNT_SZ) - 1)
+#define CAP_MEM_FROZEN_FLAG (1 << (CAP_MEM_REFCNT_SZ))
+#define CAP_MEM_SCAN_FLAG   (1 << (CAP_MEM_REFCNT_SZ + 1))
+
 /* Capability structure to a capability table */
 struct cap_captbl {
 	struct cap_header h;
+	u32_t refcnt_flags;          /* includes refcnt and flags */
 	struct captbl *captbl;
 	u32_t lvl; 		     /* what level are the captbl nodes at? */
 	struct cap_captbl *parent;   /* if !null, points to parent cap */
-	u32_t refcnt;                /* # of direct children (created by cap_cpy) */
-};
+	u64_t frozen_ts;             /* timestamp when frozen is set. */
+} __attribute__((packed));
 
 static void *
 __captbl_allocfn(void *d, int sz, int last_lvl)
@@ -124,6 +131,7 @@ captbl_init(void *node, int leaf)
 			p->type  = CAP_FREE;
 			p->amap  = 0;
 			p->flags = 0;
+			p->liveness_id = 0;
 		}
 	}
 }
@@ -225,8 +233,10 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 
 	if (unlikely(sz == CAP_SZ_ERR)) cos_throw(err, -EINVAL);
 	if (unlikely(cap >= __captbl_maxid())) cos_throw(err, -EINVAL);
+
 	p = __captbl_lkupan(t, cap, CAPTBL_DEPTH, NULL); 
 	if (unlikely(!p)) cos_throw(err, -EPERM);
+
 	h = (struct cap_header *)CT_MSK(p, CACHELINE_ORDER);
 	l = o = *h;
 	if (unlikely(l.flags & CAP_FLAG_RO)) cos_throw(err, -EPERM);
@@ -242,38 +252,44 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 	/* Quiescence check: either check the entire cacheline if
 	 * needed, or a single entry. */
 	if (l.type == CAP_QUIESCENCE && l.size != sz) {
+		/* FIXME: when false sharing happens, other cores
+		 * could already changed the size and type of the
+		 * cacheline. */
+
 		/* The entire cacheline has been deactivated
 		 * before. We need to make sure all entries in the
 		 * cacheline has reached quiescence before re-size. */
-		int i, n_ent;
+		int i, n_ent, ent_size;
 		struct cap_header *header_i;
+		assert(l.size);
+		ent_size = 1<<(l.size+CAP_SZ_OFF);
 
 		rdtscll(curr_ts);
 		header_i = h;
-		n_ent = CACHELINE_SIZE / l.size;
-
+		n_ent = CACHELINE_SIZE / ent_size;
 		for (i = 0; i < n_ent; i++) {
 			assert((void *)header_i < ((void *)h + CACHELINE_SIZE));
 			
 			/* non_zero liv_id means deactivation happened. */
-			if (header_i->liveness_id) {
-				past_ts = ltbl_get_timestamp(header_i->liveness_id);
+			if (header_i->liveness_id && header_i->type == CAP_QUIESCENCE) {
+				if (ltbl_get_timestamp(header_i->liveness_id, &past_ts)) cos_throw(err, -EFAULT);
 				/* quiescence period for cap entries
 				 * is the worst-case in kernel
 				 * execution time. */
 				if (!QUIESCENCE_CHECK(curr_ts, past_ts, KERN_QUIESCENCE_CYCLES)) cos_throw(err, -EQUIESCENCE);
 			}
 
-			header_i = (void *)header_i + l.size; /* get next header */
+			header_i = (void *)header_i + ent_size; /* get next header */
 		}
 	} else {
 		/* check only the current single entry */
-		if (p->liveness_id) {
+		if (p->liveness_id && p->type == CAP_QUIESCENCE) {
 			/* means a deactivation on this cap entry happened
 			 * before. */
 			rdtscll(curr_ts);
-			past_ts = ltbl_get_timestamp(p->liveness_id);
-
+			if (ltbl_get_timestamp(p->liveness_id, &past_ts)) {
+				cos_throw(err, -EFAULT);
+			}
 			if (!QUIESCENCE_CHECK(curr_ts, past_ts, KERN_QUIESCENCE_CYCLES)) cos_throw(err, -EQUIESCENCE);
 		}
 	}
@@ -283,13 +299,20 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 
 	/* FIXME: we should _not_ do this here.  This should be done
 	 * in step 3 of the protocol for setting capabilities, not 1 */
-	if (p == h) l.type = type;
+	if (p == h) {
+		l.type = type;
+		l.liveness_id = 0;
+	}
 	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
 
 	/* FIXME: same as above */
-	if (p != h) p->type = type;
+	if (p != h) {
+		p->type = type;
+		p->liveness_id = 0;
+	}
 
-	assert(p == __captbl_lkupan(t, cap, CAPTBL_DEPTH+1, NULL));
+	/* FIXME: same as above! */
+//	assert(p == __captbl_lkupan(t, cap, CAPTBL_DEPTH+1, NULL));
 	*retval = ret;
 
 	return p;
@@ -321,15 +344,20 @@ captbl_del(struct captbl *t, capid_t cap, cap_t type, livenessid_t lid)
 	if (unlikely(l.flags & CAP_FLAG_RO)) cos_throw(err, -EPERM);
 	if (unlikely(!(l.amap & (1<<off)))) cos_throw(err, -ENOENT);
 
-	if (h == p) {
-		l.type  = CAP_FREE;
-		l.liveness_id = lid;
-	} else {
-		p->type = CAP_FREE;
-		p->liveness_id = lid;
-	}
+	/* Update timestamp first. */
+	ret = ltbl_timestamp_update(lid);
 
-	/* FIXME: store barrier on non-x86 */
+	if (unlikely(ret)) cos_throw(err, ret);
+
+	if (h == p) {
+		l.liveness_id = lid;
+		l.type  = CAP_QUIESCENCE;
+	} else {
+		p->liveness_id = lid;
+		p->type = CAP_QUIESCENCE;
+	}
+	cos_mem_fence();
+
 	/* new map, removing the current allocation */
 	l.amap &= (~(1<<off)) & ((1<<CAP_HEAD_AMAP_SZ)-1);
 	if (l.amap == 0) {
@@ -338,10 +366,6 @@ captbl_del(struct captbl *t, capid_t cap, cap_t type, livenessid_t lid)
 		 * quiescence. */
 		l.type = CAP_QUIESCENCE;
 	}
-
-	/* Update timestamp first. */
-	ret = ltbl_timestamp_update(lid);
-	if (unlikely(ret)) cos_throw(err, ret);
 
 	if (CTSTORE(h, &l, &o)) cos_throw(err, -EEXIST); /* commit */
 err:
@@ -361,7 +385,7 @@ captbl_expand(struct captbl *t, capid_t cap, u32_t depth, void *memctxt)
 {
 	int ret;
 
-	if (unlikely(cap > __captbl_maxid() ||
+	if (unlikely(cap >= __captbl_maxid() ||
 		     depth > captbl_maxdepth())) return -EINVAL;
 	ret = __captbl_expandn(t, cap, depth, NULL, &memctxt, NULL);
 	if (unlikely(memctxt)) return -EEXIST;
@@ -409,6 +433,7 @@ captbl_create(void *page)
 	 * replace hard-coded sizes with calculations based on captbl
 	 * depth, and intern and leaf sizes/orders
 	 */
+	captbl_init(page, 0);
 	captbl_init(&((char*)page)[PAGE_SIZE/2], 1);
 	ret = captbl_expand(ct, 0, captbl_maxdepth(), &((char*)page)[PAGE_SIZE/2]);
 	assert(!ret);
@@ -417,9 +442,12 @@ captbl_create(void *page)
 }
 
 int captbl_activate(struct captbl *t, capid_t cap, capid_t capin, struct captbl *toadd, u32_t lvl);
-int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
-		      livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr);
+int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
+		      livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
 int captbl_activate_boot(struct captbl *t, unsigned long cap);
+
+int captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t cons_addr);
+int captbl_kmem_scan (struct cap_captbl *cap);
 
 static void cap_init(void) {
 	assert(sizeof(struct cap_captbl) <= __captbl_cap2bytes(CAP_CAPTBL));

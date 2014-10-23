@@ -16,9 +16,11 @@ captbl_activate_boot(struct captbl *t, unsigned long cap)
 
 	ctc = (struct cap_captbl *)captbl_add(t, cap, CAP_CAPTBL, &ret);
 	if (!ctc) return ret;
-	ctc->captbl = t; 	/* reference ourself! */
-	ctc->lvl    = 0;
-	ctc->h.type = CAP_CAPTBL;
+	ctc->captbl       = t; 	/* reference ourself! */
+	ctc->lvl          = 0;
+	ctc->h.type       = CAP_CAPTBL;
+	ctc->refcnt_flags = 1;
+	ctc->parent       = NULL;
 
 	return 0;
 }
@@ -31,77 +33,175 @@ captbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, struct
 	
 	ct = (struct cap_captbl *)__cap_capactivate_pre(t, cap, capin, CAP_CAPTBL, &ret);
 	if (!unlikely(ct)) return ret;
-	ct->captbl = toadd;
-	ct->lvl    = lvl;
-	ct->refcnt = 1;
-	ct->parent = NULL; /* new cap has no parent. only copied cap has. */
+
+	ct->captbl       = toadd;
+	ct->lvl          = lvl;
+	ct->refcnt_flags = 1;
+	ct->parent       = NULL; /* new cap has no parent. only copied cap has. */
 
 	__cap_capactivate_post(&ct->h, CAP_CAPTBL);
 
 	return 0;
 }
 
-int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, livenessid_t lid,
-		      livenessid_t kmem_lid, capid_t pgtbl_cap, capid_t cosframe_addr)
+int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
+		      livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
 {
 	struct cap_header *deact_header;
 	struct cap_captbl *deact_cap, *parent;
 
-	unsigned long old_v = 0, *pte = NULL;
+	unsigned long l, old_v = 0, *pte = NULL;
 	int ret;
 
 	deact_header = captbl_lkup(dest_ct_cap->captbl, capin);
 	if (!deact_header || deact_header->type != CAP_CAPTBL) cos_throw(err, -EINVAL);
 
 	deact_cap = (struct cap_captbl *)deact_header;
-	assert(deact_cap->refcnt);
-	parent   = deact_cap->parent;
+	l = deact_cap->refcnt_flags;
 
-	if (deact_cap->refcnt != 1) {
+//	assert(deact_cap->refcnt_flags & CAP_REFCNT_MAX);
+	if (unlikely(!(l & CAP_REFCNT_MAX))) {
+		printk("ERROR: >>>>>>>>>>> refcnt flags %x\n", (unsigned int)l);
+		cos_throw(err, -EFAULT);
+	}
+
+	if ((l & CAP_REFCNT_MAX) != 1) {
 		/* We need to deact children first! */
 		cos_throw(err, -EINVAL);
 	}
 
+	parent = deact_cap->parent;
 	if (parent == NULL) {
+		if (!root) cos_throw(err, -EINVAL);
 		/* Last reference to the captbl page. Require pgtbl
 		 * and cos_frame cap to release the kmem page. */
-		ret = kmem_deact_pre(t, pgtbl_cap, cosframe_addr, kmem_lid, 
-				     (void *)(deact_cap->captbl), &pte, &old_v);
+
+		ret = kmem_deact_pre(deact_header, t, pgtbl_cap, 
+				     cosframe_addr, &pte, &old_v);
 		if (ret) cos_throw(err, ret);
 	} else {
-		/* more reference exists. just sanity
-		 * checks. */
-		if (pgtbl_cap || cosframe_addr || kmem_lid) {
-			/* we pass in the pgtbl cap and frame addr,
-			 * but ref_cnt is > 1. We'll ignore the two
-			 * parameters as we won't be able to release
-			 * the memory. */
-			printk("cos: deactivating captbl but not able to release kmem page (%p) yet (ref_cnt %d).\n", 
-			       (void *)cosframe_addr, deact_cap->refcnt);
-		}
+		/* more reference exists. Sanity check. */
+		if (root) cos_throw(err, -EINVAL);
+		assert (!pgtbl_cap && !cosframe_addr);
 	}
 
 	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_CAPTBL, lid); 
-	
-	if (ret == 0) {
-		ret = cos_cas((unsigned long *)&deact_cap->refcnt, 1, 0);
-		if (ret != CAS_SUCCESS) {
-			cos_throw(err, -ECASFAIL);
-		}
+	if (ret) cos_throw(err, ret);
 
-		/* deactivation success. We should either release the
-		 * page, or decrement parent cnt. */
-		if (parent == NULL) { 
-			/* move the kmem to COSFRAME */
-			kmem_deact_post(pte, old_v, kmem_lid);
-		} else {
-			cos_faa(&parent->refcnt, -1);
+	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
+
+	/* deactivation success. We should either release the
+	 * page, or decrement parent cnt. */
+	if (parent == NULL) { 
+		/* move the kmem to COSFRAME */
+		ret = kmem_deact_post(pte, old_v);
+		if (ret) {
+			cos_faa((int *)&deact_cap->refcnt_flags, 1);
+			cos_throw(err, ret);
 		}
 	} else {
-		cos_throw(err, ret);
+		cos_faa(&parent->refcnt_flags, -1);
 	}
 
 	return 0;
 err:
 	return ret;
+}
+
+int
+captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t cons_addr)
+{
+	int ret;
+	u32_t l;
+	void *captbl_mem;
+
+	if (target_ct->h.type != CAP_CAPTBL || target_ct->lvl != 0) cos_throw(err, -EINVAL);
+	if (cons_cap->h.type != CAP_CAPTBL || cons_cap->lvl != 1) cos_throw(err, -EINVAL);
+	captbl_mem = (void *)cons_cap->captbl;
+	l = cons_cap->refcnt_flags;
+	if ((l & CAP_MEM_FROZEN_FLAG) || (target_ct->refcnt_flags & CAP_MEM_FROZEN_FLAG)) cos_throw(err, -EINVAL);
+	if ((l & CAP_REFCNT_MAX) == CAP_REFCNT_MAX) cos_throw(err, -EOVERFLOW);
+
+	/* increment refcnt */
+	if (cos_cas((unsigned long *)&(cons_cap->refcnt_flags), l, l+1) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
+
+	/* FIXME: we are expanding the entire page to
+	 * two of the locations. Do we want separate
+	 * calls for them? */
+	ret = captbl_expand(target_ct->captbl, cons_addr, captbl_maxdepth(), captbl_mem);
+	if (ret) {
+		cos_faa(&cons_cap->refcnt_flags, -1);
+		cos_throw(err, ret);
+	}
+
+	ret = captbl_expand(target_ct->captbl, cons_addr + (PAGE_SIZE/2/CAPTBL_LEAFSZ), 
+			    captbl_maxdepth(), &((char*)captbl_mem)[PAGE_SIZE/2]);
+	if (ret) {
+		/* Rewind. */
+		captbl_expand(target_ct->captbl, cons_addr, captbl_maxdepth(), NULL);
+		cos_faa(&cons_cap->refcnt_flags, -1);
+		cos_throw(err, ret);
+	}
+	
+	return 0;
+err:
+	return ret;
+}
+
+static int
+captbl_leaflvl_scan(struct captbl *ct)
+{
+	int i, ret;
+	u64_t curr_ts, past_ts;
+
+	/* going through each cacheline. */
+	for (i = 0; i < ((1<<CAPTBL_LEAF_ORD) * CAPTBL_LEAFSZ) / CACHELINE_SIZE; i++) {
+		int j, n_ent, ent_size;
+		struct cap_header *h, *header_i, l;
+
+		/* header of this cacheline. */
+		h = captbl_lkup_lvl(ct, i*(CACHELINE_SIZE/CAPTBL_LEAFSZ), CAPTBL_DEPTH-1, CAPTBL_DEPTH);
+
+		l = *h;
+		if (unlikely(l.amap)) cos_throw(err, -EINVAL);
+		ent_size = 1<<(l.size+CAP_SZ_OFF);
+
+		rdtscll(curr_ts);
+		header_i = h;
+		n_ent = CACHELINE_SIZE / ent_size;
+
+		for (j = 0; j < n_ent; j++) {
+			assert((void *)header_i < ((void *)h + CACHELINE_SIZE));
+			
+			/* non_zero liv_id means deactivation happened. */
+			if (header_i->type == CAP_QUIESCENCE && header_i->liveness_id) {
+				if (ltbl_get_timestamp(header_i->liveness_id, &past_ts)) cos_throw(err, -EFAULT);
+				if (!QUIESCENCE_CHECK(curr_ts, past_ts, KERN_QUIESCENCE_CYCLES)) cos_throw(err, -EQUIESCENCE);
+			}
+
+			header_i = (void *)header_i + ent_size; /* get next header */
+		}
+	}
+
+	return 0;
+err:
+	return ret;
+}
+
+int 
+captbl_kmem_scan (struct cap_captbl *cap) 
+{
+	/* This scans the leaf level of the captbl. We need to go
+	 * through all cap entries and verify quiescence. */
+	int ret;
+	struct captbl *ct = cap->captbl;
+	assert (cap->lvl == CAPTBL_DEPTH - 1);
+
+	/* each level of captbl is half page. */
+	ret = captbl_leaflvl_scan(ct);
+	if (ret) return ret;
+	ret = captbl_leaflvl_scan((struct captbl *)((char *)ct + PAGE_SIZE / 2));
+	if (ret) return ret;
+
+	return 0;
 }

@@ -25,8 +25,6 @@ struct liveness_entry {
 	/* Here we store the timestamp of the deactivation call, so
 	 * that we can support flexible quiescence period. */
 	u64_t deact_timestamp;
-	u64_t poly;   /* we store frame addr here for kmem quiescence */
-	u64_t __poly; /* not used for now. work as padding */
 } __attribute__((packed));
 
 typedef struct liveness_entry ltbl_entry_t;
@@ -138,8 +136,8 @@ ltbl_get(livenessid_t id, struct liveness_data *ld)
 	return 0;
 }
 
-static inline u64_t
-ltbl_get_timestamp(livenessid_t id)
+static inline int
+ltbl_get_timestamp(livenessid_t id, u64_t *ts)
 {
 	struct liveness_entry *ent;
 
@@ -147,42 +145,8 @@ ltbl_get_timestamp(livenessid_t id)
 	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth()+1, NULL);
 	assert(ent);
 
-	return ent->deact_timestamp;
-}
+	*ts = ent->deact_timestamp;
 
-/* write to the poly, and update the timestamp */
-static inline int
-ltbl_poly_update(livenessid_t id, u32_t poly)
-{
-	struct liveness_entry *ent;
-
-	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
-	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth(), NULL);
-
-	/* If we have info stored in this liveness entry, do not allow
-	 * the update. */
-	if (unlikely(ent->poly)) return -EPERM;
-
-	rdtscll(ent->deact_timestamp);
-	cos_inst_bar();
-
-	cos_cas((unsigned long *)&ent->poly, 0, poly);
-	
-	return 0;
-}
-
-static inline int
-ltbl_poly_clear(livenessid_t id)
-{
-	struct liveness_entry *ent;
-	u32_t old_v;
-
-	if (unlikely(id >= LTBL_ENTS)) return -EINVAL;
-	ent = __ltbl_lkupan(LTBL_REF(), id, __ltbl_maxdepth(), NULL);
-
-	old_v = (u32_t)ent->poly;
-	cos_cas((unsigned long *)&ent->poly, old_v, 0);
-	
 	return 0;
 }
 

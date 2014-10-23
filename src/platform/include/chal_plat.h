@@ -49,10 +49,9 @@ chal_pgtbl_switch(paddr_t pt)
 {
 #if 0
 	native_write_cr3(pt);
+//#define HOST_PGTBL_UPDATE
+#ifdef HOST_PGTBL_UPDATE
 	__chal_pgtbl_switch(pt);
-#else
-	u32_t d = (u32_t)chal_va2pa((void*)pt); /*PGTBL_PRESENT;*/
-	asm volatile("mov %0, %%cr3" : : "r"(d));
 #endif
 }
 

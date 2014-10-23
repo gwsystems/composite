@@ -11,6 +11,7 @@
 #include <consts.h>
 #include <cos_types.h>
 #include <errno.h>
+#include <util.h>
 
 /* temporary */
 static inline int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
@@ -356,19 +357,6 @@ static inline long cos_cmpxchg(volatile void *memory, long anticipated, long res
 		: "cc", "memory");
 
 	return ret;
-}
-
-static inline int 
-cos_cas(unsigned long *target, unsigned long cmp, unsigned long updated)
-{
-	char z;
-	__asm__ __volatile__("lock cmpxchgl %2, %0; setz %1"
-			     : "+m" (*target),
-			       "=a" (z)
-			     : "q"  (updated),
-			       "a"  (cmp)
-			     : "memory", "cc");
-	return (int)z;
 }
 
 /* A uni-processor variant with less overhead but that doesn't

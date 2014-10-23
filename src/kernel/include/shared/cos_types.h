@@ -50,9 +50,9 @@ typedef enum {
 	CAPTBL_OP_ASNDDEACTIVATE,
 	CAPTBL_OP_ARCVACTIVATE,
 	CAPTBL_OP_ARCVDEACTIVATE,
-	CAPTBL_OP_MAPPING_CONS,
-	CAPTBL_OP_MAPPING_DECONS,
-	CAPTBL_OP_MAPPING_MOD,
+	CAPTBL_OP_MEMACTIVATE,
+	CAPTBL_OP_MEMDEACTIVATE,
+	/* CAPTBL_OP_MAPPING_MOD, */
 	CAPTBL_OP_MEM_RETYPE2USER,
 	CAPTBL_OP_MEM_RETYPE2KERN,
 	CAPTBL_OP_MEM_RETYPE2FRAME,
@@ -60,6 +60,10 @@ typedef enum {
 	CAPTBL_OP_PGTBLDEACTIVATE,
 	CAPTBL_OP_CAPTBLACTIVATE,
 	CAPTBL_OP_CAPTBLDEACTIVATE,
+	CAPTBL_OP_CAPKMEM_FREEZE,
+	CAPTBL_OP_CAPTBLDEACTIVATE_ROOT,
+	CAPTBL_OP_PGTBLDEACTIVATE_ROOT,
+	CAPTBL_OP_THDDEACTIVATE_ROOT,
 } syscall_op_t;
 
 typedef enum {
@@ -111,13 +115,13 @@ __captbl_cap2sz(cap_t c)
 	/* TODO: optimize for invocation and return */
 	switch (c) {
 	case CAP_SRET:
-		return CAP_SZ_16B;
 	case CAP_THD:
+		return CAP_SZ_16B;
+	case CAP_SINV:
 	case CAP_CAPTBL:
 	case CAP_PGTBL:
-	case CAP_SINV:
-	case CAP_COMP:
 		return CAP_SZ_32B;
+	case CAP_COMP:
 	case CAP_ASND:
 	case CAP_ARCV:
 		return CAP_SZ_64B;
@@ -130,7 +134,7 @@ static inline unsigned long captbl_idsize(cap_t c)
 { return 1<<__captbl_cap2sz(c); }
 
 /* 
- * Initial captbl setup:  
+ * LLBooter initial captbl setup:  
  * 0 = sret, 
  * 1-3 = nil,
  * 4-5 = this captbl, 
@@ -149,6 +153,7 @@ static inline unsigned long captbl_idsize(cap_t c)
  * 1.5GB-> = kernel memory
  * 2GB-> = system physical memory
  */
+#define BOOT_CAPTBL_NPAGES 5
 enum {
 	BOOT_CAPTBL_SRET = 0, 
 	BOOT_CAPTBL_SELF_CT = 4,
@@ -177,18 +182,24 @@ enum {
 	/* cap 0-3 reserved for sret. 4-7 is the sinv cap. FIXME: make this general. */
 	SCHED_CAPTBL_ALPHATHD_BASE = 8,
 	/* we have 2 thd caps (init and alpha thds) for each core. */
-	SCHED_CAPTBL_INITTHD_BASE  = SCHED_CAPTBL_ALPHATHD_BASE + NUM_CPU_COS*CAP32B_IDSZ,
-	SCHED_CAPTBL_LAST = SCHED_CAPTBL_INITTHD_BASE + NUM_CPU_COS*CAP32B_IDSZ,
+	SCHED_CAPTBL_INITTHD_BASE  = SCHED_CAPTBL_ALPHATHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
+	SCHED_CAPTBL_LAST = SCHED_CAPTBL_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
 	/* round up to a new entry. */
 	SCHED_CAPTBL_FREE = round_up_to_pow2(SCHED_CAPTBL_LAST, CAPMAX_ENTRY_SZ)
 };
 
 // QW: for ppos test only. remove.
-#define SND_THD_CAP_BASE SCHED_CAPTBL_FREE
+#define PING_CAPTBL   (SCHED_CAPTBL_FREE)
+#define PING_CAPTBL2  (SCHED_CAPTBL_FREE + CAP32B_IDSZ)
+#define PING_PGTBL    (SCHED_CAPTBL_FREE + CAP64B_IDSZ)
+#define PING_PGTBL2   (PING_PGTBL + CAP32B_IDSZ)
+#define PING_COMPCAP  (SCHED_CAPTBL_FREE + 2*CAP64B_IDSZ)
+#define PING_ROOTPGTBL (PING_COMPCAP + CAP64B_IDSZ)
+#define SND_THD_CAP_BASE (PING_ROOTPGTBL + CAPMAX_ENTRY_SZ)
 #define RCV_THD_CAP_BASE (SND_THD_CAP_BASE + (NUM_CPU_COS * captbl_idsize(CAP_THD)))
 #define ACAP_BASE (round_up_to_pow2(RCV_THD_CAP_BASE + (NUM_CPU_COS) * captbl_idsize(CAP_THD), CAPMAX_ENTRY_SZ))
-#define IF_CAP_BASE (round_up_to_pow2(ACAP_BASE + (NUM_CPU) * captbl_idsize(CAP_ARCV), CAPMAX_ENTRY_SZ))
-#define SND_RCV_OFFSET (NUM_CPU/2)
+#define PING_CAP_FREE (round_up_to_pow2(ACAP_BASE + (NUM_CPU) * captbl_idsize(CAP_ARCV), CAPMAX_ENTRY_SZ))
+#define SND_RCV_OFFSET 4//(NUM_CPU/2)
 /////remove above
 
 typedef int cpuid_t; /* Don't use unsigned type. We use negative values for error cases. */
