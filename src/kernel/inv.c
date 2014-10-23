@@ -3698,7 +3698,7 @@ static inline int alloc_acap_id(struct spd *spd){
 	/* FIXME: We should have a freelist! */
 	for (i = 1; i < MAX_NUM_ACAP; i++) {
 		if (spd->acaps[i].allocated == 0) {
-			if (cos_cas((unsigned long *)&(spd->acaps[i].allocated), 0, 1)) {
+			if (cos_cas((unsigned long *)&(spd->acaps[i].allocated), 0, 1) == CAS_SUCCESS) {
 				return i;
 			}
 		}

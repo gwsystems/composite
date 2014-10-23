@@ -16,7 +16,6 @@
 #include "thd.h"
 #include "call_convention.h"
 
-/* Note: h.poly is the u16_t that is passed up to the component as spdid (in the current code) */
 struct cap_sinv {
 	struct cap_header h;
 	struct comp_info comp_info;
@@ -30,13 +29,14 @@ struct cap_sret {
 
 struct cap_asnd {
 	struct cap_header h;
-	cpuid_t cpuid, arcv_cpuid; /* may not need cpuid */
+	cpuid_t cpuid, arcv_cpuid;
 	u32_t arcv_capid, arcv_epoch; /* identify receiver */
 	struct comp_info comp_info;
 
 	/* deferrable server to rate-limit IPIs */
 	u32_t budget, period, replenish_amnt;
-	u64_t replenish_time; 	   /* time of last replenishment */
+	/* Following not used for now. */
+	/* u64_t replenish_time; 	   /\* time of last replenishment *\/ */
 } __attribute__((packed));
 
 struct cap_arcv {
@@ -57,18 +57,21 @@ sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, va
 
 	compc = (struct cap_comp *)captbl_lkup(t, comp_cap);
 	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
-	
+
 	sinvc = (struct cap_sinv *)__cap_capactivate_pre(t, cap, capin, CAP_SINV, &ret);
 	if (!sinvc) return ret;
+
 	memcpy(&sinvc->comp_info, &compc->info, sizeof(struct comp_info));
 	sinvc->entry_addr = entry_addr;
-	__cap_capactivate_post(&sinvc->h, CAP_SINV, compc->h.poly);
+	__cap_capactivate_post(&sinvc->h, CAP_SINV);
 
 	return 0;
 }
 
-static int sinv_deactivate(struct captbl *t, capid_t cap, capid_t capin)
-{ return cap_capdeactivate(t, cap, capin, CAP_SINV); }
+static int sinv_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
+{ 
+	return cap_capdeactivate(t, capin, CAP_SINV, lid); 
+}
 
 static int 
 sret_activate(struct captbl *t, capid_t cap, capid_t capin)
@@ -78,13 +81,13 @@ sret_activate(struct captbl *t, capid_t cap, capid_t capin)
 
 	sretc = (struct cap_sret *)__cap_capactivate_pre(t, cap, capin, CAP_SRET, &ret);
 	if (!sretc) return ret;
-	__cap_capactivate_post(&sretc->h, CAP_SRET, 0);
+	__cap_capactivate_post(&sretc->h, CAP_SRET);
 
 	return 0;
 }
 
-static int sret_deactivate(struct captbl *t, capid_t cap, capid_t capin)
-{ return cap_capdeactivate(t, cap, capin, CAP_SRET); }
+static int sret_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
+{ return cap_capdeactivate(t, capin, CAP_SRET, lid); }
 
 static int
 asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, capid_t rcv_cap, u32_t budget, u32_t period)
@@ -111,13 +114,13 @@ asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, 
 	asndc->budget         = budget;
 	asndc->replenish_amnt = budget;
 	//FIXME:  add rdtscll(asndc->replenish_time);
-	__cap_capactivate_post(&asndc->h, CAP_ASND, 0);
+	__cap_capactivate_post(&asndc->h, CAP_ASND);
 
 	return 0;
 }
 
-static int asnd_deactivate(struct captbl *t, capid_t cap, capid_t capin)
-{ return cap_capdeactivate(t, cap, capin, CAP_ASND); }
+static int asnd_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
+{ return cap_capdeactivate(t, capin, CAP_ASND, lid); }
 
 static int
 arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, capid_t thd_cap)
@@ -146,13 +149,13 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	arcvc->thd_epoch = 0; 	  /* FIXME: get the real epoch */
 
 	thdc->t->flags |=  THD_STATE_ACTIVE_UPCALL;
-	__cap_capactivate_post(&arcvc->h, CAP_ARCV, 0);
+	__cap_capactivate_post(&arcvc->h, CAP_ARCV);
 	
 	return 0;
 }
 
-static int arcv_deactivate(struct captbl *t, capid_t cap, capid_t capin)
-{ return cap_capdeactivate(t, cap, capin, CAP_ARCV); }
+static int arcv_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
+{ return cap_capdeactivate(t, capin, CAP_ARCV, lid); }
 
 /* 
  * Invocation (call and return) fast path.  We want this to be as
@@ -189,7 +192,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 
 	__userregs_sinvupdate(regs);
 	__userregs_set(regs, thd->tid | (get_cpuid() << 16),
-		       sinvc->h.poly /* calling component id */, sinvc->entry_addr);
+		       0 /* FIXME: add calling component id */, sinvc->entry_addr);
 
 	return;
 }
@@ -219,6 +222,15 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 
 static void inv_init(void)
 { 
+//#define __OUTPUT_CAP_SIZE	
+#ifdef __OUTPUT_CAP_SIZE	
+	printk(" Cap header size %d, minimal cap %d\n SINV %d, SRET %d, ASND %d, ARCV %d\n CAP_COMP %d, CAP_THD %d, CAP_CAPTBL %d, CAP_PGTBL %d\n",
+	       sizeof(struct cap_header), sizeof(struct cap_min), 
+	       sizeof(struct cap_sinv), sizeof(struct cap_sret), 
+	       sizeof(struct cap_asnd), sizeof(struct cap_arcv), 
+	       sizeof(struct cap_comp), sizeof(struct cap_thd), 
+	       sizeof(struct cap_captbl), sizeof(struct cap_pgtbl));
+#endif
 	assert(sizeof(struct cap_sinv) <= __captbl_cap2bytes(CAP_SINV)); 
 	assert(sizeof(struct cap_sret) <= __captbl_cap2bytes(CAP_SRET)); 
 	assert(sizeof(struct cap_asnd) <= __captbl_cap2bytes(CAP_ASND)); 
