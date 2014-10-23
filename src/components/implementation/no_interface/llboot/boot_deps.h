@@ -946,10 +946,9 @@ void comp_deps_run_all(void)
 	if (cap_switch_thd(PERCPU_GET(llbooter)->init_thd)) BUG();
 done:
 
-#define API_TEST
+//#define API_TEST
 #ifdef API_TEST
-	//QW: to remove
-	if (0) {//cos_cpuid() == 0) {
+	if (cos_cpuid() == 0) {
 		captbl_test();
 		pgtbl_test();
 		retype_test();

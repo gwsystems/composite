@@ -2,14 +2,14 @@
 #define COS_CONFIG_H
 
 #include "cpu_ghz.h"
-#define NUM_CPU                40
+#define NUM_CPU                1
 
 #define CPU_TIMER_FREQ         100 // set in your linux .config
 
 #define RUNTIME                3 // seconds
 
 /* The kernel quiescence period = WCET in Kernel + WCET of a CAS. */
-#define KERN_QUIESCENCE_PERIOD_US 50
+#define KERN_QUIESCENCE_PERIOD_US 500
 #define KERN_QUIESCENCE_CYCLES (KERN_QUIESCENCE_PERIOD_US * 2000)
 #define TLB_QUIESCENCE_CYCLES  (2000 * 1000 * 10)
 

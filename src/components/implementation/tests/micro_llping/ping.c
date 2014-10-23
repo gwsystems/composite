@@ -1232,12 +1232,12 @@ void cos_init(void)
 
 	arcv_ready[cos_cpuid()] = 1;
 #if NUM_CPU > 2
-//	else {	goto done; }
 //	if (cos_cpuid() < (NUM_CPU_COS - SND_RCV_OFFSET)  && (cos_cpuid() % 4 == 0)) {
 //	if ((cos_cpuid()%4 == 0 || cos_cpuid()%4 == 2) && (cos_cpuid()+SND_RCV_OFFSET < NUM_CPU_COS)) { // sending core
 	if (cos_cpuid() <= 0) {
 //	if (1) {
 		/* IPI - ASND/ARCV */
+
 //		ipi_test();
 //		cap_test();
 //		mem_test();
@@ -1250,21 +1250,17 @@ void cos_init(void)
 		captbl_cons_test();
 	} else { //if ((cos_cpuid() % 4 <= 1)
 //		printc("core %ld: thd %d switching to pong thd\n", cos_cpuid(), cos_get_thd_id());
-		//printc("core %ld: doing operations as interference\n", cos_cpuid());
-		////////////////////////
-//		rdtscll(s);
 		while (1) {
 			//do op here to measure response time.
-//			call_cap(4, 0, 0, 0, 0);
-//			rdtscll(e);
-//			if ((e-s)/(2000*1000*1000) > RUNTIME) break;
+			/* call_cap(4, 0, 0, 0, 0); */
+			/* rdtscll(e); */
+			/* if ((e-s)/(2000*1000*1000) > RUNTIME) break; */
 
 			if (ck_pr_load_int(&all_exit)) break;
 		}
 		printc("core %ld: exiting from ping\n", cos_cpuid());
 	}
 #endif
-done:
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
 
 	call();
