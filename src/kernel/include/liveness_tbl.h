@@ -17,6 +17,10 @@
 #define LTBL_ENT_ORDER 10
 #define LTBL_ENTS (1<<10)
 
+#ifndef rdtscll
+#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
+#endif
+
 /* We need 64-bit for each of the field in liveness entry. */
 struct liveness_entry {
 	u64_t epoch;

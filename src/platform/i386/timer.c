@@ -21,7 +21,7 @@ timer_callback(struct registers *regs)
 
 /*
     if (tick % 100 == 0)
-        printk(INFO, "Tick: %lu\n", tick);
+        printk("Tick: %lu\n", tick);
 */
 }
 
@@ -30,7 +30,7 @@ timer_init(u32_t frequency)
 {
     u32_t divisor = PIT_SCALE / frequency;
 
-    printk(INFO, "Enabling timer\n");
+    printk("Enabling timer\n");
     register_interrupt_handler(IRQ0, timer_callback);
     
     outb(PIT_CONTROL, PIT_SET);

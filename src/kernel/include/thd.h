@@ -159,7 +159,7 @@ alloc_thd_id(void)
 {
         /* FIXME: thd id address space management. */
 	if (unlikely(free_thd_id >= MAX_NUM_THREADS)) assert(0);
-	return cos_faa(&free_thd_id, 1);
+	return cos_faa((int*)&free_thd_id, 1);
 }
 
 static int 

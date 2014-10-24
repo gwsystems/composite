@@ -2,6 +2,7 @@
 #define KERNEL_H
 
 #include "shared/cos_types.h"
+#include "chal.h"
 
 /* Segment selectors for the GDT */
 #define SEL_NULL	0x00
@@ -14,7 +15,7 @@
 
 /* A not so nice way of oopsing */
 #define die(fmt, ...) do {              \
-    printk(ERROR, fmt,##__VA_ARGS__);   \
+    printk(fmt,##__VA_ARGS__);   \
     khalt();				\
 } while(0)
 
@@ -47,7 +48,7 @@ void gdt_init(void);
 void user_init(void);
 void paging_init(u32_t memory_size, u32_t nmods, u32_t *mods);
 
-void printk(enum log_level level, const char *fmt, ...);
+//void printk(const char *fmt, ...);
 int printk_register_handler(void (*handler)(const char *));
 
 void khalt(void);

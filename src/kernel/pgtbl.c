@@ -165,7 +165,7 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 			cos_throw(err, ret);
 		}
 	} else {
-		cos_faa(&parent->refcnt_flags, -1);
+		cos_faa((int*)&parent->refcnt_flags, -1);
 	}
 
 	/* FIXME: this should be before the kmem_deact_post */

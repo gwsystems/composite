@@ -140,7 +140,7 @@ keyboard_handler(struct registers *regs)
 		/* wait for keypress to be ready */
 	}
 	scancode = inb(KEY_DEVICE);
-	printk(INFO, "Keyboard press: %d\n", scancode);
+	printk("Keyboard press: %d\n", scancode);
 }
 
 void

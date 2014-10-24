@@ -110,4 +110,6 @@ void chal_idle(void);
 
 #include "../../platform/include/chal_plat.h"
 
+extern void printk(const char *fmt, ...);
+
 #endif	/* CHAL_H */

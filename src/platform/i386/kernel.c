@@ -10,7 +10,7 @@ void kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp);
 void
 khalt(void)
 {
-	printk(INFO, "Shutting down...\n");
+	printk("Shutting down...\n");
 	asm("mov $0x53,%ah");
 	asm("mov $0x07,%al");
 	asm("mov $0x001,%bx");

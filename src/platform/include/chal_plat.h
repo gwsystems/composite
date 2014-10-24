@@ -53,6 +53,7 @@ chal_pgtbl_switch(paddr_t pt)
 #ifdef HOST_PGTBL_UPDATE
 	__chal_pgtbl_switch(pt);
 #endif
+#endif
 }
 
 #if 0

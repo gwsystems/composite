@@ -1,9 +1,6 @@
 include Makefile.src
 
-CC=gcc
-LD=ld
 CFLAGS=-D__x86__ -D_GNU_SOURCE -lpthread -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -ggdb3 -I$(KINC) 
-LDFLAGS=""
 PRODUCTS=cos_loader gen_client_stub
 
 default: $(PRODUCTS)
@@ -14,8 +11,8 @@ default: $(PRODUCTS)
 gen_client_stub: gen_client_stub.o
 	$(CC) $(CFLAGS) -o $@ $< 
 
-cos_loader: cos_loader.o $(CDIR)/lib/cobj_format.c
-	$(CC) $(CFLAGS) -o $@ $^ -L/usr/lib -lbfd -I$(CDIR)/include -I$(SHAREDINC)
+cos_loader: cos_loader.o
+	$(CC) $(CFLAGS) -o $@ $^ -L/usr/lib -lbfd -liberty -L$(CDIR)/lib/ -lcobj_format
 
 cp:
 	cp cos_loader gen_client_stub $(TRANS_DIR)

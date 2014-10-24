@@ -39,7 +39,18 @@ OBJS += tss.o
 OBJS += user.o
 OBJS += serial.o
 OBJS += timer.o
+OBJS += chal.o
 #OBJS += console.o
+
+COS_OBJ += ../../kernel/pgtbl.o 
+COS_OBJ += ../../kernel/retype_tbl.o
+COS_OBJ += ../../kernel/liveness_tbl.o
+COS_OBJ += ../../kernel/mmap.o
+COS_OBJ += ../../kernel/capinv.o
+COS_OBJ += ../../kernel/measurement.o
+COS_OBJ += ../../kernel/captbl.o
+
+OBJS += $(COS_OBJ)
 
 all: $(KERNEL)
 
@@ -47,7 +58,7 @@ DEPS :=$(patsubst %.o, %.d, $(OBJS))
 
 $(KERNEL): $(DEPS) $(OBJS) loader.o
 	$(info |     [LD]   Linking $@)
-	@$(LD) -T linker.ld loader.o $(OBJS)  -o $@
+	$(LD) -T linker.ld loader.o $(OBJS) -o $@
 
 loader.o: loader.s interrupt.s sysenter.s
 	$(info |     [AS]   Assembling $@)

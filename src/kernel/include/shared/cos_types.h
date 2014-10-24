@@ -793,4 +793,8 @@ static inline void cos_mem_fence(void)
 	__asm__ __volatile__("mfence" ::: "memory");
 }
 
+#ifndef __KERNEL_PERCPU
+#define __KERNEL_PERCPU 0
+#endif
+
 #endif /* TYPES_H */

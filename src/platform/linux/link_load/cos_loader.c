@@ -541,7 +541,7 @@ static int genscript(int with_addr)
 static void run_linker(char *input_obj, char *output_exe)
 {
 	char linker_cmd[256];
-	sprintf(linker_cmd, LINKER_BIN " -m elf_i386 -T %s -o %s %s", script, output_exe,
+	sprintf(linker_cmd, LINKER_BIN " -T %s -o %s %s", script, output_exe,
 		input_obj);
 	printl(PRINT_DEBUG, "%s\n", linker_cmd);
 	fflush(stdout);
@@ -1671,12 +1671,12 @@ static void gen_stubs_and_link(char *gen_stub_prog, struct service_symbs *servic
 		system(tmp_str);
 
 		/* compile the stub */
-		sprintf(tmp_str, GCC_BIN " -m32 -c -o %s_stub.o %s_stub.S", 
+		sprintf(tmp_str, GCC_BIN " -c -o %s_stub.o %s_stub.S", 
 			tmp_name, tmp_name);
 		system(tmp_str);
 
 		/* link the stub to the service */
-		sprintf(tmp_str, LINKER_BIN " -m elf_i386 -r -o %s.o %s %s_stub.o", 
+		sprintf(tmp_str, LINKER_BIN " -r -o %s.o %s %s_stub.o", 
 			tmp_name, orig_name, tmp_name);
 		system(tmp_str);
 
@@ -1707,7 +1707,7 @@ static u32_t llboot_mem;
  * Assumes that a file exists for each service in /tmp/service.o.pid.o
  * (i.e. that gen_stubs_and_link has been called.)
  */
-static unsigned long load_all_services(struct service_symbs *services)
+static int load_all_services(struct service_symbs *services)
 {
 	unsigned long service_addr = BASE_SERVICE_ADDRESS;
 	long sz;
@@ -1730,7 +1730,7 @@ static unsigned long load_all_services(struct service_symbs *services)
 		services = services->next;
 	}
 
-	return service_addr;
+	return 0;
 }
 
 static void print_kern_symbs(struct service_symbs *services)
@@ -2693,7 +2693,7 @@ static void setup_kernel(struct service_symbs *services)
 	struct cos_thread_info thd;
 
 	pid_t pid;
-	/* pid_t children[NUM_CPU]; */
+	pid_t children[NUM_CPU];
 	int cntl_fd = 0, i, cpuid, ret;
 	unsigned long long start, end;
 	
@@ -2793,7 +2793,7 @@ static void setup_kernel(struct service_symbs *services)
 		printf("Parent(pid %d): forking for core %d.\n", getpid(), i);
 		cpuid = i;
 		pid = fork();
-		/* children[i] = pid; */
+		children[i] = pid;
 		if (pid == 0) break;
 		printf("Created pid %d for core %d.\n", pid, i);
 	}
@@ -2845,7 +2845,7 @@ static inline void print_usage(int argc, char **argv)
 	char *prog_name = argv[0];
 	int i;
 
-	printl(PRINT_HIGH, "Usage: %s [-o <output image>] <comma separated string of all "
+	printl(PRINT_HIGH, "Usage: %s <comma separated string of all "
 	       "objs:truster1-trustee1|trustee2|...;truster2-...> "
 	       "<path to gen_client_stub>\n",
 	       prog_name);
@@ -2994,24 +2994,11 @@ int main(int argc, char *argv[])
 	struct service_symbs *services;
 	char *delim = ":";
 	char *servs, *dependencies, *ndeps, *stub_gen_prog;
-	char *outfile = NULL;
-	long service_addr;
-	/* int ret = -1; */
-	struct {
-		u32_t address;
-		u32_t padding[(PAGE_SIZE / sizeof(u32_t)) - 1];
-	} boot_info;
+	int ret = -1;
 
+	setup_thread();
 
 	printl(PRINT_DEBUG, "Thread scheduling parameters setup\n");
-
-	if (argc == 5 && !strcmp(argv[1], "-o")) {
-		outfile = argv[2];
-		argc -= 2;
-		argv += 2;
-	} else {
-		setup_thread();
-	}
 
 	if (argc != 3) {
 		print_usage(argc, argv);
@@ -3073,38 +3060,16 @@ int main(int argc, char *argv[])
 	}
 	
 	gen_stubs_and_link(stub_gen_prog, services);
-	service_addr = load_all_services(services);
-
-	if (service_addr < 0) {
+	if (load_all_services(services)) {
 		printl(PRINT_HIGH, "Error loading services, aborting.\n");
 		goto dealloc_exit;
 	}
 
 //	print_kern_symbs(services);
 
-	if (outfile != NULL) {
-        	struct service_symbs *s;
-		int out = open(outfile, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+	setup_kernel(services);
 
-        	if ((s = find_obj_by_name(services, INIT_COMP)) == NULL) {
-                	fprintf(stderr, "Could not find initial component\n");
-                	exit(-1);
-        	}
-
-		if (out < 0) {
-			printl(PRINT_HIGH, "Couldn't open output file.\n");
-			goto dealloc_exit;
-		}
-
-		boot_info.address = (u32_t) get_symb_address(&s->exported, "cos_upcall_entry");
-		write(out, &boot_info, sizeof(boot_info));
-		write(out, (char*)BASE_SERVICE_ADDRESS, service_addr - BASE_SERVICE_ADDRESS);
-		close(out);
-	} else {
-		setup_kernel(services);
-	}
-
-	/* ret = 0; */
+	ret = 0;
 
  dealloc_exit:
 	while (services) {

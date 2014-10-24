@@ -2,6 +2,7 @@
 #include "vtxprintf.h"
 
 static char *str_buf;
+void *memcpy(void*, const void*, size_t);
 
 void *
 memcpy(void *dst, const void *src, size_t count)
@@ -50,18 +51,6 @@ vsprintf(char *buf, const char *fmt, va_list args)
 	str_buf = buf;
 	i = vtxprintf(str_tx_byte, fmt, args);
 	*str_buf = '\0';
-
-	return i;
-}
-
-int 
-sprintf(char *buf, const char *fmt, ...)
-{
-	va_list args;
-	int i;
-	va_start(args, fmt);
-	i = vsprintf(buf, fmt, args);
-	va_end(args);
 
 	return i;
 }

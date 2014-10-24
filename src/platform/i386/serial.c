@@ -59,14 +59,14 @@ serial_handler(struct registers *r)
 			break;
 	}
 
-	printk(INFO, "Serial: %d\n", serial); 
-	//printk(RAW, "%c", serial);
+	printk("Serial: %d\n", serial); 
+	//printk("%c", serial);
 }
 
 void
 serial_init(void) 
 {
-	printk(INFO, "Enabling serial I/O\n");
+	printk("Enabling serial I/O\n");
 	register_interrupt_handler(IRQ4, serial_handler);
 	printk_register_handler(serial_puts);
 

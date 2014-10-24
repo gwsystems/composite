@@ -8,15 +8,6 @@
 static void (*printk_handlers[MAX_HANDLERS])(const char *);
 static unsigned num_handlers = 0;
 
-const char const * log_level_str[] = {
-    [RAW]       = "",
-    [DEBUG]	= "DEBUG",
-    [INFO]      = "INFO",
-    [WARN]      = "WARN",
-    [ERROR]     = "ERROR",
-    [CRITICAL]  = "CRITICAL",
-};
-
 int
 printk_register_handler(void (*handler)(const char *))
 {
@@ -27,19 +18,14 @@ printk_register_handler(void (*handler)(const char *))
 }
 
 void 
-printk(enum log_level level, const char *fmt, ...)
+printk(const char *fmt, ...)
 {
 	char buffer[PRINTK_BUFFER];
 	va_list args;
 	unsigned int l, i;
 
-	sprintf(buffer, level == RAW ? "%s" : "[%s] ",
-		level < 0 || level > (sizeof(log_level_str) / sizeof(log_level_str[0]))
-		? "?" : log_level_str[level]);
-
-	l = strnlen(buffer, PRINTK_BUFFER);
 	va_start(args, fmt);
-	l = vsprintf(&buffer[l], fmt, args);
+	l = vsprintf(buffer, fmt, args);
 	va_end(args);
     
 	for (i = 0; i < num_handlers; i++) {

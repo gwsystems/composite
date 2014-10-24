@@ -6,7 +6,7 @@
 
 typedef unsigned long int size_t;
 
-void *memcpy(void *dst, const void *src, size_t count);
+//void *memcpy(void *dst, const void *src, size_t count);
 void *memset(void *dst, int c, size_t count);
 size_t strnlen(const char *str, size_t max);
 int sprintf(char *buf, const char *fmt, ...);

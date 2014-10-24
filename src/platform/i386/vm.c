@@ -1,11 +1,3 @@
-/* error numbers required by eitre.h (included by pgtbl.h) */
-#define EINVAL	22
-#define EPERM	1
-#define EEXIST	17
-#define ENOENT	2
-
-#include "string.h"
-#include "assert.h"
 #include <pgtbl.h>
 
 #include "multiboot.h"
@@ -44,18 +36,6 @@ hextol(const char *s)
 	return r;
 }
 
-void *
-chal_pa2va(void *address)
-{
-	return address;
-}
-
-void *
-chal_va2pa(void *address)
-{
-	return address;
-}
-
 static void
 page_fault(struct registers *regs)
 {
@@ -79,7 +59,7 @@ paging_init(u32_t memory_size, u32_t nmods, u32_t *mods)
 	char *cmdline;
 	u32_t cr0, i, user_stack_physical = 0;
 
-	printk(INFO, "Initializing virtual memory (physical memory: %dMB / %d frames)\n", memory_size/1024, memory_size/4);
+	printk("Initializing virtual memory (physical memory: %dMB / %d frames)\n", memory_size/1024, memory_size/4);
 	register_interrupt_handler(14, page_fault);
 
 	/* Allocate the Page Directory and initialize all Page Tables */
@@ -102,7 +82,7 @@ paging_init(u32_t memory_size, u32_t nmods, u32_t *mods)
 		for (i = 0; i < nmods; i++) {
 			cmdline = (char*)mod[i].cmdline;
 			module_address = hextol(cmdline);
-			printk(INFO, "Mapping multiboot Module %d \"%s\" [%x:%x] to 0x%08x\n",
+			printk("Mapping multiboot Module %d \"%s\" [%x:%x] to 0x%08x\n",
 				i, mod[i].cmdline, mod[i].mod_start, mod[i].mod_end, module_address);
 
 			if (cmdline[8] == '-') {
@@ -120,7 +100,7 @@ paging_init(u32_t memory_size, u32_t nmods, u32_t *mods)
 		user_stack_address = 0x7fff0000;
 	}
 
-	printk(INFO, "Reserving a user-space stack at v:0x%08x, p:0x%08x\n", user_stack_address, user_stack_physical);
+	printk("Reserving a user-space stack at v:0x%08x, p:0x%08x\n", user_stack_address, user_stack_physical);
 	for (i = 0; i < (USER_STACK_SIZE / PAGE_SIZE); i++) {
 		pgtbl_mapping_add(pgtbl,
 			user_stack_physical - USER_STACK_SIZE + (i * PAGE_SIZE),
@@ -128,9 +108,11 @@ paging_init(u32_t memory_size, u32_t nmods, u32_t *mods)
 			PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_USER);
 	}
 
-	printk(INFO, "Enabling paging\n");
+	printk("Enabling paging\n");
 	pgtbl_update(pgtbl);
+	printk("Switching cr0\n");
 	asm volatile("mov %%cr0, %0" : "=r"(cr0));
 	cr0 |= 0x80000000;
 	asm volatile("mov %0, %%cr0" : : "r"(cr0));
+	printk("Switched\n");
 }

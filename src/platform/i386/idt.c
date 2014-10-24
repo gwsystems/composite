@@ -191,7 +191,7 @@ idt_init(void)
     IDTR.length = idt_ptr.limit;
     IDTR.base = (unsigned long)idt_entries;
 
-    //printk(INFO, "base: %ld\n", IDTR.base);
+    //printk("base: %ld\n", IDTR.base);
 
     asm volatile("lidt (%0)" : : "p"(&IDTR));
 

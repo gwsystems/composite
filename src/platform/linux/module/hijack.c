@@ -870,6 +870,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			printk("cos: Could not allocate spd.\n");
 			return -ENOMEM;
 		}
+
 		for (i = 0 ; i < COS_NUM_ATOMIC_SECTIONS ; i++) {
 			spd->atomic_sections[i] = spd_info.atomic_regions[i];
 		}
@@ -1020,7 +1021,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		for (i = spd->sched_depth ; i >= 0 ; i--) {
 			tsi = thd_get_sched_info(thd, i);
 			tsi->scheduler = sched;
-			tcap_ref_create(&thd->tcap_active, &sched->tcaps[0]);
 			sched = sched->parent_sched;
 		}
 
