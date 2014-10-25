@@ -110,6 +110,8 @@ void chal_idle(void);
 
 #include "../../platform/include/chal_plat.h"
 
+#ifndef COS_LINUX
 extern void printk(const char *fmt, ...);
+#endif
 
 #endif	/* CHAL_H */

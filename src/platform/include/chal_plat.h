@@ -1,14 +1,14 @@
 #ifndef CHAL_PLAT_H
 #define CHAL_PLAT_H
 
-#if 0
+#ifdef COS_LINUX
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #endif
 
 //void *chal_pa2va(void *pa);
 
-#if 0
+#ifdef COS_LINUX
 struct per_core_cos_thd
 {
 	struct task_struct *cos_thd;
@@ -47,7 +47,7 @@ __chal_pgtbl_switch(paddr_t pt)
 static inline void 
 chal_pgtbl_switch(paddr_t pt)
 {
-#if 0
+#ifdef COS_LINUX
 	native_write_cr3(pt);
 //#define HOST_PGTBL_UPDATE
 #ifdef HOST_PGTBL_UPDATE
@@ -56,7 +56,7 @@ chal_pgtbl_switch(paddr_t pt)
 #endif
 }
 
-#if 0
+#ifdef COS_LINUX
 static inline unsigned int 
 hpage_index(unsigned long n)
 {

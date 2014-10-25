@@ -95,6 +95,10 @@ void *cos_default_sysenter_addr;
 extern void ipi_handler(void);
 extern void reg_save_interposition(void);
 
+#ifndef LOCAL_TIMER_VECTOR
+#define LOCAL_TIMER_VECTOR         0xef
+#endif
+
 void
 hw_int_init(void)
 {

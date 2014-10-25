@@ -42,19 +42,19 @@ OBJS += timer.o
 OBJS += chal.o
 #OBJS += console.o
 
-COS_OBJ += ../../kernel/pgtbl.o 
-COS_OBJ += ../../kernel/retype_tbl.o
-COS_OBJ += ../../kernel/liveness_tbl.o
-COS_OBJ += ../../kernel/mmap.o
-COS_OBJ += ../../kernel/capinv.o
-COS_OBJ += ../../kernel/measurement.o
-COS_OBJ += ../../kernel/captbl.o
+COS_OBJ += pgtbl.o 
+COS_OBJ += retype_tbl.o
+COS_OBJ += liveness_tbl.o
+COS_OBJ += mmap.o
+COS_OBJ += capinv.o
+COS_OBJ += measurement.o
+COS_OBJ += captbl.o
+
+DEPS :=$(patsubst %.o, %.d, $(OBJS))
 
 OBJS += $(COS_OBJ)
 
 all: $(KERNEL)
-
-DEPS :=$(patsubst %.o, %.d, $(OBJS))
 
 $(KERNEL): $(DEPS) $(OBJS) loader.o
 	$(info |     [LD]   Linking $@)
@@ -66,6 +66,35 @@ loader.o: loader.s interrupt.s sysenter.s
 
 %.d: %.c
 	@$(CC) -M -MT $(patsubst %.d, %.o, $@) $(CFLAGS) $(LDFLAGS) $< -o $@
+
+pgtbl.o: ../../kernel/pgtbl.c
+	$(info |     [CC]   Compiling $@)
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+retype_tbl.o: ../../kernel/retype_tbl.c
+	$(info |     [CC]   Compiling $@)
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+liveness_tbl.o: ../../kernel/liveness_tbl.c
+	$(info |     [CC]   Compiling $@)
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+mmap.o: ../../kernel/mmap.c
+	$(info |     [CC]   Compiling $@)
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+capinv.o: ../../kernel/capinv.c
+	$(info |     [CC]   Compiling $@)
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+measurement.o: ../../kernel/measurement.c
+	$(info |     [CC]   Compiling $@)
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+captbl.o: ../../kernel/captbl.c
+	$(info |     [CC]   Compiling $@)
+	@$(CC) $(CFLAGS) -c $< -o $@
+
 
 %.o: %.c
 	$(info |     [CC]   Compiling $@)

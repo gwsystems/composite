@@ -1,5 +1,7 @@
 include Makefile.src
 
+EXTRA_CFLAGS=-DCOS_LINUX -Wno-unused
+
 obj-m := cos.o
 cos-objs := kern_entry.o hw_ints.o hijack.o pgtbl.o ../../../kernel/inv.o ../../../kernel/capinv.o ../../../kernel/liveness_tbl.o ../../../kernel/pgtbl.o ../../../kernel/captbl.o ../../../kernel/retype_tbl.o ../../../kernel/thread.o ../../../kernel/spd.o ../../../kernel/per_cpu.o ../../../kernel/measurement.o ../../../kernel/page_pool.o ../../../kernel/mmap.o ../../../kernel/ring_buff.o ../../../kernel/fpu.o
 
