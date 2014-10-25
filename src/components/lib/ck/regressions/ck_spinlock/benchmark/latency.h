@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2012 Samy Al Bahra.
+ * Copyright 2011-2014 Samy Al Bahra.
  * Copyright 2011 David Joseph.
  * All rights reserved.
  *
@@ -53,6 +53,7 @@ main(void)
 	#endif
 
 	uint64_t s_b, e_b, i;
+	CK_CC_UNUSED int core = 0;
 
 	s_b = rdtsc();
 	for (i = 0; i < STEPS; ++i) {

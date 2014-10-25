@@ -1,0 +1,5 @@
+
+LIBOBJ+=$(OBJDIR)/md5asm.o
+CFLAGS+=-Os -fomit-frame-pointer -fstrict-aliasing -mhard-float
+VPATH:=arm:syscalls.s:$(VPATH)
+LIBGMON_OBJS+=$(OBJDIR)/mcount.o

@@ -1,5 +1,5 @@
 .\"
-.\" Copyright 2012 Samy Al Bahra.
+.\" Copyright 2012-2013 Samy Al Bahra.
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -81,6 +81,11 @@ functions. Attempting a hash table operation with a key of value of 0 or
 UINTPTR_MAX will result in undefined behavior.
 .El
 .Pp
+In addition to this, the user may bitwise OR the mode flag with
+CK_HT_WORKLOAD_DELETE to indicate that the hash table will
+have to handle a delete heavy workload, in which case stronger
+bounds on latency can be provided at the cost of approximately
+13% higher memory usage.
 The argument
 .Fa hash_function
 is a pointer to a user-specified hash function. It is optional,
@@ -160,10 +165,12 @@ object.
 .Xr ck_ht_hash_direct 3 ,
 .Xr ck_ht_set_spmc 3 ,
 .Xr ck_ht_put_spmc 3 ,
+.Xr ck_ht_gc 3 ,
 .Xr ck_ht_get_spmc 3 ,
 .Xr ck_ht_grow_spmc 3 ,
 .Xr ck_ht_remove_spmc 3 ,
 .Xr ck_ht_reset_spmc 3 ,
+.Xr ck_ht_reset_size_spmc 3 ,
 .Xr ck_ht_count 3 ,
 .Xr ck_ht_entry_empty 3 ,
 .Xr ck_ht_entry_key_set 3 ,

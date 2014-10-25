@@ -1,0 +1,6 @@
+ifeq ($(CROSS),mips-linux-)
+ENDIAN=-EL
+endif
+CFLAGS+=$(ENDIAN) -Os -G 0 -fstrict-aliasing -fno-pic -mno-abicalls
+VPATH:=mips:syscalls.s:$(VPATH)
+LIBOBJ+=$(OBJDIR)/pread64.o $(OBJDIR)/pwrite64.o $(OBJDIR)/divdi3.o

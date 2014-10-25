@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Samy Al Bahra.
+ * Copyright 2010-2014 Samy Al Bahra.
  * Copyright 2011 David Joseph.
  * All rights reserved.
  *
@@ -112,6 +112,15 @@ ck_fifo_spsc_init(struct ck_fifo_spsc *fifo, struct ck_fifo_spsc_entry *stub)
 }
 
 CK_CC_INLINE static void
+ck_fifo_spsc_deinit(struct ck_fifo_spsc *fifo, struct ck_fifo_spsc_entry **garbage)
+{
+
+	*garbage = fifo->head;
+	fifo->head = fifo->tail = NULL;
+	return;
+}
+
+CK_CC_INLINE static void
 ck_fifo_spsc_enqueue(struct ck_fifo_spsc *fifo,
 		     struct ck_fifo_spsc_entry *entry,
 		     void *value)
@@ -139,14 +148,13 @@ ck_fifo_spsc_dequeue(struct ck_fifo_spsc *fifo, void *value)
 	 */
 	entry = ck_pr_load_ptr(&fifo->head->next);
 	if (entry == NULL)
-		return (false);
+		return false;
 
 	/* If entry is visible, guarantee store to value is visible. */
-	ck_pr_fence_load_depends();
 	ck_pr_store_ptr(value, entry->value);
 	ck_pr_fence_store();
 	ck_pr_store_ptr(&fifo->head, entry);
-	return (true);
+	return true;
 }
 
 /*
@@ -166,14 +174,14 @@ ck_fifo_spsc_recycle(struct ck_fifo_spsc *fifo)
 
 	garbage = fifo->garbage;
 	fifo->garbage = garbage->next;
-	return (garbage);
+	return garbage;
 }
 
 CK_CC_INLINE static bool
 ck_fifo_spsc_isempty(struct ck_fifo_spsc *fifo)
 {
 	struct ck_fifo_spsc_entry *head = ck_pr_load_ptr(&fifo->head);
-	return (ck_pr_load_ptr(&head->next) == NULL);
+	return ck_pr_load_ptr(&head->next) == NULL;
 }
 
 #define CK_FIFO_SPSC_ISEMPTY(f)	((f)->head->next == NULL)
@@ -225,6 +233,15 @@ ck_fifo_mpmc_init(struct ck_fifo_mpmc *fifo, struct ck_fifo_mpmc_entry *stub)
 }
 
 CK_CC_INLINE static void
+ck_fifo_mpmc_deinit(struct ck_fifo_mpmc *fifo, struct ck_fifo_mpmc_entry **garbage)
+{
+
+	*garbage = fifo->head.pointer;
+	fifo->head.pointer = fifo->tail.pointer = NULL;
+	return;
+}
+
+CK_CC_INLINE static void
 ck_fifo_mpmc_enqueue(struct ck_fifo_mpmc *fifo,
 		     struct ck_fifo_mpmc_entry *entry,
 		     void *value)
@@ -238,13 +255,12 @@ ck_fifo_mpmc_enqueue(struct ck_fifo_mpmc *fifo,
 	entry->value = value;
 	entry->next.pointer = NULL;
 	entry->next.generation = 0;
-	ck_pr_fence_store();
+	ck_pr_fence_store_atomic();
 
 	for (;;) {
 		tail.generation = ck_pr_load_ptr(&fifo->tail.generation);
 		ck_pr_fence_load();
 		tail.pointer = ck_pr_load_ptr(&fifo->tail.pointer);
-		ck_pr_fence_load_depends();
 		next.generation = ck_pr_load_ptr(&tail.pointer->next.generation);
 		next.pointer = ck_pr_load_ptr(&tail.pointer->next.pointer);
 
@@ -273,9 +289,10 @@ ck_fifo_mpmc_enqueue(struct ck_fifo_mpmc *fifo,
 		}
 	}
 
+	ck_pr_fence_atomic();
+
 	/* After a successful insert, forward the tail to the new entry. */
 	update.generation = tail.generation + 1;
-	ck_pr_fence_store();
 	ck_pr_cas_ptr_2(&fifo->tail, &tail, &update);
 	return;
 }
@@ -291,12 +308,11 @@ ck_fifo_mpmc_tryenqueue(struct ck_fifo_mpmc *fifo,
 	entry->next.pointer = NULL;
 	entry->next.generation = 0;
 
-	ck_pr_fence_store();
+	ck_pr_fence_store_atomic();
 
 	tail.generation = ck_pr_load_ptr(&fifo->tail.generation);
 	ck_pr_fence_load();
 	tail.pointer = ck_pr_load_ptr(&fifo->tail.pointer);
-	ck_pr_fence_load_depends();
 	next.generation = ck_pr_load_ptr(&tail.pointer->next.generation);
 	next.pointer = ck_pr_load_ptr(&tail.pointer->next.pointer);
 
@@ -325,8 +341,9 @@ ck_fifo_mpmc_tryenqueue(struct ck_fifo_mpmc *fifo,
 			return false;
 	}
 
+	ck_pr_fence_atomic();
+
 	/* After a successful insert, forward the tail to the new entry. */
-	ck_pr_fence_store();
 	update.generation = tail.generation + 1;
 	ck_pr_cas_ptr_2(&fifo->tail, &tail, &update);
 	return true;
@@ -358,12 +375,20 @@ ck_fifo_mpmc_dequeue(struct ck_fifo_mpmc *fifo,
 			 * queue is empty.
 			 */
 			if (next.pointer == NULL)
-				return (false);
+				return false;
 
 			/* Forward the tail pointer if necessary. */
 			update.generation = tail.generation + 1;
 			ck_pr_cas_ptr_2(&fifo->tail, &tail, &update);
 		} else {
+			/*
+			 * It is possible for head snapshot to have been
+			 * re-used. Avoid deferencing during enqueue
+			 * re-use.
+			 */
+			if (next.pointer == NULL)
+				continue;
+
 			/* Save value before commit. */
 			*(void **)value = ck_pr_load_ptr(&next.pointer->value);
 
@@ -375,7 +400,7 @@ ck_fifo_mpmc_dequeue(struct ck_fifo_mpmc *fifo,
 	}
 
 	*garbage = head.pointer;
-	return (true);
+	return true;
 }
 
 CK_CC_INLINE static bool
@@ -411,6 +436,13 @@ ck_fifo_mpmc_trydequeue(struct ck_fifo_mpmc *fifo,
 		ck_pr_cas_ptr_2(&fifo->tail, &tail, &update);
 		return false;
 	} else {
+		/*
+		 * It is possible for head snapshot to have been
+		 * re-used. Avoid deferencing during enqueue.
+		 */
+		if (next.pointer == NULL)
+			return false;
+
 		/* Save value before commit. */
 		*(void **)value = ck_pr_load_ptr(&next.pointer->value);
 
@@ -440,3 +472,4 @@ ck_fifo_mpmc_trydequeue(struct ck_fifo_mpmc *fifo,
 #endif /* CK_F_PR_CAS_PTR_2 */
 
 #endif /* _CK_FIFO_H */
+

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2012 Samy Al Bahra.
+ * Copyright 2011-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -63,15 +63,35 @@ thread(void *null CK_CC_UNUSED)
 #endif
 	unsigned int i = ITERATE;
 	unsigned int j;
+	unsigned int core;
 
-        if (aff_iterate(&a)) {
+        if (aff_iterate_core(&a, &core)) {
                 perror("ERROR: Could not affine thread");
                 exit(EXIT_FAILURE);
         }
 
 	while (i--) {
+#ifdef TRYLOCK
+		if (i & 1) {
+			LOCK;
+		} else {
+			while (TRYLOCK == false)
+				ck_pr_stall();
+		}
+#else
 		LOCK;
+#endif
 
+#ifdef LOCKED
+		if (LOCKED == false)
+			ck_error("is_locked operation failed.");
+#endif
+
+		ck_pr_inc_uint(&locked);
+		ck_pr_inc_uint(&locked);
+		ck_pr_inc_uint(&locked);
+		ck_pr_inc_uint(&locked);
+		ck_pr_inc_uint(&locked);
 		ck_pr_inc_uint(&locked);
 		ck_pr_inc_uint(&locked);
 		ck_pr_inc_uint(&locked);
@@ -80,7 +100,7 @@ thread(void *null CK_CC_UNUSED)
 
 		j = ck_pr_load_uint(&locked);
 
-		if (j != 5) {
+		if (j != 10) {
 			ck_error("ERROR (WR): Race condition (%u)\n", j);
 			exit(EXIT_FAILURE);
 		}
@@ -90,8 +110,14 @@ thread(void *null CK_CC_UNUSED)
 		ck_pr_dec_uint(&locked);
 		ck_pr_dec_uint(&locked);
 		ck_pr_dec_uint(&locked);
+		ck_pr_dec_uint(&locked);
+		ck_pr_dec_uint(&locked);
+		ck_pr_dec_uint(&locked);
+		ck_pr_dec_uint(&locked);
+		ck_pr_dec_uint(&locked);
 
 		UNLOCK;
+
 		LOCK;
 
 		j = ck_pr_load_uint(&locked);
@@ -99,6 +125,7 @@ thread(void *null CK_CC_UNUSED)
 			ck_error("ERROR (RD): Race condition (%u)\n", j);
 			exit(EXIT_FAILURE);
 		}
+
 		UNLOCK;
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2012 Samy Al Bahra.
+ * Copyright 2011-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -156,12 +156,13 @@ ck_epoch_recycle(struct ck_epoch *global)
 	unsigned int state;
 
 	if (ck_pr_load_uint(&global->n_free) == 0)
-		return (NULL);
+		return NULL;
 
 	CK_STACK_FOREACH(&global->records, cursor) {
 		record = ck_epoch_record_container(cursor);
 
 		if (ck_pr_load_uint(&record->state) == CK_EPOCH_STATE_FREE) {
+			/* Serialize with respect to deferral list clean-up. */
 			ck_pr_fence_load();
 			state = ck_pr_fas_uint(&record->state, CK_EPOCH_STATE_USED);
 			if (state == CK_EPOCH_STATE_FREE) {
@@ -216,9 +217,9 @@ ck_epoch_unregister(struct ck_epoch *global, struct ck_epoch_record *record)
 
 static struct ck_epoch_record *
 ck_epoch_scan(struct ck_epoch *global,
-	      struct ck_epoch_record *cr,
-	      unsigned int epoch,
-	      bool *af)
+    struct ck_epoch_record *cr,
+    unsigned int epoch,
+    bool *af)
 {
 	ck_stack_entry_t *cursor;
 
@@ -276,10 +277,24 @@ ck_epoch_dispatch(struct ck_epoch_record *record, unsigned int e)
 }
 
 /*
+ * Reclaim all objects associated with a record.
+ */
+void
+ck_epoch_reclaim(struct ck_epoch_record *record)
+{
+	unsigned int epoch;
+
+	for (epoch = 0; epoch < CK_EPOCH_LENGTH; epoch++)
+		ck_epoch_dispatch(record, epoch);
+
+	return;
+}
+
+/*
  * This function must not be called with-in read section.
  */
 void
-ck_epoch_barrier(struct ck_epoch *global, struct ck_epoch_record *record)
+ck_epoch_synchronize(struct ck_epoch *global, struct ck_epoch_record *record)
 {
 	struct ck_epoch_record *cr;
 	unsigned int delta, epoch, goal, i;
@@ -322,7 +337,7 @@ ck_epoch_barrier(struct ck_epoch *global, struct ck_epoch_record *record)
 		 * we are at a grace period.
 		 */
 		if (active == false)
-			goto dispatch;
+			break;
 
 		/*
 		 * Increment current epoch. CAS semantics are used to eliminate
@@ -349,53 +364,20 @@ reload:
 			 * generation. We can actually avoid an addtional scan step
 			 * at this point.
 			 */
-			goto dispatch;
+			break;
 		}
 	}
-
-	/*
-	 * At this point, we are at e + 2. If all threads have observed
-	 * this epoch value, then no threads are at e + 1 and no references
-	 * could exist to the snapshot of e observed at the time this
-	 * function was called.
-	 */
-	while (cr = ck_epoch_scan(global, cr, delta, &active), cr != NULL) {
-		ck_pr_stall();
-
-		/*
-		 * If the epoch value was changed from underneath us then
-		 * our epoch must have been observed at some point.
-		 *
-		 * If all threads have gone inactive, we are also at a grace
-		 * period as any reads succeeding this call to synchronize
-		 * will imply a full memory barrier (logically deleted objects
-		 * will not be visible).
-		 */
-		epoch = ck_pr_load_uint(&global->epoch);
-		if ((epoch != delta) | (active == false))
-			break;
-	}
-
-	/*
-	 * As the synchronize operation is non-blocking, it is possible other
-	 * writers have already observed three or more epoch generations
-	 * relative to the generation the caller has observed. In this case,
-	 * it is safe to assume we are also in a grace period and are able to
-	 * dispatch all calls across all lists.
-	 */
-dispatch:
-	for (epoch = 0; epoch < CK_EPOCH_LENGTH; epoch++)
-		ck_epoch_dispatch(record, epoch);
 
 	record->epoch = delta;
 	return;
 }
 
 void
-ck_epoch_synchronize(struct ck_epoch *global, struct ck_epoch_record *record)
+ck_epoch_barrier(struct ck_epoch *global, struct ck_epoch_record *record)
 {
 
-	ck_epoch_barrier(global, record);
+	ck_epoch_synchronize(global, record);
+	ck_epoch_reclaim(record);
 	return;
 }
 

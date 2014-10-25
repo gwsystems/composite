@@ -1,6 +1,6 @@
 /*
  * Copyright 2012 Hendrik Donner
- * Copyright 2012 Samy Al Bahra.
+ * Copyright 2012-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -93,12 +93,13 @@ queue_50_50(void *elements)
 
 	/* start barrier */
 	ck_pr_inc_uint(&start_barrier);
-	while (ck_pr_load_uint(&start_barrier) < thread_count + 1);
+	while (ck_pr_load_uint(&start_barrier) < thread_count + 1)
+		ck_pr_stall();
 
 	/* 50/50 enqueue-dequeue */
 	for(j = 0; j < element_count; j++) {
 		/* rand_r with thread local state should be thread safe */
-		if( 50 < (1+(int) (100.0*rand_r(&seed)/(RAND_MAX+1.0)))) {
+		if( 50 < (1+(int) (100.0*common_rand_r(&seed)/(RAND_MAX+1.0)))) {
 			/* This is the container for the enqueued data. */
         		fifo_entry = malloc(sizeof(ck_hp_fifo_entry_t));
 
@@ -137,7 +138,8 @@ queue_50_50(void *elements)
 
 	/* end barrier */
 	ck_pr_inc_uint(&end_barrier);
-	while (ck_pr_load_uint(&end_barrier) < thread_count + 1);
+	while (ck_pr_load_uint(&end_barrier) < thread_count + 1)
+		ck_pr_stall();
 
        	return NULL;
 }

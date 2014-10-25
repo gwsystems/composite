@@ -1,5 +1,5 @@
 .\"
-.\" Copyright 2012 Samy Al Bahra.
+.\" Copyright 2012-2013 Samy Al Bahra.
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -33,9 +33,8 @@
 Concurrency Kit (libck, \-lck)
 .Sh SYNOPSIS
 .In ck_epoch.h
-
 typedef struct ck_epoch_entry ck_epoch_entry_t;
-
+.br
 typedef void ck_epoch_cb_t(ck_epoch_entry_t *);
 .Ft void
 .Fn ck_epoch_call "ck_epoch_t *epoch" "ck_epoch_record_t *record" "ck_epoch_entry_t *entry" "ck_epoch_cb_t *function"
@@ -50,7 +49,7 @@ The function will be provided
 the pointer specified by 
 .Fa entry .
 The function will execute at some time in the future via calls to
-.Fn ck_epoch_synchronize 3 ,
+.Fn ck_epoch_reclaim 3 ,
 .Fn ck_epoch_barrier 3
 or
 .Fn ck_epoch_poll 3 .
@@ -114,6 +113,7 @@ function(void)
 	ck_epoch_poll(&epoch, record);
 	return;
 }
+.Ed
 .Sh RETURN VALUES
 This function has no return value.
 .Sh ERRORS
@@ -128,6 +128,7 @@ must have been previously registered via
 .Xr ck_epoch_recycle 3 ,
 .Xr ck_epoch_poll 3 ,
 .Xr ck_epoch_synchronize 3 ,
+.Xr ck_epoch_reclaim 3 ,
 .Xr ck_epoch_barrier 3 ,
 .Xr ck_epoch_begin 3 ,
 .Xr ck_epoch_end 3

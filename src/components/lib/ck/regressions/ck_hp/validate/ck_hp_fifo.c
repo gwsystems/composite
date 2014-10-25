@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2012 Samy Al Bahra.
+ * Copyright 2011-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -163,6 +163,16 @@ main(int argc, char *argv[])
 
 	ck_hp_init(&fifo_hp, 2, threshold, destructor);
 	ck_hp_fifo_init(&fifo, malloc(sizeof(ck_hp_fifo_entry_t)));
+
+	ck_hp_fifo_entry_t *entry;
+	ck_hp_fifo_deinit(&fifo, &entry);
+
+	if (entry == NULL)
+		ck_error("ERROR: Expected non-NULL stub node.\n");
+
+	free(entry);
+	ck_hp_fifo_init(&fifo, malloc(sizeof(ck_hp_fifo_entry_t)));
+
 	for (i = 0; i < nthr; i++) {
 		context[i].tid = i;
 		r = pthread_create(thread + i, NULL, test, context + i);

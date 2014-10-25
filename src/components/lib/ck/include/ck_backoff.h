@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2012 Samy Al Bahra.
+ * Copyright 2009-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -55,3 +55,4 @@ ck_backoff_eb(volatile unsigned int *c)
 }
 
 #endif /* _CK_BACKOFF_H */
+

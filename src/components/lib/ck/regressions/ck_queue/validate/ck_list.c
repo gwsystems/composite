@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 Samy Al Bahra.
+ * Copyright 2012-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -117,7 +117,7 @@ int
 main(int argc, char *argv[])
 {
 	pthread_t *thread;
-	struct test *n;
+	struct test *n, a, b;
 	struct test_list target;
 	int n_threads, i;
 
@@ -156,10 +156,32 @@ main(int argc, char *argv[])
 		free(n);
 	}
 
+	CK_LIST_INSERT_HEAD(&head, &a, list_entry);
+	CK_LIST_INSERT_HEAD(&head, &b, list_entry);
+	CK_LIST_REMOVE(&a, list_entry);
+	if (CK_LIST_FIRST(&head) != &b)
+		ck_error("List is in invalid state.\n");
+	CK_LIST_REMOVE(&b, list_entry);
+
 	if (CK_LIST_EMPTY(&head) == false) {
 		ck_error("List is not empty after bulk removal.\n");
 	}
 
+	CK_LIST_INSERT_HEAD(&head, &a, list_entry);
+	CK_LIST_INSERT_AFTER(&a, &b, list_entry);
+
+	if (CK_LIST_NEXT(&b, list_entry) != NULL)
+		ck_error("Inserted item after last, it should not have no next.\n");
+
+	CK_LIST_INIT(&head);
+
+	CK_LIST_INSERT_HEAD(&head, &a, list_entry);
+	CK_LIST_INSERT_BEFORE(&a, &b, list_entry);
+
+	if (CK_LIST_NEXT(&b, list_entry) != &a)
+		ck_error("Inserted item before last, it should point to last.\n");
+
+	CK_LIST_INIT(&head);
 	fprintf(stderr, "done (success)\n");
 
 	fprintf(stderr, "Beginning parallel traversal...");

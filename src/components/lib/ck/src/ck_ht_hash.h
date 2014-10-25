@@ -1,6 +1,6 @@
 /*
- * Copyright 2012 Samy Al Bahra
- * Copyright 2011 AppNexus, Inc.
+ * Copyright 2012-2014 Samy Al Bahra
+ * Copyright 2011-2014 AppNexus, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,6 +32,7 @@
  */
 
 #include <ck_stdint.h>
+#include <string.h>
 
 //-----------------------------------------------------------------------------
 // MurmurHash3 was written by Austin Appleby, and is placed in the public
@@ -62,7 +63,7 @@
 
 #else   // defined(_MSC_VER)
 
-#define FORCE_INLINE __attribute__((always_inline))
+#define FORCE_INLINE inline __attribute__((always_inline))
 
 static inline uint32_t rotl32 ( uint32_t x, int8_t r )
 {
@@ -173,7 +174,14 @@ static inline uint64_t MurmurHash64A ( const void * key, int len, uint64_t seed 
 
   while(data != end)
   {
-    uint64_t k = *data++;
+    uint64_t k;
+ 
+    if (!((uintptr_t)data & 0x7))
+	    k = *data++;
+    else {
+	    memcpy(&k, (void *)data, sizeof(k));
+	    data++;
+    }
 
     k *= m;
     k ^= k >> r;

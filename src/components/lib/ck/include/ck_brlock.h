@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2012 Samy Al Bahra.
+ * Copyright 2011-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -67,7 +67,7 @@ ck_brlock_init(struct ck_brlock *br)
 
 	br->readers = NULL;
 	br->writer = false;
-	ck_pr_fence_memory();
+	ck_pr_barrier();
 	return;
 }
 
@@ -83,7 +83,7 @@ ck_brlock_write_lock(struct ck_brlock *br)
 	while (ck_pr_fas_uint(&br->writer, true) == true)
 		ck_pr_stall();
 
-	ck_pr_fence_memory();
+	ck_pr_fence_atomic_load();
 
 	/* The reader list is protected under the writer br. */
 	for (cursor = br->readers; cursor != NULL; cursor = cursor->next) {
@@ -91,7 +91,7 @@ ck_brlock_write_lock(struct ck_brlock *br)
 			ck_pr_stall();
 	}
 
-	/* This branch should never be reached. */
+	/* Already acquired with respect to other writers. */
 	return;
 }
 
@@ -99,7 +99,7 @@ CK_CC_INLINE static void
 ck_brlock_write_unlock(struct ck_brlock *br)
 {
 
-	ck_pr_fence_memory();
+	ck_pr_fence_release();
 	ck_pr_store_uint(&br->writer, false);
 	return;
 }
@@ -121,7 +121,7 @@ ck_brlock_write_trylock(struct ck_brlock *br, unsigned int factor)
 	 * We do not require a strict fence here as atomic RMW operations
 	 * are serializing.
 	 */
-	ck_pr_fence_memory();
+	ck_pr_fence_atomic_load();
 
 	for (cursor = br->readers; cursor != NULL; cursor = cursor->next) {
 		while (ck_pr_load_uint(&cursor->n_readers) != 0) {
@@ -134,6 +134,7 @@ ck_brlock_write_trylock(struct ck_brlock *br, unsigned int factor)
 		}
 	}
 
+	/* Already acquired with respect to other writers. */
 	return true;
 }
 
@@ -190,13 +191,19 @@ ck_brlock_read_lock(struct ck_brlock *br, struct ck_brlock_reader *reader)
 #if defined(__x86__) || defined(__x86_64__)
 		ck_pr_fas_uint(&reader->n_readers, 1);
 
-		/* Serialize counter update with respect to writer snapshot. */
-		ck_pr_fence_memory();
+		/*
+		 * Serialize reader counter update with respect to load of
+		 * writer.
+		 */
+		ck_pr_fence_atomic_load();
 #else
 		ck_pr_store_uint(&reader->n_readers, 1);
 
-		/* Loads can be re-ordered before previous stores, even on TSO. */
-		ck_pr_fence_strict_memory();
+		/*
+		 * Serialize reader counter update with respect to load of
+		 * writer.
+		 */
+		ck_pr_fence_store_load();
 #endif
 
 		if (ck_pr_load_uint(&br->writer) == false)
@@ -229,10 +236,23 @@ ck_brlock_read_trylock(struct ck_brlock *br,
 			ck_pr_stall();
 		}
 
+#if defined(__x86__) || defined(__x86_64__)
+		ck_pr_fas_uint(&reader->n_readers, 1);
+
+		/*
+		 * Serialize reader counter update with respect to load of
+		 * writer.
+		 */
+		ck_pr_fence_atomic_load();
+#else
 		ck_pr_store_uint(&reader->n_readers, 1);
 
-		/* Loads are re-ordered with respect to prior stores. */
-		ck_pr_fence_strict_memory();
+		/*
+		 * Serialize reader counter update with respect to load of
+		 * writer.
+		 */
+		ck_pr_fence_store_load();
+#endif
 
 		if (ck_pr_load_uint(&br->writer) == false)
 			break;
@@ -251,9 +271,10 @@ CK_CC_INLINE static void
 ck_brlock_read_unlock(struct ck_brlock_reader *reader)
 {
 
-	ck_pr_fence_load();
+	ck_pr_fence_load_store();
 	ck_pr_store_uint(&reader->n_readers, reader->n_readers - 1);
 	return;
 }
 
 #endif /* _CK_BRLOCK_H */
+

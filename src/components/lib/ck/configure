@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright © 2009-2012 Samy Al Bahra.
+# Copyright © 2009-2013 Samy Al Bahra.
 # Copyright © 2011 Devon H. O'Dell <devon.odell@gmail.com>
 # All rights reserved.
 #
@@ -31,11 +31,15 @@ REQUIRE_HEADER="stdbool.h stddef.h stdint.h string.h"
 EXIT_SUCCESS=0
 EXIT_FAILURE=1
 
+P_PWD=`pwd`
 MAINTAINER='sbahra@repnop.org'
-VERSION=${VERSION:-'0.2.13'}
+VERSION=${VERSION:-'0.4.1'}
 VERSION_MAJOR='0'
 BUILD="$PWD/build/ck.build"
 PREFIX=${PREFIX:-"/usr/local"}
+LDNAME="libck.so"
+LDNAME_VERSION="libck.so.$VERSION"
+LDNAME_MAJOR="libck.so.$VERSION_MAJOR"
 
 export CFLAGS
 export PREFIX
@@ -93,9 +97,15 @@ generate()
 	    -e "s#@GZIP@#$GZIP#g"				\
 	    -e "s#@GZIP_SUFFIX@#$GZIP_SUFFIX#g"			\
 	    -e "s#@POINTER_PACK_ENABLE@#$POINTER_PACK_ENABLE#g"	\
+	    -e "s#@RTM_ENABLE@#$RTM_ENABLE#g"			\
 	    -e "s#@VMA_BITS@#$VMA_BITS_R#g"			\
 	    -e "s#@VMA_BITS_VALUE@#$VMA_BITS_VALUE_R#g"		\
 	    -e "s#@MM@#$MM#g"					\
+	    -e "s#@BUILD_DIR@#$P_PWD#g"				\
+	    -e "s#@SRC_DIR@#$BUILD_DIR#g"			\
+	    -e "s#@LDNAME@#$LDNAME#g"				\
+	    -e "s#@LDNAME_MAJOR@#$LDNAME_MAJOR#g"		\
+	    -e "s#@LDNAME_VERSION@#$LDNAME_VERSION#g"		\
 		$1 > $2
 }
 
@@ -104,18 +114,25 @@ generate_stdout()
 
 	echo
 	echo "           VERSION = $VERSION"
+	echo "         BUILD_DIR = $P_PWD"
+	echo "           SRC_DIR = $BUILD_DIR"
+	echo "            SYSTEM = $SYSTEM"
 	echo "           PROFILE = $PROFILE"
 	echo "                CC = $CC"
 	echo "          COMPILER = $COMPILER"
 	echo "            CFLAGS = $CFLAGS"
 	echo "    PTHREAD_CFLAGS = $PTHREAD_CFLAGS"
 	echo "                LD = $LD"
+	echo "            LDNAME = $LDNAME"
+	echo "    LDNAME_VERSION = $LDNAME_VERSION"
+	echo "      LDNAME_MAJOR = $LDNAME_MAJOR"
 	echo "           LDFLAGS = $LDFLAGS"
 	echo "              GZIP = $GZIP"
 	echo "             CORES = $CORES"
 	echo "      POINTER_PACK = $POINTER_PACK_ENABLE"
 	echo "          VMA_BITS = $VMA_BITS"
 	echo "      MEMORY_MODEL = $MM"
+	echo "               RTM = $RTM_ENABLE"
 	echo
 	echo "Headers will be installed in $HEADERS"
 	echo "Libraries will be installed in $LIBRARY"
@@ -127,7 +144,7 @@ for option in $*; do
 
 	case "$option" in
 	--help)
-		echo "Usage: ./configure [OPTIONS]"
+		echo "Usage: $0 [OPTIONS]"
 		echo
 		echo "The following options may be used for cross-building."
 		echo "  --profile=N              Use custom build profile (use in conjunction with \$CC)"
@@ -141,6 +158,7 @@ for option in $*; do
 		echo "The following options will modify code generation."
 		echo "  --cores=N                Specify number of cores available on target machine"
 		echo "  --enable-pointer-packing Assumes address encoding is subset of pointer range"
+		echo "  --enable-rtm             Enable restricted transactional memory (x86_64 only)"
 		echo "  --memory-model=N         Specify memory model (currently tso, pso or rmo)"
 		echo "  --vma-bits=N             Specify valid number of VMA bits"
 		echo
@@ -176,6 +194,9 @@ for option in $*; do
 	--enable-pointer-packing)
 		POINTER_PACK_ENABLE="CK_MD_POINTER_PACK_ENABLE"
 		;;
+	--enable-rtm)
+		RTM_ENABLE_SET="CK_MD_RTM_ENABLE"
+		;;
 	--cores=*)
 		CORES=$value
 		;;
@@ -194,8 +215,14 @@ for option in $*; do
 	--mandir=*)
 		MANDIR=$value
 		;;
+	*=*)
+		NAME=`expr "$option" : '\([^=]*\)='`
+		VALUE=`echo "$value" | sed "s/'/'\\\\\\\\''/g"`
+		eval "$NAME='$VALUE'"
+		export $NAME
+		;;
 	*)
-		echo "./configure [--help]"
+		echo "$0 [--help]"
 		exit $EXIT_FAILURE
 		;;
 	esac
@@ -206,6 +233,8 @@ LIBRARY=${LIBRARY:-"${PREFIX}/lib"}
 MANDIR=${MANDIR:-"${PREFIX}/share/man"}
 GZIP=${GZIP:-"gzip -c"}
 POINTER_PACK_ENABLE=${POINTER_PACK_ENABLE:-"CK_MD_POINTER_PACK_DISABLE"}
+RTM_ENABLE=${RTM_ENABLE_SET:-"CK_MD_RTM_DISABLE"}
+VMA_BITS=${VMA_BITS:-"unknown"}
 
 if test "$PROFILE"; then
 	printf "Using user-specified profile....."
@@ -244,7 +273,7 @@ case "$SYSTEM" in
 		SYSTEM=solaris
 		;;
 	"Linux"|"uClinux")
-		DCORES=`egrep '(^CPU|processor.*:.*)' /proc/cpuinfo|wc -l`
+		DCORES=`egrep '(^CPU[0-9]+|^processor.*:.*)' /proc/cpuinfo|wc -l`
 		SYSTEM=linux
 		;;
 	"FreeBSD"|"GNU/kFreeBSD")
@@ -267,6 +296,10 @@ case "$SYSTEM" in
 		DCORES=`sysctl -n hw.ncpu`
 		SYSTEM=darwin
 		;;
+	MINGW32*)
+		SYSTEM=mingw32
+		LDFLAGS="-mthreads $LDFLAGS"
+		;;
 	*)
 		SYSTEM=
 		;;
@@ -279,12 +312,14 @@ printf "Detecting machine architecture..."
 PLATFORM=`uname -m 2> /dev/null`
 case $PLATFORM in
 	"macppc"|"Power Macintosh"|"powerpc")
+		RTM_ENABLE="CK_MD_RTM_DISABLE"
 		MM="${MM:-"CK_MD_RMO"}"
 		PLATFORM=ppc
 		ENVIRONMENT=32
 		LDFLAGS="-m32 $LDFLAGS"
 		;;
 	"sun4u"|"sun4v"|"sparc64")
+		RTM_ENABLE="CK_MD_RTM_DISABLE"
 		MM="${MM:-"CK_MD_TSO"}"
 		PLATFORM=sparcv9
 		ENVIRONMENT=64
@@ -343,10 +378,12 @@ case $PLATFORM in
 		MM="${MM:-"CK_MD_TSO"}"
 		;;
 	"i86pc")
+		RTM_ENABLE="CK_MD_RTM_DISABLE"
 		MM="${MM:-"CK_MD_TSO"}"
 		ISA=`isainfo -n 2> /dev/null || echo i386`
 		case "$ISA" in
 			"amd64")
+				RTM_ENABLE=${RTM_ENABLE_SET:-"CK_MD_RTM_DISABLE"}
 				PLATFORM=x86_64
 				ENVIRONMENT=64
 				;;
@@ -358,11 +395,19 @@ case $PLATFORM in
 		esac
 		;;
 	"ppc64")
+		RTM_ENABLE="CK_MD_RTM_DISABLE"
 		MM="${MM:-"CK_MD_RMO"}"
 		PLATFORM=ppc64
 		ENVIRONMENT=64
 		;;
+	arm|armv6l|armv7l)
+		RTM_ENABLE="CK_MD_RTM_DISABLE"
+		MM="${MM:-"CK_MD_RMO"}"
+		PLATFORM=arm
+		ENVIRONMENT=32
+		;;
 	*)
+		RTM_ENABLE="CK_MD_RTM_DISABLE"
 		PLATFORM=
 		MM="${MM:-"CK_MD_RMO"}"
 		;;
@@ -370,41 +415,14 @@ esac
 
 assert "$PLATFORM" "$PLATFORM" "unsupported"
 
-printf "Detecting VMA bits..............."
-if test "$VMA_BITS" = ""; then
-	if test "$PLATFORM" = "x86" || test $PLATFORM = "x86_64"; then
-		case $SYSTEM in
-			darwin)
-				VMA=`sysctl -n machdep.cpu.address_bits.virtual`
-				;;
-			linux)
-				VMA=`awk '/address sizes/ {print $7;exit}' /proc/cpuinfo`
-				;;
-			*)
-				VMA="unknown"
-				;;
-		esac
-	fi
-
-	VMA_BITS=$VMA
-else
-	VMA=$VMA_BITS
-fi
-
 if test "$VMA" = "unknown"; then
-	echo "unknown"
 	VMA_BITS_R="CK_MD_VMA_BITS_UNKNOWN"
 	VMA_BITS_VALUE_R=""
 	POINTER_PACK_ENABLE="CK_MD_POINTER_PACK_DISABLE"
 else
-	echo "success [$VMA]"
 	VMA_BITS_R="CK_MD_VMA_BITS"
 	VMA_BITS_VALUE_R="${VMA_BITS}ULL"
 fi
-
-# Platform will be used as a macro.
-PROFILE="${PROFILE:-$PLATFORM}"
-PLATFORM="__${PLATFORM}__"
 
 # `which` on Solaris sucks
 pathsearch()
@@ -421,6 +439,27 @@ pathsearch()
 	done
 	IFS="$oldFS"
 }
+
+printf "Finding dirname command.........."
+DIRNAME=`pathsearch "${DIRNAME:-dirname}"`
+if test -z "$DIRNAME" -o ! -x "$DIRNAME"; then
+	DIRNAME=`pathsearch "${DIRNAME:-dirname}"`
+	DIRNAME="$DIRNAME"
+else
+	echo "success [$DIRNAME]"
+fi
+
+if test -z "$DIRNAME"; then
+	echo "not found (out of source build unsupported)"
+else
+	printf "Determining build directory......"
+
+	BUILD_DIR=`$DIRNAME $0`
+	cd `$DIRNAME $0`
+	BUILD_DIR=`pwd`
+
+	echo "success [$BUILD_DIR]"
+fi
 
 printf "Finding gzip tool................"
 GZIP=`pathsearch "${GZIP:-gzip}"`
@@ -449,11 +488,24 @@ assert "$CC" "not found"
 cat << EOF > .1.c
 #include <stdio.h>
 int main(void) {
-#if defined(__GNUC__) && (__GNUC__ >= 4)
-	puts("gcc");
+#if defined(_WIN32)
+#if defined(__MINGW64__)
+	puts("mingw64");
+	return (0);
+#elif defined(__MINGW32__) && (__MINGW32_MAJOR_VERSION >= 3)
+	puts("mingw32");
+	return (0);
+#else
+	return (1);
+#endif /* __MINGW32__ && __MINGW32_MAJOR_VERSION >= 3 */
+#elif defined(__clang__) && (__clang_major__ >= 4)
+	puts("clang");
 	return (0);
 #elif defined(__SUNPRO_C) && (__SUNPRO_C >= 0x5110)
 	puts("suncc");
+	return (0);
+#elif defined(__GNUC__) && (__GNUC__ >= 4)
+	puts("gcc");
 	return (0);
 #else
 	return (1);
@@ -477,18 +529,87 @@ if test "$COMPILER" = "suncc"; then
 	LDFLAGS="-G -z text -h libck.so.$VERSION_MAJOR $LDFLAGS"
 	CFLAGS="-xO5 $CFLAGS"
 	PTHREAD_CFLAGS="-mt -lpthread"
-elif test "$COMPILER" = "gcc"; then
+elif test "$COMPILER" = "gcc" || test "$COMPILER" = "clang" || test "$COMPILER" = "mingw32" || test "$COMPILER" = "mingw64"; then
 	LD=$CC
 	if test "$SYSTEM" = "darwin"; then
 		CC_WL_OPT="-install_name"
+		LDNAME="libck.dylib"
+		LDNAME_VERSION="libck.$VERSION.dylib"
+		LDNAME_MAJOR="libck.$VERSION_MAJOR.dylib"
 	else
 		CC_WL_OPT="-soname"
 	fi
-	LDFLAGS="-shared -fPIC -Wl,$CC_WL_OPT,libck.so.$VERSION_MAJOR $LDFLAGS"
+	LDFLAGS="-shared -fPIC -Wl,$CC_WL_OPT,$LDNAME_MAJOR $LDFLAGS"
 	CFLAGS="-D_XOPEN_SOURCE=600 -D_BSD_SOURCE -std=gnu99 -pedantic -Wall -W -Wundef -Wendif-labels -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Wstrict-prototypes -Wmissing-prototypes -Wnested-externs -Winline -Wdisabled-optimization -fstrict-aliasing -O2 -pipe -Wno-parentheses $CFLAGS"
 	PTHREAD_CFLAGS="-pthread"
+	if test "$COMPILER" = "mingw64"; then
+		ENVIRONMENT=64
+		PLATFORM=x86_64
+	fi
 else
 	assert "" "unknown compiler"
+fi
+
+printf "Detecting VMA bits..............."
+VMA="unknown"
+if test "$VMA_BITS" = "unknown"; then
+	if test "$PLATFORM" = "x86" || test $PLATFORM = "x86_64"; then
+		case $SYSTEM in
+			darwin)
+				VMA=`sysctl -n machdep.cpu.address_bits.virtual`
+				;;
+			linux)
+				VMA=`awk '/address sizes/ {print $7;exit}' /proc/cpuinfo`
+				;;
+			*)
+				if test "$PLATFORM" = "x86"; then
+					VMA="32"
+				else
+					cat << EOF > .1.c
+					#include <stdio.h>
+
+					int main(int argc, char *argv[])
+					{
+						unsigned long ret = 0x80000000;
+
+						__asm __volatile("cpuid\n"
+								 : "+a" (ret));
+						if (ret >= 0x80000008) {
+								ret = 0x80000008;
+								__asm __volatile("cpuid\n"
+								 : "+a" (ret));
+								printf("%lu\n", (ret >> 8) & 0xff);
+						} else {
+								return (1);
+						}
+						return (0);
+					}
+EOF
+					
+					$CC -o .1 .1.c 2>/dev/null
+					VMA=`./.1 2>/dev/null`
+					if test $? -ne 0; then
+						VMA="unknown"
+					fi
+					rm -f .1.c .1
+				fi
+		esac
+	fi
+
+	VMA_BITS=$VMA
+else
+	VMA=$VMA_BITS
+fi
+
+if test "$VMA" = "unknown"; then
+	echo "unknown"
+	VMA_BITS_R="CK_MD_VMA_BITS_UNKNOWN"
+	VMA_BITS_VALUE_R=""
+	POINTER_PACK_ENABLE="CK_MD_POINTER_PACK_DISABLE"
+else
+	echo "success [$VMA]"
+	VMA_BITS_R="CK_MD_VMA_BITS"
+	VMA_BITS_VALUE_R="${VMA_BITS}ULL"
 fi
 
 for i in $REQUIRE_HEADER; do
@@ -510,18 +631,36 @@ EOF
 	fi
 done
 
+# Platform will be used as a macro.
+PROFILE="${PROFILE:-$PLATFORM}"
+PLATFORM="__${PLATFORM}__"
+
 printf "Generating header files.........."
 generate include/ck_md.h.in include/ck_md.h
 echo "success"
 
 printf "Generating build files..........."
 
-generate doc/Makefile.in doc/Makefile
-generate build/ck.build.in build/ck.build
-generate build/regressions.build.in build/regressions.build
-generate build/ck.pc.in build/ck.pc
-generate build/ck.spec.in build/ck.spec
-generate Makefile.in Makefile
+mkdir -p $P_PWD/doc
+mkdir -p $P_PWD/build
+mkdir -p $P_PWD/include
+mkdir -p $P_PWD/src
 
+if test "$P_PWD" '!=' "$BUILD_DIR"; then
+	mkdir -p $P_PWD/regressions
+	cp $BUILD_DIR/regressions/Makefile.unsupported $P_PWD/regressions/Makefile &> /dev/null
+	cp $BUILD_DIR/build/ck.build.$PROFILE $P_PWD/build/ck.build.$PROFILE &> /dev/null
+	cp $BUILD_DIR/include/ck_md.h $P_PWD/include/ck_md.h &> /dev/null
+fi
+
+generate src/Makefile.in $P_PWD/src/Makefile
+generate doc/Makefile.in $P_PWD/doc/Makefile
+generate build/ck.build.in $P_PWD/build/ck.build
+generate build/regressions.build.in $P_PWD/build/regressions.build
+generate build/ck.pc.in $P_PWD/build/ck.pc
+generate build/ck.spec.in $P_PWD/build/ck.spec
+generate Makefile.in $P_PWD/Makefile
+touch src/*.c
 echo "success"
 generate_stdout
+

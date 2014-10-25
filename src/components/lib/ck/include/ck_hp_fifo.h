@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Samy Al Bahra.
+ * Copyright 2010-2014 Samy Al Bahra.
  * Copyright 2011 David Joseph.
  * All rights reserved.
  *
@@ -60,9 +60,17 @@ CK_CC_INLINE static void
 ck_hp_fifo_init(struct ck_hp_fifo *fifo, struct ck_hp_fifo_entry *stub)
 {
 
-	ck_pr_store_ptr(&stub->next, NULL);
-	ck_pr_store_ptr(&fifo->head, stub);
-	ck_pr_store_ptr(&fifo->tail, stub);
+	fifo->head = fifo->tail = stub;
+	stub->next = NULL;
+	return;
+}
+
+CK_CC_INLINE static void
+ck_hp_fifo_deinit(struct ck_hp_fifo *fifo, struct ck_hp_fifo_entry **stub)
+{
+
+	*stub = fifo->head;
+	fifo->head = fifo->tail = NULL;
 	return;
 }
 
@@ -76,12 +84,12 @@ ck_hp_fifo_enqueue_mpmc(ck_hp_record_t *record,
 
 	entry->value = value;
 	entry->next = NULL;
-	ck_pr_fence_store();
+	ck_pr_fence_store_atomic();
 
 	for (;;) {
 		tail = ck_pr_load_ptr(&fifo->tail);
 		ck_hp_set(record, 0, tail);
-		ck_pr_fence_memory();
+		ck_pr_fence_store_load();
 		if (tail != ck_pr_load_ptr(&fifo->tail))
 			continue;
 
@@ -93,7 +101,7 @@ ck_hp_fifo_enqueue_mpmc(ck_hp_record_t *record,
 			break;
 	}
 
-	ck_pr_fence_store();
+	ck_pr_fence_atomic();
 	ck_pr_cas_ptr(&fifo->tail, tail, entry);
 	return;
 }
@@ -108,11 +116,11 @@ ck_hp_fifo_tryenqueue_mpmc(ck_hp_record_t *record,
 
 	entry->value = value;
 	entry->next = NULL;
-	ck_pr_fence_store();
+	ck_pr_fence_store_atomic();
 
 	tail = ck_pr_load_ptr(&fifo->tail);
 	ck_hp_set(record, 0, tail);
-	ck_pr_fence_memory();
+	ck_pr_fence_store_load();
 	if (tail != ck_pr_load_ptr(&fifo->tail))
 		return false;
 
@@ -123,7 +131,7 @@ ck_hp_fifo_tryenqueue_mpmc(ck_hp_record_t *record,
 	} else if (ck_pr_cas_ptr(&fifo->tail->next, next, entry) == false)
 		return false;
 
-	ck_pr_fence_store();
+	ck_pr_fence_atomic();
 	ck_pr_cas_ptr(&fifo->tail, tail, entry);
 	return true;
 }
@@ -140,19 +148,19 @@ ck_hp_fifo_dequeue_mpmc(ck_hp_record_t *record,
 		ck_pr_fence_load();
 		tail = ck_pr_load_ptr(&fifo->tail);
 		ck_hp_set(record, 0, head);
-		ck_pr_fence_memory();
+		ck_pr_fence_store_load();
 		if (head != ck_pr_load_ptr(&fifo->head))
 			continue;
 
 		next = ck_pr_load_ptr(&head->next);
 		ck_hp_set(record, 1, next);
-		ck_pr_fence_memory();
+		ck_pr_fence_store_load();
 		if (head != ck_pr_load_ptr(&fifo->head))
 			continue;
 
 		if (head == tail) {
 			if (next == NULL)
-				return (NULL);
+				return NULL;
 
 			ck_pr_cas_ptr(&fifo->tail, tail, next);
 			continue;
@@ -161,7 +169,7 @@ ck_hp_fifo_dequeue_mpmc(ck_hp_record_t *record,
 	}
 
 	ck_pr_store_ptr(value, next->value);
-	return (head);
+	return head;
 }
 
 CK_CC_INLINE static struct ck_hp_fifo_entry *
@@ -175,13 +183,13 @@ ck_hp_fifo_trydequeue_mpmc(ck_hp_record_t *record,
 	ck_pr_fence_load();
 	tail = ck_pr_load_ptr(&fifo->tail);
 	ck_hp_set(record, 0, head);
-	ck_pr_fence_memory();
+	ck_pr_fence_store_load();
 	if (head != ck_pr_load_ptr(&fifo->head))
 		return NULL;
 
 	next = ck_pr_load_ptr(&head->next);
 	ck_hp_set(record, 1, next);
-	ck_pr_fence_memory();
+	ck_pr_fence_store_load();
 	if (head != ck_pr_load_ptr(&fifo->head))
 		return NULL;
 
@@ -211,3 +219,4 @@ ck_hp_fifo_trydequeue_mpmc(ck_hp_record_t *record,
              (entry) = (T))
 
 #endif /* _CK_HP_FIFO_H */
+

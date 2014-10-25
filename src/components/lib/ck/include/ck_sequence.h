@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Samy Al Bahra.
+ * Copyright 2010-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -58,7 +58,7 @@ ck_sequence_read_begin(struct ck_sequence *sq)
 		 * If a sequence is even then associated data may be in a
 		 * consistent state.
 		 */
-		if ((version & 1) == 0)
+		if (CK_CC_LIKELY((version & 1) == 0))
 			break;
 
 		/*
@@ -74,7 +74,7 @@ ck_sequence_read_begin(struct ck_sequence *sq)
 }
 
 CK_CC_INLINE static bool
-ck_sequence_read_retry(struct ck_sequence *sq, uint32_t version)
+ck_sequence_read_retry(struct ck_sequence *sq, unsigned int version)
 {
 
 	/*
@@ -84,6 +84,11 @@ ck_sequence_read_retry(struct ck_sequence *sq, uint32_t version)
 	ck_pr_fence_load();
 	return ck_pr_load_uint(&sq->sequence) != version;
 }
+
+#define CK_SEQUENCE_READ(seqlock, version) 						\
+	for (*(version) = 1;								\
+	    (*(version) != 0) && (*(version) = ck_sequence_read_begin(seqlock), 1);	\
+	    *(version) = ck_sequence_read_retry(seqlock, *(version)))
 
 /*
  * This must be called after a successful mutex acquisition.
@@ -118,3 +123,4 @@ ck_sequence_write_end(struct ck_sequence *sq)
 }
 
 #endif /* _CK_SEQUENCE_H */
+

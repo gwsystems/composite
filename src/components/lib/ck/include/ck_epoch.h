@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2012 Samy Al Bahra.
+ * Copyright 2011-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -97,12 +97,18 @@ ck_epoch_begin(ck_epoch_t *epoch, ck_epoch_record_t *record)
 		/*
 		 * It is possible for loads to be re-ordered before the store
 		 * is committed into the caller's epoch and active fields.
-		 * Execute a full barrier to serialize stores with respect to
-		 * loads
+		 * For this reason, store to load serialization is necessary.
 		 */
 		ck_pr_store_uint(&record->epoch, g_epoch);
+
+#if defined(__x86__) || defined(__x86_64__)
+		ck_pr_fas_uint(&record->active, 1);
+		ck_pr_fence_atomic_load();
+#else
 		ck_pr_store_uint(&record->active, 1);
-		ck_pr_fence_strict_memory();
+		ck_pr_fence_store_load();
+#endif
+
 		return;
 	}
 
@@ -119,7 +125,7 @@ ck_epoch_end(ck_epoch_t *global, ck_epoch_record_t *record)
 
 	(void)global;
 
-	ck_pr_fence_memory();
+	ck_pr_fence_release();
 	ck_pr_store_uint(&record->active, record->active - 1);
 	return;
 }
@@ -151,5 +157,7 @@ void ck_epoch_unregister(ck_epoch_t *, ck_epoch_record_t *);
 bool ck_epoch_poll(ck_epoch_t *, ck_epoch_record_t *);
 void ck_epoch_synchronize(ck_epoch_t *, ck_epoch_record_t *);
 void ck_epoch_barrier(ck_epoch_t *, ck_epoch_record_t *);
+void ck_epoch_reclaim(ck_epoch_record_t *);
 
 #endif /* _CK_EPOCH_H */
+

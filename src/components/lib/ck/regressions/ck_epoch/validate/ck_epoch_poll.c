@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Samy Al Bahra.
+ * Copyright 2010-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -197,7 +197,7 @@ write_thread(void *unused CK_CC_UNUSED)
 		}
 	}
 
-	ck_epoch_synchronize(&stack_epoch, &record);
+	ck_epoch_barrier(&stack_epoch, &record);
 
 	if (tid == 0) {
 		fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b[W] Peak: %u (%2.2f%%)\n    Reclamations: %lu\n\n",

@@ -24,6 +24,9 @@
  * SUCH DAMAGE.
  */
 
+#include "../../common.h"
+#include <ck_pr.h>
+
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -31,16 +34,14 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include <ck_pr.h>
-#include "../../common.h"
-
 #ifndef R_REPEAT
 #define R_REPEAT 200000
 #endif
 
 #define CK_PR_STORE_B(w)								\
 	{										\
-		uint##w##_t t = (uint##w##_t)-1, a = 0;					\
+		uint##w##_t t = (uint##w##_t)-1, a = 0, b;				\
+		ck_pr_store_##w(&b, 1ULL << (w - 1));					\
 		unsigned int i;								\
 		printf("ck_pr_store_" #w ": ");						\
 		if (w < 10)								\
@@ -51,7 +52,7 @@
 			exit(EXIT_FAILURE);						\
 		}									\
 		for (i = 0; i < R_REPEAT; i++) {					\
-			t = (uint##w##_t)random();					\
+			t = (uint##w##_t)common_rand();					\
 			ck_pr_store_##w(&a, t);						\
 			if (a != t) {							\
 				printf("FAIL [%#" PRIx##w " != %#" PRIx##w "]\n", a, t);\
@@ -118,14 +119,16 @@ rg_width(int m)
 int
 main(void)
 {
+#if defined(CK_F_PR_STORE_DOUBLE) && defined(CK_F_PR_LOAD_DOUBLE)
 	double d;
-
-	srandom((unsigned int)getpid());
 
 	ck_pr_store_double(&d, 0.0);
 	if (ck_pr_load_double(&d) != 0.0) {
 		ck_error("Stored 0 in double, did not find 0.\n");
 	}
+#endif
+
+	common_srand((unsigned int)getpid());
 
 #ifdef CK_F_PR_STORE_64
 	CK_PR_STORE_B(64);

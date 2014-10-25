@@ -70,6 +70,7 @@ LOCK_DEFINE;
 CK_CC_USED static void
 gen_lock(void)
 {
+	CK_CC_UNUSED int core = 0;
 #ifdef LOCK_STATE
 	LOCK_STATE;
 #endif
@@ -101,8 +102,9 @@ fairness(void *null)
 	unsigned int i = context->tid;
 	volatile int j;
 	long int base;
+	unsigned int core;
 
-        if (aff_iterate(&a)) {
+        if (aff_iterate_core(&a, &core)) {
                 perror("ERROR: Could not affine thread");
                 exit(EXIT_FAILURE);
         }
@@ -117,7 +119,7 @@ fairness(void *null)
 
 		count[i].value++;
 		if (critical) {
-			base = lrand48() % critical;
+			base = common_lrand48() % critical;
 			for (j = 0; j < base; j++);
 		}
 
@@ -189,7 +191,7 @@ main(int argc, char *argv[])
 	fprintf(stderr, "done\n");
 
 	ck_pr_store_uint(&ready, 1);
-	sleep(10);
+	common_sleep(10);
 	ck_pr_store_uint(&ready, 0);
 
 	fprintf(stderr, "Waiting for threads to finish acquisition regression...");

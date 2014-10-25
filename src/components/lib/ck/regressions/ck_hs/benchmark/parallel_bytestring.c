@@ -1,6 +1,6 @@
 /*
- * Copyrighs 2012 Samy Al Bahra.
- * All righss reserved.
+ * Copyright 2012 Samy Al Bahra.
+ * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,13 +23,15 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-
+#include "../../common.h"
 #include <ck_hs.h>
 #include "../../../src/ck_ht_hash.h"
 #include <assert.h>
 #include <ck_epoch.h>
 #include <ck_malloc.h>
 #include <ck_pr.h>
+#include <ck_spinlock.h>
+
 #include <errno.h>
 #include <inttypes.h>
 #include <pthread.h>
@@ -39,8 +41,6 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-
-#include "../../common.h"
 
 static ck_hs_t hs CK_CC_CACHELINE;
 static char **keys;
@@ -60,6 +60,7 @@ enum state {
 	HS_STATE_COUNT
 };
 
+static ck_spinlock_t mtx = CK_SPINLOCK_INITIALIZER;
 static struct affinity affinerator = AFFINITY_INITIALIZER;
 static uint64_t accumulator[HS_STATE_COUNT];
 static int barrier[HS_STATE_COUNT];
@@ -68,6 +69,8 @@ static int state;
 struct hs_epoch {
 	ck_epoch_entry_t epoch_entry;
 };
+
+COMMON_ALARM_DECLARE_GLOBAL(hs_alarm, alarm_event, next_stage)
 
 static void
 alarm_handler(int s)
@@ -137,11 +140,16 @@ static struct ck_malloc my_allocator = {
 static void
 set_init(void)
 {
+	unsigned int mode = CK_HS_MODE_OBJECT | CK_HS_MODE_SPMC;
+
+#ifdef HS_DELETE
+	mode |= CK_HS_MODE_DELETE;
+#endif 
 
 	ck_epoch_init(&epoch_hs);
 	ck_epoch_register(&epoch_hs, &epoch_wr);
-	srand48((long int)time(NULL));
-	if (ck_hs_init(&hs, CK_HS_MODE_OBJECT | CK_HS_MODE_SPMC, hs_hash, hs_compare, &my_allocator, 65536, lrand48()) == false) {
+	common_srand48((long int)time(NULL));
+	if (ck_hs_init(&hs, mode, hs_hash, hs_compare, &my_allocator, 65536, common_lrand48()) == false) {
 		perror("ck_hs_init");
 		exit(EXIT_FAILURE);
 	}
@@ -166,6 +174,16 @@ set_replace(const char *value)
 
 	h = CK_HS_HASH(&hs, hs_hash, value);
 	return ck_hs_set(&hs, h, value, &previous);
+}
+
+static bool
+set_swap(const char *value)
+{
+	unsigned long h;
+	void *previous;
+
+	h = CK_HS_HASH(&hs, hs_hash, value);
+	return ck_hs_fas(&hs, h, value, &previous);
 }
 
 static void *
@@ -243,7 +261,10 @@ reader(void *unused)
 
 		n_state = ck_pr_load_int(&state);
 		if (n_state != state_previous) {
-			ck_pr_add_64(&accumulator[state_previous], a / (j * keys_length));
+			ck_spinlock_lock(&mtx);
+			accumulator[state_previous] += a / (j * keys_length);
+			ck_spinlock_unlock(&mtx);
+
 			ck_pr_inc_int(&barrier[state_previous]);
 			while (ck_pr_load_int(&barrier[state_previous]) != n_threads + 1)
 				ck_pr_stall();
@@ -254,6 +275,18 @@ reader(void *unused)
 	}
 
 	return NULL;
+}
+
+static uint64_t
+acc(size_t i)
+{
+	uint64_t r;
+
+	ck_spinlock_lock(&mtx);
+	r = accumulator[i];
+	ck_spinlock_unlock(&mtx);
+
+	return r;
 }
 
 int
@@ -267,6 +300,8 @@ main(int argc, char *argv[])
 	char **t;
 	pthread_t *readers;
 	double p_r, p_d;
+
+	COMMON_ALARM_DECLARE_LOCAL(hs_alarm, alarm_event)
 
 	r = 20;
 	s = 8;
@@ -305,6 +340,8 @@ main(int argc, char *argv[])
 			ck_error("ERROR: Probability of deletion must be >= 0 and <= 100.\n");
 		}
 	}
+
+	COMMON_ALARM_INIT(hs_alarm, alarm_event, r)
 
 	affinerator.delta = 1;
 	readers = malloc(sizeof(pthread_t) * n_threads);
@@ -429,25 +466,30 @@ main(int argc, char *argv[])
 	while (ck_pr_load_int(&barrier[HS_STATE_STOP]) != n_threads)
 		ck_pr_stall();
 	ck_pr_inc_int(&barrier[HS_STATE_STOP]);
-	sleep(r);
+	common_sleep(r);
 	ck_pr_store_int(&state, HS_STATE_STRICT_REPLACEMENT);
 	while (ck_pr_load_int(&barrier[HS_STATE_GET]) != n_threads)
 		ck_pr_stall();
+
 	fprintf(stderr, "done (reader = %" PRIu64 " ticks)\n",
-	    accumulator[HS_STATE_GET] / n_threads);
+	    acc(HS_STATE_GET) / n_threads);
 
 	fprintf(stderr, " | Executing strict replacement test...");
 
 	a = repeated = 0;
-	signal(SIGALRM, alarm_handler);
-	alarm(r);
+	common_alarm(alarm_handler, &alarm_event, r);
 
 	ck_pr_inc_int(&barrier[HS_STATE_GET]);
 	for (;;) {
 		repeated++;
 		s = rdtsc();
-		for (i = 0; i < keys_length; i++)
-			set_replace(keys[i]);
+		for (i = 0; i < keys_length; i++) {
+			if (i & 1) {
+				set_replace(keys[i]);
+			} else {
+				set_swap(keys[i]);
+			}
+		}
 		e = rdtsc();
 		a += e - s;
 
@@ -463,10 +505,9 @@ main(int argc, char *argv[])
 	set_reset();
 	ck_epoch_synchronize(&epoch_hs, &epoch_wr);
 	fprintf(stderr, "done (writer = %" PRIu64 " ticks, reader = %" PRIu64 " ticks)\n",
-	    a / (repeated * keys_length), accumulator[HS_STATE_STRICT_REPLACEMENT] / n_threads);
+	    a / (repeated * keys_length), acc(HS_STATE_STRICT_REPLACEMENT) / n_threads);
 
-	signal(SIGALRM, alarm_handler);
-	alarm(r);
+	common_alarm(alarm_handler, &alarm_event, r);
 
 	fprintf(stderr, " | Executing deletion test (%.2f)...", p_d * 100);
 	a = repeated = 0;
@@ -479,7 +520,7 @@ main(int argc, char *argv[])
 		for (i = 0; i < keys_length; i++) {
 			set_insert(keys[i]);
 			if (p_d != 0.0) {
-				delete = drand48();
+				delete = common_drand48();
 				if (delete <= p_d)
 					set_remove(keys[i]);
 			}
@@ -499,10 +540,9 @@ main(int argc, char *argv[])
 	set_reset();
 	ck_epoch_synchronize(&epoch_hs, &epoch_wr);
 	fprintf(stderr, "done (writer = %" PRIu64 " ticks, reader = %" PRIu64 " ticks)\n",
-	    a / (repeated * keys_length), accumulator[HS_STATE_DELETION] / n_threads);
+	    a / (repeated * keys_length), acc(HS_STATE_DELETION) / n_threads);
 
-	signal(SIGALRM, alarm_handler);
-	alarm(r);
+	common_alarm(alarm_handler, &alarm_event, r);
 
 	fprintf(stderr, " | Executing replacement test (%.2f)...", p_r * 100);
 	a = repeated = 0;
@@ -515,14 +555,22 @@ main(int argc, char *argv[])
 		for (i = 0; i < keys_length; i++) {
 			set_insert(keys[i]);
 			if (p_d != 0.0) {
-				delete = drand48();
+				delete = common_drand48();
 				if (delete <= p_d)
 					set_remove(keys[i]);
+			} else {
+				delete = 0.0;
 			}
+
 			if (p_r != 0.0) {
-				replace = drand48();
-				if (replace <= p_r)
-					set_replace(keys[i]);
+				replace = common_drand48();
+				if (replace <= p_r) {
+					if ((i & 1) || (delete <= p_d)) {
+						set_replace(keys[i]);
+					} else {
+						set_swap(keys[i]);
+					}
+				}
 			}
 		}
 		e = rdtsc();
@@ -539,7 +587,7 @@ main(int argc, char *argv[])
 	set_reset();
 	ck_epoch_synchronize(&epoch_hs, &epoch_wr);
 	fprintf(stderr, "done (writer = %" PRIu64 " ticks, reader = %" PRIu64 " ticks)\n",
-	    a / (repeated * keys_length), accumulator[HS_STATE_REPLACEMENT] / n_threads);
+	    a / (repeated * keys_length), acc(HS_STATE_REPLACEMENT) / n_threads);
 
 	ck_pr_inc_int(&barrier[HS_STATE_REPLACEMENT]);
 	epoch_temporary = epoch_wr;

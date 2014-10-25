@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Samy Al Bahra.
+ * Copyright 2010-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,3 +29,4 @@
 #else
 #include <limits.h>
 #endif /* __linux__ && __KERNEL__ */
+

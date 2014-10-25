@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2012 Samy Al Bahra.
+ * Copyright 2009-2014 Samy Al Bahra.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -127,7 +127,7 @@ stack_thread(void *unused CK_CC_UNUSED)
 #endif
 
 		if (critical) {
-			j = rand_r(&seed) % critical;
+			j = common_rand_r(&seed) % critical;
 			while (j--)
 				__asm__ __volatile__("" ::: "memory");
 		}
@@ -253,13 +253,17 @@ main(int argc, char *argv[])
 	for (i = 0; i < nthr; i++)
 		pthread_create(&thread[i], NULL, stack_thread, NULL);
 
-	gettimeofday(&stv, NULL);
+	common_gettimeofday(&stv, NULL);
 	barrier = 1;
 	for (i = 0; i < nthr; i++)
 		pthread_join(thread[i], NULL);
-	gettimeofday(&etv, NULL);
+	common_gettimeofday(&etv, NULL);
 
 	stack_assert();
+#ifdef _WIN32
+	printf("%3llu %.6f\n", nthr, TVTOD(etv) - TVTOD(stv));
+#else
 	printf("%3llu %.6lf\n", nthr, TVTOD(etv) - TVTOD(stv));
+#endif
 	return 0;
 }

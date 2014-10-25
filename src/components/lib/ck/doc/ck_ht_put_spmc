@@ -1,5 +1,5 @@
 .\"
-.\" Copyright 2012 Samy Al Bahra.
+.\" Copyright 2012-2013 Samy Al Bahra.
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -123,10 +123,12 @@ was already present in the hash table.
 .Xr ck_ht_hash 3 ,
 .Xr ck_ht_hash_direct 3 ,
 .Xr ck_ht_set_spmc 3 ,
+.Xr ck_ht_gc 3 ,
 .Xr ck_ht_get_spmc 3 ,
 .Xr ck_ht_grow_spmc 3 ,
 .Xr ck_ht_remove_spmc 3 ,
 .Xr ck_ht_reset_spmc 3 ,
+.Xr ck_ht_reset_size_spmc 3 ,
 .Xr ck_ht_count 3 ,
 .Xr ck_ht_entry_empty 3 ,
 .Xr ck_ht_entry_key_set 3 ,
