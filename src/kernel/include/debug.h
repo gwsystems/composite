@@ -23,7 +23,7 @@
 /*#else
   #define printd(str,args...) printf(str, ## args)*/
 #else
-#define assert(a)
+#define assert(a) (void)0
 #define printd(str,args...) 
 #endif
 #endif
