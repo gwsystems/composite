@@ -40,14 +40,13 @@ CC=gcc
 #ARCH=openbsd
 #gap: CFLAGS=-g -Wall -pedantic -D$(ARCH) -DIPv4 -Os -fpack-struct -DLWIP_DEBUG
 OPT=-O3 #-ggdb3
-CFLAGS=-m32 -Wall -DIPv4 -nostdinc -nostdlib $(OPT)
-LDFLAGS=-m elf_i386
+CFLAGS=-Wall -DIPv4 -nostdinc -nostdlib $(OPT)
 ARFLAGS=rs
 
 #Set this to where you have the lwip core module checked out from CVS
 #default assumes it's a dir named lwip at the same level as the contrib module
 LWIPDIR=../lwip-1.3.0/src
-DIETINC=../../dietlibc-0.33/include/
+DIETINC=../../dietlibc-0.29/include/
 
 INCLUDES=-I$(LWIPDIR)/include -I./include -I$(LWIPDIR)/include/ipv4 -I. $(CINC) -I$(DIETINC)
 CFLAGS:=$(CFLAGS) $(INCLUDES)
@@ -100,7 +99,7 @@ include .depend
 	$(CCDEP) $(CFLAGS) -MM $^ > .depend || rm -f .depend
 
 $(OUTPUT_OBJ): $(LWIPOBJS)
-	ld -m elf_i386 -r -o $@ $^
+	ld -r -o $@ $^
 
 %.o:
 	$(CC) $(CFLAGS) -c $(<:.o=.c)

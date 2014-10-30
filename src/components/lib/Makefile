@@ -38,7 +38,7 @@ clean:
 	@rm -f a.out *.o *.a *.d *~
 
 distclean:
-	make -C dietlibc-0.33 clean
+	make -C dietlibc-0.29 clean
 	make -C lwip/cos clean
 	make -C lua/cos clean
 # keep the following commands in one line. make executes each line
@@ -49,8 +49,7 @@ distclean:
 	make -C libccv clean
 
 init: clean distclean all
-	make -C dietlibc-0.33
-	make -C dietlibc-0.33 i386
+	make -C dietlibc-0.29
 	make -C lwip/cos
 	make -C lua/cos
 # keep the following commands in one line. Same as above.

@@ -10,12 +10,11 @@ CCDEP=gcc
 CC=gcc
 
 OPT=-O3 #-ggdb3
-CFLAGS=-m32 -Wall -DIPv4 -nostdinc -nostdlib $(OPT)
-LDFLAGS=-m elf_i386
+CFLAGS=-Wall -DIPv4 -nostdinc -nostdlib $(OPT)
 
 #Set this to where you have the lua and the dietlibc library files installed
 LUADIR=../lua-5.2.1/src
-DIET=../../dietlibc-0.33
+DIET=../../dietlibc-0.29
 DIETINC=$(DIET)/include
 DIETI386=$(DIET)/bin-i386
 
@@ -79,7 +78,7 @@ include .depend
 	$(CCDEP) $(CFLAGS) -MM $^ > .depend || rm -f .depend
 
 $(OUTPUT_OBJ): $(LUAOBJS)
-	ld $(LDFLAGS) -r -o $@ $^
+	ld -r -o $@ $^
 
 %.o:
 	$(CC) $(CFLAGS) -c $(<:.o=.c) 
