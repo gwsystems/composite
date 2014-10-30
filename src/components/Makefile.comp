@@ -6,7 +6,7 @@ LIBDIR=$(CDIR)/lib/
 MANDITORY_LIB=cos_manditory.o
 CINC=-I./ -I$(CDIR)/include/ -I$(SHAREDINC) -I$(CDIR)/lib/ck/include
 
-DIETDIR=$(CDIR)/lib/dietlibc-0.33
+DIETDIR=$(CDIR)/lib/dietlibc-0.29
 DIETBIN=$(DIETDIR)/bin-i386/diet
 DIETCC=$(DIETBIN) $(CC)
 DIETINC=-I$(DIETDIR)/include
