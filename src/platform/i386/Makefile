@@ -40,6 +40,7 @@ OBJS += user.o
 OBJS += serial.o
 OBJS += timer.o
 OBJS += chal.o
+OBJS += comp.o
 #OBJS += console.o
 
 COS_OBJ += pgtbl.o 

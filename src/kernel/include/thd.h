@@ -260,8 +260,8 @@ static inline void thd_current_update(struct thread *thd, struct thread *ignore)
 
 #else
 
-/* void thd_init(void) */
-/* { assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD)); } */
+static void thd_init(void)
+{ assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD)); }
 
 static inline struct thread *thd_current(struct cos_cpu_local_info *cos_info) 
 { return (struct thread *)(cos_info->curr_thd); }

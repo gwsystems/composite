@@ -4,6 +4,13 @@
 #include "kernel.h"
 #include "multiboot.h"
 #include "string.h"
+#include "comp.h"
+
+#include <captbl.h>
+#include <retype_tbl.h>
+#include <component.h>
+#include <thd.h>
+#include <inv.h>
 
 void kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp);
 
@@ -21,6 +28,8 @@ khalt(void)
 void 
 kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 {
+	int bc = 0;
+
 	tss_init();
 	gdt_init();
 	idt_init();
@@ -41,7 +50,18 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 		die("Not started from a multiboot loader!\n");
 	}
 
-	paging_init(mboot->mem_lower + mboot->mem_upper, mboot->mods_count, (u32_t*)mboot->mods_addr);
+	cap_init();
+       	ltbl_init();
+       	retype_tbl_init();
+       	comp_init();
+       	thd_init();
+       	inv_init();
+
+	bc = kern_boot_comp(NULL);
+	assert(bc == 0);
+
+	//paging_init(mboot->mem_lower + mboot->mem_upper, mboot->mods_count, (u32_t*)mboot->mods_addr);
+
 	user_init();
 	khalt(); 
 }
