@@ -64,22 +64,19 @@ paging_init(u32_t memory_size, u32_t nmods, u32_t *mods)
 	register_interrupt_handler(14, page_fault);
 
 	/* Allocate the Page Directory and initialize all Page Tables */
-	/*
-	pgtbl = pgtbl_alloc(pgdir);
+	pgtbl = pgtbl_alloc(boot_comp_pgd);
 	for (i = 0; i < 1024; i++) {
 		assert(pgtbl_intern_expand(pgtbl, i * PAGE_SIZE * 1024, &pte[i], PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_GLOBAL) == 0);
 	}
-	*/
 
 	/* Identity map the kernel */
-	/*
 	for (i = 0; i < (u32_t)mods / (PAGE_SIZE); i++) {
 		if ((i % RETYPE_MEM_NPAGES == 0) && (ptr = retypetbl_retype2kern((void*)(i * 4096))) != 0)
 			printk("retypetbl_retype2kern(%08x) returned %d\n", i * 4096, ptr);
 		else if ((ptr = pgtbl_mapping_add(pgtbl, i * 4096, i * 4096, PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_GLOBAL)) != 0)
 			printk("pgtbl_mapping_add() returned %d mapping kernel page %d\n", ptr, i);
 	}
-	*/
+	return;
 
 	/* Map user modules into userspace */
 	if (nmods > 0) {

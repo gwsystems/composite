@@ -1,6 +1,7 @@
 #define ENABLE_SERIAL
 #define ENABLE_TIMER
 
+#include "assert.h"
 #include "kernel.h"
 #include "multiboot.h"
 #include "string.h"
@@ -29,6 +30,7 @@ void
 kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 {
 	int bc = 0;
+        struct spd_info spd_info;
 
 	tss_init();
 	gdt_init();
@@ -57,10 +59,10 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
        	thd_init();
        	inv_init();
 
-	bc = kern_boot_comp(NULL);
-	assert(bc == 0);
+	paging_init(mboot->mem_lower + mboot->mem_upper, mboot->mods_count, (u32_t*)mboot->mods_addr);
 
-	//paging_init(mboot->mem_lower + mboot->mem_upper, mboot->mods_count, (u32_t*)mboot->mods_addr);
+        spd_info.mem_size = (unsigned long)mboot->size;
+	assert(kern_boot_comp(&spd_info) == 0);
 
 	user_init();
 	khalt(); 
