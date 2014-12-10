@@ -49,7 +49,7 @@ distclean:
 #	make -C libccv clean
 
 init: clean distclean all
-#	make -C dietlibc-0.29
+	make -C dietlibc-0.29
 	make -C dietlibc-0.29 i386
 #	make -C lwip/cos
 #	make -C lua/cos
