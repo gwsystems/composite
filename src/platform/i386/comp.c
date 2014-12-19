@@ -10,7 +10,7 @@ u8_t *boot_comp_pgd;
 u8_t *boot_comp_pte_vm;
 u8_t *boot_comp_pte_km;
 u8_t *boot_comp_pte_pm;
-static void *cos_kmem, *cos_kmem_base = 0x0;
+void *cos_kmem, *cos_kmem_base;
 unsigned long sys_llbooter_sz;    /* how many pages is the llbooter? */
 void *llbooter_kern_mapping;
 
