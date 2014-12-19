@@ -54,29 +54,33 @@ page_fault(struct registers *regs)
 }
 
 void
-paging_init(u32_t memory_size, u32_t nmods, u32_t *mods)
+paging_init(u32_t nmods, u32_t *mods)
 {
 	char *cmdline;
 	u32_t cr0, i, user_stack_physical = 0;
 	int ptr = 0;
 
-	printk("Initializing virtual memory (physical memory: %dMB / %d frames)\n", memory_size/1024, memory_size/4);
+	printk("Initializing virtual memory\n");
 	register_interrupt_handler(14, page_fault);
 
 	/* Allocate the Page Directory and initialize all Page Tables */
+        memset(boot_comp_pgd, 0, sizeof(boot_comp_pgd));
+        memset(pte, 0, sizeof(pte));
 	pgtbl = pgtbl_alloc(boot_comp_pgd);
 	for (i = 0; i < 1024; i++) {
 		assert(pgtbl_intern_expand(pgtbl, i * PAGE_SIZE * 1024, &pte[i], PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_GLOBAL) == 0);
 	}
 
 	/* Identity map the kernel */
-	for (i = 0; i < (u32_t)mods / (PAGE_SIZE); i++) {
-		if ((i % RETYPE_MEM_NPAGES == 0) && (ptr = retypetbl_retype2kern((void*)(i * 4096))) != 0)
-			printk("retypetbl_retype2kern(%08x) returned %d\n", i * 4096, ptr);
-		else if ((ptr = pgtbl_mapping_add(pgtbl, i * 4096, i * 4096, PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_GLOBAL)) != 0)
-			printk("pgtbl_mapping_add() returned %d mapping kernel page %d\n", ptr, i);
+	for (i = KERNEL_BASE_PHYSICAL_ADDRESS / PAGE_SIZE; i < (u32_t)mods / (PAGE_SIZE); i++) {
+		if (i % RETYPE_MEM_NPAGES == 0) {
+			assert((ptr = retypetbl_retype2kern((void*)(i * 4096))) != 0);
+			//die("retypetbl_retype2kern(%08x) returned %d\n", i * 4096, ptr);
+		}
+		assert((ptr = pgtbl_mapping_add(pgtbl, i * 4096, i * 4096, PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_GLOBAL)) != 0);
+			//die("pgtbl_mapping_add() returned %d mapping kernel page %d\n", ptr, i);
 	}
-	return;
+	printk("Kernel space identity mapped OK\n");
 
 	/* Map user modules into userspace */
 	if (nmods > 0) {

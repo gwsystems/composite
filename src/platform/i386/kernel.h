@@ -13,6 +13,8 @@
 #define SEL_TSS         0x28    /* Task-state segment. */
 #define SEL_CNT         6       /* Number of segments. */
 
+#define KERNEL_BASE_PHYSICAL_ADDRESS	0x00100000
+
 /* A not so nice way of oopsing */
 #define die(fmt, ...) do {              \
     printk(fmt,##__VA_ARGS__);   \
@@ -46,7 +48,7 @@ void tss_init(void);
 void idt_init(void);
 void gdt_init(void);
 void user_init(void);
-void paging_init(u32_t memory_size, u32_t nmods, u32_t *mods);
+void paging_init(u32_t nmods, u32_t *mods);
 
 //void printk(const char *fmt, ...);
 int printk_register_handler(void (*handler)(const char *));
