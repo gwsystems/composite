@@ -72,12 +72,10 @@ paging_init(u32_t nmods, u32_t *mods)
 	}
 
 	/* Identity map the kernel */
-	printk("ID mapping %08x-%08x\n", KERNEL_BASE_PHYSICAL_ADDRESS, (u32_t)mods);
+	printk("identity mapping kernel from 0x%08x to 0x%08x\n", KERNEL_BASE_PHYSICAL_ADDRESS, (u32_t)mods);
 	for (i = KERNEL_BASE_PHYSICAL_ADDRESS; i < (u32_t)mods; i += PAGE_SIZE * RETYPE_MEM_NPAGES) {
 		if ((ptr = retypetbl_retype2kern((void*)(i))) != 0)
 			die("retypetbl_retype2kern(%08x) returned %d\n", i, ptr);
-		else
-			printk("%08x OK\n", i);
 	}
 
 	/* Map user modules into userspace */
