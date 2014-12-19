@@ -12,6 +12,7 @@
 #include <component.h>
 #include <thd.h>
 #include <inv.h>
+#include <mmap.h>
 
 void kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp);
 
@@ -52,6 +53,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 		die("Not started from a multiboot loader!\n");
 	}
 
+	cos_init_memory();
 	cap_init();
        	ltbl_init();
        	retype_tbl_init();
