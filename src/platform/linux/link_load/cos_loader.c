@@ -2334,26 +2334,26 @@ static struct service_symbs *find_obj_by_name(struct service_symbs *s, const cha
 static void make_spd_config_comp(struct service_symbs *c, struct service_symbs *all);
 
 static int 
-spd_already_loaded(struct service_symbs *c)
+spd_already_loaded(struct service_symbs *c, int layer)
 {
-	return c->already_loaded || !is_loaded_by_boot(c);
+	return c->already_loaded || !is_loaded_by_boot_layer(c, layer);
 }
 
 static void 
 make_spd_boot_schedule(struct service_symbs *comp, struct service_symbs **sched, 
-		       unsigned int *off)
+		       unsigned int *off, int boot_layer)
 {
 	int i;
 
-	if (spd_already_loaded(comp)) return;
+	if (spd_already_loaded(comp, boot_layer)) return;
 
 	for (i = 0 ; i < comp->num_dependencies ; i++) {
 		struct dependency *d = &comp->dependencies[i];
 
-		if (!spd_already_loaded(d->dep)) {
-			make_spd_boot_schedule(d->dep, sched, off);
+		if (!spd_already_loaded(d->dep, boot_layer)) {
+			make_spd_boot_schedule(d->dep, sched, off, boot_layer);
 		}
-		assert(spd_already_loaded(d->dep));
+		assert(spd_already_loaded(d->dep, boot_layer));
 	}
 	sched[*off] = comp;
 	comp->already_loaded = 1;
@@ -2410,7 +2410,7 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all, int layer)
 	printl(PRINT_HIGH, "Loaded component's initialization scheduled in the following order:\n");
 	for (all = first ; NULL != all ; all = all->next) {
 		if (!is_loaded_by_boot_layer(all, layer)) continue;
-		make_spd_boot_schedule(all, schedule, &off);
+		make_spd_boot_schedule(all, schedule, &off, layer);
 	}
 
 	/* Setup the capabilities for each of the booter-loaded
@@ -2508,6 +2508,23 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all, int layer)
 	       boot->obj, service_get_spdid(boot), (unsigned int)cobj_sect_get(new_h, 3)->vaddr, 
 	       (int)cobj_sect_get(new_h, 3)->bytes, (unsigned int)ci->cos_poly[0], (unsigned int)ci->cos_poly[1], 
 	       (unsigned int)ci->cos_poly[2], (unsigned int)ci->cos_poly[3], (unsigned int)ci->cos_poly[4], (unsigned int)ci->cos_heap_ptr);
+}
+
+static void make_spd_boot_recursive(struct service_symbs *s,
+		struct service_symbs *services,
+		int boot_layer)
+{
+	struct service_symbs *b = s;
+	int boot_cnt = 0;
+	if (!boot_layer) return;
+	do {
+		if (strstr(s->obj, "boot")) {
+			++boot_cnt;
+			if (boot_layer == boot_cnt)
+				make_spd_boot(s, services, boot_layer);
+		}
+	} while ((s = s->next));
+	make_spd_boot_recursive(b, services, boot_layer - 1);
 }
 
 static void
@@ -2758,8 +2775,12 @@ static void setup_kernel(struct service_symbs *services)
 	spd_assign_ids(services);
 
 	if ((s = find_obj_by_name(services, BOOT_COMP))) {
-		make_spd_boot(s, services, 1);
+		struct service_symbs *b = s;
+		int boot_layers = 1;
+		while ((s = s->next)) if (strstr(s->obj, "boot")) boot_layers++;
+		make_spd_boot_recursive(b, services, boot_layers);
 	}
+
 	fflush(stdout);
 
 	if ((s = find_obj_by_name(services, LLBOOT_COMP))) {
