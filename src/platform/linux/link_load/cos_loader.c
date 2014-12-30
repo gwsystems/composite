@@ -925,7 +925,7 @@ struct component_traits {
 	int sched, composite_loaded;
 };
 
-static void parse_component_traits(char *name, struct component_traits *t, int *off)
+static void parse_component_traits(char *name, struct component_traits *t, int *off, int layer)
 {
 	switch(name[*off]) {
 	case '*': {
@@ -937,16 +937,16 @@ static void parse_component_traits(char *name, struct component_traits *t, int *
 		}
 		break;
 	}
-	case '!': t->composite_loaded = 1; break;
+	case '!': t->composite_loaded = layer; break;
 	default: /* base case */ return;
 	}
 	(*off)++;
-	parse_component_traits(name, t, off);
+	parse_component_traits(name, t, off, layer);
 	
 	return;
 }
 
-static struct service_symbs *alloc_service_symbs(char *obj)
+static struct service_symbs *alloc_service_symbs(char *obj, int boot_layer)
 {
 	struct service_symbs *str;
 	char *obj_name = malloc(strlen(obj)+1), *cpy, *orig, *pos;
@@ -954,7 +954,8 @@ static struct service_symbs *alloc_service_symbs(char *obj)
 	struct component_traits t = {.sched = 0, .composite_loaded = 0};
 	int off = 0;
 
-	parse_component_traits(obj, &t, &off);
+	parse_component_traits(obj, &t, &off, boot_layer);
+	assert(t.composite_loaded >= 0);
 	assert(obj_name);
 	/* Do we have a value assignment (a component copy)?  Syntax
 	 * is (newval=oldval),... */
@@ -963,7 +964,7 @@ static struct service_symbs *alloc_service_symbs(char *obj)
 		int ret;
 		
 		off++;
-		parse_component_traits(obj, &t, &off);
+		parse_component_traits(obj, &t, &off, boot_layer);
 
 		cpy = strtok_r(obj+off, assign, &pos);
 		orig = strtok_r(pos, rassign, &pos);
@@ -1228,11 +1229,13 @@ static struct service_symbs *prepare_service_symbs(char *services)
 	const char *init_delim = ",", *serv_delim = ";";
 	char *tok, *init_str;
 	int len;
+	int boot_layer = -1;
 	
 	printl(PRINT_DEBUG, "Prepare the list of components.\n");
 	
 	tok = strtok(services, init_delim);
-	first = str = alloc_service_symbs(tok);
+	first = str = alloc_service_symbs(tok, boot_layer);
+	if (strstr(tok, "boot")) ++boot_layer;
 	init_str = strtok(NULL, serv_delim);
 	len = strlen(init_str)+1;
 	str->init_str = malloc(len);
@@ -1248,8 +1251,9 @@ static struct service_symbs *prepare_service_symbs(char *services)
 		add_kernel_exports(str);
 		tok = strtok(NULL, init_delim);
 		if (tok) {
-			str->next = alloc_service_symbs(tok);
+			str->next = alloc_service_symbs(tok, boot_layer);
 			str = str->next;
+			if (strstr(tok, "boot")) ++boot_layer;
 
 			init_str = strtok(NULL, serv_delim);
 			len = strlen(init_str)+1;
