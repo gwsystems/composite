@@ -343,6 +343,12 @@ static int is_loaded_by_boot(struct service_symbs *s)
 	return s->is_composite_loaded;
 }
 
+static int is_loaded_by_boot_layer(struct service_symbs *s, int layer)
+{
+	if (!layer) return is_loaded_by_llboot(s);
+	return (s->is_composite_loaded == layer);
+}
+
 static inline trans_cap_t
 is_transparent_capability(struct symb *s, int *fltn) {
 	char *n = s->name;
@@ -2362,7 +2368,7 @@ struct component_init_str {
 static void format_config_info(struct service_symbs *ss, struct component_init_str *data);
 
 static void 
-make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
+make_spd_boot(struct service_symbs *boot, struct service_symbs *all, int layer)
 {
 	int n = 0, cnt = 0, tot_sz = 0;
 	unsigned int off = 0, i;
@@ -2375,19 +2381,19 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 	/* array to hold the order of initialization/schedule */
 	struct service_symbs **schedule; 
 
-	if (service_get_spdid(boot) != LLBOOT_BOOT) {
+	if (layer == 1 && service_get_spdid(boot) != LLBOOT_BOOT) {
 		printf("Booter component must be component number %d, is %d.\n"
 		       "\tSuggested fix: Your first four components should be e.g. "
 		       "c0.o, ;llboot.o, ;*fprr.o, ;mm.o, ;print.o, ;boot.o, ;\n", LLBOOT_BOOT, service_get_spdid(boot));
 		exit(-1);
 	}
 
-	/* should be loaded by llboot */
-	assert(is_loaded_by_llboot(boot) && !is_loaded_by_boot(boot)); 
+	assert(is_loaded_by_llboot(boot));
+	assert(is_loaded_by_boot_layer(boot, layer-1));
 	assert(boot->cobj->nsect == MAXSEC_S); /* extra section for other components */
 	/* Assign ids to the booter-loaded components. */
 	for (all = first ; NULL != all ; all = all->next) {
-		if (!is_loaded_by_boot(all)) continue;
+		if (!is_loaded_by_boot_layer(all, layer)) continue;
 
 		h = all->cobj;
 		assert(h);
@@ -2399,14 +2405,14 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 	assert(schedule);
 	printl(PRINT_HIGH, "Loaded component's initialization scheduled in the following order:\n");
 	for (all = first ; NULL != all ; all = all->next) {
+		if (!is_loaded_by_boot_layer(all, layer)) continue;
 		make_spd_boot_schedule(all, schedule, &off);
 	}
 
 	/* Setup the capabilities for each of the booter-loaded
 	 * components */
-	all = first;
 	for (all = first ; NULL != all ; all = all->next) {
-		if (!is_loaded_by_boot(all)) continue;
+		if (!is_loaded_by_boot_layer(all, layer)) continue;
 
 		if (make_cobj_caps(all, all->cobj)) {
 			printl(PRINT_HIGH, "Could not create capabilities in cobj for %s\n", all->obj);
@@ -2419,7 +2425,7 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 	for (all = first ; NULL != all ; all = all->next) {
 		struct cobj_header *h;
 
-		if (!is_loaded_by_boot(all)) continue;
+		if (!is_loaded_by_boot_layer(all, layer)) continue;
 		printl(PRINT_HIGH, "booter found %s:%d with len %d\n", 
 		       all->obj, service_get_spdid(all), all->cobj->size)
 		n++;
@@ -2461,7 +2467,7 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all)
 	for (all = first ; NULL != all ; all = all->next) {
 		struct cobj_header *h;
 
-		if (!is_loaded_by_boot(all)) continue;
+		if (!is_loaded_by_boot_layer(all, layer)) continue;
 		h = all->cobj;
 		assert(h);
 		memcpy(new_end, h, h->size);
@@ -2748,7 +2754,7 @@ static void setup_kernel(struct service_symbs *services)
 	spd_assign_ids(services);
 
 	if ((s = find_obj_by_name(services, BOOT_COMP))) {
-		make_spd_boot(s, services);
+		make_spd_boot(s, services, 1);
 	}
 	fflush(stdout);
 
