@@ -59,6 +59,7 @@ paging_init(u32_t nmods, u32_t *mods)
 	char *cmdline;
 	u32_t cr0, i, user_stack_physical = 0;
 	int ptr = 0;
+	unsigned int spages = USER_STACK_SIZE / PAGE_SIZE;
 
 	printk("Initializing virtual memory\n");
 	register_interrupt_handler(14, page_fault);
@@ -68,7 +69,8 @@ paging_init(u32_t nmods, u32_t *mods)
         memset(pte, 0, sizeof(pte));
 	pgtbl = pgtbl_alloc(boot_comp_pgd);
 	for (i = 0; i < 1024; i++) {
-		assert(pgtbl_intern_expand(pgtbl, i * PAGE_SIZE * 1024, &pte[i], PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_GLOBAL) == 0);
+		if ((ptr = pgtbl_intern_expand(pgtbl, i * PAGE_SIZE * 1024, &pte[i], PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_GLOBAL)) != 0)
+			die("pgtbl_intern_expand() returned %d expanding entry %d\n", ptr, i);
 	}
 
 	/* Identity map the kernel */
@@ -76,6 +78,10 @@ paging_init(u32_t nmods, u32_t *mods)
 	for (i = KERNEL_BASE_PHYSICAL_ADDRESS; i < (u32_t)mods; i += PAGE_SIZE * RETYPE_MEM_NPAGES) {
 		if ((ptr = retypetbl_retype2kern((void*)(i))) != 0)
 			die("retypetbl_retype2kern(%08x) returned %d\n", i, ptr);
+	}
+	for (i = KERNEL_BASE_PHYSICAL_ADDRESS; i < (u32_t)mods; i += PAGE_SIZE) {
+		if ((ptr = pgtbl_mapping_add(pgtbl, i, i, PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_GLOBAL)) != 0)
+			die("pgtbl_mapping_add() returned %d mapping kernel page at 0x%x\n", ptr, i);
 	}
 
 	/* Map user modules into userspace */
@@ -85,24 +91,23 @@ paging_init(u32_t nmods, u32_t *mods)
 		u32_t module_address = 0;
 
 		for (i = 0; i < nmods; i++) {
+			unsigned int mpages = ((mod[i].mod_end - mod[i].mod_start) / (PAGE_SIZE)) + 1;
 			cmdline = (char*)mod[i].cmdline;
 			module_address = hextol(cmdline);
-			printk("Mapping multiboot Module %d \"%s\" [%x:%x] to 0x%08x\n",
-				i, mod[i].cmdline, mod[i].mod_start, mod[i].mod_end, module_address);
+			printk("Mapping Multiboot Module %d \"%s\" [phsyical address range %x:%x] @ 0x%08x (%d pages)\n",
+				i, mod[i].cmdline, mod[i].mod_start, mod[i].mod_end, module_address, mpages);
 
 			if (cmdline[8] == '-') {
 				user_entry_point = hextol(&cmdline[9]);
 			}
 
-			for (j = 0; j <= ((mod[i].mod_end - mod[i].mod_start) / (PAGE_SIZE))+1; j++) {
-				if (j % RETYPE_MEM_NPAGES == 0) {
-					if ((ptr = retypetbl_retype2user((void*)(mod[i].mod_start + (j * PAGE_SIZE)))) != 0)
-						die("retypetbl_retype2user(%08x) returned %d\n", mod[i].mod_start + (j * PAGE_SIZE), ptr);
-				}
+			for (j = 0; j <= mpages; j += RETYPE_MEM_NPAGES) {
+				if ((ptr = retypetbl_retype2user((void*)(mod[i].mod_start + (j * PAGE_SIZE)))) != 0)
+					die("retypetbl_retype2user(%08x) returned %d\n", mod[i].mod_start + (j * PAGE_SIZE), ptr);
+			}
+			for (j = 0; j <= mpages; j++) {
 				if ((ptr = pgtbl_mapping_add(pgtbl, module_address + (j * PAGE_SIZE), mod[i].mod_start + (j * PAGE_SIZE), PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_USER)) != 0)
 					die("pgtbl_mapping_add() returned %d mapping page %d of module %d\n", ptr, j, i);
-				else
-					printk("mapped page %d of module %d\n", j, i);
 			}
 			if (mod[i].mod_end > user_stack_physical) {
 				user_stack_physical = mod[i].mod_end;
@@ -113,16 +118,14 @@ paging_init(u32_t nmods, u32_t *mods)
 	}
 
 	printk("Reserving a user-space stack at v:0x%08x, p:0x%08x\n", user_stack_address, user_stack_physical);
-	for (i = 0; i < (USER_STACK_SIZE / PAGE_SIZE); i++) {
-		if ((i % RETYPE_MEM_NPAGES == 0) && (ptr = retypetbl_retype2user((void*)(user_stack_physical - USER_STACK_SIZE + (i * PAGE_SIZE)))) != 0)
-			printk("retypetbl_retype2user(%08x) returned %d\n", user_stack_physical - USER_STACK_SIZE + (i * PAGE_SIZE), ptr);
-		else if ((ptr = pgtbl_mapping_add(pgtbl,
-			user_stack_physical - USER_STACK_SIZE + (i * PAGE_SIZE),
-			user_stack_address - USER_STACK_SIZE + (i * PAGE_SIZE),
-			PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_USER)) != 0)
-				printk("pgtbl_mapping_add() returned %d mapping user stack page %d\n", ptr, i);
-		else
-			printk("mapped user stack page %d\n", i);
+	for (i = 0; i < spages; i++) {
+		if ((ptr = retypetbl_retype2user((void*)user_stack_physical + (i * PAGE_SIZE * RETYPE_MEM_NPAGES))) != 0)
+			printk("retypetbl_retype2user(%08x) returned %d\n", i, ptr);
+	}
+	for (i = 0; i < spages; i++) {
+		if ((ptr = pgtbl_mapping_add(pgtbl, user_stack_address + (i * PAGE_SIZE), user_stack_physical + (i * PAGE_SIZE), PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_USER)) != 0) {
+			die("pgtbl_mapping_add() returned %d mapping page %d of user stack\n", ptr, i);
+		}
 	}
 
 /*
