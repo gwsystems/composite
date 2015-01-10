@@ -4,7 +4,7 @@ CC := gcc -m32
 LD := ld -m elf_i386
 AS := as --32 -g
 
-CFLAGS := -g3 -Werror -ffreestanding -Wno-unused -nostdlib -mno-red-zone -I../../kernel/include
+CFLAGS := -g3 -Werror -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdlib -mno-red-zone -I../../kernel/include
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs 
 
 KERNEL := kernel.img
@@ -106,4 +106,4 @@ clean:
 
 cp: $(KERNEL)
 	$(info |     [CP]   Copying native booter to $(TRANS_DIR))
-	@cp -f $(KERNEL) .gdbinit qemu.sh qemu-g.sh $(TRANS_DIR)
+	@cp -f $(KERNEL) .gdbinit qemu.sh qemu-g.sh ppos.sh $(TRANS_DIR)
