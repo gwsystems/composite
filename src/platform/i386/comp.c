@@ -6,7 +6,7 @@
 #define N_PHYMEM_PAGES COS_MAX_MEMORY /* # of physical pages available */
 
 u8_t boot_comp_captbl[PAGE_SIZE*BOOT_CAPTBL_NPAGES] PAGE_ALIGNED;
-u8_t *boot_comp_pgd;
+extern u8_t *boot_comp_pgd;
 u8_t *boot_comp_pte_vm;
 u8_t *boot_comp_pte_km;
 u8_t *boot_comp_pte_pm;
@@ -41,7 +41,8 @@ kern_boot_comp(struct spd_info *spd_info)
         ret = retypetbl_retype2kern(kmem_base_pa);
         assert(ret == 0);
 
-        boot_comp_pgd = cos_kmem_base;
+        //boot_comp_pgd = cos_kmem_base;
+        cos_kmem_base = boot_comp_pgd;
         boot_comp_pte_vm = cos_kmem_base + PAGE_SIZE;
         boot_comp_pte_pm = cos_kmem_base + 2 * PAGE_SIZE;
         boot_comp_pte_km = cos_kmem_base + 3 * PAGE_SIZE;
@@ -104,6 +105,7 @@ kern_boot_comp(struct spd_info *spd_info)
                 u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
                 u32_t flags;
 
+		printk("pgtbl_cosframe_add(%08x, %08x, %08x, %08x)\n", pt, BOOT_MEM_KM_BASE + i*PAGE_SIZE, addr, PGTBL_COSFRAME | PGTBL_USER_DEF);
                 if (pgtbl_cosframe_add(pt, BOOT_MEM_KM_BASE + i*PAGE_SIZE,
                                       addr, PGTBL_COSFRAME | PGTBL_USER_DEF)) cos_throw(err, -12); /* FIXME: shouldn't be accessible */
                 assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_KM_BASE+i*PAGE_SIZE, &flags));
