@@ -13,7 +13,7 @@ clean:
 	$(MAKE) -C i386 clean
 	$(MAKE) -C linker clean
 
-init: clean default
+init: clean
 
 ltests:
 	$(MAKE) -C tests 
