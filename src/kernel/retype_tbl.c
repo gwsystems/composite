@@ -9,6 +9,8 @@
 #include "include/retype_tbl.h"
 #include "include/chal.h"
 #include "include/shared/cos_types.h"
+#include "include/shared/cos_errno.h"
+#include "include/debug.h"
 
 struct retype_info     retype_tbl[NUM_CPU]        CACHE_ALIGNED;
 struct retype_info_glb glb_retype_tbl[N_MEM_SETS] CACHE_ALIGNED;

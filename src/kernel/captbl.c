@@ -100,7 +100,7 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 			cos_throw(err, ret);
 		}
 	} else {
-		cos_faa(&parent->refcnt_flags, -1);
+		cos_faa((int*)&parent->refcnt_flags, -1);
 	}
 
 	return 0;
@@ -130,7 +130,7 @@ captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t c
 	 * calls for them? */
 	ret = captbl_expand(target_ct->captbl, cons_addr, captbl_maxdepth(), captbl_mem);
 	if (ret) {
-		cos_faa(&cons_cap->refcnt_flags, -1);
+		cos_faa((int*)&cons_cap->refcnt_flags, -1);
 		cos_throw(err, ret);
 	}
 
@@ -139,7 +139,7 @@ captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t c
 	if (ret) {
 		/* Rewind. */
 		captbl_expand(target_ct->captbl, cons_addr, captbl_maxdepth(), NULL);
-		cos_faa(&cons_cap->refcnt_flags, -1);
+		cos_faa((int*)&cons_cap->refcnt_flags, -1);
 		cos_throw(err, ret);
 	}
 	
@@ -151,7 +151,7 @@ err:
 static int
 captbl_leaflvl_scan(struct captbl *ct)
 {
-	int i, ret;
+	unsigned int i, ret;
 	u64_t curr_ts, past_ts;
 
 	/* going through each cacheline. */

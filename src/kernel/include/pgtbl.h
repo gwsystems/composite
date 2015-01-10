@@ -8,6 +8,7 @@
 #ifndef PGTBL_H
 #define PGTBL_H
 
+#include "shared/cos_errno.h"
 #include "ertrie.h"
 #include "shared/util.h"
 #include "captbl.h"
@@ -457,7 +458,8 @@ static void pgtbl_update(pgtbl_t pt)
 #ifdef UPDATE_LINUX_MM_STRUCT
 	chal_pgtbl_switch((paddr_t)pt);
 #else
-	native_write_cr3((unsigned long)pt);
+	//native_write_cr3((unsigned long)pt);
+	asm volatile("mov %0, %%cr3" : : "r"(pt));
 #endif
 
 #else
@@ -473,6 +475,7 @@ pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
 #define KERNEL_PGD_REGION_OFFSET  (PAGE_SIZE - PAGE_SIZE/4)
 #define KERNEL_PGD_REGION_SIZE    (PAGE_SIZE/4)
 
+extern void *memcpy(void*, const void*, unsigned long int);
 static pgtbl_t pgtbl_create(void *page, void *curr_pgtbl) {
 	pgtbl_t ret = pgtbl_alloc(page); 
 	/* Copying the kernel part of the pgd. */
@@ -487,7 +490,7 @@ int pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned 
 static int 
 pgtbl_mapping_scan(struct cap_pgtbl *pt)
 {
-	int i, pte, *page;
+	unsigned int i, pte, *page;
 	livenessid_t lid;
 	u64_t past_ts;
 
@@ -495,7 +498,7 @@ pgtbl_mapping_scan(struct cap_pgtbl *pt)
 	 * quiescence. */
 	if (pt->lvl != PGTBL_DEPTH - 1) return -EINVAL;
 
-	page = (int *)(pt->pgtbl);
+	page = (unsigned int *)(pt->pgtbl);
 	assert(page);
 
 	for (i = 0; i < PAGE_SIZE / sizeof(int *); i++) {

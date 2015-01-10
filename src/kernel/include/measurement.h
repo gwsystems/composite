@@ -94,7 +94,7 @@ void cos_meas_report(void);
 
 struct cos_meas_struct {
 	meas_type_t type;
-	char *description;
+	const char *description;
 	unsigned long long cnt, meas, tot, min, max;
 };
 

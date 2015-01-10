@@ -21,9 +21,9 @@ NET_DIR=$(TOP_DIR)/platform/linux/net/
 
 # tools
 MAKE=make
-CC=gcc
+CC=gcc -m32 -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -fvar-tracking -fvar-tracking-assignments -g
 AR=ar
-LD=ld
+LD=ld -m elf_i386
 AS=$(CC)
 MV=mv
 CP=cp

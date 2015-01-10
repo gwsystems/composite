@@ -3,6 +3,14 @@
 #define COS_DEBUG
 #endif
 
+#ifndef unlikely
+#define unlikely(x)     __builtin_expect(!!(x), 0)
+#endif
+
+#ifndef likely
+#define likely(x)       __builtin_expect(!!(x), 1)
+#endif
+
 #ifdef __KERNEL__
 #ifdef COS_DEBUG
 #define assert(node) \
@@ -15,8 +23,11 @@
 /*#else
   #define printd(str,args...) printf(str, ## args)*/
 #else
-#define assert(a)
+#define assert(a) (void)0
 #define printd(str,args...) 
 #endif
 #endif
 
+#ifndef assert
+#define assert(a)
+#endif

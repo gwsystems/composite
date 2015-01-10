@@ -1,5 +1,7 @@
 include Makefile.src
 
+EXTRA_CFLAGS=-DCOS_LINUX
+
 obj-m := cnet.o
 cnet-objs := cosnet.o
 

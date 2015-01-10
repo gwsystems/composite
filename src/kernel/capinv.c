@@ -85,6 +85,7 @@ done:
 	return 0;
 }
 
+void cos_cap_ipi_handling(void);
 void cos_cap_ipi_handling(void)
 {
 	int idx, end;
@@ -250,6 +251,8 @@ err:
 	return ret;
 }
 
+extern void *memset(void *dst, int c, unsigned long int count);
+
 /* Updates the pte, deref the frame and zero out the page. */
 int 
 kmem_deact_post(unsigned long *pte, unsigned long old_v)
@@ -401,6 +404,8 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 }
 
 #define ENABLE_KERNEL_PRINT
+
+__attribute__((section("__ipc_entry"))) COS_SYSCALL int composite_sysenter_handler(struct pt_regs *regs);
 
 __attribute__((section("__ipc_entry"))) COS_SYSCALL int
 composite_sysenter_handler(struct pt_regs *regs)

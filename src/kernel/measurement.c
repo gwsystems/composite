@@ -1,6 +1,9 @@
 #include "include/measurement.h"
 #include "include/per_cpu.h"
+
+#ifdef COS_LINUX
 #include <linux/kernel.h>
+#endif
 
 
 #ifdef MEASUREMENTS
@@ -76,6 +79,7 @@ struct cos_meas_struct measurements_desc[COS_MEAS_MAX_SIZE] = {
 	{.type = MEAS_STATS, .description = "delay between uc term/pend and pending upcall completion"}
 };
 
+extern void *memcpy(void *, const void *, unsigned long int);
 void cos_meas_init(void)
 {
 	int i, cpu;

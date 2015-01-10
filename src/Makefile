@@ -1,7 +1,8 @@
 MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
 #$(info Make flags $(MAKEFLAGS))
 
-all: kern cp
+all: linux cp
+
 comps: 
 	$(info )
 	$(info ***********************************************)
@@ -9,13 +10,22 @@ comps:
 	$(info ***********************************************)
 	$(info )
 	$(MAKE) $(MAKEFLAGS) -C components
-kern: comps
+
+linux: comps
 	$(info )
 	$(info ***********************************************)
 	$(info ******** Building Platform and Kernel *********)
 	$(info ***********************************************)
 	$(info )
-	$(MAKE) $(MAKEFLAGS) -C platform
+	$(MAKE) $(MAKEFLAGS) PLATFORM=linux -C platform
+
+i386: comps
+	$(info )
+	$(info ***********************************************)
+	$(info ******** Building Platform and Kernel *********)
+	$(info ***********************************************)
+	$(info )
+	$(MAKE) $(MAKEFLAGS) PLATFORM=i386 -C platform
 
 cp:
 	$(MAKE) $(MAKEFLAGS) -C platform cp

@@ -9,6 +9,10 @@
  * Author: Gabriel Parmer, gabep1@cs.bu.edu, 2007
  */
 
+#ifndef CONFIG_X86_LOCAL_APIC
+#define CONFIG_X86_LOCAL_APIC
+#endif
+
 #include <linux/module.h>
 //#include <linux/config.h>
 #include <linux/init.h>
