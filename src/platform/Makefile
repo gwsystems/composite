@@ -1,19 +1,17 @@
 include Makefile.src
 
 default:
-	$(MAKE) -C i386
+	$(MAKE) -C $(PLATFORM)
 	$(MAKE) -C linker
-#	$(MAKE) -C linux
 
 cp:
-	$(MAKE) -C i386 cp
+	if [ -f linux/module/cos.ko ]; then $(MAKE) -C linux cp; else $(MAKE) -C i386 cp; fi
 	$(MAKE) -C linker cp
-#	$(MAKE) -C linux cp
 
 clean:
+	$(MAKE) -C linux clean
 	$(MAKE) -C i386 clean
 	$(MAKE) -C linker clean
-#	$(MAKE) -C linux clean
 
 init: clean default
 
