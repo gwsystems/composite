@@ -249,7 +249,6 @@ static vaddr_t pmem_heap = BOOT_MEM_PM_BASE;
 /* Only called by the init core. No lock / atomic op required. */
 vaddr_t get_pmem_cap(void) {
 	int ret;
-	vaddr_t heap_vaddr;
 
 	if (pmem_heap % RETYPE_MEM_SIZE == 0) {
 		/* Retype this region as user memory before use. */
@@ -259,12 +258,27 @@ vaddr_t get_pmem_cap(void) {
 		if (ret) return 0;
 	}
 
+	ret = pmem_heap;
+	pmem_heap += PAGE_SIZE;
+
+	return ret;
+}
+
+/* This gets a virtual page on heap and the capability to a physical
+ * page. Then maps it in. */
+vaddr_t get_pmem(void)
+{
+	int ret;
+	vaddr_t heap_vaddr, pmem_cap;
+
+	pmem_cap = get_pmem_cap();
+	if (!pmem_cap) return 0;
+
 	heap_vaddr = (vaddr_t)cos_get_heap_ptr();
 	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEMACTIVATE,
-			  pmem_heap, BOOT_CAPTBL_SELF_PT, heap_vaddr, 0);
+			  pmem_cap, BOOT_CAPTBL_SELF_PT, heap_vaddr, 0);
 	if (ret) return 0;
 
-	pmem_heap += PAGE_SIZE;
 	cos_set_heap_ptr((void *)(heap_vaddr + PAGE_SIZE));
 	/* printc("heap_vaddr %x, npages %d\n", heap_vaddr, (heap_vaddr - BOOT_MEM_VM_BASE)/PAGE_SIZE); */
 
@@ -399,6 +413,7 @@ struct comp_cap_info {
 	capid_t comp_cap;
 	capid_t cap_frontier;
 	vaddr_t addr_start;
+	vaddr_t vaddr_mapped_in_booter; /* the address mapped into booter. */
 	vaddr_t upcall_entry;
 };
 
@@ -446,7 +461,7 @@ acap_test(void)
 
 	if (cos_cpuid() == INIT_CORE) {
 		/* Create shmem between ping and pong. */
-		capid_t shmem = get_pmem_cap();
+		capid_t shmem = get_pmem();
 		int ret;
 		//map this to ping and pong
 		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, 

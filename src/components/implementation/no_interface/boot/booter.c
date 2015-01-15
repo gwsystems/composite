@@ -470,7 +470,7 @@ cgraph_add(int serv, int client)
 /****************************************************/
 
 static int 
-boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, vaddr_t *comp_mapping_start)
+boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
 	unsigned int i;
 	vaddr_t dest_daddr, prev_map = 0;
@@ -479,7 +479,8 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, va
 	capid_t captbl_cap = comp_cap_info[spdid].captbl_cap[0];
 	capid_t pgtbl_cap  = comp_cap_info[spdid].pgtbl_cap[0];
 
-	*comp_mapping_start = (vaddr_t)pmem_heap;
+	/* We'll map the component into booter's heap. */
+	comp_cap_info[spdid].vaddr_mapped_in_booter = (vaddr_t)cos_get_heap_ptr();
 
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
@@ -500,7 +501,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, va
 		} 
 		while (left > 0) {
 			//FIXME: use kmem if (flag & MAPPING_KMEM)
-			vaddr_t addr = get_pmem_cap();
+			vaddr_t addr = get_pmem();
 
 			if (!addr) BUG();
 			if (call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY,
@@ -516,7 +517,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, va
 }
 
 static int 
-boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, int first_time, vaddr_t comp_mapping_start)
+boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, int first_time)
 {
 	unsigned int i;
 	/* Where are we in the actual component's memory in the booter? */
@@ -525,7 +526,7 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 	vaddr_t prev_daddr, init_daddr;
 	struct cos_component_information *ci;
 
-	start_addr = (char *)comp_mapping_start;
+	start_addr = (char *)(comp_cap_info[spdid].vaddr_mapped_in_booter);
 	init_daddr = cobj_sect_get(h, 0)->vaddr;
 
 	for (i = 0 ; i < h->nsect ; i++) {
@@ -567,11 +568,8 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 static int 
 boot_comp_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
-	vaddr_t comp_mapping_start;
-	/* all free memory mapped into llboot (@BOOT_MEM_KM_ /
-	 * _PM_BASE) by default. */
-	if (boot_comp_map_memory(h, spdid, comp_info, &comp_mapping_start)) return -1; 
-	if (boot_comp_map_populate(h, spdid, comp_info, 1, comp_mapping_start)) return -1;
+	if (boot_comp_map_memory(h, spdid, comp_info)) return -1; 
+	if (boot_comp_map_populate(h, spdid, comp_info, 1)) return -1;
 
 	return 0;
 }
@@ -663,9 +661,10 @@ boot_create_cap_system(void)
 			tot += cobj_sect_size(h, j);
 		}
 		if (tot > SERVICE_SIZE) {
-			printc("vas > default size!\n");
+			printc("Component size greater than default size!\n");
 			BUG();
 		}
+
 		/* create cap tbl, pgtbl for new component */
 		comp_cap    = alloc_capid(CAP_COMP);
 
