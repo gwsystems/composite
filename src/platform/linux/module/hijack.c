@@ -715,11 +715,9 @@ kern_boot_comp(struct spd_info *spd_info)
 	/* printk("mapping from kmem %x\n", cos_kmem); */
 	for (i = 0; i < (COS_KERNEL_MEMORY - (cos_kmem - cos_kmem_base)/PAGE_SIZE); i++) {
 		u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
-		u32_t flags;
 
 		if (pgtbl_cosframe_add(pt, BOOT_MEM_KM_BASE + i*PAGE_SIZE, 
-				      addr, PGTBL_COSFRAME | PGTBL_USER_DEF)) cos_throw(err, -1); /* FIXME: shouldn't be accessible */
-		assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_KM_BASE+i*PAGE_SIZE, &flags));
+				       addr, PGTBL_COSFRAME)) cos_throw(err, -1);
 	}
 
 	if (COS_MEM_START % RETYPE_MEM_SIZE != 0) {
@@ -731,12 +729,9 @@ kern_boot_comp(struct spd_info *spd_info)
 	/* add the system's physical memory at address 2GB */
 	for (i = 0 ; i < N_PHYMEM_PAGES ; i++) {
 		u32_t addr = COS_MEM_START + i*PAGE_SIZE;
-		u32_t flags;
 		
-		/* Make the memory accessible so we can populate memory without retyping. */
 		if (pgtbl_cosframe_add(pt, BOOT_MEM_PM_BASE + i*PAGE_SIZE, 
-				      addr, PGTBL_COSFRAME | PGTBL_USER_DEF)) cos_throw(err, -1);
-		assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_PM_BASE+i*PAGE_SIZE, &flags));
+				       addr, PGTBL_COSFRAME)) cos_throw(err, -1);
 	}
 
 	/* comp0's data, culminated in a static invocation capability to the llbooter */

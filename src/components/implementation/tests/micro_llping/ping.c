@@ -1260,6 +1260,8 @@ void cos_init(void)
 		}
 		printc("core %ld: exiting from ping\n", cos_cpuid());
 	}
+#else
+	pingpong();
 #endif
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
 

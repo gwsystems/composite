@@ -84,6 +84,7 @@ cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capi
 
 	dest_pt_h = captbl_lkup(ct, dest_pt);
 	if (dest_pt_h->type != CAP_PGTBL) return -EINVAL;
+	if (((struct cap_pgtbl *)dest_pt_h)->lvl) return -EINVAL;
 
 	pte = pgtbl_lkup_pte(pt->pgtbl, frame_cap, &flags);
 	if (!pte) return -EINVAL;
@@ -94,8 +95,9 @@ cap_memactivate(struct captbl *ct, struct cap_pgtbl *pt, capid_t frame_cap, capi
 	assert(!(orig_v & PGTBL_QUIESCENCE));
 	cosframe = orig_v & PGTBL_FRAME_MASK;
 
-	ret = pgtbl_mapping_add(((struct cap_pgtbl *)dest_pt_h)->pgtbl, vaddr, 
+	ret = pgtbl_mapping_add(((struct cap_pgtbl *)dest_pt_h)->pgtbl, vaddr,
 				cosframe, PGTBL_USER_DEF);
+
 	return ret;
 }
 
