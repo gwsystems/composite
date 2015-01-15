@@ -1,6 +1,7 @@
 #include <cos_component.h>
 #include <cos_alloc.h>
 #include <print.h>
+#include <valloc.h>
 #include <stdlib.h> 		/* rand */
 #include <cbuf.h>
 #include <cbufp.h>
@@ -84,7 +85,7 @@ static void
 cbufp_tests()
 {
 	cbufp_t cbs[MAX_CBUFPS];
-	int szs[MAX_CBUFPS];
+	int sz = MAX_CBUFP_SZ;
 	char *bufs[MAX_CBUFPS];
 	int i;
 	struct cbuf_alloc_desc *d = &cbufp_alloc_freelists[0];
@@ -93,29 +94,7 @@ cbufp_tests()
 	printc("\nUNIT TEST (CBUFP)\n");
 
 	for (i = 0 ; i < MAX_CBUFPS ; i++) {
-		/* //int sz = ((rand() % MAX_CBUFP_SZ) + 1) & (PAGE_SIZE - 1);
-		 * Can't use arbitrary sizes for cbufps, there aren't enough
-		 * freelists available. */
-		int sz = MAX_CBUFP_SZ;
 		cbs[i] = unit_cbufp_alloc(sz);
-		assert(cbs[i]);
-		unit_cbufp_deref(cbs[i]);
-	}
-	printc("UNIT TEST PASSED: alloc->deref\n");
-
-	for (i = 0 ; i < MAX_CBUFPS ; i++) {
-		int sz = MAX_CBUFP_SZ;
-		cbs[i] = unit_cbufp_alloc(sz);
-	}
-	for (i = 0 ; i < MAX_CBUFPS ; i++) {
-		unit_cbufp_deref(cbs[i]);
-	}
-	printc("UNIT TEST PASSED: N alloc -> N dealloc\n");
-
-	for (i = 0 ; i < MAX_CBUFPS ; i++) {
-		int sz = MAX_CBUFP_SZ;
-		cbs[i] = unit_cbufp_alloc(sz);
-		szs[i] = sz;
 		bufs[i] = cbufp2buf(cbs[i], sz);
 		assert(bufs[i]);
 		cbufp_send_deref(cbs[i]);
@@ -124,6 +103,7 @@ cbufp_tests()
 	printc("UNIT TEST PASSED: N alloc + cbufp2buf\n");
 
 	for (i = 0 ; i < MAX_CBUFPS ; i++) {
+		int sz = MAX_CBUFP_SZ;
 		bufs[i] = cbufp2buf(cbs[i], sz);
 		assert(bufs[i]);
 		cbufp_deref(cbs[i]);
@@ -131,9 +111,36 @@ cbufp_tests()
 	printc("UNIT TEST PASSED: N cached cbufp2buf\n");
 
 	for (i = 0 ; i < MAX_CBUFPS ; i++) {
-		unit_cbufp_deref(cbs[i]);
+		unit_cbufp_deref(cbs[i], sz);
 	}
 	printc("UNIT TEST PASSED: N deallocs\n");
+
+	for (i = 0 ; i < MAX_CBUFPS ; i++) {
+		spdid_t myspd = cos_spd_id();
+		int err = 0;
+		/* Assume this component only uses 1 pgd, and there is
+		 * unallocated memory at the end for MAX_CBUFPS pages */
+		bufs[i] = (char*)(round_up_to_pgd_page(cbufp_tests) - (i+1)*PAGE_SIZE);
+		cbs[i] = unit_cbufp_alloc(sz);
+		assert(cbs[i]);
+		err = unit_cbufp_map_at(cbs[i], sz, myspd, (vaddr_t)bufs[i]);
+		assert(!err);
+		assert(bufs[i][0] == '_');
+	}
+	printc("UNIT TEST PASSED: N map_at\n");
+
+	for (i = 0 ; i < MAX_CBUFPS ; i++) {
+		spdid_t myspd = cos_spd_id();
+		int err = 0;
+		err = unit_cbufp_unmap_at(cbs[i], sz, myspd, (vaddr_t)bufs[i]);
+		assert(!err);
+		bufs[i] = cbufp2buf(cbs[i], sz); /* clear send cnt */
+		assert(bufs[i]);
+		cbufp_deref(cbs[i]);
+		unit_cbufp_deref(cbs[i], sz);
+	}
+	printc("UNIT TEST PASSED: N unmap_at\n");
+
 
 	printc("UNIT TEST (CBUFP) ALL PASSED\n");
 }

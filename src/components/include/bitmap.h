@@ -236,4 +236,13 @@ bitmap_extent_find_set(u32_t *x, int off, int extent, int max)
 	return r;
 }
 
+static inline int
+bitmap_extent_set_at(u32_t *x, int off, int extent, int max)
+{
+	int r = bitmap_one_offset(x, off, max);
+	if (r != off) return -1;
+	bitmap_set_contig(x, r, extent, 0);
+	return 0;
+}
+
 #endif /* BITMAP_H */

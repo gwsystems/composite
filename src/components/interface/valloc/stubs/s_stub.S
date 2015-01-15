@@ -10,3 +10,4 @@
 .text	
 cos_asm_server_stub_spdid(valloc_alloc)
 cos_asm_server_stub_spdid(valloc_free)
+cos_asm_server_stub_spdid(valloc_alloc_at)

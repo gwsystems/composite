@@ -12,6 +12,9 @@
 
 #include <cos_component.h>
 #include <ck_ring_cos.h>
+
+typedef u32_t cbufp_t; /* should match cbuf_t, and fit in a register */
+
 /* 
  * These are more or less identical to the counterparts in cbuf_c.h,
  * so have a look at the documentation there.
@@ -20,6 +23,13 @@ int cbufp_create(spdid_t spdid, int size, long cbid);
 int cbufp_delete(spdid_t spdid, int cbid);
 int cbufp_retrieve(spdid_t spdid, int cbid, int len);
 vaddr_t cbufp_register(spdid_t spdid, long cbid);
+
+/* Map a cbufp into another component at a given address.
+ * The s_spd that calls this function should ensure the memory is not freed.
+ * The d_addr must be alloced with sufficient pages to contain the cbuf.
+ */
+vaddr_t cbufp_map_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags);
+int cbufp_unmap_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr);
 
 /*
  * Before the first call to cbufp_collect, the client component must
@@ -52,7 +62,7 @@ CK_RING(cbufp_ring_element, cbufp_ring);
 
 struct cbufp_shared_page {
 	CK_RING_INSTANCE(cbufp_ring) ring;
-#define CSP_BUFFER_SIZE (((PAGE_SIZE-sizeof(CK_RING_INSTANCE(cbufp_ring)))>>1)/sizeof(struct cbufp_ring_element))
+#define CSP_BUFFER_SIZE ((PAGE_SIZE>>1)/sizeof(struct cbufp_ring_element))
 	struct cbufp_ring_element buffer[CSP_BUFFER_SIZE];
 };
 

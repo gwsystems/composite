@@ -193,11 +193,28 @@ cbufp_comp_info_bin_add(struct cbufp_comp_info *cci, int sz)
 }
 
 static int
+cbufp_map(spdid_t spdid, vaddr_t daddr, void *page, int size, int flags)
+{
+	int off;
+	assert(size == (int)round_to_page(size));
+	assert(daddr);
+	assert(page);
+	for (off = 0 ; off < size ; off += PAGE_SIZE) {
+		vaddr_t d = daddr + off;
+		if (d != (mman_alias_page(cos_spd_id(), ((vaddr_t)page) + off,
+						spdid, d, flags))) {
+			assert(0); /* TODO: roll back the aliases, etc... */
+		}
+	}
+	return 0;
+}
+
+static int
 cbufp_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 {
 	void *p;
 	vaddr_t dest;
-	int off;
+	int ret;
 
 	assert(size == (int)round_to_page(size));
 	p = page_alloc(size/PAGE_SIZE);
@@ -206,19 +223,13 @@ cbufp_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 
 	dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, size/PAGE_SIZE);
 	assert(dest);
-	for (off = 0 ; off < size ; off += PAGE_SIZE) {
-		vaddr_t d = dest + off;
-		if (d != 
-		    (mman_alias_page(cos_spd_id(), ((vaddr_t)p) + off, spdid, d, MAPPING_RW))) {
-			assert(0);
-			/* TODO: roll back the aliases, etc... */
-			valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
-		}
-	}
+
+	ret = cbufp_map(spdid, dest, p, size, MAPPING_RW);
+	if (ret) valloc_free(cos_spd_id(), spdid, (void *)daddr, 1);
 	*page  = p;
 	*daddr = dest;
 
-	return 0;
+	return ret;
 }
 
 /* Do any components have a reference to the cbuf? */
@@ -387,6 +398,65 @@ free:
 	goto done;
 }
 
+vaddr_t
+cbufp_map_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags)
+{
+	vaddr_t ret = (vaddr_t)NULL;
+	struct cbufp_info *cbi;
+	u32_t id;
+	int tmem;
+	
+	cbuf_unpack(cbid, &id, &tmem);
+	assert(tmem == 0);
+	CBUFP_TAKE();
+	cbi = cmap_lookup(&cbufs, id);
+	assert(cbi);
+	if (unlikely(!cbi)) goto done;
+	assert(cbi->owner.spdid == s_spd);
+	if (valloc_alloc_at(s_spd, d_spd, (void*)d_addr, cbi->size/PAGE_SIZE)) goto done;
+	if (cbufp_map(d_spd, d_addr, cbi->mem, cbi->size, flags)) goto free;
+	ret = d_addr;
+	/* do not add d_spd to the meta list because the cbufp is not
+	 * accessible directly. The s_spd must maintain the necessary info
+	 * about the cbufp and its mapping in d_spd. */
+done:
+	CBUFP_RELEASE();
+	return ret;
+free:
+	//valloc_free(s_spd, d_spd, d_addr, cbi->size);
+	goto done;
+}
+
+int
+cbufp_unmap_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr)
+{
+	struct cbufp_info *cbi;
+	int off;
+	int ret = 0;
+	u32_t id;
+	int tmem;
+	int err;
+	
+	cbuf_unpack(cbid, &id, &tmem);
+	assert(tmem == 0);
+
+	assert(d_addr);
+	CBUFP_TAKE();
+	cbi = cmap_lookup(&cbufs, id);
+	if (unlikely(!cbi)) ERR_THROW(-EINVAL, done);
+	if (unlikely(cbi->owner.spdid != s_spd)) ERR_THROW(-EINVAL, done);
+	assert(cbi->size == (int)round_to_page(cbi->size));
+	/* unmap pages in only the d_spd client */
+	for (off = 0 ; off < cbi->size ; off += PAGE_SIZE)
+		mman_release_page(d_spd, d_addr + off, 0);
+	err = valloc_free(s_spd, d_spd, (void*)d_addr, cbi->size/PAGE_SIZE);
+	if (unlikely(err)) ERR_THROW(-EFAULT, done);
+	assert(!err);
+done:
+	CBUFP_RELEASE();
+	return ret;
+}
+
 /*
  * Allocate and map the garbage-collection list used for cbufp_collect()
  */
@@ -546,13 +616,8 @@ cbufp_retrieve(spdid_t spdid, int cbid, int size)
 
 	page = cbi->mem;
 	assert(page);
-	for (off = 0 ; off < size ; off += PAGE_SIZE) {
-		if (dest+off != 
-		    (mman_alias_page(cos_spd_id(), ((vaddr_t)page)+off, spdid, dest+off, MAPPING_READ))) {
-			assert(0);
-			valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
-		}
-	}
+	if (cbufp_map(spdid, dest, page, size, MAPPING_READ))
+		valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
 
 	meta->nfo.c.flags |= CBUFM_TOUCHED;
 	meta->nfo.c.ptr    = map->addr >> PAGE_ORDER;
