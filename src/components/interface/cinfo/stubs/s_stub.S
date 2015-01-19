@@ -9,5 +9,7 @@
 
 .text	
 
+cos_asm_server_stub_spdid(cinfo_add)
+cos_asm_server_stub_spdid(cinfo_alloc_page)
 cos_asm_server_stub_spdid(cinfo_map)
-cos_asm_server_stub(cinfo_get_spdid)
+cos_asm_server_stub_spdid(cinfo_spdid)

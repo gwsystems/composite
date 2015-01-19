@@ -27,7 +27,11 @@ get_spd_info(spdid_t spdid)
 
 	assert(spdid < MAX_NUM_SPDS);
 	sti = &spd_tmem_info_list[spdid];
-	
+	if (!SPD_IS_MANAGED(sti)) {
+		if (manage_spd(spdid)) return NULL;
+	}
+	assert(SPD_IS_MANAGED(sti));
+
 	return sti;
 }
 
