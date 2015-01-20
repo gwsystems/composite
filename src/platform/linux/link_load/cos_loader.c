@@ -974,8 +974,8 @@ static struct service_symbs *alloc_service_symbs(char *obj, int boot_layer)
 		obj = cpy;
 		off = 0;
 	}
-	printl(PRINT_DEBUG, "Processed object %s (%s%s)\n", obj, t.sched ? "scheduler " : "", 
-	       t.composite_loaded ? "booted" : "");
+	printl(PRINT_DEBUG, "Processed object %s (%s booted by layer %d)\n", obj, t.sched ? "scheduler " : "",
+	       t.composite_loaded);
 	str = malloc(sizeof(struct service_symbs));
 	if (!str || initialize_service_symbs(str)) {
 		return NULL;
@@ -2446,6 +2446,7 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all, int layer)
 	new_h       = malloc(h->size + all_obj_sz);
 	assert(new_h);
 	memcpy(new_h, h, h->size);
+	printl(PRINT_DEBUG, "booter realloc %p -> %p with size %d\n", h, new_h, h->size)
 
 	/* Initialize the new section */
 	{
@@ -2465,6 +2466,7 @@ make_spd_boot(struct service_symbs *boot, struct service_symbs *all, int layer)
 
 	ci = (void *)cobj_vaddr_get(new_h, (u32_t)get_symb_address(&boot->exported, COMP_INFO));
 	assert(ci);
+	printl(PRINT_DEBUG, "booter cos_comp_info @ %p\n", ci);
 	ci->cos_poly[0] = ADDR2VADDR(new_sect_start);
 
 	/* copy the cobjs */
