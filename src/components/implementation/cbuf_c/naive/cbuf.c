@@ -29,8 +29,6 @@
 #include <cbuf_c.h>
 #include <cvect.h>
 
-#define DEFAULT_TARGET_ALLOC MAX_NUM_MEM 
-
 COS_MAP_CREATE_STATIC(cb_ids);
 
 #define CBUF_OBJ_SZ_SHIFT 6
@@ -705,36 +703,6 @@ cos_init(void *d)
 
 	tmems_allocated = 0;
 
-	// Map all of the spds we can into this component
-	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
-		spdid_t spdid = i;
-
-		void *hp;
-		hp = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
-		spdid = cinfo_get_spdid(i);
-		if (!spdid) break;
-
-		if(cinfo_map(cos_spd_id(), (vaddr_t)hp, spdid)){
-			DOUT("Could not map cinfo page for %d\n", spdid);
-			BUG();
-		}
-		spd_tmem_info_list[spdid].ci.spd_cinfo_page = hp;
-
-		spd_tmem_info_list[spdid].ci.meta = NULL; 
-		spd_tmem_info_list[spdid].managed = 1;
-
-		spd_tmem_info_list[spdid].relinquish_mark = 0; 
-    
-		tmems_target += DEFAULT_TARGET_ALLOC;
-		spd_tmem_info_list[spdid].num_allocated = 0;
-		spd_tmem_info_list[spdid].num_desired = DEFAULT_TARGET_ALLOC;
-		spd_tmem_info_list[spdid].num_blocked_thds = 0;
-		spd_tmem_info_list[spdid].num_waiting_thds = 0;
-		spd_tmem_info_list[spdid].num_glb_blocked = 0;
-		spd_tmem_info_list[spdid].ss_counter = 0;
-		spd_tmem_info_list[spdid].ss_max = MAX_NUM_MEM;
-		empty_comps++;
-	}
 	over_quota_total = 0;
 	over_quota_limit = MAX_NUM_MEM;
 

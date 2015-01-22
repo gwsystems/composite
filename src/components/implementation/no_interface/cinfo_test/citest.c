@@ -11,15 +11,15 @@ void cos_init(void)
 
 	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
 		struct cos_component_information *ci;
-		spdid_t spdid;
+		spdid_t spdid = (spdid_t)i;
 
 		cos_set_heap_ptr((void*)(((unsigned long)hp)+PAGE_SIZE));
-		spdid = cinfo_get_spdid(i);
-		if (!spdid) break;
+		//spdid = cinfo_get_spdid(i);
+		//if (!spdid) break;
 
 		if (cinfo_map(cos_spd_id(), (vaddr_t)hp, spdid)) {
 			printc("Could not map cinfo page for %d.\n", spdid);
-			return;
+			continue;
 		}
 		ci = hp;
 		printc("mapped -- id: %ld, hp:%x, sp:%x\n", 

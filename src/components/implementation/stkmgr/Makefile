@@ -1,4 +1,4 @@
 INTERFACES=stkmgr
-DEPENDENCIES=mem_mgr_large printc sched mem_pool lock
+DEPENDENCIES=cinfo mem_mgr_large printc sched mem_pool lock valloc
 
 include ../Makefile.subdir

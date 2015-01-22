@@ -20,8 +20,6 @@
 #define STK_PER_PAGE (PAGE_SIZE/MAX_STACK_SZ)
 #define NUM_PAGES (ALL_STACK_SZ/STK_PER_PAGE)
 
-#define DEFAULT_TARGET_ALLOC 80
-
 // The total number of stacks
 struct cos_stk_item all_stk_list[MAX_NUM_MEM];
 
@@ -186,39 +184,6 @@ cos_init(void *arg){
 
 	tmems_allocated = 0;
 
-	// Map all of the spds we can into this component
-	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
-		spdid_t spdid;
-		void *hp;
-		/* hp = cos_get_vas_page(); */
-		hp = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
-		spdid = cinfo_get_spdid(i);
-		if (!spdid) break;
-
-		if(cinfo_map(cos_spd_id(), (vaddr_t)hp, spdid)){
-			DOUT("Could not map cinfo page for %d\n", spdid);
-			BUG();
-		}
-		spd_tmem_info_list[spdid].ci.spd_cinfo_page = hp; 
-		/* spd_tmem_info_list[spdid].spd_cinfo_page = hp; */
-
-		spd_tmem_info_list[spdid].managed = 1;
-
-		/* DOUT("mapped -- id: %ld, hp:%x, sp:%x\n", */
-		/*      spd_tmem_info_list[spdid].ci->cos_this_spd_id,  */
-		/*      (unsigned int)spd_tmem_info_list[spdid].ci->cos_heap_ptr, */
-		/*      (unsigned int)spd_tmem_info_list[spdid].ci->cos_stacks.freelists[0].freelist); */
-    
-		tmems_target += DEFAULT_TARGET_ALLOC;
-		spd_tmem_info_list[spdid].num_allocated = 0;
-		spd_tmem_info_list[spdid].num_desired = DEFAULT_TARGET_ALLOC;
-		spd_tmem_info_list[spdid].num_blocked_thds = 0;
-		spd_tmem_info_list[spdid].num_glb_blocked = 0;
-		spd_tmem_info_list[spdid].num_waiting_thds = 0;
-		spd_tmem_info_list[spdid].ss_counter = 0;
-		spd_tmem_info_list[spdid].ss_max = MAX_NUM_MEM;
-		empty_comps++;
-	}
 	over_quota_total = 0;
 	over_quota_limit = MAX_NUM_MEM;
 	DOUT("Done mapping components information pages!\n");
@@ -294,57 +259,6 @@ stkmgr_return_stack(spdid_t s_spdid, vaddr_t addr)
 /* 	} */
 /* } */
 
-/**
- * maps the compoenents spdid info page on startup
- * I do it this way since not every component may require stacks or
- * what spdid's I even have access too.
- * I am not sure if this is the best way to handle this, but it 
- * should work for now.
- */
-static inline void
-get_cos_info_page(spdid_t spdid)
-{
-	spdid_t s;
-	int i;
-	int found = 0;
-	void *hp;
-
-	assert(spdid < MAX_NUM_SPDS);
-
-	for (i = 0; i < MAX_NUM_SPDS; i++) {
-		s = cinfo_get_spdid(i);
-		if(!s) { 
-			printc("Unable to map components cinfo page!\n");
-			BUG();
-		}
-            
-		if (s == spdid) {
-			found = 1;
-			break;
-		}
-	} 
-    
-	if(!found){
-		DOUT("Could not find cinfo for spdid: %d\n", spdid);
-		BUG();
-	}
-    
-	/* hp = cos_get_vas_page(); */
-	hp = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
-	if(cinfo_map(cos_spd_id(), (vaddr_t)hp, s)){
-		DOUT("Could not map cinfo page for %d\n", spdid);
-		BUG();
-	}
-	spd_tmem_info_list[spdid].ci.spd_cinfo_page = hp;
-
-	spd_tmem_info_list[spdid].managed = 1;
-
-	DOUT("mapped -- id: %ld, hp:%x, sp:%x\n",
-	     spd_tmem_info_list[spdid].ci.spd_cinfo_page->cos_this_spd_id, 
-	     (unsigned int)spd_tmem_info_list[spdid].ci.spd_cinfo_page->cos_heap_ptr,
-	     (unsigned int)spd_tmem_info_list[spdid].ci.spd_cinfo_page->cos_stacks.freelists[0].freelist);
-}
-
 int
 resolve_dependency(struct spd_tmem_info *sti, int skip_stk)
 {
@@ -406,11 +320,9 @@ stkmgr_grant_stack(spdid_t d_spdid)
 
 	DOUT("<stkmgr>: stkmgr_grant_stack for, spdid: %d, thdid %d\n",
 	       d_spdid, cos_get_thd_id());
-        
-	// Make sure we have access to the info page
-	if (!SPD_IS_MANAGED(info)) get_cos_info_page(d_spdid);
+
 	assert(SPD_IS_MANAGED(info));
-	
+
 	/* Apply for transient memory. Might block! */
 	tmem_grant(info);
 	
