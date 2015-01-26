@@ -8,11 +8,9 @@
  */
 
 #include <cos_component.h>
-#include <cbuf_meta.h>
 #include <mem_mgr_large.h>
 #include <cbuf.h>
 #include <cbufp.h>
-#include <cbuf_c.h>
 #include <cos_synchronization.h>
 #include <valloc.h>
 #include <cos_alloc.h>
@@ -244,14 +242,13 @@ cbufp_referenced(struct cbufp_info *cbi)
 		struct cbuf_meta *meta = m->m;
 
 		if (meta) {
-			if (meta->nfo.c.refcnt) return 1;
+			if (CBUFM_GET_REFCNT(meta)) return 1;
 			sent  += meta->owner_nfo.c.nsent;
 			recvd += meta->owner_nfo.c.nrecvd;
 		}
 
 		m = FIRST_LIST(m, next, prev);
 	} while (m != &cbi->owner);
-
 	if (sent != recvd) return 1;
 	
 	return 0;
@@ -285,7 +282,7 @@ cbufp_free_unmap(spdid_t spdid, struct cbufp_info *cbi)
 	cbufp_references_clear(cbi);
 	do {
 		assert(m->m);
-		assert(!m->m->nfo.c.refcnt);
+		assert(!CBUFM_GET_REFCNT(m->m));
 		/* TODO: fix race here with atomic instruction */
 		memset(m->m, 0, sizeof(struct cbuf_meta));
 
@@ -381,12 +378,14 @@ cbufp_create(spdid_t spdid, int size, long cbid)
 	 * Update the meta with the correct addresses and flags!
 	 */
 	memset(meta, 0, sizeof(struct cbuf_meta));
-	meta->nfo.c.flags |= CBUFM_TOUCHED | 
-		             CBUFM_OWNER  | CBUFM_WRITABLE;
-	meta->nfo.c.ptr    = cbi->owner.addr >> PAGE_ORDER;
-	meta->sz           = cbi->size >> PAGE_ORDER;
-	if (meta->nfo.c.refcnt == CBUFP_REFCNT_MAX) assert(0);
-	meta->nfo.c.refcnt++;
+	CBUF_SET_OWNER(meta);
+	CBUF_SET_WRITABLE(meta);
+	CBUF_SET_TOUCHED(meta);
+	CBUFM_SET_PTR(meta, cbi->owner.addr);
+	meta->sz        = cbi->size >> PAGE_ORDER;
+	meta->cbid.cbid = cbid;
+	assert(CBUFM_GET_REFCNT(meta) < CBUF_REFCNT_MAX);
+	CBUFM_INC_REFCNT(meta);
 	ret = cbid;
 done:
 	CBUFP_RELEASE();
@@ -399,14 +398,14 @@ free:
 }
 
 vaddr_t
-cbufp_map_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags)
+cbufp_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags)
 {
 	vaddr_t ret = (vaddr_t)NULL;
 	struct cbufp_info *cbi;
 	u32_t id;
 	int tmem;
 	
-	cbuf_unpack(cbid, &id, &tmem);
+	cbuf_unpack(cbid, &id);
 	assert(tmem == 0);
 	CBUFP_TAKE();
 	cbi = cmap_lookup(&cbufs, id);
@@ -428,7 +427,7 @@ free:
 }
 
 int
-cbufp_unmap_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr)
+cbufp_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
 {
 	struct cbufp_info *cbi;
 	int off;
@@ -437,7 +436,7 @@ cbufp_unmap_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr)
 	int tmem;
 	int err;
 	
-	cbuf_unpack(cbid, &id, &tmem);
+	cbuf_unpack(cbid, &id);
 	assert(tmem == 0);
 
 	assert(d_addr);
@@ -524,7 +523,6 @@ cbufp_collect(spdid_t spdid, int size)
 	if (unlikely(!csp)) ERR_THROW(-EINVAL, done);
 
 	assert(csp->ring.size == CSP_BUFFER_SIZE);
-
 	/* 
 	 * Go through all cbufs we own, and report all of them that
 	 * have no current references to them.  Unfortunately, this is
@@ -618,14 +616,14 @@ cbufp_retrieve(spdid_t spdid, int cbid, int size)
 	assert(page);
 	if (cbufp_map(spdid, dest, page, size, MAPPING_READ))
 		valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
-
-	meta->nfo.c.flags |= CBUFM_TOUCHED;
-	meta->nfo.c.ptr    = map->addr >> PAGE_ORDER;
-	meta->sz           = cbi->size >> PAGE_ORDER;
-	ret                = 0;
+	memset(meta, 0, sizeof(struct cbuf_meta));
+	CBUF_SET_TOUCHED(meta);
+	CBUFM_SET_PTR(meta, map->addr);
+	meta->sz        = cbi->size >> PAGE_ORDER;
+	meta->cbid.cbid = cbid;
+	ret             = 0;
 done:
 	CBUFP_RELEASE();
-
 	return ret;
 free:
 	free(map);
