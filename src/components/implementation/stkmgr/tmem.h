@@ -12,6 +12,8 @@
 
 #include <tmem_tk.h>
 #include <mem_pool.h>
+#include <valloc.h>
+#include <cinfo.h>
 
 /* #include <cos_synchronization.h> */
 /* cos_lock_t tmem_l; */
@@ -105,6 +107,28 @@ int tmems_allocated, tmems_target, empty_comps, over_quota_total, over_quota_lim
 
 static inline void wake_glb_blk_list(spdid_t spdid);
 static inline void wake_local_blk_list(struct spd_tmem_info *sti);
+
+#define DEFAULT_TARGET_ALLOC (80)
+static inline int
+manage_spd(spdid_t spdid)
+{
+	int ret = 0;
+	void * hp = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
+	if (cinfo_map(cos_spd_id(), (vaddr_t)hp, spdid)) {
+		DOUT("%d: Couldn't cinfo_map for %d\n", cos_spd_id(), spdid);
+		valloc_free(cos_spd_id(), cos_spd_id(), hp, 1);
+		ret = -1;
+		goto done;
+	}
+	spd_tmem_info_list[spdid].ci.spd_cinfo_page = hp;
+	spd_tmem_info_list[spdid].managed = 1;
+	spd_tmem_info_list[spdid].num_desired = DEFAULT_TARGET_ALLOC;
+	spd_tmem_info_list[spdid].ss_max = MAX_NUM_MEM;
+	tmems_target += DEFAULT_TARGET_ALLOC;
+	empty_comps++;
+done:
+	return ret;
+}
 
 /**
  * gets the number of tmem items associated with a given spdid. Only
