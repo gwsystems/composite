@@ -13,6 +13,7 @@
 #include <cos_component.h>
 #include <ck_ring_cos.h>
 
+typedef u32_t cbuf_t; /* should match cbuf_t, and fit in a register */
 typedef u32_t cbufp_t; /* should match cbuf_t, and fit in a register */
 
 /* 

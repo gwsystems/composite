@@ -12,7 +12,6 @@
 #include <mem_mgr_large.h>
 #include <cbuf.h>
 #include <cbufp.h>
-#include <cbuf_c.h>
 #include <cos_synchronization.h>
 #include <valloc.h>
 #include <cos_alloc.h>

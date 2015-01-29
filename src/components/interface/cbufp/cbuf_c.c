@@ -126,8 +126,7 @@ __cbuf_2buf_miss(int cbid, int len, int tmem)
 	}
 
 	CBUF_RELEASE();
-	if (tmem) ret = cbuf_c_retrieve(cos_spd_id(), cbid, len);
-	else      ret = cbufp_retrieve(cos_spd_id(), cbid, len);
+	ret = cbufp_retrieve(cos_spd_id(), cbid, len);
 	CBUF_TAKE();
 	if (unlikely(ret < 0                                   ||
 		     mc->sz < (len >> PAGE_ORDER)              ||
@@ -228,16 +227,11 @@ __cbuf_alloc_slow(int size, int *len, int tmem)
 		int error = 0;
 
 		CBUF_RELEASE();
-		if (tmem) {
-			cbid = cbuf_c_create(cos_spd_id(), size, cbid*-1);
-			*len = 0; /* tmem */
-		} else {
-			cbid = __cbufp_alloc_slow(cbid, size, len, &error);
-			if (unlikely(error)) {
-				CBUF_TAKE();
-				ret = NULL;
-				goto done;
-			}
+		cbid = __cbufp_alloc_slow(cbid, size, len, &error);
+		if (unlikely(error)) {
+			CBUF_TAKE();
+			ret = NULL;
+			goto done;
 		}
 		CBUF_TAKE();
 		/* TODO: we will hold the lock in expand, which calls

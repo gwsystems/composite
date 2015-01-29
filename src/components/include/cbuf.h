@@ -19,7 +19,7 @@
 
 #include <cos_component.h>
 #include <cos_debug.h>
-#include <cbuf_c.h>
+#include <cbuf_meta.h>
 #include <cbufp.h>
 #define cbid_to_meta_idx(cid) ((cid) << 1)
 #define meta_to_cbid_idx(mid) ((mid) >> 1)
@@ -32,8 +32,6 @@
 #define CVECT_ALLOC() alloc_page()
 #define CVECT_FREE(x) free_page(x)
 #include <cvect.h>
-
-#include <tmem_conf.h>
 
 extern cos_lock_t cbuf_lock;
 #define CBUF_TAKE()    do { if (unlikely(lock_take_up(&cbuf_lock))) BUG(); } while(0)
@@ -577,13 +575,7 @@ __cbuf_done(int cbid, int tmem)
 	CBUF_RELEASE();
 	
 	/* Does the manager want the memory back? */
-	if (tmem) {
-		if (unlikely(cos_comp_info.cos_tmem_relinquish[COMP_INFO_TMEM_CBUF])) {
-			cbuf_c_delete(cos_spd_id(), cbid);
-			assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
-			return;
-		}
-	} else if (unlikely(relinq)) {
+	if (unlikely(relinq)) {
 		cbufp_delete(cos_spd_id(), cbid);
 		assert(lock_contested(&cbuf_lock) != cos_get_thd_id());
 		return;

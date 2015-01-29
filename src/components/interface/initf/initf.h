@@ -3,7 +3,6 @@
 
 #include <cos_component.h>
 #include <cos_debug.h>
-#include <cbuf_c.h>
 #include <cbuf.h>
 
 #define MAX_ARGSZ ((int)(2<<10))
