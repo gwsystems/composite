@@ -22,9 +22,7 @@
 #define CSLAB_ALLOC(sz)   alloc_page()
 #define CSLAB_FREE(x, sz) free_page(x)
 #include <cslab.h>
-CSLAB_CREATE(desc, sizeof(struct cbuf_alloc_desc));
 
-cos_lock_t cbuf_lock;
 /* 
  * All of the structures that must be compiled (only once) into each
  * component that uses cbufs.
@@ -36,60 +34,7 @@ cos_lock_t cbuf_lock;
 extern struct cos_component_information cos_comp_info;
 
 CVECT_CREATE_STATIC(meta_cbuf);
-CVECT_CREATE_STATIC(meta_cbufp);
-CVECT_CREATE_STATIC(alloc_descs);
-struct cbuf_alloc_desc cbuf_alloc_freelists = {.next = &cbuf_alloc_freelists, .prev = &cbuf_alloc_freelists, .addr = NULL};
-struct cbuf_alloc_desc cbufp_alloc_freelists[CBUFP_MAX_NSZ];
-
-/*** Manage the cbuf allocation descriptors and freelists  ***/
-
-static struct cbuf_alloc_desc *
-__cbuf_desc_alloc(int cbid, int size, void *addr, struct cbuf_meta *cm, int tmem)
-{
-	struct cbuf_alloc_desc *d;
-	int idx = ((int)addr >> PAGE_ORDER);
-
-	assert(addr && cm);
-	assert(cm->nfo.c.ptr == idx);
-	assert(__cbuf_alloc_lookup(idx) == NULL);
-	assert((!tmem && !(cm->nfo.c.flags & CBUFM_TMEM)) ||
-	       (tmem && cm->nfo.c.flags & CBUFM_TMEM));
-
-	d = cslab_alloc_desc();
-	if (!d) return NULL;
-
-	d->cbid   = cbid;
-	d->addr   = addr;
-	d->length = size;
-	d->meta   = cm;
-	d->tmem   = tmem;
-	INIT_LIST(d, next, prev);
-	//ADD_LIST(&cbuf_alloc_freelists, d, next, prev);
-	if (tmem) d->flhead = &cbuf_alloc_freelists;
-	else      d->flhead = __cbufp_freelist_get(size);
-	cvect_add(&alloc_descs, d, idx);
-
-	return d;
-}
-
-/*
- * We got to this function because d and m aren't consistent.  This
- * can only happen because the manager removed a cbuf, 1) thus leaving
- * the meta pointer as NULL, and the freelist referring to no actual
- * cbuf, or 2) when another thread is given a new cbuf (via
- * cbuf_c_create) with the same cbid as the one referred to in the
- * freelist.  Either way, we want to simply remove the descriptor.
- */
-void
-__cbuf_desc_free(struct cbuf_alloc_desc *d)
-{
-	assert(d);
-	assert(cvect_lookup(&alloc_descs, (unsigned long)d->addr >> PAGE_ORDER) == d);
-	
-	REM_LIST(d, next, prev);
-	cvect_del(&alloc_descs, (unsigned long)d->addr >> PAGE_ORDER);
-	cslab_free_desc(d);
-}
+PERCPU_VAR(cbuf_alloc_freelists);
 
 /*** Slow paths for each cbuf operation ***/
 
@@ -101,7 +46,7 @@ __cbuf_desc_free(struct cbuf_alloc_desc *d)
  * had a miss.
  */
 int 
-__cbuf_2buf_miss(int cbid, int len, int tmem)
+__cbuf_2buf_miss(int cbid, int len)
 {
 	struct cbuf_meta *mc;
 	int ret;
@@ -116,26 +61,16 @@ __cbuf_2buf_miss(int cbid, int len, int tmem)
 	 * cbids being passed to this component if they don't already
 	 * belong to the client) should fix this.
 	 */
-	mc = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid), tmem);
+	mc = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid));
 	/* ...have to expand the cbuf_vect */
 	if (unlikely(!mc)) {
-		if (cbuf_vect_expand(tmem ? &meta_cbuf : &meta_cbufp, 
-				     cbid_to_meta_idx(cbid), tmem)) BUG();
-		mc = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid), tmem);
+		if (cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid))) BUG();    //???
+		mc = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid));
 		assert(mc);
 	}
-
-	CBUF_RELEASE();
 	ret = cbufp_retrieve(cos_spd_id(), cbid, len);
-	CBUF_TAKE();
-	if (unlikely(ret < 0                                   ||
-		     mc->sz < (len >> PAGE_ORDER)              ||
-		     (tmem && !(mc->nfo.c.flags & CBUFM_TMEM)) || 
-		     (!tmem && mc->nfo.c.flags & CBUFM_TMEM))) {
-		return -1;
-	}
-	assert(mc->nfo.c.ptr);
-	if (tmem) mc->owner_nfo.thdid = 0;
+	if (unlikely(ret < 0 || mc->sz < (len >> PAGE_ORDER))) return -1;
+	assert(CBUFM_GET_PTR(mc));
 
 	return 0;
 }
@@ -159,122 +94,96 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 		}
 		assert((unsigned)amnt <= CSP_BUFFER_SIZE);
 
-		CBUF_TAKE();
-
 		if (amnt > 0) {
 			if (CK_RING_DEQUEUE_SPSC(cbufp_ring, &csp->ring, &el)) {
 				cbid = el.cbid;
 				/* own the cbuf we just collected */
-				cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid), 0);
+				cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid));
 				assert(cm);
+				assert(cm->cbid.cbid == cbid);
 				/* (should be atomic) */
-				cm->nfo.c.flags |= CBUFM_TOUCHED;
-				if(cm->nfo.c.refcnt == CBUFP_REFCNT_MAX) {
-					assert(0);
-				}
-				cm->nfo.c.refcnt++;
+				CBUF_SET_TOUCHED(cm);
+				assert(CBUFM_GET_REFCNT(cm) < CBUF_REFCNT_MAX);
+				CBUFM_INC_REFCNT(cm);
 			} else {
 				/* Someone stole the cbufs I collected! */
 				amnt = 0;
 			}
 		}
-		/* ...add the rest back into freelists */
-		for (i = 1 ; i < amnt ; i++) {
-			struct cbuf_alloc_desc *d, *fl;
-			struct cbuf_meta *meta;
-			int idx;
-			int cb;
-
-			if (!CK_RING_DEQUEUE_SPSC(cbufp_ring, &csp->ring, &el)) break;
+		/* ...add the rest back into freelists. construct a temporal freelist 
+		 * first, then add this temporal list to freelist atomically*/
+		struct cbuf_meta *meta, *tail, *head, old_head, new_head;
+		int cb, idx;
+		if (CK_RING_DEQUEUE_SPSC(cbufp_ring, &csp->ring, &el)) {
 			cb = el.cbid;
 			idx = cbid_to_meta_idx(cb);
-
 			assert(idx > 0);
-			meta = cbuf_vect_lookup_addr(idx, 0);
-			d    = __cbuf_alloc_lookup(meta->nfo.c.ptr);
-			assert(d && d->cbid == cb);
-			fl   = d->flhead;
-			assert(fl);
-			ADD_LIST(fl, d, next, prev);
+			head = tail = cbuf_vect_lookup_addr(idx);
+			assert(!((int)tail & CBUFM_NEXT_MASK));
+			for(i = 2; i < amnt; ++i) {
+				if (!CK_RING_DEQUEUE_SPSC(cbufp_ring, &csp->ring, &el)) break;
+				cb = el.cbid;
+				idx = cbid_to_meta_idx(cb);
+				assert(idx > 0);
+				meta = cbuf_vect_lookup_addr(idx);
+				assert(!((int)meta & CBUFM_NEXT_MASK));
+				CBUFM_SET_NEXT(meta, head);
+				head = meta;
+			}
+			unsigned long long *target, *old, *update;
+			meta = __cbuf_freelist_get(size);
+			CBUFM_SET_NEXT(tail, CBUFM_GET_NEXT(meta));
+			target = (unsigned long long *)(&meta->next_flag);
+			old    = (unsigned long long *)(&old_head.next_flag);
+			update = (unsigned long long *)(&new_head.next_flag);
+			new_head.next_flag = head;
+			do {
+				*old = *target;
+				new_head.cbid.tag = meta->cbid.tag+1;
+			} while(unlikely(!cos_dcas(target, *old, *update)));
 		}
-		CBUF_RELEASE();
 	}
 	/* Nothing collected...allocate a new cbufp! */
 	if (amnt == 0) {
 		cbid = cbufp_create(cos_spd_id(), size, cbid*-1);
 		if (cbid == 0) assert(0);
-	}
+	} 
 	/* TODO update correctly */
 	*len = 1;
-
 	return cbid;
 }
 
 /* 
  * Precondition: cbuf lock is taken.
  */
-struct cbuf_alloc_desc *
-__cbuf_alloc_slow(int size, int *len, int tmem)
+struct cbuf_meta *
+__cbuf_alloc_slow(int size, int *len)
 {
-	struct cbuf_alloc_desc *d_prev, *ret = NULL;
-	struct cbuf_meta *cm;
-	void *addr;
+	struct cbuf_meta *cm = NULL;
 	int cbid;
 	int cnt;
 
 	cnt = cbid = 0;
 	do {
 		int error = 0;
-
-		CBUF_RELEASE();
 		cbid = __cbufp_alloc_slow(cbid, size, len, &error);
-		if (unlikely(error)) {
-			CBUF_TAKE();
-			ret = NULL;
-			goto done;
-		}
-		CBUF_TAKE();
-		/* TODO: we will hold the lock in expand, which calls
-		 * the manager...remove that */
-		if (cbid < 0 && 
-		    cbuf_vect_expand(tmem ? &meta_cbuf : &meta_cbufp, 
-				     cbid_to_meta_idx(cbid*-1), tmem) < 0) goto done;
+		if (unlikely(error)) goto done;
+		if (cbid < 0 && cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid*-1)) < 0) goto done;
 		/* though it's possible this is valid, it probably
 		 * indicates an error */
-		assert(cnt++ < 10); 
+		assert(cnt++ < 10);
 	} while (cbid < 0);
 	assert(cbid);
-	cm   = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid), tmem);
-	assert(cm && cm->nfo.c.ptr);
-	assert(cm && cm->nfo.c.refcnt);
-	assert(!tmem || cm->owner_nfo.thdid);
-	addr = (void*)(cm->nfo.c.ptr << PAGE_ORDER);
-	assert(addr);
-	/* 
-	 * See __cbuf_alloc and cbuf_slab_free.  It is possible that a
-	 * slab descriptor will exist for a piece of cbuf memory
-	 * _before_ it is allocated because it is actually from a
-	 * previous cbuf.  If this is the case, then we should trash
-	 * the old one and allocate a new one.
-	 */
-	/* TODO: check if this is correct. what if this cbuf is from
-	 * the local cache and has been taken by another thd? */
-	d_prev = __cbuf_alloc_lookup((u32_t)addr>>PAGE_ORDER);
-	if (d_prev) __cbuf_desc_free(d_prev);
-	ret    = __cbuf_desc_alloc(cbid, size, addr, cm, tmem);
+	cm   = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid));
+	assert(cm && CBUFM_GET_PTR(cm));
+	assert(cm && CBUFM_GET_REFCNT(cm));
 done:   
-	return ret;
+	return cm;
 }
 
 CCTOR static void
 cbuf_init(void)
 {
-	int i;
-
-	lock_static_init(&cbuf_lock);
-	for (i = 0 ; i < CBUFP_MAX_NSZ/2 ; i++) {
-		cbufp_alloc_freelists[i].next = cbufp_alloc_freelists[i].prev = &cbufp_alloc_freelists[i];
-		cbufp_alloc_freelists[i].length = PAGE_SIZE << i;
-		cbufp_alloc_freelists[i].addr   = NULL;
-	}
+	//initialize freelist head
+	return ;  //???
 }

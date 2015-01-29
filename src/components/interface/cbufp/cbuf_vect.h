@@ -20,9 +20,9 @@
 #include <cvect.h>
 
 vaddr_t cbufp_register(spdid_t spdid, long cbid);
-
+extern cvect_t meta_cbuf;
 static inline int
-__cbuf_vect_expand_rec(struct cvect_intern *vi, const long id, const int depth, int tmem)
+__cbuf_vect_expand_rec(struct cvect_intern *vi, const long id, const int depth)
 {
 	struct cvect_intern *new;
 
@@ -33,15 +33,15 @@ __cbuf_vect_expand_rec(struct cvect_intern *vi, const long id, const int depth, 
 			if (!new) return -1;
 			vi[n & CVECT_MASK].c.next = new;
 		}
-		return __cbuf_vect_expand_rec(vi[n & CVECT_MASK].c.next, id, depth-1, tmem);
+		return __cbuf_vect_expand_rec(vi[n & CVECT_MASK].c.next, id, depth-1);
 	}
 	return 0;
 }
 
 static inline int 
-cbuf_vect_expand(cvect_t *v, long id, int tmem)
+cbuf_vect_expand(cvect_t *v, long id)
 {
-	return __cbuf_vect_expand_rec(v->vect, id, CVECT_DEPTH, tmem);
+	return __cbuf_vect_expand_rec(v->vect, id, CVECT_DEPTH);
 }
 
 #endif /* CBUF_VECT_H */

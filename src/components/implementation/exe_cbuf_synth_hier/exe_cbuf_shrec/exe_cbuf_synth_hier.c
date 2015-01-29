@@ -266,7 +266,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 				rdtscll(start);
 				mt[i] = cbuf_alloc(len, &cbt[i], 1);
 				rdtscll(end);
-				cbuf_unpack(cbt[i], &id, 1);
+				cbuf_unpack(cbt[i], &id);
 				DOUTs("alloc cbid done !%ld\n", id);
 				assert(tmem == 1);
 				memset(mt[i], 'a', len);
