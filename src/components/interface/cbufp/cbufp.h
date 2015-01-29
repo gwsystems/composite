@@ -14,7 +14,6 @@
 #include <ck_ring_cos.h>
 
 typedef u32_t cbuf_t; /* should match cbuf_t, and fit in a register */
-typedef u32_t cbufp_t; /* should match cbuf_t, and fit in a register */
 
 /* 
  * These are more or less identical to the counterparts in cbuf_c.h,
@@ -29,8 +28,8 @@ vaddr_t cbufp_register(spdid_t spdid, long cbid);
  * The s_spd that calls this function should ensure the memory is not freed.
  * The d_addr must be alloced with sufficient pages to contain the cbuf.
  */
-vaddr_t cbufp_map_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags);
-int cbufp_unmap_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr);
+vaddr_t cbufp_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags);
+int cbufp_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr);
 
 /*
  * Before the first call to cbufp_collect, the client component must
@@ -49,7 +48,7 @@ int cbufp_collect(spdid_t spdid, int size);
 
 /* Collected cbufs are stored in a page shared between cbufp and clients.
  * A ring buffer data structure is put in the first part of the page.
- * The rest of the page contains the buffer of collected cbufp_t identifiers,
+ * The rest of the page contains the buffer of collected cbuf_t identifiers,
  * but with integer pointer types for easy conversion to ring buffer types.
  * The buffer must be a power of 2, but since the ring structure is stored
  * in the page, there is only PAGE_SIZE - (sizeof(struct ck_ring)) space

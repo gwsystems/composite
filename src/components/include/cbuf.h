@@ -60,13 +60,13 @@ extern cos_lock_t cbuf_lock;
  * send the buffer.
  *
  * API for sender of persistent cbufs:
- *     void *cbufp_alloc(unsigned int sz, cbufp_t *cb)
- *     void cbufp_send(cbufp_t cb)
- *     void cbufp_deref(cbufp_t cbid) 
- *     void cbufp_send_deref(cbufp_t cb) // combine the previous ops
+ *     void *cbufp_alloc(unsigned int sz, cbuf_t *cb)
+ *     void cbufp_send(cbuf_t cb)
+ *     void cbufp_deref(cbuf_t cbid) 
+ *     void cbufp_send_deref(cbuf_t cb) // combine the previous ops
  * API for the receiver of persistent cbufs;
- *     void *cbufp2buf(cbufp_t cb, int len)
- *     void cbufp_deref(cbufp_t cbid) 
+ *     void *cbufp2buf(cbuf_t cb, int len)
+ *     void cbufp_deref(cbuf_t cbid) 
  * Note that receiver might take the role of the sender.
  */
 
@@ -314,8 +314,6 @@ done:
 
 static inline void *
 cbuf2buf(cbuf_t cb, int len) { return __cbuf2buf(cb, len, 1); }
-static inline void *
-cbufp2buf(cbufp_t cb, int len) { return __cbuf2buf((cbuf_t)cb, len, 0); }
 
 /* 
  * This is only called for permanent cbufs.  This is called every time
@@ -355,11 +353,11 @@ __cbufp_send(cbuf_t cb, int free)
 }
 
 static inline void
-cbufp_send_deref(cbufp_t cb)
+cbuf_send_deref(cbuf_t cb)
 { __cbufp_send(cb, 1); }
 
 static inline void
-cbufp_send(cbufp_t cb) 
+cbuf_send(cbuf_t cb) 
 { __cbufp_send(cb, 0); }
 
 extern cvect_t alloc_descs; 
@@ -533,9 +531,7 @@ done:
 }
 
 static inline void *
-cbuf_alloc(unsigned int sz, cbuf_t *cb) { return __cbuf_alloc(sz, cb, 1); }
-static inline void *
-cbufp_alloc(unsigned int sz, cbufp_t *cb)  { return __cbuf_alloc(sz, (cbuf_t*)cb, 0); }
+cbuf_alloc(unsigned int sz, cbuf_t *cb, int tmem) { return __cbuf_alloc(sz, cb, 1); }
 
 /* 
  * precondition:  cbuf lock must be taken.
@@ -585,7 +581,7 @@ __cbuf_done(int cbid, int tmem)
 }
 
 static inline void
-cbufp_deref(cbufp_t cbid) 
+cbuf_deref(cbuf_t cbid) 
 { 
 	u32_t id;
 	int tmem;

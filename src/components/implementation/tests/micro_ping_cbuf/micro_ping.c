@@ -5,7 +5,7 @@
 #include <micro_pong.h>
 #include <cbuf.h>
 
-#define ITER 2000
+#define ITER 126/*2000*/
 #define NCBUF 100
 
 // using threadpool_max
@@ -13,7 +13,7 @@ static void
 cbuf_tests(void)
 {
 	u64_t start, end, start_tmp, end_tmp;
-	int i, k, prev_sz = 1;
+	int i, k, prev_sz = 0;//1;
 
 	cbuf_t cbt[NCBUF];
 	memset(cbt, 0 , NCBUF*sizeof(cbuf_t));
@@ -37,16 +37,15 @@ cbuf_tests(void)
         /* CACHING */
 	printc("\n<<< WARM UP CBUF CACHE.......");
 	for (i = 0; i < NCBUF ; i++){
-		prev_sz += 4;
-		prev_sz &= PAGE_SIZE-1;
+		prev_sz = 2*PAGE_SIZE;//4;
+		//prev_sz &= PAGE_SIZE-1;
 		sz[i] = prev_sz;		
-		mt[i] = cbuf_alloc(sz[i], &cbt[i]);
+		mt[i] = cbuf_alloc(sz[i], &cbt[i], 1);
+		((char *)mt[i])[0] = 'r';
 	}
-
 	for (i = 0; i < NCBUF ; i++){
 		simple_call_buf2buf(cbt[i], sz[i]);
 	}
-
 	for (i = 0; i < NCBUF ; i++){
 		cbuf_free(cbt[i]);
 	}
@@ -56,10 +55,11 @@ cbuf_tests(void)
 	printc("\n<<< CBUF_ALLOC MICRO-BENCHMARK TEST >>>\n");
 	rdtscll(start);
 	for (i = 0; i < NCBUF ; i++){
-		prev_sz += 4;
-		prev_sz &= PAGE_SIZE-1;
+		prev_sz = 2*PAGE_SIZE;//4;
+		//prev_sz &= PAGE_SIZE;
 		sz[i] = prev_sz;
-		mt[i] = cbuf_alloc(sz[i], &cbt[i]); 
+		mt[i] = cbuf_alloc(sz[i], &cbt[i], 1); 
+		((char *)mt[i])[0] = 'r';
 	}
 	rdtscll(end);
 	printc("%d alloc_cbuf %llu cycs\n", NCBUF, (end-start)/NCBUF);
@@ -100,7 +100,8 @@ cbuf_tests(void)
 	sz[0] = prev_sz;
 	rdtscll(start);
 	for (i = 0; i < ITER ; i++){
-		mt[0] = cbuf_alloc(sz[0], &cbt[0]);
+		mt[0] = cbuf_alloc(sz[0], &cbt[0], 1);
+		((char *)mt[0])[0] = 'r';
 		simple_call_buf2buf(cbt[0], sz[0]);
 		cbuf_free(cbt[0]);
 	}
@@ -112,71 +113,67 @@ cbuf_tests(void)
 	return;
 }
 
-#define MAX_SZ 4096
+#define MAX_SZ 2*4096
 #define CBUFP_NUM 32
-cbufp_t p[CBUFP_NUM];
+cbuf_t p[CBUFP_NUM];
 char *buf[CBUFP_NUM];
-cbufp_t p3[CBUFP_NUM];
+cbuf_t p3[CBUFP_NUM];
 char *buf3[CBUFP_NUM];
 
 static void
 cbufp_tests(void)
 {
 	unsigned long long start, end;
-	struct cbuf_alloc_desc *d;
 	int i;
 
-	d = &cbufp_alloc_freelists[0];
-	assert(EMPTY_LIST(d, next, prev));
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
-		buf[i] = cbufp_alloc(MAX_SZ, &p[i]);
-		cbufp_send(p[i]);
+		buf[i] = cbuf_alloc(MAX_SZ, &p[i], 0);
+		cbuf_send(p[i]);
 		call_cbufp2buf(p[i], MAX_SZ);
 		assert(buf[i]);
 
-		buf3[i] = cbufp_alloc(MAX_SZ*3, &p3[i]);
-		cbufp_send(p3[i]);
+		buf3[i] = cbuf_alloc(MAX_SZ*3, &p3[i], 0);
+		cbuf_send(p3[i]);
 		call_cbufp2buf(p3[i], MAX_SZ*3);
 		assert(buf3[i]);
 	}
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
-		cbufp_deref(p[i]);
-		cbufp_deref(p3[i]);
+		cbuf_free(p[i]);
+		cbuf_free(p3[i]);
 	}
-
 	rdtscll(start);
-	buf[0] = cbufp_alloc(MAX_SZ, &p[0]);
+	buf[0] = cbuf_alloc(MAX_SZ, &p[0], 0);
 	assert(buf[0]);
 	
-	buf3[0] = cbufp_alloc(MAX_SZ*3, &p3[0]);
+	buf3[0] = cbuf_alloc(MAX_SZ*3, &p3[0], 0);
 	assert(buf3[0]);
 	rdtscll(end);
 	printc("CBUFP:  garbage collection of %d cbufps: %llu cycles\n", CBUFP_NUM*2, (end-start)/2);
 
 	rdtscll(start);
 	for (i = 1 ; i < CBUFP_NUM ; i++) {
-		buf[i] = cbufp_alloc(MAX_SZ, &p[i]);
+		buf[i] = cbuf_alloc(MAX_SZ, &p[i], 0);
 		assert(buf[i]);
 
-		buf3[i] = cbufp_alloc(MAX_SZ*3, &p3[i]);
+		buf3[i] = cbuf_alloc(MAX_SZ*3, &p3[i], 0);
 		assert(buf3[i]);
 	}
 	rdtscll(end);
 	printc("CBUFP:  %d alloc %llu cycles avg\n", (CBUFP_NUM-1)*2, (end-start)/((CBUFP_NUM-1)*2));
 
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
-		cbufp_send(p[i]);
+		cbuf_send(p[i]);
 		call_cbufp2buf(p[i], MAX_SZ);
 
-		cbufp_send(p3[i]);
+		cbuf_send(p3[i]);
 		call_cbufp2buf(p3[i], MAX_SZ*3);
 	}
 	rdtscll(start);
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
-		cbufp_send(p[i]);
+		cbuf_send(p[i]);
 		call_cbufp2buf(p[i], MAX_SZ);
 
-		cbufp_send(p3[i]);
+		cbuf_send(p3[i]);
 		call_cbufp2buf(p3[i], MAX_SZ*3);
 	}
 	rdtscll(end);
@@ -184,21 +181,21 @@ cbufp_tests(void)
 
 	rdtscll(start);
 	for (i = 0 ; i < CBUFP_NUM ; i++) {
-		cbufp_deref(p[i]);
-		cbufp_deref(p3[i]);
+		cbuf_free(p[i]);
+		cbuf_free(p3[i]);
 	}
 	rdtscll(end);
 	printc("CBUFP:  %d free %llu cycles avg\n", CBUFP_NUM*2, (end-start)/(CBUFP_NUM*2));
 
 	rdtscll(start);
 	for (i = 0 ; i < 1 ; i++) {
-		buf[i] = cbufp_alloc(MAX_SZ, &p[i]);
-		cbufp_send_deref(p[i]);
+		buf[i] = cbuf_alloc(MAX_SZ, &p[i], 0);
+		cbuf_send_deref(p[i]);
 		call_cbufp2buf(p[i], MAX_SZ);
 		assert(buf[i]);
 
-		buf3[i] = cbufp_alloc(MAX_SZ*3, &p3[i]);
-		cbufp_send_deref(p3[i]);
+		buf3[i] = cbuf_alloc(MAX_SZ*3, &p3[i], 0);
+		cbuf_send_deref(p3[i]);
 		call_cbufp2buf(p3[i], MAX_SZ*3);
 		assert(buf3[i]);
 	}
@@ -208,13 +205,13 @@ cbufp_tests(void)
 
 	rdtscll(start);
 	for (i = 1 ; i < CBUFP_NUM ; i++) {
-		buf[i] = cbufp_alloc(MAX_SZ, &p[i]);
-		cbufp_send_deref(p[i]);
+		buf[i] = cbuf_alloc(MAX_SZ, &p[i], 0);
+		cbuf_send_deref(p[i]);
 		call_cbufp2buf(p[i], MAX_SZ);
 		assert(buf[i]);
 
-		buf3[i] = cbufp_alloc(MAX_SZ*3, &p3[i]);
-		cbufp_send_deref(p3[i]);
+		buf3[i] = cbuf_alloc(MAX_SZ*3, &p3[i], 0);
+		cbuf_send_deref(p3[i]);
 		call_cbufp2buf(p3[i], MAX_SZ*3);
 		assert(buf3[i]);
 	}

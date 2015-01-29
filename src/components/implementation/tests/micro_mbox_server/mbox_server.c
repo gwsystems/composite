@@ -35,7 +35,7 @@ void cos_init(void *arg)
 	long evt1, evt2;
 	char *params1 = "foo", *params2 = "", *buf;
 	int period, num, sz, off, i, j;
-	cbufp_t cb1;
+	cbuf_t cb1;
 	u64_t start = 0, end = 0, re_mbox;
 	union sched_param sp;
 	static int first = 1;
@@ -68,8 +68,8 @@ void cos_init(void *arg)
 			if ((int)cb1<0) evt_wait(cos_spd_id(), evt2);
 			else            break;
 		}
-		buf = cbufp2buf(cb1,sz);
-		cbufp_deref(cb1);
+		buf = cbuf2buf(cb1,sz);
+		cbuf_free(cb1);
 	}
 	rdtscll(end);
 	printc("Server rcv %d times %llu\n", j, (end-start)/j);
@@ -83,11 +83,11 @@ void cos_init(void *arg)
 				if((int)cb1<0) evt_wait(cos_spd_id(), evt2);
 				else           break;
 			}
-			buf = cbufp2buf(cb1,sz);
+			buf = cbuf2buf(cb1,sz);
 			rdtscll(end);
 			start = ((u64_t *)buf)[0];
 			re_mbox = re_mbox+(end-start);
-			cbufp_deref(cb1);
+			cbuf_free(cb1);
 		}
 		periodic_wake_wait(cos_spd_id());
 	}

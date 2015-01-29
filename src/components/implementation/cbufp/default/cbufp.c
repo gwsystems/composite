@@ -398,7 +398,7 @@ free:
 }
 
 vaddr_t
-cbufp_map_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags)
+cbufp_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags)
 {
 	vaddr_t ret = (vaddr_t)NULL;
 	struct cbufp_info *cbi;
@@ -427,7 +427,7 @@ free:
 }
 
 int
-cbufp_unmap_at(spdid_t s_spd, cbufp_t cbid, spdid_t d_spd, vaddr_t d_addr)
+cbufp_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
 {
 	struct cbufp_info *cbi;
 	int off;
