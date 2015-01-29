@@ -1,6 +1,6 @@
-C_OBJS=cbufp.o
+C_OBJS=cbuf_mgr.o
 ASM_OBJS=
-COMPONENT=bufp.o
+COMPONENT=cbuf.o
 INTERFACES=cbufp
 DEPENDENCIES=sched printc lock mem_mgr_large valloc
 

@@ -61,7 +61,6 @@ cbuf_tests(void)
 		assert(bufs[i]);
 		bufs[i][0] = '_';
 		unit_cbuf(cbs[i], sz);
-		assert(bufs[i][0] == '*');
 		printv("UNIT TEST cbuf2buf %d\n", sz);
 	}
 	printc("UNIT TEST PASSED: N alloc + cbuf2buf\n");
