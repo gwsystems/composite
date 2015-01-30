@@ -551,13 +551,13 @@ done:
  * Called by cbufp_deref.
  */
 int
-cbufp_delete(spdid_t spdid, int cbid)
+cbuf_delete(spdid_t spdid, int cbid)
 {
 	struct cbufp_comp_info *cci;
 	struct cbufp_info *cbi;
 	int ret = -EINVAL;
 
-	printl("cbufp_delete\n");
+	printl("cbuf_delete\n");
 	assert(0);
 	CBUFP_TAKE();
 	cci = cbufp_comp_info_get(spdid);

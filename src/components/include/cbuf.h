@@ -457,7 +457,7 @@ cbuf_free(cbuf_t cb)
 	else CBUFM_DEC_REFCNT(cm);      
 	relinq = CBUF_RELINQ(cm);
 	/* Does the manager want the memory back? */
-	if (unlikely(relinq)) cbufp_delete(cos_spd_id(), id);	
+	if (unlikely(relinq)) cbuf_delete(cos_spd_id(), id);	
 	return;
 }
 
