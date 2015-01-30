@@ -68,7 +68,7 @@ __cbuf_2buf_miss(int cbid, int len)
 		mc = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid));
 		assert(mc);
 	}
-	ret = cbufp_retrieve(cos_spd_id(), cbid, len);
+	ret = cbuf_retrieve(cos_spd_id(), cbid, len);
 	if (unlikely(ret < 0 || mc->sz < (len >> PAGE_ORDER))) return -1;
 	assert(CBUFM_GET_PTR(mc));
 

@@ -576,7 +576,7 @@ done:
  * Called by cbufp2buf to retrieve a given cbid.
  */
 int
-cbufp_retrieve(spdid_t spdid, int cbid, int size)
+cbuf_retrieve(spdid_t spdid, int cbid, int size)
 {
 	struct cbufp_comp_info *cci;
 	struct cbufp_info *cbi;
@@ -586,7 +586,7 @@ cbufp_retrieve(spdid_t spdid, int cbid, int size)
 	void *page;
 	int ret = -EINVAL, off;
 
-	printl("cbufp_retrieve\n");
+	printl("cbuf_retrieve\n");
 
 	CBUFP_TAKE();
 	cci        = cbufp_comp_info_get(spdid);

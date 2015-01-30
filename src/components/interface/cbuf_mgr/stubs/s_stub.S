@@ -10,7 +10,7 @@
 .text	
 cos_asm_server_stub_spdid(cbuf_create)
 cos_asm_server_stub_spdid(cbuf_delete)
-cos_asm_server_stub_spdid(cbufp_retrieve)
+cos_asm_server_stub_spdid(cbuf_retrieve)
 cos_asm_server_stub_spdid(cbufp_register)
 cos_asm_server_stub_spdid(cbufp_map_at)
 cos_asm_server_stub_spdid(cbufp_unmap_at)
