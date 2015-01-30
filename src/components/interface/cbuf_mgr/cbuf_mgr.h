@@ -22,7 +22,7 @@ typedef u32_t cbuf_t; /* should match cbuf_t, and fit in a register */
 int cbuf_create(spdid_t spdid, int size, long cbid);
 int cbuf_delete(spdid_t spdid, int cbid);
 int cbuf_retrieve(spdid_t spdid, int cbid, int len);
-vaddr_t cbufp_register(spdid_t spdid, long cbid);
+vaddr_t cbuf_register(spdid_t spdid, long cbid);
 
 /* Map a cbufp into another component at a given address.
  * The s_spd that calls this function should ensure the memory is not freed.

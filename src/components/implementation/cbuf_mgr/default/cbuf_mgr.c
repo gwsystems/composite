@@ -631,14 +631,14 @@ free:
 }
 
 vaddr_t
-cbufp_register(spdid_t spdid, long cbid)
+cbuf_register(spdid_t spdid, long cbid)
 {
 	struct cbufp_comp_info  *cci;
 	struct cbufp_meta_range *cmr;
 	void *p;
 	vaddr_t dest, ret = 0;
 
-	printl("cbufp_register\n");
+	printl("cbuf_register\n");
 	CBUFP_TAKE();
 	cci = cbufp_comp_info_get(spdid);
 	if (!cci) goto done;
