@@ -398,7 +398,7 @@ free:
 }
 
 vaddr_t
-cbufp_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags)
+cbuf_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags)
 {
 	vaddr_t ret = (vaddr_t)NULL;
 	struct cbufp_info *cbi;
