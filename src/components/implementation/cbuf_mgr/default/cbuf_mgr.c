@@ -460,12 +460,12 @@ done:
  * Allocate and map the garbage-collection list used for cbufp_collect()
  */
 vaddr_t
-cbufp_map_collect(spdid_t spdid)
+cbuf_map_collect(spdid_t spdid)
 {
 	struct cbufp_comp_info *cci;
 	vaddr_t ret = (vaddr_t)NULL;
 
-	printl("cbufp_map_collect\n");
+	printl("cbuf_map_collect\n");
 
 	CBUFP_TAKE();
 	cci = cbufp_comp_info_get(spdid);

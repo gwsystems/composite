@@ -36,7 +36,7 @@ int cbuf_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr);
  * call cbufp_map_collect in order to map the shared page used to
  * return the list of garbage-collected cbufs.
  */
-vaddr_t cbufp_map_collect(spdid_t spdid);
+vaddr_t cbuf_map_collect(spdid_t spdid);
 
 /* 
  * When we have no more cbufps of a specific size, lets try and
