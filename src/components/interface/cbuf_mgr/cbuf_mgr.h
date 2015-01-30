@@ -55,15 +55,15 @@ int cbuf_collect(spdid_t spdid, int size);
  * available. Thus the buffer is allocated to be half a page, and there
  * remains some available space if needed.
  */
-struct cbufp_ring_element {
+struct cbuf_ring_element {
 	intptr_t cbid;
 };
-CK_RING(cbufp_ring_element, cbufp_ring);
+CK_RING(cbuf_ring_element, cbuf_ring);
 
-struct cbufp_shared_page {
-	CK_RING_INSTANCE(cbufp_ring) ring;
-#define CSP_BUFFER_SIZE ((PAGE_SIZE>>1)/sizeof(struct cbufp_ring_element))
-	struct cbufp_ring_element buffer[CSP_BUFFER_SIZE];
+struct cbuf_shared_page {
+	CK_RING_INSTANCE(cbuf_ring) ring;
+#define CSP_BUFFER_SIZE ((PAGE_SIZE>>1)/sizeof(struct cbuf_ring_element))
+	struct cbuf_ring_element buffer[CSP_BUFFER_SIZE];
 };
 
 /* GAP #include <cbuf_vect.h> */

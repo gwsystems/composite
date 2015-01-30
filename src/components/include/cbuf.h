@@ -34,7 +34,7 @@
 #define CVECT_FREE(x) free_page(x)
 #include <cvect.h>
 
-#define CBUFP_MAX_NSZ 64
+#define CBUF_MAX_NSZ 64
 
 /* 
  * The lifetime of tmem cbufs is determined by the cbuf_alloc and

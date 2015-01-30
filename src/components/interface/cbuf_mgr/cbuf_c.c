@@ -79,13 +79,13 @@ static inline int
 __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 {
 	int amnt = 0, i;
-	static struct cbufp_shared_page *csp = NULL;
+	static struct cbuf_shared_page *csp = NULL;
 
 	assert(cbid <= 0);
 	if (cbid == 0) {
 		struct cbuf_meta *cm;
-		struct cbufp_ring_element el;
-		if (!csp) csp = (struct cbufp_shared_page*)cbuf_map_collect(cos_spd_id());
+		struct cbuf_ring_element el;
+		if (!csp) csp = (struct cbuf_shared_page*)cbuf_map_collect(cos_spd_id());
 		/* Do a garbage collection */
 		amnt = cbuf_collect(cos_spd_id(), size);
 		if (amnt < 0) {
@@ -95,7 +95,7 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 		assert((unsigned)amnt <= CSP_BUFFER_SIZE);
 
 		if (amnt > 0) {
-			if (CK_RING_DEQUEUE_SPSC(cbufp_ring, &csp->ring, &el)) {
+			if (CK_RING_DEQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) {
 				cbid = el.cbid;
 				/* own the cbuf we just collected */
 				cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid));
@@ -114,14 +114,14 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 		 * first, then add this temporal list to freelist atomically*/
 		struct cbuf_meta *meta, *tail, *head, old_head, new_head;
 		int cb, idx;
-		if (CK_RING_DEQUEUE_SPSC(cbufp_ring, &csp->ring, &el)) {
+		if (CK_RING_DEQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) {
 			cb = el.cbid;
 			idx = cbid_to_meta_idx(cb);
 			assert(idx > 0);
 			head = tail = cbuf_vect_lookup_addr(idx);
 			assert(!((int)tail & CBUFM_NEXT_MASK));
 			for(i = 2; i < amnt; ++i) {
-				if (!CK_RING_DEQUEUE_SPSC(cbufp_ring, &csp->ring, &el)) break;
+				if (!CK_RING_DEQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) break;
 				cb = el.cbid;
 				idx = cbid_to_meta_idx(cb);
 				assert(idx > 0);
@@ -143,7 +143,7 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 			} while(unlikely(!cos_dcas(target, *old, *update)));
 		}
 	}
-	/* Nothing collected...allocate a new cbufp! */
+	/* Nothing collected...allocate a new cbuf! */
 	if (amnt == 0) {
 		cbid = cbuf_create(cos_spd_id(), size, cbid*-1);
 		if (cbid == 0) assert(0);

@@ -20,7 +20,7 @@
 /** 
  * The main data-structures tracked in this component.
  * 
- * cbufp_comp_info is the per-component data-structure that tracks the
+ * cbuf_comp_info is the per-component data-structure that tracks the
  * page shared with the component to return garbage-collected cbufs, the
  * cbufs allocated to the component, and the data-structures for
  * tracking where the cbuf_metas are associated with the cbufs.
@@ -28,12 +28,12 @@
  * cbuf_meta_range is a simple linked list to track the metas for
  * given cbuf id ranges.
  *
- * cbufp_info is the per-cbuf structure that tracks the cbid, size,
+ * cbuf_info is the per-cbuf structure that tracks the cbid, size,
  * and contains a linked list of all of the mappings for that cbuf.
  *
  * See the following diagram:
 
-  cbufp_comp_info                 cbuf_meta_range
+  cbuf_comp_info                 cbuf_meta_range
   +------------------------+	  +---------+	+---------+
   | spdid     	           |  +-->| daddr   +--->         |
   | +--------------------+ |  |	  | cbid    |	|         |
@@ -47,67 +47,67 @@
 		  |     	| +----------|-+ | +------------+
 		  +------------>| | spdid,.. | |<->| .., addr   |
 		   		| +------------+ | +------------+
-				+----------------+     cbufp_maps
-                                cbufp_info
+				+----------------+     cbuf_maps
+                                cbuf_info
 */
 
 /* Per-cbuf information */
-struct cbufp_maps {
+struct cbuf_maps {
 	spdid_t spdid;
 	vaddr_t addr;
 	struct cbuf_meta *m;
-	struct cbufp_maps *next, *prev;
+	struct cbuf_maps *next, *prev;
 };
 
-struct cbufp_info {
+struct cbuf_info {
 	u32_t cbid;
 	int size;
 	char *mem;
-	struct cbufp_maps owner;
-	struct cbufp_info *next, *prev;
+	struct cbuf_maps owner;
+	struct cbuf_info *next, *prev;
 };
 
 /* Per-component information */
-struct cbufp_meta_range {
+struct cbuf_meta_range {
 	struct cbuf_meta *m;
 	vaddr_t dest;
 	u32_t low_id;
-	struct cbufp_meta_range *next, *prev;
+	struct cbuf_meta_range *next, *prev;
 };
-#define CBUFP_META_RANGE_HIGH(cmr) (cmr->low_id + (PAGE_SIZE/sizeof(struct cbuf_meta)))
+#define CBUF_META_RANGE_HIGH(cmr) (cmr->low_id + (PAGE_SIZE/sizeof(struct cbuf_meta)))
 
-struct cbufp_bin {
+struct cbuf_bin {
 	int size;
-	struct cbufp_info *c;
+	struct cbuf_info *c;
 };
 
-struct cbufp_comp_info {
+struct cbuf_comp_info {
 	spdid_t spdid;
-	struct cbufp_shared_page *csp;
+	struct cbuf_shared_page *csp;
 	vaddr_t dest_csp;
 	int nbin;
-	struct cbufp_bin cbufs[CBUFP_MAX_NSZ];
-	struct cbufp_meta_range *cbuf_metas;
+	struct cbuf_bin cbufs[CBUF_MAX_NSZ];
+	struct cbuf_meta_range *cbuf_metas;
 };
 
 #define printl(s) //printc(s)
-cos_lock_t cbufp_lock;
-#define CBUFP_LOCK_INIT() lock_static_init(&cbufp_lock);
-#define CBUFP_TAKE()      do { if (lock_take(&cbufp_lock))    BUG(); } while(0)
-#define CBUFP_RELEASE()   do { if (lock_release(&cbufp_lock)) BUG(); } while(0)
+cos_lock_t cbuf_lock;
+#define CBUF_LOCK_INIT() lock_static_init(&cbuf_lock);
+#define CBUF_TAKE()      do { if (lock_take(&cbuf_lock))    BUG(); } while(0)
+#define CBUF_RELEASE()   do { if (lock_release(&cbuf_lock)) BUG(); } while(0)
 CVECT_CREATE_STATIC(components);
 CMAP_CREATE_STATIC(cbufs);
 
-static struct cbufp_meta_range *
-cbufp_meta_lookup_cmr(struct cbufp_comp_info *comp, u32_t cbid)
+static struct cbuf_meta_range *
+cbuf_meta_lookup_cmr(struct cbuf_comp_info *comp, u32_t cbid)
 {
-	struct cbufp_meta_range *cmr;
+	struct cbuf_meta_range *cmr;
 	assert(comp);
 
 	cmr = comp->cbuf_metas;
 	if (!cmr) return NULL;
 	do {
-		if (cmr->low_id >= cbid || CBUFP_META_RANGE_HIGH(cmr) > cbid) {
+		if (cmr->low_id >= cbid || CBUF_META_RANGE_HIGH(cmr) > cbid) {
 			return cmr;
 		}
 		cmr = FIRST_LIST(cmr, next, prev);
@@ -117,22 +117,22 @@ cbufp_meta_lookup_cmr(struct cbufp_comp_info *comp, u32_t cbid)
 }
 
 static struct cbuf_meta *
-cbufp_meta_lookup(struct cbufp_comp_info *comp, u32_t cbid)
+cbuf_meta_lookup(struct cbuf_comp_info *comp, u32_t cbid)
 {
-	struct cbufp_meta_range *cmr;
+	struct cbuf_meta_range *cmr;
 
-	cmr = cbufp_meta_lookup_cmr(comp, cbid);
+	cmr = cbuf_meta_lookup_cmr(comp, cbid);
 	if (!cmr) return NULL;
 	return &cmr->m[cbid - cmr->low_id];
 }
 
-static struct cbufp_meta_range *
-cbufp_meta_add(struct cbufp_comp_info *comp, u32_t cbid, struct cbuf_meta *m, vaddr_t dest)
+static struct cbuf_meta_range *
+cbuf_meta_add(struct cbuf_comp_info *comp, u32_t cbid, struct cbuf_meta *m, vaddr_t dest)
 {
-	struct cbufp_meta_range *cmr;
+	struct cbuf_meta_range *cmr;
 
-	if (cbufp_meta_lookup(comp, cbid)) return NULL;
-	cmr = malloc(sizeof(struct cbufp_meta_range));
+	if (cbuf_meta_lookup(comp, cbid)) return NULL;
+	cmr = malloc(sizeof(struct cbuf_meta_range));
 	if (!cmr) return NULL;
 	INIT_LIST(cmr, next, prev);
 	cmr->m      = m;
@@ -147,29 +147,29 @@ cbufp_meta_add(struct cbufp_comp_info *comp, u32_t cbid, struct cbuf_meta *m, va
 }
 
 static void
-cbufp_comp_info_init(spdid_t spdid, struct cbufp_comp_info *cci)
+cbuf_comp_info_init(spdid_t spdid, struct cbuf_comp_info *cci)
 {
 	memset(cci, 0, sizeof(*cci));
 	cci->spdid = spdid;
 	cvect_add(&components, cci, spdid);
 }
 
-static struct cbufp_comp_info *
-cbufp_comp_info_get(spdid_t spdid)
+static struct cbuf_comp_info *
+cbuf_comp_info_get(spdid_t spdid)
 {
-	struct cbufp_comp_info *cci;
+	struct cbuf_comp_info *cci;
 
 	cci = cvect_lookup(&components, spdid);
 	if (!cci) {
 		cci = malloc(sizeof(*cci));
 		if (!cci) return NULL;
-		cbufp_comp_info_init(spdid, cci);
+		cbuf_comp_info_init(spdid, cci);
 	}
 	return cci;
 }
 
-static struct cbufp_bin *
-cbufp_comp_info_bin_get(struct cbufp_comp_info *cci, int sz)
+static struct cbuf_bin *
+cbuf_comp_info_bin_get(struct cbuf_comp_info *cci, int sz)
 {
 	int i;
 
@@ -180,10 +180,10 @@ cbufp_comp_info_bin_get(struct cbufp_comp_info *cci, int sz)
 	return NULL;
 }
 
-static struct cbufp_bin *
-cbufp_comp_info_bin_add(struct cbufp_comp_info *cci, int sz)
+static struct cbuf_bin *
+cbuf_comp_info_bin_add(struct cbuf_comp_info *cci, int sz)
 {
-	if (sz == CBUFP_MAX_NSZ) return NULL;
+	if (sz == CBUF_MAX_NSZ) return NULL;
 	cci->cbufs[cci->nbin].size = sz;
 	cci->nbin++;
 
@@ -191,7 +191,7 @@ cbufp_comp_info_bin_add(struct cbufp_comp_info *cci, int sz)
 }
 
 static int
-cbufp_map(spdid_t spdid, vaddr_t daddr, void *page, int size, int flags)
+cbuf_map(spdid_t spdid, vaddr_t daddr, void *page, int size, int flags)
 {
 	int off;
 	assert(size == (int)round_to_page(size));
@@ -208,7 +208,7 @@ cbufp_map(spdid_t spdid, vaddr_t daddr, void *page, int size, int flags)
 }
 
 static int
-cbufp_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
+cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 {
 	void *p;
 	vaddr_t dest;
@@ -222,7 +222,7 @@ cbufp_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 	dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, size/PAGE_SIZE);
 	assert(dest);
 
-	ret = cbufp_map(spdid, dest, p, size, MAPPING_RW);
+	ret = cbuf_map(spdid, dest, p, size, MAPPING_RW);
 	if (ret) valloc_free(cos_spd_id(), spdid, (void *)daddr, 1);
 	*page  = p;
 	*daddr = dest;
@@ -232,9 +232,9 @@ cbufp_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 
 /* Do any components have a reference to the cbuf? */
 static int
-cbufp_referenced(struct cbufp_info *cbi)
+cbuf_referenced(struct cbuf_info *cbi)
 {
-	struct cbufp_maps *m = &cbi->owner;
+	struct cbuf_maps *m = &cbi->owner;
 	int sent, recvd;
 
 	sent = recvd = 0;
@@ -255,9 +255,9 @@ cbufp_referenced(struct cbufp_info *cbi)
 }
 
 static void
-cbufp_references_clear(struct cbufp_info *cbi)
+cbuf_references_clear(struct cbuf_info *cbi)
 {
-	struct cbufp_maps *m = &cbi->owner;
+	struct cbuf_maps *m = &cbi->owner;
 
 	do {
 		struct cbuf_meta *meta = m->m;
@@ -272,14 +272,14 @@ cbufp_references_clear(struct cbufp_info *cbi)
 }
 
 static void
-cbufp_free_unmap(spdid_t spdid, struct cbufp_info *cbi)
+cbuf_free_unmap(spdid_t spdid, struct cbuf_info *cbi)
 {
-	struct cbufp_maps *m = &cbi->owner;
+	struct cbuf_maps *m = &cbi->owner;
 	void *ptr = cbi->mem;
 	int off;
 
-	if (cbufp_referenced(cbi)) return;
-	cbufp_references_clear(cbi);
+	if (cbuf_referenced(cbi)) return;
+	cbuf_references_clear(cbi);
 	do {
 		assert(m->m);
 		assert(!CBUFM_GET_REFCNT(m->m));
@@ -300,7 +300,7 @@ cbufp_free_unmap(spdid_t spdid, struct cbufp_info *cbi)
 	 */
 	m = &cbi->owner;
 	do {
-		struct cbufp_maps *next;
+		struct cbuf_maps *next;
 
 		next = FIRST_LIST(m, next, prev);
 		REM_LIST(m, next, prev);
@@ -318,15 +318,15 @@ cbufp_free_unmap(spdid_t spdid, struct cbufp_info *cbi)
 int
 cbuf_create(spdid_t spdid, int size, long cbid)
 {
-	struct cbufp_comp_info *cci;
-	struct cbufp_info *cbi;
+	struct cbuf_comp_info *cci;
+	struct cbuf_info *cbi;
 	struct cbuf_meta *meta;
 	int ret = 0;
 
 	printl("cbuf_create\n");
 	if (unlikely(cbid < 0)) return 0;
-	CBUFP_TAKE();
-	cci = cbufp_comp_info_get(spdid);
+	CBUF_TAKE();
+	cci = cbuf_comp_info_get(spdid);
 	if (!cci) goto done;
 
 	/* 
@@ -334,9 +334,9 @@ cbuf_create(spdid_t spdid, int size, long cbid)
 	 * be mapped in.
 	 */
 	if (!cbid) {
-		struct cbufp_bin *bin;
+		struct cbuf_bin *bin;
 
- 		cbi = malloc(sizeof(struct cbufp_info));
+ 		cbi = malloc(sizeof(struct cbuf_info));
 		if (!cbi) goto done;
 
 		/* Allocate and map in the cbuf. */
@@ -349,11 +349,11 @@ cbuf_create(spdid_t spdid, int size, long cbid)
 		INIT_LIST(&cbi->owner, next, prev);
 		INIT_LIST(cbi, next, prev);
 
-		bin = cbufp_comp_info_bin_get(cci, size);
-		if (!bin) bin = cbufp_comp_info_bin_add(cci, size);
+		bin = cbuf_comp_info_bin_get(cci, size);
+		if (!bin) bin = cbuf_comp_info_bin_add(cci, size);
 		if (!bin) goto free;
 
-		if (cbufp_alloc_map(spdid, &(cbi->owner.addr), 
+		if (cbuf_alloc_map(spdid, &(cbi->owner.addr), 
 				    (void**)&(cbi->mem), size)) goto free;
 		if (bin->c) ADD_LIST(bin->c, cbi, next, prev);
 		else        bin->c = cbi;
@@ -364,7 +364,7 @@ cbuf_create(spdid_t spdid, int size, long cbid)
 		if (!cbi) goto done;
 		if (cbi->owner.spdid != spdid) goto done;
 	}
-	meta = cbufp_meta_lookup(cci, cbid);
+	meta = cbuf_meta_lookup(cci, cbid);
 	/* We need to map in the meta for this cbid.  Tell the client. */
 	if (!meta) {
 		ret = cbid * -1;
@@ -388,7 +388,7 @@ cbuf_create(spdid_t spdid, int size, long cbid)
 	CBUFM_INC_REFCNT(meta);
 	ret = cbid;
 done:
-	CBUFP_RELEASE();
+	CBUF_RELEASE();
 
 	return ret;
 free:
@@ -401,25 +401,25 @@ vaddr_t
 cbuf_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags)
 {
 	vaddr_t ret = (vaddr_t)NULL;
-	struct cbufp_info *cbi;
+	struct cbuf_info *cbi;
 	u32_t id;
 	int tmem;
 	
 	cbuf_unpack(cbid, &id);
 	assert(tmem == 0);
-	CBUFP_TAKE();
+	CBUF_TAKE();
 	cbi = cmap_lookup(&cbufs, id);
 	assert(cbi);
 	if (unlikely(!cbi)) goto done;
 	assert(cbi->owner.spdid == s_spd);
 	if (valloc_alloc_at(s_spd, d_spd, (void*)d_addr, cbi->size/PAGE_SIZE)) goto done;
-	if (cbufp_map(d_spd, d_addr, cbi->mem, cbi->size, flags)) goto free;
+	if (cbuf_map(d_spd, d_addr, cbi->mem, cbi->size, flags)) goto free;
 	ret = d_addr;
-	/* do not add d_spd to the meta list because the cbufp is not
+	/* do not add d_spd to the meta list because the cbuf is not
 	 * accessible directly. The s_spd must maintain the necessary info
-	 * about the cbufp and its mapping in d_spd. */
+	 * about the cbuf and its mapping in d_spd. */
 done:
-	CBUFP_RELEASE();
+	CBUF_RELEASE();
 	return ret;
 free:
 	//valloc_free(s_spd, d_spd, d_addr, cbi->size);
@@ -429,7 +429,7 @@ free:
 int
 cbuf_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
 {
-	struct cbufp_info *cbi;
+	struct cbuf_info *cbi;
 	int off;
 	int ret = 0;
 	u32_t id;
@@ -440,7 +440,7 @@ cbuf_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
 	assert(tmem == 0);
 
 	assert(d_addr);
-	CBUFP_TAKE();
+	CBUF_TAKE();
 	cbi = cmap_lookup(&cbufs, id);
 	if (unlikely(!cbi)) ERR_THROW(-EINVAL, done);
 	if (unlikely(cbi->owner.spdid != s_spd)) ERR_THROW(-EINVAL, done);
@@ -452,23 +452,23 @@ cbuf_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
 	if (unlikely(err)) ERR_THROW(-EFAULT, done);
 	assert(!err);
 done:
-	CBUFP_RELEASE();
+	CBUF_RELEASE();
 	return ret;
 }
 
 /*
- * Allocate and map the garbage-collection list used for cbufp_collect()
+ * Allocate and map the garbage-collection list used for cbuf_collect()
  */
 vaddr_t
 cbuf_map_collect(spdid_t spdid)
 {
-	struct cbufp_comp_info *cci;
+	struct cbuf_comp_info *cci;
 	vaddr_t ret = (vaddr_t)NULL;
 
 	printl("cbuf_map_collect\n");
 
-	CBUFP_TAKE();
-	cci = cbufp_comp_info_get(spdid);
+	CBUF_TAKE();
+	cci = cbuf_comp_info_get(spdid);
 	if (unlikely(!cci)) goto done;
 
 	/* if the mapped page exists already, just return it. */
@@ -477,17 +477,17 @@ cbuf_map_collect(spdid_t spdid)
 		goto done;
 	}
 
-	assert(sizeof(struct cbufp_shared_page) <= PAGE_SIZE);
+	assert(sizeof(struct cbuf_shared_page) <= PAGE_SIZE);
 	/* alloc/map is leaked. Where should it be freed/unmapped? */
-	if (cbufp_alloc_map(spdid, &cci->dest_csp, (void**)&cci->csp, PAGE_SIZE)) goto done;
+	if (cbuf_alloc_map(spdid, &cci->dest_csp, (void**)&cci->csp, PAGE_SIZE)) goto done;
 	ret = cci->dest_csp;
 
 	/* initialize a continuous ck ring */
 	assert(cci->csp->ring.size == 0);
-	CK_RING_INIT(cbufp_ring, &cci->csp->ring, NULL, CSP_BUFFER_SIZE);
+	CK_RING_INIT(cbuf_ring, &cci->csp->ring, NULL, CSP_BUFFER_SIZE);
 
 done:
-	CBUFP_RELEASE();
+	CBUF_RELEASE();
 	return ret;
 }
 
@@ -496,28 +496,28 @@ done:
  * so that they can be reused.  This is the garbage-collection
  * mechanism.
  *
- * Collect cbufps and add them onto the component's freelist.
+ * Collect cbufs and add them onto the component's freelist.
  *
  * This function is semantically complicated.  It can block if no
- * cbufps are available, and the component is not supposed to allocate
- * any more.  It can return no cbufps even if they are available to
- * force the pool of cbufps to be expanded (the client will call
- * cbufp_create in this case).  Or, the common case: it can return a
+ * cbufs are available, and the component is not supposed to allocate
+ * any more.  It can return no cbufs even if they are available to
+ * force the pool of cbufs to be expanded (the client will call
+ * cbuf_create in this case).  Or, the common case: it can return a
  * number of available cbufs.
  */
 int
 cbuf_collect(spdid_t spdid, int size)
 {
-	struct cbufp_info *cbi;
-	struct cbufp_comp_info *cci;
-	struct cbufp_shared_page *csp;
-	struct cbufp_bin *bin;
+	struct cbuf_info *cbi;
+	struct cbuf_comp_info *cci;
+	struct cbuf_shared_page *csp;
+	struct cbuf_bin *bin;
 	int ret = 0;
 
 	printl("cbuf_collect\n");
 
-	CBUFP_TAKE();
-	cci = cbufp_comp_info_get(spdid);
+	CBUF_TAKE();
+	cci = cbuf_comp_info_get(spdid);
 	if (unlikely(!cci)) ERR_THROW(-ENOMEM, done);
 	csp = cci->csp;
 	if (unlikely(!csp)) ERR_THROW(-EINVAL, done);
@@ -529,76 +529,76 @@ cbuf_collect(spdid_t spdid, int size)
 	 * O(N*M), N = min(num cbufs, PAGE_SIZE/sizeof(int)), and M =
 	 * num components.
 	 */
-	bin = cbufp_comp_info_bin_get(cci, round_up_to_page(size));
+	bin = cbuf_comp_info_bin_get(cci, round_up_to_page(size));
 	if (!bin) ERR_THROW(0, done);
 	cbi = bin->c;
 	do {
 		if (!cbi) break;
-		if (!cbufp_referenced(cbi)) {
-			struct cbufp_ring_element el = { .cbid = cbi->cbid };
-			cbufp_references_clear(cbi);
-			if (!CK_RING_ENQUEUE_SPSC(cbufp_ring, &csp->ring, &el)) break;
+		if (!cbuf_referenced(cbi)) {
+			struct cbuf_ring_element el = { .cbid = cbi->cbid };
+			cbuf_references_clear(cbi);
+			if (!CK_RING_ENQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) break;
 			if (++ret == CSP_BUFFER_SIZE) break;
 		}
 		cbi = FIRST_LIST(cbi, next, prev);
 	} while (cbi != bin->c);
 done:
-	CBUFP_RELEASE();
+	CBUF_RELEASE();
 	return ret;
 }
 
 /* 
- * Called by cbufp_deref.
+ * Called by cbuf_deref.
  */
 int
 cbuf_delete(spdid_t spdid, int cbid)
 {
-	struct cbufp_comp_info *cci;
-	struct cbufp_info *cbi;
+	struct cbuf_comp_info *cci;
+	struct cbuf_info *cbi;
 	int ret = -EINVAL;
 
 	printl("cbuf_delete\n");
 	assert(0);
-	CBUFP_TAKE();
-	cci = cbufp_comp_info_get(spdid);
+	CBUF_TAKE();
+	cci = cbuf_comp_info_get(spdid);
 	if (!cci) goto done;
 	cbi = cmap_lookup(&cbufs, cbid);
 	if (!cbi) goto done;
 	
-	cbufp_free_unmap(spdid, cbi);
+	cbuf_free_unmap(spdid, cbi);
 	ret = 0;
 done:
-	CBUFP_RELEASE();
+	CBUF_RELEASE();
 	return ret;
 }
 
 /* 
- * Called by cbufp2buf to retrieve a given cbid.
+ * Called by cbuf2buf to retrieve a given cbid.
  */
 int
 cbuf_retrieve(spdid_t spdid, int cbid, int size)
 {
-	struct cbufp_comp_info *cci;
-	struct cbufp_info *cbi;
+	struct cbuf_comp_info *cci;
+	struct cbuf_info *cbi;
 	struct cbuf_meta *meta;
-	struct cbufp_maps *map;
+	struct cbuf_maps *map;
 	vaddr_t dest;
 	void *page;
 	int ret = -EINVAL, off;
 
 	printl("cbuf_retrieve\n");
 
-	CBUFP_TAKE();
-	cci        = cbufp_comp_info_get(spdid);
+	CBUF_TAKE();
+	cci        = cbuf_comp_info_get(spdid);
 	if (!cci) goto done;
 	cbi        = cmap_lookup(&cbufs, cbid);
 	if (!cbi) goto done;
 	/* shouldn't cbuf2buf your own buffer! */
 	if (cbi->owner.spdid == spdid) goto done;
-	meta       = cbufp_meta_lookup(cci, cbid);
+	meta       = cbuf_meta_lookup(cci, cbid);
 	if (!meta) goto done;
 
-	map        = malloc(sizeof(struct cbufp_maps));
+	map        = malloc(sizeof(struct cbuf_maps));
 	if (!map) ERR_THROW(-ENOMEM, done);
 	if (size > cbi->size) goto done;
 	assert((int)round_to_page(cbi->size) == cbi->size);
@@ -614,7 +614,7 @@ cbuf_retrieve(spdid_t spdid, int cbid, int size)
 
 	page = cbi->mem;
 	assert(page);
-	if (cbufp_map(spdid, dest, page, size, MAPPING_READ))
+	if (cbuf_map(spdid, dest, page, size, MAPPING_READ))
 		valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
 	memset(meta, 0, sizeof(struct cbuf_meta));
 	CBUF_SET_TOUCHED(meta);
@@ -623,7 +623,7 @@ cbuf_retrieve(spdid_t spdid, int cbid, int size)
 	meta->cbid.cbid = cbid;
 	ret             = 0;
 done:
-	CBUFP_RELEASE();
+	CBUF_RELEASE();
 	return ret;
 free:
 	free(map);
@@ -633,26 +633,26 @@ free:
 vaddr_t
 cbuf_register(spdid_t spdid, long cbid)
 {
-	struct cbufp_comp_info  *cci;
-	struct cbufp_meta_range *cmr;
+	struct cbuf_comp_info  *cci;
+	struct cbuf_meta_range *cmr;
 	void *p;
 	vaddr_t dest, ret = 0;
 
 	printl("cbuf_register\n");
-	CBUFP_TAKE();
-	cci = cbufp_comp_info_get(spdid);
+	CBUF_TAKE();
+	cci = cbuf_comp_info_get(spdid);
 	if (!cci) goto done;
-	cmr = cbufp_meta_lookup_cmr(cci, cbid);
+	cmr = cbuf_meta_lookup_cmr(cci, cbid);
 	if (cmr) ERR_THROW(cmr->dest, done);
 
 	/* Create the mapping into the client */
-	if (cbufp_alloc_map(spdid, &dest, &p, PAGE_SIZE)) goto done;
+	if (cbuf_alloc_map(spdid, &dest, &p, PAGE_SIZE)) goto done;
 	assert((u32_t)p == round_to_page(p));
-	cmr = cbufp_meta_add(cci, cbid, p, dest);
+	cmr = cbuf_meta_add(cci, cbid, p, dest);
 	assert(cmr);
 	ret = cmr->dest;
 done:
-	CBUFP_RELEASE();
+	CBUF_RELEASE();
 	return ret;
 }
 
@@ -660,7 +660,7 @@ void
 cos_init(void)
 {
 	long cbid;
-	CBUFP_LOCK_INIT();
+	CBUF_LOCK_INIT();
 	cmap_init_static(&cbufs);
 	cbid = cmap_add(&cbufs, NULL);
 }
