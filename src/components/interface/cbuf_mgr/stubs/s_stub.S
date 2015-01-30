@@ -8,7 +8,7 @@
 #include <cos_asm_server_stub_simple_stack.h>
 
 .text	
-cos_asm_server_stub_spdid(cbufp_create)
+cos_asm_server_stub_spdid(cbuf_create)
 cos_asm_server_stub_spdid(cbufp_delete)
 cos_asm_server_stub_spdid(cbufp_retrieve)
 cos_asm_server_stub_spdid(cbufp_register)

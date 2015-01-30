@@ -316,14 +316,14 @@ cbufp_free_unmap(spdid_t spdid, struct cbufp_info *cbi)
 }
 
 int
-cbufp_create(spdid_t spdid, int size, long cbid)
+cbuf_create(spdid_t spdid, int size, long cbid)
 {
 	struct cbufp_comp_info *cci;
 	struct cbufp_info *cbi;
 	struct cbuf_meta *meta;
 	int ret = 0;
 
-	printl("cbufp_create\n");
+	printl("cbuf_create\n");
 	if (unlikely(cbid < 0)) return 0;
 	CBUFP_TAKE();
 	cci = cbufp_comp_info_get(spdid);
