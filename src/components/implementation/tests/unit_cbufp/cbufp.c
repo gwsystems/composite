@@ -36,7 +36,7 @@ int unit_cbufp_map_at(cbuf_t cbuf, int sz, spdid_t spdid, vaddr_t buf)
 
 int unit_cbufp_unmap_at(cbuf_t cbuf, int sz, spdid_t spdid, vaddr_t buf)
 {
-	cbufp_unmap_at(cos_spd_id(), cbuf, spdid, buf);
+	cbuf_unmap_at(cos_spd_id(), cbuf, spdid, buf);
 	return 0;
 }
 

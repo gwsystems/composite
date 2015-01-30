@@ -427,7 +427,7 @@ free:
 }
 
 int
-cbufp_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
+cbuf_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
 {
 	struct cbufp_info *cbi;
 	int off;
