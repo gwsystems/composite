@@ -87,7 +87,7 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 		struct cbufp_ring_element el;
 		if (!csp) csp = (struct cbufp_shared_page*)cbuf_map_collect(cos_spd_id());
 		/* Do a garbage collection */
-		amnt = cbufp_collect(cos_spd_id(), size);
+		amnt = cbuf_collect(cos_spd_id(), size);
 		if (amnt < 0) {
 			*error = 1;
 			return -1;

@@ -506,7 +506,7 @@ done:
  * number of available cbufs.
  */
 int
-cbufp_collect(spdid_t spdid, int size)
+cbuf_collect(spdid_t spdid, int size)
 {
 	struct cbufp_info *cbi;
 	struct cbufp_comp_info *cci;
@@ -514,7 +514,7 @@ cbufp_collect(spdid_t spdid, int size)
 	struct cbufp_bin *bin;
 	int ret = 0;
 
-	printl("cbufp_collect\n");
+	printl("cbuf_collect\n");
 
 	CBUFP_TAKE();
 	cci = cbufp_comp_info_get(spdid);

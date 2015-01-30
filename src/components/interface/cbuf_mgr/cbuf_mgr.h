@@ -44,7 +44,7 @@ vaddr_t cbuf_map_collect(spdid_t spdid);
  * for the number of cbufs collected, 0 if non are available, or a
  * negative value for an error.
  */
-int cbufp_collect(spdid_t spdid, int size);
+int cbuf_collect(spdid_t spdid, int size);
 
 /* Collected cbufs are stored in a page shared between cbufp and clients.
  * A ring buffer data structure is put in the first part of the page.
