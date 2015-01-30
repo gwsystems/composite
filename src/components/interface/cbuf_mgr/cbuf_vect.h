@@ -7,7 +7,7 @@
  * page from manager
  */
 
-#include <cbufp.h>
+#include <cbuf_mgr.h>
 #include <cos_debug.h>
 #include <cos_component.h>
 

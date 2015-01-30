@@ -12,7 +12,7 @@
 #include <cos_component.h>
 #include <print.h>
 #include <cbuf.h>
-#include <cbufp.h>
+#include <cbuf_mgr.h>
 #include <cbuf_vect.h>
 #include <cos_vect.h>
 #include <cos_debug.h>

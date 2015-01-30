@@ -2,7 +2,7 @@
 #define UNIT_CBUFP_H
 
 #include <cbuf.h>
-#include <cbufp.h>
+#include <cbuf_mgr.h>
 
 void unit_cbufp2buf(cbuf_t cbuf, int sz);
 cbuf_t unit_cbufp_alloc(int sz);

@@ -10,7 +10,7 @@
 #include <cos_component.h>
 #include <mem_mgr_large.h>
 #include <cbuf.h>
-#include <cbufp.h>
+#include <cbuf_mgr.h>
 #include <cos_synchronization.h>
 #include <valloc.h>
 #include <cos_alloc.h>

@@ -1,7 +1,7 @@
 #include <cos_component.h>
 #include <print.h>
 #include <cbuf.h>
-#include <cbufp.h>
+#include <cbuf_mgr.h>
 #include <unit_cbufp.h>
 
 void unit_cbufp2buf(cbuf_t cbuf, int sz)

@@ -4,7 +4,7 @@
 #include <valloc.h>
 #include <stdlib.h> 		/* rand */
 #include <cbuf.h>
-#include <cbufp.h>
+#include <cbuf_mgr.h>
 #include <unit_cbuf.h>
 #include <unit_cbufp.h>
 

@@ -7,8 +7,8 @@
  * Author: Gabriel Parmer, gparmer@gwu.edu, 2012
  */
 
-#ifndef   	CBUFP_H
-#define   	CBUFP_H
+#ifndef   	CBUF_MGR_H
+#define   	CBUF_MGR_H
 
 #include <cos_component.h>
 #include <ck_ring_cos.h>
@@ -71,4 +71,4 @@ struct cbufp_shared_page {
 /* /\* Included mainly for struct cbuf_meta: *\/ */
 /* #include "../cbuf_c/tmem_conf.h" */
 
-#endif 	    /* !CBUFP_H */
+#endif 	    /* !CBUF_MGR_H */

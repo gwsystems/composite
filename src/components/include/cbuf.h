@@ -21,7 +21,7 @@
 #include <util.h>
 #include <cos_debug.h>
 #include <cbuf_meta.h>
-#include <cbufp.h>
+#include <cbuf_mgr.h>
 #define cbid_to_meta_idx(cid) ((cid) << 2)
 #define meta_to_cbid_idx(mid) ((mid) >> 2)
 #include <cbuf_vect.h>
