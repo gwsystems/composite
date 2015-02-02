@@ -13,10 +13,12 @@
 #include <cbuf_mgr.h>
 #include <cos_synchronization.h>
 #include <valloc.h>
+#include <sched.h>
 #include <cos_alloc.h>
 #include <cmap.h>
 #include <cos_list.h>
 
+#define INIT_LIMIT_SIZE 40960
 /** 
  * The main data-structures tracked in this component.
  * 
@@ -80,7 +82,12 @@ struct cbuf_bin {
 	int size;
 	struct cbuf_info *c;
 };
-
+struct blocked_thd {
+	unsigned short int thd_id;
+	//spdid_t spdid;
+	unsigned int request_size;
+	struct blocked_thd *next, *prev;
+};
 struct cbuf_comp_info {
 	spdid_t spdid;
 	struct cbuf_shared_page *csp;
@@ -88,6 +95,8 @@ struct cbuf_comp_info {
 	int nbin;
 	struct cbuf_bin cbufs[CBUF_MAX_NSZ];
 	struct cbuf_meta_range *cbuf_metas;
+	unsigned int limit_size, allocated_size;
+	struct blocked_thd bthd_list;
 };
 
 #define printl(s) //printc(s)
@@ -151,6 +160,8 @@ cbuf_comp_info_init(spdid_t spdid, struct cbuf_comp_info *cci)
 {
 	memset(cci, 0, sizeof(*cci));
 	cci->spdid = spdid;
+	INIT_LIST(&cci->bthd_list, next, prev);
+	cci->limit_size = INIT_LIMIT_SIZE;
 	cvect_add(&components, cci, spdid);
 }
 
@@ -228,6 +239,18 @@ cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 	*daddr = dest;
 
 	return ret;
+}
+
+static inline void
+cbuf_add_to_blk_list(struct cbuf_comp_info *cci, unsigned int request_size)
+{
+	struct blocked_thd *bthd;
+	bthd = malloc(sizeof(struct blocked_thd));
+	if (unlikely(bthd == NULL)) BUG();
+	bthd->thd_id = cos_get_thd_id();
+	//bthd->spdid = cci->spdid;
+	bthd->request_size = request_size;
+	ADD_LIST(&cci->bthd_list, bthd, next, prev);
 }
 
 /* Do any components have a reference to the cbuf? */
@@ -334,6 +357,14 @@ cbuf_create(spdid_t spdid, int size, long cbid)
 	 * be mapped in.
 	 */
 	if (!cbid) {
+		/*memory usage exceeds the limit, block this thread*/
+		if (size + cci->allocated_size > cci->limit_size) {
+			cbuf_add_to_blk_list(cci, size);
+			CBUF_RELEASE();
+			sched_block(cos_spd_id(), 0);
+			assert(size + cci->allocated_size <= cci->limit_size);
+			return 0;
+		}
 		struct cbuf_bin *bin;
 
  		cbi = malloc(sizeof(struct cbuf_info));
@@ -357,6 +388,7 @@ cbuf_create(spdid_t spdid, int size, long cbid)
 				    (void**)&(cbi->mem), size)) goto free;
 		if (bin->c) ADD_LIST(bin->c, cbi, next, prev);
 		else        bin->c = cbi;
+		cci->allocated_size += size;
 	} 
 	/* If the client has a cbid, then make sure we agree! */
 	else {

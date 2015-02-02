@@ -82,6 +82,7 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 	static struct cbuf_shared_page *csp = NULL;
 
 	assert(cbid <= 0);
+again:
 	if (cbid == 0) {
 		struct cbuf_meta *cm;
 		struct cbuf_ring_element el;
@@ -146,7 +147,7 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 	/* Nothing collected...allocate a new cbuf! */
 	if (amnt == 0) {
 		cbid = cbuf_create(cos_spd_id(), size, cbid*-1);
-		if (cbid == 0) assert(0);
+		if (cbid == 0) goto again;
 	} 
 	/* TODO update correctly */
 	*len = 1;
