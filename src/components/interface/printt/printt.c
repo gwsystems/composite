@@ -32,7 +32,7 @@ int __attribute__((format(printf,1,2))) printc(char *fmt, ...)
 
 	if (!tor) tor = printt_init();
 
-	s = cbuf_alloc(4096, &cb);
+	s = cbuf_alloc(4096, &cb, 1);
 	assert(s);
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, 4096, fmt, arg_ptr);

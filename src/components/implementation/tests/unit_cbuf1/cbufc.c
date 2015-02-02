@@ -4,7 +4,7 @@
 #include <valloc.h>
 #include <stdlib.h> 		/* rand */
 #include <cbuf.h>
-#include <cbufp.h>
+#include <cbuf_mgr.h>
 #include <unit_cbuf.h>
 #include <unit_cbufp.h>
 
@@ -32,7 +32,7 @@ cbuf_tests(void)
 
 	for (i = 0 ; i < MAX_CBUFS ; i++) {
 		int sz = (rand() % MAX_CBUF_SZ) + 1;
-		bufs[i] = cbuf_alloc(sz, &cbs[i]);
+		bufs[i] = cbuf_alloc(sz, &cbs[i], 1);
 		printv("UNIT TEST alloc %d -> %p\n", sz, bufs[i]);
 		assert(bufs[i]);
 		cbuf_free(cbs[i]);
@@ -42,7 +42,7 @@ cbuf_tests(void)
 	printc("UNIT TEST PASSED: alloc->dealloc\n");
 	for (i = 0 ; i < MAX_CBUFS ; i++) {
 		int sz = (rand() % MAX_CBUF_SZ) + 1;
-		bufs[i] = cbuf_alloc(sz, &cbs[i]);
+		bufs[i] = cbuf_alloc(sz, &cbs[i], 1);
 		printv("UNIT TEST alloc %d -> %p\n", sz, bufs[i]);
 		assert(bufs[i]);
 	}
@@ -55,13 +55,12 @@ cbuf_tests(void)
 
 	for (i = 0 ; i < MAX_CBUFS ; i++) {
 		int sz = (rand() % MAX_CBUF_SZ) + 1;
-		bufs[i] = cbuf_alloc(sz, &cbs[i]);
+		bufs[i] = cbuf_alloc(sz, &cbs[i], 1);
 		printv("UNIT TEST alloc %d -> %p\n", sz, bufs[i]);
 		szs[i] = sz;
 		assert(bufs[i]);
 		bufs[i][0] = '_';
 		unit_cbuf(cbs[i], sz);
-		assert(bufs[i][0] == '*');
 		printv("UNIT TEST cbuf2buf %d\n", sz);
 	}
 	printc("UNIT TEST PASSED: N alloc + cbuf2buf\n");
@@ -84,29 +83,27 @@ cbuf_tests(void)
 static void
 cbufp_tests()
 {
-	cbufp_t cbs[MAX_CBUFPS];
+	cbuf_t cbs[MAX_CBUFPS];
 	int sz = MAX_CBUFP_SZ;
 	char *bufs[MAX_CBUFPS];
 	int i;
-	struct cbuf_alloc_desc *d = &cbufp_alloc_freelists[0];
-	assert(EMPTY_LIST(d, next, prev));
 
 	printc("\nUNIT TEST (CBUFP)\n");
 
 	for (i = 0 ; i < MAX_CBUFPS ; i++) {
 		cbs[i] = unit_cbufp_alloc(sz);
-		bufs[i] = cbufp2buf(cbs[i], sz);
+		bufs[i] = cbuf2buf(cbs[i], sz);
 		assert(bufs[i]);
-		cbufp_send_deref(cbs[i]);
+		cbuf_send_deref(cbs[i]);
 		unit_cbufp2buf(cbs[i], sz); /* error path test */
 	}
 	printc("UNIT TEST PASSED: N alloc + cbufp2buf\n");
 
 	for (i = 0 ; i < MAX_CBUFPS ; i++) {
 		int sz = MAX_CBUFP_SZ;
-		bufs[i] = cbufp2buf(cbs[i], sz);
+		bufs[i] = cbuf2buf(cbs[i], sz);
 		assert(bufs[i]);
-		cbufp_deref(cbs[i]);
+		cbuf_free(cbs[i]);
 	}
 	printc("UNIT TEST PASSED: N cached cbufp2buf\n");
 
@@ -134,9 +131,9 @@ cbufp_tests()
 		int err = 0;
 		err = unit_cbufp_unmap_at(cbs[i], sz, myspd, (vaddr_t)bufs[i]);
 		assert(!err);
-		bufs[i] = cbufp2buf(cbs[i], sz); /* clear send cnt */
+		bufs[i] = cbuf2buf(cbs[i], sz); /* clear send cnt */
 		assert(bufs[i]);
-		cbufp_deref(cbs[i]);
+		cbuf_free(cbs[i]);
 		unit_cbufp_deref(cbs[i], sz);
 	}
 	printc("UNIT TEST PASSED: N unmap_at\n");

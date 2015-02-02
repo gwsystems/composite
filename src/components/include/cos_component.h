@@ -10,6 +10,7 @@
 
 #include <consts.h>
 #include <cos_types.h>
+#include <util.h>
 #include <errno.h>
 
 /**
