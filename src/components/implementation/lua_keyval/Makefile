@@ -1,3 +1,7 @@
 INTERFACES=lua_keyval
 
-include ../Makefile.subdir
+cp:
+
+clean:
+
+#include ../Makefile.subdir

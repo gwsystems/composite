@@ -6,9 +6,12 @@ DEPENDENCIES=sched printc timed_blk torrent cbufp cbuf_c evt mem_mgr_large vallo
 IF_LIB=./cos_libccv.a $(DIETDIR)/bin-i386/libm.a
 OBJLIBS += $(POSIX_LIB)
 
-pre: first all
-first:
-	$(info |     [CP]   copying cos_libccv.a from libccv)
-	@cp $(CCVOBJ) .
+cp:
+clean:
 
-include ../../Makefile.subsubdir
+# pre: first all
+# first:
+# 	$(info |     [CP]   copying cos_libccv.a from libccv)
+# 	@cp $(CCVOBJ) .
+
+# include ../../Makefile.subsubdir
