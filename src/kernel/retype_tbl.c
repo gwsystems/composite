@@ -77,6 +77,7 @@ mod_mem_type(void *pa, const mem_type_t type)
 	u32_t idx, old_type;
 	struct retype_info_glb *glb_retype_info;
 
+	assert(pa); 	/* cannot be NULL: kernel image takes that space */
 	PA_BOUNDARY_CHECK();
 
 	idx = GET_MEM_IDX(pa);
