@@ -85,7 +85,7 @@ struct cbuf_bin {
 struct blocked_thd {
 	unsigned short int thd_id;
 	//spdid_t spdid;
-	unsigned int request_size;
+	int request_size;
 	struct blocked_thd *next, *prev;
 };
 struct cbuf_comp_info {
@@ -95,7 +95,7 @@ struct cbuf_comp_info {
 	int nbin;
 	struct cbuf_bin cbufs[CBUF_MAX_NSZ];
 	struct cbuf_meta_range *cbuf_metas;
-	unsigned int limit_size, allocated_size;
+	int limit_size, allocated_size, desired_size;
 	struct blocked_thd bthd_list;
 };
 
@@ -242,7 +242,7 @@ cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 }
 
 static inline void
-cbuf_add_to_blk_list(struct cbuf_comp_info *cci, unsigned int request_size)
+cbuf_add_to_blk_list(struct cbuf_comp_info *cci, int request_size)
 {
 	struct blocked_thd *bthd;
 	bthd = malloc(sizeof(struct blocked_thd));
@@ -295,14 +295,17 @@ cbuf_references_clear(struct cbuf_info *cbi)
 }
 
 static void
-cbuf_free_unmap(spdid_t spdid, struct cbuf_info *cbi)
+cbuf_free_unmap(struct cbuf_comp_info *cci, struct cbuf_info *cbi)
 {
 	struct cbuf_maps *m = &cbi->owner;
+	struct cbuf_bin *bin;
+	struct cbuf_meta *in_free = NULL;
 	void *ptr = cbi->mem;
 	int off;
 
-	if (cbuf_referenced(cbi)) return;
+	if (cbuf_referenced(cbi)) assert(0);
 	cbuf_references_clear(cbi);
+	in_free = (struct cbuf_meta *)CBUFM_GET_NEXT(m->m);
 	do {
 		assert(m->m);
 		assert(!CBUFM_GET_REFCNT(m->m));
@@ -311,7 +314,8 @@ cbuf_free_unmap(spdid_t spdid, struct cbuf_info *cbi)
 
 		m = FIRST_LIST(m, next, prev);
 	} while (m != &cbi->owner);
-
+	/*this cbuf is in freelist, set it as inconsistent*/
+	if (in_free) CBUF_UNSET_INCONSISENT(cbi->owner.m);
 	/* Unmap all of the pages from the clients */
 	for (off = 0 ; off < cbi->size ; off += PAGE_SIZE) {
 		mman_revoke_page(cos_spd_id(), (vaddr_t)ptr + off, 0);
@@ -335,6 +339,16 @@ cbuf_free_unmap(spdid_t spdid, struct cbuf_info *cbi)
 	/* deallocate/unlink our data-structures */
 	page_free(ptr, cbi->size/PAGE_SIZE);
 	cmap_del(&cbufs, cbi->cbid);
+	cci->allocated_size -= cbi->size;
+	bin = cbuf_comp_info_bin_get(cci, cbi->size);
+	if (EMPTY_LIST(cbi, next, prev)) {
+		bin->c = NULL;
+		--cci->nbin;
+	}
+	else {
+		if (bin->c == cbi) bin->c = cbi->next;
+		REM_LIST(cbi, next, prev);
+	}
 	free(cbi);
 }
 
@@ -566,7 +580,8 @@ cbuf_collect(spdid_t spdid, int size)
 	cbi = bin->c;
 	do {
 		if (!cbi) break;
-		if (!cbuf_referenced(cbi)) {
+		/*skip cbufs which are in freelist*/
+		if (!cbufm_is_in_freelist(cbi->owner.m) && !cbuf_referenced(cbi)) {
 			struct cbuf_ring_element el = { .cbid = cbi->cbid };
 			cbuf_references_clear(cbi);
 			if (!CK_RING_ENQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) break;
@@ -579,6 +594,38 @@ done:
 	return ret;
 }
 
+static inline void
+cbuf_mark_relinquish_all(struct cbuf_comp_info *cci)
+{
+	int i;
+	struct cbuf_bin *bin;
+	struct cbuf_info *cbi;
+
+	for(i=cci->nbin-1; i>=0; --i) {
+		bin = &cci->cbufs[i];
+		cbi = bin->c;
+		do {
+			CBUF_SET_RELINQ(cbi->owner.m);
+			cbi = FIRST_LIST(cbi, next, prev);
+		} while (cbi != bin->c);
+	}
+}
+static inline void
+cbuf_unmark_relinquish_all(struct cbuf_comp_info *cci)
+{
+	int i;
+	struct cbuf_bin *bin;
+	struct cbuf_info *cbi;
+
+	for(i=cci->nbin-1; i>=0; --i) {
+		bin = &cci->cbufs[i];
+		cbi = bin->c;
+		do {
+			CBUF_UNSET_RELINQ(cbi->owner.m);
+			cbi = FIRST_LIST(cbi, next, prev);
+		} while (cbi != bin->c);
+	}
+}
 /* 
  * Called by cbuf_deref.
  */
@@ -587,17 +634,18 @@ cbuf_delete(spdid_t spdid, int cbid)
 {
 	struct cbuf_comp_info *cci;
 	struct cbuf_info *cbi;
-	int ret = -EINVAL;
+	int ret = -EINVAL, sz;
 
 	printl("cbuf_delete\n");
-	assert(0);
 	CBUF_TAKE();
 	cci = cbuf_comp_info_get(spdid);
 	if (!cci) goto done;
 	cbi = cmap_lookup(&cbufs, cbid);
 	if (!cbi) goto done;
-	
-	cbuf_free_unmap(spdid, cbi);
+	sz = cbi->size;
+	cbuf_free_unmap(cci, cbi);
+	if (cci->desired_size > 0 && cci->desired_size <= sz) cbuf_unmark_relinquish_all(cci);
+	cci->desired_size = cci->desired_size > sz ? cci->desired_size - sz : 0;
 	ret = 0;
 done:
 	CBUF_RELEASE();
@@ -688,6 +736,50 @@ done:
 	return ret;
 }
 
+static void
+cbuf_shrink(struct cbuf_comp_info  *cci, int diff)
+{
+	int i, sz;
+	struct cbuf_bin *bin;
+	struct cbuf_info *cbi, *next, *head;
+	/*last shrinking doesn't finish*/
+	if (cci->desired_size) {
+		cci->desired_size += diff;
+		return ;
+	}
+	for(i=cci->nbin-1; i>=0; --i) {
+		bin = &cci->cbufs[i];
+		sz = bin->size;
+		head = cbi = bin->c;
+		do {
+			next = FIRST_LIST(cbi, next, prev);
+			if (!cbuf_referenced(cbi)) {
+				cbuf_free_unmap(cci, cbi);
+				diff -= sz;
+				if (diff <= 0) return;
+			}
+			cbi = next;
+		} while (cbi != head);
+	}
+	if (diff > 0) {
+		cci->desired_size = diff;
+		cbuf_mark_relinquish_all(cci);
+	}
+}
+void 
+cbuf_resize_mempool(spdid_t spdid, int diff)
+{
+	struct cbuf_comp_info  *cci;
+	CBUF_TAKE();
+	cci = cbuf_comp_info_get(spdid);
+	if (!cci) goto done;
+	cci->limit_size += diff;
+	if (diff < 0) cbuf_shrink(cci, -1*diff);
+done:
+	CBUF_RELEASE();
+	return ;
+
+}
 void
 cos_init(void)
 {

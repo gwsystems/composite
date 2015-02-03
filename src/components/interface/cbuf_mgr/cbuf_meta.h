@@ -136,4 +136,7 @@ static inline
 int cbufm_is_mapped(struct cbuf_meta *m) { return (m->nfo)>>12 != 0; }
 static inline
 int cbufm_is_tmem(struct cbuf_meta *m)   { return m->sz == 0 && (((m->nfo) & CBUFM_TMEM) != 0); }
+static inline 
+int cbufm_is_in_freelist(struct cbuf_meta *m) { return CBUFM_GET_NEXT(m) != 0; }
+
 #endif /* CBUF_META_H */

@@ -266,7 +266,7 @@ cbuf2buf(cbuf_t cb, int len)
 again:
 	do {
 		cm = cbuf_vect_lookup_addr(cbidx);
-		if (unlikely(!cm || cm->nfo == 0)) {
+		if (unlikely(!cm || CBUFM_GET_PTR(cm) == 0)) {
 			if (__cbuf_2buf_miss(id, len)) goto done;
 			goto again;
 		}
@@ -438,6 +438,13 @@ cbuf_free(cbuf_t cb)
 	tmem = CBUF_TMEM(cm);
 	inconsistent = CBUF_INCONSISENT(cm);
 	assert(!inconsistent);
+	relinq = CBUF_RELINQ(cm);
+	/* Does the manager want the memory back? */
+	if (unlikely(relinq)) {
+		CBUFM_DEC_REFCNT(cm);
+		cbuf_delete(cos_spd_id(), id);	
+		return ;
+	}
 	if (tmem) {
 		assert(owner);
 		fl = __cbuf_freelist_get(cm->sz << PAGE_ORDER);
@@ -455,9 +462,6 @@ cbuf_free(cbuf_t cb)
 		} while(unlikely(!cos_dcas(target, *old, *update)));
 	}
 	else CBUFM_DEC_REFCNT(cm);      
-	relinq = CBUF_RELINQ(cm);
-	/* Does the manager want the memory back? */
-	if (unlikely(relinq)) cbuf_delete(cos_spd_id(), id);	
 	return;
 }
 
