@@ -96,6 +96,7 @@ struct cbuf_comp_info {
 	struct cbuf_bin cbufs[CBUF_MAX_NSZ];
 	struct cbuf_meta_range *cbuf_metas;
 	int limit_size, allocated_size, desired_size;
+	unsigned int num_blocked_thds;
 	struct blocked_thd bthd_list;
 };
 
@@ -251,8 +252,31 @@ cbuf_add_to_blk_list(struct cbuf_comp_info *cci, int request_size)
 	//bthd->spdid = cci->spdid;
 	bthd->request_size = request_size;
 	ADD_LIST(&cci->bthd_list, bthd, next, prev);
+	++cci->num_blocked_thds;
 }
-
+static int
+cbuf_wake_up_thd(struct cbuf_comp_info *cci)
+{
+	int sz = cci->limit_size - cci->allocated_size, num = 0;
+	assert(sz>=0);
+	struct blocked_thd *bthd, *next;
+	bthd = cci->bthd_list.next;
+	while (bthd != &cci->bthd_list) {
+		next = FIRST_LIST(bthd, next, prev);
+		if (bthd->request_size <= sz) {
+			sz -= bthd->request_size;
+			REM_LIST(bthd, next, prev);
+			++num;
+			--cci->num_blocked_thds;
+			CBUF_RELEASE();
+			sched_wakeup(cos_spd_id(), bthd->thd_id);
+			CBUF_TAKE();
+			free(bthd);
+		}
+		bthd = next;
+	}
+	return num;
+}
 /* Do any components have a reference to the cbuf? */
 static int
 cbuf_referenced(struct cbuf_info *cbi)
@@ -352,6 +376,39 @@ cbuf_free_unmap(struct cbuf_comp_info *cci, struct cbuf_info *cbi)
 	free(cbi);
 }
 
+static inline void
+cbuf_mark_relinquish_all(struct cbuf_comp_info *cci)
+{
+	int i;
+	struct cbuf_bin *bin;
+	struct cbuf_info *cbi;
+
+	for(i=cci->nbin-1; i>=0; --i) {
+		bin = &cci->cbufs[i];
+		cbi = bin->c;
+		do {
+			CBUF_SET_RELINQ(cbi->owner.m);
+			cbi = FIRST_LIST(cbi, next, prev);
+		} while (cbi != bin->c);
+	}
+}
+static inline void
+cbuf_unmark_relinquish_all(struct cbuf_comp_info *cci)
+{
+	int i;
+	struct cbuf_bin *bin;
+	struct cbuf_info *cbi;
+
+	for(i=cci->nbin-1; i>=0; --i) {
+		bin = &cci->cbufs[i];
+		cbi = bin->c;
+		do {
+			CBUF_UNSET_RELINQ(cbi->owner.m);
+			cbi = FIRST_LIST(cbi, next, prev);
+		} while (cbi != bin->c);
+	}
+}
+
 int
 cbuf_create(spdid_t spdid, int size, long cbid)
 {
@@ -374,6 +431,7 @@ cbuf_create(spdid_t spdid, int size, long cbid)
 		/*memory usage exceeds the limit, block this thread*/
 		if (size + cci->allocated_size > cci->limit_size) {
 			cbuf_add_to_blk_list(cci, size);
+			cbuf_mark_relinquish_all(cci);
 			CBUF_RELEASE();
 			sched_block(cos_spd_id(), 0);
 			assert(size + cci->allocated_size <= cci->limit_size);
@@ -594,38 +652,6 @@ done:
 	return ret;
 }
 
-static inline void
-cbuf_mark_relinquish_all(struct cbuf_comp_info *cci)
-{
-	int i;
-	struct cbuf_bin *bin;
-	struct cbuf_info *cbi;
-
-	for(i=cci->nbin-1; i>=0; --i) {
-		bin = &cci->cbufs[i];
-		cbi = bin->c;
-		do {
-			CBUF_SET_RELINQ(cbi->owner.m);
-			cbi = FIRST_LIST(cbi, next, prev);
-		} while (cbi != bin->c);
-	}
-}
-static inline void
-cbuf_unmark_relinquish_all(struct cbuf_comp_info *cci)
-{
-	int i;
-	struct cbuf_bin *bin;
-	struct cbuf_info *cbi;
-
-	for(i=cci->nbin-1; i>=0; --i) {
-		bin = &cci->cbufs[i];
-		cbi = bin->c;
-		do {
-			CBUF_UNSET_RELINQ(cbi->owner.m);
-			cbi = FIRST_LIST(cbi, next, prev);
-		} while (cbi != bin->c);
-	}
-}
 /* 
  * Called by cbuf_deref.
  */
@@ -644,8 +670,12 @@ cbuf_delete(spdid_t spdid, int cbid)
 	if (!cbi) goto done;
 	sz = cbi->size;
 	cbuf_free_unmap(cci, cbi);
-	if (cci->desired_size > 0 && cci->desired_size <= sz) cbuf_unmark_relinquish_all(cci);
-	cci->desired_size = cci->desired_size > sz ? cci->desired_size - sz : 0;
+	cci->desired_size = cci->desired_size > sz? cci->desired_size - sz : 0;
+	if (cci->desired_size == 0) {
+		assert(cci->limit_size >= cci->allocated_size);
+		if (cci->num_blocked_thds > 0) cbuf_wake_up_thd(cci);
+		if (cci->num_blocked_thds == 0) cbuf_unmark_relinquish_all(cci);
+	}
 	ret = 0;
 done:
 	CBUF_RELEASE();
@@ -766,6 +796,15 @@ cbuf_shrink(struct cbuf_comp_info  *cci, int diff)
 		cbuf_mark_relinquish_all(cci);
 	}
 }
+static void
+cbuf_expand(struct cbuf_comp_info  *cci, int diff)
+{
+	if (cci->desired_size > 0) cci->desired_size = 0;
+	if (cci->num_blocked_thds > 0) {
+		cbuf_wake_up_thd(cci);
+		if (cci->num_blocked_thds == 0) cbuf_unmark_relinquish_all(cci);
+	}
+}
 void 
 cbuf_resize_mempool(spdid_t spdid, int diff)
 {
@@ -775,6 +814,7 @@ cbuf_resize_mempool(spdid_t spdid, int diff)
 	if (!cci) goto done;
 	cci->limit_size += diff;
 	if (diff < 0) cbuf_shrink(cci, -1*diff);
+	if (diff > 0) cbuf_expand(cci, diff);
 done:
 	CBUF_RELEASE();
 	return ;
