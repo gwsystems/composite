@@ -70,7 +70,7 @@ __cbuf_2buf_miss(int cbid, int len)
 	}
 	ret = cbuf_retrieve(cos_spd_id(), cbid, len);
 	if (unlikely(ret < 0 || mc->sz < (len >> PAGE_ORDER))) return -1;
-	assert(CBUFM_GET_PTR(mc));
+	assert(CBUF_PTR(mc));
 
 	return 0;
 }
@@ -103,9 +103,8 @@ again:
 				assert(cm);
 				assert(cm->cbid.cbid == cbid);
 				/* (should be atomic) */
-				CBUF_SET_TOUCHED(cm);
-				assert(CBUFM_GET_REFCNT(cm) < CBUF_REFCNT_MAX);
-				CBUFM_INC_REFCNT(cm);
+				assert(CBUF_REFCNT(cm) < CBUF_REFCNT_MAX);
+				CBUF_REFCNT_ATOMIC_INC(cm);
 			} else {
 				/* Someone stole the cbufs I collected! */
 				amnt = 0;
@@ -120,24 +119,24 @@ again:
 			idx = cbid_to_meta_idx(cb);
 			assert(idx > 0);
 			head = tail = cbuf_vect_lookup_addr(idx);
-			assert(!((int)tail & CBUFM_NEXT_MASK));
+			assert(!tail->next);
 			for(i = 2; i < amnt; ++i) {
 				if (!CK_RING_DEQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) break;
 				cb = el.cbid;
 				idx = cbid_to_meta_idx(cb);
 				assert(idx > 0);
 				meta = cbuf_vect_lookup_addr(idx);
-				assert(!((int)meta & CBUFM_NEXT_MASK));
-				CBUFM_SET_NEXT(meta, head);
+				assert(!meta->next);
+				meta->next = head;
 				head = meta;
 			}
 			unsigned long long *target, *old, *update;
 			meta = __cbuf_freelist_get(size);
-			CBUFM_SET_NEXT(tail, CBUFM_GET_NEXT(meta));
-			target = (unsigned long long *)(&meta->next_flag);
-			old    = (unsigned long long *)(&old_head.next_flag);
-			update = (unsigned long long *)(&new_head.next_flag);
-			new_head.next_flag = head;
+			tail->next = meta->next;
+			target = (unsigned long long *)(&meta->next);
+			old    = (unsigned long long *)(&old_head.next);
+			update = (unsigned long long *)(&new_head.next);
+			new_head.next = head;
 			do {
 				*old = *target;
 				new_head.cbid.tag = meta->cbid.tag+1;
@@ -176,8 +175,8 @@ __cbuf_alloc_slow(int size, int *len)
 	} while (cbid < 0);
 	assert(cbid);
 	cm   = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid));
-	assert(cm && CBUFM_GET_PTR(cm));
-	assert(cm && CBUFM_GET_REFCNT(cm));
+	assert(cm && CBUF_PTR(cm));
+	assert(cm && CBUF_REFCNT(cm));
 done:   
 	return cm;
 }
