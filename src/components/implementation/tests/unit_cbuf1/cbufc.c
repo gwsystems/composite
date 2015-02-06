@@ -94,7 +94,7 @@ cbufp_tests()
 		cbs[i] = unit_cbufp_alloc(sz);
 		bufs[i] = cbuf2buf(cbs[i], sz);
 		assert(bufs[i]);
-		cbuf_send_deref(cbs[i]);
+		cbuf_send_free(cbs[i]);
 		unit_cbufp2buf(cbs[i], sz); /* error path test */
 	}
 	printc("UNIT TEST PASSED: N alloc + cbufp2buf\n");

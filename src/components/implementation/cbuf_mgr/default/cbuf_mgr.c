@@ -242,9 +242,9 @@ cbuf_referenced(struct cbuf_info *cbi)
 		struct cbuf_meta *meta = m->m;
 
 		if (meta) {
-			if (CBUFM_GET_REFCNT(meta)) return 1;
-			sent  += meta->owner_nfo.c.nsent;
-			recvd += meta->owner_nfo.c.nrecvd;
+			if (CBUF_REFCNT(meta)) return 1;
+			sent  += meta->snd_rcv.nsent;
+			recvd += meta->snd_rcv.nrecvd;
 		}
 
 		m = FIRST_LIST(m, next, prev);
@@ -263,7 +263,7 @@ cbuf_references_clear(struct cbuf_info *cbi)
 		struct cbuf_meta *meta = m->m;
 
 		if (meta) {
-			meta->owner_nfo.c.nsent = meta->owner_nfo.c.nrecvd = 0;
+			meta->snd_rcv.nsent = meta->snd_rcv.nrecvd = 0;
 		}
 		m = FIRST_LIST(m, next, prev);
 	} while (m != &cbi->owner);
@@ -275,20 +275,24 @@ static void
 cbuf_free_unmap(spdid_t spdid, struct cbuf_info *cbi)
 {
 	struct cbuf_maps *m = &cbi->owner;
+	struct cbuf_bin *bin;
+	struct cbuf_meta *in_free;
 	void *ptr = cbi->mem;
 	int off;
 
 	if (cbuf_referenced(cbi)) return;
 	cbuf_references_clear(cbi);
+	in_free = m->m->next;
 	do {
 		assert(m->m);
-		assert(!CBUFM_GET_REFCNT(m->m));
+		assert(!CBUF_REFCNT(m->m));
 		/* TODO: fix race here with atomic instruction */
 		memset(m->m, 0, sizeof(struct cbuf_meta));
 
 		m = FIRST_LIST(m, next, prev);
 	} while (m != &cbi->owner);
-
+	/*this cbuf is in freelist, set it as inconsistent*/
+	if (in_free) CBUF_FLAG_REM(cbi->owner.m, CBUF_INCONSISTENT);
 	/* Unmap all of the pages from the clients */
 	for (off = 0 ; off < cbi->size ; off += PAGE_SIZE) {
 		mman_revoke_page(cos_spd_id(), (vaddr_t)ptr + off, 0);
@@ -308,11 +312,46 @@ cbuf_free_unmap(spdid_t spdid, struct cbuf_info *cbi)
 		if (m != &cbi->owner) free(m);
 		m = next;
 	} while (m != &cbi->owner);
+	/* this cbuf is in freelist, set it as inconsistent */
+	if (in_free) CBUF_FLAG_REM(cbi->owner.m, CBUF_INCONSISTENT);
 
 	/* deallocate/unlink our data-structures */
 	page_free(ptr, cbi->size/PAGE_SIZE);
 	cmap_del(&cbufs, cbi->cbid);
 	free(cbi);
+}
+
+static inline void
+cbuf_mark_relinquish_all(struct cbuf_comp_info *cci)
+{
+	int i;
+	struct cbuf_bin *bin;
+	struct cbuf_info *cbi;
+
+	for(i=cci->nbin-1; i>=0; --i) {
+		bin = &cci->cbufs[i];
+		cbi = bin->c;
+		do {
+			CBUF_FLAG_ADD(cbi->owner.m, CBUF_RELINQ);
+			cbi = FIRST_LIST(cbi, next, prev);
+		} while (cbi != bin->c);
+	}
+}
+static inline void
+cbuf_unmark_relinquish_all(struct cbuf_comp_info *cci)
+{
+	int i;
+	struct cbuf_bin *bin;
+	struct cbuf_info *cbi;
+
+	for(i=cci->nbin-1; i>=0; --i) {
+		bin = &cci->cbufs[i];
+		cbi = bin->c;
+		do {
+			CBUF_FLAG_REM(cbi->owner.m, CBUF_RELINQ);
+			cbi = FIRST_LIST(cbi, next, prev);
+		} while (cbi != bin->c);
+	}
 }
 
 int
@@ -378,14 +417,12 @@ cbuf_create(spdid_t spdid, int size, long cbid)
 	 * Update the meta with the correct addresses and flags!
 	 */
 	memset(meta, 0, sizeof(struct cbuf_meta));
-	CBUF_SET_OWNER(meta);
-	CBUF_SET_WRITABLE(meta);
-	CBUF_SET_TOUCHED(meta);
-	CBUFM_SET_PTR(meta, cbi->owner.addr);
+	CBUF_FLAG_ADD(meta, CBUF_OWNER);
+	CBUF_PTR_SET(meta, cbi->owner.addr);
 	meta->sz        = cbi->size >> PAGE_ORDER;
-	meta->cbid.cbid = cbid;
-	assert(CBUFM_GET_REFCNT(meta) < CBUF_REFCNT_MAX);
-	CBUFM_INC_REFCNT(meta);
+	meta->cbid_tag.cbid = cbid;
+	assert(CBUF_REFCNT(meta) < CBUF_REFCNT_MAX);
+	CBUF_REFCNT_ATOMIC_INC(meta);
 	ret = cbid;
 done:
 	CBUF_RELEASE();
@@ -403,10 +440,8 @@ cbuf_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags
 	vaddr_t ret = (vaddr_t)NULL;
 	struct cbuf_info *cbi;
 	u32_t id;
-	int tmem;
 	
 	cbuf_unpack(cbid, &id);
-	assert(tmem == 0);
 	CBUF_TAKE();
 	cbi = cmap_lookup(&cbufs, id);
 	assert(cbi);
@@ -433,11 +468,9 @@ cbuf_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
 	int off;
 	int ret = 0;
 	u32_t id;
-	int tmem;
 	int err;
 	
 	cbuf_unpack(cbid, &id);
-	assert(tmem == 0);
 
 	assert(d_addr);
 	CBUF_TAKE();
@@ -534,7 +567,8 @@ cbuf_collect(spdid_t spdid, int size)
 	cbi = bin->c;
 	do {
 		if (!cbi) break;
-		if (!cbuf_referenced(cbi)) {
+		/*skip cbufs which are in freelist*/
+		if (!CBUF_IS_IN_FREELiST(cbi->owner.m) && !cbuf_referenced(cbi)) {
 			struct cbuf_ring_element el = { .cbid = cbi->cbid };
 			cbuf_references_clear(cbi);
 			if (!CK_RING_ENQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) break;
@@ -617,10 +651,9 @@ cbuf_retrieve(spdid_t spdid, int cbid, int size)
 	if (cbuf_map(spdid, dest, page, size, MAPPING_READ))
 		valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
 	memset(meta, 0, sizeof(struct cbuf_meta));
-	CBUF_SET_TOUCHED(meta);
-	CBUFM_SET_PTR(meta, map->addr);
+	CBUF_PTR_SET(meta, map->addr);
 	meta->sz        = cbi->size >> PAGE_ORDER;
-	meta->cbid.cbid = cbid;
+	meta->cbid_tag.cbid = cbid;
 	ret             = 0;
 done:
 	CBUF_RELEASE();

@@ -240,9 +240,9 @@ extern int  __cbuf_2buf_miss(int cbid, int len);
 extern cvect_t meta_cbuf;
 
 static inline struct cbuf_meta *
-cbuf_vect_lookup_addr(long idx)
+cbuf_vect_lookup_addr(int id)
 {
-	return cvect_lookup_addr(&meta_cbuf,  idx);
+	return cvect_lookup_addr(&meta_cbuf, cbid_to_meta_idx(id));
 }
 
 /* 
@@ -257,29 +257,27 @@ cbuf2buf(cbuf_t cb, int len)
 	u32_t id;
 	struct cbuf_meta *cm;
 	void *ret = NULL;
-	long cbidx;
 	int t;
 
 	if (unlikely(!len)) return NULL;
 	cbuf_unpack(cb, &id);
-	cbidx = cbid_to_meta_idx(id);
 again:
 	do {
-		cm = cbuf_vect_lookup_addr(cbidx);
-		if (unlikely(!cm || cm->nfo == 0)) {
+		cm = cbuf_vect_lookup_addr(id);
+		if (unlikely(!cm || CBUF_PTR(cm) == 0)) {
 			if (__cbuf_2buf_miss(id, len)) goto done;
 			goto again;
 		}
 	} while (unlikely(!cm->nfo));
 	/* shouldn't cbuf2buf your own buffer! */
-	assert(cm->cbid.cbid == id);
+	assert(cm->cbid_tag.cbid == id);
 	if (unlikely(CBUF_OWNER(cm))) goto done;
 	if (unlikely((len >> PAGE_ORDER) > cm->sz)) goto done;
-	assert(CBUFM_GET_REFCNT(cm) < CBUF_REFCNT_MAX);
-	CBUFM_INC_REFCNT(cm);
-	assert(cm->owner_nfo.c.nrecvd < CBUF_SENDRECV_MAX);
-	cm->owner_nfo.c.nrecvd++;      //???
-	ret = ((void*)(CBUFM_GET_PTR(cm) << PAGE_ORDER));
+	assert(CBUF_REFCNT(cm) < CBUF_REFCNT_MAX);
+	CBUF_REFCNT_ATOMIC_INC(cm);
+	assert(cm->snd_rcv.nrecvd < CBUF_SENDRECV_MAX);
+	CBUF_NRCV_INC(cm);      //need to be atomic???
+	ret = ((void*)CBUF_PTR(cm));
 done:	
 	return ret;
 }
@@ -304,19 +302,19 @@ __cbuf_send(cbuf_t cb, int free)
 
 	cbuf_unpack(cb, &id);
 
-	cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(id));
+	cm = cbuf_vect_lookup_addr(id);
 	assert(cm && cm->nfo);
-	assert(CBUFM_GET_REFCNT(cm));
-	assert(cm->owner_nfo.c.nsent < CBUF_SENDRECV_MAX);
+	assert(CBUF_REFCNT(cm));
+	assert(cm->snd_rcv.nsent < CBUF_SENDRECV_MAX);
 
-	cm->owner_nfo.c.nsent++;
-	if (free) CBUFM_DEC_REFCNT(cm);
+	CBUF_NSND_INC(cm);
+	if (free) CBUF_REFCNT_ATOMIC_DEC(cm);
 	/* really should deal with this case correctly */
 	assert(!CBUF_RELINQ(cm));     //???
 }
 
 static inline void
-cbuf_send_deref(cbuf_t cb)
+cbuf_send_free(cbuf_t cb)
 { __cbuf_send(cb, 1); }
 
 static inline void
@@ -350,9 +348,7 @@ __cbuf_freelist_get(int size)
 	assert(pow2(size) && size >= PAGE_SIZE);
 	assert(order >= 0 && order < WORD_SIZE-PAGE_ORDER);
 	m = &(fl->freelist_head[order]);
-	if (!CBUFM_GET_NEXT(m)) {
-		CBUFM_SET_NEXT(m, m);
-	}
+	if (unlikely(!m->next)) m->next = m;
 	return m;
 }
 
@@ -363,62 +359,47 @@ cbuf_alloc(unsigned int sz, cbuf_t *cb, int tmem)
 	int cbid, len, already_used, inconsistent, mapped_in, flags;
 	struct cbuf_meta *cm, *fl, old_head, new_head;
 	unsigned long long *target, *old, *update;
-	long cbidx;
 	sz = nlepow2(round_up_to_page(sz));
 	fl = __cbuf_freelist_get(sz);
 again:
-	target = (unsigned long long *)(&fl->next_flag);
-	old    = (unsigned long long *)(&old_head.next_flag);
-	update = (unsigned long long *)(&new_head.next_flag);
+	target = (unsigned long long *)(&fl->next);
+	old    = (unsigned long long *)(&old_head.next);
+	update = (unsigned long long *)(&new_head.next);
 	do {
-		*old   = *target;
-		cm		   = CBUFM_GET_NEXT(fl);
-		new_head.next_flag = cm->next_flag;
-		new_head.cbid.tag  = fl->cbid.tag+1;
+		*old                   = *target;
+		cm		       = fl->next;
+		new_head.next          = cm->next;
+		new_head.cbid_tag.tag  = fl->cbid_tag.tag+1;
 	} while(unlikely(!cos_dcas(target, *old, *update)));
-	if (unlikely(cm == CBUFM_GET_NEXT(cm))) {
+	if (unlikely(cm == cm->next)) {
 		cm   = __cbuf_alloc_slow(sz, &len);
 		assert(cm);
 		goto done;
-		/*
-		 * TODO: check if this cbuf has been taken by another
-		 * thd already.  shall we add this cbuf to the
-		 * freelist and just continue?
-		 */   //???
 	}
-	already_used = CBUFM_GET_REFCNT(cm);
+	already_used = CBUF_REFCNT(cm);
 	assert(!already_used);
-	inconsistent = CBUF_INCONSISENT(cm);
+	inconsistent = CBUF_INCONSISTENT(cm);
 	if (unlikely(inconsistent)) {
-		CBUFM_SET_NEXT_NULL(cm);
+		cm->next = NULL;
 		goto again;
 	}
 	unsigned int p, n;
 	p = cm->nfo;
-	n = p+CBUFM_INC_UNIT;
+	n = p+CBUF_INC_UNIT;
 	if (unlikely(!cos_cas((unsigned long *)&cm->nfo, p, n))) {
-		CBUFM_SET_NEXT_NULL(cm);
+		cm->next = NULL;
 		goto again;
 	}
-	CBUFM_SET_NEXT_NULL(cm);
-	cm->owner_nfo.c.nsent = cm->owner_nfo.c.nrecvd = 0;
-	/*if (unlikely(tmem)) {
-		cm->owner_nfo.thdid = cos_get_thd_id();
-		cos_comp_info.cos_tmem_available[COMP_INFO_TMEM_CBUF]--;
-		assert(cm->nfo.c.flags & CBUFM_TMEM);
-	} */     //???
+	cm->next = NULL;
+	cm->snd_rcv.nsent = cm->snd_rcv.nrecvd = 0;
 done:
-	if (unlikely(tmem)) CBUF_SET_TMEM(cm);
-	ret = (void *)(CBUFM_GET_PTR(cm) << PAGE_ORDER);
-	cbid = cm->cbid.cbid;
+	if (unlikely(tmem)) CBUF_FLAG_ADD(cm, CBUF_TMEM);
+	ret = (void *)(CBUF_PTR(cm));
+	cbid = cm->cbid_tag.cbid;
 	*cb = cbuf_cons(cbid);
 	return ret;
 }
 
-/* 
- * precondition:  cbuf lock must be taken.
- * postcondition: cbuf lock has been released.
- */
 static inline void
 cbuf_free(cbuf_t cb)
 {
@@ -428,36 +409,42 @@ cbuf_free(cbuf_t cb)
 	int owner, relinq = 0, tmem, inconsistent;
 	unsigned long long *target, *old, *update;
 
-	cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(id));
+	cm = cbuf_vect_lookup_addr(id);
 	/* 
 	 * If this assertion triggers, one possibility is that you did
 	 * not successfully map it in (cbufp2buf or cbufp_alloc).
 	 */
-	assert(CBUFM_GET_REFCNT(cm));
+	assert(CBUF_REFCNT(cm));
 	owner = CBUF_OWNER(cm);
 	tmem = CBUF_TMEM(cm);
-	inconsistent = CBUF_INCONSISENT(cm);
+	inconsistent = CBUF_INCONSISTENT(cm);
 	assert(!inconsistent);
-	if (tmem) {
-		assert(owner);
-		fl = __cbuf_freelist_get(cm->sz << PAGE_ORDER);
-		CBUFM_SET_NEXT(cm, CBUFM_GET_NEXT(fl));
-		cos_mem_fence();
-		CBUFM_DEC_REFCNT(cm);
-		cos_mem_fence();
-		target = (unsigned long long *)(&fl->next_flag);
-		old    = (unsigned long long *)(&head.next_flag);
-		update = (unsigned long long *)(&new_head.next_flag);
-		new_head.next_flag = cm;
-		do {
-			*old = *target;
-			new_head.cbid.tag  = fl->cbid.tag+1;
-		} while(unlikely(!cos_dcas(target, *old, *update)));
-	}
-	else CBUFM_DEC_REFCNT(cm);      
 	relinq = CBUF_RELINQ(cm);
 	/* Does the manager want the memory back? */
-	if (unlikely(relinq)) cbuf_delete(cos_spd_id(), id);	
+	if (unlikely(relinq)) {
+		CBUF_REFCNT_ATOMIC_DEC(cm);
+		cbuf_delete(cos_spd_id(), id);	
+		return ;
+	}
+	if (tmem) {
+		assert(owner);
+		fl       = __cbuf_freelist_get(cm->sz << PAGE_ORDER);
+		cm->next = fl->next;
+		cos_mem_fence();
+		CBUF_REFCNT_ATOMIC_DEC(cm);
+		cos_mem_fence();
+		target        = (unsigned long long *)(&fl->next);
+		old           = (unsigned long long *)(&head.next);
+		update        = (unsigned long long *)(&new_head.next);
+		new_head.next = cm;
+		do {
+			*old                   = *target;
+			new_head.cbid_tag.tag  = fl->cbid_tag.tag+1;
+		} while(unlikely(!cos_dcas(target, *old, *update)));
+	}
+	else {
+		CBUF_REFCNT_ATOMIC_DEC(cm);      
+	}
 	return;
 }
 

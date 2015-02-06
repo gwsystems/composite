@@ -19,10 +19,6 @@
 #include <cos_alloc.h>
 #include <valloc.h>
 
-#define CSLAB_ALLOC(sz)   alloc_page()
-#define CSLAB_FREE(x, sz) free_page(x)
-#include <cslab.h>
-
 /* 
  * All of the structures that must be compiled (only once) into each
  * component that uses cbufs.
@@ -39,8 +35,6 @@ PERCPU_VAR(cbuf_alloc_freelists);
 /*** Slow paths for each cbuf operation ***/
 
 /* 
- * Precondition: cbuf lock is taken.
- *
  * A component has tried to map a cbuf_t to a buffer, but that cbuf
  * isn't mapping into the component.  The component's cache of cbufs
  * had a miss.
@@ -61,16 +55,16 @@ __cbuf_2buf_miss(int cbid, int len)
 	 * cbids being passed to this component if they don't already
 	 * belong to the client) should fix this.
 	 */
-	mc = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid));
+	mc = cbuf_vect_lookup_addr(cbid);
 	/* ...have to expand the cbuf_vect */
 	if (unlikely(!mc)) {
 		if (cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid))) BUG();    //???
-		mc = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid));
+		mc = cbuf_vect_lookup_addr(cbid);
 		assert(mc);
 	}
 	ret = cbuf_retrieve(cos_spd_id(), cbid, len);
 	if (unlikely(ret < 0 || mc->sz < (len >> PAGE_ORDER))) return -1;
-	assert(CBUFM_GET_PTR(mc));
+	assert(CBUF_PTR(mc));
 
 	return 0;
 }
@@ -98,48 +92,44 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 			if (CK_RING_DEQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) {
 				cbid = el.cbid;
 				/* own the cbuf we just collected */
-				cm = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid));
+				cm = cbuf_vect_lookup_addr(cbid);
 				assert(cm);
-				assert(cm->cbid.cbid == cbid);
-				/* (should be atomic) */
-				CBUF_SET_TOUCHED(cm);
-				assert(CBUFM_GET_REFCNT(cm) < CBUF_REFCNT_MAX);
-				CBUFM_INC_REFCNT(cm);
+				assert(cm->cbid_tag.cbid == (unsigned)cbid);
+				assert(CBUF_REFCNT(cm) < CBUF_REFCNT_MAX);
+				CBUF_REFCNT_ATOMIC_INC(cm);
 			} else {
 				/* Someone stole the cbufs I collected! */
 				amnt = 0;
 			}
 		}
-		/* ...add the rest back into freelists. construct a temporal freelist 
+
+		/* ...add the rest back into freelists. construct a temporary freelist 
 		 * first, then add this temporal list to freelist atomically*/
 		struct cbuf_meta *meta, *tail, *head, old_head, new_head;
-		int cb, idx;
+		int cb;
 		if (CK_RING_DEQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) {
 			cb = el.cbid;
-			idx = cbid_to_meta_idx(cb);
-			assert(idx > 0);
-			head = tail = cbuf_vect_lookup_addr(idx);
-			assert(!((int)tail & CBUFM_NEXT_MASK));
+			head = tail = cbuf_vect_lookup_addr(cb);
+			assert(!tail->next);
 			for(i = 2; i < amnt; ++i) {
 				if (!CK_RING_DEQUEUE_SPSC(cbuf_ring, &csp->ring, &el)) break;
 				cb = el.cbid;
-				idx = cbid_to_meta_idx(cb);
-				assert(idx > 0);
-				meta = cbuf_vect_lookup_addr(idx);
-				assert(!((int)meta & CBUFM_NEXT_MASK));
-				CBUFM_SET_NEXT(meta, head);
+				meta = cbuf_vect_lookup_addr(cb);
+				assert(!meta->next);
+				meta->next = head;
 				head = meta;
 			}
+
 			unsigned long long *target, *old, *update;
 			meta = __cbuf_freelist_get(size);
-			CBUFM_SET_NEXT(tail, CBUFM_GET_NEXT(meta));
-			target = (unsigned long long *)(&meta->next_flag);
-			old    = (unsigned long long *)(&old_head.next_flag);
-			update = (unsigned long long *)(&new_head.next_flag);
-			new_head.next_flag = head;
+			tail->next = meta->next;
+			target = (unsigned long long *)(&meta->next);
+			old    = (unsigned long long *)(&old_head.next);
+			update = (unsigned long long *)(&new_head.next);
+			new_head.next = head;
 			do {
 				*old = *target;
-				new_head.cbid.tag = meta->cbid.tag+1;
+				new_head.cbid_tag.tag = meta->cbid_tag.tag+1;
 			} while(unlikely(!cos_dcas(target, *old, *update)));
 		}
 	}
@@ -153,9 +143,6 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 	return cbid;
 }
 
-/* 
- * Precondition: cbuf lock is taken.
- */
 struct cbuf_meta *
 __cbuf_alloc_slow(int size, int *len)
 {
@@ -174,9 +161,9 @@ __cbuf_alloc_slow(int size, int *len)
 		assert(cnt++ < 10);
 	} while (cbid < 0);
 	assert(cbid);
-	cm   = cbuf_vect_lookup_addr(cbid_to_meta_idx(cbid));
-	assert(cm && CBUFM_GET_PTR(cm));
-	assert(cm && CBUFM_GET_REFCNT(cm));
+	cm   = cbuf_vect_lookup_addr(cbid);
+	assert(cm && CBUF_PTR(cm));
+	assert(cm && CBUF_REFCNT(cm));
 done:   
 	return cm;
 }
