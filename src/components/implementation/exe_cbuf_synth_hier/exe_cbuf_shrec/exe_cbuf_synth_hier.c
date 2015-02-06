@@ -243,7 +243,7 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 			for (i = 0; i < NCBUF ; i++){
 				rdtscll(t);
 				cbt[i] = cbuf_null();
-				mt[i] = cbuf_alloc(len, &cbt[i]);
+				mt[i] = cbuf_alloc(len, &cbt[i], 1);
 			}
 //			SYNTH_RELEASE();
 			DOUTs("I am suspended :(\n");
@@ -264,9 +264,9 @@ static unsigned long do_action(unsigned long exe_time_left, const unsigned long 
 				int tmem;
 				cbt[i] = cbuf_null();
 				rdtscll(start);
-				mt[i] = cbuf_alloc(len, &cbt[i]);
+				mt[i] = cbuf_alloc(len, &cbt[i], 1);
 				rdtscll(end);
-				cbuf_unpack(cbt[i], &id, &tmem);
+				cbuf_unpack(cbt[i], &id);
 				DOUTs("alloc cbid done !%ld\n", id);
 				assert(tmem == 1);
 				memset(mt[i], 'a', len);
@@ -329,7 +329,7 @@ void cos_init()
 	cbuf_t cbt;
 	void *mt;
 	cbt = cbuf_null();
-	mt = cbuf_alloc(4095, &cbt);
+	mt = cbuf_alloc(4095, &cbt, 1);
 	cbuf_free(cbt);
 	printc("Component %ld: stack and cbuf pre_alloacated.\n", cos_spd_id());
 }

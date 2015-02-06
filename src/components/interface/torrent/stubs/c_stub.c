@@ -23,7 +23,7 @@ CSTUB_FN(td_t, tsplit)(struct usr_inv_cap *uc,
         assert(param && len >= 0);
         assert(param[len] == '\0');
 
-	d = cbuf_alloc(sz, &cb);
+	d = cbuf_alloc(sz, &cb, 1);
 	if (!d) return -6;
 
         d->tid    = tid;
@@ -59,7 +59,7 @@ CSTUB_FN(int, tmerge)(struct usr_inv_cap *uc,
         assert(param && len > 0);
 	assert(param[len-1] == '\0');
 
-	d = cbuf_alloc(sz, &cb);
+	d = cbuf_alloc(sz, &cb, 1);
 	if (!d) return -1;
 
 	d->td = td;
@@ -120,7 +120,7 @@ CSTUB_FN(int, trmeta)(struct usr_inv_cap *uc,
         assert(key && retval && klen > 0 && max_rval_len > 0);
         assert(key[klen] == '\0' && sz <= PAGE_SIZE);
 
-        d = cbuf_alloc(sz, &cb);
+        d = cbuf_alloc(sz, &cb, 1);
         if (!d) return -1;
 
         d->td = td;
@@ -160,7 +160,7 @@ CSTUB_FN(int, twmeta)(struct usr_inv_cap *uc,
         assert(key && val && klen > 0 && vlen > 0);
         assert(key[klen] == '\0' && val[vlen] == '\0' && sz <= PAGE_SIZE);
 
-        d = cbuf_alloc(sz, &cb);
+        d = cbuf_alloc(sz, &cb, 1);
         if (!d) assert(0); //return -1;
 
         d->td = td;
