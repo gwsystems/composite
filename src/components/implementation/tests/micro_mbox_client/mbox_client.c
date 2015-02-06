@@ -83,7 +83,7 @@ void cos_init(void *arg)
 			rdtscll(start);
 			d = cbuf_alloc(i*sz, &cb1, 0);
 			if (!d) goto done;
-			cbuf_send_deref(cb1);
+			cbuf_send_free(cb1);
 			rdtscll(end);
 			re_cbuf = re_cbuf+(end-start);
 			rdtscll(end);

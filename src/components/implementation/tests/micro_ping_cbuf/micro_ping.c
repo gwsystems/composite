@@ -190,12 +190,12 @@ cbufp_tests(void)
 	rdtscll(start);
 	for (i = 0 ; i < 1 ; i++) {
 		buf[i] = cbuf_alloc(MAX_SZ, &p[i], 0);
-		cbuf_send_deref(p[i]);
+		cbuf_send_free(p[i]);
 		call_cbufp2buf(p[i], MAX_SZ);
 		assert(buf[i]);
 
 		buf3[i] = cbuf_alloc(MAX_SZ*3, &p3[i], 0);
-		cbuf_send_deref(p3[i]);
+		cbuf_send_free(p3[i]);
 		call_cbufp2buf(p3[i], MAX_SZ*3);
 		assert(buf3[i]);
 	}
@@ -206,12 +206,12 @@ cbufp_tests(void)
 	rdtscll(start);
 	for (i = 1 ; i < CBUFP_NUM ; i++) {
 		buf[i] = cbuf_alloc(MAX_SZ, &p[i], 0);
-		cbuf_send_deref(p[i]);
+		cbuf_send_free(p[i]);
 		call_cbufp2buf(p[i], MAX_SZ);
 		assert(buf[i]);
 
 		buf3[i] = cbuf_alloc(MAX_SZ*3, &p3[i], 0);
-		cbuf_send_deref(p3[i]);
+		cbuf_send_free(p3[i]);
 		call_cbufp2buf(p3[i], MAX_SZ*3);
 		assert(buf3[i]);
 	}

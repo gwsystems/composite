@@ -387,7 +387,7 @@ cbuf_mark_relinquish_all(struct cbuf_comp_info *cci)
 		bin = &cci->cbufs[i];
 		cbi = bin->c;
 		do {
-			CBUF_SET_RELINQ(cbi->owner.m);
+			CBUF_FLAG_ADD(cbi->owner.m, CBUF_RELINQ);
 			cbi = FIRST_LIST(cbi, next, prev);
 		} while (cbi != bin->c);
 	}
@@ -485,7 +485,7 @@ cbuf_create(spdid_t spdid, int size, long cbid)
 	CBUF_FLAG_ADD(meta, CBUF_OWNER);
 	CBUF_PTR_SET(meta, cbi->owner.addr);
 	meta->sz        = cbi->size >> PAGE_ORDER;
-	meta->cbid.cbid = cbid;
+	meta->cbid_tag.cbid = cbid;
 	assert(CBUF_REFCNT(meta) < CBUF_REFCNT_MAX);
 	CBUF_REFCNT_ATOMIC_INC(meta);
 	ret = cbid;
@@ -505,10 +505,8 @@ cbuf_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags
 	vaddr_t ret = (vaddr_t)NULL;
 	struct cbuf_info *cbi;
 	u32_t id;
-	int tmem;
 	
 	cbuf_unpack(cbid, &id);
-	assert(tmem == 0);
 	CBUF_TAKE();
 	cbi = cmap_lookup(&cbufs, id);
 	assert(cbi);
@@ -535,11 +533,9 @@ cbuf_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
 	int off;
 	int ret = 0;
 	u32_t id;
-	int tmem;
 	int err;
 	
 	cbuf_unpack(cbid, &id);
-	assert(tmem == 0);
 
 	assert(d_addr);
 	CBUF_TAKE();
@@ -727,7 +723,7 @@ cbuf_retrieve(spdid_t spdid, int cbid, int size)
 	memset(meta, 0, sizeof(struct cbuf_meta));
 	CBUF_PTR_SET(meta, map->addr);
 	meta->sz        = cbi->size >> PAGE_ORDER;
-	meta->cbid.cbid = cbid;
+	meta->cbid_tag.cbid = cbid;
 	ret             = 0;
 done:
 	CBUF_RELEASE();

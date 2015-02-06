@@ -32,6 +32,8 @@
 #define CBUF_REFCNT_ATOMIC_DEC(meta) cos_faa((int *)(&((meta)->nfo)), CBUF_DEC_UNIT)
 #define CBUF_PTR(meta)               (((meta)->nfo)&(~CBUF_PTR_MASK))
 #define CBUF_PTR_SET(meta, v)        ((meta)->nfo |= (v))
+#define CBUF_NSND_INC(meta)          ((meta)->snd_rcv.nsent++)
+#define CBUF_NRCV_INC(meta)          ((meta)->snd_rcv.nrecvd++)
 #define CBUF_IS_MAPPED(meta)         (CBUF_PTR(meta) != 0)
 #define CBUF_IS_IN_FREELiST(meta)    ((meta)->next != NULL)
 
@@ -44,7 +46,7 @@
  * +--------------+--------+--------------------------------+ 
  *
  * Shared page between the target component, and us */
-typedef	struct spd_cbvect_range shared_component_info;
+typedef struct spd_cbvect_range shared_component_info;
 
 typedef enum {
 	/* 
@@ -78,7 +80,7 @@ struct cbuf_meta {
 	u16_t sz;			/* # of pages */
 	struct snd_rcv_info snd_rcv;
 	struct cbuf_meta *next;    /*single circular linked list*/
-	union cbid_tag cbid;
+	union cbid_tag cbid_tag;
 }__attribute__((packed));
 
 #endif /* CBUF_META_H */
