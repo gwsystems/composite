@@ -36,13 +36,11 @@ void cbuf_call(char c)
 	cbuf_t cbt[iter];
 	void *mt[iter];
 	for (i = 0; i < iter ; i++){
-		int tmem;
 		cbt[i] = cbuf_null();
-		mt[i] = cbuf_alloc(SZ, &cbt[i]);
-		cbuf_unpack(cbt[i], &id, &tmem);
+		mt[i] = cbuf_alloc(SZ, &cbt[i], 1);
+		cbuf_unpack(cbt[i], &id);
 		printc("thread %d Now @ %p, memid %x\n", cos_get_thd_id(), mt[i], id);
 		assert(mt[i]);
-		assert(tmem == 1);
 		memset(mt[i], c, SZ);
 	}
 

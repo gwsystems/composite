@@ -19,7 +19,7 @@
 #include <ck_ring.h>
 #define MBOX_BUFFER_SIZE 256
 struct cbuf_info {
-	cbufp_t cb;
+	cbuf_t cb;
 	int sz, off;
 };
 CK_RING(cbuf_info, cb_buffer);
@@ -52,9 +52,9 @@ __mbox_remove_cbufp(struct as_conn *ac)
 		void *addr;
 
 		while (CK_RING_DEQUEUE_SPSC(cb_buffer, &ac->cbs[i], &cbi)) {
-			addr = cbufp2buf(cbi.cb, cbi.sz);
+			addr = cbuf2buf(cbi.cb, cbi.sz);
 			assert(addr);
-			cbufp_deref(cbi.cb);
+			cbuf_free(cbi.cb);
 		}
 	}
 	
@@ -168,7 +168,7 @@ mbox_create_client(struct torrent *t, struct as_conn_root *acr)
 }
 
 static int
-mbox_put(struct torrent *t, cbufp_t cb, int sz, int off, int ep)
+mbox_put(struct torrent *t, cbuf_t cb, int sz, int off, int ep)
 {
 	struct as_conn *ac;
 	int other_ep = !ep;
@@ -193,7 +193,7 @@ mbox_get(struct torrent *t, int *sz, int *off, int ep)
 	struct as_conn *ac;
 	struct cbuf_info cbi;
 	int other_ep = !ep;
-	cbufp_t cb;
+	cbuf_t cb;
 
 	ac  = t->data;
 	if (!CK_RING_DEQUEUE_SPSC(cb_buffer, &ac->cbs[other_ep], &cbi)) {
@@ -349,7 +349,7 @@ tread(spdid_t spdid, td_t td, int cbid, int sz)
 int 
 treadp(spdid_t spdid, td_t td, int *off, int *sz)
 {
-	cbufp_t ret;
+	cbuf_t ret;
 	struct torrent *t;
 	struct as_conn *ac;
 
@@ -376,7 +376,7 @@ twritep(spdid_t spdid, td_t td, int cbid, int sz)
 	int ret = -1;
 	struct torrent *t;
 	struct as_conn *ac;
-	cbufp_t cb = cbid;
+	cbuf_t cb = cbid;
 
 	if (tor_isnull(td)) return -EINVAL;
 	LOCK();

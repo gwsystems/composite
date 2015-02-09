@@ -33,7 +33,7 @@ void call_cbuf3(int low, int high)
 
 	if (cos_get_thd_id() == high) rdtscll(start);
 	printv("thd %d getting cbufs\n", cos_get_thd_id());
-	mt = cbuf_alloc(sz, &cbt);
+	mt = cbuf_alloc(sz, &cbt, 1);
 	printv("thd %d got cbufs\n", cos_get_thd_id());
 	if (cos_get_thd_id() == high) {
 		rdtscll(end);

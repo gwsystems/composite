@@ -3,7 +3,6 @@
 
 #include <cos_component.h>
 #include <cos_debug.h>
-#include <cbuf_c.h>
 #include <cbuf.h>
 
 #define MAX_ARGSZ ((int)(2<<10))
@@ -22,7 +21,7 @@ initf_read(int offset, char *buf, int req_sz)
         int ret, sz = (req_sz > MAX_ARGSZ) ? MAX_ARGSZ : req_sz;
         char *d;
 
-        d = cbuf_alloc(sz, &cb);
+        d = cbuf_alloc(sz, &cb, 1);
         if (!d) assert(0);
         ret = __initf_read(offset, cb, sz);
         memcpy(buf, d, ret);
