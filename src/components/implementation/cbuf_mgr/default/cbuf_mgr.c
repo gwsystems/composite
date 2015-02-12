@@ -11,11 +11,14 @@
 #include <mem_mgr_large.h>
 #include <cbuf.h>
 #include <cbuf_mgr.h>
+#include <cinfo.h>
 #include <cos_synchronization.h>
 #include <valloc.h>
 #include <cos_alloc.h>
 #include <cmap.h>
 #include <cos_list.h>
+
+#include <stkmgr.h>
 
 /** 
  * The main data-structures tracked in this component.
@@ -83,6 +86,7 @@ struct cbuf_bin {
 
 struct cbuf_comp_info {
 	spdid_t spdid;
+	struct cos_component_information *cinfo_page;
 	struct cbuf_shared_page *csp;
 	vaddr_t dest_csp;
 	int nbin;
@@ -149,9 +153,17 @@ cbuf_meta_add(struct cbuf_comp_info *comp, u32_t cbid, struct cbuf_meta *m, vadd
 static void
 cbuf_comp_info_init(spdid_t spdid, struct cbuf_comp_info *cci)
 {
+	void *p;
 	memset(cci, 0, sizeof(*cci));
 	cci->spdid = spdid;
 	cvect_add(&components, cci, spdid);
+
+	p = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
+	if (cinfo_map(cos_spd_id(), (vaddr_t)p, spdid)) {
+		DOUT("%d: couldn't cinfo_map for %d\n", cos_spd_id(), spdid);
+		valloc_free(cos_spd_id(), spdid, p, 1);
+	}
+	cci->cinfo_page = p;
 }
 
 static struct cbuf_comp_info *
@@ -212,21 +224,28 @@ cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 {
 	void *p;
 	vaddr_t dest;
-	int ret;
+	int ret = 0;
 
 	assert(size == (int)round_to_page(size));
-	p = page_alloc(size/PAGE_SIZE);
-	assert(p);
+	p = alloc_page();
+	if (!p) goto done;
 	memset(p, 0, size);
 
 	dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, size/PAGE_SIZE);
-	assert(dest);
+	if (!dest) goto free;
 
-	ret = cbuf_map(spdid, dest, p, size, MAPPING_RW);
-	if (ret) valloc_free(cos_spd_id(), spdid, (void *)daddr, 1);
+	if (cbuf_map(spdid, dest, p, size, MAPPING_RW)) goto free;
+	goto done;
+
+free:
+	if (dest) valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
+	dest = 0;
+	free_page(p);
+	p = 0;
+	ret = -1;
+done:
 	*page  = p;
 	*daddr = dest;
-
 	return ret;
 }
 
@@ -699,6 +718,47 @@ done:
 	CBUF_RELEASE();
 	return ret;
 }
+
+/* the assembly code that invokes stkmgr expects this memory layout */
+struct cos_stk {
+	struct cos_stk *next;
+	u32_t flags;
+	u32_t thdid_owner;
+	u32_t cpu_id;
+} __attribute__((packed));
+#define D_COS_STK_ADDR(d_addr) (d_addr + PAGE_SIZE - sizeof(struct cos_stk))
+
+/* Never give up! */
+void
+stkmgr_return_stack(spdid_t s_spdid, vaddr_t addr)
+{
+	BUG();
+}
+
+/* map a stack into d_spdid.
+ * TODO: use cbufs. */
+void *
+stkmgr_grant_stack(spdid_t d_spdid)
+{
+	struct cbuf_comp_info *cci;
+	void *p;
+	vaddr_t d_addr;
+
+	printl("stkmgr_grant_stack (cbuf)\n");
+
+	CBUF_TAKE();
+	cci = cbuf_comp_info_get(d_spdid);
+	assert(cci);
+	if (!cci) goto done;
+
+	assert(!cbuf_alloc_map(d_spdid, &d_addr, (void**)&p, PAGE_SIZE));
+	cci->cinfo_page->cos_stacks.freelists[0].freelist = D_COS_STK_ADDR(d_addr);
+
+done:
+	CBUF_RELEASE();
+	return NULL;
+}
+
 
 void
 cos_init(void)
