@@ -21,5 +21,5 @@ trans_ltoc_meas.o-sm.o|fprr.o|va.o|print.o|l.o|po.o;\
 po.o-sm.o|va.o|print.o\
 " ./gen_client_stub
 
-#rfs.o-sm.o|fprr.o|print.o|mm.o|buf.o|l.o|e.o|va.o;\
-#tt.o-sm.o|fprr.o|rfs.o|buf.o|mm.o|e.o|va.o|l.o|print.o;\
+#rfs.o-sm.o|fprr.o|print.o|mm.o|cbuf.o|l.o|e.o|va.o;\
+#tt.o-sm.o|fprr.o|rfs.o|cbuf.o|mm.o|e.o|va.o|l.o|print.o;\
