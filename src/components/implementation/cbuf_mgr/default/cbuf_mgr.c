@@ -659,7 +659,7 @@ cbuf_retrieve(spdid_t spdid, int cbid, int size)
 
 	page = cbi->mem;
 	assert(page);
-	if (cbuf_map(spdid, dest, page, size, MAPPING_READ))
+	if (cbuf_map(spdid, dest, page, size, MAPPING_RW))
 		valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
 	memset(meta, 0, sizeof(struct cbuf_meta));
 	CBUF_PTR_SET(meta, map->addr);
