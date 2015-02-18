@@ -107,7 +107,7 @@ cbuf_meta_lookup_cmr(struct cbuf_comp_info *comp, u32_t cbid)
 	cmr = comp->cbuf_metas;
 	if (!cmr) return NULL;
 	do {
-		if (cmr->low_id >= cbid || CBUF_META_RANGE_HIGH(cmr) > cbid) {
+		if (cmr->low_id <= cbid && CBUF_META_RANGE_HIGH(cmr) > cbid) {
 			return cmr;
 		}
 		cmr = FIRST_LIST(cmr, next, prev);
@@ -279,6 +279,7 @@ cbuf_free_unmap(spdid_t spdid, struct cbuf_info *cbi)
 	struct cbuf_meta *in_free;
 	void *ptr = cbi->mem;
 	int off;
+	struct cbuf_comp_info *cci;
 
 	if (cbuf_referenced(cbi)) return;
 	cbuf_references_clear(cbi);
@@ -292,7 +293,7 @@ cbuf_free_unmap(spdid_t spdid, struct cbuf_info *cbi)
 		m = FIRST_LIST(m, next, prev);
 	} while (m != &cbi->owner);
 	/*this cbuf is in freelist, set it as inconsistent*/
-	if (in_free) CBUF_FLAG_REM(cbi->owner.m, CBUF_INCONSISTENT);
+	if (in_free) CBUF_FLAG_ADD(cbi->owner.m, CBUF_INCONSISTENT);
 	/* Unmap all of the pages from the clients */
 	for (off = 0 ; off < cbi->size ; off += PAGE_SIZE) {
 		mman_revoke_page(cos_spd_id(), (vaddr_t)ptr + off, 0);
@@ -302,22 +303,32 @@ cbuf_free_unmap(spdid_t spdid, struct cbuf_info *cbi)
 	 * Deallocate the virtual address in the client, and cleanup
 	 * the memory in this component
 	 */
-	m = &cbi->owner;
-	do {
+	m = FIRST_LIST(&cbi->owner, next, prev);
+	while (m != &cbi->owner) {
 		struct cbuf_maps *next;
 
 		next = FIRST_LIST(m, next, prev);
 		REM_LIST(m, next, prev);
 		valloc_free(cos_spd_id(), m->spdid, (void*)m->addr, cbi->size/PAGE_SIZE);
-		if (m != &cbi->owner) free(m);
+		free(m);
 		m = next;
-	} while (m != &cbi->owner);
-	/* this cbuf is in freelist, set it as inconsistent */
-	if (in_free) CBUF_FLAG_REM(cbi->owner.m, CBUF_INCONSISTENT);
+	}
+	valloc_free(cos_spd_id(), m->spdid, (void*)m->addr, cbi->size/PAGE_SIZE);
 
 	/* deallocate/unlink our data-structures */
 	page_free(ptr, cbi->size/PAGE_SIZE);
 	cmap_del(&cbufs, cbi->cbid);
+	cci = cbuf_comp_info_get(spdid);
+	if (unlikely(!cci)) return ;
+	bin = cbuf_comp_info_bin_get(cci, cbi->size);
+	if (EMPTY_LIST(cbi, next, prev)) {
+		bin->c = NULL;
+		cci->nbin--;
+	}
+	else {
+		if (bin->c == cbi) bin->c = cbi->next;
+		REM_LIST(cbi, next, prev);
+	}
 	free(cbi);
 }
 
@@ -648,7 +659,7 @@ cbuf_retrieve(spdid_t spdid, int cbid, int size)
 
 	page = cbi->mem;
 	assert(page);
-	if (cbuf_map(spdid, dest, page, size, MAPPING_READ))
+	if (cbuf_map(spdid, dest, page, size, MAPPING_RW))
 		valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
 	memset(meta, 0, sizeof(struct cbuf_meta));
 	CBUF_PTR_SET(meta, map->addr);
