@@ -241,16 +241,6 @@ __local_mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_
 	return d_addr;
 }
 
-static int boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci);
-static void
-comp_info_record(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci) 
-{ 
-	if (!comp_boot_nfo[spdid].symbols_initialized) {
-		comp_boot_nfo[spdid].symbols_initialized = 1;
-		boot_spd_set_symbs(h, spdid, ci);
-	}
-}
-
 static inline void boot_create_init_thds(void)
 {
 	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
@@ -276,6 +266,11 @@ boot_deps_init(void)
 	/* How many memory managers are there? */
 	for (i = 0 ; init_schedule[i] ; i++) nmmgrs += init_mem_access[i];
 	assert(nmmgrs > 0);
+}
+
+static void
+boot_deps_save_hp(spdid_t spdid, void *hp)
+{
 }
 
 static void

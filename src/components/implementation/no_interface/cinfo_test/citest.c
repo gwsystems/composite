@@ -6,29 +6,14 @@
 
 void cos_init(void)
 {
-	void *hp = cos_get_heap_ptr();
 	int i;
 
 	for (i = 0 ; i < MAX_NUM_SPDS ; i++) {
-		struct cos_component_information *ci;
 		spdid_t spdid = (spdid_t)i;
-
-		cos_set_heap_ptr((void*)(((unsigned long)hp)+PAGE_SIZE));
-		//spdid = cinfo_get_spdid(i);
-		//if (!spdid) break;
-
-		if (cinfo_map(cos_spd_id(), (vaddr_t)hp, spdid)) {
-			printc("Could not map cinfo page for %d.\n", spdid);
-			continue;
-		}
-		ci = hp;
-		printc("mapped -- id: %ld, hp:%x, sp:%x\n", 
-		       ci->cos_this_spd_id, (unsigned int)ci->cos_heap_ptr, 
-		       (unsigned int)ci->cos_stacks.freelists[0].freelist);
-
-		hp = cos_get_heap_ptr();
+		void *hp = cinfo_get_heap_pointer(cos_spd_id(), spdid);
+		printc("got heap -- id: %d, hp:%p\n", spdid, hp); 
 	}
-	printc("Done mapping components information pages!\n");
+	printc("Done getting components heap pointers!\n");
 }
 
 void bin (void)
