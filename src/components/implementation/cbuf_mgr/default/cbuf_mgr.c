@@ -11,7 +11,6 @@
 #include <mem_mgr_large.h>
 #include <cbuf.h>
 #include <cbuf_mgr.h>
-#include <cinfo.h>
 #include <cos_synchronization.h>
 #include <valloc.h>
 #include <cos_alloc.h>
@@ -86,7 +85,6 @@ struct cbuf_bin {
 
 struct cbuf_comp_info {
 	spdid_t spdid;
-	struct cos_component_information *cinfo_page;
 	struct cbuf_shared_page *csp;
 	vaddr_t dest_csp;
 	int nbin;
@@ -157,13 +155,6 @@ cbuf_comp_info_init(spdid_t spdid, struct cbuf_comp_info *cci)
 	memset(cci, 0, sizeof(*cci));
 	cci->spdid = spdid;
 	cvect_add(&components, cci, spdid);
-
-	p = valloc_alloc(cos_spd_id(), cos_spd_id(), 1);
-	if (cinfo_map(cos_spd_id(), (vaddr_t)p, spdid)) {
-		DOUT("%d: couldn't cinfo_map for %d\n", cos_spd_id(), spdid);
-		valloc_free(cos_spd_id(), spdid, p, 1);
-	}
-	cci->cinfo_page = p;
 }
 
 static struct cbuf_comp_info *
@@ -741,22 +732,21 @@ void *
 stkmgr_grant_stack(spdid_t d_spdid)
 {
 	struct cbuf_comp_info *cci;
-	void *p;
+	void *p, *ret = NULL;
 	vaddr_t d_addr;
 
 	printl("stkmgr_grant_stack (cbuf)\n");
 
 	CBUF_TAKE();
 	cci = cbuf_comp_info_get(d_spdid);
-	assert(cci);
 	if (!cci) goto done;
 
-	assert(!cbuf_alloc_map(d_spdid, &d_addr, (void**)&p, PAGE_SIZE));
-	cci->cinfo_page->cos_stacks.freelists[0].freelist = D_COS_STK_ADDR(d_addr);
+	if (cbuf_alloc_map(d_spdid, &d_addr, (void**)&p, PAGE_SIZE)) goto done;
+	ret = (void*)D_COS_STK_ADDR(d_addr);
 
 done:
 	CBUF_RELEASE();
-	return NULL;
+	return ret;
 }
 
 
