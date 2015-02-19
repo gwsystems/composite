@@ -1,8 +1,8 @@
 C_OBJS=cbuf_mgr.o
 ASM_OBJS=
 COMPONENT=cbuf.o
-INTERFACES=cbuf_mgr
-DEPENDENCIES=sched printc lock mem_mgr_large valloc
+INTERFACES=cbuf_mgr stkmgr
+DEPENDENCIES=sched printc lock mem_mgr_large valloc cinfo
 
 include ../../Makefile.subsubdir
 MANDITORY_LIB=simple_stklib.o
