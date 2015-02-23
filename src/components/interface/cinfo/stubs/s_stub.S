@@ -9,7 +9,5 @@
 
 .text	
 
-cos_asm_server_stub_spdid(cinfo_add)
-cos_asm_server_stub_spdid(cinfo_alloc_page)
-cos_asm_server_stub_spdid(cinfo_map)
-cos_asm_server_stub_spdid(cinfo_spdid)
+cos_asm_server_stub_spdid(cinfo_add_heap_pointer)
+cos_asm_server_stub_spdid(cinfo_get_heap_pointer)

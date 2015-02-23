@@ -131,10 +131,6 @@ boot_process_cinfo(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val,
 		ci->init_string[len] = '\0';
 	}
 	
-	/* save the address of this page for later retrieval
-	 * (e.g. to manipulate the stack pointer) */
-	comp_info_record(h, spdid, ci);
-	
 	return 1;
 }
 
@@ -161,6 +157,10 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	local_md[spdid].h          = h;
 	local_md[spdid].page_start = cos_get_heap_ptr();
 	local_md[spdid].comp_info  = comp_info;
+	
+	/* save the address of the heap for later retrieval */
+	boot_deps_save_hp(spdid, (void*)boot_spd_end(h));
+
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
 		int left;
@@ -229,9 +229,12 @@ boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, i
 		}
 
 		if (sect->flags & COBJ_SECT_CINFO) {
+			struct cos_component_information *ci;
 			assert(left == PAGE_SIZE);
 			assert(comp_info == dest_daddr);
-			boot_process_cinfo(h, spdid, boot_spd_end(h), start_addr + (comp_info-init_daddr), comp_info);
+			ci = (struct cos_component_information *)(start_addr + (comp_info - init_daddr));
+			boot_process_cinfo(h, spdid, boot_spd_end(h), (void*)ci, comp_info);
+			if (first_time) boot_spd_set_symbs(h, spdid, ci);
 		}
 	}
  	return 0;

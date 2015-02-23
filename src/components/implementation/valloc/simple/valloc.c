@@ -54,7 +54,6 @@ struct vas_extent {
 
 struct spd_vas_tracker {
 	spdid_t spdid;
-	struct cos_component_information *ci;
 	struct vas_extent extents[MAX_SPD_VAS_LOCATIONS];
 	/* should be an array to track more than 2^27 bytes */
 	struct spd_vas_occupied *map; 
@@ -65,7 +64,6 @@ static int __valloc_init(spdid_t spdid)
 	int ret = -1;
 	struct spd_vas_tracker *trac;
 	struct spd_vas_occupied *occ;
-	struct cos_component_information *ci;
 	unsigned long page_off;
 	void *hp;
 
@@ -76,12 +74,10 @@ static int __valloc_init(spdid_t spdid)
 	occ = alloc_page();
 	if (!occ) goto err_free1;
 	
-	ci = cos_get_vas_page();
-	if (cinfo_map(cos_spd_id(), (vaddr_t)ci, spdid)) goto err_free2;
-	hp = (void*)ci->cos_heap_ptr;
+	hp = cinfo_get_heap_pointer(cos_spd_id(), spdid);
+	if (!hp) goto err_free2;
 
         trac->spdid            = spdid;
-        trac->ci               = ci;
         trac->map              = occ;
         trac->extents[0].start = (void*)round_to_pgd_page(hp);
         trac->extents[0].end   = (void*)round_up_to_pgd_page(hp);
@@ -96,7 +92,6 @@ success:
 done:
 	return ret;
 err_free2:
-	cos_release_vas_page(ci);
 	free_page(occ);
 err_free1:
 	free(trac);
