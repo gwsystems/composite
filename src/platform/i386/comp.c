@@ -37,12 +37,12 @@ kern_boot_comp(struct spd_info *spd_info)
                 assert(!ret);
         }
 
-        kmem_base_pa = chal_va2pa(cos_kmem_base);
-        ret = retypetbl_retype2kern(kmem_base_pa);
+        kmem_base_pa     = chal_va2pa(cos_kmem_base);
+        ret              = retypetbl_retype2kern(kmem_base_pa);
         assert(ret == 0);
 
         //boot_comp_pgd = cos_kmem_base;
-        cos_kmem_base = boot_comp_pgd;
+        cos_kmem_base    = boot_comp_pgd;
         boot_comp_pte_vm = cos_kmem_base + PAGE_SIZE;
         boot_comp_pte_pm = cos_kmem_base + 2 * PAGE_SIZE;
         boot_comp_pte_km = cos_kmem_base + 3 * PAGE_SIZE;
@@ -73,9 +73,10 @@ kern_boot_comp(struct spd_info *spd_info)
         if (spd_info->mem_size % PAGE_SIZE) sys_llbooter_sz++;
 
         /* add the component's virtual memory at 4MB (1<<22) using "physical memory" starting at cos_kmem */
-        for (i = 0 ; i < sys_llbooter_sz; i++) {
+        for (i = 0 ; i < sys_llbooter_sz ; i++) {
                 u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
                 u32_t flags;
+
                 if ((addr - (u32_t)kmem_base_pa) % RETYPE_MEM_SIZE == 0) {
                         ret = retypetbl_retype2kern((void *)addr);
                         if (ret) {
@@ -96,18 +97,23 @@ kern_boot_comp(struct spd_info *spd_info)
 
         /* Round to the next memory retype region. Adjust based on
          * offset from cos_kmem_base*/
-        if ((cos_kmem - cos_kmem_base) % RETYPE_MEM_SIZE != 0)
+        if ((cos_kmem - cos_kmem_base) % RETYPE_MEM_SIZE != 0) {
                 cos_kmem += (RETYPE_MEM_SIZE - (cos_kmem - cos_kmem_base) % RETYPE_MEM_SIZE);
+	}
 
         /* add the remaining kernel memory @ 1.5GB*/
         /* printk("mapping from kmem %x\n", cos_kmem); */
-        for (i = 0; (int)i < (COS_KERNEL_MEMORY - (cos_kmem - cos_kmem_base)/PAGE_SIZE); i++) {
+	printk("How much kernel memory?: %x; adjusted: %x; cos_kmem %x, cos_kmem_base %x\n", 
+	       COS_KERNEL_MEMORY, (COS_KERNEL_MEMORY - (cos_kmem - cos_kmem_base)/PAGE_SIZE),
+	       cos_kmem, cos_kmem_base);
+        for (i = 0 ; (int)i < (COS_KERNEL_MEMORY - (cos_kmem - cos_kmem_base)/PAGE_SIZE) ; i++) {
                 u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
                 u32_t flags;
 
 		printk("pgtbl_cosframe_add(%08x, %08x, %08x, %08x)\n", pt, BOOT_MEM_KM_BASE + i*PAGE_SIZE, addr, PGTBL_COSFRAME | PGTBL_USER_DEF);
-                if (pgtbl_cosframe_add(pt, BOOT_MEM_KM_BASE + i*PAGE_SIZE,
-                                      addr, PGTBL_COSFRAME | PGTBL_USER_DEF)) cos_throw(err, -12); /* FIXME: shouldn't be accessible */
+                if (pgtbl_cosframe_add(pt, BOOT_MEM_KM_BASE + i*PAGE_SIZE, addr, PGTBL_COSFRAME | PGTBL_USER_DEF)) {
+			cos_throw(err, -12); /* FIXME: shouldn't be accessible */
+		}
                 assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_KM_BASE+i*PAGE_SIZE, &flags));
         }
 

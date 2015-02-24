@@ -14,8 +14,6 @@
 #include <inv.h>
 #include <mmap.h>
 
-void kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp);
-
 void
 khalt(void)
 {
@@ -30,7 +28,7 @@ khalt(void)
 void 
 kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 {
-	int bc = 0;
+	int bc = 0, ret;
         struct spd_info spd_info;
 
 	tss_init();
@@ -64,7 +62,8 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	paging_init(mboot->mods_count, (u32_t*)mboot->mods_addr);
 
         spd_info.mem_size = (unsigned long)mboot->size;
-	assert(kern_boot_comp(&spd_info) == 0);
+	ret = kern_boot_comp(&spd_info);
+	assert(ret == 0);
 
 	user_init();
 	khalt(); 

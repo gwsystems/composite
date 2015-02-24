@@ -30,7 +30,7 @@ unsigned long getsym(bfd *obj, char* symbol)
         storage_needed = bfd_get_symtab_upper_bound (obj);
 
         if (storage_needed <= 0){
-                printl(PRINT_DEBUG, "no symbols in object file\n");
+                printl(PRINT_HIGH, "no symbols in object file\n");
                 exit(-1);
         }
 
