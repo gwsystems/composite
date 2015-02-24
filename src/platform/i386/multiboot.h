@@ -17,6 +17,8 @@
 #define MULTIBOOT_FLAG_APM     0x200
 #define MULTIBOOT_FLAG_VBE     0x400
 
+#define MULTIBOOT_FLAGS_REQUIRED (MULTIBOOT_FLAG_MMAP | MULTIBOOT_FLAG_MODS)
+
 struct multiboot {
 	u32_t flags;
 	u32_t mem_lower;
@@ -42,14 +44,22 @@ struct multiboot {
 	u32_t vbe_interface_seg;
 	u32_t vbe_interface_off;
 	u32_t vbe_interface_len;
-} __attribute__ ((packed));
+} __attribute__((packed));
 
-typedef struct multiboot_mod_list
+struct multiboot_mod_list
 {
-       u32_t mod_start;
-       u32_t mod_end;
-       u32_t cmdline;
-       u32_t pad;
-} multiboot_module_t;
+	u32_t mod_start;
+	u32_t mod_end;
+	u32_t cmdline;
+	u32_t pad;
+};
+
+struct multiboot_mem_list
+{
+	u32_t size;
+	u64_t addr;
+	u64_t len;
+	u32_t type;
+} __attribute__((packed));
 
 #endif /* MULTIBOOT_H */

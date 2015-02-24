@@ -13,8 +13,8 @@ WARNINGS += -Wall
 WARNINGS += -Wcast-align
 WARNINGS += -Wformat=2
 WARNINGS += -Winit-self
-WARNINGS += -Wmissing-declarations
-WARNINGS += -Wmissing-prototypes
+#WARNINGS += -Wmissing-declarations
+#WARNINGS += -Wmissing-prototypes
 WARNINGS += -Wnested-externs
 WARNINGS += -Wno-system-headers
 WARNINGS += -Wold-style-definition

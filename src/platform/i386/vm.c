@@ -93,7 +93,7 @@ paging_init(u32_t nmods, u32_t *mods)
 	/* Map user modules into userspace */
 	if (nmods > 0) {
 		unsigned int j = 0;
-		multiboot_module_t *mod = (multiboot_module_t*)mods;
+		struct multiboot_mod_list *mod = (struct multiboot_mod_list *)mods;
 		u32_t module_address = 0;
 
 		for (i = 0 ; i < nmods ; i++) {
