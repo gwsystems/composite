@@ -225,8 +225,7 @@ cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 	dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, size/PAGE_SIZE);
 	if (!dest) goto free;
 
-	if (cbuf_map(spdid, dest, p, size, MAPPING_RW)) goto free;
-	goto done;
+	if (!cbuf_map(spdid, dest, p, size, MAPPING_RW)) goto done;
 
 free:
 	if (dest) valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
