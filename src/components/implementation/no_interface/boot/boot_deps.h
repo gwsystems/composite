@@ -31,9 +31,8 @@ COS_VECT_CREATE_STATIC(spd_info_addresses);
 int
 cinfo_add_heap_pointer(spdid_t spdid, spdid_t target, void *heap_pointer)
 {
-	if (cos_vect_lookup(&spd_info_addresses, target)) return -1;
-	cos_vect_add_id(&spd_info_addresses, heap_pointer, target);
-	return 0;
+	cos_vect_del(&spd_info_addresses, target);
+	return cos_vect_add_id(&spd_info_addresses, heap_pointer, target);
 }
 
 void*
