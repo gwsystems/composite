@@ -29,7 +29,7 @@ void unit_cbufp_deref(cbuf_t cbuf, int sz)
 
 int unit_cbufp_map_at(cbuf_t cbuf, int sz, spdid_t spdid, vaddr_t buf)
 {
-	vaddr_t d = cbuf_map_at(cos_spd_id(), cbuf, spdid, buf, MAPPING_RW);
+	vaddr_t d = cbuf_map_at(cos_spd_id(), cbuf, spdid, buf | MAPPING_RW);
 	if ( d != buf ) return -EINVAL;
 	return 0;
 }
