@@ -225,8 +225,7 @@ cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 	dest = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, size/PAGE_SIZE);
 	if (!dest) goto free;
 
-	if (cbuf_map(spdid, dest, p, size, MAPPING_RW)) goto free;
-	goto done;
+	if (!cbuf_map(spdid, dest, p, size, MAPPING_RW)) goto done;
 
 free:
 	if (dest) valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
@@ -456,11 +455,12 @@ free:
 }
 
 vaddr_t
-cbuf_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags)
+cbuf_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
 {
 	vaddr_t ret = (vaddr_t)NULL;
 	struct cbuf_info *cbi;
 	u32_t id;
+	int flags;
 	
 	cbuf_unpack(cbid, &id);
 	CBUF_TAKE();
@@ -468,8 +468,12 @@ cbuf_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags
 	assert(cbi);
 	if (unlikely(!cbi)) goto done;
 	assert(cbi->owner.spdid == s_spd);
-	if (valloc_alloc_at(s_spd, d_spd, (void*)d_addr, cbi->size/PAGE_SIZE)) goto done;
-	if (cbuf_map(d_spd, d_addr, cbi->mem, cbi->size, flags)) goto free;
+	// the low-order bits of the d_addr are packed with the MAPPING flags (0/1)
+	// and a flag (2) set if valloc should not be used.
+	flags = d_addr & 0x3;
+	d_addr &= ~0x3;
+	if (!(flags & 2) && valloc_alloc_at(s_spd, d_spd, (void*)d_addr, cbi->size/PAGE_SIZE)) goto done;
+	if (cbuf_map(d_spd, d_addr, cbi->mem, cbi->size, flags & (MAPPING_READ|MAPPING_RW))) goto free;
 	ret = d_addr;
 	/* do not add d_spd to the meta list because the cbuf is not
 	 * accessible directly. The s_spd must maintain the necessary info
@@ -478,7 +482,7 @@ done:
 	CBUF_RELEASE();
 	return ret;
 free:
-	//valloc_free(s_spd, d_spd, d_addr, cbi->size);
+	if (!(flags & 2)) valloc_free(s_spd, d_spd, (void*)d_addr, cbi->size);
 	goto done;
 }
 

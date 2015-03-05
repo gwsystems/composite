@@ -28,7 +28,7 @@ vaddr_t cbuf_register(spdid_t spdid, long cbid);
  * The s_spd that calls this function should ensure the memory is not freed.
  * The d_addr must be alloced with sufficient pages to contain the cbuf.
  */
-vaddr_t cbuf_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr, int flags);
+vaddr_t cbuf_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr);
 int cbuf_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr);
 
 /*

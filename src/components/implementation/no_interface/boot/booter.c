@@ -118,9 +118,9 @@ boot_process_cinfo(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val,
 	for (i = 0 ; init_args[i].spdid ; i++) {
 		char *start, *end;
 		int len;
-		
+
 		if (init_args[i].spdid != spdid) continue;
-		
+
 		start = strchr(init_args[i].init_str, '\'');
 		if (!start) break;
 		start++;
@@ -130,11 +130,11 @@ boot_process_cinfo(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val,
 		memcpy(&ci->init_string[0], start, len);
 		ci->init_string[len] = '\0';
 	}
-	
+
 	return 1;
 }
 
-static vaddr_t 
+static vaddr_t
 boot_spd_end(struct cobj_header *h)
 {
 	struct cobj_sect *sect;
@@ -142,14 +142,14 @@ boot_spd_end(struct cobj_header *h)
 
 	max_sect = h->nsect-1;
 	sect     = cobj_sect_get(h, max_sect);
-	
+
 	return sect->vaddr + round_up_to_page(sect->bytes);
 }
 
-static int 
-boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
+static int
+boot_spd_alloc_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
-	unsigned int i, use_kmem;
+	unsigned int i;
 	vaddr_t dest_daddr, prev_map = 0;
 	char *dsrc;
 
@@ -157,14 +157,47 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	local_md[spdid].h          = h;
 	local_md[spdid].page_start = cos_get_heap_ptr();
 	local_md[spdid].comp_info  = comp_info;
-	
+
 	/* save the address of the heap for later retrieval */
 	boot_deps_save_hp(spdid, (void*)boot_spd_end(h));
 
 	for (i = 0 ; i < h->nsect ; i++) {
+		struct cobj_sect *sect = cobj_sect_get(h, i);
+		int left = cobj_sect_size(h, i);
+		sect = cobj_sect_get(h, i);
+		dest_daddr = sect->vaddr;
+		if (round_to_page(dest_daddr) == prev_map) {
+			left -= (prev_map + PAGE_SIZE - dest_daddr);
+			dest_daddr = prev_map + PAGE_SIZE;
+		} 
+
+		while (left > 0) {
+			dsrc = cos_get_vas_page();
+			if ( i == 0 && left == (int)cobj_sect_size(h, 0) )
+				assert(dsrc == local_md[spdid].page_start);
+			left -= PAGE_SIZE;
+			prev_map = dest_daddr;
+			dest_daddr += PAGE_SIZE;
+		}
+	}
+	local_md[spdid].page_end = dsrc + PAGE_SIZE;
+	return 0;
+}
+
+static int
+boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
+{
+	unsigned int i, use_kmem;
+	vaddr_t dest_daddr, prev_map = 0;
+	char *dsrc;
+
+
+	dsrc = local_md[spdid].page_start;
+
+	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
 		int left;
-		
+
 		use_kmem   = 0;
 		sect       = cobj_sect_get(h, i);
 		if (sect->flags & COBJ_SECT_KMEM) use_kmem = 1;
@@ -174,9 +207,8 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		if (round_to_page(dest_daddr) == prev_map) {
 			left -= (prev_map + PAGE_SIZE - dest_daddr);
 			dest_daddr = prev_map + PAGE_SIZE;
-		} 
+		}
 		while (left > 0) {
-			dsrc = cos_get_vas_page();
 			/* TODO: if use_kmem, we should allocate
 			 * kernel-accessible memory, rather than
 			 * normal user-memory */
@@ -185,15 +217,16 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 
 			prev_map = dest_daddr;
 			dest_daddr += PAGE_SIZE;
+			dsrc       += PAGE_SIZE;
 			left       -= PAGE_SIZE;
 		}
 	}
-	local_md[spdid].page_end = dsrc + PAGE_SIZE;
+	assert(local_md[spdid].page_end == dsrc);
 
 	return 0;
 }
 
-static int 
+static int
 boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, int first_time)
 {
 	unsigned int i;
@@ -240,10 +273,10 @@ boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, i
  	return 0;
 }
 
-static int 
+static int
 boot_spd_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
-	if (boot_spd_map_memory(h, spdid, comp_info)) return -1; 
+	if (boot_spd_map_memory(h, spdid, comp_info)) return -1;
 	if (boot_spd_map_populate(h, spdid, comp_info, 1)) return -1;
 
 	return 0;
@@ -342,11 +375,7 @@ boot_find_cobjs(struct cobj_header *h, int n)
 static void 
 boot_create_system(void)
 {
-	unsigned int i, min = ~0;
-
-	for (i = 0 ; hs[i] != NULL ; i++) {
-		if (hs[i]->id < min) min = hs[i]->id;
-	}
+	unsigned int i;
 
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;
@@ -355,7 +384,7 @@ boot_create_system(void)
 		vaddr_t comp_info = 0;
 		long tot = 0;
 		int j;
-		
+
 		h = hs[i];
 		if ((spdid = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG();
 		//printc("spdid %d, h->id %d\n", spdid, h->id);
@@ -383,8 +412,17 @@ boot_create_system(void)
 			}
 		}
 		if (boot_spd_symbs(h, spdid, &comp_info))        BUG();
-		if (boot_spd_map(h, spdid, comp_info))           BUG();
-		if (cos_spd_cntl(COS_SPD_ACTIVATE, spdid, h->ncap, 0)) BUG();
+		if (boot_spd_alloc_memory(h, spdid, comp_info)) BUG();
+	}
+
+	boot_deps_save_hp(cos_spd_id(), cos_get_heap_ptr());
+	printc("booter: heap pointer now at %p\n", cos_get_heap_ptr());
+
+	for (i = 0 ; hs[i] != NULL ; i++) {
+		struct cobj_header *h = hs[i];
+		vaddr_t comp_info = local_md[h->id].comp_info;
+		if (boot_spd_map(h, h->id, comp_info))           BUG();
+		if (cos_spd_cntl(COS_SPD_ACTIVATE, h->id, h->ncap, 0)) BUG();
 	}
 
 	for (i = 0 ; hs[i] != NULL ; i++) {
@@ -402,7 +440,7 @@ boot_create_system(void)
 		h = NULL;
 		for (j = 0 ; hs[j] != NULL; j++) {
 			if (hs[j]->id == boot_sched[i]) h = hs[j];
-		}		
+		}
 		assert(h);
 		if (h->flags & COBJ_INIT_THD) boot_spd_thd(h->id);
 	}
