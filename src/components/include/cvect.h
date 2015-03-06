@@ -244,6 +244,7 @@ __cvect_expand_rec(struct cvect_intern *vi, const long id, const int depth)
 		if (vi[n & CVECT_MASK].c.next == NULL) {
 			struct cvect_intern *new = CVECT_ALLOC();
 			if (!new) return -1;
+			memset(new, 0, PAGE_SIZE);
 			vi[n & CVECT_MASK].c.next = new;
 		}
 		return __cvect_expand_rec(vi[n & CVECT_MASK].c.next, id, depth-1);

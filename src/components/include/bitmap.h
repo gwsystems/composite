@@ -220,7 +220,7 @@ bitmap_contiguous_ones(u32_t *x, int off, int extent, int max)
 		/* uncontiguous? */
 		else if (i != prev) start = i;
 		/* found an appropriate extent? */
-		else if (i-start == extent) return start;
+		else if (i-start+1 >= extent) return start;
 	}
 	return -1;
 }

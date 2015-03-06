@@ -84,6 +84,7 @@ static int __valloc_init(spdid_t spdid)
         trac->extents[0].map   = occ;
         page_off = ((unsigned long)hp - (unsigned long)round_to_pgd_page(hp))/PAGE_SIZE;
         bitmap_set_contig(&occ->pgd_occupied[0], page_off, (PGD_SIZE/PAGE_SIZE)-page_off, 1);
+        bitmap_set_contig(&occ->pgd_occupied[0], 0, page_off, 0);
 
 	cos_vect_add_id(&spd_vect, trac, spdid);
 	assert(cos_vect_lookup(&spd_vect, spdid));
