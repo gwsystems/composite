@@ -218,7 +218,7 @@ cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 	int ret = 0;
 
 	assert(size == (int)round_to_page(size));
-	p = alloc_page();
+	p = page_alloc(size/PAGE_SIZE);
 	if (!p) goto done;
 	memset(p, 0, size);
 
@@ -230,7 +230,7 @@ cbuf_alloc_map(spdid_t spdid, vaddr_t *daddr, void **page, int size)
 free:
 	if (dest) valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
 	dest = 0;
-	free_page(p);
+	page_free(p, size/PAGE_SIZE);
 	p = 0;
 	ret = -1;
 done:
