@@ -184,6 +184,24 @@ boot_spd_alloc_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	return 0;
 }
 
+static void
+boot_deps_map_pages(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages)
+{
+	char *dsrc = src_start;
+	vaddr_t dest_daddr = dest_start;
+	assert(pages > 0);
+	while (pages-- > 0) {
+		/* TODO: if use_kmem, we should allocate
+		 * kernel-accessible memory, rather than
+		 * normal user-memory */
+		if ((vaddr_t)dsrc != __local_mman_get_page(cos_spd_id(), (vaddr_t)dsrc, MAPPING_RW)) BUG();
+		if (dest_daddr != (__local_mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr, MAPPING_RW))) BUG();
+		dsrc += PAGE_SIZE;
+		dest_daddr += PAGE_SIZE;
+	}
+	return 0;
+}
+
 static int
 boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
@@ -208,17 +226,13 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 			left -= (prev_map + PAGE_SIZE - dest_daddr);
 			dest_daddr = prev_map + PAGE_SIZE;
 		}
-		while (left > 0) {
-			/* TODO: if use_kmem, we should allocate
-			 * kernel-accessible memory, rather than
-			 * normal user-memory */
-			if ((vaddr_t)dsrc != __local_mman_get_page(cos_spd_id(), (vaddr_t)dsrc, MAPPING_RW)) BUG();
-			if (dest_daddr != (__local_mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr, MAPPING_RW))) BUG();
-
+		if (left > 0) {
+			left = round_up_to_page(left);
 			prev_map = dest_daddr;
-			dest_daddr += PAGE_SIZE;
-			dsrc       += PAGE_SIZE;
-			left       -= PAGE_SIZE;
+			boot_deps_map_pages(spdid, dsrc, dest_daddr, left/PAGE_SIZE);
+			prev_map += left - PAGE_SIZE;
+			dest_daddr += left;
+			dsrc += left;
 		}
 	}
 	assert(local_md[spdid].page_end == dsrc);
