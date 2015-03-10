@@ -61,7 +61,7 @@ void cos_init(void *arg)
 	rdtscll(start);
 	for (i=1; i<=j; i++) {
 		if (i == j)    rdtscll(end);
-		d = cbuf_alloc(sz, &cb1, 0);
+		d = cbuf_alloc(sz, &cb1);
 		if (!d) goto done;
 		cbuf_send(cb1);
 		rdtscll(end);
@@ -81,7 +81,7 @@ void cos_init(void *arg)
 	for (i=1; i<=ITER; i++) {
 		for (j=0; j<num; j++) {
 			rdtscll(start);
-			d = cbuf_alloc(i*sz, &cb1, 0);
+			d = cbuf_alloc(i*sz, &cb1);
 			if (!d) goto done;
 			cbuf_send_free(cb1);
 			rdtscll(end);

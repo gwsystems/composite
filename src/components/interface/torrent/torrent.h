@@ -41,7 +41,7 @@ tread_pack(spdid_t spdid, td_t td, char *data, int len)
 	char *d;
 	int ret;
 
-	d = cbuf_alloc(len, &cb, 1);
+	d = cbuf_alloc_ext(len, &cb, CBUF_TMEM);
 	if (!d) return -1;
 
 	ret = tread(spdid, td, cb, len);
@@ -62,7 +62,7 @@ twrite_pack(spdid_t spdid, td_t td, char *data, int len)
 	char *d;
 	int ret;
 
-	d = cbuf_alloc(len, &cb, 1);
+	d = cbuf_alloc_ext(len, &cb, CBUF_TMEM);
 	if (!d) return -1;
 
 	memcpy(d, data, len);

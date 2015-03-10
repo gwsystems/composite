@@ -613,7 +613,7 @@ static int connection_get_reply(struct connection *c, char *resp, int resp_sz)
 			/* Make the request to the content
 			 * component */
 			sz         = resp_sz - used;
-			local_resp = cbuf_alloc(sz, &cb, 1);
+			local_resp = cbuf_alloc_ext(sz, &cb, CBUF_TMEM);
 			if (!local_resp) BUG();
 
 			ret = server_tread(cos_spd_id(), r->content_id, cb, sz);

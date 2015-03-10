@@ -14,7 +14,7 @@ cbuf_t unit_cbufp_alloc(int sz)
 {
 	cbuf_t cbuf;
 	char *addr;
-	addr = cbuf_alloc(sz, &cbuf, 0);
+	addr = cbuf_alloc(sz, &cbuf);
 	assert(addr);
 	assert(cbuf);
 	addr[0] = '_';

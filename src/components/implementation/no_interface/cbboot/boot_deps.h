@@ -31,7 +31,7 @@ static vaddr_t
 __local_mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 {
 	cbuf_t cbid;
-	void *caddr = cbuf_alloc(PAGE_SIZE, &cbid, 0);
+	void *caddr = cbuf_alloc(PAGE_SIZE, &cbid);
 	assert(caddr);
 	assert(index < NUM_CBBOOT_CBUFS);
 	an_array_of_cbufs[index++] = cbid; /* FIXME: track cbufs better */

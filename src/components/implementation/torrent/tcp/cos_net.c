@@ -1271,7 +1271,7 @@ static int cos_net_evt_loop(void)
 	while (1) {
 		int sz;
 
-		data = cbuf_alloc(alloc_sz, &cb, 1);
+		data = cbuf_alloc_ext(alloc_sz, &cb, CBUF_TMEM);
 		assert(data);
 		sz = parent_tread(cos_spd_id(), ip_td, cb, alloc_sz);
 		assert(sz > 0);
@@ -1300,7 +1300,7 @@ static err_t cos_net_stack_send(struct netif *ni, struct pbuf *p, struct ip_addr
 
 	assert(p && p->ref == 1);
 	assert(p->type == PBUF_RAM);
-	buff = cbuf_alloc(MTU, &cb, 1);
+	buff = cbuf_alloc_ext(MTU, &cb, CBUF_TMEM);
 	assert(buff);
 	while (p) {
 		if (p->len + tot_len > MTU) BUG();
