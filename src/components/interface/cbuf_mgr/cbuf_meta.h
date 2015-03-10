@@ -66,7 +66,11 @@ typedef enum {
 	/* 
 	 * Are we the originator for the mapping?
 	 */
-	CBUF_OWNER       = 1<<3
+	CBUF_OWNER       = 1<<3,
+	/* 
+	* Are we allocate the exact requested size
+	*/
+	CBUF_EXACTSZ     = 1<<4
 } cbuf_flags_t;
 struct snd_rcv_info{
 	u8_t nsent, nrecvd;
