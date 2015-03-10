@@ -27,25 +27,6 @@
 static cbuf_t an_array_of_cbufs[NUM_CBBOOT_CBUFS];
 static int index = 0;
 
-static vaddr_t
-__local_mman_get_page(spdid_t spd, vaddr_t addr, int flags)
-{
-	cbuf_t cbid;
-	void *caddr = cbuf_alloc(PAGE_SIZE, &cbid);
-	assert(caddr);
-	assert(index < NUM_CBBOOT_CBUFS);
-	an_array_of_cbufs[index++] = cbid; /* FIXME: track cbufs better */
-	return mman_alias_page(spd, (vaddr_t)caddr, spd, addr, flags);
-}
-
-static vaddr_t
-__local_mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_addr, int flags)
-{
-	cbuf_t cbid = an_array_of_cbufs[index-1];
-	// don't need to valloc_alloc_at(d_addr) because it is "reserved"...
-	return cbuf_map_at(s_spd, cbid, d_spd, d_addr | flags | 2);
-}
-
 #include <cinfo.h>
 #include <cos_vect.h>
 
@@ -55,19 +36,24 @@ boot_deps_init(void) { return; }
 static void
 boot_deps_map_pages(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages)
 {
-	char *dsrc = src_start;
+	cbuf_t cbid;
+	vaddr_t dsrc = (vaddr_t)src_start;
 	vaddr_t dest_daddr = dest_start;
+	char *caddr;
+	spdid_t b_spd;
+
 	assert(pages > 0);
+	caddr = cbuf_alloc_ext(pages * PAGE_SIZE, &cbid, CBUF_EXACTSZ);
+	assert(caddr);
+	an_array_of_cbufs[index++] = cbid; /* FIXME: track cbufs better */
+
+	b_spd = cos_spd_id();
 	while (pages-- > 0) {
-		/* TODO: if use_kmem, we should allocate
-		 * kernel-accessible memory, rather than
-		 * normal user-memory */
-		if ((vaddr_t)dsrc != __local_mman_get_page(cos_spd_id(), (vaddr_t)dsrc, MAPPING_RW)) BUG();
-		if (dest_daddr != (__local_mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr, MAPPING_RW))) BUG();
+		if (dsrc != (mman_alias_page(b_spd, (vaddr_t)caddr, b_spd, dsrc, MAPPING_RW))) BUG();
 		dsrc += PAGE_SIZE;
-		dest_daddr += PAGE_SIZE;
+		caddr += PAGE_SIZE;
 	}
-	return 0;
+	if (dest_daddr != (cbuf_map_at(b_spd, cbid, spdid, dest_daddr | MAPPING_RW | 2))) BUG();
 }
 
 static void
