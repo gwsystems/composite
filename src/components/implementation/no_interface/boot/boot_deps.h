@@ -48,7 +48,7 @@ boot_deps_init(void)
 }
 
 static void
-boot_deps_map_pages(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages)
+boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages, int sect_id, int sects)
 {
 	char *dsrc = src_start;
 	vaddr_t dest_daddr = dest_start;
@@ -62,7 +62,6 @@ boot_deps_map_pages(spdid_t spdid, void *src_start, vaddr_t dest_start, int page
 		dsrc += PAGE_SIZE;
 		dest_daddr += PAGE_SIZE;
 	}
-	return 0;
 }
 
 static void

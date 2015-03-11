@@ -211,7 +211,7 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		if (left > 0) {
 			left = round_up_to_page(left);
 			prev_map = dest_daddr;
-			boot_deps_map_pages(spdid, dsrc, dest_daddr, left/PAGE_SIZE);
+			boot_deps_map_sect(spdid, dsrc, dest_daddr, left/PAGE_SIZE, i, h->nsect);
 			prev_map += left - PAGE_SIZE;
 			dest_daddr += left;
 			dsrc += left;

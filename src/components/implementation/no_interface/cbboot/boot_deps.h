@@ -34,7 +34,7 @@ static void
 boot_deps_init(void) { return; }
 
 static void
-boot_deps_map_pages(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages)
+boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages, int sect_id, int sects)
 {
 	cbuf_t cbid;
 	vaddr_t dsrc = (vaddr_t)src_start;
