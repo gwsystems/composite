@@ -20,18 +20,25 @@
 /* scheduling/thread operations... */
 #define __sched_create_thread_default sched_create_thread_default
 
-/* memory operations... */
-#define CBUFS_PER_COMPONENT (1024)
-#define CBBOOT_COMPONENT_CNT (5)
-#define NUM_CBBOOT_CBUFS (CBUFS_PER_COMPONENT * CBBOOT_COMPONENT_CNT)
-static cbuf_t an_array_of_cbufs[NUM_CBBOOT_CBUFS];
-static int index = 0;
-
 #include <cinfo.h>
 #include <cos_vect.h>
 
+COS_VECT_CREATE_STATIC(spd_sect_cbufs);
+
+/* Need static storage for tracking cbufs to avoid dynamic allocation
+ * before boot_deps_map_sect finishes. Each spd has probably 12 or so
+ * sections, so one page of cbuf_t (1024 cbufs) should be enough to boot
+ * about 80 components. */
+#define CBUFS_PER_PAGE (PAGE_SIZE / sizeof(cbuf_t))
+#define SECT_CBUF_PAGES (1)
+static cbuf_t all_spd_sect_cbufs[CBUFS_PER_PAGE * SECT_CBUF_PAGES];
+static unsigned int all_cbufs_index = 0;
+
 static void
-boot_deps_init(void) { return; }
+boot_deps_init(void)
+{
+	cos_vect_init_static(&spd_sect_cbufs);
+}
 
 static void
 boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages, int sect_id, int sects)
@@ -41,11 +48,24 @@ boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages
 	vaddr_t dest_daddr = dest_start;
 	char *caddr;
 	spdid_t b_spd;
+	cbuf_t *sect_cbufs;
 
 	assert(pages > 0);
+
 	caddr = cbuf_alloc_ext(pages * PAGE_SIZE, &cbid, CBUF_EXACTSZ);
 	assert(caddr);
-	an_array_of_cbufs[index++] = cbid; /* FIXME: track cbufs better */
+
+	sect_cbufs = cos_vect_lookup(&spd_sect_cbufs, spdid);
+	if (!sect_cbufs) {
+		sect_cbufs = &all_spd_sect_cbufs[all_cbufs_index];
+		all_cbufs_index += sects;
+		if (cos_vect_add_id(&spd_sect_cbufs, sect_cbufs, spdid) < 0) BUG();
+	}
+
+	assert(sect_cbufs);
+	assert(sect_id < sects);
+	sect_cbufs[sect_id] = cbid;
+
 
 	b_spd = cos_spd_id();
 	while (pages-- > 0) {
