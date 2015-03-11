@@ -108,7 +108,7 @@ twrite(spdid_t spdid, td_t td, int cbid, int sz)
 	buf = cbuf2buf(cbid, sz);
 	if (!buf) ERR_THROW(-EINVAL, done);
 
-	nbuf = cbuf_alloc(sz, &ncbid, 1);
+	nbuf = cbuf_alloc_ext(sz, &ncbid, CBUF_TMEM);
 	assert(nbuf);
 	memcpy(nbuf, buf, sz);
 	ret = parent_twrite(cos_spd_id(), ntd, ncbid, sz);
@@ -137,7 +137,7 @@ tread(spdid_t spdid, td_t td, int cbid, int sz)
 	buf = cbuf2buf(cbid, sz);
 	if (!buf) ERR_THROW(-EINVAL, done);
 
-	nbuf = cbuf_alloc(sz, &ncbid, 1);
+	nbuf = cbuf_alloc_ext(sz, &ncbid, CBUF_TMEM);
 	assert(nbuf);
 	ret = parent_tread(cos_spd_id(), ntd, ncbid, sz);
 	if (ret < 0) goto free;

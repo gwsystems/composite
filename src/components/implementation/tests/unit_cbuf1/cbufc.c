@@ -32,7 +32,7 @@ cbuf_tests(void)
 
 	for (i = 0 ; i < MAX_CBUFS ; i++) {
 		int sz = (rand() % MAX_CBUF_SZ) + 1;
-		bufs[i] = cbuf_alloc(sz, &cbs[i], 1);
+		bufs[i] = cbuf_alloc_ext(sz, &cbs[i], CBUF_TMEM);
 		printv("UNIT TEST alloc %d -> %p\n", sz, bufs[i]);
 		assert(bufs[i]);
 		cbuf_free(cbs[i]);
@@ -42,7 +42,7 @@ cbuf_tests(void)
 	printc("UNIT TEST PASSED: alloc->dealloc\n");
 	for (i = 0 ; i < MAX_CBUFS ; i++) {
 		int sz = (rand() % MAX_CBUF_SZ) + 1;
-		bufs[i] = cbuf_alloc(sz, &cbs[i], 1);
+		bufs[i] = cbuf_alloc_ext(sz, &cbs[i], CBUF_TMEM);
 		printv("UNIT TEST alloc %d -> %p\n", sz, bufs[i]);
 		assert(bufs[i]);
 	}
@@ -55,7 +55,7 @@ cbuf_tests(void)
 
 	for (i = 0 ; i < MAX_CBUFS ; i++) {
 		int sz = (rand() % MAX_CBUF_SZ) + 1;
-		bufs[i] = cbuf_alloc(sz, &cbs[i], 1);
+		bufs[i] = cbuf_alloc_ext(sz, &cbs[i], CBUF_TMEM);
 		printv("UNIT TEST alloc %d -> %p\n", sz, bufs[i]);
 		szs[i] = sz;
 		assert(bufs[i]);

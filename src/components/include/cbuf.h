@@ -235,7 +235,7 @@ cbuf_cons(u32_t cbid)
 static inline cbuf_t cbuf_null(void)      { return 0; }
 static inline int cbuf_is_null(cbuf_t cb) { return cb == 0; }
 
-extern struct cbuf_meta * __cbuf_alloc_slow(int size, int *len);
+extern struct cbuf_meta * __cbuf_alloc_slow(int size, int *len, unsigned int flag);
 extern int  __cbuf_2buf_miss(int cbid, int len);
 extern cvect_t meta_cbuf;
 
@@ -353,12 +353,19 @@ __cbuf_freelist_get(int size)
 }
 
 static inline void *
-cbuf_alloc(unsigned int sz, cbuf_t *cb, int tmem)
+cbuf_alloc_ext(unsigned int sz, cbuf_t *cb, unsigned int flag)
 {
 	void *ret;
 	int cbid, len, already_used, inconsistent, mapped_in, flags;
 	struct cbuf_meta *cm, *fl, old_head, new_head;
 	unsigned long long *target, *old, *update;
+
+	if (unlikely(flag & CBUF_EXACTSZ)) {
+		cm   = __cbuf_alloc_slow(sz, &len, flag);
+		assert(cm);
+		goto done;
+	}
+
 	sz = nlepow2(round_up_to_page(sz));
 	fl = __cbuf_freelist_get(sz);
 again:
@@ -372,7 +379,7 @@ again:
 		new_head.cbid_tag.tag  = fl->cbid_tag.tag+1;
 	} while(unlikely(!cos_dcas(target, *old, *update)));
 	if (unlikely(cm == cm->next)) {
-		cm   = __cbuf_alloc_slow(sz, &len);
+		cm   = __cbuf_alloc_slow(sz, &len, flag);
 		assert(cm);
 		goto done;
 	}
@@ -393,11 +400,17 @@ again:
 	cm->next = NULL;
 	cm->snd_rcv.nsent = cm->snd_rcv.nrecvd = 0;
 done:
-	if (unlikely(tmem)) CBUF_FLAG_ADD(cm, CBUF_TMEM);
+	if (unlikely(flag & CBUF_TMEM)) CBUF_FLAG_ADD(cm, CBUF_TMEM);
 	ret = (void *)(CBUF_PTR(cm));
 	cbid = cm->cbid_tag.cbid;
 	*cb = cbuf_cons(cbid);
 	return ret;
+}
+
+static inline void *
+cbuf_alloc(unsigned int sz, cbuf_t *cb)
+{
+	return cbuf_alloc_ext(sz, cb, 0);
 }
 
 static inline void

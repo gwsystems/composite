@@ -12,6 +12,6 @@ void unit_cbuf(cbuf_t cbuf, int sz)
 	assert(c);
 	assert(c[0] == '_');
 
-	addr = cbuf_alloc(sz, &cb, 1);
+	addr = cbuf_alloc_ext(sz, &cb, CBUF_TMEM);
 	cbuf_free(cb);
 }

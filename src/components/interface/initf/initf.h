@@ -21,7 +21,7 @@ initf_read(int offset, char *buf, int req_sz)
         int ret, sz = (req_sz > MAX_ARGSZ) ? MAX_ARGSZ : req_sz;
         char *d;
 
-        d = cbuf_alloc(sz, &cb, 1);
+        d = cbuf_alloc_ext(sz, &cb, CBUF_TMEM);
         if (!d) assert(0);
         ret = __initf_read(offset, cb, sz);
         memcpy(buf, d, ret);

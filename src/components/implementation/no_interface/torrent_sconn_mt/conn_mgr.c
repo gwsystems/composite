@@ -193,7 +193,7 @@ from_data_new(struct tor_conn *tc)
 	while (1) {
 		int ret;
 
-		buf = cbuf_alloc(BUFF_SZ, &cb, 1);
+		buf = cbuf_alloc_ext(BUFF_SZ, &cb, CBUF_TMEM);
 		assert(buf);
 		amnt = from_tread(cos_spd_id(), from, cb, BUFF_SZ-1);
 		if (0 == amnt) break;
@@ -236,7 +236,7 @@ to_data_new(struct tor_conn *tc)
 	while (1) {
 		int ret;
 
-		if (!(buf = cbuf_alloc(BUFF_SZ, &cb, 1))) BUG();
+		if (!(buf = cbuf_alloc_ext(BUFF_SZ, &cb, CBUF_TMEM))) BUG();
 		amnt = tread(cos_spd_id(), to, cb, BUFF_SZ-1);
 		if (0 == amnt) break;
 		else if (-EPIPE == amnt) {

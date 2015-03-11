@@ -37,7 +37,7 @@ void cbuf_call(char c)
 	void *mt[iter];
 	for (i = 0; i < iter ; i++){
 		cbt[i] = cbuf_null();
-		mt[i] = cbuf_alloc(SZ, &cbt[i], 1);
+		mt[i] = cbuf_alloc_ext(SZ, &cbt[i], CBUF_TMEM);
 		cbuf_unpack(cbt[i], &id);
 		printc("thread %d Now @ %p, memid %x\n", cos_get_thd_id(), mt[i], id);
 		assert(mt[i]);

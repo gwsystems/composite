@@ -138,13 +138,11 @@ __cbufp_alloc_slow(int cbid, int size, int *len, int *error)
 		cbid = cbuf_create(cos_spd_id(), size, cbid*-1);
 		if (cbid == 0) assert(0);
 	} 
-	/* TODO update correctly */
-	*len = 1;
 	return cbid;
 }
 
 struct cbuf_meta *
-__cbuf_alloc_slow(int size, int *len)
+__cbuf_alloc_slow(int size, int *len, unsigned int flag)
 {
 	struct cbuf_meta *cm = NULL;
 	int cbid;
@@ -153,7 +151,8 @@ __cbuf_alloc_slow(int size, int *len)
 	cnt = cbid = 0;
 	do {
 		int error = 0;
-		cbid = __cbufp_alloc_slow(cbid, size, len, &error);
+		if (flag & CBUF_EXACTSZ) cbid = cbuf_create(cos_spd_id(), size, cbid*-1);
+		else                     cbid = __cbufp_alloc_slow(cbid, size, len, &error);
 		if (unlikely(error)) goto done;
 		if (cbid < 0 && cbuf_vect_expand(&meta_cbuf, cbid_to_meta_idx(cbid*-1)) < 0) goto done;
 		/* though it's possible this is valid, it probably
@@ -164,6 +163,8 @@ __cbuf_alloc_slow(int size, int *len)
 	cm   = cbuf_vect_lookup_addr(cbid);
 	assert(cm && CBUF_PTR(cm));
 	assert(cm && CBUF_REFCNT(cm));
+	/* TODO update correctly */
+	*len = 1;
 done:   
 	return cm;
 }
