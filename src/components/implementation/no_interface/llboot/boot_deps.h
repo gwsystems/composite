@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <cobj_format.h>
+
 static int 
 prints(char *s)
 {
@@ -269,17 +271,24 @@ boot_deps_init(void)
 }
 
 static void
-boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages, struct cobj_header *h, int sect_id)
+boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages, struct cobj_header *h, unsigned int sect_id)
 {
 	char *dsrc = src_start;
 	vaddr_t dest_daddr = dest_start;
+	struct cobj_sect *sect;
+	int flags;
+
+	sect = cobj_sect_get(h, sect_id);
+	if (sect->flags & COBJ_SECT_WRITE) flags = MAPPING_RW;
+	else flags = MAPPING_READ;
+
 	assert(pages > 0);
 	while (pages-- > 0) {
 		/* TODO: if use_kmem, we should allocate
 		 * kernel-accessible memory, rather than
 		 * normal user-memory */
 		if ((vaddr_t)dsrc != __local_mman_get_page(cos_spd_id(), (vaddr_t)dsrc, MAPPING_RW)) BUG();
-		if (dest_daddr != (__local_mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr, MAPPING_RW))) BUG();
+		if (dest_daddr != (__local_mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr, flags))) BUG();
 		dsrc += PAGE_SIZE;
 		dest_daddr += PAGE_SIZE;
 	}
