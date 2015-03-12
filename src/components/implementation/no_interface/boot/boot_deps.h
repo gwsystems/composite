@@ -48,7 +48,7 @@ boot_deps_init(void)
 }
 
 static void
-boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages, int sect_id, int sects)
+boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages, struct cobj_header *h, int sect_id)
 {
 	char *dsrc = src_start;
 	vaddr_t dest_daddr = dest_start;

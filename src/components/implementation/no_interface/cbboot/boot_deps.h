@@ -43,16 +43,24 @@ boot_deps_init(void)
 }
 
 static void
-boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages, int sect_id, int sects)
+boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages, struct cobj_header *h, int sect_id)
 {
-	cbuf_t cbid;
-	vaddr_t dsrc = (vaddr_t)src_start;
-	vaddr_t dest_daddr = dest_start;
+	cbuf_t cbid, *sect_cbufs;
 	char *caddr;
 	spdid_t b_spd;
-	cbuf_t *sect_cbufs;
+	vaddr_t dsrc, dest;
+	struct cobj_sect *sect;
+	int flags;
+	
+	dsrc = (vaddr_t)src_start; 
+	dest = dest_start;
+	sect = cobj_sect_get(h, sect_id);
 
 	assert(pages > 0);
+
+	if (sect->flags & COBJ_SECT_WRITE) flags = MAPPING_RW;
+	else flags = MAPPING_READ;
+	flags |= 2; /* no valloc */
 
 	caddr = cbuf_alloc_ext(pages * PAGE_SIZE, &cbid, CBUF_EXACTSZ);
 	assert(caddr);
@@ -60,15 +68,14 @@ boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages
 	sect_cbufs = cos_vect_lookup(&spd_sect_cbufs, spdid);
 	if (!sect_cbufs) {
 		sect_cbufs = &all_spd_sect_cbufs[all_cbufs_index];
-		all_cbufs_index += sects;
+		all_cbufs_index += h->nsect;
 		if (cos_vect_add_id(&spd_sect_cbufs, sect_cbufs, spdid) < 0) BUG();
-		if (cos_vect_add_id(&spd_sect_cbufs_size, sects, spdid) < 0) BUG();
+		if (cos_vect_add_id(&spd_sect_cbufs_size, h->nsect, spdid) < 0) BUG();
 	}
 
 	assert(sect_cbufs);
-	assert(sect_id < sects);
+	assert(sect_id < h->nsect);
 	sect_cbufs[sect_id] = cbid;
-
 
 	b_spd = cos_spd_id();
 	while (pages-- > 0) {
@@ -76,7 +83,7 @@ boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages
 		dsrc += PAGE_SIZE;
 		caddr += PAGE_SIZE;
 	}
-	if (dest_daddr != (cbuf_map_at(b_spd, cbid, spdid, dest_daddr | MAPPING_RW | 2))) BUG();
+	if (dest != (cbuf_map_at(b_spd, cbid, spdid, dest | flags))) BUG();
 }
 
 static void
