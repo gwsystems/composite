@@ -470,8 +470,9 @@ failure_notif_fail(spdid_t caller, spdid_t failed)
 	UNLOCK();
 }
 
+#define MAX_DEP (PAGE_SIZE/sizeof(struct deps))
 struct deps { short int client, server; };
-struct deps *deps;
+struct deps deps[MAX_DEP];
 int ndeps;
 
 int
@@ -488,7 +489,6 @@ cgraph_client(int iter)
 	return deps[iter].client;
 }
 
-#define MAX_DEP (PAGE_SIZE/sizeof(struct deps))
 int
 cgraph_add(int serv, int client)
 {
@@ -510,7 +510,7 @@ void cos_init(void)
 	h         = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj  = (int)cos_comp_info.cos_poly[1];
 
-	deps      = (struct deps *)cos_comp_info.cos_poly[2];
+	memcpy(deps, (struct deps *)cos_comp_info.cos_poly[2], PAGE_SIZE);
 	for (i = 0 ; deps[i].server ; i++) ;
 	ndeps     = i;
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
