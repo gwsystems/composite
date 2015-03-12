@@ -24,7 +24,7 @@
 #include <cos_vect.h>
 
 COS_VECT_CREATE_STATIC(spd_sect_cbufs);
-COS_VECT_CREATE_STATIC(spd_sect_cbufs_size);
+COS_VECT_CREATE_STATIC(spd_sect_cbufs_header);
 
 /* Need static storage for tracking cbufs to avoid dynamic allocation
  * before boot_deps_map_sect finishes. Each spd has probably 12 or so
@@ -39,7 +39,7 @@ static void
 boot_deps_init(void)
 {
 	cos_vect_init_static(&spd_sect_cbufs);
-	cos_vect_init_static(&spd_sect_cbufs_size);
+	cos_vect_init_static(&spd_sect_cbufs_header);
 }
 
 static void
@@ -69,7 +69,7 @@ boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages
 		sect_cbufs = &all_spd_sect_cbufs[all_cbufs_index];
 		all_cbufs_index += h->nsect;
 		if (cos_vect_add_id(&spd_sect_cbufs, sect_cbufs, spdid) < 0) BUG();
-		if (cos_vect_add_id(&spd_sect_cbufs_size, (void*)h->nsect, spdid) < 0) BUG();
+		if (cos_vect_add_id(&spd_sect_cbufs_header, h, spdid) < 0) BUG();
 	}
 
 	assert(sect_cbufs);
