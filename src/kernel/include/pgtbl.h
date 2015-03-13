@@ -232,6 +232,27 @@ extern struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
 
 int tlb_quiescence_check(u64_t timestamp);
 
+
+static inline int 
+pgtbl_quie_check(u32_t orig_v)
+{
+	livenessid_t lid;
+	u64_t ts;
+
+	if (orig_v & PGTBL_QUIESCENCE) {
+		lid = orig_v >> PGTBL_PAGEIDX_SHIFT;
+		/* An unmap happened at this vaddr before. We need to
+		 * make sure that all cores have done tlb flush before
+		 * creating new mapping. */
+		assert(lid < LTBL_ENTS);
+
+		if (ltbl_get_timestamp(lid, &ts)) return -EFAULT;
+		if (!tlb_quiescence_check(ts))    return -EQUIESCENCE;
+	}
+
+	return 0;
+}
+
 /* this works on both kmem and regular user memory: the retypetbl_ref
  * works on both. */
 static int
@@ -254,17 +275,8 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	if (orig_v & PGTBL_COSFRAME) return -EPERM;
 
 	/* Quiescence check */
-	if (orig_v & PGTBL_QUIESCENCE) {
-		/* An unmap happened at this vaddr before. We need to
-		 * make sure that all cores have done tlb flush before
-		 * creating new mapping. */
-		livenessid_t lid = orig_v >> PGTBL_PAGEIDX_SHIFT;
-		u64_t ts;
-		assert(lid < LTBL_ENTS);
-
-		if (ltbl_get_timestamp(lid, &ts)) return -EFAULT;
-		if (!tlb_quiescence_check(ts))    return -EQUIESCENCE;
-	}
+	ret = pgtbl_quie_check(orig_v);
+	if (ret) return ret;
 
 	/* ref cnt on the frame. */
 	ret = retypetbl_ref((void *)page);

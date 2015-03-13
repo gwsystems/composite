@@ -1210,6 +1210,7 @@ void wcet_test(void)
 	return;
 }
 
+#include <mem_mgr.h>
 void cos_init(void)
 {
 //	u64_t s, e;
@@ -1221,7 +1222,7 @@ void cos_init(void)
 	}
 	received[cos_cpuid()].snd_thd_created = 1;
 
-	cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid());
+//	cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid());
 
 	//init rcv thd first.
 
@@ -1261,10 +1262,26 @@ void cos_init(void)
 		printc("core %ld: exiting from ping\n", cos_cpuid());
 	}
 #else
-	pingpong();
+//	pingpong();
+	int i; 
+	printc("calling init\n");
+	call_cap(4, 0, 0, 0, 0);
+	printc("done init\n");
+	for (i = 6; i <= 12; i+=2) {
+		printc("calling cap %d\n", i);
+		call_cap(i, 0, 0, 0, 0);
+	}
+
+//	ret = printc("calling mm\n");
+//	printc("calling mm ret %d\n", ret);
 #endif
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
 
+	/* help linking. hack for now. */
+	mman_get_page(0,0,0);
+	mman_revoke_page(0,0,0);
+	mman_release_page(0,0,0);
+	mman_alias_page(0,0,0,0,0);
 	call();
 
 	return;

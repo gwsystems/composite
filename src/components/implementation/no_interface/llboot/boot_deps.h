@@ -602,6 +602,7 @@ capid_t per_core_thd_cap[NUM_CPU_COS];
 vaddr_t per_core_thd_mem[NUM_CPU_COS];
 
 #define BOOT_INIT_SCHED_COMP 2
+#define BOOT_INIT_MM_COMP 3
 
 static inline void
 boot_comp_thds_init(void)
@@ -636,6 +637,42 @@ boot_comp_thds_init(void)
 	assert(llboot->init_thd >= 0);
 }
 
+static inline void
+boot_comp_mm_init(void)
+{
+	vaddr_t memcap, kmem_cap, mm_memcap;
+	capid_t pte_cap;
+	unsigned long int n_frames;
+	int ret;
+	struct comp_cap_info *mm_comp = &comp_cap_info[BOOT_INIT_MM_COMP];
+
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
+			mm_comp->pgtbl_cap[0], mm_comp->captbl_cap[0], MM_CAPTBL_OWN_PGTBL, 0)) BUG();
+
+	n_frames = 0;
+	/* Grant the rest of the memory to the mem_mgr component. */
+	while ((memcap = get_pmem_cap())) {
+		mm_memcap = BOOT_MEM_PM_BASE + n_frames*PAGE_SIZE;
+		if ((n_frames % (PAGE_SIZE/sizeof(void*))) == 0) {
+			/* Need to expand PTE. */
+			pte_cap  = alloc_capid(CAP_PGTBL);
+			kmem_cap = get_kmem_cap();
+			/* PTE */
+			if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
+					pte_cap, BOOT_CAPTBL_SELF_PT, kmem_cap, 1))    BUG();
+			/* Construct pgtbl */
+			if (call_cap_op(mm_comp->pgtbl_cap[0], CAPTBL_OP_CONS, pte_cap, mm_memcap, 0, 0)) BUG();
+		}
+
+		n_frames++;
+		/* and grant memory cap by moving */
+		if ((ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEMMOVE,
+				       memcap, mm_comp->pgtbl_cap[0], mm_memcap, 0))) 
+			break;
+	}
+	printc("LLBooter: granted %lu pages to mem_mgr\n", n_frames);
+}
+
 static inline void 
 alloc_per_core_thd(void)
 {
@@ -657,6 +694,7 @@ boot_comp_deps_init(void)
 
 	alloc_per_core_thd();
 	boot_comp_thds_init();
+	boot_comp_mm_init();
 
 	/* How many memory managers are there? */
 	for (i = 0 ; init_schedule[i] ; i++) nmmgrs += init_mem_access[i];
@@ -953,7 +991,7 @@ void comp_deps_run_all(void)
 	sync_all();
 
 	/* PPOS test only. */
-	if (run_ppos_test()) goto done;
+//	if (run_ppos_test()) goto done;
 
 	printc("Core %ld: low-level booter switching to init thread (cap %d).\n", 
 	       cos_cpuid(), PERCPU_GET(llbooter)->init_thd);

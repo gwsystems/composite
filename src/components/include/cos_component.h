@@ -22,7 +22,7 @@ static inline int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int a
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-	__asm__ __volatile__("":::"ecx", "edx");
+//	__asm__ __volatile__("":::"ecx", "edx");
 	__asm__ __volatile__( \
 		"pushl %%ebp\n\t" \
 		"movl %%esp, %%ebp\n\t" \
@@ -42,6 +42,8 @@ static inline int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int a
 		: "=a" (ret), "=c" (fault)
 		: "a" (cap_no), "b" (arg1), "S" (arg2), "D" (arg3), "d" (arg4) \
 		: "memory", "cc");
+
+	__asm__ __volatile__("":::"eax", "ebx", "ecx", "edx", "esi", "edi");
 
 	return ret;
 }

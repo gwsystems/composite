@@ -365,6 +365,64 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 	return ret;
 }
 
+static inline int
+cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to, 
+	capid_t cap_from, capid_t capin_from)
+{
+	struct cap_header *ctto, *ctfrom;
+	int ret;
+	cap_t cap_type;
+	
+	/* printk("copy from captbl %d, cap %d to captbl %d, cap %d\n", */
+	/*        cap_from, capin_from, cap_to, capin_to); */
+	ctfrom = captbl_lkup(t, cap_from);
+	if (unlikely(!ctfrom)) return -ENOENT;
+
+	cap_type = ctfrom->type; 
+
+	if (cap_type == CAP_CAPTBL) {
+		/* no cap copy needed yet. */
+		return -EPERM;
+	} else if (cap_type == CAP_PGTBL) {
+		unsigned long *f, old_v, *moveto, old_v_to;
+		u32_t flags;
+
+		ctto = captbl_lkup(t, cap_to);
+		if (unlikely(!ctto)) return -ENOENT;
+		if (unlikely(ctto->type != cap_type)) return -EINVAL;
+		if (unlikely(((struct cap_pgtbl *)ctto)->refcnt_flags & CAP_MEM_FROZEN_FLAG)) return -EINVAL;
+		f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
+		if (!f) return -ENOENT;
+		old_v = *f;
+
+		moveto = pgtbl_lkup_pte(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, &flags);
+		if (!moveto) return -ENOENT;
+		old_v_to = *moveto;
+
+		cos_mem_fence();
+		if ((old_v & PGTBL_COSFRAME) == 0) return -EPERM;
+		if (old_v_to & (PGTBL_COSFRAME | PGTBL_PRESENT)) return -EPERM;
+		ret = pgtbl_quie_check(old_v_to);
+		if (ret) return ret;
+
+		/* valid to move. doing CAS next. */
+		ret = cos_cas(f, old_v, 0);
+		if (ret != CAS_SUCCESS) return -ECASFAIL;
+
+		ret = cos_cas(moveto, old_v_to, old_v);
+		if (ret != CAS_SUCCESS) {
+			/* FIXME: reverse if the second cas fails. We
+			 * should lock down the moveto slot first. */
+			return -ECASFAIL;
+		}
+		ret = 0;
+	} else {
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
 static int
 cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, struct cos_cpu_local_info *cos_info) 
 {
@@ -841,6 +899,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 	}
 	case CAP_PGTBL:
 	{
+		/* pgtbl_t pt = ((struct cap_pgtbl *)ch)->pgtbl; */
 		capid_t pt = cap;
 
 		switch (op) {
@@ -852,6 +911,20 @@ composite_sysenter_handler(struct pt_regs *regs)
 			vaddr_t dest_addr   = __userregs_get3(regs);
 
 			ret = cap_cpy(ct, dest_pt, dest_addr, source_pt, source_addr);
+
+			break;
+		}
+		case CAPTBL_OP_MEMMOVE:
+		{
+			/* Moves a mem frame to another pgtbl. Used to
+			 * grant frames to memory management
+			 * components.  */
+			capid_t source_pt   = pt;
+			vaddr_t source_addr = __userregs_get1(regs);
+			capid_t dest_pt     = __userregs_get2(regs);
+			vaddr_t dest_addr   = __userregs_get3(regs);
+
+			ret = cap_move(ct, dest_pt, dest_addr, source_pt, source_addr);
 
 			break;
 		}
@@ -902,10 +975,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			paddr_t frame;
 
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
-			if (ret) {
-				printk("not getting frame\n.");
-				cos_throw(err, ret);
-			}
+			if (ret) cos_throw(err, ret);
 
 			ret = retypetbl_retype2user((void *)frame);
 
@@ -932,6 +1002,21 @@ composite_sysenter_handler(struct pt_regs *regs)
 			if (ret) cos_throw(err, ret);
 
 			ret = retypetbl_retype2frame((void *)frame);
+
+			break;
+		}
+		case CAPTBL_OP_INTROSPECT:
+		{
+			vaddr_t addr = __userregs_get1(regs);
+			unsigned long *pte;
+			u32_t flags;
+
+			pte = pgtbl_lkup_pte(((struct cap_pgtbl *)ch)->pgtbl, addr, &flags);
+
+			if (pte) 
+				ret = *pte;
+			else 
+				ret = 0;
 
 			break;
 		}
