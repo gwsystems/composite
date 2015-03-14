@@ -331,7 +331,7 @@ quie_queue_balance(struct quie_queue *queue, struct glb_freelist_slab *glb_freel
 
 	head = queue->head;
 	size = head->size;
-	assert(size == round2next_pow2(head->size));
+	/* assert(size == round2next_pow2(head->size)); */
 
 	while (queue->head && (queue->n_items > QUIE_QUEUE_BALANCE_LOWER_LIMIT)) {
 		/* only return quiesced items. */
@@ -358,30 +358,33 @@ quie_queue_balance(struct quie_queue *queue, struct glb_freelist_slab *glb_freel
 		freelist->head = head;
 		freelist->n_items += return_n;
 		ck_spinlock_unlock(&(freelist->l));
+		printc("after balance local %d, glb %d\n", queue->n_items, freelist->n_items);
 	}
 
 	return 0;
 }
 
 int
-q_free(void *node, struct parsec_allocator *alloc)
+parsec_free(void *node, struct parsec_allocator *alloc)
 {
 	struct quie_mem_meta *meta;
 	struct quie_queue *queue;
 	int cpu;
 
-	if ((unsigned long)node % CACHE_LINE) return -EINVAL;
+	if (unlikely(!node || !alloc)) return -EINVAL;
+	/* if ((unsigned long)node % CACHE_LINE) return -EINVAL; */
 
 	cpu = get_cpu();
 	meta = (struct quie_mem_meta *)((unsigned long)node - sizeof(struct quie_mem_meta));
 	meta->time_deact = get_time();
+	meta->flags |= PARSEC_FLAG_DEACT;
 
 	queue = &(alloc->qwq[cpu].slab_queue[size2slab(meta->size)]);
 	quie_queue_add(queue, meta);
 	
-	if (queue->n_items >= QUIE_QUEUE_BALANCE_UPPER_LIMIT) {
-		quie_queue_balance(queue, &alloc->glb_freelist);
-	}
+	/* if (queue->n_items >= QUIE_QUEUE_BALANCE_UPPER_LIMIT) { */
+	/* 	quie_queue_balance(queue, &alloc->glb_freelist); */
+	/* } */
 	
 	return 0;
 }

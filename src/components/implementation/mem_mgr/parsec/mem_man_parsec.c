@@ -16,6 +16,8 @@
 #include <cos_config.h>
 #include <ertrie.h>
 
+#include <mem_mgr.h>
+
 int
 prints(char *str)
 {
@@ -36,6 +38,8 @@ printc(char *fmt, ...)
 
 	return ret;
 }
+
+#include "../parsec.h"
 
 static void mm_init(void);
 void call(void) { 
@@ -60,9 +64,6 @@ void call(void) {
 /* #define UNLOCK() if (cos_sched_lock_release()) assert(0); */
 #endif
 
-#include <mem_mgr.h>
-#include "../parsec.h"
-
 /***************************************************/
 /*** Data-structure for tracking physical memory ***/
 /***************************************************/
@@ -75,21 +76,26 @@ typedef struct parsec parsec_t ;
 
 struct parsec_ns {
 	/* resource table of the namespace */
-	void *tbl;
+	volatile void *tbl;
 
 	/* function pointers next */
 	void *lookup;
 	void *alloc;
 	void *free;
 	void *init;
+	/* Quiescence function. Could be different from the default,
+	 * which provides library quiescence. */
+	void *quiesce;
 
-	/* The parallel section that protects this name space. We'll
+	/* The parallel section that protects this name space. We may
 	 * alloc / free from this parsec. */
 	parsec_t ps;
 
 	/* thread / cpu mapping to private allocation queues */
 	void *ns_mapping;
-	struct parsec_allocator id_alloc;
+	/* The allocator that includes the global freelist and local
+	 * quiescence-waiting queue. */
+	struct parsec_allocator allocator;
 };
 typedef struct parsec_ns parsec_ns_t ;
 
@@ -157,14 +163,56 @@ extern struct cos_component_information cos_comp_info;
 /*** ... ***/
 /***************************************************/
 
-char frame_table[CACHE_LINE*COS_MAX_MEMORY];
-//struct frame *frames = (struct frame *)frame_table;
+char frame_table[CACHE_LINE*COS_MAX_MEMORY] CACHE_ALIGNED;
 
-static struct frame *
+struct frame *
 frame_lookup(unsigned long id) 
 {
-	char *ptr = (char *)frame_table + id * CACHE_LINE;
-	return (struct frame *)(ptr + sizeof(struct quie_mem_meta));
+	struct quie_mem_meta *meta;
+	
+	meta = (struct quie_mem_meta *)((char *)(frames_ns.tbl) + id * CACHE_LINE);
+	if (ACCESS_ONCE(meta->flags) & PARSEC_FLAG_DEACT) return 0;
+
+	return (struct frame *)((char *)meta + sizeof(struct quie_mem_meta));
+}
+
+#define TLB_QUIE_PERIOD (TLB_QUIESCENCE_CYCLES)
+/* return 0 if quiesced */
+static int 
+tlb_quiesce(quie_time_t t, int waiting)
+{
+	quie_time_t curr = get_time();
+	
+	if (unlikely(curr <= t)) return -EINVAL;
+
+	do {
+		if (curr - t > TLB_QUIE_PERIOD) return 0;
+		curr = get_time();
+	} while (waiting);
+	
+	return 1;
+}
+
+static int
+frame_quiesce(unsigned long id) 
+{
+	struct quie_mem_meta *meta;
+	frame_t *frame;
+
+	meta = (struct quie_mem_meta *)((char *)frame_table + id * CACHE_LINE);
+	frame = (struct frame *)((char *)meta + sizeof(struct quie_mem_meta));
+
+	tlb_quiesce(meta->time_deact, 1);
+	/* make sure lib quiesced as well -- very likely already. */
+	parsec_sync_quiescence(meta->time_deact, 1);
+
+	return 0;
+}
+
+static int 
+frame_free(frame_t *f) 
+{
+	return parsec_free(f, &frames_ns.allocator);
 }
 
 static void 
@@ -174,13 +222,24 @@ frame_init(void)
 	vaddr_t frame_addr = BOOT_MEM_PM_BASE;
 	frame_t *frame;
 
+
 	assert(CACHE_LINE >= (sizeof(struct quie_mem_meta) + sizeof(struct frame)));
 	assert(frame_addr % PAGE_SIZE == 0);
+
+	memset((void *)frame_table, 0, CACHE_LINE*COS_MAX_MEMORY);
+	frames_ns.tbl     = (void *)frame_table;
+	frames_ns.lookup  = frame_lookup;
+	frames_ns.quiesce = frame_quiesce;
+	frames_ns.free    = frame_free;
+
+	/* Detecting all the frames. */
+	i = 0;
 	while (1) {
 		ret = call_cap_op(MM_CAPTBL_OWN_PGTBL, CAPTBL_OP_INTROSPECT, frame_addr, 0,0,0);
-		if (ret == 0) break;
-
 		frame = frame_lookup(i);
+
+		if (!ret || !frame) break;
+
 		frame->paddr = ret & PAGE_MASK;
 		ck_spinlock_ticket_init(&(frame->frame_lock));
 		frame_addr += PAGE_SIZE;
@@ -188,12 +247,21 @@ frame_init(void)
 	}
 
 	n_frames = i;
-	frames_ns.tbl = frame_table;
-	frames_ns.lookup = frame_lookup;
+	/* Quiescence-waiting queue setting. */
+	frames_ns.allocator.qwq_min_limit = 64;
+	frames_ns.allocator.qwq_max_limit = 64 * 4;
+	frames_ns.allocator.n_local       = NUM_CPU;
+	printc("mm: got %d physical frames\n", n_frames);
+
+	return;
 
 	for (i = 0; i < n_frames; i++) {
-		
-
+		/* They'll be on the glb freelist. */
+		ret = frame_free(frame_lookup(i));
+		if (unlikely(!ret)) {
+			printc("frame free failed %d\n", ret);
+		}
+		break;
 	}
 
 }

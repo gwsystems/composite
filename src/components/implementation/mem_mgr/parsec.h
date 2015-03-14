@@ -30,6 +30,8 @@
 #define printf printc
 #endif
 
+#define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
+
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 
 #define cmm_barrier() __asm__ __volatile__ ("" : : : "memory")
@@ -47,7 +49,9 @@ typedef unsigned long long quie_time_t;
 #define CACHE_LINE 64
 #endif
 
-#define MEAS_ITER (1<<20)
+enum {
+	PARSEC_FLAG_DEACT = 1,
+};
 
 /* void * worker(void *arg); */
 
@@ -80,7 +84,7 @@ struct parsec_allocator ;
 //void *q_alloc(size_t size, const int waiting);
 void *q_alloc(size_t size, const int waiting, struct quie_queue_slab *qwq, struct glb_freelist_slab *glb_freelist);
 
-int q_free(void *node, struct parsec_allocator *alloc);
+int parsec_free(void *node, struct parsec_allocator *alloc);
 
 void *lib_exec(void *(*func)(void *), void *arg);
 
@@ -401,6 +405,8 @@ size2slab(size_t orig_size)
 
 	/* less than a cacheline uses same slab. */
 	size = round2next_pow2(orig_size) / CACHE_LINE;
+	printc("orig_size %d, size %d\n", orig_size, size);
+
 	if (orig_size < CACHE_LINE) size = 1;
 
 	for (i = 0; i < QUIE_QUEUE_N_SLAB; i++) {
