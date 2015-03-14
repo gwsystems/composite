@@ -43,7 +43,7 @@ typedef unsigned long long quie_time_t;
 
 #define MEM_SIZE (128*1024*1024)
 
-#define QUIE_QUEUE_LIMIT (1024*8)
+//#define QUIE_QUEUE_LIMIT (1024*8)
 
 #ifndef CACHE_LINE
 #define CACHE_LINE 64
@@ -73,27 +73,6 @@ void set_prio(void);
 
 void meas_sync_start(void);
 void meas_sync_end(void);
-
-int parsec_sync_quiescence(quie_time_t orig_timestamp, const int waiting);
-
-
-struct glb_freelist_slab ;
-struct quie_queue_slab ;
-struct parsec_allocator ;
-
-//void *q_alloc(size_t size, const int waiting);
-void *q_alloc(size_t size, const int waiting, struct quie_queue_slab *qwq, struct glb_freelist_slab *glb_freelist);
-
-int parsec_free(void *node, struct parsec_allocator *alloc);
-
-void *lib_exec(void *(*func)(void *), void *arg);
-
-void parsec_init(void);
-void q_debug(void);
-
-void * timer_update(void *arg);
-
-void * worker(void *arg);
 
 #define PACKED __attribute__((packed))
 
@@ -175,8 +154,6 @@ struct percpu_info {
 	char __padding[CACHE_LINE*2 - ((sizeof(struct other_cpu)*NUM_CPU) % CACHE_LINE)];
 } CACHE_ALIGNED PACKED;
 
-struct percpu_info timing_info[NUM_CPU] CACHE_ALIGNED;
-
 struct global_timestamp {
 	quie_time_t ts;
 	char __padding[CACHE_LINE*2 - sizeof(quie_time_t)];
@@ -237,28 +214,6 @@ get_time(void)
 
 #define TS_GRANULARITY (2000)
 
-static inline void
-timing_update_remote(struct percpu_info *curr, int remote_cpu)
-{
-	struct quiescence_timing *cpu_i;
-	cpu_i = &timing_info[remote_cpu].timing;
-
-	curr->timing_others[remote_cpu].time_in  = cpu_i->time_in;
-	curr->timing_others[remote_cpu].time_out = cpu_i->time_out;
-
-	/* We are reading remote cachelines possibly, so this time
-	 * stamp reading cost is fine. */
-	curr->timing_others[remote_cpu].time_updated = get_time();
-
-	/* If remote core has information that can help, use it. */
-	if (curr->timing.last_known_quiescence < cpu_i->last_known_quiescence)
-		curr->timing.last_known_quiescence = cpu_i->last_known_quiescence;
-
-	cos_mem_fence();
-
-	return;
-}
-
 /********************************************************/
 
 struct quie_mem_meta {
@@ -270,7 +225,7 @@ struct quie_mem_meta {
 	/* char __padding[CACHE_LINE - sizeof(quie_time_t) - sizeof(void *)  */
 	/* 	       - sizeof(struct quie_mem_meta *)- sizeof(size_t)]; */
 } ;
-
+typedef struct quie_mem_meta quie_meta_t;
 static inline unsigned int 
 round2next_pow2(unsigned int v) 
 {
@@ -331,7 +286,56 @@ struct parsec_allocator {
 	unsigned int qwq_min_limit;
 	/* threshold of when to return to global freelist */
 	unsigned int qwq_max_limit;
+
+	/* Quiescence function. Could be different from the default,
+	 * which provides library quiescence. */
+	void *quiesce;
 };
+
+struct parsec {
+	struct percpu_info timing_info[NUM_CPU] CACHE_ALIGNED;
+	struct parsec_allocator mem;
+} CACHE_ALIGNED;
+typedef struct parsec parsec_t ;
+
+struct parsec_ns {
+	/* resource table of the namespace */
+	volatile void *tbl;
+
+	/* function pointers next */
+	void *lookup;
+	void *alloc;
+	void *free;
+	void *init;
+
+	/* The parallel section that protects this name space. We may
+	 * alloc / free from this parsec. */
+	parsec_t ps;
+
+	/* thread / cpu mapping to private allocation queues */
+	void *ns_mapping;
+	/* The allocator that includes the global freelist and local
+	 * quiescence-waiting queue. */
+	struct parsec_allocator allocator;
+};
+typedef struct parsec_ns parsec_ns_t ;
+
+int parsec_sync_quiescence(quie_time_t orig_timestamp, const int waiting, parsec_t *p);
+
+//void *q_alloc(size_t size, const int waiting);
+//void *q_alloc(size_t size, const int waiting, struct quie_queue_slab *qwq, struct glb_freelist_slab *glb_freelist);
+void *parsec_alloc(size_t size, struct parsec_allocator *alloc, const int waiting);
+
+int parsec_free(void *node, struct parsec_allocator *alloc);
+
+void *lib_exec(void *(*func)(void *), void *arg, parsec_t *p);
+
+void parsec_init(parsec_t *p);
+void q_debug(void);
+
+void * timer_update(void *arg);
+void * worker(void *arg);
+
 
 /* used to add free item to the head */
 static inline void
@@ -422,24 +426,27 @@ size2slab(size_t orig_size)
 	return i;
 }
 
-//#define QUIE_QUEUE_LIMIT (256)
 /* return free mem to global when balance limit */
-#define QUIE_QUEUE_BALANCE_UPPER_LIMIT (QUIE_QUEUE_LIMIT * 4)
-#define QUIE_QUEUE_BALANCE_LOWER_LIMIT (QUIE_QUEUE_LIMIT * 2)
+//#define QUIE_QUEUE_BALANCE_UPPER_LIMIT (QUIE_QUEUE_LIMIT * 4)
+//#define QUIE_QUEUE_BALANCE_LOWER_LIMIT (QUIE_QUEUE_LIMIT * 2)
+
+int glb_freelist_add(void *item, struct parsec_allocator *alloc);
 
 static inline int 
-glb_freelist_get(struct quie_queue *queue, size_t size, struct glb_freelist_slab *glb_freelist)
+glb_freelist_get(struct quie_queue *queue, size_t size, struct parsec_allocator *alloc)
 {
 	struct quie_mem_meta *next, *head, *last;
 	struct freelist *freelist;
+	struct glb_freelist_slab *glb_freelist;
 	int i;
 
+	glb_freelist = &alloc->glb_freelist;
 	freelist = &glb_freelist->slab_freelists[size2slab(size)];
 
 	ck_spinlock_lock(&freelist->l);
 	head = last = next = freelist->head;
 
-	for (i = 0; i < QUIE_QUEUE_LIMIT && next; i++) {
+	for (i = 0; ((unsigned long)i < alloc->qwq_min_limit) && next; i++) {
 		last = next;
 		next = last->next;
 	}
@@ -459,6 +466,8 @@ glb_freelist_get(struct quie_queue *queue, size_t size, struct glb_freelist_slab
 
 		if (queue->tail == NULL) queue->tail = last;
 	}
+
+	printc("glb get, %d %d\n", queue->n_items, freelist->n_items);
 
 	return i;
 }

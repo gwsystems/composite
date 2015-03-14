@@ -68,37 +68,6 @@ void call(void) {
 /*** Data-structure for tracking physical memory ***/
 /***************************************************/
 
-struct parsec {
-	struct percpu_info timing_info[NUM_CPU] CACHE_ALIGNED;
-	struct parsec_allocator mem;
-} CACHE_ALIGNED;
-typedef struct parsec parsec_t ;
-
-struct parsec_ns {
-	/* resource table of the namespace */
-	volatile void *tbl;
-
-	/* function pointers next */
-	void *lookup;
-	void *alloc;
-	void *free;
-	void *init;
-	/* Quiescence function. Could be different from the default,
-	 * which provides library quiescence. */
-	void *quiesce;
-
-	/* The parallel section that protects this name space. We may
-	 * alloc / free from this parsec. */
-	parsec_t ps;
-
-	/* thread / cpu mapping to private allocation queues */
-	void *ns_mapping;
-	/* The allocator that includes the global freelist and local
-	 * quiescence-waiting queue. */
-	struct parsec_allocator allocator;
-};
-typedef struct parsec_ns parsec_ns_t ;
-
 struct mapping {
 	int flags;
 	vaddr_t addr;
@@ -117,7 +86,7 @@ struct frame {
 typedef struct frame frame_t ;
 
 parsec_ns_t comp CACHE_ALIGNED;
-parsec_ns_t frames_ns CACHE_ALIGNED;
+parsec_ns_t frame_ns CACHE_ALIGNED;
 parsec_ns_t kern_frames CACHE_ALIGNED;
 parsec_t mm CACHE_ALIGNED;
 
@@ -163,14 +132,14 @@ extern struct cos_component_information cos_comp_info;
 /*** ... ***/
 /***************************************************/
 
-char frame_table[CACHE_LINE*COS_MAX_MEMORY] CACHE_ALIGNED;
+char frame_table[CACHE_LINE*COS_MAX_MEMORY] PAGE_ALIGNED;
 
 struct frame *
 frame_lookup(unsigned long id) 
 {
 	struct quie_mem_meta *meta;
 	
-	meta = (struct quie_mem_meta *)((char *)(frames_ns.tbl) + id * CACHE_LINE);
+	meta = (struct quie_mem_meta *)((char *)(frame_ns.tbl) + id * CACHE_LINE);
 	if (ACCESS_ONCE(meta->flags) & PARSEC_FLAG_DEACT) return 0;
 
 	return (struct frame *)((char *)meta + sizeof(struct quie_mem_meta));
@@ -190,21 +159,15 @@ tlb_quiesce(quie_time_t t, int waiting)
 		curr = get_time();
 	} while (waiting);
 	
-	return 1;
+	return -1;
 }
 
 static int
-frame_quiesce(unsigned long id) 
+frame_quiesce(quie_time_t t, int waiting)
 {
-	struct quie_mem_meta *meta;
-	frame_t *frame;
-
-	meta = (struct quie_mem_meta *)((char *)frame_table + id * CACHE_LINE);
-	frame = (struct frame *)((char *)meta + sizeof(struct quie_mem_meta));
-
-	tlb_quiesce(meta->time_deact, 1);
+	tlb_quiesce(t, waiting);
 	/* make sure lib quiesced as well -- very likely already. */
-	parsec_sync_quiescence(meta->time_deact, 1);
+	parsec_sync_quiescence(t, waiting, &mm);
 
 	return 0;
 }
@@ -212,7 +175,15 @@ frame_quiesce(unsigned long id)
 static int 
 frame_free(frame_t *f) 
 {
-	return parsec_free(f, &frames_ns.allocator);
+	return parsec_free(f, &(frame_ns.allocator));
+}
+
+struct frame *
+frame_alloc(void)
+{
+	/* The size (1st argument) is meaningless here. We are
+	 * allocating a page. */
+	return parsec_alloc(0, &(frame_ns.allocator), 1);
 }
 
 static void 
@@ -222,15 +193,15 @@ frame_init(void)
 	vaddr_t frame_addr = BOOT_MEM_PM_BASE;
 	frame_t *frame;
 
-
 	assert(CACHE_LINE >= (sizeof(struct quie_mem_meta) + sizeof(struct frame)));
 	assert(frame_addr % PAGE_SIZE == 0);
 
 	memset((void *)frame_table, 0, CACHE_LINE*COS_MAX_MEMORY);
-	frames_ns.tbl     = (void *)frame_table;
-	frames_ns.lookup  = frame_lookup;
-	frames_ns.quiesce = frame_quiesce;
-	frames_ns.free    = frame_free;
+	frame_ns.tbl     = (void *)frame_table;
+	frame_ns.lookup  = frame_lookup;
+	frame_ns.alloc   = frame_alloc;
+	frame_ns.free    = frame_free;
+	frame_ns.allocator.quiesce = frame_quiesce;
 
 	/* Detecting all the frames. */
 	i = 0;
@@ -248,22 +219,37 @@ frame_init(void)
 
 	n_frames = i;
 	/* Quiescence-waiting queue setting. */
-	frames_ns.allocator.qwq_min_limit = 64;
-	frames_ns.allocator.qwq_max_limit = 64 * 4;
-	frames_ns.allocator.n_local       = NUM_CPU;
-	printc("mm: got %d physical frames\n", n_frames);
-
-	return;
+	frame_ns.allocator.qwq_min_limit = 64;
+	frame_ns.allocator.qwq_max_limit = 64 * 4;
+	frame_ns.allocator.n_local       = NUM_CPU;
 
 	for (i = 0; i < n_frames; i++) {
 		/* They'll be on the glb freelist. */
-		ret = frame_free(frame_lookup(i));
-		if (unlikely(!ret)) {
-			printc("frame free failed %d\n", ret);
-		}
-		break;
+		frame = frame_lookup(i);
+//		printc("%d frame %x\n", i, frame->paddr);
+		ret = glb_freelist_add(frame, &(frame_ns.allocator));
+		assert(ret == 0);
 	}
 
+	printc("Mem_mgr: initialized %d physical frames\n", n_frames);
+
+	///////////////////
+	/* struct frame *new[64]; */
+	/* for (i = 0; i < 64; i++) { */
+	/* 	new[i] = frame_alloc(); */
+	/* 	if (new[i]) { */
+	/* 		printc("%d: new @ %p, paddr %x\n", i, new[i], new[i]->paddr); */
+	/* 		frame_free(new[i]); */
+	/* 	} else printc("got nothing %d...\n", i); */
+	/* } */
+
+	/* new[0] = frame_alloc(); */
+	/* if (new[0])  */
+	/* 	printc("last new @ %p, paddr %x\n", new[0], new[0]->paddr); */
+	/* else  */
+	/* 	printc("got nothing %d...\n", i); */
+
+	return;
 }
 
 static void
@@ -277,6 +263,7 @@ mm_init(void)
 		BUG();
 	}
 
+	parsec_init(&mm);
 	frame_init();
 
 	/* printc("core %ld: mm init as thread %d\n", cos_cpuid(), cos_get_thd_id()); */

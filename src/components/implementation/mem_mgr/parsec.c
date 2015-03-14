@@ -62,17 +62,20 @@ volatile unsigned long n_cacheline = 0;
 /* } */
 
 static inline void 
-quie_queue_fill(struct quie_queue *queue, size_t size, struct glb_freelist_slab *glb_freelist)
+quie_queue_fill(struct quie_queue *queue, size_t size, struct parsec_allocator *alloc)
 {
 	int i, diff;
 	struct quie_mem_meta *meta;
+	struct glb_freelist_slab *glb_freelist;
+
+	glb_freelist = &alloc->glb_freelist;
 
 	/* try freelist first -- the items are added to the
 	 * quie waiting queue. */
 
-	glb_freelist_get(queue, size, glb_freelist);
+	glb_freelist_get(queue, size, alloc);
 
-	diff = QUIE_QUEUE_LIMIT - queue->n_items;
+	diff = alloc->qwq_min_limit - queue->n_items;
 	/* printf("fill %d to %d\n", queue->n_items, QUIE_QUEUE_LIMIT); */
 
 	/* for (i = 0; i < diff; i++) { */
@@ -99,8 +102,30 @@ in_lib(struct quiescence_timing *timing)
 	return 1;
 }
 
+static inline void
+timing_update_remote(struct percpu_info *curr, int remote_cpu, parsec_t *parsec)
+{
+	struct quiescence_timing *cpu_i;
+	cpu_i = &(parsec->timing_info[remote_cpu].timing);
+
+	curr->timing_others[remote_cpu].time_in  = cpu_i->time_in;
+	curr->timing_others[remote_cpu].time_out = cpu_i->time_out;
+
+	/* We are reading remote cachelines possibly, so this time
+	 * stamp reading cost is fine. */
+	curr->timing_others[remote_cpu].time_updated = get_time();
+
+	/* If remote core has information that can help, use it. */
+	if (curr->timing.last_known_quiescence < cpu_i->last_known_quiescence)
+		curr->timing.last_known_quiescence = cpu_i->last_known_quiescence;
+
+	cos_mem_fence();
+
+	return;
+}
+
 int 
-parsec_sync_quiescence(quie_time_t orig_timestamp, const int waiting)
+parsec_sync_quiescence(quie_time_t orig_timestamp, const int waiting, parsec_t *parsec)
 {
 	int inlib_curr, quie_cpu, curr_cpu, first_try, i, done_i;
 	quie_time_t min_known_quie;
@@ -113,7 +138,7 @@ parsec_sync_quiescence(quie_time_t orig_timestamp, const int waiting)
 
 	curr_cpu  = get_cpu();
 
-	cpuinfo = &timing_info[curr_cpu];
+	cpuinfo = &(parsec->timing_info[curr_cpu]);
 	timing_local = &cpuinfo->timing;
 
 	inlib_curr = in_lib(timing_local);
@@ -164,7 +189,7 @@ parsec_sync_quiescence(quie_time_t orig_timestamp, const int waiting)
 			if (!waiting) return -1;
 		}
 
-		timing_update_remote(cpuinfo, quie_cpu);
+		timing_update_remote(cpuinfo, quie_cpu, parsec);
 
 		goto re_check;
 	}
@@ -190,28 +215,31 @@ parsec_sync_quiescence(quie_time_t orig_timestamp, const int waiting)
 
 /* force waiting for quiescence */
 int 
-parsec_quiescence_wait(quie_time_t orig_timestamp)
+parsec_quiescence_wait(quie_time_t orig_timestamp, parsec_t *p)
 {
 	/* waiting for quiescence if needed. */
-	return parsec_sync_quiescence(orig_timestamp, 1);
+	return parsec_sync_quiescence(orig_timestamp, 1, p);
 }
 
 int 
-parsec_quiescence_check(quie_time_t orig_timestamp)
+parsec_quiescence_check(quie_time_t orig_timestamp, parsec_t *p)
 {
 	/* non-waiting */
-	return parsec_sync_quiescence(orig_timestamp, 0);
+	return parsec_sync_quiescence(orig_timestamp, 0, p);
 }
 
 static inline struct quie_mem_meta *
-quie_queue_alloc(struct quie_queue *queue, const int waiting)
+quie_queue_alloc(struct quie_queue *queue, struct parsec_allocator *alloc, const int waiting)
 {
 	struct quie_mem_meta *ret, *head;
+	int (*quie_fn)(quie_time_t, int);
+
+	quie_fn = (int (*)(quie_time_t, int))alloc->quiesce;
 
 	head = queue->head;
 	if (!head) return NULL;
 
-	if (parsec_sync_quiescence(head->time_deact, waiting)) {
+	if (quie_fn(head->time_deact, waiting)) {
 //		printf("Quiescence waiting error\n");
 		return NULL;
 	}
@@ -241,30 +269,35 @@ quie_queue_alloc(struct quie_queue *queue, const int waiting)
 /* } */
 
 void *
-q_alloc(size_t size, const int waiting, struct quie_queue_slab *qwq, struct glb_freelist_slab *glb_freelist)
+parsec_alloc(size_t size, struct parsec_allocator *alloc, const int waiting)
 {
 	/* try free-list first */
 	struct quie_queue *queue;
 	struct quie_mem_meta *meta = NULL;
+	struct quie_queue_slab *qwq;
+	struct glb_freelist_slab *glb_freelist;
 	int cpu, slab_id;
 
 	cpu = get_cpu();
 	slab_id = size2slab(size);
 	assert(slab_id < QUIE_QUEUE_N_SLAB);
 
+	qwq = alloc->qwq;
+	glb_freelist = &(alloc->glb_freelist);
+
 	queue = &(qwq[cpu].slab_queue[slab_id]);
 //	printf("cpu %d, queue %p\n", cpu, queue);
 
-	if (queue->n_items < QUIE_QUEUE_LIMIT) {
+	if (queue->n_items < alloc->qwq_min_limit) {
 		/* This will add items (new or from global freelist)
 		 * onto quie_queue if possible. */
-		quie_queue_fill(queue, size, glb_freelist);
+		quie_queue_fill(queue, size, alloc);
 	}
 
-	if (queue->n_items >= QUIE_QUEUE_LIMIT) {
+	if (queue->n_items >= alloc->qwq_min_limit) {
 		/* Ensure the minimal amount of items on the
 		 * quiescence queue. */
-		meta = quie_queue_alloc(queue, waiting);
+		meta = quie_queue_alloc(queue, alloc, waiting);
 	}
 
 	if (!meta) {
@@ -277,7 +310,7 @@ q_alloc(size_t size, const int waiting, struct quie_queue_slab *qwq, struct glb_
 }
 
 void 
-lib_enter(void) 
+lib_enter(parsec_t *parsec) 
 {
 	int curr_cpu;
 	quie_time_t curr_time;
@@ -286,7 +319,7 @@ lib_enter(void)
 	curr_cpu  = get_cpu();
 	curr_time = get_time();
 
-	timing = &timing_info[curr_cpu].timing;
+	timing = &(parsec->timing_info[curr_cpu].timing);
 	timing->time_in = curr_time;
 	
 	/* Following is needed when we have coarse granularity
@@ -300,13 +333,13 @@ lib_enter(void)
 }
 
 void 
-lib_exit(void) 
+lib_exit(parsec_t *parsec) 
 {
 	int curr_cpu;
 	struct quiescence_timing *timing;
 	
 	curr_cpu = get_cpu();
-	timing = &timing_info[curr_cpu].timing;
+	timing = &(parsec->timing_info[curr_cpu].timing);
 
 	/* memory barrier, then write time stamp. */
 
@@ -322,20 +355,25 @@ lib_exit(void)
 
 /* try returning from local qwq to glb freelist. */
 static inline int 
-quie_queue_balance(struct quie_queue *queue, struct glb_freelist_slab *glb_freelist)
+quie_queue_balance(struct quie_queue *queue, struct parsec_allocator *alloc)
 {
 	struct quie_mem_meta *head, *last = NULL;
 	struct freelist *freelist;
+	struct glb_freelist_slab *glb_freelist;
+	int (*quie_fn)(quie_time_t, int);
 	size_t size;
 	int return_n = 0;
+
+	quie_fn = (int (*)(quie_time_t, int))alloc->quiesce;
+	glb_freelist = &alloc->glb_freelist;
 
 	head = queue->head;
 	size = head->size;
 	/* assert(size == round2next_pow2(head->size)); */
 
-	while (queue->head && (queue->n_items > QUIE_QUEUE_BALANCE_LOWER_LIMIT)) {
+	while (queue->head && (queue->n_items > alloc->qwq_min_limit)) {
 		/* only return quiesced items. */
-		if (parsec_quiescence_check(queue->head->time_deact) == 0) {
+		if (quie_fn(queue->head->time_deact, 0) == 0) {
 			return_n++;
 			last = queue->head;
 			assert(last->size == size);
@@ -364,6 +402,26 @@ quie_queue_balance(struct quie_queue *queue, struct glb_freelist_slab *glb_freel
 	return 0;
 }
 
+/* Add *new* items to the global freelist. no quiescence checked. */
+int 
+glb_freelist_add(void *item, struct parsec_allocator *alloc)
+{
+	struct freelist *freelist;
+	struct quie_mem_meta *meta;
+	
+	meta = item - sizeof(struct quie_mem_meta);
+
+	freelist = &(alloc->glb_freelist.slab_freelists[size2slab(meta->size)]);
+
+	ck_spinlock_lock(&(freelist->l));
+	meta->next = freelist->head;
+	freelist->head = meta;
+	freelist->n_items++;
+	ck_spinlock_unlock(&(freelist->l));
+	
+	return 0;
+}
+
 int
 parsec_free(void *node, struct parsec_allocator *alloc)
 {
@@ -382,33 +440,33 @@ parsec_free(void *node, struct parsec_allocator *alloc)
 	queue = &(alloc->qwq[cpu].slab_queue[size2slab(meta->size)]);
 	quie_queue_add(queue, meta);
 	
-	/* if (queue->n_items >= QUIE_QUEUE_BALANCE_UPPER_LIMIT) { */
-	/* 	quie_queue_balance(queue, &alloc->glb_freelist); */
-	/* } */
+	if (queue->n_items >= alloc->qwq_min_limit) {
+		quie_queue_balance(queue, alloc);
+	}
 	
 	return 0;
 }
 
 void *
-lib_exec(void *(*func)(void *), void *arg) 
+lib_exec(void *(*func)(void *), void *arg, parsec_t *p) 
 {
 	void *ret;
 
-	lib_enter();
+	lib_enter(p);
 	ret = func(arg);
-	lib_exit();
+	lib_exit(p);
 
 	return ret;
 }
 
 /* not used for now */
-static void parsec_quiesce(void)
+static void parsec_quiesce(parsec_t *p)
 {
 	quie_time_t t = get_time();
 	
-	lib_enter();
-	parsec_quiescence_wait(t);
-	lib_exit();
+	lib_enter(p);
+	parsec_quiescence_wait(t, p);
+	lib_exit(p);
 }
 
 /* static int  */
@@ -426,17 +484,17 @@ static void parsec_quiesce(void)
 /* Not used for now. */
 /* This checks quiescence based on pure local knowledge (and without
  * waiting for it). No remote readings. return 0 if quiesced. */
-static int
-parsec_quiescence_quick_check(quie_time_t time_check)
-{
-	struct quiescence_timing *timing_local;
+/* static int */
+/* parsec_quiescence_quick_check(quie_time_t time_check) */
+/* { */
+/* 	struct quiescence_timing *timing_local; */
 
-	timing_local = &timing_info[get_cpu()].timing;
-	if (time_check > timing_local->last_known_quiescence) return -1;
+/* 	timing_local = &timing_info[get_cpu()].timing; */
+/* 	if (time_check > timing_local->last_known_quiescence) return -1; */
 
-	/* quiesced */
-	return 0;
-}
+/* 	/\* quiesced *\/ */
+/* 	return 0; */
+/* } */
 
 void *
 timer_update(void *arg)
@@ -587,6 +645,23 @@ void meas_sync_end() {
 		ck_pr_store_int(&thd_active[cpu].done, 1);
 		while (ck_pr_load_int(&thd_active[0].done) == 0) ;
 	}
+}
+
+void parsec_init(parsec_t *parsec)
+{
+	int i;
+	struct percpu_info *percpu;
+	
+	memset(parsec, 0, sizeof(struct parsec));
+
+	/* mark everyone as not in the section. */
+	for (i = 0; i < NUM_CPU; i++) {
+		percpu = &(parsec->timing_info[i]);
+		percpu->timing.time_in = 0;
+		percpu->timing.time_out = 1;
+	}
+
+	return;
 }
 
 #ifdef IN_LINUX
