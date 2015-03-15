@@ -85,10 +85,31 @@ struct frame {
 };
 typedef struct frame frame_t ;
 
-parsec_ns_t comp CACHE_ALIGNED;
-parsec_ns_t frame_ns CACHE_ALIGNED;
-parsec_ns_t kmem_ns CACHE_ALIGNED;
+struct comp {
+	parsec_ns_t mapping_ns;
+	int id;
+	ck_spinlock_ticket_t comp_lock;
+};
+typedef struct copm comp_t ;
+
+parsec_ns_t comp_ns     CACHE_ALIGNED;
+parsec_ns_t frame_ns    CACHE_ALIGNED;
+parsec_ns_t kmem_ns     CACHE_ALIGNED;
 parsec_ns_t kern_frames CACHE_ALIGNED;
+
+#define FRAMETBL_ITEM_SZ (CACHE_LINE)
+/* Set on init, never modify. */
+static unsigned long n_pmem, n_kmem;
+char frame_table[FRAMETBL_ITEM_SZ*COS_MAX_MEMORY]   CACHE_ALIGNED;
+char kmem_table[FRAMETBL_ITEM_SZ*COS_KERNEL_MEMORY] CACHE_ALIGNED;
+
+//#define COMP_ITEM_SZ     (CACHE_LINE)
+#define COMP_ITEM_SZ (sizeof(struct comp) + 2*CACHE_LINE - sizeof(struct comp) % CACHE_LINE)
+
+char comp_table[COMP_ITEM_SZ*MAX_NUM_COMPS] CACHE_ALIGNED;
+
+
+/* All namespaces in the same parallel section. */
 parsec_t mm CACHE_ALIGNED;
 
 #define PGTBL_PAGEIDX_SHIFT (12)
@@ -120,12 +141,6 @@ mapping_lookup(mappingtbl_t tbl, vaddr_t addr)
 	/* 		      addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, flags); */
 }
 
-struct comp {
-	parsec_ns_t mapping_ns CACHE_ALIGNED;
-	int id;
-	ck_spinlock_ticket_t comp_lock;
-};
-
 #define NREGIONS 4
 extern struct cos_component_information cos_comp_info;
 
@@ -133,15 +148,12 @@ extern struct cos_component_information cos_comp_info;
 /*** ... ***/
 /***************************************************/
 
-char frame_table[CACHE_LINE*COS_MAX_MEMORY] PAGE_ALIGNED;
-char kmem_table[CACHE_LINE*COS_KERNEL_MEMORY] PAGE_ALIGNED;
-
 struct frame *
 frame_lookup(unsigned long id, parsec_ns_t *ns) 
 {
 	struct quie_mem_meta *meta;
 	
-	meta = (struct quie_mem_meta *)((void *)(ns->tbl) + id * CACHE_LINE);
+	meta = (struct quie_mem_meta *)((void *)(ns->tbl) + id * FRAMETBL_ITEM_SZ);
 	if (ACCESS_ONCE(meta->flags) & PARSEC_FLAG_DEACT) return 0;
 
 	return (struct frame *)((char *)meta + sizeof(struct quie_mem_meta));
@@ -175,41 +187,81 @@ frame_quiesce(quie_time_t t, int waiting)
 }
 
 static int 
-frame_free(frame_t *f) 
+pmem_free(frame_t *f)
 {
+	if (unlikely(!((void *)f >= frame_ns.tbl && (void *)f <= (frame_ns.tbl + FRAMETBL_ITEM_SZ*n_pmem)))) {
+		printc("Freeing unknown physical frame %p\n", (void *)f);
+		return -EINVAL;
+	}
+
 	return parsec_free(f, &(frame_ns.allocator));
 }
 
-struct frame *
-frame_alloc(void)
+static int 
+kmem_free(frame_t *f)
+{
+	if (unlikely(!((void *)f >= kmem_ns.tbl && (void *)f <= (kmem_ns.tbl + FRAMETBL_ITEM_SZ*n_kmem)))) {
+		printc("Freeing unknown kernel frame %p\n", (void *)f);
+		return -EINVAL;
+	}
+
+	return parsec_free(f, &(kmem_ns.allocator));
+}
+
+/* This detects the namespace automatically. */
+static int
+frame_free(frame_t *f_addr)
+{
+	void *f = (void *)f_addr;
+
+	if (f >= frame_ns.tbl && f <= (frame_ns.tbl + FRAMETBL_ITEM_SZ*n_pmem)) 
+		return parsec_free(f, &(frame_ns.allocator));
+
+	if (unlikely(!(f >= kmem_ns.tbl && f <= (kmem_ns.tbl + FRAMETBL_ITEM_SZ*n_kmem)))) {
+		printc("Freeing unknown frame %p ktbl %p, ptbl %p\n", f, kmem_ns.tbl, frame_ns.tbl);
+		return -EINVAL;
+	}
+
+	return parsec_free(f, &(kmem_ns.allocator));
+}
+
+static struct frame *
+frame_alloc(parsec_ns_t *ns)
 {
 	/* The size (1st argument) is meaningless here. We are
 	 * allocating a page. */
-	return parsec_alloc(0, &(frame_ns.allocator), 1);
+	return parsec_alloc(0, &(ns->allocator), 1);
 }
 
-static void 
-frame_init(void)
+static struct frame *
+get_pmem(void)
 {
-	int ret, i, n_frames;
-	vaddr_t frame_addr = BOOT_MEM_PM_BASE;
+	return frame_alloc(&frame_ns);
+}
+
+static struct frame * 
+get_kmem(void)
+{
+	return frame_alloc(&kmem_ns);
+}
+
+#define PMEM_QWQ_SIZE 64
+#define KMEM_QWQ_SIZE 8 /* Kmem allocation much less often. */
+
+static unsigned long
+frame_boot(vaddr_t frame_addr, parsec_ns_t *ns)
+{
+	int ret;
+	unsigned long n_frames, i;
 	frame_t *frame;
 
-	assert(CACHE_LINE >= (sizeof(struct quie_mem_meta) + sizeof(struct frame)));
+	assert(FRAMETBL_ITEM_SZ >= (sizeof(struct quie_mem_meta) + sizeof(struct frame)));
 	assert(frame_addr % PAGE_SIZE == 0);
 
-	memset((void *)frame_table, 0, CACHE_LINE*COS_MAX_MEMORY);
-	frame_ns.tbl     = (void *)frame_table;
-	frame_ns.lookup  = frame_lookup;
-	frame_ns.alloc   = frame_alloc;
-	frame_ns.free    = frame_free;
-	frame_ns.allocator.quiesce = frame_quiesce;
-
-	/* Detecting all the frames. */
 	i = 0;
 	while (1) {
 		ret = call_cap_op(MM_CAPTBL_OWN_PGTBL, CAPTBL_OP_INTROSPECT, frame_addr, 0,0,0);
-		frame = frame_lookup(i, &frame_ns);
+		frame = frame_lookup(i, ns);
 
 		if (!ret || !frame) break;
 
@@ -220,36 +272,40 @@ frame_init(void)
 	}
 
 	n_frames = i;
-	/* Quiescence-waiting queue setting. */
-	frame_ns.allocator.qwq_min_limit = 64;
-	frame_ns.allocator.qwq_max_limit = 64 * 4;
-	frame_ns.allocator.n_local       = NUM_CPU;
-
 	for (i = 0; i < n_frames; i++) {
-		/* They'll be on the glb freelist. */
-		frame = frame_lookup(i, &frame_ns);
-//		printc("%d frame %x\n", i, frame->paddr);
-		ret = glb_freelist_add(frame, &(frame_ns.allocator));
+		/* They'll added to the glb freelist. */
+		frame = frame_lookup(i, ns);
+		ret = glb_freelist_add(frame, &(ns->allocator));
 		assert(ret == 0);
 	}
 
-	printc("Mem_mgr: initialized %d physical frames\n", n_frames);
+	return n_frames;
+}
 
-	///////////////////
-	/* struct frame *new[64]; */
-	/* for (i = 0; i < 64; i++) { */
-	/* 	new[i] = frame_alloc(); */
-	/* 	if (new[i]) { */
-	/* 		printc("%d: new @ %p, paddr %x\n", i, new[i], new[i]->paddr); */
-	/* 		frame_free(new[i]); */
-	/* 	} else printc("got nothing %d...\n", i); */
-	/* } */
+static void 
+frame_init(void)
+{
+	memset(&frame_ns, 0, sizeof(struct parsec_ns));
+	memset((void *)frame_table, 0, FRAMETBL_ITEM_SZ*COS_MAX_MEMORY);
 
-	/* new[0] = frame_alloc(); */
-	/* if (new[0])  */
-	/* 	printc("last new @ %p, paddr %x\n", new[0], new[0]->paddr); */
-	/* else  */
-	/* 	printc("got nothing %d...\n", i); */
+	frame_ns.tbl     = (void *)frame_table;
+	frame_ns.item_sz = FRAMETBL_ITEM_SZ;
+	frame_ns.lookup  = frame_lookup;
+	frame_ns.alloc   = frame_alloc;
+	frame_ns.free    = frame_free;
+	frame_ns.allocator.quiesce = frame_quiesce;
+
+	/* Quiescence-waiting queue setting. */
+	frame_ns.allocator.qwq_min_limit = PMEM_QWQ_SIZE;
+	frame_ns.allocator.qwq_max_limit = PMEM_QWQ_SIZE * 4;
+	frame_ns.allocator.n_local       = NUM_CPU;
+
+	frame_ns.parsec = &mm;
+
+	/* Detecting all the frames. */
+	n_pmem = frame_boot(BOOT_MEM_PM_BASE, &frame_ns);
+
+	printc("Mem_mgr: initialized %lu physical frames\n", n_pmem);
 
 	return;
 }
@@ -257,51 +313,64 @@ frame_init(void)
 static void 
 kmem_init(void)
 {
-	int ret, i, n_frames;
-	vaddr_t kmem_addr = BOOT_MEM_KM_BASE;
-	frame_t *kmem;
-
-	assert(CACHE_LINE >= (sizeof(struct quie_mem_meta) + sizeof(struct frame)));
-	assert(kmem_addr % PAGE_SIZE == 0);
-
-	memset((void *)kmem_table, 0, CACHE_LINE*COS_KERNEL_MEMORY);
+	memset(&kmem_ns, 0, sizeof(struct parsec_ns));
+	memset((void *)kmem_table, 0, FRAMETBL_ITEM_SZ*COS_KERNEL_MEMORY);
 
 	kmem_ns.tbl     = (void *)kmem_table;
+	kmem_ns.item_sz = FRAMETBL_ITEM_SZ;
 	kmem_ns.lookup  = frame_lookup;
 	kmem_ns.alloc   = frame_alloc;
 	kmem_ns.free    = frame_free;
 	kmem_ns.allocator.quiesce = frame_quiesce;
 
-	/* Detecting all the frames. */
-	i = 0;
-	while (1) {
-		ret = call_cap_op(MM_CAPTBL_OWN_PGTBL, CAPTBL_OP_INTROSPECT, kmem_addr, 0,0,0);
-		kmem = frame_lookup(i, &kmem_ns);
-
-		if (!ret || !kmem) break;
-
-		kmem->paddr = ret & PAGE_MASK;
-		ck_spinlock_ticket_init(&(kmem->frame_lock));
-		kmem_addr += PAGE_SIZE;
-		i++;
-	}
-
-	n_frames = i;
 	/* Quiescence-waiting queue setting. */
-	kmem_ns.allocator.qwq_min_limit = 64;
-	kmem_ns.allocator.qwq_max_limit = 64 * 4;
+	kmem_ns.allocator.qwq_min_limit = KMEM_QWQ_SIZE;
+	kmem_ns.allocator.qwq_max_limit = KMEM_QWQ_SIZE * 4;
 	kmem_ns.allocator.n_local       = NUM_CPU;
 
-	for (i = 0; i < n_frames; i++) {
-		/* They'll be on the glb freelist. */
-		kmem = frame_lookup(i, &kmem_ns);
-		ret = glb_freelist_add(kmem, &(kmem_ns.allocator));
-		assert(ret == 0);
-	}
+	kmem_ns.parsec = &mm;
 
-	printc("Mem_mgr: initialized %d kernel frames.\n", n_frames);
+	n_kmem = frame_boot(BOOT_MEM_KM_BASE, &kmem_ns);
+
+	printc("Mem_mgr: initialized %lu kernel frames.\n", n_kmem);
 
 	return;
+}
+
+static capid_t 
+comp_pt_cap(int comp)
+{
+	return comp*captbl_idsize(CAP_COMP) + MM_CAPTBL_OWN_PGTBL;
+}
+
+struct comp *
+comp_lookup(int id)
+{
+	struct comp *comp;
+
+	if (unlikely(id < 0 || id >= MAX_NUM_COMPS)) return NULL;
+
+	comp = (struct comp *)((void *)comp_table + COMP_ITEM_SZ * id);
+
+	return comp;
+}
+
+static void
+comp_init(void)
+{
+	/* We don't use the normal alloc/free of the component
+	 * namespace. Everything is kept simple here. */
+
+	assert(COMP_ITEM_SZ % CACHE_LINE == 0);
+	memset(&comp_ns, 0, sizeof(struct parsec));
+	memset((void *)comp_table, 0, COMP_ITEM_SZ*MAX_NUM_COMPS);
+
+	comp_ns.tbl     = (void *)comp_table;
+	comp_ns.item_sz = COMP_ITEM_SZ;
+	comp_ns.lookup  = comp_lookup;
+
+	comp_ns.parsec = &mm;
+
 }
 
 static void
@@ -319,6 +388,8 @@ mm_init(void)
 
 	frame_init();
 	kmem_init();
+
+	comp_init();
 
 	/* printc("core %ld: mm init as thread %d\n", cos_cpuid(), cos_get_thd_id()); */
 
@@ -344,9 +415,10 @@ mm_init(void)
 /*** Public interface functions ***/
 /**********************************/
 
-vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
+vaddr_t mman_get_page(spdid_t compid, vaddr_t addr, int flags)
 {
-	printc("in get page\n");
+	printc("in get page, %d cap %d, addr %d, flags %d\n", compid, comp_pt_cap(compid), addr, flags);
+	
 	call_cap(0,0,0,0,0);
 
 	return 0;

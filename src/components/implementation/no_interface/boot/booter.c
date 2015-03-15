@@ -333,6 +333,7 @@ boot_find_cobjs(struct cobj_header *h, int n)
 		hs[i] = h = (struct cobj_header*)end;
 		start = end;
 	}
+
 	hs[n] = NULL;
 	printc("cobj %s:%d found at %p -> %x\n", 
 	       hs[n-1]->name, hs[n-1]->id, hs[n-1], cobj_sect_get(hs[n-1], 0)->vaddr);

@@ -60,7 +60,9 @@ struct pt_regs {
 
 #define MAX_SCHED_HIER_DEPTH 4
 
-#define MAX_NUM_SPDS   64
+#define MAX_NUM_COMPS  64
+#define MAX_NUM_SPDS   (MAX_NUM_COMPS) /* Legacy code still has this. */
+
 #define MAX_STATIC_CAP 256
 #define MAX_NUM_ACAP 256
 

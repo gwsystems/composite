@@ -1268,8 +1268,8 @@ void cos_init(void)
 	call_cap(4, 0, 0, 0, 0);
 	printc("done init\n");
 	for (i = 6; i <= 12; i+=2) {
-		printc("calling cap %d\n", i);
-		call_cap(i, 0, 0, 0, 0);
+		printc("comp %d calling cap %d\n", cos_spd_id(), i);
+		call_cap(i, cos_spd_id(), 11, 22, 33);
 	}
 
 //	ret = printc("calling mm\n");

@@ -247,8 +247,11 @@ struct quie_queue {
 	size_t n_items;
 } PACKED;
 
+
+/* FIXME: for namespace allocator, may not need the slab allocation. */
+
 /* Per cpu / thread */
-#define QUIE_QUEUE_N_SLAB (32)
+#define QUIE_QUEUE_N_SLAB (2)
 struct quie_queue_slab {
 	struct quie_queue slab_queue[QUIE_QUEUE_N_SLAB];
 	/* Padding to avoid false sharing. 2 cachelines for prefetching. */
@@ -301,6 +304,7 @@ typedef struct parsec parsec_t ;
 struct parsec_ns {
 	/* resource table of the namespace */
 	volatile void *tbl;
+	unsigned long item_sz;
 
 	/* function pointers next */
 	void *lookup;
@@ -310,7 +314,7 @@ struct parsec_ns {
 
 	/* The parallel section that protects this name space. We may
 	 * alloc / free from this parsec. */
-	parsec_t ps;
+	parsec_t *parsec;
 
 	/* thread / cpu mapping to private allocation queues */
 	void *ns_mapping;
@@ -466,8 +470,6 @@ glb_freelist_get(struct quie_queue *queue, size_t size, struct parsec_allocator 
 
 		if (queue->tail == NULL) queue->tail = last;
 	}
-
-	printc("glb get, %d %d\n", queue->n_items, freelist->n_items);
 
 	return i;
 }

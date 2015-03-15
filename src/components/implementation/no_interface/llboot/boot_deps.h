@@ -643,11 +643,22 @@ boot_comp_mm_init(void)
 	vaddr_t memcap, kmem_cap, mm_memcap;
 	capid_t pte_cap;
 	unsigned long int n_frames, kmem;
-	int ret;
+	int ret, i;
 	struct comp_cap_info *mm_comp = &comp_cap_info[BOOT_INIT_MM_COMP];
 
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
 			mm_comp->pgtbl_cap[0], mm_comp->captbl_cap[0], MM_CAPTBL_OWN_PGTBL, 0)) BUG();
+
+	for (i = 1; i <= MAX_NUM_COMPS; i++) {
+		if (i == cos_spd_id()) continue;
+
+		/* Grant pgtbl cap to mem_mgr */
+		if (comp_cap_info[i].pgtbl_cap[0]) {
+			if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
+					comp_cap_info[i].pgtbl_cap[0], mm_comp->captbl_cap[0], 
+					MM_CAPTBL_OWN_PGTBL + i * captbl_idsize(CAP_COMP), 0)) BUG();
+		}
+	}
 
 	n_frames = 0;
 	/* Grant the rest of the memory to the mem_mgr component. */
@@ -670,7 +681,6 @@ boot_comp_mm_init(void)
 				       memcap, mm_comp->pgtbl_cap[0], mm_memcap, 0))) 
 			break;
 	}
-	printc("LLBooter: granted %lu pages to mem_mgr\n", n_frames);
 
 	/* Kernel memory next. */
 	kmem = 0;
@@ -695,7 +705,7 @@ boot_comp_mm_init(void)
 			break;
 	}
 
-	printc("LLBooter: granted %lu kernel pages to mem_mgr\n", kmem);
+	printc("LLBooter: granted %lu frames and %lu kernel pages to mem_mgr\n", n_frames, kmem);
 }
 
 static inline void 
@@ -1023,7 +1033,6 @@ void comp_deps_run_all(void)
 	/* switch to the init thd in the scheduler. */
 	if (cap_switch_thd(PERCPU_GET(llbooter)->init_thd)) BUG();
 done:
-
 //#define API_TEST
 #ifdef API_TEST
 	if (cos_cpuid() == 0) {
@@ -1032,7 +1041,6 @@ done:
 		retype_test();
 	}
 #endif
-
 	sync_all();
 	printc("Core %ld: exiting system from low-level booter.\n", cos_cpuid());
 

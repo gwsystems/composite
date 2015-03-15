@@ -357,6 +357,7 @@ lib_exit(parsec_t *parsec)
 static inline int 
 quie_queue_balance(struct quie_queue *queue, struct parsec_allocator *alloc)
 {
+	unsigned long thres;
 	struct quie_mem_meta *head, *last = NULL;
 	struct freelist *freelist;
 	struct glb_freelist_slab *glb_freelist;
@@ -371,7 +372,10 @@ quie_queue_balance(struct quie_queue *queue, struct parsec_allocator *alloc)
 	size = head->size;
 	/* assert(size == round2next_pow2(head->size)); */
 
-	while (queue->head && (queue->n_items > alloc->qwq_min_limit)) {
+	assert(alloc->qwq_max_limit > alloc->qwq_min_limit);
+	thres = alloc->qwq_min_limit + (alloc->qwq_max_limit-alloc->qwq_min_limit) / 2;
+
+	while (queue->head && (queue->n_items > thres)) {
 		/* only return quiesced items. */
 		if (quie_fn(queue->head->time_deact, 0) == 0) {
 			return_n++;
@@ -440,7 +444,7 @@ parsec_free(void *node, struct parsec_allocator *alloc)
 	queue = &(alloc->qwq[cpu].slab_queue[size2slab(meta->size)]);
 	quie_queue_add(queue, meta);
 	
-	if (queue->n_items >= alloc->qwq_min_limit) {
+	if (queue->n_items >= alloc->qwq_max_limit) {
 		quie_queue_balance(queue, alloc);
 	}
 	
