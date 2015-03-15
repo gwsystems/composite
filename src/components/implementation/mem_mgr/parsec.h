@@ -332,6 +332,9 @@ void *parsec_alloc(size_t size, struct parsec_allocator *alloc, const int waitin
 
 int parsec_free(void *node, struct parsec_allocator *alloc);
 
+void parsec_read_lock(parsec_t *parsec);
+void parsec_read_unlock(parsec_t *parsec);
+
 void *lib_exec(void *(*func)(void *), void *arg, parsec_t *p);
 
 void parsec_init(parsec_t *p);

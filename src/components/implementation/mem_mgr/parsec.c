@@ -310,7 +310,7 @@ parsec_alloc(size_t size, struct parsec_allocator *alloc, const int waiting)
 }
 
 void 
-lib_enter(parsec_t *parsec) 
+parsec_read_lock(parsec_t *parsec) 
 {
 	int curr_cpu;
 	quie_time_t curr_time;
@@ -333,7 +333,7 @@ lib_enter(parsec_t *parsec)
 }
 
 void 
-lib_exit(parsec_t *parsec) 
+parsec_read_unlock(parsec_t *parsec) 
 {
 	int curr_cpu;
 	struct quiescence_timing *timing;
@@ -351,6 +351,18 @@ lib_exit(parsec_t *parsec)
 	timing->time_out = timing->time_in + 1;
 	
 	return;
+}
+
+void 
+lib_enter(parsec_t *parsec) 
+{
+	parsec_read_lock(parsec);
+}
+
+void 
+lib_exit(parsec_t *parsec) 
+{
+	parsec_read_unlock(parsec);
 }
 
 /* try returning from local qwq to glb freelist. */
@@ -422,7 +434,7 @@ glb_freelist_add(void *item, struct parsec_allocator *alloc)
 	freelist->head = meta;
 	freelist->n_items++;
 	ck_spinlock_unlock(&(freelist->l));
-	
+
 	return 0;
 }
 
