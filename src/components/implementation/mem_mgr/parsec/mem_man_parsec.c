@@ -96,6 +96,26 @@ struct comp {
 };
 typedef struct comp comp_t ;
 
+static void frame_lock(frame_t *f) {
+	ck_spinlock_ticket_lock(&f->frame_lock);
+}
+
+static int frame_trylock(frame_t *f) {
+	return ck_spinlock_ticket_trylock(&f->frame_lock);
+}
+
+static void frame_unlock(frame_t *f) {
+	ck_spinlock_ticket_unlock(&f->frame_lock);
+}
+
+static void comp_lock(comp_t *c) {
+	ck_spinlock_ticket_lock(&c->comp_lock);
+}
+
+static void comp_unlock(comp_t *c) {
+	ck_spinlock_ticket_unlock(&c->comp_lock);
+}
+
 parsec_ns_t comp_ns     CACHE_ALIGNED;
 parsec_ns_t frame_ns    CACHE_ALIGNED;
 parsec_ns_t kmem_ns     CACHE_ALIGNED;
@@ -404,7 +424,7 @@ build_mapping(comp_t *comp, frame_t *frame, mapping_t *mapping)
 	/* We should have unused frame and mapping here. So there
 	 * should be no contention. */
 	int ret;
-	ret = ck_spinlock_ticket_trylock(&frame->frame_lock);
+	ret = frame_trylock(frame);
 	if (!ret) return -EINVAL;
 
 	if (frame->child || mapping->frame_id) { ret = -EINVAL; goto done; }
@@ -418,7 +438,7 @@ build_mapping(comp_t *comp, frame_t *frame, mapping_t *mapping)
 	mapping->frame_id = frame->id;
 	mapping->flags    &= ~PARSEC_FLAG_DEACT;
 done:
-	ck_spinlock_ticket_unlock(&frame->frame_lock);
+	frame_unlock(frame);
 
 	return 0;
 }
@@ -474,8 +494,17 @@ vas_init(parsec_ns_t *vas, void *tbl)
 	return;
 }
 
+static int 
+comp_vas_init(comp_t c)
+{
+	
+
+
+	return 0;
+}
+
 /* Mainly initialize the vas of the mm component */
-int mm_comp_init(void)
+static int mm_comp_init(void)
 {
 	int ret, n;
 	parsec_ns_t *mm_vas;
@@ -490,7 +519,7 @@ int mm_comp_init(void)
 
 	/* mm_comp is a global variable for fast access. */
 	mm_comp = comp_lookup(comp_id);
-	ck_spinlock_ticket_lock(&mm_comp->comp_lock);
+	comp_lock(mm_comp);
 	
 	mm_vas = &mm_comp->mapping_ns;
 	vas_init(mm_vas, mm_vas_pgd);
@@ -514,7 +543,7 @@ int mm_comp_init(void)
 	}
 	cos_set_heap_ptr((void *)heap_vaddr);
 
-	ck_spinlock_ticket_unlock(&mm_comp->comp_lock);
+	comp_unlock(mm_comp);
 
 	return n;
 }
@@ -609,7 +638,7 @@ vaddr_t mman_get_page(spdid_t compid, vaddr_t addr, int flags)
 		/* Alloc vaddr */
 		
 		/* if (comp->vaddr.tbl == NULL) { */
-		/* 	comp_vaddr_init(comp); */
+		/* 	comp_vas_init(comp); */
 		/* } */
 		/* Alloc pmem */
 		/* and build mapping */
