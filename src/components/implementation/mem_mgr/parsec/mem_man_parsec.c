@@ -87,6 +87,7 @@ typedef struct frame frame_t ;
 
 parsec_ns_t comp CACHE_ALIGNED;
 parsec_ns_t frame_ns CACHE_ALIGNED;
+parsec_ns_t kmem_ns CACHE_ALIGNED;
 parsec_ns_t kern_frames CACHE_ALIGNED;
 parsec_t mm CACHE_ALIGNED;
 
@@ -133,13 +134,14 @@ extern struct cos_component_information cos_comp_info;
 /***************************************************/
 
 char frame_table[CACHE_LINE*COS_MAX_MEMORY] PAGE_ALIGNED;
+char kmem_table[CACHE_LINE*COS_KERNEL_MEMORY] PAGE_ALIGNED;
 
 struct frame *
-frame_lookup(unsigned long id) 
+frame_lookup(unsigned long id, parsec_ns_t *ns) 
 {
 	struct quie_mem_meta *meta;
 	
-	meta = (struct quie_mem_meta *)((char *)(frame_ns.tbl) + id * CACHE_LINE);
+	meta = (struct quie_mem_meta *)((void *)(ns->tbl) + id * CACHE_LINE);
 	if (ACCESS_ONCE(meta->flags) & PARSEC_FLAG_DEACT) return 0;
 
 	return (struct frame *)((char *)meta + sizeof(struct quie_mem_meta));
@@ -207,7 +209,7 @@ frame_init(void)
 	i = 0;
 	while (1) {
 		ret = call_cap_op(MM_CAPTBL_OWN_PGTBL, CAPTBL_OP_INTROSPECT, frame_addr, 0,0,0);
-		frame = frame_lookup(i);
+		frame = frame_lookup(i, &frame_ns);
 
 		if (!ret || !frame) break;
 
@@ -225,7 +227,7 @@ frame_init(void)
 
 	for (i = 0; i < n_frames; i++) {
 		/* They'll be on the glb freelist. */
-		frame = frame_lookup(i);
+		frame = frame_lookup(i, &frame_ns);
 //		printc("%d frame %x\n", i, frame->paddr);
 		ret = glb_freelist_add(frame, &(frame_ns.allocator));
 		assert(ret == 0);
@@ -252,6 +254,56 @@ frame_init(void)
 	return;
 }
 
+static void 
+kmem_init(void)
+{
+	int ret, i, n_frames;
+	vaddr_t kmem_addr = BOOT_MEM_KM_BASE;
+	frame_t *kmem;
+
+	assert(CACHE_LINE >= (sizeof(struct quie_mem_meta) + sizeof(struct frame)));
+	assert(kmem_addr % PAGE_SIZE == 0);
+
+	memset((void *)kmem_table, 0, CACHE_LINE*COS_KERNEL_MEMORY);
+
+	kmem_ns.tbl     = (void *)kmem_table;
+	kmem_ns.lookup  = frame_lookup;
+	kmem_ns.alloc   = frame_alloc;
+	kmem_ns.free    = frame_free;
+	kmem_ns.allocator.quiesce = frame_quiesce;
+
+	/* Detecting all the frames. */
+	i = 0;
+	while (1) {
+		ret = call_cap_op(MM_CAPTBL_OWN_PGTBL, CAPTBL_OP_INTROSPECT, kmem_addr, 0,0,0);
+		kmem = frame_lookup(i, &kmem_ns);
+
+		if (!ret || !kmem) break;
+
+		kmem->paddr = ret & PAGE_MASK;
+		ck_spinlock_ticket_init(&(kmem->frame_lock));
+		kmem_addr += PAGE_SIZE;
+		i++;
+	}
+
+	n_frames = i;
+	/* Quiescence-waiting queue setting. */
+	kmem_ns.allocator.qwq_min_limit = 64;
+	kmem_ns.allocator.qwq_max_limit = 64 * 4;
+	kmem_ns.allocator.n_local       = NUM_CPU;
+
+	for (i = 0; i < n_frames; i++) {
+		/* They'll be on the glb freelist. */
+		kmem = frame_lookup(i, &kmem_ns);
+		ret = glb_freelist_add(kmem, &(kmem_ns.allocator));
+		assert(ret == 0);
+	}
+
+	printc("Mem_mgr: initialized %d kernel frames.\n", n_frames);
+
+	return;
+}
+
 static void
 mm_init(void)
 {
@@ -264,7 +316,9 @@ mm_init(void)
 	}
 
 	parsec_init(&mm);
+
 	frame_init();
+	kmem_init();
 
 	/* printc("core %ld: mm init as thread %d\n", cos_cpuid(), cos_get_thd_id()); */
 

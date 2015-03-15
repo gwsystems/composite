@@ -642,7 +642,7 @@ boot_comp_mm_init(void)
 {
 	vaddr_t memcap, kmem_cap, mm_memcap;
 	capid_t pte_cap;
-	unsigned long int n_frames;
+	unsigned long int n_frames, kmem;
 	int ret;
 	struct comp_cap_info *mm_comp = &comp_cap_info[BOOT_INIT_MM_COMP];
 
@@ -671,6 +671,31 @@ boot_comp_mm_init(void)
 			break;
 	}
 	printc("LLBooter: granted %lu pages to mem_mgr\n", n_frames);
+
+	/* Kernel memory next. */
+	kmem = 0;
+	/* Grant the rest of the memory to the mem_mgr component. */
+	while ((memcap = get_kmem_cap())) {
+		mm_memcap = BOOT_MEM_KM_BASE + kmem*PAGE_SIZE;
+		if ((kmem % (PAGE_SIZE/sizeof(void*))) == 0) {
+			/* Need to expand PTE. */
+			pte_cap  = alloc_capid(CAP_PGTBL);
+			kmem_cap = get_kmem_cap();
+			/* PTE */
+			if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
+					pte_cap, BOOT_CAPTBL_SELF_PT, kmem_cap, 1))    BUG();
+			/* Construct pgtbl */
+			if (call_cap_op(mm_comp->pgtbl_cap[0], CAPTBL_OP_CONS, pte_cap, mm_memcap, 0, 0)) BUG();
+		}
+
+		kmem++;
+		/* and grant memory cap by moving */
+		if ((ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEMMOVE,
+				       memcap, mm_comp->pgtbl_cap[0], mm_memcap, 0))) 
+			break;
+	}
+
+	printc("LLBooter: granted %lu kernel pages to mem_mgr\n", kmem);
 }
 
 static inline void 
