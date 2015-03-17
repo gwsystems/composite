@@ -1263,13 +1263,13 @@ void cos_init(void)
 	}
 #else
 //	pingpong();
-	int i; 
+	int i, ret; 
 	printc("calling init\n");
-	call_cap(4, 0, 0, 0, 0);
-	printc("done init\n");
+	ret = call_cap(4, 0, 0, 0, 0);
+	printc("done init, ret %d\n", ret);
 	for (i = 6; i <= 12; i+=2) {
-		printc("comp %d calling cap %d\n", cos_spd_id(), i);
-		call_cap(i, cos_spd_id(), 11, 22, 33);
+		ret = call_cap(i, cos_spd_id(), 0,0,0);
+		printc("comp %ld called cap %d, ret %x\n", cos_spd_id(), i, ret);
 	}
 
 //	ret = printc("calling mm\n");

@@ -251,7 +251,7 @@ struct quie_queue {
 /* FIXME: for namespace allocator, may not need the slab allocation. */
 
 /* Per cpu / thread */
-#define QUIE_QUEUE_N_SLAB (2)
+#define QUIE_QUEUE_N_SLAB (22)
 struct quie_queue_slab {
 	struct quie_queue slab_queue[QUIE_QUEUE_N_SLAB];
 	/* Padding to avoid false sharing. 2 cachelines for prefetching. */
@@ -310,10 +310,12 @@ struct parsec_ns {
 	void *lookup;
 	void *alloc;
 	void *free;
-	void *init;
 
-	/* The parallel section that protects this name space. We may
-	 * alloc / free from this parsec. */
+	void *init;
+	void *expand;
+
+	/* The parallel section that protects this name space. It
+	 * contains the timing info. */
 	parsec_t *parsec;
 
 	/* thread / cpu mapping to private allocation queues */
@@ -416,7 +418,6 @@ size2slab(size_t orig_size)
 
 	/* less than a cacheline uses same slab. */
 	size = round2next_pow2(orig_size) / CACHE_LINE;
-	printc("orig_size %d, size %d\n", orig_size, size);
 
 	if (orig_size < CACHE_LINE) size = 1;
 

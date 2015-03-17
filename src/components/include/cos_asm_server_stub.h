@@ -11,7 +11,7 @@
 #ifndef COS_ASM_SERVER_STUB_H
 #define COS_ASM_SERVER_STUB_H
 
-#define RET_CAP ((1<<20)-1)
+#include "../../kernel/include/asm_ipc_defs.h"
 #include <cos_asm_stacks.h>
 
 /* 

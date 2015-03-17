@@ -92,7 +92,7 @@ typedef struct frame frame_t ;
 struct comp {
 	parsec_ns_t mapping_ns;
 	int id;
-	ck_spinlock_ticket_t comp_lock;
+	ck_spinlock_ticket_t comp_lock; /* only used for init */
 };
 typedef struct comp comp_t ;
 
@@ -146,12 +146,19 @@ parsec_t mm CACHE_ALIGNED;
 #define PGTBL_DEPTH         2
 #define PGTBL_ORD           10
 
-#define MAPPING_ITEM_SZ CACHE_LINE
-char mm_vas_pgd[PAGE_SIZE];
-char mm_vas_pte[PAGE_SIZE/sizeof(void *) * MAPPING_ITEM_SZ];
+/* Mem_mgr itself only allocates 2 sizes: pgd size(page size), and pte
+ * size (larger because of the mapping info). We pre-allocate VAS
+ * table for the MM -- as it'd be hard to apply the expand function to
+ * the VAS of MM itself. */
 
-static int __mapping_isnull(struct ert_intern *a, void *accum, int isleaf) 
-{ (void)isleaf; (void)accum; return !(u32_t)(a->next); }
+#define MAPPING_ITEM_SZ CACHE_LINE
+char mm_vas_pgd[PAGE_SIZE] PAGE_ALIGNED;
+
+#define MM_PTE_NPAGES (MAPPING_ITEM_SZ/sizeof(void *))
+#define MM_PTE_SIZE   (PAGE_SIZE * MM_PTE_NPAGES)
+
+char mm_vas_pte[MM_PTE_SIZE] PAGE_ALIGNED;
+char mm_vas_pte2[MM_PTE_SIZE] PAGE_ALIGNED;
 
 // we use the ert lookup function only 
 ERT_CREATE(__mappingtbl, mappingtbl, PGTBL_DEPTH, PGTBL_ORD, sizeof(int*), PGTBL_ORD, MAPPING_ITEM_SZ, NULL, \
@@ -277,13 +284,155 @@ get_kmem(void)
 	return frame_alloc(&kmem_ns);
 }
 
+/* Still maintain single global address space, so that we can
+ * implement Mutable Protection Domain (MPD) if needed. */
+#define VAS_UNIT (1 << (PGTBL_PAGEIDX_SHIFT + PGTBL_ORD)) //@ 4MB
+#define COS_FREE_VAS (BOOT_MEM_VM_BASE + VAS_UNIT*MAX_NUM_COMPS) //get this from booter!
+
+vaddr_t free_vas = COS_FREE_VAS;
+
+static vaddr_t mm_local_get_page(unsigned long n_pages);
+
+int 
+mappingtbl_cons(mappingtbl_t tbl, vaddr_t expand_addr, vaddr_t pte)
+{
+	unsigned long *intern;
+	unsigned long old_v, flags;
+	int ret;
+
+	intern = __mappingtbl_lkupani(tbl, expand_addr >> PGTBL_PAGEIDX_SHIFT, 0, 1, &flags);
+
+	if (!intern) return -ENOENT;
+	if (*intern) return -EPERM;
+
+	ret = cos_cas(intern, 0, pte);
+	if (ret != CAS_SUCCESS) return -ECASFAIL;
+
+	return 0;
+}
+
+/* this probably should be managed by a separate manager. */
+static vaddr_t 
+vas_region_alloc(void)
+{
+	vaddr_t new, vas;
+
+	do {
+		vas = free_vas;
+		new = vas + VAS_UNIT;
+	} while (cos_cas(&free_vas, vas, new) != CAS_SUCCESS) ;
+
+	return vas;
+}
+
+static capid_t 
+comp_pt_cap(int comp)
+{
+	return comp*captbl_idsize(CAP_COMP) + MM_CAPTBL_OWN_PGTBL;
+}
+
+static unsigned long mm_alloc_pte_cap(void);
+
+static int 
+comp_vas_region_alloc(comp_t *comp, vaddr_t local_tbl, unsigned long vas_unit_sz)
+{
+	int n_items, i, j, ret;
+	vaddr_t mapping_vaddr, pte;
+	mapping_t *m, *temp_m;
+	struct quie_mem_meta *meta;
+	parsec_ns_t *ns;
+	vaddr_t pte_kmem;
+	capid_t pte_cap;
+
+	ns = &comp->mapping_ns;
+
+	pte       = vas_region_alloc();
+	pte_kmem  = get_kmem()->cap;
+	pte_cap   = mm_alloc_pte_cap();
+
+	if (call_cap_op(MM_CAPTBL_OWN_CAPTBL, CAPTBL_OP_PGTBLACTIVATE,
+			pte_cap, MM_CAPTBL_OWN_PGTBL, pte_kmem, 1)) BUG();
+	/* Connect PTE to the component's pgtbl */
+	if (call_cap_op(comp_pt_cap(comp->id), CAPTBL_OP_CONS, pte_cap, pte, 0, 0)) BUG();
+
+	ret = mappingtbl_cons((mappingtbl_t)ns->tbl, pte, (vaddr_t)local_tbl);
+	assert(ret == 0);
+
+	/* # of free vas items in this one pte. */
+	n_items = PAGE_SIZE / (sizeof(void *)) / (vas_unit_sz/PAGE_SIZE);
+
+	mapping_vaddr = pte;
+	for (i = 0; i < n_items; i++) {
+		m = mapping_lookup((mappingtbl_t)(ns->tbl), mapping_vaddr);
+		if (!m) {
+			printc("ERROR: no entry in new pte %x\n", pte);
+			return -1;
+		}
+
+		temp_m = m;
+		for (j = 0; j < (int)(vas_unit_sz / PAGE_SIZE); j++) {
+			memset(temp_m, 0, sizeof(struct mapping));
+			temp_m->flags |= PARSEC_FLAG_DEACT;
+			temp_m->vaddr = mapping_vaddr;
+
+			mapping_vaddr += PAGE_SIZE;
+			temp_m = (void *)temp_m + MAPPING_ITEM_SZ;
+		}
+
+		/* set size so it goes to the corresponding slab. */
+		meta = (void *)m - sizeof(struct quie_mem_meta);
+		meta->size = vas_unit_sz;
+
+		printc("comp %d add vas %x, size %d\n", comp->id, m->vaddr, meta->size);
+		ret = glb_freelist_add(m, &(ns->allocator));
+		assert(!ret);
+	}
+
+	return 0;
+}
+
+static int 
+vas_expand(comp_t *comp, unsigned long unit_size)
+{
+	int ret;
+	vaddr_t pte;
+
+	assert(comp);
+	pte = mm_local_get_page(MM_PTE_NPAGES);
+
+	comp_vas_region_alloc(comp, pte, unit_size);
+
+	printc("comp %d expanded\n", comp->id);
+	
+	return 0;
+}
+
 static struct mapping *
-vas_alloc(parsec_ns_t *ns)
+vas_alloc(parsec_ns_t *ns, unsigned long size)
 {
 	/* The size (1st argument) is meaningless here. We are
 	 * allocating a page. */
-	return parsec_alloc(0, &(ns->allocator), 1);
+	struct mapping* new_mapping;
+
+	new_mapping = parsec_alloc(size, &(ns->allocator), 1);
+
+	if (!new_mapping && ns->expand) {
+		int (*expand_fn)(parsec_ns_t *, unsigned long) = ns->expand;
+		assert(expand_fn);
+		printc("calling expand\n");
+		expand_fn(ns, size);
+		printc("calling expand done\n");
+		new_mapping = parsec_alloc(size, &(ns->allocator), 1);
+	} 
+
+	return new_mapping;
 }
+
+/* static struct mapping * */
+/* mm_local_vas_alloc(void) */
+/* { */
+/* 	return new_mapping; */
+/* } */
 
 static int
 vas_free(mapping_t *m, parsec_ns_t *ns)
@@ -381,12 +530,6 @@ kmem_init(void)
 	return;
 }
 
-static capid_t 
-comp_pt_cap(int comp)
-{
-	return comp*captbl_idsize(CAP_COMP) + MM_CAPTBL_OWN_PGTBL;
-}
-
 struct comp *
 comp_lookup(int id)
 {
@@ -397,23 +540,6 @@ comp_lookup(int id)
 	comp = (struct comp *)((void *)comp_table + COMP_ITEM_SZ * id);
 
 	return comp;
-}
-
-int 
-mappingtbl_cons(mappingtbl_t tbl, vaddr_t expand_addr, vaddr_t pte)
-{
-	unsigned long *intern;
-	unsigned long old_v, flags;
-	int ret;
-
-	intern = __mappingtbl_lkupani(tbl, expand_addr >> PGTBL_PAGEIDX_SHIFT, 0, 1, &flags);
-	if (!intern) return -ENOENT;
-	if (*intern) return -EPERM;
-
-	ret = cos_cas(intern, 0, pte);
-	if (ret != CAS_SUCCESS) return -ECASFAIL;
-
-	return 0;
 }
 
 static comp_t *mm_comp;
@@ -450,21 +576,27 @@ alias_mapping(mapping_t *parent, mapping_t *child)
 }
 
 static vaddr_t
-mm_local_get_page(void)
+mm_local_get_page(unsigned long n_pages)
 {
-	/* get a page in the mem_mgr component. */
-	frame_t *frame;
-	mapping_t *new_vas;
+	/* get pages in the mem_mgr component. */
+	unsigned long i;
+	mapping_t *new_vas, *m;
+	frame_t *frame = NULL;
 
-	new_vas = vas_alloc(&mm_comp->mapping_ns);
+	new_vas = vas_alloc(&mm_comp->mapping_ns, PAGE_SIZE*n_pages);
 	if (!new_vas) return 0;
 
-	frame = get_pmem();
-	if (!frame) goto VAS_FREE;
+	m = new_vas;
+	for (i = 0; i < n_pages; i++) {
+		frame = get_pmem();
+		/* FIXME: reverse and free when fail */
+		if (!frame) goto VAS_FREE;
+		if (build_mapping(mm_comp, frame, m)) goto ALL_FREE;
+		m = (void *)m + MAPPING_ITEM_SZ;
+	}
 
-	if (build_mapping(mm_comp, frame, new_vas)) goto ALL_FREE;
+	memset((void *)(new_vas->vaddr), 0, PAGE_SIZE*n_pages);
 
-	/* printc("local get pmem %x, mapped to %x\n", frame->cap, new_vas->vaddr); */
 	return new_vas->vaddr;
 ALL_FREE:
 	pmem_free(frame);
@@ -476,13 +608,14 @@ VAS_FREE:
 
 
 static void
-vas_init(parsec_ns_t *vas, void *tbl)
+vas_ns_init(parsec_ns_t *vas, void *tbl)
 {
 	vas->tbl     = tbl;
 	vas->item_sz = MAPPING_ITEM_SZ;
 	vas->lookup  = mapping_lookup;
 	vas->alloc   = vas_alloc;
 	vas->free    = vas_free;
+	vas->expand  = vas_expand;
 
 	vas->parsec = &mm;
 
@@ -495,23 +628,63 @@ vas_init(parsec_ns_t *vas, void *tbl)
 }
 
 static int 
-comp_vas_init(comp_t c)
+comp_vas_init(comp_t *c)
 {
-	
+	vaddr_t p;
+	parsec_ns_t *ns = &c->mapping_ns;
 
+	comp_lock(c);
+	if (ns->tbl) {
+		/* Some other thread did this before us. */
+		goto done;
+	}
+
+	p = mm_local_get_page(1);
+	if (!p) return -ENOMEM;
+
+	vas_ns_init(ns, (void *)p);
+done:
+	comp_unlock(c);
 
 	return 0;
+}
+
+static int 
+comp_init(int id)
+{
+	comp_t *c;
+
+	c = comp_lookup(id);
+	assert(c);
+	c->id = id;
+	ck_spinlock_ticket_init(&(c->comp_lock));
+
+	return 0;
+}
+
+static unsigned long free_capid = MM_CAPTBL_FREE;
+static unsigned long 
+mm_alloc_pte_cap(void)
+{
+	unsigned long id, new;
+	do {
+		id = free_capid;
+		new = id + captbl_idsize(CAP_PGTBL);
+	} while (cos_cas(&free_capid, id, new) != CAS_SUCCESS) ;
+
+	return id;
 }
 
 /* Mainly initialize the vas of the mm component */
 static int mm_comp_init(void)
 {
-	int ret, n;
+	int ret, i;
 	parsec_ns_t *mm_vas;
-	void *pte;
 	unsigned long accum;
-	mapping_t *mapping;
-	vaddr_t pte_vaddr, heap_vaddr = (vaddr_t)cos_get_heap_ptr();
+	mapping_t *mapping, *temp_m;
+	struct quie_mem_meta *meta;
+	vaddr_t pte_kmem;
+	capid_t pte_cap;
 	int comp_id = cos_spd_id();
 
 	memset((void *)mm_vas_pgd, 0, PAGE_SIZE);
@@ -522,38 +695,28 @@ static int mm_comp_init(void)
 	comp_lock(mm_comp);
 	
 	mm_vas = &mm_comp->mapping_ns;
-	vas_init(mm_vas, mm_vas_pgd);
+	vas_ns_init(mm_vas, mm_vas_pgd);
+	/* vas allocation in mm isn't as frequent. */
+	mm_vas->expand = NULL;
+	mm_vas->allocator.qwq_min_limit = 4;
+	mm_vas->allocator.qwq_max_limit = 16;
 
-	pte = mm_vas_pte;
-	pte_vaddr = heap_vaddr & ~((1 << (PGTBL_PAGEIDX_SHIFT+PGTBL_ORD)) - 1);
-	ret = mappingtbl_cons((mappingtbl_t)mm_vas_pgd, pte_vaddr, (vaddr_t)pte);
-
-	n = 0;
-	/* We put all available vaddr on the glb freelist of the namespace. */
-	while (1) {
-		mapping = mapping_lookup((mappingtbl_t)mm_vas_pgd, heap_vaddr);
-		if (!mapping) break;
-
-		memset(mapping, 0, sizeof(struct mapping));
-		mapping->flags |= PARSEC_FLAG_DEACT;
-		mapping->vaddr = heap_vaddr;
-		ret = glb_freelist_add(mapping, &(mm_vas->allocator));
-		heap_vaddr += PAGE_SIZE;
-		n++;
-	}
-	cos_set_heap_ptr((void *)heap_vaddr);
-
+	/* We don't mess up with the heap. Instead, get a new region. */
+	comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pte, PAGE_SIZE);
+	comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pte2, MM_PTE_SIZE);
+	
 	comp_unlock(mm_comp);
 
-	return n;
+	return 0;
 }
 
 static void
-comp_init(void)
+comp_ns_init(void)
 {
-	int ret;
 	/* We don't use the normal alloc/free of the component
 	 * namespace. Everything is kept simple here. */
+	int i;
+	comp_t *c;
 
 	if ((sizeof(mapping_t) + sizeof(struct quie_mem_meta)) > MAPPING_ITEM_SZ) {
 		printc("MM init: MAPPING TBL SIZE / ORD error!\n");
@@ -569,9 +732,13 @@ comp_init(void)
 	comp_ns.lookup  = comp_lookup;
 	comp_ns.parsec  = &mm;
 
-	ret = mm_comp_init();
+	for (i = 0; i < MAX_NUM_COMPS; i++) {
+		comp_init(i);
+	}
 
-	printc("Mem_mgr: %d virtual pages available in the mem_mgr component. \n", ret);
+	mm_comp_init();
+
+	/* printc("Mem_mgr: VAS init done. \n"); */
 
 	return;
 }
@@ -587,7 +754,7 @@ mm_init(void)
 	frame_init();
 	kmem_init();
 
-	comp_init();
+	comp_ns_init();
 
 	/* printc("core %ld: mm init as thread %d\n", cos_cpuid(), cos_get_thd_id()); */
 
@@ -613,18 +780,36 @@ mm_init(void)
 /*** Public interface functions ***/
 /**********************************/
 
+static mapping_t *
+get_vas_mapping(comp_t *comp, unsigned long n_pages) 
+{
+	int ret;
+
+	if (unlikely(comp->mapping_ns.tbl == NULL)) {
+		ret = comp_vas_init(comp);
+		if (ret) return 0;
+	}
+
+	/* all comps use the same alloc function */
+	assert(comp->mapping_ns.alloc == vas_alloc);
+	return vas_alloc(&comp->mapping_ns, PAGE_SIZE*n_pages);
+}
+
 vaddr_t mman_get_page(spdid_t compid, vaddr_t addr, int flags)
 {
+	int ret;
+	vaddr_t page;
 	frame_t *f;
 	comp_t *comp;
-	parsec_ns_t *vaddr;
-	printc("MM get page: comp %d (cap %d), addr %d, flags %d\n", compid, comp_pt_cap(compid), addr, flags);
+	mapping_t *m;
 
+	printc("MM get page: comp %d (cap %d), addr %d, flags %d\n", compid, comp_pt_cap(compid), addr, flags);
+	page = 0;
+
+	/* Alloc pmem */
 	f = get_pmem();
 	if (unlikely(!f)) {
 		printc("MM couldn't allocate physical pages\n");
-		call_cap(0,0,0,0,0);
-
 		return 0;
 	}
 
@@ -636,26 +821,24 @@ vaddr_t mman_get_page(spdid_t compid, vaddr_t addr, int flags)
 		
 	} else {
 		/* Alloc vaddr */
-		
-		/* if (comp->vaddr.tbl == NULL) { */
-		/* 	comp_vas_init(comp); */
-		/* } */
-		/* Alloc pmem */
+		m = get_vas_mapping(comp, 1);
+		printc("got new mapping %p for comp %d, vaddr %x, pmem %x\n", m, comp->id, m->vaddr, f->cap);
 		/* and build mapping */
-//		add
+//build_mapping(comp_t *comp, frame_t *frame, mapping_t *mapping)
+
+		ret = build_mapping(comp, f, m);
+		if (unlikely(ret)) printc("MM: mapping build error!\n");
+		page = m->vaddr;
+		
 	}
 	parsec_read_unlock(&mm);
-	
-	call_cap(0,0,0,0,0);
 
-	return 0;
+	return page;
 }
 
 vaddr_t __mman_alias_page(spdid_t s_spd, vaddr_t s_addr, u32_t d_spd_flags, vaddr_t d_addr)
 {
 	printc("in alias page\n");
-	call_cap(0,0,0,0,0);
-
 
 	return 0;
 }
@@ -663,7 +846,6 @@ vaddr_t __mman_alias_page(spdid_t s_spd, vaddr_t s_addr, u32_t d_spd_flags, vadd
 int mman_revoke_page(spdid_t spd, vaddr_t addr, int flags)
 {
 	printc("in revoke page\n");
-	call_cap(0,0,0,0,0);
 
 	return 0;
 }
@@ -671,7 +853,6 @@ int mman_revoke_page(spdid_t spd, vaddr_t addr, int flags)
 int mman_release_page(spdid_t spd, vaddr_t addr, int flags)
 {
 	printc("in release page\n");
-	call_cap(0,0,0,0,0);
 
 	return 0;
 }

@@ -649,6 +649,9 @@ boot_comp_mm_init(void)
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
 			mm_comp->pgtbl_cap[0], mm_comp->captbl_cap[0], MM_CAPTBL_OWN_PGTBL, 0)) BUG();
 
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
+			mm_comp->captbl_cap[0], mm_comp->captbl_cap[0], MM_CAPTBL_OWN_CAPTBL, 0)) BUG();
+
 	for (i = 1; i <= MAX_NUM_COMPS; i++) {
 		if (i == cos_spd_id()) continue;
 

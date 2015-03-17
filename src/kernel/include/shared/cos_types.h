@@ -192,7 +192,10 @@ enum {
 
 enum {
 	/* cap 0-3 reserved for sret. 4-7 is the mm pgtbl cap. */
-	MM_CAPTBL_OWN_PGTBL = 4,
+	MM_CAPTBL_OWN_CAPTBL = 4,
+	MM_CAPTBL_OWN_PGTBL = 8,
+	/* reserve some space for comp caps. */
+	MM_CAPTBL_FREE = 64,
 };
 
 // QW: for ppos test only. remove.
