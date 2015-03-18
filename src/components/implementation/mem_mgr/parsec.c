@@ -304,6 +304,8 @@ parsec_alloc(size_t size, struct parsec_allocator *alloc, const int waiting)
 		/* printf("No memory allocated\n"); */
 		return NULL;
 	}
+
+	meta->flags &= ~PARSEC_FLAG_DEACT;
 	assert(meta->size >= size);
 
 	return (char *)meta + sizeof(struct quie_mem_meta);
@@ -427,6 +429,9 @@ glb_freelist_add(void *item, struct parsec_allocator *alloc)
 	
 	meta = item - sizeof(struct quie_mem_meta);
 
+	/* Should have been marked already. Set it anyway. */
+	meta->flags |= PARSEC_FLAG_DEACT;
+
 	freelist = &(alloc->glb_freelist.slab_freelists[size2slab(meta->size)]);
 
 	ck_spinlock_lock(&(freelist->l));
@@ -443,7 +448,7 @@ parsec_free(void *node, struct parsec_allocator *alloc)
 {
 	struct quie_mem_meta *meta;
 	struct quie_queue *queue;
-	int cpu;
+	int cpu, old, new;
 
 	if (unlikely(!node || !alloc)) return -EINVAL;
 	/* if ((unsigned long)node % CACHE_LINE) return -EINVAL; */
@@ -451,7 +456,11 @@ parsec_free(void *node, struct parsec_allocator *alloc)
 	cpu = get_cpu();
 	meta = (struct quie_mem_meta *)((unsigned long)node - sizeof(struct quie_mem_meta));
 	meta->time_deact = get_time();
-	meta->flags |= PARSEC_FLAG_DEACT;
+
+	old = meta->flags;
+	new = meta->flags | PARSEC_FLAG_DEACT;
+
+	if (cos_cas(&meta->flags, old, new) != CAS_SUCCESS) return -ECASFAIL;
 
 	queue = &(alloc->qwq[cpu].slab_queue[size2slab(meta->size)]);
 	quie_queue_add(queue, meta);

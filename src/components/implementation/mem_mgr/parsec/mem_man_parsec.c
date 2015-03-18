@@ -69,6 +69,10 @@ void call(void) {
 /*** Data-structure for tracking physical memory ***/
 /***************************************************/
 
+enum {
+	MM_MAPPING_ACTIVE = 1,
+};
+
 struct mapping {
 	int flags;
 	vaddr_t vaddr;
@@ -76,6 +80,7 @@ struct mapping {
 	/* siblings and children */
 	struct mapping *sibling_next, *sibling_prev;
 	struct mapping *parent, *child;
+	ck_spinlock_ticket_t m_lock;
 };
 typedef struct mapping mapping_t ;
 
@@ -95,6 +100,18 @@ struct comp {
 	ck_spinlock_ticket_t comp_lock; /* only used for init */
 };
 typedef struct comp comp_t ;
+
+static void mapping_lock(mapping_t *m) {
+	ck_spinlock_ticket_lock(&m->m_lock);
+}
+
+static int mapping_trylock(mapping_t *m) {
+	return ck_spinlock_ticket_trylock(&m->m_lock);
+}
+
+static void mapping_unlock(mapping_t *m) {
+	ck_spinlock_ticket_unlock(&m->m_lock);
+}
 
 static void frame_lock(frame_t *f) {
 	ck_spinlock_ticket_lock(&f->frame_lock);
@@ -131,10 +148,9 @@ char kmem_table[FRAMETBL_ITEM_SZ*COS_KERNEL_MEMORY] CACHE_ALIGNED;
 
 char comp_table[COMP_ITEM_SZ*MAX_NUM_COMPS] CACHE_ALIGNED;
 
-#define PMEM_QWQ_SIZE 64
-#define KMEM_QWQ_SIZE 8 /* Kmem allocation much less often. */
-
 #define VAS_QWQ_SIZE 64
+#define PMEM_QWQ_SIZE 64
+#define KMEM_QWQ_SIZE 4 /* Kmem allocation much less often. */
 
 /* All namespaces in the same parallel section. */
 parsec_t mm CACHE_ALIGNED;
@@ -154,6 +170,7 @@ parsec_t mm CACHE_ALIGNED;
 #define MAPPING_ITEM_SZ CACHE_LINE
 char mm_vas_pgd[PAGE_SIZE] PAGE_ALIGNED;
 
+#define MM_PGD_NPAGES 1
 #define MM_PTE_NPAGES (MAPPING_ITEM_SZ/sizeof(void *))
 #define MM_PTE_SIZE   (PAGE_SIZE * MM_PTE_NPAGES)
 
@@ -167,12 +184,13 @@ ERT_CREATE(__mappingtbl, mappingtbl, PGTBL_DEPTH, PGTBL_ORD, sizeof(int*), PGTBL
 typedef struct mappingtbl * mappingtbl_t; 
 
 static mapping_t * 
-mapping_lookup(mappingtbl_t tbl, vaddr_t addr) 
+mapping_lookup(comp_t *c, vaddr_t addr) 
 {
 	unsigned long flags;
 	struct quie_mem_meta *meta;
 
-	meta = (struct quie_mem_meta *)__mappingtbl_lkupan(tbl, addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &flags);
+	meta = (struct quie_mem_meta *)__mappingtbl_lkupan((mappingtbl_t)c->mapping_ns.tbl, 
+							   addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &flags);
 
 	if (!meta) return NULL;
 	if (meta->flags & PARSEC_FLAG_DEACT) return NULL;
@@ -350,10 +368,11 @@ comp_vas_region_alloc(comp_t *comp, vaddr_t local_tbl, unsigned long vas_unit_sz
 	pte_kmem  = get_kmem()->cap;
 	pte_cap   = mm_alloc_pte_cap();
 
+	/* TODO: error handling. */
 	if (call_cap_op(MM_CAPTBL_OWN_CAPTBL, CAPTBL_OP_PGTBLACTIVATE,
-			pte_cap, MM_CAPTBL_OWN_PGTBL, pte_kmem, 1)) BUG();
+			pte_cap, MM_CAPTBL_OWN_PGTBL, pte_kmem, 1)) return -1;
 	/* Connect PTE to the component's pgtbl */
-	if (call_cap_op(comp_pt_cap(comp->id), CAPTBL_OP_CONS, pte_cap, pte, 0, 0)) BUG();
+	if (call_cap_op(comp_pt_cap(comp->id), CAPTBL_OP_CONS, pte_cap, pte, 0, 0)) return -1;
 
 	ret = mappingtbl_cons((mappingtbl_t)ns->tbl, pte, (vaddr_t)local_tbl);
 	assert(ret == 0);
@@ -363,16 +382,18 @@ comp_vas_region_alloc(comp_t *comp, vaddr_t local_tbl, unsigned long vas_unit_sz
 
 	mapping_vaddr = pte;
 	for (i = 0; i < n_items; i++) {
-		m = mapping_lookup((mappingtbl_t)(ns->tbl), mapping_vaddr);
+		m = mapping_lookup(comp, mapping_vaddr);
 		if (!m) {
-			printc("ERROR: no entry in new pte %x\n", pte);
+			printc("ERROR: no entry in new pte %x\n", (unsigned int)pte);
 			return -1;
 		}
 
 		temp_m = m;
 		for (j = 0; j < (int)(vas_unit_sz / PAGE_SIZE); j++) {
 			memset(temp_m, 0, sizeof(struct mapping));
-			temp_m->flags |= PARSEC_FLAG_DEACT;
+			meta = (void *)temp_m - sizeof(struct quie_mem_meta);
+			meta->flags |= PARSEC_FLAG_DEACT;
+
 			temp_m->vaddr = mapping_vaddr;
 
 			mapping_vaddr += PAGE_SIZE;
@@ -383,7 +404,7 @@ comp_vas_region_alloc(comp_t *comp, vaddr_t local_tbl, unsigned long vas_unit_sz
 		meta = (void *)m - sizeof(struct quie_mem_meta);
 		meta->size = vas_unit_sz;
 
-		printc("comp %d add vas %x, size %d\n", comp->id, m->vaddr, meta->size);
+		/* printc("comp %d add vas %x, size %d\n", comp->id, m->vaddr, meta->size); */
 		ret = glb_freelist_add(m, &(ns->allocator));
 		assert(!ret);
 	}
@@ -400,11 +421,7 @@ vas_expand(comp_t *comp, unsigned long unit_size)
 	assert(comp);
 	pte = mm_local_get_page(MM_PTE_NPAGES);
 
-	comp_vas_region_alloc(comp, pte, unit_size);
-
-	printc("comp %d expanded\n", comp->id);
-	
-	return 0;
+	return comp_vas_region_alloc(comp, pte, unit_size);
 }
 
 static struct mapping *
@@ -419,11 +436,9 @@ vas_alloc(parsec_ns_t *ns, unsigned long size)
 	if (!new_mapping && ns->expand) {
 		int (*expand_fn)(parsec_ns_t *, unsigned long) = ns->expand;
 		assert(expand_fn);
-		printc("calling expand\n");
 		expand_fn(ns, size);
-		printc("calling expand done\n");
 		new_mapping = parsec_alloc(size, &(ns->allocator), 1);
-	} 
+	}
 
 	return new_mapping;
 }
@@ -498,8 +513,6 @@ frame_init(void)
 	/* Detecting all the frames. */
 	n_pmem = frame_boot(BOOT_MEM_PM_BASE, &frame_ns);
 
-	printc("Mem_mgr: initialized %lu physical frames\n", n_pmem);
-
 	return;
 }
 
@@ -524,8 +537,6 @@ kmem_init(void)
 	kmem_ns.parsec = &mm;
 
 	n_kmem = frame_boot(BOOT_MEM_KM_BASE, &kmem_ns);
-
-	printc("Mem_mgr: initialized %lu kernel frames.\n", n_kmem);
 
 	return;
 }
@@ -560,18 +571,15 @@ build_mapping(comp_t *comp, frame_t *frame, mapping_t *mapping)
 			  frame->cap, comp_pt_cap(comp->id), mapping->vaddr, 0);
 	if (ret) return -EINVAL;
 	
-	frame->child      = mapping;
-	mapping->frame_id = frame->id;
-	mapping->flags    &= ~PARSEC_FLAG_DEACT;
+	/* we have the frame lock. */
+	frame->child = mapping;
+	/* This should not fail as we are using newly allocated vas. */
+	if (cos_cas(&mapping->frame_id, 0, frame->id) != CAS_SUCCESS) return -ECASFAIL;
+	/* printc("MM: built mapping for comp %ld @ %x using frame %d\n",  */
+	/*        comp->id, mapping->vaddr, frame->id); */
 done:
 	frame_unlock(frame);
 
-	return 0;
-}
-
-static int 
-alias_mapping(mapping_t *parent, mapping_t *child)
-{
 	return 0;
 }
 
@@ -639,7 +647,7 @@ comp_vas_init(comp_t *c)
 		goto done;
 	}
 
-	p = mm_local_get_page(1);
+	p = mm_local_get_page(MM_PGD_NPAGES);
 	if (!p) return -ENOMEM;
 
 	vas_ns_init(ns, (void *)p);
@@ -698,8 +706,8 @@ static int mm_comp_init(void)
 	vas_ns_init(mm_vas, mm_vas_pgd);
 	/* vas allocation in mm isn't as frequent. */
 	mm_vas->expand = NULL;
-	mm_vas->allocator.qwq_min_limit = 4;
-	mm_vas->allocator.qwq_max_limit = 16;
+	mm_vas->allocator.qwq_min_limit = KMEM_QWQ_SIZE;
+	mm_vas->allocator.qwq_max_limit = KMEM_QWQ_SIZE*4;
 
 	/* We don't mess up with the heap. Instead, get a new region. */
 	comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pte, PAGE_SIZE);
@@ -746,9 +754,6 @@ comp_ns_init(void)
 static void
 mm_init(void)
 {
-	printc("In mm init, comp %ld, thd %d, cpu %ld\n",
-	       cos_spd_id(), cos_get_thd_id(), cos_cpuid());
-
 	parsec_init(&mm);
 
 	frame_init();
@@ -756,21 +761,7 @@ mm_init(void)
 
 	comp_ns_init();
 
-	/* printc("core %ld: mm init as thread %d\n", cos_cpuid(), cos_get_thd_id()); */
-
-	/* /\* Expanding VAS. *\/ */
-	/* printc("mm expanding %lu MBs @ %p\n", (NREGIONS-1) * round_up_to_pgd_page(1) / 1024 / 1024,  */
-	/*        (void *)round_up_to_pgd_page((unsigned long)&cos_comp_info.cos_poly[1])); */
-	/* if (cos_vas_cntl(COS_VAS_SPD_EXPAND, cos_spd_id(),  */
-	/* 		 round_up_to_pgd_page((unsigned long)&cos_comp_info.cos_poly[1]),  */
-	/* 		 (NREGIONS-1) * round_up_to_pgd_page(1))) { */
-	/* 	printc("MM could not expand VAS\n"); */
-	/* 	BUG(); */
-	/* } */
-
-	/* frame_init(); */
-
-	/* printc("core %ld: mm init done\n", cos_cpuid()); */
+	printc("Mem_mgr: initialized %lu frames and %lu kernel frames.\n", n_pmem, n_kmem);
 }
 
 /**************************/
@@ -787,12 +778,34 @@ get_vas_mapping(comp_t *comp, unsigned long n_pages)
 
 	if (unlikely(comp->mapping_ns.tbl == NULL)) {
 		ret = comp_vas_init(comp);
-		if (ret) return 0;
+		if (ret) return NULL;
 	}
+	if (unlikely(!n_pages)) return NULL;
 
 	/* all comps use the same alloc function */
 	assert(comp->mapping_ns.alloc == vas_alloc);
 	return vas_alloc(&comp->mapping_ns, PAGE_SIZE*n_pages);
+}
+
+vaddr_t mman_valloc(spdid_t compid, spdid_t dest, unsigned long npages)
+{
+	vaddr_t page;
+	comp_t *comp;
+	mapping_t *m;
+
+	/* printc("in valloc comp %d to %d, n pages %d\n", compid, dest, npages); */
+
+	parsec_read_lock(&mm);
+
+	comp = comp_lookup(dest);
+	/* Alloc vaddr */
+	m = get_vas_mapping(comp, npages);
+	if (m) page = m->vaddr;
+	else   page = 0;
+
+	parsec_read_unlock(&mm);
+
+	return page;
 }
 
 vaddr_t mman_get_page(spdid_t compid, vaddr_t addr, int flags)
@@ -803,7 +816,7 @@ vaddr_t mman_get_page(spdid_t compid, vaddr_t addr, int flags)
 	comp_t *comp;
 	mapping_t *m;
 
-	printc("MM get page: comp %d (cap %d), addr %d, flags %d\n", compid, comp_pt_cap(compid), addr, flags);
+	/* printc("MM get page: comp %ld (cap %d), addr %d, flags %d\n", compid, comp_pt_cap(compid), addr, flags); */
 	page = 0;
 
 	/* Alloc pmem */
@@ -818,11 +831,12 @@ vaddr_t mman_get_page(spdid_t compid, vaddr_t addr, int flags)
 	comp = comp_lookup(compid);
 	if (addr) {
 		/* Get a new page, and map it to caller specified vaddr. */
-		
+
+		// not supported for now.
 	} else {
 		/* Alloc vaddr */
 		m = get_vas_mapping(comp, 1);
-		printc("got new mapping %p for comp %d, vaddr %x, pmem %x\n", m, comp->id, m->vaddr, f->cap);
+		/* printc("got new mapping %p for comp %ld, vaddr %x, pmem %x\n", m, comp->id, m->vaddr, f->cap); */
 		/* and build mapping */
 //build_mapping(comp_t *comp, frame_t *frame, mapping_t *mapping)
 
@@ -836,11 +850,82 @@ vaddr_t mman_get_page(spdid_t compid, vaddr_t addr, int flags)
 	return page;
 }
 
+static int 
+alias_mapping(comp_t *s_comp, mapping_t *s, comp_t *d_comp, mapping_t *d)
+{
+	int ret = -1;
+	frame_t *f = frame_lookup(s->frame_id, &frame_ns);
+
+	if (unlikely(!f)) return -EINVAL;
+
+	frame_lock(f);
+	mapping_lock(s);
+	/* re-check after taking the lock */
+	if (!parsec_item_active(s)) goto UNLOCK_S;
+
+	/* if locking failed of dest mapping, others are aliasing to the same
+	 * location. */
+	if (!mapping_trylock(d)) goto UNLOCK_S;
+	if (d->frame_id) { 
+		/* Someone nailed the dest mapping before us. */
+		goto UNLOCK_ALL; 
+	}
+
+	ret = call_cap_op(comp_pt_cap(s_comp->id), CAPTBL_OP_CPY,
+			  s->vaddr, comp_pt_cap(d_comp->id), d->vaddr, 0);
+	if (ret) goto UNLOCK_ALL;
+
+	if (!s->child) {
+		s->child = d;
+	} else {
+		/* insert to the head of the dll */
+		s->child->sibling_prev = d;
+		d->sibling_next = s->child;
+		s->child = d;
+	}
+
+	assert(d->frame_id == 0 && d->parent == NULL);
+	d->parent   = s;
+	d->frame_id = s->frame_id;
+	ret = 0;
+UNLOCK_ALL:
+	mapping_unlock(d);
+UNLOCK_S:
+	mapping_unlock(s);
+	frame_unlock(f);
+	
+	return ret;
+}
+
 vaddr_t __mman_alias_page(spdid_t s_spd, vaddr_t s_addr, u32_t d_spd_flags, vaddr_t d_addr)
 {
-	printc("in alias page\n");
+	comp_t *src_c, *dest_c;
+	mapping_t *src_m, *dest_m;
+	int ret = 0;
+	spdid_t d_spd = d_spd_flags >> 16;
+	int flags = d_spd_flags & 0xFFFF;
 
-	return 0;
+	/* printc("in alias page, from comp %d @ %x to comp %d @ %x\n", s_spd, s_addr, d_spd, d_addr); */
+
+	parsec_read_lock(&mm);
+
+	src_c  = comp_lookup(s_spd);
+	dest_c = comp_lookup(d_spd);
+	if (!src_c || !dest_c) goto done;
+
+	src_m  = mapping_lookup(src_c, s_addr);
+	dest_m = mapping_lookup(dest_c, d_addr);
+	if (!src_m || !dest_m) goto done;
+	if (src_m->frame_id == 0 || dest_m->frame_id != 0) goto done;
+
+	/* let's try build the mapping. */
+	if (alias_mapping(src_c, src_m, dest_c, dest_m)) goto done;
+
+	ret = d_addr;
+done:	
+	parsec_read_unlock(&mm);
+
+	return ret;
 }
 
 int mman_revoke_page(spdid_t spd, vaddr_t addr, int flags)

@@ -345,6 +345,12 @@ void q_debug(void);
 void * timer_update(void *arg);
 void * worker(void *arg);
 
+static inline int
+parsec_item_active(void *item)
+{
+	struct quie_mem_meta *m = item - sizeof(struct quie_mem_meta);
+	return !(m->flags & PARSEC_FLAG_DEACT);
+}
 
 /* used to add free item to the head */
 static inline void
@@ -446,7 +452,7 @@ glb_freelist_get(struct quie_queue *queue, size_t size, struct parsec_allocator 
 	struct quie_mem_meta *next, *head, *last;
 	struct freelist *freelist;
 	struct glb_freelist_slab *glb_freelist;
-	int i;
+	int i, thres, n_alloc;
 
 	glb_freelist = &alloc->glb_freelist;
 	freelist = &glb_freelist->slab_freelists[size2slab(size)];
@@ -454,29 +460,34 @@ glb_freelist_get(struct quie_queue *queue, size_t size, struct parsec_allocator 
 	ck_spinlock_lock(&freelist->l);
 	head = last = next = freelist->head;
 
-	for (i = 0; ((unsigned long)i < alloc->qwq_min_limit) && next; i++) {
+	/* half way */
+	thres = alloc->qwq_min_limit + (alloc->qwq_max_limit - alloc->qwq_min_limit) / 2;
+
+	n_alloc = 0;
+	for (i = queue->n_items; (i < thres) && next; i++) {
 		last = next;
 		next = last->next;
+		n_alloc++;
 	}
 
-	assert(freelist->n_items >= (unsigned int)i);
-	freelist->n_items -= i;
+	assert(freelist->n_items >= (unsigned int)n_alloc);
+	freelist->n_items -= n_alloc;
 	freelist->head = next;
 
 	ck_spinlock_unlock(&freelist->l);
 
-	if (i > 0) {
+	if (n_alloc > 0) {
 		/* we get from head to last, adding to the local queue */
 		/* they are free items -- so add them to the head. */
 		last->next = queue->head;
 		queue->head = head;
-		queue->n_items += i;
+		queue->n_items += n_alloc;
 
 		if (queue->tail == NULL) queue->tail = last;
 	}
 
-	return i;
+	return n_alloc;
 }
 
-
+/* PARSEC_HEADER_H */
 #endif

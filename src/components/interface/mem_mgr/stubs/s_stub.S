@@ -17,6 +17,7 @@
 //cos_asm_server_stub_spdid(__mman_alias_page)
 
 cos_asm_server_stub(mman_get_page)
+cos_asm_server_stub(mman_valloc)
 cos_asm_server_stub(mman_release_page)
 cos_asm_server_stub(mman_revoke_page)
 cos_asm_server_stub(__mman_alias_page)

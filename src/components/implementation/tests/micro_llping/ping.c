@@ -1264,13 +1264,54 @@ void cos_init(void)
 #else
 //	pingpong();
 	int i, ret; 
-	printc("calling init\n");
-	ret = call_cap(4, 0, 0, 0, 0);
-	printc("done init, ret %d\n", ret);
-	for (i = 6; i <= 12; i+=2) {
-		ret = call_cap(i, cos_spd_id(), 0,0,0);
-		printc("comp %ld called cap %d, ret %x\n", cos_spd_id(), i, ret);
+	printc("calling mm init\n");
+	call_cap(4, 0, 0, 0, 0);
+	printc("done mm init\n");
+
+	/* hack.... Gotta fix this ASAP after the deadline. */
+#define MMAN_VALLOC 6
+#define MMAN_GET    8
+#define MMAN_ALIAS  10
+#define MMAN_REVOKE 12
+#define MMAN_RELEASE 14
+
+#define N_OPS 16
+	vaddr_t vas[N_OPS], mem[N_OPS];
+	
+	for (i = 0; i < N_OPS; i++) {
+		ret = call_cap(MMAN_VALLOC, cos_spd_id(), cos_spd_id(), 1, 0);
+		vas[i] = (vaddr_t)ret;
+//		printc("%d>>> comp %ld called valloc cap %d, ret %x\n", i, cos_spd_id(), MMAN_VALLOC, ret);
 	}
+
+	for (i = 0; i < N_OPS; i++) {
+		ret = call_cap(MMAN_GET, cos_spd_id(), 0, 0, 0);
+		mem[i] = (vaddr_t)ret;
+//		printc("%d >>> comp %ld called mman_get cap %d, ret %x\n", i, cos_spd_id(), MMAN_GET, ret);
+	}
+
+	for (i = 0; i < N_OPS; i++) {
+		ret = call_cap(MMAN_ALIAS, cos_spd_id(), mem[i], cos_spd_id()<<16, vas[i]);
+//		printc("comp %ld called alias cap %d, ret %x\n", cos_spd_id(), MMAN_ALIAS, ret);
+	}
+
+	/* alias validation */
+	for (i = 0; i < N_OPS; i++) {
+		int *test = (int*)vas[i];
+		*test = i;
+	}
+	for (i = 0; i < N_OPS; i++) {
+		int *test = (int*)mem[i];
+		if (*test != i) printc("test failded! %d: %d\n", i, *test);
+	}
+	printc("VALLOC, GET_PAGE, ALIAS test done!\n");
+
+	ret = call_cap(MMAN_REVOKE, cos_spd_id(), 0, 0, 0);
+	printc("comp %ld called revoke cap %d, ret %x\n", cos_spd_id(), MMAN_REVOKE, ret);
+
+	ret = call_cap(MMAN_RELEASE, cos_spd_id(), 0, 0, 0);
+	printc("comp %ld called release cap %d, ret %x\n", cos_spd_id(), MMAN_RELEASE, ret);
+
 
 //	ret = printc("calling mm\n");
 //	printc("calling mm ret %d\n", ret);
@@ -1279,9 +1320,11 @@ void cos_init(void)
 
 	/* help linking. hack for now. */
 	mman_get_page(0,0,0);
+	mman_valloc(0,0,0);
 	mman_revoke_page(0,0,0);
 	mman_release_page(0,0,0);
 	mman_alias_page(0,0,0,0,0);
+
 	call();
 
 	return;
