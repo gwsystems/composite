@@ -186,6 +186,7 @@ cbboot_copy(spdid_t spdid, spdid_t source)
 				ci->cos_stacks.freelists[0].freelist = 0;
 				ci->cos_stacks.freelists[0].thd_id = 0;
 				boot_spd_set_symbs(h, d_spd, ci);
+				boot_deps_save_hp(d_spd, ci->cos_heap_ptr);
 			}
 			prev_map += left - PAGE_SIZE;
 			d_addr += left;
