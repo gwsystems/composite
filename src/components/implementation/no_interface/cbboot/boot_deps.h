@@ -183,6 +183,8 @@ cbboot_copy(spdid_t spdid, spdid_t source)
 				struct cos_component_information *ci = cbm.caddr;
 				printc("going to set_symbs(%d, %d, %x)\n", h, d_spd, ci);
 				ci->cos_this_spd_id = spdid;
+				ci->cos_stacks.freelists[0].freelist = 0;
+				ci->cos_stacks.freelists[0].thd_id = 0;
 				boot_spd_set_symbs(h, d_spd, ci);
 			}
 			prev_map += left - PAGE_SIZE;
