@@ -25,7 +25,6 @@
 
 COS_VECT_CREATE_STATIC(spd_sect_cbufs);
 COS_VECT_CREATE_STATIC(spd_sect_cbufs_header);
-COS_VECT_CREATE_STATIC(spd_sect_cbufs_mem);
 
 /* Need static storage for tracking cbufs to avoid dynamic allocation
  * before boot_deps_map_sect finishes. Each spd has probably 12 or so
@@ -33,7 +32,11 @@ COS_VECT_CREATE_STATIC(spd_sect_cbufs_mem);
  * about 80 components. */
 #define CBUFS_PER_PAGE (PAGE_SIZE / sizeof(cbuf_t))
 #define SECT_CBUF_PAGES (1)
-static cbuf_t all_spd_sect_cbufs[CBUFS_PER_PAGE * SECT_CBUF_PAGES];
+struct cbid_caddr {
+	cbuf_t cbid;
+	void *caddr;
+};
+static struct cbid_caddr all_spd_sect_cbufs[CBUFS_PER_PAGE * SECT_CBUF_PAGES];
 static unsigned int all_cbufs_index = 0;
 
 static spdid_t some_spd = 0;
@@ -43,18 +46,18 @@ boot_deps_init(void)
 {
 	cos_vect_init_static(&spd_sect_cbufs);
 	cos_vect_init_static(&spd_sect_cbufs_header);
-	cos_vect_init_static(&spd_sect_cbufs_mem);
 }
 
 static void
 boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages, struct cobj_header *h, unsigned int sect_id)
 {
-	cbuf_t cbid, *sect_cbufs;
+	struct cbid_caddr *sect_cbufs;
 	char *caddr;
 	spdid_t b_spd;
 	vaddr_t dsrc, dest;
 	struct cobj_sect *sect;
 	int flags;
+	struct cbid_caddr cbm = { .cbid = 0, .caddr = NULL};
 	
 	dsrc = (vaddr_t)src_start; 
 	dest = dest_start;
@@ -65,8 +68,8 @@ boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages
 	flags |= 2; /* no valloc */
 
 	assert(pages > 0);
-	caddr = cbuf_alloc_ext(pages * PAGE_SIZE, &cbid, CBUF_EXACTSZ);
-	assert(caddr);
+	cbm.caddr = cbuf_alloc_ext(pages * PAGE_SIZE, &cbm.cbid, CBUF_EXACTSZ);
+	assert(cbm.caddr);
 
 	sect_cbufs = cos_vect_lookup(&spd_sect_cbufs, spdid);
 	if (!sect_cbufs) {
@@ -74,20 +77,20 @@ boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages
 		all_cbufs_index += h->nsect;
 		if (cos_vect_add_id(&spd_sect_cbufs, sect_cbufs, spdid) < 0) BUG();
 		if (cos_vect_add_id(&spd_sect_cbufs_header, h, spdid) < 0) BUG();
-		if (cos_vect_add_id(&spd_sect_cbufs_mem, caddr, spdid) < 0) BUG();
 	}
 
 	assert(sect_cbufs);
 	assert(sect_id < h->nsect);
-	sect_cbufs[sect_id] = cbid;
+	sect_cbufs[sect_id] = cbm;
 
 	b_spd = cos_spd_id();
+	caddr = cbm.caddr;
 	while (pages-- > 0) {
 		if (dsrc != (mman_alias_page(b_spd, (vaddr_t)caddr, b_spd, dsrc, MAPPING_RW))) BUG();
 		dsrc += PAGE_SIZE;
 		caddr += PAGE_SIZE;
 	}
-	if (dest != (cbuf_map_at(b_spd, cbid, spdid, dest | flags))) BUG();
+	if (dest != (cbuf_map_at(b_spd, cbm.cbid, spdid, dest | flags))) BUG();
 	if (!some_spd) some_spd = spdid;
 }
 
@@ -100,6 +103,7 @@ boot_deps_save_hp(spdid_t spdid, void *hp)
 spdid_t cbboot_copy(spdid_t spdid, spdid_t source);
 static void
 boot_deps_run(void) {
+	printc("copying %d\n", some_spd);
 	spdid_t new_spd = cbboot_copy(cos_spd_id(), some_spd);
 	printc("copied %d to %d\n", some_spd, new_spd);
 	return; }
@@ -108,27 +112,30 @@ boot_deps_run(void) {
 static int 
 boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci);
 static int boot_spd_caps(struct cobj_header *h, spdid_t spdid);
-
+static int boot_spd_thd(spdid_t spdid);
 spdid_t
 cbboot_copy(spdid_t spdid, spdid_t source)
 {
 	spdid_t d_spd = 0;
-	cbuf_t *sect_cbufs;
-	void *mem;
+	struct cbid_caddr *sect_cbufs;
 	struct cobj_header *h;
 	struct cobj_sect *sect;
+	vaddr_t init_daddr;
 	long tot = 0;
 	int j;
 
 	sect_cbufs = cos_vect_lookup(&spd_sect_cbufs, source);
 	h = cos_vect_lookup(&spd_sect_cbufs_header, source);
-	mem = cos_vect_lookup(&spd_sect_cbufs_mem, source);
-	if (!sect_cbufs || !h || !mem) BUG(); //goto done;
+	if (!sect_cbufs || !h) BUG(); //goto done;
 	
 	/* The following, copied partly from booter.c,  */
 	if ((d_spd = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG();
+	printc("got %d\n", d_spd);
 	sect = cobj_sect_get(h, 0);
+	init_daddr = sect->vaddr;
 	if (cos_spd_cntl(COS_SPD_LOCATION, d_spd, sect->vaddr, SERVICE_SIZE)) BUG();
+	printc("set location to %x\n", sect->vaddr);
+
 	for (j = 0 ; j < (int)h->nsect ; j++) {
 		tot += cobj_sect_size(h, j);
 	}
@@ -140,28 +147,56 @@ cbboot_copy(spdid_t spdid, spdid_t source)
 		}
 	}
 
+	vaddr_t prev_map = 0;
 	for (j = 0 ; j < (int)h->nsect ; j++) {
 		vaddr_t d_addr;
+		struct cbid_caddr cbm;
 		cbuf_t cbid;
 		int flags;
+		int left;
 
 		sect = cobj_sect_get(h, j);
 		d_addr = sect->vaddr;
-		cbid = sect_cbufs[j];
+		cbm = sect_cbufs[j];
+		cbid = cbm.cbid;
 
-		if (sect->flags & COBJ_SECT_WRITE) flags = MAPPING_RW;
-		else flags = MAPPING_READ;
-		flags |= 2; /* no valloc */
-
-		if (d_addr != (cbuf_map_at(cos_spd_id(), cbid, d_spd, d_addr | flags))) BUG();
-		if (sect->flags & COBJ_SECT_CINFO) {
-			struct cos_component_information *ci = mem;
-			boot_spd_set_symbs(h, d_spd, ci);
+		left       = cobj_sect_size(h, j);
+		/* previous section overlaps with this one, don't remap! */
+		if (round_to_page(d_addr) == prev_map) {
+			left -= (prev_map + PAGE_SIZE - d_addr);
+			d_addr = prev_map + PAGE_SIZE;
 		}
+		if (left > 0) {
+			left = round_up_to_page(left);
+			prev_map = d_addr;
+
+			if (sect->flags & COBJ_SECT_WRITE) flags = MAPPING_RW;
+			else flags = MAPPING_READ;
+			flags |= 2; /* no valloc */
+
+			printc("going to cbuf_map_at(%d, %d, %d, %x)\n",
+					cos_spd_id(), cbid, d_spd, d_addr | flags);
+
+			if (d_addr != (cbuf_map_at(cos_spd_id(), cbid, d_spd, d_addr | flags))) BUG();
+			if (sect->flags & COBJ_SECT_CINFO) {
+				/* fixup cinfo page */
+				struct cos_component_information *ci = cbm.caddr;
+				printc("going to set_symbs(%d, %d, %x)\n", h, d_spd, ci);
+				ci->cos_this_spd_id = spdid;
+				boot_spd_set_symbs(h, d_spd, ci);
+			}
+			prev_map += left - PAGE_SIZE;
+			d_addr += left;
+		}
+
 	}
-	
+
+	printc("activing %d with caps %d\n", d_spd, h->ncap);
 	if (cos_spd_cntl(COS_SPD_ACTIVATE, d_spd, h->ncap, 0)) BUG();
+	printc("boot_spd_caps(%x, %d)\n", h, d_spd);
 	if (boot_spd_caps(h, d_spd)) BUG();
+	printc("let's try making a thread in %d\n", d_spd);	
+	if (h->flags & COBJ_INIT_THD) boot_spd_thd(d_spd);
 
 done:
 	return d_spd;
