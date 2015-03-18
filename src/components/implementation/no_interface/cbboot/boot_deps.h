@@ -36,6 +36,8 @@ COS_VECT_CREATE_STATIC(spd_sect_cbufs_mem);
 static cbuf_t all_spd_sect_cbufs[CBUFS_PER_PAGE * SECT_CBUF_PAGES];
 static unsigned int all_cbufs_index = 0;
 
+static spdid_t some_spd = 0;
+
 static void
 boot_deps_init(void)
 {
@@ -86,6 +88,7 @@ boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages
 		caddr += PAGE_SIZE;
 	}
 	if (dest != (cbuf_map_at(b_spd, cbid, spdid, dest | flags))) BUG();
+	if (!some_spd) some_spd = spdid;
 }
 
 static void
@@ -94,12 +97,17 @@ boot_deps_save_hp(spdid_t spdid, void *hp)
 	cinfo_add_heap_pointer(cos_spd_id(), spdid, hp);
 }
 
+spdid_t cbboot_copy(spdid_t spdid, spdid_t source);
 static void
-boot_deps_run(void) { return; }
+boot_deps_run(void) {
+	spdid_t new_spd = cbboot_copy(cos_spd_id(), some_spd);
+	printc("copied %d to %d\n", some_spd, new_spd);
+	return; }
 
 /* cbboot copying spds */
 static int 
 boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci);
+static int boot_spd_caps(struct cobj_header *h, spdid_t spdid);
 
 spdid_t
 cbboot_copy(spdid_t spdid, spdid_t source)
@@ -117,7 +125,7 @@ cbboot_copy(spdid_t spdid, spdid_t source)
 	mem = cos_vect_lookup(&spd_sect_cbufs_mem, source);
 	if (!sect_cbufs || !h || !mem) BUG(); //goto done;
 	
-	/* copied partly from booter.c */
+	/* The following, copied partly from booter.c,  */
 	if ((d_spd = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG();
 	sect = cobj_sect_get(h, 0);
 	if (cos_spd_cntl(COS_SPD_LOCATION, d_spd, sect->vaddr, SERVICE_SIZE)) BUG();
@@ -127,7 +135,7 @@ cbboot_copy(spdid_t spdid, spdid_t source)
 	if (tot > SERVICE_SIZE) {
 		if (cos_vas_cntl(COS_VAS_SPD_EXPAND, d_spd, sect->vaddr + SERVICE_SIZE, 
 				 3 * round_up_to_pgd_page(1))) {
-			printc("cbboot: could not expand VAS for component %d\n", h->id);
+			printc("cbboot: could not expand VAS for component %d\n", d_spd);
 			BUG();
 		}
 	}
@@ -151,6 +159,9 @@ cbboot_copy(spdid_t spdid, spdid_t source)
 			boot_spd_set_symbs(h, d_spd, ci);
 		}
 	}
+	
+	if (cos_spd_cntl(COS_SPD_ACTIVATE, d_spd, h->ncap, 0)) BUG();
+	if (boot_spd_caps(h, d_spd)) BUG();
 
 done:
 	return d_spd;
