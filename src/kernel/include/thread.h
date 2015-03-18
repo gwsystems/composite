@@ -331,10 +331,7 @@ static inline vaddr_t thd_get_sp(struct thread *t)
 static inline struct spd *thd_get_thd_spd(struct thread *thd)
 {
 	struct thd_invocation_frame *frame;
-	struct spd *spd;
 
-	spd = virtual_namespace_query(thd_get_ip(thd));
-	if (spd) return spd;
 	/* thd_get_thd_spd is not used in sec */
 	frame = thd_invstk_top(thd);
 	return frame->spd;

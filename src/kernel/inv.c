@@ -124,7 +124,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	}
 
 	if (unlikely(capability >= curr_spd->ncaps)) {
-		struct spd *t = virtual_namespace_query(ip);
+		struct spd *t = NULL;
 		printk("cos: capability %d greater than max (%d) from spd %d @ %x.\n", 
 		       capability, curr_spd->ncaps, (t) ? spd_get_index(t): 0, (unsigned int)ip);
 		return 0;
@@ -294,7 +294,7 @@ cos_syscall_ainv_send(int spdid, int capability)
 int 
 fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num)
 {
-	struct spd *s = virtual_namespace_query(regs->ip);
+	struct spd *s = NULL;
 	struct thd_invocation_frame *curr_frame;
 	struct inv_ret_struct r;
 	vaddr_t a;
@@ -2774,7 +2774,7 @@ cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, unsigned lon
 	dspd_id  = op_flags_dspd & 0x0000FFFF;
 	this_spd = spd_get_by_index(spdid);
 	spd      = spd_get_by_index(dspd_id);
-	if (!this_spd || !spd || virtual_namespace_query(daddr) != spd) {
+	if (!this_spd || !spd ) {
 		printk("cos: invalid mmap cntl call for spd %d for spd %d @ vaddr %x\n",
 		       spdid, dspd_id, (unsigned int)daddr);
 		return -1;
@@ -2885,7 +2885,6 @@ fault_update_mpd_pgtbl(struct thread *thd, struct pt_regs *regs, vaddr_t fault_a
 	struct spd_poly *active;
 
 	origin = thd_get_thd_spd(thd);
-	if (origin != virtual_namespace_query(fault_addr)) return 0;
 	active = thd_get_thd_spdpoly(thd);
 
 	if ( chal_pgtbl_entry_absent(origin->spd_info.pg_tbl, fault_addr)) return 0;

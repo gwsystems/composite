@@ -31,10 +31,6 @@ int virtual_namespace_alloc(struct spd *spd, unsigned long addr, unsigned int si
 	/* FIXME: this should be rounding up not down */
 	unsigned int adj_to = adj_addr + (size>>HPAGE_SHIFT);
 
-	for (i = adj_addr ; i < adj_to ; i++) {
-		if (virtual_spd_layout[i]) return 0;
-	}
-
 	//printk("cos: adding spd %d from %x to %x\n", spd_get_index(spd), addr, addr+size);
 	for (i = adj_addr ; i < adj_to ; i++) {
 		virtual_spd_layout[i] = spd;
@@ -58,9 +54,6 @@ int virtual_namespace_free(struct spd *spd, unsigned long addr, unsigned int siz
 	unsigned int addr_to_idx = addr_from_idx + (size>>HPAGE_SHIFT);
 	int i;
 
-	for (a = addr ; a < addr+(size>>HPAGE_SHIFT) ; a += HPAGE_SIZE) {
-		if (virtual_namespace_query(a) != spd) return 0;
-	}
 	for (i = addr_from_idx ; i < addr_to_idx ; i++) virtual_spd_layout[i] = NULL;
 	
 	return 1;
