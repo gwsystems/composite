@@ -20,9 +20,11 @@
 #include <mem_mgr.h>
 
 int
-prints(char *str)
+prints(char *s)
 {
-	return 0;
+	int len = strlen(s);
+	cos_print(s, len);
+	return len;
 }
 
 int __attribute__((format(printf,1,2))) 
@@ -287,7 +289,9 @@ frame_alloc(parsec_ns_t *ns)
 {
 	/* The size (1st argument) is meaningless here. We are
 	 * allocating a page. */
-	return parsec_alloc(0, &(ns->allocator), 1);
+	 frame_t *f = parsec_alloc(0, &(ns->allocator), 1);
+
+	 return f;
 }
 
 static struct frame *
@@ -424,12 +428,19 @@ vas_expand(comp_t *comp, unsigned long unit_size)
 	return comp_vas_region_alloc(comp, pte, unit_size);
 }
 
+static void 
+mapping_init(mapping_t *m)
+{
+	m->flags = 0;
+	m->frame_id = 0;
+	m->sibling_next = m->sibling_prev = NULL;
+	m->parent = m->child = NULL;
+}
+
 static struct mapping *
 vas_alloc(parsec_ns_t *ns, unsigned long size)
 {
-	/* The size (1st argument) is meaningless here. We are
-	 * allocating a page. */
-	struct mapping* new_mapping;
+	mapping_t *new_mapping;
 
 	new_mapping = parsec_alloc(size, &(ns->allocator), 1);
 
@@ -439,6 +450,8 @@ vas_alloc(parsec_ns_t *ns, unsigned long size)
 		expand_fn(ns, size);
 		new_mapping = parsec_alloc(size, &(ns->allocator), 1);
 	}
+
+	if (new_mapping) mapping_init(new_mapping);
 
 	return new_mapping;
 }
@@ -928,16 +941,168 @@ done:
 	return ret;
 }
 
-int mman_revoke_page(spdid_t spd, vaddr_t addr, int flags)
+/* TODO: avoid false sharing in kernel (edge case). */
+#define LTBL_ENTS (1<<16)
+#define LIDS_PERCPU (LTBL_ENTS/NUM_CPU)
+struct liveness_id {
+	unsigned long lid;
+	char __padding[CACHE_LINE*2 - sizeof(unsigned long)];
+} PACKED CACHE_ALIGNED;
+
+struct liveness_id lid[NUM_CPU] CACHE_ALIGNED;
+
+static unsigned long 
+cpu_get_lid(void)
 {
-	printc("in revoke page\n");
+	unsigned long new_lid, offset;
+	int cpu = cos_cpuid();
+
+	new_lid = lid[cpu].lid++;
+	offset  = LIDS_PERCPU * cpu;
+
+	return offset + new_lid % LIDS_PERCPU;
+}
+
+static int
+mapping_free(mapping_t *m, comp_t *c)
+{
+	mapping_t *child;
+	frame_t *f;
+	int ret = -1;
+
+	mapping_lock(m);
+	/* always re-check before modification. */
+	if (!parsec_item_active(m)) goto done;
+
+	/* free children recursively */
+	child = m->child;
+	while (child) {
+		mapping_free(child, c);
+		child = child->sibling_next;
+	}
+
+	if (m->frame_id) {
+		/* Remove the mapping first */
+		ret = call_cap_op(comp_pt_cap(c->id), CAPTBL_OP_MEMDEACTIVATE,
+				  m->vaddr, cpu_get_lid(), 0, 0);
+		if (ret) printc("ERROR: unmap frame %lu @ vaddr %x failed", m->frame_id, (unsigned int)m->vaddr);
+
+		/* Free mapping, and then release the frame if we are
+		 * root. Let's keep this order just to be safe. */
+		ret = vas_free(m, &c->mapping_ns);
+		if (m->parent == NULL) {
+			/* No parent means root mapping */
+			f = frame_lookup(m->frame_id, &frame_ns);
+			assert(f && f->child == m);
+
+			pmem_free(f);
+			f->child = NULL;
+		}
+	} else {
+		/* no frame means free vas (but valloc-ed). */
+		assert(m->child == NULL && m->parent == NULL);
+		/* Only free the vas in this case. */
+		ret = vas_free(m, &c->mapping_ns);
+	}
+done:
+	mapping_unlock(m);
+
+	return ret;
+}
+
+static int 
+mapping_del_all(mapping_t *m, comp_t *c)
+{
+	mapping_t *p;
+	int ret = -EINVAL;
+
+	/* safe to access, but not modify. */
+	if (mapping_free(m, c)) goto done;
+
+	/* Still safe to access m below as long as we are in the
+	 * section, which means it's not quiesced yet. */
+
+	p = m->parent;
+	if (p) {
+		/* No need to lock the parent, unless we are going to modify
+		 * sibling mappings. */
+		mapping_lock(p);
+		if (m->sibling_next) m->sibling_next->sibling_prev = m->sibling_prev;
+		if (m->sibling_prev) m->sibling_prev->sibling_next = m->sibling_next;
+		/* first child case */
+		if (p->child == m) p->child = m->sibling_next;
+		mapping_unlock(p);
+	}
+ 
+	ret = 0;
+done:
+	return ret;
+}
+
+static int 
+mapping_del_children(mapping_t *m, comp_t *c)
+{
+	mapping_t *child;
+	int ret = -EINVAL;
+
+	mapping_lock(m);
+	/* always re-check before modification. */
+	if (!parsec_item_active(m)) goto done;
+
+	/* Free all the children */
+	child = m->child;
+	while (child) {
+		mapping_free(child, c);
+		child = child->sibling_next;
+	}
+
+	ret = 0;
+done:
+	mapping_unlock(m);
+
+	return ret;
+}
+
+int mman_revoke_page(spdid_t compid, vaddr_t addr, int flags)
+{
+	comp_t *c;
+	mapping_t *m;
+	int ret = 0;
+
+	/* printc("in revoke page from comp %d @ addr %x\n", compid, addr); */
+
+	parsec_read_lock(&mm);
+
+	c = comp_lookup(compid);
+	if (unlikely(!c)) goto done;
+	m = mapping_lookup(c, addr);
+	if ((!m)) goto done;
+
+	ret = mapping_del_children(m, c);
+done:	
+	parsec_read_unlock(&mm);
 
 	return 0;
 }
 
-int mman_release_page(spdid_t spd, vaddr_t addr, int flags)
+int mman_release_page(spdid_t compid, vaddr_t addr, int flags)
 {
-	printc("in release page\n");
+	comp_t *c;
+	mapping_t *m;
+	int ret = 0;
+
+	/* printc("in release page from comp %d @ addr %x\n", compid, addr); */
+
+	parsec_read_lock(&mm);
+
+	c = comp_lookup(compid);
+	if (unlikely(!c)) goto done;
+	m = mapping_lookup(c, addr);
+	if ((!m)) goto done;
+
+	ret = mapping_del_all(m, c);
+done:	
+	parsec_read_unlock(&mm);
 
 	return 0;
 }

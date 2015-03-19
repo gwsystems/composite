@@ -9,7 +9,9 @@
 int
 prints(char *str)
 {
-	return 0;
+	int len = strlen(str);
+	cos_print(str, len);
+	return len;
 }
 
 int __attribute__((format(printf,1,2))) 
@@ -1281,40 +1283,45 @@ void cos_init(void)
 	for (i = 0; i < N_OPS; i++) {
 		ret = call_cap(MMAN_VALLOC, cos_spd_id(), cos_spd_id(), 1, 0);
 		vas[i] = (vaddr_t)ret;
-//		printc("%d>>> comp %ld called valloc cap %d, ret %x\n", i, cos_spd_id(), MMAN_VALLOC, ret);
+		if (!ret) printc("%d>>> comp %ld called valloc cap %d, ret %x\n", i, cos_spd_id(), MMAN_VALLOC, ret);
 	}
 
 	for (i = 0; i < N_OPS; i++) {
 		ret = call_cap(MMAN_GET, cos_spd_id(), 0, 0, 0);
 		mem[i] = (vaddr_t)ret;
-//		printc("%d >>> comp %ld called mman_get cap %d, ret %x\n", i, cos_spd_id(), MMAN_GET, ret);
+		if (!ret) printc("%d >>> comp %ld called mman_get cap %d, ret %x\n", i, cos_spd_id(), MMAN_GET, ret);
 	}
 
 	for (i = 0; i < N_OPS; i++) {
 		ret = call_cap(MMAN_ALIAS, cos_spd_id(), mem[i], cos_spd_id()<<16, vas[i]);
-//		printc("comp %ld called alias cap %d, ret %x\n", cos_spd_id(), MMAN_ALIAS, ret);
+		if (!ret) printc("comp %ld called alias cap %d, ret %x\n", cos_spd_id(), MMAN_ALIAS, ret);
 	}
 
 	/* alias validation */
 	for (i = 0; i < N_OPS; i++) {
-		int *test = (int*)vas[i];
+		int *test = (int*)(vas[i]);
 		*test = i;
 	}
 	for (i = 0; i < N_OPS; i++) {
-		int *test = (int*)mem[i];
-		if (*test != i) printc("test failded! %d: %d\n", i, *test);
+		int *test = (int*)(mem[i]);
+		if (*test != i) 
+			printc("test failded! %d: %d @ %p\n", i, *test, test);
 	}
 	printc("VALLOC, GET_PAGE, ALIAS test done!\n");
 
-	ret = call_cap(MMAN_REVOKE, cos_spd_id(), 0, 0, 0);
-	printc("comp %ld called revoke cap %d, ret %x\n", cos_spd_id(), MMAN_REVOKE, ret);
-
-	ret = call_cap(MMAN_RELEASE, cos_spd_id(), 0, 0, 0);
-	printc("comp %ld called release cap %d, ret %x\n", cos_spd_id(), MMAN_RELEASE, ret);
-
-
-//	ret = printc("calling mm\n");
-//	printc("calling mm ret %d\n", ret);
+	for (i = 0; i < N_OPS; i++) {
+		ret = call_cap(MMAN_REVOKE, cos_spd_id(), vas[i], 0, 0);
+		if (ret) printc("comp %ld called revoke cap %d, ret %x\n", cos_spd_id(), MMAN_REVOKE, ret);
+	}
+	for (i = 0; i < N_OPS; i++) {
+		ret = call_cap(MMAN_REVOKE, cos_spd_id(), mem[i], 0, 0);
+		if (ret) printc("comp %ld called revoke cap %d, ret %x\n", cos_spd_id(), MMAN_REVOKE, ret);
+	}
+	for (i = 0; i < N_OPS; i++) {
+		ret = call_cap(MMAN_RELEASE, cos_spd_id(), mem[i], 0, 0);
+		if (ret) printc("comp %ld called release cap %d, ret %x\n", cos_spd_id(), MMAN_RELEASE, ret);
+	}
+	printc("MM_REVOKE / _RELEASE test done!\n");
 #endif
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
 

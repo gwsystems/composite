@@ -414,7 +414,6 @@ quie_queue_balance(struct quie_queue *queue, struct parsec_allocator *alloc)
 		freelist->head = head;
 		freelist->n_items += return_n;
 		ck_spinlock_unlock(&(freelist->l));
-		printc("after balance local %d, glb %d\n", queue->n_items, freelist->n_items);
 	}
 
 	return 0;
@@ -460,7 +459,7 @@ parsec_free(void *node, struct parsec_allocator *alloc)
 	old = meta->flags;
 	new = meta->flags | PARSEC_FLAG_DEACT;
 
-	if (cos_cas(&meta->flags, old, new) != CAS_SUCCESS) return -ECASFAIL;
+	if (cos_cas((unsigned long *)(&meta->flags), old, new) != CAS_SUCCESS) return -ECASFAIL;
 
 	queue = &(alloc->qwq[cpu].slab_queue[size2slab(meta->size)]);
 	quie_queue_add(queue, meta);

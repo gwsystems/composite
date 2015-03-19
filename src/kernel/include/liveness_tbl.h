@@ -14,8 +14,8 @@
 #include "shared/util.h"
 #include "ertrie.h"
 
-#define LTBL_ENT_ORDER 10
-#define LTBL_ENTS (1<<10)
+#define LTBL_ENT_ORDER 16
+#define LTBL_ENTS (1<<16)
 
 /* We need 64-bit for each of the field in liveness entry. */
 struct liveness_entry {
