@@ -311,6 +311,50 @@ parsec_alloc(size_t size, struct parsec_allocator *alloc, const int waiting)
 	return (char *)meta + sizeof(struct quie_mem_meta);
 }
 
+/* TODO: fix the size to make sense. */
+void *
+parsec_desc_alloc(size_t size, struct parsec_allocator *alloc, const int waiting)
+{
+	/* try free-list first */
+	struct quie_queue *queue;
+	struct quie_mem_meta *meta = NULL;
+	struct quie_queue_slab *qwq;
+	struct glb_freelist_slab *glb_freelist;
+	int cpu, slab_id;
+
+	cpu = get_cpu();
+	slab_id = size2slab(size);
+	assert(slab_id < QUIE_QUEUE_N_SLAB);
+
+	qwq = alloc->qwq;
+	glb_freelist = &(alloc->glb_freelist);
+
+	queue = &(qwq[cpu].slab_queue[slab_id]);
+//	printf("cpu %d, queue %p\n", cpu, queue);
+
+	if (queue->n_items < alloc->qwq_min_limit) {
+		/* This will add items (new or from global freelist)
+		 * onto quie_queue if possible. */
+		quie_queue_fill(queue, size, alloc);
+	}
+
+	if (queue->n_items >= alloc->qwq_min_limit) {
+		/* Ensure the minimal amount of items on the
+		 * quiescence queue. */
+		meta = quie_queue_alloc(queue, alloc, waiting);
+	}
+
+	if (!meta) {
+		/* printf("No memory allocated\n"); */
+		return NULL;
+	}
+
+	meta->flags &= ~PARSEC_FLAG_DEACT;
+	assert(meta->size >= size);
+
+	return (char *)meta + sizeof(struct quie_mem_meta);
+}
+
 void 
 parsec_read_lock(parsec_t *parsec) 
 {

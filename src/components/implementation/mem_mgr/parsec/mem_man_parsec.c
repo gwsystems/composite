@@ -289,7 +289,7 @@ frame_alloc(parsec_ns_t *ns)
 {
 	/* The size (1st argument) is meaningless here. We are
 	 * allocating a page. */
-	 frame_t *f = parsec_alloc(0, &(ns->allocator), 1);
+	 frame_t *f = parsec_desc_alloc(0, &(ns->allocator), 1);
 
 	 return f;
 }
@@ -388,7 +388,7 @@ comp_vas_region_alloc(comp_t *comp, vaddr_t local_tbl, unsigned long vas_unit_sz
 	for (i = 0; i < n_items; i++) {
 		m = mapping_lookup(comp, mapping_vaddr);
 		if (!m) {
-			printc("ERROR: no entry in new pte %x\n", (unsigned int)pte);
+			printc("ERROR: no entry in new pte %x\n", (unsigned int)mapping_vaddr);
 			return -1;
 		}
 
@@ -431,27 +431,45 @@ vas_expand(comp_t *comp, unsigned long unit_size)
 static void 
 mapping_init(mapping_t *m)
 {
+	struct quie_mem_meta *meta;
+
+	mapping_lock(m);
+
 	m->flags = 0;
 	m->frame_id = 0;
 	m->sibling_next = m->sibling_prev = NULL;
 	m->parent = m->child = NULL;
+
+	parsec_desc_activate(m);
+
+	mapping_unlock(m);
 }
 
 static struct mapping *
 vas_alloc(parsec_ns_t *ns, unsigned long size)
 {
-	mapping_t *new_mapping;
+	int n_page, i;
+	mapping_t *new_mapping, *m;
 
-	new_mapping = parsec_alloc(size, &(ns->allocator), 1);
+	n_page = size / PAGE_SIZE;
+	assert(size % PAGE_SIZE == 0);
+
+	new_mapping = parsec_desc_alloc(size, &(ns->allocator), 1);
 
 	if (!new_mapping && ns->expand) {
 		int (*expand_fn)(parsec_ns_t *, unsigned long) = ns->expand;
 		assert(expand_fn);
 		expand_fn(ns, size);
-		new_mapping = parsec_alloc(size, &(ns->allocator), 1);
+		new_mapping = parsec_desc_alloc(size, &(ns->allocator), 1);
 	}
 
-	if (new_mapping) mapping_init(new_mapping);
+	if (new_mapping) {
+		m = new_mapping;
+		for (i = 0; i < n_page; i++) {
+			mapping_init(m);
+			m = (void *)m + MAPPING_ITEM_SZ;
+		}
+	}
 
 	return new_mapping;
 }
@@ -571,29 +589,33 @@ static comp_t *mm_comp;
 static int 
 build_mapping(comp_t *comp, frame_t *frame, mapping_t *mapping)
 {
+	int ret = -EINVAL;
+
 	/* We should have unused frame and mapping here. So there
 	 * should be no contention. */
-	int ret;
 	ret = frame_trylock(frame);
 	if (!ret) return -EINVAL;
+	mapping_lock(mapping);
 
-	if (frame->child || mapping->frame_id) { ret = -EINVAL; goto done; }
+	/* we have the frame & mapping lock now */
+	if (!parsec_item_active(mapping) || !parsec_item_active(frame)) cos_throw(done, -EINVAL);
+	if (frame->child || mapping->frame_id)  cos_throw(done, -EINVAL);
 
 	/* and build the actual mapping */
 	ret = call_cap_op(MM_CAPTBL_OWN_PGTBL, CAPTBL_OP_MEMACTIVATE,
 			  frame->cap, comp_pt_cap(comp->id), mapping->vaddr, 0);
-	if (ret) return -EINVAL;
+	if (ret) cos_throw(done, -EINVAL);
 	
-	/* we have the frame lock. */
 	frame->child = mapping;
 	/* This should not fail as we are using newly allocated vas. */
-	if (cos_cas(&mapping->frame_id, 0, frame->id) != CAS_SUCCESS) return -ECASFAIL;
-	/* printc("MM: built mapping for comp %ld @ %x using frame %d\n",  */
-	/*        comp->id, mapping->vaddr, frame->id); */
+	if (cos_cas(&mapping->frame_id, 0, frame->id) != CAS_SUCCESS) cos_throw(done, -ECASFAIL);
+
+	ret = 0;
 done:
+	mapping_unlock(mapping);
 	frame_unlock(frame);
 
-	return 0;
+	return ret;
 }
 
 static vaddr_t
@@ -823,14 +845,12 @@ vaddr_t mman_valloc(spdid_t compid, spdid_t dest, unsigned long npages)
 
 vaddr_t mman_get_page(spdid_t compid, vaddr_t addr, int flags)
 {
-	int ret;
-	vaddr_t page;
 	frame_t *f;
 	comp_t *comp;
 	mapping_t *m;
+	int ret = 0;
 
 	/* printc("MM get page: comp %ld (cap %d), addr %d, flags %d\n", compid, comp_pt_cap(compid), addr, flags); */
-	page = 0;
 
 	/* Alloc pmem */
 	f = get_pmem();
@@ -843,24 +863,25 @@ vaddr_t mman_get_page(spdid_t compid, vaddr_t addr, int flags)
 
 	comp = comp_lookup(compid);
 	if (addr) {
-		/* Get a new page, and map it to caller specified vaddr. */
-
-		// not supported for now.
+		/* Get a new page, and map it to caller specified
+		 * vaddr -- must be valloc-ed from us. */
+		m = mapping_lookup(comp, addr);
+		if (!m) cos_throw(done, 0);
 	} else {
 		/* Alloc vaddr */
 		m = get_vas_mapping(comp, 1);
-		/* printc("got new mapping %p for comp %ld, vaddr %x, pmem %x\n", m, comp->id, m->vaddr, f->cap); */
-		/* and build mapping */
-//build_mapping(comp_t *comp, frame_t *frame, mapping_t *mapping)
-
-		ret = build_mapping(comp, f, m);
-		if (unlikely(ret)) printc("MM: mapping build error!\n");
-		page = m->vaddr;
-		
+		if (!m) cos_throw(done, 0);
 	}
+	assert(m);
+	/* and build mapping */
+	ret = build_mapping(comp, f, m);
+	if (unlikely(ret)) cos_throw(done, 0);
+
+	ret = m->vaddr;
+done:
 	parsec_read_unlock(&mm);
 
-	return page;
+	return ret;
 }
 
 static int 
@@ -994,9 +1015,12 @@ mapping_free(mapping_t *m, comp_t *c)
 			/* No parent means root mapping */
 			f = frame_lookup(m->frame_id, &frame_ns);
 			assert(f && f->child == m);
-
+			
+			/* Take the frame lock. */
+			frame_lock(f);
 			pmem_free(f);
 			f->child = NULL;
+			frame_unlock(f);
 		}
 	} else {
 		/* no frame means free vas (but valloc-ed). */

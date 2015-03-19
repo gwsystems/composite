@@ -36,6 +36,8 @@
 
 #define cmm_barrier() __asm__ __volatile__ ("" : : : "memory")
 
+#define cos_throw(label, errno) { ret = (errno); goto label; }
+
 typedef unsigned long long quie_time_t;
 
 // for 99 percentile w/ limited memory
@@ -331,6 +333,7 @@ int parsec_sync_quiescence(quie_time_t orig_timestamp, const int waiting, parsec
 //void *q_alloc(size_t size, const int waiting);
 //void *q_alloc(size_t size, const int waiting, struct quie_queue_slab *qwq, struct glb_freelist_slab *glb_freelist);
 void *parsec_alloc(size_t size, struct parsec_allocator *alloc, const int waiting);
+void *parsec_desc_alloc(size_t size, struct parsec_allocator *alloc, const int waiting);
 
 int parsec_free(void *node, struct parsec_allocator *alloc);
 
@@ -350,6 +353,32 @@ parsec_item_active(void *item)
 {
 	struct quie_mem_meta *m = item - sizeof(struct quie_mem_meta);
 	return !(m->flags & PARSEC_FLAG_DEACT);
+}
+
+static inline int 
+parsec_desc_activate(void *item)
+{
+	struct quie_mem_meta *m = item - sizeof(struct quie_mem_meta);
+	/* no contention should happen for new items -- they are not
+	 * activated yet. */
+	m->flags &= ~PARSEC_FLAG_DEACT;
+	return 0;
+}
+
+static inline int 
+parsec_desc_deact(void *item)
+{
+	struct quie_mem_meta *m = item - sizeof(struct quie_mem_meta);
+	unsigned long old, new;
+
+	old = m->flags;
+	if (old & PARSEC_FLAG_DEACT) return -EINVAL;
+
+	new = old | PARSEC_FLAG_DEACT;
+	/* detect contention */
+	if (cos_cas((unsigned long *)&m->flags, old, new) != CAS_SUCCESS) return -ECASFAIL;
+
+	return 0;
 }
 
 /* used to add free item to the head */
