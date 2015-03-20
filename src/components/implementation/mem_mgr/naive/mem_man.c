@@ -238,12 +238,12 @@ struct mapping {
 CSLAB_CREATE(mapping, sizeof(struct mapping));
 
 static void
-mapping_init(struct mapping *m, spdid_t spdid, vaddr_t a, struct mapping *p, struct frame *f)
+mapping_init(struct mapping *m, spdid_t spdid, vaddr_t a, struct mapping *p, struct frame *f, int flags)
 {
 	assert(m && f);
 	INIT_LIST(m, _s, s_);
 	m->f     = f;
-	m->flags = 0;
+	m->flags = flags;
 	m->spdid = spdid;
 	m->addr  = a;
 	m->p     = p;
@@ -291,7 +291,7 @@ mapping_crt(struct mapping *p, struct frame *f, spdid_t dest, vaddr_t to, int fl
 		printc("mem_man: could not grant at %x:%d\n", dest, (int)to);
 		goto no_mapping;
 	}
-	mapping_init(m, dest, to, p, f);
+	mapping_init(m, dest, to, p, f, flags);
 	assert(!p || frame_nrefs(f) > 0);
 	frame_ref(f);
 	assert(frame_nrefs(f) > 0);
