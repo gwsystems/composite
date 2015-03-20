@@ -493,7 +493,7 @@ cbuf_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
 	int off;
 	int ret = 0;
 	u32_t id;
-	int err;
+	int err = 0;
 	
 	cbuf_unpack(cbid, &id);
 
@@ -501,12 +501,12 @@ cbuf_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr)
 	CBUF_TAKE();
 	cbi = cmap_lookup(&cbufs, id);
 	if (unlikely(!cbi)) ERR_THROW(-EINVAL, done);
-	if (unlikely(cbi->owner.spdid != s_spd)) ERR_THROW(-EINVAL, done);
+	if (unlikely(cbi->owner.spdid != s_spd)) ERR_THROW(-EPERM, done);
 	assert(cbi->size == (int)round_to_page(cbi->size));
 	/* unmap pages in only the d_spd client */
 	for (off = 0 ; off < cbi->size ; off += PAGE_SIZE)
-		mman_release_page(d_spd, d_addr + off, 0);
-	err = valloc_free(s_spd, d_spd, (void*)d_addr, cbi->size/PAGE_SIZE);
+		err |= mman_release_page(d_spd, d_addr + off, 0);
+	err |= valloc_free(s_spd, d_spd, (void*)d_addr, cbi->size/PAGE_SIZE);
 	if (unlikely(err)) ERR_THROW(-EFAULT, done);
 	assert(!err);
 done:
