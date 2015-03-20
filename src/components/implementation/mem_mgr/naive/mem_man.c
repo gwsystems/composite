@@ -393,6 +393,31 @@ mapping_del(struct mapping *m)
 /*** Public interface functions ***/
 /**********************************/
 
+int __mman_fork_spd(spdid_t spd, u32_t s_spd_d_spd, vaddr_t base, u32_t len)
+{
+	struct mapping *m, *n;
+	int ret = 0;
+	spdid_t s_spd, d_spd;
+	vaddr_t s_addr;
+
+	s_spd = s_spd_d_spd >> 16;
+	d_spd = s_spd_d_spd & 0xFFFF;
+
+	/* do we need locking? what if m gets revoked after lookup? */
+	/* note: children mappings stay with s_spd */
+
+	for ( s_addr = base ; !ret && s_addr < s_addr + len; s_addr += PAGE_SIZE ) {
+		if (!(m = mapping_lookup(s_spd, s_addr))) continue;
+		if (!m->p) { /* no parent, create a new mapping */
+			if (s_addr != mman_get_page(d_spd, s_addr, m->flags)) ret = -EFAULT;
+		} else { /* this is an alias, re-alias from p */
+			if (s_addr != mman_alias_page(m->p->spdid, m->p->addr, d_spd, s_addr, m->flags)) ret = -EINVAL;
+		}
+	}
+
+	return ret;
+}
+
 vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 {
 	struct frame *f;
