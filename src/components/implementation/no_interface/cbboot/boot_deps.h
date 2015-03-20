@@ -100,12 +100,14 @@ boot_deps_save_hp(spdid_t spdid, void *hp)
 	cinfo_add_heap_pointer(cos_spd_id(), spdid, hp);
 }
 
+/* Proof of concept: forking a component. */
+
 spdid_t cbboot_copy(spdid_t spdid, spdid_t source);
 static void
 boot_deps_run(void) {
 	printc("copying %d\n", some_spd);
 	spdid_t new_spd = cbboot_copy(cos_spd_id(), some_spd);
-	printc("copied %d to %d\n", some_spd, new_spd);
+	printc("forked %d to %d\n", some_spd, new_spd);
 	return; }
 
 /* cbboot copying spds */
@@ -130,11 +132,9 @@ cbboot_copy(spdid_t spdid, spdid_t source)
 	
 	/* The following, copied partly from booter.c,  */
 	if ((d_spd = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG();
-	printc("got %d\n", d_spd);
 	sect = cobj_sect_get(h, 0);
 	init_daddr = sect->vaddr;
 	if (cos_spd_cntl(COS_SPD_LOCATION, d_spd, sect->vaddr, SERVICE_SIZE)) BUG();
-	printc("set location to %x\n", sect->vaddr);
 
 	for (j = 0 ; j < (int)h->nsect ; j++) {
 		tot += cobj_sect_size(h, j);
@@ -174,17 +174,11 @@ cbboot_copy(spdid_t spdid, spdid_t source)
 			else flags = MAPPING_READ;
 			flags |= 2; /* no valloc */
 
-			printc("going to cbuf_map_at(%d, %d, %d, %x)\n",
-					cos_spd_id(), cbid, d_spd, d_addr | flags);
-
 			if (d_addr != (cbuf_map_at(cos_spd_id(), cbid, d_spd, d_addr | flags))) BUG();
 			if (sect->flags & COBJ_SECT_CINFO) {
 				/* fixup cinfo page */
 				struct cos_component_information *ci = cbm.caddr;
-				printc("going to set_symbs(%d, %d, %x)\n", h, d_spd, ci);
-				ci->cos_this_spd_id = spdid;
-				ci->cos_stacks.freelists[0].freelist = 0;
-				ci->cos_stacks.freelists[0].thd_id = 0;
+				ci->cos_this_spd_id = d_spd;
 				boot_spd_set_symbs(h, d_spd, ci);
 				boot_deps_save_hp(d_spd, ci->cos_heap_ptr);
 			}
@@ -194,11 +188,15 @@ cbboot_copy(spdid_t spdid, spdid_t source)
 
 	}
 
-	printc("activing %d with caps %d\n", d_spd, h->ncap);
 	if (cos_spd_cntl(COS_SPD_ACTIVATE, d_spd, h->ncap, 0)) BUG();
-	printc("boot_spd_caps(%x, %d)\n", h, d_spd);
 	if (boot_spd_caps(h, d_spd)) BUG();
-	printc("let's try making a thread in %d\n", d_spd);	
+
+	/* inform servers about fork */
+	if (tot > SERVICE_SIZE) tot = SERVICE_SIZE + 3 * round_up_to_pgd_page(1) - tot;
+	else tot = SERVICE_SIZE - tot;
+	mman_fork_spd(cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
+
+	/* deal with threads */
 	if (h->flags & COBJ_INIT_THD) boot_spd_thd(d_spd);
 
 done:
