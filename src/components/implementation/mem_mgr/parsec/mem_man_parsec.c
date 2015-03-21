@@ -445,15 +445,10 @@ mapping_init(mapping_t *m)
 	mapping_unlock(m);
 }
 
-static int
+static inline int
 mapping_close(mapping_t *m)
 {
-	int ret;
-	mapping_lock(m);
-	ret = parsec_desc_deact(m);
-	mapping_unlock(m);
-
-	return ret;
+	return parsec_desc_deact(m);
 }
 
 static struct mapping *
@@ -488,16 +483,9 @@ vas_alloc(parsec_ns_t *ns, unsigned long size)
 static int
 vas_free(mapping_t *m, parsec_ns_t *ns)
 {
-	/* int i, npages; */
-	/* mapping_t *temp; */
-
-	/* npages = parsec_item_size(m) / PAGE_SIZE; */
-	
-	/* temp = m; */
-	/* for (i = 1; i < npages; i++) { */
-	/* 	temp = (void *)temp + MAPPING_ITEM_SZ; */
-	/* 	if (mapping_close(temp)) return -EINVAL; */
-	/* } */
+	/* Size == 0 means it shouldn't go back to the freelist. The
+	 * mapping is a page in a larger allocation. */
+	if (parsec_item_size(m) == 0) return mapping_close(m);
 
 	return parsec_free(m, &(ns->allocator));
 }
@@ -1130,6 +1118,29 @@ done:
 	return 0;
 }
 
+/* This releases the non-head mappings. They won't go back to any
+ * queue / freelist. */
+static inline int 
+release_multipage(mapping_t *m, comp_t *c)
+{
+	int npages, i;
+	vaddr_t page;
+	mapping_t *temp;
+
+	npages = parsec_item_size(m) / PAGE_SIZE;
+	assert(parsec_item_size(m) % PAGE_SIZE == 0);
+
+	page = m->vaddr;
+	/* release non-head mappings only. */
+	for (i = 1; i < npages; i++) {
+		page += PAGE_SIZE;
+		temp = mapping_lookup(c, page);
+		if (temp) mapping_del_all(temp, c);
+	}
+
+	return 0;
+}
+
 int mman_release_page(spdid_t compid, vaddr_t addr, int flags)
 {
 	comp_t *c;
@@ -1144,6 +1155,10 @@ int mman_release_page(spdid_t compid, vaddr_t addr, int flags)
 	if (unlikely(!c)) goto done;
 	m = mapping_lookup(c, addr);
 	if ((!m)) goto done;
+
+	/* A hack for now. Should solve it better. */
+	if (parsec_item_size(m) > PAGE_SIZE) 
+		release_multipage(m, c);
 
 	ret = mapping_del_all(m, c);
 done:	

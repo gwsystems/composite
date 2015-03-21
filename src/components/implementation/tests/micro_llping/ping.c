@@ -1335,7 +1335,9 @@ void cos_init(void)
 		volatile int *test = (int *)(mem[0] + PAGE_SIZE*i);
 		if (*test != i) printc("test fail? %d @ %p\n", *test, test);
 	}
-	printc("Multi-page allocation test done!\n");
+	ret = call_cap(MMAN_RELEASE, cos_spd_id(), mem[0], 0, 0);
+
+	printc("Multi-page allocation / free tests done!\n");
 #endif
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
 
