@@ -355,6 +355,7 @@ parsec_desc_alloc(size_t size, struct parsec_allocator *alloc, const int waiting
 	return (char *)meta + sizeof(struct quie_mem_meta);
 }
 
+/* TODO: add per cpu support -- now it assumes per thread. */
 void 
 parsec_read_lock(parsec_t *parsec) 
 {
@@ -387,11 +388,10 @@ parsec_read_unlock(parsec_t *parsec)
 	curr_cpu = get_cpu();
 	timing = &(parsec->timing_info[curr_cpu].timing);
 
-	/* memory barrier, then write time stamp. */
+	/* barrier, then write time stamp. */
 
 	/* Here we don't require a full memory barrier on x86 -- only
 	 * a compiler barrier is enough. */
-	/* cos_mem_fence(); */
 	cmm_barrier();
 
 	timing->time_out = timing->time_in + 1;
@@ -501,6 +501,7 @@ parsec_free(void *node, struct parsec_allocator *alloc)
 	meta->time_deact = get_time();
 
 	old = meta->flags;
+	if (old & PARSEC_FLAG_DEACT) return -EINVAL;
 	new = meta->flags | PARSEC_FLAG_DEACT;
 
 	if (cos_cas((unsigned long *)(&meta->flags), old, new) != CAS_SUCCESS) return -ECASFAIL;

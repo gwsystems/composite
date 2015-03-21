@@ -351,8 +351,15 @@ void * worker(void *arg);
 static inline int
 parsec_item_active(void *item)
 {
-	struct quie_mem_meta *m = item - sizeof(struct quie_mem_meta);
-	return !(m->flags & PARSEC_FLAG_DEACT);
+	struct quie_mem_meta *i = item - sizeof(struct quie_mem_meta);
+	return !(i->flags & PARSEC_FLAG_DEACT);
+}
+
+static inline int
+parsec_item_size(void *item)
+{
+	struct quie_mem_meta *i = item - sizeof(struct quie_mem_meta);
+	return i->size;
 }
 
 static inline int 

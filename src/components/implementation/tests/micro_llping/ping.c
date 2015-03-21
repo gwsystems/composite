@@ -1287,7 +1287,7 @@ void cos_init(void)
 	}
 
 	for (i = 0; i < N_OPS; i++) {
-		ret = call_cap(MMAN_GET, cos_spd_id(), 0, 0, 0);
+		ret = call_cap(MMAN_GET, cos_spd_id(), 0, 1 << 16, 0);
 		mem[i] = (vaddr_t)ret;
 		if (!ret) printc("%d >>> comp %ld called mman_get cap %d, ret %x\n", i, cos_spd_id(), MMAN_GET, ret);
 	}
@@ -1322,6 +1322,20 @@ void cos_init(void)
 		if (ret) printc("comp %ld called release cap %d, ret %x\n", cos_spd_id(), MMAN_RELEASE, ret);
 	}
 	printc("MM_REVOKE / _RELEASE test done!\n");
+
+	ret = call_cap(MMAN_GET, cos_spd_id(), 0, N_OPS << 16, 0);
+	mem[0] = (vaddr_t)ret;
+	if (!ret) 
+		printc("%d >>> comp %ld called mman_get cap %d, ret %x\n", i, cos_spd_id(), MMAN_GET, ret);
+	for (i = 0; i < N_OPS; i++) {
+		volatile int *test = (int *)(mem[0] + PAGE_SIZE*i);
+		*test = i;
+	}
+	for (i = 0; i < N_OPS; i++) {
+		volatile int *test = (int *)(mem[0] + PAGE_SIZE*i);
+		if (*test != i) printc("test fail? %d @ %p\n", *test, test);
+	}
+	printc("Multi-page allocation test done!\n");
 #endif
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
 

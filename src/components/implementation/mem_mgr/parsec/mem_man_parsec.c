@@ -445,6 +445,17 @@ mapping_init(mapping_t *m)
 	mapping_unlock(m);
 }
 
+static int
+mapping_close(mapping_t *m)
+{
+	int ret;
+	mapping_lock(m);
+	ret = parsec_desc_deact(m);
+	mapping_unlock(m);
+
+	return ret;
+}
+
 static struct mapping *
 vas_alloc(parsec_ns_t *ns, unsigned long size)
 {
@@ -474,15 +485,20 @@ vas_alloc(parsec_ns_t *ns, unsigned long size)
 	return new_mapping;
 }
 
-/* static struct mapping * */
-/* mm_local_vas_alloc(void) */
-/* { */
-/* 	return new_mapping; */
-/* } */
-
 static int
 vas_free(mapping_t *m, parsec_ns_t *ns)
 {
+	/* int i, npages; */
+	/* mapping_t *temp; */
+
+	/* npages = parsec_item_size(m) / PAGE_SIZE; */
+	
+	/* temp = m; */
+	/* for (i = 1; i < npages; i++) { */
+	/* 	temp = (void *)temp + MAPPING_ITEM_SZ; */
+	/* 	if (mapping_close(temp)) return -EINVAL; */
+	/* } */
+
 	return parsec_free(m, &(ns->allocator));
 }
 
@@ -618,6 +634,30 @@ done:
 	return ret;
 }
 
+/* alloc n pages, and map them. */
+static int 
+alloc_map_pages(mapping_t *head, comp_t *comp, int n_pages)
+{
+	int i, ret;
+	frame_t *f;
+	mapping_t *m;
+
+	m = head;
+	/* FIXME: reverse and free when fail */
+	for (i = 0; i < n_pages; i++) {
+		f = get_pmem();
+		if (!f) cos_throw(done, -ENOMEM);
+
+		if (build_mapping(comp, f, m)) cos_throw(done, -EINVAL);
+		m = (void *)m + MAPPING_ITEM_SZ;
+	}
+	ret = 0;
+done:
+	return ret;
+}
+
+static mapping_t *get_vas_mapping(comp_t *comp, unsigned long n_pages);
+
 static vaddr_t
 mm_local_get_page(unsigned long n_pages)
 {
@@ -626,27 +666,14 @@ mm_local_get_page(unsigned long n_pages)
 	mapping_t *new_vas, *m;
 	frame_t *frame = NULL;
 
-	new_vas = vas_alloc(&mm_comp->mapping_ns, PAGE_SIZE*n_pages);
-	if (!new_vas) return 0;
+	new_vas = get_vas_mapping(mm_comp, n_pages);
 
-	m = new_vas;
-	for (i = 0; i < n_pages; i++) {
-		frame = get_pmem();
-		/* FIXME: reverse and free when fail */
-		if (!frame) goto VAS_FREE;
-		if (build_mapping(mm_comp, frame, m)) goto ALL_FREE;
-		m = (void *)m + MAPPING_ITEM_SZ;
-	}
+	if (!new_vas) return 0;
+	if (alloc_map_pages(new_vas, mm_comp, n_pages)) return 0;
 
 	memset((void *)(new_vas->vaddr), 0, PAGE_SIZE*n_pages);
 
 	return new_vas->vaddr;
-ALL_FREE:
-	pmem_free(frame);
-VAS_FREE:
-	vas_free(new_vas, &mm_comp->mapping_ns);
-
-	return 0;
 }
 
 
@@ -802,9 +829,6 @@ mm_init(void)
 /**************************/
 /*** Mapping operations ***/
 /**************************/
-/**********************************/
-/*** Public interface functions ***/
-/**********************************/
 
 static mapping_t *
 get_vas_mapping(comp_t *comp, unsigned long n_pages) 
@@ -821,6 +845,10 @@ get_vas_mapping(comp_t *comp, unsigned long n_pages)
 	assert(comp->mapping_ns.alloc == vas_alloc);
 	return vas_alloc(&comp->mapping_ns, PAGE_SIZE*n_pages);
 }
+
+/**********************************/
+/*** Public interface functions ***/
+/**********************************/
 
 vaddr_t mman_valloc(spdid_t compid, spdid_t dest, unsigned long npages)
 {
@@ -843,22 +871,18 @@ vaddr_t mman_valloc(spdid_t compid, spdid_t dest, unsigned long npages)
 	return page;
 }
 
-vaddr_t mman_get_page(spdid_t compid, vaddr_t addr, int flags)
+vaddr_t mman_get_page(spdid_t compid, vaddr_t addr, int npages_flags)
 {
-	frame_t *f;
 	comp_t *comp;
 	mapping_t *m;
-	int ret = 0;
+	int npages, flags, ret = 0;
 
+	npages = npages_flags >> 16;
+	flags  = npages_flags & 0xFFFF;
 	/* printc("MM get page: comp %ld (cap %d), addr %d, flags %d\n", compid, comp_pt_cap(compid), addr, flags); */
+	if (!npages) return 0;
 
 	/* Alloc pmem */
-	f = get_pmem();
-	if (unlikely(!f)) {
-		printc("MM couldn't allocate physical pages\n");
-		return 0;
-	}
-
 	parsec_read_lock(&mm);
 
 	comp = comp_lookup(compid);
@@ -866,16 +890,13 @@ vaddr_t mman_get_page(spdid_t compid, vaddr_t addr, int flags)
 		/* Get a new page, and map it to caller specified
 		 * vaddr -- must be valloc-ed from us. */
 		m = mapping_lookup(comp, addr);
-		if (!m) cos_throw(done, 0);
 	} else {
 		/* Alloc vaddr */
-		m = get_vas_mapping(comp, 1);
-		if (!m) cos_throw(done, 0);
+		m = get_vas_mapping(comp, npages);
 	}
-	assert(m);
-	/* and build mapping */
-	ret = build_mapping(comp, f, m);
-	if (unlikely(ret)) cos_throw(done, 0);
+
+	if (!m) cos_throw(done, 0);
+	if (alloc_map_pages(m, comp, npages)) cos_throw(done, 0);
 
 	ret = m->vaddr;
 done:
