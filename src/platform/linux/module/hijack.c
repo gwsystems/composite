@@ -627,14 +627,24 @@ struct captbl *boot_captbl;
  * have to use global thread id name space.*/
 u32_t free_thd_id = 1;
 
+static void *
+get_coskmem(void)
+{
+	void *ret = cos_kmem;
+	cos_kmem += PAGE_SIZE;
+
+	return ret;
+}
+
 static int
 kern_boot_comp(struct spd_info *spd_info)
 {
 	int ret;
 	struct captbl *ct, *ct0;
 	pgtbl_t pt, pt0;
-	unsigned int i;
+	unsigned int i, n_pte_entry, n_pte;
 	void *kmem_base_pa;
+	struct cap_pgtbl *pte_cap;
 
 	ct = captbl_create(boot_comp_captbl);
 	assert(ct);
@@ -654,32 +664,67 @@ kern_boot_comp(struct spd_info *spd_info)
 	ret = retypetbl_retype2kern(kmem_base_pa);
 	assert(ret == 0);
 
-	boot_comp_pgd = cos_kmem_base;
-	boot_comp_pte_vm = cos_kmem_base + PAGE_SIZE;
-	boot_comp_pte_pm = cos_kmem_base + 2 * PAGE_SIZE;
-	boot_comp_pte_km = cos_kmem_base + 3 * PAGE_SIZE;
-
-	cos_kmem += 4*PAGE_SIZE;
+	boot_comp_pgd = get_coskmem();
+	boot_comp_pte_km = get_coskmem();
 
 	pt = pgtbl_create(boot_comp_pgd, chal_va2pa(linux_pgd));
 
-//	printk("pt %x, our pgd %x (%x), pte %x (%x)\n", pt, boot_comp_pgd, __pa(boot_comp_pgd), boot_comp_pte_vm, __pa(boot_comp_pte_vm));
 	assert(pt);
-	pgtbl_init_pte(boot_comp_pte_vm);
-	pgtbl_init_pte(boot_comp_pte_pm);
 	pgtbl_init_pte(boot_comp_pte_km);
 
 	if (captbl_activate_boot(ct, BOOT_CAPTBL_SELF_CT)) cos_throw(err, -1);
 	if (sret_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SRET)) cos_throw(err, -1);
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, pt, 0)) cos_throw(err, -1);
-	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_BOOTVM_PTE, (pgtbl_t)boot_comp_pte_vm, 1)) cos_throw(err, -1);
-	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_KM_PTE, (pgtbl_t)boot_comp_pte_km, 1)) cos_throw(err, -1);
-	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_PHYSM_PTE, (pgtbl_t)boot_comp_pte_pm, 1)) cos_throw(err, -1);
 
-	/* construct the page tables */
-	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, BOOT_MEM_VM_BASE)) cos_throw(err, -1);
+	/* KMEM PTE */
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_KM_PTE, (pgtbl_t)boot_comp_pte_km, 1)) cos_throw(err, -1);
 	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_KM_PTE, BOOT_MEM_KM_BASE)) cos_throw(err, -1);
-	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_PHYSM_PTE, BOOT_MEM_PM_BASE)) cos_throw(err, -1);
+
+	/* VM PTEs */
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_BOOTVM_PTE, NULL, 1)) cos_throw(err, -1);
+	/* Get the cap, and we'll set the pgtbl next. We don't usually
+	 * do this, just for booting up. */
+	pte_cap = (struct cap_pgtbl *)captbl_lkup(ct, BOOT_CAPTBL_BOOTVM_PTE);
+	assert(pte_cap);
+	n_pte_entry = PAGE_SIZE / sizeof(void *);
+
+	for (i = 0; i < BOOTER_NREGIONS; i++) {
+		boot_comp_pte_vm = get_coskmem();
+		if (((u32_t)boot_comp_pte_vm - (u32_t)cos_kmem_base) % RETYPE_MEM_SIZE == 0) {
+			ret = retypetbl_retype2kern(chal_va2pa(boot_comp_pte_vm));
+			assert(ret == 0);
+		}
+
+		pgtbl_init_pte(boot_comp_pte_vm);
+		pte_cap->pgtbl = (pgtbl_t)boot_comp_pte_vm;
+
+		/* construct the page tables */
+		if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, 
+			     BOOT_MEM_VM_BASE + i*n_pte_entry*PAGE_SIZE)) { printk("failed i %d\n", i);cos_throw(err, -1);}
+	}
+
+	/* PM PTEs */
+	n_pte = COS_MAX_MEMORY / n_pte_entry;
+	if (COS_MAX_MEMORY % n_pte_entry) n_pte++;
+
+	ret = pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_PHYSM_PTE, NULL, 1);
+	pte_cap = (struct cap_pgtbl *)captbl_lkup(ct, BOOT_CAPTBL_PHYSM_PTE);
+	assert(pte_cap);
+
+	for (i = 0; i < n_pte; i++) {
+		boot_comp_pte_pm = get_coskmem();
+		if (((u32_t)boot_comp_pte_pm - (u32_t)cos_kmem_base) % RETYPE_MEM_SIZE == 0) {
+			ret = retypetbl_retype2kern(chal_va2pa(boot_comp_pte_pm));
+			assert(ret == 0);
+		}
+
+		pgtbl_init_pte(boot_comp_pte_pm);
+		/* Again, a hack for bootstrap. */
+		pte_cap->pgtbl = (pgtbl_t)boot_comp_pte_pm;
+
+		if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_PHYSM_PTE, 
+			     BOOT_MEM_PM_BASE + i*n_pte_entry*PAGE_SIZE)) cos_throw(err, -1);
+	}
 
 	sys_llbooter_sz = spd_info->mem_size / PAGE_SIZE;
 	if (spd_info->mem_size % PAGE_SIZE) sys_llbooter_sz++;
@@ -731,7 +776,7 @@ kern_boot_comp(struct spd_info *spd_info)
 		u32_t addr = COS_MEM_START + i*PAGE_SIZE;
 		
 		if (pgtbl_cosframe_add(pt, BOOT_MEM_PM_BASE + i*PAGE_SIZE, 
-				       addr, PGTBL_COSFRAME)) cos_throw(err, -1);
+				       addr, PGTBL_COSFRAME)) { printk ("%d failed\n", i);break;}//cos_throw(err, -1);
 	}
 
 	/* comp0's data, culminated in a static invocation capability to the llbooter */
@@ -801,8 +846,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case AED_INIT_BOOT:
 	{
 		struct spd_info spd_info;
-		int i;
-		char *mem;
 
 		if (copy_from_user(&spd_info, (void*)arg, 
 				   sizeof(struct spd_info))) {
@@ -824,18 +867,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		if (copy_from_user(llbooter_kern_mapping, (void*)spd_info.lowest_addr, spd_info.mem_size)) {
 			printk("cos: Error copying spd_info from user.\n");
 			return -EFAULT;
-		}
-
-		/* sanity check */
-		mem = __va(*((u32_t *)(boot_comp_pte_vm)));
-
-		mem = (char *)((u32_t)mem & ~(PAGE_SIZE-1));
-		//printk("kmem %x pa %x, start mem %x\n", cos_kmem, __pa(cos_kmem), mem);
-		for (i = 0; i < spd_info.mem_size; i++) {
-			if (*(mem + i) != *((char*)(spd_info.lowest_addr) + i)) {
-				printk("Mismatch: %d: %x %x\n", i, *(mem + i), *((char*)(spd_info.lowest_addr) + i));
-				return -EFAULT;
-			}
 		}
 
 		return 0;

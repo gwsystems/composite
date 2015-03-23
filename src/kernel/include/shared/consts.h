@@ -101,10 +101,13 @@ struct pt_regs {
 #define COS_DATA_REGION_LOWER_ADDR (COS_INFO_REGION_ADDR+PAGE_SIZE)
 #define COS_DATA_REGION_MAX_SIZE (MAX_NUM_THREADS*PAGE_SIZE)
 
+#define BOOTER_NREGIONS 16 // 16*4MB = 64MB VAS for booter
+
 #define COS_NUM_ATOMIC_SECTIONS 10
 
 /* # of pages */
-#define COS_MAX_MEMORY    (1024)  /* # of pages. vas extents now support up to 254MB */ 
+#define COS_MAX_MEMORY_MB (800) /* total user memory in MBs */
+#define COS_MAX_MEMORY    ((COS_MAX_MEMORY_MB << 20) / PAGE_SIZE)  /* # of pages */ 
 #define COS_MEM_BOUND     (COS_MEM_START + COS_MAX_MEMORY*PAGE_SIZE) /* highest physical address */
 #define KERN_MEM_ORDER    (10)        /* should be fine when <= 10 */
 #define COS_KERNEL_MEMORY (1 << KERN_MEM_ORDER)   /* 2^n pages kernel memory */

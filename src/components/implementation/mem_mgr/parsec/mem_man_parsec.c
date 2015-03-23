@@ -150,9 +150,9 @@ char kmem_table[FRAMETBL_ITEM_SZ*COS_KERNEL_MEMORY] CACHE_ALIGNED;
 
 char comp_table[COMP_ITEM_SZ*MAX_NUM_COMPS] CACHE_ALIGNED;
 
-#define VAS_QWQ_SIZE 64
-#define PMEM_QWQ_SIZE 64
-#define KMEM_QWQ_SIZE 4 /* Kmem allocation much less often. */
+#define VAS_QWQ_SIZE  (4 * (1 << 20))  /* 4 MB */
+#define PMEM_QWQ_SIZE (4 * (1 << 20))  /* 4 MB */
+#define KMEM_QWQ_SIZE (16 * (1 << 10)) /* Kmem allocation much less often. */
 
 /* All namespaces in the same parallel section. */
 parsec_t mm CACHE_ALIGNED;
@@ -170,14 +170,22 @@ parsec_t mm CACHE_ALIGNED;
  * the VAS of MM itself. */
 
 #define MAPPING_ITEM_SZ CACHE_LINE
-char mm_vas_pgd[PAGE_SIZE] PAGE_ALIGNED;
+char mm_own_pgd[PAGE_SIZE] PAGE_ALIGNED;
 
 #define MM_PGD_NPAGES 1
 #define MM_PTE_NPAGES (MAPPING_ITEM_SZ/sizeof(void *))
 #define MM_PTE_SIZE   (PAGE_SIZE * MM_PTE_NPAGES)
 
-char mm_vas_pte[MM_PTE_SIZE] PAGE_ALIGNED;
-char mm_vas_pte2[MM_PTE_SIZE] PAGE_ALIGNED;
+#define NPTE_ENTRY_PER_PGD (PAGE_SIZE/sizeof(void *))
+/* How many PTEs (or to say, VAS) needed in the MM to manage all the
+ * __PTEs__ for other components. */
+#define MM_NPTE_NEEDED (COS_MAX_MEMORY/NPTE_ENTRY_PER_PGD / (NPTE_ENTRY_PER_PGD/MM_PTE_NPAGES) + 1)
+
+/* VAS management of the MM. */
+/* MM local memory used for PGDs. */
+char mm_vas_pgd[MM_PTE_SIZE] PAGE_ALIGNED;
+/* and this one is for PTEs */
+char mm_vas_pte[MM_PTE_SIZE*MM_NPTE_NEEDED] PAGE_ALIGNED;
 
 // we use the ert lookup function only 
 ERT_CREATE(__mappingtbl, mappingtbl, PGTBL_DEPTH, PGTBL_ORD, sizeof(int*), PGTBL_ORD, MAPPING_ITEM_SZ, NULL, \
@@ -287,9 +295,7 @@ frame_free(frame_t *f_addr)
 static struct frame *
 frame_alloc(parsec_ns_t *ns)
 {
-	/* The size (1st argument) is meaningless here. We are
-	 * allocating a page. */
-	 frame_t *f = parsec_desc_alloc(0, &(ns->allocator), 1);
+	 frame_t *f = parsec_desc_alloc(PAGE_SIZE, &(ns->allocator), 1);
 
 	 return f;
 }
@@ -382,7 +388,7 @@ comp_vas_region_alloc(comp_t *comp, vaddr_t local_tbl, unsigned long vas_unit_sz
 	assert(ret == 0);
 
 	/* # of free vas items in this one pte. */
-	n_items = PAGE_SIZE / (sizeof(void *)) / (vas_unit_sz/PAGE_SIZE);
+	n_items = NPTE_ENTRY_PER_PGD / (vas_unit_sz/PAGE_SIZE);
 
 	mapping_vaddr = pte;
 	for (i = 0; i < n_items; i++) {
@@ -397,6 +403,7 @@ comp_vas_region_alloc(comp_t *comp, vaddr_t local_tbl, unsigned long vas_unit_sz
 			memset(temp_m, 0, sizeof(struct mapping));
 			meta = (void *)temp_m - sizeof(struct quie_mem_meta);
 			meta->flags |= PARSEC_FLAG_DEACT;
+			meta->size = 0;
 
 			temp_m->vaddr = mapping_vaddr;
 
@@ -424,6 +431,11 @@ vas_expand(comp_t *comp, unsigned long unit_size)
 
 	assert(comp);
 	pte = mm_local_get_page(MM_PTE_NPAGES);
+	if (!pte) {
+		printc("Mem_mgr: error -- no enough local VAS\n");
+		return -ENOMEM;
+	}
+	/* printc("comp %d expand for unit_size %d\n", comp->id, unit_size); */
 
 	return comp_vas_region_alloc(comp, pte, unit_size);
 }
@@ -496,6 +508,7 @@ frame_boot(vaddr_t frame_addr, parsec_ns_t *ns)
 	int ret;
 	unsigned long n_frames, i;
 	frame_t *frame;
+	struct quie_mem_meta *meta;
 
 	assert(FRAMETBL_ITEM_SZ >= (sizeof(struct quie_mem_meta) + sizeof(struct frame)));
 	assert(frame_addr % PAGE_SIZE == 0);
@@ -510,6 +523,10 @@ frame_boot(vaddr_t frame_addr, parsec_ns_t *ns)
 		frame->cap = frame_addr; 
 		frame->id  = i;
 		ck_spinlock_ticket_init(&(frame->frame_lock));
+
+		meta = (void *)frame - sizeof(struct quie_mem_meta);
+		meta->size = PAGE_SIZE;
+
 		frame_addr += PAGE_SIZE;
 		i++;
 	}
@@ -540,7 +557,7 @@ frame_init(void)
 
 	/* Quiescence-waiting queue setting. */
 	frame_ns.allocator.qwq_min_limit = PMEM_QWQ_SIZE;
-	frame_ns.allocator.qwq_max_limit = PMEM_QWQ_SIZE * 4;
+	frame_ns.allocator.qwq_max_limit = (unsigned long)(-1); //PMEM_QWQ_SIZE * 4;
 	frame_ns.allocator.n_local       = NUM_CPU;
 
 	frame_ns.parsec = &mm;
@@ -679,7 +696,7 @@ vas_ns_init(parsec_ns_t *vas, void *tbl)
 
 	vas->allocator.quiesce       = frame_quiesce;  /* same as physical frame. */
 	vas->allocator.qwq_min_limit = VAS_QWQ_SIZE;
-	vas->allocator.qwq_max_limit = VAS_QWQ_SIZE * 4;
+	vas->allocator.qwq_max_limit = (unsigned long)(-1); //VAS_QWQ_SIZE * 4;
 	vas->allocator.n_local       = NUM_CPU;
 
 	return;
@@ -736,32 +753,36 @@ mm_alloc_pte_cap(void)
 /* Mainly initialize the vas of the mm component */
 static int mm_comp_init(void)
 {
-	int ret, i;
 	parsec_ns_t *mm_vas;
 	unsigned long accum;
 	mapping_t *mapping, *temp_m;
 	struct quie_mem_meta *meta;
 	vaddr_t pte_kmem;
 	capid_t pte_cap;
-	int comp_id = cos_spd_id();
+	unsigned long i;
+	int ret, comp_id = cos_spd_id();
 
-	memset((void *)mm_vas_pgd, 0, PAGE_SIZE);
-	memset((void *)mm_vas_pte, 0, PAGE_SIZE/sizeof(void *) * MAPPING_ITEM_SZ);
+	memset((void *)mm_own_pgd, 0, PAGE_SIZE);
+	memset((void *)mm_vas_pgd, 0, MM_PTE_SIZE);
+	memset((void *)mm_vas_pte, 0, MM_PTE_SIZE*MM_NPTE_NEEDED);
 
 	/* mm_comp is a global variable for fast access. */
 	mm_comp = comp_lookup(comp_id);
 	comp_lock(mm_comp);
 	
 	mm_vas = &mm_comp->mapping_ns;
-	vas_ns_init(mm_vas, mm_vas_pgd);
+	vas_ns_init(mm_vas, mm_own_pgd);
 	/* vas allocation in mm isn't as frequent. */
 	mm_vas->expand = NULL;
 	mm_vas->allocator.qwq_min_limit = KMEM_QWQ_SIZE;
 	mm_vas->allocator.qwq_max_limit = KMEM_QWQ_SIZE*4;
 
 	/* We don't mess up with the heap. Instead, get a new region. */
-	comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pte, PAGE_SIZE);
-	comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pte2, MM_PTE_SIZE);
+	comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pgd, PAGE_SIZE);
+
+	for (i = 0; i < MM_NPTE_NEEDED; i++) {
+		comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pte + i*MM_PTE_SIZE, MM_PTE_SIZE);
+	}
 	
 	comp_unlock(mm_comp);
 
@@ -811,7 +832,8 @@ mm_init(void)
 
 	comp_ns_init();
 
-	printc("Mem_mgr: initialized %lu frames and %lu kernel frames.\n", n_pmem, n_kmem);
+	printc("Mem_mgr: initialized %lu frames (%lu MBs) and %lu kernel frames.\n", 
+	       n_pmem, (n_pmem * PAGE_SIZE) >> 20, n_kmem);
 }
 
 /**************************/

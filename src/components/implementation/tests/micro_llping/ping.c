@@ -1338,6 +1338,16 @@ void cos_init(void)
 	ret = call_cap(MMAN_RELEASE, cos_spd_id(), mem[0], 0, 0);
 
 	printc("Multi-page allocation / free tests done!\n");
+
+	int tot_mb = 0;
+	while (1) {
+		ret = call_cap(MMAN_GET, cos_spd_id(), 0, 256 << 16, 0);
+		/* printc("got a 1mb page @ %x!\n", ret); */
+		if (ret == 0) break;
+		memset((void *)ret, 0, (256)*PAGE_SIZE);
+		tot_mb += 1;
+	}
+	printc("MM allocation test: %d MBs allocated in total\n", tot_mb);
 #endif
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
 

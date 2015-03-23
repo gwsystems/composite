@@ -275,6 +275,10 @@ vaddr_t get_pmem(void)
 	if (!pmem_cap) return 0;
 
 	heap_vaddr = (vaddr_t)cos_get_heap_ptr();
+	if (heap_vaddr - SERVICE_START > SERVICE_SIZE * (1+BOOTER_NREGIONS)) {
+		printc("Booter out of VAS: heap %p\n", (void *)heap_vaddr); 
+		return 0;
+	}
 	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEMACTIVATE,
 			  pmem_cap, BOOT_CAPTBL_SELF_PT, heap_vaddr, 0);
 	if (ret) return 0;
@@ -368,8 +372,8 @@ boot_deps_run_all(void)
 /* Functions using new cap operations below. */
 /*********************************************/
 
-/* We have 2 pages for the captbl of llboot: 1/2 page for the top
- * level, 1+1/2 pages for the second level. */
+/* We have 5 pages for the captbl of llboot: 1/2 page for the top
+ * level, 4+1/2 pages for the second level. */
 #define CAP_ID_32B_FREE BOOT_CAPTBL_FREE;            // goes up
 #define CAP_ID_64B_FREE ((PAGE_SIZE*BOOT_CAPTBL_NPAGES - PAGE_SIZE/2)/16 - CAP64B_IDSZ) // goes down
 
@@ -404,12 +408,10 @@ capid_t alloc_capid(cap_t cap)
 }
 
 struct comp_cap_info {
-	/* By default 2 pages for the captbl of each comp: half page
-	 * 1st level, and 1.5 pages 2nd level */
+	/* By default 5 pages for the captbl of each comp: half page
+	 * 1st level, and 4.5 pages 2nd level */
 	capid_t captbl_cap[BOOT_CAPTBL_NPAGES];
-	capid_t pgtbl_cap[2];
-#define COMP_N_KMEM (BOOT_CAPTBL_NPAGES + 2) /* kmem pages per component. */
-	vaddr_t kmem[COMP_N_KMEM];
+	capid_t pgtbl_cap;
 	capid_t comp_cap;
 	capid_t cap_frontier;
 	vaddr_t addr_start;
@@ -438,165 +440,6 @@ void sync_all()
 
 #define CAPTBL_LEAFSZ  16
 #define CAPTBL_INIT_SZ (PAGE_SIZE/2/16)
-
-// PPOS test code below
-static inline void
-acap_test(void)
-{
-	int ret;
-	/* asnd and arcv tests! */
-	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
-	struct comp_cap_info *ping = &comp_cap_info[2];
-	struct comp_cap_info *pong = &comp_cap_info[3];
-
-	capid_t async_sndthd_cap = SND_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid();
-	capid_t async_rcvthd_cap = RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid();
-	capid_t async_test_cap   = ACAP_BASE + captbl_idsize(CAP_ARCV)*cos_cpuid();
-
-	vaddr_t thd_mem, pte_mem, captest_mem;
-	capid_t pong_thd_cap, pte_cap, captest_cap;
-
-	/* lock to avoid cas failure. */
-	ck_spinlock_ticket_lock(&init_lock);
-
-	if (cos_cpuid() == INIT_CORE) {
-		/* Create shmem between ping and pong. */
-		capid_t shmem = get_pmem();
-		int ret;
-		//map this to ping and pong
-		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, 
-				  shmem, ping->pgtbl_cap[0], ping->addr_start + 0x400000 - PAGE_SIZE, 0);
-		if (ret) printc("map shmem to ping failed >>>>>>>>>>>>> ret %d\n", ret);
-		ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY, 
-				  shmem, pong->pgtbl_cap[0], pong->addr_start + 0x400000 - PAGE_SIZE, 0);
-		if (ret) printc("map shmem to pong failed >>>>>>>>>>>>> ret %d\n", ret);
-
-		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
-				  ping->captbl_cap[0], ping->captbl_cap[0], PING_CAPTBL, 0);
-		if (ret) printc("grant captbl to ping failed >>>>>>>>>>>>> ret %d\n", ret);
-
-		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
-				  ping->pgtbl_cap[0], ping->captbl_cap[0], PING_PGTBL, 0);
-		if (ret) printc("grant pgtbl to ping failed >>>>>>>>>>>>> ret %d\n", ret);
-
-		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
-				  ping->pgtbl_cap[1], ping->captbl_cap[0], PING_PGTBL2, 0);
-		if (ret) printc("grant pgtbl pte to ping failed >>>>>>>>>>>>> ret %d\n", ret);
-
-		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
-				  ping->comp_cap, ping->captbl_cap[0], PING_COMPCAP, 0);
-		if (ret) printc("grant comp cap to ping failed >>>>>>>>>>>>> ret %d\n", ret);
-
-		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
-				  BOOT_CAPTBL_SELF_PT, ping->captbl_cap[0], PING_ROOTPGTBL, 0);
-		if (ret) printc("grant root pgtbl to ping failed >>>>>>>>>>>>> ret %d\n", ret);
-
-		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
-				  ping->captbl_cap[1], ping->captbl_cap[0], PING_CAPTBL2, 0);
-		if (ret) printc("grant captbl2 to ping failed >>>>>>>>>>>>> ret %d\n", ret);
-
-	}
-
-	thd_mem = get_kmem_cap();
-	pong_thd_cap = alloc_capid(CAP_THD);
-
-	{
-		/* get each core a separate pte so that they can do
-		 * memory map/unmap test (and have enough VAS). */
-		pte_mem = get_kmem_cap();
-		pte_cap = alloc_capid(CAP_PGTBL);
-
-		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE, 
-				  pte_cap, BOOT_CAPTBL_SELF_PT, pte_mem, 1);
-		if (ret) printc(">>>> pte activation failed!!!! %d\n", ret);
-
-		ret = call_cap_op(ping->pgtbl_cap[0], CAPTBL_OP_CONS, pte_cap, 0x80000000 - (1+cos_cpuid())*0x400000, 0, 0);
-
-		if (ret) printc(">>>> pte cons failed!!!! %d\n", ret);
-
-		/* do the same for captbl act/deact test to avoid
-		 * interference from prefetcher. */
-		captest_mem = get_kmem_cap();
-		captest_cap = alloc_capid(CAP_PGTBL);
-
-		ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE,
-				  captest_cap, BOOT_CAPTBL_SELF_PT, captest_mem, 1);
-		if (ret) printc(">>>> captbl activation failed!!!! %d\n", ret);
-
-		ret = call_cap_op(ping->captbl_cap[0], CAPTBL_OP_CONS, captest_cap,
-				  PAGE_SIZE/2/CAPTBL_LEAFSZ*510 - cos_cpuid()*PAGE_SIZE/CAPTBL_LEAFSZ, 0, 0);
-		if (ret) printc(">>>> captbl cons failed!!!! %d\n", ret);
-	}
-
-	// grant alpha thd to pong as well
-	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, llboot->alpha, 
-			pong->captbl_cap[0], SCHED_CAPTBL_ALPHATHD_BASE + captbl_idsize(CAP_THD)*cos_cpuid(), 0)) BUG();
-
-//	if (cos_cpuid() < (NUM_CPU_COS - SND_RCV_OFFSET)) { // sending core
-//	if (cos_cpuid()%4 == 0 || cos_cpuid()%4 == 2) { // sending core
-	if (cos_cpuid() == 0) {
-		// create rcv thd in ping. and copy it to ping's captbl.
-		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, pong_thd_cap,
-				BOOT_CAPTBL_SELF_PT, thd_mem, ping->comp_cap)) BUG();
-
-		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-				pong_thd_cap, ping->captbl_cap[0], async_rcvthd_cap, 0)) BUG();
-
-		// create asnd / arcv caps!
-		if (call_cap_op(ping->captbl_cap[0], CAPTBL_OP_ARCVACTIVATE, async_test_cap, 
-				pong_thd_cap, ping->comp_cap, 0)) BUG();
-
-		if (call_cap_op(pong->captbl_cap[0], CAPTBL_OP_ASNDACTIVATE, async_test_cap, 
-				ping->captbl_cap[0], async_test_cap, 0)) BUG();
-
-	} else { // receiving core
-		// create rcv thd in pong. and copy it to ping's captbl.
-		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, pong_thd_cap,
-				BOOT_CAPTBL_SELF_PT, thd_mem, pong->comp_cap)) BUG();
-
-		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-				pong_thd_cap, ping->captbl_cap[0], async_rcvthd_cap, 0)) BUG();
-
-		// create asnd / arcv caps!
-		if (call_cap_op(pong->captbl_cap[0], CAPTBL_OP_ARCVACTIVATE, async_test_cap, 
-				pong_thd_cap, pong->comp_cap, 0)) BUG();
-
-		if (call_cap_op(ping->captbl_cap[0], CAPTBL_OP_ASNDACTIVATE, async_test_cap,
-				pong->captbl_cap[0], async_test_cap, 0)) BUG();
-	}
-
-	/* copy init thd cap to pong. */
-	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY, 
-			llboot->init_thd, pong->captbl_cap[0], async_sndthd_cap, 0)) BUG();
-
-	ck_spinlock_ticket_unlock(&init_lock);
-
-	/* printc("asnd/arcv %d caps created on core %ld\n", async_test_cap, cos_cpuid()); */
-
-	return;
-}
-
-/* for ppos tests only */
-int snd_rcv_order[NUM_CPU];
-int run_ppos_test(void)
-{
-	int ret;
-	//serialize the init order
-	if (cos_cpuid() != INIT_CORE) 
-		while (ck_pr_load_int(&snd_rcv_order[cos_cpuid()-1]) == 0) ;
-
-	/* setting up test environment. */
-	acap_test();
-
-	ck_pr_store_int(&snd_rcv_order[cos_cpuid()], 1);
-
-	//and sync
-	sync_all(); 
-
-	return 0;
-}
-
-//PPOS test code done.
 
 capid_t per_core_thd_cap[NUM_CPU_COS];
 vaddr_t per_core_thd_mem[NUM_CPU_COS];
@@ -647,7 +490,7 @@ boot_comp_mm_init(void)
 	struct comp_cap_info *mm_comp = &comp_cap_info[BOOT_INIT_MM_COMP];
 
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-			mm_comp->pgtbl_cap[0], mm_comp->captbl_cap[0], MM_CAPTBL_OWN_PGTBL, 0)) BUG();
+			mm_comp->pgtbl_cap, mm_comp->captbl_cap[0], MM_CAPTBL_OWN_PGTBL, 0)) BUG();
 
 	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
 			mm_comp->captbl_cap[0], mm_comp->captbl_cap[0], MM_CAPTBL_OWN_CAPTBL, 0)) BUG();
@@ -656,9 +499,9 @@ boot_comp_mm_init(void)
 		if (i == cos_spd_id()) continue;
 
 		/* Grant pgtbl cap to mem_mgr */
-		if (comp_cap_info[i].pgtbl_cap[0]) {
+		if (comp_cap_info[i].pgtbl_cap) {
 			if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-					comp_cap_info[i].pgtbl_cap[0], mm_comp->captbl_cap[0], 
+					comp_cap_info[i].pgtbl_cap, mm_comp->captbl_cap[0], 
 					MM_CAPTBL_OWN_PGTBL + i * captbl_idsize(CAP_COMP), 0)) BUG();
 		}
 	}
@@ -673,15 +516,15 @@ boot_comp_mm_init(void)
 			kmem_cap = get_kmem_cap();
 			/* PTE */
 			if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
-					pte_cap, BOOT_CAPTBL_SELF_PT, kmem_cap, 1))    BUG();
+					pte_cap, BOOT_CAPTBL_SELF_PT, kmem_cap, 1)) BUG();
 			/* Construct pgtbl */
-			if (call_cap_op(mm_comp->pgtbl_cap[0], CAPTBL_OP_CONS, pte_cap, mm_memcap, 0, 0)) BUG();
+			if (call_cap_op(mm_comp->pgtbl_cap, CAPTBL_OP_CONS, pte_cap, mm_memcap, 0, 0)) BUG();
 		}
 
 		n_frames++;
 		/* and grant memory cap by moving */
 		if ((ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEMMOVE,
-				       memcap, mm_comp->pgtbl_cap[0], mm_memcap, 0))) 
+				       memcap, mm_comp->pgtbl_cap, mm_memcap, 0))) 
 			break;
 	}
 
@@ -698,13 +541,13 @@ boot_comp_mm_init(void)
 			if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
 					pte_cap, BOOT_CAPTBL_SELF_PT, kmem_cap, 1))    BUG();
 			/* Construct pgtbl */
-			if (call_cap_op(mm_comp->pgtbl_cap[0], CAPTBL_OP_CONS, pte_cap, mm_memcap, 0, 0)) BUG();
+			if (call_cap_op(mm_comp->pgtbl_cap, CAPTBL_OP_CONS, pte_cap, mm_memcap, 0, 0)) BUG();
 		}
 
 		kmem++;
 		/* and grant memory cap by moving */
 		if ((ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEMMOVE,
-				       memcap, mm_comp->pgtbl_cap[0], mm_memcap, 0))) 
+				       memcap, mm_comp->pgtbl_cap, mm_memcap, 0))) 
 			break;
 	}
 
@@ -799,251 +642,18 @@ tlb_quiescence_wait(void)
 	}
 }
 
-void captbl_test(void)
-{
-	struct comp_cap_info *comp = &comp_cap_info[BOOT_INIT_SCHED_COMP];
-	int i, lid = get_liv_id();
-	int ret;
-	ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_SINVDEACTIVATE,
-			      4, lid, 0, 0);
-	assert(ret == 0);
-	ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_SINVACTIVATE,
-			  4, comp_cap_info[3].comp_cap, 222, 0);
-	assert(ret == -EQUIESCENCE);
-	quiescence_wait();
-	ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_SINVACTIVATE,
-			  4, comp_cap_info[3].comp_cap, 222, 0);
-	printc(">>> act / deact quiescence_check ret %d w/ liveness id %d.\n", ret, lid);
-
-	ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_THDDEACTIVATE, 
-			  SCHED_CAPTBL_INITTHD_BASE + cos_cpuid() * captbl_idsize(CAP_THD), lid, 0, 0);
-	printc(">>> thd deact 1 ret %d\n", ret);
-
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDDEACTIVATE_ROOT, PERCPU_GET(llbooter)->init_thd, 
-			  lid, BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()]);
-	if (ret) printc(">>>>>>>>>>>>> thd deact ret %d FAILED w/ liveness id %d.\n", ret, lid);
-	printc(">>> thd deact ret %d w/ liveness id %d.\n", ret, lid);
-
-	/* CAPTBL decons + deact */
-	lid = get_liv_id();
-	u32_t ct_id   = alloc_capid(CAP_CAPTBL);
-	u32_t kmemcap = get_kmem_cap();
-
-	ret =call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE,
-			 ct_id, BOOT_CAPTBL_SELF_PT, kmemcap, 1);
-	printc(">>> captbl act ret %d\n", ret);
-
-	ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_CONS, 
-			  ct_id, 4096, 0, 0);
-	printc(">>> captbl cons ret %d\n", ret);
-
-	ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_SINVACTIVATE,
-			  4100, comp_cap_info[3].comp_cap, 222, 0);
-	printc(">>> captbl sinv ret %d\n", ret);
-
-	ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_SINVDEACTIVATE,
-			  4100, lid, 0, 0);
-	printc(">>> captbl sinv deact ret %d\n", ret);
-	
-	ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_DECONS,
-			  ct_id, 4096, 1, 0);
-	printc(">>> captbl decons ret %d\n", ret);
-
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPKMEM_FREEZE, 
-			  ct_id, 0, 0, 0);
-	printc(">>> kmem freeze ret %d\n", ret);
-
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLDEACTIVATE_ROOT, 
-			  ct_id, lid, BOOT_CAPTBL_SELF_PT, kmemcap);
-	assert(ret == -EQUIESCENCE);
-	quiescence_wait();
-
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLDEACTIVATE_ROOT, 
-			  ct_id, lid, BOOT_CAPTBL_SELF_PT, kmemcap);
-	printc(">>> Captbl deact after quiescence_wait ret %d\n", ret);
-
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE,
-			  ct_id, BOOT_CAPTBL_SELF_PT, kmemcap, 1);
-	assert(ret == -EQUIESCENCE);
-	
-	quiescence_wait();
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE,
-			  ct_id, BOOT_CAPTBL_SELF_PT, kmemcap, 1);
-	printc(">>> CAPTBL re-act after quiescence ret %d\n", ret);
-
-	///////////// Failure case test next.
-	ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_SINVACTIVATE,
-			  (PAGE_SIZE*4 / 16 - 4), comp_cap_info[3].comp_cap, 222, 0);
-	if (ret) printc(">>>>>>>>>>>>> sinv act ret %d FAILED.\n", ret);
-	ret = call_cap_op(comp->captbl_cap[0], CAPTBL_OP_DECONS,
-			  comp->captbl_cap[1], CAPTBL_INIT_SZ, 1, 0);
-	if (ret) printc(">>>>>>>>>>>>> captbl decons ret %d FAILED.\n", ret);
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPKMEM_FREEZE, 
-			  comp->captbl_cap[1], 0, 0, 0);
-	if (ret) printc(">>>>>>>>>>>>> captbl kmem freeze ret %d FAILED.\n", ret);
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLDEACTIVATE_ROOT, 
-			  comp->captbl_cap[1], lid, BOOT_CAPTBL_SELF_PT, comp->kmem[1]);
-	assert(ret);
-	quiescence_wait();
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLDEACTIVATE_ROOT, 
-			  comp->captbl_cap[1], lid, BOOT_CAPTBL_SELF_PT, comp->kmem[1]);
-	assert(ret);
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE,
-			  comp->captbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[1], 1);
-	assert(ret);
-	printc("CAPTBL tests done. \n");
-	assert(liv_id_heap < 100);
-}
-
-void pgtbl_test(void)
-{
-	struct comp_cap_info *comp = &comp_cap_info[BOOT_INIT_SCHED_COMP];
-	int i, lid, ret;
-
-	//////////////////////////
-	/* PGTBL decons + deact */
-	//////////////////////////
-
-	lid = get_liv_id();
-		
-	for (i = 0; i < (int)(PAGE_SIZE/sizeof(void *)); i++) {
-		vaddr_t addr = comp->addr_start + i*PAGE_SIZE;
-		call_cap_op(comp->pgtbl_cap[0], CAPTBL_OP_MEMDEACTIVATE,
-			    addr, lid, 0, 0);
-	}
-	ret = call_cap_op(comp->pgtbl_cap[0], CAPTBL_OP_DECONS,
-			  comp->pgtbl_cap[1], comp->addr_start, 1, 0);
-	if (ret) printc(">>>>>>>>>>>>> pgtbl decons ret %d FAILED.\n", ret);
-	printc(">>> PGTBL decons ret %d\n", ret);
-
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPKMEM_FREEZE, 
-			  comp->pgtbl_cap[1], 0, 0, 0);
-	printc(">>> PGTBL mem freeze ret %d\n", ret);
-
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLDEACTIVATE_ROOT, 
-			  comp->pgtbl_cap[1], lid, BOOT_CAPTBL_SELF_PT, comp->kmem[COMP_N_KMEM-1]);
-	assert(ret == -EQUIESCENCE);
-	tlb_quiescence_wait();
-
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLDEACTIVATE_ROOT, 
-			  comp->pgtbl_cap[1], lid, BOOT_CAPTBL_SELF_PT, comp->kmem[COMP_N_KMEM-1]);
-	if (ret) printc(">>>>>>>>>>>>> pgtbl deact ret %d FAILED.\n", ret);
-	printc(">>> PGTBL deact after quiescence ret %d\n", ret);
-
-	quiescence_wait();
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE, 
-			  comp->pgtbl_cap[1], BOOT_CAPTBL_SELF_PT, comp->kmem[COMP_N_KMEM-1], 1);
-	printc(">>> PGTBL re-act after quiescence ret %d\n", ret);
-	printc("PGTBL tests done.\n");
-}
-
-void retype_test(void)
-{
-	struct comp_cap_info *comp = &comp_cap_info[BOOT_INIT_SCHED_COMP];
-	int i, lid, ret;
-
-	lid = get_liv_id();
-	//////////////////////////////////
-	/* Some additional retype tests */
-	//////////////////////////////////
-
-	vaddr_t next_memregion = pmem_heap + (RETYPE_MEM_SIZE - pmem_heap % RETYPE_MEM_SIZE);
-	vaddr_t heapptr = (vaddr_t)cos_get_heap_ptr();
-	/* Retype this region as user memory before use. */
-	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2USER,
-			  next_memregion, 0, 0, 0);
-	if (ret) printc(">>>>>>>>>> RETYPE2USER failed: %d\n", ret);
-	printc(">>> RETYPE2USER ret %d. \n", ret);
-	// retype2kern test
-	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2KERN,
-			  next_memregion, 0, 0, 0);
-	assert(ret == -EPERM);
-	// activate a page, i.e. map in a physical page to our heap.
-	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEMACTIVATE,
-			  next_memregion, BOOT_CAPTBL_SELF_PT, heapptr, 0);
-	if (ret) printc(">>>>>>>>>> MEM_ACTVATE failed: %d\n", ret);
-	printc(">>> Memory activation ret %d\n", ret);
-
-	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEMDEACTIVATE,
-			  heapptr, lid, 0, 0);
-	if (ret) printc(">>>>>>>>>> MEM deact failed: %d\n", ret);
-	printc(">>> Memory deactivation ret %d\n", ret);
-
-	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2FRAME,
-			  next_memregion, 0, 0, 0);
-	assert(ret == -EQUIESCENCE);
-	quiescence_wait();
-	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2FRAME,
-			  next_memregion, 0, 0, 0);
-	assert(ret == -EQUIESCENCE);
-	tlb_quiescence_wait();
-	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2FRAME,
-			  next_memregion, 0, 0, 0);
-	if (ret) printc(">>>>>>>>>> Retype2Frame failed: %d\n", ret);
-	printc(">>> Retype2Frame ret %d\n", ret);
-
-	// following should fail.
-	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2KERN,
-			  next_memregion, 0, 0, 0);
-	assert(ret);
-
-	//////////////////////
-	/* retype2kern test */
-	//////////////////////
-
-	int thd_cap = alloc_capid(CAP_THD);
-	vaddr_t kmemregion = kmem_heap + (RETYPE_MEM_SIZE - kmem_heap % RETYPE_MEM_SIZE);
-	assert(kmemregion % RETYPE_MEM_SIZE == 0);
-	lid = get_liv_id();
-
-	// we retyped all kmem already.
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, thd_cap,
-			  BOOT_CAPTBL_SELF_PT, kmemregion, comp->comp_cap);
-	printc(">>> Thd act ret %d, lid %u\n", ret, lid);
-
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDDEACTIVATE_ROOT, 
-			  thd_cap, lid, BOOT_CAPTBL_SELF_PT, kmemregion);
-	printc(">>> Thd deact ret %d, lid %u\n", ret, lid);
-
-	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2FRAME,
-			  kmemregion, 0, 0, 0);
-//		assert(ret == -EQUIESCENCE);
-
-	tlb_quiescence_wait();
-	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2FRAME,
-			  kmemregion, 0, 0, 0);
-	printc(">>> Kmem Retype2Frame after quiescence ret %d\n", ret);
-
-	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEM_RETYPE2KERN,
-			  kmemregion, 0, 0, 0);
-	printc(">>> Retype2Kern ret %d\n", ret);
-
-	ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, thd_cap,
-			  BOOT_CAPTBL_SELF_PT, kmemregion, comp->comp_cap);
-	printc(">>> React thd ret %d\n", ret);
-	printc("RETYPE TBL tests done.\n");
-}
 
 void comp_deps_run_all(void)
 {
 	sync_all();
 
-	/* PPOS test only. */
-//	if (run_ppos_test()) goto done;
-
 	printc("Core %ld: low-level booter switching to init thread (cap %d).\n", 
 	       cos_cpuid(), PERCPU_GET(llbooter)->init_thd);
+
 	/* switch to the init thd in the scheduler. */
 	if (cap_switch_thd(PERCPU_GET(llbooter)->init_thd)) BUG();
-done:
-//#define API_TEST
-#ifdef API_TEST
-	if (cos_cpuid() == 0) {
-		captbl_test();
-		pgtbl_test();
-		retype_test();
-	}
-#endif
+
+	/* ... and we are back. Ready to exit. */
 	sync_all();
 	printc("Core %ld: exiting system from low-level booter.\n", cos_cpuid());
 
@@ -1055,6 +665,7 @@ void cos_init(void);
 int sched_init(void)   
 {
 	assert(cos_cpuid() < NUM_CPU_COS);
+
 	if (cos_cpuid() == INIT_CORE) {
 		if (!PERCPU_GET(llbooter)->init_thd) cos_init();
 		else comp_deps_run_all();
@@ -1065,9 +676,6 @@ int sched_init(void)
 		comp_deps_run_all();
 	}
 	
-	/* calling return cap */
-	call_cap(0, 0, 0, 0, 0);
-
 	return 0;
 }
 

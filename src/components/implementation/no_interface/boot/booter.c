@@ -478,7 +478,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	char *dsrc;
 	int flag;
 	capid_t captbl_cap = comp_cap_info[spdid].captbl_cap[0];
-	capid_t pgtbl_cap  = comp_cap_info[spdid].pgtbl_cap[0];
+	capid_t pgtbl_cap  = comp_cap_info[spdid].pgtbl_cap;
 
 	/* We'll map the component into booter's heap. */
 	comp_cap_info[spdid].vaddr_mapped_in_booter = (vaddr_t)cos_get_heap_ptr();
@@ -499,7 +499,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		if (round_to_page(dest_daddr) == prev_map) {
 			left -= (prev_map + PAGE_SIZE - dest_daddr);
 			dest_daddr = prev_map + PAGE_SIZE;
-		} 
+		}
 		while (left > 0) {
 			//FIXME: use kmem if (flag & MAPPING_KMEM)
 			vaddr_t addr = get_pmem();
@@ -633,7 +633,7 @@ static void
 boot_create_cap_system(void)
 {
 	int ret;
-	unsigned int i, kmem_id, min = ~0;
+	unsigned int i, min = ~0;
 
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		if (hs[i]->id < min) min = hs[i]->id;
@@ -644,7 +644,7 @@ boot_create_cap_system(void)
 		struct cobj_sect *sect;
 		vaddr_t comp_info = 0;
 		long tot = 0;
-		int j;
+		int j, n_pte;
 		/* cap tbl, pgtbl for new component */
 		capid_t comp_cap;
 		capid_t captbl_cap, pgtbl_cap;
@@ -654,60 +654,55 @@ boot_create_cap_system(void)
 		
 		h = hs[i];
 		spdid = h->id;
-		/* if ((spdid = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG(); */
 		
 		sect = cobj_sect_get(h, 0);
-		/* if (cos_spd_cntl(COS_SPD_LOCATION, spdid, sect->vaddr, SERVICE_SIZE)) BUG(); */
 		for (j = 0 ; j < (int)h->nsect ; j++) {
 			tot += cobj_sect_size(h, j);
 		}
+
+		n_pte = 1;
 		if (tot > SERVICE_SIZE) {
-			printc("Component size greater than default size!\n");
-			BUG();
+			/* printc("Component %d size %ld greater than default size!\n", spdid, tot); */
+			n_pte = tot / SERVICE_SIZE;
+			if (tot % SERVICE_SIZE) n_pte++;
 		}
 
 		/* create cap tbl, pgtbl for new component */
 		comp_cap    = alloc_capid(CAP_COMP);
-
 		for (j = 0; j < BOOT_CAPTBL_NPAGES; j++) {
 			comp_cap_info[spdid].captbl_cap[j] = alloc_capid(CAP_CAPTBL);
 		}
 
 		pgtbl_cap   = alloc_capid(CAP_PGTBL);
-		pte_cap     = alloc_capid(CAP_PGTBL);
-
-		for (kmem_id = 0; kmem_id < COMP_N_KMEM; kmem_id++)
-			comp_cap_info[spdid].kmem[kmem_id] = get_kmem_cap();
-
-		kmem_id = 0;
 		/* Captbl */
 		captbl_cap = comp_cap_info[spdid].captbl_cap[0];
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE, captbl_cap,
-				BOOT_CAPTBL_SELF_PT, comp_cap_info[spdid].kmem[kmem_id++], 0)) BUG();
+				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), 0)) BUG();
 		for (j = 1; j < BOOT_CAPTBL_NPAGES; j++) {
 			/* Another page for the captbl. */
 			if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE, comp_cap_info[spdid].captbl_cap[j],
-					BOOT_CAPTBL_SELF_PT, comp_cap_info[spdid].kmem[kmem_id++], 1)) BUG();
+					BOOT_CAPTBL_SELF_PT, get_kmem_cap(), 1)) BUG();
 			/* Captbl expand */
 			if (call_cap_op(captbl_cap, CAPTBL_OP_CONS, comp_cap_info[spdid].captbl_cap[j],
 					(PAGE_SIZE*j - PAGE_SIZE/2)/CAPTBL_LEAFSZ, 0, 0)) BUG();
 		}
-
 		/* PGD */
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
-				pgtbl_cap, BOOT_CAPTBL_SELF_PT, comp_cap_info[spdid].kmem[kmem_id++], 0))  BUG();
-		/* PTE */
-		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
-				pte_cap, BOOT_CAPTBL_SELF_PT, comp_cap_info[spdid].kmem[kmem_id++], 1))    BUG();
-		assert(kmem_id == COMP_N_KMEM);
+				pgtbl_cap, BOOT_CAPTBL_SELF_PT, get_kmem_cap(), 0))  BUG();
 
-		/* Construct pgtbl */
-		if (call_cap_op(pgtbl_cap, CAPTBL_OP_CONS, pte_cap, sect->vaddr, 0, 0)) BUG();
+		/* PTEs */
+		for (j = 0; j < n_pte; j++) {
+			pte_cap = alloc_capid(CAP_PGTBL);
+			if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
+					pte_cap, BOOT_CAPTBL_SELF_PT, get_kmem_cap(), 1))    BUG();
+			
+			/* Construct pgtbl */
+			if (call_cap_op(pgtbl_cap, CAPTBL_OP_CONS, pte_cap, sect->vaddr + j*SERVICE_SIZE, 0, 0)) BUG();
+		}
 
-		comp_cap_info[spdid].pgtbl_cap[0]  = pgtbl_cap;
-		comp_cap_info[spdid].pgtbl_cap[1]  = pte_cap;
-		comp_cap_info[spdid].comp_cap    = comp_cap;
-		comp_cap_info[spdid].addr_start  = sect->vaddr;
+		comp_cap_info[spdid].pgtbl_cap  = pgtbl_cap;
+		comp_cap_info[spdid].comp_cap   = comp_cap;
+		comp_cap_info[spdid].addr_start = sect->vaddr;
 
 		if (boot_spd_symbs(h, spdid, &comp_info))   BUG();
 		if (boot_comp_map(h, spdid, comp_info))     BUG();
@@ -757,6 +752,7 @@ void cos_init(void)
 
 	init_cosframes();
 	boot_create_cap_system();
+
 	printc("booter: done creating system.\n");
 
 	UNLOCK();

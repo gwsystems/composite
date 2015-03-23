@@ -1710,6 +1710,7 @@ static u32_t llboot_mem;
 static int load_all_services(struct service_symbs *services)
 {
 	unsigned long service_addr = BASE_SERVICE_ADDRESS;
+	int n_regions;
 	long sz;
 
 	while (services) {
@@ -1720,10 +1721,13 @@ static int load_all_services(struct service_symbs *services)
 
 		service_addr += DEFAULT_SERVICE_SIZE;
 		/* note this works for the llbooter and root memory manager too */
-		if (strstr(services->obj, BOOT_COMP) || strstr(services->obj, LLBOOT_COMP)) { // Booter needs larger VAS
-			service_addr += 15*DEFAULT_SERVICE_SIZE;
-		} else if (strstr(services->obj, INITMM) || sz > DEFAULT_SERVICE_SIZE) {
-			service_addr += 3*DEFAULT_SERVICE_SIZE;
+		if (strstr(services->obj, BOOT_COMP) || strstr(services->obj, INITMM) ||
+		    strstr(services->obj, LLBOOT_COMP)) {
+			// Give Booter and MM larger VAS
+			service_addr += (BOOTER_NREGIONS-1)*DEFAULT_SERVICE_SIZE;
+		} else if (sz > DEFAULT_SERVICE_SIZE) {
+			n_regions = (sz / DEFAULT_SERVICE_SIZE) + 1;
+			service_addr += (n_regions-1) * DEFAULT_SERVICE_SIZE;
 		}
 
 		printl(PRINT_DEBUG, "\n");
@@ -2787,6 +2791,7 @@ static void setup_kernel(struct service_symbs *services)
 	 * function will return to here and create processes for other
 	 * cores. */
 	fn();
+	/* goto done; */
 
 	pid = getpid();
 	for (i = 1; i < NUM_CPU_COS; i++) {
@@ -2823,7 +2828,7 @@ static void setup_kernel(struct service_symbs *services)
 	rdtscll(start);
 	ret = fn();
 	rdtscll(end);
-
+done:
 	aed_enable_syscalls(cntl_fd);
 
 	cos_restore_hw_entry(cntl_fd);

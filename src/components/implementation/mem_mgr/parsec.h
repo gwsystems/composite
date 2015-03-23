@@ -253,7 +253,7 @@ struct quie_queue {
 /* FIXME: for namespace allocator, may not need the slab allocation. */
 
 /* Per cpu / thread */
-#define QUIE_QUEUE_N_SLAB (22)
+#define QUIE_QUEUE_N_SLAB (23)
 struct quie_queue_slab {
 	struct quie_queue slab_queue[QUIE_QUEUE_N_SLAB];
 	/* Padding to avoid false sharing. 2 cachelines for prefetching. */
@@ -287,7 +287,7 @@ struct parsec_allocator {
 	/* # of private queues, usually 1 per cpu. for boundary
              check. */
 	unsigned int n_local;
-	/* Only allocate from the qwq when we have at least this many items */
+	/* Only allocate from the qwq when we have at least this many items / capacity */
 	unsigned int qwq_min_limit;
 	/* threshold of when to return to global freelist */
 	unsigned int qwq_max_limit;
@@ -404,7 +404,7 @@ quie_queue_add_head(struct quie_queue *queue, struct quie_mem_meta *meta)
 
 	queue->head = meta;
 	queue->n_items++;
-	/* printf("queue add head: %d items\n", queue->n_items); */
+	/* printc("queue add head: %d items\n", queue->n_items); */
 
 	return;
 }
@@ -445,7 +445,7 @@ quie_queue_remove(struct quie_queue *queue)
 	
 	if (queue->n_items == 0) queue->tail = NULL;
 
-	/* printf("queue remove: %d items\n", queue->n_items); */
+	/* printc("queue remove: %d items\n", queue->n_items); */
 
 	return ret;
 }
@@ -463,13 +463,14 @@ size2slab(size_t orig_size)
 
 	if (orig_size < CACHE_LINE) size = 1;
 
+	/* TODO: use the instruction to get # of trailing zeros */
 	for (i = 0; i < QUIE_QUEUE_N_SLAB; i++) {
 		size >>= 1;
 		if (!size) break;
 	}
 
 	if (unlikely(size)) {
-//		printf("no slab for size %u\n", orig_size);
+		printc("ERROR: no slab for size %u\n", orig_size);
 		return -1;
 	}
 
@@ -489,7 +490,10 @@ glb_freelist_get(struct quie_queue *queue, size_t size, struct parsec_allocator 
 	struct quie_mem_meta *next, *head, *last;
 	struct freelist *freelist;
 	struct glb_freelist_slab *glb_freelist;
-	int i, thres, n_alloc, needed;
+	int i, n_alloc, needed;
+	unsigned long thres;
+
+	if (!size) return 0;
 
 	glb_freelist = &alloc->glb_freelist;
 	freelist = &glb_freelist->slab_freelists[size2slab(size)];
@@ -497,9 +501,13 @@ glb_freelist_get(struct quie_queue *queue, size_t size, struct parsec_allocator 
 	ck_spinlock_lock(&freelist->l);
 	head = last = next = freelist->head;
 
-	/* half way */
-	thres = alloc->qwq_min_limit + (alloc->qwq_max_limit - alloc->qwq_min_limit) / 2;
-	needed = thres - queue->n_items;
+	/* Policy. Should be set separately. */
+	thres = alloc->qwq_min_limit * 2;
+	if (thres > alloc->qwq_max_limit)
+		thres = alloc->qwq_min_limit + (alloc->qwq_max_limit - alloc->qwq_min_limit) / 2;
+
+	needed = thres/size - queue->n_items;
+	if (thres%size) needed++;
 	if (needed % STRIDE) needed += (STRIDE - needed % STRIDE);
 
 	for (i = 0; (i < needed) && next; i++) {
@@ -523,6 +531,9 @@ glb_freelist_get(struct quie_queue *queue, size_t size, struct parsec_allocator 
 
 		if (queue->tail == NULL) queue->tail = last;
 	}
+
+	/* printf("size %d: local %d items (got %d, needed %d), glb %d now\n", */
+	/*        size, queue->n_items, n_alloc, needed, freelist->n_items); */
 
 	return n_alloc;
 }
