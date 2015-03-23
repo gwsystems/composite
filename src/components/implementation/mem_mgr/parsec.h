@@ -247,6 +247,7 @@ struct quie_queue {
 	struct quie_mem_meta *tail; /* adding to here when freeing */
 	struct quie_mem_meta *head; /* removing from here when allocating */
 	size_t n_items;
+	unsigned int qwq_min_limit;
 } PACKED;
 
 
@@ -510,6 +511,7 @@ glb_freelist_get(struct quie_queue *queue, size_t size, struct parsec_allocator 
 	struct glb_freelist_slab *glb_freelist;
 	int i, n_alloc, needed;
 	unsigned long thres;
+	unsigned long qwq_min;
 
 	if (!size) return 0;
 
@@ -519,13 +521,14 @@ glb_freelist_get(struct quie_queue *queue, size_t size, struct parsec_allocator 
 	ck_spinlock_lock(&freelist->l);
 	head = last = next = freelist->head;
 
-	/* Policy. Should be set separately. */
-	thres = alloc->qwq_min_limit * 2;
-	if (thres > alloc->qwq_max_limit)
-		thres = alloc->qwq_min_limit + (alloc->qwq_max_limit - alloc->qwq_min_limit) / 2;
+	qwq_min = queue->qwq_min_limit;
 
-	needed = thres/size - queue->n_items;
-	if (thres%size) needed++;
+	/* Policy. Should be set separately. */
+	thres = qwq_min * 2;
+	if (thres > alloc->qwq_max_limit)
+		thres = qwq_min + (alloc->qwq_max_limit - qwq_min) / 2;
+
+	needed = thres - queue->n_items;
 	if (needed % STRIDE) needed += (STRIDE - needed % STRIDE);
 
 	for (i = 0; (i < needed) && next; i++) {

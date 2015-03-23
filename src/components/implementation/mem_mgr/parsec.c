@@ -288,13 +288,13 @@ parsec_alloc(size_t size, struct parsec_allocator *alloc, const int waiting)
 	queue = &(qwq[cpu].slab_queue[slab_id]);
 //	printf("cpu %d, queue %p\n", cpu, queue);
 
-	if (queue->n_items*size < alloc->qwq_min_limit) {
+	if (queue->n_items < queue->qwq_min_limit) {
 		/* This will add items (new or from global freelist)
 		 * onto quie_queue if possible. */
 		quie_queue_fill(queue, size, alloc);
 	}
 
-	if (queue->n_items*size >= alloc->qwq_min_limit) {
+	if (queue->n_items >= queue->qwq_min_limit) {
 		/* Ensure the minimal amount of items on the
 		 * quiescence queue. */
 		meta = quie_queue_alloc(queue, alloc, waiting);
@@ -332,13 +332,13 @@ parsec_desc_alloc(size_t size, struct parsec_allocator *alloc, const int waiting
 	queue = &(qwq[cpu].slab_queue[slab_id]);
 //	printf("cpu %d, queue %p\n", cpu, queue);
 
-	if (queue->n_items*size < alloc->qwq_min_limit) {
+	if (queue->n_items < queue->qwq_min_limit) {
 		/* This will add items (new or from global freelist)
 		 * onto quie_queue if possible. */
 		quie_queue_fill(queue, size, alloc);
 	}
 
-	if (queue->n_items*size >= alloc->qwq_min_limit) {
+	if (queue->n_items >= queue->qwq_min_limit) {
 		/* Ensure the minimal amount of items on the
 		 * quiescence queue. */
 		meta = quie_queue_alloc(queue, alloc, waiting);
@@ -415,7 +415,7 @@ lib_exit(parsec_t *parsec)
 static inline int 
 quie_queue_balance(struct quie_queue *queue, struct parsec_allocator *alloc)
 {
-	unsigned long thres;
+	unsigned long thres, qwq_min;
 	struct quie_mem_meta *head, *last = NULL;
 	struct freelist *freelist;
 	struct glb_freelist_slab *glb_freelist;
@@ -430,13 +430,13 @@ quie_queue_balance(struct quie_queue *queue, struct parsec_allocator *alloc)
 	size = head->size;
 	/* assert(size == round2next_pow2(head->size)); */
 
-	assert(alloc->qwq_max_limit > alloc->qwq_min_limit);
+	qwq_min = queue->qwq_min_limit;
 
-	thres = alloc->qwq_min_limit * 2;
+	thres = qwq_min * 2;
 	if (thres > alloc->qwq_max_limit)
-		thres = alloc->qwq_min_limit + (alloc->qwq_max_limit - alloc->qwq_min_limit) / 2;
+		thres = qwq_min + (alloc->qwq_max_limit - qwq_min) / 2;
 
-	while (queue->head && (queue->n_items*size > thres)) {
+	while (queue->head && (queue->n_items > thres)) {
 		/* only return quiesced items. */
 		if (quie_fn(queue->head->time_deact, 0) == 0) {
 			return_n++;
@@ -512,7 +512,7 @@ parsec_free(void *node, struct parsec_allocator *alloc)
 	queue = &(alloc->qwq[cpu].slab_queue[size2slab(meta->size)]);
 	quie_queue_add(queue, meta);
 	
-	if (queue->n_items*(meta->size) >= alloc->qwq_max_limit) {
+	if (queue->n_items >= alloc->qwq_max_limit) {
 		quie_queue_balance(queue, alloc);
 	}
 	

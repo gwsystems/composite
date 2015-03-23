@@ -149,9 +149,11 @@ char kmem_table[FRAMETBL_ITEM_SZ*COS_KERNEL_MEMORY] CACHE_ALIGNED;
 
 char comp_table[COMP_ITEM_SZ*MAX_NUM_COMPS] CACHE_ALIGNED;
 
-#define VAS_QWQ_SIZE  (4 * (1 << 20))  /* 4 MB */
-#define PMEM_QWQ_SIZE (4 * (1 << 20))  /* 4 MB */
-#define KMEM_QWQ_SIZE (16 * (1 << 10)) /* Kmem allocation much less often. */
+#define VAS_QWQ_SIZE        (1024)  
+#define VAS_QWQ_SIZE_SMALL  (4)	/* For large VAS items, to avoid queuing too much. */
+
+#define PMEM_QWQ_SIZE (1024)  /* 4 MB */
+#define KMEM_QWQ_SIZE (2) /* Kmem allocation much less often. */
 
 /* All namespaces in the same parallel section. */
 parsec_t mm CACHE_ALIGNED;
@@ -546,6 +548,8 @@ frame_boot(vaddr_t frame_addr, parsec_ns_t *ns)
 static void 
 frame_init(void)
 {
+	int i, j;
+
 	memset(&frame_ns, 0, sizeof(struct parsec_ns));
 	memset((void *)frame_table, 0, FRAMETBL_ITEM_SZ*COS_MAX_MEMORY);
 
@@ -563,6 +567,12 @@ frame_init(void)
 
 	frame_ns.parsec = &mm;
 
+	for (i = 0; i < NUM_CPU; i++) {
+		for (j = 0; j < QUIE_QUEUE_N_SLAB; j++) {
+			frame_ns.allocator.qwq[i].slab_queue[j].qwq_min_limit = PMEM_QWQ_SIZE;
+		}
+	}
+
 	/* Detecting all the frames. */
 	n_pmem = frame_boot(BOOT_MEM_PM_BASE, &frame_ns);
 
@@ -572,6 +582,8 @@ frame_init(void)
 static void 
 kmem_init(void)
 {
+	int i, j;
+
 	memset(&kmem_ns, 0, sizeof(struct parsec_ns));
 	memset((void *)kmem_table, 0, FRAMETBL_ITEM_SZ*COS_KERNEL_MEMORY);
 
@@ -588,6 +600,12 @@ kmem_init(void)
 	kmem_ns.allocator.n_local       = NUM_CPU;
 
 	kmem_ns.parsec = &mm;
+
+	for (i = 0; i < NUM_CPU; i++) {
+		for (j = 0; j < QUIE_QUEUE_N_SLAB; j++) {
+			kmem_ns.allocator.qwq[i].slab_queue[j].qwq_min_limit = KMEM_QWQ_SIZE;
+		}
+	}
 
 	n_kmem = frame_boot(BOOT_MEM_KM_BASE, &kmem_ns);
 
@@ -686,6 +704,8 @@ mm_local_get_page(unsigned long n_pages)
 static void
 vas_ns_init(parsec_ns_t *vas, void *tbl)
 {
+	int i, j;
+
 	vas->item_sz = MAPPING_ITEM_SZ;
 	vas->lookup  = mapping_lookup;
 	vas->alloc   = vas_alloc;
@@ -698,6 +718,16 @@ vas_ns_init(parsec_ns_t *vas, void *tbl)
 	vas->allocator.qwq_min_limit = VAS_QWQ_SIZE;
 	vas->allocator.qwq_max_limit = (unsigned long)(-1); //VAS_QWQ_SIZE * 4;
 	vas->allocator.n_local       = NUM_CPU;
+
+	/* FIXME: Hard code */
+	for (i = 0; i < NUM_CPU; i++) {
+		for (j = 0; j < QUIE_QUEUE_N_SLAB; j++) {
+			if (j > 16)
+				vas->allocator.qwq[i].slab_queue[j].qwq_min_limit = VAS_QWQ_SIZE_SMALL;
+			else
+				vas->allocator.qwq[i].slab_queue[j].qwq_min_limit = VAS_QWQ_SIZE;
+		}
+	}
 
 	/* Commit this last. */
 	vas->tbl     = tbl;
@@ -763,7 +793,7 @@ static int mm_comp_init(void)
 	struct quie_mem_meta *meta;
 	vaddr_t pte_kmem;
 	capid_t pte_cap;
-	unsigned long i;
+	unsigned long i, j;
 	int ret, comp_id = cos_spd_id();
 
 	memset((void *)mm_own_pgd, 0, PAGE_SIZE);
@@ -776,10 +806,16 @@ static int mm_comp_init(void)
 	
 	mm_vas = &mm_comp->mapping_ns;
 	vas_ns_init(mm_vas, mm_own_pgd);
-	/* vas allocation in mm isn't as frequent. */
+	/* vas allocation of mm itself isn't as frequent. */
 	mm_vas->expand = NULL;
-	mm_vas->allocator.qwq_min_limit = KMEM_QWQ_SIZE;
-	mm_vas->allocator.qwq_max_limit = KMEM_QWQ_SIZE*4;
+	mm_vas->allocator.qwq_min_limit = 1;
+	mm_vas->allocator.qwq_max_limit = 8;
+
+	for (i = 0; i < NUM_CPU; i++) {
+		for (j = 0; j < QUIE_QUEUE_N_SLAB; j++) {
+			mm_vas->allocator.qwq[i].slab_queue[j].qwq_min_limit = 1;
+		}
+	}
 
 	/* We don't mess up with the heap. Instead, get a new region. */
 	comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pgd, PAGE_SIZE, glb_freelist_add);
