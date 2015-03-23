@@ -1,4 +1,4 @@
-C_OBJS=booter.o
+C_OBJS=booter.o quarantine.o
 ASM_OBJS=
 COMPONENT=cbboot.o
 INTERFACES=failure_notif cgraph quarantine
