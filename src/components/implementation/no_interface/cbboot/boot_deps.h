@@ -22,6 +22,7 @@
 
 #include <cinfo.h>
 #include <cos_vect.h>
+#include <quarantine.h>
 
 COS_VECT_CREATE_STATIC(spd_sect_cbufs);
 COS_VECT_CREATE_STATIC(spd_sect_cbufs_header);
@@ -100,23 +101,25 @@ boot_deps_save_hp(spdid_t spdid, void *hp)
 	cinfo_add_heap_pointer(cos_spd_id(), spdid, hp);
 }
 
-/* Proof of concept: forking a component. */
-
-spdid_t cbboot_copy(spdid_t spdid, spdid_t source);
 static void
 boot_deps_run(void) {
 	printc("copying %d\n", some_spd);
-	spdid_t new_spd = cbboot_copy(cos_spd_id(), some_spd);
+	spdid_t new_spd = quarantine_fork(cos_spd_id(), some_spd);
 	printc("forked %d to %d\n", some_spd, new_spd);
 	return; }
 
-/* cbboot copying spds */
+/* The rest really belongs in a separate source file, but the boot_deps
+ * header can't be included easily (yet) except in booter.c. */
+
+/* prototypes for booter.c functions */
 static int 
 boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci);
 static int boot_spd_caps(struct cobj_header *h, spdid_t spdid);
 static int boot_spd_thd(spdid_t spdid);
+
+/* quarantine if */
 spdid_t
-cbboot_copy(spdid_t spdid, spdid_t source)
+quarantine_fork(spdid_t spdid, spdid_t source)
 {
 	spdid_t d_spd = 0;
 	struct cbid_caddr *sect_cbufs;
