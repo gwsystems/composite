@@ -362,7 +362,8 @@ comp_pt_cap(int comp)
 static unsigned long mm_alloc_pte_cap(void);
 
 static int 
-comp_vas_region_alloc(comp_t *comp, vaddr_t local_tbl, unsigned long vas_unit_sz)
+comp_vas_region_alloc(comp_t *comp, vaddr_t local_tbl, unsigned long vas_unit_sz, 
+		      int (*add_fn)(void *, struct parsec_allocator *))
 {
 	int n_items, i, j, ret;
 	vaddr_t mapping_vaddr, pte;
@@ -416,9 +417,9 @@ comp_vas_region_alloc(comp_t *comp, vaddr_t local_tbl, unsigned long vas_unit_sz
 		meta->size = vas_unit_sz;
 
 		/* printc("comp %d add vas %x, size %d\n", comp->id, m->vaddr, meta->size); */
-		ret = glb_freelist_add(m, &(ns->allocator));
-		assert(!ret);
+		add_fn(m, &(ns->allocator));
 	}
+	/* printc("cpu %d expanded and got %d new items.\n", cos_cpuid(), n_items); */
 
 	return 0;
 }
@@ -429,15 +430,16 @@ vas_expand(comp_t *comp, unsigned long unit_size)
 	int ret;
 	vaddr_t pte;
 
+	/* printc("cpu %d: vas expand for comp %d\n", cos_cpuid(), comp->id); */
 	assert(comp);
 	pte = mm_local_get_page(MM_PTE_NPAGES);
 	if (!pte) {
-		printc("Mem_mgr: error -- no enough local VAS\n");
+		printc("Mem_mgr CPU %ld: error -- no enough local VAS\n", cos_cpuid());
 		return -ENOMEM;
 	}
 	/* printc("comp %d expand for unit_size %d\n", comp->id, unit_size); */
 
-	return comp_vas_region_alloc(comp, pte, unit_size);
+	return comp_vas_region_alloc(comp, pte, unit_size, qwq_add_freeitem);
 }
 
 static void 
@@ -673,7 +675,7 @@ mm_local_get_page(unsigned long n_pages)
 
 	new_vas = get_vas_mapping(mm_comp, n_pages);
 
-	if (!new_vas) return 0;
+	if (!new_vas)  return 0;
 	if (alloc_map_pages(new_vas, mm_comp, n_pages)) return 0;
 
 	memset((void *)(new_vas->vaddr), 0, PAGE_SIZE*n_pages);
@@ -685,7 +687,6 @@ mm_local_get_page(unsigned long n_pages)
 static void
 vas_ns_init(parsec_ns_t *vas, void *tbl)
 {
-	vas->tbl     = tbl;
 	vas->item_sz = MAPPING_ITEM_SZ;
 	vas->lookup  = mapping_lookup;
 	vas->alloc   = vas_alloc;
@@ -699,6 +700,9 @@ vas_ns_init(parsec_ns_t *vas, void *tbl)
 	vas->allocator.qwq_max_limit = (unsigned long)(-1); //VAS_QWQ_SIZE * 4;
 	vas->allocator.n_local       = NUM_CPU;
 
+	/* Commit this last. */
+	vas->tbl     = tbl;
+
 	return;
 }
 
@@ -707,6 +711,7 @@ comp_vas_init(comp_t *c)
 {
 	vaddr_t p;
 	parsec_ns_t *ns = &c->mapping_ns;
+	int ret = 0;
 
 	comp_lock(c);
 	if (ns->tbl) {
@@ -715,13 +720,13 @@ comp_vas_init(comp_t *c)
 	}
 
 	p = mm_local_get_page(MM_PGD_NPAGES);
-	if (!p) return -ENOMEM;
+	if (!p) cos_throw(done, -ENOMEM);
 
 	vas_ns_init(ns, (void *)p);
 done:
 	comp_unlock(c);
 
-	return 0;
+	return ret;
 }
 
 static int 
@@ -778,10 +783,10 @@ static int mm_comp_init(void)
 	mm_vas->allocator.qwq_max_limit = KMEM_QWQ_SIZE*4;
 
 	/* We don't mess up with the heap. Instead, get a new region. */
-	comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pgd, PAGE_SIZE);
+	comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pgd, PAGE_SIZE, glb_freelist_add);
 
 	for (i = 0; i < MM_NPTE_NEEDED; i++) {
-		comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pte + i*MM_PTE_SIZE, MM_PTE_SIZE);
+		comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pte + i*MM_PTE_SIZE, MM_PTE_SIZE, glb_freelist_add);
 	}
 	
 	comp_unlock(mm_comp);
@@ -843,16 +848,14 @@ mm_init(void)
 static mapping_t *
 get_vas_mapping(comp_t *comp, unsigned long n_pages) 
 {
-	int ret;
-
 	if (unlikely(comp->mapping_ns.tbl == NULL)) {
-		ret = comp_vas_init(comp);
-		if (ret) return NULL;
+		if (comp_vas_init(comp)) return NULL;
 	}
 	if (unlikely(!n_pages)) return NULL;
 
 	/* all comps use the same alloc function */
 	assert(comp->mapping_ns.alloc == vas_alloc);
+	/* printc("cpu %d calling valloc for comp %d\n", cos_cpuid() ,comp->id); */
 	return vas_alloc(&comp->mapping_ns, PAGE_SIZE*n_pages);
 }
 
@@ -862,20 +865,21 @@ get_vas_mapping(comp_t *comp, unsigned long n_pages)
 
 vaddr_t mman_valloc(spdid_t compid, spdid_t dest, unsigned long npages)
 {
-	vaddr_t page;
 	comp_t *comp;
 	mapping_t *m;
+	vaddr_t page = 0;
 
 	/* printc("in valloc comp %d to %d, n pages %d\n", compid, dest, npages); */
 
 	parsec_read_lock(&mm);
 
 	comp = comp_lookup(dest);
+	if (!comp) goto done;
+
 	/* Alloc vaddr */
 	m = get_vas_mapping(comp, npages);
 	if (m) page = m->vaddr;
-	else   page = 0;
-
+done:
 	parsec_read_unlock(&mm);
 
 	return page;

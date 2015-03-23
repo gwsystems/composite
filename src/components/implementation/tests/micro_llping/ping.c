@@ -1215,16 +1215,14 @@ void wcet_test(void)
 #include <mem_mgr.h>
 void cos_init(void)
 {
-//	u64_t s, e;
+	/* if (received[cos_cpuid()].snd_thd_created) { */
+	/* 	rcv_thd(); */
+	/* 	BUG(); */
+	/* 	return; */
+	/* } */
+	/* received[cos_cpuid()].snd_thd_created = 1; */
 
-	if (received[cos_cpuid()].snd_thd_created) {
-		rcv_thd();
-		BUG();
-		return;
-	}
-	received[cos_cpuid()].snd_thd_created = 1;
-
-//	cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid());
+	/* cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid()); */
 
 	//init rcv thd first.
 
@@ -1234,41 +1232,19 @@ void cos_init(void)
 	/* } */
 
 	arcv_ready[cos_cpuid()] = 1;
-#if NUM_CPU > 2
-//	if (cos_cpuid() < (NUM_CPU_COS - SND_RCV_OFFSET)  && (cos_cpuid() % 4 == 0)) {
-//	if ((cos_cpuid()%4 == 0 || cos_cpuid()%4 == 2) && (cos_cpuid()+SND_RCV_OFFSET < NUM_CPU_COS)) { // sending core
-	if (cos_cpuid() <= 0) {
-//	if (1) {
-		/* IPI - ASND/ARCV */
-
-//		ipi_test();
-//		cap_test();
-//		mem_test();
-//		thd_test();
-//		wcet_test();
-//		cons_decons_test();
-//		retype_test();
-//		kobj_test();
-//		response_test();
-		captbl_cons_test();
-	} else { //if ((cos_cpuid() % 4 <= 1)
-//		printc("core %ld: thd %d switching to pong thd\n", cos_cpuid(), cos_get_thd_id());
-		while (1) {
-			//do op here to measure response time.
-			/* call_cap(4, 0, 0, 0, 0); */
-			/* rdtscll(e); */
-			/* if ((e-s)/(2000*1000*1000) > RUNTIME) break; */
-
-			if (ck_pr_load_int(&all_exit)) break;
-		}
-		printc("core %ld: exiting from ping\n", cos_cpuid());
-	}
+#if NUM_CPU <= 2
+	pingpong();
 #else
-//	pingpong();
 	int i, ret; 
-	printc("calling mm init\n");
-	call_cap(4, 0, 0, 0, 0);
-	printc("done mm init\n");
+
+	if (cos_cpuid() == 0) {
+		printc("calling mm init\n");
+		call_cap(4, 0, 0, 0, 0);
+		printc("done mm init\n");
+	}
+	sync_all();
+
+	/* if (cos_cpuid() != 0) goto done; */
 
 	/* hack.... Gotta fix this ASAP after the deadline. */
 #define MMAN_VALLOC 6
@@ -1281,22 +1257,21 @@ void cos_init(void)
 	vaddr_t vas[N_OPS], mem[N_OPS];
 	
 	for (i = 0; i < N_OPS; i++) {
+//		printc("cpu %d: i %d\n", cos_cpuid(), i);
 		ret = call_cap(MMAN_VALLOC, cos_spd_id(), cos_spd_id(), 1, 0);
 		vas[i] = (vaddr_t)ret;
-		if (!ret) printc("%d>>> comp %ld called valloc cap %d, ret %x\n", i, cos_spd_id(), MMAN_VALLOC, ret);
+		if (!ret) 
+			printc("cpu %d: i %d>>> comp %ld called valloc cap %d, ret %x\n", cos_cpuid(), i, cos_spd_id(), MMAN_VALLOC, ret);
 	}
-
 	for (i = 0; i < N_OPS; i++) {
 		ret = call_cap(MMAN_GET, cos_spd_id(), 0, 1 << 16, 0);
 		mem[i] = (vaddr_t)ret;
 		if (!ret) printc("%d >>> comp %ld called mman_get cap %d, ret %x\n", i, cos_spd_id(), MMAN_GET, ret);
 	}
-
 	for (i = 0; i < N_OPS; i++) {
 		ret = call_cap(MMAN_ALIAS, cos_spd_id(), mem[i], cos_spd_id()<<16, vas[i]);
 		if (!ret) printc("comp %ld called alias cap %d, ret %x\n", cos_spd_id(), MMAN_ALIAS, ret);
 	}
-
 	/* alias validation */
 	for (i = 0; i < N_OPS; i++) {
 		int *test = (int*)(vas[i]);
@@ -1307,7 +1282,7 @@ void cos_init(void)
 		if (*test != i) 
 			printc("test failded! %d: %d @ %p\n", i, *test, test);
 	}
-	printc("VALLOC, GET_PAGE, ALIAS test done!\n");
+	printc("CPU %ld: VALLOC, GET_PAGE, ALIAS test done!\n", cos_cpuid());
 
 	for (i = 0; i < N_OPS; i++) {
 		ret = call_cap(MMAN_REVOKE, cos_spd_id(), vas[i], 0, 0);
@@ -1321,7 +1296,7 @@ void cos_init(void)
 		ret = call_cap(MMAN_RELEASE, cos_spd_id(), mem[i], 0, 0);
 		if (ret) printc("comp %ld called release cap %d, ret %x\n", cos_spd_id(), MMAN_RELEASE, ret);
 	}
-	printc("MM_REVOKE / _RELEASE test done!\n");
+	printc("CPU %ld: MM_REVOKE / _RELEASE test done!\n", cos_cpuid());
 
 	ret = call_cap(MMAN_GET, cos_spd_id(), 0, N_OPS << 16, 0);
 	mem[0] = (vaddr_t)ret;
@@ -1337,20 +1312,22 @@ void cos_init(void)
 	}
 	ret = call_cap(MMAN_RELEASE, cos_spd_id(), mem[0], 0, 0);
 
-	printc("Multi-page allocation / free tests done!\n");
+	printc("CPU %ld: Multi-page allocation / free tests done!\n", cos_cpuid());
 
-	int tot_mb = 0;
-	while (1) {
-		ret = call_cap(MMAN_GET, cos_spd_id(), 0, 256 << 16, 0);
-		/* printc("got a 1mb page @ %x!\n", ret); */
-		if (ret == 0) break;
-		memset((void *)ret, 0, (256)*PAGE_SIZE);
-		tot_mb += 1;
+	if (cos_cpuid() >= 0) {
+		int tot_mb = 0;
+		while (1) {
+			ret = call_cap(MMAN_GET, cos_spd_id(), 0, 256 << 16, 0);
+			/* printc("got a 1mb page @ %x!\n", ret); */
+			if (ret == 0) break;
+			memset((void *)ret, 0, (256)*PAGE_SIZE);
+			tot_mb += 1;
+		}
+		printc("CPU %ld: MM allocation test: %d MBs allocated in total\n", cos_cpuid(), tot_mb);
 	}
-	printc("MM allocation test: %d MBs allocated in total\n", tot_mb);
 #endif
+done:
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
-
 	/* help linking. hack for now. */
 	mman_get_page(0,0,0);
 	mman_valloc(0,0,0);
@@ -1361,64 +1338,4 @@ void cos_init(void)
 	call();
 
 	return;
-	/* u64_t start, end, avg, tot = 0, dev = 0; */
-	/* int i, j; */
-
-
-/* 	printc("cpu %ld, thd %d from ping\n",cos_cpuid(), cos_get_thd_id()); */
-/* //	call(111,222,333,444);			/\* get stack *\/ */
-
-/* 	printc("core %ld: spinning....\n", cos_cpuid()); */
-/* 	delay(); */
-/* 	printc("core %ld: after spin!\n", cos_cpuid()); */
-	
-/* //	call(1111,2222,3333,4444);			/\* get stack *\/ */
-/* 	printc("Starting %d Invocations.\n", ITER); */
-	
-/* 	int params[8] = {1,2,3,4, 11, 22, 33, 44}; */
-/* 	par_inv(test_fn, (void *)params, 2); */
-
-/* 	return; */
-
-/* 	for (i = 0 ; i < ITER ; i++) { */
-/* 		rdtscll(start); */
-/* //		cos_send_ipi(i, 0, 0, 0); */
-/* 		call(1,2,3,4); */
-/* 		rdtscll(end); */
-/* 		meas[i] = end-start; */
-/* 	} */
-
-/* 	for (i = 0 ; i < ITER ; i++) tot += meas[i]; */
-/* 	avg = tot/ITER; */
-/* 	printc("avg %lld\n", avg); */
-/* 	for (tot = 0, i = 0, j = 0 ; i < ITER ; i++) { */
-/* 		if (meas[i] < avg*2) { */
-/* 			tot += meas[i]; */
-/* 			j++; */
-/* 		} */
-/* 	} */
-/* 	printc("avg w/o %d outliers %lld\n", ITER-j, tot/j); */
-
-/* 	for (i = 0 ; i < ITER ; i++) { */
-/* 		u64_t diff = (meas[i] > avg) ?  */
-/* 			meas[i] - avg :  */
-/* 			avg - meas[i]; */
-/* 		dev += (diff*diff); */
-/* 	} */
-/* 	dev /= ITER; */
-/* 	printc("deviation^2 = %lld\n", dev); */
-
-/* 	printc("last invocation...\n"); */
-/* 	rdtscll(start); */
-/* 	int rrr = call(11,22,33,44); */
-/* 	rdtscll(end); */
-/* 	printc("done ret %d. cost %llu \n", rrr, end-start); */
-
-/* 	rdtscll(start); */
-/* 	rrr = call(11,22,33,44); */
-/* 	rdtscll(end); */
-/* 	printc("done ret %d. cost %llu \n", rrr, end-start); */
-
-/* //	printc("%d invocations took %lld\n", ITER, end-start); */
-/* 	return; */
 }

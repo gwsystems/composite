@@ -409,6 +409,24 @@ quie_queue_add_head(struct quie_queue *queue, struct quie_mem_meta *meta)
 	return;
 }
 
+static inline int size2slab(size_t orig_size);
+
+static inline int
+qwq_add_freeitem(void *item, struct parsec_allocator *alloc)
+{
+	struct quie_queue *queue;
+	struct quie_mem_meta *meta;
+	
+	meta = item - sizeof(struct quie_mem_meta);
+	/* Should have been marked already. Set it anyway. */
+	meta->flags |= PARSEC_FLAG_DEACT;
+
+	queue = &(alloc->qwq[cos_cpuid()].slab_queue[size2slab(meta->size)]);
+	quie_queue_add_head(queue, meta);
+
+	return 0;
+}
+
 static inline void
 quie_queue_add(struct quie_queue *queue, struct quie_mem_meta *meta)
 {
