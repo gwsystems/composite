@@ -180,7 +180,9 @@ char mm_own_pgd[PAGE_SIZE] PAGE_ALIGNED;
 #define NPTE_ENTRY_PER_PGD (PAGE_SIZE/sizeof(void *))
 /* How many PTEs (or to say, VAS) needed in the MM to manage all the
  * __PTEs__ for other components. */
-#define MM_NPTE_NEEDED (COS_MAX_MEMORY/NPTE_ENTRY_PER_PGD / (NPTE_ENTRY_PER_PGD/MM_PTE_NPAGES) + 1)
+#define MIN_N_PTE (COS_MAX_MEMORY/NPTE_ENTRY_PER_PGD / (NPTE_ENTRY_PER_PGD/MM_PTE_NPAGES) + 1)
+/* this is pessimistic. just to be safe.  */
+#define MM_NPTE_NEEDED (MIN_N_PTE*10)
 
 /* VAS management of the MM. */
 /* MM local memory used for PGDs. */
@@ -719,10 +721,10 @@ vas_ns_init(parsec_ns_t *vas, void *tbl)
 	vas->allocator.qwq_max_limit = (unsigned long)(-1); //VAS_QWQ_SIZE * 4;
 	vas->allocator.n_local       = NUM_CPU;
 
-	/* FIXME: Hard code */
+	/* FIXME: Hard coded now */
 	for (i = 0; i < NUM_CPU; i++) {
 		for (j = 0; j < QUIE_QUEUE_N_SLAB; j++) {
-			if (j > 16)
+			if (j >= 8)
 				vas->allocator.qwq[i].slab_queue[j].qwq_min_limit = VAS_QWQ_SIZE_SMALL;
 			else
 				vas->allocator.qwq[i].slab_queue[j].qwq_min_limit = VAS_QWQ_SIZE;

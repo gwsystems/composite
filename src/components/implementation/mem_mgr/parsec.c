@@ -330,7 +330,8 @@ parsec_desc_alloc(size_t size, struct parsec_allocator *alloc, const int waiting
 	glb_freelist = &(alloc->glb_freelist);
 
 	queue = &(qwq[cpu].slab_queue[slab_id]);
-//	printf("cpu %d, queue %p\n", cpu, queue);
+	/* printc("now %d, thres %d, size %d, slab id %d\n",  */
+	/*        queue->n_items, queue->qwq_min_limit, size, slab_id); */
 
 	if (queue->n_items < queue->qwq_min_limit) {
 		/* This will add items (new or from global freelist)

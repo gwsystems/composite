@@ -1243,6 +1243,7 @@ void cos_init(void)
 		printc(">>>>> done mm init\n");
 	}
 	sync_all();
+	/* if (cos_cpuid()) goto done; */
 
 	/* hack.... Gotta fix this ASAP after the deadline. */
 #define MMAN_VALLOC 6
@@ -1261,14 +1262,16 @@ void cos_init(void)
 		if (!ret) 
 			printc("cpu %d: i %d>>> comp %ld called valloc cap %d, ret %x\n", cos_cpuid(), i, cos_spd_id(), MMAN_VALLOC, ret);
 	}
+
 	for (i = 0; i < N_OPS; i++) {
 		ret = call_cap(MMAN_GET, cos_spd_id(), 0, 1 << 16, 0);
 		mem[i] = (vaddr_t)ret;
-		if (!ret) printc("%d >>> comp %ld called mman_get cap %d, ret %x\n", i, cos_spd_id(), MMAN_GET, ret);
+		if (!ret) { printc("%d >>> comp %ld called mman_get cap %d, ret %x\n", i, cos_spd_id(), MMAN_GET, ret); goto done;}
 	}
+
 	for (i = 0; i < N_OPS; i++) {
 		ret = call_cap(MMAN_ALIAS, cos_spd_id(), mem[i], cos_spd_id()<<16, vas[i]);
-		if (!ret) printc("comp %ld called alias cap %d, ret %x\n", cos_spd_id(), MMAN_ALIAS, ret);
+		if (!ret) { printc("comp %ld called alias cap %d, ret %x\n", cos_spd_id(), MMAN_ALIAS, ret); goto done;}
 	}
 	/* alias validation */
 	for (i = 0; i < N_OPS; i++) {
@@ -1277,8 +1280,10 @@ void cos_init(void)
 	}
 	for (i = 0; i < N_OPS; i++) {
 		int *test = (int*)(mem[i]);
-		if (*test != i) 
-			printc("test failded! %d: %d @ %p\n", i, *test, test);
+		if (*test != i) {
+			printc("test failded! %d: %d @ %p\n", i, *test, test); 
+			goto done;
+		}
 	}
 	printc("CPU %ld: VALLOC, GET_PAGE, ALIAS test done!\n", cos_cpuid());
 
@@ -1298,8 +1303,10 @@ void cos_init(void)
 
 	ret = call_cap(MMAN_GET, cos_spd_id(), 0, N_OPS << 16, 0);
 	mem[0] = (vaddr_t)ret;
-	if (!ret) 
-		printc("%d >>> comp %ld called mman_get cap %d, ret %x\n", i, cos_spd_id(), MMAN_GET, ret);
+	if (!ret) {
+		printc("multipage >>> comp %ld called mman_get cap %d, ret %x\n", cos_spd_id(), MMAN_GET, ret); 
+		goto done;
+	}
 	for (i = 0; i < N_OPS; i++) {
 		volatile int *test = (int *)(mem[0] + PAGE_SIZE*i);
 		*test = i;
@@ -1326,7 +1333,9 @@ void cos_init(void)
 	}
 #endif
 done:
+	sync_all();
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
+
 	/* help linking. hack for now. */
 	mman_get_page(0,0,0);
 	mman_valloc(0,0,0);
