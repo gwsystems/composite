@@ -1238,13 +1238,11 @@ void cos_init(void)
 	int i, ret; 
 
 	if (cos_cpuid() == 0) {
-		printc("calling mm init\n");
+		printc(">>>>> calling mm init\n");
 		call_cap(4, 0, 0, 0, 0);
-		printc("done mm init\n");
+		printc(">>>>> done mm init\n");
 	}
 	sync_all();
-
-	/* if (cos_cpuid() != 0) goto done; */
 
 	/* hack.... Gotta fix this ASAP after the deadline. */
 #define MMAN_VALLOC 6
@@ -1314,7 +1312,8 @@ void cos_init(void)
 
 	printc("CPU %ld: Multi-page allocation / free tests done!\n", cos_cpuid());
 
-	if (cos_cpuid() >= 0) {
+//	if (cos_cpuid() == 0) {
+	{
 		int tot_mb = 0;
 		while (1) {
 			ret = call_cap(MMAN_GET, cos_spd_id(), 0, 256 << 16, 0);

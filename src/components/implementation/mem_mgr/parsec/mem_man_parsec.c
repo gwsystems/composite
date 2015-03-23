@@ -47,7 +47,6 @@ printc(char *fmt, ...)
 static void mm_init(void);
 void call(void) { 
 	mm_init();
-	call_cap(0,0,0,0,0);
 	return; 
 }
 
@@ -806,9 +805,8 @@ comp_ns_init(void)
 		printc("MM init: MAPPING TBL SIZE / ORD error!\n");
 		BUG();
 	}
-
 	assert(COMP_ITEM_SZ % CACHE_LINE == 0);
-	memset(&comp_ns, 0, sizeof(struct parsec));
+	memset(&comp_ns, 0, sizeof(struct parsec_ns));
 	memset((void *)comp_table, 0, COMP_ITEM_SZ*MAX_NUM_COMPS);
 
 	comp_ns.tbl     = (void *)comp_table;
@@ -819,7 +817,6 @@ comp_ns_init(void)
 	for (i = 0; i < MAX_NUM_COMPS; i++) {
 		comp_init(i);
 	}
-
 	mm_comp_init();
 
 	/* printc("Mem_mgr: VAS init done. \n"); */
