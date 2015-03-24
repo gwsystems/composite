@@ -68,6 +68,12 @@ tlb_quiescence_check(u64_t timestamp)
 			}
 		}
 	}
+	if (quiescent == 0) {
+		printk("from cpu %d, t %llu: cpu %d last mandatory flush: %llu\n", get_cpuid(), timestamp, i, tlb_quiescence[i].last_mandatory_flush);
+		for (i = 0; i < NUM_CPU_COS; i++) {
+			printk("cpu %d: flush %llu\n", i, tlb_quiescence[i].last_mandatory_flush);
+		}
+	}
 
 	return quiescent;
 }

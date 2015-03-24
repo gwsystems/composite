@@ -39,6 +39,17 @@ fs_reg_setup(unsigned long seg) {
 		      : : "b" (seg));
 }
 
+static void
+tlb_mandatory_flush(void *arg)
+{
+	unsigned long long t;
+	(void)arg;
+
+	chal_flush_tlb();
+	rdtscll(t);
+	tlb_quiescence[get_cpuid()].last_mandatory_flush = t;
+}
+
 #define MAX_LEN 512
 extern char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 static inline int printfn(struct pt_regs *regs) 
@@ -56,21 +67,30 @@ static inline int printfn(struct pt_regs *regs)
 	if (len >= MAX_LEN) len = MAX_LEN - 1;
 	memcpy(kern_buf, str, len);
 
-	if (len >= 6) {
+	if (len >= 7) {
 		if (kern_buf[0] == 'F' && kern_buf[1] == 'L' && kern_buf[2] == 'U' &&
 		    kern_buf[3] == 'S' && kern_buf[4] == 'H' && kern_buf[5] == '!') {
-			u32_t ticks;
+			/* u32_t ticks; */
 			//well, hack to flush tlb and cache...
-			/* if (get_cpuid() == SND_RCV_OFFSET && len >= 10) { */
-			/* if (get_cpuid() == 0) { */
+			/* { */
 			/* 	chal_flush_cache(); */
 			/* 	chal_flush_tlb_global(); */
 			/* } */
-			ticks = *(u32_t *)&timer_detector[get_cpuid() * CACHE_LINE];
+
+			/* ticks = *(u32_t *)&timer_detector[get_cpuid() * CACHE_LINE]; */
 			/* if (get_cpuid() == 20 && ticks % 100 == 0)  */
 			/* 	printk("@%p, %d\n", &timer_detector[get_cpuid() * CACHE_LINE], ticks); */
+			///////////////////////////////////////////////////////////
+			int target_cpu = kern_buf[6];
 
-			__userregs_set(regs, ticks, 
+			if (target_cpu == get_cpuid()) {
+				tlb_mandatory_flush(NULL);
+			} else {
+				/* FIXME: avoid using this band-aid. */
+				smp_call_function_single(target_cpu, tlb_mandatory_flush, NULL, 1);
+			}
+
+			__userregs_set(regs, 0, 
 				       __userregs_getsp(regs), __userregs_getip(regs));
 
 			return 0;

@@ -229,27 +229,56 @@ frame_lookup(unsigned long id, parsec_ns_t *ns)
 	return (struct frame *)((char *)meta + sizeof(struct quie_mem_meta));
 }
 
-#define TLB_QUIE_PERIOD (TLB_QUIESCENCE_CYCLES)
-/* return 0 if quiesced */
-static int 
-tlb_quiesce(quie_time_t t, int waiting)
-{
-	quie_time_t curr = get_time();
-	
-	if (unlikely(curr <= t)) return -EINVAL;
+struct tlb_flush {
+	volatile quie_time_t last_tlb_flush;
+	char __padding[CACHE_LINE*2 - sizeof (quie_time_t)];
+};
+struct tlb_flush tlb_flush[NUM_CPU];
+volatile quie_time_t glb_last_tlb_flush;
 
-	do {
-		if (curr - t > TLB_QUIE_PERIOD) return 0;
-		curr = get_time();
-	} while (waiting);
+#define TLB_QUIE_PERIOD (TLB_QUIESCENCE_CYCLES)
+static int 
+tlb_quiesce(quie_time_t t)
+{
+	int cpu, i, target_cpu;
+	quie_time_t curr, min;
+
+	if (t < glb_last_tlb_flush) return 0;
+
+	curr = get_time();
+	if (curr < t) return -1;
+	if (curr - t > TLB_QUIE_PERIOD) return 0;
+
+	/* Slow path below: on demand per-core TLB flush. */
+	min = (unsigned long long)(-1);
+	cpu = cos_cpuid();
+	for (i = 0; i < NUM_CPU_COS; i++) {
+		target_cpu = (cpu+i) % NUM_CPU_COS;
+
+		/* Observed tsc clock skew impact here. */
+#define TSC_SKEW 0
+		/* We need an explicit TLB flush. */
+		if (tlb_flush[target_cpu].last_tlb_flush + TSC_SKEW <= t) {
+			/* Take the time stamp before the actual flush
+			 * -- have to be conservative. */
+			tlb_flush[target_cpu].last_tlb_flush = get_time();
+			/* a hack for now */
+			printc("FLUSH!%c", target_cpu);
+		}
+		if (tlb_flush[target_cpu].last_tlb_flush < min)
+			min = tlb_flush[target_cpu].last_tlb_flush;
+	}
+
+	if (glb_last_tlb_flush < min)
+		glb_last_tlb_flush = min;
 	
-	return -1;
+	return 0;
 }
 
 static int
 frame_quiesce(quie_time_t t, int waiting)
 {
-	tlb_quiesce(t, waiting);
+	tlb_quiesce(t);
 	/* make sure lib quiesced as well -- very likely already. */
 	parsec_sync_quiescence(t, waiting, &mm);
 
@@ -316,7 +345,7 @@ get_kmem(void)
 
 	kmem = frame_alloc(&kmem_ns); 
 	if (!kmem) {
-		printc("MM: no enough kernel frames on core %d\n", cos_cpuid());
+		printc("MM: no enough kernel frames on core %ld\n", cos_cpuid());
 		int i; 
 		for (i = 0; i < NUM_CPU; i++) {
 			printc("cpu %d: %d\n", i, kmem_ns.allocator.qwq[i].slab_queue[size2slab(PAGE_SIZE)].n_items);
@@ -525,7 +554,7 @@ vas_alloc(parsec_ns_t *ns, unsigned long size)
 		assert(expand_fn);
 		while (n_try-- && !new_mapping) {
 			ret = expand_fn(ns, size);
-			if (ret) printc("CPU %d: expanding failed!\n", cos_cpuid());
+			if (ret) printc("CPU %ld: expanding failed!\n", cos_cpuid());
 			new_mapping = parsec_desc_alloc(size, &(ns->allocator), 1);
 		}
 	}
@@ -724,7 +753,18 @@ alloc_map_pages(mapping_t *head, comp_t *comp, int n_pages)
 		f = get_pmem();
 		if (!f) { i--; printc("no pmem\n"); cos_throw(release, -ENOMEM); }
 
-		if (build_mapping(comp, f, m)) { printc("build failed!\n"); cos_throw(release, -EINVAL); }
+		if (build_mapping(comp, f, m)) { 
+			struct quie_mem_meta *meta = (void *)m - sizeof(struct quie_mem_meta);
+			printc("on core %d: build failed, t %llu!\n", cos_cpuid(), meta->time_deact); 
+
+			int i;
+			for (i = 0; i < NUM_CPU_COS; i++) {
+				printc("cpu %d: %llu\n", i, tlb_flush[i].last_tlb_flush);
+			}
+			printc("glb %llu\n", glb_last_tlb_flush);
+
+			cos_throw(release, -EINVAL); 
+		}
 		m = (void *)m + MAPPING_ITEM_SZ;
 	}
 
@@ -1093,7 +1133,7 @@ done:
 }
 
 /* TODO: avoid false sharing in kernel (edge case). */
-#define LTBL_ENTS (1<<20)
+#define LTBL_ENTS (1<<18)
 #define LIDS_PERCPU (LTBL_ENTS/NUM_CPU_COS)
 struct liveness_id {
 	unsigned long lid;

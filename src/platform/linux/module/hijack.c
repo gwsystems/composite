@@ -1517,14 +1517,14 @@ u64_t sum = 0, ii = 0;
 __attribute__((regparm(3))) void
 main_ipi_handler(struct pt_regs *rs, unsigned int irq)
 {
-	u64_t s,e;
+//	u64_t s,e;
 
 	/* ack the ipi first. */
 	ack_APIC_irq();
 	
-	rdtscll(s);
+//	rdtscll(s);
 	cos_cap_ipi_handling();
-	rdtscll(e);
+//	rdtscll(e);
 	/* if (get_cpuid() == 20) { */
 	/* 	ii++; */
 	/* 	sum += (e-s); */

@@ -1367,12 +1367,12 @@ void cos_init(void)
 	}
 	sync_all();
 
-//	if (cos_cpuid()) goto done;
+	/* if (cos_cpuid()) goto done; */
 
 	if (mm_meas()) goto done;
 
 	for (i = 0; i < 100; i++) {
-		sync_all();
+//		sync_all();
 		s = tsc_start();
 		if (mm_meas()) {
 			printc("cpu %d failed when iter %d\n", cpu, i);
@@ -1380,7 +1380,7 @@ void cos_init(void)
 		}
 		e = tsc_start();
 		tot += e-s;
-		tlb_quiescence_wait();
+//		tlb_quiescence_wait();
 	}
 
 
