@@ -153,7 +153,7 @@ char comp_table[COMP_ITEM_SZ*MAX_NUM_COMPS] CACHE_ALIGNED;
 #define VAS_QWQ_SIZE_SMALL  (4)	/* For large VAS items, to avoid queuing too much. */
 
 #define PMEM_QWQ_SIZE (1024)  /* 4 MB */
-#define KMEM_QWQ_SIZE (2) /* Kmem allocation much less often. */
+#define KMEM_QWQ_SIZE (1) /* Kmem allocation much less often. */
 
 /* All namespaces in the same parallel section. */
 parsec_t mm CACHE_ALIGNED;
@@ -312,7 +312,12 @@ get_pmem(void)
 static struct frame * 
 get_kmem(void)
 {
-	return frame_alloc(&kmem_ns);
+	frame_t *kmem;
+
+	kmem = frame_alloc(&kmem_ns); 
+	if (!kmem) printc("MM: no enough kernel frames on core %d\n", cos_cpuid());
+
+	return kmem;
 }
 
 /* Still maintain single global address space, so that we can
@@ -364,6 +369,40 @@ comp_pt_cap(int comp)
 
 static unsigned long mm_alloc_pte_cap(void);
 
+static int pgtbl_act(comp_t *comp, vaddr_t pte)
+{
+	vaddr_t pte_kmem;
+	frame_t *kmem;
+	capid_t pte_cap;
+	int max_try = 10;
+
+	kmem = get_kmem();
+	if (!kmem) {
+		return -1;
+	}
+
+	pte_kmem = kmem->cap;
+	pte_cap  = mm_alloc_pte_cap();
+
+	/* TODO: error handling. */
+	while (call_cap_op(MM_CAPTBL_OWN_CAPTBL, CAPTBL_OP_PGTBLACTIVATE,
+			   pte_cap, MM_CAPTBL_OWN_PGTBL, pte_kmem, 1)) { 
+		max_try--;
+		if (!max_try) {
+			printc("Expanding VAS of comp %d: Fail to act cap @ %d, using kmem %x\n", 
+			       comp->id, (int)pte_cap, (unsigned int)pte_kmem);
+			return -1;
+		}
+	}
+	/* Connect PTE to the component's pgtbl */
+	if (call_cap_op(comp_pt_cap(comp->id), CAPTBL_OP_CONS, pte_cap, pte, 0, 0)) { 
+		printc("Expanding VAS of comp %d: fail to cons pgtbl @ %x\n", comp->id, (unsigned int)pte);
+		return -1;
+	}
+
+	return 0;
+}
+
 static int 
 comp_vas_region_alloc(comp_t *comp, vaddr_t local_tbl, unsigned long vas_unit_sz, 
 		      int (*add_fn)(void *, struct parsec_allocator *))
@@ -373,29 +412,17 @@ comp_vas_region_alloc(comp_t *comp, vaddr_t local_tbl, unsigned long vas_unit_sz
 	mapping_t *m, *temp_m;
 	struct quie_mem_meta *meta;
 	parsec_ns_t *ns;
-	vaddr_t pte_kmem;
-	capid_t pte_cap;
 
 	ns = &comp->mapping_ns;
 
-	pte       = vas_region_alloc();
-	pte_kmem  = get_kmem()->cap;
-	pte_cap   = mm_alloc_pte_cap();
+	pte = vas_region_alloc();
 
 	/* TODO: error handling. */
-	if (call_cap_op(MM_CAPTBL_OWN_CAPTBL, CAPTBL_OP_PGTBLACTIVATE,
-			pte_cap, MM_CAPTBL_OWN_PGTBL, pte_kmem, 1)) { 
-		printc("Expanding VAS of comp %d: Fail to act cap @ %d, using kmem %d\n", comp->id, pte_cap, pte_kmem);
-		return -1;
-	}
-	/* Connect PTE to the component's pgtbl */
-	if (call_cap_op(comp_pt_cap(comp->id), CAPTBL_OP_CONS, pte_cap, pte, 0, 0)) { 
-		printc("Expanding VAS of comp %d: fail to cons pgtbl @ %x\n", comp->id, pte);
-		return -1;
-	}
+	ret = pgtbl_act(comp, pte);
+	if (ret) return -1;
 
 	ret = mappingtbl_cons((mappingtbl_t)ns->tbl, pte, (vaddr_t)local_tbl);
-	assert(ret == 0);
+	if (ret) return -1;
 
 	/* # of free vas items in this one pte. */
 	n_items = NPTE_ENTRY_PER_PGD / (vas_unit_sz/PAGE_SIZE);
@@ -477,7 +504,7 @@ mapping_close(mapping_t *m)
 static struct mapping *
 vas_alloc(parsec_ns_t *ns, unsigned long size)
 {
-	int n_page, i;
+	int n_page, i, ret;
 	mapping_t *new_mapping, *m;
 
 	n_page = size / PAGE_SIZE;
@@ -488,7 +515,8 @@ vas_alloc(parsec_ns_t *ns, unsigned long size)
 	if (!new_mapping && ns->expand) {
 		int (*expand_fn)(parsec_ns_t *, unsigned long) = ns->expand;
 		assert(expand_fn);
-		expand_fn(ns, size);
+		ret = expand_fn(ns, size);
+		if (ret) printc("CPU %d: expanding failed!\n", cos_cpuid());
 		new_mapping = parsec_desc_alloc(size, &(ns->allocator), 1);
 	}
 
@@ -685,9 +713,8 @@ alloc_map_pages(mapping_t *head, comp_t *comp, int n_pages)
 		if (build_mapping(comp, f, m)) cos_throw(release, -EINVAL);
 		m = (void *)m + MAPPING_ITEM_SZ;
 	}
-	ret = 0;
-done:
-	return ret;
+
+	return 0;
 release:
 	m = head;
 	for ( ; i >= 0; i--) {

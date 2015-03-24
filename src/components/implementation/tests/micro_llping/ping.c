@@ -1259,8 +1259,11 @@ void cos_init(void)
 //		printc("cpu %d: i %d\n", cos_cpuid(), i);
 		ret = call_cap(MMAN_VALLOC, cos_spd_id(), cos_spd_id(), 1, 0);
 		vas[i] = (vaddr_t)ret;
-		if (!ret) 
-			printc("cpu %d: i %d>>> comp %ld called valloc cap %d, ret %x\n", cos_cpuid(), i, cos_spd_id(), MMAN_VALLOC, ret);
+		if (!ret) {
+			printc("cpu %d: i %d>>> comp %ld called valloc cap %d, ret %x\n", 
+			       cos_cpuid(), i, cos_spd_id(), MMAN_VALLOC, ret);
+			goto done;
+		}
 	}
 
 	for (i = 0; i < N_OPS; i++) {
@@ -1289,15 +1292,15 @@ void cos_init(void)
 
 	for (i = 0; i < N_OPS; i++) {
 		ret = call_cap(MMAN_REVOKE, cos_spd_id(), vas[i], 0, 0);
-		if (ret) printc("comp %ld called revoke cap %d, ret %x\n", cos_spd_id(), MMAN_REVOKE, ret);
+		if (ret) { printc("comp %ld called revoke cap %d, ret %x\n", cos_spd_id(), MMAN_REVOKE, ret); goto done; }
 	}
 	for (i = 0; i < N_OPS; i++) {
 		ret = call_cap(MMAN_REVOKE, cos_spd_id(), mem[i], 0, 0);
-		if (ret) printc("comp %ld called revoke cap %d, ret %x\n", cos_spd_id(), MMAN_REVOKE, ret);
+		if (ret) { printc("comp %ld called revoke cap %d, ret %x\n", cos_spd_id(), MMAN_REVOKE, ret); goto done; }
 	}
 	for (i = 0; i < N_OPS; i++) {
 		ret = call_cap(MMAN_RELEASE, cos_spd_id(), mem[i], 0, 0);
-		if (ret) printc("comp %ld called release cap %d, ret %x\n", cos_spd_id(), MMAN_RELEASE, ret);
+		if (ret) { printc("comp %ld called release cap %d, ret %x\n", cos_spd_id(), MMAN_RELEASE, ret); goto done; }
 	}
 	printc("CPU %ld: MM_REVOKE / _RELEASE test done!\n", cos_cpuid());
 
