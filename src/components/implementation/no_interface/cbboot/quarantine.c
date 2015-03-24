@@ -119,6 +119,8 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 
 done:
 	printl("Forked %d -> %d\n", source, d_spd);
+	/* FIXME: figure out how to deal with threads! */
+	if (cos_upcall(d_spd, NULL)) printl("Upcall failed\n"); 
 	return d_spd;
 }
 
