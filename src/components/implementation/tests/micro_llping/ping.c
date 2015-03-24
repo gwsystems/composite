@@ -1371,7 +1371,7 @@ void cos_init(void)
 
 	if (mm_meas()) goto done;
 
-	for (i = 0; i < 100; i++) {
+	for (i = 0; i < 1024; i++) {
 //		sync_all();
 		s = tsc_start();
 		if (mm_meas()) {
@@ -1384,7 +1384,7 @@ void cos_init(void)
 	}
 
 
-	printc("cpu %d, avg cost %llu\n", cpu, (tot)/N_OPS);
+	printc("cpu %d, avg cost %llu\n", cpu, (tot)/N_OPS/1024);
 //	for (i = 0; i < 10; i++)
 
 /* #endif */

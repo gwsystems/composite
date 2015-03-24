@@ -45,8 +45,10 @@ tlb_mandatory_flush(void *arg)
 	unsigned long long t;
 	(void)arg;
 
-	chal_flush_tlb();
 	rdtscll(t);
+	/* Order is important: get tsc before action. */
+	chal_flush_tlb();
+	/* But commit after. */
 	tlb_quiescence[get_cpuid()].last_mandatory_flush = t;
 }
 

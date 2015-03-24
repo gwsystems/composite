@@ -254,16 +254,15 @@ tlb_quiesce(quie_time_t t)
 	cpu = cos_cpuid();
 	for (i = 0; i < NUM_CPU_COS; i++) {
 		target_cpu = (cpu+i) % NUM_CPU_COS;
-
-		/* Observed tsc clock skew impact here. */
-#define TSC_SKEW 0
 		/* We need an explicit TLB flush. */
-		if (tlb_flush[target_cpu].last_tlb_flush + TSC_SKEW <= t) {
-			/* Take the time stamp before the actual flush
-			 * -- have to be conservative. */
-			tlb_flush[target_cpu].last_tlb_flush = get_time();
-			/* a hack for now */
-			printc("FLUSH!%c", target_cpu);
+		if (tlb_flush[target_cpu].last_tlb_flush <= t) {
+			/* Order is important: we have to get the time
+			 * stamp before the actual flush -- have to be
+			 * conservative. */
+			curr = get_time();
+			printc("FLUSH!%c", target_cpu); /* a hack for now */
+			/* And then commit the flush */
+			tlb_flush[target_cpu].last_tlb_flush = curr;
 		}
 		if (tlb_flush[target_cpu].last_tlb_flush < min)
 			min = tlb_flush[target_cpu].last_tlb_flush;
