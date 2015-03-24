@@ -1357,7 +1357,7 @@ void cos_init(void)
 /* 	pingpong(); */
 /* #else */
 	int i, ret, cpu = cos_cpuid(); 
-	unsigned long long s,e;
+	unsigned long long s,e, tot = 0;
 
 	if (cos_cpuid() == 0) {
 		printc(">>>>> calling mm init\n");
@@ -1368,16 +1368,20 @@ void cos_init(void)
 	if (cos_cpuid()) goto done;
 	if (mm_meas()) goto done;
 
-	s = tsc_start();
 	for (i = 0; i < 100; i++) {
+		sync_all();
+		s = tsc_start();
 		if (mm_meas()) {
 			printc("cpu %d failed when iter %d\n", cpu, i);
 			goto done;
 		}
+		e = tsc_start();
+		tot += e-s;
+		tlb_quiescence_wait();
 	}
-	e = tsc_start();
 
-	printc("cpu %d, avg cost %llu\n", cpu, (e-s)/N_OPS);
+
+	printc("cpu %d, avg cost %llu\n", cpu, (tot)/N_OPS);
 //	for (i = 0; i < 10; i++)
 
 /* #endif */

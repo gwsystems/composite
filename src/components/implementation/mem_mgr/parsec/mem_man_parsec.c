@@ -149,10 +149,10 @@ char kmem_table[FRAMETBL_ITEM_SZ*COS_KERNEL_MEMORY] CACHE_ALIGNED;
 
 char comp_table[COMP_ITEM_SZ*MAX_NUM_COMPS] CACHE_ALIGNED;
 
-#define VAS_QWQ_SIZE        (8*1024)//(1024)  
+#define VAS_QWQ_SIZE        (1*1024)//(1024)  
 #define VAS_QWQ_SIZE_SMALL  (4)	/* For large VAS items, to avoid queuing too much. */
 
-#define PMEM_QWQ_SIZE (8*1024)//(1024)  /* 4 MB */
+#define PMEM_QWQ_SIZE (1*1024)//(1024)  /* 4 MB */
 #define KMEM_QWQ_SIZE (1) /* Kmem allocation much less often. */
 
 /* All namespaces in the same parallel section. */
@@ -1093,8 +1093,8 @@ done:
 }
 
 /* TODO: avoid false sharing in kernel (edge case). */
-#define LTBL_ENTS (1<<18)
-#define LIDS_PERCPU (LTBL_ENTS/NUM_CPU)
+#define LTBL_ENTS (1<<20)
+#define LIDS_PERCPU (LTBL_ENTS/NUM_CPU_COS)
 struct liveness_id {
 	unsigned long lid;
 	char __padding[CACHE_LINE*2 - sizeof(unsigned long)];
