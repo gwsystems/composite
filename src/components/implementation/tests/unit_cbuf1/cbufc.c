@@ -5,6 +5,9 @@
 #include <stdlib.h> 		/* rand */
 #include <cbuf.h>
 #include <cbuf_mgr.h>
+
+#include <quarantine.h> /* testing */
+
 #include <unit_cbuf.h>
 #include <unit_cbufp.h>
 
@@ -144,8 +147,10 @@ cbufp_tests()
 
 void cos_init(void)
 {
+	spdid_t new_spd;
 	printc("\nUNIT TEST (CBUF & CBUFP)\n");
 	cbuf_tests();
+	new_spd = quarantine_fork(cos_spd_id(), cos_spd_id());
 	cbufp_tests();
 	printc("UNIT TEST (CBUF & CBUFP) ALL PASSED\n");
 	return;
