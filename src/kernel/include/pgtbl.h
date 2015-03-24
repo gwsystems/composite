@@ -247,7 +247,10 @@ pgtbl_quie_check(u32_t orig_v)
 		assert(lid < LTBL_ENTS);
 
 		if (ltbl_get_timestamp(lid, &ts)) return -EFAULT;
-		if (!tlb_quiescence_check(ts))    return -EQUIESCENCE;
+		if (!tlb_quiescence_check(ts))    {
+			printk("equie tsc %llu, lid %d, last flush %llu\n", ts, lid, tlb_quiescence[get_cpuid()].last_periodic_flush);
+			return -EQUIESCENCE;
+		}
 	}
 
 	return 0;

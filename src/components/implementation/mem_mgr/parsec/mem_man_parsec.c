@@ -149,10 +149,10 @@ char kmem_table[FRAMETBL_ITEM_SZ*COS_KERNEL_MEMORY] CACHE_ALIGNED;
 
 char comp_table[COMP_ITEM_SZ*MAX_NUM_COMPS] CACHE_ALIGNED;
 
-#define VAS_QWQ_SIZE        (1024)  
+#define VAS_QWQ_SIZE        (8*1024)//(1024)  
 #define VAS_QWQ_SIZE_SMALL  (4)	/* For large VAS items, to avoid queuing too much. */
 
-#define PMEM_QWQ_SIZE (1024)  /* 4 MB */
+#define PMEM_QWQ_SIZE (8*1024)//(1024)  /* 4 MB */
 #define KMEM_QWQ_SIZE (1) /* Kmem allocation much less often. */
 
 /* All namespaces in the same parallel section. */
@@ -521,10 +521,13 @@ vas_alloc(parsec_ns_t *ns, unsigned long size)
 
 	if (!new_mapping && ns->expand) {
 		int (*expand_fn)(parsec_ns_t *, unsigned long) = ns->expand;
+		int n_try = 10;
 		assert(expand_fn);
-		ret = expand_fn(ns, size);
-		if (ret) printc("CPU %d: expanding failed!\n", cos_cpuid());
-		new_mapping = parsec_desc_alloc(size, &(ns->allocator), 1);
+		while (n_try-- && !new_mapping) {
+			ret = expand_fn(ns, size);
+			if (ret) printc("CPU %d: expanding failed!\n", cos_cpuid());
+			new_mapping = parsec_desc_alloc(size, &(ns->allocator), 1);
+		}
 	}
 
 	if (new_mapping) {
@@ -687,7 +690,11 @@ build_mapping(comp_t *comp, frame_t *frame, mapping_t *mapping)
 	/* and build the actual mapping */
 	ret = call_cap_op(MM_CAPTBL_OWN_PGTBL, CAPTBL_OP_MEMACTIVATE,
 			  frame->cap, comp_pt_cap(comp->id), mapping->vaddr, 0);
-	if (ret) cos_throw(done, -EINVAL);
+	if (ret) { 
+		struct quie_mem_meta *meta = (void *)mapping - sizeof(struct quie_mem_meta);
+		printc("kern ret %d, user deact %llu, curr %llu\n", ret, meta->time_deact, get_time()); 
+		cos_throw(done, -EINVAL);
+	}
 	
 	frame->child = mapping;
 	/* This should not fail as we are using newly allocated vas. */
@@ -715,9 +722,9 @@ alloc_map_pages(mapping_t *head, comp_t *comp, int n_pages)
 	/* FIXME: reverse and free when fail */
 	for (i = 0; i < n_pages; i++) {
 		f = get_pmem();
-		if (!f) { i--; cos_throw(release, -ENOMEM); }
+		if (!f) { i--; printc("no pmem\n"); cos_throw(release, -ENOMEM); }
 
-		if (build_mapping(comp, f, m)) cos_throw(release, -EINVAL);
+		if (build_mapping(comp, f, m)) { printc("build failed!\n"); cos_throw(release, -EINVAL); }
 		m = (void *)m + MAPPING_ITEM_SZ;
 	}
 
@@ -997,7 +1004,7 @@ vaddr_t mman_get_page(spdid_t compid, vaddr_t addr, int npages_flags)
 		m = get_vas_mapping(comp, npages);
 	}
 
-	if (!m) cos_throw(done, 0);
+	if (!m) { printc("no vas");cos_throw(done, 0); }
 	if (alloc_map_pages(m, comp, npages)) cos_throw(done, 0);
 
 	ret = m->vaddr;
@@ -1086,7 +1093,7 @@ done:
 }
 
 /* TODO: avoid false sharing in kernel (edge case). */
-#define LTBL_ENTS (1<<16)
+#define LTBL_ENTS (1<<18)
 #define LIDS_PERCPU (LTBL_ENTS/NUM_CPU)
 struct liveness_id {
 	unsigned long lid;

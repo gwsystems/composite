@@ -1369,7 +1369,7 @@ void cos_init(void)
 	if (mm_meas()) goto done;
 
 	s = tsc_start();
-	for (i = 0; i < 10; i++) {
+	for (i = 0; i < 100; i++) {
 		if (mm_meas()) {
 			printc("cpu %d failed when iter %d\n", cpu, i);
 			goto done;
