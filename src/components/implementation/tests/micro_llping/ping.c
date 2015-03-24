@@ -1372,7 +1372,6 @@ void cos_init(void)
 	if (mm_meas()) goto done;
 
 	for (i = 0; i < 1024; i++) {
-//		sync_all();
 		s = tsc_start();
 		if (mm_meas()) {
 			printc("cpu %d failed when iter %d\n", cpu, i);
@@ -1380,9 +1379,7 @@ void cos_init(void)
 		}
 		e = tsc_start();
 		tot += e-s;
-//		tlb_quiescence_wait();
 	}
-
 
 	printc("cpu %d, avg cost %llu\n", cpu, (tot)/N_OPS/1024);
 //	for (i = 0; i < 10; i++)
