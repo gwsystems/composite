@@ -868,7 +868,7 @@ static int mm_comp_init(void)
 	for (i = 0; i < MM_NPTE_NEEDED; i++) {
 		if (comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pte + i*MM_PTE_SIZE, MM_PTE_SIZE, glb_freelist_add)) {
 			printc("%d pte init failed\n", i);
-			break;
+			return -1;
 		}
 	}
 	

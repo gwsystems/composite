@@ -607,7 +607,7 @@ u8_t c0_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 
 u8_t *boot_comp_pgd;
 u8_t *boot_comp_pte_vm;
-u8_t *boot_comp_pte_km;
+u8_t *boot_comp_pte_km;//[COS_KERNEL_MEMORY / (PAGE_SIZE/sizeof(void *))];
 u8_t *boot_comp_pte_pm;
 
 #define N_PHYMEM_PAGES COS_MAX_MEMORY /* # of physical pages available */
@@ -668,7 +668,6 @@ kern_boot_comp(struct spd_info *spd_info)
 	boot_comp_pte_km = get_coskmem();
 
 	pt = pgtbl_create(boot_comp_pgd, chal_va2pa(linux_pgd));
-
 	assert(pt);
 	pgtbl_init_pte(boot_comp_pte_km);
 
@@ -677,7 +676,7 @@ kern_boot_comp(struct spd_info *spd_info)
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, pt, 0)) cos_throw(err, -1);
 
 	/* KMEM PTE */
-	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_KM_PTE, (pgtbl_t)boot_comp_pte_km, 1)) cos_throw(err, -1);
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_KM_PTE, (pgtbl_t)(boot_comp_pte_km), 1)) cos_throw(err, -1);
 	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_KM_PTE, BOOT_MEM_KM_BASE)) cos_throw(err, -1);
 
 	/* VM PTEs */

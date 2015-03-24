@@ -1232,9 +1232,9 @@ void cos_init(void)
 	/* } */
 
 	arcv_ready[cos_cpuid()] = 1;
-#if NUM_CPU <= 2
-	pingpong();
-#else
+/* #if NUM_CPU <= 2 */
+/* 	pingpong(); */
+/* #else */
 	int i, ret; 
 
 	if (cos_cpuid() == 0) {
@@ -1243,6 +1243,7 @@ void cos_init(void)
 		printc(">>>>> done mm init\n");
 	}
 	sync_all();
+	goto done;
 	/* if (cos_cpuid()) goto done; */
 
 	/* hack.... Gotta fix this ASAP after the deadline. */
@@ -1334,7 +1335,7 @@ void cos_init(void)
 		}
 		printc("CPU %ld: MM allocation test: %d MBs allocated in total\n", cos_cpuid(), tot_mb);
 	}
-#endif
+/* #endif */
 done:
 	sync_all();
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
