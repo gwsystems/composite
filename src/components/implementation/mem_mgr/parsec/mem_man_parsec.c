@@ -182,7 +182,7 @@ char mm_own_pgd[PAGE_SIZE] PAGE_ALIGNED;
  * __PTEs__ for other components. */
 #define MIN_N_PTE (COS_MAX_MEMORY/NPTE_ENTRY_PER_PGD / (NPTE_ENTRY_PER_PGD/MM_PTE_NPAGES) + 1)
 /* this is pessimistic. just to be safe.  */
-#define MM_NPTE_NEEDED (MIN_N_PTE*10)
+#define MM_NPTE_NEEDED 60//(MIN_N_PTE*40)
 
 /* VAS management of the MM. */
 /* MM local memory used for PGDs. */
@@ -384,9 +384,15 @@ comp_vas_region_alloc(comp_t *comp, vaddr_t local_tbl, unsigned long vas_unit_sz
 
 	/* TODO: error handling. */
 	if (call_cap_op(MM_CAPTBL_OWN_CAPTBL, CAPTBL_OP_PGTBLACTIVATE,
-			pte_cap, MM_CAPTBL_OWN_PGTBL, pte_kmem, 1)) return -1;
+			pte_cap, MM_CAPTBL_OWN_PGTBL, pte_kmem, 1)) { 
+		printc("Expanding VAS of comp %d: Fail to act cap @ %d, using kmem %d\n", comp->id, pte_cap, pte_kmem);
+		return -1;
+	}
 	/* Connect PTE to the component's pgtbl */
-	if (call_cap_op(comp_pt_cap(comp->id), CAPTBL_OP_CONS, pte_cap, pte, 0, 0)) return -1;
+	if (call_cap_op(comp_pt_cap(comp->id), CAPTBL_OP_CONS, pte_cap, pte, 0, 0)) { 
+		printc("Expanding VAS of comp %d: fail to cons pgtbl @ %x\n", comp->id, pte);
+		return -1;
+	}
 
 	ret = mappingtbl_cons((mappingtbl_t)ns->tbl, pte, (vaddr_t)local_tbl);
 	assert(ret == 0);
@@ -660,6 +666,8 @@ done:
 	return ret;
 }
 
+static int mapping_free(mapping_t *m, comp_t *c);
+
 /* alloc n pages, and map them. */
 static int 
 alloc_map_pages(mapping_t *head, comp_t *comp, int n_pages)
@@ -672,13 +680,21 @@ alloc_map_pages(mapping_t *head, comp_t *comp, int n_pages)
 	/* FIXME: reverse and free when fail */
 	for (i = 0; i < n_pages; i++) {
 		f = get_pmem();
-		if (!f) cos_throw(done, -ENOMEM);
+		if (!f) { i--; cos_throw(release, -ENOMEM); }
 
-		if (build_mapping(comp, f, m)) cos_throw(done, -EINVAL);
+		if (build_mapping(comp, f, m)) cos_throw(release, -EINVAL);
 		m = (void *)m + MAPPING_ITEM_SZ;
 	}
 	ret = 0;
 done:
+	return ret;
+release:
+	m = head;
+	for ( ; i >= 0; i--) {
+		mapping_free(m, comp);
+		m = (void *)m + MAPPING_ITEM_SZ;
+	}
+
 	return ret;
 }
 
@@ -823,7 +839,10 @@ static int mm_comp_init(void)
 	comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pgd, PAGE_SIZE, glb_freelist_add);
 
 	for (i = 0; i < MM_NPTE_NEEDED; i++) {
-		comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pte + i*MM_PTE_SIZE, MM_PTE_SIZE, glb_freelist_add);
+		if (comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pte + i*MM_PTE_SIZE, MM_PTE_SIZE, glb_freelist_add)) {
+			printc("%d pte init failed\n", i);
+			break;
+		}
 	}
 	
 	comp_unlock(mm_comp);

@@ -1324,7 +1324,7 @@ void cos_init(void)
 		int tot_mb = 0;
 		while (1) {
 			ret = call_cap(MMAN_GET, cos_spd_id(), 0, 256 << 16, 0);
-			/* printc("got a 1mb page @ %x!\n", ret); */
+//			printc("%d: got a 1mb page @ %x!\n", tot_mb, ret);
 			if (ret == 0) break;
 			memset((void *)ret, 0, (256)*PAGE_SIZE);
 			tot_mb += 1;
