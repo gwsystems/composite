@@ -315,7 +315,14 @@ get_kmem(void)
 	frame_t *kmem;
 
 	kmem = frame_alloc(&kmem_ns); 
-	if (!kmem) printc("MM: no enough kernel frames on core %d\n", cos_cpuid());
+	if (!kmem) {
+		printc("MM: no enough kernel frames on core %d\n", cos_cpuid());
+		int i; 
+		for (i = 0; i < NUM_CPU; i++) {
+			printc("cpu %d: %d\n", i, kmem_ns.allocator.qwq[i].slab_queue[size2slab(PAGE_SIZE)].n_items);
+		}
+		printc("glb: %d\n", kmem_ns.allocator.glb_freelist.slab_freelists[size2slab(PAGE_SIZE)].n_items);
+	}
 
 	return kmem;
 }

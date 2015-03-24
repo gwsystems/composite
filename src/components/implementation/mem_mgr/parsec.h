@@ -529,7 +529,8 @@ glb_freelist_get(struct quie_queue *queue, size_t size, struct parsec_allocator 
 		thres = qwq_min + (alloc->qwq_max_limit - qwq_min) / 2;
 
 	needed = thres - queue->n_items;
-	if (needed % STRIDE) needed += (STRIDE - needed % STRIDE);
+	if (qwq_min > STRIDE)
+		if (needed % STRIDE) needed += (STRIDE - needed % STRIDE);
 
 	for (i = 0; (i < needed) && next; i++) {
 		last = next;

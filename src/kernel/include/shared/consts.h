@@ -106,7 +106,7 @@ struct pt_regs {
 #define COS_NUM_ATOMIC_SECTIONS 10
 
 /* # of pages */
-#define COS_MAX_MEMORY_MB (800) /* total user memory in MBs */
+#define COS_MAX_MEMORY_MB (512) /* total user memory in MBs */
 #define COS_MAX_MEMORY    ((COS_MAX_MEMORY_MB << 20) / PAGE_SIZE)  /* # of pages */ 
 #define COS_MEM_BOUND     (COS_MEM_START + COS_MAX_MEMORY*PAGE_SIZE) /* highest physical address */
 #define KERN_MEM_ORDER    (10)        /* should be fine when <= 10 */

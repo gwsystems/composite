@@ -1213,39 +1213,6 @@ void wcet_test(void)
 }
 
 #include <mem_mgr.h>
-void cos_init(void)
-{
-	/* if (received[cos_cpuid()].snd_thd_created) { */
-	/* 	rcv_thd(); */
-	/* 	BUG(); */
-	/* 	return; */
-	/* } */
-	/* received[cos_cpuid()].snd_thd_created = 1; */
-
-	/* cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid()); */
-
-	//init rcv thd first.
-
-	/* if (cos_cpuid() == 0) { */
-	/* 	pingpong(); */
-	/* 	goto done; */
-	/* } */
-
-	arcv_ready[cos_cpuid()] = 1;
-/* #if NUM_CPU <= 2 */
-/* 	pingpong(); */
-/* #else */
-	int i, ret; 
-
-	if (cos_cpuid() == 0) {
-		printc(">>>>> calling mm init\n");
-		call_cap(4, 0, 0, 0, 0);
-		printc(">>>>> done mm init\n");
-	}
-	sync_all();
-	goto done;
-	/* if (cos_cpuid()) goto done; */
-
 	/* hack.... Gotta fix this ASAP after the deadline. */
 #define MMAN_VALLOC 6
 #define MMAN_GET    8
@@ -1253,6 +1220,10 @@ void cos_init(void)
 #define MMAN_REVOKE 12
 #define MMAN_RELEASE 14
 
+void
+memmgr_unit_test(void)
+{
+	int i, ret; 
 #define N_OPS 16
 	vaddr_t vas[N_OPS], mem[N_OPS];
 	
@@ -1266,7 +1237,6 @@ void cos_init(void)
 			goto done;
 		}
 	}
-
 	for (i = 0; i < N_OPS; i++) {
 		ret = call_cap(MMAN_GET, cos_spd_id(), 0, 1 << 16, 0);
 		mem[i] = (vaddr_t)ret;
@@ -1305,21 +1275,15 @@ void cos_init(void)
 	}
 	printc("CPU %ld: MM_REVOKE / _RELEASE test done!\n", cos_cpuid());
 
-	ret = call_cap(MMAN_GET, cos_spd_id(), 0, N_OPS << 16, 0);
+	ret = call_cap(MMAN_GET, cos_spd_id(), 0, 256 << 16, 0);
 	mem[0] = (vaddr_t)ret;
 	if (!ret) {
 		printc("multipage >>> comp %ld called mman_get cap %d, ret %x\n", cos_spd_id(), MMAN_GET, ret); 
 		goto done;
 	}
-	for (i = 0; i < N_OPS; i++) {
-		volatile int *test = (int *)(mem[0] + PAGE_SIZE*i);
-		*test = i;
-	}
-	for (i = 0; i < N_OPS; i++) {
-		volatile int *test = (int *)(mem[0] + PAGE_SIZE*i);
-		if (*test != i) printc("test fail? %d @ %p\n", *test, test);
-	}
+	memset((void *)ret, 0, (256)*PAGE_SIZE);
 	ret = call_cap(MMAN_RELEASE, cos_spd_id(), mem[0], 0, 0);
+	if (ret) { printc("comp %ld release 1MB ret %x\n", cos_spd_id(), ret); goto done; }
 
 	printc("CPU %ld: Multi-page allocation / free tests done!\n", cos_cpuid());
 
@@ -1335,6 +1299,87 @@ void cos_init(void)
 		}
 		printc("CPU %ld: MM allocation test: %d MBs allocated in total\n", cos_cpuid(), tot_mb);
 	}
+#undef N_OPS
+done:
+	return;
+}
+
+#define N_OPS 1024
+unsigned long allmem[NUM_CPU][N_OPS+16];
+
+int mm_meas(void)
+{
+	int i, cpu, ret;
+	cpu = cos_cpuid();
+
+	for (i = 0; i < N_OPS; i++) {
+		ret = call_cap(MMAN_GET, cos_spd_id(), 0, 1 << 16, 0);
+		allmem[cpu][i] = ret;
+		if (!ret) { 
+			printc("cpu %d, %d >>> comp %ld called mman_get cap %d, ret %x\n", cpu, i, cos_spd_id(), MMAN_GET, ret); 
+			ret = -1;
+			goto done;
+		}
+	}
+	for (i = 0; i < N_OPS; i++) {
+		ret = call_cap(MMAN_RELEASE, cos_spd_id(), allmem[cpu][i], 0, 0);
+		if (ret) { 
+			printc("comp %ld called release cap %d, ret %x\n", cos_spd_id(), MMAN_RELEASE, ret); 
+			ret = -1;
+			goto done; 
+		}
+	}
+	ret = 0;
+done:
+	return ret;
+}
+
+void cos_init(void)
+{
+	/* if (received[cos_cpuid()].snd_thd_created) { */
+	/* 	rcv_thd(); */
+	/* 	BUG(); */
+	/* 	return; */
+	/* } */
+	/* received[cos_cpuid()].snd_thd_created = 1; */
+
+	/* cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid()); */
+
+	//init rcv thd first.
+
+	/* if (cos_cpuid() == 0) { */
+	/* 	pingpong(); */
+	/* 	goto done; */
+	/* } */
+
+	arcv_ready[cos_cpuid()] = 1;
+/* #if NUM_CPU <= 2 */
+/* 	pingpong(); */
+/* #else */
+	int i, ret, cpu = cos_cpuid(); 
+	unsigned long long s,e;
+
+	if (cos_cpuid() == 0) {
+		printc(">>>>> calling mm init\n");
+		call_cap(4, 0, 0, 0, 0);
+		printc(">>>>> done mm init\n");
+	}
+	sync_all();
+	if (cos_cpuid()) goto done;
+	if (mm_meas()) goto done;
+
+	s = tsc_start();
+	for (i = 0; i < 10; i++) {
+		if (mm_meas()) {
+			printc("cpu %d failed when iter %d\n", cpu, i);
+			goto done;
+		}
+	}
+	e = tsc_start();
+
+	printc("cpu %d, avg cost %llu\n", cpu, (e-s)/N_OPS);
+//	for (i = 0; i < 10; i++)
+
 /* #endif */
 done:
 	sync_all();
