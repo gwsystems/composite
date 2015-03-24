@@ -1320,6 +1320,7 @@ int mm_meas(void)
 			ret = -1;
 			goto done;
 		}
+//		memset((void *)ret, 0, PAGE_SIZE);
 	}
 	for (i = 0; i < N_OPS; i++) {
 		ret = call_cap(MMAN_RELEASE, cos_spd_id(), allmem[cpu][i], 0, 0);
@@ -1365,7 +1366,9 @@ void cos_init(void)
 		printc(">>>>> done mm init\n");
 	}
 	sync_all();
-	if (cos_cpuid()) goto done;
+
+//	if (cos_cpuid()) goto done;
+
 	if (mm_meas()) goto done;
 
 	for (i = 0; i < 100; i++) {
