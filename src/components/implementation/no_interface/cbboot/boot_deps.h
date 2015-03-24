@@ -27,14 +27,9 @@
 COS_VECT_CREATE_STATIC(spd_sect_cbufs);
 COS_VECT_CREATE_STATIC(spd_sect_cbufs_header);
 
-/* Need static storage for tracking cbufs to avoid dynamic allocation
- * before boot_deps_map_sect finishes. Each spd has probably 12 or so
- * sections, so one page of cbuf_t (1024 cbufs) should be enough to boot
- * about 80 components. This could possibly use a CSLAB? */
-#define CBUFS_PER_PAGE (PAGE_SIZE / sizeof(cbuf_t))
-#define SECT_CBUF_PAGES (1)
-static struct cbid_caddr all_spd_sect_cbufs[CBUFS_PER_PAGE * SECT_CBUF_PAGES];
-static unsigned int all_cbufs_index = 0;
+/* SLAB? */
+struct cbid_caddr all_spd_sect_cbufs[CBUFS_PER_PAGE * SECT_CBUF_PAGES];
+unsigned int all_cbufs_index = 0;
 
 static spdid_t some_spd = 0;
 
@@ -83,6 +78,7 @@ boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages
 	b_spd = cos_spd_id();
 	caddr = cbm.caddr;
 	while (pages-- > 0) {
+		/* might be better to memcpy, but after populate */
 		if (dsrc != (mman_alias_page(b_spd, (vaddr_t)caddr, b_spd, dsrc, MAPPING_RW))) BUG();
 		dsrc += PAGE_SIZE;
 		caddr += PAGE_SIZE;
@@ -104,6 +100,8 @@ static void
 boot_deps_run(void) {
 	printc("copying %d\n", some_spd);
 	spdid_t new_spd = quarantine_fork(cos_spd_id(), some_spd);
+	/* deal with threads: assume this will work. */
+	__boot_spd_thd(new_spd);
 	printc("forked %d to %d\n", some_spd, new_spd);
 	return; }
 

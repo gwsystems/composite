@@ -12,6 +12,7 @@
 #include <cbuf.h>
 #include <quarantine.h>
 
+/* structures populated by cbboot boot_deps */
 extern cos_vect_t spd_sect_cbufs;
 extern cos_vect_t spd_sect_cbufs_header;
 
@@ -19,6 +20,15 @@ struct cbid_caddr {
 	cbuf_t cbid;
 	void *caddr;
 };
+
+/* Need static storage for tracking cbufs to avoid dynamic allocation
+ * before boot_deps_map_sect finishes. Each spd has probably 12 or so
+ * sections, so one page of cbuf_t (1024 cbufs) should be enough to boot
+ * about 80 components. This could possibly use a CSLAB? */
+#define CBUFS_PER_PAGE (PAGE_SIZE / sizeof(cbuf_t))
+#define SECT_CBUF_PAGES (1)
+extern struct cbid_caddr all_spd_sect_cbufs[CBUFS_PER_PAGE * SECT_CBUF_PAGES];
+extern unsigned int all_cbufs_index;
 
 /* prototypes for wrappers of booter.c functions used when quarantining */
 int 
