@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "ops.h"
+
 int
 prints(char *str)
 {
@@ -1232,7 +1234,7 @@ memmgr_unit_test(void)
 		ret = call_cap(MMAN_VALLOC, cos_spd_id(), cos_spd_id(), 1, 0);
 		vas[i] = (vaddr_t)ret;
 		if (!ret) {
-			printc("cpu %d: i %d>>> comp %ld called valloc cap %d, ret %x\n", 
+			printc("cpu %ld: i %d>>> comp %ld called valloc cap %d, ret %x\n", 
 			       cos_cpuid(), i, cos_spd_id(), MMAN_VALLOC, ret);
 			goto done;
 		}
@@ -1335,6 +1337,25 @@ done:
 	return ret;
 }
 
+void mm_stress(void)
+{
+	unsigned long long s, e, tot = 0;
+	int i, cpu = cos_cpuid();
+
+	for (i = 0; i < 1024; i++) {
+		s = tsc_start();
+		if (mm_meas()) {
+			printc("cpu %d failed when iter %d\n", cpu, i);
+			goto done;
+		}
+		e = tsc_start();
+		tot += e-s;
+	}
+	printc("cpu %d, avg cost %llu\n", cpu, (tot)/N_OPS/1024);
+done:
+	return;
+}
+
 void cos_init(void)
 {
 	/* if (received[cos_cpuid()].snd_thd_created) { */
@@ -1357,7 +1378,7 @@ void cos_init(void)
 /* #if NUM_CPU <= 2 */
 /* 	pingpong(); */
 /* #else */
-	int i, ret, cpu = cos_cpuid(); 
+	int i, ret, cpu = cos_cpuid(), npages; 
 	unsigned long long s,e, tot = 0;
 
 	if (cos_cpuid() == 0) {
@@ -1367,25 +1388,40 @@ void cos_init(void)
 	}
 	sync_all();
 
-	/* if (cos_cpuid()) goto done; */
-
 	if (mm_meas()) goto done;
 
-	for (i = 0; i < 1024; i++) {
-//		sync_all();
-		s = tsc_start();
-		if (mm_meas()) {
-			printc("cpu %d failed when iter %d\n", cpu, i);
+
+	if (cos_cpuid()) goto done;
+
+
+	s = tsc_start();
+	for (i = 0; i < NOPS; i++) {
+		if (ops[cpu][i] == 1) {
+			npages = 1;
+		} else if (ops[cpu][i] == 2) {
+			npages = 1024;
+		} else 
+			break;
+
+		ret = call_cap(MMAN_GET, cos_spd_id(), 0, npages << 16, 0);
+		allmem[cpu][i] = ret;
+		if (!ret) {
+			printc("cpu %d, %d >>> comp %ld called mman_get cap %d, ret %x\n", cpu, i, cos_spd_id(), MMAN_GET, ret); 
+			ret = -1;
 			goto done;
 		}
-		e = tsc_start();
-		tot += e-s;
-//		tlb_quiescence_wait();
 	}
+	e = tsc_start();
 
+	if (i) {
+		printc("nops %d cpu %d avg cost %llu \n", NOPS, cpu, (e-s)/(i));
+		int n = i;
+		for (i = 0; i < n; i++) {
+			printc("cpu %d: %d vas %x\n", cpu, i, allmem[cpu][i]);
+		}
 
-	printc("cpu %d, avg cost %llu\n", cpu, (tot)/N_OPS/1024);
-//	for (i = 0; i < 10; i++)
+	} else
+		printc("cpu %d no ops\n", cpu);
 
 /* #endif */
 done:

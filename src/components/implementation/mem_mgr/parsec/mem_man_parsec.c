@@ -229,48 +229,58 @@ frame_lookup(unsigned long id, parsec_ns_t *ns)
 	return (struct frame *)((char *)meta + sizeof(struct quie_mem_meta));
 }
 
+/* I tried using a per-core last_tlb_flush for tlb quiescence. Did not
+ * help. A simple glb_flush time + lock works better. */
 struct tlb_flush {
 	volatile quie_time_t last_tlb_flush;
+	ck_spinlock_mcs_t lock;
 	char __padding[CACHE_LINE*2 - sizeof (quie_time_t)];
 };
-struct tlb_flush tlb_flush[NUM_CPU];
-volatile quie_time_t glb_last_tlb_flush;
+struct tlb_flush tlb_flush CACHE_ALIGNED;
 
 #define TLB_QUIE_PERIOD (TLB_QUIESCENCE_CYCLES)
+
+/* return 0 if quiesced. */
 static int 
-tlb_quiesce(quie_time_t t)
+check_tlb_quiesce(quie_time_t t)
 {
-	int cpu, i, target_cpu;
-	quie_time_t curr, min;
+	quie_time_t curr;
 
-	if (t < glb_last_tlb_flush) return 0;
-
+	if (t < tlb_flush.last_tlb_flush) return 0;
 	curr = get_time();
 	if (curr < t) return -1;
 	if (curr - t > TLB_QUIE_PERIOD) return 0;
 
+	return -1;
+}
+
+static int 
+tlb_quiesce(quie_time_t t)
+{
+	int cpu, i, target_cpu;
+	quie_time_t curr;
+	ck_spinlock_mcs_context_t mcs;
+
+	if (check_tlb_quiesce(t) == 0) return 0;
+
 	/* Slow path below: on demand per-core TLB flush. */
-	min = (unsigned long long)(-1);
+	ck_spinlock_mcs_lock(&(tlb_flush.lock), &mcs);
+
+	/* re-check after took the lock */
+	if (check_tlb_quiesce(t) == 0) goto done;
+
 	cpu = cos_cpuid();
+	curr = get_time();
+	/* We need an explicit TLB flush. */
 	for (i = 0; i < NUM_CPU_COS; i++) {
 		target_cpu = (cpu+i) % NUM_CPU_COS;
-		/* We need an explicit TLB flush. */
-		if (tlb_flush[target_cpu].last_tlb_flush <= t) {
-			/* Order is important: we have to get the time
-			 * stamp before the actual flush -- have to be
-			 * conservative. */
-			curr = get_time();
-			printc("FLUSH!%c", target_cpu); /* a hack for now */
-			/* And then commit the flush */
-			tlb_flush[target_cpu].last_tlb_flush = curr;
-		}
-		if (tlb_flush[target_cpu].last_tlb_flush < min)
-			min = tlb_flush[target_cpu].last_tlb_flush;
+		printc("FLUSH!%c", target_cpu); /* a hack for now */
 	}
+	/* commit */
+	tlb_flush.last_tlb_flush = curr;
+done:
+	ck_spinlock_mcs_unlock(&(tlb_flush.lock), &mcs);
 
-	if (glb_last_tlb_flush < min)
-		glb_last_tlb_flush = min;
-	
 	return 0;
 }
 
@@ -756,11 +766,7 @@ alloc_map_pages(mapping_t *head, comp_t *comp, int n_pages)
 			struct quie_mem_meta *meta = (void *)m - sizeof(struct quie_mem_meta);
 			printc("on core %d: build failed, t %llu!\n", cos_cpuid(), meta->time_deact); 
 
-			int i;
-			for (i = 0; i < NUM_CPU_COS; i++) {
-				printc("cpu %d: %llu\n", i, tlb_flush[i].last_tlb_flush);
-			}
-			printc("glb %llu\n", glb_last_tlb_flush);
+			printc("glb tlb flush %llu\n", tlb_flush.last_tlb_flush);
 
 			cos_throw(release, -EINVAL); 
 		}
