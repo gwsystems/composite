@@ -636,6 +636,10 @@ get_coskmem(void)
 	return ret;
 }
 
+/* a hack to get more kmem... */
+#define NBOOTKMEM 200
+void *bootkmem[NBOOTKMEM];
+
 static int
 kern_boot_comp(struct spd_info *spd_info)
 {
@@ -710,12 +714,30 @@ kern_boot_comp(struct spd_info *spd_info)
 	pte_cap = (struct cap_pgtbl *)captbl_lkup(ct, BOOT_CAPTBL_PHYSM_PTE);
 	assert(pte_cap);
 
+#define KMEM_HACK
+
+	if (n_pte > NBOOTKMEM) {
+		printk("no enough bootkmem, want %d\n", n_pte);
+		cos_throw(err, -1);
+	}
 	for (i = 0; i < n_pte; i++) {
+		bootkmem[i] = chal_alloc_page();
+		if (!bootkmem[i]) {
+			printk("no bootkmem\n");
+			cos_throw(err, -1);
+		}
+	}
+
+	for (i = 0; i < n_pte; i++) {
+#ifndef KMEM_HACK
 		boot_comp_pte_pm = get_coskmem();
 		if (((u32_t)boot_comp_pte_pm - (u32_t)cos_kmem_base) % RETYPE_MEM_SIZE == 0) {
 			ret = retypetbl_retype2kern(chal_va2pa(boot_comp_pte_pm));
 			assert(ret == 0);
 		}
+#else
+		boot_comp_pte_pm = bootkmem[i];
+#endif
 
 		pgtbl_init_pte(boot_comp_pte_pm);
 		/* Again, a hack for bootstrap. */
@@ -2256,6 +2278,14 @@ static int aed_release(struct inode *inode, struct file *file)
 
 	cos_net_finish();
 
+	for (i = 0; i < NBOOTKMEM; i++) {
+		if (bootkmem[i]) {
+			chal_free_page(bootkmem[i]);
+			bootkmem[i] = 0;
+		} else {
+			break;
+		}
+	}
 	/* our garbage collection mechanism: all at once when the cos
 	 * system control fd is closed */
 //	thd_free(cos_get_curr_thd());
