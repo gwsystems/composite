@@ -637,8 +637,10 @@ get_coskmem(void)
 }
 
 /* a hack to get more kmem... */
-#define NBOOTKMEM 200
+#define NBOOTKMEM 1024
 void *bootkmem[NBOOTKMEM];
+unsigned long bootkmem_used = 0;
+
 
 static int
 kern_boot_comp(struct spd_info *spd_info)
@@ -727,6 +729,7 @@ kern_boot_comp(struct spd_info *spd_info)
 			cos_throw(err, -1);
 		}
 	}
+	bootkmem_used += n_pte;
 
 	for (i = 0; i < n_pte; i++) {
 #ifndef KMEM_HACK
@@ -750,10 +753,21 @@ kern_boot_comp(struct spd_info *spd_info)
 	sys_llbooter_sz = spd_info->mem_size / PAGE_SIZE;
 	if (spd_info->mem_size % PAGE_SIZE) sys_llbooter_sz++;
 
+#ifdef KMEM_HACK
+	printk("booter needs %d pages\n", sys_llbooter_sz);
+	for (i = 0; i < sys_llbooter_sz; i++) {
+		bootkmem[i + bootkmem_used] = chal_alloc_page();
+		if (!bootkmem[i+bootkmem_used]) {
+			printk("no bootkmem\n");
+			cos_throw(err, -1);
+		}
+	}
+#endif
 	/* add the component's virtual memory at 4MB (1<<22) using "physical memory" starting at cos_kmem */
 	for (i = 0 ; i < sys_llbooter_sz; i++) {
-		u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
 		u32_t flags;
+#ifndef KMEM_HACK
+		u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
 		if ((addr - (u32_t)kmem_base_pa) % RETYPE_MEM_SIZE == 0) {
 			ret = retypetbl_retype2kern((void *)addr);
 			if (ret) {
@@ -761,16 +775,24 @@ kern_boot_comp(struct spd_info *spd_info)
  				cos_throw(err, -1);
 			}
 		}
-
 		if (pgtbl_mapping_add(pt, BOOT_MEM_VM_BASE + i*PAGE_SIZE, addr, PGTBL_USER_DEF)) {
 			printk("Mapping llbooter %x failed!\n", addr);
 			cos_throw(err, -1);
 		} 
 		assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
+#else
+		u32_t addr = (u32_t)(chal_va2pa(bootkmem[i+bootkmem_used]));
+		kmem_add_hack(pt, BOOT_MEM_VM_BASE + i*PAGE_SIZE, addr, PGTBL_USER_DEF);
+#endif
 	}
 
+#ifndef KMEM_HACK
 	llbooter_kern_mapping = cos_kmem;
 	cos_kmem += sys_llbooter_sz*PAGE_SIZE;
+#else
+//	llbooter_kern_mapping = bootkmem[bootkmem_used];
+	bootkmem_used += sys_llbooter_sz;
+#endif
 
 	/* Round to the next memory retype region. Adjust based on
 	 * offset from cos_kmem_base*/
@@ -884,12 +906,22 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		if (kern_boot_comp(&spd_info)) return -1;
 
+#ifndef KMEM_HACK
 		assert(llbooter_kern_mapping);
 		if (copy_from_user(llbooter_kern_mapping, (void*)spd_info.lowest_addr, spd_info.mem_size)) {
 			printk("cos: Error copying spd_info from user.\n");
 			return -EFAULT;
 		}
-
+#else
+		int i;
+		for (i = 0; i < sys_llbooter_sz-1; i++) {
+			if (copy_from_user(bootkmem[i+bootkmem_used-sys_llbooter_sz], (void*)(spd_info.lowest_addr+i*PAGE_SIZE), PAGE_SIZE)) {
+				printk("cos: Error copying spd_info from user.\n");
+				return -EFAULT;
+			}
+		}
+		copy_from_user(bootkmem[bootkmem_used-1], (void*)(spd_info.lowest_addr+i*PAGE_SIZE), spd_info.mem_size - i*PAGE_SIZE);
+#endif
 		return 0;
 	}
 	case AED_CREATE_SPD:
@@ -2278,7 +2310,8 @@ static int aed_release(struct inode *inode, struct file *file)
 
 	cos_net_finish();
 
-	for (i = 0; i < NBOOTKMEM; i++) {
+#ifdef KMEM_HACK
+	for (i = 0; i < bootkmem_used; i++) {
 		if (bootkmem[i]) {
 			chal_free_page(bootkmem[i]);
 			bootkmem[i] = 0;
@@ -2286,6 +2319,7 @@ static int aed_release(struct inode *inode, struct file *file)
 			break;
 		}
 	}
+#endif
 	/* our garbage collection mechanism: all at once when the cos
 	 * system control fd is closed */
 //	thd_free(cos_get_curr_thd());

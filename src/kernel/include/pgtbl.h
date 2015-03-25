@@ -294,6 +294,31 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	return ret;
 }
 
+/* TODO: remove. a hack for kmem. */
+static int
+kmem_add_hack(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
+{
+	int ret;
+	struct ert_intern *pte;
+	u32_t orig_v, accum = 0;
+
+	assert(pt);
+	assert((PGTBL_FLAG_MASK & page) == 0);
+	assert((PGTBL_FRAME_MASK & flags) == 0);
+
+	/* get the pte */
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
+						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	orig_v = (u32_t)(pte->next);
+
+	if (orig_v & PGTBL_PRESENT)  return -EEXIST;
+	if (orig_v & PGTBL_COSFRAME) return -EPERM;
+
+	ret = __pgtbl_update_leaf(pte, (void *)(page | flags), orig_v);
+
+	return ret;
+}
+
 /* This function is only used by the booting code to add cos frames to
  * the pgtbl. It ignores the retype tbl (as we are adding untyped
  * frames). */
