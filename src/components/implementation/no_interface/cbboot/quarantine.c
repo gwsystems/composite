@@ -3,11 +3,26 @@
 
 #define printl(...) printc("Quarantine: "__VA_ARGS__)
 
+/* Called after fork() finished copying the spd from source to target.
+ */
+int
+quarantine_migrate(spdid_t spdid, spdid_t source, spdid_t target, thdid_t thread)
+{
+	if (!thread) thread = sched_get_thread_in_spd(cos_spd_id(), source, 0);
+
+	printl("Migrate thread %d in spd %d to %d\n", thread, source, target);
+	if (!thread) goto done;
+
+done:
+	return 0;
+}
+
 /* quarantine if */
 spdid_t
 quarantine_fork(spdid_t spdid, spdid_t source)
 {
 	spdid_t d_spd = 0;
+	thdid_t d_thd = 0;
 	struct cbid_caddr *old_sect_cbufs, *new_sect_cbufs;
 	struct cobj_header *h;
 	struct cobj_sect *sect;
@@ -117,10 +132,12 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	r = mman_fork_spd(cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
 	if (r) printc("Error (%d) in mman_fork_spd\n", r);
 
+	/* FIXME: figure out how to deal with threads! */
+	quarantine_migrate(cos_spd_id(), source, d_spd, d_thd);
+	//if (cos_upcall(d_spd, NULL)) printl("Upcall failed\n");
+
 done:
 	printl("Forked %d -> %d\n", source, d_spd);
-	/* FIXME: figure out how to deal with threads! */
-	if (cos_upcall(d_spd, NULL)) printl("Upcall failed\n"); 
 	return d_spd;
 }
 

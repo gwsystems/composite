@@ -1155,6 +1155,13 @@ static int fp_kill_thd(struct sched_thd *t)
 	return 0;
 }
 
+/* returns the @index'th thread id that is currently blocked in @target,
+ * or 0 if no such thread exists. */
+int sched_get_thread_in_spd(spdid_t spdid, spdid_t target, int index)
+{
+	return 0;
+}
+
 /* Create a thread without invoking the scheduler policy */
 static struct sched_thd *__sched_setup_thread_no_policy(int tid)
 {

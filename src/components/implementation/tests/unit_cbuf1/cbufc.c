@@ -147,27 +147,12 @@ cbufp_tests()
 
 void cos_init(void)
 {
-	spdid_t new_spd;
+	//spdid_t new_spd;
 	printc("\nUNIT TEST (CBUF & CBUFP)\n");
 	cbuf_tests();
-	new_spd = quarantine_fork(cos_spd_id(), cos_spd_id());
+	//new_spd = quarantine_fork(cos_spd_id(), cos_spd_id());
 	cbufp_tests();
 	printc("UNIT TEST (CBUF & CBUFP) ALL PASSED\n");
-	return;
-}
-
-void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
-{
-
-	switch (t) {
-	case COS_UPCALL_THD_CREATE:
-		printc("\nUNIT TEST (CBUF & CBUFP) -- upcall\n");
-		cbuf_tests();
-		cbufp_tests();
-		printc("UNIT TEST (CBUF & CBUFP) ALL PASSED -- upcall\n");
-		break;
-	default: break;
-	}
 	return;
 }
 
