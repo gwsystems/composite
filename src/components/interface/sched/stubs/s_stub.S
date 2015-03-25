@@ -25,3 +25,5 @@ cos_asm_server_stub(sched_priority)
 	
 cos_asm_server_stub_spdid(sched_component_take)
 cos_asm_server_stub_spdid(sched_component_release)
+
+cos_asm_server_stub_spdid(sched_get_thread_in_spd)
