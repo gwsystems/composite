@@ -1356,6 +1356,66 @@ done:
 	return;
 }
 
+//only record core 0
+unsigned long logs[30000], nlog = 0;
+
+void play_trace(unsigned long *npage_alloc, unsigned long long *tot)
+{
+	int i, ret, cpu = cos_cpuid(); 
+	unsigned long long s,e;
+
+	int npages, nmaps = 0;
+
+#define MEAS_MAP
+
+	for (i = 0; i < NOPS; i++) {
+		allmem[cpu][i] = 0;
+		if (ops[cpu][i] == 1) {
+			npages = 1;
+		} else if (ops[cpu][i] == 2) {
+			npages = 1024;
+		} else 
+			break;
+		s = tsc_start();
+		ret = call_cap(MMAN_GET, cos_spd_id(), 0, npages << 16, 0);
+		e = tsc_start();
+#ifdef MEAS_MAP
+		*tot = *tot + (e-s);
+		if (cos_cpuid() == 0 && ops[cpu][i]==1) logs[nlog++] = (unsigned long)(e-s);
+#endif
+		if (!ret) {
+			printc("cpu %d, i %d >>> comp %ld called mman_get cap %d, ret %x, allocated %d pages already.\n", 
+			       cpu, i, cos_spd_id(), MMAN_GET, ret, *npage_alloc); 
+			ret = -1;
+			goto done;
+		}
+		allmem[cpu][i] = ret;
+		memset((void *)ret, 0, PAGE_SIZE*npages);
+
+		*npage_alloc = *npage_alloc + npages;
+	}
+	if (!nmaps)
+		nmaps = i;
+	else
+		assert(nmaps == i);
+
+	for (i = 0; i < nmaps; i++) {
+		s = tsc_start();
+		ret = call_cap(MMAN_RELEASE, cos_spd_id(), allmem[cpu][i], 0, 0);
+		e = tsc_start();
+#ifndef MEAS_MAP
+		*tot = *tot + (e-s);
+		if (cos_cpuid() == 0 && ops[cpu][i]==1) logs[nlog++] = (unsigned long)(e-s);
+#endif
+		if (ret) {
+			printc("cpu %d release error %d\n", cpu, ret);
+			goto done;
+		}
+	}
+done:
+	return;
+}
+
 void cos_init(void)
 {
 	/* if (received[cos_cpuid()].snd_thd_created) { */
@@ -1378,7 +1438,8 @@ void cos_init(void)
 /* #if NUM_CPU <= 2 */
 /* 	pingpong(); */
 /* #else */
-	int i, ret, cpu = cos_cpuid(), npages; 
+	int ret, cpu = cos_cpuid(); 
+	unsigned long i;
 	unsigned long long s,e, tot = 0;
 
 	if (cos_cpuid() == 0) {
@@ -1390,39 +1451,46 @@ void cos_init(void)
 
 	if (mm_meas()) goto done;
 
+	int repeat;
+	unsigned long npage_alloc = 0;
 
-	if (cos_cpuid()) goto done;
+	play_trace(&npage_alloc, &tot);
+	/* workaround for the liveness id issue */
+	tlb_quiescence_wait();
+	sync_all();
 
+	if (cos_cpuid() < 0) goto done;
 
-	s = tsc_start();
-	for (i = 0; i < NOPS; i++) {
-		if (ops[cpu][i] == 1) {
-			npages = 1;
-		} else if (ops[cpu][i] == 2) {
-			npages = 1024;
-		} else 
-			break;
+	if (cos_cpuid() == 0) nlog = 0;
 
-		ret = call_cap(MMAN_GET, cos_spd_id(), 0, npages << 16, 0);
-		allmem[cpu][i] = ret;
-		if (!ret) {
-			printc("cpu %d, %d >>> comp %ld called mman_get cap %d, ret %x\n", cpu, i, cos_spd_id(), MMAN_GET, ret); 
-			ret = -1;
-			goto done;
-		}
+	npage_alloc = 0;
+	tot = 0;
+	for (repeat = 0; repeat < 10; repeat++) {
+		play_trace(&npage_alloc, &tot);
+//		tlb_quiescence_wait();
 	}
-	e = tsc_start();
 
-	if (i) {
-		printc("nops %d cpu %d avg cost %llu \n", NOPS, cpu, (e-s)/(i));
-		int n = i;
-		for (i = 0; i < n; i++) {
-			printc("cpu %d: %d vas %x\n", cpu, i, allmem[cpu][i]);
-		}
-
+	if (npage_alloc) {
+		printc("nops %d cpu %d avg cost %llu, got %d pages in total \n", NOPS, cpu, (tot)/(npage_alloc), npage_alloc);
 	} else
 		printc("cpu %d no ops\n", cpu);
 
+	if (cos_cpuid() == 0) {
+		unsigned long j;
+		unsigned long temp;
+
+		for (i = 0; i < nlog; i++) {
+			for (j = i + 1; j < nlog; j++) {
+				if (logs[i] < logs[j]) {
+					temp = logs[i];
+					logs[i] = logs[j];
+					logs[j] = temp;
+				}
+			}
+		}
+
+		printc("nlog %lu on core 0, SINGLE PAGE 99p (%lu) is %lu\n", nlog, nlog/100, logs[nlog/100]);
+	}
 /* #endif */
 done:
 	sync_all();

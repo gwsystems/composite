@@ -40,7 +40,8 @@ mod_ref_cnt(void *pa, const int op, const int type_check)
 	} else {
 		local_u.ref_cnt = local_u.ref_cnt - 1;
 		rdtscll(retype_entry->last_unmap);
-		cos_inst_bar();
+		cos_mem_fence();
+//		cos_inst_bar();
 	}
 	cos_mem_fence();
 
