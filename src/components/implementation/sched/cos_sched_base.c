@@ -1155,11 +1155,30 @@ static int fp_kill_thd(struct sched_thd *t)
 	return 0;
 }
 
-/* returns the @index'th thread id that is currently blocked in @target,
- * or 0 if no such thread exists. */
+/* returns the @index'th thread id in target,
+ * or 0 if no such thread exists. this only works if no threads
+ * can enter/exit the target. returning a list would be better, but
+ * how to store it? */
 int sched_get_thread_in_spd(spdid_t spdid, spdid_t target, int index)
 {
-	return 0;
+	struct sched_thd *t;
+	int cnt = 0;
+	struct sched_base_per_core *sched_base = PERCPU_GET(sched_base_state);
+
+	/* do we need to worry about child/parent schedulers? */
+
+	/* iterate blocked threads */
+	for (t = FIRST_LIST(&sched_base->blocked, prio_next, prio_prev) ; 
+	     t != &sched_base->blocked ;
+	     t = FIRST_LIST(t, prio_next, prio_prev)) {
+		if (cos_thd_cntl(COS_THD_INV_SPD, t->id, target, 0) > 0)
+			if (cnt++ == index) return t->id;
+	}
+	
+	/* do we care about event threads? */
+
+	/* check runqueue */
+	return sched_get_thread_in_spd_from_runqueue(spdid, target, index-cnt);
 }
 
 /* Create a thread without invoking the scheduler policy */

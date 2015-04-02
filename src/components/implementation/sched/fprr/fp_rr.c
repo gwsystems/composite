@@ -439,6 +439,34 @@ thread_resparams_set(struct sched_thd *t, res_spec_t rs)
 	return 0;
 }
 
+int
+sched_get_thread_in_spd_from_runqueue(spdid_t spdid, spdid_t target, int index)
+{
+	struct sched_thd *t;
+	int i, cnt = 0;
+	/* copied from runqueue_print, a better way would use a visitor */
+
+	for (i = 0 ; i < NUM_PRIOS ; i++) {
+		for (t = FIRST_LIST(&PERCPU_GET(fprr_state)->priorities[i].runnable, prio_next, prio_prev) ; 
+		     t != &PERCPU_GET(fprr_state)->priorities[i].runnable ;
+		     t = FIRST_LIST(t, prio_next, prio_prev)) {
+			/* TODO: do we care to differentiate if the thread is
+			 * currently in the spd, versus previously? */
+			if (cos_thd_cntl(COS_THD_INV_SPD, t->id, target, 0) > 0)
+				if (cnt++ == index) return t->id;
+		}
+	}
+#ifdef DEFERRABLE
+	for (t = FIRST_LIST(&PERCPU_GET(fprr_state)->servers, sched_next, sched_prev) ; 
+	     t != &PERCPU_GET(fprr_state)->servers ;
+	     t = FIRST_LIST(t, sched_next, sched_prev)) {
+		if (cos_thd_cntl(COS_THD_INV_SPD, t->id, target, 0) > 0)
+			if (cnt++ == index) return t->id;
+	}
+#endif
+	return 0;
+}
+
 void runqueue_print(void)
 {
 	struct sched_thd *t;
