@@ -1181,6 +1181,72 @@ int sched_get_thread_in_spd(spdid_t spdid, spdid_t target, int index)
 	return sched_get_thread_in_spd_from_runqueue(spdid, target, index-cnt);
 }
 
+int
+__sched_quarantine_thread_blocked(spdid_t src, spdid_t dst, struct sched_thd *t)
+{
+	/* what has to be done if a blocked thread is quarantined?
+	 * if the dep thd hasn't been quarantined, then the blk thd should
+	 * be woken? So far this is untested code.
+	 */
+	t->blocking_component = dst;
+}
+
+int
+__sched_quarantine_thread_running(spdid_t src, spdid_t dst, struct sched_thd *t)
+{
+	/* t is runnable.  */
+	int ret = -1;
+	struct sched_crit_section *cs;
+	cs = &per_core_sched[cos_cpuid()].sched_spd_crit_sections[dst];
+	if (cs->holding_thd == t) {
+		/* FIXME: what to do about held locks/cs? */
+		printc("sched_quarantine: thread %d holds the lock in %d\n", t->id, dst);
+		goto done;
+	} else if (sched_thd_dependent(t)) {
+		/* FIXME: what to do about waiting on another thread? */
+		printc("sched_quarantine: thread %d dependent on thread %d\n",
+				t->id, t->dependency_thd->id);
+		goto done;
+	} else {
+		/* simple case... right? */
+		printc("sched_quarantine: thread %d moving %d -> %d\n", t->id, src, dst);
+		if (cos_thd_cntl(COS_THD_INV_SPD, t->id, src, dst) < 0) {
+			printc("sched_quarantine: error moving %d from %d -> %d\n", t->id, src, dst);
+			goto done;
+		}
+
+	}
+	
+
+done:
+	return ret;
+
+}
+
+int sched_quarantine_thread(spdid_t spdid, spdid_t src, spdid_t dst, int tid)
+{
+	int ret = 0;
+	struct sched_thd *t;
+
+	cos_sched_lock_take();
+	t = sched_get_mapping(tid);
+	if (!t) goto done;
+
+	if (t->blocking_component == src) {
+		if (cos_thd_cntl(COS_THD_INV_SPD, t->id, src, dst) < 0) {
+			printc("sched_quarantine: error fixing inv stk for tid %d from %d -> %d\n", tid, src, dst);
+			goto done;
+		}
+		__sched_quarantine_thread_blocked(src, dst, t);
+	} else {
+		__sched_quarantine_thread_running(src, dst, t);
+	}
+
+done:
+	cos_sched_lock_release();
+	return ret;
+}
+
 /* Create a thread without invoking the scheduler policy */
 static struct sched_thd *__sched_setup_thread_no_policy(int tid)
 {

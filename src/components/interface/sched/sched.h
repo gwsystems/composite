@@ -26,6 +26,7 @@ int sched_component_take(spdid_t spdid);
 int sched_component_release(spdid_t spdid);
 
 int sched_get_thread_in_spd(spdid_t spdid, spdid_t target, int index);
+int sched_quarantine_thread(spdid_t spdid, spdid_t src, spdid_t dst, int tid);
 
 #include "cos_thd_creation.h"
 
