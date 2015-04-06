@@ -550,7 +550,16 @@ cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long arg2)
 		int i;
 
 		for (i = 0 ; (tif = thd_invstk_nth(thd, i)) ; i++) {
-			if (arg1 == spd_get_index(tif->spd)) return i;
+			if (arg1 == spd_get_index(tif->spd)) {
+				if (arg2 == 0) return i;
+				else {
+					struct spd *d = spd_get_by_index(arg2);
+					printk("cos: quarantine thread %d from %d (%x) -> %d (%x)\n", thd_get_id(thd), spd_get_index(tif->spd), tif->current_composite_spd, arg2, d->composite_spd);
+					tif->spd = d;
+					tif->current_composite_spd = d->composite_spd;
+					return i;
+				}
+			}
 		}
 		return -1;
 	}
