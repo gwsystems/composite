@@ -141,6 +141,16 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 		printk("cos: Attempted use of unallocated capability.\n");
 		return 0;
 	}
+	
+	/* Check if the spd has been forked, and the thread quarantined */
+	/* TODO:
+	if (unlikely(thd_is_quarantined_in_spd(thd, dest_spd))) {
+		printk("cos: thread %d is quarantined, keep out of %d\n",
+				thd->id, spd_get_index(dest_spd));
+	}
+	*/
+
+
 	/*
 	 * If the spd that owns this capability is part of a composite
 	 * spd that is the same as the composite spd that was the
@@ -557,6 +567,7 @@ cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long arg2)
 					printk("cos: quarantine thread %d from %d (%x) -> %d (%x)\n", thd_get_id(thd), spd_get_index(tif->spd), tif->current_composite_spd, arg2, d->composite_spd);
 					tif->spd = d;
 					tif->current_composite_spd = d->composite_spd;
+					spd_mpd_ipc_take((struct composite_spd *)d->composite_spd);
 					return i;
 				}
 			}
