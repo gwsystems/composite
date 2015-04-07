@@ -452,7 +452,7 @@ sched_get_thread_in_spd_from_runqueue(spdid_t spdid, spdid_t target, int index)
 		     t = FIRST_LIST(t, prio_next, prio_prev)) {
 			/* TODO: do we care to differentiate if the thread is
 			 * currently in the spd, versus previously? */
-			if (cos_thd_cntl(COS_THD_INV_SPD, t->id, target, 0) > 0)
+			if (cos_thd_cntl(COS_THD_INV_SPD, t->id, target, 0) >= 0)
 				if (cnt++ == index) return t->id;
 		}
 	}
@@ -460,7 +460,7 @@ sched_get_thread_in_spd_from_runqueue(spdid_t spdid, spdid_t target, int index)
 	for (t = FIRST_LIST(&PERCPU_GET(fprr_state)->servers, sched_next, sched_prev) ; 
 	     t != &PERCPU_GET(fprr_state)->servers ;
 	     t = FIRST_LIST(t, sched_next, sched_prev)) {
-		if (cos_thd_cntl(COS_THD_INV_SPD, t->id, target, 0) > 0)
+		if (cos_thd_cntl(COS_THD_INV_SPD, t->id, target, 0) >= 0)
 			if (cnt++ == index) return t->id;
 	}
 #endif

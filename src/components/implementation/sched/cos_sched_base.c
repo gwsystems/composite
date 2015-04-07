@@ -1171,7 +1171,7 @@ int sched_get_thread_in_spd(spdid_t spdid, spdid_t target, int index)
 	for (t = FIRST_LIST(&sched_base->blocked, prio_next, prio_prev) ; 
 	     t != &sched_base->blocked ;
 	     t = FIRST_LIST(t, prio_next, prio_prev)) {
-		if (cos_thd_cntl(COS_THD_INV_SPD, t->id, target, 0) > 0)
+		if (cos_thd_cntl(COS_THD_INV_SPD, t->id, target, 0) >= 0)
 			if (cnt++ == index) return t->id;
 	}
 	
@@ -1188,6 +1188,8 @@ __sched_quarantine_thread_blocked(spdid_t src, spdid_t dst, struct sched_thd *t)
 	 * if the dep thd hasn't been quarantined, then the blk thd should
 	 * be woken? So far this is untested code.
 	 */
+	printc("sched_quarantine: thread %d switch from blocking in %d -> %d\n",
+			t->id, t->blocking_component, dst);
 	t->blocking_component = dst;
 }
 
