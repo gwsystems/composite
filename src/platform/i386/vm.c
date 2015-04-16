@@ -57,12 +57,14 @@ page_fault(struct registers *regs)
 }
 
 void
-paging_init(u32_t nmods, u32_t *mods)
+paging_init(struct multiboot_mod_list *mod)
 {
 	char *cmdline;
-	u32_t cr0, i, user_stack_physical = 0;
+	u32_t cr0, i, j, user_stack_physical = 0;
 	int ptr = 0;
 	unsigned int spages = USER_STACK_SIZE / PAGE_SIZE;
+	u32_t module_address = 0;
+	unsigned int mpages;
 
 	printk("Initializing virtual memory\n");
 	register_interrupt_handler(14, page_fault);
@@ -78,50 +80,44 @@ paging_init(u32_t nmods, u32_t *mods)
 	}
 
 	/* Identity map the kernel */
-	printk("identity mapping kernel from 0x%08x to 0x%08x\n", KERNEL_BASE_PHYSICAL_ADDRESS, (u32_t)mods);
-	for (i = KERNEL_BASE_PHYSICAL_ADDRESS ; i < (u32_t)mods ; i += PAGE_SIZE * RETYPE_MEM_NPAGES) {
+	printk("Identity mapping kernel from 0x%08x to 0x%08x\n", KERNEL_BASE_PHYSICAL_ADDRESS, (u32_t)mod);
+	for (i = KERNEL_BASE_PHYSICAL_ADDRESS ; i < (u32_t)mod ; i += PAGE_SIZE * RETYPE_MEM_NPAGES) {
 		if ((ptr = retypetbl_retype2kern((void*)(i))) != 0) {
 			die("retypetbl_retype2kern(%08x) returned %d\n", i, ptr);
 		}
 	}
-	for (i = KERNEL_BASE_PHYSICAL_ADDRESS ; i < (u32_t)mods ; i += PAGE_SIZE) {
+	for (i = KERNEL_BASE_PHYSICAL_ADDRESS ; i < (u32_t)mod ; i += PAGE_SIZE) {
 		if ((ptr = pgtbl_mapping_add(pgtbl, i, i, PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_GLOBAL)) != 0) {
 			die("pgtbl_mapping_add() returned %d mapping kernel page at 0x%x\n", ptr, i);
 		}
 	}
 
 	/* Map user modules into userspace */
-	if (nmods > 0) {
-		unsigned int j = 0;
-		struct multiboot_mod_list *mod = (struct multiboot_mod_list *)mods;
-		u32_t module_address = 0;
-
-		for (i = 0 ; i < nmods ; i++) {
-			unsigned int mpages = ((mod[i].mod_end - mod[i].mod_start) / (PAGE_SIZE)) + 1;
-			cmdline = (char*)mod[i].cmdline;
-			module_address = hextol(cmdline);
-			printk("Mapping Multiboot Module %d \"%s\" [phsyical address range %x:%x] @ 0x%08x (%d pages)\n",
-				i, mod[i].cmdline, mod[i].mod_start, mod[i].mod_end, module_address, mpages);
-
-			if (cmdline[8] == '-') {
-				user_entry_point = hextol(&cmdline[9]);
-			}
-
-			for (j = 0 ; j <= mpages ; j += RETYPE_MEM_NPAGES) {
-				if ((ptr = retypetbl_retype2user((void*)(mod[i].mod_start + (j * PAGE_SIZE)))) != 0)
-					die("retypetbl_retype2user(%08x) returned %d\n", mod[i].mod_start + (j * PAGE_SIZE), ptr);
-			}
-			for (j = 0 ; j <= mpages ; j++) {
-				if ((ptr = pgtbl_mapping_add(pgtbl, module_address + (j * PAGE_SIZE), mod[i].mod_start + (j * PAGE_SIZE), PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_USER)) != 0)
-					die("pgtbl_mapping_add() returned %d mapping page %d of module %d\n", ptr, j, i);
-			}
-			if (mod[i].mod_end > user_stack_physical) {
-				user_stack_physical = mod[i].mod_end;
-			}
-		}
-		user_stack_physical = (user_stack_physical + USER_STACK_SIZE + PAGE_SIZE) & PGTBL_FRAME_MASK;
-		user_stack_address = 0x7fff0000;
+	mpages = ((mod->mod_end - mod->mod_start) / (PAGE_SIZE)) + 1;
+	cmdline = (char*)mod->cmdline;
+	module_address = hextol(cmdline);
+	printk("Mapping Multiboot Module \"%s\" [physical address range %x:%x] @ 0x%08x (%d pages)\n",
+	       mod->cmdline, mod->mod_start, mod->mod_end, module_address, mpages);
+	
+	if (cmdline[8] == '-') {
+		user_entry_point = hextol(&cmdline[9]);
 	}
+	
+	for (i = 0 ; i <= mpages ; i += RETYPE_MEM_NPAGES) {
+		if ((ptr = retypetbl_retype2user((void*)(mod->mod_start + (i * PAGE_SIZE)))) != 0) {
+			die("retypetbl_retype2user(%08x) returned %d\n", mod->mod_start + (i * PAGE_SIZE), ptr);
+		}
+	}
+	for (i = 0 ; i <= mpages ; i++) {
+		if ((ptr = pgtbl_mapping_add(pgtbl, module_address + (i * PAGE_SIZE), mod->mod_start + (i * PAGE_SIZE), PGTBL_WRITABLE | PGTBL_PRESENT | PGTBL_USER)) != 0) {
+			die("pgtbl_mapping_add() returned %d mapping page %d of module %d\n", ptr, i, i);
+		}
+	}
+	if (mod->mod_end > user_stack_physical) {
+		user_stack_physical = mod->mod_end;
+	}
+	user_stack_physical = (user_stack_physical + USER_STACK_SIZE + PAGE_SIZE) & PGTBL_FRAME_MASK;
+	user_stack_address = 0x7fff0000;
 
 	printk("Reserving a user-space stack at v:0x%08x, p:0x%08x\n", user_stack_address, user_stack_physical);
 	for (i = 0 ; i < spages ; i++) {

@@ -44,16 +44,18 @@ multiboot_validate(struct multiboot *mb, u32_t mboot_magic)
 	mems = (struct multiboot_mem_list *)mb->mmap_addr;
 
 	printk("System info (from multiboot):\n");
+	printk("\tModules:\n");
 	for (i = 0 ; i < mb->mods_count ; i++) {
 		struct multiboot_mod_list *mod = &mods[i];
 		
-		printk("\tModule %d: [%08x, %08x)\n", i, mod->mod_start, mod->mod_end);
+		printk("\t- %d: [%08x, %08x)\n", i, mod->mod_start, mod->mod_end);
 	}
+	printk("\tMemory regions:\n");
 	for (i = 0 ; i < mb->mmap_length/sizeof(struct multiboot_mem_list) ; i++) {
 		struct multiboot_mem_list *mem = &mems[i];
 		
-		printk("\tMemory region %d (%s): [%08llx, %08llx)\n", i, 
-		       mem->type == 1 ? "Avail   " : "Reserved", mem->addr, mem->addr + mem->len);
+		printk("\t- %d (%s): [%08llx, %08llx)\n", i, 
+		       mem->type == 1 ? "Available" : "Reserved ", mem->addr, mem->addr + mem->len);
 	}
 }
 
@@ -88,7 +90,10 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
        	thd_init();
        	inv_init();
 
-	paging_init(mboot->mods_count, (u32_t*)mboot->mods_addr);
+	if (mboot->mods_count != 1) {
+		die("Boot failure: expecting a single module to load, received %d instead.\n", mboot->mods_count);
+	}
+	paging_init((struct multiboot_mod_list *)mboot->mods_addr);
 
         spd_info.mem_size = (unsigned long)mboot->size;
 	ret = kern_boot_comp(&spd_info);

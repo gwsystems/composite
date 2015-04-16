@@ -3,6 +3,7 @@
 
 #include "shared/cos_types.h"
 #include "chal.h"
+#include "multiboot.h"
 
 /* Segment selectors for the GDT */
 #define SEL_NULL	0x00
@@ -48,7 +49,7 @@ void tss_init(void);
 void idt_init(void);
 void gdt_init(void);
 void user_init(void);
-void paging_init(u32_t nmods, u32_t *mods);
+void paging_init(struct multiboot_mod_list *mod);
 
 //void printk(const char *fmt, ...);
 int printk_register_handler(void (*handler)(const char *));
