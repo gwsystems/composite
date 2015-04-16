@@ -63,7 +63,6 @@ void
 kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 {
 	int bc = 0, ret;
-        struct spd_info spd_info;
 
 	tss_init();
 	gdt_init();
@@ -95,8 +94,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	}
 	paging_init((struct multiboot_mod_list *)mboot->mods_addr);
 
-        spd_info.mem_size = (unsigned long)mboot->size;
-	ret = kern_boot_comp(&spd_info);
+	ret = kern_boot_comp((unsigned long)mboot->size);
 	assert(ret == 0);
 
 	user_init();

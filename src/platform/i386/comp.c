@@ -15,7 +15,7 @@ unsigned long sys_llbooter_sz;    /* how many pages is the llbooter? */
 void *llbooter_kern_mapping;
 
 int
-kern_boot_comp(struct spd_info *spd_info)
+kern_boot_comp(unsigned long booter_sz)
 {
         int ret;
         struct captbl *ct, *ct0;
@@ -69,8 +69,8 @@ kern_boot_comp(struct spd_info *spd_info)
         if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_KM_PTE, BOOT_MEM_KM_BASE)) cos_throw(err, -8);
         if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_PHYSM_PTE, BOOT_MEM_PM_BASE)) cos_throw(err, -9);
 
-        sys_llbooter_sz = spd_info->mem_size / PAGE_SIZE;
-        if (spd_info->mem_size % PAGE_SIZE) sys_llbooter_sz++;
+        sys_llbooter_sz = booter_sz / PAGE_SIZE;
+        if (booter_sz % PAGE_SIZE) sys_llbooter_sz++;
 
         /* add the component's virtual memory at 4MB (1<<22) using "physical memory" starting at cos_kmem */
         for (i = 0 ; i < sys_llbooter_sz ; i++) {

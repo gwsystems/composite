@@ -460,11 +460,11 @@ static void pgtbl_update(pgtbl_t pt)
 #else
 	//native_write_cr3((unsigned long)pt);
 	asm volatile("mov %0, %%cr3" : : "r"(pt));
-#endif
+#endif /* UPDATE_LINUX_MM_STRUCT */
 
 #else
 	__cr3_contents = (unsigned long)pt; 
-#endif
+#endif /* LINUX_TEST */
 }
 
 /* vaddr -> kaddr */

@@ -10,4 +10,4 @@ struct spd_info {
         vaddr_t atomic_regions[10];
 };
 
-extern int kern_boot_comp(struct spd_info *);
+extern int kern_boot_comp(unsigned long booter_sz);
