@@ -265,14 +265,15 @@ again:
 	do {
 		cm = cbuf_vect_lookup_addr(id);
 		if (unlikely(!cm || CBUF_PTR(cm) == 0)) {
-			if (__cbuf_2buf_miss(id, len)) goto done;
+			printc("no cm for %d!\n", id);
+			if (__cbuf_2buf_miss(id, len)) {printc("miss\n"); goto done;}
 			goto again;
 		}
 	} while (unlikely(!cm->nfo));
 	/* shouldn't cbuf2buf your own buffer! */
 	assert(cm->cbid_tag.cbid == id);
-	if (unlikely(CBUF_OWNER(cm))) goto done;
-	if (unlikely((len >> PAGE_ORDER) > cm->sz)) goto done;
+	if (unlikely(CBUF_OWNER(cm))) {printc("owner\n"); goto done;}
+	if (unlikely((len >> PAGE_ORDER) > cm->sz)) {printc("too big\n"); goto done;}
 	assert(CBUF_REFCNT(cm) < CBUF_REFCNT_MAX);
 	CBUF_REFCNT_ATOMIC_INC(cm);
 	assert(cm->snd_rcv.nrecvd < CBUF_SENDRECV_MAX);

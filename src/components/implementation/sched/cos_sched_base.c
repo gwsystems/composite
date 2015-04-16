@@ -1178,7 +1178,30 @@ int sched_get_thread_in_spd(spdid_t spdid, spdid_t target, int index)
 	/* do we care about event threads? */
 
 	/* check runqueue */
-	return sched_get_thread_in_spd_from_runqueue(spdid, target, index-cnt);
+	t = sched_get_thread_in_spd_from_runqueue(spdid, target, index-cnt);
+	if (t) {
+		fp_pre_block(t);
+		fp_block(t, spdid);
+		return t->id;
+	}
+
+	return 0;
+}
+
+int sched_quarantine_wakeup(spdid_t spdid, int tid)
+{
+	int ret = 0;
+	struct sched_thd *t;
+
+	cos_sched_lock_take();
+	t = sched_get_mapping(tid);
+	if (!t) goto done;
+
+	fp_pre_wakeup(t);
+	fp_wakeup(t, spdid);
+done:
+	cos_sched_lock_release();
+	return ret;
 }
 
 int

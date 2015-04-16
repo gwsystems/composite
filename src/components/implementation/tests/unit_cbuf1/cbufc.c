@@ -91,10 +91,12 @@ cbufp_tests()
 	char *bufs[MAX_CBUFPS];
 	int i;
 
+	printc("spd: %d\n", cos_spd_id());
 	printc("\nUNIT TEST (CBUFP)\n");
 
 	for (i = 0 ; i < MAX_CBUFPS ; i++) {
 		cbs[i] = unit_cbufp_alloc(sz);
+		assert(cbs[i]);
 		bufs[i] = cbuf2buf(cbs[i], sz);
 		assert(bufs[i]);
 		cbuf_send_free(cbs[i]);
@@ -148,11 +150,13 @@ cbufp_tests()
 void cos_init(void)
 {
 	//spdid_t new_spd;
+	printc("Starting in spd %d\n", cos_spd_id());
 	printc("\nUNIT TEST (CBUF & CBUFP)\n");
 	cbuf_tests();
 	//new_spd = quarantine_fork(cos_spd_id(), cos_spd_id());
 	cbufp_tests();
 	printc("UNIT TEST (CBUF & CBUFP) ALL PASSED\n");
+	printc("Done in spd %d\n", cos_spd_id());
 	return;
 }
 

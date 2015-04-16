@@ -439,7 +439,7 @@ thread_resparams_set(struct sched_thd *t, res_spec_t rs)
 	return 0;
 }
 
-int
+struct sched_thd *
 sched_get_thread_in_spd_from_runqueue(spdid_t spdid, spdid_t target, int index)
 {
 	struct sched_thd *t;
@@ -453,7 +453,7 @@ sched_get_thread_in_spd_from_runqueue(spdid_t spdid, spdid_t target, int index)
 			/* TODO: do we care to differentiate if the thread is
 			 * currently in the spd, versus previously? */
 			if (cos_thd_cntl(COS_THD_INV_SPD, t->id, target, 0) >= 0)
-				if (cnt++ == index) return t->id;
+				if (cnt++ == index) return t;
 		}
 	}
 #ifdef DEFERRABLE
@@ -461,7 +461,7 @@ sched_get_thread_in_spd_from_runqueue(spdid_t spdid, spdid_t target, int index)
 	     t != &PERCPU_GET(fprr_state)->servers ;
 	     t = FIRST_LIST(t, sched_next, sched_prev)) {
 		if (cos_thd_cntl(COS_THD_INV_SPD, t->id, target, 0) >= 0)
-			if (cnt++ == index) return t->id;
+			if (cnt++ == index) return t;
 	}
 #endif
 	return 0;

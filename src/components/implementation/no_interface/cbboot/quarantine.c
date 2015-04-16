@@ -25,13 +25,14 @@ spdid_t
 quarantine_fork(spdid_t spdid, spdid_t source)
 {
 	spdid_t d_spd = 0;
-	thdid_t d_thd = 0;
+	thdid_t d_thd;
 	struct cbid_caddr *old_sect_cbufs, *new_sect_cbufs;
 	struct cobj_header *h;
 	struct cobj_sect *sect;
 	vaddr_t init_daddr;
 	long tot = 0;
 	int j, r;
+
 
 	old_sect_cbufs = cos_vect_lookup(&spd_sect_cbufs, source);
 	h = cos_vect_lookup(&spd_sect_cbufs_header, source);
@@ -127,7 +128,18 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	printl("Setting capabilities for %d\n", d_spd);
 	if (__boot_spd_caps(h, d_spd)) BUG();
 
+	/* FIXME: better way to pick threads out. this will get the first
+	 * thread, preference to blocked, then search inv stk. The
+	 * returned thread is blocked first, to avoid having it run
+	 * while quarantining. */
+	printl("Getting thread from %d\n", source);
+	d_thd = sched_get_thread_in_spd(cos_spd_id(), source, 0);
+	/* TODO: instead of blocking the thread, perhaps it can run through
+	 * the end of its current invocation? */
+
 	/* inform servers about fork */
+	/* should iterate the forked spd's deps and inform each? */
+	/* mman */
 	if (tot > SERVICE_SIZE) tot = SERVICE_SIZE + 3 * round_up_to_pgd_page(1) - tot;
 	else tot = SERVICE_SIZE - tot;
 	printl("Telling mman to fork(%d, %d, %d, %x, %d)\n", cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
@@ -135,12 +147,19 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	r = mman_fork_spd(cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
 	if (r) printc("Error (%d) in mman_fork_spd\n", r);
 
-	/* FIXME: better way to pick threads out. this will get the first
-	 * thread, preference to blocked, then search inv stk */
-	if (!d_thd) d_thd = sched_get_thread_in_spd(cos_spd_id(), source, 0);
+	/* cbuf */
+	printl("Telling cbuf to fork(%d, %d, %d)\n", cos_spd_id(), source, d_spd);
+	r = cbuf_fork_spd(cos_spd_id(), source, d_spd);
+	if (r) printc("Error (%d) in cbuf_fork_spd\n", r);
+
+
 	quarantine_migrate(cos_spd_id(), source, d_spd, d_thd);
 	//if (cos_upcall(d_spd, NULL)) printl("Upcall failed\n");
 
+	printl("Waking up thread %d\n", d_thd);
+	if (d_thd) {
+		sched_quarantine_wakeup(cos_spd_id(), d_thd);
+	}
 done:
 	printl("Forked %d -> %d\n", source, d_spd);
 	return d_spd;
