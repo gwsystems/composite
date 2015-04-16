@@ -247,6 +247,7 @@ mapping_init(struct mapping *m, spdid_t spdid, vaddr_t a, struct mapping *p, str
 	m->spdid = spdid;
 	m->addr  = a;
 	m->p     = p;
+	m->c     = NULL;
 	if (p) {
 		m->flags = p->flags;
 		if (!p->c) p->c = m;
