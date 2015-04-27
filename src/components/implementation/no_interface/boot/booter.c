@@ -208,17 +208,13 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 			left -= (prev_map + PAGE_SIZE - dest_daddr);
 			dest_daddr = prev_map + PAGE_SIZE;
 		}
-		while (left > 0) {
-			/* TODO: if use_kmem, we should allocate
-			 * kernel-accessible memory, rather than
-			 * normal user-memory */
-			if ((vaddr_t)dsrc != __local_mman_get_page(cos_spd_id(), (vaddr_t)dsrc, MAPPING_RW)) BUG();
-			if (dest_daddr != (__local_mman_alias_page(cos_spd_id(), (vaddr_t)dsrc, spdid, dest_daddr, MAPPING_RW))) BUG();
-
+		if (left > 0) {
+			left = round_up_to_page(left);
 			prev_map = dest_daddr;
-			dest_daddr += PAGE_SIZE;
-			dsrc       += PAGE_SIZE;
-			left       -= PAGE_SIZE;
+			boot_deps_map_sect(spdid, dsrc, dest_daddr, left/PAGE_SIZE, h, i);
+			prev_map += left - PAGE_SIZE;
+			dest_daddr += left;
+			dsrc += left;
 		}
 	}
 	assert(local_md[spdid].page_end == dsrc);
@@ -474,8 +470,9 @@ failure_notif_fail(spdid_t caller, spdid_t failed)
 	UNLOCK();
 }
 
+#define MAX_DEP (PAGE_SIZE/sizeof(struct deps))
 struct deps { short int client, server; };
-struct deps *deps;
+struct deps deps[MAX_DEP];
 int ndeps;
 
 int
@@ -492,7 +489,6 @@ cgraph_client(int iter)
 	return deps[iter].client;
 }
 
-#define MAX_DEP (PAGE_SIZE/sizeof(struct deps))
 int
 cgraph_add(int serv, int client)
 {
@@ -514,7 +510,7 @@ void cos_init(void)
 	h         = (struct cobj_header *)cos_comp_info.cos_poly[0];
 	num_cobj  = (int)cos_comp_info.cos_poly[1];
 
-	deps      = (struct deps *)cos_comp_info.cos_poly[2];
+	memcpy(deps, (struct deps *)cos_comp_info.cos_poly[2], PAGE_SIZE);
 	for (i = 0 ; deps[i].server ; i++) ;
 	ndeps     = i;
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
