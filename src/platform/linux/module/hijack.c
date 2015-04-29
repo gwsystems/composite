@@ -754,7 +754,6 @@ kern_boot_comp(struct spd_info *spd_info)
 	if (spd_info->mem_size % PAGE_SIZE) sys_llbooter_sz++;
 
 #ifdef KMEM_HACK
-	printk("booter needs %d pages\n", sys_llbooter_sz);
 	for (i = 0; i < sys_llbooter_sz; i++) {
 		bootkmem[i + bootkmem_used] = chal_alloc_page();
 		if (!bootkmem[i+bootkmem_used]) {
@@ -889,6 +888,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case AED_INIT_BOOT:
 	{
 		struct spd_info spd_info;
+		int i;
 
 		if (copy_from_user(&spd_info, (void*)arg, 
 				   sizeof(struct spd_info))) {
@@ -913,7 +913,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		}
 #else
-		int i;
 		for (i = 0; i < sys_llbooter_sz-1; i++) {
 			if (copy_from_user(bootkmem[i+bootkmem_used-sys_llbooter_sz], (void*)(spd_info.lowest_addr+i*PAGE_SIZE), PAGE_SIZE)) {
 				printk("cos: Error copying spd_info from user.\n");
