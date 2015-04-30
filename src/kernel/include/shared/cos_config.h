@@ -1,6 +1,34 @@
 #ifndef COS_CONFIG_H
 #define COS_CONFIG_H
 
+/***
+ * Memory information.  Included are four sections:
+ * - physical memory information (PA)
+ * - virtual memory addresses (VA)
+ * - resource table addresses to index memory resources (RTA)
+ * - the maximum number of pages of the different types of memory.
+ *   See BOOT_* in cos_types.h for this information
+ *
+ * These exist separately for kernel-accessible memory that can be
+ * typed as either kernel or user virtual memory, and
+ * kernel-inaccessible memory that can only be used as user virtual
+ * memory.
+ */
+#define COS_MEM_USER_PA (0x40000000)  /* 1 GB...memory untouched by Linux */
+/* 1 MB, note that this is not the PA of kernel-usable memory, instead
+ * it is the PA of the kernel: */ 
+#define COS_MEM_KERN_PA (0x00100000)
+
+#define COS_MEM_USER_PA_SZ (1024)
+#define KERN_MEM_ORDER     (11)
+#define COS_MEM_KERN_PA_SZ (1<<KERN_MEM_ORDER)
+
+#define COS_MEM_COMP_START_VA ((1<<30) + (1<<22)) /* 1GB + 4MB (a relic) */
+#define COS_MEM_KERN_START_VA (0)		  /* currently, we don't do kernel relocation */
+
+#define COS_MEM_USER_VA_SZ (1<<31) /* 2 GB */
+#define COS_MEM_KERN_VA_SZ (1<<24) /* 16 MB from KERN_START_VA + end of kernel image onward */
+
 #include "cpu_ghz.h"
 #define NUM_CPU                1
 
@@ -39,7 +67,7 @@
 #define NUM_CPU_COS            (NUM_CPU > 1 ? NUM_CPU - 1 : 1)
 
 /* Composite user memory uses physical memory above this. */
-#define COS_MEM_START          (0x40000000)  // 1 GB
+#define COS_MEM_START          COS_MEM_USER_PA
 
 /* NUM_CPU_SOCKETS defined in cpu_ghz.h. The information is used for
  * intelligent IPI distribution. */

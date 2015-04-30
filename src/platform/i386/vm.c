@@ -17,7 +17,7 @@ struct liveness_entry __liveness_tbl[LTBL_ENTS];
 
 pgtbl_t pgtbl;
 u32_t boot_comp_pgd[1024] __attribute__((aligned(PAGE_SIZE)));
-static u32_t pte[1024][1024] __attribute__((aligned(PAGE_SIZE)));
+u32_t pte[1024][1024] __attribute__((aligned(PAGE_SIZE)));
 
 static int
 xdtoi(char c)
@@ -60,8 +60,7 @@ page_fault(struct registers *regs)
 int
 kern_setup_image(void)
 {
-	chal_cpu_init();
-
+	chal_cpu_init();	
 	return 0;
 }
 

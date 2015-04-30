@@ -14,6 +14,7 @@
 #define CONSTS_H
 
 #include "cos_errno.h"
+#include "cos_config.h"
 
 #ifndef __ASM__
 #ifdef __KERNEL__
@@ -102,10 +103,10 @@ struct pt_regs {
 #define COS_NUM_ATOMIC_SECTIONS 10
 
 /* # of pages */
-#define COS_MAX_MEMORY    (1024)  /* # of pages. vas extents now support up to 254MB */ 
-#define COS_MEM_BOUND     (COS_MEM_START + COS_MAX_MEMORY*PAGE_SIZE) /* highest physical address */
+#define COS_MAX_MEMORY    COS_MEM_USER_PA_SZ  /* # of pages. vas extents now support up to 254MB */ 
+#define COS_MEM_BOUND     (COS_MEM_USER_PA + COS_MAX_MEMORY*PAGE_SIZE) /* highest physical address */
 #define KERN_MEM_ORDER    (11)        /* should be fine when <= 10 */
-#define COS_KERNEL_MEMORY (1 << KERN_MEM_ORDER)   /* 2^n pages kernel memory */
+#define COS_KERNEL_MEMORY COS_MEM_KERN_PA_SZ   /* 2^n pages kernel memory */
 
 /* how many pages in a collection. Should consider cacheline
  * size. Multiple of 16 on x86. */
@@ -118,7 +119,7 @@ struct pt_regs {
 
 #include "../asm_ipc_defs.h"
 
-#define KERN_BASE_ADDR 0xc0000000 //CONFIG_PAGE_OFFSET
+#define KERN_BASE_ADDR 0xc0000000 // should be COS_MEM_KERN_START_VA
 
 /* We save information on the user level stack for fast access. The
  * offsets below are used to access CPU and thread IDs. */
