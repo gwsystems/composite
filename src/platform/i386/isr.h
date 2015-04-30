@@ -58,8 +58,8 @@ extern void irq13(void);
 extern void irq14(void);
 extern void irq15(void);
 
-typedef void (*isr_t)(struct registers *);
+typedef void (*isr_fn_t)(struct registers *);
 
-void register_interrupt_handler(u16_t n, isr_t handler);
+void register_interrupt_handler(u16_t n, isr_fn_t handler);
 
 #endif /* ISR_H */

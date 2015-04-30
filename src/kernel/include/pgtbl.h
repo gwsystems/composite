@@ -19,7 +19,7 @@
 #include "chal.h"
 #endif
 
-enum {
+typedef enum {
 	PGTBL_PRESENT      = 1,
 	PGTBL_WRITABLE     = 1<<1,
 	PGTBL_USER         = 1<<2,
@@ -39,7 +39,7 @@ enum {
 	                     PGTBL_MODIFIED|PGTBL_WRITABLE,
 	PGTBL_INTERN_DEF   = PGTBL_PRESENT|PGTBL_WRITABLE|PGTBL_USER| 
 	                     PGTBL_ACCESSED|PGTBL_MODIFIED,
-};
+} pgtbl_flags_t;
 
 #define PGTBL_PAGEIDX_SHIFT (12)
 #define PGTBL_FRAME_BITS    (32 - PGTBL_PAGEIDX_SHIFT)

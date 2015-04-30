@@ -4,6 +4,7 @@
 #include "kernel.h"
 #include "string.h"
 #include "isr.h"
+#include "chal_cpu.h"
 
 #define POSSIBLE_FRAMES 1024*1024
 #define USER_STACK_SIZE PAGE_SIZE
@@ -42,18 +43,26 @@ hextol(const char *s)
 static void
 page_fault(struct registers *regs)
 {
-	u32_t fault_addr, cs, eip = 0;
+	u32_t fault_addr, errcode = 0, eip = 0;
     
-	asm volatile("mov %%cr2, %0" : "=r" (fault_addr));
-	asm volatile("mov %%cs, %0" : "=r" (cs));
+	fault_addr = chal_cpu_fault_vaddr(regs);
+	errcode    = chal_cpu_fault_errcode(regs);
 
-	die("Page Fault (%s%s%s%s) at 0x%x, eip 0x%x, cs 0x%x\n",
-		!(regs->err_code & PGTBL_PRESENT) ? "not-present " : "",
-		regs->err_code & PGTBL_WRITABLE ? "read-only " : "read-fault ",
-		regs->err_code & PGTBL_USER ? "user-mode " : "system ",
-		regs->err_code & PGTBL_WT ? "reserved " : "",
-		regs->err_code & PGTBL_NOCACHE ? "instruction-fetch " : "",
-		fault_addr, eip, cs);
+	die("Page Fault (%s%s%s%s) at 0x%x, eip 0x%x\n",
+	    errcode & PGTBL_PRESENT ? "" : "not-present ",
+	    errcode & PGTBL_WRITABLE ? "read-only " : "read-fault ",
+	    errcode & PGTBL_USER ? "user-mode " : "system ",
+	    errcode & PGTBL_WT ? "reserved " : "",
+	    errcode & PGTBL_NOCACHE ? "instruction-fetch " : "",
+	    fault_addr, eip);
+}
+
+int
+kern_setup_image(void)
+{
+	chal_cpu_init();
+
+	return 0;
 }
 
 void
@@ -61,13 +70,16 @@ paging_init(struct multiboot_mod_list *mod)
 {
 	char *cmdline;
 	u32_t cr0, i, j, user_stack_physical = 0;
-	int ptr = 0;
+	int ptr = 0, ret;
 	unsigned int spages = USER_STACK_SIZE / PAGE_SIZE;
 	u32_t module_address = 0;
 	unsigned int mpages;
 
 	printk("Initializing virtual memory\n");
 	register_interrupt_handler(14, page_fault);
+	if ((ret = kern_setup_image())) {
+		die("Could not set up kernel image, errno %d.\n", ret);
+	}
 
 	/* Allocate the Page Directory and initialize all Page Tables */
         memset(boot_comp_pgd, 0, sizeof(boot_comp_pgd));
