@@ -45,7 +45,7 @@ int unit_cbufp_unmap_at(cbuf_t cbuf, int sz, spdid_t spdid, vaddr_t buf)
 void cos_init(void)
 {
 	int ticks;
-	spdid_t new_spd, target = 14; /* unit_cbuf1 */
+	spdid_t new_spd, target = 15; /* unit_cbuf1 */
 	ticks = timed_event_block(cos_spd_id(), 2);
 
 	/* TODO: which threads? */

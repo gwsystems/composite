@@ -7,6 +7,7 @@
 #include <cbuf_mgr.h>
 
 #include <quarantine.h> /* testing */
+#include <pgfault.h>
 
 #include <unit_cbuf.h>
 #include <unit_cbufp.h>
