@@ -33,9 +33,12 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	long tot = 0;
 	int j, r;
 
+	printl("quarantine_fork(%d, %d)\n", spdid, source);
 
-	old_sect_cbufs = cos_vect_lookup(&spd_sect_cbufs, source);
-	h = cos_vect_lookup(&spd_sect_cbufs_header, source);
+	if (!(old_sect_cbufs = cos_vect_lookup(&spd_sect_cbufs, source)))
+		printl("cos_vect_lookup(%d) in spd_sec_cbufs failed\n", source);
+	if (!(h = cos_vect_lookup(&spd_sect_cbufs_header, source)))
+		printl("cos_vect_lookup(%d) in spd_sec_cbufs_header failed\n", source);
 	if (!old_sect_cbufs || !h) BUG(); //goto done;
 	
 	/* The following, copied partly from booter.c,  */
@@ -123,6 +126,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 
 	}
 
+	/* FIXME: set fault handlers and re-write caps */
 	printl("Activating %d\n", d_spd);
 	if (cos_spd_cntl(COS_SPD_ACTIVATE, d_spd, h->ncap, 0)) BUG();
 	printl("Setting capabilities for %d\n", d_spd);

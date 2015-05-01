@@ -204,6 +204,7 @@ cbuf_map(spdid_t spdid, vaddr_t daddr, void *page, int size, int flags)
 		vaddr_t d = daddr + off;
 		if (d != (mman_alias_page(cos_spd_id(), ((vaddr_t)page) + off,
 						spdid, d, flags))) {
+			printc("couldn't alias(%d, %x, %d, %x, %d)\n", cos_spd_id(), ((vaddr_t)page) + off, spdid, d, flags);
 			assert(0); /* TODO: roll back the aliases, etc... */
 		}
 	}
