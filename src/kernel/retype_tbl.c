@@ -94,7 +94,7 @@ mod_mem_type(void *pa, const mem_type_t type)
 
 	/* Kernel memory needs to be kernel accessible: pa2va returns
 	 * null if it's not. */
-	if (type == RETYPETBL_KERN && chal_pa2va(pa) == NULL) return -EINVAL;
+	if (type == RETYPETBL_KERN && chal_pa2va((paddr_t)pa) == NULL) return -EINVAL;
 
 	ret = retypetbl_cas(&(glb_retype_info->type), RETYPETBL_UNTYPED, RETYPETBL_RETYPING);
 	if (ret != CAS_SUCCESS) return -ECASFAIL;

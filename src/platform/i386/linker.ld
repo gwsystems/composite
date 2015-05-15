@@ -2,8 +2,10 @@ OUTPUT_FORMAT(elf32-i386)
 ENTRY (loader)
 phys = 0x00100000; 
 SECTIONS {
+
+    . = 0xc0100000;
     
-    .text phys : AT(phys) {
+    .text : AT(phys) {
         code = .; _code = .; __code = .;
         *(.text)
         *(.rodata)

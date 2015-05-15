@@ -79,7 +79,7 @@ __pgtbl_get(struct ert_intern *a, void *accum, int isleaf)
 	(void)isleaf;
 	/* don't use | here as we only want the pte flags */
 	*(u32_t*)accum = (((u32_t)a->next) & PGTBL_FLAG_MASK); 
-	return chal_pa2va((void*)((((u32_t)a->next) & PGTBL_FRAME_MASK))); 
+	return chal_pa2va((paddr_t)((((u32_t)a->next) & PGTBL_FRAME_MASK))); 
 }
 static int __pgtbl_isnull(struct ert_intern *a, void *accum, int isleaf) 
 { (void)isleaf; (void)accum; return !(((u32_t)(a->next)) & (PGTBL_PRESENT|PGTBL_COSFRAME)); }
@@ -479,7 +479,7 @@ extern void *memcpy(void*, const void*, unsigned long int);
 static pgtbl_t pgtbl_create(void *page, void *curr_pgtbl) {
 	pgtbl_t ret = pgtbl_alloc(page); 
 	/* Copying the kernel part of the pgd. */
-	memcpy(page + KERNEL_PGD_REGION_OFFSET, (void *)chal_pa2va(curr_pgtbl) + KERNEL_PGD_REGION_OFFSET, KERNEL_PGD_REGION_SIZE);
+	memcpy(page + KERNEL_PGD_REGION_OFFSET, (void *)chal_pa2va((paddr_t)curr_pgtbl) + KERNEL_PGD_REGION_OFFSET, KERNEL_PGD_REGION_SIZE);
 
 	return ret;
 }

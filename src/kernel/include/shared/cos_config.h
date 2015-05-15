@@ -14,17 +14,19 @@
  * kernel-inaccessible memory that can only be used as user virtual
  * memory.
  */
-#define COS_MEM_USER_PA (0x40000000)  /* 1 GB...memory untouched by Linux */
+////#define COS_MEM_USER_PA (0x40000000)  /* 1 GB...memory untouched by Linux */
+/* we already use 16 MB of kernel memory + the kernel img, thus 32MB offset for this: */
+#define COS_MEM_USER_PA (1<<25)
 /* 1 MB, note that this is not the PA of kernel-usable memory, instead
  * it is the PA of the kernel: */ 
 #define COS_MEM_KERN_PA (0x00100000)
 
-#define COS_MEM_USER_PA_SZ (1024)
-#define KERN_MEM_ORDER     (11)
-#define COS_MEM_KERN_PA_SZ (1<<KERN_MEM_ORDER)
+#define COS_MEM_USER_PA_SZ    (1<<25) /* start with 32MB of memory */
+#define COS_MEM_KERN_PA_ORDER (24)
+#define COS_MEM_KERN_PA_SZ    (1<<COS_MEM_KERN_PA_ORDER)
 
 #define COS_MEM_COMP_START_VA ((1<<30) + (1<<22)) /* 1GB + 4MB (a relic) */
-#define COS_MEM_KERN_START_VA (0)		  /* currently, we don't do kernel relocation */
+#define COS_MEM_KERN_START_VA (0xc0000000) //COS_MEM_KERN_PA     /* currently, we don't do kernel relocation */
 
 #define COS_MEM_USER_VA_SZ (1<<31) /* 2 GB */
 #define COS_MEM_KERN_VA_SZ (1<<24) /* 16 MB from KERN_START_VA + end of kernel image onward */

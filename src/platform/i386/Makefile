@@ -4,7 +4,8 @@ CC := gcc -m32
 LD := ld -m elf_i386
 AS := as --32 -g
 
-CFLAGS := -g3 -Werror -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdlib -mno-red-zone -I../../kernel/include
+INCPATH := ../../kernel/include
+CFLAGS := -g3 -Werror -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdlib -mno-red-zone -I$(INCPATH)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs 
 
 KERNEL := kernel.img
@@ -57,13 +58,14 @@ OBJS += $(COS_OBJ)
 
 all: $(KERNEL)
 
-$(KERNEL): $(DEPS) $(OBJS) loader.o
+$(KERNEL): linker.ld $(DEPS) $(OBJS) loader.o
 	$(info |     [LD]   Linking $@)
-	$(LD) -T linker.ld loader.o $(OBJS) -o $@
+	$(LD) -T linker.ld loader.o asm.o $(OBJS) -o $@
 
-loader.o: loader.s interrupt.s sysenter.s
+loader.o: loader.S interrupt.s sysenter.s
 	$(info |     [AS]   Assembling $@)
-	@$(AS) -o loader.o loader.s interrupt.s sysenter.s
+	@$(AS) -c -o asm.o interrupt.s sysenter.s
+	gcc -c -I$(INCPATH) loader.S
 
 %.d: %.c
 	@$(CC) -M -MT $(patsubst %.d, %.o, $@) $(CFLAGS) $(LDFLAGS) $< -o $@

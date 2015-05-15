@@ -24,7 +24,7 @@ pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long *
 	if (unlikely(orig_v & PGTBL_COSKMEM)) return -EEXIST; /* can't re-activate kmem frames */
 	assert(!(orig_v & PGTBL_QUIESCENCE));
 
-	*kern_addr = (unsigned long)chal_pa2va((void *)(orig_v & PGTBL_FRAME_MASK));
+	*kern_addr = (unsigned long)chal_pa2va((paddr_t)(orig_v & PGTBL_FRAME_MASK));
 	new_v = orig_v | PGTBL_COSKMEM;
 
 	/* pa2va (value in *kern_addr) will return NULL if the page is

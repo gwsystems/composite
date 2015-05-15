@@ -16,16 +16,16 @@
 .comm stack, STACKSIZE, 32
 
 .globl loader
-loader = (_loader-COS_MEM_KERN_VA_SZ)
+loader = (_loader-COS_MEM_KERN_START_VA)
 
 .globl _loader
 _loader:
-	mov $(stack + STACKSIZE), %esp
+	mov 	$(stack + STACKSIZE), %esp
 	movl	%eax, %ecx
 	movl    %cr4, %eax
-	orl     $(1<<4), %eax
+	orl     $((1<<4) | (1<<7)), %eax
 	movl    %eax, %cr4
-	movl    $(boot_comp_pgd-COS_MEM_KERN_VA_SZ), %eax
+	movl    $(boot_comp_pgd-COS_MEM_KERN_START_VA), %eax
 	movl    %eax, %cr3
 	# Turn on paging.
 	movl    %cr0, %eax

@@ -15,15 +15,19 @@ unsigned long sys_llbooter_sz;    /* how many pages is the llbooter? */
 void *llbooter_kern_mapping;
 
 int
-kern_boot_comp(unsigned long booter_sz)
+kern_boot_comp(void)
 {
-        int ret;
+        int ret = 0;
         struct captbl *ct, *ct0;
         pgtbl_t pt, pt0;
         unsigned int i;
         void *kmem_base_pa;
 	u32_t cr0;
+	unsigned long booter_sz;
 
+	printk("Setting up the booter component.\n");
+#ifdef NIL
+	booter_sz = mem_bootc_end() - mem_bootc_start();
         ct = captbl_create(boot_comp_captbl);
         assert(ct);
 
@@ -145,5 +149,6 @@ kern_boot_comp(unsigned long booter_sz)
         return 0;
 err:
         printk("Activating data-structure failed (%d).\n", ret);
+#endif
         return ret;
 }

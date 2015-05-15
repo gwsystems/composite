@@ -6,6 +6,7 @@
 #include "multiboot.h"
 #include "string.h"
 #include "comp.h"
+#include "mem_layout.h"
 
 #include <captbl.h>
 #include <retype_tbl.h>
@@ -25,12 +26,14 @@ khalt(void)
 	asm("int $0x15");
 }
 
+struct mem_layout glb_memlayout;
+
 void
-multiboot_validate(struct multiboot *mb, u32_t mboot_magic)
+memory_validate(struct multiboot *mb, u32_t mboot_magic)
 {
 	struct multiboot_mod_list *mods;
 	struct multiboot_mem_list *mems;
-	unsigned int i;
+	unsigned int i, wastage = 0;
 
 	if (mboot_magic != MULTIBOOT_EAX_MAGIC) {
 		die("Not started from a multiboot loader!\n");
@@ -43,13 +46,21 @@ multiboot_validate(struct multiboot *mb, u32_t mboot_magic)
 	mods = (struct multiboot_mod_list *)mb->mods_addr;
 	mems = (struct multiboot_mem_list *)mb->mmap_addr;
 
+	if (mb->mods_count != 1) {
+		die("Boot failure: expecting a single module to load, received %d instead.\n", mb->mods_count);
+	}
+
 	printk("System info (from multiboot):\n");
 	printk("\tModules:\n");
 	for (i = 0 ; i < mb->mods_count ; i++) {
 		struct multiboot_mod_list *mod = &mods[i];
 		
 		printk("\t- %d: [%08x, %08x)\n", i, mod->mod_start, mod->mod_end);
+		/* These values have to be higher-half addresses */
+		glb_memlayout.mod_start = chal_pa2va((paddr_t)mod->mod_start);
+		glb_memlayout.mod_end   = chal_pa2va((paddr_t)mod->mod_end);
 	}
+	glb_memlayout.kern_boot_heap = mem_boot_start();
 	printk("\tMemory regions:\n");
 	for (i = 0 ; i < mb->mmap_length/sizeof(struct multiboot_mem_list) ; i++) {
 		struct multiboot_mem_list *mem = &mems[i];
@@ -57,6 +68,17 @@ multiboot_validate(struct multiboot *mb, u32_t mboot_magic)
 		printk("\t- %d (%s): [%08llx, %08llx)\n", i, 
 		       mem->type == 1 ? "Available" : "Reserved ", mem->addr, mem->addr + mem->len);
 	}
+	/* FIXME: check memory layout vs. the multiboot memory regions... */
+
+	/* Validate the memory layout. */
+	assert(mem_kern_end() <= mem_bootc_start());
+	assert(mem_bootc_end() <= mem_boot_start());
+	assert(mem_boot_start() <= mem_kmem_start());
+	assert(mem_kmem_end() <= mem_usermem_start());
+
+	wastage += mem_boot_start() - mem_bootc_end();
+	wastage += mem_usermem_start() - mem_kmem_end();
+	printk("Amount of wasted memory due to layout is %x\n", wastage);
 }
 
 void 
@@ -79,7 +101,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 #ifdef ENABLE_TIMER
 	timer_init(100);
 #endif	    
-	multiboot_validate(mboot, mboot_magic);
+	memory_validate(mboot, mboot_magic);
 
 	cos_init_memory();
 	cap_init();
@@ -88,15 +110,12 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
        	comp_init();
        	thd_init();
        	inv_init();
+	paging_init();
 
-	if (mboot->mods_count != 1) {
-		die("Boot failure: expecting a single module to load, received %d instead.\n", mboot->mods_count);
-	}
-	paging_init((struct multiboot_mod_list *)mboot->mods_addr);
-
-	ret = kern_boot_comp((unsigned long)mboot->size);
+	ret = kern_boot_comp();
 	assert(ret == 0);
 
+	die("to the next step!!!\n");
 	user_init();
 	khalt(); 
 }

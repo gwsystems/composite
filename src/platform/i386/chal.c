@@ -7,20 +7,20 @@ char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 extern void *cos_kmem, *cos_kmem_base;
 
 void *
-chal_pa2va(void *address)
+chal_pa2va(paddr_t address)
 {
-        return address;
+        return (void*)(address+COS_MEM_KERN_START_VA);
 }
 
-void *
+paddr_t
 chal_va2pa(void *address)
 {
-        return address;
+        return (paddr_t)(address-COS_MEM_KERN_START_VA);
 }
 
 void *chal_alloc_kern_mem(int order)
 {
-        cos_kmem_base = cos_kmem = (void*)KERNEL_BASE_PHYSICAL_ADDRESS;
+        cos_kmem_base = cos_kmem = (void*)COS_MEM_KERN_PA;
 	return (void*)cos_kmem;
 }
 

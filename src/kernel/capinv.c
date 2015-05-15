@@ -150,7 +150,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap,
 		void *page = deact_cap->captbl;
 		u32_t l = deact_cap->refcnt_flags;
 
-		if ((void *)chal_pa2va((void *)pa) != page) cos_throw(err, -EINVAL);
+		if (chal_pa2va((paddr_t)pa) != page) cos_throw(err, -EINVAL);
 
 		/* Require freeze memory and wait for quiescence
 		 * first! */
@@ -194,7 +194,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap,
 		void *page = deact_cap->pgtbl;
 		u32_t l = deact_cap->refcnt_flags;
 
-		if ((void *)chal_pa2va((void *)pa) != page) cos_throw(err, -EINVAL);
+		if (chal_pa2va((paddr_t)pa) != page) cos_throw(err, -EINVAL);
 
 		/* Require freeze memory and wait for quiescence
 		 * first! */
@@ -240,7 +240,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap,
 		 * scanned before deactivation. */
 		struct cap_thd *tc = (struct cap_thd *)ch;
 
-		if ((void *)chal_pa2va((void *)pa) != (void *)(tc->t)) cos_throw(err, -EINVAL);
+		if (chal_pa2va((paddr_t)pa) != (void *)(tc->t)) cos_throw(err, -EINVAL);
 
 		assert(ch->type == CAP_THD);
 	}
@@ -271,7 +271,7 @@ kmem_deact_post(unsigned long *pte, unsigned long old_v)
 		cos_throw(err, ret);
 	}
 	/* zero out the page to avoid info leaking. */
-	memset(chal_pa2va((void *)(old_v & PGTBL_FRAME_MASK)), 0, PAGE_SIZE);
+	memset(chal_pa2va((paddr_t)(old_v & PGTBL_FRAME_MASK)), 0, PAGE_SIZE);
 
 	return 0;
 err:

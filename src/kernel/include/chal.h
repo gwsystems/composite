@@ -74,8 +74,8 @@ int chal_pgtbl_add_middledir_range(paddr_t pt, unsigned long vaddr, long size);
  * Address translation functions *
  *********************************/
 
-void *chal_va2pa(void *va);
-void *chal_pa2va(void *pa);
+paddr_t chal_va2pa(void *va);
+void *chal_pa2va(paddr_t pa);
 
 /************************************
  * Page allocation and deallocation *

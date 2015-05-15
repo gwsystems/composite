@@ -5,14 +5,20 @@
 #include "isr.h"
 
 typedef enum {
-	CR4_TSD    = 1<<1, 	/* time stamp (rdtsc) access at user-level disabled */
-	CR4_PSE    = 1<<3, 	/* page size extensions (superpages) */
-	CR4_PGE    = 1<<6, 	/* page global bit enabled */
-	CR4_PCE    = 1<<7, 	/* user-level access to performance counters enabled (rdpmc) */
-	CR4_OSFXSR = 1<<8, 	/* floating point enabled */
-	CR4_SMEP   = 1<<19, 	/* Supervisor Mode Execution Protection Enable */
-	CR4_SMAP   = 1<<20	/* Supervisor Mode Access Protection Enable */
+	CR4_TSD    = 1<<2, 	/* time stamp (rdtsc) access at user-level disabled */
+	CR4_PSE    = 1<<4, 	/* page size extensions (superpages) */
+	CR4_PGE    = 1<<7, 	/* page global bit enabled */
+	CR4_PCE    = 1<<8, 	/* user-level access to performance counters enabled (rdpmc) */
+	CR4_OSFXSR = 1<<9, 	/* floating point enabled */
+	CR4_SMEP   = 1<<20, 	/* Supervisor Mode Execution Protection Enable */
+	CR4_SMAP   = 1<<21	/* Supervisor Mode Access Protection Enable */
 } cr4_flags_t;
+
+enum {
+	CR0_PG    = 1<<31, 	/* enable paging */
+	CR0_FPEMU = 1<<2,	/* disable floating point, enable emulation */
+	CR0_PRMOD = 1<<0	/* in protected-mode (vs real-mode) */
+};
 
 static inline u32_t
 chal_cpu_cr4_get(void)
@@ -31,9 +37,22 @@ chal_cpu_cr4_set(cr4_flags_t flags)
 }
 
 static void
+chal_cpu_paging_activate(pgtbl_t pgtbl)
+{
+//	unsigned long cr0;
+
+	pgtbl_update(pgtbl);
+	/* asm volatile("mov %%cr0, %0" : "=r"(cr0)); */
+	/* cr0 |= CR0_PG; */
+	/* printk("cr0 = %x\n", cr0); */
+	/* asm volatile("mov %0, %%cr0" : : "r"(cr0)); */
+}
+
+static void
 chal_cpu_init(void)
 {
-	chal_cpu_cr4_set(CR4_PSE | CR4_PGE | CR4_PCE);
+	u32_t cr4 = chal_cpu_cr4_get();
+	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);
 }
 
 static inline vaddr_t

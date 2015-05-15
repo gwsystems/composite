@@ -1,6 +1,7 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
+#include "shared/cos_config.h"
 #include "shared/cos_types.h"
 #include "chal.h"
 #include "multiboot.h"
@@ -13,8 +14,6 @@
 #define SEL_UDSEG       0x23    /* User data selector. */
 #define SEL_TSS         0x28    /* Task-state segment. */
 #define SEL_CNT         6       /* Number of segments. */
-
-#define KERNEL_BASE_PHYSICAL_ADDRESS	0x00100000
 
 /* A not so nice way of oopsing */
 #define die(fmt, ...) do {              \
@@ -49,7 +48,7 @@ void tss_init(void);
 void idt_init(void);
 void gdt_init(void);
 void user_init(void);
-void paging_init(struct multiboot_mod_list *mod);
+void paging_init(void);
 
 //void printk(const char *fmt, ...);
 int printk_register_handler(void (*handler)(const char *));

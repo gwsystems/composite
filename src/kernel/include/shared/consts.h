@@ -103,10 +103,12 @@ struct pt_regs {
 #define COS_NUM_ATOMIC_SECTIONS 10
 
 /* # of pages */
-#define COS_MAX_MEMORY    COS_MEM_USER_PA_SZ  /* # of pages. vas extents now support up to 254MB */ 
+#define COS_MAX_MEMORY    (COS_MEM_USER_PA_SZ/PAGE_SIZE)  /* # of pages. vas extents now support up to 254MB */ 
 #define COS_MEM_BOUND     (COS_MEM_USER_PA + COS_MAX_MEMORY*PAGE_SIZE) /* highest physical address */
-#define KERN_MEM_ORDER    (11)        /* should be fine when <= 10 */
-#define COS_KERNEL_MEMORY COS_MEM_KERN_PA_SZ   /* 2^n pages kernel memory */
+
+/* These are deprecated, use the macros they reference */
+#define KERN_MEM_ORDER    (COS_MEM_KERN_PA_ORDER-PAGE_ORDER)		     
+#define COS_KERNEL_MEMORY (COS_MEM_KERN_PA_SZ/PAGE_SIZE)   /* 2^n pages kernel memory */
 
 /* how many pages in a collection. Should consider cacheline
  * size. Multiple of 16 on x86. */
