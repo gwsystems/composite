@@ -19,7 +19,7 @@
  */
 
 struct mem_layout {
-	void *mod_start, *mod_end, *kern_boot_heap;
+	void *mod_start, *mod_end, *kern_boot_heap, *boot_entry, *boot_vaddr;
 };
 extern struct mem_layout glb_memlayout;
 extern void *end; 		/* from the linker script */
@@ -28,6 +28,8 @@ static inline void *mem_kern_start(void)  { return (void*)(COS_MEM_KERN_START_VA
 static inline void *mem_kern_end(void)    { return end; }
 static inline void *mem_bootc_start(void) { return glb_memlayout.mod_start; }
 static inline void *mem_bootc_end(void)   { return glb_memlayout.mod_end; }
+static inline void *mem_bootc_entry(void) { return glb_memlayout.boot_entry; }
+static inline void *mem_bootc_vaddr(void) { return glb_memlayout.boot_vaddr; }
 static inline void *mem_boot_start(void)  { return (void*)round_up_to_pow2(mem_bootc_end(), RETYPE_MEM_NPAGES * PAGE_SIZE); }
 static inline void *mem_boot_end(void)    { return glb_memlayout.kern_boot_heap; }
 static inline void *mem_kmem_start(void)  { return mem_boot_start(); }

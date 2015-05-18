@@ -15,18 +15,28 @@
 #include <inv.h>
 #include <mmap.h>
 
-void
-khalt(void)
+struct mem_layout glb_memlayout;
+
+static int
+xdtoi(char c)
 {
-	printk("Shutting down...\n");
-	asm("mov $0x53,%ah");
-	asm("mov $0x07,%al");
-	asm("mov $0x001,%bx");
-	asm("mov $0x03,%cx");
-	asm("int $0x15");
+	if ('0' <= c && c <= '9') return c - '0';
+	if ('a' <= c && c <= 'f') return c - 'a' + 10;
+	if ('A' <= c && c <= 'F') return c - 'A' + 10;
+	return 0;
 }
 
-struct mem_layout glb_memlayout;
+static u32_t
+hextol(const char *s)
+{
+	int i, r = 0;
+
+	for (i = 0 ; i < 8 ; i++) {
+		r = (r * 0x10) + xdtoi(s[i]);
+	}
+
+	return r;
+}
 
 void
 memory_validate(struct multiboot *mb, u32_t mboot_magic)
@@ -55,10 +65,16 @@ memory_validate(struct multiboot *mb, u32_t mboot_magic)
 	for (i = 0 ; i < mb->mods_count ; i++) {
 		struct multiboot_mod_list *mod = &mods[i];
 		
-		printk("\t- %d: [%08x, %08x)\n", i, mod->mod_start, mod->mod_end);
+		printk("\t- %d: [%08x, %08x)", i, mod->mod_start, mod->mod_end);
 		/* These values have to be higher-half addresses */
 		glb_memlayout.mod_start = chal_pa2va((paddr_t)mod->mod_start);
 		glb_memlayout.mod_end   = chal_pa2va((paddr_t)mod->mod_end);
+
+		glb_memlayout.boot_vaddr = (void*)hextol((char*)mod->cmdline);
+		assert(((char*)mod->cmdline)[8] == '-');
+		glb_memlayout.boot_entry = (void*)hextol(&(((char*)mod->cmdline)[9]));
+		printk(" @ virtual address %p, _start = %p.\n", 
+		       glb_memlayout.boot_vaddr, glb_memlayout.boot_entry);
 	}
 	glb_memlayout.kern_boot_heap = mem_boot_start();
 	printk("\tMemory regions:\n");
@@ -71,14 +87,17 @@ memory_validate(struct multiboot *mb, u32_t mboot_magic)
 	/* FIXME: check memory layout vs. the multiboot memory regions... */
 
 	/* Validate the memory layout. */
-	assert(mem_kern_end() <= mem_bootc_start());
-	assert(mem_bootc_end() <= mem_boot_start());
+	assert(mem_kern_end()   <= mem_bootc_start());
+	assert(mem_bootc_end()  <= mem_boot_start());
 	assert(mem_boot_start() <= mem_kmem_start());
-	assert(mem_kmem_end() <= mem_usermem_start());
+	assert(mem_kmem_end()   <= mem_usermem_start());
+	assert(mem_bootc_entry() - mem_bootc_vaddr() <= mem_bootc_end() - mem_bootc_start());
 
 	wastage += mem_boot_start() - mem_bootc_end();
 	wastage += mem_usermem_start() - mem_kmem_end();
-	printk("Amount of wasted memory due to layout is %x\n", wastage);
+
+	printk("\tAmount of wasted memory due to layout is %u MB + 0x%x B\n", 
+	       wastage>>20, wastage & ((1<<20)-1));
 }
 
 void 
@@ -118,4 +137,15 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	die("to the next step!!!\n");
 	user_init();
 	khalt(); 
+}
+
+void
+khalt(void)
+{
+	printk("Shutting down...\n");
+	asm("mov $0x53,%ah");
+	asm("mov $0x07,%al");
+	asm("mov $0x001,%bx");
+	asm("mov $0x03,%cx");
+	asm("int $0x15");
 }
