@@ -20,6 +20,23 @@ done:
 	return 0;
 }
 
+/* Increment all of the (non fault handler) caps fork.cnt */
+static int
+quarantine_spd_caps(struct cobj_header *h, spdid_t spdid)
+{
+	struct cobj_cap *cap;
+	unsigned int i;
+	for (i = 0 ; i < h->ncap ; i++) {
+		cap = cobj_cap_get(h, i);
+		if (cobj_cap_undef(cap)) break;
+		/* ignore fault handlers */
+		if (cap->fault_num < COS_FLT_MAX) continue;
+		if (cos_cap_cntl(COS_CAP_INC_FORK_CNT, spdid, cap->cap_off, 1)) BUG();
+	}
+	return 0;
+}
+
+
 /* quarantine if */
 spdid_t
 quarantine_fork(spdid_t spdid, spdid_t source)
@@ -32,6 +49,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	vaddr_t init_daddr;
 	long tot = 0;
 	int j, r;
+	int generation;
 
 	printl("quarantine_fork(%d, %d)\n", spdid, source);
 
@@ -131,6 +149,15 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	if (cos_spd_cntl(COS_SPD_ACTIVATE, d_spd, h->ncap, 0)) BUG();
 	printl("Setting capabilities for %d\n", d_spd);
 	if (__boot_spd_caps(h, d_spd)) BUG();
+
+	/* Increment the fork.cnt in source's struct spd, and in all
+	 * of the invocation_caps for source and d_spd.
+	 * FIXME: This is naive and should be changed to use some kind of
+	 * monotonic 'fork generation' number so that different forked
+	 * versions of spds can be compared system-wide. */
+	cos_spd_cntl(COS_SPD_INC_FORK_CNT, source, 1, 0);
+	if (quarantine_spd_caps(h, source)) BUG();
+	if (quarantine_spd_caps(h, d_spd)) BUG();
 
 	/* FIXME: better way to pick threads out. this will get the first
 	 * thread, preference to blocked, then search inv stk. The

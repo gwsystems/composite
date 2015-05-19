@@ -97,6 +97,36 @@ struct inv_ret_struct {
 };
 
 
+static inline int
+quarantine_route_to_fork(struct thread *thd, struct invocation_cap *cap_entry, struct spd *dest_spd)
+{
+	/* naive check */
+	return cap_entry->fork.cnt < dest_spd->fork.cnt;
+}
+
+static inline int
+quarantine_route_from_fork(struct thread *thd, struct invocation_cap *cap_entry, struct spd *dest_spd)
+{
+	/* naive check */
+	return cap_entry->fork.cnt > dest_spd->fork.cnt;
+}
+
+int 
+fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num);
+/* flags == 0 means ipc receiver has been forked, otherwise ipc sender. */
+static vaddr_t
+thd_quarantine_fault_notif(struct thread *thd, struct spd *fault_spd, struct spd *orig_spd, int flags)
+{
+	int o_spd, fault_num, ret;
+	o_spd = spd_get_index(orig_spd);
+	fault_num = COS_FLT_FLT_NOTIF; /* FIXME: use a custom fault num? */
+
+	printk("cos: invoking fault for forked spd %d as a %s\n", o_spd, flags ? "server (C->O)" : "client (O/F->S)");
+	ret = fault_ipc_invoke(thd, (vaddr_t)o_spd, flags, &thd->regs, fault_num);
+
+	return ret;
+}
+
 /* 
  * FIXME: 1) should probably return the static capability to allow
  * isolation level isolation access from caller, 2) all return 0
@@ -141,15 +171,6 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 		printk("cos: Attempted use of unallocated capability.\n");
 		return 0;
 	}
-	
-	/* Check if the spd has been forked, and the thread quarantined */
-	/* TODO:
-	if (unlikely(thd_is_quarantined_in_spd(thd, dest_spd))) {
-		printk("cos: thread %d is quarantined, keep out of %d\n",
-				thd->id, spd_get_index(dest_spd));
-	}
-	*/
-
 
 	/*
 	 * If the spd that owns this capability is part of a composite
@@ -174,6 +195,14 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 		 */
 		return 0;
 	}
+
+	/* Check if ipc receive-end has been forked */
+	if (unlikely(quarantine_route_to_fork(thd, cap_entry, dest_spd))) {
+		printk("cos: thread %d is quarantined going into %d\n",
+				thd->thread_id, spd_get_index(dest_spd));
+		return thd_quarantine_fault_notif(thd, curr_spd, dest_spd, 0);
+	}
+
 	/* now we are committing to the invocation */
 	cos_meas_event(COS_MEAS_INVOCATIONS);
 
@@ -190,6 +219,13 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	/* add a new stack frame for the spd we are invoking (we're committed) */
 	thd_invocation_push(thd, cap_entry->destination, sp, ip);
 	cap_entry->invocation_cnt++;
+
+	/* Check if ipc sender-end has been forked */
+	if (unlikely(quarantine_route_from_fork(thd, cap_entry, dest_spd))) {
+		printk("cos: thread %d is quarantined coming from %d\n",
+				thd->thread_id, spd_get_index(curr_spd));
+		return thd_quarantine_fault_notif(thd, dest_spd, curr_spd, 1);
+	}
 
 	return cap_entry->dest_entry_instruction;
 }
@@ -564,7 +600,7 @@ cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long arg2)
 				if (arg2 == 0) return i;
 				else {
 					struct spd *d = spd_get_by_index(arg2);
-					printk("cos: quarantine thread %d from %d (%x) -> %d (%x)\n", thd_get_id(thd), spd_get_index(tif->spd), tif->current_composite_spd, arg2, d->composite_spd);
+					printk("cos: quarantine thread %d from %d (%p) -> %ld (%p)\n", thd_get_id(thd), spd_get_index(tif->spd), tif->current_composite_spd, arg2, d->composite_spd);
 					tif->spd = d;
 					tif->current_composite_spd = d->composite_spd;
 					spd_mpd_ipc_take((struct composite_spd *)d->composite_spd);
@@ -3002,6 +3038,11 @@ cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
 	case COS_CAP_GET_SPD_NCAPS:
 		ret = cspd->ncaps;
 		break;
+	case COS_CAP_INC_FORK_CNT:
+		ret = spd_cap_get_fork_cnt(cspd, capid);
+		if ( ret < 0 ) break;
+		if (spd_cap_set_fork_cnt(cspd, capid, ret + arg2)) ret = -1;
+		break;
 	default:
 		ret = -1;
 		break;
@@ -3169,6 +3210,10 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 
 		break;
 	}
+	case COS_SPD_INC_FORK_CNT:
+		ret = spd_get_fork_cnt(spd);
+		if (spd_set_fork_cnt(spd, ret + arg1)) ret = -1;
+		break;
 	default:
 		ret = -1;
 	}

@@ -455,6 +455,16 @@ struct spd *spd_get_by_index(int idx)
 	return &spds[idx];
 }
 
+int spd_set_fork_cnt(struct spd *spd, int n)
+{
+	spd->fork.cnt = n;
+	return 0;
+}
+int spd_get_fork_cnt(struct spd *spd)
+{
+	return (int)spd->fork.cnt;
+}
+
 /* 
  * Static Capability Manipulation Functions
  */
@@ -514,6 +524,21 @@ int spd_cap_set_sfn(struct spd *spd, int cap, vaddr_t fn)
 	if (!c) return -1;
 	c->usr_stub_info.ST_serv_entry = fn;
 	return 0;
+}
+int spd_cap_set_fork_cnt(struct spd *spd, int cap, int n)
+{
+	struct invocation_cap *c = spd_get_cap(spd, cap);
+	
+	if (!c) return -1;
+	c->fork.cnt = n;
+	return 0;
+}
+int spd_cap_get_fork_cnt(struct spd *spd, int cap)
+{
+	struct invocation_cap *c = spd_get_cap(spd, cap);
+	
+	if (!c) return -1;
+	return (int)c->fork.cnt;
 }
 
 
