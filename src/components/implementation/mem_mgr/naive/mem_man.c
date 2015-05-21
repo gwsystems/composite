@@ -87,13 +87,20 @@ frame_alloc(void)
 }
 
 static inline void 
+frame_free(struct frame *f)
+{
+	assert(f->nmaps == 0);
+	f->c.free = freelist;
+	freelist  = f;
+}
+
+static inline void 
 frame_deref(struct frame *f)
 { 
 	assert(f->nmaps > 0);
 	f->nmaps--; 
 	if (f->nmaps == 0) {
-		f->c.free = freelist;
-		freelist  = f;
+		frame_free(f);
 	}
 }
 
@@ -390,7 +397,7 @@ vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 {
 	struct frame *f;
 	struct mapping *m = NULL;
-	vaddr_t ret = -1;
+	vaddr_t ret = 0;
 	
 	LOCK();
 	f = frame_alloc();
@@ -407,7 +414,7 @@ done:
 	UNLOCK();
 	return ret;
 dealloc:
-	frame_deref(f);
+	frame_free(f);
 	goto done;		/* -EINVAL */
 }
 

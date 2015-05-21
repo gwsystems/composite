@@ -102,10 +102,10 @@ err_free1:
 
 int valloc_alloc_at(spdid_t spdid, spdid_t dest, void *addr, unsigned long npages)
 {
-	int ret = -1;
+	int ret = -1, i = 0;
 	struct spd_vas_tracker *trac;
 	struct spd_vas_occupied *occ;
-	unsigned long off;
+	unsigned long off, ext_size;
 
 	LOCK();
 	trac = cos_vect_lookup(&spd_vect, dest);
@@ -119,7 +119,6 @@ int valloc_alloc_at(spdid_t spdid, spdid_t dest, void *addr, unsigned long npage
 		goto done;
 	}
 
-	int i = 0;
 	while (trac->extents[i].map) {
 		if (addr < trac->extents[i].start || addr > trac->extents[i].end) {
 			if (++i == MAX_SPD_VAS_LOCATIONS) goto done;
@@ -132,9 +131,8 @@ int valloc_alloc_at(spdid_t spdid, spdid_t dest, void *addr, unsigned long npage
 		ret = bitmap_extent_set_at(&occ->pgd_occupied[0], off, npages, MAP_MAX);
 		goto done;
 	}
-	unsigned long ext_size;
-	if (npages > EXTENT_SIZE) ext_size = npages * PAGE_SIZE;
-	else ext_size = (trac->extents[0].end - trac->extents[0].start);
+
+	ext_size = round_up_to_pgd_page(npages * PAGE_SIZE);
 	trac->extents[i].map = alloc_page();
 	occ = trac->extents[i].map;
 	assert(occ);
@@ -157,7 +155,8 @@ void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
 	void *ret = NULL;
 	struct spd_vas_tracker *trac;
 	struct spd_vas_occupied *occ;
-	long off;
+	unsigned long ext_size;
+	long off, i = 0;
 
 	LOCK();
 
@@ -172,7 +171,6 @@ void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
 		goto done;
 	}
 
-	int i = 0;
 	while (trac->extents[i].map) {
 		occ = trac->extents[i].map;
 		off = bitmap_extent_find_set(&occ->pgd_occupied[0], 0, npages, MAP_MAX);
@@ -182,11 +180,9 @@ void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
 		}
 		ret = (void *)((char *)trac->extents[i].start + off * PAGE_SIZE);
 		goto done;
-	}
-	
-	unsigned long ext_size;
-	if (npages > EXTENT_SIZE) ext_size = npages; /* Does this work? */
-	else ext_size = (trac->extents[0].end - trac->extents[0].start) / PAGE_SIZE;
+	}	
+
+	ext_size = round_up_to_pow2(npages, PGD_SIZE/PAGE_SIZE);
 	trac->extents[i].map = alloc_page();
 	occ = trac->extents[i].map;
 	assert(occ);
