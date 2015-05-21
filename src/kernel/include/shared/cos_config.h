@@ -24,6 +24,7 @@
 
 #define FPU_ENABLED
 #define FPU_SUPPORT_FXSR       1   /* >0 : CPU supports FXSR. */
+#define FPU_SUPPORT_SSE        1   /* >0 : CPU supports SSE. */
 
 /* Currently Linux runs on the last CPU only. The code includes the
  * following macro assumes this. We might need to assign more cores

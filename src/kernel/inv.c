@@ -908,7 +908,7 @@ cos_syscall_switch_thread_cont(int spd_id, unsigned short int rthd_id,
 	break_preemption_chain(curr);
 
 	switch_thread_context(curr, thd);
-        fpu_save(thd);
+        fpu_switch(thd);
 	if (thd->flags & THD_STATE_PREEMPTED) {
 		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
 		remove_preempted_status(thd);

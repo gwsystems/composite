@@ -3,10 +3,9 @@
 
 #include "thread.h"
 
-#define ENABLE            1
-#define DISABLE           0
 #define FPU_DISABLED_MASK 0x8
 #define FXSR              (1<<24)
+#define HAVE_SSE          (1<<25)
 
 PERCPU_DECL(int, fpu_disabled);
 PERCPU_EXTERN(fpu_disabled);
@@ -14,11 +13,16 @@ PERCPU_EXTERN(fpu_disabled);
 PERCPU_DECL(struct thread *, fpu_last_used);
 PERCPU_EXTERN(fpu_last_used);
 
+enum {
+	FPU_DISABLE = 0,
+	FPU_ENABLE  = 1
+};
+
 /* fucntions called outside */
 static inline int fpu_init(void);
 static inline int fpu_disabled_exception_handler(void);
 static inline void fpu_thread_init(struct thread *thd);
-static inline int fpu_save(struct thread *next);
+static inline int fpu_switch(struct thread *next);
 
 /* packed functions for FPU operation */
 static inline void fpu_enable(void);
@@ -33,19 +37,22 @@ static inline unsigned long fpu_read_cr0(void);
 static inline void fpu_set(int);
 static inline int fpu_get_info(void);
 static inline int fpu_check_fxsr(void);
+static inline int fpu_check_sse(void);
 
 #ifdef FPU_ENABLED
 static inline int
 fpu_get_info(void)
 {
-        int cpu_info;
+        static int cpu_info = 0;
 
-        asm volatile("mov $1, %%eax\n\t"
-                     "cpuid\n\t"
-                     "movl %%edx, %0"
-                     : "=m" (cpu_info) 
-		     : 
-		     : "eax", "ebx", "ecx", "edx");
+	if (unlikely(cpu_info == 0)) {
+		asm volatile("mov $1, %%eax\n\t"
+			     "cpuid\n\t"
+			     "movl %%edx, %0"
+			     : "=m" (cpu_info) 
+			     : 
+			     : "eax", "ebx", "ecx", "edx");
+	} 
 
 	/* printk("cpu %d cpuid_edx %x\n", get_cpuid(), cpu_info); */
 
@@ -66,9 +73,22 @@ fpu_check_fxsr(void)
 }
 
 static inline int
+fpu_check_sse(void)
+{
+        int cpu_info;
+        int sse_status;
+	
+	cpu_info = fpu_get_info();
+	/* sse is the 26th bit (start from bit 1) in EDX. So FXSR is 1<<25. */
+        sse_status = ((cpu_info & HAVE_SSE) != 0) ? 1 : 0 ;
+        return sse_status;
+}
+
+static inline int
 fpu_init(void)
 {
 	int fxsr = fpu_check_fxsr();
+	int fsse = fpu_check_sse();
 
 #if FPU_SUPPORT_FXSR > 0
 	if (fxsr == 0) {
@@ -77,7 +97,14 @@ fpu_init(void)
 	}
 #endif
 
-        fpu_set(DISABLE);
+#if FPU_SUPPORT_SSE > 0
+	if (fsse == 0) {
+		printk("Core %d: FPU doesn't support sse. Check FPU_SUPPORT_SSE in cos_config.\n", get_cpuid());
+		return -1;
+	}
+#endif
+
+        fpu_set(FPU_DISABLE);
 	*PERCPU_GET(fpu_disabled) = 1;
 	*PERCPU_GET(fpu_last_used) = NULL;
 
@@ -96,7 +123,7 @@ fpu_disabled_exception_handler(void)
         assert(fpu_is_disabled());
 
         curr_thd->fpu.status = 1;
-        fpu_save(curr_thd);
+        fpu_switch(curr_thd);
 
         return 1;
 }
@@ -104,14 +131,16 @@ fpu_disabled_exception_handler(void)
 static inline void
 fpu_thread_init(struct thread *thd)
 {
-        thd->fpu.status = 0;
-        thd->fpu.saved_fpu = 0;
-
+	memset(&thd->fpu, 0, sizeof(struct cos_fpu));
+	thd->fpu.cwd = 0x37f;
+#if FPU_SUPPORT_SSE > 0
+	thd->fpu.mxcsr = 0x1f80;
+#endif
         return;
 }
 
 static inline int
-fpu_save(struct thread *next)
+fpu_switch(struct thread *next)
 {
 	struct thread **last_used = PERCPU_GET(fpu_last_used);
         /* if next thread doesn't use fpu, then we just disable the fpu */
@@ -120,34 +149,29 @@ fpu_save(struct thread *next)
                 return 0;
         }
 
+        fpu_enable();
         /*
          * next thread uses fpu
          * if no thread used fpu before, then we set next thread as the fpu_last_used
          */
-        if (unlikely(*last_used == NULL)) {
-                fpu_enable();
-		*last_used = next;
-                return 0;
-        }
+        if (unlikely(*last_used == NULL)) goto store;
 
         /*
          * next thread uses fpu
          * fpu_last_used exists
          * if fpu_last_used == next, then we simply re-enable the fpu for the thread
          */
-        if (*last_used == next) {
-                fpu_enable();
-                return 0;
-        }
+        if (*last_used == next) return 0;
 
         /*
          * next thread uses fpu
          * fpu_last_used exists
          * if fpu_last_used != next, then we save current fpu states to fpu_last_used, restore next thread's fpu state
          */
-        fpu_enable();
+
         fxsave(*last_used);
-        if (next->fpu.saved_fpu) fxrstor(next);
+store:
+        fxrstor(next);
 	*last_used = next;
 
         return 0;
@@ -158,7 +182,7 @@ fpu_enable(void)
 {
         if (!fpu_is_disabled()) return;
 
-	fpu_set(ENABLE);
+	fpu_set(FPU_ENABLE);
 	*PERCPU_GET(fpu_disabled) = 0;
 
         return;
@@ -169,7 +193,7 @@ fpu_disable(void)
 {
         if (fpu_is_disabled()) return;
 
-        fpu_set(DISABLE);
+        fpu_set(FPU_DISABLE);
 	*PERCPU_GET(fpu_disabled) = 1;
 
         return;
@@ -219,8 +243,6 @@ fxsave(struct thread *thd)
 #else
 	asm volatile("fsave %0" : "=m" (thd->fpu));
 #endif
-        thd->fpu.saved_fpu = 1;
-
         return;
 }
 
@@ -239,7 +261,7 @@ fxrstor(struct thread *thd)
 static inline int fpu_init(void) { return 0;}
 static inline int fpu_disabled_exception_handler(void) { return 1; }
 static inline void fpu_thread_init(struct thread *thd) { return; }
-static inline int fpu_save(struct thread *next) { return 0; }
+static inline int fpu_switch(struct thread *next) { return 0; }
 static inline void fpu_enable(void) { return; }
 static inline void fpu_disable(void) { return; }
 static inline int fpu_is_disabled(void){ return 1; }
@@ -250,6 +272,7 @@ static inline unsigned long fpu_read_cr0(void) { return 0; };
 static inline void fpu_set(int status) { return; }
 static inline int fpu_get_info(void) { return 0; }
 static inline int fpu_check_fxsr(void) { return 0; }
+static inline int fpu_check_sse(void) { return 0; }
 #endif
 
 #endif
