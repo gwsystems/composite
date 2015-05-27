@@ -289,6 +289,15 @@ The code relevant to fault handling is in:
   loader observes these handler names, and creates the capabilities to
   them, while placing the capability number in the exception's entry
   in the `spd`'s `fault_handler` array.
+- Fault handling is processed through `src/kernel/inv.c:fault_ipc_invoke`
+  which looks up and invokes the capability for the fault handler.
+
+A useful example of a fault handler is the page fault handler implemented in
+`src/components/implementation/pgfault/recov_poc/pgfault.c`, which attempts
+to recover a page fault by resetting the faulted component with its initial
+boot state. The handler manipulates the invocation stack to set the return
+instruction pointer so that the client component that invoked the faulted
+component will retry the component invocation.
 
 Future Changes
 --------------
