@@ -188,7 +188,7 @@ void *valloc_alloc(spdid_t spdid, spdid_t dest, unsigned long npages)
 	assert(occ);
 	trac->extents[i].start = (void*)vas_mgr_expand(spdid, dest, ext_size);
 	trac->extents[i].end = (void *)(trac->extents[i].start + ext_size);
-	bitmap_set_contig(&occ->pgd_occupied[0], 0, ext_siz / PAGE_SIZE, 1);
+	bitmap_set_contig(&occ->pgd_occupied[0], 0, ext_size / PAGE_SIZE, 1);
 	bitmap_set_contig(&occ->pgd_occupied[0], 0, npages, 0);
 	ret = trac->extents[i].start;
 done:
