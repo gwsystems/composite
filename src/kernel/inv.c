@@ -96,6 +96,12 @@ struct inv_ret_struct {
 	int spd_id;
 };
 
+/* TODO: may want to include thd->fork.cnt */
+static inline int
+quarantine_route_needed(struct thread *thd, struct invocation_cap *cap_entry, struct spd *dest_spd)
+{
+	return cap_entry->fork.cnt != dest_spd->fork.cnt;
+}
 
 static inline int
 quarantine_route_to_fork(struct thread *thd, struct invocation_cap *cap_entry, struct spd *dest_spd)
@@ -115,16 +121,22 @@ int
 fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num);
 /* flags == 0 means ipc receiver has been forked, otherwise ipc sender. */
 static vaddr_t
-thd_quarantine_fault_notif(struct thread *thd, struct spd *fault_spd, struct spd *orig_spd, int flags)
+thd_quarantine_fault_notif(struct thread *thd, struct spd *fault_spd, struct spd *orig_spd)
 {
 	int o_spd, fault_num, ret;
 	o_spd = spd_get_index(orig_spd);
 	fault_num = COS_FLT_FLT_NOTIF; /* FIXME: use a custom fault num? */
 
-	printk("cos: invoking fault for forked spd %d as a %s\n", o_spd, flags ? "server (C->O)" : "client (O/F->S)");
-	ret = fault_ipc_invoke(thd, (vaddr_t)o_spd, flags, &thd->regs, fault_num);
+	printk("cos: invoking fault for forked spd %d as a server (C->O)\n", o_spd);
+	ret = fault_ipc_invoke(thd, NULL, o_spd, &thd->regs, fault_num);
 
 	return ret;
+}
+
+static vaddr_t
+thd_quarantine_upcall(struct thread *thd, struct spd *d_spd, struct spd *s_spd)
+{
+
 }
 
 /* 
@@ -196,13 +208,6 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 		return 0;
 	}
 
-	/* Check if ipc receive-end has been forked */
-	if (unlikely(quarantine_route_to_fork(thd, cap_entry, dest_spd))) {
-		printk("cos: thread %d is quarantined going into %d\n",
-				thd->thread_id, spd_get_index(dest_spd));
-		return thd_quarantine_fault_notif(thd, curr_spd, dest_spd, 0);
-	}
-
 	/* now we are committing to the invocation */
 	cos_meas_event(COS_MEAS_INVOCATIONS);
 
@@ -220,11 +225,20 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	thd_invocation_push(thd, cap_entry->destination, sp, ip);
 	cap_entry->invocation_cnt++;
 
-	/* Check if ipc sender-end has been forked */
-	if (unlikely(quarantine_route_from_fork(thd, cap_entry, dest_spd))) {
-		printk("cos: thread %d is quarantined coming from %d\n",
+	/* Check for routing needed due to forking */
+	if (unlikely(quarantine_route_needed(thd, cap_entry, dest_spd))) {
+		if (quarantine_route_to_fork(thd, cap_entry, dest_spd)) {
+			/* fork is on the receive-end */
+			printk("cos: thread %d is quarantined going into %d\n",
+				thd->thread_id, spd_get_index(dest_spd));
+			return thd_quarantine_fault_notif(thd, curr_spd, dest_spd);
+		} else if (quarantine_route_from_fork(thd, cap_entry, dest_spd)) {
+		/* fork is on the send-end */
+			printk("cos: thread %d is quarantined coming from %d\n",
 				thd->thread_id, spd_get_index(curr_spd));
-		return thd_quarantine_fault_notif(thd, dest_spd, curr_spd, 1);
+			return thd_quarantine_upcall(thd, dest_spd, curr_spd);
+		}
+		printk("cos: quarantine route needed, but not sure which way!\n");
 	}
 
 	return cap_entry->dest_entry_instruction;
