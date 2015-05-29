@@ -520,6 +520,7 @@ typedef enum {
 	COS_FLT_LINUX,
 	COS_FLT_SAVE_REGS,
 	COS_FLT_FLT_NOTIF,
+	COS_FLT_QUARANTINE,
 	COS_FLT_MAX
 } cos_flt_off; /* <- this indexes into cos_flt_handlers in the loader */
 

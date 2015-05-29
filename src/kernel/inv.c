@@ -121,22 +121,12 @@ int
 fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num);
 /* flags == 0 means ipc receiver has been forked, otherwise ipc sender. */
 static vaddr_t
-thd_quarantine_fault_notif(struct thread *thd, struct spd *fault_spd, struct spd *orig_spd)
+thd_quarantine_fault(struct thread *thd, struct spd *fault_spd, struct spd *original_spd, int fault_num)
 {
-	int o_spd, fault_num, ret;
-	o_spd = spd_get_index(orig_spd);
-	fault_num = COS_FLT_FLT_NOTIF; /* FIXME: use a custom fault num? */
-
-	printk("cos: invoking fault for forked spd %d as a server (C->O)\n", o_spd);
-	ret = fault_ipc_invoke(thd, NULL, o_spd, &thd->regs, fault_num);
-
-	return ret;
-}
-
-static vaddr_t
-thd_quarantine_upcall(struct thread *thd, struct spd *d_spd, struct spd *s_spd)
-{
-
+	int o_spd, f_spd;
+	o_spd = spd_get_index(original_spd);
+	f_spd = spd_get_index(fault_spd);
+	return fault_ipc_invoke(thd, NULL, (o_spd<<16)|f_spd, &thd->regs, fault_num);
 }
 
 /* 
@@ -231,12 +221,12 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 			/* fork is on the receive-end */
 			printk("cos: thread %d is quarantined going into %d\n",
 				thd->thread_id, spd_get_index(dest_spd));
-			return thd_quarantine_fault_notif(thd, curr_spd, dest_spd);
+			return thd_quarantine_fault(thd, curr_spd, dest_spd, COS_FLT_QUARANTINE);
 		} else if (quarantine_route_from_fork(thd, cap_entry, dest_spd)) {
 		/* fork is on the send-end */
 			printk("cos: thread %d is quarantined coming from %d\n",
 				thd->thread_id, spd_get_index(curr_spd));
-			return thd_quarantine_upcall(thd, dest_spd, curr_spd);
+			return thd_quarantine_fault(thd, dest_spd, curr_spd, COS_FLT_FLT_NOTIF);
 		}
 		printk("cos: quarantine route needed, but not sure which way!\n");
 	}
