@@ -17,11 +17,13 @@
 ////#define COS_MEM_USER_PA (0x40000000)  /* 1 GB...memory untouched by Linux */
 /* we already use 16 MB of kernel memory + the kernel img, thus 32MB offset for this: */
 #define COS_MEM_USER_PA (1<<25)
-/* 1 MB, note that this is not the PA of kernel-usable memory, instead
- * it is the PA of the kernel: */ 
-#define COS_MEM_KERN_PA (0x00100000)
-
 #define COS_MEM_USER_PA_SZ    (1<<25) /* start with 32MB of memory */
+/* 
+ * 1 MB, note that this is not the PA of kernel-usable memory, instead
+ * it is the PA of the kernel.  If you change this, update the kernel
+ * linker script (.ld) as well.
+ */ 
+#define COS_MEM_KERN_PA (0x00100000)
 #define COS_MEM_KERN_PA_ORDER (24)
 #define COS_MEM_KERN_PA_SZ    (1<<COS_MEM_KERN_PA_ORDER)
 
@@ -30,6 +32,10 @@
 
 #define COS_MEM_USER_VA_SZ (1<<31) /* 2 GB */
 #define COS_MEM_KERN_VA_SZ (1<<24) /* 16 MB from KERN_START_VA + end of kernel image onward */
+
+#define BOOT_CAPTBL_NPAGES 1
+
+#define BOOT_COMP_MAX_SZ   (1<<24) /* 16 MB for the booter component */
 
 #include "cpu_ghz.h"
 #define NUM_CPU                1
@@ -51,7 +57,7 @@
 //#define LINUX_ON_IDLE          1 // should Linux be activated on Composite idle
 
 /* 
- * Should Composite run as highest priority?  Should NOT be set if
+ * Should Composite run as highest priority?  Absolutely should be set if
  * using networking (cnet). 
  */
 #define LINUX_HIGHEST_PRIORITY 1

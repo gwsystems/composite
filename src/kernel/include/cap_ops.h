@@ -125,7 +125,7 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 		u32_t flags = 0, old_pte, new_pte, old_v, refcnt_flags;
 
 		intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, depth);
-		if (!intern)                return -ENOENT;
+		if (!intern)                  return -ENOENT;
 		old_pte = *intern;
 		if (pgtbl_ispresent(old_pte)) return -EPERM;
 
@@ -140,7 +140,6 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 		new_pte = (u32_t)chal_va2pa((void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK)) | PGTBL_INTERN_DEF;
 
 		ret = cos_cas(intern, old_pte, new_pte);
-
 		if (ret != CAS_SUCCESS) {
 			/* decrement to restore the refcnt on failure. */
 			cos_faa((int *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), -1);

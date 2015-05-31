@@ -675,8 +675,9 @@ boot_create_cap_system(void)
 		pgtbl_cap   = alloc_capid(CAP_PGTBL);
 		pte_cap     = alloc_capid(CAP_PGTBL);
 
-		for (kmem_id = 0; kmem_id < COMP_N_KMEM; kmem_id++)
+		for (kmem_id = 0; kmem_id < COMP_N_KMEM; kmem_id++) {
 			comp_cap_info[spdid].kmem[kmem_id] = get_kmem_cap();
+		}
 
 		kmem_id = 0;
 		/* Captbl */

@@ -1,4 +1,4 @@
- /**
+/**
  * Hijack, or Asymmetric Execution Domains support for Linux
  *
  * Copyright 2007 by Boston University.
@@ -712,8 +712,9 @@ kern_boot_comp(struct spd_info *spd_info)
 
 	/* Round to the next memory retype region. Adjust based on
 	 * offset from cos_kmem_base*/
-	if ((cos_kmem - cos_kmem_base) % RETYPE_MEM_SIZE != 0)
+	if ((cos_kmem - cos_kmem_base) % RETYPE_MEM_SIZE != 0) {
 		cos_kmem += (RETYPE_MEM_SIZE - (cos_kmem - cos_kmem_base) % RETYPE_MEM_SIZE);
+	}
 
 	/* add the remaining kernel memory @ 1.5GB*/
 	/* printk("mapping from kmem %x\n", cos_kmem); */

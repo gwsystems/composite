@@ -29,14 +29,13 @@ mod_ref_cnt(void *pa, const int op, const int type_check)
 	assert(idx < N_MEM_SETS);
 
 	retype_entry = GET_RETYPE_ENTRY(idx);
-	
 	old_v = local_u.v = retype_entry->refcnt_atom.v;
 	/* only allow to ref user or kernel typed memory set */
 	if (unlikely((local_u.type != RETYPETBL_USER) && (local_u.type != RETYPETBL_KERN))) return -EPERM;
+
 	/* Do type check if type passed in. */
 	if (type_check >= 0 && type_check != local_u.type) return -EPERM;
 	if (local_u.ref_cnt == RETYPE_REFCNT_MAX) return -EOVERFLOW;
-
 	if (op) {
 		local_u.ref_cnt = local_u.ref_cnt + 1;
 	} else {
@@ -79,7 +78,7 @@ mod_mem_type(void *pa, const mem_type_t type)
 
 	assert(pa); 	/* cannot be NULL: kernel image takes that space */
 	PA_BOUNDARY_CHECK();
-
+	
 	idx = GET_MEM_IDX(pa);
 	assert(idx < N_MEM_SETS);
 

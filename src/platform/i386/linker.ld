@@ -1,30 +1,37 @@
+/* 
+ * TODO: integrate into the build system to avoid redefining the
+ * constants using "gcc -P -E ldscript.c -o ldscript.ld" 
+ */
+
 OUTPUT_FORMAT(elf32-i386)
 ENTRY (loader)
-phys = 0x00100000; 
+phys = 0x00100000;  		/* This should be COS_MEM_KERN_PA */
 SECTIONS {
 
-    . = 0xc0100000;
+    . = 0xc0100000;		/* This should be COS_MEM_KERN_START_VA + COS_MEM_KERN_PA */
     
     .text : AT(phys) {
-        code = .; _code = .; __code = .;
+        code = .;
         *(.text)
         *(.rodata)
+        . = ALIGN(4096);
+        *(__ipc_entry)
         . = ALIGN(4096);
     }
 
     .data : AT(phys + (data - code)) {
-        data = .; _data = .; __data = .;
+        data = .;
         *(.data)
         . = ALIGN(4096);
     }
 
     .bss : AT(phys + (bss - code)) {
-        bss = .; _bss = .; __bss = .;
+        bss = .;
         *(.bss)
-        . = ALIGN(4096);
     }
 
-    end = .; _end = .; __end = .;
+    . = ALIGN(4096); 	/* This should be RETYPE_MEM_SIZE, boot component follows... */
+    end = .;		/* Unfortunately, this variable will take up the whole page. */
 
     /DISCARD/ : {
         *(.comment)

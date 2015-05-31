@@ -3,6 +3,7 @@
 
 #include <pgtbl.h>
 #include "isr.h"
+#include "tss.h"
 
 typedef enum {
 	CR4_TSD    = 1<<2, 	/* time stamp (rdtsc) access at user-level disabled */
@@ -48,11 +49,26 @@ chal_cpu_paging_activate(pgtbl_t pgtbl)
 	/* asm volatile("mov %0, %%cr0" : : "r"(cr0)); */
 }
 
+#define IA32_SYSENTER_CS 0x174
+#define IA32_SYSENTER_ESP 0x175
+#define IA32_SYSENTER_EIP 0x176
+
+extern void sysenter_interposition_entry(void);
+
+static inline void
+writemsr(u32_t reg, u32_t low, u32_t high)
+{
+	__asm__("wrmsr" : : "c"(reg), "a"(low), "d"(high));
+}
+
 static void
 chal_cpu_init(void)
 {
 	u32_t cr4 = chal_cpu_cr4_get();
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);
+	writemsr(IA32_SYSENTER_CS, SEL_KCSEG, 0);
+	writemsr(IA32_SYSENTER_ESP, (u32_t)tss.esp0, 0);
+	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_interposition_entry, 0);	
 }
 
 static inline vaddr_t
@@ -66,5 +82,11 @@ chal_cpu_fault_vaddr(struct registers *r)
 /* FIXME: I doubt these flags are really the same as the PGTBL_* macros */
 static inline u32_t
 chal_cpu_fault_errcode(struct registers *r) { return r->err_code; }
+
+static inline void
+chal_user_upcall(void *ip)
+{
+	__asm__("sti ; sysexit" : : "c"(0), "d"(ip));
+}
 
 #endif /* CHAL_CPU_H */

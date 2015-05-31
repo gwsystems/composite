@@ -238,6 +238,7 @@ __ert_lookup(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *
 		if (unlikely(isnullfn(n, accum, 0))) return NULL;
 		n = __ert_walk(n, id, accum, depth-i, ERT_CONST_ARGS);
 	}
+
 	if (i == depth && 
 	    unlikely(!resolvefn(n, accum, 1, last_order, last_sz))) return NULL;
 	if (i < depth  && 

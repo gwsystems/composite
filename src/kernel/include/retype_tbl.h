@@ -13,6 +13,7 @@
 #include "shared/cos_config.h"
 #include "shared/util.h"
 #include "cpuid.h"
+#include "chal.h"
 
 typedef enum {
 	RETYPETBL_UNTYPED  = 0, /* untyped physical frames. */
@@ -71,16 +72,15 @@ struct retype_info_glb {
 
 extern struct retype_info_glb glb_retype_tbl[N_MEM_SETS];
 
-extern paddr_t kmem_start_pa;
-#define COS_KMEM_BOUND (kmem_start_pa + PAGE_SIZE * COS_KERNEL_MEMORY)
+#define COS_KMEM_BOUND (chal_kernel_mem_pa + PAGE_SIZE * COS_KERNEL_MEMORY)
 
 /* physical address boundary check */
 #define PA_BOUNDARY_CHECK() do { if (unlikely(!(((u32_t)pa >= COS_MEM_START) && ((u32_t)pa < COS_MEM_BOUND)) && \
-					      !(((u32_t)pa >= kmem_start_pa) && ((u32_t)pa < COS_KMEM_BOUND)))) return -EINVAL; } while (0)
+					      !(((u32_t)pa >= chal_kernel_mem_pa) && ((u32_t)pa < COS_KMEM_BOUND)))) return -EINVAL; } while (0)
 
 /* get the index of the memory set. */
 #define GET_MEM_IDX(pa) (((u32_t)pa >= COS_MEM_START) ? (((u32_t)(pa) - COS_MEM_START) / RETYPE_MEM_SIZE) \
-			 : (((u32_t)(pa) - kmem_start_pa) / RETYPE_MEM_SIZE + N_USER_MEM_SETS))
+			 : (((u32_t)(pa) - chal_kernel_mem_pa) / RETYPE_MEM_SIZE + N_USER_MEM_SETS))
 /* get the memory set struct of the current cpu */
 #define GET_RETYPE_ENTRY(idx) ((&(retype_tbl[get_cpuid()].mem_set[idx])))
 /* get the global memory set struct (used for retyping only). */

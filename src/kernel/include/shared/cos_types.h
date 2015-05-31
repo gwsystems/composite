@@ -15,7 +15,7 @@
 #define TYPES_H
 
 #include "./consts.h"
-
+#include "./cos_config.h"
 #include "../debug.h"
 
 #ifndef COS_BASE_TYPES
@@ -153,7 +153,6 @@ static inline unsigned long captbl_idsize(cap_t c)
  * 1.5GB-> = kernel memory
  * 2GB-> = system physical memory
  */
-#define BOOT_CAPTBL_NPAGES 5
 enum {
 	BOOT_CAPTBL_SRET       = 0, 
 	BOOT_CAPTBL_SELF_CT    = 4,
@@ -167,7 +166,7 @@ enum {
 	BOOT_CAPTBL_COMP0_PT          = 20,  
 	BOOT_CAPTBL_COMP0_COMP        = 24, 
 	BOOT_CAPTBL_SELF_INITTHD_BASE = 28,
-	BOOT_CAPTBL_LAST_CAP          = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS*CAP32B_IDSZ,
+	BOOT_CAPTBL_LAST_CAP          = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE              = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };

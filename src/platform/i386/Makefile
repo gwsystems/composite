@@ -47,7 +47,7 @@ OBJS += comp.o
 COS_OBJ += pgtbl.o 
 COS_OBJ += retype_tbl.o
 COS_OBJ += liveness_tbl.o
-COS_OBJ += mmap.o
+#COS_OBJ += mmap.o
 COS_OBJ += capinv.o
 COS_OBJ += measurement.o
 COS_OBJ += captbl.o
@@ -79,10 +79,6 @@ retype_tbl.o: ../../kernel/retype_tbl.c
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 liveness_tbl.o: ../../kernel/liveness_tbl.c
-	$(info |     [CC]   Compiling $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
-
-mmap.o: ../../kernel/mmap.c
 	$(info |     [CC]   Compiling $@)
 	@$(CC) $(CFLAGS) -c $< -o $@
 

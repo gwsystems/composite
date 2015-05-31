@@ -6,41 +6,14 @@
 #include "chal_cpu.h"
 #include "mem_layout.h"
 
-#define POSSIBLE_FRAMES 1024*1024
-#define USER_STACK_SIZE PAGE_SIZE
+struct tlb_quiescence tlb_quiescence[NUM_CPU]   CACHE_ALIGNED;
+struct liveness_entry __liveness_tbl[LTBL_ENTS] CACHE_ALIGNED;
 
-u32_t user_entry_point;
-u32_t user_stack_address;
-
-struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
-struct liveness_entry __liveness_tbl[LTBL_ENTS];
 #define KERN_INIT_PGD_IDX (COS_MEM_KERN_START_VA>>PGD_SHIFT)
 u32_t boot_comp_pgd[PAGE_SIZE/sizeof(u32_t)] PAGE_ALIGNED = {
 	[0]                 = 0 | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER,
 	[KERN_INIT_PGD_IDX] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER
 };
-pgtbl_t pgtbl;
-
-static int
-xdtoi(char c)
-{
-	if ('0' <= c && c <= '9') return c - '0';
-	if ('a' <= c && c <= 'f') return c - 'a' + 10;
-	if ('A' <= c && c <= 'F') return c - 'A' + 10;
-	return 0;
-}
-
-static u32_t
-hextol(const char *s)
-{
-	int i, r = 0;
-
-	for (i = 0 ; i < 8 ; i++) {
-		r = (r * 0x10) + xdtoi(s[i]);
-	}
-
-	return r;
-}
 
 static void
 page_fault(struct registers *regs)
@@ -50,27 +23,55 @@ page_fault(struct registers *regs)
 	fault_addr = chal_cpu_fault_vaddr(regs);
 	errcode    = chal_cpu_fault_errcode(regs);
 
-	die("Page Fault (%s%s%s%s%s) at 0x%x, eip 0x%x\n",
-	    errcode & PGTBL_PRESENT ? "" : "not-present ",
-	    errcode & PGTBL_WRITABLE ? "read-only " : "read-fault ",
-	    errcode & PGTBL_USER ? "user-mode " : "system ",
-	    errcode & PGTBL_WT ? "reserved " : "",
-	    errcode & PGTBL_NOCACHE ? "instruction-fetch " : "",
-	    fault_addr, eip);
+	die("Page Fault (%s %s %s %s %s) at 0x%x, eip 0x%x\n",
+	    errcode & PGTBL_PRESENT  ? "present"           : "not-present",
+	    errcode & PGTBL_WRITABLE ? "write-fault"      : "read-fault",
+	    errcode & PGTBL_USER     ? "user-mode"         : "system",
+	    errcode & PGTBL_WT       ? "reserved"          : "",
+	    errcode & PGTBL_NOCACHE  ? "instruction-fetch" : "", fault_addr, eip);
+}
+
+void
+kern_retype_initial(void)
+{
+	u8_t *k;
+
+	assert(mem_bootc_start() % RETYPE_MEM_NPAGES == 0);
+	assert(mem_bootc_end()   % RETYPE_MEM_NPAGES == 0);
+	for (k = mem_bootc_start() ; k < mem_bootc_end() ; k += PAGE_SIZE * RETYPE_MEM_NPAGES) {
+		if (retypetbl_retype2user((void*)(chal_va2pa(k)))) assert(0);
+	}
+}
+
+u8_t *
+mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
+{
+	u8_t *r = glb_memlayout.kern_boot_heap;
+	unsigned long i;
+
+	glb_memlayout.kern_boot_heap += npages * (PAGE_SIZE/sizeof(u8_t));
+	assert(glb_memlayout.kern_boot_heap <= mem_kmem_end());
+	for (i = (unsigned long)r ; i < (unsigned long)glb_memlayout.kern_boot_heap ; i += PAGE_SIZE) {
+		if ((unsigned long)i % RETYPE_MEM_NPAGES == 0) {
+			if (retypetbl_retype2kern((void*)chal_va2pa((void*)i))) {
+				die("Retyping to kernel on boot-time heap allocation failed @ 0x%x.\n", i);
+			}
+		}
+	}
+	return r; 
 }
 
 int
 kern_setup_image(void)
 {
-	unsigned long i, j, ptr;
-	void *k;
+	unsigned long i, j;
 	paddr_t kern_pa_start, kern_pa_end;
 
 	printk("\tSetting up initial page directory.\n");
-	pgtbl         = (pgtbl_t)chal_va2pa(boot_comp_pgd);
 	kern_pa_start = round_to_pgd_page(chal_va2pa(mem_kern_start())); /* likely 0 */
 	kern_pa_end   = chal_va2pa(mem_kmem_end());
 
+	/* ASSUMPTION: The static layout of boot_comp_pgd is identical to a pgd post-pgtbl_alloc */
 	/* FIXME: should use pgtbl_extend instead of directly accessing the pgd array... */
 	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA/PGD_RANGE ; 
 	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end) ;
@@ -81,15 +82,12 @@ kern_setup_image(void)
 		//printk("\t\tpgd @ %p -> physical address %p.\n", j*PGD_RANGE, i);
 	}
 	boot_comp_pgd[0] = 0; 	/* no need for the identity mapping anymore */
-	for (k = mem_kern_start() ; k < mem_kern_end() ; k += PAGE_SIZE * RETYPE_MEM_NPAGES) {
-		if ((ptr = retypetbl_retype2kern((void*)(chal_va2pa(k)))) != 0) {
-			die("retypetbl_retype2kern(%08x) returned %d\n", k, ptr);
-		}
-	}
 
 	chal_cpu_init();
-	chal_cpu_paging_activate(pgtbl); 
+	chal_cpu_paging_activate((pgtbl_t)chal_va2pa(boot_comp_pgd)); 
 	printk("\tInitial page directory initialized.\n");
+
+	kern_retype_initial();
 
 	return 0;
 }
@@ -97,12 +95,7 @@ kern_setup_image(void)
 void
 paging_init(void)
 {
-	char *cmdline;
-	u32_t cr0, i, j, user_stack_physical = 0;
-	int ptr = 0, ret;
-	unsigned int spages = USER_STACK_SIZE / PAGE_SIZE;
-	u32_t module_address = 0;
-	unsigned int mpages;
+	int ret;
 
 	printk("Initializing virtual memory\n");
 	register_interrupt_handler(14, page_fault);

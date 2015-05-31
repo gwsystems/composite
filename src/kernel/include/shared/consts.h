@@ -110,8 +110,11 @@ struct pt_regs {
 #define KERN_MEM_ORDER    (COS_MEM_KERN_PA_ORDER-PAGE_ORDER)		     
 #define COS_KERNEL_MEMORY (COS_MEM_KERN_PA_SZ/PAGE_SIZE)   /* 2^n pages kernel memory */
 
-/* how many pages in a collection. Should consider cacheline
- * size. Multiple of 16 on x86. */
+/* 
+ * how many pages in a collection. Should consider cacheline
+ * size. Multiple of 16 on x86.  If you change, this, make sure to
+ * update the linker script as well.
+ */
 #ifdef COS_LINUX
 #define RETYPE_MEM_NPAGES        (32)
 #else

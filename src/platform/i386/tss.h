@@ -5,7 +5,7 @@
 #include "shared/cos_types.h"
 
 struct tss
-  {
+{
     u16_t back_link, :16;
     void *esp0;                         /* Ring 0 stack virtual address. */
     u16_t ss0, :16;                  /* Ring 0 stack segment selector. */
@@ -26,7 +26,7 @@ struct tss
     u16_t gs, :16;
     u16_t ldt, :16;
     u16_t trace, bitmap;
-  };
+};
 
 extern struct tss tss;
 

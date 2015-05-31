@@ -76,6 +76,7 @@ int chal_pgtbl_add_middledir_range(paddr_t pt, unsigned long vaddr, long size);
 
 paddr_t chal_va2pa(void *va);
 void *chal_pa2va(paddr_t pa);
+extern paddr_t chal_kernel_mem_pa;
 
 /************************************
  * Page allocation and deallocation *
@@ -102,6 +103,8 @@ void chal_send_ipi(int cpuid);
 
 /* static const struct cos_trans_fns *trans_fns = NULL; */
 void chal_idle(void);
+
+void chal_init(void);
 
 /* int cos_syscall_idle(void); */
 /* int cos_syscall_switch_thread(void); */
