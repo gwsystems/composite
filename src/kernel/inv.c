@@ -341,10 +341,9 @@ cos_syscall_ainv_send(int spdid, int capability)
 }
 
 /* return 1 if the fault is handled by a component */
-int 
-fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num)
+static int 
+__fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num, struct spd *s)
 {
-	struct spd *s = NULL;
 	struct thd_invocation_frame *curr_frame;
 	struct inv_ret_struct r;
 	vaddr_t a;
@@ -394,6 +393,12 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 	regs->dx = regs->ip = a;
 
 	return 1;
+}
+
+int 
+fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num)
+{
+	return __fault_ipc_invoke(thd, fault_addr, flags, regs, fault_num, NULL);
 }
 
 /********** Composite system calls **********/
