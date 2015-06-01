@@ -117,18 +117,6 @@ quarantine_route_from_fork(struct thread *thd, struct invocation_cap *cap_entry,
 	return cap_entry->fork.cnt > dest_spd->fork.cnt;
 }
 
-int 
-fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num);
-/* flags == 0 means ipc receiver has been forked, otherwise ipc sender. */
-static vaddr_t
-thd_quarantine_fault(struct thread *thd, struct spd *fault_spd, struct spd *original_spd, int fault_num)
-{
-	int o_spd, f_spd;
-	o_spd = spd_get_index(original_spd);
-	f_spd = spd_get_index(fault_spd);
-	return fault_ipc_invoke(thd, NULL, (o_spd<<16)|f_spd, &thd->regs, fault_num);
-}
-
 /* 
  * FIXME: 1) should probably return the static capability to allow
  * isolation level isolation access from caller, 2) all return 0
@@ -399,6 +387,16 @@ int
 fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num)
 {
 	return __fault_ipc_invoke(thd, fault_addr, flags, regs, fault_num, NULL);
+}
+
+/* flags == 0 means ipc receiver has been forked, otherwise ipc sender. */
+static vaddr_t
+thd_quarantine_fault(struct thread *thd, struct spd *fault_spd, struct spd *original_spd, int fault_num)
+{
+	int o_spd, f_spd;
+	o_spd = spd_get_index(original_spd);
+	f_spd = spd_get_index(fault_spd);
+	return fault_ipc_invoke(thd, NULL, (o_spd<<16)|f_spd, &thd->regs, fault_num);
 }
 
 /********** Composite system calls **********/
