@@ -396,7 +396,8 @@ thd_quarantine_fault(struct thread *thd, struct spd *fault_spd, struct spd *orig
 	int o_spd, f_spd;
 	o_spd = spd_get_index(original_spd);
 	f_spd = spd_get_index(fault_spd);
-	return fault_ipc_invoke(thd, NULL, (o_spd<<16)|f_spd, &thd->regs, fault_num);
+	if (unlikely(!fault_ipc_invoke(thd, NULL, (o_spd<<16)|f_spd, &thd->regs, fault_num))) return (vaddr_t)NULL;
+	return thd->regs.ip;
 }
 
 /********** Composite system calls **********/
