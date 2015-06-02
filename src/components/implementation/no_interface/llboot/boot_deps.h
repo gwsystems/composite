@@ -132,7 +132,7 @@ llboot_thd_done(void)
 			comp_boot_nfo[s].initialized = 1;
 			
 			/* printc("core %ld: booter init_thd upcalling into spdid %d.\n", cos_cpuid(), (unsigned int)s); */
-			cos_upcall(s, 0); /* initialize the component! */
+			cos_upcall(COS_UPCALL_THD_CREATE, s, 0); /* initialize the component! */
 			BUG();
 		}
 		/* Done initializing; reboot!  If we are here, then
@@ -154,7 +154,7 @@ llboot_thd_done(void)
 		if (rspd) {             /* need to recover a component */
 			assert(pthd);
 			llboot->recover_spd = 0;
-			cos_upcall(rspd, 0); /* This will escape from the loop */
+			cos_upcall(COS_UPCALL_THD_CREATE, rspd, 0); /* This will escape from the loop */
 			assert(0);
 		} else {		/* ...done reinitializing...resume */
 			assert(pthd && pthd != tid);
@@ -196,7 +196,7 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 	 * it to restart the component!  This might even be the
 	 * initial thread.
 	 */
-	cos_upcall(spdid, 0); 	/* FIXME: give back stack... */
+	cos_upcall(COS_UPCALL_THD_CREATE, spdid, 0); /* FIXME: give back stack... */
 	BUG();
 
 	return 0;
