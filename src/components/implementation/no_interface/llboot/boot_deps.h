@@ -43,16 +43,21 @@ printc(char *fmt, ...)
 
 struct llbooter_per_core {
 	/* 
-	 * alpha:        the initial thread context for the system
-	 * init_thd:     the thread used for the initialization of the rest 
-	 *               of the system
-	 * recovery_thd: the thread to perform initialization/recovery
-	 * prev_thd:     the thread requesting the initialization
-	 * recover_spd:  the spd that will require rebooting
+	 * alpha:        initial thread context for the system
+	 * init_thd:     thread used for the rest of system initialization
+	 *
+	 * The remaining fields are used to upcall into components to do
+	 * some initialization, recovery, or other operation.
+	 *   upcall_thd:   thread to perform upcalls into components
+	 *   prev_thd:     thread requesting the upcall
+	 *   upcall_spd:   spd that will receive the upcall
+	 *   upcall_arg:   argument to pass to the upcall
+	 *   upcall_op:    an operation code to pass to the upcall
 	 */
-	int     alpha, init_thd, recovery_thd;
+	int     alpha, init_thd, upcall_thd;
 	int     sched_offset;      
-	volatile int prev_thd, recover_spd;
+	volatile int prev_thd, upcall_spd; /* GB: use atomics, avoid volatile */
+	volatile int upcall_arg, upcall_op;
 } __attribute__((aligned(4096))); /* Avoid the copy-on-write issue for us. */
 
 PERCPU(struct llbooter_per_core, llbooter);
@@ -73,7 +78,7 @@ static int     init_mem_access[] = {1, 0, 0};
 static int     nmmgrs            = 0;
 static int     frame_frontier    = 0; /* which physical frames have we used? */
 
-typedef void (*crt_thd_fn_t)(void);
+typedef void (*crt_thd_fn_t)(void); /* GB: unused? */
 
 /* 
  * Abstraction layer around 1) synchronization, 2) scheduling and
@@ -93,6 +98,7 @@ static int
 sched_create_thread_default(spdid_t spdid, u32_t v1, u32_t v2, u32_t v3)
 { return 0; }
 
+/* GB: unused? */
 static void
 llboot_ret_thd(void) { return; }
 
@@ -147,14 +153,16 @@ llboot_thd_done(void)
 	}
 	
 	while (1) {
-		int     pthd = llboot->prev_thd;
-		spdid_t rspd = llboot->recover_spd;
+		int pthd = llboot->prev_thd;
+		spdid_t uc_spd = llboot->upcall_spd;
+		int op = llboot->upcall_op;
+		int arg = llboot->upcall_arg;
 				
-		assert(tid == llboot->recovery_thd);
-		if (rspd) {             /* need to recover a component */
+		assert(tid == llboot->upcall_thd);
+		if (uc_spd) { /* need to upcall into a component */
 			assert(pthd);
-			llboot->recover_spd = 0;
-			cos_upcall(COS_UPCALL_THD_CREATE, rspd, 0); /* This will escape from the loop */
+			llboot->upcall_spd = 0;
+			cos_upcall(op, uc_spd, arg); /* This will escape from the loop */
 			assert(0);
 		} else {		/* ...done reinitializing...resume */
 			assert(pthd && pthd != tid);
@@ -163,6 +171,21 @@ llboot_thd_done(void)
 		}
 	}
 }
+
+int
+upcall_invoke(spdid_t spdid, upcall_type_t op, spdid_t dest, int arg)
+{
+	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
+	llboot->prev_thd = cos_get_thd_id(); /* always the highest prio thd */
+	llboot->upcall_spd = dest;
+	llboot->upcall_op = op;
+	llboot->upcall_arg = arg;
+
+	while (llboot->prev_thd == cos_get_thd_id()) cos_switch_thread(llboot->upcall_thd, 0);
+
+	return 0;
+}
+
 
 void 
 failure_notif_fail(spdid_t caller, spdid_t failed);
@@ -184,12 +207,7 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 		 * of the stub. */
 		assert(!cos_thd_cntl(COS_THD_INVFRM_SET_IP, tid, 1, r_ip-8));
 
-		/* switch to the recovery thread... */
-		llboot->recover_spd = spdid;
-		llboot->prev_thd = cos_get_thd_id();
-		cos_switch_thread(llboot->recovery_thd, 0);
-		/* after the recovery thread is done, it should switch back to us. */
-		return 0;
+		return upcall_invoke(cos_spd_id(), COS_UPCALL_THD_CREATE, spdid, 0);
 	}
 	/* 
 	 * The thread was created in the failed component...just use
@@ -249,13 +267,13 @@ static inline void boot_create_init_thds(void)
 	if (cos_sched_cntl(COS_SCHED_EVT_REGION, 0, (long)PERCPU_GET(cos_sched_notifications))) BUG();
 
 	llboot->alpha        = cos_get_thd_id();
-	llboot->recovery_thd = cos_create_thread(cos_spd_id(), 0, 0);
-	assert(llboot->recovery_thd >= 0);
+	llboot->upcall_thd = cos_create_thread(cos_spd_id(), 0, 0);
+	assert(llboot->upcall_thd >= 0);
 	llboot->init_thd     = cos_create_thread(cos_spd_id(), 0, 0);
 	printc("Core %ld, Low-level booter created threads:\n\t"
-	       "%d: alpha\n\t%d: recov\n\t%d: init\n",
+	       "%d: alpha\n\t%d: upcall\n\t%d: init\n",
 	       cos_cpuid(), llboot->alpha, 
-	       llboot->recovery_thd, llboot->init_thd);
+	       llboot->upcall_thd, llboot->init_thd);
 	assert(llboot->init_thd >= 0);
 }
 
