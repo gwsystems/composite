@@ -183,7 +183,6 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	r = cbuf_fork_spd(cos_spd_id(), source, d_spd);
 	if (r) printc("Error (%d) in cbuf_fork_spd\n", r);
 
-
 	quarantine_migrate(cos_spd_id(), source, d_spd, d_thd);
 	//if (cos_upcall(d_spd, NULL)) printl("Upcall failed\n");
 
