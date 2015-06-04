@@ -20,7 +20,8 @@ done:
 	return 0;
 }
 
-/* Increment all of the (non fault handler) caps fork.cnt */
+/* Increment all of the (non fault handler) caps fork.cnt.
+ * GB: unused and might be removed, along with COS_CAP_INC_FORK_CNT */
 static int
 quarantine_spd_caps(struct cobj_header *h, spdid_t spdid)
 {
@@ -150,14 +151,10 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	printl("Setting capabilities for %d\n", d_spd);
 	if (__boot_spd_caps(h, d_spd)) BUG();
 
-	/* Increment the fork.cnt in source's struct spd, and in all
-	 * of the invocation_caps for source and d_spd.
-	 * FIXME: This is naive and should be changed to use some kind of
-	 * monotonic 'fork generation' number so that different forked
-	 * versions of spds can be compared system-wide. */
+	/* Increment the fork.cnt in source and d_spd struct spd.
+	 * FIXME: are different forks comparable system-wide? */
 	cos_spd_cntl(COS_SPD_INC_FORK_CNT, source, 1, 0);
-	if (quarantine_spd_caps(h, source)) BUG();
-	if (quarantine_spd_caps(h, d_spd)) BUG();
+	cos_spd_cntl(COS_SPD_INC_FORK_CNT, d_spd, 1, 0);
 
 	/* FIXME: better way to pick threads out. this will get the first
 	 * thread, preference to blocked, then search inv stk. The
