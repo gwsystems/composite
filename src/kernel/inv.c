@@ -98,24 +98,20 @@ struct inv_ret_struct {
 
 /* TODO: may want to include thd->fork.cnt */
 static inline int
-quarantine_route_needed(struct thread *thd, struct invocation_cap *cap_entry, struct spd *dest_spd)
+need_fork_fix(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd)
 {
-	return cap_entry->fork.cnt != dest_spd->fork.cnt;
+	int c_cnt, d_cnt;
+	c_cnt = spd_get_fork_cnt(curr_spd);
+	d_cnt = spd_get_fork_cnt(dest_spd);
+
+	assert(c_cnt >= 0);
+	assert(d_cnt >= 0);
+
+	return c_cnt + d_cnt;
 }
 
-static inline int
-quarantine_route_to_fork(struct thread *thd, struct invocation_cap *cap_entry, struct spd *dest_spd)
-{
-	/* naive check */
-	return cap_entry->fork.cnt < dest_spd->fork.cnt;
-}
-
-static inline int
-quarantine_route_from_fork(struct thread *thd, struct invocation_cap *cap_entry, struct spd *dest_spd)
-{
-	/* naive check */
-	return cap_entry->fork.cnt > dest_spd->fork.cnt;
-}
+static vaddr_t
+thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd, int fault_num);
 
 /* 
  * FIXME: 1) should probably return the static capability to allow
@@ -203,20 +199,9 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	thd_invocation_push(thd, cap_entry->destination, sp, ip);
 	cap_entry->invocation_cnt++;
 
-	/* Check for routing needed due to forking */
-	if (unlikely(quarantine_route_needed(thd, cap_entry, dest_spd))) {
-		if (quarantine_route_to_fork(thd, cap_entry, dest_spd)) {
-			/* fork is on the receive-end */
-			printk("cos: thread %d is quarantined going into %d\n",
-				thd->thread_id, spd_get_index(dest_spd));
-			return thd_quarantine_fault(thd, curr_spd, dest_spd, COS_FLT_QUARANTINE);
-		} else if (quarantine_route_from_fork(thd, cap_entry, dest_spd)) {
-		/* fork is on the send-end */
-			printk("cos: thread %d is quarantined coming from %d\n",
-				thd->thread_id, spd_get_index(curr_spd));
-			return thd_quarantine_fault(thd, dest_spd, curr_spd, COS_FLT_FLT_NOTIF);
-		}
-		printk("cos: quarantine route needed, but not sure which way!\n");
+	/* Check for forking */
+	if (unlikely(need_fork_fix(thd, curr_spd, dest_spd))) {
+		return thd_quarantine_fault(thd, curr_spd, dest_spd, COS_FLT_QUARANTINE);
 	}
 
 	return cap_entry->dest_entry_instruction;
@@ -366,7 +351,7 @@ __fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_
 	
 	/* save the faulting registers */
 	memcpy(&thd->fault_regs, regs, sizeof(struct pt_regs));
-	a = ipc_walk_static_cap(fault_cap<<20, 0, 0, &r);
+	a = ipc_walk_static_cap(fault_cap<<20, 0, 0, &r); /* GB: sp, ip? */
 
 	/* setup the registers for the fault handler invocation */
 	regs->ax = r.thd_id;
@@ -389,14 +374,22 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 	return __fault_ipc_invoke(thd, fault_addr, flags, regs, fault_num, NULL);
 }
 
-/* flags == 0 means ipc receiver has been forked, otherwise ipc sender. */
 static vaddr_t
-thd_quarantine_fault(struct thread *thd, struct spd *fault_spd, struct spd *original_spd, int fault_num)
+thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd, int fault_num)
 {
-	int o_spd, f_spd;
-	o_spd = spd_get_index(original_spd);
-	f_spd = spd_get_index(fault_spd);
-	if (unlikely(!__fault_ipc_invoke(thd, (vaddr_t)NULL, (o_spd<<16)|f_spd, &thd->regs, fault_num, fault_spd))) return (vaddr_t)NULL;
+	int c_spd, d_spd, c_cnt, d_cnt, packed_counts;
+	vaddr_t packed_spds;
+
+	c_cnt = spd_get_fork_cnt(curr_spd);
+	d_cnt = spd_get_fork_cnt(dest_spd);
+	packed_counts = (c_cnt<<16)|d_cnt;
+
+	c_spd = spd_get_index(curr_spd);
+	d_spd = spd_get_index(dest_spd);
+	packed_spds = (vaddr_t)((c_spd<<16)|d_spd);
+
+	/* GB: use curr_spd->fault_handler[], or dest_spd? */
+	if (unlikely(!__fault_ipc_invoke(thd, packed_spds, packed_counts, &thd->regs, fault_num, curr_spd))) return (vaddr_t)NULL;
 	return thd->regs.ip;
 }
 
