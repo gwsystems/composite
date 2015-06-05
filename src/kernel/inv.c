@@ -387,6 +387,8 @@ thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_
 	c_spd = spd_get_index(curr_spd);
 	d_spd = spd_get_index(dest_spd);
 	packed_spds = (vaddr_t)((c_spd<<16)|d_spd);
+	
+	printk("cos: thd_quarantine_fault %d (%d) -> %d (%d)\n", c_spd, c_cnt, d_spd, d_cnt);
 
 	/* GB: use curr_spd->fault_handler[], or dest_spd? */
 	if (unlikely(!__fault_ipc_invoke(thd, packed_spds, packed_counts, &thd->regs, fault_num, curr_spd))) return (vaddr_t)NULL;
