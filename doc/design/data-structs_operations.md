@@ -71,7 +71,12 @@ function (e.g. `fn`).  The procedure for this operation follows:
    defined in `src/components/interface/*/stubs/c_stub.c`.  If a
    function does not require more than 4 scalar arguments, then the
    default stub can be used in `src/components/lib/c_stub.S`.  This
-   code uses `sysenter` to call the kernel.
+   code uses `sysenter` to call the kernel, with the return address
+   set to `SS_ipc_client_ret_unmarshal`. A fault-handling path in the
+   component exists at this address minus 8, and this path jumps to
+   `SS_ipc_client_ret_fatal_err`. Custom stubs, such as those for wrapping
+   C invocations in `src/components/include/cstub.h`, must mimic the
+   existence of a fault return path at the return address minus 8.
 4. Once in the kernel, execution begins in
    `src/platform/linux/module/kern_entry.S:sysenter_interposition_entry`
    which calls `src/platform/linux/module/ipc.S:composite_call_ipc`.
