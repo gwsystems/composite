@@ -498,7 +498,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 	 * pass it into other functions to avoid unnecessary
 	 * lookup. */
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
-	int ret = 0;
+	int ret = -ENOENT;
 
 #ifdef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
@@ -532,8 +532,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 	ch = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
 		printk("cos: cap %d not found!\n", (int)cap);
-		ret = -ENOENT;
-		goto done;
+		cos_throw(done, 0);
 	}
 	/* fastpath: invocation */
 	if (likely(ch->type == CAP_SINV)) {
@@ -599,16 +598,14 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 		if (arcv->pending) {
 			arcv->pending--;
-			ret = 0;
-
-			goto done;
+			cos_throw(done, 0);
 		}
 		if (thd->interrupted_thread == NULL) {
 			/* FIXME: handle this case by upcalling into
 			 * scheduler, or switch to a scheduling
 			 * thread. */
-			ret = -1;
 			printk("ERROR: not implemented yet!\n");
+			cos_throw(err, -1);
 		} else {
 			thd->arcv_cap = cap;
 			thd->flags &= !THD_STATE_ACTIVE_UPCALL;
@@ -620,17 +617,14 @@ composite_sysenter_handler(struct pt_regs *regs)
 		goto done;
 	}
 
-	fs_reg_setup(__KERNEL_PERCPU);
 
 	ret = composite_slowpath_syscall(regs);
 
+err:
 done:
 	__userregs_set(regs, ret, __userregs_getsp(regs), __userregs_getip(regs));
 
 	return 0;
-err:
-	if (ret == 0) ret = -ENOENT;
-	goto done;
 }
 
 COS_SYSCALL int
@@ -643,11 +637,13 @@ composite_slowpath_syscall(struct pt_regs *regs)
 	struct thread *thd;
 	capid_t cap,  capin;
 	syscall_op_t op;
-	int ret = 0;
+	int ret = -ENOENT;
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	unsigned long ip, sp;
 	/* slowpath: other capability operations, most of which
 	 * involve writing. */
+
+	fs_reg_setup(__KERNEL_PERCPU);
 
 	/* add vars */
 	thd = thd_current(cos_info);
@@ -1071,10 +1067,7 @@ composite_slowpath_syscall(struct pt_regs *regs)
 
 			pte = pgtbl_lkup_pte(((struct cap_pgtbl *)ch)->pgtbl, addr, &flags);
 
-			if (pte)
-				ret = *pte;
-			else
-				ret = 0;
+			if (pte) ret = *pte;
 
 			break;
 		}
@@ -1092,9 +1085,8 @@ composite_slowpath_syscall(struct pt_regs *regs)
 		sret_ret(thd, regs, cos_info);
 		return 0;
 	}
-	default:
-	err:
-		if (ret == 0) ret = -ENOENT;
+	default: break;
 	}
+err:
 return ret;
 }
