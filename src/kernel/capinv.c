@@ -482,11 +482,11 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 
 #define ENABLE_KERNEL_PRINT
 
-COS_SYSCALL int
-composite_slowpath_syscall(struct pt_regs *regs);
+int
+composite_syscall_slowpath(struct pt_regs *regs);
 
 __attribute__((section("__ipc_entry"))) COS_SYSCALL int
-composite_sysenter_handler(struct pt_regs *regs)
+composite_syscall_fastpath(struct pt_regs *regs)
 #endif
 {
 	struct cap_header *ch;
@@ -618,7 +618,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 	}
 
 
-	ret = composite_slowpath_syscall(regs);
+	ret = composite_syscall_slowpath(regs);
 
 err:
 done:
@@ -627,8 +627,8 @@ done:
 	return 0;
 }
 
-COS_SYSCALL int
-composite_slowpath_syscall(struct pt_regs *regs)
+int
+composite_syscall_slowpath(struct pt_regs *regs)
 {
 
 	struct cap_header *ch;
