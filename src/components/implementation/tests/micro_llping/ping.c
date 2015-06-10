@@ -1388,11 +1388,8 @@ void cos_init(void)
 	}
 	sync_all();
 
-	if (mm_meas()) goto done;
-
-
 	if (cos_cpuid()) goto done;
-
+	if (mm_meas()) goto done;
 
 	s = tsc_start();
 	for (i = 0; i < NOPS; i++) {
@@ -1417,7 +1414,7 @@ void cos_init(void)
 		printc("nops %d cpu %d avg cost %llu \n", NOPS, cpu, (e-s)/(i));
 		int n = i;
 		for (i = 0; i < n; i++) {
-			printc("cpu %d: %d vas %x\n", cpu, i, allmem[cpu][i]);
+//			printc("cpu %d: %d vas %x\n", cpu, i, allmem[cpu][i]);
 		}
 
 	} else

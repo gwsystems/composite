@@ -463,8 +463,10 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	__userregs_set(&curr->regs, COS_SCHED_RET_SUCCESS, __userregs_getsp(regs), __userregs_getip(regs));
 
 	thd_current_update(next, curr, cos_info);
+	/* TODO: check current pgtbl is different or not. */
 	pgtbl_update(next_ci->pgtbl);
 
+	/* TODO: check FPU */
 	/* fpu_save(thd); */
 	if (next->flags & THD_STATE_PREEMPTED) {
 		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
