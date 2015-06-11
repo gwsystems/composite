@@ -49,11 +49,11 @@ chal_cpu_paging_activate(pgtbl_t pgtbl)
 	/* asm volatile("mov %0, %%cr0" : : "r"(cr0)); */
 }
 
-#define IA32_SYSENTER_CS 0x174
+#define IA32_SYSENTER_CS  0x174
 #define IA32_SYSENTER_ESP 0x175
 #define IA32_SYSENTER_EIP 0x176
 
-extern void sysenter_interposition_entry(void);
+extern void sysenter_entry(void);
 
 static inline void
 writemsr(u32_t reg, u32_t low, u32_t high)
@@ -68,7 +68,7 @@ chal_cpu_init(void)
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);
 	writemsr(IA32_SYSENTER_CS, SEL_KCSEG, 0);
 	writemsr(IA32_SYSENTER_ESP, (u32_t)tss.esp0, 0);
-	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_interposition_entry, 0);	
+	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_entry, 0);	
 }
 
 static inline vaddr_t

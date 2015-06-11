@@ -1,4 +1,5 @@
 #include <shared/cos_config.h>
+#include "chal_asm_inc.h"
 
 .set MULTIBOOT_PAGE_ALIGN,  1<<0
 .set MULTIBOOT_MEMINFO,     1<<1
@@ -20,7 +21,7 @@ loader = (_loader-COS_MEM_KERN_START_VA)
 
 .globl _loader
 _loader:
-	mov 	$(stack + STACKSIZE), %esp
+	mov 	$(stack + STACKSIZE - STK_INFO_SZ), %esp
 	movl	%eax, %ecx
 	movl    %cr4, %eax
 	orl     $((1<<4) | (1<<7)), %eax

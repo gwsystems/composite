@@ -1,6 +1,6 @@
 #include "assert.h"
 #include "kernel.h"
-#include "comp.h"
+#include "boot_comp.h"
 #include "chal_cpu.h"
 #include "mem_layout.h"
 #include <pgtbl.h>

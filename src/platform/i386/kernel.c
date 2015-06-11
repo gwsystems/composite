@@ -5,7 +5,7 @@
 #include "kernel.h"
 #include "multiboot.h"
 #include "string.h"
-#include "comp.h"
+#include "boot_comp.h"
 #include "mem_layout.h"
 
 #include <captbl.h>

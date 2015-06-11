@@ -12,9 +12,8 @@ struct tss tss;
 void
 tss_init (void) 
 {
-	u32_t *esp;
-	asm ("mov %%esp, %0" : "=g" (esp));
+	u32_t esp;
 	tss.ss0 = SEL_KDSEG;
 	tss.bitmap = 0xdfff;
-	tss.esp0 = (u8_t *) (((u32_t)esp & ~PGMASK) + PGSIZE);
+	tss.esp0 = (u8_t *) (((u32_t)&esp & ~PGMASK) + PGSIZE);
 }
