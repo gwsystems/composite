@@ -424,8 +424,6 @@ composite_sysenter_handler(struct pt_regs *regs)
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	int ret = 0;
 
-	printk("sup\n");
-	
 #ifdef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
 #endif
