@@ -20,30 +20,6 @@
  * 	ret3	-> edx
 */
 
-/* Push the input registers onto stack before asm body */
-#define CSTUB_ASM_PRE_0() 
-#define CSTUB_ASM_PRE_1() CSTUB_ASM_PRE_0() "push %3\n\t"
-#define CSTUB_ASM_PRE_2() CSTUB_ASM_PRE_1() "pushl %4\n\t"
-#define CSTUB_ASM_PRE_3() CSTUB_ASM_PRE_2() "pushl %5\n\t"
-#define CSTUB_ASM_PRE_4() CSTUB_ASM_PRE_3() "push %6\n\t"
-#define CSTUB_ASM_PRE_3RETS_0()
-#define CSTUB_ASM_PRE_3RETS_1() CSTUB_ASM_PRE_3RETS_0() "push %5\n\t"
-#define CSTUB_ASM_PRE_3RETS_2() CSTUB_ASM_PRE_3RETS_1() "pushl %6\n\t"
-#define CSTUB_ASM_PRE_3RETS_3() CSTUB_ASM_PRE_3RETS_2() "pushl %7\n\t"
-#define CSTUB_ASM_PRE_3RETS_4() CSTUB_ASM_PRE_3RETS_3() "push %8\n\t"
-
-/* Pop the inputs back, note reverse order from push */
-#define CSTUB_ASM_POST_0()
-#define CSTUB_ASM_POST_1() "pop %3\n\t" CSTUB_ASM_POST_0()
-#define CSTUB_ASM_POST_2() "popl %4\n\t" CSTUB_ASM_POST_1()
-#define CSTUB_ASM_POST_3() "popl %5\n\t" CSTUB_ASM_POST_2()
-#define CSTUB_ASM_POST_4() "pop %6\n\t" CSTUB_ASM_POST_3()
-#define CSTUB_ASM_POST_3RETS_0()
-#define CSTUB_ASM_POST_3RETS_1() "pop %5\n\t" CSTUB_ASM_POST_3RETS_0()
-#define CSTUB_ASM_POST_3RETS_2() "popl %6\n\t" CSTUB_ASM_POST_3RETS_1()
-#define CSTUB_ASM_POST_3RETS_3() "popl %7\n\t" CSTUB_ASM_POST_3RETS_2()
-#define CSTUB_ASM_POST_3RETS_4() "pop %8\n\t" CSTUB_ASM_POST_3RETS_3()
-
 #define CSTUB_ASM_OUT(_ret, _fault) "=a" (_ret), "=r" (_fault)
 #define CSTUB_ASM_OUT_3RETS(_ret0, _fault, _ret1, _ret2) \
 	"=a" (_ret0), "=r" (_fault), "=r" (_ret1), "=r" (_ret2)
@@ -86,28 +62,7 @@
 #define CSTUB_ASM_BODY_3RETS() \
 	CSTUB_ASM_BODY() \
 	"movl %%esi, %2\n\t" \
-	"movl %%edi, %3\n\t" \
-
-#define CSTUB_ASM(_narg, _ret, _fault, ...) \
-	__asm__ __volatile__( \
-		CSTUB_ASM_PRE_##_narg() \
-		CSTUB_ASM_BODY() \
-		CSTUB_ASM_POST_##_narg() \
-		: CSTUB_ASM_OUT(_ret, _fault) \
-		: CSTUB_ASM_IN_##_narg(__VA_ARGS__) \
-		: CSTUB_ASM_CLOBBER_##_narg() \
-	)
-
-#define CSTUB_ASM_3RETS(_narg, _ret0, _fault, _ret1, _ret2, ...) \
-	__asm__ __volatile__( \
-		CSTUB_ASM_PRE_3RETS_##_narg() \
-		CSTUB_ASM_BODY_3RETS() \
-		CSTUB_ASM_POST_3RETS_##_narg() \
-		: CSTUB_ASM_OUT_3RETS(_ret0, _fault, _ret1, _ret2) \
-		: CSTUB_ASM_IN_##_narg(__VA_ARGS__) \
-		: CSTUB_ASM_CLOBBER_##_narg() \
-	)
-
+	"movl %%edi, %3\n\t"
 
 /* Use CSTUB_INVOKE() to make a capability invocation with _uc.
  * 	_ret: output return variable
@@ -117,11 +72,20 @@
  * 		* NOTE: _narg must be a literal constant integer
  */
 #define CSTUB_INVOKE(_ret, _fault, _uc, _narg, ...) \
-	CSTUB_ASM(_narg, _ret, _fault, _uc, __VA_ARGS__)
+	__asm__ __volatile__( \
+		CSTUB_ASM_BODY() \
+		: CSTUB_ASM_OUT(_ret, _fault) \
+		: CSTUB_ASM_IN_##_narg(_uc, __VA_ARGS__) \
+		: CSTUB_ASM_CLOBBER_##_narg() \
+	)
 
 #define CSTUB_INVOKE_3RETS(_ret0, _fault, _ret1, _ret2, _uc, _narg, ...) \
-	CSTUB_ASM_3RETS(_narg, _ret0, _fault, _ret1, _ret2, _uc, __VA_ARGS__)
-
+	__asm__ __volatile__( \
+		CSTUB_ASM_BODY_3RETS() \
+		: CSTUB_ASM_OUT_3RETS(_ret0, _fault, _ret1, _ret2) \
+		: CSTUB_ASM_IN_##_narg(_uc, __VA_ARGS__) \
+		: CSTUB_ASM_CLOBBER_##_narg() \
+	)
 
 /* Use CSTUB_FN() to declare a function that is going to use CSTUB_INVOKE.
  * 	type: return type of function
