@@ -13,6 +13,7 @@
 #include "include/ipi_cap.h"
 #include "include/liveness_tbl.h"
 #include "include/cpuid.h"
+#include "include/tcap.h"
 
 #define COS_DEFAULT_RET_CAP 0
 
@@ -1085,6 +1086,21 @@ composite_syscall_slowpath(struct pt_regs *regs)
 		 * default return cap.*/
 		sret_ret(thd, regs, cos_info);
 		return 0;
+	}
+	case CAP_TCAP:
+	{
+		switch (op)
+		{
+		case CAPTBL_OP_TCAPINIT:
+		{
+			struct spd c = __userregs_get1(regs);
+
+			if (c.tcaps) ret = 0;
+
+			break;
+		}
+		}
+
 	}
 	default: break;
 	}

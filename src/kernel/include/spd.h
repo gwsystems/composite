@@ -223,6 +223,12 @@ struct spd {
 	unsigned int ncaps;
 	struct invocation_cap caps[MAX_STATIC_CAP];
 	struct async_cap acaps[MAX_NUM_ACAP];
+
+	/* per-spd tcap structs */
+	struct clist tcap_root_list;
+	unsigned int ntcaps, nactive_tcaps;
+	struct tcap *tcap_freelist;
+	struct tcap tcaps[TCAP_MAX];
 } CACHE_ALIGNED; //cache line size
 
 paddr_t spd_alloc_pgtbl(void);

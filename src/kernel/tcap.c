@@ -11,7 +11,7 @@
 
 #include "include/tcap.h"
 #include "include/spd.h"
-#include "include/thread.h"
+#include "include/thd.h"
 #include "include/clist.h"
 
 #ifdef LINUX_TESTS

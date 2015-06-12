@@ -1,10 +1,10 @@
 /**
  * Copyright (c) 2013 by The George Washington University, Jakob Kaivo
  * and Gabe Parmer.
- * 
+ *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
- * 
+ *
  * Initial Author: Jakob Kaivo, jkaivo@gwu.edu, 2013.
  * Additional: Gabe Parmer, gparmer@gwu.edu, 2013.
  */
@@ -20,7 +20,7 @@
 
 #define TCAP_NACTIVATIONS 1
 
-/* 
+/*
  * This is a reference to a tcap, and the epoch tracks which
  * "generation" of the tcap is valid for this reference.  This enables
  * fast, and O(1) revocation (simply increase the epoch in the tcap).
@@ -28,12 +28,12 @@
 struct tcap_ref {
 	struct tcap *tcap;
 	/* if the epoch in the tcap is != epoch, the reference is invalid */
-	u32_t        epoch; 	
+	u32_t        epoch;
 };
 
 struct tcap_budget {
 	/* overrun due to tick granularity can result in cycles < 0 */
-        s64_t cycles;	
+        s64_t cycles;
 };
 
 struct tcap_sched_info {
@@ -46,7 +46,7 @@ struct tcap_sched_info {
 #define TCAP_PRIO_MAX (1UL)
 
 struct tcap {
-	/* 
+	/*
 	 * The budget might be from a shared pool in which case budget
 	 * refers to the parent tcap, or it might be segregated in
 	 * this capability in which case budget = this.
@@ -57,7 +57,7 @@ struct tcap {
 	u8_t               ndelegs, sched_info;
 	u16_t              cpuid;
 
-	/* 
+	/*
 	 * Which chain of temporal capabilities resulted in this
 	 * capability's access, and what access is granted? We might
 	 * want to "cache" the priority here when we have strictly
@@ -66,7 +66,7 @@ struct tcap {
 	 * Note that we don't simply have a struct tcap * here as that
 	 * tcap might be outdated (deallocated/reallocated).  Instead,
 	 * we record the path to access the tcap (component, and
-	 * offset), and the epoch of the "valid" tcap.  
+	 * offset), and the epoch of the "valid" tcap.
 	 *
 	 * Why the complexity?  Revocation for capability-based
 	 * systems is difficult.  This enables revocation by simply
@@ -86,7 +86,7 @@ static inline struct tcap_sched_info *
 tcap_sched_info(struct tcap *t)
 { return &t->delegations[t->sched_info]; }
 
-/* 
+/*
  * Delegaters might be deallocated and reused, so a pointer is not
  * sufficient to validate if the tcap is valid.  Epochs are maintained
  * for each "version" of a tcap, and when dereferenced, we check the
@@ -110,7 +110,7 @@ tcap_ref_create(struct tcap_ref *r, struct tcap *t)
 	r->epoch = t ? t->epoch : 0;
 }
 
-/* 
+/*
  * Return 0 if budget left, 1 otherwise.  Consume budget from both the
  * local and the parent budget.
  */
@@ -128,7 +128,7 @@ tcap_consume(struct tcap *t, u32_t cycles)
 			left = 1;
 		}
 	}
-	
+
 	bc = tcap_deref(&t->budget);
 	if (unlikely(!bc)) return left;
 	if (!TCAP_RES_IS_INF(bc->budget_local.cycles)) {
@@ -159,7 +159,7 @@ int          tcap_is_root(struct tcap *t);
 struct tcap *tcap_get(struct spd *c, tcap_t id);
 void         tcap_spd_init(struct spd *c);
 struct tcap *tcap_split(struct tcap *t, s64_t cycles, u16_t prio);
-int tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, 
+int tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc,
 		  s64_t cycles, u16_t prio);
 int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc,
 		  s64_t cycles, int prio);
