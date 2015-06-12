@@ -1068,6 +1068,7 @@ composite_syscall_slowpath(struct pt_regs *regs)
 			pte = pgtbl_lkup_pte(((struct cap_pgtbl *)ch)->pgtbl, addr, &flags);
 
 			if (pte) ret = *pte;
+			else ret = 0;
 
 			break;
 		}
@@ -1088,5 +1089,5 @@ composite_syscall_slowpath(struct pt_regs *regs)
 	default: break;
 	}
 err:
-return ret;
+	return ret;
 }
