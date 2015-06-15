@@ -341,11 +341,12 @@ cos_syscall_idle:
 cos_syscall_upcall:
 	pushl $0
 	pushl %esp
+	pushl %edi
 	pushl %esi
 	pushl %ebx /* spd_id to upcall to */
 	pushl %edx /* this spd_id */
 	call cos_syscall_upcall_cont
-	addl $16, %esp
+	addl $20, %esp
 	popl %ebx  /* regs */
 
 	cmpl $-1, %eax
