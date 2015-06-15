@@ -1699,13 +1699,17 @@ static int verify_trust(struct spd *truster, struct spd *trustee)
  * to bootstrap. */
 extern void cos_syscall_upcall(void);
 COS_SYSCALL int 
-cos_syscall_upcall_cont(int this_spd_id, int spd_id, int init_data, struct pt_regs **regs)
+cos_syscall_upcall_cont(int this_spd_id, int op_spd, int init_data, struct pt_regs **regs)
 {
 	struct spd *dest, *curr_spd;
 	struct thread *thd;
+	int op, spd_id;
 
 	assert(regs);
 	*regs = NULL;
+
+	op = op_spd >> 16;
+	spd_id = 0xFFFF & op_spd;
 
 	dest = spd_get_by_index(spd_id);
 	thd = core_get_curr_thd();
@@ -1734,7 +1738,7 @@ cos_syscall_upcall_cont(int this_spd_id, int spd_id, int init_data, struct pt_re
 	spd_mpd_ipc_release((struct composite_spd *)thd_get_thd_spdpoly(thd));//curr_spd->composite_spd);
 	//spd_mpd_ipc_take((struct composite_spd *)dest->composite_spd);
 
-	upcall_setup(thd, dest, COS_UPCALL_THD_CREATE, init_data, 0, 0);
+	upcall_setup(thd, dest, op, init_data, 0, 0);
 	*regs = &thd->regs;
 
 	cos_meas_event(COS_MEAS_UPCALLS);

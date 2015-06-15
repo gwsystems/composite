@@ -1144,7 +1144,7 @@ static int fp_kill_thd(struct sched_thd *t)
 	assert(!(t->flags & THD_DYING));
 	assert(t->spdid != 0);
 
-	if (cos_upcall(t->spdid, t->init_data)) prints("fprr: error making upcall into spd.\n");
+	if (cos_upcall(COS_UPCALL_THD_CREATE, t->spdid, t->init_data)) prints("fprr: error making upcall into spd.\n");
 	
 	if (t == c) {
 		printc("t: id %d, c: id %d\n",t->id, c->id);
