@@ -138,7 +138,7 @@ cos_syscall_2(4,  int, __switch_thread, int, thd_id, int, flags);
 cos_syscall_3(5, int, __async_cap_cntl, int, operation, int, arg1, long, arg2);
 cos_syscall_1(6, int, ainv_wait, int, acap_id);
 cos_syscall_1(7, int, ainv_send, int, acap_id);
-cos_syscall_2(8,  int, __upcall, int, spd_id, int, init_data);
+cos_syscall_3(8,  int, upcall, int, op, int, spd_id, int, init_data);
 cos_syscall_3(9,  int, sched_cntl, int, operation, int, thd_id, long, option);
 cos_syscall_3(10, int, mpd_cntl, int, operation, spdid_t, composite_spd, spdid_t, composite_dest);
 cos_syscall_3(11, int, __mmap_cntl, long, op_flags_dspd, vaddr_t, daddr, unsigned long, mem_id);
@@ -178,11 +178,6 @@ cos_pfn_cntl(short int op, int dest_spd, unsigned int mem_id, int extent) {
 static inline int cos_buff_mgmt(unsigned short int op, void *addr, unsigned short int len, short int thd_id)
 {
 	return cos___buff_mgmt(addr, thd_id, ((len << 16) | (op & 0xFFFF)));
-}
-
-static inline int cos_upcall(upcall_type_t op, spdid_t spd, int arg)
-{
-	return cos___upcall((op<<16)|spd, arg);
 }
 
 static inline int cos_thd_cntl(short int op, short int thd_id, long arg1, long arg2)
