@@ -20,33 +20,9 @@
  * 	ret3	-> edx
 */
 
-/* Push the input registers onto stack before asm body */
-#define CSTUB_ASM_PRE_0() 
-#define CSTUB_ASM_PRE_1() CSTUB_ASM_PRE_0() "push %3\n\t"
-#define CSTUB_ASM_PRE_2() CSTUB_ASM_PRE_1() "pushl %4\n\t"
-#define CSTUB_ASM_PRE_3() CSTUB_ASM_PRE_2() "pushl %5\n\t"
-#define CSTUB_ASM_PRE_4() CSTUB_ASM_PRE_3() "push %6\n\t"
-#define CSTUB_ASM_PRE_3RETS_0()
-#define CSTUB_ASM_PRE_3RETS_1() CSTUB_ASM_PRE_3RETS_0() "push %5\n\t"
-#define CSTUB_ASM_PRE_3RETS_2() CSTUB_ASM_PRE_3RETS_1() "pushl %6\n\t"
-#define CSTUB_ASM_PRE_3RETS_3() CSTUB_ASM_PRE_3RETS_2() "pushl %7\n\t"
-#define CSTUB_ASM_PRE_3RETS_4() CSTUB_ASM_PRE_3RETS_3() "push %8\n\t"
-
-/* Pop the inputs back, note reverse order from push */
-#define CSTUB_ASM_POST_0()
-#define CSTUB_ASM_POST_1() "pop %3\n\t" CSTUB_ASM_POST_0()
-#define CSTUB_ASM_POST_2() "popl %4\n\t" CSTUB_ASM_POST_1()
-#define CSTUB_ASM_POST_3() "popl %5\n\t" CSTUB_ASM_POST_2()
-#define CSTUB_ASM_POST_4() "pop %6\n\t" CSTUB_ASM_POST_3()
-#define CSTUB_ASM_POST_3RETS_0()
-#define CSTUB_ASM_POST_3RETS_1() "pop %5\n\t" CSTUB_ASM_POST_3RETS_0()
-#define CSTUB_ASM_POST_3RETS_2() "popl %6\n\t" CSTUB_ASM_POST_3RETS_1()
-#define CSTUB_ASM_POST_3RETS_3() "popl %7\n\t" CSTUB_ASM_POST_3RETS_2()
-#define CSTUB_ASM_POST_3RETS_4() "pop %8\n\t" CSTUB_ASM_POST_3RETS_3()
-
-#define CSTUB_ASM_OUT(_ret, _fault) "=a" (_ret), "=r" (_fault)
+#define CSTUB_ASM_OUT(_ret, _fault) "=a" (_ret), "=c" (_fault)
 #define CSTUB_ASM_OUT_3RETS(_ret0, _fault, _ret1, _ret2) \
-	"=a" (_ret0), "=r" (_fault), "=r" (_ret1), "=r" (_ret2)
+	"=a" (_ret0), "=c" (_fault), "=b" (_ret1), "=d" (_ret2)
 
 /* input registers */
 #define CSTUB_ASM_IN_0(_uc) "a" (_uc->cap_no)
@@ -59,14 +35,12 @@
 #define CSTUB_ASM_IN_4(_uc, first, second, third, fourth) \
 		CSTUB_ASM_IN_3(_uc, first, second, third), "d" (fourth)
 
-/* clobber the registers not explicitly used as inputs */
-#define CSTUB_ASM_CLOBBER_4() "memory", "cc"
-#define CSTUB_ASM_CLOBBER_3() "edx", CSTUB_ASM_CLOBBER_4()
-#define CSTUB_ASM_CLOBBER_2() "edi", CSTUB_ASM_CLOBBER_3()
-#define CSTUB_ASM_CLOBBER_1() "esi", CSTUB_ASM_CLOBBER_2()
-#define CSTUB_ASM_CLOBBER_0() "ebx", CSTUB_ASM_CLOBBER_1()
-
+/* Push the input registers onto stack before asm body */
 #define CSTUB_ASM_BODY() \
+		"pushl %%ebx\n\t" \
+		"pushl %%esi\n\t" \
+		"pushl %%edi\n\t" \
+		"pushl %%edx\n\t" \
 		"pushl %%ebp\n\t" \
 		"movl %%esp, %%ebp\n\t" \
 		"movl $1f, %%ecx\n\t" \
@@ -75,12 +49,10 @@
 		"jmp 2f\n\t" \
 		".align 8\n\t" \
 		"1:\n\t" \
-		"popl %%ebp\n\t" \
-		"movl $0, %1\n\t" \
+		"movl $0, %%ecx\n\t" \
 		"jmp 3f\n\t" \
 		"2:\n\t" \
-		"popl %%ebp\n\t" \
-		"movl $1, %1\n\t" \
+		"movl $1, %%ecx\n\t" \
 		"3:\n\t"
 
 #define CSTUB_ASM_BODY_3RETS() \
@@ -88,24 +60,30 @@
 	"movl %%esi, %2\n\t" \
 	"movl %%edi, %3\n\t" \
 
+/* Pop the inputs back, note reverse order from push */
+#define CSTUB_ASM_POST() \
+		"popl %%ebp\n\t" \
+		"popl %%edx\n\t" \
+		"popl %%edi\n\t" \
+		"popl %%esi\n\t" \
+		"popl %%ebx\n\t"
+
 #define CSTUB_ASM(_narg, _ret, _fault, ...) \
 	__asm__ __volatile__( \
-		CSTUB_ASM_PRE_##_narg() \
 		CSTUB_ASM_BODY() \
-		CSTUB_ASM_POST_##_narg() \
+		CSTUB_ASM_POST() \
 		: CSTUB_ASM_OUT(_ret, _fault) \
 		: CSTUB_ASM_IN_##_narg(__VA_ARGS__) \
-		: CSTUB_ASM_CLOBBER_##_narg() \
+		: "memory", "cc" \
 	)
 
 #define CSTUB_ASM_3RETS(_narg, _ret0, _fault, _ret1, _ret2, ...) \
 	__asm__ __volatile__( \
-		CSTUB_ASM_PRE_3RETS_##_narg() \
 		CSTUB_ASM_BODY_3RETS() \
-		CSTUB_ASM_POST_3RETS_##_narg() \
+		CSTUB_ASM_POST() \
 		: CSTUB_ASM_OUT_3RETS(_ret0, _fault, _ret1, _ret2) \
 		: CSTUB_ASM_IN_##_narg(__VA_ARGS__) \
-		: CSTUB_ASM_CLOBBER_##_narg() \
+		: "memory", "cc" \
 	)
 
 
