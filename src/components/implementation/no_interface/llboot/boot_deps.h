@@ -78,8 +78,6 @@ static int     init_mem_access[] = {1, 0, 0};
 static int     nmmgrs            = 0;
 static int     frame_frontier    = 0; /* which physical frames have we used? */
 
-typedef void (*crt_thd_fn_t)(void); /* GB: unused? */
-
 /* 
  * Abstraction layer around 1) synchronization, 2) scheduling and
  * thread creation, and 3) memory operations.  
@@ -97,10 +95,6 @@ typedef void (*crt_thd_fn_t)(void); /* GB: unused? */
 static int
 sched_create_thread_default(spdid_t spdid, u32_t v1, u32_t v2, u32_t v3)
 { return 0; }
-
-/* GB: unused? */
-static void
-llboot_ret_thd(void) { return; }
 
 /* 
  * When a created thread finishes, here we decide what to do with it.
@@ -341,7 +335,6 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 	/*        cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_THD_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT); */
 	switch (t) {
 	case COS_UPCALL_THD_CREATE:
-		llboot_ret_thd();
 		break;
 	case COS_UPCALL_DESTROY:
 		llboot_thd_done();
