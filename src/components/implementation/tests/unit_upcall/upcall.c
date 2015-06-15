@@ -29,6 +29,8 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		}
 	default:
 		printc("Upcall %d\targs (%p, %p, %p)\n", t, arg1, arg2, arg3);
+		assert(t == COS_UPCALL_DESTROY);
+		assert(arg1 == 2);
 		break;
 	}
 	return;
