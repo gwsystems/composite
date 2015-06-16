@@ -43,7 +43,9 @@ init:
 	$(MAKE) $(MAKEFLAGS) -C components init
 	$(MAKE) $(MAKEFLAGS) -C platform init
 
+# default platform is linux
 config:
+	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/linux/module/chal/ chal
 	@echo "Configuring the system with clock speed and directory structure."
 	@echo "Please view Makefile.cosconfig and kernel/include/shared/cpu_ghz.h to make sure they're accurate."
 	@echo "Do _not_ 'git add' either of these files."
@@ -54,6 +56,12 @@ config:
 	@echo "TRANS_DIR=\$$(HOME_DIR)/transfer/" >> Makefile.cosconfig
 	@echo "LDIR=\$$(CODE_DIR)/linux-2.6.36/" >> Makefile.cosconfig
 	@echo "TEST_DIR=/root/experiments/" >> Makefile.cosconfig
+
+# override the default linux chal link
+config-i386: config
+	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/i386/chal/ chal
+
+config-linux: config
 
 idl:
 	$(MAKE) $(MAKEFLAGS) -C components idl

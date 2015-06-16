@@ -9,8 +9,8 @@
 #ifndef CPUID_H
 #define CPUID_H
 
-#include "shared/consts.h"
-#include "asm_ipc_defs.h"
+#include "../../../../kernel/include/shared/consts.h"
+#include "../../../../kernel/include/asm_ipc_defs.h"
 
 struct cos_cpu_local_info {
 	/* orig_sysenter_esp SHOULD be the first variable here. The

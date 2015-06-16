@@ -11,7 +11,7 @@
 #include "component.h"
 #include "cap_ops.h"
 #include "fpu_regs.h"
-#include "cpuid.h"
+#include "chal/cpuid.h"
 #include "pgtbl.h"
 #include "retype_tbl.h"
 
@@ -320,9 +320,10 @@ thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsi
 {
 	struct invstk_entry *top, *prev;
 
+	if (unlikely(curr_invstk_top(cos_info) >= THD_INVSTK_MAXSZ)) return -1;
+
 	prev = &thd->invstk[curr_invstk_top(cos_info)];
 	top  = &thd->invstk[curr_invstk_top(cos_info)+1];
-	if (unlikely(curr_invstk_top(cos_info) >= THD_INVSTK_MAXSZ)) return -1;
 	curr_invstk_inc(cos_info);
 	prev->ip = ip;
 	prev->sp = sp;

@@ -2,7 +2,7 @@
 #define MEASUREMENT_H
 
 #include "shared/cos_config.h"
-#include "cpuid.h"
+#include "chal/cpuid.h"
 
 #ifdef COS_PRINT_MEASUREMENTS
 #define MEASUREMENTS

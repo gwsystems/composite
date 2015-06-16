@@ -9,10 +9,10 @@
 #include "include/captbl.h"
 #include "include/inv.h"
 #include "include/thd.h"
-#include "include/call_convention.h"
+#include "include/chal/call_convention.h"
 #include "include/ipi_cap.h"
 #include "include/liveness_tbl.h"
-#include "include/cpuid.h"
+#include "include/chal/cpuid.h"
 
 #define COS_DEFAULT_RET_CAP 0
 

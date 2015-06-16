@@ -471,6 +471,7 @@ static vaddr_t
 pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
 { return (vaddr_t)pgtbl_lkup(pt, addr, flags); }
 
+/* FIXME: this should be using cos_config.h defines */
 #define KERNEL_PGD_REGION_OFFSET  (PAGE_SIZE - PAGE_SIZE/4)
 #define KERNEL_PGD_REGION_SIZE    (PAGE_SIZE/4)
 

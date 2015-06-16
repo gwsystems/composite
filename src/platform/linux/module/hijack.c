@@ -53,8 +53,8 @@
 #include "../../../kernel/include/shared/consts.h"
 #include "../../../kernel/include/shared/cos_config.h"
 #include "../../../kernel/include/fpu.h"
-#include "../../../kernel/include/cpuid.h"
-#include "../../../kernel/include/asm_ipc_defs.h"
+#include "../../../kernel/include/chal/cpuid.h"
+#include "../../../kernel/include/chal/asm_ipc_defs.h"
 
 #include "./hw_ints.h"
 #include "cos_irq_vectors.h"
