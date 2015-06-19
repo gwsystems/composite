@@ -19,6 +19,9 @@
 
 #include <mem_mgr.h>
 
+unsigned long  n_ops = 0;
+unsigned long long tot = 0;
+
 int
 prints(char *s)
 {
@@ -102,24 +105,30 @@ struct comp {
 };
 typedef struct comp comp_t ;
 
-static void mapping_lock(mapping_t *m) {
-	ck_spinlock_ticket_lock(&m->m_lock);
-}
-
 static int mapping_trylock(mapping_t *m) {
 	return ck_spinlock_ticket_trylock(&m->m_lock);
+}
+
+static void mapping_lock(mapping_t *m) {
+	if (mapping_trylock(m)) return;
+
+	printc("mapping lock contention??\n");
+	ck_spinlock_ticket_lock(&m->m_lock);
 }
 
 static void mapping_unlock(mapping_t *m) {
 	ck_spinlock_ticket_unlock(&m->m_lock);
 }
 
-static void frame_lock(frame_t *f) {
-	ck_spinlock_ticket_lock(&f->frame_lock);
-}
-
 static int frame_trylock(frame_t *f) {
 	return ck_spinlock_ticket_trylock(&f->frame_lock);
+}
+
+static void frame_lock(frame_t *f) {
+	if (frame_trylock(f)) return;
+
+	printc("frame lock contention??\n");
+	ck_spinlock_ticket_lock(&f->frame_lock);
 }
 
 static void frame_unlock(frame_t *f) {
@@ -141,8 +150,8 @@ parsec_ns_t kmem_ns     CACHE_ALIGNED;
 #define FRAMETBL_ITEM_SZ (CACHE_LINE)
 /* Set on init, never modify. */
 static unsigned long n_pmem, n_kmem;
-char frame_table[FRAMETBL_ITEM_SZ*COS_MAX_MEMORY]   CACHE_ALIGNED;
-char kmem_table[FRAMETBL_ITEM_SZ*COS_KERNEL_MEMORY] CACHE_ALIGNED;
+char frame_table[FRAMETBL_ITEM_SZ*COS_MAX_MEMORY + 1]   CACHE_ALIGNED;
+char kmem_table[FRAMETBL_ITEM_SZ*COS_KERNEL_MEMORY + 1] CACHE_ALIGNED;
 
 //#define COMP_ITEM_SZ     (CACHE_LINE)
 #define COMP_ITEM_SZ (sizeof(struct comp) + 2*CACHE_LINE - sizeof(struct comp) % CACHE_LINE)
@@ -150,9 +159,9 @@ char kmem_table[FRAMETBL_ITEM_SZ*COS_KERNEL_MEMORY] CACHE_ALIGNED;
 char comp_table[COMP_ITEM_SZ*MAX_NUM_COMPS] CACHE_ALIGNED;
 
 #define VAS_QWQ_SIZE        (1*1024)//(1024)  
-#define VAS_QWQ_SIZE_SMALL  (4)	/* For large VAS items, to avoid queuing too much. */
+#define VAS_QWQ_SIZE_SMALL  (1)	/* For large VAS items, to avoid queuing too much. */
 
-#define PMEM_QWQ_SIZE (1*1024)//(1024)  /* 4 MB */
+#define PMEM_QWQ_SIZE (1024)  /* 4 MB */
 #define KMEM_QWQ_SIZE (1) /* Kmem allocation much less often. */
 
 /* All namespaces in the same parallel section. */
@@ -229,12 +238,13 @@ frame_lookup(unsigned long id, parsec_ns_t *ns)
 	return (struct frame *)((char *)meta + sizeof(struct quie_mem_meta));
 }
 
-/* I tried using a per-core last_tlb_flush for tlb quiescence. Did not
+/* i tried using a per-core last_tlb_flush for tlb quiescence. Did not
  * help. A simple glb_flush time + lock works better. */
 struct tlb_flush {
 	volatile quie_time_t last_tlb_flush;
+	volatile unsigned long glb_tlb_flush;
 	ck_spinlock_mcs_t lock;
-	char __padding[CACHE_LINE*2 - sizeof (quie_time_t)];
+	char __padding[CACHE_LINE*2 - sizeof(quie_time_t) - sizeof(unsigned long) - sizeof(ck_spinlock_mcs_t)];
 };
 struct tlb_flush tlb_flush CACHE_ALIGNED;
 
@@ -265,6 +275,9 @@ tlb_quiesce(quie_time_t t)
 
 	/* Slow path below: on demand per-core TLB flush. */
 	ck_spinlock_mcs_lock(&(tlb_flush.lock), &mcs);
+
+	/* tlb_flush.glb_tlb_flush++; */
+	/* cos_mem_fence(); */
 
 	/* re-check after took the lock */
 	if (check_tlb_quiesce(t) == 0) goto done;
@@ -344,7 +357,9 @@ frame_alloc(parsec_ns_t *ns)
 static struct frame *
 get_pmem(void)
 {
-	return frame_alloc(&frame_ns);
+	frame_t *f = frame_alloc(&frame_ns);
+
+	return f;
 }
 
 static struct frame * 
@@ -355,11 +370,11 @@ get_kmem(void)
 	kmem = frame_alloc(&kmem_ns); 
 	if (!kmem) {
 		printc("MM: no enough kernel frames on core %ld\n", cos_cpuid());
-		int i; 
-		for (i = 0; i < NUM_CPU; i++) {
-			printc("cpu %d: %d\n", i, kmem_ns.allocator.qwq[i].slab_queue[size2slab(PAGE_SIZE)].n_items);
-		}
-		printc("glb: %d\n", kmem_ns.allocator.glb_freelist.slab_freelists[size2slab(PAGE_SIZE)].n_items);
+		/* int i;  */
+		/* for (i = 0; i < NUM_CPU; i++) { */
+		/* 	printc("cpu %d: %d\n", i, kmem_ns.allocator.qwq[i].slab_queue[size2slab(PAGE_SIZE)].n_items); */
+		/* } */
+		/* printc("glb: %d\n", kmem_ns.allocator.glb_freelist.slab_freelists[size2slab(PAGE_SIZE)].n_items); */
 	}
 
 	return kmem;
@@ -582,11 +597,14 @@ vas_alloc(parsec_ns_t *ns, unsigned long size)
 static int
 vas_free(mapping_t *m, parsec_ns_t *ns)
 {
+	int ret;
 	/* Size == 0 means it shouldn't go back to the freelist. The
 	 * mapping is a page in a larger allocation. */
 	if (parsec_item_size(m) == 0) return mapping_close(m);
 
-	return parsec_free(m, &(ns->allocator));
+	ret = parsec_free(m, &(ns->allocator));
+
+	return ret;
 }
 
 static unsigned long
@@ -600,7 +618,9 @@ frame_boot(vaddr_t frame_addr, parsec_ns_t *ns)
 	assert(FRAMETBL_ITEM_SZ >= (sizeof(struct quie_mem_meta) + sizeof(struct frame)));
 	assert(frame_addr % PAGE_SIZE == 0);
 
-	i = 0;
+	/* Frame id 0 means no physical frame mapped. Don't use id
+	 * 0 for real frames. */
+	i = 1;
 	while (1) {
 		ret = call_cap_op(MM_CAPTBL_OWN_PGTBL, CAPTBL_OP_INTROSPECT, frame_addr, 0,0,0);
 		frame = frame_lookup(i, ns);
@@ -618,7 +638,8 @@ frame_boot(vaddr_t frame_addr, parsec_ns_t *ns)
 		i++;
 	}
 
-	n_frames = i;
+	n_frames = i - 1;
+
 	for (i = 0; i < n_frames; i++) {
 		/* They'll added to the glb freelist. */
 		frame = frame_lookup(i, ns);
@@ -730,7 +751,8 @@ build_mapping(comp_t *comp, frame_t *frame, mapping_t *mapping)
 			  frame->cap, comp_pt_cap(comp->id), mapping->vaddr, 0);
 	if (ret) { 
 		struct quie_mem_meta *meta = (void *)mapping - sizeof(struct quie_mem_meta);
-		printc("kern ret %d, user deact %llu, curr %llu\n", ret, meta->time_deact, get_time()); 
+		printc("MM mapping to comp %d @ %x failed: kern ret %d, user deact %llu, curr %llu\n", 
+		       comp->id, mapping->vaddr, ret, meta->time_deact, get_time()); 
 		cos_throw(done, -EINVAL);
 	}
 	
@@ -760,7 +782,12 @@ alloc_map_pages(mapping_t *head, comp_t *comp, int n_pages)
 	/* FIXME: reverse and free when fail */
 	for (i = 0; i < n_pages; i++) {
 		f = get_pmem();
-		if (!f) { i--; printc("MM warning: out of physical memory!\n"); cos_throw(release, -ENOMEM); }
+
+		if (!f) { 
+			i--; 
+			printc("MM warning: out of physical memory!\n"); 
+			cos_throw(release, -ENOMEM); 
+		}
 
 		if (build_mapping(comp, f, m)) { 
 			struct quie_mem_meta *meta = (void *)m - sizeof(struct quie_mem_meta);
@@ -1047,7 +1074,7 @@ vaddr_t mman_get_page(spdid_t compid, vaddr_t addr, int npages_flags)
 		m = get_vas_mapping(comp, npages);
 	}
 
-	if (!m) { printc("no vas");cos_throw(done, 0); }
+	if (!m) { printc("no vas\n"); cos_throw(done, 0); }
 	if (alloc_map_pages(m, comp, npages)) cos_throw(done, 0);
 
 	ret = m->vaddr;
@@ -1137,11 +1164,11 @@ done:
 }
 
 /* TODO: avoid false sharing in kernel (edge case). */
-#define LTBL_ENTS (1<<18)
+#define LTBL_ENTS (1<<20)
 #define LIDS_PERCPU (LTBL_ENTS/NUM_CPU_COS)
 struct liveness_id {
 	unsigned long lid;
-	char __padding[CACHE_LINE*2 - sizeof(unsigned long)];
+	char __padding[CACHE_LINE*4 - sizeof(unsigned long)];
 } PACKED CACHE_ALIGNED;
 
 struct liveness_id lid[NUM_CPU] CACHE_ALIGNED;
@@ -1153,6 +1180,7 @@ cpu_get_lid(void)
 	int cpu = cos_cpuid();
 
 	new_lid = lid[cpu].lid++;
+//	new_lid = tlb_flush.glb_tlb_flush;
 	offset  = LIDS_PERCPU * cpu;
 
 	return offset + new_lid % LIDS_PERCPU;
@@ -1181,7 +1209,6 @@ mapping_free(mapping_t *m, comp_t *c)
 		ret = call_cap_op(comp_pt_cap(c->id), CAPTBL_OP_MEMDEACTIVATE,
 				  m->vaddr, cpu_get_lid(), 0, 0);
 		if (ret) printc("ERROR: unmap frame %lu @ vaddr %x failed", m->frame_id, (unsigned int)m->vaddr);
-
 		/* Free mapping, and then release the frame if we are
 		 * root. Let's keep this order just to be safe. */
 		ret = vas_free(m, &c->mapping_ns);
@@ -1196,6 +1223,7 @@ mapping_free(mapping_t *m, comp_t *c)
 			f->child = NULL;
 			frame_unlock(f);
 		}
+
 	} else {
 		/* no frame means free vas (but valloc-ed). */
 		assert(m->child == NULL && m->parent == NULL);

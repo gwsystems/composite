@@ -283,7 +283,7 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 
 	/* ref cnt on the frame. */
 	ret = retypetbl_ref((void *)page);
-	if (ret) return ret;	
+	if (ret) return ret;
 
 	ret = __pgtbl_update_leaf(pte, (void *)(page | flags), orig_v);
 	if (ret) {
@@ -396,12 +396,14 @@ pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
 	if (!(orig_v & PGTBL_PRESENT)) return -EEXIST;
 	if (orig_v & PGTBL_COSFRAME)   return -EPERM;
 
+
 	ret = __pgtbl_update_leaf(pte, (void *)((liv_id<<PGTBL_PAGEIDX_SHIFT) | PGTBL_QUIESCENCE), orig_v);
 	if (ret) cos_throw(done, ret);
 
 	/* decrement ref cnt on the frame. */
 	ret = retypetbl_deref((void *)(orig_v & PGTBL_FRAME_MASK));
 	if (ret) cos_throw(done, ret);
+
 done:
 	return ret;
 }
