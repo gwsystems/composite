@@ -67,5 +67,5 @@ int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *i
 	if ((int)ip == 1) failure_notif_wait(cos_spd_id(), spdid);
 	else         failure_notif_fail(cos_spd_id(), spdid);
 
-	return 0;
+	return COS_FLT_PGFLT;
 }

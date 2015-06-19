@@ -49,10 +49,11 @@
 		"jmp 2f\n\t" \
 		".align 8\n\t" \
 		"1:\n\t" \
-		"movl $0, %%ecx\n\t" \
+		"movl $1, %%ecx\n\t" \
 		"jmp 3f\n\t" \
 		"2:\n\t" \
-		"movl $1, %%ecx\n\t" \
+		"call SS_ipc_client_fault\n\t" \
+		"movl %%eax, %%ecx\n\t" \
 		"3:\n\t"
 
 #define CSTUB_ASM_BODY_3RETS() \

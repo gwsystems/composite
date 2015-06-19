@@ -12,8 +12,10 @@ int foo(void)
 
 void cos_init(void)
 {
+	int status;
 	printc("Starting page fault test...\n");
-	foo();
+	status = foo();
+	assert(status == -EFAULT);
 	printc("... and successfully finishing page fault test.\n");
 }
 
