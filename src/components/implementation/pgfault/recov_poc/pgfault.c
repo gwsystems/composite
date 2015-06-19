@@ -23,21 +23,23 @@ int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *i
 {
 	unsigned long r_ip; 	/* the ip to return to */
 	int tid = cos_get_thd_id();
-	//int i;
 
 	/* START UNCOMMENT FOR FAULT INFO */
-	/* if (regs_active) BUG(); */
-	/* regs_active = 1; */
-	/* cos_regs_save(tid, spdid, fault_addr, &regs); */
-	/* printc("Thread %d faults in spd %d @ %p\n",  */
-	/*        tid, spdid, fault_addr); */
-	/* cos_regs_print(&regs); */
-	/* regs_active = 0; */
+#if 0
+	int i;
+	if (regs_active) BUG();
+	regs_active = 1;
+	cos_regs_save(tid, spdid, fault_addr, &regs);
+	printc("Thread %d faults in spd %d @ %p\n",
+	       tid, spdid, fault_addr);
+	cos_regs_print(&regs);
+	regs_active = 0;
 
-	/* for (i = 0 ; i < 5 ; i++) */
-	/* 	printc("Frame ip:%lx, sp:%lx\n",  */
-	/* 	       cos_thd_cntl(COS_THD_INVFRM_IP, tid, i, 0),  */
-	/* 	       cos_thd_cntl(COS_THD_INVFRM_SP, tid, i, 0)); */
+	for (i = 0 ; i < 5 ; i++) 
+		printc("Frame ip:%lx, sp:%lx\n",
+		       cos_thd_cntl(COS_THD_INVFRM_IP, tid, i, 0),
+		       cos_thd_cntl(COS_THD_INVFRM_SP, tid, i, 0));
+#endif
 	/* END UNCOMMENT FOR FAULT INFO */
 
 	/* remove from the invocation stack the faulting component! */
@@ -49,6 +51,14 @@ int fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *i
 	/* ...and set it to its value -8, which is the fault handler
 	 * of the stub. */
 	assert(!cos_thd_cntl(COS_THD_INVFRM_SET_IP, tid, 1, r_ip-8));
+
+#if 0
+	for (i = 0 ; i < 5 ; i++) 
+		printc ("after adjusment:\n");
+		printc("Frame ip:%lx, sp:%lx\n",  
+		       cos_thd_cntl(COS_THD_INVFRM_IP, tid, i, 0),
+		       cos_thd_cntl(COS_THD_INVFRM_SP, tid, i, 0));
+#endif
 
 	/* 
 	 * Look at the booter: when recover is happening, the sstub is
