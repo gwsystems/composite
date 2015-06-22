@@ -638,7 +638,8 @@ frame_boot(vaddr_t frame_addr, parsec_ns_t *ns)
 		i++;
 	}
 
-	n_frames = i;
+	n_frames = i - 1;
+
 	for (i = 0; i < n_frames; i++) {
 		/* They'll added to the glb freelist. */
 		frame = frame_lookup(i, ns);
@@ -781,11 +782,16 @@ alloc_map_pages(mapping_t *head, comp_t *comp, int n_pages)
 	/* FIXME: reverse and free when fail */
 	for (i = 0; i < n_pages; i++) {
 		f = get_pmem();
-		if (!f) { i--; cos_throw(release, -ENOMEM); }
+
+		if (!f) { 
+			i--; 
+			printc("MM warning: out of physical memory!\n"); 
+			cos_throw(release, -ENOMEM); 
+		}
 
 		if (build_mapping(comp, f, m)) { 
 			struct quie_mem_meta *meta = (void *)m - sizeof(struct quie_mem_meta);
-			printc("on core %d: build failed, t %llu!\n", cos_cpuid(), meta->time_deact); 
+			printc("MM on core %ld error: mapping failed, t %llu!\n", cos_cpuid(), meta->time_deact); 
 
 			cos_throw(release, -EINVAL); 
 		}
@@ -945,7 +951,7 @@ static int mm_comp_init(void)
 
 	for (i = 0; i < MM_NPTE_NEEDED; i++) {
 		if (comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pte + i*MM_PTE_SIZE, MM_PTE_SIZE, glb_freelist_add)) {
-			printc("%d pte init failed\n", i);
+			printc("MM error: mem_mgr pte init failed\n");
 			return -1;
 		}
 	}
@@ -1089,19 +1095,19 @@ alias_mapping(comp_t *s_comp, mapping_t *s, comp_t *d_comp, mapping_t *d)
 	frame_lock(f);
 	mapping_lock(s);
 	/* re-check after taking the lock */
-	if (!parsec_item_active(s)) goto UNLOCK_S;
+	if (!parsec_item_active(s)) goto unlock_s;
 
 	/* if locking failed of dest mapping, others are aliasing to the same
 	 * location. */
-	if (!mapping_trylock(d)) goto UNLOCK_S;
+	if (!mapping_trylock(d)) goto unlock_s;
 	if (d->frame_id) { 
 		/* Someone nailed the dest mapping before us. */
-		goto UNLOCK_ALL; 
+		goto unlock_all;
 	}
 
 	ret = call_cap_op(comp_pt_cap(s_comp->id), CAPTBL_OP_CPY,
 			  s->vaddr, comp_pt_cap(d_comp->id), d->vaddr, 0);
-	if (ret) goto UNLOCK_ALL;
+	if (ret) goto unlock_all;
 
 	if (!s->child) {
 		s->child = d;
@@ -1109,6 +1115,7 @@ alias_mapping(comp_t *s_comp, mapping_t *s, comp_t *d_comp, mapping_t *d)
 		/* insert to the head of the dll */
 		s->child->sibling_prev = d;
 		d->sibling_next = s->child;
+		cos_mem_fence();
 		s->child = d;
 	}
 
@@ -1116,9 +1123,9 @@ alias_mapping(comp_t *s_comp, mapping_t *s, comp_t *d_comp, mapping_t *d)
 	d->parent   = s;
 	d->frame_id = s->frame_id;
 	ret = 0;
-UNLOCK_ALL:
+unlock_all:
 	mapping_unlock(d);
-UNLOCK_S:
+unlock_s:
 	mapping_unlock(s);
 	frame_unlock(f);
 	

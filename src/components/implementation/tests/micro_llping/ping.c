@@ -1380,7 +1380,7 @@ void play_trace(unsigned long *npage_alloc, unsigned long long *tot, unsigned lo
 		s = tsc_start();
 		ret = call_cap(MMAN_GET, cos_spd_id(), 0, npages << 16, 0);
 		if (!ret) {
-			printc("cpu %d, i %d >>> comp %ld called mman_get cap %d, ret %x, allocated %d pages already.\n", 
+			printc("cpu %d, i %d >>> comp %ld called mman_get cap %d, ret %x, allocated %lu pages already.\n", 
 			       cpu, i, cos_spd_id(), MMAN_GET, ret, *npage_alloc); 
 			ret = -1;
 			goto done;
@@ -1472,7 +1472,7 @@ void cos_init(void)
 	tlb_quiescence_wait();
 	sync_all();
 
-	if (cos_cpuid() % 4) goto done;
+	if (cos_cpuid()) goto done;
 
 	if (cos_cpuid() == 0) nlog = 0;
 
@@ -1483,8 +1483,8 @@ void cos_init(void)
 	}
 
 	if (nops) {
-		printc("nops %d cpu %d avg cost %llu (%lu ops), avg2 cost %llu (%lu ops)\n", NOPS, cpu, (tot)/(nops), nops, tot2/nops2, nops2);
-
+		printc("nops %d cpu %d avg cost %llu (%lu ops), avg2 cost %llu (%lu ops)\n", 
+		       NOPS, cpu, (tot)/(nops), nops, tot2/nops2, nops2);
 	} else
 		printc("cpu %d no ops\n", cpu);
 
