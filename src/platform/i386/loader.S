@@ -13,7 +13,7 @@
 .long MULTIBOOT_FLAGS
 .long MULTIBOOT_CHECKSUM
 
-.set STACKSIZE, 0x4000
+.set STACKSIZE, 0x1000
 .comm stack, STACKSIZE, 32
 
 .globl loader
@@ -21,7 +21,7 @@ loader = (_loader-COS_MEM_KERN_START_VA)
 
 .globl _loader
 _loader:
-	mov 	$(stack + STACKSIZE - STK_INFO_SZ), %esp
+	mov 	$(stack + STACKSIZE - STK_INFO_OFF), %esp
 	movl	%eax, %ecx
 	movl    %cr4, %eax
 	orl     $((1<<4) | (1<<7)), %eax

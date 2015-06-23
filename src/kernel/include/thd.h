@@ -150,9 +150,18 @@ static void thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, i
 	return;
 }
 
-/* We need global thread name space as we use thd_id to access simple
- * stacks. When we have low-level per comp stack free-list, we don't
- * have to use global thread id name space.*/
+/* 
+ * FIXME: We need global thread name space as we use thd_id to access
+ * simple stacks. When we have low-level per comp stack free-list, we
+ * don't have to use global thread id name space.
+ *
+ * Update: this is only partially true.  We should really just get rid
+ * of this id in the kernel and replace it with a
+ * scheduler-configurable variable.  That variable can be the thread
+ * id where appropriate, and some other (component-controlled)
+ * principal id otherwise.  Given this, the allocator should be in the
+ * scheduler, not here.
+ */
 extern u32_t free_thd_id;
 static u32_t
 alloc_thd_id(void)
@@ -253,20 +262,27 @@ static void thd_init(void)
 { assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD)); }
 
 extern struct thread *__thd_current;
-static inline struct thread *thd_current(void *ignore) 
+
+static inline struct thread *
+thd_current(void *ignore) 
 { (void)ignore; return __thd_current; }
-static inline void thd_current_update(struct thread *thd, struct thread *ignore)
+
+static inline void 
+thd_current_update(struct thread *thd, struct thread *ignore)
 { (void)ignore; __thd_current = thd; }
 
 #else
 
-static void thd_init(void)
+static void 
+thd_init(void)
 { assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD)); }
 
-static inline struct thread *thd_current(struct cos_cpu_local_info *cos_info) 
+static inline struct thread *
+thd_current(struct cos_cpu_local_info *cos_info) 
 { return (struct thread *)(cos_info->curr_thd); }
 
-static inline void thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
+static inline void 
+thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
 {
 	/* commit the cached data */
 	prev->invstk_top = cos_info->invstk_top;

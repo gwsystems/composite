@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "tss.h"
+#include "chal_asm_inc.h"
 
 struct tss tss;
 
@@ -15,5 +16,5 @@ tss_init (void)
 	u32_t esp;
 	tss.ss0 = SEL_KDSEG;
 	tss.bitmap = 0xdfff;
-	tss.esp0 = (u8_t *) (((u32_t)&esp & ~PGMASK) + PGSIZE);
+	tss.esp0 = (u8_t *) (((u32_t)&esp & ~PGMASK) + PGSIZE - STK_INFO_OFF);
 }

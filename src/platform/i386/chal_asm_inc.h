@@ -8,3 +8,4 @@
 #define SEL_CNT         6       /* Number of segments. */
 
 #define STK_INFO_SZ     24	/* sizeof(struct cos_cpu_local_info) */
+#define STK_INFO_OFF    28	/* sizeof(struct cos_cpu_local_info) + sizeof(long) */

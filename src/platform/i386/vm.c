@@ -49,6 +49,8 @@ mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
 	u8_t *r = glb_memlayout.kern_boot_heap;
 	unsigned long i;
 
+	assert(glb_memlayout.allocs_avail);
+
 	glb_memlayout.kern_boot_heap += npages * (PAGE_SIZE/sizeof(u8_t));
 	assert(glb_memlayout.kern_boot_heap <= mem_kmem_end());
 	for (i = (unsigned long)r ; i < (unsigned long)glb_memlayout.kern_boot_heap ; i += PAGE_SIZE) {

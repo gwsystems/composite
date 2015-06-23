@@ -50,6 +50,7 @@ COS_OBJ += liveness_tbl.o
 COS_OBJ += capinv.o
 COS_OBJ += measurement.o
 COS_OBJ += captbl.o
+COS_OBJ += per_cpu.o
 
 DEPS :=$(patsubst %.o, %.d, $(OBJS))
 
@@ -69,6 +70,10 @@ loader.o: loader.S interrupt.s entry.S
 
 %.d: %.c
 	@$(CC) -M -MT $(patsubst %.d, %.o, $@) $(CFLAGS) $(LDFLAGS) $< -o $@
+
+per_cpu.o: ../../kernel/per_cpu.c
+	$(info |     [CC]   Compiling $@)
+	@$(CC) $(CFLAGS) -c $< -o $@
 
 pgtbl.o: ../../kernel/pgtbl.c
 	$(info |     [CC]   Compiling $@)

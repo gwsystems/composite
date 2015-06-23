@@ -3,8 +3,11 @@
 #include "boot_comp.h"
 #include "chal_cpu.h"
 #include "mem_layout.h"
+#include "string.h"
 #include <pgtbl.h>
 #include <inv.h>
+#include <thd.h>
+#include <component.h>
 
 extern u8_t *boot_comp_pgd;
 
@@ -67,6 +70,27 @@ boot_pgtbl_mappings_add(struct captbl *ct, pgtbl_t pgtbl, capid_t ptecap, const 
 	return 0;
 }
 
+static void
+kern_boot_thd(struct captbl *ct, void *thd_mem)
+{
+	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
+	struct thread *t = thd_mem;
+	int ret;
+
+	memset(cos_info, 0, sizeof(struct cos_cpu_local_info));
+	cos_info->cpuid          = 0;
+	cos_info->invstk_top     = 0;
+	cos_info->overflow_check = 0xDEADBEEF;
+
+	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE, 
+			   thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
+	assert(!ret);
+
+	thd_current_update(t, t, cos_cpu_local_info());
+
+	printk("\tCreating initial thread in boot-component.\n");
+}
+
 void
 kern_boot_comp(void)
 {
@@ -75,10 +99,10 @@ kern_boot_comp(void)
         unsigned int i;
 	u8_t *boot_comp_captbl;
 	pgtbl_t pgtbl = (pgtbl_t)chal_va2pa(&boot_comp_pgd);
+	void *thd_mem;
 
 	printk("Setting up the booter component.\n");
 
-	printk("\tCreating capability table.\n");
 	boot_comp_captbl = mem_boot_alloc(BOOT_CAPTBL_NPAGES);
         ct = captbl_create(boot_comp_captbl);
         assert(ct);
@@ -93,9 +117,12 @@ kern_boot_comp(void)
                 assert(!ret);
         }
 
+	thd_mem = mem_boot_alloc(1);
         if (captbl_activate_boot(ct, BOOT_CAPTBL_SELF_CT)) assert(0);
         if (sret_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SRET)) assert(0);
         if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, pgtbl, 0)) assert(0);
+
+	printk("\tCapability table and page-table created.\n");
 
 	ret = boot_pgtbl_mappings_add(ct, pgtbl, BOOT_CAPTBL_BOOTVM_PTE, "booter VM", mem_bootc_start(), 
 				      (unsigned long)mem_bootc_vaddr(), mem_bootc_end() - mem_bootc_start(), 1);
@@ -103,13 +130,28 @@ kern_boot_comp(void)
 	ret = boot_pgtbl_mappings_add(ct, pgtbl, BOOT_CAPTBL_PHYSM_PTE, "user-typed memory", mem_usermem_start(), 
 				      BOOT_MEM_PM_BASE, mem_usermem_end() - mem_usermem_start(), 0);
 	assert(ret == 0);
-	/* Need to account for the pages that will be allocated as PTEs */
+
+	/* 
+	 * This _must_ be the last allocation.  The bump pointer
+	 * modifies this allocation.
+	 *
+	 * Need to account for the pages that will be allocated as
+	 * PTEs
+	 */
 	nkmemptes = boot_nptes(mem_kmem_end() - mem_boot_end());
 	ret = boot_pgtbl_mappings_add(ct, pgtbl, BOOT_CAPTBL_KM_PTE, "untyped memory", mem_boot_nalloc_end(nkmemptes), 
 				      BOOT_MEM_KM_BASE, mem_kmem_end() - mem_boot_nalloc_end(nkmemptes), 0);
 	assert(ret == 0);
+	/* Shut off further bump allocations */
+	glb_memlayout.allocs_avail = 0;
 
-	printk("Boot component resource tables initialized.\n");
+	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, 
+			  BOOT_CAPTBL_SELF_PT, 0, (vaddr_t)mem_bootc_entry(), NULL)) assert(0);
+	printk("\tCreated boot component structure from page-table and capability-table.\n");
+
+	kern_boot_thd(ct, thd_mem);
+
+	printk("\tBoot component initialization complete.\n");
 }
 
 void 

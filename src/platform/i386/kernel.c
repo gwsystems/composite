@@ -46,6 +46,8 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 	struct multiboot_mem_list *mems;
 	unsigned int i, wastage = 0;
 
+	glb_memlayout.allocs_avail = 1;
+
 	if (mboot_magic != MULTIBOOT_EAX_MAGIC) {
 		die("Not started from a multiboot loader!\n");
 	}
@@ -102,6 +104,8 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 
 	printk("\tAmount of wasted memory due to layout is %u MB + 0x%x B\n", 
 	       wastage>>20, wastage & ((1<<20)-1));
+
+	assert(STK_INFO_SZ == sizeof(struct cos_cpu_local_info));
 }
 
 void 

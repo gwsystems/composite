@@ -122,7 +122,7 @@ struct pt_regs {
 #endif
 #define RETYPE_MEM_SIZE          (RETYPE_MEM_NPAGES * PAGE_SIZE)
 
-#include "../asm_ipc_defs.h"
+// GAP: Needed? #include "../asm_ipc_defs.h" 
 
 #define KERN_BASE_ADDR 0xc0000000 // should be COS_MEM_KERN_START_VA
 

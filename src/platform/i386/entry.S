@@ -68,7 +68,7 @@ PT_OLDSS	= 0x40
 restore_from_thd:
 	pushl %ecx
 	pushl %edx
-/*	call cos_get_curr_thd_asm */
+	call cos_get_curr_thd_asm
 	popl %edx
 	popl %ecx
 

@@ -8,12 +8,8 @@
  */
 
 #include "include/per_cpu.h"
-#include "include/thread.h"
-/* struct per_core_variables per_core[NUM_CPU]; */
+#include "include/thd.h"
 
-/* We need to access the current thread from ASM. Used in ipc.S */
-COS_SYSCALL __attribute__((cdecl)) struct thread *
-cos_get_curr_thd_asm(void)
-{
-	return cos_get_curr_thd();
-}
+/* We need to access the current thread from ASM. Used in entry.S */
+COS_SYSCALL struct thread *
+cos_get_curr_thd_asm(void) { return cos_get_curr_thd(); }
