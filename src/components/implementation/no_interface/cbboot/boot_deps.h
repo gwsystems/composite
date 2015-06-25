@@ -98,11 +98,13 @@ void __boot_deps_save_hp(spdid_t spdid, void *hp) {
 
 static void
 boot_deps_run(void) {
+#if defined(TEST_QUARANTINE)
 	printc("copying %d\n", some_spd);
 	spdid_t new_spd = quarantine_fork(cos_spd_id(), some_spd);
 	/* deal with threads: assume this will work. */
 	__boot_spd_thd(new_spd);
 	printc("forked %d to %d\n", some_spd, new_spd);
+#endif
 	return; }
 
 /* hack to get access to the functions in booter.c */
