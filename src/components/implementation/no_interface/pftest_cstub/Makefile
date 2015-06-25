@@ -1,4 +1,4 @@
-C_OBJS=pftest_cbuf.o
+C_OBJS=pftest_cstub.o
 ASM_OBJS=
 COMPONENT=pftc.o
 INTERFACES=
