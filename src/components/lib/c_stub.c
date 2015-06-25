@@ -7,7 +7,7 @@
 #define assert(x) do { volatile int y; if (!(x)) y = *(int*)NULL; } while(0)
 
 /* Return zero from SS_ipc_client_fault to cause CSTUB_INVOKE to retry */
-__attribute__((regparm(1))) int
+__attribute__((weak, regparm(1))) int
 SS_ipc_client_fault(cos_flt_off flt)
 {
 	int error_out = 0;
