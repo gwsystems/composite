@@ -31,7 +31,11 @@ COS_VECT_CREATE_STATIC(spd_sect_cbufs_header);
 struct cbid_caddr all_spd_sect_cbufs[CBUFS_PER_PAGE * SECT_CBUF_PAGES];
 unsigned int all_cbufs_index = 0;
 
+//#define TEST_QUARANTINE
+
+#if defined(TEST_QUARANTINE)
 static spdid_t some_spd = 0;
+#endif
 
 static void
 boot_deps_init(void)
@@ -84,7 +88,9 @@ boot_deps_map_sect(spdid_t spdid, void *src_start, vaddr_t dest_start, int pages
 		caddr += PAGE_SIZE;
 	}
 	if (dest != (cbuf_map_at(b_spd, cbm.cbid, spdid, dest | flags))) BUG();
+#if defined(TEST_QUARANTINE)
 	if (!some_spd) some_spd = spdid;
+#endif
 }
 
 static void
