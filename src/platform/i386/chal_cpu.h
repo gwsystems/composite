@@ -83,6 +83,9 @@ chal_cpu_fault_vaddr(struct registers *r)
 static inline u32_t
 chal_cpu_fault_errcode(struct registers *r) { return r->err_code; }
 
+static inline u32_t
+chal_cpu_fault_ip(struct registers *r) { return r->eip; }
+
 static inline void
 chal_user_upcall(void *ip)
 {

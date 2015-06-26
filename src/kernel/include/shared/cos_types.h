@@ -30,7 +30,7 @@ typedef signed int       s32_t;
 typedef signed long long s64_t;
 #endif
 
-#define PRINT_CAP_TEMP (2 << 15)
+#define PRINT_CAP_TEMP (1 << 14)
 
 #define BOOT_LIVENESS_ID_BASE 2
 

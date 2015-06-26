@@ -134,7 +134,8 @@ struct cap_thd {
 	cpuid_t cpuid;
 } __attribute__((packed));
 
-static void thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int arg2, int arg3)
+static void 
+thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int arg2, int arg3)
 {
 	struct pt_regs *r = &thd->regs;
 
@@ -203,8 +204,9 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	return 0;
 }
 
-static int thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin, 
-			  livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
+static int 
+thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin, 
+	       livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
 {
 	struct cap_header *thd_header;
 	struct thread *thd;

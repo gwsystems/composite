@@ -41,13 +41,16 @@ fs_reg_setup(unsigned long seg) {
 
 #define MAX_LEN 512
 extern char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
-static inline int printfn(struct pt_regs *regs) 
+static inline int 
+printfn(struct pt_regs *regs) 
 {
 	char *str; 
 	int len;
 	char kern_buf[MAX_LEN];
 
+#ifdef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
+#endif
 
 	str     = (char *)__userregs_get1(regs);
 	len     = __userregs_get2(regs);
@@ -418,19 +421,19 @@ composite_sysenter_handler(struct pt_regs *regs)
 	capid_t cap, capin;
 	unsigned long ip, sp;
 	syscall_op_t op;
-	/* We lookup this struct (which is on stack) only once, and
-	 * pass it into other functions to avoid unnecessary
-	 * lookup. */
+	/* 
+	 * We lookup this struct (which is on stack) only once, and
+	 * pass it into other functions to avoid unnecessary lookup.
+	 */
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	int ret = 0;
 
 #ifdef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
 #endif
-	/* printk("calling cap %d: %x, %x, %x, %x\n", */
-	/*        cap, __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
-
 	cap = __userregs_getcap(regs);
+
+	//printk("calling cap %d: %x, %x, %x, %x\n", cap, __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs));
 
 	thd = thd_current(cos_info);
 
@@ -442,7 +445,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 	}
 
 	/* FIXME: use a cap for print */
-	if (unlikely(regs->ax == PRINT_CAP_TEMP)) {
+	if (unlikely(cap == PRINT_CAP_TEMP)) {
 		printfn(regs);
 		return 0;
 	}

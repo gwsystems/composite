@@ -981,6 +981,7 @@ void cos_init(void);
 int sched_init(void)   
 {
 	assert(cos_cpuid() < NUM_CPU_COS);
+	
 	if (cos_cpuid() == INIT_CORE) {
 		if (!PERCPU_GET(llbooter)->init_thd) cos_init();
 		else comp_deps_run_all();

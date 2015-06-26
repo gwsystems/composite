@@ -1,4 +1,3 @@
-
 /**
  * Copyright 2007 by Gabriel Parmer, gabep1@cs.bu.edu
  * 2010 The George Washington University, Gabriel Parmer, gparmer@gwu.edu
@@ -754,6 +753,7 @@ make_spd_llboot(struct service_symbs *boot, struct service_symbs *all)
 	ci->cos_poly[3] = ((unsigned int)*heap_ptr);
 	make_spd_config_comp(boot, all);
 	llboot_mem = (unsigned int)*heap_ptr - boot->lower_addr;
+	boot->heap_top = (unsigned int)*heap_ptr; /* ensure that we copy all of the meta-data as well */
 }
 
 

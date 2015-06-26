@@ -22,6 +22,7 @@ page_fault(struct registers *regs)
     
 	fault_addr = chal_cpu_fault_vaddr(regs);
 	errcode    = chal_cpu_fault_errcode(regs);
+	eip        = chal_cpu_fault_ip(regs);
 
 	die("Page Fault (%s %s %s %s %s) at 0x%x, eip 0x%x\n",
 	    errcode & PGTBL_PRESENT  ? "present"           : "not-present",
