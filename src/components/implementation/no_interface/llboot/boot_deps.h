@@ -214,6 +214,56 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 	return 0;
 }
 
+int
+fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
+{
+	unsigned long r_ip;
+	int tid = cos_get_thd_id();
+	int c_spd, d_spd, c_cnt, d_cnt;
+	int f_spd;
+	c_cnt = ccnt_dcnt>>16;
+	d_cnt = ccnt_dcnt&0xffff;
+	c_spd = cspd_dspd>>16;
+	d_spd = cspd_dspd&0xffff;
+
+	printc("llboot args: %d\t%d\n", cspd_dspd, ccnt_dcnt);
+	printc("llboot (%d) fault_quarantine_handler %d (%d) -> %d (%d)\n", spdid, c_spd, c_cnt, d_spd, d_cnt);
+
+	if (c_cnt) {
+		printc("Fixing server metadata after fork from %d\n",
+				c_spd);
+		/* TODO: upcall here? */
+
+		cos_spd_cntl(COS_SPD_INC_FORK_CNT, c_spd, -c_cnt, 0);
+	}
+	if (d_cnt) {
+	/* d_spd has been forked, and c_spd needs to have its inv caps fixed.
+	 * Two possible ways to fix c_spd are to (1) find the usr_cap_tbl and
+	 * add a capability for the fork directly, or (2) add a syscall to
+	 * do the same. The following uses a syscall, since after adding the
+	 * capability to the usr_cap_tbl a syscall is needed anyway to fix
+	 * the struct spd caps[], ncaps. So just do it once.
+	 */
+		printc("Fixing routing table after fork from %d\n",
+				d_spd);
+
+		// TODO: add / change ucap, routing table
+		cos_spd_cntl(COS_SPD_INC_FORK_CNT, d_spd, -d_cnt, 0);
+	}
+
+	/* remove from the invocation stack the faulting component! */
+	assert(!cos_thd_cntl(COS_THD_INV_FRAME_REM, tid, 1, 0));
+
+	/* Manipulate the return address of the component that called
+	 * the faulting component... */
+	assert(r_ip = cos_thd_cntl(COS_THD_INVFRM_IP, tid, 1, 0));
+	/* ...and set it to its value -8, which is the fault handler
+	 * of the stub. */
+	assert(!cos_thd_cntl(COS_THD_INVFRM_SET_IP, tid, 1, r_ip-8));
+
+	return COS_FLT_QUARANTINE;
+}
+
 /* memory operations... */
 
 static vaddr_t init_hp = 0; 		/* initial heap pointer */

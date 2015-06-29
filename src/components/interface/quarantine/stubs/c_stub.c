@@ -19,6 +19,9 @@ SS_ipc_client_fault(cos_flt_off flt)
 	case COS_FLT_PGFLT:
 		error_out = EFAULT;
 		break;
+	case COS_FLT_QUARANTINE:
+		error_out = EFAULT;
+		break;
 	default:
 		/* Any other fault is bad */
 		assert(0);

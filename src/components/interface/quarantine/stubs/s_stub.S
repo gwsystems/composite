@@ -6,6 +6,6 @@
  */
 
 #include <cos_asm_server_stub_simple_stack.h>
-.text	
 
+.text
 cos_asm_server_stub_spdid(quarantine_fork)

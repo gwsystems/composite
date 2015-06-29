@@ -31,7 +31,7 @@ COS_VECT_CREATE_STATIC(spd_sect_cbufs_header);
 struct cbid_caddr all_spd_sect_cbufs[CBUFS_PER_PAGE * SECT_CBUF_PAGES];
 unsigned int all_cbufs_index = 0;
 
-//#define TEST_QUARANTINE
+#define TEST_QUARANTINE
 
 #if defined(TEST_QUARANTINE)
 static spdid_t some_spd = 0;

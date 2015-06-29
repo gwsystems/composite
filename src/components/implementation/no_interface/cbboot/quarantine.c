@@ -3,6 +3,25 @@
 
 #define printl(...) printc("Quarantine: "__VA_ARGS__)
 
+/* quarantine_spd_map stores the spds of an spd's forks.
+ * Currently this is implemented as a simple linear array indexed by the
+ * original spd's id.
+ *
+ * FIXME: need a smarter data structure here to allow forking the same
+ * component multiple times */
+spdid_t quarantine_spd_map[PAGE_SIZE/sizeof(spdid_t)];
+
+static int
+quarantine_add_to_spd_map(int orig_spd, int fork_spd) {
+	assert(quarantine_spd_map[orig_spd] == 0);
+	quarantine_spd_map[orig_spd] = fork_spd;
+}
+
+static int
+quarantine_get_spd_map(orig_spd) {
+	return quarantine_spd_map[orig_spd];
+}
+
 /* Called after fork() finished copying the spd from source to target.
  */
 int
@@ -51,6 +70,10 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	long tot = 0;
 	int j, r;
 	int generation;
+
+	/* FIXME: initialization hack. */
+	static int first = 1;
+	if (first) { memset(quarantine_spd_map, 0, PAGE_SIZE); first = 0; }
 
 	printl("quarantine_fork(%d, %d)\n", spdid, source);
 
@@ -189,6 +212,56 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	}
 done:
 	printl("Forked %d -> %d\n", source, d_spd);
+	quarantine_add_to_spd_map(source, d_spd);
 	return d_spd;
+}
+
+
+int
+fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
+{
+	unsigned long r_ip;
+	int tid = cos_get_thd_id();
+	int c_spd, d_spd, c_cnt, d_cnt;
+	int f_spd;
+	c_cnt = ccnt_dcnt>>16;
+	d_cnt = ccnt_dcnt&0xffff;
+	c_spd = cspd_dspd>>16;
+	d_spd = cspd_dspd&0xffff;
+
+	printl("fault_quarantine_handler %d (%d) -> %d (%d)\n", c_spd, c_cnt, d_spd, d_cnt);
+
+	if (c_cnt) {
+		f_spd = quarantine_get_spd_map(c_spd);
+		printl("Fixing server metadata after fork from %d -> %d\n",
+				c_spd, f_spd);
+		/* TODO: upcall here? */
+	}
+	if (d_cnt) {
+	/* d_spd has been forked, and c_spd needs to have its inv caps fixed.
+	 * Two possible ways to fix c_spd are to (1) find the usr_cap_tbl and
+	 * add a capability for the fork directly, or (2) add a syscall to
+	 * do the same. The following uses a syscall, since after adding the
+	 * capability to the usr_cap_tbl a syscall is needed anyway to fix
+	 * the struct spd caps[], ncaps. So just do it once.
+	 */
+		f_spd = quarantine_get_spd_map(d_spd);
+		printl("Fixing routing table after fork from %d -> %d\n",
+				d_spd, f_spd);
+
+		// TODO: add / change ucap, routing table
+	}
+
+	/* remove from the invocation stack the faulting component! */
+	assert(!cos_thd_cntl(COS_THD_INV_FRAME_REM, tid, 1, 0));
+
+	/* Manipulate the return address of the component that called
+	 * the faulting component... */
+	assert(r_ip = cos_thd_cntl(COS_THD_INVFRM_IP, tid, 1, 0));
+	/* ...and set it to its value -8, which is the fault handler
+	 * of the stub. */
+	assert(!cos_thd_cntl(COS_THD_INVFRM_SET_IP, tid, 1, r_ip-8));
+
+	return COS_FLT_QUARANTINE;
 }
 
