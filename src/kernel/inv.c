@@ -390,8 +390,11 @@ thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_
 	
 	printk("cos: thd_quarantine_fault %d (%d) -> %d (%d)\n", c_spd, c_cnt, d_spd, d_cnt);
 
-	/* GB: use curr_spd->fault_handler[], or dest_spd? */
-	if (unlikely(!__fault_ipc_invoke(thd, packed_spds, packed_counts, &thd->regs, fault_num, curr_spd))) return (vaddr_t)NULL;
+	/* GB: use curr_spd->fault_handler[], or dest_spd?
+	 * has to be dest_spd, otherwise static_ipc_walk fails, but
+	 * how do we fix-up the curr_spd then? */
+	if (unlikely(!__fault_ipc_invoke(thd, packed_spds, packed_counts, &thd->regs, fault_num, dest_spd))) return (vaddr_t)NULL;
+	printk("cos: fault thd reg args: si = %d, di = %d\n", thd->regs.si, thd->regs.di);
 	return thd->regs.ip;
 }
 
