@@ -978,7 +978,8 @@ done:
 
 void cos_init(void);
 
-int sched_init(void)   
+int
+sched_init_linux(void)
 {
 	assert(cos_cpuid() < NUM_CPU_COS);
 	
@@ -996,6 +997,41 @@ int sched_init(void)
 	call_cap(0, 0, 0, 0, 0);
 
 	return 0;
+}
+
+int
+sched_init_i386(void)
+{
+	assert(cos_cpuid() < NUM_CPU_COS);
+	
+	if (cos_cpuid() == INIT_CORE) {
+		cos_init();
+		assert(PERCPU_GET(llbooter)->init_thd);
+		comp_deps_run_all();
+	} else {
+		LOCK();
+		boot_comp_thds_init();
+		UNLOCK();
+		comp_deps_run_all();
+	}
+	
+	/* calling return cap */
+	call_cap(0, 0, 0, 0, 0);
+
+	return 0;
+}
+
+#include <cpu_ghz.h>
+int 
+sched_init(void)   
+{
+#ifdef COS_PLATFORM
+#if    COS_PLATFORM == I386
+	return sched_init_i386();
+#else
+	return sched_init_linux();
+#endif
+#endif
 }
 
 int  sched_isroot(void) { return 1; }

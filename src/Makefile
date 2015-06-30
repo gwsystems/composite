@@ -59,6 +59,7 @@ config:
 
 # override the default linux chal link
 config-i386: config
+	@echo "#define COS_PLATFORM I386" >> ./kernel/include/shared/cpu_ghz.h
 	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/i386/chal/ chal
 
 config-linux: config
