@@ -54,20 +54,7 @@ void call(void) {
 }
 
 #include <ck_pr.h>
-//#include <cos_list.h>
-//#include "../../sched/cos_sched_ds.h"
-//#include "../../sched/cos_sched_sync.h"
-
 #include <ck_spinlock.h>
-#if NUM_CPU_COS > 1
-/* ck_spinlock_ticket_t xcore_lock = CK_SPINLOCK_TICKET_INITIALIZER; */
-
-/* #define LOCK()   do { if (cos_sched_lock_take())   assert(0); ck_spinlock_ticket_lock_pb(&xcore_lock, 1); } while (0) */
-/* #define UNLOCK() do { ck_spinlock_ticket_unlock(&xcore_lock); if (cos_sched_lock_release()) assert(0);    } while (0) */
-/* #else */
-/* #define LOCK()   if (cos_sched_lock_take())    assert(0); */
-/* #define UNLOCK() if (cos_sched_lock_release()) assert(0); */
-#endif
 
 /***************************************************/
 /*** Data-structure for tracking physical memory ***/

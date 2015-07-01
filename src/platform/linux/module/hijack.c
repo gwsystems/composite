@@ -600,7 +600,7 @@ static void hw_reset(void *data)
 
 #define THD_SIZE (PAGE_SIZE/4)
 
-u8_t init_thds[THD_SIZE * NUM_CPU_COS] PAGE_ALIGNED;
+u8_t init_thds[THD_SIZE * NUM_CPU] PAGE_ALIGNED;
 /* Reserve 5 pages for llboot captbl. */
 u8_t boot_comp_captbl[PAGE_SIZE*BOOT_CAPTBL_NPAGES] PAGE_ALIGNED; 
 u8_t c0_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
@@ -636,11 +636,13 @@ get_coskmem(void)
 	return ret;
 }
 
+//#define KMEM_HACK
+#ifdef KMEM_HACK
 /* a hack to get more kmem... */
 #define NBOOTKMEM 1024
 void *bootkmem[NBOOTKMEM];
 unsigned long bootkmem_used = 0;
-
+#endif
 
 static int
 kern_boot_comp(struct spd_info *spd_info)
@@ -716,12 +718,15 @@ kern_boot_comp(struct spd_info *spd_info)
 	pte_cap = (struct cap_pgtbl *)captbl_lkup(ct, BOOT_CAPTBL_PHYSM_PTE);
 	assert(pte_cap);
 
-#define KMEM_HACK
-
+#ifdef KMEM_HACK
 	if (n_pte > NBOOTKMEM) {
 		printk("no enough bootkmem, want %d\n", n_pte);
 		cos_throw(err, -1);
 	}
+	for (i = 0; i < NBOOTKMEM; i++) 
+		bootkmem[i] = NULL;
+
+	/* Get PTE */
 	for (i = 0; i < n_pte; i++) {
 		bootkmem[i] = chal_alloc_page();
 		if (!bootkmem[i]) {
@@ -730,6 +735,7 @@ kern_boot_comp(struct spd_info *spd_info)
 		}
 	}
 	bootkmem_used += n_pte;
+#endif
 
 	for (i = 0; i < n_pte; i++) {
 #ifndef KMEM_HACK
@@ -764,8 +770,8 @@ kern_boot_comp(struct spd_info *spd_info)
 #endif
 	/* add the component's virtual memory at 4MB (1<<22) using "physical memory" starting at cos_kmem */
 	for (i = 0 ; i < sys_llbooter_sz; i++) {
-		u32_t flags;
 #ifndef KMEM_HACK
+		u32_t flags;
 		u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
 		if ((addr - (u32_t)kmem_base_pa) % RETYPE_MEM_SIZE == 0) {
 			ret = retypetbl_retype2kern((void *)addr);
@@ -888,7 +894,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case AED_INIT_BOOT:
 	{
 		struct spd_info spd_info;
-		int i;
 
 		if (copy_from_user(&spd_info, (void*)arg, 
 				   sizeof(struct spd_info))) {
@@ -913,6 +918,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		}
 #else
+		int i;
 		for (i = 0; i < sys_llbooter_sz-1; i++) {
 			if (copy_from_user(bootkmem[i+bootkmem_used-sys_llbooter_sz], (void*)(spd_info.lowest_addr+i*PAGE_SIZE), PAGE_SIZE)) {
 				printk("cos: Error copying spd_info from user.\n");
@@ -2267,8 +2273,6 @@ static int aed_open(struct inode *inode, struct file *file)
 static int aed_release(struct inode *inode, struct file *file)
 {
 	pgd_t *pgd;
-	struct thread *t;
-	struct spd *s;
 	int i;
 #ifdef FAULT_DEBUG
 	int j, k;
@@ -2297,15 +2301,9 @@ static int aed_release(struct inode *inode, struct file *file)
 		flush_all(current->mm->pgd);
 		BUG();
 	}
+
 	trusted_mm = NULL;
 	remove_all_guest_mms();
-
-	t = cos_get_curr_thd();
-	if (t) {
-		s = thd_get_thd_spd(t);
-		printk("cos: Halting Composite.  Current thread: %d in spd %d\n",
-		       thd_get_id(t), spd_get_index(s));
-	}
 
 	cos_net_finish();
 
@@ -2323,11 +2321,10 @@ static int aed_release(struct inode *inode, struct file *file)
 	 * system control fd is closed */
 //	thd_free(cos_get_curr_thd());
 	thd_free_all();
- 	thd_init();
+// 	thd_init();
 	spd_free_all();
 	ipc_init();
 	cos_shutdown_memory();
-
 	cos_meas_report();
 
 	/* reset the address space to the original process */
@@ -2338,7 +2335,7 @@ static int aed_release(struct inode *inode, struct file *file)
 	 * FIXME: should also kill the actual pages of shared memory
 	 */
 	pgd = pgd_offset(composite_union_mm, COS_INFO_REGION_ADDR);
-	memset(pgd, 0, sizeof(int));
+	if (pgd) memset(pgd, 0, sizeof(int));
 
 	syscalls_enabled = 1;
 	for (i = 0 ; i < NUM_CPU ; i++) {
@@ -2352,7 +2349,6 @@ static int aed_release(struct inode *inode, struct file *file)
 	 * be accessed from fd release procedures.)
 	 */
 	mmput(composite_union_mm);
-
 	init_globals();
 
 #ifdef FAULT_DEBUG

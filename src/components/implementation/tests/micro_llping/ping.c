@@ -79,6 +79,7 @@ int synced_nthd = 0;
 void sync_all()
 {
 	int ret;
+	if (N_SYNC_CPU <= 1) return;
 
 	ret = ck_pr_faa_int(&synced_nthd, 1);
 	ret = (ret/N_SYNC_CPU + 1)*N_SYNC_CPU;
@@ -1513,9 +1514,9 @@ void cos_init(void)
 		printc("nlog %lu on core 0, SINGLE PAGE 99p (%lu) is %lu , 1024 page (%lu ops) 99p is %lu\n", 
 		       nlog, nlog/100, logs[nlog/100], nlog_large, logs_large[nlog_large/100]);
 #ifdef MEAS_MAP
-		printc("Op: mmap on %d cores\n", NUM_CPU);
+		printc("Operation: mmap on %d cores\n", NUM_CPU_COS);
 #else
-		printc("Op: munmap on %d cores\n", NUM_CPU);
+		printc("Operation: munmap on %d cores\n", NUM_CPU_COS);
 #endif
 	}
 /* #endif */

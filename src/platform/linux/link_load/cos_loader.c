@@ -2833,7 +2833,7 @@ done:
 
 	cos_restore_hw_entry(cntl_fd);
 
-	if (pid > 0) {
+	if (pid > 0 && NUM_CPU_COS > 1) {
 		int child_status;
 		while (wait(&child_status) > 0) ;
 	} else {
