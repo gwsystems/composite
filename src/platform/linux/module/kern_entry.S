@@ -145,7 +145,7 @@ sysenter_interposition_entry:
 	SAVE_REGS_GENERAL
 
 	pushl %esp /* pt_reg */
-	call composite_sysenter_handler
+	call composite_syscall_fastpath
 	addl $4, %esp
 
 	testl %eax, %eax
