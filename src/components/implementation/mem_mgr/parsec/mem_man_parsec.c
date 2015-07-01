@@ -738,8 +738,8 @@ build_mapping(comp_t *comp, frame_t *frame, mapping_t *mapping)
 			  frame->cap, comp_pt_cap(comp->id), mapping->vaddr, 0);
 	if (ret) { 
 		struct quie_mem_meta *meta = (void *)mapping - sizeof(struct quie_mem_meta);
-		printc("MM mapping to comp %d @ %x failed: kern ret %d, user deact %llu, curr %llu\n", 
-		       comp->id, mapping->vaddr, ret, meta->time_deact, get_time()); 
+		printc("MM mapping to comp %d @ %p failed: kern ret %d, user deact %llu, curr %llu\n", 
+		       comp->id, (void *)(mapping->vaddr), ret, meta->time_deact, get_time()); 
 		cos_throw(done, -EINVAL);
 	}
 	
