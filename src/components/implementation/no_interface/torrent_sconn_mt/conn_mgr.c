@@ -338,8 +338,6 @@ void event_handling(void)
 			assert(tc.from > 0);
 			to_data_new(&tc);
 		}
-
-		cos_mpd_update();
 	}
 }
 
