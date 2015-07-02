@@ -14,6 +14,7 @@
 #define CONSTS_H
 
 #include "cos_errno.h"
+#include "cos_config.h"
 
 #ifndef __ASM__
 #ifdef __KERNEL__
@@ -106,20 +107,28 @@ struct pt_regs {
 #define COS_NUM_ATOMIC_SECTIONS 10
 
 /* # of pages */
-#define COS_MAX_MEMORY_MB (980) /* total user memory in MBs */
-#define COS_MAX_MEMORY    ((COS_MAX_MEMORY_MB << 20) / PAGE_SIZE)  /* # of pages */ 
-#define COS_MEM_BOUND     (COS_MEM_START + COS_MAX_MEMORY*PAGE_SIZE) /* highest physical address */
-#define KERN_MEM_ORDER    (10)        /* should be fine when <= 10 */
-#define COS_KERNEL_MEMORY (1 << KERN_MEM_ORDER)   /* 2^n pages kernel memory */
+#define COS_MAX_MEMORY    (COS_MEM_USER_PA_SZ/PAGE_SIZE)  /* # of pages */ 
+#define COS_MEM_BOUND     (COS_MEM_USER_PA + COS_MAX_MEMORY*PAGE_SIZE) /* highest physical address */
 
-/* how many pages in a collection. Should consider cacheline
- * size. Multiple of 16 on x86. */
+/* These are deprecated, use the macros they reference */
+#define KERN_MEM_ORDER    (COS_MEM_KERN_PA_ORDER-PAGE_ORDER)		     
+#define COS_KERNEL_MEMORY (COS_MEM_KERN_PA_SZ/PAGE_SIZE)   /* 2^n pages kernel memory */
+
+/* 
+ * how many pages in a collection. Should consider cacheline
+ * size. Multiple of 16 on x86.  If you change, this, make sure to
+ * update the linker script as well.
+ */
+#ifdef COS_LINUX
 #define RETYPE_MEM_NPAGES        (32)
+#else
+#define RETYPE_MEM_NPAGES        (1)
+#endif
 #define RETYPE_MEM_SIZE          (RETYPE_MEM_NPAGES * PAGE_SIZE)
 
-#include "../asm_ipc_defs.h"
+// GAP: Needed? #include "../asm_ipc_defs.h" 
 
-#define KERN_BASE_ADDR 0xc0000000 //CONFIG_PAGE_OFFSET
+#define KERN_BASE_ADDR 0xc0000000 // should be COS_MEM_KERN_START_VA
 
 /* We save information on the user level stack for fast access. The
  * offsets below are used to access CPU and thread IDs. */

@@ -74,8 +74,9 @@ int chal_pgtbl_add_middledir_range(paddr_t pt, unsigned long vaddr, long size);
  * Address translation functions *
  *********************************/
 
-void *chal_va2pa(void *va);
-void *chal_pa2va(void *pa);
+paddr_t chal_va2pa(void *va);
+void *chal_pa2va(paddr_t pa);
+extern paddr_t chal_kernel_mem_pa;
 
 /************************************
  * Page allocation and deallocation *
@@ -103,11 +104,17 @@ void chal_send_ipi(int cpuid);
 /* static const struct cos_trans_fns *trans_fns = NULL; */
 void chal_idle(void);
 
+void chal_init(void);
+
 /* int cos_syscall_idle(void); */
 /* int cos_syscall_switch_thread(void); */
 /* int cos_syscall_buff_mgmt(void); */
 /* void cos_syscall_upcall(void); */
 
 #include "../../platform/include/chal_plat.h"
+
+#ifndef COS_LINUX
+extern void printk(const char *fmt, ...);
+#endif
 
 #endif	/* CHAL_H */

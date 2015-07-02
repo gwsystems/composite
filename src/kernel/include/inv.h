@@ -14,7 +14,7 @@
 
 #include "component.h"
 #include "thd.h"
-#include "call_convention.h"
+#include "chal/call_convention.h"
 
 struct cap_sinv {
 	struct cap_header h;

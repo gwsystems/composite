@@ -125,7 +125,7 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 		u32_t flags = 0, old_pte, new_pte, old_v, refcnt_flags;
 
 		intern = pgtbl_lkup_lvl(((struct cap_pgtbl *)ct)->pgtbl, expandid, &flags, ct->lvl, depth);
-		if (!intern)                return -ENOENT;
+		if (!intern)                  return -ENOENT;
 		old_pte = *intern;
 		if (pgtbl_ispresent(old_pte)) return -EPERM;
 
@@ -140,7 +140,6 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 		new_pte = (u32_t)chal_va2pa((void *)((unsigned long)(((struct cap_pgtbl *)ctsub)->pgtbl) & PGTBL_FRAME_MASK)) | PGTBL_INTERN_DEF;
 
 		ret = cos_cas(intern, old_pte, new_pte);
-
 		if (ret != CAS_SUCCESS) {
 			/* decrement to restore the refcnt on failure. */
 			cos_faa((int *)&(((struct cap_pgtbl *)ctsub)->refcnt_flags), -1);
@@ -212,14 +211,14 @@ cap_decons(struct captbl *t, capid_t cap, capid_t capsub, capid_t pruneid, unsig
 
 		old_v = l = ct->refcnt_flags;
 		if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
-		cos_faa(&(ct->refcnt_flags), -1);
+		cos_faa((int*)&(ct->refcnt_flags), -1);
 	} else {
 		struct cap_pgtbl *pt = (struct cap_pgtbl *)sub;
 		u32_t old_v, l;
 
 		old_v = l = pt->refcnt_flags;
 		if (l & CAP_MEM_FROZEN_FLAG) return -EINVAL;
-		cos_faa(&(pt->refcnt_flags), -1);
+		cos_faa((int*)&(pt->refcnt_flags), -1);
 	}
 
 	return 0;
@@ -266,7 +265,7 @@ kmem_page_scan(void *obj_vaddr, const int size)
 {
 	/* For non-leaf level captbl / pgtbl. entries are all pointers
 	 * in these cases. */
-	int i;
+	unsigned int i;
 	void *addr = obj_vaddr;
 			
 	for (i = 0; i < size / sizeof(void *); i++) {

@@ -28,9 +28,9 @@ printc(char *fmt, ...)
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, len, fmt, arg_ptr);
 	va_end(arg_ptr);
-	ret = cos_print(s, ret);
+	cos_print(s, ret);
 
-	return ret;
+	return 0;
 }
 
 unsigned long long tsc_start(void)
@@ -1403,10 +1403,11 @@ void play_trace(unsigned long *npage_alloc, unsigned long long *tot, unsigned lo
 		else *npage_1024 = *npage_1024 + 1;
 	}
 
-	if (!nmaps)
+	if (!nmaps) {
 		nmaps = i;
-	else
+	} else {
 		assert(nmaps == i);
+	}
 
 	for (i = 0; i < nmaps; i++) {
 		s = tsc_start();

@@ -1,8 +1,8 @@
 #ifndef CALL_CONVENTION_H
 #define CALL_CONVENTION_H
 
-#include "inv.h"
-#include "asm_ipc_defs.h"
+#include "../../../kernel/include/inv.h"
+#include "../../../kernel/include/asm_ipc_defs.h"
 
 /* 
  * Functions to maintain calling conventions on invocation and return

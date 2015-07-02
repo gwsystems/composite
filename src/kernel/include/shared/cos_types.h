@@ -15,7 +15,7 @@
 #define TYPES_H
 
 #include "./consts.h"
-
+#include "./cos_config.h"
 #include "../debug.h"
 
 #ifndef COS_BASE_TYPES
@@ -30,7 +30,7 @@ typedef signed int       s32_t;
 typedef signed long long s64_t;
 #endif
 
-#define PRINT_CAP_TEMP (2 << 15)
+#define PRINT_CAP_TEMP (1 << 14)
 
 #define BOOT_LIVENESS_ID_BASE 2
 
@@ -155,27 +155,26 @@ static inline unsigned long captbl_idsize(cap_t c)
  * 1.5GB-> = kernel memory
  * 2GB-> = system physical memory
  */
-#define BOOT_CAPTBL_NPAGES 5
 enum {
-	BOOT_CAPTBL_SRET = 0, 
-	BOOT_CAPTBL_SELF_CT = 4,
-	BOOT_CAPTBL_SELF_PT = 6, 
-	BOOT_CAPTBL_SELF_COMP = 8, 
+	BOOT_CAPTBL_SRET       = 0, 
+	BOOT_CAPTBL_SELF_CT    = 4,
+	BOOT_CAPTBL_SELF_PT    = 6, 
+	BOOT_CAPTBL_SELF_COMP  = 8, 
 	BOOT_CAPTBL_BOOTVM_PTE = 12, 
-	BOOT_CAPTBL_PHYSM_PTE = 14, 
-	BOOT_CAPTBL_KM_PTE = 16,
+	BOOT_CAPTBL_PHYSM_PTE  = 14, 
+	BOOT_CAPTBL_KM_PTE     = 16,
 
-	BOOT_CAPTBL_COMP0_CT = 18,
-	BOOT_CAPTBL_COMP0_PT = 20,  
-	BOOT_CAPTBL_COMP0_COMP = 24, 
+	BOOT_CAPTBL_COMP0_CT          = 18,
+	BOOT_CAPTBL_COMP0_PT          = 20,  
+	BOOT_CAPTBL_COMP0_COMP        = 24, 
 	BOOT_CAPTBL_SELF_INITTHD_BASE = 28,
-	BOOT_CAPTBL_LAST_CAP = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS*CAP32B_IDSZ,
+	BOOT_CAPTBL_LAST_CAP          = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
 	/* round up to next entry */
-	BOOT_CAPTBL_FREE = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
+	BOOT_CAPTBL_FREE              = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
 
 enum {
-	BOOT_MEM_VM_BASE = 0x40800000,//@ 1G + 8M
+	BOOT_MEM_VM_BASE = (COS_MEM_COMP_START_VA + (1<<22)), //@ 1G + 8M
 	BOOT_MEM_KM_BASE = 0x60000000,//@ 1.5 GB
 	BOOT_MEM_PM_BASE = 0x80000000,//@ 2 GB
 };
@@ -639,7 +638,7 @@ enum {
 #define COS_SCHED_TAILCALL     0x1
 #define COS_SCHED_SYNC_BLOCK   0x2
 #define COS_SCHED_SYNC_UNBLOCK 0x4
-#define COS_SCHED_ACAP_WAIT   0x80
+#define COS_SCHED_ACAP_WAIT    0x80
 #define COS_SCHED_CHILD_EVT    0x10
 
 #define COS_SCHED_RET_SUCCESS  0
@@ -802,5 +801,9 @@ static inline void cos_mem_fence(void)
 {
 	__asm__ __volatile__("mfence" ::: "memory");
 }
+
+#ifndef __KERNEL_PERCPU
+#define __KERNEL_PERCPU 0
+#endif
 
 #endif /* TYPES_H */

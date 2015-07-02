@@ -9,4 +9,4 @@ __restore_rt:
 	int $0x80
 
 .Lend:
-.size    __restore_rt,..Lend-__restore_rt
+.size    __restore_rt,.Lend-__restore_rt

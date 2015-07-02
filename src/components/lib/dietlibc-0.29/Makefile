@@ -9,6 +9,7 @@ BINDIR=${prefix}/bin
 MAN1DIR=${prefix}/man/man1
 
 MYARCH:=$(shell uname -m | sed -e 's/i[4-9]86/i386/' -e 's/armv[3-6][lb]/arm/')
+STACK_BOUNDARY=2
 
 # This extra-ugly cruft is here so make will not run uname and sed each
 # time it looks at $(OBJDIR).  This alone sped up running make when
@@ -56,6 +57,7 @@ MYARCH=parisc
 else
 ifeq ($(MYARCH),x86_64)
 ARCH=x86_64
+STACK_BOUNDARY=4
 else
 ifeq ($(MYARCH),ia64)
 ARCH=ia64
@@ -301,7 +303,7 @@ $(OBJDIR)/diet: $(OBJDIR)/dyn_start.o diet.c $(OBJDIR)/dietlibc.a $(OBJDIR)/dyn_
 #	$(CROSS)$(CC) -isystem include $(CFLAGS) -nostdlib -o $@ $^ -DDIETHOME=\"$(HOME)\" -DVERSION=\"$(VERSION)\" -lgcc
 # NOTE: not using dietlibc.a to compile bin-i386/bin as we are going to modify the lib which will break everything compiled using it!
 # not sure about other libs listed ...
-	$(CC) -isystem include -pipe -Os -fno-omit-frame-pointer -falign-functions=1 -falign-jumps=1 -falign-loops=1 -mpreferred-stack-boundary=2 -Wall -W -Wchar-subscripts -Wmissing-prototypes -Wmissing-declarations -Wno-switch -Wno-unused -Wredundant-decls -fno-merge-constants -fno-stack-protector -o ./bin-i386/diet diet.c -DDIETHOME=\"$(HOME)\" -DVERSION=\"dietlibc-0.29\" -lgcc
+	$(CC) -isystem include -pipe -Os -fno-omit-frame-pointer -falign-functions=1 -falign-jumps=1 -falign-loops=1 -mpreferred-stack-boundary=$(STACK_BOUNDARY) -Wall -W -Wchar-subscripts -Wmissing-prototypes -Wmissing-declarations -Wno-switch -Wno-unused -Wredundant-decls -fno-merge-constants -fno-stack-protector -o ./bin-i386/diet diet.c -DDIETHOME=\"$(HOME)\" -DVERSION=\"dietlibc-0.29\" -lgcc
 	$(CROSS)strip -R .comment -R .note $@
 
 $(OBJDIR)/diet-i: $(OBJDIR)/start.o $(OBJDIR)/dyn_start.o diet.c $(OBJDIR)/dietlibc.a $(OBJDIR)/dyn_stop.o

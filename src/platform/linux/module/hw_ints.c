@@ -12,7 +12,7 @@
 #include <linux/sched.h>
 #include "../../../kernel/include/shared/cos_config.h"
 #include "../../../kernel/include/asm_ipc_defs.h"
-#include "../../../kernel/include/cpuid.h"
+#include "../../../kernel/include/chal/cpuid.h"
 
 /*
  * The Linux provided descriptor structure is crap, probably due to
@@ -94,6 +94,10 @@ void *cos_default_sysenter_addr;
 
 extern void ipi_handler(void);
 extern void reg_save_interposition(void);
+
+#ifndef LOCAL_TIMER_VECTOR
+#define LOCAL_TIMER_VECTOR         0xef
+#endif
 
 void
 hw_int_init(void)
@@ -188,24 +192,17 @@ hw_int_override_sysenter(void *handler, void *tss_end)
 	wrmsr(MSR_IA32_SYSENTER_ESP, (int)sp0, 0);
 	/* Now we have sysenter_esp points to actual sp0. No need to
 	 * touch TSS page on Composite path! */
-
-	/* printk("CPU %d: Overriding sysenter handler (%p) with %p, and sysenter_esp %p with sp0 %p\n", */
-	/*        get_cpu(), cos_default_sysenter_addr, handler, tss_end, sp0); */
 }
 
 void
 hw_int_override_timer(void *handler)
 {
-	/* printk("CPU %d: Overriding timer interrupt handler (%p) with %p\n", */
-	/*        get_cpu(), cos_default_timer_handler, handler); */
-
 	cos_set_idt_entry(LOCAL_TIMER_VECTOR, 0, 0, handler, default_idt);
 }
 
 void
 hw_int_cos_ipi(void *handler)
 {
-	/* printk("cos: core %d enabling Composite IPI IRQ vector %x.\n", get_cpu(), COS_IPI_VECTOR); */
 	cos_set_idt_entry(COS_IPI_VECTOR, 0, 0, handler, default_idt);
 }
 
@@ -283,9 +280,6 @@ hw_int_override_pagefault(void *handler)
 	
 	cos_set_idt_entry(14, default_idt_entry[14].dpl, default_idt_entry[14].ints_enabled, 
 			  cos_realloc_page_fault_handler, default_idt);
-	/* printk("CPU %d: Overriding page_fault handler (%p, dpl %d, int %d) with %p (via trampoline %p)\n", */
-	/*        get_cpu(), default_idt_entry[14].handler, default_idt_entry[14].dpl, */
-	/*        default_idt_entry[14].ints_enabled, handler, cos_realloc_page_fault_handler); */
 
 	return 0;
 }
@@ -307,9 +301,6 @@ hw_int_override_idt(int fault_num, void *handler, int ints_enabled, int dpl)
 	 * translation from include/asm-i386/fixmap.h
 	 */
 	cos_set_idt_entry(fault_num, dpl, ints_enabled, handler, default_idt);
-	/* printk("CPU %d: Overriding %d IDT handler (%p, dpl %d, int %d) with %p, dpl %d, int %d\n", */
-	/*        get_cpu(), fault_num, default_idt_entry[fault_num].handler, default_idt_entry[fault_num].dpl, */
-	/*        default_idt_entry[fault_num].ints_enabled, handler, dpl, ints_enabled); */
 
 	return 0;
 }

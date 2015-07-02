@@ -1,4 +1,4 @@
- /**
+/**
  * Hijack, or Asymmetric Execution Domains support for Linux
  *
  * Copyright 2007 by Boston University.
@@ -8,6 +8,10 @@
  *
  * Author: Gabriel Parmer, gabep1@cs.bu.edu, 2007
  */
+
+#ifndef CONFIG_X86_LOCAL_APIC
+#define CONFIG_X86_LOCAL_APIC
+#endif
 
 #include <linux/module.h>
 //#include <linux/config.h>
@@ -49,7 +53,7 @@
 #include "../../../kernel/include/shared/consts.h"
 #include "../../../kernel/include/shared/cos_config.h"
 #include "../../../kernel/include/fpu.h"
-#include "../../../kernel/include/cpuid.h"
+#include "../../../kernel/include/chal/cpuid.h"
 #include "../../../kernel/include/asm_ipc_defs.h"
 
 #include "./hw_ints.h"
@@ -668,14 +672,14 @@ kern_boot_comp(struct spd_info *spd_info)
 	}
 	boot_captbl = ct;
 
-	kmem_base_pa = chal_va2pa(cos_kmem_base);
+	kmem_base_pa = (void *)chal_va2pa(cos_kmem_base);
 	ret = retypetbl_retype2kern(kmem_base_pa);
 	assert(ret == 0);
 
 	boot_comp_pgd = get_coskmem();
 	boot_comp_pte_km = get_coskmem();
 
-	pt = pgtbl_create(boot_comp_pgd, chal_va2pa(linux_pgd));
+	pt = pgtbl_create(boot_comp_pgd, (void *)chal_va2pa(linux_pgd));
 	assert(pt);
 	pgtbl_init_pte(boot_comp_pte_km);
 
@@ -698,7 +702,7 @@ kern_boot_comp(struct spd_info *spd_info)
 	for (i = 0; i < BOOTER_NREGIONS; i++) {
 		boot_comp_pte_vm = get_coskmem();
 		if (((u32_t)boot_comp_pte_vm - (u32_t)cos_kmem_base) % RETYPE_MEM_SIZE == 0) {
-			ret = retypetbl_retype2kern(chal_va2pa(boot_comp_pte_vm));
+			ret = retypetbl_retype2kern((void *)chal_va2pa(boot_comp_pte_vm));
 			assert(ret == 0);
 		}
 
@@ -741,7 +745,7 @@ kern_boot_comp(struct spd_info *spd_info)
 #ifndef KMEM_HACK
 		boot_comp_pte_pm = get_coskmem();
 		if (((u32_t)boot_comp_pte_pm - (u32_t)cos_kmem_base) % RETYPE_MEM_SIZE == 0) {
-			ret = retypetbl_retype2kern(chal_va2pa(boot_comp_pte_pm));
+			ret = retypetbl_retype2kern((void *)chal_va2pa(boot_comp_pte_pm));
 			assert(ret == 0);
 		}
 #else
@@ -772,7 +776,7 @@ kern_boot_comp(struct spd_info *spd_info)
 	for (i = 0 ; i < sys_llbooter_sz; i++) {
 #ifndef KMEM_HACK
 		u32_t flags;
-		u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
+		u32_t addr = (u32_t)((void *)chal_va2pa(cos_kmem) + i*PAGE_SIZE);
 		if ((addr - (u32_t)kmem_base_pa) % RETYPE_MEM_SIZE == 0) {
 			ret = retypetbl_retype2kern((void *)addr);
 			if (ret) {
@@ -784,9 +788,9 @@ kern_boot_comp(struct spd_info *spd_info)
 			printk("Mapping llbooter %x failed!\n", addr);
 			cos_throw(err, -1);
 		} 
-		assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
+		assert(chal_pa2va((paddr_t)addr) == pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
 #else
-		u32_t addr = (u32_t)(chal_va2pa(bootkmem[i+bootkmem_used]));
+		u32_t addr = (u32_t)chal_va2pa(bootkmem[i+bootkmem_used]);
 		kmem_add_hack(pt, BOOT_MEM_VM_BASE + i*PAGE_SIZE, addr, PGTBL_USER_DEF);
 #endif
 	}
@@ -801,17 +805,19 @@ kern_boot_comp(struct spd_info *spd_info)
 
 	/* Round to the next memory retype region. Adjust based on
 	 * offset from cos_kmem_base*/
-	if ((cos_kmem - cos_kmem_base) % RETYPE_MEM_SIZE != 0)
+	if ((cos_kmem - cos_kmem_base) % RETYPE_MEM_SIZE != 0) {
 		cos_kmem += (RETYPE_MEM_SIZE - (cos_kmem - cos_kmem_base) % RETYPE_MEM_SIZE);
+	}
 
 	/* add the remaining kernel memory @ 1.5GB*/
 	/* printk("mapping from kmem %x\n", cos_kmem); */
 	for (i = 0; i < (COS_KERNEL_MEMORY - (cos_kmem - cos_kmem_base)/PAGE_SIZE); i++) {
-		u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
+		u32_t addr = (u32_t)((void *)chal_va2pa(cos_kmem) + i*PAGE_SIZE);
 
 		if (pgtbl_cosframe_add(pt, BOOT_MEM_KM_BASE + i*PAGE_SIZE, 
 				       addr, PGTBL_COSFRAME)) cos_throw(err, -1);
 	}
+	printk("cos: %d kernel accessible pages @ %x\n", i, BOOT_MEM_KM_BASE);
 
 	if (COS_MEM_START % RETYPE_MEM_SIZE != 0) {
 		printk("Physical memory start address (%d) not aligned by retype_memory size (%lu).",
@@ -826,12 +832,13 @@ kern_boot_comp(struct spd_info *spd_info)
 		if (pgtbl_cosframe_add(pt, BOOT_MEM_PM_BASE + i*PAGE_SIZE, 
 				       addr, PGTBL_COSFRAME)) { printk ("%d failed\n", i);break;}//cos_throw(err, -1);
 	}
+	printk("cos: %d user frames @ %x\n", i, BOOT_MEM_PM_BASE);
 
 	/* comp0's data, culminated in a static invocation capability to the llbooter */
 	ct0 = captbl_create(c0_comp_captbl);
 	assert(ct0);
 	if (captbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_CT, ct0, 0)) cos_throw(err, -1);
-	pt0 = chal_va2pa(current->mm->pgd);
+	pt0 = (void *)chal_va2pa(current->mm->pgd);
 	assert(pt0);
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_PT, pt0, 0)) cos_throw(err, -1);
 
@@ -885,7 +892,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		/* Comp0 has only 1 pgtbl, which points to the process
 		 * of the init core. Here we update the inv_stk of the
 		 * init thread of current core. */
-		thd->invstk[0].comp_info.pgtbl = chal_va2pa(current->mm->pgd);
+		thd->invstk[0].comp_info.pgtbl = (void *)chal_va2pa(current->mm->pgd);
 
 		hw_int_override_all();
 
@@ -1085,28 +1092,28 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		}
 
-		printk("cos core %u: creating thread in spd %d.\n", get_cpuid(), thread_info.spd_handle);
+		/* printk("cos core %u: creating thread in spd %d.\n", get_cpuid(), thread_info.spd_handle); */
 
-		spd = spd_get_by_index(thread_info.spd_handle);
-		if (!spd) {
-			printk("cos: Spd %d invalid for thread creation.\n", 
-			       thread_info.spd_handle);
-			return -EINVAL;
-		}
-		thd = ready_boot_thread(spd);
-		spd = spd_get_by_index(thread_info.sched_handle);
-		if (!spd) {
-			printk("cos: scheduling spd %d not permitted to create thread.\n", 
-			       thread_info.sched_handle);
-			thd_free(thd);
-			return -EINVAL;
-		}
-		sched = spd;
-		for (i = spd->sched_depth ; i >= 0 ; i--) {
-			tsi = thd_get_sched_info(thd, i);
-			tsi->scheduler = sched;
-			sched = sched->parent_sched;
-		}
+		/* spd = spd_get_by_index(thread_info.spd_handle); */
+		/* if (!spd) { */
+		/* 	printk("cos: Spd %d invalid for thread creation.\n",  */
+		/* 	       thread_info.spd_handle); */
+		/* 	return -EINVAL; */
+		/* } */
+		/* thd = ready_boot_thread(spd); */
+		/* spd = spd_get_by_index(thread_info.sched_handle); */
+		/* if (!spd) { */
+		/* 	printk("cos: scheduling spd %d not permitted to create thread.\n",  */
+		/* 	       thread_info.sched_handle); */
+		/* 	thd_free(thd); */
+		/* 	return -EINVAL; */
+		/* } */
+		/* sched = spd; */
+		/* for (i = spd->sched_depth ; i >= 0 ; i--) { */
+		/* 	tsi = thd_get_sched_info(thd, i); */
+		/* 	tsi->scheduler = sched; */
+		/* 	sched = sched->parent_sched; */
+		/* } */
 
 		/* FIXME: need to return opaque handle, rather than
 		 * just set the current thread to be the new one. */
@@ -1660,14 +1667,14 @@ void chal_free_kern_mem(void *mem, int order)
  * using them both in the composite world and in the Linux world.  We
  * should just use them in the composite world and be done with it.
  */
-void *chal_va2pa(void *va) 
+paddr_t chal_va2pa(void *va) 
 {
-	return (void*)__pa(va);
+	return (paddr_t)__pa(va);
 }
 
-void *chal_pa2va(void *pa) 
+void *chal_pa2va(paddr_t pa) 
 {
-	if ((paddr_t)pa >= COS_MEM_START) return NULL;
+	if (pa >= COS_MEM_START) return NULL;
 
 	return (void*)__va(pa);
 }
@@ -2212,6 +2219,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	 * spend most of their time complaining about microkernels as
 	 * being horrible instead.
 	 */
+
 	shared_region_pte = (pte_t *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), 
 							  (unsigned long)shared_region_page);
 	if (((unsigned long)shared_region_pte & ~PAGE_MASK) != 0) {
@@ -2221,7 +2229,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	memset(shared_region_pte, 0, PAGE_SIZE);
 
 	/* hook in the data page */
-	data_page = chal_va2pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), 
+	data_page = (void *)chal_va2pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), 
 							   (unsigned long)shared_data_page));
 	shared_region_pte[0].pte_low = (unsigned long)(data_page) |
 		(PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_USER | PGTBL_ACCESSED);

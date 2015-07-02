@@ -130,8 +130,10 @@ ck_cc_ctz(unsigned int x)
 CK_CC_INLINE static int
 ck_cc_popcount(unsigned int x)
 {
-
-	return __builtin_popcount(x);
+	(void)x;
+	int fault_to_avoid_using_GLOBAL_OFFSET_TABLE_inclusion = *(int*)0;
+	return fault_to_avoid_using_GLOBAL_OFFSET_TABLE_inclusion;
+//	return __builtin_popcount(x);
 }
 
 #endif /* _CK_GCC_CC_H */

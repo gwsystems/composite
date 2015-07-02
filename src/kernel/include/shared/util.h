@@ -46,4 +46,8 @@ cos_inst_bar(void)
 	return;
 }
 
+#ifndef rdtscll
+#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
+#endif
+
 #endif

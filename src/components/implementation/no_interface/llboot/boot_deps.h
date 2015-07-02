@@ -401,6 +401,10 @@ capid_t alloc_capid(cap_t cap)
 		ret = 0;
 		BUG();
 	}
+	if (unlikely(capid_64b_free < capid_32b_free)) {
+		printc("LLBOOT: no enough CAPTBL IDs.\n");
+		return 0;
+	}
 	assert(ret);
 	assert(capid_64b_free >= capid_32b_free);
 
@@ -514,14 +518,22 @@ boot_comp_mm_init(void)
 			/* Need to expand PTE. */
 			pte_cap  = alloc_capid(CAP_PGTBL);
 			kmem_cap = get_kmem_cap();
-			/* PTE */
-			if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
-					pte_cap, BOOT_CAPTBL_SELF_PT, kmem_cap, 1)) BUG();
-			/* Construct pgtbl */
-			if (call_cap_op(mm_comp->pgtbl_cap, CAPTBL_OP_CONS, pte_cap, mm_memcap, 0, 0)) BUG();
-		}
 
+			/* PTE */
+			if ((ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
+					       pte_cap, BOOT_CAPTBL_SELF_PT, kmem_cap, 1))) { 
+				printc("LLBOOT err ret %d: could not activate pte_cap %ld\n", ret, pte_cap);
+				break;
+			}
+
+			/* Construct pgtbl */
+			if ((ret = call_cap_op(mm_comp->pgtbl_cap, CAPTBL_OP_CONS, pte_cap, mm_memcap, 0, 0))) { 
+				printc("LLBOOT err ret %d: could not cons captbl pte_cap\n", ret);
+				break;
+			}
+		}
 		n_frames++;
+
 		/* and grant memory cap by moving */
 		if ((ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEMMOVE,
 				       memcap, mm_comp->pgtbl_cap, mm_memcap, 0))) 
@@ -662,10 +674,10 @@ void comp_deps_run_all(void)
 
 void cos_init(void);
 
-int sched_init(void)   
+int
+sched_init_linux(void)
 {
 	assert(cos_cpuid() < NUM_CPU_COS);
-
 	if (cos_cpuid() == INIT_CORE) {
 		if (!PERCPU_GET(llbooter)->init_thd) cos_init();
 		else comp_deps_run_all();
@@ -677,6 +689,42 @@ int sched_init(void)
 	}
 	
 	return 0;
+}
+
+int
+sched_init_i386(void)
+{
+	assert(cos_cpuid() < NUM_CPU_COS);
+	
+	if (cos_cpuid() == INIT_CORE) {
+		cos_init();
+		assert(PERCPU_GET(llbooter)->init_thd);
+		comp_deps_run_all();
+	} else {
+		LOCK();
+		boot_comp_thds_init();
+		UNLOCK();
+		comp_deps_run_all();
+	}
+	
+	return 0;
+}
+
+#include <cpu_ghz.h>
+int 
+sched_init(void)   
+{
+#ifdef COS_PLATFORM
+
+#if    COS_PLATFORM == I386
+	return sched_init_i386();
+#else
+	return sched_init_linux();
+#endif
+
+#else
+	return sched_init_linux();
+#endif
 }
 
 int  sched_isroot(void) { return 1; }

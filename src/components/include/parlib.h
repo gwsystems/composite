@@ -148,7 +148,7 @@ parallel_send(void *fn, void *data)
 	struct par_cap_info *curr_cap;
 	struct intra_shared_struct *shared_struct;
 	struct __intra_inv_data inv;
-	unsigned long long s, e;
+	unsigned long long s = 0, e;
 
 	int curr_nest = curr_thd->nest_level - 1;;
 	assert(curr_thd && curr_thd->nest_level > 0);
@@ -355,7 +355,7 @@ multicast_send(struct par_cap_info acaps[], int n_acap, struct __intra_inv_data 
 	int i;
 	struct par_cap_info *curr_cap;
 	struct intra_shared_struct *shared_struct;
-	unsigned long long s, e;
+	unsigned long long s = 0, e;
 	struct __intra_inv_data inv = *orig_inv;
 
 	for (i = n_acap - 1; i >= 0; i--) { // sending to other cores

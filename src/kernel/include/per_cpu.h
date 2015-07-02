@@ -15,7 +15,7 @@
 #include "shared/util.h"
 #include "spd.h"
 #include "debug.h"
-#include "cpuid.h"
+#include "chal/cpuid.h"
 
 #define GET_CURR_CPU get_cpuid()
 

@@ -1,7 +1,8 @@
 MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
 #$(info Make flags $(MAKEFLAGS))
 
-all: kern cp
+all: linux cp
+
 comps: 
 	$(info )
 	$(info ***********************************************)
@@ -9,13 +10,22 @@ comps:
 	$(info ***********************************************)
 	$(info )
 	$(MAKE) $(MAKEFLAGS) -C components
-kern: comps
+
+linux: comps
 	$(info )
 	$(info ***********************************************)
 	$(info ******** Building Platform and Kernel *********)
 	$(info ***********************************************)
 	$(info )
-	$(MAKE) $(MAKEFLAGS) -C platform
+	$(MAKE) $(MAKEFLAGS) PLATFORM=linux -C platform
+
+i386: comps
+	$(info )
+	$(info ***********************************************)
+	$(info ******** Building Platform and Kernel *********)
+	$(info ***********************************************)
+	$(info )
+	$(MAKE) $(MAKEFLAGS) PLATFORM=i386 -C platform
 
 cp:
 	$(MAKE) $(MAKEFLAGS) -C platform cp
@@ -33,7 +43,9 @@ init:
 	$(MAKE) $(MAKEFLAGS) -C components init
 	$(MAKE) $(MAKEFLAGS) -C platform init
 
+# default platform is linux
 config:
+	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/linux/module/chal/ chal
 	@echo "Configuring the system with clock speed and directory structure."
 	@echo "Please view Makefile.cosconfig and kernel/include/shared/cpu_ghz.h to make sure they're accurate."
 	@echo "Do _not_ 'git add' either of these files."
@@ -44,6 +56,13 @@ config:
 	@echo "TRANS_DIR=\$$(HOME_DIR)/transfer/" >> Makefile.cosconfig
 	@echo "LDIR=\$$(CODE_DIR)/linux-2.6.36/" >> Makefile.cosconfig
 	@echo "TEST_DIR=/root/experiments/" >> Makefile.cosconfig
+
+# override the default linux chal link
+config-i386: config
+	@echo "#define COS_PLATFORM I386" >> ./kernel/include/shared/cpu_ghz.h
+	@cd kernel/include/ ; rm -f chal ; ln -s ../../platform/i386/chal/ chal
+
+config-linux: config
 
 idl:
 	$(MAKE) $(MAKEFLAGS) -C components idl

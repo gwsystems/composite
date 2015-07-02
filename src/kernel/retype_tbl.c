@@ -9,6 +9,8 @@
 #include "include/retype_tbl.h"
 #include "include/chal.h"
 #include "include/shared/cos_types.h"
+#include "include/shared/cos_errno.h"
+#include "include/debug.h"
 
 struct retype_info     retype_tbl[NUM_CPU]        CACHE_ALIGNED;
 struct retype_info_glb glb_retype_tbl[N_MEM_SETS] CACHE_ALIGNED;
@@ -27,14 +29,13 @@ mod_ref_cnt(void *pa, const int op, const int type_check)
 	assert(idx < N_MEM_SETS);
 
 	retype_entry = GET_RETYPE_ENTRY(idx);
-	
 	old_v = local_u.v = retype_entry->refcnt_atom.v;
 	/* only allow to ref user or kernel typed memory set */
 	if (unlikely((local_u.type != RETYPETBL_USER) && (local_u.type != RETYPETBL_KERN))) return -EPERM;
+
 	/* Do type check if type passed in. */
 	if (type_check >= 0 && type_check != local_u.type) return -EPERM;
 	if (local_u.ref_cnt == RETYPE_REFCNT_MAX) return -EOVERFLOW;
-
 	if (op) {
 		local_u.ref_cnt = local_u.ref_cnt + 1;
 	} else {
@@ -76,8 +77,9 @@ mod_mem_type(void *pa, const mem_type_t type)
 	u32_t idx, old_type;
 	struct retype_info_glb *glb_retype_info;
 
+	assert(pa); 	/* cannot be NULL: kernel image takes that space */
 	PA_BOUNDARY_CHECK();
-
+	
 	idx = GET_MEM_IDX(pa);
 	assert(idx < N_MEM_SETS);
 
@@ -92,7 +94,7 @@ mod_mem_type(void *pa, const mem_type_t type)
 
 	/* Kernel memory needs to be kernel accessible: pa2va returns
 	 * null if it's not. */
-	if (type == RETYPETBL_KERN && chal_pa2va(pa) == NULL) return -EINVAL;
+	if (type == RETYPETBL_KERN && chal_pa2va((paddr_t)pa) == NULL) return -EINVAL;
 
 	ret = retypetbl_cas(&(glb_retype_info->type), RETYPETBL_UNTYPED, RETYPETBL_RETYPING);
 	if (ret != CAS_SUCCESS) return -ECASFAIL;

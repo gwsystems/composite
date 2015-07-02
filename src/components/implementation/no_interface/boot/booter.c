@@ -638,6 +638,7 @@ boot_create_cap_system(void)
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		if (hs[i]->id < min) min = hs[i]->id;
 	}
+
 	for (i = 0 ; hs[i] != NULL ; i++) {
 		struct cobj_header *h;
 		spdid_t spdid;
@@ -674,10 +675,12 @@ boot_create_cap_system(void)
 		}
 
 		pgtbl_cap   = alloc_capid(CAP_PGTBL);
+
 		/* Captbl */
 		captbl_cap = comp_cap_info[spdid].captbl_cap[0];
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE, captbl_cap,
 				BOOT_CAPTBL_SELF_PT, get_kmem_cap(), 0)) BUG();
+
 		for (j = 1; j < BOOT_CAPTBL_NPAGES; j++) {
 			/* Another page for the captbl. */
 			if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CAPTBLACTIVATE, comp_cap_info[spdid].captbl_cap[j],
@@ -710,7 +713,7 @@ boot_create_cap_system(void)
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_COMPACTIVATE,
 				comp_cap, (captbl_cap<<16) | pgtbl_cap, lid, comp_cap_info[spdid].upcall_entry)) BUG();
 
-		/* printc("Comp %d (%s) activated @ %x, size %ld!\n", h->id, h->name, sect->vaddr, tot); */
+		printc("Comp %d (%s) activated @ %x, size %ld!\n", h->id, h->name, sect->vaddr, tot);
 	}
 
 	for (i = 0 ; hs[i] != NULL ; i++) {
@@ -752,10 +755,10 @@ void cos_init(void)
 
 	init_cosframes();
 	boot_create_cap_system();
-
 	printc("booter: done creating system.\n");
 
 	UNLOCK();
+
 	boot_deps_run();
 
 	return;

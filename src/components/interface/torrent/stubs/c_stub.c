@@ -139,7 +139,7 @@ CSTUB_FN_ARGS_6(int, twmeta, spdid_t, spdid, td_t, td, const char *, key, unsign
         assert(key[klen] == '\0' && val[vlen] == '\0' && sz <= PAGE_SIZE);
 
         d = cbuf_alloc(sz, &cb);
-        if (!d) assert(0); //return -1;
+        assert(d); //if (!d) assert(0); //return -1;
 
         d->td = td;
         d->klen = klen;

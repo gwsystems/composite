@@ -2,7 +2,7 @@
 #define MEASUREMENT_H
 
 #include "shared/cos_config.h"
-#include "cpuid.h"
+#include "chal/cpuid.h"
 
 #ifdef COS_PRINT_MEASUREMENTS
 #define MEASUREMENTS
@@ -94,7 +94,7 @@ void cos_meas_report(void);
 
 struct cos_meas_struct {
 	meas_type_t type;
-	char *description;
+	const char *description;
 	unsigned long long cnt, meas, tot, min, max;
 };
 

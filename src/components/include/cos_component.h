@@ -14,7 +14,8 @@
 #include <util.h>
 
 /* temporary */
-static inline int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
+static inline 
+int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 {
         long fault = 0;
 	int ret;
@@ -48,20 +49,27 @@ static inline int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int a
 	return ret;
 }
 
-static inline int cap_switch_thd(u32_t cap_no) 
+static inline int 
+cap_switch_thd(u32_t cap_no) 
 {
 	return call_cap_asm(cap_no, 0, 0, 0, 0, 0);
 }
 
-static inline int call_cap(u32_t cap_no, int arg1, int arg2, int arg3, int arg4)
+static inline int 
+call_cap(u32_t cap_no, int arg1, int arg2, int arg3, int arg4)
 {
 	return call_cap_asm(cap_no, 0, arg1, arg2, arg3, arg4);
 }
 
-static inline int call_cap_op(u32_t cap_no, u32_t op_code,int arg1, int arg2, int arg3, int arg4)
+static inline int 
+call_cap_op(u32_t cap_no, u32_t op_code,int arg1, int arg2, int arg3, int arg4)
 {
 	return call_cap_asm(cap_no, op_code, arg1, arg2, arg3, arg4);
 }
+
+static void 
+cos_print(char *s, int len)
+{ call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0); }
 
 /**
  * FIXME: Please remove this since it is no longer needed
@@ -191,7 +199,7 @@ cos_syscall_clobber                                  \
 }
 
 cos_syscall_0(1,  int, stats);
-cos_syscall_2(2,  int, print, char*, str, int, len);
+//cos_syscall_2(2,  int, print, char*, str, int, len);
 cos_syscall_3(3,  int, create_thread, int, dest_spd_id, int, a, int, b);
 cos_syscall_2(4,  int, __switch_thread, int, thd_id, int, flags);
 cos_syscall_3(5, int, __async_cap_cntl, int, operation, int, arg1, long, arg2);

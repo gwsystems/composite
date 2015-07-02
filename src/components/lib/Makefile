@@ -39,22 +39,23 @@ clean:
 
 distclean:
 	make -C dietlibc-0.29 clean
-	make -C lwip/cos clean
-	make -C lua/cos clean
+#	make -C lwip/cos clean
+#	make -C lua/cos clean
 # keep the following commands in one line. make executes each line
 # with a new shell.
-	cd ck; ./configure; cd ..
-	make -C ck distclean
-	make -C posix clean
-	make -C libccv clean
+#	cd ck; ./configure; cd ..
+#	make -C ck distclean
+#	make -C posix clean
+#	make -C libccv clean
 
 init: clean distclean all
 	make -C dietlibc-0.29
-	make -C lwip/cos
-	make -C lua/cos
+	make -C dietlibc-0.29 i386
+#	make -C lwip/cos
+#	make -C lua/cos
 # keep the following commands in one line. Same as above.
 	cd ck; ./configure; cd ..
-	make -C ck
-	make -C posix clean 
-	make -C libccv clean 
-	make -C libccv cos_libccv.a
+#	make -C ck
+#	make -C posix clean 
+#	make -C libccv clean 
+#	make -C libccv cos_libccv.a
