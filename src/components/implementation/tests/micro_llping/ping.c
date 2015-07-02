@@ -6,10 +6,16 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "ops.h"
+
+#define MEAS_MAP
+
 int
 prints(char *str)
 {
-	return 0;
+	int len = strlen(str);
+	cos_print(str, len);
+	return len;
 }
 
 int __attribute__((format(printf,1,2))) 
@@ -22,9 +28,9 @@ printc(char *fmt, ...)
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, len, fmt, arg_ptr);
 	va_end(arg_ptr);
-	ret = cos_print(s, ret);
+	cos_print(s, ret);
 
-	return ret;
+	return 0;
 }
 
 unsigned long long tsc_start(void)
@@ -73,6 +79,7 @@ int synced_nthd = 0;
 void sync_all()
 {
 	int ret;
+	if (N_SYNC_CPU <= 1) return;
 
 	ret = ck_pr_faa_int(&synced_nthd, 1);
 	ret = (ret/N_SYNC_CPU + 1)*N_SYNC_CPU;
@@ -1210,18 +1217,230 @@ void wcet_test(void)
 	return;
 }
 
+#include <mem_mgr.h>
+	/* hack.... Gotta fix this ASAP after the deadline. */
+#define MMAN_VALLOC 6
+#define MMAN_GET    8
+#define MMAN_ALIAS  10
+#define MMAN_REVOKE 12
+#define MMAN_RELEASE 14
+
+void
+memmgr_unit_test(void)
+{
+	int i, ret; 
+#define N_OPS 16
+	vaddr_t vas[N_OPS], mem[N_OPS];
+	
+	for (i = 0; i < N_OPS; i++) {
+//		printc("cpu %d: i %d\n", cos_cpuid(), i);
+		ret = call_cap(MMAN_VALLOC, cos_spd_id(), cos_spd_id(), 1, 0);
+		vas[i] = (vaddr_t)ret;
+		if (!ret) {
+			printc("cpu %ld: i %d>>> comp %ld called valloc cap %d, ret %x\n", 
+			       cos_cpuid(), i, cos_spd_id(), MMAN_VALLOC, ret);
+			goto done;
+		}
+	}
+	for (i = 0; i < N_OPS; i++) {
+		ret = call_cap(MMAN_GET, cos_spd_id(), 0, 1 << 16, 0);
+		mem[i] = (vaddr_t)ret;
+		if (!ret) { printc("%d >>> comp %ld called mman_get cap %d, ret %x\n", i, cos_spd_id(), MMAN_GET, ret); goto done;}
+	}
+
+	for (i = 0; i < N_OPS; i++) {
+		ret = call_cap(MMAN_ALIAS, cos_spd_id(), mem[i], cos_spd_id()<<16, vas[i]);
+		if (!ret) { printc("comp %ld called alias cap %d, ret %x\n", cos_spd_id(), MMAN_ALIAS, ret); goto done;}
+	}
+	/* alias validation */
+	for (i = 0; i < N_OPS; i++) {
+		int *test = (int*)(vas[i]);
+		*test = i;
+	}
+	for (i = 0; i < N_OPS; i++) {
+		int *test = (int*)(mem[i]);
+		if (*test != i) {
+			printc("test failded! %d: %d @ %p\n", i, *test, test); 
+			goto done;
+		}
+	}
+	printc("CPU %ld: VALLOC, GET_PAGE, ALIAS test done!\n", cos_cpuid());
+
+	for (i = 0; i < N_OPS; i++) {
+		ret = call_cap(MMAN_REVOKE, cos_spd_id(), vas[i], 0, 0);
+		if (ret) { printc("comp %ld called revoke cap %d, ret %x\n", cos_spd_id(), MMAN_REVOKE, ret); goto done; }
+	}
+	for (i = 0; i < N_OPS; i++) {
+		ret = call_cap(MMAN_REVOKE, cos_spd_id(), mem[i], 0, 0);
+		if (ret) { printc("comp %ld called revoke cap %d, ret %x\n", cos_spd_id(), MMAN_REVOKE, ret); goto done; }
+	}
+	for (i = 0; i < N_OPS; i++) {
+		ret = call_cap(MMAN_RELEASE, cos_spd_id(), mem[i], 0, 0);
+		if (ret) { printc("comp %ld called release cap %d, ret %x\n", cos_spd_id(), MMAN_RELEASE, ret); goto done; }
+	}
+	printc("CPU %ld: MM_REVOKE / _RELEASE test done!\n", cos_cpuid());
+
+	ret = call_cap(MMAN_GET, cos_spd_id(), 0, 256 << 16, 0);
+	mem[0] = (vaddr_t)ret;
+	if (!ret) {
+		printc("multipage >>> comp %ld called mman_get cap %d, ret %x\n", cos_spd_id(), MMAN_GET, ret); 
+		goto done;
+	}
+	memset((void *)ret, 0, (256)*PAGE_SIZE);
+	ret = call_cap(MMAN_RELEASE, cos_spd_id(), mem[0], 0, 0);
+	if (ret) { printc("comp %ld release 1MB ret %x\n", cos_spd_id(), ret); goto done; }
+
+	printc("CPU %ld: Multi-page allocation / free tests done!\n", cos_cpuid());
+
+//	if (cos_cpuid() == 0) {
+	{
+		int tot_mb = 0;
+		while (1) {
+			ret = call_cap(MMAN_GET, cos_spd_id(), 0, 256 << 16, 0);
+//			printc("%d: got a 1mb page @ %x!\n", tot_mb, ret);
+			if (ret == 0) break;
+			memset((void *)ret, 0, (256)*PAGE_SIZE);
+			tot_mb += 1;
+		}
+		printc("CPU %ld: MM allocation test: %d MBs allocated in total\n", cos_cpuid(), tot_mb);
+	}
+#undef N_OPS
+done:
+	return;
+}
+
+#define N_OPS 1024
+unsigned long allmem[NUM_CPU][N_OPS+16];
+
+int mm_meas(void)
+{
+	int i, cpu, ret;
+	cpu = cos_cpuid();
+
+	for (i = 0; i < N_OPS; i++) {
+		ret = call_cap(MMAN_GET, cos_spd_id(), 0, 1 << 16, 0);
+		allmem[cpu][i] = ret;
+		if (!ret) { 
+			printc("cpu %d, %d >>> comp %ld called mman_get cap %d, ret %x\n", cpu, i, cos_spd_id(), MMAN_GET, ret); 
+			ret = -1;
+			goto done;
+		}
+//		memset((void *)ret, 0, PAGE_SIZE);
+	}
+	for (i = 0; i < N_OPS; i++) {
+		ret = call_cap(MMAN_RELEASE, cos_spd_id(), allmem[cpu][i], 0, 0);
+		if (ret) { 
+			printc("comp %ld called release cap %d, ret %x\n", cos_spd_id(), MMAN_RELEASE, ret); 
+			ret = -1;
+			goto done; 
+		}
+	}
+	ret = 0;
+done:
+	return ret;
+}
+
+void mm_stress(void)
+{
+	unsigned long long s, e, tot = 0;
+	int i, cpu = cos_cpuid();
+
+	for (i = 0; i < 1024; i++) {
+		s = tsc_start();
+		if (mm_meas()) {
+			printc("cpu %d failed when iter %d\n", cpu, i);
+			goto done;
+		}
+		e = tsc_start();
+		tot += e-s;
+	}
+	printc("cpu %d, avg cost %llu\n", cpu, (tot)/N_OPS/1024);
+done:
+	return;
+}
+
+//only record core 0
+unsigned long logs[10000], nlog = 0;
+unsigned long logs_large[1000], nlog_large = 0;
+
+void play_trace(unsigned long *npage_alloc, unsigned long long *tot, unsigned long *npage_1024, unsigned long long *tot_1024)
+{
+	int i, ret, cpu = cos_cpuid(); 
+	unsigned long long s,e;
+
+	int npages, j, nmaps = 0;
+
+	for (i = 0; i < NOPS; i++) {
+		allmem[cpu][i] = 0;
+		if (ops[cpu][i] == 1) {
+			npages = 1;
+		} else if (ops[cpu][i] == 2) {
+			npages = 1024;
+		} else 
+			break;
+		s = tsc_start();
+		ret = call_cap(MMAN_GET, cos_spd_id(), 0, npages << 16, 0);
+		if (!ret) {
+			printc("cpu %d, i %d >>> comp %ld called mman_get cap %d, ret %x, allocated %lu pages already.\n", 
+			       cpu, i, cos_spd_id(), MMAN_GET, ret, *npage_alloc); 
+			ret = -1;
+			goto done;
+		}
+		e = tsc_start();
+#ifdef MEAS_MAP
+		if (ops[cpu][i] == 1) {
+			*tot = *tot + (e-s);
+			if (cpu == 0) logs[nlog++] = (unsigned long)(e-s);
+		} else {
+			*tot_1024 = *tot_1024 + (e-s);
+			if (cpu == 0) logs_large[nlog_large++] = (unsigned long)(e-s);
+		}
+#endif
+		allmem[cpu][i] = ret;
+		memset((void *)ret, 0, PAGE_SIZE*npages);
+
+		if (ops[cpu][i] == 1) *npage_alloc = *npage_alloc + 1;
+		else *npage_1024 = *npage_1024 + 1;
+	}
+
+	if (!nmaps) {
+		nmaps = i;
+	} else {
+		assert(nmaps == i);
+	}
+
+	for (i = 0; i < nmaps; i++) {
+		s = tsc_start();
+		ret = call_cap(MMAN_RELEASE, cos_spd_id(), allmem[cpu][i], 0, 0);
+		e = tsc_start();
+#ifndef MEAS_MAP
+		if (ops[cpu][i] == 1) {
+			*tot = *tot + (e-s);
+			if (cpu == 0) logs[nlog++] = (unsigned long)(e-s);
+		} else {
+			*tot_1024 = *tot_1024 + (e-s);
+			if (cpu == 0) logs_large[nlog_large++] = (unsigned long)(e-s);
+		}
+#endif
+		if (ret) {
+			printc("cpu %d release error %d\n", cpu, ret);
+			goto done;
+		}
+	}
+done:
+	return;
+}
+
 void cos_init(void)
 {
-//	u64_t s, e;
+	/* if (received[cos_cpuid()].snd_thd_created) { */
+	/* 	rcv_thd(); */
+	/* 	BUG(); */
+	/* 	return; */
+	/* } */
+	/* received[cos_cpuid()].snd_thd_created = 1; */
 
-	if (received[cos_cpuid()].snd_thd_created) {
-		rcv_thd();
-		BUG();
-		return;
-	}
-	received[cos_cpuid()].snd_thd_created = 1;
-
-	cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid());
+	/* cap_switch_thd(RCV_THD_CAP_BASE + captbl_idsize(CAP_THD)*cos_cpuid()); */
 
 	//init rcv thd first.
 
@@ -1231,101 +1450,89 @@ void cos_init(void)
 	/* } */
 
 	arcv_ready[cos_cpuid()] = 1;
-#if NUM_CPU > 2
-//	if (cos_cpuid() < (NUM_CPU_COS - SND_RCV_OFFSET)  && (cos_cpuid() % 4 == 0)) {
-//	if ((cos_cpuid()%4 == 0 || cos_cpuid()%4 == 2) && (cos_cpuid()+SND_RCV_OFFSET < NUM_CPU_COS)) { // sending core
-	if (cos_cpuid() <= 0) {
-//	if (1) {
-		/* IPI - ASND/ARCV */
+/* #if NUM_CPU <= 2 */
+/* 	pingpong(); */
+/* #else */
+	int ret, cpu = cos_cpuid(); 
+	unsigned long i;
+	unsigned long long s,e, tot = 0, tot2 = 0;
 
-//		ipi_test();
-//		cap_test();
-//		mem_test();
-//		thd_test();
-//		wcet_test();
-//		cons_decons_test();
-//		retype_test();
-//		kobj_test();
-//		response_test();
-		captbl_cons_test();
-	} else { //if ((cos_cpuid() % 4 <= 1)
-//		printc("core %ld: thd %d switching to pong thd\n", cos_cpuid(), cos_get_thd_id());
-		while (1) {
-			//do op here to measure response time.
-			/* call_cap(4, 0, 0, 0, 0); */
-			/* rdtscll(e); */
-			/* if ((e-s)/(2000*1000*1000) > RUNTIME) break; */
-
-			if (ck_pr_load_int(&all_exit)) break;
-		}
-		printc("core %ld: exiting from ping\n", cos_cpuid());
+	if (cos_cpuid() == 0) {
+		printc(">>>>> calling mm init\n");
+		call_cap(4, 0, 0, 0, 0);
+		printc(">>>>> done mm init\n");
 	}
+	sync_all();
+
+	if (mm_meas()) goto done;
+
+	int repeat;
+	unsigned long nops = 0, nops2 = 0;
+
+	play_trace(&nops, &tot, &nops2, &tot2);
+	/* workaround for the liveness id issue */
+	tlb_quiescence_wait();
+	sync_all();
+
+	if (cos_cpuid()) goto done;
+
+	if (cos_cpuid() == 0) nlog = 0;
+
+	nops = tot = 0;
+	nops2 = tot2 = 0;
+	for (repeat = 0; repeat < 10; repeat++) {
+		play_trace(&nops, &tot, &nops2, &tot2);
+	}
+
+	if (nops) {
+		printc("nops %d cpu %d avg cost %llu (%lu ops), avg2 cost %llu (%lu ops)\n", 
+		       NOPS, cpu, (tot)/(nops), nops, tot2/nops2, nops2);
+	} else
+		printc("cpu %d no ops\n", cpu);
+
+	if (cos_cpuid() == 0) {
+		unsigned long j, temp;
+		for (i = 0; i < nlog; i++) {
+			for (j = i + 1; j < nlog; j++) {
+				if (logs[i] < logs[j]) {
+					temp = logs[i];
+					logs[i] = logs[j];
+					logs[j] = temp;
+				}
+			}
+		}
+
+		for (i = 0; i < nlog_large; i++) {
+			for (j = i + 1; j < nlog_large; j++) {
+				if (logs_large[i] < logs_large[j]) {
+					temp = logs_large[i];
+					logs_large[i] = logs_large[j];
+					logs_large[j] = temp;
+				}
+			}
+		}
+
+		printc("nlog %lu on core 0, SINGLE PAGE 99p (%lu) is %lu , 1024 page (%lu ops) 99p is %lu\n", 
+		       nlog, nlog/100, logs[nlog/100], nlog_large, logs_large[nlog_large/100]);
+#ifdef MEAS_MAP
+		printc("Operation: mmap on %d cores\n", NUM_CPU_COS);
 #else
-	pingpong();
+		printc("Operation: munmap on %d cores\n", NUM_CPU_COS);
 #endif
+	}
+/* #endif */
+done:
+	sync_all();
 	cap_switch_thd(SCHED_CAPTBL_ALPHATHD_BASE + cos_cpuid()*captbl_idsize(CAP_THD));
+
+	/* help linking. hack for now. */
+	mman_get_page(0,0,0);
+	mman_valloc(0,0,0);
+	mman_revoke_page(0,0,0);
+	mman_release_page(0,0,0);
+	mman_alias_page(0,0,0,0,0);
 
 	call();
 
 	return;
-	/* u64_t start, end, avg, tot = 0, dev = 0; */
-	/* int i, j; */
-
-
-/* 	printc("cpu %ld, thd %d from ping\n",cos_cpuid(), cos_get_thd_id()); */
-/* //	call(111,222,333,444);			/\* get stack *\/ */
-
-/* 	printc("core %ld: spinning....\n", cos_cpuid()); */
-/* 	delay(); */
-/* 	printc("core %ld: after spin!\n", cos_cpuid()); */
-	
-/* //	call(1111,2222,3333,4444);			/\* get stack *\/ */
-/* 	printc("Starting %d Invocations.\n", ITER); */
-	
-/* 	int params[8] = {1,2,3,4, 11, 22, 33, 44}; */
-/* 	par_inv(test_fn, (void *)params, 2); */
-
-/* 	return; */
-
-/* 	for (i = 0 ; i < ITER ; i++) { */
-/* 		rdtscll(start); */
-/* //		cos_send_ipi(i, 0, 0, 0); */
-/* 		call(1,2,3,4); */
-/* 		rdtscll(end); */
-/* 		meas[i] = end-start; */
-/* 	} */
-
-/* 	for (i = 0 ; i < ITER ; i++) tot += meas[i]; */
-/* 	avg = tot/ITER; */
-/* 	printc("avg %lld\n", avg); */
-/* 	for (tot = 0, i = 0, j = 0 ; i < ITER ; i++) { */
-/* 		if (meas[i] < avg*2) { */
-/* 			tot += meas[i]; */
-/* 			j++; */
-/* 		} */
-/* 	} */
-/* 	printc("avg w/o %d outliers %lld\n", ITER-j, tot/j); */
-
-/* 	for (i = 0 ; i < ITER ; i++) { */
-/* 		u64_t diff = (meas[i] > avg) ?  */
-/* 			meas[i] - avg :  */
-/* 			avg - meas[i]; */
-/* 		dev += (diff*diff); */
-/* 	} */
-/* 	dev /= ITER; */
-/* 	printc("deviation^2 = %lld\n", dev); */
-
-/* 	printc("last invocation...\n"); */
-/* 	rdtscll(start); */
-/* 	int rrr = call(11,22,33,44); */
-/* 	rdtscll(end); */
-/* 	printc("done ret %d. cost %llu \n", rrr, end-start); */
-
-/* 	rdtscll(start); */
-/* 	rrr = call(11,22,33,44); */
-/* 	rdtscll(end); */
-/* 	printc("done ret %d. cost %llu \n", rrr, end-start); */
-
-/* //	printc("%d invocations took %lld\n", ITER, end-start); */
-/* 	return; */
 }

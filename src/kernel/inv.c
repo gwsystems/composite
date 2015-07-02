@@ -53,7 +53,7 @@ PERCPU_ATTR(static, unsigned long, cycle_cnt);
 
 void sysenter_interposition_entry(void);
 COS_SYSCALL int
-composite_sysenter_handler(struct pt_regs *regs);
+composite_syscall_handler(struct pt_regs *regs);
 
 void 
 ipc_init(void)
@@ -64,9 +64,9 @@ ipc_init(void)
 	rdtscl(tsc);
 	*PERCPU_GET(cycle_cnt) = tsc;
 
-	if (((unsigned long)&sysenter_interposition_entry >> PAGE_ORDER) != ((unsigned long)&composite_sysenter_handler >> PAGE_ORDER))
+	if (((unsigned long)&sysenter_interposition_entry >> PAGE_ORDER) != ((unsigned long)&composite_syscall_handler >> PAGE_ORDER))
 		printk("Warning: Composite sysenter_interposition (%p) and sysenter handler (%p) are NOT in the same page!\n",
-		       &sysenter_interposition_entry, &composite_sysenter_handler);
+		       &sysenter_interposition_entry, &composite_syscall_handler);
 
 	return;
 }
@@ -1201,7 +1201,7 @@ switch_thread_slowpath(struct thread *curr, unsigned short int flags, struct spd
 		 * pointers should be non-NULL */
 		child = tsi->scheduler;
 		assert(child);
-		cda = child->sched_shared_page[get_cpuid()];
+		cda = child->kern_sched_shared_page[get_cpuid()];
 		assert(cda);
 		cda->cos_evt_notif.pending_cevt = 1;
 	}

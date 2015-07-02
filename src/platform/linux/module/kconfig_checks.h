@@ -14,10 +14,6 @@
 #error "Composite does not support PAE (unset CONFIG_X86_PAE)"
 #endif
 
-#ifndef CONFIG_HZ_100
-#error "Currently, Composite only supports a timer HZ of 100 (set CONFIG_HZ_100 and CONFIG_HZ=100)"
-#endif
-
 #ifndef CONFIG_NOHIGHMEM
 #warning "Not sure if Composite will work with Linux high-memory (set CONFIG_NOHIGHMEM)"
 #endif

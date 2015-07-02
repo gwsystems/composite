@@ -26,7 +26,7 @@ again:
 			first_try = 0;
 			goto again;
 		}
-		printk("cos: ERROR -- could not allocate pages for cos kernel memory!\n");
+		printk("cos: ERROR -- could not allocate %d pages for cos kernel memory!\n", 1 << KERN_MEM_ORDER);
 		return -1;
 	}
 

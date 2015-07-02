@@ -9,10 +9,10 @@
 
 #define __ASM__
 
+#include "../../kernel/include/asm_ipc_defs.h"
 #include <cos_asm_stacks.h>
 #include <consts.h>
 
-#define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 
 #if ENABLE_STACK_MANAGER!=1

@@ -21,25 +21,11 @@ unsigned long long tsc_start(void)
 }
 
 int
-prints(char *str)
+prints(char *s)
 {
-	/* int left; */
-	/* char *off; */
-	/* const int maxsend = sizeof(int) * 3; */
-
-	/* if (!str) return -1; */
-	/* for (left = cos_strlen(str), off = str ;  */
-	/*      left > 0 ;  */
-	/*      left -= maxsend, off += maxsend) { */
-	/* 	int *args; */
-	/* 	int l = left < maxsend ? left : maxsend; */
-	/* 	char tmp[maxsend]; */
-
-	/* 	cos_memcpy(tmp, off, l); */
-	/* 	args = (int*)tmp; */
-	/* 	print_char(l, args[0], args[1], args[2]); */
-	/* }  */
-	return 0;
+	int len = strlen(s);
+	cos_print(s, len);
+	return len;
 }
 
 int __attribute__((format(printf,1,2))) 
@@ -53,7 +39,9 @@ printc(char *fmt, ...)
 	ret = vsnprintf(s, len, fmt, arg_ptr);
 	va_end(arg_ptr);
 
-	return cos_print(s, ret);
+	cos_print(s, ret);
+
+	return 0;
 }
 
 void call(void) { 

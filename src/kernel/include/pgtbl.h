@@ -232,6 +232,30 @@ extern struct tlb_quiescence tlb_quiescence[NUM_CPU] CACHE_ALIGNED;
 
 int tlb_quiescence_check(u64_t timestamp);
 
+
+static inline int 
+pgtbl_quie_check(u32_t orig_v)
+{
+	livenessid_t lid;
+	u64_t ts;
+
+	if (orig_v & PGTBL_QUIESCENCE) {
+		lid = orig_v >> PGTBL_PAGEIDX_SHIFT;
+		/* An unmap happened at this vaddr before. We need to
+		 * make sure that all cores have done tlb flush before
+		 * creating new mapping. */
+		assert(lid < LTBL_ENTS);
+
+		if (ltbl_get_timestamp(lid, &ts)) return -EFAULT;
+		if (!tlb_quiescence_check(ts))    {
+			printk("kern tsc %llu, lid %d, last flush %llu\n", ts, lid, tlb_quiescence[get_cpuid()].last_periodic_flush);
+			return -EQUIESCENCE;
+		}
+	}
+
+	return 0;
+}
+
 /* this works on both kmem and regular user memory: the retypetbl_ref
  * works on both. */
 static int
@@ -254,27 +278,43 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	if (orig_v & PGTBL_COSFRAME) return -EPERM;
 
 	/* Quiescence check */
-	if (orig_v & PGTBL_QUIESCENCE) {
-		/* An unmap happened at this vaddr before. We need to
-		 * make sure that all cores have done tlb flush before
-		 * creating new mapping. */
-		livenessid_t lid = orig_v >> PGTBL_PAGEIDX_SHIFT;
-		u64_t ts;
-		assert(lid < LTBL_ENTS);
-
-		if (ltbl_get_timestamp(lid, &ts)) return -EFAULT;
-		if (!tlb_quiescence_check(ts))    return -EQUIESCENCE;
-	}
+	ret = pgtbl_quie_check(orig_v);
+	if (ret) return ret;
 
 	/* ref cnt on the frame. */
 	ret = retypetbl_ref((void *)page);
-	if (ret) return ret;	
+	if (ret) return ret;
 
 	ret = __pgtbl_update_leaf(pte, (void *)(page | flags), orig_v);
 	if (ret) {
 		/* restore the ref cnt. */
 		retypetbl_deref((void *)page);
 	}
+
+	return ret;
+}
+
+/* TODO: remove. a hack for kmem. */
+static int
+kmem_add_hack(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
+{
+	int ret;
+	struct ert_intern *pte;
+	u32_t orig_v, accum = 0;
+
+	assert(pt);
+	assert((PGTBL_FLAG_MASK & page) == 0);
+	assert((PGTBL_FRAME_MASK & flags) == 0);
+
+	/* get the pte */
+	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
+						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	orig_v = (u32_t)(pte->next);
+
+	if (orig_v & PGTBL_PRESENT)  return -EEXIST;
+	if (orig_v & PGTBL_COSFRAME) return -EPERM;
+
+	ret = __pgtbl_update_leaf(pte, (void *)(page | flags), orig_v);
 
 	return ret;
 }
@@ -356,12 +396,14 @@ pgtbl_mapping_del(pgtbl_t pt, u32_t addr, u32_t liv_id)
 	if (!(orig_v & PGTBL_PRESENT)) return -EEXIST;
 	if (orig_v & PGTBL_COSFRAME)   return -EPERM;
 
+
 	ret = __pgtbl_update_leaf(pte, (void *)((liv_id<<PGTBL_PAGEIDX_SHIFT) | PGTBL_QUIESCENCE), orig_v);
 	if (ret) cos_throw(done, ret);
 
 	/* decrement ref cnt on the frame. */
 	ret = retypetbl_deref((void *)(orig_v & PGTBL_FRAME_MASK));
 	if (ret) cos_throw(done, ret);
+
 done:
 	return ret;
 }

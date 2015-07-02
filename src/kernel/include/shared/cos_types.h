@@ -64,6 +64,8 @@ typedef enum {
 	CAPTBL_OP_CAPTBLDEACTIVATE_ROOT,
 	CAPTBL_OP_PGTBLDEACTIVATE_ROOT,
 	CAPTBL_OP_THDDEACTIVATE_ROOT,
+	CAPTBL_OP_MEMMOVE,
+	CAPTBL_OP_INTROSPECT,
 } syscall_op_t;
 
 typedef enum {
@@ -179,12 +181,20 @@ enum {
 
 enum {
 	/* cap 0-3 reserved for sret. 4-7 is the sinv cap. FIXME: make this general. */
-	SCHED_CAPTBL_ALPHATHD_BASE = 8,
+	SCHED_CAPTBL_ALPHATHD_BASE = 16,
 	/* we have 2 thd caps (init and alpha thds) for each core. */
 	SCHED_CAPTBL_INITTHD_BASE  = SCHED_CAPTBL_ALPHATHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
 	SCHED_CAPTBL_LAST = SCHED_CAPTBL_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
 	/* round up to a new entry. */
 	SCHED_CAPTBL_FREE = round_up_to_pow2(SCHED_CAPTBL_LAST, CAPMAX_ENTRY_SZ)
+};
+
+enum {
+	/* cap 0-3 reserved for sret. 4-7 is the mm pgtbl cap. */
+	MM_CAPTBL_OWN_CAPTBL = 4,
+	MM_CAPTBL_OWN_PGTBL = 8,
+	/* reserve some space for comp caps. */
+	MM_CAPTBL_FREE = 64,
 };
 
 // QW: for ppos test only. remove.

@@ -14,17 +14,25 @@
  * kernel-inaccessible memory that can only be used as user virtual
  * memory.
  */
-////#define COS_MEM_USER_PA (0x40000000)  /* 1 GB...memory untouched by Linux */
+
+/* define when booting with Linux */
+#define COS_LINUX
+
 /* we already use 16 MB of kernel memory + the kernel img, thus 32MB offset for this: */
+#ifndef COS_LINUX
 #define COS_MEM_USER_PA (1<<25)
 #define COS_MEM_USER_PA_SZ    (1<<25) /* start with 32MB of memory */
+#else
+#define COS_MEM_USER_PA (0x40000000)  /* 1 GB...memory untouched by Linux */
+#define COS_MEM_USER_PA_SZ    (1<<29) /* 512 MB of memory */
+#endif
 /* 
  * 1 MB, note that this is not the PA of kernel-usable memory, instead
  * it is the PA of the kernel.  If you change this, update the kernel
  * linker script (.ld) as well.
  */ 
 #define COS_MEM_KERN_PA (0x00100000)
-#define COS_MEM_KERN_PA_ORDER (24)
+#define COS_MEM_KERN_PA_ORDER (22)
 #define COS_MEM_KERN_PA_SZ    (1<<COS_MEM_KERN_PA_ORDER)
 
 #define COS_MEM_COMP_START_VA ((1<<30) + (1<<22)) /* 1GB + 4MB (a relic) */
@@ -33,7 +41,9 @@
 #define COS_MEM_USER_VA_SZ (1<<31) /* 2 GB */
 #define COS_MEM_KERN_VA_SZ (1<<24) /* 16 MB from KERN_START_VA + end of kernel image onward */
 
-#define BOOT_CAPTBL_NPAGES 1
+/* To get more memory, we need many PTE caps in the captbl. So give
+ * multiple pages to it. 5 is enough for 512 MBs.*/
+#define BOOT_CAPTBL_NPAGES 5
 
 #define BOOT_COMP_MAX_SZ   (1<<24) /* 16 MB for the booter component */
 
@@ -46,8 +56,8 @@
 
 /* The kernel quiescence period = WCET in Kernel + WCET of a CAS. */
 #define KERN_QUIESCENCE_PERIOD_US 500
-#define KERN_QUIESCENCE_CYCLES (KERN_QUIESCENCE_PERIOD_US * CPU_GHZ * 1000)
-#define TLB_QUIESCENCE_CYCLES  (CPU_GHZ * 1000 * 1000 * 10)
+#define KERN_QUIESCENCE_CYCLES (KERN_QUIESCENCE_PERIOD_US * 4000)
+#define TLB_QUIESCENCE_CYCLES  (4000 * 1000 * (1000 / CPU_TIMER_FREQ))
 
 // After how many seconds should schedulers print out their information?
 #define SCHED_PRINTOUT_PERIOD  100000

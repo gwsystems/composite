@@ -33,7 +33,7 @@ __chal_pgtbl_switch(paddr_t pt)
 	 * descriptor open/close.)
 	 */
 	mm = cos_thd->mm;
-	mm->pgd = (pgd_t *)chal_pa2va((void*)pt);
+	mm->pgd = (pgd_t *)chal_pa2va(pt);
 
 	return;
 }

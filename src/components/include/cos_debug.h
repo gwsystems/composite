@@ -25,7 +25,7 @@
  * static assertion that the condition is true past the assertion.
  */
 __attribute__ ((noreturn)) static inline void __cos_noret(void) { while (1) ; }
-#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); *((int *)0) = 0; __cos_noret(); } } while(0)
+#define assert(node) do { if (unlikely(!(node))) { debug_print("FIXME: assert error in @ "); /* *((int *)0) = 0 ; */ call_cap(0,0,0,0,0); __cos_noret(); } } while(0)
 #endif
 #ifndef BUG_ON
 #define BUG_ON(c) assert(!(c))
