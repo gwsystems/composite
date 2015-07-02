@@ -797,7 +797,7 @@ intra_acap_setup(struct intra_comp *comp, int nest_level, int i, const int spin,
 	thd_id = comp->thdid;
 
 	assert(comp->cpus);
-	if (comp->dist_thd_idx == 0) assert(i < comp->n_cpu); // true for non-distribution thread.
+	if (comp->dist_thd_idx == 0) { assert(i < comp->n_cpu); }// true for non-distribution thread.
 
 	cpu = comp->cpus[i];
 	par_team = &comp->nested_par[nest_level];
