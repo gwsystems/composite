@@ -2,6 +2,7 @@
 #include <print.h>
 
 #include <sched.h>
+#include <cbuf.h>
 
 #include <unit_pgfault.h>
 
@@ -15,7 +16,7 @@ void cos_init(void)
 	int status;
 	printc("Starting page fault test...\n");
 	status = foo();
-	assert(status == -EFAULT);
+	assert(status == EFAULT);
 	printc("... and successfully finishing page fault test.\n");
 }
 
