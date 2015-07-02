@@ -1069,7 +1069,7 @@ composite_syscall_slowpath(struct pt_regs *regs)
 			pte = pgtbl_lkup_pte(((struct cap_pgtbl *)ch)->pgtbl, addr, &flags);
 
 			if (pte) ret = *pte;
-			else ret = 0;
+			else 	 ret = 0;
 
 			break;
 		}
@@ -1091,13 +1091,40 @@ composite_syscall_slowpath(struct pt_regs *regs)
 	{
 		switch (op)
 		{
-		case CAPTBL_OP_TCAPINIT:
+		case CAPTBL_OP_TCAP_SPLIT:
 		{
-			struct spd c = __userregs_get1(regs);
+			struct tcap *tcapdst = __userregs_get1(regs);
+			long long res = __userregs_get2(regs);
+			u32_t prio_higher = __userregs_get3(regs);
+			u32_t prio_lower = __userregs_get4(regs);
+			u16_t prio = 0; /* = higher_prio << 32 || lower_prio; */
 
-			if (c.tcaps) ret = 0;
+			struct tcap *n;
+
+			n = tcap_split(tcapdst, res, prio);
+			if(!n) cos_throw(err, ret);
+
+			ret = tcap_id(n);
 
 			break;
+		}
+		case CAPTBL_OP_TCAP_TRANSFER:
+		{
+			struct tcap *tcapsrc = __userregs_getcap(regs);
+			struct tcap *tcapdst = __userregs_get1(regs);
+			long long res = __userregs_get2(regs);
+			u32_t prio_higher = __userregs_get3(regs);
+			u32_t prio_lower = __userregs_get4(regs);
+			u16_t prio = 0; /* = higher_prio << 32 || lower_prio; */
+
+			ret = tcap_transfer(tcapdst, tcapsrc, res, prio);
+
+			if (ret) cos_throw(err, -ENOENT);
+
+			break;
+		}
+		case CAPTBL_OP_TCAP_DELEGATE:
+		{
 		}
 		}
 

@@ -66,7 +66,9 @@ typedef enum {
 	CAPTBL_OP_THDDEACTIVATE_ROOT,
 	CAPTBL_OP_MEMMOVE,
 	CAPTBL_OP_INTROSPECT,
-	CAPTBL_OP_TCAPINIT,
+	CAPTBL_OP_TCAP_SPLIT,
+	CAPTBL_OP_TCAP_TRANSFER,
+	CAPTBL_OP_TCAP_DELEGATE,
 } syscall_op_t;
 
 typedef enum {
@@ -812,18 +814,5 @@ static inline void cos_mem_fence(void)
 #define TCAP_RES_IS_INF(r) (r == TCAP_RES_INF)
 
 typedef u16_t tcap_t;
-/* operations for tcap_cntl */
-typedef enum {
-	COS_TCAP_DELEGATE,
-	COS_TCAP_SPLIT,
-	COS_TCAP_TRANSFER,
-	COS_TCAP_BIND,
-	COS_TCAP_RECEIVER,
-	COS_TCAP_SPLITCAP_ROOT_DELEG,
-	/* not yet implemented */
-	COS_TCAP_MERGE,
-	COS_TCAP_SETPRIORITY,
-	COS_TCAP_GETBUDGET
-} tcap_op_t;
 
 #endif /* TYPES_H */

@@ -105,6 +105,8 @@ struct pt_regs {
 
 #define COS_NUM_ATOMIC_SECTIONS 10
 
+#define TCAP_MAX 32
+
 /* # of pages */
 #define COS_MAX_MEMORY_MB (980) /* total user memory in MBs */
 #define COS_MAX_MEMORY    ((COS_MAX_MEMORY_MB << 20) / PAGE_SIZE)  /* # of pages */ 
