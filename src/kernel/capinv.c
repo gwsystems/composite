@@ -92,7 +92,7 @@ printfn(struct pt_regs *regs)
 				tlb_mandatory_flush(NULL);
 			} else {
 				/* FIXME: avoid using this band-aid. */
-				smp_call_function_single(target_cpu, tlb_mandatory_flush, NULL, 1);
+				chal_remote_tlb_flush(target_cpu);
 			}
 
 			__userregs_set(regs, 0,

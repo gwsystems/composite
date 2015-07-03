@@ -15,8 +15,7 @@
  * memory.
  */
 
-/* define when booting with Linux */
-#define COS_LINUX
+#include "cpu_ghz.h"
 
 /* we already use 16 MB of kernel memory + the kernel img, thus 32MB offset for this: */
 #ifndef COS_LINUX
@@ -47,7 +46,6 @@
 
 #define BOOT_COMP_MAX_SZ   (1<<24) /* 16 MB for the booter component */
 
-#include "cpu_ghz.h"
 #define NUM_CPU                1
 
 #define CPU_TIMER_FREQ         100 // set in your linux .config
