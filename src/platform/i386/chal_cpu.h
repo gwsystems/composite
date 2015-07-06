@@ -38,7 +38,7 @@ chal_cpu_cr4_set(cr4_flags_t flags)
 }
 
 static void
-chal_cpu_paging_activate(pgtbl_t pgtbl)
+chal_cpu_pgtbl_activate(pgtbl_t pgtbl)
 {
 //	unsigned long cr0;
 

@@ -7,7 +7,7 @@
 struct tss
 {
     u16_t back_link, :16;
-    void *esp0;                         /* Ring 0 stack virtual address. */
+    void *esp0;                      /* Ring 0 stack virtual address. */
     u16_t ss0, :16;                  /* Ring 0 stack segment selector. */
     void *esp1;
     u16_t ss1, :16;

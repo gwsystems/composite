@@ -516,7 +516,7 @@ composite_syscall_handler(struct pt_regs *regs)
 #endif
 	cap = __userregs_getcap(regs);
 
-	/* printk("calling cap %d: %x, %x, %x, %x\n", cap, __userregs_get1(regs),  */
+	/* printk("calling cap %d: %x, %x, %x, %x\n", cap, __userregs_get1(regs), */
 	/*        __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
 
 	thd = thd_current(cos_info);

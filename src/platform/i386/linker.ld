@@ -20,7 +20,7 @@ SECTIONS {
     }
 
     .data : AT(phys + (data - code)) {
-        data = .;
+        data = .; 
         *(.data)
         . = ALIGN(4096);
     }
@@ -28,6 +28,16 @@ SECTIONS {
     .bss : AT(phys + (bss - code)) {
         bss = .;
         *(.bss)
+	. = ALIGN(4096);
+    }
+
+    /* 
+     * We allocate all large allocations after the normal .bss and .data so that data 
+     * that is needed in the intial kernel image (referred to by a single 4MB super-page) 
+     */
+    .largebss : AT(phys + (largebss - code)) {
+    	largebss = .;
+        *(.largebss)
     }
 
     . = ALIGN(4096); 	/* This should be RETYPE_MEM_SIZE, boot component follows... */

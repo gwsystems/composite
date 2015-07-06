@@ -2,6 +2,7 @@
 
 #include "kernel.h"
 #include "tss.h"
+#include "chal_asm_inc.h"
 
 static u64_t gdt[SEL_CNT];
 
