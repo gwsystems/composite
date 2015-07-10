@@ -13,6 +13,8 @@ The current primary contributors to _Composite_
 - **Jiguo Song** -- PhD student at GWU working on memory scheduling and fault tolerance
 - **Gao Xiang** -- Masters student at GWU that has provided FPU, and POSIX support
 
+- **Lucas Baier** -- Undergraduate at GWU who is working to provide Rump Kernel support 
+
 Significant past contributors
 -----------------------------
 
