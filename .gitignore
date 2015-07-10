@@ -19,3 +19,4 @@ src/Makefile.cosconfig
 modules.order
 .depend
 *.img
+*.out
