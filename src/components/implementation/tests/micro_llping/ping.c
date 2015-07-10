@@ -1218,7 +1218,7 @@ void wcet_test(void)
 }
 
 #include <mem_mgr.h>
-	/* hack.... Gotta fix this ASAP after the deadline. */
+/* FIEME: transparent invocation linking! */
 #define MMAN_VALLOC 6
 #define MMAN_GET    8
 #define MMAN_ALIAS  10

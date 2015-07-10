@@ -71,6 +71,8 @@ hpage_index(unsigned long n)
         return (idx << HPAGE_SHIFT) != n ? idx + 1 : idx;
 }
 
+void tlb_mandatory_flush(void *arg);
+
 static inline void
 chal_remote_tlb_flush(int target_cpu)
 {

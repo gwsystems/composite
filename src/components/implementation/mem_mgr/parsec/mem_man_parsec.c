@@ -145,6 +145,7 @@ char kmem_table[FRAMETBL_ITEM_SZ*COS_KERNEL_MEMORY + 1] CACHE_ALIGNED;
 
 char comp_table[COMP_ITEM_SZ*MAX_NUM_COMPS] CACHE_ALIGNED;
 
+/* QWQ -- Quiescence-Waiting Queue */
 #define VAS_QWQ_SIZE        (1*1024)//(1024)  
 #define VAS_QWQ_SIZE_SMALL  (1)	/* For large VAS items, to avoid queuing too much. */
 
@@ -357,11 +358,6 @@ get_kmem(void)
 	kmem = frame_alloc(&kmem_ns); 
 	if (!kmem) {
 		printc("MM: no enough kernel frames on core %ld\n", cos_cpuid());
-		/* int i;  */
-		/* for (i = 0; i < NUM_CPU; i++) { */
-		/* 	printc("cpu %d: %d\n", i, kmem_ns.allocator.qwq[i].slab_queue[size2slab(PAGE_SIZE)].n_items); */
-		/* } */
-		/* printc("glb: %d\n", kmem_ns.allocator.glb_freelist.slab_freelists[size2slab(PAGE_SIZE)].n_items); */
 	}
 
 	return kmem;
