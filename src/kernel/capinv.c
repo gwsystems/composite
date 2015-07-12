@@ -39,7 +39,9 @@ fs_reg_setup(unsigned long seg) {
 		      : : "b" (seg));
 }
 
-static void
+/* TODO: switch to a dedicated TLB flush thread (in a separate
+ * protection domain) to do this. */
+void
 tlb_mandatory_flush(void *arg)
 {
 	unsigned long long t;
@@ -75,17 +77,6 @@ printfn(struct pt_regs *regs)
 	if (len >= 7) {
 		if (kern_buf[0] == 'F' && kern_buf[1] == 'L' && kern_buf[2] == 'U' &&
 		    kern_buf[3] == 'S' && kern_buf[4] == 'H' && kern_buf[5] == '!') {
-			/* u32_t ticks; */
-			//well, hack to flush tlb and cache...
-			/* { */
-			/* 	chal_flush_cache(); */
-			/* 	chal_flush_tlb_global(); */
-			/* } */
-
-			/* ticks = *(u32_t *)&timer_detector[get_cpuid() * CACHE_LINE]; */
-			/* if (get_cpuid() == 20 && ticks % 100 == 0)  */
-			/* 	printk("@%p, %d\n", &timer_detector[get_cpuid() * CACHE_LINE], ticks); */
-			///////////////////////////////////////////////////////////
 			int target_cpu = kern_buf[6];
 
 			if (target_cpu == get_cpuid()) {
