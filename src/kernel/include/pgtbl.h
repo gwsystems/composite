@@ -295,7 +295,10 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	return ret;
 }
 
-/* TODO: remove. a hack for kmem. */
+/* FIXME: a hack used to get more kmem available in Linux booting
+ * environment. Only used when booting up in Linux (hijack.c). This
+ * just adds the Linux allocated kmem into pgtbl w/o checking
+ * quiescence or refcnt. */
 static int
 kmem_add_hack(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {

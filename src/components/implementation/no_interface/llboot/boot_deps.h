@@ -1,5 +1,7 @@
 /* For printing: */
 
+#include <cos_config.h>
+
 #include <stdio.h>
 #include <string.h>
 #include <ck_pr.h>
@@ -679,8 +681,12 @@ sched_init_linux(void)
 {
 	assert(cos_cpuid() < NUM_CPU_COS);
 	if (cos_cpuid() == INIT_CORE) {
-		if (!PERCPU_GET(llbooter)->init_thd) cos_init();
-		else comp_deps_run_all();
+		if (!PERCPU_GET(llbooter)->init_thd) {
+			cos_init();
+			assert(PERCPU_GET(llbooter)->init_thd);
+		} else {
+			comp_deps_run_all();
+		}
 	} else {
 		LOCK();
 		boot_comp_thds_init();
@@ -714,14 +720,10 @@ sched_init_i386(void)
 int 
 sched_init(void)   
 {
-#ifdef COS_PLATFORM
-#if    COS_PLATFORM == I386
+#ifdef COS_LINUX
+	return sched_init_linux();
+#else
 	return sched_init_i386();
-#else
-	return sched_init_linux();
-#endif
-#else
-	return sched_init_linux();
 #endif
 }
 
