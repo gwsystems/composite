@@ -507,7 +507,6 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 			if (!addr) BUG();
 			if (call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CPY,
 					addr, pgtbl_cap, dest_daddr, 0)) BUG();
-
 			prev_map = dest_daddr;
 			dest_daddr += PAGE_SIZE;
 			left       -= PAGE_SIZE;
@@ -652,7 +651,7 @@ boot_create_cap_system(void)
 		capid_t pte_cap;
 
 		u64_t lid = get_liv_id();
-		
+
 		h = hs[i];
 		spdid = h->id;
 		
@@ -689,6 +688,7 @@ boot_create_cap_system(void)
 			if (call_cap_op(captbl_cap, CAPTBL_OP_CONS, comp_cap_info[spdid].captbl_cap[j],
 					(PAGE_SIZE*j - PAGE_SIZE/2)/CAPTBL_LEAFSZ, 0, 0)) BUG();
 		}
+
 		/* PGD */
 		if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
 				pgtbl_cap, BOOT_CAPTBL_SELF_PT, get_kmem_cap(), 0))  BUG();

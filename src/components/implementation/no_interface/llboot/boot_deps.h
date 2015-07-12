@@ -402,7 +402,7 @@ capid_t alloc_capid(cap_t cap)
 		BUG();
 	}
 	if (unlikely(capid_64b_free < capid_32b_free)) {
-		printc("LLBOOT: no enough CAPTBL IDs.\n");
+		printc("LLBOOT: not enough CAPTBL IDs.\n");
 		return 0;
 	}
 	assert(ret);
@@ -715,13 +715,11 @@ int
 sched_init(void)   
 {
 #ifdef COS_PLATFORM
-
 #if    COS_PLATFORM == I386
 	return sched_init_i386();
 #else
 	return sched_init_linux();
 #endif
-
 #else
 	return sched_init_linux();
 #endif

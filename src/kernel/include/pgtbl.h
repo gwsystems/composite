@@ -272,6 +272,7 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	/* get the pte */
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
 						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	if (!pte)                    return -EEXIST;
 	orig_v = (u32_t)(pte->next);
 
 	if (orig_v & PGTBL_PRESENT)  return -EEXIST;
