@@ -40,7 +40,6 @@ printc(char *fmt, ...)
 	va_end(arg_ptr);
 
 	cos_print(s, ret);
-
 	return 0;
 }
 
