@@ -16,7 +16,11 @@ void cos_init(void)
 {
 
 	LOCK();
-  printc("\nINITIALIZING RUMPKERNEL\n");
+
+  printc("\nRUMP KERNEL: START\n");
+  //call_rump_init();
+  //rump_init();
+  printc("\nRUMP KERNEL: DONE\n");
 
 	UNLOCK();
 
