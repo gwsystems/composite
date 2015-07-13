@@ -429,7 +429,7 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
          */
         genscript(1, tmp_exec, script);
         run_linker(service_name, tmp_exec, script);
-//      unlink(script);
+	unlink(script);
         objout = bfd_openr(tmp_exec, "elf32-i386");
         if(!objout){
                 bfd_perror("Object open failure\n");
@@ -534,3 +534,4 @@ load_all_services(struct service_symbs *services)
 
 	return service_addr;
 }
+ 

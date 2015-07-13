@@ -8,8 +8,8 @@
 #define __ASM__
 #include <cos_asm_simple_stacks.h>
 #include <consts.h>
+#include "../../kernel/include/asm_ipc_defs.h"
 
-#define RET_CAP ((1<<20)-1)
 #define IPRETURN 4
 
 .section .initonce

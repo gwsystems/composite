@@ -17,6 +17,7 @@ pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long *
 	/* get the pte */
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
 						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	if (unlikely(!pte))  return -ENOENT;
 	if (unlikely(__pgtbl_isnull(pte, 0, 0))) return -ENOENT;
 
 	orig_v = (u32_t)(pte->next);
@@ -66,6 +67,12 @@ tlb_quiescence_check(u64_t timestamp)
 				quiescent = 0;
 				break;
 			}
+		}
+	}
+	if (quiescent == 0) {
+		printk("from cpu %d, t %llu: cpu %d last mandatory flush: %llu\n", get_cpuid(), timestamp, i, tlb_quiescence[i].last_mandatory_flush);
+		for (i = 0; i < NUM_CPU_COS; i++) {
+			printk("cpu %d: flush %llu\n", i, tlb_quiescence[i].last_mandatory_flush);
 		}
 	}
 

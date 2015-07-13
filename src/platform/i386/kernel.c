@@ -37,7 +37,7 @@ hextol(const char *s)
 	return r;
 }
 
-extern void *end; 		/* from the linker script */
+extern u8_t end; 		/* from the linker script */
 
 void
 kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
@@ -62,9 +62,9 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 		die("Boot failure: expecting a single module to load, received %d instead.\n", mb->mods_count);
 	}
 
-	glb_memlayout.kern_end = chal_pa2va((paddr_t)end);
-	assert((unsigned int)end % RETYPE_MEM_NPAGES*PAGE_SIZE == 0);
-	printk("System memory info from multiboot (end 0x%x):\n", end);
+	glb_memlayout.kern_end = &end + PAGE_SIZE;
+	assert((unsigned int)&end % RETYPE_MEM_NPAGES*PAGE_SIZE == 0);
+	printk("System memory info from multiboot (end 0x%x):\n", &end);
 	printk("\tModules:\n");
 	for (i = 0 ; i < mb->mods_count ; i++) {
 		struct multiboot_mod_list *mod = &mods[i];
@@ -111,7 +111,8 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 void 
 kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 {
-	int bc = 0, ret;
+#define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
+	unsigned long max;
 
 	tss_init();
 	gdt_init();
@@ -120,14 +121,12 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 #ifdef ENABLE_SERIAL
 	serial_init();
 #endif
-
 #ifdef ENABLE_CONSOLE
 	console_init();
 #endif
-
-#ifdef ENABLE_TIMER
-	timer_init(100);
-#endif	    
+	max = MAX((unsigned long)mboot->mods_addr, 
+		  MAX((unsigned long)mboot->mmap_addr, (unsigned long)(chal_va2pa(&end))));
+	kern_paging_map_init((void*)(max + PGD_SIZE));
 	kern_memory_setup(mboot, mboot_magic);
 
 	chal_init();
@@ -138,7 +137,11 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
        	thd_init();
        	inv_init();
 	paging_init();
+
 	kern_boot_comp();
+#ifdef ENABLE_TIMER
+	timer_init(100);
+#endif
 	kern_boot_upcall();
 	/* should not get here... */
 	khalt(); 

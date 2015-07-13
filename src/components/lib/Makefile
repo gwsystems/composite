@@ -19,11 +19,11 @@ all: $(LIBS) $(MAND) $(SIMPLE_STKLIB)
 	@$(AR) cr lib$@ $(@:%.a=%.o)
 
 $(MAND): $(MANDITORY)
-	@$(LD) -r -o $@ $^
+	@$(LD) $(LDFLAGS) -r -o $@ $^
 
 
 $(SIMPLE_STKLIB): $(SIMPLE_STACKS)
-	@$(LD) -r -o $@ $^
+	@$(LD) $(LDFLAGS) -r -o $@ $^
 
 %.o:%.S
 	$(info |     [AS]   Compiling assembly file $^ into $@)

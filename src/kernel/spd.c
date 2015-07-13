@@ -690,7 +690,7 @@ spd_alloc_pgtbl(void)
 void 
 spd_free_pgtbl(paddr_t pa)
 {
-	cos_put_pg_pool(chal_pa2va((void*)pa));
+	cos_put_pg_pool(chal_pa2va(pa));
 }
 
 short int 
@@ -768,7 +768,7 @@ void spd_mpd_release(struct composite_spd *cspd)
 			cspd->master_spd = NULL;
 		} else {
 			//printk("cos: releasing cspd %d.\n", spd_mpd_index(cspd));
-			cos_put_pg_pool(chal_pa2va((void*)cspd->spd_info.pg_tbl));
+			cos_put_pg_pool(chal_pa2va(cspd->spd_info.pg_tbl));
 			cspd->spd_info.pg_tbl = 0;
 		}
 		spd_mpd_reset_flags(cspd);
@@ -878,7 +878,7 @@ void spd_mpd_make_subordinate(struct composite_spd *master_cspd,
 	if (1 < cos_ref_val(&slave_cspd->spd_info.ref_cnt)) {
 //		printk("cos:\tsubordinate %p to %p\n", slave_cspd, master_cspd);
 		cos_meas_event(COS_MPD_SUBORDINATE);
-		cos_put_pg_pool(chal_pa2va((void*)slave_cspd->spd_info.pg_tbl));
+		cos_put_pg_pool(chal_pa2va(slave_cspd->spd_info.pg_tbl));
 		spd_mpd_subordinate(slave_cspd, master_cspd);
 	} else {
 		assert(NULL == slave_cspd->members);
@@ -914,7 +914,7 @@ void spd_mpd_free_all(void)
 			printk("cos: warning - found unfreed composite spd, %d w/ refcnt %d\n", 
 			       spd_mpd_index(cspd), cos_ref_val(&cspd->spd_info.ref_cnt));
 			if (!spd_mpd_is_subordinate(cspd)) {
-				cos_put_pg_pool(chal_pa2va((void*)cspd->spd_info.pg_tbl));
+				cos_put_pg_pool(chal_pa2va(cspd->spd_info.pg_tbl));
 				cspd->spd_info.pg_tbl = 0;
 			}
 			//spd_mpd_release(cspd);

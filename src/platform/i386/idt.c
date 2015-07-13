@@ -80,7 +80,7 @@ extern void isr30(void);
 extern void isr31(void);
 
 struct idt_entry idt_entries[NUM_IDT_ENTRIES];
-struct idt_ptr idt_ptr;
+struct idt_ptr   idt_ptr;
 
 static void
 idt_set_gate(u8_t num, u32_t base, u16_t sel, u8_t flags)

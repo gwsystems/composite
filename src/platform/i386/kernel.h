@@ -14,15 +14,6 @@
     khalt();				\
 } while(0)
 
-enum log_level {
-    RAW,
-    DEBUG,
-    INFO,
-    WARN,
-    ERROR,
-    CRITICAL
-};
-
 #ifdef ENABLE_CONSOLE
 void vga_clear(void);
 void vga_puts(const char *s);
@@ -42,6 +33,7 @@ void idt_init(void);
 void gdt_init(void);
 void user_init(void);
 void paging_init(void);
+void kern_paging_map_init(void *pa);
 
 //void printk(const char *fmt, ...);
 int printk_register_handler(void (*handler)(const char *));

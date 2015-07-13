@@ -14,8 +14,8 @@
 #include "shared/util.h"
 #include "ertrie.h"
 
-#define LTBL_ENT_ORDER 10
-#define LTBL_ENTS (1<<10)
+#define LTBL_ENT_ORDER 20
+#define LTBL_ENTS (1<<LTBL_ENT_ORDER)
 
 #ifndef rdtscll
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
@@ -97,7 +97,8 @@ ltbl_expire(struct liveness_data *ld)
 	old_v = ent->epoch;
 
 	rdtscll(ent->deact_timestamp);
-	cos_inst_bar();
+	cos_mem_fence();
+//	cos_inst_bar();
 
 	//FIXME: 64-bit op
 	if (!cos_cas((unsigned long *)&ent->epoch, (unsigned long)old_v, (unsigned long)(old_v + 1))) return -ECASFAIL;
@@ -163,7 +164,8 @@ ltbl_timestamp_update(livenessid_t id)
 
 	/* Barrier here to ensure tsc is taken after store
 	 * instruction (avoid out-of-order execution). */
-	cos_inst_bar();
+//	cos_inst_bar();
+	cos_mem_fence();
 
 	rdtscll(ent->deact_timestamp);
 

@@ -61,7 +61,9 @@ struct pt_regs {
 
 #define MAX_SCHED_HIER_DEPTH 4
 
-#define MAX_NUM_SPDS   64
+#define MAX_NUM_COMPS  64
+#define MAX_NUM_SPDS   (MAX_NUM_COMPS) /* Legacy code still has this. */
+
 #define MAX_STATIC_CAP 256
 #define MAX_NUM_ACAP 256
 
@@ -100,10 +102,12 @@ struct pt_regs {
 #define COS_DATA_REGION_LOWER_ADDR (COS_INFO_REGION_ADDR+PAGE_SIZE)
 #define COS_DATA_REGION_MAX_SIZE (MAX_NUM_THREADS*PAGE_SIZE)
 
+#define BOOTER_NREGIONS 16 // 16*4MB = 64MB VAS for booter
+
 #define COS_NUM_ATOMIC_SECTIONS 10
 
 /* # of pages */
-#define COS_MAX_MEMORY    (COS_MEM_USER_PA_SZ/PAGE_SIZE)  /* # of pages. vas extents now support up to 254MB */ 
+#define COS_MAX_MEMORY    (COS_MEM_USER_PA_SZ/PAGE_SIZE)  /* # of pages */ 
 #define COS_MEM_BOUND     (COS_MEM_USER_PA + COS_MAX_MEMORY*PAGE_SIZE) /* highest physical address */
 
 /* These are deprecated, use the macros they reference */

@@ -12,6 +12,9 @@
 #include "../../../../kernel/include/shared/consts.h"
 #include "../../../../kernel/include/asm_ipc_defs.h"
 
+//#include "../shared/consts.h"
+//#include "../asm_ipc_defs.h"
+
 struct cos_cpu_local_info {
 	/* orig_sysenter_esp SHOULD be the first variable here. The
 	 * sysenter interposition path gets tss from it. */
@@ -32,7 +35,6 @@ struct cos_cpu_local_info {
 	unsigned long overflow_check;
 };
 
-/* TODO: put this in platform specific directory */
 static inline void *
 get_linux_thread_info(void)
 {

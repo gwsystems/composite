@@ -152,13 +152,6 @@ thd_free_all(void)
         }
 }
 
-void
-thd_init(void)
-{
-        thd_init_all(threads);
-	assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD)); 
-}
-
 extern int host_in_syscall(void);
 extern int host_in_idle(void);
 /*

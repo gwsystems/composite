@@ -39,12 +39,25 @@ fs_reg_setup(unsigned long seg) {
 		      : : "b" (seg));
 }
 
+static void
+tlb_mandatory_flush(void *arg)
+{
+	unsigned long long t;
+	(void)arg;
+
+	rdtscll(t);
+	/* Order is important: get tsc before action. */
+	chal_flush_tlb();
+	/* But commit after. */
+	tlb_quiescence[get_cpuid()].last_mandatory_flush = t;
+}
+
 #define MAX_LEN 512
 extern char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
 static inline int 
 printfn(struct pt_regs *regs) 
 {
-	char *str; 
+	char *str;
 	int len;
 	char kern_buf[MAX_LEN];
 
@@ -59,27 +72,36 @@ printfn(struct pt_regs *regs)
 	if (len >= MAX_LEN) len = MAX_LEN - 1;
 	memcpy(kern_buf, str, len);
 
-	if (len >= 6) {
+	if (len >= 7) {
 		if (kern_buf[0] == 'F' && kern_buf[1] == 'L' && kern_buf[2] == 'U' &&
 		    kern_buf[3] == 'S' && kern_buf[4] == 'H' && kern_buf[5] == '!') {
-			u32_t ticks;
+			/* u32_t ticks; */
 			//well, hack to flush tlb and cache...
-			/* if (get_cpuid() == SND_RCV_OFFSET && len >= 10) { */
-			/* if (get_cpuid() == 0) { */
+			/* { */
 			/* 	chal_flush_cache(); */
 			/* 	chal_flush_tlb_global(); */
 			/* } */
-			ticks = *(u32_t *)&timer_detector[get_cpuid() * CACHE_LINE];
+
+			/* ticks = *(u32_t *)&timer_detector[get_cpuid() * CACHE_LINE]; */
 			/* if (get_cpuid() == 20 && ticks % 100 == 0)  */
 			/* 	printk("@%p, %d\n", &timer_detector[get_cpuid() * CACHE_LINE], ticks); */
+			///////////////////////////////////////////////////////////
+			int target_cpu = kern_buf[6];
 
-			__userregs_set(regs, ticks, 
+			if (target_cpu == get_cpuid()) {
+				tlb_mandatory_flush(NULL);
+			} else {
+				/* FIXME: avoid using this band-aid. */
+				chal_remote_tlb_flush(target_cpu);
+			}
+
+			__userregs_set(regs, 0,
 				       __userregs_getsp(regs), __userregs_getip(regs));
 
 			return 0;
 		}
 	}
-	
+
 	kern_buf[len] = '\0';
 	printk("%s", kern_buf);
 done:
@@ -99,7 +121,7 @@ void cos_cap_ipi_handling(void)
 
 	/* We need to scan the entire buffer once. */
 	idx = receiver_rings->start;
-	end = receiver_rings->start - 1; //end is int type. could be -1. 
+	end = receiver_rings->start - 1; //end is int type. could be -1.
 	receiver_rings->start = (receiver_rings->start + 1) % NUM_CPU;
 
 	/* scan the first half */
@@ -123,8 +145,8 @@ void cos_cap_ipi_handling(void)
 
 /* The deact_pre / _post are used by kernel object deactivation:
  * cap_captbl, cap_pgtbl and thd. */
-int 
-kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, 
+int
+kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap,
 	       capid_t cosframe_addr, unsigned long **p_pte, unsigned long *v)
 {
 	struct cap_pgtbl *cap_pt;
@@ -187,7 +209,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap,
 
 		if (ret) {
 			/* unset scan and frozen bits. */
-			cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG, 
+			cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG,
 				l & ~(CAP_MEM_FROZEN_FLAG | CAP_MEM_SCAN_FLAG));
 			cos_throw(err, ret);
 		}
@@ -233,7 +255,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap,
 
 		if (ret) {
 			/* unset scan and frozen bits. */
-			cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG, 
+			cos_cas((unsigned long *)&deact_cap->refcnt_flags, l | CAP_MEM_SCAN_FLAG,
 				l & ~(CAP_MEM_FROZEN_FLAG | CAP_MEM_SCAN_FLAG));
 			cos_throw(err, ret);
 		}
@@ -257,7 +279,7 @@ err:
 extern void *memset(void *dst, int c, unsigned long int count);
 
 /* Updates the pte, deref the frame and zero out the page. */
-int 
+int
 kmem_deact_post(unsigned long *pte, unsigned long old_v)
 {
 	int ret;
@@ -281,25 +303,25 @@ err:
 	return ret;
 }
 
-/* 
+/*
  * Copy a capability from a location in one captbl/pgtbl to a location
  * in the other.  Fundamental operation used to delegate capabilities.
  * TODO: should limit the types of capabilities this works on.
  */
 static inline int
-cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to, 
+cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 	capid_t cap_from, capid_t capin_from)
 {
 	struct cap_header *ctto, *ctfrom;
 	int sz, ret;
 	cap_t cap_type;
-	
+
 	/* printk("copy from captbl %d, cap %d to captbl %d, cap %d\n", */
 	/*        cap_from, capin_from, cap_to, capin_to); */
 	ctfrom = captbl_lkup(t, cap_from);
 	if (unlikely(!ctfrom)) return -ENOENT;
 
-	cap_type = ctfrom->type; 
+	cap_type = ctfrom->type;
 
 	if (cap_type == CAP_CAPTBL) {
 		u32_t old_v, l;
@@ -362,7 +384,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 		/* Cannot copy frame, or kernel entry. */
 		if ((old_v & PGTBL_COSFRAME) || !(old_v & PGTBL_USER)) return -EPERM;
 		/* TODO: validate the type is appropriate given the value of *flags */
-		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl, 
+		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl,
 					capin_to, old_v & PGTBL_FRAME_MASK, flags);
 	} else {
 		ret = -EINVAL;
@@ -371,8 +393,66 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 	return ret;
 }
 
+static inline int
+cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to,
+	capid_t cap_from, capid_t capin_from)
+{
+	struct cap_header *ctto, *ctfrom;
+	int ret;
+	cap_t cap_type;
+
+	/* printk("copy from captbl %d, cap %d to captbl %d, cap %d\n", */
+	/*        cap_from, capin_from, cap_to, capin_to); */
+	ctfrom = captbl_lkup(t, cap_from);
+	if (unlikely(!ctfrom)) return -ENOENT;
+
+	cap_type = ctfrom->type;
+
+	if (cap_type == CAP_CAPTBL) {
+		/* no cap copy needed yet. */
+		return -EPERM;
+	} else if (cap_type == CAP_PGTBL) {
+		unsigned long *f, old_v, *moveto, old_v_to;
+		u32_t flags;
+
+		ctto = captbl_lkup(t, cap_to);
+		if (unlikely(!ctto)) return -ENOENT;
+		if (unlikely(ctto->type != cap_type)) return -EINVAL;
+		if (unlikely(((struct cap_pgtbl *)ctto)->refcnt_flags & CAP_MEM_FROZEN_FLAG)) return -EINVAL;
+		f = pgtbl_lkup_pte(((struct cap_pgtbl *)ctfrom)->pgtbl, capin_from, &flags);
+		if (!f) return -ENOENT;
+		old_v = *f;
+
+		moveto = pgtbl_lkup_pte(((struct cap_pgtbl *)ctto)->pgtbl, capin_to, &flags);
+		if (!moveto) return -ENOENT;
+		old_v_to = *moveto;
+
+		cos_mem_fence();
+		if ((old_v & PGTBL_COSFRAME) == 0) return -EPERM;
+		if (old_v_to & (PGTBL_COSFRAME | PGTBL_PRESENT)) return -EPERM;
+		ret = pgtbl_quie_check(old_v_to);
+		if (ret) return ret;
+
+		/* valid to move. doing CAS next. */
+		ret = cos_cas(f, old_v, 0);
+		if (ret != CAS_SUCCESS) return -ECASFAIL;
+
+		ret = cos_cas(moveto, old_v_to, old_v);
+		if (ret != CAS_SUCCESS) {
+			/* FIXME: reverse if the second cas fails. We
+			 * should lock down the moveto slot first. */
+			return -ECASFAIL;
+		}
+		ret = 0;
+	} else {
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
 static int
-cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, struct cos_cpu_local_info *cos_info) 
+cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, struct cos_cpu_local_info *cos_info)
 {
 	int preempt = 0;
 	struct comp_info *next_ci = &(next->invstk[next->invstk_top].comp_info);
@@ -389,8 +469,10 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	__userregs_set(&curr->regs, COS_SCHED_RET_SUCCESS, __userregs_getsp(regs), __userregs_getip(regs));
 
 	thd_current_update(next, curr, cos_info);
+	/* TODO: check current pgtbl is different or not. */
 	pgtbl_update(next_ci->pgtbl);
 
+	/* TODO: check FPU */
 	/* fpu_save(thd); */
 	if (next->flags & THD_STATE_PREEMPTED) {
 		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
@@ -398,7 +480,7 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 		next->flags &= ~THD_STATE_PREEMPTED;
 		preempt = 1;
 	}
-		
+
 	/* update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags); */
 	/* event_record("switch_thread", thd_get_id(thd), thd_get_id(next)); */
 	copy_gp_regs(&next->regs, regs);
@@ -408,32 +490,34 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 
 #define ENABLE_KERNEL_PRINT
 
-__attribute__((section("__ipc_entry"))) COS_SYSCALL int composite_sysenter_handler(struct pt_regs *regs);
+int
+composite_syscall_slowpath(struct pt_regs *regs);
 
 __attribute__((section("__ipc_entry"))) COS_SYSCALL int
-composite_sysenter_handler(struct pt_regs *regs)
+composite_syscall_handler(struct pt_regs *regs)
 #endif
 {
 	struct cap_header *ch;
 	struct comp_info *ci;
-	struct captbl *ct;
 	struct thread *thd;
-	capid_t cap, capin;
+	capid_t cap;
 	unsigned long ip, sp;
 	syscall_op_t op;
 	/* 
 	 * We lookup this struct (which is on stack) only once, and
 	 * pass it into other functions to avoid unnecessary lookup.
 	 */
+
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
-	int ret = 0;
+	int ret = -ENOENT;
 
 #ifdef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
 #endif
 	cap = __userregs_getcap(regs);
 
-	//printk("calling cap %d: %x, %x, %x, %x\n", cap, __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs));
+	/* printk("calling cap %d: %x, %x, %x, %x\n", cap, __userregs_get1(regs), */
+	/*        __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
 
 	thd = thd_current(cos_info);
 
@@ -459,8 +543,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 	ch = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
 		printk("cos: cap %d not found!\n", (int)cap);
-		ret = -ENOENT;
-		goto done;
+		cos_throw(done, 0);
 	}
 	/* fastpath: invocation */
 	if (likely(ch->type == CAP_SINV)) {
@@ -473,7 +556,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 	if (ch->type == CAP_THD) {
 		struct cap_thd *thd_cap = (struct cap_thd *)ch;
 		struct thread *next = thd_cap->t;
-		
+
 		if (thd_cap->cpuid != get_cpuid()) cos_throw(err, -EINVAL);
 		assert(thd_cap->cpuid == next->cpuid);
 
@@ -497,7 +580,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			printk("NOT tested yet.\n");
 
 			if (unlikely(!ltbl_isalive(&(asnd->comp_info.liveness)))) {
-				// fault handle? 
+				// fault handle?
 				cos_throw(err, -EFAULT);
 			}
 
@@ -506,10 +589,10 @@ composite_sysenter_handler(struct pt_regs *regs)
 				printk("cos: IPI handling received invalid arcv cap %d\n", asnd->arcv_capid);
 				cos_throw(err, -EINVAL);
 			}
-			
+
 			return cap_switch_thd(regs, thd, arcv->thd, cos_info);
 		}
-				
+
 		goto done;
 	} else if (ch->type == CAP_ARCV) {
 		struct cap_arcv *arcv = (struct cap_arcv *)ch;
@@ -526,41 +609,72 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 		if (arcv->pending) {
 			arcv->pending--;
-			ret = 0;
-
-			goto done;
+			cos_throw(done, 0);
 		}
 		if (thd->interrupted_thread == NULL) {
 			/* FIXME: handle this case by upcalling into
 			 * scheduler, or switch to a scheduling
 			 * thread. */
-			ret = -1;
 			printk("ERROR: not implemented yet!\n");
+			cos_throw(err, -1);
 		} else {
 			thd->arcv_cap = cap;
 			thd->flags &= !THD_STATE_ACTIVE_UPCALL;
 			thd->flags |= THD_STATE_READY_UPCALL;
-			
+
 			return cap_switch_thd(regs, thd, thd->interrupted_thread, cos_info);
 		}
-		
+
 		goto done;
 	}
 
-	fs_reg_setup(__KERNEL_PERCPU);
 
+	ret = composite_syscall_slowpath(regs);
+err:
+done:
+	__userregs_set(regs, ret, __userregs_getsp(regs), __userregs_getip(regs));
+
+	return 0;
+}
+
+int
+composite_syscall_slowpath(struct pt_regs *regs)
+{
+
+	struct cap_header *ch;
+	struct comp_info *ci;
+	struct captbl *ct;
+	struct thread *thd;
+	capid_t cap,  capin;
+	syscall_op_t op;
+	int ret = -ENOENT;
+	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
+	unsigned long ip, sp;
 	/* slowpath: other capability operations, most of which
 	 * involve writing. */
-	op = __userregs_getop(regs);
-	ct = ci->captbl; 
+
+	fs_reg_setup(__KERNEL_PERCPU);
+
+	/* add vars */
+	thd = thd_current(cos_info);
+	cap = __userregs_getcap(regs);
 	capin = __userregs_get1(regs);
+
+	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
+	assert(ci && ci->captbl);
+
+	ch = captbl_lkup(ci->captbl, cap);
+	assert(ch);
+
+	op = __userregs_getop(regs);
+	ct = ci->captbl;
 
 	switch(ch->type) {
 	case CAP_CAPTBL:
 	{
 		struct cap_captbl *op_cap = (struct cap_captbl *)ch;
 
-		/* 
+		/*
 		 * FIXME: make sure that the lvl of the pgtbl makes
 		 * sense for the op.
 		 */
@@ -575,7 +689,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			struct captbl *newct;
 			unsigned long *pte = NULL;
 			vaddr_t kmem_addr = 0;
-			
+
 			ret = cap_kmem_activate(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr, &pte);
 			if (unlikely(ret)) cos_throw(err, ret);
 			assert(kmem_addr && pte);
@@ -607,7 +721,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			livenessid_t lid      = __userregs_get2(regs);
 
 			ret = captbl_deactivate(ct, op_cap, capin, lid, 0, 0, 0);
-			
+
 			break;
 		}
 		case CAPTBL_OP_CAPTBLDEACTIVATE_ROOT:
@@ -617,7 +731,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			capid_t cosframe_addr = __userregs_get4(regs);
 
 			ret = captbl_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr, 1);
-			
+
 			break;
 		}
 		case CAPTBL_OP_PGTBLACTIVATE:
@@ -675,7 +789,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			livenessid_t lid      = __userregs_get2(regs);
 
 			ret = pgtbl_deactivate(ct, op_cap, capin, lid, 0, 0, 0);
-			
+
 			break;
 		}
 		case CAPTBL_OP_PGTBLDEACTIVATE_ROOT:
@@ -685,7 +799,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			capid_t cosframe_addr = __userregs_get4(regs);
 
 			ret = pgtbl_deactivate(ct, op_cap, capin, lid, pgtbl_cap, cosframe_addr, 1);
-			
+
 			break;
 		}
 		case CAPTBL_OP_THDACTIVATE:
@@ -761,7 +875,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 		{
 			capid_t dest_comp_cap = __userregs_get2(regs);
 			vaddr_t entry_addr    = __userregs_get3(regs);
-			
+
 			ret = sinv_activate(ct, cap, capin, dest_comp_cap, entry_addr);
 			break;
 		}
@@ -780,7 +894,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 		case CAPTBL_OP_SRETDEACTIVATE:
 		{
 			livenessid_t lid  = __userregs_get2(regs);
-			
+
 			ret = sret_deactivate(op_cap, capin, lid);
 			break;
 		}
@@ -821,7 +935,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			capid_t dest_captbl = __userregs_get2(regs);
 			capid_t dest_cap    = __userregs_get3(regs);
 
-			ret = cap_cpy(ct, dest_captbl, dest_cap, 
+			ret = cap_cpy(ct, dest_captbl, dest_cap,
 				      from_captbl, from_cap);
 			break;
 		}
@@ -849,6 +963,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 	}
 	case CAP_PGTBL:
 	{
+		/* pgtbl_t pt = ((struct cap_pgtbl *)ch)->pgtbl; */
 		capid_t pt = cap;
 
 		switch (op) {
@@ -860,6 +975,20 @@ composite_sysenter_handler(struct pt_regs *regs)
 			vaddr_t dest_addr   = __userregs_get3(regs);
 
 			ret = cap_cpy(ct, dest_pt, dest_addr, source_pt, source_addr);
+
+			break;
+		}
+		case CAPTBL_OP_MEMMOVE:
+		{
+			/* Moves a mem frame to another pgtbl. Used to
+			 * grant frames to memory management
+			 * components.  */
+			capid_t source_pt   = pt;
+			vaddr_t source_addr = __userregs_get1(regs);
+			capid_t dest_pt     = __userregs_get2(regs);
+			vaddr_t dest_addr   = __userregs_get3(regs);
+
+			ret = cap_move(ct, dest_pt, dest_addr, source_pt, source_addr);
 
 			break;
 		}
@@ -899,9 +1028,9 @@ composite_sysenter_handler(struct pt_regs *regs)
 			livenessid_t lid  = __userregs_get2(regs);
 
 			if (((struct cap_pgtbl *)ch)->lvl) cos_throw(err, -EINVAL);
-			
+
 			ret = pgtbl_mapping_del(((struct cap_pgtbl *)ch)->pgtbl, addr, lid);
-			
+
 			break;
 		}
 		case CAPTBL_OP_MEM_RETYPE2USER:
@@ -910,10 +1039,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 			paddr_t frame;
 
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
-			if (ret) {
-				printk("not getting frame\n.");
-				cos_throw(err, ret);
-			}
+			if (ret) cos_throw(err, ret);
 
 			ret = retypetbl_retype2user((void *)frame);
 
@@ -926,7 +1052,7 @@ composite_sysenter_handler(struct pt_regs *regs)
 
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
 			if (ret) cos_throw(err, ret);
-
+			
 			ret = retypetbl_retype2kern((void *)frame);
 
 			break;
@@ -940,6 +1066,19 @@ composite_sysenter_handler(struct pt_regs *regs)
 			if (ret) cos_throw(err, ret);
 
 			ret = retypetbl_retype2frame((void *)frame);
+
+			break;
+		}
+		case CAPTBL_OP_INTROSPECT:
+		{
+			vaddr_t addr = __userregs_get1(regs);
+			unsigned long *pte;
+			u32_t flags;
+
+			pte = pgtbl_lkup_pte(((struct cap_pgtbl *)ch)->pgtbl, addr, &flags);
+
+			if (pte) ret = *pte;
+			else ret = 0;
 
 			break;
 		}
@@ -957,13 +1096,8 @@ composite_sysenter_handler(struct pt_regs *regs)
 		sret_ret(thd, regs, cos_info);
 		return 0;
 	}
-	default:
-	err:
-		if (ret == 0) ret = -ENOENT;
+	default: break;
 	}
-done:
-	__userregs_set(regs, ret, __userregs_getsp(regs), __userregs_getip(regs));
-
-	return 0;
+err:
+	return ret;
 }
-

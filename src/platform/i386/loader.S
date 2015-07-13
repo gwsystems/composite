@@ -8,7 +8,7 @@
 .set MULTIBOOT_FLAGS,       MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMINFO
 .set MULTIBOOT_CHECKSUM,    -(MULTIBOOT_MAGIC + MULTIBOOT_FLAGS)
 
-.align 4
+.align 64
 .long MULTIBOOT_MAGIC
 .long MULTIBOOT_FLAGS
 .long MULTIBOOT_CHECKSUM
@@ -39,3 +39,4 @@ _loader:
 	pushl $0  /* empty return value as we're jmping, not calling */
 	mov $kmain, %eax
 	jmp *%eax
+

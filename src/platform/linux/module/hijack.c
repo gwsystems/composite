@@ -54,7 +54,7 @@
 #include "../../../kernel/include/shared/cos_config.h"
 #include "../../../kernel/include/fpu.h"
 #include "../../../kernel/include/chal/cpuid.h"
-#include "../../../kernel/include/chal/asm_ipc_defs.h"
+#include "../../../kernel/include/asm_ipc_defs.h"
 
 #include "./hw_ints.h"
 #include "cos_irq_vectors.h"
@@ -604,14 +604,14 @@ static void hw_reset(void *data)
 
 #define THD_SIZE (PAGE_SIZE/4)
 
-u8_t init_thds[THD_SIZE * NUM_CPU_COS] PAGE_ALIGNED;
+u8_t init_thds[THD_SIZE * NUM_CPU] PAGE_ALIGNED;
 /* Reserve 5 pages for llboot captbl. */
 u8_t boot_comp_captbl[PAGE_SIZE*BOOT_CAPTBL_NPAGES] PAGE_ALIGNED; 
 u8_t c0_comp_captbl[PAGE_SIZE] PAGE_ALIGNED;
 
 u8_t *boot_comp_pgd;
 u8_t *boot_comp_pte_vm;
-u8_t *boot_comp_pte_km;
+u8_t *boot_comp_pte_km;//[COS_KERNEL_MEMORY / (PAGE_SIZE/sizeof(void *))];
 u8_t *boot_comp_pte_pm;
 
 #define N_PHYMEM_PAGES COS_MAX_MEMORY /* # of physical pages available */
@@ -631,14 +631,32 @@ struct captbl *boot_captbl;
  * have to use global thread id name space.*/
 u32_t free_thd_id = 1;
 
+static void *
+get_coskmem(void)
+{
+	void *ret = cos_kmem;
+	cos_kmem += PAGE_SIZE;
+
+	return ret;
+}
+
+//#define KMEM_HACK
+#ifdef KMEM_HACK
+/* a hack to get more kmem... */
+#define NBOOTKMEM 1024
+void *bootkmem[NBOOTKMEM];
+unsigned long bootkmem_used = 0;
+#endif
+
 static int
 kern_boot_comp(struct spd_info *spd_info)
 {
 	int ret;
 	struct captbl *ct, *ct0;
 	pgtbl_t pt, pt0;
-	unsigned int i;
+	unsigned int i, n_pte_entry, n_pte;
 	void *kmem_base_pa;
+	struct cap_pgtbl *pte_cap;
 
 	ct = captbl_create(boot_comp_captbl);
 	assert(ct);
@@ -654,44 +672,111 @@ kern_boot_comp(struct spd_info *spd_info)
 	}
 	boot_captbl = ct;
 
-	kmem_base_pa = chal_va2pa(cos_kmem_base);
+	kmem_base_pa = (void *)chal_va2pa(cos_kmem_base);
 	ret = retypetbl_retype2kern(kmem_base_pa);
 	assert(ret == 0);
 
-	boot_comp_pgd = cos_kmem_base;
-	boot_comp_pte_vm = cos_kmem_base + PAGE_SIZE;
-	boot_comp_pte_pm = cos_kmem_base + 2 * PAGE_SIZE;
-	boot_comp_pte_km = cos_kmem_base + 3 * PAGE_SIZE;
+	boot_comp_pgd = get_coskmem();
+	boot_comp_pte_km = get_coskmem();
 
-	cos_kmem += 4*PAGE_SIZE;
-
-	pt = pgtbl_create(boot_comp_pgd, chal_va2pa(linux_pgd));
-
-//	printk("pt %x, our pgd %x (%x), pte %x (%x)\n", pt, boot_comp_pgd, __pa(boot_comp_pgd), boot_comp_pte_vm, __pa(boot_comp_pte_vm));
+	pt = pgtbl_create(boot_comp_pgd, (void *)chal_va2pa(linux_pgd));
 	assert(pt);
-	pgtbl_init_pte(boot_comp_pte_vm);
-	pgtbl_init_pte(boot_comp_pte_pm);
 	pgtbl_init_pte(boot_comp_pte_km);
 
 	if (captbl_activate_boot(ct, BOOT_CAPTBL_SELF_CT)) cos_throw(err, -1);
 	if (sret_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SRET)) cos_throw(err, -1);
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, pt, 0)) cos_throw(err, -1);
-	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_BOOTVM_PTE, (pgtbl_t)boot_comp_pte_vm, 1)) cos_throw(err, -1);
-	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_KM_PTE, (pgtbl_t)boot_comp_pte_km, 1)) cos_throw(err, -1);
-	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_PHYSM_PTE, (pgtbl_t)boot_comp_pte_pm, 1)) cos_throw(err, -1);
 
-	/* construct the page tables */
-	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, BOOT_MEM_VM_BASE)) cos_throw(err, -1);
+	/* KMEM PTE */
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_KM_PTE, (pgtbl_t)(boot_comp_pte_km), 1)) cos_throw(err, -1);
 	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_KM_PTE, BOOT_MEM_KM_BASE)) cos_throw(err, -1);
-	if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_PHYSM_PTE, BOOT_MEM_PM_BASE)) cos_throw(err, -1);
+
+	/* VM PTEs */
+	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_BOOTVM_PTE, NULL, 1)) cos_throw(err, -1);
+	/* Get the cap, and we'll set the pgtbl next. We don't usually
+	 * do this, just for booting up. */
+	pte_cap = (struct cap_pgtbl *)captbl_lkup(ct, BOOT_CAPTBL_BOOTVM_PTE);
+	assert(pte_cap);
+	n_pte_entry = PAGE_SIZE / sizeof(void *);
+
+	for (i = 0; i < BOOTER_NREGIONS; i++) {
+		boot_comp_pte_vm = get_coskmem();
+		if (((u32_t)boot_comp_pte_vm - (u32_t)cos_kmem_base) % RETYPE_MEM_SIZE == 0) {
+			ret = retypetbl_retype2kern((void *)chal_va2pa(boot_comp_pte_vm));
+			assert(ret == 0);
+		}
+
+		pgtbl_init_pte(boot_comp_pte_vm);
+		pte_cap->pgtbl = (pgtbl_t)boot_comp_pte_vm;
+
+		/* construct the page tables */
+		if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_BOOTVM_PTE, 
+			     BOOT_MEM_VM_BASE + i*n_pte_entry*PAGE_SIZE)) { printk("failed i %d\n", i);cos_throw(err, -1);}
+	}
+
+	/* PM PTEs */
+	n_pte = COS_MAX_MEMORY / n_pte_entry;
+	if (COS_MAX_MEMORY % n_pte_entry) n_pte++;
+
+	ret = pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_PHYSM_PTE, NULL, 1);
+	pte_cap = (struct cap_pgtbl *)captbl_lkup(ct, BOOT_CAPTBL_PHYSM_PTE);
+	assert(pte_cap);
+
+#ifdef KMEM_HACK
+	if (n_pte > NBOOTKMEM) {
+		printk("no enough bootkmem, want %d\n", n_pte);
+		cos_throw(err, -1);
+	}
+	for (i = 0; i < NBOOTKMEM; i++) 
+		bootkmem[i] = NULL;
+
+	/* Get PTE */
+	for (i = 0; i < n_pte; i++) {
+		bootkmem[i] = chal_alloc_page();
+		if (!bootkmem[i]) {
+			printk("no bootkmem\n");
+			cos_throw(err, -1);
+		}
+	}
+	bootkmem_used += n_pte;
+#endif
+
+	for (i = 0; i < n_pte; i++) {
+#ifndef KMEM_HACK
+		boot_comp_pte_pm = get_coskmem();
+		if (((u32_t)boot_comp_pte_pm - (u32_t)cos_kmem_base) % RETYPE_MEM_SIZE == 0) {
+			ret = retypetbl_retype2kern((void *)chal_va2pa(boot_comp_pte_pm));
+			assert(ret == 0);
+		}
+#else
+		boot_comp_pte_pm = bootkmem[i];
+#endif
+
+		pgtbl_init_pte(boot_comp_pte_pm);
+		/* Again, a hack for bootstrap. */
+		pte_cap->pgtbl = (pgtbl_t)boot_comp_pte_pm;
+
+		if (cap_cons(ct, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_PHYSM_PTE, 
+			     BOOT_MEM_PM_BASE + i*n_pte_entry*PAGE_SIZE)) cos_throw(err, -1);
+	}
 
 	sys_llbooter_sz = spd_info->mem_size / PAGE_SIZE;
 	if (spd_info->mem_size % PAGE_SIZE) sys_llbooter_sz++;
 
+#ifdef KMEM_HACK
+	for (i = 0; i < sys_llbooter_sz; i++) {
+		bootkmem[i + bootkmem_used] = chal_alloc_page();
+		if (!bootkmem[i+bootkmem_used]) {
+			printk("no bootkmem\n");
+			cos_throw(err, -1);
+		}
+	}
+#endif
 	/* add the component's virtual memory at 4MB (1<<22) using "physical memory" starting at cos_kmem */
 	for (i = 0 ; i < sys_llbooter_sz; i++) {
-		u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
+#ifndef KMEM_HACK
 		u32_t flags;
+		u32_t addr = (u32_t)((void *)chal_va2pa(cos_kmem) + i*PAGE_SIZE);
 		if ((addr - (u32_t)kmem_base_pa) % RETYPE_MEM_SIZE == 0) {
 			ret = retypetbl_retype2kern((void *)addr);
 			if (ret) {
@@ -699,16 +784,24 @@ kern_boot_comp(struct spd_info *spd_info)
  				cos_throw(err, -1);
 			}
 		}
-
 		if (pgtbl_mapping_add(pt, BOOT_MEM_VM_BASE + i*PAGE_SIZE, addr, PGTBL_USER_DEF)) {
 			printk("Mapping llbooter %x failed!\n", addr);
 			cos_throw(err, -1);
 		} 
-		assert(chal_pa2va((void *)addr) == pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
+		assert(chal_pa2va((paddr_t)addr) == pgtbl_lkup(pt, BOOT_MEM_VM_BASE+i*PAGE_SIZE, &flags));
+#else
+		u32_t addr = (u32_t)chal_va2pa(bootkmem[i+bootkmem_used]);
+		kmem_add_hack(pt, BOOT_MEM_VM_BASE + i*PAGE_SIZE, addr, PGTBL_USER_DEF);
+#endif
 	}
 
+#ifndef KMEM_HACK
 	llbooter_kern_mapping = cos_kmem;
 	cos_kmem += sys_llbooter_sz*PAGE_SIZE;
+#else
+//	llbooter_kern_mapping = bootkmem[bootkmem_used];
+	bootkmem_used += sys_llbooter_sz;
+#endif
 
 	/* Round to the next memory retype region. Adjust based on
 	 * offset from cos_kmem_base*/
@@ -719,11 +812,12 @@ kern_boot_comp(struct spd_info *spd_info)
 	/* add the remaining kernel memory @ 1.5GB*/
 	/* printk("mapping from kmem %x\n", cos_kmem); */
 	for (i = 0; i < (COS_KERNEL_MEMORY - (cos_kmem - cos_kmem_base)/PAGE_SIZE); i++) {
-		u32_t addr = (u32_t)(chal_va2pa(cos_kmem) + i*PAGE_SIZE);
+		u32_t addr = (u32_t)((void *)chal_va2pa(cos_kmem) + i*PAGE_SIZE);
 
 		if (pgtbl_cosframe_add(pt, BOOT_MEM_KM_BASE + i*PAGE_SIZE, 
 				       addr, PGTBL_COSFRAME)) cos_throw(err, -1);
 	}
+	printk("cos: %d kernel accessible pages @ %x\n", i, BOOT_MEM_KM_BASE);
 
 	if (COS_MEM_START % RETYPE_MEM_SIZE != 0) {
 		printk("Physical memory start address (%d) not aligned by retype_memory size (%lu).",
@@ -736,14 +830,15 @@ kern_boot_comp(struct spd_info *spd_info)
 		u32_t addr = COS_MEM_START + i*PAGE_SIZE;
 		
 		if (pgtbl_cosframe_add(pt, BOOT_MEM_PM_BASE + i*PAGE_SIZE, 
-				       addr, PGTBL_COSFRAME)) cos_throw(err, -1);
+				       addr, PGTBL_COSFRAME)) { printk ("%d failed\n", i);break;}//cos_throw(err, -1);
 	}
+	printk("cos: %d user frames @ %x\n", i, BOOT_MEM_PM_BASE);
 
 	/* comp0's data, culminated in a static invocation capability to the llbooter */
 	ct0 = captbl_create(c0_comp_captbl);
 	assert(ct0);
 	if (captbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_CT, ct0, 0)) cos_throw(err, -1);
-	pt0 = chal_va2pa(current->mm->pgd);
+	pt0 = (void *)chal_va2pa(current->mm->pgd);
 	assert(pt0);
 	if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_COMP0_PT, pt0, 0)) cos_throw(err, -1);
 
@@ -797,7 +892,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		/* Comp0 has only 1 pgtbl, which points to the process
 		 * of the init core. Here we update the inv_stk of the
 		 * init thread of current core. */
-		thd->invstk[0].comp_info.pgtbl = chal_va2pa(current->mm->pgd);
+		thd->invstk[0].comp_info.pgtbl = (void *)chal_va2pa(current->mm->pgd);
 
 		hw_int_override_all();
 
@@ -806,8 +901,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case AED_INIT_BOOT:
 	{
 		struct spd_info spd_info;
-		int i;
-		char *mem;
 
 		if (copy_from_user(&spd_info, (void*)arg, 
 				   sizeof(struct spd_info))) {
@@ -825,24 +918,22 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		if (kern_boot_comp(&spd_info)) return -1;
 
+#ifndef KMEM_HACK
 		assert(llbooter_kern_mapping);
 		if (copy_from_user(llbooter_kern_mapping, (void*)spd_info.lowest_addr, spd_info.mem_size)) {
 			printk("cos: Error copying spd_info from user.\n");
 			return -EFAULT;
 		}
-
-		/* sanity check */
-		mem = __va(*((u32_t *)(boot_comp_pte_vm)));
-
-		mem = (char *)((u32_t)mem & ~(PAGE_SIZE-1));
-		//printk("kmem %x pa %x, start mem %x\n", cos_kmem, __pa(cos_kmem), mem);
-		for (i = 0; i < spd_info.mem_size; i++) {
-			if (*(mem + i) != *((char*)(spd_info.lowest_addr) + i)) {
-				printk("Mismatch: %d: %x %x\n", i, *(mem + i), *((char*)(spd_info.lowest_addr) + i));
+#else
+		int i;
+		for (i = 0; i < sys_llbooter_sz-1; i++) {
+			if (copy_from_user(bootkmem[i+bootkmem_used-sys_llbooter_sz], (void*)(spd_info.lowest_addr+i*PAGE_SIZE), PAGE_SIZE)) {
+				printk("cos: Error copying spd_info from user.\n");
 				return -EFAULT;
 			}
 		}
-
+		copy_from_user(bootkmem[bootkmem_used-1], (void*)(spd_info.lowest_addr+i*PAGE_SIZE), spd_info.mem_size - i*PAGE_SIZE);
+#endif
 		return 0;
 	}
 	case AED_CREATE_SPD:
@@ -1001,28 +1092,28 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		}
 
-		printk("cos core %u: creating thread in spd %d.\n", get_cpuid(), thread_info.spd_handle);
+		/* printk("cos core %u: creating thread in spd %d.\n", get_cpuid(), thread_info.spd_handle); */
 
-		spd = spd_get_by_index(thread_info.spd_handle);
-		if (!spd) {
-			printk("cos: Spd %d invalid for thread creation.\n", 
-			       thread_info.spd_handle);
-			return -EINVAL;
-		}
-		thd = ready_boot_thread(spd);
-		spd = spd_get_by_index(thread_info.sched_handle);
-		if (!spd) {
-			printk("cos: scheduling spd %d not permitted to create thread.\n", 
-			       thread_info.sched_handle);
-			thd_free(thd);
-			return -EINVAL;
-		}
-		sched = spd;
-		for (i = spd->sched_depth ; i >= 0 ; i--) {
-			tsi = thd_get_sched_info(thd, i);
-			tsi->scheduler = sched;
-			sched = sched->parent_sched;
-		}
+		/* spd = spd_get_by_index(thread_info.spd_handle); */
+		/* if (!spd) { */
+		/* 	printk("cos: Spd %d invalid for thread creation.\n",  */
+		/* 	       thread_info.spd_handle); */
+		/* 	return -EINVAL; */
+		/* } */
+		/* thd = ready_boot_thread(spd); */
+		/* spd = spd_get_by_index(thread_info.sched_handle); */
+		/* if (!spd) { */
+		/* 	printk("cos: scheduling spd %d not permitted to create thread.\n",  */
+		/* 	       thread_info.sched_handle); */
+		/* 	thd_free(thd); */
+		/* 	return -EINVAL; */
+		/* } */
+		/* sched = spd; */
+		/* for (i = spd->sched_depth ; i >= 0 ; i--) { */
+		/* 	tsi = thd_get_sched_info(thd, i); */
+		/* 	tsi->scheduler = sched; */
+		/* 	sched = sched->parent_sched; */
+		/* } */
 
 		/* FIXME: need to return opaque handle, rather than
 		 * just set the current thread to be the new one. */
@@ -1492,14 +1583,14 @@ u64_t sum = 0, ii = 0;
 __attribute__((regparm(3))) void
 main_ipi_handler(struct pt_regs *rs, unsigned int irq)
 {
-	u64_t s,e;
+//	u64_t s,e;
 
 	/* ack the ipi first. */
 	ack_APIC_irq();
 	
-	rdtscll(s);
+//	rdtscll(s);
 	cos_cap_ipi_handling();
-	rdtscll(e);
+//	rdtscll(e);
 	/* if (get_cpuid() == 20) { */
 	/* 	ii++; */
 	/* 	sum += (e-s); */
@@ -1576,14 +1667,14 @@ void chal_free_kern_mem(void *mem, int order)
  * using them both in the composite world and in the Linux world.  We
  * should just use them in the composite world and be done with it.
  */
-void *chal_va2pa(void *va) 
+paddr_t chal_va2pa(void *va) 
 {
-	return (void*)__pa(va);
+	return (paddr_t)__pa(va);
 }
 
-void *chal_pa2va(void *pa) 
+void *chal_pa2va(paddr_t pa) 
 {
-	if ((paddr_t)pa >= COS_MEM_START) return NULL;
+	if (pa >= COS_MEM_START) return NULL;
 
 	return (void*)__va(pa);
 }
@@ -2128,6 +2219,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	 * spend most of their time complaining about microkernels as
 	 * being horrible instead.
 	 */
+
 	shared_region_pte = (pte_t *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), 
 							  (unsigned long)shared_region_page);
 	if (((unsigned long)shared_region_pte & ~PAGE_MASK) != 0) {
@@ -2137,7 +2229,7 @@ static int aed_open(struct inode *inode, struct file *file)
 	memset(shared_region_pte, 0, PAGE_SIZE);
 
 	/* hook in the data page */
-	data_page = chal_va2pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), 
+	data_page = (void *)chal_va2pa((void *)chal_pgtbl_vaddr2kaddr((paddr_t)chal_va2pa(current->mm->pgd), 
 							   (unsigned long)shared_data_page));
 	shared_region_pte[0].pte_low = (unsigned long)(data_page) |
 		(PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_USER | PGTBL_ACCESSED);
@@ -2189,8 +2281,6 @@ static int aed_open(struct inode *inode, struct file *file)
 static int aed_release(struct inode *inode, struct file *file)
 {
 	pgd_t *pgd;
-	struct thread *t;
-	struct spd *s;
 	int i;
 #ifdef FAULT_DEBUG
 	int j, k;
@@ -2219,27 +2309,30 @@ static int aed_release(struct inode *inode, struct file *file)
 		flush_all(current->mm->pgd);
 		BUG();
 	}
+
 	trusted_mm = NULL;
 	remove_all_guest_mms();
 
-	t = cos_get_curr_thd();
-	if (t) {
-		s = thd_get_thd_spd(t);
-		printk("cos: Halting Composite.  Current thread: %d in spd %d\n",
-		       thd_get_id(t), spd_get_index(s));
-	}
-
 	cos_net_finish();
 
+#ifdef KMEM_HACK
+	for (i = 0; i < bootkmem_used; i++) {
+		if (bootkmem[i]) {
+			chal_free_page(bootkmem[i]);
+			bootkmem[i] = 0;
+		} else {
+			break;
+		}
+	}
+#endif
 	/* our garbage collection mechanism: all at once when the cos
 	 * system control fd is closed */
 //	thd_free(cos_get_curr_thd());
 	thd_free_all();
- 	thd_init();
+// 	thd_init();
 	spd_free_all();
 	ipc_init();
 	cos_shutdown_memory();
-
 	cos_meas_report();
 
 	/* reset the address space to the original process */
@@ -2250,7 +2343,7 @@ static int aed_release(struct inode *inode, struct file *file)
 	 * FIXME: should also kill the actual pages of shared memory
 	 */
 	pgd = pgd_offset(composite_union_mm, COS_INFO_REGION_ADDR);
-	memset(pgd, 0, sizeof(int));
+	if (pgd) memset(pgd, 0, sizeof(int));
 
 	syscalls_enabled = 1;
 	for (i = 0 ; i < NUM_CPU ; i++) {
@@ -2264,7 +2357,6 @@ static int aed_release(struct inode *inode, struct file *file)
 	 * be accessed from fd release procedures.)
 	 */
 	mmput(composite_union_mm);
-
 	init_globals();
 
 #ifdef FAULT_DEBUG

@@ -46,11 +46,11 @@
 #include <ck_spinlock.h>
 ck_spinlock_ticket_t xcore_lock = CK_SPINLOCK_TICKET_INITIALIZER;
 
-#define LOCK()   do { if (cos_sched_lock_take())   assert(0); ck_spinlock_ticket_lock_pb(&xcore_lock, 1); } while (0)
-#define UNLOCK() do { ck_spinlock_ticket_unlock(&xcore_lock); if (cos_sched_lock_release()) assert(0);    } while (0)
+#define LOCK()   do { if (cos_sched_lock_take())  { assert(0); } ck_spinlock_ticket_lock_pb(&xcore_lock, 1); } while (0)
+#define UNLOCK() do { ck_spinlock_ticket_unlock(&xcore_lock); if (cos_sched_lock_release()) { assert(0); } } while (0)
 #else
-#define LOCK()   if (cos_sched_lock_take())    assert(0);
-#define UNLOCK() if (cos_sched_lock_release()) assert(0);
+#define LOCK()   do { if (cos_sched_lock_take())    { assert(0); } } while (0)
+#define UNLOCK() do { if (cos_sched_lock_release()) { assert(0); } } while (0)
 #endif
 
 #include <mem_mgr.h>

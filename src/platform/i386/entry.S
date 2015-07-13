@@ -34,7 +34,7 @@ sysenter_entry:
 	SAVE_REGS_GENERAL
 
 	pushl %esp /* pt_reg */
-	call composite_sysenter_handler
+	call composite_syscall_handler
 	addl $4, %esp
 
 	testl %eax, %eax

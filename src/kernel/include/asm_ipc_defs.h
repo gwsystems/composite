@@ -1,3 +1,6 @@
+#ifndef ASM_IPC_DEFS_H
+#define ASM_IPC_DEFS_H
+
 /* Definitions */
 	
 /* the offset on the stack to the fn return address for trust cases */
@@ -25,7 +28,7 @@
 #define COS_CAPABILITY_OFFSET 16 /* bits 16->31 */
 #define COS_SYSCALL_OFFSET 15	 /* bits 15->20 */
 
-//#define RET_CAP (INV_CAP_OFFSET-1)
+#define RET_CAP (1 << COS_CAPABILITY_OFFSET)
 
 /* We have sanity checks of the following defines when loading
  * Composite kernel module. */
@@ -33,3 +36,5 @@
 #define THREAD_SIZE_LINUX           (4096*2)
 #define LINUX_THREAD_INFO_RESERVE   (64*2)
 #define LINUX_INFO_PAGE_MASK        (~(THREAD_SIZE_LINUX - 1))
+
+#endif /* ASM_IPC_DEFS_H */
