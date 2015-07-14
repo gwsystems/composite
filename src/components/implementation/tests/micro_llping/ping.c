@@ -28,9 +28,9 @@ printc(char *fmt, ...)
 	va_start(arg_ptr, fmt);
 	ret = vsnprintf(s, len, fmt, arg_ptr);
 	va_end(arg_ptr);
-	ret = cos_print(s, ret);
+	cos_print(s, ret);
 
-	return ret;
+	return 0;
 }
 
 unsigned long long tsc_start(void)
@@ -79,6 +79,7 @@ int synced_nthd = 0;
 void sync_all()
 {
 	int ret;
+	if (N_SYNC_CPU <= 1) return;
 
 	ret = ck_pr_faa_int(&synced_nthd, 1);
 	ret = (ret/N_SYNC_CPU + 1)*N_SYNC_CPU;
@@ -1217,7 +1218,7 @@ void wcet_test(void)
 }
 
 #include <mem_mgr.h>
-	/* hack.... Gotta fix this ASAP after the deadline. */
+/* FIEME: transparent invocation linking! */
 #define MMAN_VALLOC 6
 #define MMAN_GET    8
 #define MMAN_ALIAS  10
@@ -1380,7 +1381,7 @@ void play_trace(unsigned long *npage_alloc, unsigned long long *tot, unsigned lo
 		s = tsc_start();
 		ret = call_cap(MMAN_GET, cos_spd_id(), 0, npages << 16, 0);
 		if (!ret) {
-			printc("cpu %d, i %d >>> comp %ld called mman_get cap %d, ret %x, allocated %d pages already.\n", 
+			printc("cpu %d, i %d >>> comp %ld called mman_get cap %d, ret %x, allocated %lu pages already.\n", 
 			       cpu, i, cos_spd_id(), MMAN_GET, ret, *npage_alloc); 
 			ret = -1;
 			goto done;
@@ -1402,10 +1403,11 @@ void play_trace(unsigned long *npage_alloc, unsigned long long *tot, unsigned lo
 		else *npage_1024 = *npage_1024 + 1;
 	}
 
-	if (!nmaps)
+	if (!nmaps) {
 		nmaps = i;
-	else
+	} else {
 		assert(nmaps == i);
+	}
 
 	for (i = 0; i < nmaps; i++) {
 		s = tsc_start();
@@ -1472,7 +1474,7 @@ void cos_init(void)
 	tlb_quiescence_wait();
 	sync_all();
 
-	if (cos_cpuid() % 4) goto done;
+	if (cos_cpuid()) goto done;
 
 	if (cos_cpuid() == 0) nlog = 0;
 
@@ -1483,8 +1485,8 @@ void cos_init(void)
 	}
 
 	if (nops) {
-		printc("nops %d cpu %d avg cost %llu (%lu ops), avg2 cost %llu (%lu ops)\n", NOPS, cpu, (tot)/(nops), nops, tot2/nops2, nops2);
-
+		printc("nops %d cpu %d avg cost %llu (%lu ops), avg2 cost %llu (%lu ops)\n", 
+		       NOPS, cpu, (tot)/(nops), nops, tot2/nops2, nops2);
 	} else
 		printc("cpu %d no ops\n", cpu);
 
@@ -1513,9 +1515,9 @@ void cos_init(void)
 		printc("nlog %lu on core 0, SINGLE PAGE 99p (%lu) is %lu , 1024 page (%lu ops) 99p is %lu\n", 
 		       nlog, nlog/100, logs[nlog/100], nlog_large, logs_large[nlog_large/100]);
 #ifdef MEAS_MAP
-		printc("Op: mmap on %d cores\n", NUM_CPU);
+		printc("Operation: mmap on %d cores\n", NUM_CPU_COS);
 #else
-		printc("Op: munmap on %d cores\n", NUM_CPU);
+		printc("Operation: munmap on %d cores\n", NUM_CPU_COS);
 #endif
 	}
 /* #endif */

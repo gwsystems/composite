@@ -8,6 +8,7 @@
 #ifndef PGTBL_H
 #define PGTBL_H
 
+#include "shared/cos_errno.h"
 #include "ertrie.h"
 #include "shared/util.h"
 #include "captbl.h"
@@ -18,7 +19,7 @@
 #include "chal.h"
 #endif
 
-enum {
+typedef enum {
 	PGTBL_PRESENT      = 1,
 	PGTBL_WRITABLE     = 1<<1,
 	PGTBL_USER         = 1<<2,
@@ -36,9 +37,8 @@ enum {
 
 	PGTBL_USER_DEF     = PGTBL_PRESENT|PGTBL_USER|PGTBL_ACCESSED|
 	                     PGTBL_MODIFIED|PGTBL_WRITABLE,
-	PGTBL_INTERN_DEF   = PGTBL_PRESENT|PGTBL_WRITABLE|PGTBL_USER| 
-	                     PGTBL_ACCESSED|PGTBL_MODIFIED,
-};
+	PGTBL_INTERN_DEF   = PGTBL_USER_DEF,
+} pgtbl_flags_t;
 
 #define PGTBL_PAGEIDX_SHIFT (12)
 #define PGTBL_FRAME_BITS    (32 - PGTBL_PAGEIDX_SHIFT)
@@ -78,7 +78,7 @@ __pgtbl_get(struct ert_intern *a, void *accum, int isleaf)
 	(void)isleaf;
 	/* don't use | here as we only want the pte flags */
 	*(u32_t*)accum = (((u32_t)a->next) & PGTBL_FLAG_MASK); 
-	return chal_pa2va((void*)((((u32_t)a->next) & PGTBL_FRAME_MASK))); 
+	return chal_pa2va((paddr_t)((((u32_t)a->next) & PGTBL_FRAME_MASK))); 
 }
 static int __pgtbl_isnull(struct ert_intern *a, void *accum, int isleaf) 
 { (void)isleaf; (void)accum; return !(((u32_t)(a->next)) & (PGTBL_PRESENT|PGTBL_COSFRAME)); }
@@ -256,12 +256,14 @@ pgtbl_quie_check(u32_t orig_v)
 	return 0;
 }
 
-/* this works on both kmem and regular user memory: the retypetbl_ref
- * works on both. */
+/* 
+ * this works on both kmem and regular user memory: the retypetbl_ref
+ * works on both.
+ */
 static int
 pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {
-	int ret;
+	int ret = 0;
 	struct ert_intern *pte;
 	u32_t orig_v, accum = 0;
 
@@ -272,6 +274,7 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	/* get the pte */
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
 						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	if (!pte) return -ENOENT;
 	orig_v = (u32_t)(pte->next);
 
 	if (orig_v & PGTBL_PRESENT)  return -EEXIST;
@@ -286,15 +289,18 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	if (ret) return ret;
 
 	ret = __pgtbl_update_leaf(pte, (void *)(page | flags), orig_v);
-	if (ret) {
-		/* restore the ref cnt. */
-		retypetbl_deref((void *)page);
-	}
+	/* restore the refcnt if necessary */
+	if (ret) retypetbl_deref((void *)page);
 
 	return ret;
 }
 
-/* TODO: remove. a hack for kmem. */
+/* 
+ * FIXME: a hack used to get more kmem available in Linux booting
+ * environment. Only used when booting up in Linux (hijack.c). This
+ * just adds the Linux allocated kmem into pgtbl w/o checking
+ * quiescence or refcnt. 
+ */
 static int
 kmem_add_hack(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {
@@ -499,12 +505,13 @@ static void pgtbl_update(pgtbl_t pt)
 #ifdef UPDATE_LINUX_MM_STRUCT
 	chal_pgtbl_switch((paddr_t)pt);
 #else
-	native_write_cr3((unsigned long)pt);
-#endif
+	//native_write_cr3((unsigned long)pt);
+	asm volatile("mov %0, %%cr3" : : "r"(pt));
+#endif /* UPDATE_LINUX_MM_STRUCT */
 
 #else
 	__cr3_contents = (unsigned long)pt; 
-#endif
+#endif /* LINUX_TEST */
 }
 
 /* vaddr -> kaddr */
@@ -512,13 +519,15 @@ static vaddr_t
 pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
 { return (vaddr_t)pgtbl_lkup(pt, addr, flags); }
 
+/* FIXME: this should be using cos_config.h defines */
 #define KERNEL_PGD_REGION_OFFSET  (PAGE_SIZE - PAGE_SIZE/4)
 #define KERNEL_PGD_REGION_SIZE    (PAGE_SIZE/4)
 
+extern void *memcpy(void*, const void*, unsigned long int);
 static pgtbl_t pgtbl_create(void *page, void *curr_pgtbl) {
 	pgtbl_t ret = pgtbl_alloc(page); 
 	/* Copying the kernel part of the pgd. */
-	memcpy(page + KERNEL_PGD_REGION_OFFSET, (void *)chal_pa2va(curr_pgtbl) + KERNEL_PGD_REGION_OFFSET, KERNEL_PGD_REGION_SIZE);
+	memcpy(page + KERNEL_PGD_REGION_OFFSET, (void *)chal_pa2va((paddr_t)curr_pgtbl) + KERNEL_PGD_REGION_OFFSET, KERNEL_PGD_REGION_SIZE);
 
 	return ret;
 }
@@ -529,7 +538,7 @@ int pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned 
 static int 
 pgtbl_mapping_scan(struct cap_pgtbl *pt)
 {
-	int i, pte, *page;
+	unsigned int i, pte, *page;
 	livenessid_t lid;
 	u64_t past_ts;
 
@@ -537,7 +546,7 @@ pgtbl_mapping_scan(struct cap_pgtbl *pt)
 	 * quiescence. */
 	if (pt->lvl != PGTBL_DEPTH - 1) return -EINVAL;
 
-	page = (int *)(pt->pgtbl);
+	page = (unsigned int *)(pt->pgtbl);
 	assert(page);
 
 	for (i = 0; i < PAGE_SIZE / sizeof(int *); i++) {

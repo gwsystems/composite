@@ -11,7 +11,7 @@
 #include "component.h"
 #include "cap_ops.h"
 #include "fpu_regs.h"
-#include "cpuid.h"
+#include "chal/cpuid.h"
 #include "pgtbl.h"
 #include "retype_tbl.h"
 
@@ -134,7 +134,8 @@ struct cap_thd {
 	cpuid_t cpuid;
 } __attribute__((packed));
 
-static void thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int arg2, int arg3)
+static void 
+thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int arg2, int arg3)
 {
 	struct pt_regs *r = &thd->regs;
 
@@ -150,16 +151,25 @@ static void thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, i
 	return;
 }
 
-/* We need global thread name space as we use thd_id to access simple
- * stacks. When we have low-level per comp stack free-list, we don't
- * have to use global thread id name space.*/
+/* 
+ * FIXME: We need global thread name space as we use thd_id to access
+ * simple stacks. When we have low-level per comp stack free-list, we
+ * don't have to use global thread id name space.
+ *
+ * Update: this is only partially true.  We should really just get rid
+ * of this id in the kernel and replace it with a
+ * scheduler-configurable variable.  That variable can be the thread
+ * id where appropriate, and some other (component-controlled)
+ * principal id otherwise.  Given this, the allocator should be in the
+ * scheduler, not here.
+ */
 extern u32_t free_thd_id;
 static u32_t
 alloc_thd_id(void)
 {
         /* FIXME: thd id address space management. */
 	if (unlikely(free_thd_id >= MAX_NUM_THREADS)) assert(0);
-	return cos_faa(&free_thd_id, 1);
+	return cos_faa((int*)&free_thd_id, 1);
 }
 
 static int 
@@ -194,8 +204,9 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	return 0;
 }
 
-static int thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin, 
-			  livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
+static int 
+thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin, 
+	       livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
 {
 	struct cap_header *thd_header;
 	struct thread *thd;
@@ -253,20 +264,27 @@ static void thd_init(void)
 { assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD)); }
 
 extern struct thread *__thd_current;
-static inline struct thread *thd_current(void *ignore) 
+
+static inline struct thread *
+thd_current(void *ignore) 
 { (void)ignore; return __thd_current; }
-static inline void thd_current_update(struct thread *thd, struct thread *ignore)
+
+static inline void 
+thd_current_update(struct thread *thd, struct thread *ignore)
 { (void)ignore; __thd_current = thd; }
 
 #else
 
-/* void thd_init(void) */
-/* { assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD)); } */
+static void 
+thd_init(void)
+{ assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD)); }
 
-static inline struct thread *thd_current(struct cos_cpu_local_info *cos_info) 
+static inline struct thread *
+thd_current(struct cos_cpu_local_info *cos_info) 
 { return (struct thread *)(cos_info->curr_thd); }
 
-static inline void thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
+static inline void 
+thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
 {
 	/* commit the cached data */
 	prev->invstk_top = cos_info->invstk_top;
@@ -320,9 +338,10 @@ thd_invstk_push(struct thread *thd, struct comp_info *ci, unsigned long ip, unsi
 {
 	struct invstk_entry *top, *prev;
 
+	if (unlikely(curr_invstk_top(cos_info) >= THD_INVSTK_MAXSZ)) return -1;
+
 	prev = &thd->invstk[curr_invstk_top(cos_info)];
 	top  = &thd->invstk[curr_invstk_top(cos_info)+1];
-	if (unlikely(curr_invstk_top(cos_info) >= THD_INVSTK_MAXSZ)) return -1;
 	curr_invstk_inc(cos_info);
 	prev->ip = ip;
 	prev->sp = sp;

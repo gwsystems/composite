@@ -30,19 +30,28 @@
 #define printf printc
 #endif
 
+#ifndef ACCESS_ONCE
 #define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
+#endif
 
+#ifndef rdtscll
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
+#endif
 
+#ifndef cmm_barrier
 #define cmm_barrier() __asm__ __volatile__ ("" : : : "memory")
+#endif
 
+#ifndef cos_throw
 #define cos_throw(label, errno) { ret = (errno); goto label; }
+#endif
 
 typedef unsigned long long quie_time_t;
 
 // for 99 percentile w/ limited memory
 //#define THRES (3000)
 
+/* used in Linux tests only */
 #define MEM_SIZE (128*1024*1024)
 
 //#define QUIE_QUEUE_LIMIT (1024*8)

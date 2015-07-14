@@ -14,6 +14,7 @@
 /* static struct cos_page cos_kernel_pages[COS_KERNEL_MEMORY]; */
 static void *kmem_start;
 paddr_t kmem_start_pa;
+paddr_t chal_kernel_mem_pa;
 
 int cos_init_memory(void) 
 {
@@ -25,11 +26,11 @@ again:
 			first_try = 0;
 			goto again;
 		}
-		printk("cos: ERROR -- could not allocate pages for cos kernel memory!\n");
+		printk("cos: ERROR -- could not allocate %d pages for cos kernel memory!\n", 1 << KERN_MEM_ORDER);
 		return -1;
 	}
 
-	kmem_start_pa = (paddr_t)chal_va2pa(kmem_start);
+	chal_kernel_mem_pa = kmem_start_pa = (paddr_t)chal_va2pa(kmem_start);
 
 	return 0;
 }

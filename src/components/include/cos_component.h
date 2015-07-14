@@ -14,7 +14,8 @@
 #include <util.h>
 
 /* temporary */
-static inline int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
+static inline 
+int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 {
         long fault = 0;
 	int ret;
@@ -48,20 +49,27 @@ static inline int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int a
 	return ret;
 }
 
-static inline int cap_switch_thd(u32_t cap_no) 
+static inline int 
+cap_switch_thd(u32_t cap_no) 
 {
 	return call_cap_asm(cap_no, 0, 0, 0, 0, 0);
 }
 
-static inline int call_cap(u32_t cap_no, int arg1, int arg2, int arg3, int arg4)
+static inline int 
+call_cap(u32_t cap_no, int arg1, int arg2, int arg3, int arg4)
 {
 	return call_cap_asm(cap_no, 0, arg1, arg2, arg3, arg4);
 }
 
-static inline int call_cap_op(u32_t cap_no, u32_t op_code,int arg1, int arg2, int arg3, int arg4)
+static inline int 
+call_cap_op(u32_t cap_no, u32_t op_code,int arg1, int arg2, int arg3, int arg4)
 {
 	return call_cap_asm(cap_no, op_code, arg1, arg2, arg3, arg4);
 }
+
+static void 
+cos_print(char *s, int len)
+{ call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0); }
 
 /**
  * FIXME: Please remove this since it is no longer needed
@@ -191,7 +199,7 @@ cos_syscall_clobber                                  \
 }
 
 cos_syscall_0(1,  int, stats);
-cos_syscall_2(2,  int, print, char*, str, int, len);
+//cos_syscall_2(2,  int, print, char*, str, int, len);
 cos_syscall_3(3,  int, create_thread, int, dest_spd_id, int, a, int, b);
 cos_syscall_2(4,  int, __switch_thread, int, thd_id, int, flags);
 cos_syscall_3(5, int, __async_cap_cntl, int, operation, int, arg1, long, arg2);
@@ -287,7 +295,8 @@ static inline long get_stk_data(int offset)
 
 #define GET_CURR_CPU cos_cpuid()
 
-static inline long cos_cpuid(void)
+static inline 
+long cos_cpuid(void)
 {
 #if NUM_CPU == 1
 	return 0;
@@ -298,7 +307,8 @@ static inline long cos_cpuid(void)
 	return get_stk_data(CPUID_OFFSET);
 }
 
-static inline unsigned short int cos_get_thd_id(void)
+static inline unsigned short int 
+cos_get_thd_id(void)
 {
 	/* 
 	 * see comments in the get_stk_data above.
@@ -308,42 +318,23 @@ static inline unsigned short int cos_get_thd_id(void)
 
 #define ERR_THROW(errval, label) do { ret = errval; goto label; } while (0)
 
-static inline void *cos_arg_region_base(void)
-{
-	struct shared_user_data *ud = (void *)COS_INFO_REGION_ADDR;
-
-	return ud->argument_region;
-}
-
-static inline void *cos_get_arg_region(void)
-{
-	return cos_arg_region_base() + sizeof(struct pt_regs);
-}
-
-static inline void cos_mpd_update(void)
-{
-	cos_mpd_cntl(COS_MPD_UPDATE, 0, 0);
-}
-
-static inline long cos_spd_id(void)
+static inline long 
+cos_spd_id(void)
 {
 	return cos_comp_info.cos_this_spd_id;
 }
 
-static inline void *cos_get_heap_ptr(void)
-{
-	return (void*)cos_comp_info.cos_heap_ptr;
-}
+static inline void *
+cos_get_heap_ptr(void)
+{ return (void*)cos_comp_info.cos_heap_ptr; }
 
-static inline void cos_set_heap_ptr(void *addr)
-{
-	cos_comp_info.cos_heap_ptr = (vaddr_t)addr;
-}
+static inline void 
+cos_set_heap_ptr(void *addr)
+{ cos_comp_info.cos_heap_ptr = (vaddr_t)addr; }
 
-static inline char *cos_init_args(void)
-{
-	return cos_comp_info.init_string;
-}
+static inline char *
+cos_init_args(void)
+{ return cos_comp_info.init_string; }
 
 #define COS_EXTERN_FN(fn) __cos_extern_##fn
 
@@ -440,7 +431,7 @@ cos_memset(void * s, char c , int count)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
 #define CFORCEINLINE __attribute__((always_inline))
-
+#define CWEAKSYMB    __attribute__((weak))
 /* 
  * A composite constructor (deconstructor): will be executed before
  * other component execution (after component execution).  CRECOV is a
@@ -483,13 +474,8 @@ recoveryfns_execute(void)
 }
 
 #define FAIL() *(int*)NULL = 0
-static inline int cos_argreg_buff_intern(char *buff, int sz) { FAIL(); return 0; }
-static inline void cos_argreg_init(void) { FAIL(); }
-static inline void *cos_argreg_alloc(int sz) { FAIL(); return NULL; }
-static inline int cos_argreg_free(void *p) { FAIL(); return 0; };
-struct cos_array { char *mem; int sz; };
-static inline int cos_argreg_arr_intern(struct cos_array *ca) { FAIL(); return 0; }
 
+struct cos_array { char *mem; int sz; }; /* TODO: remove */
 #define prevent_tail_call(ret) __asm__ ("" : "=r" (ret) : "m" (ret))
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 

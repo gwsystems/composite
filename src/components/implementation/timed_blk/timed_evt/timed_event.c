@@ -614,11 +614,6 @@ static void start_timer_thread(void)
 	while (1) {
 		event_time_t next_wakeup;
 
-		cos_mpd_update(); /* update mpd config given this
-				   * thread is now in this component
-				   * (no dependency if we are in the
-				   * same protection domain as the
-				   * scheduler) */
 		ticks = sched_timestamp();
 		if (sched_component_take(spdid)) {
 			prints("fprr: scheduler lock failed!!!");

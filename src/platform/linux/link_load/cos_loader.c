@@ -2791,7 +2791,6 @@ static void setup_kernel(struct service_symbs *services)
 	 * function will return to here and create processes for other
 	 * cores. */
 	fn();
-	/* goto done; */
 
 	pid = getpid();
 	for (i = 1; i < NUM_CPU_COS; i++) {
@@ -2828,12 +2827,12 @@ static void setup_kernel(struct service_symbs *services)
 	rdtscll(start);
 	ret = fn();
 	rdtscll(end);
-done:
+
 	aed_enable_syscalls(cntl_fd);
 
 	cos_restore_hw_entry(cntl_fd);
 
-	if (pid > 0) {
+	if (pid > 0 && NUM_CPU_COS > 1) {
 		int child_status;
 		while (wait(&child_status) > 0) ;
 	} else {

@@ -54,20 +54,7 @@ void call(void) {
 }
 
 #include <ck_pr.h>
-//#include <cos_list.h>
-//#include "../../sched/cos_sched_ds.h"
-//#include "../../sched/cos_sched_sync.h"
-
 #include <ck_spinlock.h>
-#if NUM_CPU_COS > 1
-/* ck_spinlock_ticket_t xcore_lock = CK_SPINLOCK_TICKET_INITIALIZER; */
-
-/* #define LOCK()   do { if (cos_sched_lock_take())   assert(0); ck_spinlock_ticket_lock_pb(&xcore_lock, 1); } while (0) */
-/* #define UNLOCK() do { ck_spinlock_ticket_unlock(&xcore_lock); if (cos_sched_lock_release()) assert(0);    } while (0) */
-/* #else */
-/* #define LOCK()   if (cos_sched_lock_take())    assert(0); */
-/* #define UNLOCK() if (cos_sched_lock_release()) assert(0); */
-#endif
 
 /***************************************************/
 /*** Data-structure for tracking physical memory ***/
@@ -158,6 +145,7 @@ char kmem_table[FRAMETBL_ITEM_SZ*COS_KERNEL_MEMORY + 1] CACHE_ALIGNED;
 
 char comp_table[COMP_ITEM_SZ*MAX_NUM_COMPS] CACHE_ALIGNED;
 
+/* QWQ -- Quiescence-Waiting Queue */
 #define VAS_QWQ_SIZE        (1*1024)//(1024)  
 #define VAS_QWQ_SIZE_SMALL  (1)	/* For large VAS items, to avoid queuing too much. */
 
@@ -370,11 +358,6 @@ get_kmem(void)
 	kmem = frame_alloc(&kmem_ns); 
 	if (!kmem) {
 		printc("MM: no enough kernel frames on core %ld\n", cos_cpuid());
-		/* int i;  */
-		/* for (i = 0; i < NUM_CPU; i++) { */
-		/* 	printc("cpu %d: %d\n", i, kmem_ns.allocator.qwq[i].slab_queue[size2slab(PAGE_SIZE)].n_items); */
-		/* } */
-		/* printc("glb: %d\n", kmem_ns.allocator.glb_freelist.slab_freelists[size2slab(PAGE_SIZE)].n_items); */
 	}
 
 	return kmem;
@@ -638,7 +621,8 @@ frame_boot(vaddr_t frame_addr, parsec_ns_t *ns)
 		i++;
 	}
 
-	n_frames = i;
+	n_frames = i - 1;
+
 	for (i = 0; i < n_frames; i++) {
 		/* They'll added to the glb freelist. */
 		frame = frame_lookup(i, ns);
@@ -750,8 +734,8 @@ build_mapping(comp_t *comp, frame_t *frame, mapping_t *mapping)
 			  frame->cap, comp_pt_cap(comp->id), mapping->vaddr, 0);
 	if (ret) { 
 		struct quie_mem_meta *meta = (void *)mapping - sizeof(struct quie_mem_meta);
-		printc("MM mapping to comp %d @ %x failed: kern ret %d, user deact %llu, curr %llu\n", 
-		       comp->id, mapping->vaddr, ret, meta->time_deact, get_time()); 
+		printc("MM mapping to comp %d @ %p failed: kern ret %d, user deact %llu, curr %llu\n", 
+		       comp->id, (void *)(mapping->vaddr), ret, meta->time_deact, get_time()); 
 		cos_throw(done, -EINVAL);
 	}
 	
@@ -781,11 +765,16 @@ alloc_map_pages(mapping_t *head, comp_t *comp, int n_pages)
 	/* FIXME: reverse and free when fail */
 	for (i = 0; i < n_pages; i++) {
 		f = get_pmem();
-		if (!f) { i--; cos_throw(release, -ENOMEM); }
+
+		if (!f) { 
+			i--; 
+			printc("MM warning: out of physical memory!\n"); 
+			cos_throw(release, -ENOMEM); 
+		}
 
 		if (build_mapping(comp, f, m)) { 
 			struct quie_mem_meta *meta = (void *)m - sizeof(struct quie_mem_meta);
-			printc("on core %d: build failed, t %llu!\n", cos_cpuid(), meta->time_deact); 
+			printc("MM on core %ld error: mapping failed, t %llu!\n", cos_cpuid(), meta->time_deact); 
 
 			cos_throw(release, -EINVAL); 
 		}
@@ -945,7 +934,7 @@ static int mm_comp_init(void)
 
 	for (i = 0; i < MM_NPTE_NEEDED; i++) {
 		if (comp_vas_region_alloc(mm_comp, (vaddr_t)mm_vas_pte + i*MM_PTE_SIZE, MM_PTE_SIZE, glb_freelist_add)) {
-			printc("%d pte init failed\n", i);
+			printc("MM error: mem_mgr pte init failed\n");
 			return -1;
 		}
 	}
@@ -1089,19 +1078,19 @@ alias_mapping(comp_t *s_comp, mapping_t *s, comp_t *d_comp, mapping_t *d)
 	frame_lock(f);
 	mapping_lock(s);
 	/* re-check after taking the lock */
-	if (!parsec_item_active(s)) goto UNLOCK_S;
+	if (!parsec_item_active(s)) goto unlock_s;
 
 	/* if locking failed of dest mapping, others are aliasing to the same
 	 * location. */
-	if (!mapping_trylock(d)) goto UNLOCK_S;
+	if (!mapping_trylock(d)) goto unlock_s;
 	if (d->frame_id) { 
 		/* Someone nailed the dest mapping before us. */
-		goto UNLOCK_ALL; 
+		goto unlock_all;
 	}
 
 	ret = call_cap_op(comp_pt_cap(s_comp->id), CAPTBL_OP_CPY,
 			  s->vaddr, comp_pt_cap(d_comp->id), d->vaddr, 0);
-	if (ret) goto UNLOCK_ALL;
+	if (ret) goto unlock_all;
 
 	if (!s->child) {
 		s->child = d;
@@ -1109,6 +1098,7 @@ alias_mapping(comp_t *s_comp, mapping_t *s, comp_t *d_comp, mapping_t *d)
 		/* insert to the head of the dll */
 		s->child->sibling_prev = d;
 		d->sibling_next = s->child;
+		cos_mem_fence();
 		s->child = d;
 	}
 
@@ -1116,9 +1106,9 @@ alias_mapping(comp_t *s_comp, mapping_t *s, comp_t *d_comp, mapping_t *d)
 	d->parent   = s;
 	d->frame_id = s->frame_id;
 	ret = 0;
-UNLOCK_ALL:
+unlock_all:
 	mapping_unlock(d);
-UNLOCK_S:
+unlock_s:
 	mapping_unlock(s);
 	frame_unlock(f);
 	

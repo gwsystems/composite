@@ -1235,24 +1235,9 @@ static struct sched_thd *sched_setup_thread_arg(int dest_spd_id, void *metric_st
 int
 sched_create_thread(spdid_t spdid, struct cos_array *data)
 {
-	struct sched_thd *curr, *new;
-	char *metric_str;
-
+	(void)spdid; (void)data;
 	printc("WARNING: the sched_create_thread function is deprecated.  Please use sched_create_thd\n");
-	
-	if (spdid == cos_spd_id()) return -1;
-	if (!cos_argreg_arr_intern(data)) return -1;
-	if (((char *)data->mem)[data->sz-1] != '\0') return -1;
-
-	cos_sched_lock_take();
-	curr = sched_get_current();
-	metric_str = (char *)data->mem;
-	new = sched_setup_thread_arg(spdid, (char *)metric_str, 0, 0, 0);
-	cos_sched_lock_release();
-	printc("Core %ld, sched %d: created thread %d in spdid %d (requested by %d)\n",
-	       cos_cpuid(), (unsigned int)cos_spd_id(), new->id, spdid, curr->id);
-
-	return new->id;
+	return -ENOSUP;
 }
 
 #define MAX_NUM_SCHED_PARAM 3
@@ -1651,15 +1636,20 @@ static void sched_process_cevt(struct sched_child_evt *e)
 	}
 }
 
-extern int parent_sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff);
+extern int 
+parent_sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff);
 /* 
  * The thread executing in this function (the timer thread in a child
  * scheduler) is invoked in two situations: 1) when the child is idle,
  * and 2) when the parent wishes to run the child and possibly convey
  * to it events such as thread blocking or waking.
  */
-static void sched_child_evt_thd(void)
+static void 
+sched_child_evt_thd(void)
 {
+	printc("WARNING: the sched_child_evt_thd function is deprecated.\n");
+	return;
+#ifdef NIL
 	struct sched_child_evt *e;
 
 	e = cos_argreg_alloc(sizeof(struct sched_child_evt));
@@ -1710,6 +1700,7 @@ static void sched_child_evt_thd(void)
 		assert(EMPTY_LIST(PERCPU_GET(sched_base_state)->timer, prio_next, prio_prev));
 	} /* no return */
 	cos_argreg_free(e);
+#endif
 }
 
 int sched_priority(unsigned short int tid)

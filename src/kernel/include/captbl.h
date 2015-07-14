@@ -11,6 +11,7 @@
 #ifndef CAPTBL_H
 #define CAPTBL_H
 
+#include "shared/cos_errno.h"
 #include "shared/cos_types.h"
 #include "ertrie.h"
 #include "liveness_tbl.h"
@@ -29,6 +30,10 @@
 
 #ifdef CAP_FREE
 #undef CAP_FREE
+#endif
+
+#ifndef EFAULT
+#define EFAULT 14
 #endif
 
 static inline unsigned long __captbl_cap2bytes(cap_t c)

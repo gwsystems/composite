@@ -9,10 +9,10 @@
 #include "include/captbl.h"
 #include "include/inv.h"
 #include "include/thd.h"
-#include "include/call_convention.h"
+#include "include/chal/call_convention.h"
 #include "include/ipi_cap.h"
 #include "include/liveness_tbl.h"
-#include "include/cpuid.h"
+#include "include/chal/cpuid.h"
 #include "include/tcap.h"
 
 #define COS_DEFAULT_RET_CAP 0
@@ -40,7 +40,9 @@ fs_reg_setup(unsigned long seg) {
 		      : : "b" (seg));
 }
 
-static void
+/* TODO: switch to a dedicated TLB flush thread (in a separate
+ * protection domain) to do this. */
+void
 tlb_mandatory_flush(void *arg)
 {
 	unsigned long long t;
@@ -55,13 +57,16 @@ tlb_mandatory_flush(void *arg)
 
 #define MAX_LEN 512
 extern char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
-static inline int printfn(struct pt_regs *regs)
+static inline int 
+printfn(struct pt_regs *regs) 
 {
 	char *str;
 	int len;
 	char kern_buf[MAX_LEN];
 
+#ifdef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
+#endif
 
 	str     = (char *)__userregs_get1(regs);
 	len     = __userregs_get2(regs);
@@ -73,24 +78,13 @@ static inline int printfn(struct pt_regs *regs)
 	if (len >= 7) {
 		if (kern_buf[0] == 'F' && kern_buf[1] == 'L' && kern_buf[2] == 'U' &&
 		    kern_buf[3] == 'S' && kern_buf[4] == 'H' && kern_buf[5] == '!') {
-			/* u32_t ticks; */
-			//well, hack to flush tlb and cache...
-			/* { */
-			/* 	chal_flush_cache(); */
-			/* 	chal_flush_tlb_global(); */
-			/* } */
-
-			/* ticks = *(u32_t *)&timer_detector[get_cpuid() * CACHE_LINE]; */
-			/* if (get_cpuid() == 20 && ticks % 100 == 0)  */
-			/* 	printk("@%p, %d\n", &timer_detector[get_cpuid() * CACHE_LINE], ticks); */
-			///////////////////////////////////////////////////////////
 			int target_cpu = kern_buf[6];
 
 			if (target_cpu == get_cpuid()) {
 				tlb_mandatory_flush(NULL);
 			} else {
 				/* FIXME: avoid using this band-aid. */
-				smp_call_function_single(target_cpu, tlb_mandatory_flush, NULL, 1);
+				chal_remote_tlb_flush(target_cpu);
 			}
 
 			__userregs_set(regs, 0,
@@ -108,6 +102,7 @@ done:
 	return 0;
 }
 
+void cos_cap_ipi_handling(void);
 void cos_cap_ipi_handling(void)
 {
 	int idx, end;
@@ -172,7 +167,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap,
 		void *page = deact_cap->captbl;
 		u32_t l = deact_cap->refcnt_flags;
 
-		if ((void *)chal_pa2va((void *)pa) != page) cos_throw(err, -EINVAL);
+		if (chal_pa2va((paddr_t)pa) != page) cos_throw(err, -EINVAL);
 
 		/* Require freeze memory and wait for quiescence
 		 * first! */
@@ -216,7 +211,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap,
 		void *page = deact_cap->pgtbl;
 		u32_t l = deact_cap->refcnt_flags;
 
-		if ((void *)chal_pa2va((void *)pa) != page) cos_throw(err, -EINVAL);
+		if (chal_pa2va((paddr_t)pa) != page) cos_throw(err, -EINVAL);
 
 		/* Require freeze memory and wait for quiescence
 		 * first! */
@@ -262,7 +257,7 @@ kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap,
 		 * scanned before deactivation. */
 		struct cap_thd *tc = (struct cap_thd *)ch;
 
-		if ((void *)chal_pa2va((void *)pa) != (void *)(tc->t)) cos_throw(err, -EINVAL);
+		if (chal_pa2va((paddr_t)pa) != (void *)(tc->t)) cos_throw(err, -EINVAL);
 
 		assert(ch->type == CAP_THD);
 	}
@@ -272,6 +267,8 @@ err:
 
 	return ret;
 }
+
+extern void *memset(void *dst, int c, unsigned long int count);
 
 /* Updates the pte, deref the frame and zero out the page. */
 int
@@ -291,7 +288,7 @@ kmem_deact_post(unsigned long *pte, unsigned long old_v)
 		cos_throw(err, ret);
 	}
 	/* zero out the page to avoid info leaking. */
-	memset(chal_pa2va((void *)(old_v & PGTBL_FRAME_MASK)), 0, PAGE_SIZE);
+	memset(chal_pa2va((paddr_t)(old_v & PGTBL_FRAME_MASK)), 0, PAGE_SIZE);
 
 	return 0;
 err:
@@ -464,8 +461,10 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	__userregs_set(&curr->regs, COS_SCHED_RET_SUCCESS, __userregs_getsp(regs), __userregs_getip(regs));
 
 	thd_current_update(next, curr, cos_info);
+	/* TODO: check current pgtbl is different or not. */
 	pgtbl_update(next_ci->pgtbl);
 
+	/* TODO: check FPU */
 	/* fpu_save(thd); */
 	if (next->flags & THD_STATE_PREEMPTED) {
 		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
@@ -487,7 +486,7 @@ int
 composite_syscall_slowpath(struct pt_regs *regs);
 
 __attribute__((section("__ipc_entry"))) COS_SYSCALL int
-composite_syscall_fastpath(struct pt_regs *regs)
+composite_syscall_handler(struct pt_regs *regs)
 #endif
 {
 	struct cap_header *ch;
@@ -495,19 +494,22 @@ composite_syscall_fastpath(struct pt_regs *regs)
 	struct thread *thd;
 	capid_t cap;
 	unsigned long ip, sp;
-	/* We lookup this struct (which is on stack) only once, and
-	 * pass it into other functions to avoid unnecessary
-	 * lookup. */
+	syscall_op_t op;
+	/* 
+	 * We lookup this struct (which is on stack) only once, and
+	 * pass it into other functions to avoid unnecessary lookup.
+	 */
+
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	int ret = -ENOENT;
 
 #ifdef ENABLE_KERNEL_PRINT
 	fs_reg_setup(__KERNEL_PERCPU);
 #endif
-	/* printk("calling cap %d: %x, %x, %x, %x\n", */
-	/*        cap, __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
-
 	cap = __userregs_getcap(regs);
+
+	/* printk("calling cap %d: %x, %x, %x, %x\n", cap, __userregs_get1(regs), */
+	/*        __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
 
 	thd = thd_current(cos_info);
 
@@ -519,7 +521,7 @@ composite_syscall_fastpath(struct pt_regs *regs)
 	}
 
 	/* FIXME: use a cap for print */
-	if (unlikely(regs->ax == PRINT_CAP_TEMP)) {
+	if (unlikely(cap == PRINT_CAP_TEMP)) {
 		printfn(regs);
 		return 0;
 	}
@@ -620,7 +622,6 @@ composite_syscall_fastpath(struct pt_regs *regs)
 
 
 	ret = composite_syscall_slowpath(regs);
-
 err:
 done:
 	__userregs_set(regs, ret, __userregs_getsp(regs), __userregs_getip(regs));
@@ -1043,7 +1044,7 @@ composite_syscall_slowpath(struct pt_regs *regs)
 
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
 			if (ret) cos_throw(err, ret);
-
+			
 			ret = retypetbl_retype2kern((void *)frame);
 
 			break;

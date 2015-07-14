@@ -17,6 +17,7 @@ pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long *
 	/* get the pte */
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
 						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	if (unlikely(!pte))  return -ENOENT;
 	if (unlikely(__pgtbl_isnull(pte, 0, 0))) return -ENOENT;
 
 	orig_v = (u32_t)(pte->next);
@@ -24,7 +25,7 @@ pgtbl_kmem_act(pgtbl_t pt, u32_t addr, unsigned long *kern_addr, unsigned long *
 	if (unlikely(orig_v & PGTBL_COSKMEM)) return -EEXIST; /* can't re-activate kmem frames */
 	assert(!(orig_v & PGTBL_QUIESCENCE));
 
-	*kern_addr = (unsigned long)chal_pa2va((void *)(orig_v & PGTBL_FRAME_MASK));
+	*kern_addr = (unsigned long)chal_pa2va((paddr_t)(orig_v & PGTBL_FRAME_MASK));
 	new_v = orig_v | PGTBL_COSKMEM;
 
 	/* pa2va (value in *kern_addr) will return NULL if the page is
@@ -173,7 +174,7 @@ pgtbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long
 			cos_throw(err, ret);
 		}
 	} else {
-		cos_faa(&parent->refcnt_flags, -1);
+		cos_faa((int*)&parent->refcnt_flags, -1);
 	}
 
 	/* FIXME: this should be before the kmem_deact_post */

@@ -265,7 +265,7 @@ __cbuf2buf(cbuf_t cb, int len, int tmem)
 {
 	u32_t id;
 	struct cbuf_meta *cm;
-	union cbufm_info ci;//, ci_new;
+	//union cbufm_info ci;//, ci_new;
 	void *ret = NULL;
 	long cbidx;
 	if (unlikely(!len)) return NULL;
@@ -281,13 +281,12 @@ again:
 			goto again;
 		}
 	} while (unlikely(!cm->nfo.v));
-	ci.v = cm->nfo.v;
+	//ci.v = cm->nfo.v;
 
 	if (!tmem) {
 		if (unlikely(cm->nfo.c.flags & CBUFM_TMEM)) goto done;
 		if (unlikely((len >> PAGE_ORDER) > cm->sz)) goto done;
-		if(cm->nfo.c.refcnt == CBUFP_REFCNT_MAX)
-			assert(0);
+		assert(cm->nfo.c.refcnt != CBUFP_REFCNT_MAX);
 		cm->nfo.c.refcnt++;
 		assert(cm->owner_nfo.c.nrecvd < TMEM_SENDRECV_MAX);
 		cm->owner_nfo.c.nrecvd++;
@@ -454,8 +453,7 @@ again:
 	flags            = CBUFM_TOUCHED;
 	if (tmem) flags |= CBUFM_TMEM;
 	cm->nfo.c.flags |= flags;
-	if(cm->nfo.c.refcnt == CBUFP_REFCNT_MAX)
-		assert(0);
+	assert(cm->nfo.c.refcnt != CBUFP_REFCNT_MAX);
 	cm->nfo.c.refcnt++;
 
 	/* 

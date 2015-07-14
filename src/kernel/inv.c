@@ -53,7 +53,7 @@ PERCPU_ATTR(static, unsigned long, cycle_cnt);
 
 void sysenter_interposition_entry(void);
 COS_SYSCALL int
-composite_syscall_fastpath(struct pt_regs *regs);
+composite_syscall_handler(struct pt_regs *regs);
 
 void 
 ipc_init(void)
@@ -64,9 +64,9 @@ ipc_init(void)
 	rdtscl(tsc);
 	*PERCPU_GET(cycle_cnt) = tsc;
 
-	if (((unsigned long)&sysenter_interposition_entry >> PAGE_ORDER) != ((unsigned long)&composite_syscall_fastpath >> PAGE_ORDER))
+	if (((unsigned long)&sysenter_interposition_entry >> PAGE_ORDER) != ((unsigned long)&composite_syscall_handler >> PAGE_ORDER))
 		printk("Warning: Composite sysenter_interposition (%p) and sysenter handler (%p) are NOT in the same page!\n",
-		       &sysenter_interposition_entry, &composite_syscall_fastpath);
+		       &sysenter_interposition_entry, &composite_syscall_handler);
 
 	return;
 }

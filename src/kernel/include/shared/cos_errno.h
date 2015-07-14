@@ -1,3 +1,19 @@
+#ifndef EINVAL
+#define EINVAL 22
+#endif
+#ifndef EEXIST
+#define EEXIST 17
+#endif
+#ifndef EPERM
+#define EPERM 1
+#endif
+#ifndef ENOENT
+#define ENOENT 2
+#endif
+#ifndef EOVERFLOW
+#define EOVERFLOW 75
+#endif
+
 /* Offset the cases defined in dietlibc. */
 #define ERRNOBASE      256
 

@@ -40,11 +40,11 @@ expgen:
 
 server_stubs: $(S_STUB_OBJS)
 #	$(if $(S_STUB_OBJS), $(info |     [LD]   Creating server stubs for $(IFNAME)))
-	@$(if $(S_STUB_OBJS), $(LD) -r -o $(SERVER_STUB) $^)
+	@$(if $(S_STUB_OBJS), $(LD) $(LDFLAGS) -r -o $(SERVER_STUB) $^)
 
 client_stubs: $(C_STUB_OBJS)
 #	$(if $(C_STUB_OBJS), $(info |     [LD]   Creating client stubs from $(IFNAME)))
-	@$(if $(C_STUB_OBJS), $(LD) -r -o $(CLIENT_STUB) $^)
+	@$(if $(C_STUB_OBJS), $(LD) $(LDFLAGS) -r -o $(CLIENT_STUB) $^)
 
 stubs: server_stubs client_stubs
 
