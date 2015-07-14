@@ -38,7 +38,7 @@ struct component_init_str {
 }__attribute__((packed));
 struct component_init_str *init_args;
 
-static int 
+static int
 boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci)
 {
 	int i;
@@ -55,7 +55,7 @@ boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_in
 	return 0;
 }
 
-static int 
+static int
 boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info)
 {
 	unsigned int i;
@@ -79,30 +79,30 @@ boot_spd_symbs(struct cobj_header *h, spdid_t spdid, vaddr_t *comp_info)
 	return 0;
 }
 
-static void 
+static void
 boot_symb_reify(char *mem, vaddr_t d_addr, vaddr_t symb_addr, u32_t value)
 {
 	if (round_to_page(symb_addr) == d_addr) {
 		u32_t *p;
-		
+
 		p = (u32_t*)(mem + ((PAGE_SIZE-1) & symb_addr));
 		*p = value;
 	}
 }
 
-static void 
+static void
 boot_symb_reify_16(char *mem, vaddr_t d_addr, vaddr_t symb_addr, u16_t value)
 {
 	if (round_to_page(symb_addr) == d_addr) {
 		u16_t *p;
-		
+
 		p = (u16_t*)(mem + ((PAGE_SIZE-1) & symb_addr));
 		*p = value;
 	}
 }
 
 static int
-boot_process_cinfo(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val, 
+boot_process_cinfo(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val,
 		   char *mem, vaddr_t symb_addr)
 {
 	int i;
@@ -119,9 +119,9 @@ boot_process_cinfo(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val,
 	for (i = 0 ; init_args[i].spdid ; i++) {
 		char *start, *end;
 		int len;
-		
+
 		if (init_args[i].spdid != spdid) continue;
-		
+
 		start = strchr(init_args[i].init_str, '\'');
 		if (!start) break;
 		start++;
@@ -131,15 +131,15 @@ boot_process_cinfo(struct cobj_header *h, spdid_t spdid, vaddr_t heap_val,
 		memcpy(&ci->init_string[0], start, len);
 		ci->init_string[len] = '\0';
 	}
-	
+
 	/* save the address of this page for later retrieval
 	 * (e.g. to manipulate the stack pointer) */
 	/* comp_info_record(h, spdid, ci); */
-	
+
 	return 1;
 }
 
-static vaddr_t 
+static vaddr_t
 boot_spd_end(struct cobj_header *h)
 {
 	struct cobj_sect *sect;
@@ -147,11 +147,11 @@ boot_spd_end(struct cobj_header *h)
 
 	max_sect = h->nsect-1;
 	sect     = cobj_sect_get(h, max_sect);
-	
+
 	return sect->vaddr + round_up_to_page(sect->bytes);
 }
 
-static int 
+static int
 boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
 	unsigned int i;
@@ -166,7 +166,7 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
 		int left;
-		
+
 		sect = cobj_sect_get(h, i);
 		flag = MAPPING_RW;
 		if (sect->flags & COBJ_SECT_KMEM) {
@@ -179,7 +179,7 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 		if (round_to_page(dest_daddr) == prev_map) {
 			left -= (prev_map + PAGE_SIZE - dest_daddr);
 			dest_daddr = prev_map + PAGE_SIZE;
-		} 
+		}
 		while (left > 0) {
 			dsrc = cos_get_vas_page();
 
@@ -196,7 +196,7 @@ boot_spd_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	return 0;
 }
 
-static int 
+static int
 boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, int first_time)
 {
 	unsigned int i;
@@ -241,10 +241,10 @@ boot_spd_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, i
  	return 0;
 }
 
-static int 
+static int
 boot_spd_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
-	if (boot_spd_map_memory(h, spdid, comp_info)) return -1; 
+	if (boot_spd_map_memory(h, spdid, comp_info)) return -1;
 	if (boot_spd_map_populate(h, spdid, comp_info, 1)) return -1;
 
 	return 0;
@@ -262,7 +262,7 @@ boot_edge_create(spdid_t src, spdid_t dest)
 	cgraph_add(dest, src);
 }
 
-/* 
+/*
  * This must happen _after_ the memory is mapped in so that the
  * ucap_tbl can be found in the spd
  */
@@ -280,12 +280,12 @@ static int boot_spd_caps(struct cobj_header *h, spdid_t spdid)
 		if (cap->fault_num < COS_FLT_MAX) {
 			if (cos_cap_cntl(COS_CAP_SET_FAULT, spdid, cap->cap_off, cap->fault_num)) BUG();
 		}
-		
+
 		if (cos_cap_cntl(COS_CAP_SET_SERV_FN, spdid, cap->cap_off, cap->sfn) ||
 		    cos_cap_cntl(COS_CAP_SET_CSTUB, spdid, cap->cap_off, cap->cstub) ||
 		    cos_cap_cntl(COS_CAP_SET_SSTUB, spdid, cap->cap_off, cap->sstub) ||
 		    cos_cap_cntl(COS_CAP_ACTIVATE, spdid, cap->cap_off, cap->dest_id)) BUG();
-		
+
 		boot_edge_create(spdid, cap->dest_id);
 	}
 
@@ -295,7 +295,7 @@ static int boot_spd_caps(struct cobj_header *h, spdid_t spdid)
 /* The order of creating boot threads */
 unsigned int *boot_sched;
 
-static int 
+static int
 boot_spd_thd(spdid_t spdid)
 {
 	union sched_param sp = {.c = {.type = SCHEDP_RPRIO, .value = 1}};
@@ -310,7 +310,7 @@ boot_spd_thd(spdid_t spdid)
 	return 0;
 }
 
-static void 
+static void
 boot_find_cobjs(struct cobj_header *h, int n)
 {
 	int i;
@@ -326,7 +326,7 @@ boot_find_cobjs(struct cobj_header *h, int n)
 			//printc("\tsection %d, size %d\n", j, cobj_sect_size(h, j));
 			tot += cobj_sect_size(h, j);
 		}
-		printc("cobj %s:%d found at %p:%x, size %x -> %x\n", 
+		printc("cobj %s:%d found at %p:%x, size %x -> %x\n",
 		       h->name, h->id, hs[i-1], size, tot, cobj_sect_get(hs[i-1], 0)->vaddr);
 
 		end   = start + round_up_to_cacheline(size);
@@ -335,13 +335,13 @@ boot_find_cobjs(struct cobj_header *h, int n)
 	}
 
 	hs[n] = NULL;
-	printc("cobj %s:%d found at %p -> %x\n", 
+	printc("cobj %s:%d found at %p -> %x\n",
 	       hs[n-1]->name, hs[n-1]->id, hs[n-1], cobj_sect_get(hs[n-1], 0)->vaddr);
 }
 
 #define NREGIONS 4
 
-static void 
+static void
 boot_create_system(void)
 {
 	unsigned int i, min = ~0;
@@ -357,7 +357,7 @@ boot_create_system(void)
 		vaddr_t comp_info = 0;
 		long tot = 0;
 		int j;
-		
+
 		h = hs[i];
 		if ((spdid = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG();
 		/* printc("spdid %d, h->id %d\n", spdid, h->id); */
@@ -370,7 +370,7 @@ boot_create_system(void)
 		}
 
 		if (tot > SERVICE_SIZE) {
-			if (cos_vas_cntl(COS_VAS_SPD_EXPAND, h->id, sect->vaddr + SERVICE_SIZE, 
+			if (cos_vas_cntl(COS_VAS_SPD_EXPAND, h->id, sect->vaddr + SERVICE_SIZE,
 					 (NREGIONS-1) * round_up_to_pgd_page(1))) {
 				printc("cos: booter could not expand VAS for component %d\n", h->id);
 				BUG();
@@ -403,22 +403,22 @@ boot_create_system(void)
 		h = NULL;
 		for (j = 0 ; hs[j] != NULL; j++) {
 			if (hs[j]->id == boot_sched[i]) h = hs[j];
-		}		
+		}
 		assert(h);
 		if (h->flags & COBJ_INIT_THD) boot_spd_thd(h->id);
 	}
 }
 
-void 
+void
 failure_notif_wait(spdid_t caller, spdid_t failed)
 {
 	/* wait for the other thread to finish rebooting the component */
-	LOCK();	
+	LOCK();
 	UNLOCK();
 }
 
 /* Reboot the failed component! */
-void 
+void
 failure_notif_fail(spdid_t caller, spdid_t failed)
 {
 	struct spd_local_md *md;
@@ -430,7 +430,7 @@ failure_notif_fail(spdid_t caller, spdid_t failed)
 	assert(md);
 	if (boot_spd_map_populate(md->h, failed, md->comp_info, 0)) BUG();
 	/* can fail if component had no boot threads: */
-	if (md->h->flags & COBJ_INIT_THD) boot_spd_thd(failed); 	
+	if (md->h->flags & COBJ_INIT_THD) boot_spd_thd(failed);
 	if (boot_spd_caps(md->h, failed)) BUG();
 //	boot_spd_caps_chg_activation(failed, 1);
 
@@ -470,7 +470,7 @@ cgraph_add(int serv, int client)
 /* Functions using new kernel cap operations below. */
 /****************************************************/
 
-static int 
+static int
 boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
 	unsigned int i;
@@ -486,7 +486,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	for (i = 0 ; i < h->nsect ; i++) {
 		struct cobj_sect *sect;
 		int left;
-		
+
 		sect = cobj_sect_get(h, i);
 		flag = MAPPING_RW;
 		if (sect->flags & COBJ_SECT_KMEM) {
@@ -516,7 +516,7 @@ boot_comp_map_memory(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 	return 0;
 }
 
-static int 
+static int
 boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, int first_time)
 {
 	unsigned int i;
@@ -544,7 +544,7 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
 		left       = cobj_sect_size(h, i);
 
 		/* Initialize memory. */
-		if (!(sect->flags & COBJ_SECT_KMEM) && 
+		if (!(sect->flags & COBJ_SECT_KMEM) &&
 		    (first_time || !(sect->flags & COBJ_SECT_INITONCE))) {
 			if (sect->flags & COBJ_SECT_ZEROS) {
 				memset(start_addr + (dest_daddr - init_daddr), 0, left);
@@ -565,16 +565,16 @@ boot_comp_map_populate(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info, 
  	return 0;
 }
 
-static int 
+static int
 boot_comp_map(struct cobj_header *h, spdid_t spdid, vaddr_t comp_info)
 {
-	if (boot_comp_map_memory(h, spdid, comp_info)) return -1; 
+	if (boot_comp_map_memory(h, spdid, comp_info)) return -1;
 	if (boot_comp_map_populate(h, spdid, comp_info, 1)) return -1;
 
 	return 0;
 }
 
-/* 
+/*
  * This must happen _after_ the memory is mapped in so that the
  * ucap_tbl can be found in the spd
  */
@@ -625,10 +625,10 @@ static void init_cosframes(void)
 		kmem_cap += (RETYPE_MEM_NPAGES*PAGE_SIZE);
 	}
 
-	
+
 }
 
-static void 
+static void
 boot_create_cap_system(void)
 {
 	int ret;
@@ -654,7 +654,7 @@ boot_create_cap_system(void)
 
 		h = hs[i];
 		spdid = h->id;
-		
+
 		sect = cobj_sect_get(h, 0);
 		for (j = 0 ; j < (int)h->nsect ; j++) {
 			tot += cobj_sect_size(h, j);
@@ -698,7 +698,7 @@ boot_create_cap_system(void)
 			pte_cap = alloc_capid(CAP_PGTBL);
 			if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
 					pte_cap, BOOT_CAPTBL_SELF_PT, get_kmem_cap(), 1))    BUG();
-			
+
 			/* Construct pgtbl */
 			if (call_cap_op(pgtbl_cap, CAPTBL_OP_CONS, pte_cap, sect->vaddr + j*SERVICE_SIZE, 0, 0)) BUG();
 		}
@@ -743,14 +743,14 @@ void cos_init(void)
 	ndeps     = i;
 
 	init_args = (struct component_init_str *)cos_comp_info.cos_poly[3];
-	init_args++; 
+	init_args++;
 
 	boot_sched = (unsigned int *)cos_comp_info.cos_poly[4];
 
 	boot_find_cobjs(h, num_cobj);
-	
+
 	printc("h @ %p, heap ptr @ %p\n", h, cos_get_heap_ptr());
-	printc("header %p, size %d, num comps %d, new heap %p\n", 
+	printc("header %p, size %d, num comps %d, new heap %p\n",
 	       h, h->size, num_cobj, cos_get_heap_ptr());
 
 	init_cosframes();

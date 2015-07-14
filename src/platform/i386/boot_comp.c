@@ -25,11 +25,11 @@ boot_pgtbl_mappings_add(struct captbl *ct, pgtbl_t pgtbl, capid_t ptecap, const 
 	nptes = boot_nptes(range);
 	ptes = mem_boot_alloc(nptes);
 	assert(ptes);
-	printk("\tCreating %d %s PTEs for PGD @ 0x%x from [%x,%x) to [%x,%x).\n", 
-	       nptes, label, chal_pa2va((paddr_t)pgtbl), 
+	printk("\tCreating %d %s PTEs for PGD @ 0x%x from [%x,%x) to [%x,%x).\n",
+	       nptes, label, chal_pa2va((paddr_t)pgtbl),
 	       kern_vaddr, kern_vaddr+range, user_vaddr, user_vaddr+range);
 
-	/* 
+	/*
 	 * Note the use of NULL here.  We aren't actually adding a PTE
 	 * currently.  This is a hack and only used on boot-up.  We'll
 	 * reuse this capability entry to create _multiple_ ptes.  We
@@ -82,7 +82,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem)
 	cos_info->invstk_top     = 0;
 	cos_info->overflow_check = 0xDEADBEEF;
 
-	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE, 
+	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE,
 			   thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
 	assert(!ret);
 
@@ -124,14 +124,14 @@ kern_boot_comp(void)
 
 	printk("\tCapability table and page-table created.\n");
 
-	ret = boot_pgtbl_mappings_add(ct, pgtbl, BOOT_CAPTBL_BOOTVM_PTE, "booter VM", mem_bootc_start(), 
+	ret = boot_pgtbl_mappings_add(ct, pgtbl, BOOT_CAPTBL_BOOTVM_PTE, "booter VM", mem_bootc_start(),
 				      (unsigned long)mem_bootc_vaddr(), mem_bootc_end() - mem_bootc_start(), 1);
 	assert(ret == 0);
-	ret = boot_pgtbl_mappings_add(ct, pgtbl, BOOT_CAPTBL_PHYSM_PTE, "user-typed memory", mem_usermem_start(), 
+	ret = boot_pgtbl_mappings_add(ct, pgtbl, BOOT_CAPTBL_PHYSM_PTE, "user-typed memory", mem_usermem_start(),
 				      BOOT_MEM_PM_BASE, mem_usermem_end() - mem_usermem_start(), 0);
 	assert(ret == 0);
 
-	/* 
+	/*
 	 * This _must_ be the last allocation.  The bump pointer
 	 * modifies this allocation.
 	 *
@@ -139,13 +139,13 @@ kern_boot_comp(void)
 	 * PTEs
 	 */
 	nkmemptes = boot_nptes(mem_kmem_end() - mem_boot_end());
-	ret = boot_pgtbl_mappings_add(ct, pgtbl, BOOT_CAPTBL_KM_PTE, "untyped memory", mem_boot_nalloc_end(nkmemptes), 
+	ret = boot_pgtbl_mappings_add(ct, pgtbl, BOOT_CAPTBL_KM_PTE, "untyped memory", mem_boot_nalloc_end(nkmemptes),
 				      BOOT_MEM_KM_BASE, mem_kmem_end() - mem_boot_nalloc_end(nkmemptes), 0);
 	assert(ret == 0);
 	/* Shut off further bump allocations */
 	glb_memlayout.allocs_avail = 0;
 
-	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT, 
+	if (comp_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_CT,
 			  BOOT_CAPTBL_SELF_PT, 0, (vaddr_t)mem_bootc_entry(), NULL)) assert(0);
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 
@@ -154,14 +154,15 @@ kern_boot_comp(void)
 	printk("\tBoot component initialization complete.\n");
 }
 
-void 
+void
 kern_boot_upcall(void)
 {
 	u8_t *entry = mem_bootc_entry();
 	u32_t flags = 0;
 	void *p;
-	
+
 	printk("Upcall into boot component at ip 0x%x\n", entry);
+	printk("------------------[ Kernel boot complete ]------------------\n");
 	chal_user_upcall(entry);
 	assert(0); 		/* should never get here! */
 }
