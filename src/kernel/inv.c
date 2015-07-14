@@ -94,6 +94,9 @@ open_close_spd_ret(struct spd_poly *c_spd)
 struct inv_ret_struct {
 	int thd_id;
 	int spd_id;
+	int si;
+	int di;
+	int bp;
 };
 
 /* TODO: may want to include thd->fork.cnt */
@@ -111,7 +114,7 @@ need_fork_fix(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd)
 }
 
 static vaddr_t
-thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd, int fault_num);
+thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd, int fault_num, struct inv_ret_struct *ret);
 
 /* 
  * FIXME: 1) should probably return the static capability to allow
@@ -201,7 +204,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 
 	/* Check for forking */
 	if (unlikely(need_fork_fix(thd, curr_spd, dest_spd))) {
-		return thd_quarantine_fault(thd, curr_spd, dest_spd, COS_FLT_QUARANTINE);
+		return thd_quarantine_fault(thd, curr_spd, dest_spd, COS_FLT_QUARANTINE, ret);
 	}
 
 	return cap_entry->dest_entry_instruction;
@@ -375,7 +378,7 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 }
 
 static vaddr_t
-thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd, int fault_num)
+thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd, int fault_num, struct inv_ret_struct *ret)
 {
 	int c_spd, d_spd, c_cnt, d_cnt, packed_counts;
 	vaddr_t packed_spds;
@@ -395,6 +398,9 @@ thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_
 	 * how do we fix-up the curr_spd then? */
 	if (unlikely(!__fault_ipc_invoke(thd, packed_spds, packed_counts, &thd->regs, fault_num, dest_spd))) return (vaddr_t)NULL;
 	printk("cos: fault thd reg args: si = %d, di = %d\n", thd->regs.si, thd->regs.di);
+	ret->si = thd->regs.si;
+	ret->di = thd->regs.di;
+	ret->bp = thd->regs.bp;
 	return thd->regs.ip;
 }
 
