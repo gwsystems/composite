@@ -19,7 +19,7 @@
 
 /* we already use 16 MB of kernel memory + the kernel img, thus 32MB offset for this: */
 #ifndef COS_LINUX
-#define COS_MEM_USER_PA (1<<25)
+#define COS_MEM_USER_PA (1<<26)
 #define COS_MEM_USER_PA_SZ    (1<<25) /* start with 32MB of memory */
 #else
 #define COS_MEM_USER_PA (0x40000000)  /* 1 GB...memory untouched by Linux */
@@ -31,7 +31,7 @@
  * linker script (.ld) as well.
  */ 
 #define COS_MEM_KERN_PA (0x00100000)
-#define COS_MEM_KERN_PA_ORDER (22)
+#define COS_MEM_KERN_PA_ORDER (25)
 #define COS_MEM_KERN_PA_SZ    (1<<COS_MEM_KERN_PA_ORDER)
 
 #define COS_MEM_COMP_START_VA ((1<<30) + (1<<22)) /* 1GB + 4MB (a relic) */
