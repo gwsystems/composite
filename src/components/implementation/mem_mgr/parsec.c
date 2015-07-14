@@ -17,50 +17,6 @@ __thread int thd_local_id;
 /* # of cachelines allocated. */
 volatile unsigned long n_cacheline = 0;
 
-/* static inline void * */
-/* get_mem(size_t size) */
-/* { */
-/* 	int n; */
-/* 	unsigned long old, new; */
-/* 	struct quie_mem_meta *meta; */
-	
-/* 	/\* # of cachelines. *\/ */
-/* 	if (!size) return NULL; */
-
-/* 	n = round2next_pow2(size) / CACHE_LINE; */
-/* 	if (!n) n = 1; */
-/* 	assert((unsigned long)(n * CACHE_LINE) >= size); */
-
-/* 	/\* 2 additional cachelines:  */
-/* 	 * 1 (at the beginning) for meta-data (time-stamp, etc.),  */
-/* 	 * 1 (at the end) to avoid prefetching caused false sharing. *\/ */
-/* 	n += 2; */
-
-/* 	/\* cas loop. Should only happen during warm up. *\/ */
-/* 	while (1) { */
-/* 		old = n_cacheline; */
-/* 		new = old + n; */
-/* 		if (new >= (MEM_SIZE / CACHE_LINE)) { */
-/* 			/\* all memory used. *\/ */
-/* 			return NULL; */
-/* 		} */
-	
-/* 		if (cos_cas((unsigned long *)&n_cacheline, old, new)) break; */
-/* 	} */
-
-/* 	meta = (struct quie_mem_meta *)((unsigned long)quie_mem + old * CACHE_LINE); */
-
-/* 	meta->next       = NULL; */
-/* 	meta->time_deact = 0; */
-/* 	meta->size       = round2next_pow2(size); */
-/* 	/\* data memory after meta *\/ */
-/* 	meta->mem        = (void *)((unsigned long)meta + CACHE_LINE); */
-
-/* 	assert(((unsigned long)meta + meta->size) <= ((unsigned long)quie_mem + MEM_SIZE)); */
-
-/* 	return meta; */
-/* } */
-
 static inline void 
 quie_queue_fill(struct quie_queue *queue, size_t size, struct parsec_allocator *alloc)
 {
@@ -75,23 +31,8 @@ quie_queue_fill(struct quie_queue *queue, size_t size, struct parsec_allocator *
 
 	glb_freelist_get(queue, size, alloc);
 
-	/* diff = alloc->qwq_min_limit - queue->n_items; */
-	/* printf("fill %d to %d\n", queue->n_items, QUIE_QUEUE_LIMIT); */
-
-	/* for (i = 0; i < diff; i++) { */
-	/* 	meta = get_mem(size); */
-	/* 	if (!meta) return; */
-
-	/* 	meta->time_deact = 0; */
-	/* 	quie_queue_add_head(queue, meta); */
-	/* } */
-
 	return;
 }
-
-/* char debug_mem[PAGE_SIZE] PAGE_ALIGNED; */
-/* #define N_DEBUG (10) */
-/* int *state = (int *)&debug_mem[1024]; */
 
 static inline int 
 in_lib(struct quiescence_timing *timing) 
@@ -240,7 +181,6 @@ quie_queue_alloc(struct quie_queue *queue, struct parsec_allocator *alloc, const
 	if (!head) return NULL;
 
 	if (quie_fn(head->time_deact, waiting)) {
-//		printf("Quiescence waiting error\n");
 		return NULL;
 	}
 	ret = quie_queue_remove(queue);
@@ -249,24 +189,6 @@ quie_queue_alloc(struct quie_queue *queue, struct parsec_allocator *alloc, const
 
 	return ret;
 }
-
-/* void  */
-/* q_debug(void) */
-/* { */
-/* 	struct quie_queue *queue; */
-/* 	int i; */
-
-/* 	printf("q_debug\n"); */
-/* 	for (i = 0 ; i < NUM_CPU; i++) { */
-/* 		queue = &(qwq[i].slab_queue[size2slab(6*CACHE_LINE)]); */
-/* 		printf("%d: size %d\n", i, queue->n_items); */
-/* 	} */
-/* 	printf("glb %d\n", glb_freelist.slab_freelists[size2slab(6*CACHE_LINE)].n_items); */
-		
-/* 	/\* assert(0); *\/ */
-
-/* 	return; */
-/* } */
 
 void *
 parsec_alloc(size_t size, struct parsec_allocator *alloc, const int waiting)
@@ -330,8 +252,6 @@ parsec_desc_alloc(size_t size, struct parsec_allocator *alloc, const int waiting
 	glb_freelist = &(alloc->glb_freelist);
 
 	queue = &(qwq[cpu].slab_queue[slab_id]);
-	/* printc("now %d, thres %d, size %d, slab id %d\n",  */
-	/*        queue->n_items, queue->qwq_min_limit, size, slab_id); */
 
 	if (queue->n_items < queue->qwq_min_limit) {
 		/* This will add items (new or from global freelist)
@@ -356,7 +276,6 @@ parsec_desc_alloc(size_t size, struct parsec_allocator *alloc, const int waiting
 	return (char *)meta + sizeof(struct quie_mem_meta);
 }
 
-/* TODO: add per cpu support -- now it assumes per thread. */
 void 
 parsec_read_lock(parsec_t *parsec) 
 {
@@ -542,33 +461,6 @@ static void parsec_quiesce(parsec_t *p)
 	lib_exit(p);
 }
 
-/* static int  */
-/* qmem_free(void *mem) */
-/* { */
-/* 	int ret; */
-
-/* 	lib_enter(); */
-/* 	ret = q_free(mem); */
-/* 	lib_exit(); */
-
-/* 	return ret; */
-/* } */
-
-/* Not used for now. */
-/* This checks quiescence based on pure local knowledge (and without
- * waiting for it). No remote readings. return 0 if quiesced. */
-/* static int */
-/* parsec_quiescence_quick_check(quie_time_t time_check) */
-/* { */
-/* 	struct quiescence_timing *timing_local; */
-
-/* 	timing_local = &timing_info[get_cpu()].timing; */
-/* 	if (time_check > timing_local->last_known_quiescence) return -1; */
-
-/* 	/\* quiesced *\/ */
-/* 	return 0; */
-/* } */
-
 void *
 timer_update(void *arg)
 {
@@ -596,8 +488,8 @@ volatile int use_ncores;
 
 #ifdef IN_LINUX
 
+/* Only used in Linux tests. */
 /* int cpu_assign[5] = {0, 1, 2, 3, -1}; */
-
 int cpu_assign[41] = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36,
 		      1, 5, 9, 13, 17, 21, 25, 29, 33, 37,
 		      2, 6, 10, 14, 18, 22, 26, 30, 34, 38,
@@ -739,48 +631,6 @@ void parsec_init(parsec_t *parsec)
 
 #ifdef IN_LINUX
 #define ITEM_SIZE (CACHE_LINE)
-
-/* // this put all memory on the global free list. (a bit on local queue) */
-/* static void mem_warmup(void) */
-/* { */
-/* 	/\* memcached: mem pre-allocation warm up. *\/ */
-/* 	unsigned long i, k = 0, tot_items = (unsigned long)MEM_SIZE / (2*CACHE_LINE + ITEM_SIZE); */
-/* 	unsigned long **ptrs = malloc(sizeof(void*) * tot_items); */
-
-/* 	while (1) { */
-/* 		assert(k < tot_items); */
-/* 		ptrs[k] = q_alloc(ITEM_SIZE, 1); */
-/* 		if (!ptrs[k]) break; */
-/* 		k++; */
-/* 	} */
-
-/* 	for (i = 0; i < k; i++) { */
-/* 		qmem_free(ptrs[i]); */
-/* 	} */
-	
-/* 	free((void *)ptrs); */
-
-/* 	/\* sanity checks below! *\/ */
-
-/* 	struct quie_queue *queue = &(qwq[get_cpu()].slab_queue[size2slab(ITEM_SIZE)]); */
-/* 	struct freelist *fl = &(glb_freelist.slab_freelists[size2slab(ITEM_SIZE)]); */
-
-/* 	/\* printf("queue size %d, fl %d\n", queue->n_items, fl->n_items); *\/ */
-
-/* 	struct quie_mem_meta *mem = queue->head; */
-/* 	for (i = 0; i < queue->n_items; i++) { */
-/* 		mem = mem->next; */
-/* 	} */
-/* 	assert(mem == NULL); */
-
-/* 	mem = fl->head; */
-/* 	for (i = 0; i < fl->n_items; i++) { */
-/* 		mem = mem->next; */
-/* 	} */
-/* 	assert(mem == NULL); */
-	
-/* 	return; */
-/* } */
 
 void parsec_init(void)
 {

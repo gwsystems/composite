@@ -1,10 +1,12 @@
 /* For printing: */
 
+#include <cos_config.h>
+
 #include <stdio.h>
 #include <string.h>
 #include <ck_pr.h>
 
-static int 
+static int
 prints(char *s)
 {
 	int len = strlen(s);
@@ -12,7 +14,7 @@ prints(char *s)
 	return len;
 }
 
-static int __attribute__((format(printf,1,2))) 
+static int __attribute__((format(printf,1,2)))
 printc(char *fmt, ...)
 {
 	char s[128];
@@ -41,16 +43,16 @@ printc(char *fmt, ...)
 #include <res_spec.h>
 
 struct llbooter_per_core {
-	/* 
+	/*
 	 * alpha:        the initial thread context for the system
-	 * init_thd:     the thread used for the initialization of the rest 
+	 * init_thd:     the thread used for the initialization of the rest
 	 *               of the system
 	 * recovery_thd: the thread to perform initialization/recovery
 	 * prev_thd:     the thread requesting the initialization
 	 * recover_spd:  the spd that will require rebooting
 	 */
 	int     alpha, init_thd, recovery_thd;
-	int     sched_offset;      
+	int     sched_offset;
 	volatile int prev_thd, recover_spd;
 } __attribute__((aligned(4096))); /* Avoid the copy-on-write issue for us. */
 
@@ -75,9 +77,9 @@ static int     kern_frame_frontier = 0; /* used physical frames for kernel */
 
 typedef void (*crt_thd_fn_t)(void);
 
-/* 
+/*
  * Abstraction layer around 1) synchronization, 2) scheduling and
- * thread creation, and 3) memory operations.  
+ * thread creation, and 3) memory operations.
  */
 
 #include "../../sched/cos_sched_sync.h"
@@ -96,7 +98,7 @@ sched_create_thread_default(spdid_t spdid, u32_t v1, u32_t v2, u32_t v3)
 static void
 llboot_ret_thd(void) { return; }
 
-/* 
+/*
  * When a created thread finishes, here we decide what to do with it.
  * If the system's initialization thread finishes, we know to reboot.
  * Otherwise, we know that recovery is complete, or should be done.
@@ -107,7 +109,7 @@ llboot_thd_done(void)
 	int tid = cos_get_thd_id();
 	struct llbooter_per_core *llboot = PERCPU_GET(llbooter);
 	assert(llboot->alpha);
-	/* 
+	/*
 	 * When the initial thread is done, then all we have to do is
 	 * switch back to alpha who should reboot the system.
 	 */
@@ -135,7 +137,7 @@ llboot_thd_done(void)
 			}
 			llboot->sched_offset++;
 			comp_boot_nfo[s].initialized = 1;
-			
+
 			/* printc("core %ld: booter init_thd upcalling into spdid %d.\n", cos_cpuid(), (unsigned int)s); */
 			cos_upcall(s, 0); /* initialize the component! */
 			BUG();
@@ -150,7 +152,7 @@ llboot_thd_done(void)
 		while (1) cos_switch_thread(llboot->alpha, 0);
 		BUG();
 	}
-	
+
 	while (1) {
 		int     pthd = llboot->prev_thd;
 		spdid_t rspd = llboot->recover_spd;
@@ -169,10 +171,10 @@ llboot_thd_done(void)
 	}
 }
 
-void 
+void
 failure_notif_fail(spdid_t caller, spdid_t failed);
 
-int 
+int
 fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 {
 	unsigned long r_ip; 	/* the ip to return to */
@@ -196,7 +198,7 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 		/* after the recovery thread is done, it should switch back to us. */
 		return 0;
 	}
-	/* 
+	/*
 	 * The thread was created in the failed component...just use
 	 * it to restart the component!  This might even be the
 	 * initial thread.
@@ -211,7 +213,7 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 
 /* Not used. */
 static vaddr_t init_hp = 0; 		/* initial heap pointer */
-/* 
+/*
  * Virtual address to frame calculation...assume the first address
  * passed in is the start of the heap, and they only increase by a
  * page from there.
@@ -219,8 +221,8 @@ static vaddr_t init_hp = 0; 		/* initial heap pointer */
 static inline int
 __vpage2frame(vaddr_t addr) { return (addr - init_hp) / PAGE_SIZE; }
 
-/* 
- * Assumptions about the memory management functions: 
+/*
+ * Assumptions about the memory management functions:
  * - we only get single-page-increasing virtual addresses to map into.
  * - we never deallocate memory.
  * - we allocate memory contiguously
@@ -264,6 +266,8 @@ vaddr_t get_pmem_cap(void) {
 	return ret;
 }
 
+capid_t alloc_capid(cap_t cap);
+
 /* This gets a virtual page on heap and the capability to a physical
  * page. Then maps it in. */
 vaddr_t get_pmem(void)
@@ -275,8 +279,30 @@ vaddr_t get_pmem(void)
 	if (!pmem_cap) return 0;
 
 	heap_vaddr = (vaddr_t)cos_get_heap_ptr();
+	if ((heap_vaddr & ~PGD_MASK) == 0) {
+		capid_t pte_cap;
+		vaddr_t ptemem_cap;
+
+		pte_cap    = alloc_capid(CAP_PGTBL);
+		ptemem_cap = get_kmem_cap();
+		assert(pte_cap && ptemem_cap);
+
+		/* PTE */
+		if ((ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
+				       pte_cap, BOOT_CAPTBL_SELF_PT, ptemem_cap, 1))) {
+			printc("LLBOOT err ret %d: could not activate pte_cap %ld\n", ret, pte_cap);
+			return 0;
+		}
+
+		/* Construct pgtbl */
+		if ((ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_CONS, pte_cap, heap_vaddr, 0, 0))) {
+			printc("LLBOOT err ret %d: could not cons captbl pte_cap\n", ret);
+			return 0;
+		}
+	}
+
 	if (heap_vaddr - SERVICE_START > SERVICE_SIZE * (1+BOOTER_NREGIONS)) {
-		printc("Booter out of VAS: heap %p\n", (void *)heap_vaddr); 
+		printc("Booter out of VAS: heap %p\n", (void *)heap_vaddr);
 		return 0;
 	}
 	ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEMACTIVATE,
@@ -336,8 +362,8 @@ __local_mman_alias_page(spdid_t s_spd, vaddr_t s_addr, spdid_t d_spd, vaddr_t d_
 
 static int boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci);
 static void
-comp_info_record(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci) 
-{ 
+comp_info_record(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci)
+{
 	if (!comp_boot_nfo[spdid].symbols_initialized) {
 		comp_boot_nfo[spdid].symbols_initialized = 1;
 		boot_spd_set_symbs(h, spdid, ci);
@@ -355,7 +381,7 @@ static inline void boot_create_init_thds(void)
 	llboot->init_thd     = cos_create_thread(cos_spd_id(), 0, 0);
 	printc("Core %ld, Low-level booter created threads:\n\t"
 	       "%d: alpha\n\t%d: recov\n\t%d: init\n",
-	       cos_cpuid(), llboot->alpha, 
+	       cos_cpuid(), llboot->alpha,
 	       llboot->recovery_thd, llboot->init_thd);
 	assert(llboot->init_thd >= 0);
 }
@@ -386,11 +412,11 @@ capid_t alloc_capid(cap_t cap)
 {
 	/* FIXME: an proper allocation method for 16, 32 and 64B caps. */
 	capid_t ret;
-	
+
 	if (captbl_idsize(cap) == CAP32B_IDSZ) {
 		ret = capid_32b_free;
 		capid_32b_free += CAP32B_IDSZ;
-	} else if (captbl_idsize(cap) == CAP64B_IDSZ 
+	} else if (captbl_idsize(cap) == CAP64B_IDSZ
 		   || captbl_idsize(cap) == CAP16B_IDSZ) {
 		/* 16B is the uncommon case. Only the sret is 16 bytes
 		 * now. Use an entire cacheline for it as well. */
@@ -402,7 +428,7 @@ capid_t alloc_capid(cap_t cap)
 		BUG();
 	}
 	if (unlikely(capid_64b_free < capid_32b_free)) {
-		printc("LLBOOT: no enough CAPTBL IDs.\n");
+		printc("LLBOOT: not enough CAPTBL IDs.\n");
 		return 0;
 	}
 	assert(ret);
@@ -438,7 +464,7 @@ void sync_all()
 	ret = ck_pr_faa_int(&synced_nthd, 1);
 	ret = (ret/NUM_CPU_COS + 1)*NUM_CPU_COS;
 	while (ck_pr_load_int(&synced_nthd) < ret) ;
-	
+
 	return;
 }
 
@@ -467,7 +493,7 @@ boot_comp_thds_init(void)
 	ck_spinlock_ticket_lock(&init_lock);
 	llboot->alpha        = BOOT_CAPTBL_SELF_INITTHD_BASE + cos_cpuid() * captbl_idsize(CAP_THD);
 	llboot->init_thd     = per_core_thd_cap[cos_cpuid()];
-	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, llboot->init_thd, 
+	if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_THDACTIVATE, llboot->init_thd,
 			BOOT_CAPTBL_SELF_PT, per_core_thd_mem[cos_cpuid()], sched_comp->comp_cap)) BUG();
 
 	/* Scheduler should have access to the init thread and alpha
@@ -505,7 +531,7 @@ boot_comp_mm_init(void)
 		/* Grant pgtbl cap to mem_mgr */
 		if (comp_cap_info[i].pgtbl_cap) {
 			if (call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_CPY,
-					comp_cap_info[i].pgtbl_cap, mm_comp->captbl_cap[0], 
+					comp_cap_info[i].pgtbl_cap, mm_comp->captbl_cap[0],
 					MM_CAPTBL_OWN_PGTBL + i * captbl_idsize(CAP_COMP), 0)) BUG();
 		}
 	}
@@ -519,15 +545,17 @@ boot_comp_mm_init(void)
 			pte_cap  = alloc_capid(CAP_PGTBL);
 			kmem_cap = get_kmem_cap();
 
+			assert(kmem_cap);
+
 			/* PTE */
 			if ((ret = call_cap_op(BOOT_CAPTBL_SELF_CT, CAPTBL_OP_PGTBLACTIVATE,
-					       pte_cap, BOOT_CAPTBL_SELF_PT, kmem_cap, 1))) { 
+					       pte_cap, BOOT_CAPTBL_SELF_PT, kmem_cap, 1))) {
 				printc("LLBOOT err ret %d: could not activate pte_cap %ld\n", ret, pte_cap);
 				break;
 			}
 
 			/* Construct pgtbl */
-			if ((ret = call_cap_op(mm_comp->pgtbl_cap, CAPTBL_OP_CONS, pte_cap, mm_memcap, 0, 0))) { 
+			if ((ret = call_cap_op(mm_comp->pgtbl_cap, CAPTBL_OP_CONS, pte_cap, mm_memcap, 0, 0))) {
 				printc("LLBOOT err ret %d: could not cons captbl pte_cap\n", ret);
 				break;
 			}
@@ -536,7 +564,7 @@ boot_comp_mm_init(void)
 
 		/* and grant memory cap by moving */
 		if ((ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEMMOVE,
-				       memcap, mm_comp->pgtbl_cap, mm_memcap, 0))) 
+				       memcap, mm_comp->pgtbl_cap, mm_memcap, 0)))
 			break;
 	}
 
@@ -559,14 +587,14 @@ boot_comp_mm_init(void)
 		kmem++;
 		/* and grant memory cap by moving */
 		if ((ret = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_MEMMOVE,
-				       memcap, mm_comp->pgtbl_cap, mm_memcap, 0))) 
+				       memcap, mm_comp->pgtbl_cap, mm_memcap, 0)))
 			break;
 	}
 
 	printc("LLBooter: granted %lu frames and %lu kernel pages to mem_mgr\n", n_frames, kmem);
 }
 
-static inline void 
+static inline void
 alloc_per_core_thd(void)
 {
 	int i;
@@ -583,7 +611,7 @@ alloc_per_core_thd(void)
 static inline void
 boot_comp_deps_init(void)
 {
-	int i;	
+	int i;
 
 	alloc_per_core_thd();
 	boot_comp_thds_init();
@@ -603,7 +631,7 @@ boot_deps_run(void)
 	return; /* We return to comp0 and release other cores first. */
 }
 
-void 
+void
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
 	printc("core %ld: <<cos_upcall_fn thd %d (type %d, CREATE=%d, DESTROY=%d, FAULT=%d)>>\n",
@@ -621,7 +649,7 @@ cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		       "Major system error.\n", cos_cpuid(), cos_get_thd_id());
 		break;
 	default:
-		printc("Core %ld: thread %d in llboot receives undefined upcall. Params: %d, %p, %p, %p\n", 
+		printc("Core %ld: thread %d in llboot receives undefined upcall. Params: %d, %p, %p, %p\n",
 		       cos_cpuid(), cos_get_thd_id(), t, arg1, arg2, arg3);
 
 		return;
@@ -659,7 +687,7 @@ void comp_deps_run_all(void)
 {
 	sync_all();
 
-	printc("Core %ld: low-level booter switching to init thread (cap %d).\n", 
+	printc("Core %ld: low-level booter switching to init thread (cap %d).\n",
 	       cos_cpuid(), PERCPU_GET(llbooter)->init_thd);
 
 	/* switch to the init thd in the scheduler. */
@@ -679,15 +707,19 @@ sched_init_linux(void)
 {
 	assert(cos_cpuid() < NUM_CPU_COS);
 	if (cos_cpuid() == INIT_CORE) {
-		if (!PERCPU_GET(llbooter)->init_thd) cos_init();
-		else comp_deps_run_all();
+		if (!PERCPU_GET(llbooter)->init_thd) {
+			cos_init();
+			assert(PERCPU_GET(llbooter)->init_thd);
+		} else {
+			comp_deps_run_all();
+		}
 	} else {
 		LOCK();
 		boot_comp_thds_init();
 		UNLOCK();
 		comp_deps_run_all();
 	}
-	
+
 	return 0;
 }
 
@@ -695,7 +727,7 @@ int
 sched_init_i386(void)
 {
 	assert(cos_cpuid() < NUM_CPU_COS);
-	
+
 	if (cos_cpuid() == INIT_CORE) {
 		cos_init();
 		assert(PERCPU_GET(llbooter)->init_thd);
@@ -706,48 +738,42 @@ sched_init_i386(void)
 		UNLOCK();
 		comp_deps_run_all();
 	}
-	
+
 	return 0;
 }
 
 #include <cpu_ghz.h>
-int 
-sched_init(void)   
+int
+sched_init(void)
 {
-#ifdef COS_PLATFORM
-
-#if    COS_PLATFORM == I386
+#ifdef COS_LINUX
+#error "GAP: COS_LINUX should not be defined."
+	return sched_init_linux();
+#else
 	return sched_init_i386();
-#else
-	return sched_init_linux();
-#endif
-
-#else
-	return sched_init_linux();
 #endif
 }
 
 int  sched_isroot(void) { return 1; }
-void 
+void
 sched_exit(void)
 {
 	printc("LLBooter: Core %ld called sched_exit. Switching back to alpha.\n", cos_cpuid());
-	while (1) cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0);	
+	while (1) cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0);
 }
 
-int 
-sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff) 
+int
+sched_child_get_evt(spdid_t spdid, struct sched_child_evt *e, int idle, unsigned long wake_diff)
 { BUG(); return 0; }
 
-int 
-sched_child_cntl_thd(spdid_t spdid) 
-{ 
+int
+sched_child_cntl_thd(spdid_t spdid)
+{
 	if (cos_sched_cntl(COS_SCHED_PROMOTE_CHLD, 0, spdid)) {BUG(); while(1);}
 	/* printc("Grant thd %d to sched %d\n", cos_get_thd_id(), spdid); */
 	if (cos_sched_cntl(COS_SCHED_GRANT_SCHED, cos_get_thd_id(), spdid)) BUG();
 	return 0;
 }
 
-int 
+int
 sched_child_thd_crt(spdid_t spdid, spdid_t dest_spd) { BUG(); return 0; }
-

@@ -256,12 +256,14 @@ pgtbl_quie_check(u32_t orig_v)
 	return 0;
 }
 
-/* this works on both kmem and regular user memory: the retypetbl_ref
- * works on both. */
+/* 
+ * this works on both kmem and regular user memory: the retypetbl_ref
+ * works on both.
+ */
 static int
 pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {
-	int ret;
+	int ret = 0;
 	struct ert_intern *pte;
 	u32_t orig_v, accum = 0;
 
@@ -272,6 +274,7 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	/* get the pte */
 	pte = (struct ert_intern *)__pgtbl_lkupan((pgtbl_t)((u32_t)pt|PGTBL_PRESENT), 
 						  addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &accum);
+	if (!pte) return -ENOENT;
 	orig_v = (u32_t)(pte->next);
 
 	if (orig_v & PGTBL_PRESENT)  return -EEXIST;
@@ -286,15 +289,18 @@ pgtbl_mapping_add(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 	if (ret) return ret;
 
 	ret = __pgtbl_update_leaf(pte, (void *)(page | flags), orig_v);
-	if (ret) {
-		/* restore the ref cnt. */
-		retypetbl_deref((void *)page);
-	}
+	/* restore the refcnt if necessary */
+	if (ret) retypetbl_deref((void *)page);
 
 	return ret;
 }
 
-/* TODO: remove. a hack for kmem. */
+/* 
+ * FIXME: a hack used to get more kmem available in Linux booting
+ * environment. Only used when booting up in Linux (hijack.c). This
+ * just adds the Linux allocated kmem into pgtbl w/o checking
+ * quiescence or refcnt. 
+ */
 static int
 kmem_add_hack(pgtbl_t pt, u32_t addr, u32_t page, u32_t flags)
 {
