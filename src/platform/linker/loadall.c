@@ -36,7 +36,6 @@ unsigned long getsym(bfd *obj, char* symbol)
 
         if (cached_obj != obj) {
                 storage_needed = bfd_get_symtab_upper_bound (obj);
-                printf("storage_needed: %d\n", storage_needed);
 
                 if (storage_needed <= 0){
                         printl(PRINT_HIGH, "no symbols in object file\n");
@@ -46,7 +45,6 @@ unsigned long getsym(bfd *obj, char* symbol)
                 symbol_table = (asymbol **) malloc (storage_needed);
                 assert(symbol_table);
                 number_of_symbols = bfd_canonicalize_symtab(obj, symbol_table);
-                printf("number_of_symbols: %d\n", number_of_symbols);
 
                 if (cached_obj) {
                         free(cached_symbol_table);
