@@ -10,4 +10,4 @@ objcopy -L _exit     cos.bin
 
 ld -r -o rumpcos.o cos.bin unikernboot.o
 
-cp rumpcos.o ../../../../../../Transfer
+cp rumpcos.o ~/transfer
