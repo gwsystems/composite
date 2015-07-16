@@ -230,8 +230,7 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 	printc("llboot (%d) fault_quarantine_handler %d (%d) -> %d (%d)\n", spdid, c_spd, c_cnt, d_spd, d_cnt);
 
 	if (c_cnt) {
-		printc("Fixing server metadata after fork from %d\n",
-				c_spd);
+		printc("Fixing server %d metadata after fork from %d\n", d_spd, c_spd);
 		/* TODO: upcall here? */
 
 		cos_spd_cntl(COS_SPD_INC_FORK_CNT, c_spd, -c_cnt, 0);
@@ -244,8 +243,7 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 	 * capability to the usr_cap_tbl a syscall is needed anyway to fix
 	 * the struct spd caps[], ncaps. So just do it once.
 	 */
-		printc("Fixing routing table after fork from %d\n",
-				d_spd);
+		printc("Fixing routing table in %d after fork from %d\n", c_spd,d_spd);
 
 		// TODO: add / change ucap, routing table
 		cos_spd_cntl(COS_SPD_INC_FORK_CNT, d_spd, -d_cnt, 0);
