@@ -232,9 +232,17 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 	printl("fault_quarantine_handler %d (%d) -> %d (%d)\n", c_spd, c_cnt, d_spd, d_cnt);
 
 	if (c_cnt) {
-		f_spd = quarantine_get_spd_map(c_spd);
-		printl("Fixing server metadata after fork from %d -> %d\n",
-				c_spd, f_spd);
+	/* Either c_spd is a fork, or c_spd has been forked. Either way,
+	 * the server (d_spd) needs to have its metadata related to c_spd
+	 * fixed. The server can determine the case (fork, forkee). */
+		/* if we know for sure that c_spd is the fork, then we can
+		 * (linear) search for the o_spd. If c_spd is the forkee (o_spd)
+		 * then the following will work. But usually we expect that
+		 * c_spd is the fork, since that request is most likely next
+		 * to happen */
+		/* f_spd = quarantine_get_spd_map(c_spd); */
+		printl("Fixing server metadata for spd %d after fork\n",
+				c_spd);
 		/* TODO: upcall here? */
 
 		cos_spd_cntl(COS_SPD_INC_FORK_CNT, c_spd, -c_cnt, 0);
