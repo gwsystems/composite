@@ -155,6 +155,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	curr_frame = &thd->stack_base[thd->stack_ptr];
 	dest_spd = cap_entry->destination;
 
+	/* printk("cos: dest_spd %d, address %x\n", spd_get_index(dest_spd), cap_entry->dest_entry_instruction); */
 
 	if (unlikely(!dest_spd || curr_spd == CAP_FREE || curr_spd == CAP_ALLOCATED_UNUSED)) {
 		printk("cos: Attempted use of unallocated capability.\n");
@@ -326,7 +327,7 @@ __fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_
 	unsigned int fault_cap;
 	struct pt_regs *nregs;
 
-	/* printk("thd %d, fault addr %p, flags %d, fault num %d\n", thd_get_id(thd), fault_addr, flags, fault_num); */
+	printk("thd %d, spd %d, fault addr %p, flags %d, fault num %d\n", thd_get_id(thd), s ? spd_get_index(s) : 0, fault_addr, flags, fault_num);
 	/* corrupted ip? */
 	if (unlikely(!s)) {
 		curr_frame = thd_invstk_top(thd);
@@ -355,6 +356,8 @@ __fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_
 	/* save the faulting registers */
 	memcpy(&thd->fault_regs, regs, sizeof(struct pt_regs));
 	a = ipc_walk_static_cap(fault_cap<<20, 0, 0, &r); /* GB: sp, ip? */
+
+	/* printk("cos: got fault handler @ %x for fault_num %d (with cap %d)\n", a, fault_num, fault_cap); */
 
 	/* setup the registers for the fault handler invocation */
 	regs->ax = r.thd_id;
