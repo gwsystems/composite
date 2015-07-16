@@ -250,6 +250,8 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 		cos_spd_cntl(COS_SPD_INC_FORK_CNT, d_spd, -d_cnt, 0);
 	}
 
+	printc("Done fixing, returning to invocation frame\n");
+
 	/* remove from the invocation stack the faulting component! */
 	assert(!cos_thd_cntl(COS_THD_INV_FRAME_REM, tid, 1, 0));
 
