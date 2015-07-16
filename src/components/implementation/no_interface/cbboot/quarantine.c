@@ -236,6 +236,8 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 		printl("Fixing server metadata after fork from %d -> %d\n",
 				c_spd, f_spd);
 		/* TODO: upcall here? */
+
+		cos_spd_cntl(COS_SPD_INC_FORK_CNT, c_spd, -c_cnt, 0);
 	}
 	if (d_cnt) {
 	/* d_spd has been forked, and c_spd needs to have its inv caps fixed.
@@ -250,6 +252,8 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 				d_spd, f_spd);
 
 		// TODO: add / change ucap, routing table
+		
+		cos_spd_cntl(COS_SPD_INC_FORK_CNT, d_spd, -d_cnt, 0);
 	}
 
 	/* remove from the invocation stack the faulting component! */
