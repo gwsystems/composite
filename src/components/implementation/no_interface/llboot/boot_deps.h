@@ -232,6 +232,7 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 	if (c_cnt) {
 		printc("Fixing server %d metadata after fork from %d\n", d_spd, c_spd);
 		/* TODO: upcall here? */
+		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, c_spd);
 
 		cos_spd_cntl(COS_SPD_INC_FORK_CNT, c_spd, -c_cnt, 0);
 	}
