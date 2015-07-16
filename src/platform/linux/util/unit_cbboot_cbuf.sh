@@ -9,18 +9,18 @@ c0.o-llboot.o;\
 fprr.o-print.o|[parent_]mm.o|[faulthndlr_]llboot.o;\
 mm.o-[parent_]llboot.o|print.o;\
 boot.o-print.o|fprr.o|mm.o|llboot.o;\
-l.o-fprr.o|mm.o|print.o;\
-te.o-cbuf.o|print.o|fprr.o|mm.o|va.o;\
-e.o-cbuf.o|fprr.o|print.o|mm.o|l.o|va.o;\
-stat.o-cbuf.o|te.o|fprr.o|l.o|print.o|e.o;\
-pfr.o-fprr.o|mm.o|print.o|boot.o;\
-cbuf.o-boot.o|fprr.o|print.o|l.o|mm.o|va.o|mpool.o;\
-mpool.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o;\
+l.o-fprr.o|mm.o|print.o|llboot.o;\
+te.o-cbuf.o|print.o|fprr.o|mm.o|va.o|llboot.o;\
+e.o-cbuf.o|fprr.o|print.o|mm.o|l.o|va.o|llboot.o;\
+stat.o-cbuf.o|te.o|fprr.o|l.o|print.o|e.o|cbboot.o;\
+pfr.o-fprr.o|mm.o|print.o|boot.o|[parent_]llboot.o;\
+cbuf.o-boot.o|fprr.o|print.o|l.o|mm.o|va.o|mpool.o|llboot.o;\
+mpool.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o|llboot.o;\
 cbboot.o-print.o|fprr.o|mm.o|boot.o|cbuf.o;\
-vm.o-fprr.o|print.o|mm.o|l.o|boot.o;\
-va.o-fprr.o|print.o|mm.o|l.o|boot.o|vm.o;\
+vm.o-fprr.o|print.o|mm.o|l.o|boot.o|llboot.o;\
+va.o-fprr.o|print.o|mm.o|l.o|boot.o|vm.o|llboot.o;\
 ucbuf1.o-fprr.o|ucbuf2.o|ucbufp.o|print.o|mm.o|va.o|cbuf.o|l.o|cbboot.o;\
-ucbuf2.o-print.o|mm.o|va.o|cbuf.o|l.o;\
+ucbuf2.o-print.o|mm.o|va.o|cbuf.o|l.o|cbboot.o;\
 ucbufp.o-fprr.o|print.o|mm.o|va.o|cbuf.o|l.o|te.o|cbboot.o\
 " ./gen_client_stub
 
