@@ -465,6 +465,15 @@ int spd_get_fork_cnt(struct spd *spd)
 	return (int)spd->fork.cnt;
 }
 
+int spd_set_fork_origin(struct spd *spd, int origin)
+{
+	return spd->fork.origin = origin;
+}
+int spd_get_fork_origin(struct spd *spd)
+{
+	return spd->fork.origin;
+}
+
 /* 
  * Static Capability Manipulation Functions
  */

@@ -3255,6 +3255,12 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 		ret = spd_get_fork_cnt(spd);
 		if (spd_set_fork_cnt(spd, ret | arg1)) ret = -1;
 		break;
+	case COS_SPD_SET_FORK_ORIGIN:
+		if (spd_set_fork_origin(spd, arg1) != arg1) ret = -1;
+		break;
+	case COS_SPD_GET_FORK_ORIGIN:
+		ret = spd_get_fork_origin(spd);
+		break;
 	default:
 		ret = -1;
 	}

@@ -237,13 +237,14 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 		 * 3) Cheat and divide the spdid namespace in half and store
 		 *    the o_spd->id in half of the f_spd->id.
 		 */
-		printc("Fixing server %d metadata after fork from %d\n", d_spd, c_spd);
+		f_spd = cos_spd_cntl(COS_SPD_GET_FORK_ORIGIN, c_spd, 0, 0);
+		printc("Fixing server %d metadata for spd %d after fork to %d\n", d_spd, f_spd, c_spd);
 		/* TODO: upcall here? */
-		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, c_spd);
+		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, (f_spd<<16)|c_spd);
 
-		cos_spd_cntl(COS_SPD_INC_FORK_CNT, c_spd, -c_cnt, 0);
+		cos_spd_cntl(COS_SPD_INC_FORK_CNT, d_spd, d_fix, 0);
 	}
-	if (d_cnt) {
+	if (c_fix) {
 	/* d_spd has been forked, and c_spd needs to have its inv caps fixed.
 	 * Two possible ways to fix c_spd are to (1) find the usr_cap_tbl and
 	 * add a capability for the fork directly, or (2) add a syscall to
@@ -251,10 +252,12 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 	 * capability to the usr_cap_tbl a syscall is needed anyway to fix
 	 * the struct spd caps[], ncaps. So just do it once.
 	 */
+		/* TODO: get the f_spd? */
 		printc("Fixing routing table in %d after fork from %d\n", c_spd,d_spd);
 
 		// TODO: add / change ucap, routing table
-		cos_spd_cntl(COS_SPD_INC_FORK_CNT, d_spd, -d_cnt, 0);
+
+		cos_spd_cntl(COS_SPD_INC_FORK_CNT, c_spd, c_fix, 0);
 	}
 
 	printc("Done fixing, returning to invocation frame\n");

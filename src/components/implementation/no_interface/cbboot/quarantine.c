@@ -26,14 +26,8 @@ quarantine_get_spd_map(int orig_spd) {
 
 static int
 quarantine_search_spd_map(int fork_spd) {
-	int i = 0;
-	/* Terrible linear search */
-	while (quarantine_spd_map[i] != fork_spd) {
-		if (++i == SPD_MAP_NELEM) return -1;
-	}
-	return i;
-}
-
+	return cos_spd_cntl(COS_SPD_GET_FORK_ORIGIN, fork_spd, 0, 0);
+}	
 
 /* Called after fork() finished copying the spd from source to target.
  */
@@ -107,6 +101,9 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	init_daddr = sect->vaddr;
 	if (cos_spd_cntl(COS_SPD_LOCATION, d_spd, sect->vaddr, SERVICE_SIZE)) BUG();
 	printl("Set location to %x\n", (unsigned long)sect->vaddr);
+	
+	if (cos_spd_cntl(COS_SPD_SET_FORK_ORIGIN, d_spd, source, 0)) BUG();
+	printl("Set fork origin to %d\n", source);
 
 	for (j = 0 ; j < (int)h->nsect ; j++) {
 		tot += cobj_sect_size(h, j);
@@ -261,9 +258,9 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 	if (d_fix) {
 	/* Either c_spd is a fork, or c_spd has been forked. Either way,
 	 * the server (d_spd) needs to have its metadata related to c_spd
-	 * fixed. The server can determine the case (fork, forkee). */
+	 * fixed. The server possibly can determine the case (fork, forkee). */
 		/* if we know for sure that c_spd is the fork, then we can
-		 * (linear) search for the o_spd. If c_spd is the forkee (o_spd)
+		 * search for the o_spd. If c_spd is the forkee (o_spd)
 		 * then the following will work. But usually we expect that
 		 * c_spd is the fork, since that request is most likely next
 		 * to happen. FIXME: Except that d_spd may not have a dep to

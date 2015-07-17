@@ -61,6 +61,7 @@ struct usr_cap_stubs {
  */
 struct fork_counter {
 	unsigned long cnt;
+	int origin;
 };
 struct spd;
 struct invocation_cap {
@@ -251,6 +252,8 @@ void spd_init(void);
 
 int spd_set_fork_cnt(struct spd *spd, int n);
 int spd_get_fork_cnt(struct spd *spd);
+int spd_set_fork_origin(struct spd *spd, int origin);
+int spd_get_fork_origin(struct spd *spd);
 
 int spd_cap_activate(struct spd *spd, int cap);
 int spd_cap_set_dest(struct spd *spd, int cap, struct spd* dspd);
