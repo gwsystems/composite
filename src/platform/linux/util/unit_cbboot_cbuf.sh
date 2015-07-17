@@ -6,6 +6,7 @@
 !pfr.o,a2;!l.o,a1;!mpool.o,a3;!te.o,a3;!e.o,a4;!cbuf.o,a5;!va.o,a2;!vm.o,a1;!cbboot.o,a6;!ucbuf1.o,a10;!ucbuf2.o, ;!ucbufp.o,a9;!stat.o,a25:\
 \
 c0.o-llboot.o;\
+print.o-llboot.o;\
 fprr.o-print.o|[parent_]mm.o|[faulthndlr_]llboot.o;\
 mm.o-[parent_]llboot.o|print.o;\
 boot.o-print.o|fprr.o|mm.o|llboot.o;\

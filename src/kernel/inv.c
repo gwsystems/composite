@@ -100,21 +100,40 @@ struct inv_ret_struct {
 };
 
 /* TODO: may want to include thd->fork.cnt */
+/* FIXME: This is all pretty nasty and hackish, brittle, and needs to be
+ * reworked. The current idea is that each spd has two arrays of bits that
+ * represent fork events. The first array indicates an spd has been forked
+ * by that event, and the second array indicates the spd has been fixed for
+ * that fork event (i.e. routing table updated or spdid-based metadata fixup).
+ * Here we check if either end of an invocation has been forked, and if so
+ * whether the other end has been fixed for that fork event.
+ * For now we are using the upper-16 bits of the fork->cnt for the first array
+ * and the lower-16 bits for the second.
+ */
 static inline int
 need_fork_fix(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd)
 {
-	int c_cnt, d_cnt;
+	int c_cnt, d_cnt, c_fix, d_fix;
+	int cforked, dforked, chandled, dhandled;
 	c_cnt = spd_get_fork_cnt(curr_spd);
 	d_cnt = spd_get_fork_cnt(dest_spd);
 
-	assert(c_cnt >= 0);
-	assert(d_cnt >= 0);
+	cforked = c_cnt >> 16;
+	dforked = d_cnt >> 16;
+	chandled = c_cnt & 0xffff;
+	dhandled = d_cnt & 0xffff;
 
-	return c_cnt + d_cnt;
+	/* need to fix c if the fork events of d are not a subset of those
+	 * handled by c. */
+	c_fix = (dforked & chandled) ^ dforked;
+	d_fix = (cforked & dhandled) ^ cforked;
+
+	/* send the events that need fixing, if any */
+	return (c_fix<<16) | d_fix;
 }
 
 static vaddr_t
-thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd, int fault_num, struct inv_ret_struct *ret);
+thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd, int packed_counts, int fault_num, struct inv_ret_struct *ret);
 
 /* 
  * FIXME: 1) should probably return the static capability to allow
@@ -130,6 +149,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	struct spd *curr_spd, *dest_spd;
 	struct invocation_cap *cap_entry;
 	struct thread *thd = core_get_curr_thd_id(get_cpuid_fast());
+	int fork_cnts = 0;
 
 	capability >>= 20;
 
@@ -204,8 +224,9 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	cap_entry->invocation_cnt++;
 
 	/* Check for forking */
-	if (unlikely(need_fork_fix(thd, curr_spd, dest_spd))) {
-		return thd_quarantine_fault(thd, curr_spd, dest_spd, COS_FLT_QUARANTINE, ret);
+	fork_cnts = need_fork_fix(thd, curr_spd, dest_spd);
+	if (unlikely(fork_cnts > 0)) {
+		return thd_quarantine_fault(thd, curr_spd, dest_spd, fork_cnts, COS_FLT_QUARANTINE, ret);
 	}
 
 	return cap_entry->dest_entry_instruction;
@@ -381,14 +402,19 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 }
 
 static vaddr_t
-thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd, int fault_num, struct inv_ret_struct *ret)
+thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd, int packed_counts, int fault_num, struct inv_ret_struct *ret)
 {
-	int c_spd, d_spd, c_cnt, d_cnt, packed_counts;
+	int c_spd, d_spd, c_cnt, d_cnt;
 	vaddr_t packed_spds;
 
+	/*
 	c_cnt = spd_get_fork_cnt(curr_spd);
 	d_cnt = spd_get_fork_cnt(dest_spd);
 	packed_counts = (c_cnt<<16)|d_cnt;
+	*/
+	/* for debug purposes */
+	c_cnt = packed_counts>>16;
+	d_cnt = packed_counts & 0xffff;
 
 	c_spd = spd_get_index(curr_spd);
 	d_spd = spd_get_index(dest_spd);
@@ -3056,7 +3082,7 @@ cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
 	case COS_CAP_INC_FORK_CNT:
 		ret = spd_cap_get_fork_cnt(cspd, capid);
 		if ( ret < 0 ) break;
-		if (spd_cap_set_fork_cnt(cspd, capid, ret + arg2)) ret = -1;
+		if (spd_cap_set_fork_cnt(cspd, capid, ret | arg2)) ret = -1;
 		break;
 	default:
 		ret = -1;
@@ -3227,7 +3253,7 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 	}
 	case COS_SPD_INC_FORK_CNT:
 		ret = spd_get_fork_cnt(spd);
-		if (spd_set_fork_cnt(spd, ret + arg1)) ret = -1;
+		if (spd_set_fork_cnt(spd, ret | arg1)) ret = -1;
 		break;
 	default:
 		ret = -1;

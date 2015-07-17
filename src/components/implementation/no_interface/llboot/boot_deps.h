@@ -219,17 +219,24 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 {
 	unsigned long r_ip;
 	int tid = cos_get_thd_id();
-	int c_spd, d_spd, c_cnt, d_cnt;
+	int c_spd, d_spd, c_fix, d_fix;
 	int f_spd;
-	c_cnt = ccnt_dcnt>>16;
-	d_cnt = ccnt_dcnt&0xffff;
+	c_fix = ccnt_dcnt>>16;
+	d_fix = ccnt_dcnt&0xffff;
 	c_spd = cspd_dspd>>16;
 	d_spd = cspd_dspd&0xffff;
 
 	printc("llboot args: %d\t%d\n", cspd_dspd, ccnt_dcnt);
-	printc("llboot (%d) fault_quarantine_handler %d (%d) -> %d (%d)\n", spdid, c_spd, c_cnt, d_spd, d_cnt);
+	printc("llboot (%d) fault_quarantine_handler %d (%d) -> %d (%d)\n", spdid, c_spd, c_fix, d_spd, d_fix);
 
-	if (c_cnt) {
+	if (d_fix) {
+		/* FIXME: how to get the f_spd? see quarantine.c.
+		 * Possible solutions:
+		 * 1) Share the structure between cbboot and llboot.
+		 * 2) Store knowledge in kernel and add a system call.
+		 * 3) Cheat and divide the spdid namespace in half and store
+		 *    the o_spd->id in half of the f_spd->id.
+		 */
 		printc("Fixing server %d metadata after fork from %d\n", d_spd, c_spd);
 		/* TODO: upcall here? */
 		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, c_spd);

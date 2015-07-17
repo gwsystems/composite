@@ -84,6 +84,8 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	int j, r;
 	int generation;
 
+	/* FIXME: fork counting hack. */
+	static int fork_count = 0;
 	/* FIXME: initialization hack. */
 	static int first = 1;
 	if (first) { memset(quarantine_spd_map, 0, PAGE_SIZE); first = 0; }
@@ -189,8 +191,13 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 
 	/* Increment the fork.cnt in source and d_spd struct spd.
 	 * FIXME: are different forks comparable system-wide? */
-	cos_spd_cntl(COS_SPD_INC_FORK_CNT, source, 1, 0);
-	cos_spd_cntl(COS_SPD_INC_FORK_CNT, d_spd, 1, 0);
+	cos_spd_cntl(COS_SPD_INC_FORK_CNT, source, 1<<(fork_count+16), 0);
+	cos_spd_cntl(COS_SPD_INC_FORK_CNT, d_spd, 1<<(fork_count+16), 0);
+	fork_count++;
+	if (fork_count >= 16) {
+		printl("Fork count overflowed, resetting!\n");
+		fork_count = 0;
+	}
 
 	/* FIXME: better way to pick threads out. this will get the first
 	 * thread, preference to blocked, then search inv stk. The
@@ -242,16 +249,16 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 {
 	unsigned long r_ip;
 	int tid = cos_get_thd_id();
-	int c_spd, d_spd, c_cnt, d_cnt;
+	int c_spd, d_spd, c_fix, d_fix;
 	int f_spd;
-	c_cnt = ccnt_dcnt>>16;
-	d_cnt = ccnt_dcnt&0xffff;
+	c_fix = ccnt_dcnt>>16;
+	d_fix = ccnt_dcnt&0xffff;
 	c_spd = cspd_dspd>>16;
 	d_spd = cspd_dspd&0xffff;
 
-	printl("fault_quarantine_handler %d (%d) -> %d (%d)\n", c_spd, c_cnt, d_spd, d_cnt);
+	printl("fault_quarantine_handler %d (%d) -> %d (%d)\n", c_spd, c_fix, d_spd, d_fix);
 
-	if (c_cnt) {
+	if (d_fix) {
 	/* Either c_spd is a fork, or c_spd has been forked. Either way,
 	 * the server (d_spd) needs to have its metadata related to c_spd
 	 * fixed. The server can determine the case (fork, forkee). */
@@ -268,9 +275,9 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 	
 		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, (f_spd<<16)|c_spd);
 
-		cos_spd_cntl(COS_SPD_INC_FORK_CNT, c_spd, -c_cnt, 0);
+		cos_spd_cntl(COS_SPD_INC_FORK_CNT, d_spd, d_fix, 0);
 	}
-	if (d_cnt) {
+	if (c_fix) {
 	/* d_spd has been forked, and c_spd needs to have its inv caps fixed.
 	 * Two possible ways to fix c_spd are to (1) find the usr_cap_tbl and
 	 * add a capability for the fork directly, or (2) add a syscall to
@@ -284,7 +291,7 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 
 		// TODO: add / change ucap, routing table
 		
-		cos_spd_cntl(COS_SPD_INC_FORK_CNT, d_spd, -d_cnt, 0);
+		cos_spd_cntl(COS_SPD_INC_FORK_CNT, c_spd, c_fix, 0);
 	}
 
 	/* remove from the invocation stack the faulting component! */
