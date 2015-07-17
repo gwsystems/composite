@@ -3,6 +3,11 @@
 #include <unit_cbuf.h>
 #include <cbuf.h>
 
+void cos_fix_spdid_metadata(spdid_t the_spd)
+{
+	printc("fixing metadata in unit_cbuf2\n");
+}
+
 void unit_cbuf(cbuf_t cbuf, int sz)
 {
 	char *c = cbuf2buf(cbuf, sz);

@@ -148,6 +148,11 @@ cbufp_tests()
 	printc("UNIT TEST (CBUFP) ALL PASSED\n");
 }
 
+void cos_fix_spdid_metadata(spdid_t the_spd)
+{
+	printc("fixing metadata in unit_cbuf1\n");
+}
+
 void cos_init(void)
 {
 	//spdid_t new_spd;
