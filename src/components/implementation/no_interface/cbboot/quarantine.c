@@ -13,8 +13,9 @@ spdid_t quarantine_spd_map[PAGE_SIZE/sizeof(spdid_t)];
 
 static int
 quarantine_add_to_spd_map(int orig_spd, int fork_spd) {
+	/* FIXME: need something other than a flat array... */
 	assert(quarantine_spd_map[orig_spd] == 0);
-	quarantine_spd_map[orig_spd] = fork_spd;
+	return quarantine_spd_map[orig_spd] = fork_spd;
 }
 
 static int
@@ -203,6 +204,8 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	r = cbuf_fork_spd(cos_spd_id(), source, d_spd);
 	if (r) printc("Error (%d) in cbuf_fork_spd\n", r);
 
+	/* TODO: valloc */
+
 	quarantine_migrate(cos_spd_id(), source, d_spd, d_thd);
 	//if (cos_upcall(d_spd, NULL)) printl("Upcall failed\n");
 
@@ -239,11 +242,13 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 		 * (linear) search for the o_spd. If c_spd is the forkee (o_spd)
 		 * then the following will work. But usually we expect that
 		 * c_spd is the fork, since that request is most likely next
-		 * to happen */
+		 * to happen. FIXME: Except that d_spd may not have a dep to
+		 * the Quarantine Manager, so it may not be able to inquire. */
 		/* f_spd = quarantine_get_spd_map(c_spd); */
-		printl("Fixing server metadata for spd %d after fork\n",
-				c_spd);
-		/* TODO: upcall here? */
+		printl("Fixing server %d's metadata for spd %d after fork\n",
+				d_spd, c_spd);
+	
+		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, c_spd);
 
 		cos_spd_cntl(COS_SPD_INC_FORK_CNT, c_spd, -c_cnt, 0);
 	}

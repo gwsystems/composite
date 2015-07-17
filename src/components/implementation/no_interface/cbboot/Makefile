@@ -2,7 +2,7 @@ C_OBJS=booter.o quarantine.o
 ASM_OBJS=
 COMPONENT=cbboot.o
 INTERFACES=failure_notif cgraph quarantine qfault
-DEPENDENCIES=sched printc mem_mgr cinfo cbuf_mgr
+DEPENDENCIES=sched printc mem_mgr cinfo cbuf_mgr upcall
 IF_LIB=
 ADDITIONAL_LIBS=-lcobj_format
 
