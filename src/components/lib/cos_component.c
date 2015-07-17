@@ -73,7 +73,7 @@ static void cos_thd_entry_exec(u32_t idx) {
 }
 
 __attribute__ ((weak))
-void cos_fix_spdid_metadata(spdid_t the_spd)
+void cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd)
 {
 	return;
 }
@@ -109,7 +109,9 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 		}
 		return;
 	}
-	case COS_UPCALL_QUARANTINE: cos_fix_spdid_metadata((spdid_t)arg1); return;
+	case COS_UPCALL_QUARANTINE:
+		cos_fix_spdid_metadata((spdid_t)((int)arg1>>16), (spdid_t)((int)arg1&0xffff));
+		return;
 	default:
 		/* fault! */
 		*(int*)NULL = 0;

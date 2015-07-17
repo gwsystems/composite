@@ -9,7 +9,8 @@
  *
  * FIXME: need a smarter data structure here to allow forking the same
  * component multiple times */
-spdid_t quarantine_spd_map[PAGE_SIZE/sizeof(spdid_t)];
+#define SPD_MAP_NELEM (PAGE_SIZE/sizeof(spdid_t))
+spdid_t quarantine_spd_map[SPD_MAP_NELEM];
 
 static int
 quarantine_add_to_spd_map(int orig_spd, int fork_spd) {
@@ -19,9 +20,20 @@ quarantine_add_to_spd_map(int orig_spd, int fork_spd) {
 }
 
 static int
-quarantine_get_spd_map(orig_spd) {
+quarantine_get_spd_map(int orig_spd) {
 	return quarantine_spd_map[orig_spd];
 }
+
+static int
+quarantine_search_spd_map(int fork_spd) {
+	int i = 0;
+	/* Terrible linear search */
+	while (quarantine_spd_map[i] != fork_spd) {
+		if (++i == SPD_MAP_NELEM) return -1;
+	}
+	return i;
+}
+
 
 /* Called after fork() finished copying the spd from source to target.
  */
@@ -189,9 +201,12 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	/* TODO: instead of blocking the thread, perhaps it can run through
 	 * the end of its current invocation? */
 
-	/* inform servers about fork */
+	/* inform servers about fork. Have to let servers update
+	 * spdid-based metadata before either the source (orig) or d_spd (fork)
+	 * make invocations to the servers. This is also done lazily through
+	 * the upcall mechanism in the fault handling path. */
 	/* should iterate the forked spd's deps and inform each? */
-	/* mman */
+	/* mman: have to do this now so the memory maps are available. */
 	if (tot > SERVICE_SIZE) tot = SERVICE_SIZE + 3 * round_up_to_pgd_page(1) - tot;
 	else tot = SERVICE_SIZE - tot;
 	printl("Telling mman to fork(%d, %d, %d, %x, %d)\n", cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
@@ -199,12 +214,14 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	r = mman_fork_spd(cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
 	if (r) printc("Error (%d) in mman_fork_spd\n", r);
 
+#if 0
 	/* cbuf */
 	printl("Telling cbuf to fork(%d, %d, %d)\n", cos_spd_id(), source, d_spd);
 	r = cbuf_fork_spd(cos_spd_id(), source, d_spd);
 	if (r) printc("Error (%d) in cbuf_fork_spd\n", r);
 
 	/* TODO: valloc */
+#endif
 
 	quarantine_migrate(cos_spd_id(), source, d_spd, d_thd);
 	//if (cos_upcall(d_spd, NULL)) printl("Upcall failed\n");
@@ -244,11 +261,12 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 		 * c_spd is the fork, since that request is most likely next
 		 * to happen. FIXME: Except that d_spd may not have a dep to
 		 * the Quarantine Manager, so it may not be able to inquire. */
-		/* f_spd = quarantine_get_spd_map(c_spd); */
-		printl("Fixing server %d's metadata for spd %d after fork\n",
-				d_spd, c_spd);
+		/* Assuming c_spd is the forked component, so find the orig */
+		f_spd = quarantine_search_spd_map(c_spd);
+		
+		printl("Fixing server %d's metadata for spd %d after fork to %d\n", d_spd, f_spd, c_spd);
 	
-		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, c_spd);
+		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, (f_spd<<16)|c_spd);
 
 		cos_spd_cntl(COS_SPD_INC_FORK_CNT, c_spd, -c_cnt, 0);
 	}

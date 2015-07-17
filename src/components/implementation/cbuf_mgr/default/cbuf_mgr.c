@@ -551,6 +551,17 @@ done:
 	return ret;
 }
 
+void cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd)
+{
+	int r;
+
+	printc("cbuf: cos_fix_spdid_metadata for %d -> %d\n", o_spd, f_spd);
+	
+	r = cbuf_fork_spd(cos_spd_id(), o_spd, f_spd);
+	if (r) printc("Error (%d) in cbuf_fork_spd\n", r);
+	/* TODO: valloc */
+}
+
 /*
  * Allocate and map the garbage-collection list used for cbuf_collect()
  */
