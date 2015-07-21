@@ -138,7 +138,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	paging_init();
 
 	kern_boot_comp();
-	timer_init(TIMER_FREQUENCY, 1000000000);
+	timer_init(TIMER_FREQUENCY, DEFAULT_FREQUENCY);
 	kern_boot_upcall();
 	/* should not get here... */
 	khalt(); 
