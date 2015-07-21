@@ -147,7 +147,7 @@ typedef enum {
 	RODATA_S, 
 	CTORS_S, 
 	DTORS_S, 
-	INIT_ARRAR_S,
+	INIT_ARRAY_S,
 	FINI_ARRAY_S,
 	CRECOV_S, 
 	KMEM_S, 
@@ -197,7 +197,7 @@ struct cos_sections section_info[MAXSEC_S+1] = {
 		.sname      = ".dtors",
 	},
  	{
-		.secid      = INIT_ARRAR_S,
+		.secid      = INIT_ARRAY_S,
 		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_INITONCE,
 		.coalesce   = 1,
 		.sname      = ".init_array",
