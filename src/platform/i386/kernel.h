@@ -24,9 +24,13 @@ void console_init(void);
 void serial_init(void);
 #endif
 
-#ifdef ENABLE_TIMER
-void timer_init(u32_t frequency);
-#endif
+enum {
+    TIMER_FREQUENCY,
+    TIMER_ONESHOT
+};
+
+void timer_set(int timer_type, u32_t cycles);
+void timer_init(int timer_type, u32_t cycles);
 
 void tss_init(void);
 void idt_init(void);

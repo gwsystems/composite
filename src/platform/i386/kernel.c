@@ -1,5 +1,4 @@
 #define ENABLE_SERIAL
-#define ENABLE_TIMER
 
 #include "assert.h"
 #include "kernel.h"
@@ -139,9 +138,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	paging_init();
 
 	kern_boot_comp();
-#ifdef ENABLE_TIMER
-	timer_init(100);
-#endif
+	timer_init(TIMER_FREQUENCY, 1000000000);
 	kern_boot_upcall();
 	/* should not get here... */
 	khalt(); 
