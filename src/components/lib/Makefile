@@ -1,6 +1,6 @@
 include Makefile.src Makefile.comp
 
-LIB_OBJS=heap.o cobj_format.o
+LIB_OBJS=heap.o cobj_format.o cos_kernel_api.o
 LIBS=$(LIB_OBJS:%.o=%.a)
 MANDITORY=c_stub.o cos_asm_upcall.o cos_asm_ainv.o cos_component.o
 MAND=$(MANDITORY_LIB)
@@ -56,6 +56,6 @@ init: clean distclean all
 # keep the following commands in one line. Same as above.
 	cd ck; ./configure; cd ..
 #	make -C ck
-#	make -C posix clean 
-#	make -C libccv clean 
+#	make -C posix clean
+#	make -C libccv clean
 #	make -C libccv cos_libccv.a

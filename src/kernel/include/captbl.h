@@ -3,7 +3,7 @@
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
- * 
+ *
  * This is a capability table implementation based on embedded radix
  * trees.
  */
@@ -50,7 +50,7 @@ typedef enum {
 #define CAP_HEAD_FLAGS_SZ 3
 #define CAP_HEAD_TYPE_SZ  7
 
-/* 
+/*
  * This is the header for each capability.  Includes information about
  * allowed operations (read/write for specific cores), the size of the
  * capabilities in a cache-line, and the type of the capability.
@@ -59,12 +59,12 @@ struct cap_header {
         /* When we deactivate a cap entry, we set the liveness_id and
 	 * change the type to quiescence. */
 	u16_t       liveness_id;
-	/* 
+	/*
 	 * Size is only populated on cache-line-aligned entries.
-	 * Applies to all caps in that cache-line 
+	 * Applies to all caps in that cache-line
 	 */
 	u8_t        amap  : CAP_HEAD_AMAP_SZ; 	/* allocation map */
-	cap_sz_t    size  : CAP_HEAD_SZ_SZ; 	
+	cap_sz_t    size  : CAP_HEAD_SZ_SZ;
 	cap_flags_t flags : CAP_HEAD_FLAGS_SZ;
 	cap_t       type  : CAP_HEAD_TYPE_SZ;
 
@@ -110,11 +110,11 @@ __captbl_allocfn(void *d, int sz, int last_lvl)
 
 #define CT_MSK(v, o) ((unsigned long)(v) & ~((1<<(o))-1))
 
-static void 
+static void
 __captbl_init(struct ert_intern *a, int leaf)
-{ 
+{
 	if (leaf) return;
-	a->next = NULL; 
+	a->next = NULL;
 }
 
 static void
@@ -126,7 +126,7 @@ captbl_init(void *node, int leaf)
 		for (i = 0 ; i < 1<<CAPTBL_INTERN_ORD ; i++) {
 			struct ert_intern *a;
 			a = (struct ert_intern *)(((char *)node) + (i * CAPTBL_INTERNSZ));
-			a->next = NULL; 
+			a->next = NULL;
 		}
 	} else {
 		for (i = 0 ; i < 1<<CAPTBL_LEAF_ORD ; i++) {
@@ -150,13 +150,13 @@ __captbl_getleaf(struct ert_intern *a, void *accum)
 	/* dewarn */
 	(void)accum;
 
-	/* 
+	/*
 	 * We could do error checking here to make sure that a == c,
 	 * if we didn't want to avoid the extra branches:
 	 * if (unlikely(a == (void*)c)) return NULL;
 	 */
 
-	/* 
+	/*
 	 * This requires explanation.  We want to avoid a conditional
 	 * to check if this slot in the allocation map for the cache
 	 * line is free or not.
@@ -166,7 +166,7 @@ __captbl_getleaf(struct ert_intern *a, void *accum)
 	mask--;						/* 0 or 0xFFFF... */
 	c = (struct cap_header *)((unsigned long)c & ~mask); /* NULL, or the address */
 
-	return c; 
+	return c;
 }
 
 static inline int __captbl_setleaf(struct ert_intern *a, void *v)
@@ -186,12 +186,12 @@ static struct captbl *captbl_alloc(void *page) { return __captbl_alloc(&page); }
 
 static inline int
 __captbl_header_validate(struct cap_header *h, cap_sz_t sz)
-{ 
+{
 	cap_sz_t mask;
 	/* compiler should optimize away the branches here */
 	switch (sz) {
-	case CAP_SZ_16B: mask = CAP_MASK_16B; break; 
-	case CAP_SZ_32B: mask = CAP_MASK_32B; break; 
+	case CAP_SZ_16B: mask = CAP_MASK_16B; break;
+	case CAP_SZ_32B: mask = CAP_MASK_32B; break;
 	case CAP_SZ_64B: mask = CAP_MASK_64B; break;
 	default:         mask = 0;            break;
 	}
@@ -202,12 +202,12 @@ __captbl_header_validate(struct cap_header *h, cap_sz_t sz)
 
 static inline void *
 captbl_lkup_lvl(struct captbl *t, capid_t cap, u32_t start_lvl, u32_t end_lvl)
-{ 
+{
 	if (unlikely(cap >= __captbl_maxid())) return NULL;
-	return __captbl_lkupani(t, cap, start_lvl, end_lvl, NULL); 
+	return __captbl_lkupani(t, cap, start_lvl, end_lvl, NULL);
 }
 
-/* 
+/*
  * This function is the fast-path used for capability lookup in the
  * invocation path.
  */
@@ -216,10 +216,10 @@ static inline struct cap_header *captbl_lkup(struct captbl *t, capid_t cap)
 
 static inline int
 __captbl_store(unsigned long *addr, unsigned long new, unsigned long old)
-{ 
+{
 	if (!cos_cas(addr, old, new)) return -1;
 
-	return 0; 
+	return 0;
 }
 #define CTSTORE(a, n, o) __captbl_store((unsigned long *)a, *(unsigned long *)n, *(unsigned long *)o)
 #define cos_throw(label, errno) { ret = (errno); goto label; }
@@ -228,7 +228,7 @@ __captbl_store(unsigned long *addr, unsigned long new, unsigned long old)
 
 static inline struct cap_header *
 captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
-{ 
+{
 	struct cap_header *p, *h;
 	struct cap_header l, o;
 	u64_t curr_ts, past_ts;
@@ -238,7 +238,7 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 	if (unlikely(sz == CAP_SZ_ERR)) cos_throw(err, -EINVAL);
 	if (unlikely(cap >= __captbl_maxid())) cos_throw(err, -EINVAL);
 
-	p = __captbl_lkupan(t, cap, CAPTBL_DEPTH, NULL); 
+	p = __captbl_lkupan(t, cap, CAPTBL_DEPTH, NULL);
 	if (unlikely(!p)) cos_throw(err, -EPERM);
 
 	h = (struct cap_header *)CT_MSK(p, CACHELINE_ORDER);
@@ -273,7 +273,7 @@ captbl_add(struct captbl *t, capid_t cap, cap_t type, int *retval)
 		n_ent = CACHELINE_SIZE / ent_size;
 		for (i = 0; i < n_ent; i++) {
 			assert((void *)header_i < ((void *)h + CACHELINE_SIZE));
-			
+
 			/* non_zero liv_id means deactivation happened. */
 			if (header_i->liveness_id && header_i->type == CAP_QUIESCENCE) {
 				if (ltbl_get_timestamp(header_i->liveness_id, &past_ts)) cos_throw(err, -EFAULT);
@@ -333,7 +333,7 @@ captbl_del(struct captbl *t, capid_t cap, cap_t type, livenessid_t lid)
 	int ret = 0, off;
 
 	if (unlikely(cap >= __captbl_maxid())) cos_throw(err, -EINVAL);
-	p = __captbl_lkupan(t, cap, CAPTBL_DEPTH, NULL); 
+	p = __captbl_lkupan(t, cap, CAPTBL_DEPTH, NULL);
 
 	if (unlikely(!p)) cos_throw(err, -EPERM);
 	if (p != __captbl_getleaf((void*)p, NULL)) cos_throw(err, -EINVAL);
@@ -378,7 +378,7 @@ err:
 
 static inline u32_t captbl_maxdepth(void) { return __captbl_maxdepth(); }
 
-/* 
+/*
  * Extend a capability table up to a depth using the memory passed in
  * via memctxt.  Returns a negative value on error, a positive value
  * if the table is extended, but the depth specified was too deep
@@ -398,7 +398,7 @@ captbl_expand(struct captbl *t, capid_t cap, u32_t depth, void *memctxt)
 	return 0;
 }
 
-/* 
+/*
  * Prune off part of the capability tree at the specified depth along
  * the path to the specified capability number.  depth == 1 will prune
  * off all but the root.
@@ -409,9 +409,9 @@ captbl_prune(struct captbl *t, capid_t cap, u32_t depth, int *retval)
 	unsigned long *intern, p, new;
 	int ret = 0;
 
-	if (unlikely(cap   >= __captbl_maxid() || 
+	if (unlikely(cap   >= __captbl_maxid() ||
 		     depth >= captbl_maxdepth())) cos_throw(err, -EINVAL);
-	intern = __captbl_lkupan(t, cap, depth, NULL); 
+	intern = __captbl_lkupan(t, cap, depth, NULL);
 	if (unlikely(!intern)) cos_throw(err, -EPERM);
 	p = *intern;
 	new = (unsigned long)CT_DEFINITVAL;
@@ -433,7 +433,7 @@ captbl_create(void *page)
 	assert(page);
 	ct = captbl_alloc(page);
 	assert(ct);
-	/* 
+	/*
 	 * replace hard-coded sizes with calculations based on captbl
 	 * depth, and intern and leaf sizes/orders
 	 */
@@ -446,7 +446,7 @@ captbl_create(void *page)
 }
 
 int captbl_activate(struct captbl *t, capid_t cap, capid_t capin, struct captbl *toadd, u32_t lvl);
-int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
+int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin,
 		      livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root);
 int captbl_activate_boot(struct captbl *t, unsigned long cap);
 
@@ -455,6 +455,8 @@ int captbl_kmem_scan (struct cap_captbl *cap);
 
 static void cap_init(void) {
 	assert(sizeof(struct cap_captbl) <= __captbl_cap2bytes(CAP_CAPTBL));
+	assert((CAPTBL_LEAF_ORD * CAPTBL_LEAFSZ + CAPTBL_INTERNSZ * CAPTBL_INTERN_ORD) == PAGE_SIZE);
+	assert(CAPTBL_EXPAND_SZ == CAPTBL_LEAF_ORD * CAPTBL_LEAFSZ);
 }
 
 #endif /* CAPTBL_H */

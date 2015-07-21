@@ -2,13 +2,13 @@
 #include "include/captbl.h"
 #include "include/cap_ops.h"
 
-/* 
+/*
  * Add the capability table to itself at cap.  This should really only
  * be used at boot time to create the initial bootable components.
  * This and page-table creation are the only special cases for booting
  * the system.
  */
-int 
+int
 captbl_activate_boot(struct captbl *t, unsigned long cap)
 {
 	struct cap_captbl *ctc;
@@ -30,7 +30,7 @@ captbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, struct
 {
 	struct cap_captbl *ct;
 	int ret;
-	
+
 	ct = (struct cap_captbl *)__cap_capactivate_pre(t, cap, capin, CAP_CAPTBL, &ret);
 	if (!unlikely(ct)) return ret;
 
@@ -44,7 +44,7 @@ captbl_activate(struct captbl *t, unsigned long cap, unsigned long capin, struct
 	return 0;
 }
 
-int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin, 
+int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned long capin,
 		      livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
 {
 	struct cap_header *deact_header;
@@ -76,7 +76,7 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 		/* Last reference to the captbl page. Require pgtbl
 		 * and cos_frame cap to release the kmem page. */
 
-		ret = kmem_deact_pre(deact_header, t, pgtbl_cap, 
+		ret = kmem_deact_pre(deact_header, t, pgtbl_cap,
 				     cosframe_addr, &pte, &old_v);
 		if (ret) cos_throw(err, ret);
 	} else {
@@ -85,14 +85,14 @@ int captbl_deactivate(struct captbl *t, struct cap_captbl *dest_ct_cap, unsigned
 		assert (!pgtbl_cap && !cosframe_addr);
 	}
 
-	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_CAPTBL, lid); 
+	ret = cap_capdeactivate(dest_ct_cap, capin, CAP_CAPTBL, lid);
 	if (ret) cos_throw(err, ret);
 
 	if (cos_cas((unsigned long *)&deact_cap->refcnt_flags, l, CAP_MEM_FROZEN_FLAG) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
 	/* deactivation success. We should either release the
 	 * page, or decrement parent cnt. */
-	if (parent == NULL) { 
+	if (parent == NULL) {
 		/* move the kmem to COSFRAME */
 		ret = kmem_deact_post(pte, old_v);
 		if (ret) {
@@ -134,7 +134,7 @@ captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t c
 		cos_throw(err, ret);
 	}
 
-	ret = captbl_expand(target_ct->captbl, cons_addr + (PAGE_SIZE/2/CAPTBL_LEAFSZ), 
+	ret = captbl_expand(target_ct->captbl, cons_addr + (PAGE_SIZE/2/CAPTBL_LEAFSZ),
 			    captbl_maxdepth(), &((char*)captbl_mem)[PAGE_SIZE/2]);
 	if (ret) {
 		/* Rewind. */
@@ -142,7 +142,7 @@ captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t c
 		cos_faa((int*)&cons_cap->refcnt_flags, -1);
 		cos_throw(err, ret);
 	}
-	
+
 	return 0;
 err:
 	return ret;
@@ -172,7 +172,7 @@ captbl_leaflvl_scan(struct captbl *ct)
 
 		for (j = 0; j < n_ent; j++) {
 			assert((void *)header_i < ((void *)h + CACHELINE_SIZE));
-			
+
 			/* non_zero liv_id means deactivation happened. */
 			if (header_i->type == CAP_QUIESCENCE && header_i->liveness_id) {
 				if (ltbl_get_timestamp(header_i->liveness_id, &past_ts)) cos_throw(err, -EFAULT);
@@ -188,8 +188,8 @@ err:
 	return ret;
 }
 
-int 
-captbl_kmem_scan (struct cap_captbl *cap) 
+int
+captbl_kmem_scan(struct cap_captbl *cap)
 {
 	/* This scans the leaf level of the captbl. We need to go
 	 * through all cap entries and verify quiescence. */

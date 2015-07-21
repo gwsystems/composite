@@ -56,8 +56,8 @@ tlb_mandatory_flush(void *arg)
 
 #define MAX_LEN 512
 extern char timer_detector[PAGE_SIZE] PAGE_ALIGNED;
-static inline int 
-printfn(struct pt_regs *regs) 
+static inline int
+printfn(struct pt_regs *regs)
 {
 	char *str;
 	int len;
@@ -494,7 +494,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	capid_t cap;
 	unsigned long ip, sp;
 	syscall_op_t op;
-	/* 
+	/*
 	 * We lookup this struct (which is on stack) only once, and
 	 * pass it into other functions to avoid unnecessary lookup.
 	 */
@@ -631,7 +631,6 @@ done:
 int
 composite_syscall_slowpath(struct pt_regs *regs)
 {
-
 	struct cap_header *ch;
 	struct comp_info *ci;
 	struct captbl *ct;
@@ -1043,7 +1042,7 @@ composite_syscall_slowpath(struct pt_regs *regs)
 
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
 			if (ret) cos_throw(err, ret);
-			
+
 			ret = retypetbl_retype2kern((void *)frame);
 
 			break;
