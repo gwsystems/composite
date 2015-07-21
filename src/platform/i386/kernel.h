@@ -29,7 +29,7 @@ enum {
     TIMER_ONESHOT
 };
 
-#define DEFAULT_FREQUENCY 10000000
+#define DEFAULT_FREQUENCY 100000000
 
 void timer_set(int timer_type, u64_t cycles);
 void timer_init(int timer_type, u64_t cycles);
