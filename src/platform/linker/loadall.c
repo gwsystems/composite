@@ -27,15 +27,35 @@ unsigned long getsym(bfd *obj, char* symbol)
         long number_of_symbols;
         int i;
 
-        storage_needed = bfd_get_symtab_upper_bound (obj);
+        static bfd *cached_obj = NULL;
+        static asymbol **cached_symbol_table = NULL;
+        static long cached_number_of_symbols;
 
-        if (storage_needed <= 0){
-                printl(PRINT_HIGH, "no symbols in object file\n");
-                exit(-1);
+        assert(obj);
+        assert(symbol);
+
+        if (cached_obj != obj) {
+                storage_needed = bfd_get_symtab_upper_bound (obj);
+
+                if (storage_needed <= 0){
+                        printl(PRINT_HIGH, "no symbols in object file\n");
+                        exit(-1);
+                }
+
+                symbol_table = (asymbol **) malloc (storage_needed);
+                assert(symbol_table);
+                number_of_symbols = bfd_canonicalize_symtab(obj, symbol_table);
+
+                if (cached_obj) {
+                        free(cached_symbol_table);
+                }
+                cached_obj          = obj;
+                cached_symbol_table = symbol_table;
+                cached_number_of_symbols = number_of_symbols;
+        } else {
+                symbol_table      = cached_symbol_table;
+                number_of_symbols = cached_number_of_symbols;
         }
-
-        symbol_table = (asymbol **) malloc (storage_needed);
-        number_of_symbols = bfd_canonicalize_symtab(obj, symbol_table);
 
         //notes: symbol_table[i]->flags & (BSF_FUNCTION | BSF_GLOBAL)
         for (i = 0; i < number_of_symbols; i++) {

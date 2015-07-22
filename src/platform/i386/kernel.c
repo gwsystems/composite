@@ -68,7 +68,7 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 	printk("\tModules:\n");
 	for (i = 0 ; i < mb->mods_count ; i++) {
 		struct multiboot_mod_list *mod = &mods[i];
-		
+
 		printk("\t- %d: [%08x, %08x)", i, mod->mod_start, mod->mod_end);
 		/* These values have to be higher-half addresses */
 		glb_memlayout.mod_start = chal_pa2va((paddr_t)mod->mod_start);
@@ -89,7 +89,6 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 		       mem->type == 1 ? "Available" : "Reserved ", mem->addr, mem->addr + mem->len);
 	}
 	/* FIXME: check memory layout vs. the multiboot memory regions... */
-
 	/* Validate the memory layout. */
 	assert(mem_kern_end()   == mem_bootc_start());
 	assert(mem_bootc_end()  <= mem_boot_start());

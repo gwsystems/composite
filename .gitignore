@@ -5,6 +5,7 @@
 *.ko
 *.cmd
 *.a
+*.bin
 *~
 *.sw*
 *#
@@ -20,3 +21,4 @@ src/PLATFORM
 modules.order
 .depend
 *.img
+*.out
