@@ -16,6 +16,22 @@ SECTIONS
 		LONG(0)
 		__DTOR_END__ = .;
 	}	
+	.init_array : {
+		__INIT_ARRAY_LIST__ = .;				
+		LONG((__INIT_ARRAY_END__ - __INIT_ARRAY_LIST__) / 4 - 2)
+		KEEP (*(SORT(.init_array.*)))
+		KEEP (*(.init_array))
+		LONG(0)
+		__INIT_ARRAY_END__ = .;
+	}
+	.fini_array : {
+		__FINI_ARRAY_LIST__ = .;				
+		LONG((__FINI_ARRAY_END__ - __FINI_ARRAY_LIST__) / 4 - 2)
+		KEEP (*(.fini_array))
+		KEEP (*(SORT(.fini_array.*)))
+		LONG(0)
+		__FINI_ARRAY_END__ = .;
+	}
 	.crecov : {
 		__CRECOV_LIST__ = .;				
 		LONG((__CRECOV_END__ - __CRECOV_LIST__) / 4 - 2)
