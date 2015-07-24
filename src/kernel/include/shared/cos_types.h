@@ -112,7 +112,7 @@ typedef enum {
 #define CAP64B_IDSZ (1<<(CAP_SZ_64B))
 #define CAPMAX_ENTRY_SZ CAP64B_IDSZ
 
-#define CAPTBL_EXPAND_SZ 512
+#define CAPTBL_EXPAND_SZ 128
 
 /* a function instead of a struct to enable inlining + constant prop */
 static inline cap_sz_t
@@ -178,9 +178,9 @@ enum {
 };
 
 enum {
-	BOOT_MEM_VM_BASE = (COS_MEM_COMP_START_VA + (1<<22)), //@ 1G + 8M
-	BOOT_MEM_KM_BASE = 0x60000000,//@ 1.5 GB
-	BOOT_MEM_PM_BASE = 0x80000000,//@ 2 GB
+	BOOT_MEM_VM_BASE = (COS_MEM_COMP_START_VA + (1<<22)), /* @ 1G + 8M */
+	BOOT_MEM_KM_BASE = 0x60000000, /* kernel memory @ 1.5 GB */
+	BOOT_MEM_PM_BASE = 0x80000000, /* user memory @ 2 GB */
 };
 
 enum {

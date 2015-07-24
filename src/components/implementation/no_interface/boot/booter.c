@@ -6,12 +6,12 @@
  */
 
 #include <cos_component.h>
+/* dependencies */
+#include <boot_deps.h>
 
 extern struct cos_component_information cos_comp_info;
 struct cobj_header *hs[MAX_NUM_SPDS+1];
 
-/* dependencies */
-#include <boot_deps.h>
 
 #include <cobj_format.h>
 
@@ -728,6 +728,32 @@ boot_create_cap_system(void)
 	return;
 }
 
+struct cos_compinfo booter_info;
+
+static void
+test_compinfoinit(void)
+{
+	cos_meminfo_init(&booter_info.mi, BOOT_MEM_PM_BASE, COS_MEM_USER_PA_SZ,
+			 BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
+	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
+}
+
+static void
+test_thds(void)
+{
+	thdcap_t a;
+
+	a = cos_thd_alloc(&booter_info, booter_info.comp_cap, 0);
+	assert(a);
+
+	printc("switchto a\n");
+	cos_thd_switch(a);
+	printc("back in init\nswitchto b...\n");
+
+	while (1) ;
+}
+
 void cos_init(void)
 {
 	struct cobj_header *h;
@@ -752,6 +778,10 @@ void cos_init(void)
 	printc("h @ %p, heap ptr @ %p\n", h, cos_get_heap_ptr());
 	printc("header %p, size %d, num comps %d, new heap %p\n",
 	       h, h->size, num_cobj, cos_get_heap_ptr());
+
+	//test_thds();
+
+	//return;
 
 	init_cosframes();
 	boot_create_cap_system();

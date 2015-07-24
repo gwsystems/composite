@@ -6,6 +6,25 @@
 
 #include <cos_kernel_api.h>
 
+
+/* HACKHACKHACKHACKHACKHACK */
+#include <stdarg.h>
+#include <stdio.h>
+static int __attribute__((format(printf,1,2)))
+printd(char *fmt, ...)
+{
+	char s[128];
+	va_list arg_ptr;
+	int ret, len = 128;
+
+	va_start(arg_ptr, fmt);
+	ret = vsnprintf(s, len, fmt, arg_ptr);
+	va_end(arg_ptr);
+	cos_print(s, ret);
+
+	return ret;
+}
+
 void
 cos_meminfo_init(struct cos_meminfo *mi, vaddr_t umem_ptr, unsigned long umem_sz,
 		 vaddr_t untyped_ptr, unsigned long untyped_sz)
@@ -43,8 +62,15 @@ cos_compinfo_init(struct cos_compinfo *ci, captblcap_t pgtbl_cap, pgtblcap_t cap
 	 */
 	ci->vasrange_frontier = round_up_to_pgd_page(heap_ptr);
 	assert(ci->vasrange_frontier == round_up_to_pgd_page(ci->vasrange_frontier));
-	/* captbls are initialized populated with a single second-level node */
-	ci->caprange_frontier = cap_frontier + CAPTBL_EXPAND_SZ;
+	/*
+	 * captbls are initialized populated with a single
+	 * second-level node.
+	 */
+	if (cap_frontier < CAPTBL_EXPAND_SZ) {
+		ci->caprange_frontier = round_up_to_pow2(cap_frontier, CAPTBL_EXPAND_SZ);
+	} else {
+		ci->caprange_frontier = round_up_to_pow2(cap_frontier + CAPTBL_EXPAND_SZ, CAPTBL_EXPAND_SZ);
+	}
 	ci->cap16_frontier    = ci->cap32_frontier = ci->cap64_frontier = cap_frontier;
 }
 
@@ -55,6 +81,8 @@ __mem_bump_alloc(struct cos_compinfo *__ci, int km, vaddr_t *mem_ptr, vaddr_t *m
 {
 	vaddr_t ret = 0;
 	struct cos_compinfo *ci;
+
+	printd("__mem_bump_alloc\n");
 
 	assert(__ci);
 	ci = __compinfo_metacap(__ci);
@@ -81,12 +109,14 @@ __mem_bump_alloc(struct cos_compinfo *__ci, int km, vaddr_t *mem_ptr, vaddr_t *m
 
 static vaddr_t
 __kmem_bump_alloc(struct cos_compinfo *ci)
-{ return __mem_bump_alloc(ci, 1, &ci->mi.untyped_ptr, &ci->mi.untyped_range); }
+{ 	printd("__kmem_bump_alloc\n");
+	return __mem_bump_alloc(ci, 1, &ci->mi.untyped_ptr, &ci->mi.untyped_range); }
 
 /* this should back-up to using untyped memory... */
 static vaddr_t
 __umem_bump_alloc(struct cos_compinfo *ci)
-{ return __mem_bump_alloc(ci, 0, &ci->mi.umem_ptr, &ci->mi.umem_range); }
+{ 	printd("__umem_bump_alloc\n");
+	return __mem_bump_alloc(ci, 0, &ci->mi.umem_ptr, &ci->mi.umem_range); }
 
 /**************** [Capability Allocation Functions] ****************/
 
@@ -104,6 +134,7 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	/* ensure that we have bounded structure, and bounded recursion */
 	assert(__compinfo_metacap(meta) == meta);
 
+	printd("__capid_captbl_check_expand\n");
 	/*
 	 * Do we need to expand the capability table?
 	 *
@@ -133,6 +164,8 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	else                frontier = ci->caprange_frontier;
 	assert(ci->cap_frontier <= frontier);
 
+	printd("\tfrontier = %d, frontierrange = %d\n", ci->cap_frontier, frontier);
+
 	if (ci->cap_frontier == frontier) {
 		capid_t captblcap;
 		capid_t captblid_add;
@@ -149,11 +182,13 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 		captblid_add = ci->caprange_frontier;
 		assert(captblid_add % CAPTBL_EXPAND_SZ == 0);
 
+		printd("__capid_captbl_check_expand->pre-captblactivate (%d)\n", CAPTBL_OP_CAPTBLACTIVATE);
 		/* captbl internal node allocated with the resource provider's captbls */
 		if (call_cap_op(meta->captbl_cap, CAPTBL_OP_CAPTBLACTIVATE, captblcap, meta->pgtbl_cap, kmem, 1)) {
 			assert(0); /* race condition? */
 			return -1;
 		}
+		printd("__capid_captbl_check_expand->post-captblactivate\n");
 		/*
 		 * Assumption:
 		 * meta->captbl_cap refers to _our_ captbl, thus
@@ -179,6 +214,8 @@ __capid_bump_alloc_generic(struct cos_compinfo *ci, capid_t *capsz_frontier, cap
 {
 	capid_t ret;
 
+	printd("__capid_bump_alloc_generic\n");
+
 	/*
 	 * Do we need a new cache-line in the capability table for
 	 * this size of capability?
@@ -202,6 +239,8 @@ __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 	capid_t ret;
 	unsigned long sz = captbl_idsize(cap);
 	capid_t *frontier;
+
+	printd("__capid_bump_alloc\n");
 
 	switch(sz) {
 	case CAP16B_IDSZ:
@@ -227,6 +266,8 @@ __page_bump_alloc(struct cos_compinfo *ci)
 	vaddr_t heap_vaddr;
 	vaddr_t umem;
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
+
+	printd("__page_bump_alloc\n");
 
 	assert(meta == __compinfo_metacap(meta)); /* prevent unbounded structures */
 	heap_vaddr = ci->vas_frontier;
@@ -290,6 +331,8 @@ livenessid_bump_alloc(void)
 static
 int __alloc_mem_cap(struct cos_compinfo *ci, cap_t ct, vaddr_t *kmem, capid_t *cap)
 {
+	printd("__alloc_mem_cap\n");
+
 	*kmem   = __kmem_bump_alloc(ci);
 	if (!*kmem)   return -1;
 	*cap = __capid_bump_alloc(ci, ct);
@@ -302,6 +345,8 @@ cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 {
 	vaddr_t kmem;
 	capid_t cap;
+
+	printd("cos_thd_alloc\n");
 
 	assert(ci && comp > 0);
 	assert(!init_data);  	/* TODO */
@@ -318,6 +363,8 @@ cos_captbl_alloc(struct cos_compinfo *ci)
 	vaddr_t kmem;
 	capid_t cap;
 
+	printd("cos_captbl_alloc\n");
+
 	assert(ci);
 
 	if (__alloc_mem_cap(ci, CAP_CAPTBL, &kmem, &cap)) return 0;
@@ -332,6 +379,8 @@ cos_pgtbl_alloc(struct cos_compinfo *ci)
 	vaddr_t kmem;
 	capid_t cap;
 
+	printd("cos_pgtbl_alloc\n");
+
 	assert(ci);
 
 	if (__alloc_mem_cap(ci, CAP_PGTBL, &kmem, &cap)) return 0;
@@ -345,6 +394,8 @@ cos_comp_alloc(struct cos_compinfo *ci, captblcap_t ctc, pgtblcap_t ptc, vaddr_t
 {
 	capid_t cap;
 	u32_t   lid = livenessid_bump_alloc();
+
+	printd("cos_comp_alloc\n");
 
 	assert(ci && ctc && ptc && lid);
 
@@ -364,6 +415,8 @@ cos_compinfo_alloc(struct cos_compinfo *ci, vaddr_t heap_ptr, vaddr_t entry,
 	captblcap_t ctc;
 	compcap_t compc;
 
+	printd("cos_compinfo_alloc\n");
+
 	ptc = cos_pgtbl_alloc(ci_resources);
 	assert(ptc);
 	ctc = cos_captbl_alloc(ci_resources);
@@ -380,6 +433,8 @@ sinvcap_t
 cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry)
 {
 	capid_t cap;
+
+	printd("cos_sinv_alloc\n");
 
 	assert(srcci && dstcomp);
 
@@ -426,9 +481,8 @@ cos_page_bump_alloc(struct cos_compinfo *ci)
 
 int
 cos_thd_switch(thdcap_t c)
-{
-	return 0;
-}
+{       printd("cos_thd_switch\n");
+	return call_cap_op(c, 0, 0, 0, 0, 0); }
 
 int
 cos_asnd(asndcap_t snd)

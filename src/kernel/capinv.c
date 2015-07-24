@@ -506,11 +506,11 @@ composite_syscall_handler(struct pt_regs *regs)
 	fs_reg_setup(__KERNEL_PERCPU);
 #endif
 	cap = __userregs_getcap(regs);
-
-	/* printk("calling cap %d: %x, %x, %x, %x\n", cap, __userregs_get1(regs), */
-	/*        __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
-
 	thd = thd_current(cos_info);
+
+	/* printk("thd %d calling cap %d, operation %d: %x, %x, %x, %x\n", thd->tid, cap, __userregs_getop(regs), */
+	/*        __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
+
 
 	/* fast path: invocation return */
 	if (cap == COS_DEFAULT_RET_CAP) {

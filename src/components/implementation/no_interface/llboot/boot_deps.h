@@ -6,7 +6,9 @@
 #include <string.h>
 #include <ck_pr.h>
 
-static int
+#include <cos_component.h>
+
+int
 prints(char *s)
 {
 	int len = strlen(s);
@@ -14,7 +16,7 @@ prints(char *s)
 	return len;
 }
 
-static int __attribute__((format(printf,1,2)))
+int __attribute__((format(printf,1,2)))
 printc(char *fmt, ...)
 {
 	char s[128];
@@ -40,6 +42,7 @@ printc(char *fmt, ...)
 #define BOOT_DEPS_H
 
 #include <cos_component.h>
+#include <cobj_format.h>
 #include <res_spec.h>
 
 struct llbooter_per_core {
@@ -631,9 +634,14 @@ boot_deps_run(void)
 	return; /* We return to comp0 and release other cores first. */
 }
 
+#include <cos_kernel_api.h>
+
 void
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
+	printc("in new thread\nswitching back\n");
+	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+
 	printc("core %ld: <<cos_upcall_fn thd %d (type %d, CREATE=%d, DESTROY=%d, FAULT=%d)>>\n",
 	       cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_THD_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT);
 

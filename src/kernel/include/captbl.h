@@ -453,10 +453,12 @@ int captbl_activate_boot(struct captbl *t, unsigned long cap);
 int captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t cons_addr);
 int captbl_kmem_scan (struct cap_captbl *cap);
 
-static void cap_init(void) {
+static void
+cap_init(void) {
 	assert(sizeof(struct cap_captbl) <= __captbl_cap2bytes(CAP_CAPTBL));
-	assert((CAPTBL_LEAF_ORD * CAPTBL_LEAFSZ + CAPTBL_INTERNSZ * CAPTBL_INTERN_ORD) == PAGE_SIZE);
-	assert(CAPTBL_EXPAND_SZ == CAPTBL_LEAF_ORD * CAPTBL_LEAFSZ);
+	assert(((1<<CAPTBL_LEAF_ORD) * CAPTBL_LEAFSZ +
+		CAPTBL_INTERNSZ * (1<<CAPTBL_INTERN_ORD)) == PAGE_SIZE);
+	assert(CAPTBL_EXPAND_SZ == 1<<CAPTBL_LEAF_ORD);
 }
 
 #endif /* CAPTBL_H */
