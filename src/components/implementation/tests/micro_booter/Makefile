@@ -1,6 +1,6 @@
-C_OBJS=booter.o
+C_OBJS=micro_booter.o
 ASM_OBJS=cos_asm_scheduler.o
-COMPONENT=unikernboot.o
+COMPONENT=micro_boot.o
 INTERFACES=sched_hier
 DEPENDENCIES=
 IF_LIB=
