@@ -10,6 +10,7 @@
 /* HACKHACKHACKHACKHACKHACK */
 #include <stdarg.h>
 #include <stdio.h>
+#ifdef NIL
 static int __attribute__((format(printf,1,2)))
 printd(char *fmt, ...)
 {
@@ -24,6 +25,8 @@ printd(char *fmt, ...)
 
 	return ret;
 }
+#endif
+#define printd(...)
 
 void
 cos_meminfo_init(struct cos_meminfo *mi, vaddr_t umem_ptr, unsigned long umem_sz,
@@ -340,8 +343,8 @@ int __alloc_mem_cap(struct cos_compinfo *ci, cap_t ct, vaddr_t *kmem, capid_t *c
 	return 0;
 }
 
-thdcap_t
-cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
+static thdcap_t
+__cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 {
 	vaddr_t kmem;
 	capid_t cap;
@@ -349,13 +352,32 @@ cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 	printd("cos_thd_alloc\n");
 
 	assert(ci && comp > 0);
-	assert(!init_data);  	/* TODO */
 
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, cap, ci->pgtbl_cap, kmem, comp)) BUG();
+	assert(cap < (sizeof(u16_t)*8) && init_data < (sizeof(u16_t)*8));
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap, ci->pgtbl_cap, kmem, comp)) BUG();
 
 	return cap;
 }
+
+#include <cos_thd_init.h>
+
+thdcap_t
+cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data)
+{
+	int idx = cos_thd_init_alloc(fn, data);
+	thdcap_t ret;
+
+	if (idx < 1) return 0;
+	ret = __cos_thd_alloc(ci, comp, idx);
+	if (!ret) cos_thd_init_free(idx);
+
+	return ret;
+}
+
+thdcap_t
+cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp)
+{ return __cos_thd_alloc(ci, comp, 0); }
 
 captblcap_t
 cos_captbl_alloc(struct cos_compinfo *ci)
@@ -473,9 +495,9 @@ cos_asnd_alloc(struct cos_compinfo *ci, arcvcap_t arcvcap, captblcap_t ctcap)
 	return cap;
 }
 
-vaddr_t
+void *
 cos_page_bump_alloc(struct cos_compinfo *ci)
-{ return __page_bump_alloc(ci); }
+{ return (void*)__page_bump_alloc(ci); }
 
 /**************** [Kernel Object Operations] ****************/
 

@@ -503,8 +503,8 @@ struct cos_component_information {
 }__attribute__((aligned(PAGE_SIZE)));
 
 typedef enum {
-	COS_UPCALL_ACAP_COMPLETE,
 	COS_UPCALL_THD_CREATE,
+	COS_UPCALL_ACAP_COMPLETE,
 	COS_UPCALL_DESTROY,
 	COS_UPCALL_UNHANDLED_FAULT
 } upcall_type_t;

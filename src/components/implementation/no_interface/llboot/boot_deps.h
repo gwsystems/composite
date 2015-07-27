@@ -634,14 +634,9 @@ boot_deps_run(void)
 	return; /* We return to comp0 and release other cores first. */
 }
 
-#include <cos_kernel_api.h>
-
 void
 cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 {
-	printc("in new thread\nswitching back\n");
-	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
-
 	printc("core %ld: <<cos_upcall_fn thd %d (type %d, CREATE=%d, DESTROY=%d, FAULT=%d)>>\n",
 	       cos_cpuid(), cos_get_thd_id(), t, COS_UPCALL_THD_CREATE, COS_UPCALL_DESTROY, COS_UPCALL_UNHANDLED_FAULT);
 

@@ -467,7 +467,6 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, s
 	/* fpu_save(thd); */
 	if (next->flags & THD_STATE_PREEMPTED) {
 		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
-		/* remove_preempted_status(thd); */
 		next->flags &= ~THD_STATE_PREEMPTED;
 		preempt = 1;
 	}

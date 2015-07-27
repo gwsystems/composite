@@ -728,54 +728,10 @@ boot_create_cap_system(void)
 	return;
 }
 
-struct cos_compinfo booter_info;
-
-static void
-test_compinfoinit(void)
-{
-	cos_meminfo_init(&booter_info.mi, BOOT_MEM_PM_BASE, COS_MEM_USER_PA_SZ,
-			 BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
-	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
-}
-
-#define TEST_NTHDS 5
-static void
-test_thds(void)
-{
-	thdcap_t ts[TEST_NTHDS];
-	int i;
-
-	for (i = 0 ; i < TEST_NTHDS ; i++) {
-		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, 0);
-		assert(ts[i]);
-		printc("switchto %d\n", ts[i]);
-		cos_thd_switch(ts[i]);
-	}
-
-	printc("test done\n");
-
-	while (1) ;
-}
-
 void cos_init(void)
 {
 	struct cobj_header *h;
 	int num_cobj, i;
-
-	/* static int first = 1; */
-
-	/* if (first) { */
-	/* 	first = 0; */
-	/* 	test_compinfoinit(); */
-	/* 	test_thds(); */
-	/* } else { */
-	/* 	printc("\tin new thread; switching back\n"); */
-	/* 	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE); */
-	/* 	printc("\tWHYYYYYYY MOAR execution!?\n"); */
-	/* } */
-
-	/* return; */
 
 	LOCK();
 
