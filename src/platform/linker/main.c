@@ -14,7 +14,7 @@
  * user-level static capability structures, and loads the services
  * into the current address space which will be used as a template for
  * the run-time system for creating each service protection domain
- * (ie. copying the entries in the pgd to new address spaces.  
+ * (ie. copying the entries in the pgd to new address spaces.
  *
  * This is trusted code, and any mistakes here compromise the entire
  * system.  Essentially, control flow is restricted/created here.
@@ -41,7 +41,7 @@ int verify_dependency_soundness(struct service_symbs *services);
 
 /*
  * Format of the input string is as such:
- * 
+ *
  * "s1,s2,s3,...,sn:s2-s3|...|sm;s3-si|...|sj"
  *
  * Where the pre-: comma-separated list is simply a list of all
@@ -54,7 +54,7 @@ main(int argc, char *argv[])
 {
 	struct service_symbs *services;
 	char *delim = ":";
-	char *servs, *dependencies, *ndeps, *stub_gen_prog;
+	char *servs, *dependencies = NULL, *ndeps = NULL, *stub_gen_prog;
 	long service_addr;
 	char *usage = "Usage: %s [-q] <comma separated string of all "
                "objs:truster1-trustee1|trustee2|...;truster2-...> "
@@ -100,7 +100,8 @@ main(int argc, char *argv[])
 		dependencies = ndeps;
 		*(ndeps-1) = ':';
 	}
-	*(dependencies-1) = '\0';
+	if (!dependencies) dependencies = "";
+	else               *(dependencies-1) = '\0';
 	//printf("comps: %s\ndeps: %s\n", servs, dependencies);
 
 	if (!servs) {
@@ -118,7 +119,7 @@ main(int argc, char *argv[])
 		printl(PRINT_HIGH, "No dependencies given, not proceeding.\n");
 		return 1;
 	}
-	
+
 	if (deserialize_dependencies(dependencies, services)) {
 		printl(PRINT_HIGH, "Error processing dependencies.\n");
 		return 1;
@@ -133,7 +134,7 @@ main(int argc, char *argv[])
 		printl(PRINT_HIGH, "Services arranged in an invalid configuration, not linking.\n");
 		return 1;
 	}
-	
+
 	gen_stubs_and_link(stub_gen_prog, services);
 	service_addr = load_all_services(services);
 
@@ -148,4 +149,3 @@ main(int argc, char *argv[])
 
 	return 0;
 }
-

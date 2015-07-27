@@ -5,7 +5,7 @@
  * Public License v2.
  */
 
-/* 
+/*
  * Note that this file is included both by the kernel and by
  * components.  Unfortunately, that means that ifdefs might need to be
  * used to maintain the correct defines.
@@ -53,9 +53,11 @@ typedef enum {
 	CAPTBL_OP_MEMACTIVATE,
 	CAPTBL_OP_MEMDEACTIVATE,
 	/* CAPTBL_OP_MAPPING_MOD, */
+
 	CAPTBL_OP_MEM_RETYPE2USER,
 	CAPTBL_OP_MEM_RETYPE2KERN,
 	CAPTBL_OP_MEM_RETYPE2FRAME,
+
 	CAPTBL_OP_PGTBLACTIVATE,
 	CAPTBL_OP_PGTBLDEACTIVATE,
 	CAPTBL_OP_CAPTBLACTIVATE,
@@ -87,7 +89,7 @@ typedef unsigned long capid_t;
 
 #define QUIESCENCE_CHECK(curr, past, quiescence_period)  (((curr) - (past)) > (quiescence_period))
 
-/* 
+/*
  * The values in this enum are the order of the size of the
  * capabilities in this cacheline, offset by CAP_SZ_OFF (to compress
  * memory).
@@ -99,7 +101,7 @@ typedef enum {
 	CAP_SZ_ERR = 3,
 } cap_sz_t;
 /* the shift offset for the *_SZ_* values */
-#define	CAP_SZ_OFF   4 
+#define	CAP_SZ_OFF   4
 /* The allowed amap bits of each size */
 #define	CAP_MASK_16B ((1<<4)-1)
 #define	CAP_MASK_32B (1 | (1<<2))
@@ -109,6 +111,8 @@ typedef enum {
 #define CAP32B_IDSZ (1<<(CAP_SZ_32B))
 #define CAP64B_IDSZ (1<<(CAP_SZ_64B))
 #define CAPMAX_ENTRY_SZ CAP64B_IDSZ
+
+#define CAPTBL_EXPAND_SZ 128
 
 /* a function instead of a struct to enable inlining + constant prop */
 static inline cap_sz_t
@@ -135,38 +139,38 @@ __captbl_cap2sz(cap_t c)
 static inline unsigned long captbl_idsize(cap_t c)
 { return 1<<__captbl_cap2sz(c); }
 
-/* 
- * LLBooter initial captbl setup:  
- * 0 = sret, 
+/*
+ * LLBooter initial captbl setup:
+ * 0 = sret,
  * 1-3 = nil,
- * 4-5 = this captbl, 
+ * 4-5 = this captbl,
  * 6-7 = our pgtbl root,
  * 8-11 = our component,
  * 12-13 = vm pte for booter
  * 14-15 = vm pte for physical memory
  * 16-17 = km pte
- * 18-19 = comp0 captbl, 
+ * 18-19 = comp0 captbl,
  * 20-21 = comp0 pgtbl root,
  * 24-27 = comp0 component,
  * 28~(20+2*NCPU) = per core alpha thd
- * 
+ *
  * Initial pgtbl setup (addresses):
  * 1GB+8MB-> = boot component VM
  * 1.5GB-> = kernel memory
  * 2GB-> = system physical memory
  */
 enum {
-	BOOT_CAPTBL_SRET       = 0, 
+	BOOT_CAPTBL_SRET       = 0,
 	BOOT_CAPTBL_SELF_CT    = 4,
-	BOOT_CAPTBL_SELF_PT    = 6, 
-	BOOT_CAPTBL_SELF_COMP  = 8, 
-	BOOT_CAPTBL_BOOTVM_PTE = 12, 
-	BOOT_CAPTBL_PHYSM_PTE  = 14, 
+	BOOT_CAPTBL_SELF_PT    = 6,
+	BOOT_CAPTBL_SELF_COMP  = 8,
+	BOOT_CAPTBL_BOOTVM_PTE = 12,
+	BOOT_CAPTBL_PHYSM_PTE  = 14,
 	BOOT_CAPTBL_KM_PTE     = 16,
 
 	BOOT_CAPTBL_COMP0_CT          = 18,
-	BOOT_CAPTBL_COMP0_PT          = 20,  
-	BOOT_CAPTBL_COMP0_COMP        = 24, 
+	BOOT_CAPTBL_COMP0_PT          = 20,
+	BOOT_CAPTBL_COMP0_COMP        = 24,
 	BOOT_CAPTBL_SELF_INITTHD_BASE = 28,
 	BOOT_CAPTBL_LAST_CAP          = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
 	/* round up to next entry */
@@ -174,9 +178,9 @@ enum {
 };
 
 enum {
-	BOOT_MEM_VM_BASE = (COS_MEM_COMP_START_VA + (1<<22)), //@ 1G + 8M
-	BOOT_MEM_KM_BASE = 0x60000000,//@ 1.5 GB
-	BOOT_MEM_PM_BASE = 0x80000000,//@ 2 GB
+	BOOT_MEM_VM_BASE = (COS_MEM_COMP_START_VA + (1<<22)), /* @ 1G + 8M */
+	BOOT_MEM_KM_BASE = 0x60000000, /* kernel memory @ 1.5 GB */
+	BOOT_MEM_PM_BASE = 0x80000000, /* user memory @ 2 GB */
 };
 
 enum {
@@ -297,7 +301,7 @@ union cos_synchronization_atom {
 	volatile u32_t v;
 } __attribute__((packed));
 
-/* 
+/*
  * If the pending_event value is set, then another scheduling event
  * has occurred.  These can include events such as asynchronous
  * invocations, or parent events (child thread blocks, wakes up,
@@ -312,7 +316,7 @@ struct cos_event_notification {
 	volatile u32_t pending_event, pending_cevt, timer;
 };
 
-/* 
+/*
  * As the system is currently structured (struct cos_sched_data_area
  * <= PAGE_SIZE), we can have a max of floor((PAGE_SIZE -
  * sizeof(struct cos_sched_next_thd) - sizeof(struct
@@ -336,7 +340,7 @@ PERCPU_DECL(struct cos_sched_data_area, cos_sched_notifications);
 #define NULL ((void*)0)
 #endif
 
-/* 
+/*
  * Ring buffer is structured as such (R is RB_READY, U is RB_USED, E is RB_EMPTY):
  * +-> EEEEUUUUUURRRRRRREEEE-+
  * |                         |
@@ -358,7 +362,7 @@ enum {
 };
 #define RB_SIZE (4096 / 8) /* 4096 / sizeof(struct rb_buff_t), or 512 */
 /* HACK: network ring buffer */
-/* 
+/*
  * TODO: Needed in this structure: a way to just turn off the stream,
  * a binary switch that the user-level networking stack can use to
  * tell the lower-layers to just drop following packets, until the bit
@@ -373,7 +377,7 @@ typedef struct {
 	} __attribute__((packed)) packets[RB_SIZE];
 } __attribute__((aligned(4096))) ring_buff_t ;
 
-#define XMIT_HEADERS_GATHER_LEN 32 
+#define XMIT_HEADERS_GATHER_LEN 32
 struct gather_item {
 	void *data;
 	int len;
@@ -449,7 +453,7 @@ struct restartable_atomic_sequence {
 struct usr_inv_cap {
 	vaddr_t invocation_fn, service_entry_inst;
 	unsigned int invocation_count, cap_no;
-} __attribute__((aligned(16))); 
+} __attribute__((aligned(16)));
 
 #define COMP_INFO_POLY_NUM 10
 #define COMP_INFO_INIT_STR_LEN 128
@@ -499,8 +503,8 @@ struct cos_component_information {
 }__attribute__((aligned(PAGE_SIZE)));
 
 typedef enum {
-	COS_UPCALL_ACAP_COMPLETE,
 	COS_UPCALL_THD_CREATE,
+	COS_UPCALL_ACAP_COMPLETE,
 	COS_UPCALL_DESTROY,
 	COS_UPCALL_UNHANDLED_FAULT
 } upcall_type_t;
@@ -514,7 +518,7 @@ enum {
 	COS_THD_INVFRM_SET_IP,
 	COS_THD_INVFRM_SP,	/* get the stack pointer in an inv frame  */
 	COS_THD_INVFRM_SET_SP,
-	/* 
+	/*
 	 * For the following GET methods, the argument is 0 to get the
 	 * register of a _preempted thread_, or 1 to get the fault
 	 * register of the thread.  If the thread is not preempted and
@@ -530,7 +534,7 @@ enum {
 	COS_THD_GET_5,
 	COS_THD_GET_6,
 
-	/* 
+	/*
 	 * For the following SET methods, arg1 is the value to set the
 	 * register to, and arg2 is 0 if we wish to set the register
 	 * for a preempted thread, while it is 1 if we wish to set the
@@ -693,7 +697,7 @@ enum {
 	COS_PFN_MAX_MEM_KERN
 };
 
-/* 
+/*
  * Fault and fault handler information.  Fault indices/identifiers and
  * the function names to handle them.
  */
@@ -788,11 +792,11 @@ static inline void cos_ref_release(atomic_t *rc)
 #else
 	rc->counter--; /* assert(rc->counter != 0) */
 #endif
-	
+
 	cos_meas_event(COS_MPD_REFCNT_DEC);
 }
 
-// ncpu * 16 (or max 256) entries. can be increased if necessary. 
+// ncpu * 16 (or max 256) entries. can be increased if necessary.
 #define COS_THD_INIT_REGION_SIZE (((NUM_CPU*16) > (1<<8)) ? (1<<8) : (NUM_CPU*16))
 // Static entries are after the dynamic allocated entries
 #define COS_STATIC_THD_ENTRY(i) ((i + COS_THD_INIT_REGION_SIZE + 1))

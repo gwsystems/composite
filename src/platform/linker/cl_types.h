@@ -16,11 +16,11 @@
 #include <cobj_format.h>
 
 typedef enum {
-	LLBOOT_COMPN = 1,
-	LLBOOT_SCHED = 2,
-	LLBOOT_MM    = 3,
-	LLBOOT_PRINT = 4,
-	LLBOOT_BOOT  = 5
+	LLBOOT_COMPN,
+	LLBOOT_SCHED,
+	LLBOOT_MM,
+	LLBOOT_PRINT,
+	LLBOOT_BOOT
 } llboot_component_ids;
 
 struct sec_info {
@@ -29,21 +29,21 @@ struct sec_info {
 };
 
 typedef enum {
-	TEXT_S, 
-	RODATA_S, 
-	CTORS_S, 
-	DTORS_S, 
-	CRECOV_S, 
-	KMEM_S, 
-	CINFO_S, 
-	DATA_S, 
-	BSS_S, 
-	INITONCE_S, 
-	INITFILE_S, 
+	TEXT_S,
+	RODATA_S,
+	CTORS_S,
+	DTORS_S,
+	CRECOV_S,
+	KMEM_S,
+	CINFO_S,
+	DATA_S,
+	BSS_S,
+	INITONCE_S,
+	INITFILE_S,
 	MAXSEC_S
 } sec_type_t;
 
-/* 
+/*
  * TODO: add structure containing all information about sections, so
  * that they can be created algorithmically, in a loop, instead of
  * this hard-coding crap.
@@ -101,7 +101,7 @@ struct service_symbs {
 	char *obj, *init_str;
 	unsigned long lower_addr, size, allocated, heap_top;
 	unsigned long mem_size; /* memory used */
-	
+
 	struct service_section sections[SERV_SECT_NUM];
 
 	int is_composite_loaded, already_loaded;
@@ -109,7 +109,7 @@ struct service_symbs {
 
 	int is_scheduler;
 	struct service_symbs *scheduler;
-	
+
 	struct spd *spd;
 	struct symb_type exported, undef;
 	int num_dependencies;
@@ -121,8 +121,8 @@ struct service_symbs {
 };
 
 typedef enum {
-	TRANS_CAP_NIL = 0, 
-	TRANS_CAP_FAULT, 
+	TRANS_CAP_NIL = 0,
+	TRANS_CAP_FAULT,
 	TRANS_CAP_SCHED
 } trans_cap_t;
 

@@ -1,7 +1,7 @@
-C_OBJS=booter.o
+C_OBJS=micro_booter.o
 ASM_OBJS=cos_asm_scheduler.o
-COMPONENT=llboot.o
-INTERFACES=cgraph pgfault sched_hier
+COMPONENT=micro_boot.o
+INTERFACES=
 DEPENDENCIES=
 IF_LIB=
 ADDITIONAL_LIBS=-lcobj_format -lcos_kernel_api

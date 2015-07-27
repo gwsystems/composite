@@ -16,7 +16,7 @@ clean:
 init: clean
 
 ltests:
-	$(MAKE) -C tests 
+	$(MAKE) -C tests
 
 #clean the linux tests
 cltests:

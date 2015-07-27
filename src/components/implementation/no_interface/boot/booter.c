@@ -6,12 +6,12 @@
  */
 
 #include <cos_component.h>
+/* dependencies */
+#include <boot_deps.h>
 
 extern struct cos_component_information cos_comp_info;
 struct cobj_header *hs[MAX_NUM_SPDS+1];
 
-/* dependencies */
-#include <boot_deps.h>
 
 #include <cobj_format.h>
 

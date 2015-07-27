@@ -6,7 +6,9 @@
 #include <string.h>
 #include <ck_pr.h>
 
-static int
+#include <cos_component.h>
+
+int
 prints(char *s)
 {
 	int len = strlen(s);
@@ -14,7 +16,7 @@ prints(char *s)
 	return len;
 }
 
-static int __attribute__((format(printf,1,2)))
+int __attribute__((format(printf,1,2)))
 printc(char *fmt, ...)
 {
 	char s[128];
@@ -40,6 +42,7 @@ printc(char *fmt, ...)
 #define BOOT_DEPS_H
 
 #include <cos_component.h>
+#include <cobj_format.h>
 #include <res_spec.h>
 
 struct llbooter_per_core {
