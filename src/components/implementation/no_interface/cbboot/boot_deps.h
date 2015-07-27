@@ -42,6 +42,7 @@ boot_deps_init(void)
 {
 	cos_vect_init_static(&spd_sect_cbufs);
 	cos_vect_init_static(&spd_sect_cbufs_header);
+	cos_vect_init_static(&bthds);
 }
 
 static void

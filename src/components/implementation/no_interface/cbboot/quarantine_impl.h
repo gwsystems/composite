@@ -16,6 +16,9 @@
 extern cos_vect_t spd_sect_cbufs;
 extern cos_vect_t spd_sect_cbufs_header;
 
+/* populated by lock.c */
+extern cos_vect_t bthds;
+
 struct cbid_caddr {
 	cbuf_t cbid;
 	void *caddr;
