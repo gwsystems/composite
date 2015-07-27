@@ -186,14 +186,15 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	printl("Setting capabilities for %d\n", d_spd);
 	if (__boot_spd_caps(h, d_spd)) BUG();
 
-	/* Increment the fork.cnt in source and d_spd struct spd.
-	 * FIXME: are different forks comparable system-wide? */
+	/* Set the fork.cnt in source and d_spd struct spd. */
 	cos_spd_cntl(COS_SPD_INC_FORK_CNT, source, 1<<(fork_count+16), 0);
 	cos_spd_cntl(COS_SPD_INC_FORK_CNT, d_spd, 1<<(fork_count+16), 0);
 	fork_count++;
 	if (fork_count >= 16) {
 		printl("Fork count overflowed, resetting!\n");
 		fork_count = 0;
+		/* FIXME: need to clear out old counts, and possibly check
+		 * for spds that may have missed seeing them */
 	}
 
 	/* FIXME: better way to pick threads out. this will get the first
