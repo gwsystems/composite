@@ -22,6 +22,8 @@
 
 #include <sched.h>
 
+#include "quarantine_impl.h"
+
 //#define ACT_LOG
 #ifdef ACT_LOG
 #define ACT_LOG_LEN 32
@@ -64,6 +66,7 @@ struct meta_lock {
 	unsigned long lock_id;
 	struct blocked_thds b_thds;
 	unsigned long long gen_num;
+	volatile u32_t *lock_addr; /* points to &cos_lock_t.atom */
 
 	struct meta_lock *next, *prev;
 };
@@ -143,7 +146,7 @@ static int lock_is_thd_blocked(struct meta_lock *ml, unsigned short int thd)
 	return 0;
 }
 
-static struct meta_lock *lock_alloc(spdid_t spd)
+static struct meta_lock *lock_alloc(spdid_t spd, vaddr_t laddr)
 {
 	struct meta_lock *l;
 	struct meta_lock *snd, *lst;
@@ -157,6 +160,7 @@ static struct meta_lock *lock_alloc(spdid_t spd)
 	l->owner = 0;
 	l->gen_num = 0;
 	l->spd = spd;
+	l->lock_addr = quarantine_translate_addr(spd, laddr);
 	INIT_LIST(l, next, prev);
 	assert(&locks != l);
 	snd = FIRST_LIST(&locks, next, prev);
@@ -368,7 +372,7 @@ unsigned long lock_component_alloc(spdid_t spd, vaddr_t laddr)
 	spdid_t spdid = cos_spd_id();
 
 	TAKE(spdid);
-	l = lock_alloc(spd);
+	l = lock_alloc(spd, laddr);
 	RELEASE(spdid);
 	
 	if (!l) return 0;

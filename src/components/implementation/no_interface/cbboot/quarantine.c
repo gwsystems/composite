@@ -63,6 +63,38 @@ quarantine_spd_caps(struct cobj_header *h, spdid_t spdid)
 	return 0;
 }
 
+/* Translates a virtual address in (spdid) component's address space into the
+ * quarantine manager's address space. Useful for sharing data between a
+ * cbbooted-component and the quarantine manager. */
+void* quarantine_translate_addr(spdid_t spdid, vaddr_t addr)
+{
+	struct cobj_header *h;
+	struct cbid_caddr *sect_cbufs;
+	int i;
+
+	/* get the memory for spdid component */
+	if (unlikely(!(sect_cbufs = cos_vect_lookup(&spd_sect_cbufs, spdid))))
+		printl("cos_vect_lookup(%d) in spd_sect_cbufs failed\n", spdid);
+	if (unlikely(!(h = cos_vect_lookup(&spd_sect_cbufs_header, spdid))))
+		printl("cos_vect_lookup(%d) in spd_sect_cbufs_header failed\n", spdid);
+	if (!sect_cbufs || !h) BUG(); //goto done;
+
+	for (i = 0; i < (int)h->nsect; i++) {
+		struct cobj_sect *sect = cobj_sect_get(h, i);
+		vaddr_t d_addr = sect->vaddr;
+		u32_t size = cobj_sect_size(h, i);
+
+		if (addr < d_addr + size) { /* found the right section */
+			char* base = (char*)sect_cbufs[i].caddr;
+			u32_t offset = addr - d_addr;
+			printl("quarantine_translate_addr(%d, %x) got %x\n", spdid, addr, base + offset);
+			return base + offset;
+		}
+	}
+
+	printl("quarantine_translate_addr(%d, %x) failed\n", spdid, addr);
+	return NULL;
+}
 
 /* quarantine if */
 spdid_t

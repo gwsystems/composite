@@ -33,6 +33,9 @@ struct cbid_caddr {
 extern struct cbid_caddr all_spd_sect_cbufs[CBUFS_PER_PAGE * SECT_CBUF_PAGES];
 extern unsigned int all_cbufs_index;
 
+/* some internally-useful functions */
+extern void* quarantine_translate_addr(spdid_t spdid, vaddr_t addr);
+
 /* prototypes for wrappers of booter.c functions used when quarantining */
 int 
 __boot_spd_set_symbs(struct cobj_header *h, spdid_t spdid, struct cos_component_information *ci);
