@@ -331,8 +331,8 @@ livenessid_bump_alloc(void)
 
 /**************** [Kernel Object Allocation] ****************/
 
-static
-int __alloc_mem_cap(struct cos_compinfo *ci, cap_t ct, vaddr_t *kmem, capid_t *cap)
+static int
+__alloc_mem_cap(struct cos_compinfo *ci, cap_t ct, vaddr_t *kmem, capid_t *cap)
 {
 	printd("__alloc_mem_cap\n");
 
