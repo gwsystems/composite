@@ -71,6 +71,33 @@ struct meta_lock {
 	struct meta_lock *next, *prev;
 };
 
+/* Avoid using malloc in cbboot. Following declares sufficient
+ * statically-allocated storage for MAX_NUM_LOCKS meta_lock, and
+ * a page of struct blocked_thd (about PAGE_SIZE / 12).
+ */
+#define MAX_NUM_LOCKS (1024)
+static struct meta_lock all_meta_locks[MAX_NUM_LOCKS];
+static unsigned int all_meta_index = 0;
+#define BTHD_PER_PAGE (PAGE_SIZE / sizeof(struct blocked_thds))
+#define BTHD_PAGES (1)
+#define MAX_BTHD (BTHD_PER_PAGE * BTHD_PAGES)
+static struct blocked_thds all_blocked_thds[MAX_BTHD];
+static unsigned int all_bthd_index = 0;
+
+static inline struct meta_lock* malloc_meta_lock() {
+	assert(all_meta_index < MAX_NUM_LOCKS);
+	return &all_meta_locks[all_meta_index++];
+}
+
+static inline void free_meta_lock(struct meta_lock* ml) {
+}
+
+/* the blocked_thds get tracked in bthd cos_vect */
+static inline struct blocked_thds* malloc_blocked_thds() {
+	assert(all_bthd_index < MAX_BTHD);
+	return &all_blocked_thds[all_bthd_index++];
+}
+
 static volatile unsigned long lock_id = 1;
 /* Head of the linked list of locks. */
 static struct meta_lock STATIC_INIT_LIST(locks, next, prev);
@@ -98,7 +125,7 @@ static struct blocked_thds *bt_get(unsigned short int tid)
 
 	bt = cos_vect_lookup(&bthds, tid);
 	if (NULL == bt) {
-		bt = malloc(sizeof(struct blocked_thds));
+		bt = malloc_blocked_thds();
 		if (NULL == bt) return NULL;
 		INIT_LIST(bt, next, prev);
 		bt->thd_id = tid;
@@ -151,7 +178,7 @@ static struct meta_lock *lock_alloc(spdid_t spd, vaddr_t laddr)
 	struct meta_lock *l;
 	struct meta_lock *snd, *lst;
 
-	l = (struct meta_lock*)malloc(sizeof(struct meta_lock));
+	l = malloc_meta_lock();
 	if (!l) return NULL;
 	l->b_thds.thd_id = 0;
 	INIT_LIST(&(l->b_thds), next, prev);
@@ -185,7 +212,7 @@ static void lock_free(struct meta_lock *l)
 {
 	assert(l && l != &locks);
 	REM_LIST(l, next, prev);
-	free(l);
+	free_meta_lock(l);
 }
 
 /* Public functions: */
