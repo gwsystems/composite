@@ -19,7 +19,7 @@
 #include <assert.h>
 
 int
-__add_service_dependency(struct service_symbs *s, struct service_symbs *dep, 
+__add_service_dependency(struct service_symbs *s, struct service_symbs *dep,
                                     char *modifier, int mod_len)
 {
         struct dependency *d;
@@ -85,7 +85,7 @@ get_service_struct(char *name, struct service_symbs *list)
 
 /*
  * Add to the service_symbs structures the dependents.
- * 
+ *
  * deps is formatted as "sa-sb|sc|...|sn;sd-se|sf|...;...", or a list
  * of "service" hyphen "dependencies...".  In the above example, sa
  * depends on functions within sb, sc, and sn.
@@ -103,6 +103,8 @@ deserialize_dependencies(char *deps, struct service_symbs *services)
 	if (!deps) return -1;
 	next = current = deps;
 
+	printf("deps %s\n", deps);
+	if (strlen(current) == 0) return 0;
 	/* go through each dependent-trusted|... relation */
 	while (current) {
 		struct service_symbs *s, *dep;
@@ -113,6 +115,7 @@ deserialize_dependencies(char *deps, struct service_symbs *services)
 			*next = '\0';
 			next++;
 		}
+
 		/* the dependent */
 		tmp = strtok(current, serial);
 		s = get_service_struct(tmp, services);
@@ -142,9 +145,9 @@ deserialize_dependencies(char *deps, struct service_symbs *services)
 			if (!dep) {
 				printl(PRINT_HIGH, "Could not find service %s.\n", tmp);
 				return -1;
-			} 
+			}
 			if (dep == s) {
-				printl(PRINT_HIGH, "Reflexive relations not allowed (for %s).\n", 
+				printl(PRINT_HIGH, "Reflexive relations not allowed (for %s).\n",
 				       s->obj);
 				return -1;
 			}
@@ -163,14 +166,14 @@ deserialize_dependencies(char *deps, struct service_symbs *services)
 					s->scheduler = dep;
 				} else if (dep != s->scheduler) {
 					printl(PRINT_HIGH, "Service %s is dependent on more than "
-					       "one scheduler (at least %s and %s).  Error.\n", 
+					       "one scheduler (at least %s and %s).  Error.\n",
 					       s->obj, dep->obj, s->scheduler->obj);
 					return -1;
 				}
 			}
 
 			tmp = strtok(NULL, parallel);
-		} 
+		}
 
 		current = next;
 	}

@@ -157,7 +157,7 @@ findsections(asection *sect, PTR obj, int ld)
         }
 }
 
-void findsections_srcobj(bfd *abfd, asection *sect, PTR obj) 
+void findsections_srcobj(bfd *abfd, asection *sect, PTR obj)
 {
 	findsections(sect, obj, 0);
 }
@@ -264,7 +264,7 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 
         printl(PRINT_NORMAL, "Processing object %s:\n", service_name);
 
-        /* 
+        /*
          * First Phase: We need to learn about the object.  We need to
          * get the addresses of each section that we care about,
          * figure out proper alignments, and lengths of each section.
@@ -283,7 +283,7 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
                 printl(PRINT_DEBUG, "Not an object file!\n");
                 return -1;
         }
-        /* 
+        /*
          * Initialize some section info (note that only sizes of
          * sections are relevant now, as we haven't yet linked in
          * their proper addresses.
@@ -397,7 +397,7 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
         }
         unlink(tmp_exec);
 
-        /* 
+        /*
          * Second Phase: Now we know the memory layout of the object,
          * and have the destination memory for the object's data to be
          * placed into (either mmaped -- Linux loaded, or cobj -- for
@@ -477,7 +477,7 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 
 
 /*
- * Load into the current address space all of the services.  
+ * Load into the current address space all of the services.
  *
  * FIXME: Load intelligently, from the most trusted to the least in
  * some order instead of randomly.  This will be important when we do
@@ -489,7 +489,7 @@ load_service(struct service_symbs *ret_data, unsigned long lower_addr, unsigned 
 unsigned long
 load_all_services(struct service_symbs *services)
 {
-	unsigned long service_addr = BASE_SERVICE_ADDRESS;
+	unsigned long service_addr = BASE_SERVICE_ADDRESS + DEFAULT_SERVICE_SIZE;
 	long sz;
 
 	while (services) {
@@ -512,4 +512,3 @@ load_all_services(struct service_symbs *services)
 
 	return service_addr;
 }
- 

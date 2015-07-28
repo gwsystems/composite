@@ -3,7 +3,7 @@
  *
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
- * 
+ *
  */
 
 #include "include/retype_tbl.h"
@@ -17,7 +17,7 @@ struct retype_info_glb glb_retype_tbl[N_MEM_SETS] CACHE_ALIGNED;
 
 /* called to increment or decrement the refcnt. */
 static inline int
-mod_ref_cnt(void *pa, const int op, const int type_check) 
+mod_ref_cnt(void *pa, const int op, const int type_check)
 {
 	u32_t idx, old_v;
 	struct retype_entry *retype_entry;
@@ -79,7 +79,7 @@ mod_mem_type(void *pa, const mem_type_t type)
 
 	assert(pa); 	/* cannot be NULL: kernel image takes that space */
 	PA_BOUNDARY_CHECK();
-	
+
 	idx = GET_MEM_IDX(pa);
 	assert(idx < N_MEM_SETS);
 
@@ -124,6 +124,7 @@ retypetbl_retype2user(void *pa)
 int
 retypetbl_retype2kern(void *pa)
 {
+	if ((unsigned long)pa >= COS_MEM_USER_PA) return -EINVAL;
 	return mod_mem_type(pa, RETYPETBL_KERN);
 }
 
@@ -247,6 +248,6 @@ retype_tbl_init(void)
 	}
 
 	cos_mem_fence();
-	
+
 	return;
 }

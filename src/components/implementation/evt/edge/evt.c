@@ -62,9 +62,9 @@ cos_lock_t evt_lock;
 
 struct evt_grp grps;
 
-/* 
+/*
  * mapping_* functions are for maintaining mappings between an
- * external event and an event structure 
+ * external event and an event structure
  */
 static long mapping_create(struct evt *e)
 {
@@ -84,7 +84,7 @@ static void mapping_free(long extern_evt)
 	if (cos_map_del(&evt_map, extern_evt)) BUG();
 }
 
-/* 
+/*
  * evt_grp_* functions maintain a mapping between an "event group" and
  * a set of events.  In our case, we are assuming that an event group
  * is essentially a thread.  Thus a thread can wait for a set of
@@ -108,14 +108,14 @@ static inline void evt_grp_free(struct evt_grp *g)
 	}
 	while (!EMPTY_LIST(&g->events, next, prev)) {
 		struct evt *e;
-		
+
 		e = FIRST_LIST(&g->events, next, prev);
 		REM_LIST(e, next, prev);
 	}
 	for (i = 0 ; i < EVT_NUM_PRIOS ; i++) {
 		while (!EMPTY_LIST(&g->triggered[i], next, prev)) {
 			struct evt *e;
-			
+
 			e = FIRST_LIST(&g->triggered[i], next, prev);
 			REM_LIST(e, next, prev);
 		}
@@ -139,7 +139,7 @@ static inline int evt_grp_add(struct evt_grp *g)
 	return 0;
 }
 
-/* 
+/*
  * FIXME: keeping the lock during a bunch of memory allocation.  This
  * is never good, but the code is much simpler for it.  A trade-off
  * I'm commonly making now.
@@ -222,14 +222,14 @@ long evt_grp_wait(spdid_t spdid)
 	}
 err:
 	lock_release(&evt_lock);
-	return -1; 
+	return -1;
 }
 
 /* As above, but return more than one event notifications */
 int evt_grp_mult_wait(spdid_t spdid, struct cos_array *data)
 {
 	/* Outdated API */
-	return -ENOSUP; 
+	return -ENOTSUP;
 }
 
 /* volatile int bid = 0; */
@@ -266,7 +266,7 @@ int __evt_wait(spdid_t spdid, long extern_evt, int n)
 
 err:
 	lock_release(&evt_lock);
-	return -1; 
+	return -1;
 }
 
 /* Wait for a specific event */
@@ -285,7 +285,6 @@ int evt_trigger(spdid_t spdid, long extern_evt)
 {
 	struct evt *e;
 	int ret = 0;
-	cpuid_t core;
 
 	lock_take(&evt_lock);
 
@@ -293,7 +292,6 @@ int evt_trigger(spdid_t spdid, long extern_evt)
 	if (NULL == e) goto err;
 
 	ACT_RECORD(ACT_TRIGGER, spdid, e->extern_id, cos_get_thd_id(), 0);
-	core = e->core_id;
 	/* Trigger an event being waited for? */
 	if (0 != (ret = __evt_trigger(e))) {
 		lock_release(&evt_lock);
@@ -346,7 +344,7 @@ unsigned long *evt_stats(spdid_t spdid, unsigned long *stats)
 	if (!cos_argreg_buff_intern((char*)stats, sz)) {
 		return NULL;
 	}
-	
+
 	if (NULL == (a = action_report())) return NULL;
 	memcpy(stats, a, sz);
 	return stats;
