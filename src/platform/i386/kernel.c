@@ -112,6 +112,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 {
 #define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
 	unsigned long max;
+	void *rsdp;
 
 	tss_init();
 	gdt_init();
@@ -123,6 +124,8 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 #ifdef ENABLE_CONSOLE
 	console_init();
 #endif
+	rsdp = acpi_find_rsdp();
+
 	max = MAX((unsigned long)mboot->mods_addr, 
 		  MAX((unsigned long)mboot->mmap_addr, (unsigned long)(chal_va2pa(&end))));
 	kern_paging_map_init((void*)(max + PGD_SIZE));

@@ -39,6 +39,7 @@ void idt_init(void);
 void gdt_init(void);
 void user_init(void);
 void paging_init(void);
+void *acpi_find_rsdp(void);
 void kern_paging_map_init(void *pa);
 
 //void printk(const char *fmt, ...);

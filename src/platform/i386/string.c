@@ -54,3 +54,14 @@ vsprintf(char *buf, const char *fmt, va_list args)
 
 	return i;
 }
+
+int
+strncmp(const char *s1, const char *s2, size_t n)
+{
+	size_t i;
+	for (i = 0; i < n; i++) {
+		if (s1[i] < s2[i]) return -1;
+		if (s1[i] > s2[i]) return 1;
+	}
+	return 0;
+}
