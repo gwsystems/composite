@@ -167,7 +167,9 @@ void cos_init(void)
 	printc("\nUNIT TEST (CBUF & CBUFP)\n");
 	TAKE();
 	cbuf_tests();
+	RELEASE();
 	//new_spd = quarantine_fork(cos_spd_id(), cos_spd_id());
+	TAKE();
 	cbufp_tests();
 	printc("UNIT TEST (CBUF & CBUFP) ALL PASSED\n");
 	RELEASE();
