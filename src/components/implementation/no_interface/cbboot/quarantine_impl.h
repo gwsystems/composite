@@ -35,6 +35,7 @@ extern unsigned int all_cbufs_index;
 
 /* some internally-useful functions */
 extern void* quarantine_translate_addr(spdid_t spdid, vaddr_t addr);
+extern int lock_help_owners(spdid_t spdid, spdid_t spd);
 
 /* prototypes for wrappers of booter.c functions used when quarantining */
 int 

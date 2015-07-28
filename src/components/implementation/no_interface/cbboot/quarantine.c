@@ -124,6 +124,8 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 		printl("cos_vect_lookup(%d) in spd_sec_cbufs_header failed\n", source);
 	if (!old_sect_cbufs || !h) BUG(); //goto done;
 	
+	lock_help_owners(spdid, source);
+
 	/* The following, copied partly from booter.c,  */
 	if ((d_spd = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG();
 

@@ -9,7 +9,7 @@
 
 #define COS_FMT_PRINT
 
-//#include <cos_synchronization.h>
+#include <cos_synchronization.h>
 #include <cos_component.h>
 #include <cos_alloc.h>
 #include <cos_debug.h>
@@ -66,7 +66,8 @@ struct meta_lock {
 	unsigned long lock_id;
 	struct blocked_thds b_thds;
 	unsigned long long gen_num;
-	volatile u32_t *lock_addr; /* points to &cos_lock_t.atom */
+	volatile union cos_lock_atomic_struct *lock_addr; /* points to &cos_lock_t.atom */
+	u16_t helping; /* indicator that lock is being helped */
 
 	struct meta_lock *next, *prev;
 };
@@ -173,6 +174,65 @@ static int lock_is_thd_blocked(struct meta_lock *ml, unsigned short int thd)
 	return 0;
 }
 
+static inline void __lock_help(struct meta_lock *l, int smp)
+{
+	union cos_lock_atomic_struct result, prev_val;
+	u16_t owner;
+	prev_val.v = result.v = 0;
+	/* Set the contested bit to force the slow path during lock release */
+	do {
+		prev_val.v         = l->lock_addr->v;
+		owner              = prev_val.c.owner;
+		assert(owner); /* from lock_help_owner, this must be true */
+		result.c.owner = owner;
+		result.c.contested = 1;
+	} while (unlikely(!__cos_cas((unsigned long *)&l->lock_addr->v, prev_val.v, result.v, smp)));
+
+ 	/* put curr thd in the helping field to recover execution context
+	 * in lock_component_release when sched_wakeup is called, and then
+	 * sched_block to switch to the owner thd */
+	l->helping = (u16_t)cos_get_thd_id();
+	sched_block(cos_spd_id(), owner);
+	l->helping = 0; /* clear the helping field */
+}
+
+static inline struct meta_lock* owner_blocked_on_lock(u16_t owner) {
+	struct meta_lock *tmp;
+
+	for (tmp = FIRST_LIST(&locks, next, prev) ; 
+	     tmp != &locks ; 
+	     tmp = FIRST_LIST(tmp, next, prev)) {
+		if (lock_is_thd_blocked(tmp, owner)) return tmp;
+	}
+	return NULL;
+}
+
+static inline void help_owner(struct meta_lock *ml, spdid_t spd)
+{
+	u16_t owner = ml->owner;
+	struct meta_lock *bl = owner_blocked_on_lock(owner);
+	if (bl) {
+		help_owner(bl, bl->spd); /* FIXME: recursion... */
+	}
+	__lock_help(ml, 0);
+}
+
+int lock_help_owners(spdid_t spdid, spdid_t spd)
+{
+	struct meta_lock *tmp;
+	int helped_cnt = 0;
+
+	for (tmp = FIRST_LIST(&locks, next, prev) ; 
+	     tmp != &locks ; 
+	     tmp = FIRST_LIST(tmp, next, prev)) {
+		if (tmp->spd == spd) {
+			help_owner(tmp, spd);
+			++helped_cnt;
+		}
+	}
+	return helped_cnt;
+}
+
 static struct meta_lock *lock_alloc(spdid_t spd, vaddr_t laddr)
 {
 	struct meta_lock *l;
@@ -188,6 +248,7 @@ static struct meta_lock *lock_alloc(spdid_t spd, vaddr_t laddr)
 	l->gen_num = 0;
 	l->spd = spd;
 	l->lock_addr = quarantine_translate_addr(spd, laddr);
+	l->helping = 0;
 	INIT_LIST(l, next, prev);
 	assert(&locks != l);
 	snd = FIRST_LIST(&locks, next, prev);
@@ -337,6 +398,15 @@ int lock_component_release(spdid_t spd, unsigned long lock_id)
 	generation++;
 	ml = lock_find(lock_id, spd);
 	if (!ml) goto error;
+
+	if (ml->helping) {
+		sched_wakeup(cos_spd_id(), ml->helping);
+		/* curr should have been preempted by sched_wakeup, and
+		 * the execution path resumed in __lock_help. assert this
+		 * by checking the helping field.
+		 */
+		assert(!ml->helping);
+	}
 
 	/* Apparently, lock_take calls haven't been made. */
 	if (EMPTY_LIST(&ml->b_thds, next, prev)) {
