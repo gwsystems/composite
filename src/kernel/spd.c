@@ -457,12 +457,12 @@ struct spd *spd_get_by_index(int idx)
 
 int spd_set_fork_cnt(struct spd *spd, int n)
 {
-	spd->fork.cnt = n;
+	spd->fork.origin = n;
 	return 0;
 }
 int spd_get_fork_cnt(struct spd *spd)
 {
-	return (int)spd->fork.cnt;
+	return (int)spd->fork.origin;
 }
 
 int spd_set_fork_origin(struct spd *spd, int origin)
@@ -534,12 +534,13 @@ int spd_cap_set_sfn(struct spd *spd, int cap, vaddr_t fn)
 	c->usr_stub_info.ST_serv_entry = fn;
 	return 0;
 }
-int spd_cap_set_fork_cnt(struct spd *spd, int cap, int n)
+int spd_cap_set_fork_cnt(struct spd *spd, int cap, u8_t send, u8_t receive)
 {
 	struct invocation_cap *c = spd_get_cap(spd, cap);
 	
 	if (!c) return -1;
-	c->fork.cnt = n;
+	c->fork.cnt.snd = send;
+	c->fork.cnt.rcv = receive;
 	return 0;
 }
 int spd_cap_get_fork_cnt(struct spd *spd, int cap)
@@ -547,7 +548,16 @@ int spd_cap_get_fork_cnt(struct spd *spd, int cap)
 	struct invocation_cap *c = spd_get_cap(spd, cap);
 	
 	if (!c) return -1;
-	return (int)c->fork.cnt;
+	return (((int)c->fork.cnt.snd)<<8) | (int)c->fork.cnt.rcv;
+}
+int spd_cap_inc_fork_cnt(struct spd *spd, int cap, u8_t send, u8_t receive)
+{
+	struct invocation_cap *c = spd_get_cap(spd, cap);
+	
+	if (!c) return -1;
+	c->fork.cnt.snd += send;
+	c->fork.cnt.rcv += receive;
+	return 0;
 }
 
 

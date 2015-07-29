@@ -3080,9 +3080,13 @@ cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
 		ret = cspd->ncaps;
 		break;
 	case COS_CAP_INC_FORK_CNT:
+		if (spd_cap_inc_fork_cnt(cspd, capid, arg2>>8, arg2&0xff)) ret = -1;
+		break;
+	case COS_CAP_SET_FORK_CNT:
+		if (spd_cap_set_fork_cnt(cspd, capid, arg2>>8, arg2&0xff)) ret = -1;
+		break;
+	case COS_CAP_GET_FORK_CNT:
 		ret = spd_cap_get_fork_cnt(cspd, capid);
-		if ( ret < 0 ) break;
-		if (spd_cap_set_fork_cnt(cspd, capid, ret | arg2)) ret = -1;
 		break;
 	default:
 		ret = -1;

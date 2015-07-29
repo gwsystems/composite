@@ -105,10 +105,11 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	struct cbid_caddr *old_sect_cbufs, *new_sect_cbufs;
 	struct cobj_header *h;
 	struct cobj_sect *sect;
+	struct cobj_cap *cap;
 	vaddr_t init_daddr;
 	long tot = 0;
 	int j, r;
-	int generation;
+	int ndeps;
 
 	/* FIXME: fork counting hack. */
 	static int fork_count = 0;
@@ -219,6 +220,41 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	if (cos_spd_cntl(COS_SPD_ACTIVATE, d_spd, h->ncap, 0)) BUG();
 	printl("Setting capabilities for %d\n", d_spd);
 	if (__boot_spd_caps(h, d_spd)) BUG();
+
+	/* Increment send-side fork count in source's caps, and
+	 * copy fork count into d_spd's caps. */
+	for (j = 0; j < h->ncap; j++) {
+		int cnt;
+		cap = cobj_cap_get(h, j);
+		if (cobj_cap_undef(cap)) break;
+		if (cos_cap_cntl(COS_CAP_INC_FORK_CNT, source, cap->cap_off, 1<<8 | 0)) BUG();
+		cnt = cos_cap_cntl(COS_CAP_GET_FORK_CNT, source, cap->cap_off, 0);
+		assert(cnt > 0);
+		if (cos_cap_cntl(COS_CAP_SET_FORK_CNT, d_spd, cap->cap_off, cnt)) BUG();
+		printl("Updated fork count for cap %d from %d to count %d\n", j, source, cnt);
+	}
+
+	/* Find every spd that has an invocation cap to source and update
+	 * the receive-side fork count. */
+	for (j = 0; j < ndeps; j++) {
+		int i;
+		int ncaps;
+		spdid_t c, s;
+		if (cgraph_server(j) == source) {
+			c = cgraph_client(j);
+			ncaps = cos_cap_cntl(COS_CAP_GET_SPD_NCAPS, c, 0, 0);
+			for (i = 0; i < ncaps; i++) {
+				s = cos_cap_cntl(COS_CAP_GET_DEST_SPD, c, i, 0);
+				if (s < 0) BUG();
+				if (s == source) {
+					cos_cap_cntl(COS_CAP_INC_FORK_CNT, c, i, (0 << 8) | 1);
+					printl("Updated fork count for cap %d from %d->%d\n", i, c, s);
+					break;
+				}
+			}
+			printl("Unable to find client cap from %d -> %d\n", c, s);
+		}
+	}
 
 	/* Set the fork.cnt in source and d_spd struct spd. */
 	cos_spd_cntl(COS_SPD_INC_FORK_CNT, source, 1<<(fork_count+16), 0);
