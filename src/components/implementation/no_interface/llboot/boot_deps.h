@@ -215,18 +215,23 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 }
 
 int
-fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
+fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void *ip)
 {
 	unsigned long r_ip;
 	int tid = cos_get_thd_id();
-	int c_spd, d_spd, c_fix, d_fix;
+	u16_t capid;
+	s8_t c_fix, d_fix;
+	int c_spd, d_spd;
 	int f_spd;
-	c_fix = ccnt_dcnt>>16;
-	d_fix = ccnt_dcnt&0xffff;
+	int inc_val;
+
+	capid = cap_ccnt_dcnt>>16;
+	d_fix = (cap_ccnt_dcnt>>8)&0xff; /* fix the d (server) if snd != 0 */
+	c_fix = cap_ccnt_dcnt&0xff; /* fix the c (client) if rcv != 0 */
 	c_spd = cspd_dspd>>16;
 	d_spd = cspd_dspd&0xffff;
 
-	printc("llboot args: %d\t%d\n", cspd_dspd, ccnt_dcnt);
+	printc("llboot args: %d\t%d\n", cspd_dspd, cap_ccnt_dcnt);
 	printc("llboot (%d) fault_quarantine_handler %d (%d) -> %d (%d)\n", spdid, c_spd, c_fix, d_spd, d_fix);
 
 	if (d_fix) {
@@ -241,8 +246,6 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 		printc("Fixing server %d metadata for spd %d after fork to %d\n", d_spd, f_spd, c_spd);
 		/* TODO: upcall here? */
 		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, (f_spd<<16)|c_spd);
-
-		cos_spd_cntl(COS_SPD_INC_FORK_CNT, d_spd, d_fix, 0);
 	}
 	if (c_fix) {
 	/* d_spd has been forked, and c_spd needs to have its inv caps fixed.
@@ -257,8 +260,11 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 
 		// TODO: add / change ucap, routing table
 
-		cos_spd_cntl(COS_SPD_INC_FORK_CNT, c_spd, c_fix, 0);
 	}
+	/* adjust the fork count */
+	inc_val = (((u8_t)-d_fix)<<8U) | ((u8_t)(-c_fix));
+	printc("Incrementing fork count by %u in spd %d for cap %d\n", inc_val, c_spd, capid);
+	cos_cap_cntl(COS_CAP_INC_FORK_CNT, c_spd, capid, inc_val);
 
 	printc("Done fixing, returning to invocation frame\n");
 

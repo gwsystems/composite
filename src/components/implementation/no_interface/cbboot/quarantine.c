@@ -256,17 +256,6 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 		}
 	}
 
-	/* Set the fork.cnt in source and d_spd struct spd. */
-	cos_spd_cntl(COS_SPD_INC_FORK_CNT, source, 1<<(fork_count+16), 0);
-	cos_spd_cntl(COS_SPD_INC_FORK_CNT, d_spd, 1<<(fork_count+16), 0);
-	fork_count++;
-	if (fork_count >= 16) {
-		printl("Fork count overflowed, resetting!\n");
-		fork_count = 0;
-		/* FIXME: need to clear out old counts, and possibly check
-		 * for spds that may have missed seeing them */
-	}
-
 	/* FIXME: better way to pick threads out. this will get the first
 	 * thread, preference to blocked, then search inv stk. The
 	 * returned thread is blocked first, to avoid having it run
@@ -313,14 +302,19 @@ done:
 
 
 int
-fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
+fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void *ip)
 {
 	unsigned long r_ip;
 	int tid = cos_get_thd_id();
-	int c_spd, d_spd, c_fix, d_fix;
+	u16_t capid;
+	s8_t c_fix, d_fix;
+	int c_spd, d_spd;
 	int f_spd;
-	c_fix = ccnt_dcnt>>16;
-	d_fix = ccnt_dcnt&0xffff;
+	int inc_val;
+
+	capid = cap_ccnt_dcnt>>16;
+	d_fix = (cap_ccnt_dcnt>>8)&0xff; /* fix the d (server) if snd != 0 */
+	c_fix = cap_ccnt_dcnt&0xff; /* fix the c (client) if rcv != 0 */
 	c_spd = cspd_dspd>>16;
 	d_spd = cspd_dspd&0xffff;
 
@@ -343,7 +337,6 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 	
 		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, (f_spd<<16)|c_spd);
 
-		cos_spd_cntl(COS_SPD_INC_FORK_CNT, d_spd, d_fix, 0);
 	}
 	if (c_fix) {
 	/* d_spd has been forked, and c_spd needs to have its inv caps fixed.
@@ -359,8 +352,14 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int ccnt_dcnt, void *ip)
 
 		// TODO: add / change ucap, routing table
 		
-		cos_spd_cntl(COS_SPD_INC_FORK_CNT, c_spd, c_fix, 0);
 	}
+	/* Adjust the fork count by the observed amount. We could just set
+	 * this to zero, but what if a fork has happened since the fault
+	 * handler was invoked? Probably we want to just decrement, and let
+	 * the fault happen again in this (unlikely) case. */
+	inc_val = (((u8_t)-d_fix)<<8U) | ((u8_t)(-c_fix));
+	printl("Incrementing fork count by %d in spd %d for cap %d\n", inc_val, c_spd, capid);
+	cos_cap_cntl(COS_CAP_INC_FORK_CNT, c_spd, capid, inc_val);
 
 	/* remove from the invocation stack the faulting component! */
 	assert(!cos_thd_cntl(COS_THD_INV_FRAME_REM, tid, 1, 0));

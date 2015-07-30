@@ -100,36 +100,17 @@ struct inv_ret_struct {
 };
 
 /* TODO: may want to include thd->fork.cnt */
-/* FIXME: This is all pretty nasty and hackish, brittle, and needs to be
- * reworked. The current idea is that each spd has two arrays of bits that
- * represent fork events. The first array indicates an spd has been forked
- * by that event, and the second array indicates the spd has been fixed for
- * that fork event (i.e. routing table updated or spdid-based metadata fixup).
- * Here we check if either end of an invocation has been forked, and if so
+/* Here we check if either end of an invocation has been forked, and if so
  * whether the other end has been fixed for that fork event.
- * For now we are using the upper-16 bits of the fork->cnt for the first array
- * and the lower-16 bits for the second.
+ * For now we are using one byte of the fork->cnt for the send (client) side,
+ * and the least-significant byte for receive (server) side.
  */
 static inline int
-need_fork_fix(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd)
+need_fork_fix(struct thread *thd, struct spd *curr_spd, struct invocation_cap *c)
 {
-	int c_cnt, d_cnt, c_fix, d_fix;
-	int cforked, dforked, chandled, dhandled;
-	c_cnt = spd_get_fork_cnt(curr_spd);
-	d_cnt = spd_get_fork_cnt(dest_spd);
-
-	cforked = c_cnt >> 16;
-	dforked = d_cnt >> 16;
-	chandled = c_cnt & 0xffff;
-	dhandled = d_cnt & 0xffff;
-
-	/* need to fix c if the fork events of d are not a subset of those
-	 * handled by c. */
-	c_fix = (dforked & chandled) ^ dforked;
-	d_fix = (cforked & dhandled) ^ cforked;
-
-	/* send the events that need fixing, if any */
-	return (c_fix<<16) | d_fix;
+	assert(c->fork.cnt.snd >= 0);
+	assert(c->fork.cnt.rcv >= 0);
+	return (((int)c->fork.cnt.snd)<<8) | (int)c->fork.cnt.rcv;
 }
 
 static vaddr_t
@@ -224,9 +205,10 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	cap_entry->invocation_cnt++;
 
 	/* Check for forking */
-	fork_cnts = need_fork_fix(thd, curr_spd, dest_spd);
+	fork_cnts = need_fork_fix(thd, curr_spd, cap_entry);
 	if (unlikely(fork_cnts > 0)) {
-		return thd_quarantine_fault(thd, curr_spd, dest_spd, fork_cnts, COS_FLT_QUARANTINE, ret);
+		/* the off-by-1 capability */
+		return thd_quarantine_fault(thd, curr_spd, dest_spd, ((capability-1)<<16) | fork_cnts, COS_FLT_QUARANTINE, ret);
 	}
 
 	return cap_entry->dest_entry_instruction;
@@ -404,7 +386,7 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 static vaddr_t
 thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd, int packed_counts, int fault_num, struct inv_ret_struct *ret)
 {
-	int c_spd, d_spd, c_cnt, d_cnt;
+	int c_spd, d_spd, c_cnt, d_cnt, capid;
 	vaddr_t packed_spds;
 
 	/*
@@ -413,14 +395,15 @@ thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_
 	packed_counts = (c_cnt<<16)|d_cnt;
 	*/
 	/* for debug purposes */
-	c_cnt = packed_counts>>16;
-	d_cnt = packed_counts & 0xffff;
+	capid = packed_counts>>16;
+	c_cnt = (packed_counts>>8)&0xff;
+	d_cnt = packed_counts & 0xff;
 
 	c_spd = spd_get_index(curr_spd);
 	d_spd = spd_get_index(dest_spd);
 	packed_spds = (vaddr_t)((c_spd<<16)|d_spd);
 	
-	printk("cos: thd_quarantine_fault %d (%d) -> %d (%d)\n", c_spd, c_cnt, d_spd, d_cnt);
+	printk("cos: thd_quarantine_fault %d (%d) -> %d (%d) with cap %d\n", c_spd, c_cnt, d_spd, d_cnt, capid);
 
 	/* GB: use curr_spd->fault_handler[], or dest_spd?
 	 * has to be dest_spd, otherwise static_ipc_walk fails, but
@@ -3080,7 +3063,7 @@ cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
 		ret = cspd->ncaps;
 		break;
 	case COS_CAP_INC_FORK_CNT:
-		if (spd_cap_inc_fork_cnt(cspd, capid, arg2>>8, arg2&0xff)) ret = -1;
+		if (spd_cap_inc_fork_cnt(cspd, capid, (arg2>>8)&0xff, arg2&0xff)) ret = -1;
 		break;
 	case COS_CAP_SET_FORK_CNT:
 		if (spd_cap_set_fork_cnt(cspd, capid, arg2>>8, arg2&0xff)) ret = -1;

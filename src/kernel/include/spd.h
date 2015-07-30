@@ -61,8 +61,8 @@ struct usr_cap_stubs {
  */
 union fork_counter {
 	struct {
-		u8_t snd;
-		u8_t rcv;
+		s8_t snd;
+		s8_t rcv;
 	} cnt;
 	u16_t origin;
 };
@@ -263,9 +263,9 @@ int spd_cap_set_dest(struct spd *spd, int cap, struct spd* dspd);
 int spd_cap_set_cstub(struct spd *spd, int cap, vaddr_t fn);
 int spd_cap_set_sstub(struct spd *spd, int cap, vaddr_t fn);
 int spd_cap_set_sfn(struct spd *spd, int cap, vaddr_t fn);
-int spd_cap_set_fork_cnt(struct spd *spd, int cap, u8_t send, u8_t receive);
+int spd_cap_set_fork_cnt(struct spd *spd, int cap, s8_t send, s8_t receive);
 int spd_cap_get_fork_cnt(struct spd *spd, int cap);
-int spd_cap_inc_fork_cnt(struct spd *spd, int cap, u8_t send, u8_t receive);
+int spd_cap_inc_fork_cnt(struct spd *spd, int cap, s8_t send, s8_t receive);
 int spd_cap_set_fault_handler(struct spd *spd, int cap, int handler_num);
 
 unsigned int spd_add_static_cap(struct spd *spd, vaddr_t service_entry_inst, struct spd *trusted_spd, 
