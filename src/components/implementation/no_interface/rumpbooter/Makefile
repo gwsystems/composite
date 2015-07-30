@@ -1,6 +1,6 @@
-C_OBJS=micro_booter.o
+C_OBJS=micro_booter.o rumpcalls.o
 ASM_OBJS=cos_asm_scheduler.o
-COMPONENT=micro_boot.o
+COMPONENT=rump_boot.o
 INTERFACES=
 DEPENDENCIES=
 IF_LIB=

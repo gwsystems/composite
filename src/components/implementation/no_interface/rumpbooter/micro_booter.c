@@ -5,6 +5,8 @@
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
 
+#include "rumpcalls.h"
+
 int
 prints(char *s)
 {
@@ -81,6 +83,10 @@ cos_init(void)
 	test_mem();
 
 	printc("\nMicro Booter done.\n");
+
+	printc("\nRumpKernel Boot Start.\n");
+	cos2rump_setup();
+	printc("\nRumpKernel Boot done.\n");
 
 	while (1) ;
 
