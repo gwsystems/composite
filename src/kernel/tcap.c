@@ -23,7 +23,7 @@ static struct clist_head CLIST_HEAD_STATIC_INIT(tcap_roots);
 
 /* Fill in default "safe" values */
 static void
-tcap_init(struct tcap *t, struct spd *c)
+tcap_init(struct tcap *t, /*spd*/ void *c)
 {
 	t->ndelegs              = 1;
 	t->epoch                = 0;
@@ -35,7 +35,7 @@ tcap_init(struct tcap *t, struct spd *c)
 }
 
 static int
-tcap_delete(struct spd *s, struct tcap *tcap)
+tcap_delete(/*spd*/ void *s, struct tcap *tcap)
 {
 	assert(s && tcap);
 	assert(tcap < &s->tcaps[TCAP_MAX] && tcap >= &s->tcaps[0]);
@@ -52,7 +52,7 @@ tcap_delete(struct spd *s, struct tcap *tcap)
 }
 
 void
-tcap_spd_init(struct spd *c)
+tcap_spd_init(/*spd*/ void *c)
 {
 	int i;
 	struct tcap *t;
@@ -71,7 +71,7 @@ tcap_spd_init(struct spd *c)
 }
 
 int
-tcap_spd_delete(struct spd *c)
+tcap_spd_delete(/*spd*/ void *c)
 {
 	int i;
 
@@ -97,7 +97,7 @@ int
 tcap_is_root(struct tcap *t) { return tcap_id(t) == 0; }
 
 struct tcap *
-tcap_get(struct spd *c, tcap_t id)
+tcap_get(/*spd*/ void *c, tcap_t id)
 {
 	struct tcap *t;
 
@@ -239,8 +239,8 @@ tcap_receiver(struct thread *t, struct tcap *tcap)
  *                                          src[sched.id].prio
  */
 static int
-__tcap_legal_transfer_delegs(struct tcap_sched_info *dst_ds, int d_nds, struct spd *dsched,
-			     struct tcap_sched_info *src_ds, int s_nds, struct spd *ssched)
+__tcap_legal_transfer_delegs(struct tcap_sched_info *dst_ds, int d_nds, /*spd*/ void *dsched,
+			     struct tcap_sched_info *src_ds, int s_nds, /*spd*/ void *ssched)
 {
 	int i, j;
 
@@ -296,7 +296,7 @@ tcap_delegate(struct tcap *dst, struct tcap *src, s64_t cycles, int prio)
 {
 	struct tcap_sched_info deleg_tmp[TCAP_MAX_DELEGATIONS];
 	int ndelegs, i, j;
-	struct spd *d, *s;
+	/*spd*/ void *d, *s;
 	int si = -1;
 
 	assert(dst && src);
@@ -443,7 +443,7 @@ tcap_elapsed(struct thread *t, unsigned int cycles)
 	tc = tcap_deref(&t->tcap_active);
 	assert(tc);
 	if (unlikely(tcap_consume(tc, cycles) < 0)) {
-		struct spd *s = tcap_sched_info(tc)->sched;
+		/*spd*/ void *s = tcap_sched_info(tc)->sched;
 		clist_rem_l(s, tcap_root_list);
 	}
 }
@@ -452,7 +452,7 @@ tcap_elapsed(struct thread *t, unsigned int cycles)
 struct thread *
 tcap_tick_handler(void)
 {
-	struct spd *s;
+	/*spd*/ void *s;
 
 	do {
 		if (clist_head_empty(&tcap_roots)) return NULL;
@@ -465,7 +465,7 @@ tcap_tick_handler(void)
 
 /** yield the tcap manager to run a root */
 void
-tcap_root_yield(struct spd *s)
+tcap_root_yield(/*spd*/ void *s)
 {
 	clist_rem_l(s, tcap_root_list);
 	clist_head_append_l(&tcap_roots, s, tcap_root_list);
@@ -473,7 +473,7 @@ tcap_root_yield(struct spd *s)
 
 /** allocate a root scheduler time */
 int
-tcap_root_alloc(struct spd *dst, struct tcap *from, int prio, int cycles)
+tcap_root_alloc(/*spd*/ void *dst, struct tcap *from, int prio, int cycles)
 {
 	struct tcap *t;
 
@@ -483,7 +483,7 @@ tcap_root_alloc(struct spd *dst, struct tcap *from, int prio, int cycles)
 }
 
 void
-tcap_root_rem(struct spd *s)
+tcap_root_rem(/*spd*/ void *s)
 {
 	struct tcap *t;
 
@@ -494,7 +494,7 @@ tcap_root_rem(struct spd *s)
 }
 
 int
-tcap_root(struct spd *s)
+tcap_root(/*spd*/ void *s)
 {
 	struct tcap *t;
 
