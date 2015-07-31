@@ -357,6 +357,8 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 	 * this to zero, but what if a fork has happened since the fault
 	 * handler was invoked? Probably we want to just decrement, and let
 	 * the fault happen again in this (unlikely) case. */
+	/* FIXME: What, if anything, can we do about other caps between
+	 * c_spd and d_spd? */
 	inc_val = (((u8_t)-d_fix)<<8U) | ((u8_t)(-c_fix));
 	printl("Incrementing fork count by %d in spd %d for cap %d\n", inc_val, c_spd, capid);
 	cos_cap_cntl(COS_CAP_INC_FORK_CNT, c_spd, capid, inc_val);

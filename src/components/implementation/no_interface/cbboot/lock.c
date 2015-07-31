@@ -196,27 +196,6 @@ static inline void __lock_help(struct meta_lock *l, int smp)
 	l->helping = 0; /* clear the helping field */
 }
 
-static inline struct meta_lock* owner_blocked_on_lock(u16_t owner) {
-	struct meta_lock *tmp;
-
-	for (tmp = FIRST_LIST(&locks, next, prev) ; 
-	     tmp != &locks ; 
-	     tmp = FIRST_LIST(tmp, next, prev)) {
-		if (lock_is_thd_blocked(tmp, owner)) return tmp;
-	}
-	return NULL;
-}
-
-static inline void help_owner(struct meta_lock *ml, spdid_t spd)
-{
-	u16_t owner = ml->owner;
-	struct meta_lock *bl = owner_blocked_on_lock(owner);
-	if (bl) {
-		help_owner(bl, bl->spd); /* FIXME: recursion... */
-	}
-	__lock_help(ml, 0);
-}
-
 int lock_help_owners(spdid_t spdid, spdid_t spd)
 {
 	struct meta_lock *tmp;
@@ -226,7 +205,7 @@ int lock_help_owners(spdid_t spdid, spdid_t spd)
 	     tmp != &locks ; 
 	     tmp = FIRST_LIST(tmp, next, prev)) {
 		if (tmp->spd == spd) {
-			help_owner(tmp, spd);
+			__lock_help(tmp, 0);
 			++helped_cnt;
 		}
 	}
