@@ -6,7 +6,7 @@ AS := as --32 -g
 
 INCPATH := ../../kernel/include
 CFLAGS := -g3 -Werror -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdlib -mno-red-zone -I$(INCPATH)
-LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs 
+LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 
 KERNEL := kernel.img
 
@@ -44,7 +44,7 @@ OBJS += chal.o
 OBJS += boot_comp.o
 #OBJS += console.o
 
-COS_OBJ += pgtbl.o 
+COS_OBJ += pgtbl.o
 COS_OBJ += retype_tbl.o
 COS_OBJ += liveness_tbl.o
 COS_OBJ += capinv.o
@@ -110,3 +110,4 @@ clean:
 cp: $(KERNEL)
 	$(info |     [CP]   Copying native booter to $(TRANS_DIR))
 	@cp -f $(KERNEL) .gdbinit qemu.sh qemu2.sh qemu-g.sh ppos.sh $(TRANS_DIR)
+	@cp runscripts/*.sh $(TRANS_DIR)

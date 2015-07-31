@@ -25,7 +25,7 @@ struct invstk_entry {
 #define THD_STATE_PREEMPTED     0x1   /* Complete register info is saved in regs */
 #define THD_STATE_UPCALL        0x2   /* Thread for upcalls: ->srv_acap points to the acap who we're linked to */
 #define THD_STATE_ACTIVE_UPCALL 0x4   /* Thread is in upcall execution. */
-#define THD_STATE_READY_UPCALL  0x8   /* Same as previous, but we are ready to execute */ 
+#define THD_STATE_READY_UPCALL  0x8   /* Same as previous, but we are ready to execute */
 #define THD_STATE_SCHED_RETURN  0x10  /* When the sched switches to this thread, ret from ipc */
 #define THD_STATE_FAULT         0x20  /* Thread has had a (e.g. page) fault which is being serviced */
 #define THD_STATE_HW_ACAP      0x40 /* Actual hardware should be making this acap */
@@ -59,7 +59,7 @@ struct thd_invocation_frame {
 	vaddr_t sp, ip;
 }; //HALF_CACHE_ALIGNED;
 
-/* 
+/*
  * The scheduler at a specific hierarchical depth and the shared data
  * structure between it and this thread.
  */
@@ -72,13 +72,13 @@ struct thd_sched_info {
 /**
  * The thread descriptor.  Contains all information pertaining to a
  * thread including its address space, capabilities to services, and
- * the kernel invocation stack of execution through components.  
+ * the kernel invocation stack of execution through components.
  */
 struct thread {
 	short int stack_ptr;
 	unsigned short int thread_id, cpu_id, flags;
 
-	/* 
+	/*
 	 * Watch your alignments here!!!
 	 *
 	 * changes in the alignment of this struct must also be
@@ -97,7 +97,7 @@ struct thread {
 	void *data_region;
 	vaddr_t ul_data_page;
 
-	struct thd_sched_info sched_info[MAX_SCHED_HIER_DEPTH] CACHE_ALIGNED; 
+	struct thd_sched_info sched_info[MAX_SCHED_HIER_DEPTH] CACHE_ALIGNED;
 
 	/* Start Upcall fields: */
 
@@ -134,7 +134,7 @@ struct cap_thd {
 	cpuid_t cpuid;
 } __attribute__((packed));
 
-static void 
+static void
 thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int arg2, int arg3)
 {
 	struct pt_regs *r = &thd->regs;
@@ -151,7 +151,7 @@ thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int
 	return;
 }
 
-/* 
+/*
  * FIXME: We need global thread name space as we use thd_id to access
  * simple stacks. When we have low-level per comp stack free-list, we
  * don't have to use global thread id name space.
@@ -172,12 +172,14 @@ alloc_thd_id(void)
 	return cos_faa((int*)&free_thd_id, 1);
 }
 
-static int 
+static int
 thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, int init_data)
 {
 	struct cap_thd *tc;
 	struct cap_comp *compc;
 	int ret;
+
+	int id = thd->tid;
 
 	compc = (struct cap_comp *)captbl_lkup(t, compcap);
 	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
@@ -192,8 +194,8 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->refcnt       = 1;
 	thd->invstk_top   = 0;
 	assert(thd->tid <= MAX_NUM_THREADS);
-	
-	thd_upcall_setup(thd, compc->entry_addr, 
+
+	thd_upcall_setup(thd, compc->entry_addr,
 			 COS_UPCALL_THD_CREATE, init_data, 0, 0);
 
 	/* initialize the capability */
@@ -204,8 +206,8 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	return 0;
 }
 
-static int 
-thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin, 
+static int
+thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin,
 	       livenessid_t lid, capid_t pgtbl_cap, capid_t cosframe_addr, const int root)
 {
 	struct cap_header *thd_header;
@@ -224,7 +226,7 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 		/* Last reference. Require pgtbl and
 		 * cos_frame cap to release the kmem
 		 * page. */
-		ret = kmem_deact_pre(thd_header, ct, pgtbl_cap, 
+		ret = kmem_deact_pre(thd_header, ct, pgtbl_cap,
 				     cosframe_addr, &pte, &old_v);
 		if (ret) cos_throw(err, ret);
 	} else {
@@ -236,12 +238,12 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 			 * but ref_cnt is > 1. We'll ignore the two
 			 * parameters as we won't be able to release
 			 * the memory. */
-			printk("cos: deactivating thread but not able to release kmem page (%p) yet (ref_cnt %d).\n", 
+			printk("cos: deactivating thread but not able to release kmem page (%p) yet (ref_cnt %d).\n",
 			       (void *)cosframe_addr, thd->refcnt);
 		}
 	}
 
-	ret = cap_capdeactivate(dest_ct, capin, CAP_THD, lid); 
+	ret = cap_capdeactivate(dest_ct, capin, CAP_THD, lid);
 
 	if (ret) cos_throw(err, ret);
 
@@ -266,24 +268,27 @@ static void thd_init(void)
 extern struct thread *__thd_current;
 
 static inline struct thread *
-thd_current(void *ignore) 
+thd_current(void *ignore)
 { (void)ignore; return __thd_current; }
 
-static inline void 
+static inline void
 thd_current_update(struct thread *thd, struct thread *ignore)
 { (void)ignore; __thd_current = thd; }
 
 #else
 
-static void 
+static void
 thd_init(void)
-{ assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD)); }
+{
+	assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD));
+
+}
 
 static inline struct thread *
-thd_current(struct cos_cpu_local_info *cos_info) 
+thd_current(struct cos_cpu_local_info *cos_info)
 { return (struct thread *)(cos_info->curr_thd); }
 
-static inline void 
+static inline void
 thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
 {
 	/* commit the cached data */
