@@ -48,13 +48,16 @@ distclean:
 #	make -C posix clean
 #	make -C libccv clean
 
-init: clean distclean all
+thirdparty:
 	make -C dietlibc-0.29
 	make -C dietlibc-0.29 i386
+	cd ck; ./configure; cd ..
+
+
+init: clean distclean thirdparty all
 #	make -C lwip/cos
 #	make -C lua/cos
 # keep the following commands in one line. Same as above.
-	cd ck; ./configure; cd ..
 #	make -C ck
 #	make -C posix clean
 #	make -C libccv clean
