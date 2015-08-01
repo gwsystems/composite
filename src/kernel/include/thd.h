@@ -139,6 +139,7 @@ thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int
 {
 	struct pt_regs *r = &thd->regs;
 
+	thd->flags |= THD_STATE_PREEMPTED;
 	r->cx = option;
 
 	r->bx = arg1;
@@ -195,8 +196,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->invstk_top   = 0;
 	assert(thd->tid <= MAX_NUM_THREADS);
 
-	thd_upcall_setup(thd, compc->entry_addr,
-			 COS_UPCALL_THD_CREATE, init_data, 0, 0);
+	thd_upcall_setup(thd, compc->entry_addr, COS_UPCALL_THD_CREATE, init_data, 0, 0);
 
 	/* initialize the capability */
 	tc->t      = thd;

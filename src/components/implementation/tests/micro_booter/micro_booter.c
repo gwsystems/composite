@@ -39,6 +39,14 @@ printc(char *fmt, ...)
 
 struct cos_compinfo booter_info;
 
+static void
+thd_fn(void *d)
+{
+	printc("\tNew thread %d with argument %d\n", cos_thdid(), (int)d);
+	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	printc("Error, shouldn't get here!\n");
+}
+
 #define TEST_NTHDS 5
 static void
 test_thds(void)
@@ -47,7 +55,7 @@ test_thds(void)
 	int i;
 
 	for (i = 0 ; i < TEST_NTHDS ; i++) {
-		ts[i] = cos_initthd_alloc(&booter_info, booter_info.comp_cap);
+		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i);
 		assert(ts[i]);
 		printc("switchto %d\n", (int)ts[i]);
 		cos_thd_switch(ts[i]);
@@ -82,22 +90,7 @@ cos_init(void)
 
 	printc("\nMicro Booter done.\n");
 
-	while (1) ;
+	BUG();
 
 	return;
-}
-
-void
-cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
-{
-	static int first = 1;
-
-	if (first) {
-		first = 0;
-		cos_init();
-	} else {
-		printc("\tin new thread; switching back\n");
-		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
-		printc("\tWHYYYYYYY MOAR execution!?\n");
-	}
 }
