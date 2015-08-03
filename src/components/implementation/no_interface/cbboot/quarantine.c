@@ -173,6 +173,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	if (!new_sect_cbufs) {
 		new_sect_cbufs = &all_spd_sect_cbufs[all_cbufs_index];
 		all_cbufs_index += h->nsect;
+		assert(all_cbufs_index < CBUFS_PER_PAGE * SECT_CBUF_PAGES);
 		if (cos_vect_add_id(&spd_sect_cbufs, new_sect_cbufs, d_spd) < 0) BUG();
 		if (cos_vect_add_id(&spd_sect_cbufs_header, h, d_spd) < 0) BUG();
 		printl("Added %d to sect_cbufs\n", d_spd);
