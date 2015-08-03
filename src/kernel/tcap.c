@@ -18,6 +18,9 @@
 #define get_cpuid() 0
 #endif
 
+/* EAA: Fix for multi-core support */
+static u64_t tcap_uid = 0;
+
 /* TODO: percpu */
 static struct clist_head CLIST_HEAD_STATIC_INIT(tcap_roots);
 

@@ -20,6 +20,9 @@
 
 #define TCAP_NACTIVATIONS 1
 
+typedef tcap_prio_t u64_t;
+typedef tcap_res_t s64_t;
+typedef tcap_uid_t u64_t;
 /*
  * This is a reference to a tcap, and the epoch tracks which
  * "generation" of the tcap is valid for this reference.  This enables
@@ -27,18 +30,18 @@
  */
 struct tcap_ref {
 	struct tcap *tcap;
-	/* if the epoch in the tcap is != epoch, the reference is invalid */
-	u32_t        epoch;
+	/* how many tcaps reference this pool as their parent */
+	u32_t        ref_count;
 };
 
 struct tcap_budget {
 	/* overrun due to tick granularity can result in cycles < 0 */
-        s64_t cycles;
+        tcap_res_t cycles;
 };
 
 struct tcap_sched_info {
-	struct spd *sched;
-	u16_t prio;
+	tcap_uid_t  tcap_uid;
+	tcap_prio_t prio;
 };
 
 
@@ -51,9 +54,8 @@ struct tcap {
 	 * refers to the parent tcap, or it might be segregated in
 	 * this capability in which case budget = this.
 	 */
-	struct tcap_ref    budget;
-	struct tcap_budget budget_local; /* if we have a partitioned budget */
-	u32_t              epoch;	 /* when a tcap is deallocated, epoch++ */
+	struct tcap_ref    pool;
+	struct tcap_budget budget; /* if we have a partitioned budget */
 	u8_t               ndelegs, sched_info;
 	u16_t              cpuid;
 
@@ -99,7 +101,7 @@ tcap_deref(struct tcap_ref *r)
 
 	if (unlikely(!r->tcap)) return NULL;
 	tc = r->tcap;
-	if (unlikely(!tcap_is_allocated(tc) || tc->epoch != r->epoch)) return NULL;
+	if (unlikely(!tcap_is_allocated(tc))) return NULL;
 	return tc;
 }
 
@@ -115,25 +117,25 @@ tcap_ref_create(struct tcap_ref *r, struct tcap *t)
  * local and the parent budget.
  */
 static inline int
-tcap_consume(struct tcap *t, u32_t cycles)
+tcap_consume(struct tcap *t, tcap_res_t cycles)
 {
 	struct tcap *bc;
 	int left = 0;
 
 	assert(t);
-	if (!TCAP_RES_IS_INF(t->budget_local.cycles)) {
-		t->budget_local.cycles -= cycles;
-		if (t->budget_local.cycles <= 0) {
-			t->budget_local.cycles = 0;
+	if (!TCAP_RES_IS_INF(t->budget.cycles)) {
+		t->budget.cycles -= cycles;
+		if (t->budget.cycles <= 0) {
+			t->budget.cycles = 0;
 			left = 1;
 		}
 	}
 
-	bc = tcap_deref(&t->budget);
+	bc = tcap_deref(&t->prio);
 	if (unlikely(!bc)) return left;
-	if (!TCAP_RES_IS_INF(bc->budget_local.cycles)) {
-		bc->budget_local.cycles -= cycles;
-		if (bc->budget_local.cycles <= 0) left = -1;
+	if (!TCAP_RES_IS_INF(bc->budget.cycles)) {
+		bc->budget.cycles -= cycles;
+		if (bc->budget.cycles <= 0) left = -1;
 	}
 
 	return left;

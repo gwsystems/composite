@@ -11,6 +11,13 @@
 #include <stdarg.h>
 #include <stdio.h>
 #ifdef NIL
+
+#define TCAP_RES_GRAN_ORD 	16
+#define TCAP_RES_PAC(r)   	(round_to_pow2((r), 1 << TCAP_RES_GRAN_ORD))
+#define TCAP_RES_EXPAND(r) 	((r) << TCAP_RES_GRAN_ORD)
+#define TCAP_RES_INF 		LLONG_MAX
+#define TCAP_RES_IS_INF(r) 	(r == TCAP_RES_INF)
+
 static int __attribute__((format(printf,1,2)))
 printd(char *fmt, ...)
 {
@@ -514,7 +521,6 @@ cos_asnd(asndcap_t snd)
 
 int
 cos_rcv(arcvcap_t rcv)
-{
 	return 0;
 }
 
@@ -535,3 +541,25 @@ cos_mem_remove(pgtblcap_t pt, vaddr_t addr)
 {
 	return 0;
 }
+
+/***************** [Kernel Tcap Operations] *****************/
+
+tcap_t
+cos_tcap_split(tcap_t src, tcap_res_t res, tcap_prio_t prio, int flags)
+{
+	return 0;
+}
+
+int
+cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t, tcap_prio_t prio)
+{
+	
+	return 0;
+}
+
+int
+cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio)
+{
+	return 0;
+}
+

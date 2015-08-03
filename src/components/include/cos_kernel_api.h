@@ -21,6 +21,10 @@ typedef capid_t compcap_t;
 typedef capid_t captblcap_t;
 typedef capid_t pgtblcap_t;
 
+/* Tcap typedefs */
+typedef s64_t tcap_res_t;
+typedef u64_t tcap_prio_t;
+
 /* Memory source information */
 struct cos_meminfo {
 	vaddr_t       umem_ptr,   untyped_ptr;
@@ -76,5 +80,10 @@ int cos_rcv(arcvcap_t rcv);
 int cos_mem_alias(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src);
 int cos_mem_move(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src);
 int cos_mem_remove(pgtblcap_t pt, vaddr_t addr);
+
+/* Tcap operations */
+tcap_t cos_tcap_split(tcap_t src, tcap_res_t res, tcap_prio_t prio, int flags)
+int cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio)
+int cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_rio_t prio)
 
 #endif /* COS_KERNEL_API_H */
