@@ -3,30 +3,41 @@
 
 #define printl(...) printc("Quarantine: "__VA_ARGS__)
 
-/* quarantine_spd_map stores the spds of an spd's forks.
+/* spd_map stores the spds of an spd's forks.
  * Currently this is implemented as a simple linear array indexed by the
  * original spd's id.
  *
  * FIXME: need a smarter data structure here to allow forking the same
  * component multiple times */
-#define SPD_MAP_NELEM (PAGE_SIZE/sizeof(spdid_t))
-spdid_t quarantine_spd_map[SPD_MAP_NELEM];
+struct spd_map_entry {
+	spdid_t fork_spd;
+	struct spd_map_entry *p, *n;
+};
+#define SPD_MAP_NELEM (PAGE_SIZE/sizeof(struct spd_map_entry))
+static struct spd_map_entry spd_map[SPD_MAP_NELEM];
+static struct spd_map_entry spd_map_freelist[SPD_MAP_NELEM];
+static int spd_map_freelist_index = 0;
 
 static int
-quarantine_add_to_spd_map(int orig_spd, int fork_spd) {
-	/* FIXME: need something other than a flat array... */
-	assert(quarantine_spd_map[orig_spd] == 0);
-	return quarantine_spd_map[orig_spd] = fork_spd;
+quarantine_add_to_spd_map(int o_spd, int f_spd) {
+	struct spd_map_entry *f;
+	assert(spd_map_freelist_index < SPD_MAP_NELEM);
+	f = &spd_map_freelist[spd_map_freelist_index++];
+	ADD_END_LIST(&spd_map[o_spd], f, n, p);
+	f->fork_spd = f_spd;
+	spd_map[f_spd].fork_spd = o_spd; /* store o in fork_spd of list head */
+	return f_spd;
+}
+
+static struct spd_map_entry*
+quarantine_get_spd_map_entry(int o_spd) {
+	return &spd_map[o_spd];
 }
 
 static int
-quarantine_get_spd_map(int orig_spd) {
-	return quarantine_spd_map[orig_spd];
-}
-
-static int
-quarantine_search_spd_map(int fork_spd) {
-	return cos_spd_cntl(COS_SPD_GET_FORK_ORIGIN, fork_spd, 0, 0);
+quarantine_search_spd_map(int f_spd) {
+	return spd_map[f_spd].fork_spd;
+	//return cos_spd_cntl(COS_SPD_GET_FORK_ORIGIN, fork_spd, 0, 0);
 }	
 
 /* Called after fork() finished copying the spd from source to target.
@@ -115,7 +126,14 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	static int fork_count = 0;
 	/* FIXME: initialization hack. */
 	static int first = 1;
-	if (first) { memset(quarantine_spd_map, 0, PAGE_SIZE); first = 0; }
+	if (first) {
+		for (j = 0; j < SPD_MAP_NELEM; j++) {
+			INIT_LIST(&spd_map[j], n, p);
+			spd_map[j].fork_spd = 0;
+		}
+		memset(spd_map_freelist, 0, PAGE_SIZE);
+		first = 0;
+	}
 
 	printl("quarantine_fork(%d, %d)\n", spdid, source);
 
@@ -331,12 +349,23 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 		 * to happen. FIXME: Except that d_spd may not have a dep to
 		 * the Quarantine Manager, so it may not be able to inquire. */
 		/* Assuming c_spd is the forked component, so find the orig */
-		f_spd = quarantine_search_spd_map(c_spd);
+		struct spd_map_entry *c = quarantine_get_spd_map_entry(c_spd);
+		if (EMPTY_LIST(c, n, p)) {
+			/* no forks for c_spd, it must be the fork, and its
+			 * origin is stored in its fork_spd field. */
+			f_spd = c_spd;
+			c_spd = c->fork_spd;
+			if (unlikely(c_spd == 0)) {
+				printl("No original found for forked spd %d\n", f_spd);
+			}
+		} else {
+			/* forks for c_spd found. FIXME: which one to use? */
+			f_spd = LAST_LIST(c, n, p)->fork_spd;
+		}
 		
 		printl("Fixing server %d's metadata for spd %d after fork to %d\n", d_spd, f_spd, c_spd);
 	
 		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, (f_spd<<16)|c_spd);
-
 	}
 	if (c_fix) {
 	/* d_spd has been forked, and c_spd needs to have its inv caps fixed.
@@ -346,13 +375,22 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 	 * capability to the usr_cap_tbl a syscall is needed anyway to fix
 	 * the struct spd caps[], ncaps. So just do it once.
 	 */
-		f_spd = quarantine_get_spd_map(d_spd);
+		struct spd_map_entry *d = quarantine_get_spd_map_entry(d_spd);
+		if (unlikely(EMPTY_LIST(d, n, p))) {
+			printl("No forks found for %d\n", d_spd);
+			goto dont_fix_c;
+		}
+
+		/* FIXME: which fork should be used here? This pulls the most
+		 * recent fork. */
+		f_spd = LAST_LIST(d, n, p)->fork_spd;
 		printl("Fixing routing table after fork from %d -> %d\n",
 				d_spd, f_spd);
 
 		// TODO: add / change ucap, routing table
-		
 	}
+dont_fix_c:
+
 	/* Adjust the fork count by the observed amount. We could just set
 	 * this to zero, but what if a fork has happened since the fault
 	 * handler was invoked? Probably we want to just decrement, and let
