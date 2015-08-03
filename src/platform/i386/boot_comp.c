@@ -163,6 +163,6 @@ kern_boot_upcall(void)
 
 	printk("Upcall into boot component at ip 0x%x\n", entry);
 	printk("------------------[ Kernel boot complete ]------------------\n");
-	chal_user_upcall(entry);
+	chal_user_upcall(entry, thd_current(cos_cpu_local_info())->thread_id, get_cpuid());
 	assert(0); 		/* should never get here! */
 }

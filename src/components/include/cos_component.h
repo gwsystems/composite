@@ -14,7 +14,7 @@
 #include <util.h>
 
 /* temporary */
-static inline 
+static inline
 int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 {
         long fault = 0;
@@ -49,25 +49,25 @@ int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 	return ret;
 }
 
-static inline int 
-cap_switch_thd(u32_t cap_no) 
+static inline int
+cap_switch_thd(u32_t cap_no)
 {
 	return call_cap_asm(cap_no, 0, 0, 0, 0, 0);
 }
 
-static inline int 
+static inline int
 call_cap(u32_t cap_no, int arg1, int arg2, int arg3, int arg4)
 {
 	return call_cap_asm(cap_no, 0, arg1, arg2, arg3, arg4);
 }
 
-static inline int 
+static inline int
 call_cap_op(u32_t cap_no, u32_t op_code,int arg1, int arg2, int arg3, int arg4)
 {
 	return call_cap_asm(cap_no, op_code, arg1, arg2, arg3, arg4);
 }
 
-static void 
+static void
 cos_print(char *s, int len)
 { call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0); }
 
@@ -89,7 +89,7 @@ extern struct cos_component_information cos_comp_info;
  * registers.  Because we are sharing a system call namespace
  * (essentially) with Linux using Hijacking techiques, we pass
  * syscall<<COS_SYSCALL_OFFSET to signify our system calls.
- * 
+ *
  * The second evolution required that we are able to identify which
  * spd makes an system call which is not self-evident (as it would be
  * in a normal system) when composite spds are taken into account.
@@ -115,13 +115,13 @@ extern struct cos_component_information cos_comp_info;
  * perceived system call overhead and application progress.
  */
 
-/* 
+/*
  * The ABI for syscalls regarding registers is that any registers you
  * want saved, must be saved by you.  This is why the extensive
  * clobber list is used in the inline assembly for making the syscall.
  */
 
-/* 
+/*
  * The extra asm below is rediculous as gcc doesn't let us clobber
  * registers already in the input/output positions, but we DO clobber
  * them in this operation.  I can't clobber ebp in the clobber list,
@@ -220,10 +220,10 @@ cos_syscall_3(19, int, __trans_cntl, unsigned long, op_ch, unsigned long, addr, 
 cos_syscall_3(20, int, __pfn_cntl, unsigned long, op_spd, unsigned long, mem_id, int, extent);
 cos_syscall_0(31,  int, null);
 
-static inline int cos_mmap_cntl(short int op, short int flags, short int dest_spd, 
+static inline int cos_mmap_cntl(short int op, short int flags, short int dest_spd,
 				vaddr_t dest_addr, unsigned long mem_id) {
 	/* encode into 3 arguments */
-	return cos___mmap_cntl(((op<<24) | (flags << 16) | (dest_spd)), 
+	return cos___mmap_cntl(((op<<24) | (flags << 16) | (dest_spd)),
 			       dest_addr, mem_id);
 }
 
@@ -232,11 +232,11 @@ static inline int cos_async_cap_cntl(int operation, unsigned short int arg1, uns
 	return cos___async_cap_cntl(operation, ((arg1 << 16) | (arg2 & 0xFFFF)), arg3);
 }
 
-/* 
+/*
  * Physical frame number manipulations.  Which component, and what
- * extent of physical frames are we manipulating. 
+ * extent of physical frames are we manipulating.
  */
-static inline int 
+static inline int
 cos_pfn_cntl(short int op, int dest_spd, unsigned int mem_id, int extent) {
 	/* encode into 3 arguments */
 	return cos___pfn_cntl(((op<<16) | (dest_spd)), mem_id, extent);
@@ -282,43 +282,51 @@ static inline long get_stk_data(int offset)
 	unsigned long curr_stk_pointer;
 
 	asm ("movl %%esp, %0;" : "=r" (curr_stk_pointer));
-	/* 
+	/*
 	 * We save the CPU_ID and thread id in the stack for fast
 	 * access.  We want to find the struct cos_stk (see the stkmgr
 	 * interface) so that we can then offset into it and get the
 	 * cpu_id.  This struct is at the _top_ of the current stack,
 	 * and cpu_id is at the top of the struct (it is a u32_t).
 	 */
-	return *(long *)((curr_stk_pointer & ~(COS_STACK_SZ - 1)) + 
+	return *(long *)((curr_stk_pointer & ~(COS_STACK_SZ - 1)) +
 			 COS_STACK_SZ - offset * sizeof(u32_t));
 }
 
 #define GET_CURR_CPU cos_cpuid()
 
-static inline 
+static inline
 long cos_cpuid(void)
 {
 #if NUM_CPU == 1
 	return 0;
 #endif
-	/* 
+	/*
 	 * see comments in the get_stk_data above.
 	 */
 	return get_stk_data(CPUID_OFFSET);
 }
 
-static inline unsigned short int 
+static inline unsigned short int
 cos_get_thd_id(void)
 {
-	/* 
+	/*
 	 * see comments in the get_stk_data above.
 	 */
 	return get_stk_data(THDID_OFFSET);
 }
 
+typedef u16_t cos_thdid_t;
+
+static cos_thdid_t
+cos_thdid(void)
+{
+	return cos_get_thd_id();
+}
+
 #define ERR_THROW(errval, label) do { ret = errval; goto label; } while (0)
 
-static inline long 
+static inline long
 cos_spd_id(void)
 {
 	return cos_comp_info.cos_this_spd_id;
@@ -328,7 +336,7 @@ static inline void *
 cos_get_heap_ptr(void)
 { return (void*)cos_comp_info.cos_heap_ptr; }
 
-static inline void 
+static inline void
 cos_set_heap_ptr(void *addr)
 { cos_comp_info.cos_heap_ptr = (vaddr_t)addr; }
 
@@ -353,7 +361,7 @@ static inline long cos_cmpxchg(volatile void *memory, long anticipated, long res
 
 /* A uni-processor variant with less overhead but that doesn't
  * guarantee atomicity across cores. */
-static inline int 
+static inline int
 cos_cas_up(unsigned long *target, unsigned long cmp, unsigned long updated)
 {
 	char z;
@@ -384,7 +392,7 @@ extern void *cos_get_vas_page(void);
 extern void cos_release_vas_page(void *p);
 
 /* only if the heap pointer is pre_addr, set it to post_addr */
-static inline void 
+static inline void
 cos_set_heap_ptr_conditional(void *pre_addr, void *post_addr)
 {
 	cos_cmpxchg(&cos_comp_info.cos_heap_ptr, (long)pre_addr, (long)post_addr);
@@ -395,7 +403,7 @@ static inline void *
 cos_memcpy(void * to, const void * from, int n)
 {
 	int d0, d1, d2;
-	
+
 	__asm__ __volatile__(
         "rep ; movsl\n\t"
         "movl %4,%%ecx\n\t"
@@ -408,9 +416,9 @@ cos_memcpy(void * to, const void * from, int n)
         : "=&c" (d0), "=&D" (d1), "=&S" (d2)
         : "0" (n/4), "g" (n), "1" ((long) to), "2" ((long) from)
         : "memory");
-	
+
 	return (to);
-	
+
 }
 
 static inline void *
@@ -432,7 +440,7 @@ cos_memset(void * s, char c , int count)
 
 #define CFORCEINLINE __attribute__((always_inline))
 #define CWEAKSYMB    __attribute__((weak))
-/* 
+/*
  * A composite constructor (deconstructor): will be executed before
  * other component execution (after component execution).  CRECOV is a
  * function that should be called if one of the depended-on components
@@ -454,19 +462,19 @@ section_fnptrs_execute(long *list)
 	}
 }
 
-static void 
+static void
 constructors_execute(void)
 {
 	extern long __CTOR_LIST__;
 	section_fnptrs_execute(&__CTOR_LIST__);
 }
-static void 
+static void
 destructors_execute(void)
 {
 	extern long __DTOR_LIST__;
 	section_fnptrs_execute(&__DTOR_LIST__);
 }
-static void 
+static void
 recoveryfns_execute(void)
 {
 	extern long __CRECOV_LIST__;
