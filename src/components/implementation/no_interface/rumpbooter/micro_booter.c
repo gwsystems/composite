@@ -86,6 +86,8 @@ cos_init(void)
 
 	printc("\nRumpKernel Boot Start.\n");
 	cos2rump_setup();
+	rump_init();
+
 	printc("\nRumpKernel Boot done.\n");
 
 	while (1) ;

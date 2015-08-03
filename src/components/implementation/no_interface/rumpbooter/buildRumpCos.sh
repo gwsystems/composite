@@ -1,13 +1,14 @@
 #!/bin/bash
 
-objcopy -L memmove   unikernboot.o
-objcopy -L __umoddi3 unikernboot.o
-objcopy -L __udivdi3 unikernboot.o
-objcopy -L strtol    unikernboot.o
-objcopy -L strlen    unikernboot.o
-objcopy -L _start    cos.bin
-objcopy -L _exit     cos.bin
+cp ../../../../../../apps/hello/hello.bin .
 
-ld -r -o rumpcos.o cos.bin unikernboot.o
+objcopy -L memmove   rump_boot.o
+objcopy -L __umoddi3 rump_boot.o
+objcopy -L __udivdi3 rump_boot.o
+objcopy -L strtol    rump_boot.o
+objcopy -L strlen    rump_boot.o
+objcopy -L _exit     hello.bin
+
+ld -r -o rumpcos.o hello.bin rump_boot.o
 
 cp rumpcos.o ~/transfer
