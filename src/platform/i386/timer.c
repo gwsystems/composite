@@ -35,6 +35,22 @@
 
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 
+typedef struct {
+  u8_t sig[4];
+  u32_t length;
+  u8_t revision;
+  u8_t checksum;
+  u8_t oemid[6];
+  u32_t oemrevision;
+  u8_t creatorid[4];
+  u32_t creatorrevision;
+  u32_t eventtimerblockid;
+  u32_t base_address[3];
+  u8_t number;
+  u16_t minimumclocktick;
+  u8_t oemattribute;
+} __attribute__((packed)) HPET;
+
 
 static u32_t tick = 0;
 static int current_type = TIMER_FREQUENCY;
@@ -100,8 +116,27 @@ timer_set(int timer_type, u64_t cycles)
 }
 
 void
-timer_init(int timer_type, u64_t cycles)
+timer_init(void *timer, int timer_type, u64_t cycles)
 {
+    if (timer == NULL) {
+        /* No HPET is available, fall back to 8254 */
+    } else {
+	HPET *hpet = timer;
+	printk("Initiliazing HPET @ %p\n", hpet);
+	printk("-- Signature:  %c%c%c%c\n", hpet->sig[0], hpet->sig[1], hpet->sig[2], hpet->sig[3]);
+	printk("-- Length:     %d\n", hpet->length);
+	printk("-- Revision:   %d\n", hpet->revision);
+	printk("-- Checksum:   %x\n", hpet->checksum);
+	printk("-- OEM ID:     %c%c%c%c%c%c\n", hpet->oemid[0], hpet->oemid[1], hpet->oemid[2], hpet->oemid[3], hpet->oemid[4], hpet->oemid[5]);
+	printk("-- OEM Rev:    %d\n", hpet->oemrevision);
+	printk("-- Creator ID: %c%c%c%c\n", hpet->creatorid[0], hpet->creatorid[1], hpet->creatorid[2], hpet->creatorid[3]);
+	printk("-- CreatorRev: %d\n", hpet->creatorrevision);
+	printk("-- Block ID:   %d\n", hpet->eventtimerblockid);
+	printk("-- BaseAddr:   %p-%p-%p\n", hpet->base_address[0], hpet->base_address[1], hpet->base_address[2]);
+	printk("-- Number:     %d\n", hpet->number);
+	printk("-- Min Tick:   %hd\n", hpet->minimumclocktick);
+	printk("-- OEM Attr:   %x\n", hpet->oemattribute);
+    }
     printk("Enabling timer\n");
     register_interrupt_handler(IRQ0, timer_callback);
 

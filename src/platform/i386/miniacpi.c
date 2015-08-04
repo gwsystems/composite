@@ -1,5 +1,7 @@
 #include "kernel.h"
 #include "string.h"
+#include "mem_layout.h"
+#include "pgtbl.h"
 
 typedef struct {
 	char signature[8];
@@ -13,7 +15,7 @@ typedef struct {
 	u8_t reserved[3];
 } __attribute__((packed)) RSDP;
 
-typedef struct {
+typedef struct rsdt {
 	char signature[4];
 	u32_t length;
 	u8_t revision;
@@ -23,48 +25,57 @@ typedef struct {
 	u32_t oemrevision;
 	u32_t creatorid;
 	u32_t creatorrevision;
+	struct rsdt *entry[0];
 } __attribute__((packed)) RSDT;
 
-void *
-acpi_find_rsdp(void)
-{
-	printk("\n\n-- Looking for the RSDP --\n\n");
+extern u8_t *boot_comp_pgd;
+u32_t basepage;
+static RSDT *rsdt;
 
+static inline void *
+pa2va(void *pa)
+{
+	return (void*)(((u32_t)pa & ((1<<22)-1)) | basepage);
+}
+
+void *
+acpi_find_rsdt(void)
+{
 	char *sig;
 	RSDP *rsdp;
-	for (sig = (char*)0x000E0000; sig < (char*)0x000FFFFF; sig += 16) {
+	for (sig = (char*)0xc00E0000; sig < (char*)0xc00FFFFF; sig += 16) {
 		if (!strncmp("RSD PTR ", sig, 8)) {
-			printk("At %p: '%s'\n", sig, sig);
 			break;
 		}
 	}
 	rsdp = (RSDP*)sig;
 
-	printk("\n\n-- Looks like RSDP is at %p --\n\n", rsdp);
-	printk("-- Signature: %c%c%c%c%c%c%c%c\n", rsdp->signature[0], rsdp->signature[1], rsdp->signature[2], rsdp->signature[3], rsdp->signature[4], rsdp->signature[5], rsdp->signature[6], rsdp->signature[7]);
-	printk("-- Checksum: %x\n", rsdp->checksum);
-	printk("-- OEM ID: %c%c%c%c%c%c\n", rsdp->oemid[0], rsdp->oemid[1], rsdp->oemid[2], rsdp->oemid[3], rsdp->oemid[4], rsdp->oemid[5]);
-	printk("-- Revision: %u\n", rsdp->revision);
-	printk("-- RSDT Addr: %x\n", rsdp->rsdtaddress);
-	printk("-- Length: %u\n", rsdp->length);
-	printk("-- XSDT Addr: %x\n", rsdp->xsdtaddress);
-	printk("-- Ext Checksum: %x\n", rsdp->extendedchecksum);
-	
+	rsdt = (RSDT*)rsdp->rsdtaddress;
+	return rsdt;
+}
 
-	printk("\n\n-- Done with RSDP -- \n\n");
+void *
+acpi_find_timer(void)
+{
+        pgtbl_t pgtbl = (pgtbl_t)boot_comp_pgd;
 
-	RSDT *rsdt = (RSDT*)rsdp->rsdtaddress;
+	size_t i;
+	for (i = 0; i < (rsdt->length - sizeof(RSDT)) / sizeof(RSDT*); i++) {
+		RSDT *e = pa2va(rsdt->entry[i]);
+		if (e->signature[0] == 'H' && e->signature[1] == 'P' &&
+			e->signature[2] == 'E' && e->signature[3] == 'T')
+		{
+			return e;
+		}
+	}
 
-	printk("--- RSDT @ %p\n", rsdt);
-	printk("--- signature: %c%c%c%c\n", rsdt->signature[0],rsdt->signature[1],rsdt->signature[2],rsdt->signature[3]);
-	printk("--- length: %u\n", rsdt->length);
-	printk("--- revision: %u\n", rsdt->revision);
-	printk("--- checksum: %x\n", rsdt->checksum);
-	printk("--- oemid: %c%c%c%c%c%c\n", rsdt->oemid[0],rsdt->oemid[1],rsdt->oemid[2],rsdt->oemid[3],rsdt->oemid[4],rsdt->oemid[5]);
-	printk("--- oemtableid: %c%c%c%c%c%c%c%c\n", rsdt->oemtableid[0], rsdt->oemtableid[1], rsdt->oemtableid[2], rsdt->oemtableid[3], rsdt->oemtableid[4], rsdt->oemtableid[5], rsdt->oemtableid[6], rsdt->oemtableid[7]);
-	printk("--- oemrevision: %u\n", rsdt->oemrevision);
-	printk("--- creatorid: %x\n", rsdt->creatorid);
-	printk("--- creatorrevision: %d\n", rsdt->creatorrevision);
+	return NULL;
+}
 
-	return rsdp;
+
+void
+acpi_set_rsdt_page(u32_t page)
+{
+	basepage = page * (1 << 22);
+	rsdt = (RSDT*)pa2va(rsdt);
 }

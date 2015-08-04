@@ -32,14 +32,16 @@ enum {
 #define DEFAULT_FREQUENCY 100000000
 
 void timer_set(int timer_type, u64_t cycles);
-void timer_init(int timer_type, u64_t cycles);
+void timer_init(void *timer, int timer_type, u64_t cycles);
 
 void tss_init(void);
 void idt_init(void);
 void gdt_init(void);
 void user_init(void);
 void paging_init(void);
-void *acpi_find_rsdp(void);
+void *acpi_find_rsdt(void);
+void *acpi_find_timer(void);
+void acpi_set_rsdt_page(u32_t);
 void kern_paging_map_init(void *pa);
 
 //void printk(const char *fmt, ...);

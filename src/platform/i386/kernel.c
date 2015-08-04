@@ -112,7 +112,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 {
 #define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
 	unsigned long max;
-	void *rsdp;
+	void *timer;
 
 	tss_init();
 	gdt_init();
@@ -124,7 +124,6 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 #ifdef ENABLE_CONSOLE
 	console_init();
 #endif
-	rsdp = acpi_find_rsdp();
 
 	max = MAX((unsigned long)mboot->mods_addr, 
 		  MAX((unsigned long)mboot->mmap_addr, (unsigned long)(chal_va2pa(&end))));
@@ -139,9 +138,10 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
        	thd_init();
        	inv_init();
 	paging_init();
+	timer = acpi_find_timer();
 
 	kern_boot_comp();
-	timer_init(TIMER_FREQUENCY, DEFAULT_FREQUENCY);
+	timer_init(timer, TIMER_FREQUENCY, DEFAULT_FREQUENCY);
 	kern_boot_upcall();
 	/* should not get here... */
 	khalt(); 
