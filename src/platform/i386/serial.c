@@ -55,6 +55,8 @@ serial_handler(struct registers *r)
 		case 13:
 			serial = '\n';
 			break;
+		case 3: /* FIXME: Obviously remove this once we have working components */
+			die("Break\n");
 		default:
 			break;
 	}
