@@ -18,7 +18,26 @@
  *   let the kernel map all the stuff (if there is something to do)
  */
 
-#include <mem_mgr_config.h>
+#include <cos_kernel_api.h>
+
+extern struct cos_compinfo booter_info;
+
+void *allocpage(void);
+
+void *
+allocpage(void)
+{
+	void *rv;
+
+	/* cos_kernel_api */
+	rv = cos_page_bump_alloc(&booter_info);
+	return rv;
+}
+
+void *(*cos_page_alloc)(void) = allocpage;
+
+#define CPAGE_ALLOC cos_page_alloc
+#include <cpage_alloc.h>
 
 //#define UNIX_TEST
 #ifdef UNIX_TEST
@@ -26,7 +45,7 @@
 #include <sys/mman.h>
 #else
 #include <cos_component.h>
-#include <cos_alloc.h>
+#include "rump_cos_alloc.h"
 #ifdef ALLOC_DEBUG
 #define COS_FMT_PRINT
 #include <print.h>
@@ -37,11 +56,6 @@ int alloc_debug = 0;
 #ifdef USE_VALLOC
 #include <valloc.h>
 #endif
-
-struct free_page {
-	struct free_page *next;
-};
-static struct free_page page_list = {.next = NULL};
 
 extern void *mman_get_page(spdid_t spd, void *addr, int flags);
 extern void mman_release_page(spdid_t spd, void *addr, int flags);
@@ -89,15 +103,6 @@ void cos_release_vas_page(void *p)
 }
 #endif
 
-#ifdef UNIX_TEST
-static inline REGPARM(1) void *do_mmap(size_t size) { 
-	return mmap(0, size, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0); 
-}
-/*static inline*/ REGPARM(2) int do_munmap(void *addr, size_t size) {
-	return munmap(addr, size);
-}
-#else 
-
 static inline REGPARM(1) void *do_mmap(size_t size) {
 	void *hp, *ret;
 	unsigned long p;
@@ -112,13 +117,15 @@ static inline REGPARM(1) void *do_mmap(size_t size) {
 	//if (!hp) 
 	hp = cos_get_vas_page();
 #endif
-	for (p = (unsigned long)hp ; 
-	     p < (unsigned long)hp + s ; 
+	for (p = (unsigned long)hp ;
+	     p < (unsigned long)hp + s ;
 	     p += PAGE_SIZE) {
-		ret = (void*)mman_get_page(cos_spd_id(), (void*)p, MAPPING_RW);
+		//ret = (void*)mman_get_page(cos_spd_id(), (void*)p, MAPPING_RW);
+		ret = cpage_alloc();
 		if (unlikely(!ret)) {
 			for (p -= PAGE_SIZE ; hp <= (void*)p ; p -= PAGE_SIZE) {
-				mman_release_page(cos_spd_id(), (void*)p, 0);
+				//mman_release_page(cos_spd_id(), (void*)p, 0);
+				cpage_free((void*)p);
 			}
 #ifdef USE_VALLOC
 			if (unlikely(valloc_free(cos_spd_id(), cos_spd_id(), hp, s/PAGE_SIZE))) DIE();
@@ -150,7 +157,6 @@ static inline REGPARM(1) void *do_mmap(size_t size) {
 #endif
   return 0;
 }
-#endif
 
 /* -- SMALL MEM ----------------------------------------------------------- */
 
@@ -221,7 +227,7 @@ static inline void REGPARM(2) __small_free(void*_ptr,size_t _size) {
 	__alloc_t* ptr=BLOCK_START(_ptr), *prev;
 	size_t size=_size;
 	size_t idx=get_index(size);
-	
+
 //	memset(ptr,0,size);	/* allways zero out small mem */
 #if ALLOC_DEBUG >= ALLOC_DEBUG_ALL
 	if (alloc_debug) printc("free (in %d): freeing %p of size %d and index %d.", 
@@ -249,7 +255,7 @@ static inline void* REGPARM(1) __small_malloc(size_t _size) {
 		if (unlikely(ptr==0))  {	/* no free blocks ? */
 			register int i,nr;
 			__alloc_t *start, *second, *end;
-			
+
 			start = ptr = do_mmap(MEM_BLOCK_SIZE);
 			if (ptr==MAP_FAILED) return MAP_FAILED;
 
@@ -344,20 +350,18 @@ err_out:
   return 0;
 }
 //void* __libc_malloc(size_t size) __attribute__((alias("_alloc_libc_malloc")));
-void* malloc(size_t size) __attribute__((weak,alias("_alloc_libc_malloc")));
+void* rump_cos_malloc(size_t size) __attribute__((weak,alias("_alloc_libc_malloc")));
 
-void *__libc_calloc(size_t nmemb, size_t _size)
+void* rump_cos_calloc(size_t nmemb, size_t _size)
 {
 	size_t tot = nmemb*_size;
-	char *ret  = malloc(tot);
+	char *ret  = rump_cos_malloc(tot);
 
 	memset(ret, 0, tot);
+	printc("calloc returns: %p\n", ret);
 	return ret;
 }
 
-void* calloc(size_t nmemb, size_t _size) __attribute__((weak,alias("__libc_calloc")));
-
-/* gabep1 additions for allocations of pages. */
 
 void *alloc_page(void)
 {
@@ -366,7 +370,7 @@ void *alloc_page(void)
 
 	fp = page_list.next;
 	if (NULL == fp) {
-		a = do_mmap(PAGE_SIZE);
+		a = cpage_alloc();
 	} else {
 		page_list.next = fp->next;
 		fp->next       = NULL;
@@ -386,9 +390,6 @@ void free_page(void *ptr)
 
 	return;
 }
-
-/* end gabep1 additions */
-
 
 #ifdef NIL
 

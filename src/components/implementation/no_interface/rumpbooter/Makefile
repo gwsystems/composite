@@ -1,4 +1,4 @@
-C_OBJS=micro_booter.o rumpcalls.o
+C_OBJS=micro_booter.o rumpcalls.o rump_cos_alloc.o
 ASM_OBJS=cos_asm_scheduler.o
 COMPONENT=rump_boot.o
 INTERFACES=
