@@ -44,8 +44,21 @@ typedef struct {
   u32_t oemrevision;
   u8_t creatorid[4];
   u32_t creatorrevision;
-  u32_t eventtimerblockid;
-  u32_t base_address[3];
+  struct {
+    u8_t hwrev;
+    u8_t ncomp :5;
+    u8_t count_size_cap :1;
+    u8_t reserved :1;
+    u8_t legacy_irq :1;
+    u16_t pci_vendor;
+  } blockid;
+  struct {
+    u8_t space_id;
+    u8_t reg_bit_width;
+    u8_t reg_bit_offset;
+    u8_t reserved;
+    u64_t address;
+  } address;
   u8_t number;
   u16_t minimumclocktick;
   u8_t oemattribute;
@@ -131,10 +144,19 @@ timer_init(void *timer, int timer_type, u64_t cycles)
 	printk("-- OEM Rev:    %d\n", hpet->oemrevision);
 	printk("-- Creator ID: %c%c%c%c\n", hpet->creatorid[0], hpet->creatorid[1], hpet->creatorid[2], hpet->creatorid[3]);
 	printk("-- CreatorRev: %d\n", hpet->creatorrevision);
-	printk("-- Block ID:   %d\n", hpet->eventtimerblockid);
-	printk("-- BaseAddr:   %p-%p-%p\n", hpet->base_address[0], hpet->base_address[1], hpet->base_address[2]);
+	printk("-- HW Revi:    %d\n", hpet->blockid.hwrev);
+	printk("-- N Compar:   %d\n", hpet->blockid.ncomp);
+	printk("-- Count Size: %d\n", hpet->blockid.count_size_cap);
+	printk("-- Reserved:   %d\n", hpet->blockid.reserved);
+	printk("-- Legacy IRQ: %d\n", hpet->blockid.legacy_irq);
+	printk("-- PCI Vendor: %hx\n", hpet->blockid.pci_vendor);
+	printk("-- AddrSpace:  %s\n", hpet->address.space_id ? "I/O" : "Memory");
+	printk("-- Bit Width:  %d\n", hpet->address.reg_bit_width);
+	printk("-- Bit Offset: %d\n", hpet->address.reg_bit_offset);
+	printk("-- Reserved:   %d\n", hpet->address.reserved);
+	printk("-- Address:    %llx\n", hpet->address.address);
 	printk("-- Number:     %d\n", hpet->number);
-	printk("-- Min Tick:   %hd\n", hpet->minimumclocktick);
+	printk("-- Min Tick:   %hu\n", hpet->minimumclocktick);
 	printk("-- OEM Attr:   %x\n", hpet->oemattribute);
     }
     printk("Enabling timer\n");
