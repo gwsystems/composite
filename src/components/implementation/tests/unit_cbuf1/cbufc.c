@@ -6,11 +6,16 @@
 #include <cbuf.h>
 #include <cbuf_mgr.h>
 
-#include <quarantine.h> /* testing */
 #include <pgfault.h>
 
 #include <unit_cbuf.h>
 #include <unit_cbufp.h>
+
+/* Default args */
+#define MAX_CBUFS   200
+#define MAX_CBUF_SZ 4096
+#define MAX_CBUFP_SZ 4096
+#define MAX_CBUFPS 32
 
 //#define VERBOSE 1
 #ifdef VERBOSE
@@ -19,17 +24,7 @@
 #define printv(fmt,...) 
 #endif
 
-#define MAX_CBUFS   200
-#define MAX_CBUF_SZ 4096
-#define MAX_CBUFP_SZ 4096
-#define MAX_CBUFPS 32
-
-cos_lock_t l;
-#define TAKE()    do { if (unlikely(lock_take(&l) != 0)) BUG(); }   while(0)
-#define RELEASE() do { if (unlikely(lock_release(&l) != 0)) BUG() } while(0)
-#define LOCK_INIT()    lock_static_init(&l);
-
-static void
+void
 cbuf_tests(void)
 {
 	cbuf_t cbs[MAX_CBUFS];
@@ -89,7 +84,7 @@ cbuf_tests(void)
 	printc("UNIT TEST (CBUF) ALL PASSED\n");
 }
 
-static void
+void
 cbufp_tests()
 {
 	cbuf_t cbs[MAX_CBUFPS];
@@ -156,24 +151,5 @@ cbufp_tests()
 void cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd)
 {
 	printc("fixing metadata in unit_cbuf1 for %d -> %d\n", o_spd, f_spd);
-}
-
-void cos_init(void)
-{
-	//spdid_t new_spd;
-	printc("Starting in spd %d\n", cos_spd_id());
-	printc("With locking\n");
-	LOCK_INIT();
-	printc("\nUNIT TEST (CBUF & CBUFP)\n");
-	TAKE();
-	cbuf_tests();
-	RELEASE();
-	//new_spd = quarantine_fork(cos_spd_id(), cos_spd_id());
-	TAKE();
-	cbufp_tests();
-	printc("UNIT TEST (CBUF & CBUFP) ALL PASSED\n");
-	RELEASE();
-	printc("Done in spd %d\n", cos_spd_id());
-	return;
 }
 
