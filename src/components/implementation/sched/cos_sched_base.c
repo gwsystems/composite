@@ -1828,6 +1828,21 @@ int sched_priority(unsigned short int tid)
 	return p;
 }
 
+int sched_curr_set_priority(unsigned short int prio)
+{
+	struct sched_thd *t;
+	int p;
+
+	cos_sched_lock_take();
+	t = sched_get_current();
+	thread_block(t);
+	p = t->metric.priority;
+	t->metric.priority = prio;
+	thread_wakeup(t);
+	cos_sched_lock_release();
+	return p;
+}
+
 unsigned long sched_timestamp(void)
 {
 	return (unsigned long)PERCPU_GET(sched_base_state)->ticks;

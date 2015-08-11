@@ -126,6 +126,9 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	static int fork_count = 0;
 	/* FIXME: initialization hack. */
 	static int first = 1;
+
+	int p = sched_curr_set_priority(0);
+
 	if (first) {
 		for (j = 0; j < SPD_MAP_NELEM; j++) {
 			INIT_LIST(&spd_map[j], n, p);
@@ -309,6 +312,8 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	/* TODO: valloc */
 #endif
 
+	quarantine_add_to_spd_map(source, d_spd);
+
 #if QUARANTINE_MIGRATE_THREAD
 	quarantine_migrate(cos_spd_id(), source, d_spd, d_thd);
 	printl("Waking up thread %d\n", d_thd);
@@ -322,8 +327,8 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	__boot_spd_thd(d_spd);
 
 done:
+	assert(0 == sched_curr_set_priority(p));
 	printl("Forked %d -> %d\n", source, d_spd);
-	quarantine_add_to_spd_map(source, d_spd);
 	return d_spd;
 }
 

@@ -12,6 +12,8 @@ unsigned long sched_cyc_per_tick(void);
 unsigned long sched_timestamp(void);
 unsigned long sched_timer_stopclock(void);
 int sched_priority(unsigned short int tid);
+/* This function is not safe. */
+int sched_curr_set_priority(unsigned short int prio);
 
 /* This function is deprecated...use sched_create_thd instead. */
 int sched_create_thread(spdid_t spdid, struct cos_array *data);
