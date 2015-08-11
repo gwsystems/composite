@@ -114,7 +114,7 @@ static inline REGPARM(1) void *do_mmap(size_t size) {
 #else
 	massert(size <= PAGE_SIZE);
 	//hp = cos_get_prealloc_page();
-	//if (!hp) 
+	//if (!hp)
 	hp = cos_get_vas_page();
 #endif
 	for (p = (unsigned long)hp ;

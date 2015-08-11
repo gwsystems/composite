@@ -13,6 +13,7 @@ extern struct cos_rumpcalls crcalls;
 void
 cos2rump_setup(void)
 {
+	rump_bmk_memsize_init();
 
 	crcalls.rump_cos_get_thd_id = cos_get_thd_id;
 	crcalls.rump_cos_print 	    = cos_print;
@@ -21,8 +22,17 @@ cos2rump_setup(void)
 	crcalls.rump_strncpy        = strncpy;
 	crcalls.rump_memcalloc      = cos_memcalloc;
 	crcalls.rump_memalloc       = cos_memalloc;
+	crcalls.rump_pgalloc        = alloc_page;
 
 	return;
+}
+
+extern unsigned long bmk_memsize;
+void
+rump_bmk_memsize_init(void)
+{
+	/* (1<<20) == 1 MG */
+	bmk_memsize = COS_MEM_USER_PA_SZ - ((1<<20)*2);
 }
 
 void *
@@ -35,7 +45,6 @@ cos_memcalloc(size_t n, size_t size)
 	if (size != 0 && tot / size != n)
 		return NULL;
 
-	//RENAME ME.
 	rv = rump_cos_calloc(n, size);
 	return rv;
 }
@@ -48,8 +57,7 @@ cos_memalloc(size_t nbytes, size_t align)
 
 	void *rv;
 
-	//RENAME ME
-	rv = rump_cos_malloc(nbytes); // Malloc call goes to rumpkernel malloc and starts infinite loop.
+	rv = rump_cos_malloc(nbytes);
 
 	return rv;
 }
