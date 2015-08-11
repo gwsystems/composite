@@ -2,7 +2,9 @@
 
 ./cos_loader \
 "c0.o, ;llboot.o, ;*fprr.o, ;mm.o, ;print.o, ;boot.o, ;\
-!cpu.o, ;(!cpu1.o=cpu.o), ;!cbboot.o,a6;(!po.o=ppong.o), ;(!pi.o=pingp.o), a9;!cbuf.o,a5;!va.o, a2;!l.o,a1;!mpool.o, a3;!vm.o, a1:\
+!cpu.o, ;(!cpu1.o=cpu.o), ;\
+!cbuf.o,a5;!va.o, a2;!l.o,a1;!mpool.o, a3;!vm.o, a1;\
+!cbboot.o,a6;(!po.o=ppong.o), ;(!pi.o=pingp.o), a9:\
 c0.o-llboot.o;\
 fprr.o-print.o|[parent_]mm.o|[faulthndlr_]llboot.o;\
 mm.o-[parent_]llboot.o|print.o;\
