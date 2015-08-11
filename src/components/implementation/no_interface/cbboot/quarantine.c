@@ -3,12 +3,9 @@
 
 #define printl(...) printc("Quarantine: "__VA_ARGS__)
 
-/* spd_map stores the spds of an spd's forks.
- * Currently this is implemented as a simple linear array indexed by the
- * original spd's id.
- *
- * FIXME: need a smarter data structure here to allow forking the same
- * component multiple times */
+//#define QUARANTINE_MIGRATE_THREAD
+
+/* spd_map stores the spds of an spd's forks in a linked list. */
 struct spd_map_entry {
 	spdid_t fork_spd;
 	struct spd_map_entry *p, *n;
@@ -112,7 +109,10 @@ spdid_t
 quarantine_fork(spdid_t spdid, spdid_t source)
 {
 	spdid_t d_spd = 0;
+
+#if QUARANTINE_MIGRATE_THREAD
 	thdid_t d_thd;
+#endif
 	struct cbid_caddr *old_sect_cbufs, *new_sect_cbufs;
 	struct cobj_header *h;
 	struct cobj_sect *sect;
@@ -282,10 +282,10 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	/* TODO: migrating threads from the source to its fork should be
 	 * controlled by a policy that includes what threads (blocked,
 	 * running, etc), and how many to migrate */
+#if QUARANTINE_MIGRATE_THREAD
 	printl("Getting thread from %d\n", source);
 	d_thd = sched_get_thread_in_spd(cos_spd_id(), source, 0);
-	/* TODO: instead of blocking the thread, perhaps it can run through
-	 * the end of its current invocation? */
+#endif
 
 	/* inform servers about fork. Have to let servers update
 	 * spdid-based metadata before either the source (orig) or d_spd (fork)
@@ -309,11 +309,13 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	/* TODO: valloc */
 #endif
 
+#if QUARANTINE_MIGRATE_THREAD
 	quarantine_migrate(cos_spd_id(), source, d_spd, d_thd);
 	printl("Waking up thread %d\n", d_thd);
 	if (d_thd) {
 		sched_quarantine_wakeup(cos_spd_id(), d_thd);
 	}
+#endif
 
 	/* TODO: should creation of boot threads be controlled by policy? */
 	printl("Creating boot threads in fork: %d\n", d_spd);

@@ -1,5 +1,5 @@
-C_OBJS=ucbufpf.o
-COMPONENT=ucbufpf.o
+C_OBJS=ucbufptf.o
+COMPONENT=ucbufptf.o
 INTERFACES=unit_cbufp
 DEPENDENCIES=printc valloc cbuf_mgr mem_mgr_large lock timed_blk quarantine
 

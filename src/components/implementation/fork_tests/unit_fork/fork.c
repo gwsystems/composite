@@ -17,8 +17,10 @@ void cos_init(void)
 	if (!first) {
 		++first;
 		new_spd = quarantine_fork(cos_spd_id(), cos_spd_id());
+		printc("fork complete from %d -> %d\n", cos_spd_id(), new_spd);
+	} else {
+		printc("UNIT TEST PASSED: quarantine_fork\n");
 	}
-	printc("UNIT TEST PASSED: quarantine_fork\n");
 	return;
 }
 
