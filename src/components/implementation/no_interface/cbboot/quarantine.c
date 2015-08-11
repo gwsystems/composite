@@ -279,6 +279,9 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	 * thread, preference to blocked, then search inv stk. The
 	 * returned thread is blocked first, to avoid having it run
 	 * while quarantining. */
+	/* TODO: migrating threads from the source to its fork should be
+	 * controlled by a policy that includes what threads (blocked,
+	 * running, etc), and how many to migrate */
 	printl("Getting thread from %d\n", source);
 	d_thd = sched_get_thread_in_spd(cos_spd_id(), source, 0);
 	/* TODO: instead of blocking the thread, perhaps it can run through
@@ -307,12 +310,15 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 #endif
 
 	quarantine_migrate(cos_spd_id(), source, d_spd, d_thd);
-	//if (cos_upcall(d_spd, NULL)) printl("Upcall failed\n");
-
 	printl("Waking up thread %d\n", d_thd);
 	if (d_thd) {
 		sched_quarantine_wakeup(cos_spd_id(), d_thd);
 	}
+
+	/* TODO: should creation of boot threads be controlled by policy? */
+	printl("Creating boot threads in fork: %d\n", d_spd);
+	boot_spd_thd(d_spd);
+
 done:
 	printl("Forked %d -> %d\n", source, d_spd);
 	quarantine_add_to_spd_map(source, d_spd);
