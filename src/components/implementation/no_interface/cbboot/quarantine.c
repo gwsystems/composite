@@ -317,7 +317,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 
 	/* TODO: should creation of boot threads be controlled by policy? */
 	printl("Creating boot threads in fork: %d\n", d_spd);
-	boot_spd_thd(d_spd);
+	__boot_spd_thd(d_spd);
 
 done:
 	printl("Forked %d -> %d\n", source, d_spd);

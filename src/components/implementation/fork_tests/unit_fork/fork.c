@@ -12,8 +12,12 @@
 void cos_init(void)
 {
 	spdid_t new_spd;
+	static int first = 0;
 	printc("UNIT TEST quarantine_fork\n");
-	new_spd = quarantine_fork(cos_spd_id(), cos_spd_id());
+	if (!first) {
+		++first;
+		new_spd = quarantine_fork(cos_spd_id(), cos_spd_id());
+	}
 	printc("UNIT TEST PASSED: quarantine_fork\n");
 	return;
 }
