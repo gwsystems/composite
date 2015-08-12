@@ -331,8 +331,8 @@ livenessid_bump_alloc(void)
 
 /**************** [Kernel Object Allocation] ****************/
 
-static
-int __alloc_mem_cap(struct cos_compinfo *ci, cap_t ct, vaddr_t *kmem, capid_t *cap)
+static int
+__alloc_mem_cap(struct cos_compinfo *ci, cap_t ct, vaddr_t *kmem, capid_t *cap)
 {
 	printd("__alloc_mem_cap\n");
 
@@ -377,7 +377,7 @@ cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *da
 
 thdcap_t
 cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp)
-{ return __cos_thd_alloc(ci, comp, 0); }
+{ return __cos_thd_alloc(ci, comp, 1); }
 
 captblcap_t
 cos_captbl_alloc(struct cos_compinfo *ci)

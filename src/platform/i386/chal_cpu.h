@@ -68,14 +68,14 @@ chal_cpu_init(void)
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);
 	writemsr(IA32_SYSENTER_CS, SEL_KCSEG, 0);
 	writemsr(IA32_SYSENTER_ESP, (u32_t)tss.esp0, 0);
-	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_entry, 0);	
+	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_entry, 0);
 }
 
 static inline vaddr_t
 chal_cpu_fault_vaddr(struct registers *r)
 {
 	vaddr_t fault_addr;
-	asm volatile("mov %%cr2, %0" : "=r" (fault_addr));	
+	asm volatile("mov %%cr2, %0" : "=r" (fault_addr));
 	return fault_addr;
 }
 
@@ -87,9 +87,10 @@ static inline u32_t
 chal_cpu_fault_ip(struct registers *r) { return r->eip; }
 
 static inline void
-chal_user_upcall(void *ip)
+chal_user_upcall(void *ip, u16_t tid, u16_t cpuid)
 {
-	__asm__("sti ; sysexit" : : "c"(0), "d"(ip));
+	/* edx = user-level ip, ecx = option, ebx = arg, eax = tid + cpuid */
+	__asm__("sti ; sysexit" : : "c"(0), "d"(ip), "b"(0), "a"(tid | (cpuid << 16)));
 }
 
 #endif /* CHAL_CPU_H */
