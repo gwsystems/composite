@@ -14,7 +14,7 @@ vm.o-fprr.o|print.o|mm.o|l.o|boot.o|llboot.o;\
 va.o-fprr.o|print.o|mm.o|l.o|boot.o|vm.o|llboot.o;\
 l.o-fprr.o|mm.o|print.o|llboot.o;\
 cbuf.o-boot.o|fprr.o|print.o|l.o|mm.o|va.o|llboot.o;\
-cbboot.o-print.o|fp:rr.o|mm.o|boot.o|cbuf.o|[parent_]llboot.o;\
+cbboot.o-print.o|fprr.o|mm.o|boot.o|cbuf.o|[parent_]llboot.o;\
 pi.o-cbuf.o|fprr.o|va.o|po.o|print.o|cbboot.o;\
 po.o-cbuf.o|va.o|print.o|cbboot.o\
 " ./gen_client_stub
