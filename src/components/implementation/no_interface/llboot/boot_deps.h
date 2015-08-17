@@ -271,9 +271,11 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 	/* remove from the invocation stack the faulting component! */
 	assert(!cos_thd_cntl(COS_THD_INV_FRAME_REM, tid, 1, 0));
 
+	printc("Get the return address\n");
 	/* Manipulate the return address of the component that called
 	 * the faulting component... */
 	assert(r_ip = cos_thd_cntl(COS_THD_INVFRM_IP, tid, 1, 0));
+	printc("Set the return address to %lx\n", r_ip - 8);
 	/* ...and set it to its value -8, which is the fault handler
 	 * of the stub. */
 	assert(!cos_thd_cntl(COS_THD_INVFRM_SET_IP, tid, 1, r_ip-8));

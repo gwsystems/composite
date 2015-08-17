@@ -559,7 +559,7 @@ void cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd)
 	
 	r = cbuf_fork_spd(cos_spd_id(), o_spd, f_spd);
 	if (r) printc("Error (%d) in cbuf_fork_spd\n", r);
-	/* TODO: valloc */
+	/* TODO: invoke valloc to get transitive fixup? */
 }
 
 /*
