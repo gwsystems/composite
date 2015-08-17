@@ -1125,11 +1125,24 @@ composite_syscall_slowpath(struct pt_regs *regs)
 		case CAPTBL_OP_TCAP_DELEGATE:
 		{
 			struct tcap *tcapsrc = __userregs_getcap(regs);
-			struct tcap *tcapdst = __userregs_get1(regs);
+			struct cap_arcv *arcv = __userregs_get1(regs);
 			long long res = __userregs_get2(regs);
 			u32_t prio_higher = __userregs_get3(regs);
 			u32_t prio_lower = __userregs_get4(regs);
 			u16_t prio = 0; /* = higher_prio << 32 || lower_prio; */
+
+			/* Pry tcapdst from arcv that was passed in */
+			struct tcap *tcapdst = NULL;
+
+			ret = tcap_delegate(tcapsrc, tcapdst, res, prio);
+
+			if (ret) cos_throw(err, -ENOENT);
+
+			break;
+		}
+		default:
+		{
+			cos_throw(err, -ENOENT);
 		}
 		}
 

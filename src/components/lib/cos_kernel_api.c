@@ -547,19 +547,41 @@ cos_mem_remove(pgtblcap_t pt, vaddr_t addr)
 tcap_t
 cos_tcap_split(tcap_t src, tcap_res_t res, tcap_prio_t prio, int flags)
 {
-	return 0;
+	int prio_higher = (u32_t)((prio & 0xFFFFFFFF00000000) >> 32);
+	int prio_lower  = (u32_t)(prio & 0xFFFFFFFF);
+
+	/* Cases for pools */
+	return call_cap_op(src, CAPTBL_OP_TCAP_DELEGATE, dst, res, prio_higher, prio_lower);
 }
 
 int
 cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t, tcap_prio_t prio)
 {
-	
+	int prio_higher = (u32_t)((prio & 0xFFFFFFFF00000000) >> 32);
+	int prio_lower  = (u32_t)(prio & 0xFFFFFFFF);
+	call_cap_op(src, CAPTBL_OP_TCAP_DELEGATE, dst, res, prio_higher, prio_lower);
+
 	return 0;
 }
 
 int
-cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio)
+cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, int flags)
 {
-	return 0;
+	int prio_higher = (u32_t)((prio & 0xFFFFFFFF00000000) >> 32);
+	int prio_lower  = (u32_t)(prio & 0xFFFFFFFF);
+	int ret;
+
+	if (flags == TCAP_DELEG_TRANSFER) {
+		return call_cap_op(src, CAPTBL_OP_TCAP_DELEGATE, dst, res, prio_higher, prio_lower);
+	} else if (flags == TCAP_DELEG_DISPATCH) {
+		cos_asnd(dst);
+		return 0;
+	} else if (flags == TCAP_DELEG_TRANSFER & TCAP_DELEG_DISPATCH) {
+		ret = call_cap_op(src, CAPTBL_OP_TCAP_DELEGATE, dst, res, prio_higher, prio_lower);
+		cos_asnd(dst);
+		return ret;
+	} else {
+		return -ENOENT;
+	}
 }
 

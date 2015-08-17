@@ -20,9 +20,9 @@
 
 #define TCAP_NACTIVATIONS 1
 
-typedef tcap_prio_t u64_t;
-typedef tcap_res_t s64_t;
-typedef tcap_uid_t u64_t;
+typedef u64_t tcap_prio_t;
+typedef s64_t tcap_res_t;
+typedef u64_t tcap_uid_t;
 /*
  * This is a reference to a tcap, and the epoch tracks which
  * "generation" of the tcap is valid for this reference.  This enables
@@ -109,7 +109,7 @@ static inline void
 tcap_ref_create(struct tcap_ref *r, struct tcap *t)
 {
 	r->tcap  = t;
-	r->epoch = t ? t->epoch : 0;
+	//r->epoch = t ? t->epoch : 0;
 }
 
 /*

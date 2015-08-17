@@ -86,4 +86,10 @@ tcap_t cos_tcap_split(tcap_t src, tcap_res_t res, tcap_prio_t prio, int flags)
 int cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio)
 int cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_rio_t prio)
 
+/* TCAP data */
+enum {
+	TCAP_DELEG_TRANSFER = 1,
+	TCAP_DELEG_DISPATCH = 1<<1,
+}
+
 #endif /* COS_KERNEL_API_H */
