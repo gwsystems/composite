@@ -2,6 +2,7 @@
 #define RUMPCALLS_H
 
 #include <consts.h>
+#include <cos_types.h>
 
 typedef __builtin_va_list va_list;
 #define va_start(v,l)      __builtin_va_start((v),l)
@@ -10,7 +11,8 @@ typedef __builtin_va_list va_list;
 
 extern struct cos_rumpcalls crcalls;
 extern struct bmk_thread *bmk_threads[];
-#define bmk_current bmk_threads[crcalls.rump_cos_get_thd_id()]
+struct bmk_tcb *tcb;
+#define bmk_current bmk_threads[crcalls.rump_cos_thdid()]
 
 struct cos_rumpcalls
 {
@@ -22,6 +24,11 @@ struct cos_rumpcalls
 	void*  (*rump_memcalloc)(unsigned long n, unsigned long size);
 	void*  (*rump_memalloc)(unsigned long nbytes, unsigned long align);
 	void*  (*rump_pgalloc)(void);
+	u16_t  (*rump_cos_thdid)(void);
+	void*  (*rump_memcpy)(void *d, const void *src, unsigned long n);
+	void   (*rump_cpu_sched_create)(struct bmk_thread *thread, struct bmk_tcb *tcb,
+			void (*f)(void *), void *arg,
+			void *stack_base, unsigned long stack_size);
 };
 
 /* Mapping the functions from rumpkernel to composite */
@@ -31,5 +38,9 @@ void *cos_memcalloc(size_t n, size_t size);
 void *cos_memalloc(size_t nbytes, size_t align);
 
 void  rump_bmk_memsize_init(void);
+
+void set_cos_thdcap(struct bmk_thread *thread, capid_t value);
+capid_t get_cos_thdcap(struct bmk_thread *thread);
+
 
 #endif /* RUMPCALLS_H */

@@ -1,0 +1,14 @@
+#ifndef COS_INIT_H
+#define COS_INIT_H
+
+void cos_run(char *cmdline);
+int __attribute__((format(printf,1,2))) printc(char *fmt, ...);
+
+/* These are defiend on the rumpkernel side
+ * Think of these as upcalls to the rump kernel to start
+ * the rump kernel's main thread
+ */
+void bmk_sched_startmain(void (*)(void *), void *) __attribute__((noreturn));
+void bmk_mainthread(void *);
+
+#endif

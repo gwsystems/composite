@@ -6,6 +6,7 @@
 #include <cos_kernel_api.h>
 
 #include "rumpcalls.h"
+#include "cos_init.h"
 
 int
 prints(char *s)
@@ -41,6 +42,14 @@ printc(char *fmt, ...)
 
 struct cos_compinfo booter_info;
 
+static void
+thd_fn(void *d)
+{
+	printc("\tNew thread %d with argument %d\n", cos_thdid(), (int)d);
+	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	printc("Error, shouldn't get here!\n");
+}
+
 #define TEST_NTHDS 5
 static void
 test_thds(void)
@@ -49,7 +58,7 @@ test_thds(void)
 	int i;
 
 	for (i = 0 ; i < TEST_NTHDS ; i++) {
-		ts[i] = cos_initthd_alloc(&booter_info, booter_info.comp_cap);
+		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i);
 		assert(ts[i]);
 		printc("switchto %d\n", (int)ts[i]);
 		cos_thd_switch(ts[i]);
@@ -69,6 +78,49 @@ test_mem(void)
 	printc("Page allocation: %s\n", p);
 }
 
+struct data {
+	thdcap_t prev; // Thread to switch back to
+	unsigned short int thdid;
+};
+
+void
+rumptest_thd_fn(void *param)
+{
+	struct data *thd_meta = (struct data*)param;
+
+	printc("In rumptest_thd_fn\n");
+	printc("thdid, should be 0: %d\n", thd_meta->thdid);
+
+	printc("fetching thd id\n");
+	thd_meta->thdid = cos_thdid();
+	printc("thdid, is now: %d\n", thd_meta->thdid);
+
+	printc("switching back to old thread");
+	cos_thd_switch(thd_meta->prev);
+	printc("Error: this should not print");
+}
+
+void
+test_rumpthread(void)
+{
+	thdcap_t new_thdcap;
+	thdcap_t current_thdcap;
+	void *thd_meta;
+
+	current_thdcap = BOOT_CAPTBL_SELF_INITTHD_BASE;
+
+	struct data info;
+	info.prev = current_thdcap;
+
+	thd_meta = &info;
+	//cos_thd_fn_t func_ptr = rumptest_thd_fn;
+
+	new_thdcap = cos_thd_alloc(&booter_info, booter_info.comp_cap, rumptest_thd_fn, thd_meta);
+	cos_thd_switch(new_thdcap);
+
+	printc("switched back to old thread, thdid: %d\n", info.thdid);
+}
+
 void
 cos_init(void)
 {
@@ -84,28 +136,16 @@ cos_init(void)
 
 	printc("\nMicro Booter done.\n");
 
+	printc("\nRump Sched Test Start\n");
+	test_rumpthread();
+	printc("\nRump Sched Test End\n");
+
 	printc("\nRumpKernel Boot Start.\n");
 	cos2rump_setup();
-	rump_init();
-
+	cos_run(NULL);
 	printc("\nRumpKernel Boot done.\n");
 
-	while (1) ;
+	BUG();
 
 	return;
-}
-
-void
-cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
-{
-	static int first = 1;
-
-	if (first) {
-		first = 0;
-		cos_init();
-	} else {
-		printc("\tin new thread; switching back\n");
-		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
-		printc("\tWHYYYYYYY MOAR execution!?\n");
-	}
 }
