@@ -32,7 +32,9 @@ enum {
 #define DEFAULT_FREQUENCY 100000000
 
 void timer_set(int timer_type, u64_t cycles);
-void timer_init(void *timer, int timer_type, u64_t cycles);
+void timer_init(int timer_type, u64_t cycles);
+u64_t timer_find_hpet(void *timer);
+void timer_set_hpet_page(u32_t page);
 
 void tss_init(void);
 void idt_init(void);
