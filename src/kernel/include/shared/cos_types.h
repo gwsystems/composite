@@ -815,7 +815,6 @@ static inline void cos_mem_fence(void)
 #define TCAP_RES_EXPAND(r) ((r) << TCAP_RES_GRAN_ORD)
 #define TCAP_RES_INF LLONG_MAX
 #define TCAP_RES_IS_INF(r) (r == TCAP_RES_INF)
-typedef u16_t tcap_t;
 
 #ifndef __KERNEL_PERCPU
 #define __KERNEL_PERCPU 0
