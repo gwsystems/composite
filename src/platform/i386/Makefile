@@ -47,6 +47,7 @@ OBJS += boot_comp.o
 COS_OBJ += pgtbl.o
 COS_OBJ += retype_tbl.o
 COS_OBJ += liveness_tbl.o
+COS_OBJ += tcap.o
 COS_OBJ += capinv.o
 COS_OBJ += measurement.o
 COS_OBJ += captbl.o
@@ -76,6 +77,10 @@ per_cpu.o: ../../kernel/per_cpu.c
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 pgtbl.o: ../../kernel/pgtbl.c
+	$(info |     [CC]   Compiling $@)
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+tcap.o: ../../kernel/tcap.c
 	$(info |     [CC]   Compiling $@)
 	@$(CC) $(CFLAGS) -c $< -o $@
 

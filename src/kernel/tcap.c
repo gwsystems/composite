@@ -6,12 +6,13 @@
  * Public License v2.
  *
  * Initial Author: Jakob Kaivo, jkaivo@gwu.edu, 2013.
- * Additional: Gabe Parmer, gparmer@gwu.edu, 2013.
+ * Additional: Gabe Parmer, gparmer@gwu.edu, 2013; Eric Armbrust, earmbrust@gwu.edu, 2015.
  */
 
 #include "include/tcap.h"
-#include "include/spd.h"
 #include "include/thd.h"
+#include "include/clist.h"
+#include "include/shared/cos_types.h"
 
 #ifdef LINUX_TESTS
 #undef get_cpuid
@@ -19,86 +20,55 @@
 #endif
 
 /* EAA: Fix for multi-core support */
-static u64_t tcap_uid = 0;
+static tcap_uid_t tcap_uid = 0;
 
 /* TODO: percpu */
 static struct clist_head CLIST_HEAD_STATIC_INIT(tcap_roots);
 
 /* Fill in default "safe" values */
 static void
-tcap_init(struct tcap *t, /*spd*/ void *c)
+tcap_init(struct tcap *t, struct tcap_ref *c)
 {
 	t->ndelegs              	= 1;
-	t->budget_local.cycles  	= 0LL;
+	t->budget.cycles  		= 0LL;
 	t->cpuid                	= get_cpuid();
 	t->delegations[0].prio  	= TCAP_PRIO_MAX;
-	t->delegations[0].tcap_uid 	= c;
+	t->delegations[0].tcap_uid 	= tcap_uid;
+	t->pool 			= c;
 	t->sched_info           	= 0;
+	tcap_uid++;
 }
 
 static int
-tcap_delete(/*spd*/ void *s, struct tcap *tcap)
+tcap_delete(struct tcap_ref *s, struct tcap *tcap)
 {
 	assert(s && tcap);
 	assert(tcap < &s->tcaps[TCAP_MAX] && tcap >= &s->tcaps[0]);
 	/* Can't delete your persistent tcap! */
-	if (&s->tcaps[0] == tcap) return -1;
-	memset(&tcap->budget_local, 0, sizeof(struct tcap_budget));
-	memset(tcap->delegations, 0, sizeof(struct tcap_sched_info) * TCAP_MAX_DELEGATIONS);
+	if (s->tcap == tcap) return -1;
+//	memset(tcap->budget, 0, sizeof(struct tcap_budget));
+//	memset(tcap->delegations, 0, sizeof(struct tcap_sched_info) * TCAP_MAX_DELEGATIONS);
 	tcap->ndelegs    = tcap->cpuid = 0;
 	tcap->sched_info = 0;
-	s->ntcaps--;
+	s->tcap->ref_count--;
 
 	return 0;
 }
-
-void
-tcap_spd_init(/*spd*/ void *c)
-{
-	int i;
-	struct tcap *t;
-
-	c->ntcaps        = 1;
-	for (i = 1 ; i < TCAP_MAX ; i++) {
-		t           = &c->tcaps[i];
-		t->ndelegs  = t->cpuid = 0;
-	}
-
-	/* initialize tcap */
-	t = &c->tcaps[0];
-	tcap_init(t, c);
-	tcap_ref_create(&t->budget, t);
-	clist_init_l(c, tcap_root_list);
-}
-
-int
-tcap_spd_delete(/*spd*/ void *c)
-{
-	int i;
-
-	assert(c);
-	for (i = 0 ; i < TCAP_MAX ; i++) {
-		if (!tcap_is_allocated(&c->tcaps[i])) continue;
-		tcap_delete(c, &(c->tcaps[i]));
-	}
-	c->ntcaps = 0;
-	clist_rem_l(c, tcap_root_list);
-
-	return 0;
-}
-
+/*
 tcap_uid_t
 tcap_id(struct tcap *t)
 {
 	assert(t && tcap_is_allocated(t));
 	return t - tcap_sched_info(t)->tcap_uid;
 }
-
+*/
+/*
 int
 tcap_is_root(struct tcap *t) { return tcap_id(t) == 0; }
-
+*/
+/*
 struct tcap *
-tcap_get(/*spd*/ void *c, tcap_t id)
+tcap_get(struct tcap_ref *c, tcap_t id)
 {
 	struct tcap *t;
 
@@ -108,12 +78,13 @@ tcap_get(/*spd*/ void *c, tcap_t id)
 	if (unlikely(!tcap_is_allocated(t))) return NULL;
 	return t;
 }
-
+*/
 /*
  * Set thread t to be bound to tcap.  Its execution will proceed with
  * that tcap from this point on.  This is most useful for interrupt
  * threads.
  */
+/*
 int
 tcap_bind(struct thread *t, struct tcap *tcap)
 {
@@ -122,7 +93,7 @@ tcap_bind(struct thread *t, struct tcap *tcap)
 	tcap_ref_create(&t->tcap_active, tcap);
 	return 0;
 }
-
+*/
 /*
  * Pass in the budget destination and source, as well as the number of
  * cycles to be transferred.
@@ -138,6 +109,8 @@ __tcap_budget_xfer(struct tcap_budget *bd, struct tcap_budget *bs, tcap_res_t cy
 	}
 	if (unlikely(cycles > bs->cycles)) return -1;
 	if (!TCAP_RES_IS_INF(bd->cycles)) bd->cycles += cycles;
+	if (!TCAP_RES_IS_INF(bs->cycles)) bs->cycles -= cycles;
+	return 0;
 }
 
 /*
@@ -152,24 +125,24 @@ __tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc,
 	if (unlikely(tcapsrc->cpuid != get_cpuid()    ||
 		     tcapdst->cpuid != tcapsrc->cpuid || cycles < 0)) return -1;
 	if (!prio)   prio   = tcap_sched_info(tcapsrc)->prio;
-	if (!cycles) cycles = tcapsrc->budget_local.cycles;
+	if (!cycles) cycles = tcapsrc->budget.cycles;
 
-	if (unlikely(__tcap_budget_xfer(&tcapdst->budget_local, &tcapsrc->budget_local, cycles, pooled))) return -1;
+	if (unlikely(__tcap_budget_xfer(&tcapdst->budget, &tcapsrc->budget, cycles, pooled))) return -1;
 	if (pooled) {
 		/* inherit the (possibly inherited) budget */
 		memcpy(&tcapdst->budget, &tcapsrc->budget, sizeof(struct tcap_ref));
 	} else {
 		struct tcap *bcs, *bcd;
 
-		bcs = tcap_deref(&tcapsrc->budget);
-		bcd = tcap_deref(&tcapdst->budget);
+		bcs = tcap_deref(tcapsrc->pool);
+		bcd = tcap_deref(tcapdst->pool);
 		if (unlikely(!bcs || !bcd)) goto undo_xfer;
-		if (__tcap_budget_xfer(&bcd->budget_local, &bcs->budget_local, cycles, pooled)) goto undo_xfer;
+		if (__tcap_budget_xfer(&bcd->budget, &bcs->budget, cycles, pooled)) goto undo_xfer;
 	}
 	tcap_sched_info(tcapdst)->prio = prio;
 	return 0;
 undo_xfer:
-	__tcap_budget_xfer(&tcapsrc->budget_local, &tcapdst->budget_local, cycles, pooled);
+	__tcap_budget_xfer(&tcapsrc->budget, &tcapdst->budget, cycles, pooled);
 	return -1;
 }
 
@@ -183,26 +156,29 @@ undo_xfer:
  * (ignoring values of 0).
  */
 struct tcap *
-tcap_split(struct tcap *t, tcap_res_t cycles, tcap_prio_t prio)
+tcap_split(struct tcap *t, tcap_res_t cycles, tcap_prio_t prio, int flags)
 {
 	struct tcap *n, *b;
-	void  *c;
+	tcap_uid_t c;
 
 	assert(t);
 	if (t->cpuid != get_cpuid()) return NULL;
 	c             = tcap_sched_info(t)->tcap_uid;
 	assert(c);
-	b             = tcap_deref(&t->budget);
+	//n = c->tcap_freelist
+	//if (unlikely(!n)) return NULL;
+	b             = tcap_deref(t->pool);
 	if (unlikely(!b))  return NULL;
 
-	tcap_init(n, c);
-	tcap_ref_create(&n->budget, b);
+	tcap_init(n, t->pool);
+	//HACK, only supports creating new pools for now.
+	tcap_ref_create(n->pool, n);
 	n->ndelegs    = t->ndelegs;
 	n->sched_info = t->sched_info;
 	memcpy(n->delegations, t->delegations, sizeof(struct tcap_sched_info) * t->ndelegs);
 
 	if (__tcap_transfer(n, t, cycles, prio, 1)) {
-		tcap_delete(c, n);
+		tcap_delete(t->pool, n);
 		n = NULL;
 	}
 	return n;
@@ -211,15 +187,16 @@ tcap_split(struct tcap *t, tcap_res_t cycles, tcap_prio_t prio)
 /*
  * Which tcap should receive delegations while executing in thread t?
  */
+/*
 int
-tcap_receiver(struct thread *t, struct tcap *tcap)
+tcap_receiver(struct thread *t, struct tcap *tcapdst)
 {
 	assert(t && tcap);
 //	if (!thd_scheduled_by(t, tcap_sched_info(tcap)->sched)) return -1;
 	tcap_ref_create(&t->tcap_receiver, tcap);
 	return 0;
 }
-
+*/
 /*
  * Do the delegation chains for the destination and the source tcaps
  * enable time to be transferred from the source to the destination?
@@ -240,8 +217,8 @@ tcap_receiver(struct thread *t, struct tcap *tcap)
  *                                          src[sched.id].prio
  */
 static int
-__tcap_legal_transfer_delegs(struct tcap_sched_info *dst_ds, int d_nds, /*spd*/ void *dsched,
-			     struct tcap_sched_info *src_ds, int s_nds, /*spd*/ void *ssched)
+__tcap_legal_transfer_delegs(struct tcap_sched_info *dst_ds, int d_nds,
+			     struct tcap_sched_info *src_ds, int s_nds, tcap_uid_t suid)
 {
 	int i, j;
 
@@ -255,11 +232,11 @@ __tcap_legal_transfer_delegs(struct tcap_sched_info *dst_ds, int d_nds, /*spd*/ 
 		 * change its own tcap's priorities, and is not in its
 		 * own delegation list.
 		 */
-		if (d->tcap_uid == ssched) {
+		if (d->tcap_uid == suid) {
 			i++;
 			continue;
 		}
-		if (d->tcap_uid == s->sched) {
+		if (d->tcap_uid == s->tcap_uid) {
 			if (d->prio < s->prio) return -1;
 			/* another option is to _degrade_ the
 			 * destination by manually lower the
@@ -280,8 +257,8 @@ __tcap_legal_transfer_delegs(struct tcap_sched_info *dst_ds, int d_nds, /*spd*/ 
 static inline int
 __tcap_legal_transfer(struct tcap *dst, struct tcap *src)
 {
-	return __tcap_legal_transfer_delegs(dst->delegations, dst->ndelegs, tcap_sched_info(dst)->sched,
-					    src->delegations, src->ndelegs, tcap_sched_info(src)->sched);
+	return __tcap_legal_transfer_delegs(dst->delegations, dst->ndelegs,
+					    src->delegations, src->ndelegs, tcap_sched_info(src)->tcap_uid);
 }
 
 int
@@ -297,17 +274,17 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, int prio)
 {
 	struct tcap_sched_info deleg_tmp[TCAP_MAX_DELEGATIONS];
 	int ndelegs, i, j;
-	/*spd*/ void *d, *s;
+	tcap_uid_t d, s;
 	int si = -1;
 
 	assert(dst && src);
 	if (unlikely(dst->ndelegs >= TCAP_MAX_DELEGATIONS)) {
 		printk("tcap %x already has max number of delgations.\n",
-			tcap_id(dst));
+			dst->delegations[0].tcap_uid);
 		return -1;
 	}
 	d = tcap_sched_info(dst)->tcap_uid;
-	s = tcap_sched_info(src)->sched;
+	s = tcap_sched_info(src)->tcap_uid;
 	if (d == s) return -1;
 	if (!prio) prio = tcap_sched_info(src)->prio;
 
@@ -325,7 +302,7 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, int prio)
 		} else if (dst->delegations[i].tcap_uid > src->delegations[j].tcap_uid) {
 			n = &src->delegations[j++];
 		} else {	/* same scheduler */
-			assert(dst->delegations[i].sched == src->delegations[j].sched);
+			assert(dst->delegations[i].tcap_uid == src->delegations[j].tcap_uid);
 			memcpy(&t, &src->delegations[j], sizeof(struct tcap_sched_info));
 			if (dst->delegations[i].prio > t.prio) {
 				t.prio = dst->delegations[i].prio;
@@ -355,11 +332,12 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, int prio)
 	 * has permissions to execute now, so that should be
 	 * transitively granted to this scheduler.
 	 */
+	/*
 	if (tcap_remaining(dst) > 0) {
 		clist_rem_l(d, tcap_root_list);
 		clist_head_add_l(&tcap_roots, d, tcap_root_list);
 	}
-
+	*/
 	return 0;
 }
 
@@ -368,21 +346,21 @@ tcap_merge(struct tcap *dst, struct tcap *rm)
 {
 	struct tcap *td, *tr;
 
-	tr = tcap_deref(&rm->budget);
-	td = tcap_deref(&dst->budget);
+	tr = tcap_deref(rm->pool);
+	td = tcap_deref(dst->pool);
 	if (!tr || !td) return -1;
 
 	if (tr != td &&
 	    tcap_transfer(dst, rm, 0, tcap_sched_info(dst)->prio)) return -1;
 	if (tr != td &&
 	    tcap_transfer(dst, rm, 0, tcap_sched_info(dst)->prio)) return -1;
-	if (tcap_delete(tcap_sched_info(rm)->tcap_uid, rm)) return -1;
+	if (tcap_delete(rm->pool, rm)) return -1;
 
 	return 0;
 }
 
 static int timer_activation = 0;
-
+/*
 int
 __tcap_higher_prio(struct tcap *a, struct tcap *c)
 {
@@ -391,16 +369,17 @@ __tcap_higher_prio(struct tcap *a, struct tcap *c)
 	if (timer_activation) return 1;
 
 	for (i = 0, j = 0 ; i < a->ndelegs && j < c->ndelegs ; ) {
-		/*
-		 * These cases are for the case where the tcaps don't
-		 * share a common scheduler (due to the partial order
-		 * of schedulers), or different interrupt bind points.
-		 */
+
+//		 These cases are for the case where the tcaps don't
+//		 share a common scheduler (due to the partial order
+//		 of schedulers), or different interrupt bind points.
+
 		if (a->delegations[i].tcap_uid > c->delegations[j].tcap_uid) {
 			j++;
 		} else if (a->delegations[i].tcap_uid < c->delegations[j].tcap_uid) {
 			i++;
-		} else { /* same shared scheduler! */
+		} else {
+			//same shared scheduler!
 			if (a->delegations[i].prio > c->delegations[j].prio) return 0;
 			i++;
 			j++;
@@ -409,12 +388,13 @@ __tcap_higher_prio(struct tcap *a, struct tcap *c)
 
 	return 1;
 }
-
+*/
 /*
  * Is the newly activated thread of a higher priority than the current
  * thread?  Of all of the code in tcaps, this is the fast path that is
  * called for each interrupt and asynchronous thread invocation.
  */
+/*
 int
 tcap_higher_prio(struct thread *activated, struct thread *curr)
 {
@@ -423,13 +403,13 @@ tcap_higher_prio(struct thread *activated, struct thread *curr)
 
 	a = tcap_deref(&activated->tcap_active);
 	c = tcap_deref(&curr->tcap_active);
-	/* invalid/inactive tcaps? */
+	//invalid/inactive tcaps?
 	if (unlikely(!a)) return 0;
 	if (unlikely(!c)) return 1;
 
 	return __tcap_higher_prio(a, c);
 }
-
+*/
 /***
  * Root tcap functions.  These are the tcaps that either are the
  * actual roots (not given cycles via delegation), or those tcaps
@@ -438,22 +418,25 @@ tcap_higher_prio(struct thread *activated, struct thread *curr)
 
 void
 tcap_elapsed(struct thread *t, unsigned int cycles)
-{
+{ } /*
 	struct tcap *tc;
 
 	tc = tcap_deref(&t->tcap_active);
 	assert(tc);
 	if (unlikely(tcap_consume(tc, cycles) < 0)) {
-		/*spd*/ void *s = tcap_sched_info(tc)->tcap_uid;
-		clist_rem_l(s, tcap_root_list);
+		//spd
+		void *s = tcap_sched_info(tc)->tcap_uid;
+//		clist_rem_l(s, tcap_root_list);
 	}
 }
-
+*/
 /** tcap scheduling "policy": who do we upcall into on a timer tick */
+/*
 struct thread *
 tcap_tick_handler(void)
 {
-	/*spd*/ void *s;
+	//SPD
+	void *s;
 
 	do {
 		if (clist_head_empty(&tcap_roots)) return NULL;
@@ -463,51 +446,51 @@ tcap_tick_handler(void)
 
 	return s->timer;
 }
-
+*/
 /** yield the tcap manager to run a root */
 void
 tcap_root_yield(/*spd*/ void *s)
-{
+{ } /*
 	clist_rem_l(s, tcap_root_list);
 	clist_head_append_l(&tcap_roots, s, tcap_root_list);
 }
-
+*/
 /** allocate a root scheduler time */
 int
 tcap_root_alloc(/*spd*/ void *dst, struct tcap *from, int prio, int cycles)
-{
+{ return -1; }/*
 	struct tcap *t;
 
 	t = tcap_get(dst, 0);
 	assert(t);
 	return tcap_delegate(t, from, cycles, prio);
 }
-
+*/
 void
 tcap_root_rem(/*spd*/ void *s)
-{
+{ }/*
 	struct tcap *t;
 
 	t = tcap_get(s, 0);
 	assert(t);
-	t->budget_local.cycles = 0;
+	t->budget.cycles = 0;
 	clist_rem_l(s, tcap_root_list);
 }
-
+*/
 int
 tcap_root(/*spd*/ void *s)
-{
+{ return -1; }/*
 	struct tcap *t;
 
 	t = tcap_get(s, 0);
 	assert(t);
-	t->budget_local.cycles = TCAP_RES_INF;
+	t->budget.cycles = TCAP_RES_INF;
 	clist_rem_l(s, tcap_root_list);
 	clist_head_add_l(&tcap_roots, s, tcap_root_list);
 
 	return 0;
 }
-
+*/
 /*
  * FIXME: ugly hack to ensure that the timer ticks are always chosen
  * to execute.

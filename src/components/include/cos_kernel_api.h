@@ -90,6 +90,6 @@ int cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t pri
 enum {
 	TCAP_DELEG_TRANSFER = 1,
 	TCAP_DELEG_DISPATCH = 1<<1,
-}
+};
 
 #endif /* COS_KERNEL_API_H */

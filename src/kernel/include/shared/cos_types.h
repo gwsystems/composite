@@ -30,6 +30,9 @@ typedef signed int       s32_t;
 typedef signed long long s64_t;
 #endif
 
+//HACK
+#define LLONG_MAX 9223372036854775807LL
+
 #define PRINT_CAP_TEMP (1 << 14)
 
 #define BOOT_LIVENESS_ID_BASE 2
@@ -815,6 +818,11 @@ static inline void cos_mem_fence(void)
 #define TCAP_RES_EXPAND(r) ((r) << TCAP_RES_GRAN_ORD)
 #define TCAP_RES_INF LLONG_MAX
 #define TCAP_RES_IS_INF(r) (r == TCAP_RES_INF)
+
+enum {
+	TCAP_SPLIT_POOL = 1,
+	TCAP_SPLIT_MEH = 1<<1,
+};
 
 #ifndef __KERNEL_PERCPU
 #define __KERNEL_PERCPU 0

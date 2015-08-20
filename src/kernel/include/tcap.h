@@ -31,7 +31,6 @@ typedef u64_t tcap_uid_t;
 struct tcap_ref {
 	struct tcap *tcap;
 	/* how many tcaps reference this pool as their parent */
-	u32_t        ref_count;
 };
 
 struct tcap_budget {
@@ -54,7 +53,8 @@ struct tcap {
 	 * refers to the parent tcap, or it might be segregated in
 	 * this capability in which case budget = this.
 	 */
-	struct tcap_ref    pool;
+	struct tcap_ref    *pool;
+	u32_t 		   ref_count;
 	struct tcap_budget budget; /* if we have a partitioned budget */
 	u8_t               ndelegs, sched_info;
 	u16_t              cpuid;
@@ -109,7 +109,7 @@ static inline void
 tcap_ref_create(struct tcap_ref *r, struct tcap *t)
 {
 	r->tcap  = t;
-	//r->epoch = t ? t->epoch : 0;
+	r->tcap->ref_count++;
 }
 
 /*
@@ -131,8 +131,8 @@ tcap_consume(struct tcap *t, tcap_res_t cycles)
 		}
 	}
 
-	bc = tcap_deref(&t->prio);
-	if (unlikely(!bc)) return left;
+	bc = tcap_deref(t->pool);
+	if (bc == t) return left;
 	if (!TCAP_RES_IS_INF(bc->budget.cycles)) {
 		bc->budget.cycles -= cycles;
 		if (bc->budget.cycles <= 0) left = -1;
@@ -148,33 +148,32 @@ tcap_remaining(struct tcap *t)
 	long long bp, bl;
 
 	assert(t);
-	bc = tcap_deref(&t->budget);
+	bc = tcap_deref(t->pool);
 	if (unlikely(!bc)) return 0;
-	bp = bc->budget_local.cycles;
-	bl = t->budget_local.cycles;
+	bp = bc->budget.cycles;
+	bl = t->budget.cycles;
 
 	return bp < bl ? bp : bl;
 }
 
-tcap_t       tcap_id(struct tcap *t);
-int          tcap_is_root(struct tcap *t);
-struct tcap *tcap_get(struct spd *c, tcap_t id);
-void         tcap_spd_init(struct spd *c);
-struct tcap *tcap_split(struct tcap *t, s64_t cycles, u16_t prio);
+//tcap_uid_t       tcap_id(struct tcap *t);
+//int          tcap_is_root(struct tcap *t);
+//struct tcap *tcap_get(/*SPD*/ void *c, tcap_uid_t id);
+struct tcap *tcap_split(struct tcap *t, tcap_res_t cycles, tcap_prio_t prio, int flags);
 int tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc,
-		  s64_t cycles, u16_t prio);
+		  tcap_res_t cycles, tcap_prio_t prio);
 int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc,
 		  s64_t cycles, int prio);
-int tcap_delete_all(struct spd *spd);
-int tcap_higher_prio(struct thread *activated, struct thread *curr);
-int tcap_receiver(struct thread *t, struct tcap *tcapdst);
-void tcap_elapsed(struct thread *t, unsigned int cycles);
-int tcap_bind(struct thread *t, struct tcap *tcap);
+int tcap_delete_all(/*SPD*/ void *spd);
+//int tcap_higher_prio(struct thread *activated, struct thread *curr);
+//int tcap_receiver(struct thread *t, struct tcap *tcapdst);
+//void tcap_elapsed(struct thread *t, unsigned int cycles);
+//int tcap_bind(struct thread *t, struct tcap *tcap);
 
-int tcap_root(struct spd *s);
-void tcap_root_rem(struct spd *dst);
-int tcap_root_alloc(struct spd *dst, struct tcap *from, int prio, int cycles);
-void tcap_root_yield(struct spd *s);
+int tcap_root(/*SPD*/ void *s);
+void tcap_root_rem(/*SPD*/ void *dst);
+int tcap_root_alloc(/*SPD*/ void *dst, struct tcap *from, int prio, int cycles);
+void tcap_root_yield(/*SPD*/ void *s);
 struct thread *tcap_tick_handler(void);
 void tcap_timer_choose(int c);
 
