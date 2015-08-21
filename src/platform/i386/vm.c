@@ -88,16 +88,20 @@ kern_setup_image(void)
 
 	/* FIXME: Ugly hack to get the physical page with the ACPI RSDT mapped */
 	void *rsdt = acpi_find_rsdt();
-        u32_t page = round_up_to_pgd_page(rsdt) - (1 << 22);
-	boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
-	acpi_set_rsdt_page(j);
-	j++;
+	if (rsdt) {
+        	u32_t page = round_up_to_pgd_page(rsdt) - (1 << 22);
+		boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
+		acpi_set_rsdt_page(j);
+		j++;
 
-	u64_t hpet = timer_find_hpet(acpi_find_timer());
-	page = round_up_to_pgd_page(hpet & 0xffffffff) - (1 << 22);
-	boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
-	timer_set_hpet_page(j);
-	j++;
+		u64_t hpet = timer_find_hpet(acpi_find_timer());
+		if (hpet) {
+			page = round_up_to_pgd_page(hpet & 0xffffffff) - (1 << 22);
+			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
+			timer_set_hpet_page(j);
+			j++;
+		}
+	}
 
 	for ( ; j < PAGE_SIZE/sizeof(unsigned int) ; i += PGD_RANGE, j++) {
 		boot_comp_pgd[j] = boot_comp_pgd[i/PGD_RANGE] = 0;

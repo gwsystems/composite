@@ -41,16 +41,32 @@ pa2va(void *pa)
 void *
 acpi_find_rsdt(void)
 {
-	char *sig;
-	RSDP *rsdp;
-	for (sig = (char*)0xc00E0000; sig < (char*)0xc00FFFFF; sig += 16) {
-		if (!strncmp("RSD PTR ", sig, 8)) {
-			break;
+	unsigned char *sig;
+	RSDP *rsdp = NULL;
+	for (sig = (unsigned char*)0xc00E0000; sig < (unsigned char*)0xc00FFFFF; sig += 16) {
+		if (!strncmp("RSD PTR ", (char*)sig, 8)) {
+			RSDP *r = (RSDP*)sig;
+			u32_t i;
+			unsigned char sum;
+			for (i = 0; i < r->length; i++) {
+				sum += sig[i];
+			}
+			if (sum == 0) {
+				printk("Found good RSDP @ %p\n", sig);
+				rsdp = (RSDP*)sig;
+				break;
+			} else {
+				printk("Found RSDP signature but bad checksum (%d) @ %p\n", sum, sig);
+			}
 		}
 	}
-	rsdp = (RSDP*)sig;
 
-	rsdt = (RSDT*)rsdp->rsdtaddress;
+	if (rsdp) {
+		rsdt = (RSDT*)rsdp->rsdtaddress;
+	} else {
+		rsdt = NULL;
+	}
+
 	return rsdt;
 }
 
@@ -65,6 +81,17 @@ acpi_find_timer(void)
 		if (e->signature[0] == 'H' && e->signature[1] == 'P' &&
 			e->signature[2] == 'E' && e->signature[3] == 'T')
 		{
+			unsigned char *check = (unsigned char*)e;
+			unsigned char sum = 0;
+			u32_t j;
+			for (j = 0; j < e->length; j++) {
+				sum += check[j];
+			}
+			if (sum != 0) {
+				printk("Checksum of HPET @ %p failed (got %d)\n", e, sum % 255);
+				continue;
+			}
+			printk("Found good HPET @ %p\n", e);
 			return e;
 		}
 	}
