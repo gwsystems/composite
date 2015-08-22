@@ -41,6 +41,7 @@ typedef struct {
   u8_t revision;
   u8_t checksum;
   u8_t oemid[6];
+  u64_t oemtableid;
   u32_t oemrevision;
   u8_t creatorid[4];
   u32_t creatorrevision;
@@ -65,13 +66,13 @@ typedef struct {
 } __attribute__((packed)) HPET_tab;
 
 typedef struct {
-	u64_t config;
-	u64_t interrupt;
-	u64_t counter;
+	volatile u64_t config;
+	volatile u64_t interrupt;
+	volatile u64_t counter;
 	struct {
-		u64_t config;
-		u64_t compare;
-		u64_t interrupt;
+		volatile u64_t config;
+		volatile u64_t compare;
+		volatile u64_t interrupt;
 	} timers[0];
 } __attribute__((packed)) HPET;
 
@@ -90,7 +91,7 @@ timer_callback(struct registers *regs)
     rdtscll(cycle);
 
     if (tick < 25) {
-        printk("Tick: %2u @%10llu\n", tick, cycle);
+        /* printk("Tick: %2u @%10llu\n", tick, cycle); */
 	timerout *= 10;
     }
 
