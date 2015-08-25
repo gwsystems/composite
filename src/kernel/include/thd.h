@@ -49,6 +49,12 @@ struct thread {
 
 #else
 
+struct arcv_endpoint_info {
+	//struct tcap *tc;
+	/* how many other arcv end-points defer to this one? */
+	int refcnt;
+};
+
 struct thd_invocation_frame {
 	struct spd_poly *current_composite_spd;
 	/*
@@ -93,6 +99,8 @@ struct thread {
 	/* the first frame describes the threads protection domain */
 	struct thd_invocation_frame stack_base[MAX_SERVICE_DEPTH] HALF_CACHE_ALIGNED;
 	struct pt_regs fault_regs;
+
+	struct arcv_endpoint_info arcv_info;
 
 	void *data_region;
 	vaddr_t ul_data_page;
@@ -205,6 +213,14 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 
 	return 0;
 }
+
+static void
+thd_ref_take(struct thread *t)
+{ t->refcnt++; }
+
+static void
+thd_ref_release(struct thread *t)
+{ t->refcnt--; }
 
 static int
 thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin,

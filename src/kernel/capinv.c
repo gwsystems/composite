@@ -19,7 +19,8 @@
 #ifdef LINUX_TEST
 
 #include <stdio.h>
-static inline int printfn(struct pt_regs *regs) {
+static inline int
+printfn(struct pt_regs *regs) {
 	__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 	return 0;
 }
@@ -102,7 +103,8 @@ done:
 }
 
 void cos_cap_ipi_handling(void);
-void cos_cap_ipi_handling(void)
+void
+cos_cap_ipi_handling(void)
 {
 	int idx, end;
 	struct IPI_receiving_rings *receiver_rings;
@@ -511,7 +513,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	/*        __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
 
 
-	/* fast path: invocation return */
+	/* fast path: invocation return (avoiding captbl accesses) */
 	if (cap == COS_DEFAULT_RET_CAP) {
 		/* No need to lookup captbl */
 		sret_ret(thd, regs, cos_info);
@@ -527,9 +529,11 @@ composite_syscall_handler(struct pt_regs *regs)
 	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
 	assert(ci && ci->captbl);
 
-	/* We don't check liveness of current component because it's
-	 * guaranteed by component quiescence period, which is at
-	 * timer tick granularity.*/
+	/*
+	 * We don't check the liveness of the current component
+	 * because it's guaranteed by component quiescence period,
+	 * which is at timer tick granularity.
+	 */
 	ch = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
 		printk("cos: cap %d not found!\n", (int)cap);
@@ -541,13 +545,15 @@ composite_syscall_handler(struct pt_regs *regs)
 		return 0;
 	}
 
-	/* Some less common cases: thread dispatch, asnd and arcv
-	 * operations. */
+	/*
+	 * Some less common, but still optimized cases:
+	 * thread dispatch, asnd and arcv operations.
+	 */
 	if (ch->type == CAP_THD) {
 		struct cap_thd *thd_cap = (struct cap_thd *)ch;
 		struct thread *next = thd_cap->t;
 
-		if (thd_cap->cpuid != get_cpuid()) cos_throw(err, -EINVAL);
+		if (thd_cap->cpuid != get_cpuid()) cos_throw(done, -EINVAL);
 		assert(thd_cap->cpuid == next->cpuid);
 
 		// QW: hack!!! for ppos test only. remove!
@@ -555,58 +561,51 @@ composite_syscall_handler(struct pt_regs *regs)
 
 		return cap_switch_thd(regs, thd, next, cos_info);
 	} else if (ch->type == CAP_ASND) {
-		int curr_cpu = get_cpuid();
+		int curr_cpu          = get_cpuid();
 		struct cap_asnd *asnd = (struct cap_asnd *)ch;
+		struct cap_arcv *arcv;
+		struct thread *next;
 
 		assert(asnd->arcv_capid);
-
 		if (asnd->arcv_cpuid != curr_cpu) {
-			/* Cross core: sending IPI */
 			ret = cos_cap_send_ipi(asnd->arcv_cpuid, asnd);
-			/* printk("sending ipi to cpu %d. ret %d\n", asnd->arcv_cpuid, ret); */
-		} else {
-			struct cap_arcv *arcv;
-
-			printk("NOT tested yet.\n");
-
-			if (unlikely(!ltbl_isalive(&(asnd->comp_info.liveness)))) {
-				// fault handle?
-				cos_throw(err, -EFAULT);
-			}
-
-			arcv = (struct cap_arcv *)captbl_lkup(asnd->comp_info.captbl, asnd->arcv_capid);
-			if (unlikely(arcv->h.type != CAP_ARCV)) {
-				printk("cos: IPI handling received invalid arcv cap %d\n", asnd->arcv_capid);
-				cos_throw(err, -EINVAL);
-			}
-
-			return cap_switch_thd(regs, thd, arcv->thd, cos_info);
+			goto done;
 		}
 
-		goto done;
+		if (unlikely(!ltbl_isalive(&(asnd->comp_info.liveness)))) cos_throw(done, -EFAULT);
+		arcv = (struct cap_arcv *)captbl_lkup(asnd->comp_info.captbl, asnd->arcv_capid);
+		/* FIXME: check epoch + liveness */
+		if (unlikely(arcv->h.type != CAP_ARCV)) cos_throw(done, -EINVAL);
+		next = arcv->thd;
+		if (unlikely(next == thd))              cos_throw(done, -EINVAL);
+
+		/* FIXME: move the pending variable to the thread */
+		arcv->pending++;
+		next->interrupted_thread = thd;
+
+		return cap_switch_thd(regs, thd, next, cos_info);
 	} else if (ch->type == CAP_ARCV) {
 		struct cap_arcv *arcv = (struct cap_arcv *)ch;
 
 		/*FIXME: add epoch checking!*/
-
-		if (arcv->thd != thd) {
-			cos_throw(err, -EINVAL);
-		}
-		/* Sanity checks */
-		assert(arcv->cpuid == get_cpuid());
-		assert(arcv->comp_info.pgtbl = ci->pgtbl);
+		if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) cos_throw(done, -EINVAL);
+		/* Sanity checks:  are we in the component the arcv capability is in? */
+		assert(arcv->comp_info.pgtbl  = ci->pgtbl);
 		assert(arcv->comp_info.captbl = ci->captbl);
 
 		if (arcv->pending) {
 			arcv->pending--;
-			cos_throw(done, 0);
+			cos_throw(done, arcv->pending);
 		}
+
 		if (thd->interrupted_thread == NULL) {
-			/* FIXME: handle this case by upcalling into
+			/*
+			 * FIXME: handle this case by upcalling into
 			 * scheduler, or switch to a scheduling
-			 * thread. */
+			 * thread.
+			 */
 			printk("ERROR: not implemented yet!\n");
-			cos_throw(err, -1);
+			cos_throw(done, -1);
 		} else {
 			thd->arcv_cap = cap;
 			thd->flags &= !THD_STATE_ACTIVE_UPCALL;
@@ -614,13 +613,10 @@ composite_syscall_handler(struct pt_regs *regs)
 
 			return cap_switch_thd(regs, thd, thd->interrupted_thread, cos_info);
 		}
-
-		goto done;
+	} else {
+		/* restbl (captbl and pgtbl) operations */
+		ret = composite_syscall_slowpath(regs);
 	}
-
-
-	ret = composite_syscall_slowpath(regs);
-err:
 done:
 	__userregs_set(regs, ret, __userregs_getsp(regs), __userregs_getip(regs));
 
@@ -906,8 +902,9 @@ composite_syscall_slowpath(struct pt_regs *regs)
 		{
 			capid_t thd_cap  = __userregs_get2(regs);
 			capid_t comp_cap = __userregs_get3(regs);
+			capid_t arcv_cap = __userregs_get4(regs);
 
-			ret = arcv_activate(ct, cap, capin, comp_cap, thd_cap);
+			ret = arcv_activate(ct, cap, capin, comp_cap, thd_cap, arcv_cap);
 			break;
 		}
 		case CAPTBL_OP_ARCVDEACTIVATE:

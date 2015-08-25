@@ -45,10 +45,11 @@ struct cap_arcv {
 	u32_t pending, epoch;
 	u32_t thd_epoch;
 	cpuid_t cpuid;
-	struct thread *thd;
+	/* The thread to receive events, and the one to send events to (i.e. scheduler) */
+	struct thread *thd, *event_notif;
 } __attribute__((packed));
 
-static int 
+static int
 sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, vaddr_t entry_addr)
 {
 	struct cap_sinv *sinvc;
@@ -68,12 +69,11 @@ sinv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, va
 	return 0;
 }
 
-static int sinv_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
-{ 
-	return cap_capdeactivate(t, capin, CAP_SINV, lid); 
-}
+static int
+sinv_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
+{ return cap_capdeactivate(t, capin, CAP_SINV, lid); }
 
-static int 
+static int
 sret_activate(struct captbl *t, capid_t cap, capid_t capin)
 {
 	struct cap_sret *sretc;
@@ -86,7 +86,8 @@ sret_activate(struct captbl *t, capid_t cap, capid_t capin)
 	return 0;
 }
 
-static int sret_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
+static int
+sret_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 { return cap_capdeactivate(t, capin, CAP_SRET, lid); }
 
 static int
@@ -102,13 +103,15 @@ asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, 
 
 	arcvc = (struct cap_arcv *)captbl_lkup(rcv_ct->captbl, rcv_cap);
 	if (unlikely(!arcvc || arcvc->h.type != CAP_ARCV)) return -EINVAL;
-	
+
 	asndc = (struct cap_asnd *)__cap_capactivate_pre(t, cap, capin, CAP_ASND, &ret);
 	if (!asndc) return ret;
+	/* copy data from the arcv capability */
 	memcpy(&asndc->comp_info, &arcvc->comp_info, sizeof(struct comp_info));
-	asndc->cpuid          = get_cpuid();
 	asndc->arcv_epoch     = arcvc->epoch;
 	asndc->arcv_cpuid     = arcvc->cpuid;
+	/* ...and initialize our own data */
+	asndc->cpuid          = get_cpuid();
 	asndc->arcv_capid     = rcv_cap;
 	asndc->period         = period;
 	asndc->budget         = budget;
@@ -119,45 +122,60 @@ asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, 
 	return 0;
 }
 
-static int asnd_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
+static int
+asnd_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 { return cap_capdeactivate(t, capin, CAP_ASND, lid); }
 
 static int
-arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, capid_t thd_cap)
+arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, capid_t thd_cap, capid_t arcv_cap)
 {
 	struct cap_comp *compc;
 	struct cap_thd  *thdc;
-	struct cap_arcv *arcvc;
+	struct cap_arcv /* *arcv_p,*/ *arcvc; /* parent and new capability */
 	int ret;
 
+	/* Find the constituent capability structures */
 	compc = (struct cap_comp *)captbl_lkup(t, comp_cap);
 	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
-
 	thdc = (struct cap_thd *)captbl_lkup(t, thd_cap);
-	if (unlikely(!thdc || thdc->h.type != CAP_THD)) return -EINVAL;
-	/* if (thdc->cpuid != get_cpuid()) return -EINVAL; */
-
+	if (unlikely(!thdc || thdc->h.type != CAP_THD || thdc->cpuid != get_cpuid())) return -EINVAL;
+	/*
+	 * TODO:
+	 * arcv_p = (struct cap_arcv *)captbl_lkup(t, arcv_cap);
+	 * if (unlikely(!arcv_p || arcv_p->h.type != CAP_ARCV || arcv_p->cpuid != get_cpuid())) return -EINVAL;
+	 */
 	arcvc = (struct cap_arcv *)__cap_capactivate_pre(t, cap, capin, CAP_ARCV, &ret);
 	if (!arcvc) return ret;
 
 	memcpy(&arcvc->comp_info, &compc->info, sizeof(struct comp_info));
 
 	arcvc->pending   = 0;
-	arcvc->cpuid     = thdc->t->cpuid;
 	arcvc->epoch     = 0; 	  /* FIXME: get the real epoch */
-	arcvc->thd       = thdc->t; /* FIXME: do reference counting for the thread here */
 	arcvc->thd_epoch = 0; 	  /* FIXME: get the real epoch */
 
-	thdc->t->flags |=  THD_STATE_ACTIVE_UPCALL;
+	arcvc->thd       = thdc->t;
+	arcvc->cpuid     = thdc->t->cpuid;
+	thd_ref_take(thdc->t);
+
+	thdc->t->flags  |= THD_STATE_ACTIVE_UPCALL;
 	__cap_capactivate_post(&arcvc->h, CAP_ARCV);
-	
+
 	return 0;
 }
 
-static int arcv_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
-{ return cap_capdeactivate(t, capin, CAP_ARCV, lid); }
+static int
+arcv_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
+{
+	struct cap_arcv *arcvc;
 
-/* 
+	arcvc = (struct cap_arcv *)captbl_lkup(t->captbl, capin);
+	if (unlikely(!arcvc || arcvc->h.type != CAP_ARCV)) return -EINVAL;
+	thd_ref_release(arcvc->thd);
+
+	return cap_capdeactivate(t, capin, CAP_ARCV, lid);
+}
+
+/*
  * Invocation (call and return) fast path.  We want this to be as
  * optimized as possible.  The only two optimizations not yet
  * performed are 1) to cache the invocation stack pointer with the
@@ -221,20 +239,20 @@ sret_ret(struct thread *thd, struct pt_regs *regs, struct cos_cpu_local_info *co
 }
 
 static void inv_init(void)
-{ 
-//#define __OUTPUT_CAP_SIZE	
-#ifdef __OUTPUT_CAP_SIZE	
+{
+//#define __OUTPUT_CAP_SIZE
+#ifdef __OUTPUT_CAP_SIZE
 	printk(" Cap header size %d, minimal cap %d\n SINV %d, SRET %d, ASND %d, ARCV %d\n CAP_COMP %d, CAP_THD %d, CAP_CAPTBL %d, CAP_PGTBL %d\n",
-	       sizeof(struct cap_header), sizeof(struct cap_min), 
-	       sizeof(struct cap_sinv), sizeof(struct cap_sret), 
-	       sizeof(struct cap_asnd), sizeof(struct cap_arcv), 
-	       sizeof(struct cap_comp), sizeof(struct cap_thd), 
+	       sizeof(struct cap_header), sizeof(struct cap_min),
+	       sizeof(struct cap_sinv), sizeof(struct cap_sret),
+	       sizeof(struct cap_asnd), sizeof(struct cap_arcv),
+	       sizeof(struct cap_comp), sizeof(struct cap_thd),
 	       sizeof(struct cap_captbl), sizeof(struct cap_pgtbl));
 #endif
-	assert(sizeof(struct cap_sinv) <= __captbl_cap2bytes(CAP_SINV)); 
-	assert(sizeof(struct cap_sret) <= __captbl_cap2bytes(CAP_SRET)); 
-	assert(sizeof(struct cap_asnd) <= __captbl_cap2bytes(CAP_ASND)); 
-	assert(sizeof(struct cap_arcv) <= __captbl_cap2bytes(CAP_ARCV)); 
+	assert(sizeof(struct cap_sinv) <= __captbl_cap2bytes(CAP_SINV));
+	assert(sizeof(struct cap_sret) <= __captbl_cap2bytes(CAP_SRET));
+	assert(sizeof(struct cap_asnd) <= __captbl_cap2bytes(CAP_ASND));
+	assert(sizeof(struct cap_arcv) <= __captbl_cap2bytes(CAP_ARCV));
 }
 
 #endif /* INV_H */
