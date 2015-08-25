@@ -2,37 +2,6 @@
 #include "io.h"
 #include "kernel.h"
 
-#define PIT_A       0x40
-#define PIT_B       0x41
-#define PIT_C       0x42
-#define PIT_CONTROL 0x43
-#define PIT_SET     0x36
-#define PIT_MASK    0xFF
-#define PIT_SCALE   1193180
-
-/* Select Channel: */
-#define CHANNEL0    0x00
-#define CHANNEL1    0x40
-#define CHANNEL2    0x80
-#define READBACK    0xc0
-/* Access Mode: */
-#define LATCHCOUNT  0x00
-#define LOBYTE      0x10
-#define HIBYTE      0x20
-#define LOHIBYTE    0x30
-/* Operating Mode: */
-#define MODE0       0x00	// Interrupt on terminal count
-#define MODE1       0x02	// Hardware re-triggerable one-shot
-#define MODE2       0x04	// Rate generator
-#define MODE3       0x06	// Square wave generator
-#define MODE4       0x08	// Software triggered strobe
-#define MODE5       0x0a	// Hardware triggered strobe
-//alias MODE2       0x0c
-//alias MODE3       0x0e
-/* BCD/Binary: */
-#define BINARY      0x00
-#define BCD         0x01
-
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 
 typedef struct {
@@ -65,14 +34,50 @@ typedef struct {
   u8_t oemattribute;
 } __attribute__((packed)) HPET_tab;
 
-typedef struct {
-	volatile u64_t config;
-	volatile u64_t interrupt;
-	volatile u64_t counter;
+typedef volatile struct {
 	struct {
-		volatile u64_t config;
-		volatile u64_t compare;
-		volatile u64_t interrupt;
+		u8_t rev_id;
+		u8_t num_tim_cap :5;
+		u8_t count_size_cap :1;
+		u8_t reserved :1;
+		u8_t leg_route_cap :1;
+		u16_t vendor_id;
+		u32_t counter_clk_period;
+	} cap;
+	u64_t res0;
+	struct {
+		u8_t enable_cnf :1;
+		u8_t leg_rt_cnf :1;
+		u8_t res1 : 6;
+		u8_t res2;
+		u16_t res3;
+		u32_t res4;
+	} config;
+	u64_t res1;
+	u64_t interrupt;
+	u64_t res2;
+	u64_t counter;
+	u64_t res3;
+	struct {
+		struct {
+			u8_t res1 :1;
+			u8_t int_typc_cnf :1;
+			u8_t int_enb_cnf :1;
+			u8_t type_cnf :1;
+			u8_t per_int_cap :1;
+			u8_t size_cap :1;
+			u8_t val_set_cnf :1;
+			u8_t res2 :1;
+			u8_t mode32_cnf :1;
+			u8_t int_route_cnf: 5;
+			u8_t fsb_en_cnf: 1;
+			u8_t fsb_int_del_cap: 1;
+			u16_t res3;
+			u32_t int_route_cap;
+		} config;
+		
+		u64_t compare;
+		u64_t interrupt;
 	} timers[0];
 } __attribute__((packed)) HPET;
 
@@ -91,7 +96,7 @@ timer_callback(struct registers *regs)
     rdtscll(cycle);
 
     if (tick < 25) {
-        /* printk("Tick: %2u @%10llu\n", tick, cycle); */
+        printk("Tick: %2u @%10llu (%10llu)\n", tick, cycle, hpet->counter);
 	timerout *= 10;
     }
 
@@ -107,49 +112,34 @@ timer_callback(struct registers *regs)
 void
 timer_set(int timer_type, u64_t cycles)
 {
-#if 0
-    u64_t timer;
-    u8_t mode;
-
-    switch (timer_type) {
-        case TIMER_FREQUENCY:
-            timer = /* PIT_SCALE / */ cycles;
-            mode = MODE3;
-            break;
-
-        case TIMER_ONESHOT:
-            rdtscll(timer);
-            timer += cycles;
-            oneshot_target = timer;
-            printk("Oneshot: +%10llu\n", cycles);
-            printk("Goal: %2u !%10llu\n", tick+1, oneshot_target);
-            mode = MODE4;
-            break;
-
-        default:
-            printk("Invalid timer type: %d\n");
-            assert(0);
-            break;
-    }
-
-    current_type = timer_type;
-
-    outb(PIT_CONTROL, mode | CHANNEL0 | LOHIBYTE | BINARY);
-    outb(PIT_C, timer & PIT_MASK);
-    outb(PIT_C, (timer >> 8) & PIT_MASK);
-#else
+    hpet->config.enable_cnf = 0;
+    hpet->counter = 0;
+    printk("Setting timer 0:\n");
+    printk("- Before:\n");
+    printk("-- Type:    %d\n", hpet->timers[0].config.type_cnf);
+    printk("-- Enabled: %d\n", hpet->timers[0].config.int_enb_cnf);
+    printk("-- Compare: %lld\n", hpet->timers[0].compare);
+    hpet->timers[0].config.val_set_cnf = 1;
     if (timer_type == TIMER_ONESHOT) {
-        hpet->timers[0].config = 1 << 2;
+	hpet->timers[0].config.type_cnf = 1;
+    	hpet->timers[0].compare = cycles + hpet->counter;
     } else {
-        hpet->timers[0].config = (1 << 2) | (1 << 3) | (1 << 6);
+	hpet->timers[0].compare = cycles;
     }
-    hpet->timers[0].interrupt = cycles + hpet->counter;
-#endif
+    hpet->timers[0].config.int_enb_cnf = 1;
+    printk("- After:\n");
+    printk("-- Type:    %d\n", hpet->timers[0].config.type_cnf);
+    printk("-- Enabled: %d\n", hpet->timers[0].config.int_enb_cnf);
+    printk("-- Compare: %lld\n", hpet->timers[0].compare);
+    hpet->config.enable_cnf = 1;
 }
 
 u64_t
 timer_find_hpet(void *timer)
 {
+	u32_t i;
+	unsigned char sum = 0;
+
 	HPET_tab *hpetaddr = timer;
 	printk("Initiliazing HPET @ %p\n", hpetaddr);
 	printk("-- Signature:  %c%c%c%c\n", hpetaddr->sig[0], hpetaddr->sig[1], hpetaddr->sig[2], hpetaddr->sig[3]);
@@ -174,16 +164,34 @@ timer_find_hpet(void *timer)
 	printk("-- Number:     %d\n", hpetaddr->number);
 	printk("-- Min Tick:   %hu\n", hpetaddr->minimumclocktick);
 	printk("-- OEM Attr:   %x\n", hpetaddr->oemattribute);
-	hpet = (HPET*)((u32_t)(hpetaddr->address.address & 0xffffffff));
-	return hpetaddr->address.address;
+	for (i = 0; i < hpetaddr->length; i++) {
+		sum += ((unsigned char*)hpetaddr)[i];
+	}
+	if (sum == 0) {
+		printk("-- Checksum is OK\n");
+		hpet = (HPET*)((u32_t)(hpetaddr->address.address & 0xffffffff));
+		return hpetaddr->address.address;
+	}
+
+	printk("-- Invalid checksum (%d)\n", sum);
+	return 0;
 }
 
 void
 timer_set_hpet_page(u32_t page)
 {
 	hpet = (HPET*)(page * (1 << 22) | ((u32_t)hpet & ((1<<22)-1)));
+	hpet->config.enable_cnf = 1;
+	hpet->config.leg_rt_cnf = 1;
 	printk("Set HPET @ %p\n", hpet);
-	printk("-- Config:           %llx\n", hpet->config);
+	printk("-- Rev ID:           %x\n", hpet->cap.rev_id & 0xff);
+	printk("-- Num_Tim_Cap:      %u\n", hpet->cap.num_tim_cap);
+	printk("-- Count_Size_Cap:   %u-bit\n", hpet->cap.count_size_cap ? 64 : 32);
+	printk("-- Leg_Route_Cap:    %u\n", hpet->cap.leg_route_cap & 1);
+	printk("-- Vendor ID:        %hx\n", hpet->cap.vendor_id);
+	printk("-- Period:           %d fs\n", hpet->cap.counter_clk_period);
+	printk("-- Enable CNF:       %d\n", hpet->config.enable_cnf);
+	printk("-- Leg_RT_CNF:       %d\n", hpet->config.leg_rt_cnf);
 	printk("-- Interrupt Status: %llx\n", hpet->interrupt);
 	printk("-- Counter:          %llx\n", hpet->counter);
 }
@@ -193,6 +201,7 @@ timer_init(int timer_type, u64_t cycles)
 {
     printk("Enabling timer @ %p\n", hpet);
     register_interrupt_handler(IRQ0, timer_callback);
+    /* register_interrupt_handler(IRQ2, timer_callback); */
 
     timer_set(timer_type, cycles);
     timerout = cycles;
