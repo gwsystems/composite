@@ -569,7 +569,7 @@ composite_syscall_handler(struct pt_regs *regs)
 		assert(asnd->arcv_capid);
 		if (asnd->arcv_cpuid != curr_cpu) {
 			ret = cos_cap_send_ipi(asnd->arcv_cpuid, asnd);
-			goto done;
+			cos_throw(done, ret);
 		}
 
 		if (unlikely(!ltbl_isalive(&(asnd->comp_info.liveness)))) cos_throw(done, -EFAULT);
