@@ -127,7 +127,7 @@ asnd_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 { return cap_capdeactivate(t, capin, CAP_ASND, lid); }
 
 static int
-arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, capid_t thd_cap, capid_t arcv_cap)
+arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, capid_t thd_cap, capid_t arcv_cap, int init)
 {
 	struct cap_comp *compc;
 	struct cap_thd  *thdc;
@@ -141,8 +141,10 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	if (unlikely(!thdc || thdc->h.type != CAP_THD || thdc->cpuid != get_cpuid())) return -EINVAL;
 	/*
 	 * TODO:
-	 * arcv_p = (struct cap_arcv *)captbl_lkup(t, arcv_cap);
-	 * if (unlikely(!arcv_p || arcv_p->h.type != CAP_ARCV || arcv_p->cpuid != get_cpuid())) return -EINVAL;
+	 * if (!init) {
+	 *         arcv_p = (struct cap_arcv *)captbl_lkup(t, arcv_cap);
+	 *         if (unlikely(!arcv_p || arcv_p->h.type != CAP_ARCV || arcv_p->cpuid != get_cpuid())) return -EINVAL;
+	 * }
 	 */
 	arcvc = (struct cap_arcv *)__cap_capactivate_pre(t, cap, capin, CAP_ARCV, &ret);
 	if (!arcvc) return ret;

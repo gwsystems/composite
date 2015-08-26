@@ -904,7 +904,7 @@ composite_syscall_slowpath(struct pt_regs *regs)
 			capid_t comp_cap = __userregs_get3(regs);
 			capid_t arcv_cap = __userregs_get4(regs);
 
-			ret = arcv_activate(ct, cap, capin, comp_cap, thd_cap, arcv_cap);
+			ret = arcv_activate(ct, cap, capin, comp_cap, thd_cap, arcv_cap, 0);
 			break;
 		}
 		case CAPTBL_OP_ARCVDEACTIVATE:
