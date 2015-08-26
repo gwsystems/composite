@@ -421,7 +421,9 @@ int __mman_fork_spd(spdid_t spd, u32_t s_spd_d_spd, vaddr_t base, u32_t len)
 			 * this sanely? maybe m->p->spdid should do it? */
 			if (s_addr != mman_alias_page(m->p->spdid, m->p->addr, d_spd, s_addr, m->flags)) ret = -EINVAL;
 		}
-		printc("mman_fork: recreated mapping in %d at %x\n", d_spd, s_addr);
+#if defined(DEBUG)
+		//printc("mman_fork: recreated mapping in %d at %x\n", d_spd, s_addr);
+#endif
 	}
 
 	return ret;

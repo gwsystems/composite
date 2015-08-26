@@ -93,6 +93,12 @@ struct cbuf_comp_info {
 };
 
 #define printl(s) //printc(s)
+#if defined(DEBUG)
+#define printd(...) printc("cbuf_mgr: "__VA_ARGS__)
+#else
+#define printd(...)
+#endif
+
 cos_lock_t cbuf_lock;
 #define CBUF_LOCK_INIT() lock_static_init(&cbuf_lock);
 #define CBUF_TAKE()      do { if (lock_take(&cbuf_lock))    BUG(); } while(0)
@@ -204,7 +210,7 @@ cbuf_map(spdid_t spdid, vaddr_t daddr, void *page, int size, int flags)
 		vaddr_t d = daddr + off;
 		if (d != (mman_alias_page(cos_spd_id(), ((vaddr_t)page) + off,
 						spdid, d, flags))) {
-			printc("couldn't alias(%d, %x, %d, %x, %d)\n", cos_spd_id(), ((vaddr_t)page) + off, spdid, d, flags);
+			printd("couldn't alias(%d, %x, %d, %x, %d)\n", cos_spd_id(), ((vaddr_t)page) + off, spdid, d, flags);
 			assert(0); /* TODO: roll back the aliases, etc... */
 		}
 	}
@@ -555,10 +561,10 @@ void cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd)
 {
 	int r;
 
-	printc("cbuf: cos_fix_spdid_metadata for %d -> %d\n", o_spd, f_spd);
+	printd("cbuf: cos_fix_spdid_metadata for %d -> %d\n", o_spd, f_spd);
 	
 	r = cbuf_fork_spd(cos_spd_id(), o_spd, f_spd);
-	if (r) printc("Error (%d) in cbuf_fork_spd\n", r);
+	if (r) printd("Error (%d) in cbuf_fork_spd\n", r);
 	/* TODO: invoke valloc to get transitive fixup? */
 }
 
@@ -697,21 +703,21 @@ cbuf_retrieve(spdid_t spdid, int cbid, int size)
 
 	CBUF_TAKE();
 	cci        = cbuf_comp_info_get(spdid);
-	if (!cci) {printc("no cci\n"); goto done; }
+	if (!cci) {printd("no cci\n"); goto done; }
 	cbi        = cmap_lookup(&cbufs, cbid);
-	if (!cbi) {printc("no cbi\n"); goto done; }
+	if (!cbi) {printd("no cbi\n"); goto done; }
 	/* shouldn't cbuf2buf your own buffer! */
-	if (cbi->owner.spdid == spdid) {printc("owner\n"); goto done;}
+	if (cbi->owner.spdid == spdid) {printd("owner\n"); goto done;}
 	meta       = cbuf_meta_lookup(cci, cbid);
-	if (!meta) {printc("no meta\n"); goto done; }
+	if (!meta) {printd("no meta\n"); goto done; }
 
 	map        = malloc(sizeof(struct cbuf_maps));
-	if (!map) {printc("no map\n"); ERR_THROW(-ENOMEM, done); }
-	if (size > cbi->size) {printc("too big\n"); goto done; }
+	if (!map) {printd("no map\n"); ERR_THROW(-ENOMEM, done); }
+	if (size > cbi->size) {printd("too big\n"); goto done; }
 	assert((int)round_to_page(cbi->size) == cbi->size);
 	size       = cbi->size;
 	dest       = (vaddr_t)valloc_alloc(cos_spd_id(), spdid, size/PAGE_SIZE);
-	if (!dest) {printc("no valloc\n"); goto free; }
+	if (!dest) {printd("no valloc\n"); goto free; }
 
 	map->spdid = spdid;
 	map->m     = meta;
@@ -721,9 +727,9 @@ cbuf_retrieve(spdid_t spdid, int cbid, int size)
 
 	page = cbi->mem;
 	assert(page);
-	printc("cbuf_map(%d, %x, %x, %d, %d)\n", spdid, dest, page, size, MAPPING_RW);
+	printd("cbuf_map(%d, %x, %x, %d, %d)\n", spdid, dest, page, size, MAPPING_RW);
 	if (cbuf_map(spdid, dest, page, size, MAPPING_RW)) {
-		printc("cbuf_map failed\n");
+		printd("cbuf_map failed\n");
 		valloc_free(cos_spd_id(), spdid, (void *)dest, 1);
 	}
 	memset(meta, 0, sizeof(struct cbuf_meta));

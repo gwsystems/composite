@@ -28,6 +28,10 @@ printc(char *fmt, ...)
 	return ret;
 }
 
+#if defined(DEBUG)
+#define printd(...) printc("llboot:"__VA_ARGS__)
+#endif
+
 #ifndef assert
 /* On assert, immediately switch to the "exit" thread */
 #define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); cos_switch_thread(PERCPU_GET(llbooter)->alpha, 0);} } while(0)
@@ -231,8 +235,9 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 	c_spd = cspd_dspd>>16;
 	d_spd = cspd_dspd&0xffff;
 
-	printc("llboot args: %d\t%d\n", cspd_dspd, cap_ccnt_dcnt);
-	printc("llboot (%d) fault_quarantine_handler %d (%d) -> %d (%d)\n", spdid, c_spd, c_fix, d_spd, d_fix);
+
+	printd("llboot args: %d\t%d\n", cspd_dspd, cap_ccnt_dcnt);
+	printd("llboot (%d) fault_quarantine_handler %d (%d) -> %d (%d)\n", spdid, c_spd, c_fix, d_spd, d_fix);
 
 	if (d_fix) {
 		/* FIXME: how to get the f_spd? see quarantine.c.
@@ -243,7 +248,7 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 		 *    the o_spd->id in half of the f_spd->id.
 		 */
 		f_spd = cos_spd_cntl(COS_SPD_GET_FORK_ORIGIN, c_spd, 0, 0);
-		printc("Fixing server %d metadata for spd %d after fork to %d\n", d_spd, f_spd, c_spd);
+		printd("Fixing server %d metadata for spd %d after fork to %d\n", d_spd, f_spd, c_spd);
 		/* TODO: upcall here? */
 		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, (f_spd<<16)|c_spd);
 	}
@@ -256,26 +261,26 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 	 * the struct spd caps[], ncaps. So just do it once.
 	 */
 		/* TODO: get the f_spd? */
-		printc("Fixing routing table in %d after fork from %d\n", c_spd,d_spd);
+		printd("Fixing routing table in %d after fork from %d\n", c_spd,d_spd);
 
 		// TODO: add / change ucap, routing table
 
 	}
 	/* adjust the fork count */
 	inc_val = (((u8_t)-d_fix)<<8U) | ((u8_t)(-c_fix));
-	printc("Incrementing fork count by %u in spd %d for cap %d\n", inc_val, c_spd, capid);
+	printd("Incrementing fork count by %u in spd %d for cap %d\n", inc_val, c_spd, capid);
 	cos_cap_cntl(COS_CAP_INC_FORK_CNT, c_spd, capid, inc_val);
 
-	printc("Done fixing, returning to invocation frame\n");
+	printd("Done fixing, returning to invocation frame\n");
 
 	/* remove from the invocation stack the faulting component! */
 	assert(!cos_thd_cntl(COS_THD_INV_FRAME_REM, tid, 1, 0));
 
-	printc("Get the return address\n");
+	printd("Get the return address\n");
 	/* Manipulate the return address of the component that called
 	 * the faulting component... */
 	assert(r_ip = cos_thd_cntl(COS_THD_INVFRM_IP, tid, 1, 0));
-	printc("Set the return address to %lx\n", r_ip - 8);
+	printd("Set the return address to %lx\n", r_ip - 8);
 	/* ...and set it to its value -8, which is the fault handler
 	 * of the stub. */
 	assert(!cos_thd_cntl(COS_THD_INVFRM_SET_IP, tid, 1, r_ip-8));

@@ -1,7 +1,11 @@
 
 #include "quarantine_impl.h"
 
-#define printl(...) printc("Quarantine: "__VA_ARGS__)
+#if defined(DEBUG)
+#define printd(...) printc("Quarantine: "__VA_ARGS__)
+#else
+#define printd(...)
+#endif
 
 //#define QUARANTINE_MIGRATE_THREAD
 
@@ -43,12 +47,12 @@ int
 quarantine_migrate(spdid_t spdid, spdid_t source, spdid_t target, thdid_t thread)
 {
 
-	printl("Migrate thread %d in spd %d to %d\n", thread, source, target);
+	printd("Migrate thread %d in spd %d to %d\n", thread, source, target);
 	if (!thread) goto done;
 
 	sched_quarantine_thread(cos_spd_id(), source, target, thread);
 
-	printl("thread %d in spd %d\n", thread, cos_spd_id());
+	printd("thread %d in spd %d\n", thread, cos_spd_id());
 
 done:
 	return 0;
@@ -82,9 +86,9 @@ void* quarantine_translate_addr(spdid_t spdid, vaddr_t addr)
 
 	/* get the memory for spdid component */
 	if (unlikely(!(sect_cbufs = cos_vect_lookup(&spd_sect_cbufs, spdid))))
-		printl("cos_vect_lookup(%d) in spd_sect_cbufs failed\n", spdid);
+		printd("cos_vect_lookup(%d) in spd_sect_cbufs failed\n", spdid);
 	if (unlikely(!(h = cos_vect_lookup(&spd_sect_cbufs_header, spdid))))
-		printl("cos_vect_lookup(%d) in spd_sect_cbufs_header failed\n", spdid);
+		printd("cos_vect_lookup(%d) in spd_sect_cbufs_header failed\n", spdid);
 	if (!sect_cbufs || !h) BUG(); //goto done;
 
 	for (i = 0; i < (int)h->nsect; i++) {
@@ -95,12 +99,12 @@ void* quarantine_translate_addr(spdid_t spdid, vaddr_t addr)
 		if (addr < d_addr + size) { /* found the right section */
 			char* base = (char*)sect_cbufs[i].caddr;
 			u32_t offset = addr - d_addr;
-			printl("quarantine_translate_addr(%d, %x) got %x\n", spdid, addr, base + offset);
+			printd("quarantine_translate_addr(%d, %x) got %x\n", spdid, addr, base + offset);
 			return base + offset;
 		}
 	}
 
-	printl("quarantine_translate_addr(%d, %x) failed\n", spdid, addr);
+	printd("quarantine_translate_addr(%d, %x) failed\n", spdid, addr);
 	return NULL;
 }
 
@@ -138,12 +142,12 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 		first = 0;
 	}
 
-	printl("quarantine_fork(%d, %d)\n", spdid, source);
+	printd("quarantine_fork(%d, %d)\n", spdid, source);
 
 	if (!(old_sect_cbufs = cos_vect_lookup(&spd_sect_cbufs, source)))
-		printl("cos_vect_lookup(%d) in spd_sec_cbufs failed\n", source);
+		printd("cos_vect_lookup(%d) in spd_sec_cbufs failed\n", source);
 	if (!(h = cos_vect_lookup(&spd_sect_cbufs_header, source)))
-		printl("cos_vect_lookup(%d) in spd_sec_cbufs_header failed\n", source);
+		printd("cos_vect_lookup(%d) in spd_sec_cbufs_header failed\n", source);
 	if (!old_sect_cbufs || !h) BUG(); //goto done;
 	
 	lock_help_owners(spdid, source);
@@ -151,15 +155,15 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	/* The following, copied partly from booter.c,  */
 	if ((d_spd = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG();
 
-	printl("Created new spd: %d\n", d_spd);
+	printd("Created new spd: %d\n", d_spd);
 
 	sect = cobj_sect_get(h, 0);
 	init_daddr = sect->vaddr;
 	if (cos_spd_cntl(COS_SPD_LOCATION, d_spd, sect->vaddr, SERVICE_SIZE)) BUG();
-	printl("Set location to %x\n", (unsigned long)sect->vaddr);
+	printd("Set location to %x\n", (unsigned long)sect->vaddr);
 	
 	if (cos_spd_cntl(COS_SPD_SET_FORK_ORIGIN, d_spd, source, 0)) BUG();
-	printl("Set fork origin to %d\n", source);
+	printd("Set fork origin to %d\n", source);
 
 	for (j = 0 ; j < (int)h->nsect ; j++) {
 		tot += cobj_sect_size(h, j);
@@ -179,7 +183,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 		assert(all_cbufs_index < CBUFS_PER_PAGE * SECT_CBUF_PAGES);
 		if (cos_vect_add_id(&spd_sect_cbufs, new_sect_cbufs, d_spd) < 0) BUG();
 		if (cos_vect_add_id(&spd_sect_cbufs_header, h, d_spd) < 0) BUG();
-		printl("Added %d to sect_cbufs\n", d_spd);
+		printd("Added %d to sect_cbufs\n", d_spd);
 	}
 
 	vaddr_t prev_map = 0;
@@ -199,7 +203,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 			left -= (prev_map + PAGE_SIZE - d_addr);
 			d_addr = prev_map + PAGE_SIZE;
 		}
-		printl("Mapping section %d @ %x with %d bytes\n", j, (unsigned long)d_addr, left);
+		printd("Mapping section %d @ %x with %d bytes\n", j, (unsigned long)d_addr, left);
 		if (left > 0) {
 			left = round_up_to_page(left);
 			prev_map = d_addr;
@@ -213,7 +217,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 			if (flags & MAPPING_RW) {
 				struct cbid_caddr new_cbm;
 				new_cbm.caddr = cbuf_alloc_ext(left, &new_cbm.cbid, CBUF_EXACTSZ);
-				printl("Avoid sharing, allocated new cbuf %d @ %x\n", new_cbm.cbid, (unsigned long)new_cbm.caddr);
+				printd("Avoid sharing, allocated new cbuf %d @ %x\n", new_cbm.cbid, (unsigned long)new_cbm.caddr);
 				assert(new_cbm.caddr);
 				memcpy(new_cbm.caddr, cbm.caddr, left);
 				cbm.caddr = new_cbm.caddr;
@@ -238,9 +242,9 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	}
 
 	/* FIXME: set fault handlers and re-write caps */
-	printl("Activating %d\n", d_spd);
+	printd("Activating %d\n", d_spd);
 	if (cos_spd_cntl(COS_SPD_ACTIVATE, d_spd, h->ncap, 0)) BUG();
-	printl("Setting capabilities for %d\n", d_spd);
+	printd("Setting capabilities for %d\n", d_spd);
 	if (__boot_spd_caps(h, d_spd)) BUG();
 
 	/* Increment send-side fork count in source's caps, and
@@ -253,7 +257,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 		cnt = cos_cap_cntl(COS_CAP_GET_FORK_CNT, source, cap->cap_off, 0);
 		assert(cnt > 0);
 		if (cos_cap_cntl(COS_CAP_SET_FORK_CNT, d_spd, cap->cap_off, cnt)) BUG();
-		printl("Updated fork count for cap %d from %d to count %d\n", j, source, cnt);
+		printd("Updated fork count for cap %d from %d to count %d\n", j, source, cnt);
 	}
 
 	/* Find every spd that has an invocation cap to source and update
@@ -270,11 +274,11 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 				if (s < 0) BUG();
 				if (s == source) {
 					cos_cap_cntl(COS_CAP_INC_FORK_CNT, c, i, (0 << 8) | 1);
-					printl("Updated fork count for cap %d from %d->%d\n", i, c, s);
+					printd("Updated fork count for cap %d from %d->%d\n", i, c, s);
 					break;
 				}
 			}
-			printl("Unable to find client cap from %d -> %d\n", c, s);
+			printd("Unable to find client cap from %d -> %d\n", c, s);
 		}
 	}
 
@@ -286,7 +290,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	 * controlled by a policy that includes what threads (blocked,
 	 * running, etc), and how many to migrate */
 #if QUARANTINE_MIGRATE_THREAD
-	printl("Getting thread from %d\n", source);
+	printd("Getting thread from %d\n", source);
 	d_thd = sched_get_thread_in_spd(cos_spd_id(), source, 0);
 #endif
 
@@ -298,14 +302,14 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	/* mman: have to do this now so the memory maps are available. */
 	if (tot > SERVICE_SIZE) tot = SERVICE_SIZE + 3 * round_up_to_pgd_page(1) - tot;
 	else tot = SERVICE_SIZE - tot;
-	printl("Telling mman to fork(%d, %d, %d, %x, %d)\n", cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
+	printd("Telling mman to fork(%d, %d, %d, %x, %d)\n", cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
 	
 	r = mman_fork_spd(cos_spd_id(), source, d_spd, prev_map + PAGE_SIZE, tot);
 	if (r) printc("Error (%d) in mman_fork_spd\n", r);
 
 #if 0
 	/* cbuf */
-	printl("Telling cbuf to fork(%d, %d, %d)\n", cos_spd_id(), source, d_spd);
+	printd("Telling cbuf to fork(%d, %d, %d)\n", cos_spd_id(), source, d_spd);
 	r = cbuf_fork_spd(cos_spd_id(), source, d_spd);
 	if (r) printc("Error (%d) in cbuf_fork_spd\n", r);
 
@@ -316,19 +320,19 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 
 #if QUARANTINE_MIGRATE_THREAD
 	quarantine_migrate(cos_spd_id(), source, d_spd, d_thd);
-	printl("Waking up thread %d\n", d_thd);
+	printd("Waking up thread %d\n", d_thd);
 	if (d_thd) {
 		sched_quarantine_wakeup(cos_spd_id(), d_thd);
 	}
 #endif
 
 	/* TODO: should creation of boot threads be controlled by policy? */
-	printl("Creating boot threads in fork: %d\n", d_spd);
+	printd("Creating boot threads in fork: %d\n", d_spd);
 	__boot_spd_thd(d_spd);
 
 done:
 	assert(0 == sched_curr_set_priority(p));
-	printl("Forked %d -> %d\n", source, d_spd);
+	printd("Forked %d -> %d\n", source, d_spd);
 	return d_spd;
 }
 
@@ -350,7 +354,7 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 	c_spd = cspd_dspd>>16;
 	d_spd = cspd_dspd&0xffff;
 
-	printl("fault_quarantine_handler %d (%d) -> %d (%d)\n", c_spd, c_fix, d_spd, d_fix);
+	printd("fault_quarantine_handler %d (%d) -> %d (%d)\n", c_spd, c_fix, d_spd, d_fix);
 
 	if (d_fix) {
 	/* Either c_spd is a fork, or c_spd has been forked. Either way,
@@ -370,14 +374,14 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 			f_spd = c_spd;
 			c_spd = c->fork_spd;
 			if (unlikely(c_spd == 0)) {
-				printl("No original found for forked spd %d\n", f_spd);
+				printd("No original found for forked spd %d\n", f_spd);
 			}
 		} else {
 			/* forks for c_spd found. FIXME: which one to use? */
 			f_spd = LAST_LIST(c, n, p)->fork_spd;
 		}
 		
-		printl("Fixing server %d's metadata for spd %d after fork to %d\n", d_spd, f_spd, c_spd);
+		printd("Fixing server %d's metadata for spd %d after fork to %d\n", d_spd, f_spd, c_spd);
 	
 		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, (f_spd<<16)|c_spd);
 	}
@@ -391,14 +395,14 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 	 */
 		struct spd_map_entry *d = quarantine_get_spd_map_entry(d_spd);
 		if (unlikely(EMPTY_LIST(d, n, p))) {
-			printl("No forks found for %d\n", d_spd);
+			printd("No forks found for %d\n", d_spd);
 			goto dont_fix_c;
 		}
 
 		/* FIXME: which fork should be used here? This pulls the most
 		 * recent fork. */
 		f_spd = LAST_LIST(d, n, p)->fork_spd;
-		printl("Fixing routing table after fork from %d -> %d\n",
+		printd("Fixing routing table after fork from %d -> %d\n",
 				d_spd, f_spd);
 
 		// TODO: add / change ucap, routing table
@@ -412,7 +416,7 @@ dont_fix_c:
 	/* FIXME: What, if anything, can we do about other caps between
 	 * c_spd and d_spd? */
 	inc_val = (((u8_t)-d_fix)<<8U) | ((u8_t)(-c_fix));
-	printl("Incrementing fork count by %d in spd %d for cap %d\n", inc_val, c_spd, capid);
+	printd("Incrementing fork count by %d in spd %d for cap %d\n", inc_val, c_spd, capid);
 	cos_cap_cntl(COS_CAP_INC_FORK_CNT, c_spd, capid, inc_val);
 
 	/* remove from the invocation stack the faulting component! */
