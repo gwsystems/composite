@@ -237,7 +237,8 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 	c_spd = cspd_dspd>>16;
 	d_spd = cspd_dspd&0xffff;
 
-
+#undef printd
+#define printd(...) printc("llboot: "__VA_ARGS__)
 	printd("llboot args: %d\t%d\n", cspd_dspd, cap_ccnt_dcnt);
 	printd("llboot (%d) fault_quarantine_handler %d (%d) -> %d (%d)\n", spdid, c_spd, c_fix, d_spd, d_fix);
 
