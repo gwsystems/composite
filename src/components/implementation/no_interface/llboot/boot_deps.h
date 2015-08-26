@@ -30,6 +30,8 @@ printc(char *fmt, ...)
 
 #if defined(DEBUG)
 #define printd(...) printc("llboot:"__VA_ARGS__)
+#else
+#define printd(...)
 #endif
 
 #ifndef assert
