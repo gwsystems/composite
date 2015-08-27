@@ -211,7 +211,8 @@ captbl_lkup_lvl(struct captbl *t, capid_t cap, u32_t start_lvl, u32_t end_lvl)
  * This function is the fast-path used for capability lookup in the
  * invocation path.
  */
-static inline struct cap_header *captbl_lkup(struct captbl *t, capid_t cap)
+static inline struct cap_header *
+captbl_lkup(struct captbl *t, capid_t cap)
 { return captbl_lkup_lvl(t, cap, 0, CAPTBL_DEPTH+1); }
 
 static inline int
