@@ -13,6 +13,7 @@
 #define TCAP_H
 
 #include "shared/cos_types.h"
+#include "component.h"
 
 #ifndef TCAP_MAX_DELEGATIONS
 #define TCAP_MAX_DELEGATIONS 8
@@ -23,6 +24,14 @@
 typedef u64_t tcap_prio_t;
 typedef s64_t tcap_res_t;
 typedef u64_t tcap_uid_t;
+typedef capid_t tcap_t;
+
+struct cap_tcap {
+	struct cap_header h;
+	struct tcap *tcap;
+	cpuid_t cpuid;
+} __attribute__((packed));
+
 /*
  * This is a reference to a tcap, and the epoch tracks which
  * "generation" of the tcap is valid for this reference.  This enables
@@ -159,7 +168,7 @@ tcap_remaining(struct tcap *t)
 //tcap_uid_t       tcap_id(struct tcap *t);
 //int          tcap_is_root(struct tcap *t);
 //struct tcap *tcap_get(/*SPD*/ void *c, tcap_uid_t id);
-struct tcap *tcap_split(struct tcap *t, tcap_res_t cycles, tcap_prio_t prio, int flags);
+int tcap_split(capid_t cap, struct tcap *tcap_new, capid_t capin, struct captbl *ct, capid_t compcap, int flags);
 int tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc,
 		  tcap_res_t cycles, tcap_prio_t prio);
 int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc,

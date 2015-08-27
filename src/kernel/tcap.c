@@ -36,6 +36,7 @@ tcap_init(struct tcap *t, struct tcap_ref *c)
 	t->delegations[0].tcap_uid 	= tcap_uid;
 	t->pool 			= c;
 	t->sched_info           	= 0;
+	c->tcap->ref_count++;
 	tcap_uid++;
 }
 
@@ -155,33 +156,47 @@ undo_xfer:
  * Error conditions include t->cycles < cycles, prio < t->prio
  * (ignoring values of 0).
  */
-struct tcap *
-tcap_split(struct tcap *t, tcap_res_t cycles, tcap_prio_t prio, int flags)
+int
+tcap_split(capid_t cap, struct tcap *tcap_new, capid_t capin, struct captbl *ct, capid_t compcap, int flags)
 {
-	struct tcap *n, *b;
+	struct tcap *b, *t;
+	struct cap_tcap *tc;
+	struct cap_comp *compc;
+	int ret;
 	tcap_uid_t c;
 
+	t = ((struct cap_tcap *)cap)->tcap;
+
+	compc = (struct cap_comp *)captbl_lkup(ct, compcap);
+	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
+
+	tc = (struct cap_tcap *)__cap_capactivate_pre(ct, cap, capin, CAP_TCAP, &ret);
+	if (!tc) return ret;
+
 	assert(t);
-	if (t->cpuid != get_cpuid()) return NULL;
+	if (t->cpuid != get_cpuid()) return -ENOENT;
 	c             = tcap_sched_info(t)->tcap_uid;
 	assert(c);
-	//n = c->tcap_freelist
-	//if (unlikely(!n)) return NULL;
 	b             = tcap_deref(t->pool);
-	if (unlikely(!b))  return NULL;
+	if (unlikely(!b))  return -ENOENT;
 
-	tcap_init(n, t->pool);
+	tcap_init(tcap_new, b->pool);
 	//HACK, only supports creating new pools for now.
-	tcap_ref_create(n->pool, n);
-	n->ndelegs    = t->ndelegs;
-	n->sched_info = t->sched_info;
-	memcpy(n->delegations, t->delegations, sizeof(struct tcap_sched_info) * t->ndelegs);
+	tcap_ref_create(tcap_new->pool, tcap_new);
+	tcap_new->ndelegs    = t->ndelegs;
+	tcap_new->sched_info = t->sched_info;
+	memcpy(tcap_new->delegations, t->delegations, sizeof(struct tcap_sched_info) * t->ndelegs);
 
+	tc->tcap  = tcap_new;
+	tc->cpuid = tcap_new->cpuid;
+	__cap_capactivate_post(&tc->h, CAP_TCAP);
+/* Handled by a seprate syscall to CAP_OP_TCAP_TRANSFER
 	if (__tcap_transfer(n, t, cycles, prio, 1)) {
 		tcap_delete(t->pool, n);
 		n = NULL;
 	}
-	return n;
+*/
+	return 0;
 }
 
 /*

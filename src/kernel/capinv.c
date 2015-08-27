@@ -1090,21 +1090,29 @@ composite_syscall_slowpath(struct pt_regs *regs)
 	{
 		switch (op)
 		{
-		case CAPTBL_OP_TCAP_SPLIT:
+		case CAPTBL_OP_TCAP_ACTIVATE:
 		{
-			struct tcap *tcapdst = (struct tcap *)__userregs_getcap(regs);
-			long long res = __userregs_get1(regs);
-			u32_t prio_higher = __userregs_get2(regs);
-			u32_t prio_lower = __userregs_get3(regs);
-			int flags = __userregs_get4(regs);
-			u16_t prio = 0; /* = higher_prio << 32 || lower_prio; */
+			capid_t tcap_cap     = __userregs_get1(regs) & 0xFFFF;
+			int flags 	     = __userregs_get1(regs) >> 16;
+			capid_t pgtbl_cap    = __userregs_get2(regs);
+			capid_t pgtbl_addr   = __userregs_get3(regs);
+			capid_t compcap      = __userregs_get4(regs);
 
-			struct tcap *n;
+			struct tcap *tcap_new;
+			unsigned long *pte = NULL;
 
-			n = tcap_split(tcapdst, res, prio);
-			if(!n) cos_throw(err, ret);
+			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&tcap_new, &pte);
+			if (unlikely(ret)) cos_throw(err, ret);
 
-			ret = tcap_id(n);
+			tcap_split(cap, tcap_new, tcap_cap, ct, compcap, flags);
+			if(ret) {
+				cos_throw(err, ret);
+				unsigned long old = *pte;
+				assert (old & PGTBL_COSKMEM);
+
+				retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
+				*pte = old & ~PGTBL_COSKMEM;
+			}
 
 			break;
 		}

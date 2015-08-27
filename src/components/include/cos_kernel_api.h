@@ -82,7 +82,7 @@ int cos_mem_move(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src);
 int cos_mem_remove(pgtblcap_t pt, vaddr_t addr);
 
 /* Tcap operations */
-tcap_t cos_tcap_split(tcap_t src, tcap_res_t res, tcap_prio_t prio, int flags);
+tcap_t cos_tcap_split(tcap_t src, tcap_res_t res, tcap_prio_t prio, int flags, struct cos_compinfo *ci, compcap_t comp);
 int cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio);
 int cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, int flags);
 
