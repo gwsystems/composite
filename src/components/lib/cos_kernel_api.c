@@ -503,7 +503,7 @@ cos_page_bump_alloc(struct cos_compinfo *ci)
 
 int
 cos_thd_switch(thdcap_t c)
-{       printd("cos_thd_switch\n");
+{       printd("SCHED: cos_thd_switch\n");
 	return call_cap_op(c, 0, 0, 0, 0, 0); }
 
 int

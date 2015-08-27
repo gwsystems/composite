@@ -351,6 +351,8 @@ err_out:
 }
 //void* __libc_malloc(size_t size) __attribute__((alias("_alloc_libc_malloc")));
 void* rump_cos_malloc(size_t size) __attribute__((weak,alias("_alloc_libc_malloc")));
+void rump_cos_free(void *ptr) __attribute__((weak,alias("_alloc_libc_free")));
+
 
 void* rump_cos_calloc(size_t nmemb, size_t _size)
 {

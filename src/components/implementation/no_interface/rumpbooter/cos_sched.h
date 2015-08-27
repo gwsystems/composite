@@ -6,6 +6,7 @@ void cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		void (*f)(void *), void *arg,
 		void *stack_base, unsigned long stack_size);
 void rump_thd_fn(void *param);
+void cos_cpu_sched_switch(struct bmk_thread *prev, struct bmk_thread *next);
 
 struct thd_creation_protocol {
 	unsigned short int *thdid;
@@ -32,8 +33,8 @@ rump_thd_fn(void *param)
 	printc("thdid, is now: %d\n", *(p->thdid));
 
 	cos_thd_switch(retcap);
-
-	printc("Executing thread function\n");
+	//print f and Null
+	printc("SCHED: Executing thread function. arg: %p, f: %p:\n", p->arg, p->f);
 	f(arg);
 }
 

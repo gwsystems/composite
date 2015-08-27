@@ -24,11 +24,14 @@ struct cos_rumpcalls
 	void*  (*rump_memcalloc)(unsigned long n, unsigned long size);
 	void*  (*rump_memalloc)(unsigned long nbytes, unsigned long align);
 	void*  (*rump_pgalloc)(void);
+	void   (*rump_memfree)(void *cp);
+	void   (*rump_memset)(void *b, int c, unsigned long n); //testing
 	u16_t  (*rump_cos_thdid)(void);
 	void*  (*rump_memcpy)(void *d, const void *src, unsigned long n);
 	void   (*rump_cpu_sched_create)(struct bmk_thread *thread, struct bmk_tcb *tcb,
 			void (*f)(void *), void *arg,
 			void *stack_base, unsigned long stack_size);
+	void   (*rump_cpu_sched_switch_viathd)(struct bmk_thread *prev, struct bmk_thread *next);
 };
 
 /* Mapping the functions from rumpkernel to composite */
@@ -36,11 +39,11 @@ void cos2rump_setup(void);
 
 void *cos_memcalloc(size_t n, size_t size);
 void *cos_memalloc(size_t nbytes, size_t align);
+void cos_memfree(void *cp);
 
 void  rump_bmk_memsize_init(void);
 
 void set_cos_thdcap(struct bmk_thread *thread, capid_t value);
 capid_t get_cos_thdcap(struct bmk_thread *thread);
-
 
 #endif /* RUMPCALLS_H */
