@@ -7,6 +7,9 @@
 #ifndef EPERM
 #define EPERM 1
 #endif
+#ifndef EBUSY
+#define EBUSY 16
+#endif
 #ifndef ENOENT
 #define ENOENT 2
 #endif

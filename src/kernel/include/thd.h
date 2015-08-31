@@ -49,10 +49,18 @@ struct thread {
 
 #else
 
-struct arcv_endpoint_info {
-	//struct tcap *tc;
-	/* how many other arcv end-points defer to this one? */
-	int refcnt;
+/*
+ * This is the data structure embedded in threads that are associated
+ * with an asynchronous receive end-point.  It tracks the reference
+ * count on that rcvcap, the tcap associated with it, and the thread
+ * associated with the rcvcap that receives notifications for this
+ * rcvcap.
+ */
+struct rcvcap_info {
+	/* how many other arcv end-points send notifications to this one? */
+	int isbound, pending, refcnt;
+	/* struct tcap *rcvcap_tcap; */  /* This rcvcap's tcap */
+	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
 };
 
 struct thd_invocation_frame {
@@ -100,8 +108,6 @@ struct thread {
 	struct thd_invocation_frame stack_base[MAX_SERVICE_DEPTH] HALF_CACHE_ALIGNED;
 	struct pt_regs fault_regs;
 
-	struct arcv_endpoint_info arcv_info;
-
 	void *data_region;
 	vaddr_t ul_data_page;
 
@@ -128,9 +134,8 @@ struct thread {
 	thdid_t tid;
 	int refcnt, invstk_top;
 	cpuid_t cpuid;
-	struct comp_info comp_info; /* which scheduler to notify of events? FIXME: ignored for now */
+	struct rcvcap_info rcvcap;
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
-	capid_t arcv_cap; /* the acap id we are waiting on */
 	/* TODO: gp and fp registers */
 } CACHE_ALIGNED;
 
@@ -181,6 +186,31 @@ alloc_thd_id(void)
 	return cos_faa((int*)&free_thd_id, 1);
 }
 
+static void
+thd_rcvcap_take(struct thread *t)
+{ t->rcvcap.refcnt++; }
+
+static void
+thd_rcvcap_release(struct thread *t)
+{ t->rcvcap.refcnt--; }
+
+static int
+thd_rcvcap_isreferenced(struct thread *t)
+{ return t->rcvcap.refcnt > 0; }
+
+static int
+thd_bound2rcvcap(struct thread *t)
+{ return t->rcvcap.isbound; }
+
+static void
+thd_rcvcap_init(struct thread *t)
+{
+	struct rcvcap_info *rc = &t->rcvcap;
+
+	rc->isbound = rc->pending = rc->refcnt = 0;
+	rc->rcvcap_thd_notif = NULL;
+}
+
 static int
 thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, int init_data)
 {
@@ -201,26 +231,20 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->invstk[0].ip = thd->invstk[0].sp = 0;
 	thd->tid          = alloc_thd_id();
 	thd->refcnt       = 1;
-	thd->invstk_top   = 0;
+     	thd->invstk_top   = 0;
+	thd->cpuid        = get_cpuid();
 	assert(thd->tid <= MAX_NUM_THREADS);
+	thd_rcvcap_init(thd);
 
 	thd_upcall_setup(thd, compc->entry_addr, COS_UPCALL_THD_CREATE, init_data, 0, 0);
 
 	/* initialize the capability */
-	tc->t      = thd;
-	thd->cpuid = tc->cpuid = get_cpuid();
+	tc->t     = thd;
+	tc->cpuid = get_cpuid();
 	__cap_capactivate_post(&tc->h, CAP_THD);
 
 	return 0;
 }
-
-static void
-thd_ref_take(struct thread *t)
-{ t->refcnt++; }
-
-static void
-thd_ref_release(struct thread *t)
-{ t->refcnt--; }
 
 static int
 thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin,
@@ -233,15 +257,17 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 
 	thd_header = captbl_lkup(dest_ct->captbl, capin);
 	if (!thd_header || thd_header->type != CAP_THD) cos_throw(err, -EINVAL);
-
 	thd = ((struct cap_thd *)thd_header)->t;
 	assert(thd->refcnt);
 
 	if (thd->refcnt == 1) {
 		if (!root) cos_throw(err, -EINVAL);
-		/* Last reference. Require pgtbl and
-		 * cos_frame cap to release the kmem
-		 * page. */
+		/* last ref cannot be removed if bound to arcv cap */
+		if (thd_bound2rcvcap(thd)) cos_throw(err, -EBUSY);
+		/*
+		 * Last reference. Require pgtbl and cos_frame cap to
+		 * release the kmem page.
+		 */
 		ret = kmem_deact_pre(thd_header, ct, pgtbl_cap,
 				     cosframe_addr, &pte, &old_v);
 		if (ret) cos_throw(err, ret);
@@ -260,7 +286,6 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 	}
 
 	ret = cap_capdeactivate(dest_ct, capin, CAP_THD, lid);
-
 	if (ret) cos_throw(err, ret);
 
 	thd->refcnt--;

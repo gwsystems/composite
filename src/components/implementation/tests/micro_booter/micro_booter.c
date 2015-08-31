@@ -100,12 +100,12 @@ test_async_endpoints(void)
 	thdcap_t tc;
 	arcvcap_t rc;
 	asndcap_t sc;
-	int ret;
+	int ret, pending;
 
 	printc("Creating thread, and async end-points.\n");
 	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tc);
-	rc = cos_arcv_alloc(&booter_info, tc, booter_info.comp_cap, 0);
+	rc = cos_arcv_alloc(&booter_info, tc, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rc);
 	rc_global = rc;
 	sc = cos_asnd_alloc(&booter_info, rc, booter_info.captbl_cap);
@@ -113,7 +113,10 @@ test_async_endpoints(void)
 	printc("Executing asnd to switch to receiver (thd %d, rcv %d, snd %d caps).\n", (int)tc, (int)rc, (int)sc);
 	ret = cos_asnd(sc);
 	if (ret) printc("asnd returned %d.\n", ret);
-	printc("Back in the asnder.\nAsync end-point test successful.  Test done.\n");
+	printc("Back in the asnder.\n");
+	pending = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE);
+	printc("Sender rcv pending = %d.\n", pending);
+	printc("Async end-point test successful.  Test done.\n");
 }
 
 void

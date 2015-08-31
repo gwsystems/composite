@@ -5,7 +5,7 @@
 #include "pgtbl.h"
 #include "liveness_tbl.h"
 
-/* 
+/*
  * Capability-table, capability operations for activation and
  * deactivation.
  */
@@ -16,7 +16,7 @@ __cap_capactivate_pre(struct captbl *t, capid_t cap, capid_t capin, cap_t type, 
 	struct cap_captbl *ct;
 	struct cap_header *h = NULL;
 	int ret;
-	
+
 	ct = (struct cap_captbl *)captbl_lkup(t, cap);
 	if (unlikely(!ct || ct->h.type != CAP_CAPTBL)) cos_throw(err, -EINVAL);
 	if (unlikely(ct->refcnt_flags & CAP_MEM_FROZEN_FLAG)) cos_throw(err, -EINVAL);
@@ -31,7 +31,7 @@ err:
 static inline int
 __cap_capactivate_post(struct cap_header *h, cap_t type)
 {
-	/* 
+	/*
 	 * FIXME: should be atomic on a word including the amap and
 	 * poly, mostly likely atomic add on the type/poly (they are
 	 * contiguous) to avoid any conflicts at this point on amap
@@ -51,10 +51,10 @@ __cap_capactivate_post(struct cap_header *h, cap_t type)
 	 * wrong. */
 /*
 	new_v = old_v = *((u32_t *)h);
-	
+
 	local = (struct cap_header *)&new_v;
 	local->type = type;
-	
+
 	if (unlikely(!cos_cas((unsigned long *)h, old_v, new_v))) return -ECASFAIL;
 */
 
@@ -63,11 +63,11 @@ __cap_capactivate_post(struct cap_header *h, cap_t type)
 
 static inline int
 cap_capdeactivate(struct cap_captbl *ct, capid_t capin, cap_t type, livenessid_t lid)
-{ 
+{
 	if (unlikely(!ct)) return -ENOENT;
 	if (unlikely(ct->h.type != CAP_CAPTBL)) return -EINVAL;
 
-	return captbl_del(ct->captbl, capin, type, lid); 
+	return captbl_del(ct->captbl, capin, type, lid);
 }
 
 static inline int
@@ -86,7 +86,7 @@ cap_kmem_activate(struct captbl *t, capid_t cap, unsigned long addr, unsigned lo
 	return 0;
 }
 
-/*  
+/*
  * Construction and deconstruction of the capability and page tables
  * from separate capability/page-table trees that are subtrees for
  * different levels.
@@ -95,7 +95,7 @@ cap_kmem_activate(struct captbl *t, capid_t cap, unsigned long addr, unsigned lo
 static inline int
 cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 {
-	/* 
+	/*
 	 * Note: here we're relying on the fact that cap_captbl has an
 	 * identical layout to cap_pgtbl.
 	 */
@@ -152,7 +152,7 @@ cap_cons(struct captbl *t, capid_t capto, capid_t capsub, capid_t expandid)
 	return ret;
 }
 
-/* 
+/*
  * FIXME: Next version will probably need to provide the capability to
  * the inner node of the captbl/pgtbl so that we can maintain proper
  * reference counting.
@@ -230,7 +230,7 @@ cap_kmem_freeze(struct captbl *t, capid_t target_cap)
 	struct cap_header *ch;
 	u32_t l;
 	int ret;
-	
+
 	ch = captbl_lkup(t, target_cap);
 	if (!ch) return -EINVAL;
 
@@ -256,18 +256,18 @@ cap_kmem_freeze(struct captbl *t, capid_t target_cap)
 	} else {
 		return -EINVAL;
 	}
-	
+
 	return 0;
 }
 
-static int 
-kmem_page_scan(void *obj_vaddr, const int size) 
+static int
+kmem_page_scan(void *obj_vaddr, const int size)
 {
 	/* For non-leaf level captbl / pgtbl. entries are all pointers
 	 * in these cases. */
 	unsigned int i;
 	void *addr = obj_vaddr;
-			
+
 	for (i = 0; i < size / sizeof(void *); i++) {
 		if (*(unsigned long *)addr != 0) return -EINVAL;
 		addr++;
@@ -276,7 +276,7 @@ kmem_page_scan(void *obj_vaddr, const int size)
 	return 0;
 }
 
-int kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap, 
+int kmem_deact_pre(struct cap_header *ch, struct captbl *ct, capid_t pgtbl_cap,
 	       capid_t cosframe_addr, unsigned long **p_pte, unsigned long *v);
 int kmem_deact_post(unsigned long *pte, unsigned long old_v);
 

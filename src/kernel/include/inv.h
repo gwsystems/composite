@@ -42,8 +42,7 @@ struct cap_asnd {
 struct cap_arcv {
 	struct cap_header h;
 	struct comp_info comp_info;
-	u32_t pending, epoch;
-	u32_t thd_epoch;
+	u32_t epoch;
 	cpuid_t cpuid;
 	/* The thread to receive events, and the one to send events to (i.e. scheduler) */
 	struct thread *thd, *event_notif;
@@ -126,40 +125,82 @@ static int
 asnd_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 { return cap_capdeactivate(t, capin, CAP_ASND, lid); }
 
+static void
+__arcv_setup(struct cap_arcv *arcv, struct thread *thd, struct thread *notif)
+{
+	assert(arcv && thd && !thd_bound2rcvcap(thd));
+	arcv->thd                    = thd;
+	thd->flags                  |= THD_STATE_ACTIVE_UPCALL;
+	thd->rcvcap.rcvcap_thd_notif = notif;
+	if (notif) thd_rcvcap_take(notif);
+	thd->rcvcap.isbound          = 1;
+}
+
+static void
+__arcv_teardown(struct cap_arcv *arcv, struct thread *thd)
+{
+	struct thread *notif;
+
+	notif = thd->rcvcap.rcvcap_thd_notif;
+	if (notif) thd_rcvcap_release(notif);
+	thd->rcvcap.isbound = 0;
+}
+
+static int
+arcv_pending(struct thread *arcvt)
+{ return arcvt->rcvcap.pending; }
+
+static void
+arcv_pending_inc(struct thread *arcvt)
+{ arcvt->rcvcap.pending++; }
+
+static int
+arcv_pending_dec(struct thread *arcvt)
+{
+	int pending = arcvt->rcvcap.pending;
+
+	if (pending == 0) return 0;
+	arcvt->rcvcap.pending--;
+
+	return pending;
+}
+
+static struct thread *
+arcv_thd_notif(struct thread *arcvt)
+{ return arcvt->rcvcap.rcvcap_thd_notif; }
+
 static int
 arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, capid_t thd_cap, capid_t arcv_cap, int init)
 {
 	struct cap_comp *compc;
 	struct cap_thd  *thdc;
-	struct cap_arcv /* *arcv_p,*/ *arcvc; /* parent and new capability */
+	struct cap_arcv *arcv_p, *arcvc; /* parent and new capability */
 	int ret;
+	struct thread *thd;
 
 	/* Find the constituent capability structures */
 	compc = (struct cap_comp *)captbl_lkup(t, comp_cap);
 	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
 	thdc = (struct cap_thd *)captbl_lkup(t, thd_cap);
 	if (unlikely(!thdc || thdc->h.type != CAP_THD || thdc->cpuid != get_cpuid())) return -EINVAL;
-	/*
-	 * TODO:
-	 * if (!init) {
-	 *         arcv_p = (struct cap_arcv *)captbl_lkup(t, arcv_cap);
-	 *         if (unlikely(!arcv_p || arcv_p->h.type != CAP_ARCV || arcv_p->cpuid != get_cpuid())) return -EINVAL;
-	 * }
-	 */
+	thd = thdc->t;
+	/* a single thread cannot be bound to multiple rcvcaps */
+	if (thd_bound2rcvcap(thd)) return -EINVAL;
+
+	if (!init) {
+	        arcv_p = (struct cap_arcv *)captbl_lkup(t, arcv_cap);
+	        if (unlikely(!arcv_p || arcv_p->h.type != CAP_ARCV || arcv_p->cpuid != get_cpuid())) return -EINVAL;
+	}
 	arcvc = (struct cap_arcv *)__cap_capactivate_pre(t, cap, capin, CAP_ARCV, &ret);
 	if (!arcvc) return ret;
 
 	memcpy(&arcvc->comp_info, &compc->info, sizeof(struct comp_info));
 
-	arcvc->pending   = 0;
 	arcvc->epoch     = 0; 	  /* FIXME: get the real epoch */
-	arcvc->thd_epoch = 0; 	  /* FIXME: get the real epoch */
+	arcvc->cpuid     = get_cpuid();
 
-	arcvc->thd       = thdc->t;
-	arcvc->cpuid     = thdc->t->cpuid;
-	thd_ref_take(thdc->t);
+	__arcv_setup(arcvc, thd, init ? NULL : arcv_p->thd);
 
-	thdc->t->flags  |= THD_STATE_ACTIVE_UPCALL;
 	__cap_capactivate_post(&arcvc->h, CAP_ARCV);
 
 	return 0;
@@ -171,8 +212,9 @@ arcv_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 	struct cap_arcv *arcvc;
 
 	arcvc = (struct cap_arcv *)captbl_lkup(t->captbl, capin);
-	if (unlikely(!arcvc || arcvc->h.type != CAP_ARCV)) return -EINVAL;
-	thd_ref_release(arcvc->thd);
+	if (unlikely(!arcvc || arcvc->h.type != CAP_ARCV || arcvc->cpuid != get_cpuid())) return -EINVAL;
+	if (thd_rcvcap_isreferenced(arcvc->thd)) return -EBUSY;
+	__arcv_teardown(arcvc, arcvc->thd);
 
 	return cap_capdeactivate(t, capin, CAP_ARCV, lid);
 }
