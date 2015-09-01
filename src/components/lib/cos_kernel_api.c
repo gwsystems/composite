@@ -518,8 +518,8 @@ cos_asnd(asndcap_t snd)
 { return call_cap_op(snd, 0, 0, 0, 0, 0); }
 
 int
-cos_rcv(arcvcap_t rcv)
-{ return call_cap_op(rcv, 0, 0, 0, 0, 0); }
+cos_rcv(arcvcap_t rcv, unsigned long *a, unsigned long *b)
+{ return call_cap_retvals_asm(rcv, 0, 0, 0, 0, 0, a, b); }
 
 int
 cos_mem_alias(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src)

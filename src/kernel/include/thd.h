@@ -23,6 +23,8 @@ struct invstk_entry {
 #define THD_INVSTK_MAXSZ 32
 
 #define THD_STATE_PREEMPTED     0x1   /* Complete register info is saved in regs */
+#define THD_STATE_RCVRETURNING  0x100 /* Currently returning from a rcv call */
+
 #define THD_STATE_UPCALL        0x2   /* Thread for upcalls: ->srv_acap points to the acap who we're linked to */
 #define THD_STATE_ACTIVE_UPCALL 0x4   /* Thread is in upcall execution. */
 #define THD_STATE_READY_UPCALL  0x8   /* Same as previous, but we are ready to execute */
@@ -217,8 +219,6 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	struct cap_thd *tc;
 	struct cap_comp *compc;
 	int ret;
-
-	int id = thd->tid;
 
 	compc = (struct cap_comp *)captbl_lkup(t, compcap);
 	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;

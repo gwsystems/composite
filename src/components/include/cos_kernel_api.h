@@ -71,7 +71,7 @@ void *cos_page_bump_alloc(struct cos_compinfo *ci);
 
 int cos_thd_switch(thdcap_t c);
 int cos_asnd(asndcap_t snd);
-int cos_rcv(arcvcap_t rcv);
+int cos_rcv(arcvcap_t rcv, unsigned long *a, unsigned long *b);
 
 int cos_mem_alias(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src);
 int cos_mem_move(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src);
