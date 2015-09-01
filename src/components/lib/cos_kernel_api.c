@@ -336,9 +336,9 @@ __alloc_mem_cap(struct cos_compinfo *ci, cap_t ct, vaddr_t *kmem, capid_t *cap)
 {
 	printd("__alloc_mem_cap\n");
 
-	*kmem   = __kmem_bump_alloc(ci);
+	*kmem = __kmem_bump_alloc(ci);
 	if (!*kmem)   return -1;
-	*cap = __capid_bump_alloc(ci, ct);
+	*cap  = __capid_bump_alloc(ci, ct);
 	if (!*cap) return -1;
 	return 0;
 }
@@ -467,8 +467,16 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry)
 	return cap;
 }
 
+/*
+ * Arguments:
+ * thdcap:  the thread to activate on snds to the rcv endpoint.
+ * tcap:    TODO: the tcap to use for that execution.
+ * compcap: the component the rcv endpoint is visible in.
+ * arcvcap: the rcv * endpoint that is the scheduler to be activated
+ *          when the thread blocks on this endpoint.
+ */
 arcvcap_t
-cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, compcap_t compcap)
+cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, compcap_t compcap, arcvcap_t arcvcap)
 {
 	capid_t cap;
 
@@ -476,7 +484,7 @@ cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, compcap_t compcap)
 
 	cap = __capid_bump_alloc(ci, CAP_ARCV);
 	if (!cap) return 0;
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_ARCVACTIVATE, cap, thdcap, compcap, 0)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_ARCVACTIVATE, cap, thdcap, compcap, arcvcap)) BUG();
 
 	return cap;
 }
@@ -503,20 +511,15 @@ cos_page_bump_alloc(struct cos_compinfo *ci)
 
 int
 cos_thd_switch(thdcap_t c)
-{       printd("cos_thd_switch\n");
-	return call_cap_op(c, 0, 0, 0, 0, 0); }
+{ return call_cap_op(c, 0, 0, 0, 0, 0); }
 
 int
 cos_asnd(asndcap_t snd)
-{
-	return 0;
-}
+{ return call_cap_op(snd, 0, 0, 0, 0, 0); }
 
 int
-cos_rcv(arcvcap_t rcv)
-{
-	return 0;
-}
+cos_rcv(arcvcap_t rcv, unsigned long *a, unsigned long *b)
+{ return call_cap_retvals_asm(rcv, 0, 0, 0, 0, 0, a, b); }
 
 int
 cos_mem_alias(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src)

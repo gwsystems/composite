@@ -75,6 +75,57 @@ test_mem(void)
 	printc("Page allocation: %s\n", p);
 }
 
+volatile arcvcap_t rc_global;
+
+static void
+async_thd_fn(void *thdcap)
+{
+	thdcap_t tc = (thdcap_t)thdcap;
+	arcvcap_t rc = rc_global;
+	unsigned long a, b;
+	int pending;
+
+	printc("Asynchronous event thread handler.\n\t< rcving...\n");
+	pending = cos_rcv(rc, &a, &b);
+	printc("\t< pending %d\n\t< rcving...\n", pending);
+	pending = cos_rcv(rc, &a, &b);
+	printc("\t< pending %d\n\t< rcving...\n", pending);
+	pending = cos_rcv(rc, &a, &b);
+	printc("\t< Error: manually returning to snding thread.\n");
+	cos_thd_switch(tc);
+	printc("ERROR: in async thd *after* switching back to the snder.\n");
+	while (1) ;
+}
+
+static void
+test_async_endpoints(void)
+{
+	thdcap_t tc;
+	arcvcap_t rc;
+	asndcap_t sc;
+	int ret, pending;
+	unsigned long a, b;
+
+	printc("Creating thread, and async end-points.\n");
+	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
+	assert(tc);
+	rc = cos_arcv_alloc(&booter_info, tc, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	assert(rc);
+	rc_global = rc;
+	sc = cos_asnd_alloc(&booter_info, rc, booter_info.captbl_cap);
+	assert(sc);
+	printc("> sending\n");
+	ret = cos_asnd(sc);
+	if (ret) printc("asnd returned %d.\n", ret);
+	printc("> Back in the asnder.\n> sending\n");
+	ret = cos_asnd(sc);
+	if (ret) printc("> asnd returned %d.\n", ret);
+	printc("> Back in the asnder.\n> receiving to get notifications");
+	pending = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &a, &b);
+	printc("> pending %d\n", pending);
+	printc("Async end-point test successful.\nTest done.\n");
+}
+
 void
 cos_init(void)
 {
@@ -87,6 +138,7 @@ cos_init(void)
 
 	test_thds();
 	test_mem();
+	test_async_endpoints();
 
 	printc("\nMicro Booter done.\n");
 

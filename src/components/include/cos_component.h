@@ -23,7 +23,6 @@ int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
 	cap_no += op;
 
-//	__asm__ __volatile__("":::"ecx", "edx");
 	__asm__ __volatile__( \
 		"pushl %%ebp\n\t" \
 		"movl %%esp, %%ebp\n\t" \
@@ -33,18 +32,49 @@ int call_cap_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4)
 		"jmp 2f\n\t" \
 		".align 8\n\t" \
 		"1:\n\t" \
-		"popl %%ebp\n\t" \
 		"movl $0, %%ecx\n\t" \
 		"jmp 3f\n\t" \
 		"2:\n\t" \
-		"popl %%ebp\n\t" \
 		"movl $1, %%ecx\n\t" \
-		"3:" \
+		"3:\n\t" \
+		"popl %%ebp" \
 		: "=a" (ret), "=c" (fault)
 		: "a" (cap_no), "b" (arg1), "S" (arg2), "D" (arg3), "d" (arg4) \
 		: "memory", "cc");
 
-	__asm__ __volatile__("":::"eax", "ebx", "ecx", "edx", "esi", "edi");
+	return ret;
+}
+
+static inline
+int call_cap_retvals_asm(u32_t cap_no, u32_t op, int arg1, int arg2, int arg3, int arg4,
+			 unsigned long *r1, unsigned long *r2)
+{
+        long fault = 0;
+	int ret;
+
+	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
+	cap_no += op;
+
+	__asm__ __volatile__( \
+		"pushl %%ebp\n\t" \
+		"movl %%esp, %%ebp\n\t" \
+		"movl $1f, %%ecx\n\t" \
+		"sysenter\n\t" \
+		".align 8\n\t" \
+		"jmp 2f\n\t" \
+		".align 8\n\t" \
+		"1:\n\t" \
+		"movl $0, %%ecx\n\t" \
+		"jmp 3f\n\t" \
+		"2:\n\t" \
+		"movl $1, %%ecx\n\t" \
+		"3:\n\t" \
+		"popl %%ebp\n\t" \
+	        "movl %%esi, %%ebx\n\t" \
+	        "movl %%edi, %%edx\n\t" \
+		: "=a" (ret), "=c" (fault), "=b" (*r1), "=d" (*r2)
+		: "a" (cap_no), "b" (arg1), "S" (arg2), "D" (arg3), "d" (arg4) \
+		: "memory", "cc");
 
 	return ret;
 }
