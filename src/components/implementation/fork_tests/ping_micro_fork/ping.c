@@ -25,7 +25,7 @@ void cos_init(void)
 		rdtscll(start);
 //		cos_send_ipi(i, 0, 0, 0);
 		call();
-		quarantine_fork(cos_spd_id(), cos_spd_id()-1); /* dirty way to find pong */
+		f = quarantine_fork(cos_spd_id(), f);
 		rdtscll(end);
 		meas[i] = end-start;
 		if (f == 0) break;
