@@ -12,8 +12,8 @@ void cos_init(void)
 	u64_t start, end, avg, tot = 0, dev = 0;
 	int i, j;
 
-	quarantine_fork(cos_spd_id(), cos_spd_id()-1); /* dirty way to find pong */
 	call();			/* get stack */
+	quarantine_fork(cos_spd_id(), cos_spd_id()-1); /* dirty way to find pong */
 	printc("cpu %ld, thd %d from ping\n",cos_cpuid(), cos_get_thd_id());
 	printc("Starting %d Invocations.\n", ITER);
 

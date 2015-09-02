@@ -153,16 +153,16 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	lock_help_owners(spdid, source);
 
 	/* The following, copied partly from booter.c,  */
-	if ((d_spd = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) BUG();
+	if ((d_spd = cos_spd_cntl(COS_SPD_CREATE, 0, 0, 0)) == 0) return 0;
 
 	printd("Created new spd: %d\n", d_spd);
 
 	sect = cobj_sect_get(h, 0);
 	init_daddr = sect->vaddr;
-	if (cos_spd_cntl(COS_SPD_LOCATION, d_spd, sect->vaddr, SERVICE_SIZE)) BUG();
+	if (cos_spd_cntl(COS_SPD_LOCATION, d_spd, sect->vaddr, SERVICE_SIZE)) return 0;
 	printd("Set location to %x\n", (unsigned long)sect->vaddr);
 	
-	if (cos_spd_cntl(COS_SPD_SET_FORK_ORIGIN, d_spd, source, 0)) BUG();
+	if (cos_spd_cntl(COS_SPD_SET_FORK_ORIGIN, d_spd, source, 0)) return 0;
 	printd("Set fork origin to %d\n", source);
 
 	for (j = 0 ; j < (int)h->nsect ; j++) {
@@ -172,7 +172,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 		if (cos_vas_cntl(COS_VAS_SPD_EXPAND, d_spd, sect->vaddr + SERVICE_SIZE, 
 				 3 * round_up_to_pgd_page(1))) {
 			printc("cbboot: could not expand VAS for component %d\n", d_spd);
-			BUG();
+			return 0;
 		}
 	}
 
@@ -181,8 +181,8 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 		new_sect_cbufs = &all_spd_sect_cbufs[all_cbufs_index];
 		all_cbufs_index += h->nsect;
 		assert(all_cbufs_index < CBUFS_PER_PAGE * SECT_CBUF_PAGES);
-		if (cos_vect_add_id(&spd_sect_cbufs, new_sect_cbufs, d_spd) < 0) BUG();
-		if (cos_vect_add_id(&spd_sect_cbufs_header, h, d_spd) < 0) BUG();
+		if (cos_vect_add_id(&spd_sect_cbufs, new_sect_cbufs, d_spd) < 0) return 0;
+		if (cos_vect_add_id(&spd_sect_cbufs_header, h, d_spd) < 0) return 0;
 		printd("Added %d to sect_cbufs\n", d_spd);
 	}
 
@@ -218,7 +218,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 				struct cbid_caddr new_cbm;
 				new_cbm.caddr = cbuf_alloc_ext(left, &new_cbm.cbid, CBUF_EXACTSZ);
 				printd("Avoid sharing, allocated new cbuf %d @ %x\n", new_cbm.cbid, (unsigned long)new_cbm.caddr);
-				assert(new_cbm.caddr);
+				if (!new_cbm.caddr) return 0;
 				memcpy(new_cbm.caddr, cbm.caddr, left);
 				cbm.caddr = new_cbm.caddr;
 				cbm.cbid = new_cbm.cbid;
@@ -227,7 +227,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 			cbid = cbm.cbid;
 			new_sect_cbufs[j] = cbm;
 
-			if (d_addr != (cbuf_map_at(cos_spd_id(), cbid, d_spd, d_addr | flags))) BUG();
+			if (d_addr != (cbuf_map_at(cos_spd_id(), cbid, d_spd, d_addr | flags))) return 0;
 			if (sect->flags & COBJ_SECT_CINFO) {
 				/* fixup cinfo page */
 				struct cos_component_information *ci = cbm.caddr;
