@@ -1085,15 +1085,15 @@ composite_syscall_slowpath(struct pt_regs *regs)
 	}
 	case CAP_TCAP:
 	{
-		switch (op)
-		{
+		switch (op){
 		case CAPTBL_OP_TCAP_ACTIVATE:
 		{
-			capid_t tcap_cap     = __userregs_get1(regs) & 0xFFFF;
-			int flags 	     = __userregs_get1(regs) >> 16;
-			capid_t pgtbl_cap    = __userregs_get2(regs);
-			capid_t pgtbl_addr   = __userregs_get3(regs);
-			capid_t compcap      = __userregs_get4(regs);
+			capid_t tcap_cap 	= __userregs_get1(regs) & 0xFFFF;
+			int flags 	    	= __userregs_get1(regs) >> 16;
+			capid_t pgtbl_cap    	= __userregs_get2(regs);
+			capid_t pgtbl_addr   	= __userregs_get3(regs);
+			capid_t compcap      	= __userregs_get4(regs);
+			struct cap_tcap *tcapsrc= (struct cap_tcap *)captbl_lkup(ci->captbl, tcap_cap);
 
 			struct tcap *tcap_new;
 			unsigned long *pte = NULL;
@@ -1101,9 +1101,8 @@ composite_syscall_slowpath(struct pt_regs *regs)
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&tcap_new, &pte);
 			if (unlikely(ret)) cos_throw(err, ret);
 
-			tcap_split(cap, tcap_new, tcap_cap, ct, compcap, flags);
+			ret = tcap_split(cap, tcap_new, tcap_cap, ct, compcap, tcapsrc, flags);
 			if(ret) {
-				cos_throw(err, ret);
 				unsigned long old = *pte;
 				assert (old & PGTBL_COSKMEM);
 
@@ -1115,41 +1114,49 @@ composite_syscall_slowpath(struct pt_regs *regs)
 		}
 		case CAPTBL_OP_TCAP_TRANSFER:
 		{
-			struct tcap *tcapsrc = (struct tcap *)__userregs_getcap(regs);
-			struct tcap *tcapdst = (struct tcap *)__userregs_get1(regs);
-			long long res = __userregs_get2(regs);
-			u32_t prio_higher = __userregs_get3(regs);
-			u32_t prio_lower = __userregs_get4(regs);
-			u16_t prio = 0; /* = higher_prio << 32 || lower_prio; */
+			capid_t tcpdst 		= __userregs_get1(regs);
+			long long res 		= __userregs_get2(regs);
+			u32_t prio_higher 	= __userregs_get3(regs);
+			u32_t prio_lower 	= __userregs_get4(regs);
+			tcap_prio_t prio 	= (tcap_prio_t)prio_higher << 32 | prio_lower;
+			struct cap_tcap *tcapsrc= (struct cap_tcap *)ch;
+			struct cap_tcap *tcapdst= (struct cap_tcap *)captbl_lkup(ci->captbl, tcpdst);
 
-			ret = tcap_transfer(tcapdst, tcapsrc, res, prio);
-
-			if (ret) cos_throw(err, -ENOENT);
+			ret = tcap_transfer(tcapdst->tcap, tcapsrc->tcap, res, prio);
+			if (unlikely(ret)) cos_throw(err, -ENOENT);
 
 			break;
 		}
 		case CAPTBL_OP_TCAP_DELEGATE:
 		{
-			struct tcap *tcapsrc = (struct tcap *)__userregs_getcap(regs);
-			struct cap_arcv *arcv = (struct cap_arcv *) __userregs_get1(regs);
-			long long res = __userregs_get2(regs);
-			u32_t prio_higher = __userregs_get3(regs);
-			u32_t prio_lower = __userregs_get4(regs);
-			u16_t prio = 0; /* = higher_prio << 32 || lower_prio; */
+			capid_t arcv_cap 	= __userregs_get1(regs);
+			long long res 		= __userregs_get2(regs);
+			u32_t prio_higher 	= __userregs_get3(regs);
+			u32_t prio_lower 	= __userregs_get4(regs);
+			tcap_prio_t prio 	= (tcap_prio_t)prio_lower << 32 | prio_lower;
+			struct cap_tcap *tcapsrc= (struct cap_tcap *)ch;
+			struct cap_arcv *arcv 	= (struct cap_arcv *)captbl_lkup(ci->captbl, arcv_cap);
 
-			/* Pry tcapdst from arcv that was passed in */
-			struct tcap *tcapdst = NULL;
+			struct tcap *tcapdst = arcv->thd->tcap;
 
-			ret = tcap_delegate(tcapsrc, tcapdst, res, prio);
-
-			if (ret) cos_throw(err, -ENOENT);
+			ret = tcap_delegate(tcapsrc->tcap, tcapdst, res, prio);
+			if (unlikely(ret)) cos_throw(err, -ENOENT);
 
 			break;
 		}
-		default:
+		case CAPTBL_OP_TCAP_MERGE:
 		{
-			cos_throw(err, -ENOENT);
+			capid_t tcaprem		= __userregs_get1(regs);
+			struct cap_tcap *tcapdst= (struct cap_tcap *)ch;
+			struct cap_tcap *tcaprm = (struct cap_tcap *)captbl_lkup(ci->captbl, tcaprem);
+
+
+			ret = tcap_merge(tcapdst->tcap, tcaprm->tcap);
+			if (unlikely(ret)) cos_throw(err, -ENOENT);
+
+			break;
 		}
+		default: goto err;
 		}
 
 	}

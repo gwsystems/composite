@@ -14,6 +14,7 @@
 #include "chal/cpuid.h"
 #include "pgtbl.h"
 #include "retype_tbl.h"
+#include "tcap.h"
 
 struct invstk_entry {
 	struct comp_info comp_info;
@@ -132,6 +133,9 @@ struct thread {
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
 	capid_t arcv_cap; /* the acap id we are waiting on */
 	/* TODO: gp and fp registers */
+
+	/* Reference to TCAP bound to thread through arcv_cap */
+	struct tcap *tcap;
 } CACHE_ALIGNED;
 
 #endif

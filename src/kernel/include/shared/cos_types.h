@@ -33,6 +33,10 @@ typedef signed long long s64_t;
 //HACK
 #define LLONG_MAX 9223372036854775807LL
 
+/* Tcap typedefs */
+typedef s64_t tcap_res_t;
+typedef u64_t tcap_prio_t;
+typedef u64_t tcap_uid_t;
 #define PRINT_CAP_TEMP (1 << 14)
 
 #define BOOT_LIVENESS_ID_BASE 2
@@ -74,6 +78,7 @@ typedef enum {
 	CAPTBL_OP_TCAP_ACTIVATE,
 	CAPTBL_OP_TCAP_TRANSFER,
 	CAPTBL_OP_TCAP_DELEGATE,
+	CAPTBL_OP_TCAP_MERGE,
 } syscall_op_t;
 
 typedef enum {
@@ -821,10 +826,17 @@ static inline void cos_mem_fence(void)
 #define TCAP_RES_INF LLONG_MAX
 #define TCAP_RES_IS_INF(r) (r == TCAP_RES_INF)
 
-enum {
+typedef capid_t tcap_t;
+
+typedef enum split_flags {
 	TCAP_SPLIT_POOL = 1,
-	TCAP_SPLIT_MEH = 1<<1,
-};
+} tcap_split_flags_t;
+
+typedef enum deleg_flags {
+	TCAP_DELEG_TRANSFER = 1,
+	TCAP_DELEG_DISPATCH = 1<<1,
+} tcap_deleg_flags_t;
+
 
 #ifndef __KERNEL_PERCPU
 #define __KERNEL_PERCPU 0

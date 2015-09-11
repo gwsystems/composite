@@ -9,7 +9,6 @@
 
 #include <cos_component.h>
 #include <cos_debug.h>
-
 /* Types mainly used for documentation */
 typedef capid_t sinvcap_t;
 typedef capid_t sretcap_t;
@@ -20,10 +19,6 @@ typedef capid_t tcap_t;
 typedef capid_t compcap_t;
 typedef capid_t captblcap_t;
 typedef capid_t pgtblcap_t;
-
-/* Tcap typedefs */
-typedef s64_t tcap_res_t;
-typedef u64_t tcap_prio_t;
 
 /* Memory source information */
 struct cos_meminfo {
@@ -82,14 +77,8 @@ int cos_mem_move(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src);
 int cos_mem_remove(pgtblcap_t pt, vaddr_t addr);
 
 /* Tcap operations */
-tcap_t cos_tcap_split(tcap_t src, tcap_res_t res, tcap_prio_t prio, int flags, struct cos_compinfo *ci, compcap_t comp);
+tcap_t cos_tcap_split(struct cos_compinfo *ci, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_split_flags_t flags, compcap_t comp);
 int cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio);
-int cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, int flags);
-
-/* TCAP data */
-enum {
-	TCAP_DELEG_TRANSFER = 1,
-	TCAP_DELEG_DISPATCH = 1<<1,
-};
-
+int cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags);
+int cos_tcap_merge(tcap_t dst, tcap_t rm);
 #endif /* COS_KERNEL_API_H */

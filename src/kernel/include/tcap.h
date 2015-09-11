@@ -6,7 +6,7 @@
  * Public License v2.
  *
  * Initial Author: Jakob Kaivo, jkaivo@gwu.edu, 2013.
- * Additional: Gabe Parmer, gparmer@gwu.edu, 2013.
+ * Additional: Gabe Parmer, gparmer@gwu.edu, 2013; Eric Armbrust, earmbrust@gwu.edu.
  */
 
 #ifndef TCAP_H
@@ -21,11 +21,6 @@
 
 #define TCAP_NACTIVATIONS 1
 
-typedef u64_t tcap_prio_t;
-typedef s64_t tcap_res_t;
-typedef u64_t tcap_uid_t;
-typedef capid_t tcap_t;
-
 struct cap_tcap {
 	struct cap_header h;
 	struct tcap *tcap;
@@ -37,10 +32,6 @@ struct cap_tcap {
  * "generation" of the tcap is valid for this reference.  This enables
  * fast, and O(1) revocation (simply increase the epoch in the tcap).
  */
-struct tcap_ref {
-	struct tcap *tcap;
-	/* how many tcaps reference this pool as their parent */
-};
 
 struct tcap_budget {
 	/* overrun due to tick granularity can result in cycles < 0 */
@@ -62,10 +53,10 @@ struct tcap {
 	 * refers to the parent tcap, or it might be segregated in
 	 * this capability in which case budget = this.
 	 */
-	struct tcap_ref    *pool;
-	u32_t 		   ref_count;
+	struct tcap 	   *pool;
+	u32_t 		   refcnt;
 	struct tcap_budget budget; /* if we have a partitioned budget */
-	u8_t               ndelegs, sched_info;
+	u8_t               ndelegs, curr_sched_off;
 	u16_t              cpuid;
 
 	/*
@@ -89,36 +80,15 @@ struct tcap {
 	struct tcap           *freelist;
 };
 
-static inline int
-tcap_is_allocated(struct tcap *t)
-{ return t->ndelegs != 0; }
-
 static inline struct tcap_sched_info *
 tcap_sched_info(struct tcap *t)
-{ return &t->delegations[t->sched_info]; }
-
-/*
- * Delegaters might be deallocated and reused, so a pointer is not
- * sufficient to validate if the tcap is valid.  Epochs are maintained
- * for each "version" of a tcap, and when dereferenced, we check the
- * version.
- */
-static inline struct tcap *
-tcap_deref(struct tcap_ref *r)
-{
-	struct tcap *tc;
-
-	if (unlikely(!r->tcap)) return NULL;
-	tc = r->tcap;
-	if (unlikely(!tcap_is_allocated(tc))) return NULL;
-	return tc;
-}
+{ return &t->delegations[t->curr_sched_off]; }
 
 static inline void
-tcap_ref_create(struct tcap_ref *r, struct tcap *t)
+tcap_ref_create(struct tcap *r, struct tcap *t)
 {
-	r->tcap  = t;
-	r->tcap->ref_count++;
+	r->pool  = t;
+	t->refcnt++;
 }
 
 /*
@@ -140,49 +110,26 @@ tcap_consume(struct tcap *t, tcap_res_t cycles)
 		}
 	}
 
-	bc = tcap_deref(t->pool);
+	bc = t->pool;
 	if (bc == t) return left;
 	if (!TCAP_RES_IS_INF(bc->budget.cycles)) {
 		bc->budget.cycles -= cycles;
 		if (bc->budget.cycles <= 0) left = -1;
 	}
 
+	/* TODO: Add removal from global list of pools if we've consumed all cycles. */
 	return left;
 }
 
-static inline long long
-tcap_remaining(struct tcap *t)
-{
-	struct tcap *bc;
-	long long bp, bl;
-
-	assert(t);
-	bc = tcap_deref(t->pool);
-	if (unlikely(!bc)) return 0;
-	bp = bc->budget.cycles;
-	bl = t->budget.cycles;
-
-	return bp < bl ? bp : bl;
-}
-
-//tcap_uid_t       tcap_id(struct tcap *t);
-//int          tcap_is_root(struct tcap *t);
-//struct tcap *tcap_get(/*SPD*/ void *c, tcap_uid_t id);
-int tcap_split(capid_t cap, struct tcap *tcap_new, capid_t capin, struct captbl *ct, capid_t compcap, int flags);
+int tcap_split(capid_t cap, struct tcap *tcap_new, capid_t capin,
+	       	  struct captbl *ct, capid_t compcap, struct cap_tcap *tcapsrc, tcap_split_flags_t flags);
 int tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc,
 		  tcap_res_t cycles, tcap_prio_t prio);
 int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc,
 		  s64_t cycles, int prio);
-int tcap_delete_all(/*SPD*/ void *spd);
-//int tcap_higher_prio(struct thread *activated, struct thread *curr);
-//int tcap_receiver(struct thread *t, struct tcap *tcapdst);
-//void tcap_elapsed(struct thread *t, unsigned int cycles);
-//int tcap_bind(struct thread *t, struct tcap *tcap);
+int tcap_merge(struct tcap *dst, struct tcap *rm);
+int tcap_higher_prio(struct tcap *a, struct tcap *c);
 
-int tcap_root(/*SPD*/ void *s);
-void tcap_root_rem(/*SPD*/ void *dst);
-int tcap_root_alloc(/*SPD*/ void *dst, struct tcap *from, int prio, int cycles);
-void tcap_root_yield(/*SPD*/ void *s);
 struct thread *tcap_tick_handler(void);
 void tcap_timer_choose(int c);
 
