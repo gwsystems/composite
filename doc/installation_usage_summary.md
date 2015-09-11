@@ -20,35 +20,37 @@ Shell commands prefixed by `$` are normal user commands, and those prefixed by `
    
 6. `$ make ; make modules`
 
-7. `# make install; make modules_install ; mkinitramfs -o /boot/initrd.img-2.6.36 2.6.36 ; update-grub` 
+7. Make sure that you edit `/etc/default/grub` if necessary before continuing.
+
+8. `# make install; make modules_install ; mkinitramfs -o /boot/initrd.img-2.6.36 2.6.36 ; update-grub` 
 
    Make sure that you edit `/etc/default/grub` before updating grub.
 
-8. `$ cd ../composite/src/ ; make config ; make init` 
+9. `$ cd ../composite/src/ ; make config ; make init` 
 
    Make sure to follow the instructions of `make config` to verify
    that the configuration information is correct.  Be sure to watch
    for errors during `make init`
 
-9. `$ make ; make cp`
+10. `$ make ; make cp`
 
-   You'll run this every time you write some code and want to recompile and test.
+   The following steps will need to be run every time you write some code and want to recompile and test. Notice that they are all superuser. Since you cannot `sudo cd` it is recommended you just do `sudo -i` and really become superuser at this point.
 
-10. `# cd ; mkdir experiments ; cp ~yourusername/transfer/* .`
+1. `# cd ; mkdir experiments ; cd experiments ; cp ~yourusername/transfer/* .`
 
-11. `# make init ; sh unit_torrent.sh`
+2. `# make init ; sh unit_torrent.sh`
 
     Only use `make init` once per reboot.
 
-12. `$ dmesg | less`
+3. `$ dmesg | less`
 
     See the bottom of the kernel log for output from *Composite*.
 
-13. `# make`
+4. `# make`
 
     Use `make` to run the system repeatedly (as opposed to `make init`).
 
-14. `# sh unit_torrent.sh`
+5. `# sh unit_torrent.sh`
 
 Shell Setup
 -----------
