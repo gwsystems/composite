@@ -85,13 +85,13 @@ async_thd_fn(void *thdcap)
 	unsigned long a, b;
 	int pending;
 
-	printc("Asynchronous event thread handler.\n\t< rcving...\n");
+	printc("Asynchronous event thread handler.\n<-- rcving...\n");
 	pending = cos_rcv(rc, &a, &b);
-	printc("\t< pending %d\n\t< rcving...\n", pending);
+	printc("<-- pending %d, %lx, %lx\n<-- rcving...\n", pending, a, b);
 	pending = cos_rcv(rc, &a, &b);
-	printc("\t< pending %d\n\t< rcving...\n", pending);
+	printc("<-- pending %d, %lx, %lx\n<-- rcving...\n", pending, a, b);
 	pending = cos_rcv(rc, &a, &b);
-	printc("\t< Error: manually returning to snding thread.\n");
+	printc("<-- Error: manually returning to snding thread.\n");
 	cos_thd_switch(tc);
 	printc("ERROR: in async thd *after* switching back to the snder.\n");
 	while (1) ;
@@ -114,15 +114,15 @@ test_async_endpoints(void)
 	rc_global = rc;
 	sc = cos_asnd_alloc(&booter_info, rc, booter_info.captbl_cap);
 	assert(sc);
-	printc("> sending\n");
+	printc("--> sending\n");
 	ret = cos_asnd(sc);
 	if (ret) printc("asnd returned %d.\n", ret);
-	printc("> Back in the asnder.\n> sending\n");
+	printc("--> Back in the asnder.\n--> sending\n");
 	ret = cos_asnd(sc);
-	if (ret) printc("> asnd returned %d.\n", ret);
-	printc("> Back in the asnder.\n> receiving to get notifications");
+	if (ret) printc("--> asnd returned %d.\n", ret);
+	printc("--> Back in the asnder.\n--> receiving to get notifications\n");
 	pending = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &a, &b);
-	printc("> pending %d\n", pending);
+	printc("--> pending %d, %lx, %lx\n", pending, a, b);
 	printc("Async end-point test successful.\nTest done.\n");
 }
 
@@ -136,9 +136,13 @@ cos_init(void)
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
 
+	printc("---------------------------\n");
 	test_thds();
+	printc("---------------------------\n");
 	test_mem();
+	printc("---------------------------\n");
 	test_async_endpoints();
+	printc("---------------------------\n");
 
 	printc("\nMicro Booter done.\n");
 

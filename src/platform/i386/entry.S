@@ -44,7 +44,7 @@ sysenter_entry:
 	RET_TO_USER
 
 /* TODO: autogenerate these with offsetof within gen_asm_offsets.c */
-#define THD_REGS 8
+#define THD_REGS 4
 PT_EBX		= 0x00
 PT_ECX		= 0x04
 PT_EDX		= 0x08
