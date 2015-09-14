@@ -37,7 +37,7 @@ Shell commands prefixed by `$` are normal user commands, and those prefixed by `
 Recompile Steps
 ---------------
 
-   The following steps will need to be run every time you write some code and want to recompile and test. Notice that they are all superuser. Since you cannot `sudo cd` it is recommended you just do `sudo -i` and really become superuser at this point.
+   The following steps will need to be run every time you write some code and want to recompile and test. Notice that they are all superuser. Since you cannot `sudo cd` it is recommended you just do `sudo -i` or `sudo su` and really become superuser at this point.
 
 1. `# cd ; mkdir experiments ; cd experiments ; cp ~yourusername/transfer/* .`
 
