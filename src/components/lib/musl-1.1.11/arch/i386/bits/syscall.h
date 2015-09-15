@@ -138,7 +138,7 @@
 #define __NR_afs_syscall	137
 #define __NR_setfsuid		138
 #define __NR_setfsgid		139
-#define __NR__llseek		140
+//#define __NR__llseek		140
 #define __NR_getdents		141
 #define __NR__newselect		142
 #define __NR_flock		143
@@ -501,7 +501,7 @@
 #define SYS_afs_syscall	137
 #define SYS_setfsuid		138
 #define SYS_setfsgid		139
-#define SYS__llseek		140
+//#define SYS__llseek		140
 #define SYS_getdents		141
 #define SYS__newselect		142
 #define SYS_flock		143
