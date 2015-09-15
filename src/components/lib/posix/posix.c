@@ -16,51 +16,51 @@ cos_syscall_t cos_syscalls[SYSCALLS_NUM];
 __attribute__((regparm(1))) long
 __cos_syscall(int syscall_num, long a, long b, long c, long d, long e, long f)
 {
-        assert(syscall_num <= SYSCALLS_NUM);
+	assert(syscall_num <= SYSCALLS_NUM);
 
-        return cos_syscalls[syscall_num](a, b, c, d, e, f);
+	return cos_syscalls[syscall_num](a, b, c, d, e, f);
 }
 
 static void
 libc_syscall_override(cos_syscall_t fn, int syscall_num)
 {
-        cos_syscalls[syscall_num] = fn;
+	cos_syscalls[syscall_num] = fn;
 
-        return;
+	return;
 }
 
 int
 cos_open(const char *pathname, int flags, int mode)
 {
-        /*mode param is only for O_CREAT in flags*/
-        td_t td;
-        long evt;
-        evt = evt_split(cos_spd_id(), 0, 0);
-        assert(evt > 0);
-        td = tsplit(cos_spd_id(), td_root, (char *)pathname, strlen(pathname), TOR_ALL, evt);
+	/* mode param is only for O_CREAT in flags */
+	td_t td;
+	long evt;
+	evt = evt_split(cos_spd_id(), 0, 0);
+	assert(evt > 0);
+	td = tsplit(cos_spd_id(), td_root, (char *)pathname, strlen(pathname), TOR_ALL, evt);
 
-        if (td <= 0) {
-                printc("open() failed!\n");
-                assert(0);
-        }
+	if (td <= 0) {
+		printc("open() failed!\n");
+		assert(0);
+	}
 
-        return td + 3; /* fd number adjust for reserved fd 0, 1 and 2 */
+	return td + 3; /* fd number adjust for reserved fd 0, 1 and 2 */
 }
 
 int
 cos_close(int fd)
 {
-        trelease(cos_spd_id(), fd - 3); /* return void, use tor_lookup? */
+	trelease(cos_spd_id(), fd - 3); /* return void, use tor_lookup? */
 
-        return 0; /* return -1 if failed */
+	return 0; /* return -1 if failed */
 }
 
 ssize_t
 cos_read(int fd, void *buf, size_t count)
 {
-        int ret = tread_pack(cos_spd_id(), fd - 3, buf, count);
+	int ret = tread_pack(cos_spd_id(), fd - 3, buf, count);
 
-        return ret;
+	return ret;
 }
 
 ssize_t
@@ -82,23 +82,23 @@ cos_write(int fd, const void *buf, size_t count)
 void *
 cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
-        if (addr != NULL) {
-                printc("parameter void *addr is not supported!\n");
-                assert(0);
-        }
-        if (fd != -1) {
-                printc("file mapping is not supported!\n");
-                assert(0);
-        }
+	if (addr != NULL) {
+		printc("parameter void *addr is not supported!\n");
+		assert(0);
+	}
+	if (fd != -1) {
+		printc("file mapping is not supported!\n");
+		assert(0);
+	}
 
-        void *ret = do_mmap(length);
+	void *ret = do_mmap(length);
 
-        if (ret == (void *)-1) { /* return value comes from man page */
-                printc("mmap() failed!\n");
-                assert(0);
-        }
+	if (ret == (void *)-1) { /* return value comes from man page */
+		printc("mmap() failed!\n");
+		assert(0);
+	}
 
-        return ret;
+	return ret;
 }
 
 int
@@ -107,7 +107,7 @@ cos_munmap(void *start, size_t length)
         int ret = do_munmap(start, length);
         assert(ret == -1);
 
-        return ret;
+	return ret;
 }
 
 void *
@@ -121,48 +121,48 @@ cos_mremap(void *old_address, size_t old_size, size_t new_size, int flags)
 off_t
 cos_lseek(int fd, off_t offset, int whence)
 {
-        /* TODO: we can use a simpler twmeta_pack(td_t td, const char *key, const char *val) */
-        char val[8]; /* TODO: length number need to be selected */
-        int ret = -1;
-        int td = fd - 3;
+	/* TODO: we can use a simpler twmeta_pack(td_t td, const char *key, const char *val) */
+	char val[8]; /* TODO: length number need to be selected */
+	int ret = -1;
+	int td = fd - 3;
 
-        if (whence == SEEK_SET) {
-                snprintf(val, 8, "%ld", offset);
-                ret = twmeta(cos_spd_id(), td, "offset", strlen("offset"), val, strlen(val));
-                assert(ret == 0);
-        } else if (whence == SEEK_CUR) {
-                /* TODO: return value not checked */
-                char offset_curr[8];
-                trmeta(cos_spd_id(), td, "offset", strlen("offset"), offset_curr, 8);
-                snprintf(val, 8, "%ld", atol(offset_curr) + offset);
-                ret = twmeta(cos_spd_id(), td, "offset", strlen("offset"), val, strlen(val));
-                assert(ret == 0);
-        } else if (whence == SEEK_END) {
-                printc("lseek::SEEK_END not implemented !\n");
-                assert(0);
-                /* TODO: how to get the length of the file? */
-        }
+	if (whence == SEEK_SET) {
+		snprintf(val, 8, "%ld", offset);
+		ret = twmeta(cos_spd_id(), td, "offset", strlen("offset"), val, strlen(val));
+		assert(ret == 0);
+	} else if (whence == SEEK_CUR) {
+		/* TODO: return value not checked */
+		char offset_curr[8];
+		trmeta(cos_spd_id(), td, "offset", strlen("offset"), offset_curr, 8);
+		snprintf(val, 8, "%ld", atol(offset_curr) + offset);
+		ret = twmeta(cos_spd_id(), td, "offset", strlen("offset"), val, strlen(val));
+		assert(ret == 0);
+	} else if (whence == SEEK_END) {
+		printc("lseek::SEEK_END not implemented !\n");
+		assert(0);
+		/* TODO: how to get the length of the file? */
+	}
 
-        if   (ret != -1) return atoi(val);
-        else             return ret;
+	if   (ret != -1) return atoi(val);
+	else             return ret;
 }
 
 /*int*/
 /*cos_fstat(int fd, struct stat *buf)*/
 /*{*/
-        /*printf("syscall: fstat\n");*/
+	/*printf("syscall: fstat\n");*/
         
-        /*return 0;*/
+	/*return 0;*/
 /*}*/
 
 int
 default_syscall(void)
 {
-        int syscall_num;
-        asm volatile("movl %%eax,%0" : "=r" (syscall_num));
-        printc("WARNING: Component %ld calling undifined system call %d\n", cos_spd_id(), syscall_num);
+	int syscall_num;
+	asm volatile("movl %%eax,%0" : "=r" (syscall_num));
+	printc("WARNING: Component %ld calling undifined system call %d\n", cos_spd_id(), syscall_num);
 
-        return 0;
+	return 0;
 }
 
 CCTOR static void
