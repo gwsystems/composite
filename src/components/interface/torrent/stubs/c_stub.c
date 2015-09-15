@@ -32,6 +32,7 @@ CSTUB_FN(td_t, tsplit)(struct usr_inv_cap *uc,
         d->len[0] = 0;
         d->len[1] = len;
 	memcpy(&d->data[0], param, len + 1);
+	cbuf_send(cb);
 
 	CSTUB_INVOKE(ret, fault, uc, 3, spdid, cb, sz);
 
@@ -67,6 +68,7 @@ CSTUB_FN(int, tmerge)(struct usr_inv_cap *uc,
         d->len[0] = 0;
         d->len[1] = len;
 	memcpy(&d->data[0], param, len);
+	cbuf_send(cb);
 	
 	CSTUB_INVOKE(ret, fault, uc, 3, spdid, cb, sz);
 
@@ -127,6 +129,7 @@ CSTUB_FN(int, trmeta)(struct usr_inv_cap *uc,
         d->klen = klen;
         d->retval_len = max_rval_len;
         memcpy(&d->data[0], key, klen + 1);
+        cbuf_send(cb);
 
 	CSTUB_INVOKE(ret, fault, uc, 3, spdid, cb, sz);
 
@@ -168,6 +171,7 @@ CSTUB_FN(int, twmeta)(struct usr_inv_cap *uc,
         d->vlen = vlen;
         memcpy(&d->data[0], key, klen + 1);
         memcpy(&d->data[klen + 1], val, vlen + 1);
+        cbuf_send(cb);
 
 	CSTUB_INVOKE(ret, fault, uc, 3, spdid, cb, sz);
 

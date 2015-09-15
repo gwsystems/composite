@@ -10,6 +10,7 @@ struct __sg_tsplit_data {
 td_t __sg_tsplit(spdid_t spdid, cbuf_t cbid, int len)
 {
 	struct __sg_tsplit_data *d;
+	td_t ret;
 
 	d = cbuf2buf(cbid, len);
 	if (unlikely(!d)) return -5;
@@ -19,8 +20,10 @@ td_t __sg_tsplit(spdid_t spdid, cbuf_t cbid, int len)
 	if (unlikely(((int)(d->len[1] + sizeof(struct __sg_tsplit_data))) != len)) return -4;
 	if (unlikely(d->tid == 0)) return -EINVAL;
 
-	return tsplit(spdid, d->tid, &d->data[0], 
+	ret = tsplit(spdid, d->tid, &d->data[0], 
 		      d->len[1] - d->len[0], d->tflags, d->evtid);
+	cbuf_free(cbid);
+	return ret;
 }
 
 int
@@ -39,6 +42,7 @@ int
 __sg_tmerge(spdid_t spdid, cbuf_t cbid, int len)
 {
 	struct __sg_tmerge_data *d;
+	int ret;
 
 	d = cbuf2buf(cbid, len);
 	if (unlikely(!d)) return -1;
@@ -47,7 +51,9 @@ __sg_tmerge(spdid_t spdid, cbuf_t cbid, int len)
 	if (unlikely(d->len[0] >= d->len[1])) return -1;
 	if (unlikely(((int)(d->len[1] + (sizeof(struct __sg_tmerge_data)))) != len)) return -1;
 
-	return tmerge(spdid, d->td, d->td_into, &d->data[0], d->len[1] - d->len[0]);
+	ret = tmerge(spdid, d->td, d->td_into, &d->data[0], d->len[1] - d->len[0]);
+	cbuf_free(cbid);
+	return ret;
 }
 
 struct __sg_trmeta_data {
@@ -59,6 +65,7 @@ int
 __sg_trmeta(spdid_t spdid, cbuf_t cbid, int len)
 {
         struct __sg_trmeta_data *d;
+	int ret;
 
         d = cbuf2buf(cbid, len);
         if (unlikely(!d)) return -5;
@@ -67,8 +74,10 @@ __sg_trmeta(spdid_t spdid, cbuf_t cbid, int len)
         if (unlikely(d->retval_len <= 0)) return -3;
         if (unlikely(d->td == 0)) return -EINVAL;
 
-        return trmeta(spdid, d->td, &d->data[0], d->klen, 
+        ret = trmeta(spdid, d->td, &d->data[0], d->klen, 
                         &d->data[d->klen + 1], d->retval_len);
+	cbuf_free(cbid);
+	return ret;
 }
 
 struct __sg_twmeta_data {
@@ -80,6 +89,7 @@ int
 __sg_twmeta(spdid_t spdid, cbuf_t cbid, int len)
 {
         struct __sg_twmeta_data *d;
+	int ret;
 
         d = cbuf2buf(cbid, len);
         if (unlikely(!d)) return -5;
@@ -88,6 +98,8 @@ __sg_twmeta(spdid_t spdid, cbuf_t cbid, int len)
         if (unlikely(d->vlen <= 0)) return -2; // TODO: write "" to td->data?
         if (unlikely(d->td == 0)) return -EINVAL;
 
-        return twmeta(spdid, d->td, &d->data[0], d->klen, 
+        ret = twmeta(spdid, d->td, &d->data[0], d->klen, 
                         &d->data[d->klen + 1], d->vlen);
+	cbuf_free(cbid);
+	return ret;
 }

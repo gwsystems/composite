@@ -107,6 +107,7 @@ int tor_cons(struct torrent *t, void *data, int flags)
 	t->data   = data;
 	t->flags  = flags;
 	t->offset = 0;
+	t->evtid  = 0;
 
 	return 0;
 }

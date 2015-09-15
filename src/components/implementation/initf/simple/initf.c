@@ -24,6 +24,7 @@ __initf_read(int offset, int cbid, int sz)
         buf = cbuf2buf(cbid, amnt);
         if (!buf) assert(0);
         memcpy(buf, info.start+offset, amnt);
+        cbuf_free(cbid);
 
         return amnt;
 }
