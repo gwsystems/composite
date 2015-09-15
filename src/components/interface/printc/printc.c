@@ -1,6 +1,7 @@
 #include <cos_component.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include <printc.h>
 
 #define ARG_STRLEN 512
