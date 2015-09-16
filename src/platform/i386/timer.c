@@ -93,17 +93,19 @@ void
 timer_print(int n)
 {
 	printk("--- Timer %d:\n", n);
-	printk("--- int_type_cnf:    %u\n", hpet->timers[n].config.int_type_cnf);
-	printk("--- int_enb_cnf:     %u\n", hpet->timers[n].config.int_enb_cnf);
-	printk("--- type_cnf:        %u\n", hpet->timers[n].config.type_cnf);
-	printk("--- per_int_cap:     %u\n", hpet->timers[n].config.per_int_cap);
-	printk("--- size_cap:        %u\n", hpet->timers[n].config.size_cap);
-	printk("--- val_set_cnf:     %u\n", hpet->timers[n].config.val_set_cnf);
-	printk("--- 32mode_cnf:      %u\n", hpet->timers[n].config.mode32_cnf);
-	printk("--- int_route_cnf:   %u\n", hpet->timers[n].config.int_route_cnf);
-	printk("--- fsb_en_cnf:      %u\n", hpet->timers[n].config.fsb_en_cnf);
-	printk("--- fsb_int_del_cap: %u\n", hpet->timers[n].config.fsb_int_del_cap);
-	printk("--- int_route_cap:   %x\n", hpet->timers[n].config.int_route_cap);
+	printk("--- int_type_cnf int_enb_cnf type_cnf per_int_cap size_cap val_set_cnf 32mode_cnf int_route_cnf fsb_en_cnf fsb_int_del_cap int_route_cap\n");
+	printk("--- %12u %11u %8u %11u %8u %11u %10u %13u %10u %15u %13u\n",
+		hpet->timers[n].config.int_type_cnf,
+		hpet->timers[n].config.int_enb_cnf,
+		hpet->timers[n].config.type_cnf,
+		hpet->timers[n].config.per_int_cap,
+		hpet->timers[n].config.size_cap,
+		hpet->timers[n].config.val_set_cnf,
+		hpet->timers[n].config.mode32_cnf,
+		hpet->timers[n].config.int_route_cnf,
+		hpet->timers[n].config.fsb_en_cnf,
+		hpet->timers[n].config.fsb_int_del_cap,
+		hpet->timers[n].config.int_route_cap);
 }
 
 void
@@ -114,7 +116,7 @@ timer_callback(struct registers *regs)
     rdtscll(cycle);
 
     if (tick < 25) {
-        printk("Tick: %2u @%10llu (%10llu)\n", tick, cycle, hpet->counter);
+        printk("Tick: %2u @%10llu (%10llu) ((%10llu))\n", tick, cycle, hpet->counter, ((unsigned long long*)hpet)[30]);
 	timerout *= 10;
     }
 
@@ -133,9 +135,9 @@ timer_set(int timer_type, u64_t cycles)
 {
     hpet->config.enable_cnf = 0;
     hpet->counter = 0;
-    printk("Setting timer 0:\n");
-    printk("- Before:\n");
-    timer_print(0);
+    /* printk("Setting timer 0:\n"); */
+    /* printk("- Before:\n"); */
+    /* timer_print(0); */
     hpet->timers[0].config.val_set_cnf = 1;
     if (timer_type == TIMER_ONESHOT) {
     	hpet->timers[0].compare = cycles + hpet->counter;
@@ -145,8 +147,8 @@ timer_set(int timer_type, u64_t cycles)
     }
     current_type = timer_type;
     hpet->timers[0].config.int_enb_cnf = 1;
-    printk("- After:\n");
-    timer_print(0);
+    /* printk("- After:\n"); */
+    /* timer_print(0); */
     hpet->interrupt = 1;
     hpet->config.enable_cnf = 1;
 }
@@ -201,7 +203,7 @@ timer_set_hpet_page(u32_t page)
 	hpet = (HPET*)(page * (1 << 22) | ((u32_t)hpet & ((1<<22)-1)));
 	unsigned char *b = (unsigned char *)hpet;
 	hpet->config.enable_cnf = 1;
-	hpet->config.leg_rt_cnf = 1;
+	/* hpet->config.leg_rt_cnf = 1; */
 	printk("Set HPET @ %p\n", hpet);
 	printk("-- Rev ID:           %x\n", hpet->cap.rev_id & 0xff);
 	printk("-- Num_Tim_Cap:      %u\n", hpet->cap.num_tim_cap);
