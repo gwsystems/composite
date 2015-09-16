@@ -35,7 +35,7 @@ typedef struct {
 } __attribute__((packed)) HPET_tab;
 
 typedef volatile struct {
-	struct {
+	const struct {
 		u8_t rev_id;
 		u8_t num_tim_cap :5;
 		u8_t count_size_cap :1;
@@ -61,7 +61,7 @@ typedef volatile struct {
 	struct {
 		struct {
 			u8_t res1 :1;
-			u8_t int_typc_cnf :1;
+			u8_t int_type_cnf :1;
 			u8_t int_enb_cnf :1;
 			u8_t type_cnf :1;
 			u8_t per_int_cap :1;
@@ -78,7 +78,8 @@ typedef volatile struct {
 		
 		u64_t compare;
 		u64_t interrupt;
-	} timers[0];
+		u64_t reserved;
+	} timers[3];
 } __attribute__((packed)) HPET;
 
 static HPET *hpet;
@@ -87,6 +88,23 @@ static u32_t tick = 0;
 static int current_type = TIMER_FREQUENCY;
 static u64_t oneshot_target = 0;
 static u64_t timerout = 0;
+
+void
+timer_print(int n)
+{
+	printk("--- Timer %d:\n", n);
+	printk("--- int_type_cnf:    %u\n", hpet->timers[n].config.int_type_cnf);
+	printk("--- int_enb_cnf:     %u\n", hpet->timers[n].config.int_enb_cnf);
+	printk("--- type_cnf:        %u\n", hpet->timers[n].config.type_cnf);
+	printk("--- per_int_cap:     %u\n", hpet->timers[n].config.per_int_cap);
+	printk("--- size_cap:        %u\n", hpet->timers[n].config.size_cap);
+	printk("--- val_set_cnf:     %u\n", hpet->timers[n].config.val_set_cnf);
+	printk("--- 32mode_cnf:      %u\n", hpet->timers[n].config.mode32_cnf);
+	printk("--- int_route_cnf:   %u\n", hpet->timers[n].config.int_route_cnf);
+	printk("--- fsb_en_cnf:      %u\n", hpet->timers[n].config.fsb_en_cnf);
+	printk("--- fsb_int_del_cap: %u\n", hpet->timers[n].config.fsb_int_del_cap);
+	printk("--- int_route_cap:   %x\n", hpet->timers[n].config.int_route_cap);
+}
 
 void
 timer_callback(struct registers *regs)
@@ -107,6 +125,7 @@ timer_callback(struct registers *regs)
     }
 
     timer_set(TIMER_ONESHOT, timerout);
+    hpet->interrupt = 1;
 }
 
 void
@@ -116,21 +135,19 @@ timer_set(int timer_type, u64_t cycles)
     hpet->counter = 0;
     printk("Setting timer 0:\n");
     printk("- Before:\n");
-    printk("-- Type:    %d\n", hpet->timers[0].config.type_cnf);
-    printk("-- Enabled: %d\n", hpet->timers[0].config.int_enb_cnf);
-    printk("-- Compare: %lld\n", hpet->timers[0].compare);
+    timer_print(0);
     hpet->timers[0].config.val_set_cnf = 1;
     if (timer_type == TIMER_ONESHOT) {
-	hpet->timers[0].config.type_cnf = 1;
     	hpet->timers[0].compare = cycles + hpet->counter;
     } else {
+	hpet->timers[0].config.type_cnf = 1;
 	hpet->timers[0].compare = cycles;
     }
+    current_type = timer_type;
     hpet->timers[0].config.int_enb_cnf = 1;
     printk("- After:\n");
-    printk("-- Type:    %d\n", hpet->timers[0].config.type_cnf);
-    printk("-- Enabled: %d\n", hpet->timers[0].config.int_enb_cnf);
-    printk("-- Compare: %lld\n", hpet->timers[0].compare);
+    timer_print(0);
+    hpet->interrupt = 1;
     hpet->config.enable_cnf = 1;
 }
 
@@ -180,13 +197,15 @@ timer_find_hpet(void *timer)
 void
 timer_set_hpet_page(u32_t page)
 {
+	int i;
 	hpet = (HPET*)(page * (1 << 22) | ((u32_t)hpet & ((1<<22)-1)));
+	unsigned char *b = (unsigned char *)hpet;
 	hpet->config.enable_cnf = 1;
 	hpet->config.leg_rt_cnf = 1;
 	printk("Set HPET @ %p\n", hpet);
 	printk("-- Rev ID:           %x\n", hpet->cap.rev_id & 0xff);
 	printk("-- Num_Tim_Cap:      %u\n", hpet->cap.num_tim_cap);
-	printk("-- Count_Size_Cap:   %u-bit\n", hpet->cap.count_size_cap ? 64 : 32);
+	printk("-- Count_Size_Cap:   %u\n", hpet->cap.count_size_cap);
 	printk("-- Leg_Route_Cap:    %u\n", hpet->cap.leg_route_cap & 1);
 	printk("-- Vendor ID:        %hx\n", hpet->cap.vendor_id);
 	printk("-- Period:           %d fs\n", hpet->cap.counter_clk_period);
@@ -194,17 +213,25 @@ timer_set_hpet_page(u32_t page)
 	printk("-- Leg_RT_CNF:       %d\n", hpet->config.leg_rt_cnf);
 	printk("-- Interrupt Status: %llx\n", hpet->interrupt);
 	printk("-- Counter:          %llx\n", hpet->counter);
+
+	for (i = 0; i <= 0xff; i++) {
+		printk("%02x%c", b[i] & 0xff, i % 16 == 15 ? '\n' : ' '); 
+	}
 }
+
 
 void
 timer_init(int timer_type, u64_t cycles)
 {
     printk("Enabling timer @ %p\n", hpet);
     register_interrupt_handler(IRQ0, timer_callback);
-    /* register_interrupt_handler(IRQ2, timer_callback); */
+    register_interrupt_handler(IRQ2, timer_callback);
 
     timer_set(timer_type, cycles);
     timerout = cycles;
+
+    printk("T0: %lld\n", hpet->counter);
+    printk("T1: %lld\n", hpet->counter);
 
     __asm__("sti");
     while (tick < 15) { __asm__("hlt"); }
