@@ -1,11 +1,17 @@
 #ifndef EINVAL
 #define EINVAL 22
 #endif
+#ifndef EAGAIN
+#define EAGAIN 11
+#endif
 #ifndef EEXIST
 #define EEXIST 17
 #endif
 #ifndef EPERM
 #define EPERM 1
+#endif
+#ifndef EBUSY
+#define EBUSY 16
 #endif
 #ifndef ENOENT
 #define ENOENT 2

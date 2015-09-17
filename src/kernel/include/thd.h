@@ -15,6 +15,7 @@
 #include "pgtbl.h"
 #include "retype_tbl.h"
 #include "tcap.h"
+#include "list.h"
 
 struct invstk_entry {
 	struct comp_info comp_info;
@@ -23,123 +24,62 @@ struct invstk_entry {
 
 #define THD_INVSTK_MAXSZ 32
 
-#define THD_STATE_PREEMPTED     0x1   /* Complete register info is saved in regs */
-#define THD_STATE_UPCALL        0x2   /* Thread for upcalls: ->srv_acap points to the acap who we're linked to */
-#define THD_STATE_ACTIVE_UPCALL 0x4   /* Thread is in upcall execution. */
-#define THD_STATE_READY_UPCALL  0x8   /* Same as previous, but we are ready to execute */
-#define THD_STATE_SCHED_RETURN  0x10  /* When the sched switches to this thread, ret from ipc */
-#define THD_STATE_FAULT         0x20  /* Thread has had a (e.g. page) fault which is being serviced */
-#define THD_STATE_HW_ACAP      0x40 /* Actual hardware should be making this acap */
-#define THD_STATE_CYC_CNT       0x80 /* This thread is being cycle tracked */
-
-#ifdef LINUX_TEST
-
-//used for tests only
-struct thread {
-	thdid_t tid;
-	int refcnt, invstk_top;
-	cpuid_t cpuid;
-	struct comp_info comp_info; /* which scheduler to notify of events? FIXME: ignored for now */
-	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
-////////////////
-        struct pt_regs regs;
-	unsigned short int thread_id, cpu_id, flags;
-	struct thread *interrupted_thread, *preempter_thread;
-	capid_t arcv_cap; /* the acap id we are waiting on */
-};
-
-#else
-
-struct arcv_endpoint_info {
-	//struct tcap *tc;
-	/* how many other arcv end-points defer to this one? */
-	int refcnt;
-};
-
-struct thd_invocation_frame {
-	struct spd_poly *current_composite_spd;
-	/*
-	 * sp and ip are literally the sp and ip that the kernel sets
-	 * on return to user-level.
-	 */
-	struct spd *spd;
-	vaddr_t sp, ip;
-}; //HALF_CACHE_ALIGNED;
-
 /*
- * The scheduler at a specific hierarchical depth and the shared data
- * structure between it and this thread.
+ * This is the data structure embedded in threads that are associated
+ * with an asynchronous receive end-point.  It tracks the reference
+ * count on that rcvcap, the tcap associated with it, and the thread
+ * associated with the rcvcap that receives notifications for this
+ * rcvcap.
  */
-struct thd_sched_info {
-	struct spd *scheduler;
-	struct cos_sched_events *thread_notifications;
-	int notification_offset;
+struct rcvcap_info {
+	/* how many other arcv end-points send notifications to this one? */
+	int isbound, pending, refcnt;
+	/* struct tcap *rcvcap_tcap; */  /* This rcvcap's tcap */
+	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
 };
+
+typedef enum {
+	THD_STATE_PREEMPTED   = 1,
+	THD_STATE_RCVING      = 1<<1, /* report to parent rcvcap that we're receiving */
+} thd_state_t;
 
 /**
  * The thread descriptor.  Contains all information pertaining to a
- * thread including its address space, capabilities to services, and
- * the kernel invocation stack of execution through components.
+ * thread including its registers, id, rcvcap information, and, most
+ * importantly, the kernel invocation stack of execution through
+ * components.
  */
 struct thread {
-	short int stack_ptr;
-	unsigned short int thread_id, cpu_id, flags;
-
-	/*
-	 * Watch your alignments here!!!
-	 *
-	 * changes in the alignment of this struct must also be
-	 * reflected in the alignment of regs in struct thread in
-	 * ipc.S.  Would love to put this at the bottom of the struct.
-	 * TODO: use offsetof to produce an include file at build time
-	 * to automtically generate the assembly offsets.
-	 */
+	thdid_t tid;
+	u16_t invstk_top;
         struct pt_regs regs;
+        struct pt_regs fault_regs;
         struct cos_fpu fpu;
 
-	/* the first frame describes the threads protection domain */
-	struct thd_invocation_frame stack_base[MAX_SERVICE_DEPTH] HALF_CACHE_ALIGNED;
-	struct pt_regs fault_regs;
-
-	struct arcv_endpoint_info arcv_info;
-
-	void *data_region;
-	vaddr_t ul_data_page;
-
-	struct thd_sched_info sched_info[MAX_SCHED_HIER_DEPTH] CACHE_ALIGNED;
-
-	/* Start Upcall fields: */
-
-	/* flags & THD_STATE_UPCALL */
-	struct thread *interrupted_thread, *preempter_thread;
-
-	unsigned long pending_upcall_requests;
-
-	/* End Upcall fields */
-
-	int cpu; /* set during creation */
-	struct async_cap *srv_acap; /* The current acap the thread is waiting on. */
-
-	/* flags & THD_STATE_UPCALL != 0: */
-	//struct thread *upcall_thread_ready, *upcall_thread_active;
-
-	struct thread *freelist_next;
-
-//////
-	thdid_t tid;
-	int refcnt, invstk_top;
-	cpuid_t cpuid;
-	struct comp_info comp_info; /* which scheduler to notify of events? FIXME: ignored for now */
+	/* TODO: same cache-line as the tid */
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
-	capid_t arcv_cap; /* the acap id we are waiting on */
-	/* TODO: gp and fp registers */
 
-	/* Reference to TCAP bound to thread through arcv_cap */
+	thd_state_t state;
+	cpuid_t cpuid;
+	unsigned int refcnt;
+	unsigned long exec;  		/* execution time */
+	struct thread *interrupted_thread;
+
+	/* rcv end-point data-structures */
+	struct rcvcap_info rcvcap;
+	struct list        event_head; /* all events for *this* end-point */
+	struct list_node   event_list; /* the list of events for another end-point */
+
 	struct tcap *tcap;
 } CACHE_ALIGNED;
 
-#endif
-
+/*
+ * Thread capability descriptor that is minimal and contains only
+ * consistency checking information (cpuid to ensure we're accessing
+ * the thread on the correct core), and a pointer to the thread itself
+ * that needs no synchronization (it is core-local, and interrupts are
+ * disabled in the kernel).
+ */
 struct cap_thd {
 	struct cap_header h;
 	struct thread *t;
@@ -151,7 +91,7 @@ thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int
 {
 	struct pt_regs *r = &thd->regs;
 
-	thd->flags |= THD_STATE_PREEMPTED;
+	thd->state |= THD_STATE_PREEMPTED;
 	r->cx = option;
 
 	r->bx = arg1;
@@ -185,14 +125,83 @@ alloc_thd_id(void)
 	return cos_faa((int*)&free_thd_id, 1);
 }
 
+static void
+thd_rcvcap_take(struct thread *t)
+{ t->rcvcap.refcnt++; }
+
+static void
+thd_rcvcap_release(struct thread *t)
+{ t->rcvcap.refcnt--; }
+
+static int
+thd_rcvcap_isreferenced(struct thread *t)
+{ return t->rcvcap.refcnt > 0; }
+
+static int
+thd_bound2rcvcap(struct thread *t)
+{ return t->rcvcap.isbound; }
+
+static void
+thd_rcvcap_init(struct thread *t)
+{
+	struct rcvcap_info *rc = &t->rcvcap;
+
+	rc->isbound = rc->pending = rc->refcnt = 0;
+	rc->rcvcap_thd_notif = NULL;
+}
+
+static inline void
+thd_rcvcap_evt_enqueue(struct thread *head, struct thread *t)
+{ if (list_empty(&t->event_list)) list_enqueue(&head->event_head, &t->event_list); }
+
+static inline void
+thd_list_rem(struct thread *head, struct thread *t)
+{ list_rem(&t->event_list); }
+
+static inline struct thread *
+thd_rcvcap_evt_dequeue(struct thread *head)
+{ return list_dequeue(&head->event_head); }
+
+static inline int
+thd_state_evt_deliver(struct thread *t, unsigned long *a, unsigned long *b)
+{
+	struct thread *e = thd_rcvcap_evt_dequeue(t);
+
+	assert(thd_bound2rcvcap(t));
+	if (!e) return 0;
+
+	*a      = e->tid | (e->state & THD_STATE_RCVING ? 1<<31 : 0);
+	*b      = e->exec;
+	e->exec = 0;		/* TODO: actual cycle accounting */
+
+	return 1;
+}
+
+static int
+thd_rcvcap_pending(struct thread *t)
+{ return t->rcvcap.pending || list_first(&t->event_head) != NULL; }
+
+static void
+thd_rcvcap_pending_inc(struct thread *arcvt)
+{ arcvt->rcvcap.pending++; }
+
+static int
+thd_rcvcap_pending_dec(struct thread *arcvt)
+{
+	int pending = arcvt->rcvcap.pending;
+
+	if (pending == 0) return 0;
+	arcvt->rcvcap.pending--;
+
+	return pending;
+}
+
 static int
 thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, capid_t compcap, int init_data)
 {
 	struct cap_thd *tc;
 	struct cap_comp *compc;
 	int ret;
-
-	int id = thd->tid;
 
 	compc = (struct cap_comp *)captbl_lkup(t, compcap);
 	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
@@ -205,26 +214,23 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	thd->invstk[0].ip = thd->invstk[0].sp = 0;
 	thd->tid          = alloc_thd_id();
 	thd->refcnt       = 1;
-	thd->invstk_top   = 0;
+     	thd->invstk_top   = 0;
+	thd->cpuid        = get_cpuid();
 	assert(thd->tid <= MAX_NUM_THREADS);
+
+	thd_rcvcap_init(thd);
+	list_head_init(&thd->event_head);
+	list_init(&thd->event_list, thd);
 
 	thd_upcall_setup(thd, compc->entry_addr, COS_UPCALL_THD_CREATE, init_data, 0, 0);
 
 	/* initialize the capability */
-	tc->t      = thd;
-	thd->cpuid = tc->cpuid = get_cpuid();
+	tc->t     = thd;
+	tc->cpuid = get_cpuid();
 	__cap_capactivate_post(&tc->h, CAP_THD);
 
 	return 0;
 }
-
-static void
-thd_ref_take(struct thread *t)
-{ t->refcnt++; }
-
-static void
-thd_ref_release(struct thread *t)
-{ t->refcnt--; }
 
 static int
 thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capin,
@@ -237,15 +243,17 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 
 	thd_header = captbl_lkup(dest_ct->captbl, capin);
 	if (!thd_header || thd_header->type != CAP_THD) cos_throw(err, -EINVAL);
-
 	thd = ((struct cap_thd *)thd_header)->t;
 	assert(thd->refcnt);
 
 	if (thd->refcnt == 1) {
 		if (!root) cos_throw(err, -EINVAL);
-		/* Last reference. Require pgtbl and
-		 * cos_frame cap to release the kmem
-		 * page. */
+		/* last ref cannot be removed if bound to arcv cap */
+		if (thd_bound2rcvcap(thd)) cos_throw(err, -EBUSY);
+		/*
+		 * Last reference. Require pgtbl and cos_frame cap to
+		 * release the kmem page.
+		 */
 		ret = kmem_deact_pre(thd_header, ct, pgtbl_cap,
 				     cosframe_addr, &pte, &old_v);
 		if (ret) cos_throw(err, ret);
@@ -264,7 +272,6 @@ thd_deactivate(struct captbl *ct, struct cap_captbl *dest_ct, unsigned long capi
 	}
 
 	ret = cap_capdeactivate(dest_ct, capin, CAP_THD, lid);
-
 	if (ret) cos_throw(err, ret);
 
 	thd->refcnt--;
@@ -281,27 +288,11 @@ err:
 	return ret;
 }
 
-#ifdef LINUX_TEST
-static void thd_init(void)
-{ assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD)); }
-
-extern struct thread *__thd_current;
-
-static inline struct thread *
-thd_current(void *ignore)
-{ (void)ignore; return __thd_current; }
-
-static inline void
-thd_current_update(struct thread *thd, struct thread *ignore)
-{ (void)ignore; __thd_current = thd; }
-
-#else
-
 static void
 thd_init(void)
 {
 	assert(sizeof(struct cap_thd) <= __captbl_cap2bytes(CAP_THD));
-
+	//assert(offsetof(struct thread, regs) == 4); /* see THD_REGS in entry.S */
 }
 
 static inline struct thread *
@@ -317,7 +308,6 @@ thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_loca
 
 	cos_info->curr_thd = (void *)next;
 }
-#endif
 
 static inline int curr_invstk_inc(struct cos_cpu_local_info *cos_info)
 {
@@ -386,8 +376,7 @@ thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, struct 
 
 static inline void thd_preemption_state_update(struct thread *curr, struct thread *next, struct pt_regs *regs)
 {
-	curr->flags |= THD_STATE_PREEMPTED;
-	curr->preempter_thread = next;
+	curr->state             |= THD_STATE_PREEMPTED;
 	next->interrupted_thread = curr;
 	memcpy(&curr->regs, regs, sizeof(struct pt_regs));
 }

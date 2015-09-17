@@ -12,7 +12,6 @@
 #include <retype_tbl.h>
 #include <component.h>
 #include <thd.h>
-#include <inv.h>
 
 struct mem_layout glb_memlayout;
 
@@ -52,7 +51,7 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 		die("Not started from a multiboot loader!\n");
 	}
 	if ((mb->flags & MULTIBOOT_FLAGS_REQUIRED) != MULTIBOOT_FLAGS_REQUIRED) {
-		die("Multiboot flags include %x but are missing one of %x\n", 
+		die("Multiboot flags include %x but are missing one of %x\n",
 		    mb->flags, MULTIBOOT_FLAGS_REQUIRED);
 	}
 
@@ -68,7 +67,7 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 	printk("\tModules:\n");
 	for (i = 0 ; i < mb->mods_count ; i++) {
 		struct multiboot_mod_list *mod = &mods[i];
-		
+
 		printk("\t- %d: [%08x, %08x)", i, mod->mod_start, mod->mod_end);
 		/* These values have to be higher-half addresses */
 		glb_memlayout.mod_start = chal_pa2va((paddr_t)mod->mod_start);
@@ -77,15 +76,15 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 		glb_memlayout.bootc_vaddr = (void*)hextol((char*)mod->cmdline);
 		assert(((char*)mod->cmdline)[8] == '-');
 		glb_memlayout.bootc_entry = (void*)hextol(&(((char*)mod->cmdline)[9]));
-		printk(" @ virtual address %p, _start = %p.\n", 
+		printk(" @ virtual address %p, _start = %p.\n",
 		       glb_memlayout.bootc_vaddr, glb_memlayout.bootc_entry);
 	}
 	glb_memlayout.kern_boot_heap = mem_boot_start();
 	printk("\tMemory regions:\n");
 	for (i = 0 ; i < mb->mmap_length/sizeof(struct multiboot_mem_list) ; i++) {
 		struct multiboot_mem_list *mem = &mems[i];
-		
-		printk("\t- %d (%s): [%08llx, %08llx)\n", i, 
+
+		printk("\t- %d (%s): [%08llx, %08llx)\n", i,
 		       mem->type == 1 ? "Available" : "Reserved ", mem->addr, mem->addr + mem->len);
 	}
 	/* FIXME: check memory layout vs. the multiboot memory regions... */
@@ -102,13 +101,13 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 	wastage += mem_boot_start()    - mem_bootc_end();
 	wastage += mem_usermem_start() - mem_kmem_end();
 
-	printk("\tAmount of wasted memory due to layout is %u MB + 0x%x B\n", 
+	printk("\tAmount of wasted memory due to layout is %u MB + 0x%x B\n",
 	       wastage>>20, wastage & ((1<<20)-1));
 
 	assert(STK_INFO_SZ == sizeof(struct cos_cpu_local_info));
 }
 
-void 
+void
 kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 {
 #define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
@@ -124,7 +123,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 #ifdef ENABLE_CONSOLE
 	console_init();
 #endif
-	max = MAX((unsigned long)mboot->mods_addr, 
+	max = MAX((unsigned long)mboot->mods_addr,
 		  MAX((unsigned long)mboot->mmap_addr, (unsigned long)(chal_va2pa(&end))));
 	kern_paging_map_init((void*)(max + PGD_SIZE));
 	kern_memory_setup(mboot, mboot_magic);
@@ -135,7 +134,6 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
        	retype_tbl_init();
        	comp_init();
        	thd_init();
-       	inv_init();
 	paging_init();
 
 	kern_boot_comp();
@@ -144,7 +142,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 #endif
 	kern_boot_upcall();
 	/* should not get here... */
-	khalt(); 
+	khalt();
 }
 
 void

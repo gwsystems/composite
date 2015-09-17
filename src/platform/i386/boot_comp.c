@@ -5,9 +5,9 @@
 #include "mem_layout.h"
 #include "string.h"
 #include <pgtbl.h>
-#include <inv.h>
 #include <thd.h>
 #include <component.h>
+#include <inv.h>
 
 extern u8_t *boot_comp_pgd;
 
@@ -167,6 +167,6 @@ kern_boot_upcall(void)
 
 	printk("Upcall into boot component at ip 0x%x\n", entry);
 	printk("------------------[ Kernel boot complete ]------------------\n");
-	chal_user_upcall(entry, thd_current(cos_cpu_local_info())->thread_id, get_cpuid());
+	chal_user_upcall(entry, thd_current(cos_cpu_local_info())->tid, get_cpuid());
 	assert(0); 		/* should never get here! */
 }
