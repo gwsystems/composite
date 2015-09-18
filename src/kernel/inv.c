@@ -94,8 +94,27 @@ open_close_spd_ret(struct spd_poly *c_spd)
 struct inv_ret_struct {
 	int thd_id;
 	int spd_id;
+	int si;
+	int di;
+	int bp;
 };
 
+/* TODO: may want to include thd->fork.cnt */
+/* Here we check if either end of an invocation has been forked, and if so
+ * whether the other end has been fixed for that fork event.
+ * For now we are using one byte of the fork->cnt for the send (client) side,
+ * and the least-significant byte for receive (server) side.
+ */
+static inline int
+need_fork_fix(struct thread *thd, struct spd *curr_spd, struct invocation_cap *c)
+{
+	assert(c->fork.cnt.snd >= 0);
+	assert(c->fork.cnt.rcv >= 0);
+	return (((int)c->fork.cnt.snd)<<8) | (int)c->fork.cnt.rcv;
+}
+
+static vaddr_t
+thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd, int packed_counts, int fault_num, struct inv_ret_struct *ret);
 
 /* 
  * FIXME: 1) should probably return the static capability to allow
@@ -111,6 +130,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	struct spd *curr_spd, *dest_spd;
 	struct invocation_cap *cap_entry;
 	struct thread *thd = core_get_curr_thd_id(get_cpuid_fast());
+	int fork_cnts = 0;
 
 	capability >>= 20;
 
@@ -124,7 +144,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	}
 
 	if (unlikely(capability >= curr_spd->ncaps)) {
-		struct spd *t = virtual_namespace_query(ip);
+		struct spd *t = NULL;
 		printk("cos: capability %d greater than max (%d) from spd %d @ %x.\n", 
 		       capability, curr_spd->ncaps, (t) ? spd_get_index(t): 0, (unsigned int)ip);
 		return 0;
@@ -136,11 +156,13 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	curr_frame = &thd->stack_base[thd->stack_ptr];
 	dest_spd = cap_entry->destination;
 
+	/* printk("cos: dest_spd %d, address %x\n", spd_get_index(dest_spd), cap_entry->dest_entry_instruction); */
 
 	if (unlikely(!dest_spd || curr_spd == CAP_FREE || curr_spd == CAP_ALLOCATED_UNUSED)) {
 		printk("cos: Attempted use of unallocated capability.\n");
 		return 0;
 	}
+
 	/*
 	 * If the spd that owns this capability is part of a composite
 	 * spd that is the same as the composite spd that was the
@@ -164,6 +186,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 		 */
 		return 0;
 	}
+
 	/* now we are committing to the invocation */
 	cos_meas_event(COS_MEAS_INVOCATIONS);
 
@@ -180,6 +203,13 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	/* add a new stack frame for the spd we are invoking (we're committed) */
 	thd_invocation_push(thd, cap_entry->destination, sp, ip);
 	cap_entry->invocation_cnt++;
+
+	/* Check for forking */
+	fork_cnts = need_fork_fix(thd, curr_spd, cap_entry);
+	if (unlikely(fork_cnts > 0)) {
+		/* the off-by-1 capability */
+		return thd_quarantine_fault(thd, curr_spd, dest_spd, ((capability-1)<<16) | fork_cnts, COS_FLT_QUARANTINE, ret);
+	}
 
 	return cap_entry->dest_entry_instruction;
 }
@@ -291,17 +321,16 @@ cos_syscall_ainv_send(int spdid, int capability)
 }
 
 /* return 1 if the fault is handled by a component */
-int 
-fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num)
+static int 
+__fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num, struct spd *s)
 {
-	struct spd *s = virtual_namespace_query(regs->ip);
 	struct thd_invocation_frame *curr_frame;
 	struct inv_ret_struct r;
 	vaddr_t a;
 	unsigned int fault_cap;
 	struct pt_regs *nregs;
 
-	/* printk("thd %d, fault addr %p, flags %d, fault num %d\n", thd_get_id(thd), fault_addr, flags, fault_num); */
+	printk("thd %d, spd %d, fault addr %p, flags %d, fault num %d\n", thd_get_id(thd), s ? spd_get_index(s) : 0, fault_addr, flags, fault_num);
 	/* corrupted ip? */
 	if (unlikely(!s)) {
 		curr_frame = thd_invstk_top(thd);
@@ -329,7 +358,9 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 	
 	/* save the faulting registers */
 	memcpy(&thd->fault_regs, regs, sizeof(struct pt_regs));
-	a = ipc_walk_static_cap(fault_cap<<20, 0, 0, &r);
+	a = ipc_walk_static_cap(fault_cap<<20, 0, 0, &r); /* GB: sp, ip? */
+
+	/* printk("cos: got fault handler @ %x for fault_num %d (with cap %d)\n", a, fault_num, fault_cap); */
 
 	/* setup the registers for the fault handler invocation */
 	regs->ax = r.thd_id;
@@ -344,6 +375,45 @@ fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_re
 	regs->dx = regs->ip = a;
 
 	return 1;
+}
+
+int 
+fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_regs *regs, int fault_num)
+{
+	return __fault_ipc_invoke(thd, fault_addr, flags, regs, fault_num, NULL);
+}
+
+static vaddr_t
+thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_spd, int packed_counts, int fault_num, struct inv_ret_struct *ret)
+{
+	int c_spd, d_spd, c_cnt, d_cnt, capid;
+	vaddr_t packed_spds;
+
+	/*
+	c_cnt = spd_get_fork_cnt(curr_spd);
+	d_cnt = spd_get_fork_cnt(dest_spd);
+	packed_counts = (c_cnt<<16)|d_cnt;
+	*/
+	/* for debug purposes */
+	capid = packed_counts>>16;
+	c_cnt = (packed_counts>>8)&0xff;
+	d_cnt = packed_counts & 0xff;
+
+	c_spd = spd_get_index(curr_spd);
+	d_spd = spd_get_index(dest_spd);
+	packed_spds = (vaddr_t)((c_spd<<16)|d_spd);
+	
+	printk("cos: thd_quarantine_fault %d (%d) -> %d (%d) with cap %d\n", c_spd, c_cnt, d_spd, d_cnt, capid);
+
+	/* GB: use curr_spd->fault_handler[], or dest_spd?
+	 * has to be dest_spd, otherwise static_ipc_walk fails, but
+	 * how do we fix-up the curr_spd then? */
+	if (unlikely(!__fault_ipc_invoke(thd, packed_spds, packed_counts, &thd->regs, fault_num, dest_spd))) return (vaddr_t)NULL;
+	printk("cos: fault thd reg args: si = %d, di = %d, ip = %x\n", thd->regs.si, thd->regs.di, thd->regs.ip);
+	ret->si = thd->regs.si;
+	ret->di = thd->regs.di;
+	ret->bp = thd->regs.bp;
+	return thd->regs.ip;
 }
 
 /********** Composite system calls **********/
@@ -550,7 +620,17 @@ cos_syscall_thd_cntl(int spd_id, int op_thdid, long arg1, long arg2)
 		int i;
 
 		for (i = 0 ; (tif = thd_invstk_nth(thd, i)) ; i++) {
-			if (arg1 == spd_get_index(tif->spd)) return i;
+			if (arg1 == spd_get_index(tif->spd)) {
+				if (arg2 == 0) return i;
+				else {
+					struct spd *d = spd_get_by_index(arg2);
+					printk("cos: quarantine thread %d from %d (%p) -> %ld (%p)\n", thd_get_id(thd), spd_get_index(tif->spd), tif->current_composite_spd, arg2, d->composite_spd);
+					tif->spd = d;
+					tif->current_composite_spd = d->composite_spd;
+					spd_mpd_ipc_take((struct composite_spd *)d->composite_spd);
+					return i;
+				}
+			}
 		}
 		return -1;
 	}
@@ -2774,7 +2854,7 @@ cos_syscall_mmap_cntl(int spdid, long op_flags_dspd, vaddr_t daddr, unsigned lon
 	dspd_id  = op_flags_dspd & 0x0000FFFF;
 	this_spd = spd_get_by_index(spdid);
 	spd      = spd_get_by_index(dspd_id);
-	if (!this_spd || !spd || virtual_namespace_query(daddr) != spd) {
+	if (!this_spd || !spd ) {
 		printk("cos: invalid mmap cntl call for spd %d for spd %d @ vaddr %x\n",
 		       spdid, dspd_id, (unsigned int)daddr);
 		return -1;
@@ -2885,7 +2965,6 @@ fault_update_mpd_pgtbl(struct thread *thd, struct pt_regs *regs, vaddr_t fault_a
 	struct spd_poly *active;
 
 	origin = thd_get_thd_spd(thd);
-	if (origin != virtual_namespace_query(fault_addr)) return 0;
 	active = thd_get_thd_spdpoly(thd);
 
 	if ( chal_pgtbl_entry_absent(origin->spd_info.pg_tbl, fault_addr)) return 0;
@@ -2982,6 +3061,15 @@ cos_syscall_cap_cntl(int spdid, int option, u32_t arg1, long arg2)
 		break;
 	case COS_CAP_GET_SPD_NCAPS:
 		ret = cspd->ncaps;
+		break;
+	case COS_CAP_INC_FORK_CNT:
+		if (spd_cap_inc_fork_cnt(cspd, capid, (arg2>>8)&0xff, arg2&0xff)) ret = -1;
+		break;
+	case COS_CAP_SET_FORK_CNT:
+		if (spd_cap_set_fork_cnt(cspd, capid, arg2>>8, arg2&0xff)) ret = -1;
+		break;
+	case COS_CAP_GET_FORK_CNT:
+		ret = spd_cap_get_fork_cnt(cspd, capid);
 		break;
 	default:
 		ret = -1;
@@ -3150,6 +3238,16 @@ cos_syscall_spd_cntl(int id, int op_spdid, long arg1, long arg2)
 
 		break;
 	}
+	case COS_SPD_INC_FORK_CNT:
+		ret = spd_get_fork_cnt(spd);
+		if (spd_set_fork_cnt(spd, ret | arg1)) ret = -1;
+		break;
+	case COS_SPD_SET_FORK_ORIGIN:
+		if (spd_set_fork_origin(spd, arg1) != arg1) ret = -1;
+		break;
+	case COS_SPD_GET_FORK_ORIGIN:
+		ret = spd_get_fork_origin(spd);
+		break;
 	default:
 		ret = -1;
 	}

@@ -59,6 +59,13 @@ struct usr_cap_stubs {
  * Structure defining the information contained in a static capability
  * for invocation with trust.
  */
+union fork_counter {
+	struct {
+		s8_t snd;
+		s8_t rcv;
+	} cnt;
+	u16_t origin;
+};
 struct spd;
 struct invocation_cap {
 	/* the spd that invocations are made to. destination ==
@@ -67,6 +74,8 @@ struct invocation_cap {
 	unsigned int invocation_cnt:30;
 	isolation_level_t il:2;
 	vaddr_t dest_entry_instruction;
+
+	union fork_counter fork;
 	/* 
 	 * For now, this can be part of the structure as the structure
 	 * should still remain <= 32 bytes, however if this changes,
@@ -176,6 +185,7 @@ typedef int mmaps_t;
 struct spd {
 	/* data touched on the ipc hotpath (32 bytes)*/
 	struct spd_poly spd_info;
+	union fork_counter fork;
 	struct spd_location location[MAX_SPD_VAS_LOCATIONS];
 	/* 
 	 * The "current" protection state of the spd, which might
@@ -243,11 +253,19 @@ struct spd *spd_get_by_index(int idx);
 void spd_free_all(void);
 void spd_init(void);
 
+int spd_set_fork_cnt(struct spd *spd, int n);
+int spd_get_fork_cnt(struct spd *spd);
+int spd_set_fork_origin(struct spd *spd, int origin);
+int spd_get_fork_origin(struct spd *spd);
+
 int spd_cap_activate(struct spd *spd, int cap);
 int spd_cap_set_dest(struct spd *spd, int cap, struct spd* dspd);
 int spd_cap_set_cstub(struct spd *spd, int cap, vaddr_t fn);
 int spd_cap_set_sstub(struct spd *spd, int cap, vaddr_t fn);
 int spd_cap_set_sfn(struct spd *spd, int cap, vaddr_t fn);
+int spd_cap_set_fork_cnt(struct spd *spd, int cap, s8_t send, s8_t receive);
+int spd_cap_get_fork_cnt(struct spd *spd, int cap);
+int spd_cap_inc_fork_cnt(struct spd *spd, int cap, s8_t send, s8_t receive);
 int spd_cap_set_fault_handler(struct spd *spd, int cap, int handler_num);
 
 unsigned int spd_add_static_cap(struct spd *spd, vaddr_t service_entry_inst, struct spd *trusted_spd, 

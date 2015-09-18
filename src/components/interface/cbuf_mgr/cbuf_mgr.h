@@ -31,6 +31,8 @@ vaddr_t cbuf_register(spdid_t spdid, long cbid);
 vaddr_t cbuf_map_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr);
 int cbuf_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr);
 
+int cbuf_fork_spd(spdid_t spd, spdid_t s_spd, spdid_t d_spd);
+
 /*
  * Before the first call to cbufp_collect, the client component must
  * call cbufp_map_collect in order to map the shared page used to

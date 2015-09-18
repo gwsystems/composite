@@ -44,4 +44,6 @@ void thread_wakeup(struct sched_thd *t);
  */
 void sched_initialization(void);
 
+struct sched_thd *sched_get_thread_in_spd_from_runqueue(spdid_t spdid, spdid_t target, int index);
+
 #endif 	    /* !COS_SCHED_TK_H */

@@ -2,7 +2,7 @@ C_OBJS=print_comp.o
 ASM_OBJS=
 COMPONENT=printl.o
 INTERFACES=printc
-DEPENDENCIES=
+DEPENDENCIES=qfault
 IF_LIB=
 
 include ../../Makefile.subsubdir

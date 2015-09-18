@@ -362,7 +362,7 @@ error:
 	return -1;
 }
 
-unsigned long lock_component_alloc(spdid_t spd)
+unsigned long lock_component_alloc(spdid_t spd, vaddr_t laddr)
 {
 	struct meta_lock *l;
 	spdid_t spdid = cos_spd_id();

@@ -31,10 +31,6 @@ int virtual_namespace_alloc(struct spd *spd, unsigned long addr, unsigned int si
 	/* FIXME: this should be rounding up not down */
 	unsigned int adj_to = adj_addr + (size>>HPAGE_SHIFT);
 
-	for (i = adj_addr ; i < adj_to ; i++) {
-		if (virtual_spd_layout[i]) return 0;
-	}
-
 	//printk("cos: adding spd %d from %x to %x\n", spd_get_index(spd), addr, addr+size);
 	for (i = adj_addr ; i < adj_to ; i++) {
 		virtual_spd_layout[i] = spd;
@@ -58,9 +54,6 @@ int virtual_namespace_free(struct spd *spd, unsigned long addr, unsigned int siz
 	unsigned int addr_to_idx = addr_from_idx + (size>>HPAGE_SHIFT);
 	int i;
 
-	for (a = addr ; a < addr+(size>>HPAGE_SHIFT) ; a += HPAGE_SIZE) {
-		if (virtual_namespace_query(a) != spd) return 0;
-	}
 	for (i = addr_from_idx ; i < addr_to_idx ; i++) virtual_spd_layout[i] = NULL;
 	
 	return 1;
@@ -462,6 +455,25 @@ struct spd *spd_get_by_index(int idx)
 	return &spds[idx];
 }
 
+int spd_set_fork_cnt(struct spd *spd, int n)
+{
+	spd->fork.origin = n;
+	return 0;
+}
+int spd_get_fork_cnt(struct spd *spd)
+{
+	return (int)spd->fork.origin;
+}
+
+int spd_set_fork_origin(struct spd *spd, int origin)
+{
+	return spd->fork.origin = origin;
+}
+int spd_get_fork_origin(struct spd *spd)
+{
+	return spd->fork.origin;
+}
+
 /* 
  * Static Capability Manipulation Functions
  */
@@ -523,6 +535,39 @@ int spd_cap_set_sfn(struct spd *spd, int cap, vaddr_t fn)
 	return 0;
 }
 
+int spd_cap_set_fork_cnt(struct spd *spd, int cap, s8_t send, s8_t receive)
+{
+	struct invocation_cap *c = spd_get_cap(spd, cap);
+	
+	if (!c) return -1;
+	assert(send >= 0);
+	assert(receive >= 0);
+	c->fork.cnt.snd = send;
+	c->fork.cnt.rcv = receive;
+	return 0;
+}
+
+int spd_cap_get_fork_cnt(struct spd *spd, int cap)
+{
+	struct invocation_cap *c = spd_get_cap(spd, cap);
+	
+	if (!c) return -1;
+	assert(c->fork.cnt.snd >= 0);
+	assert(c->fork.cnt.rcv >= 0);
+	return (((int)c->fork.cnt.snd)<<8) | (int)c->fork.cnt.rcv;
+}
+
+int spd_cap_inc_fork_cnt(struct spd *spd, int cap, s8_t send, s8_t receive)
+{
+	struct invocation_cap *c = spd_get_cap(spd, cap);
+	
+	if (!c) return -1;
+	c->fork.cnt.snd += send;
+	c->fork.cnt.rcv += receive;
+	assert(c->fork.cnt.snd >= 0);
+	assert(c->fork.cnt.rcv >= 0);
+	return 0;
+}
 
 int spd_cap_activate(struct spd *spd, int cap)
 {

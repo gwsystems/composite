@@ -2,7 +2,6 @@
 #include <print.h>
 
 #include <sched.h>
-#include <cbuf.h>
 
 #include <unit_pgfault.h>
 

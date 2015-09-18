@@ -1155,6 +1155,123 @@ static int fp_kill_thd(struct sched_thd *t)
 	return 0;
 }
 
+/* returns the @index'th thread id in target,
+ * or 0 if no such thread exists. this only works if no threads
+ * can enter/exit the target. returning a list would be better, but
+ * how to store it? */
+int sched_get_thread_in_spd(spdid_t spdid, spdid_t target, int index)
+{
+	struct sched_thd *t;
+	int cnt = 0;
+	struct sched_base_per_core *sched_base = PERCPU_GET(sched_base_state);
+
+	/* do we need to worry about child/parent schedulers? */
+
+	/* iterate blocked threads */
+	for (t = FIRST_LIST(&sched_base->blocked, prio_next, prio_prev) ; 
+	     t != &sched_base->blocked ;
+	     t = FIRST_LIST(t, prio_next, prio_prev)) {
+		if (cos_thd_cntl(COS_THD_INV_SPD, t->id, target, 0) >= 0)
+			if (cnt++ == index) return t->id;
+	}
+	
+	/* do we care about event threads? */
+
+	/* check runqueue */
+	t = sched_get_thread_in_spd_from_runqueue(spdid, target, index-cnt);
+	if (t) {
+		fp_pre_block(t);
+		fp_block(t, spdid);
+		return t->id;
+	}
+
+	return 0;
+}
+
+int sched_quarantine_wakeup(spdid_t spdid, int tid)
+{
+	int ret = 0;
+	struct sched_thd *t;
+
+	cos_sched_lock_take();
+	t = sched_get_mapping(tid);
+	if (!t) goto done;
+
+	fp_pre_wakeup(t);
+	fp_wakeup(t, spdid);
+done:
+	cos_sched_lock_release();
+	return ret;
+}
+
+int
+__sched_quarantine_thread_blocked(spdid_t src, spdid_t dst, struct sched_thd *t)
+{
+	/* what has to be done if a blocked thread is quarantined?
+	 * if the dep thd hasn't been quarantined, then the blk thd should
+	 * be woken? So far this is untested code.
+	 */
+	printc("sched_quarantine: thread %d switch from blocking in %d -> %d\n",
+			t->id, t->blocking_component, dst);
+	t->blocking_component = dst;
+}
+
+int
+__sched_quarantine_thread_running(spdid_t src, spdid_t dst, struct sched_thd *t)
+{
+	/* t is runnable.  */
+	int ret = -1;
+	struct sched_crit_section *cs;
+	cs = &per_core_sched[cos_cpuid()].sched_spd_crit_sections[dst];
+	if (cs->holding_thd == t) {
+		/* FIXME: what to do about held locks/cs? */
+		printc("sched_quarantine: thread %d holds the lock in %d\n", t->id, dst);
+		goto done;
+	} else if (sched_thd_dependent(t)) {
+		/* FIXME: what to do about waiting on another thread? */
+		printc("sched_quarantine: thread %d dependent on thread %d\n",
+				t->id, t->dependency_thd->id);
+		goto done;
+	} else {
+		/* simple case... right? */
+		printc("sched_quarantine: thread %d moving %d -> %d\n", t->id, src, dst);
+		if (cos_thd_cntl(COS_THD_INV_SPD, t->id, src, dst) < 0) {
+			printc("sched_quarantine: error moving %d from %d -> %d\n", t->id, src, dst);
+			goto done;
+		}
+
+	}
+	
+
+done:
+	return ret;
+
+}
+
+int sched_quarantine_thread(spdid_t spdid, spdid_t src, spdid_t dst, int tid)
+{
+	int ret = 0;
+	struct sched_thd *t;
+
+	cos_sched_lock_take();
+	t = sched_get_mapping(tid);
+	if (!t) goto done;
+
+	if (t->blocking_component == src) {
+		if (cos_thd_cntl(COS_THD_INV_SPD, t->id, src, dst) < 0) {
+			printc("sched_quarantine: error fixing inv stk for tid %d from %d -> %d\n", tid, src, dst);
+			goto done;
+		}
+		__sched_quarantine_thread_blocked(src, dst, t);
+	} else {
+		__sched_quarantine_thread_running(src, dst, t);
+	}
+
+done:
+	cos_sched_lock_release();
+	return ret;
+}
+
 /* Create a thread without invoking the scheduler policy */
 static struct sched_thd *__sched_setup_thread_no_policy(int tid)
 {
@@ -1708,6 +1825,21 @@ int sched_priority(unsigned short int tid)
 	p = t->metric.priority;
 	cos_sched_lock_release();
 
+	return p;
+}
+
+int sched_curr_set_priority(unsigned short int prio)
+{
+	struct sched_thd *t;
+	int p;
+
+	cos_sched_lock_take();
+	t = sched_get_current();
+	thread_block(t);
+	p = t->metric.priority;
+	t->metric.priority = prio;
+	thread_wakeup(t);
+	cos_sched_lock_release();
 	return p;
 }
 
