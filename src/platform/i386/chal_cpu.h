@@ -72,7 +72,7 @@ chal_cpu_init(void)
 }
 
 static inline vaddr_t
-chal_cpu_fault_vaddr(struct registers *r)
+chal_cpu_fault_vaddr(struct pt_regs *r)
 {
 	vaddr_t fault_addr;
 	asm volatile("mov %%cr2, %0" : "=r" (fault_addr));
@@ -81,10 +81,10 @@ chal_cpu_fault_vaddr(struct registers *r)
 
 /* FIXME: I doubt these flags are really the same as the PGTBL_* macros */
 static inline u32_t
-chal_cpu_fault_errcode(struct registers *r) { return r->err_code; }
+chal_cpu_fault_errcode(struct pt_regs *r) { return r->orig_ax; }
 
 static inline u32_t
-chal_cpu_fault_ip(struct registers *r) { return r->eip; }
+chal_cpu_fault_ip(struct pt_regs *r) { return r->ip; }
 
 static inline void
 chal_user_upcall(void *ip, u16_t tid, u16_t cpuid)

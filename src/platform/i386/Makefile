@@ -30,7 +30,6 @@ CFLAGS += $(WARNINGS)
 
 OBJS += kernel.o
 OBJS += gdt.o
-OBJS += isr.o
 OBJS += idt.o
 OBJS += vm.o
 OBJS += printk.o
@@ -42,7 +41,7 @@ OBJS += serial.o
 OBJS += timer.o
 OBJS += chal.o
 OBJS += boot_comp.o
-#OBJS += console.o
+OBJS += console.o
 
 COS_OBJ += pgtbl.o
 COS_OBJ += retype_tbl.o
@@ -60,11 +59,10 @@ all: $(KERNEL)
 
 $(KERNEL): linker.ld $(DEPS) $(OBJS) loader.o
 	$(info |     [LD]   Linking $@)
-	$(LD) -T linker.ld loader.o asm.o entry.o $(OBJS) -o $@
+	$(LD) -T linker.ld loader.o entry.o $(OBJS) -o $@
 
-loader.o: loader.S interrupt.s entry.S
+loader.o: loader.S entry.S
 	$(info |     [AS]   Assembling $@)
-	@$(AS) -c -o asm.o interrupt.s
 	@$(CC) -c -I$(INCPATH) entry.S
 	@$(CC) -c -I$(INCPATH) loader.S
 

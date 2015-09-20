@@ -146,6 +146,7 @@ cos_init(void)
 
 	printc("\nMicro Booter done.\n");
 
+//	while (1) ;
 	BUG();
 
 	return;

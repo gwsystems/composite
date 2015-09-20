@@ -123,6 +123,9 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 #ifdef ENABLE_CONSOLE
 	console_init();
 #endif
+#ifdef ENABLE_TIMER
+	timer_init(100);
+#endif
 	max = MAX((unsigned long)mboot->mods_addr,
 		  MAX((unsigned long)mboot->mmap_addr, (unsigned long)(chal_va2pa(&end))));
 	kern_paging_map_init((void*)(max + PGD_SIZE));
@@ -137,9 +140,6 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	paging_init();
 
 	kern_boot_comp();
-#ifdef ENABLE_TIMER
-	timer_init(100);
-#endif
 	kern_boot_upcall();
 	/* should not get here... */
 	khalt();
