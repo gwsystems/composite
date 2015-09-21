@@ -46,13 +46,14 @@ tread_pack(spdid_t spdid, td_t td, char *data, int len)
 
 	cbuf_send(cb);
 	ret = tread(spdid, td, cb, len);
-        if (ret < 0) goto free;
-        if (ret > len) {
-                ret = len; /* FIXME: this is broken, and we should figure out a better solution */
-        }
+	if (ret < 0) goto free;
+	if (ret > len) {
+		ret = len; /* FIXME: this is broken, and we should figure out a better solution */
+	}
 	memcpy(data, d, ret);
 free:
 	cbuf_free(cb);
+
 	return ret;
 }
 
