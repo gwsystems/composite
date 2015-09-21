@@ -12,7 +12,8 @@ msg = #f, ((r) = (f)) == (x) || \
 ((r) = (f)) == (x) || \
 (printf(__FILE__ ":%d: %s failed (" m ")\n", __LINE__, msg, r, x), err++, 0) )
 
-int test_wcstol(void)
+int
+test_wcstol(void)
 {
 	int i;
 	long l;

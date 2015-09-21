@@ -15,7 +15,8 @@
 TEST(i, sscanf(# x, "%lf", &d), 1, "got %d fields, expected %d"), \
 TEST(t, d, (double)x, "%g != %g") )
 
-int test_sscanf(void)
+int
+test_sscanf(void)
 {
 	int i;
 	int err=0;
@@ -84,7 +85,6 @@ int test_sscanf(void)
 
 	TEST(i, sscanf("10e", "%lf", &d), 0, "got %d fields, expected no match (%d)");
 	TEST(i, sscanf("", "%lf\n", &d), -1, "got %d fields, expected input failure (%d)");
-
 
 	return err;
 }

@@ -112,7 +112,8 @@ static const struct {
 	{ NULL, 0.0, NULL }
 };
 
-int test_snprintf(void)
+int
+test_snprintf(void)
 {
 	int i, j, k;
 	int err=0;

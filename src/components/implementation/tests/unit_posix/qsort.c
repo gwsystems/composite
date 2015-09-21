@@ -2,19 +2,22 @@
 #include <stdio.h>
 #include <string.h>
 
-static int scmp(const void *a, const void *b)
+static int
+scmp(const void *a, const void *b)
 {
 	return strcmp(*(char **)a, *(char **)b);
 }
 
-static int icmp(const void *a, const void *b)
+static int
+icmp(const void *a, const void *b)
 {
 	return *(int*)a - *(int*)b;
 }
 
 #define FAIL(m) (printf(__FILE__ ":%d: %s failed\n", __LINE__, m), err++, 0)
 
-int test_qsort(void)
+int
+test_qsort(void)
 {
 	int i;
 	int err=0;
@@ -39,8 +42,9 @@ int test_qsort(void)
 	for (i=0; i<sizeof(s)/sizeof(char *)-1; i++) {
 		if (strcmp(s[i], s[i+1]) > 0) {
 			FAIL("string sort");
-			for (i=0; i<sizeof(s)/sizeof(char *); i++)
+			for (i=0; i<sizeof(s)/sizeof(char *); i++) {
 				printf("\t%s\n", s[i]);
+			}
 			break;
 		}
 	}
@@ -49,8 +53,9 @@ int test_qsort(void)
 	for (i=0; i<sizeof(n)/sizeof(int)-1; i++) {
 		if (n[i] > n[i+1]) {
 			FAIL("integer sort");
-			for (i=0; i<sizeof(n)/sizeof(int); i++)
+			for (i=0; i<sizeof(n)/sizeof(int); i++) {
 				printf("\t%d\n", n[i]);
+			}
 			break;
 		}
 	}

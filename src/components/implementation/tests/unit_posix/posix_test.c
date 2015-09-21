@@ -11,9 +11,11 @@ err += e; \
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 #define UHZ 2890
 
-int run_bench(const char *label, size_t (*bench)(void *), void *params)
+int
+run_bench(const char *label, size_t (*bench)(void *), void *params)
 {
 	unsigned long long int start, end;
+	
 	puts(label);
 	rdtscll(start);
 	bench(params);
@@ -29,6 +31,7 @@ void
 cos_init(void *args)
 {
 	int err=0;
+
 	printf("==========libc test=========\n");
 
 	RUN_TEST(fnmatch);
@@ -66,5 +69,6 @@ cos_init(void *args)
 	RUN(b_regex_search, "a{25}b");
 
 	printf("=============DONE!==========\n");
+
 	return !!err;
 }

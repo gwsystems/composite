@@ -6,9 +6,12 @@
 
 #define NUM 1024
 char *mptr[NUM];
-int test_malloc(void)
+
+int
+test_malloc(void)
 {
 	int i, j;
+
 	for(i=0; i<NUM; i++) {
 		mptr[i] = (char *)malloc(i+1);
 		assert(mptr[i]);
@@ -41,5 +44,6 @@ int test_malloc(void)
 		for(j=0; j<NUM; j++) assert(mptr[i][j] == '$');
 		free(mptr[i]);
 	}
+
 	return 0;
 }

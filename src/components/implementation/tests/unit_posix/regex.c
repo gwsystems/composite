@@ -4,10 +4,12 @@
 #include <regex.h>
 #include <locale.h>
 
-size_t b_regex_compile(void *s)
+size_t
+b_regex_compile(void *s)
 {
 	regex_t re;
 	size_t i;
+
 	setlocale(LC_CTYPE, "");
 	for (i=0; i<1000; i++) {
 		regcomp(&re, s, REG_EXTENDED);
@@ -16,10 +18,13 @@ size_t b_regex_compile(void *s)
 }
 
 char buf[260000];
-size_t b_regex_search(void *s)
+
+size_t
+b_regex_search(void *s)
 {
 	regex_t re;
 	size_t i;
+
 	setlocale(LC_CTYPE, "");
 	memset(buf, 'a', sizeof(buf)-2);
 	buf[sizeof buf - 2] = 'b';

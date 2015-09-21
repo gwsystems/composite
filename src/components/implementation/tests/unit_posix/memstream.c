@@ -19,7 +19,8 @@
 !memcmp((s),(x),(n)) || \
 (printf(__FILE__ ":%d: [%s] != [%s] (%s)\n", __LINE__, s, x, m), err++, 0) )
 
-int test_memstream(void)
+int
+test_memstream(void)
 {
 	int err = 0;
 	FILE *f;

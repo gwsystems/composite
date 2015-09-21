@@ -16,7 +16,8 @@
 !strcmp((s),(x)) || \
 (printf(__FILE__ ":%d: [%s] != [%s] (%s)\n", __LINE__, s, x, m), err++, 0) )
 
-int test_string(void)
+int
+test_string(void)
 {
 	char b[32];
 	char *s;
