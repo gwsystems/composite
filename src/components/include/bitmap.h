@@ -211,8 +211,8 @@ bitmap_contiguous_ones(u32_t *x, int off, int extent, int max)
 {
 	int i, prev, start;
 
-	prev = start = 0;
-	for (i = 0 ; i < (int)(max*sizeof(u32_t)) ; i++) {
+	prev = start = off;
+	for (i = off ; i < (int)(max*sizeof(u32_t)*8) ; i++) {
 		prev = i;
 		i = bitmap_one_offset(x, i, max);
 		/* end of bitmap? */

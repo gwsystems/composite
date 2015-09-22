@@ -4,6 +4,7 @@ int print_null(char *s) { return 0; }
 #include <cos_component.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 
 #include <cbuf.h>
 #include <torrent.h>

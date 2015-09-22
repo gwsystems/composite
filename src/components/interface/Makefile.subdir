@@ -22,7 +22,7 @@ all: $(LIBS) stubs expgen
 expgen:
 	@sh $(EXPDEP_GEN) > $(FNEXP_FILE)
 
-# we have to compile these without dietlibc so that there are not
+# we have to compile these without musllibc so that there are not
 # symbol conflicts and this is why we have the %.a here and don't
 # output a .a file.
 %.a:%.o

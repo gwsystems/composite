@@ -106,6 +106,7 @@ tread(spdid_t spdid, td_t td, int cbid, int sz)
 	assert(fso->data);
 	memcpy(buf, fso->data + t->offset, ret);
 	t->offset += ret;
+	cbuf_free(cbid);
 done:	
 	UNLOCK();
 	return ret;

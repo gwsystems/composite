@@ -53,7 +53,7 @@ extern void mman_release_page(spdid_t spd, void *addr, int flags);
 /* -- HELPER CODE --------------------------------------------------------- */
 
 #ifndef MAP_FAILED
-#define MAP_FAILED ((void*)0)  //((void*)-1)
+#define MAP_FAILED ((void*)-1)
 #endif
 
 #ifndef NULL
@@ -105,7 +105,7 @@ REGPARM(1) void *do_mmap(size_t size) {
 
 #ifdef USE_VALLOC
 	hp = valloc_alloc(cos_spd_id(), cos_spd_id(), s/PAGE_SIZE);
-	if (!hp) return NULL;
+	if (!hp) return MAP_FAILED;
 #else
 	massert(size <= PAGE_SIZE);
 	//hp = cos_get_prealloc_page();
@@ -125,7 +125,7 @@ REGPARM(1) void *do_mmap(size_t size) {
 #else
 			cos_release_vas_page(hp);
 #endif
-			return NULL;
+			return MAP_FAILED;
 		}
 	}
 #if ALLOC_DEBUG >= ALLOC_DEBUG_ALL
