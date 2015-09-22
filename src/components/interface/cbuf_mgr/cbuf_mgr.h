@@ -15,10 +15,6 @@
 
 typedef u32_t cbuf_t; /* should match cbuf_t, and fit in a register */
 
-/* 
- * These are more or less identical to the counterparts in cbuf_c.h,
- * so have a look at the documentation there.
- */
 int cbuf_create(spdid_t spdid, int size, long cbid);
 int cbuf_delete(spdid_t spdid, int cbid);
 int cbuf_retrieve(spdid_t spdid, int cbid, int len);
@@ -35,6 +31,8 @@ int cbuf_unmap_at(spdid_t s_spd, cbuf_t cbid, spdid_t d_spd, vaddr_t d_addr);
  * Before the first call to cbufp_collect, the client component must
  * call cbufp_map_collect in order to map the shared page used to
  * return the list of garbage-collected cbufs.
+ *
+ * What happens if it doesn't call this?
  */
 vaddr_t cbuf_map_collect(spdid_t spdid);
 
