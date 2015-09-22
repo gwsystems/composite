@@ -33,7 +33,7 @@ for line in lines:
 	      continue
 	   ifexps.append(i)
        break
-if (cif != "no_interface" and cif != "tests"):
+if (cif != "no_interface" and "tests" not in cif):
    ifexps.append(cif)
 f.close()
 

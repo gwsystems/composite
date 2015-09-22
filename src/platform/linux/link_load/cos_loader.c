@@ -116,7 +116,8 @@ cos_flt_handlers[COS_FLT_MAX] = {
 	"fault_gen_prot_handler",
 	"fault_linux_handler",
 	"fault_save_regs_handler",
-	"fault_flt_notif_handler"
+	"fault_flt_notif_handler",
+	"fault_quarantine_handler"
 };
 
 static inline int 

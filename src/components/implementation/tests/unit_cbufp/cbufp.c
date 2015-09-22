@@ -2,6 +2,8 @@
 #include <print.h>
 #include <cbuf.h>
 #include <cbuf_mgr.h>
+#include <timed_blk.h>
+#include <quarantine.h>
 #include <unit_cbufp.h>
 
 void unit_cbufp2buf(cbuf_t cbuf, int sz)
@@ -40,7 +42,3 @@ int unit_cbufp_unmap_at(cbuf_t cbuf, int sz, spdid_t spdid, vaddr_t buf)
 	return 0;
 }
 
-void cos_init(void)
-{
-	return;
-}

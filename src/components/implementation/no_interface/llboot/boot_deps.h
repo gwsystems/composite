@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 
 #include <cobj_format.h>
 
@@ -27,6 +28,12 @@ printc(char *fmt, ...)
 
 	return ret;
 }
+
+#if defined(DEBUG)
+#define printd(...) printc("llboot:"__VA_ARGS__)
+#else
+#define printd(...)
+#endif
 
 #ifndef assert
 /* On assert, immediately switch to the "exit" thread */
@@ -212,6 +219,77 @@ fault_page_fault_handler(spdid_t spdid, void *fault_addr, int flags, void *ip)
 	BUG();
 
 	return 0;
+}
+
+int
+fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void *ip)
+{
+	unsigned long r_ip;
+	int tid = cos_get_thd_id();
+	u16_t capid;
+	s8_t c_fix, d_fix;
+	int c_spd, d_spd;
+	int f_spd;
+	int inc_val;
+
+	capid = cap_ccnt_dcnt>>16;
+	d_fix = (cap_ccnt_dcnt>>8)&0xff; /* fix the d (server) if snd != 0 */
+	c_fix = cap_ccnt_dcnt&0xff; /* fix the c (client) if rcv != 0 */
+	c_spd = cspd_dspd>>16;
+	d_spd = cspd_dspd&0xffff;
+
+#undef printd
+#define printd(...) printc("llboot: "__VA_ARGS__)
+	printd("llboot args: %d\t%d\n", cspd_dspd, cap_ccnt_dcnt);
+	printd("llboot (%d) fault_quarantine_handler %d (%d) -> %d (%d)\n", spdid, c_spd, c_fix, d_spd, d_fix);
+
+	if (d_fix) {
+		/* FIXME: how to get the f_spd? see quarantine.c.
+		 * Possible solutions:
+		 * 1) Share the structure between cbboot and llboot.
+		 * 2) Store knowledge in kernel and add a system call.
+		 * 3) Cheat and divide the spdid namespace in half and store
+		 *    the o_spd->id in half of the f_spd->id.
+		 */
+		f_spd = cos_spd_cntl(COS_SPD_GET_FORK_ORIGIN, c_spd, 0, 0);
+		printd("Fixing server %d metadata for spd %d after fork to %d\n", d_spd, f_spd, c_spd);
+		/* TODO: upcall here? */
+		upcall_invoke(cos_spd_id(), COS_UPCALL_QUARANTINE, d_spd, (f_spd<<16)|c_spd);
+	}
+	if (c_fix) {
+	/* d_spd has been forked, and c_spd needs to have its inv caps fixed.
+	 * Two possible ways to fix c_spd are to (1) find the usr_cap_tbl and
+	 * add a capability for the fork directly, or (2) add a syscall to
+	 * do the same. The following uses a syscall, since after adding the
+	 * capability to the usr_cap_tbl a syscall is needed anyway to fix
+	 * the struct spd caps[], ncaps. So just do it once.
+	 */
+		/* TODO: get the f_spd? */
+		printd("Fixing routing table in %d after fork from %d\n", c_spd,d_spd);
+
+		// TODO: add / change ucap, routing table
+
+	}
+	/* adjust the fork count */
+	inc_val = (((u8_t)-d_fix)<<8U) | ((u8_t)(-c_fix));
+	printd("Incrementing fork count by %u in spd %d for cap %d\n", inc_val, c_spd, capid);
+	cos_cap_cntl(COS_CAP_INC_FORK_CNT, c_spd, capid, inc_val);
+
+	printd("Done fixing, returning to invocation frame\n");
+
+	/* remove from the invocation stack the faulting component! */
+	assert(!cos_thd_cntl(COS_THD_INV_FRAME_REM, tid, 1, 0));
+
+	printd("Get the return address\n");
+	/* Manipulate the return address of the component that called
+	 * the faulting component... */
+	assert(r_ip = cos_thd_cntl(COS_THD_INVFRM_IP, tid, 1, 0));
+	printd("Set the return address to %lx\n", r_ip - 8);
+	/* ...and set it to its value -8, which is the fault handler
+	 * of the stub. */
+	assert(!cos_thd_cntl(COS_THD_INVFRM_SET_IP, tid, 1, r_ip-8));
+
+	return COS_FLT_QUARANTINE;
 }
 
 /* memory operations... */

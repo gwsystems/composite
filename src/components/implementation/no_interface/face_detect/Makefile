@@ -3,7 +3,7 @@ ASM_OBJS=
 COMPONENT=face_detect.o
 INTERFACES=
 DEPENDENCIES=sched printc timed_blk torrent cbuf_mgr evt mem_mgr_large valloc lock
-IF_LIB=./cos_libccv.a $(DIETDIR)/bin-i386/libm.a
+IF_LIB=./cos_libccv.a
 OBJLIBS += $(POSIX_LIB)
 
 pre: first all

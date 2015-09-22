@@ -64,10 +64,12 @@ kernel_ipc_syscall:
 .globl composite_call_ipc
 .align 32
 composite_call_ipc:	/* server_inv: */
+	/* room for the inv_ret_struct (thdid, spdid, si, di, bp from dx) */
 	pushl %edx /* cdecl makes it legal to use edx in called fn: save it */
-	/* room for the thdid and spdid */
+	pushl %edi
+	pushl %esi
 	subl $8, %esp
-	pushl %esp
+	pushl %esp /* inv_ret_struct* */
 	/* invoke ipc_walk_static_cap */
 	pushl %ecx /* ip */
 	pushl %ebp /* sp */
@@ -77,14 +79,15 @@ composite_call_ipc:	/* server_inv: */
 	cmpl $0, %eax /* error? */
 	jz composite_call_err
 	
-	addl $16, %esp
+	addl $16, %esp /* get back on inv_ret_struct */
 	movl %eax, %edx
 
-	/* thd and spdid */
+	/* restore possibly modified registers from inv_ret_struct */
 	popl %eax
 	popl %ecx
-
-	popl %ebp /* 4th argument */
+	popl %esi
+	popl %edi
+	popl %ebp /* 4th argument comes from edx, now put in ebp */
 
 	RET_TO_USER_NOSEG
 		

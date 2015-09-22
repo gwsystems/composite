@@ -5,8 +5,17 @@
 #include <stdlib.h> 		/* rand */
 #include <cbuf.h>
 #include <cbuf_mgr.h>
+
+#include <pgfault.h>
+
 #include <unit_cbuf.h>
 #include <unit_cbufp.h>
+
+/* Default args */
+#define MAX_CBUFS   200
+#define MAX_CBUF_SZ 4096
+#define MAX_CBUFP_SZ 4096
+#define MAX_CBUFPS 32
 
 //#define VERBOSE 1
 #ifdef VERBOSE
@@ -15,12 +24,7 @@
 #define printv(fmt,...) 
 #endif
 
-#define MAX_CBUFS   200
-#define MAX_CBUF_SZ 4096
-#define MAX_CBUFP_SZ 4096
-#define MAX_CBUFPS 32
-
-static void
+void
 cbuf_tests(void)
 {
 	cbuf_t cbs[MAX_CBUFS];
@@ -80,7 +84,7 @@ cbuf_tests(void)
 	printc("UNIT TEST (CBUF) ALL PASSED\n");
 }
 
-static void
+void
 cbufp_tests()
 {
 	cbuf_t cbs[MAX_CBUFPS];
@@ -88,10 +92,12 @@ cbufp_tests()
 	char *bufs[MAX_CBUFPS];
 	int i;
 
+	printc("spd: %d\n", cos_spd_id());
 	printc("\nUNIT TEST (CBUFP)\n");
 
 	for (i = 0 ; i < MAX_CBUFPS ; i++) {
 		cbs[i] = unit_cbufp_alloc(sz);
+		assert(cbs[i]);
 		bufs[i] = cbuf2buf(cbs[i], sz);
 		assert(bufs[i]);
 		cbuf_send_free(cbs[i]);
@@ -142,11 +148,8 @@ cbufp_tests()
 	printc("UNIT TEST (CBUFP) ALL PASSED\n");
 }
 
-void cos_init(void)
+void cos_fix_spdid_metadata(spdid_t o_spd, spdid_t f_spd)
 {
-	printc("\nUNIT TEST (CBUF & CBUFP)\n");
-	cbuf_tests();
-	cbufp_tests();
-	printc("UNIT TEST (CBUF & CBUFP) ALL PASSED\n");
-	return;
+	printc("fixing metadata in unit_cbuf1 for %d -> %d\n", o_spd, f_spd);
 }
+

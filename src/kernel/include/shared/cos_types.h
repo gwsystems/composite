@@ -315,7 +315,8 @@ typedef enum {
 	COS_UPCALL_ACAP_COMPLETE,
 	COS_UPCALL_THD_CREATE,
 	COS_UPCALL_DESTROY,
-	COS_UPCALL_UNHANDLED_FAULT
+	COS_UPCALL_UNHANDLED_FAULT,
+	COS_UPCALL_QUARANTINE
 } upcall_type_t;
 
 /* operations for cos_thd_cntl */
@@ -373,6 +374,9 @@ enum {
 	COS_SPD_UPCALL_ADDR,
 	COS_SPD_ASYNC_INV_ADDR,
 	COS_SPD_ACTIVATE,
+	COS_SPD_INC_FORK_CNT,
+	COS_SPD_SET_FORK_ORIGIN,
+	COS_SPD_GET_FORK_ORIGIN
 };
 
 /* operations for cos_vas_cntl */
@@ -394,7 +398,10 @@ enum {
 	COS_CAP_SET_FAULT,
 	COS_CAP_GET_SPD_NCAPS,
 	COS_CAP_GET_DEST_SPD,
-	COS_CAP_GET_DEST_FN
+	COS_CAP_GET_DEST_FN,
+	COS_CAP_INC_FORK_CNT,
+	COS_CAP_SET_FORK_CNT,
+	COS_CAP_GET_FORK_CNT
 };
 
 enum {
@@ -518,6 +525,7 @@ typedef enum {
 	COS_FLT_LINUX,
 	COS_FLT_SAVE_REGS,
 	COS_FLT_FLT_NOTIF,
+	COS_FLT_QUARANTINE,
 	COS_FLT_MAX
 } cos_flt_off; /* <- this indexes into cos_flt_handlers in the loader */
 

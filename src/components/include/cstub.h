@@ -1,6 +1,8 @@
 #ifndef CSTUB_H
 #define CSTUB_H
 
+#include "../interface/qfault/qfault.h" /* HACK */
+
 /* CSTUB macros marshal component invocations.
  * See CSTUB_FN() and CSTUB_INVOKE() */
 

@@ -38,7 +38,7 @@ clean:
 	@rm -f a.out *.o *.a *.d *~
 
 distclean:
-	make -C dietlibc-0.29 clean
+	make -C musl-1.1.11 distclean
 	make -C lwip/cos clean
 	make -C lua/cos clean
 # keep the following commands in one line. make executes each line
@@ -48,8 +48,12 @@ distclean:
 	make -C posix clean
 	make -C libccv clean
 
-init: clean distclean all
-	make -C dietlibc-0.29
+musl: 
+	cd musl-1.1.11; ./configure --disable-shared; cd ..
+	make -C musl-1.1.11
+	make -C musl-1.1.11 install
+
+init: clean distclean musl all
 	make -C lwip/cos
 	make -C lua/cos
 # keep the following commands in one line. Same as above.

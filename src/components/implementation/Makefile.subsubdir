@@ -3,7 +3,7 @@
 # uints
 #
 # -Xlinker -r is used to pass flags into the linker, in this case to
-# prevent dietlibc from creating an executable and linking in many of
+# prevent musllibc from creating an executable and linking in many of
 # its normal symbols
 
 # I never want to touch this again, but will have to
@@ -67,13 +67,13 @@ fndeps:
 
 # Jumping through hoops: want to link to our libraries first so that
 # symbols there are used, thus the gcc, and the ld, but then (and only
-# then) do we want to use dietlibc's functions
+# then) do we want to use musllibc's functions
 $(COMPONENT): $(OBJS) 
 #	$(info |     [LD]   $@: Loading stubs and cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
 	$(info |     [LD]   $(COMPNAME) ($@): Linking $(if $(strip $(LIB_LIBRARIES)),$(LIB_LIBRARIES)) $^)
 	@$(LD) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(IF_CLIENT_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
-#	$(info |     [DIET] Linking with dietlibc to produce $@)
-	@$(DIETCC) $(DIETCFLAGS) -Xlinker -r -o $@.$(TMP_STR2) $@.$(TMP_STR)
+#	$(info |     [MUSL] Linking with musllibc to produce $@)
+	@$(MUSLCC) $@.$(TMP_STR) $(MUSLCFLAGS) -Xlinker -r -o $@.$(TMP_STR2)
 	@$(LD) -r -T $(COMP_LD_SCRIPT) -o $@ $@.$(TMP_STR2)
 	@rm $@.$(TMP_STR) $@.$(TMP_STR2)
 	@cp $@ c.o

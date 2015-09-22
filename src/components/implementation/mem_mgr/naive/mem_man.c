@@ -393,6 +393,42 @@ mapping_del(struct mapping *m)
 /*** Public interface functions ***/
 /**********************************/
 
+int __mman_fork_spd(spdid_t spd, u32_t s_spd_d_spd, vaddr_t base, u32_t len)
+{
+	struct mapping *m, *n;
+	int ret = 0;
+	spdid_t s_spd, d_spd;
+	vaddr_t s_addr;
+
+	s_spd = s_spd_d_spd >> 16;
+	d_spd = s_spd_d_spd & 0xFFFF;
+
+	/* do we need locking? what if m gets revoked after lookup? */
+	/* note: children mappings stay with s_spd, but what if they
+	 * are needed in a dependent of d_spd? */
+
+	for ( s_addr = base ; !ret && s_addr < s_addr + len; s_addr += PAGE_SIZE ) {
+		if (!(m = mapping_lookup(s_spd, s_addr))) continue;
+		if ((n = mapping_lookup(d_spd, s_addr))) continue;
+		if (!m->p) { /* no parent, create a new mapping */
+			if (s_addr != mman_get_page(d_spd, s_addr, m->flags)) ret = -EFAULT;
+			if (m->c) {
+				/* children mappings exist, what to do? */
+
+			}
+		} else { /* this is an alias, re-alias from p */
+			/* FIXME: shouldn't share RW memory? how to do
+			 * this sanely? maybe m->p->spdid should do it? */
+			if (s_addr != mman_alias_page(m->p->spdid, m->p->addr, d_spd, s_addr, m->flags)) ret = -EINVAL;
+		}
+#if defined(DEBUG)
+		//printc("mman_fork: recreated mapping in %d at %x\n", d_spd, s_addr);
+#endif
+	}
+
+	return ret;
+}
+
 vaddr_t mman_get_page(spdid_t spd, vaddr_t addr, int flags)
 {
 	struct frame *f;
