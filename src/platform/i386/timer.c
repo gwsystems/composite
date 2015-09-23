@@ -12,27 +12,25 @@
 #define PIT_MASK    0xFF
 #define PIT_SCALE   1193180
 
-static long tick = 0;
-
-static void
-timer_callback(struct registers *regs)
+void
+timer_handler(struct pt_regs *rs)
 {
-    ++tick;
+	static long tick = 0;
 
-/*
-    if (tick % 100 == 0)
-        printk("Tick: %lu\n", tick);
-*/
+	ack_irq(32);
+	if (tick % 100 == 0) {
+		printk("Tick: %lu\n", tick);
+	}
+	++tick;
 }
 
-void 
+void
 timer_init(u32_t frequency)
 {
     u32_t divisor = PIT_SCALE / frequency;
 
     printk("Enabling timer\n");
-    register_interrupt_handler(IRQ0, timer_callback);
-    
+
     outb(PIT_CONTROL, PIT_SET);
     outb(PIT_A, divisor & PIT_MASK);
     outb(PIT_A, (divisor >> 8) & PIT_MASK);

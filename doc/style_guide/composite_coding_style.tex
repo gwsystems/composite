@@ -1558,8 +1558,6 @@ easy for the eye to find.
 The only exception to this for functions whose body is a single
 statement:
 
-\head{Function spacing.} Function definitions should take the form:
-
     \begin{minipage}{3in}
       \footnotesize
       \lstset{language=C}
@@ -1656,6 +1654,40 @@ if (expr0) {
       \end{lstlisting}
     \end{minipage}
 
+
+\head{Expression spacing.}  Binary operators should always be
+separated by a space from their operands.  For example:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+a = b + c;
+      \end{lstlisting}
+    \end{minipage}
+
+Unary operators should not be separated by a space from their
+operand.  For example:
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+a = -(int)b;
+      \end{lstlisting}
+    \end{minipage}
+
+\head{Function invocation spacing.} When invoking a function, no space
+should be placed between the function name and the parenthesis, nor
+between the parenthesis and the parameters.
+
+    \begin{minipage}{3in}
+      \footnotesize
+      \lstset{language=C}
+      \begin{lstlisting}
+a(b);
+      \end{lstlisting}
+    \end{minipage}
 
 \head{Breaking up lines.}  If the expressions constituting the
 proposition in a conditional do not fit well on a single line, then

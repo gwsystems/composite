@@ -526,7 +526,7 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	if (unlikely(!arcv || arcv->h.type != CAP_ARCV))          return -EINVAL;
 	/* FIXME: check arcv epoch + liveness */
 
-	rcv_thd         = arcv->thd;
+	rcv_thd = arcv->thd;
 	thd_rcvcap_pending_inc(rcv_thd);
 	thd_rcvcap_evt_enqueue(arcv_thd_notif(rcv_thd), rcv_thd);
 

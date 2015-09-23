@@ -52,7 +52,7 @@ wmemset(void *dst, int c, size_t count)
         *tmp++ = c;
 }
 
-static inline u8_t 
+static inline u8_t
 gen_color(u8_t forground, u8_t background)
 {
     return (background << 4) | (forground & 0x0F);
@@ -62,7 +62,7 @@ static void
 update_cursor(u8_t row, u8_t col)
 {
     u16_t pos = row * COLUMNS + col;
-    
+
     outb(VGA_CTL_REG, 0x0E);
     outb(VGA_DATA_REG, pos >> 8);
     outb(VGA_CTL_REG, 0x0F);
@@ -78,10 +78,10 @@ scroll(void)
     if (cursor_y < LINES)
         return;
 
-    for (i = 0; i < (LINES-1)*COLUMNS; i++) 
+    for (i = 0; i < (LINES-1)*COLUMNS; i++)
         video_mem[i] = video_mem[i + COLUMNS];
 
-    wmemset(video_mem + ((LINES - 1)*COLUMNS), blank, COLUMNS); 
+    wmemset(video_mem + ((LINES - 1)*COLUMNS), blank, COLUMNS);
     cursor_y = LINES - 1;
 }
 
@@ -97,7 +97,7 @@ vga_putch(char c)
     else if (c == TAB)
         cursor_x = (cursor_x + 8) & ~(8 - 1);
     else if (c == '\r')
-        cursor_x = 0; 
+        cursor_x = 0;
     else if (c == '\n') {
         cursor_x = 0;
         cursor_y++;
@@ -132,10 +132,13 @@ vga_clear(void)
     wmemset(video_mem, blank, COLUMNS*LINES);
 }
 
-static void
-keyboard_handler(struct registers *regs)
+void
+keyboard_handler(struct pt_regs *regs)
 {
 	u16_t scancode;
+
+	ack_irq(IRQ_KEYBOARD);
+
 	while(inb(KEY_PENDING) & 2) {
 		/* wait for keypress to be ready */
 	}
@@ -145,8 +148,7 @@ keyboard_handler(struct registers *regs)
 
 void
 console_init(void)
-{ 
+{
 	vga_clear();
 	printk_register_handler(vga_puts);
-	register_interrupt_handler(IRQ1, keyboard_handler);
 }
