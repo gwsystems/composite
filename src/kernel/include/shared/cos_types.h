@@ -33,7 +33,6 @@ typedef signed long long s64_t;
 //HACK
 #define LLONG_MAX 9223372036854775807LL
 
-/* Tcap typedefs */
 typedef s64_t tcap_res_t;
 typedef u64_t tcap_prio_t;
 typedef u64_t tcap_uid_t;
@@ -828,11 +827,11 @@ static inline void cos_mem_fence(void)
 
 typedef capid_t tcap_t;
 
-typedef enum split_flags {
+typedef enum {
 	TCAP_SPLIT_POOL = 1,
 } tcap_split_flags_t;
 
-typedef enum deleg_flags {
+typedef enum {
 	TCAP_DELEG_TRANSFER = 1,
 	TCAP_DELEG_DISPATCH = 1<<1,
 } tcap_deleg_flags_t;

@@ -2,7 +2,6 @@
 #include "vtxprintf.h"
 
 static char *str_buf;
-void *memcpy(void*, const void*, size_t);
 
 void *
 memcpy(void *dst, const void *src, size_t count)
@@ -16,7 +15,7 @@ memcpy(void *dst, const void *src, size_t count)
 }
 
 void *
-memset(void *dst, int c, size_t count) 
+memset(void *dst, int c, size_t count)
 {
     char *p = (char *)dst;
 
@@ -26,7 +25,7 @@ memset(void *dst, int c, size_t count)
     return dst;
 }
 
-size_t 
+size_t
 strnlen(const char *str, size_t max)
 {
     size_t ret;
@@ -43,7 +42,7 @@ str_tx_byte(unsigned char byte)
 	str_buf++;
 }
 
-int 
+int
 vsprintf(char *buf, const char *fmt, va_list args)
 {
 	int i;

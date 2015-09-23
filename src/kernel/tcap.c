@@ -12,6 +12,7 @@
 #include "include/tcap.h"
 #include "include/thd.h"
 #include "include/shared/cos_types.h"
+#include "include/chal/deps.h"
 
 #ifdef LINUX_TESTS
 #undef get_cpuid
@@ -44,8 +45,8 @@ tcap_delete(struct tcap *s, struct tcap *tcap)
 	if (s == tcap) return -1;
 	/* tcap still holds a reference to a child */
 	if (tcap->refcnt) return -1;
-//	memset(&tcap->budget, 0, sizeof(struct tcap_budget));
-//	memset(tcap->delegations, 0, sizeof(struct tcap_sched_info) * TCAP_MAX_DELEGATIONS);
+	memset(&tcap->budget, 0, sizeof(struct tcap_budget));
+	memset(tcap->delegations, 0, sizeof(struct tcap_sched_info) * TCAP_MAX_DELEGATIONS);
 	tcap->ndelegs    = tcap->cpuid = 0;
 	tcap->curr_sched_off = 0;
 	s->refcnt--;
@@ -89,7 +90,7 @@ __tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc,
 	if (unlikely(__tcap_budget_xfer(&tcapdst->budget, &tcapsrc->budget, cycles, pooled))) return -1;
 	if (pooled) {
 		/* inherit the (possibly inherited) budget */
-		memcpy(&tcapdst->budget, &tcapsrc->budget, sizeof(struct tcap));
+		memcpy(&tcapdst->budget, &tcapsrc->budget, sizeof(struct tcap_budget));
 	} else {
 		struct tcap *bcs, *bcd;
 

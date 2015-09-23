@@ -13,6 +13,7 @@
 #include "include/liveness_tbl.h"
 #include "include/chal/cpuid.h"
 #include "include/tcap.h"
+#include "include/chal/deps.h"
 
 #define COS_DEFAULT_RET_CAP 0
 
@@ -269,7 +270,7 @@ err:
 	return ret;
 }
 
-extern void *memset(void *dst, int c, unsigned long int count);
+//extern void *memset(void *dst, int c, unsigned long int count);
 
 /* Updates the pte, deref the frame and zero out the page. */
 int
@@ -1135,12 +1136,15 @@ composite_syscall_slowpath(struct pt_regs *regs)
 		switch (op){
 		case CAPTBL_OP_TCAP_ACTIVATE:
 		{
-			capid_t tcap_cap 	= __userregs_get1(regs) & 0xFFFF;
-			int flags 	    	= __userregs_get1(regs) >> 16;
-			capid_t pgtbl_cap    	= __userregs_get2(regs);
-			capid_t pgtbl_addr   	= __userregs_get3(regs);
-			capid_t compcap      	= __userregs_get4(regs);
-			struct cap_tcap *tcapsrc= (struct cap_tcap *)captbl_lkup(ci->captbl, tcap_cap);
+			capid_t tcap_cap 	 = __userregs_get1(regs) & 0xFFFF;
+			int flags 	    	 = __userregs_get1(regs) >> 16;
+			capid_t pgtbl_cap    	 = __userregs_get2(regs);
+			capid_t pgtbl_addr   	 = __userregs_get3(regs);
+			capid_t compcap      	 = __userregs_get4(regs);
+			struct cap_tcap *tcapsrc;
+
+			tcapsrc = (struct cap_tcap *)captbl_lkup(ci->captbl, tcap_cap);
+			if (tcapsrc->h.type != CAP_TCAP) cos_throw(err, -EINVAL);
 
 			struct tcap *tcap_new;
 			unsigned long *pte = NULL;
@@ -1161,42 +1165,50 @@ composite_syscall_slowpath(struct pt_regs *regs)
 		}
 		case CAPTBL_OP_TCAP_TRANSFER:
 		{
-			capid_t tcpdst 		= __userregs_get1(regs);
-			long long res 		= __userregs_get2(regs);
-			u32_t prio_higher 	= __userregs_get3(regs);
-			u32_t prio_lower 	= __userregs_get4(regs);
-			tcap_prio_t prio 	= (tcap_prio_t)prio_higher << 32 | prio_lower;
-			struct cap_tcap *tcapsrc= (struct cap_tcap *)ch;
-			struct cap_tcap *tcapdst= (struct cap_tcap *)captbl_lkup(ci->captbl, tcpdst);
+			capid_t tcpdst 		 = __userregs_get1(regs);
+			long long res 		 = __userregs_get2(regs);
+			u32_t prio_higher 	 = __userregs_get3(regs);
+			u32_t prio_lower 	 = __userregs_get4(regs);
+			tcap_prio_t prio 	 = (tcap_prio_t)prio_higher << 32 | (tcap_prio_t)prio_lower;
+			struct cap_tcap *tcapsrc = (struct cap_tcap *)ch;
+			struct cap_tcap *tcapdst;
+
+			tcapdst = (struct cap_tcap *)captbl_lkup(ci->captbl, tcpdst);
+			if (tcapdst->h.type != CAP_TCAP) cos_throw(err, -EINVAL);
 
 			ret = tcap_transfer(tcapdst->tcap, tcapsrc->tcap, res, prio);
-			if (unlikely(ret)) cos_throw(err, -ENOENT);
+			if (unlikely(ret)) cos_throw(err, -EINVAL);
 
 			break;
 		}
 		case CAPTBL_OP_TCAP_DELEGATE:
 		{
-			capid_t arcv_cap 	= __userregs_get1(regs);
-			long long res 		= __userregs_get2(regs);
-			u32_t prio_higher 	= __userregs_get3(regs);
-			u32_t prio_lower 	= __userregs_get4(regs);
-			tcap_prio_t prio 	= (tcap_prio_t)prio_lower << 32 | prio_lower;
-			struct cap_tcap *tcapsrc= (struct cap_tcap *)ch;
-			struct cap_arcv *arcv 	= (struct cap_arcv *)captbl_lkup(ci->captbl, arcv_cap);
+			capid_t arcv_cap 	 = __userregs_get1(regs);
+			long long res 		 = __userregs_get2(regs);
+			u32_t prio_higher 	 = __userregs_get3(regs);
+			u32_t prio_lower 	 = __userregs_get4(regs);
+			tcap_prio_t prio 	 = (tcap_prio_t)prio_lower << 32 | (tcap_prio_t)prio_lower;
+			struct cap_tcap *tcapsrc = (struct cap_tcap *)ch;
+			struct cap_arcv *arcv;
+
+			arcv = (struct cap_arcv *)captbl_lkup(ci->captbl, arcv_cap);
+			if (arcv->h.type != CAP_ARCV) cos_throw(err, -EINVAL);
 
 			struct tcap *tcapdst = arcv->thd->tcap;
 
 			ret = tcap_delegate(tcapsrc->tcap, tcapdst, res, prio);
-			if (unlikely(ret)) cos_throw(err, -ENOENT);
+			if (unlikely(ret)) cos_throw(err, -EINVAL);
 
 			break;
 		}
 		case CAPTBL_OP_TCAP_MERGE:
 		{
-			capid_t tcaprem		= __userregs_get1(regs);
-			struct cap_tcap *tcapdst= (struct cap_tcap *)ch;
-			struct cap_tcap *tcaprm = (struct cap_tcap *)captbl_lkup(ci->captbl, tcaprem);
+			capid_t tcaprem		 = __userregs_get1(regs);
+			struct cap_tcap *tcapdst = (struct cap_tcap *)ch;
+			struct cap_tcap *tcaprm;
 
+			tcaprm = (struct cap_tcap *)captbl_lkup(ci->captbl, tcaprem);
+			if (tcaprm->h.type != CAP_TCAP) cos_throw(err, -EINVAL);
 
 			ret = tcap_merge(tcapdst->tcap, tcaprm->tcap);
 			if (unlikely(ret)) cos_throw(err, -ENOENT);
