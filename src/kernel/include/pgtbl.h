@@ -14,7 +14,7 @@
 #include "captbl.h"
 #include "retype_tbl.h"
 #include "liveness_tbl.h"
-#include "chal/deps.h"
+#include "chal/defs.h"
 
 #ifndef LINUX_TEST
 #include "chal.h"
@@ -524,8 +524,6 @@ pgtbl_translate(pgtbl_t pt, u32_t addr, u32_t *flags)
 #define KERNEL_PGD_REGION_OFFSET  (PAGE_SIZE - PAGE_SIZE/4)
 #define KERNEL_PGD_REGION_SIZE    (PAGE_SIZE/4)
 
-//extern void *memset(void*, int, unsigned long int);
-//extern void *memcpy(void*, const void*, unsigned long int);
 static pgtbl_t pgtbl_create(void *page, void *curr_pgtbl) {
 	pgtbl_t ret = pgtbl_alloc(page);
 	/* Copying the kernel part of the pgd. */

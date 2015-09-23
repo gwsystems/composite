@@ -355,7 +355,7 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 	assert(ci && comp > 0);
 
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
-	assert(int_data < sizeof(u16_t)*8);
+	assert(init_data < sizeof(u16_t)*8);
 	/* TODO: Add cap size checking */
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap, ci->pgtbl_cap, kmem, comp)) BUG();
 

@@ -13,7 +13,7 @@
 #include "include/liveness_tbl.h"
 #include "include/chal/cpuid.h"
 #include "include/tcap.h"
-#include "include/chal/deps.h"
+#include "include/chal/defs.h"
 
 #define COS_DEFAULT_RET_CAP 0
 
@@ -269,8 +269,6 @@ err:
 
 	return ret;
 }
-
-//extern void *memset(void *dst, int c, unsigned long int count);
 
 /* Updates the pte, deref the frame and zero out the page. */
 int

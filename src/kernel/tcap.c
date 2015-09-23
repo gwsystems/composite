@@ -12,7 +12,7 @@
 #include "include/tcap.h"
 #include "include/thd.h"
 #include "include/shared/cos_types.h"
-#include "include/chal/deps.h"
+#include "include/chal/defs.h"
 
 #ifdef LINUX_TESTS
 #undef get_cpuid

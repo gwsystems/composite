@@ -30,7 +30,6 @@ typedef signed int       s32_t;
 typedef signed long long s64_t;
 #endif
 
-//HACK
 #define LLONG_MAX 9223372036854775807LL
 
 typedef s64_t tcap_res_t;
