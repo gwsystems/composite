@@ -75,13 +75,14 @@ test_mem(void)
 	printc("Page allocation: %s\n", p);
 }
 
-volatile arcvcap_t rc_global;
+volatile arcvcap_t rcc_global, rcp_global;
+volatile asndcap_t scp_global;
 
 static void
 async_thd_fn(void *thdcap)
 {
 	thdcap_t tc = (thdcap_t)thdcap;
-	arcvcap_t rc = rc_global;
+	arcvcap_t rc = rcc_global;
 	unsigned long a, b;
 	int pending;
 
@@ -98,22 +99,14 @@ async_thd_fn(void *thdcap)
 }
 
 static void
-test_async_endpoints(void)
+async_thd_parent(void *thdcap)
 {
-	thdcap_t tc;
-	arcvcap_t rc;
-	asndcap_t sc;
+	thdcap_t tc = (thdcap_t)thdcap;
+	arcvcap_t rc = rcp_global;
+	asndcap_t sc = scp_global;
 	int ret, pending;
 	unsigned long a, b;
 
-	printc("Creating thread, and async end-points.\n");
-	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
-	assert(tc);
-	rc = cos_arcv_alloc(&booter_info, tc, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	assert(rc);
-	rc_global = rc;
-	sc = cos_asnd_alloc(&booter_info, rc, booter_info.captbl_cap);
-	assert(sc);
 	printc("--> sending\n");
 	ret = cos_asnd(sc);
 	if (ret) printc("asnd returned %d.\n", ret);
@@ -121,8 +114,40 @@ test_async_endpoints(void)
 	ret = cos_asnd(sc);
 	if (ret) printc("--> asnd returned %d.\n", ret);
 	printc("--> Back in the asnder.\n--> receiving to get notifications\n");
-	pending = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &a, &b);
+	pending = cos_rcv(rc, &a, &b);
 	printc("--> pending %d, %lx, %lx\n", pending, a, b);
+
+	cos_thd_switch(tc);
+}
+
+static void
+test_async_endpoints(void)
+{
+	thdcap_t tcp, tcc;
+	arcvcap_t rcp, rcc;
+
+	printc("Creating threads, and async end-points.\n");
+	/* parent rcv capabilities */
+	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
+	assert(tcp);
+	rcp = cos_arcv_alloc(&booter_info, tcp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	assert(rcp);
+
+	/* child rcv capabilities */
+	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void*)tcp);
+	assert(tcc);
+	rcc = cos_arcv_alloc(&booter_info, tcc, booter_info.comp_cap, rcp);
+	assert(rcc);
+
+	/* make the snd channel to the child */
+	scp_global = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap);
+	assert(scp_global);
+
+	rcc_global = rcc;
+	rcp_global = rcp;
+
+	cos_thd_switch(tcp);
+
 	printc("Async end-point test successful.\nTest done.\n");
 }
 

@@ -125,6 +125,8 @@ static int
 asnd_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 { return cap_capdeactivate(t, capin, CAP_ASND, lid); }
 
+int capinv_snd(struct thread *rcv_thd, struct pt_regs *regs);
+
 static void
 __arcv_setup(struct cap_arcv *arcv, struct thread *thd, struct thread *notif)
 {

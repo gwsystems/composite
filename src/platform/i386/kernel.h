@@ -7,6 +7,7 @@
 #include "multiboot.h"
 
 #include "chal_asm_inc.h"
+#include <thd.h>
 
 /* A not so nice way of oopsing */
 #define die(fmt, ...) do {              \
@@ -26,6 +27,7 @@ void serial_init(void);
 
 #ifdef ENABLE_TIMER
 void timer_init(u32_t frequency);
+void timer_thd_init(struct thread *t);
 #endif
 
 void tss_init(void);

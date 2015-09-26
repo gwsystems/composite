@@ -91,6 +91,7 @@ kern_boot_thd(struct captbl *ct, void *thd_mem)
 	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE,
 			    BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_INITTHD_BASE, 0, 1);
 	assert(!ret);
+	chal_timer_thd_init(t);
 
 	printk("\tCreating initial threads, tcaps, and rcv end-points in boot-component.\n");
 }

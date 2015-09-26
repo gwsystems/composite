@@ -508,12 +508,29 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 }
 
 static int
+__asnd_from_rcvthd(struct thread *rcv_thd, struct thread *thd, struct pt_regs *regs,
+		 struct comp_info *ci, struct cos_cpu_local_info *cos_info)
+{
+	struct thread *next;
+
+	thd_rcvcap_pending_inc(rcv_thd);
+	thd_rcvcap_evt_enqueue(arcv_thd_notif(rcv_thd), rcv_thd);
+
+	/* TODO: tcap decision point. */
+	next = rcv_thd;
+	/* next = thd; */
+	/* if (next != thd) next->interrupted_thread = thd; */
+
+	return cap_switch_thd(regs, thd, next, ci, cos_info);
+}
+
+static int
 cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	    struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
 	int curr_cpu = get_cpuid();
 	struct cap_arcv *arcv;
-	struct thread *next, *rcv_thd;
+	struct thread *rcv_thd;
 
 	assert(asnd->arcv_capid);
 	/* IPI notification to another core */
@@ -525,15 +542,25 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	/* FIXME: check arcv epoch + liveness */
 
 	rcv_thd = arcv->thd;
-	thd_rcvcap_pending_inc(rcv_thd);
-	thd_rcvcap_evt_enqueue(arcv_thd_notif(rcv_thd), rcv_thd);
+	return __asnd_from_rcvthd(rcv_thd, thd, regs, ci, cos_info);
+}
 
-	/* TODO: tcap decision point. */
-	next = rcv_thd;
-	/* next = thd; */
-	/* if (next != thd) next->interrupted_thread = thd; */
+int
+capinv_snd(struct thread *rcv_thd, struct pt_regs *regs)
+{
+	struct comp_info *ci;
+	struct thread *thd;
+	struct cos_cpu_local_info *cos_info;
+	unsigned long ip, sp;
 
-	return cap_switch_thd(regs, thd, next, ci, cos_info);
+	cos_info = cos_cpu_local_info();
+	assert(cos_info);
+	thd = thd_current(cos_info);
+	assert(thd);
+	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
+	assert(ci && ci->captbl);
+
+	return __asnd_from_rcvthd(rcv_thd, thd, regs, ci, cos_info);
 }
 
 static int

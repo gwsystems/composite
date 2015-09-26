@@ -7,9 +7,9 @@
 
 enum {
 	IRQ_PAGE_FAULT = 14,
-	IRQ_PIT = 32,
-	IRQ_KEYBOARD = 33,
-	IRQ_SERIAL = 36
+	IRQ_PIT        = 32,
+	IRQ_KEYBOARD   = 33,
+	IRQ_SERIAL     = 36
 };
 extern void page_fault_irq(struct pt_regs *);
 extern void timer_irq(struct pt_regs *);

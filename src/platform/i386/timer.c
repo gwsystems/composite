@@ -1,5 +1,8 @@
 #define ENABLE_TIMER
 
+#include <thd.h>
+#include <inv.h>
+
 #include "isr.h"
 #include "io.h"
 #include "kernel.h"
@@ -12,17 +15,19 @@
 #define PIT_MASK    0xFF
 #define PIT_SCALE   1193180
 
+/* FIXME: per-thread */
+static struct thread *timer_thread = NULL;
+
 void
 timer_handler(struct pt_regs *rs)
 {
-	static long tick = 0;
-
-	ack_irq(32);
-	if (tick % 100 == 0) {
-		printk("Tick: %lu\n", tick);
-	}
-	++tick;
+	ack_irq(IRQ_PIT);
+//	if (timer_thread) capinv_snd(timer_thread, rs);
 }
+
+void
+chal_timer_thd_init(struct thread *t)
+{ timer_thread = t; }
 
 void
 timer_init(u32_t frequency)
