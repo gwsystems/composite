@@ -43,7 +43,7 @@ static void
 thd_fn(void *d)
 {
 	printc("\tNew thread %d with argument %d\n", cos_thdid(), (int)d);
-	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	printc("Error, shouldn't get here!\n");
 }
 
@@ -151,6 +151,30 @@ test_async_endpoints(void)
 	printc("Async end-point test successful.\nTest done.\n");
 }
 
+static void
+spinner(void *d)
+{ while (1) ; }
+
+static void
+test_timer(void)
+{
+	int i;
+	thdcap_t tc;
+
+	printc("Starting timer test.\n");
+	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
+
+	for (i = 0 ; i < 10 ; i++) {
+		unsigned long a, b;
+
+		printc(".");
+		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &a, &b);
+		cos_thd_switch(tc);
+	}
+
+	printc("Timer test completed.\nSuccess.\n");
+}
+
 void
 cos_init(void)
 {
@@ -163,6 +187,8 @@ cos_init(void)
 
 	printc("---------------------------\n");
 	test_thds();
+	printc("---------------------------\n");
+//	test_timer();
 	printc("---------------------------\n");
 	test_mem();
 	printc("---------------------------\n");

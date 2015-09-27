@@ -22,7 +22,8 @@ void
 timer_handler(struct pt_regs *rs)
 {
 	ack_irq(IRQ_PIT);
-//	if (timer_thread) capinv_snd(timer_thread, rs);
+	printk("t");
+//	if (timer_thread) capinv_int_snd(timer_thread, rs);
 }
 
 void

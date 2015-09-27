@@ -446,13 +446,15 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next,
 	int preempt = 0;
 	struct comp_info *next_ci = &(next->invstk[next->invstk_top].comp_info);
 
+	assert(!(curr->state & THD_STATE_PREEMPTED));
 	if (unlikely(curr == next)) {
-		assert(!(curr->state & (THD_STATE_RCVING | THD_STATE_PREEMPTED)));
+		assert(!(curr->state & (THD_STATE_RCVING)));
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 		return 0;
 	}
 
 	assert(next_ci && curr && next);
+	/* FIXME: trigger fault for the next thread */
 	if (unlikely(!ltbl_isalive(&next_ci->liveness))) {
 		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
 		return 0;
@@ -507,21 +509,27 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
 	return cap_switch_thd(regs, thd, next, ci, cos_info);
 }
 
-static int
-__asnd_from_rcvthd(struct thread *rcv_thd, struct thread *thd, struct pt_regs *regs,
-		 struct comp_info *ci, struct cos_cpu_local_info *cos_info)
+/**
+ * Process the send event, and notify the appropriate end-points.
+ * Return the thread that should be executed next.
+ */
+static struct thread *
+asnd_process(struct thread *rcv_thd, struct thread *thd)
 {
 	struct thread *next;
+	struct thread *arcv_notif;
 
 	thd_rcvcap_pending_inc(rcv_thd);
-	thd_rcvcap_evt_enqueue(arcv_thd_notif(rcv_thd), rcv_thd);
+
+	arcv_notif = arcv_thd_notif(rcv_thd);
+	if (arcv_notif) thd_rcvcap_evt_enqueue(arcv_notif, rcv_thd);
 
 	/* TODO: tcap decision point. */
 	next = rcv_thd;
 	/* next = thd; */
 	/* if (next != thd) next->interrupted_thread = thd; */
 
-	return cap_switch_thd(regs, thd, next, ci, cos_info);
+	return next;
 }
 
 static int
@@ -530,7 +538,7 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 {
 	int curr_cpu = get_cpuid();
 	struct cap_arcv *arcv;
-	struct thread *rcv_thd;
+	struct thread *rcv_thd, *next;
 
 	assert(asnd->arcv_capid);
 	/* IPI notification to another core */
@@ -542,26 +550,36 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	/* FIXME: check arcv epoch + liveness */
 
 	rcv_thd = arcv->thd;
-	return __asnd_from_rcvthd(rcv_thd, thd, regs, ci, cos_info);
+	next = asnd_process(rcv_thd, thd);
+
+	return cap_switch_thd(regs, thd, next, ci, cos_info);
 }
 
 int
-capinv_snd(struct thread *rcv_thd, struct pt_regs *regs)
+capinv_int_snd(struct thread *rcv_thd, struct pt_regs *regs)
 {
 	struct comp_info *ci;
-	struct thread *thd;
+	struct thread *thd, *next;
 	struct cos_cpu_local_info *cos_info;
 	unsigned long ip, sp;
 
+	printk("i");
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
-	thd = thd_current(cos_info);
+	thd      = thd_current(cos_info);
 	assert(thd);
-	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
-	assert(ci && ci->captbl);
+	ci       = thd_invstk_current(thd, &ip, &sp, cos_info);
+	assert(ci  && ci->captbl);
+	assert(!thd->state & THD_STATE_PREEMPTED);
 
-	return __asnd_from_rcvthd(rcv_thd, thd, regs, ci, cos_info);
+	next     = asnd_process(rcv_thd, thd);
+	if (next == thd) return 0;
+
+	printk("s");
+	thd->state |= THD_STATE_PREEMPTED;
+	return cap_switch_thd(regs, thd, next, ci, cos_info);
 }
+
 
 static int
 cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
