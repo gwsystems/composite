@@ -11,6 +11,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #ifdef NIL
+
 static int __attribute__((format(printf,1,2)))
 printd(char *fmt, ...)
 {
@@ -354,7 +355,8 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 	assert(ci && comp > 0);
 
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
-	assert(cap < (sizeof(u16_t)*8) && init_data < (sizeof(u16_t)*8));
+	assert(init_data < sizeof(u16_t)*8);
+	/* TODO: Add cap size checking */
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap, ci->pgtbl_cap, kmem, comp)) BUG();
 
 	return cap;
@@ -538,3 +540,71 @@ cos_mem_remove(pgtblcap_t pt, vaddr_t addr)
 {
 	return 0;
 }
+
+/***************** [Kernel Tcap Operations] *****************/
+
+static tcap_t
+__cos_tcap_alloc(struct cos_compinfo *ci, compcap_t comp, tcap_split_flags_t flags)
+{
+	vaddr_t kmem;
+	capid_t cap;
+
+	printd("cos_tcap_alloc\n");
+
+	assert (ci && comp > 0);
+
+	if (__alloc_mem_cap(ci, CAP_TCAP, &kmem, &cap)) return 0;
+	/* TODO: Add cap size checking */
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (flags << 16) | cap, ci->pgtbl_cap, kmem, comp)) BUG();
+
+	return cap;
+}
+
+tcap_t
+cos_tcap_split(struct cos_compinfo *ci, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_split_flags_t flags, compcap_t comp)
+{
+	int prio_higher = (u32_t)(prio >> 32);
+	int prio_lower  = (u32_t)((prio << 32) >> 32);
+
+	tcap_t ret;
+
+	ret = __cos_tcap_alloc(ci, comp, flags);
+
+	if (res != 0) if (call_cap_op(src, CAPTBL_OP_TCAP_TRANSFER, ret, res, prio_higher, prio_lower)) return 0;
+	return ret;
+}
+
+int
+cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio)
+{
+	int prio_higher = (u32_t)(prio >> 32);
+	int prio_lower  = (u32_t)((prio << 32) >> 32);
+
+	call_cap_op(src, CAPTBL_OP_TCAP_TRANSFER, dst, res, prio_higher, prio_lower);
+
+	return 0;
+}
+
+int
+cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags)
+{
+	int prio_higher = (u32_t)(prio >> 32);
+	int prio_lower  = (u32_t)((prio << 32) >> 32);
+	int ret = -EINVAL;
+
+	if (flags & TCAP_DELEG_TRANSFER) ret = call_cap_op(src, CAPTBL_OP_TCAP_DELEGATE, dst, res, prio_higher, prio_lower);
+
+	if (flags == TCAP_DELEG_DISPATCH) {
+		cos_asnd(dst);
+		ret = 0;
+	}
+
+	return ret;
+}
+
+int
+cos_tcap_merge(tcap_t dst, tcap_t rm)
+{
+	return call_cap_op(dst, CAPTBL_OP_TCAP_MERGE, rm, 0, 0, 0);
+}
+

@@ -30,6 +30,11 @@ typedef signed int       s32_t;
 typedef signed long long s64_t;
 #endif
 
+#define LLONG_MAX 9223372036854775807LL
+
+typedef s64_t tcap_res_t;
+typedef u64_t tcap_prio_t;
+typedef u64_t tcap_uid_t;
 #define PRINT_CAP_TEMP (1 << 14)
 
 #define BOOT_LIVENESS_ID_BASE 2
@@ -68,6 +73,10 @@ typedef enum {
 	CAPTBL_OP_THDDEACTIVATE_ROOT,
 	CAPTBL_OP_MEMMOVE,
 	CAPTBL_OP_INTROSPECT,
+	CAPTBL_OP_TCAP_ACTIVATE,
+	CAPTBL_OP_TCAP_TRANSFER,
+	CAPTBL_OP_TCAP_DELEGATE,
+	CAPTBL_OP_TCAP_MERGE,
 } syscall_op_t;
 
 typedef enum {
@@ -83,6 +92,7 @@ typedef enum {
 	CAP_FRAME, 		/* untyped frame within a page-table */
 	CAP_VM, 		/* mapped virtual memory within a page-table */
 	CAP_QUIESCENCE,         /* when deactivating, set to track quiescence state */
+	CAP_TCAP, 		/* tcap captable entry */
 } cap_t;
 
 typedef unsigned long capid_t;
@@ -807,6 +817,24 @@ static inline void cos_mem_fence(void)
 {
 	__asm__ __volatile__("mfence" ::: "memory");
 }
+
+#define TCAP_RES_GRAN_ORD  16
+#define TCAP_RES_PACK(r)   (round_up_to_pow2((r), 1 << TCAP_RES_GRAN_ORD))
+#define TCAP_RES_EXPAND(r) ((r) << TCAP_RES_GRAN_ORD)
+#define TCAP_RES_INF LLONG_MAX
+#define TCAP_RES_IS_INF(r) (r == TCAP_RES_INF)
+
+typedef capid_t tcap_t;
+
+typedef enum {
+	TCAP_SPLIT_POOL = 1,
+} tcap_split_flags_t;
+
+typedef enum {
+	TCAP_DELEG_TRANSFER = 1,
+	TCAP_DELEG_DISPATCH = 1<<1,
+} tcap_deleg_flags_t;
+
 
 #ifndef __KERNEL_PERCPU
 #define __KERNEL_PERCPU 0

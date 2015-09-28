@@ -14,6 +14,7 @@
 #include "chal/cpuid.h"
 #include "pgtbl.h"
 #include "retype_tbl.h"
+#include "tcap.h"
 #include "list.h"
 
 struct invstk_entry {
@@ -68,6 +69,9 @@ struct thread {
 	struct rcvcap_info rcvcap;
 	struct list        event_head; /* all events for *this* end-point */
 	struct list_node   event_list; /* the list of events for another end-point */
+
+	/* Reference to tcap bound to thread through arcv_cap */
+	struct tcap *tcap;
 } CACHE_ALIGNED;
 
 /*
