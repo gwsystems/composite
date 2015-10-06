@@ -128,7 +128,6 @@ timer_callback(struct registers *regs)
     }
 
     if (current_type == TIMER_ONESHOT) {
-	timerout *= 2;
       	timer_set(TIMER_ONESHOT, timerout);
     }
 
@@ -238,7 +237,6 @@ timer_init(int timer_type, u64_t cycles)
 {
 	printk("Enabling timer @ %p\n", hpet);
 	register_interrupt_handler(IRQ0, timer_callback);
-	register_interrupt_handler(IRQ2, timer_callback);
 
 	/* Enable legacy interrupt routing */
 	*hpet_config |= (1ll);
