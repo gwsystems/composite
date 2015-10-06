@@ -1,4 +1,5 @@
 #include <pgtbl.h>
+#include <thd.h>
 
 #include "kernel.h"
 #include "string.h"
@@ -17,16 +18,18 @@ u32_t boot_comp_pgd[PAGE_SIZE/sizeof(u32_t)] PAGE_ALIGNED = {
 	[KERN_INIT_PGD_IDX] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER
 };
 
-static void
-page_fault(struct registers *regs)
+void
+page_fault_handler(struct pt_regs *regs)
 {
 	u32_t fault_addr, errcode = 0, eip = 0;
-    
+	struct cos_cpu_local_info *ci = cos_cpu_local_info();
+	thdid_t thdid = thd_current(ci)->tid;
+
 	fault_addr = chal_cpu_fault_vaddr(regs);
 	errcode    = chal_cpu_fault_errcode(regs);
 	eip        = chal_cpu_fault_ip(regs);
 
-	die("Page Fault (%s %s %s %s %s) at 0x%x, eip 0x%x\n",
+	die("Page Fault in thd %d (%s %s %s %s %s) @ 0x%x, ip 0x%x\n",  thdid,
 	    errcode & PGTBL_PRESENT  ? "present"           : "not-present",
 	    errcode & PGTBL_WRITABLE ? "write-fault"      : "read-fault",
 	    errcode & PGTBL_USER     ? "user-mode"         : "system",
@@ -63,7 +66,7 @@ mem_boot_alloc(int npages) /* boot-time, bump-ptr heap */
 			}
 		}
 	}
-	return r; 
+	return r;
 }
 
 int
@@ -77,10 +80,10 @@ kern_setup_image(void)
 	kern_pa_end   = chal_va2pa(mem_kmem_end());
 	/* ASSUMPTION: The static layout of boot_comp_pgd is identical to a pgd post-pgtbl_alloc */
 	/* FIXME: should use pgtbl_extend instead of directly accessing the pgd array... */
-	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA/PGD_RANGE ; 
+	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA/PGD_RANGE ;
 	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end) ;
 	     i += PGD_RANGE, j++) {
-		assert(j != KERN_INIT_PGD_IDX || (boot_comp_pgd[j] | PGTBL_GLOBAL) == 
+		assert(j != KERN_INIT_PGD_IDX || (boot_comp_pgd[j] | PGTBL_GLOBAL) ==
 		       (i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL));
 		boot_comp_pgd[j] = i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
 		boot_comp_pgd[i/PGD_RANGE] = 0; /* unmap lower addresses */
@@ -108,7 +111,7 @@ kern_setup_image(void)
 	}
 
 	chal_cpu_init();
-	chal_cpu_pgtbl_activate((pgtbl_t)chal_va2pa(boot_comp_pgd)); 
+	chal_cpu_pgtbl_activate((pgtbl_t)chal_va2pa(boot_comp_pgd));
 
 	kern_retype_initial();
 
@@ -121,13 +124,13 @@ kern_paging_map_init(void *pa)
 	unsigned long i, j;
 	paddr_t kern_pa_start = 0, kern_pa_end = (paddr_t)pa;
 
-	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA/PGD_RANGE ; 
+	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA/PGD_RANGE ;
 	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end) ;
 	     i += PGD_RANGE, j++) {
-		assert(j != KERN_INIT_PGD_IDX || (boot_comp_pgd[j] | PGTBL_GLOBAL) == 
+		assert(j != KERN_INIT_PGD_IDX || (boot_comp_pgd[j] | PGTBL_GLOBAL) ==
 		       (i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL));
 		/* lower mapping */
-		boot_comp_pgd[i/PGD_RANGE] = i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;		
+		boot_comp_pgd[i/PGD_RANGE] = i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
 		/* higher mapping */
 		boot_comp_pgd[j] = i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
 	}
@@ -140,7 +143,6 @@ paging_init(void)
 	int ret;
 
 	printk("Initializing virtual memory\n");
-	register_interrupt_handler(14, page_fault);
 	if ((ret = kern_setup_image())) {
 		die("Could not set up kernel image, errno %d.\n", ret);
 	}

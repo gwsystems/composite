@@ -7,6 +7,7 @@
 #include "multiboot.h"
 
 #include "chal_asm_inc.h"
+#include <thd.h>
 
 /* A not so nice way of oopsing */
 #define die(fmt, ...) do {              \
@@ -35,6 +36,7 @@ void timer_set(int timer_type, u64_t cycles);
 void timer_init(int timer_type, u64_t cycles);
 u64_t timer_find_hpet(void *timer);
 void timer_set_hpet_page(u32_t page);
+void timer_thd_init(struct thread *t);
 
 void tss_init(void);
 void idt_init(void);

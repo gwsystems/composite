@@ -2,6 +2,7 @@
 #define CHAL_CPU_H
 
 #include <pgtbl.h>
+#include <thd.h>
 #include "isr.h"
 #include "tss.h"
 
@@ -65,6 +66,7 @@ static void
 chal_cpu_init(void)
 {
 	u32_t cr4 = chal_cpu_cr4_get();
+
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);
 	writemsr(IA32_SYSENTER_CS, SEL_KCSEG, 0);
 	writemsr(IA32_SYSENTER_ESP, (u32_t)tss.esp0, 0);
@@ -72,7 +74,7 @@ chal_cpu_init(void)
 }
 
 static inline vaddr_t
-chal_cpu_fault_vaddr(struct registers *r)
+chal_cpu_fault_vaddr(struct pt_regs *r)
 {
 	vaddr_t fault_addr;
 	asm volatile("mov %%cr2, %0" : "=r" (fault_addr));
@@ -81,10 +83,10 @@ chal_cpu_fault_vaddr(struct registers *r)
 
 /* FIXME: I doubt these flags are really the same as the PGTBL_* macros */
 static inline u32_t
-chal_cpu_fault_errcode(struct registers *r) { return r->err_code; }
+chal_cpu_fault_errcode(struct pt_regs *r) { return r->orig_ax; }
 
 static inline u32_t
-chal_cpu_fault_ip(struct registers *r) { return r->eip; }
+chal_cpu_fault_ip(struct pt_regs *r) { return r->ip; }
 
 static inline void
 chal_user_upcall(void *ip, u16_t tid, u16_t cpuid)
@@ -92,5 +94,8 @@ chal_user_upcall(void *ip, u16_t tid, u16_t cpuid)
 	/* edx = user-level ip, ecx = option, ebx = arg, eax = tid + cpuid */
 	__asm__("sti ; sysexit" : : "c"(0), "d"(ip), "b"(0), "a"(tid | (cpuid << 16)));
 }
+
+void chal_timer_thd_init(struct thread *t);
+
 
 #endif /* CHAL_CPU_H */

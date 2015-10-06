@@ -1,3 +1,8 @@
+#define ENABLE_TIMER
+
+#include <thd.h>
+#include <inv.h>
+
 #include "isr.h"
 #include "io.h"
 #include "kernel.h"
@@ -115,11 +120,15 @@ timer_print(void)
 }
 
 void
-timer_callback(struct registers *regs)
+timer_handler(struct pt_regs *regs)
 {
     u64_t cycle;
     rdtscll(cycle);
     tick++;
+
+	ack_irq(IRQ_PIT);
+	printk("t");
+//	if (timer_thread) capinv_int_snd(timer_thread, rs);
 
     /* timer_print(); */
 
@@ -236,7 +245,6 @@ void
 timer_init(int timer_type, u64_t cycles)
 {
 	printk("Enabling timer @ %p\n", hpet);
-	register_interrupt_handler(IRQ0, timer_callback);
 
 	/* Enable legacy interrupt routing */
 	*hpet_config |= (1ll);
@@ -253,4 +261,13 @@ timer_init(int timer_type, u64_t cycles)
 
 	/* Set the timer as specified */
 	timer_set(timer_type, cycles);
+}
+
+/* FIXME: per-thread */
+static struct thread *timer_thread = NULL;
+
+void
+chal_timer_thd_init(struct thread *t)
+{
+	timer_thread = t;
 }

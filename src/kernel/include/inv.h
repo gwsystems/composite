@@ -125,12 +125,14 @@ static int
 asnd_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 { return cap_capdeactivate(t, capin, CAP_ASND, lid); }
 
+/* send to a thread within an interrupt */
+int capinv_int_snd(struct thread *rcv_thd, struct pt_regs *regs);
+
 static void
 __arcv_setup(struct cap_arcv *arcv, struct thread *thd, struct thread *notif)
 {
 	assert(arcv && thd && !thd_bound2rcvcap(thd));
 	arcv->thd                    = thd;
-	thd->flags                  |= THD_STATE_ACTIVE_UPCALL;
 	thd->rcvcap.rcvcap_thd_notif = notif;
 	if (notif) thd_rcvcap_take(notif);
 	thd->rcvcap.isbound          = 1;
@@ -144,25 +146,6 @@ __arcv_teardown(struct cap_arcv *arcv, struct thread *thd)
 	notif = thd->rcvcap.rcvcap_thd_notif;
 	if (notif) thd_rcvcap_release(notif);
 	thd->rcvcap.isbound = 0;
-}
-
-static int
-arcv_pending(struct thread *arcvt)
-{ return arcvt->rcvcap.pending; }
-
-static void
-arcv_pending_inc(struct thread *arcvt)
-{ arcvt->rcvcap.pending++; }
-
-static int
-arcv_pending_dec(struct thread *arcvt)
-{
-	int pending = arcvt->rcvcap.pending;
-
-	if (pending == 0) return 0;
-	arcvt->rcvcap.pending--;
-
-	return pending;
 }
 
 static struct thread *

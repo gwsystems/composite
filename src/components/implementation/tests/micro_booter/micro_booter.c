@@ -43,7 +43,7 @@ static void
 thd_fn(void *d)
 {
 	printc("\tNew thread %d with argument %d\n", cos_thdid(), (int)d);
-	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	printc("Error, shouldn't get here!\n");
 }
 
@@ -75,55 +75,104 @@ test_mem(void)
 	printc("Page allocation: %s\n", p);
 }
 
-volatile arcvcap_t rc_global;
+volatile arcvcap_t rcc_global, rcp_global;
+volatile asndcap_t scp_global;
 
 static void
 async_thd_fn(void *thdcap)
 {
 	thdcap_t tc = (thdcap_t)thdcap;
-	arcvcap_t rc = rc_global;
+	arcvcap_t rc = rcc_global;
 	unsigned long a, b;
 	int pending;
 
-	printc("Asynchronous event thread handler.\n\t< rcving...\n");
+	printc("Asynchronous event thread handler.\n<-- rcving...\n");
 	pending = cos_rcv(rc, &a, &b);
-	printc("\t< pending %d\n\t< rcving...\n", pending);
+	printc("<-- pending %d, %lx, %lx\n<-- rcving...\n", pending, a, b);
 	pending = cos_rcv(rc, &a, &b);
-	printc("\t< pending %d\n\t< rcving...\n", pending);
+	printc("<-- pending %d, %lx, %lx\n<-- rcving...\n", pending, a, b);
 	pending = cos_rcv(rc, &a, &b);
-	printc("\t< Error: manually returning to snding thread.\n");
+	printc("<-- Error: manually returning to snding thread.\n");
 	cos_thd_switch(tc);
 	printc("ERROR: in async thd *after* switching back to the snder.\n");
 	while (1) ;
 }
 
 static void
-test_async_endpoints(void)
+async_thd_parent(void *thdcap)
 {
-	thdcap_t tc;
-	arcvcap_t rc;
-	asndcap_t sc;
+	thdcap_t tc = (thdcap_t)thdcap;
+	arcvcap_t rc = rcp_global;
+	asndcap_t sc = scp_global;
 	int ret, pending;
 	unsigned long a, b;
 
-	printc("Creating thread, and async end-points.\n");
-	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
-	assert(tc);
-	rc = cos_arcv_alloc(&booter_info, tc, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	assert(rc);
-	rc_global = rc;
-	sc = cos_asnd_alloc(&booter_info, rc, booter_info.captbl_cap);
-	assert(sc);
-	printc("> sending\n");
+	printc("--> sending\n");
 	ret = cos_asnd(sc);
 	if (ret) printc("asnd returned %d.\n", ret);
-	printc("> Back in the asnder.\n> sending\n");
+	printc("--> Back in the asnder.\n--> sending\n");
 	ret = cos_asnd(sc);
-	if (ret) printc("> asnd returned %d.\n", ret);
-	printc("> Back in the asnder.\n> receiving to get notifications");
-	pending = cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &a, &b);
-	printc("> pending %d\n", pending);
+	if (ret) printc("--> asnd returned %d.\n", ret);
+	printc("--> Back in the asnder.\n--> receiving to get notifications\n");
+	pending = cos_rcv(rc, &a, &b);
+	printc("--> pending %d, %lx, %lx\n", pending, a, b);
+
+	cos_thd_switch(tc);
+}
+
+static void
+test_async_endpoints(void)
+{
+	thdcap_t tcp, tcc;
+	arcvcap_t rcp, rcc;
+
+	printc("Creating threads, and async end-points.\n");
+	/* parent rcv capabilities */
+	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
+	assert(tcp);
+	rcp = cos_arcv_alloc(&booter_info, tcp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	assert(rcp);
+
+	/* child rcv capabilities */
+	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void*)tcp);
+	assert(tcc);
+	rcc = cos_arcv_alloc(&booter_info, tcc, booter_info.comp_cap, rcp);
+	assert(rcc);
+
+	/* make the snd channel to the child */
+	scp_global = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap);
+	assert(scp_global);
+
+	rcc_global = rcc;
+	rcp_global = rcp;
+
+	cos_thd_switch(tcp);
+
 	printc("Async end-point test successful.\nTest done.\n");
+}
+
+static void
+spinner(void *d)
+{ while (1) ; }
+
+static void
+test_timer(void)
+{
+	int i;
+	thdcap_t tc;
+
+	printc("Starting timer test.\n");
+	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
+
+	for (i = 0 ; i < 10 ; i++) {
+		unsigned long a, b;
+
+		printc(".");
+		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &a, &b);
+		cos_thd_switch(tc);
+	}
+
+	printc("Timer test completed.\nSuccess.\n");
 }
 
 void
@@ -136,12 +185,19 @@ cos_init(void)
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
 
+	printc("---------------------------\n");
 	test_thds();
+	printc("---------------------------\n");
+//	test_timer();
+	printc("---------------------------\n");
 	test_mem();
+	printc("---------------------------\n");
 	test_async_endpoints();
+	printc("---------------------------\n");
 
 	printc("\nMicro Booter done.\n");
 
+//	while (1) ;
 	BUG();
 
 	return;
