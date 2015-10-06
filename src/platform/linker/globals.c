@@ -102,11 +102,31 @@ struct cos_sections section_info[MAXSEC_S+1] = {
 		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE,
 		.sname      = ".data"
 	},
+//	{
+//		.secid      = TDATA_S,
+//		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE,
+//		.sname      = ".tdata"
+//	},
+//	{
+//		.secid      = DATA_CACHELINE_ALIGNED_S,
+//		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE,
+//		.sname      = ".data.cacheline_aligned"
+//	},
+//	{
+//		.secid      = DATA_READ_MOSTLY_S,
+//		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE,
+//		.sname      = ".data.read_mostly"
+//	},
 	{
 		.secid      = BSS_S,
 		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_ZEROS,
 		.sname      = ".bss"
 	},
+//	{
+//		.secid      = TBSS_S,
+//		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_ZEROS,
+//		.sname      = ".tbss"
+//	},
 	{
 		.secid      = INITONCE_S,
 		.cobj_flags = COBJ_SECT_READ | COBJ_SECT_WRITE | COBJ_SECT_ZEROS | COBJ_SECT_INITONCE,

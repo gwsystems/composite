@@ -72,6 +72,8 @@ test_mem(void)
 {
 	char *p = cos_page_bump_alloc(&booter_info);
 
+	printc("Page allocation: %x\n", p);
+
 	assert(p);
 	strcpy(p, "victory");
 

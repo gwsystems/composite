@@ -335,6 +335,8 @@ static void* _alloc_libc_malloc(size_t size) {
   size+=sizeof(__alloc_t);
   if (unlikely(size<sizeof(__alloc_t))) goto err_out;
 
+printc("malloc needs: %d\n", size);
+
   if (size<=__MAX_SMALL_SIZE) {
     need=GET_SIZE(size);
     ptr=__small_malloc(need);

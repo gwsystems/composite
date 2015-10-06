@@ -19,7 +19,7 @@ void
 cos2rump_setup(void)
 {
 	rump_bmk_memsize_init();
-	
+
 	crcalls.rump_cos_get_thd_id   		= cos_get_thd_id;
 	crcalls.rump_cos_print 	      		= cos_print;
 	crcalls.rump_vsnprintf        		= vsnprintf;
@@ -27,7 +27,7 @@ cos2rump_setup(void)
 	crcalls.rump_strncpy          		= strncpy;
 	crcalls.rump_memcalloc        		= cos_memcalloc;
 	crcalls.rump_memalloc         		= cos_memalloc;
-	crcalls.rump_pgalloc          		= alloc_page;
+	//crcalls.rump_pgalloc          	= alloc_page;
 	crcalls.rump_cos_thdid        		= cos_thdid;
 	crcalls.rump_memcpy           		= memcpy;
 	crcalls.rump_memset			= cos_memset;
