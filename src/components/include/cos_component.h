@@ -64,7 +64,7 @@ extern struct cos_component_information cos_comp_info;
  */
 
 /* 
- * The extra asm below is ridiculous as gcc doesn't let us clobber
+ * The extra asm below is rediculous as gcc doesn't let us clobber
  * registers already in the input/output positions, but we DO clobber
  * them in this operation.  I can't clobber ebp in the clobber list,
  * so I do it manually.  This is right up there with hideous.

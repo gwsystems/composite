@@ -134,7 +134,7 @@
  * interface function, 4) cbuf_meta information is trusted and not
  * corruptible by other components, and though it is found using
  * information in the untrusted cbuf_t, that data is verified in the
- * cbuf_meta lookup process (i.e. does the page id exist, does the id
+ * cbuf_meta lookup process (i.e. does the page id exist, does the it
  * belong to the principal, etc...).
  */
 
@@ -259,7 +259,7 @@ cbuf2buf(cbuf_t cb, int len)
 	void *ret = NULL;
 	int t;
 
-	if (unlikely(!len)) goto done;
+	if (unlikely(!len)) return NULL;
 	cbuf_unpack(cb, &id);
 again:
 	do {

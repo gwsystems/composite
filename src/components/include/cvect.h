@@ -14,7 +14,7 @@
 
 /* 
  * A simple data structure that behaves like an array in terms of
- * getting and setting, but is O(log(n)) with a base that is chosen
+ * getting and setting, but is O(log(n)) with a base that is chose
  * below.  In most situations this will be O(log_1024(n)), or
  * essentially at most 3.  This structure has a fixed depth of
  * CVECT_DEPTH.  Default parameters yields 1024^2 = ~1 million
