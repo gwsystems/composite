@@ -94,6 +94,13 @@ __ps_mhead_init(struct ps_mheader *h, struct ps_slab *s)
 	h->next     = NULL;
 }
 
+static inline void
+__ps_mhead_reset(struct ps_mheader *h)
+{
+	h->tsc_free = 0;
+	h->next     = NULL;
+}
+
 /* If you don't need memory anymore, set it free! */
 static inline struct ps_slab *
 __ps_mhead_setfree(struct ps_mheader *h)
@@ -212,7 +219,6 @@ __ps_slab_mem_alloc(struct ps_slab_freelist *fl, size_t obj_sz, u32_t allocsz, i
 {
 	struct ps_slab *s;
 	struct ps_mheader *h;
-	void *mem;
 	assert(obj_sz + (hintern ? sizeof(struct ps_slab) : 0) <= allocsz);
 	(void)headfl;
 
@@ -228,12 +234,13 @@ __ps_slab_mem_alloc(struct ps_slab_freelist *fl, size_t obj_sz, u32_t allocsz, i
 	h           = s->freelist;
 	s->freelist = h->next;
 	h->next     = NULL;
-	mem         = &h[1];
 	s->nfree--;
+	__ps_mhead_reset(h);
 	/* remove from the freelist */
 	if (s->nfree == 0) __slab_freelist_rem(fl, s);
+	assert(!__ps_mhead_isfree(h));
 
-	return mem;
+	return &h[1];
 }
 
 /***
@@ -248,7 +255,7 @@ __ps_slab_mem_alloc(struct ps_slab_freelist *fl, size_t obj_sz, u32_t allocsz, i
  * maintenance and readability.
  */
 #define PS_SLAB_CREATE_DATA(name, size)					\
-struct ps_slab_freelist_clpad slab_##name##_freelist[PS_NUMCORES];
+struct ps_slab_freelist_clpad slab_##name##_freelist[PS_NUMCORES] PS_ALIGNED;
 
 #define PS_SLAB_CREATE_FNS(name, size, allocsz, headintern)		\
 inline void *						                \

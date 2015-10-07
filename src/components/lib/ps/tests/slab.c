@@ -15,7 +15,7 @@ struct larger {
 PS_SLAB_CREATE_DEF(s, sizeof(struct small))
 PS_SLAB_CREATE_DEF(l, sizeof(struct larger))
 
-#define ITER       (1)
+#define ITER       (1024)
 #define SMALLCHUNK 2
 #define LARGECHUNK 16
 
@@ -35,42 +35,39 @@ chk(char *c, int sz, char val)
 	for (i = 0 ; i < sz ; i++) assert(c[i] == val);
 }
 
+struct small  *s[ITER];
+struct larger *l[ITER];
+
 int
 main(void)
 {
-	struct small  *s[ITER];
-	struct larger *l[ITER];
 	int i, j;
 	unsigned long long start, end;
 
 	printf("Slabs:\n"
 	       "\tobjsz %d, objmem %d, nobj %d\n"
 	       "\tobjsz %d, objmem %d, nobj %d\n",
-	       sizeof(struct small), ps_slab_objmem_s(), ps_slab_nobjs_s(),
+	       sizeof(struct small),  ps_slab_objmem_s(), ps_slab_nobjs_s(),
 	       sizeof(struct larger), ps_slab_objmem_l(), ps_slab_nobjs_l());
 
-	/* start = ps_tsc(); */
-	/* for (j = 0 ; j < ITER ; j++) { */
-	/* 	for (i = 0 ; i < LARGECHUNK ; i++) { */
-	/* 		s[i] = ps_slab_alloc_l(); */
-	/* 	} */
-	/* 	for (i = 0 ; i < LARGECHUNK ; i++) { */
-	/* 		ps_slab_free_l(s[i]); */
-	/* 	} */
-	/* } */
-	/* end = ps_tsc(); */
-	/* end = (end-start)/(ITER*LARGECHUNK); */
-	/* printf("Average cost of large slab alloc+free: %lld\n", end); */
-
-	s[0] = ps_slab_alloc_s();
 	start = ps_tsc();
 	for (j = 0 ; j < ITER ; j++) {
-		for (i = 0 ; i < SMALLCHUNK ; i++) {
-			s[i] = ps_slab_alloc_s();
+		for (i = 0 ; i < LARGECHUNK ; i++) {
+			s[i] = ps_slab_alloc_l();
 		}
-		for (i = 0 ; i < SMALLCHUNK ; i++) {
-			ps_slab_free_s(s[i]);
+		for (i = 0 ; i < LARGECHUNK ; i++) {
+			ps_slab_free_l(s[i]);
 		}
+	}
+	end = ps_tsc();
+	end = (end-start)/(ITER*LARGECHUNK);
+	printf("Average cost of large slab alloc+free: %lld\n", end);
+
+	ps_slab_alloc_s();
+	start = ps_tsc();
+	for (j = 0 ; j < ITER ; j++) {
+		for (i = 0 ; i < SMALLCHUNK ; i++) s[i] = ps_slab_alloc_s();
+		for (i = 0 ; i < SMALLCHUNK ; i++) ps_slab_free_s(s[i]);
 	}
 	end = ps_tsc();
 	end = (end-start)/(ITER*SMALLCHUNK);
@@ -78,22 +75,19 @@ main(void)
 
 	printf("Starting mark & check for increasing numbers of allocations.\n");
 	for (i = 0 ; i < ITER ; i++) {
-		s[i] = ps_slab_alloc_s();
 		l[i] = ps_slab_alloc_l();
 		mark(l[i]->x, sizeof(struct larger), i);
-		for (j = 0 ; j < i/2 ; j++) {
-			ps_slab_free_s(s[j]);
-			chk(l[j]->x, sizeof(struct larger), j);
-			ps_slab_free_l(l[j]);
-		}
-		for (j = 0 ; j < i/2 ; j++) {
-			s[j] = ps_slab_alloc_s();
+		for (j = i+1 ; j < ITER ; j++) {
 			l[j] = ps_slab_alloc_l();
 			mark(l[j]->x, sizeof(struct larger), j);
 		}
+		for (j = i+1 ; j < ITER ; j++) {
+			chk(l[j]->x, sizeof(struct larger), j);
+			ps_slab_free_l(l[j]);
+		}
 	}
 	for (i = 0 ; i < ITER ; i++) {
-		ps_slab_free_s(s[i]);
+		assert(l[i]);
 		chk(l[i]->x, sizeof(struct larger), i);
 		ps_slab_free_l(l[i]);
 	}
