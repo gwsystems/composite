@@ -1,32 +1,38 @@
-CINC    = -I../
+CINC    = -I../ -I.
 CC      = gcc
 LD      = gcc
 LDFLAGS =
-COPT    = -g
+COPT    = -O2
 CWARN   = -Wno-long-long
 CFLAGS  = -Wall -Wpedantic -Wextra $(CWARN) $(COPT)
-CFILES  = $(wildcard *.c) $(wildcard ../*.c)
+
+CFILES  = $(wildcard ../*.c)
 COBJS   = $(patsubst %.c,%.o,$(CFILES))
 CDEPS   = $(patsubst %.c,%.d,$(CFILES))
 
-EXEC    = slab_test
+TCFILES = $(wildcard *.c) # test .c files
+TCOBJS  = $(patsubst %.c,%.o,$(TCFILES))
+TCDEPS  = $(patsubst %.c,%.d,$(TCFILES))
+EXECS   = $(patsubst %.c,%.test,$(TCFILES))
 
-all: $(CDEPS) $(EXEC)
+all: $(CDEPS) $(TCDEPS) $(EXECS)
 
-%.o:%.c
-	$(CC) $(CINC) $(CFLAGS) -o $@ -c $<
+setup:
+	cd .. ; ln -s ps_plat_linux.h ps_plat.h
 
 %.d:%.c
-	$(info Creating dependency files: $(CDEPS))
 	@set -e; rm -f $@; \
 	$(CC) -M $(CINC) $(CFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
 
-$(EXEC): $(COBJS)
+%.o:%.c
+	$(CC) -I.. $(CINC) $(CFLAGS) -o $@ -c $<
+
+%.test:%.o $(COBJS)
 	$(LD) $(LDFLAGS) -o $@ $^
 
 clean:
-	rm -f $(EXEC) $(COBJS) $(CDEPS)
+	rm -f $(EXECS) $(TCOBJS) $(TCDEPS) $(COBJS) $(CDEPS) *.d*
 
--include $(CDEPS)
+-include $(CDEPS) $(TCDEPS)

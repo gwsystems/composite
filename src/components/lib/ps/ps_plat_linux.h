@@ -6,17 +6,19 @@
 #include <stdio.h>
 
 static inline void *
-ps_plat_alloc(size_t sz) {
-	/* printf("mmap(%d)\n", sz); */
-	return mmap(0, sz, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0);
-}
+ps_plat_alloc(size_t sz) 
+{ return mmap(0, sz, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0); }
 
-#define PS_SLAB_ALLOC(sz) ps_plat_alloc(sz)
-#define PS_SLAB_FREE(x, sz) do { /* printf("munmap(%d)\n", sz); */ munmap(x, sz); } while(0)
+static inline void
+ps_plat_free(void *x, size_t sz) 
+{ munmap(x, sz); }
+
+#define PS_SLAB_ALLOC(sz)   ps_plat_alloc(sz)
+#define PS_SLAB_FREE(x, sz) ps_plat_free(x, sz)
 #define u16_t unsigned short int
 #define u32_t unsigned int
 #define u64_t unsigned long long
-#define unlikely(x) x
+typedef u64_t ps_tsc_t; 	/* our time-stamp counter representation */
 
 #define PS_CACHE_LINE  64
 #define PS_WORD        sizeof(long)
@@ -27,9 +29,15 @@ ps_plat_alloc(size_t sz) {
 #define PS_PAGE_SIZE   4096
 #define PS_RNDUP(v, a) (-(-(v) & -(a))) /* from blogs.oracle.com/jwadams/entry/macros_and_powers_of_two */
 
+#ifndef likely
+#define likely(x)      __builtin_expect(!!(x), 1)
+#endif
+#ifndef unlikely
+#define unlikely(x)    __builtin_expect(!!(x), 0)
+#endif
 
-static inline
-u64_t ps_tsc(void)
+static inline ps_tsc_t
+ps_tsc(void)
 {
 	unsigned long a, d, c;
 
@@ -38,8 +46,8 @@ u64_t ps_tsc(void)
 	return ((u64_t)d << 32) | (u64_t)a;
 }
 
-static inline
-u64_t ps_tsc_locality(unsigned int *coreid, unsigned int *numaid)
+static inline ps_tsc_t
+ps_tsc_locality(unsigned int *coreid, unsigned int *numaid)
 {
 	unsigned long a, d, c;
 
@@ -49,10 +57,6 @@ u64_t ps_tsc_locality(unsigned int *coreid, unsigned int *numaid)
 
 	return ((u64_t)d << 32) | (u64_t)a;
 }
-
-static inline void
-ps_tsc_read(u64_t *tsc)
-{ *tsc = ps_tsc(); }
 
 static inline unsigned int
 ps_coreid(void)

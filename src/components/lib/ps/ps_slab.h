@@ -14,111 +14,41 @@
 #ifndef  PS_SLAB_H
 #define  PS_SLAB_H
 
-/* #include <cos_component.h> */
-/* #include <cos_debug.h> */
-/* #include <consts.h> */
-
 #include <ps_list.h>
 #include <ps_plat.h>
-
-struct ps_mheader;
+#include <ps_global.h>
 
 /* The header for a slab. */
 struct ps_slab {
-	void *memory;		/* != NULL iff slab is separately allocated */
-	u32_t memsz;		/* size of backing memory */
-	u32_t obj_sz;		/* size of the objects in slab */
-	u16_t coreid;		/* which is the home core for this slab? */
-	u16_t nfree; 		/* # allocations in freelist */
+	/* 
+	 * Read-only data.  coreid is read by _other_ cores, so we
+	 * want it on a separate cache-line from the frequently
+	 * modified stuff.
+	 */
+	void  *memory;		/* != NULL iff slab is separately allocated */
+	size_t memsz;		/* size of backing memory */
+	u16_t  coreid;		/* which is the home core for this slab? */
+	char   pad[PS_CACHE_LINE-(sizeof(void *)+sizeof(size_t)+sizeof(u16_t))];
+
+	/* Frequently modified data on the owning core... */
 	struct ps_mheader *freelist; /* free objs in this slab */
-
-	struct ps_list list;    /* freelist of slabs */
+	struct ps_list     list;     /* freelist of slabs */
+	size_t             nfree;    /* # allocations in freelist */
 } PS_PACKED;
 
-/* Memory header */
-struct ps_mheader {
-	u64_t              tsc_free;
-	struct ps_slab    *slab;	       /* slab header ptr */
-	struct ps_mheader *next;	       /* slab freelist ptr */
-} PS_PACKED;
 
-struct ps_slab_freelist {
-	struct ps_slab *list;
-};
+/*** Operations on the freelist of slabs ***/
 
-/*
- * TODO:
- * 1. save memory by packing multiple freelists into the same
- * cache-line
- * 2. have multiple freelists (e.g. 4) for different "fullness"
- * values, so that we can in O(1) always allocate from the slab that
- * is most full, modulo the granularity of these bins.
- * 3. implement the slab to allocate the headers for the other slab.
- *
- * Note the padding is for two cache-lines due to the observed
- * behavior on Intel chips to aggressively prefetch an additional
- * cache-line.
+/* 
+ * These functions should really must be statically computed for
+ * efficiency (see macros below)... 
  */
-struct ps_slab_freelist_clpad {
-	struct ps_slab_freelist fl;
-	struct ps_slab_freelist slabheads;
-	char padding[PS_CACHE_LINE*2-sizeof(struct ps_slab_freelist)*2];
-} PS_PACKED PS_ALIGNED;
-
-/*** Utility operations on the data-structures ***/
-
-static inline struct ps_mheader *
-__ps_mhead_get(void *mem)
-{ return (struct ps_mheader *)((char*)mem - sizeof(struct ps_mheader)); }
-
-static inline int
-__ps_mhead_isfree(struct ps_mheader *h)
-{ return h->tsc_free != 0; }
-
-static inline struct ps_mheader *
-__ps_mhead_flnext(struct ps_mheader *h)
-{
-	if (!__ps_mhead_isfree(h)) return NULL;
-	return h->next;
-}
-
-static inline struct ps_slab *
-__ps_mhead_slab(struct ps_mheader *h)
-{ return h->slab; }
-
-static inline void
-__ps_mhead_init(struct ps_mheader *h, struct ps_slab *s)
-{
-	h->tsc_free = 0;
-	h->slab     = s;
-	h->next     = NULL;
-}
-
-static inline void
-__ps_mhead_reset(struct ps_mheader *h)
-{
-	h->tsc_free = 0;
-	h->next     = NULL;
-}
-
-/* If you don't need memory anymore, set it free! */
-static inline struct ps_slab *
-__ps_mhead_setfree(struct ps_mheader *h)
-{
-	h->tsc_free  = ps_tsc() | 1; /* guarantee non-zero */
-
-	return h->slab;
-}
-
-/* These functions should be statically computed... */
 static inline unsigned int
 __ps_slab_objmemsz(size_t obj_sz)
 { return PS_RNDUP(obj_sz + sizeof(struct ps_mheader), PS_WORD); }
 static inline unsigned int
 __ps_slab_max_nobjs(size_t obj_sz, size_t allocsz, int hintern)
 { return (allocsz - (hintern ? sizeof(struct ps_slab) : 0)) / __ps_slab_objmemsz(obj_sz); }
-
-/*** Operations on the freelist of slabs ***/
 
 static void
 __slab_freelist_rem(struct ps_slab_freelist *fl, struct ps_slab *s)
@@ -145,17 +75,17 @@ __slab_freelist_add(struct ps_slab_freelist *fl, struct ps_slab *s)
 /*** Alloc and free ***/
 
 static inline void
-__ps_slab_mem_free(void *buf, struct ps_slab_freelist_clpad *fls, size_t obj_sz, size_t allocsz, int hintern)
+__ps_slab_mem_free(void *buf, struct ps_mem_percore *fls, size_t obj_sz, size_t allocsz, int hintern)
 {
 	struct ps_slab *s;
 	struct ps_mheader *h, *next;
 	unsigned int max_nobjs = __ps_slab_max_nobjs(obj_sz, allocsz, hintern);
 	/* TODO: struct ps_slab_freelist *headfl; */
 	struct ps_slab_freelist *fl;
-	assert(obj_sz + (hintern ? sizeof(struct ps_slab) : 0) <= allocsz);
+	assert(__ps_slab_objmemsz(obj_sz) + (hintern ? sizeof(struct ps_slab) : 0) <= allocsz);
 
 	h = __ps_mhead_get(buf);
-	assert(!__ps_mhead_isfree(h));
+	assert(!__ps_mhead_isfree(h)); /* freeing freed memory? */
 	s = __ps_mhead_setfree(h);
 	assert(s);
 
@@ -190,11 +120,10 @@ __ps_slab_init(struct ps_slab *s, struct ps_slab_freelist *fl, size_t obj_sz, in
 
 	assert(hintern == 0 || hintern == 1);
 	/* division should be statically calculated with enough inlining */
-	s->nfree  = nfree = (allocsz - start_off) / objmemsz;
-	s->obj_sz = obj_sz;
-	s->memsz  = allocsz;
-	s->memory = s;
-	s->coreid = ps_coreid();
+	s->nfree    = nfree = (allocsz - start_off) / objmemsz;
+	s->memsz    = allocsz;
+	s->memory   = s;
+	s->coreid   = ps_coreid();
 
 	/*
 	 * Set up the slab's freelist
@@ -254,20 +183,18 @@ __ps_slab_mem_alloc(struct ps_slab_freelist *fl, size_t obj_sz, u32_t allocsz, i
  * all of the code for allocation and deallocation in the macro due to
  * maintenance and readability.
  */
-#define PS_SLAB_CREATE_DATA(name, size)					\
-struct ps_slab_freelist_clpad slab_##name##_freelist[PS_NUMCORES] PS_ALIGNED;
 
 #define PS_SLAB_CREATE_FNS(name, size, allocsz, headintern)		\
 inline void *						                \
 ps_slab_alloc_##name(void)						\
 {									\
-        struct ps_slab_freelist_clpad *fl = &slab_##name##_freelist[ps_coreid()]; \
+        struct ps_mem_percore *fl = &slab_##name##_freelist[ps_coreid()]; \
 	return __ps_slab_mem_alloc(&fl->fl, size, allocsz, headintern, &fl->slabheads); \
 }									\
 inline void							        \
 ps_slab_free_##name(void *buf)						\
 {									\
-        struct ps_slab_freelist_clpad *fl = slab_##name##_freelist;	\
+        struct ps_mem_percore *fl = slab_##name##_freelist;	\
 	__ps_slab_mem_free(buf, fl, size, allocsz, headintern);	        \
 }									\
 inline size_t								\
@@ -286,7 +213,7 @@ ps_slab_nobjs_##name(void)						\
  * PS_SLAB_CREATE_DEF(meta, sizeof(struct ps_slab));
  */
 #define PS_SLAB_CREATE(name, size, allocsz, headintern)	\
-PS_SLAB_CREATE_DATA(name, size)				\
+PS_MEM_CREATE_DATA(name)				\
 PS_SLAB_CREATE_FNS(name, size, PS_PAGE_SIZE, headintern)
 
 #define PS_SLAB_CREATE_DEF(name, size)		\
