@@ -56,7 +56,6 @@ static void *hpet;
 static u32_t tick = 0;
 static int current_type = TIMER_FREQUENCY;
 static u64_t oneshot_target = 0;
-static u64_t timerout = 0;
 
 void
 timer_hex(int start, int end)
@@ -122,26 +121,17 @@ timer_print(void)
 void
 timer_handler(struct pt_regs *regs)
 {
-    u64_t cycle;
-    rdtscll(cycle);
-    tick++;
+	u64_t cycle;
+	rdtscll(cycle);
+	tick++;
 
 	ack_irq(IRQ_PIT);
-	printk("t");
 //	if (timer_thread) capinv_int_snd(timer_thread, rs);
 
-    /* timer_print(); */
-
-    if (tick < 15) {
         printk("Tick: %2u @%10llu (%10llu)\n", tick, cycle, *hpet_counter);
-    }
 
-    if (current_type == TIMER_ONESHOT) {
-      	timer_set(TIMER_ONESHOT, timerout);
-    }
-
-    *hpet_interrupt = 1;
-    *hpet_config |= 1;
+	*hpet_interrupt = 1;
+	/* *hpet_config |= 1; */
 }
 
 void
@@ -153,13 +143,8 @@ timer_set(int timer_type, u64_t cycles)
 	*hpet_config ^= ~1;
 
 	/* Reset main counter */
-	*hpet_counter = 0;
-
-	/*
-	printk("Setting timer 0:\n");
-	printk("- Before:\n");
-	timer_print();
-	*/
+	printk("Setting timer (%d) for %llu (is %llu)\n", timer_type, cycles, *hpet_counter);
+	/* *hpet_counter = 0; */
 
 	if (timer_type == TIMER_ONESHOT) {
 		/* Set a static value to count up to */
@@ -250,14 +235,11 @@ timer_init(int timer_type, u64_t cycles)
 	*hpet_config |= (1ll);
 
 	/* TESTING: Debug 15 timer ticks */
-	printk("T0: %llu\n", *hpet_counter);
-	printk("T1: %llu\n", *hpet_counter);
-	
-	timerout = 1000;
-	timer_set(TIMER_FREQUENCY, timerout);
+	/*
+	timer_set(TIMER_FREQUENCY, 100000000);
 	__asm__("sti");
-	while (tick < 15) { __asm__("hlt"); }
-	__asm__("cli");
+	while (1) { __asm__("hlt"); }
+	*/
 
 	/* Set the timer as specified */
 	timer_set(timer_type, cycles);
