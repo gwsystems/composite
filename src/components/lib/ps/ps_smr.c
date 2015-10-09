@@ -10,8 +10,8 @@
  * - Started as parsec.c and parsec.h by Qi.
  */
 
-static inline int 
-in_lib(struct quiescence_timing *timing) 
+static inline int
+__ps_in_lib(struct quiescence_timing *timing)
 {
 	/* this means not inside the lib. */
 	if (timing->time_out > timing->time_in) return 0;
@@ -20,7 +20,7 @@ in_lib(struct quiescence_timing *timing)
 }
 
 static inline void
-timing_update_remote(struct percpu_info *curr, int remote_cpu, struct parsec *parsec)
+__ps_timing_update_remote(struct parsec *parsec, struct percpu_info *curr, int remote_cpu)
 {
 	struct quiescence_timing *cpu_i;
 
@@ -29,7 +29,7 @@ timing_update_remote(struct percpu_info *curr, int remote_cpu, struct parsec *pa
 	curr->timing_others[remote_cpu].time_in  = cpu_i->time_in;
 	curr->timing_others[remote_cpu].time_out = cpu_i->time_out;
 
-	/* 
+	/*
 	 * We are reading remote cachelines possibly, so this time
 	 * stamp reading cost is fine.
 	 */
@@ -45,8 +45,8 @@ timing_update_remote(struct percpu_info *curr, int remote_cpu, struct parsec *pa
 	return;
 }
 
-int 
-parsec_sync_quiescence(ps_tsc_t orig_timestamp, const int waiting, struct parsec *parsec)
+int
+ps_sync_quiescence(struct parsec *parsec, ps_tsc_t orig_timestamp, const int waiting)
 {
 	int inlib_curr, quie_cpu, curr_cpu, first_try, i, done_i;
 	ps_tsc_t min_known_quie;
@@ -62,12 +62,12 @@ parsec_sync_quiescence(ps_tsc_t orig_timestamp, const int waiting, struct parsec
 	cpuinfo = &(parsec->timing_info[curr_cpu]);
 	timing_local = &cpuinfo->timing;
 
-	inlib_curr = in_lib(timing_local);
-	/* 
+	inlib_curr = __ps_in_lib(timing_local);
+	/*
 	 * ensure quiescence on the current core: either time_in >
-	 * time_check, or we are not in the lib right now. 
+	 * time_check, or we are not in the lib right now.
 	 */
-	if (unlikely((time_check > timing_local->time_in) 
+	if (unlikely((time_check > timing_local->time_in)
 		     && inlib_curr)) {
 		/* printf(">>>>>>>>>> QUIESCENCE wait error %llu %llu!\n",  */
 		/*        time_check, timing_local->time_in); */
@@ -82,18 +82,18 @@ parsec_sync_quiescence(ps_tsc_t orig_timestamp, const int waiting, struct parsec
 		first_try = 1;
 		done_i = 0;
 re_check:
-		if (time_check < timing_local->last_known_quiescence) 
+		if (time_check < timing_local->last_known_quiescence)
 			break;
 
 		in     = cpuinfo->timing_others[quie_cpu].time_in;
 		out    = cpuinfo->timing_others[quie_cpu].time_out;
 		update = cpuinfo->timing_others[quie_cpu].time_updated;
 
-		if ((time_check < in) || 
+		if ((time_check < in) ||
 		    ((time_check < update) && (in < out))) {
 			done_i = 1;
 		}
-		
+
 		if (done_i) {
 			/* assertion: update >= in */
 			if (in < out) {
@@ -104,9 +104,9 @@ re_check:
 			continue;
 		}
 
-		/* 
+		/*
 		 * If no waiting allowed, then read at most one remote
-		 * cacheline per core. 
+		 * cacheline per core.
 		 */
 		if (first_try) {
 			first_try = 0;
@@ -114,12 +114,12 @@ re_check:
 			if (!waiting) return -1;
 		}
 
-		timing_update_remote(cpuinfo, quie_cpu, parsec);
+		__ps_timing_update_remote(parsec, cpuinfo, quie_cpu);
 
 		goto re_check;
 	}
 
-	/* 
+	/*
 	 * This would be on the fast path of the single core/thd
 	 * case. Optimize a little bit.
 	 */
@@ -129,10 +129,10 @@ re_check:
 			min_known_quie = timing_local->time_in;
 
 		assert(min_known_quie < (unsigned long long)(-1));
-		/* 
+		/*
 		 * This implies we went through all cores. Thus the
 		 * min_known_quie can be used to determine global
-		 * quiescence. 
+		 * quiescence.
 		 */
 		if (timing_local->last_known_quiescence < min_known_quie)
 			timing_local->last_known_quiescence = min_known_quie;
@@ -144,82 +144,16 @@ re_check:
 }
 
 /* force waiting for quiescence */
-int 
-parsec_quiescence_wait(ps_tsc_t orig_timestamp, struct parsec *p)
+int
+ps_quiescence_wait(struct parsec *p, ps_tsc_t orig_timestamp)
 {
 	/* waiting for quiescence if needed. */
-	return parsec_sync_quiescence(orig_timestamp, 1, p);
+	return ps_sync_quiescence(p, orig_timestamp, 1);
 }
 
-int 
-parsec_quiescence_check(ps_tsc_t orig_timestamp, struct parsec *p)
+int
+ps_try_quiescence(struct parsec *p, ps_tsc_t orig_timestamp)
 {
 	/* non-waiting */
-	return parsec_sync_quiescence(orig_timestamp, 0, p);
-}
-
-void 
-parsec_read_lock(struct parsec *parsec) 
-{
-	int curr_cpu;
-	ps_tsc_t curr_time;
-	struct quiescence_timing *timing;
-	
-	curr_cpu  = ps_coreid();
-	curr_time = ps_tsc();
-
-	timing = &(parsec->timing_info[curr_cpu].timing);
-	timing->time_in = curr_time;
-	
-	/* 
-	 * The following is needed when we have coarse granularity
-	 * time-stamps (i.e. non-cycle granularity, which means we
-	 * could have same time-stamp for different events).
-	 */
-	timing->time_out = curr_time - 1;
-
-	cos_mem_fence();
-	
-	return;
-}
-
-void 
-parsec_read_unlock(struct parsec *parsec) 
-{
-	int curr_cpu;
-	struct quiescence_timing *timing;
-	
-	curr_cpu = get_cpu();
-	timing = &(parsec->timing_info[curr_cpu].timing);
-
-	/* barrier, then write time stamp. */
-
-	/* 
-	 * Here we don't require a full memory barrier on x86 -- only
-	 * a compiler barrier is enough.
-	 */
-	cmm_barrier();
-
-	timing->time_out = timing->time_in + 1;
-	
-	return;
-}
-
-void 
-ps_enter(struct parsec *parsec) 
-{ parsec_read_lock(parsec); }
-
-void 
-ps_exit(struct parsec *parsec) 
-{ parsec_read_unlock(parsec); }
-
-/* not used for now */
-static void 
-parsec_quiesce(struct parsec *p)
-{
-	ps_tsc_t t = get_time();
-	
-	lib_enter(p);
-	parsec_quiescence_wait(t, p);
-	lib_exit(p);
+	return ps_sync_quiescence(p, orig_timestamp, 0);
 }

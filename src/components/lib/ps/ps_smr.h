@@ -33,17 +33,17 @@ struct percpu_info {
 	struct other_cpu timing_others[NUM_CPU];
 	/* padding an additional cacheline for prefetching */
 	char __padding[CACHE_LINE*2 - (((sizeof(struct other_cpu)*NUM_CPU)+sizeof(struct quiescence_timing)) % CACHE_LINE)];
-} CACHE_ALIGNED PACKED;
+} PS_ALIGNED PS_PACKED;
 
 struct parsec {
 	struct percpu_info timing_info[PS_NUMCORES] PS_ALIGNED;
-} PS_CACHE_ALIGNED;
+} PS_ALIGNED;
 
 static inline void
 __ps_smr_free(struct parsec *ps, void *buf, struct ps_slab_freelist_clpad *fls, size_t obj_sz, size_t allocsz, int hintern)
 {
-	struct ps_mheader  *mem    = __ps_mhead_get(buf), *t;
-	u16_t               coreid = mem->slab.coreid;
+	struct ps_mheader  *t, *mem = __ps_mhead_get(buf);
+	u16_t               coreid  = mem->slab.coreid;
 	struct ps_qsc_list *ql;
 
 	assert(ps_coreid() == coreid);
@@ -70,18 +70,59 @@ __ps_smr_alloc(struct parsec *ps, struct ps_mem_percore *fls, size_t obj_sz, u32
 	return __ps_slab_mem_alloc(&m->fl, obj_sz, allocsz, hintern, &m->slabheads);
 }
 
+static inline void
+ps_enter(struct parsec *parsec)
+{
+	int curr_cpu;
+	ps_tsc_t curr_time;
+	struct quiescence_timing *timing;
+
+	curr_cpu  = ps_coreid();
+	curr_time = ps_tsc();
+
+	timing = &(parsec->timing_info[curr_cpu].timing);
+	timing->time_in = curr_time;
+	/*
+	 * The following is needed when we have coarse granularity
+	 * time-stamps (i.e. non-cycle granularity, which means we
+	 * could have same time-stamp for different events).
+	 */
+	timing->time_out = curr_time - 1;
+
+	cos_mem_fence();
+
+	return;
+}
+
+static inline void
+ps_exit(struct parsec *parsec)
+{
+	int curr_cpu = ps_coreid();
+	struct quiescence_timing *timing;
+
+	timing = &(parsec->timing_info[curr_cpu].timing);
+	/*
+	 * Here we don't require a full memory barrier on x86 -- only
+	 * a compiler barrier is enough.
+	 */
+	cmm_barrier();
+	timing->time_out = timing->time_in + 1;
+
+	return;
+}
+
 #define PS_PARSLAB_CREATE(name, objsz, allocsz)				\
 PS_SLAB_CREATE(name, objsz, allocsz, 0)				        \
 inline void *						                \
 ps_mem_alloc_##name(struct parsec *ps)					\
 {									\
-        struct ps_mem_percore *fl = &slab_##name##_freelist;	\
+        struct ps_mem_percore *fl = &slab_##name##_freelist;		\
 	return __ps_smr_alloc(ps, fl, size, allocsz, 0);		\
 }									\
 inline void							        \
 ps_mem_free_##name(struct parsec *ps, void *buf)			\
 {									\
-        struct ps_mem_percore *fl = slab_##name##_freelist;	\
+        struct ps_mem_percore *fl = slab_##name##_freelist;		\
 	__ps_smr_free(ps, buf, fl, size, allocsz, 0);			\
 }
 
