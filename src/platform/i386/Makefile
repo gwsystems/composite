@@ -41,6 +41,7 @@ OBJS += serial.o
 OBJS += timer.o
 OBJS += chal.o
 OBJS += boot_comp.o
+OBJS += miniacpi.o
 OBJS += console.o
 
 COS_OBJ += pgtbl.o

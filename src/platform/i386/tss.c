@@ -17,5 +17,5 @@ tss_init (void)
 
 	tss.ss0 = SEL_KDSEG;
 	tss.bitmap = 0xdfff;
-	tss.esp0 = (u8_t *) (((u32_t)&esp & ~PGMASK) + PGSIZE - STK_INFO_OFF);
+	tss.esp0 = (((u32_t)&esp & ~PGMASK) + PGSIZE - STK_INFO_OFF);
 }
