@@ -108,11 +108,8 @@ re_check:
 		 * If no waiting allowed, then read at most one remote
 		 * cacheline per core.
 		 */
-		if (first_try) {
-			first_try = 0;
-		} else {
-			if (!waiting) return -1;
-		}
+		if (first_try)     first_try = 0;
+		else if (!waiting) return -1;
 
 		__ps_timing_update_remote(parsec, cpuinfo, quie_cpu);
 
