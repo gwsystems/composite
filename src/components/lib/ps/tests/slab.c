@@ -12,7 +12,7 @@ struct larger {
 	char x[LARGESZ];
 };
 
-PS_SLAB_CREATE_DEF(s, sizeof(struct small))
+PS_SLAB_CREATE(s, sizeof(struct small), PS_PAGE_SIZE*2, 1)
 PS_SLAB_CREATE_DEF(l, sizeof(struct larger))
 
 #define ITER       (1024)
@@ -93,3 +93,4 @@ main(void)
 	}
 	return 0;
 }
+

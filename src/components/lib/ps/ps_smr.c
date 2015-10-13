@@ -10,8 +10,10 @@
  * - Started as parsec.c and parsec.h by Qi.
  */
 
+#include <ps_smr.h>
+
 static inline int
-__ps_in_lib(struct quiescence_timing *timing)
+__ps_in_lib(struct ps_quiescence_timing *timing)
 {
 	/* this means not inside the lib. */
 	if (timing->time_out > timing->time_in) return 0;
@@ -20,9 +22,9 @@ __ps_in_lib(struct quiescence_timing *timing)
 }
 
 static inline void
-__ps_timing_update_remote(struct parsec *parsec, struct percpu_info *curr, int remote_cpu)
+__ps_timing_update_remote(struct parsec *parsec, struct ps_smr_percore *curr, int remote_cpu)
 {
-	struct quiescence_timing *cpu_i;
+	struct ps_quiescence_timing *cpu_i;
 
 	cpu_i = &(parsec->timing_info[remote_cpu].timing);
 
@@ -40,117 +42,160 @@ __ps_timing_update_remote(struct parsec *parsec, struct percpu_info *curr, int r
 		curr->timing.last_known_quiescence = cpu_i->last_known_quiescence;
 	}
 
-	cos_mem_fence();
+	ps_mem_fence();
 
 	return;
 }
 
-int
-ps_sync_quiescence(struct parsec *parsec, ps_tsc_t orig_timestamp, const int waiting)
+static int
+ps_quiesce(struct parsec *parsec, ps_tsc_t tsc, const int blocking)
 {
-	int inlib_curr, quie_cpu, curr_cpu, first_try, i, done_i;
-	ps_tsc_t min_known_quie;
+	int inlib_curr, qsc_cpu, curr_cpu, first_try, i, done_i;
+	ps_tsc_t min_known_qsc;
 	ps_tsc_t in, out, update;
-	struct percpu_info *cpuinfo;
-	struct quiescence_timing *timing_local;
+	struct ps_smr_percore *cpuinfo;
+	struct ps_quiescence_timing *timing_local;
 	ps_tsc_t time_check;
 
-	time_check = orig_timestamp;
-
-	curr_cpu  = get_cpu();
-
-	cpuinfo = &(parsec->timing_info[curr_cpu]);
+	time_check   = tsc;
+	curr_cpu     = ps_coreid();
+	cpuinfo      = &(parsec->timing_info[curr_cpu]);
 	timing_local = &cpuinfo->timing;
+	inlib_curr   = __ps_in_lib(timing_local);
 
-	inlib_curr = __ps_in_lib(timing_local);
 	/*
-	 * ensure quiescence on the current core: either time_in >
-	 * time_check, or we are not in the lib right now.
+	 * We cannot attempt quiescence for a time after we entered
+	 * the library.  By the definition of quiescence, this is not
+	 * possible.  Thus, ensure quiescence on the current core:
+	 * either time_in > time_check, or we are not in the lib right
+	 * now.  Either call ps_quiesce when we aren't in the library,
+	 * or for a quiescence period _before_ when we entered.
 	 */
-	if (unlikely((time_check > timing_local->time_in)
-		     && inlib_curr)) {
-		/* printf(">>>>>>>>>> QUIESCENCE wait error %llu %llu!\n",  */
-		/*        time_check, timing_local->time_in); */
-		return -EQUIESCENCE;
-	}
+	if (unlikely((time_check > timing_local->time_in) && inlib_curr)) return -EQUIESCENCE;
 
-	min_known_quie = (unsigned long long)(-1);
+	min_known_qsc = (unsigned long long)(-1);
 	for (i = 1; i < PS_NUMCORES; i++) {
-		quie_cpu = (curr_cpu + i) % PS_NUMCORES;
-		assert(quie_cpu != curr_cpu);
+		/* Make sure we don't all hammer core 0... */
+		qsc_cpu = (curr_cpu + i) % PS_NUMCORES;
+		assert(qsc_cpu != curr_cpu);
 
 		first_try = 1;
 		done_i = 0;
 re_check:
-		if (time_check < timing_local->last_known_quiescence)
-			break;
+		/* If we can use the quiescence for another core */
+		if (time_check < timing_local->last_known_quiescence) break;
 
-		in     = cpuinfo->timing_others[quie_cpu].time_in;
-		out    = cpuinfo->timing_others[quie_cpu].time_out;
-		update = cpuinfo->timing_others[quie_cpu].time_updated;
+		/* Use our cached values of the other core's values */
+		in     = cpuinfo->timing_others[qsc_cpu].time_in;
+		out    = cpuinfo->timing_others[qsc_cpu].time_out;
+		update = cpuinfo->timing_others[qsc_cpu].time_updated;
 
-		if ((time_check < in) ||
-		    ((time_check < update) && (in < out))) {
-			done_i = 1;
-		}
+		/* 
+		 * If the time is before the last in-tsc, or the other
+		 * cores has entered and exited the parallel section,
+		 * and our updated version of its timing happened
+		 * before the time in question, this core is done.
+		 */
+		if ((time_check < in) || ((time_check < update) && (in < out))) done_i = 1;
 
 		if (done_i) {
+			/* 
+			 * We want to update our own version of the
+			 * time furthest into the past that quiescence
+			 * has been observed.
+			 */
 			/* assertion: update >= in */
 			if (in < out) {
-				if (min_known_quie > update) min_known_quie = update;
+				if (min_known_qsc > update) min_known_qsc = update;
 			} else {
-				if (min_known_quie > in) min_known_quie = in;
+				if (min_known_qsc > in)     min_known_qsc = in;
 			}
-			continue;
+			continue; /* move on to the next core... */
 		}
 
 		/*
-		 * If no waiting allowed, then read at most one remote
+		 * If no blocking allowed, then read at most one remote
 		 * cacheline per core.
 		 */
-		if (first_try)     first_try = 0;
-		else if (!waiting) return -1;
+		if      (first_try) first_try = 0;
+		else if (!blocking) return -1;
 
-		__ps_timing_update_remote(parsec, cpuinfo, quie_cpu);
+		/* 
+		 * If we couldn't satisfy the quiescence locally, then
+		 * we need to update our cached state for the remote
+		 * core.
+		 */
+		__ps_timing_update_remote(parsec, cpuinfo, qsc_cpu);
 
 		goto re_check;
 	}
 
 	/*
-	 * This would be on the fast path of the single core/thd
-	 * case. Optimize a little bit.
+	 * Update our cached value of the last known quiescence value.
+	 * This is a little complicated as it can be updated to the
+	 * min_known_qsc if we had to iterate through all cores (thus
+	 * we likely found an improvement to our previous value.
 	 */
-#if PS_NUMCORES > 1
-	if (i == PS_NUMCORES) {
-		if (inlib_curr && (min_known_quie > timing_local->time_in))
-			min_known_quie = timing_local->time_in;
+	if (PS_NUMCORES > 1 && i == PS_NUMCORES) {
+		if (inlib_curr && (min_known_qsc > timing_local->time_in)) {
+			min_known_qsc = timing_local->time_in;
+		}
 
-		assert(min_known_quie < (unsigned long long)(-1));
+		assert(min_known_qsc < (unsigned long long)(-1));
 		/*
 		 * This implies we went through all cores. Thus the
 		 * min_known_quie can be used to determine global
 		 * quiescence.
 		 */
-		if (timing_local->last_known_quiescence < min_known_quie)
-			timing_local->last_known_quiescence = min_known_quie;
-		cos_mem_fence();
+		if (timing_local->last_known_quiescence < min_known_qsc) {
+			timing_local->last_known_quiescence = min_known_qsc;
+		}
+		ps_mem_fence();
 	}
-#endif
 
 	return 0;
 }
 
-/* force waiting for quiescence */
+/* 
+ * Blocking and non-blocking versions of quiescence.  By default, we
+ * should only use the non-blocking version (i.e. the system should be
+ * wait-free), but we might run out of memory if this is the case.
+ */
 int
-ps_quiescence_wait(struct parsec *p, ps_tsc_t orig_timestamp)
-{
-	/* waiting for quiescence if needed. */
-	return ps_sync_quiescence(p, orig_timestamp, 1);
-}
+ps_quiesce_wait(struct parsec *p, ps_tsc_t tsc)
+{ return ps_quiesce(p, tsc, 1); }
 
 int
-ps_try_quiescence(struct parsec *p, ps_tsc_t orig_timestamp)
+ps_try_quiesce(struct parsec *p, ps_tsc_t tsc)
+{ return ps_quiesce(p, tsc, 0); }
+
+void
+ps_init(struct parsec *ps)
 {
-	/* non-waiting */
-	return ps_sync_quiescence(p, orig_timestamp, 0);
+	ps_tsc_t now = ps_tsc();
+	int i, j;
+	
+	for (i = 0 ; i < PS_NUMCORES ; i++) {
+		struct ps_quiescence_timing *t = &ps->timing_info[i].timing;
+
+		t->time_in = t->time_out = t->last_known_quiescence = now;
+		t->time_out++;
+		for (j = 0 ; j < PS_NUMCORES ; j++) {
+			struct __ps_other_core *o = &ps->timing_info[i].timing_others[j];
+
+			o->time_in = o->time_out = o->time_updated = now;
+			o->time_out++;
+		}
+	}
+}
+
+struct parsec *
+ps_alloc(void)
+{
+	struct parsec *ps = PS_SLAB_ALLOC(sizeof(struct parsec));
+
+	if (!ps) return NULL;
+	ps_init(ps);
+
+	return ps;
 }
