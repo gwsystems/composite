@@ -74,6 +74,18 @@ __slab_freelist_add(struct ps_slab_freelist *fl, struct ps_slab *s)
 
 /*** Alloc and free ***/
 
+static inline void __ps_slab_mem_free(void *buf, struct ps_mem_percore *fls, size_t obj_sz, size_t allocsz, int hintern);
+
+static void
+__ps_slab_mem_remote_free(struct ps_mem_percore *fls, struct ps_mheader *h, u16_t core_target)
+{
+	struct ps_mem_percore *m = &fls[core_target];
+
+	ps_lock_take(&m->lock);
+	__ps_qsc_enqueue(&m->remote_frees, h);
+	ps_lock_release(&m->lock);
+}
+
 static inline void
 __ps_slab_mem_free(void *buf, struct ps_mem_percore *fls, size_t obj_sz, size_t allocsz, int hintern)
 {
@@ -82,13 +94,21 @@ __ps_slab_mem_free(void *buf, struct ps_mem_percore *fls, size_t obj_sz, size_t 
 	unsigned int max_nobjs = __ps_slab_max_nobjs(obj_sz, allocsz, hintern);
 	/* TODO: struct ps_slab_freelist *headfl; */
 	struct ps_slab_freelist *fl;
+	u16_t coreid;
 	assert(__ps_slab_objmemsz(obj_sz) + (hintern ? sizeof(struct ps_slab) : 0) <= allocsz);
 
 	h = __ps_mhead_get(buf);
 	assert(!__ps_mhead_isfree(h)); /* freeing freed memory? */
-	s = __ps_mhead_setfree(h);
+	s = h->slab;
 	assert(s);
 
+	coreid = s->coreid;
+	if (unlikely(coreid != ps_coreid())) {
+		__ps_slab_mem_remote_free(fls, h, coreid);
+		return;
+	}
+
+	__ps_mhead_setfree(h);
 	next        = s->freelist;
 	s->freelist = h; 	/* TODO: should be atomic/locked */
 	h->next     = next;
@@ -96,11 +116,11 @@ __ps_slab_mem_free(void *buf, struct ps_mem_percore *fls, size_t obj_sz, size_t 
 
 	if (s->nfree == max_nobjs) {
 		/* remove from the freelist */
-		fl = &fls[s->coreid].fl;
+		fl = &fls[coreid].fl;
 		__slab_freelist_rem(fl, s);
 	 	PS_SLAB_FREE(s, s->memsz);
 	} else if (s->nfree == 1) {
-		fl = &fls[s->coreid].fl;
+		fl = &fls[coreid].fl;
 		/* add back onto the freelists */
 		assert(ps_list_empty(s, list));
 		__slab_freelist_add(fl, s);

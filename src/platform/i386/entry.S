@@ -96,6 +96,7 @@ restore_from_thd:
 
 	movl PT_EAX(%eax), %eax
 
+	sti
 	iret
 
 #define IRQPROC(fn)  \
