@@ -48,7 +48,7 @@ __ps_timing_update_remote(struct parsec *parsec, struct ps_smr_percore *curr, in
 }
 
 static int
-ps_quiesce(struct parsec *parsec, ps_tsc_t tsc, const int blocking)
+ps_quiesce(struct parsec *parsec, ps_tsc_t tsc, const int blocking, ps_tsc_t *qsc)
 {
 	int inlib_curr, qsc_cpu, curr_cpu, first_try, i, done_i;
 	ps_tsc_t min_known_qsc;
@@ -63,6 +63,7 @@ ps_quiesce(struct parsec *parsec, ps_tsc_t tsc, const int blocking)
 	timing_local = &cpuinfo->timing;
 	inlib_curr   = __ps_in_lib(timing_local);
 
+	*qsc = timing_local->last_known_quiescence;
 	/*
 	 * We cannot attempt quiescence for a time after we entered
 	 * the library.  By the definition of quiescence, this is not
@@ -148,7 +149,7 @@ re_check:
 		 * quiescence.
 		 */
 		if (timing_local->last_known_quiescence < min_known_qsc) {
-			timing_local->last_known_quiescence = min_known_qsc;
+			*qsc = timing_local->last_known_quiescence = min_known_qsc;
 		}
 		ps_mem_fence();
 	}
@@ -162,12 +163,12 @@ re_check:
  * wait-free), but we might run out of memory if this is the case.
  */
 int
-ps_quiesce_wait(struct parsec *p, ps_tsc_t tsc)
-{ return ps_quiesce(p, tsc, 1); }
+ps_quiesce_wait(struct parsec *p, ps_tsc_t tsc, ps_tsc_t *qsc_tsc)
+{ return ps_quiesce(p, tsc, 1, qsc_tsc); }
 
 int
-ps_try_quiesce(struct parsec *p, ps_tsc_t tsc)
-{ return ps_quiesce(p, tsc, 0); }
+ps_try_quiesce(struct parsec *p, ps_tsc_t tsc, ps_tsc_t *qsc_tsc)
+{ return ps_quiesce(p, tsc, 0, qsc_tsc); }
 
 void
 ps_init(struct parsec *ps)

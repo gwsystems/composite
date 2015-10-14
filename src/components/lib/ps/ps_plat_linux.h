@@ -24,6 +24,7 @@ ps_plat_free(void *x, size_t sz)
 #define u32_t unsigned int
 #define u64_t unsigned long long
 typedef u64_t ps_tsc_t; 	/* our time-stamp counter representation */
+typedef u16_t coreid_t;
 
 #define PS_CACHE_LINE  64
 #define PS_CACHE_PAD   (PS_CACHE_LINE*2)
@@ -55,12 +56,12 @@ ps_tsc(void)
 }
 
 static inline ps_tsc_t
-ps_tsc_locality(unsigned int *coreid, unsigned int *numaid)
+ps_tsc_locality(coreid_t *coreid, coreid_t *numaid)
 {
 	unsigned long a, d, c;
 
 	__asm__ __volatile__("rdtscp" : "=a" (a), "=d" (d), "=c" (c) : : );
-	*coreid = c & 0xFFF; 	/* lower 12 bits in Linux = coreid */
+	*coreid = 0; /*c & 0xFFF;*/ 	/* lower 12 bits in Linux = coreid */
 	*numaid = c >> 12; 	/* next 8 = socket/numa id */
 
 	return ((u64_t)d << 32) | (u64_t)a;
@@ -82,6 +83,9 @@ ps_coreid(void)
 #define ps_cc_barrier() __asm__ __volatile__ ("" : : : "memory")
 #endif
 
+#define PS_CAS_INSTRUCTION "cmpxchgq" /* "cmpxchgl" for x86-32 */
+#define PS_CAS_STR PS_CAS_INSTRUCTION " %2, %0; setz %1"
+
 /*
  * Return values:
  * 0 on failure due to contention (*target != old)
@@ -91,7 +95,7 @@ static inline int
 ps_cas(unsigned long *target, unsigned long old, unsigned long updated)
 {
         char z;
-        __asm__ __volatile__("lock cmpxchgl %2, %0; setz %1"
+        __asm__ __volatile__("lock " PS_CAS_STR
                              : "+m" (*target), "=a" (z)
                              : "q"  (updated), "a"  (old)
                              : "memory", "cc");
@@ -107,7 +111,7 @@ static inline int
 ps_upcas(unsigned long *target, unsigned long old, unsigned long updated)
 {
         char z;
-        __asm__ __volatile__("cmpxchgl %2, %0; setz %1"
+        __asm__ __volatile__(PS_CAS_STR
                              : "+m" (*target), "=a" (z)
                              : "q"  (updated), "a"  (old)
                              : "memory", "cc");
@@ -121,7 +125,7 @@ ps_mem_fence(void)
 
 /* FIXME: this is truly horrible for now, but a simple lock for testing */
 struct ps_lock {
-	int o;
+	unsigned long o;
 };
 
 static inline void
