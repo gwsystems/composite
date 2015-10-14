@@ -16,8 +16,9 @@ test_malloc(void)
 		mptr[i] = (char *)malloc(i+1);
 		assert(mptr[i]);
 		for(j=0; j<i; j++) mptr[i][j] = '$';
-		free(mptr[i]);
+		//free(mptr[i]);
 	}
+/*
 	for(i=0; i<NUM; i++) {
 		mptr[i] = (char *)malloc(i+1);
 		assert(mptr[i]);
@@ -25,14 +26,14 @@ test_malloc(void)
 	}
 	for(i=0; i<NUM; i++) {
 		for(j=0; j<i; j++) assert(mptr[i][j] == '$');
-		free(mptr[i]);
+		//free(mptr[i]);
 	}
 
 	for(i=0; i<NUM; i++) {
 		mptr[i] = (char *)malloc(4096*(i+1));
 		assert(mptr[i]);
 		memset(mptr[i], '$', 4096*(i+1));
-		free(mptr[i]);
+		//free(mptr[i]);
 	}
 
 	for(i=0; i<125; i++) {
@@ -42,8 +43,9 @@ test_malloc(void)
 	}
 	for(i=0; i<125; i++) {
 		for(j=0; j<NUM; j++) assert(mptr[i][j] == '$');
-		free(mptr[i]);
+		//free(mptr[i]);
 	}
+*/
 
 	return 0;
 }

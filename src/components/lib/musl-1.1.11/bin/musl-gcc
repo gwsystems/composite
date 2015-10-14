@@ -1,2 +1,2 @@
 #!/bin/sh
-exec "${REALGCC:-gcc}" "$@" -specs "/home/ryx/research/composite/src/components/lib/musl-1.1.11/lib/musl-gcc.specs"
+exec "${REALGCC:-gcc}" "$@" -specs "/home/georgit/research/composite/src/components/lib/musl-1.1.11/lib/musl-gcc.specs"

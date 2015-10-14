@@ -364,7 +364,6 @@ cbuf_mark_relinquish_all(struct cbuf_comp_info *cci)
 		} while (cbi != bin->c);
 	}
 }
-
 static inline void
 cbuf_unmark_relinquish_all(struct cbuf_comp_info *cci)
 {

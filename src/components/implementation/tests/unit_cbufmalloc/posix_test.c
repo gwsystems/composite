@@ -1,41 +1,28 @@
-#include <stdio.h>
+#include <printc.h>
+#include <cos_component.h>
+#include <cbuf_mgr.h>
+#include <assert.h>
 
-#define RUN_TEST(a) { \
-extern int test_ ##a (void); \
-int e = test_ ##a (); \
-if (e) printf("%s test failed, %d error(s)\n", #a, e); \
-else   printf("%s test passed\n", #a); \
-err += e; \
-}
-
-#define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
-#define UHZ 2890
-
-int
-run_bench(const char *label, size_t (*bench)(void *), void *params)
-{
-	unsigned long long int start, end;
-	
-	puts(label);
-	rdtscll(start);
-	bench(params);
-	rdtscll(end);
-	printf("time %d %dus\n", (int)(end-start), (int)((end-start)/UHZ));
-}
-
-#define RUN(a, b) \
-	extern size_t (a)(void *); \
-	run_bench(#a " (" #b ")", (a), (b))
+#define NUM 1024
+char *mptr[NUM];
 
 void
 cos_init(void *args)
 {
 	int err=0;
 
-	printf("==========libc test=========\n");
+	int i, j;
+
+	for(i=0; i<NUM; i++) {
+        printc("Call to malloc:\n");
+		mptr[i] = (char *)malloc(i+1);
+		assert(mptr[i]);
+		for(j=0; j<i; j++) mptr[i][j] = '$';
+		//free(mptr[i]);
+	}
 
 	//RUN_TEST(fnmatch);
-	RUN_TEST(malloc);
+	//RUN_TEST(malloc);
 	//RUN_TEST(memstream);
 	//RUN_TEST(qsort);
 	//RUN_TEST(sscanf);
@@ -44,9 +31,6 @@ cos_init(void *args)
 	//RUN_TEST(strtod);
 	//RUN_TEST(strtol);
 	//RUN_TEST(wcstol);
-
-	printf("total errors: %d\n", err);
-	printf("==========libc bench=========\n");
 
 	//RUN(b_malloc_sparse, 0);
 	//RUN(b_malloc_bubble, 0);
@@ -68,7 +52,6 @@ cos_init(void *args)
 	RUN(b_regex_search, "(a|b|c)*d*b");
 	RUN(b_regex_search, "a{25}b");
 */
-	printf("=============DONE!==========\n");
 
 	return !!err;
 }

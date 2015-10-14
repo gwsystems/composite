@@ -1,8 +1,8 @@
-C_OBJS=malloc.o
+C_OBJS=posix_test.o
 ASM_OBJS=
 COMPONENT=malloc_cbuf.o
 INTERFACES=
-DEPENDENCIES=sched printc lock valloc cbuf_mgr
+DEPENDENCIES=cbuf_mgr printc sched lock valloc
 IF_LIB=
 
 include ../../Makefile.subsubdir

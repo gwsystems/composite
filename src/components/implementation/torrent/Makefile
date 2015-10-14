@@ -1,4 +1,4 @@
 INTERFACES=torrent
-DEPENDENCIES=printc cbuf_mgr evt mem_mgr_large valloc lock
+DEPENDENCIES=printc cbuf_mgr evt valloc lock
 
 include ../Makefile.subdir

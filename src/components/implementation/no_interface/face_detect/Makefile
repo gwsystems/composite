@@ -2,7 +2,7 @@ C_OBJS=fd.o
 ASM_OBJS=
 COMPONENT=face_detect.o
 INTERFACES=
-DEPENDENCIES=sched printc timed_blk torrent cbuf_mgr evt mem_mgr_large valloc lock
+DEPENDENCIES=sched printc timed_blk torrent evt cbuf_mgr valloc lock
 IF_LIB=./cos_libccv.a
 OBJLIBS += $(POSIX_LIB)
 

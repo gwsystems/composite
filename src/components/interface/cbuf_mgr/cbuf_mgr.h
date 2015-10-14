@@ -33,8 +33,6 @@ int cbuf_fork_spd(spdid_t spd, spdid_t s_spd, spdid_t d_spd);
  * Before the first call to cbufp_collect, the client component must
  * call cbufp_map_collect in order to map the shared page used to
  * return the list of garbage-collected cbufs.
- *
- * What happens if it doesn't call this?
  */
 vaddr_t cbuf_map_collect(spdid_t spdid);
 
