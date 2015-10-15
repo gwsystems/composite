@@ -16,27 +16,42 @@
  attempts to operate on the single byte level, which fails.
 */
 
+#define HPET_OFFSET(n) ((unsigned char*)hpet + n)
+
 #define HPET_CAPABILITIES  (0x0)
 #define HPET_CONFIGURATION (0x10)
 #define HPET_INTERRUPT     (0x20)
 #define HPET_COUNTER       (0xf0)
 
 #define HPET_T0_CONFIG    (0x100)
-#define HPET_Tn_CONFIG(n) (HPET_T0_CONFIG + (0x20 * n))
+#define HPET_Tn_CONFIG(n) HPET_OFFSET(HPET_T0_CONFIG + (0x20 * n))
 
 #define HPET_T0_COMPARATOR    (0x108)
-#define HPET_Tn_COMPARATOR(n) (HPET_T0_COMPARATOR + (0x20 * n))
+#define HPET_Tn_COMPARATOR(n) HPET_OFFSET(HPET_T0_COMPARATOR + (0x20 * n))
 
 #define HPET_T0_INTERRUPT    (0x110)
-#define HPET_Tn_INTERRUPT(n) (HPET_T0_INTERRUPT + (0x20 * n))
+#define HPET_Tn_INTERRUPT(n) HPET_OFFSET(HPET_T0_INTERRUPT + (0x20 * n))
 
-#define HPET_ENABLE_CNF (1)
-#define HPET_LEG_RT_CNF (1<<1)
+#define HPET_ENABLE_CNF (1ll)
+#define HPET_LEG_RT_CNF (1ll<<1)
 
 #define HPET_TAB_LENGTH  (0x4)
 #define HPET_TAB_ADDRESS (0x2c)
 
-static volatile u64_t *hpet_cap;
+/* Bits in HPET_Tn_CONFIG */
+/* 1 << 0 is reserved */
+#define TN_INT_TYPE_CNF	(1ll << 1)	/* 0 = edge trigger, 1 = level trigger */
+#define TN_INT_ENB_CNF	(1ll << 2)	/* 0 = no interrupt, 1 = interrupt */
+#define TN_TYPE_CNF	(1ll << 3)	/* 0 = one-shot, 1 = periodic */
+#define TN_PER_INT_CAP	(1ll << 4)	/* read only, 1 = periodic supported */
+#define TN_SIZE_CAP	(1ll << 5)	/* 0 = 32-bit, 1 = 64-bit */
+#define TN_VAL_SET_CNF	(1ll << 6)	/* set to allow directly setting accumulator */
+/* 1 << 7 is reserved */
+#define TN_32MODE_CNF	(1ll << 8)	/* 1 = force 32-bit access to 64-bit timer */
+#define TN_INT_ROUTE_CNF (1<<9: 1<<13)	/* routing for interrupt */
+#define TN_FSB_EN_CNF	(1ll << 14)	/* 1 = deliver interrupts via FSB instead of APIC */
+#define TN_FSB_INT_DEL_CAP	(1ll << 15)	/* read only, 1 = FSB delivery available */
+
 static volatile u64_t *hpet_config;
 static volatile u64_t *hpet_interrupt;
 static volatile u64_t *hpet_counter;
@@ -73,7 +88,7 @@ timer_handler(struct pt_regs *regs)
 void
 timer_set(timer_type_t timer_type, u64_t cycles)
 {
-	u64_t outconfig = (1ll << 1) | (1ll << 2) | (1ll << 6);
+	u64_t outconfig = TN_INT_TYPE_CNF | TN_INT_ENB_CNF;
 
 	/* Disable timer interrupts */
 	*hpet_config ^= ~1;
@@ -87,7 +102,7 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 		hpet_timers[0].config = outconfig;
 	} else {
 		/* Set a periodic value */
-		hpet_timers[0].config = outconfig | (1ll << 3);
+		hpet_timers[0].config = outconfig | TN_TYPE_CNF;
 	}
 	hpet_timers[0].compare = cycles;
 
@@ -129,11 +144,10 @@ void
 timer_set_hpet_page(u32_t page)
 {
 	hpet = (void*)(page * (1 << 22) | ((u32_t)hpet & ((1<<22)-1)));
-	hpet_cap = (u64_t*)((char*)hpet + HPET_CAPABILITIES);
-	hpet_config = (u64_t*)((char*)hpet + HPET_CONFIGURATION);
-	hpet_interrupt = (u64_t*)((char*)hpet + HPET_INTERRUPT);
-	hpet_counter = (u64_t*)((char*)hpet + HPET_COUNTER);
-	hpet_timers = (struct hpet_timer*)((char*)hpet + HPET_T0_CONFIG);
+	hpet_config = (u64_t*)((unsigned char*)hpet + HPET_CONFIGURATION);
+	hpet_interrupt = (u64_t*)((unsigned char*)hpet + HPET_INTERRUPT);
+	hpet_counter = (u64_t*)((unsigned char*)hpet + HPET_COUNTER);
+	hpet_timers = (struct hpet_timer*)((unsigned char*)hpet + HPET_T0_CONFIG);
 	printk("Set HPET @ %p\n", hpet);
 }
 
