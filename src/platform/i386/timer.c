@@ -21,7 +21,7 @@
 #define HPET_CAPABILITIES  (0x0)
 #define HPET_CONFIGURATION (0x10)
 #define HPET_INTERRUPT     (0x20)
-#define HPET_COUNTER       (0xf0)
+#define HPET_COUNTER       (*(u64_t*)(HPET_OFFSET(0xf0)))
 
 #define HPET_T0_CONFIG    (0x100)
 #define HPET_Tn_CONFIG(n) HPET_OFFSET(HPET_T0_CONFIG + (0x20 * n))
@@ -54,7 +54,6 @@
 
 static volatile u64_t *hpet_config;
 static volatile u64_t *hpet_interrupt;
-static volatile u64_t *hpet_counter;
 
 volatile struct hpet_timer {
 		u64_t config;
@@ -79,7 +78,7 @@ timer_handler(struct pt_regs *regs)
 	ack_irq(IRQ_PIT);
 //	if (timer_thread) capinv_int_snd(timer_thread, rs);
 
-        printk("Tick: %2u @%10llu (%10llu)\n", tick, cycle, *hpet_counter);
+        printk("Tick: %2u @%10llu (%10llu)\n", tick, cycle, HPET_COUNTER);
 
 	*hpet_interrupt = 1;
 	/* *hpet_config |= 1; */
@@ -94,8 +93,8 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 	*hpet_config ^= ~1;
 
 	/* Reset main counter */
-	printk("Setting timer (%d) for %llu (is %llu)\n", timer_type, cycles, *hpet_counter);
-	/* *hpet_counter = 0; */
+	printk("Setting timer (%d) for %llu (is %llu)\n", timer_type, cycles, HPET_COUNTER);
+	/* HPET_COUNTER = 0; */
 
 	if (timer_type == TIMER_ONESHOT) {
 		/* Set a static value to count up to */
@@ -146,7 +145,6 @@ timer_set_hpet_page(u32_t page)
 	hpet = (void*)(page * (1 << 22) | ((u32_t)hpet & ((1<<22)-1)));
 	hpet_config = (u64_t*)((unsigned char*)hpet + HPET_CONFIGURATION);
 	hpet_interrupt = (u64_t*)((unsigned char*)hpet + HPET_INTERRUPT);
-	hpet_counter = (u64_t*)((unsigned char*)hpet + HPET_COUNTER);
 	hpet_timers = (struct hpet_timer*)((unsigned char*)hpet + HPET_T0_CONFIG);
 	printk("Set HPET @ %p\n", hpet);
 }
