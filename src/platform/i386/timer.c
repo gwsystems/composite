@@ -1,5 +1,3 @@
-#define ENABLE_TIMER
-
 #include <thd.h>
 #include <inv.h>
 
@@ -9,40 +7,39 @@
 
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 
-struct hpet_tab {
-  u8_t sig[4];
-  u32_t length;
-  u8_t revision;
-  u8_t checksum;
-  u8_t oemid[6];
-  u64_t oemtableid;
-  u32_t oemrevision;
-  u8_t creatorid[4];
-  u32_t creatorrevision;
-  struct {
-    u8_t hwrev;
-    u8_t ncomp :5;
-    u8_t count_size_cap :1;
-    u8_t reserved :1;
-    u8_t legacy_irq :1;
-    u16_t pci_vendor;
-  } blockid;
-  struct {
-    u8_t space_id;
-    u8_t reg_bit_width;
-    u8_t reg_bit_offset;
-    u8_t reserved;
-    u64_t address;
-  } address;
-  u8_t number;
-  u16_t minimumclocktick;
-  u8_t oemattribute;
-} __attribute__((packed));
+/*
+ These addressess are specified as offsets from the base HPET pointer, which is
+ a 1024-byte region of memory-mapped registers. The reason we use offsets
+ rather than a struct or bitfields is that ALL accesses, both read and write,
+ must be aligned at 32- or 64-bit boundaries and must read or write an entire
+ 32- or 64-bit value at a time. Packed structs cause GCC to produce code which
+ attempts to operate on the single byte level, which fails.
+*/
 
-volatile u64_t *hpet_cap;
-volatile u64_t *hpet_config;
-volatile u64_t *hpet_interrupt;
-volatile u64_t *hpet_counter;
+#define HPET_CAPABILITIES  (0x0)
+#define HPET_CONFIGURATION (0x10)
+#define HPET_INTERRUPT     (0x20)
+#define HPET_COUNTER       (0xf0)
+
+#define HPET_T0_CONFIG    (0x100)
+#define HPET_Tn_CONFIG(n) (HPET_T0_CONFIG + (0x20 * n))
+
+#define HPET_T0_COMPARATOR    (0x108)
+#define HPET_Tn_COMPARATOR(n) (HPET_T0_COMPARATOR + (0x20 * n))
+
+#define HPET_T0_INTERRUPT    (0x110)
+#define HPET_Tn_INTERRUPT(n) (HPET_T0_INTERRUPT + (0x20 * n))
+
+#define HPET_ENABLE_CNF (1)
+#define HPET_LEG_RT_CNF (1<<1)
+
+#define HPET_TAB_LENGTH  (0x4)
+#define HPET_TAB_ADDRESS (0x2c)
+
+static volatile u64_t *hpet_cap;
+static volatile u64_t *hpet_config;
+static volatile u64_t *hpet_interrupt;
+static volatile u64_t *hpet_counter;
 
 volatile struct hpet_timer {
 		u64_t config;
@@ -56,67 +53,6 @@ static void *hpet;
 static u32_t tick = 0;
 static int current_type = TIMER_FREQUENCY;
 static u64_t oneshot_target = 0;
-
-void
-timer_hex(int start, int end)
-{
-	int i = 0;
-	u32_t *b = (u32_t *)hpet;
-	for (i = start / 8; i <= end / 8; i++) {
-		printk("%08x%c", b[i], i - (start/8) % 4 == 3 ? '\n' : ' '); 
-	}
-}
-
-void
-timer_print(void)
-{
-	int i = 0;
-	int ncounters = 1; /*(*hpet_cap >> 8) & 0x3f;*/
-
-	printk("- HPET @ %p\n", hpet);
-	printk("-- Capabilities (");
-	timer_hex(0x0, 0x8);
-	printk(")\n--- REV_ID:             %u\n", *hpet_cap & 0xff);
-	printk("--- NUM_TIM_CAP:        %u\n", (*hpet_cap >> 8) & 0x3f);
-	printk("--- COUNT_SIZE_CAP:     %u\n", (*hpet_cap >> 13) & 1);
-	printk("--- LEG_ROUTE_CAP:      %u\n", (*hpet_cap >> 15) & 1);
-	printk("--- VENDOR_ID:          %x\n", (*hpet_cap >> 16) & 0xffff);
-	printk("--- COUNTER_CLK_PERIOD: %u\n", (*hpet_cap >> 32) & 0xffffffff);
-
-	printk("-- Configuration (");
-	timer_hex(0x10, 0x18);
-	printk(")\n--- ENABLE_CNF: %d\n", *hpet_config & 1);
-	printk("--- LEG_RT_CNF: %d\n", (*hpet_config >> 1) & 1);
-
-	printk("-- Interrupt Status (");
-	timer_hex(0x20, 0x28);
-	printk(")\n");
-	for (i = 0; i < ncounters; i++) {
-		printk("--- T%d_INT_STS: %d\n", i, (*hpet_interrupt >> i) & 1);
-	}
-
-	printk("-- Counter (");
-	timer_hex(0xf0, 0xf8);
-	printk(")\n--- MAIN_COUNTER_VAL: %llu\n", *hpet_counter);
-
-	for (i = 0; i < ncounters; i++) {
-		u64_t cfg = hpet_timers[i].config;
-		printk("-- Timer %d\n", i);
-		printk("--- TN_INT_TYPE_CNF:    %u\n", (cfg >> 1) & 1);
-		printk("--- TN_INT_ENB_CNF:     %u\n", (cfg >> 2) & 1);
-		printk("--- TN_TYPE_CNF:        %u\n", (cfg >> 3) & 1);
-		printk("--- TN_PER_INT_CAP:     %u\n", (cfg >> 4) & 1);
-		printk("--- TN_SIZE_CAP:        %u\n", (cfg >> 5) & 1);
-		printk("--- TN_VAL_SET_CNF:     %u\n", (cfg >> 6) & 1);
-		printk("--- TN_32MODE_CNF:      %u\n", (cfg >> 8) & 1);
-		printk("--- TN_INT_ROUTER_CNF:  %u\n", (cfg >> 9) & 0x20);
-		printk("--- TN_FSB_EN_CNF:      %u\n", (cfg >> 14) & 1);
-		printk("--- TN_FSB_INT_DEL_CAP: %u\n", (cfg >> 15) & 1);
-		printk("--- TN_INT_ROUTE_CAP:   %x\n", (cfg >> 32));
-	}
-
-	timer_hex(0, 0x120);
-}
 
 void
 timer_handler(struct pt_regs *regs)
@@ -135,7 +71,7 @@ timer_handler(struct pt_regs *regs)
 }
 
 void
-timer_set(int timer_type, u64_t cycles)
+timer_set(timer_type_t timer_type, u64_t cycles)
 {
 	u64_t outconfig = (1ll << 1) | (1ll << 2) | (1ll << 6);
 
@@ -158,11 +94,6 @@ timer_set(int timer_type, u64_t cycles)
 	/* Save the current type of timer */
 	current_type = timer_type;
 
-	/*
-	printk("- After:\n");
-	timer_print();
-	*/
-
 	/* Enable timer interrupts */
 	*hpet_config |= 1;
 }
@@ -172,40 +103,22 @@ timer_find_hpet(void *timer)
 {
 	u32_t i;
 	unsigned char sum = 0;
+	unsigned char *hpetaddr = timer;
+	u32_t length = *(u32_t*)(hpetaddr + HPET_TAB_LENGTH);
 
-	struct hpet_tab *hpetaddr = timer;
 	printk("Initiliazing HPET @ %p\n", hpetaddr);
-	/*
-	printk("-- Signature:  %c%c%c%c\n", hpetaddr->sig[0], hpetaddr->sig[1], hpetaddr->sig[2], hpetaddr->sig[3]);
-	printk("-- Length:     %d\n", hpetaddr->length);
-	printk("-- Revision:   %d\n", hpetaddr->revision);
-	printk("-- Checksum:   %x\n", hpetaddr->checksum);
-	printk("-- OEM ID:     %c%c%c%c%c%c\n", hpetaddr->oemid[0], hpetaddr->oemid[1], hpetaddr->oemid[2], hpetaddr->oemid[3], hpetaddr->oemid[4], hpetaddr->oemid[5]);
-	printk("-- OEM Rev:    %d\n", hpetaddr->oemrevision);
-	printk("-- Creator ID: %c%c%c%c\n", hpetaddr->creatorid[0], hpetaddr->creatorid[1], hpetaddr->creatorid[2], hpetaddr->creatorid[3]);
-	printk("-- CreatorRev: %d\n", hpetaddr->creatorrevision);
-	printk("-- HW Revi:    %d\n", hpetaddr->blockid.hwrev);
-	printk("-- N Compar:   %d\n", hpetaddr->blockid.ncomp);
-	printk("-- Count Size: %d\n", hpetaddr->blockid.count_size_cap);
-	printk("-- Reserved:   %d\n", hpetaddr->blockid.reserved);
-	printk("-- Legacy IRQ: %d\n", hpetaddr->blockid.legacy_irq);
-	printk("-- PCI Vendor: %hx\n", hpetaddr->blockid.pci_vendor);
-	printk("-- AddrSpace:  %s (%d)\n", hpetaddr->address.space_id ? "I/O" : "Memory", hpetaddr->address.space_id);
-	printk("-- Bit Width:  %d\n", hpetaddr->address.reg_bit_width);
-	printk("-- Bit Offset: %d\n", hpetaddr->address.reg_bit_offset);
-	printk("-- Reserved:   %d\n", hpetaddr->address.reserved);
-	printk("-- Address:    %llx\n", hpetaddr->address.address);
-	printk("-- Number:     %d\n", hpetaddr->number);
-	printk("-- Min Tick:   %hu\n", hpetaddr->minimumclocktick);
-	printk("-- OEM Attr:   %x\n", hpetaddr->oemattribute);
-	*/
-	for (i = 0; i < hpetaddr->length; i++) {
-		sum += ((unsigned char*)hpetaddr)[i];
+
+	for (i = 0; i < length; i++) {
+		sum += hpetaddr[i];
 	}
+
 	if (sum == 0) {
+		u64_t addr = *(u64_t*)(hpetaddr + HPET_TAB_ADDRESS);
 		printk("-- Checksum is OK\n");
-		hpet = (void*)((u32_t)(hpetaddr->address.address & 0xffffffff));
-		return hpetaddr->address.address;
+		printk("Addr: %016llx\n", addr);
+		hpet = (void*)((u32_t)(addr & 0xffffffff));
+		printk("hpet: %p\n", hpet);
+		return addr;
 	}
 
 	printk("-- Invalid checksum (%d)\n", sum);
@@ -216,18 +129,16 @@ void
 timer_set_hpet_page(u32_t page)
 {
 	hpet = (void*)(page * (1 << 22) | ((u32_t)hpet & ((1<<22)-1)));
-	hpet_cap = (u64_t*)((char*)hpet + 0x0);
-	hpet_config = (u64_t*)((char*)hpet + 0x10);
-	hpet_interrupt = (u64_t*)((char*)hpet + 0x20);
-	hpet_counter = (u64_t*)((char*)hpet + 0xf0);
-	hpet_timers = (struct hpet_timer*)((char*)hpet + 0x100);
+	hpet_cap = (u64_t*)((char*)hpet + HPET_CAPABILITIES);
+	hpet_config = (u64_t*)((char*)hpet + HPET_CONFIGURATION);
+	hpet_interrupt = (u64_t*)((char*)hpet + HPET_INTERRUPT);
+	hpet_counter = (u64_t*)((char*)hpet + HPET_COUNTER);
+	hpet_timers = (struct hpet_timer*)((char*)hpet + HPET_T0_CONFIG);
 	printk("Set HPET @ %p\n", hpet);
-	/* timer_print(); */
 }
 
-
 void
-timer_init(int timer_type, u64_t cycles)
+timer_init(timer_type_t timer_type, u64_t cycles)
 {
 	printk("Enabling timer @ %p\n", hpet);
 
