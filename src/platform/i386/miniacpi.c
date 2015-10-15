@@ -3,7 +3,7 @@
 #include "mem_layout.h"
 #include "pgtbl.h"
 
-typedef struct {
+struct rsdp {
 	char signature[8];
 	u8_t checksum;
 	char oemid[6];
@@ -13,9 +13,9 @@ typedef struct {
 	u64_t xsdtaddress;
 	u8_t extendedchecksum;
 	u8_t reserved[3];
-} __attribute__((packed)) RSDP;
+} __attribute__((packed));
 
-typedef struct rsdt {
+struct rsdt {
 	char signature[4];
 	u32_t length;
 	u8_t revision;
@@ -26,11 +26,11 @@ typedef struct rsdt {
 	u32_t creatorid;
 	u32_t creatorrevision;
 	struct rsdt *entry[0];
-} __attribute__((packed)) RSDT;
+} __attribute__((packed));
 
 extern u8_t *boot_comp_pgd;
-u32_t basepage;
-static RSDT *rsdt;
+static u32_t basepage;
+static struct rsdt *rsdt;
 
 static inline void *
 pa2va(void *pa)
@@ -42,10 +42,10 @@ void *
 acpi_find_rsdt(void)
 {
 	unsigned char *sig;
-	RSDP *rsdp = NULL;
+	struct rsdp *rsdp = NULL;
 	for (sig = (unsigned char*)0xc00E0000; sig < (unsigned char*)0xc00FFFFF; sig += 16) {
 		if (!strncmp("RSD PTR ", (char*)sig, 8)) {
-			RSDP *r = (RSDP*)sig;
+			struct rsdp *r = (struct rsdp*)sig;
 			u32_t i;
 			unsigned char sum;
 			for (i = 0; i < r->length; i++) {
@@ -53,7 +53,7 @@ acpi_find_rsdt(void)
 			}
 			if (sum == 0) {
 				printk("Found good RSDP @ %p\n", sig);
-				rsdp = (RSDP*)sig;
+				rsdp = (struct rsdp*)sig;
 				break;
 			} else {
 				printk("Found RSDP signature but bad checksum (%d) @ %p\n", sum, sig);
@@ -62,7 +62,7 @@ acpi_find_rsdt(void)
 	}
 
 	if (rsdp) {
-		rsdt = (RSDT*)rsdp->rsdtaddress;
+		rsdt = (struct rsdt*)rsdp->rsdtaddress;
 	} else {
 		rsdt = NULL;
 	}
@@ -76,8 +76,8 @@ acpi_find_timer(void)
         pgtbl_t pgtbl = (pgtbl_t)boot_comp_pgd;
 
 	size_t i;
-	for (i = 0; i < (rsdt->length - sizeof(RSDT)) / sizeof(RSDT*); i++) {
-		RSDT *e = pa2va(rsdt->entry[i]);
+	for (i = 0; i < (rsdt->length - sizeof(struct rsdt)) / sizeof(struct rsdt*); i++) {
+		struct rsdt *e = (struct rsdt*)pa2va(rsdt->entry[i]);
 		if (e->signature[0] == 'H' && e->signature[1] == 'P' &&
 			e->signature[2] == 'E' && e->signature[3] == 'T')
 		{
@@ -104,5 +104,5 @@ void
 acpi_set_rsdt_page(u32_t page)
 {
 	basepage = page * (1 << 22);
-	rsdt = (RSDT*)pa2va(rsdt);
+	rsdt = (struct rsdt*)pa2va(rsdt);
 }

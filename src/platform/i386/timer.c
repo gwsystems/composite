@@ -9,7 +9,7 @@
 
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 
-typedef struct {
+struct hpet_tab {
   u8_t sig[4];
   u32_t length;
   u8_t revision;
@@ -37,7 +37,7 @@ typedef struct {
   u8_t number;
   u16_t minimumclocktick;
   u8_t oemattribute;
-} __attribute__((packed)) HPET_tab;
+} __attribute__((packed));
 
 volatile u64_t *hpet_cap;
 volatile u64_t *hpet_config;
@@ -173,7 +173,7 @@ timer_find_hpet(void *timer)
 	u32_t i;
 	unsigned char sum = 0;
 
-	HPET_tab *hpetaddr = timer;
+	struct hpet_tab *hpetaddr = timer;
 	printk("Initiliazing HPET @ %p\n", hpetaddr);
 	/*
 	printk("-- Signature:  %c%c%c%c\n", hpetaddr->sig[0], hpetaddr->sig[1], hpetaddr->sig[2], hpetaddr->sig[3]);
@@ -235,11 +235,9 @@ timer_init(int timer_type, u64_t cycles)
 	*hpet_config |= (1ll);
 
 	/* TESTING: Debug 15 timer ticks */
-	/*
 	timer_set(TIMER_FREQUENCY, 100000000);
 	__asm__("sti");
 	while (1) { __asm__("hlt"); }
-	*/
 
 	/* Set the timer as specified */
 	timer_set(timer_type, cycles);
