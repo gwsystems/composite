@@ -3,6 +3,10 @@
 #include "mem_layout.h"
 #include "pgtbl.h"
 
+#define RSDP_LO_ADDRESS ((unsigned char*)0xc00E0000)
+#define RSDP_HI_ADDRESS ((unsigned char*)0xc00FFFFF)
+#define RSDP_ALIGNMENT  (16)
+
 struct rsdp {
 	char signature[8];
 	u8_t checksum;
@@ -43,14 +47,17 @@ acpi_find_rsdt(void)
 {
 	unsigned char *sig;
 	struct rsdp *rsdp = NULL;
-	for (sig = (unsigned char*)0xc00E0000; sig < (unsigned char*)0xc00FFFFF; sig += 16) {
+
+	for (sig = RSDP_LO_ADDRESS; sig < RSDP_HI_ADDRESS; sig += RSDP_ALIGNMENT) {
 		if (!strncmp("RSD PTR ", (char*)sig, 8)) {
 			struct rsdp *r = (struct rsdp*)sig;
+			unsigned char sum = 0;
 			u32_t i;
-			unsigned char sum;
+
 			for (i = 0; i < r->length; i++) {
 				sum += sig[i];
 			}
+
 			if (sum == 0) {
 				printk("Found good RSDP @ %p\n", sig);
 				rsdp = (struct rsdp*)sig;
@@ -74,23 +81,26 @@ void *
 acpi_find_timer(void)
 {
         pgtbl_t pgtbl = (pgtbl_t)boot_comp_pgd;
-
 	size_t i;
+
 	for (i = 0; i < (rsdt->length - sizeof(struct rsdt)) / sizeof(struct rsdt*); i++) {
 		struct rsdt *e = (struct rsdt*)pa2va(rsdt->entry[i]);
 		if (e->signature[0] == 'H' && e->signature[1] == 'P' &&
-			e->signature[2] == 'E' && e->signature[3] == 'T')
+		    e->signature[2] == 'E' && e->signature[3] == 'T')
 		{
 			unsigned char *check = (unsigned char*)e;
 			unsigned char sum = 0;
 			u32_t j;
+
 			for (j = 0; j < e->length; j++) {
 				sum += check[j];
 			}
+
 			if (sum != 0) {
 				printk("Checksum of HPET @ %p failed (got %d)\n", e, sum % 255);
 				continue;
 			}
+
 			printk("Found good HPET @ %p\n", e);
 			return e;
 		}
