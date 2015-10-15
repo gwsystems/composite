@@ -25,15 +25,15 @@ void console_init(void);
 void serial_init(void);
 #endif
 
-enum {
+typedef enum {
     TIMER_FREQUENCY,
     TIMER_ONESHOT
-};
+} timer_type_t;
 
 #define DEFAULT_FREQUENCY 100000000
 
-void timer_set(int timer_type, u64_t cycles);
-void timer_init(int timer_type, u64_t cycles);
+void timer_set(timer_type_t timer_type, u64_t cycles);
+void timer_init(timer_type_t timer_type, u64_t cycles);
 u64_t timer_find_hpet(void *timer);
 void timer_set_hpet_page(u32_t page);
 void timer_thd_init(struct thread *t);
