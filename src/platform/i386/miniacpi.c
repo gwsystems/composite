@@ -85,9 +85,7 @@ acpi_find_timer(void)
 
 	for (i = 0; i < (rsdt->length - sizeof(struct rsdt)) / sizeof(struct rsdt*); i++) {
 		struct rsdt *e = (struct rsdt*)pa2va(rsdt->entry[i]);
-		if (e->signature[0] == 'H' && e->signature[1] == 'P' &&
-		    e->signature[2] == 'E' && e->signature[3] == 'T')
-		{
+		if (!strncmp(e->signature, "HPET", 4)) {
 			unsigned char *check = (unsigned char*)e;
 			unsigned char sum = 0;
 			u32_t j;
