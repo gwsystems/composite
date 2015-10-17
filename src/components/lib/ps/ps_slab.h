@@ -106,7 +106,7 @@ __ps_slab_mem_free(void *buf, struct ps_mem_percore *percpu, size_t obj_sz, size
 		return;
 	}
 
-	__ps_mhead_setfree(h, 0);
+	__ps_mhead_setfree(h, 1);
 	next        = s->freelist;
 	s->freelist = h; 	/* TODO: should be atomic/locked */
 	h->next     = next;

@@ -23,9 +23,10 @@ struct ps_slab_freelist {
 	struct ps_slab    *list;
 };
 
+typedef ps_tsc_t ps_free_token_t;
 /* Memory header */
 struct ps_mheader {
-	ps_tsc_t           tsc_free;
+	ps_free_token_t    tsc_free;
 	struct ps_slab    *slab;	       /* slab header ptr */
 	struct ps_mheader *next;	       /* slab freelist ptr */
 } PS_PACKED;
@@ -57,12 +58,12 @@ __ps_mhead_reset(struct ps_mheader *h)
 	h->next     = NULL;
 }
 
-/* If you don't need memory anymore, set it free! */
+/* If you don't need memory anymore, set it free! Assumes: token != 0*/
 static inline void
-__ps_mhead_setfree(struct ps_mheader *h, int take_tsc)
+__ps_mhead_setfree(struct ps_mheader *h, ps_free_token_t token)
 {
 	/* TODO: atomic w/ error out */
-	h->tsc_free = (take_tsc ? ps_tsc() : 0) | 1; /* guarantee non-zero */
+	h->tsc_free = token; /* Assumption: token must be guaranteed to be non-zero */
 }
 
 struct ps_qsc_list {
@@ -96,13 +97,14 @@ __ps_qsc_dequeue(struct ps_qsc_list *ql)
 	return a;
 }
 
-static inline void
-__ps_qsc_move(struct ps_qsc_list *to, struct ps_qsc_list *from)
+static inline struct ps_mheader *
+__ps_qsc_clear(struct ps_qsc_list *l)
 {
-	if (to->tail) to->tail->next = from->head;
-	else          to->head       = from->head;
-	to->tail   = from->tail;
-	from->head = from->tail = NULL;
+	struct ps_mheader *m = l->head;
+
+	l->head = l->tail = NULL;
+
+	return m;
 }
 
 struct parsec;

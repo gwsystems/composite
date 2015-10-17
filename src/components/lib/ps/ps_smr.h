@@ -31,7 +31,7 @@
 #include <ps_slab.h>
 
 #ifndef PS_QLIST_BATCH
-#define PS_QLIST_BATCH 64
+#define PS_QLIST_BATCH 128
 #endif
 
 struct ps_quiescence_timing {
@@ -54,6 +54,7 @@ struct ps_smr_percore {
 } PS_ALIGNED PS_PACKED;
 
 struct parsec {
+	int refcnt;
 	struct ps_smr_percore timing_info[PS_NUMCORES] PS_ALIGNED;
 } PS_ALIGNED;
 
@@ -61,52 +62,24 @@ int ps_quiesce_wait(struct parsec *p, ps_tsc_t tsc, ps_tsc_t *qsc);
 int ps_try_quiesce (struct parsec *p, ps_tsc_t tsc, ps_tsc_t *qsc);
 void ps_init(struct parsec *ps);
 struct parsec *ps_alloc(void);
+typedef void (*ps_free_fn_t)(void *);
+void __ps_smr_reclaim(struct parsec *ps, struct ps_qsc_list *ql, struct ps_smr_info *si, struct ps_mem_percore *percpu, ps_free_fn_t ffn);
 
-/* 
- * We assume that the quiescence queue has at least PS_QLIST_BATCH items
- * in it.
- */
-static void
-__ps_smr_reclaim(struct parsec *ps, struct ps_qsc_list *ql, struct ps_smr_info *si, 
-		 struct ps_mem_percore *percpu, size_t obj_sz, size_t allocsz, int hintern)
-{
-	struct ps_mheader *a = __ps_qsc_peek(ql);
-	ps_tsc_t qsc, tsc;
-	int increase_backlog = 0, i;
-	
-	assert(a);
-	tsc = a->tsc_free;
-	if (ps_try_quiesce(ps, tsc, &qsc)) increase_backlog = 1;
-
-	/* Remove a batch worth of items from the qlist */
-	for (i = 0 ; i < PS_QLIST_BATCH ; i++) {
-		a = __ps_qsc_peek(ql);
-		assert(a && __ps_mhead_isfree(a));
-		if (a->tsc_free > qsc) {
-			increase_backlog = 1;
-			break;
-		}
-
-		a = __ps_qsc_dequeue(ql);
-		__ps_mhead_reset(a);
-		si->qmemcnt--;
-		__ps_slab_mem_free(__ps_mhead_mem(a), percpu, obj_sz, allocsz, hintern);
-	}
-
-	if (increase_backlog) si->qmemtarget += PS_QLIST_BATCH; /* TODO: shrink target */
-
-	return;
-}
 
 static inline void
-__ps_smr_free(struct parsec *ps, void *buf, struct ps_mem_percore *percpu, 
-	      size_t obj_sz, size_t allocsz, int hintern)
+__ps_smr_free(struct parsec *ps, void *buf, struct ps_mem_percore *percpu, ps_free_fn_t ffn)
 {
 	struct ps_mheader     *mem = __ps_mhead_get(buf);
-	struct ps_mem_percore *fl  = &percpu[ps_coreid()];
-	struct ps_smr_info    *si  = &fl->smr_info;
-	struct ps_qsc_list    *ql  = &si->qsc_list;
-	(void)obj_sz; (void)allocsz; (void)hintern;
+	struct ps_smr_info    *si;
+	struct ps_qsc_list    *ql;
+	coreid_t curr_core, curr_numa;
+	ps_tsc_t tsc;
+
+	/* this is 85% of the cost of the function... */
+	tsc = ps_tsc_locality(&curr_core, &curr_numa); 
+
+	si = &percpu[curr_core].smr_info;
+	ql = &si->qsc_list;
 
 	/* 
 	 * Note: we currently enqueue remotely freed memory into the
@@ -116,11 +89,11 @@ __ps_smr_free(struct parsec *ps, void *buf, struct ps_mem_percore *percpu,
 	 * that we wouldn't otherwise have due to qlist operations
 	 * (i.e. writing to the ->next field within the header).
 	 */
-	__ps_mhead_setfree(mem, 1);
+	__ps_mhead_setfree(mem, tsc);
 	__ps_qsc_enqueue(ql, mem);
 	si->qmemcnt++;
 
-	if (unlikely(si->qmemcnt >= si->qmemtarget)) __ps_smr_reclaim(ps, ql, si, percpu, obj_sz, allocsz, hintern);
+	if (unlikely(si->qmemcnt >= si->qmemtarget)) __ps_smr_reclaim(ps, ql, si, percpu, ffn);
 }
 
 static inline void *
@@ -134,12 +107,11 @@ __ps_smr_alloc(struct parsec *ps, struct ps_mem_percore *percpu, size_t obj_sz, 
 static inline void
 ps_enter(struct parsec *parsec)
 {
-	int curr_cpu;
+	coreid_t curr_cpu, curr_numa;
 	ps_tsc_t curr_time;
 	struct ps_quiescence_timing *timing;
 
-	curr_cpu  = ps_coreid();
-	curr_time = ps_tsc();
+	curr_time = ps_tsc_locality(&curr_cpu, &curr_numa);
 
 	timing = &(parsec->timing_info[curr_cpu].timing);
 	timing->time_in = curr_time;
@@ -148,7 +120,7 @@ ps_enter(struct parsec *parsec)
 	 * time-stamps (i.e. non-cycle granularity, which means we
 	 * could have same time-stamp for different events).
 	 */
-	timing->time_out = curr_time - 1;
+	/* timing->time_out = curr_time - 1; */
 
 	ps_mem_fence();
 
@@ -177,25 +149,27 @@ PS_SLAB_CREATE(name, objsz, allocsz, 1)				        \
 inline void *						                \
 ps_mem_alloc_##name(void)						\
 {									\
-        struct ps_mem_percore *fl = slab_##name##_freelist;		\
-	assert(fl->ps);						        \
-	return __ps_smr_alloc(fl->ps, fl, objsz, allocsz, 1);		\
+        struct ps_mem_percore *fl = __ps_slab_##name##_freelist;	\
+	assert(fl->smr_info.ps);				        \
+	return __ps_smr_alloc(fl->smr_info.ps, fl, objsz, allocsz, 1);  \
 }									\
 inline void							        \
 ps_mem_free_##name(void *buf)						\
 {									\
-        struct ps_mem_percore *fl = slab_##name##_freelist;		\
-	assert(fl->ps);						        \
-	__ps_smr_free(fl->ps, buf, fl, objsz, allocsz, 1);		\
+        struct ps_mem_percore *fl = __ps_slab_##name##_freelist;	\
+	assert(fl->smr_info.ps);					\
+	__ps_smr_free(fl->smr_info.ps, buf, fl, ps_slab_free_##name);	\
 }									\
 void									\
 ps_mem_init_##name(struct parsec *ps)					\
 {									\
-        struct ps_mem_percore *fl = slab_##name##_freelist;		\
+        struct ps_mem_percore *fl = __ps_slab_##name##_freelist;	\
 	int i;							        \
 	for (i = 0 ; i < PS_NUMCORES ; i++) {				\
-		fl[i].qmemtarget = PS_QLIST_BATCH;			\
-		fl[i].ps         = ps;					\
+		fl[i].smr_info.qmemtarget = PS_QLIST_BATCH;		\
+		fl[i].smr_info.qmemcnt    = 0;				\
+		fl[i].smr_info.ps         = ps;				\
+		ps->refcnt++;						\
 	}								\
 }
 

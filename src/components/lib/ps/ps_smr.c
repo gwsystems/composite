@@ -170,12 +170,50 @@ int
 ps_try_quiesce(struct parsec *p, ps_tsc_t tsc, ps_tsc_t *qsc_tsc)
 { return ps_quiesce(p, tsc, 0, qsc_tsc); }
 
+/* 
+ * We assume that the quiescence queue has at least PS_QLIST_BATCH items
+ * in it.
+ */
+void
+__ps_smr_reclaim(struct parsec *ps, struct ps_qsc_list *ql, struct ps_smr_info *si, 
+		 struct ps_mem_percore *percpu, ps_free_fn_t ffn)
+{
+	struct ps_mheader *a = __ps_qsc_peek(ql);
+	ps_tsc_t qsc, tsc;
+	int increase_backlog = 0, i;
+	(void)percpu;
+
+	assert(a);
+	tsc = a->tsc_free;
+	if (ps_try_quiesce(ps, tsc, &qsc)) increase_backlog = 1;
+
+	/* Remove a batch worth of items from the qlist */
+	for (i = 0 ; i < PS_QLIST_BATCH ; i++) {
+		a = __ps_qsc_peek(ql);
+		assert(a && __ps_mhead_isfree(a));
+		if (a->tsc_free > qsc) {
+			increase_backlog = 1;
+			break;
+		}
+
+		a = __ps_qsc_dequeue(ql);
+		__ps_mhead_reset(a);
+		si->qmemcnt--;
+		ffn(__ps_mhead_mem(a));
+	}
+
+	if (increase_backlog) si->qmemtarget += PS_QLIST_BATCH; /* TODO: shrink target */
+
+	return;
+}
+
 void
 ps_init(struct parsec *ps)
 {
 	ps_tsc_t now = ps_tsc();
 	int i, j;
-	
+
+	ps->refcnt = 0;
 	for (i = 0 ; i < PS_NUMCORES ; i++) {
 		struct ps_quiescence_timing *t = &ps->timing_info[i].timing;
 
@@ -199,4 +237,13 @@ ps_alloc(void)
 	ps_init(ps);
 
 	return ps;
+}
+
+int
+ps_free(struct parsec *ps)
+{
+	if (ps->refcnt > 0) return -1;
+	PS_SLAB_FREE(ps, sizeof(struct parsec));
+
+	return 0;
 }

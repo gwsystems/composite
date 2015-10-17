@@ -12,8 +12,8 @@ struct larger {
 	char x[LARGESZ];
 };
 
-PS_SLAB_CREATE(s, sizeof(struct small), PS_PAGE_SIZE*2, 1)
-PS_SLAB_CREATE_DEF(l, sizeof(struct larger))
+PS_SLAB_CREATE_DEF(s, sizeof(struct small))
+PS_SLAB_CREATE(l, sizeof(struct larger), PS_PAGE_SIZE * 32, 1)
 
 #define ITER       (1024)
 #define SMALLCHUNK 2
@@ -45,8 +45,8 @@ main(void)
 	unsigned long long start, end;
 
 	printf("Slabs:\n"
-	       "\tobjsz %lud, objmem %lud, nobj %lud\n"
-	       "\tobjsz %lud, objmem %lud, nobj %lud\n",
+	       "\tobjsz %lu, objmem %lu, nobj %lu\n"
+	       "\tobjsz %lu, objmem %lu, nobj %lu\n",
 	       sizeof(struct small),  ps_slab_objmem_s(), ps_slab_nobjs_s(),
 	       sizeof(struct larger), ps_slab_objmem_l(), ps_slab_nobjs_l());
 

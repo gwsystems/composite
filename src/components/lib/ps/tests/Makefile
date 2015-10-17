@@ -2,23 +2,29 @@ CINC    = -I../ -I.
 CC      = gcc
 LD      = gcc
 LDFLAGS =
-COPT    = -O2
+COPT    = -O3
 CWARN   = -Wno-long-long
 CFLAGS  = -Wall -Wpedantic -Wextra $(CWARN) $(COPT)
 
+# library
 CFILES  = $(wildcard ../*.c)
 COBJS   = $(patsubst %.c,%.o,$(CFILES))
 CDEPS   = $(patsubst %.c,%.d,$(CFILES))
 
+# tests
 TCFILES = $(wildcard *.c) # test .c files
 TCOBJS  = $(patsubst %.c,%.o,$(TCFILES))
 TCDEPS  = $(patsubst %.c,%.d,$(TCFILES))
 EXECS   = $(patsubst %.c,%.test,$(TCFILES))
 
+.PHONY: all setup setup-linux64 clean
+
 all: $(CDEPS) $(TCDEPS) $(EXECS)
 
-setup:
-	cd .. ; ln -s ps_plat_linux.h ps_plat.h
+setup-linux64:
+	cd .. ; rm ps_plat.h ; ln -s ps_plat_linux.h ps_plat.h
+
+setup: setup-linux64
 
 %.d:%.c
 	@set -e; rm -f $@; \
@@ -33,6 +39,6 @@ setup:
 	$(LD) $(LDFLAGS) -o $@ $^
 
 clean:
-	rm -f $(EXECS) $(TCOBJS) $(TCDEPS) $(COBJS) $(CDEPS) *.d*
+	rm -f $(EXECS) $(TCOBJS) $(TCDEPS) $(COBJS) $(CDEPS) *.d* ../*.d*
 
 -include $(CDEPS) $(TCDEPS)

@@ -60,18 +60,18 @@ __ps_slab_mem_remote_free(struct ps_mem_percore *fls, struct ps_mheader *h, u16_
 void
 __ps_slab_mem_remote_process(struct ps_mem_percore *percpu, size_t obj_sz, size_t allocsz, int hintern)
 {
-	struct ps_mem_percore *m = &percpu[ps_coreid()];
+	struct ps_mem_percore      *m = &percpu[ps_coreid()];
 	struct ps_slab_remote_list *r = &m->slab_remote;
-	struct ps_qsc_list *to;
-	struct ps_mheader *h;
-
-	to = &m->slab_info.remote_cache;
+	struct ps_mheader      *h, *n;
 
 	ps_lock_take(&r->lock);
-	__ps_qsc_move(to, &r->remote_frees);
+	h = __ps_qsc_clear(&r->remote_frees);
 	ps_lock_release(&r->lock);
 
-	while ((h = __ps_qsc_dequeue(to))) {
+	while (h) {
 		__ps_slab_mem_free(__ps_mhead_mem(h), percpu, obj_sz, allocsz, hintern);
+		n       = h->next;
+		h->next = NULL;
+		h       = n;
 	}
 }
