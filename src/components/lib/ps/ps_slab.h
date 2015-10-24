@@ -79,14 +79,14 @@ __slab_freelist_add(struct ps_slab_freelist *fl, struct ps_slab *s)
 
 /*** Alloc and free ***/
 
-static inline void __ps_slab_mem_free(void *buf, struct ps_mem_percore *percpu, size_t obj_sz, size_t allocsz, int hintern);
+static inline void __ps_slab_mem_free(void *buf, struct ps_mem_percore *percpu, coreid_t curr, size_t obj_sz, size_t allocsz, int hintern);
 
 void __ps_slab_mem_remote_free(struct ps_mem_percore *percpu, struct ps_mheader *h, u16_t core_target);
 void __ps_slab_mem_remote_process(struct ps_mem_percore *percpu, size_t obj_sz, size_t allocsz, int hintern);
 void __ps_slab_init(struct ps_slab *s, struct ps_slab_info *si, size_t obj_sz, int allocsz, int hintern);
 
 static inline void
-__ps_slab_mem_free(void *buf, struct ps_mem_percore *percpu, size_t obj_sz, size_t allocsz, int hintern)
+__ps_slab_mem_free(void *buf, struct ps_mem_percore *percpu, coreid_t curr, size_t obj_sz, size_t allocsz, int hintern)
 {
 	struct ps_slab *s;
 	struct ps_mheader *h, *next;
@@ -101,7 +101,7 @@ __ps_slab_mem_free(void *buf, struct ps_mem_percore *percpu, size_t obj_sz, size
 	assert(s);
 
 	coreid = s->coreid;
-	if (unlikely(coreid != ps_coreid())) {
+	if (unlikely(coreid != curr)) {
 		__ps_slab_mem_remote_free(percpu, h, coreid);
 		return;
 	}
@@ -154,6 +154,7 @@ __ps_slab_mem_alloc(struct ps_mem_percore *percpu, size_t obj_sz, u32_t allocsz,
 	h->next     = NULL;
 	s->nfree--;
 	__ps_mhead_reset(h);
+
 	/* remove from the freelist */
 	if (s->nfree == 0) __slab_freelist_rem(&si->fl, s);
 	assert(!__ps_mhead_isfree(h));
@@ -173,24 +174,30 @@ __ps_slab_mem_alloc(struct ps_mem_percore *percpu, size_t obj_sz, u32_t allocsz,
  * maintenance and readability.
  */
 
-#define PS_SLAB_CREATE_FNS(name, size, allocsz, headintern)		\
-inline void *						                \
-ps_slab_alloc_##name(void)						\
-{									\
+#define PS_SLAB_CREATE_FNS(name, size, allocsz, headintern)		       \
+inline void *						                       \
+ps_slab_alloc_##name(void)						       \
+{									       \
         struct ps_mem_percore *fl = &__ps_slab_##name##_freelist[ps_coreid()]; \
-	return __ps_slab_mem_alloc(fl, size, allocsz, headintern);      \
-}									\
-inline void							        \
-ps_slab_free_##name(void *buf)						\
-{									\
-        struct ps_mem_percore *fl = __ps_slab_##name##_freelist;	\
-	__ps_slab_mem_free(buf, fl, size, allocsz, headintern);	        \
-}									\
-inline size_t								\
-ps_slab_objmem_##name(void)						\
-{ return __ps_slab_objmemsz(size); }					\
-inline size_t								\
-ps_slab_nobjs_##name(void)						\
+	return __ps_slab_mem_alloc(fl, size, allocsz, headintern);             \
+}									       \
+inline void							               \
+ps_slab_free_##name(void *buf)						       \
+{									       \
+        struct ps_mem_percore *fl = __ps_slab_##name##_freelist;	       \
+	__ps_slab_mem_free(buf, fl, ps_coreid(), size, allocsz, headintern);   \
+}									       \
+inline void							               \
+ps_slab_free_coreid_##name(void *buf, coreid_t curr)			       \
+{									       \
+        struct ps_mem_percore *fl = __ps_slab_##name##_freelist;	       \
+	__ps_slab_mem_free(buf, fl, curr, size, allocsz, headintern);          \
+}									       \
+inline size_t								       \
+ps_slab_objmem_##name(void)						       \
+{ return __ps_slab_objmemsz(size); }					       \
+inline size_t								       \
+ps_slab_nobjs_##name(void)						       \
 { return __ps_slab_max_nobjs(size, allocsz, headintern); }
 
 /*
@@ -203,7 +210,7 @@ ps_slab_nobjs_##name(void)						\
  */
 #define PS_SLAB_CREATE(name, size, allocsz, headintern)	\
 PS_MEM_CREATE_DATA(name)				\
-PS_SLAB_CREATE_FNS(name, size, PS_PAGE_SIZE, headintern)
+PS_SLAB_CREATE_FNS(name, size, allocsz, headintern)
 
 #define PS_SLAB_CREATE_DEF(name, size)		\
 PS_SLAB_CREATE(name, size, PS_PAGE_SIZE, 1)

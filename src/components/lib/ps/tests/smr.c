@@ -1,8 +1,20 @@
+#define _GNU_SOURCE
 #include <stdio.h>
+#include <stdlib.h>
+#include <sched.h>
+#include <sys/resource.h>
+#include <pthread.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <string.h>
+#include <time.h>
+
 #include <ps_smr.h>
 
 struct parsec ps;
-PS_PARSLAB_CREATE(tst, 256, PS_PAGE_SIZE * 8)
+PS_PARSLAB_CREATE(tst, 8000, PS_PAGE_SIZE * 128)
 PS_PARSLAB_CREATE(bench, 1, PS_PAGE_SIZE * 8)
 
 #define ITER 1024
@@ -52,11 +64,14 @@ void test_smr(void);
 int
 main(void)
 {
+	printf("Starting tests on core %d.\n", ps_coreid());
 	ps_init(&ps);
 	ps_mem_init_tst(&ps);
 	ps_mem_init_bench(&ps);
 
+	printf("Testing memory management functionalities.\n");
 	test_mem();
+	printf("Testing Scalable Memory Reclamation.\n");
 	test_smr();
 
 	return 0;
@@ -66,7 +81,7 @@ struct thd_active {
 	volatile int barrierval;
 } CACHE_ALIGNED;
 
-struct thd_active thd_active[PS_NUMCORES] CACHE_ALIGNED;
+struct thd_active thd_active[PS_NUMCORES] PS_ALIGNED;
 
 /* Only used in Linux tests. */
 int cpu_assign[PS_NUMCORES] = {0, 1, 2, 3};
@@ -139,7 +154,7 @@ thd_set_affinity(pthread_t tid, int id)
 	coreid_t cid, n;
 
 	cpuid = cpu_assign[id];
-	printf("tid %d (%d) to cpu %d\n", tid, id, cpuid);
+	printf("tid %d (%d) to cpu %d\n", (int)tid, id, cpuid);
 	CPU_ZERO(&s);
 	CPU_SET(cpuid, &s);
 
@@ -171,8 +186,8 @@ meas_barrier(void)
 		}
 		thd_active[0].barrierval = doneval;
 	} else {
-		thd_active[cpu].accessed = doneval;
-		while (thd_active[0].accessed == initval) ;
+		thd_active[cpu].barrierval = doneval;
+		while (thd_active[0].barrierval == initval) ;
 	}
 	/* gogogo! */
 }
@@ -219,7 +234,7 @@ bench(void)
 			ps_enter(&ps);
 			ps_exit(&ps);
 
-			e1 = tsc_end(); 
+			e1 = ps_tsc(); 
 			cost = e1-s1;
 			tot_cost_r += cost;
 
@@ -260,11 +275,13 @@ bench(void)
 	return;
 }
 
+char *TRACE_FILE = "trace.dat";
+
 void * 
 worker(void *arg)
 {
 	ps_tsc_t s,e;
-	int cpuid = (int)arg;
+	int cpuid = (int)(long)arg;
 
 	thd_set_affinity(pthread_self(), cpuid);
 
@@ -278,6 +295,7 @@ worker(void *arg)
 	if (cpuid == 0) {
 		int i;
 		unsigned long long tot_r = 0, tot_w = 0;
+
 		for (i = 0; i < PS_NUMCORES; i++) {
 			tot_r += results[i][0];
 			tot_w += results[i][1];
@@ -298,12 +316,30 @@ worker(void *arg)
 }
 
 void
+trace_gen(int fd, unsigned int nops, unsigned int percent_update)
+{
+	unsigned int i;
+
+	srand(time(NULL));
+	for (i = 0 ; i < nops ; i++) {
+		char value;
+		if ((unsigned int)rand() % 100 < percent_update) value = 'U';
+		else                               value = 'R';
+		if (write(fd, &value, 1) < 1) {
+			perror("Writing to trace file");
+			exit(-1);
+		}
+	}
+	lseek(fd, 0, SEEK_SET);
+}
+
+void
 load_trace(void)
 {
 	int fd, ret;
 	int bytes;
 	unsigned long i, n_read, n_update;
-	char buf[PAGE_SIZE+1];
+	char buf[PS_PAGE_SIZE+1];
 
 	ret = mlock(ops, N_OPS);
 	if (ret) {
@@ -315,23 +351,24 @@ load_trace(void)
 	/* read the entire trace into memory. */
 	fd = open(TRACE_FILE, O_RDONLY);
 	if (fd < 0) {
-		printf("cannot open file %s. Exit.\n", TRACE_FILE);
-		exit(-1);
+		fd = open(TRACE_FILE, N_OPS, O_CREAT | O_RDWR);
+		assert(fd >= 0);
+		trace_gen(fd, N_OPS, 50);
 	}
     
-	for (i = 0; i < (N_OPS / PAGE_SIZE); i++) {
-		bytes = read(fd, buf, PAGE_SIZE);
-		assert(bytes == PAGE_SIZE);
-		memcpy(&ops[i * PAGE_SIZE], buf, bytes);
+	for (i = 0; i < (N_OPS / PS_PAGE_SIZE); i++) {
+		bytes = read(fd, buf, PS_PAGE_SIZE);
+		assert(bytes == PS_PAGE_SIZE);
+		memcpy(&ops[i * PS_PAGE_SIZE], buf, bytes);
 	}
 
-	if (N_OPS % PAGE_SIZE) {
-		bytes = read(fd, buf, PAGE_SIZE);
-		memcpy(&ops[i*PAGE_SIZE], buf, bytes);
+	if (N_OPS % PS_PAGE_SIZE) {
+		bytes = read(fd, buf, PS_PAGE_SIZE);
+		memcpy(&ops[i*PS_PAGE_SIZE], buf, bytes);
 	}
 	n_read = n_update = 0;
 	for (i = 0; i < N_OPS; i++) {
-		if (ops[i] == 'R') { ops[i] = 0; n_read++; }
+		if      (ops[i] == 'R') { ops[i] = 0; n_read++; }
 		else if (ops[i] == 'U') { ops[i] = 1; n_update++; }
 		else assert(0);
 	}
@@ -343,8 +380,8 @@ load_trace(void)
 	return;
 }
 
-int 
-smr_test(void)
+void
+test_smr(void)
 {
 	int i, ret;
 	pthread_t thds[PS_NUMCORES];
@@ -363,7 +400,7 @@ smr_test(void)
 /* 	create_timer_thd(PS_NUMCORES-1); */
 /* #endif */
 	for (i = 1 ; i < PS_NUMCORES ; i++) {
-		ret = pthread_create(&thds[i], 0, worker, (void *)i);
+		ret = pthread_create(&thds[i], 0, worker, (void *)(long)i);
 		if (ret) exit(-1);
 	}
 
@@ -375,5 +412,5 @@ smr_test(void)
 		pthread_join(thds[i], (void *)&ret);
 	}
 
-	return 0;
+	return;
 }

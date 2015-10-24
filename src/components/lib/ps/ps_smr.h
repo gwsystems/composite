@@ -62,24 +62,24 @@ int ps_quiesce_wait(struct parsec *p, ps_tsc_t tsc, ps_tsc_t *qsc);
 int ps_try_quiesce (struct parsec *p, ps_tsc_t tsc, ps_tsc_t *qsc);
 void ps_init(struct parsec *ps);
 struct parsec *ps_alloc(void);
-typedef void (*ps_free_fn_t)(void *);
-void __ps_smr_reclaim(struct parsec *ps, struct ps_qsc_list *ql, struct ps_smr_info *si, struct ps_mem_percore *percpu, ps_free_fn_t ffn);
+typedef void (*ps_free_fn_t)(void *, coreid_t curr);
+void __ps_smr_reclaim(coreid_t curr, struct ps_qsc_list *ql, struct ps_smr_info *si, struct ps_mem_percore *percpu, ps_free_fn_t ffn);
 
 
 static inline void
-__ps_smr_free(struct parsec *ps, void *buf, struct ps_mem_percore *percpu, ps_free_fn_t ffn)
+__ps_smr_free(void *buf, struct ps_mem_percore *percpu, ps_free_fn_t ffn)
 {
-	struct ps_mheader     *mem = __ps_mhead_get(buf);
-	struct ps_smr_info    *si;
-	struct ps_qsc_list    *ql;
+	struct ps_mheader  *mem = __ps_mhead_get(buf);
+	struct ps_smr_info *si;
+	struct ps_qsc_list *ql;
 	coreid_t curr_core, curr_numa;
 	ps_tsc_t tsc;
 
 	/* this is 85% of the cost of the function... */
 	tsc = ps_tsc_locality(&curr_core, &curr_numa); 
 
-	si = &percpu[curr_core].smr_info;
-	ql = &si->qsc_list;
+	si  = &percpu[curr_core].smr_info;
+	ql  = &si->qsc_list;
 
 	/* 
 	 * Note: we currently enqueue remotely freed memory into the
@@ -92,16 +92,7 @@ __ps_smr_free(struct parsec *ps, void *buf, struct ps_mem_percore *percpu, ps_fr
 	__ps_mhead_setfree(mem, tsc);
 	__ps_qsc_enqueue(ql, mem);
 	si->qmemcnt++;
-
-	if (unlikely(si->qmemcnt >= si->qmemtarget)) __ps_smr_reclaim(ps, ql, si, percpu, ffn);
-}
-
-static inline void *
-__ps_smr_alloc(struct parsec *ps, struct ps_mem_percore *percpu, size_t obj_sz, u32_t allocsz, int hintern)
-{
-	(void)ps;
-
-	return __ps_slab_mem_alloc(&percpu[ps_coreid()], obj_sz, allocsz, hintern);
+	if (unlikely(si->qmemcnt >= si->qmemtarget)) __ps_smr_reclaim(curr_core, ql, si, percpu, ffn);
 }
 
 static inline void
@@ -144,33 +135,25 @@ ps_exit(struct parsec *parsec)
 	return;
 }
 
-#define PS_PARSLAB_CREATE(name, objsz, allocsz)				\
-PS_SLAB_CREATE(name, objsz, allocsz, 1)				        \
-inline void *						                \
-ps_mem_alloc_##name(void)						\
-{									\
-        struct ps_mem_percore *fl = __ps_slab_##name##_freelist;	\
-	assert(fl->smr_info.ps);				        \
-	return __ps_smr_alloc(fl->smr_info.ps, fl, objsz, allocsz, 1);  \
-}									\
-inline void							        \
-ps_mem_free_##name(void *buf)						\
-{									\
-        struct ps_mem_percore *fl = __ps_slab_##name##_freelist;	\
-	assert(fl->smr_info.ps);					\
-	__ps_smr_free(fl->smr_info.ps, buf, fl, ps_slab_free_##name);	\
-}									\
-void									\
-ps_mem_init_##name(struct parsec *ps)					\
-{									\
-        struct ps_mem_percore *fl = __ps_slab_##name##_freelist;	\
-	int i;							        \
-	for (i = 0 ; i < PS_NUMCORES ; i++) {				\
-		fl[i].smr_info.qmemtarget = PS_QLIST_BATCH;		\
-		fl[i].smr_info.qmemcnt    = 0;				\
-		fl[i].smr_info.ps         = ps;				\
-		ps->refcnt++;						\
-	}								\
+#define PS_PARSLAB_CREATE(name, objsz, allocsz)				         \
+PS_SLAB_CREATE(name, objsz, allocsz, 1)				                 \
+inline void *						                         \
+ps_mem_alloc_##name(void)						         \
+{ return __ps_slab_mem_alloc(&__ps_slab_##name##_freelist[ps_coreid()], objsz, allocsz, 1); } \
+inline void							                 \
+ps_mem_free_##name(void *buf)						         \
+{ __ps_smr_free(buf, __ps_slab_##name##_freelist, ps_slab_free_coreid_##name); } \
+void									         \
+ps_mem_init_##name(struct parsec *ps)					         \
+{									         \
+        struct ps_mem_percore *fl = __ps_slab_##name##_freelist;	         \
+	int i;							                 \
+	for (i = 0 ; i < PS_NUMCORES ; i++) {				         \
+		fl[i].smr_info.qmemtarget = PS_QLIST_BATCH;		         \
+		fl[i].smr_info.qmemcnt    = 0;				         \
+		fl[i].smr_info.ps         = ps;				         \
+		ps->refcnt++;						         \
+	}								         \
 }
 
 #endif	/* PS_SMR_H */

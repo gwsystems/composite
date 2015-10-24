@@ -32,7 +32,9 @@ typedef u16_t coreid_t;
 #define PS_PACKED      __attribute__((packed))
 #define PS_ALIGNED     __attribute__((aligned(PS_CACHE_LINE)))
 #define PS_WORDALIGNED __attribute__((aligned(PS_WORD)))
+#ifndef PS_NUMCORES
 #define PS_NUMCORES    4
+#endif
 #define PS_PAGE_SIZE   4096
 #define PS_RNDUP(v, a) (-(-(v) & -(a))) /* from blogs.oracle.com/jwadams/entry/macros_and_powers_of_two */
 
@@ -73,7 +75,7 @@ ps_coreid(void)
 	/* return 0; */ 		/*  testing... */
 	coreid_t coreid, numaid;
 
-	ps_rdtsc_locality(&coreid, &numaid);
+	ps_tsc_locality(&coreid, &numaid);
 
 	return coreid;
 }

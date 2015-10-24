@@ -175,9 +175,10 @@ ps_try_quiesce(struct parsec *p, ps_tsc_t tsc, ps_tsc_t *qsc_tsc)
  * in it.
  */
 void
-__ps_smr_reclaim(struct parsec *ps, struct ps_qsc_list *ql, struct ps_smr_info *si, 
+__ps_smr_reclaim(coreid_t curr, struct ps_qsc_list *ql, struct ps_smr_info *si, 
 		 struct ps_mem_percore *percpu, ps_free_fn_t ffn)
 {
+	struct parsec    *ps = percpu[curr].smr_info.ps;
 	struct ps_mheader *a = __ps_qsc_peek(ql);
 	ps_tsc_t qsc, tsc;
 	int increase_backlog = 0, i;
@@ -199,9 +200,8 @@ __ps_smr_reclaim(struct parsec *ps, struct ps_qsc_list *ql, struct ps_smr_info *
 		a = __ps_qsc_dequeue(ql);
 		__ps_mhead_reset(a);
 		si->qmemcnt--;
-		ffn(__ps_mhead_mem(a));
+		ffn(__ps_mhead_mem(a), curr);
 	}
-
 	if (increase_backlog) si->qmemtarget += PS_QLIST_BATCH; /* TODO: shrink target */
 
 	return;
