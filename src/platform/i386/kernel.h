@@ -15,10 +15,20 @@
     khalt();				\
 } while(0)
 
+/* only one VGA driver at a time.. */
+#define ENABLE_VGA
+#undef ENABLE_CONSOLE
+
 #ifdef ENABLE_CONSOLE
 void vga_clear(void);
 void vga_puts(const char *s);
 void console_init(void);
+#endif
+
+#ifdef ENABLE_VGA
+void vga_init(void);
+void vga_high_init(void);
+void vga_puts(const char *str);
 #endif
 
 #ifdef ENABLE_SERIAL
@@ -41,5 +51,7 @@ void kern_paging_map_init(void *pa);
 int printk_register_handler(void (*handler)(const char *));
 
 void khalt(void);
+
+#define FOREVER while(1)
 
 #endif /* KERNEL_H */
