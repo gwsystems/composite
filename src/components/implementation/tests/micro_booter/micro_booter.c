@@ -175,6 +175,56 @@ test_timer(void)
 	printc("Timer test completed.\nSuccess.\n");
 }
 
+int
+test_serverfn(int a, int b, int c)
+{ return a + b + c; }
+
+extern void *__inv_test_serverfn(int a, int b, int c);
+
+static inline
+int call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
+{
+	int ret;
+
+	/*
+	 * Which stack should we use for this invocation?  Simple, use
+	 * this stack, at the current sp.  This is essentially a
+	 * function call into another component, with odd calling
+	 * conventions.
+	 */
+	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
+
+	__asm__ __volatile__( \
+		"pushl %%ebp\n\t" \
+		"movl %%esp, %%ebp\n\t" \
+		"movl %%esp, %%edx\n\t" \
+		"movl $1f, %%ecx\n\t" \
+		"sysenter\n\t" \
+		"1:\n\t" \
+		"popl %%ebp" \
+		: "=a" (ret)
+		: "a" (cap_no), "b" (arg1), "S" (arg2), "D" (arg3) \
+		: "memory", "cc", "ecx", "edx");
+
+	return ret;
+}
+
+static void
+test_inv(void)
+{
+	compcap_t cc;
+	sinvcap_t ic;
+	unsigned int r;
+
+	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
+	assert(cc > 0);
+	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
+	assert(ic > 0);
+
+	r = call_cap_mb(ic, 1, 2, 3);
+	printc("Return from invocation: %d\n", r);
+}
+
 void
 cos_init(void)
 {
@@ -193,6 +243,8 @@ cos_init(void)
 	test_mem();
 	printc("---------------------------\n");
 	test_async_endpoints();
+	printc("---------------------------\n");
+	test_inv();
 	printc("---------------------------\n");
 
 	printc("\nMicro Booter done.\n");

@@ -6,11 +6,11 @@
 #include <stdio.h>
 
 static inline void *
-ps_plat_alloc(size_t sz) 
+ps_plat_alloc(size_t sz)
 { return mmap(0, sz, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0); }
 
 static inline void
-ps_plat_free(void *x, size_t sz) 
+ps_plat_free(void *x, size_t sz)
 { munmap(x, sz); }
 
 #ifndef PS_SLAB_ALLOC
@@ -84,8 +84,8 @@ ps_coreid(void)
 #define ps_cc_barrier() __asm__ __volatile__ ("" : : : "memory")
 #endif
 
-#define PS_CAS_INSTRUCTION "cmpxchgq " /* x86-64 */
-/* #define PS_CAS_INSTRUCTION "cmpxchgl" */ /* x86-32 */
+/* #define PS_CAS_INSTRUCTION "cmpxchgq " */ /* x86-64 */
+#define PS_CAS_INSTRUCTION "cmpxchgl" /* x86-32 */
 #define PS_CAS_STR PS_CAS_INSTRUCTION "%2, %0; setz %1"
 
 /*
@@ -104,7 +104,7 @@ ps_cas(unsigned long *target, unsigned long old, unsigned long updated)
         return (int)z;
 }
 
-/* 
+/*
  * Only atomic on a uni-processor, so not for cross-core coordination.
  * Faster on a multiprocessor when used to synchronize between threads
  * on a single core by avoiding locking.
@@ -120,12 +120,12 @@ ps_upcas(unsigned long *target, unsigned long old, unsigned long updated)
         return (int)z;
 }
 
-static inline void 
+static inline void
 ps_mem_fence(void)
 { __asm__ __volatile__("mfence" ::: "memory"); }
 
 
-/* 
+/*
  * FIXME: this is truly an affront to humanity for now, but it is a
  * simple lock for testing -- naive spin *without* backoff, gulp
  */
