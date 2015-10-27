@@ -21,11 +21,11 @@
 #ifndef PS_REMOTE_BATCH
 /* Needs to be a power of 2 */
 #define PS_REMOTE_BATCH 128
-#endif 
+#endif
 
 /* The header for a slab. */
 struct ps_slab {
-	/* 
+	/*
 	 * Read-only data.  coreid is read by _other_ cores, so we
 	 * want it on a separate cache-line from the frequently
 	 * modified stuff.
@@ -44,9 +44,9 @@ struct ps_slab {
 
 /*** Operations on the freelist of slabs ***/
 
-/* 
+/*
  * These functions should really must be statically computed for
- * efficiency (see macros below)... 
+ * efficiency (see macros below)...
  */
 static inline unsigned int
 __ps_slab_objmemsz(size_t obj_sz)
@@ -86,6 +86,26 @@ void __ps_slab_mem_remote_process(struct ps_mem_percore *percpu, size_t obj_sz, 
 void __ps_slab_init(struct ps_slab *s, struct ps_slab_info *si, size_t obj_sz, int allocsz, int hintern);
 
 static inline void
+__ps_slab_check_consistency(struct ps_slab *s)
+{
+#ifdef PS_SLAB_DEBUG
+	struct ps_mheader *h;
+	unsigned int i;
+
+	assert(s);
+	h = s->freelist;
+	for (i = 0 ; h ; i++) {
+		assert(h->slab == s);
+		assert(h->tsc_free != 0);
+		h = h->next;
+	}
+	assert(i == s->nfree);
+#else
+	(void)s;
+#endif
+}
+
+static inline void
 __ps_slab_mem_free(void *buf, struct ps_mem_percore *percpu, coreid_t curr, size_t obj_sz, size_t allocsz, int hintern)
 {
 	struct ps_slab *s;
@@ -111,6 +131,7 @@ __ps_slab_mem_free(void *buf, struct ps_mem_percore *percpu, coreid_t curr, size
 	s->freelist = h; 	/* TODO: should be atomic/locked */
 	h->next     = next;
 	s->nfree++;		/* TODO: ditto */
+	__ps_slab_check_consistency(s);
 
 	if (s->nfree == max_nobjs) {
 		/* remove from the freelist */
@@ -135,6 +156,7 @@ __ps_slab_mem_alloc(struct ps_mem_percore *percpu, size_t obj_sz, u32_t allocsz,
 	struct ps_slab_info *si = &percpu->slab_info;
 	assert(obj_sz + (hintern ? sizeof(struct ps_slab) : 0) <= allocsz);
 
+
 	si->salloccnt++;
 	if (unlikely(si->salloccnt % PS_REMOTE_BATCH == 0)) {
 		__ps_slab_mem_remote_process(percpu, obj_sz, allocsz, hintern);
@@ -154,9 +176,13 @@ __ps_slab_mem_alloc(struct ps_mem_percore *percpu, size_t obj_sz, u32_t allocsz,
 	h->next     = NULL;
 	s->nfree--;
 	__ps_mhead_reset(h);
+	__ps_slab_check_consistency(s);
 
 	/* remove from the freelist */
-	if (s->nfree == 0) __slab_freelist_rem(&si->fl, s);
+	if (s->nfree == 0) {
+		__slab_freelist_rem(&si->fl, s);
+		assert(ps_list_empty(s, list));
+	}
 	assert(!__ps_mhead_isfree(h));
 
 	return __ps_mhead_mem(h);

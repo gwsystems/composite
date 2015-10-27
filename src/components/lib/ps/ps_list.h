@@ -49,7 +49,7 @@ struct ps_list {
 #define ps_list_rem(obj, l) do {				\
 	ps_list_next(obj, l)->l.prev = (obj)->l.prev; \
 	ps_list_prev(obj, l)->l.next = (obj)->l.next; \
-	(obj)->l.prev = (obj); } while (0)
+	(obj)->l.prev = (obj)->l.next = (obj); } while (0)
 
 #define ps_list_empty(obj, l)			\
 	((obj)->l.prev == (obj))

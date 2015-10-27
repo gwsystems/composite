@@ -84,13 +84,13 @@ struct thd_active {
 struct thd_active thd_active[PS_NUMCORES] PS_ALIGNED;
 
 /* Only used in Linux tests. */
-int cpu_assign[PS_NUMCORES] = {0, 1, 2, 3};
+int cpu_assign[] = {0, 1, 2, 3};
 /* int cpu_assign[41] = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36, */
 /* 		      1, 5, 9, 13, 17, 21, 25, 29, 33, 37, */
 /* 		      2, 6, 10, 14, 18, 22, 26, 30, 34, 38, */
 /* 		      3, 7, 11, 15, 19, 23, 27, 31, 35, 39, -1}; */
 
-static void 
+static void
 call_getrlimit(int id, char *name)
 {
 	struct rlimit rl;
@@ -102,7 +102,7 @@ call_getrlimit(int id, char *name)
 	}
 }
 
-static void 
+static void
 call_setrlimit(int id, rlim_t c, rlim_t m)
 {
 	struct rlimit rl;
@@ -114,7 +114,7 @@ call_setrlimit(int id, rlim_t c, rlim_t m)
 	}
 }
 
-void 
+void
 set_prio(void)
 {
 	struct sched_param sp;
@@ -146,7 +146,7 @@ set_prio(void)
 	return;
 }
 
-void 
+void
 thd_set_affinity(pthread_t tid, int id)
 {
 	cpu_set_t s;
@@ -154,27 +154,28 @@ thd_set_affinity(pthread_t tid, int id)
 	coreid_t cid, n;
 
 	cpuid = cpu_assign[id];
-	printf("tid %d (%d) to cpu %d\n", (int)tid, id, cpuid);
+	printf("tid %d (%d) to cpu %d\n", (int)pthread_self(), id, cpuid);
 	CPU_ZERO(&s);
 	CPU_SET(cpuid, &s);
 
 	ret = pthread_setaffinity_np(tid, sizeof(cpu_set_t), &s);
-
 	if (ret) {
 		printf("setting affinity error for cpu %d\n", cpuid);
 		assert(0);
 	}
+
 	/* set_prio(); */
 	/* confirm that the library's version of coreid == benchmark's */
 	ps_tsc_locality(&cid, &n);
-	assert(id == cid); 	
+	printf("\tcurr core %d, should be %d\n", cid, cpuid);
+	assert(cpuid == cid);
 }
 
-/* 
+/*
  * Trivial barrier
  */
-void 
-meas_barrier(void) 
+void
+meas_barrier(void)
 {
 	int cpu = ps_coreid();
 	int initval = thd_active[cpu].barrierval, doneval = !initval;
@@ -199,20 +200,20 @@ static unsigned long results[PS_NUMCORES][2] PS_ALIGNED;
 static unsigned long p99_log[N_LOG] PS_ALIGNED;
 
 /* for qsort */
-static int 
+static int
 cmpfunc(const void * a, const void * b)
 {
 	return ( *(int*)a - *(int*)b );
 }
 
-void 
-bench(void) 
+void
+bench(void)
 {
 	int i, id;
 	unsigned long n_read = 0, n_update = 0, op_jump = PS_NUMCORES;
 	unsigned long long s, e, s1, e1, tot_cost_r = 0, tot_cost_w = 0, max = 0, cost;
 	void *last_alloc;
-	
+
 	id = ps_coreid();
 	last_alloc = ps_mem_alloc_bench();
 	assert(last_alloc);
@@ -234,7 +235,7 @@ bench(void)
 			ps_enter(&ps);
 			ps_exit(&ps);
 
-			e1 = ps_tsc(); 
+			e1 = ps_tsc();
 			cost = e1-s1;
 			tot_cost_r += cost;
 
@@ -268,16 +269,16 @@ bench(void)
 	}
 
 
-        printf("Thd %d: tot %lu ops (r %lu, u %lu) done, %llu (r %llu, w %llu) cycles per op, max %llu\n", 
-               id, n_read+n_update, n_read, n_update, (unsigned long long)(e-s)/(n_read + n_update), 
+        printf("Thd %d: tot %lu ops (r %lu, u %lu) done, %llu (r %llu, w %llu) cycles per op, max %llu\n",
+               id, n_read+n_update, n_read, n_update, (unsigned long long)(e-s)/(n_read + n_update),
                tot_cost_r, tot_cost_w, max);
 
 	return;
 }
 
-char *TRACE_FILE = "trace.dat";
+char *TRACE_FILE = "/tmp/trace.dat";
 
-void * 
+void *
 worker(void *arg)
 {
 	ps_tsc_t s,e;
@@ -351,11 +352,11 @@ load_trace(void)
 	/* read the entire trace into memory. */
 	fd = open(TRACE_FILE, O_RDONLY);
 	if (fd < 0) {
-		fd = open(TRACE_FILE, N_OPS, O_CREAT | O_RDWR);
+		fd = open(TRACE_FILE, O_CREAT | O_RDWR, S_IRWXU);
 		assert(fd >= 0);
 		trace_gen(fd, N_OPS, 50);
 	}
-    
+
 	for (i = 0; i < (N_OPS / PS_PAGE_SIZE); i++) {
 		bytes = read(fd, buf, PS_PAGE_SIZE);
 		assert(bytes == PS_PAGE_SIZE);

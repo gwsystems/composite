@@ -45,8 +45,8 @@ main(void)
 	unsigned long long start, end;
 
 	printf("Slabs:\n"
-	       "\tobjsz %lu, objmem %lu, nobj %lu\n"
-	       "\tobjsz %lu, objmem %lu, nobj %lu\n",
+	       "\tobjsz %u, objmem %u, nobj %u\n"
+	       "\tobjsz %u, objmem %u, nobj %u\n",
 	       sizeof(struct small),  ps_slab_objmem_s(), ps_slab_nobjs_s(),
 	       sizeof(struct larger), ps_slab_objmem_l(), ps_slab_nobjs_l());
 
@@ -89,4 +89,3 @@ main(void)
 	}
 	return 0;
 }
-

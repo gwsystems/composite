@@ -33,7 +33,7 @@ typedef u16_t coreid_t;
 #define PS_ALIGNED     __attribute__((aligned(PS_CACHE_LINE)))
 #define PS_WORDALIGNED __attribute__((aligned(PS_WORD)))
 #ifndef PS_NUMCORES
-#define PS_NUMCORES    4
+#define PS_NUMCORES    2
 #endif
 #define PS_PAGE_SIZE   4096
 #define PS_RNDUP(v, a) (-(-(v) & -(a))) /* from blogs.oracle.com/jwadams/entry/macros_and_powers_of_two */
@@ -72,9 +72,9 @@ ps_tsc_locality(coreid_t *coreid, coreid_t *numaid)
 static inline unsigned int
 ps_coreid(void)
 {
-	/* return 0; */ 		/*  testing... */
 	coreid_t coreid, numaid;
 
+	if (PS_NUMCORES == 1) return 0;
 	ps_tsc_locality(&coreid, &numaid);
 
 	return coreid;
@@ -85,7 +85,7 @@ ps_coreid(void)
 #endif
 
 /* #define PS_CAS_INSTRUCTION "cmpxchgq " */ /* x86-64 */
-#define PS_CAS_INSTRUCTION "cmpxchgl" /* x86-32 */
+#define PS_CAS_INSTRUCTION "cmpxchgl " /* x86-32 */
 #define PS_CAS_STR PS_CAS_INSTRUCTION "%2, %0; setz %1"
 
 /*

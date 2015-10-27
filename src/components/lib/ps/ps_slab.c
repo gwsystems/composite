@@ -40,6 +40,7 @@ __ps_slab_init(struct ps_slab *s, struct ps_slab_info *si, size_t obj_sz, int al
 		__ps_mhead_init(alloc, s);
 		prev->next = alloc;
 	}
+	__ps_slab_check_consistency(s);
 	/* better not overrun memory */
 	assert((void *)alloc <= (void *)((char*)s + allocsz));
 
