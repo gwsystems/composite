@@ -31,7 +31,7 @@ typedef enum {
     TIMER_ONESHOT = 1,
 } timer_type_t;
 
-#define DEFAULT_FREQUENCY 100000000
+#define DEFAULT_FREQUENCY 10000
 
 void timer_set(timer_type_t timer_type, u64_t cycles);
 void timer_init(timer_type_t timer_type, u64_t cycles);
