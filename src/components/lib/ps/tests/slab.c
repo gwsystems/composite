@@ -45,10 +45,10 @@ main(void)
 	unsigned long long start, end;
 
 	printf("Slabs:\n"
-	       "\tobjsz %u, objmem %u, nobj %u\n"
-	       "\tobjsz %u, objmem %u, nobj %u\n",
-	       sizeof(struct small),  ps_slab_objmem_s(), ps_slab_nobjs_s(),
-	       sizeof(struct larger), ps_slab_objmem_l(), ps_slab_nobjs_l());
+	       "\tobjsz %lu, objmem %lu, nobj %lu\n"
+	       "\tobjsz %lu, objmem %lu, nobj %lu\n",
+	       (unsigned long)sizeof(struct small),  (unsigned long)ps_slab_objmem_s(), (unsigned long)ps_slab_nobjs_s(),
+	       (unsigned long)sizeof(struct larger), (unsigned long)ps_slab_objmem_l(), (unsigned long)ps_slab_nobjs_l());
 
 	start = ps_tsc();
 	for (j = 0 ; j < ITER ; j++) {
@@ -62,8 +62,14 @@ main(void)
 	ps_slab_alloc_s();
 	start = ps_tsc();
 	for (j = 0 ; j < ITER ; j++) {
-		for (i = 0 ; i < SMALLCHUNK ; i++) s[i] = ps_slab_alloc_s();
-		for (i = 0 ; i < SMALLCHUNK ; i++) ps_slab_free_s(s[i]);
+		for (i = 0 ; i < SMALLCHUNK ; i++) {
+			/* printf("a"); fflush(stdout); */
+			s[i] = ps_slab_alloc_s();
+		}
+		for (i = 0 ; i < SMALLCHUNK ; i++) {
+			/* printf("f"); fflush(stdout); */
+			ps_slab_free_s(s[i]);
+		}
 	}
 	end = ps_tsc();
 	end = (end-start)/(ITER*SMALLCHUNK);

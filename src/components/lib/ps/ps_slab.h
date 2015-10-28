@@ -23,6 +23,8 @@
 #define PS_REMOTE_BATCH 128
 #endif
 
+/* #define PS_SLAB_DEBUG 1 */
+
 /* The header for a slab. */
 struct ps_slab {
 	/*

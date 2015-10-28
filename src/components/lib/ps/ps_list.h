@@ -47,14 +47,14 @@ struct ps_list {
 
 /* Note we don't reset ->next as there might be concurrent reads */
 #define ps_list_rem(obj, l) do {				\
-	ps_list_next(obj, l)->l.prev = (obj)->l.prev; \
-	ps_list_prev(obj, l)->l.next = (obj)->l.next; \
+	ps_list_next(obj, l)->l.prev = (obj)->l.prev;           \
+	ps_list_prev(obj, l)->l.next = (obj)->l.next;           \
 	(obj)->l.prev = (obj)->l.next = (obj); } while (0)
 
-#define ps_list_empty(obj, l)			\
+#define ps_list_empty(obj, l)			                \
 	((obj)->l.prev == (obj))
 
-#define ps_list_append(head, new, l)			\
+#define ps_list_append(head, new, l)			        \
 	ps_list_add(ps_list_last(head, l), new, l)
 
 #endif	/* PS_LIST_H */

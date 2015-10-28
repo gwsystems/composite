@@ -84,7 +84,8 @@ struct thd_active {
 struct thd_active thd_active[PS_NUMCORES] PS_ALIGNED;
 
 /* Only used in Linux tests. */
-int cpu_assign[] = {0, 1, 2, 3};
+const int identity_mapping[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+const int *cpu_assign        = identity_mapping;
 /* int cpu_assign[41] = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36, */
 /* 		      1, 5, 9, 13, 17, 21, 25, 29, 33, 37, */
 /* 		      2, 6, 10, 14, 18, 22, 26, 30, 34, 38, */
@@ -154,7 +155,6 @@ thd_set_affinity(pthread_t tid, int id)
 	coreid_t cid, n;
 
 	cpuid = cpu_assign[id];
-	printf("tid %d (%d) to cpu %d\n", (int)pthread_self(), id, cpuid);
 	CPU_ZERO(&s);
 	CPU_SET(cpuid, &s);
 
@@ -167,7 +167,6 @@ thd_set_affinity(pthread_t tid, int id)
 	/* set_prio(); */
 	/* confirm that the library's version of coreid == benchmark's */
 	ps_tsc_locality(&cid, &n);
-	printf("\tcurr core %d, should be %d\n", cid, cpuid);
 	assert(cpuid == cid);
 }
 
@@ -248,7 +247,7 @@ bench(void)
 	assert(n_read + n_update <= N_LOG);
 	e = ps_tsc();
 
-	if (n_read) tot_cost_r /= n_read;
+	if (n_read)   tot_cost_r /= n_read;
 	if (n_update) tot_cost_w /= n_update;
 
 	results[id][0] = tot_cost_r;
@@ -286,11 +285,10 @@ worker(void *arg)
 
 	thd_set_affinity(pthread_self(), cpuid);
 
-	s = ps_tsc();
-	printf("cpu %d (tid %d) starting @ %llu\n", cpuid, ps_coreid(), s);
-
 	meas_barrier();
+	s = ps_tsc();
 	bench();
+	e = ps_tsc();
 	meas_barrier();
 
 	if (cpuid == 0) {
@@ -310,8 +308,7 @@ worker(void *arg)
 		printf("Summary: %s, (r %llu, w %llu) cycles per op\n", TRACE_FILE, tot_r, tot_w);
 	}
 
-	e = ps_tsc();
-	printf("cpu %d done (%llu to %llu)\n", cpuid, s, e);
+	printf("cpu %d done in %llu cycles (%llu to %llu)\n", cpuid, e-s, s, e);
 
 	return 0;
 }
@@ -344,11 +341,11 @@ load_trace(void)
 
 	ret = mlock(ops, N_OPS);
 	if (ret) {
-		printf("Cannot lock memory (%d). Check privilege. Exit.\n", ret);
+		printf("Cannot lock memory (%d). Check privilege (i.e. use sudo). Exit.\n", ret);
 		exit(-1);
 	}
 
-	printf("loading trace file @%s...\n", TRACE_FILE);
+	printf("loading trace file @ %s.\n", TRACE_FILE);
 	/* read the entire trace into memory. */
 	fd = open(TRACE_FILE, O_RDONLY);
 	if (fd < 0) {
