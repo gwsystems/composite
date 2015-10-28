@@ -48,9 +48,11 @@
 #define TN_VAL_SET_CNF	(1ll << 6)	/* set to allow directly setting accumulator */
 /* 1 << 7 is reserved */
 #define TN_32MODE_CNF	(1ll << 8)	/* 1 = force 32-bit access to 64-bit timer */
-#define TN_INT_ROUTE_CNF (1<<9: 1<<13)	/* routing for interrupt */
+/* #define TN_INT_ROUTE_CNF (1<<9:1<<13)*/	/* routing for interrupt */
 #define TN_FSB_EN_CNF	(1ll << 14)	/* 1 = deliver interrupts via FSB instead of APIC */
 #define TN_FSB_INT_DEL_CAP	(1ll << 15)	/* read only, 1 = FSB delivery available */
+
+#define HPET_INT_ENABLE 0x3	/* Sets ENABLE_CNF and LEG_RT_CNF */
 
 static volatile u64_t *hpet_config;
 static volatile u64_t *hpet_interrupt;
@@ -77,8 +79,6 @@ timer_handler(struct pt_regs *regs)
 //	if (timer_thread) capinv_int_snd(timer_thread, rs);
 
         printk("Tick: %2u @%10llu (%10llu)\n", tick, cycle, HPET_COUNTER);
-
-	*hpet_interrupt = 3;
 }
 #endif
 
@@ -94,7 +94,7 @@ periodic_handler(struct pt_regs *regs)
 
         printk("Tick: %2u @%10llu (%10llu)\n", tick, cycle, HPET_COUNTER);
 
-	*hpet_interrupt = 3;
+	*hpet_interrupt = HPET_INT_ENABLE;
 }
 
 void
@@ -108,7 +108,7 @@ oneshot_handler(struct pt_regs *regs)
 
         printk("Oneshot: @%10llu (%10llu)\n", cycle, HPET_COUNTER);
 
-	*hpet_interrupt = 3;
+	*hpet_interrupt = HPET_INT_ENABLE;
 }
 
 void
@@ -128,6 +128,7 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 		/* Set a static value to count up to */
 		timer = 1;
 		hpet_timers[timer].config = outconfig;
+		cycles += HPET_COUNTER;
 	} else {
 		/* Set a periodic value */
 		hpet_timers[timer].config = outconfig | TN_TYPE_CNF;
@@ -183,13 +184,13 @@ timer_init(timer_type_t timer_type, u64_t cycles)
 	/* Enable legacy interrupt routing */
 	*hpet_config |= (1ll);
 
-	/* TESTING: Debug 15 timer ticks */
-	timer_set(TIMER_PERIODIC, 100000000);
-	__asm__("sti");
-	while (1) { __asm__("hlt"); }
-
 	/* Set the timer as specified */
 	timer_set(timer_type, cycles);
+
+	/* TESTING: Debug timer ticks */
+	__asm__("sti");
+	/* __asm__("int $0xf0"); */
+	while (1) { __asm__("hlt"); }
 }
 
 /* FIXME: per-thread */
