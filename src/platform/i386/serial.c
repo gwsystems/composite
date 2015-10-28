@@ -66,8 +66,8 @@ serial_handler(struct pt_regs *r)
 			timer_set(TIMER_ONESHOT, 50000000);
 			break;
 		case 'p':
-			timer_set(TIMER_FREQUENCY, 100000000);
-			timer_set(TIMER_FREQUENCY, 100000000);
+			timer_set(TIMER_PERIODIC, 100000000);
+			timer_set(TIMER_PERIODIC, 100000000);
 			break;
 		default:
 			break;

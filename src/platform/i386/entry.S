@@ -141,6 +141,8 @@ fn##_irq: 			\
 
 .text
 IRQ_CODE(page_fault)
-IRQ(timer)
+/* IRQ(timer) */
 IRQ(keyboard)
 IRQ(serial)
+IRQ(periodic)
+IRQ(oneshot)

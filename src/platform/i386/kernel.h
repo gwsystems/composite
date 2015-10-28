@@ -25,9 +25,10 @@ void console_init(void);
 void serial_init(void);
 #endif
 
+/* These numbers map directly to actual timers in the HPET */
 typedef enum {
-    TIMER_FREQUENCY,
-    TIMER_ONESHOT
+    TIMER_PERIODIC = 0,
+    TIMER_ONESHOT = 1,
 } timer_type_t;
 
 #define DEFAULT_FREQUENCY 100000000

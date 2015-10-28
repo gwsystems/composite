@@ -63,11 +63,9 @@ volatile struct hpet_timer {
 } __attribute__((packed)) *hpet_timers;
 
 static void *hpet;
-
 static u32_t tick = 0;
-static int current_type = TIMER_FREQUENCY;
-static u64_t oneshot_target = 0;
 
+#if 0
 void
 timer_handler(struct pt_regs *regs)
 {
@@ -80,14 +78,44 @@ timer_handler(struct pt_regs *regs)
 
         printk("Tick: %2u @%10llu (%10llu)\n", tick, cycle, HPET_COUNTER);
 
-	*hpet_interrupt = 1;
-	/* *hpet_config |= 1; */
+	*hpet_interrupt = 3;
+}
+#endif
+
+void
+periodic_handler(struct pt_regs *regs)
+{
+	u64_t cycle;
+	rdtscll(cycle);
+	tick++;
+
+	ack_irq(IRQ_PERIODIC);
+//	if (timer_thread) capinv_int_snd(timer_thread, rs);
+
+        printk("Tick: %2u @%10llu (%10llu)\n", tick, cycle, HPET_COUNTER);
+
+	*hpet_interrupt = 3;
+}
+
+void
+oneshot_handler(struct pt_regs *regs)
+{
+	u64_t cycle;
+	rdtscll(cycle);
+
+	ack_irq(IRQ_ONESHOT);
+//	if (timer_thread) capinv_int_snd(timer_thread, rs);
+
+        printk("Oneshot: @%10llu (%10llu)\n", cycle, HPET_COUNTER);
+
+	*hpet_interrupt = 3;
 }
 
 void
 timer_set(timer_type_t timer_type, u64_t cycles)
 {
 	u64_t outconfig = TN_INT_TYPE_CNF | TN_INT_ENB_CNF;
+	int timer = 0;
 
 	/* Disable timer interrupts */
 	*hpet_config ^= ~1;
@@ -98,15 +126,13 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 
 	if (timer_type == TIMER_ONESHOT) {
 		/* Set a static value to count up to */
-		hpet_timers[0].config = outconfig;
+		timer = 1;
+		hpet_timers[timer].config = outconfig;
 	} else {
 		/* Set a periodic value */
-		hpet_timers[0].config = outconfig | TN_TYPE_CNF;
+		hpet_timers[timer].config = outconfig | TN_TYPE_CNF;
 	}
-	hpet_timers[0].compare = cycles;
-
-	/* Save the current type of timer */
-	current_type = timer_type;
+	hpet_timers[timer].compare = cycles;
 
 	/* Enable timer interrupts */
 	*hpet_config |= 1;
@@ -158,7 +184,7 @@ timer_init(timer_type_t timer_type, u64_t cycles)
 	*hpet_config |= (1ll);
 
 	/* TESTING: Debug 15 timer ticks */
-	timer_set(TIMER_FREQUENCY, 100000000);
+	timer_set(TIMER_PERIODIC, 100000000);
 	__asm__("sti");
 	while (1) { __asm__("hlt"); }
 
