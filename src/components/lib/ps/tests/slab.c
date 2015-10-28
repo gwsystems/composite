@@ -2,7 +2,7 @@
 #include <ps_slab.h>
 
 #define SMALLSZ 1
-#define LARGESZ 800
+#define LARGESZ 8000
 
 struct small {
 	char x[SMALLSZ];
@@ -12,8 +12,8 @@ struct larger {
 	char x[LARGESZ];
 };
 
-PS_SLAB_CREATE(s, sizeof(struct small), PS_PAGE_SIZE*2, 1)
-PS_SLAB_CREATE_DEF(l, sizeof(struct larger))
+PS_SLAB_CREATE_DEF(s, sizeof(struct small))
+PS_SLAB_CREATE(l, sizeof(struct larger), PS_PAGE_SIZE * 128, 1)
 
 #define ITER       (1024)
 #define SMALLCHUNK 2
@@ -45,19 +45,15 @@ main(void)
 	unsigned long long start, end;
 
 	printf("Slabs:\n"
-	       "\tobjsz %lud, objmem %lud, nobj %lud\n"
-	       "\tobjsz %lud, objmem %lud, nobj %lud\n",
-	       sizeof(struct small),  ps_slab_objmem_s(), ps_slab_nobjs_s(),
-	       sizeof(struct larger), ps_slab_objmem_l(), ps_slab_nobjs_l());
+	       "\tobjsz %lu, objmem %lu, nobj %lu\n"
+	       "\tobjsz %lu, objmem %lu, nobj %lu\n",
+	       (unsigned long)sizeof(struct small),  (unsigned long)ps_slab_objmem_s(), (unsigned long)ps_slab_nobjs_s(),
+	       (unsigned long)sizeof(struct larger), (unsigned long)ps_slab_objmem_l(), (unsigned long)ps_slab_nobjs_l());
 
 	start = ps_tsc();
 	for (j = 0 ; j < ITER ; j++) {
-		for (i = 0 ; i < LARGECHUNK ; i++) {
-			s[i] = ps_slab_alloc_l();
-		}
-		for (i = 0 ; i < LARGECHUNK ; i++) {
-			ps_slab_free_l(s[i]);
-		}
+		for (i = 0 ; i < LARGECHUNK ; i++) s[i] = ps_slab_alloc_l();
+		for (i = 0 ; i < LARGECHUNK ; i++) ps_slab_free_l(s[i]);
 	}
 	end = ps_tsc();
 	end = (end-start)/(ITER*LARGECHUNK);
@@ -66,8 +62,14 @@ main(void)
 	ps_slab_alloc_s();
 	start = ps_tsc();
 	for (j = 0 ; j < ITER ; j++) {
-		for (i = 0 ; i < SMALLCHUNK ; i++) s[i] = ps_slab_alloc_s();
-		for (i = 0 ; i < SMALLCHUNK ; i++) ps_slab_free_s(s[i]);
+		for (i = 0 ; i < SMALLCHUNK ; i++) {
+			/* printf("a"); fflush(stdout); */
+			s[i] = ps_slab_alloc_s();
+		}
+		for (i = 0 ; i < SMALLCHUNK ; i++) {
+			/* printf("f"); fflush(stdout); */
+			ps_slab_free_s(s[i]);
+		}
 	}
 	end = ps_tsc();
 	end = (end-start)/(ITER*SMALLCHUNK);
@@ -93,4 +95,3 @@ main(void)
 	}
 	return 0;
 }
-

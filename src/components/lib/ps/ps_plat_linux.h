@@ -6,11 +6,11 @@
 #include <stdio.h>
 
 static inline void *
-ps_plat_alloc(size_t sz) 
+ps_plat_alloc(size_t sz)
 { return mmap(0, sz, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0); }
 
 static inline void
-ps_plat_free(void *x, size_t sz) 
+ps_plat_free(void *x, size_t sz)
 { munmap(x, sz); }
 
 #ifndef PS_SLAB_ALLOC
@@ -24,6 +24,7 @@ ps_plat_free(void *x, size_t sz)
 #define u32_t unsigned int
 #define u64_t unsigned long long
 typedef u64_t ps_tsc_t; 	/* our time-stamp counter representation */
+typedef u16_t coreid_t;
 
 #define PS_CACHE_LINE  64
 #define PS_CACHE_PAD   (PS_CACHE_LINE*2)
@@ -31,7 +32,9 @@ typedef u64_t ps_tsc_t; 	/* our time-stamp counter representation */
 #define PS_PACKED      __attribute__((packed))
 #define PS_ALIGNED     __attribute__((aligned(PS_CACHE_LINE)))
 #define PS_WORDALIGNED __attribute__((aligned(PS_WORD)))
-#define PS_NUMCORES    1
+#ifndef PS_NUMCORES
+#define PS_NUMCORES    10
+#endif
 #define PS_PAGE_SIZE   4096
 #define PS_RNDUP(v, a) (-(-(v) & -(a))) /* from blogs.oracle.com/jwadams/entry/macros_and_powers_of_two */
 
@@ -55,7 +58,7 @@ ps_tsc(void)
 }
 
 static inline ps_tsc_t
-ps_tsc_locality(unsigned int *coreid, unsigned int *numaid)
+ps_tsc_locality(coreid_t *coreid, coreid_t *numaid)
 {
 	unsigned long a, d, c;
 
@@ -69,18 +72,21 @@ ps_tsc_locality(unsigned int *coreid, unsigned int *numaid)
 static inline unsigned int
 ps_coreid(void)
 {
-	return 0; 		/*  testing... */
-	/* unsigned int coreid, numaid; */
+	coreid_t coreid, numaid;
 
-	/* ps_rdtsc_locality(&coreid, &numaid); */
+	if (PS_NUMCORES == 1) return 0;
+	ps_tsc_locality(&coreid, &numaid);
 
-	/* return coreid; */
+	return coreid;
 }
-
 
 #ifndef ps_cc_barrier
 #define ps_cc_barrier() __asm__ __volatile__ ("" : : : "memory")
 #endif
+
+#define PS_CAS_INSTRUCTION "cmpxchgq " /* x86-64 */
+/* #define PS_CAS_INSTRUCTION "cmpxchgl " */ /* x86-32 */
+#define PS_CAS_STR PS_CAS_INSTRUCTION "%2, %0; setz %1"
 
 /*
  * Return values:
@@ -91,14 +97,14 @@ static inline int
 ps_cas(unsigned long *target, unsigned long old, unsigned long updated)
 {
         char z;
-        __asm__ __volatile__("lock cmpxchgl %2, %0; setz %1"
+        __asm__ __volatile__("lock " PS_CAS_STR
                              : "+m" (*target), "=a" (z)
                              : "q"  (updated), "a"  (old)
                              : "memory", "cc");
         return (int)z;
 }
 
-/* 
+/*
  * Only atomic on a uni-processor, so not for cross-core coordination.
  * Faster on a multiprocessor when used to synchronize between threads
  * on a single core by avoiding locking.
@@ -107,26 +113,29 @@ static inline int
 ps_upcas(unsigned long *target, unsigned long old, unsigned long updated)
 {
         char z;
-        __asm__ __volatile__("cmpxchgl %2, %0; setz %1"
+        __asm__ __volatile__(PS_CAS_STR
                              : "+m" (*target), "=a" (z)
                              : "q"  (updated), "a"  (old)
                              : "memory", "cc");
         return (int)z;
 }
 
-static inline void 
+static inline void
 ps_mem_fence(void)
 { __asm__ __volatile__("mfence" ::: "memory"); }
 
 
-/* FIXME: this is truly horrible for now, but a simple lock for testing */
+/*
+ * FIXME: this is truly an affront to humanity for now, but it is a
+ * simple lock for testing -- naive spin *without* backoff, gulp
+ */
 struct ps_lock {
-	int o;
+	unsigned long o;
 };
 
 static inline void
 ps_lock_take(struct ps_lock *l)
-{ while (!ps_cas(&l->o, 0, 1)); }
+{ while (!ps_cas(&l->o, 0, 1)) ; }
 
 static inline void
 ps_lock_release(struct ps_lock *l)

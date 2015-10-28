@@ -1,5 +1,5 @@
 C_OBJS=micro_booter.o
-ASM_OBJS=cos_asm_scheduler.o
+ASM_OBJS=cos_asm_scheduler.o inv.o
 COMPONENT=micro_boot.o
 INTERFACES=
 DEPENDENCIES=

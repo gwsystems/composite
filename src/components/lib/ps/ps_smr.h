@@ -30,7 +30,9 @@
 #include <ps_global.h>
 #include <ps_slab.h>
 
-#define QLIST_BATCH_REMOVE 32
+#ifndef PS_QLIST_BATCH
+#define PS_QLIST_BATCH 128
+#endif
 
 struct ps_quiescence_timing {
 	volatile ps_tsc_t time_in, time_out;
@@ -52,61 +54,55 @@ struct ps_smr_percore {
 } PS_ALIGNED PS_PACKED;
 
 struct parsec {
+	int refcnt;
 	struct ps_smr_percore timing_info[PS_NUMCORES] PS_ALIGNED;
 } PS_ALIGNED;
 
-int ps_quiesce_wait(struct parsec *p, ps_tsc_t tsc);
-int ps_try_quiesce (struct parsec *p, ps_tsc_t tsc);
+int ps_quiesce_wait(struct parsec *p, ps_tsc_t tsc, ps_tsc_t *qsc);
+int ps_try_quiesce (struct parsec *p, ps_tsc_t tsc, ps_tsc_t *qsc);
 void ps_init(struct parsec *ps);
 struct parsec *ps_alloc(void);
+typedef void (*ps_free_fn_t)(void *, coreid_t curr);
+void __ps_smr_reclaim(coreid_t curr, struct ps_qsc_list *ql, struct ps_smr_info *si, struct ps_mem_percore *percpu, ps_free_fn_t ffn);
+
 
 static inline void
-__ps_smr_free(struct parsec *ps, void *buf, struct ps_mem_percore *fls, size_t obj_sz, size_t allocsz, int hintern, size_t qthresh)
+__ps_smr_free(void *buf, struct ps_mem_percore *percpu, ps_free_fn_t ffn)
 {
-	struct ps_mheader     *mem = __ps_mhead_get(buf);
-	u16_t               coreid = mem->slab->coreid;
-	struct ps_mem_percore *fl  = &fls[coreid];
+	struct ps_mheader  *mem = __ps_mhead_get(buf);
+	struct ps_smr_info *si;
 	struct ps_qsc_list *ql;
-	(void)ps; (void)obj_sz; (void)allocsz; (void)hintern;
+	coreid_t curr_core, curr_numa;
+	ps_tsc_t tsc;
 
-	if (unlikely(ps_coreid() != coreid)) {
-		__ps_slab_mem_free(buf, fls, obj_sz, allocsz, hintern);
-		return;
-	}
-	
-	ql = &fl->qsc_list;
+	/* this is 85% of the cost of the function... */
+	tsc = ps_tsc_locality(&curr_core, &curr_numa); 
+
+	si  = &percpu[curr_core].smr_info;
+	ql  = &si->qsc_list;
+
+	/* 
+	 * Note: we currently enqueue remotely freed memory into the
+	 * qlist of the core the memory is freed on, later to be moved
+	 * to its native core by the remote free logic within the slab
+	 * allocator.  This might cause some cache coherency traffic
+	 * that we wouldn't otherwise have due to qlist operations
+	 * (i.e. writing to the ->next field within the header).
+	 */
+	__ps_mhead_setfree(mem, tsc);
 	__ps_qsc_enqueue(ql, mem);
-	fl->qmemcnt++;
-
-	if (fl->qmemcnt >= qthresh) {
-		struct ps_mheader *a  = __ps_qsc_dequeue(ql);
-		/* .... */
-		if (a) {
-			m->qmemcnt--;
-			__ps_slab_mem_free(&a[1], fls, obj_sz, allocsz, hintern);
-		}
-	}
-}
-
-static inline void *
-__ps_smr_alloc(struct parsec *ps, struct ps_mem_percore *fls, size_t obj_sz, u32_t allocsz, int hintern)
-{
-	struct ps_mem_percore *m  = &fls[ps_coreid()];
-	struct ps_qsc_list    *ql = &m->qsc_list;
-	(void)ps;
-
-	return __ps_slab_mem_alloc(&m->fl, obj_sz, allocsz, hintern, &m->slabheads);
+	si->qmemcnt++;
+	if (unlikely(si->qmemcnt >= si->qmemtarget)) __ps_smr_reclaim(curr_core, ql, si, percpu, ffn);
 }
 
 static inline void
 ps_enter(struct parsec *parsec)
 {
-	int curr_cpu;
+	coreid_t curr_cpu, curr_numa;
 	ps_tsc_t curr_time;
 	struct ps_quiescence_timing *timing;
 
-	curr_cpu  = ps_coreid();
-	curr_time = ps_tsc();
+	curr_time = ps_tsc_locality(&curr_cpu, &curr_numa);
 
 	timing = &(parsec->timing_info[curr_cpu].timing);
 	timing->time_in = curr_time;
@@ -115,7 +111,7 @@ ps_enter(struct parsec *parsec)
 	 * time-stamps (i.e. non-cycle granularity, which means we
 	 * could have same time-stamp for different events).
 	 */
-	timing->time_out = curr_time - 1;
+	/* timing->time_out = curr_time - 1; */
 
 	ps_mem_fence();
 
@@ -139,27 +135,25 @@ ps_exit(struct parsec *parsec)
 	return;
 }
 
-#define PS_PARSLAB_CREATE(name, objsz, allocsz, qthresh)		\
-PS_SLAB_CREATE(name, objsz, allocsz, 1)				        \
-inline void *						                \
-ps_mem_alloc_##name(void)						\
-{									\
-        struct ps_mem_percore *fl = slab_##name##_freelist;		\
-	assert(fl->ps);						        \
-	return __ps_smr_alloc(fl->ps, fl, objsz, allocsz, 1);		\
-}									\
-inline void							        \
-ps_mem_free_##name(void *buf)						\
-{									\
-        struct ps_mem_percore *fl = slab_##name##_freelist;		\
-	assert(fl->ps);						        \
-	__ps_smr_free(fl->ps, buf, fl, objsz, allocsz, 1, qthresh);	\
-}									\
-void									\
-ps_mem_init_##name(struct parsec *ps)					\
-{									\
-        struct ps_mem_percore *fl = slab_##name##_freelist;		\
-	fl->ps = ps;						        \
+#define PS_PARSLAB_CREATE(name, objsz, allocsz)				         \
+PS_SLAB_CREATE(name, objsz, allocsz, 1)				                 \
+inline void *						                         \
+ps_mem_alloc_##name(void)						         \
+{ return __ps_slab_mem_alloc(&__ps_slab_##name##_freelist[ps_coreid()], objsz, allocsz, 1); } \
+inline void							                 \
+ps_mem_free_##name(void *buf)						         \
+{ __ps_smr_free(buf, __ps_slab_##name##_freelist, ps_slab_free_coreid_##name); } \
+void									         \
+ps_mem_init_##name(struct parsec *ps)					         \
+{									         \
+        struct ps_mem_percore *fl = __ps_slab_##name##_freelist;	         \
+	int i;							                 \
+	for (i = 0 ; i < PS_NUMCORES ; i++) {				         \
+		fl[i].smr_info.qmemtarget = PS_QLIST_BATCH;		         \
+		fl[i].smr_info.qmemcnt    = 0;				         \
+		fl[i].smr_info.ps         = ps;				         \
+		ps->refcnt++;						         \
+	}								         \
 }
 
 #endif	/* PS_SMR_H */

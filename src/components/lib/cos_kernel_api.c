@@ -113,14 +113,18 @@ __mem_bump_alloc(struct cos_compinfo *__ci, int km, vaddr_t *mem_ptr, vaddr_t *m
 
 static vaddr_t
 __kmem_bump_alloc(struct cos_compinfo *ci)
-{ 	printd("__kmem_bump_alloc\n");
-	return __mem_bump_alloc(ci, 1, &ci->mi.untyped_ptr, &ci->mi.untyped_range); }
+{
+	printd("__kmem_bump_alloc\n");
+	return __mem_bump_alloc(ci, 1, &ci->mi.untyped_ptr, &ci->mi.untyped_range);
+}
 
 /* this should back-up to using untyped memory... */
 static vaddr_t
 __umem_bump_alloc(struct cos_compinfo *ci)
-{ 	printd("__umem_bump_alloc\n");
-	return __mem_bump_alloc(ci, 0, &ci->mi.umem_ptr, &ci->mi.umem_range); }
+{
+	printd("__umem_bump_alloc\n");
+	return __mem_bump_alloc(ci, 0, &ci->mi.umem_ptr, &ci->mi.umem_range);
+}
 
 /**************** [Capability Allocation Functions] ****************/
 
@@ -607,4 +611,3 @@ cos_tcap_merge(tcap_t dst, tcap_t rm)
 {
 	return call_cap_op(dst, CAPTBL_OP_TCAP_MERGE, rm, 0, 0, 0);
 }
-
