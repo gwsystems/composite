@@ -67,21 +67,6 @@ volatile struct hpet_timer {
 static void *hpet;
 static u32_t tick = 0;
 
-#if 0
-void
-timer_handler(struct pt_regs *regs)
-{
-	u64_t cycle;
-	rdtscll(cycle);
-	tick++;
-
-	ack_irq(IRQ_PIT);
-//	if (timer_thread) capinv_int_snd(timer_thread, rs);
-
-        printk("Tick: %2u @%10llu (%10llu)\n", tick, cycle, HPET_COUNTER);
-}
-#endif
-
 void
 periodic_handler(struct pt_regs *regs)
 {
@@ -91,8 +76,6 @@ periodic_handler(struct pt_regs *regs)
 
 	ack_irq(IRQ_PERIODIC);
 //	if (timer_thread) capinv_int_snd(timer_thread, rs);
-
-        printk("Tick: %2u @%10llu (%10llu)\n", tick, cycle, HPET_COUNTER);
 
 	*hpet_interrupt = HPET_INT_ENABLE;
 }
@@ -105,8 +88,6 @@ oneshot_handler(struct pt_regs *regs)
 
 	ack_irq(IRQ_ONESHOT);
 //	if (timer_thread) capinv_int_snd(timer_thread, rs);
-
-        printk("Oneshot: @%10llu (%10llu)\n", cycle, HPET_COUNTER);
 
 	*hpet_interrupt = HPET_INT_ENABLE;
 }
@@ -121,8 +102,6 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 	*hpet_config ^= ~1;
 
 	/* Reset main counter */
-	printk("Setting timer (%d) for %llu (is %llu)\n", timer_type, cycles, HPET_COUNTER);
-	/* HPET_COUNTER = 0; */
 
 	if (timer_type == TIMER_ONESHOT) {
 		/* Set a static value to count up to */
@@ -186,11 +165,6 @@ timer_init(timer_type_t timer_type, u64_t cycles)
 
 	/* Set the timer as specified */
 	timer_set(timer_type, cycles);
-
-	/* TESTING: Debug timer ticks */
-	__asm__("sti");
-	/* __asm__("int $0xf0"); */
-	while (1) { __asm__("hlt"); }
 }
 
 /* FIXME: per-thread */
