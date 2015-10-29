@@ -1,6 +1,3 @@
-#define ENABLE_SERIAL
-#define ENABLE_TIMER
-
 #include "assert.h"
 #include "kernel.h"
 #include "multiboot.h"
