@@ -92,72 +92,6 @@ void cos_release_vas_page(void *p)
 }
 #endif
 
-#ifdef UNIX_TEST
-/*
-static inline REGPARM(1) void *do_mmap(size_t size) {
-	return mmap(0, size, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0);
-}
-static inline REGPARM(2) int do_munmap(void *addr, size_t size) {
-	return munmap(addr, size);
-}
-*/
-#else
-
-/*
-REGPARM(1) void *do_mmap(size_t size) {
-	void *hp, *ret;
-	unsigned long p;
-	size_t s = round_up_to_page(size);
-
-#ifdef USE_VALLOC
-	hp = valloc_alloc(cos_spd_id(), cos_spd_id(), s/PAGE_SIZE);
-	if (!hp) return NULL;
-#else
-	massert(size <= PAGE_SIZE);
-	hp = cos_get_vas_page();
-#endif
-	for (p = (unsigned long)hp ;
-	     p < (unsigned long)hp + s ;
-	     p += PAGE_SIZE) {
-		ret = (void*)mman_get_page(cos_spd_id(), (void*)p, MAPPING_RW);
-		if (unlikely(!ret)) {
-			for (p -= PAGE_SIZE ; hp <= (void*)p ; p -= PAGE_SIZE) {
-				mman_release_page(cos_spd_id(), (void*)p, 0);
-			}
-#ifdef USE_VALLOC
-			if (unlikely(valloc_free(cos_spd_id(), cos_spd_id(), hp, s/PAGE_SIZE))) DIE();
-#else
-			cos_release_vas_page(hp);
-#endif
-			return NULL;
-		}
-	}
-#if ALLOC_DEBUG >= ALLOC_DEBUG_ALL
-	if (alloc_debug) printc("malloc in %d: mmapped region into %x", cos_spd_id(), ret);
-#endif
-	return hp;
-}
-*/
-
-/* remove qualifiers to make debugging easier */
-/* static inline */ /*REGPARM(2) int 
-do_munmap(void *addr, size_t size) {
-	unsigned long p;
-	
-	massert((unsigned long)addr == round_to_page((unsigned long)addr));
-	for (p = (unsigned long)addr ; p < ((unsigned long)addr + size) ; p += PAGE_SIZE) {
-		mman_release_page(cos_spd_id(), (void*)p, 0);
-	}
-#ifdef USE_VALLOC
-	if (valloc_free(cos_spd_id(), cos_spd_id(), addr, round_up_to_page(size)/PAGE_SIZE)) DIE();
-#else
-    cos_release_vas_page(addr);
-#endif
-	return 0;
-}
-*/
-#endif
-
 /* -- SMALL MEM ----------------------------------------------------------- */
 
 static __alloc_t* __small_mem[8];
@@ -319,27 +253,27 @@ static inline void* REGPARM(1) __small_malloc(size_t _size) {
 
 static void do_cbuf_free(cbuf_t cbid)
 {
+    printc("        calling cbuf free\n");
     cbuf_free(cbid);
 }
 
 static void _alloc_libc_free(void *ptr) 
 {
-    massert(0);
-/*
-  register size_t size;
-  if (ptr) {
-    size=((__alloc_t*)BLOCK_START(ptr))->size;
-    if (size) {
-      if (size<=__MAX_SMALL_SIZE)
-	__small_free(ptr,size);
-      else
-	do_munmap(BLOCK_START(ptr),size);
+    printc("    calling free\n");
+    if (ptr)
+    {
+        printc("    found a pointer\n");
+        __alloc_t *pointer = BLOCK_START(ptr);
+        size_t size = pointer->size;
+
+        printc("    size is %zu\n", size);
+        if (size)
+        {
+            cbuf_free(pointer->cbuf_id);
+        }
     }
-  }
-  */
 }
 
-//void __libc_free(void *ptr) __attribute__((alias("_alloc_libc_free")));
 void free(void *ptr) __attribute__((weak,alias("_alloc_libc_free")));
 
 #ifdef WANT_MALLOC_ZERO
@@ -349,7 +283,6 @@ static __alloc_t zeromem[2];
 static void* _alloc_libc_malloc(size_t size) {
   __alloc_t* ptr;
   size_t need;
-  printc("newmalloc");
 #ifdef WANT_MALLOC_ZERO
   if (!size) return BLOCK_RET(zeromem);
 #else
@@ -371,10 +304,10 @@ static void* _alloc_libc_malloc(size_t size) {
   ptr->size=need;
   return BLOCK_RET(ptr);
 err_out:
-  //(*__errno_location())=ENOMEM;
+  printc("\treturning malloc error\n");
   return 0;
 }
-//void* __libc_malloc(size_t size) __attribute__((alias("_alloc_libc_malloc")));
+
 void* malloc(size_t size) __attribute__((alias("_alloc_libc_malloc")));
 
 void *__libc_calloc(size_t nmemb, size_t _size)
@@ -419,23 +352,6 @@ void free_page(void *ptr)
 
 	return;
 }
-
-/* Do not use these if you are not using mem_mgr_large */
-/*
-void *
-page_alloc(int num)
-{
-	return do_mmap(PAGE_SIZE * num);
-}
-
-void 
-page_free(void *ptr, int num)
-{
-	do_munmap(ptr, PAGE_SIZE * num);
-}
-*/
-/* end gabep1 additions */
-
 
 #ifdef NIL
 

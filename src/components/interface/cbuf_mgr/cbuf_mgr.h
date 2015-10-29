@@ -15,6 +15,10 @@
 
 typedef u32_t cbuf_t; /* should match cbuf_t, and fit in a register */
 
+/* 
+ * These are more or less identical to the counterparts in cbuf_c.h,
+ * so have a look at the documentation there.
+ */
 int cbuf_create(spdid_t spdid, int size, long cbid);
 int cbuf_delete(spdid_t spdid, int cbid);
 int cbuf_retrieve(spdid_t spdid, int cbid, int len);

@@ -317,6 +317,7 @@ static __alloc_t zeromem[2];
 static void* _alloc_libc_malloc(size_t size) {
   __alloc_t* ptr;
   size_t need;
+  //printc("old malloc");
 #ifdef WANT_MALLOC_ZERO
   if (!size) return BLOCK_RET(zeromem);
 #else
