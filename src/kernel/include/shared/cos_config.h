@@ -119,4 +119,11 @@
 /* print out to dmesg? */
 /* #define COS_PRINT_DMESG 1 */
 
+/**
+ * Configuration to enable/disable functionality in Kernel.
+ */
+#define ENABLE_VGA
+#define ENABLE_SERIAL
+#define ENABLE_TIMER
+
 #endif /* COS_CONFIG_H */
