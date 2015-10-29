@@ -160,8 +160,7 @@ void vga_high_init (void)
 /* Put the character C on the screen. */
 static void putchar (int c)
 {
-	if (c == '\n' || c == '\r')
-	{
+	if (c == '\n' || c == '\r') {
 newline:
 		cll();
 		csr_x = 0;
@@ -191,8 +190,7 @@ static void puts(unsigned char *text)
 	size_t i = 0;
 
 	cll();
-	for (i = 0; i < strnlen((const char*)text, STRLEN_MAX); i++)
-	{
+	for (i = 0; i < strnlen((const char*)text, STRLEN_MAX); i++) {
 		putchar(text[i]);
 	}
 	move_csr();
