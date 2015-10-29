@@ -1,8 +1,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
-#include <print.h>
+#include <printc.h>
 #include <cos_component.h>
+#include <cbuf_mgr.h>
 
 #define NUM 1024
 char *mptr[NUM];
@@ -13,6 +14,7 @@ test_malloc(void)
 	int i, j;
 
 	for(i=0; i<NUM; i++) {
+        printc("Call to malloc:\n");
 		mptr[i] = (char *)malloc(i+1);
 		assert(mptr[i]);
 		for(j=0; j<i; j++) mptr[i][j] = '$';

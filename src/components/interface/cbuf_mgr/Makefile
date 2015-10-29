@@ -1,5 +1,5 @@
-LIB_OBJS=cbuf_c.o
+LIB_OBJS=cbuf_c.o cos_alloc.o
 LIBS=$(LIB_OBJS:%.o=%.a)
-DEPENDENCIES=mem_mgr_large valloc lock 
+DEPENDENCIES=printc mem_mgr_large valloc lock 
 
 include ../Makefile.subdir
