@@ -38,6 +38,18 @@ typedef u16_t coreid_t;
 #define PS_PAGE_SIZE   4096
 #define PS_RNDUP(v, a) (-(-(v) & -(a))) /* from blogs.oracle.com/jwadams/entry/macros_and_powers_of_two */
 
+/* 
+ * We'd like an expression here so that it can be used statically, and
+ * the compiler will turn it into a constant.
+ * 
+ * Value "v" must be an unsigned type the size of a word (e.g. unsigned long).
+ * 
+ * from http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2Float 
+ */
+#define __PSR(v, b) ((v) | ((v) >> (b)))
+#define PS_RNDPOW2(v) ((__PSR(__PSR(__PSR(__PSR(__PSR(__PSR(((v) - 1), 1), 2), 4), 8), 16), 32)) + 1) /* 64 bit */
+/* #define PS_RNDPOW2(v) ((__PSR(__PSR(__PSR(__PSR(__PSR(((v) - 1), 1), 2), 4), 8), 16)) + 1) */      /* 32 bit */
+
 #define EQUIESCENCE (200)
 
 #ifndef likely

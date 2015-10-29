@@ -14,10 +14,11 @@ struct larger {
 
 PS_SLAB_CREATE_DEF(s, sizeof(struct small))
 PS_SLAB_CREATE(l, sizeof(struct larger), PS_PAGE_SIZE * 128, 1)
+PS_SLAB_CREATE(hextern, sizeof(struct larger), PS_PAGE_SIZE * 128, 0)
 
 #define ITER       (1024)
 #define SMALLCHUNK 2
-#define LARGECHUNK 16
+#define LARGECHUNK 32
 
 void
 mark(char *c, int sz, char val)
@@ -45,10 +46,12 @@ main(void)
 	unsigned long long start, end;
 
 	printf("Slabs:\n"
-	       "\tobjsz %lu, objmem %lu, nobj %lu\n"
-	       "\tobjsz %lu, objmem %lu, nobj %lu\n",
+	       "\tsmall: objsz %lu, objmem %lu, nobj %lu\n"
+	       "\tlarge: objsz %lu, objmem %lu, nobj %lu\n"
+	       "\tlarge+nohead: objsz %lu, objmem %lu, nobj %lu\n",
 	       (unsigned long)sizeof(struct small),  (unsigned long)ps_slab_objmem_s(), (unsigned long)ps_slab_nobjs_s(),
-	       (unsigned long)sizeof(struct larger), (unsigned long)ps_slab_objmem_l(), (unsigned long)ps_slab_nobjs_l());
+	       (unsigned long)sizeof(struct larger), (unsigned long)ps_slab_objmem_l(), (unsigned long)ps_slab_nobjs_l(),
+	       (unsigned long)sizeof(struct larger), (unsigned long)ps_slab_objmem_hextern(), (unsigned long)ps_slab_nobjs_hextern());
 
 	start = ps_tsc();
 	for (j = 0 ; j < ITER ; j++) {
@@ -62,18 +65,22 @@ main(void)
 	ps_slab_alloc_s();
 	start = ps_tsc();
 	for (j = 0 ; j < ITER ; j++) {
-		for (i = 0 ; i < SMALLCHUNK ; i++) {
-			/* printf("a"); fflush(stdout); */
-			s[i] = ps_slab_alloc_s();
-		}
-		for (i = 0 ; i < SMALLCHUNK ; i++) {
-			/* printf("f"); fflush(stdout); */
-			ps_slab_free_s(s[i]);
-		}
+		for (i = 0 ; i < SMALLCHUNK ; i++) s[i] = ps_slab_alloc_s();
+		for (i = 0 ; i < SMALLCHUNK ; i++) ps_slab_free_s(s[i]);
 	}
 	end = ps_tsc();
 	end = (end-start)/(ITER*SMALLCHUNK);
 	printf("Average cost of small slab alloc+free: %lld\n", end);
+
+	ps_slab_alloc_hextern();
+	start = ps_tsc();
+	for (j = 0 ; j < ITER ; j++) {
+		for (i = 0 ; i < LARGECHUNK ; i++) s[i] = ps_slab_alloc_hextern();
+		for (i = 0 ; i < LARGECHUNK ; i++) ps_slab_free_hextern(s[i]);
+	}
+	end = ps_tsc();
+	end = (end-start)/(ITER*LARGECHUNK);
+	printf("Average cost of extern slab header, large slab alloc+free: %lld\n", end);
 
 	printf("Starting mark & check for increasing numbers of allocations.\n");
 	for (i = 0 ; i < ITER ; i++) {

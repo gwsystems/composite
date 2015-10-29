@@ -12,6 +12,8 @@
 
 #include <ps_plat.h>
 
+typedef unsigned long ps_desc_t;
+
 /*
  * Lists of free memory.  The slab freelist is all slabs that have at
  * least one free object in them.  The qsc_list is a quiescence list

@@ -13,20 +13,22 @@
 
 #include <ps_slab.h>
 
+/* The slab allocator for slab heads that are not internal to the slab itself */
+PS_SLAB_CREATE(slabhead, sizeof(struct ps_slab), PS_PAGE_SIZE, 1)
+
 void
-__ps_slab_init(struct ps_slab *s, struct ps_slab_info *si, size_t obj_sz, int allocsz, int hintern)
+__ps_slab_init(struct ps_slab *s, void *mem, struct ps_slab_info *si, size_t obj_sz, int allocsz, int hintern)
 {
 	size_t nfree, i;
 	size_t start_off = sizeof(struct ps_slab) * hintern; /* hintern \in {0, 1}*/
 	size_t objmemsz  = __ps_slab_objmemsz(obj_sz);
 	struct ps_mheader *alloc, *prev;
-	void *u = s; 		/* untyped slab, for memory arithmetic */
 
 	assert(hintern == 0 || hintern == 1);
 	/* division should be statically calculated with enough inlining */
 	s->nfree  = nfree = (allocsz - start_off) / objmemsz;
 	s->memsz  = allocsz;
-	s->memory = s;
+	s->memory = mem;
 	s->coreid = ps_coreid();
 
 	/*
@@ -34,7 +36,7 @@ __ps_slab_init(struct ps_slab *s, struct ps_slab_info *si, size_t obj_sz, int al
 	 *
 	 * TODO: cache coloring
 	 */
-	alloc = (struct ps_mheader *)((char *)u + start_off);
+	alloc = (struct ps_mheader *)((char *)mem + start_off);
 	prev  = s->freelist = alloc;
 	for (i = 0 ; i < nfree ; i++, prev = alloc, alloc = (struct ps_mheader *)((char *)alloc + objmemsz)) {
 		__ps_mhead_init(alloc, s);
@@ -42,7 +44,7 @@ __ps_slab_init(struct ps_slab *s, struct ps_slab_info *si, size_t obj_sz, int al
 	}
 	__ps_slab_check_consistency(s);
 	/* better not overrun memory */
-	assert((void *)alloc <= (void *)((char*)s + allocsz));
+	assert((void *)alloc <= (void *)((char*)mem + allocsz));
 
 	ps_list_init(s, list);
 	__slab_freelist_add(&si->fl, s);

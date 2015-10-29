@@ -33,9 +33,10 @@ struct ps_slab {
 	 * modified stuff.
 	 */
 	void  *memory;		/* != NULL iff slab is separately allocated */
+	ps_desc_t start, end;	/* A slab used as a namespace: min and max descriptor ids */
 	size_t memsz;		/* size of backing memory */
 	u16_t  coreid;		/* which is the home core for this slab? */
-	char   pad[PS_CACHE_LINE-(sizeof(void *)+sizeof(size_t)+sizeof(u16_t))];
+	char   pad[PS_CACHE_LINE-(sizeof(void *)+sizeof(size_t)+sizeof(u16_t)+sizeof(ps_desc_t)*2)];
 
 	/* Frequently modified data on the owning core... */
 	struct ps_mheader *freelist; /* free objs in this slab */
@@ -81,11 +82,19 @@ __slab_freelist_add(struct ps_slab_freelist *fl, struct ps_slab *s)
 
 /*** Alloc and free ***/
 
-static inline void __ps_slab_mem_free(void *buf, struct ps_mem_percore *percpu, coreid_t curr, size_t obj_sz, size_t allocsz, int hintern);
+/* Create function prototypes for cross-object usage */
+#define PS_SLAB_CREATE_PROTOS(name)				\
+void  *ps_slab_alloc_##name(void);			        \
+void   ps_slab_free_##name(void *buf);				\
+size_t ps_slab_objmem_##name(void);                             \
+size_t ps_slab_nobjs_##name(void);
+
+/* For non-internal slab headers */
+PS_SLAB_CREATE_PROTOS(slabhead)
 
 void __ps_slab_mem_remote_free(struct ps_mem_percore *percpu, struct ps_mheader *h, u16_t core_target);
 void __ps_slab_mem_remote_process(struct ps_mem_percore *percpu, size_t obj_sz, size_t allocsz, int hintern);
-void __ps_slab_init(struct ps_slab *s, struct ps_slab_info *si, size_t obj_sz, int allocsz, int hintern);
+void __ps_slab_init(struct ps_slab *s, void *mem, struct ps_slab_info *si, size_t obj_sz, int allocsz, int hintern);
 
 static inline void
 __ps_slab_check_consistency(struct ps_slab *s)
@@ -139,7 +148,8 @@ __ps_slab_mem_free(void *buf, struct ps_mem_percore *percpu, coreid_t curr, size
 		/* remove from the freelist */
 		fl = &percpu[coreid].slab_info.fl;
 		__slab_freelist_rem(fl, s);
-	 	PS_SLAB_FREE(s, s->memsz);
+	 	PS_SLAB_FREE(s->memory, s->memsz);
+		if (!hintern) ps_slab_free_slabhead(s);
 	} else if (s->nfree == 1) {
 		fl = &percpu[coreid].slab_info.fl;
 		/* add back onto the freelists */
@@ -153,9 +163,10 @@ __ps_slab_mem_free(void *buf, struct ps_mem_percore *percpu, coreid_t curr, size
 static inline void *
 __ps_slab_mem_alloc(struct ps_mem_percore *percpu, size_t obj_sz, u32_t allocsz, int hintern)
 {
-	struct ps_slab *s;
-	struct ps_mheader *h;
+	struct ps_slab      *s;
+	struct ps_mheader   *h;
 	struct ps_slab_info *si = &percpu->slab_info;
+	void                *mem;
 	assert(obj_sz + (hintern ? sizeof(struct ps_slab) : 0) <= allocsz);
 
 
@@ -166,10 +177,18 @@ __ps_slab_mem_alloc(struct ps_mem_percore *percpu, size_t obj_sz, u32_t allocsz,
 
 	s = si->fl.list;
 	if (unlikely(!s)) {
-		assert(hintern);
-		s = PS_SLAB_ALLOC(allocsz);
-		if (unlikely(!s)) return NULL;
-		__ps_slab_init(s, si, obj_sz, allocsz, hintern);
+		s = mem = PS_SLAB_ALLOC(allocsz);
+		if (unlikely(!mem)) return NULL;
+
+		if (!hintern) {
+			s = ps_slab_alloc_slabhead();
+			if (unlikely(!s)) {
+				PS_SLAB_FREE(mem, allocsz);
+				return NULL;
+			}
+		}
+
+		__ps_slab_init(s, mem, si, obj_sz, allocsz, hintern);
 	}
 
 	/* TODO: atomic modification to the freelist */
@@ -201,7 +220,6 @@ __ps_slab_mem_alloc(struct ps_mem_percore *percpu, size_t obj_sz, u32_t allocsz,
  * all of the code for allocation and deallocation in the macro due to
  * maintenance and readability.
  */
-
 #define PS_SLAB_CREATE_FNS(name, size, allocsz, headintern)		       \
 inline void *						                       \
 ps_slab_alloc_##name(void)						       \
