@@ -6,11 +6,13 @@
 #include "chal_asm_inc.h"
 
 enum {
+	IRQ_DOUBLE_FAULT = 8,
 	IRQ_PAGE_FAULT = 14,
 	IRQ_PIT        = 32,
 	IRQ_KEYBOARD   = 33,
 	IRQ_SERIAL     = 36
 };
+extern void double_fault_irq(struct pt_regs *);
 extern void page_fault_irq(struct pt_regs *);
 extern void timer_irq(struct pt_regs *);
 extern void keyboard_irq(struct pt_regs *);
