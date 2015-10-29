@@ -132,6 +132,9 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 #ifdef ENABLE_CONSOLE
 	console_init();
 #endif
+#ifdef ENABLE_VGA
+	vga_init();
+#endif
 #ifdef ENABLE_TIMER
 	timer_init(100);
 #endif
@@ -147,6 +150,9 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
        	comp_init();
        	thd_init();
 	paging_init();
+#ifdef ENABLE_VGA
+	vga_high_init();
+#endif
 
 	kern_boot_comp();
 	kern_boot_upcall();
