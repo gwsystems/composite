@@ -59,6 +59,16 @@ serial_handler(struct pt_regs *r)
 		case 13:
 			serial = '\n';
 			break;
+		case 3: /* FIXME: Obviously remove this once we have working components */
+			die("Break\n");
+		case 'o':
+			timer_set(TIMER_ONESHOT, 50000000);
+			timer_set(TIMER_ONESHOT, 50000000);
+			break;
+		case 'p':
+			timer_set(TIMER_PERIODIC, 100000000);
+			timer_set(TIMER_PERIODIC, 100000000);
+			break;
 		default:
 			break;
 	}
