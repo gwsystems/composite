@@ -57,6 +57,10 @@ __ps_slab_objmemsz(size_t obj_sz)
 static inline unsigned int
 __ps_slab_max_nobjs(size_t obj_sz, size_t allocsz, int hintern)
 { return (allocsz - (hintern ? sizeof(struct ps_slab) : 0)) / __ps_slab_objmemsz(obj_sz); }
+/* The offset of the given object in its slab */
+static inline unsigned int
+__ps_slab_objsoff(struct ps_slab *s, struct mheader *h, size_t obj_sz, int hintern)
+{ return ((unsigned long)h - ((unsigned long)s->memory + (hintern ? sizeof(struct ps_slab) : 0))) / __ps_slab_objmemsz(obj_sz); }
 
 static void
 __slab_freelist_rem(struct ps_slab_freelist *fl, struct ps_slab *s)
@@ -239,12 +243,36 @@ ps_slab_free_coreid_##name(void *buf, coreid_t curr)			       \
         struct ps_mem_percore *fl = __ps_slab_##name##_freelist;	       \
 	__ps_slab_mem_free(buf, fl, curr, size, allocsz, headintern);          \
 }									       \
+inline void *						                       \
+ps_slabptr_alloc_##name(struct ps_mem *m)				       \
+{									       \
+        struct ps_mem_percore *fl = &(m->__ps_slab_freelist[ps_coreid()]);     \
+	return __ps_slab_mem_alloc(fl, size, allocsz, headintern);             \
+}									       \
+inline void							               \
+ps_slabptr_free_##name(struct ps_mem *m, void *buf)			       \
+{									       \
+        struct ps_mem_percore *fl = m->__ps_slab_freelist;		       \
+	__ps_slab_mem_free(buf, fl, ps_coreid(), size, allocsz, headintern);   \
+}									       \
+inline void							               \
+ps_slabptr_free_coreid_##name(struct ps_mem *m, void *buf, coreid_t curr)      \
+{									       \
+        struct ps_mem_percore *fl = m->__ps_slab_freelist;		       \
+	__ps_slab_mem_free(buf, fl, curr, size, allocsz, headintern);          \
+}									       \
 inline size_t								       \
 ps_slab_objmem_##name(void)						       \
 { return __ps_slab_objmemsz(size); }					       \
 inline size_t								       \
 ps_slab_nobjs_##name(void)						       \
-{ return __ps_slab_max_nobjs(size, allocsz, headintern); }
+{ return __ps_slab_max_nobjs(size, allocsz, headintern); }		       \
+inline unsigned int							       \
+ps_slab_objoff_##name(void *obj)					       \
+{									       \
+	struct mheader *h = __ps_mhead_get(obj);			       \
+	__ps_slab_objsoff(h->slab, h, size, headintern);		       \
+}
 
 /*
  * allocsz is the size of the backing memory allocation, and

@@ -8,15 +8,15 @@
 #ifndef ERTRIE_H
 #define ERTRIE_H
 
-#ifndef TYPES_H
-#include "shared/cos_types.h"
-#endif
+/* #ifndef TYPES_H */
+/* #include "shared/cos_types.h" */
+/* #endif */
 
-#ifndef COS_COMPONENT_H
-/* for kernel level use only */
-#include "chal.h"
-#include "debug.h"
-#endif
+/* #ifndef COS_COMPONENT_H */
+/* /\* for kernel level use only *\/ */
+/* #include "chal.h" */
+/* #include "debug.h" */
+/* #endif */
 
 #define CFORCEINLINE __attribute__((always_inline))
 
@@ -80,14 +80,14 @@ ert_defgetleaf(struct ert_intern *a, void *accum)
 static inline int 
 ert_defisnull(struct ert_intern *a, void *accum, int leaf)
 { (void)accum; (void)leaf; return a->next == NULL; }
-static int 
+static inline int 
 ert_defresolve(struct ert_intern *a, void *accum, int leaf, u32_t order, u32_t sz)
 { (void)a; (void)accum; (void)leaf; (void)order; (void)sz; return 1; }
-static int ert_defset(struct ert_intern *a, void *v, void *accum, int leaf)
+static inline int ert_defset(struct ert_intern *a, void *v, void *accum, int leaf)
 { (void)leaf; (void)accum; a->next = v; return 0; }
-static int ert_defsetleaf(struct ert_intern *a, void *data)
+static inline int ert_defsetleaf(struct ert_intern *a, void *data)
 { a->next = data; return 0; }
-static void ert_definit(struct ert_intern *a, int leaf)
+static inline void ert_definit(struct ert_intern *a, int leaf)
 { (void)a; (void)leaf; a->next = NULL; }
 
 /* 
@@ -194,7 +194,7 @@ static inline struct ert_intern *
 __ert_walk(struct ert_intern *vi, unsigned long id, void *accum, u32_t lvl, ERT_CONST_PARAMS)
 {
 	u32_t last_off;
-#define ERT_M(id, o) ((id) & ((1<<(o))-1)) // Mask out order number of bits
+#define ERT_M(id, o) ((id) & ((1<<(o))-1)) /* Mask out order number of bits */
 	ERT_CONSTS_DEWARN;
 
 	vi = getfn(vi, accum, 0);
@@ -298,7 +298,7 @@ __ert_expand(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *
 		/* don't overwrite a value, unless we want to set it to the initval */
 		if (data != initval && !isnullfn(n, accum, 0)) return 1;
 
-		if (setleaffn(n, data)) return -ECASFAIL;
+		if (setleaffn(n, data)) return -EAGAIN;
 	}
 	return 0;
 }

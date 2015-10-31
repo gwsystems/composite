@@ -1,9 +1,17 @@
 #ifndef PS_SMR_H
 #define PS_SMR_H
 
-/* #include <ps_plat.h> */
-/* #include <ps_slab.h> */
-/* #include <ertrie.h> */
+#include <ps_slab.h>
+#include <errno.h>
+#include <ertrie.h>
+
+struct ps_ns {
+	ps_desc_t frontier;
+	void *ert;
+	struct ps_mem mem;
+};
+
+#define PS_NS_CREATE(name, sz, allocsz) ERT_CREATE_DEF(name, 3, 1024, , )
 
 /* #ifdef NIL */
 /* #define PS_NS_CREATE(name, sz, allocsz)					\ */
