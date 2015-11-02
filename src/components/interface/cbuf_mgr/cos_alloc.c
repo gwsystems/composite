@@ -19,12 +19,9 @@
  */
 
 #include <mem_mgr_config.h>
+#include "cbuf.h"
+#include "printc.h"
 
-//#define UNIX_TEST
-#ifdef UNIX_TEST
-#define PAGE_SIZE 4096
-#include <sys/mman.h>
-#else
 #include <cos_component.h>
 #include <cos_alloc.h>
 #ifdef ALLOC_DEBUG
@@ -43,17 +40,13 @@ struct free_page {
 };
 static struct free_page page_list = {.next = NULL};
 
-extern void *mman_get_page(spdid_t spd, void *addr, int flags);
-extern void mman_release_page(spdid_t spd, void *addr, int flags);
-#endif
-
 #define DIE() (*((int*)0) = 0xDEADDEAD)
 #define massert(prop) do { if (!(prop)) DIE(); } while (0)
 
 /* -- HELPER CODE --------------------------------------------------------- */
 
 #ifndef MAP_FAILED
-#define MAP_FAILED ((void*)-1)
+#define MAP_FAILED ((void*)0)  //((void*)-1)
 #endif
 
 #ifndef NULL
@@ -61,6 +54,7 @@ extern void mman_release_page(spdid_t spd, void *addr, int flags);
 #endif
 
 typedef struct {
+  cbuf_t cbuf_id;
   void*  next;
   size_t size;
 } __alloc_t;
@@ -86,65 +80,6 @@ void *cos_get_vas_page(void)
 void cos_release_vas_page(void *p)
 {
 	valloc_free(cos_spd_id(), cos_spd_id(), p, 1);
-}
-#endif
-
-#ifdef UNIX_TEST
-static inline REGPARM(1) void *do_mmap(size_t size) { 
-	return mmap(0, size, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0); 
-}
-/*static inline*/ REGPARM(2) int do_munmap(void *addr, size_t size) {
-	return munmap(addr, size);
-}
-#else 
-
-REGPARM(1) void *do_mmap(size_t size) {
-	void *hp, *ret;
-	unsigned long p;
-	size_t s = round_up_to_page(size);
-
-#ifdef USE_VALLOC
-	hp = valloc_alloc(cos_spd_id(), cos_spd_id(), s/PAGE_SIZE);
-	if (!hp) return MAP_FAILED;
-#else
-	massert(size <= PAGE_SIZE);
-	//hp = cos_get_prealloc_page();
-	//if (!hp) 
-	hp = cos_get_vas_page();
-#endif
-	for (p = (unsigned long)hp ; 
-	     p < (unsigned long)hp + s ; 
-	     p += PAGE_SIZE) {
-		ret = (void*)mman_get_page(cos_spd_id(), (void*)p, MAPPING_RW);
-		if (unlikely(!ret)) {
-			for (p -= PAGE_SIZE ; hp <= (void*)p ; p -= PAGE_SIZE) {
-				mman_release_page(cos_spd_id(), (void*)p, 0);
-			}
-#ifdef USE_VALLOC
-			if (unlikely(valloc_free(cos_spd_id(), cos_spd_id(), hp, s/PAGE_SIZE))) DIE();
-#else
-			cos_release_vas_page(hp);
-#endif
-			return MAP_FAILED;
-		}
-	}
-#if ALLOC_DEBUG >= ALLOC_DEBUG_ALL
-	if (alloc_debug) printc("malloc in %d: mmapped region into %x", cos_spd_id(), ret);
-#endif
-	return hp;
-}
-
-/* remove qualifiers to make debugging easier */
-/*static inline*/ REGPARM(2) int 
-do_munmap(void *addr, size_t size) {
-	unsigned long p;
-	
-	massert((unsigned long)addr == round_to_page((unsigned long)addr)); 
-	for (p = (unsigned long)addr ; p < ((unsigned long)addr + size) ; p += PAGE_SIZE) {
-		mman_release_page(cos_spd_id(), (void*)p, 0);
-	}
-	if (valloc_free(cos_spd_id(), cos_spd_id(), addr, round_up_to_page(size)/PAGE_SIZE)) DIE();
-	return 0;
 }
 #endif
 
@@ -230,6 +165,13 @@ static inline void REGPARM(2) __small_free(void*_ptr,size_t _size) {
 	alloc_stats_report(DBG_FREE, idx);
 }
 
+static void* do_cbuf_alloc(size_t size, cbuf_t *cbid)
+{
+    if (!size) { return NULL; }
+
+    return cbuf_alloc(size, cbid);
+}
+
 static inline void* REGPARM(1) __small_malloc(size_t _size) {
 	__alloc_t *ptr, *next;
 	size_t size=_size;
@@ -245,9 +187,11 @@ static inline void* REGPARM(1) __small_malloc(size_t _size) {
 		if (unlikely(ptr==0))  {	/* no free blocks ? */
 			register int i,nr;
 			__alloc_t *start, *second, *end;
-			
-			start = ptr = do_mmap(MEM_BLOCK_SIZE);
+		
+			cbuf_t cbid;	
+			start = ptr = do_cbuf_alloc(MEM_BLOCK_SIZE, &cbid);
 			if (ptr==MAP_FAILED) return MAP_FAILED;
+			ptr->cbuf_id = cbid;
 
 			nr=__SMALL_NR(size)-1;
 			for (i=0;i<nr;i++) {
@@ -272,7 +216,6 @@ static inline void* REGPARM(1) __small_malloc(size_t _size) {
 			return start;
 		} 
 		next = ptr->next;
-		//__small_mem[idx]=ptr->next;
 	} while (unlikely(cos_cmpxchg(&__small_mem[idx], (long)ptr, (long)next) != (long)next));
 	ptr->next=0;
 
@@ -295,19 +238,23 @@ static inline void* REGPARM(1) __small_malloc(size_t _size) {
 
 /* -- PUBLIC FUNCTIONS ---------------------------------------------------- */
 
-static void _alloc_libc_free(void *ptr) {
-  register size_t size;
-  if (ptr) {
-    size=((__alloc_t*)BLOCK_START(ptr))->size;
-    if (size) {
-      if (size<=__MAX_SMALL_SIZE)
-	__small_free(ptr,size);
-      else
-	do_munmap(BLOCK_START(ptr),size);
-    }
-  }
+static void do_cbuf_free(cbuf_t cbid)
+{
+    cbuf_free(cbid);
 }
-//void __libc_free(void *ptr) __attribute__((alias("_alloc_libc_free")));
+
+static void _alloc_libc_free(void *ptr) 
+{
+	if (ptr) {
+		__alloc_t *pointer = BLOCK_START(ptr);
+		size_t size = pointer->size;
+
+		if (size) {
+			cbuf_free(pointer->cbuf_id);
+		}
+	}
+}
+
 void free(void *ptr) __attribute__((weak,alias("_alloc_libc_free")));
 
 #ifdef WANT_MALLOC_ZERO
@@ -317,7 +264,6 @@ static __alloc_t zeromem[2];
 static void* _alloc_libc_malloc(size_t size) {
   __alloc_t* ptr;
   size_t need;
-  //printc("old malloc");
 #ifdef WANT_MALLOC_ZERO
   if (!size) return BLOCK_RET(zeromem);
 #else
@@ -329,19 +275,21 @@ static void* _alloc_libc_malloc(size_t size) {
   if (size<=__MAX_SMALL_SIZE) {
     need=GET_SIZE(size);
     ptr=__small_malloc(need);
-  } else {
+  } 
+  else {
     need=PAGE_ALIGN(size);
-    ptr = need ? do_mmap(need) : MAP_FAILED;
+    cbuf_t cbid;
+    ptr = need ? do_cbuf_alloc(need, &cbid) : MAP_FAILED;
+    ptr->cbuf_id = cbid;
   }
   if (ptr==MAP_FAILED) goto err_out;
   ptr->size=need;
   return BLOCK_RET(ptr);
 err_out:
-  //(*__errno_location())=ENOMEM;
   return 0;
 }
-//void* __libc_malloc(size_t size) __attribute__((alias("_alloc_libc_malloc")));
-void* malloc(size_t size) __attribute__((weak,alias("_alloc_libc_malloc")));
+
+void* malloc(size_t size) __attribute__((alias("_alloc_libc_malloc")));
 
 void *__libc_calloc(size_t nmemb, size_t _size)
 {
@@ -363,8 +311,10 @@ void *alloc_page(void)
 
 	fp = page_list.next;
 	if (NULL == fp) {
-		a = do_mmap(PAGE_SIZE);
-	} else {
+		cbuf_t cbid;
+		a = do_cbuf_alloc(PAGE_SIZE, &cbid);
+	} 
+	else {
 		page_list.next = fp->next;
 		fp->next = NULL;
 		a = (void*)fp;
@@ -383,22 +333,6 @@ void free_page(void *ptr)
 
 	return;
 }
-
-/* Do not use these if you are not using mem_mgr_large */
-void *
-page_alloc(int num)
-{
-	return do_mmap(PAGE_SIZE * num);
-}
-
-void 
-page_free(void *ptr, int num)
-{
-	do_munmap(ptr, PAGE_SIZE * num);
-}
-
-/* end gabep1 additions */
-
 
 #ifdef NIL
 
@@ -463,140 +397,5 @@ retzero:
   return ptr;
 }
 void* realloc(void* ptr, size_t size) __attribute__((weak,alias("__libc_realloc")));
-
-#endif
-
-/* void */
-/* __alloc_libc_initilize(void) */
-/* { */
-/* 	vaddr_t start, end; */
-/* 	unsigned int extent; */
-/* 	int i; */
-
-/* 	start = round_to_pgd_page((unsigned long)&start); */
-/* 	end = (vaddr_t)cos_get_heap_ptr(); */
-/* 	extent = (end-start)/PAGE_SIZE; */
-
-/* 	__alloc_page_map.next = NULL; */
-/* 	__alloc_page_map.start_addr = (void*)start; */
-/* 	__alloc_page_map.nused = extent; */
-/* 	for (i = 0 ; i < extent ; i++) { */
-/* 		bitmap_set(&__alloc_page_map.page_used[0], i); */
-/* 	} */
-/* } */
-
-/********************* testing code on unix ***********************/
-
-#ifdef UNIX_TEST
-
-#define ITER 100000
-#define PTRS_LIVE 100
-#define SIZE_LB 4
-#define SIZE_UB 8192
-#define SIZE_GET ((rand() % (SIZE_UB-SIZE_LB)) + SIZE_LB)
-
-#include <stdlib.h>
-#include <time.h>
-#include <stdio.h>
-#include <string.h>
-
-int find_ptr(long *ptrs, int sz, int empty)
-{
-	int i; 
-
-	for (i = 0 ; i < sz ; i++) {
-		if (empty && ptrs[i] == 0) return i;
-		else if (!empty && ptrs[i] != 0) return i;
-	}
-
-	return -1;
-}
-
-void malloc_rand(long *ptrs, int sz)
-{
-	int idx = find_ptr(ptrs, sz, 1);
-	long *ptr;
-	int asz;
-
-	if (idx < 0) printf("Hmm, index errors when mallocing.\n");
-
-	ptr = &ptrs[idx];
-
-	asz = SIZE_GET;
-	*ptr = (long)malloc(asz);
-	if (*ptr == 0) {
-		printf("could not malloc!\n");
-	}
-
-	*(int*)*ptr = asz;
-	memset((char*)(*ptr)+sizeof(int), rand() % 256, asz-sizeof(int));
-	printf("+");
-	
-	return;
-}
-
-void free_rand(long *ptrs, int sz)
-{
-	int i, idx = find_ptr(ptrs, sz, 0), asz;
-	long *ptr;
-	char c, *arr;
-
-	if (idx < 0) printf("Hmm, index errors when freeing.\n");
-
-	ptr = &ptrs[idx];
-	asz = *(int*)(*ptr);
-	arr = ((char*)(*ptr)) + sizeof(int);
-	c = *arr;
-
-	for (i = 0 ; i < asz-sizeof(int) ; i++) {
-		if (((char *)arr)[i] != c) {
-			printf("we have a problem.\n");
-			break;
-		}
-	}
-
-	free((void*)*ptr);
-	*ptr = 0;
-	printf("-");
-
-	return;
-}
-
-int main(void)
-{
-	long ptrs[PTRS_LIVE] = {0, };
-	int i, live = 0;
-
-	memset(ptrs, 0, sizeof(long) * PTRS_LIVE);
-	srand(time(NULL));
-
-	for (i = 0 ; i < ITER ; i++) {
-		int alloc;
-
-		switch (live) {
-		case 0:
-			alloc = 1;
-			break;
-		case PTRS_LIVE:
-			alloc = 0;
-			break;
-		default:
-			if (rand() % 2) {
-				alloc = 1;
-			} else {
-				alloc = 0;
-			}
-		}
-
-		if (alloc) {
-			malloc_rand(ptrs, PTRS_LIVE);
-			live++;
-		} else {
-			free_rand(ptrs, PTRS_LIVE);
-			live--;
-		}
-	}
-	return 0; 
-}
 
 #endif

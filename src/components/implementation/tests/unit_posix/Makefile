@@ -2,7 +2,7 @@ C_OBJS=posix_test.o
 ASM_OBJS=
 COMPONENT=posix_t.o
 INTERFACES=
-DEPENDENCIES=sched printc timed_blk torrent cbuf_mgr evt mem_mgr_large valloc lock
+DEPENDENCIES=sched printc timed_blk torrent cbuf_mgr evt valloc lock
 IF_LIB=
 OBJLIBS += $(POSIX_LIB)
 
