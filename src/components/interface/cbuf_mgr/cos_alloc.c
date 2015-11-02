@@ -22,11 +22,6 @@
 #include "cbuf.h"
 #include "printc.h"
 
-//#define UNIX_TEST
-#ifdef UNIX_TEST
-#define PAGE_SIZE 4096
-#include <sys/mman.h>
-#else
 #include <cos_component.h>
 #include <cos_alloc.h>
 #ifdef ALLOC_DEBUG
@@ -44,10 +39,6 @@ struct free_page {
 	struct free_page *next;
 };
 static struct free_page page_list = {.next = NULL};
-
-//extern void *mman_get_page(spdid_t spd, void *addr, int flags);
-//extern void mman_release_page(spdid_t spd, void *addr, int flags);
-#endif
 
 #define DIE() (*((int*)0) = 0xDEADDEAD)
 #define massert(prop) do { if (!(prop)) DIE(); } while (0)
@@ -406,121 +397,5 @@ retzero:
   return ptr;
 }
 void* realloc(void* ptr, size_t size) __attribute__((weak,alias("__libc_realloc")));
-
-#endif
-
-/********************* testing code on unix ***********************/
-
-#ifdef UNIX_TEST
-
-#define ITER 100000
-#define PTRS_LIVE 100
-#define SIZE_LB 4
-#define SIZE_UB 8192
-#define SIZE_GET ((rand() % (SIZE_UB-SIZE_LB)) + SIZE_LB)
-
-#include <stdlib.h>
-#include <time.h>
-#include <stdio.h>
-#include <string.h>
-
-int find_ptr(long *ptrs, int sz, int empty)
-{
-	int i; 
-
-	for (i = 0 ; i < sz ; i++) {
-		if (empty && ptrs[i] == 0) return i;
-		else if (!empty && ptrs[i] != 0) return i;
-	}
-
-	return -1;
-}
-
-void malloc_rand(long *ptrs, int sz)
-{
-	int idx = find_ptr(ptrs, sz, 1);
-	long *ptr;
-	int asz;
-
-	if (idx < 0) printf("Hmm, index errors when mallocing.\n");
-
-	ptr = &ptrs[idx];
-
-	asz = SIZE_GET;
-	*ptr = (long)malloc(asz);
-	if (*ptr == 0) {
-		printf("could not malloc!\n");
-	}
-
-	*(int*)*ptr = asz;
-	memset((char*)(*ptr)+sizeof(int), rand() % 256, asz-sizeof(int));
-	printf("+");
-	
-	return;
-}
-
-void free_rand(long *ptrs, int sz)
-{
-	int i, idx = find_ptr(ptrs, sz, 0), asz;
-	long *ptr;
-	char c, *arr;
-
-	if (idx < 0) printf("Hmm, index errors when freeing.\n");
-
-	ptr = &ptrs[idx];
-	asz = *(int*)(*ptr);
-	arr = ((char*)(*ptr)) + sizeof(int);
-	c = *arr;
-
-	for (i = 0 ; i < asz-sizeof(int) ; i++) {
-		if (((char *)arr)[i] != c) {
-			printf("we have a problem.\n");
-			break;
-		}
-	}
-
-	free((void*)*ptr);
-	*ptr = 0;
-	printf("-");
-
-	return;
-}
-
-int main(void)
-{
-	long ptrs[PTRS_LIVE] = {0, };
-	int i, live = 0;
-
-	memset(ptrs, 0, sizeof(long) * PTRS_LIVE);
-	srand(time(NULL));
-
-	for (i = 0 ; i < ITER ; i++) {
-		int alloc;
-
-		switch (live) {
-		case 0:
-			alloc = 1;
-			break;
-		case PTRS_LIVE:
-			alloc = 0;
-			break;
-		default:
-			if (rand() % 2) {
-				alloc = 1;
-			} else {
-				alloc = 0;
-			}
-		}
-
-		if (alloc) {
-			malloc_rand(ptrs, PTRS_LIVE);
-			live++;
-		} else {
-			free_rand(ptrs, PTRS_LIVE);
-			live--;
-		}
-	}
-	return 0; 
-}
 
 #endif
