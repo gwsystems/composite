@@ -92,7 +92,7 @@ thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int
 {
 	struct pt_regs *r = &thd->regs;
 
-	thd->state |= THD_STATE_PREEMPTED;
+	/*thd->state |= THD_STATE_PREEMPTED;*/
 	r->cx = option;
 
 	r->bx = arg1;
@@ -204,6 +204,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	struct cap_comp *compc;
 	int ret;
 
+	memset(thd, 0, sizeof(struct thread));
 	compc = (struct cap_comp *)captbl_lkup(t, compcap);
 	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
 
