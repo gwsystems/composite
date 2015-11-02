@@ -1,5 +1,3 @@
-#define ENABLE_SERIAL
-
 #include "assert.h"
 #include "kernel.h"
 #include "multiboot.h"
