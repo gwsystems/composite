@@ -14,25 +14,26 @@ cos_init(void *args)
 	int i, j;
 
 	for (i = 0; i < NUM; i++) 
-    {
-        printc("Call to new malloc:\n");
+	{
+		printc("Call to new malloc:\n");
 		mptr[i] = (char *)malloc((i+1) * sizeof(int));
-        
+
 		assert(mptr[i]);
 		
-        printc("Call to new free:\n");
-        for (j = 0; j < i; j++)
-        {
-            mptr[i][j] = j;
-        }
-        
-        for (j = 0; j < i; j++)
-        {
-            printc("%d,", mptr[i][j]);
-        }
-        printc("\n");
+		printc("Call to new free:\n");
+		for (j = 0; j < i; j++)
+		{
+			mptr[i][j] = j;
+		}
+
+        	for (j = 0; j < i; j++)
+		{
+			printc("%d,", mptr[i][j]);
+		}
+
+		printc("\n");
 		free(mptr[i]);
 	}
 
-	return !!err;
+	return;
 }

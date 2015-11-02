@@ -36,7 +36,7 @@ INC_PATH=-I./ -I$(CDIR)/include/ -I$(CDIR)/interface/
 # in cos_loader.
 SHARED_FLAGS=-fno-merge-constants -nostdinc -nostdlib
 OPT= -ggdb3
-#OPT= -O3
+OPT= -O3
 CFLAGS=-D__x86__ -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable -fno-stack-protector -fno-omit-frame-pointer $(INC_PATH) $(MUSLINC) $(LWIPINC) $(LUAINC) $(OPT) $(SHARED_FLAGS)
 MUSLCFLAGS=$(CFLAGS) -lc -lgcc -Xlinker -r
 ASFLAGS=$(INC_PATH) $(SHARED_FLAGS)

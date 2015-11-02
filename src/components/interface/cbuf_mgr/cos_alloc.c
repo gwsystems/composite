@@ -176,10 +176,7 @@ static inline void REGPARM(2) __small_free(void*_ptr,size_t _size) {
 
 static void* do_cbuf_alloc(size_t size, cbuf_t *cbid)
 {
-    if (!size)
-    {
-        return NULL;
-    }
+    if (!size) { return NULL; }
 
     return cbuf_alloc(size, cbid);
 }
@@ -200,10 +197,10 @@ static inline void* REGPARM(1) __small_malloc(size_t _size) {
 			register int i,nr;
 			__alloc_t *start, *second, *end;
 		
-            cbuf_t cbid;	
+			cbuf_t cbid;	
 			start = ptr = do_cbuf_alloc(MEM_BLOCK_SIZE, &cbid);
 			if (ptr==MAP_FAILED) return MAP_FAILED;
-            ptr->cbuf_id = cbid;
+			ptr->cbuf_id = cbid;
 
 			nr=__SMALL_NR(size)-1;
 			for (i=0;i<nr;i++) {
@@ -228,7 +225,6 @@ static inline void* REGPARM(1) __small_malloc(size_t _size) {
 			return start;
 		} 
 		next = ptr->next;
-		//__small_mem[idx]=ptr->next;
 	} while (unlikely(cos_cmpxchg(&__small_mem[idx], (long)ptr, (long)next) != (long)next));
 	ptr->next=0;
 
@@ -253,25 +249,19 @@ static inline void* REGPARM(1) __small_malloc(size_t _size) {
 
 static void do_cbuf_free(cbuf_t cbid)
 {
-    printc("        calling cbuf free\n");
     cbuf_free(cbid);
 }
 
 static void _alloc_libc_free(void *ptr) 
 {
-    printc("    calling free\n");
-    if (ptr)
-    {
-        printc("    found a pointer\n");
-        __alloc_t *pointer = BLOCK_START(ptr);
-        size_t size = pointer->size;
+	if (ptr) {
+		__alloc_t *pointer = BLOCK_START(ptr);
+		size_t size = pointer->size;
 
-        printc("    size is %zu\n", size);
-        if (size)
-        {
-            cbuf_free(pointer->cbuf_id);
-        }
-    }
+		if (size) {
+			cbuf_free(pointer->cbuf_id);
+		}
+	}
 }
 
 void free(void *ptr) __attribute__((weak,alias("_alloc_libc_free")));
@@ -294,7 +284,8 @@ static void* _alloc_libc_malloc(size_t size) {
   if (size<=__MAX_SMALL_SIZE) {
     need=GET_SIZE(size);
     ptr=__small_malloc(need);
-  } else {
+  } 
+  else {
     need=PAGE_ALIGN(size);
     cbuf_t cbid;
     ptr = need ? do_cbuf_alloc(need, &cbid) : MAP_FAILED;
@@ -304,7 +295,6 @@ static void* _alloc_libc_malloc(size_t size) {
   ptr->size=need;
   return BLOCK_RET(ptr);
 err_out:
-  printc("\treturning malloc error\n");
   return 0;
 }
 
@@ -330,10 +320,10 @@ void *alloc_page(void)
 
 	fp = page_list.next;
 	if (NULL == fp) {
-        cbuf_t cbid;
+		cbuf_t cbid;
 		a = do_cbuf_alloc(PAGE_SIZE, &cbid);
-        // what if this fails?
-	} else {
+	} 
+	else {
 		page_list.next = fp->next;
 		fp->next = NULL;
 		a = (void*)fp;
