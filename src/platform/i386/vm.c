@@ -19,6 +19,12 @@ u32_t boot_comp_pgd[PAGE_SIZE/sizeof(u32_t)] PAGE_ALIGNED = {
 };
 
 void
+double_fault_handler(struct pt_regs *regs)
+{
+	die("DOUBLE FAULT..\n");
+}
+
+void
 page_fault_handler(struct pt_regs *regs)
 {
 	u32_t fault_addr, errcode = 0, eip = 0;

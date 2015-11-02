@@ -94,12 +94,13 @@ idt_init(void)
 	outb(0x21, 0x0);
 	outb(0xA1, 0x0);
 
-	idt_set_gate(IRQ_PAGE_FAULT, (u32_t)page_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_DOUBLE_FAULT, (u32_t)double_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_PAGE_FAULT,   (u32_t)page_fault_irq, 0x08, 0x8E);
 	/* idt_set_gate(IRQ_PIT,        (u32_t)timer_irq, 0x08, 0x8E); */
-	idt_set_gate(IRQ_KEYBOARD,   (u32_t)keyboard_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_SERIAL,     (u32_t)serial_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_PERIODIC,   (u32_t)periodic_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_ONESHOT,    (u32_t)oneshot_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_KEYBOARD,     (u32_t)keyboard_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_SERIAL,       (u32_t)serial_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_PERIODIC,     (u32_t)periodic_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_ONESHOT,      (u32_t)oneshot_irq, 0x08, 0x8E);
 
 	struct {
 		unsigned short length;
