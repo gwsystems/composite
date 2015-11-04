@@ -260,8 +260,6 @@ attr struct __##name##_percore_decl name[NUM_CPU]
 #define PERCPU_GET(name)                (&(name[GET_CURR_CPU].name))
 #define PERCPU_GET_TARGET(name, target) (&(name[target].name))
 
-#include "../measurement.h"
-
 #define COS_SYSCALL __attribute__((regparm(0)))
 
 struct shared_user_data {
@@ -773,40 +771,6 @@ static inline void atomic_dec(atomic_t *v)
 		     : "+m" (v->counter));
 }
 #endif /* __KERNEL__ */
-
-static inline void cos_ref_take(atomic_t *rc)
-{
-#if NUM_CPU_COS > 1
-	/* use atomic instructions when we have multicore. We will get
-	 * rid of this later(by using capabilities as ref counter). */
-	atomic_inc(rc);
-#else
-	rc->counter++;
-#endif
-	cos_meas_event(COS_MPD_REFCNT_INC);
-}
-
-static inline void cos_ref_set(atomic_t *rc, unsigned int val)
-{
-	rc->counter = val;
-}
-
-static inline unsigned int cos_ref_val(atomic_t *rc)
-{
-	return rc->counter;
-}
-
-static inline void cos_ref_release(atomic_t *rc)
-{
-#if NUM_CPU_COS > 1
-	/* same as cos_ref_take. */
-	atomic_dec(rc);
-#else
-	rc->counter--; /* assert(rc->counter != 0) */
-#endif
-
-	cos_meas_event(COS_MPD_REFCNT_DEC);
-}
 
 // ncpu * 16 (or max 256) entries. can be increased if necessary.
 #define COS_THD_INIT_REGION_SIZE (((NUM_CPU*16) > (1<<8)) ? (1<<8) : (NUM_CPU*16))

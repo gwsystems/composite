@@ -49,7 +49,6 @@ COS_OBJ += retype_tbl.o
 COS_OBJ += liveness_tbl.o
 COS_OBJ += tcap.o
 COS_OBJ += capinv.o
-COS_OBJ += measurement.o
 COS_OBJ += captbl.o
 COS_OBJ += per_cpu.o
 
