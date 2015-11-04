@@ -160,6 +160,7 @@ void
 khalt(void)
 {
 	printk("Shutting down...\n");
+	while (1) ;
 	asm("mov $0x53,%ah");
 	asm("mov $0x07,%al");
 	asm("mov $0x001,%bx");
