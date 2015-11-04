@@ -131,6 +131,9 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 #ifdef ENABLE_CONSOLE
 	console_init();
 #endif
+#ifdef ENABLE_VGA
+	vga_init();
+#endif
 
 	max = MAX((unsigned long)mboot->mods_addr,
 		  MAX((unsigned long)mboot->mmap_addr, (unsigned long)(chal_va2pa(&end))));
@@ -144,6 +147,9 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 	comp_init();
 	thd_init();
 	paging_init();
+#ifdef ENABLE_VGA
+	vga_high_init();
+#endif
 
 	kern_boot_comp();
 	timer_init(TIMER_PERIODIC, DEFAULT_FREQUENCY);
