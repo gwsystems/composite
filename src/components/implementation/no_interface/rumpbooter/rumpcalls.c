@@ -20,7 +20,7 @@ cos2rump_setup(void)
 {
 	rump_bmk_memsize_init();
 
-	crcalls.rump_cos_get_thd_id   		= cos_get_thd_id;
+	//crcalls.rump_cos_get_thd_id   	= cos_get_thd_id;
 	crcalls.rump_cos_print 	      		= cos_print;
 	crcalls.rump_vsnprintf        		= vsnprintf;
 	crcalls.rump_strcmp           		= strcmp;
@@ -121,12 +121,12 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 
 void
 cos_cpu_sched_switch(struct bmk_thread *prev, struct bmk_thread *next){
-	printc("SCHED: COS: cos_cpu_sched_switch\n");	
+	printc("SCHED: COS: cos_cpu_sched_switch\n");
 	struct thd_creation_protocol  *info;
 	int ret;
 
 	info->retcap = get_cos_thdcap(next);
-	
+
 	ret = cos_thd_switch(info->retcap);
 	if(ret)
 		printc("thread switch failed\n");
