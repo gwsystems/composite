@@ -334,68 +334,39 @@ void free_page(void *ptr)
 	return;
 }
 
-#ifdef NIL
+static void* _libc_realloc(void* ptr, size_t size) {
+	if (ptr && size) {
+		// let's not worry about whether size is
+		// smaller or bigger than current size.
+		// Just allocate a new bit of memory,
+		// copy the data in,
+		// free the old memory
 
-void* __libc_calloc(size_t nmemb, size_t _size);
-void* __libc_calloc(size_t nmemb, size_t _size) {
-  register size_t size=_size*nmemb;
-  if (nmemb && size/nmemb!=_size) {
-    (*__errno_location())=ENOMEM;
-    return 0;
-  }
-  return malloc(size);
-}
-void* calloc(size_t nmemb, size_t _size) __attribute__((weak,alias("__libc_calloc")));
+		void* tmp = _alloc_libc_malloc(size);
 
-void* __libc_realloc(void* ptr, size_t _size);
-void* __libc_realloc(void* ptr, size_t _size) {
-  register size_t size=_size;
-  if (ptr) {
-    if (size) {
-      __alloc_t* tmp=BLOCK_START(ptr);
-      size+=sizeof(__alloc_t);
-      if (size<sizeof(__alloc_t)) goto retzero;
-      size=(size<=__MAX_SMALL_SIZE)?GET_SIZE(size):PAGE_ALIGN(size);
-      if (tmp->size!=size) {
-	if ((tmp->size<=__MAX_SMALL_SIZE)) {
-	  void *new=_alloc_libc_malloc(_size);
-	  if (new) {
-	    register __alloc_t* foo=BLOCK_START(new);
-	    size=foo->size;
-	    if (size>tmp->size) size=tmp->size;
-	    if (size) memcpy(new,ptr,size-sizeof(__alloc_t));
-	    _alloc_libc_free(ptr);
-	  }
-	  ptr=new;
+		if (!tmp) goto err_out;
+
+		memcpy(tmp, ptr, size);
+		_alloc_libc_free(ptr);
+
+		return tmp;
+	}
+	else if (ptr && !size) {
+		_alloc_libc_free(ptr); // call our own functions here.
+		ptr = NULL;
+		return ptr;
+	}
+	else if (!ptr && size) {
+		ptr = _alloc_libc_malloc(size);
+		return ptr;
 	}
 	else {
-	  register __alloc_t* foo;
-	  size=PAGE_ALIGN(size);
-	  foo=mremap(tmp,tmp->size,size,MREMAP_MAYMOVE);
-	  if (foo==MAP_FAILED) {
-retzero:
-	    (*__errno_location())=ENOMEM;
-	    ptr=0;
-	  }
-	  else {
-	    foo->size=size;
-	    ptr=BLOCK_RET(foo);
-	  }
+		// realloc(null, 0). Should still call malloc.
+		ptr = _alloc_libc_malloc(size);
+		return ptr;
 	}
-      }
-    }
-    else { /* size==0 */
-      _alloc_libc_free(ptr);
-      ptr = NULL;
-    }
-  }
-  else { /* ptr==0 */
-    if (size) {
-      ptr=_alloc_libc_malloc(size);
-    }
-  }
-  return ptr;
-}
-void* realloc(void* ptr, size_t size) __attribute__((weak,alias("__libc_realloc")));
 
-#endif
+err_out:
+	return NULL;
+}
+void* realloc(void* ptr, size_t size) __attribute__((weak,alias("_libc_realloc")));

@@ -19,7 +19,7 @@ test_malloc(void)
 		free(mptr[i]);
 	}
 	
-    for(i=0; i<NUM; i++) {
+	for(i=0; i<NUM; i++) {
 		mptr[i] = (char *)malloc(i+1);
 		assert(mptr[i]);
 		for(j=0; j<i; j++) mptr[i][j] = '$';
