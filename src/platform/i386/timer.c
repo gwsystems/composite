@@ -67,6 +67,13 @@ volatile struct hpet_timer {
 static void *hpet;
 static u32_t tick = 0;
 
+/* FIXME: per-thread */
+static struct thread *timer_thread = NULL;
+
+void
+chal_timer_thd_init(struct thread *t)
+{ timer_thread = t; }
+
 void
 periodic_handler(struct pt_regs *regs)
 {
@@ -75,7 +82,7 @@ periodic_handler(struct pt_regs *regs)
 	tick++;
 
 	ack_irq(IRQ_PERIODIC);
-//	if (timer_thread) capinv_int_snd(timer_thread, rs);
+	/* if (timer_thread) capinv_int_snd(timer_thread, regs); */
 
 	*hpet_interrupt = HPET_INT_ENABLE;
 }
@@ -87,7 +94,7 @@ oneshot_handler(struct pt_regs *regs)
 	rdtscll(cycle);
 
 	ack_irq(IRQ_ONESHOT);
-//	if (timer_thread) capinv_int_snd(timer_thread, rs);
+	/* if (timer_thread) capinv_int_snd(timer_thread, regs); */
 
 	*hpet_interrupt = HPET_INT_ENABLE;
 }
@@ -165,13 +172,4 @@ timer_init(timer_type_t timer_type, u64_t cycles)
 
 	/* Set the timer as specified */
 	timer_set(timer_type, cycles);
-}
-
-/* FIXME: per-thread */
-static struct thread *timer_thread = NULL;
-
-void
-chal_timer_thd_init(struct thread *t)
-{
-	timer_thread = t;
 }
