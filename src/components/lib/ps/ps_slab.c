@@ -13,22 +13,34 @@
 
 #include <ps_slab.h>
 
-/* The slab allocator for slab heads that are not internal to the slab itself */
-PS_SLAB_CREATE(slabhead, sizeof(struct ps_slab), PS_PAGE_SIZE, 1)
+/* 
+ * Default allocation and deallocation functions: assume header is
+ * internal to the slab's memory
+ */
+struct ps_slab *
+ps_slab_defalloc(size_t sz, coreid_t coreid)
+{ 
+	struct ps_slab *s = ps_plat_alloc(sz, coreid);
+	(void)coreid; 
+
+	s->memory = s;
+	return s;
+}
 
 void
-__ps_slab_init(struct ps_slab *s, void *mem, struct ps_slab_info *si, size_t obj_sz, int allocsz, int hintern)
+ps_slab_deffree(struct ps_slab *s, size_t sz, coreid_t coreid)
+{ ps_plat_free(s, sz, coreid); }
+
+void
+__ps_slab_init(struct ps_slab *s, struct ps_slab_info *si, PS_SLAB_PARAMS)
 {
 	size_t nfree, i;
-	size_t start_off = sizeof(struct ps_slab) * hintern; /* hintern \in {0, 1}*/
 	size_t objmemsz  = __ps_slab_objmemsz(obj_sz);
 	struct ps_mheader *alloc, *prev;
+	PS_SLAB_DEWARN;
 
-	assert(hintern == 0 || hintern == 1);
-	/* division should be statically calculated with enough inlining */
-	s->nfree  = nfree = (allocsz - start_off) / objmemsz;
+	s->nfree  = nfree = (allocsz - headoff) / objmemsz;
 	s->memsz  = allocsz;
-	s->memory = mem;
 	s->coreid = ps_coreid();
 
 	/*
@@ -36,7 +48,7 @@ __ps_slab_init(struct ps_slab *s, void *mem, struct ps_slab_info *si, size_t obj
 	 *
 	 * TODO: cache coloring
 	 */
-	alloc = (struct ps_mheader *)((char *)mem + start_off);
+	alloc = (struct ps_mheader *)((char *)s->memory + headoff);
 	prev  = s->freelist = alloc;
 	for (i = 0 ; i < nfree ; i++, prev = alloc, alloc = (struct ps_mheader *)((char *)alloc + objmemsz)) {
 		__ps_mhead_init(alloc, s);
@@ -44,16 +56,16 @@ __ps_slab_init(struct ps_slab *s, void *mem, struct ps_slab_info *si, size_t obj
 	}
 	__ps_slab_check_consistency(s);
 	/* better not overrun memory */
-	assert((void *)alloc <= (void *)((char*)mem + allocsz));
+	assert((void *)alloc <= (void *)((char*)s->memory + allocsz));
 
 	ps_list_init(s, list);
 	__slab_freelist_add(&si->fl, s);
 }
 
 void
-__ps_slab_mem_remote_free(struct ps_mem_percore *fls, struct ps_mheader *h, u16_t core_target)
+__ps_slab_mem_remote_free(struct ps_mem *mem, struct ps_mheader *h, coreid_t core_target)
 {
-	struct ps_slab_remote_list *r = &fls[core_target].slab_remote;
+	struct ps_slab_remote_list *r = &mem->percore[core_target].slab_remote;
 
 	ps_lock_take(&r->lock);
 	__ps_qsc_enqueue(&r->remote_frees, h);
@@ -61,19 +73,18 @@ __ps_slab_mem_remote_free(struct ps_mem_percore *fls, struct ps_mheader *h, u16_
 }
 
 void
-__ps_slab_mem_remote_process(struct ps_mem_percore *percpu, size_t obj_sz, size_t allocsz, int hintern)
+__ps_slab_mem_remote_process(struct ps_mem *mem, PS_SLAB_PARAMS)
 {
-	struct ps_slab_remote_list *r = &percpu->slab_remote;
+	struct ps_slab_remote_list *r = &(mem->percore[coreid].slab_remote);
 	struct ps_mheader      *h, *n;
-	coreid_t                    curr;
+	PS_SLAB_DEWARN;
 
 	ps_lock_take(&r->lock);
 	h = __ps_qsc_clear(&r->remote_frees);
 	ps_lock_release(&r->lock);
 
-	if (h) curr = ps_coreid();
 	while (h) {
-		__ps_slab_mem_free(__ps_mhead_mem(h), percpu, curr, obj_sz, allocsz, hintern);
+		__ps_slab_mem_free(__ps_mhead_mem(h), mem, PS_SLAB_ARGS);
 		n       = h->next;
 		h->next = NULL;
 		h       = n;

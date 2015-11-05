@@ -176,13 +176,12 @@ ps_try_quiesce(struct parsec *p, ps_tsc_t tsc, ps_tsc_t *qsc_tsc)
  */
 void
 __ps_smr_reclaim(coreid_t curr, struct ps_qsc_list *ql, struct ps_smr_info *si, 
-		 struct ps_mem_percore *percpu, ps_free_fn_t ffn)
+		 struct ps_mem *mem, ps_free_fn_t ffn)
 {
-	struct parsec    *ps = percpu[curr].smr_info.ps;
+	struct parsec    *ps = mem->percore[curr].smr_info.ps;
 	struct ps_mheader *a = __ps_qsc_peek(ql);
-	ps_tsc_t qsc, tsc;
 	int increase_backlog = 0, i;
-	(void)percpu;
+	ps_tsc_t qsc, tsc;
 
 	assert(a);
 	tsc = a->tsc_free;
@@ -200,7 +199,7 @@ __ps_smr_reclaim(coreid_t curr, struct ps_qsc_list *ql, struct ps_smr_info *si,
 		a = __ps_qsc_dequeue(ql);
 		__ps_mhead_reset(a);
 		si->qmemcnt--;
-		ffn(__ps_mhead_mem(a), curr);
+		ffn(__ps_mhead_mem(a), 0, curr);
 	}
 	if (increase_backlog) si->qmemtarget += PS_QLIST_BATCH; /* TODO: shrink target */
 
@@ -231,7 +230,7 @@ ps_init(struct parsec *ps)
 struct parsec *
 ps_alloc(void)
 {
-	struct parsec *ps = PS_SLAB_ALLOC(sizeof(struct parsec));
+	struct parsec *ps = ps_plat_alloc(sizeof(struct parsec), ps_coreid());
 
 	if (!ps) return NULL;
 	ps_init(ps);
@@ -243,7 +242,7 @@ int
 ps_free(struct parsec *ps)
 {
 	if (ps->refcnt > 0) return -1;
-	PS_SLAB_FREE(ps, sizeof(struct parsec));
+	ps_plat_free(ps, sizeof(struct parsec), ps_coreid());
 
 	return 0;
 }

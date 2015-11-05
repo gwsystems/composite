@@ -126,6 +126,9 @@ struct ps_smr_info {
 	size_t             qmemtarget; /* # of items in qsc_list before we attempt to quiesce */
 };
 
+typedef void  (*ps_free_fn_t)(struct ps_slab *s, size_t sz, coreid_t curr);
+typedef struct ps_slab *(*ps_alloc_fn_t)(size_t sz, coreid_t curr);
+
 /*
  * TODO:
  * 1. save memory by packing multiple freelists into the same
@@ -152,11 +155,10 @@ struct ps_mem_percore {
 	struct ps_slab_remote_list slab_remote PS_ALIGNED;
 } PS_ALIGNED;
 
-#define PS_MEM_CREATE_DATA(name)					\
-struct ps_mem_percore __ps_slab_##name##_freelist[PS_NUMCORES] PS_ALIGNED;
-
 struct ps_mem {
-	struct ps_mem_percore __ps_slab_freelist[PS_NUMCORES];	
+	struct ps_mem_percore percore[PS_NUMCORES];	
 } PS_ALIGNED;
+
+#define __PS_MEM_CREATE_DATA(name) struct ps_mem __ps_mem_##name;
 
 #endif	/* PS_GLOBAL_H */

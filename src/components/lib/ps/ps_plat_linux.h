@@ -5,26 +5,26 @@
 #include <sys/mman.h>
 #include <stdio.h>
 
-static inline void *
-ps_plat_alloc(size_t sz)
-{ return mmap(0, sz, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0); }
-
-static inline void
-ps_plat_free(void *x, size_t sz)
-{ munmap(x, sz); }
-
-#ifndef PS_SLAB_ALLOC
-#define PS_SLAB_ALLOC(sz)   ps_plat_alloc(sz)
-#endif
-#ifndef PS_SLAB_FREE
-#define PS_SLAB_FREE(x, sz) ps_plat_free(x, sz)
-#endif
-
 #define u16_t unsigned short int
 #define u32_t unsigned int
 #define u64_t unsigned long long
 typedef u64_t ps_tsc_t; 	/* our time-stamp counter representation */
 typedef u16_t coreid_t;
+
+/* Default allocation and deallocation functions */
+static inline void *
+ps_plat_alloc(size_t sz, coreid_t coreid)
+{ 
+	(void)coreid; 
+	return mmap(0, sz, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0); 
+}
+
+static inline void
+ps_plat_free(void *s, size_t sz, coreid_t coreid)
+{ 
+	(void)coreid; 
+	munmap(s, sz); 
+}
 
 #define PS_CACHE_LINE  64
 #define PS_CACHE_PAD   (PS_CACHE_LINE*2)

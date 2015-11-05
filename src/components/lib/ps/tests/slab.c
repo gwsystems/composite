@@ -13,12 +13,20 @@ struct larger {
 };
 
 PS_SLAB_CREATE_DEF(s, sizeof(struct small))
-PS_SLAB_CREATE(l, sizeof(struct larger), PS_PAGE_SIZE * 128, 1)
-PS_SLAB_CREATE(hextern, sizeof(struct larger), PS_PAGE_SIZE * 128, 0)
+PS_SLAB_CREATE(l, sizeof(struct larger), PS_PAGE_SIZE * 128)
+PS_SLAB_CREATE(hextern, sizeof(struct larger), PS_PAGE_SIZE * 128)
 
 #define ITER       (1024)
 #define SMALLCHUNK 2
 #define LARGECHUNK 32
+
+/* These are meant to be disassembled and inspected, to validate inlining/optimization */
+void *
+disassemble_alloc()
+{ return ps_slab_alloc_l(); }
+void
+disassemble_free(void *m)
+{ ps_slab_free_l(m); }
 
 void
 mark(char *c, int sz, char val)

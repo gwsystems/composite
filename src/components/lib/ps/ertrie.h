@@ -36,7 +36,7 @@ struct ert_intern {
 	void *next; 
 };
 struct ert {
-	struct ert_intern vect[0]; /* in-place data-structure */
+	struct ert_intern vect; /* in-place data-structure */
 };
 
 /* get the next level/value in the internal structure/value */
@@ -171,7 +171,7 @@ __ert_init(struct ert_intern *vi, int isleaf, ERT_CONST_PARAMS)
 	}
 }
 
-static struct ert *
+static inline struct ert *
 ert_alloc(void *memctxt, ERT_CONST_PARAMS)
 {
 	struct ert *v;
@@ -184,7 +184,7 @@ ert_alloc(void *memctxt, ERT_CONST_PARAMS)
 	if (depth > 1) v = allocfn(memctxt, (1<<order) * intern_sz, 0);
 	else           v = allocfn(memctxt, (1<<last_order) * last_sz, 1);
 	if (NULL == v) return NULL;
-	__ert_init(v->vect, depth == 1, ERT_CONST_ARGS);
+	__ert_init(&v->vect, depth == 1, ERT_CONST_ARGS);
 
 	setfn(&e, v, &accum, depth == 1);
 	return (struct ert *)e.next;
@@ -238,7 +238,7 @@ __ert_lookup(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *
 	assert(dstart <= dlimit);
 
 	/* simply gets the address of the vector */
-	r.next = v->vect;
+	r.next = &v->vect;
 	n      = &r;
 	limit  = dlimit < depth ? dlimit : depth;
 	for (i = dstart ; i < limit ; i++) {
@@ -278,7 +278,7 @@ __ert_expand(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *
 	assert(dlimit <= depth+1); /* cannot expand past leaf */
 	assert(dstart <= dlimit);
 
-	r.next = v->vect;
+	r.next = &v->vect;
 	n      = &r;
 	limit  = dlimit < depth ? dlimit : depth;
 	for (i = dstart ; i < limit-1 ; i++) {
