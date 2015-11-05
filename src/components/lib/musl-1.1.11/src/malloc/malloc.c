@@ -307,7 +307,7 @@ static void trim(struct chunk *self, size_t n)
 	free(CHUNK_TO_MEM(split));
 }
 
-void *malloc(size_t n)
+void *muslib_malloc(size_t n)
 {
 	struct chunk *c;
 	int i, j;
@@ -367,7 +367,7 @@ void *__malloc0(size_t n)
 	return p;
 }
 
-void *realloc(void *p, size_t n)
+void *muslib_realloc(void *p, size_t n)
 {
 	struct chunk *self, *next;
 	size_t n0, n1;
@@ -437,7 +437,7 @@ void *realloc(void *p, size_t n)
 	return new;
 }
 
-void free(void *p)
+void muslib_free(void *p)
 {
 	struct chunk *self = MEM_TO_CHUNK(p);
 	struct chunk *next;

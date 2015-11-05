@@ -70,5 +70,5 @@ cos_init(void *args)
 
 	printf("=============DONE!==========\n");
 
-	return !!err;
+	return;
 }
