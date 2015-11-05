@@ -140,7 +140,10 @@ fn##_irq: 			\
 	IRQPROC(fn##_handler)
 
 .text
+IRQ_CODE(double_fault)
 IRQ_CODE(page_fault)
-IRQ(timer)
+/* IRQ(timer) */
 IRQ(keyboard)
 IRQ(serial)
+IRQ(periodic)
+IRQ(oneshot)

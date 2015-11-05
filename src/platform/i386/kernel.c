@@ -1,6 +1,3 @@
-#define ENABLE_SERIAL
-#define ENABLE_TIMER
-
 #include "assert.h"
 #include "kernel.h"
 #include "multiboot.h"
@@ -12,6 +9,10 @@
 #include <retype_tbl.h>
 #include <component.h>
 #include <thd.h>
+
+#define ADDR_STR_LEN     8
+#define CMDLINE_MAX_LEN  32
+#define CMDLINE_REQ_LEN  (ADDR_STR_LEN * 2 + 1)
 
 struct mem_layout glb_memlayout;
 
@@ -67,15 +68,20 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 	printk("\tModules:\n");
 	for (i = 0 ; i < mb->mods_count ; i++) {
 		struct multiboot_mod_list *mod = &mods[i];
+		char *cmdline = (char *)mod->cmdline;
+		int cmdline_len = strnlen((const char*)cmdline, CMDLINE_MAX_LEN);
+		int addr_offset = cmdline_len - CMDLINE_REQ_LEN;
 
-		printk("\t- %d: [%08x, %08x)", i, mod->mod_start, mod->mod_end);
+		printk("\t- %d: [%08x, %08x) : %s", i, mod->mod_start, mod->mod_end, mod->cmdline);
+		assert(cmdline_len >= CMDLINE_REQ_LEN);
+		assert(cmdline[addr_offset + ADDR_STR_LEN] == '-');
+
 		/* These values have to be higher-half addresses */
 		glb_memlayout.mod_start = chal_pa2va((paddr_t)mod->mod_start);
 		glb_memlayout.mod_end   = chal_pa2va((paddr_t)mod->mod_end);
 
-		glb_memlayout.bootc_vaddr = (void*)hextol((char*)mod->cmdline);
-		assert(((char*)mod->cmdline)[8] == '-');
-		glb_memlayout.bootc_entry = (void*)hextol(&(((char*)mod->cmdline)[9]));
+		glb_memlayout.bootc_vaddr = (void*)hextol((char *)(cmdline + addr_offset));
+		glb_memlayout.bootc_entry = (void*)hextol((char *)(cmdline + addr_offset + ADDR_STR_LEN + 1));
 		printk(" @ virtual address %p, _start = %p.\n",
 		       glb_memlayout.bootc_vaddr, glb_memlayout.bootc_entry);
 	}
@@ -90,7 +96,7 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 	/* FIXME: check memory layout vs. the multiboot memory regions... */
 
 	/* Validate the memory layout. */
-	assert(mem_kern_end()   == mem_bootc_start());
+	assert(mem_kern_end()   <= mem_bootc_start());
 	assert(mem_bootc_end()  <= mem_boot_start());
 	assert(mem_boot_start() >= mem_kmem_start());
 	assert(mem_kmem_start() == mem_bootc_start());
@@ -123,9 +129,10 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 #ifdef ENABLE_CONSOLE
 	console_init();
 #endif
-#ifdef ENABLE_TIMER
-	timer_init(100);
+#ifdef ENABLE_VGA
+	vga_init();
 #endif
+
 	max = MAX((unsigned long)mboot->mods_addr,
 		  MAX((unsigned long)mboot->mmap_addr, (unsigned long)(chal_va2pa(&end))));
 	kern_paging_map_init((void*)(max + PGD_SIZE));
@@ -133,13 +140,17 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 
 	chal_init();
 	cap_init();
-       	ltbl_init();
-       	retype_tbl_init();
-       	comp_init();
-       	thd_init();
+	ltbl_init();
+	retype_tbl_init();
+	comp_init();
+	thd_init();
 	paging_init();
+#ifdef ENABLE_VGA
+	vga_high_init();
+#endif
 
 	kern_boot_comp();
+	timer_init(TIMER_PERIODIC, DEFAULT_FREQUENCY);
 	kern_boot_upcall();
 	/* should not get here... */
 	khalt();
@@ -149,6 +160,7 @@ void
 khalt(void)
 {
 	printk("Shutting down...\n");
+	while (1) ;
 	asm("mov $0x53,%ah");
 	asm("mov $0x07,%al");
 	asm("mov $0x001,%bx");

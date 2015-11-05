@@ -5,7 +5,7 @@
  * Public License v2.
  */
 
-/* 
+/*
  * This file is included by both the kernel and by components.  Thus
  * any defines might need to be, unfortunately, made using ifdefs
  */
@@ -19,7 +19,7 @@
 #ifndef __ASM__
 #ifdef __KERNEL__
 #include <linux/thread_info.h> /* for PAGE_SIZE */
-#else 
+#else
 struct pt_regs {
         long bx;
         long cx;
@@ -56,7 +56,7 @@ struct pt_regs {
 #define MAX_SPD_VAS_LOCATIONS 8
 
 /* a kludge:  should not use a tmp stack on a stack miss */
-#define TMP_STACK_SZ       (128/4) 
+#define TMP_STACK_SZ       (128/4)
 #define ALL_TMP_STACKS_SZ  (MAX_NUM_THREADS*TMP_STACK_SZ)
 
 #define MAX_SCHED_HIER_DEPTH 4
@@ -77,7 +77,7 @@ struct pt_regs {
 /* For this family of macros, do NOT pass zero as the pow2 */
 #define round_to_pow2(x, pow2)    (((unsigned long)(x))&(~((pow2)-1)))
 #define round_up_to_pow2(x, pow2) (round_to_pow2(((unsigned long)x)+(pow2)-1, (pow2)))
- 
+
 #define round_to_page(x)        round_to_pow2(x, PAGE_SIZE)
 #define round_up_to_page(x)     round_up_to_pow2(x, PAGE_SIZE)
 #define round_to_pgd_page(x)    round_to_pow2(x, PGD_SIZE)
@@ -107,14 +107,14 @@ struct pt_regs {
 #define COS_NUM_ATOMIC_SECTIONS 10
 
 /* # of pages */
-#define COS_MAX_MEMORY    (COS_MEM_USER_PA_SZ/PAGE_SIZE)  /* # of pages */ 
+#define COS_MAX_MEMORY    (COS_MEM_USER_PA_SZ/PAGE_SIZE)  /* # of pages */
 #define COS_MEM_BOUND     (COS_MEM_USER_PA + COS_MAX_MEMORY*PAGE_SIZE) /* highest physical address */
 
 /* These are deprecated, use the macros they reference */
-#define KERN_MEM_ORDER    (COS_MEM_KERN_PA_ORDER-PAGE_ORDER)		     
+#define KERN_MEM_ORDER    (COS_MEM_KERN_PA_ORDER-PAGE_ORDER)
 #define COS_KERNEL_MEMORY (COS_MEM_KERN_PA_SZ/PAGE_SIZE)   /* 2^n pages kernel memory */
 
-/* 
+/*
  * how many pages in a collection. Should consider cacheline
  * size. Multiple of 16 on x86.  If you change, this, make sure to
  * update the linker script as well.
@@ -126,7 +126,7 @@ struct pt_regs {
 #endif
 #define RETYPE_MEM_SIZE          (RETYPE_MEM_NPAGES * PAGE_SIZE)
 
-// GAP: Needed? #include "../asm_ipc_defs.h" 
+#include "../asm_ipc_defs.h" 	/* FIXME: just for cos_component.h now */
 
 #define KERN_BASE_ADDR 0xc0000000 // should be COS_MEM_KERN_START_VA
 

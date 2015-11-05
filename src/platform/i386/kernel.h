@@ -21,20 +21,38 @@ void vga_puts(const char *s);
 void console_init(void);
 #endif
 
+#ifdef ENABLE_VGA
+void vga_init(void);
+void vga_high_init(void);
+void vga_puts(const char *str);
+#endif
+
 #ifdef ENABLE_SERIAL
 void serial_init(void);
 #endif
 
-#ifdef ENABLE_TIMER
-void timer_init(u32_t frequency);
+/* These numbers map directly to actual timers in the HPET */
+typedef enum {
+    TIMER_PERIODIC = 0,
+    TIMER_ONESHOT = 1,
+} timer_type_t;
+
+#define DEFAULT_FREQUENCY 10000
+
+void timer_set(timer_type_t timer_type, u64_t cycles);
+void timer_init(timer_type_t timer_type, u64_t cycles);
+u64_t timer_find_hpet(void *timer);
+void timer_set_hpet_page(u32_t page);
 void timer_thd_init(struct thread *t);
-#endif
 
 void tss_init(void);
 void idt_init(void);
 void gdt_init(void);
 void user_init(void);
 void paging_init(void);
+void *acpi_find_rsdt(void);
+void *acpi_find_timer(void);
+void acpi_set_rsdt_page(u32_t);
 void kern_paging_map_init(void *pa);
 
 //void printk(const char *fmt, ...);

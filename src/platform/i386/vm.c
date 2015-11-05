@@ -19,6 +19,10 @@ u32_t boot_comp_pgd[PAGE_SIZE/sizeof(u32_t)] PAGE_ALIGNED = {
 };
 
 void
+double_fault_handler(struct pt_regs *regs)
+{ die("DOUBLE FAULT..\n"); }
+
+void
 page_fault_handler(struct pt_regs *regs)
 {
 	u32_t fault_addr, errcode = 0, eip = 0;
@@ -88,6 +92,24 @@ kern_setup_image(void)
 		boot_comp_pgd[j] = i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
 		boot_comp_pgd[i/PGD_RANGE] = 0; /* unmap lower addresses */
 	}
+
+	/* FIXME: Ugly hack to get the physical page with the ACPI RSDT mapped */
+	void *rsdt = acpi_find_rsdt();
+	if (rsdt) {
+        	u32_t page = round_up_to_pgd_page(rsdt) - (1 << 22);
+		boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
+		acpi_set_rsdt_page(j);
+		j++;
+
+		u64_t hpet = timer_find_hpet(acpi_find_timer());
+		if (hpet) {
+			page = round_up_to_pgd_page(hpet & 0xffffffff) - (1 << 22);
+			boot_comp_pgd[j] = page | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
+			timer_set_hpet_page(j);
+			j++;
+		}
+	}
+
 	for ( ; j < PAGE_SIZE/sizeof(unsigned int) ; i += PGD_RANGE, j++) {
 		boot_comp_pgd[j] = boot_comp_pgd[i/PGD_RANGE] = 0;
 	}
