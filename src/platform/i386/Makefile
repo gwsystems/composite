@@ -42,7 +42,8 @@ OBJS += timer.o
 OBJS += chal.o
 OBJS += boot_comp.o
 OBJS += miniacpi.o
-OBJS += console.o
+#OBJS += console.o
+OBJS += vga.o
 
 COS_OBJ += pgtbl.o
 COS_OBJ += retype_tbl.o
