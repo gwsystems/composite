@@ -63,6 +63,8 @@ int ps_try_quiesce (struct parsec *p, ps_tsc_t tsc, ps_tsc_t *qsc);
 void ps_init(struct parsec *ps);
 struct parsec *ps_alloc(void);
 void __ps_smr_reclaim(coreid_t curr, struct ps_qsc_list *ql, struct ps_smr_info *si, struct ps_mem *mem, ps_free_fn_t ffn);
+void __ps_memptr_init(struct ps_mem *m, struct parsec *ps);
+int  __ps_memptr_delete(struct ps_mem *m);
 
 
 static inline void
@@ -134,44 +136,53 @@ ps_exit(struct parsec *parsec)
 	return;
 }
 
-#define PS_PARSLAB_CREATE_AFNS(name, objsz, allocsz, allocfn, freefn)			\
-PS_SLAB_CREATE_AFNS(name, objsz, allocsz, sizeof(struct ps_slab), allocfn, freefn)	\
-static inline void *									\
-ps_mem_alloc_##name(void)								\
-{ return ps_slab_alloc_##name(); }							\
-static inline void									\
-__ps_parslab_free_tramp_##name(struct ps_slab *s, size_t sz, coreid_t c)		\
-{ (void)sz; ps_slab_free_coreid_##name(s, c); }						\
-static inline void									\
-ps_mem_free_##name(void *buf)								\
-{ __ps_smr_free(buf, &__ps_mem_##name, __ps_parslab_free_tramp_##name); }		\
-static void										\
-ps_mem_init_##name(struct parsec *ps)							\
-{											\
-        struct ps_mem_percore *pc = &__ps_mem_##name.percore[0];			\
-	int i;										\
-	for (i = 0 ; i < PS_NUMCORES ; i++) {						\
-		pc[i].smr_info.qmemtarget = PS_QLIST_BATCH;				\
-		pc[i].smr_info.qmemcnt    = 0;						\
-		pc[i].smr_info.ps         = ps;						\
-		ps->refcnt++;								\
-	}										\
-}											\
-static inline int									\
-ps_mem_destroy_##name(struct parsec *ps)						\
-{											\
-        struct ps_mem_percore *pc = &__ps_mem_##name.percore[0];			\
-	int i;										\
-	for (i = 0 ; i < PS_NUMCORES ; i++) {						\
-		if (__ps_qsc_peek(&pc[i].smr_info.qsc_list)        ||			\
-		    __ps_qsc_peek(&pc[i].slab_remote.remote_frees) ||			\
-		    pc[i].slab_info.fl.list)                       return -1;		\
-	}										\
-											\
-	ps->refcnt--;									\
-	return 0;									\
-}
+#define __PS_PARSLAB_CREATE_AFNS(name, objsz, allocsz, headoff, allocfn, freefn)		\
+PS_SLAB_CREATE_AFNS(name, objsz, allocsz, headoff, allocfn, freefn)				\
+static inline void										\
+__ps_parslab_free_tramp_##name(struct ps_mem *m, struct ps_slab *s, size_t sz, coreid_t c)	\
+{ (void)sz; ps_slabptr_free_coreid_##name(m, s, c); }						\
+static inline void *										\
+ps_memptr_alloc_##name(struct ps_mem *m)							\
+{ return ps_slabptr_alloc_##name(m); }								\
+static inline void *										\
+ps_mem_alloc_##name(void)									\
+{ return ps_slab_alloc_##name(); }								\
+static inline void										\
+ps_memptr_free_##name(struct ps_mem *m, void *buf)						\
+{ __ps_smr_free(buf, m, __ps_parslab_free_tramp_##name); }					\
+static inline void										\
+ps_mem_free_##name(void *buf)									\
+{ ps_memptr_free_##name(&__ps_mem_##name, buf); }						\
+static void											\
+ps_memptr_init_##name(struct ps_mem *m, struct parsec *ps)					\
+{ __ps_memptr_init(m, ps); }									\
+static inline void										\
+ps_mem_init_##name(struct parsec *ps)								\
+{												\
+	ps_slabptr_init_##name(&__ps_mem_##name);						\
+	ps_memptr_init_##name(&__ps_mem_##name, ps); 						\
+}												\
+static inline struct ps_mem *									\
+ps_memptr_create_##name(struct parsec *ps)							\
+{												\
+	struct ps_mem *m = ps_slabptr_create_##name();						\
+	if (!m) return NULL;									\
+	ps_memptr_init_##name(m, ps);								\
+	return m;										\
+}												\
+static inline int										\
+ps_memptr_delete_##name(struct ps_mem *m)							\
+{												\
+	if (__ps_memptr_delete(m)) return -1;							\
+	ps_slabptr_delete_##name(m);								\
+	return 0;										\
+}												\
+static inline int										\
+ps_mem_delete_##name(void)									\
+{ return ps_memptr_delete_##name(&__ps_mem_##name); }						\
 
+#define PS_PARSLAB_CREATE_AFNS(name, objsz, allocsz, allocfn, freefn)		\
+__PS_PARSLAB_CREATE_AFNS(name, objsz, allocsz, sizeof(struct ps_slab), allocfn, freefn)
 
 #define PS_PARSLAB_CREATE(name, objsz, allocsz)					\
 PS_PARSLAB_CREATE_AFNS(name, objsz, allocsz, ps_slab_defalloc, ps_slab_deffree)

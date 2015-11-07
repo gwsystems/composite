@@ -2,7 +2,7 @@ CINC    = -I../ -I.
 CC      = gcc
 LD      = $(CC)
 LDFLAGS = -pthread
-COPT    = -g
+COPT    = -O3
 CWARN   = -Wno-long-long
 CFLAGS  = -Wall -Wpedantic -Wextra -pthread $(CWARN) $(COPT)
 

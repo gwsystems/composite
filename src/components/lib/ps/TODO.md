@@ -21,3 +21,6 @@
 - Page (and page extent) manager to avoid mmap/munmap calls everywhere
 - When retrieving remotely freed memory, move it to a local list, and
   bound the number of items added into slabs (to bound execution time)
+- Save header memory for slab (without smr) by making the smr stuff a header _before_ the slab info
+  struct ps_mheader { union {struct ps_slab *slab; struct ps_mheader *n; } u; };
+  struct ps_sheader { ps_free_token_t tsc; struct ps_sheader *n; struct ps_mheader m; };

@@ -14,12 +14,7 @@
 
 static inline int
 __ps_in_lib(struct ps_quiescence_timing *timing)
-{
-	/* this means not inside the lib. */
-	if (timing->time_out > timing->time_in) return 0;
-
-	return 1;
-}
+{ return timing->time_out <= timing->time_in; }
 
 static inline void
 __ps_timing_update_remote(struct parsec *parsec, struct ps_smr_percore *curr, int remote_cpu)
@@ -56,6 +51,7 @@ ps_quiesce(struct parsec *parsec, ps_tsc_t tsc, const int blocking, ps_tsc_t *qs
 	struct ps_smr_percore *cpuinfo;
 	struct ps_quiescence_timing *timing_local;
 	ps_tsc_t time_check;
+	assert(parsec);
 
 	time_check   = tsc;
 	curr_cpu     = ps_coreid();
@@ -176,14 +172,15 @@ ps_try_quiesce(struct parsec *p, ps_tsc_t tsc, ps_tsc_t *qsc_tsc)
  */
 void
 __ps_smr_reclaim(coreid_t curr, struct ps_qsc_list *ql, struct ps_smr_info *si, 
-		 struct ps_mem *mem, ps_free_fn_t ffn)
+		 struct ps_mem *m, ps_free_fn_t ffn)
 {
-	struct parsec    *ps = mem->percore[curr].smr_info.ps;
+	struct parsec    *ps = m->percore[curr].smr_info.ps;
 	struct ps_mheader *a = __ps_qsc_peek(ql);
 	int increase_backlog = 0, i;
 	ps_tsc_t qsc, tsc;
-
+	assert(ps && ql && si);
 	assert(a);
+
 	tsc = a->tsc_free;
 	if (ps_try_quiesce(ps, tsc, &qsc)) increase_backlog = 1;
 
@@ -199,7 +196,7 @@ __ps_smr_reclaim(coreid_t curr, struct ps_qsc_list *ql, struct ps_smr_info *si,
 		a = __ps_qsc_dequeue(ql);
 		__ps_mhead_reset(a);
 		si->qmemcnt--;
-		ffn(__ps_mhead_mem(a), 0, curr);
+		ffn(m, __ps_mhead_mem(a), 0, curr);
 	}
 	if (increase_backlog) si->qmemtarget += PS_QLIST_BATCH; /* TODO: shrink target */
 
@@ -244,5 +241,39 @@ ps_free(struct parsec *ps)
 	if (ps->refcnt > 0) return -1;
 	ps_plat_free(ps, sizeof(struct parsec), ps_coreid());
 
+	return 0;
+}
+
+void
+__ps_memptr_init(struct ps_mem *m, struct parsec *ps)
+{
+        struct ps_mem_percore *pc = &m->percore[0];
+	int i;
+
+	assert(m && ps);
+	for (i = 0 ; i < PS_NUMCORES ; i++) {
+		pc[i].smr_info.qmemtarget = PS_QLIST_BATCH;
+		pc[i].smr_info.qmemcnt    = 0;
+		pc[i].smr_info.ps         = ps;
+		ps->refcnt++;
+	}								
+}
+
+int
+__ps_memptr_delete(struct ps_mem *m)
+{
+        struct ps_mem_percore *pc = &m->percore[0];
+	struct parsec         *ps = pc->smr_info.ps;
+	int i;
+
+	if (!ps) return 0;
+
+	for (i = 0 ; i < PS_NUMCORES ; i++) {
+		if (__ps_qsc_peek(&pc[i].smr_info.qsc_list)        ||
+		    __ps_qsc_peek(&pc[i].slab_remote.remote_frees) ||
+		    pc[i].slab_info.fl.list)                       return -1;
+	}
+
+	ps->refcnt--;
 	return 0;
 }

@@ -18,18 +18,18 @@
  * internal to the slab's memory
  */
 struct ps_slab *
-ps_slab_defalloc(size_t sz, coreid_t coreid)
+ps_slab_defalloc(struct ps_mem *m, size_t sz, coreid_t coreid)
 { 
 	struct ps_slab *s = ps_plat_alloc(sz, coreid);
-	(void)coreid; 
+	(void)coreid; (void)m;
 
 	s->memory = s;
 	return s;
 }
 
 void
-ps_slab_deffree(struct ps_slab *s, size_t sz, coreid_t coreid)
-{ ps_plat_free(s, sz, coreid); }
+ps_slab_deffree(struct ps_mem *m, struct ps_slab *s, size_t sz, coreid_t coreid)
+{ (void)m; ps_plat_free(s, sz, coreid); }
 
 void
 __ps_slab_init(struct ps_slab *s, struct ps_slab_info *si, PS_SLAB_PARAMS)
@@ -60,6 +60,24 @@ __ps_slab_init(struct ps_slab *s, struct ps_slab_info *si, PS_SLAB_PARAMS)
 
 	ps_list_init(s, list);
 	__slab_freelist_add(&si->fl, s);
+}
+
+void
+ps_slabptr_init(struct ps_mem *m)
+{
+	int i;
+
+	memset(m, 0, sizeof(struct ps_mem));
+
+	for (i = 0 ; i < PS_NUMCORES ; i++) {
+		struct ps_slab_info *si       = &m->percore[i].slab_info;
+		struct ps_slab_remote_list *l = &m->percore[i].slab_remote;
+
+		si->fl.list   = NULL;
+		si->salloccnt = 0;
+		ps_lock_init(&l->lock);
+		__ps_qsc_clear(&l->remote_frees);
+	}
 }
 
 void

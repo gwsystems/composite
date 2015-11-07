@@ -126,8 +126,17 @@ struct ps_smr_info {
 	size_t             qmemtarget; /* # of items in qsc_list before we attempt to quiesce */
 };
 
-typedef void  (*ps_free_fn_t)(struct ps_slab *s, size_t sz, coreid_t curr);
-typedef struct ps_slab *(*ps_alloc_fn_t)(size_t sz, coreid_t curr);
+struct ps_ns_info {
+	void *ert;
+	size_t desc_range; 	/* num descriptors per slab */
+	ps_desc_t desc_max;
+	char  padding[PS_CACHE_PAD-sizeof(void *)];
+
+	struct ps_lock lock;
+	struct ps_slab_freelist fl;
+	ps_desc_t frontier;
+	char  padding2[PS_CACHE_PAD-(sizeof(struct ps_lock) + sizeof(ps_desc_t) + sizeof(struct ps_slab_freelist))];
+} PS_PACKED;
 
 /*
  * TODO:
@@ -156,9 +165,13 @@ struct ps_mem_percore {
 } PS_ALIGNED;
 
 struct ps_mem {
+	struct ps_ns_info ns_info;
 	struct ps_mem_percore percore[PS_NUMCORES];	
 } PS_ALIGNED;
 
 #define __PS_MEM_CREATE_DATA(name) struct ps_mem __ps_mem_##name;
+
+typedef void  (*ps_free_fn_t)(struct ps_mem *m, struct ps_slab *s, size_t sz, coreid_t curr);
+typedef struct ps_slab *(*ps_alloc_fn_t)(struct ps_mem *m, size_t sz, coreid_t curr);
 
 #endif	/* PS_GLOBAL_H */

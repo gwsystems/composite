@@ -34,8 +34,8 @@ struct ps_slab {
 	 */
 	void  *memory;		/* != NULL iff slab is separately allocated */
 	ps_desc_t start, end;	/* A slab used as a namespace: min and max descriptor ids */
-	size_t memsz;		/* size of backing memory */
-	u16_t  coreid;		/* which is the home core for this slab? */
+	size_t    memsz;	/* size of backing memory */
+	coreid_t  coreid;	/* which is the home core for this slab? */
 	char   pad[PS_CACHE_LINE-(sizeof(void *)+sizeof(size_t)+sizeof(u16_t)+sizeof(ps_desc_t)*2)];
 
 	/* Frequently modified data on the owning core... */
@@ -100,8 +100,9 @@ inline size_t ps_slab_nobjs_##name(void);
 void __ps_slab_mem_remote_free(struct ps_mem *mem, struct ps_mheader *h, coreid_t core_target);
 void __ps_slab_mem_remote_process(struct ps_mem *mem, PS_SLAB_PARAMS);
 void __ps_slab_init(struct ps_slab *s, struct ps_slab_info *si, PS_SLAB_PARAMS);
-void ps_slab_deffree(struct ps_slab *x, size_t sz, coreid_t coreid);
-struct ps_slab *ps_slab_defalloc(size_t sz, coreid_t coreid);
+void ps_slab_deffree(struct ps_mem *m, struct ps_slab *x, size_t sz, coreid_t coreid);
+struct ps_slab *ps_slab_defalloc(struct ps_mem *m, size_t sz, coreid_t coreid);
+void ps_slabptr_init(struct ps_mem *m);
 
 static inline void
 __ps_slab_check_consistency(struct ps_slab *s)
@@ -156,7 +157,7 @@ __ps_slab_mem_free(void *buf, struct ps_mem *mem, PS_SLAB_PARAMS)
 		/* remove from the freelist */
 		fl = &mem->percore[coreid].slab_info.fl;
 		__slab_freelist_rem(fl, s);
-	 	ffn(s, s->memsz, coreid);
+	 	ffn(mem, s, s->memsz, coreid);
 	} else if (s->nfree == 1) {
 		fl = &mem->percore[coreid].slab_info.fl;
 		/* add back onto the freelists */
@@ -184,7 +185,7 @@ __ps_slab_mem_alloc(struct ps_mem *mem, PS_SLAB_PARAMS)
 	s = si->fl.list;
 	if (unlikely(!s)) {
 		/* allocation function must initialize s->memory */
-		s = afn(allocsz, coreid);
+		s = afn(mem, allocsz, coreid);
 		if (unlikely(!s)) return NULL;
 
 		__ps_slab_init(s, si, PS_SLAB_ARGS);
@@ -207,6 +208,7 @@ __ps_slab_mem_alloc(struct ps_mem *mem, PS_SLAB_PARAMS)
 
 	return __ps_mhead_mem(h);
 }
+
 
 /***
  * This macro is very important for high-performance.  It creates the
@@ -238,9 +240,19 @@ ps_slab_free_##name(void *buf)								\
 inline void										\
 ps_slab_free_coreid_##name(void *buf, coreid_t curr)					\
 { ps_slabptr_free_coreid_##name(&__ps_mem_##name, buf, curr); }				\
+inline void										\
+ps_slabptr_init_##name(struct ps_mem *m)						\
+{ ps_slabptr_init(m); }									\
+inline void										\
+ps_slab_init_##name(void)								\
+{ ps_slabptr_init_##name(&__ps_mem_##name); }						\
 inline struct ps_mem *									\
 ps_slabptr_create_##name(void)								\
-{ return ps_plat_alloc(sizeof(struct ps_mem), ps_coreid()); }				\
+{											\
+	struct ps_mem *m = ps_plat_alloc(sizeof(struct ps_mem), ps_coreid());		\
+	if (m) ps_slabptr_init_##name(m);						\
+	return m;									\
+}											\
 inline void										\
 ps_slabptr_delete_##name(struct ps_mem *m)						\
 { ps_plat_free(m, sizeof(struct ps_mem), ps_coreid()); }				\

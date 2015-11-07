@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <sys/mman.h>
 #include <stdio.h>
+#include <string.h>
 
 #define u16_t unsigned short int
 #define u32_t unsigned int
@@ -46,9 +47,20 @@ ps_plat_free(void *s, size_t sz, coreid_t coreid)
  * 
  * from http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2Float 
  */
-#define __PSR(v, b) ((v) | ((v) >> (b)))
-#define PS_RNDPOW2(v) ((__PSR(__PSR(__PSR(__PSR(__PSR(__PSR(((v) - 1), 1), 2), 4), 8), 16), 32)) + 1) /* 64 bit */
-/* #define PS_RNDPOW2(v) ((__PSR(__PSR(__PSR(__PSR(__PSR(((v) - 1), 1), 2), 4), 8), 16)) + 1) */      /* 32 bit */
+static inline unsigned long
+ps_rndpow2(unsigned long v)
+{
+	v--;
+	v |= v >> 1;
+	v |= v >> 2;
+	v |= v >> 4;
+	v |= v >> 8;
+	v |= v >> 16;
+	if (sizeof(long) == 8) v |= v >> 32; /* 64 bit systems */
+	v++;
+
+	return v;
+}
 
 #define EQUIESCENCE (200)
 
@@ -96,9 +108,12 @@ ps_coreid(void)
 #define ps_cc_barrier() __asm__ __volatile__ ("" : : : "memory")
 #endif
 
-#define PS_CAS_INSTRUCTION "cmpxchgq " /* x86-64 */
-/* #define PS_CAS_INSTRUCTION "cmpxchgl " */ /* x86-32 */
-#define PS_CAS_STR PS_CAS_INSTRUCTION "%2, %0; setz %1"
+#define PS_ATOMIC_POSTFIX "q" /* x86-64 */
+/* #define PS_ATOMIC_POSTFIX "l" */ /* x86-32 */
+#define PS_CAS_INSTRUCTION "cmpxchg"
+#define PS_FAA_INSTRUCTION "xadd"
+#define PS_CAS_STR PS_CAS_INSTRUCTION PS_ATOMIC_POSTFIX " %2, %0; setz %1"
+#define PS_FAA_STR PS_FAA_INSTRUCTION PS_ATOMIC_POSTFIX " %1, %0"
 
 /*
  * Return values:
@@ -114,6 +129,15 @@ ps_cas(unsigned long *target, unsigned long old, unsigned long updated)
                              : "q"  (updated), "a"  (old)
                              : "memory", "cc");
         return (int)z;
+}
+
+static inline long
+ps_faa(unsigned long *target, long inc)
+{
+        __asm__ __volatile__("lock " PS_FAA_STR
+                             : "+m" (*target), "+q" (inc)
+                             : : "memory", "cc");
+        return inc;
 }
 
 /*
@@ -153,5 +177,8 @@ static inline void
 ps_lock_release(struct ps_lock *l)
 { l->o = 0; }
 
+static inline void
+ps_lock_init(struct ps_lock *l)
+{ ps_lock_release(l); }
 
 #endif	/* PS_PLAT_LINUX_H */
