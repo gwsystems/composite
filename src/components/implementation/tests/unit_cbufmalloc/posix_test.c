@@ -3,48 +3,42 @@
 #include <cbuf_mgr.h>
 #include <assert.h>
 
-#define NUM 1024
+#define NUM 10
 char *mptr[NUM];
 
 void
 cos_init(void *args)
 {
 	int err=0;
-
 	int i, j;
 
-	for (i = 0; i < NUM; i++) 
-	{
+	for (i = 0; i < NUM; i++) {
 		mptr[i] = (char *)malloc((i+1) * sizeof(int));
 
 		assert(mptr[i]);
 		
-		for (j = 0; j < i; j++)
-		{
+		for (j = 0; j < i; j++) {
 			mptr[i][j] = j;
 		}
 
 		free(mptr[i]);
 	}
 	
-	for (i = 0; i < NUM; i++) 
-	{
+	for (i = 0; i < NUM; i++) {
 		mptr[i] = (char *)malloc((i+1) * sizeof(int));
 
 		assert(mptr[i]);
 
-		for (j = 0; j < i; j++)
-		{
+		for (j = 0; j < i; j++) {
 			mptr[i][j] = j;
 		}
 		
-		mptr[i] = (char *)realloc(mptr[i], 
-					  (i + 1 + i) * sizeof(int));
+		mptr[i] = realloc(mptr[i], (i + 1 + i) * sizeof(int));
 
 		free(mptr[i]);
 	}
 
-	char* p = (char*) malloc(10);
+	char* p = malloc(10);
 	assert(p);
 
 	printc("reallocating p to 0\n");

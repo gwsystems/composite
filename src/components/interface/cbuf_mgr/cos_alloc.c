@@ -336,12 +336,6 @@ void free_page(void *ptr)
 
 static void* _libc_realloc(void* ptr, size_t size) {
 	if (ptr && size) {
-		// let's not worry about whether size is
-		// smaller or bigger than current size.
-		// Just allocate a new bit of memory,
-		// copy the data in,
-		// free the old memory
-
 		void* tmp = _alloc_libc_malloc(size);
 
 		if (!tmp) goto err_out;
@@ -352,7 +346,7 @@ static void* _libc_realloc(void* ptr, size_t size) {
 		return tmp;
 	}
 	else if (ptr && !size) {
-		_alloc_libc_free(ptr); // call our own functions here.
+		_alloc_libc_free(ptr);
 		ptr = NULL;
 		return ptr;
 	}
@@ -361,7 +355,6 @@ static void* _libc_realloc(void* ptr, size_t size) {
 		return ptr;
 	}
 	else {
-		// realloc(null, 0). Should still call malloc.
 		ptr = _alloc_libc_malloc(size);
 		return ptr;
 	}
