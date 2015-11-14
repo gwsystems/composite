@@ -18,13 +18,13 @@
  * 	ret	-> eax
  * 	fault	-> ecx
  * Some IPC can return multiple values, and they use additional registers:
- * 	ret2	-> ebx
- * 	ret3	-> edx
+ * 	ret2	-> esi
+ * 	ret3	-> edi
 */
 
 #define CSTUB_ASM_OUT(_ret, _fault) "=a" (_ret), "=c" (_fault)
 #define CSTUB_ASM_OUT_3RETS(_ret0, _fault, _ret1, _ret2) \
-	"=a" (_ret0), "=c" (_fault), "=b" (_ret1), "=d" (_ret2)
+	"=a" (_ret0), "=c" (_fault), "=S" (_ret1), "=D" (_ret2)
 
 /* input registers */
 #define CSTUB_ASM_IN_0(_uc) "a" (_uc->cap_no)
@@ -58,17 +58,19 @@
 		"movl %%eax, %%ecx\n\t" \
 		"3:\n\t"
 
-#define CSTUB_ASM_BODY_3RETS() \
-	CSTUB_ASM_BODY() \
-	"movl %%esi, %2\n\t" \
-	"movl %%edi, %3\n\t" \
-
 /* Pop the inputs back, note reverse order from push */
 #define CSTUB_ASM_POST() \
 		"popl %%ebp\n\t" \
 		"popl %%edx\n\t" \
 		"popl %%edi\n\t" \
 		"popl %%esi\n\t" \
+		"popl %%ebx\n\t"
+
+#define CSTUB_ASM_POST_3RETS() \
+		"popl %%ebp\n\t" \
+		"popl %%edx\n\t" \
+		"popl %%ebx\n\t" \
+		"popl %%ebx\n\t" \
 		"popl %%ebx\n\t"
 
 #define CSTUB_ASM(_narg, _ret, _fault, ...) \
@@ -82,8 +84,8 @@
 
 #define CSTUB_ASM_3RETS(_narg, _ret0, _fault, _ret1, _ret2, ...) \
 	__asm__ __volatile__( \
-		CSTUB_ASM_BODY_3RETS() \
-		CSTUB_ASM_POST() \
+		CSTUB_ASM_BODY() \
+		CSTUB_ASM_POST_3RETS() \
 		: CSTUB_ASM_OUT_3RETS(_ret0, _fault, _ret1, _ret2) \
 		: CSTUB_ASM_IN_##_narg(__VA_ARGS__) \
 		: "memory", "cc" \
