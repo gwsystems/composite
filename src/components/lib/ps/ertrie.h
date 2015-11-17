@@ -136,6 +136,7 @@ static inline u32_t name##_maxdepth(void) { return (u32_t)depth; }
 #define ERT_CREATE_DEF(name, depth, order, last_order, last_sz, allocfn) \
 ERT_CREATE(name, name##_ert, depth, order, sizeof(int*), last_order, last_sz, NULL, ert_definit, ert_defget, ert_defisnull, ert_defset, allocfn, ert_defsetleaf, ert_defgetleaf, ert_defresolve)
 
+/* maxid = min(2^wordsize, radix trie max representable) */
 static inline unsigned long
 __ert_maxid(ERT_CONST_PARAMS)
 { 

@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <stdlib.h>
+
 #include <ps_slab.h>
 
 #define SMALLSZ 1
@@ -47,8 +49,118 @@ chk(char *c, int sz, char val)
 struct small  *s[ITER];
 struct larger *l[ITER];
 
-int
-main(void)
+#define RB_SZ   (1024 * 32)
+#define RB_ITER (RB_SZ * 1024)
+
+void * volatile ring_buffer[RB_SZ] PS_ALIGNED;
+
+unsigned long long free_tsc, alloc_tsc;
+
+void
+consumer(void)
+{
+	struct small *s;
+	unsigned long i;
+	unsigned long long start, end, tot = 0;
+
+	meas_barrier(2);
+
+	for (i = 0 ; i < RB_ITER ; i++) {
+		unsigned long off = i % RB_SZ;
+
+		while (!ring_buffer[off]) ;
+		s = ring_buffer[off];
+		ring_buffer[off] = NULL;
+
+		start = ps_tsc();
+		ps_slab_free_s(s);
+		end = ps_tsc();
+		tot += end-start;
+	}
+	free_tsc = tot / RB_ITER;
+}
+
+void
+producer(void)
+{
+	struct small *s;
+	unsigned long i;
+	unsigned long long start, end, tot = 0;
+
+	meas_barrier(2);
+
+	for (i = 0 ; i < RB_ITER ; i++) {
+		unsigned long off = i % RB_SZ;
+		
+		while (ring_buffer[off]) ; 
+
+		start = ps_tsc();
+		s = ps_slab_alloc_s();
+		end = ps_tsc();
+		tot += end-start;
+
+		assert(s);
+		ring_buffer[off] = s;
+	}
+	alloc_tsc = tot / RB_ITER;
+}
+
+void *
+child_fn(void *d)
+{
+	(void)d;
+	
+	thd_set_affinity(pthread_self(), 1);
+	consumer();
+	
+	return NULL;
+}
+
+void
+test_remote_frees(void)
+{
+	pthread_t child;
+	
+	printf("Starting test for remote frees\n");
+
+	if (pthread_create(&child, 0, child_fn, NULL)) {
+		perror("pthread create of child\n");
+		exit(-1);
+	}
+
+	producer();
+
+	pthread_join(child, NULL);
+	printf("Remote allocations take %lld, remote frees %lld (unadjusted for tsc)\n", alloc_tsc, free_tsc);
+}
+
+void
+test_correctness(void)
+{
+	int i, j;
+
+	printf("Starting mark & check for increasing numbers of allocations.\n");
+	for (i = 0 ; i < ITER ; i++) {
+		l[i] = ps_slab_alloc_l();
+		mark(l[i]->x, sizeof(struct larger), i);
+		for (j = i+1 ; j < ITER ; j++) {
+			l[j] = ps_slab_alloc_l();
+			mark(l[j]->x, sizeof(struct larger), j);
+		}
+		for (j = i+1 ; j < ITER ; j++) {
+			chk(l[j]->x, sizeof(struct larger), j);
+			ps_slab_free_l(l[j]);
+		}
+	}
+	for (i = 0 ; i < ITER ; i++) {
+		assert(l[i]);
+		chk(l[i]->x, sizeof(struct larger), i);
+		ps_slab_free_l(l[i]);
+	}
+}
+
+void
+test_perf(void)
 {
 	int i, j;
 	unsigned long long start, end;
@@ -89,24 +201,16 @@ main(void)
 	end = ps_tsc();
 	end = (end-start)/(ITER*LARGECHUNK);
 	printf("Average cost of extern slab header, large slab alloc+free: %lld\n", end);
+}
 
-	printf("Starting mark & check for increasing numbers of allocations.\n");
-	for (i = 0 ; i < ITER ; i++) {
-		l[i] = ps_slab_alloc_l();
-		mark(l[i]->x, sizeof(struct larger), i);
-		for (j = i+1 ; j < ITER ; j++) {
-			l[j] = ps_slab_alloc_l();
-			mark(l[j]->x, sizeof(struct larger), j);
-		}
-		for (j = i+1 ; j < ITER ; j++) {
-			chk(l[j]->x, sizeof(struct larger), j);
-			ps_slab_free_l(l[j]);
-		}
-	}
-	for (i = 0 ; i < ITER ; i++) {
-		assert(l[i]);
-		chk(l[i]->x, sizeof(struct larger), i);
-		ps_slab_free_l(l[i]);
-	}
+int
+main(void)
+{
+	thd_set_affinity(pthread_self(), 0);
+
+	test_perf();
+	test_correctness();
+	test_remote_frees();
+
 	return 0;
 }

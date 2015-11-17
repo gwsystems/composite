@@ -12,6 +12,7 @@
 #include <time.h>
 
 #include <ps_smr.h>
+#include <ps_plat.h>
 
 struct parsec ps;
 PS_PARSLAB_CREATE(tst, 8000, PS_PAGE_SIZE * 128)
@@ -60,10 +61,13 @@ test_mem(void)
 }
 
 void test_smr(void);
+void test_remote_frees(void);
 
 int
 main(void)
 {
+	thd_set_affinity(pthread_self(), 0);
+
 	printf("Starting tests on core %d.\n", ps_coreid());
 	ps_init(&ps);
 	ps_mem_init_tst(&ps);
@@ -73,126 +77,13 @@ main(void)
 	test_mem();
 	printf("Testing Scalable Memory Reclamation.\n");
 	test_smr();
+	printf("Testing remote frees\n");
+	test_remote_frees();
 
 	return 0;
 }
 
-struct thd_active {
-	volatile int barrierval;
-} CACHE_ALIGNED;
-
-struct thd_active thd_active[PS_NUMCORES] PS_ALIGNED;
-
-/* Only used in Linux tests. */
-const int identity_mapping[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
-const int *cpu_assign        = identity_mapping;
-/* int cpu_assign[41] = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36, */
-/* 		      1, 5, 9, 13, 17, 21, 25, 29, 33, 37, */
-/* 		      2, 6, 10, 14, 18, 22, 26, 30, 34, 38, */
-/* 		      3, 7, 11, 15, 19, 23, 27, 31, 35, 39, -1}; */
-
-static void
-call_getrlimit(int id, char *name)
-{
-	struct rlimit rl;
-	(void)name;
-
-	if (getrlimit(id, &rl)) {
-		perror("getrlimit: ");
-		exit(-1);
-	}
-}
-
-static void
-call_setrlimit(int id, rlim_t c, rlim_t m)
-{
-	struct rlimit rl;
-
-	rl.rlim_cur = c;
-	rl.rlim_max = m;
-	if (setrlimit(id, &rl)) {
-		exit(-1);
-	}
-}
-
-void
-set_prio(void)
-{
-	struct sched_param sp;
-
-	call_getrlimit(RLIMIT_CPU, "CPU");
-#ifdef RLIMIT_RTTIME
-	call_getrlimit(RLIMIT_RTTIME, "RTTIME");
-#endif
-	call_getrlimit(RLIMIT_RTPRIO, "RTPRIO");
-	call_setrlimit(RLIMIT_RTPRIO, RLIM_INFINITY, RLIM_INFINITY);
-	call_getrlimit(RLIMIT_RTPRIO, "RTPRIO");
-	call_getrlimit(RLIMIT_NICE, "NICE");
-
-	if (sched_getparam(0, &sp) < 0) {
-		perror("getparam: ");
-		exit(-1);
-	}
-	sp.sched_priority = sched_get_priority_max(SCHED_RR);
-	if (sched_setscheduler(0, SCHED_RR, &sp) < 0) {
-		perror("setscheduler: ");
-		exit(-1);
-	}
-	if (sched_getparam(0, &sp) < 0) {
-		perror("getparam: ");
-		exit(-1);
-	}
-	assert(sp.sched_priority == sched_get_priority_max(SCHED_RR));
-
-	return;
-}
-
-void
-thd_set_affinity(pthread_t tid, int id)
-{
-	cpu_set_t s;
-	int ret, cpuid;
-	coreid_t cid, n;
-
-	cpuid = cpu_assign[id];
-	CPU_ZERO(&s);
-	CPU_SET(cpuid, &s);
-
-	ret = pthread_setaffinity_np(tid, sizeof(cpu_set_t), &s);
-	if (ret) {
-		printf("setting affinity error for cpu %d\n", cpuid);
-		assert(0);
-	}
-
-	/* set_prio(); */
-	/* confirm that the library's version of coreid == benchmark's */
-	ps_tsc_locality(&cid, &n);
-	assert(cpuid == cid);
-}
-
-/*
- * Trivial barrier
- */
-void
-meas_barrier(void)
-{
-	int cpu = ps_coreid();
-	int initval = thd_active[cpu].barrierval, doneval = !initval;
-
-	if (cpu == 0) {
-		int k;
-		for (k = 1 ; k < PS_NUMCORES ; k++) {
-			while (thd_active[k].barrierval == initval) ;
-		}
-		thd_active[0].barrierval = doneval;
-	} else {
-		thd_active[cpu].barrierval = doneval;
-		while (thd_active[0].barrierval == initval) ;
-	}
-	/* gogogo! */
-}
-
-#define N_OPS (10000000)
+#define N_OPS (50000000)
 #define N_LOG (N_OPS / PS_NUMCORES)
 static char ops[N_OPS] PS_ALIGNED;
 static unsigned long results[PS_NUMCORES][2] PS_ALIGNED;
@@ -285,11 +176,11 @@ worker(void *arg)
 
 	thd_set_affinity(pthread_self(), cpuid);
 
-	meas_barrier();
+	meas_barrier(PS_NUMCORES);
 	s = ps_tsc();
 	bench();
 	e = ps_tsc();
-	meas_barrier();
+	meas_barrier(PS_NUMCORES);
 
 	if (cpuid == 0) {
 		int i;
@@ -390,8 +281,6 @@ test_smr(void)
 		exit(-1);
 	}
 
-	thd_set_affinity(pthread_self(), 0);
-
 	load_trace();
 
 /* #ifndef SYNC_USE_RDTSC */
@@ -411,4 +300,91 @@ test_smr(void)
 	}
 
 	return;
+}
+
+
+
+#define RB_SZ   (1024 * 32)
+#define RB_ITER (RB_SZ * 1024)
+
+void * volatile ring_buffer[RB_SZ] PS_ALIGNED;
+
+unsigned long long free_tsc, alloc_tsc;
+
+void
+consumer(void)
+{
+	char *s;
+	unsigned long i;
+	unsigned long long start, end, tot = 0;
+
+	meas_barrier(2);
+
+	for (i = 0 ; i < RB_ITER ; i++) {
+		unsigned long off = i % RB_SZ;
+
+		while (!ring_buffer[off]) ;
+		s = ring_buffer[off];
+		ring_buffer[off] = NULL;
+
+		start = ps_tsc();
+		ps_mem_free_bench(s);
+		end = ps_tsc();
+		tot += end-start;
+	}
+	free_tsc = tot / RB_ITER;
+}
+
+void
+producer(void)
+{
+	char *s;
+	unsigned long i;
+	unsigned long long start, end, tot = 0;
+
+	meas_barrier(2);
+
+	for (i = 0 ; i < RB_ITER ; i++) {
+		unsigned long off = i % RB_SZ;
+		
+		while (ring_buffer[off]) ; 
+
+		start = ps_tsc();
+		s = ps_mem_alloc_bench();
+		end = ps_tsc();
+		tot += end-start;
+
+		assert(s);
+		ring_buffer[off] = s;
+	}
+	alloc_tsc = tot / RB_ITER;
+}
+
+void *
+child_fn(void *d)
+{
+	(void)d;
+	
+	thd_set_affinity(pthread_self(), 1);
+	consumer();
+	
+	return NULL;
+}
+
+void
+test_remote_frees(void)
+{
+	pthread_t child;
+	
+	printf("Starting test for remote frees\n");
+
+	if (pthread_create(&child, 0, child_fn, NULL)) {
+		perror("pthread create of child\n");
+		exit(-1);
+	}
+
+	producer();
+
+	pthread_join(child, NULL);
+	printf("Remote allocations take %lld, remote frees %lld (unadjusted for tsc)\n", alloc_tsc, free_tsc);
 }
