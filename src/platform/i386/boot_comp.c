@@ -5,9 +5,9 @@
 #include "mem_layout.h"
 #include "string.h"
 #include <pgtbl.h>
-#include <inv.h>
 #include <thd.h>
 #include <component.h>
+#include <inv.h>
 
 extern u8_t *boot_comp_pgd;
 
@@ -70,6 +70,7 @@ boot_pgtbl_mappings_add(struct captbl *ct, pgtbl_t pgtbl, capid_t ptecap, const 
 	return 0;
 }
 
+/* FIXME:  loops to create threads/tcaps/rcv caps per core. */
 static void
 kern_boot_thd(struct captbl *ct, void *thd_mem)
 {
@@ -85,10 +86,14 @@ kern_boot_thd(struct captbl *ct, void *thd_mem)
 	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE,
 			   thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
 	assert(!ret);
-
 	thd_current_update(t, t, cos_cpu_local_info());
 
-	printk("\tCreating initial thread in boot-component.\n");
+	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE,
+			    BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_INITTHD_BASE, 0, 1);
+	assert(!ret);
+	chal_timer_thd_init(t);
+
+	printk("\tCreating initial threads, tcaps, and rcv end-points in boot-component.\n");
 }
 
 void
@@ -163,6 +168,6 @@ kern_boot_upcall(void)
 
 	printk("Upcall into boot component at ip 0x%x\n", entry);
 	printk("------------------[ Kernel boot complete ]------------------\n");
-	chal_user_upcall(entry, thd_current(cos_cpu_local_info())->thread_id, get_cpuid());
+	chal_user_upcall(entry, thd_current(cos_cpu_local_info())->tid, get_cpuid());
 	assert(0); 		/* should never get here! */
 }

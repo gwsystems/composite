@@ -15,7 +15,7 @@ enum serial_ports {
 };
 
 static inline char
-serial_recv(void) 
+serial_recv(void)
 {
 	if ((inb(SERIAL_PORT_A + 5) & 1) == 0)
         	return '\0';
@@ -23,7 +23,7 @@ serial_recv(void)
 }
 
 static inline void
-serial_send(char out) 
+serial_send(char out)
 {
 	while ((inb(SERIAL_PORT_A + 5) & 0x20) == 0) {
 		/* wait for port to be ready to send */
@@ -32,16 +32,20 @@ serial_send(char out)
 }
 
 void
-serial_puts(const char *s) 
+serial_puts(const char *s)
 {
 	for (; *s != '\0'; s++)
 		serial_send(*s);
 }
 
-static void
-serial_handler(struct registers *r)
+void
+serial_handler(struct pt_regs *r)
 {
-	char serial = serial_recv();
+	char serial;
+
+	ack_irq(IRQ_SERIAL);
+
+	serial = serial_recv();
 
 	/*
 	 * Fix the serial input assuming it is ascii
@@ -55,19 +59,28 @@ serial_handler(struct registers *r)
 		case 13:
 			serial = '\n';
 			break;
+		case 3: /* FIXME: Obviously remove this once we have working components */
+			die("Break\n");
+		case 'o':
+			timer_set(TIMER_ONESHOT, 50000000);
+			timer_set(TIMER_ONESHOT, 50000000);
+			break;
+		case 'p':
+			timer_set(TIMER_PERIODIC, 100000000);
+			timer_set(TIMER_PERIODIC, 100000000);
+			break;
 		default:
 			break;
 	}
 
-	printk("Serial: %d\n", serial); 
+	printk("Serial: %d\n", serial);
 	//printk("%c", serial);
 }
 
 void
-serial_init(void) 
+serial_init(void)
 {
 	printk("Enabling serial I/O\n");
-	register_interrupt_handler(IRQ4, serial_handler);
 	printk_register_handler(serial_puts);
 
 	/* We will initialize the first serial port */

@@ -13,7 +13,6 @@
 #include "shared/consts.h"
 #include "shared/cos_types.h"
 #include "shared/util.h"
-#include "spd.h"
 #include "debug.h"
 #include "chal/cpuid.h"
 

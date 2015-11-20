@@ -11,6 +11,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #ifdef NIL
+
 static int __attribute__((format(printf,1,2)))
 printd(char *fmt, ...)
 {
@@ -112,14 +113,18 @@ __mem_bump_alloc(struct cos_compinfo *__ci, int km, vaddr_t *mem_ptr, vaddr_t *m
 
 static vaddr_t
 __kmem_bump_alloc(struct cos_compinfo *ci)
-{ 	printd("__kmem_bump_alloc\n");
-	return __mem_bump_alloc(ci, 1, &ci->mi.untyped_ptr, &ci->mi.untyped_range); }
+{
+	printd("__kmem_bump_alloc\n");
+	return __mem_bump_alloc(ci, 1, &ci->mi.untyped_ptr, &ci->mi.untyped_range);
+}
 
 /* this should back-up to using untyped memory... */
 static vaddr_t
 __umem_bump_alloc(struct cos_compinfo *ci)
-{ 	printd("__umem_bump_alloc\n");
-	return __mem_bump_alloc(ci, 0, &ci->mi.umem_ptr, &ci->mi.umem_range); }
+{
+	printd("__umem_bump_alloc\n");
+	return __mem_bump_alloc(ci, 0, &ci->mi.umem_ptr, &ci->mi.umem_range);
+}
 
 /**************** [Capability Allocation Functions] ****************/
 
@@ -336,9 +341,9 @@ __alloc_mem_cap(struct cos_compinfo *ci, cap_t ct, vaddr_t *kmem, capid_t *cap)
 {
 	printd("__alloc_mem_cap\n");
 
-	*kmem   = __kmem_bump_alloc(ci);
+	*kmem = __kmem_bump_alloc(ci);
 	if (!*kmem)   return -1;
-	*cap = __capid_bump_alloc(ci, ct);
+	*cap  = __capid_bump_alloc(ci, ct);
 	if (!*cap) return -1;
 	return 0;
 }
@@ -354,7 +359,8 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 	assert(ci && comp > 0);
 
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
-	assert(cap < (sizeof(u16_t)*8) && init_data < (sizeof(u16_t)*8));
+	assert(init_data < sizeof(u16_t)*8);
+	/* TODO: Add cap size checking */
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap, ci->pgtbl_cap, kmem, comp)) BUG();
 
 	return cap;
@@ -467,8 +473,16 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry)
 	return cap;
 }
 
+/*
+ * Arguments:
+ * thdcap:  the thread to activate on snds to the rcv endpoint.
+ * tcap:    TODO: the tcap to use for that execution.
+ * compcap: the component the rcv endpoint is visible in.
+ * arcvcap: the rcv * endpoint that is the scheduler to be activated
+ *          when the thread blocks on this endpoint.
+ */
 arcvcap_t
-cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, compcap_t compcap)
+cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, compcap_t compcap, arcvcap_t arcvcap)
 {
 	capid_t cap;
 
@@ -476,7 +490,7 @@ cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, compcap_t compcap)
 
 	cap = __capid_bump_alloc(ci, CAP_ARCV);
 	if (!cap) return 0;
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_ARCVACTIVATE, cap, thdcap, compcap, 0)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_ARCVACTIVATE, cap, thdcap, compcap, arcvcap)) BUG();
 
 	return cap;
 }
@@ -503,20 +517,15 @@ cos_page_bump_alloc(struct cos_compinfo *ci)
 
 int
 cos_thd_switch(thdcap_t c)
-{       printd("SCHED: cos_thd_switch\n");
-	return call_cap_op(c, 0, 0, 0, 0, 0); }
+{ return call_cap_op(c, 0, 0, 0, 0, 0); }
 
 int
 cos_asnd(asndcap_t snd)
-{
-	return 0;
-}
+{ return call_cap_op(snd, 0, 0, 0, 0, 0); }
 
 int
-cos_rcv(arcvcap_t rcv)
-{
-	return 0;
-}
+cos_rcv(arcvcap_t rcv, unsigned long *a, unsigned long *b)
+{ return call_cap_retvals_asm(rcv, 0, 0, 0, 0, 0, a, b); }
 
 int
 cos_mem_alias(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src)
@@ -534,4 +543,71 @@ int
 cos_mem_remove(pgtblcap_t pt, vaddr_t addr)
 {
 	return 0;
+}
+
+/***************** [Kernel Tcap Operations] *****************/
+
+static tcap_t
+__cos_tcap_alloc(struct cos_compinfo *ci, compcap_t comp, tcap_split_flags_t flags)
+{
+	vaddr_t kmem;
+	capid_t cap;
+
+	printd("cos_tcap_alloc\n");
+
+	assert (ci && comp > 0);
+
+	if (__alloc_mem_cap(ci, CAP_TCAP, &kmem, &cap)) return 0;
+	/* TODO: Add cap size checking */
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (flags << 16) | cap, ci->pgtbl_cap, kmem, comp)) BUG();
+
+	return cap;
+}
+
+tcap_t
+cos_tcap_split(struct cos_compinfo *ci, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_split_flags_t flags, compcap_t comp)
+{
+	int prio_higher = (u32_t)(prio >> 32);
+	int prio_lower  = (u32_t)((prio << 32) >> 32);
+
+	tcap_t ret;
+
+	ret = __cos_tcap_alloc(ci, comp, flags);
+
+	if (res != 0) if (call_cap_op(src, CAPTBL_OP_TCAP_TRANSFER, ret, res, prio_higher, prio_lower)) return 0;
+	return ret;
+}
+
+int
+cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio)
+{
+	int prio_higher = (u32_t)(prio >> 32);
+	int prio_lower  = (u32_t)((prio << 32) >> 32);
+
+	call_cap_op(src, CAPTBL_OP_TCAP_TRANSFER, dst, res, prio_higher, prio_lower);
+
+	return 0;
+}
+
+int
+cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags)
+{
+	int prio_higher = (u32_t)(prio >> 32);
+	int prio_lower  = (u32_t)((prio << 32) >> 32);
+	int ret = -EINVAL;
+
+	if (flags & TCAP_DELEG_TRANSFER) ret = call_cap_op(src, CAPTBL_OP_TCAP_DELEGATE, dst, res, prio_higher, prio_lower);
+
+	if (flags == TCAP_DELEG_DISPATCH) {
+		cos_asnd(dst);
+		ret = 0;
+	}
+
+	return ret;
+}
+
+int
+cos_tcap_merge(tcap_t dst, tcap_t rm)
+{
+	return call_cap_op(dst, CAPTBL_OP_TCAP_MERGE, rm, 0, 0, 0);
 }

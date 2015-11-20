@@ -7,19 +7,21 @@
 
 #include "include/shared/cos_types.h"
 #include "include/captbl.h"
-#include "include/inv.h"
 #include "include/thd.h"
 #include "include/chal/call_convention.h"
 #include "include/ipi_cap.h"
 #include "include/liveness_tbl.h"
 #include "include/chal/cpuid.h"
+#include "include/tcap.h"
+#include "include/chal/defs.h"
 
 #define COS_DEFAULT_RET_CAP 0
 
 #ifdef LINUX_TEST
 
 #include <stdio.h>
-static inline int printfn(struct pt_regs *regs) {
+static inline int
+printfn(struct pt_regs *regs) {
 	__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
 	return 0;
 }
@@ -102,7 +104,8 @@ done:
 }
 
 void cos_cap_ipi_handling(void);
-void cos_cap_ipi_handling(void)
+void
+cos_cap_ipi_handling(void)
 {
 	int idx, end;
 	struct IPI_receiving_rings *receiver_rings;
@@ -267,8 +270,6 @@ err:
 	return ret;
 }
 
-extern void *memset(void *dst, int c, unsigned long int count);
-
 /* Updates the pte, deref the frame and zero out the page. */
 int
 kmem_deact_post(unsigned long *pte, unsigned long old_v)
@@ -307,8 +308,6 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 	int sz, ret;
 	cap_t cap_type;
 
-	/* printk("copy from captbl %d, cap %d to captbl %d, cap %d\n", */
-	/*        cap_from, capin_from, cap_to, capin_to); */
 	ctfrom = captbl_lkup(t, cap_from);
 	if (unlikely(!ctfrom)) return -ENOENT;
 
@@ -392,8 +391,6 @@ cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to,
 	int ret;
 	cap_t cap_type;
 
-	/* printk("copy from captbl %d, cap %d to captbl %d, cap %d\n", */
-	/*        cap_from, capin_from, cap_to, capin_to); */
 	ctfrom = captbl_lkup(t, cap_from);
 	if (unlikely(!ctfrom)) return -ENOENT;
 
@@ -443,44 +440,187 @@ cap_move(struct captbl *t, capid_t cap_to, capid_t capin_to,
 }
 
 static int
-cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next, struct cos_cpu_local_info *cos_info)
+cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next,
+	       struct comp_info *ci, struct cos_cpu_local_info *cos_info)
 {
 	int preempt = 0;
 	struct comp_info *next_ci = &(next->invstk[next->invstk_top].comp_info);
 
+	assert(!(curr->state & THD_STATE_PREEMPTED));
+	if (unlikely(curr == next)) {
+		assert(!(curr->state & (THD_STATE_RCVING)));
+		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
+		return 0;
+	}
+
 	assert(next_ci && curr && next);
+	/* FIXME: trigger fault for the next thread */
 	if (unlikely(!ltbl_isalive(&next_ci->liveness))) {
-		printk("cos: comp (liveness %d) doesn't exist!\n", next_ci->liveness.id);
-		//FIXME: add fault handling here.
 		__userregs_set(regs, -EFAULT, __userregs_getsp(regs), __userregs_getip(regs));
-		return preempt;
+		return 0;
 	}
 
 	copy_gp_regs(regs, &curr->regs);
-	__userregs_set(&curr->regs, COS_SCHED_RET_SUCCESS, __userregs_getsp(regs), __userregs_getip(regs));
+	__userregs_set(&curr->regs, 0, __userregs_getsp(&curr->regs), __userregs_getip(&curr->regs));
 
 	thd_current_update(next, curr, cos_info);
-	/* TODO: check current pgtbl is different or not. */
-	pgtbl_update(next_ci->pgtbl);
+	if (likely(ci->pgtbl != next_ci->pgtbl)) pgtbl_update(next_ci->pgtbl);
 
 	/* TODO: check FPU */
 	/* fpu_save(thd); */
-	if (next->flags & THD_STATE_PREEMPTED) {
-		cos_meas_event(COS_MEAS_SWITCH_PREEMPT);
-		next->flags &= ~THD_STATE_PREEMPTED;
+	if (next->state & THD_STATE_PREEMPTED) {
+		assert(!(next->state & THD_STATE_RCVING));
+		next->state &= ~THD_STATE_PREEMPTED;
 		preempt = 1;
-	}
+	} else if (next->state & THD_STATE_RCVING) {
+		unsigned long a = 0, b = 0;
 
-	/* update_sched_evts(thd, thd_sched_flags, curr, curr_sched_flags); */
-	/* event_record("switch_thread", thd_get_id(thd), thd_get_id(next)); */
+		assert(!(next->state & THD_STATE_PREEMPTED));
+		next->state &= ~THD_STATE_RCVING;
+		thd_state_evt_deliver(next, &a, &b);
+		__userregs_setretvals(&next->regs, thd_rcvcap_pending_dec(next), a, b);
+	}
 	copy_gp_regs(&next->regs, regs);
 
 	return preempt;
 }
 
-#define ENABLE_KERNEL_PRINT
+static int
+cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
+	   struct comp_info *ci, struct cos_cpu_local_info *cos_info)
+{
+	struct thread *next = thd_cap->t;
+	capid_t arcv        = __userregs_get1(regs);
+
+	if (thd_cap->cpuid != get_cpuid() || next->cpuid != get_cpuid()) return -EINVAL;
+
+	if (arcv) {
+		struct cap_arcv *arcv_cap;
+		struct thread *rcvt;
+
+		arcv_cap = (struct cap_arcv *)captbl_lkup(ci->captbl, arcv);
+		if (!arcv_cap || arcv_cap->h.type != CAP_ARCV || arcv_cap->cpuid != get_cpuid()) {
+			return -EINVAL;
+		}
+		rcvt = arcv_cap->thd;
+		if (thd_rcvcap_pending(rcvt) > 0) next = rcvt;
+	}
+
+	return cap_switch_thd(regs, thd, next, ci, cos_info);
+}
+
+/**
+ * Process the send event, and notify the appropriate end-points.
+ * Return the thread that should be executed next.
+ */
+static struct thread *
+asnd_process(struct thread *rcv_thd, struct thread *thd)
+{
+	struct thread *next;
+	struct thread *arcv_notif;
+
+	thd_rcvcap_pending_inc(rcv_thd);
+
+	arcv_notif = arcv_thd_notif(rcv_thd);
+	if (arcv_notif) thd_rcvcap_evt_enqueue(arcv_notif, rcv_thd);
+
+	/* TODO: tcap decision point. */
+	next = rcv_thd;
+	/* next = thd; */
+	/* if (next != thd) next->interrupted_thread = thd; */
+
+	return next;
+}
+
+static int
+cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
+	    struct comp_info *ci, struct cos_cpu_local_info *cos_info)
+{
+	int curr_cpu = get_cpuid();
+	struct cap_arcv *arcv;
+	struct thread *rcv_thd, *next;
+
+	assert(asnd->arcv_capid);
+	/* IPI notification to another core */
+	if (asnd->arcv_cpuid != curr_cpu) return cos_cap_send_ipi(asnd->arcv_cpuid, asnd);
+
+	if (unlikely(!ltbl_isalive(&(asnd->comp_info.liveness)))) return -EFAULT;
+	arcv = (struct cap_arcv *)captbl_lkup(asnd->comp_info.captbl, asnd->arcv_capid);
+	if (unlikely(!arcv || arcv->h.type != CAP_ARCV))          return -EINVAL;
+	/* FIXME: check arcv epoch + liveness */
+
+	rcv_thd = arcv->thd;
+	next = asnd_process(rcv_thd, thd);
+
+	return cap_switch_thd(regs, thd, next, ci, cos_info);
+}
 
 int
+capinv_int_snd(struct thread *rcv_thd, struct pt_regs *regs)
+{
+	struct comp_info *ci;
+	struct thread *thd, *next;
+	struct cos_cpu_local_info *cos_info;
+	unsigned long ip, sp;
+
+	printk("i");
+	cos_info = cos_cpu_local_info();
+	assert(cos_info);
+	thd      = thd_current(cos_info);
+	assert(thd);
+	ci       = thd_invstk_current(thd, &ip, &sp, cos_info);
+	assert(ci  && ci->captbl);
+	assert(!thd->state & THD_STATE_PREEMPTED);
+
+	next     = asnd_process(rcv_thd, thd);
+	if (next == thd) return 0;
+
+	printk("s");
+	thd->state |= THD_STATE_PREEMPTED;
+	return cap_switch_thd(regs, thd, next, ci, cos_info);
+}
+
+
+static int
+cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
+	    struct comp_info *ci, struct cos_cpu_local_info *cos_info)
+{
+	struct thread *next;
+
+	if (unlikely(arcv->thd != thd || arcv->cpuid != get_cpuid())) return -EINVAL;
+
+	/* deliver pending notifications? */
+	if (thd_rcvcap_pending(thd)) {
+		unsigned long a = 0, b = 0;
+
+		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
+		thd_state_evt_deliver(thd, &a, &b);
+		__userregs_setretvals(regs, thd_rcvcap_pending_dec(thd), a, b);
+		return 0;
+	}
+
+	if (thd->interrupted_thread) {
+		next = thd->interrupted_thread;
+		assert(next->state & THD_STATE_PREEMPTED);
+		thd->interrupted_thread = NULL;
+	} else {
+		next = arcv_thd_notif(thd);
+		/* root capability? */
+		if (!next) return -EAGAIN;
+		thd_rcvcap_evt_enqueue(next, thd);
+	}
+
+	if (likely(thd != next)) {
+		assert(!(thd->state & THD_STATE_PREEMPTED));
+		thd->state |= THD_STATE_RCVING;
+	}
+
+	return cap_switch_thd(regs, thd, next, ci, cos_info);
+}
+
+#define ENABLE_KERNEL_PRINT
+
+static int
 composite_syscall_slowpath(struct pt_regs *regs);
 
 __attribute__((section("__ipc_entry"))) COS_SYSCALL int
@@ -495,9 +635,8 @@ composite_syscall_handler(struct pt_regs *regs)
 	syscall_op_t op;
 	/*
 	 * We lookup this struct (which is on stack) only once, and
-	 * pass it into other functions to avoid unnecessary lookup.
+	 * pass it into other functions to avoid redundant lookups.
 	 */
-
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	int ret = -ENOENT;
 
@@ -507,11 +646,12 @@ composite_syscall_handler(struct pt_regs *regs)
 	cap = __userregs_getcap(regs);
 	thd = thd_current(cos_info);
 
-	/* printk("thd %d calling cap %d, operation %d: %x, %x, %x, %x\n", thd->tid, cap, __userregs_getop(regs), */
+	/* printk("thd %d calling cap %d (ip %x, sp %x), operation %d: %x, %x, %x, %x\n", thd->tid, cap, */
+	/*        __userregs_getip(regs), __userregs_getsp(regs), __userregs_getop(regs), */
 	/*        __userregs_get1(regs), __userregs_get2(regs), __userregs_get3(regs), __userregs_get4(regs)); */
 
 
-	/* fast path: invocation return */
+	/* fast path: invocation return (avoiding captbl accesses) */
 	if (cap == COS_DEFAULT_RET_CAP) {
 		/* No need to lookup captbl */
 		sret_ret(thd, regs, cos_info);
@@ -527,9 +667,11 @@ composite_syscall_handler(struct pt_regs *regs)
 	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
 	assert(ci && ci->captbl);
 
-	/* We don't check liveness of current component because it's
-	 * guaranteed by component quiescence period, which is at
-	 * timer tick granularity.*/
+	/*
+	 * We don't check the liveness of the current component
+	 * because it's guaranteed by component quiescence period,
+	 * which is at timer tick granularity.
+	 */
 	ch = captbl_lkup(ci->captbl, cap);
 	if (unlikely(!ch)) {
 		printk("cos: cap %d not found!\n", (int)cap);
@@ -541,93 +683,40 @@ composite_syscall_handler(struct pt_regs *regs)
 		return 0;
 	}
 
-	/* Some less common cases: thread dispatch, asnd and arcv
-	 * operations. */
-	if (ch->type == CAP_THD) {
-		struct cap_thd *thd_cap = (struct cap_thd *)ch;
-		struct thread *next = thd_cap->t;
-
-		if (thd_cap->cpuid != get_cpuid()) cos_throw(err, -EINVAL);
-		assert(thd_cap->cpuid == next->cpuid);
-
-		// QW: hack!!! for ppos test only. remove!
-		next->interrupted_thread = thd;
-
-		return cap_switch_thd(regs, thd, next, cos_info);
-	} else if (ch->type == CAP_ASND) {
-		int curr_cpu = get_cpuid();
-		struct cap_asnd *asnd = (struct cap_asnd *)ch;
-
-		assert(asnd->arcv_capid);
-
-		if (asnd->arcv_cpuid != curr_cpu) {
-			/* Cross core: sending IPI */
-			ret = cos_cap_send_ipi(asnd->arcv_cpuid, asnd);
-			/* printk("sending ipi to cpu %d. ret %d\n", asnd->arcv_cpuid, ret); */
-		} else {
-			struct cap_arcv *arcv;
-
-			printk("NOT tested yet.\n");
-
-			if (unlikely(!ltbl_isalive(&(asnd->comp_info.liveness)))) {
-				// fault handle?
-				cos_throw(err, -EFAULT);
-			}
-
-			arcv = (struct cap_arcv *)captbl_lkup(asnd->comp_info.captbl, asnd->arcv_capid);
-			if (unlikely(arcv->h.type != CAP_ARCV)) {
-				printk("cos: IPI handling received invalid arcv cap %d\n", asnd->arcv_capid);
-				cos_throw(err, -EINVAL);
-			}
-
-			return cap_switch_thd(regs, thd, arcv->thd, cos_info);
-		}
-
-		goto done;
-	} else if (ch->type == CAP_ARCV) {
-		struct cap_arcv *arcv = (struct cap_arcv *)ch;
-
-		/*FIXME: add epoch checking!*/
-
-		if (arcv->thd != thd) {
-			cos_throw(err, -EINVAL);
-		}
-		/* Sanity checks */
-		assert(arcv->cpuid == get_cpuid());
-		assert(arcv->comp_info.pgtbl = ci->pgtbl);
-		assert(arcv->comp_info.captbl = ci->captbl);
-
-		if (arcv->pending) {
-			arcv->pending--;
-			cos_throw(done, 0);
-		}
-		if (thd->interrupted_thread == NULL) {
-			/* FIXME: handle this case by upcalling into
-			 * scheduler, or switch to a scheduling
-			 * thread. */
-			printk("ERROR: not implemented yet!\n");
-			cos_throw(err, -1);
-		} else {
-			thd->arcv_cap = cap;
-			thd->flags &= !THD_STATE_ACTIVE_UPCALL;
-			thd->flags |= THD_STATE_READY_UPCALL;
-
-			return cap_switch_thd(regs, thd, thd->interrupted_thread, cos_info);
-		}
-
-		goto done;
+	/*
+	 * Some less common, but still optimized cases:
+	 * thread dispatch, asnd and arcv operations.
+	 */
+	switch (ch->type) {
+	case CAP_THD:
+		ret = cap_thd_op((struct cap_thd *)ch, thd, regs, ci, cos_info);
+		if (ret < 0) cos_throw(done, ret);
+		return ret;
+	case CAP_ASND:
+		ret = cap_asnd_op((struct cap_asnd *)ch, thd, regs, ci, cos_info);
+		if (ret < 0) cos_throw(done, ret);
+		return ret;
+	case CAP_ARCV: {
+		ret = cap_arcv_op((struct cap_arcv *)ch, thd, regs, ci, cos_info);
+		if (ret < 0) cos_throw(done, ret);
+		return ret;
+	}
 	}
 
-
+	/* slowpath restbl (captbl and pgtbl) operations */
 	ret = composite_syscall_slowpath(regs);
-err:
 done:
+	/*
+	 * Note: we need to return ret to user-level, which is not the
+	 * return value of this function.  Thus the level of
+	 * indirection here.
+	 */
 	__userregs_set(regs, ret, __userregs_getsp(regs), __userregs_getip(regs));
 
 	return 0;
 }
 
-int
+static int __attribute__((noinline))
 composite_syscall_slowpath(struct pt_regs *regs)
 {
 	struct cap_header *ch;
@@ -906,8 +995,9 @@ composite_syscall_slowpath(struct pt_regs *regs)
 		{
 			capid_t thd_cap  = __userregs_get2(regs);
 			capid_t comp_cap = __userregs_get3(regs);
+			capid_t arcv_cap = __userregs_get4(regs);
 
-			ret = arcv_activate(ct, cap, capin, comp_cap, thd_cap);
+			ret = arcv_activate(ct, cap, capin, comp_cap, thd_cap, arcv_cap, 0);
 			break;
 		}
 		case CAPTBL_OP_ARCVDEACTIVATE:
@@ -1067,7 +1157,7 @@ composite_syscall_slowpath(struct pt_regs *regs)
 			pte = pgtbl_lkup_pte(((struct cap_pgtbl *)ch)->pgtbl, addr, &flags);
 
 			if (pte) ret = *pte;
-			else ret = 0;
+			else 	 ret = 0;
 
 			break;
 		}
@@ -1084,6 +1174,94 @@ composite_syscall_slowpath(struct pt_regs *regs)
 		 * default return cap.*/
 		sret_ret(thd, regs, cos_info);
 		return 0;
+	}
+	case CAP_TCAP:
+	{
+		switch (op){
+		case CAPTBL_OP_TCAP_ACTIVATE:
+		{
+			capid_t tcap_cap 	 = __userregs_get1(regs) & 0xFFFF;
+			int flags 	    	 = __userregs_get1(regs) >> 16;
+			capid_t pgtbl_cap    	 = __userregs_get2(regs);
+			capid_t pgtbl_addr   	 = __userregs_get3(regs);
+			capid_t compcap      	 = __userregs_get4(regs);
+			struct cap_tcap *tcapsrc;
+
+			tcapsrc = (struct cap_tcap *)captbl_lkup(ci->captbl, tcap_cap);
+			if (tcapsrc->h.type != CAP_TCAP) cos_throw(err, -EINVAL);
+
+			struct tcap *tcap_new;
+			unsigned long *pte = NULL;
+
+			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&tcap_new, &pte);
+			if (unlikely(ret)) cos_throw(err, ret);
+
+			ret = tcap_split(cap, tcap_new, tcap_cap, ct, compcap, tcapsrc, flags);
+			if(ret) {
+				unsigned long old = *pte;
+				assert (old & PGTBL_COSKMEM);
+
+				retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
+				*pte = old & ~PGTBL_COSKMEM;
+			}
+
+			break;
+		}
+		case CAPTBL_OP_TCAP_TRANSFER:
+		{
+			capid_t tcpdst 		 = __userregs_get1(regs);
+			long long res 		 = __userregs_get2(regs);
+			u32_t prio_higher 	 = __userregs_get3(regs);
+			u32_t prio_lower 	 = __userregs_get4(regs);
+			tcap_prio_t prio 	 = (tcap_prio_t)prio_higher << 32 | (tcap_prio_t)prio_lower;
+			struct cap_tcap *tcapsrc = (struct cap_tcap *)ch;
+			struct cap_tcap *tcapdst;
+
+			tcapdst = (struct cap_tcap *)captbl_lkup(ci->captbl, tcpdst);
+			if (tcapdst->h.type != CAP_TCAP) cos_throw(err, -EINVAL);
+
+			ret = tcap_transfer(tcapdst->tcap, tcapsrc->tcap, res, prio);
+			if (unlikely(ret)) cos_throw(err, -EINVAL);
+
+			break;
+		}
+		case CAPTBL_OP_TCAP_DELEGATE:
+		{
+			capid_t arcv_cap 	 = __userregs_get1(regs);
+			long long res 		 = __userregs_get2(regs);
+			u32_t prio_higher 	 = __userregs_get3(regs);
+			u32_t prio_lower 	 = __userregs_get4(regs);
+			tcap_prio_t prio 	 = (tcap_prio_t)prio_lower << 32 | (tcap_prio_t)prio_lower;
+			struct cap_tcap *tcapsrc = (struct cap_tcap *)ch;
+			struct cap_arcv *arcv;
+
+			arcv = (struct cap_arcv *)captbl_lkup(ci->captbl, arcv_cap);
+			if (arcv->h.type != CAP_ARCV) cos_throw(err, -EINVAL);
+
+			struct tcap *tcapdst = arcv->thd->tcap;
+
+			ret = tcap_delegate(tcapsrc->tcap, tcapdst, res, prio);
+			if (unlikely(ret)) cos_throw(err, -EINVAL);
+
+			break;
+		}
+		case CAPTBL_OP_TCAP_MERGE:
+		{
+			capid_t tcaprem		 = __userregs_get1(regs);
+			struct cap_tcap *tcapdst = (struct cap_tcap *)ch;
+			struct cap_tcap *tcaprm;
+
+			tcaprm = (struct cap_tcap *)captbl_lkup(ci->captbl, tcaprem);
+			if (tcaprm->h.type != CAP_TCAP) cos_throw(err, -EINVAL);
+
+			ret = tcap_merge(tcapdst->tcap, tcaprm->tcap);
+			if (unlikely(ret)) cos_throw(err, -ENOENT);
+
+			break;
+		}
+		default: goto err;
+		}
+
 	}
 	default: break;
 	}

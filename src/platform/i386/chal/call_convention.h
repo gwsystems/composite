@@ -1,29 +1,28 @@
 #ifndef CALL_CONVENTION_H
 #define CALL_CONVENTION_H
 
-#include "../../../kernel/include/inv.h"
 #include "../../../kernel/include/asm_ipc_defs.h"
 
-/* 
+/*
  * Functions to maintain calling conventions on invocation and return
  * (i.e. to make sure the registers are appropriately set up).
  */
-static inline void 
+static inline void
 __userregs_setret(struct pt_regs *regs, unsigned long ret)
 { regs->ax = ret; }
-static inline unsigned long 
+static inline unsigned long
 __userregs_getsp(struct pt_regs *regs)
 { return regs->bp; }
-static inline unsigned long 
+static inline unsigned long
 __userregs_getip(struct pt_regs *regs)
 { return regs->cx; }
-static inline capid_t 
+static inline capid_t
 __userregs_getcap(struct pt_regs *regs)
 { return (regs->ax >> COS_CAPABILITY_OFFSET) - 1; }
 static inline u32_t
 __userregs_getop(struct pt_regs *regs)
 { return regs->ax & ((1<<COS_CAPABILITY_OFFSET) - 1); }
-static inline unsigned long 
+static inline unsigned long
 __userregs_getinvret(struct pt_regs *regs)
 { return regs->cx; } /* cx holds the return value on invocation return path. */
 static inline void
@@ -32,6 +31,13 @@ __userregs_set(struct pt_regs *regs, unsigned long ret, unsigned long sp, unsign
 	regs->ax = ret;
 	regs->sp = regs->cx = sp;
 	regs->ip = regs->dx = ip;
+}
+static inline void
+__userregs_setretvals(struct pt_regs *regs, unsigned long ret, unsigned long ret1, unsigned long ret2)
+{
+	regs->ax = ret;
+	regs->si = ret1;
+	regs->di = ret2;
 }
 static inline void
 __userregs_sinvupdate(struct pt_regs *regs)

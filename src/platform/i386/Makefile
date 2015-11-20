@@ -5,7 +5,7 @@ LD := ld -m elf_i386
 AS := as --32 -g
 
 INCPATH := ../../kernel/include
-CFLAGS := -g3 -Werror -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdlib -mno-red-zone -I$(INCPATH)
+CFLAGS := -g3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdlib -mno-red-zone -I$(INCPATH)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 
 KERNEL := kernel.img
@@ -30,7 +30,6 @@ CFLAGS += $(WARNINGS)
 
 OBJS += kernel.o
 OBJS += gdt.o
-OBJS += isr.o
 OBJS += idt.o
 OBJS += vm.o
 OBJS += printk.o
@@ -42,13 +41,15 @@ OBJS += serial.o
 OBJS += timer.o
 OBJS += chal.o
 OBJS += boot_comp.o
+OBJS += miniacpi.o
 #OBJS += console.o
+OBJS += vga.o
 
 COS_OBJ += pgtbl.o
 COS_OBJ += retype_tbl.o
 COS_OBJ += liveness_tbl.o
+COS_OBJ += tcap.o
 COS_OBJ += capinv.o
-COS_OBJ += measurement.o
 COS_OBJ += captbl.o
 COS_OBJ += per_cpu.o
 
@@ -60,11 +61,10 @@ all: $(KERNEL)
 
 $(KERNEL): linker.ld $(DEPS) $(OBJS) loader.o
 	$(info |     [LD]   Linking $@)
-	$(LD) -T linker.ld loader.o asm.o entry.o $(OBJS) -o $@
+	$(LD) -T linker.ld loader.o entry.o $(OBJS) -o $@
 
-loader.o: loader.S interrupt.s entry.S
+loader.o: loader.S entry.S
 	$(info |     [AS]   Assembling $@)
-	@$(AS) -c -o asm.o interrupt.s
 	@$(CC) -c -I$(INCPATH) entry.S
 	@$(CC) -c -I$(INCPATH) loader.S
 
@@ -76,6 +76,10 @@ per_cpu.o: ../../kernel/per_cpu.c
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 pgtbl.o: ../../kernel/pgtbl.c
+	$(info |     [CC]   Compiling $@)
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+tcap.o: ../../kernel/tcap.c
 	$(info |     [CC]   Compiling $@)
 	@$(CC) $(CFLAGS) -c $< -o $@
 

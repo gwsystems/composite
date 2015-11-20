@@ -13,8 +13,10 @@
 #include "inv.h" /* need access to cap_asnd/arcv*/
 #include "shared/cos_types.h"
 
-/* Ring size should be power of 2 */
-/* We have N*N rings (N= # of cpus). */
+/*
+ * Ring size should be power of 2
+ * We have N*N rings (N= # of cpus).
+ */
 #define IPI_RING_SIZE (16)
 #define IPI_RING_MASK (IPI_RING_SIZE - 1);
 
@@ -33,9 +35,11 @@ struct xcore_ring {
 	char ___pad[CACHE_LINE - (sizeof(struct ipi_cap_data) * IPI_RING_SIZE) % CACHE_LINE];
 } CACHE_ALIGNED __attribute__((packed));
 
-/* We make sure that, on the receiving side, the source rings are
+/*
+ * We make sure that, on the receiving side, the source rings are
  * lined up as we'll scan them upon receiving. This should benefit
- * the pre-fetcher. */
+ * the pre-fetcher.
+ */
 struct IPI_receiving_rings {
 	struct xcore_ring IPI_source[NUM_CPU];
 	/* Start core of each scan. Need to prevent starving. */
@@ -46,7 +50,7 @@ struct IPI_receiving_rings {
 
 struct IPI_receiving_rings IPI_cap_dest[NUM_CPU] CACHE_ALIGNED;
 
-static inline u32_t 
+static inline u32_t
 cos_ipi_ring_dequeue(struct xcore_ring *ring, struct ipi_cap_data *ret) {
 	/* printk("core %d ring : %x, sender %d, receiver %d\n", get_cpuid(), ring, ring->sender.tail, ring->receiver.head); */
 
@@ -54,13 +58,14 @@ cos_ipi_ring_dequeue(struct xcore_ring *ring, struct ipi_cap_data *ret) {
 	memcpy(ret, &ring->ring[ring->receiver], sizeof(struct ipi_cap_data));
 
 	ring->receiver = (ring->receiver + 1) & IPI_RING_MASK;
-	
+
 	cos_mem_fence();
 
 	return 1;
 }
 
-static inline void handle_ipi_arcv(struct ipi_cap_data *data)
+static inline void
+handle_ipi_arcv(struct ipi_cap_data *data)
 {
 	struct comp_info *ci = &data->comp_info;
 	struct cap_arcv *arcv;
@@ -73,14 +78,12 @@ static inline void handle_ipi_arcv(struct ipi_cap_data *data)
 		return;
 	}
 
-	/* printk("core %d receives ipi for acap %d, %x (thd %d) in spd %d\n",  */
-	/*        get_cpuid(), acap_id, acap, acap->upcall_thd, spd_id); */
-
 	/* Activate the associated thread. */
 	chal_attempt_arcv(arcv);
 }
 
-static inline void process_ring(struct xcore_ring *ring) {
+static inline void
+process_ring(struct xcore_ring *ring) {
 	struct ipi_cap_data data;
 
 	while ((cos_ipi_ring_dequeue(ring, &data)) != 0) {
@@ -88,7 +91,7 @@ static inline void process_ring(struct xcore_ring *ring) {
 	}
 }
 
-static inline int 
+static inline int
 cos_ipi_ring_enqueue(u32_t dest, struct cap_asnd *asnd) {
 	struct xcore_ring *ring = &IPI_cap_dest[dest].IPI_source[get_cpuid()];
 	u32_t tail = ring->sender;
@@ -97,20 +100,14 @@ cos_ipi_ring_enqueue(u32_t dest, struct cap_asnd *asnd) {
 
 	delta = (tail + 1) & IPI_RING_MASK;
 	data = &ring->ring[tail];
-	if (unlikely(delta == ring->receiver)) {
-		/* printk("cos: IPI ring buffer full (from core %d to %d)\n", get_cpuid(), dest); */
-		return -1;
-	}
+	if (unlikely(delta == ring->receiver)) return -1;
 
 	data->arcv_capid = asnd->arcv_capid;
 	data->arcv_epoch = asnd->arcv_epoch;
-	/* printk("core %d writing to %p %p %p %p\n",  */
-	/*        get_cpuid(), ring, &ring->sender, &ring->receiver, &data->comp_info); */
 	memcpy(&data->comp_info, &asnd->comp_info, sizeof(struct comp_info));
 
 	ring->sender = delta;
 
-	/* Memory fence */
 	cos_mem_fence();
 
 	return 0;

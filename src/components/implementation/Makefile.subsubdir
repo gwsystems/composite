@@ -68,7 +68,7 @@ fndeps:
 # Jumping through hoops: want to link to our libraries first so that
 # symbols there are used, thus the gcc, and the ld, but then (and only
 # then) do we want to use dietlibc's functions
-$(COMPONENT): $(OBJS) 
+$(COMPONENT): $(OBJS)
 #	$(info |     [LD]   $@: Loading stubs and cos libraries $(if $(strip $(LIB_LIBRARIES)),including $(LIB_LIBRARIES)) into $<)
 	$(info |     [LD]   $(COMPNAME) ($@): Linking $(if $(strip $(LIB_LIBRARIES)),$(LIB_LIBRARIES)) $^)
 	@$(LD) $(LDFLAGS) -r -o $@.$(TMP_STR) $^ $(IF_SERV_STUBS) $(IF_CLIENT_STUBS) $(LIB_ASM_MANDITORY) $(LIB_FLAGS)
@@ -109,4 +109,3 @@ clean:
 fresh: clean all
 
 -include $(SOURCE_DEPENDENCIES)
-

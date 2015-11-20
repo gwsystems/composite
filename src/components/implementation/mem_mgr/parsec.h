@@ -66,12 +66,12 @@ enum {
 
 /* void * worker(void *arg); */
 
-static inline void 
+static inline void
 spin_delay(unsigned long long cycles)
 {
 	unsigned long long s, e, curr;
 
-	rdtscll(s); 
+	rdtscll(s);
 	e = s + cycles;
 
 	curr = s;
@@ -96,12 +96,12 @@ extern int cpu_assign[41];
 #define PAGE_ALIGNED  __attribute__((aligned(PAGE_SIZE)))
 #define EQUIESCENCE (200)
 
-/* 
+/*
  * Return values:
  * 0 on failure due to contention (*target != old)
  * 1 otherwise (*target == old -> *target = updated)
  */
-static inline int 
+static inline int
 cos_cas(unsigned long *target, unsigned long old, unsigned long updated)
 {
 	char z;
@@ -120,7 +120,7 @@ static inline void cos_mem_fence(void)
 }
 
 void thd_set_affinity(pthread_t tid, int cpuid);
-static inline pthread_t 
+static inline pthread_t
 create_timer_thd(int cpuid)
 {
 	pthread_t t;
@@ -162,7 +162,7 @@ struct percpu_info {
 	/* Quiescence_timing info of other CPUs known by this CPU */
 	struct other_cpu timing_others[NUM_CPU];
 	/* padding an additional cacheline for prefetching */
-	char __padding[CACHE_LINE*2 - ((sizeof(struct other_cpu)*NUM_CPU) % CACHE_LINE)];
+	char __padding[CACHE_LINE*2 - (((sizeof(struct other_cpu)*NUM_CPU)+sizeof(struct quiescence_timing)) % CACHE_LINE)];
 } CACHE_ALIGNED PACKED;
 
 struct global_timestamp {
@@ -176,14 +176,14 @@ volatile struct global_timestamp glb_ts CACHE_ALIGNED;
  * timestamp at coarse granularity. Only a single thread should be
  * calling the increment function. */
 
-static inline void 
-global_timestamp_inc(void) 
+static inline void
+global_timestamp_inc(void)
 {
 	ck_pr_faa_uint((unsigned int *)&(glb_ts.ts), 2);
 	cos_mem_fence();
 }
 
-static inline quie_time_t 
+static inline quie_time_t
 get_global_timestamp(void)
 {
 	return glb_ts.ts;
@@ -193,15 +193,15 @@ get_global_timestamp(void)
 extern __thread int thd_local_id;
 
 /* For now, we assume per-thread instead of per-cpu. */
-static inline int 
-get_cpu(void) 
+static inline int
+get_cpu(void)
 {
 	return thd_local_id;
 }
 #else
 
-static inline int 
-get_cpu(void) 
+static inline int
+get_cpu(void)
 {
 	return cos_cpuid();
 }
@@ -210,11 +210,11 @@ get_cpu(void)
 
 #define SYNC_USE_RDTSC
 
-static inline quie_time_t 
-get_time(void) 
+static inline quie_time_t
+get_time(void)
 {
 	quie_time_t curr_t;
-	
+
 #ifdef SYNC_USE_RDTSC
 	rdtscll(curr_t);
 #else
@@ -237,8 +237,8 @@ struct quie_mem_meta {
 	/* 	       - sizeof(struct quie_mem_meta *)- sizeof(size_t)]; */
 } ;
 typedef struct quie_mem_meta quie_meta_t;
-static inline unsigned int 
-round2next_pow2(unsigned int v) 
+static inline unsigned int
+round2next_pow2(unsigned int v)
 {
 	/* compute the next highest power of 2 of 32-bit v */
 	v--;
@@ -372,7 +372,7 @@ parsec_item_size(void *item)
 	return i->size;
 }
 
-static inline int 
+static inline int
 parsec_desc_activate(void *item)
 {
 	struct quie_mem_meta *m = item - sizeof(struct quie_mem_meta);
@@ -382,7 +382,7 @@ parsec_desc_activate(void *item)
 	return 0;
 }
 
-static inline int 
+static inline int
 parsec_desc_deact(void *item)
 {
 	struct quie_mem_meta *m = item - sizeof(struct quie_mem_meta);
@@ -426,7 +426,7 @@ qwq_add_freeitem(void *item, struct parsec_allocator *alloc)
 {
 	struct quie_queue *queue;
 	struct quie_mem_meta *meta;
-	
+
 	meta = item - sizeof(struct quie_mem_meta);
 	/* Should have been marked already. Set it anyway. */
 	meta->flags |= PARSEC_FLAG_DEACT;
@@ -470,7 +470,7 @@ quie_queue_remove(struct quie_queue *queue)
 	queue->head = ret->next;
 	ret->next = NULL;
 	queue->n_items--;
-	
+
 	if (queue->n_items == 0) queue->tail = NULL;
 
 	/* printc("queue remove: %d items\n", queue->n_items); */
@@ -483,7 +483,7 @@ size2slab(size_t orig_size)
 {
 	unsigned int i;
 	unsigned int size = orig_size;
-	
+
 	if (!size) return 0;
 
 	/* less than a cacheline uses same slab. */
@@ -512,7 +512,7 @@ size2slab(size_t orig_size)
 int glb_freelist_add(void *item, struct parsec_allocator *alloc);
 
 #define STRIDE 16
-static inline int 
+static inline int
 glb_freelist_get(struct quie_queue *queue, size_t size, struct parsec_allocator *alloc)
 {
 	struct quie_mem_meta *next, *head, *last;

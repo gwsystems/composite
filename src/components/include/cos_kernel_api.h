@@ -9,7 +9,6 @@
 
 #include <cos_component.h>
 #include <cos_debug.h>
-
 /* Types mainly used for documentation */
 typedef capid_t sinvcap_t;
 typedef capid_t sretcap_t;
@@ -64,17 +63,22 @@ thdcap_t  cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn
 /* Create the initial (cos_init) thread */
 thdcap_t  cos_initthd_alloc(struct cos_compinfo *ci, compcap_t comp);
 sinvcap_t cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry);
-arcvcap_t cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, compcap_t compcap);
+arcvcap_t cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, compcap_t compcap, arcvcap_t enotif);
 asndcap_t cos_asnd_alloc(struct cos_compinfo *ci, arcvcap_t arcvcap, captblcap_t ctcap);
 
 void *cos_page_bump_alloc(struct cos_compinfo *ci);
 
 int cos_thd_switch(thdcap_t c);
 int cos_asnd(asndcap_t snd);
-int cos_rcv(arcvcap_t rcv);
+int cos_rcv(arcvcap_t rcv, unsigned long *a, unsigned long *b);
 
 int cos_mem_alias(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src);
 int cos_mem_move(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src);
 int cos_mem_remove(pgtblcap_t pt, vaddr_t addr);
 
+/* Tcap operations */
+tcap_t cos_tcap_split(struct cos_compinfo *ci, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_split_flags_t flags, compcap_t comp);
+int cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio);
+int cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags);
+int cos_tcap_merge(tcap_t dst, tcap_t rm);
 #endif /* COS_KERNEL_API_H */

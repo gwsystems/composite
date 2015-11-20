@@ -30,6 +30,11 @@ typedef signed int       s32_t;
 typedef signed long long s64_t;
 #endif
 
+#define LLONG_MAX 9223372036854775807LL
+
+typedef s64_t tcap_res_t;
+typedef u64_t tcap_prio_t;
+typedef u64_t tcap_uid_t;
 #define PRINT_CAP_TEMP (1 << 14)
 
 #define BOOT_LIVENESS_ID_BASE 2
@@ -68,6 +73,10 @@ typedef enum {
 	CAPTBL_OP_THDDEACTIVATE_ROOT,
 	CAPTBL_OP_MEMMOVE,
 	CAPTBL_OP_INTROSPECT,
+	CAPTBL_OP_TCAP_ACTIVATE,
+	CAPTBL_OP_TCAP_TRANSFER,
+	CAPTBL_OP_TCAP_DELEGATE,
+	CAPTBL_OP_TCAP_MERGE,
 } syscall_op_t;
 
 typedef enum {
@@ -83,6 +92,7 @@ typedef enum {
 	CAP_FRAME, 		/* untyped frame within a page-table */
 	CAP_VM, 		/* mapped virtual memory within a page-table */
 	CAP_QUIESCENCE,         /* when deactivating, set to track quiescence state */
+	CAP_TCAP, 		/* tcap captable entry */
 } cap_t;
 
 typedef unsigned long capid_t;
@@ -168,13 +178,15 @@ enum {
 	BOOT_CAPTBL_PHYSM_PTE  = 14,
 	BOOT_CAPTBL_KM_PTE     = 16,
 
-	BOOT_CAPTBL_COMP0_CT          = 18,
-	BOOT_CAPTBL_COMP0_PT          = 20,
-	BOOT_CAPTBL_COMP0_COMP        = 24,
-	BOOT_CAPTBL_SELF_INITTHD_BASE = 28,
-	BOOT_CAPTBL_LAST_CAP          = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
+	BOOT_CAPTBL_COMP0_CT           = 18,
+	BOOT_CAPTBL_COMP0_PT           = 20,
+	BOOT_CAPTBL_COMP0_COMP         = 24,
+	BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
+	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
+	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU_COS*CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
+	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU_COS*CAP32B_IDSZ,
 	/* round up to next entry */
-	BOOT_CAPTBL_FREE              = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
+	BOOT_CAPTBL_FREE               = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };
 
 enum {
@@ -247,8 +259,6 @@ attr struct __##name##_percore_decl name[NUM_CPU]
  * separately in user(cos_component.h) and kernel(per_cpu.h).*/
 #define PERCPU_GET(name)                (&(name[GET_CURR_CPU].name))
 #define PERCPU_GET_TARGET(name, target) (&(name[target].name))
-
-#include "../measurement.h"
 
 #define COS_SYSCALL __attribute__((regparm(0)))
 
@@ -762,40 +772,6 @@ static inline void atomic_dec(atomic_t *v)
 }
 #endif /* __KERNEL__ */
 
-static inline void cos_ref_take(atomic_t *rc)
-{
-#if NUM_CPU_COS > 1
-	/* use atomic instructions when we have multicore. We will get
-	 * rid of this later(by using capabilities as ref counter). */
-	atomic_inc(rc);
-#else
-	rc->counter++;
-#endif
-	cos_meas_event(COS_MPD_REFCNT_INC);
-}
-
-static inline void cos_ref_set(atomic_t *rc, unsigned int val)
-{
-	rc->counter = val;
-}
-
-static inline unsigned int cos_ref_val(atomic_t *rc)
-{
-	return rc->counter;
-}
-
-static inline void cos_ref_release(atomic_t *rc)
-{
-#if NUM_CPU_COS > 1
-	/* same as cos_ref_take. */
-	atomic_dec(rc);
-#else
-	rc->counter--; /* assert(rc->counter != 0) */
-#endif
-
-	cos_meas_event(COS_MPD_REFCNT_DEC);
-}
-
 // ncpu * 16 (or max 256) entries. can be increased if necessary.
 #define COS_THD_INIT_REGION_SIZE (((NUM_CPU*16) > (1<<8)) ? (1<<8) : (NUM_CPU*16))
 // Static entries are after the dynamic allocated entries
@@ -805,6 +781,24 @@ static inline void cos_mem_fence(void)
 {
 	__asm__ __volatile__("mfence" ::: "memory");
 }
+
+#define TCAP_RES_GRAN_ORD  16
+#define TCAP_RES_PACK(r)   (round_up_to_pow2((r), 1 << TCAP_RES_GRAN_ORD))
+#define TCAP_RES_EXPAND(r) ((r) << TCAP_RES_GRAN_ORD)
+#define TCAP_RES_INF LLONG_MAX
+#define TCAP_RES_IS_INF(r) (r == TCAP_RES_INF)
+
+typedef capid_t tcap_t;
+
+typedef enum {
+	TCAP_SPLIT_POOL = 1,
+} tcap_split_flags_t;
+
+typedef enum {
+	TCAP_DELEG_TRANSFER = 1,
+	TCAP_DELEG_DISPATCH = 1<<1,
+} tcap_deleg_flags_t;
+
 
 #ifndef __KERNEL_PERCPU
 #define __KERNEL_PERCPU 0
