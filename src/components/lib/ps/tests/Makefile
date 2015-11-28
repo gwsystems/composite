@@ -1,7 +1,7 @@
-CINC    = -I../ -I.
+CINC    = -I../ -I. -I../plat/
 CC      = gcc
 LD      = $(CC)
-LDFLAGS = -pthread
+LDFLAGS = -pthread -L..
 COPT    = -O3
 CWARN   = -Wno-long-long
 CFLAGS  = -Wall -Wpedantic -Wextra -pthread $(CWARN) $(COPT)
@@ -10,6 +10,13 @@ CFLAGS  = -Wall -Wpedantic -Wextra -pthread $(CWARN) $(COPT)
 CFILES  = $(wildcard ../*.c)
 COBJS   = $(patsubst %.c,%.o,$(CFILES))
 CDEPS   = $(patsubst %.c,%.d,$(CFILES))
+CNAME   = ps
+CLIB    = ../lib$(CNAME).a
+
+# platform
+PCFILES = $(wildcard ../plat/*.c)
+PCOBJS  = $(patsubst %.c,%.o,$(PCFILES))
+PCDEPS  = $(patsubst %.c,%.d,$(PCFILES))
 
 # tests
 TCFILES = $(wildcard *.c) # test .c files
@@ -17,12 +24,12 @@ TCOBJS  = $(patsubst %.c,%.o,$(TCFILES))
 TCDEPS  = $(patsubst %.c,%.d,$(TCFILES))
 EXECS   = $(patsubst %.c,%.test,$(TCFILES))
 
-.PHONY: all setup setup-linux64 clean
+.PHONY: setup setup-linux64 clean all
 
-all: $(CDEPS) $(TCDEPS) $(EXECS)
+all: $(EXECS)
 
 setup-linux64:
-	cd .. ; rm ps_plat.h ; ln -s ps_plat_linux.h ps_plat.h
+	cd .. ; rm -f ps_plat.h ; ln -s plat/ps_plat_linux.h ps_plat.h
 
 setup: setup-linux64
 
@@ -35,10 +42,13 @@ setup: setup-linux64
 %.o:%.c
 	$(CC) -I.. $(CINC) $(CFLAGS) -o $@ -c $<
 
-%.test:%.o $(COBJS)
-	$(LD) $(LDFLAGS) -o $@ $^
+$(CLIB):$(COBJS) $(PCOBJS)
+	$(AR) cr $@ $^
+
+%.test:%.o $(CLIB)
+	$(LD) $(LDFLAGS) -o $@ $< -l$(CNAME)
 
 clean:
-	rm -f $(EXECS) $(TCOBJS) $(TCDEPS) $(COBJS) $(CDEPS) *.d* ../*.d*
+	rm -f $(EXECS) $(TCOBJS) $(COBJS) $(PCOBJS) $(CLIB) *.d* ../*.d* ../plat/*.d*
 
--include $(CDEPS) $(TCDEPS)
+-include $(CDEPS) $(TCDEPS) $(PCDEPS)

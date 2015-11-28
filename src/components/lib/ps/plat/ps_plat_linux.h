@@ -6,6 +6,12 @@
 #include <stdio.h>
 #include <string.h>
 
+/* Linux library */
+#include <pthread.h>
+void set_prio(void);
+void thd_set_affinity(pthread_t tid, int id);
+void meas_barrier(int ncores);
+
 #define u16_t unsigned short int
 #define u32_t unsigned int
 #define u64_t unsigned long long
@@ -17,7 +23,7 @@ static inline void *
 ps_plat_alloc(size_t sz, coreid_t coreid)
 { 
 	(void)coreid; 
-	return mmap(0, sz, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0); 
+	return mmap(0, sz, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0);
 }
 
 static inline void
@@ -154,6 +160,15 @@ ps_upcas(unsigned long *target, unsigned long old, unsigned long updated)
                              : "q"  (updated), "a"  (old)
                              : "memory", "cc");
         return (int)z;
+}
+
+static inline long
+ps_upfaa(unsigned long *target, long inc)
+{
+        __asm__ __volatile__(PS_FAA_STR
+                             : "+m" (*target), "+q" (inc)
+                             : : "memory", "cc");
+        return inc;
 }
 
 static inline void

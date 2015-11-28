@@ -126,8 +126,15 @@ struct ps_smr_info {
 	size_t             qmemtarget; /* # of items in qsc_list before we attempt to quiesce */
 };
 
+typedef void *(*ps_lkupan_fn_t)(void *v, unsigned long id, u32_t dlimit, void *accum);
+typedef int   (*ps_expand_fn_t)(void *v, unsigned long id, u32_t dlimit, void *accum, void *memctxt, void *data);
+
 struct ps_ns_info {
 	void *ert;
+	size_t ert_depth;
+	ps_lkupan_fn_t lkupfn;
+	ps_expand_fn_t expandfn;
+
 	size_t desc_range; 	/* num descriptors per slab */
 	ps_desc_t desc_max;
 	char  padding[PS_CACHE_PAD-sizeof(void *)];

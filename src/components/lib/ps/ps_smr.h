@@ -88,7 +88,9 @@ __ps_smr_free(void *buf, struct ps_mem *mem, ps_free_fn_t ffn)
 	 * to its native core by the remote free logic within the slab
 	 * allocator.  This might cause some cache coherency traffic
 	 * that we wouldn't otherwise have due to qlist operations
-	 * (i.e. writing to the ->next field within the header).
+	 * (i.e. writing to the ->next field within the header), but
+	 * has the large benefit that we don't have to complicate the
+	 * free-time ordering of memory chunks in the quiescence list.
 	 */
 	__ps_mhead_setfree(m, tsc);
 	__ps_qsc_enqueue(ql, m);

@@ -62,6 +62,41 @@ static inline unsigned long
 __ps_slab_objsoff(struct ps_slab *s, struct ps_mheader *h, size_t obj_sz, size_t headoff)
 { return ((unsigned long)h - ((unsigned long)s->memory + headoff)) / __ps_slab_objmemsz(obj_sz); }
 
+#ifdef PS_SLAB_DEBUG
+static inline void
+__ps_slab_check_consistency(struct ps_slab *s)
+{
+	struct ps_mheader *h;
+	unsigned int i;
+
+	assert(s);
+	h = s->freelist;
+	for (i = 0 ; h ; i++) {
+		assert(h->slab == s);
+		assert(h->tsc_free != 0);
+		h = h->next;
+	}
+	assert(i == s->nfree);
+}
+
+static inline void
+__ps_slab_freelist_check(struct ps_slab_freelist *fl)
+{
+	struct ps_slab *s = fl->list;
+	
+	if (!s) return;
+	do {
+		assert(s->memory && s->freelist);
+		assert(ps_list_prev(ps_list_next(s, list), list) == s);
+		assert(ps_list_next(ps_list_prev(s, list), list) == s);
+		__ps_slab_check_consistency(s);
+	} while ((s = ps_list_first(s, list)) != fl->list);
+}
+#else  /* PS_SLAB_DEBUG */
+static inline void __ps_slab_check_consistency(struct ps_slab *s) { (void)s; }
+static inline void __ps_slab_freelist_check(struct ps_slab_freelist *fl) { (void)fl; }
+#endif /* PS_SLAB_DEBUG */
+
 static void
 __slab_freelist_rem(struct ps_slab_freelist *fl, struct ps_slab *s)
 {
@@ -91,7 +126,7 @@ __slab_freelist_add(struct ps_slab_freelist *fl, struct ps_slab *s)
 #define PS_SLAB_DEWARN (void)coreid; (void)obj_sz; (void)allocsz; (void)headoff; (void)afn; (void)ffn
 
 /* Create function prototypes for cross-object usage */
-#define PS_SLAB_CREATE_PROTOS(name)				\
+#define PS_SLAB_CREATE_PROTOS(name)			\
 inline void  *ps_slab_alloc_##name(void);		\
 inline void   ps_slab_free_##name(void *buf);		\
 inline size_t ps_slab_objmem_##name(void);		\
@@ -104,25 +139,6 @@ void ps_slab_deffree(struct ps_mem *m, struct ps_slab *x, size_t sz, coreid_t co
 struct ps_slab *ps_slab_defalloc(struct ps_mem *m, size_t sz, coreid_t coreid);
 void ps_slabptr_init(struct ps_mem *m);
 
-static inline void
-__ps_slab_check_consistency(struct ps_slab *s)
-{
-#ifdef PS_SLAB_DEBUG
-	struct ps_mheader *h;
-	unsigned int i;
-
-	assert(s);
-	h = s->freelist;
-	for (i = 0 ; h ; i++) {
-		assert(h->slab == s);
-		assert(h->tsc_free != 0);
-		h = h->next;
-	}
-	assert(i == s->nfree);
-#else
-	(void)s;
-#endif
-}
 
 static inline void
 __ps_slab_mem_free(void *buf, struct ps_mem *mem, PS_SLAB_PARAMS)
@@ -151,7 +167,6 @@ __ps_slab_mem_free(void *buf, struct ps_mem *mem, PS_SLAB_PARAMS)
 	s->freelist = h; 	/* TODO: should be atomic/locked */
 	h->next     = next;
 	s->nfree++;		/* TODO: ditto */
-	__ps_slab_check_consistency(s);
 
 	if (s->nfree == max_nobjs) {
 		/* remove from the freelist */
@@ -162,8 +177,10 @@ __ps_slab_mem_free(void *buf, struct ps_mem *mem, PS_SLAB_PARAMS)
 		fl = &mem->percore[coreid].slab_info.fl;
 		/* add back onto the freelists */
 		assert(ps_list_empty(s, list));
+		assert(s->memory && s->freelist);
 		__slab_freelist_add(fl, s);
 	}
+	__ps_slab_freelist_check(&mem->percore[coreid].slab_info.fl);
 
 	return;
 }
@@ -187,17 +204,18 @@ __ps_slab_mem_alloc(struct ps_mem *mem, PS_SLAB_PARAMS)
 		/* allocation function must initialize s->memory */
 		s = afn(mem, allocsz, coreid);
 		if (unlikely(!s)) return NULL;
-
+		
 		__ps_slab_init(s, si, PS_SLAB_ARGS);
+		assert(s->memory && s->freelist);
 	}
 
+	assert(s && s->freelist);
 	/* TODO: atomic modification to the freelist */
 	h           = s->freelist;
 	s->freelist = h->next;
 	h->next     = NULL;
 	s->nfree--;
 	__ps_mhead_reset(h);
-	__ps_slab_check_consistency(s);
 
 	/* remove from the freelist */
 	if (s->nfree == 0) {
@@ -205,6 +223,7 @@ __ps_slab_mem_alloc(struct ps_mem *mem, PS_SLAB_PARAMS)
 		assert(ps_list_empty(s, list));
 	}
 	assert(!__ps_mhead_isfree(h));
+	__ps_slab_freelist_check(&si->fl);
 
 	return __ps_mhead_mem(h);
 }
