@@ -6,7 +6,7 @@
  * gparmer@gwu.edu, 2012
  */
 
-/* 
+/*
  * The Composite Hardware Abstraction Layer, or Hijack Abstraction
  * Layer (cHAL) is the layer that defines the platform-specific
  * functionality that requires specific implementations not only for
@@ -22,7 +22,7 @@
 
 #include "shared/cos_types.h"
 
-/* 
+/*
  * Namespacing in the cHAL: chal_<family>_<operation>(...).  <family>
  * is the family of operations such as pgtbl or addr operations, and
  * <operation> is the operation to perform on that family of
@@ -33,18 +33,18 @@
  * Platform page-table manipulations *
  *************************************/
 
-/* 
+/*
  * Switch to the specified page-tables.  This will not only switch the
  * loaded page tables on the current cpu, but also any backing
  * data-structures that are tracked in the platform code.
- * 
+ *
  * This function must be specified in the chal_plat.h file.
  */
 static inline void chal_pgtbl_switch(paddr_t pt);
-/* 
+/*
  * Switch any backing data-structures for the "current" page-table,
  * but _not_ the actual loaded page-tables.
- * 
+ *
  * This function must be specified in the chal_plat.h file.
  */
 static inline void __chal_pgtbl_switch(paddr_t pt);
@@ -69,6 +69,8 @@ int chal_pgtbl_add_middledir(paddr_t pt, unsigned long vaddr);
 int chal_pgtbl_rem_middledir(paddr_t pt, unsigned long vaddr);
 int chal_pgtbl_rem_middledir_range(paddr_t pt, unsigned long vaddr, long size);
 int chal_pgtbl_add_middledir_range(paddr_t pt, unsigned long vaddr, long size);
+
+void chal_tls_update(vaddr_t tlsaddr);
 
 /*********************************
  * Address translation functions *

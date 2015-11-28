@@ -100,7 +100,7 @@ restore_from_thd:
 	iret
 
 #define IRQPROC(fn)  \
-	pushl $(SEL_UDSEG); 	\
+	pushl $(SEL_UGSEG); 	\
 	pushl $(SEL_UDSEG); 	\
 	pushl $(SEL_UDSEG);	\
 	pushl $(SEL_UDSEG);	\

@@ -60,6 +60,7 @@ struct thread {
 	struct invstk_entry invstk[THD_INVSTK_MAXSZ];
 
 	thd_state_t state;
+	u32_t tls;
 	cpuid_t cpuid;
 	unsigned int refcnt;
 	unsigned long exec;  		/* execution time */
@@ -118,7 +119,7 @@ thd_upcall_setup(struct thread *thd, u32_t entry_addr, int option, int arg1, int
  */
 extern u32_t free_thd_id;
 static u32_t
-alloc_thd_id(void)
+thdid_alloc(void)
 {
         /* FIXME: thd id address space management. */
 	if (unlikely(free_thd_id >= MAX_NUM_THREADS)) assert(0);
@@ -213,7 +214,7 @@ thd_activate(struct captbl *t, capid_t cap, capid_t capin, struct thread *thd, c
 	/* initialize the thread */
 	memcpy(&(thd->invstk[0].comp_info), &compc->info, sizeof(struct comp_info));
 	thd->invstk[0].ip = thd->invstk[0].sp = 0;
-	thd->tid          = alloc_thd_id();
+	thd->tid          = thdid_alloc();
 	thd->refcnt       = 1;
      	thd->invstk_top   = 0;
 	thd->cpuid        = get_cpuid();
@@ -289,6 +290,20 @@ err:
 	return ret;
 }
 
+static int
+thd_tls_set(struct captbl *ct, capid_t thd_cap, vaddr_t tlsaddr)
+{
+	struct cap_thd *tc;
+
+	tc = (struct cap_thd *)captbl_lkup(ct, thd_cap);
+	if (!tc || tc->h.type != CAP_THD || get_cpuid() != tc->cpuid) return -EINVAL;
+
+	assert(tc->t);
+	tc->t->tls = tlsaddr;
+
+	return 0;
+}
+
 static void
 thd_init(void)
 {
@@ -304,10 +319,9 @@ static inline void
 thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
 {
 	/* commit the cached data */
-	prev->invstk_top = cos_info->invstk_top;
+	prev->invstk_top     = cos_info->invstk_top;
 	cos_info->invstk_top = next->invstk_top;
-
-	cos_info->curr_thd = (void *)next;
+	cos_info->curr_thd   = (void *)next;
 }
 
 static inline int curr_invstk_inc(struct cos_cpu_local_info *cos_info)
