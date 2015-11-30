@@ -545,6 +545,11 @@ cos_mem_remove(pgtblcap_t pt, vaddr_t addr)
 	return 0;
 }
 
+/* TODO: generalize to modify all state */
+int
+cos_thd_mod(struct cos_compinfo *ci, thdcap_t tc, void *tlsaddr)
+{ return call_cap_op(ci->captbl_cap, CAPTBL_OP_THDTLSSET, tc, (int)tlsaddr, 0, 0); }
+
 /***************** [Kernel Tcap Operations] *****************/
 
 static tcap_t

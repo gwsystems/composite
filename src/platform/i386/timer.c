@@ -8,13 +8,15 @@
 #define rdtscll(val) __asm__ __volatile__("rdtsc" : "=A" (val))
 
 /*
- These addressess are specified as offsets from the base HPET pointer, which is
- a 1024-byte region of memory-mapped registers. The reason we use offsets
- rather than a struct or bitfields is that ALL accesses, both read and write,
- must be aligned at 32- or 64-bit boundaries and must read or write an entire
- 32- or 64-bit value at a time. Packed structs cause GCC to produce code which
- attempts to operate on the single byte level, which fails.
-*/
+ * These addressess are specified as offsets from the base HPET
+ * pointer, which is a 1024-byte region of memory-mapped
+ * registers. The reason we use offsets rather than a struct or
+ * bitfields is that ALL accesses, both read and write, must be
+ * aligned at 32- or 64-bit boundaries and must read or write an
+ * entire 32- or 64-bit value at a time. Packed structs cause GCC to
+ * produce code which attempts to operate on the single byte level,
+ * which fails.
+ */
 
 #define HPET_OFFSET(n) ((unsigned char*)hpet + n)
 

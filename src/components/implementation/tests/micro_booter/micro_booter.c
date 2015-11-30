@@ -39,15 +39,33 @@ printc(char *fmt, ...)
 
 struct cos_compinfo booter_info;
 
+#define TEST_NTHDS 5
+int tls_test[TEST_NTHDS];
+
+static unsigned long
+tls_get(size_t off)
+{
+	unsigned long val;
+
+	__asm__ __volatile__("movl %%gs:(%1), %0" : "=r" (val) : "r" (off) : );
+
+	return val;
+}
+
+static void
+tls_set(size_t off, unsigned long val)
+{ __asm__ __volatile__("movl %0, %%gs:(%1)" : : "r" (val), "r" (off) : "memory"); }
+
 static void
 thd_fn(void *d)
 {
-	printc("\tNew thread %d with argument %d\n", cos_thdid(), (int)d);
+	printc("\tNew thread %d with argument %d, capid %d\n", cos_thdid(), (int)d, tls_test[(int)d]);
+	/* Test the TLS support! */
+	assert(tls_get(0) == tls_test[(int)d]);
 	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 	printc("Error, shouldn't get here!\n");
 }
 
-#define TEST_NTHDS 5
 static void
 test_thds(void)
 {
@@ -57,6 +75,8 @@ test_thds(void)
 	for (i = 0 ; i < TEST_NTHDS ; i++) {
 		ts[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn, (void *)i);
 		assert(ts[i]);
+		tls_test[i] = i;
+		cos_thd_mod(&booter_info, ts[i], &tls_test[i]);
 		printc("switchto %d\n", (int)ts[i]);
 		cos_thd_switch(ts[i]);
 	}

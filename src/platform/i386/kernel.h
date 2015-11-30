@@ -37,7 +37,8 @@ typedef enum {
     TIMER_ONESHOT = 1,
 } timer_type_t;
 
-#define DEFAULT_FREQUENCY 10000
+/* measured in cycles */
+#define DEFAULT_TIMER_INTERARRIVAL 1000000
 
 void timer_set(timer_type_t timer_type, u64_t cycles);
 void timer_init(timer_type_t timer_type, u64_t cycles);
@@ -54,6 +55,8 @@ void *acpi_find_rsdt(void);
 void *acpi_find_timer(void);
 void acpi_set_rsdt_page(u32_t);
 void kern_paging_map_init(void *pa);
+
+void tls_update(u32_t addr);
 
 //void printk(const char *fmt, ...);
 int printk_register_handler(void (*handler)(const char *));
