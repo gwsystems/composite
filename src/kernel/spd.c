@@ -48,7 +48,6 @@ struct spd *virtual_namespace_query(unsigned long addr)
 
 int virtual_namespace_free(struct spd *spd, unsigned long addr, unsigned int size)
 {
-	unsigned long a;
 	unsigned long addr_from_idx = addr>>HPAGE_SHIFT;
 	/* FIXME: this should be rounding up not down */
 	unsigned int addr_to_idx = addr_from_idx + (size>>HPAGE_SHIFT);

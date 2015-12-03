@@ -370,8 +370,9 @@ done:
 	return ret;
 }
 
+// What are these definitions?
 int 
-twritep(spdid_t spdid, td_t td, int cbid, int sz)
+twritep(spdid_t spdid, td_t td, int cbid, int size, unsigned int sz)
 {
 	int ret = -1;
 	struct torrent *t;

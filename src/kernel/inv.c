@@ -409,7 +409,7 @@ thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_
 	 * has to be dest_spd, otherwise static_ipc_walk fails, but
 	 * how do we fix-up the curr_spd then? */
 	if (unlikely(!__fault_ipc_invoke(thd, packed_spds, packed_counts, &thd->regs, fault_num, dest_spd))) return (vaddr_t)NULL;
-	printk("cos: fault thd reg args: si = %d, di = %d, ip = %x\n", thd->regs.si, thd->regs.di, thd->regs.ip);
+	printk("cos: fault thd reg args: si = %d, di = %d, ip = %lu\n", thd->regs.si, thd->regs.di, thd->regs.ip);
 	ret->si = thd->regs.si;
 	ret->di = thd->regs.di;
 	ret->bp = thd->regs.bp;

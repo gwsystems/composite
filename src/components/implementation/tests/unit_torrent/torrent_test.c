@@ -21,7 +21,69 @@
 
 char buffer[1024];
 
-void cos_init(void)
+void twritep_readp_tests(void)
+{
+	td_t t1, t2;
+	long evt1, evt2;
+	char *params1 = "bar";
+	char *params2 = "foo/";
+	char *params3 = "foo/bar";
+	char *data1 = "1234567890", *data2 = "asdf;lkj", *data3 = "asdf;lkj1234567890";
+	int ret1, ret2;
+
+	int a = 0, b = 0, c = 0;
+	
+	printc("calling tsplit\n");
+	t1 = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_ALL, evt1);
+	if (t1 < 1) {
+		printc("UNIT TEST FAILED: split2 failed %d\n", t1); return;
+	}
+	
+	printc("creating a cbuf\n");
+	cbuf_t cb;
+	char *d = cbuf_alloc(10, &cb);
+	if (!d) {
+		printc("UNIT TEST FAILED: split2 failed %d\n", d); return;
+	}
+	memcpy(d, "hello!", 6);
+
+	printc("calling write\n");
+	c = twritep(cos_spd_id(), t1, cb, 0, 6);
+	
+	// Another write
+	cbuf_t cb2;
+	char *e = cbuf_alloc(30, &cb2);
+	if (!e) {
+		printc("UNIT TEST FAILED: split2 failed %d\n", e); return;
+	}
+	memcpy(e, "This is a hardcoded string.", 6);
+	c = twritep(cos_spd_id(), t1, cb2, 0, 30);
+
+	// Close the file so we can read from it
+	trelease(cos_spd_id(), t1);
+
+	// now test read
+	a = 0; b = 0; c = 0;
+	t1 = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_ALL, evt1);
+	if (t1 < 1) {
+		printc("UNIT TEST FAILED: split2 failed %d\n", t1); return;
+	}
+
+	printc("calling read\n");
+	c = treadp(cos_spd_id(), t1, &a, &b);
+
+	char *buf = cbuf2buf(c, 6);
+	printc("printing cbuf:\n");
+	printc("%s\n", buf);
+	printc("%s\n", d);
+	printc("done printing cbuf\n");	
+
+	printc("UNIT TEST Unit tests for torrents - specifically treadp, twritep...\n");
+
+	return;
+}
+
+void twrite_read_tests(void)
 {
 	td_t t1, t2;
 	long evt1, evt2;
@@ -118,4 +180,10 @@ void cos_init(void)
 	printc("UNIT TEST ALL PASSED\n");
 
 	return;
+}
+
+void cos_init(void)
+{
+	//twrite_read_tests();
+	twritep_readp_tests();
 }

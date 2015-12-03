@@ -24,7 +24,7 @@ initf_read(int offset, char *buf, int req_sz)
 	/* if sz is too small, we will use the same cbuf many times,
 	   which causes send/recv counter overflow*/
 	d = cbuf_alloc_ext(sz, &cb, CBUF_TMEM);
-	if (!d) assert(0);
+	assert(d);
 	cbuf_send(cb);
 	ret = __initf_read(offset, cb, sz);
 	memcpy(buf, d, ret);
