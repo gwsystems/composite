@@ -15,7 +15,7 @@
 #include <ps_plat.h>
 
 struct parsec ps;
-PS_PARSLAB_CREATE(tst, 8000, PS_PAGE_SIZE * 128)
+PS_PARSLAB_CREATE(tst, 100, PS_PAGE_SIZE * 128)
 PS_PARSLAB_CREATE(bench, 1, PS_PAGE_SIZE * 8)
 
 #define ITER 1024
@@ -74,7 +74,7 @@ main(void)
 	ps_mem_init_bench(&ps);
 
 	printf("Testing memory management functionalities.\n");
-	test_mem();
+ 	test_mem();
 	printf("Testing Scalable Memory Reclamation.\n");
 	test_smr();
 	printf("Testing remote frees\n");
@@ -92,9 +92,7 @@ static unsigned long p99_log[N_LOG] PS_ALIGNED;
 /* for qsort */
 static int
 cmpfunc(const void * a, const void * b)
-{
-	return ( *(int*)a - *(int*)b );
-}
+{ return ( *(int*)a - *(int*)b ); }
 
 void
 bench(void)
@@ -175,6 +173,8 @@ worker(void *arg)
 	int cpuid = (int)(long)arg;
 
 	thd_set_affinity(pthread_self(), cpuid);
+	assert(!__ps_mem_bench.percore[cpuid].slab_info.fl.list);
+	assert(ps_mem_alloc_bench());
 
 	meas_barrier(PS_NUMCORES);
 	s = ps_tsc();
@@ -228,7 +228,6 @@ load_trace(void)
 	int fd, ret;
 	int bytes;
 	unsigned long i, n_read, n_update;
-	char buf[PS_PAGE_SIZE+1];
 
 	ret = mlock(ops, N_OPS);
 	if (ret) {
@@ -245,18 +244,11 @@ load_trace(void)
 		trace_gen(fd, N_OPS, 50);
 	}
 
-	for (i = 0; i < (N_OPS / PS_PAGE_SIZE); i++) {
-		bytes = read(fd, buf, PS_PAGE_SIZE);
-		assert(bytes == PS_PAGE_SIZE);
-		memcpy(&ops[i * PS_PAGE_SIZE], buf, bytes);
-	}
-
-	if (N_OPS % PS_PAGE_SIZE) {
-		bytes = read(fd, buf, PS_PAGE_SIZE);
-		memcpy(&ops[i*PS_PAGE_SIZE], buf, bytes);
-	}
+	bytes = read(fd, &ops[0], N_OPS);
+	assert(bytes == N_OPS);
 	n_read = n_update = 0;
-	for (i = 0; i < N_OPS; i++) {
+
+	for (i = 0 ; i < N_OPS ; i++) {
 		if      (ops[i] == 'R') { ops[i] = 0; n_read++; }
 		else if (ops[i] == 'U') { ops[i] = 1; n_update++; }
 		else assert(0);
@@ -269,33 +261,30 @@ load_trace(void)
 	return;
 }
 
+pthread_t thds[PS_NUMCORES];
+
 void
 test_smr(void)
 {
 	int i, ret;
-	pthread_t thds[PS_NUMCORES];
 
 	ret = mlockall(MCL_CURRENT | MCL_FUTURE);
 	if (ret) {
 		printf("cannot lock memory %d... exit.\n", ret);
 		exit(-1);
 	}
-
 	load_trace();
 
-/* #ifndef SYNC_USE_RDTSC */
-/* 	create_timer_thd(PS_NUMCORES-1); */
-/* #endif */
 	for (i = 1 ; i < PS_NUMCORES ; i++) {
 		ret = pthread_create(&thds[i], 0, worker, (void *)(long)i);
 		if (ret) exit(-1);
 	}
-
 	usleep(50000);
 
 	worker((void *)0);
 
-	for (i = 1 ; i < PS_NUMCORES ; i++) {
+	/* for (i = 1 ; i < PS_NUMCORES ; i++) { */
+	for (i = PS_NUMCORES-1 ; i > 0 ; i--) {
 		pthread_join(thds[i], (void *)&ret);
 	}
 

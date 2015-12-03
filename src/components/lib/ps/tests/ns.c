@@ -4,6 +4,11 @@
 #include <ps_ns.h>
 #include <ps_plat_linux.h>
 
+/* 
+ * FIXME: 
+ * - segfault when ns is not allocated (i.e. when default ns is used)
+ */
+
 #define LEAF_ORDER 7
 PS_NSSLAB_CREATE(nstest, sizeof(void *), 3, 9, LEAF_ORDER)
 

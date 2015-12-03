@@ -18,11 +18,6 @@
 #include <ps_plat.h>
 #include <ps_global.h>
 
-#ifndef PS_REMOTE_BATCH
-/* Needs to be a power of 2 */
-#define PS_REMOTE_BATCH 128
-#endif
-
 /* #define PS_SLAB_DEBUG 1 */
 
 /* The header for a slab. */
@@ -133,12 +128,19 @@ inline size_t ps_slab_objmem_##name(void);		\
 inline size_t ps_slab_nobjs_##name(void);
 
 void __ps_slab_mem_remote_free(struct ps_mem *mem, struct ps_mheader *h, coreid_t core_target);
-void __ps_slab_mem_remote_process(struct ps_mem *mem, PS_SLAB_PARAMS);
+void __ps_slab_mem_remote_process(struct ps_mem *mem, struct ps_slab_info *si, PS_SLAB_PARAMS);
 void __ps_slab_init(struct ps_slab *s, struct ps_slab_info *si, PS_SLAB_PARAMS);
 void ps_slab_deffree(struct ps_mem *m, struct ps_slab *x, size_t sz, coreid_t coreid);
 struct ps_slab *ps_slab_defalloc(struct ps_mem *m, size_t sz, coreid_t coreid);
 void ps_slabptr_init(struct ps_mem *m);
+int ps_slabptr_isempty(struct ps_mem *m);
 
+struct ps_slab_stats {
+	struct {
+		size_t nslabs, npartslabs, nfree, nremote;
+	} percore[PS_NUMCORES];
+};
+void ps_slabptr_stats(struct ps_mem *m, struct ps_slab_stats *stats);
 
 static inline void
 __ps_slab_mem_free(void *buf, struct ps_mem *mem, PS_SLAB_PARAMS)
@@ -169,8 +171,11 @@ __ps_slab_mem_free(void *buf, struct ps_mem *mem, PS_SLAB_PARAMS)
 	s->nfree++;		/* TODO: ditto */
 
 	if (s->nfree == max_nobjs) {
+		struct ps_slab_info *si = &mem->percore[coreid].slab_info;
+
 		/* remove from the freelist */
-		fl = &mem->percore[coreid].slab_info.fl;
+		fl = &si->fl;
+		si->nslabs--;
 		__slab_freelist_rem(fl, s);
 	 	ffn(mem, s, s->memsz, coreid);
 	} else if (s->nfree == 1) {
@@ -195,8 +200,8 @@ __ps_slab_mem_alloc(struct ps_mem *mem, PS_SLAB_PARAMS)
 	PS_SLAB_DEWARN;
 
 	si->salloccnt++;
-	if (unlikely(si->salloccnt % PS_REMOTE_BATCH == 0)) {
-		__ps_slab_mem_remote_process(mem, PS_SLAB_ARGS);
+	if (unlikely((si->salloccnt % PS_REMOTE_BATCH) == 0)) {
+		__ps_slab_mem_remote_process(mem, si, PS_SLAB_ARGS);
 	}
 
 	s = si->fl.list;
@@ -206,6 +211,7 @@ __ps_slab_mem_alloc(struct ps_mem *mem, PS_SLAB_PARAMS)
 		if (unlikely(!s)) return NULL;
 		
 		__ps_slab_init(s, si, PS_SLAB_ARGS);
+		si->nslabs++;
 		assert(s->memory && s->freelist);
 	}
 
