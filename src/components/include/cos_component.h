@@ -92,7 +92,7 @@ call_cap(u32_t cap_no, int arg1, int arg2, int arg3, int arg4)
 }
 
 static inline int
-call_cap_op(u32_t cap_no, u32_t op_code,int arg1, int arg2, int arg3, int arg4)
+call_cap_op(u32_t cap_no, u32_t op_code, int arg1, int arg2, int arg3, int arg4)
 {
 	return call_cap_asm(cap_no, op_code, arg1, arg2, arg3, arg4);
 }

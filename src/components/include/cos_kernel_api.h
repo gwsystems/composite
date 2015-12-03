@@ -69,6 +69,7 @@ asndcap_t cos_asnd_alloc(struct cos_compinfo *ci, arcvcap_t arcvcap, captblcap_t
 void *cos_page_bump_alloc(struct cos_compinfo *ci);
 
 int cos_thd_switch(thdcap_t c);
+int cos_thd_mod(struct cos_compinfo *ci, thdcap_t c, void *tls_addr); /* set tls addr of thd in captbl */
 int cos_asnd(asndcap_t snd);
 int cos_rcv(arcvcap_t rcv, unsigned long *a, unsigned long *b);
 
@@ -81,4 +82,5 @@ tcap_t cos_tcap_split(struct cos_compinfo *ci, tcap_t src, tcap_res_t res, tcap_
 int cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio);
 int cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags);
 int cos_tcap_merge(tcap_t dst, tcap_t rm);
+
 #endif /* COS_KERNEL_API_H */

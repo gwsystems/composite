@@ -17,32 +17,10 @@
 
 #define COS_DEFAULT_RET_CAP 0
 
-#ifdef LINUX_TEST
-
-#include <stdio.h>
-static inline int
-printfn(struct pt_regs *regs) {
-	__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
-	return 0;
-}
-static inline void
-fs_reg_setup(unsigned long seg) {
-	(void)seg;
-	return;
-}
-int
-syscall_handler(struct pt_regs *regs)
-
-#else
-
-static inline void
-fs_reg_setup(unsigned long seg) {
-	asm volatile ("movl %%ebx, %%fs\n\t"
-		      : : "b" (seg));
-}
-
-/* TODO: switch to a dedicated TLB flush thread (in a separate
- * protection domain) to do this. */
+/*
+ * TODO: switch to a dedicated TLB flush thread (in a separate
+ * protection domain) to do this.
+ */
 void
 tlb_mandatory_flush(void *arg)
 {
@@ -64,10 +42,6 @@ printfn(struct pt_regs *regs)
 	char *str;
 	int len;
 	char kern_buf[MAX_LEN];
-
-#ifdef ENABLE_KERNEL_PRINT
-	fs_reg_setup(__KERNEL_PERCPU);
-#endif
 
 	str     = (char *)__userregs_get1(regs);
 	len     = __userregs_get2(regs);
@@ -466,6 +440,9 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next,
 	thd_current_update(next, curr, cos_info);
 	if (likely(ci->pgtbl != next_ci->pgtbl)) pgtbl_update(next_ci->pgtbl);
 
+	/* Not sure of the trade-off here: Branch cost vs. segment register update */
+	if (next->tls || curr->tls) chal_tls_update(next->tls);
+
 	/* TODO: check FPU */
 	/* fpu_save(thd); */
 	if (next->state & THD_STATE_PREEMPTED) {
@@ -623,9 +600,9 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 static int
 composite_syscall_slowpath(struct pt_regs *regs);
 
-__attribute__((section("__ipc_entry"))) COS_SYSCALL int
+COS_SYSCALL __attribute__((section("__ipc_entry")))
+int
 composite_syscall_handler(struct pt_regs *regs)
-#endif
 {
 	struct cap_header *ch;
 	struct comp_info *ci;
@@ -640,9 +617,6 @@ composite_syscall_handler(struct pt_regs *regs)
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	int ret = -ENOENT;
 
-#ifdef ENABLE_KERNEL_PRINT
-	fs_reg_setup(__KERNEL_PERCPU);
-#endif
 	cap = __userregs_getcap(regs);
 	thd = thd_current(cos_info);
 
@@ -716,6 +690,10 @@ done:
 	return 0;
 }
 
+/*
+ * slowpath: other capability operations, most of which
+ * involve updating the resource tables.
+ */
 static int __attribute__((noinline))
 composite_syscall_slowpath(struct pt_regs *regs)
 {
@@ -728,10 +706,6 @@ composite_syscall_slowpath(struct pt_regs *regs)
 	int ret = -ENOENT;
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	unsigned long ip, sp;
-	/* slowpath: other capability operations, most of which
-	 * involve writing. */
-
-	fs_reg_setup(__KERNEL_PERCPU);
 
 	/* add vars */
 	thd = thd_current(cos_info);
@@ -911,9 +885,19 @@ composite_syscall_slowpath(struct pt_regs *regs)
 		}
 		case CAPTBL_OP_THDDEACTIVATE:
 		{
-			livenessid_t lid      = __userregs_get2(regs);
+			livenessid_t lid = __userregs_get2(regs);
 
 			ret = thd_deactivate(ct, op_cap, capin, lid, 0, 0, 0);
+			break;
+		}
+		case CAPTBL_OP_THDTLSSET:
+		{
+			capid_t thd_cap = __userregs_get1(regs);
+			vaddr_t tlsaddr = __userregs_get2(regs);
+
+			assert(op_cap->captbl);
+			if (thd_tls_set(op_cap->captbl, thd_cap, tlsaddr)) cos_throw(err, -EINVAL);
+
 			break;
 		}
 		case CAPTBL_OP_THDDEACTIVATE_ROOT:
@@ -1186,18 +1170,17 @@ composite_syscall_slowpath(struct pt_regs *regs)
 			capid_t pgtbl_addr   	 = __userregs_get3(regs);
 			capid_t compcap      	 = __userregs_get4(regs);
 			struct cap_tcap *tcapsrc;
+			struct tcap     *tcap_new;
+			unsigned long   *pte = NULL;
 
 			tcapsrc = (struct cap_tcap *)captbl_lkup(ci->captbl, tcap_cap);
 			if (tcapsrc->h.type != CAP_TCAP) cos_throw(err, -EINVAL);
-
-			struct tcap *tcap_new;
-			unsigned long *pte = NULL;
 
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&tcap_new, &pte);
 			if (unlikely(ret)) cos_throw(err, ret);
 
 			ret = tcap_split(cap, tcap_new, tcap_cap, ct, compcap, tcapsrc, flags);
-			if(ret) {
+			if (ret) {
 				unsigned long old = *pte;
 				assert (old & PGTBL_COSKMEM);
 
