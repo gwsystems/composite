@@ -178,6 +178,8 @@ treadp(spdid_t spdid, td_t td, int *off, int *sz)
 		current = current->next;
 	}
 
+	printc("t->offset: %zu, total_offset: %zu\n", t->offset, total_offset);
+
 	// current should now be equal to the file offset.
 	*off = current->start;
 	*sz = current->len;
@@ -245,20 +247,23 @@ done:
 }
 
 int 
-twritep(spdid_t spdid, td_t td, int cb, int start, unsigned int sz)
+twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 {
+	printc("\nspd_id(): %d\ntorrent: %d\ncbuf: %d\nstart: %d\nsz: %d\n", spdid, td, cb, start, sz);
 	printc(">>entering twritep\n");
+	printc("sz = %d\n", sz);
+	
 	int ret = -1, left;
 	struct torrent *t;
 	struct fsobj *fso;
 	__file_data_t *file_data; 
 
-	printc(">>>starting basic checks\n");
 	if (!sz) return -EINVAL;
 
 	if (tor_isnull(td)) return -EINVAL;
 
 	LOCK();
+
 
 	t = tor_lookup(td);
 	if (!t) ERR_THROW(-EINVAL, done);
@@ -274,19 +279,33 @@ twritep(spdid_t spdid, td_t td, int cb, int start, unsigned int sz)
 	// find where we want to write.
 	printc(">>>figuring out where we want to write\n");
 	u32_t total_offset = 0;
-	while (total_offset < t->offset && current != NULL)
-	{
+	while (current != NULL &&
+		(total_offset + current->len) <= t->offset) {
 		printc(">>>>still thinking about it\n");
 		total_offset += current->len;
-		prev = current;
-		current = current->next;
-		// crap. Current will alwyas be NULL
+
+		if (current->next != NULL) {
+			prev = current;
+			current = current->next;
+		}
 	}
 
-	// need to calculate proper start
+	unsigned int remaining_offset = t->offset - total_offset;
 
-	if (current == NULL)
+	if (t->offset != 0)
 	{
+		sz = 20;
+	}
+	printc("\nJust some stats:\ncurrent == NULL: %d\nt->offset == 0: %d\nt->offset: %zu\nsz: %d\ncurrent->len: %u\n\n", 
+		(current == NULL) ? 1 : 0,
+		(t->offset == 0) ? 1 : 0,
+		t->offset, 
+		sz, 
+		(current == NULL) ? 0 : current->len);
+
+
+	// need to calculate proper start
+	if (current == NULL) {
 		// initial file creation
 
 		printc(">>>case 0\n");
@@ -303,11 +322,8 @@ twritep(spdid_t spdid, td_t td, int cb, int start, unsigned int sz)
 		// set offset
 		t->offset += sz;
 		fso->size = t->offset;
-
-		printc(">>>exiting case 0\n");
 	}
-	else if (t->offset == 0 && sz < current->len)
-	{
+	else if (t->offset == 0 && sz < current->len) {
 		printc(">>>case 1\n");
 		// adding to start and can't override
 		__file_data_t *new_node = malloc(sizeof(__file_data_t));
@@ -317,7 +333,8 @@ twritep(spdid_t spdid, td_t td, int cb, int start, unsigned int sz)
 		new_node->len = sz;
 		new_node->next = current->next;
 
-		// need to keep some of current
+		// need to keep some of currenti
+		current->start += sz;
 		current->len -= sz;
 
 		fso->data = new_node; // change start of file
@@ -326,26 +343,8 @@ twritep(spdid_t spdid, td_t td, int cb, int start, unsigned int sz)
 		t->offset += sz;
 		fso->size = t->offset;
 	}
-	else if (t->offset == 0 && sz >= current->len)
-	{
+	else if (current->next == NULL && t->offset == current->start + current->len) {
 		printc(">>>case 2\n");
-		// adding to start and overriding the current node.
-		// may overflow into next nodes
-
-	}
-	else if (t->offset > current->start && sz <= current->len)
-	{
-		printc(">>>case 3\n");
-		// this will require a memcpy at some stage
-	}
-	else if (t->offset > current->start && sz > current->len)
-	{
-		printc(">>>case 4\n");
-		// will have to adjust next node
-	}
-	else if (current->next == NULL && t->offset == current->start + current->len)
-	{
-		printc(">>>case 5\n");
 		// arguably the most likely case
 		// just writing to the end of the file
 		__file_data_t *new_node = malloc(sizeof(__file_data_t));
@@ -361,9 +360,71 @@ twritep(spdid_t spdid, td_t td, int cb, int start, unsigned int sz)
 		t->offset += sz;
 		fso->size = t->offset;
 	}
-	else
-	{
-		printc(">>>case 6\n");
+	else if (sz < current->len) {
+		// will need to do a split
+
+		printc(">>>case 3\n");
+		// calculate this properly
+
+		unsigned int offset_into_cbuf = current->start + remaining_offset;
+		int split_len = offset_into_cbuf - sz;
+		int *copy_start; //need this
+		cbuf_t split_cb;
+		char *cb_ptr = cbuf_alloc(split_len, &split_cb);
+		if (!cb_ptr) {
+			ERR_THROW(-EINVAL, done);
+		}
+		memcpy(cb_ptr, copy_start, split_len);
+
+		// create a node for this new cbuf.
+		__file_data_t *split_node = malloc(sizeof(__file_data_t));
+		split_node->cbuf_id = split_cb;
+		split_node->cbuf_len = split_len;
+		split_node->start = 0;
+		split_node->len = split_len;
+		split_node->next = current->next;
+
+		// now create a node for the cbuf they passed in.
+		__file_data_t *new_node = malloc(sizeof(__file_data_t));
+		new_node->cbuf_id = cb;
+		new_node->cbuf_len = sz;
+		new_node->start = start;
+		new_node->len = sz;
+		new_node->next = split_node;
+
+		// modify current
+		current->len -= sz;
+		current->next = new_node;
+	}
+	else if (sz > current->len) {
+		// have to set offset
+
+		printc(">>>case 4\n");
+		// current->cbuf_len???
+		int bytesOverwritten = current->len - remaining_offset;
+
+		__file_data_t* ptr_node = current->next;
+		
+		while (ptr_node != NULL && bytesOverwritten + ptr_node->len
+			< sz)
+		{
+			bytesOverwritten += ptr_node->len;
+			free(ptr_node);
+			ptr_node = ptr_node->next;
+		}
+
+		// create new node
+		__file_data_t *new_node = malloc(sizeof(__file_data_t));
+		new_node->cbuf_id = cb;
+		new_node->cbuf_len = sz;
+		new_node->start = start;
+		new_node->len = sz;
+		new_node->next = ptr_node;
+
+		current->next = new_node;
+	}
+	else {
+		printc(">>>case 5\n");
 		ERR_THROW(-EINVAL, done);
 	}
 	

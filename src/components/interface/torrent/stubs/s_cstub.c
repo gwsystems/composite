@@ -32,6 +32,14 @@ __sg_treadp(spdid_t spdid, int sz, int __pad0, int __pad1, int *off_len)
 	return treadp(spdid, sz, &off_len[0], &off_len[1]);
 }
 
+int
+__sg_twritep(spdid_t spdid, int temp, int start, int sz)
+{
+	int cbuf_id = temp & 0xFFFF;
+	int torrent_id = (temp >> 16) & 0xFFFF;
+	return twritep(spdid, torrent_id, cbuf_id, start, sz);
+}
+
 struct __sg_tmerge_data {
 	td_t td;
 	td_t td_into;

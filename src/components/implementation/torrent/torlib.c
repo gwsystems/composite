@@ -23,7 +23,7 @@ treadp(spdid_t spdid, int sz, int *off, int *len)
 	return -ENOTSUP;
 }
 __attribute__((weak)) int
-twritep(spdid_t spdid, td_t td, int cbid, int start, unsigned int sz)
+twritep(spdid_t spdid, td_t td, int cbid, int start, int sz)
 {
 	return -ENOTSUP;
 }

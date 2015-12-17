@@ -6,6 +6,7 @@
  */
 
 #include <cos_component.h>
+#include <stdio.h>
 #include <print.h>
 #include <sched.h>
 #include <cbuf.h>
@@ -33,34 +34,47 @@ void twritep_readp_tests(void)
 
 	int a = 0, b = 0, c = 0;
 	
-	printc("calling tsplit\n");
 	t1 = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_ALL, evt1);
 	if (t1 < 1) {
-		printc("UNIT TEST FAILED: split2 failed %d\n", t1); return;
+		printc("UNIT TEST FAILED: split2 failed %c\n", t1); return;
 	}
 	
-	printc("creating a cbuf\n");
 	cbuf_t cb;
 	char *d = cbuf_alloc(10, &cb);
 	if (!d) {
-		printc("UNIT TEST FAILED: split2 failed %d\n", d); return;
+		printc("UNIT TEST FAILED: split2 failed %c\n", d); return;
 	}
 	memcpy(d, "hello!", 6);
 
-	printc("calling write\n");
+	printc("\n\ncalling write 1\n");
 	c = twritep(cos_spd_id(), t1, cb, 0, 6);
 	
 	// Another write
 	cbuf_t cb2;
 	char *e = cbuf_alloc(30, &cb2);
 	if (!e) {
-		printc("UNIT TEST FAILED: split2 failed %d\n", e); return;
+		printc("UNIT TEST FAILED: split2 failed %c\n", e); return;
 	}
-	memcpy(e, "This is a hardcoded string.", 6);
-	c = twritep(cos_spd_id(), t1, cb2, 0, 30);
+	memcpy(e, "This is a hardcoded string.", 27);
+
+	char val[8];
+	snprintf(val, 8, "%d", 4);
+	int rt = twmeta(cos_spd_id(), t1, "offset", strlen("offset"),
+		 val, strlen(val));
+	int sz = 20;
+	printc("spd_id(): %d\ntorrent: %d\ncbuf: %d\nstart: %d\nsz: %d\n", cos_spd_id(), t1, cb2, 0, sz);
+	printc("\n\ncalling write 2\n");
+	c = twritep(cos_spd_id(), t1, cb2, 0, sz);
 
 	// Close the file so we can read from it
 	trelease(cos_spd_id(), t1);
+
+
+
+
+
+	/* End of writing stage */
+	/* Going to test reading next */
 
 	// now test read
 	a = 0; b = 0; c = 0;
@@ -69,16 +83,17 @@ void twritep_readp_tests(void)
 		printc("UNIT TEST FAILED: split2 failed %d\n", t1); return;
 	}
 
-	printc("calling read\n");
+	printc("\n\ncalling read\n");
 	c = treadp(cos_spd_id(), t1, &a, &b);
-
 	char *buf = cbuf2buf(c, 6);
-	printc("printing cbuf:\n");
-	printc("%s\n", buf);
-	printc("%s\n", d);
-	printc("done printing cbuf\n");	
+	printc("Expected:[%s] Actual[%s]\n", buf, d);
+	
+	printc("\n\ncalling read\n");
+	c = treadp(cos_spd_id(), t1, &a, &b);
+	char *buf2 = cbuf2buf(c, 27);
+	printc("Expected:[%s] Actual[%s]\n", buf2, e);
 
-	printc("UNIT TEST Unit tests for torrents - specifically treadp, twritep...\n");
+	printc("UNIT TEST Unit tests for torrents - specifically treadp, twritep... are done\n");
 
 	return;
 }
