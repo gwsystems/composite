@@ -27,9 +27,9 @@ struct fsobj root;
 
 typedef struct {
 	cbuf_t cbuf_id;
-	u32_t cbuf_len;
-	u32_t start;
-	u32_t len;
+	int cbuf_len;
+	int start;
+	int len;
 	void* next;
 } __file_data_t;
 
@@ -178,8 +178,6 @@ treadp(spdid_t spdid, td_t td, int *off, int *sz)
 		current = current->next;
 	}
 
-	printc("t->offset: %zu, total_offset: %zu\n", t->offset, total_offset);
-
 	// current should now be equal to the file offset.
 	*off = current->start;
 	*sz = current->len;
@@ -249,21 +247,19 @@ done:
 int 
 twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 {
-	printc("\nspd_id(): %d\ntorrent: %d\ncbuf: %d\nstart: %d\nsz: %d\n", spdid, td, cb, start, sz);
-	printc(">>entering twritep\n");
-	printc("sz = %d\n", sz);
+	printc("\nentering twritep\n");
+	printc("spd_id(): %d\ntorrent: %d\ncbuf: %d\nstart: %d\nsz: %d\n", spdid, td, cb, start, sz);
 	
 	int ret = -1, left;
 	struct torrent *t;
 	struct fsobj *fso;
 	__file_data_t *file_data; 
 
-	if (!sz) return -EINVAL;
+	if (!sz) {return -EINVAL;}
 
-	if (tor_isnull(td)) return -EINVAL;
+	if (tor_isnull(td)) {return -EINVAL;}
 
 	LOCK();
-
 
 	t = tor_lookup(td);
 	if (!t) ERR_THROW(-EINVAL, done);
@@ -277,11 +273,9 @@ twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 	__file_data_t *prev = NULL;
 
 	// find where we want to write.
-	printc(">>>figuring out where we want to write\n");
 	u32_t total_offset = 0;
 	while (current != NULL &&
 		(total_offset + current->len) <= t->offset) {
-		printc(">>>>still thinking about it\n");
 		total_offset += current->len;
 
 		if (current->next != NULL) {
@@ -291,18 +285,6 @@ twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 	}
 
 	unsigned int remaining_offset = t->offset - total_offset;
-
-	if (t->offset != 0)
-	{
-		sz = 20;
-	}
-	printc("\nJust some stats:\ncurrent == NULL: %d\nt->offset == 0: %d\nt->offset: %zu\nsz: %d\ncurrent->len: %u\n\n", 
-		(current == NULL) ? 1 : 0,
-		(t->offset == 0) ? 1 : 0,
-		t->offset, 
-		sz, 
-		(current == NULL) ? 0 : current->len);
-
 
 	// need to calculate proper start
 	if (current == NULL) {
@@ -360,21 +342,20 @@ twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 		t->offset += sz;
 		fso->size = t->offset;
 	}
-	else if (sz < current->len) {
+	else if (sz < current->len - remaining_offset) {
 		// will need to do a split
 
 		printc(">>>case 3\n");
-		// calculate this properly
-
 		unsigned int offset_into_cbuf = current->start + remaining_offset;
-		int split_len = offset_into_cbuf - sz;
-		int *copy_start; //need this
+		int split_len = current->len - offset_into_cbuf - sz;
+		int copy_start = current->start + offset_into_cbuf + sz;
 		cbuf_t split_cb;
 		char *cb_ptr = cbuf_alloc(split_len, &split_cb);
 		if (!cb_ptr) {
 			ERR_THROW(-EINVAL, done);
 		}
-		memcpy(cb_ptr, copy_start, split_len);
+		char *buf = cbuf2buf(current->cbuf_id, current->len);
+		memcpy(cb_ptr, buf + copy_start, split_len);
 
 		// create a node for this new cbuf.
 		__file_data_t *split_node = malloc(sizeof(__file_data_t));
@@ -393,26 +374,37 @@ twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 		new_node->next = split_node;
 
 		// modify current
-		current->len -= sz;
+		current->len -= (sz + split_len);
 		current->next = new_node;
 	}
 	else if (sz > current->len) {
 		// have to set offset
 
 		printc(">>>case 4\n");
-		// current->cbuf_len???
 		int bytesOverwritten = current->len - remaining_offset;
+		current->len -= bytesOverwritten;
 
+		// causes an issue if current->next can actually be overwritten completely too
 		__file_data_t* ptr_node = current->next;
+	
+		printc("ptr_node == NULL: %d bO: %d len %d sz %d\n", (ptr_node == NULL) ? 1 : 0, bytesOverwritten, ptr_node->len, sz);
 		
 		while (ptr_node != NULL && bytesOverwritten + ptr_node->len
-			< sz)
-		{
+			< sz) {
+			printc("freeing a thing!\n");
 			bytesOverwritten += ptr_node->len;
-			free(ptr_node);
+			__file_data_t *temp_ptr = ptr_node;
 			ptr_node = ptr_node->next;
+			free(temp_ptr);
+			printc("freed a thing!\n");
 		}
 
+		printc("checking...\n");
+		if (bytesOverwritten < sz && ptr_node != NULL) {
+			ptr_node->start += (sz - bytesOverwritten);
+		}
+
+		printc("doing something else...\n");
 		// create new node
 		__file_data_t *new_node = malloc(sizeof(__file_data_t));
 		new_node->cbuf_id = cb;
@@ -424,13 +416,28 @@ twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 		current->next = new_node;
 	}
 	else {
-		printc(">>>case 5\n");
+		printc(">>>case 5: did not match anything!!!\n");
+		printc("t->offset: %d\n", t->offset);
 		ERR_THROW(-EINVAL, done);
+	}
+
+	// print current state
+	current = (__file_data_t*) fso->data; // start of file
+	while (current != NULL)
+	{
+		char *full_buf = cbuf2buf(current->cbuf_id, current->cbuf_len);
+		char *buf = malloc(sizeof(char) * current->len);
+		memcpy(buf, full_buf + current->start, current->len);
+
+		__file_data_t *next = current->next;
+		cbuf_t next_id = (next != NULL) ? next->cbuf_id : -1;
+
+		printc("cbuf_id: %d start: %d size: %d next: %d data: [%s]\n", current->cbuf_id, current->start, current->len, next_id, buf);
+		current = current->next;
 	}
 	
 	// always set t->offset to the actual END of previous memory
 	// so you don't end up pointing to null
-	printc(">>doing an assert\n");
 	assert(t->offset);
 
 done:	

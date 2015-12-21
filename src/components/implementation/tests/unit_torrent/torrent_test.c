@@ -40,32 +40,51 @@ void twritep_readp_tests(void)
 	}
 	
 	cbuf_t cb;
-	char *d = cbuf_alloc(10, &cb);
+	char *str1 = "AAA games are just great!";
+	char *d = cbuf_alloc(strlen(str1), &cb);
 	if (!d) {
 		printc("UNIT TEST FAILED: split2 failed %c\n", d); return;
 	}
-	memcpy(d, "hello!", 6);
+	memcpy(d, str1, strlen(str1));
 
-	printc("\n\ncalling write 1\n");
-	c = twritep(cos_spd_id(), t1, cb, 0, 6);
+	c = twritep(cos_spd_id(), t1, cb, 0, strlen(str1));
 	
 	// Another write
 	cbuf_t cb2;
-	char *e = cbuf_alloc(30, &cb2);
+	char *str2 = " Actually wait, no. What am I saying?";
+	char *e = cbuf_alloc(strlen(str2), &cb2);
 	if (!e) {
 		printc("UNIT TEST FAILED: split2 failed %c\n", e); return;
 	}
-	memcpy(e, "This is a hardcoded string.", 27);
+	memcpy(e, str2, strlen(str2));
 
+	c = twritep(cos_spd_id(), t1, cb2, 0, strlen(str2));
+
+	cbuf_t cb3;
+	char *str3 = "terrible!";
+	char *f = cbuf_alloc(strlen(str3), &cb3);
+	if (!f) {
+		printc("UNIT TEST FAILED: split2 failed %c\n", f); return;
+	}
+	memcpy(f, str3, strlen(str3));
 	char val[8];
-	snprintf(val, 8, "%d", 4);
+	snprintf(val, 8, "%d", 14);
 	int rt = twmeta(cos_spd_id(), t1, "offset", strlen("offset"),
 		 val, strlen(val));
-	int sz = 20;
-	printc("spd_id(): %d\ntorrent: %d\ncbuf: %d\nstart: %d\nsz: %d\n", cos_spd_id(), t1, cb2, 0, sz);
-	printc("\n\ncalling write 2\n");
-	c = twritep(cos_spd_id(), t1, cb2, 0, sz);
-
+	c = twritep(cos_spd_id(), t1, cb3, 0, strlen(str3));
+	
+	cbuf_t cb4;
+	char *str4 = " Diablo 1 and Torchlight are the best! Also Borderlands.";
+	char *g = cbuf_alloc(strlen(str4), &cb4);
+	if (!g) {
+		printc("UNIT TEST FAILED: split2 failed %c\n", g); return;
+	}
+	memcpy(g, str4, strlen(str4));
+	snprintf(val, 8, "%d", 23);
+	rt = twmeta(cos_spd_id(), t1, "offset", strlen("offset"),
+		 val, strlen(val));
+	c = twritep(cos_spd_id(), t1, cb4, 0, strlen(str4));
+	
 	// Close the file so we can read from it
 	trelease(cos_spd_id(), t1);
 
