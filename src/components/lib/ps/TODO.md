@@ -1,6 +1,5 @@
 # Tests
 
-- Test remote frees
 - Test SMR with varying levels of batch size
 - Test that the memory utilization in SMR converges on some specific size.
 
@@ -11,6 +10,7 @@
 
 # Features
 
+- NUMA awareness in the SMR
 - Destructors for SMR memory
 - Customizable quiescence functions for SMR memory.
 - Lower the amount of memory saved in the SMR lists.

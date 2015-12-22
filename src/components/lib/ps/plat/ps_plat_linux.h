@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <sys/mman.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -17,21 +18,7 @@ void meas_barrier(int ncores);
 #define u64_t unsigned long long
 typedef u64_t ps_tsc_t; 	/* our time-stamp counter representation */
 typedef u16_t coreid_t;
-
-/* Default allocation and deallocation functions */
-static inline void *
-ps_plat_alloc(size_t sz, coreid_t coreid)
-{ 
-	(void)coreid; 
-	return mmap(0, sz, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0);
-}
-
-static inline void
-ps_plat_free(void *s, size_t sz, coreid_t coreid)
-{ 
-	(void)coreid; 
-	munmap(s, sz); 
-}
+typedef u16_t localityid_t;
 
 #define PS_CACHE_LINE  64
 #define PS_CACHE_PAD   (PS_CACHE_LINE*2)
@@ -40,10 +27,53 @@ ps_plat_free(void *s, size_t sz, coreid_t coreid)
 #define PS_ALIGNED     __attribute__((aligned(PS_CACHE_LINE)))
 #define PS_WORDALIGNED __attribute__((aligned(PS_WORD)))
 #ifndef PS_NUMCORES
-#define PS_NUMCORES    10
+#define PS_NUMCORES      10
+#endif
+#ifndef PS_NUMLOCALITIES
+#define PS_NUMLOCALITIES 2
 #endif
 #define PS_PAGE_SIZE   4096
 #define PS_RNDUP(v, a) (-(-(v) & -(a))) /* from blogs.oracle.com/jwadams/entry/macros_and_powers_of_two */
+
+/* 
+ * How frequently do we check remote free lists when we make an
+ * allocation?  This is in platform-specific code because it is
+ * dependent on the hardware costs for cache-line contention on a
+ * remote numa node.
+ *
+ * If that contention has 16x the cost of a normal allocation, for
+ * example, then choosing to batch checking remote frees once every
+ * 128 iterations increases allocation cost by a factor of (2^4/2^7 =
+ * 2^-3) 1/8.
+ */
+#ifndef PS_REMOTE_BATCH
+/* Needs to be a power of 2 */
+#define PS_REMOTE_BATCH 64
+#endif
+
+/* Default allocation and deallocation functions */
+static inline void *
+ps_plat_alloc(size_t sz, coreid_t coreid)
+{ 
+	void *m;
+	int ret;
+	(void)coreid; 
+
+	ret = posix_memalign(&m, PS_PAGE_SIZE, sz);
+	assert(!ret);
+	memset(m, 0, sz);
+
+	return m;
+	/* mmap(0, sz, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, (size_t)0); */
+}
+
+static inline void
+ps_plat_free(void *s, size_t sz, coreid_t coreid)
+{ 
+	(void)coreid; (void)sz;
+	free(s);
+	/* munmap(s, sz); */
+}
 
 /* 
  * We'd like an expression here so that it can be used statically, and
@@ -88,7 +118,7 @@ ps_tsc(void)
 }
 
 static inline ps_tsc_t
-ps_tsc_locality(coreid_t *coreid, coreid_t *numaid)
+ps_tsc_locality(coreid_t *coreid, localityid_t *numaid)
 {
 	unsigned long a, d, c;
 
@@ -110,16 +140,16 @@ ps_coreid(void)
 	return coreid;
 }
 
-#ifndef ps_cc_barrier
-#define ps_cc_barrier() __asm__ __volatile__ ("" : : : "memory")
-#endif
-
 #define PS_ATOMIC_POSTFIX "q" /* x86-64 */
 /* #define PS_ATOMIC_POSTFIX "l" */ /* x86-32 */
 #define PS_CAS_INSTRUCTION "cmpxchg"
 #define PS_FAA_INSTRUCTION "xadd"
 #define PS_CAS_STR PS_CAS_INSTRUCTION PS_ATOMIC_POSTFIX " %2, %0; setz %1"
 #define PS_FAA_STR PS_FAA_INSTRUCTION PS_ATOMIC_POSTFIX " %1, %0"
+
+#ifndef ps_cc_barrier
+#define ps_cc_barrier() __asm__ __volatile__ ("" : : : "memory")
+#endif
 
 /*
  * Return values:
@@ -146,6 +176,10 @@ ps_faa(unsigned long *target, long inc)
         return inc;
 }
 
+static inline void
+ps_mem_fence(void)
+{ __asm__ __volatile__("mfence" ::: "memory"); }
+
 /*
  * Only atomic on a uni-processor, so not for cross-core coordination.
  * Faster on a multiprocessor when used to synchronize between threads
@@ -171,10 +205,6 @@ ps_upfaa(unsigned long *target, long inc)
         return inc;
 }
 
-static inline void
-ps_mem_fence(void)
-{ __asm__ __volatile__("mfence" ::: "memory"); }
-
 
 /*
  * FIXME: this is truly an affront to humanity for now, but it is a
@@ -194,6 +224,6 @@ ps_lock_release(struct ps_lock *l)
 
 static inline void
 ps_lock_init(struct ps_lock *l)
-{ ps_lock_release(l); }
+{ l->o = 0; }
 
 #endif	/* PS_PLAT_LINUX_H */

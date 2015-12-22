@@ -70,14 +70,14 @@ ps_quiesce(struct parsec *parsec, ps_tsc_t tsc, const int blocking, ps_tsc_t *qs
 	 */
 	if (unlikely((time_check > timing_local->time_in) && inlib_curr)) return -EQUIESCENCE;
 
-	min_known_qsc = (unsigned long long)(-1);
-	for (i = 1; i < PS_NUMCORES; i++) {
+	min_known_qsc = (unsigned long long)(-1); /* start with the largest value */
+	for (i = 1 ; i < PS_NUMCORES ; i++) {
 		/* Make sure we don't all hammer core 0... */
 		qsc_cpu = (curr_cpu + i) % PS_NUMCORES;
 		assert(qsc_cpu != curr_cpu);
 
 		first_try = 1;
-		done_i = 0;
+		done_i    = 0;
 re_check:
 		/* If we can use the quiescence for another core */
 		if (time_check < timing_local->last_known_quiescence) break;
@@ -203,11 +203,18 @@ __ps_smr_reclaim(coreid_t curr, struct ps_qsc_list *ql, struct ps_smr_info *si,
 	return;
 }
 
+size_t
+ps_smr_nqueued(struct ps_mem *m)
+{ return m->percore[ps_coreid()].smr_info.qmemcnt; }
+
 void
 ps_init(struct parsec *ps)
 {
 	ps_tsc_t now = ps_tsc();
 	int i, j;
+
+	assert(ps);
+	memset(ps, 0, sizeof(struct parsec));
 
 	ps->refcnt = 0;
 	for (i = 0 ; i < PS_NUMCORES ; i++) {
@@ -267,13 +274,12 @@ __ps_memptr_delete(struct ps_mem *m)
 	int i;
 
 	if (!ps) return 0;
-
+	if (!ps_slabptr_isempty(m)) return -1;
 	for (i = 0 ; i < PS_NUMCORES ; i++) {
-		if (__ps_qsc_peek(&pc[i].smr_info.qsc_list)        ||
-		    __ps_qsc_peek(&pc[i].slab_remote.remote_frees) ||
-		    pc[i].slab_info.fl.list)                       return -1;
+		if (__ps_qsc_peek(&pc[i].smr_info.qsc_list)) return -1;
 	}
-
 	ps->refcnt--;
+	/* TODO: actually delete it iff refcnt == 0 */
+
 	return 0;
 }

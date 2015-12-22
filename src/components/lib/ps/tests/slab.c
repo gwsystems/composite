@@ -203,14 +203,33 @@ test_perf(void)
 	printf("Average cost of extern slab header, large slab alloc+free: %lld\n", end);
 }
 
+void
+stats_print(struct ps_mem *m)
+{
+	struct ps_slab_stats s;
+	int i;
+
+	printf("Stats for slab @ %p\n", (void*)m);
+	ps_slabptr_stats(m, &s);
+	for (i = 0 ; i < PS_NUMCORES ; i++) {
+		printf("\tcore %d, slabs %ld, partial slabs %ld, nfree %ld, nremote %ld\n", 
+		       i, s.percore[i].nslabs, s.percore[i].npartslabs, s.percore[i].nfree, s.percore[i].nremote);
+	}
+}
+
 int
 main(void)
 {
 	thd_set_affinity(pthread_self(), 0);
 
 	test_perf();
+
+	stats_print(&__ps_mem_l);
+	stats_print(&__ps_mem_s);
 	test_correctness();
+	stats_print(&__ps_mem_l);
 	test_remote_frees();
+	stats_print(&__ps_mem_s);
 
 	return 0;
 }

@@ -111,11 +111,14 @@ __ps_qsc_clear(struct ps_qsc_list *l)
 struct ps_slab_remote_list {
 	struct ps_lock     lock;
 	struct ps_qsc_list remote_frees;
-};
+	size_t             nfree;
+} PS_ALIGNED;
 
 struct ps_slab_info {
 	struct ps_slab_freelist fl;	      /* freelist of slabs with available objects */
-	size_t                  salloccnt;    /* # of times we've allocated, used to batch remote dequeues */
+	unsigned long           salloccnt;    /* # of times we've allocated, used to batch remote dequeues */
+	unsigned long           remote_token; /* which of the remote NUMA nodes will we dequeue from this time? */
+	unsigned long           nslabs;       /* # of slabs allocated here */
 };
 
 struct parsec;
@@ -137,13 +140,13 @@ struct ps_ns_info {
 
 	size_t desc_range; 	/* num descriptors per slab */
 	ps_desc_t desc_max;
-	char  padding[PS_CACHE_PAD-sizeof(void *)];
+	char  padding[PS_CACHE_PAD-(3*sizeof(void *)+2*sizeof(size_t)+sizeof(ps_desc_t))%PS_CACHE_PAD];
 
 	struct ps_lock lock;
 	struct ps_slab_freelist fl;
 	ps_desc_t frontier;
 	char  padding2[PS_CACHE_PAD-(sizeof(struct ps_lock) + sizeof(ps_desc_t) + sizeof(struct ps_slab_freelist))];
-} PS_PACKED;
+} PS_PACKED PS_ALIGNED;
 
 /*
  * TODO:
@@ -167,18 +170,27 @@ struct ps_mem_percore {
 
 	char padding[PS_CACHE_PAD-((sizeof(struct ps_slab_info) + sizeof(struct ps_smr_info))%PS_CACHE_PAD)];
 
-	/* Isolate the contended cache-lines from the common-case ones. */
-	struct ps_slab_remote_list slab_remote PS_ALIGNED;
+	/* 
+	 * Isolate the contended cache-lines from the common-case
+	 * ones, maintain a set of them per numa node to ensure that
+	 * performing remote frees does not contend across more than 2
+	 * numa nodes (this node, and the destination node).
+	 */
+	struct ps_slab_remote_list slab_remote[PS_NUMLOCALITIES] PS_ALIGNED;
+} PS_ALIGNED;
+
+struct ps_locality_info {
+	localityid_t core_locality[PS_NUMCORES];
 } PS_ALIGNED;
 
 struct ps_mem {
-	struct ps_ns_info ns_info;
-	struct ps_mem_percore percore[PS_NUMCORES];	
+	struct ps_ns_info       ns_info;
+	struct ps_mem_percore   percore[PS_NUMCORES];	
 } PS_ALIGNED;
 
 #define __PS_MEM_CREATE_DATA(name) struct ps_mem __ps_mem_##name;
 
-typedef void  (*ps_free_fn_t)(struct ps_mem *m, struct ps_slab *s, size_t sz, coreid_t curr);
+typedef void            (*ps_free_fn_t)(struct ps_mem *m, struct ps_slab *s, size_t sz, coreid_t curr);
 typedef struct ps_slab *(*ps_alloc_fn_t)(struct ps_mem *m, size_t sz, coreid_t curr);
 
 #endif	/* PS_GLOBAL_H */

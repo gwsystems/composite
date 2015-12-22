@@ -25,7 +25,7 @@ PS_SLAB_CREATE_DEF(slabhead, sizeof(struct ps_slab))
 struct ps_slab *
 ps_slab_nsalloc(struct ps_mem *m, size_t sz, coreid_t coreid)
 { 
-	ps_desc_t id, range = m->ns_info.desc_range;
+	ps_desc_t id = 0, range = m->ns_info.desc_range;
 	struct ps_slab *s;
 	int newslab = 0;
 	void *mem;
@@ -48,7 +48,7 @@ ps_slab_nsalloc(struct ps_mem *m, size_t sz, coreid_t coreid)
 		newslab  = 1;
 	}
 
-	assert(!s->memory);
+ 	assert(!s->memory);
 	mem = ps_plat_alloc(sz, coreid);
 	if (unlikely(!mem)) goto free_slab;
 	memset(mem, 0, sz);

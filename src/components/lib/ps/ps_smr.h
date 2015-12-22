@@ -35,8 +35,8 @@
 #endif
 
 struct ps_quiescence_timing {
-	volatile ps_tsc_t time_in, time_out;
-	volatile ps_tsc_t last_known_quiescence;
+	volatile ps_tsc_t     time_in, time_out;
+	volatile ps_tsc_t     last_known_quiescence;
 	char __padding[PS_CACHE_PAD - 3*sizeof(ps_tsc_t)];
 } PS_ALIGNED PS_PACKED;
 

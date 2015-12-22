@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <ertrie.h>
 
+/* Just namespace encapsulation... */
 struct ps_ns {
 	struct ps_mem m;
 };
@@ -77,9 +78,9 @@ ps_ns_free_##name(void *slot)										\
 static inline void											\
 ps_ns_init_##name(struct parsec *ps, void *ert)								\
 {													\
-	ps_mem_init_##name(ps);													\
-	ps_ns_init(&__ps_mem_##name, ert, (ps_lkupan_fn_t)name##_lkupan, 								\
-		   (ps_expand_fn_t)name##_expandn, depth, maxid, 1<<nobjord);							\
+	ps_mem_init_##name(ps);										\
+	ps_ns_init(&__ps_mem_##name, ert, (ps_lkupan_fn_t)name##_lkupan,				\
+		   (ps_expand_fn_t)name##_expandn, depth, maxid, 1<<nobjord);				\
 }													\
 static inline void											\
 ps_ns_init_slab_##name(void *ert)									\
