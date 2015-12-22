@@ -42,6 +42,37 @@ printc(char *fmt, ...)
 
 struct cos_compinfo booter_info;
 
+#define TEST_NTHDS 5
+int tls_test[TEST_NTHDS];
+
+static unsigned long
+tls_get(size_t off)
+{
+	unsigned long val;
+
+	__asm__ __volatile__("movl %%gs:(%1), %0" : "=r" (val) : "r" (off) : );
+
+	return val;
+}
+
+static void
+tls_set(size_t off, unsigned long val)
+{ __asm__ __volatile__("movl %0, %%gs:(%1)" : : "r" (val), "r" (off) : "memory"); }
+
+void
+cos_bmk_platform_cpu_sched_settls(
+		unsigned long btcb_sp,
+		unsigned long btcb_ip,
+		unsigned long btcb_tp,
+		unsigned long btcb_tpsize)
+{
+	printc("!!!!btcb_sp: %d\n", btcb_sp);
+	printc("!!!!btcb_ip: %d\n", btcb_ip);
+	printc("!!!!btcb_tp: %x\n", btcb_tp);
+	printc("!!!!btcb_tpsize %d\n:", btcb_tpsize);
+	tls_set(btcb_tp, 0);
+}
+
 static void
 thd_fn(void *d)
 {
@@ -80,6 +111,156 @@ test_mem(void)
 	printc("Page allocation: %s\n", p);
 }
 
+volatile arcvcap_t rcc_global, rcp_global;
+volatile asndcap_t scp_global;
+
+static void
+async_thd_fn(void *thdcap)
+{
+	thdcap_t tc = (thdcap_t)thdcap;
+	arcvcap_t rc = rcc_global;
+	unsigned long a, b;
+	int pending;
+
+	printc("Asynchronous event thread handler.\n<-- rcving...\n");
+	pending = cos_rcv(rc, &a, &b);
+	printc("<-- pending %d, %lx, %lx\n<-- rcving...\n", pending, a, b);
+	pending = cos_rcv(rc, &a, &b);
+	printc("<-- pending %d, %lx, %lx\n<-- rcving...\n", pending, a, b);
+	pending = cos_rcv(rc, &a, &b);
+	printc("<-- Error: manually returning to snding thread.\n");
+	cos_thd_switch(tc);
+	printc("ERROR: in async thd *after* switching back to the snder.\n");
+	while (1) ;
+}
+
+static void
+async_thd_parent(void *thdcap)
+{
+	thdcap_t tc = (thdcap_t)thdcap;
+	arcvcap_t rc = rcp_global;
+	asndcap_t sc = scp_global;
+	int ret, pending;
+	unsigned long a, b;
+
+	printc("--> sending\n");
+	ret = cos_asnd(sc);
+	if (ret) printc("asnd returned %d.\n", ret);
+	printc("--> Back in the asnder.\n--> sending\n");
+	ret = cos_asnd(sc);
+	if (ret) printc("--> asnd returned %d.\n", ret);
+	printc("--> Back in the asnder.\n--> receiving to get notifications\n");
+	pending = cos_rcv(rc, &a, &b);
+	printc("--> pending %d, %lx, %lx\n", pending, a, b);
+
+	cos_thd_switch(tc);
+}
+
+static void
+test_async_endpoints(void)
+{
+	thdcap_t tcp, tcc;
+	arcvcap_t rcp, rcc;
+
+	printc("Creating threads, and async end-points.\n");
+	/* parent rcv capabilities */
+	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
+	assert(tcp);
+	rcp = cos_arcv_alloc(&booter_info, tcp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	assert(rcp);
+
+	/* child rcv capabilities */
+	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void*)tcp);
+	assert(tcc);
+	rcc = cos_arcv_alloc(&booter_info, tcc, booter_info.comp_cap, rcp);
+	assert(rcc);
+
+	/* make the snd channel to the child */
+	scp_global = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap);
+	assert(scp_global);
+
+	rcc_global = rcc;
+	rcp_global = rcp;
+
+	cos_thd_switch(tcp);
+
+	printc("Async end-point test successful.\nTest done.\n");
+}
+
+static void
+spinner(void *d)
+{ while (1) ; }
+
+static void
+test_timer(void)
+{
+	int i;
+	thdcap_t tc;
+
+	printc("Starting timer test.\n");
+	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
+
+	for (i = 0 ; i < 10 ; i++) {
+		unsigned long a, b;
+
+		printc(".");
+		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &a, &b);
+		cos_thd_switch(tc);
+	}
+
+	printc("Timer test completed.\nSuccess.\n");
+}
+
+int
+test_serverfn(int a, int b, int c)
+{ return a + b + c; }
+
+//extern void *__inv_test_serverfn(int a, int b, int c);
+
+static inline
+int call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
+{
+	int ret;
+
+	/*
+	 * Which stack should we use for this invocation?  Simple, use
+	 * this stack, at the current sp.  This is essentially a
+	 * function call into another component, with odd calling
+	 * conventions.
+	 */
+	cap_no = (cap_no + 1) << COS_CAPABILITY_OFFSET;
+
+	__asm__ __volatile__( \
+		"pushl %%ebp\n\t" \
+		"movl %%esp, %%ebp\n\t" \
+		"movl %%esp, %%edx\n\t" \
+		"movl $1f, %%ecx\n\t" \
+		"sysenter\n\t" \
+		"1:\n\t" \
+		"popl %%ebp" \
+		: "=a" (ret)
+		: "a" (cap_no), "b" (arg1), "S" (arg2), "D" (arg3) \
+		: "memory", "cc", "ecx", "edx");
+
+	return ret;
+}
+
+//static void
+//test_inv(void)
+//{
+//	compcap_t cc;
+//	sinvcap_t ic;
+//	unsigned int r;
+//
+//	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
+//	assert(cc > 0);
+//	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
+//	assert(ic > 0);
+//
+//	r = call_cap_mb(ic, 1, 2, 3);
+//	printc("Return from invocation: %d\n", r);
+//}
+
 struct data {
 	thdcap_t prev; // Thread to switch back to
 	unsigned short int thdid;
@@ -91,13 +272,13 @@ rumptest_thd_fn(void *param)
 	struct data *thd_meta = (struct data*)param;
 
 	printc("In rumptest_thd_fn\n");
-	printc("thdid, should be 0: %d\n", thd_meta->thdid);
+	printc("thdid: %d\n", thd_meta->thdid);
 
 	printc("fetching thd id\n");
 	thd_meta->thdid = cos_thdid();
 	printc("thdid, is now: %d\n", thd_meta->thdid);
 
-	printc("switching back to old thread");
+	printc("switching back to old thread\n");
 	cos_thd_switch(thd_meta->prev);
 	printc("Error: this should not print");
 }
@@ -132,6 +313,19 @@ cos_init(void)
 			 BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
+
+	printc("---------------------------\n");
+	test_thds();
+	printc("---------------------------\n");
+//	test_timer();
+	printc("---------------------------\n");
+	test_mem();
+	printc("---------------------------\n");
+	test_async_endpoints();
+	printc("---------------------------\n");
+	//test_inv();
+	printc("---------------------------\n");
+
 
 	test_thds();
 	test_mem();

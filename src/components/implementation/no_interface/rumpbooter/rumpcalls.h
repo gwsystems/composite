@@ -32,6 +32,11 @@ struct cos_rumpcalls
 			void (*f)(void *), void *arg,
 			void *stack_base, unsigned long stack_size);
 	void   (*rump_cpu_sched_switch_viathd)(struct bmk_thread *prev, struct bmk_thread *next);
+	void   (*rump_bmk_platform_cpu_sched_settls)(
+			unsigned long btcb_sp,
+			unsigned long btcb_ip,
+			unsigned long btcb_tp,
+			unsigned long btcb_tpsize);
 };
 
 /* Mapping the functions from rumpkernel to composite */

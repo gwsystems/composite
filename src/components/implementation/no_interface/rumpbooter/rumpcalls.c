@@ -11,6 +11,12 @@
 
 //#define FP_CHECK(void(*a)()) ( (a == null) ? printc("SCHED: ERROR, function pointer is null.>>>>>>>>>>>\n");: printc("nothing");)
 
+void cos_bmk_platform_cpu_sched_settls(
+		unsigned long btcb_sp,
+		unsigned long btcb_ip,
+		unsigned long btcb_tp,
+		unsigned long btcb_tpsize);
+
 extern struct cos_rumpcalls crcalls;
 
 /* Mapping the functions from rumpkernel to composite */
@@ -20,7 +26,6 @@ cos2rump_setup(void)
 {
 	rump_bmk_memsize_init();
 
-	//crcalls.rump_cos_get_thd_id   	= cos_get_thd_id;
 	crcalls.rump_cos_print 	      		= cos_print;
 	crcalls.rump_vsnprintf        		= vsnprintf;
 	crcalls.rump_strcmp           		= strcmp;
@@ -37,9 +42,11 @@ cos2rump_setup(void)
 	}
 	crcalls.rump_cpu_sched_switch_viathd    = cos_cpu_sched_switch;
 	crcalls.rump_memfree			= cos_memfree;
+	crcalls.rump_bmk_platform_cpu_sched_settls = cos_bmk_platform_cpu_sched_settls;
 	return;
 }
 
+/* Memory */
 extern unsigned long bmk_memsize;
 void
 rump_bmk_memsize_init(void)
@@ -131,6 +138,3 @@ cos_cpu_sched_switch(struct bmk_thread *prev, struct bmk_thread *next){
 	if(ret)
 		printc("thread switch failed\n");
 }
-
-
-
