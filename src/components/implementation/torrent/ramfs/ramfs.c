@@ -25,13 +25,33 @@ struct fsobj root;
 
 #define MIN_DATA_SZ 256
 
-typedef struct {
+struct file_data {
 	cbuf_t cbuf_id;
 	int cbuf_len;
 	int start;
 	int len;
 	void* next;
-} __file_data_t;
+};
+
+int file_data_init(struct file_data **fd, cbuf_t cbuf_id, int cbuf_length, int start, int len, void* next)
+{
+	assert(*fd);
+	(*fd)->cbuf_id = cbuf_id;
+	(*fd)->cbuf_len = cbuf_length;
+	(*fd)->start = start;
+	(*fd)->len = len;
+	(*fd)->next = next;
+
+	return 0;
+}
+
+int file_data_alloc(struct file_data **fd, cbuf_t cbuf_id, int cbuf_length, int start, int len, void* next)
+{
+	*fd = malloc(sizeof(struct file_data));
+	if (!*fd) return -1;
+	
+	return file_data_init(fd, cbuf_id, cbuf_length, start, len, next);
+}
 
 td_t 
 tsplit(spdid_t spdid, td_t td, char *param, 
@@ -150,7 +170,8 @@ treadp(spdid_t spdid, td_t td, int *off, int *sz)
 	int ret = -1;
 	struct torrent *t;
 	struct fsobj *fso;
-	__file_data_t *current;
+	struct file_data *current, *prev;
+	u32_t total_offset = 0;
 	
 	if (tor_isnull(td)) return -EINVAL;
 	
@@ -165,27 +186,30 @@ treadp(spdid_t spdid, td_t td, int *off, int *sz)
 	assert(t->offset <= fso->size);
 	if (!fso->size) ERR_THROW(0, done);
 
-	current = (__file_data_t*) fso->data;
-	u32_t total_offset = 0;
+	current = (struct file_data*) fso->data;
 
-	// trying to read a file with no data
-	if (!current) { ERR_THROW(-EINVAL, done); }
+	/* trying to read a file with no data */
+	if (!current) ERR_THROW(-EINVAL, done);
 
-	// find where we are reading from
-	while (total_offset < t->offset && current != NULL)
-	{
+	/* find where we are reading from */
+	while (total_offset < t->offset && current != NULL) {
 		total_offset += current->len;
+
+		prev = current;
 		current = current->next;
 	}
 
-	// current should now be equal to the file offset.
+	/* Probably want to bomb out smarter but... for now */
+	if (!current) ERR_THROW(-EINVAL, done); 
+
+	/* current should now be equal to the file offset. */
 	*off = current->start;
-	*sz = current->len;
-	ret = current->cbuf_id;
+	*sz  = current->len;
+	ret  = current->cbuf_id;
 
 	t->offset += current->len;
 
-	cbuf_send_free(current->cbuf_id);
+	cbuf_send(current->cbuf_id);
 
 done:	
 	UNLOCK();
@@ -247,13 +271,9 @@ done:
 int 
 twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 {
-	printc("\nentering twritep\n");
-	printc("spd_id(): %d\ntorrent: %d\ncbuf: %d\nstart: %d\nsz: %d\n", spdid, td, cb, start, sz);
-	
 	int ret = -1, left;
 	struct torrent *t;
 	struct fsobj *fso;
-	__file_data_t *file_data; 
 
 	if (!sz) {return -EINVAL;}
 
@@ -269,151 +289,105 @@ twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 	fso = t->data;
 	assert(fso->size <= fso->allocated);
 	assert(t->offset <= fso->size);
-	__file_data_t *current = (__file_data_t*) fso->data; // start of file
-	__file_data_t *prev = NULL;
 
-	// find where we want to write.
-	u32_t total_offset = 0;
+	unsigned int total_offset = 0;
+	struct file_data *current = (struct file_data*) fso->data;
+	
+	/* file does not exist yet */
+	if (current == NULL) {
+		printc(">>>case 0: initial file creation\n");
+		struct file_data *new_node;
+		file_data_alloc(&new_node, cb, sz, start, sz, NULL);
+
+		fso->data = new_node;
+
+		t->offset += sz;
+		fso->size = t->offset;
+
+		ret = sz;
+
+		goto done;
+	}
+	
+	unsigned int curr_off = 0;
+	struct file_data *prev = NULL;
+
+	/* iterate through and try to find where to write to */
 	while (current != NULL &&
 		(total_offset + current->len) <= t->offset) {
 		total_offset += current->len;
 
-		if (current->next != NULL) {
-			prev = current;
-			current = current->next;
-		}
+		prev = current;
+		current = current->next;
 	}
 
-	unsigned int remaining_offset = t->offset - total_offset;
+	curr_off = t->offset - total_offset;
 
-	// need to calculate proper start
 	if (current == NULL) {
-		// initial file creation
-
-		printc(">>>case 0\n");
-		// adding to start and can't override
-		__file_data_t *new_node = malloc(sizeof(__file_data_t));
-		new_node->cbuf_id = cb;
-		new_node->cbuf_len = sz; // it reeally doesn't.
-		new_node->start = start;
-		new_node->len = sz;
-		new_node->next = NULL;
-
-		fso->data = new_node; // change start of file
-
-		// set offset
-		t->offset += sz;
-		fso->size = t->offset;
-	}
-	else if (t->offset == 0 && sz < current->len) {
-		printc(">>>case 1\n");
-		// adding to start and can't override
-		__file_data_t *new_node = malloc(sizeof(__file_data_t));
-		new_node->cbuf_id = cb;
-		new_node->cbuf_len = sz; // it reeally doesn't.
-		new_node->start = start;
-		new_node->len = sz;
-		new_node->next = current->next;
-
-		// need to keep some of currenti
-		current->start += sz;
-		current->len -= sz;
-
-		fso->data = new_node; // change start of file
-
-		// set offset
-		t->offset += sz;
-		fso->size = t->offset;
-	}
-	else if (current->next == NULL && t->offset == current->start + current->len) {
 		printc(">>>case 2\n");
 		// arguably the most likely case
 		// just writing to the end of the file
-		__file_data_t *new_node = malloc(sizeof(__file_data_t));
-		new_node->cbuf_id = cb;
-		new_node->cbuf_len = sz; // it reeally doesn't.
-		new_node->start = start;
-		new_node->len = sz;
-		new_node->next = NULL;
+		struct file_data *new_node;
+		file_data_alloc(&new_node, cb, sz, start, sz, NULL);
 
-		current->next = new_node;
+		prev->next = new_node;
 
-		// set offset
 		t->offset += sz;
 		fso->size = t->offset;
 	}
-	else if (sz < current->len - remaining_offset) {
-		// will need to do a split
-
+	else if (sz < current->len - curr_off) {
 		printc(">>>case 3\n");
-		unsigned int offset_into_cbuf = current->start + remaining_offset;
+		unsigned int offset_into_cbuf = current->start + curr_off;
 		int split_len = current->len - offset_into_cbuf - sz;
 		int copy_start = current->start + offset_into_cbuf + sz;
 		cbuf_t split_cb;
 		char *cb_ptr = cbuf_alloc(split_len, &split_cb);
-		if (!cb_ptr) {
-			ERR_THROW(-EINVAL, done);
-		}
+		if (!cb_ptr) { ERR_THROW(-EINVAL, done); }
 		char *buf = cbuf2buf(current->cbuf_id, current->len);
 		memcpy(cb_ptr, buf + copy_start, split_len);
 
 		// create a node for this new cbuf.
-		__file_data_t *split_node = malloc(sizeof(__file_data_t));
-		split_node->cbuf_id = split_cb;
-		split_node->cbuf_len = split_len;
-		split_node->start = 0;
-		split_node->len = split_len;
-		split_node->next = current->next;
+		struct file_data *split_node;
+		file_data_alloc(&split_node, split_cb, split_len, 0, split_len, current->next);
 
 		// now create a node for the cbuf they passed in.
-		__file_data_t *new_node = malloc(sizeof(__file_data_t));
-		new_node->cbuf_id = cb;
-		new_node->cbuf_len = sz;
-		new_node->start = start;
-		new_node->len = sz;
-		new_node->next = split_node;
+		struct file_data *new_node;
+		file_data_alloc(&new_node, cb, sz, start, sz, split_node);
 
 		// modify current
 		current->len -= (sz + split_len);
 		current->next = new_node;
 	}
 	else if (sz > current->len) {
-		// have to set offset
-
 		printc(">>>case 4\n");
-		int bytesOverwritten = current->len - remaining_offset;
-		current->len -= bytesOverwritten;
 
-		// causes an issue if current->next can actually be overwritten completely too
-		__file_data_t* ptr_node = current->next;
-	
-		printc("ptr_node == NULL: %d bO: %d len %d sz %d\n", (ptr_node == NULL) ? 1 : 0, bytesOverwritten, ptr_node->len, sz);
-		
-		while (ptr_node != NULL && bytesOverwritten + ptr_node->len
-			< sz) {
-			printc("freeing a thing!\n");
-			bytesOverwritten += ptr_node->len;
-			__file_data_t *temp_ptr = ptr_node;
-			ptr_node = ptr_node->next;
-			free(temp_ptr);
-			printc("freed a thing!\n");
+		struct file_data* ptr_node = current->next;
+		struct file_data* head_node = current;
+		if (curr_off == 0)
+		{
+			ptr_node = current;
+			head_node = prev;
 		}
 
-		printc("checking...\n");
+		int bytesOverwritten = current->len - curr_off;
+		current->len -= bytesOverwritten;
+
+		while (ptr_node != NULL && bytesOverwritten + ptr_node->len
+			< sz) {
+			bytesOverwritten += ptr_node->len;
+			struct file_data *temp_ptr = ptr_node;
+			ptr_node = ptr_node->next;
+			free(temp_ptr);
+		}
+
 		if (bytesOverwritten < sz && ptr_node != NULL) {
 			ptr_node->start += (sz - bytesOverwritten);
 		}
 
-		printc("doing something else...\n");
-		// create new node
-		__file_data_t *new_node = malloc(sizeof(__file_data_t));
-		new_node->cbuf_id = cb;
-		new_node->cbuf_len = sz;
-		new_node->start = start;
-		new_node->len = sz;
-		new_node->next = ptr_node;
+		struct file_data *new_node;
+		file_data_alloc(&new_node, cb, sz, start, sz, ptr_node);
 
-		current->next = new_node;
+		head_node->next = new_node;
 	}
 	else {
 		printc(">>>case 5: did not match anything!!!\n");
@@ -421,15 +395,19 @@ twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 		ERR_THROW(-EINVAL, done);
 	}
 
+	// It should never equal anything else?
+	ret = sz;
+
+done:	
 	// print current state
-	current = (__file_data_t*) fso->data; // start of file
+	current = (struct file_data*) fso->data; // start of file
 	while (current != NULL)
 	{
 		char *full_buf = cbuf2buf(current->cbuf_id, current->cbuf_len);
 		char *buf = malloc(sizeof(char) * current->len);
 		memcpy(buf, full_buf + current->start, current->len);
 
-		__file_data_t *next = current->next;
+		struct file_data *next = current->next;
 		cbuf_t next_id = (next != NULL) ? next->cbuf_id : -1;
 
 		printc("cbuf_id: %d start: %d size: %d next: %d data: [%s]\n", current->cbuf_id, current->start, current->len, next_id, buf);
@@ -439,8 +417,7 @@ twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 	// always set t->offset to the actual END of previous memory
 	// so you don't end up pointing to null
 	assert(t->offset);
-
-done:	
+	
 	UNLOCK();
 	return ret;
 }

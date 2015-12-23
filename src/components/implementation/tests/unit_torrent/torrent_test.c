@@ -20,52 +20,80 @@
 #define printv(fmt,...) 
 #endif
 
-char buffer[1024];
+void doit(td_t t)
+{
+	cbuf_t cb;
+	int ret = 0;
+	char *str = "Hello World!";
+	int sz = strlen(str);
+	char *s = cbuf_alloc(sz, &cb);
+	if (!s) { printc("UNIT TEST FAILED: cbut alloc failed %s\n", s); return; }
+	memcpy(s, str, sz);
+	ret = twritep(cos_spd_id(), t, cb, 0, sz);
+	printc("ret - sz: %d\n", ret - sz);
+}
+
+void perf_tests(void)
+{
+	/* take clock ticks */
+	
+	unsigned int iterations = 10;
+	long evt1 = 0;
+	td_t t;
+	char *params1 = "bar";
+	long long time1, time2;
+	
+	/* open file */
+	t = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_ALL, evt1);
+	if (t < 1) { printc("UNIT TEST FAILED: split failed %c\n", t); return; }
+	
+	while (0 < iterations--) {
+		
+		rdtscll(time1);
+		doit(t);
+		rdtscll(time2);
+		long long diff = time2 - time1;	
+
+		printc("t1: %lld t2: %lld diff: %lld\n", time1, time2, diff);
+
+
+	}
+	
+	/* close file */
+	trelease(cos_spd_id(), t);
+
+	/* take clock ticks after */
+}
 
 void twritep_readp_tests(void)
 {
 	td_t t1, t2;
-	long evt1, evt2;
+	long evt1 = 0;
 	char *params1 = "bar";
-	char *params2 = "foo/";
-	char *params3 = "foo/bar";
-	char *data1 = "1234567890", *data2 = "asdf;lkj", *data3 = "asdf;lkj1234567890";
 	int ret1, ret2;
 
 	int a = 0, b = 0, c = 0;
 	
 	t1 = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_ALL, evt1);
-	if (t1 < 1) {
-		printc("UNIT TEST FAILED: split2 failed %c\n", t1); return;
-	}
-	
+	if (t1 < 1) { printc("UNIT TEST FAILED: split2 failed %c\n", t1); return; }
 	cbuf_t cb;
 	char *str1 = "AAA games are just great!";
 	char *d = cbuf_alloc(strlen(str1), &cb);
-	if (!d) {
-		printc("UNIT TEST FAILED: split2 failed %c\n", d); return;
-	}
+	if (!d) { printc("UNIT TEST FAILED: split2 failed %c\n", *d); return; }
 	memcpy(d, str1, strlen(str1));
-
 	c = twritep(cos_spd_id(), t1, cb, 0, strlen(str1));
 	
-	// Another write
 	cbuf_t cb2;
 	char *str2 = " Actually wait, no. What am I saying?";
 	char *e = cbuf_alloc(strlen(str2), &cb2);
-	if (!e) {
-		printc("UNIT TEST FAILED: split2 failed %c\n", e); return;
-	}
+	if (!e) { printc("UNIT TEST FAILED: split2 failed %c\n", *e); return; }
 	memcpy(e, str2, strlen(str2));
-
 	c = twritep(cos_spd_id(), t1, cb2, 0, strlen(str2));
 
 	cbuf_t cb3;
 	char *str3 = "terrible!";
 	char *f = cbuf_alloc(strlen(str3), &cb3);
-	if (!f) {
-		printc("UNIT TEST FAILED: split2 failed %c\n", f); return;
-	}
+	if (!f) { printc("UNIT TEST FAILED: split2 failed %c\n", *f); return; }
 	memcpy(f, str3, strlen(str3));
 	char val[8];
 	snprintf(val, 8, "%d", 14);
@@ -76,9 +104,7 @@ void twritep_readp_tests(void)
 	cbuf_t cb4;
 	char *str4 = " Diablo 1 and Torchlight are the best! Also Borderlands.";
 	char *g = cbuf_alloc(strlen(str4), &cb4);
-	if (!g) {
-		printc("UNIT TEST FAILED: split2 failed %c\n", g); return;
-	}
+	if (!g) { printc("UNIT TEST FAILED: split2 failed %c\n", *g); return; }
 	memcpy(g, str4, strlen(str4));
 	snprintf(val, 8, "%d", 23);
 	rt = twmeta(cos_spd_id(), t1, "offset", strlen("offset"),
@@ -106,118 +132,78 @@ void twritep_readp_tests(void)
 	c = treadp(cos_spd_id(), t1, &a, &b);
 	char *buf = cbuf2buf(c, 6);
 	printc("Expected:[%s] Actual[%s]\n", buf, d);
-	
-	printc("\n\ncalling read\n");
-	c = treadp(cos_spd_id(), t1, &a, &b);
-	char *buf2 = cbuf2buf(c, 27);
-	printc("Expected:[%s] Actual[%s]\n", buf2, e);
 
 	printc("UNIT TEST Unit tests for torrents - specifically treadp, twritep... are done\n");
-
-	return;
-}
-
-void twrite_read_tests(void)
-{
-	td_t t1, t2;
-	long evt1, evt2;
-	char *params1 = "bar";
-	char *params2 = "foo/";
-	char *params3 = "foo/bar";
-	char *data1 = "1234567890", *data2 = "asdf;lkj", *data3 = "asdf;lkj1234567890";
-	unsigned int ret1, ret2;
-
-	int a = 0, b = 0, c = 0;
-	c = treadp(cos_spd_id(), 0, &a, &b);
-
-	printc("UNIT TEST Unit tests for torrents...\n");
-
-	printc("%d %d %d\n", a, b, c);
-
-	evt1 = evt_split(cos_spd_id(), 0, 0);
-	evt2 = evt_split(cos_spd_id(), 0, 0);
-	assert(evt1 > 0 && evt2 > 0);
-
-	t1 = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_ALL, evt1);
-	if (t1 < 1) {
-		printc("UNIT TEST FAILED: split failed %d\n", t1);
-		return;
-	}
 	trelease(cos_spd_id(), t1);
-	printc("UNIT TEST PASSED: split->release\n");
 
-	t1 = tsplit(cos_spd_id(), td_root, params2, strlen(params2), TOR_ALL, evt1);
-	if (t1 < 1) {
-		printc("UNIT TEST FAILED: split2 failed %d\n", t1); return;
-	}
-	t2 = tsplit(cos_spd_id(), t1, params1, strlen(params1), TOR_ALL, evt2);
-	if (t2 < 1) {
-		printc("UNIT TEST FAILED: split3 failed %d\n", t2); return;
-	}
-
-	ret1 = twrite_pack(cos_spd_id(), t1, data1, strlen(data1));
-	ret2 = twrite_pack(cos_spd_id(), t2, data2, strlen(data2));
-	printv("write %d & %d, ret %d & %d\n", strlen(data1), strlen(data2), ret1, ret2);
-
-	trelease(cos_spd_id(), t1);
-	trelease(cos_spd_id(), t2);
-	printc("UNIT TEST PASSED: 2 split -> 2 write -> 2 release\n");
-
-	t1 = tsplit(cos_spd_id(), td_root, params2, strlen(params2), TOR_ALL, evt1);
-	t2 = tsplit(cos_spd_id(), t1, params1, strlen(params1), TOR_ALL, evt2);
-	if (t1 < 1 || t2 < 1) {
-		printc("UNIT TEST FAILED: later splits failed\n");
-		return;
+	unsigned int i, j;
+	int str_length = 0;
+	unsigned long long t; unsigned long rnd;
+	td_t t3;
+	long evt2 = 0;
+	char *params2 = "boo";
+	t3 = tsplit(cos_spd_id(), td_root, params2, strlen(params1), TOR_ALL, evt2);
+	if (t3 < 1) {
+		printc("UNIT TEST FAILED: split2 failed %c\n", t3); return;
 	}
 	
-	ret1 = tread_pack(cos_spd_id(), t1, buffer, 1023);
-	if (ret1 > 0) buffer[ret1] = '\0';
-	printv("read %d (%d): %s (%s)\n", ret1, strlen(data1), buffer, data1);
-	assert(!strcmp(buffer, data1));
-	assert(ret1 == strlen(data1));
-	buffer[0] = '\0';
+	for (i = 0; i < 100; i++) {
+		
+		
+		rdtscll(t);
+		rnd = (int) (t & 127);
+		int rnd_val;
+		
+		if (rnd > 0 && rnd < 42) {
+			rnd_val = 0;
+		}
+		else if (rnd >= 42 && rnd < 84) {
+			rnd_val = 1;
+		}
+		else
+		{
+			rnd_val = 2;
+		}
 
-	ret1 = tread_pack(cos_spd_id(), t2, buffer, 1023);
-	if (ret1 > 0) buffer[ret1] = '\0';
-	assert(!strcmp(buffer, data2));
-	assert(ret1 == strlen(data2));
-	printv("read %d: %s\n", ret1, buffer);
-	buffer[0] = '\0';
+		int offset;
+		switch (rnd_val) {
+			case 0:
+				offset = 0;
+			case 1:
+				offset = 50;
+			case 2: 
+				offset = str_length;
+		}
 
-	trelease(cos_spd_id(), t1);
-	trelease(cos_spd_id(), t2);
+		// pick a random length
+		unsigned int length = 15; // do the random part later
+		
+		cbuf_t cb;
+		char *rnd_str = cbuf_alloc(length, &cb);
+		if (!rnd_str) {
+			printc("UNIT TEST FAILED: split failed %c\n", *rnd_str); return;
+		}
+		
+		for (j = 0; j < length; j++) {
+			rnd_str[j] = (char) i + 'a';
+		}
 
-	printc("UNIT TEST PASSED: 2 split -> 2 read -> 2 release\n");
+		printc("%d: %s\n", i, rnd_str);
+		int ret = twritep(cos_spd_id(), t3, cb, 0, length);
+		printc("twritep %d return value: %d\n", i, ret);
 
-	t1 = tsplit(cos_spd_id(), td_root, params3, strlen(params3), TOR_ALL, evt1);
-	ret1 = tread_pack(cos_spd_id(), t1, buffer, 1023);
-	if (ret1 > 0) buffer[ret1] = '\0';
-	printv("read %d: %s\n", ret1, buffer);
-	assert(!strcmp(buffer, data2));
-	assert(ret1 == strlen(data2));
-	printc("UNIT TEST PASSED: split with absolute addressing -> read\n");
-	buffer[0] = '\0';
+	}
+	
+	trelease(cos_spd_id(), t3);
 
-	ret1 = twrite_pack(cos_spd_id(), t1, data1, strlen(data1));
-	printv("write %d, ret %d\n", strlen(data1), ret1);
 
-	trelease(cos_spd_id(), t1);
-	t1 = tsplit(cos_spd_id(), td_root, params3, strlen(params3), TOR_ALL, evt1);
-	ret1 = tread_pack(cos_spd_id(), t1, buffer, 1023);
-	if (ret1 > 0 && ret1 < 1024) buffer[ret1] = '\0';
-	printv("read %d: %s (%s)\n", ret1, buffer, data3);
-	assert(ret1 == strlen(data2)+strlen(data1));
-	assert(!strcmp(buffer, data3));
-	buffer[0] = '\0';
-	printc("UNIT TEST PASSED: writing to an existing file\n");
 
-	printc("UNIT TEST ALL PASSED\n");
 
 	return;
 }
 
 void cos_init(void)
 {
-	//twrite_read_tests();
-	twritep_readp_tests();
+	perf_tests();
+	//twritep_readp_tests();
 }

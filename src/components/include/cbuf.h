@@ -265,7 +265,7 @@ again:
 	do {
 		cm = cbuf_vect_lookup_addr(id);
 		if (unlikely(!cm || CBUF_PTR(cm) == 0)) {
-			printc("no cm for %d!\n", id);
+			printc("cbuf::no cm for %d!\n", id);
 			if (__cbuf_2buf_miss(id, len)) {printc("miss\n"); goto done;}
 			goto again;
 		}
