@@ -11,13 +11,8 @@
 
 //#define FP_CHECK(void(*a)()) ( (a == null) ? printc("SCHED: ERROR, function pointer is null.>>>>>>>>>>>\n");: printc("nothing");)
 
-void cos_bmk_platform_cpu_sched_settls(
-		unsigned long btcb_sp,
-		unsigned long btcb_ip,
-		unsigned long btcb_tp,
-		unsigned long btcb_tpsize);
-
 extern struct cos_rumpcalls crcalls;
+int boot_thread = 1;
 
 /* Mapping the functions from rumpkernel to composite */
 
@@ -42,7 +37,7 @@ cos2rump_setup(void)
 	}
 	crcalls.rump_cpu_sched_switch_viathd    = cos_cpu_sched_switch;
 	crcalls.rump_memfree			= cos_memfree;
-	crcalls.rump_bmk_platform_cpu_sched_settls = cos_bmk_platform_cpu_sched_settls;
+	crcalls.rump_tls_init 			= cos_tls_init;
 	return;
 }
 
@@ -91,8 +86,17 @@ cos_memalloc(size_t nbytes, size_t align)
 }
 
 /*---- Scheduling ----*/
-struct bmk_thread *bmk_threads[MAX_NUM_THREADS];
+//struct bmk_thread *bmk_threads[MAX_NUM_THREADS];
 extern struct cos_compinfo booter_info;
+
+void
+cos_tls_init(unsigned long tp, thdcap_t tc)
+{
+	printc("--SCHED: COS: cos_tls_init--\n");
+	printc("--tp: %p--\n", (void *)tp);
+	printc("--tc: %d--\n", tc);
+	cos_thd_mod(&booter_info, tc, tp);
+}
 
 void
 cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
@@ -105,36 +109,47 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	struct thd_creation_protocol  info;
 	struct thd_creation_protocol *thd_meta = &info;
 
-	//  This will be null for creating the first thread, use the booter_info thdcap_t
-	if(bmk_current == NULL)
+	//  bmk_current is not set for the booting thread, use the booter_info thdcap_t
+	if(boot_thread) {
+		printc("Boot thread, don't use bmk_current\n");
 		thd_meta->retcap = BOOT_CAPTBL_SELF_INITTHD_BASE;
-	else
+		boot_thread = 0;
+	} else {
+		printc("Not Boot thread, using bmk_current\n");
 		thd_meta->retcap = get_cos_thdcap(bmk_current);
+	}
 
 	thd_meta->f = f;
 	thd_meta->arg = arg;
 
 	newthd_cap = cos_thd_alloc(&booter_info, booter_info.comp_cap, rump_thd_fn, thd_meta);
+	printc("COS: newthd_cap: %d\n", (int)newthd_cap);
 
-	printc("SCHED: COS: cos_cpu_sched_create, post thd_alloc\n");
 	// To access the thd_id
 	ret = cos_thd_switch(newthd_cap);
 	if(ret)
 		printc("cos_thd_switch fail\n");
-	bmk_threads[*(thd_meta->thdid)] = thread;
+	/*
+	 * RG: This is commented out as we are no longer using
+	 * the array access, we are using bmk_current
+	 */
+	//bmk_threads[*(thd_meta->thdid)] = thread;
 
+	printc("COS: Calling set_cos_thdcap with %d as thd_cap\n", (int)newthd_cap);
 	set_cos_thdcap(thread, newthd_cap);
 }
 
 void
-cos_cpu_sched_switch(struct bmk_thread *prev, struct bmk_thread *next){
+cos_cpu_sched_switch(struct bmk_thread *prev, struct bmk_thread *next)
+{
 	printc("SCHED: COS: cos_cpu_sched_switch\n");
-	struct thd_creation_protocol  *info;
+	struct thd_creation_protocol info;
+	struct thd_creation_protocol *thd_meta = &info;
 	int ret;
 
-	info->retcap = get_cos_thdcap(next);
+	thd_meta->retcap = get_cos_thdcap(next);
 
-	ret = cos_thd_switch(info->retcap);
+	ret = cos_thd_switch(thd_meta->retcap);
 	if(ret)
 		printc("thread switch failed\n");
 }

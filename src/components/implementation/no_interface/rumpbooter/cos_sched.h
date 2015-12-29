@@ -7,6 +7,7 @@ void cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		void *stack_base, unsigned long stack_size);
 void rump_thd_fn(void *param);
 void cos_cpu_sched_switch(struct bmk_thread *prev, struct bmk_thread *next);
+void cos_tls_init(unsigned long tp, thdcap_t tc);
 
 struct thd_creation_protocol {
 	unsigned short int *thdid;

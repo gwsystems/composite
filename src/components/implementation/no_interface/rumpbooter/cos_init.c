@@ -5,20 +5,30 @@
 
 extern struct cos_compinfo booter_info;
 
+/* RG: The amount of memory to give RK to start */
+#define RK_MEM ((1 << 30))
 static unsigned long
 alloc_initmem_all(void)
 {
+ 	/* RG:
+	 * 1 increment is 1 page, we start at 1 as the first page is fetched
+	 * from cos_run.
+	 */
+	int count = 1;
+	int max_rk = (RK_MEM / 4096);
+
 	void *curpage;
 	void *nxtpage = cos_page_bump_alloc(&booter_info);
 	int  *nxtpage_test = (int *)nxtpage;
 	*nxtpage_test = 1;
 
-	while(nxtpage != NULL) {
+	while(count <= max_rk && nxtpage != NULL) {
 		curpage = nxtpage;
 		int *curpage_test = (int *)nxtpage;
 		*curpage_test = 1;
 
 		nxtpage = cos_page_bump_alloc(&booter_info);
+		count++;
 	}
 
 	unsigned long max = (unsigned long)curpage;
@@ -49,7 +59,7 @@ cos_run(char *cmdline)
 
 	// bmk_pgalloc_loadmem is needed to get the memory area from Composite
 	bmk_pgalloc_loadmem(min, max);
-	printc("returned from bmk_pgalloc_loadmem");
+	printc("returned from bmk_pgalloc_loadmem\n");
 
 	bmk_sched_startmain(bmk_mainthread, cmdline);
 }

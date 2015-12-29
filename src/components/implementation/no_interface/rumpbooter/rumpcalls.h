@@ -10,9 +10,12 @@ typedef __builtin_va_list va_list;
 #define va_end(va_arg)     __builtin_va_end(va_arg)
 
 extern struct cos_rumpcalls crcalls;
-extern struct bmk_thread *bmk_threads[];
+
+struct bmk_thread;
+#define bmk_current (tls_get_thread())
+//extern __thread struct bmk_thread *bmk_current;
+
 struct bmk_tcb *tcb;
-#define bmk_current bmk_threads[crcalls.rump_cos_thdid()]
 
 struct cos_rumpcalls
 {
@@ -32,11 +35,7 @@ struct cos_rumpcalls
 			void (*f)(void *), void *arg,
 			void *stack_base, unsigned long stack_size);
 	void   (*rump_cpu_sched_switch_viathd)(struct bmk_thread *prev, struct bmk_thread *next);
-	void   (*rump_bmk_platform_cpu_sched_settls)(
-			unsigned long btcb_sp,
-			unsigned long btcb_ip,
-			unsigned long btcb_tp,
-			unsigned long btcb_tpsize);
+	void   (*rump_tls_init)(unsigned long tp, capid_t tc); /* thdcap_t == capid_t*/
 };
 
 /* Mapping the functions from rumpkernel to composite */
