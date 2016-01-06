@@ -1146,16 +1146,16 @@ composite_syscall_slowpath(struct pt_regs *regs)
 			break;
 		}
 		/* case CAPTBL_OP_MAPPING_MOD: */
-		/* { */
-		/* } */
 		default: goto err;
 		}
 		break;
 	}
 	case CAP_SRET:
 	{
-		/* We usually don't have sret cap as we have 0 as the
-		 * default return cap.*/
+		/*
+		 * We usually don't have sret cap as we have 0 as the
+		 * default return cap.
+		 */
 		sret_ret(thd, regs, cos_info);
 		return 0;
 	}
@@ -1164,11 +1164,11 @@ composite_syscall_slowpath(struct pt_regs *regs)
 		switch (op){
 		case CAPTBL_OP_TCAP_ACTIVATE:
 		{
-			capid_t tcap_cap 	 = __userregs_get1(regs) & 0xFFFF;
-			int flags 	    	 = __userregs_get1(regs) >> 16;
-			capid_t pgtbl_cap    	 = __userregs_get2(regs);
-			capid_t pgtbl_addr   	 = __userregs_get3(regs);
-			capid_t compcap      	 = __userregs_get4(regs);
+			capid_t tcap_cap   = __userregs_get1(regs) & 0xFFFF;
+			int     flags 	   = __userregs_get1(regs) >> 16;
+			capid_t pgtbl_cap  = __userregs_get2(regs);
+			capid_t pgtbl_addr = __userregs_get3(regs);
+			capid_t compcap    = __userregs_get4(regs);
 			struct cap_tcap *tcapsrc;
 			struct tcap     *tcap_new;
 			unsigned long   *pte = NULL;
@@ -1217,11 +1217,18 @@ composite_syscall_slowpath(struct pt_regs *regs)
 			tcap_prio_t prio 	 = (tcap_prio_t)prio_lower << 32 | (tcap_prio_t)prio_lower;
 			struct cap_tcap *tcapsrc = (struct cap_tcap *)ch;
 			struct cap_arcv *arcv;
+			struct tcap *tcapdst;
+			int dispatch;
+
+			/* highest-order bit is dispatch flag */
+			dispatch = prio_higher >> ((sizeof(prio_higher)*8)-1);
+			prio_higher = (prio_higher << 1) >> 1;
 
 			arcv = (struct cap_arcv *)captbl_lkup(ci->captbl, arcv_cap);
-			if (arcv->h.type != CAP_ARCV) cos_throw(err, -EINVAL);
+			if (!arcv || arcv->h.type != CAP_ARCV) cos_throw(err, -EINVAL);
 
-			struct tcap *tcapdst = arcv->thd->tcap;
+			assert(arcv->thd && arcv->thd->tcap);
+			tcapdst = arcv->thd->tcap;
 
 			ret = tcap_delegate(tcapsrc->tcap, tcapdst, res, prio);
 			if (unlikely(ret)) cos_throw(err, -EINVAL);

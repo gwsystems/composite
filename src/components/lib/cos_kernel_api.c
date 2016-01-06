@@ -574,12 +574,12 @@ cos_tcap_split(struct cos_compinfo *ci, tcap_t src, tcap_res_t res, tcap_prio_t 
 {
 	int prio_higher = (u32_t)(prio >> 32);
 	int prio_lower  = (u32_t)((prio << 32) >> 32);
-
 	tcap_t ret;
 
 	ret = __cos_tcap_alloc(ci, comp, flags);
+	if (res != 0 && ret > 0 &&
+	    call_cap_op(src, CAPTBL_OP_TCAP_TRANSFER, ret, res, prio_higher, prio_lower)) return 0;
 
-	if (res != 0) if (call_cap_op(src, CAPTBL_OP_TCAP_TRANSFER, ret, res, prio_higher, prio_lower)) return 0;
 	return ret;
 }
 
@@ -589,26 +589,18 @@ cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio)
 	int prio_higher = (u32_t)(prio >> 32);
 	int prio_lower  = (u32_t)((prio << 32) >> 32);
 
-	call_cap_op(src, CAPTBL_OP_TCAP_TRANSFER, dst, res, prio_higher, prio_lower);
-
-	return 0;
+	return call_cap_op(src, CAPTBL_OP_TCAP_TRANSFER, dst, res, prio_higher, prio_lower);
 }
 
 int
 cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags)
 {
-	int prio_higher = (u32_t)(prio >> 32);
+	u32_t dispatch  = flags & TCAP_DELEG_DISPATCH;
+	int prio_higher = (u32_t)(prio >> 32) | (dispatch << ((sizeof(dispatch)*8)-1));
 	int prio_lower  = (u32_t)((prio << 32) >> 32);
 	int ret = -EINVAL;
 
-	if (flags & TCAP_DELEG_TRANSFER) ret = call_cap_op(src, CAPTBL_OP_TCAP_DELEGATE, dst, res, prio_higher, prio_lower);
-
-	if (flags == TCAP_DELEG_DISPATCH) {
-		cos_asnd(dst);
-		ret = 0;
-	}
-
-	return ret;
+	return call_cap_op(src, CAPTBL_OP_TCAP_DELEGATE, dst, res, prio_higher, prio_lower);
 }
 
 int
