@@ -3,7 +3,7 @@
 ./cos_loader \
 "c0.o, ;llboot.o, ;*fprr.o, ;mm.o, ;print.o, ;boot.o, ;\
 \
-!mpool.o,a3;!l.o,a1;!te.o,a3;!eg.o,a4;!cbuf.o,a5;!rfs.o,a7;!tt.o,a8;!va.o,a2;!vm.o,a1:\
+!mpool.o,a3;!l.o,a1;!te.o,a3;!eg.o,a4;!cbuf.o,a5;!rfs.o,a7;!tt.o,a8;!perf_read.o,a8;!va.o,a2;!vm.o,a1:\
 \
 c0.o-llboot.o;\
 fprr.o-print.o|[parent_]mm.o|[faulthndlr_]llboot.o;\
@@ -20,7 +20,8 @@ mpool.o-print.o|fprr.o|mm.o|boot.o|va.o|l.o;\
 vm.o-fprr.o|print.o|mm.o|l.o|boot.o;\
 va.o-fprr.o|print.o|mm.o|l.o|boot.o|vm.o;\
 rfs.o-fprr.o|print.o|mm.o|cbuf.o||l.o|eg.o|va.o;\
-tt.o-fprr.o|rfs.o|cbuf.o||mm.o|eg.o|va.o|l.o|print.o\
+perf_read.o-fprr.o|rfs.o|cbuf.o|mm.o|eg.o|va.o|l.o|print.o;\
+tt.o-fprr.o|rfs.o|cbuf.o||mm.o|eg.o|va.o|l.o|print.o|perf_read.o\
 " ./gen_client_stub
 
 #mpd.o-cbuf.o|cg.o|fprr.o|print.o|te.o|mm.o|va.o;\

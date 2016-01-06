@@ -24,19 +24,28 @@ struct fsobj root;
 #define UNLOCK() if (lock_release(&fs_lock)) BUG();
 
 #define MIN_DATA_SZ 256
+#define DEBUG 0
 
 struct file_data {
 	cbuf_t cbuf_id;
+	char *chunk_start;
 	int cbuf_len;
 	int start;
 	int len;
 	void* next;
 };
 
-int file_data_init(struct file_data **fd, cbuf_t cbuf_id, int cbuf_length, int start, int len, void* next)
+int file_data_init(struct file_data **fd, 
+		cbuf_t cbuf_id, 
+		char* chunk_start, 
+		int cbuf_length, 
+		int start, 
+		int len, 
+		void* next)
 {
 	assert(*fd);
 	(*fd)->cbuf_id = cbuf_id;
+	(*fd)->chunk_start = chunk_start;
 	(*fd)->cbuf_len = cbuf_length;
 	(*fd)->start = start;
 	(*fd)->len = len;
@@ -45,12 +54,12 @@ int file_data_init(struct file_data **fd, cbuf_t cbuf_id, int cbuf_length, int s
 	return 0;
 }
 
-int file_data_alloc(struct file_data **fd, cbuf_t cbuf_id, int cbuf_length, int start, int len, void* next)
+int file_data_alloc(struct file_data **fd, cbuf_t cbuf_id, char* chunk_start, int cbuf_length, int start, int len, void* next)
 {
 	*fd = malloc(sizeof(struct file_data));
 	if (!*fd) return -1;
 	
-	return file_data_init(fd, cbuf_id, cbuf_length, start, len, next);
+	return file_data_init(fd, cbuf_id, chunk_start, cbuf_length, start, len, next);
 }
 
 td_t 
@@ -166,13 +175,12 @@ done:
 int
 treadp(spdid_t spdid, td_t td, int *off, int *sz)
 {
-	printc("starting treadp\n");
 	int ret = -1;
 	struct torrent *t;
 	struct fsobj *fso;
 	struct file_data *current, *prev;
 	u32_t total_offset = 0;
-	
+
 	if (tor_isnull(td)) return -EINVAL;
 	
 	LOCK();
@@ -182,8 +190,8 @@ treadp(spdid_t spdid, td_t td, int *off, int *sz)
 	if (!(t->flags & TOR_READ)) ERR_THROW(-EACCES, done);
 	fso = t->data;
 	
-	assert(fso->size <= fso->allocated);
-	assert(t->offset <= fso->size);
+	//assert(fso->size <= fso->allocated);
+	//assert(t->offset <= fso->size);
 	if (!fso->size) ERR_THROW(0, done);
 
 	current = (struct file_data*) fso->data;
@@ -210,6 +218,8 @@ treadp(spdid_t spdid, td_t td, int *off, int *sz)
 	t->offset += current->len;
 
 	cbuf_send(current->cbuf_id);
+
+	char* buf = cbuf2buf(current->cbuf_id, current->len);
 
 done:	
 	UNLOCK();
@@ -287,17 +297,18 @@ twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 	if (!(t->flags & TOR_WRITE)) ERR_THROW(-EACCES, done);
 
 	fso = t->data;
-	assert(fso->size <= fso->allocated);
-	assert(t->offset <= fso->size);
+	// we aren't tracking these right now. Need to either fix or write equivalent checks.
+	// fso->size may be irrelevant now. Or not?
+	//assert(fso->size <= fso->allocated);
+	//assert(t->offset <= fso->size);
 
 	unsigned int total_offset = 0;
 	struct file_data *current = (struct file_data*) fso->data;
 	
 	/* file does not exist yet */
 	if (current == NULL) {
-		printc(">>>case 0: initial file creation\n");
 		struct file_data *new_node;
-		file_data_alloc(&new_node, cb, sz, start, sz, NULL);
+		file_data_alloc(&new_node, cb, 0, sz, start, sz, NULL);
 
 		fso->data = new_node;
 
@@ -324,11 +335,10 @@ twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 	curr_off = t->offset - total_offset;
 
 	if (current == NULL) {
-		printc(">>>case 2\n");
 		// arguably the most likely case
 		// just writing to the end of the file
 		struct file_data *new_node;
-		file_data_alloc(&new_node, cb, sz, start, sz, NULL);
+		file_data_alloc(&new_node, cb, 0, sz, start, sz, NULL);
 
 		prev->next = new_node;
 
@@ -336,7 +346,6 @@ twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 		fso->size = t->offset;
 	}
 	else if (sz < current->len - curr_off) {
-		printc(">>>case 3\n");
 		unsigned int offset_into_cbuf = current->start + curr_off;
 		int split_len = current->len - offset_into_cbuf - sz;
 		int copy_start = current->start + offset_into_cbuf + sz;
@@ -348,19 +357,17 @@ twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 
 		// create a node for this new cbuf.
 		struct file_data *split_node;
-		file_data_alloc(&split_node, split_cb, split_len, 0, split_len, current->next);
+		file_data_alloc(&split_node, split_cb, 0, split_len, 0, split_len, current->next);
 
 		// now create a node for the cbuf they passed in.
 		struct file_data *new_node;
-		file_data_alloc(&new_node, cb, sz, start, sz, split_node);
+		file_data_alloc(&new_node, cb, 0, sz, start, sz, split_node);
 
 		// modify current
 		current->len -= (sz + split_len);
 		current->next = new_node;
 	}
 	else if (sz > current->len) {
-		printc(">>>case 4\n");
-
 		struct file_data* ptr_node = current->next;
 		struct file_data* head_node = current;
 		if (curr_off == 0)
@@ -385,7 +392,7 @@ twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 		}
 
 		struct file_data *new_node;
-		file_data_alloc(&new_node, cb, sz, start, sz, ptr_node);
+		file_data_alloc(&new_node, cb, 0, sz, start, sz, ptr_node);
 
 		head_node->next = new_node;
 	}
@@ -398,7 +405,9 @@ twritep(spdid_t spdid, td_t td, int cb, int start, int sz)
 	// It should never equal anything else?
 	ret = sz;
 
-done:	
+done:
+
+#if DEBUG	
 	// print current state
 	current = (struct file_data*) fso->data; // start of file
 	while (current != NULL)
@@ -413,6 +422,7 @@ done:
 		printc("cbuf_id: %d start: %d size: %d next: %d data: [%s]\n", current->cbuf_id, current->start, current->len, next_id, buf);
 		current = current->next;
 	}
+#endif
 	
 	// always set t->offset to the actual END of previous memory
 	// so you don't end up pointing to null

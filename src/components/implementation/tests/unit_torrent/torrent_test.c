@@ -12,6 +12,7 @@
 #include <cbuf.h>
 #include <evt.h>
 #include <torrent.h>
+#include <perf_test_read.h>
 
 //#define VERBOSE 1
 #ifdef VERBOSE
@@ -19,50 +20,68 @@
 #else
 #define printv(fmt,...) 
 #endif
+#define DEBUG 0
 
-void doit(td_t t)
+long long doit(td_t t, int size)
 {
 	cbuf_t cb;
+	long long time1, time2;
 	int ret = 0;
-	char *str = "Hello World!";
-	int sz = strlen(str);
-	char *s = cbuf_alloc(sz, &cb);
-	if (!s) { printc("UNIT TEST FAILED: cbut alloc failed %s\n", s); return; }
-	memcpy(s, str, sz);
-	ret = twritep(cos_spd_id(), t, cb, 0, sz);
-	printc("ret - sz: %d\n", ret - sz);
+	char *s = cbuf_alloc(size, &cb); //null terminator?
+
+	memset(s, 'a', size - 2);
+	s[size - 1] = '\0';
+
+	if (!s) { printc("UNIT TEST FAILED: cbut alloc failed %s\n", s); return -1; }
+
+	/* take clock ticks */
+	rdtscll(time1);
+	ret = twritep(cos_spd_id(), t, cb, 0, size);
+	/* take clock ticks after */
+	rdtscll(time2);
+
+	long long diff = time2 - time1;	
+
+#if DEBUG
+	printc("t1: %lld t2: %lld diff: %lld\n", time1, time2, diff);
+	printc("ret - sz: %d\n", ret - size);
+#endif
+
+	return diff;
 }
 
-void perf_tests(void)
+void test_write(void)
 {
-	/* take clock ticks */
-	
-	unsigned int iterations = 10;
 	long evt1 = 0;
 	td_t t;
 	char *params1 = "bar";
-	long long time1, time2;
+	int chunk_size;
 	
 	/* open file */
 	t = tsplit(cos_spd_id(), td_root, params1, strlen(params1), TOR_ALL, evt1);
 	if (t < 1) { printc("UNIT TEST FAILED: split failed %c\n", t); return; }
-	
-	while (0 < iterations--) {
-		
-		rdtscll(time1);
-		doit(t);
-		rdtscll(time2);
-		long long diff = time2 - time1;	
 
-		printc("t1: %lld t2: %lld diff: %lld\n", time1, time2, diff);
+	for (chunk_size = 64; chunk_size <= 16384; chunk_size *= 2) {
+		unsigned int iterations = 5;
+		unsigned int max = iterations;
+		long long total = 0;
 
-
+		while (0 < iterations--) {
+			total += doit(t, chunk_size);
+		}
+		long long average = (long long) ((long double) total / (long double) max);
+		printc("avr clock ticks for chunk size %d: %lld\n", chunk_size, average);
 	}
-	
+
 	/* close file */
 	trelease(cos_spd_id(), t);
 
-	/* take clock ticks after */
+	call();
+}
+
+void perf_tests(void)
+{
+	test_write();
 }
 
 void twritep_readp_tests(void)
