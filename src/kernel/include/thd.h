@@ -164,15 +164,15 @@ thd_rcvcap_evt_dequeue(struct thread *head)
 { return list_dequeue(&head->event_head); }
 
 static inline int
-thd_state_evt_deliver(struct thread *t, unsigned long *a, unsigned long *b)
+thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long *cycles)
 {
 	struct thread *e = thd_rcvcap_evt_dequeue(t);
 
 	assert(thd_bound2rcvcap(t));
 	if (!e) return 0;
 
-	*a      = e->tid | (e->state & THD_STATE_RCVING ? 1<<31 : 0);
-	*b      = e->exec;
+	*thd_state = e->tid | (e->state & THD_STATE_RCVING ? 1<<31 : 0);
+	*cycles    = e->exec;
 	e->exec = 0;		/* TODO: actual cycle accounting */
 
 	return 1;

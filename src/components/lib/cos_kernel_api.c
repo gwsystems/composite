@@ -524,24 +524,39 @@ cos_asnd(asndcap_t snd)
 { return call_cap_op(snd, 0, 0, 0, 0, 0); }
 
 int
-cos_rcv(arcvcap_t rcv, unsigned long *a, unsigned long *b)
-{ return call_cap_retvals_asm(rcv, 0, 0, 0, 0, 0, a, b); }
+cos_rcv(arcvcap_t rcv, thdid_t *thdid, int *receiving, cycles_t *cycles)
+{
+	unsigned long thd_state = 0;
+	unsigned long cyc = 0;
+	int ret;
+
+	ret = call_cap_retvals_asm(rcv, 0, 0, 0, 0, 0, &thd_state, &cyc);
+
+	*receiving = (int)(thd_state >> (sizeof(thd_state)*8-1));
+	*thdid = (thdid_t)(thd_state & ((1 << (sizeof(thdid_t)*8))-1));
+	*cycles = cyc;
+
+	return ret;
+}
 
 int
 cos_mem_alias(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src)
 {
-	return 0;
-}
-
-int
-cos_mem_move(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src)
-{
+	assert(0);
 	return 0;
 }
 
 int
 cos_mem_remove(pgtblcap_t pt, vaddr_t addr)
 {
+	assert(0);
+	return 0;
+}
+
+int
+cos_mem_move(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src)
+{
+	assert(0);
 	return 0;
 }
 
@@ -595,7 +610,8 @@ cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio)
 int
 cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags)
 {
-	u32_t dispatch  = flags & TCAP_DELEG_DISPATCH;
+	u32_t dispatch  = (flags & TCAP_DELEG_DISPATCH) == TCAP_DELEG_DISPATCH;
+	/* top bit is if we are dispatching or not */
 	int prio_higher = (u32_t)(prio >> 32) | (dispatch << ((sizeof(dispatch)*8)-1));
 	int prio_lower  = (u32_t)((prio << 32) >> 32);
 	int ret = -EINVAL;
@@ -605,6 +621,4 @@ cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, t
 
 int
 cos_tcap_merge(tcap_t dst, tcap_t rm)
-{
-	return call_cap_op(dst, CAPTBL_OP_TCAP_MERGE, rm, 0, 0, 0);
-}
+{ return call_cap_op(dst, CAPTBL_OP_TCAP_MERGE, rm, 0, 0, 0); }

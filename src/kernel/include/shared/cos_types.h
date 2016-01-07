@@ -32,7 +32,8 @@ typedef signed long long s64_t;
 
 #define LLONG_MAX 9223372036854775807LL
 
-typedef s64_t tcap_res_t;
+typedef s64_t cycles_t;
+typedef cycles_t tcap_res_t;
 typedef u64_t tcap_prio_t;
 typedef u64_t tcap_uid_t;
 #define PRINT_CAP_TEMP (1 << 14)
