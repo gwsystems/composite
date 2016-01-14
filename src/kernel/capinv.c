@@ -491,7 +491,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
  * Return the thread that should be executed next.
  */
 static struct thread *
-asnd_process(struct thread *rcv_thd, struct thread *thd)
+asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, struct tcap *tcap)
 {
 	struct thread *next;
 	struct thread *arcv_notif;
@@ -501,10 +501,10 @@ asnd_process(struct thread *rcv_thd, struct thread *thd)
 	arcv_notif = arcv_thd_notif(rcv_thd);
 	if (arcv_notif) thd_rcvcap_evt_enqueue(arcv_notif, rcv_thd);
 
-	/* TODO: tcap decision point. */
-	next = rcv_thd;
-	/* next = thd; */
-	/* if (next != thd) next->interrupted_thread = thd; */
+	next = thd;
+	/* The thread switch decision: */
+	/* if (tcap_higher_prio(rcv_tcap, tcap)) next = rcv_thd; */
+	/* else                                  next = thd; */
 
 	return next;
 }
@@ -529,6 +529,7 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	int curr_cpu = get_cpuid();
 	struct cap_arcv *arcv;
 	struct thread *rcv_thd, *next;
+	struct tcap *rcv_tcap, *tcap;
 
 	assert(asnd->arcv_capid);
 	/* IPI notification to another core */
@@ -536,8 +537,12 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 	arcv = __cap_asnd_to_arcv(asnd);
 	if (unlikely(!arcv)) return -EINVAL;
 
-	rcv_thd = arcv->thd;
-	next = asnd_process(rcv_thd, thd);
+	rcv_thd  = arcv->thd;
+	tcap     = tcap_current(cos_info);
+	rcv_tcap = rcv_thd->tcap;
+	assert(rcv_tcap && tcap);
+
+	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap);
 
 	return cap_switch_thd(regs, thd, next, ci, cos_info);
 }
@@ -547,6 +552,7 @@ capinv_int_snd(struct thread *rcv_thd, struct pt_regs *regs)
 {
 	struct comp_info *ci;
 	struct thread *thd, *next;
+	struct tcap *tcap, *rcv_tcap;
 	struct cos_cpu_local_info *cos_info;
 	unsigned long ip, sp;
 
@@ -554,12 +560,15 @@ capinv_int_snd(struct thread *rcv_thd, struct pt_regs *regs)
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
 	thd      = thd_current(cos_info);
+	tcap     = tcap_current(cos_info);
 	assert(thd);
 	ci       = thd_invstk_current(thd, &ip, &sp, cos_info);
 	assert(ci  && ci->captbl);
 	assert(!thd->state & THD_STATE_PREEMPTED);
+	rcv_tcap = rcv_thd->tcap;
+	assert(rcv_tcap);
 
-	next     = asnd_process(rcv_thd, thd);
+	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap);
 	if (next == thd) return 0;
 
 	printk("s");
@@ -590,6 +599,7 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 		next = thd->interrupted_thread;
 		assert(next->state & THD_STATE_PREEMPTED);
 		thd->interrupted_thread = NULL;
+		assert(0); 		/* need to take care of the tcap as well */
 	} else {
 		next = arcv_thd_notif(thd);
 		/* root capability? */
@@ -1221,15 +1231,16 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		}
 		case CAPTBL_OP_TCAP_DELEGATE:
 		{
-			capid_t asnd_cap 	 = __userregs_get1(regs);
-			long long res 		 = __userregs_get2(regs);
-			u32_t prio_higher 	 = __userregs_get3(regs);
-			u32_t prio_lower 	 = __userregs_get4(regs);
-			tcap_prio_t prio 	 = (tcap_prio_t)prio_lower << 32 | (tcap_prio_t)prio_lower;
+			capid_t asnd_cap  = __userregs_get1(regs);
+			long long res 	  = __userregs_get2(regs);
+			u32_t prio_higher = __userregs_get3(regs);
+			u32_t prio_lower  = __userregs_get4(regs);
+			tcap_prio_t prio  = (tcap_prio_t)prio_lower << 32 | (tcap_prio_t)prio_lower;
 			struct cap_tcap *tcapsrc = (struct cap_tcap *)ch;
 			struct cap_arcv *arcv;
 			struct cap_asnd *asnd;
-			struct tcap *tcapdst;
+			struct thread   *rthd;
+			struct tcap     *tcapdst;
 			int dispatch;
 
 			/* highest-order bit is dispatch flag */
@@ -1237,21 +1248,26 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			prio_higher = (prio_higher << 1) >> 1;
 
 			asnd = (struct cap_asnd *)captbl_lkup(ci->captbl, asnd_cap);
-			if (!asnd || asnd->h.type != CAP_ASND) cos_throw(err, -EINVAL);
+			if (unlikely(!asnd || asnd->h.type != CAP_ASND)) {
+				cos_throw(err, -EINVAL);
+			}
 
 			arcv = __cap_asnd_to_arcv(asnd);
-			assert(arcv->thd && arcv->thd->tcap);
-			tcapdst = arcv->thd->tcap;
+			rthd = arcv->thd;
+			assert(rthd && rthd->tcap);
+			tcapdst = rthd->tcap;
 
 			ret = tcap_delegate(tcapsrc->tcap, tcapdst, res, prio);
 			if (unlikely(ret)) cos_throw(err, -EINVAL);
 
 			if (dispatch) {
-				struct thread *n, *t = arcv->thd;
+				struct thread *n;
 
-				n = asnd_process(t, thd);
-				ret = cap_switch_thd(regs, thd, n, ci, cos_info);
-				*thd_switch = 1;
+				n = asnd_process(rthd, thd, tcapdst, tcap_current(cos_info));
+				if (n != thd) {
+					ret = cap_switch_thd(regs, thd, n, ci, cos_info);
+					*thd_switch = 1;
+				}
 			}
 
 			break;
@@ -1263,7 +1279,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			struct cap_tcap *tcaprm;
 
 			tcaprm = (struct cap_tcap *)captbl_lkup(ci->captbl, tcaprem);
-			if (tcaprm->h.type != CAP_TCAP) cos_throw(err, -EINVAL);
+			if (unlikely(tcaprm->h.type != CAP_TCAP)) cos_throw(err, -EINVAL);
 
 			ret = tcap_merge(tcapdst->tcap, tcaprm->tcap);
 			if (unlikely(ret)) cos_throw(err, -ENOENT);

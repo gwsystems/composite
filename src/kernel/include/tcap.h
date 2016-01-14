@@ -92,8 +92,9 @@ tcap_ref_create(struct tcap *r, struct tcap *t)
 }
 
 /*
- * Return 0 if budget left, 1 otherwise.  Consume budget from both the
- * local and the parent budget.
+ * Return 0 if budget left, 1 if the tcap is out of budget, and -1 if
+ * the pool is out.  Consume budget from both the local and the parent
+ * budget.
  */
 static inline int
 tcap_consume(struct tcap *t, tcap_res_t cycles)
@@ -120,6 +121,10 @@ tcap_consume(struct tcap *t, tcap_res_t cycles)
 	/* TODO: Add removal from global list of pools if we've consumed all cycles. */
 	return left;
 }
+
+static inline struct tcap *
+tcap_current(struct cos_cpu_local_info *cos_info)
+{ return (struct tcap *)(cos_info->curr_tcap); }
 
 int tcap_split(capid_t cap, struct tcap *tcap_new, capid_t capin,
 	       	  struct captbl *ct, capid_t compcap, struct cap_tcap *tcapsrc, tcap_split_flags_t flags);
