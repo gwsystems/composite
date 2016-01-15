@@ -441,7 +441,7 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next,
 	if (likely(ci->pgtbl != next_ci->pgtbl)) pgtbl_update(next_ci->pgtbl);
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
-	if (next->tls || curr->tls) chal_tls_update(next->tls);
+	if (next->tls != curr->tls) chal_tls_update(next->tls);
 
 	/* TODO: check FPU */
 	/* fpu_save(thd); */
@@ -916,7 +916,7 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			vaddr_t tlsaddr = __userregs_get2(regs);
 
 			assert(op_cap->captbl);
-			if (thd_tls_set(op_cap->captbl, thd_cap, tlsaddr)) cos_throw(err, -EINVAL);
+			if (thd_tls_set(op_cap->captbl, thd_cap, tlsaddr, thd)) cos_throw(err, -EINVAL);
 
 			break;
 		}

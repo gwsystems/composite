@@ -291,15 +291,19 @@ err:
 }
 
 static int
-thd_tls_set(struct captbl *ct, capid_t thd_cap, vaddr_t tlsaddr)
+thd_tls_set(struct captbl *ct, capid_t thd_cap, vaddr_t tlsaddr, struct thread *current)
 {
 	struct cap_thd *tc;
+	struct thread *thd;
 
 	tc = (struct cap_thd *)captbl_lkup(ct, thd_cap);
 	if (!tc || tc->h.type != CAP_THD || get_cpuid() != tc->cpuid) return -EINVAL;
 
-	assert(tc->t);
-	tc->t->tls = tlsaddr;
+	thd = tc->t;
+	assert(thd);
+	thd->tls = tlsaddr;
+
+	if (current == thd) chal_tls_update(tlsaddr);
 
 	return 0;
 }
