@@ -203,6 +203,7 @@ __captbl_header_validate(struct cap_header *h, cap_sz_t sz)
 static inline void *
 captbl_lkup_lvl(struct captbl *t, capid_t cap, u32_t start_lvl, u32_t end_lvl)
 {
+	// should get rid of the branch with: cap &= __captbl_maxid() - 1;
 	if (unlikely(cap >= __captbl_maxid())) return NULL;
 	return __captbl_lkupani(t, cap, start_lvl, end_lvl, NULL);
 }
