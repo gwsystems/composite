@@ -12,5 +12,6 @@ void bmk_sched_startmain(void (*)(void *), void *) __attribute__((noreturn));
 void bmk_mainthread(void *);
 void bmk_memalloc_init(void);
 void bmk_pgalloc_loadmem(unsigned long min, unsigned long max);
+void bmk_sched_init(void);
 
 #endif

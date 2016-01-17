@@ -66,6 +66,19 @@ tls_get_thread(void)
 	return thread;
 }
 
+struct rumprun_lwp;
+
+struct rumprun_lwp *
+tls_get_lwp(void)
+{
+	struct rumprun_lwp *lwp;
+
+	lwp = (struct rumprun_lwp *)tls_get(0);
+
+	return lwp;
+}
+
+
 static void
 tls_set(size_t off, unsigned long val)
 {
