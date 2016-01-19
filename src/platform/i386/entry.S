@@ -22,10 +22,10 @@
 	popl %esi;		\
 	popl %edi;		\
 	popl %ebp;		\
-	popl %eax;
+	popl %eax
 
 #define RESTORE_REGS_ALL	\
-	RESTORE_REGS_GENERAL 	\
+	RESTORE_REGS_GENERAL; 	\
 	addl $40, %esp
 
 #define RET_TO_USER \
@@ -72,29 +72,13 @@ PT_OLDSS	= 0x40
 /* we are changing thread contexts, reload all registers */
 .align 16
 restore_from_thd:
-	pushl %ecx
-	pushl %edx
-	call cos_get_curr_thd_asm
-	popl %edx
-	popl %ecx
+	RESTORE_REGS_GENERAL
+	popl %ds
+	popl %es
+	popl %fs
+	popl %gs 
 
-	addl $THD_REGS, %eax /* offsetof(struct thread, regs) */
-	/* restore from preemption */
-	movl PT_EBX(%eax), %ebx
-	movl PT_ECX(%eax), %ecx
-	movl PT_EDX(%eax), %edx
-	movl PT_ESI(%eax), %esi
-	movl PT_EDI(%eax), %edi
-	movl PT_EBP(%eax), %ebp
-
-	/* set up the activation record required by iret */
-	pushl $(SEL_UDSEG)
-	pushl PT_OLDESP(%eax)
-	pushl PT_EFLAGS(%eax)
-	pushl $(SEL_UCSEG)
-	pushl PT_EIP(%eax)
-
-	movl PT_EAX(%eax), %eax
+	addl $4, %esp /* page fault information */
 
 	sti
 	iret
@@ -110,14 +94,10 @@ restore_from_thd:
 	pushl %esp;		\
 	call fn;		\
 	addl $4, %esp;		\
-	RESTORE_REGS_GENERAL;	\
-	popl %ds; 		\
-	popl %es;		\
-	popl %fs;		\
-	popl %gs;		\
-	addl $4, %esp; 		\
-	sti;			\
-	iret
+	testl %eax, %eax;	\
+	jne restore_from_thd;	\
+	RESTORE_REGS_ALL;	\
+	RET_TO_USER
 
 /*
  * Convention:
@@ -147,3 +127,13 @@ IRQ(keyboard)
 IRQ(serial)
 IRQ(periodic)
 IRQ(oneshot)
+
+/*
+ * Loads the IDT into the processor
+ */
+.global idt_flush
+
+idt_flush:
+    movl 4(%esp), %eax
+    lidt (%eax)
+    ret

@@ -420,7 +420,6 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next,
 	int preempt = 0;
 	struct comp_info *next_ci = &(next->invstk[next->invstk_top].comp_info);
 
-	assert(!(curr->state & THD_STATE_PREEMPTED));
 	if (unlikely(curr == next)) {
 		assert(!(curr->state & (THD_STATE_RCVING)));
 		__userregs_set(regs, 0, __userregs_getsp(regs), __userregs_getip(regs));
@@ -434,8 +433,12 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next,
 		return 0;
 	}
 
-	copy_gp_regs(regs, &curr->regs);
-	__userregs_set(&curr->regs, 0, __userregs_getsp(&curr->regs), __userregs_getip(&curr->regs));
+	if (!(curr->state & THD_STATE_PREEMPTED)) {
+		copy_gp_regs(regs, &curr->regs);
+		__userregs_set(&curr->regs, 0, __userregs_getsp(&curr->regs), __userregs_getip(&curr->regs));
+	} else {
+		copy_all_regs(regs, &curr->regs);
+	}
 
 	thd_current_update(next, curr, cos_info);
 	if (likely(ci->pgtbl != next_ci->pgtbl)) pgtbl_update(next_ci->pgtbl);
@@ -457,7 +460,12 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next,
 		thd_state_evt_deliver(next, &a, &b);
 		__userregs_setretvals(&next->regs, thd_rcvcap_pending_dec(next), a, b);
 	}
-	copy_gp_regs(&next->regs, regs);
+	if (preempt) {
+		copy_all_regs(&next->regs, regs);
+	} else {
+		copy_all_regs(&next->regs, regs);
+		__userregs_set(&next->regs, 0, __userregs_getsp(&next->regs), __userregs_getip(&next->regs));
+	}
 
 	return preempt;
 }
@@ -501,7 +509,8 @@ asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, 
 	arcv_notif = arcv_thd_notif(rcv_thd);
 	if (arcv_notif) thd_rcvcap_evt_enqueue(arcv_notif, rcv_thd);
 
-	next = thd;
+	/* next = thd; */
+	next = rcv_thd;
 	/* The thread switch decision: */
 	/* if (tcap_higher_prio(rcv_tcap, tcap)) next = rcv_thd; */
 	/* else                                  next = thd; */
@@ -556,7 +565,6 @@ capinv_int_snd(struct thread *rcv_thd, struct pt_regs *regs)
 	struct cos_cpu_local_info *cos_info;
 	unsigned long ip, sp;
 
-	printk("i");
 	cos_info = cos_cpu_local_info();
 	assert(cos_info);
 	thd      = thd_current(cos_info);
@@ -569,9 +577,8 @@ capinv_int_snd(struct thread *rcv_thd, struct pt_regs *regs)
 	assert(rcv_tcap);
 
 	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap);
-	if (next == thd) return 0;
+	if (next == thd) return 1; /* current thread is a preempted one! */
 
-	printk("s");
 	thd->state |= THD_STATE_PREEMPTED;
 	return cap_switch_thd(regs, thd, next, ci, cos_info);
 }
