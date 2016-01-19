@@ -88,12 +88,13 @@ cos_memalloc(size_t nbytes, size_t align)
 /*---- Scheduling ----*/
 //struct bmk_thread *bmk_threads[MAX_NUM_THREADS];
 extern struct cos_compinfo booter_info;
+int boot_thd = BOOT_CAPTBL_SELF_INITTHD_BASE;
 
 void
 cos_tls_init(unsigned long tp, thdcap_t tc)
 {
 	printc("--SCHED: COS: cos_tls_init--\n");
-	printc("--tp: %p--\n", (void *)tp);
+	printc("--tp: %p--\n", (void*)tp);
 	printc("--tc: %d--\n", tc);
 	cos_thd_mod(&booter_info, tc, tp);
 }

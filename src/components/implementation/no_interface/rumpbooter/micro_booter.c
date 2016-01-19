@@ -133,15 +133,17 @@ async_thd_fn(void *thdcap)
 {
 	thdcap_t tc = (thdcap_t)thdcap;
 	arcvcap_t rc = rcc_global;
-	unsigned long a, b;
+	thdid_t tid;
+	int rcving;
+	cycles_t cycles;
 	int pending;
 
 	printc("Asynchronous event thread handler.\n<-- rcving...\n");
-	pending = cos_rcv(rc, &a, &b);
-	printc("<-- pending %d, %lx, %lx\n<-- rcving...\n", pending, a, b);
-	pending = cos_rcv(rc, &a, &b);
-	printc("<-- pending %d, %lx, %lx\n<-- rcving...\n", pending, a, b);
-	pending = cos_rcv(rc, &a, &b);
+	pending = cos_rcv(rc, &tid, &rcving, &cycles);
+	printc("<-- pending %d, thdid %d, rcving %d, cycles %lld\n<-- rcving...\n", pending, tid, rcving, cycles);
+	pending = cos_rcv(rc, &tid, &rcving, &cycles);
+	printc("<-- pending %d, thdid %d, rcving %d, cycles %lld\n<-- rcving...\n", pending, tid, rcving, cycles);
+	pending = cos_rcv(rc, &tid, &rcving, &cycles);
 	printc("<-- Error: manually returning to snding thread.\n");
 	cos_thd_switch(tc);
 	printc("ERROR: in async thd *after* switching back to the snder.\n");
@@ -155,7 +157,9 @@ async_thd_parent(void *thdcap)
 	arcvcap_t rc = rcp_global;
 	asndcap_t sc = scp_global;
 	int ret, pending;
-	unsigned long a, b;
+	thdid_t tid;
+	int rcving;
+	cycles_t cycles;
 
 	printc("--> sending\n");
 	ret = cos_asnd(sc);
@@ -164,8 +168,8 @@ async_thd_parent(void *thdcap)
 	ret = cos_asnd(sc);
 	if (ret) printc("--> asnd returned %d.\n", ret);
 	printc("--> Back in the asnder.\n--> receiving to get notifications\n");
-	pending = cos_rcv(rc, &a, &b);
-	printc("--> pending %d, %lx, %lx\n", pending, a, b);
+	pending = cos_rcv(rc, &tid, &rcving, &cycles);
+	printc("--> pending %d, thdid %d, rcving %d, cycles %lld\n", pending, tid, rcving, cycles);
 
 	cos_thd_switch(tc);
 }
@@ -215,10 +219,12 @@ test_timer(void)
 	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
 
 	for (i = 0 ; i < 10 ; i++) {
-		unsigned long a, b;
+		thdid_t tid;
+		int rcving;
+		cycles_t cycles;
 
 		printc(".");
-		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &a, &b);
+		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
 		cos_thd_switch(tc);
 	}
 
