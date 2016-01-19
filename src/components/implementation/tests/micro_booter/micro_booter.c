@@ -145,6 +145,7 @@ volatile arcvcap_t rcc_global, rcp_global;
 volatile asndcap_t scp_global;
 long long total_asnd_cycles = 0LL, total_arcv_cycles = 0LL;
 long long start_asnd_cycles = 0LL, end_asnd_st_arcv_cycles = 0LL, end_arcv_cycles = 0LL;
+int async_test_flag = 0;
 
 static void
 async_thd_fn_perf(void *thdcap)
@@ -196,6 +197,10 @@ async_thd_parent_perf(void *thdcap)
 	/* printc("Average ARCV (Total: %lld / Iterations: %lld ): %lld\n", 
 		total_arcv_cycles, (long long) (ITERATIONS), (total_arcv_cycles / (long long)(ITERATIONS))); */
 
+//	printc("Average ARCV (Total: %lld / Iterations: %lld ): %lld\n", 
+//		total_arcv_cycles, (long long) (ITERATIONS), (total_arcv_cycles / (long long)(ITERATIONS)));
+
+	async_test_flag = 0;
 	cos_thd_switch(tc);
 }
 
@@ -242,6 +247,7 @@ async_thd_parent(void *thdcap)
 	pending = cos_rcv(rc, &tid, &rcving, &cycles);
 	printc("--> pending %d, thdid %d, rcving %d, cycles %lld\n", pending, tid, rcving, cycles);
 
+	async_test_flag = 0;
 	cos_thd_switch(tc);
 }
 
@@ -271,7 +277,8 @@ test_async_endpoints(void)
 	rcc_global = rcc;
 	rcp_global = rcp;
 
-	cos_thd_switch(tcp);
+	async_test_flag = 1;
+	while (async_test_flag) cos_thd_switch(tcp);
 
 	printc("Async end-point test successful.\nTest done.\n");
 }
@@ -301,7 +308,8 @@ test_async_endpoints_perf(void)
 	rcc_global = rcc;
 	rcp_global = rcp;
 
-	cos_thd_switch(tcp);
+	async_test_flag = 1;
+	while (async_test_flag) cos_thd_switch(tcp);
 }
 
 static void
