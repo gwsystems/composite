@@ -54,7 +54,7 @@
 #define TN_FSB_EN_CNF	(1ll << 14)	/* 1 = deliver interrupts via FSB instead of APIC */
 #define TN_FSB_INT_DEL_CAP	(1ll << 15)	/* read only, 1 = FSB delivery available */
 
-#define HPET_INT_ENABLE 0x3	/* Sets ENABLE_CNF and LEG_RT_CNF */
+#define HPET_INT_ENABLE(n) (0x1 << n)	/* Clears the INT n for level-triggered mode. */
 
 static volatile u64_t *hpet_config;
 static volatile u64_t *hpet_interrupt;
@@ -85,9 +85,8 @@ periodic_handler(struct pt_regs *regs)
 	printk("p"); /* comment this line for microbenchmarking tests */
 
 	ack_irq(IRQ_PERIODIC);
-	/* if (timer_thread) capinv_int_snd(timer_thread, regs); */
 
-	*hpet_interrupt = HPET_INT_ENABLE;
+	*hpet_interrupt = HPET_INT_ENABLE(TIMER_PERIODIC);
 	if (timer_thread) capinv_int_snd(timer_thread, regs);
 }
 
@@ -99,9 +98,8 @@ oneshot_handler(struct pt_regs *regs)
 	printk("o"); /* comment this line for microbenchmarking tests */
 
 	ack_irq(IRQ_ONESHOT);
-	/* if (timer_thread) capinv_int_snd(timer_thread, regs); */
 
-	*hpet_interrupt = HPET_INT_ENABLE;
+	*hpet_interrupt = HPET_INT_ENABLE(TIMER_ONESHOT);
 	if (timer_thread) capinv_int_snd(timer_thread, regs);
 }
 
@@ -123,7 +121,9 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 		cycles += HPET_COUNTER;
 	} else {
 		/* Set a periodic value */
-		hpet_timers[timer].config = outconfig | TN_TYPE_CNF;
+		hpet_timers[timer].config = outconfig | TN_TYPE_CNF | TN_VAL_SET_CNF;
+		/* Reset main counter */
+		HPET_COUNTER = 0x00;
 	}
 	hpet_timers[timer].compare = cycles;
 
