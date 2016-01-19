@@ -82,11 +82,13 @@ periodic_handler(struct pt_regs *regs)
 	u64_t cycle;
 	rdtscll(cycle);
 	tick++;
+	printk("p"); /* comment this line for microbenchmarking tests */
 
 	ack_irq(IRQ_PERIODIC);
 	/* if (timer_thread) capinv_int_snd(timer_thread, regs); */
 
 	*hpet_interrupt = HPET_INT_ENABLE;
+	if (timer_thread) capinv_int_snd(timer_thread, regs);
 }
 
 void
@@ -94,11 +96,13 @@ oneshot_handler(struct pt_regs *regs)
 {
 	u64_t cycle;
 	rdtscll(cycle);
+	printk("o"); /* comment this line for microbenchmarking tests */
 
 	ack_irq(IRQ_ONESHOT);
 	/* if (timer_thread) capinv_int_snd(timer_thread, regs); */
 
 	*hpet_interrupt = HPET_INT_ENABLE;
+	if (timer_thread) capinv_int_snd(timer_thread, regs);
 }
 
 void
