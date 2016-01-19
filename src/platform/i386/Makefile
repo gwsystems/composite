@@ -5,7 +5,7 @@ LD := ld -m elf_i386
 AS := as --32 -g
 
 INCPATH := ../../kernel/include
-CFLAGS := -g3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdlib -mno-red-zone -I$(INCPATH)
+CFLAGS := -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdlib -mno-red-zone -I$(INCPATH)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 
 KERNEL := kernel.img
