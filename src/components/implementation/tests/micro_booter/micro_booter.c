@@ -36,6 +36,7 @@ printc(char *fmt, ...)
 #define PRINT_FN prints
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
 #define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
+#define BUG_DIVZERO() do { debug_print("BUG @ "); int i = 1 / 0; } while (0);
 
 struct cos_compinfo booter_info;
 
@@ -440,7 +441,8 @@ cos_init(void)
 	printc("\nMicro Booter done.\n");
 
 //	while (1) ;
-	BUG();
+//	BUG();
+	BUG_DIVZERO();
 
 	return;
 }

@@ -44,6 +44,7 @@ OBJS += boot_comp.o
 OBJS += miniacpi.o
 #OBJS += console.o
 OBJS += vga.o
+OBJS += exception.o
 
 COS_OBJ += pgtbl.o
 COS_OBJ += retype_tbl.o
