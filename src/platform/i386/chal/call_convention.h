@@ -78,4 +78,28 @@ copy_gp_regs(struct pt_regs *from, struct pt_regs *to)
 #undef COPY_REG
 }
 
+static inline void
+copy_all_regs(struct pt_regs *from, struct pt_regs *to)
+{
+#define COPY_REG(reg) to->reg = from->reg
+	COPY_REG(bx);
+	COPY_REG(cx);
+	COPY_REG(dx);
+	COPY_REG(si);
+	COPY_REG(di);
+	COPY_REG(bp);
+	COPY_REG(ax);
+	COPY_REG(ds);
+	COPY_REG(es);
+	COPY_REG(fs);
+	COPY_REG(gs);
+	COPY_REG(orig_ax);
+	COPY_REG(ip);
+	COPY_REG(cs);
+	COPY_REG(flags);
+	COPY_REG(sp);
+	COPY_REG(ss);
+#undef COPY_REG
+}
+
 #endif	/* CALL_CONVENTION_H */

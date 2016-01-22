@@ -18,13 +18,17 @@ u32_t boot_comp_pgd[PAGE_SIZE/sizeof(u32_t)] PAGE_ALIGNED = {
 	[KERN_INIT_PGD_IDX] = 0 | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER
 };
 
-void
+int
 double_fault_handler(struct pt_regs *regs)
-{ die("DOUBLE FAULT..\n"); }
+{
+	die("DOUBLE FAULT..\n");
+	return 1;
+}
 
-void
+int
 page_fault_handler(struct pt_regs *regs)
 {
+	int preempt = 1;
 	u32_t fault_addr, errcode = 0, eip = 0;
 	struct cos_cpu_local_info *ci = cos_cpu_local_info();
 	thdid_t thdid = thd_current(ci)->tid;
@@ -39,6 +43,8 @@ page_fault_handler(struct pt_regs *regs)
 	    errcode & PGTBL_USER     ? "user-mode"         : "system",
 	    errcode & PGTBL_WT       ? "reserved"          : "",
 	    errcode & PGTBL_NOCACHE  ? "instruction-fetch" : "", fault_addr, eip);
+
+	return preempt;
 }
 
 void

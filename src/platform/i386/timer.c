@@ -76,29 +76,39 @@ void
 chal_timer_thd_init(struct thread *t)
 { timer_thread = t; }
 
-void
+int
 periodic_handler(struct pt_regs *regs)
 {
 	u64_t cycle;
+	int preempt = 1;
+
 	rdtscll(cycle);
 	tick++;
+	printk("p"); /* comment this line for microbenchmarking tests */
 
 	ack_irq(IRQ_PERIODIC);
-	/* if (timer_thread) capinv_int_snd(timer_thread, regs); */
+	if (timer_thread) preempt = capinv_int_snd(timer_thread, regs);
 
 	*hpet_interrupt = HPET_INT_ENABLE;
+
+	return preempt;
 }
 
-void
+int
 oneshot_handler(struct pt_regs *regs)
 {
 	u64_t cycle;
+	int preempt = 1;
+
 	rdtscll(cycle);
+	printk("o"); /* comment this line for microbenchmarking tests */
 
 	ack_irq(IRQ_ONESHOT);
-	/* if (timer_thread) capinv_int_snd(timer_thread, regs); */
+	if (timer_thread) preempt = capinv_int_snd(timer_thread, regs);
 
 	*hpet_interrupt = HPET_INT_ENABLE;
+
+	return preempt;
 }
 
 void

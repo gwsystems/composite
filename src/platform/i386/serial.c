@@ -38,10 +38,11 @@ serial_puts(const char *s)
 		serial_send(*s);
 }
 
-void
+int
 serial_handler(struct pt_regs *r)
 {
 	char serial;
+	int preempt = 1;
 
 	ack_irq(IRQ_SERIAL);
 
@@ -52,7 +53,7 @@ serial_handler(struct pt_regs *r)
 	 */
 	switch (serial) {
 		case '\0':
-			return;
+			return preempt;
 		case 127:
 			serial = 0x08;
 			break;
@@ -75,6 +76,7 @@ serial_handler(struct pt_regs *r)
 
 	printk("Serial: %d\n", serial);
 	//printk("%c", serial);
+	return preempt;
 }
 
 void
