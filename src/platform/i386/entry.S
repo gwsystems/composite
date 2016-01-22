@@ -147,3 +147,13 @@ IRQ(keyboard)
 IRQ(serial)
 IRQ(periodic)
 IRQ(oneshot)
+
+/*
+ * Loads the IDT into the processor
+ */
+.global idt_flush
+
+idt_flush:
+    movl 4(%esp), %eax
+    lidt (%eax)
+    ret

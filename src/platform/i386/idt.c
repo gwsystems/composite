@@ -110,5 +110,6 @@ idt_init(void)
 	idtr.length = idt_ptr.limit;
 	idtr.base = (unsigned long)idt_entries;
 
-	asm volatile("lidt (%0)" : : "p"(&idtr));
+	/* asm volatile("lidt (%0)" : : "p"(&idtr)); */
+	idt_flush((u32_t)&idtr);
 }
