@@ -39,6 +39,7 @@ printc(char *fmt, ...)
 
 struct cos_compinfo booter_info;
 
+#define ITERATIONS 1000000
 #define TEST_NTHDS 5
 int tls_test[TEST_NTHDS];
 
@@ -55,6 +56,41 @@ tls_get(size_t off)
 static void
 tls_set(size_t off, unsigned long val)
 { __asm__ __volatile__("movl %0, %%gs:(%1)" : : "r" (val), "r" (off) : "memory"); }
+
+static void
+thd_fn_perf(void *d)
+{
+	cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+
+	while(1) {
+		cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
+	}
+	printc("Error, shouldn't get here!\n");
+}
+
+static void
+test_thds_perf(void)
+{
+	thdcap_t ts;
+	int i = 0;
+	long long total_swt_cycles = 0LL;
+	long long start_swt_cycles = 0LL, end_swt_cycles = 0LL;
+	long long iters = 0LL;
+
+	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, (void *)i);
+	assert(ts);
+	cos_thd_switch(ts);
+
+	rdtscll(start_swt_cycles);
+	for (iters = 0LL; iters < ITERATIONS; iters ++) {
+		cos_thd_switch(ts);
+	}
+	rdtscll(end_swt_cycles);
+	total_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
+
+	printc("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n", 
+		total_swt_cycles, (long long) ITERATIONS, (total_swt_cycles / (long long)ITERATIONS));
+}
 
 static void
 thd_fn(void *d)
@@ -97,6 +133,50 @@ test_mem(void)
 
 volatile arcvcap_t rcc_global, rcp_global;
 volatile asndcap_t scp_global;
+
+static void
+async_thd_fn_perf(void *thdcap)
+{
+	thdcap_t tc = (thdcap_t)thdcap;
+	arcvcap_t rc = rcc_global;
+	thdid_t tid;
+	int rcving;
+	cycles_t cycles;
+	long long iters = 0LL;
+
+	cos_rcv(rc, &tid, &rcving, &cycles);
+
+	for (iters = 0LL; iters < ITERATIONS + 1; iters ++) {
+		cos_rcv(rc, &tid, &rcving, &cycles);
+	}
+
+	cos_thd_switch(tc);
+}
+
+static void
+async_thd_parent_perf(void *thdcap)
+{
+	thdcap_t tc = (thdcap_t)thdcap;
+	arcvcap_t rc = rcp_global;
+	asndcap_t sc = scp_global;
+	long long total_asnd_cycles = 0LL;
+	long long start_asnd_cycles = 0LL, end_arcv_cycles = 0LL;
+	long long iters = 0LL;
+
+	cos_asnd(sc);
+
+	rdtscll(start_asnd_cycles);
+	for (iters = 0LL; iters < ITERATIONS; iters ++) {
+		cos_asnd(sc);
+	}
+	rdtscll(end_arcv_cycles);
+	total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2LL ;
+
+	printc("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n", 
+		total_asnd_cycles, (long long) (ITERATIONS), (total_asnd_cycles / (long long)(ITERATIONS)));
+
+	cos_thd_switch(tc);
+}
 
 static void
 async_thd_fn(void *thdcap)
@@ -176,6 +256,34 @@ test_async_endpoints(void)
 }
 
 static void
+test_async_endpoints_perf(void)
+{
+	thdcap_t tcp, tcc;
+	arcvcap_t rcp, rcc;
+
+	/* parent rcv capabilities */
+	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
+	assert(tcp);
+	rcp = cos_arcv_alloc(&booter_info, tcp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	assert(rcp);
+
+	/* child rcv capabilities */
+	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void*)tcp);
+	assert(tcc);
+	rcc = cos_arcv_alloc(&booter_info, tcc, booter_info.comp_cap, rcp);
+	assert(rcc);
+
+	/* make the snd channel to the child */
+	scp_global = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap);
+	assert(scp_global);
+
+	rcc_global = rcc;
+	rcp_global = rcp;
+
+	cos_thd_switch(tcp);
+}
+
+static void
 spinner(void *d)
 { while (1) ; }
 
@@ -201,9 +309,14 @@ test_timer(void)
 	printc("Timer test completed.\nSuccess.\n");
 }
 
+long long midinv_cycles = 0LL;
+
 int
 test_serverfn(int a, int b, int c)
-{ return a + b + c; }
+{
+	rdtscll(midinv_cycles);
+	return 0;
+}
 
 extern void *__inv_test_serverfn(int a, int b, int c);
 
@@ -249,6 +362,38 @@ test_inv(void)
 
 	r = call_cap_mb(ic, 1, 2, 3);
 	printc("Return from invocation: %d\n", r);
+	printc("Test done.\n");
+}
+
+static void
+test_inv_perf(void)
+{
+	compcap_t cc;
+	sinvcap_t ic;
+	long long iters = 0LL;
+	long long total_cycles = 0LL;
+	long long total_inv_cycles = 0LL, total_ret_cycles = 0LL;
+
+	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
+	assert(cc > 0);
+	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
+	assert(ic > 0);
+
+	for (iters = 0LL; iters < ITERATIONS; iters ++) {
+		long long start_cycles = 0LL, end_cycles = 0LL;
+
+		midinv_cycles = 0LL;
+		rdtscll(start_cycles);
+		call_cap_mb(ic, 1, 2, 3);
+		rdtscll(end_cycles);
+		total_inv_cycles += (midinv_cycles - start_cycles);
+		total_ret_cycles += (end_cycles - midinv_cycles);
+	}
+
+	printc("Average SINV (Total: %lld / Iterations: %lld ): %lld\n", 
+		total_inv_cycles, (long long) (ITERATIONS), (total_inv_cycles / (long long)(ITERATIONS)));
+	printc("Average SRET (Total: %lld / Iterations: %lld ): %lld\n", 
+		total_ret_cycles, (long long) (ITERATIONS), (total_ret_cycles / (long long)(ITERATIONS)));
 }
 
 void
@@ -264,13 +409,27 @@ cos_init(void)
 	printc("---------------------------\n");
 	test_thds();
 	printc("---------------------------\n");
-//	test_timer();
+	test_thds_perf();
+	printc("---------------------------\n");
+
+	//printc("---------------------------\n");
+	//test_timer();
+	//printc("---------------------------\n");
+
 	printc("---------------------------\n");
 	test_mem();
 	printc("---------------------------\n");
+
+	printc("---------------------------\n");
 	test_async_endpoints();
 	printc("---------------------------\n");
+	test_async_endpoints_perf();
+	printc("---------------------------\n");
+
+	printc("---------------------------\n");
 	test_inv();
+	printc("---------------------------\n");
+	test_inv_perf();
 	printc("---------------------------\n");
 
 	printc("\nMicro Booter done.\n");
