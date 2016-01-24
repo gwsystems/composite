@@ -5,7 +5,7 @@ LD := ld -m elf_i386
 AS := as --32 -g
 
 INCPATH := ../../kernel/include
-CFLAGS := -g3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdlib -mno-red-zone -I$(INCPATH)
+CFLAGS := -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdlib -mno-red-zone -I$(INCPATH)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 
 KERNEL := kernel.img
@@ -44,6 +44,7 @@ OBJS += boot_comp.o
 OBJS += miniacpi.o
 #OBJS += console.o
 OBJS += vga.o
+OBJS += exception.o
 
 COS_OBJ += pgtbl.o
 COS_OBJ += retype_tbl.o
@@ -51,7 +52,6 @@ COS_OBJ += liveness_tbl.o
 COS_OBJ += tcap.o
 COS_OBJ += capinv.o
 COS_OBJ += captbl.o
-COS_OBJ += per_cpu.o
 
 DEPS :=$(patsubst %.o, %.d, $(OBJS))
 
