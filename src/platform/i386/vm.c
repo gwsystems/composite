@@ -19,29 +19,6 @@ u32_t boot_comp_pgd[PAGE_SIZE/sizeof(u32_t)] PAGE_ALIGNED = {
 };
 
 void
-double_fault_handler(struct pt_regs *regs)
-{ die("DOUBLE FAULT..\n"); }
-
-void
-page_fault_handler(struct pt_regs *regs)
-{
-	u32_t fault_addr, errcode = 0, eip = 0;
-	struct cos_cpu_local_info *ci = cos_cpu_local_info();
-	thdid_t thdid = thd_current(ci)->tid;
-
-	fault_addr = chal_cpu_fault_vaddr(regs);
-	errcode    = chal_cpu_fault_errcode(regs);
-	eip        = chal_cpu_fault_ip(regs);
-
-	die("Page Fault in thd %d (%s %s %s %s %s) @ 0x%x, ip 0x%x\n",  thdid,
-	    errcode & PGTBL_PRESENT  ? "present"           : "not-present",
-	    errcode & PGTBL_WRITABLE ? "write-fault"      : "read-fault",
-	    errcode & PGTBL_USER     ? "user-mode"         : "system",
-	    errcode & PGTBL_WT       ? "reserved"          : "",
-	    errcode & PGTBL_NOCACHE  ? "instruction-fetch" : "", fault_addr, eip);
-}
-
-void
 kern_retype_initial(void)
 {
 	u8_t *k;

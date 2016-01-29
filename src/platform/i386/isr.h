@@ -6,17 +6,52 @@
 #include "chal_asm_inc.h"
 
 enum {
-	IRQ_DOUBLE_FAULT = 8,
-	IRQ_PAGE_FAULT   = 14,
-	/* IRQ_PIT        = 32, */
+	IRQ_DIV_BY_ZERO_ERR_FAULT = 0,
+	IRQ_DEBUG_TRAP,
+	IRQ_BREAKPOINT_TRAP,
+	IRQ_OVERFLOW_TRAP,
+	IRQ_BOUND_RANGE_EXCEED_FAULT,
+	IRQ_INVALID_OPCODE_FAULT,
+	IRQ_DEVICE_NOT_AVAIL_FAULT,
+	IRQ_DOUBLE_FAULT_ABORT = 8,
+	IRQ_INVALID_TSS_FAULT = 10,
+	IRQ_SEG_NOT_PRESENT_FAULT,
+	IRQ_STACK_SEG_FAULT,
+	IRQ_GEN_PROTECT_FAULT,
+	IRQ_PAGE_FAULT,
+	IRQ_X87_FLOAT_PT_EXCEPT_FAULT,
+	IRQ_ALIGN_CHECK_FAULT,
+	IRQ_MACHINE_CHECK_ABORT,
+	IRQ_SMID_FLOAT_PT_EXCEPT_FAULT,
+	IRQ_VIRTUALIZATION_EXCEPT_FAULT = 20,
+	IRQ_SECURITY_EXCEPT_FAULT = 30,
+
+	IRQ_PERIODIC     = 32,
 	IRQ_KEYBOARD     = 33,
 	IRQ_SERIAL       = 36,
-	IRQ_PERIODIC     = 32,
 	IRQ_ONESHOT      = 40,
 };
-extern void double_fault_irq(struct pt_regs *);
+
+extern void div_by_zero_err_fault_irq(struct pt_regs *);
+extern void debug_trap_irq(struct pt_regs *);
+extern void breakpoint_trap_irq(struct pt_regs *);
+extern void overflow_trap_irq(struct pt_regs *);
+extern void bound_range_exceed_fault_irq(struct pt_regs *);
+extern void invalid_opcode_fault_irq(struct pt_regs *);
+extern void device_not_avail_fault_irq(struct pt_regs *);
+extern void double_fault_abort_irq(struct pt_regs *);
+extern void invalid_tss_fault_irq(struct pt_regs *);
+extern void seg_not_present_fault_irq(struct pt_regs *);
+extern void stack_seg_fault_irq(struct pt_regs *);
+extern void gen_protect_fault_irq(struct pt_regs *);
 extern void page_fault_irq(struct pt_regs *);
-/* extern void timer_irq(struct pt_regs *); */
+extern void x87_float_pt_except_fault_irq(struct pt_regs *);
+extern void align_check_fault_irq(struct pt_regs *);
+extern void machine_check_abort_irq(struct pt_regs *);
+extern void smid_float_pt_except_fault_irq(struct pt_regs *);
+extern void virtualization_except_fault_irq(struct pt_regs *);
+extern void security_except_fault_irq(struct pt_regs *);
+
 extern void periodic_irq(struct pt_regs *);
 extern void oneshot_irq(struct pt_regs *);
 extern void keyboard_irq(struct pt_regs *);
