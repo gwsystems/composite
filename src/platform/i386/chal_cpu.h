@@ -38,6 +38,16 @@ chal_cpu_cr4_set(cr4_flags_t flags)
 	asm("movl %0, %%cr4" : : "r"(config));
 }
 
+static inline void
+chal_cpu_eflags_init(void)
+{
+	u32_t val;
+
+	asm volatile("pushf ; popl %0" : "=r" (val));
+	val |= 3 << 12; 	/* iopl */
+	asm volatile("pushl %0 ; popf" : : "r" (val));
+}
+
 static void
 chal_cpu_pgtbl_activate(pgtbl_t pgtbl)
 {
@@ -71,6 +81,7 @@ chal_cpu_init(void)
 	writemsr(IA32_SYSENTER_CS, SEL_KCSEG, 0);
 	writemsr(IA32_SYSENTER_ESP, (u32_t)tss.esp0, 0);
 	writemsr(IA32_SYSENTER_EIP, (u32_t)sysenter_entry, 0);
+	chal_cpu_eflags_init();
 }
 
 static inline vaddr_t

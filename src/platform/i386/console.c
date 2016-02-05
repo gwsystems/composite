@@ -132,10 +132,11 @@ vga_clear(void)
     wmemset(video_mem, blank, COLUMNS*LINES);
 }
 
-void
+int
 keyboard_handler(struct pt_regs *regs)
 {
 	u16_t scancode;
+	int preempt = 1;
 
 	ack_irq(IRQ_KEYBOARD);
 
@@ -144,6 +145,7 @@ keyboard_handler(struct pt_regs *regs)
 	}
 	scancode = inb(KEY_DEVICE);
 	printk("Keyboard press: %d\n", scancode);
+	return preempt;
 }
 
 void

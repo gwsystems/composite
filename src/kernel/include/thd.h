@@ -164,15 +164,15 @@ thd_rcvcap_evt_dequeue(struct thread *head)
 { return list_dequeue(&head->event_head); }
 
 static inline int
-thd_state_evt_deliver(struct thread *t, unsigned long *a, unsigned long *b)
+thd_state_evt_deliver(struct thread *t, unsigned long *thd_state, unsigned long *cycles)
 {
 	struct thread *e = thd_rcvcap_evt_dequeue(t);
 
 	assert(thd_bound2rcvcap(t));
 	if (!e) return 0;
 
-	*a      = e->tid | (e->state & THD_STATE_RCVING ? 1<<31 : 0);
-	*b      = e->exec;
+	*thd_state = e->tid | (e->state & THD_STATE_RCVING ? 1<<31 : 0);
+	*cycles    = e->exec;
 	e->exec = 0;		/* TODO: actual cycle accounting */
 
 	return 1;
@@ -291,15 +291,19 @@ err:
 }
 
 static int
-thd_tls_set(struct captbl *ct, capid_t thd_cap, vaddr_t tlsaddr)
+thd_tls_set(struct captbl *ct, capid_t thd_cap, vaddr_t tlsaddr, struct thread *current)
 {
 	struct cap_thd *tc;
+	struct thread *thd;
 
 	tc = (struct cap_thd *)captbl_lkup(ct, thd_cap);
 	if (!tc || tc->h.type != CAP_THD || get_cpuid() != tc->cpuid) return -EINVAL;
 
-	assert(tc->t);
-	tc->t->tls = tlsaddr;
+	thd = tc->t;
+	assert(thd);
+	thd->tls = tlsaddr;
+
+	if (current == thd) chal_tls_update(tlsaddr);
 
 	return 0;
 }

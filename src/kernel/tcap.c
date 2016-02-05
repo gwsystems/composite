@@ -14,11 +14,6 @@
 #include "include/shared/cos_types.h"
 #include "include/chal/defs.h"
 
-#ifdef LINUX_TESTS
-#undef get_cpuid
-#define get_cpuid() 0
-#endif
-
 /* FIXME: Fix for multi-core support */
 static tcap_uid_t tcap_uid = 0;
 
@@ -47,7 +42,7 @@ tcap_delete(struct tcap *s, struct tcap *tcap)
 	if (tcap->refcnt) return -1;
 	memset(&tcap->budget, 0, sizeof(struct tcap_budget));
 	memset(tcap->delegations, 0, sizeof(struct tcap_sched_info) * TCAP_MAX_DELEGATIONS);
-	tcap->ndelegs    = tcap->cpuid = 0;
+	tcap->ndelegs = tcap->cpuid = 0;
 	tcap->curr_sched_off = 0;
 	s->refcnt--;
 
@@ -116,7 +111,8 @@ undo_xfer:
  * (ignoring values of 0).
  */
 int
-tcap_split(capid_t cap, struct tcap *tcap_new, capid_t capin, struct captbl *ct, capid_t compcap, struct cap_tcap *tcap_src, tcap_split_flags_t flags)
+tcap_split(capid_t cap, struct tcap *tcap_new, capid_t capin, struct captbl *ct,
+	   capid_t compcap, struct cap_tcap *tcap_src, tcap_split_flags_t flags)
 {
 	struct tcap *b, *t;
 	struct cap_tcap *tc;
@@ -134,15 +130,15 @@ tcap_split(capid_t cap, struct tcap *tcap_new, capid_t capin, struct captbl *ct,
 
 	assert(t);
 	if (t->cpuid != get_cpuid()) return -ENOENT;
-	c             = tcap_sched_info(t)->tcap_uid;
+	c  = tcap_sched_info(t)->tcap_uid;
+	b  = t->pool;
 	assert(c);
-	b             = t->pool;
 	if (unlikely(!b))  return -ENOENT;
 
 	tcap_init(tcap_new);
 	if (flags == TCAP_SPLIT_POOL) tcap_ref_create(tcap_new, tcap_new);
 	else tcap_ref_create(tcap_new, b);
-	tcap_new->ndelegs    = t->ndelegs;
+	tcap_new->ndelegs        = t->ndelegs;
 	tcap_new->curr_sched_off = t->curr_sched_off;
 	memcpy(tcap_new->delegations, t->delegations, sizeof(struct tcap_sched_info) * t->ndelegs);
 
@@ -221,13 +217,14 @@ int
 tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc,
 	      tcap_res_t cycles, tcap_prio_t prio)
 {
-	if (__tcap_legal_transfer(tcapdst, tcapsrc)) return -1;
+	if (__tcap_legal_transfer(tcapdst, tcapsrc)) return -EINVAL;
 	return __tcap_transfer(tcapdst, tcapsrc, cycles, prio, 1);
 }
 
 int
 tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, int prio)
 {
+	/* doing this in-place is too much of a pain */
 	struct tcap_sched_info deleg_tmp[TCAP_MAX_DELEGATIONS];
 	int ndelegs, i, j;
 	tcap_uid_t d, s;
@@ -237,11 +234,11 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, int prio)
 	if (unlikely(dst->ndelegs >= TCAP_MAX_DELEGATIONS)) {
 		printk("tcap %x already has max number of delgations.\n",
 			dst->delegations[0].tcap_uid);
-		return -1;
+		return -ENOMEM;
 	}
 	d = tcap_sched_info(dst)->tcap_uid;
 	s = tcap_sched_info(src)->tcap_uid;
-	if (d == s) return -1;
+	if (d == s) return -EINVAL;
 	if (!prio) prio = tcap_sched_info(src)->prio;
 
 	for (i = 0, j = 0, ndelegs = 0 ;
@@ -260,25 +257,23 @@ tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, int prio)
 		} else {	/* same scheduler */
 			assert(dst->delegations[i].tcap_uid == src->delegations[j].tcap_uid);
 			memcpy(&t, &src->delegations[j], sizeof(struct tcap_sched_info));
-			if (dst->delegations[i].prio > t.prio) {
-				t.prio = dst->delegations[i].prio;
-			}
+			if (dst->delegations[i].prio > t.prio) t.prio = dst->delegations[i].prio;
 			n = &t;
 			i++;
 			j++;
 		}
 
-		if (n->tcap_uid == s)                   n->prio = prio;
-		if (ndelegs == TCAP_MAX_DELEGATIONS) return -1;
+		if (n->tcap_uid == s) n->prio = prio;
+		if (ndelegs == TCAP_MAX_DELEGATIONS) return -ENOMEM;
 		memcpy(&deleg_tmp[ndelegs], n, sizeof(struct tcap_sched_info));
-		if (d == deleg_tmp[ndelegs].tcap_uid)   si  = ndelegs;
+		if (d == deleg_tmp[ndelegs].tcap_uid) si = ndelegs;
 	}
 
-	if (__tcap_transfer(dst, src, cycles, 0, 0)) return -1;
+	if (__tcap_transfer(dst, src, cycles, 0, 0)) return -EINVAL;
 	memcpy(dst->delegations, deleg_tmp, sizeof(struct tcap_sched_info) * ndelegs);
-	/* can't delegate to yourself, thus 2 schedulers involved */
+	/* can't delegate to yourself, thus 2 schedulers must be involved */
 	assert(ndelegs >= 2);
-	dst->ndelegs    = ndelegs;
+	dst->ndelegs = ndelegs;
 	assert(si != -1);
 	dst->curr_sched_off = si;
 
@@ -310,9 +305,6 @@ tcap_merge(struct tcap *dst, struct tcap *rm)
 	return 0;
 }
 
-static int timer_activation = 0;
-
-
 /*
  * Is the newly activated thread of a higher priority than the current
  * thread?  Of all of the code in tcaps, this is the fast path that is
@@ -324,22 +316,20 @@ tcap_higher_prio(struct tcap *a, struct tcap *c)
 {
 	int i, j;
 
-	if (timer_activation) return 1;
-
 	for (i = 0, j = 0 ; i < a->ndelegs && j < c->ndelegs ; ) {
 
 		/*
-		* These cases are for the case where the tcaps don't
-		* share a common scheduler (due to the partial order
-		* of schedulers), or different interrupt bind points.
-		*/
+		 * These cases are for the case where the tcaps don't
+		 * share a common scheduler (due to the partial order
+		 * of schedulers), or different interrupt bind points.
+		 */
 
 		if (a->delegations[i].tcap_uid > c->delegations[j].tcap_uid) {
 			j++;
 		} else if (a->delegations[i].tcap_uid < c->delegations[j].tcap_uid) {
 			i++;
 		} else {
-			//same shared scheduler!
+			/* same shared scheduler! */
 			if (a->delegations[i].prio > c->delegations[j].prio) return 0;
 			i++;
 			j++;
@@ -348,11 +338,3 @@ tcap_higher_prio(struct tcap *a, struct tcap *c)
 
 	return 1;
 }
-
-/*
- * FIXME: ugly hack to ensure that the timer ticks are always chosen
- * to execute.
- */
-void
-tcap_timer_choose(int c)
-{ timer_activation = c; }

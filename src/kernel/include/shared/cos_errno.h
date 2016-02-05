@@ -1,6 +1,9 @@
 #ifndef EINVAL
 #define EINVAL 22
 #endif
+#ifndef ENOMEM
+#define ENOMEM 12
+#endif
 #ifndef EAGAIN
 #define EAGAIN 11
 #endif
