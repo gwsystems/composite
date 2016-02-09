@@ -53,9 +53,7 @@ rump_bmk_memsize_init(void)
 void
 cos_memfree(void *cp)
 {
-	printc("\n\ncos_memfree\n\n");
 	rump_cos_free(cp);
-	printc("\n\ncos_memfree has returned\n\n");
 }
 
 void *
@@ -93,18 +91,25 @@ int boot_thd = BOOT_CAPTBL_SELF_INITTHD_BASE;
 void
 cos_tls_init(unsigned long tp, thdcap_t tc)
 {
-	printc("--SCHED: COS: cos_tls_init--\n");
-	printc("--tp: %p--\n", (void*)tp);
-	printc("--tc: %d--\n", tc);
 	cos_thd_mod(&booter_info, tc, tp);
 }
+
+
+/* RG: For debugging / lazy purposes, we use this name global variable
+ * to keep track of the name we are giving the thread we are about to create
+ * It is located within sched.c on the RK side
+ */
+
+extern char thdname[16];
 
 void
 cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		void (*f)(void *), void *arg,
 		void *stack_base, unsigned long stack_size)
 {
-	printc("SCHED: COS: cos_cpu_sched_create\n");
+
+	printc("thdname: %s\n", thdname);
+
 	thdcap_t newthd_cap;
 	int ret;
 	struct thd_creation_protocol  info;
@@ -112,38 +117,39 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 
 	//  bmk_current is not set for the booting thread, use the booter_info thdcap_t
 	if(boot_thread) {
-		printc("Boot thread, don't use bmk_current\n");
+
+		if(!strcmp(thdname, "main")) boot_thread = 0;
+
 		thd_meta->retcap = BOOT_CAPTBL_SELF_INITTHD_BASE;
-		boot_thread = 0;
-	} else {
-		printc("Not Boot thread, using bmk_current\n");
-		thd_meta->retcap = get_cos_thdcap(bmk_current);
-	}
+
+	} else thd_meta->retcap = get_cos_thdcap(bmk_current);
 
 	thd_meta->f = f;
 	thd_meta->arg = arg;
 
 	newthd_cap = cos_thd_alloc(&booter_info, booter_info.comp_cap, rump_thd_fn, thd_meta);
-	printc("COS: newthd_cap: %d\n", (int)newthd_cap);
 
 	// To access the thd_id
 	ret = cos_thd_switch(newthd_cap);
-	if(ret)
-		printc("cos_thd_switch fail\n");
+	if(ret) printc("cos_thd_switch FAILED\n");
 	/*
 	 * RG: This is commented out as we are no longer using
 	 * the array access, we are using bmk_current
 	 */
 	//bmk_threads[*(thd_meta->thdid)] = thread;
 
-	printc("COS: Calling set_cos_thdcap with %d as thd_cap\n", (int)newthd_cap);
 	set_cos_thdcap(thread, newthd_cap);
 }
+
+struct bmk_thread *glob_prev;
+struct bmk_thread *glob_next;
 
 void
 cos_cpu_sched_switch(struct bmk_thread *prev, struct bmk_thread *next)
 {
-	printc("SCHED: COS: cos_cpu_sched_switch\n");
+	glob_prev = prev;
+	glob_next = next;
+
 	struct thd_creation_protocol info;
 	struct thd_creation_protocol *thd_meta = &info;
 	int ret;

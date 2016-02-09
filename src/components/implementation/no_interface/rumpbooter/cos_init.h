@@ -13,5 +13,6 @@ void bmk_mainthread(void *);
 void bmk_memalloc_init(void);
 void bmk_pgalloc_loadmem(unsigned long min, unsigned long max);
 void bmk_sched_init(void);
+int  bmk_intr_init(void);
 
 #endif

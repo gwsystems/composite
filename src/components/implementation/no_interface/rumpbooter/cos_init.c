@@ -42,7 +42,9 @@ cos_run(char *cmdline)
 	printc("Rump Kernel bootstrap on platform Composite\n");
 
 	bmk_sched_init();
+	printc("bmk_sched_init done\n");
 	bmk_memalloc_init();
+	printc("bmk_memalloc_init done\n");
 
 	// Before bmk_pgalloc_loadmem is called, I need to alloc memory till we have enough or till failure
 	// the start and end locations in memory to bmk_pgalloc
@@ -60,6 +62,9 @@ cos_run(char *cmdline)
 	// bmk_pgalloc_loadmem is needed to get the memory area from Composite
 	bmk_pgalloc_loadmem(min, max);
 	printc("returned from bmk_pgalloc_loadmem\n");
+
+	bmk_intr_init();
+	printc("bmk_intr_init done\n");
 
 	bmk_sched_startmain(bmk_mainthread, cmdline);
 }

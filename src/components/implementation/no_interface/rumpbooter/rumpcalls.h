@@ -14,7 +14,6 @@ extern struct cos_rumpcalls crcalls;
 extern int boot_thd;
 
 struct bmk_thread;
-//#define bmk_current (tls_get_thread())
 extern __thread struct bmk_thread *bmk_current;
 
 struct bmk_tcb *tcb;
