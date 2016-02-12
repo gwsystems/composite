@@ -400,5 +400,22 @@ static inline void thd_preemption_state_update(struct thread *curr, struct threa
 	memcpy(&curr->regs, regs, sizeof(struct pt_regs));
 }
 
+static inline int
+thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
+{
+	switch(op) {
+	case 0: *retval = t->regs.ip; break;
+	case 1: *retval = t->regs.sp; break;
+	case 2: *retval = t->regs.bp; break;
+	case 3: *retval = t->regs.ax; break;
+	case 4: *retval = t->regs.bx; break;
+	case 5: *retval = t->regs.cx; break;
+	case 6: *retval = t->regs.dx; break;
+	case 7: *retval = t->regs.si; break;
+	case 8: *retval = t->regs.di; break;
+	default: return -EINVAL;
+	}
+	return 0;
+}
 
 #endif /* THD_H */
