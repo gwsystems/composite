@@ -73,6 +73,8 @@ int cos_thd_mod(struct cos_compinfo *ci, thdcap_t c, void *tls_addr); /* set tls
 int cos_asnd(asndcap_t snd);
 int cos_rcv(arcvcap_t rcv, thdid_t *thdid, int *rcving, cycles_t *cycles);
 
+int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op);
+
 int cos_mem_alias(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src);
 int cos_mem_move(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src);
 int cos_mem_remove(pgtblcap_t pt, vaddr_t addr);

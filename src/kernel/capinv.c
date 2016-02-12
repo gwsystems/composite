@@ -617,6 +617,19 @@ cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
 	return cap_switch_thd(regs, thd, next, ci, cos_info);
 }
 
+static int
+cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval)
+{
+	struct cap_header *ch = captbl_lkup(ct, capid);
+
+	if (unlikely(!ch)) return -EINVAL;
+
+	switch(ch->type) {
+	case CAP_THD: return thd_introspect(((struct cap_thd*)ch)->t, op, retval);
+	}
+	return -EINVAL;
+}
+
 #define ENABLE_KERNEL_PRINT
 
 static int
@@ -1041,6 +1054,16 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			ret = cap_decons(ct, cap, capin, decons_addr, lvl);
 
 			break;
+		}
+		case CAPTBL_OP_INTROSPECT:
+		{
+			struct captbl *ctin  = op_cap->captbl;
+			unsigned long retval = 0;
+			u32_t op             = __userregs_get2(regs);
+			assert(ctin);
+
+			ret = cap_introspect(ctin, capin, op, &retval);
+			if (!ret) ret = retval;
 		}
 		default: goto err;
 		}

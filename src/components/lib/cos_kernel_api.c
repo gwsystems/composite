@@ -565,6 +565,11 @@ int
 cos_thd_mod(struct cos_compinfo *ci, thdcap_t tc, void *tlsaddr)
 { return call_cap_op(ci->captbl_cap, CAPTBL_OP_THDTLSSET, tc, (int)tlsaddr, 0, 0); }
 
+/* FIXME: problems when we got to 64 bit systems with the return value */
+int
+cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op)
+{ return call_cap_op(ci->captbl_cap, CAPTBL_OP_INTROSPECT, cap, (int)op, 0, 0); }
+
 /***************** [Kernel Tcap Operations] *****************/
 
 static tcap_t
