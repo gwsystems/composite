@@ -94,12 +94,29 @@ idt_init(void)
 	outb(0x21, 0x0);
 	outb(0xA1, 0x0);
 
-	idt_set_gate(IRQ_DOUBLE_FAULT, (u32_t)double_fault_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_PAGE_FAULT,   (u32_t)page_fault_irq, 0x08, 0x8E);
-	/* idt_set_gate(IRQ_PIT,        (u32_t)timer_irq, 0x08, 0x8E); */
+	idt_set_gate(IRQ_DIV_BY_ZERO_ERR_FAULT,               (u32_t)div_by_zero_err_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_DEBUG_TRAP,                          (u32_t)debug_trap_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_BREAKPOINT_TRAP,                     (u32_t)breakpoint_trap_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_OVERFLOW_TRAP,                       (u32_t)overflow_trap_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_BOUND_RANGE_EXCEED_FAULT,            (u32_t)bound_range_exceed_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_INVALID_OPCODE_FAULT,                (u32_t)invalid_opcode_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_DEVICE_NOT_AVAIL_FAULT,              (u32_t)device_not_avail_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_DOUBLE_FAULT_ABORT,                  (u32_t)double_fault_abort_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_INVALID_TSS_FAULT,                   (u32_t)invalid_tss_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_SEG_NOT_PRESENT_FAULT,               (u32_t)seg_not_present_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_STACK_SEG_FAULT,                     (u32_t)stack_seg_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_GEN_PROTECT_FAULT,                   (u32_t)gen_protect_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_PAGE_FAULT,                          (u32_t)page_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_X87_FLOAT_PT_EXCEPT_FAULT,           (u32_t)x87_float_pt_except_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_ALIGN_CHECK_FAULT,                   (u32_t)align_check_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_MACHINE_CHECK_ABORT,                 (u32_t)machine_check_abort_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_SMID_FLOAT_PT_EXCEPT_FAULT,          (u32_t)smid_float_pt_except_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_VIRTUALIZATION_EXCEPT_FAULT,         (u32_t)virtualization_except_fault_irq, 0x08, 0x8E);
+	idt_set_gate(IRQ_SECURITY_EXCEPT_FAULT,               (u32_t)security_except_fault_irq, 0x08, 0x8E);
+
+	idt_set_gate(IRQ_PERIODIC,     (u32_t)periodic_irq, 0x08, 0x8E);
 	idt_set_gate(IRQ_KEYBOARD,     (u32_t)keyboard_irq, 0x08, 0x8E);
 	idt_set_gate(IRQ_SERIAL,       (u32_t)serial_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_PERIODIC,     (u32_t)periodic_irq, 0x08, 0x8E);
 	idt_set_gate(IRQ_ONESHOT,      (u32_t)oneshot_irq, 0x08, 0x8E);
 
 	struct {
@@ -110,5 +127,6 @@ idt_init(void)
 	idtr.length = idt_ptr.limit;
 	idtr.base = (unsigned long)idt_entries;
 
-	asm volatile("lidt (%0)" : : "p"(&idtr));
+	/* asm volatile("lidt (%0)" : : "p"(&idtr)); */
+	idt_flush((u32_t)&idtr);
 }
