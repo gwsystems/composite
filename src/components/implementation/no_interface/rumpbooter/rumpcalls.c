@@ -132,9 +132,10 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	struct thd_creation_protocol *thd_meta = &info;
 
 	//  bmk_current is not set for the booting thread, use the booter_info thdcap_t
-	if(boot_thread) {
+	//  The isrthr needs to be created on the cos thread.
+	if(boot_thread || !strcmp(get_name(thread), "isrthr")) {
 
-		if(!strcmp(thdname, "main")) boot_thread = 0;
+		if(!strcmp(get_name(thread), "main")) boot_thread = 0;
 
 		thd_meta->retcap = BOOT_CAPTBL_SELF_INITTHD_BASE;
 
@@ -148,13 +149,12 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	// To access the thd_id
 	ret = cos_thd_switch(newthd_cap);
 	if(ret) printc("cos_thd_switch FAILED\n");
-	/*
-	 * RG: This is commented out as we are no longer using
-	 * the array access, we are using bmk_current
-	 */
-	//bmk_threads[*(thd_meta->thdid)] = thread;
 
 	set_cos_thdcap(thread, newthd_cap);
+
+	printc("\n------\nNew thread %d @ %x\n------\n\n",
+			(int)newthd_cap,
+			cos_introspect(&booter_info, newthd_cap, 0));
 }
 
 struct bmk_thread *glob_prev;
@@ -174,6 +174,11 @@ cos_cpu_sched_switch(struct bmk_thread *prev, struct bmk_thread *next)
 
 
 	thd_meta->retcap = get_cos_thdcap(next);
+
+	printc("\n------\nSwitching thread to %d @ %x\n------\n\n",
+			(int)(thd_meta->retcap),
+			cos_introspect(&booter_info, thd_meta->retcap, 0));
+
 
 	//printc("prev: %s\n", get_name(prev));
 	//printc("next: %s\n", get_name(next));

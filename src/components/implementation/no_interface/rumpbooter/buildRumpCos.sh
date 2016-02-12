@@ -5,9 +5,9 @@ cp ../../../../../../apps/hello/hello.bin .
 
 # Defined in both cos and rk, localize one of them.
 objcopy -L memmove   rump_boot.o
-objcopy -L munmap   rump_boot.o
-objcopy -L memset   rump_boot.o
-objcopy -L memcpy   rump_boot.o
+objcopy -L munmap    rump_boot.o
+objcopy -L memset    rump_boot.o
+objcopy -L memcpy    rump_boot.o
 objcopy -L __umoddi3 rump_boot.o
 objcopy -L __udivdi3 rump_boot.o
 objcopy -L strtol    rump_boot.o
