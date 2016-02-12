@@ -51,4 +51,6 @@ void  rump_bmk_memsize_init(void);
 void set_cos_thdcap(struct bmk_thread *thread, capid_t value);
 capid_t get_cos_thdcap(struct bmk_thread *thread);
 
+char *get_name(struct bmk_thread *thread);
+
 #endif /* RUMPCALLS_H */

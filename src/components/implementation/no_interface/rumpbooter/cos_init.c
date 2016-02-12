@@ -63,8 +63,8 @@ cos_run(char *cmdline)
 	bmk_pgalloc_loadmem(min, max);
 	printc("returned from bmk_pgalloc_loadmem\n");
 
-	bmk_intr_init();
-	printc("bmk_intr_init done\n");
+	//bmk_intr_init();
+	//printc("bmk_intr_init done\n");
 
 	bmk_sched_startmain(bmk_mainthread, cmdline);
 }

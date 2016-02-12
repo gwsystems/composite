@@ -72,6 +72,24 @@ cos_memcalloc(size_t n, size_t size)
 
 void *
 cos_memalloc(size_t nbytes, size_t align)
+
+//   __________
+//   l         l
+//   l         l
+//___l_________l___
+//   l   0 0   l
+//   l    c    l    ------ Your personal motivator here to tell you that
+//   l  \___/  l           you are all very smart cookies! GO RUMP KERNALS!!!
+//   l_________l
+//        l
+//	  l
+//   _____l_____
+//        l
+//	  l
+//        l
+//        l
+//       / \
+//      /   \     Anja's attempt at coding (take 1)
 {
 
 	/* align is not taken into account as of right now */
@@ -100,15 +118,13 @@ cos_tls_init(unsigned long tp, thdcap_t tc)
  * It is located within sched.c on the RK side
  */
 
-extern char thdname[16];
-
 void
 cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		void (*f)(void *), void *arg,
 		void *stack_base, unsigned long stack_size)
 {
 
-	printc("thdname: %s\n", thdname);
+	printc("thdname: %s\n", get_name(thread));
 
 	thdcap_t newthd_cap;
 	int ret;
@@ -150,11 +166,18 @@ cos_cpu_sched_switch(struct bmk_thread *prev, struct bmk_thread *next)
 	glob_prev = prev;
 	glob_next = next;
 
+	//printc("\ncos_cpu_sched_switch\n");
+
 	struct thd_creation_protocol info;
 	struct thd_creation_protocol *thd_meta = &info;
 	int ret;
 
+
 	thd_meta->retcap = get_cos_thdcap(next);
+
+	//printc("prev: %s\n", get_name(prev));
+	//printc("next: %s\n", get_name(next));
+	//printc("retcap: %d\n\n", thd_meta->retcap);
 
 	ret = cos_thd_switch(thd_meta->retcap);
 	if(ret)
