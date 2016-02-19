@@ -160,12 +160,6 @@ __captbl_getleaf(struct ert_intern *a, void *accum)
 	}
 
 	/*
-	 * We could do error checking here to make sure that a == c,
-	 * if we didn't want to avoid the extra branches:
-	 * if (unlikely(a == (void*)c)) return NULL;
-	 */
-
-	/*
 	 * This requires explanation.  We want to avoid a conditional
 	 * to check if this slot in the allocation map for the cache
 	 * line is free or not.
