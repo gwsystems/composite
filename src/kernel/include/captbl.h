@@ -144,11 +144,20 @@ static inline CFORCEINLINE void *
 __captbl_getleaf(struct ert_intern *a, void *accum)
 {
 	unsigned long off, mask;
-	struct cap_header *h = (struct cap_header *)CT_MSK(a, CACHELINE_ORDER);
-	struct cap_header *c = (struct cap_header *)CT_MSK(a, h->size + CAP_SZ_OFF);
-
+	struct cap_header *h, *c;
 	/* dewarn */
 	(void)accum;
+
+	/*
+	 * fastpath: lets make everything statically computable by
+	 * telling the compiler the capability size.
+	 */
+	h = (struct cap_header *)CT_MSK(a, CACHELINE_ORDER);
+	if (likely(h->size == __captbl_cap2sz(CAP_SINV))) {
+		c   = (struct cap_header *)CT_MSK(a, __captbl_cap2sz(CAP_SINV) + CAP_SZ_OFF);
+		off = (struct cap_min*)c - (struct cap_min*)h; /* ptr math */
+		if (likely(h->amap & off)) return c;
+	}
 
 	/*
 	 * We could do error checking here to make sure that a == c,
@@ -161,6 +170,7 @@ __captbl_getleaf(struct ert_intern *a, void *accum)
 	 * to check if this slot in the allocation map for the cache
 	 * line is free or not.
 	 */
+	c    = (struct cap_header *)CT_MSK(a, h->size + CAP_SZ_OFF);
 	off  = (struct cap_min*)c - (struct cap_min*)h; /* ptr math */
 	mask = (h->amap & (1<<off)) >> off;		/* 0 or 1, depending */
 	mask--;						/* 0 or 0xFFFF... */
@@ -203,8 +213,7 @@ __captbl_header_validate(struct cap_header *h, cap_sz_t sz)
 static inline void *
 captbl_lkup_lvl(struct captbl *t, capid_t cap, u32_t start_lvl, u32_t end_lvl)
 {
-	// should get rid of the branch with: cap &= __captbl_maxid() - 1;
-	if (unlikely(cap >= __captbl_maxid())) return NULL;
+	cap &= __captbl_maxid() - 1;
 	return __captbl_lkupani(t, cap, start_lvl, end_lvl, NULL);
 }
 
