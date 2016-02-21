@@ -21,6 +21,7 @@ cos2rump_setup(void)
 {
 	rump_bmk_memsize_init();
 
+	crcalls.rump_cpu_clock_now 		= cos_cpu_clock_now;
 	crcalls.rump_cos_print 	      		= cos_print;
 	crcalls.rump_vsnprintf        		= vsnprintf;
 	crcalls.rump_strcmp           		= strcmp;
@@ -72,28 +73,7 @@ cos_memcalloc(size_t n, size_t size)
 
 void *
 cos_memalloc(size_t nbytes, size_t align)
-
-//   __________
-//   l         l
-//   l         l
-//___l_________l___
-//   l   0 0   l
-//   l    c    l    ------ Your personal motivator here to tell you that
-//   l  \___/  l           you are all very smart cookies! GO RUMP KERNALS!!!
-//   l_________l
-//        l
-//	  l
-//   _____l_____
-//        l
-//	  l
-//        l
-//        l
-//       / \
-//      /   \     Anja's attempt at coding (take 1)
 {
-
-	/* align is not taken into account as of right now */
-
 	void *rv;
 
 	rv = rump_cos_malloc(nbytes);
@@ -187,4 +167,25 @@ cos_cpu_sched_switch(struct bmk_thread *prev, struct bmk_thread *next)
 	ret = cos_thd_switch(thd_meta->retcap);
 	if(ret)
 		printc("thread switch failed\n");
+}
+
+/* --------- Timer ----------- */
+uint64_t tsc_base;
+long long time_base = 0;
+
+
+/* Return monotonic time since RK initiation in nanoseconds */
+long long
+cos_cpu_clock_now(void)
+{
+	uint64_t tsc_now, tsc_delta;
+
+	rdtscll(tsc_now);
+	tsc_delta = tsc_now - tsc_base;
+	time_base += tsc_delta;
+	tsc_base = tsc_now;
+
+	printc("time_base: %llu\n", time_base);
+
+	return time_base;
 }

@@ -21,6 +21,7 @@ struct bmk_tcb *tcb;
 struct cos_rumpcalls
 {
 	unsigned short int (*rump_cos_get_thd_id)(void);
+	long long (*rump_cpu_clock_now)(void);
 	int    (*rump_vsnprintf)(char* str, size_t size, const char *format, va_list arg_ptr);
 	void   (*rump_cos_print)(char s[], int ret);
 	int    (*rump_strcmp)(const char *a, const char *b);
@@ -52,5 +53,6 @@ void set_cos_thdcap(struct bmk_thread *thread, capid_t value);
 capid_t get_cos_thdcap(struct bmk_thread *thread);
 
 char *get_name(struct bmk_thread *thread);
+long long cos_cpu_clock_now(void);
 
 #endif /* RUMPCALLS_H */
