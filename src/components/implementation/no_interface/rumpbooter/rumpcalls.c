@@ -170,22 +170,15 @@ cos_cpu_sched_switch(struct bmk_thread *prev, struct bmk_thread *next)
 }
 
 /* --------- Timer ----------- */
-uint64_t tsc_base;
-long long time_base = 0;
-
 
 /* Return monotonic time since RK initiation in nanoseconds */
 long long
 cos_cpu_clock_now(void)
 {
-	uint64_t tsc_now, tsc_delta;
+	uint64_t tsc_now;
 
 	rdtscll(tsc_now);
-	tsc_delta = tsc_now - tsc_base;
-	time_base += tsc_delta;
-	tsc_base = tsc_now;
+	printc("tsc_now: %llu\n", tsc_now);
 
-	printc("time_base: %llu\n", time_base);
-
-	return time_base;
+	return (long long)tsc_now;
 }

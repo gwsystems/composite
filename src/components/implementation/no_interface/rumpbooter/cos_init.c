@@ -4,7 +4,6 @@
 #include <cos_kernel_api.h>
 
 extern struct cos_compinfo booter_info;
-extern uint64_t tsc_base;
 
 /* RG: The amount of memory to give RK to start */
 #define RK_MEM ((1 << 30) + (1 << 5))
@@ -63,11 +62,6 @@ cos_run(char *cmdline)
 	// bmk_pgalloc_loadmem is needed to get the memory area from Composite
 	bmk_pgalloc_loadmem(min, max);
 	printc("returned from bmk_pgalloc_loadmem\n");
-
-	/* Set the timer base we use for the rk. */
-	unsigned long long tsc_basell;
-	rdtscll(tsc_basell);
-	tsc_base = (uint64_t)tsc_basell;
 
 	bmk_sched_startmain(bmk_mainthread, cmdline);
 }
