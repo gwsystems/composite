@@ -553,32 +553,47 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 }
 
 int
-capinv_int_snd(struct thread *rcv_thd, struct pt_regs *regs)
+cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 {
-	struct comp_info *ci;
-	struct thread *thd, *next;
-	struct tcap *tcap, *rcv_tcap;
+	int restore_curr_thd = 1;
+	int curr_cpu = get_cpuid();
+	struct cap_arcv *arcv;
 	struct cos_cpu_local_info *cos_info;
+	struct thread *rcv_thd, *next, *thd;
+	struct tcap *rcv_tcap, *tcap;
+	struct comp_info *ci;
 	unsigned long ip, sp;
 
-	cos_info = cos_cpu_local_info();
+	if (asnd->h.type != CAP_ASND) return restore_curr_thd;
+	assert(asnd->arcv_capid);
+
+	/* IPI notification to another core */
+	if (asnd->arcv_cpuid != curr_cpu) {
+		cos_cap_send_ipi(asnd->arcv_cpuid, asnd);
+		return restore_curr_thd;
+	}
+
+	arcv       = __cap_asnd_to_arcv(asnd);
+	if (unlikely(!arcv)) return restore_curr_thd;
+
+	cos_info   = cos_cpu_local_info();
 	assert(cos_info);
-	thd      = thd_current(cos_info);
-	tcap     = tcap_current(cos_info);
+	thd        = thd_current(cos_info);
+	tcap       = tcap_current(cos_info);
 	assert(thd);
-	ci       = thd_invstk_current(thd, &ip, &sp, cos_info);
+	ci         = thd_invstk_current(thd, &ip, &sp, cos_info);
 	assert(ci  && ci->captbl);
 	assert(!thd->state & THD_STATE_PREEMPTED);
-	rcv_tcap = rcv_thd->tcap;
-	assert(rcv_tcap);
+	rcv_thd    = arcv->thd;
+	rcv_tcap   = rcv_thd->tcap;
+	assert(rcv_tcap && tcap);
 
-	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap);
-	if (next == thd) return 1; /* current thread is a preempted one! */
+	next       = asnd_process(rcv_thd, thd, rcv_tcap, tcap);
+	if (next == thd) return restore_curr_thd;
 
 	thd->state |= THD_STATE_PREEMPTED;
 	return cap_switch_thd(regs, thd, next, ci, cos_info);
 }
-
 
 static int
 cap_arcv_op(struct cap_arcv *arcv, struct thread *thd, struct pt_regs *regs,
@@ -1335,23 +1350,21 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		switch(op) {
 		case CAPTBL_OP_HW_ATTACH:
 		{
-			struct cap_thd *thdc;
-			struct thread *thd;
-			struct cap_hw *hwc;
-			hwid_t hwid          = __userregs_get1(regs);
-			capid_t thdcap       = __userregs_get2(regs);
+			struct cap_arcv *rcvc;
+			hwid_t hwid           = __userregs_get1(regs);
+			capid_t rcvcap        = __userregs_get2(regs);
 
-			thdc = (struct cap_thd *)captbl_lkup(ci->captbl, thdcap);
-			if (unlikely(!thdc || thdc->h.type != CAP_THD || thdc->cpuid != get_cpuid())) return -EINVAL;
-			thd = thdc->t;
-			ret = hw_attach_thd((struct cap_hw *)ch, hwid, thd);
+			rcvc = (struct cap_arcv *)captbl_lkup(ci->captbl, rcvcap);
+			if (unlikely(!rcvc || rcvc->h.type != CAP_ARCV)) return -EINVAL;
+
+			ret = hw_attach_rcvcap((struct cap_hw *)ch, hwid, rcvc, rcvcap);
 			break;
 		}
 		case CAPTBL_OP_HW_DETACH:
 		{
 			hwid_t hwid        = __userregs_get1(regs);
 
-			ret = hw_detach_thd((struct cap_hw *)ch, hwid);
+			ret = hw_detach_rcvcap((struct cap_hw *)ch, hwid);
 			break;
 		}
 		default: goto err;

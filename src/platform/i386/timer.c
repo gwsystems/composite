@@ -75,14 +75,13 @@ periodic_handler(struct pt_regs *regs)
 {
 	u64_t cycle;
 	int preempt = 1;
-	struct thread *timer_thd = hw_thd[HW_PERIODIC];
 
 	rdtscll(cycle);
 	tick++;
 	printk("p"); /* comment this line for microbenchmarking tests */
 
 	ack_irq(HW_PERIODIC);
-	if (timer_thd) preempt = capinv_int_snd(timer_thd, regs);
+	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);
 
 	*hpet_interrupt = HPET_INT_ENABLE(TIMER_PERIODIC);
 
@@ -94,13 +93,12 @@ oneshot_handler(struct pt_regs *regs)
 {
 	u64_t cycle;
 	int preempt = 1;
-	struct thread *timer_thd = hw_thd[HW_ONESHOT];
 
 	rdtscll(cycle);
 	printk("o"); /* comment this line for microbenchmarking tests */
 
 	ack_irq(HW_ONESHOT);
-	if (timer_thd) preempt = capinv_int_snd(timer_thd, regs);
+	preempt = cap_hw_asnd(&hw_asnd_caps[HW_ONESHOT], regs);
 
 	*hpet_interrupt = HPET_INT_ENABLE(TIMER_ONESHOT);
 

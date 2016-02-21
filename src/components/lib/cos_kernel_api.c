@@ -509,7 +509,10 @@ cos_asnd_alloc(struct cos_compinfo *ci, arcvcap_t arcvcap, captblcap_t ctcap)
 	return cap;
 }
 
-
+/*
+ * TODO: bitmap must be a subset of existing one. 
+ *       but there is no such check now, violates access control policy.
+ */ 
 hwcap_t
 cos_hw_alloc(struct cos_compinfo *ci, u32_t bitmap)
 {
@@ -644,8 +647,8 @@ cos_tcap_merge(tcap_t dst, tcap_t rm)
 { return call_cap_op(dst, CAPTBL_OP_TCAP_MERGE, rm, 0, 0, 0); }
 
 int
-cos_hw_attach(hwcap_t hwc, hwid_t hwid, thdcap_t thdcap)
-{ return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, hwid, thdcap, 0, 0); }
+cos_hw_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t arcv)
+{ return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, hwid, arcv, 0, 0); }
 
 int
 cos_hw_detach(hwcap_t hwc, hwid_t hwid)

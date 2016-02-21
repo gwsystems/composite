@@ -312,7 +312,7 @@ test_timer(void)
 		cos_thd_switch(tc);
 	}
 
-	printc("Timer test completed.\nSuccess.\n");
+	printc("\nTimer test completed.\nSuccess.\n");
 }
 
 long long midinv_cycles = 0LL;
@@ -412,7 +412,7 @@ cos_init(void)
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
 
-	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITTHD_BASE);
+	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
 
 	printc("---------------------------\n");
 	test_thds();

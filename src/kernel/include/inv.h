@@ -90,6 +90,27 @@ sret_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 { return cap_capdeactivate(t, capin, CAP_SRET, lid); }
 
 static int
+asnd_construct(struct cap_asnd *asndc, struct cap_arcv *arcvc, capid_t rcv_cap, u32_t budget, u32_t period)
+{
+	/* FIXME: Add synchronization with __xx_pre and __xx_post */
+
+	/* copy data from the arcv capability */
+	memcpy(&asndc->comp_info, &arcvc->comp_info, sizeof(struct comp_info));
+	asndc->h.type         = CAP_ASND;
+	asndc->arcv_epoch     = arcvc->epoch;
+	asndc->arcv_cpuid     = arcvc->cpuid;
+	/* ...and initialize our own data */
+	asndc->cpuid          = get_cpuid();
+	asndc->arcv_capid     = rcv_cap;
+	asndc->period         = period;
+	asndc->budget         = budget;
+	asndc->replenish_amnt = budget;
+	/* FIXME:  add rdtscll(asndc->replenish_time); */
+
+	return 0;
+}
+
+static int
 asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, capid_t rcv_cap, u32_t budget, u32_t period)
 {
 	struct cap_captbl *rcv_ct;
@@ -105,28 +126,19 @@ asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, 
 
 	asndc = (struct cap_asnd *)__cap_capactivate_pre(t, cap, capin, CAP_ASND, &ret);
 	if (!asndc) return ret;
-	/* copy data from the arcv capability */
-	memcpy(&asndc->comp_info, &arcvc->comp_info, sizeof(struct comp_info));
-	asndc->arcv_epoch     = arcvc->epoch;
-	asndc->arcv_cpuid     = arcvc->cpuid;
-	/* ...and initialize our own data */
-	asndc->cpuid          = get_cpuid();
-	asndc->arcv_capid     = rcv_cap;
-	asndc->period         = period;
-	asndc->budget         = budget;
-	asndc->replenish_amnt = budget;
-	//FIXME:  add rdtscll(asndc->replenish_time);
+	
+	ret = asnd_construct(asndc, arcvc, rcv_cap, budget, period);
 	__cap_capactivate_post(&asndc->h, CAP_ASND);
 
-	return 0;
+	return ret;
 }
 
 static int
 asnd_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 { return cap_capdeactivate(t, capin, CAP_ASND, lid); }
 
-/* send to a thread within an interrupt */
-int capinv_int_snd(struct thread *rcv_thd, struct pt_regs *regs);
+/* send to a receive end-point within an interrupt */
+int cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs);
 
 static void
 __arcv_setup(struct cap_arcv *arcv, struct thread *thd, struct thread *notif)
