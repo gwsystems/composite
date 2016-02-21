@@ -99,6 +99,17 @@ fn##_irq: 			\
 	cli; 			\
 	IRQPROC(fn##_handler)
 
+#define IRQ_ID(ID)		\
+.align 4;			\
+.global handler_hw_##ID;	\
+handler_hw_##ID:		\
+	cli; 			\
+	pushl $(ID);		\
+	jmp irqproc
+
+irqproc:
+	IRQPROC(hw_handler)
+
 .text
 IRQ(div_by_zero_err_fault)
 IRQ(debug_trap)
@@ -122,8 +133,36 @@ IRQ_CODE(security_except_fault)
 
 IRQ(periodic)
 IRQ(keyboard)
+IRQ_ID(34)
+IRQ_ID(35)
 IRQ(serial)
+IRQ_ID(37)
+IRQ_ID(38)
+IRQ_ID(39)
 IRQ(oneshot)
+IRQ_ID(41)
+IRQ_ID(42)
+IRQ_ID(43)
+IRQ_ID(44)
+IRQ_ID(45)
+IRQ_ID(46)
+IRQ_ID(47)
+IRQ_ID(48)
+IRQ_ID(49)
+IRQ_ID(50)
+IRQ_ID(51)
+IRQ_ID(52)
+IRQ_ID(53)
+IRQ_ID(54)
+IRQ_ID(55)
+IRQ_ID(56)
+IRQ_ID(57)
+IRQ_ID(58)
+IRQ_ID(59)
+IRQ_ID(60)
+IRQ_ID(61)
+IRQ_ID(62)
+IRQ_ID(63)
 
 /*
  * Loads the IDT into the processor
