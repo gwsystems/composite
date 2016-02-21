@@ -14,6 +14,7 @@
 #include "include/chal/cpuid.h"
 #include "include/tcap.h"
 #include "include/chal/defs.h"
+#include "include/hw.h"
 
 #define COS_DEFAULT_RET_CAP 0
 
@@ -1065,6 +1066,20 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			ret = cap_introspect(ctin, capin, op, &retval);
 			if (!ret) ret = retval;
 		}
+		case CAPTBL_OP_HW_ACTIVATE:
+		{
+			u32_t bitmap = __userregs_get2(regs);
+
+			ret = hw_activate(ct, cap, capin, bitmap);
+			break;
+		}
+		case CAPTBL_OP_HW_DEACTIVATE:
+		{
+			livenessid_t lid  = __userregs_get2(regs);
+
+			ret = hw_deactivate(op_cap, capin, lid);
+			break;
+		}
 		default: goto err;
 		}
 		break;
@@ -1314,6 +1329,34 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		default: goto err;
 		}
 
+	}
+	case CAP_HW:
+	{
+		switch(op) {
+		case CAPTBL_OP_HW_ATTACH:
+		{
+			struct cap_thd *thdc;
+			struct thread *thd;
+			struct cap_hw *hwc;
+			hwid_t hwid          = __userregs_get1(regs);
+			capid_t thdcap       = __userregs_get2(regs);
+
+			thdc = (struct cap_thd *)captbl_lkup(ci->captbl, thdcap);
+			if (unlikely(!thdc || thdc->h.type != CAP_THD || thdc->cpuid != get_cpuid())) return -EINVAL;
+			thd = thdc->t;
+			ret = hw_attach_thd((struct cap_hw *)ch, hwid, thd);
+			break;
+		}
+		case CAPTBL_OP_HW_DETACH:
+		{
+			hwid_t hwid        = __userregs_get1(regs);
+
+			ret = hw_detach_thd((struct cap_hw *)ch, hwid);
+			break;
+		}
+		default: goto err;
+		}
+		break;
 	}
 	default: break;
 	}

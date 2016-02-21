@@ -4,6 +4,7 @@
 #include "shared/cos_types.h"
 #include "io.h"
 #include "chal_asm_inc.h"
+#include <inv.h>
 
 enum {
 	IRQ_DIV_BY_ZERO_ERR_FAULT = 0,
@@ -25,11 +26,6 @@ enum {
 	IRQ_SMID_FLOAT_PT_EXCEPT_FAULT,
 	IRQ_VIRTUALIZATION_EXCEPT_FAULT = 20,
 	IRQ_SECURITY_EXCEPT_FAULT = 30,
-
-	IRQ_PERIODIC     = 32,
-	IRQ_KEYBOARD     = 33,
-	IRQ_SERIAL       = 36,
-	IRQ_ONESHOT      = 40,
 };
 
 extern void div_by_zero_err_fault_irq(struct pt_regs *);

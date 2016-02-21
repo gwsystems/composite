@@ -117,8 +117,8 @@ IRQ(x87_float_pt_except_fault)
 IRQ_CODE(align_check_fault)
 IRQ(machine_check_abort)
 IRQ(smid_float_pt_except_fault)
-IRQ(virtualization_except_fault);
-IRQ_CODE(security_except_fault);
+IRQ(virtualization_except_fault)
+IRQ_CODE(security_except_fault)
 
 IRQ(periodic)
 IRQ(keyboard)
