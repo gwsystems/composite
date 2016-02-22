@@ -8,6 +8,7 @@
 #include <thd.h>
 #include <component.h>
 #include <inv.h>
+#include <hw.h>
 
 extern u8_t *boot_comp_pgd;
 
@@ -91,7 +92,6 @@ kern_boot_thd(struct captbl *ct, void *thd_mem)
 	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE,
 			    BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_INITTHD_BASE, 0, 1);
 	assert(!ret);
-	chal_timer_thd_init(t);
 
 	printk("\tCreating initial threads, tcaps, and rcv end-points in boot-component.\n");
 }
@@ -105,6 +105,7 @@ kern_boot_comp(void)
 	u8_t *boot_comp_captbl;
 	pgtbl_t pgtbl = (pgtbl_t)chal_va2pa(&boot_comp_pgd);
 	void *thd_mem;
+	u32_t hw_bitmap = 0xFFFFFFFF;
 
 	printk("Setting up the booter component.\n");
 
@@ -126,6 +127,9 @@ kern_boot_comp(void)
         if (captbl_activate_boot(ct, BOOT_CAPTBL_SELF_CT)) assert(0);
         if (sret_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SRET)) assert(0);
         if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, pgtbl, 0)) assert(0);
+
+	hw_asndcap_init();
+	if (hw_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITHW_BASE, hw_bitmap)) assert(0);
 
 	printk("\tCapability table and page-table created.\n");
 

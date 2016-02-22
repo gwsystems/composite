@@ -509,6 +509,21 @@ cos_asnd_alloc(struct cos_compinfo *ci, arcvcap_t arcvcap, captblcap_t ctcap)
 	return cap;
 }
 
+
+hwcap_t
+cos_hw_alloc(struct cos_compinfo *ci, u32_t bitmap)
+{
+	capid_t cap;
+
+	assert(ci);
+
+	cap = __capid_bump_alloc(ci, CAP_HW);
+	if (!cap) return 0;
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_HW_ACTIVATE, cap, bitmap, 0, 0))  BUG();
+
+	return cap;
+}
+
 void *
 cos_page_bump_alloc(struct cos_compinfo *ci)
 { return (void*)__page_bump_alloc(ci); }
@@ -627,3 +642,11 @@ cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, t
 int
 cos_tcap_merge(tcap_t dst, tcap_t rm)
 { return call_cap_op(dst, CAPTBL_OP_TCAP_MERGE, rm, 0, 0, 0); }
+
+int
+cos_hw_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t arcv)
+{ return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, hwid, arcv, 0, 0); }
+
+int
+cos_hw_detach(hwcap_t hwc, hwid_t hwid)
+{ return call_cap_op(hwc, CAPTBL_OP_HW_DETACH, hwid, 0, 0, 0); }

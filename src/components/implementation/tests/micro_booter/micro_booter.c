@@ -28,6 +28,9 @@ printc(char *fmt, ...)
 	  return ret;
 }
 
+/* for div-by-zero test */
+int num = 1, den = 0;
+
 #ifndef assert
 /* On assert, immediately switch to the "exit" thread */
 #define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); cos_thd_switch();} } while(0)
@@ -36,7 +39,7 @@ printc(char *fmt, ...)
 #define PRINT_FN prints
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
 #define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
-#define BUG_DIVZERO() do { debug_print("BUG @ "); int i = 1 / 0; } while (0);
+#define BUG_DIVZERO() do { debug_print("BUG @ "); int i = num / den; } while (0);
 
 struct cos_compinfo booter_info;
 
@@ -312,7 +315,7 @@ test_timer(void)
 		cos_thd_switch(tc);
 	}
 
-	printc("Timer test completed.\nSuccess.\n");
+	printc("\nTimer test completed.\nSuccess.\n");
 }
 
 long long midinv_cycles = 0LL;
@@ -411,6 +414,8 @@ cos_init(void)
 			 BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
+
+	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
 
 	printc("---------------------------\n");
 	test_thds();

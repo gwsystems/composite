@@ -8,6 +8,7 @@
 
 #include "chal_asm_inc.h"
 #include <thd.h>
+#include <hw.h>
 
 /* A not so nice way of oopsing */
 #define die(fmt, ...) do {              \
