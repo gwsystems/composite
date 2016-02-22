@@ -28,6 +28,9 @@ printc(char *fmt, ...)
 	  return ret;
 }
 
+/* For Div-by-zero test */
+int num = 1, den = 0;
+
 #ifndef assert
 /* On assert, immediately switch to the "exit" thread */
 #define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); cos_thd_switch();} } while(0)
@@ -36,7 +39,7 @@ printc(char *fmt, ...)
 #define PRINT_FN prints
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
 #define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
-#define BUG_DIVZERO() do { debug_print("BUG @ "); int i = 1 / 0; } while (0);
+#define BUG_DIVZERO() do { debug_print("BUG @ "); int i = num / den; } while (0);
 
 struct cos_compinfo booter_info;
 
