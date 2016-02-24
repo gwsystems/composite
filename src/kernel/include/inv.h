@@ -158,6 +158,8 @@ __arcv_teardown(struct cap_arcv *arcv, struct thread *thd)
 	notif = thd->rcvcap.rcvcap_thd_notif;
 	if (notif) thd_rcvcap_release(notif);
 	thd->rcvcap.isbound = 0;
+	tcap_ref_take(thd->tcap);
+	thd->tcap = NULL;
 }
 
 static struct thread *
@@ -165,13 +167,14 @@ arcv_thd_notif(struct thread *arcvt)
 { return arcvt->rcvcap.rcvcap_thd_notif; }
 
 static int
-arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, capid_t thd_cap, capid_t arcv_cap, int init)
+arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, capid_t thd_cap, capid_t tcap_cap, capid_t arcv_cap, int init)
 {
 	struct cap_comp *compc;
 	struct cap_thd  *thdc;
+	struct cap_tcap *tcapc;
 	struct cap_arcv *arcv_p, *arcvc; /* parent and new capability */
+	struct thread   *thd;
 	int ret;
-	struct thread *thd;
 
 	/* Find the constituent capability structures */
 	compc = (struct cap_comp *)captbl_lkup(t, comp_cap);
@@ -179,8 +182,11 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	thdc = (struct cap_thd *)captbl_lkup(t, thd_cap);
 	if (unlikely(!thdc || thdc->h.type != CAP_THD || thdc->cpuid != get_cpuid())) return -EINVAL;
 	thd = thdc->t;
+	tcapc = (struct cap_tcap *)captbl_lkup(t, tcap_cap);
+	if (unlikely(!tcapc || tcapc->h.type != CAP_TCAP || tcapc->cpuid != get_cpuid())) return -EINVAL;
 	/* a single thread cannot be bound to multiple rcvcaps */
 	if (thd_bound2rcvcap(thd)) return -EINVAL;
+	assert(!thd->tcap); 	/* an unbound thread should not have a tcap */
 
 	if (!init) {
 	        arcv_p = (struct cap_arcv *)captbl_lkup(t, arcv_cap);
@@ -188,6 +194,9 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	}
 	arcvc = (struct cap_arcv *)__cap_capactivate_pre(t, cap, capin, CAP_ARCV, &ret);
 	if (!arcvc) return ret;
+
+	thd->tcap = tcapc->tcap;
+	tcap_ref_take(tcapc->tcap);
 
 	memcpy(&arcvc->comp_info, &compc->info, sizeof(struct comp_info));
 

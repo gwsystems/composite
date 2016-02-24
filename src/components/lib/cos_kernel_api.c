@@ -476,13 +476,13 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry)
 /*
  * Arguments:
  * thdcap:  the thread to activate on snds to the rcv endpoint.
- * tcap:    TODO: the tcap to use for that execution.
+ * tcap:    the tcap to use for that execution.
  * compcap: the component the rcv endpoint is visible in.
  * arcvcap: the rcv * endpoint that is the scheduler to be activated
  *          when the thread blocks on this endpoint.
  */
 arcvcap_t
-cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, compcap_t compcap, arcvcap_t arcvcap)
+cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, tcap_t tcapcap, compcap_t compcap, arcvcap_t arcvcap)
 {
 	capid_t cap;
 
@@ -490,7 +490,7 @@ cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, compcap_t compcap, arcv
 
 	cap = __capid_bump_alloc(ci, CAP_ARCV);
 	if (!cap) return 0;
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_ARCVACTIVATE, cap, thdcap, compcap, arcvcap)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_ARCVACTIVATE, cap, thdcap | (tcapcap << 16), compcap, arcvcap)) BUG();
 
 	return cap;
 }
@@ -591,30 +591,30 @@ cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op)
 /***************** [Kernel Tcap Operations] *****************/
 
 static tcap_t
-__cos_tcap_alloc(struct cos_compinfo *ci, compcap_t comp, tcap_split_flags_t flags)
+__cos_tcap_alloc(struct cos_compinfo *ci, tcap_t src, tcap_split_flags_t flags)
 {
 	vaddr_t kmem;
 	capid_t cap;
 
 	printd("cos_tcap_alloc\n");
-
-	assert (ci && comp > 0);
+	assert (ci);
 
 	if (__alloc_mem_cap(ci, CAP_TCAP, &kmem, &cap)) return 0;
+
 	/* TODO: Add cap size checking */
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (flags << 16) | cap, ci->pgtbl_cap, kmem, comp)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (flags << 16) | cap, ci->pgtbl_cap, kmem, src)) BUG();
 
 	return cap;
 }
 
 tcap_t
-cos_tcap_split(struct cos_compinfo *ci, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_split_flags_t flags, compcap_t comp)
+cos_tcap_split(struct cos_compinfo *ci, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_split_flags_t flags)
 {
 	int prio_higher = (u32_t)(prio >> 32);
 	int prio_lower  = (u32_t)((prio << 32) >> 32);
 	tcap_t ret;
 
-	ret = __cos_tcap_alloc(ci, comp, flags);
+	ret = __cos_tcap_alloc(ci, src, flags);
 	if (res != 0 && ret > 0 &&
 	    call_cap_op(src, CAPTBL_OP_TCAP_TRANSFER, ret, res, prio_higher, prio_lower)) return 0;
 

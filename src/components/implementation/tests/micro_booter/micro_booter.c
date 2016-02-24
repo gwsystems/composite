@@ -92,7 +92,7 @@ test_thds_perf(void)
 	rdtscll(end_swt_cycles);
 	total_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
 
-	printc("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n", 
+	printc("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n",
 		total_swt_cycles, (long long) ITERATIONS, (total_swt_cycles / (long long)ITERATIONS));
 }
 
@@ -177,7 +177,7 @@ async_thd_parent_perf(void *thdcap)
 	rdtscll(end_arcv_cycles);
 	total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2LL ;
 
-	printc("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n", 
+	printc("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n",
 		total_asnd_cycles, (long long) (ITERATIONS), (total_asnd_cycles / (long long)(ITERATIONS)));
 
 	async_test_flag = 0;
@@ -235,19 +235,24 @@ static void
 test_async_endpoints(void)
 {
 	thdcap_t tcp, tcc;
+	tcap_t tccp, tccc;
 	arcvcap_t rcp, rcc;
 
 	printc("Creating threads, and async end-points.\n");
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
-	rcp = cos_arcv_alloc(&booter_info, tcp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 0, 0);
+	assert(tc);
+	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rcp);
 
 	/* child rcv capabilities */
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void*)tcp);
 	assert(tcc);
-	rcc = cos_arcv_alloc(&booter_info, tcc, booter_info.comp_cap, rcp);
+	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 1, 0);
+	assert(tc);
+	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
 
 	/* make the snd channel to the child */
@@ -267,18 +272,23 @@ static void
 test_async_endpoints_perf(void)
 {
 	thdcap_t tcp, tcc;
+	tcap_t tccp, tccc;
 	arcvcap_t rcp, rcc;
 
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
-	rcp = cos_arcv_alloc(&booter_info, tcp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 0, 0);
+	assert(tc);
+	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rcp);
 
 	/* child rcv capabilities */
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void*)tcp);
 	assert(tcc);
-	rcc = cos_arcv_alloc(&booter_info, tcc, booter_info.comp_cap, rcp);
+	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 1, 0);
+	assert(tc);
+	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
 
 	/* make the snd channel to the child */
@@ -399,9 +409,9 @@ test_inv_perf(void)
 		total_ret_cycles += (end_cycles - midinv_cycles);
 	}
 
-	printc("Average SINV (Total: %lld / Iterations: %lld ): %lld\n", 
+	printc("Average SINV (Total: %lld / Iterations: %lld ): %lld\n",
 		total_inv_cycles, (long long) (ITERATIONS), (total_inv_cycles / (long long)(ITERATIONS)));
-	printc("Average SRET (Total: %lld / Iterations: %lld ): %lld\n", 
+	printc("Average SRET (Total: %lld / Iterations: %lld ): %lld\n",
 		total_ret_cycles, (long long) (ITERATIONS), (total_ret_cycles / (long long)(ITERATIONS)));
 }
 
@@ -445,8 +455,6 @@ cos_init(void)
 
 	printc("\nMicro Booter done.\n");
 
-//	while (1) ;
-//	BUG();
 	BUG_DIVZERO();
 
 	return;

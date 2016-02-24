@@ -393,7 +393,8 @@ thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, struct 
 	return thd_invstk_current(thd, ip, sp, cos_info);
 }
 
-static inline void thd_preemption_state_update(struct thread *curr, struct thread *next, struct pt_regs *regs)
+static inline void
+thd_preemption_state_update(struct thread *curr, struct thread *next, struct pt_regs *regs)
 {
 	curr->state             |= THD_STATE_PREEMPTED;
 	next->interrupted_thread = curr;

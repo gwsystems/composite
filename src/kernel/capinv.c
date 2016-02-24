@@ -758,19 +758,28 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	unsigned long ip, sp;
 
-	/* add vars */
+	/*
+	 * These variables are:
+	 *
+	 * ct:     the current captbl
+	 * cap:    main capability looking up into the captbl
+	 * capin:  capability to lookup *inside* that reftbl
+	 * ch:     the header of cap in captbl
+	 * op_cap: ch casted as captbl
+	 * op:     operation to perform on the capability
+	 */
+
 	thd = thd_current(cos_info);
 	cap = __userregs_getcap(regs);
 	capin = __userregs_get1(regs);
 
 	ci = thd_invstk_current(thd, &ip, &sp, cos_info);
 	assert(ci && ci->captbl);
-
-	ch = captbl_lkup(ci->captbl, cap);
-	assert(ch);
-
-	op = __userregs_getop(regs);
 	ct = ci->captbl;
+
+	ch = captbl_lkup(ct, cap);
+	assert(ch);
+	op = __userregs_getop(regs);
 
 	switch(ch->type) {
 	case CAP_CAPTBL:
@@ -934,6 +943,31 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 
 			break;
 		}
+		case CAPTBL_OP_TCAP_ACTIVATE:
+		{
+			capid_t tcap_cap   = __userregs_get1(regs) & 0xFFFF;
+			int     flags 	   = __userregs_get1(regs) >> 16;
+			capid_t pgtbl_cap  = __userregs_get2(regs);
+			capid_t pgtbl_addr = __userregs_get3(regs);
+			capid_t tcap_src   = __userregs_get4(regs);
+
+			struct tcap     *tcap;
+			unsigned long   *pte = NULL;
+
+			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&tcap, &pte);
+			if (unlikely(ret)) cos_throw(err, ret);
+
+			ret = tcap_split(ct, cap, tcap_cap, tcap, tcap_src, flags, 0);
+			if (ret) {
+				unsigned long old = *pte;
+				assert (old & PGTBL_COSKMEM);
+
+				retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
+				*pte = old & ~PGTBL_COSKMEM;
+			}
+
+			break;
+		}
 		case CAPTBL_OP_THDDEACTIVATE:
 		{
 			livenessid_t lid = __userregs_get2(regs);
@@ -1028,11 +1062,12 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		}
 		case CAPTBL_OP_ARCVACTIVATE:
 		{
-			capid_t thd_cap  = __userregs_get2(regs);
+			capid_t thd_cap  = __userregs_get2(regs) & ((1<<16)-1);
+			capid_t tcap_cap = __userregs_get2(regs) >> 16;
 			capid_t comp_cap = __userregs_get3(regs);
 			capid_t arcv_cap = __userregs_get4(regs);
 
-			ret = arcv_activate(ct, cap, capin, comp_cap, thd_cap, arcv_cap, 0);
+			ret = arcv_activate(ct, cap, capin, comp_cap, thd_cap, tcap_cap, arcv_cap, 0);
 			break;
 		}
 		case CAPTBL_OP_ARCVDEACTIVATE:
@@ -1238,34 +1273,6 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 	{
 		/* TODO: Validate that all tcaps are on the same core */
 		switch (op){
-		case CAPTBL_OP_TCAP_ACTIVATE:
-		{
-			capid_t tcap_cap   = __userregs_get1(regs) & 0xFFFF;
-			int     flags 	   = __userregs_get1(regs) >> 16;
-			capid_t pgtbl_cap  = __userregs_get2(regs);
-			capid_t pgtbl_addr = __userregs_get3(regs);
-			capid_t compcap    = __userregs_get4(regs);
-			struct cap_tcap *tcapsrc;
-			struct tcap     *tcap_new;
-			unsigned long   *pte = NULL;
-
-			tcapsrc = (struct cap_tcap *)captbl_lkup(ci->captbl, tcap_cap);
-			if (tcapsrc->h.type != CAP_TCAP) cos_throw(err, -EINVAL);
-
-			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&tcap_new, &pte);
-			if (unlikely(ret)) cos_throw(err, ret);
-
-			ret = tcap_split(cap, tcap_new, tcap_cap, ct, compcap, tcapsrc, flags);
-			if (ret) {
-				unsigned long old = *pte;
-				assert (old & PGTBL_COSKMEM);
-
-				retypetbl_deref((void *)(old & PGTBL_FRAME_MASK));
-				*pte = old & ~PGTBL_COSKMEM;
-			}
-
-			break;
-		}
 		case CAPTBL_OP_TCAP_TRANSFER:
 		{
 			capid_t tcpdst 		 = __userregs_get1(regs);
@@ -1303,9 +1310,8 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			prio_higher = (prio_higher << 1) >> 1;
 
 			asnd = (struct cap_asnd *)captbl_lkup(ci->captbl, asnd_cap);
-			if (unlikely(!asnd || asnd->h.type != CAP_ASND)) {
-				cos_throw(err, -EINVAL);
-			}
+
+			if (unlikely(!asnd || asnd->h.type != CAP_ASND)) cos_throw(err, -EINVAL);
 
 			arcv = __cap_asnd_to_arcv(asnd);
 			rthd = arcv->thd;

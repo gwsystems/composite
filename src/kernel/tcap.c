@@ -6,7 +6,7 @@
  * Public License v2.
  *
  * Initial Author: Jakob Kaivo, jkaivo@gwu.edu, 2013.
- * Additional: Gabe Parmer, gparmer@gwu.edu, 2013; Eric Armbrust, earmbrust@gwu.edu, 2015.
+ * Additional: Gabe Parmer, gparmer@gwu.edu, 2013
  */
 
 #include "include/tcap.h"
@@ -44,7 +44,7 @@ tcap_delete(struct tcap *s, struct tcap *tcap)
 	memset(tcap->delegations, 0, sizeof(struct tcap_sched_info) * TCAP_MAX_DELEGATIONS);
 	tcap->ndelegs = tcap->cpuid = 0;
 	tcap->curr_sched_off = 0;
-	s->refcnt--;
+	tcap_ref_release(s);
 
 	return 0;
 }
@@ -111,36 +111,36 @@ undo_xfer:
  * (ignoring values of 0).
  */
 int
-tcap_split(capid_t cap, struct tcap *tcap_new, capid_t capin, struct captbl *ct,
-	   capid_t compcap, struct cap_tcap *tcap_src, tcap_split_flags_t flags)
+tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new,
+	   capid_t srctcap_cap, tcap_split_flags_t flags, int init)
 {
-	struct tcap *b, *t;
-	struct cap_tcap *tc;
-	struct cap_comp *compc;
+	struct tcap *p = NULL, *tcap_src = NULL;
+	struct cap_tcap *tc, *tc_src;
 	int ret;
-	tcap_uid_t c;
 
-	t = tcap_src->tcap;
+	if (!init) {
+		tc_src = (struct cap_tcap *)captbl_lkup(ct, srctcap_cap);
+		if (!tc_src || tc_src->h.type != CAP_TCAP) return -EINVAL;
+		if (tc_src->cpuid != get_cpuid())          return -EINVAL;
 
-	compc = (struct cap_comp *)captbl_lkup(ct, compcap);
-	if (unlikely(!compc || compc->h.type != CAP_COMP)) return -EINVAL;
+		tcap_src = tc_src->tcap;
+		assert(tcap_src);
+		p = tcap_src->pool;
+		assert(p);
+	}
 
 	tc = (struct cap_tcap *)__cap_capactivate_pre(ct, cap, capin, CAP_TCAP, &ret);
 	if (!tc) return ret;
 
-	assert(t);
-	if (t->cpuid != get_cpuid()) return -ENOENT;
-	c  = tcap_sched_info(t)->tcap_uid;
-	b  = t->pool;
-	assert(c);
-	if (unlikely(!b))  return -ENOENT;
-
+	assert(tcap_new && p);
 	tcap_init(tcap_new);
 	if (flags == TCAP_SPLIT_POOL) tcap_ref_create(tcap_new, tcap_new);
-	else tcap_ref_create(tcap_new, b);
-	tcap_new->ndelegs        = t->ndelegs;
-	tcap_new->curr_sched_off = t->curr_sched_off;
-	memcpy(tcap_new->delegations, t->delegations, sizeof(struct tcap_sched_info) * t->ndelegs);
+	else                          tcap_ref_create(tcap_new, p);
+	if (!init) {
+		tcap_new->ndelegs        = tcap_src->ndelegs;
+		tcap_new->curr_sched_off = tcap_src->curr_sched_off;
+		memcpy(tcap_new->delegations, tcap_src->delegations, sizeof(struct tcap_sched_info) * tcap_src->ndelegs);
+	}
 
 	tc->tcap  = tcap_new;
 	tc->cpuid = tcap_new->cpuid;
