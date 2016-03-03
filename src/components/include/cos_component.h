@@ -465,8 +465,12 @@ cos_memset(void * s, char c , int count)
 }
 
 /* compiler branch prediction hints */
+#ifndef likely
 #define likely(x)       __builtin_expect(!!(x), 1)
+#endif
+#ifndef unlikely
 #define unlikely(x)     __builtin_expect(!!(x), 0)
+#endif
 
 #define CFORCEINLINE __attribute__((always_inline))
 #define CWEAKSYMB    __attribute__((weak))

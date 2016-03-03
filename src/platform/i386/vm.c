@@ -1,3 +1,4 @@
+#include <cc.h>
 #include <pgtbl.h>
 #include <thd.h>
 
@@ -23,8 +24,8 @@ kern_retype_initial(void)
 {
 	u8_t *k;
 
-	assert(mem_bootc_start() % RETYPE_MEM_NPAGES == 0);
-	assert(mem_bootc_end()   % RETYPE_MEM_NPAGES == 0);
+	assert((int)mem_bootc_start() % RETYPE_MEM_NPAGES == 0);
+	assert((int)mem_bootc_end()   % RETYPE_MEM_NPAGES == 0);
 	for (k = mem_bootc_start() ; k < mem_bootc_end() ; k += PAGE_SIZE * RETYPE_MEM_NPAGES) {
 		if (retypetbl_retype2user((void*)(chal_va2pa(k)))) assert(0);
 	}
@@ -64,7 +65,8 @@ kern_setup_image(void)
 	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA/PGD_RANGE ;
 	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end) ;
 	     i += PGD_RANGE, j++) {
-		assert(j != KERN_INIT_PGD_IDX || (boot_comp_pgd[j] | PGTBL_GLOBAL) ==
+		assert(j != KERN_INIT_PGD_IDX ||
+		       ((boot_comp_pgd[j] | PGTBL_GLOBAL) & ~(PGTBL_MODIFIED | PGTBL_ACCESSED)) ==
 		       (i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL));
 		boot_comp_pgd[j] = i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;
 		boot_comp_pgd[i/PGD_RANGE] = 0; /* unmap lower addresses */
@@ -108,7 +110,8 @@ kern_paging_map_init(void *pa)
 	for (i = kern_pa_start, j = COS_MEM_KERN_START_VA/PGD_RANGE ;
 	     i < (unsigned long)round_up_to_pgd_page(kern_pa_end) ;
 	     i += PGD_RANGE, j++) {
-		assert(j != KERN_INIT_PGD_IDX || (boot_comp_pgd[j] | PGTBL_GLOBAL) ==
+		assert(j != KERN_INIT_PGD_IDX ||
+		       ((boot_comp_pgd[j] | PGTBL_GLOBAL) & ~(PGTBL_MODIFIED | PGTBL_ACCESSED)) ==
 		       (i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL));
 		/* lower mapping */
 		boot_comp_pgd[i/PGD_RANGE] = i | PGTBL_PRESENT | PGTBL_WRITABLE | PGTBL_SUPER | PGTBL_GLOBAL;

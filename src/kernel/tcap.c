@@ -35,7 +35,6 @@ static int
 tcap_delete(struct tcap *s, struct tcap *tcap)
 {
 	assert(s && tcap);
-	assert(tcap < &s->tcaps[TCAP_MAX] && tcap >= &s->tcaps[0]);
 	/* Can't delete your persistent tcap! */
 	if (s == tcap) return -1;
 	/* tcap still holds a reference to a child */
@@ -132,7 +131,7 @@ tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new,
 	tc = (struct cap_tcap *)__cap_capactivate_pre(ct, cap, capin, CAP_TCAP, &ret);
 	if (!tc) return ret;
 
-	assert(tcap_new && p);
+	assert(tcap_new && (init || p));
 	tcap_init(tcap_new);
 	if (flags == TCAP_SPLIT_POOL) tcap_ref_create(tcap_new, tcap_new);
 	else                          tcap_ref_create(tcap_new, p);

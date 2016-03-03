@@ -16,7 +16,6 @@
 
 #include "./consts.h"
 #include "./cos_config.h"
-#include "../debug.h"
 
 #ifndef COS_BASE_TYPES
 #define COS_BASE_TYPES

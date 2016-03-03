@@ -11,7 +11,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 #ifdef NIL
-
 static int __attribute__((format(printf,1,2)))
 printd(char *fmt, ...)
 {
@@ -26,8 +25,9 @@ printd(char *fmt, ...)
 
 	return ret;
 }
-#endif
+#else
 #define printd(...)
+#endif
 
 void
 cos_meminfo_init(struct cos_meminfo *mi, vaddr_t umem_ptr, unsigned long umem_sz,
@@ -186,6 +186,7 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 		} else {
 			/* Recursive call: can recur maximum 2 times. */
 			captblcap = __capid_bump_alloc(meta, CAP_CAPTBL);
+			assert(captblcap);
 		}
 		captblid_add = ci->caprange_frontier;
 		assert(captblid_add % CAPTBL_EXPAND_SZ == 0);
@@ -359,7 +360,7 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 	assert(ci && comp > 0);
 
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
-	assert(init_data < sizeof(u16_t)*8);
+	assert((size_t)init_data < sizeof(u16_t)*8);
 	/* TODO: Add cap size checking */
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap, ci->pgtbl_cap, kmem, comp)) BUG();
 
@@ -510,9 +511,9 @@ cos_asnd_alloc(struct cos_compinfo *ci, arcvcap_t arcvcap, captblcap_t ctcap)
 }
 
 /*
- * TODO: bitmap must be a subset of existing one. 
+ * TODO: bitmap must be a subset of existing one.
  *       but there is no such check now, violates access control policy.
- */ 
+ */
 hwcap_t
 cos_hw_alloc(struct cos_compinfo *ci, u32_t bitmap)
 {

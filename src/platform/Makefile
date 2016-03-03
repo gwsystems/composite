@@ -5,11 +5,10 @@ default:
 	$(MAKE) -C linker
 
 cp:
-	if [ -f linux/module/cos.ko ]; then $(MAKE) -C linux cp; else $(MAKE) -C i386 cp; fi
+	$(MAKE) -C i386 cp
 	$(MAKE) -C linker cp
 
 clean:
-	$(MAKE) -C linux clean
 	$(MAKE) -C i386 clean
 	$(MAKE) -C linker clean
 

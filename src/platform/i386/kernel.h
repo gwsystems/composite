@@ -10,12 +10,6 @@
 #include <thd.h>
 #include <hw.h>
 
-/* A not so nice way of oopsing */
-#define die(fmt, ...) do {              \
-    printk(fmt,##__VA_ARGS__);   \
-    khalt();				\
-} while(0)
-
 #ifdef ENABLE_CONSOLE
 void vga_clear(void);
 void vga_puts(const char *s);

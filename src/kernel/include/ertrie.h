@@ -8,6 +8,8 @@
 #ifndef ERTRIE_H
 #define ERTRIE_H
 
+#include "cc.h"
+
 #ifndef TYPES_H
 #include "shared/cos_types.h"
 #endif
@@ -15,12 +17,12 @@
 #ifndef COS_COMPONENT_H
 /* for kernel level use only */
 #include "chal.h"
-#include "debug.h"
+#include <assert.h>
 #endif
 
 #define CFORCEINLINE __attribute__((always_inline))
 
-/* 
+/*
  * TODO:
  * - change the accum variable to be void *, and be named load_info,
  *   and memctxt to be named store_info.
@@ -28,12 +30,12 @@
 
 /* Internal node in the trie */
 struct ert_intern {
-	/* 
+	/*
 	 * This "next" value should be opaque and only interpreted by
 	 * the specialized functions.  It might be a pointer, or
 	 * array.
 	 */
-	void *next; 
+	void *next;
 };
 struct ert {
 	struct ert_intern vect[0]; /* in-place data-structure */
@@ -64,7 +66,7 @@ typedef void *(*ert_getleaf_fn_t)(struct ert_intern *entry, void *accum);
         (void)initfn; (void)getfn; (void)isnullfn; (void)setfn; (void)allocfn; (void)setleaffn; (void)getleaffn; (void)resolvefn;
 #define ERT_DEWARN ERT_CONSTS_DEWARN
 
-/* 
+/*
  * Default implementations of the customization functions that assume
  * a normal tree with pointers for internal nodes, with the "null
  * node" being equal to NULL (i.e. you can't store NULL values in the
@@ -77,10 +79,10 @@ ert_defget(struct ert_intern *a, void *accum, int leaf)
 static inline void *
 ert_defgetleaf(struct ert_intern *a, void *accum)
 { (void)accum;  return a->next; }
-static inline int 
+static inline int
 ert_defisnull(struct ert_intern *a, void *accum, int leaf)
 { (void)accum; (void)leaf; return a->next == NULL; }
-static int 
+static int
 ert_defresolve(struct ert_intern *a, void *accum, int leaf, u32_t order, u32_t sz)
 { (void)a; (void)accum; (void)leaf; (void)order; (void)sz; return 1; }
 static int ert_defset(struct ert_intern *a, void *v, void *accum, int leaf)
@@ -90,7 +92,7 @@ static int ert_defsetleaf(struct ert_intern *a, void *data)
 static void ert_definit(struct ert_intern *a, int leaf)
 { (void)a; (void)leaf; a->next = NULL; }
 
-/* 
+/*
  * This macro is the key using the compiler to generate fast code.
  * This is generating function calls that are often inlined that are
  * being passed _constants_.  After function inlining, loop unrolling,
@@ -138,15 +140,15 @@ ERT_CREATE(name, name##_ert, depth, order, sizeof(int*), last_order, last_sz, NU
 
 static inline unsigned long
 __ert_maxid(ERT_CONST_PARAMS)
-{ 
+{
 	unsigned long off    = (unsigned long)(((order * (depth-1)) + last_order));
 	unsigned long maxoff = (unsigned long)(sizeof(int*)*8); /* 8 bits per byte */
 	ERT_CONSTS_DEWARN;
 
-	return (off > maxoff) ? ((unsigned long)1)<<maxoff : ((unsigned long)1)<<off; 
+	return (off > maxoff) ? ((unsigned long)1)<<maxoff : ((unsigned long)1)<<off;
 }
 
-/* 
+/*
  * Initialize a level in the ertrie.  lvl is either an internal level,
  * lvl > 1, or a leaf level in the tree in which case embedded leaf
  * structs require a different initialization.
@@ -177,7 +179,7 @@ ert_alloc(void *memctxt, ERT_CONST_PARAMS)
 	struct ert *v;
 	struct ert_intern e;
 	unsigned long accum = 0;
-	
+
 	/* Make sure the id size can be represented on our system */
 	assert(((order * (depth-1)) + last_order) < (sizeof(unsigned long)*8));
 	assert(depth >= 1);
@@ -208,8 +210,8 @@ __ert_walk(struct ert_intern *vi, unsigned long id, void *accum, u32_t lvl, ERT_
 	return (struct ert_intern *)(((char *)vi) + last_off);
 }
 
-/* 
- * This is the most optimized/most important function.  
+/*
+ * This is the most optimized/most important function.
  *
  * We rely on compiler optimizations -- including constant
  * propagation, loop unrolling, function inlining, dead-code
@@ -227,7 +229,7 @@ __ert_walk(struct ert_intern *vi, unsigned long id, void *accum, u32_t lvl, ERT_
  */
 
 static inline CFORCEINLINE void *
-__ert_lookup(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *accum, ERT_CONST_PARAMS) 
+__ert_lookup(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *accum, ERT_CONST_PARAMS)
 {
 	struct ert_intern r, *n;
 	u32_t i, limit;
@@ -246,23 +248,23 @@ __ert_lookup(struct ert *v, unsigned long id, u32_t dstart, u32_t dlimit, void *
 		n = __ert_walk(n, id, accum, depth-i, ERT_CONST_ARGS);
 	}
 
-	if (i == depth && 
+	if (i == depth &&
 	    unlikely(!resolvefn(n, accum, 1, last_order, last_sz))) return NULL;
-	if (i < depth  && 
+	if (i < depth  &&
 	    unlikely(!resolvefn(n, accum, 0, order, intern_sz))) return NULL;
 	if (dlimit == depth+1) n = getleaffn(n, accum);
 
 	return n;
 }
 
-/* 
+/*
  * Expand the data-structure starting from level/depth dstart, and up
  * to and including some depth limit (dlimit).  This will call the
  * initialization routines for that level, and hook it into the
  * overall trie.  If you want to control the costs of memory
  * allocation and initialization, then you should use limit to ensure
  * that multiple levels of the trie are not expanded here, if desired.
- * 
+ *
  * limit == 1 does not make sense (i.e. ert is already allocated),
  * and limit = depth+1 means that we're trying to "expand" or set the
  * leaf data to something provided in the memctxt.

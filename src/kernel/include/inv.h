@@ -126,7 +126,7 @@ asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, 
 
 	asndc = (struct cap_asnd *)__cap_capactivate_pre(t, cap, capin, CAP_ASND, &ret);
 	if (!asndc) return ret;
-	
+
 	ret = asnd_construct(asndc, arcvc, rcv_cap, budget, period);
 	__cap_capactivate_post(&asndc->h, CAP_ASND);
 
@@ -197,6 +197,7 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 
 	thd->tcap = tcapc->tcap;
 	tcap_ref_take(tcapc->tcap);
+	printk("Thd bound to rcv cap %d, tcap %x\n", thd->tid, thd->tcap);
 
 	memcpy(&arcvc->comp_info, &compc->info, sizeof(struct comp_info));
 

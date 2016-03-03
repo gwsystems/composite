@@ -441,7 +441,7 @@ cap_switch_thd(struct pt_regs *regs, struct thread *curr, struct thread *next,
 		copy_all_regs(regs, &curr->regs);
 	}
 
-	thd_current_update(next, curr, cos_info);
+	thd_current_update(next, NULL, curr, cos_info);
 	if (likely(ci->pgtbl != next_ci->pgtbl)) pgtbl_update(next_ci->pgtbl);
 
 	/* Not sure of the trade-off here: Branch cost vs. segment register update */
