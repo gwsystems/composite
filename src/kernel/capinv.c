@@ -793,14 +793,14 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		switch(op) {
 		case CAPTBL_OP_CAPTBLACTIVATE:
 		{
-			capid_t newcaptbl_cap  = __userregs_get1(regs);
-			capid_t pgtbl_cap      = __userregs_get2(regs);
-			vaddr_t kmem_cap       = __userregs_get3(regs);
-			int     captbl_lvl     = __userregs_get4(regs);
+			capid_t newcaptbl_cap = __userregs_get1(regs);
+			capid_t pgtbl_cap     = __userregs_get2(regs);
+			vaddr_t kmem_cap      = __userregs_get3(regs);
+			int     captbl_lvl    = __userregs_get4(regs);
 
 			struct captbl *newct;
 			unsigned long *pte = NULL;
-			vaddr_t kmem_addr = 0;
+			vaddr_t kmem_addr  = 0;
 
 			ret = cap_kmem_activate(ct, pgtbl_cap, kmem_cap, (unsigned long *)&kmem_addr, &pte);
 			if (unlikely(ret)) cos_throw(err, ret);

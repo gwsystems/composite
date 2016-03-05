@@ -430,21 +430,15 @@ void
 test_captbl_expand(void)
 {
 	int i;
+	compcap_t cc;
 
-	for (i = 0 ; i < 512 ; i++) {
-		thdcap_t  t;
-		arcvcap_t r;
-		tcap_t    tc;
-		asndcap_t s;
+	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
+	assert(cc);
+	for (i = 0 ; i < 1024 ; i++) {
+		sinvcap_t ic;
 
-		t  = cos_thd_alloc(&booter_info, booter_info.comp_cap, dont_run_me_bro, NULL);
-		assert(t);
-		tc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 0, 0);
-		assert(tc);
-		r  = cos_arcv_alloc(&booter_info, t, tc, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-		assert(r);
-		s  = cos_asnd_alloc(&booter_info, r, booter_info.captbl_cap);
-		assert(s);
+		ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
+		assert(ic > 0);
 	}
 	printc("\nCaptbl expand SUCCESS.\n");
 }
@@ -483,7 +477,7 @@ test_run(void)
 	printc("---------------------------\n");
 
 	printc("---------------------------\n");
-//	test_captbl_expand();
+	test_captbl_expand();
 	printc("---------------------------\n");
 
 	printc("\nMicro Booter done.\n");

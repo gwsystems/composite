@@ -6,7 +6,6 @@
 
 #include <cos_kernel_api.h>
 
-
 /* HACKHACKHACKHACKHACKHACK */
 #include <stdarg.h>
 #include <stdio.h>
@@ -75,7 +74,7 @@ cos_compinfo_init(struct cos_compinfo *ci, captblcap_t pgtbl_cap, pgtblcap_t cap
 	} else {
 		ci->caprange_frontier = round_up_to_pow2(cap_frontier + CAPTBL_EXPAND_SZ, CAPTBL_EXPAND_SZ);
 	}
-	ci->cap16_frontier    = ci->cap32_frontier = ci->cap64_frontier = cap_frontier;
+	ci->cap16_frontier = ci->cap32_frontier = ci->cap64_frontier = cap_frontier;
 }
 
 /**************** [Memory Capability Allocation Functions] ***************/
@@ -139,6 +138,10 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	int self_resources = (meta == ci);
 	capid_t frontier;
 
+	capid_t captblcap;
+	capid_t captblid_add;
+	vaddr_t kmem;
+
 	/* ensure that we have bounded structure, and bounded recursion */
 	assert(__compinfo_metacap(meta) == meta);
 
@@ -172,48 +175,44 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	else                frontier = ci->caprange_frontier;
 	assert(ci->cap_frontier <= frontier);
 
-	printd("\tfrontier = %d, frontierrange = %d\n", ci->cap_frontier, frontier);
+	/* Common case: */
+	if (likely(ci->cap_frontier != frontier)) return 0;
 
-	if (ci->cap_frontier == frontier) {
-		capid_t captblcap;
-		capid_t captblid_add;
-		vaddr_t kmem = __kmem_bump_alloc(ci);
+	kmem = __kmem_bump_alloc(ci);
+	assert(kmem); /* FIXME: should have a failure semantics for capids */
 
-		assert(kmem); /* FIXME: should have a failure semantics for capids */
-
-		if (self_resources) {
-			captblcap = frontier;
-		} else {
-			/* Recursive call: can recur maximum 2 times. */
-			captblcap = __capid_bump_alloc(meta, CAP_CAPTBL);
-			assert(captblcap);
-		}
-		captblid_add = ci->caprange_frontier;
-		assert(captblid_add % CAPTBL_EXPAND_SZ == 0);
-
-		printd("__capid_captbl_check_expand->pre-captblactivate (%d)\n", CAPTBL_OP_CAPTBLACTIVATE);
-		/* captbl internal node allocated with the resource provider's captbls */
-		if (call_cap_op(meta->captbl_cap, CAPTBL_OP_CAPTBLACTIVATE, captblcap, meta->pgtbl_cap, kmem, 1)) {
-			assert(0); /* race condition? */
-			return -1;
-		}
-		printd("__capid_captbl_check_expand->post-captblactivate\n");
-		/*
-		 * Assumption:
-		 * meta->captbl_cap refers to _our_ captbl, thus
-		 * captblcap's use in the following.
-		 */
-
-		/* Construct captbl */
-		if (call_cap_op(ci->captbl_cap, CAPTBL_OP_CONS, captblcap, captblid_add, 0, 0)) {
-			assert(0); /* race? */
-			return -1;
-		}
-
-		/* Success!  Advance the frontiers. */
-		ci->cap_frontier      = ci->caprange_frontier;
-		ci->caprange_frontier = ci->caprange_frontier + (CAPTBL_EXPAND_SZ * 2);
+	if (self_resources) {
+		captblcap = frontier;
+	} else {
+		/* Recursive call: can recur maximum 2 times. */
+		captblcap = __capid_bump_alloc(meta, CAP_CAPTBL);
+		assert(captblcap);
 	}
+	captblid_add = ci->caprange_frontier;
+	assert(captblid_add % CAPTBL_EXPAND_SZ == 0);
+
+	printd("__capid_captbl_check_expand->pre-captblactivate (%d)\n", CAPTBL_OP_CAPTBLACTIVATE);
+	/* captbl internal node allocated with the resource provider's captbls */
+	if (call_cap_op(meta->captbl_cap, CAPTBL_OP_CAPTBLACTIVATE, captblcap, meta->pgtbl_cap, kmem, 1)) {
+		assert(0); /* race condition? */
+		return -1;
+	}
+	printd("__capid_captbl_check_expand->post-captblactivate\n");
+	/*
+	 * Assumption:
+	 * meta->captbl_cap refers to _our_ captbl, thus
+	 * captblcap's use in the following.
+	 */
+
+	/* Construct captbl */
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_CONS, captblcap, captblid_add, 0, 0)) {
+		assert(0); /* race? */
+		return -1;
+	}
+
+	/* Success!  Advance the frontiers. */
+	ci->cap_frontier      = ci->caprange_frontier;
+	ci->caprange_frontier = ci->caprange_frontier + (CAPTBL_EXPAND_SZ * 2);
 
 	return 0;
 }

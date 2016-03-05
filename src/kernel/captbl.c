@@ -125,18 +125,22 @@ captbl_cons(struct cap_captbl *target_ct, struct cap_captbl *cons_cap, capid_t c
 	/* increment refcnt */
 	if (cos_cas((unsigned long *)&(cons_cap->refcnt_flags), l, l+1) != CAS_SUCCESS) cos_throw(err, -ECASFAIL);
 
-	/* FIXME: we are expanding the entire page to
+	/*
+	 * FIXME: we are expanding the entire page to
 	 * two of the locations. Do we want separate
-	 * calls for them? */
+	 * calls for them?
+	 */
 	ret = captbl_expand(target_ct->captbl, cons_addr, captbl_maxdepth(), captbl_mem);
 	if (ret) {
+		printk("first captbl_expand @ %d returns %d\n", cons_addr, ret);
 		cos_faa((int*)&cons_cap->refcnt_flags, -1);
 		cos_throw(err, ret);
 	}
 
-	ret = captbl_expand(target_ct->captbl, cons_addr + (PAGE_SIZE/2/CAPTBL_LEAFSZ),
+	ret = captbl_expand(target_ct->captbl, cons_addr + (PAGE_SIZE/(2*CAPTBL_LEAFSZ)),
 			    captbl_maxdepth(), &((char*)captbl_mem)[PAGE_SIZE/2]);
 	if (ret) {
+		printk("second captbl_expand returns %d\n", ret);
 		/* Rewind. */
 		captbl_expand(target_ct->captbl, cons_addr, captbl_maxdepth(), NULL);
 		cos_faa((int*)&cons_cap->refcnt_flags, -1);
