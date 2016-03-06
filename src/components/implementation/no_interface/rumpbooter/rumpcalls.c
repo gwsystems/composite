@@ -104,7 +104,7 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 		void *stack_base, unsigned long stack_size)
 {
 
-	printc("thdname: %s\n", get_name(thread));
+	//printc("thdname: %s\n", get_name(thread));
 
 	thdcap_t newthd_cap;
 	int ret;
@@ -132,9 +132,11 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 
 	set_cos_thdcap(thread, newthd_cap);
 
-	printc("\n------\nNew thread %d @ %x\n------\n\n",
-			(int)newthd_cap,
-			cos_introspect(&booter_info, newthd_cap, 0));
+	/*
+	 * printc("\n------\nNew thread %d @ %x\n------\n\n",
+	 *		(int)newthd_cap,
+	 *		cos_introspect(&booter_info, newthd_cap, 0));
+	*/
 }
 
 struct bmk_thread *glob_prev;
@@ -155,10 +157,11 @@ cos_cpu_sched_switch(struct bmk_thread *prev, struct bmk_thread *next)
 
 	thd_meta->retcap = get_cos_thdcap(next);
 
-	printc("\n------\nSwitching thread to %d @ %x\n------\n\n",
-			(int)(thd_meta->retcap),
-			cos_introspect(&booter_info, thd_meta->retcap, 0));
-
+	/* For Debugging
+	 * printc("\n------\nSwitching thread to %d @ %x\n------\n\n",
+	 *		(int)(thd_meta->retcap),
+	 *		cos_introspect(&booter_info, thd_meta->retcap, 0));
+	 */
 
 	//printc("prev: %s\n", get_name(prev));
 	//printc("next: %s\n", get_name(next));
@@ -178,7 +181,7 @@ cos_cpu_clock_now(void)
 	uint64_t tsc_now;
 
 	rdtscll(tsc_now);
-	printc("tsc_now: %llu\n", tsc_now);
+	//printc("tsc_now: %llu\n", tsc_now);
 
 	return (long long)tsc_now;
 }
