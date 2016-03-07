@@ -62,7 +62,7 @@ all: $(KERNEL)
 
 $(KERNEL): linker.ld $(DEPS) $(OBJS) loader.o
 	$(info |     [LD]   Linking $@)
-	$(LD) -T linker.ld loader.o entry.o $(OBJS) -o $@
+	@$(LD) -T linker.ld loader.o entry.o $(OBJS) -o $@
 
 loader.o: loader.S entry.S
 	$(info |     [AS]   Assembling $@)
