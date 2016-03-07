@@ -223,7 +223,7 @@ keyboard_handler(struct pt_regs *regs)
 {
 	u16_t scancode = 0;
 
-	ack_irq(IRQ_KEYBOARD);
+	ack_irq(HW_KEYBOARD);
 
 	while (inb(KEY_PENDING) & 2) {
 		/* wait for keypress to be ready */

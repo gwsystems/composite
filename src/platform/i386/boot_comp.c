@@ -8,6 +8,7 @@
 #include <thd.h>
 #include <component.h>
 #include <inv.h>
+#include <hw.h>
 
 extern u8_t *boot_comp_pgd;
 
@@ -72,12 +73,14 @@ boot_pgtbl_mappings_add(struct captbl *ct, pgtbl_t pgtbl, capid_t ptecap, const 
 
 /* FIXME:  loops to create threads/tcaps/rcv caps per core. */
 static void
-kern_boot_thd(struct captbl *ct, void *thd_mem)
+kern_boot_thd(struct captbl *ct, void *thd_mem, void *tcap_mem)
 {
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	struct thread *t = thd_mem;
+	struct tcap *tc = tcap_mem;
 	int ret;
 
+	assert(sizeof(struct cos_cpu_local_info) == STK_INFO_SZ);
 	memset(cos_info, 0, sizeof(struct cos_cpu_local_info));
 	cos_info->cpuid          = 0;
 	cos_info->invstk_top     = 0;
@@ -86,12 +89,17 @@ kern_boot_thd(struct captbl *ct, void *thd_mem)
 	ret = thd_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTHD_BASE,
 			   thd_mem, BOOT_CAPTBL_SELF_COMP, 0);
 	assert(!ret);
-	thd_current_update(t, t, cos_cpu_local_info());
+
+	ret = tcap_split(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITTCAP_BASE,
+			 tcap_mem, 0 /* no source tcap */, TCAP_SPLIT_POOL, 1);
+	tc->budget.cycles = TCAP_RES_INF; /* father time's got all the time in the world */
+	assert(!ret);
+	thd_current_update(t, tcap_mem, t, cos_cpu_local_info());
 
 	ret = arcv_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITRCV_BASE,
-			    BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_INITTHD_BASE, 0, 1);
+			    BOOT_CAPTBL_SELF_COMP, BOOT_CAPTBL_SELF_INITTHD_BASE,
+			    BOOT_CAPTBL_SELF_INITTCAP_BASE, 0, 1);
 	assert(!ret);
-	chal_timer_thd_init(t);
 
 	printk("\tCreating initial threads, tcaps, and rcv end-points in boot-component.\n");
 }
@@ -104,7 +112,8 @@ kern_boot_comp(void)
         unsigned int i;
 	u8_t *boot_comp_captbl;
 	pgtbl_t pgtbl = (pgtbl_t)chal_va2pa(&boot_comp_pgd);
-	void *thd_mem;
+	void *thd_mem, *tcap_mem;
+	u32_t hw_bitmap = 0xFFFFFFFF;
 
 	printk("Setting up the booter component.\n");
 
@@ -122,10 +131,15 @@ kern_boot_comp(void)
                 assert(!ret);
         }
 
-	thd_mem = mem_boot_alloc(1);
+	thd_mem  = mem_boot_alloc(1);
+	tcap_mem = mem_boot_alloc(1);
+	assert(thd_mem && tcap_mem);
         if (captbl_activate_boot(ct, BOOT_CAPTBL_SELF_CT)) assert(0);
         if (sret_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SRET)) assert(0);
         if (pgtbl_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_PT, pgtbl, 0)) assert(0);
+
+	hw_asndcap_init();
+	if (hw_activate(ct, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_INITHW_BASE, hw_bitmap)) assert(0);
 
 	printk("\tCapability table and page-table created.\n");
 
@@ -154,7 +168,7 @@ kern_boot_comp(void)
 			  BOOT_CAPTBL_SELF_PT, 0, (vaddr_t)mem_bootc_entry(), NULL)) assert(0);
 	printk("\tCreated boot component structure from page-table and capability-table.\n");
 
-	kern_boot_thd(ct, thd_mem);
+	kern_boot_thd(ct, thd_mem, tcap_mem);
 
 	printk("\tBoot component initialization complete.\n");
 }

@@ -63,6 +63,22 @@ idt_set_gate(u8_t num, u32_t base, u16_t sel, u8_t flags)
 	// The OR is used for ring once we get usermode up and running
 }
 
+int
+hw_handler(struct pt_regs *regs)
+{
+	int preempt = 1;
+	printk("%d", regs->orig_ax);
+
+	/* 
+	 * TODO: ack here? or 
+	 *       after user-level interrupt(rcv event) processing? 
+	 */
+	ack_irq(regs->orig_ax);
+	preempt = cap_hw_asnd(&hw_asnd_caps[regs->orig_ax], regs);
+
+	return preempt;
+}
+
 #if 0
 static inline void
 remap_irq_table(void)
@@ -114,10 +130,38 @@ idt_init(void)
 	idt_set_gate(IRQ_VIRTUALIZATION_EXCEPT_FAULT,         (u32_t)virtualization_except_fault_irq, 0x08, 0x8E);
 	idt_set_gate(IRQ_SECURITY_EXCEPT_FAULT,               (u32_t)security_except_fault_irq, 0x08, 0x8E);
 
-	idt_set_gate(IRQ_PERIODIC,     (u32_t)periodic_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_KEYBOARD,     (u32_t)keyboard_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_SERIAL,       (u32_t)serial_irq, 0x08, 0x8E);
-	idt_set_gate(IRQ_ONESHOT,      (u32_t)oneshot_irq, 0x08, 0x8E);
+	idt_set_gate(HW_PERIODIC,     (u32_t)periodic_irq, 0x08, 0x8E);
+	idt_set_gate(HW_KEYBOARD,     (u32_t)keyboard_irq, 0x08, 0x8E);
+	idt_set_gate(HW_ID3,          (u32_t)handler_hw_34, 0x08, 0x8E);
+	idt_set_gate(HW_ID4,          (u32_t)handler_hw_35, 0x08, 0x8E);
+	idt_set_gate(HW_SERIAL,       (u32_t)serial_irq, 0x08, 0x8E);
+	idt_set_gate(HW_ID6,          (u32_t)handler_hw_37, 0x08, 0x8E);
+	idt_set_gate(HW_ID7,          (u32_t)handler_hw_38, 0x08, 0x8E);
+	idt_set_gate(HW_ID8,          (u32_t)handler_hw_39, 0x08, 0x8E);
+	idt_set_gate(HW_ONESHOT,      (u32_t)oneshot_irq, 0x08, 0x8E);
+	idt_set_gate(HW_ID10,         (u32_t)handler_hw_41, 0x08, 0x8E);
+	idt_set_gate(HW_ID11,         (u32_t)handler_hw_42, 0x08, 0x8E);
+	idt_set_gate(HW_ID12,         (u32_t)handler_hw_43, 0x08, 0x8E);
+	idt_set_gate(HW_ID13,         (u32_t)handler_hw_44, 0x08, 0x8E);
+	idt_set_gate(HW_ID14,         (u32_t)handler_hw_45, 0x08, 0x8E);
+	idt_set_gate(HW_ID15,         (u32_t)handler_hw_46, 0x08, 0x8E);
+	idt_set_gate(HW_ID16,         (u32_t)handler_hw_47, 0x08, 0x8E);
+	idt_set_gate(HW_ID17,         (u32_t)handler_hw_48, 0x08, 0x8E);
+	idt_set_gate(HW_ID18,         (u32_t)handler_hw_49, 0x08, 0x8E);
+	idt_set_gate(HW_ID19,         (u32_t)handler_hw_50, 0x08, 0x8E);
+	idt_set_gate(HW_ID20,         (u32_t)handler_hw_51, 0x08, 0x8E);
+	idt_set_gate(HW_ID21,         (u32_t)handler_hw_52, 0x08, 0x8E);
+	idt_set_gate(HW_ID22,         (u32_t)handler_hw_53, 0x08, 0x8E);
+	idt_set_gate(HW_ID23,         (u32_t)handler_hw_54, 0x08, 0x8E);
+	idt_set_gate(HW_ID24,         (u32_t)handler_hw_55, 0x08, 0x8E);
+	idt_set_gate(HW_ID25,         (u32_t)handler_hw_56, 0x08, 0x8E);
+	idt_set_gate(HW_ID26,         (u32_t)handler_hw_57, 0x08, 0x8E);
+	idt_set_gate(HW_ID27,         (u32_t)handler_hw_58, 0x08, 0x8E);
+	idt_set_gate(HW_ID28,         (u32_t)handler_hw_59, 0x08, 0x8E);
+	idt_set_gate(HW_ID29,         (u32_t)handler_hw_60, 0x08, 0x8E);
+	idt_set_gate(HW_ID30,         (u32_t)handler_hw_61, 0x08, 0x8E);
+	idt_set_gate(HW_ID31,         (u32_t)handler_hw_62, 0x08, 0x8E);
+	idt_set_gate(HW_ID32,         (u32_t)handler_hw_63, 0x08, 0x8E);
 
 	struct {
 		unsigned short length;
