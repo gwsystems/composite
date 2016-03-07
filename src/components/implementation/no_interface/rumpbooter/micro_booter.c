@@ -120,40 +120,47 @@ async_thd_fn(void *thdcap)
 {
 	thdcap_t tc = (thdcap_t)thdcap;
 	arcvcap_t rc = rcc_global;
-	unsigned long a, b;
+	thdid_t tid;
+	int rcving;
+	cycles_t cycles;
 	int pending;
 
 	printc("Asynchronous event thread handler.\n<-- rcving...\n");
-	pending = cos_rcv(rc, &a, &b);
-	printc("<-- pending %d, %lx, %lx\n<-- rcving...\n", pending, a, b);
-	pending = cos_rcv(rc, &a, &b);
-	printc("<-- pending %d, %lx, %lx\n<-- rcving...\n", pending, a, b);
-	pending = cos_rcv(rc, &a, &b);
+	pending = cos_rcv(rc, &tid, &rcving, &cycles);
+	printc("<-- pending %d, thidid %d, rcving %d, cycles %lld\n<-- rcving...\n", pending, tid, rcving, cycles);
+	pending = cos_rcv(rc, &tid, &rcving, &cycles);
+	printc("<-- pending %d, thidid %d, rcving %d, cycles %lld\n<-- rcving...\n", pending, tid, rcving, cycles);
+	pending = cos_rcv(rc, &tid, &rcving, &cycles);
 	printc("<-- Error: manually returning to snding thread.\n");
 	cos_thd_switch(tc);
 	printc("ERROR: in async thd *after* switching back to the snder.\n");
 	while (1) ;
 }
 
+int async_test_flag = 0;
+
 static void
 async_thd_parent(void *thdcap)
 {
-	thdcap_t tc = (thdcap_t)thdcap;
-	arcvcap_t rc = rcp_global;
-	asndcap_t sc = scp_global;
-	int ret, pending;
-	unsigned long a, b;
+ 	thdcap_t tc = (thdcap_t)thdcap;
+        arcvcap_t rc = rcp_global;
+        asndcap_t sc = scp_global;
+        int ret, pending;
+        thdid_t tid;
+        int rcving;
+        cycles_t cycles;
 
-	printc("--> sending\n");
-	ret = cos_asnd(sc);
-	if (ret) printc("asnd returned %d.\n", ret);
-	printc("--> Back in the asnder.\n--> sending\n");
-	ret = cos_asnd(sc);
-	if (ret) printc("--> asnd returned %d.\n", ret);
-	printc("--> Back in the asnder.\n--> receiving to get notifications\n");
-	pending = cos_rcv(rc, &a, &b);
-	printc("--> pending %d, %lx, %lx\n", pending, a, b);
+        printc("--> sending\n");
+        ret = cos_asnd(sc);
+        if (ret) printc("asnd returned %d.\n", ret);
+        printc("--> Back in the asnder.\n--> sending\n");
+        ret = cos_asnd(sc);
+        if (ret) printc("--> asnd returned %d.\n", ret);
+        printc("--> Back in the asnder.\n--> receiving to get notifications\n");
+        pending = cos_rcv(rc, &tid, &rcving, &cycles);
+        printc("--> pending %d, thdid %d, rcving %d, cycles %lld\n", pending, tid, rcving, cycles);
 
+	async_test_flag = 0;
 	cos_thd_switch(tc);
 }
 
@@ -202,11 +209,13 @@ test_timer(void)
 	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
 
 	for (i = 0 ; i < 10 ; i++) {
-		unsigned long a, b;
+		thdid_t tid;
+                int rcving;
+                cycles_t cycles;
 
-		printc(".");
-		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &a, &b);
-		cos_thd_switch(tc);
+                printc(".");
+                cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
+                cos_thd_switch(tc);	
 	}
 
 	printc("Timer test completed.\nSuccess.\n");
@@ -244,6 +253,14 @@ int call_cap_mb(u32_t cap_no, int arg1, int arg2, int arg3)
 		: "memory", "cc", "ecx", "edx");
 
 	return ret;
+}
+
+static void
+async_rk_fn(void)
+{
+	while(1) {
+		printc("testing testin 123\n");
+	}
 }
 
 //static void
@@ -328,8 +345,18 @@ cos_init(void)
 	printc("---------------------------\n");
 
 
-	test_thds();
-	test_mem();
+	thdcap_t tc;
+	arcvcap_t rc;
+	thdid_t tid;
+	int rcving;
+	cycles_t cycles;
+
+	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_rk_fn, NULL);
+	assert(tc);
+	rc = cos_arcv_alloc(&booter_info, tc, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	assert(rc);
+
+	cos_rcv(rc, &tid, &rcving, &cycles);
 
 	printc("\nMicro Booter done.\n");
 
@@ -339,10 +366,24 @@ cos_init(void)
 
 	printc("\nRumpKernel Boot Start.\n");
 	cos2rump_setup();
+	/* possibly pass in the name of the program here to see if that fixes the name bug */
+/*
+	printc("setting up arcv for hw irq\n");
+	thdcap_t irq_tcp[32];
+	arcvcap_t irq_arcvcap[32];
+	
+	for(int i = 0; i < 32; i++){
+		irq_tcp[i] = cos_thd_alloc(&booter_info, booter_info.comp_cp, cos_irqthd_handler, i);
+		irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_tcp[i], booter_info.compcap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+		cos_hw_alloc();
+	}
+*/	
+	
+
+
 	cos_run(NULL);
 	printc("\nRumpKernel Boot done.\n");
 
 	BUG();
-
 	return;
 }
