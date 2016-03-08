@@ -5,8 +5,8 @@
  * Redistribution of this file is permitted under the GNU General
  * Public License v2.
  *
- * Initial Author: Jakob Kaivo, jkaivo@gwu.edu, 2013.
- * Additional: Gabe Parmer, gparmer@gwu.edu, 2013; Eric Armbrust, earmbrust@gwu.edu.
+ * Initial Author: Jakob Kaivo, jkaivo@gwu.edu, 2013
+ * Additional: Gabe Parmer, gparmer@gwu.edu, 2013
  */
 
 #ifndef TCAP_H
@@ -85,10 +85,18 @@ tcap_sched_info(struct tcap *t)
 { return &t->delegations[t->curr_sched_off]; }
 
 static inline void
+tcap_ref_take(struct tcap *t)
+{ t->refcnt++; }
+
+static inline void
+tcap_ref_release(struct tcap *t)
+{ t->refcnt--; }
+
+static inline void
 tcap_ref_create(struct tcap *r, struct tcap *t)
 {
-	r->pool  = t;
-	t->refcnt++;
+	r->pool = t;
+	tcap_ref_take(t);
 }
 
 /*
@@ -126,8 +134,8 @@ static inline struct tcap *
 tcap_current(struct cos_cpu_local_info *cos_info)
 { return (struct tcap *)(cos_info->curr_tcap); }
 
-int tcap_split(capid_t cap, struct tcap *tcap_new, capid_t capin,
-	       	  struct captbl *ct, capid_t compcap, struct cap_tcap *tcapsrc, tcap_split_flags_t flags);
+int tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new,
+	       capid_t srctcap_cap, tcap_split_flags_t flags, int init);
 int tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc,
 		  tcap_res_t cycles, tcap_prio_t prio);
 int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc,

@@ -15,7 +15,7 @@
 
 #include <cos_config.h>
 #define ERT_DEBUG
-#include <ertrie.h>
+#include "ertrie.h"
 
 #include <mem_mgr.h>
 
@@ -30,7 +30,7 @@ prints(char *s)
 	return len;
 }
 
-int __attribute__((format(printf,1,2))) 
+int __attribute__((format(printf,1,2)))
 printc(char *fmt, ...)
 {
 	char s[128];
@@ -48,9 +48,9 @@ printc(char *fmt, ...)
 #include "../parsec.h"
 
 static void mm_init(void);
-void call(void) { 
+void call(void) {
 	mm_init();
-	return; 
+	return;
 }
 
 #include <ck_pr.h>
@@ -146,7 +146,7 @@ char kmem_table[FRAMETBL_ITEM_SZ*COS_KERNEL_MEMORY + 1] CACHE_ALIGNED;
 char comp_table[COMP_ITEM_SZ*MAX_NUM_COMPS] CACHE_ALIGNED;
 
 /* QWQ -- Quiescence-Waiting Queue */
-#define VAS_QWQ_SIZE        (1*1024)//(1024)  
+#define VAS_QWQ_SIZE        (1*1024)//(1024)
 #define VAS_QWQ_SIZE_SMALL  (1)	/* For large VAS items, to avoid queuing too much. */
 
 #define PMEM_QWQ_SIZE (1024)  /* 4 MB */
@@ -187,19 +187,19 @@ char mm_vas_pgd[MM_PTE_SIZE] PAGE_ALIGNED;
 /* and this one is for PTEs */
 char mm_vas_pte[MM_PTE_SIZE*MM_NPTE_NEEDED] PAGE_ALIGNED;
 
-// we use the ert lookup function only 
+// we use the ert lookup function only
 ERT_CREATE(__mappingtbl, mappingtbl, PGTBL_DEPTH, PGTBL_ORD, sizeof(int*), PGTBL_ORD, MAPPING_ITEM_SZ, NULL, \
 	   NULL, ert_defget, ert_defisnull, NULL,	\
 	   NULL, NULL, NULL, ert_defresolve);
-typedef struct mappingtbl * mappingtbl_t; 
+typedef struct mappingtbl * mappingtbl_t;
 
-static mapping_t * 
-mapping_lookup(comp_t *c, vaddr_t addr) 
+static mapping_t *
+mapping_lookup(comp_t *c, vaddr_t addr)
 {
 	unsigned long flags;
 	struct quie_mem_meta *meta;
 
-	meta = (struct quie_mem_meta *)__mappingtbl_lkupan((mappingtbl_t)c->mapping_ns.tbl, 
+	meta = (struct quie_mem_meta *)__mappingtbl_lkupan((mappingtbl_t)c->mapping_ns.tbl,
 							   addr >> PGTBL_PAGEIDX_SHIFT, PGTBL_DEPTH, &flags);
 
 	if (!meta) return NULL;
@@ -216,10 +216,10 @@ extern struct cos_component_information cos_comp_info;
 /***************************************************/
 
 struct frame *
-frame_lookup(unsigned long id, parsec_ns_t *ns) 
+frame_lookup(unsigned long id, parsec_ns_t *ns)
 {
 	struct quie_mem_meta *meta;
-	
+
 	meta = (struct quie_mem_meta *)((void *)(ns->tbl) + id * FRAMETBL_ITEM_SZ);
 	if (ACCESS_ONCE(meta->flags) & PARSEC_FLAG_DEACT) return 0;
 
@@ -239,7 +239,7 @@ struct tlb_flush tlb_flush CACHE_ALIGNED;
 #define TLB_QUIE_PERIOD (TLB_QUIESCENCE_CYCLES)
 
 /* return 0 if quiesced. */
-static int 
+static int
 check_tlb_quiesce(quie_time_t t)
 {
 	quie_time_t curr;
@@ -252,7 +252,7 @@ check_tlb_quiesce(quie_time_t t)
 	return -1;
 }
 
-static int 
+static int
 tlb_quiesce(quie_time_t t)
 {
 	int cpu, i, target_cpu;
@@ -295,7 +295,7 @@ frame_quiesce(quie_time_t t, int waiting)
 	return 0;
 }
 
-static int 
+static int
 pmem_free(frame_t *f)
 {
 	if (unlikely(!((void *)f >= frame_ns.tbl && (void *)f <= (frame_ns.tbl + FRAMETBL_ITEM_SZ*n_pmem)))) {
@@ -306,7 +306,7 @@ pmem_free(frame_t *f)
 	return parsec_free(f, &(frame_ns.allocator));
 }
 
-static int 
+static int
 kmem_free(frame_t *f)
 {
 	if (unlikely(!((void *)f >= kmem_ns.tbl && (void *)f <= (kmem_ns.tbl + FRAMETBL_ITEM_SZ*n_kmem)))) {
@@ -323,7 +323,7 @@ frame_free(frame_t *f_addr)
 {
 	void *f = (void *)f_addr;
 
-	if (f >= frame_ns.tbl && f <= (frame_ns.tbl + FRAMETBL_ITEM_SZ*n_pmem)) 
+	if (f >= frame_ns.tbl && f <= (frame_ns.tbl + FRAMETBL_ITEM_SZ*n_pmem))
 		return parsec_free(f, &(frame_ns.allocator));
 
 	if (unlikely(!(f >= kmem_ns.tbl && f <= (kmem_ns.tbl + FRAMETBL_ITEM_SZ*n_kmem)))) {
@@ -350,12 +350,12 @@ get_pmem(void)
 	return f;
 }
 
-static struct frame * 
+static struct frame *
 get_kmem(void)
 {
 	frame_t *kmem;
 
-	kmem = frame_alloc(&kmem_ns); 
+	kmem = frame_alloc(&kmem_ns);
 	if (!kmem) {
 		printc("MM: no enough kernel frames on core %ld\n", cos_cpuid());
 	}
@@ -372,7 +372,7 @@ vaddr_t free_vas = COS_FREE_VAS;
 
 static vaddr_t mm_local_get_page(unsigned long n_pages);
 
-int 
+int
 mappingtbl_cons(mappingtbl_t tbl, vaddr_t expand_addr, vaddr_t pte)
 {
 	unsigned long *intern;
@@ -391,7 +391,7 @@ mappingtbl_cons(mappingtbl_t tbl, vaddr_t expand_addr, vaddr_t pte)
 }
 
 /* this probably should be managed by a separate manager. */
-static vaddr_t 
+static vaddr_t
 vas_region_alloc(void)
 {
 	vaddr_t new, vas;
@@ -404,7 +404,7 @@ vas_region_alloc(void)
 	return vas;
 }
 
-static capid_t 
+static capid_t
 comp_pt_cap(int comp)
 {
 	return comp*captbl_idsize(CAP_COMP) + MM_CAPTBL_OWN_PGTBL;
@@ -429,16 +429,16 @@ static int pgtbl_act(comp_t *comp, vaddr_t pte)
 
 	/* TODO: error handling. */
 	while (call_cap_op(MM_CAPTBL_OWN_CAPTBL, CAPTBL_OP_PGTBLACTIVATE,
-			   pte_cap, MM_CAPTBL_OWN_PGTBL, pte_kmem, 1)) { 
+			   pte_cap, MM_CAPTBL_OWN_PGTBL, pte_kmem, 1)) {
 		max_try--;
 		if (!max_try) {
-			printc("Expanding VAS of comp %d: Fail to act cap @ %d, using kmem %x\n", 
+			printc("Expanding VAS of comp %d: Fail to act cap @ %d, using kmem %x\n",
 			       comp->id, (int)pte_cap, (unsigned int)pte_kmem);
 			return -1;
 		}
 	}
 	/* Connect PTE to the component's pgtbl */
-	if (call_cap_op(comp_pt_cap(comp->id), CAPTBL_OP_CONS, pte_cap, pte, 0, 0)) { 
+	if (call_cap_op(comp_pt_cap(comp->id), CAPTBL_OP_CONS, pte_cap, pte, 0, 0)) {
 		printc("Expanding VAS of comp %d: fail to cons pgtbl @ %x\n", comp->id, (unsigned int)pte);
 		return -1;
 	}
@@ -446,8 +446,8 @@ static int pgtbl_act(comp_t *comp, vaddr_t pte)
 	return 0;
 }
 
-static int 
-comp_vas_region_alloc(comp_t *comp, vaddr_t local_tbl, unsigned long vas_unit_sz, 
+static int
+comp_vas_region_alloc(comp_t *comp, vaddr_t local_tbl, unsigned long vas_unit_sz,
 		      int (*add_fn)(void *, struct parsec_allocator *))
 {
 	int n_items, i, j, ret;
@@ -503,7 +503,7 @@ comp_vas_region_alloc(comp_t *comp, vaddr_t local_tbl, unsigned long vas_unit_sz
 	return 0;
 }
 
-static int 
+static int
 vas_expand(comp_t *comp, unsigned long unit_size)
 {
 	int ret;
@@ -521,7 +521,7 @@ vas_expand(comp_t *comp, unsigned long unit_size)
 	return comp_vas_region_alloc(comp, pte, unit_size, qwq_add_freeitem);
 }
 
-static void 
+static void
 mapping_init(mapping_t *m)
 {
 	struct quie_mem_meta *meta;
@@ -610,7 +610,7 @@ frame_boot(vaddr_t frame_addr, parsec_ns_t *ns)
 
 		if (!ret || !frame) break;
 
-		frame->cap = frame_addr; 
+		frame->cap = frame_addr;
 		frame->id  = i;
 		ck_spinlock_ticket_init(&(frame->frame_lock));
 
@@ -633,7 +633,7 @@ frame_boot(vaddr_t frame_addr, parsec_ns_t *ns)
 	return n_frames;
 }
 
-static void 
+static void
 frame_init(void)
 {
 	int i, j;
@@ -667,7 +667,7 @@ frame_init(void)
 	return;
 }
 
-static void 
+static void
 kmem_init(void)
 {
 	int i, j;
@@ -714,7 +714,7 @@ comp_lookup(int id)
 
 static comp_t *mm_comp;
 
-static int 
+static int
 build_mapping(comp_t *comp, frame_t *frame, mapping_t *mapping)
 {
 	int ret = -EINVAL;
@@ -732,13 +732,13 @@ build_mapping(comp_t *comp, frame_t *frame, mapping_t *mapping)
 	/* and build the actual mapping */
 	ret = call_cap_op(MM_CAPTBL_OWN_PGTBL, CAPTBL_OP_MEMACTIVATE,
 			  frame->cap, comp_pt_cap(comp->id), mapping->vaddr, 0);
-	if (ret) { 
+	if (ret) {
 		struct quie_mem_meta *meta = (void *)mapping - sizeof(struct quie_mem_meta);
-		printc("MM mapping to comp %d @ %p failed: kern ret %d, user deact %llu, curr %llu\n", 
-		       comp->id, (void *)(mapping->vaddr), ret, meta->time_deact, get_time()); 
+		printc("MM mapping to comp %d @ %p failed: kern ret %d, user deact %llu, curr %llu\n",
+		       comp->id, (void *)(mapping->vaddr), ret, meta->time_deact, get_time());
 		cos_throw(done, -EINVAL);
 	}
-	
+
 	frame->child = mapping;
 	/* This should not fail as we are using newly allocated vas. */
 	if (cos_cas(&mapping->frame_id, 0, frame->id) != CAS_SUCCESS) cos_throw(done, -ECASFAIL);
@@ -754,7 +754,7 @@ done:
 static int mapping_free(mapping_t *m, comp_t *c);
 
 /* alloc n pages, and map them. */
-static int 
+static int
 alloc_map_pages(mapping_t *head, comp_t *comp, int n_pages)
 {
 	int i, ret;
@@ -766,17 +766,17 @@ alloc_map_pages(mapping_t *head, comp_t *comp, int n_pages)
 	for (i = 0; i < n_pages; i++) {
 		f = get_pmem();
 
-		if (!f) { 
-			i--; 
-			printc("MM warning: out of physical memory!\n"); 
-			cos_throw(release, -ENOMEM); 
+		if (!f) {
+			i--;
+			printc("MM warning: out of physical memory!\n");
+			cos_throw(release, -ENOMEM);
 		}
 
-		if (build_mapping(comp, f, m)) { 
+		if (build_mapping(comp, f, m)) {
 			struct quie_mem_meta *meta = (void *)m - sizeof(struct quie_mem_meta);
-			printc("MM on core %ld error: mapping failed, t %llu!\n", cos_cpuid(), meta->time_deact); 
+			printc("MM on core %ld error: mapping failed, t %llu!\n", cos_cpuid(), meta->time_deact);
 
-			cos_throw(release, -EINVAL); 
+			cos_throw(release, -EINVAL);
 		}
 		m = (void *)m + MAPPING_ITEM_SZ;
 	}
@@ -847,7 +847,7 @@ vas_ns_init(parsec_ns_t *vas, void *tbl)
 	return;
 }
 
-static int 
+static int
 comp_vas_init(comp_t *c)
 {
 	vaddr_t p;
@@ -870,7 +870,7 @@ done:
 	return ret;
 }
 
-static int 
+static int
 comp_init(int id)
 {
 	comp_t *c;
@@ -884,7 +884,7 @@ comp_init(int id)
 }
 
 static unsigned long free_capid = MM_CAPTBL_FREE;
-static unsigned long 
+static unsigned long
 mm_alloc_pte_cap(void)
 {
 	unsigned long id, new;
@@ -915,7 +915,7 @@ static int mm_comp_init(void)
 	/* mm_comp is a global variable for fast access. */
 	mm_comp = comp_lookup(comp_id);
 	comp_lock(mm_comp);
-	
+
 	mm_vas = &mm_comp->mapping_ns;
 	vas_ns_init(mm_vas, mm_own_pgd);
 	/* vas allocation of mm itself isn't as frequent. */
@@ -938,7 +938,7 @@ static int mm_comp_init(void)
 			return -1;
 		}
 	}
-	
+
 	comp_unlock(mm_comp);
 
 	return 0;
@@ -985,7 +985,7 @@ mm_init(void)
 
 	comp_ns_init();
 
-	printc("Mem_mgr: initialized %lu frames (%lu MBs) and %lu kernel frames.\n", 
+	printc("Mem_mgr: initialized %lu frames (%lu MBs) and %lu kernel frames.\n",
 	       n_pmem, (n_pmem * PAGE_SIZE) >> 20, n_kmem);
 }
 
@@ -994,7 +994,7 @@ mm_init(void)
 /**************************/
 
 static mapping_t *
-get_vas_mapping(comp_t *comp, unsigned long n_pages) 
+get_vas_mapping(comp_t *comp, unsigned long n_pages)
 {
 	if (unlikely(comp->mapping_ns.tbl == NULL)) {
 		if (comp_vas_init(comp)) return NULL;
@@ -1067,7 +1067,7 @@ done:
 	return ret;
 }
 
-static int 
+static int
 alias_mapping(comp_t *s_comp, mapping_t *s, comp_t *d_comp, mapping_t *d)
 {
 	int ret = -1;
@@ -1083,7 +1083,7 @@ alias_mapping(comp_t *s_comp, mapping_t *s, comp_t *d_comp, mapping_t *d)
 	/* if locking failed of dest mapping, others are aliasing to the same
 	 * location. */
 	if (!mapping_trylock(d)) goto unlock_s;
-	if (d->frame_id) { 
+	if (d->frame_id) {
 		/* Someone nailed the dest mapping before us. */
 		goto unlock_all;
 	}
@@ -1111,7 +1111,7 @@ unlock_all:
 unlock_s:
 	mapping_unlock(s);
 	frame_unlock(f);
-	
+
 	return ret;
 }
 
@@ -1140,7 +1140,7 @@ vaddr_t __mman_alias_page(spdid_t s_spd, vaddr_t s_addr, u32_t d_spd_flags, vadd
 	if (alias_mapping(src_c, src_m, dest_c, dest_m)) goto done;
 
 	ret = d_addr;
-done:	
+done:
 	parsec_read_unlock(&mm);
 
 	return ret;
@@ -1156,7 +1156,7 @@ struct liveness_id {
 
 struct liveness_id lid[NUM_CPU] CACHE_ALIGNED;
 
-static unsigned long 
+static unsigned long
 cpu_get_lid(void)
 {
 	unsigned long new_lid, offset;
@@ -1199,7 +1199,7 @@ mapping_free(mapping_t *m, comp_t *c)
 			/* No parent means root mapping */
 			f = frame_lookup(m->frame_id, &frame_ns);
 			assert(f && f->child == m);
-			
+
 			/* Take the frame lock. */
 			frame_lock(f);
 			pmem_free(f);
@@ -1219,7 +1219,7 @@ done:
 	return ret;
 }
 
-static int 
+static int
 mapping_del_all(mapping_t *m, comp_t *c)
 {
 	mapping_t *p;
@@ -1242,13 +1242,13 @@ mapping_del_all(mapping_t *m, comp_t *c)
 		if (p->child == m) p->child = m->sibling_next;
 		mapping_unlock(p);
 	}
- 
+
 	ret = 0;
 done:
 	return ret;
 }
 
-static int 
+static int
 mapping_del_children(mapping_t *m, comp_t *c)
 {
 	mapping_t *child;
@@ -1288,7 +1288,7 @@ int mman_revoke_page(spdid_t compid, vaddr_t addr, int flags)
 	if ((!m)) goto done;
 
 	ret = mapping_del_children(m, c);
-done:	
+done:
 	parsec_read_unlock(&mm);
 
 	return 0;
@@ -1296,7 +1296,7 @@ done:
 
 /* This releases the non-head mappings. They won't go back to any
  * queue / freelist. */
-static inline int 
+static inline int
 release_multipage(mapping_t *m, comp_t *c)
 {
 	int npages, i;
@@ -1333,11 +1333,11 @@ int mman_release_page(spdid_t compid, vaddr_t addr, int flags)
 	if ((!m)) goto done;
 
 	/* A hack for now. Should solve it better. */
-	if (parsec_item_size(m) > PAGE_SIZE) 
+	if (parsec_item_size(m) > PAGE_SIZE)
 		release_multipage(m, c);
 
 	ret = mapping_del_all(m, c);
-done:	
+done:
 	parsec_read_unlock(&mm);
 
 	return 0;
@@ -1360,7 +1360,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 			int i;
 			for (i = 0; i < NUM_CPU; i++)
 				*PERCPU_GET_TARGET(initialized_core, i) = 0;
-			mm_init(); 
+			mm_init();
 		} else {
 			/* Make sure that the initializing core does
 			 * the initialization before any other core
@@ -1368,7 +1368,7 @@ void cos_upcall_fn(upcall_type_t t, void *arg1, void *arg2, void *arg3)
 			while (*PERCPU_GET_TARGET(initialized_core, INIT_CORE) == 0) ;
 		}
 		*PERCPU_GET(initialized_core) = 1;
-		break;			
+		break;
 	default:
 		BUG(); return;
 	}

@@ -173,7 +173,7 @@ int
 machine_check_abort_handler(struct pt_regs *regs)
 {
 	print_regs_state(regs);
-	die("FAULT: Machine Check\n");
+	die("ABORT: Machine Check\n");
 
 	return 1;
 }

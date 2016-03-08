@@ -16,7 +16,6 @@
 
 #include "./consts.h"
 #include "./cos_config.h"
-#include "../debug.h"
 
 #ifndef COS_BASE_TYPES
 #define COS_BASE_TYPES
@@ -79,6 +78,11 @@ typedef enum {
 	CAPTBL_OP_TCAP_TRANSFER,
 	CAPTBL_OP_TCAP_DELEGATE,
 	CAPTBL_OP_TCAP_MERGE,
+
+	CAPTBL_OP_HW_ACTIVATE,
+	CAPTBL_OP_HW_DEACTIVATE,
+	CAPTBL_OP_HW_ATTACH,
+	CAPTBL_OP_HW_DETACH,
 } syscall_op_t;
 
 typedef enum {
@@ -95,7 +99,43 @@ typedef enum {
 	CAP_VM, 		/* mapped virtual memory within a page-table */
 	CAP_QUIESCENCE,         /* when deactivating, set to track quiescence state */
 	CAP_TCAP, 		/* tcap captable entry */
+	CAP_HW,			/* hardware (interrupt) */
 } cap_t;
+
+typedef enum {
+	HW_PERIODIC = 32,	/* periodic timer interrupt */
+	HW_KEYBOARD,		/* keyboard interrupt */
+	HW_ID3,
+	HW_ID4,
+	HW_SERIAL,		/* serial interrupt */
+	HW_ID6,
+	HW_ID7,
+	HW_ID8,
+	HW_ONESHOT,		/* onetime timer interrupt */
+	HW_ID10,
+	HW_ID11,
+	HW_ID12,
+	HW_ID13,
+	HW_ID14,
+	HW_ID15,
+	HW_ID16,
+	HW_ID17,
+	HW_ID18,
+	HW_ID19,
+	HW_ID20,
+	HW_ID21,
+	HW_ID22,
+	HW_ID23,
+	HW_ID24,
+	HW_ID25,
+	HW_ID26,
+	HW_ID27,
+	HW_ID28,
+	HW_ID29,
+	HW_ID30,
+	HW_ID31,
+	HW_ID32,
+} hwid_t;
 
 typedef unsigned long capid_t;
 
@@ -134,10 +174,12 @@ __captbl_cap2sz(cap_t c)
 	switch (c) {
 	case CAP_SRET:
 	case CAP_THD:
+	case CAP_TCAP:
 		return CAP_SZ_16B;
 	case CAP_SINV:
 	case CAP_CAPTBL:
 	case CAP_PGTBL:
+	case CAP_HW: /* TODO: 256bits = 32B * 8b */
 		return CAP_SZ_32B;
 	case CAP_COMP:
 	case CAP_ASND:
@@ -186,7 +228,8 @@ enum {
 	BOOT_CAPTBL_SELF_INITTHD_BASE  = 28,
 	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
 	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU_COS*CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
-	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU_COS*CAP32B_IDSZ,
+	BOOT_CAPTBL_SELF_INITHW_BASE   = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU_COS*CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
+	BOOT_CAPTBL_LAST_CAP           = BOOT_CAPTBL_SELF_INITHW_BASE + CAP32B_IDSZ,
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE               = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP, CAPMAX_ENTRY_SZ)
 };

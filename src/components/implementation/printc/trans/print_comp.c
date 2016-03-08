@@ -6,13 +6,13 @@
 #define MAX_LEN 512
 
 #include <printc.h>
-#define assert(x) do { int y; if (!(x)) y = *(int*)NULL; } while(0)
+#define assert(x) do { if (!(x)) *((int*)0) = 0; } while(0)
 #define REDEFINE_ASSERT
 #include <cringbuf.h>
 
 struct cringbuf sharedbuf;
 
-static int 
+static int
 print_init(void)
 {
 	static int first = 1;
@@ -54,7 +54,7 @@ print_str(char *s, unsigned int len)
 	s[len+1] = '\0';
 
 #ifdef COS_PRINT_SHELL
-	assert(!print_init()); 
+	assert(!print_init());
 
 	if (sharedbuf.b) {
 		int amnt;

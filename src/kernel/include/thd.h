@@ -320,12 +320,13 @@ thd_current(struct cos_cpu_local_info *cos_info)
 { return (struct thread *)(cos_info->curr_thd); }
 
 static inline void
-thd_current_update(struct thread *next, struct thread *prev, struct cos_cpu_local_info *cos_info)
+thd_current_update(struct thread *next, struct tcap *tcap, struct thread *prev, struct cos_cpu_local_info *cos_info)
 {
 	/* commit the cached data */
 	prev->invstk_top     = cos_info->invstk_top;
 	cos_info->invstk_top = next->invstk_top;
 	cos_info->curr_thd   = (void *)next;
+	if (tcap) cos_info->curr_tcap = tcap;
 }
 
 static inline int curr_invstk_inc(struct cos_cpu_local_info *cos_info)
@@ -393,12 +394,30 @@ thd_invstk_pop(struct thread *thd, unsigned long *ip, unsigned long *sp, struct 
 	return thd_invstk_current(thd, ip, sp, cos_info);
 }
 
-static inline void thd_preemption_state_update(struct thread *curr, struct thread *next, struct pt_regs *regs)
+static inline void
+thd_preemption_state_update(struct thread *curr, struct thread *next, struct pt_regs *regs)
 {
 	curr->state             |= THD_STATE_PREEMPTED;
 	next->interrupted_thread = curr;
 	memcpy(&curr->regs, regs, sizeof(struct pt_regs));
 }
 
+static inline int
+thd_introspect(struct thread *t, unsigned long op, unsigned long *retval)
+{
+	switch(op) {
+	case 0: *retval = t->regs.ip; break;
+	case 1: *retval = t->regs.sp; break;
+	case 2: *retval = t->regs.bp; break;
+	case 3: *retval = t->regs.ax; break;
+	case 4: *retval = t->regs.bx; break;
+	case 5: *retval = t->regs.cx; break;
+	case 6: *retval = t->regs.dx; break;
+	case 7: *retval = t->regs.si; break;
+	case 8: *retval = t->regs.di; break;
+	default: return -EINVAL;
+	}
+	return 0;
+}
 
 #endif /* THD_H */

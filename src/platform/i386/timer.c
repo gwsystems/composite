@@ -1,5 +1,6 @@
 #include <thd.h>
 #include <inv.h>
+#include <hw.h>
 
 #include "isr.h"
 #include "io.h"
@@ -69,13 +70,6 @@ volatile struct hpet_timer {
 static void *hpet;
 static u32_t tick = 0;
 
-/* FIXME: per-thread */
-static struct thread *timer_thread = NULL;
-
-void
-chal_timer_thd_init(struct thread *t)
-{ timer_thread = t; }
-
 int
 periodic_handler(struct pt_regs *regs)
 {
@@ -86,8 +80,8 @@ periodic_handler(struct pt_regs *regs)
 	tick++;
 	printk("p"); /* comment this line for microbenchmarking tests */
 
-	ack_irq(IRQ_PERIODIC);
-	if (timer_thread) preempt = capinv_int_snd(timer_thread, regs);
+	ack_irq(HW_PERIODIC);
+	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);
 
 	*hpet_interrupt = HPET_INT_ENABLE(TIMER_PERIODIC);
 
@@ -103,8 +97,8 @@ oneshot_handler(struct pt_regs *regs)
 	rdtscll(cycle);
 	printk("o"); /* comment this line for microbenchmarking tests */
 
-	ack_irq(IRQ_ONESHOT);
-	if (timer_thread) preempt = capinv_int_snd(timer_thread, regs);
+	ack_irq(HW_ONESHOT);
+	preempt = cap_hw_asnd(&hw_asnd_caps[HW_ONESHOT], regs);
 
 	*hpet_interrupt = HPET_INT_ENABLE(TIMER_ONESHOT);
 

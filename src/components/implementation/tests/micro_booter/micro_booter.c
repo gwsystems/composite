@@ -1,16 +1,33 @@
 #include <stdio.h>
 #include <string.h>
-#include <cos_component.h>
 
+#undef assert
+#ifndef assert
+/* On assert, immediately switch to the "exit" thread */
+#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); cos_thd_switch(termthd);} } while(0)
+#endif
+
+#define PRINT_FN prints
+#define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
+#define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
+#define BUG_DIVZERO() do { debug_print("Testing divide by zero fault @ "); int i = num / den; } while (0);
+
+#include <cos_component.h>
 #include <cobj_format.h>
 #include <cos_kernel_api.h>
+
+static void
+cos_llprint(char *s, int len)
+{ call_cap(PRINT_CAP_TEMP, (int)s, len, 0, 0); }
 
 int
 prints(char *s)
 {
-    int len = strlen(s);
-	  cos_print(s, len);
-	  return len;
+	int len = strlen(s);
+
+	cos_llprint(s, len);
+
+	return len;
 }
 
 int __attribute__((format(printf,1,2)))
@@ -23,26 +40,19 @@ printc(char *fmt, ...)
 	  va_start(arg_ptr, fmt);
 	  ret = vsnprintf(s, len, fmt, arg_ptr);
 	  va_end(arg_ptr);
-	  cos_print(s, ret);
+	  cos_llprint(s, ret);
 
 	  return ret;
 }
 
-#ifndef assert
-/* On assert, immediately switch to the "exit" thread */
-#define assert(node) do { if (unlikely(!(node))) { debug_print("assert error in @ "); cos_thd_switch();} } while(0)
-#endif
-
-#define PRINT_FN prints
-#define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
-#define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
-#define BUG_DIVZERO() do { debug_print("BUG @ "); int i = 1 / 0; } while (0);
-
 struct cos_compinfo booter_info;
+thdcap_t termthd; 		/* switch to this to shutdown */
+/* For Div-by-zero test */
+int num = 1, den = 0;
 
-#define ITERATIONS 1000000
+#define ITER 100000
 #define TEST_NTHDS 5
-int tls_test[TEST_NTHDS];
+unsigned long tls_test[TEST_NTHDS];
 
 static unsigned long
 tls_get(size_t off)
@@ -73,30 +83,29 @@ static void
 test_thds_perf(void)
 {
 	thdcap_t ts;
-	int i = 0;
-	long long total_swt_cycles = 0LL;
-	long long start_swt_cycles = 0LL, end_swt_cycles = 0LL;
-	long long iters = 0LL;
+	long long total_swt_cycles = 0;
+	long long start_swt_cycles = 0, end_swt_cycles = 0;
+	int i;
 
-	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, (void *)i);
+	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, NULL);
 	assert(ts);
 	cos_thd_switch(ts);
 
 	rdtscll(start_swt_cycles);
-	for (iters = 0LL; iters < ITERATIONS; iters ++) {
+	for (i = 0 ; i < ITER ; i++) {
 		cos_thd_switch(ts);
 	}
 	rdtscll(end_swt_cycles);
 	total_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
 
-	printc("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n", 
-		total_swt_cycles, (long long) ITERATIONS, (total_swt_cycles / (long long)ITERATIONS));
+	printc("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n",
+		total_swt_cycles, (long long) ITER, (total_swt_cycles / (long long)ITER));
 }
 
 static void
 thd_fn(void *d)
 {
-	printc("\tNew thread %d with argument %d, capid %d\n", cos_thdid(), (int)d, tls_test[(int)d]);
+	printc("\tNew thread %d with argument %d, capid %ld\n", cos_thdid(), (int)d, tls_test[(int)d]);
 	/* Test the TLS support! */
 	assert(tls_get(0) == tls_test[(int)d]);
 	while (1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
@@ -114,7 +123,7 @@ test_thds(void)
 		assert(ts[i]);
 		tls_test[i] = i;
 		cos_thd_mod(&booter_info, ts[i], &tls_test[i]);
-		printc("switchto %d\n", (int)ts[i]);
+		printc("switchto %d @ %x\n", (int)ts[i], cos_introspect(&booter_info, ts[i], 0));
 		cos_thd_switch(ts[i]);
 	}
 
@@ -144,11 +153,11 @@ async_thd_fn_perf(void *thdcap)
 	thdid_t tid;
 	int rcving;
 	cycles_t cycles;
-	long long iters = 0LL;
+	int i;
 
 	cos_rcv(rc, &tid, &rcving, &cycles);
 
-	for (iters = 0LL; iters < ITERATIONS + 1; iters ++) {
+	for (i = 0 ; i < ITER + 1 ; i++) {
 		cos_rcv(rc, &tid, &rcving, &cycles);
 	}
 
@@ -161,21 +170,21 @@ async_thd_parent_perf(void *thdcap)
 	thdcap_t tc = (thdcap_t)thdcap;
 	arcvcap_t rc = rcp_global;
 	asndcap_t sc = scp_global;
-	long long total_asnd_cycles = 0LL;
-	long long start_asnd_cycles = 0LL, end_arcv_cycles = 0LL;
-	long long iters = 0LL;
+	long long total_asnd_cycles = 0;
+	long long start_asnd_cycles = 0, end_arcv_cycles = 0;
+	int i;
 
 	cos_asnd(sc);
 
 	rdtscll(start_asnd_cycles);
-	for (iters = 0LL; iters < ITERATIONS; iters ++) {
+	for (i = 0 ; i < ITER ; i++) {
 		cos_asnd(sc);
 	}
 	rdtscll(end_arcv_cycles);
-	total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2LL ;
+	total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2;
 
-	printc("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n", 
-		total_asnd_cycles, (long long) (ITERATIONS), (total_asnd_cycles / (long long)(ITERATIONS)));
+	printc("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n",
+		total_asnd_cycles, (long long) (ITER), (total_asnd_cycles / (long long)(ITER)));
 
 	async_test_flag = 0;
 	cos_thd_switch(tc);
@@ -232,19 +241,24 @@ static void
 test_async_endpoints(void)
 {
 	thdcap_t tcp, tcc;
+	tcap_t tccp, tccc;
 	arcvcap_t rcp, rcc;
 
 	printc("Creating threads, and async end-points.\n");
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
-	rcp = cos_arcv_alloc(&booter_info, tcp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 0, 0);
+	assert(tccp);
+	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rcp);
 
 	/* child rcv capabilities */
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void*)tcp);
 	assert(tcc);
-	rcc = cos_arcv_alloc(&booter_info, tcc, booter_info.comp_cap, rcp);
+	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 1, 0);
+	assert(tccc);
+	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
 
 	/* make the snd channel to the child */
@@ -264,18 +278,23 @@ static void
 test_async_endpoints_perf(void)
 {
 	thdcap_t tcp, tcc;
+	tcap_t tccp, tccc;
 	arcvcap_t rcp, rcc;
 
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
-	rcp = cos_arcv_alloc(&booter_info, tcp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 0, 0);
+	assert(tccp);
+	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rcp);
 
 	/* child rcv capabilities */
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void*)tcp);
 	assert(tcc);
-	rcc = cos_arcv_alloc(&booter_info, tcc, booter_info.comp_cap, rcp);
+	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 1, 0);
+	assert(tccc);
+	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
 
 	/* make the snd channel to the child */
@@ -312,7 +331,7 @@ test_timer(void)
 		cos_thd_switch(tc);
 	}
 
-	printc("Timer test completed.\nSuccess.\n");
+	printc("\nTimer test completed.\nSuccess.\n");
 }
 
 long long midinv_cycles = 0LL;
@@ -321,7 +340,7 @@ int
 test_serverfn(int a, int b, int c)
 {
 	rdtscll(midinv_cycles);
-	return 0;
+	return 0xDEADBEEF;
 }
 
 extern void *__inv_test_serverfn(int a, int b, int c);
@@ -367,7 +386,7 @@ test_inv(void)
 	assert(ic > 0);
 
 	r = call_cap_mb(ic, 1, 2, 3);
-	printc("Return from invocation: %d\n", r);
+	printc("Return from invocation: %x (== DEADBEEF?)\n", r);
 	printc("Test done.\n");
 }
 
@@ -376,16 +395,19 @@ test_inv_perf(void)
 {
 	compcap_t cc;
 	sinvcap_t ic;
-	long long iters = 0LL;
+	int i;
 	long long total_cycles = 0LL;
 	long long total_inv_cycles = 0LL, total_ret_cycles = 0LL;
+	unsigned int ret;
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
 	assert(cc > 0);
 	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
 	assert(ic > 0);
+	ret = call_cap_mb(ic, 1, 2, 3);
+	assert(ret == 0xDEADBEEF);
 
-	for (iters = 0LL; iters < ITERATIONS; iters ++) {
+	for (i = 0 ; i < ITER ; i++) {
 		long long start_cycles = 0LL, end_cycles = 0LL;
 
 		midinv_cycles = 0LL;
@@ -396,21 +418,35 @@ test_inv_perf(void)
 		total_ret_cycles += (end_cycles - midinv_cycles);
 	}
 
-	printc("Average SINV (Total: %lld / Iterations: %lld ): %lld\n", 
-		total_inv_cycles, (long long) (ITERATIONS), (total_inv_cycles / (long long)(ITERATIONS)));
-	printc("Average SRET (Total: %lld / Iterations: %lld ): %lld\n", 
-		total_ret_cycles, (long long) (ITERATIONS), (total_ret_cycles / (long long)(ITERATIONS)));
+	printc("Average SINV (Total: %lld / Iterations: %lld ): %lld\n",
+		total_inv_cycles, (long long) (ITER), (total_inv_cycles / (long long)(ITER)));
+	printc("Average SRET (Total: %lld / Iterations: %lld ): %lld\n",
+		total_ret_cycles, (long long) (ITER), (total_ret_cycles / (long long)(ITER)));
 }
 
 void
-cos_init(void)
+test_captbl_expand(void)
+{
+	int i;
+	compcap_t cc;
+
+	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
+	assert(cc);
+	for (i = 0 ; i < 1024 ; i++) {
+		sinvcap_t ic;
+
+		ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
+		assert(ic > 0);
+	}
+	printc("\nCaptbl expand SUCCESS.\n");
+}
+
+void
+test_run(void)
 {
 	printc("\nMicro Booter started.\n");
 
-	cos_meminfo_init(&booter_info.mi, BOOT_MEM_PM_BASE, COS_MEM_USER_PA_SZ,
-			 BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
-	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
-			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
+	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
 
 	printc("---------------------------\n");
 	test_thds();
@@ -438,11 +474,32 @@ cos_init(void)
 	test_inv_perf();
 	printc("---------------------------\n");
 
-	printc("\nMicro Booter done.\n");
+	printc("---------------------------\n");
+	test_captbl_expand();
+	printc("---------------------------\n");
 
-//	while (1) ;
-//	BUG();
+	printc("\nMicro Booter done.\n");
+}
+
+void
+term_fn(void *d)
+{
 	BUG_DIVZERO();
+}
+
+void
+cos_init(void)
+{
+	cos_meminfo_init(&booter_info.mi, BOOT_MEM_PM_BASE, COS_MEM_USER_PA_SZ,
+			 BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
+	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
+			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
+
+	termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
+	assert(termthd);
+
+	test_run();
+	cos_thd_switch(termthd);
 
 	return;
 }

@@ -90,6 +90,27 @@ sret_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 { return cap_capdeactivate(t, capin, CAP_SRET, lid); }
 
 static int
+asnd_construct(struct cap_asnd *asndc, struct cap_arcv *arcvc, capid_t rcv_cap, u32_t budget, u32_t period)
+{
+	/* FIXME: Add synchronization with __xx_pre and __xx_post */
+
+	/* copy data from the arcv capability */
+	memcpy(&asndc->comp_info, &arcvc->comp_info, sizeof(struct comp_info));
+	asndc->h.type         = CAP_ASND;
+	asndc->arcv_epoch     = arcvc->epoch;
+	asndc->arcv_cpuid     = arcvc->cpuid;
+	/* ...and initialize our own data */
+	asndc->cpuid          = get_cpuid();
+	asndc->arcv_capid     = rcv_cap;
+	asndc->period         = period;
+	asndc->budget         = budget;
+	asndc->replenish_amnt = budget;
+	/* FIXME:  add rdtscll(asndc->replenish_time); */
+
+	return 0;
+}
+
+static int
 asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, capid_t rcv_cap, u32_t budget, u32_t period)
 {
 	struct cap_captbl *rcv_ct;
@@ -105,28 +126,19 @@ asnd_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t rcv_captbl, 
 
 	asndc = (struct cap_asnd *)__cap_capactivate_pre(t, cap, capin, CAP_ASND, &ret);
 	if (!asndc) return ret;
-	/* copy data from the arcv capability */
-	memcpy(&asndc->comp_info, &arcvc->comp_info, sizeof(struct comp_info));
-	asndc->arcv_epoch     = arcvc->epoch;
-	asndc->arcv_cpuid     = arcvc->cpuid;
-	/* ...and initialize our own data */
-	asndc->cpuid          = get_cpuid();
-	asndc->arcv_capid     = rcv_cap;
-	asndc->period         = period;
-	asndc->budget         = budget;
-	asndc->replenish_amnt = budget;
-	//FIXME:  add rdtscll(asndc->replenish_time);
+
+	ret = asnd_construct(asndc, arcvc, rcv_cap, budget, period);
 	__cap_capactivate_post(&asndc->h, CAP_ASND);
 
-	return 0;
+	return ret;
 }
 
 static int
 asnd_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 { return cap_capdeactivate(t, capin, CAP_ASND, lid); }
 
-/* send to a thread within an interrupt */
-int capinv_int_snd(struct thread *rcv_thd, struct pt_regs *regs);
+/* send to a receive end-point within an interrupt */
+int cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs);
 
 static void
 __arcv_setup(struct cap_arcv *arcv, struct thread *thd, struct thread *notif)
@@ -146,6 +158,8 @@ __arcv_teardown(struct cap_arcv *arcv, struct thread *thd)
 	notif = thd->rcvcap.rcvcap_thd_notif;
 	if (notif) thd_rcvcap_release(notif);
 	thd->rcvcap.isbound = 0;
+	tcap_ref_take(thd->tcap);
+	thd->tcap = NULL;
 }
 
 static struct thread *
@@ -153,13 +167,14 @@ arcv_thd_notif(struct thread *arcvt)
 { return arcvt->rcvcap.rcvcap_thd_notif; }
 
 static int
-arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, capid_t thd_cap, capid_t arcv_cap, int init)
+arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, capid_t thd_cap, capid_t tcap_cap, capid_t arcv_cap, int init)
 {
 	struct cap_comp *compc;
 	struct cap_thd  *thdc;
+	struct cap_tcap *tcapc;
 	struct cap_arcv *arcv_p, *arcvc; /* parent and new capability */
+	struct thread   *thd;
 	int ret;
-	struct thread *thd;
 
 	/* Find the constituent capability structures */
 	compc = (struct cap_comp *)captbl_lkup(t, comp_cap);
@@ -167,8 +182,11 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	thdc = (struct cap_thd *)captbl_lkup(t, thd_cap);
 	if (unlikely(!thdc || thdc->h.type != CAP_THD || thdc->cpuid != get_cpuid())) return -EINVAL;
 	thd = thdc->t;
+	tcapc = (struct cap_tcap *)captbl_lkup(t, tcap_cap);
+	if (unlikely(!tcapc || tcapc->h.type != CAP_TCAP || tcapc->cpuid != get_cpuid())) return -EINVAL;
 	/* a single thread cannot be bound to multiple rcvcaps */
 	if (thd_bound2rcvcap(thd)) return -EINVAL;
+	assert(!thd->tcap); 	/* an unbound thread should not have a tcap */
 
 	if (!init) {
 	        arcv_p = (struct cap_arcv *)captbl_lkup(t, arcv_cap);
@@ -176,6 +194,10 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	}
 	arcvc = (struct cap_arcv *)__cap_capactivate_pre(t, cap, capin, CAP_ARCV, &ret);
 	if (!arcvc) return ret;
+
+	thd->tcap = tcapc->tcap;
+	tcap_ref_take(tcapc->tcap);
+	printk("Thd bound to rcv cap %d, tcap %x\n", thd->tid, thd->tcap);
 
 	memcpy(&arcvc->comp_info, &compc->info, sizeof(struct comp_info));
 

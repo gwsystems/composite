@@ -5,7 +5,8 @@ LD := ld -m elf_i386
 AS := as --32 -g
 
 INCPATH := ../../kernel/include
-CFLAGS := -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdlib -mno-red-zone -I$(INCPATH)
+INCS    := -I$(INCPATH)
+CFLAGS  := -g3 -O3 -ffreestanding -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -nostdinc -nostdlib -fno-pic -mno-red-zone $(INCS)
 LDFLAGS := -nostdlib -fno-builtin -nostartfiles -nostdinc -nodefaultlibs
 
 KERNEL := kernel.img
@@ -61,7 +62,7 @@ all: $(KERNEL)
 
 $(KERNEL): linker.ld $(DEPS) $(OBJS) loader.o
 	$(info |     [LD]   Linking $@)
-	$(LD) -T linker.ld loader.o entry.o $(OBJS) -o $@
+	@$(LD) -T linker.ld loader.o entry.o $(OBJS) -o $@
 
 loader.o: loader.S entry.S
 	$(info |     [AS]   Assembling $@)
@@ -70,10 +71,6 @@ loader.o: loader.S entry.S
 
 %.d: %.c
 	@$(CC) -M -MT $(patsubst %.d, %.o, $@) $(CFLAGS) $(LDFLAGS) $< -o $@
-
-per_cpu.o: ../../kernel/per_cpu.c
-	$(info |     [CC]   Compiling $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
 
 pgtbl.o: ../../kernel/pgtbl.c
 	$(info |     [CC]   Compiling $@)
@@ -92,10 +89,6 @@ liveness_tbl.o: ../../kernel/liveness_tbl.c
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 capinv.o: ../../kernel/capinv.c
-	$(info |     [CC]   Compiling $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
-
-measurement.o: ../../kernel/measurement.c
 	$(info |     [CC]   Compiling $@)
 	@$(CC) $(CFLAGS) -c $< -o $@
 
