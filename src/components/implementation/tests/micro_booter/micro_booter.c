@@ -50,7 +50,7 @@ thdcap_t termthd; 		/* switch to this to shutdown */
 /* For Div-by-zero test */
 int num = 1, den = 0;
 
-#define ITERATIONS 1000000
+#define ITER 100000
 #define TEST_NTHDS 5
 unsigned long tls_test[TEST_NTHDS];
 
@@ -83,24 +83,23 @@ static void
 test_thds_perf(void)
 {
 	thdcap_t ts;
-	int i = 0;
-	long long total_swt_cycles = 0LL;
-	long long start_swt_cycles = 0LL, end_swt_cycles = 0LL;
-	long long iters = 0LL;
+	long long total_swt_cycles = 0;
+	long long start_swt_cycles = 0, end_swt_cycles = 0;
+	int i;
 
-	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, (void *)i);
+	ts = cos_thd_alloc(&booter_info, booter_info.comp_cap, thd_fn_perf, NULL);
 	assert(ts);
 	cos_thd_switch(ts);
 
 	rdtscll(start_swt_cycles);
-	for (iters = 0LL; iters < ITERATIONS; iters ++) {
+	for (i = 0 ; i < ITER ; i++) {
 		cos_thd_switch(ts);
 	}
 	rdtscll(end_swt_cycles);
 	total_swt_cycles = (end_swt_cycles - start_swt_cycles) / 2LL;
 
 	printc("Average THD SWTCH (Total: %lld / Iterations: %lld ): %lld\n",
-		total_swt_cycles, (long long) ITERATIONS, (total_swt_cycles / (long long)ITERATIONS));
+		total_swt_cycles, (long long) ITER, (total_swt_cycles / (long long)ITER));
 }
 
 static void
@@ -154,11 +153,11 @@ async_thd_fn_perf(void *thdcap)
 	thdid_t tid;
 	int rcving;
 	cycles_t cycles;
-	long long iters = 0LL;
+	int i;
 
 	cos_rcv(rc, &tid, &rcving, &cycles);
 
-	for (iters = 0LL; iters < ITERATIONS + 1; iters ++) {
+	for (i = 0 ; i < ITER + 1 ; i++) {
 		cos_rcv(rc, &tid, &rcving, &cycles);
 	}
 
@@ -171,21 +170,21 @@ async_thd_parent_perf(void *thdcap)
 	thdcap_t tc = (thdcap_t)thdcap;
 	arcvcap_t rc = rcp_global;
 	asndcap_t sc = scp_global;
-	long long total_asnd_cycles = 0LL;
-	long long start_asnd_cycles = 0LL, end_arcv_cycles = 0LL;
-	long long iters = 0LL;
+	long long total_asnd_cycles = 0;
+	long long start_asnd_cycles = 0, end_arcv_cycles = 0;
+	int i;
 
 	cos_asnd(sc);
 
 	rdtscll(start_asnd_cycles);
-	for (iters = 0LL; iters < ITERATIONS; iters ++) {
+	for (i = 0 ; i < ITER ; i++) {
 		cos_asnd(sc);
 	}
 	rdtscll(end_arcv_cycles);
-	total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2LL ;
+	total_asnd_cycles = (end_arcv_cycles - start_asnd_cycles) / 2;
 
 	printc("Average ASND/ARCV (Total: %lld / Iterations: %lld ): %lld\n",
-		total_asnd_cycles, (long long) (ITERATIONS), (total_asnd_cycles / (long long)(ITERATIONS)));
+		total_asnd_cycles, (long long) (ITER), (total_asnd_cycles / (long long)(ITER)));
 
 	async_test_flag = 0;
 	cos_thd_switch(tc);
@@ -396,16 +395,19 @@ test_inv_perf(void)
 {
 	compcap_t cc;
 	sinvcap_t ic;
-	long long iters = 0LL;
+	int i;
 	long long total_cycles = 0LL;
 	long long total_inv_cycles = 0LL, total_ret_cycles = 0LL;
+	unsigned int ret;
 
 	cc = cos_comp_alloc(&booter_info, booter_info.captbl_cap, booter_info.pgtbl_cap, (vaddr_t)NULL);
 	assert(cc > 0);
 	ic = cos_sinv_alloc(&booter_info, cc, (vaddr_t)__inv_test_serverfn);
 	assert(ic > 0);
+	ret = call_cap_mb(ic, 1, 2, 3);
+	assert(ret == 0xDEADBEEF);
 
-	for (iters = 0LL; iters < ITERATIONS; iters ++) {
+	for (i = 0 ; i < ITER ; i++) {
 		long long start_cycles = 0LL, end_cycles = 0LL;
 
 		midinv_cycles = 0LL;
@@ -417,14 +419,10 @@ test_inv_perf(void)
 	}
 
 	printc("Average SINV (Total: %lld / Iterations: %lld ): %lld\n",
-		total_inv_cycles, (long long) (ITERATIONS), (total_inv_cycles / (long long)(ITERATIONS)));
+		total_inv_cycles, (long long) (ITER), (total_inv_cycles / (long long)(ITER)));
 	printc("Average SRET (Total: %lld / Iterations: %lld ): %lld\n",
-		total_ret_cycles, (long long) (ITERATIONS), (total_ret_cycles / (long long)(ITERATIONS)));
+		total_ret_cycles, (long long) (ITER), (total_ret_cycles / (long long)(ITER)));
 }
-
-void
-dont_run_me_bro(void *d)
-{ assert(0); }
 
 void
 test_captbl_expand(void)

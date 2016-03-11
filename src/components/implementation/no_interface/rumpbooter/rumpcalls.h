@@ -11,15 +11,18 @@ typedef __builtin_va_list va_list;
 
 extern struct cos_rumpcalls crcalls;
 
+extern int boot_thd;
+
 struct bmk_thread;
-#define bmk_current (tls_get_thread())
-//extern __thread struct bmk_thread *bmk_current;
+extern __thread struct bmk_thread *bmk_current;
 
 struct bmk_tcb *tcb;
+
 
 struct cos_rumpcalls
 {
 	unsigned short int (*rump_cos_get_thd_id)(void);
+	long long (*rump_cpu_clock_now)(void);
 	int    (*rump_vsnprintf)(char* str, size_t size, const char *format, va_list arg_ptr);
 	void   (*rump_cos_print)(char s[], int ret);
 	int    (*rump_strcmp)(const char *a, const char *b);
@@ -49,5 +52,9 @@ void  rump_bmk_memsize_init(void);
 
 void set_cos_thdcap(struct bmk_thread *thread, capid_t value);
 capid_t get_cos_thdcap(struct bmk_thread *thread);
+
+char *get_name(struct bmk_thread *thread);
+long long cos_cpu_clock_now(void);
+void cos_irqthd_handler(void *line);
 
 #endif /* RUMPCALLS_H */
