@@ -53,12 +53,14 @@
 #define TN_32MODE_CNF	(1ll << 8)	/* 1 = force 32-bit access to 64-bit timer */
 /* #define TN_INT_ROUTE_CNF (1<<9:1<<13)*/	/* routing for interrupt */
 #define TN_FSB_EN_CNF	(1ll << 14)	/* 1 = deliver interrupts via FSB instead of APIC */
-#define TN_FSB_INT_DEL_CAP	(1ll << 15)	/* read only, 1 = FSB delivery available */
+#define TN_FSB_INT_DEL_CAP (1ll << 15)	/* read only, 1 = FSB delivery available */
 
 #define HPET_INT_ENABLE(n) (0x1 << n)	/* Clears the INT n for level-triggered mode. */
 
+static volatile u32_t *hpet_capabilities;
 static volatile u64_t *hpet_config;
 static volatile u64_t *hpet_interrupt;
+static u64_t timer_granularity;
 
 volatile struct hpet_timer {
 		u64_t config;
@@ -163,17 +165,26 @@ timer_find_hpet(void *timer)
 void
 timer_set_hpet_page(u32_t page)
 {
-	hpet = (void*)(page * (1 << 22) | ((u32_t)hpet & ((1<<22)-1)));
-	hpet_config = (u64_t*)((unsigned char*)hpet + HPET_CONFIGURATION);
-	hpet_interrupt = (u64_t*)((unsigned char*)hpet + HPET_INTERRUPT);
-	hpet_timers = (struct hpet_timer*)((unsigned char*)hpet + HPET_T0_CONFIG);
+	hpet              = (void*)(page * (1 << 22) | ((u32_t)hpet & ((1<<22)-1)));
+	hpet_capabilities = (u32_t*)((unsigned char*)hpet + HPET_CAPABILITIES);
+	hpet_config       = (u64_t*)((unsigned char*)hpet + HPET_CONFIGURATION);
+	hpet_interrupt    = (u64_t*)((unsigned char*)hpet + HPET_INTERRUPT);
+	hpet_timers       = (struct hpet_timer*)((unsigned char*)hpet + HPET_T0_CONFIG);
+
+	timer_granularity = hpet_capabilities[1]/1000; /* bits 32-63 are # of femptoseconds per HPET clock tick */
 	printk("Set HPET @ %p\n", hpet);
+}
+
+void
+timer_calibrate()
+{
+
 }
 
 void
 timer_init(timer_type_t timer_type, u64_t cycles)
 {
-	printk("Enabling timer @ %p\n", hpet);
+	printk("Enabling timer @ %p with tick granularity %lld picoseconds\n", hpet, timer_granularity);
 
 	/* Enable legacy interrupt routing */
 	*hpet_config |= (1ll);
