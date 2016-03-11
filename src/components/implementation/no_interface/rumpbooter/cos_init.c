@@ -6,7 +6,7 @@
 extern struct cos_compinfo booter_info;
 
 /* RG: The amount of memory to give RK to start */
-#define RK_MEM ((1 << 30))
+#define RK_MEM ((1 << 30) + (1 << 5))
 static unsigned long
 alloc_initmem_all(void)
 {
@@ -40,10 +40,12 @@ void
 cos_run(char *cmdline)
 {
 	printc("Rump Kernel bootstrap on platform Composite\n");
-	// bmk_memalloc_init needs to be called
+	bmk_sched_init();
+	printc("bmk_sched_init done\n");
 	bmk_memalloc_init();
+	printc("bmk_memalloc_init done\n");
 
-	// Before bmk_pgalloc_loadmem is called, I need to alloc memory till failure and return
+	// Before bmk_pgalloc_loadmem is called, I need to alloc memory till we have enough or till failure
 	// the start and end locations in memory to bmk_pgalloc
 	//
 	// Change the alloc method to cos_kern_page

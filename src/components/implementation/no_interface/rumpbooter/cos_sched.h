@@ -28,14 +28,9 @@ rump_thd_fn(void *param)
 
 	p->thdid = &thdid;
 
-	printc("In rump_thd_fn\n");
-	printc("fetching thd id\n");
 	thdid = cos_thdid();
-	printc("thdid, is now: %d\n", *(p->thdid));
 
 	cos_thd_switch(retcap);
-	//print f and Null
-	printc("SCHED: Executing thread function. arg: %p, f: %p:\n", p->arg, p->f);
 	f(arg);
 }
 

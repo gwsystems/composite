@@ -31,6 +31,7 @@ struct sec_info {
 typedef enum {
 	TEXT_S,
 	RODATA_S,
+	INITFINI_S,
 	CTORS_S,
 	DTORS_S,
 	CRECOV_S,
