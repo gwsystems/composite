@@ -10,11 +10,6 @@ make  --no-print-directory -I /home/lucasbaier/research/rump2cos/Composite/src -
 |     [CC]   Creating library file heap.a from heap.c
 |     [CC]   Creating library file cobj_format.a from cobj_format.c
 |     [CC]   Creating library file cos_kernel_api.a from cos_kernel_api.c
-|     [AS]   Compiling assembly file c_stub.S into c_stub.o
-|     [AS]   Compiling assembly file cos_asm_upcall.S into cos_asm_upcall.o
-|     [AS]   Compiling assembly file cos_asm_ainv.S into cos_asm_ainv.o
-|     [CC]   Compiling C file cos_component.c into cos_component.o
-|     [AS]   Compiling assembly file cos_asm_upcall_simple_stacks.S into cos_asm_upcall_simple_stacks.o
 make  --no-print-directory -I /home/lucasbaier/research/rump2cos/Composite/src -I /home/lucasbaier/research/rump2cos/Composite/src -I /home/lucasbaier/research/rump2cos/Composite/src/components -C interface
 ***********************************************
 ************[ Building interfaces ]************
@@ -30,79 +25,10 @@ make  --no-print-directory -I /home/lucasbaier/research/rump2cos/Composite/src -
 ***********************************************
 *********[ Building Implementations ]**********
 ***********************************************
-|     [LD]   acap_pong.acap_pong (acap_ppong.o): Linking -lpar_mgr -lprintc -lmem_mgr_large pong.o
 make[3]: Nothing to be done for `init'.
-|     [LD]   cbuf_bot.serv (cbf_bot.o): Linking -llock -lcbuf_c -lmem_mgr_large -lprintc cbufs.o
-|     [CC]   tmem.c: Compiling
-tmem.c: In function ‘tmem_mark_relinquish_all’:
-tmem.c:106:6: warning: variable ‘spd_id’ set but not used [-Wunused-but-set-variable]
-  int spd_id;
-      ^
-tmem.c: In function ‘tmem_unmark_relinquish_all’:
-tmem.c:123:6: warning: variable ‘spd_id’ set but not used [-Wunused-but-set-variable]
-  int spd_id;
-      ^
-tmem.c: In function ‘return_tmem’:
-tmem.c:430:10: warning: variable ‘s_spdid’ set but not used [-Wunused-but-set-variable]
-  spdid_t s_spdid;
-          ^
-|     [LD]   cbuf_c.naive (buf.o): Linking -lprintc -llock -lmem_mgr_large cbuf.o ../complib.o
-|     [LD]   cbuf_mid.mid_level (cbf_mid.o): Linking -lcbuf_c -lmem_mgr_large -lprintc -llock cbuf_mid.o
-cbufp.c: In function ‘cos_init’:
-cbufp.c:555:7: warning: variable ‘cbid’ set but not used [-Wunused-but-set-variable]
-  long cbid;
-       ^
-|     [LD]   cbufp.default (bufp.o): Linking -lcbuf_c -lprintc -llock -lmem_mgr_large cbufp.o
-|     [LD]   evt.edge (e.o): Linking -lprintc -lmem_mgr_large -llock evt.o
-evt.c: In function ‘evt_free’:
-evt.c:239:6: warning: variable ‘ret’ set but not used [-Wunused-but-set-variable]
-  int ret;
-      ^
-|     [LD]   evt.edge_grp (eg.o): Linking -lprintc -lmem_mgr_large -llock evt.o
-|     [LD]   exe_cbuf_synth_hier.exe_cbuf_shbc (exe_cb_sbc.o): Linking -lcbuf_c -lmem_mgr_large -lprintc exe_cbuf_synth_basecase.o
-exe_cbuf_synth_hier.c: In function ‘do_action’:
-exe_cbuf_synth_hier.c:179:17: warning: variable ‘temp’ set but not used [-Wunused-but-set-variable]
-   unsigned long temp = 0;
-                 ^
-|     [LD]   exe_cbuf_synth_hier.exe_cbuf_shrec (exe_cb_sh.o): Linking -lcbuf_c -lprintc -lmem_mgr_large -llock exe_cbuf_synth_hier.o
-|     [LD]   exe_cbuf_synth_hier.exe_self_suspended (exe_ss.o): Linking -lcbuf_c -lprintc -lmem_mgr_large -llock exe_self_suspended.o
-|     [LD]   exe_synth_hier.exe_shbc (exe_sbc.o): Linking  exe_synth_basecase.o
-exe_synth_hier.c: In function ‘do_action’:
-exe_synth_hier.c:137:17: warning: variable ‘temp’ set but not used [-Wunused-but-set-variable]
-   unsigned long temp = 0;
-                 ^
-|     [LD]   exe_synth_hier.exe_shrec (exe_sh.o): Linking -lprintc -llock exe_synth_hier.o
-|     [CC]   hlthd.c: Compiling
-|     [LD]   initf.simple (initfs.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock initf.o
-pong.c: In function ‘cos_init’:
-pong.c:68:6: warning: variable ‘ret’ set but not used [-Wunused-but-set-variable]
-  int ret;
-      ^
-|     [LD]   llpong.llpong (llpong.o): Linking  pong.o
-|     [LD]   lock.pessimistic (plock.o): Linking -lmem_mgr -lprintc pessimistic.o
-lock.c: In function ‘lock_component_release’:
-lock.c:300:23: warning: variable ‘sent’ set but not used [-Wunused-but-set-variable]
-  struct blocked_thds *sent, *bt;
-                       ^
-|     [LD]   lock.two_phase (l.o): Linking -lmem_mgr -lprintc lock.o
 make[3]: Nothing to be done for `cp'.
-|     [CC]   parsec.c: Compiling
-parsec.c: In function ‘quie_queue_fill’:
-parsec.c:25:28: warning: variable ‘glb_freelist’ set but not used [-Wunused-but-set-variable]
-  struct glb_freelist_slab *glb_freelist;
-                            ^
-parsec.c: In function ‘parsec_alloc’:
-parsec.c:200:28: warning: variable ‘glb_freelist’ set but not used [-Wunused-but-set-variable]
-  struct glb_freelist_slab *glb_freelist;
-                            ^
-parsec.c: In function ‘parsec_desc_alloc’:
-parsec.c:244:28: warning: variable ‘glb_freelist’ set but not used [-Wunused-but-set-variable]
-  struct glb_freelist_slab *glb_freelist;
-                            ^
-|     [LD]   mem_mgr.hier (mh.o): Linking -lprintc -lmem_mgr mem_man.o ../complib.o
 Warning: in component mem_mgr.hier, function mman_valloc defined in an interface, but not in component
 Warning: in component mem_mgr.hier, function mman_revoke_page defined in an interface, but not in component
-|     [LD]   mem_mgr.naive (mm.o): Linking -lprintc mem_man.o cos_asm_scheduler.o ../complib.o
 Warning: in component mem_mgr.naive, function mman_valloc defined in an interface, but not in component
 Error: component mem_mgr.naive does not have stated dependencies to provide ['mman_valloc']
 	Suggested Fix: add the proper interface dependency in the DEPENDENCIES list in components/implementation/mem_mgr/naive/Makefile.
@@ -115,67 +41,16 @@ In file included from mem_man_parsec.c:18:0:
 compilation terminated.
 make[4]: *** No rule to make target `mem_man_parsec.d', needed by `all'.  Stop.
 make[3]: *** [subdirs] Error 2
-|     [LD]   mem_pool.naive (mpool.o): Linking -lmem_mgr_large -lprintc -llock mem_pool.o
-|     [LD]   net_internet.ip (ip.o): Linking  cos_ip.o
-|     [LD]   net_portns.fake_pns (port.o): Linking -llock -lprintc port_mgr.o
 |     [CP]   copying network stack from lwip
 cp: cannot stat ‘/home/lucasbaier//research//composite/src//components//lib/lwip/cos/net_stack.o’: No such file or directory
 make[3]: *** [first] Error 1
-ping.c: In function ‘delay’:
-ping.c:18:15: warning: variable ‘m’ set but not used [-Wunused-but-set-variable]
-  volatile int m = 0;
-               ^
-|     [LD]   no_interface.acap_ping (acap_pingp.o): Linking -lpar_mgr -lprintc -lpar_mgr -lmem_mgr_large ping.o
-|     [LD]   no_interface.blk (b.o): Linking  blk.o
 Error: component no_interface.blk does not have stated dependencies to provide ['prints']
 	Suggested Fix: add the proper interface dependency in the DEPENDENCIES list in components/implementation/no_interface/blk/Makefile.
 Less likely fixes: a) you should specify a FN_PREPEND in the Makefile for a component that wishes to invoke another component with the same interface.
 b) you should reorder dependencies within the Makefile (see FAQ).
 make[4]: *** No targets.  Stop.
-cbufc.c: In function ‘cos_init’:
-cbufc.c:20:6: warning: variable ‘i’ set but not used [-Wunused-but-set-variable]
-  int i = 0;
-      ^
-cbufc.c:19:6: warning: variable ‘th’ set but not used [-Wunused-but-set-variable]
-  int th;
-      ^
-|     [LD]   no_interface.cbufc_top (cbf_top.o): Linking -lprintc -lmem_mgr_large -lcbuf_c cbufc.o
-|     [LD]   no_interface.cinfo_test (cit.o): Linking -lprintc citest.o
-|     [LD]   no_interface.comp0 (c0.o): Linking  comp0.o
-|     [LD]   no_interface.cpu (cpu.o): Linking -lprintc spin.o
 make[4]: Nothing to be done for `cp'.
-exe_periodic.c: In function ‘cos_init’:
-exe_periodic.c:137:6: warning: variable ‘event_thd’ set but not used [-Wunused-but-set-variable]
-  int event_thd = 0;
-      ^
-|     [LD]   no_interface.exe_periodic (exe_pt.o): Linking -lprintc -lmem_mgr_large exe_periodic.o
 make[4]: Nothing to be done for `cp'.
-|     [LD]   no_interface.fpu (fpu.o): Linking -lprintc f.o
-|     [LD]   no_interface.initf_test (ift.o): Linking -lprintc -lcbuf_c -llock -lmem_mgr_large initft.o
-|     [LD]   no_interface.llboot (llboot.o): Linking  booter.o
-|     [LD]   no_interface.mh_test (mht.o): Linking -lprintc -lmem_mgr mhtest.o
-In file included from mpd_mgr.c:42:0:
-/home/lucasbaier//research//composite/src//components//include/mpd_policy.h: In function ‘pd_edge_free’:
-/home/lucasbaier//research//composite/src//components//include/mpd_policy.h:301:38: warning: variable ‘pd_to’ set but not used [-Wunused-but-set-variable]
-  struct protection_domain *pd_from, *pd_to;
-                                      ^
-/home/lucasbaier//research//composite/src//components//include/mpd_policy.h:301:28: warning: variable ‘pd_from’ set but not used [-Wunused-but-set-variable]
-  struct protection_domain *pd_from, *pd_to;
-                            ^
-|     [LD]   no_interface.mpd_mgr (mpd.o): Linking -lprintc -lmem_mgr_large mpd_mgr.o
-|     [LD]   no_interface.periodic (pt.o): Linking -lprintc periodic.o
-|     [LD]   no_interface.pftest (pft.o): Linking -lprintc pftest.o
-|     [LD]   no_interface.ping (pingp.o): Linking -lprintc ping.o
-|     [LD]   no_interface.ping_membrane (ping_mb.o): Linking -lprintc ping_membrane.o
-|     [LD]   no_interface.pipeline (p.o): Linking -lprintc pline.o
-cos_init.c: In function ‘alloc_initmem_all’:
-cos_init.c:35:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 2 has type ‘long unsigned int’ [-Wformat=]
-  printc("max: %x\n", max);
-  ^
-cos_init.c: In function ‘cos_run’:
-cos_init.c:56:2: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 2 has type ‘long unsigned int’ [-Wformat=]
-  printc("first page: %x\n", min);
-  ^
 In file included from micro_booter.c:8:0:
 rumpcalls.h:10:0: warning: "va_end" redefined [enabled by default]
  #define va_end(va_arg)     __builtin_va_end(va_arg)
@@ -187,17 +62,17 @@ In file included from /home/lucasbaier//research//composite/src//components//lib
  ^
 In file included from micro_booter.c:3:0:
 micro_booter.c: In function ‘thd_fn’:
-micro_booter.c:80:20: warning: comparison between signed and unsigned integer expressions [-Wsign-compare]
+micro_booter.c:130:20: warning: comparison between signed and unsigned integer expressions [-Wsign-compare]
   assert(tls_get(0) == tls_test[(int)d]);
                     ^
 /home/lucasbaier//research//composite/src//components//include/cos_component.h:472:45: note: in definition of macro ‘unlikely’
  #define unlikely(x)     __builtin_expect(!!(x), 0)
                                              ^
-micro_booter.c:80:2: note: in expansion of macro ‘assert’
+micro_booter.c:130:2: note: in expansion of macro ‘assert’
   assert(tls_get(0) == tls_test[(int)d]);
   ^
-micro_booter.c: In function ‘irq_alloc’:
-micro_booter.c:337:3: warning: passing argument 4 of ‘cos_thd_alloc’ makes pointer from integer without a cast [enabled by default]
+micro_booter.c: In function ‘hw_irq_alloc’:
+micro_booter.c:505:3: warning: passing argument 4 of ‘cos_thd_alloc’ makes pointer from integer without a cast [enabled by default]
    irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, i);
    ^
 In file included from micro_booter.c:6:0:
@@ -205,264 +80,24 @@ In file included from micro_booter.c:6:0:
  thdcap_t  cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data);
            ^
 micro_booter.c: In function ‘cos_init’:
-micro_booter.c:375:2: warning: passing argument 3 of ‘cos_thd_alloc’ from incompatible pointer type [enabled by default]
+micro_booter.c:557:2: warning: passing argument 3 of ‘cos_thd_alloc’ from incompatible pointer type [enabled by default]
   tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_rk_fn, NULL);
   ^
 In file included from micro_booter.c:6:0:
 /home/lucasbaier//research//composite/src//components//include/cos_kernel_api.h:63:11: note: expected ‘cos_thd_fn_t’ but argument is of type ‘void (*)(void)’
  thdcap_t  cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *data);
            ^
-In file included from rumpcalls.c:8:0:
-rumpcalls.h:10:0: warning: "va_end" redefined [enabled by default]
- #define va_end(va_arg)     __builtin_va_end(va_arg)
- ^
-In file included from /home/lucasbaier//research//composite/src//components//lib/dietlibc-0.29/include/stdio.h:7:0,
-                 from rumpcalls.c:1:
-/home/lucasbaier//research//composite/src//components//lib/dietlibc-0.29/include/stdarg.h:15:0: note: this is the location of the previous definition
- #define va_end  __builtin_va_end
- ^
-rumpcalls.c: In function ‘cos2rump_setup’:
-rumpcalls.c:28:34: warning: assignment from incompatible pointer type [enabled by default]
-  crcalls.rump_strncpy            = strncpy;
-                                  ^
-rumpcalls.c:29:34: warning: assignment from incompatible pointer type [enabled by default]
-  crcalls.rump_memcalloc          = cos_memcalloc;
-                                  ^
-rumpcalls.c:30:34: warning: assignment from incompatible pointer type [enabled by default]
-  crcalls.rump_memalloc           = cos_memalloc;
-                                  ^
-rumpcalls.c:33:34: warning: assignment from incompatible pointer type [enabled by default]
-  crcalls.rump_memcpy             = memcpy;
-                                  ^
-rumpcalls.c:34:24: warning: assignment from incompatible pointer type [enabled by default]
-  crcalls.rump_memset   = cos_memset;
-                        ^
-rumpcalls.c: In function ‘cos_irqthd_handler’:
-rumpcalls.c:62:3: warning: implicit declaration of function ‘bmk_isr’ [-Wimplicit-function-declaration]
-   bmk_isr(which);
-   ^
-rumpcalls.c: In function ‘cos_memfree’:
-rumpcalls.c:78:2: warning: implicit declaration of function ‘rump_cos_free’ [-Wimplicit-function-declaration]
-  rump_cos_free(cp);
-  ^
-rumpcalls.c: In function ‘cos_memcalloc’:
-rumpcalls.c:91:2: warning: implicit declaration of function ‘rump_cos_calloc’ [-Wimplicit-function-declaration]
-  rv = rump_cos_calloc(n, size);
-  ^
-rumpcalls.c:91:5: warning: assignment makes pointer from integer without a cast [enabled by default]
-  rv = rump_cos_calloc(n, size);
-     ^
-rumpcalls.c: In function ‘cos_memalloc’:
-rumpcalls.c:100:2: warning: implicit declaration of function ‘rump_cos_malloc’ [-Wimplicit-function-declaration]
-  rv = rump_cos_malloc(nbytes);
-  ^
-rumpcalls.c:100:5: warning: assignment makes pointer from integer without a cast [enabled by default]
-  rv = rump_cos_malloc(nbytes);
-     ^
-rumpcalls.c: In function ‘cos_tls_init’:
-rumpcalls.c:113:2: warning: passing argument 3 of ‘cos_thd_mod’ makes pointer from integer without a cast [enabled by default]
-  cos_thd_mod(&booter_info, tc, tp);
-  ^
-In file included from rumpcalls.c:6:0:
-/home/lucasbaier//research//composite/src//components//include/cos_kernel_api.h:73:5: note: expected ‘void *’ but argument is of type ‘long unsigned int’
- int cos_thd_mod(struct cos_compinfo *ci, thdcap_t c, void *tls_addr); /* set tls addr of thd in captbl */
-     ^
 |     [LD]   no_interface.rumpbooter (rump_boot.o): Linking  cos_init.o micro_booter.o rumpcalls.o rump_cos_alloc.o
-Error: component no_interface.rumpbooter does not have stated dependencies to provide ['bmk_current', 'bmk_isr', 'bmk_mainthread', 'bmk_memalloc_init', 'bmk_memsize', 'bmk_pgalloc_loadmem', 'bmk_sched_startmain', 'crcalls', 'get_cos_thdcap', 'get_name', '_GLOBAL_OFFSET_TABLE_', 'set_cos_thdcap']
+Error: component no_interface.rumpbooter does not have stated dependencies to provide ['bmk_current', 'bmk_isr', 'bmk_mainthread', 'bmk_memalloc_init', 'bmk_memsize', 'bmk_pgalloc_loadmem', 'bmk_sched_init', 'bmk_sched_startmain', 'crcalls', 'get_cos_thdcap', 'get_name', '_GLOBAL_OFFSET_TABLE_', 'set_cos_thdcap']
 	Suggested Fix: add the proper interface dependency in the DEPENDENCIES list in components/implementation/no_interface/rumpbooter/Makefile.
 Less likely fixes: a) you should specify a FN_PREPEND in the Makefile for a component that wishes to invoke another component with the same interface.
 b) you should reorder dependencies within the Makefile (see FAQ).
-sm_meas.c: In function ‘delay’:
-sm_meas.c:18:26: warning: variable ‘c’ set but not used [-Wunused-but-set-variable]
-  volatile int b = 10000, c = 1;
-                          ^
-|     [LD]   no_interface.splitmerge_meas (splitmerge_meas.o): Linking -lprintc sm_meas.o
-t.c: In function ‘cos_init’:
-t.c:9:6: warning: variable ‘other’ set but not used [-Wunused-but-set-variable]
-  int other = *((int*)0);//, other2 = 10/blah;
-      ^
-|     [LD]   no_interface.test (test.o): Linking -lprintc t.o
-|     [LD]   no_interface.timed_wkup (wkup.o): Linking -lprintc wakeup.o
-|     [LD]   no_interface.tmem_policy (tp.o): Linking -lprintc -lcbuf_c -lmem_mgr_large tmem_policy.o
-|     [LD]   no_interface.torrent_sconn (stconn.o): Linking -lprintc -lmem_mgr_large -lcbuf_c -llock conn_mgr.o
-|     [LD]   no_interface.torrent_sconn_mt (stconnmt.o): Linking -lprintc -lmem_mgr_large -lcbuf_c -llock conn_mgr.o
-|     [LD]   no_interface.valloc_test (vat.o): Linking -lprintc -lmem_mgr_large valloc_test.o
-|     [LD]   no_interface.vas_test (vt.o): Linking -lprintc -lmem_mgr vas_test.o
-|     [LD]   par_mgr.default (parmgr.o): Linking -lprintc -lmem_mgr_large par_mgr.o
-|     [LD]   pgfault.high_level (pf.o): Linking -lprintc pgfault.o
-|     [LD]   pgfault.recov_poc (pfr.o): Linking -lprintc pgfault.o
-|     [LD]   pgfault.stk_trace (pfs.o): Linking -lprintc -lmem_mgr_large pgfault.o
-|     [LD]   pong.pingpong (ppong.o): Linking -lprintc pong.o
-|     [LD]   printc.linux_log (print.o): Linking  print_comp.o
-|     [LD]   printc.trans (printl.o): Linking  print_comp.o
-|     [LD]   resres.lenient (rr.o): Linking -lmem_mgr -llock -lprintc resres.o
-|     [CC]   cos_sched_base.c: Compiling
-cos_sched_base.c: In function ‘sched_create_thd_current_core’:
-cos_sched_base.c:1297:20: warning: variable ‘curr’ set but not used [-Wunused-but-set-variable]
-  struct sched_thd *curr, *new;
-                    ^
-cos_sched_base.c: In function ‘sched_create_thread_default’:
-cos_sched_base.c:1394:6: warning: variable ‘ret’ set but not used [-Wunused-but-set-variable]
-  int ret;
-      ^
-|     [CC]   cos_scheduler.c: Compiling
-|     [AS]   cos_asm_scheduler.S: Compiling
-|     [LD]   sched.ds (ds.o): Linking -lprintc deferrable.o ../complib.o
-|     [LD]   sched.fprr (fprr.o): Linking -lprintc fp_rr.o ../complib.o
-|     [LD]   skel.comp (skeleton.o): Linking  skel.o
-|     [CC]   tmem.c: Compiling
-tmem.c: In function ‘tmem_mark_relinquish_all’:
-tmem.c:106:6: warning: variable ‘spd_id’ set but not used [-Wunused-but-set-variable]
-  int spd_id;
-      ^
-tmem.c: In function ‘tmem_unmark_relinquish_all’:
-tmem.c:123:6: warning: variable ‘spd_id’ set but not used [-Wunused-but-set-variable]
-  int spd_id;
-      ^
-tmem.c: In function ‘return_tmem’:
-tmem.c:430:10: warning: variable ‘s_spdid’ set but not used [-Wunused-but-set-variable]
-  spdid_t s_spdid;
-          ^
-|     [LD]   stkmgr.naive (sm.o): Linking -lprintc -llock -lmem_mgr_large stkmgr.o ../complib.o
-|     [LD]   synth_hier.shbc (sbc.o): Linking  synth_basecase.o
-|     [LD]   synth_hier.shrec (sh.o): Linking -lprintc synth_hier.o
-|     [LD]   tests.micro_booter (micro_boot.o): Linking  micro_booter.o inv.o
-|     [LD]   tests.micro_cs (microcs.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock micro_cs.o
-micro_fpu.c: In function ‘cos_init’:
-micro_fpu.c:18:20: warning: variable ‘main_thd’ set but not used [-Wunused-but-set-variable]
-         static int main_thd, high_prio_thd, low_prio_thd;
-                    ^
-|     [LD]   tests.micro_fpu (microfpu.o): Linking -lprintc -llock micro_fpu.o
-ping.c: In function ‘cap_test’:
-ping.c:421:32: warning: variable ‘ret1’ set but not used [-Wunused-but-set-variable]
-  int i, curr_cpu, my_cap, ret, ret1, n_valid = 0;
-                                ^
-ping.c: In function ‘mem_test’:
-ping.c:513:39: warning: variable ‘tlb_tick’ set but not used [-Wunused-but-set-variable]
-  volatile u32_t last_tick, curr_tick, tlb_tick;
-                                       ^
-ping.c: In function ‘cons_decons_test’:
-ping.c:654:24: warning: variable ‘ret1’ set but not used [-Wunused-but-set-variable]
-  int i, curr_cpu, ret, ret1;
-                        ^
-ping.c:654:19: warning: variable ‘ret’ set but not used [-Wunused-but-set-variable]
-  int i, curr_cpu, ret, ret1;
-                   ^
-ping.c:654:9: warning: variable ‘curr_cpu’ set but not used [-Wunused-but-set-variable]
-  int i, curr_cpu, ret, ret1;
-         ^
-ping.c: In function ‘captbl_cons_test’:
-ping.c:754:24: warning: variable ‘ret1’ set but not used [-Wunused-but-set-variable]
-  int i, curr_cpu, ret, ret1;
-                        ^
-ping.c:754:19: warning: variable ‘ret’ set but not used [-Wunused-but-set-variable]
-  int i, curr_cpu, ret, ret1;
-                   ^
-ping.c:754:9: warning: variable ‘curr_cpu’ set but not used [-Wunused-but-set-variable]
-  int i, curr_cpu, ret, ret1;
-         ^
-ping.c: In function ‘wcet_test’:
-ping.c:1162:18: warning: variable ‘pong_shmem’ set but not used [-Wunused-but-set-variable]
-  volatile u64_t *pong_shmem;
-                  ^
-|     [LD]   tests.micro_llping (llping.o): Linking -lmem_mgr ping.o
-mbox_client.c: In function ‘cos_init’:
-mbox_client.c:37:19: warning: variable ‘ret’ set but not used [-Wunused-but-set-variable]
-  int period, num, ret, sz, i, j;
-                   ^
-|     [LD]   tests.micro_mbox_client (micro_mbox_client.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock mbox_client.o
-|     [LD]   tests.micro_mbox_server (micro_mbox_server.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock mbox_server.o
-bench.c: In function ‘meas_faa’:
-bench.c:205:24: warning: variable ‘stk_mem’ set but not used [-Wunused-but-set-variable]
-  volatile unsigned int stk_mem;
-                        ^
-bench.c: In function ‘meas_reader’:
-bench.c:282:15: warning: variable ‘stk_mem’ set but not used [-Wunused-but-set-variable]
-  volatile int stk_mem;
-               ^
-bench.c: In function ‘meas_interference’:
-bench.c:298:15: warning: variable ‘stk_mem’ set but not used [-Wunused-but-set-variable]
-  volatile int stk_mem;
-               ^
-bench.c: In function ‘meas_op’:
-bench.c:509:39: warning: variable ‘maxss’ set but not used [-Wunused-but-set-variable]
-  unsigned long long sum = 0, max = 0, maxss[10], sum2 = 0, find_max = 0, read_cnt = 0;
-                                       ^
-bench.c: In function ‘tsc_calibrate’:
-bench.c:978:28: warning: variable ‘ret’ set but not used [-Wunused-but-set-variable]
-  int spdid = cos_spd_id(), ret;
-                            ^
-|     [LD]   tests.micro_par (par_bench.o): Linking -lpar_mgr -lmem_mgr_large -lprintc -llock bench.o
-|     [LD]   tests.micro_ping_cbuf (micro_pingp.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock micro_ping.o
-micro_cbuf1.c: In function ‘cos_init’:
-micro_cbuf1.c:12:6: warning: variable ‘thd_id’ set but not used [-Wunused-but-set-variable]
-  int thd_id;
-      ^
-|     [LD]   tests.micro_PIP_cbuf1 (micbuf1.o): Linking -lprintc micro_cbuf1.o
-|     [LD]   tests.micro_PIP_cbuf2 (micbuf2.o): Linking -llock -lprintc -lmem_mgr_large micro_cbuf2.o
-|     [LD]   tests.micro_PIP_cbuf3 (micbuf3.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock micro_cbuf3.o
-micro_pong.c: In function ‘simple_call_buf2buf’:
-micro_pong.c:43:8: warning: variable ‘b’ set but not used [-Wunused-but-set-variable]
-  char *b;
-        ^
-|     [LD]   tests.micro_pong_cbuf (micro_ppong.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock micro_pong.o
-micro_stack.c: In function ‘cos_init’:
-micro_stack.c:14:6: warning: variable ‘thd_id’ set but not used [-Wunused-but-set-variable]
-  int thd_id;
-      ^
-|     [LD]   tests.micro_stk (micro_stk.o): Linking -lprintc micro_stack.o
-fft_cos.c: In function ‘main’:
-fft_cos.c:756:38: warning: variable ‘e2’ set but not used [-Wunused-but-set-variable]
-  unsigned long long s,e, s1, e1, s2, e2;
-                                      ^
-fft_cos.c:756:34: warning: variable ‘s2’ set but not used [-Wunused-but-set-variable]
-  unsigned long long s,e, s1, e1, s2, e2;
-                                  ^
 make[4]: *** No rule to make target `/usr/lib/libm.a', needed by `fft.o'.  Stop.
 make[4]: *** No rule to make target `/usr/lib/libm.a', needed by `cos_jacobi.o'.  Stop.
-|     [LD]   tests.omp_lu (cos_lu.o): Linking -lpar_mgr -lmem_mgr_large -lprintc -llock lu.o
-|     [LD]   tests.trans_ctol (trans_ctol_meas.o): Linking -lmem_mgr_large -lprintc -llock trans_ctol.o
-|     [LD]   tests.trans_ltoc (trans_ltoc_meas.o): Linking -lmem_mgr_large -lprintc -llock trans_ltoc.o
-|     [LD]   tests.unit_cbuf1 (ucbuf1.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock cbufc.o
-|     [LD]   tests.unit_cbuf2 (ucbuf2.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock cbufc.o
-|     [LD]   tests.unit_faults (fault_test.o): Linking -lprintc faults.o
-|     [LD]   tests.unit_initargs (ia.o): Linking -lprintc -lmem_mgr_large -llock initargs.o
-|     [LD]   tests.unit_par (omp_comp.o): Linking -lpar_mgr -lmem_mgr_large -lprintc -llock omp.o
 make[4]: Nothing to be done for `cp'.
-|     [LD]   tests.unit_tar (tart.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock tar_test.o
-torrent_test.c: In function ‘cos_init’:
-torrent_test.c:32:21: warning: variable ‘ret2’ set but not used [-Wunused-but-set-variable]
-  unsigned int ret1, ret2;
-                     ^
-|     [LD]   tests.unit_torrent (tt.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock torrent_test.o
-|     [LD]   tests.unit_translator (utrans.o): Linking -lcbuf_c -lprintt -lmem_mgr_large -llock trans.o
-timed_event.c: In function ‘__event_expiration’:
-timed_event.c:171:22: warning: variable ‘tid’ set but not used [-Wunused-but-set-variable]
-   unsigned short int tid;
-                      ^
-|     [LD]   timed_blk.timed_evt (te.o): Linking -lprintc -lmem_mgr_large timed_event.o
-|     [CC]   torlib.c: Compiling
-|     [LD]   torrent.async_conn (tasc.o): Linking -lcbuf_c -lprintc -llock -lmem_mgr_large as_connector.o ../complib.o
-https.c: In function ‘http_get_parse’:
-https.c:154:22: warning: variable ‘end’ set but not used [-Wunused-but-set-variable]
-  char *s = req, *e, *end;
-                      ^
-|     [LD]   torrent.http (httpt.o): Linking -lmem_mgr_large -lprintc -lcbuf_c -llock https.o ../complib.o
-|     [LD]   torrent.ip (tip.o): Linking -lcbuf_c -lprintc -llock -lmem_mgr_large cos_ip.o ../complib.o
-|     [LD]   torrent.linux_nic (tif.o): Linking -lprintc -lcbuf_c -lmem_mgr_large -llock netif.o ../complib.o
-|     [LD]   torrent.persist (per.o): Linking -lprintc -lcbuf_c -llock -lmem_mgr_large persist.o ../complib.o
-|     [LD]   torrent.ramfs (rfs.o): Linking -lprintc -lcbuf_c -llock -lmem_mgr_large ramfs.o ../complib.o
-|     [LD]   torrent.tar_ro (rotar.o): Linking -lprintc -lcbuf_c -llock -lmem_mgr_large tar.o ../complib.o
 |     [CP]   copying network stack from lwip
 cp: cannot stat ‘/home/lucasbaier//research//composite/src//components//lib/lwip/cos/net_stack.o’: No such file or directory
 make[4]: *** [first] Error 1
-translator.c: In function ‘twrite’:
-translator.c:132:23: warning: variable ‘channel’ set but not used [-Wunused-but-set-variable]
-  struct channel_info *channel;
-                       ^
-|     [LD]   torrent.translator (trans.o): Linking -lprintc -lcbuf_c -llock -lmem_mgr_large translator.o ../complib.o
-|     [LD]   valloc.simple (va.o): Linking -lprintc -lmem_mgr -llock valloc.o
-|     [LD]   vas_mgr.simple (vm.o): Linking -lprintc -llock -lmem_mgr vas_mgr.o
 
 ***********************************************
 ***** Building i386 Platform and Kernel *******
@@ -470,30 +105,6 @@ translator.c:132:23: warning: variable ‘channel’ set but not used [-Wunused-
 
 make  --no-print-directory -I /home/lucasbaier/research/rump2cos/Composite/src PLATFORM=i386 -C platform
 make -C i386
-|     [CC]   Compiling kernel.o
-|     [CC]   Compiling gdt.o
-|     [CC]   Compiling idt.o
-|     [CC]   Compiling vm.o
-|     [CC]   Compiling printk.o
-|     [CC]   Compiling string.o
-|     [CC]   Compiling vtxprintf.o
-|     [CC]   Compiling tss.o
-|     [CC]   Compiling user.o
-|     [CC]   Compiling serial.o
-|     [CC]   Compiling timer.o
-|     [CC]   Compiling chal.o
-|     [CC]   Compiling boot_comp.o
-|     [CC]   Compiling miniacpi.o
-|     [CC]   Compiling vga.o
-|     [CC]   Compiling exception.o
-|     [CC]   Compiling pgtbl.o
-|     [CC]   Compiling retype_tbl.o
-|     [CC]   Compiling liveness_tbl.o
-|     [CC]   Compiling tcap.o
-|     [CC]   Compiling capinv.o
-|     [CC]   Compiling captbl.o
-|     [AS]   Assembling loader.o
-|     [LD]   Linking kernel.img
+make[2]: Nothing to be done for `all'.
 make -C linker
-|     [CC]   Compiling cos_linker
-|     [CC]   Compiling gen_client_stub
+make[2]: Nothing to be done for `default'.

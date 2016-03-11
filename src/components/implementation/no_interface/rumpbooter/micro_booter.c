@@ -235,16 +235,6 @@ async_thd_fn(void *thdcap)
 	while (1) ;
 }
 
-int async_test_flag = 0;
-
-static void
-async_rk_fn(void)
-{
-	while(1) {
-		printc("testing testin 123\n");
-	}
-}
-
 static void
 async_thd_parent(void *thdcap)
 {
@@ -312,29 +302,34 @@ static void
 test_async_endpoints_perf(void)
 {
 	thdcap_t tcp, tcc;
-	arcvcap_t rcp, rcc;
+        tcap_t tccp, tccc;
+        arcvcap_t rcp, rcc;
 
-	/* parent rcv capabilities */
-	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
-	assert(tcp);
-	rcp = cos_arcv_alloc(&booter_info, tcp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	assert(rcp);
+        /* parent rcv capabilities */
+        tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
+        assert(tcp);
+        tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 0, 0);
+        assert(tccp);
+        rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+        assert(rcp);
 
-	/* child rcv capabilities */
-	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void*)tcp);
-	assert(tcc);
-	rcc = cos_arcv_alloc(&booter_info, tcc, booter_info.comp_cap, rcp);
-	assert(rcc);
+        /* child rcv capabilities */
+        tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void*)tcp);
+        assert(tcc);
+        tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 1, 0);
+        assert(tccc);
+        rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
+        assert(rcc);
 
-	/* make the snd channel to the child */
-	scp_global = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap);
-	assert(scp_global);
+        /* make the snd channel to the child */
+        scp_global = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap);
+        assert(scp_global);
 
-	rcc_global = rcc;
-	rcp_global = rcp;
+        rcc_global = rcc;
+        rcp_global = rcp;
 
-	async_test_flag = 1;
-	while (async_test_flag) cos_thd_switch(tcp);
+        async_test_flag = 1;
+        while (async_test_flag) cos_thd_switch(tcp);
 }
 
 static void
