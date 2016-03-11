@@ -40,7 +40,6 @@ void
 cos_run(char *cmdline)
 {
 	printc("Rump Kernel bootstrap on platform Composite\n");
-
 	// bmk_memalloc_init needs to be called
 	bmk_memalloc_init();
 

@@ -353,16 +353,14 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 {
 	vaddr_t kmem;
 	capid_t cap;
-
 	printd("cos_thd_alloc\n");
 
 	assert(ci && comp > 0);
-
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
-	assert((size_t)init_data < sizeof(u16_t)*8);
+	
+	assert(((size_t)init_data  & ((1<<(sizeof(u16_t)*8))-1)) != 0);
 	/* TODO: Add cap size checking */
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap, ci->pgtbl_cap, kmem, comp)) BUG();
-
 	return cap;
 }
 
@@ -373,7 +371,6 @@ cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *da
 {
 	int idx = cos_thd_init_alloc(fn, data);
 	thdcap_t ret;
-
 	if (idx < 1) return 0;
 	ret = __cos_thd_alloc(ci, comp, idx);
 	if (!ret) cos_thd_init_free(idx);
@@ -485,8 +482,10 @@ arcvcap_t
 cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, tcap_t tcapcap, compcap_t compcap, arcvcap_t arcvcap)
 {
 	capid_t cap;
-
-	assert(ci && thdcap && compcap);
+	assert(ci);
+	assert(thdcap);
+	assert(compcap);
+	//assert(ci && thdcap && compcap);
 
 	cap = __capid_bump_alloc(ci, CAP_ARCV);
 	if (!cap) return 0;

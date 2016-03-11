@@ -168,19 +168,24 @@ static void
 test_async_endpoints(void)
 {
 	thdcap_t tcp, tcc;
+	tcap_t tccp, tccc;
 	arcvcap_t rcp, rcc;
 
 	printc("Creating threads, and async end-points.\n");
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
-	rcp = cos_arcv_alloc(&booter_info, tcp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 0, 0);
+	assert(tccp);
+	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rcp);
 
 	/* child rcv capabilities */
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void*)tcp);
 	assert(tcc);
-	rcc = cos_arcv_alloc(&booter_info, tcc, booter_info.comp_cap, rcp);
+	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 1, 0);
+	assert(tccc);
+	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
 
 	/* make the snd channel to the child */
@@ -190,7 +195,8 @@ test_async_endpoints(void)
 	rcc_global = rcc;
 	rcp_global = rcp;
 
-	cos_thd_switch(tcp);
+	async_test_flag = 1;
+	while (async_test_flag) cos_thd_switch(tcp);
 
 	printc("Async end-point test successful.\nTest done.\n");
 }
@@ -323,6 +329,19 @@ test_rumpthread(void)
 }
 
 void
+hw_irq_alloc(void){
+
+	int i;
+
+	for(i = 0; i < 32; i++){
+		irq_thdcap[i] = cos_thd_alloc(&booter_info, booter_info.comp_cap, cos_irqthd_handler, i);
+		irq_tcap[i] = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 0, 0);
+		irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_thdcap[i], irq_tcap[i], booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+		cos_hw_attach(irq_tcap[i], HW_PERIODIC, irq_arcvcap[i]);
+	}
+}
+
+void
 cos_init(void)
 {
 	printc("\nMicro Booter started.\n");
@@ -332,6 +351,7 @@ cos_init(void)
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
 
+	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	printc("---------------------------\n");
 	test_thds();
 	printc("---------------------------\n");
@@ -350,10 +370,12 @@ cos_init(void)
 	thdid_t tid;
 	int rcving;
 	cycles_t cycles;
+	tcap_t tcc;
 
 	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_rk_fn, NULL);
 	assert(tc);
-	rc = cos_arcv_alloc(&booter_info, tc, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	tcc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 0, 0);
+	rc = cos_arcv_alloc(&booter_info, tc, tcc, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rc);
 
 	cos_rcv(rc, &tid, &rcving, &cycles);
@@ -367,19 +389,9 @@ cos_init(void)
 	printc("\nRumpKernel Boot Start.\n");
 	cos2rump_setup();
 	/* possibly pass in the name of the program here to see if that fixes the name bug */
-/*
-	printc("setting up arcv for hw irq\n");
-	thdcap_t irq_tcp[32];
-	arcvcap_t irq_arcvcap[32];
-	
-	for(int i = 0; i < 32; i++){
-		irq_tcp[i] = cos_thd_alloc(&booter_info, booter_info.comp_cp, cos_irqthd_handler, i);
-		irq_arcvcap[i] = cos_arcv_alloc(&booter_info, irq_tcp[i], booter_info.compcap, BOOT_CAPTBL_SELF_INITRCV_BASE);
-		cos_hw_alloc();
-	}
-*/	
-	
 
+	printc("\nSetting up arcv for hw irq\n");
+	hw_irq_alloc();
 
 	cos_run(NULL);
 	printc("\nRumpKernel Boot done.\n");

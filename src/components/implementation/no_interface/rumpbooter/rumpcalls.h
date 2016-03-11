@@ -18,6 +18,7 @@ extern __thread struct bmk_thread *bmk_current;
 
 struct bmk_tcb *tcb;
 
+
 struct cos_rumpcalls
 {
 	unsigned short int (*rump_cos_get_thd_id)(void);

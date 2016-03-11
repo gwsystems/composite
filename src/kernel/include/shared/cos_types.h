@@ -816,9 +816,9 @@ static inline void atomic_dec(atomic_t *v)
 		     : "+m" (v->counter));
 }
 #endif /* __KERNEL__ */
-
 // ncpu * 16 (or max 256) entries. can be increased if necessary.
-#define COS_THD_INIT_REGION_SIZE (((NUM_CPU*16) > (1<<8)) ? (1<<8) : (NUM_CPU*16))
+//lucas made this 64
+#define COS_THD_INIT_REGION_SIZE (((NUM_CPU*16) > (1<<8)) ? (1<<8) : (NUM_CPU*64))
 // Static entries are after the dynamic allocated entries
 #define COS_STATIC_THD_ENTRY(i) ((i + COS_THD_INIT_REGION_SIZE + 1))
 
@@ -844,6 +844,9 @@ typedef enum {
 	TCAP_DELEG_DISPATCH = 1<<1,
 } tcap_deleg_flags_t;
 
+capid_t irq_thdcap[32];
+capid_t irq_arcvcap[32];
+capid_t irq_tcap[32];	
 
 #ifndef __KERNEL_PERCPU
 #define __KERNEL_PERCPU 0
