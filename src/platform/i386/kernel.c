@@ -150,7 +150,7 @@ kmain(struct multiboot *mboot, u32_t mboot_magic, u32_t esp)
 #endif
 
 	kern_boot_comp();
-	timer_init(TIMER_PERIODIC, DEFAULT_TIMER_INTERARRIVAL);
+	timer_init();
 	kern_boot_upcall();
 	/* should not get here... */
 	khalt();

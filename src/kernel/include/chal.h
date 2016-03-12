@@ -56,6 +56,8 @@ int chal_pgtbl_add_middledir_range(paddr_t pt, unsigned long vaddr, long size);
 
 void chal_tls_update(vaddr_t tlsaddr);
 
+void chal_cycles_per_period(u64_t cycles);
+
 /*********************************
  * Address translation functions *
  *********************************/

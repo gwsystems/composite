@@ -28,6 +28,12 @@ static void
 hw_asndcap_init(void)
 { memset(&hw_asnd_caps, 0, sizeof(struct cap_asnd) * HW_IRQ_TOTAL); }
 
+/*
+ * FIXME: This is broken as it allows someone to create a hwcap with an
+ * arbitrary bitmap.  This should be changed to only create a hwcap
+ * from another, and only with a subset of the bitmap.  Any other HW
+ * resources should not be passed on.
+ */
 static int
 hw_activate(struct captbl *t, capid_t cap, capid_t capin, u32_t bitmap)
 {
@@ -64,9 +70,9 @@ hw_detach_rcvcap(struct cap_hw *hwc, hwid_t hwid)
 	if (hwid < HW_IRQ_EXTERNAL_MIN || hwid > HW_IRQ_EXTERNAL_MAX) return -EINVAL;
 	if (!(hwc->hw_bitmap & (1 << (hwid - HW_IRQ_EXTERNAL_MIN)))) return -EINVAL;
 
-	/* 
-	 * FIXME: Need to synchronize using __xx_pre and 
-	 *        __xx_post perhaps in asnd_deconstruct() 
+	/*
+	 * FIXME: Need to synchronize using __xx_pre and
+	 *        __xx_post perhaps in asnd_deconstruct()
 	 */
 	memset(&hw_asnd_caps[hwid], 0, sizeof(struct cap_asnd));
 

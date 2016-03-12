@@ -317,21 +317,26 @@ test_timer(void)
 {
 	int i;
 	thdcap_t tc;
+	cycles_t c = 0, p = 0, t = 0;
 
 	printc("Starting timer test.\n");
 	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
 
-	for (i = 0 ; i < 10 ; i++) {
+	for (i = 0 ; i <= 16 ; i++) {
 		thdid_t tid;
 		int rcving;
 		cycles_t cycles;
 
-		printc(".");
 		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
 		cos_thd_switch(tc);
+		p = c;
+		rdtscll(c);
+		if (i > 0) t += c-p;
 	}
 
-	printc("\nTimer test completed.\nSuccess.\n");
+	printc("\n\tCycles per tick (10 microseconds) = %lld\n", t/16);
+
+	printc("Timer test completed.\nSuccess.\n");
 }
 
 long long midinv_cycles = 0LL;
