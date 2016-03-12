@@ -176,12 +176,6 @@ timer_set_hpet_page(u32_t page)
 }
 
 void
-timer_calibrate()
-{
-
-}
-
-void
 timer_init(timer_type_t timer_type, u64_t cycles)
 {
 	printk("Enabling timer @ %p with tick granularity %lld picoseconds\n", hpet, timer_granularity);
