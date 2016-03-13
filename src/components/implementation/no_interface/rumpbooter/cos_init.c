@@ -40,7 +40,6 @@ void
 cos_run(char *cmdline)
 {
 	printc("Rump Kernel bootstrap on platform Composite\n");
-
 	bmk_sched_init();
 	printc("bmk_sched_init done\n");
 	bmk_memalloc_init();

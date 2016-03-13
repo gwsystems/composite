@@ -25,11 +25,11 @@
 #define COS_MEM_USER_PA (0x40000000)  /* 1 GB...memory untouched by Linux */
 #define COS_MEM_USER_PA_SZ    (1<<29) /* 512 MB of memory */
 #endif
-/* 
+/*
  * 1 MB, note that this is not the PA of kernel-usable memory, instead
  * it is the PA of the kernel.  If you change this, update the kernel
  * linker script (.ld) as well.
- */ 
+ */
 #define COS_MEM_KERN_PA (0x00100000)
 #define COS_MEM_KERN_PA_ORDER (25)
 #define COS_MEM_KERN_PA_SZ    (1<<COS_MEM_KERN_PA_ORDER)
@@ -42,7 +42,7 @@
 
 /* To get more memory, we need many PTE caps in the captbl. So give
  * multiple pages to it. 5 is enough for 512 MBs.*/
-#define BOOT_CAPTBL_NPAGES 5
+#define BOOT_CAPTBL_NPAGES 1
 
 #define BOOT_COMP_MAX_SZ   (1<<24) /* 16 MB for the booter component */
 
@@ -64,9 +64,9 @@
 /* Should not set when NUM_CPU > 2 or FPU enabled. */
 //#define LINUX_ON_IDLE          1 // should Linux be activated on Composite idle
 
-/* 
+/*
  * Should Composite run as highest priority?  Absolutely should be set if
- * using networking (cnet). 
+ * using networking (cnet).
  */
 #define LINUX_HIGHEST_PRIORITY 1
 
@@ -95,7 +95,7 @@
 #define COS_ASSERTIONS_ACTIVE  1
 
 /*** Console and output options ***/
-/* 
+/*
  * Notes: If you are using composite as high priority and no idle to
  * linux, then the shell output will not appear until the Composite
  * system has exited.  Thus, you will want to make the memory size
@@ -103,7 +103,7 @@
  * COS_PRINT_MEM_SZ should not exceed around (1024*1024*3).
  *
  * If you have COS_PRINT_SHELL, you _will not see output_ unless you
- * run 
+ * run
  * $~/transfer/print
  * after
  * # make

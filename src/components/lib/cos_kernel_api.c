@@ -6,12 +6,10 @@
 
 #include <cos_kernel_api.h>
 
-
 /* HACKHACKHACKHACKHACKHACK */
 #include <stdarg.h>
 #include <stdio.h>
 #ifdef NIL
-
 static int __attribute__((format(printf,1,2)))
 printd(char *fmt, ...)
 {
@@ -26,8 +24,9 @@ printd(char *fmt, ...)
 
 	return ret;
 }
-#endif
+#else
 #define printd(...)
+#endif
 
 void
 cos_meminfo_init(struct cos_meminfo *mi, vaddr_t umem_ptr, unsigned long umem_sz,
@@ -75,7 +74,7 @@ cos_compinfo_init(struct cos_compinfo *ci, captblcap_t pgtbl_cap, pgtblcap_t cap
 	} else {
 		ci->caprange_frontier = round_up_to_pow2(cap_frontier + CAPTBL_EXPAND_SZ, CAPTBL_EXPAND_SZ);
 	}
-	ci->cap16_frontier    = ci->cap32_frontier = ci->cap64_frontier = cap_frontier;
+	ci->cap16_frontier = ci->cap32_frontier = ci->cap64_frontier = cap_frontier;
 }
 
 /**************** [Memory Capability Allocation Functions] ***************/
@@ -139,6 +138,10 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	int self_resources = (meta == ci);
 	capid_t frontier;
 
+	capid_t captblcap;
+	capid_t captblid_add;
+	vaddr_t kmem;
+
 	/* ensure that we have bounded structure, and bounded recursion */
 	assert(__compinfo_metacap(meta) == meta);
 
@@ -172,47 +175,44 @@ __capid_captbl_check_expand(struct cos_compinfo *ci)
 	else                frontier = ci->caprange_frontier;
 	assert(ci->cap_frontier <= frontier);
 
-	printd("\tfrontier = %d, frontierrange = %d\n", ci->cap_frontier, frontier);
+	/* Common case: */
+	if (likely(ci->cap_frontier != frontier)) return 0;
 
-	if (ci->cap_frontier == frontier) {
-		capid_t captblcap;
-		capid_t captblid_add;
-		vaddr_t kmem = __kmem_bump_alloc(ci);
+	kmem = __kmem_bump_alloc(ci);
+	assert(kmem); /* FIXME: should have a failure semantics for capids */
 
-		assert(kmem); /* FIXME: should have a failure semantics for capids */
-
-		if (self_resources) {
-			captblcap = frontier;
-		} else {
-			/* Recursive call: can recur maximum 2 times. */
-			captblcap = __capid_bump_alloc(meta, CAP_CAPTBL);
-		}
-		captblid_add = ci->caprange_frontier;
-		assert(captblid_add % CAPTBL_EXPAND_SZ == 0);
-
-		printd("__capid_captbl_check_expand->pre-captblactivate (%d)\n", CAPTBL_OP_CAPTBLACTIVATE);
-		/* captbl internal node allocated with the resource provider's captbls */
-		if (call_cap_op(meta->captbl_cap, CAPTBL_OP_CAPTBLACTIVATE, captblcap, meta->pgtbl_cap, kmem, 1)) {
-			assert(0); /* race condition? */
-			return -1;
-		}
-		printd("__capid_captbl_check_expand->post-captblactivate\n");
-		/*
-		 * Assumption:
-		 * meta->captbl_cap refers to _our_ captbl, thus
-		 * captblcap's use in the following.
-		 */
-
-		/* Construct captbl */
-		if (call_cap_op(ci->captbl_cap, CAPTBL_OP_CONS, captblcap, captblid_add, 0, 0)) {
-			assert(0); /* race? */
-			return -1;
-		}
-
-		/* Success!  Advance the frontiers. */
-		ci->cap_frontier      = ci->caprange_frontier;
-		ci->caprange_frontier = ci->caprange_frontier + (CAPTBL_EXPAND_SZ * 2);
+	if (self_resources) {
+		captblcap = frontier;
+	} else {
+		/* Recursive call: can recur maximum 2 times. */
+		captblcap = __capid_bump_alloc(meta, CAP_CAPTBL);
+		assert(captblcap);
 	}
+	captblid_add = ci->caprange_frontier;
+	assert(captblid_add % CAPTBL_EXPAND_SZ == 0);
+
+	printd("__capid_captbl_check_expand->pre-captblactivate (%d)\n", CAPTBL_OP_CAPTBLACTIVATE);
+	/* captbl internal node allocated with the resource provider's captbls */
+	if (call_cap_op(meta->captbl_cap, CAPTBL_OP_CAPTBLACTIVATE, captblcap, meta->pgtbl_cap, kmem, 1)) {
+		assert(0); /* race condition? */
+		return -1;
+	}
+	printd("__capid_captbl_check_expand->post-captblactivate\n");
+	/*
+	 * Assumption:
+	 * meta->captbl_cap refers to _our_ captbl, thus
+	 * captblcap's use in the following.
+	 */
+
+	/* Construct captbl */
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_CONS, captblcap, captblid_add, 0, 0)) {
+		assert(0); /* race? */
+		return -1;
+	}
+
+	/* Success!  Advance the frontiers. */
+	ci->cap_frontier      = ci->caprange_frontier;
+	ci->caprange_frontier = ci->caprange_frontier + (CAPTBL_EXPAND_SZ * 2);
 
 	return 0;
 }
@@ -353,16 +353,14 @@ __cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, int init_data)
 {
 	vaddr_t kmem;
 	capid_t cap;
-
 	printd("cos_thd_alloc\n");
 
 	assert(ci && comp > 0);
-
 	if (__alloc_mem_cap(ci, CAP_THD, &kmem, &cap)) return 0;
-	assert(init_data < sizeof(u16_t)*8);
+	
+	assert(((size_t)init_data  & ((1<<(sizeof(u16_t)*8))-1)) != 0);
 	/* TODO: Add cap size checking */
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_THDACTIVATE, (init_data << 16) | cap, ci->pgtbl_cap, kmem, comp)) BUG();
-
 	return cap;
 }
 
@@ -373,7 +371,6 @@ cos_thd_alloc(struct cos_compinfo *ci, compcap_t comp, cos_thd_fn_t fn, void *da
 {
 	int idx = cos_thd_init_alloc(fn, data);
 	thdcap_t ret;
-
 	if (idx < 1) return 0;
 	ret = __cos_thd_alloc(ci, comp, idx);
 	if (!ret) cos_thd_init_free(idx);
@@ -476,21 +473,23 @@ cos_sinv_alloc(struct cos_compinfo *srcci, compcap_t dstcomp, vaddr_t entry)
 /*
  * Arguments:
  * thdcap:  the thread to activate on snds to the rcv endpoint.
- * tcap:    TODO: the tcap to use for that execution.
+ * tcap:    the tcap to use for that execution.
  * compcap: the component the rcv endpoint is visible in.
  * arcvcap: the rcv * endpoint that is the scheduler to be activated
  *          when the thread blocks on this endpoint.
  */
 arcvcap_t
-cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, compcap_t compcap, arcvcap_t arcvcap)
+cos_arcv_alloc(struct cos_compinfo *ci, thdcap_t thdcap, tcap_t tcapcap, compcap_t compcap, arcvcap_t arcvcap)
 {
 	capid_t cap;
-
-	assert(ci && thdcap && compcap);
+	assert(ci);
+	assert(thdcap);
+	assert(compcap);
+	//assert(ci && thdcap && compcap);
 
 	cap = __capid_bump_alloc(ci, CAP_ARCV);
 	if (!cap) return 0;
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_ARCVACTIVATE, cap, thdcap, compcap, arcvcap)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_ARCVACTIVATE, cap, thdcap | (tcapcap << 16), compcap, arcvcap)) BUG();
 
 	return cap;
 }
@@ -505,6 +504,24 @@ cos_asnd_alloc(struct cos_compinfo *ci, arcvcap_t arcvcap, captblcap_t ctcap)
 	cap = __capid_bump_alloc(ci, CAP_ASND);
 	if (!cap) return 0;
 	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_ASNDACTIVATE, cap, ctcap, arcvcap, 0))  BUG();
+
+	return cap;
+}
+
+/*
+ * TODO: bitmap must be a subset of existing one.
+ *       but there is no such check now, violates access control policy.
+ */
+hwcap_t
+cos_hw_alloc(struct cos_compinfo *ci, u32_t bitmap)
+{
+	capid_t cap;
+
+	assert(ci);
+
+	cap = __capid_bump_alloc(ci, CAP_HW);
+	if (!cap) return 0;
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_HW_ACTIVATE, cap, bitmap, 0, 0))  BUG();
 
 	return cap;
 }
@@ -573,30 +590,30 @@ cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op)
 /***************** [Kernel Tcap Operations] *****************/
 
 static tcap_t
-__cos_tcap_alloc(struct cos_compinfo *ci, compcap_t comp, tcap_split_flags_t flags)
+__cos_tcap_alloc(struct cos_compinfo *ci, tcap_t src, tcap_split_flags_t flags)
 {
 	vaddr_t kmem;
 	capid_t cap;
 
 	printd("cos_tcap_alloc\n");
-
-	assert (ci && comp > 0);
+	assert (ci);
 
 	if (__alloc_mem_cap(ci, CAP_TCAP, &kmem, &cap)) return 0;
+
 	/* TODO: Add cap size checking */
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (flags << 16) | cap, ci->pgtbl_cap, kmem, comp)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (flags << 16) | cap, ci->pgtbl_cap, kmem, src)) BUG();
 
 	return cap;
 }
 
 tcap_t
-cos_tcap_split(struct cos_compinfo *ci, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_split_flags_t flags, compcap_t comp)
+cos_tcap_split(struct cos_compinfo *ci, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_split_flags_t flags)
 {
 	int prio_higher = (u32_t)(prio >> 32);
 	int prio_lower  = (u32_t)((prio << 32) >> 32);
 	tcap_t ret;
 
-	ret = __cos_tcap_alloc(ci, comp, flags);
+	ret = __cos_tcap_alloc(ci, src, flags);
 	if (res != 0 && ret > 0 &&
 	    call_cap_op(src, CAPTBL_OP_TCAP_TRANSFER, ret, res, prio_higher, prio_lower)) return 0;
 
@@ -627,3 +644,11 @@ cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, t
 int
 cos_tcap_merge(tcap_t dst, tcap_t rm)
 { return call_cap_op(dst, CAPTBL_OP_TCAP_MERGE, rm, 0, 0, 0); }
+
+int
+cos_hw_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t arcv)
+{ return call_cap_op(hwc, CAPTBL_OP_HW_ATTACH, hwid, arcv, 0, 0); }
+
+int
+cos_hw_detach(hwcap_t hwc, hwid_t hwid)
+{ return call_cap_op(hwc, CAPTBL_OP_HW_DETACH, hwid, 0, 0, 0); }

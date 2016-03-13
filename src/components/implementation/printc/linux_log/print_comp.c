@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include <printc.h>
-#define assert(x) do { int y; if (!(x)) y = *(int*)NULL; } while(0)
+#define assert(x) do { if (!(x)) *((int*)0) = 0; } while(0)
 
 static char foo[MAX_LEN];
 int

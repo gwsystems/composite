@@ -11,7 +11,7 @@
 #include <malloc.h>
 #include <assert.h>
 
-#include <asm_ipc_defs.h>
+#include <consts.h>
 
 #define STR_SIZE 1024*4
 #define FN_NAME_SZ 256
@@ -32,7 +32,7 @@
  * data.
  */
 
-char *fn_string = 
+char *fn_string =
 ".text\n"
 ".globl %s\n"
 ".align 16\n"
@@ -49,14 +49,14 @@ char *fn_string =
 /*"cmpl $0, %d(%%eax)\n\t"*/
 /*"jne 1f\n\t"*/
 /* static branch predict will go here */
-/* Comment out the inv cnt for multicore performance. */ 
+/* Comment out the inv cnt for multicore performance. */
 /* invocation count inc */
 /* If we would overflow the invocation count, don't count */
 /* "cmpl $(~0), %d(%%eax)\n\t" */
 /* "je 1f\n\t" */
 /* "/\* Static branch prediction will go here: incriment invocation cnt *\/\n\t" */
 /* "incl %d(%%eax)\n" */
-/* Inv cnt removed for multicore performance. */ 
+/* Inv cnt removed for multicore performance. */
 // The following approach works too and avoids the branch...but has the same cost.
 /*"incl %d(%%eax)\n\t" */ /* why is this 4 cycles? how aren't we using the parallelism? */
 /*"andl $0x7FFFFFFF, %d(%%eax)\n\t"*/
@@ -65,7 +65,7 @@ char *fn_string =
 /*"pushl $ST_inv_stk\n\t"*/
 "/* Call the invocation fn; either direct inv, or stub as set by kernel */\n\t"
 "jmp *%d(%%eax)\n";
-/* 
+/*
  * Note that in either case, %eax holds the ptr to the usr_inv_cap:
  * useful as that entry holds the kernel version of the capability.
  */
@@ -91,7 +91,7 @@ char *footer1 =
 ".long 0\n\t"
 ".endr\n"; 			/* take up a whole cap slot for cap 0 */
 
-char *footer2 = 
+char *footer2 =
 ".align 16\n"
 "ST_user_caps_end:\n\t"
 ".long 0\n";
@@ -131,7 +131,7 @@ static inline void create_stanza(char *output, int len, char *fn_name, int cap_n
 	char ucap_name[FN_NAME_SZ];
 
 	sprintf(ucap_name, "%s"UCAP_EXT, fn_name);
-	ret = snprintf(output, len, fn_string, fn_name, fn_name, 
+	ret = snprintf(output, len, fn_string, fn_name, fn_name,
 		       ucap_name/*cap_num*SIZEOFUSERCAP*/, /* INVOCATIONCNT, INVOCATIONCNT, */ /*ENTRYFN,*/ INVFN);
 
 	if (ret == len) {
@@ -145,7 +145,7 @@ static inline void create_stanza(char *output, int len, char *fn_name, int cap_n
 static inline void create_cap_data(char *output, int len, char *name)
 {
 	int ret;
-	
+
 	ret = snprintf(output, len, cap_data, name, name);
 	if (ret == len) {
 		fprintf(stderr, "Function name %s too long: string overrun in cap data production\n", name);
@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
 		product = malloc(len);
 		assert(product);
 		orig_fns = fns = argv[1];
-		
+
 		while (NULL != fns) {
 			fns = string_to_token(fn_name, fns, ',', FN_NAME_SZ);
 			create_stanza(product, len, fn_name, cap_no);
@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
 		printf("%s", footer2);
 	}
 
-	/* 
+	/*
 	 * Make the static capability table.  cap_no because we need
 	 * an entry per static capability made.  /4 because we are
 	 * repeating the occurance of 4 bytes, not one (see footer).

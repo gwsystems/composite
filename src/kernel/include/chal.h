@@ -33,22 +33,6 @@
  * Platform page-table manipulations *
  *************************************/
 
-/*
- * Switch to the specified page-tables.  This will not only switch the
- * loaded page tables on the current cpu, but also any backing
- * data-structures that are tracked in the platform code.
- *
- * This function must be specified in the chal_plat.h file.
- */
-static inline void chal_pgtbl_switch(paddr_t pt);
-/*
- * Switch any backing data-structures for the "current" page-table,
- * but _not_ the actual loaded page-tables.
- *
- * This function must be specified in the chal_plat.h file.
- */
-static inline void __chal_pgtbl_switch(paddr_t pt);
-
 /* Add a page to pgtbl at address. 0 on success */
 int     chal_pgtbl_add(paddr_t pgtbl, vaddr_t vaddr, paddr_t paddr, int flags);
 /* Translate a vaddr to an addressable address via pgtbl */
@@ -115,8 +99,7 @@ void chal_init(void);
 
 #include "../../platform/include/chal_plat.h"
 
-#ifndef COS_LINUX
 extern void printk(const char *fmt, ...);
-#endif
+void chal_khalt(void);
 
 #endif	/* CHAL_H */

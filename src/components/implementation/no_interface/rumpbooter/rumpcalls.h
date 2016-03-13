@@ -18,6 +18,7 @@ extern __thread struct bmk_thread *bmk_current;
 
 struct bmk_tcb *tcb;
 
+
 struct cos_rumpcalls
 {
 	unsigned short int (*rump_cos_get_thd_id)(void);
@@ -54,5 +55,6 @@ capid_t get_cos_thdcap(struct bmk_thread *thread);
 
 char *get_name(struct bmk_thread *thread);
 long long cos_cpu_clock_now(void);
+void cos_irqthd_handler(void *line);
 
 #endif /* RUMPCALLS_H */

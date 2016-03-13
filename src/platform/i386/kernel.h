@@ -8,12 +8,7 @@
 
 #include "chal_asm_inc.h"
 #include <thd.h>
-
-/* A not so nice way of oopsing */
-#define die(fmt, ...) do {              \
-    printk(fmt,##__VA_ARGS__);   \
-    khalt();				\
-} while(0)
+#include <hw.h>
 
 #ifdef ENABLE_CONSOLE
 void vga_clear(void);

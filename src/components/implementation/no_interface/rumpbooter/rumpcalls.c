@@ -42,6 +42,27 @@ cos2rump_setup(void)
 	return;
 }
 
+/* irq */
+void
+cos_irqthd_handler(void *line)
+{
+	printc("cos_irqthd_handler\n");
+	int which = (int)line;
+	int first = 1;
+	thdid_t tid;
+	int rcving;
+	cycles_t cycles;
+
+	while(1) {
+		cos_rcv(irq_arcvcap[which], &tid, &rcving, &cycles);
+		if(first){
+			first = 0;
+			printc("I'm in irq # %x. \n", which);
+		}
+		bmk_isr(which);
+	}
+}
+
 /* Memory */
 extern unsigned long bmk_memsize;
 void
@@ -110,7 +131,6 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	int ret;
 	struct thd_creation_protocol  info;
 	struct thd_creation_protocol *thd_meta = &info;
-
 	//  bmk_current is not set for the booting thread, use the booter_info thdcap_t
 	//  The isrthr needs to be created on the cos thread.
 	if(boot_thread || !strcmp(get_name(thread), "isrthr")) {
@@ -125,11 +145,9 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	thd_meta->arg = arg;
 
 	newthd_cap = cos_thd_alloc(&booter_info, booter_info.comp_cap, rump_thd_fn, thd_meta);
-
 	// To access the thd_id
 	ret = cos_thd_switch(newthd_cap);
 	if(ret) printc("cos_thd_switch FAILED\n");
-
 	set_cos_thdcap(thread, newthd_cap);
 
 	/*
