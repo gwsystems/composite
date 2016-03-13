@@ -49,7 +49,7 @@ SOURCE_DEPENDENCIES=$(SOURCES:%.c=%.d)
 
 COMP_LD_SCRIPT=$(IMPLDIR)/comp.ld
 
-FNDEP_DIR=../../../cidl
+FNDEP_DIR=$(CDIR)/cidl
 FNDEP_GEN=$(FNDEP_DIR)/comp_undef.py
 FNDEP_VERIFY=$(FNDEP_DIR)/verify_completeness.py
 IFEXP_GEN=$(FNDEP_DIR)/exp_ifs.py

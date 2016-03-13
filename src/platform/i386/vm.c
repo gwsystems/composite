@@ -73,6 +73,7 @@ kern_setup_image(void)
 	}
 
 	/* FIXME: Ugly hack to get the physical page with the ACPI RSDT mapped */
+	printk("ACPI initialization\n");
 	void *rsdt = acpi_find_rsdt();
 	if (rsdt) {
         	u32_t page = round_up_to_pgd_page(rsdt) - (1 << 22);

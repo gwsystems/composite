@@ -53,12 +53,14 @@
 #define TN_32MODE_CNF	(1ll << 8)	/* 1 = force 32-bit access to 64-bit timer */
 /* #define TN_INT_ROUTE_CNF (1<<9:1<<13)*/	/* routing for interrupt */
 #define TN_FSB_EN_CNF	(1ll << 14)	/* 1 = deliver interrupts via FSB instead of APIC */
-#define TN_FSB_INT_DEL_CAP	(1ll << 15)	/* read only, 1 = FSB delivery available */
+#define TN_FSB_INT_DEL_CAP (1ll << 15)	/* read only, 1 = FSB delivery available */
 
 #define HPET_INT_ENABLE(n) (0x1 << n)	/* Clears the INT n for level-triggered mode. */
 
+static volatile u32_t *hpet_capabilities;
 static volatile u64_t *hpet_config;
 static volatile u64_t *hpet_interrupt;
+static void *hpet;
 
 volatile struct hpet_timer {
 		u64_t config;
@@ -67,22 +69,86 @@ volatile struct hpet_timer {
 		u64_t reserved;
 } __attribute__((packed)) *hpet_timers;
 
-static void *hpet;
-static u32_t tick = 0;
+/*
+ * When determining how many CPU cycles are in a HPET tick, we must
+ * execute a number of periodic ticks (TIMER_CALIBRATION_ITER) at a
+ * controlled interval, and use the HPET tick granularity to compute
+ * how many CPU cycles per HPET tick there are.  Unfortunately, this
+ * can be quite low (e.g. HPET tick of 10ns, CPU tick of 2ns) leading
+ * to rounding error that is a significant fraction of the conversion
+ * factor.
+ *
+ * Practically, this will lead to the divisor in the conversion being
+ * smaller than it should be, thus causing timers to go off _later_
+ * than they should.  Thus we use a multiplicative factor
+ * (TIMER_ERROR_BOUND_FACTOR) to lessen the rounding error.
+ *
+ * All of the hardware is documented in the HPET specification @
+ * http://www.intel.com/content/dam/www/public/us/en/documents/technical-specifications/software-developers-hpet-spec-1-0a.pdf
+ */
+
+#define PICO_PER_MICRO           1000000UL
+#define FEMPTO_PER_PICO          1000UL
+#define TIMER_CALIBRATION_ITER   16
+#define TIMER_ERROR_BOUND_FACTOR 128
+static int timer_calibration_init = 1;
+static unsigned long timer_cycles_per_hpetcyc = TIMER_ERROR_BOUND_FACTOR;
+static unsigned long cycles_per_tick;
+static unsigned long hpetcyc_per_tick;
+#define ULONG_MAX 4294967295UL
+
+static inline u64_t
+timer_cpu2hpet_cycles(u64_t cycles)
+{
+	unsigned long cyc;
+
+	/* demote precision to enable word-sized math */
+	cyc    = (unsigned long)cycles;
+	if (unlikely((u64_t)cyc < cycles)) cyc = ULONG_MAX;
+	/* convert from CPU cycles to HPET cycles */
+	cyc    = (cyc / timer_cycles_per_hpetcyc) * TIMER_ERROR_BOUND_FACTOR;
+	/* promote the precision to interact with the hardware correctly */
+	cycles = cyc;
+
+	return cycles;
+}
+
+static void
+timer_calibration(void)
+{
+	static int   cnt = 0;
+	static u64_t cycle = 0, tot = 0, prev;
+
+	prev = cycle;
+	rdtscll(cycle);
+	if (cnt) tot += cycle-prev;
+	if (cnt >= TIMER_CALIBRATION_ITER) {
+		assert(hpetcyc_per_tick);
+		timer_calibration_init   = 0;
+		cycles_per_tick          = (unsigned long)(tot / TIMER_CALIBRATION_ITER);
+		assert(cycles_per_tick > hpetcyc_per_tick);
+
+		/* Possibly significant rounding error here.  Bound by the factor */
+		timer_cycles_per_hpetcyc = (TIMER_ERROR_BOUND_FACTOR * cycles_per_tick) / hpetcyc_per_tick;
+		printk("Timer calibrated:\n\tCPU cycles per HPET tick: %ld\n\tHPET ticks in %d us: %ld\n",
+		       timer_cycles_per_hpetcyc/TIMER_ERROR_BOUND_FACTOR, TIMER_DEFAULT_US_INTERARRIVAL, hpetcyc_per_tick);
+	}
+	cnt++;
+}
+
+int
+chal_cyc_usec(void)
+{ return cycles_per_tick / TIMER_DEFAULT_US_INTERARRIVAL; }
 
 int
 periodic_handler(struct pt_regs *regs)
 {
-	u64_t cycle;
-	int preempt = 1;
+	int preempt;
 
-	rdtscll(cycle);
-	tick++;
-	printk("p"); /* comment this line for microbenchmarking tests */
+	if (unlikely(timer_calibration_init)) timer_calibration();
 
 	ack_irq(HW_PERIODIC);
 	preempt = cap_hw_asnd(&hw_asnd_caps[HW_PERIODIC], regs);
-
 	*hpet_interrupt = HPET_INT_ENABLE(TIMER_PERIODIC);
 
 	return preempt;
@@ -91,15 +157,10 @@ periodic_handler(struct pt_regs *regs)
 int
 oneshot_handler(struct pt_regs *regs)
 {
-	u64_t cycle;
 	int preempt = 1;
-
-	rdtscll(cycle);
-	printk("o"); /* comment this line for microbenchmarking tests */
 
 	ack_irq(HW_ONESHOT);
 	preempt = cap_hw_asnd(&hw_asnd_caps[HW_ONESHOT], regs);
-
 	*hpet_interrupt = HPET_INT_ENABLE(TIMER_ONESHOT);
 
 	return preempt;
@@ -111,11 +172,12 @@ timer_set(timer_type_t timer_type, u64_t cycles)
 	u64_t outconfig = TN_INT_TYPE_CNF | TN_INT_ENB_CNF;
 	int timer = 0;
 
+	cycles = timer_cpu2hpet_cycles(cycles);
+
 	/* Disable timer interrupts */
 	*hpet_config ^= ~1;
 
 	/* Reset main counter */
-
 	if (timer_type == TIMER_ONESHOT) {
 		/* Set a static value to count up to */
 		timer = 1;
@@ -141,7 +203,7 @@ timer_find_hpet(void *timer)
 	unsigned char *hpetaddr = timer;
 	u32_t length = *(u32_t*)(hpetaddr + HPET_TAB_LENGTH);
 
-	printk("Initiliazing HPET @ %p\n", hpetaddr);
+	printk("Initializing HPET @ %p\n", hpetaddr);
 
 	for (i = 0; i < length; i++) {
 		sum += hpetaddr[i];
@@ -149,35 +211,45 @@ timer_find_hpet(void *timer)
 
 	if (sum == 0) {
 		u64_t addr = *(u64_t*)(hpetaddr + HPET_TAB_ADDRESS);
-		printk("-- Checksum is OK\n");
-		printk("Addr: %016llx\n", addr);
+		printk("\tChecksum is OK\n");
+		printk("\tAddr: %016llx\n", addr);
 		hpet = (void*)((u32_t)(addr & 0xffffffff));
-		printk("hpet: %p\n", hpet);
+		printk("\thpet: %p\n", hpet);
 		return addr;
 	}
 
-	printk("-- Invalid checksum (%d)\n", sum);
+	printk("\tInvalid checksum (%d)\n", sum);
 	return 0;
 }
 
 void
 timer_set_hpet_page(u32_t page)
 {
-	hpet = (void*)(page * (1 << 22) | ((u32_t)hpet & ((1<<22)-1)));
-	hpet_config = (u64_t*)((unsigned char*)hpet + HPET_CONFIGURATION);
-	hpet_interrupt = (u64_t*)((unsigned char*)hpet + HPET_INTERRUPT);
-	hpet_timers = (struct hpet_timer*)((unsigned char*)hpet + HPET_T0_CONFIG);
-	printk("Set HPET @ %p\n", hpet);
+	hpet              = (void*)(page * (1 << 22) | ((u32_t)hpet & ((1<<22)-1)));
+	hpet_capabilities = (u32_t*)((unsigned char*)hpet + HPET_CAPABILITIES);
+	hpet_config       = (u64_t*)((unsigned char*)hpet + HPET_CONFIGURATION);
+	hpet_interrupt    = (u64_t*)((unsigned char*)hpet + HPET_INTERRUPT);
+	hpet_timers       = (struct hpet_timer*)((unsigned char*)hpet + HPET_T0_CONFIG);
+
+	printk("\tSet HPET @ %p\n", hpet);
 }
 
 void
-timer_init(timer_type_t timer_type, u64_t cycles)
+timer_init(void)
 {
-	printk("Enabling timer @ %p\n", hpet);
+	unsigned long pico_per_hpetcyc;
 
+	assert(hpet_capabilities);
+	pico_per_hpetcyc = hpet_capabilities[1]/FEMPTO_PER_PICO; /* bits 32-63 are # of femptoseconds per HPET clock tick */
+	hpetcyc_per_tick = (TIMER_DEFAULT_US_INTERARRIVAL * PICO_PER_MICRO) / pico_per_hpetcyc;
+
+	printk("Enabling timer @ %p with tick granularity %ld picoseconds\n", hpet, pico_per_hpetcyc);
 	/* Enable legacy interrupt routing */
 	*hpet_config |= (1ll);
 
-	/* Set the timer as specified */
-	timer_set(timer_type, cycles);
+	/*
+	 * Set the timer as specified.  This assumes that the cycle
+	 * specification is in hpet cycles (not cpu cycles).
+	 */
+	timer_set(TIMER_PERIODIC, hpetcyc_per_tick);
 }

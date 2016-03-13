@@ -56,6 +56,8 @@ int chal_pgtbl_add_middledir_range(paddr_t pt, unsigned long vaddr, long size);
 
 void chal_tls_update(vaddr_t tlsaddr);
 
+void chal_cycles_per_period(u64_t cycles);
+
 /*********************************
  * Address translation functions *
  *********************************/
@@ -80,6 +82,8 @@ PERCPU_DECL(struct cap_arcv *, cos_timer_arcv);
 /*******************
  * Other functions *
  *******************/
+
+int chal_cyc_usec(void);
 
 int chal_attempt_arcv(struct cap_arcv *arcv);
 int chal_attempt_ainv(struct async_cap *acap);

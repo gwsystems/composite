@@ -28,15 +28,14 @@ void serial_init(void);
 
 /* These numbers map directly to actual timers in the HPET */
 typedef enum {
-    TIMER_PERIODIC = 0,
-    TIMER_ONESHOT = 1,
+	TIMER_PERIODIC = 0,
+	TIMER_ONESHOT  = 1,
 } timer_type_t;
 
-/* measured in cycles */
-#define DEFAULT_TIMER_INTERARRIVAL 1000000
+#define TIMER_DEFAULT_US_INTERARRIVAL 100 /* US = microseconds */
 
 void timer_set(timer_type_t timer_type, u64_t cycles);
-void timer_init(timer_type_t timer_type, u64_t cycles);
+void timer_init(void);
 u64_t timer_find_hpet(void *timer);
 void timer_set_hpet_page(u32_t page);
 void timer_thd_init(struct thread *t);
