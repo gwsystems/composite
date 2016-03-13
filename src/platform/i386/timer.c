@@ -87,10 +87,14 @@ volatile struct hpet_timer {
  * http://www.intel.com/content/dam/www/public/us/en/documents/technical-specifications/software-developers-hpet-spec-1-0a.pdf
  */
 
+#define PICO_PER_MICRO           1000000UL
+#define FEMPTO_PER_PICO          1000UL
 #define TIMER_CALIBRATION_ITER   16
 #define TIMER_ERROR_BOUND_FACTOR 128
 static int timer_calibration_init = 1;
-static unsigned long timer_cycles_per_hpetcyc = TIMER_ERROR_BOUND_FACTOR, hpetcyc_per_tick;
+static unsigned long timer_cycles_per_hpetcyc = TIMER_ERROR_BOUND_FACTOR;
+static unsigned long cycles_per_tick;
+static unsigned long hpetcyc_per_tick;
 #define ULONG_MAX 4294967295UL
 
 static inline u64_t
@@ -119,19 +123,22 @@ timer_calibration(void)
 	rdtscll(cycle);
 	if (cnt) tot += cycle-prev;
 	if (cnt >= TIMER_CALIBRATION_ITER) {
-		unsigned long timer_init_cycles;
-
 		assert(hpetcyc_per_tick);
 		timer_calibration_init   = 0;
-		timer_init_cycles        = (unsigned long)(tot / TIMER_CALIBRATION_ITER);
-		assert(timer_init_cycles > hpetcyc_per_tick);
+		cycles_per_tick          = (unsigned long)(tot / TIMER_CALIBRATION_ITER);
+		assert(cycles_per_tick > hpetcyc_per_tick);
+
 		/* Possibly significant rounding error here.  Bound by the factor */
-		timer_cycles_per_hpetcyc = (TIMER_ERROR_BOUND_FACTOR * timer_init_cycles) / hpetcyc_per_tick;
+		timer_cycles_per_hpetcyc = (TIMER_ERROR_BOUND_FACTOR * cycles_per_tick) / hpetcyc_per_tick;
 		printk("Timer calibrated:\n\tCPU cycles per HPET tick: %ld\n\tHPET ticks in %d us: %ld\n",
 		       timer_cycles_per_hpetcyc/TIMER_ERROR_BOUND_FACTOR, TIMER_DEFAULT_US_INTERARRIVAL, hpetcyc_per_tick);
 	}
 	cnt++;
 }
+
+int
+chal_cyc_usec(void)
+{ return cycles_per_tick / TIMER_DEFAULT_US_INTERARRIVAL; }
 
 int
 periodic_handler(struct pt_regs *regs)
@@ -226,9 +233,6 @@ timer_set_hpet_page(u32_t page)
 
 	printk("\tSet HPET @ %p\n", hpet);
 }
-
-#define PICO_PER_MICRO  1000000UL
-#define FEMPTO_PER_PICO 1000UL
 
 void
 timer_init(void)

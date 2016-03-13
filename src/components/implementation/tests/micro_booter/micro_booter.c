@@ -334,7 +334,7 @@ test_timer(void)
 		if (i > 0) t += c-p;
 	}
 
-	printc("\n\tCycles per tick (10 microseconds) = %lld\n", t/16);
+	printc("\tCycles per tick (10 microseconds) = %lld\n", t/16);
 
 	printc("Timer test completed.\nSuccess.\n");
 }
@@ -452,6 +452,7 @@ test_run(void)
 	printc("\nMicro Booter started.\n");
 
 	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	printc("---------------------------\n");
 	test_thds();

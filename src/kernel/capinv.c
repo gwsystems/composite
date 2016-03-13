@@ -1373,6 +1373,11 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			ret = hw_detach_rcvcap((struct cap_hw *)ch, hwid);
 			break;
 		}
+		case CAPTBL_OP_HW_CYC_USEC:
+		{
+			ret = chal_cyc_usec();
+			break;
+		}
 		default: goto err;
 		}
 		break;

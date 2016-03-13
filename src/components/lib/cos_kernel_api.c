@@ -653,3 +653,7 @@ cos_hw_attach(hwcap_t hwc, hwid_t hwid, arcvcap_t arcv)
 int
 cos_hw_detach(hwcap_t hwc, hwid_t hwid)
 { return call_cap_op(hwc, CAPTBL_OP_HW_DETACH, hwid, 0, 0, 0); }
+
+int
+cos_hw_cycles_per_usec(hwcap_t hwc)
+{ return call_cap_op(hwc, CAPTBL_OP_HW_CYC_USEC, 0, 0, 0, 0); }
