@@ -1357,8 +1357,8 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		case CAPTBL_OP_HW_ATTACH:
 		{
 			struct cap_arcv *rcvc;
-			hwid_t hwid           = __userregs_get1(regs);
-			capid_t rcvcap        = __userregs_get2(regs);
+			hwid_t hwid    = __userregs_get1(regs);
+			capid_t rcvcap = __userregs_get2(regs);
 
 			rcvc = (struct cap_arcv *)captbl_lkup(ci->captbl, rcvcap);
 			if (unlikely(!rcvc || rcvc->h.type != CAP_ARCV)) return -EINVAL;
@@ -1368,9 +1368,14 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		}
 		case CAPTBL_OP_HW_DETACH:
 		{
-			hwid_t hwid        = __userregs_get1(regs);
+			hwid_t hwid = __userregs_get1(regs);
 
 			ret = hw_detach_rcvcap((struct cap_hw *)ch, hwid);
+			break;
+		}
+		case CAPTBL_OP_HW_CYC_USEC:
+		{
+			ret = chal_cyc_usec();
 			break;
 		}
 		default: goto err;
