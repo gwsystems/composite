@@ -34,4 +34,4 @@ objcopy -L _start    $prog.bin
 
 ld -melf_i386 -r -o rumpcos.o $prog.bin rump_boot.o
 
-cp rumpcos.o ~/transfer
+cp rumpcos.o ../../../../../transfer

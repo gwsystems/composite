@@ -29,6 +29,7 @@ rump_thd_fn(void *param)
 	p->thdid = &thdid;
 
 	thdid = cos_thdid();
+	printc("thdid: %x\n", thdid);
 
 	cos_thd_switch(retcap);
 	f(arg);
