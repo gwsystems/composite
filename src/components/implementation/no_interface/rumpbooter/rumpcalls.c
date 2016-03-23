@@ -58,7 +58,8 @@ cos_irqthd_handler(void *line)
 			first = 0;
 			printc("I'm in irq # %x. \n", which);
 		}
-		bmk_isr(which);
+		if (which != 0) /* no timer handler in rumpkernel! */
+			bmk_isr(which + 32); 
 	}
 }
 
