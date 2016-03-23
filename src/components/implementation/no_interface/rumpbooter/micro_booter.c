@@ -11,9 +11,9 @@
 int
 prints(char *s)
 {
-    int len = strlen(s);
-	  cos_print(s, len);
-	  return len;
+	int len = strlen(s);
+    	cos_print(s, len);
+	return len;
 }
 
 int __attribute__((format(printf,1,2)))
@@ -336,24 +336,51 @@ static void
 spinner(void *d)
 { while(1) ; }
 
+//static void
+//test_timer(void)
+//{
+//	int i;
+//	thdcap_t tc;
+//
+//	printc("Starting timer test.\n");
+//	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
+//
+//	for (i = 0 ; i < 10 ; i++) {
+//		thdid_t tid;
+//                int rcving;
+//                cycles_t cycles;
+//
+//                printc(".");
+//                cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
+//                cos_thd_switch(tc);
+//	}
+//
+//	printc("Timer test completed.\nSuccess.\n");
+//}
+
 static void
 test_timer(void)
 {
 	int i;
 	thdcap_t tc;
+	cycles_t c = 0, p = 0, t = 0;
 
 	printc("Starting timer test.\n");
 	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, spinner, NULL);
 
-	for (i = 0 ; i < 10 ; i++) {
+	for (i = 0 ; i <= 16 ; i++) {
 		thdid_t tid;
-                int rcving;
-                cycles_t cycles;
+		int rcving;
+		cycles_t cycles;
 
-                printc(".");
-                cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
-                cos_thd_switch(tc);	
+		cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles);
+		cos_thd_switch(tc);
+		p = c;
+		rdtscll(c);
+		if (i > 0) t += c-p;
 	}
+
+	printc("\tCycles per tick (10 microseconds) = %lld\n", t/16);
 
 	printc("Timer test completed.\nSuccess.\n");
 }
@@ -520,24 +547,26 @@ cos_init(void)
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
 
 	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+
 	printc("---------------------------\n");
-	test_thds();
+	//test_thds();
 	printc("---------------------------\n");
-	test_thds_perf();
+	//test_thds_perf();
 	printc("---------------------------\n");
 
 	printc("---------------------------\n");
-	test_timer();
+	//test_timer();
 	printc("---------------------------\n");
 
 	printc("---------------------------\n");
-	test_mem();
+	//test_mem();
 	printc("---------------------------\n");
 
 	printc("---------------------------\n");
 	//test_async_endpoints();
 	printc("---------------------------\n");
-	test_async_endpoints_perf();
+	//test_async_endpoints_perf();
 	printc("---------------------------\n");
 
 	printc("---------------------------\n");

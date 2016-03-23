@@ -36,6 +36,13 @@ alloc_initmem_all(void)
 	return max;
 }
 
+/*
+ * RG: Calculate # of cycles per nanosecond
+ * Then for monotonic time, we count the number of cycles that have passed
+ * since the last rdtsc was called and calculate that against our cycles/nanosecond
+ * to return nanoseconds for monotonic time
+ */
+
 void
 cos_run(char *cmdline)
 {
@@ -44,6 +51,7 @@ cos_run(char *cmdline)
 	printc("bmk_sched_init done\n");
 	bmk_memalloc_init();
 	printc("bmk_memalloc_init done\n");
+	printc("timer_setup done\n");
 
 	// Before bmk_pgalloc_loadmem is called, I need to alloc memory till we have enough or till failure
 	// the start and end locations in memory to bmk_pgalloc

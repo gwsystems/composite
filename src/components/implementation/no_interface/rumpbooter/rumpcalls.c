@@ -28,7 +28,6 @@ cos2rump_setup(void)
 	crcalls.rump_strncpy          		= strncpy;
 	crcalls.rump_memcalloc        		= cos_memcalloc;
 	crcalls.rump_memalloc         		= cos_memalloc;
-	//crcalls.rump_pgalloc          	= alloc_page;
 	crcalls.rump_cos_thdid        		= cos_thdid;
 	crcalls.rump_memcpy           		= memcpy;
 	crcalls.rump_memset			= cos_memset;
@@ -151,10 +150,10 @@ cos_cpu_sched_create(struct bmk_thread *thread, struct bmk_tcb *tcb,
 	set_cos_thdcap(thread, newthd_cap);
 
 	/*
-	 * printc("\n------\nNew thread %d @ %x\n------\n\n",
-	 *		(int)newthd_cap,
-	 *		cos_introspect(&booter_info, newthd_cap, 0));
-	*/
+	 *  printc("\n------\nNew thread %d @ %x\n------\n\n",
+	 * 		(int)newthd_cap,
+	 * 		cos_introspect(&booter_info, newthd_cap, 0));
+	 */
 }
 
 struct bmk_thread *glob_prev;
