@@ -15,6 +15,4 @@ void bmk_pgalloc_loadmem(unsigned long min, unsigned long max);
 void bmk_sched_init(void);
 int  bmk_intr_init(void);
 
-int cycles_nano;
-
 #endif

@@ -192,7 +192,8 @@ cos_cpu_sched_switch(struct bmk_thread *prev, struct bmk_thread *next)
 
 /* --------- Timer ----------- */
 
-extern cycles_nano;
+/* Convert to us from ns to us to give us more accuracy when dividing */
+long long cycles_us = (long long)(CPU_GHZ * 1000);
 
 /* Return monotonic time since RK initiation in nanoseconds */
 long long
@@ -206,12 +207,12 @@ cos_cpu_clock_now(void)
 	/*
 	 * We divide as we have cycles and cycles per nano,
 	 * with unit analysis we need to divide to cancle cycles to just have ns
-	 * The last thread in the timeq has < wakeup time. We are getting a bug where the
-	 * truncation of the division results in the same current time, so we need a short
-	 * delay
+	 * The last thread in the timeq has < wakeup time.
 	 */
 
-	curtime = (long long)(tsc_now / cycles_nano);
+	//curtime = (long long)(tsc_now / cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE)); /* cycles to us */
+	curtime = (long long)(tsc_now / cycles_us); /* cycles to us */
+	curtime = (long long)(curtime * 1000); /* us to ns */
 
 	return curtime;
 }

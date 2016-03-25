@@ -36,30 +36,6 @@ alloc_initmem_all(void)
 	return max;
 }
 
-/*
- * RG: Calculate # of cycles per nanosecond
- * Then for monotonic time, we count the number of cycles that have passed
- * and calculate that against our cycles/nanosecond
- * to return nanoseconds for monotonic time
- */
-
-static void
-cycles_nano_init(void)
-{
-	int cycles_micro;
-
- 	cycles_micro = cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE);
-
-	/*
-	 * Convert to nanoseconds and set to global variable cycles_nano
-	 * 1 microsecond = 1000 nanoseconds
-	 */
-	cycles_nano = cycles_micro / 1000;
-
-	printc("cycles per microsecond %d\n", cycles_micro);
-	printc("cycles per nanosecond %d\n", cycles_nano);
-}
-
 void
 cos_run(char *cmdline)
 {
@@ -68,8 +44,6 @@ cos_run(char *cmdline)
 	printc("bmk_sched_init done\n");
 	bmk_memalloc_init();
 	printc("bmk_memalloc_init done\n");
-	cycles_nano_init();
-	printc("timer_setup done\n");
 
 	// Before bmk_pgalloc_loadmem is called, I need to alloc memory till we have enough or till failure
 	// the start and end locations in memory to bmk_pgalloc
