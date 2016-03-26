@@ -1379,6 +1379,8 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			vaddr_t va    = __userregs_get2(regs);
 			paddr_t pa    = __userregs_get3(regs);
 			struct cap_pgtbl *ptc;
+			unsigned long    *pte;
+			u32_t             flags;
 
 			/*
 			 * FIXME: This is broken.  It should only be
@@ -1389,7 +1391,10 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			 */
 			ptc = (struct cap_pgtbl *)captbl_lkup(ci->captbl, ptcap);
 			if (unlikely(!ptc || ptc->h.type != CAP_PGTBL)) return -EINVAL;
-			ret = pgtbl_mapping_add(ptc->pgtbl, va, pa & PGTBL_FRAME_MASK, PGTBL_USER_DEF);
+			pte = pgtbl_lkup_pte(ptc->pgtbl, va, &flags);
+			if (!pte)                    return -EINVAL;
+			if (*pte & PGTBL_FRAME_MASK) return -ENOENT;
+			*pte = (PGTBL_FRAME_MASK & pa) | PGTBL_USER_DEF;
 
 			break;
 		}
