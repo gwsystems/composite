@@ -130,15 +130,29 @@ test_thds(void)
 	printc("test done\n");
 }
 
+#define TEST_NPAGES (1024*2) 	/* Testing with 8MB for now */
+
 static void
 test_mem(void)
 {
 	char *p = cos_page_bump_alloc(&booter_info);
+	char *s, *t;
+	int i;
 
 	assert(p);
 	strcpy(p, "victory");
 
+	assert(0 == strcmp("victory", p));
 	printc("Page allocation: %s\n", p);
+
+	s = cos_page_bump_alloc(&booter_info);
+	assert(s);
+	for (i = 0 ; i < TEST_NPAGES ; i++) {
+		t = cos_page_bump_alloc(&booter_info);
+		assert(t);
+	}
+	memset(s, 0, TEST_NPAGES * 4096);
+	printc("SUCCESS: Allocated and zeroed %d pages.\n", TEST_NPAGES);
 }
 
 volatile arcvcap_t rcc_global, rcp_global;
