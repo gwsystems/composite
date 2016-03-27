@@ -269,10 +269,9 @@ __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 /**************** [User Virtual Memory Allocation Functions] ****************/
 
 static vaddr_t
-__page_bump_alloc(struct cos_compinfo *ci)
+__page_bump_valloc(struct cos_compinfo *ci)
 {
 	vaddr_t heap_vaddr;
-	vaddr_t umem;
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
 
 	printd("__page_bump_alloc\n");
@@ -307,17 +306,36 @@ __page_bump_alloc(struct cos_compinfo *ci)
 		assert(ci->vasrange_frontier == round_up_to_pgd_page(ci->vasrange_frontier));
 	}
 
+	/* FIXME: make atomic WRT concurrent allocations */
+	ci->vas_frontier += PAGE_SIZE;
+
+	return heap_vaddr;
+}
+
+static vaddr_t
+__page_bump_alloc(struct cos_compinfo *ci)
+{
+	struct cos_compinfo *meta = __compinfo_metacap(ci);
+	vaddr_t heap_vaddr, umem;
+
+	/* Allocate the virtual address to map into */
+	heap_vaddr = __page_bump_valloc(ci);
+	if (unlikely(!heap_vaddr)) return 0;
+
+	/*
+	 * Allocate the memory to map into that virtual address.
+	 *
+	 * FIXME: if this fails, we should also back out the page_bump_valloc
+	 */
 	umem = __umem_bump_alloc(ci);
 	if (!umem) return 0;
 
-	/* Actually map in the memory. */
+	/* Actually map in the memory. FIXME: cleanup! */
 	if (call_cap_op(meta->pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem,
 			ci->pgtbl_cap, heap_vaddr, 0)) {
 		assert(0);
 		return 0;
 	}
-
-	ci->vas_frontier += PAGE_SIZE;
 
 	return heap_vaddr;
 }
@@ -657,6 +675,12 @@ int
 cos_hw_cycles_per_usec(hwcap_t hwc)
 { return call_cap_op(hwc, CAPTBL_OP_HW_CYC_USEC, 0, 0, 0, 0); }
 
-int
-cos_hw_map(hwcap_t hwc, pgtblcap_t ptc, vaddr_t va, paddr_t pa)
-{ return call_cap_op(hwc, CAPTBL_OP_HW_MAP, ptc, va, pa, 0); }
+void *
+cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa)
+{
+	vaddr_t va = __page_bump_valloc(ci);
+
+	if (unlikely(!va)) return NULL;
+
+	return (void*)call_cap_op(hwc, CAPTBL_OP_HW_MAP, ci->pgtbl_cap, va, pa, 0);
+}
