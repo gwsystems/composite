@@ -1,0 +1,137 @@
+
+***********************************************
+************* Building Components *************
+***********************************************
+
+make  --no-print-directory -I /home/hobbes/Code/Research/composite/src -C components
+components makeflag  --no-print-directory
+####### Stack Manager is Enabled #######
+make  --no-print-directory -I /home/hobbes/Code/Research/composite/src -I /home/hobbes/Code/Research/composite/src -I /home/hobbes/Code/Research/rump2cos/Composite/src/components -C lib
+|     [CC]   Creating library file heap.a from heap.c
+|     [CC]   Creating library file cobj_format.a from cobj_format.c
+|     [CC]   Creating library file cos_kernel_api.a from cos_kernel_api.c
+make  --no-print-directory -I /home/hobbes/Code/Research/composite/src -I /home/hobbes/Code/Research/composite/src -I /home/hobbes/Code/Research/rump2cos/Composite/src/components -C interface
+***********************************************
+************[ Building interfaces ]************
+***********************************************
+cbuf_c.c: In function ‘__cbuf_alloc_slow’:
+cbuf_c.c:218:6: warning: variable ‘cnt’ set but not used [-Wunused-but-set-variable]
+  int cnt;
+      ^
+rm cbuf_c.o
+rm cos_synchronization.o
+rm cos_alloc.o
+rm cos_alloc.o
+In file included from parlib.c:6:0:
+/home/hobbes//Code/Research//composite/src//components//include/parlib.h: In function ‘par_inv’:
+/home/hobbes//Code/Research//composite/src//components//include/parlib.h:297:9: warning: variable ‘ret’ set but not used [-Wunused-but-set-variable]
+  int i, ret;
+         ^
+/home/hobbes//Code/Research//composite/src//components//include/parlib.h:296:23: warning: variable ‘curr_thd’ set but not used [-Wunused-but-set-variable]
+  struct par_thd_info *curr_thd;
+                       ^
+rm parlib.o
+rm printc.o
+rm printt.o
+make  --no-print-directory -I /home/hobbes/Code/Research/composite/src -I /home/hobbes/Code/Research/composite/src -I /home/hobbes/Code/Research/rump2cos/Composite/src/components -C implementation
+***********************************************
+*********[ Building Implementations ]**********
+***********************************************
+make[3]: Nothing to be done for `init'.
+make[3]: Nothing to be done for `cp'.
+Warning: in component mem_mgr.hier, function mman_valloc defined in an interface, but not in component
+Warning: in component mem_mgr.hier, function mman_revoke_page defined in an interface, but not in component
+Warning: in component mem_mgr.naive, function mman_valloc defined in an interface, but not in component
+Error: component mem_mgr.naive does not have stated dependencies to provide ['mman_valloc']
+	Suggested Fix: add the proper interface dependency in the DEPENDENCIES list in components/implementation/mem_mgr/naive/Makefile.
+Less likely fixes: a) you should specify a FN_PREPEND in the Makefile for a component that wishes to invoke another component with the same interface.
+b) you should reorder dependencies within the Makefile (see FAQ).
+|     [CP]   copying network stack from lwip
+cp: cannot stat ‘/home/hobbes//Code/Research//composite/src//components//lib/lwip/cos/net_stack.o’: No such file or directory
+make[3]: *** [first] Error 1
+make[4]: *** No targets.  Stop.
+make[4]: Nothing to be done for `cp'.
+make[4]: Nothing to be done for `cp'.
+Error: component no_interface.rumpbooter does not have stated dependencies to provide ['bmk_current', 'bmk_mainthread', 'bmk_memalloc_init', 'bmk_memsize', 'bmk_pgalloc_loadmem', 'bmk_sched_init', 'bmk_sched_startmain', 'crcalls', 'get_cos_thdcap', 'get_name', '_GLOBAL_OFFSET_TABLE_', 'set_cos_thdcap']
+	Suggested Fix: add the proper interface dependency in the DEPENDENCIES list in components/implementation/no_interface/rumpbooter/Makefile.
+Less likely fixes: a) you should specify a FN_PREPEND in the Makefile for a component that wishes to invoke another component with the same interface.
+b) you should reorder dependencies within the Makefile (see FAQ).
+|     [LD]   tests.micro_par (par_bench.o): Linking -lpar_mgr -lmem_mgr_large -lprintc -llock bench.o
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(parallel.o): In function `GOMP_parallel_start':
+(.text+0x1a0): multiple definition of `GOMP_parallel_start'
+par_bench.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:34: first defined here
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(parallel.o): In function `GOMP_parallel_end':
+(.text+0x1f0): multiple definition of `GOMP_parallel_end'
+par_bench.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:101: first defined here
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(parallel.o): In function `omp_get_num_threads':
+(.text+0x430): multiple definition of `omp_get_num_threads'
+par_bench.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:16: first defined here
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(parallel.o): In function `omp_get_thread_num':
+(.text+0x450): multiple definition of `omp_get_thread_num'
+par_bench.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:11: first defined here
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(env.o): In function `omp_set_nested':
+(.text+0xb0): multiple definition of `omp_set_nested'
+par_bench.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:25: first defined here
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(env.o): In function `omp_get_max_threads':
+(.text+0x1e0): multiple definition of `omp_get_max_threads'
+par_bench.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:21: first defined here
+collect2: error: ld returned 1 exit status
+make[4]: *** [par_bench.o] Error 1
+make[4]: *** No rule to make target `/usr/lib/libm.a', needed by `fft.o'.  Stop.
+make[4]: *** No rule to make target `/usr/lib/libm.a', needed by `cos_jacobi.o'.  Stop.
+|     [LD]   tests.omp_lu (cos_lu.o): Linking -lpar_mgr -lmem_mgr_large -lprintc -llock lu.o
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(parallel.o): In function `GOMP_parallel_start':
+(.text+0x1a0): multiple definition of `GOMP_parallel_start'
+cos_lu.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:34: first defined here
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(parallel.o): In function `GOMP_parallel_end':
+(.text+0x1f0): multiple definition of `GOMP_parallel_end'
+cos_lu.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:101: first defined here
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(parallel.o): In function `omp_get_num_threads':
+(.text+0x430): multiple definition of `omp_get_num_threads'
+cos_lu.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:16: first defined here
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(parallel.o): In function `omp_get_thread_num':
+(.text+0x450): multiple definition of `omp_get_thread_num'
+cos_lu.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:11: first defined here
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(env.o): In function `omp_set_nested':
+(.text+0xb0): multiple definition of `omp_set_nested'
+cos_lu.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:25: first defined here
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(env.o): In function `omp_get_max_threads':
+(.text+0x1e0): multiple definition of `omp_get_max_threads'
+cos_lu.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:21: first defined here
+collect2: error: ld returned 1 exit status
+make[4]: *** [cos_lu.o] Error 1
+|     [LD]   tests.unit_par (omp_comp.o): Linking -lpar_mgr -lmem_mgr_large -lprintc -llock omp.o
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(parallel.o): In function `GOMP_parallel_start':
+(.text+0x1a0): multiple definition of `GOMP_parallel_start'
+omp_comp.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:34: first defined here
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(parallel.o): In function `GOMP_parallel_end':
+(.text+0x1f0): multiple definition of `GOMP_parallel_end'
+omp_comp.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:101: first defined here
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(parallel.o): In function `omp_get_num_threads':
+(.text+0x430): multiple definition of `omp_get_num_threads'
+omp_comp.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:16: first defined here
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(parallel.o): In function `omp_get_thread_num':
+(.text+0x450): multiple definition of `omp_get_thread_num'
+omp_comp.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:11: first defined here
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(env.o): In function `omp_set_nested':
+(.text+0xb0): multiple definition of `omp_set_nested'
+omp_comp.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:25: first defined here
+/usr/lib/gcc/i686-linux-gnu/4.9/libgomp.a(env.o): In function `omp_get_max_threads':
+(.text+0x1e0): multiple definition of `omp_get_max_threads'
+omp_comp.o.tmp:/home/hobbes/Code/Research/rump2cos/Composite/src/components/interface/par_mgr/parlib.c:21: first defined here
+collect2: error: ld returned 1 exit status
+make[4]: *** [omp_comp.o] Error 1
+make[4]: Nothing to be done for `cp'.
+|     [CP]   copying network stack from lwip
+cp: cannot stat ‘/home/hobbes//Code/Research//composite/src//components//lib/lwip/cos/net_stack.o’: No such file or directory
+make[4]: *** [first] Error 1
+
+***********************************************
+***** Building i386 Platform and Kernel *******
+***********************************************
+
+make  --no-print-directory -I /home/hobbes/Code/Research/composite/src PLATFORM=i386 -C platform
+make -C i386
+make[2]: Nothing to be done for `all'.
+make -C linker
+make[2]: Nothing to be done for `default'.

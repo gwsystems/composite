@@ -26,8 +26,12 @@ cos2rump_setup(void)
 	crcalls.rump_vsnprintf        		= vsnprintf;
 	crcalls.rump_strcmp           		= strcmp;
 	crcalls.rump_strncpy          		= strncpy;
+
+	/* These should be removed, confirm that they are never used */
 	crcalls.rump_memcalloc        		= cos_memcalloc;
 	crcalls.rump_memalloc         		= cos_memalloc;
+
+
 	crcalls.rump_cos_thdid        		= cos_thdid;
 	crcalls.rump_memcpy           		= memcpy;
 	crcalls.rump_memset			= cos_memset;
@@ -83,6 +87,9 @@ void *
 cos_memcalloc(size_t n, size_t size)
 {
 
+	printc("cos_memcalloc was called\n");
+	while(1);
+
 	void *rv;
 	size_t tot = n * size;
 
@@ -96,6 +103,9 @@ cos_memcalloc(size_t n, size_t size)
 void *
 cos_memalloc(size_t nbytes, size_t align)
 {
+	printc("cos_memalloc was called\n");
+	while(1);
+
 	void *rv;
 
 	rv = rump_cos_malloc(nbytes);
@@ -219,7 +229,7 @@ cos_cpu_clock_now(void)
 }
 
 void *
-cos_va2pa(void * vaddr) 
+cos_va2pa(void * vaddr)
 {
         int paddr = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (int)vaddr, 0,0,0);
 	paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
