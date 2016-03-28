@@ -1390,12 +1390,13 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			 * PCI).
 			 */
 			ptc = (struct cap_pgtbl *)captbl_lkup(ci->captbl, ptcap);
-			if (unlikely(!ptc || ptc->h.type != CAP_PGTBL)) return -EINVAL;
+			if (unlikely(!ptc || ptc->h.type != CAP_PGTBL)) cos_throw(err, -EINVAL);
 			pte = pgtbl_lkup_pte(ptc->pgtbl, va, &flags);
-			if (!pte)                    return -EINVAL;
-			if (*pte & PGTBL_FRAME_MASK) return -ENOENT;
+			if (!pte)                    cos_throw(err, -EINVAL);
+			if (*pte & PGTBL_FRAME_MASK) cos_throw(err, -ENOENT);
 			*pte = (PGTBL_FRAME_MASK & pa) | PGTBL_USER_DEF;
 
+			ret = 0;
 			break;
 		}
 		case CAPTBL_OP_HW_CYC_USEC:
