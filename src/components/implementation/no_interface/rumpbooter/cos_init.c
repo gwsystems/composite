@@ -5,8 +5,11 @@
 
 extern struct cos_compinfo booter_info;
 
-/* RG: The amount of memory to give RK to start */
-#define RK_MEM ((1 << 30) + (1 << 5))
+/*
+ * RG: The amount of memory to give RK to start in bytes
+ * 1 mb
+ */
+#define RK_MEM 32000000
 static unsigned long
 alloc_initmem_all(void)
 {
@@ -15,7 +18,10 @@ alloc_initmem_all(void)
 	 * from cos_run.
 	 */
 	int count = 1;
-	int max_rk = (RK_MEM / 4096);
+
+	/* bytes to pages, add 1 to compensate for trunctation */
+	int max_rk = (RK_MEM / 4096) + 1;
+	printc("Looking to get %d number of pages\n", max_rk);
 
 	void *curpage;
 	void *nxtpage = cos_page_bump_alloc(&booter_info);
@@ -30,6 +36,8 @@ alloc_initmem_all(void)
 		nxtpage = cos_page_bump_alloc(&booter_info);
 		count++;
 	}
+
+	if(count < max_rk) printc("Did not allocate desired amount of mem for RK! Ran out of mem first\n");
 
 	unsigned long max = (unsigned long)curpage;
 	printc("max: %x\n", max);

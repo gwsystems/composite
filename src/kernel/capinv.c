@@ -1373,6 +1373,31 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			ret = hw_detach_rcvcap((struct cap_hw *)ch, hwid);
 			break;
 		}
+		case CAPTBL_OP_HW_MAP:
+		{
+			capid_t ptcap = __userregs_get1(regs);
+			vaddr_t va    = __userregs_get2(regs);
+			paddr_t pa    = __userregs_get3(regs);
+			struct cap_pgtbl *ptc;
+			unsigned long    *pte;
+			u32_t             flags;
+
+			/*
+			 * FIXME: This is broken.  It should only be
+			 * used on physical address that are not
+			 * accessible through the normal mechanisms
+			 * (i.e. on physical apertures presented by
+			 * PCI).
+			 */
+			ptc = (struct cap_pgtbl *)captbl_lkup(ci->captbl, ptcap);
+			if (unlikely(!ptc || ptc->h.type != CAP_PGTBL)) return -EINVAL;
+			pte = pgtbl_lkup_pte(ptc->pgtbl, va, &flags);
+			if (!pte)                    return -EINVAL;
+			if (*pte & PGTBL_FRAME_MASK) return -ENOENT;
+			*pte = (PGTBL_FRAME_MASK & pa) | PGTBL_USER_DEF;
+
+			break;
+		}
 		case CAPTBL_OP_HW_CYC_USEC:
 		{
 			ret = chal_cyc_usec();

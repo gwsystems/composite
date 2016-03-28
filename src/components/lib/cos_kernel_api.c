@@ -27,6 +27,7 @@ printd(char *fmt, ...)
 #else
 #define printd(...)
 #endif
+#define printc(...)
 
 void
 cos_meminfo_init(struct cos_meminfo *mi, vaddr_t umem_ptr, unsigned long umem_sz,
@@ -47,6 +48,7 @@ cos_compinfo_init(struct cos_compinfo *ci, captblcap_t pgtbl_cap, pgtblcap_t cap
 		  compcap_t comp_cap, vaddr_t heap_ptr, capid_t cap_frontier,
 		  struct cos_compinfo *ci_resources)
 {
+	printc("%s:%d - %x\n", __func__, __LINE__, (int)heap_ptr);
 	assert(ci && ci_resources);
 	assert(cap_frontier % CAPMAX_ENTRY_SZ == 0);
 
@@ -269,27 +271,30 @@ __capid_bump_alloc(struct cos_compinfo *ci, cap_t cap)
 /**************** [User Virtual Memory Allocation Functions] ****************/
 
 static vaddr_t
-__page_bump_alloc(struct cos_compinfo *ci)
+__page_bump_valloc(struct cos_compinfo *ci)
 {
 	vaddr_t heap_vaddr;
-	vaddr_t umem;
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
 
 	printd("__page_bump_alloc\n");
 
 	assert(meta == __compinfo_metacap(meta)); /* prevent unbounded structures */
 	heap_vaddr = ci->vas_frontier;
+	printc("%s:%d - %x\n", __func__, __LINE__, (int)heap_vaddr);
 
 	/* Do we need to allocate a PTE? */
 	if (heap_vaddr == ci->vasrange_frontier) {
+	printc("%s:%d\n", __func__, __LINE__);
 		capid_t pte_cap;
 		vaddr_t ptemem_cap;
 
 		pte_cap    = __capid_bump_alloc(meta, CAP_PGTBL);
 		ptemem_cap = __kmem_bump_alloc(meta);
 		/* TODO: handle the case of running out of memory */
+	printc("%s:%d\n", __func__, __LINE__);
 		if (pte_cap == 0 || ptemem_cap == 0) return 0;
 
+	printc("%s:%d\n", __func__, __LINE__);
 		/* PTE */
 		if (call_cap_op(meta->captbl_cap, CAPTBL_OP_PGTBLACTIVATE,
 				pte_cap, meta->pgtbl_cap, ptemem_cap, 1)) {
@@ -297,27 +302,52 @@ __page_bump_alloc(struct cos_compinfo *ci)
 			return 0;
 		}
 
+	printc("%s:%d\n", __func__, __LINE__);
 		/* Construct pgtbl */
 		if (call_cap_op(ci->pgtbl_cap, CAPTBL_OP_CONS, pte_cap, heap_vaddr, 0, 0)) {
 			assert(0); /* race? */
 			return 0;
 		}
 
+	printc("%s:%d\n", __func__, __LINE__);
 		ci->vasrange_frontier += PGD_RANGE;
 		assert(ci->vasrange_frontier == round_up_to_pgd_page(ci->vasrange_frontier));
+	printc("%s:%d\n", __func__, __LINE__);
 	}
+	printc("%s:%d - %x\n", __func__, __LINE__, (int)heap_vaddr);
 
+	/* FIXME: make atomic WRT concurrent allocations */
+	ci->vas_frontier += PAGE_SIZE;
+
+	return heap_vaddr;
+}
+
+static vaddr_t
+__page_bump_alloc(struct cos_compinfo *ci)
+{
+	struct cos_compinfo *meta = __compinfo_metacap(ci);
+	vaddr_t heap_vaddr, umem;
+
+	/* Allocate the virtual address to map into */
+	heap_vaddr = __page_bump_valloc(ci);
+	printc("%s:%d - %x\n", __func__, __LINE__, (int)heap_vaddr);
+	//if (unlikely(!heap_vaddr)) return 0;
+
+	/*
+	 * Allocate the memory to map into that virtual address.
+	 *
+	 * FIXME: if this fails, we should also back out the page_bump_valloc
+	 */
 	umem = __umem_bump_alloc(ci);
+	printc("%s:%d - %x\n", __func__, __LINE__, (int)umem);
 	if (!umem) return 0;
 
-	/* Actually map in the memory. */
+	/* Actually map in the memory. FIXME: cleanup! */
 	if (call_cap_op(meta->pgtbl_cap, CAPTBL_OP_MEMACTIVATE, umem,
 			ci->pgtbl_cap, heap_vaddr, 0)) {
 		assert(0);
 		return 0;
 	}
-
-	ci->vas_frontier += PAGE_SIZE;
 
 	return heap_vaddr;
 }
@@ -656,3 +686,13 @@ cos_hw_detach(hwcap_t hwc, hwid_t hwid)
 int
 cos_hw_cycles_per_usec(hwcap_t hwc)
 { return call_cap_op(hwc, CAPTBL_OP_HW_CYC_USEC, 0, 0, 0, 0); }
+
+void *
+cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa)
+{
+	vaddr_t va = __page_bump_valloc(ci);
+
+	if (unlikely(!va)) return NULL;
+
+	return (void*)call_cap_op(hwc, CAPTBL_OP_HW_MAP, ci->pgtbl_cap, va, pa, 0);
+}

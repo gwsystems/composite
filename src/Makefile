@@ -3,7 +3,7 @@ MAKEFLAGS=--no-print-directory --section-alignment 0x1000 -I$(PWD)
 
 all: comps $(shell cat PLATFORM)
 
-comps: 
+comps:
 	$(info )
 	$(info ***********************************************)
 	$(info ************* Building Components *************)
@@ -11,7 +11,7 @@ comps:
 	$(info )
 	$(MAKE) $(MAKEFLAGS) -C components
 
-linux: 
+linux:
 	$(info )
 	$(info ***********************************************)
 	$(info ***** Building Linux Platform and Kernel ******)
@@ -19,7 +19,7 @@ linux:
 	$(info )
 	$(MAKE) $(MAKEFLAGS) PLATFORM=linux -C platform
 
-i386: 
+i386:
 	$(info )
 	$(info ***********************************************)
 	$(info ***** Building i386 Platform and Kernel *******)
@@ -39,8 +39,8 @@ clean:
 
 
 distclean: clean
-	$(MAKE) $(MAKEFLAGS) -C components distclean	
-	rm -f `pwd`/../transfer/*
+	$(MAKE) $(MAKEFLAGS) -C components distclean
+	@rm -f `pwd`/../transfer/*
 
 init:
 	$(MAKE) $(MAKEFLAGS) -C components init
@@ -55,7 +55,7 @@ config-gen:
 	@pwd | sed 's/\(\/[a-zA-Z0-9]*\/[a-zA-Z0-9]*\/\).*/HOME_DIR=\1/' > Makefile.cosconfig
 	@echo "CODE_DIR=`pwd`" >> Makefile.cosconfig
 	@echo "TRANS_DIR=\$$(CODE_DIR)/../transfer" >> Makefile.cosconfig
-	mkdir -p `pwd`/../transfer
+	@mkdir -p `pwd`/../transfer
 	@echo "LDIR=\$$(CODE_DIR)/linux-2.6.36/" >> Makefile.cosconfig
 	@echo "TEST_DIR=/root/experiments/" >> Makefile.cosconfig
 
