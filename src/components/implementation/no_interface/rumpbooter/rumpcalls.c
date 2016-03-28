@@ -39,6 +39,7 @@ cos2rump_setup(void)
 	crcalls.rump_memfree			= cos_memfree;
 	crcalls.rump_tls_init 			= cos_tls_init;
 	crcalls.rump_va2pa			= cos_va2pa;
+	crcalls.rump_pa2va			= cos_pa2va;
 	return;
 }
 
@@ -226,3 +227,8 @@ cos_va2pa(void * vaddr)
         return (void *)paddr;
 }
 
+void *
+cos_pa2va(void * pa, unsigned long len) 
+{
+        return (void *)cos_hw_map(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, (paddr_t)pa);
+}

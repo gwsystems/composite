@@ -40,6 +40,7 @@ struct cos_rumpcalls
 	void   (*rump_cpu_sched_switch_viathd)(struct bmk_thread *prev, struct bmk_thread *next);
 	void   (*rump_tls_init)(unsigned long tp, capid_t tc); /* thdcap_t == capid_t*/
 	void*  (*rump_va2pa)(void *addr);
+	void*  (*rump_pa2va)(void *addr, unsigned long len);
 };
 
 /* Mapping the functions from rumpkernel to composite */
@@ -59,5 +60,6 @@ long long cos_cpu_clock_now(void);
 void cos_irqthd_handler(void *line);
 
 void *cos_va2pa(void* addr);
+void *cos_pa2va(void* addr, unsigned long len);
 
 #endif /* RUMPCALLS_H */
