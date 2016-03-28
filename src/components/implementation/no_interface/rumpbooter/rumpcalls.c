@@ -240,5 +240,5 @@ cos_va2pa(void * vaddr)
 void *
 cos_pa2va(void * pa, unsigned long len) 
 {
-        return (void *)cos_hw_map(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, (paddr_t)pa);
+        return (void *)cos_hw_map(&booter_info, BOOT_CAPTBL_SELF_INITHW_BASE, (paddr_t)pa, (unsigned int)len);
 }
