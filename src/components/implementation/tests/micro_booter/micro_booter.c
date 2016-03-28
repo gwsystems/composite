@@ -135,21 +135,24 @@ test_thds(void)
 static void
 test_mem(void)
 {
-	char *p = cos_page_bump_alloc(&booter_info);
-	char *s, *t;
+	char *p, *s, *t, *prev;
 	int i;
+	const char *chk = "SUCCESS";
 
+	p = cos_page_bump_alloc(&booter_info);
 	assert(p);
-	strcpy(p, "victory");
+	strcpy(p, chk);
 
-	assert(0 == strcmp("victory", p));
-	printc("Page allocation: %s\n", p);
+	assert(0 == strcmp(chk, p));
+	printc("%s: Page allocation\n", p);
 
 	s = cos_page_bump_alloc(&booter_info);
 	assert(s);
+	prev = s;
 	for (i = 0 ; i < TEST_NPAGES ; i++) {
 		t = cos_page_bump_alloc(&booter_info);
-		assert(t);
+		assert(t && t == prev + 4096);
+		prev = t;
 	}
 	memset(s, 0, TEST_NPAGES * 4096);
 	printc("SUCCESS: Allocated and zeroed %d pages.\n", TEST_NPAGES);
