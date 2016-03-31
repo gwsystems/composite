@@ -150,9 +150,9 @@ typedef unsigned long capid_t;
  */
 typedef enum {
 	CAP_SZ_16B = 0,
-	CAP_SZ_32B = 1,
-	CAP_SZ_64B = 2,
-	CAP_SZ_ERR = 3,
+	CAP_SZ_32B,
+	CAP_SZ_64B,
+	CAP_SZ_ERR
 } cap_sz_t;
 /* the shift offset for the *_SZ_* values */
 #define	CAP_SZ_OFF   4
@@ -806,28 +806,23 @@ typedef struct { volatile unsigned int counter; } atomic_t;
 
 #define LOCK_PREFIX LOCK_PREFIX_HERE "\n\tlock; "
 
-static inline void atomic_inc(atomic_t *v)
-{
-	asm volatile(LOCK_PREFIX "incl %0"
-		     : "+m" (v->counter));
-}
+static inline void
+atomic_inc(atomic_t *v)
+{ asm volatile(LOCK_PREFIX "incl %0" : "+m" (v->counter)); }
 
-static inline void atomic_dec(atomic_t *v)
-{
-	asm volatile(LOCK_PREFIX "decl %0"
-		     : "+m" (v->counter));
-}
+static inline void
+atomic_dec(atomic_t *v)
+{ asm volatile(LOCK_PREFIX "decl %0" : "+m" (v->counter)); }
 #endif /* __KERNEL__ */
+
+static inline void
+cos_mem_fence(void)
+{ __asm__ __volatile__("mfence" ::: "memory"); }
 
 // ncpu * 16 (or max 256) entries. can be increased if necessary.
 #define COS_THD_INIT_REGION_SIZE (((NUM_CPU*16) > (1<<8)) ? (1<<8) : (NUM_CPU*16))
 // Static entries are after the dynamic allocated entries
 #define COS_STATIC_THD_ENTRY(i) ((i + COS_THD_INIT_REGION_SIZE + 1))
-
-static inline void cos_mem_fence(void)
-{
-	__asm__ __volatile__("mfence" ::: "memory");
-}
 
 #define TCAP_RES_GRAN_ORD  16
 #define TCAP_RES_PACK(r)   (round_up_to_pow2((r), 1 << TCAP_RES_GRAN_ORD))
@@ -838,14 +833,9 @@ static inline void cos_mem_fence(void)
 typedef capid_t tcap_t;
 
 typedef enum {
-	TCAP_SPLIT_POOL = 1,
-} tcap_split_flags_t;
-
-typedef enum {
 	TCAP_DELEG_TRANSFER = 1,
-	TCAP_DELEG_DISPATCH = 1<<1,
+	TCAP_DELEG_YIELD    = 1<<1,
 } tcap_deleg_flags_t;
-
 
 #ifndef __KERNEL_PERCPU
 #define __KERNEL_PERCPU 0

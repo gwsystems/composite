@@ -945,19 +945,17 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		}
 		case CAPTBL_OP_TCAP_ACTIVATE:
 		{
-			capid_t tcap_cap   = __userregs_get1(regs) & 0xFFFF;
-			int     flags 	   = __userregs_get1(regs) >> 16;
+			capid_t tcap_cap   = __userregs_get1(regs);
 			capid_t pgtbl_cap  = __userregs_get2(regs);
 			capid_t pgtbl_addr = __userregs_get3(regs);
 			capid_t tcap_src   = __userregs_get4(regs);
-
 			struct tcap     *tcap;
 			unsigned long   *pte = NULL;
 
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&tcap, &pte);
 			if (unlikely(ret)) cos_throw(err, ret);
 
-			ret = tcap_split(ct, cap, tcap_cap, tcap, tcap_src, flags, 0);
+			ret = tcap_split(ct, cap, tcap_cap, tcap, tcap_src, 0);
 			if (ret) {
 				unsigned long old = *pte;
 				assert (old & PGTBL_COSKMEM);
