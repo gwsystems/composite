@@ -544,7 +544,7 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 
 	rcv_thd  = arcv->thd;
 	tcap     = tcap_current(cos_info);
-	rcv_tcap = rcv_thd->tcap;
+	rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
 
 	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap);
@@ -585,7 +585,7 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	assert(ci  && ci->captbl);
 	assert(!thd->state & THD_STATE_PREEMPTED);
 	rcv_thd    = arcv->thd;
-	rcv_tcap   = rcv_thd->tcap;
+	rcv_tcap   = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
 
 	next       = asnd_process(rcv_thd, thd, rcv_tcap, tcap);
@@ -1313,8 +1313,8 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 
 			arcv = __cap_asnd_to_arcv(asnd);
 			rthd = arcv->thd;
-			assert(rthd && rthd->tcap);
-			tcapdst = rthd->tcap;
+			assert(rthd && rthd->rcvcap.rcvcap_tcap);
+			tcapdst = rthd->rcvcap.rcvcap_tcap;
 
 			ret = tcap_delegate(tcapsrc->tcap, tcapdst, res, prio);
 			if (unlikely(ret)) cos_throw(err, -EINVAL);

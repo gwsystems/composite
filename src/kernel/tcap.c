@@ -195,6 +195,15 @@ tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new,
 	return 0;
 }
 
+void
+tcap_promote(struct tcap *t, struct thread *thd)
+{
+	if (tcap_ispool(t)) return;
+	tcap_ref_release(t->pool);
+	t->arcv_ep = thd;
+	t->pool    = t;
+}
+
 int
 tcap_delegate(struct tcap *dst, struct tcap *src, tcap_res_t cycles, int prio)
 {

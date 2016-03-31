@@ -14,6 +14,7 @@
 
 #include "shared/cos_types.h"
 #include "component.h"
+#include "thd.h"
 
 #ifndef TCAP_MAX_DELEGATIONS
 #define TCAP_MAX_DELEGATIONS 16
@@ -50,6 +51,7 @@ struct tcap {
 	 * this capability in which case budget = this.
 	 */
 	struct tcap 	   *pool;
+	struct thread      *arcv_ep; /* if ispool, this is the arcv endpoint */
 	u32_t 		   refcnt;
 	struct tcap_budget budget; /* if we have a partitioned budget */
 	u8_t               ndelegs, curr_sched_off;
@@ -80,6 +82,7 @@ int tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_
 int tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, tcap_prio_t prio);
 int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, int prio);
 int tcap_merge(struct tcap *dst, struct tcap *rm);
+void tcap_promote(struct tcap *t, struct thread *thd);
 
 struct thread *tcap_tick_handler(void);
 void tcap_timer_choose(int c);
@@ -99,6 +102,7 @@ tcap_ref_release(struct tcap *t)
 static inline int
 tcap_ref(struct tcap *t)
 { return t->refcnt; }
+
 
 /*
  * Return 0 if budget left, 1 if the tcap is out of budget, and -1 if
