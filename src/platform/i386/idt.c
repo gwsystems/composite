@@ -68,11 +68,13 @@ hw_handler(struct pt_regs *regs)
 {
 	int preempt = 1;
 
+	//printk("%d", regs->orig_ax);
+
 	/*
 	 * TODO: ack here? or
 	 *       after user-level interrupt(rcv event) processing?
 	 */
-	ack_irq(regs->orig_ax);
+	//ack_irq(regs->orig_ax);
 	preempt = cap_hw_asnd(&hw_asnd_caps[regs->orig_ax], regs);
 
 	return preempt;

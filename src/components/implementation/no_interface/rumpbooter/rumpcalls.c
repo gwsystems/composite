@@ -51,7 +51,7 @@ cos2rump_setup(void)
 void
 cos_irqthd_handler(void *line)
 {
-	printc("cos_irqthd_handler\n");
+	printc("\n!!!cos_irqthd_handler!!!\n");
 	int which = (int)line;
 	int first = 1;
 	thdid_t tid;
@@ -65,7 +65,7 @@ cos_irqthd_handler(void *line)
 			printc("I'm in irq # %x. \n", which);
 		}
 		if (which != 0) /* no timer handler in rumpkernel! */
-			bmk_isr(which); 
+			bmk_isr(which);
 	}
 }
 

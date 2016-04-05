@@ -88,6 +88,20 @@ rump_booter_init(void)
 	cycles_t cycles;
 	tcap_t tcc;
 
+
+	char *json_file = "{,\"net\":{,\"if\":\"vioif0\",\"type\":\"inet\",\"method\":\"static\",\"addr\":\"10.0.120.101\",\"mask\":\"24\",},\"cmdline\":\"paws.bin\",},\0";
+
+	//char *json_file = " {, \
+	//	   \"net\" :  {, \
+	//	   \"if\":           \"vioif0\", \
+	//	   \"type\": \"inet\", \
+	//	   \"method\":       \"static\", \
+	//	   \"addr\": \"10.0.120.101\", \
+	//	   \"mask\": \"24\", \
+	//	   }, \
+	//	   \"cmdline\": \"paws.bin\", \
+	//	   }, ";
+
 	tc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_rk_fn, NULL);
 	assert(tc);
 	tcc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 0, 0);
@@ -108,7 +122,9 @@ rump_booter_init(void)
 	printc("\nSetting up arcv for hw irq\n");
 	hw_irq_alloc();
 
-	cos_run(NULL);
+	/* We pass in the json config string to the RK */
+	printc("Json File:\n%s", json_file);
+	cos_run(json_file);
 	printc("\nRumpKernel Boot done.\n");
 
 	BUG();
