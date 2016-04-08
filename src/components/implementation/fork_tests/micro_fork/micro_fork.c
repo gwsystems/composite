@@ -7,6 +7,11 @@
 #define ITER (1024)
 u64_t meas[ITER];
 
+/*
+ * Warning - test assumes Composite can run at least ITER components.
+ * (And this may not take into account other components for this test
+ */
+
 void cos_init(void)
 {
 	u64_t start, end, avg, tot = 0, dev = 0;
@@ -24,8 +29,14 @@ void cos_init(void)
 	for (i = 0 ; i < ITER ; i++) {
 		rdtscll(start);
 		f = quarantine_fork(cos_spd_id(), f);
+		printc("return value of f is %d\n", f);
 		rdtscll(end);
 		meas[i] = end-start;
+
+		/* 
+		 * Not the best check but on failure, fork seems to return 65535 which should be well-past ITER. 
+		 * TODO: make fork return 0 when out of components 
+		 */
 		if (f == 0) break;
 	}
 	if (f == 0) {
@@ -53,6 +64,6 @@ void cos_init(void)
 	dev /= iter;
 	printc("deviation^2 = %lld\n", dev);
 
-//	printc("%d invocations took %lld\n", ITER, end-start);
+	printc("%d invocations took %lld\n", ITER, end-start);
 	return;
 }
