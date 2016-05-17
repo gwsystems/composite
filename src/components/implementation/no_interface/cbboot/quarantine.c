@@ -20,9 +20,9 @@ static struct spd_map_entry spd_map_freelist[SPD_MAP_NELEM];
 static int spd_map_freelist_index = 0;
 
 static int
-quarantine_add_to_spd_map(int o_spd, int f_spd) {
+quarantine_add_to_spd_map(int o_spd, int f_spd) {	// origin and forked
 	struct spd_map_entry *f;
-	assert(spd_map_freelist_index < SPD_MAP_NELEM);
+	assert(spd_map_freelist_index < SPD_MAP_NELEM);		
 	f = &spd_map_freelist[spd_map_freelist_index++];
 	ADD_END_LIST(&spd_map[o_spd], f, n, p);
 	f->fork_spd = f_spd;
@@ -38,10 +38,10 @@ quarantine_get_spd_map_entry(int o_spd) {
 static int
 quarantine_search_spd_map(int f_spd) {
 	return spd_map[f_spd].fork_spd;
-	//return cos_spd_cntl(COS_SPD_GET_FORK_ORIGIN, fork_spd, 0, 0);
 }	
 
-/* Called after fork() finished copying the spd from source to target.
+/* 
+ * Called after fork() finished copying the spd from source to target.
  */
 int
 quarantine_migrate(spdid_t spdid, spdid_t source, spdid_t target, thdid_t thread)
@@ -58,8 +58,10 @@ done:
 	return 0;
 }
 
-/* Increment all of the (non fault handler) caps fork.cnt.
- * GB: unused and might be removed, along with COS_CAP_INC_FORK_CNT */
+/* 
+ * Increment all of the (non fault handler) caps fork.cnt.
+ * GB: unused and might be removed, along with COS_CAP_INC_FORK_CNT 
+ */
 static int
 quarantine_spd_caps(struct cobj_header *h, spdid_t spdid)
 {
@@ -75,9 +77,11 @@ quarantine_spd_caps(struct cobj_header *h, spdid_t spdid)
 	return 0;
 }
 
-/* Translates a virtual address in (spdid) component's address space into the
+/* 
+ * Translates a virtual address in (spdid) component's address space into the
  * quarantine manager's address space. Useful for sharing data between a
- * cbbooted-component and the quarantine manager. */
+ * cbbooted-component and the quarantine manager. 
+ */
 void* quarantine_translate_addr(spdid_t spdid, vaddr_t addr)
 {
 	struct cobj_header *h;
@@ -89,7 +93,7 @@ void* quarantine_translate_addr(spdid_t spdid, vaddr_t addr)
 		printd("cos_vect_lookup(%d) in spd_sect_cbufs failed\n", spdid);
 	if (unlikely(!(h = cos_vect_lookup(&spd_sect_cbufs_header, spdid))))
 		printd("cos_vect_lookup(%d) in spd_sect_cbufs_header failed\n", spdid);
-	if (!sect_cbufs || !h) BUG(); //goto done;
+	if (!sect_cbufs || !h) BUG();
 
 	for (i = 0; i < (int)h->nsect; i++) {
 		struct cobj_sect *sect = cobj_sect_get(h, i);
@@ -108,7 +112,7 @@ void* quarantine_translate_addr(spdid_t spdid, vaddr_t addr)
 	return NULL;
 }
 
-/* quarantine if */
+/* quarantine process source if spdid has permission */
 spdid_t
 quarantine_fork(spdid_t spdid, spdid_t source)
 {
@@ -119,7 +123,7 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	thdid_t d_thd;
 #endif
 	struct cbid_caddr *old_sect_cbufs, *new_sect_cbufs;
-	struct cobj_header *h;
+	struct cobj_header *src_hdr;
 	struct cobj_sect *sect;
 	struct cobj_cap *cap;
 	vaddr_t init_daddr;
@@ -129,9 +133,9 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 
 	// how to fix this? Can quarantine have an init method
 	/* FIXME: initialization hack. */
-	static int first = 1;
+	static int first = 1;											// first = first quarantine ever?
 
-	int p = sched_curr_set_priority(0);
+	int p = sched_curr_set_priority(0);									/// why?
 
 	if (first) {
 		for (j = 0; j < SPD_MAP_NELEM; j++) {
@@ -144,11 +148,11 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 
 	printd("quarantine_fork(%d, %d)\n", spdid, source);
 
-	if (!(old_sect_cbufs = cos_vect_lookup(&spd_sect_cbufs, source)))
+	if (!(old_sect_cbufs = cos_vect_lookup(&spd_sect_cbufs, source)))					// no idea what either of these is
 		printd("cos_vect_lookup(%d) in spd_sec_cbufs failed\n", source);
-	if (!(h = cos_vect_lookup(&spd_sect_cbufs_header, source)))
+	if (!(src_hdr = cos_vect_lookup(&spd_sect_cbufs_header, source)))
 		printd("cos_vect_lookup(%d) in spd_sec_cbufs_header failed\n", source);
-	if (!old_sect_cbufs || !h) BUG(); //goto error; // happens at least once in micro_fork.sh
+	if (!old_sect_cbufs || !src_hdr) BUG(); //goto error; // happens at least once in micro_fork.sh
 	
 	// helps out of critical section
 	lock_help_owners(spdid, source);
@@ -160,16 +164,16 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	// So this is before step 1?
 	printd("Created new spd: %d\n", dest);
 
-	sect = cobj_sect_get(h, 0);
-	init_daddr = sect->vaddr;
+	sect = cobj_sect_get(src_hdr, 0);
+	init_daddr = sect->vaddr;										// destination addr?
 	if (cos_spd_cntl(COS_SPD_LOCATION, dest, sect->vaddr, SERVICE_SIZE)) { printc("error 2\n"); goto error; }
 	printd("Set location to %x\n", (unsigned long)sect->vaddr);
 	
 	if (cos_spd_cntl(COS_SPD_SET_FORK_ORIGIN, dest, source, 0)) { printc("error 3\n"); goto error; }
 	printd("Set fork origin to %d\n", source);
 
-	for (j = 0 ; j < (int)h->nsect ; j++) {
-		tot += cobj_sect_size(h, j);
+	for (j = 0 ; j < (int)src_hdr->nsect ; j++) {
+		tot += cobj_sect_size(src_hdr, j);
 	}
 	if (tot > SERVICE_SIZE) {
 		if (cos_vas_cntl(COS_VAS_SPD_EXPAND, dest, sect->vaddr + SERVICE_SIZE, 
@@ -182,26 +186,26 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 	new_sect_cbufs = cos_vect_lookup(&spd_sect_cbufs, dest);
 	if (!new_sect_cbufs) {
 		new_sect_cbufs = &all_spd_sect_cbufs[all_cbufs_index];
-		all_cbufs_index += h->nsect;
+		all_cbufs_index += src_hdr->nsect;
 		assert(all_cbufs_index < CBUFS_PER_PAGE * SECT_CBUF_PAGES);
 		if (cos_vect_add_id(&spd_sect_cbufs, new_sect_cbufs, dest) < 0) { printc("error 5\n"); goto error; }
-		if (cos_vect_add_id(&spd_sect_cbufs_header, h, dest) < 0) { printc("error 6\n"); goto error; }
+		if (cos_vect_add_id(&spd_sect_cbufs_header, src_hdr, dest) < 0) { printc("error 6\n"); goto error; }
 		printd("Added %d to sect_cbufs\n", dest);
 	}
 
 	// step 1?
 	vaddr_t prev_map = 0;
-	for (j = 0 ; j < (int)h->nsect ; j++) {
+	for (j = 0 ; j < (int)src_hdr->nsect ; j++) {
 		vaddr_t d_addr;
 		struct cbid_caddr cbm;
 		cbuf_t cbid;
 		int flags;
 		int left;
 
-		sect = cobj_sect_get(h, j);
+		sect = cobj_sect_get(src_hdr, j);
 		d_addr = sect->vaddr;
 
-		left       = cobj_sect_size(h, j);
+		left       = cobj_sect_size(src_hdr, j);
 		/* previous section overlaps with this one, don't remap! */
 		if (round_to_page(d_addr) == prev_map) {
 			left -= (prev_map + PAGE_SIZE - d_addr);
@@ -223,8 +227,8 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 				new_cbm.caddr = cbuf_alloc_ext(left, &new_cbm.cbid, CBUF_EXACTSZ);
 				printd("Avoid sharing, allocated new cbuf %d @ %x\n", new_cbm.cbid, (unsigned long)new_cbm.caddr);
 				if (!new_cbm.caddr) { printc("error 7\n"); goto error; }
-				memcpy(new_cbm.caddr, cbm.caddr, left);
-				cbm.caddr = new_cbm.caddr;
+				memcpy(new_cbm.caddr, cbm.caddr, left);										// only memcpy
+				cbm.caddr = new_cbm.caddr;											// use cbuf instead? Copy on write???
 				cbm.cbid = new_cbm.cbid;
 			}
 			assert(cbm.caddr);
@@ -236,31 +240,30 @@ quarantine_fork(spdid_t spdid, spdid_t source)
 				/* fixup cinfo page */
 				struct cos_component_information *ci = cbm.caddr;
 				ci->cos_this_spd_id = dest;
-				__boot_spd_set_symbs(h, dest, ci);
+				__boot_spd_set_symbs(src_hdr, dest, ci);
 				__boot_deps_save_hp(dest, ci->cos_heap_ptr);
 			}
 			prev_map += left - PAGE_SIZE;
 			d_addr += left;
 		}
-
 	}
 
 	/* FIXME: set fault handlers and re-write caps */
 	printd("Activating %d\n", dest);
-	if (cos_spd_cntl(COS_SPD_ACTIVATE, dest, h->ncap, 0)) BUG();
+	if (cos_spd_cntl(COS_SPD_ACTIVATE, dest, src_hdr->ncap, 0)) BUG();
 	printd("Setting capabilities for %d\n", dest);
-	if (__boot_spd_caps(h, dest)) BUG();
+	if (__boot_spd_caps(src_hdr, dest)) BUG();
 
 	/* Increment send-side fork count in source's caps, and
 	 * copy fork count into dest's caps. */
-	for (j = 0; j < h->ncap; j++) {
+	for (j = 0; j < src_hdr->ncap; j++) {
 		int cnt;
-		cap = cobj_cap_get(h, j);
-		if (cobj_cap_undef(cap)) break;
+		cap = cobj_cap_get(src_hdr, j);
+		if (cobj_cap_undef(cap)) break;									// what does this do?
 		if (cos_cap_cntl(COS_CAP_INC_FORK_CNT, source, cap->cap_off, 1<<8 | 0)) BUG();
 		cnt = cos_cap_cntl(COS_CAP_GET_FORK_CNT, source, cap->cap_off, 0);
 		assert(cnt > 0);
-		if (cos_cap_cntl(COS_CAP_SET_FORK_CNT, dest, cap->cap_off, cnt)) BUG();
+		if (cos_cap_cntl(COS_CAP_SET_FORK_CNT, dest, cap->cap_off, cnt)) BUG();				// why get and then set?
 		printd("Updated fork count for cap %d from %d to count %d\n", j, source, cnt);
 	}
 
@@ -347,7 +350,9 @@ done:
 	return dest;
 }
 
-
+/*
+ * Handles routing of calls???
+ */
 int
 fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void *ip)
 {
@@ -359,9 +364,10 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 	int f_spd;
 	int inc_val;
 
+	// unpack
 	capid = cap_ccnt_dcnt>>16;
-	d_fix = (cap_ccnt_dcnt>>8)&0xff; /* fix the d (server) if snd != 0 */
-	c_fix = cap_ccnt_dcnt&0xff; /* fix the c (client) if rcv != 0 */
+	d_fix = (cap_ccnt_dcnt>>8)&0xff; 	/* fix the d (server) if snd != 0 */
+	c_fix = cap_ccnt_dcnt&0xff; 		/* fix the c (client) if rcv != 0 */
 	c_spd = cspd_dspd>>16;
 	dest = cspd_dspd&0xffff;
 
@@ -378,18 +384,18 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 		 * to happen. FIXME: Except that dest may not have a dep to
 		 * the Quarantine Manager, so it may not be able to inquire. */
 		/* Assuming c_spd is the forked component, so find the orig */
-		struct spd_map_entry *c = quarantine_get_spd_map_entry(c_spd);
-		if (EMPTY_LIST(c, n, p)) {
+		struct spd_map_entry *c_map_entry = quarantine_get_spd_map_entry(c_spd);					// what does c mean here?
+		if (EMPTY_LIST(c_map_entry, n, p)) {
 			/* no forks for c_spd, it must be the fork, and its
 			 * origin is stored in its fork_spd field. */
 			f_spd = c_spd;
-			c_spd = c->fork_spd;
+			c_spd = c_map_entry->fork_spd;
 			if (unlikely(c_spd == 0)) {
 				printd("No original found for forked spd %d\n", f_spd);
 			}
 		} else {
 			/* forks for c_spd found. FIXME: which one to use? */
-			f_spd = LAST_LIST(c, n, p)->fork_spd;
+			f_spd = LAST_LIST(c_map_entry, n, p)->fork_spd;
 		}
 		
 		printd("Fixing server %d's metadata for spd %d after fork to %d\n", dest, f_spd, c_spd);
@@ -420,7 +426,7 @@ fault_quarantine_handler(spdid_t spdid, long cspd_dspd, int cap_ccnt_dcnt, void 
 	}
 dont_fix_c:
 
-	/* Adjust the fork count by the observed amount. We could just set
+	/* Adjust the fork count by the observed amount. We could just set			// does this ever happen? Nothing below decrements.
 	 * this to zero, but what if a fork has happened since the fault
 	 * handler was invoked? Probably we want to just decrement, and let
 	 * the fault happen again in this (unlikely) case. */

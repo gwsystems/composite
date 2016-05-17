@@ -424,7 +424,7 @@ cbuf_free(cbuf_t cb)
 	cm = cbuf_vect_lookup_addr(id);
 	/* 
 	 * If this assertion triggers, one possibility is that you did
-	 * not successfully map it in (cbufp2buf or cbufp_alloc).
+	 * not successfully map the cbuf in (cbuf2buf or cbuf_alloc).
 	 */
 	assert(CBUF_REFCNT(cm));
 	owner = CBUF_OWNER(cm);

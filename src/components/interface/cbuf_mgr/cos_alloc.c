@@ -167,9 +167,9 @@ static inline void REGPARM(2) __small_free(void*_ptr,size_t _size) {
 
 static void* do_cbuf_alloc(size_t size, cbuf_t *cbid)
 {
-    if (!size) { return NULL; }
+	if (!size) { return NULL; }
 
-    return cbuf_alloc(size, cbid);
+	return cbuf_alloc(size, cbid);
 }
 
 static inline void* REGPARM(1) __small_malloc(size_t _size) {

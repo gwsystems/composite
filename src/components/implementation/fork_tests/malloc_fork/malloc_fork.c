@@ -1,8 +1,7 @@
 #include <cos_component.h>
 #include <print.h>
-
-#include <pong.h>
 #include <quarantine.h>
+#include <test_malloc_comp.h>
 
 #define ITER (1024)
 u64_t meas[ITER];
@@ -14,13 +13,22 @@ u64_t meas[ITER];
 
 void cos_init(void)
 {
+	printc("Starting a fork test with dynamic memory allocation\n");
+
+	// malloc some stuff in component
+	// fork it here
+	// component continues to malloc stuff.
+	// need malloc to be called via methods
+	call();
+/*
 	u64_t start, end, avg, tot = 0, dev = 0;
 	int i, j;
 	spdid_t f;
 	int iter = ITER;
 
-	call();			/* get stack */ // how does this get the stack?
-	f = quarantine_fork(cos_spd_id(), cos_spd_id()-1); /* dirty way to find pong */
+	// need to find cbuf manager instead. That's the one, right?
+	call();	
+	f = quarantine_fork(cos_spd_id(), cos_spd_id()-1);
 	if (f == 0) printc("Error: initial fork failed\n");
 
 	printc("cpu %ld, thd %d\n",cos_cpuid(), cos_get_thd_id());
@@ -61,5 +69,6 @@ void cos_init(void)
 	printc("deviation^2 = %lld\n", dev);
 
 	printc("%d invocations took %lld\n", ITER, end-start);
+*/
 	return;
 }

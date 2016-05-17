@@ -9,7 +9,8 @@
 void unit_cbufp2buf(cbuf_t cbuf, int sz)
 {
 	char *c = cbuf2buf(cbuf, sz);
-	assert(!c);
+	printc("[%s]\n", c);
+	assert(!c); // this fails
 }
 
 cbuf_t unit_cbufp_alloc(int sz)
