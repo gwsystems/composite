@@ -17,43 +17,21 @@ call(void)
 	int i, j;
 
 	for (i = 0; i < NUM; i++) {
-		printc("1: start\n");
 		mptr[i] = (char *)malloc((i+1) * sizeof(int));
-		printc("2\n");
 		assert(mptr[i]);
-		printc("3\n");
 
 		for (j = 0; j < i; j++) {
-			printc("4\n");
 			mptr[i][j] = j;
-			printc("5\n");
 		}
 
-		printc("6\n");
-
-		printc("Final status: ");
 		for (j = 0; j < i; j++) {
 			printc("%d ", mptr[i][j]);
 		}
-
-		printc("\n6.5: freeing\n");
-		free(mptr[i]);
-		printc("7\n");
-	}
-	
-	for (i = 0; i < NUM; i++) {
-		mptr[i] = (char *)malloc((i+1) * sizeof(int));
-
-		assert(mptr[i]);
-
-		for (j = 0; j < i; j++) {
-			mptr[i][j] = j;
-		}
+		printc("\n");
 		
-		mptr[i] = realloc(mptr[i], (i + 1 + i) * sizeof(int));
-
 		free(mptr[i]);
 	}
 
+	// this is never actually set to anything. Remove or use
 	return err;
 }
