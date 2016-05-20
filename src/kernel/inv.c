@@ -330,6 +330,7 @@ __fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_
 	unsigned int fault_cap;
 	struct pt_regs *nregs;
 
+	printk("Faulting here for malloc fork but not micro fork\n");
 	printk("thd %d, spd %d, fault addr %p, flags %d, fault num %d\n", thd_get_id(thd), s ? spd_get_index(s) : 0, fault_addr, flags, fault_num);
 	/* corrupted ip? */
 	if (unlikely(!s)) {
@@ -390,10 +391,10 @@ thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_
 	vaddr_t packed_spds;
 
 	/*
-	c_cnt = spd_get_fork_cnt(curr_spd);
-	d_cnt = spd_get_fork_cnt(dest_spd);
-	packed_counts = (c_cnt<<16)|d_cnt;
-	*/
+	 * c_cnt = spd_get_fork_cnt(curr_spd);		// are these junk?
+ 	 * d_cnt = spd_get_fork_cnt(dest_spd);
+ 	 * packed_counts = (c_cnt<<16)|d_cnt;
+	 */
 	/* for debug purposes */
 	capid = packed_counts>>16;
 	c_cnt = (packed_counts>>8)&0xff;
@@ -405,6 +406,7 @@ thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_
 	
 	printk("cos: thd_quarantine_fault %d (%d) -> %d (%d) with cap %d\n", c_spd, c_cnt, d_spd, d_cnt, capid);
 
+	// this is the part of the code that sets up future calls???
 	/* GB: use curr_spd->fault_handler[], or dest_spd?
 	 * has to be dest_spd, otherwise static_ipc_walk fails, but
 	 * how do we fix-up the curr_spd then? */

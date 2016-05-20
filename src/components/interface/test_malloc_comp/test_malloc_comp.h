@@ -1,6 +1,6 @@
 #ifndef MALLOC_COMP_H
 #define MALLOC_COMP_H
 
-int call(void);
+void call(void);
 
 #endif /* !MALLOC_COMP_H */

@@ -23,6 +23,11 @@ void cos_init(void)
 	f = quarantine_fork(cos_spd_id(), cos_spd_id()-1); /* dirty way to find pong */
 	if (f == 0) printc("Error: initial fork failed\n");
 
+	// adding this
+	printc("executing call() again\n");
+	call();
+	printc("done...\n");
+
 	printc("cpu %ld, thd %d\n",cos_cpuid(), cos_get_thd_id());
 	printc("Starting %d Invocations and Forks.\n", ITER);
 
