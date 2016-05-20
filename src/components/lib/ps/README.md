@@ -1,11 +1,13 @@
 ## FAQ
 
+=======
 We presented the Parsec work at Eurosys, and a number of good questions arose.
 I'll answer a few of those here, along with some questions from the program committee's reviews.
 
 ### Using `rdtsc` Properly
 
-Q: There are complications with using `rdtsc`.  It is not a serializing instruction, so it can be reordered in the pipeline relative to memory operations.
+Q: There are complications with using `rdtsc`.
+It is not a serializing instruction, so it can be reordered in the pipeline relative to memory operations.
 Put another way, the accesses to the data-structure can be reordered *before* the time stamp counter (TSC) can be made visible to other cores in memory.
 
 A: This is a great question, and originates from the fact that using `rdtsc` is surprisingly difficult to get right large because it is a *non-serializing* instruction.

@@ -44,6 +44,10 @@ struct tcap_sched_info {
 
 #define TCAP_PRIO_MAX (1UL)
 
+typedef enum {
+	TCAP_POOL = 1
+} tcap_flags_t;
+
 struct tcap {
 	/*
 	 * The budget might be from a shared pool in which case budget
@@ -52,6 +56,7 @@ struct tcap {
 	 */
 	struct tcap 	   *pool;
 	struct thread      *arcv_ep; /* if ispool, this is the arcv endpoint */
+	tcap_flags_t       flags;
 	u32_t 		   refcnt;
 	struct tcap_budget budget; /* if we have a partitioned budget */
 	u8_t               ndelegs, curr_sched_off;
@@ -78,7 +83,7 @@ struct tcap {
 	struct tcap           *freelist;
 };
 
-int tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new, capid_t srctcap_cap, int init);
+int tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new, capid_t srctcap_cap, int pool, int init);
 int tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, tcap_prio_t prio);
 int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, int prio);
 int tcap_merge(struct tcap *dst, struct tcap *rm);
@@ -127,6 +132,10 @@ tcap_consume(struct tcap *t, tcap_res_t cycles)
 	return 0;
 }
 
+static inline int
+tcap_expended(struct tcap *t)
+{ return t->pool->budget.cycles == 0; }
+
 static inline struct tcap *
 tcap_current(struct cos_cpu_local_info *cos_info)
 { return (struct tcap *)(cos_info->curr_tcap); }
@@ -143,7 +152,7 @@ tcap_higher_prio(struct tcap *a, struct tcap *c)
 	tcap_prio_t ap, cp, ap_pool, cp_pool;
 	int ret = 0;
 
-	if (a->pool->budget.cycles == 0) return 0;
+	if (tcap_expended(a)) return 0;
 
 	/* Use the priorities of the tcaps, but the delegations of the pool */
 	ap      = tcap_sched_info(a)->prio;

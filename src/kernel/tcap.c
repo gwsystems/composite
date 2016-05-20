@@ -164,7 +164,7 @@ tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, tca
  * (ignoring values of 0).
  */
 int
-tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new, capid_t srctcap_cap, int init)
+tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new, capid_t srctcap_cap, int pool, int init)
 {
 	struct tcap *tcap_src = NULL;
 	struct cap_tcap *tc, *tc_src;
@@ -172,6 +172,7 @@ tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new,
 
 	assert(tcap_new);
 	tcap_init(tcap_new);
+	tcap_new->flags = pool ? TCAP_POOL ; 0;
 
 	if (likely(!init)) {
 		tc_src = (struct cap_tcap *)captbl_lkup(ct, srctcap_cap);
@@ -198,7 +199,7 @@ tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new,
 void
 tcap_promote(struct tcap *t, struct thread *thd)
 {
-	if (tcap_ispool(t)) return;
+	if (tcap_ispool(t) || !(t->flags & TCAP_POOL)) return;
 	tcap_ref_release(t->pool);
 	t->arcv_ep = thd;
 	t->pool    = t;
