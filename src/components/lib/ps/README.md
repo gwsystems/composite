@@ -39,7 +39,7 @@ Thus, even if we use a global variable to track time, there still is some benefi
 
 ### Vs. Batch Frees
 
-Q: Can't we just do a batch quiescence for many memory items, instead of a quiescence per memory free.
+Q: Can't we just do a batch quiescence for many memory items, instead of a quiescence per memory free?
 This would amortize the cost of the synchronization operation.
 
 A: Yes.
