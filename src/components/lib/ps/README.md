@@ -1,6 +1,5 @@
 ## FAQ
 
-=======
 We presented the Parsec work at Eurosys, and a number of good questions arose.
 I'll answer a few of those here, along with some questions from the program committee's reviews.
 
