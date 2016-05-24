@@ -334,15 +334,15 @@ static volatile asndcap_t tc_sc[TCAP_NLAYERS][3];
 static void
 tcap_child(void *d)
 {
-	arcvcap_t *__tc_crc = d;
+	arcvcap_t __tc_crc = (arcvcap_t)d;
 
 	while (1) {
 		int pending, rcving;
 		thdid_t tid;
 		cycles_t cycles;
 
-		child_activated = 1;
 		pending = cos_rcv(__tc_crc, &tid, &rcving, &cycles);
+		printc("tcap_test:rcv: pending %d\n", pending);
 	}
 }
 
@@ -350,10 +350,9 @@ static void
 tcap_parent(void *d)
 {
 	int i;
-	asndcap_t *__tc_sc = d;
+	asndcap_t __tc_sc = (asndcap_t)d;
 
 	for (i = 0 ; i < ITER ; i++) {
-		child_activated = 0;
 		cos_asnd(__tc_sc);
 	}
 }

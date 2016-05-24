@@ -172,7 +172,7 @@ tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new,
 
 	assert(tcap_new);
 	tcap_init(tcap_new);
-	tcap_new->flags = pool ? TCAP_POOL ; 0;
+	tcap_new->flags = pool ? TCAP_POOL : 0;
 
 	if (likely(!init)) {
 		tc_src = (struct cap_tcap *)captbl_lkup(ct, srctcap_cap);
