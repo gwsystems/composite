@@ -19,14 +19,11 @@ void cos_init(void)
 	spdid_t f;
 	int iter = ITER;
 
-	call();			/* get stack */ // how does this get the stack?
+	call();			/* get stack */
 	f = quarantine_fork(cos_spd_id(), cos_spd_id()-1); /* dirty way to find pong */
 	if (f == 0) printc("Error: initial fork failed\n");
 
-	// adding this
-	printc("executing call() again\n");
 	call();
-	printc("done...\n");
 
 	printc("cpu %ld, thd %d\n",cos_cpuid(), cos_get_thd_id());
 	printc("Starting %d Invocations and Forks.\n", ITER);
@@ -34,7 +31,6 @@ void cos_init(void)
 	for (i = 0 ; i < ITER ; i++) {
 		rdtscll(start);
 		f = quarantine_fork(cos_spd_id(), f);
-		printc("return value of f is %d\n", f);
 		rdtscll(end);
 		meas[i] = end-start;
 
@@ -65,6 +61,6 @@ void cos_init(void)
 	dev /= iter;
 	printc("deviation^2 = %lld\n", dev);
 
-	printc("%d invocations took %lld\n", ITER, end-start);
+	printc("%d invocations took %lld\n", ITER, tot);
 	return;
 }
