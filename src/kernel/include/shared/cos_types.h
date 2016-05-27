@@ -838,6 +838,10 @@ typedef enum {
 	TCAP_DELEG_YIELD    = 1<<1,
 } tcap_deleg_flags_t;
 
+capid_t irq_thdcap[32];
+capid_t irq_arcvcap[32];
+capid_t irq_tcap[32];
+
 #ifndef __KERNEL_PERCPU
 #define __KERNEL_PERCPU 0
 #endif
