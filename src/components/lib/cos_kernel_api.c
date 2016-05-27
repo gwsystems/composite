@@ -618,35 +618,22 @@ cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op)
 
 /***************** [Kernel Tcap Operations] *****************/
 
-static tcap_t
-__cos_tcap_alloc(struct cos_compinfo *ci, tcap_t src, tcap_split_flags_t flags)
+tcap_t
+cos_tcap_split(struct cos_compinfo *ci, tcap_t src, int pool)
 {
 	vaddr_t kmem;
 	capid_t cap;
+	/* top bit is if it is a pool or not */
+	u32_t s = (u32_t)(src) | ((u32_t)pool << ((sizeof(s)*8)-1));
 
-	printd("cos_tcap_alloc\n");
+	printd("cos_tcap_split\n");
 	assert (ci);
 
 	if (__alloc_mem_cap(ci, CAP_TCAP, &kmem, &cap)) return 0;
-
 	/* TODO: Add cap size checking */
-	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, (flags << 16) | cap, ci->pgtbl_cap, kmem, src)) BUG();
+	if (call_cap_op(ci->captbl_cap, CAPTBL_OP_TCAP_ACTIVATE, cap, ci->pgtbl_cap, kmem, (u32_t)s)) BUG();
 
 	return cap;
-}
-
-tcap_t
-cos_tcap_split(struct cos_compinfo *ci, tcap_t src, tcap_res_t res, tcap_prio_t prio, tcap_split_flags_t flags)
-{
-	int prio_higher = (u32_t)(prio >> 32);
-	int prio_lower  = (u32_t)((prio << 32) >> 32);
-	tcap_t ret;
-
-	ret = __cos_tcap_alloc(ci, src, flags);
-	if (res != 0 && ret > 0 &&
-	    call_cap_op(src, CAPTBL_OP_TCAP_TRANSFER, ret, res, prio_higher, prio_lower)) return 0;
-
-	return ret;
 }
 
 int
@@ -661,9 +648,9 @@ cos_tcap_transfer(tcap_t src, tcap_t dst, tcap_res_t res, tcap_prio_t prio)
 int
 cos_tcap_delegate(tcap_t src, arcvcap_t dst, tcap_res_t res, tcap_prio_t prio, tcap_deleg_flags_t flags)
 {
-	u32_t dispatch  = (flags & TCAP_DELEG_DISPATCH) == TCAP_DELEG_DISPATCH;
+	u32_t yield     = flags & TCAP_DELEG_YIELD;
 	/* top bit is if we are dispatching or not */
-	int prio_higher = (u32_t)(prio >> 32) | (dispatch << ((sizeof(dispatch)*8)-1));
+	int prio_higher = (u32_t)(prio >> 32) | (yield << ((sizeof(yield)*8)-1));
 	int prio_lower  = (u32_t)((prio << 32) >> 32);
 	int ret = -EINVAL;
 

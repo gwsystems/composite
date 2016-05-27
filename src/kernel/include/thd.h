@@ -34,7 +34,7 @@ struct invstk_entry {
 struct rcvcap_info {
 	/* how many other arcv end-points send notifications to this one? */
 	int isbound, pending, refcnt;
-	/* struct tcap *rcvcap_tcap; */  /* This rcvcap's tcap */
+	struct tcap   *rcvcap_tcap;      /* This rcvcap's tcap */
 	struct thread *rcvcap_thd_notif; /* The parent rcvcap thread for notifications */
 };
 
@@ -70,9 +70,6 @@ struct thread {
 	struct rcvcap_info rcvcap;
 	struct list        event_head; /* all events for *this* end-point */
 	struct list_node   event_list; /* the list of events for another end-point */
-
-	/* Reference to tcap bound to thread through arcv_cap */
-	struct tcap *tcap;
 } CACHE_ALIGNED;
 
 /*

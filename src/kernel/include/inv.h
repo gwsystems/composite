@@ -141,25 +141,38 @@ asnd_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 int cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs);
 
 static void
-__arcv_setup(struct cap_arcv *arcv, struct thread *thd, struct thread *notif)
+__arcv_setup(struct cap_arcv *arcv, struct thread *thd, struct tcap *tcap, struct thread *notif)
 {
-	assert(arcv && thd && !thd_bound2rcvcap(thd));
+	assert(arcv && thd && tcap && !thd_bound2rcvcap(thd));
 	arcv->thd                    = thd;
 	thd->rcvcap.rcvcap_thd_notif = notif;
 	if (notif) thd_rcvcap_take(notif);
 	thd->rcvcap.isbound          = 1;
+
+	thd->rcvcap.rcvcap_tcap      = tcap;
+	tcap_ref_take(tcap);
+	tcap_promote(tcap, thd);
 }
 
-static void
+static int
 __arcv_teardown(struct cap_arcv *arcv, struct thread *thd)
 {
 	struct thread *notif;
+	struct tcap   *tcap;
+
+	tcap = thd->rcvcap.rcvcap_tcap;
+	assert(tcap);
+	if (tcap_ref(tcap) > 1 && tcap->arcv_ep == thd) return -1;
 
 	notif = thd->rcvcap.rcvcap_thd_notif;
 	if (notif) thd_rcvcap_release(notif);
 	thd->rcvcap.isbound = 0;
-	tcap_ref_take(thd->tcap);
-	thd->tcap = NULL;
+
+	thd->rcvcap.rcvcap_tcap = NULL;
+	tcap_ref_release(tcap);
+	tcap->arcv_ep = NULL;
+
+	return 0;
 }
 
 static struct thread *
@@ -186,7 +199,7 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	if (unlikely(!tcapc || tcapc->h.type != CAP_TCAP || tcapc->cpuid != get_cpuid())) return -EINVAL;
 	/* a single thread cannot be bound to multiple rcvcaps */
 	if (thd_bound2rcvcap(thd)) return -EINVAL;
-	assert(!thd->tcap); 	/* an unbound thread should not have a tcap */
+	assert(!thd->rcvcap.rcvcap_tcap); 	/* an unbound thread should not have a tcap */
 
 	if (!init) {
 	        arcv_p = (struct cap_arcv *)captbl_lkup(t, arcv_cap);
@@ -195,16 +208,12 @@ arcv_activate(struct captbl *t, capid_t cap, capid_t capin, capid_t comp_cap, ca
 	arcvc = (struct cap_arcv *)__cap_capactivate_pre(t, cap, capin, CAP_ARCV, &ret);
 	if (!arcvc) return ret;
 
-	thd->tcap = tcapc->tcap;
-	tcap_ref_take(tcapc->tcap);
-	printk("Thd bound to rcv cap %d, tcap %x\n", thd->tid, thd->tcap);
-
 	memcpy(&arcvc->comp_info, &compc->info, sizeof(struct comp_info));
 
 	arcvc->epoch     = 0; 	  /* FIXME: get the real epoch */
 	arcvc->cpuid     = get_cpuid();
 
-	__arcv_setup(arcvc, thd, init ? NULL : arcv_p->thd);
+	__arcv_setup(arcvc, thd, tcapc->tcap, init ? NULL : arcv_p->thd);
 
 	__cap_capactivate_post(&arcvc->h, CAP_ARCV);
 
@@ -219,7 +228,7 @@ arcv_deactivate(struct cap_captbl *t, capid_t capin, livenessid_t lid)
 	arcvc = (struct cap_arcv *)captbl_lkup(t->captbl, capin);
 	if (unlikely(!arcvc || arcvc->h.type != CAP_ARCV || arcvc->cpuid != get_cpuid())) return -EINVAL;
 	if (thd_rcvcap_isreferenced(arcvc->thd)) return -EBUSY;
-	__arcv_teardown(arcvc, arcvc->thd);
+	if (__arcv_teardown(arcvc, arcvc->thd))  return -EBUSY;
 
 	return cap_capdeactivate(t, capin, CAP_ARCV, lid);
 }
