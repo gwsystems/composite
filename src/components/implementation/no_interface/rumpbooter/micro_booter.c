@@ -248,7 +248,7 @@ test_async_endpoints(void)
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
-	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 0, 0);
+	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
 	assert(tccp);
 	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rcp);
@@ -256,7 +256,7 @@ test_async_endpoints(void)
 	/* child rcv capabilities */
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn, (void*)tcp);
 	assert(tcc);
-	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 1, 0);
+	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
 	assert(tccc);
 	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
@@ -284,7 +284,7 @@ test_async_endpoints_perf(void)
 	/* parent rcv capabilities */
 	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_parent_perf, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
 	assert(tcp);
-	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 0, 0);
+	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
 	assert(tccp);
 	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	assert(rcp);
@@ -292,7 +292,73 @@ test_async_endpoints_perf(void)
 	/* child rcv capabilities */
 	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, async_thd_fn_perf, (void*)tcp);
 	assert(tcc);
-	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 1<<30, 1, 0);
+	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
+	assert(tccc);
+	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
+	assert(rcc);
+
+	/* make the snd channel to the child */
+	scp_global = cos_asnd_alloc(&booter_info, rcc, booter_info.captbl_cap);
+	assert(scp_global);
+
+	rcc_global = rcc;
+	rcp_global = rcp;
+
+	async_test_flag = 1;
+	while (async_test_flag) cos_thd_switch(tcp);
+}
+
+#define TCAP_NLAYERS 3
+static volatile int child_activated[TCAP_NLAYERS][2];
+/* tcap child/parent receive capabilities, and the send capability */
+static volatile arcvcap_t tc_crc[TCAP_NLAYERS][2], tc_prc[TCAP_NLAYERS][2];
+static volatile asndcap_t tc_sc[TCAP_NLAYERS][3];
+
+static void
+tcap_child(void *d)
+{
+	arcvcap_t __tc_crc = (arcvcap_t)d;
+
+	while (1) {
+		int pending, rcving;
+		thdid_t tid;
+		cycles_t cycles;
+
+		pending = cos_rcv(__tc_crc, &tid, &rcving, &cycles);
+		printc("tcap_test:rcv: pending %d\n", pending);
+	}
+}
+
+static void
+tcap_parent(void *d)
+{
+	int i;
+	asndcap_t __tc_sc = (asndcap_t)d;
+
+	for (i = 0 ; i < ITER ; i++) {
+		cos_asnd(__tc_sc);
+	}
+}
+
+static void
+test_tcaps(void)
+{
+	thdcap_t tcp, tcc;
+	tcap_t tccp, tccc;
+	arcvcap_t rcp, rcc;
+
+	/* parent rcv capabilities */
+	tcp = cos_thd_alloc(&booter_info, booter_info.comp_cap, tcap_parent, (void*)BOOT_CAPTBL_SELF_INITTHD_BASE);
+	assert(tcp);
+	tccp = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
+	assert(tccp);
+	rcp = cos_arcv_alloc(&booter_info, tcp, tccp, booter_info.comp_cap, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	assert(rcp);
+
+	/* child rcv capabilities */
+	tcc = cos_thd_alloc(&booter_info, booter_info.comp_cap, tcap_child, (void*)tcp);
+	assert(tcc);
+	tccc = cos_tcap_split(&booter_info, BOOT_CAPTBL_SELF_INITTCAP_BASE, 0);
 	assert(tccc);
 	rcc = cos_arcv_alloc(&booter_info, tcc, tccc, booter_info.comp_cap, rcp);
 	assert(rcc);
@@ -476,35 +542,14 @@ test_run(void)
 	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
 	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
-	printc("---------------------------\n");
-	//test_thds();
-	printc("---------------------------\n");
-	//test_thds_perf();
-	printc("---------------------------\n");
-
-	printc("---------------------------\n");
-	//test_timer();
-	printc("---------------------------\n");
-
-	printc("---------------------------\n");
 	test_mem();
-	printc("---------------------------\n");
 
-	printc("---------------------------\n");
 	test_async_endpoints();
-	printc("---------------------------\n");
-	//test_async_endpoints_perf();
-	printc("---------------------------\n");
 
-	printc("---------------------------\n");
 	test_inv();
-	printc("---------------------------\n");
 	test_inv_perf();
-	printc("---------------------------\n");
 
-	printc("---------------------------\n");
 	test_captbl_expand();
-	printc("---------------------------\n");
 
 	printc("\nMicro Booter done.\n");
 }
