@@ -14,12 +14,11 @@
 
 #include "shared/cos_types.h"
 #include "component.h"
+#include "thd.h"
 
 #ifndef TCAP_MAX_DELEGATIONS
-#define TCAP_MAX_DELEGATIONS 8
+#define TCAP_MAX_DELEGATIONS 16
 #endif
-
-#define TCAP_NACTIVATIONS 1
 
 struct cap_tcap {
 	struct cap_header h;
@@ -43,9 +42,11 @@ struct tcap_sched_info {
 	tcap_prio_t prio;
 };
 
-
-#define TCAP_PRIO_MIN ((1UL<<16)-1)
 #define TCAP_PRIO_MAX (1UL)
+
+typedef enum {
+	TCAP_POOL = 1
+} tcap_flags_t;
 
 struct tcap {
 	/*
@@ -54,6 +55,8 @@ struct tcap {
 	 * this capability in which case budget = this.
 	 */
 	struct tcap 	   *pool;
+	struct thread      *arcv_ep; /* if ispool, this is the arcv endpoint */
+	tcap_flags_t       flags;
 	u32_t 		   refcnt;
 	struct tcap_budget budget; /* if we have a partitioned budget */
 	u8_t               ndelegs, curr_sched_off;
@@ -80,6 +83,15 @@ struct tcap {
 	struct tcap           *freelist;
 };
 
+int tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new, capid_t srctcap_cap, int pool, int init);
+int tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, tcap_prio_t prio);
+int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc, tcap_res_t cycles, int prio);
+int tcap_merge(struct tcap *dst, struct tcap *rm);
+void tcap_promote(struct tcap *t, struct thread *thd);
+
+struct thread *tcap_tick_handler(void);
+void tcap_timer_choose(int c);
+
 static inline struct tcap_sched_info *
 tcap_sched_info(struct tcap *t)
 { return &t->delegations[t->curr_sched_off]; }
@@ -92,12 +104,10 @@ static inline void
 tcap_ref_release(struct tcap *t)
 { t->refcnt--; }
 
-static inline void
-tcap_ref_create(struct tcap *r, struct tcap *t)
-{
-	r->pool = t;
-	tcap_ref_take(t);
-}
+static inline int
+tcap_ref(struct tcap *t)
+{ return t->refcnt; }
+
 
 /*
  * Return 0 if budget left, 1 if the tcap is out of budget, and -1 if
@@ -107,43 +117,76 @@ tcap_ref_create(struct tcap *r, struct tcap *t)
 static inline int
 tcap_consume(struct tcap *t, tcap_res_t cycles)
 {
-	struct tcap *bc;
-	int left = 0;
-
 	assert(t);
-	if (!TCAP_RES_IS_INF(t->budget.cycles)) {
-		t->budget.cycles -= cycles;
-		if (t->budget.cycles <= 0) {
-			t->budget.cycles = 0;
-			left = 1;
-		}
+	t = t->pool;
+	if (TCAP_RES_IS_INF(t->budget.cycles)) return 0;
+	t->budget.cycles -= cycles;
+	if (t->budget.cycles <= 0) {
+		t->budget.cycles = 0;
+		return 1;
 	}
-
-	bc = t->pool;
-	if (bc == t) return left;
-	if (!TCAP_RES_IS_INF(bc->budget.cycles)) {
-		bc->budget.cycles -= cycles;
-		if (bc->budget.cycles <= 0) left = -1;
-	}
-
-	/* TODO: Add removal from global list of pools if we've consumed all cycles. */
-	return left;
+	/*
+	 * TODO: Add removal from global list of pools and declassify
+	 * if we've consumed all cycles.
+	 */
+	return 0;
 }
+
+static inline int
+tcap_expended(struct tcap *t)
+{ return t->pool->budget.cycles == 0; }
 
 static inline struct tcap *
 tcap_current(struct cos_cpu_local_info *cos_info)
 { return (struct tcap *)(cos_info->curr_tcap); }
 
-int tcap_split(struct captbl *ct, capid_t cap, capid_t capin, struct tcap *tcap_new,
-	       capid_t srctcap_cap, tcap_split_flags_t flags, int init);
-int tcap_transfer(struct tcap *tcapdst, struct tcap *tcapsrc,
-		  tcap_res_t cycles, tcap_prio_t prio);
-int tcap_delegate(struct tcap *tcapdst, struct tcap *tcapsrc,
-		  s64_t cycles, int prio);
-int tcap_merge(struct tcap *dst, struct tcap *rm);
-int tcap_higher_prio(struct tcap *a, struct tcap *c);
+/*
+ * Is the newly activated thread of a higher priority than the current
+ * thread?  Of all of the code in tcaps, this is the fast path that is
+ * called for each interrupt and asynchronous thread invocation.
+ */
+static inline int
+tcap_higher_prio(struct tcap *a, struct tcap *c)
+{
+	int i, j;
+	tcap_prio_t ap, cp, ap_pool, cp_pool;
+	int ret = 0;
 
-struct thread *tcap_tick_handler(void);
-void tcap_timer_choose(int c);
+	if (tcap_expended(a)) return 0;
+
+	/* Use the priorities of the tcaps, but the delegations of the pool */
+	ap      = tcap_sched_info(a)->prio;
+	cp      = tcap_sched_info(c)->prio;
+	a       = a->pool;
+	c       = c->pool;
+	ap_pool = tcap_sched_info(a)->prio;
+	cp_pool = tcap_sched_info(c)->prio;
+	tcap_sched_info(a)->prio = ap;
+	tcap_sched_info(c)->prio = cp;
+
+	for (i = 0, j = 0 ; i < a->ndelegs && j < c->ndelegs ; ) {
+		/*
+		 * These cases are for the case where the tcaps don't
+		 * share a common scheduler (due to the partial order
+		 * of schedulers), or different interrupt bind points.
+		 */
+		if (a->delegations[i].tcap_uid > c->delegations[j].tcap_uid) {
+			j++;
+		} else if (a->delegations[i].tcap_uid < c->delegations[j].tcap_uid) {
+			i++;
+		} else {
+			/* same shared scheduler! */
+			if (a->delegations[i].prio > c->delegations[j].prio) goto fixup;
+			i++;
+			j++;
+		}
+	}
+	ret = 1;
+fixup:
+	tcap_sched_info(a)->prio = ap_pool;
+	tcap_sched_info(c)->prio = cp_pool;
+
+	return ret;
+}
 
 #endif	/* TCAP_H */

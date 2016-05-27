@@ -496,7 +496,7 @@ cap_thd_op(struct cap_thd *thd_cap, struct thread *thd, struct pt_regs *regs,
  * Return the thread that should be executed next.
  */
 static struct thread *
-asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, struct tcap *tcap)
+asnd_process(struct thread *rcv_thd, struct thread *thd, struct tcap *rcv_tcap, struct tcap *tcap, int yield)
 {
 	struct thread *next;
 	struct thread *arcv_notif;
@@ -544,10 +544,10 @@ cap_asnd_op(struct cap_asnd *asnd, struct thread *thd, struct pt_regs *regs,
 
 	rcv_thd  = arcv->thd;
 	tcap     = tcap_current(cos_info);
-	rcv_tcap = rcv_thd->tcap;
+	rcv_tcap = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
 
-	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap);
+	next = asnd_process(rcv_thd, thd, rcv_tcap, tcap, 0);
 
 	return cap_switch_thd(regs, thd, next, ci, cos_info);
 }
@@ -585,10 +585,10 @@ cap_hw_asnd(struct cap_asnd *asnd, struct pt_regs *regs)
 	assert(ci  && ci->captbl);
 	assert(!thd->state & THD_STATE_PREEMPTED);
 	rcv_thd    = arcv->thd;
-	rcv_tcap   = rcv_thd->tcap;
+	rcv_tcap   = rcv_thd->rcvcap.rcvcap_tcap;
 	assert(rcv_tcap && tcap);
 
-	next       = asnd_process(rcv_thd, thd, rcv_tcap, tcap);
+	next       = asnd_process(rcv_thd, thd, rcv_tcap, tcap, 0);
 	if (next == thd) return restore_curr_thd;
 
 	thd->state |= THD_STATE_PREEMPTED;
@@ -945,19 +945,21 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		}
 		case CAPTBL_OP_TCAP_ACTIVATE:
 		{
-			capid_t tcap_cap   = __userregs_get1(regs) & 0xFFFF;
-			int     flags 	   = __userregs_get1(regs) >> 16;
+			capid_t tcap_cap   = __userregs_get1(regs);
 			capid_t pgtbl_cap  = __userregs_get2(regs);
 			capid_t pgtbl_addr = __userregs_get3(regs);
 			capid_t tcap_src   = __userregs_get4(regs);
-
 			struct tcap     *tcap;
 			unsigned long   *pte = NULL;
+			int              pool;
+
+			pool     = tcap_src >> ((sizeof(tcap_src)*8)-1);
+			tcap_src = (tcap_src << 1) >> 1;
 
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&tcap, &pte);
 			if (unlikely(ret)) cos_throw(err, ret);
 
-			ret = tcap_split(ct, cap, tcap_cap, tcap, tcap_src, flags, 0);
+			ret = tcap_split(ct, cap, tcap_cap, tcap, tcap_src, pool, 0);
 			if (ret) {
 				unsigned long old = *pte;
 				assert (old & PGTBL_COSKMEM);
@@ -1297,38 +1299,35 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 			long long res 	  = __userregs_get2(regs);
 			u32_t prio_higher = __userregs_get3(regs);
 			u32_t prio_lower  = __userregs_get4(regs);
-			tcap_prio_t prio  = (tcap_prio_t)prio_lower << 32 | (tcap_prio_t)prio_lower;
+			tcap_prio_t prio;
 			struct cap_tcap *tcapsrc = (struct cap_tcap *)ch;
 			struct cap_arcv *arcv;
 			struct cap_asnd *asnd;
 			struct thread   *rthd;
 			struct tcap     *tcapdst;
-			int dispatch;
+			int yield;
+			struct thread *n;
 
 			/* highest-order bit is dispatch flag */
-			dispatch = prio_higher >> ((sizeof(prio_higher)*8)-1);
+			yield       = prio_higher >> ((sizeof(prio_higher)*8)-1);
 			prio_higher = (prio_higher << 1) >> 1;
-
-			asnd = (struct cap_asnd *)captbl_lkup(ci->captbl, asnd_cap);
+			prio        = (tcap_prio_t)prio_higher << 32 | (tcap_prio_t)prio_lower;
+			asnd        = (struct cap_asnd *)captbl_lkup(ci->captbl, asnd_cap);
 
 			if (unlikely(!asnd || asnd->h.type != CAP_ASND)) cos_throw(err, -EINVAL);
 
 			arcv = __cap_asnd_to_arcv(asnd);
 			rthd = arcv->thd;
-			assert(rthd && rthd->tcap);
-			tcapdst = rthd->tcap;
+			assert(rthd && rthd->rcvcap.rcvcap_tcap);
+			tcapdst = rthd->rcvcap.rcvcap_tcap;
 
 			ret = tcap_delegate(tcapsrc->tcap, tcapdst, res, prio);
 			if (unlikely(ret)) cos_throw(err, -EINVAL);
 
-			if (dispatch) {
-				struct thread *n;
-
-				n = asnd_process(rthd, thd, tcapdst, tcap_current(cos_info));
-				if (n != thd) {
-					ret = cap_switch_thd(regs, thd, n, ci, cos_info);
-					*thd_switch = 1;
-				}
+			n = asnd_process(rthd, thd, tcapdst, tcap_current(cos_info), yield);
+			if (n != thd) {
+				ret = cap_switch_thd(regs, thd, n, ci, cos_info);
+				*thd_switch = 1;
 			}
 
 			break;
