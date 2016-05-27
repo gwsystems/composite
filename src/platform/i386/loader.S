@@ -18,10 +18,7 @@
 .comm stack, STACKSIZE, 32
 
 .globl loader
-loader = (_loader-COS_MEM_KERN_START_VA)
-
-.globl _loader
-_loader:
+loader:
 	mov 	$(stack + STACKSIZE - STK_INFO_OFF), %esp
 	movl	%eax, %ecx
 	movl    %cr4, %eax

@@ -106,5 +106,5 @@ clean:
 
 cp: $(KERNEL)
 	$(info |     [CP]   Copying native booter to $(TRANS_DIR))
-	@cp -f $(KERNEL) .gdbinit qemu.sh qemu2.sh qemu-g.sh ppos.sh $(TRANS_DIR)
+	@cp -f $(KERNEL) .gdbinit *.sh $(TRANS_DIR)
 	@cp runscripts/*.sh $(TRANS_DIR)
