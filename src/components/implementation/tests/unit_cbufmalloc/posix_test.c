@@ -9,6 +9,7 @@ char *mptr[NUM];
 void
 cos_init(void *args)
 {
+	printc("Starting malloc implemented with cbuf test:\n");
 	int err=0;
 	int i, j;
 
@@ -43,6 +44,8 @@ cos_init(void *args)
 
 	printc("reallocating p to 0\n");
 	realloc(p, 0);
+
+	printc("Test ended\n");
 
 	return;
 }

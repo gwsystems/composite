@@ -265,14 +265,12 @@ again:
 	do {
 		cm = cbuf_vect_lookup_addr(id);
 		if (unlikely(!cm || CBUF_PTR(cm) == 0)) {
-			printc("no cm for %d!\n", id);
+			printc("cbuf::no cm for %d!\n", id);
 			if (__cbuf_2buf_miss(id, len)) {printc("miss\n"); goto done;}
 			goto again;
 		}
 	} while (unlikely(!cm->nfo));
-	/* shouldn't cbuf2buf your own buffer! */
 	assert(cm->cbid_tag.cbid == id);
-	if (unlikely(CBUF_OWNER(cm))) {printc("owner\n"); goto done;}
 	if (unlikely((len >> PAGE_ORDER) > cm->sz)) {printc("too big\n"); goto done;}
 	assert(CBUF_REFCNT(cm) < CBUF_REFCNT_MAX);
 	CBUF_REFCNT_ATOMIC_INC(cm);
@@ -426,7 +424,7 @@ cbuf_free(cbuf_t cb)
 	cm = cbuf_vect_lookup_addr(id);
 	/* 
 	 * If this assertion triggers, one possibility is that you did
-	 * not successfully map it in (cbufp2buf or cbufp_alloc).
+	 * not successfully map the cbuf in (cbuf2buf or cbuf_alloc).
 	 */
 	assert(CBUF_REFCNT(cm));
 	owner = CBUF_OWNER(cm);

@@ -85,6 +85,18 @@ CSTUB_FN(int, treadp)(struct usr_inv_cap *uc,
 	return ret;
 }
 
+CSTUB_FN(int, twritep)(struct usr_inv_cap *uc,
+		       spdid_t spdid, td_t td, int cbuf_id, int start, int sz)
+{
+	int ret;
+	long fault = 0;
+
+	int temp = (td << 16) | (cbuf_id & 0xFFFF);
+
+	CSTUB_INVOKE(ret, fault, uc, 4, spdid, temp, start, sz);
+	return ret;
+}
+
 CSTUB_FN(int, tread)(struct usr_inv_cap *uc,
 		     spdid_t spdid, td_t td, int cbid, int sz)
 {

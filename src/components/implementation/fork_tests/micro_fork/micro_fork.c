@@ -7,6 +7,11 @@
 #define ITER (1024)
 u64_t meas[ITER];
 
+/*
+ * Warning - test assumes Composite can run at least ITER components.
+ * (And this may not take into account other components for this test
+ */
+
 void cos_init(void)
 {
 	u64_t start, end, avg, tot = 0, dev = 0;
@@ -18,6 +23,8 @@ void cos_init(void)
 	f = quarantine_fork(cos_spd_id(), cos_spd_id()-1); /* dirty way to find pong */
 	if (f == 0) printc("Error: initial fork failed\n");
 
+	call();
+
 	printc("cpu %ld, thd %d\n",cos_cpuid(), cos_get_thd_id());
 	printc("Starting %d Invocations and Forks.\n", ITER);
 
@@ -26,6 +33,7 @@ void cos_init(void)
 		f = quarantine_fork(cos_spd_id(), f);
 		rdtscll(end);
 		meas[i] = end-start;
+
 		if (f == 0) break;
 	}
 	if (f == 0) {
@@ -53,6 +61,6 @@ void cos_init(void)
 	dev /= iter;
 	printc("deviation^2 = %lld\n", dev);
 
-//	printc("%d invocations took %lld\n", ITER, end-start);
+	printc("%d invocations took %lld\n", ITER, tot);
 	return;
 }
