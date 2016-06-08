@@ -257,8 +257,8 @@ async_thd_parent(void *thdcap)
 static void
 test_async_endpoints(void)
 {
-	thdcap_t tcp, tcc;
-	tcap_t tccp, tccc;
+	thdcap_t  tcp, tcc;
+	tcap_t    tccp, tccc;
 	arcvcap_t rcp, rcc;
 
 	printc("Creating threads, and async end-points.\n");
