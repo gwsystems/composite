@@ -100,7 +100,7 @@ kern_memory_setup(struct multiboot *mb, u32_t mboot_magic)
 			unsigned long sz = (mem_addr + mem->len) - mod_end;
 
 			glb_memlayout.kmem_end = mem_addr + mem->len;
-			printk("\t  memory available at boot time: %lx (%ld MB)\n", sz, sz/(1<<20));
+			printk("\t  memory available at boot time: %lx (%ld MB + %ld KB)\n", sz, sz>>20, (sz&((1<<20)-1))>>10);
 		}
 	}
 	/* FIXME: check memory layout vs. the multiboot memory regions... */

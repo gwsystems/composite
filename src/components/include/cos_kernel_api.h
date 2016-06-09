@@ -23,8 +23,8 @@ typedef capid_t hwcap_t;
 
 /* Memory source information */
 struct cos_meminfo {
-	vaddr_t       umem_ptr,   untyped_ptr;
-	unsigned long umem_range, untyped_range;
+	vaddr_t untyped_ptr,      umem_ptr,      kmem_ptr;
+	vaddr_t untyped_frontier, umem_frontier, kmem_frontier;
 };
 
 /* Component captbl/pgtbl allocation information */
@@ -48,7 +48,7 @@ void cos_compinfo_init(struct cos_compinfo *ci, captblcap_t pgtbl_cap, pgtblcap_
  * (i.e. likely only one).  All of the capabilities will be relative
  * to this component's captbls.
  */
-void cos_meminfo_init(struct cos_meminfo *mi, vaddr_t umem_ptr, unsigned long umem_sz, vaddr_t untyped_ptr, unsigned long untyped_sz);
+void cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz);
 
 /*
  * This uses the next three functions to allocate a new component and
