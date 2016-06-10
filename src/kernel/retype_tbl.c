@@ -32,7 +32,7 @@ mod_ref_cnt(void *pa, const int op, const int type_check)
 	retype_entry = GET_RETYPE_ENTRY(idx);
 	old_v = local_u.v = retype_entry->refcnt_atom.v;
 	/* only allow to ref user or kernel typed memory set */
-	if (unlikely((local_u.type != RETYPETBL_USER) && (local_u.type != RETYPETBL_KERN))) return -EPERM;
+	//if (unlikely((local_u.type != RETYPETBL_USER) && (local_u.type != RETYPETBL_KERN))) return -EPERM;
 
 	/* Do type check if type passed in. */
 	if (type_check >= 0 && type_check != local_u.type) return -EPERM;

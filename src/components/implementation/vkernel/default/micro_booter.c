@@ -535,23 +535,38 @@ test_run(void)
 {
 	printc("\nMicro Booter started.\n");
 
-	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+	//cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	//printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
-	test_thds();
-	test_thds_perf();
-
-	test_timer();
-
+//	printc("---------------------------\n");
+//	test_thds();
+//	printc("---------------------------\n");
+//	test_thds_perf();
+//	printc("---------------------------\n");
+//
+//	printc("---------------------------\n");
+//	test_timer();
+//	printc("---------------------------\n");
+//
+	printc("---------------------------\n");
 	test_mem();
-
-	test_async_endpoints();
-	test_async_endpoints_perf();
-
-	test_inv();
-	test_inv_perf();
-
-	test_captbl_expand();
+	printc("---------------------------\n");
+//
+//	printc("---------------------------\n");
+//	test_async_endpoints();
+//	printc("---------------------------\n");
+//	test_async_endpoints_perf();
+//	printc("---------------------------\n");
+//
+//	printc("---------------------------\n");
+//	test_inv();
+//	printc("---------------------------\n");
+//	test_inv_perf();
+//	printc("---------------------------\n");
+//
+//	printc("---------------------------\n");
+//	test_captbl_expand();
+//	printc("---------------------------\n");
 
 	printc("\nMicro Booter done.\n");
 }
@@ -562,18 +577,20 @@ term_fn(void *d)
 	BUG_DIVZERO();
 }
 
+#define BOOT_MEM_KM_PA_SZ 16*1024*1024
 void
-cos_init(void)
+vm_init(void)
 {
-	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
+	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, BOOT_MEM_KM_PA_SZ);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
+	printc("heap ptr: %x\n", (vaddr_t)cos_get_heap_ptr());
 
-	termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
-	assert(termthd);
+//	termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
+//	assert(termthd);
 
 	test_run();
-	cos_thd_switch(termthd);
+//	cos_thd_switch(termthd);
 
 	return;
 }
