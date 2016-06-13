@@ -19,6 +19,10 @@ if [ "$prog" = "nginx" ]; then
 	cp ../../../../../../apps/nginx/nginx.bin .
 fi
 
+if [ "$prog" = "snake" ]; then
+	cp ../../../../../../apps/snake/snake.bin .
+fi
+
 # Defined in both cos and rk, localize one of them.
 objcopy -L memmove   rump_boot.o
 objcopy -L munmap    rump_boot.o
