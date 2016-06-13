@@ -85,7 +85,8 @@ int cos_introspect(struct cos_compinfo *ci, capid_t cap, unsigned long op);
 
 vaddr_t cos_mem_alias(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);
 int cos_mem_alias_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src);
-int cos_mem_move(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src);
+vaddr_t cos_mem_move(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src);
+int cos_mem_move_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src);
 int cos_mem_remove(pgtblcap_t pt, vaddr_t addr);
 
 /* Tcap operations */

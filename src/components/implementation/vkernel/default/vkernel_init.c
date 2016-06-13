@@ -18,8 +18,8 @@ compcap_t vmcc;
 sinvcap_t invcap;
 extern void* vm_captbl_op_inv(long arg1, long arg2, long arg3, long arg4);
 
-#define VM_MEM_KM_SIZE	(16*1024*1024)  //4MB
-#define HEAP_MEM_SIZE	(16*1024*1024)
+#define VM_MEM_KM_SIZE	(1<<24)  //16MB
+#define HEAP_MEM_SIZE	(1<<23) //8MB
 
 void
 cos_init(void)

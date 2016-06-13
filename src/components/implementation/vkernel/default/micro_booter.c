@@ -152,7 +152,7 @@ test_mem(void)
 	for (i = 0 ; i < TEST_NPAGES ; i++) {
 		t = cos_page_bump_alloc(&booter_info);
 		assert(t);// && t == prev + 4096);
-		printc("%d:%x: Page allocation\n", i, t);
+		//printc("%d:%x: Page allocation\n", i, t);
 		prev = t;
 	}
 	memset(s, 0, TEST_NPAGES * 4096);
@@ -535,40 +535,41 @@ test_run(void)
 {
 	printc("\nMicro Booter started.\n");
 
-	//cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	//printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
+	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
-//	printc("---------------------------\n");
-//	test_thds();
-//	printc("---------------------------\n");
-//	test_thds_perf();
-//	printc("---------------------------\n");
-//
-//	printc("---------------------------\n");
-//	test_timer();
-//	printc("---------------------------\n");
-//
+	printc("---------------------------\n");
+	test_thds();
+	printc("---------------------------\n");
+	test_thds_perf();
+	printc("---------------------------\n");
+
+	printc("---------------------------\n");
+	test_timer();
+	printc("---------------------------\n");
+
 	printc("---------------------------\n");
 	test_mem();
 	printc("---------------------------\n");
-//
-//	printc("---------------------------\n");
-//	test_async_endpoints();
-//	printc("---------------------------\n");
-//	test_async_endpoints_perf();
-//	printc("---------------------------\n");
-//
-//	printc("---------------------------\n");
-//	test_inv();
-//	printc("---------------------------\n");
-//	test_inv_perf();
-//	printc("---------------------------\n");
-//
-//	printc("---------------------------\n");
-//	test_captbl_expand();
-//	printc("---------------------------\n");
+
+	printc("---------------------------\n");
+	test_async_endpoints();
+	printc("---------------------------\n");
+	test_async_endpoints_perf();
+	printc("---------------------------\n");
+
+	printc("---------------------------\n");
+	test_inv();
+	printc("---------------------------\n");
+	test_inv_perf();
+	printc("---------------------------\n");
+
+	printc("---------------------------\n");
+	test_captbl_expand();
+	printc("---------------------------\n");
 
 	printc("\nMicro Booter done.\n");
+//	cos_hw_detach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC);
 }
 
 void
@@ -577,7 +578,7 @@ term_fn(void *d)
 	BUG_DIVZERO();
 }
 
-#define BOOT_MEM_KM_PA_SZ 16*1024*1024
+#define BOOT_MEM_KM_PA_SZ (1<<24)
 void
 vm_init(void)
 {
@@ -586,11 +587,11 @@ vm_init(void)
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
 	printc("heap ptr: %x\n", (vaddr_t)cos_get_heap_ptr());
 
-//	termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
-//	assert(termthd);
+	termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
+	assert(termthd);
 
 	test_run();
-//	cos_thd_switch(termthd);
+	while (1) cos_thd_switch(termthd);
 
 	return;
 }

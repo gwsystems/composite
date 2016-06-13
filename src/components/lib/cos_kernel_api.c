@@ -300,11 +300,13 @@ __page_copy_utalloc(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vadd
 	return 0;
 }
 
+/* 
+ * need to make this a generic function to be called even from __page_bump_valloc()
+ */
 static vaddr_t
 __bump_untyped_expand_range(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long untyped_sz)
 {
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
-	/* assuming cos_meminfo_init before calling this func */
 	vaddr_t ut_vaddr = untyped_ptr;
 	unsigned long ut_frontier = ut_vaddr + untyped_sz;
 	unsigned int i;
@@ -332,7 +334,6 @@ __bump_untyped_expand_range(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsign
 			assert(0); /* race? */
 			return 0;
 		}
-
 	}
 	//printc("%x %x - %x %x\n", i, ut_frontier, round_up_to_pgd_page(i), round_up_to_pgd_page(ut_frontier)); 
 	assert(round_up_to_pgd_page(i) == round_up_to_pgd_page(ut_frontier));
@@ -350,7 +351,7 @@ __cos_meminfo_alloc(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long 
 	for (i = 0; i < untyped_sz/PAGE_SIZE; i ++ ) {
 		vaddr_t ut_addr = __untyped_bump_alloc(meta);
 
-		if (call_cap_op(meta->pgtbl_cap, CAPTBL_OP_CPY, ut_addr, ci->pgtbl_cap, untyped_ptr + (i * PAGE_SIZE), 0))  BUG();
+		if (call_cap_op(meta->pgtbl_cap, CAPTBL_OP_MEMMOVE, ut_addr, ci->pgtbl_cap, untyped_ptr + (i * PAGE_SIZE), 0))  BUG();
 	}
 
 }
@@ -731,10 +732,24 @@ cos_mem_remove(pgtblcap_t pt, vaddr_t addr)
 	return 0;
 }
 
-int
-cos_mem_move(pgtblcap_t ptdst, vaddr_t dst, pgtblcap_t ptsrc, vaddr_t src)
+vaddr_t
+cos_mem_move(struct cos_compinfo *dstci, struct cos_compinfo *srcci, vaddr_t src)
 {
-	assert(0);
+	assert(dstci);
+	assert(srcci);
+	vaddr_t dst = __page_bump_valloc(dstci);
+
+	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_MEMMOVE, src, dstci->pgtbl_cap, dst, 0))  BUG();
+	return dst;
+}
+
+int
+cos_mem_move_at(struct cos_compinfo *dstci, vaddr_t dst, struct cos_compinfo *srcci, vaddr_t src)
+{
+	assert(dstci);
+	assert(srcci);
+	/* TODO */
+	if (call_cap_op(srcci->pgtbl_cap, CAPTBL_OP_MEMMOVE, src, dstci->pgtbl_cap, dst, 0))  BUG();
 	return 0;
 }
 

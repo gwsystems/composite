@@ -354,7 +354,7 @@ cap_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to,
 		old_v = *f;
 
 		/* Cannot copy frame, or kernel entry. */
-	//	if ((old_v & PGTBL_COSFRAME) || !(old_v & PGTBL_USER)) return -EPERM;
+		if ((old_v & PGTBL_COSFRAME) || !(old_v & PGTBL_USER)) return -EPERM;
 	//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 		/* TODO: validate the type is appropriate given the value of *flags */
 		ret = pgtbl_mapping_add(((struct cap_pgtbl *)ctto)->pgtbl,
@@ -1219,30 +1219,30 @@ composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 		}
 		case CAPTBL_OP_MEM_RETYPE2USER:
 		{
-			printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+			//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 			vaddr_t frame_addr = __userregs_get1(regs);
 			paddr_t frame;
 
-			printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+			//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
 			if (ret) cos_throw(err, ret);
 
-			printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+			//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 			ret = retypetbl_retype2user((void *)frame);
 
 			break;
 		}
 		case CAPTBL_OP_MEM_RETYPE2KERN:
 		{
-			printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+			//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 			vaddr_t frame_addr = __userregs_get1(regs);
 			paddr_t frame;
 
-			printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+			//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 			ret = pgtbl_get_cosframe(((struct cap_pgtbl *)ch)->pgtbl, frame_addr, &frame);
 			if (ret) cos_throw(err, ret);
 
-			printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+			//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 			ret = retypetbl_retype2kern((void *)frame);
 
 			break;

@@ -481,16 +481,16 @@ pgtbl_get_cosframe(pgtbl_t pt, vaddr_t frame_addr, paddr_t *cosframe)
 	unsigned long *pte;
 	paddr_t v;
 
-	printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+	//printk("%s-%s:%d - %x\n", __FILE__, __func__, __LINE__, frame_addr);
 	pte = pgtbl_lkup_pte(pt, frame_addr, &flags);
 	if (!pte) return -EINVAL;
 
 	v = *pte;
-	printk("%s-%s:%d - %x\n", __FILE__, __func__, __LINE__, v);
+	//printk("%s-%s:%d - %x\n", __FILE__, __func__, __LINE__, v);
 	if (!(v & PGTBL_COSFRAME)) return -EINVAL;
 
 	*cosframe = v & PGTBL_FRAME_MASK;
-	printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+	//printk("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 
 	return 0;
 }
