@@ -45,6 +45,7 @@ printc(char *fmt, ...)
 	  return ret;
 }
 
+extern thdcap_t vm_exit_thd;
 struct cos_compinfo booter_info;
 thdcap_t termthd; 		/* switch to this to shutdown */
 /* For Div-by-zero test */
@@ -535,8 +536,8 @@ test_run(void)
 {
 	printc("\nMicro Booter started.\n");
 
-	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
-	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+//	cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
+//	printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
 
 	printc("---------------------------\n");
 	test_thds();
@@ -545,7 +546,7 @@ test_run(void)
 	printc("---------------------------\n");
 
 	printc("---------------------------\n");
-	test_timer();
+//	test_timer();
 	printc("---------------------------\n");
 
 	printc("---------------------------\n");
@@ -578,7 +579,15 @@ term_fn(void *d)
 	BUG_DIVZERO();
 }
 
-#define BOOT_MEM_KM_PA_SZ (1<<24)
+static void *
+cos_va2pa(void * vaddr)
+{
+        int paddr = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (int)vaddr, 0,0,0);
+	paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
+        return (void *)paddr;
+}
+
+#define BOOT_MEM_KM_PA_SZ (1<<25) //32MB
 void
 vm_init(void)
 {
@@ -587,11 +596,16 @@ vm_init(void)
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
 	printc("heap ptr: %x\n", (vaddr_t)cos_get_heap_ptr());
 
+	printc("%x %x\n", BOOT_MEM_KM_BASE, round_up_to_pgd_page(BOOT_MEM_KM_BASE));
+	printc("%x %x\n", BOOT_MEM_KM_BASE + COS_MEM_KERN_PA_SZ, round_up_to_pgd_page(BOOT_MEM_KM_BASE + COS_MEM_KERN_PA_SZ));
+	printc("%x\n", cos_va2pa(BOOT_MEM_KM_BASE));
+
 	termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
 	assert(termthd);
 
 	test_run();
-	while (1) cos_thd_switch(termthd);
+	cos_thd_switch(BOOT_CAPTBL_SELF_EXITTHD_BASE);
 
+	cos_thd_switch(termthd);
 	return;
 }

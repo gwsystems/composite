@@ -18,6 +18,7 @@
 #include "cpu_ghz.h"
 
 /* we already use 16 MB of kernel memory + the kernel img, thus 32MB offset for this: */
+/* TODO: Now that there is only one region. do we need these?? There are some inconsistencies in having these.. */
 #define COS_MEM_USER_PA       (1<<25)
 #define COS_MEM_USER_PA_SZ    (1<<25) /* start with 32MB of memory */
 

@@ -32,7 +32,7 @@ void
 cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz)
 {
 	mi->untyped_ptr = mi->umem_ptr = mi->kmem_ptr = mi->umem_frontier = mi->kmem_frontier = untyped_ptr;
-	mi->untyped_frontier = untyped_ptr + untyped_sz;
+	mi->untyped_frontier = round_up_to_pgd_page(untyped_ptr + untyped_sz);
 }
 
 static inline struct cos_compinfo *
@@ -91,7 +91,7 @@ __mem_bump_alloc(struct cos_compinfo *__ci, int km, int retype)
 	assert(ci && ci == __compinfo_metacap(__ci));
 
 	if (km) {
-	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+//	printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 		ptr      = &ci->mi.kmem_ptr;
 		frontier = &ci->mi.kmem_frontier;
 	} else {
@@ -314,6 +314,7 @@ __bump_untyped_expand_range(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsign
 	assert(meta == __compinfo_metacap(meta)); /* prevent unbounded structures */
 
 	for (i = ut_vaddr; i < ut_frontier; i += PGD_RANGE) {
+		//printc("%x\n", i);
 		capid_t pte_cap;
 		vaddr_t ptemem_cap;
 
@@ -347,13 +348,27 @@ __cos_meminfo_alloc(struct cos_compinfo *ci, vaddr_t untyped_ptr, unsigned long 
 	struct cos_compinfo *meta = __compinfo_metacap(ci);
 	unsigned int i;
 
+	/*
+	 * FIXME: Check for PAGE ALLIGNED and PGD ALLIGNED size in untyped_sz
+	 */
+	untyped_sz = round_up_to_pgd_page(untyped_sz);
 	__bump_untyped_expand_range(ci, untyped_ptr, untyped_sz);
-	for (i = 0; i < untyped_sz/PAGE_SIZE; i ++ ) {
-		vaddr_t ut_addr = __untyped_bump_alloc(meta);
+	
+	vaddr_t start_addr = meta->mi.untyped_frontier - untyped_sz - PAGE_SIZE;
+	start_addr = round_up_to_pgd_page(start_addr);
+	//printc("%s:%d - %x\n", __FILE__, __LINE__, start_addr);
+	meta->mi.untyped_frontier = start_addr;
 
-		if (call_cap_op(meta->pgtbl_cap, CAPTBL_OP_MEMMOVE, ut_addr, ci->pgtbl_cap, untyped_ptr + (i * PAGE_SIZE), 0))  BUG();
+	for (i = untyped_ptr; i < untyped_ptr + untyped_sz; i += PAGE_SIZE, start_addr += PAGE_SIZE) {
+		//vaddr_t start_addr = __untyped_bump_alloc(meta);
+	//	printc("%x %x\n", i, start_addr);
+
+		if (call_cap_op(meta->pgtbl_cap, CAPTBL_OP_MEMMOVE, start_addr, ci->pgtbl_cap, i, 0))  BUG();
 	}
-
+	//meta->mi.untyped_ptr = round_up_to_pgd_page(meta->mi.untyped_ptr);
+	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
+	//__kmem_bump_alloc(meta);
+	//printc("%s-%s:%d\n", __FILE__, __func__, __LINE__);
 }
 
 void
