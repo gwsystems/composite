@@ -1,7 +1,5 @@
 #include <print.h>
 #include <cos_component.h>
-//#include <cbuf_mgr.h>
-//#include <assert.h>
 #include <test_malloc_comp.h>
 
 #define NUM 10
@@ -11,7 +9,7 @@ static int flag = 0;
 int 
 call(void)
 {
-	printc("about to call malloc a bunch of times\n");
+	printc("about to call malloc a bunch of times from spdid %d\n", cos_spd_id());
 	static int a = 1;
 	static int b = 2;
 	
@@ -20,6 +18,8 @@ call(void)
 		flag = 1;
 		int err=0; /* have we found a bug. Won't do fancy bug codes yet. 1 yes, 0 everything is fine */
 		int i, j;
+
+		assert(cos_spd_id() == 12);
 
 		for (i = 0; i < NUM; i++) {
 			mptr[i] = (char *)malloc((i+1) * sizeof(int));
@@ -51,6 +51,5 @@ call(void)
 		}
 	}
 
-	// this is never actually set to anything. Remove or use
 	return a++ + b++;
 }

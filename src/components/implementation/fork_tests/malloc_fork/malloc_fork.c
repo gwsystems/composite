@@ -10,7 +10,9 @@ u64_t meas[ITER];
  * Warning - test assumes Composite can run at least ITER components.
  * (And this may not take into account other components for this test)
  */
-	
+ 
+/* Takes the role of the Client (C) in the Quarantine diagram */
+// Also include diagram	
 void cos_init(void)
 {
 	printc("Starting a fork test with dynamic memory allocation\n");
@@ -25,7 +27,7 @@ void cos_init(void)
 	f = quarantine_fork(cos_spd_id(), comp2fork);
 	if (f == 0) printc("Error: initial fork failed\n");
 
-	printc("Trying to do call again.\n");		// quarantine determines which spdid this refers to. Apparently the original?
+	printc("Trying to do call again.\n");	/* Original or Forked determined by Quarantine */
 	ret = call();
 	printc("call() returned %d\n", ret);
 

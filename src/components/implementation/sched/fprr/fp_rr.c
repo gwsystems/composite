@@ -447,9 +447,9 @@ sched_get_thread_in_spd_from_runqueue(spdid_t spdid, spdid_t target, int index)
 	/* copied from runqueue_print, a better way would use a visitor */
 
 	for (i = 0 ; i < NUM_PRIOS ; i++) {
-		for (t = FIRST_LIST(&PERCPU_GET(fprr_state)->priorities[i].runnable, prio_next, prio_prev) ; 
-		     t != &PERCPU_GET(fprr_state)->priorities[i].runnable ;
-		     t = FIRST_LIST(t, prio_next, prio_prev)) {
+		for (t  = FIRST_LIST(&PERCPU_GET(fprr_state)->priorities[i].runnable, prio_next, prio_prev); 
+		     t != &PERCPU_GET(fprr_state)->priorities[i].runnable;
+		     t  = FIRST_LIST(t, prio_next, prio_prev)) {
 			/* TODO: do we care to differentiate if the thread is
 			 * currently in the spd, versus previously? */
 			if (cos_thd_cntl(COS_THD_INV_SPD, t->id, target, 0) >= 0)

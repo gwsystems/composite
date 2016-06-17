@@ -408,7 +408,7 @@ int __mman_fork_spd(spdid_t spd, u32_t s_spd_d_spd, vaddr_t base, u32_t len)
 	 * are needed in a dependent of d_spd? */
 
 	for ( s_addr = base ; !ret && s_addr < s_addr + len; s_addr += PAGE_SIZE ) {
-		if (!(m = mapping_lookup(s_spd, s_addr))) continue;							// why not bug?
+		if (!(m = mapping_lookup(s_spd, s_addr))) continue;
 		if ((n = mapping_lookup(d_spd, s_addr))) continue;
 		if (!m->p) { /* no parent, create a new mapping */
 			if (s_addr != mman_get_page(d_spd, s_addr, m->flags)) ret = -EFAULT;

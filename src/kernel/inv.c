@@ -110,7 +110,13 @@ need_fork_fix(struct thread *thd, struct spd *curr_spd, struct invocation_cap *c
 {
 	assert(c->fork.cnt.snd >= 0);
 	assert(c->fork.cnt.rcv >= 0);
-	return (((int)c->fork.cnt.snd)<<8) | (int)c->fork.cnt.rcv;
+	int ret = (((int)c->fork.cnt.snd)<<8) | (int)c->fork.cnt.rcv;
+	int spd = spd_get_index(curr_spd);	
+	if (unlikely(ret > 0 || spd == 12 || spd == 13)) {	// 12 = malloc_comp calling printc, 13 = malloc_fork calling malloc_comp. 13 is higher because it has a dependency on comp so that is loaded first
+		printk("need_fork_fix spd %d snd %d rcv %d\n", spd, c->fork.cnt.snd, c->fork.cnt.rcv);
+	}
+
+	return ret;
 }
 
 static vaddr_t
@@ -197,7 +203,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 
 	ret->thd_id = thd->thread_id | (get_cpuid_fast() << 16);
 	ret->spd_id = spd_get_index(curr_spd);
-
+	
 	spd_mpd_ipc_take((struct composite_spd *)dest_spd->composite_spd);
 
 	/* add a new stack frame for the spd we are invoking (we're committed) */
@@ -208,6 +214,7 @@ ipc_walk_static_cap(unsigned int capability, vaddr_t sp,
 	fork_cnts = need_fork_fix(thd, curr_spd, cap_entry);
 	if (unlikely(fork_cnts > 0)) {
 		/* the off-by-1 capability */
+		printk("ipc_walk_static_cap thd->id: %d, with curr_spd %d, d_spd %d, with fork_cnts %d\n", thd_get_id(thd), spd_get_index(curr_spd), spd_get_index(dest_spd), fork_cnts);
 		return thd_quarantine_fault(thd, curr_spd, dest_spd, ((capability-1)<<16) | fork_cnts, COS_FLT_QUARANTINE, ret);
 	}
 
@@ -330,7 +337,6 @@ __fault_ipc_invoke(struct thread *thd, vaddr_t fault_addr, int flags, struct pt_
 	unsigned int fault_cap;
 	struct pt_regs *nregs;
 
-	printk("Faulting here for malloc fork but not micro fork\n");
 	printk("thd %d, spd %d, fault addr %p, flags %d, fault num %d\n", thd_get_id(thd), s ? spd_get_index(s) : 0, fault_addr, flags, fault_num);
 	/* corrupted ip? */
 	if (unlikely(!s)) {
@@ -390,11 +396,6 @@ thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_
 	int c_spd, d_spd, c_cnt, d_cnt, capid;
 	vaddr_t packed_spds;
 
-	/*
-	 * c_cnt = spd_get_fork_cnt(curr_spd);		// are these junk?
- 	 * d_cnt = spd_get_fork_cnt(dest_spd);
- 	 * packed_counts = (c_cnt<<16)|d_cnt;
-	 */
 	/* for debug purposes */
 	capid = packed_counts>>16;
 	c_cnt = (packed_counts>>8)&0xff;
@@ -403,10 +404,10 @@ thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_
 	c_spd = spd_get_index(curr_spd);
 	d_spd = spd_get_index(dest_spd);
 	packed_spds = (vaddr_t)((c_spd<<16)|d_spd);
-	
-	printk("cos: thd_quarantine_fault %d (%d) -> %d (%d) with cap %d\n", c_spd, c_cnt, d_spd, d_cnt, capid);
 
-	// this is the part of the code that sets up future calls???
+	printk("in thd_quarantine_fault c_spd is %d and d_spd is %d\n", c_spd, d_spd);
+	printk("cos: thd_quarantine_fault from kernel/inv.c %d (%d) -> %d (%d) with cap %d\n", c_spd, c_cnt, d_spd, d_cnt, capid);
+
 	/* GB: use curr_spd->fault_handler[], or dest_spd?
 	 * has to be dest_spd, otherwise static_ipc_walk fails, but
 	 * how do we fix-up the curr_spd then? */
@@ -415,6 +416,8 @@ thd_quarantine_fault(struct thread *thd, struct spd *curr_spd, struct spd *dest_
 	ret->si = thd->regs.si;
 	ret->di = thd->regs.di;
 	ret->bp = thd->regs.bp;
+
+	printk("thd->id: %d, thd->regs.ip %lu\n", ret->thd_id, thd->regs.ip);
 	return thd->regs.ip;
 }
 
