@@ -606,9 +606,9 @@ vm_init(void *id)
 
 	test_run();
 	//cos_thd_switch(BOOT_CAPTBL_SELF_EXITTHD_BASE);
-	//cos_thd_switch(BOOT_CAPTBL_LAST_CAP);
-
 	printc("VM %d DONE\n", (int) id);
+	while(1) cos_thd_switch(BOOT_CAPTBL_LAST_CAP);
+
 	while (1) ; //do nothing if scheduled
 	//cos_thd_switch(termthd);
 	return;
