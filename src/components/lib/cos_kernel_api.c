@@ -29,13 +29,10 @@ printd(char *fmt, ...)
 #endif
 
 void
-cos_meminfo_init(struct cos_meminfo *mi, vaddr_t umem_ptr, unsigned long umem_sz,
-		 vaddr_t untyped_ptr, unsigned long untyped_sz)
+cos_meminfo_init(struct cos_meminfo *mi, vaddr_t untyped_ptr, unsigned long untyped_sz)
 {
-	mi->umem_ptr      = umem_ptr;
-	mi->untyped_ptr   = untyped_ptr;
-	mi->umem_range    = umem_ptr + umem_sz;
-	mi->untyped_range = untyped_ptr + untyped_sz;
+	mi->untyped_ptr = mi->umem_ptr = mi->kmem_ptr = mi->umem_frontier = mi->kmem_frontier = untyped_ptr;
+	mi->untyped_frontier = untyped_ptr + untyped_sz;
 }
 
 static inline struct cos_compinfo *
@@ -81,32 +78,42 @@ cos_compinfo_init(struct cos_compinfo *ci, captblcap_t pgtbl_cap, pgtblcap_t cap
 /**************** [Memory Capability Allocation Functions] ***************/
 
 static vaddr_t
-__mem_bump_alloc(struct cos_compinfo *__ci, int km, vaddr_t *mem_ptr, vaddr_t *mem_range)
+__mem_bump_alloc(struct cos_compinfo *__ci, int km)
 {
 	vaddr_t ret = 0;
 	struct cos_compinfo *ci;
+	vaddr_t *ptr, *frontier;
 
 	printd("__mem_bump_alloc\n");
 
 	assert(__ci);
 	ci = __compinfo_metacap(__ci);
 	assert(ci && ci == __compinfo_metacap(__ci));
-	if (*mem_ptr >= *mem_range) return 0;
 
-	/*
-	 * TODO: We need separate lists for user/kernel memory if we have a
-	 * single pool that can handle either.
-	 */
-	if (*mem_ptr % RETYPE_MEM_SIZE == 0) {
+	if (km) {
+		ptr      = &ci->mi.kmem_ptr;
+		frontier = &ci->mi.kmem_frontier;
+	} else {
+		ptr      = &ci->mi.umem_ptr;
+		frontier = &ci->mi.umem_frontier;
+	}
+	if (*ptr == *frontier) {
+		/* TODO: expand frontier if introspection says there is more memory */
+		if (ci->mi.untyped_ptr == ci->mi.untyped_frontier) return 0;
+		ret                 = ci->mi.untyped_ptr;
+		ci->mi.untyped_ptr += RETYPE_MEM_SIZE; /* TODO: atomic */
+		*ptr                = ret;
+		*frontier           = ret + RETYPE_MEM_SIZE;
+	}
+
+	if (ret % RETYPE_MEM_SIZE == 0) {
 		/* are we dealing with a kernel memory allocation? */
 		syscall_op_t op = km ? CAPTBL_OP_MEM_RETYPE2KERN : CAPTBL_OP_MEM_RETYPE2USER;
 
-		ret = call_cap_op(ci->pgtbl_cap, op, *mem_ptr, 0, 0, 0);
-		if (ret) return 0;
+		if (call_cap_op(ci->pgtbl_cap, op, ret, 0, 0, 0)) return 0;
 	}
 
-	ret = *mem_ptr;
-	*mem_ptr += PAGE_SIZE;
+	*ptr += PAGE_SIZE;
 
 	return ret;
 }
@@ -115,7 +122,7 @@ static vaddr_t
 __kmem_bump_alloc(struct cos_compinfo *ci)
 {
 	printd("__kmem_bump_alloc\n");
-	return __mem_bump_alloc(ci, 1, &ci->mi.untyped_ptr, &ci->mi.untyped_range);
+	return __mem_bump_alloc(ci, 1);
 }
 
 /* this should back-up to using untyped memory... */
@@ -123,7 +130,7 @@ static vaddr_t
 __umem_bump_alloc(struct cos_compinfo *ci)
 {
 	printd("__umem_bump_alloc\n");
-	return __mem_bump_alloc(ci, 0, &ci->mi.umem_ptr, &ci->mi.umem_range);
+	return __mem_bump_alloc(ci, 0);
 }
 
 /**************** [Capability Allocation Functions] ****************/

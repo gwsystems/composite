@@ -252,6 +252,12 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 	ip = __userregs_getip(regs);
 	sp = __userregs_getsp(regs);
 
+	/*
+	 * Note that we want this liveness lookup to proceed in
+	 * parallel to the thread operations so we avoid stores in
+	 * this path (to avoid serialization in the store buffer), and
+	 * optimize the static branch prediction.
+	 */
 	if (unlikely(!ltbl_isalive(&(sinvc->comp_info.liveness)))) {
 		printk("cos: sinv comp (liveness %d) doesn't exist!\n", sinvc->comp_info.liveness.id);
 		//FIXME: add fault handling here.
@@ -266,6 +272,7 @@ sinv_call(struct thread *thd, struct cap_sinv *sinvc, struct pt_regs *regs, stru
 
 	pgtbl_update(sinvc->comp_info.pgtbl);
 
+	/* TODO: test this before pgtbl update...pre- vs. post-serialization */
 	__userregs_sinvupdate(regs);
 	__userregs_set(regs, thd->tid | (get_cpuid() << 16),
 		       0 /* FIXME: add calling component id */, sinvc->entry_addr);

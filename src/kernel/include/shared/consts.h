@@ -119,11 +119,7 @@ struct pt_regs {
  * size. Multiple of 16 on x86.  If you change, this, make sure to
  * update the linker script as well.
  */
-#ifdef COS_LINUX
-#define RETYPE_MEM_NPAGES        (32)
-#else
 #define RETYPE_MEM_NPAGES        (1)
-#endif
 #define RETYPE_MEM_SIZE          (RETYPE_MEM_NPAGES * PAGE_SIZE)
 
 #include "../asm_ipc_defs.h" 	/* FIXME: just for cos_component.h now */

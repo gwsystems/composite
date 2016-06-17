@@ -257,8 +257,8 @@ async_thd_parent(void *thdcap)
 static void
 test_async_endpoints(void)
 {
-	thdcap_t tcp, tcc;
-	tcap_t tccp, tccc;
+	thdcap_t  tcp, tcc;
+	tcap_t    tccp, tccc;
 	arcvcap_t rcp, rcc;
 
 	printc("Creating threads, and async end-points.\n");
@@ -564,8 +564,7 @@ term_fn(void *d)
 void
 cos_init(void)
 {
-	cos_meminfo_init(&booter_info.mi, BOOT_MEM_PM_BASE, COS_MEM_USER_PA_SZ,
-			 BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
+	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, COS_MEM_KERN_PA_SZ);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
 
