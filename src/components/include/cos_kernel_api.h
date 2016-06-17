@@ -102,5 +102,6 @@ int cos_hw_detach(hwcap_t hwc, hwid_t hwid);
 void *cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa);
 int cos_hw_cycles_per_usec(hwcap_t hwc);
 
+void *cos_va2pa(struct cos_compinfo *ci, void * vaddr);
 
 #endif /* COS_KERNEL_API_H */

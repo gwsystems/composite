@@ -6,7 +6,7 @@
 #define debug_print(str) (PRINT_FN(str __FILE__ ":" STR(__LINE__) ".\n"))
 #define BUG() do { debug_print("BUG @ "); *((int *)0) = 0; } while (0);
 
-#define NO_OF_VMS	3
+#define NO_OF_VMS	2
 
 #define VM_MEM_KM_SIZE	(1<<25)  //16MB
 #define HEAP_MEM_SIZE	(1<<23) //8MB
@@ -20,6 +20,7 @@
 
 thdcap_t vm_exit_thd = 0;
 thdcap_t vk_termthd = 0;
+thdcap_t vk_timer_thd = 0;
 extern void vm_init(void *);
 //extern void term_fn(void *);
 int is_vkernel = 1;
@@ -28,6 +29,7 @@ extern vaddr_t cos_upcall_entry;
 struct cos_compinfo vkern_info;
 //thdcap_t termthd; 		/* switch to this to shutdown */
 sinvcap_t invcap;
+thdcap_t vm_main_thd[NO_OF_VMS];
 
 void
 vk_term_fn(void *d)
@@ -35,6 +37,18 @@ vk_term_fn(void *d)
 	BUG();
 }
 
+void
+timer_fn(void) {
+	static unsigned int i = 0;
+
+	thdid_t tid;
+	int rcving;
+	cycles_t cycles;
+
+	while (cos_rcv(BOOT_CAPTBL_SELF_INITRCV_BASE, &tid, &rcving, &cycles)) {
+		cos_thd_switch(vm_main_thd[i ++ % NO_OF_VMS]);
+	}
+}
 /* switch to vkernl booter thd */
 void
 vm_exit(void) 
@@ -42,13 +56,13 @@ vm_exit(void)
 	test_status = 0;
 	while(1) cos_thd_switch(BOOT_CAPTBL_SELF_INITTHD_BASE);
 }
-static void *
-cos_va2pa(void * vaddr)
-{
-        int paddr = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (int)vaddr, 0,0,0);
-        paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
-        return (void *)paddr;
-}
+//static void *
+//cos_va2pa(void * vaddr)
+//{
+//        int paddr = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (int)vaddr, 0,0,0);
+//        paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
+//        return (void *)paddr;
+//}
 
 
 extern void* vm_captbl_op_inv(long arg1, long arg2, long arg3, long arg4);
@@ -66,7 +80,7 @@ cos_init(void)
 		cos_compinfo_init(&vkern_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 				  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &vkern_info);
 
-		printc("%x\n", cos_va2pa(BOOT_MEM_KM_BASE));
+		printc("%x\n", cos_va2pa(&vkern_info, BOOT_MEM_KM_BASE));
 		//cos_cap_cpy_at (&vkern_info, BOOT_CAPTBL_SELF_INITTHD_BASE, &vkern_info, BOOT_CAPTBL_SELF_EXITTHD_BASE);
 		printc("\nvirtualization layer init\n");
 		is_vkernel = 0;
@@ -84,10 +98,10 @@ cos_init(void)
 			pgtblcap_t vmpt;
 			compcap_t vmcc;
 
-		printc("%s:%d\n", __FILE__, __LINE__);
-		vm_exit_thd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, vm_exit, NULL);
-		assert(vm_exit_thd);
-		printc("%s:%d\n", __FILE__, __LINE__);
+			printc("%s:%d\n", __FILE__, __LINE__);
+			vm_exit_thd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, vm_exit, NULL);
+			assert(vm_exit_thd);
+			printc("%s:%d\n", __FILE__, __LINE__);
 
 			struct cos_compinfo vmbooter_info;
 			printc("VM %d Init Start\n", id);
@@ -113,10 +127,12 @@ cos_init(void)
 					(vaddr_t)BOOT_MEM_VM_BASE, BOOT_CAPTBL_FREE, &vkern_info);
 			printc("%s:%d\n", __FILE__, __LINE__);
 
-			vmthd = cos_thd_alloc(&vkern_info, vmbooter_info.comp_cap, vm_init, (void *)id);
-			assert(vmthd);
+			vm_main_thd[id] = cos_thd_alloc(&vkern_info, vmbooter_info.comp_cap, vm_init, (void *)id);
+			assert(vm_main_thd[id]);
 			printc("%s:%d\n", __FILE__, __LINE__);
-			cos_cap_cpy_at(&vmbooter_info, BOOT_CAPTBL_SELF_INITTHD_BASE, &vkern_info, vmthd);
+			cos_cap_cpy_at(&vmbooter_info, BOOT_CAPTBL_SELF_INITTHD_BASE, &vkern_info, vm_main_thd[id]);
+			printc("%s:%d\n", __FILE__, __LINE__);
+			//vm_main_thd[i] = vmthd;
 			printc("%s:%d\n", __FILE__, __LINE__);
 
 			/*
@@ -142,7 +158,8 @@ cos_init(void)
 			cos_cap_cpy_at(&vmbooter_info, BOOT_CAPTBL_SELF_INITHW_BASE, &vkern_info, BOOT_CAPTBL_SELF_INITHW_BASE); 
 			printc("%s:%d\n", __FILE__, __LINE__);
 			//		cos_cap_cpy_at(&vmbooter_info, termthd, &vkern_info, termthd); 
-			cos_cap_cpy_at(&vmbooter_info, BOOT_CAPTBL_SELF_EXITTHD_BASE, &vkern_info, vm_exit_thd); 
+			//cos_cap_cpy_at(&vmbooter_info, BOOT_CAPTBL_SELF_EXITTHD_BASE, &vkern_info, vm_exit_thd); 
+			cos_cap_cpy_at(&vmbooter_info, BOOT_CAPTBL_LAST_CAP, &vkern_info, vm_exit_thd); 
 			printc("%s:%d\n", __FILE__, __LINE__);
 
 			/*
@@ -176,13 +193,25 @@ cos_init(void)
 
 
 			/* need shared memory for capturing this status */
-			test_status = 1;
-			while(test_status) cos_thd_switch(vmthd);
+			//test_status = 1;
+			//while(test_status) cos_thd_switch(vmthd);
+			//cos_thd_switch(vmthd);
 
 			printc("\nVM %d Init DONE\n", id);
 		}
+
+		printc("%s:%d\n", __FILE__, __LINE__);
+		vk_timer_thd = cos_thd_alloc(&vkern_info, vkern_info.comp_cap, timer_fn, NULL);
+		assert(vk_timer_thd);
+		printc("%s:%d\n", __FILE__, __LINE__);
+
+		cos_hw_attach(BOOT_CAPTBL_SELF_INITHW_BASE, HW_PERIODIC, BOOT_CAPTBL_SELF_INITRCV_BASE);
+		printc("\t%d cycles per microsecond\n", cos_hw_cycles_per_usec(BOOT_CAPTBL_SELF_INITHW_BASE));
+
+
 		//cos_thd_switch(termthd);
 	} 
+	while(1) cos_thd_switch(vk_timer_thd);//do nothing. timer thread active..
 	printc("cos_init end\n");
 	cos_thd_switch(vk_termthd);
 

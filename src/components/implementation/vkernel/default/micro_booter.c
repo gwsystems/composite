@@ -579,33 +579,37 @@ term_fn(void *d)
 	BUG_DIVZERO();
 }
 
-static void *
-cos_va2pa(void * vaddr)
-{
-        int paddr = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (int)vaddr, 0,0,0);
-	paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
-        return (void *)paddr;
-}
+//static void *
+//cos_va2pa(void * vaddr)
+//{
+//        int paddr = call_cap_op(BOOT_CAPTBL_SELF_PT, CAPTBL_OP_INTROSPECT, (int)vaddr, 0,0,0);
+//	paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
+//        return (void *)paddr;
+//}
 
 #define BOOT_MEM_KM_PA_SZ (1<<25) //32MB
 void
-vm_init(void)
+vm_init(void *id)
 {
 	cos_meminfo_init(&booter_info.mi, BOOT_MEM_KM_BASE, BOOT_MEM_KM_PA_SZ);
 	cos_compinfo_init(&booter_info, BOOT_CAPTBL_SELF_PT, BOOT_CAPTBL_SELF_CT, BOOT_CAPTBL_SELF_COMP,
 			  (vaddr_t)cos_get_heap_ptr(), BOOT_CAPTBL_FREE, &booter_info);
 	printc("heap ptr: %x\n", (vaddr_t)cos_get_heap_ptr());
+	printc("VM ID: %d\n", (int) id);
 
 	printc("%x %x\n", BOOT_MEM_KM_BASE, round_up_to_pgd_page(BOOT_MEM_KM_BASE));
 	printc("%x %x\n", BOOT_MEM_KM_BASE + COS_MEM_KERN_PA_SZ, round_up_to_pgd_page(BOOT_MEM_KM_BASE + COS_MEM_KERN_PA_SZ));
-	printc("%x\n", cos_va2pa(BOOT_MEM_KM_BASE));
+	printc("%x\n", cos_va2pa(&booter_info, BOOT_MEM_KM_BASE));
 
 	termthd = cos_thd_alloc(&booter_info, booter_info.comp_cap, term_fn, NULL);
 	assert(termthd);
 
 	test_run();
-	cos_thd_switch(BOOT_CAPTBL_SELF_EXITTHD_BASE);
+	//cos_thd_switch(BOOT_CAPTBL_SELF_EXITTHD_BASE);
+	//cos_thd_switch(BOOT_CAPTBL_LAST_CAP);
 
-	cos_thd_switch(termthd);
+	printc("VM %d DONE\n", (int) id);
+	while (1) ; //do nothing if scheduled
+	//cos_thd_switch(termthd);
 	return;
 }

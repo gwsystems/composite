@@ -844,3 +844,13 @@ cos_hw_map(struct cos_compinfo *ci, hwcap_t hwc, paddr_t pa)
 
 	return (void*)call_cap_op(hwc, CAPTBL_OP_HW_MAP, ci->pgtbl_cap, va, pa, 0);
 }
+
+void *
+cos_va2pa(struct cos_compinfo *ci, void * vaddr)
+{
+	assert(ci || vaddr);
+
+        int paddr = call_cap_op(ci->pgtbl_cap, CAPTBL_OP_INTROSPECT, (int)vaddr, 0,0,0);
+	paddr = (paddr & 0xfffff000) | ((int)vaddr & 0x00000fff);
+        return (void *)paddr;
+}
