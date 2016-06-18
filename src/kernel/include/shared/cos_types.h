@@ -231,8 +231,13 @@ enum {
 	/* BOOT_CAPTBL_SELF_EXITTHD_BASE  = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ, */
 	BOOT_CAPTBL_SELF_INITTCAP_BASE = BOOT_CAPTBL_SELF_INITTHD_BASE + NUM_CPU_COS*CAP16B_IDSZ,
 	BOOT_CAPTBL_SELF_INITRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITTCAP_BASE + NUM_CPU_COS*CAP16B_IDSZ, CAPMAX_ENTRY_SZ),
-	BOOT_CAPTBL_SELF_INITHW_BASE   = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU_COS*CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
-	/* FIXME: just a workaround for now. using this for exit thd */
+	/* need a pair of ASND/RCV end point for Virtualization */
+	/* first draft with fixed slots.. */
+	/* FIXME: these VIRTRCV/VIRTASND is not initialized for initial component */
+	BOOT_CAPTBL_SELF_VIRTRCV_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_INITRCV_BASE + NUM_CPU_COS*CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
+	BOOT_CAPTBL_SELF_VIRTASND_BASE  = round_up_to_pow2(BOOT_CAPTBL_SELF_VIRTRCV_BASE + NUM_CPU_COS*CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
+	BOOT_CAPTBL_SELF_INITHW_BASE   = round_up_to_pow2(BOOT_CAPTBL_SELF_VIRTASND_BASE + NUM_CPU_COS*CAP64B_IDSZ, CAPMAX_ENTRY_SZ),
+	/* FIXME: hackish for now. using this for exit thd */
 	BOOT_CAPTBL_LAST_CAP           = round_up_to_pow2(BOOT_CAPTBL_SELF_INITHW_BASE + CAP32B_IDSZ, CAPMAX_ENTRY_SZ),
 	/* round up to next entry */
 	BOOT_CAPTBL_FREE               = round_up_to_pow2(BOOT_CAPTBL_LAST_CAP + CAP16B_IDSZ, CAPMAX_ENTRY_SZ)
@@ -240,8 +245,9 @@ enum {
 
 enum {
 	BOOT_MEM_VM_BASE = (COS_MEM_COMP_START_VA + (1<<22)), /* @ 1G + 8M */
-	BOOT_MEM_KM_BASE = 0x60000000, /* kernel memory @ 1.5 GB */
-	BOOT_MEM_PM_BASE = 0x80000000, /* user memory @ 2 GB */
+	BOOT_MEM_SHM_BASE = 0x20000000, /* shared memory region @ 512MB */
+	BOOT_MEM_KM_BASE = 0x60000000, /* kernel/user memory @ 1.5 GB */
+	BOOT_MEM_PM_BASE = 0x80000000, /* TODO: unused. needs cleanup */
 };
 
 enum {
@@ -842,5 +848,11 @@ typedef enum {
 #ifndef __KERNEL_PERCPU
 #define __KERNEL_PERCPU 0
 #endif
+
+#define COS_VIRT_MACH_COUNT 3
+#define COS_VIRT_MACH_MEM_SZ (1<<25) //32MB
+
+#define COS_SHM_VM_SZ (1<<20) //4MB
+#define COS_SHM_ALL_SZ ((COS_VIRT_MACH_COUNT - 1) * COS_SHM_VM_SZ) //shared regions with VM 0
 
 #endif /* TYPES_H */
